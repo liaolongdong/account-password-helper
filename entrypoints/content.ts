@@ -1,3 +1,4 @@
+import { defineContentScript } from 'wxt/sandbox';
 import type { Message, MessageType } from '../utils/types';
 
 export default defineContentScript({
@@ -102,9 +103,29 @@ export default defineContentScript({
           });
         });
 
-        // 检测复选框
+        // 检测复选框（包括隐藏的和可见的）
         const checkboxInputs = document.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-        this.checkboxFields = Array.from(checkboxInputs).filter(input => this.isVisible(input));
+        this.checkboxFields = Array.from(checkboxInputs).filter(input => {
+          // 只过滤那些完全不可交互的复选框
+          const style = window.getComputedStyle(input);
+          const isInteractable =
+            style.display !== 'none' && style.visibility !== 'hidden' && input.offsetParent !== null; // 检查是否在DOM中可见
+
+          console.log('复选框检测:', {
+            element: input,
+            id: input.id,
+            name: input.name,
+            className: input.className,
+            display: style.display,
+            visibility: style.visibility,
+            opacity: style.opacity,
+            offsetParent: input.offsetParent,
+            isInteractable: isInteractable,
+            label: this.getCheckboxLabel(input)
+          });
+
+          return isInteractable;
+        });
 
         // 为表单字段添加焦点监听器
         this.addFormListeners();
@@ -124,6 +145,14 @@ export default defineContentScript({
             name: f.name,
             id: f.id,
             className: f.className
+          })),
+          checkboxFieldDetails: this.checkboxFields.map(f => ({
+            id: f.id,
+            name: f.name,
+            className: f.className,
+            checked: f.checked,
+            disabled: f.disabled,
+            label: this.getCheckboxLabel(f)
           }))
         });
 
@@ -342,26 +371,516 @@ export default defineContentScript({
       }
 
       private autoCheckNearestCheckbox() {
-        if (this.checkboxFields.length === 0 || this.passwordFields.length === 0) return;
+        if (this.checkboxFields.length === 0) {
+          console.log('没有找到复选框');
+          return;
+        }
 
-        const passwordField = this.passwordFields[0];
-        let nearestCheckbox: HTMLInputElement | null = null;
-        let minDistance = Infinity;
+        console.log('开始自动勾选复选框，找到', this.checkboxFields.length, '个复选框');
 
-        // 找到距离密码框最近的复选框
+        // 获取参考元素（优先使用密码框，其次是用户名框）
+        const referenceField =
+          this.passwordFields.length > 0
+            ? this.passwordFields[0]
+            : this.usernameFields.length > 0
+              ? this.usernameFields[0]
+              : null;
+
+        if (!referenceField) {
+          console.log('没有找到参考元素');
+          return;
+        }
+
+        console.log('使用参考元素:', referenceField.type, referenceField.name || referenceField.id || '无名');
+
+        // 找到最合适的复选框
+        const targetCheckbox = this.findBestCheckbox(referenceField);
+
+        if (targetCheckbox && !targetCheckbox.checked) {
+          console.log('找到目标复选框，准备勾选:', {
+            id: targetCheckbox.id,
+            name: targetCheckbox.name,
+            className: targetCheckbox.className,
+            labelText: this.getCheckboxLabel(targetCheckbox)
+          });
+
+          // 勾选复选框
+          this.checkCheckbox(targetCheckbox);
+        } else if (targetCheckbox?.checked) {
+          console.log('目标复选框已经被勾选');
+        } else {
+          console.log('没有找到合适的复选框');
+        }
+      }
+
+      private findBestCheckbox(referenceField: HTMLInputElement): HTMLInputElement | null {
+        let bestCheckbox: HTMLInputElement | null = null;
+        let bestScore = -1;
+
         this.checkboxFields.forEach(checkbox => {
-          const distance = this.calculateDistance(passwordField, checkbox);
-          if (distance < minDistance) {
-            minDistance = distance;
-            nearestCheckbox = checkbox;
+          const score = this.calculateCheckboxScore(referenceField, checkbox);
+          console.log('复选框评分:', {
+            id: checkbox.id,
+            name: checkbox.name,
+            label: this.getCheckboxLabel(checkbox),
+            score: score
+          });
+
+          if (score > bestScore) {
+            bestScore = score;
+            bestCheckbox = checkbox;
           }
         });
 
-        // 自动勾选最近的复选框
-        if (nearestCheckbox && !nearestCheckbox.checked) {
-          nearestCheckbox.checked = true;
-          nearestCheckbox.dispatchEvent(new Event('change', { bubbles: true }));
-          console.log('自动勾选了复选框');
+        return bestCheckbox;
+      }
+
+      private calculateCheckboxScore(referenceField: HTMLInputElement, checkbox: HTMLInputElement): number {
+        let score = 0;
+
+        // 使用更准确的距离计算
+        const distance = this.calculateAccurateDistance(referenceField, checkbox);
+        const maxDistance = 2000; // 增加最大有效距离
+        const distanceScore = Math.max(0, (maxDistance - distance) / maxDistance) * 100;
+        score += distanceScore;
+
+        console.log('复选框距离计算:', {
+          checkboxId: checkbox.id || checkbox.name || '无ID',
+          distance: distance.toFixed(2),
+          distanceScore: distanceScore.toFixed(2)
+        });
+
+        // 获取复选框的标签文本
+        const labelText = this.getCheckboxLabel(checkbox).toLowerCase();
+
+        // 标签内容分数（相关关键词加分）
+        const positiveKeywords = [
+          '记住',
+          '记住我',
+          'remember',
+          'remember me',
+          '同意',
+          '已阅读',
+          '接受',
+          '确认',
+          'agree',
+          'accept',
+          'confirm',
+          'read',
+          '自动登录',
+          '保持登录',
+          'auto',
+          'stay',
+          'keep',
+          '服务条款',
+          '隐私政策',
+          '用户协议',
+          'terms',
+          'privacy',
+          'policy',
+          'agreement'
+        ];
+
+        const negativeKeywords = [
+          '发送',
+          '订阅',
+          '推送',
+          '通知',
+          'send',
+          'subscribe',
+          'newsletter',
+          'notification',
+          '广告',
+          '营销',
+          'marketing',
+          'ads',
+          'promotion'
+        ];
+
+        // 正向关键词加分
+        let keywordScore = 0;
+        positiveKeywords.forEach(keyword => {
+          if (labelText.includes(keyword)) {
+            keywordScore += 50;
+          }
+        });
+
+        // 负向关键词减分
+        negativeKeywords.forEach(keyword => {
+          if (labelText.includes(keyword)) {
+            keywordScore -= 30;
+          }
+        });
+
+        score += keywordScore;
+
+        // 位置关系分数
+        const positionScore = this.calculatePositionScore(referenceField, checkbox);
+        score += positionScore;
+
+        // 同一表单内的复选框加分
+        const refForm = referenceField.closest('form');
+        const checkboxForm = checkbox.closest('form');
+        if (refForm && checkboxForm && refForm === checkboxForm) {
+          score += 30;
+        }
+
+        // DOM层级关系加分
+        const hierarchyScore = this.calculateHierarchyScore(referenceField, checkbox);
+        score += hierarchyScore;
+
+        console.log('复选框综合评分:', {
+          checkboxId: checkbox.id || checkbox.name || '无ID',
+          labelText: labelText.substring(0, 30),
+          distanceScore: distanceScore.toFixed(2),
+          keywordScore,
+          positionScore,
+          hierarchyScore,
+          totalScore: score.toFixed(2)
+        });
+
+        return score;
+      }
+
+      // 更准确的距离计算（考虑不同层级）
+      private calculateAccurateDistance(elem1: HTMLElement, elem2: HTMLElement): number {
+        const rect1 = elem1.getBoundingClientRect();
+        const rect2 = elem2.getBoundingClientRect();
+
+        // 使用边缘距离而不是中心距离
+        const left1 = rect1.left;
+        const right1 = rect1.right;
+        const top1 = rect1.top;
+        const bottom1 = rect1.bottom;
+
+        const left2 = rect2.left;
+        const right2 = rect2.right;
+        const top2 = rect2.top;
+        const bottom2 = rect2.bottom;
+
+        // 计算最短距离
+        let dx = 0;
+        let dy = 0;
+
+        if (right1 < left2) {
+          dx = left2 - right1; // elem1在elem2左侧
+        } else if (right2 < left1) {
+          dx = left1 - right2; // elem1在elem2右侧
+        }
+        // 否则x轴有重叠，dx = 0
+
+        if (bottom1 < top2) {
+          dy = top2 - bottom1; // elem1在elem2上方
+        } else if (bottom2 < top1) {
+          dy = top1 - bottom2; // elem1在elem2下方
+        }
+        // 否则y轴有重叠，dy = 0
+
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      // 位置关系评分
+      private calculatePositionScore(referenceField: HTMLInputElement, checkbox: HTMLInputElement): number {
+        const refRect = referenceField.getBoundingClientRect();
+        const checkboxRect = checkbox.getBoundingClientRect();
+        let score = 0;
+
+        // 在密码框下方的复选框加分（更符合常见布局）
+        if (checkboxRect.top > refRect.bottom) {
+          const verticalDistance = checkboxRect.top - refRect.bottom;
+          if (verticalDistance < 100) {
+            score += 40; // 非常近的下方元素
+          } else if (verticalDistance < 200) {
+            score += 20; // 较近的下方元素
+          }
+        }
+
+        // 水平对齐加分
+        const horizontalOverlap =
+          Math.min(refRect.right, checkboxRect.right) - Math.max(refRect.left, checkboxRect.left);
+        if (horizontalOverlap > 0) {
+          score += 15; // 水平有重叠
+        }
+
+        return score;
+      }
+
+      // DOM层级关系评分
+      private calculateHierarchyScore(referenceField: HTMLInputElement, checkbox: HTMLInputElement): number {
+        let score = 0;
+
+        // 查找共同祖先元素
+        const commonAncestor = this.findCommonAncestor(referenceField, checkbox);
+        if (commonAncestor) {
+          // 计算到共同祖先的距离
+          const refDepth = this.getDepthFromAncestor(referenceField, commonAncestor);
+          const checkboxDepth = this.getDepthFromAncestor(checkbox, commonAncestor);
+
+          // 层级距离越近分数越高
+          const totalDepth = refDepth + checkboxDepth;
+          if (totalDepth <= 4) {
+            score += 25; // 非常近的层级关系
+          } else if (totalDepth <= 8) {
+            score += 15; // 较近的层级关系
+          } else if (totalDepth <= 12) {
+            score += 5; // 较远的层级关系
+          }
+        }
+
+        return score;
+      }
+
+      // 查找共同祖先元素
+      private findCommonAncestor(elem1: HTMLElement, elem2: HTMLElement): HTMLElement | null {
+        const ancestors1 = [];
+        let current = elem1.parentElement;
+        while (current) {
+          ancestors1.push(current);
+          current = current.parentElement;
+        }
+
+        current = elem2.parentElement;
+        while (current) {
+          if (ancestors1.includes(current)) {
+            return current;
+          }
+          current = current.parentElement;
+        }
+
+        return null;
+      }
+
+      // 计算到祖先元素的深度
+      private getDepthFromAncestor(elem: HTMLElement, ancestor: HTMLElement): number {
+        let depth = 0;
+        let current = elem.parentElement;
+
+        while (current && current !== ancestor) {
+          depth++;
+          current = current.parentElement;
+        }
+
+        return depth;
+      }
+
+      private getCheckboxLabel(checkbox: HTMLInputElement): string {
+        // 尝试多种方式获取复选框的标签文本
+
+        // 1. 通过 label 元素
+        if (checkbox.id) {
+          const label = document.querySelector(`label[for="${checkbox.id}"]`);
+          if (label) {
+            return label.textContent?.trim() || '';
+          }
+        }
+
+        // 2. 父级 label 元素
+        const parentLabel = checkbox.closest('label');
+        if (parentLabel) {
+          return parentLabel.textContent?.trim() || '';
+        }
+
+        // 3. 相邻元素的文本
+        const nextSibling = checkbox.nextElementSibling;
+        if (nextSibling) {
+          const text = nextSibling.textContent?.trim();
+          if (text) return text;
+        }
+
+        const prevSibling = checkbox.previousElementSibling;
+        if (prevSibling) {
+          const text = prevSibling.textContent?.trim();
+          if (text) return text;
+        }
+
+        // 4. 父元素的文本（排除复选框本身）
+        const parent = checkbox.parentElement;
+        if (parent) {
+          const clone = parent.cloneNode(true) as HTMLElement;
+          const checkboxClone = clone.querySelector('input[type="checkbox"]');
+          if (checkboxClone) {
+            checkboxClone.remove();
+          }
+          const text = clone.textContent?.trim();
+          if (text) return text;
+        }
+
+        // 5. 使用属性值
+        return checkbox.name || checkbox.id || checkbox.className || '未知复选框';
+      }
+
+      private checkCheckbox(checkbox: HTMLInputElement) {
+        try {
+          console.log('正在勾选复选框...', {
+            element: checkbox,
+            id: checkbox.id,
+            name: checkbox.name,
+            className: checkbox.className,
+            currentChecked: checkbox.checked,
+            disabled: checkbox.disabled,
+            label: this.getCheckboxLabel(checkbox)
+          });
+
+          // 检查是否禁用
+          if (checkbox.disabled) {
+            console.log('复选框被禁用，跳过');
+            return;
+          }
+
+          // 尝试多种方式勾选
+
+          // 方式1: 直接点击复选框
+          console.log('尝试方式1: 直接点击复选框');
+          checkbox.click();
+
+          // 等待一下看是否生效
+          setTimeout(() => {
+            console.log('方式1结果:', checkbox.checked);
+
+            if (!checkbox.checked) {
+              // 方式2: 设置值 + 触发事件
+              console.log('尝试方式2: 设置值 + 触发事件');
+              checkbox.checked = true;
+
+              // 触发多种事件
+              const events = [
+                new Event('change', { bubbles: true, cancelable: true }),
+                new Event('input', { bubbles: true, cancelable: true }),
+                new MouseEvent('click', { bubbles: true, cancelable: true }),
+                new Event('focus', { bubbles: true }),
+                new Event('blur', { bubbles: true })
+              ];
+
+              events.forEach(event => {
+                try {
+                  checkbox.dispatchEvent(event);
+                  console.log('触发事件:', event.type);
+                } catch (e) {
+                  console.error('触发事件失败:', event.type, e);
+                }
+              });
+
+              setTimeout(() => {
+                console.log('方式2结果:', checkbox.checked);
+
+                if (!checkbox.checked) {
+                  // 方式3: 通过 label 点击
+                  console.log('尝试方式3: 通过 label 点击');
+                  const label = this.findCheckboxLabel(checkbox);
+                  if (label) {
+                    console.log('找到关联的 label，尝试点击:', label);
+                    label.click();
+
+                    setTimeout(() => {
+                      console.log('方式3结果:', checkbox.checked);
+
+                      if (!checkbox.checked) {
+                        // 方式4: 模拟用户交互
+                        console.log('尝试方式4: 模拟用户交互');
+                        this.simulateUserInteraction(checkbox);
+                      } else {
+                        console.log('复选框勾选成功（方式3）');
+                      }
+                    }, 100);
+                  } else {
+                    console.log('未找到关联的 label');
+                    // 直接尝试方式4
+                    this.simulateUserInteraction(checkbox);
+                  }
+                } else {
+                  console.log('复选框勾选成功（方式2）');
+                }
+              }, 100);
+            } else {
+              console.log('复选框勾选成功（方式1）');
+            }
+          }, 100);
+        } catch (error) {
+          console.error('勾选复选框失败:', error);
+        }
+      }
+
+      private findCheckboxLabel(checkbox: HTMLInputElement): HTMLElement | null {
+        // 查找与复选框关联的 label 元素
+
+        // 1. 通过 for 属性关联
+        if (checkbox.id) {
+          const label = document.querySelector(`label[for="${checkbox.id}"]`);
+          if (label) {
+            console.log('通过 for 属性找到 label:', label);
+            return label as HTMLElement;
+          }
+        }
+
+        // 2. 父级 label 元素
+        const parentLabel = checkbox.closest('label');
+        if (parentLabel) {
+          console.log('找到父级 label:', parentLabel);
+          return parentLabel;
+        }
+
+        // 3. 查找与复选框在同一容器内的 label
+        const container = checkbox.parentElement;
+        if (container) {
+          const containerLabels = container.querySelectorAll('label');
+          if (containerLabels.length === 1) {
+            console.log('找到同一容器内的 label:', containerLabels[0]);
+            return containerLabels[0] as HTMLElement;
+          }
+        }
+
+        return null;
+      }
+
+      private simulateUserInteraction(checkbox: HTMLInputElement) {
+        console.log('模拟用户交互...');
+
+        try {
+          // 模拟鼠标事件序列
+          const rect = checkbox.getBoundingClientRect();
+          const centerX = rect.left + rect.width / 2;
+          const centerY = rect.top + rect.height / 2;
+
+          const mouseEvents = [
+            new MouseEvent('mousedown', {
+              bubbles: true,
+              cancelable: true,
+              clientX: centerX,
+              clientY: centerY,
+              button: 0
+            }),
+            new MouseEvent('mouseup', {
+              bubbles: true,
+              cancelable: true,
+              clientX: centerX,
+              clientY: centerY,
+              button: 0
+            }),
+            new MouseEvent('click', {
+              bubbles: true,
+              cancelable: true,
+              clientX: centerX,
+              clientY: centerY,
+              button: 0
+            })
+          ];
+
+          // 设置值
+          const originalValue = checkbox.checked;
+          checkbox.checked = !originalValue;
+
+          // 触发鼠标事件
+          mouseEvents.forEach(event => {
+            checkbox.dispatchEvent(event);
+          });
+
+          // 触发表单事件
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+          checkbox.dispatchEvent(new Event('input', { bubbles: true }));
+
+          console.log('模拟交互完成，结果:', checkbox.checked);
+        } catch (error) {
+          console.error('模拟交互失败:', error);
         }
       }
 

@@ -5,6 +5,7 @@
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
@@ -26,6 +27,6 @@
       "@/assets/*": ["./assets/*"]
     }
   },
-  "include": ["entrypoints/**/*", "components/**/*", "utils/**/*"],
+  "include": ["entrypoints/**/*", "components/**/*", "utils/**/*", "types/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

@@ -57,8 +57,13 @@ onMounted(async () => {
 
 // 打开选项页面
 const openOptions = () => {
-  chrome.runtime.openOptionsPage();
-  window.close();
+  // chrome.runtime.openOptionsPage();
+  // window.close();
+
+  // 获取选项页面的完整URL
+  const optionsUrl = chrome.runtime.getURL('options.html');
+  // 在新标签页中创建并打开
+  chrome.tabs.create({ url: optionsUrl });
 };
 
 // 打开侧边栏

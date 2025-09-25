@@ -1,0 +1,36 @@
+// 全局类型声明文件
+// 用于解决 CSS 文件导入的 TypeScript 类型问题
+
+// Vue 单文件组件声明
+declare module '*.vue' {
+  import type { DefineComponent } from 'vue';
+  const component: DefineComponent<{}, {}, any>;
+  export default component;
+}
+
+// 通用 CSS 模块声明
+declare module '*.css' {
+  const content: Record<string, string>;
+  export default content;
+}
+
+declare module '*.scss' {
+  const content: Record<string, string>;
+  export default content;
+}
+
+declare module '*.less' {
+  const content: Record<string, string>;
+  export default content;
+}
+
+// Element Plus 样式文件的特定声明
+declare module 'element-plus/dist/index.css' {
+  const content: any;
+  export = content;
+}
+
+declare module 'element-plus/theme-chalk/index.css' {
+  const content: any;
+  export = content;
+}

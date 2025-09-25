@@ -1,3 +1,4 @@
+import { defineBackground } from 'wxt/sandbox';
 import type { Message } from '../utils/types';
 
 export default defineBackground(() => {

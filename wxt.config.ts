@@ -21,5 +21,10 @@ export default defineConfig({
     version: '1.0.0',
     permissions: ['storage', 'activeTab', 'scripting', 'sidePanel'],
     host_permissions: ['<all_urls>']
+    // 通过这种方式并没有实现整屏展示options页面
+    // options_ui: {
+    //   page: 'options.html',
+    //   open_in_tab: true // 强制在新标签页打开
+    // }
   }
 });

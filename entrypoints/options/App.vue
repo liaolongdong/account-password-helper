@@ -295,38 +295,45 @@
     >
       <!-- 头部 -->
       <div class="header">
-        <div class="header-title">
-          <h1>
-            <el-icon class="logo"><Key /></el-icon>
-            密码管理助手
-          </h1>
+        <!-- 第一行：标题和Logo -->
+        <div class="header-title-row">
+          <div class="header-title">
+            <h1>
+              <el-icon class="logo"><Key /></el-icon>
+              密码管理助手
+            </h1>
+          </div>
         </div>
-        <div class="header-actions">
-          <el-button
-            :icon="Download"
-            @click="downloadTemplate"
-          >
-            下载模板
-          </el-button>
-          <el-button
-            :icon="Upload"
-            @click="showImportDialog = true"
-          >
-            导入Excel
-          </el-button>
-          <el-button
-            :icon="Download"
-            @click="exportPasswords"
-          >
-            导出Excel
-          </el-button>
-          <el-button
-            type="primary"
-            :icon="Plus"
-            @click="showPasswordForm = true"
-          >
-            添加密码
-          </el-button>
+
+        <!-- 第二行：操作按钮 -->
+        <div class="header-actions-row">
+          <div class="header-actions">
+            <el-button
+              :icon="Download"
+              @click="downloadTemplate"
+            >
+              下载模板
+            </el-button>
+            <el-button
+              :icon="Upload"
+              @click="showImportDialog = true"
+            >
+              导入Excel
+            </el-button>
+            <el-button
+              :icon="Download"
+              @click="exportPasswords"
+            >
+              导出Excel
+            </el-button>
+            <el-button
+              type="primary"
+              :icon="Plus"
+              @click="showPasswordForm = true"
+            >
+              添加密码
+            </el-button>
+          </div>
         </div>
       </div>
 
@@ -395,7 +402,23 @@
             prop="tag"
             label="标签"
             min-width="100"
-          />
+          >
+            <template #default="{ row }">
+              <el-tag
+                v-if="row.tag"
+                :type="getTagType(row.tag)"
+                size="small"
+                class="tag-item"
+              >
+                {{ row.tag }}
+              </el-tag>
+              <span
+                v-else
+                class="no-tag"
+                >-</span
+              >
+            </template>
+          </el-table-column>
           <el-table-column
             prop="remark"
             label="备注"
@@ -870,6 +893,75 @@ const downloadTemplate = () => {
     ElMessage.error('模板下载失败');
   }
 };
+
+// 获取标签颜色类型
+const getTagType = (tag: string): string => {
+  const tagLower = tag.toLowerCase();
+
+  // 工作相关标签
+  if (
+    tagLower.includes('工作') ||
+    tagLower.includes('work') ||
+    tagLower.includes('office') ||
+    tagLower.includes('公司')
+  ) {
+    return 'primary';
+  }
+
+  // 个人相关标签
+  if (tagLower.includes('个人') || tagLower.includes('personal') || tagLower.includes('私人')) {
+    return 'success';
+  }
+
+  // 学习相关标签
+  if (
+    tagLower.includes('学习') ||
+    tagLower.includes('study') ||
+    tagLower.includes('课程') ||
+    tagLower.includes('教育')
+  ) {
+    return 'warning';
+  }
+
+  // 游戏相关标签
+  if (tagLower.includes('游戏') || tagLower.includes('game') || tagLower.includes('娱乐')) {
+    return 'danger';
+  }
+
+  // 购物相关标签
+  if (
+    tagLower.includes('购物') ||
+    tagLower.includes('shop') ||
+    tagLower.includes('电商') ||
+    tagLower.includes('淘宝') ||
+    tagLower.includes('京东')
+  ) {
+    return 'info';
+  }
+
+  // 社交相关标签
+  if (
+    tagLower.includes('社交') ||
+    tagLower.includes('social') ||
+    tagLower.includes('微信') ||
+    tagLower.includes('qq')
+  ) {
+    return 'success';
+  }
+
+  // 金融相关标签
+  if (
+    tagLower.includes('银行') ||
+    tagLower.includes('金融') ||
+    tagLower.includes('支付') ||
+    tagLower.includes('理财')
+  ) {
+    return 'warning';
+  }
+
+  // 默认标签
+  return '';
+};
 </script>
 
 <style scoped>
@@ -933,14 +1025,14 @@ const downloadTemplate = () => {
 
 .form-card {
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.1);
+  box-shadow: 0 4px 12px rgb(64 158 255 / 10%);
   border: 1px solid #e3f2fd;
   overflow: hidden;
 }
 
 :deep(.form-card .el-card__body) {
   padding: 32px;
-  background: #ffffff;
+  background: #fff;
 }
 
 /* 验证页面样式 */
@@ -1015,7 +1107,7 @@ const downloadTemplate = () => {
 
 .password-form-card {
   border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.08);
+  box-shadow: 0 2px 8px rgb(64 158 255 / 8%);
   border: 1px solid #e3f2fd;
 }
 
@@ -1054,10 +1146,16 @@ const downloadTemplate = () => {
   padding: 24px 32px;
   margin-bottom: 24px;
   border-radius: 0;
-  box-shadow: 0 2px 12px rgba(64, 158, 255, 0.15);
+  box-shadow: 0 2px 12px rgb(64 158 255 / 15%);
+  display: flex;
   flex-direction: column;
-  align-items: flex-start;
   gap: 16px;
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
 .header-title h1 {
@@ -1071,20 +1169,26 @@ const downloadTemplate = () => {
 
 .header-title .logo {
   font-size: 28px;
-  color: #ffffff;
+  color: #fff;
   margin-right: 12px;
+}
+
+.header-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: 100%;
 }
 
 .header-actions {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
-  width: 100%;
 }
 
 :deep(.header-actions .el-button) {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgb(255 255 255 / 15%);
+  border: 1px solid rgb(255 255 255 / 25%);
   color: white;
   backdrop-filter: blur(10px);
   transition: all 0.2s ease;
@@ -1092,15 +1196,15 @@ const downloadTemplate = () => {
 }
 
 :deep(.header-actions .el-button:hover) {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.4);
+  background: rgb(255 255 255 / 20%);
+  border-color: rgb(255 255 255 / 40%);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
 }
 
 :deep(.header-actions .el-button--primary) {
-  background: #ffffff;
-  border: 1px solid #ffffff;
+  background: #fff;
+  border: 1px solid #fff;
   color: #409eff;
   font-weight: 500;
 }
@@ -1110,7 +1214,7 @@ const downloadTemplate = () => {
   border-color: #f0f9ff;
   color: #1890ff;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
 }
 
 .filters {
@@ -1118,7 +1222,7 @@ const downloadTemplate = () => {
   padding: 20px;
   background: white;
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(64, 158, 255, 0.08);
+  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
   border: 1px solid #e3f2fd;
   display: flex;
   justify-content: space-between;
@@ -1129,7 +1233,7 @@ const downloadTemplate = () => {
   margin: 0 32px 32px;
   background: white;
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgba(64, 158, 255, 0.08);
+  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
   border: 1px solid #e3f2fd;
   overflow: hidden;
 }
@@ -1138,9 +1242,8 @@ const downloadTemplate = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
 }
-
-/* 输入框优化 */
 :deep(.el-input--large .el-input__wrapper) {
   border-radius: 6px;
   box-shadow: none;
@@ -1154,7 +1257,7 @@ const downloadTemplate = () => {
 
 :deep(.el-input--large .el-input__wrapper.is-focus) {
   border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+  box-shadow: 0 0 0 2px rgb(64 158 255 / 10%);
 }
 
 :deep(.el-input .el-input__wrapper) {
@@ -1170,7 +1273,7 @@ const downloadTemplate = () => {
 
 :deep(.el-input .el-input__wrapper.is-focus) {
   border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
+  box-shadow: 0 0 0 2px rgb(64 158 255 / 10%);
 }
 
 /* 按钮优化 */
@@ -1188,7 +1291,7 @@ const downloadTemplate = () => {
   background: #66b3ff;
   border-color: #66b3ff;
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.3);
+  box-shadow: 0 4px 12px rgb(64 158 255 / 30%);
 }
 
 :deep(.el-button--primary) {
@@ -1297,7 +1400,7 @@ const downloadTemplate = () => {
 }
 
 /* 响应式设计 */
-@media (max-width: 768px) {
+@media (width <= 768px) {
   .header {
     padding: 20px;
   }
@@ -1307,6 +1410,11 @@ const downloadTemplate = () => {
   }
 
   .header-actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .header-actions-row {
     justify-content: center;
   }
 
@@ -1337,5 +1445,21 @@ const downloadTemplate = () => {
   .form-actions .el-button {
     width: 100%;
   }
+}
+
+/* 标签样式 */
+.tag-item {
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.no-tag {
+  color: #c0c4cc;
+  font-style: italic;
+  font-size: 12px;
 }
 </style>
