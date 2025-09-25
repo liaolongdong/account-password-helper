@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build outputs  
+.output/
+dist/
+build/
+
+# WXT cache
+.wxt/
+
+# Logs
+*.log
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Generated files
+*.d.ts
+
+# Chrome extension files
+*.crx
+*.pem
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+.qoder/

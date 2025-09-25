@@ -1,0 +1,38 @@
+{
+  "semi": true,
+  "trailingComma": "none",
+  "singleQuote": true,
+  "printWidth": 120,
+  "tabWidth": 2,
+  "useTabs": false,
+  "quoteProps": "as-needed",
+  "bracketSpacing": true,
+  "bracketSameLine": false,
+  "arrowParens": "avoid",
+  "endOfLine": "lf",
+  "embeddedLanguageFormatting": "auto",
+  "singleAttributePerLine": true,
+  "vueIndentScriptAndStyle": false,
+  "overrides": [
+    {
+      "files": "*.vue",
+      "options": {
+        "parser": "vue"
+      }
+    },
+    {
+      "files": ["*.json", "*.jsonc"],
+      "options": {
+        "parser": "json"
+      }
+    },
+    {
+      "files": "*.md",
+      "options": {
+        "parser": "markdown",
+        "printWidth": 80,
+        "proseWrap": "preserve"
+      }
+    }
+  ]
+}

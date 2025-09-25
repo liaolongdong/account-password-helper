@@ -1,0 +1,48 @@
+{
+  "name": "account-password-helper",
+  "version": "1.0.0",
+  "description": "Chrome extension for account password management",
+  "type": "module",
+  "scripts": {
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "postbuild": "wxt zip",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .vue,.js,.ts,.jsx,.tsx --max-warnings 0",
+    "lint:fix": "eslint . --ext .vue,.js,.ts,.jsx,.tsx --fix",
+    "lint:style": "stylelint **/*.{vue,css,scss} --cache --cache-location node_modules/.cache/stylelint/",
+    "lint:style:fix": "stylelint **/*.{vue,css,scss} --fix --cache --cache-location node_modules/.cache/stylelint/",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:all": "npm run lint && npm run lint:style && npm run format:check",
+    "fix:all": "npm run lint:fix && npm run lint:style:fix && npm run format"
+  },
+  "dependencies": {
+    "crypto-js": "^4.2.0",
+    "element-plus": "^2.4.2",
+    "vue": "^3.3.8",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.251",
+    "@types/crypto-js": "^4.2.1",
+    "@typescript-eslint/eslint-plugin": "^8.44.1",
+    "@typescript-eslint/parser": "^8.44.1",
+    "@vue/eslint-config-typescript": "^14.6.0",
+    "@wxt-dev/module-vue": "^1.0.1",
+    "eslint": "^9.36.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.5.0",
+    "postcss-html": "^1.8.0",
+    "prettier": "^3.6.2",
+    "stylelint": "^16.24.0",
+    "stylelint-config-prettier": "^9.0.5",
+    "stylelint-config-recess-order": "^7.3.0",
+    "stylelint-config-standard": "^39.0.0",
+    "stylelint-order": "^7.0.0",
+    "typescript": "^5.2.2",
+    "wxt": "^0.19.16"
+  }
+}

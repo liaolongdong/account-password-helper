@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>登录表单测试页面</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 500px;
+        margin: 50px auto;
+        padding: 20px;
+        background-color: #f5f5f5;
+      }
+      .login-form {
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .form-group {
+        margin-bottom: 20px;
+      }
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #333;
+      }
+      input[type='text'],
+      input[type='email'],
+      input[type='password'] {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 16px;
+        box-sizing: border-box;
+      }
+      input[type='checkbox'] {
+        margin-right: 8px;
+      }
+      .checkbox-group {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .login-btn {
+        width: 100%;
+        padding: 12px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+      .login-btn:hover {
+        background-color: #0056b3;
+      }
+      h2 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 30px;
+      }
+      .test-info {
+        background: #e3f2fd;
+        padding: 15px;
+        border-radius: 4px;
+        margin-bottom: 20px;
+        border-left: 4px solid #2196f3;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="test-info">
+      <h3>测试说明</h3>
+      <p>这是一个登录表单测试页面，用于验证Chrome插件的自动填充功能：</p>
+      <ul>
+        <li>点击用户名或密码输入框时，应该会自动显示侧边栏</li>
+        <li>在侧边栏中点击密码条目，应该会自动填充到表单中</li>
+        <li>填充后会自动勾选"记住我"复选框</li>
+      </ul>
+    </div>
+
+    <div class="login-form">
+      <h2>用户登录</h2>
+      <form id="loginForm">
+        <div class="form-group">
+          <label for="username">用户名/邮箱：</label>
+          <input
+            type="email"
+            id="username"
+            name="username"
+            placeholder="请输入用户名或邮箱"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="password">密码：</label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            placeholder="请输入密码"
+          />
+        </div>
+
+        <div class="checkbox-group">
+          <input
+            type="checkbox"
+            id="remember"
+            name="remember"
+          />
+          <label for="remember">记住我</label>
+        </div>
+
+        <button
+          type="submit"
+          class="login-btn"
+        >
+          登录
+        </button>
+      </form>
+    </div>
+
+    <script>
+      // 表单提交处理
+      document.getElementById('loginForm').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const remember = document.getElementById('remember').checked;
+
+        console.log('表单提交数据:', {
+          username: username,
+          password: password ? '*'.repeat(password.length) : '',
+          remember: remember
+        });
+
+        alert('登录功能仅用于测试，实际不会提交到服务器');
+      });
+
+      // 添加输入事件监听
+      document.getElementById('username').addEventListener('focus', function () {
+        console.log('用户名输入框获得焦点');
+      });
+
+      document.getElementById('password').addEventListener('focus', function () {
+        console.log('密码输入框获得焦点');
+      });
+
+      document.getElementById('username').addEventListener('input', function () {
+        console.log('用户名输入框内容变化:', this.value);
+      });
+
+      document.getElementById('password').addEventListener('input', function () {
+        console.log('密码输入框内容变化:', this.value ? '*'.repeat(this.value.length) : '');
+      });
+    </script>
+  </body>
+</html>
