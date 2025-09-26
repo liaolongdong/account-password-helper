@@ -166,128 +166,6 @@
       </div>
     </div>
 
-    <!-- 密码表单页面 -->
-    <div
-      v-else-if="showPasswordForm"
-      class="form-page"
-    >
-      <div class="form-container">
-        <div class="form-header">
-          <div class="form-back">
-            <el-button
-              :icon="ArrowLeft"
-              @click="backToMain"
-              link
-            >
-              返回密码管理
-            </el-button>
-          </div>
-          <div class="form-title">
-            <h2>{{ isEditingPassword ? '编辑密码' : '添加密码' }}</h2>
-          </div>
-        </div>
-
-        <div class="form-content">
-          <el-card class="password-form-card">
-            <el-form
-              ref="passwordFormRef"
-              :model="passwordForm"
-              :rules="passwordFormRules"
-              label-width="100px"
-              label-position="top"
-              size="large"
-            >
-              <div class="form-row">
-                <el-form-item
-                  label="用户名"
-                  prop="username"
-                >
-                  <el-input
-                    v-model="passwordForm.username"
-                    placeholder="请输入用户名或邮箱"
-                    :disabled="passwordFormLoading"
-                  />
-                </el-form-item>
-              </div>
-
-              <div class="form-row">
-                <el-form-item
-                  label="密码"
-                  prop="password"
-                >
-                  <el-input
-                    v-model="passwordForm.password"
-                    type="password"
-                    placeholder="请输入密码"
-                    show-password
-                    :disabled="passwordFormLoading"
-                  />
-                </el-form-item>
-              </div>
-
-              <div class="form-row">
-                <el-form-item
-                  label="网站URL"
-                  prop="url"
-                >
-                  <el-input
-                    v-model="passwordForm.url"
-                    placeholder="选填，不填则匹配所有网站"
-                    :disabled="passwordFormLoading"
-                  />
-                </el-form-item>
-              </div>
-
-              <div class="form-row-half">
-                <el-form-item
-                  label="标签"
-                  prop="tag"
-                >
-                  <el-input
-                    v-model="passwordForm.tag"
-                    placeholder="如：工作、个人等"
-                    :disabled="passwordFormLoading"
-                  />
-                </el-form-item>
-              </div>
-
-              <div class="form-row">
-                <el-form-item
-                  label="备注"
-                  prop="remark"
-                >
-                  <el-input
-                    v-model="passwordForm.remark"
-                    type="textarea"
-                    :rows="3"
-                    placeholder="选填，备注信息"
-                    :disabled="passwordFormLoading"
-                  />
-                </el-form-item>
-              </div>
-
-              <div class="form-actions">
-                <el-button
-                  size="large"
-                  @click="backToMain"
-                >
-                  取消
-                </el-button>
-                <el-button
-                  type="primary"
-                  size="large"
-                  :loading="passwordFormLoading"
-                  @click="handlePasswordFormSave"
-                >
-                  {{ isEditingPassword ? '更新' : '保存' }}
-                </el-button>
-              </div>
-            </el-form>
-          </el-card>
-        </div>
-      </div>
-    </div>
-
     <!-- 主内容区域 -->
     <div
       v-if="isAuthenticated"
@@ -329,7 +207,7 @@
             <el-button
               type="primary"
               :icon="Plus"
-              @click="showPasswordForm = true"
+              @click="openPasswordDialog"
             >
               添加密码
             </el-button>
@@ -436,24 +314,30 @@
           </el-table-column>
           <el-table-column
             label="操作"
-            width="120"
+            header-align="center"
+            width="140"
+            fixed="right"
           >
             <template #default="{ row }">
-              <el-button
-                :icon="Edit"
-                link
-                @click="editPassword(row)"
-              >
-                编辑
-              </el-button>
-              <el-button
-                :icon="Delete"
-                link
-                type="danger"
-                @click="deletePassword(row.id)"
-              >
-                删除
-              </el-button>
+              <div class="operation-buttons">
+                <el-button
+                  :icon="Edit"
+                  link
+                  size="small"
+                  @click="editPassword(row)"
+                >
+                  编辑
+                </el-button>
+                <el-button
+                  :icon="Delete"
+                  link
+                  size="small"
+                  type="danger"
+                  @click="deletePassword(row.id)"
+                >
+                  删除
+                </el-button>
+              </div>
             </template>
           </el-table-column>
         </el-table>
@@ -465,6 +349,101 @@
       v-model="showImportDialog"
       @imported="handlePasswordsImported"
     />
+
+    <!-- 密码表单弹窗 -->
+    <el-dialog
+      v-model="showPasswordDialog"
+      :title="isEditingPassword ? '编辑密码' : '添加密码'"
+      width="600px"
+      :close-on-click-modal="false"
+      @closed="resetPasswordForm"
+    >
+      <el-form
+        ref="passwordFormRef"
+        :model="passwordForm"
+        :rules="passwordFormRules"
+        label-width="100px"
+        size="large"
+      >
+        <el-form-item
+          label="用户名"
+          prop="username"
+        >
+          <el-input
+            v-model="passwordForm.username"
+            placeholder="请输入用户名或邮箱"
+            :disabled="passwordFormLoading"
+          />
+        </el-form-item>
+
+        <el-form-item
+          label="密码"
+          prop="password"
+        >
+          <el-input
+            v-model="passwordForm.password"
+            type="password"
+            placeholder="请输入密码"
+            show-password
+            :disabled="passwordFormLoading"
+          />
+        </el-form-item>
+
+        <el-form-item
+          label="网站URL"
+          prop="url"
+        >
+          <el-input
+            v-model="passwordForm.url"
+            placeholder="选填，不填则匹配所有网站"
+            :disabled="passwordFormLoading"
+          />
+        </el-form-item>
+
+        <el-form-item
+          label="标签"
+          prop="tag"
+        >
+          <el-input
+            v-model="passwordForm.tag"
+            placeholder="如：工作、个人等"
+            :disabled="passwordFormLoading"
+          />
+        </el-form-item>
+
+        <el-form-item
+          label="备注"
+          prop="remark"
+        >
+          <el-input
+            v-model="passwordForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="选填，备注信息"
+            :disabled="passwordFormLoading"
+          />
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button
+            size="large"
+            @click="showPasswordDialog = false"
+          >
+            取消
+          </el-button>
+          <el-button
+            type="primary"
+            size="large"
+            :loading="passwordFormLoading"
+            @click="handlePasswordFormSave"
+          >
+            {{ isEditingPassword ? '更新' : '保存' }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -544,6 +523,7 @@ const passwordFormRules: FormRules = {
 
 // 业务数据
 const showImportDialog = ref(false);
+const showPasswordDialog = ref(false);
 const searchKeyword = ref('');
 const selectedIds = ref<string[]>([]);
 const passwords = ref<PasswordEntry[]>([]);
@@ -552,8 +532,14 @@ const editingPasswordId = ref<string>('');
 
 // 计算属性
 const filteredPasswords = computed(() => {
-  if (!searchKeyword.value) return passwords.value;
-  return passwords.value.filter(
+  let result = passwords.value;
+
+  // 按照添加时间倒序排列
+  result = result.sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
+
+  // 搜索过滤
+  if (!searchKeyword.value) return result;
+  return result.filter(
     p =>
       p.username.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
       p.tag.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
@@ -755,6 +741,21 @@ const handleSelectionChange = (selection: PasswordEntry[]) => {
   selectedIds.value = selection.map(item => item.id);
 };
 
+// 打开密码弹窗（新增）
+const openPasswordDialog = () => {
+  isEditingPassword.value = false;
+  editingPasswordId.value = '';
+  // 清空表单
+  passwordForm.value = {
+    username: '',
+    password: '',
+    url: '',
+    tag: '',
+    remark: ''
+  };
+  showPasswordDialog.value = true;
+};
+
 // 编辑密码
 const editPassword = (password: PasswordEntry) => {
   isEditingPassword.value = true;
@@ -767,12 +768,11 @@ const editPassword = (password: PasswordEntry) => {
     tag: password.tag,
     remark: password.remark
   };
-  showPasswordForm.value = true;
+  showPasswordDialog.value = true;
 };
 
-// 返回主界面
-const backToMain = () => {
-  showPasswordForm.value = false;
+// 重置密码表单
+const resetPasswordForm = () => {
   isEditingPassword.value = false;
   editingPasswordId.value = '';
   // 清空表单
@@ -783,6 +783,10 @@ const backToMain = () => {
     tag: '',
     remark: ''
   };
+  // 清除表单验证状态
+  if (passwordFormRef.value) {
+    passwordFormRef.value.clearValidate();
+  }
 };
 
 // 处理密码表单保存
@@ -816,7 +820,8 @@ const handlePasswordFormSave = async () => {
     }
 
     await loadPasswords();
-    backToMain();
+    showPasswordDialog.value = false;
+    resetPasswordForm();
   } catch (error) {
     console.error('保存密码失败:', error);
     ElMessage.error('保存失败');
@@ -1461,5 +1466,26 @@ const getTagType = (tag: string): string => {
   color: #c0c4cc;
   font-style: italic;
   font-size: 12px;
+}
+
+/* 操作按钮样式 */
+.operation-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.operation-buttons .el-button {
+  font-size: 12px;
+  height: auto;
+  min-height: 28px;
+}
+
+/* 弹窗样式 */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
 }
 </style>
