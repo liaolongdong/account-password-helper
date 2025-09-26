@@ -10,6 +10,8 @@ export default defineContentScript({
     class FormDetector {
       private passwordFields: HTMLInputElement[] = [];
       private usernameFields: HTMLInputElement[] = [];
+      private mobileFields: HTMLInputElement[] = [];
+      private verifyCodeFields: HTMLInputElement[] = [];
       private checkboxFields: HTMLInputElement[] = [];
       private observer: MutationObserver;
 
@@ -27,6 +29,11 @@ export default defineContentScript({
         } else {
           setTimeout(() => this.detectForms(), 1000);
         }
+
+        // 定时重新检测表单（针对动态加载的表单）
+        setInterval(() => {
+          this.detectForms();
+        }, 3000); // 每3秒检测一次
 
         // 监听消息
         chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
@@ -47,7 +54,9 @@ export default defineContentScript({
                   element.querySelector &&
                   (element.querySelector('input[type="password"]') ||
                     element.querySelector('input[type="email"]') ||
-                    element.querySelector('input[type="text"]'))
+                    element.querySelector('input[type="text"]') ||
+                    element.querySelector('input[type="tel"]') ||
+                    element.querySelector('input[type="number"]'))
                 ) {
                   shouldRedetect = true;
                 }
@@ -56,6 +65,7 @@ export default defineContentScript({
           });
 
           if (shouldRedetect) {
+            console.log('检测到新表单字段，重新检测表单');
             setTimeout(() => this.detectForms(), 500);
           }
         });
@@ -72,6 +82,8 @@ export default defineContentScript({
         // 清空之前的检测结果
         this.passwordFields = [];
         this.usernameFields = [];
+        this.mobileFields = [];
+        this.verifyCodeFields = [];
         this.checkboxFields = [];
 
         // 检测密码字段
@@ -99,6 +111,88 @@ export default defineContentScript({
           Array.from(inputs).forEach(input => {
             if (this.isVisible(input) && !this.usernameFields.includes(input)) {
               this.usernameFields.push(input);
+            }
+          });
+        });
+
+        // 检测手机号码字段
+        const mobileSelectors = [
+          'input[type="tel"]',
+          'input[type="text"][name*="phone"]',
+          'input[type="text"][name*="mobile"]',
+          'input[type="text"][id*="phone"]',
+          'input[type="text"][id*="mobile"]',
+          'input[type="text"][placeholder*="手机"]',
+          'input[type="text"][placeholder*="电话"]',
+          'input[type="text"][placeholder*="phone"]',
+          'input[type="text"][placeholder*="mobile"]',
+          'input[type="number"][name*="phone"]',
+          'input[type="number"][name*="mobile"]',
+          'input[type="number"][placeholder*="手机"]',
+          'input[type="number"][placeholder*="电话"]',
+          // 新增更多选择器
+          'input[name*="phoneNumber"]',
+          'input[name*="mobilePhone"]',
+          'input[id*="phoneNumber"]',
+          'input[id*="mobilePhone"]',
+          'input[class*="phone"]',
+          'input[class*="mobile"]',
+          'input[placeholder*="请输入手机号"]',
+          'input[placeholder*="请输入电话号码"]'
+        ];
+
+        mobileSelectors.forEach(selector => {
+          const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
+          Array.from(inputs).forEach(input => {
+            if (this.isVisible(input) && !this.mobileFields.includes(input) && !this.usernameFields.includes(input)) {
+              console.log('发现手机号码字段:', selector, input.type, input.name || input.id);
+              this.mobileFields.push(input);
+            }
+          });
+        });
+
+        // 检测验证码字段
+        const verifyCodeSelectors = [
+          'input[type="text"][name*="code"]',
+          'input[type="text"][name*="captcha"]',
+          'input[type="text"][name*="verify"]',
+          'input[type="text"][id*="code"]',
+          'input[type="text"][id*="captcha"]',
+          'input[type="text"][id*="verify"]',
+          'input[type="text"][placeholder*="验证码"]',
+          'input[type="text"][placeholder*="验证"]',
+          'input[type="text"][placeholder*="code"]',
+          'input[type="text"][placeholder*="captcha"]',
+          'input[type="number"][name*="code"]',
+          'input[type="number"][name*="captcha"]',
+          'input[type="number"][placeholder*="验证码"]',
+          // 新增更多选择器
+          'input[name*="verifyCode"]',
+          'input[name*="authCode"]',
+          'input[name*="checkCode"]',
+          'input[name*="smsCode"]',
+          'input[id*="verifyCode"]',
+          'input[id*="authCode"]',
+          'input[id*="checkCode"]',
+          'input[id*="smsCode"]',
+          'input[class*="code"]',
+          'input[class*="verify"]',
+          'input[placeholder*="请输入验证码"]',
+          'input[placeholder*="短信验证码"]',
+          'input[placeholder*="请输入短信验证码"]'
+        ];
+
+        verifyCodeSelectors.forEach(selector => {
+          const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
+          Array.from(inputs).forEach(input => {
+            if (
+              this.isVisible(input) &&
+              !this.verifyCodeFields.includes(input) &&
+              !this.usernameFields.includes(input) &&
+              !this.mobileFields.includes(input)
+            ) {
+              console.log('发现验证码字段:', selector, input.type, input.name || input.id);
+              this.verifyCodeFields.push(input);
             }
           });
         });
@@ -133,6 +227,8 @@ export default defineContentScript({
         console.log('表单检测完成:', {
           passwordFields: this.passwordFields.length,
           usernameFields: this.usernameFields.length,
+          mobileFields: this.mobileFields.length,
+          verifyCodeFields: this.verifyCodeFields.length,
           checkboxFields: this.checkboxFields.length,
           passwordFieldDetails: this.passwordFields.map(f => ({
             type: f.type,
@@ -141,6 +237,18 @@ export default defineContentScript({
             className: f.className
           })),
           usernameFieldDetails: this.usernameFields.map(f => ({
+            type: f.type,
+            name: f.name,
+            id: f.id,
+            className: f.className
+          })),
+          mobileFieldDetails: this.mobileFields.map(f => ({
+            type: f.type,
+            name: f.name,
+            id: f.id,
+            className: f.className
+          })),
+          verifyCodeFieldDetails: this.verifyCodeFields.map(f => ({
             type: f.type,
             name: f.name,
             id: f.id,
@@ -157,7 +265,12 @@ export default defineContentScript({
         });
 
         // 如果找到了表单字段，发送通知
-        if (this.passwordFields.length > 0 || this.usernameFields.length > 0) {
+        if (
+          this.passwordFields.length > 0 ||
+          this.usernameFields.length > 0 ||
+          this.mobileFields.length > 0 ||
+          this.verifyCodeFields.length > 0
+        ) {
           console.log('检测到登录表单，可以使用密码填充功能');
         }
       }
@@ -175,39 +288,63 @@ export default defineContentScript({
 
       private addFormListeners() {
         // 移除之前的监听器避免重复
-        [...this.passwordFields, ...this.usernameFields].forEach(field => {
-          // 移除可能存在的旧监听器
-          field.removeEventListener('focus', this.handleFieldFocus);
-          field.removeEventListener('click', this.handleFieldFocus);
-          field.removeEventListener('input', this.handleFieldFocus);
-          field.removeEventListener('mousedown', this.handleFieldFocus);
-          field.removeEventListener('keydown', this.handleFieldFocus);
-        });
-
-        // 为密码和用户名字段添加多种事件监听器，确保能够触发
-        [...this.passwordFields, ...this.usernameFields].forEach(field => {
-          // 使用捕获阶段确保事件能被捕获
-          field.addEventListener('focus', this.handleFieldFocus, { capture: true });
-          field.addEventListener('click', this.handleFieldFocus, { capture: true });
-          field.addEventListener('input', this.handleFieldFocus, { capture: true });
-          field.addEventListener('mousedown', this.handleFieldFocus, { capture: true });
-          field.addEventListener('keydown', this.handleFieldFocus, { capture: true });
-
-          // 添加额外的监听器到父元素以防事件被阻止
-          if (field.parentElement) {
-            field.parentElement.addEventListener('click', this.handleFieldFocus);
+        [...this.passwordFields, ...this.usernameFields, ...this.mobileFields, ...this.verifyCodeFields].forEach(
+          field => {
+            // 移除可能存在的旧监听器
+            field.removeEventListener('focus', this.handleFieldFocus);
+            field.removeEventListener('click', this.handleFieldFocus);
+            field.removeEventListener('input', this.handleFieldFocus);
+            field.removeEventListener('mousedown', this.handleFieldFocus);
+            field.removeEventListener('keydown', this.handleFieldFocus);
           }
+        );
 
-          console.log('添加监听器到字段:', field.type, field.name || field.id || field.className || 'unnamed');
-        });
+        // 为所有表单字段添加多种事件监听器，确保能够触发
+        [...this.passwordFields, ...this.usernameFields, ...this.mobileFields, ...this.verifyCodeFields].forEach(
+          field => {
+            // 使用捕获阶段确保事件能被捕获
+            field.addEventListener('focus', this.handleFieldFocus, { capture: true });
+            field.addEventListener('click', this.handleFieldFocus, { capture: true });
+            field.addEventListener('input', this.handleFieldFocus, { capture: true });
+            field.addEventListener('mousedown', this.handleFieldFocus, { capture: true });
+            field.addEventListener('keydown', this.handleFieldFocus, { capture: true });
+
+            // 添加额外的监听器到父元素以防事件被阻止
+            if (field.parentElement) {
+              field.parentElement.addEventListener('click', this.handleFieldFocus);
+            }
+
+            const fieldType = this.getFieldType(field);
+            console.log('添加监听器到字段:', fieldType, field.name || field.id || field.className || 'unnamed');
+          }
+        );
 
         // 添加全局监听器作为备选方案
         document.addEventListener('focusin', this.handleGlobalFocus);
         document.addEventListener('click', this.handleGlobalClick);
       }
 
+      private getFieldType(field: HTMLInputElement): string {
+        if (this.passwordFields.includes(field)) return '密码字段';
+        if (this.usernameFields.includes(field)) return '用户名字段';
+        if (this.mobileFields.includes(field)) return '手机号码字段';
+        if (this.verifyCodeFields.includes(field)) return '验证码字段';
+        return '未知字段';
+      }
+
       private handleFieldFocus = (event?: Event) => {
-        console.log('表单字段获得焦点，显示侧边栏', event?.type, event?.target);
+        const target = event?.target as HTMLInputElement;
+        const fieldType = target ? this.getFieldType(target) : '未知';
+        console.log('表单字段获得焦点，显示侧边栏', {
+          eventType: event?.type,
+          fieldType,
+          element: target,
+          name: target?.name,
+          id: target?.id,
+          placeholder: target?.placeholder
+        });
+
+        // 立即显示侧边栏，不等待
         this.showSidePanel();
       };
 
@@ -217,9 +354,12 @@ export default defineContentScript({
           const input = target as HTMLInputElement;
           const isPasswordField = this.passwordFields.includes(input);
           const isUsernameField = this.usernameFields.includes(input);
+          const isMobileField = this.mobileFields.includes(input);
+          const isVerifyCodeField = this.verifyCodeFields.includes(input);
 
-          if (isPasswordField || isUsernameField) {
-            console.log('全局焦点检测到表单字段:', input.type);
+          if (isPasswordField || isUsernameField || isMobileField || isVerifyCodeField) {
+            const fieldType = this.getFieldType(input);
+            console.log('全局焦点检测到表单字段:', fieldType);
             this.showSidePanel();
           }
         }
@@ -231,9 +371,12 @@ export default defineContentScript({
           const input = target as HTMLInputElement;
           const isPasswordField = this.passwordFields.includes(input);
           const isUsernameField = this.usernameFields.includes(input);
+          const isMobileField = this.mobileFields.includes(input);
+          const isVerifyCodeField = this.verifyCodeFields.includes(input);
 
-          if (isPasswordField || isUsernameField) {
-            console.log('全局点击检测到表单字段:', input.type);
+          if (isPasswordField || isUsernameField || isMobileField || isVerifyCodeField) {
+            const fieldType = this.getFieldType(input);
+            console.log('全局点击检测到表单字段:', fieldType);
             this.showSidePanel();
           }
         }

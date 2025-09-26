@@ -25,7 +25,7 @@
             >
               <el-alert
                 title="设置主密码"
-                description="主密码用于保护您的所有账号信息，请妥善保管。密码长度至少6个字符。"
+                description="主密码用于保护您的所有账号信息，请妥善保管。密码必须至少8个字符，并同时包含字母、数字和特殊字符。"
                 type="info"
                 :closable="false"
                 show-icon
@@ -39,7 +39,7 @@
                 <el-input
                   v-model="setupForm.password"
                   type="password"
-                  placeholder="请输入主密码（至少6个字符）"
+                  placeholder="请输入主密码（至少8个字符，包含字母、数字、特殊字符）"
                   show-password
                   size="large"
                   :disabled="setupLoading"
@@ -62,6 +62,45 @@
                   autocomplete="new-password"
                   @keyup.enter="handleSetupSubmit"
                 />
+              </el-form-item>
+
+              <el-form-item
+                label="验证有效期"
+                prop="validityHours"
+              >
+                <el-select
+                  v-model="setupForm.validityHours"
+                  placeholder="选择验证有效期"
+                  size="large"
+                  :disabled="setupLoading"
+                  style="width: 100%"
+                >
+                  <el-option
+                    label="1小时"
+                    :value="1"
+                  />
+                  <el-option
+                    label="2小时"
+                    :value="2"
+                  />
+                  <el-option
+                    label="4小时"
+                    :value="4"
+                  />
+                  <el-option
+                    label="8小时"
+                    :value="8"
+                  />
+                  <el-option
+                    label="12小时"
+                    :value="12"
+                  />
+                  <el-option
+                    label="24小时（推荐）"
+                    :value="24"
+                  />
+                </el-select>
+                <div class="form-tip">验证有效期内无需重新输入主密码，超过有效期需重新验证</div>
               </el-form-item>
 
               <el-form-item>
@@ -245,13 +284,34 @@
         >
           <el-table-column
             type="selection"
-            width="55"
+            width="36"
+            fixed="left"
           />
           <el-table-column
             prop="username"
             label="用户名"
             min-width="150"
-          />
+          >
+            <template #default="{ row }">
+              <el-tooltip
+                v-if="row.username && row.username.length > 20"
+                :content="row.username"
+                placement="top"
+                :show-after="300"
+                :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
+              >
+                <div class="text-ellipsis">
+                  {{ row.username }}
+                </div>
+              </el-tooltip>
+              <div
+                v-else
+                class="text-ellipsis"
+              >
+                {{ row.username }}
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="password"
             label="密码"
@@ -274,8 +334,27 @@
             prop="url"
             label="URL"
             min-width="200"
-            show-overflow-tooltip
-          />
+          >
+            <template #default="{ row }">
+              <el-tooltip
+                v-if="row.url && row.url.length > 30"
+                :content="row.url"
+                placement="top"
+                :show-after="300"
+                :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
+              >
+                <div class="text-ellipsis">
+                  {{ row.url }}
+                </div>
+              </el-tooltip>
+              <div
+                v-else
+                class="text-ellipsis"
+              >
+                {{ row.url || '-' }}
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="tag"
             label="标签"
@@ -301,8 +380,31 @@
             prop="remark"
             label="备注"
             min-width="150"
-            show-overflow-tooltip
-          />
+          >
+            <template #default="{ row }">
+              <el-tooltip
+                v-if="row.remark && row.remark.length > 15"
+                placement="top"
+                :show-after="300"
+                :popper-style="{ maxWidth: '500px', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }"
+              >
+                <template #content>
+                  <div style="white-space: pre-wrap; word-break: break-all; max-width: 480px">
+                    {{ row.remark }}
+                  </div>
+                </template>
+                <div class="text-ellipsis">
+                  {{ row.remark }}
+                </div>
+              </el-tooltip>
+              <div
+                v-else
+                class="text-ellipsis"
+              >
+                {{ row.remark || '-' }}
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column
             prop="createTime"
             label="创建时间"
@@ -371,8 +473,10 @@
         >
           <el-input
             v-model="passwordForm.username"
-            placeholder="请输入用户名或邮箱"
+            placeholder="请输入用户名或邮箱（最多50字符）"
             :disabled="passwordFormLoading"
+            maxlength="50"
+            show-word-limit
           />
         </el-form-item>
 
@@ -383,9 +487,11 @@
           <el-input
             v-model="passwordForm.password"
             type="password"
-            placeholder="请输入密码"
+            placeholder="请输入密码（最多50字符）"
             show-password
             :disabled="passwordFormLoading"
+            maxlength="50"
+            show-word-limit
           />
         </el-form-item>
 
@@ -395,8 +501,10 @@
         >
           <el-input
             v-model="passwordForm.url"
-            placeholder="选填，不填则匹配所有网站"
+            placeholder="选填，不填则匹配所有网站（最多100字符）"
             :disabled="passwordFormLoading"
+            maxlength="100"
+            show-word-limit
           />
         </el-form-item>
 
@@ -406,8 +514,10 @@
         >
           <el-input
             v-model="passwordForm.tag"
-            placeholder="如：工作、个人等"
+            placeholder="如：工作、个人等（最多50字符）"
             :disabled="passwordFormLoading"
+            maxlength="50"
+            show-word-limit
           />
         </el-form-item>
 
@@ -419,8 +529,10 @@
             v-model="passwordForm.remark"
             type="textarea"
             :rows="3"
-            placeholder="选填，备注信息"
+            placeholder="选填，备注信息（最多1000字符）"
             :disabled="passwordFormLoading"
+            maxlength="1000"
+            show-word-limit
           />
         </el-form-item>
       </el-form>
@@ -481,7 +593,38 @@ const setupForm = ref({
 const setupRules: FormRules = {
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度至少6个字符', trigger: 'blur' }
+    { min: 8, message: '密码长度至少8个字符', trigger: 'blur' },
+    {
+      validator: (rule: any, value: string, callback: Function) => {
+        if (!value) {
+          callback();
+          return;
+        }
+
+        // 检查是否包含字母
+        const hasLetter = /[a-zA-Z]/.test(value);
+        // 检查是否包含数字
+        const hasNumber = /[0-9]/.test(value);
+        // 检查是否包含特殊字符
+        const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(value);
+
+        if (!hasLetter) {
+          callback(new Error('密码必须包含字母'));
+          return;
+        }
+        if (!hasNumber) {
+          callback(new Error('密码必须包含数字'));
+          return;
+        }
+        if (!hasSpecialChar) {
+          callback(new Error('密码必须包含特殊字符'));
+          return;
+        }
+
+        callback();
+      },
+      trigger: 'blur'
+    }
   ],
   confirmPassword: [
     { required: true, message: '请确认密码', trigger: 'blur' },
@@ -517,8 +660,17 @@ const passwordForm = ref({
 });
 
 const passwordFormRules: FormRules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+  username: [
+    { required: true, message: '请输入用户名', trigger: 'blur' },
+    { max: 50, message: '用户名不能超过50个字符', trigger: 'blur' }
+  ],
+  password: [
+    { required: true, message: '请输入密码', trigger: 'blur' },
+    { max: 50, message: '密码不能超过50个字符', trigger: 'blur' }
+  ],
+  url: [{ max: 100, message: 'URL不能超过100个字符', trigger: 'blur' }],
+  tag: [{ max: 50, message: '标签不能超过50个字符', trigger: 'blur' }],
+  remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }]
 };
 
 // 业务数据
@@ -1487,5 +1639,21 @@ const getTagType = (tag: string): string => {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+/* 表单提示样式 */
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* 文本省略样式 */
+.text-ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 </style>
