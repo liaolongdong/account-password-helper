@@ -699,7 +699,7 @@ export class StorageUtils {
         sessionPasswordExpiry: sessionPasswordExpiry,
         currentTime: Date.now()
       });
-      
+
       // 如果内存中没有会话信息，尝试从存储中恢复
       if (!sessionMasterPassword || !sessionPasswordExpiry) {
         console.log('StorageUtils: 内存中缺少会话信息，尝试从存储中恢复');
@@ -709,10 +709,10 @@ export class StorageUtils {
           SESSION_STORAGE_KEYS.VALIDITY_HOURS
         ]);
         console.log('StorageUtils: 从存储中获取到的结果:', result);
-        
+
         if (result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] && result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]) {
-          sessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD];
-          sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+          sessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] ?? null;
+          sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] ?? null;
           sessionValidityHours = result[SESSION_STORAGE_KEYS.VALIDITY_HOURS] || 24;
           console.log('StorageUtils: 从存储中恢复会话信息', {
             sessionMasterPassword: sessionMasterPassword ? '存在' : '不存在',
@@ -747,9 +747,9 @@ export class StorageUtils {
   /**
    * 获取会话主密码
    */
-  static getSessionMasterPassword(): string | null {
+  static getSessionMasterPassword(): string | undefined {
     console.log('StorageUtils: 获取会话主密码', sessionMasterPassword ? '存在' : '不存在');
-    return sessionMasterPassword;
+    return sessionMasterPassword ?? undefined;
   }
 
   /**
@@ -765,7 +765,7 @@ export class StorageUtils {
       sessionMasterPassword = masterPassword;
       sessionValidityHours = validityHours;
       sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
-      
+
       // 持久化会话信息
       await chrome.storage.local.set({
         [SESSION_STORAGE_KEYS.MASTER_PASSWORD]: masterPassword,
@@ -788,7 +788,7 @@ export class StorageUtils {
       sessionMasterPassword = null;
       sessionPasswordExpiry = null;
       sessionValidityHours = 24;
-      
+
       // 清除持久化的会话信息
       await chrome.storage.local.remove([
         SESSION_STORAGE_KEYS.MASTER_PASSWORD,
