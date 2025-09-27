@@ -487,7 +487,7 @@
           <el-input
             v-model="passwordForm.password"
             type="password"
-            placeholder="请输入密码（最多50字符）"
+            placeholder="选填，密码信息（最多50字符）"
             show-password
             :disabled="passwordFormLoading"
             maxlength="50"
@@ -587,7 +587,8 @@ const verifyError = ref('');
 // 设置表单
 const setupForm = ref({
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  validityHours: 24
 });
 
 const setupRules: FormRules = {
@@ -664,10 +665,7 @@ const passwordFormRules: FormRules = {
     { required: true, message: '请输入用户名', trigger: 'blur' },
     { max: 50, message: '用户名不能超过50个字符', trigger: 'blur' }
   ],
-  password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { max: 50, message: '密码不能超过50个字符', trigger: 'blur' }
-  ],
+  password: [{ max: 50, message: '密码不能超过50个字符', trigger: 'blur' }],
   url: [{ max: 100, message: 'URL不能超过100个字符', trigger: 'blur' }],
   tag: [{ max: 50, message: '标签不能超过50个字符', trigger: 'blur' }],
   remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }]

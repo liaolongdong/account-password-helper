@@ -23,7 +23,7 @@
             <li>标签/tag/Tag/分类</li>
             <li>备注/remark/Remark/说明</li>
           </ul>
-          <p>其中用户名和密码为必填项</p>
+          <p>其中用户名为必填项，其它字段均为选填项</p>
         </template>
       </el-alert>
 

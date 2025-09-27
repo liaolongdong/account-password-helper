@@ -80,7 +80,7 @@ export class ExcelUtils {
                   remark: String(remark).trim()
                 };
               })
-              .filter(item => item.username && item.password); // 过滤掉没有用户名或密码的条目
+              .filter(item => item.username); // 过滤掉没有用户名的条目
 
             resolve(passwords);
           } catch (error) {
