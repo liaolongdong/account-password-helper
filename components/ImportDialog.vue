@@ -78,15 +78,17 @@
     </div>
 
     <template #footer>
-      <el-button @click="handleClose">取消</el-button>
-      <el-button
-        type="primary"
-        :disabled="previewData.length === 0"
-        :loading="loading"
-        @click="handleImport"
-      >
-        导入 ({{ previewData.length }})
-      </el-button>
+      <div class="dialog-footer">
+        <el-button @click="handleClose">取消</el-button>
+        <el-button
+          type="primary"
+          :disabled="previewData.length === 0"
+          :loading="loading"
+          @click="handleImport"
+        >
+          导入 ({{ previewData.length }})
+        </el-button>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -197,13 +199,18 @@ const handleClose = () => {
   margin: 0 0 12px;
   font-size: 14px;
   color: #303133;
+  text-align: center;
 }
 
 .preview-info {
   margin: 12px 0 0;
   font-size: 12px;
   color: #909399;
-  text-align: right;
+  text-align: center;
+}
+
+.dialog-footer {
+  text-align: center;
 }
 
 :deep(.el-alert__content) {
@@ -243,7 +250,7 @@ const handleClose = () => {
   animation: none !important;
 }
 
-/* 弹窗内容区域优化 */
+/* 弹窗内容区域优化 - 确保水平居中 */
 :deep(.full-width-dialog .el-dialog__body) {
   display: flex;
   align-items: flex-start;
@@ -253,7 +260,7 @@ const handleClose = () => {
   background: #f8fbff;
 }
 
-/* 弹窗头部优化 */
+/* 弹窗头部优化 - 标题居中 */
 :deep(.full-width-dialog .el-dialog__header) {
   position: sticky;
   top: 0;
@@ -263,15 +270,15 @@ const handleClose = () => {
   background: #409eff;
   border-bottom: none;
   border-radius: 0;
+  text-align: center; /* 标题居中 */
 }
 
 :deep(.full-width-dialog .el-dialog__title) {
   font-size: 20px;
   font-weight: 500;
-  text-align: left;
 }
 
-/* 弹窗底部优化 */
+/* 弹窗底部优化 - 按钮居中 */
 :deep(.full-width-dialog .el-dialog__footer) {
   position: sticky;
   bottom: 0;
@@ -279,12 +286,14 @@ const handleClose = () => {
   padding: 24px 10vw;
   background: #fff;
   border-top: 1px solid #e3f2fd;
+  text-align: center; /* 按钮居中 */
 }
 
-/* 内容容器优化 */
+/* 内容容器优化 - 更好的水平居中效果 */
 .import-content {
   width: 100%;
   max-width: 800px;
+  margin: 0 auto; /* 确保容器自身居中 */
   padding: 40px;
   background: white;
   border: 1px solid #e3f2fd;
