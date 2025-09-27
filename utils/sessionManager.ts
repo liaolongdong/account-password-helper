@@ -71,7 +71,7 @@ class SessionManager {
     console.log('SessionManager: 处理会话过期');
     // 触发自定义事件，通知其他组件会话已过期
     window.dispatchEvent(new CustomEvent('sessionExpired'));
-    
+
     // 清除会话
     StorageUtils.clearSession();
     console.log('SessionManager: 会话过期处理完成');
@@ -84,7 +84,7 @@ class SessionManager {
     console.log('SessionManager: 初始化会话管理器');
     // 启动会话检查
     this.startSessionCheck();
-    
+
     // 监听页面卸载事件，清除会话
     window.addEventListener('beforeunload', () => {
       console.log('SessionManager: 页面卸载，停止会话检查');

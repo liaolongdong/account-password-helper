@@ -122,7 +122,7 @@ const dialogVisible = computed({
 const uploadRef = ref();
 const loading = ref(false);
 const previewData = ref<Omit<PasswordEntry, 'id' | 'createTime' | 'order'>[]>([]);
-const selectedFile = ref<File | null>(null);
+const selectedFile = ref<File | undefined>(undefined);
 
 // 处理文件选择
 const handleFileChange = async (file: UploadFile) => {
@@ -148,12 +148,12 @@ const handleFileChange = async (file: UploadFile) => {
 // 处理文件删除（但不使用参数）
 const handleFileRemove = () => {
   previewData.value = [];
-  selectedFile.value = null;
+  selectedFile.value = undefined;
 };
 
 // 处理导入
 const handleImport = async () => {
-  if (previewData.value.length === 0) return;
+  if (previewData.value.length === 0 || !selectedFile.value) return;
 
   try {
     loading.value = true;
@@ -178,7 +178,7 @@ const handleImport = async () => {
 const handleClose = () => {
   dialogVisible.value = false;
   previewData.value = [];
-  selectedFile.value = null;
+  selectedFile.value = undefined;
   if (uploadRef.value) {
     uploadRef.value.clearFiles();
   }

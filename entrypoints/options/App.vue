@@ -1146,7 +1146,7 @@ const loadPasswords = async () => {
     const masterPassword = StorageUtils.getSessionMasterPassword();
     console.log('Options: 获取到的会话主密码:', masterPassword ? '存在' : '不存在');
 
-    passwords.value = await StorageUtils.getAllPasswords(masterPassword);
+    passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
     // 添加显示密码状态
     passwords.value.forEach(p => {
       (p as any).showPassword = false;
@@ -1327,27 +1327,8 @@ const handleClearSession = async () => {
     isAuthenticated.value = false;
     passwords.value = [];
 
-    // 关闭有效期设置弹窗
-    showValiditySetting.value = false;
-
-    // 跳转到主密码验证页面
-    showPasswordVerify.value = true;
-    showMasterPasswordSetup.value = false;
-
-    // 初始化验证表单的有效期
-    const validityHours = await StorageUtils.getMasterPasswordValidityHours();
-    verifyForm.value.validityHours = validityHours;
-
-    // 聚焦到密码输入框
-    nextTick(() => {
-      const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
-      if (passwordInput) {
-        passwordInput.focus();
-      }
-    });
-
-    ElMessage.success('主密码会话已清除，请重新验证');
-    console.log('Options: 主密码会话清除完成，已跳转到验证页面');
+    ElMessage.success('主密码会话已清除');
+    console.log('Options: 主密码会话清除完成');
   } catch (error) {
     if (error !== 'cancel') {
       console.error('清除主密码会话失败:', error);
