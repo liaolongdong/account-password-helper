@@ -16,7 +16,10 @@
     </div>
 
     <!-- 搜索框 -->
-    <div class="search-section">
+    <div
+      v-if="isAuthenticated"
+      class="search-section"
+    >
       <el-input
         v-model="searchKeyword"
         placeholder="搜索用户名、标签、备注..."
@@ -26,8 +29,37 @@
       />
     </div>
 
+    <!-- 未验证状态 -->
+    <div
+      v-if="!isAuthenticated"
+      class="auth-required"
+    >
+      <el-empty
+        :image-size="100"
+        description="需要验证主密码"
+      >
+        <template #description>
+          <div class="auth-description">
+            <p>请先验证主密码以使用快速填充功能</p>
+            <p class="auth-tip">验证后即可搜索和填充保存的密码</p>
+          </div>
+        </template>
+        <el-button
+          type="primary"
+          :icon="Key"
+          @click="openOptions"
+          size="large"
+        >
+          去验证主密码
+        </el-button>
+      </el-empty>
+    </div>
+
     <!-- 密码列表 -->
-    <div class="password-list">
+    <div
+      v-else
+      class="password-list"
+    >
       <div
         v-if="loading"
         class="loading"
@@ -118,7 +150,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Key, Search, User, Right, Setting, Loading } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import type { PasswordEntry } from '../../utils/types';
@@ -128,6 +160,7 @@ const loading = ref(true);
 const searchKeyword = ref('');
 const passwords = ref<PasswordEntry[]>([]);
 const currentDomain = ref('');
+const isAuthenticated = ref(false);
 
 // 计算属性
 const filteredPasswords = computed(() => {
@@ -142,31 +175,89 @@ const filteredPasswords = computed(() => {
   );
 });
 
+// 监听会话状态变化
+const handleSessionChange = async () => {
+  console.log('SidePanel: 检测到会话状态变化，重新检查认证状态');
+  try {
+    const isSessionValid = await StorageUtils.isSessionValid();
+    if (isSessionValid && !isAuthenticated.value) {
+      // 会话变为有效，重新加载数据
+      console.log('SidePanel: 会话已恢复，重新加载数据');
+      isAuthenticated.value = true;
+      await loadCurrentTab();
+      await loadPasswords();
+    } else if (!isSessionValid && isAuthenticated.value) {
+      // 会话变为无效，显示未验证状态
+      console.log('SidePanel: 会话已过期，显示未验证状态');
+      isAuthenticated.value = false;
+      passwords.value = [];
+    }
+  } catch (error) {
+    console.error('SidePanel: 检查会话状态失败:', error);
+  }
+};
+
+// 监听存储变化
+const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+  // 检查是否为主密码相关的存储变化
+  const sessionKeys = ['session_master_password', 'session_password_expiry', 'session_validity_hours'];
+  const hasSessionChange = Object.keys(changes).some(key => sessionKeys.includes(key));
+
+  if (hasSessionChange) {
+    console.log('SidePanel: 检测到会话存储变化');
+    handleSessionChange();
+  }
+};
+
+// 监听页面可见性变化
+const handleVisibilityChange = () => {
+  if (!document.hidden) {
+    console.log('SidePanel: 页面变为可见，检查会话状态');
+    handleSessionChange();
+  }
+};
+
 // 初始化
 onMounted(async () => {
   console.log('SidePanel: 开始初始化');
+
+  // 添加监听器
+  chrome.storage.onChanged.addListener(handleStorageChange);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('sessionExpired', handleSessionChange);
+
   try {
     console.log('SidePanel: 开始检查会话状态...');
     // 检查会话是否有效
     const isSessionValid = await StorageUtils.isSessionValid();
     console.log('SidePanel: 会话是否有效:', isSessionValid);
-    
+
     if (!isSessionValid) {
-      // 会话无效，跳转到选项页面进行验证
-      console.log('SidePanel: 会话无效，跳转到选项页面');
-      openOptions();
+      // 会话无效，显示未验证状态
+      console.log('SidePanel: 会话无效，显示未验证状态');
+      isAuthenticated.value = false;
+      loading.value = false;
       return;
     }
-    
+
     console.log('SidePanel: 会话有效，加载数据');
+    isAuthenticated.value = true;
     await loadCurrentTab();
     await loadPasswords();
   } catch (error) {
     console.error('SidePanel: 初始化失败:', error);
-    // 出错时也跳转到选项页面
-    openOptions();
+    // 出错时显示未验证状态
+    isAuthenticated.value = false;
+    loading.value = false;
   }
   console.log('SidePanel: 初始化完成');
+});
+
+// 组件卸载时移除监听器
+onUnmounted(() => {
+  chrome.storage.onChanged.removeListener(handleStorageChange);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  window.removeEventListener('sessionExpired', handleSessionChange);
 });
 
 // 加载当前标签页信息
@@ -551,6 +642,33 @@ const hashString = (str: string): number => {
   background: white;
   border-top: 1px solid #e5e7eb;
   text-align: center;
+}
+
+/* 未验证状态样式 */
+.auth-required {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  background: #f8f9fa;
+  min-height: 300px;
+}
+
+.auth-description {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.auth-description p {
+  margin: 8px 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.auth-tip {
+  color: #999 !important;
+  font-size: 12px !important;
 }
 
 /* 滚动条样式 */
