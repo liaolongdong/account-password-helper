@@ -50,25 +50,61 @@ import { StorageUtils } from '../../utils/storage';
 const passwordCount = ref(0);
 
 onMounted(async () => {
-  // 获取密码数量
-  const passwords = await StorageUtils.getAllPasswords();
-  passwordCount.value = passwords.length;
+  console.log('Popup: 开始初始化');
+  try {
+    console.log('Popup: 开始检查会话状态...');
+    // 检查会话是否有效
+    const isSessionValid = await StorageUtils.isSessionValid();
+    console.log('Popup: 会话是否有效:', isSessionValid);
+    
+    // 获取会话主密码
+    const masterPassword = StorageUtils.getSessionMasterPassword();
+    console.log('Popup: 获取到的会话主密码:', masterPassword ? '存在' : '不存在');
+    
+    // 获取密码数量
+    const passwords = await StorageUtils.getAllPasswords(masterPassword);
+    passwordCount.value = passwords.length;
+    console.log('Popup: 密码数量:', passwordCount.value);
+  } catch (error) {
+    console.error('Popup: 获取密码数量失败:', error);
+    passwordCount.value = 0;
+  }
+  console.log('Popup: 初始化完成');
 });
 
 // 打开选项页面
-const openOptions = () => {
-  // chrome.runtime.openOptionsPage();
-  // window.close();
+const openOptions = async () => {
+  try {
+    console.log('Popup: 打开选项页面');
+    // chrome.runtime.openOptionsPage();
+    // window.close();
 
-  // 获取选项页面的完整URL
-  const optionsUrl = chrome.runtime.getURL('options.html');
-  // 在新标签页中创建并打开
-  chrome.tabs.create({ url: optionsUrl });
+    // 获取选项页面的完整URL
+    const optionsUrl = chrome.runtime.getURL('options.html');
+    // 在新标签页中创建并打开
+    await chrome.tabs.create({ url: optionsUrl });
+    console.log('Popup: 选项页面打开完成');
+  } catch (error) {
+    console.error('打开选项页面失败:', error);
+  }
 };
 
 // 打开侧边栏
 const openSidePanel = async () => {
   try {
+    console.log('Popup: 开始检查会话状态以打开侧边栏...');
+    // 检查会话是否有效
+    const isSessionValid = await StorageUtils.isSessionValid();
+    console.log('Popup: 会话是否有效:', isSessionValid);
+    
+    if (!isSessionValid) {
+      // 会话无效，打开选项页面进行验证
+      console.log('Popup: 会话无效，跳转到选项页面');
+      await openOptions();
+      return;
+    }
+    
+    console.log('Popup: 会话有效，打开侧边栏');
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
       await chrome.sidePanel.open({ tabId: tab.id });

@@ -144,8 +144,29 @@ const filteredPasswords = computed(() => {
 
 // 初始化
 onMounted(async () => {
-  await loadCurrentTab();
-  await loadPasswords();
+  console.log('SidePanel: 开始初始化');
+  try {
+    console.log('SidePanel: 开始检查会话状态...');
+    // 检查会话是否有效
+    const isSessionValid = await StorageUtils.isSessionValid();
+    console.log('SidePanel: 会话是否有效:', isSessionValid);
+    
+    if (!isSessionValid) {
+      // 会话无效，跳转到选项页面进行验证
+      console.log('SidePanel: 会话无效，跳转到选项页面');
+      openOptions();
+      return;
+    }
+    
+    console.log('SidePanel: 会话有效，加载数据');
+    await loadCurrentTab();
+    await loadPasswords();
+  } catch (error) {
+    console.error('SidePanel: 初始化失败:', error);
+    // 出错时也跳转到选项页面
+    openOptions();
+  }
+  console.log('SidePanel: 初始化完成');
 });
 
 // 加载当前标签页信息
@@ -165,13 +186,19 @@ const loadCurrentTab = async () => {
 const loadPasswords = async () => {
   try {
     loading.value = true;
+    console.log('SidePanel: 开始加载密码列表');
+
+    // 获取会话主密码
+    const masterPassword = StorageUtils.getSessionMasterPassword();
+    console.log('SidePanel: 获取到的会话主密码:', masterPassword ? '存在' : '不存在');
 
     // 根据当前域名获取匹配的密码
     if (currentDomain.value) {
-      passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value);
+      passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value, masterPassword);
     } else {
-      passwords.value = await StorageUtils.getAllPasswords();
+      passwords.value = await StorageUtils.getAllPasswords(masterPassword);
     }
+    console.log('SidePanel: 密码列表加载完成，数量:', passwords.value.length);
   } catch (error) {
     console.error('加载密码列表失败:', error);
     ElMessage.error('加载密码列表失败');
@@ -249,12 +276,14 @@ const fillPassword = async (password: PasswordEntry) => {
 
 // 打开选项页面
 const openOptions = () => {
+  console.log('SidePanel: 打开选项页面');
   // chrome.runtime.openOptionsPage();
 
   // 获取选项页面的完整URL
   const optionsUrl = chrome.runtime.getURL('options.html');
   // 在新标签页中创建并打开
   chrome.tabs.create({ url: optionsUrl });
+  console.log('SidePanel: 选项页面打开完成');
 };
 
 // 标签颜色映射缓存

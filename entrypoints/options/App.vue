@@ -169,6 +169,45 @@
                 />
               </el-form-item>
 
+              <el-form-item
+                label="验证有效期"
+                prop="validityHours"
+              >
+                <el-select
+                  v-model="verifyForm.validityHours"
+                  placeholder="选择验证有效期"
+                  size="large"
+                  :disabled="verifyLoading"
+                  style="width: 100%"
+                >
+                  <el-option
+                    label="1小时"
+                    :value="1"
+                  />
+                  <el-option
+                    label="2小时"
+                    :value="2"
+                  />
+                  <el-option
+                    label="4小时"
+                    :value="4"
+                  />
+                  <el-option
+                    label="8小时"
+                    :value="8"
+                  />
+                  <el-option
+                    label="12小时"
+                    :value="12"
+                  />
+                  <el-option
+                    label="24小时（推荐）"
+                    :value="24"
+                  />
+                </el-select>
+                <div class="form-tip">验证有效期内无需重新输入主密码，超过有效期需重新验证</div>
+              </el-form-item>
+
               <el-form-item>
                 <el-button
                   type="primary"
@@ -249,6 +288,12 @@
               @click="openPasswordDialog"
             >
               添加密码
+            </el-button>
+            <el-button
+              :icon="Setting"
+              @click="openValiditySetting"
+            >
+              有效期设置
             </el-button>
           </div>
         </div>
@@ -556,15 +601,113 @@
         </div>
       </template>
     </el-dialog>
+
+    <!-- 有效期设置弹窗 -->
+    <el-dialog
+      v-model="showValiditySetting"
+      title="验证有效期设置"
+      width="500px"
+      :close-on-click-modal="false"
+    >
+      <el-form
+        ref="validityFormRef"
+        :model="validityForm"
+        :rules="validityRules"
+        label-width="100px"
+        size="large"
+      >
+        <el-alert
+          title="有效期设置"
+          description="设置主密码验证后的会话缓存时间，在有效期内无需重新输入主密码"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 24px"
+        />
+        
+        <el-form-item
+          label="当前会话状态"
+          v-if="sessionInfo.expiryTime"
+        >
+          <div class="session-info">
+            <div class="session-status">
+              <el-tag type="success" size="small">会话有效</el-tag>
+            </div>
+            <div class="session-expiry">
+              剩余时间: {{ sessionInfo.remainingTime }}
+            </div>
+          </div>
+        </el-form-item>
+        
+        <el-form-item
+          label="验证有效期"
+          prop="validityHours"
+        >
+          <el-select
+            v-model="validityForm.validityHours"
+            placeholder="选择验证有效期"
+            size="large"
+            :disabled="validityLoading"
+            style="width: 100%"
+          >
+            <el-option
+              label="1小时"
+              :value="1"
+            />
+            <el-option
+              label="2小时"
+              :value="2"
+            />
+            <el-option
+              label="4小时"
+              :value="4"
+            />
+            <el-option
+              label="8小时"
+              :value="8"
+            />
+            <el-option
+              label="12小时"
+              :value="12"
+            />
+            <el-option
+              label="24小时（推荐）"
+              :value="24"
+            />
+          </el-select>
+          <div class="form-tip">当前设置将影响会话缓存时间</div>
+        </el-form-item>
+      </el-form>
+
+      <template #footer>
+        <div class="dialog-footer">
+          <el-button
+            size="large"
+            @click="showValiditySetting = false"
+          >
+            取消
+          </el-button>
+          <el-button
+            type="primary"
+            size="large"
+            :loading="validityLoading"
+            @click="handleValiditySave"
+          >
+            保存设置
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue';
-import { Key, Plus, Download, Upload, Search, Delete, Edit, View, Hide, ArrowLeft } from '@element-plus/icons-vue';
+import { ref, onMounted, computed, nextTick, onUnmounted, watch } from 'vue';
+import { Key, Plus, Download, Upload, Search, Delete, Edit, View, Hide, ArrowLeft, Setting } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { PasswordEntry } from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
+import { sessionManager } from '../../utils/sessionManager';
 import { ExcelUtils } from '../../utils/excel';
 import type { FormRules, FormInstance } from 'element-plus';
 import ImportDialog from '../../components/ImportDialog.vue';
@@ -574,14 +717,17 @@ const isAuthenticated = ref(false);
 const showMasterPasswordSetup = ref(false);
 const showPasswordVerify = ref(false);
 const showPasswordForm = ref(false);
+const showValiditySetting = ref(false); // 添加有效期设置弹窗状态
 
 // 表单相关
 const setupFormRef = ref<FormInstance>();
 const verifyFormRef = ref<FormInstance>();
 const passwordFormRef = ref<FormInstance>();
+const validityFormRef = ref<FormInstance>(); // 添加有效期表单引用
 const setupLoading = ref(false);
 const verifyLoading = ref(false);
 const passwordFormLoading = ref(false);
+const validityLoading = ref(false); // 添加有效期表单加载状态
 const verifyError = ref('');
 
 // 设置表单
@@ -644,12 +790,27 @@ const setupRules: FormRules = {
 
 // 验证表单
 const verifyForm = ref({
-  password: ''
+  password: '',
+  validityHours: 24
 });
 
 const verifyRules: FormRules = {
   password: [{ required: true, message: '请输入主密码', trigger: 'blur' }]
 };
+
+// 有效期设置表单
+const validityForm = ref({
+  validityHours: 24
+});
+
+// 会话信息
+const sessionInfo = ref({
+  expiryTime: null as number | null,
+  remainingTime: ''
+});
+
+// 会话定时器
+let sessionTimer: number | null = null;
 
 // 密码表单
 const passwordForm = ref({
@@ -669,6 +830,11 @@ const passwordFormRules: FormRules = {
   url: [{ max: 100, message: 'URL不能超过100个字符', trigger: 'blur' }],
   tag: [{ max: 50, message: '标签不能超过50个字符', trigger: 'blur' }],
   remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }]
+};
+
+// 有效期设置表单规则
+const validityRules: FormRules = {
+  validityHours: [{ required: true, message: '请选择有效期', trigger: 'change' }]
 };
 
 // 业务数据
@@ -700,41 +866,107 @@ const filteredPasswords = computed(() => {
 
 // 初始化
 onMounted(async () => {
+  console.log('Options: 开始初始化');
+  // 初始化会话管理器
+  sessionManager.init();
+  
+  // 监听会话过期事件
+  window.addEventListener('sessionExpired', handleSessionExpired);
+  
   await checkAuth();
+  console.log('Options: 初始化完成');
 });
+
+// 在 onUnmounted 中移除事件监听器
+onUnmounted(() => {
+  console.log('Options: 开始清理');
+  window.removeEventListener('sessionExpired', handleSessionExpired);
+  console.log('Options: 清理完成');
+});
+
+// 处理会话过期事件
+const handleSessionExpired = () => {
+  console.log('Options: 处理会话过期事件');
+  // 显示验证页面
+  showMasterPasswordSetup.value = false;
+  showPasswordVerify.value = true;
+  isAuthenticated.value = false;
+  
+  // 初始化验证表单的有效期
+  StorageUtils.getMasterPasswordValidityHours().then(validityHours => {
+    verifyForm.value.validityHours = validityHours;
+  });
+  
+  // 聚焦到密码输入框
+  nextTick(() => {
+    const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
+    if (passwordInput) {
+      passwordInput.focus();
+    }
+  });
+  console.log('Options: 会话过期事件处理完成');
+};
 
 // 检查认证状态
 const checkAuth = async () => {
-  console.log('开始检查认证状态...');
-  const hasMaster = await StorageUtils.hasMasterPassword();
-  console.log('是否已设置主密码:', hasMaster);
+  try {
+    console.log('Options: 开始检查认证状态...');
+    const hasMaster = await StorageUtils.hasMasterPassword();
+    console.log('Options: 是否已设置主密码:', hasMaster);
 
-  if (!hasMaster) {
-    console.log('首次使用，显示设置主密码页面');
-    showMasterPasswordSetup.value = true;
-    showPasswordVerify.value = false;
-    isAuthenticated.value = false;
+    if (!hasMaster) {
+      console.log('Options: 首次使用，显示设置主密码页面');
+      showMasterPasswordSetup.value = true;
+      showPasswordVerify.value = false;
+      isAuthenticated.value = false;
 
-    // 聚焦到密码输入框
-    nextTick(() => {
-      const passwordInput = document.querySelector('.setup-form .el-input__inner') as HTMLInputElement;
-      if (passwordInput) {
-        passwordInput.focus();
+      // 聚焦到密码输入框
+      nextTick(() => {
+        const passwordInput = document.querySelector('.setup-form .el-input__inner') as HTMLInputElement;
+        if (passwordInput) {
+          passwordInput.focus();
+        }
+      });
+    } else {
+      // 检查会话是否有效
+      const isSessionValid = await StorageUtils.isSessionValid();
+      console.log('Options: 会话是否有效:', isSessionValid);
+      if (isSessionValid) {
+        console.log('Options: 会话有效，直接进入主界面');
+        showMasterPasswordSetup.value = false;
+        showPasswordVerify.value = false;
+        isAuthenticated.value = true;
+        
+        // 初始化有效期设置表单
+        const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+        validityForm.value.validityHours = validityHours;
+        
+        await loadPasswords();
+      } else {
+        console.log('Options: 会话无效，显示验证页面');
+        showMasterPasswordSetup.value = false;
+        showPasswordVerify.value = true;
+        isAuthenticated.value = false;
+
+        // 初始化验证表单的有效期
+        const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+        verifyForm.value.validityHours = validityHours;
+
+        // 聚焦到密码输入框
+        nextTick(() => {
+          const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
+          if (passwordInput) {
+            passwordInput.focus();
+          }
+        });
       }
-    });
-  } else {
-    console.log('已设置主密码，显示验证页面');
+    }
+  } catch (error) {
+    console.error('Options: 检查认证状态失败:', error);
+    // 出错时显示验证页面
     showMasterPasswordSetup.value = false;
     showPasswordVerify.value = true;
     isAuthenticated.value = false;
-
-    // 聚焦到密码输入框
-    nextTick(() => {
-      const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
-      if (passwordInput) {
-        passwordInput.focus();
-      }
-    });
   }
 };
 
@@ -748,7 +980,15 @@ const handleSetupSubmit = async () => {
     setupLoading.value = true;
     console.log('设置主密码...');
 
+    // 设置主密码
     await StorageUtils.setMasterPassword(setupForm.value.password.trim());
+    
+    // 保存有效期设置
+    await StorageUtils.setMasterPasswordValidityHours(setupForm.value.validityHours);
+    
+    // 创建会话缓存
+    await StorageUtils.createSession(setupForm.value.password.trim(), setupForm.value.validityHours);
+    
     console.log('主密码设置完成');
 
     ElMessage.success('主密码设置成功，欢迎使用');
@@ -789,6 +1029,12 @@ const handleVerifySubmit = async () => {
     if (isValid) {
       console.log('验证成功');
       ElMessage.success('验证成功，欢迎使用');
+      
+      // 保存有效期设置
+      await StorageUtils.setMasterPasswordValidityHours(verifyForm.value.validityHours);
+      
+      // 创建会话缓存
+      await StorageUtils.createSession(verifyForm.value.password.trim(), verifyForm.value.validityHours);
 
       // 转入主界面
       showPasswordVerify.value = false;
@@ -866,12 +1112,23 @@ const resetMasterPassword = async () => {
 // 加载密码列表
 const loadPasswords = async () => {
   try {
-    passwords.value = await StorageUtils.getAllPasswords();
+    console.log('Options: 开始加载密码列表');
+    // 获取会话主密码
+    const masterPassword = StorageUtils.getSessionMasterPassword();
+    console.log('Options: 获取到的会话主密码:', masterPassword ? '存在' : '不存在');
+    
+    passwords.value = await StorageUtils.getAllPasswords(masterPassword);
     // 添加显示密码状态
     passwords.value.forEach(p => {
       (p as any).showPassword = false;
     });
+    
+    // 初始化有效期设置表单
+    const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+    validityForm.value.validityHours = validityHours;
+    console.log('Options: 密码列表加载完成，数量:', passwords.value.length);
   } catch (error) {
+    console.error('加载密码列表失败:', error);
     ElMessage.error('加载密码列表失败');
   }
 };
@@ -979,6 +1236,123 @@ const handlePasswordFormSave = async () => {
     passwordFormLoading.value = false;
   }
 };
+
+// 处理有效期设置保存
+const handleValiditySave = async () => {
+  if (!validityFormRef.value) return;
+
+  try {
+    await validityFormRef.value.validate();
+    validityLoading.value = true;
+
+    console.log('Options: 开始保存有效期设置', validityForm.value.validityHours);
+    // 保存有效期设置
+    await StorageUtils.setMasterPasswordValidityHours(validityForm.value.validityHours);
+    
+    // 如果当前有会话，更新会话的有效期
+    const currentMasterPassword = StorageUtils.getSessionMasterPassword();
+    console.log('Options: 当前会话主密码:', currentMasterPassword ? '存在' : '不存在');
+    if (currentMasterPassword) {
+      await StorageUtils.createSession(currentMasterPassword, validityForm.value.validityHours);
+    }
+    
+    ElMessage.success('有效期设置保存成功');
+    showValiditySetting.value = false;
+    console.log('Options: 有效期设置保存完成');
+  } catch (error) {
+    console.error('保存有效期设置失败:', error);
+    ElMessage.error('保存失败');
+  } finally {
+    validityLoading.value = false;
+  }
+};
+
+// 更新会话信息显示
+const updateSessionInfo = async () => {
+  try {
+    const expiryTime = await StorageUtils.getSessionExpiryTime();
+    if (expiryTime) {
+      sessionInfo.value.expiryTime = expiryTime;
+      updateRemainingTime(expiryTime);
+    } else {
+      sessionInfo.value.expiryTime = null;
+      sessionInfo.value.remainingTime = '无会话';
+    }
+  } catch (error) {
+    console.error('获取会话信息失败:', error);
+    sessionInfo.value.expiryTime = null;
+    sessionInfo.value.remainingTime = '获取失败';
+  }
+};
+
+// 更新剩余时间显示
+const updateRemainingTime = (expiryTime: number) => {
+  const now = Date.now();
+  const remaining = expiryTime - now;
+  
+  if (remaining <= 0) {
+    sessionInfo.value.remainingTime = '已过期';
+    return;
+  }
+  
+  const hours = Math.floor(remaining / (1000 * 60 * 60));
+  const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
+  
+  if (hours > 0) {
+    sessionInfo.value.remainingTime = `${hours}小时${minutes}分钟`;
+  } else if (minutes > 0) {
+    sessionInfo.value.remainingTime = `${minutes}分钟${seconds}秒`;
+  } else {
+    sessionInfo.value.remainingTime = `${seconds}秒`;
+  }
+};
+
+// 启动会话定时器
+const startSessionTimer = () => {
+  if (sessionTimer) {
+    clearInterval(sessionTimer);
+  }
+  
+  sessionTimer = window.setInterval(() => {
+    if (sessionInfo.value.expiryTime) {
+      updateRemainingTime(sessionInfo.value.expiryTime);
+    }
+  }, 1000); // 每秒更新一次
+};
+
+// 停止会话定时器
+const stopSessionTimer = () => {
+  if (sessionTimer) {
+    clearInterval(sessionTimer);
+    sessionTimer = null;
+  }
+};
+
+// 打开有效期设置弹窗
+const openValiditySetting = async () => {
+  console.log('Options: 打开有效期设置弹窗');
+  showValiditySetting.value = true;
+  
+  // 初始化有效期设置表单
+  const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+  validityForm.value.validityHours = validityHours;
+  
+  // 更新会话信息
+  await updateSessionInfo();
+  
+  // 启动定时器
+  startSessionTimer();
+  console.log('Options: 有效期设置弹窗打开完成');
+};
+
+// 监听弹窗关闭事件
+watch(showValiditySetting, (newVal) => {
+  if (!newVal) {
+    // 弹窗关闭时停止定时器
+    stopSessionTimer();
+  }
+});
 
 // 删除密码
 const deletePassword = async (id: string) => {
@@ -1653,5 +2027,23 @@ const getTagType = (tag: string): string => {
   white-space: nowrap;
   text-overflow: ellipsis;
   max-width: 100%;
+}
+
+/* 会话信息样式 */
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-expiry {
+  font-size: 14px;
+  color: #606266;
 }
 </style>
