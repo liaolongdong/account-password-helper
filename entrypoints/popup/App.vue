@@ -39,6 +39,23 @@
         </el-text>
       </div>
     </div>
+
+    <!-- 联系方式 -->
+    <div class="contact-info">
+      <el-text
+        type="info"
+        size="small"
+      >
+        如有任何问题或者建议，请联系
+        <a
+          href="mailto:924902324@qq.com"
+          class="email-link"
+          @click="handleEmailClick"
+        >
+          924902324@qq.com
+        </a>
+      </el-text>
+    </div>
   </div>
 </template>
 
@@ -56,11 +73,11 @@ onMounted(async () => {
     // 检查会话是否有效
     const isSessionValid = await StorageUtils.isSessionValid();
     console.log('Popup: 会话是否有效:', isSessionValid);
-    
+
     // 获取会话主密码
     const masterPassword = StorageUtils.getSessionMasterPassword();
     console.log('Popup: 获取到的会话主密码:', masterPassword ? '存在' : '不存在');
-    
+
     // 获取密码数量
     const passwords = await StorageUtils.getAllPasswords(masterPassword);
     passwordCount.value = passwords.length;
@@ -96,14 +113,14 @@ const openSidePanel = async () => {
     // 检查会话是否有效
     const isSessionValid = await StorageUtils.isSessionValid();
     console.log('Popup: 会话是否有效:', isSessionValid);
-    
+
     if (!isSessionValid) {
       // 会话无效，打开选项页面进行验证
       console.log('Popup: 会话无效，跳转到选项页面');
       await openOptions();
       return;
     }
-    
+
     console.log('Popup: 会话有效，打开侧边栏');
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
@@ -113,6 +130,17 @@ const openSidePanel = async () => {
   } catch (error) {
     console.error('打开侧边栏失败:', error);
   }
+};
+
+// 处理邮件链接点击
+const handleEmailClick = (event: Event) => {
+  event.preventDefault();
+  const email = '924902324@qq.com';
+  const subject = '密码管理助手反馈';
+  const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+
+  // 尝试打开默认邮件客户端
+  window.open(mailtoLink, '_blank');
 };
 </script>
 
@@ -172,5 +200,18 @@ const openSidePanel = async () => {
 
 .stats .el-text {
   display: block;
+}
+
+.contact-info {
+  margin-top: 10px;
+}
+
+.email-link {
+  color: #409eff;
+  text-decoration: none;
+}
+
+.email-link:hover {
+  text-decoration: underline;
 }
 </style>

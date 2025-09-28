@@ -25,7 +25,7 @@
             >
               <el-alert
                 title="设置主密码"
-                description="主密码用于保护您的所有账号信息，请妥善保管。密码必须至少8个字符，并同时包含字母、数字和特殊字符。"
+                description="主密码用于保护您的所有账号信息，请妥善保管。密码设置必须同时包含字母、数字和特殊字符，且长度不少于8个字符。"
                 type="info"
                 :closable="false"
                 show-icon
@@ -115,6 +115,8 @@
                 </el-button>
               </el-form-item>
             </el-form>
+            <!-- 免责声明 -->
+            <DisclaimerInfo />
           </el-card>
         </div>
       </div>
@@ -239,6 +241,8 @@
                 </div>
               </el-form-item>
             </el-form>
+            <!-- 免责声明 -->
+            <DisclaimerInfo />
           </el-card>
         </div>
       </div>
@@ -739,6 +743,7 @@ import { sessionManager } from '../../utils/sessionManager';
 import { ExcelUtils } from '../../utils/excel';
 import type { FormRules, FormInstance } from 'element-plus';
 import ImportDialog from '../../components/ImportDialog.vue';
+import DisclaimerInfo from '@/components/DisclaimerInfo.vue';
 
 // 页面状态
 const isAuthenticated = ref(false);
