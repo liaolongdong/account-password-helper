@@ -355,7 +355,7 @@ const fillPassword = async (password: PasswordEntry) => {
       const errorMsg = response?.message || '填充可能未完成，请检查页面表单';
       ElMessage.warning(errorMsg);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('填充密码失败:', error);
     if (error.message && error.message.includes('Could not establish connection')) {
       ElMessage.error('无法连接到页面脚本，请刷新页面后重试');
@@ -366,15 +366,36 @@ const fillPassword = async (password: PasswordEntry) => {
 };
 
 // 打开选项页面
-const openOptions = () => {
-  console.log('SidePanel: 打开选项页面');
-  // chrome.runtime.openOptionsPage();
+const openOptions = async () => {
+  try {
+    console.log('SidePanel: 打开选项页面');
 
-  // 获取选项页面的完整URL
-  const optionsUrl = chrome.runtime.getURL('options.html');
-  // 在新标签页中创建并打开
-  chrome.tabs.create({ url: optionsUrl });
-  console.log('SidePanel: 选项页面打开完成');
+    // 获取选项页面的完整URL
+    const optionsUrl = chrome.runtime.getURL('options.html');
+
+    // 首先检查是否已有标签页打开了选项页面
+    const tabs = await chrome.tabs.query({ url: optionsUrl });
+
+    if (tabs.length > 0) {
+      // 如果已有标签页打开了选项页面，激活该标签页
+      const tab = tabs[0];
+      console.log('SidePanel: 发现已存在的选项页面标签页，激活该标签页');
+      await chrome.tabs.update(tab.id!, { active: true });
+
+      // 如果该标签页在其他窗口中，也激活该窗口
+      if (tab.windowId) {
+        await chrome.windows.update(tab.windowId, { focused: true });
+      }
+    } else {
+      // 如果没有已存在的标签页，创建新标签页
+      console.log('SidePanel: 未发现已存在的选项页面标签页，创建新标签页');
+      await chrome.tabs.create({ url: optionsUrl });
+    }
+
+    console.log('SidePanel: 选项页面打开完成');
+  } catch (error) {
+    console.error('SidePanel: 打开选项页面失败:', error);
+  }
 };
 
 // 标签颜色映射缓存

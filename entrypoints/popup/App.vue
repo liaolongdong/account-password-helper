@@ -27,9 +27,10 @@
         </el-button>
       </div>
 
+      <!-- 只在主密码验证通过且在会话有效期之内才展示已保存密码个数 -->
       <div
         class="stats"
-        v-if="passwordCount > 0"
+        v-if="showPasswordCount"
       >
         <el-text
           type="info"
@@ -65,6 +66,7 @@ import { Setting, Key, View } from '@element-plus/icons-vue';
 import { StorageUtils } from '../../utils/storage';
 
 const passwordCount = ref(0);
+const showPasswordCount = ref(false); // 控制是否显示密码数量
 
 onMounted(async () => {
   console.log('Popup: 开始初始化');
@@ -74,16 +76,26 @@ onMounted(async () => {
     const isSessionValid = await StorageUtils.isSessionValid();
     console.log('Popup: 会话是否有效:', isSessionValid);
 
-    // 获取会话主密码
-    const masterPassword = StorageUtils.getSessionMasterPassword();
-    console.log('Popup: 获取到的会话主密码:', masterPassword ? '存在' : '不存在');
+    if (isSessionValid) {
+      // 只有在会话有效时才获取密码数量
+      // 获取会话主密码
+      const masterPassword = StorageUtils.getSessionMasterPassword();
+      console.log('Popup: 获取到的会话主密码:', masterPassword ? '存在' : '不存在');
 
-    // 获取密码数量
-    const passwords = await StorageUtils.getAllPasswords(masterPassword);
-    passwordCount.value = passwords.length;
-    console.log('Popup: 密码数量:', passwordCount.value);
+      // 获取密码数量
+      const passwords = await StorageUtils.getAllPasswords(masterPassword);
+      passwordCount.value = passwords.length;
+      showPasswordCount.value = true; // 设置显示密码数量
+      console.log('Popup: 密码数量:', passwordCount.value);
+    } else {
+      // 会话无效时不显示密码数量
+      showPasswordCount.value = false;
+      passwordCount.value = 0;
+      console.log('Popup: 会话无效，不显示密码数量');
+    }
   } catch (error) {
     console.error('Popup: 获取密码数量失败:', error);
+    showPasswordCount.value = false;
     passwordCount.value = 0;
   }
   console.log('Popup: 初始化完成');
@@ -93,13 +105,31 @@ onMounted(async () => {
 const openOptions = async () => {
   try {
     console.log('Popup: 打开选项页面');
-    // chrome.runtime.openOptionsPage();
-    // window.close();
 
     // 获取选项页面的完整URL
     const optionsUrl = chrome.runtime.getURL('options.html');
-    // 在新标签页中创建并打开
-    await chrome.tabs.create({ url: optionsUrl });
+
+    // 首先检查是否已有标签页打开了选项页面
+    const tabs = await chrome.tabs.query({ url: optionsUrl });
+
+    if (tabs.length > 0) {
+      // 如果已有标签页打开了选项页面，激活该标签页
+      const tab = tabs[0];
+      console.log('Popup: 发现已存在的选项页面标签页，激活该标签页');
+      await chrome.tabs.update(tab.id!, { active: true });
+
+      // 如果该标签页在其他窗口中，也激活该窗口
+      if (tab.windowId) {
+        await chrome.windows.update(tab.windowId, { focused: true });
+      }
+    } else {
+      // 如果没有已存在的标签页，创建新标签页
+      console.log('Popup: 未发现已存在的选项页面标签页，创建新标签页');
+      await chrome.tabs.create({ url: optionsUrl });
+    }
+
+    // 关闭当前弹窗
+    window.close();
     console.log('Popup: 选项页面打开完成');
   } catch (error) {
     console.error('打开选项页面失败:', error);

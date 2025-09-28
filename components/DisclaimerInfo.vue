@@ -12,6 +12,8 @@
   </div>
 </template>
 
-<script setup lang="ts"></script>
+<script setup lang="ts">
+// 添加一个空的script标签以触发重新编译
+</script>
 
 <style scoped></style>

@@ -1328,9 +1328,28 @@ const handleClearSession = async () => {
     // 停止会话定时器
     stopSessionTimer();
 
+    // 关闭有效期设置弹窗
+    showValiditySetting.value = false;
+
     // 重置认证状态
     isAuthenticated.value = false;
     passwords.value = [];
+
+    // 显示验证页面
+    showPasswordVerify.value = true;
+    showMasterPasswordSetup.value = false;
+
+    // 初始化验证表单的有效期
+    const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+    verifyForm.value.validityHours = validityHours;
+
+    // 聚焦到密码输入框
+    nextTick(() => {
+      const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
+      if (passwordInput) {
+        passwordInput.focus();
+      }
+    });
 
     ElMessage.success('主密码会话已清除');
     console.log('Options: 主密码会话清除完成');
