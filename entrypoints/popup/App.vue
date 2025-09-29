@@ -26,20 +26,20 @@
           快速填充
         </el-button>
       </div>
-
-      <!-- 只在主密码验证通过且在会话有效期之内才展示已保存密码个数 -->
-      <div
-        class="stats"
-        v-if="showPasswordCount"
-      >
-        <el-text
-          type="info"
-          size="small"
-        >
-          已保存 {{ passwordCount }} 个密码
-        </el-text>
-      </div>
     </div>
+
+    <!-- 只在主密码验证通过且在会话有效期之内才展示已保存密码个数 -->
+    <!-- <div
+      class="pwd-save-count"
+      v-if="showPasswordCount"
+    >
+      <el-text
+        type="info"
+        size="small"
+      >
+        已保存 {{ passwordCount }} 个密码
+      </el-text>
+    </div> -->
 
     <!-- 联系方式 -->
     <div class="contact-info">
@@ -223,17 +223,15 @@ const handleEmailClick = (event: Event) => {
   font-size: 14px;
 }
 
-.stats {
-  padding-top: 12px;
-  border-top: 1px solid #f0f0f0;
-}
-
-.stats .el-text {
-  display: block;
+.pwd-save-count {
+  position: relative;
+  top: -12px;
+  text-align: center;
 }
 
 .contact-info {
-  margin-top: 10px;
+  padding-top: 20px;
+  border-top: 1px solid #f0f0f0;
 }
 
 .email-link {

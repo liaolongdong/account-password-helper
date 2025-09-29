@@ -307,45 +307,52 @@ const handleSearch = () => {
 const fillPassword = async (password: PasswordEntry) => {
   try {
     console.log('开始填充密码:', password);
+
+    // 获取当前活动标签页
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab.id) {
-      ElMessage.error('无法获取当前标签页');
+    if (!tab || !tab.id) {
+      ElMessage.error('无法获取当前页面信息');
       return;
     }
 
-    console.log('发送填充消息到标签页:', tab.id);
-
-    // 首先检查content script是否已加载
+    // 确保content script已注入
     try {
-      const pingResponse = await chrome.tabs.sendMessage(tab.id, { type: 'PING' });
-      console.log('Content script 状态:', pingResponse);
-    } catch (error) {
-      console.log('Content script 未响应，尝试注入...');
-
-      // 尝试注入content script
-      try {
-        await chrome.scripting.executeScript({
-          target: { tabId: tab.id },
-          files: ['content-scripts/content.js']
-        });
-        console.log('Content script 注入成功');
-        // 稍待片刻再发送消息
-        await new Promise(resolve => setTimeout(resolve, 500));
-      } catch (injectError) {
-        console.error('Content script 注入失败:', injectError);
-        ElMessage.error('无法在当前页面中注入脚本，请刷新页面后重试');
-        return;
-      }
+      console.log('尝试注入content script');
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        files: ['content-scripts/content.js']
+      });
+      console.log('Content script 注入成功');
+      // 稍待片刻再发送消息
+      await new Promise(resolve => setTimeout(resolve, 500));
+    } catch (injectError) {
+      console.error('Content script 注入失败:', injectError);
+      ElMessage.error('无法在当前页面中注入脚本，请刷新页面后重试');
+      return;
     }
 
-    // 发送消息到content script进行填充
-    const response = await chrome.tabs.sendMessage(tab.id, {
-      type: 'FILL_PASSWORD',
-      data: {
-        username: password.username,
-        password: password.password
-      }
-    });
+    // 根据密码条目类型发送不同的填充消息
+    let response;
+    // todo:手机号+短信验证码组合也按照账号密码填充
+    if (password.isMobileCode) {
+      // 手机号+验证码类型
+      response = await chrome.tabs.sendMessage(tab.id, {
+        type: 'FILL_MOBILE_CODE',
+        data: {
+          mobile: password.username, // 手机号存储在username字段
+          code: password.password // 验证码存储在password字段
+        }
+      });
+    } else {
+      // 账号+密码类型
+      response = await chrome.tabs.sendMessage(tab.id, {
+        type: 'FILL_PASSWORD',
+        data: {
+          username: password.username,
+          password: password.password
+        }
+      });
+    }
 
     console.log('填充响应:', response);
 

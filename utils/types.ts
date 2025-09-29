@@ -20,6 +20,7 @@ export interface MasterPasswordConfig {
 export enum MessageType {
   _DETECT_FORM = 'DETECT_FORM',
   _FILL_PASSWORD = 'FILL_PASSWORD',
+  _FILL_MOBILE_CODE = 'FILL_MOBILE_CODE', // 新增手机号+验证码填充消息类型
   _SHOW_SIDEPANEL = 'SHOW_SIDEPANEL',
   _GET_PASSWORDS = 'GET_PASSWORDS'
 }
