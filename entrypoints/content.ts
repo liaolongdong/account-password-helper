@@ -90,9 +90,11 @@ export default defineContentScript({
         const passwordInputs = document.querySelectorAll('input[type="password"]') as NodeListOf<HTMLInputElement>;
         this.passwordFields = Array.from(passwordInputs).filter(input => this.isVisible(input));
 
-        // 检测用户名/邮箱/账号字段
+        // 检测用户名/邮箱/手机号/账号字段
         const usernameSelectors = [
           'input[type="email"]',
+          'input[type="tel"]',
+          'input[type="text"][name*="mobile"]',
           'input[type="text"][name*="user"]',
           'input[type="text"][name*="email"]',
           'input[type="text"][name*="account"]',
@@ -120,12 +122,10 @@ export default defineContentScript({
           'input[class*="user"]',
           'input[class*="email"]',
           'input[class*="account"]',
-          'input[placeholder*="请输入用户名"]',
-          'input[placeholder*="请输入邮箱"]',
-          'input[placeholder*="请输入账号"]',
-          'input[placeholder*="电子邮箱"]',
-          'input[placeholder*="手机号/邮箱"]',
-          'input[placeholder*="账号/邮箱"]'
+          'input[placeholder*="用户名"]',
+          'input[placeholder*="邮箱"]',
+          'input[placeholder*="手机号"]',
+          'input[placeholder*="账号"]'
         ];
 
         usernameSelectors.forEach(selector => {
@@ -137,7 +137,7 @@ export default defineContentScript({
           });
         });
 
-        // 检测手机号码字段
+        // todo:检测手机号码字段 (用户名也包括手机号)
         const mobileSelectors = [
           'input[type="tel"]',
           'input[type="text"][name*="phone"]',
@@ -145,13 +145,11 @@ export default defineContentScript({
           'input[type="text"][id*="phone"]',
           'input[type="text"][id*="mobile"]',
           'input[type="text"][placeholder*="手机"]',
-          'input[type="text"][placeholder*="电话"]',
           'input[type="text"][placeholder*="phone"]',
           'input[type="text"][placeholder*="mobile"]',
           'input[type="number"][name*="phone"]',
           'input[type="number"][name*="mobile"]',
           'input[type="number"][placeholder*="手机"]',
-          'input[type="number"][placeholder*="电话"]',
           // 新增更多选择器
           'input[name*="phoneNumber"]',
           'input[name*="mobilePhone"]',
@@ -159,8 +157,7 @@ export default defineContentScript({
           'input[id*="mobilePhone"]',
           'input[class*="phone"]',
           'input[class*="mobile"]',
-          'input[placeholder*="请输入手机号"]',
-          'input[placeholder*="请输入电话号码"]'
+          'input[placeholder*="手机号"]'
         ];
 
         mobileSelectors.forEach(selector => {
@@ -179,14 +176,10 @@ export default defineContentScript({
           'input[type="text"][name*="captcha"]',
           'input[type="text"][name*="verify"]',
           'input[type="text"][id*="code"]',
-          'input[type="text"][id*="captcha"]',
           'input[type="text"][id*="verify"]',
-          'input[type="text"][placeholder*="验证码"]',
-          'input[type="text"][placeholder*="验证"]',
+          'input[type="text"][placeholder*="短信验证码"]',
           'input[type="text"][placeholder*="code"]',
-          'input[type="text"][placeholder*="captcha"]',
           'input[type="number"][name*="code"]',
-          'input[type="number"][name*="captcha"]',
           'input[type="number"][placeholder*="验证码"]',
           // 新增更多选择器
           'input[name*="verifyCode"]',
@@ -225,7 +218,10 @@ export default defineContentScript({
           // 只过滤那些完全不可交互的复选框
           const style = window.getComputedStyle(input);
           const isInteractable =
-            style.display !== 'none' && style.visibility !== 'hidden' && input.offsetParent !== null; // 检查是否在DOM中可见
+            input.disabled === false &&
+            style.display !== 'none' &&
+            style.visibility !== 'hidden' &&
+            input.offsetParent !== null; // 检查是否在DOM中可见
 
           console.log('复选框检测:', {
             element: input,
