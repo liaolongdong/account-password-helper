@@ -171,7 +171,7 @@ const filteredPasswords = computed(() => {
       p.username.toLowerCase().includes(keyword) ||
       p.tag.toLowerCase().includes(keyword) ||
       p.remark.toLowerCase().includes(keyword) ||
-      p.url.toLowerCase().includes(keyword)
+      p.url.toLowerCase().includes(keyword),
   );
 });
 
@@ -320,7 +320,7 @@ const fillPassword = async (password: PasswordEntry) => {
       console.log('尝试注入content script');
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
-        files: ['content-scripts/content.js']
+        files: ['content-scripts/content.js'],
       });
       console.log('Content script 注入成功');
       // 稍待片刻再发送消息
@@ -340,8 +340,8 @@ const fillPassword = async (password: PasswordEntry) => {
         type: 'FILL_MOBILE_CODE',
         data: {
           mobile: password.username, // 手机号存储在username字段
-          code: password.password // 验证码存储在password字段
-        }
+          code: password.password, // 验证码存储在password字段
+        },
       });
     } else {
       // 账号+密码类型
@@ -349,8 +349,8 @@ const fillPassword = async (password: PasswordEntry) => {
         type: 'FILL_PASSWORD',
         data: {
           username: password.username,
-          password: password.password
-        }
+          password: password.password,
+        },
       });
     }
 

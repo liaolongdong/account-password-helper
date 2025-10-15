@@ -10,7 +10,7 @@ export default defineBackground(() => {
   });
 
   // 监听来自content script和popup的消息
-  chrome.runtime.onMessage.addListener((message: any, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
     console.log('收到消息:', message, '来自:', sender.tab?.url);
 
     switch (message.type) {

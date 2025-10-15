@@ -14,6 +14,12 @@ export default defineContentScript({
       private verifyCodeFields: HTMLInputElement[] = [];
       private checkboxFields: HTMLInputElement[] = [];
       private observer: MutationObserver;
+      /** 设置长延迟时间 */
+      private longDelayTime = 3000;
+      /** 设置中延迟时间 */
+      private middleDelayTime = 2000;
+      /** 设置短延迟时间 */
+      private shortDelayTime = 500;
 
       constructor() {
         this.init();
@@ -24,16 +30,17 @@ export default defineContentScript({
         // 页面加载完成后检测表单
         if (document.readyState === 'loading') {
           document.addEventListener('DOMContentLoaded', () => {
-            setTimeout(() => this.detectForms(), 1000); // 延迟检测确保动态内容加载
+            setTimeout(() => this.detectForms(), this.longDelayTime); // 延迟检测确保动态内容加载
           });
         } else {
-          setTimeout(() => this.detectForms(), 1000);
+          // 页面已经加载完成
+          setTimeout(() => this.detectForms(), this.shortDelayTime);
         }
 
         // 定时重新检测表单（针对动态加载的表单）
-        setInterval(() => {
-          this.detectForms();
-        }, 3000); // 每3秒检测一次
+        // setInterval(() => {
+        //   this.detectForms();
+        // }, this.detectDelayTime); // 每3秒检测一次
 
         // 监听消息
         chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
@@ -66,13 +73,13 @@ export default defineContentScript({
 
           if (shouldRedetect) {
             console.log('检测到新表单字段，重新检测表单');
-            setTimeout(() => this.detectForms(), 500);
+            setTimeout(() => this.detectForms(), this.shortDelayTime);
           }
         });
 
         observer.observe(document.body, {
           childList: true,
-          subtree: true
+          subtree: true,
         });
 
         return observer;
@@ -90,42 +97,32 @@ export default defineContentScript({
         const passwordInputs = document.querySelectorAll('input[type="password"]') as NodeListOf<HTMLInputElement>;
         this.passwordFields = Array.from(passwordInputs).filter(input => this.isVisible(input));
 
-        // 检测用户名/邮箱/手机号/账号字段
+        // 检测用户名(号)/邮箱/手机号/账号字段
         const usernameSelectors = [
           'input[type="email"]',
           'input[type="tel"]',
-          'input[type="text"][name*="mobile"]',
           'input[type="text"][name*="user"]',
           'input[type="text"][name*="email"]',
           'input[type="text"][name*="account"]',
           'input[type="text"][name*="login"]',
-          'input[type="text"][name*="username"]',
-          'input[type="text"][id*="user"]',
+          'input[type="text"][name*="mobile"]',
+          'input[type="text"][name*="phone"]',
           'input[type="text"][id*="email"]',
           'input[type="text"][id*="account"]',
           'input[type="text"][id*="login"]',
-          'input[type="text"][id*="username"]',
-          'input[type="text"][placeholder*="用户"]',
-          'input[type="text"][placeholder*="邮箱"]',
-          'input[type="text"][placeholder*="账号"]',
-          'input[type="text"][placeholder*="用户名"]',
-          'input[type="text"][placeholder*="username"]',
-          'input[type="text"][placeholder*="email"]',
-          'input[type="text"][placeholder*="account"]',
+          'input[type="text"][id*="user"]',
+          'input[type="text"][id*="mobile"]',
+          'input[type="text"][id*="phone"]',
           // 新增更多选择器以提高检测准确性
-          'input[name*="userName"]',
-          'input[name*="e-mail"]',
-          'input[name*="accountName"]',
-          'input[id*="userName"]',
-          'input[id*="e-mail"]',
-          'input[id*="accountName"]',
-          'input[class*="user"]',
-          'input[class*="email"]',
-          'input[class*="account"]',
-          'input[placeholder*="用户名"]',
+          'input[placeholder*="用户"]', // 匹配用户名和用户号
           'input[placeholder*="邮箱"]',
           'input[placeholder*="手机号"]',
-          'input[placeholder*="账号"]'
+          'input[placeholder*="账号"]',
+          'input[placeholder*="user"]', // 匹配用户名和用户号
+          'input[placeholder*="email"]',
+          'input[placeholder*="mobile"]',
+          'input[placeholder*="phone"]',
+          'input[placeholder*="account"]',
         ];
 
         usernameSelectors.forEach(selector => {
@@ -137,27 +134,23 @@ export default defineContentScript({
           });
         });
 
-        // todo:检测手机号码字段 (用户名也包括手机号)
+        // todo:检测手机号码字段 (用户名也包括手机号了)
         const mobileSelectors = [
           'input[type="tel"]',
           'input[type="text"][name*="phone"]',
           'input[type="text"][name*="mobile"]',
           'input[type="text"][id*="phone"]',
           'input[type="text"][id*="mobile"]',
-          'input[type="text"][placeholder*="手机"]',
-          'input[type="text"][placeholder*="phone"]',
-          'input[type="text"][placeholder*="mobile"]',
           'input[type="number"][name*="phone"]',
           'input[type="number"][name*="mobile"]',
-          'input[type="number"][placeholder*="手机"]',
           // 新增更多选择器
           'input[name*="phoneNumber"]',
           'input[name*="mobilePhone"]',
           'input[id*="phoneNumber"]',
           'input[id*="mobilePhone"]',
-          'input[class*="phone"]',
-          'input[class*="mobile"]',
-          'input[placeholder*="手机号"]'
+          'input[placeholder*="mobile"]',
+          'input[placeholder*="phone"]',
+          'input[placeholder*="手机号"]',
         ];
 
         mobileSelectors.forEach(selector => {
@@ -177,10 +170,7 @@ export default defineContentScript({
           'input[type="text"][name*="verify"]',
           'input[type="text"][id*="code"]',
           'input[type="text"][id*="verify"]',
-          'input[type="text"][placeholder*="短信验证码"]',
-          'input[type="text"][placeholder*="code"]',
           'input[type="number"][name*="code"]',
-          'input[type="number"][placeholder*="验证码"]',
           // 新增更多选择器
           'input[name*="verifyCode"]',
           'input[name*="authCode"]',
@@ -190,11 +180,10 @@ export default defineContentScript({
           'input[id*="authCode"]',
           'input[id*="checkCode"]',
           'input[id*="smsCode"]',
-          'input[class*="code"]',
-          'input[class*="verify"]',
-          'input[placeholder*="请输入验证码"]',
+          'input[placeholder*="smsCode"]',
+          'input[placeholder*="verifyCode"]',
           'input[placeholder*="短信验证码"]',
-          'input[placeholder*="请输入短信验证码"]'
+          'input[placeholder*="验证码"]',
         ];
 
         verifyCodeSelectors.forEach(selector => {
@@ -233,7 +222,7 @@ export default defineContentScript({
             opacity: style.opacity,
             offsetParent: input.offsetParent,
             isInteractable: isInteractable,
-            label: this.getCheckboxLabel(input)
+            label: this.getCheckboxLabel(input),
           });
 
           return isInteractable;
@@ -242,57 +231,20 @@ export default defineContentScript({
         // 为表单字段添加焦点监听器
         this.addFormListeners();
 
-        console.log('表单检测完成:', {
-          passwordFields: this.passwordFields.length,
-          usernameFields: this.usernameFields.length,
-          mobileFields: this.mobileFields.length,
-          verifyCodeFields: this.verifyCodeFields.length,
-          checkboxFields: this.checkboxFields.length,
-          passwordFieldDetails: this.passwordFields.map(f => ({
-            type: f.type,
-            name: f.name,
-            id: f.id,
-            className: f.className
-          })),
-          usernameFieldDetails: this.usernameFields.map(f => ({
-            type: f.type,
-            name: f.name,
-            id: f.id,
-            className: f.className
-          })),
-          mobileFieldDetails: this.mobileFields.map(f => ({
-            type: f.type,
-            name: f.name,
-            id: f.id,
-            className: f.className
-          })),
-          verifyCodeFieldDetails: this.verifyCodeFields.map(f => ({
-            type: f.type,
-            name: f.name,
-            id: f.id,
-            className: f.className
-          })),
-          checkboxFieldDetails: this.checkboxFields.map(f => ({
-            id: f.id,
-            name: f.name,
-            className: f.className,
-            checked: f.checked,
-            disabled: f.disabled,
-            label: this.getCheckboxLabel(f)
-          }))
-        });
-
-        // 如果找到了表单字段，发送通知
+        // 如果找到了登录表单字段（账号和密码或者手机号和验证码这两种组合），发送通知
         if (
-          this.passwordFields.length > 0 ||
-          this.usernameFields.length > 0 ||
-          this.mobileFields.length > 0 ||
-          this.verifyCodeFields.length > 0
+          (this.usernameFields.length > 0 && this.passwordFields.length > 0) ||
+          (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0)
         ) {
-          console.log('检测到登录表单，可以使用密码填充功能');
+          console.log('检测到登录表单字段，可以使用密码填充功能'); // 如果找到了登录表单字段（账号和密码或者手机号和验证码这两种组合），发送通知
         }
       }
 
+      /**
+       * @description 判断元素是否可见
+       * @param element
+       * @returns
+       */
       private isVisible(element: HTMLElement): boolean {
         const style = window.getComputedStyle(element);
         return (
@@ -314,7 +266,7 @@ export default defineContentScript({
             field.removeEventListener('input', this.handleFieldFocus);
             field.removeEventListener('mousedown', this.handleFieldFocus);
             field.removeEventListener('keydown', this.handleFieldFocus);
-          }
+          },
         );
 
         // 为所有表单字段添加多种事件监听器，确保能够触发
@@ -334,7 +286,7 @@ export default defineContentScript({
 
             const fieldType = this.getFieldType(field);
             console.log('添加监听器到字段:', fieldType, field.name || field.id || field.className || 'unnamed');
-          }
+          },
         );
 
         // 添加全局监听器作为备选方案
@@ -361,7 +313,7 @@ export default defineContentScript({
           element: target,
           name: target?.name,
           id: target?.id,
-          placeholder: target?.placeholder
+          placeholder: target?.placeholder,
         });
 
         // 检查是否应该显示侧边栏
@@ -397,7 +349,7 @@ export default defineContentScript({
       };
 
       /**
-       * 判断是否应该显示侧边栏
+       * 判断是否应该显示侧边栏（登录表单页面或者弹窗中出现账号和密码或者手机号和短信验证码组合时，展示侧边栏密码填充功能）
        * 要求：
        * 1. 账号和密码必须同时出现在登录表单界面，账号或者密码输入框获取焦点才自动展示快速填充侧边栏，其中账号检测需要包含用户名、手机号、邮箱、账号关键字
        * 2. 手机号和短信验证码同时出现在登录表单界面，手机号和验证码输入框获取焦点才自动展示快速填充侧边栏
@@ -414,15 +366,14 @@ export default defineContentScript({
         if (!isPasswordField && !isUsernameField && !isMobileField && !isVerifyCodeField) {
           return false;
         }
-
-        // 检查是否在表单或弹窗中
+        // 检查是否在登录表单页面或者弹窗中
         if (!this.isInLoginFormOrPopup(input)) {
           return false;
         }
 
         // 情况1: 用户名/手机号/邮箱/账号 + 密码组合
         if ((isUsernameField || isPasswordField) && this.passwordFields.length > 0 && this.usernameFields.length > 0) {
-          console.log('检测到用户名/密码组合');
+          console.log('检测到账号/密码组合');
           return true;
         }
 
@@ -436,20 +387,20 @@ export default defineContentScript({
       }
 
       /**
-       * 检查输入框是否在登录表单或弹窗中
+       * todo:检查输入框是否在登录表单页面或登录弹窗中（这里待定增加检查包含登录按钮判断）
        */
       private isInLoginFormOrPopup(input: HTMLInputElement): boolean {
-        // 向上查找父元素，看是否包含表单特征
+        // 向上查找父元素，看是否包含登录表单特征
         let parent: HTMLElement | null = input.parentElement;
 
         while (parent) {
-          // 检查是否是表单元素
+          // todo:检查是否是登录表单元素
           if (parent.tagName === 'FORM') {
-            console.log('输入框在表单中');
+            console.log('输入框在登录表单中');
             return true;
           }
 
-          // 检查是否有登录相关的类名或ID
+          // todo:检查是否有登录相关的类名或ID
           const id = parent.id?.toLowerCase() || '';
           const className = parent.className?.toLowerCase() || '';
 
@@ -468,7 +419,7 @@ export default defineContentScript({
             return true;
           }
 
-          // 检查是否是弹窗或模态框的常见特征
+          // todo:检查是否是弹窗或模态框的常见特征
           const style = window.getComputedStyle(parent);
           if (
             style.position === 'fixed' ||
@@ -483,19 +434,17 @@ export default defineContentScript({
         }
 
         // 如果没有找到明确的表单或弹窗特征，但我们识别到了登录字段，仍然认为是在登录场景中
-        // 这是一个宽松的检查，确保不会遗漏正常的登录表单
+        // 这是一个宽松的检查，确保不会遗漏正常的登录表单(账号和密码或者手机和短信验证码组合)
         const hasLoginFields =
-          this.passwordFields.length > 0 ||
-          this.usernameFields.length > 0 ||
-          this.mobileFields.length > 0 ||
-          this.verifyCodeFields.length > 0;
+          (this.passwordFields.length > 0 && this.usernameFields.length > 0) ||
+          (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0);
 
         if (hasLoginFields) {
           console.log('检测到登录字段，认为在登录场景中');
           return true;
         }
 
-        console.log('输入框不在登录表单或弹窗中');
+        console.log('输入框不在登录表单或登录弹窗中');
         return false;
       }
 
@@ -504,7 +453,7 @@ export default defineContentScript({
           console.log('尝试显示侧边栏...');
           // 通知background script显示侧边栏
           const response = await chrome.runtime.sendMessage({
-            type: 'SHOW_SIDEPANEL'
+            type: 'SHOW_SIDEPANEL',
           });
           console.log('侧边栏显示请求已发送:', response);
         } catch (error) {
@@ -542,7 +491,7 @@ export default defineContentScript({
             hasUsername: !!data.username,
             hasPassword: !!data.password,
             usernameFieldsCount: this.usernameFields.length,
-            passwordFieldsCount: this.passwordFields.length
+            passwordFieldsCount: this.passwordFields.length,
           });
 
           // 填充用户名
@@ -577,7 +526,7 @@ export default defineContentScript({
             hasMobile: !!data.mobile,
             hasCode: !!data.code,
             mobileFieldsCount: this.mobileFields.length,
-            verifyCodeFieldsCount: this.verifyCodeFields.length
+            verifyCodeFieldsCount: this.verifyCodeFields.length,
           });
 
           // 填充手机号
@@ -591,7 +540,7 @@ export default defineContentScript({
               new InputEvent('input', { bubbles: true, data: data.mobile, inputType: 'insertText' }),
               new Event('change', { bubbles: true }),
               new KeyboardEvent('keydown', { bubbles: true, key: data.mobile }),
-              new KeyboardEvent('keyup', { bubbles: true, key: data.mobile })
+              new KeyboardEvent('keyup', { bubbles: true, key: data.mobile }),
             ];
 
             telEvents.forEach(event => {
@@ -636,7 +585,7 @@ export default defineContentScript({
           // 使用原生方法设置值
           const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
             window.HTMLInputElement.prototype,
-            'value'
+            'value',
           )?.set;
           if (nativeInputValueSetter) {
             nativeInputValueSetter.call(input, value);
@@ -652,11 +601,11 @@ export default defineContentScript({
               bubbles: true,
               cancelable: true,
               data: value,
-              inputType: 'insertText'
+              inputType: 'insertText',
             }),
             new Event('change', { bubbles: true, cancelable: true }),
             new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }),
-            new KeyboardEvent('keyup', { bubbles: true, key: 'Enter' })
+            new KeyboardEvent('keyup', { bubbles: true, key: 'Enter' }),
           ];
 
           events.forEach(event => {
@@ -719,7 +668,7 @@ export default defineContentScript({
             id: targetCheckbox.id,
             name: targetCheckbox.name,
             className: targetCheckbox.className,
-            labelText: this.getCheckboxLabel(targetCheckbox)
+            labelText: this.getCheckboxLabel(targetCheckbox),
           });
 
           // 勾选复选框
@@ -741,7 +690,7 @@ export default defineContentScript({
             id: checkbox.id,
             name: checkbox.name,
             label: this.getCheckboxLabel(checkbox),
-            score: score
+            score: score,
           });
 
           if (score > bestScore) {
@@ -765,7 +714,7 @@ export default defineContentScript({
         console.log('复选框距离计算:', {
           checkboxId: checkbox.id || checkbox.name || '无ID',
           distance: distance.toFixed(2),
-          distanceScore: distanceScore.toFixed(2)
+          distanceScore: distanceScore.toFixed(2),
         });
 
         // 获取复选框的标签文本
@@ -796,7 +745,7 @@ export default defineContentScript({
           'terms',
           'privacy',
           'policy',
-          'agreement'
+          'agreement',
         ];
 
         const negativeKeywords = [
@@ -812,7 +761,7 @@ export default defineContentScript({
           '营销',
           'marketing',
           'ads',
-          'promotion'
+          'promotion',
         ];
 
         // 正向关键词加分
@@ -854,7 +803,7 @@ export default defineContentScript({
           keywordScore,
           positionScore,
           hierarchyScore,
-          totalScore: score.toFixed(2)
+          totalScore: score.toFixed(2),
         });
 
         return score;
@@ -1036,7 +985,7 @@ export default defineContentScript({
             className: checkbox.className,
             currentChecked: checkbox.checked,
             disabled: checkbox.disabled,
-            label: this.getCheckboxLabel(checkbox)
+            label: this.getCheckboxLabel(checkbox),
           });
 
           // 检查是否禁用
@@ -1066,7 +1015,7 @@ export default defineContentScript({
                 new Event('input', { bubbles: true, cancelable: true }),
                 new MouseEvent('click', { bubbles: true, cancelable: true }),
                 new Event('focus', { bubbles: true }),
-                new Event('blur', { bubbles: true })
+                new Event('blur', { bubbles: true }),
               ];
 
               events.forEach(event => {
@@ -1165,22 +1114,22 @@ export default defineContentScript({
               cancelable: true,
               clientX: centerX,
               clientY: centerY,
-              button: 0
+              button: 0,
             }),
             new MouseEvent('mouseup', {
               bubbles: true,
               cancelable: true,
               clientX: centerX,
               clientY: centerY,
-              button: 0
+              button: 0,
             }),
             new MouseEvent('click', {
               bubbles: true,
               cancelable: true,
               clientX: centerX,
               clientY: centerY,
-              button: 0
-            })
+              button: 0,
+            }),
           ];
 
           // 设置值
@@ -1202,6 +1151,7 @@ export default defineContentScript({
         }
       }
 
+      // todo: 该方法暂未使用，计算两个元素的距离
       private calculateDistance(elem1: HTMLElement, elem2: HTMLElement): number {
         const rect1 = elem1.getBoundingClientRect();
         const rect2 = elem2.getBoundingClientRect();
@@ -1231,5 +1181,5 @@ export default defineContentScript({
     window.addEventListener('beforeunload', () => {
       formDetector.destroy();
     });
-  }
+  },
 });
