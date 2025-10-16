@@ -1,5 +1,5 @@
 import { defineContentScript } from 'wxt/sandbox';
-import type { Message, MessageType } from '../utils/types';
+import { Message, MessageType } from '../utils/types';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -20,10 +20,14 @@ export default defineContentScript({
       private middleDelayTime = 2000;
       /** 设置短延迟时间 */
       private shortDelayTime = 500;
+      /** 用于跟踪侧边栏显示状态 */
+      private isSidePanelVisible = false;
 
       constructor() {
         this.init();
         this.observer = this.createMutationObserver();
+        this.addPageVisibilityListener();
+        this.addPageNavigationListener();
       }
 
       private init() {
@@ -453,27 +457,97 @@ export default defineContentScript({
           console.log('尝试显示侧边栏...');
           // 通知background script显示侧边栏
           const response = await chrome.runtime.sendMessage({
-            type: 'SHOW_SIDEPANEL',
+            type: MessageType.SHOW_SIDEPANEL,
           });
           console.log('侧边栏显示请求已发送:', response);
+          this.isSidePanelVisible = true;
         } catch (error) {
           console.error('显示侧边栏失败:', error);
         }
       }
 
+      /**
+       * 隐藏侧边栏
+       */
+      private async hideSidePanel() {
+        try {
+          console.log('尝试隐藏侧边栏...');
+          // 只有在侧边栏显示时才发送隐藏请求
+          if (this.isSidePanelVisible) {
+            // 通知background script隐藏侧边栏
+            const response = await chrome.runtime.sendMessage({
+              type: MessageType.HIDE_SIDEPANEL,
+            });
+            console.log('侧边栏隐藏请求已发送:', response);
+            this.isSidePanelVisible = false;
+          }
+        } catch (error) {
+          console.error('隐藏侧边栏失败:', error);
+        }
+      }
+
+      /**
+       * 添加页面可见性监听器
+       */
+      private addPageVisibilityListener() {
+        // 监听页面可见性变化
+        document.addEventListener('visibilitychange', () => {
+          if (document.hidden) {
+            console.log('页面变为隐藏状态，隐藏侧边栏');
+            this.hideSidePanel();
+          }
+        });
+
+        // 监听窗口失去焦点事件
+        window.addEventListener('blur', () => {
+          console.log('窗口失去焦点，隐藏侧边栏');
+          this.hideSidePanel();
+        });
+      }
+
+      /**
+       * 添加页面导航监听器
+       */
+      private addPageNavigationListener() {
+        // 监听页面卸载事件
+        window.addEventListener('beforeunload', () => {
+          console.log('页面即将卸载，隐藏侧边栏');
+          this.hideSidePanel();
+        });
+
+        // 监听页面历史记录变化（SPA应用）
+        let lastUrl = location.href;
+        new MutationObserver(() => {
+          const url = location.href;
+          if (url !== lastUrl) {
+            console.log('检测到页面路由变化，隐藏侧边栏');
+            this.hideSidePanel();
+            lastUrl = url;
+          }
+        }).observe(document, { subtree: true, childList: true });
+      }
+
       private handleMessage(message: any, sender: any, sendResponse: Function) {
         console.log('Content script收到消息:', message);
         switch (message.type) {
-          case 'PING':
+          case MessageType.PING:
             sendResponse({ success: true, message: 'content script is ready' });
             break;
-          case 'FILL_PASSWORD':
+          case MessageType.FILL_PASSWORD:
             this.fillPassword(message.data);
             sendResponse({ success: true, message: '填充完成' });
             break;
-          case 'FILL_MOBILE_CODE':
+          case MessageType.FILL_MOBILE_CODE:
             this.fillMobileCode(message.data);
             sendResponse({ success: true, message: '填充完成' });
+            break;
+          case MessageType.SHOW_SIDEPANEL:
+            this.showSidePanel();
+            sendResponse({ success: true, message: '侧边栏显示请求已处理' });
+            break;
+          case MessageType.HIDE_SIDEPANEL:
+            this.hideSidePanel();
+            sendResponse({ success: true, message: '侧边栏隐藏请求已处理' });
             break;
           default:
             console.log('未知消息类型:', message.type);

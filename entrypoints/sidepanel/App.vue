@@ -1,5 +1,8 @@
 <template>
-  <div class="sidepanel-container">
+  <div
+    class="sidepanel-container"
+    v-show="showSidepanel"
+  >
     <!-- 头部 -->
     <div class="header">
       <h3>
@@ -153,7 +156,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Key, Search, User, Right, Setting, Loading } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import type { PasswordEntry } from '../../utils/types';
+import { MessageType, type PasswordEntry } from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
 
 const loading = ref(true);
@@ -161,6 +164,7 @@ const searchKeyword = ref('');
 const passwords = ref<PasswordEntry[]>([]);
 const currentDomain = ref('');
 const isAuthenticated = ref(false);
+const showSidepanel = ref(true);
 
 // 计算属性
 const filteredPasswords = computed(() => {
@@ -216,49 +220,6 @@ const handleVisibilityChange = () => {
     handleSessionChange();
   }
 };
-
-// 初始化
-onMounted(async () => {
-  console.log('SidePanel: 开始初始化');
-
-  // 添加监听器
-  chrome.storage.onChanged.addListener(handleStorageChange);
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('sessionExpired', handleSessionChange);
-
-  try {
-    console.log('SidePanel: 开始检查会话状态...');
-    // 检查会话是否有效
-    const isSessionValid = await StorageUtils.isSessionValid();
-    console.log('SidePanel: 会话是否有效:', isSessionValid);
-
-    if (!isSessionValid) {
-      // 会话无效，显示未验证状态
-      console.log('SidePanel: 会话无效，显示未验证状态');
-      isAuthenticated.value = false;
-      loading.value = false;
-      return;
-    }
-
-    console.log('SidePanel: 会话有效，加载数据');
-    isAuthenticated.value = true;
-    await loadCurrentTab();
-    await loadPasswords();
-  } catch (error) {
-    console.error('SidePanel: 初始化失败:', error);
-    // 出错时显示未验证状态
-    isAuthenticated.value = false;
-    loading.value = false;
-  }
-  console.log('SidePanel: 初始化完成');
-});
-
-// 组件卸载时移除监听器
-onUnmounted(() => {
-  chrome.storage.onChanged.removeListener(handleStorageChange);
-  document.removeEventListener('visibilitychange', handleVisibilityChange);
-  window.removeEventListener('sessionExpired', handleSessionChange);
-});
 
 // 加载当前标签页信息
 const loadCurrentTab = async () => {
@@ -334,30 +295,43 @@ const fillPassword = async (password: PasswordEntry) => {
     // 根据密码条目类型发送不同的填充消息
     let response;
     // todo:手机号+短信验证码组合也按照账号密码填充
-    if (password.isMobileCode) {
-      // 手机号+验证码类型
-      response = await chrome.tabs.sendMessage(tab.id, {
-        type: 'FILL_MOBILE_CODE',
-        data: {
-          mobile: password.username, // 手机号存储在username字段
-          code: password.password, // 验证码存储在password字段
-        },
-      });
-    } else {
-      // 账号+密码类型
-      response = await chrome.tabs.sendMessage(tab.id, {
-        type: 'FILL_PASSWORD',
-        data: {
-          username: password.username,
-          password: password.password,
-        },
-      });
-    }
+    // if (password.isMobileCode) {
+    //   // 手机号+验证码类型
+    //   response = await chrome.tabs.sendMessage(tab.id, {
+    //     type: MessageType.FILL_MOBILE_CODE,
+    //     data: {
+    //       mobile: password.username, // 手机号存储在username字段
+    //       code: password.password, // 验证码存储在password字段
+    //     },
+    //   });
+    // } else {
+    //   // 账号+密码类型
+    //   response = await chrome.tabs.sendMessage(tab.id, {
+    //     type: MessageType.FILL_PASSWORD,
+    //     data: {
+    //       username: password.username,
+    //       password: password.password,
+    //     },
+    //   });
+    // }
+
+    // 账号+密码组合（包含手机号+短信验证码组合）
+    response = await chrome.tabs.sendMessage(tab.id, {
+      type: MessageType.FILL_PASSWORD,
+      data: {
+        username: password.username,
+        password: password.password,
+      },
+    });
 
     console.log('填充响应:', response);
 
     if (response && response.success) {
       ElMessage.success('密码填充成功');
+      // 密码填充成功，则隐藏密码快速填充侧边栏
+      await chrome.runtime.sendMessage({ type: MessageType.HIDE_SIDEPANEL });
+      // 这里使用隐藏侧边栏dom节点的方式来hack实现隐藏侧边栏
+      // showSidepanel.value = false;
     } else {
       const errorMsg = response?.message || '填充可能未完成，请检查页面表单';
       ElMessage.warning(errorMsg);
@@ -518,6 +492,49 @@ const hashString = (str: string): number => {
   }
   return Math.abs(hash);
 };
+
+// 初始化
+onMounted(async () => {
+  console.log('SidePanel: 开始初始化');
+
+  // 添加监听器
+  chrome.storage.onChanged.addListener(handleStorageChange);
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('sessionExpired', handleSessionChange);
+
+  try {
+    console.log('SidePanel: 开始检查会话状态...');
+    // 检查会话是否有效
+    const isSessionValid = await StorageUtils.isSessionValid();
+    console.log('SidePanel: 会话是否有效:', isSessionValid);
+
+    if (!isSessionValid) {
+      // 会话无效，显示未验证状态
+      console.log('SidePanel: 会话无效，显示未验证状态');
+      isAuthenticated.value = false;
+      loading.value = false;
+      return;
+    }
+
+    console.log('SidePanel: 会话有效，加载数据');
+    isAuthenticated.value = true;
+    await loadCurrentTab();
+    await loadPasswords();
+  } catch (error) {
+    console.error('SidePanel: 初始化失败:', error);
+    // 出错时显示未验证状态
+    isAuthenticated.value = false;
+    loading.value = false;
+  }
+  console.log('SidePanel: 初始化完成');
+});
+
+// 组件卸载时移除监听器
+onUnmounted(() => {
+  chrome.storage.onChanged.removeListener(handleStorageChange);
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
+  window.removeEventListener('sessionExpired', handleSessionChange);
+});
 </script>
 
 <style scoped>
