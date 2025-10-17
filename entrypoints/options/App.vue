@@ -322,6 +322,25 @@
         </el-button>
       </div>
 
+      <!-- 展示密码列表总数和搜索结果总数 -->
+      <div
+        class="password-list-info"
+        v-if="passwords.length > 0"
+      >
+        <span>
+          总共
+          <el-text type="success">
+            {{ passwords.length }}
+          </el-text>
+          条账号密码
+        </span>
+        <span v-if="filteredPasswords.length !== passwords.length">
+          ，过滤筛选出
+          <el-text type="success">{{ filteredPasswords.length }}</el-text>
+          条
+        </span>
+      </div>
+
       <!-- 密码列表 -->
       <div class="password-list">
         <el-table
@@ -734,7 +753,7 @@ import {
   View,
   Hide,
   ArrowLeft,
-  Setting
+  Setting,
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { PasswordEntry } from '../../utils/types';
@@ -768,7 +787,7 @@ const verifyError = ref('');
 const setupForm = ref({
   password: '',
   confirmPassword: '',
-  validityHours: 24
+  validityHours: 24,
 });
 
 const setupRules: FormRules = {
@@ -804,8 +823,8 @@ const setupRules: FormRules = {
 
         callback();
       },
-      trigger: 'blur'
-    }
+      trigger: 'blur',
+    },
   ],
   confirmPassword: [
     { required: true, message: '请确认密码', trigger: 'blur' },
@@ -817,30 +836,30 @@ const setupRules: FormRules = {
           callback();
         }
       },
-      trigger: 'blur'
-    }
-  ]
+      trigger: 'blur',
+    },
+  ],
 };
 
 // 验证表单
 const verifyForm = ref({
   password: '',
-  validityHours: 24
+  validityHours: 24,
 });
 
 const verifyRules: FormRules = {
-  password: [{ required: true, message: '请输入主密码', trigger: 'blur' }]
+  password: [{ required: true, message: '请输入主密码', trigger: 'blur' }],
 };
 
 // 有效期设置表单
 const validityForm = ref({
-  validityHours: 24
+  validityHours: 24,
 });
 
 // 会话信息
 const sessionInfo = ref({
   expiryTime: null as number | null,
-  remainingTime: ''
+  remainingTime: '',
 });
 
 // 会话定时器
@@ -852,23 +871,23 @@ const passwordForm = ref({
   password: '',
   url: '',
   tag: '',
-  remark: ''
+  remark: '',
 });
 
 const passwordFormRules: FormRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
-    { max: 50, message: '用户名不能超过50个字符', trigger: 'blur' }
+    { max: 50, message: '用户名不能超过50个字符', trigger: 'blur' },
   ],
   password: [{ max: 50, message: '密码不能超过50个字符', trigger: 'blur' }],
   url: [{ max: 100, message: 'URL不能超过100个字符', trigger: 'blur' }],
   tag: [{ max: 50, message: '标签不能超过50个字符', trigger: 'blur' }],
-  remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }]
+  remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }],
 };
 
 // 有效期设置表单规则
 const validityRules: FormRules = {
-  validityHours: [{ required: true, message: '请选择有效期', trigger: 'change' }]
+  validityHours: [{ required: true, message: '请选择有效期', trigger: 'change' }],
 };
 
 // 业务数据
@@ -894,7 +913,7 @@ const filteredPasswords = computed(() => {
       p.username.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
       p.tag.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
       p.remark.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
-      p.url.toLowerCase().includes(searchKeyword.value.toLowerCase())
+      p.url.toLowerCase().includes(searchKeyword.value.toLowerCase()),
   );
 });
 
@@ -1113,7 +1132,7 @@ const debugPassword = async () => {
     message += `哈希预览: ${debugInfo.hashPreview}`;
 
     await ElMessageBox.alert(message, '调试信息', {
-      confirmButtonText: '关闭'
+      confirmButtonText: '关闭',
     });
   } catch (error) {
     console.error('获取调试信息失败:', error);
@@ -1127,7 +1146,7 @@ const resetMasterPassword = async () => {
     await ElMessageBox.confirm('此操作将清空所有已保存的密码数据，确定继续吗？', '确认重置', {
       confirmButtonText: '确定重置',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     });
 
     await StorageUtils.clearAllData();
@@ -1192,7 +1211,7 @@ const openPasswordDialog = () => {
     password: '',
     url: '',
     tag: '',
-    remark: ''
+    remark: '',
   };
   showPasswordDialog.value = true;
 };
@@ -1207,7 +1226,7 @@ const editPassword = (password: PasswordEntry) => {
     password: password.password,
     url: password.url,
     tag: password.tag,
-    remark: password.remark
+    remark: password.remark,
   };
   showPasswordDialog.value = true;
 };
@@ -1222,7 +1241,7 @@ const resetPasswordForm = () => {
     password: '',
     url: '',
     tag: '',
-    remark: ''
+    remark: '',
   };
   // 清除表单验证状态
   if (passwordFormRef.value) {
@@ -1245,7 +1264,7 @@ const handlePasswordFormSave = async () => {
         password: passwordForm.value.password,
         url: passwordForm.value.url.trim(),
         tag: passwordForm.value.tag.trim(),
-        remark: passwordForm.value.remark.trim()
+        remark: passwordForm.value.remark.trim(),
       });
       ElMessage.success('密码更新成功');
     } else {
@@ -1255,7 +1274,7 @@ const handlePasswordFormSave = async () => {
         password: passwordForm.value.password,
         url: passwordForm.value.url.trim(),
         tag: passwordForm.value.tag.trim(),
-        remark: passwordForm.value.remark.trim()
+        remark: passwordForm.value.remark.trim(),
       });
       ElMessage.success('密码添加成功');
     }
@@ -1312,8 +1331,8 @@ const handleClearSession = async () => {
         confirmButtonText: '确定清除',
         cancelButtonText: '取消',
         type: 'warning',
-        confirmButtonClass: 'el-button--danger'
-      }
+        confirmButtonClass: 'el-button--danger',
+      },
     );
 
     clearSessionLoading.value = true;
@@ -1456,7 +1475,7 @@ const deletePassword = async (id: string) => {
     await ElMessageBox.confirm('确定要删除这个密码吗？', '确认删除', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     });
 
     await StorageUtils.deletePassword(id);
@@ -1475,7 +1494,7 @@ const batchDelete = async () => {
     await ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 个密码吗？`, '确认批量删除', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: 'warning'
+      type: 'warning',
     });
 
     await StorageUtils.deletePasswords(selectedIds.value);
@@ -1852,6 +1871,10 @@ const getTagType = (tag: string): string => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.password-list-info {
+  margin: 0 32px 10px;
 }
 
 .password-list {

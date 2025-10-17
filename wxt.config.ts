@@ -21,6 +21,23 @@ export default defineConfig({
     version: '1.0.0',
     permissions: ['storage', 'activeTab', 'scripting', 'sidePanel'],
     host_permissions: ['<all_urls>'],
+    // 添加快捷键配置
+    commands: {
+      open_options: {
+        suggested_key: {
+          default: 'Ctrl+Shift+P',
+          mac: 'Command+Shift+P',
+        },
+        description: '打开密码管理选项页面',
+      },
+      toggle_sidepanel: {
+        suggested_key: {
+          default: 'Ctrl+Shift+L',
+          mac: 'Command+Shift+L',
+        },
+        description: '打开/关闭密码快速填充侧边栏',
+      },
+    },
     // 通过这种方式并没有实现整屏展示options页面
     // options_ui: {
     //   page: 'options.html',

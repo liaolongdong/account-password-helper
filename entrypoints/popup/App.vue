@@ -12,6 +12,7 @@
         @click="openOptions"
         class="main-button"
         size="large"
+        title="打开密码管理快捷键（Ctrl+Shift+P）"
       >
         管理密码
       </el-button>
@@ -27,19 +28,6 @@
         </el-button>
       </div>
     </div>
-
-    <!-- 只在主密码验证通过且在会话有效期之内才展示已保存密码个数 -->
-    <!-- <div
-      class="pwd-save-count"
-      v-if="showPasswordCount"
-    >
-      <el-text
-        type="info"
-        size="small"
-      >
-        已保存 {{ passwordCount }} 个密码
-      </el-text>
-    </div> -->
 
     <!-- 联系方式 -->
     <div class="contact-info">

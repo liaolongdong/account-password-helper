@@ -22,6 +22,19 @@ export default defineBackground(() => {
     closeSidePanel(activeInfo.tabId);
   });
 
+  // 监听快捷键命令
+  chrome.commands.onCommand.addListener(async command => {
+    console.log('收到快捷键命令:', command);
+
+    if (command === 'open_options') {
+      // 打开选项页面
+      await openOptionsPage();
+    } else if (command === 'toggle_sidepanel') {
+      // 切换侧边栏显示状态
+      await toggleSidePanel();
+    }
+  });
+
   // 监听来自content script和popup的消息
   chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
     console.log('收到消息:', message, '来自:', sender.tab?.url);
@@ -111,6 +124,59 @@ export default defineBackground(() => {
     } catch (error) {
       console.error('隐藏侧边栏失败:', error);
       throw error;
+    }
+  }
+
+  // 打开选项页面
+  async function openOptionsPage() {
+    try {
+      console.log('打开选项页面');
+
+      // 获取选项页面的完整URL
+      const optionsUrl = chrome.runtime.getURL('options.html');
+
+      // 首先检查是否已有标签页打开了选项页面
+      const tabs = await chrome.tabs.query({ url: optionsUrl });
+
+      if (tabs.length > 0) {
+        // 如果已有标签页打开了选项页面，激活该标签页
+        const tab = tabs[0];
+        console.log('发现已存在的选项页面标签页，激活该标签页');
+        await chrome.tabs.update(tab.id!, { active: true });
+
+        // 如果该标签页在其他窗口中，也激活该窗口
+        if (tab.windowId) {
+          await chrome.windows.update(tab.windowId, { focused: true });
+        }
+      } else {
+        // 如果没有已存在的标签页，创建新标签页
+        console.log('未发现已存在的选项页面标签页，创建新标签页');
+        await chrome.tabs.create({ url: optionsUrl });
+      }
+
+      console.log('选项页面打开完成');
+    } catch (error) {
+      console.error('打开选项页面失败:', error);
+    }
+  }
+
+  // 切换侧边栏显示状态
+  async function toggleSidePanel() {
+    try {
+      console.log('切换侧边栏显示状态');
+
+      // 获取当前活动标签页
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+      if (tab.id) {
+        // 检查侧边栏是否已经打开
+        // 注意：Chrome API 没有直接提供检查侧边栏是否打开的方法
+        // 我们采用一种简单的方式：尝试打开侧边栏
+        await chrome.sidePanel.open({ tabId: tab.id });
+        console.log('侧边栏已打开');
+      }
+    } catch (error) {
+      console.error('切换侧边栏失败:', error);
     }
   }
 });
