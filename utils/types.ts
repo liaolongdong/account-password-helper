@@ -31,6 +31,10 @@ export interface PasswordEntry {
    */
   createTime: number;
   /**
+   * 更新时间
+   */
+  updateTime: number;
+  /**
    * 排列顺序
    */
   order: number;

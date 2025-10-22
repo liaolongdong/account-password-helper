@@ -269,6 +269,13 @@
         <div class="header-actions-row">
           <div class="header-actions">
             <el-button
+              type="primary"
+              :icon="Plus"
+              @click="openPasswordDialog"
+            >
+              添加密码
+            </el-button>
+            <el-button
               :icon="Download"
               @click="downloadTemplate"
             >
@@ -285,13 +292,6 @@
               @click="exportPasswords"
             >
               导出Excel
-            </el-button>
-            <el-button
-              type="primary"
-              :icon="Plus"
-              @click="openPasswordDialog"
-            >
-              添加密码
             </el-button>
             <el-button
               :icon="Setting"
@@ -347,7 +347,9 @@
           ref="tableRef"
           :data="filteredPasswords"
           style="width: 100%"
+          stripe
           row-key="id"
+          :row-class-name="handleRowClassName"
           @selection-change="handleSelectionChange"
         >
           <el-table-column
@@ -359,6 +361,8 @@
             prop="username"
             label="用户名"
             min-width="150"
+            sortable
+            :sort-method="(a, b) => a.username.localeCompare(b.username)"
           >
             <template #default="{ row }">
               <el-tooltip
@@ -383,7 +387,7 @@
           <el-table-column
             prop="password"
             label="密码"
-            min-width="120"
+            min-width="110"
             show-overflow-tooltip
           >
             <template #default="{ row }">
@@ -476,20 +480,41 @@
           <el-table-column
             prop="createTime"
             label="创建时间"
-            min-width="120"
+            min-width="110"
+            sortable
+            :sort-method="(a, b) => a.createTime - b.createTime"
           >
             <template #default="{ row }">
               {{ new Date(row.createTime).toLocaleDateString() }}
             </template>
           </el-table-column>
           <el-table-column
+            prop="updateTime"
+            label="更新时间"
+            min-width="110"
+            sortable
+            :sort-method="(a, b) => a.updateTime - b.updateTime"
+          >
+            <template #default="{ row }">
+              {{ new Date(row.updateTime).toLocaleDateString() }}
+            </template>
+          </el-table-column>
+          <el-table-column
             label="操作"
             header-align="center"
-            width="140"
+            width="160"
             fixed="right"
           >
             <template #default="{ row }">
               <div class="operation-buttons">
+                <el-button
+                  :icon="CopyDocument"
+                  link
+                  size="small"
+                  @click="copyPassword(row)"
+                >
+                  复制
+                </el-button>
                 <el-button
                   :icon="Edit"
                   link
@@ -754,6 +779,7 @@ import {
   Hide,
   ArrowLeft,
   Setting,
+  CopyDocument,
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { PasswordEntry } from '../../utils/types';
@@ -1180,9 +1206,9 @@ const loadPasswords = async () => {
     const validityHours = await StorageUtils.getMasterPasswordValidityHours();
     validityForm.value.validityHours = validityHours;
     console.log('Options: 密码列表加载完成，数量:', passwords.value.length);
-  } catch (error) {
+  } catch (error: any) {
     console.error('加载密码列表失败:', error);
-    ElMessage.error('加载密码列表失败');
+    ElMessage.error('加载密码列表失败: ' + (error.message || '未知错误'));
   }
 };
 
@@ -1194,6 +1220,14 @@ const handleSearch = () => {
 // 切换密码可见性
 const togglePasswordVisibility = (row: any) => {
   row.showPassword = !row.showPassword;
+};
+
+/**
+ * 处理表格每行的样式名
+ * @returns {string}
+ */
+const handleRowClassName = (data: { row: PasswordEntry; rowIndex: number }) => {
+  return data.row.id;
 };
 
 // 选择变更处理
@@ -1257,6 +1291,9 @@ const handlePasswordFormSave = async () => {
     await passwordFormRef.value.validate();
     passwordFormLoading.value = true;
 
+    // 保存添加前的密码列表
+    const previousPasswords = [...passwords.value];
+
     if (isEditingPassword.value) {
       // 更新密码
       await StorageUtils.updatePassword(editingPasswordId.value, {
@@ -1265,6 +1302,8 @@ const handlePasswordFormSave = async () => {
         url: passwordForm.value.url.trim(),
         tag: passwordForm.value.tag.trim(),
         remark: passwordForm.value.remark.trim(),
+        // 更新修改时间
+        updateTime: Date.now(),
       });
       ElMessage.success('密码更新成功');
     } else {
@@ -1275,11 +1314,14 @@ const handlePasswordFormSave = async () => {
         url: passwordForm.value.url.trim(),
         tag: passwordForm.value.tag.trim(),
         remark: passwordForm.value.remark.trim(),
+        createTime: Date.now(),
+        updateTime: Date.now(),
       });
       ElMessage.success('密码添加成功');
     }
 
     await loadPasswords();
+
     showPasswordDialog.value = false;
     resetPasswordForm();
   } catch (error) {
@@ -1468,6 +1510,68 @@ watch(showValiditySetting, newVal => {
     stopSessionTimer();
   }
 });
+
+// 复制密码
+const copyPassword = async (password: PasswordEntry) => {
+  try {
+    console.log('开始复制密码条目:', password.id);
+
+    // 获取会话主密码用于加密保存
+    const masterPassword = StorageUtils.getSessionMasterPassword();
+    console.log('获取到的会话主密码:', masterPassword ? '存在' : '不存在');
+
+    // 创建一个新的密码条目，基于现有条目
+    const newPasswordEntry = {
+      username: password.username,
+      password: password.password,
+      url: password.url,
+      tag: password.tag,
+      remark: password.remark,
+      createTime: password.createTime,
+      updateTime: Date.now(),
+    };
+    console.log('新密码条目创建完成');
+
+    // 保存添加前的密码列表
+    const previousPasswords = [...passwords.value];
+
+    // 保存新的密码条目
+    console.log('开始保存新密码条目');
+    // 复制项id
+    const copyItemId = password.id;
+    await StorageUtils.savePassword(newPasswordEntry, masterPassword || undefined, copyItemId);
+    console.log('新密码条目保存完成');
+
+    // 重新加载密码列表
+    console.log('重新加载密码列表');
+    await loadPasswords();
+    console.log('密码列表加载完成');
+
+    // 高亮显示新复制的条目
+    // 等待DOM更新后添加高亮类
+    nextTick(() => {
+      const copyItem = document.querySelector(`.${password.id}`);
+      const copyAddedItem = copyItem?.nextSibling as HTMLElement;
+      if (copyAddedItem) {
+        // 为第一个（最新的）条目添加高亮类
+        copyAddedItem.classList.add('new-item');
+
+        // 新添加的第一项滚动到可视区域
+        copyAddedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // 几秒后移除高亮类
+        setTimeout(() => {
+          copyAddedItem.classList.remove('new-item');
+        }, 6000);
+      }
+    });
+
+    ElMessage.success('密码复制成功');
+  } catch (error: any) {
+    console.error('复制密码失败:', error);
+    ElMessage.error('复制失败: ' + (error.message || '未知错误'));
+  }
+};
 
 // 删除密码
 const deletePassword = async (id: string) => {
@@ -1877,6 +1981,7 @@ const getTagType = (tag: string): string => {
   margin: 0 32px 10px;
 }
 
+/* 密码列表动画 */
 .password-list {
   margin: 0 32px 32px;
   background: white;
@@ -1886,12 +1991,83 @@ const getTagType = (tag: string): string => {
   overflow: hidden;
 }
 
+/* 表格行动画 */
+:deep(.el-table__body-wrapper .el-table__row) {
+  transition: all 0.3s ease;
+}
+
+:deep(.el-table__body-wrapper .el-table__row:hover) {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgb(64 158 255 / 20%);
+}
+
+/* 新增条目高亮动画 */
+:deep(.el-table__body-wrapper .el-table__row.new-item) {
+  /* 这个虚线绿色边框没有生效 */
+  border: 1px dashed var(--el-color-success);
+  color: var(--el-color-success);
+  animation: highlight 2s ease;
+}
+
+/* 表格操作栏样式 */
+:deep(.el-table-fixed-column--right .cell) {
+  padding: 0 8px;
+}
+
+@keyframes highlight {
+  0% {
+    background-color: #e8f4fd;
+  }
+  50% {
+    background-color: #d0e8ff;
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* 表格行进入动画 */
+.password-row-enter-active {
+  transition: all 0.5s ease;
+}
+
+.password-row-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.password-row-enter-to {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 表格行离开动画 */
+.password-row-leave-active {
+  transition: all 0.3s ease;
+}
+
+.password-row-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.password-row-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+/* 表格行移动动画 */
+.password-row-move {
+  transition: transform 0.5s ease;
+}
+
 .password-cell {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
 }
+
 :deep(.el-input--large .el-input__wrapper) {
   border-radius: 6px;
   box-shadow: none;
@@ -2114,7 +2290,6 @@ const getTagType = (tag: string): string => {
 /* 操作按钮样式 */
 .operation-buttons {
   display: flex;
-  gap: 8px;
   align-items: center;
   white-space: nowrap;
 }
@@ -2123,6 +2298,7 @@ const getTagType = (tag: string): string => {
   font-size: 12px;
   height: auto;
   min-height: 28px;
+  margin-left: 2px;
 }
 
 /* 弹窗样式 */

@@ -116,12 +116,12 @@ const emit = defineEmits<Emits>();
 
 const dialogVisible = computed({
   get: () => props.modelValue,
-  set: value => emit('update:modelValue', value)
+  set: value => emit('update:modelValue', value),
 });
 
 const uploadRef = ref();
 const loading = ref(false);
-const previewData = ref<Omit<PasswordEntry, 'id' | 'createTime' | 'order'>[]>([]);
+const previewData = ref<Omit<PasswordEntry, 'id' | 'order'>[]>([]);
 const selectedFile = ref<File | undefined>(undefined);
 
 // 处理文件选择

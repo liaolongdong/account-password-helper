@@ -14,7 +14,7 @@ export class ExcelUtils {
         URL: p.url,
         标签: p.tag,
         备注: p.remark,
-        创建时间: new Date(p.createTime).toLocaleString()
+        创建时间: new Date(p.createTime || Date.now()).toLocaleString(),
       }));
 
       // 创建工作簿
@@ -28,7 +28,7 @@ export class ExcelUtils {
         { wch: 30 }, // URL
         { wch: 15 }, // 标签
         { wch: 30 }, // 备注
-        { wch: 20 } // 创建时间
+        { wch: 20 }, // 创建时间
       ];
 
       // 添加工作表到工作簿
@@ -45,7 +45,7 @@ export class ExcelUtils {
   /**
    * 从Excel文件导入密码数据
    */
-  static async importFromExcel(file: File): Promise<Omit<PasswordEntry, 'id' | 'createTime' | 'order'>[]> {
+  static async importFromExcel(file: File): Promise<Omit<PasswordEntry, 'id' | 'order'>[]> {
     return new Promise((resolve, reject) => {
       try {
         const reader = new FileReader();
@@ -71,13 +71,23 @@ export class ExcelUtils {
                 const url = row['URL'] || row['url'] || row['网址'] || row['链接'] || '';
                 const tag = row['标签'] || row['tag'] || row['Tag'] || row['分类'] || '';
                 const remark = row['备注'] || row['remark'] || row['Remark'] || row['说明'] || '';
+                const createTime = row['创建时间'] || row['createTime'] || row['CreateTime'] || Date.now();
+                const updateTime =
+                  row['更新时间'] ||
+                  row['updateTime'] ||
+                  row['UpdateTime'] ||
+                  row['修改时间'] ||
+                  row['modifyTime'] ||
+                  Date.now();
 
                 return {
                   username: String(username).trim(),
                   password: String(password).trim(),
                   url: String(url).trim(),
                   tag: String(tag).trim(),
-                  remark: String(remark).trim()
+                  remark: String(remark).trim(),
+                  createTime: new Date(String(createTime).trim()).getTime(),
+                  updateTime: new Date(String(updateTime).trim()).getTime(),
                 };
               })
               .filter(item => item.username); // 过滤掉没有用户名的条目
@@ -112,8 +122,8 @@ export class ExcelUtils {
           密码: 'password123',
           URL: 'https://example.com',
           标签: '工作',
-          备注: '示例账号'
-        }
+          备注: '示例账号',
+        },
       ];
 
       const wb = XLSX.utils.book_new();
@@ -125,7 +135,7 @@ export class ExcelUtils {
         { wch: 20 }, // 密码
         { wch: 30 }, // URL
         { wch: 15 }, // 标签
-        { wch: 30 } // 备注
+        { wch: 30 }, // 备注
       ];
 
       XLSX.utils.book_append_sheet(wb, ws, '密码模板');

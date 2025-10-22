@@ -105,7 +105,7 @@ const emit = defineEmits<Emits>();
 
 const dialogVisible = computed({
   get: () => props.modelValue,
-  set: value => emit('update:modelValue', value)
+  set: value => emit('update:modelValue', value),
 });
 
 const isEdit = computed(() => !!props.passwordData);
@@ -117,12 +117,12 @@ const form = ref({
   password: '',
   url: '',
   tag: '',
-  remark: ''
+  remark: '',
 });
 
 const rules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
+  password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 };
 
 // 监听弹窗显示状态和数据变化
@@ -135,7 +135,7 @@ watch([dialogVisible, () => props.passwordData], ([visible, passwordData]) => {
         password: passwordData.password,
         url: passwordData.url,
         tag: passwordData.tag,
-        remark: passwordData.remark
+        remark: passwordData.remark,
       };
     } else {
       // 新增模式，重置表单
@@ -144,7 +144,7 @@ watch([dialogVisible, () => props.passwordData], ([visible, passwordData]) => {
         password: '',
         url: '',
         tag: '',
-        remark: ''
+        remark: '',
       };
     }
   }
@@ -170,7 +170,8 @@ const handleSave = async () => {
         password: form.value.password,
         url: form.value.url.trim(),
         tag: form.value.tag.trim(),
-        remark: form.value.remark.trim()
+        remark: form.value.remark.trim(),
+        updateTime: Date.now(),
       });
       ElMessage.success('密码更新成功');
     } else {
@@ -180,7 +181,9 @@ const handleSave = async () => {
         password: form.value.password,
         url: form.value.url.trim(),
         tag: form.value.tag.trim(),
-        remark: form.value.remark.trim()
+        remark: form.value.remark.trim(),
+        createTime: Date.now(),
+        updateTime: Date.now(),
       });
       ElMessage.success('密码添加成功');
     }
