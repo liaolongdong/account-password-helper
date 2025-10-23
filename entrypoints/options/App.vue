@@ -362,7 +362,7 @@
             label="用户名"
             min-width="150"
             sortable
-            :sort-method="(a, b) => a.username.localeCompare(b.username)"
+            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.username.localeCompare(b.username)"
           >
             <template #default="{ row }">
               <el-tooltip
@@ -482,7 +482,7 @@
             label="创建时间"
             min-width="110"
             sortable
-            :sort-method="(a, b) => a.createTime - b.createTime"
+            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.createTime - b.createTime"
           >
             <template #default="{ row }">
               {{ new Date(row.createTime).toLocaleDateString() }}
@@ -493,7 +493,7 @@
             label="更新时间"
             min-width="110"
             sortable
-            :sort-method="(a, b) => a.updateTime - b.updateTime"
+            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.updateTime - b.updateTime"
           >
             <template #default="{ row }">
               {{ new Date(row.updateTime).toLocaleDateString() }}
@@ -2003,10 +2003,12 @@ const getTagType = (tag: string): string => {
 
 /* 新增条目高亮动画 */
 :deep(.el-table__body-wrapper .el-table__row.new-item) {
-  /* 这个虚线绿色边框没有生效 */
-  border: 1px dashed var(--el-color-success);
+  /* todo:这个虚线绿色边框没有生效 */
+
+  /* border: 1px dashed var(--el-color-success); */
+
   color: var(--el-color-success);
-  animation: highlight 2s ease;
+  animation: highlight 6s ease;
 }
 
 /* 表格操作栏样式 */
@@ -2059,6 +2061,21 @@ const getTagType = (tag: string): string => {
 /* 表格行移动动画 */
 .password-row-move {
   transition: transform 0.5s ease;
+}
+
+@keyframes highlight {
+  0% {
+    background-color: #f0f9ff;
+    border-color: var(--el-color-success);
+  }
+  50% {
+    background-color: #d9f0ff;
+    border-color: var(--el-color-success);
+  }
+  100% {
+    background-color: transparent;
+    border-color: var(--el-color-success);
+  }
 }
 
 .password-cell {
