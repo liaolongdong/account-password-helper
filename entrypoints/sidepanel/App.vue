@@ -213,11 +213,67 @@ const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageCha
   }
 };
 
+// 监听来自background的消息
+const handleMessage = (message: any, sender: chrome.runtime.MessageSender, sendResponse: Function) => {
+  console.log('SidePanel: 收到消息:', message);
+  
+  switch (message.type) {
+    case MessageType.URL_CHANGED:
+      console.log('SidePanel: 检测到URL变化，更新数据');
+      updateCurrentDomainAndLoadPasswords();
+      sendResponse({ success: true, message: 'URL变化处理完成' });
+      break;
+    default:
+      sendResponse({ success: false, message: '未知消息类型' });
+      break;
+  }
+};
+
 // 监听页面可见性变化
 const handleVisibilityChange = () => {
   if (!document.hidden) {
     console.log('SidePanel: 页面变为可见，检查会话状态');
     handleSessionChange();
+  }
+};
+
+// 监听标签页更新
+const handleTabUpdated = async (tabId: number, changeInfo: any, tab: any) => {
+  // 当标签页完成加载且URL存在时，更新数据
+  if (changeInfo.status === 'complete' && tab.url) {
+    console.log('SidePanel: 检测到标签页更新', tab.url);
+    await updateCurrentDomainAndLoadPasswords();
+  }
+};
+
+// 监听标签页激活
+const handleTabActivated = async (activeInfo: any) => {
+  console.log('SidePanel: 检测到标签页激活');
+  await updateCurrentDomainAndLoadPasswords();
+};
+
+// 更新当前域名并加载密码
+const updateCurrentDomainAndLoadPasswords = async () => {
+  try {
+    // 获取当前活动标签页
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab && tab.url) {
+      const url = new URL(tab.url);
+      const newDomain = url.hostname;
+      
+      // 只有当域名发生变化时才更新
+      if (currentDomain.value !== newDomain) {
+        console.log('SidePanel: 域名发生变化，从', currentDomain.value, '变为', newDomain);
+        currentDomain.value = newDomain;
+        
+        // 如果已认证，重新加载密码数据
+        if (isAuthenticated.value) {
+          await loadPasswords();
+        }
+      }
+    }
+  } catch (error) {
+    console.error('更新当前域名失败:', error);
   }
 };
 
@@ -499,8 +555,13 @@ onMounted(async () => {
 
   // 添加监听器
   chrome.storage.onChanged.addListener(handleStorageChange);
+  chrome.runtime.onMessage.addListener(handleMessage);
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('sessionExpired', handleSessionChange);
+  
+  // 添加标签页变化监听器
+  chrome.tabs.onUpdated.addListener(handleTabUpdated);
+  chrome.tabs.onActivated.addListener(handleTabActivated);
 
   try {
     console.log('SidePanel: 开始检查会话状态...');
@@ -532,8 +593,13 @@ onMounted(async () => {
 // 组件卸载时移除监听器
 onUnmounted(() => {
   chrome.storage.onChanged.removeListener(handleStorageChange);
+  chrome.runtime.onMessage.removeListener(handleMessage);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('sessionExpired', handleSessionChange);
+  
+  // 移除标签页变化监听器
+  chrome.tabs.onUpdated.removeListener(handleTabUpdated);
+  chrome.tabs.onActivated.removeListener(handleTabActivated);
 });
 </script>
 

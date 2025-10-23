@@ -77,6 +77,10 @@ export enum MessageType {
    */
   HIDE_SIDEPANEL = 'HIDE_SIDEPANEL',
   /**
+   * URL变化消息类型
+   */
+  URL_CHANGED = 'URL_CHANGED',
+  /**
    * 获取密码列表消息类型
    */
   GET_PASSWORDS = 'GET_PASSWORDS',

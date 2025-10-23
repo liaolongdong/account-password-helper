@@ -520,11 +520,35 @@ export default defineContentScript({
         new MutationObserver(() => {
           const url = location.href;
           if (url !== lastUrl) {
-            console.log('检测到页面路由变化，隐藏侧边栏');
-            this.hideSidePanel();
+            console.log('检测到页面路由变化，通知侧边栏更新数据');
+            this.notifyUrlChange();
             lastUrl = url;
           }
         }).observe(document, { subtree: true, childList: true });
+
+        // 监听浏览器历史记录变化
+        window.addEventListener('popstate', () => {
+          console.log('检测到浏览器历史记录变化，通知侧边栏更新数据');
+          this.notifyUrlChange();
+        });
+      }
+
+      /**
+       * 通知侧边栏URL发生变化
+       */
+      private async notifyUrlChange() {
+        try {
+          // 通知background script url发生了变化
+          await chrome.runtime.sendMessage({
+            type: MessageType.URL_CHANGED,
+            data: {
+              url: location.href,
+            },
+          });
+          console.log('URL变化通知已发送');
+        } catch (error) {
+          console.error('发送URL变化通知失败:', error);
+        }
       }
 
       private handleMessage(message: any, sender: any, sendResponse: Function) {

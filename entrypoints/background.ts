@@ -62,6 +62,17 @@ export default defineBackground(() => {
           });
         return true; // 保持消息通道开放用于异步响应
 
+      case MessageType.URL_CHANGED:
+        handleUrlChanged(sender, message.data)
+          .then(result => {
+            sendResponse({ success: true, result });
+          })
+          .catch(error => {
+            console.error('处理URL_CHANGED失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true; // 保持消息通道开放用于异步响应
+
       default:
         sendResponse({ success: false, error: '未知消息类型' });
         break;
@@ -177,6 +188,28 @@ export default defineBackground(() => {
       }
     } catch (error) {
       console.error('切换侧边栏失败:', error);
+    }
+  }
+
+  // 处理URL变化
+  async function handleUrlChanged(sender: chrome.runtime.MessageSender, data: any) {
+    try {
+      console.log('处理URL变化:', data?.url);
+      
+      // 如果有活动的标签页，通知侧边栏更新数据
+      if (sender.tab?.id) {
+        // 可以在这里添加更多的逻辑来处理URL变化
+        // 例如：检查是否需要显示侧边栏等
+        console.log('URL变化已处理');
+        return 'URL变化处理完成';
+      } else {
+        const errorMsg = '无法获取标签ID';
+        console.error(errorMsg);
+        throw new Error(errorMsg);
+      }
+    } catch (error) {
+      console.error('处理URL变化失败:', error);
+      throw error;
     }
   }
 });
