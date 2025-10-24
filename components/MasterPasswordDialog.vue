@@ -191,9 +191,7 @@ const handleSubmit = async () => {
 
     if (props.isFirstTime) {
       // 设置主密码
-      console.log('设置主密码...');
       await StorageUtils.setMasterPassword(form.value.password.trim());
-      console.log('主密码设置完成，关闭弹窗');
       ElMessage.success('主密码设置成功');
 
       // 立即关闭弹窗并触发事件
@@ -201,10 +199,8 @@ const handleSubmit = async () => {
       emit('passwordSet');
     } else {
       // 验证主密码
-      console.log('验证主密码...');
       const isValid = await StorageUtils.verifyMasterPassword(form.value.password.trim());
       if (isValid) {
-        console.log('验证成功，关闭弹窗');
         ElMessage.success('密码验证成功');
 
         // 立即关闭弹窗并触发事件

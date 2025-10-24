@@ -16,8 +16,6 @@ export class ShadowDomStyler {
       if (host.shadowRoot) {
         const crDialog = host.shadowRoot.querySelector('#dialog[id="dialog"]') as HTMLElement;
         if (crDialog) {
-          console.log('找到 cr-dialog 元素:', crDialog);
-
           // 直接修改样式
           crDialog.style.width = targetWidth;
           crDialog.style.maxWidth = 'calc(100vw - 40px)';
@@ -71,7 +69,6 @@ export class ShadowDomStyler {
     `;
 
     shadowRoot.appendChild(style);
-    console.log('已向 shadow DOM 注入 cr-dialog 样式');
   }
 
   /**
@@ -104,7 +101,7 @@ export class ShadowDomStyler {
 
     observer.observe(document.body, {
       childList: true,
-      subtree: true
+      subtree: true,
     });
 
     return observer;
@@ -118,8 +115,6 @@ export class ShadowDomStyler {
   static modifyCrDialogInShadowRoot(shadowRoot: ShadowRoot, targetWidth: string) {
     const crDialog = shadowRoot.querySelector('cr-dialog#dialog') as HTMLElement;
     if (crDialog) {
-      console.log('在 shadow DOM 中找到 cr-dialog:', crDialog);
-
       // 直接修改样式
       crDialog.style.width = targetWidth;
       crDialog.style.maxWidth = 'calc(100vw - 40px)';

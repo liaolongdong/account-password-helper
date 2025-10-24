@@ -2,17 +2,14 @@ import { defineBackground } from 'wxt/sandbox';
 import { Message, MessageType } from '../utils/types';
 
 export default defineBackground(() => {
-  console.log('Account Password Helper background script started');
-
   // 插件安装时的初始化
   chrome.runtime.onInstalled.addListener(() => {
-    console.log('插件已安装');
+    console.log('账号密码管理助手插件已安装');
   });
 
   // 标签页更新监听
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' && tab.url) {
-      console.log('页面加载完成:', tab.url);
       closeSidePanel(tabId);
     }
   });
@@ -24,8 +21,6 @@ export default defineBackground(() => {
 
   // 监听快捷键命令
   chrome.commands.onCommand.addListener(async command => {
-    console.log('收到快捷键命令:', command);
-
     if (command === 'open_options') {
       // 打开选项页面
       await openOptionsPage();
@@ -37,8 +32,6 @@ export default defineBackground(() => {
 
   // 监听来自content script和popup的消息
   chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
-    console.log('收到消息:', message, '来自:', sender.tab?.url);
-
     switch (message.type) {
       case MessageType.SHOW_SIDEPANEL:
         handleShowSidePanel(sender)
@@ -82,13 +75,10 @@ export default defineBackground(() => {
   // 显示侧边栏
   async function handleShowSidePanel(sender: chrome.runtime.MessageSender) {
     try {
-      console.log('尝试打开侧边栏, 标签ID:', sender.tab?.id);
-
       if (sender.tab?.id) {
         // 检查侧边栏API是否可用
         if (chrome.sidePanel) {
           await chrome.sidePanel.open({ tabId: sender.tab.id });
-          console.log('侧边栏已打开');
           return '侧边栏已打开';
         } else {
           const errorMsg = '当前Chrome版本不支持sidePanel API';
@@ -109,21 +99,18 @@ export default defineBackground(() => {
   // 隐藏侧边栏
   async function handleHideSidePanel(sender: chrome.runtime.MessageSender) {
     try {
-      console.log('尝试隐藏侧边栏, 标签ID:', sender.tab?.id);
-
       if (sender.tab?.id) {
         // 检查侧边栏API是否可用
         if (chrome.sidePanel) {
           try {
             // 关闭侧边栏
             closeSidePanel(sender.tab.id);
-            console.log('侧边栏已隐藏');
             return '侧边栏已隐藏';
           } catch (msgError) {
             console.log('无法直接向sidepanel发送消息:', msgError);
           }
         } else {
-          const errorMsg = '当前Chrome版本不支持sidePanel API';
+          const errorMsg = '当前Chrome版本不支持sidePanel API，请升级到Chrome 116 及更高版本';
           console.warn(errorMsg);
           throw new Error(errorMsg);
         }
@@ -141,8 +128,6 @@ export default defineBackground(() => {
   // 打开选项页面
   async function openOptionsPage() {
     try {
-      console.log('打开选项页面');
-
       // 获取选项页面的完整URL
       const optionsUrl = chrome.runtime.getURL('options.html');
 
@@ -152,7 +137,6 @@ export default defineBackground(() => {
       if (tabs.length > 0) {
         // 如果已有标签页打开了选项页面，激活该标签页
         const tab = tabs[0];
-        console.log('发现已存在的选项页面标签页，激活该标签页');
         await chrome.tabs.update(tab.id!, { active: true });
 
         // 如果该标签页在其他窗口中，也激活该窗口
@@ -161,11 +145,8 @@ export default defineBackground(() => {
         }
       } else {
         // 如果没有已存在的标签页，创建新标签页
-        console.log('未发现已存在的选项页面标签页，创建新标签页');
         await chrome.tabs.create({ url: optionsUrl });
       }
-
-      console.log('选项页面打开完成');
     } catch (error) {
       console.error('打开选项页面失败:', error);
     }
@@ -174,8 +155,6 @@ export default defineBackground(() => {
   // 切换侧边栏显示状态
   async function toggleSidePanel() {
     try {
-      console.log('切换侧边栏显示状态');
-
       // 获取当前活动标签页
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
 
@@ -184,7 +163,6 @@ export default defineBackground(() => {
         // 注意：Chrome API 没有直接提供检查侧边栏是否打开的方法
         // 我们采用一种简单的方式：尝试打开侧边栏
         await chrome.sidePanel.open({ tabId: tab.id });
-        console.log('侧边栏已打开');
       }
     } catch (error) {
       console.error('切换侧边栏失败:', error);
@@ -194,13 +172,10 @@ export default defineBackground(() => {
   // 处理URL变化
   async function handleUrlChanged(sender: chrome.runtime.MessageSender, data: any) {
     try {
-      console.log('处理URL变化:', data?.url);
-      
       // 如果有活动的标签页，通知侧边栏更新数据
       if (sender.tab?.id) {
         // 可以在这里添加更多的逻辑来处理URL变化
         // 例如：检查是否需要显示侧边栏等
-        console.log('URL变化已处理');
         return 'URL变化处理完成';
       } else {
         const errorMsg = '无法获取标签ID';
@@ -216,7 +191,6 @@ export default defineBackground(() => {
 
 // todo:官方暂时没有提供关闭已打开侧边栏的方法，只能通过其它的方式hack
 async function closeSidePanel(tabId: number) {
-  console.log('🚀 ~ closeSidePanel ~ tabId:', tabId);
   // window.close();
   if (chrome.sidePanel) {
     // 方法1：直接关闭侧边栏(官方API没该方法)

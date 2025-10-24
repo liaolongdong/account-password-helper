@@ -945,7 +945,6 @@ const filteredPasswords = computed(() => {
 
 // 初始化
 onMounted(async () => {
-  console.log('Options: 开始初始化');
   // 初始化会话管理器
   sessionManager.init();
 
@@ -953,19 +952,15 @@ onMounted(async () => {
   window.addEventListener('sessionExpired', handleSessionExpired);
 
   await checkAuth();
-  console.log('Options: 初始化完成');
 });
 
 // 在 onUnmounted 中移除事件监听器
 onUnmounted(() => {
-  console.log('Options: 开始清理');
   window.removeEventListener('sessionExpired', handleSessionExpired);
-  console.log('Options: 清理完成');
 });
 
 // 处理会话过期事件
 const handleSessionExpired = () => {
-  console.log('Options: 处理会话过期事件');
   // 显示验证页面
   showMasterPasswordSetup.value = false;
   showPasswordVerify.value = true;
@@ -983,22 +978,14 @@ const handleSessionExpired = () => {
       passwordInput.focus();
     }
   });
-  console.log('Options: 会话过期事件处理完成');
 };
 
 // 检查认证状态
 const checkAuth = async () => {
   try {
-    console.log('Options: 开始检查认证状态...');
     const hasMaster = await StorageUtils.hasMasterPassword();
-    console.log('Options: 是否已设置主密码:', hasMaster);
 
     if (!hasMaster) {
-      console.log('Options: 首次使用，显示设置主密码页面');
-      showMasterPasswordSetup.value = true;
-      showPasswordVerify.value = false;
-      isAuthenticated.value = false;
-
       // 聚焦到密码输入框
       nextTick(() => {
         const passwordInput = document.querySelector('.setup-form .el-input__inner') as HTMLInputElement;
@@ -1009,9 +996,7 @@ const checkAuth = async () => {
     } else {
       // 检查会话是否有效
       const isSessionValid = await StorageUtils.isSessionValid();
-      console.log('Options: 会话是否有效:', isSessionValid);
       if (isSessionValid) {
-        console.log('Options: 会话有效，直接进入主界面');
         showMasterPasswordSetup.value = false;
         showPasswordVerify.value = false;
         isAuthenticated.value = true;
@@ -1022,7 +1007,6 @@ const checkAuth = async () => {
 
         await loadPasswords();
       } else {
-        console.log('Options: 会话无效，显示验证页面');
         showMasterPasswordSetup.value = false;
         showPasswordVerify.value = true;
         isAuthenticated.value = false;
@@ -1057,7 +1041,6 @@ const handleSetupSubmit = async () => {
     await setupFormRef.value.validate();
 
     setupLoading.value = true;
-    console.log('设置主密码...');
 
     // 设置主密码
     await StorageUtils.setMasterPassword(setupForm.value.password.trim());
@@ -1067,8 +1050,6 @@ const handleSetupSubmit = async () => {
 
     // 创建会话缓存
     await StorageUtils.createSession(setupForm.value.password.trim(), setupForm.value.validityHours);
-
-    console.log('主密码设置完成');
 
     ElMessage.success('主密码设置成功，欢迎使用');
 
@@ -1100,13 +1081,10 @@ const handleVerifySubmit = async () => {
 
     verifyLoading.value = true;
     verifyError.value = '';
-    console.log('验证主密码...');
 
     const isValid = await StorageUtils.verifyMasterPassword(verifyForm.value.password.trim());
-    console.log('验证结果:', isValid);
 
     if (isValid) {
-      console.log('验证成功');
       ElMessage.success('验证成功，欢迎使用');
 
       // 保存有效期设置
@@ -1146,8 +1124,6 @@ const handleVerifySubmit = async () => {
 const debugPassword = async () => {
   try {
     const debugInfo = await StorageUtils.debugMasterPassword();
-    console.log('主密码调试信息:', debugInfo);
-
     let message = '主密码配置信息:\n';
     message += `配置存在: ${debugInfo.hasConfig ? '是' : '否'}\n`;
     message += `盐值存在: ${debugInfo.hasSalt ? '是' : '否'}\n`;
@@ -1191,10 +1167,8 @@ const resetMasterPassword = async () => {
 // 加载密码列表
 const loadPasswords = async () => {
   try {
-    console.log('Options: 开始加载密码列表');
     // 获取会话主密码
     const masterPassword = StorageUtils.getSessionMasterPassword();
-    console.log('Options: 获取到的会话主密码:', masterPassword ? '存在' : '不存在');
 
     passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
     // 添加显示密码状态
@@ -1205,7 +1179,6 @@ const loadPasswords = async () => {
     // 初始化有效期设置表单
     const validityHours = await StorageUtils.getMasterPasswordValidityHours();
     validityForm.value.validityHours = validityHours;
-    console.log('Options: 密码列表加载完成，数量:', passwords.value.length);
   } catch (error: any) {
     console.error('加载密码列表失败:', error);
     ElMessage.error('加载密码列表失败: ' + (error.message || '未知错误'));
@@ -1340,20 +1313,17 @@ const handleValiditySave = async () => {
     await validityFormRef.value.validate();
     validityLoading.value = true;
 
-    console.log('Options: 开始保存有效期设置', validityForm.value.validityHours);
     // 保存有效期设置
     await StorageUtils.setMasterPasswordValidityHours(validityForm.value.validityHours);
 
     // 如果当前有会话，更新会话的有效期
     const currentMasterPassword = StorageUtils.getSessionMasterPassword();
-    console.log('Options: 当前会话主密码:', currentMasterPassword ? '存在' : '不存在');
     if (currentMasterPassword) {
       await StorageUtils.createSession(currentMasterPassword, validityForm.value.validityHours);
     }
 
     ElMessage.success('有效期设置保存成功');
     showValiditySetting.value = false;
-    console.log('Options: 有效期设置保存完成');
   } catch (error) {
     console.error('保存有效期设置失败:', error);
     ElMessage.error('保存失败');
@@ -1378,7 +1348,6 @@ const handleClearSession = async () => {
     );
 
     clearSessionLoading.value = true;
-    console.log('Options: 开始清除主密码会话');
 
     // 清除会话
     await StorageUtils.clearSession();
@@ -1413,7 +1382,6 @@ const handleClearSession = async () => {
     });
 
     ElMessage.success('主密码会话已清除');
-    console.log('Options: 主密码会话清除完成');
   } catch (error) {
     if (error !== 'cancel') {
       console.error('清除主密码会话失败:', error);
@@ -1514,11 +1482,8 @@ watch(showValiditySetting, newVal => {
 // 复制密码
 const copyPassword = async (password: PasswordEntry) => {
   try {
-    console.log('开始复制密码条目:', password.id);
-
     // 获取会话主密码用于加密保存
     const masterPassword = StorageUtils.getSessionMasterPassword();
-    console.log('获取到的会话主密码:', masterPassword ? '存在' : '不存在');
 
     // 创建一个新的密码条目，基于现有条目
     const newPasswordEntry = {
@@ -1530,22 +1495,17 @@ const copyPassword = async (password: PasswordEntry) => {
       createTime: password.createTime,
       updateTime: Date.now(),
     };
-    console.log('新密码条目创建完成');
 
     // 保存添加前的密码列表
     const previousPasswords = [...passwords.value];
 
     // 保存新的密码条目
-    console.log('开始保存新密码条目');
     // 复制项id
     const copyItemId = password.id;
     await StorageUtils.savePassword(newPasswordEntry, masterPassword || undefined, copyItemId);
-    console.log('新密码条目保存完成');
 
     // 重新加载密码列表
-    console.log('重新加载密码列表');
     await loadPasswords();
-    console.log('密码列表加载完成');
 
     // 高亮显示新复制的条目
     // 等待DOM更新后添加高亮类

@@ -181,18 +181,18 @@ const filteredPasswords = computed(() => {
 
 // 监听会话状态变化
 const handleSessionChange = async () => {
-  console.log('SidePanel: 检测到会话状态变化，重新检查认证状态');
+  // SidePanel: 检测到会话状态变化，重新检查认证状态
   try {
     const isSessionValid = await StorageUtils.isSessionValid();
     if (isSessionValid && !isAuthenticated.value) {
       // 会话变为有效，重新加载数据
-      console.log('SidePanel: 会话已恢复，重新加载数据');
+      // SidePanel: 会话已恢复，重新加载数据
       isAuthenticated.value = true;
       await loadCurrentTab();
       await loadPasswords();
     } else if (!isSessionValid && isAuthenticated.value) {
       // 会话变为无效，显示未验证状态
-      console.log('SidePanel: 会话已过期，显示未验证状态');
+      // SidePanel: 会话已过期，显示未验证状态
       isAuthenticated.value = false;
       passwords.value = [];
     }
@@ -208,18 +208,18 @@ const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageCha
   const hasSessionChange = Object.keys(changes).some(key => sessionKeys.includes(key));
 
   if (hasSessionChange) {
-    console.log('SidePanel: 检测到会话存储变化');
+    // SidePanel: 检测到会话存储变化
     handleSessionChange();
   }
 };
 
 // 监听来自background的消息
 const handleMessage = (message: any, sender: chrome.runtime.MessageSender, sendResponse: Function) => {
-  console.log('SidePanel: 收到消息:', message);
-  
+  // SidePanel: 收到消息
+
   switch (message.type) {
     case MessageType.URL_CHANGED:
-      console.log('SidePanel: 检测到URL变化，更新数据');
+      // SidePanel: 检测到URL变化，更新数据
       updateCurrentDomainAndLoadPasswords();
       sendResponse({ success: true, message: 'URL变化处理完成' });
       break;
@@ -232,7 +232,7 @@ const handleMessage = (message: any, sender: chrome.runtime.MessageSender, sendR
 // 监听页面可见性变化
 const handleVisibilityChange = () => {
   if (!document.hidden) {
-    console.log('SidePanel: 页面变为可见，检查会话状态');
+    // SidePanel: 页面变为可见，检查会话状态
     handleSessionChange();
   }
 };
@@ -241,14 +241,14 @@ const handleVisibilityChange = () => {
 const handleTabUpdated = async (tabId: number, changeInfo: any, tab: any) => {
   // 当标签页完成加载且URL存在时，更新数据
   if (changeInfo.status === 'complete' && tab.url) {
-    console.log('SidePanel: 检测到标签页更新', tab.url);
+    // SidePanel: 检测到标签页更新
     await updateCurrentDomainAndLoadPasswords();
   }
 };
 
 // 监听标签页激活
 const handleTabActivated = async (activeInfo: any) => {
-  console.log('SidePanel: 检测到标签页激活');
+  // SidePanel: 检测到标签页激活
   await updateCurrentDomainAndLoadPasswords();
 };
 
@@ -260,12 +260,12 @@ const updateCurrentDomainAndLoadPasswords = async () => {
     if (tab && tab.url) {
       const url = new URL(tab.url);
       const newDomain = url.hostname;
-      
+
       // 只有当域名发生变化时才更新
       if (currentDomain.value !== newDomain) {
-        console.log('SidePanel: 域名发生变化，从', currentDomain.value, '变为', newDomain);
+        // SidePanel: 域名发生变化
         currentDomain.value = newDomain;
-        
+
         // 如果已认证，重新加载密码数据
         if (isAuthenticated.value) {
           await loadPasswords();
@@ -294,11 +294,11 @@ const loadCurrentTab = async () => {
 const loadPasswords = async () => {
   try {
     loading.value = true;
-    console.log('SidePanel: 开始加载密码列表');
+    // SidePanel: 开始加载密码列表
 
     // 获取会话主密码
     const masterPassword = StorageUtils.getSessionMasterPassword();
-    console.log('SidePanel: 获取到的会话主密码:', masterPassword ? '存在' : '不存在');
+    // SidePanel: 获取到的会话主密码
 
     // 根据当前域名获取匹配的密码
     if (currentDomain.value) {
@@ -306,7 +306,7 @@ const loadPasswords = async () => {
     } else {
       passwords.value = await StorageUtils.getAllPasswords(masterPassword);
     }
-    console.log('SidePanel: 密码列表加载完成，数量:', passwords.value.length);
+    // SidePanel: 密码列表加载完成
   } catch (error) {
     console.error('加载密码列表失败:', error);
     ElMessage.error('加载密码列表失败');
@@ -323,7 +323,7 @@ const handleSearch = () => {
 // 填充密码
 const fillPassword = async (password: PasswordEntry) => {
   try {
-    console.log('开始填充密码:', password);
+    // 开始填充密码
 
     // 获取当前活动标签页
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -334,12 +334,12 @@ const fillPassword = async (password: PasswordEntry) => {
 
     // 确保content script已注入
     try {
-      console.log('尝试注入content script');
+      // 尝试注入content script
       await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         files: ['content-scripts/content.js'],
       });
-      console.log('Content script 注入成功');
+      // Content script 注入成功
       // 稍待片刻再发送消息
       await new Promise(resolve => setTimeout(resolve, 500));
     } catch (injectError) {
@@ -380,7 +380,7 @@ const fillPassword = async (password: PasswordEntry) => {
       },
     });
 
-    console.log('填充响应:', response);
+    // 填充响应
 
     if (response && response.success) {
       ElMessage.success('密码填充成功');
@@ -405,7 +405,7 @@ const fillPassword = async (password: PasswordEntry) => {
 // 打开选项页面
 const openOptions = async () => {
   try {
-    console.log('SidePanel: 打开选项页面');
+    // SidePanel: 打开选项页面
 
     // 获取选项页面的完整URL
     const optionsUrl = chrome.runtime.getURL('options.html');
@@ -416,7 +416,7 @@ const openOptions = async () => {
     if (tabs.length > 0) {
       // 如果已有标签页打开了选项页面，激活该标签页
       const tab = tabs[0];
-      console.log('SidePanel: 发现已存在的选项页面标签页，激活该标签页');
+      // SidePanel: 发现已存在的选项页面标签页，激活该标签页
       await chrome.tabs.update(tab.id!, { active: true });
 
       // 如果该标签页在其他窗口中，也激活该窗口
@@ -425,11 +425,11 @@ const openOptions = async () => {
       }
     } else {
       // 如果没有已存在的标签页，创建新标签页
-      console.log('SidePanel: 未发现已存在的选项页面标签页，创建新标签页');
+      // SidePanel: 未发现已存在的选项页面标签页，创建新标签页
       await chrome.tabs.create({ url: optionsUrl });
     }
 
-    console.log('SidePanel: 选项页面打开完成');
+    // SidePanel: 选项页面打开完成
   } catch (error) {
     console.error('SidePanel: 打开选项页面失败:', error);
   }
@@ -551,33 +551,33 @@ const hashString = (str: string): number => {
 
 // 初始化
 onMounted(async () => {
-  console.log('SidePanel: 开始初始化');
+  // SidePanel: 开始初始化
 
   // 添加监听器
   chrome.storage.onChanged.addListener(handleStorageChange);
   chrome.runtime.onMessage.addListener(handleMessage);
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('sessionExpired', handleSessionChange);
-  
+
   // 添加标签页变化监听器
   chrome.tabs.onUpdated.addListener(handleTabUpdated);
   chrome.tabs.onActivated.addListener(handleTabActivated);
 
   try {
-    console.log('SidePanel: 开始检查会话状态...');
+    // SidePanel: 开始检查会话状态...
     // 检查会话是否有效
     const isSessionValid = await StorageUtils.isSessionValid();
-    console.log('SidePanel: 会话是否有效:', isSessionValid);
+    // SidePanel: 会话是否有效
 
     if (!isSessionValid) {
       // 会话无效，显示未验证状态
-      console.log('SidePanel: 会话无效，显示未验证状态');
+      // SidePanel: 会话无效，显示未验证状态
       isAuthenticated.value = false;
       loading.value = false;
       return;
     }
 
-    console.log('SidePanel: 会话有效，加载数据');
+    // SidePanel: 会话有效，加载数据
     isAuthenticated.value = true;
     await loadCurrentTab();
     await loadPasswords();
@@ -587,7 +587,7 @@ onMounted(async () => {
     isAuthenticated.value = false;
     loading.value = false;
   }
-  console.log('SidePanel: 初始化完成');
+  // SidePanel: 初始化完成
 });
 
 // 组件卸载时移除监听器
@@ -596,7 +596,7 @@ onUnmounted(() => {
   chrome.runtime.onMessage.removeListener(handleMessage);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('sessionExpired', handleSessionChange);
-  
+
   // 移除标签页变化监听器
   chrome.tabs.onUpdated.removeListener(handleTabUpdated);
   chrome.tabs.onActivated.removeListener(handleTabActivated);

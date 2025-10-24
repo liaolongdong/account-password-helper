@@ -76,7 +76,6 @@ export default defineContentScript({
           });
 
           if (shouldRedetect) {
-            console.log('检测到新表单字段，重新检测表单');
             setTimeout(() => this.detectForms(), this.shortDelayTime);
           }
         });
@@ -161,7 +160,6 @@ export default defineContentScript({
           const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
           Array.from(inputs).forEach(input => {
             if (this.isVisible(input) && !this.mobileFields.includes(input) && !this.usernameFields.includes(input)) {
-              console.log('发现手机号码字段:', selector, input.type, input.name || input.id);
               this.mobileFields.push(input);
             }
           });
@@ -199,7 +197,6 @@ export default defineContentScript({
               !this.usernameFields.includes(input) &&
               !this.mobileFields.includes(input)
             ) {
-              console.log('发现验证码字段:', selector, input.type, input.name || input.id);
               this.verifyCodeFields.push(input);
             }
           });
@@ -216,18 +213,7 @@ export default defineContentScript({
             style.visibility !== 'hidden' &&
             input.offsetParent !== null; // 检查是否在DOM中可见
 
-          console.log('复选框检测:', {
-            element: input,
-            id: input.id,
-            name: input.name,
-            className: input.className,
-            display: style.display,
-            visibility: style.visibility,
-            opacity: style.opacity,
-            offsetParent: input.offsetParent,
-            isInteractable: isInteractable,
-            label: this.getCheckboxLabel(input),
-          });
+          // 复选框检测信息
 
           return isInteractable;
         });
@@ -289,7 +275,7 @@ export default defineContentScript({
             }
 
             const fieldType = this.getFieldType(field);
-            console.log('添加监听器到字段:', fieldType, field.name || field.id || field.className || 'unnamed');
+            // 添加监听器到字段
           },
         );
 
@@ -311,14 +297,7 @@ export default defineContentScript({
         if (!target) return;
 
         const fieldType = this.getFieldType(target);
-        console.log('表单字段获得焦点', {
-          eventType: event?.type,
-          fieldType,
-          element: target,
-          name: target?.name,
-          id: target?.id,
-          placeholder: target?.placeholder,
-        });
+        // 表单字段获得焦点
 
         // 检查是否应该显示侧边栏
         if (this.shouldShowSidePanel(target)) {
@@ -333,7 +312,7 @@ export default defineContentScript({
           // 检查是否应该显示侧边栏
           if (this.shouldShowSidePanel(input)) {
             const fieldType = this.getFieldType(input);
-            console.log('全局焦点检测到表单字段:', fieldType);
+            // 全局焦点检测到表单字段
             this.showSidePanel();
           }
         }
@@ -346,7 +325,7 @@ export default defineContentScript({
           // 检查是否应该显示侧边栏
           if (this.shouldShowSidePanel(input)) {
             const fieldType = this.getFieldType(input);
-            console.log('全局点击检测到表单字段:', fieldType);
+            // 全局点击检测到表单字段
             this.showSidePanel();
           }
         }
@@ -419,7 +398,7 @@ export default defineContentScript({
             className.includes('popup') ||
             className.includes('dialog')
           ) {
-            console.log('输入框在登录相关容器中');
+            // 输入框在登录相关容器中
             return true;
           }
 
@@ -430,7 +409,7 @@ export default defineContentScript({
             style.position === 'absolute' ||
             (parent.hasAttribute('role') && parent.getAttribute('role') === 'dialog')
           ) {
-            console.log('输入框在弹窗中');
+            // 输入框在弹窗中
             return true;
           }
 
@@ -444,22 +423,22 @@ export default defineContentScript({
           (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0);
 
         if (hasLoginFields) {
-          console.log('检测到登录字段，认为在登录场景中');
+          // 检测到登录字段，认为在登录场景中
           return true;
         }
 
-        console.log('输入框不在登录表单或登录弹窗中');
+        // 输入框不在登录表单或登录弹窗中
         return false;
       }
 
       private async showSidePanel() {
         try {
-          console.log('尝试显示侧边栏...');
+          // 尝试显示侧边栏...
           // 通知background script显示侧边栏
           const response = await chrome.runtime.sendMessage({
             type: MessageType.SHOW_SIDEPANEL,
           });
-          console.log('侧边栏显示请求已发送:', response);
+          // 侧边栏显示请求已发送
           this.isSidePanelVisible = true;
         } catch (error) {
           console.error('显示侧边栏失败:', error);
@@ -471,14 +450,14 @@ export default defineContentScript({
        */
       private async hideSidePanel() {
         try {
-          console.log('尝试隐藏侧边栏...');
+          // 尝试隐藏侧边栏...
           // 只有在侧边栏显示时才发送隐藏请求
           if (this.isSidePanelVisible) {
             // 通知background script隐藏侧边栏
             const response = await chrome.runtime.sendMessage({
               type: MessageType.HIDE_SIDEPANEL,
             });
-            console.log('侧边栏隐藏请求已发送:', response);
+            // 侧边栏隐藏请求已发送
             this.isSidePanelVisible = false;
           }
         } catch (error) {
@@ -493,14 +472,14 @@ export default defineContentScript({
         // 监听页面可见性变化
         document.addEventListener('visibilitychange', () => {
           if (document.hidden) {
-            console.log('页面变为隐藏状态，隐藏侧边栏');
+            // 页面变为隐藏状态，隐藏侧边栏
             this.hideSidePanel();
           }
         });
 
         // 监听窗口失去焦点事件
         window.addEventListener('blur', () => {
-          console.log('窗口失去焦点，隐藏侧边栏');
+          // 窗口失去焦点，隐藏侧边栏
           this.hideSidePanel();
         });
       }
@@ -511,7 +490,7 @@ export default defineContentScript({
       private addPageNavigationListener() {
         // 监听页面卸载事件
         window.addEventListener('beforeunload', () => {
-          console.log('页面即将卸载，隐藏侧边栏');
+          // 页面即将卸载，隐藏侧边栏
           this.hideSidePanel();
         });
 
@@ -520,7 +499,7 @@ export default defineContentScript({
         new MutationObserver(() => {
           const url = location.href;
           if (url !== lastUrl) {
-            console.log('检测到页面路由变化，通知侧边栏更新数据');
+            // 检测到页面路由变化，通知侧边栏更新数据
             this.notifyUrlChange();
             lastUrl = url;
           }
@@ -528,7 +507,7 @@ export default defineContentScript({
 
         // 监听浏览器历史记录变化
         window.addEventListener('popstate', () => {
-          console.log('检测到浏览器历史记录变化，通知侧边栏更新数据');
+          // 检测到浏览器历史记录变化，通知侧边栏更新数据
           this.notifyUrlChange();
         });
       }
@@ -545,14 +524,14 @@ export default defineContentScript({
               url: location.href,
             },
           });
-          console.log('URL变化通知已发送');
+          // URL变化通知已发送
         } catch (error) {
           console.error('发送URL变化通知失败:', error);
         }
       }
 
       private handleMessage(message: any, sender: any, sendResponse: Function) {
-        console.log('Content script收到消息:', message);
+        // Content script收到消息
         switch (message.type) {
           case MessageType.PING:
             sendResponse({ success: true, message: 'content script is ready' });
@@ -574,7 +553,7 @@ export default defineContentScript({
             sendResponse({ success: true, message: '侧边栏隐藏请求已处理' });
             break;
           default:
-            console.log('未知消息类型:', message.type);
+            // 未知消息类型
             sendResponse({ success: false, message: '未知消息类型' });
             break;
         }
@@ -585,31 +564,26 @@ export default defineContentScript({
        */
       private fillPassword(data: { username: string; password: string }) {
         try {
-          console.log('开始填充密码:', {
-            hasUsername: !!data.username,
-            hasPassword: !!data.password,
-            usernameFieldsCount: this.usernameFields.length,
-            passwordFieldsCount: this.passwordFields.length,
-          });
+          // 开始填充密码
 
           // 填充用户名
           if (data.username && this.usernameFields.length > 0) {
             const usernameField = this.usernameFields[0];
-            console.log('填充用户名到字段:', usernameField.type, usernameField.name || usernameField.id);
+            // 填充用户名到字段
             this.setInputValue(usernameField, data.username);
           }
 
           // 填充密码
           if (data.password && this.passwordFields.length > 0) {
             const passwordField = this.passwordFields[0];
-            console.log('填充密码到字段:', passwordField.type, passwordField.name || passwordField.id);
+            // 填充密码到字段
             this.setInputValue(passwordField, data.password);
           }
 
           // 自动勾选最近的复选框
           this.autoCheckNearestCheckbox();
 
-          console.log('密码填充完成');
+          // 密码填充完成
         } catch (error) {
           console.error('填充密码失败:', error);
         }
@@ -620,17 +594,12 @@ export default defineContentScript({
        */
       private fillMobileCode(data: { mobile: string; code: string }) {
         try {
-          console.log('开始填充手机号+验证码:', {
-            hasMobile: !!data.mobile,
-            hasCode: !!data.code,
-            mobileFieldsCount: this.mobileFields.length,
-            verifyCodeFieldsCount: this.verifyCodeFields.length,
-          });
+          // 开始填充手机号+验证码
 
           // 填充手机号
           if (data.mobile && this.mobileFields.length > 0) {
             const mobileField = this.mobileFields[0];
-            console.log('填充手机号到字段:', mobileField.type, mobileField.name || mobileField.id);
+            // 填充手机号到字段
             this.setInputValue(mobileField, data.mobile);
 
             // 额外触发电话号码专用事件
@@ -660,14 +629,14 @@ export default defineContentScript({
           // 自动勾选最近的复选框
           this.autoCheckNearestCheckbox();
 
-          console.log('手机号+验证码填充完成');
+          // 手机号+验证码填充完成
         } catch (error) {
           console.error('填充手机号+验证码失败:', error);
         }
       }
 
       private setInputValue(input: HTMLInputElement, value: string) {
-        console.log('设置输入框值:', input.type, value);
+        // 设置输入框值
 
         try {
           // 先聚焦输入框
@@ -725,7 +694,7 @@ export default defineContentScript({
             }
           }, 200);
 
-          console.log('输入框值设置完成:', input.value);
+          // 输入框值设置完成
         } catch (error) {
           console.error('设置输入框值失败:', error);
           // 备用方案
@@ -737,11 +706,11 @@ export default defineContentScript({
 
       private autoCheckNearestCheckbox() {
         if (this.checkboxFields.length === 0) {
-          console.log('没有找到复选框');
+          // 没有找到复选框
           return;
         }
 
-        console.log('开始自动勾选复选框，找到', this.checkboxFields.length, '个复选框');
+        // 开始自动勾选复选框
 
         // 获取参考元素（优先使用密码框，其次是用户名框）
         const referenceField =
@@ -752,29 +721,24 @@ export default defineContentScript({
               : null;
 
         if (!referenceField) {
-          console.log('没有找到参考元素');
+          // 没有找到参考元素
           return;
         }
 
-        console.log('使用参考元素:', referenceField.type, referenceField.name || referenceField.id || '无名');
+        // 使用参考元素
 
         // 找到最合适的复选框
         const targetCheckbox = this.findBestCheckbox(referenceField);
 
         if (targetCheckbox && !targetCheckbox.checked) {
-          console.log('找到目标复选框，准备勾选:', {
-            id: targetCheckbox.id,
-            name: targetCheckbox.name,
-            className: targetCheckbox.className,
-            labelText: this.getCheckboxLabel(targetCheckbox),
-          });
+          // 找到目标复选框，准备勾选
 
           // 勾选复选框
           this.checkCheckbox(targetCheckbox);
         } else if (targetCheckbox?.checked) {
-          console.log('目标复选框已经被勾选');
+          // 目标复选框已经被勾选
         } else {
-          console.log('没有找到合适的复选框');
+          // 没有找到合适的复选框
         }
       }
 
@@ -784,12 +748,7 @@ export default defineContentScript({
 
         this.checkboxFields.forEach(checkbox => {
           const score = this.calculateCheckboxScore(referenceField, checkbox);
-          console.log('复选框评分:', {
-            id: checkbox.id,
-            name: checkbox.name,
-            label: this.getCheckboxLabel(checkbox),
-            score: score,
-          });
+          // 复选框评分
 
           if (score > bestScore) {
             bestScore = score;
@@ -809,11 +768,7 @@ export default defineContentScript({
         const distanceScore = Math.max(0, (maxDistance - distance) / maxDistance) * 100;
         score += distanceScore;
 
-        console.log('复选框距离计算:', {
-          checkboxId: checkbox.id || checkbox.name || '无ID',
-          distance: distance.toFixed(2),
-          distanceScore: distanceScore.toFixed(2),
-        });
+        // 复选框距离计算
 
         // 获取复选框的标签文本
         const labelText = this.getCheckboxLabel(checkbox).toLowerCase();
@@ -894,15 +849,7 @@ export default defineContentScript({
         const hierarchyScore = this.calculateHierarchyScore(referenceField, checkbox);
         score += hierarchyScore;
 
-        console.log('复选框综合评分:', {
-          checkboxId: checkbox.id || checkbox.name || '无ID',
-          labelText: labelText.substring(0, 30),
-          distanceScore: distanceScore.toFixed(2),
-          keywordScore,
-          positionScore,
-          hierarchyScore,
-          totalScore: score.toFixed(2),
-        });
+        // 复选框综合评分
 
         return score;
       }
@@ -1076,35 +1023,27 @@ export default defineContentScript({
 
       private checkCheckbox(checkbox: HTMLInputElement) {
         try {
-          console.log('正在勾选复选框...', {
-            element: checkbox,
-            id: checkbox.id,
-            name: checkbox.name,
-            className: checkbox.className,
-            currentChecked: checkbox.checked,
-            disabled: checkbox.disabled,
-            label: this.getCheckboxLabel(checkbox),
-          });
+          // 正在勾选复选框
 
           // 检查是否禁用
           if (checkbox.disabled) {
-            console.log('复选框被禁用，跳过');
+            // 复选框被禁用，跳过
             return;
           }
 
           // 尝试多种方式勾选
 
           // 方式1: 直接点击复选框
-          console.log('尝试方式1: 直接点击复选框');
+          // 尝试方式1: 直接点击复选框
           checkbox.click();
 
           // 等待一下看是否生效
           setTimeout(() => {
-            console.log('方式1结果:', checkbox.checked);
+            // 方式1结果
 
             if (!checkbox.checked) {
               // 方式2: 设置值 + 触发事件
-              console.log('尝试方式2: 设置值 + 触发事件');
+              // 尝试方式2: 设置值 + 触发事件
               checkbox.checked = true;
 
               // 触发多种事件
@@ -1119,45 +1058,45 @@ export default defineContentScript({
               events.forEach(event => {
                 try {
                   checkbox.dispatchEvent(event);
-                  console.log('触发事件:', event.type);
+                  // 触发事件
                 } catch (e) {
                   console.error('触发事件失败:', event.type, e);
                 }
               });
 
               setTimeout(() => {
-                console.log('方式2结果:', checkbox.checked);
+                // 方式2结果
 
                 if (!checkbox.checked) {
                   // 方式3: 通过 label 点击
-                  console.log('尝试方式3: 通过 label 点击');
+                  // 尝试方式3: 通过 label 点击
                   const label = this.findCheckboxLabel(checkbox);
                   if (label) {
-                    console.log('找到关联的 label，尝试点击:', label);
+                    // 找到关联的 label，尝试点击
                     label.click();
 
                     setTimeout(() => {
-                      console.log('方式3结果:', checkbox.checked);
+                      // 方式3结果
 
                       if (!checkbox.checked) {
                         // 方式4: 模拟用户交互
-                        console.log('尝试方式4: 模拟用户交互');
+                        // 尝试方式4: 模拟用户交互
                         this.simulateUserInteraction(checkbox);
                       } else {
-                        console.log('复选框勾选成功（方式3）');
+                        // 复选框勾选成功（方式3）
                       }
                     }, 100);
                   } else {
-                    console.log('未找到关联的 label');
+                    // 未找到关联的 label
                     // 直接尝试方式4
                     this.simulateUserInteraction(checkbox);
                   }
                 } else {
-                  console.log('复选框勾选成功（方式2）');
+                  // 复选框勾选成功（方式2）
                 }
               }, 100);
             } else {
-              console.log('复选框勾选成功（方式1）');
+              // 复选框勾选成功（方式1）
             }
           }, 100);
         } catch (error) {
@@ -1172,7 +1111,7 @@ export default defineContentScript({
         if (checkbox.id) {
           const label = document.querySelector(`label[for="${checkbox.id}"]`);
           if (label) {
-            console.log('通过 for 属性找到 label:', label);
+            // 通过 for 属性找到 label
             return label as HTMLElement;
           }
         }
@@ -1180,7 +1119,7 @@ export default defineContentScript({
         // 2. 父级 label 元素
         const parentLabel = checkbox.closest('label');
         if (parentLabel) {
-          console.log('找到父级 label:', parentLabel);
+          // 找到父级 label
           return parentLabel;
         }
 
@@ -1189,7 +1128,7 @@ export default defineContentScript({
         if (container) {
           const containerLabels = container.querySelectorAll('label');
           if (containerLabels.length === 1) {
-            console.log('找到同一容器内的 label:', containerLabels[0]);
+            // 找到同一容器内的 label
             return containerLabels[0] as HTMLElement;
           }
         }
@@ -1198,7 +1137,7 @@ export default defineContentScript({
       }
 
       private simulateUserInteraction(checkbox: HTMLInputElement) {
-        console.log('模拟用户交互...');
+        // 模拟用户交互
 
         try {
           // 模拟鼠标事件序列
@@ -1243,7 +1182,7 @@ export default defineContentScript({
           checkbox.dispatchEvent(new Event('change', { bubbles: true }));
           checkbox.dispatchEvent(new Event('input', { bubbles: true }));
 
-          console.log('模拟交互完成，结果:', checkbox.checked);
+          // 模拟交互完成
         } catch (error) {
           console.error('模拟交互失败:', error);
         }

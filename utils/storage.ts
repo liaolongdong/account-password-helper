@@ -31,20 +31,12 @@ export class StorageUtils {
    * MD5 加密
    */
   static hashPassword(password: string, salt: string = ''): string {
-    console.log('StorageUtils: 开始MD5加密');
     // 确保密码和盐值都是字符串并去除空格
     const cleanPassword = String(password || '').trim();
     const cleanSalt = String(salt || '').trim();
     const combined = cleanPassword + cleanSalt;
 
-    console.log('StorageUtils: MD5加密输入:', {
-      passwordLength: cleanPassword.length,
-      saltLength: cleanSalt.length,
-      combinedLength: combined.length,
-    });
-
     const hash = CryptoJS.MD5(combined).toString();
-    console.log('StorageUtils: MD5加密结果:', `${hash.substring(0, 10)}...`);
 
     return hash;
   }
@@ -53,9 +45,7 @@ export class StorageUtils {
    * 生成随机盐值
    */
   static generateSalt(): string {
-    console.log('StorageUtils: 开始生成随机盐值');
     const salt = CryptoJS.lib.WordArray.random(16).toString();
-    console.log('StorageUtils: 盐值生成完成', salt.substring(0, 10) + '...');
     return salt;
   }
 
@@ -63,9 +53,7 @@ export class StorageUtils {
    * 生成唯一ID
    */
   static generateId(): string {
-    console.log('StorageUtils: 开始生成唯一ID');
     const id = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-    console.log('StorageUtils: ID生成完成', id);
     return id;
   }
 
@@ -74,7 +62,6 @@ export class StorageUtils {
    */
   static async setMasterPassword(password: string): Promise<void> {
     try {
-      console.log('StorageUtils: 开始设置主密码');
       // 确保密码的一致性处理
       const cleanPassword = String(password || '').trim();
       if (!cleanPassword) {
@@ -89,12 +76,6 @@ export class StorageUtils {
         salt,
       };
 
-      console.log('StorageUtils: 设置主密码 - 配置信息:', {
-        salt: `${salt.substring(0, 5)}...`,
-        hashedPassword: `${hashedPassword.substring(0, 10)}...`,
-        originalPasswordLength: cleanPassword.length,
-      });
-
       await chrome.storage.local.set({
         [STORAGE_KEYS.MASTER_PASSWORD]: config,
       });
@@ -102,7 +83,6 @@ export class StorageUtils {
       // 验证保存是否成功
       const savedConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
       const saved = !!savedConfig[STORAGE_KEYS.MASTER_PASSWORD];
-      console.log('StorageUtils: 主密码保存验证:', saved);
 
       if (!saved) {
         throw new Error('主密码保存失败');
@@ -110,12 +90,10 @@ export class StorageUtils {
 
       // 立即验证一次设置的密码
       const verifyResult = await this.verifyMasterPassword(cleanPassword);
-      console.log('StorageUtils: 设置后立即验证结果:', verifyResult);
 
       if (!verifyResult) {
         throw new Error('主密码设置验证失败');
       }
-      console.log('StorageUtils: 主密码设置完成');
     } catch (error) {
       console.error('StorageUtils: 设置主密码失败:', error);
       throw error;
@@ -127,41 +105,22 @@ export class StorageUtils {
    */
   static async verifyMasterPassword(password: string): Promise<boolean> {
     try {
-      console.log('StorageUtils: 开始验证主密码...');
-
       const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
       const config: MasterPasswordConfig = result[STORAGE_KEYS.MASTER_PASSWORD];
 
-      console.log('StorageUtils: 获取到的配置:', {
-        hasConfig: !!config,
-        hasSalt: config?.salt ? '有盐值' : '无盐值',
-        hasHashedPassword: config?.hashedPassword ? '有哈希密码' : '无哈希密码',
-      });
-
       if (!config || !config.salt || !config.hashedPassword) {
-        console.log('StorageUtils: 主密码配置不完整');
         return false;
       }
 
       // 确保输入密码的一致性处理
       const cleanPassword = String(password || '').trim();
       if (!cleanPassword) {
-        console.log('StorageUtils: 输入密码为空');
         return false;
       }
 
       const hashedInput = this.hashPassword(cleanPassword, config.salt);
 
-      console.log('StorageUtils: 密码哈希比较:', {
-        inputPassword: '隐藏',
-        inputHash: `${hashedInput.substring(0, 10)}...`,
-        storedHash: `${config.hashedPassword.substring(0, 10)}...`,
-        saltUsed: `${config.salt.substring(0, 5)}...`,
-        isMatch: hashedInput === config.hashedPassword,
-      });
-
       const isValid = hashedInput === config.hashedPassword;
-      console.log('StorageUtils: 最终验证结果:', isValid);
 
       return isValid;
     } catch (error) {
@@ -175,17 +134,9 @@ export class StorageUtils {
    */
   static async hasMasterPassword(): Promise<boolean> {
     try {
-      console.log('StorageUtils: 开始检查主密码存在性');
       const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
       const config = result[STORAGE_KEYS.MASTER_PASSWORD];
       const hasPassword = !!(config && config.hashedPassword && config.salt);
-
-      console.log('StorageUtils: 检查主密码存在性结果:', {
-        hasConfig: !!config,
-        hasSalt: !!config?.salt,
-        hasHashedPassword: !!config?.hashedPassword,
-        hasPassword,
-      });
 
       return hasPassword;
     } catch (error) {
@@ -199,7 +150,6 @@ export class StorageUtils {
    */
   static async deriveEncryptionKey(masterPassword: string): Promise<string> {
     try {
-      console.log('StorageUtils: 开始派生加密密钥');
       // 获取主密码配置中的盐值
       const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
       const config: MasterPasswordConfig = result[STORAGE_KEYS.MASTER_PASSWORD];
@@ -215,7 +165,6 @@ export class StorageUtils {
       });
 
       const keyString = key.toString();
-      console.log('StorageUtils: 加密密钥派生完成', keyString.substring(0, 10) + '...');
       return keyString;
     } catch (error) {
       console.error('StorageUtils: 派生加密密钥失败:', error);
@@ -228,7 +177,6 @@ export class StorageUtils {
    */
   static encryptData(data: string, key: string): string {
     try {
-      console.log('StorageUtils: 开始AES加密');
       // 生成随机初始化向量
       const iv = CryptoJS.lib.WordArray.random(16);
 
@@ -242,7 +190,6 @@ export class StorageUtils {
       // 将IV和密文组合
       const combined = iv.concat(encrypted.ciphertext);
       const result = combined.toString(CryptoJS.enc.Base64);
-      console.log('StorageUtils: AES加密完成', result.substring(0, 10) + '...');
       return result;
     } catch (error) {
       console.error('StorageUtils: 加密失败:', error);
@@ -255,8 +202,6 @@ export class StorageUtils {
    */
   static decryptData(encryptedData: string, key: string): string {
     try {
-      console.log('StorageUtils: 开始AES解密');
-
       // 检查输入数据
       if (!encryptedData) {
         console.warn('StorageUtils: 加密数据为空');
@@ -298,7 +243,6 @@ export class StorageUtils {
       });
 
       const result = decrypted.toString(CryptoJS.enc.Utf8);
-      console.log('StorageUtils: AES解密结果长度:', result.length);
 
       // 检查解密结果
       if (!result) {
@@ -325,10 +269,8 @@ export class StorageUtils {
    */
   static async encryptPasswordEntry(entry: PasswordEntry, masterPassword: string): Promise<EncryptedPasswordEntry> {
     try {
-      console.log('StorageUtils: 开始加密密码条目', entry.id);
       // 派生加密密钥
       const key = await this.deriveEncryptionKey(masterPassword);
-      console.log('StorageUtils: 派生加密密钥完成');
 
       // 创建加密条目（类型断言确保兼容性）
       const encryptedEntry: EncryptedPasswordEntry = {
@@ -352,18 +294,15 @@ export class StorageUtils {
    */
   static async decryptPasswordEntry(entry: EncryptedPasswordEntry, masterPassword: string): Promise<PasswordEntry> {
     try {
-      console.log('StorageUtils: 开始解密密码条目', entry.id, entry.encrypted ? '已加密' : '未加密');
       // 如果条目未加密，直接返回
       if (!entry.encrypted) {
         // 移除encrypted属性并返回
         const { encrypted, ...decryptedEntry } = entry;
-        console.log('StorageUtils: 条目未加密，直接返回');
         return decryptedEntry as PasswordEntry;
       }
 
       // 派生解密密钥
       const key = await this.deriveEncryptionKey(masterPassword);
-      console.log('StorageUtils: 派生解密密钥完成');
 
       // 解密条目字段，即使某些字段解密失败也要继续处理其他字段
       const decryptedEntry: PasswordEntry = {
@@ -409,9 +348,7 @@ export class StorageUtils {
     copyItemId?: string,
   ): Promise<void> {
     try {
-      console.log('StorageUtils: 开始保存密码条目', masterPassword ? '有主密码' : '无主密码');
       const passwords = masterPassword ? await this.getAllPasswords(masterPassword) : await this.getAllPasswordsRaw();
-      console.log('StorageUtils: 当前密码数量:', passwords.length);
 
       const newEntry: PasswordEntry = {
         ...entry,
@@ -419,12 +356,10 @@ export class StorageUtils {
         updateTime: Date.now(),
         order: passwords.length,
       };
-      console.log('StorageUtils: 新条目ID:', newEntry.id);
 
       // 如果提供了主密码，加密存储
       let entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
       if (masterPassword) {
-        console.log('StorageUtils: 加密存储');
         const encryptedEntry = await this.encryptPasswordEntry(newEntry, masterPassword);
         // 如果是复制的条目，则添加到复制条目下方
         if (copyItemId) {
@@ -436,7 +371,6 @@ export class StorageUtils {
           entriesToSave.push(encryptedEntry);
         }
       } else {
-        console.log('StorageUtils: 明文存储');
         // 如果是复制的条目，则添加到复制条目下方
         if (copyItemId) {
           const copyIndex = entriesToSave.findIndex(p => p.id === copyItemId);
@@ -451,7 +385,6 @@ export class StorageUtils {
       await chrome.storage.local.set({
         [STORAGE_KEYS.PASSWORDS]: entriesToSave,
       });
-      console.log('StorageUtils: 密码保存完成');
     } catch (error) {
       console.error('StorageUtils: 保存密码失败:', error);
       throw error;
@@ -463,12 +396,9 @@ export class StorageUtils {
    */
   static async updatePassword(id: string, updates: Partial<PasswordEntry>, masterPassword?: string): Promise<void> {
     try {
-      console.log('StorageUtils: 开始更新密码条目', id, masterPassword ? '有主密码' : '无主密码');
       const passwords = masterPassword ? await this.getAllPasswords(masterPassword) : await this.getAllPasswordsRaw();
-      console.log('StorageUtils: 当前密码数量:', passwords.length);
 
       const index = passwords.findIndex(p => p.id === id);
-      console.log('StorageUtils: 条目索引:', index);
 
       if (index !== -1) {
         const updatedEntry: PasswordEntry = {
@@ -476,23 +406,19 @@ export class StorageUtils {
           ...updates,
           updateTime: Date.now(), // 更新时间
         };
-        console.log('StorageUtils: 更新条目');
 
         // 如果提供了主密码，加密存储
         let entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
         if (masterPassword) {
-          console.log('StorageUtils: 加密存储');
           const encryptedEntry = await this.encryptPasswordEntry(updatedEntry, masterPassword);
           entriesToSave[index] = encryptedEntry;
         } else {
-          console.log('StorageUtils: 明文存储');
           entriesToSave[index] = updatedEntry;
         }
 
         await chrome.storage.local.set({
           [STORAGE_KEYS.PASSWORDS]: entriesToSave,
         });
-        console.log('StorageUtils: 密码更新完成');
       }
     } catch (error) {
       console.error('StorageUtils: 更新密码失败:', error);
@@ -505,10 +431,8 @@ export class StorageUtils {
    */
   static async getAllPasswordsRaw(): Promise<(PasswordEntry | EncryptedPasswordEntry)[]> {
     try {
-      console.log('StorageUtils: 开始获取所有原始密码条目');
       const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
       const passwords = result[STORAGE_KEYS.PASSWORDS] || [];
-      console.log('StorageUtils: 获取到的原始密码数量:', passwords.length);
       return passwords;
     } catch (error) {
       console.error('StorageUtils: 获取原始密码列表失败:', error);
@@ -521,16 +445,12 @@ export class StorageUtils {
    */
   static async deletePassword(id: string): Promise<void> {
     try {
-      console.log('StorageUtils: 开始删除密码条目', id);
       const passwords = await this.getAllPasswordsRaw();
-      console.log('StorageUtils: 删除前密码数量:', passwords.length);
       const filteredPasswords = passwords.filter((p: PasswordEntry | EncryptedPasswordEntry) => p.id !== id);
-      console.log('StorageUtils: 删除后密码数量:', filteredPasswords.length);
 
       await chrome.storage.local.set({
         [STORAGE_KEYS.PASSWORDS]: filteredPasswords,
       });
-      console.log('StorageUtils: 密码删除完成');
     } catch (error) {
       console.error('StorageUtils: 删除密码失败:', error);
       throw error;
@@ -542,16 +462,12 @@ export class StorageUtils {
    */
   static async deletePasswords(ids: string[]): Promise<void> {
     try {
-      console.log('StorageUtils: 开始批量删除密码条目', ids);
       const passwords = await this.getAllPasswordsRaw();
-      console.log('StorageUtils: 删除前密码数量:', passwords.length);
       const filteredPasswords = passwords.filter((p: PasswordEntry | EncryptedPasswordEntry) => !ids.includes(p.id));
-      console.log('StorageUtils: 删除后密码数量:', filteredPasswords.length);
 
       await chrome.storage.local.set({
         [STORAGE_KEYS.PASSWORDS]: filteredPasswords,
       });
-      console.log('StorageUtils: 密码批量删除完成');
     } catch (error) {
       console.error('StorageUtils: 批量删除密码失败:', error);
       throw error;
@@ -563,29 +479,23 @@ export class StorageUtils {
    */
   static async getAllPasswords(masterPassword?: string): Promise<PasswordEntry[]> {
     try {
-      console.log('StorageUtils: 开始获取所有密码条目', masterPassword ? '有主密码' : '无主密码');
       const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
       const entries: (PasswordEntry | EncryptedPasswordEntry)[] = result[STORAGE_KEYS.PASSWORDS] || [];
-      console.log('StorageUtils: 获取到的密码条目数量:', entries.length);
 
       // 如果没有加密条目，直接返回
       const hasEncryptedEntries = entries.some(entry => 'encrypted' in entry && entry.encrypted === true);
-      console.log('StorageUtils: 是否有加密条目:', hasEncryptedEntries);
 
       if (!hasEncryptedEntries) {
-        console.log('StorageUtils: 无加密条目，直接返回');
         return entries as PasswordEntry[];
       }
 
       // 如果没有提供主密码，抛出错误
       if (!masterPassword) {
-        console.log('StorageUtils: 无主密码，抛出错误');
         throw new Error('需要主密码来解密数据');
       }
 
       // 解密所有加密条目
       const decryptedEntries: PasswordEntry[] = [];
-      console.log('StorageUtils: 开始解密条目');
       for (const entry of entries) {
         if ('encrypted' in entry && entry.encrypted === true) {
           try {
@@ -593,7 +503,6 @@ export class StorageUtils {
             const decryptedEntry = await this.decryptPasswordEntry(entry, masterPassword);
             decryptedEntries.push(decryptedEntry);
           } catch (decryptError) {
-            console.error('StorageUtils: 单个条目解密失败:', decryptError);
             // 如果解密失败，跳过该条目并记录错误
             console.warn('StorageUtils: 跳过无法解密的条目:', entry.id);
             continue;
@@ -603,7 +512,6 @@ export class StorageUtils {
           decryptedEntries.push(entry as PasswordEntry);
         }
       }
-      console.log('StorageUtils: 解密完成，返回条目数量:', decryptedEntries.length);
 
       return decryptedEntries;
     } catch (error) {
@@ -617,16 +525,13 @@ export class StorageUtils {
    */
   static async getPasswordsByUrl(url: string, masterPassword?: string): Promise<PasswordEntry[]> {
     try {
-      console.log('StorageUtils: 根据URL搜索密码', url, masterPassword ? '有主密码' : '无主密码');
       const allPasswords = await this.getAllPasswords(masterPassword);
-      console.log('StorageUtils: 获取到所有密码数量:', allPasswords.length);
       const filteredPasswords = allPasswords
         .filter(p => {
           if (!p.url || p.url.trim() === '') return true; // 未填URL的匹配所有
           return url.includes(p.url) || p.url.includes(url);
         })
         .sort((a, b) => a.order - b.order);
-      console.log('StorageUtils: 过滤后密码数量:', filteredPasswords.length);
       return filteredPasswords;
     } catch (error) {
       console.error('StorageUtils: 根据URL搜索密码失败:', error);
@@ -639,9 +544,7 @@ export class StorageUtils {
    */
   static async searchPasswords(keyword: string, masterPassword?: string): Promise<PasswordEntry[]> {
     try {
-      console.log('StorageUtils: 开始搜索密码条目', keyword, masterPassword ? '有主密码' : '无主密码');
       const allPasswords = await this.getAllPasswords(masterPassword);
-      console.log('StorageUtils: 获取到所有密码数量:', allPasswords.length);
       const lowerKeyword = keyword.toLowerCase();
 
       const filteredPasswords = allPasswords
@@ -653,7 +556,6 @@ export class StorageUtils {
             p.url.toLowerCase().includes(lowerKeyword),
         )
         .sort((a, b) => a.order - b.order);
-      console.log('StorageUtils: 过滤后密码数量:', filteredPasswords.length);
       return filteredPasswords;
     } catch (error) {
       console.error('StorageUtils: 搜索密码失败:', error);
@@ -666,7 +568,6 @@ export class StorageUtils {
    */
   static async updatePasswordsOrder(passwords: PasswordEntry[]): Promise<void> {
     try {
-      console.log('StorageUtils: 开始更新密码排序', passwords.length);
       // 重新设置order字段
       const updatedPasswords = passwords.map((p, index) => ({
         ...p,
@@ -676,7 +577,6 @@ export class StorageUtils {
       await chrome.storage.local.set({
         [STORAGE_KEYS.PASSWORDS]: updatedPasswords,
       });
-      console.log('StorageUtils: 密码排序更新完成');
     } catch (error) {
       console.error('StorageUtils: 更新密码排序失败:', error);
       throw error;
@@ -688,9 +588,7 @@ export class StorageUtils {
    */
   static async clearAllData(): Promise<void> {
     try {
-      console.log('StorageUtils: 开始清空所有数据');
       await chrome.storage.local.clear();
-      console.log('StorageUtils: 所有数据已清空');
     } catch (error) {
       console.error('StorageUtils: 清空数据失败:', error);
       throw error;
@@ -702,9 +600,7 @@ export class StorageUtils {
    */
   static async resetMasterPassword(): Promise<void> {
     try {
-      console.log('StorageUtils: 开始重置主密码');
       await chrome.storage.local.remove(STORAGE_KEYS.MASTER_PASSWORD);
-      console.log('StorageUtils: 主密码配置已重置');
     } catch (error) {
       console.error('StorageUtils: 重置主密码失败:', error);
       throw error;
@@ -716,17 +612,14 @@ export class StorageUtils {
    */
   static async getMasterPasswordValidityHours(): Promise<number> {
     try {
-      console.log('StorageUtils: 获取主密码有效期设置', sessionValidityHours);
       // 首先检查内存中的会话设置
       if (sessionValidityHours !== null) {
-        console.log('StorageUtils: 从内存缓存获取有效期设置', sessionValidityHours);
         return sessionValidityHours;
       }
 
       // 从存储中获取默认值
       const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD_VALIDITY);
       const validityHours = result[STORAGE_KEYS.MASTER_PASSWORD_VALIDITY] || 24;
-      console.log('StorageUtils: 从存储获取有效期设置', validityHours);
 
       // 更新内存缓存
       sessionValidityHours = validityHours;
@@ -742,7 +635,6 @@ export class StorageUtils {
    */
   static async setMasterPasswordValidityHours(hours: number): Promise<void> {
     try {
-      console.log('StorageUtils: 设置主密码有效期', hours);
       // 参数验证
       if (hours < 1 || hours > 24) {
         throw new Error('有效期必须在1-24小时之间');
@@ -755,7 +647,6 @@ export class StorageUtils {
 
       // 更新内存缓存
       sessionValidityHours = hours;
-      console.log('StorageUtils: 主密码有效期设置完成');
     } catch (error) {
       console.error('设置主密码有效期失败:', error);
       throw error;
@@ -767,35 +658,19 @@ export class StorageUtils {
    */
   static async isSessionValid(): Promise<boolean> {
     try {
-      console.log('StorageUtils: 检查会话状态', {
-        hasSessionMasterPassword: !!sessionMasterPassword,
-        hasSessionPasswordExpiry: !!sessionPasswordExpiry,
-        sessionMasterPassword: sessionMasterPassword ? '存在' : '不存在',
-        sessionPasswordExpiry: sessionPasswordExpiry,
-        currentTime: Date.now(),
-      });
-
       // 如果内存中没有会话信息，尝试从存储中恢复
       if (!sessionMasterPassword || !sessionPasswordExpiry) {
-        console.log('StorageUtils: 内存中缺少会话信息，尝试从存储中恢复');
         const result = await chrome.storage.local.get([
           SESSION_STORAGE_KEYS.MASTER_PASSWORD,
           SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
           SESSION_STORAGE_KEYS.VALIDITY_HOURS,
         ]);
-        console.log('StorageUtils: 从存储中获取到的结果:', result);
 
         if (result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] && result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]) {
           sessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] ?? null;
           sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] ?? null;
           sessionValidityHours = result[SESSION_STORAGE_KEYS.VALIDITY_HOURS] || 24;
-          console.log('StorageUtils: 从存储中恢复会话信息', {
-            sessionMasterPassword: sessionMasterPassword ? '存在' : '不存在',
-            sessionPasswordExpiry: sessionPasswordExpiry,
-            sessionValidityHours: sessionValidityHours,
-          });
         } else {
-          console.log('StorageUtils: 存储中也没有会话信息');
           return false;
         }
       }
@@ -803,13 +678,11 @@ export class StorageUtils {
       // 检查是否过期（确保sessionPasswordExpiry不为null）
       const now = Date.now();
       if (sessionPasswordExpiry !== null && now >= sessionPasswordExpiry) {
-        console.log('StorageUtils: 会话已过期');
         // 会话已过期，清除缓存
         await this.clearSession();
         return false;
       }
 
-      console.log('StorageUtils: 会话有效');
       return true;
     } catch (error) {
       console.error('StorageUtils: 会话验证失败:', error);
@@ -823,7 +696,6 @@ export class StorageUtils {
    * 获取会话主密码
    */
   static getSessionMasterPassword(): string | undefined {
-    console.log('StorageUtils: 获取会话主密码', sessionMasterPassword ? '存在' : '不存在');
     return sessionMasterPassword ?? undefined;
   }
 
@@ -832,11 +704,6 @@ export class StorageUtils {
    */
   static async createSession(masterPassword: string, validityHours: number): Promise<void> {
     try {
-      console.log('StorageUtils: 创建会话缓存', {
-        masterPassword: masterPassword ? '存在' : '不存在',
-        validityHours: validityHours,
-        expiryTime: Date.now() + validityHours * 60 * 60 * 1000,
-      });
       sessionMasterPassword = masterPassword;
       sessionValidityHours = validityHours;
       sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
@@ -847,7 +714,6 @@ export class StorageUtils {
         [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: sessionPasswordExpiry,
         [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
       });
-      console.log('StorageUtils: 会话缓存创建完成');
     } catch (error) {
       console.error('创建会话缓存失败:', error);
       throw error;
@@ -859,7 +725,6 @@ export class StorageUtils {
    */
   static async clearSession(): Promise<void> {
     try {
-      console.log('StorageUtils: 清除会话缓存');
       sessionMasterPassword = null;
       sessionPasswordExpiry = null;
       sessionValidityHours = 24;
@@ -870,7 +735,6 @@ export class StorageUtils {
         SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
         SESSION_STORAGE_KEYS.VALIDITY_HOURS,
       ]);
-      console.log('StorageUtils: 会话缓存清除完成');
     } catch (error) {
       console.error('清除会话缓存失败:', error);
       throw error;
@@ -881,7 +745,6 @@ export class StorageUtils {
    * 获取会话过期时间
    */
   static async getSessionExpiryTime(): Promise<number | null> {
-    console.log('StorageUtils: 获取会话过期时间', sessionPasswordExpiry);
     return sessionPasswordExpiry;
   }
 
@@ -890,10 +753,8 @@ export class StorageUtils {
    */
   static async debugMasterPassword(): Promise<any> {
     try {
-      console.log('StorageUtils: 获取主密码调试信息');
       const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
       const config: MasterPasswordConfig = result[STORAGE_KEYS.MASTER_PASSWORD];
-      console.log('StorageUtils: 获取到的配置:', config);
 
       const debugInfo = {
         hasConfig: !!config,
@@ -904,7 +765,6 @@ export class StorageUtils {
         saltPreview: `${config?.salt?.substring(0, 8)}...` || 'N/A',
         hashPreview: `${config?.hashedPassword?.substring(0, 10)}...` || 'N/A',
       };
-      console.log('StorageUtils: 调试信息:', debugInfo);
       return debugInfo;
     } catch (error: any) {
       console.error('StorageUtils: 获取主密码调试信息失败:', error);

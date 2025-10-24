@@ -165,13 +165,10 @@ const handleVerify = async () => {
 
     loading.value = true;
     errorMessage.value = ''; // 清除之前的错误消息
-    console.log('开始验证主密码...');
 
     const isValid = await StorageUtils.verifyMasterPassword(form.value.password.trim());
-    console.log('验证结果:', isValid);
 
     if (isValid) {
-      console.log('验证成功，关闭弹窗并触发事件');
       ElMessage.success('验证成功');
 
       // 立即关闭弹窗
@@ -231,7 +228,6 @@ const resetMasterPassword = async () => {
 const debugPassword = async () => {
   try {
     const debugInfo = await StorageUtils.debugMasterPassword();
-    console.log('主密码调试信息:', debugInfo);
 
     let message = '主密码配置信息:\n';
     message += `配置存在: ${debugInfo.hasConfig ? '是' : '否'}\n`;
