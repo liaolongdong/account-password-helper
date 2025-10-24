@@ -986,6 +986,11 @@ const checkAuth = async () => {
     const hasMaster = await StorageUtils.hasMasterPassword();
 
     if (!hasMaster) {
+      console.log('Options: 首次使用，显示设置主密码页面');
+      showMasterPasswordSetup.value = true;
+      showPasswordVerify.value = false;
+      isAuthenticated.value = false;
+
       // 聚焦到密码输入框
       nextTick(() => {
         const passwordInput = document.querySelector('.setup-form .el-input__inner') as HTMLInputElement;
