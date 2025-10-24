@@ -110,7 +110,7 @@ const emit = defineEmits<Emits>();
 
 const dialogVisible = computed({
   get: () => props.modelValue,
-  set: value => emit('update:modelValue', value)
+  set: value => emit('update:modelValue', value),
 });
 
 const formRef = ref<FormInstance>();
@@ -118,7 +118,7 @@ const loading = ref(false);
 const errorMessage = ref(''); // 添加错误消息状态
 const form = ref({
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
 });
 
 // 表单验证规则
@@ -126,8 +126,8 @@ const rules = computed<FormRules>(() => {
   const baseRules = {
     password: [
       { required: true, message: '请输入密码', trigger: 'blur' },
-      { min: 6, message: '密码长度至少6个字符', trigger: 'blur' }
-    ]
+      { min: 6, message: '密码长度至少6个字符', trigger: 'blur' },
+    ],
   };
 
   if (props.isFirstTime) {
@@ -143,9 +143,9 @@ const rules = computed<FormRules>(() => {
               callback();
             }
           },
-          trigger: 'blur'
-        }
-      ]
+          trigger: 'blur',
+        },
+      ],
     };
   }
 
@@ -157,7 +157,7 @@ watch(dialogVisible, visible => {
   if (visible) {
     form.value = {
       password: '',
-      confirmPassword: ''
+      confirmPassword: '',
     };
     errorMessage.value = ''; // 清除错误消息
     // 清除之前的验证状态
@@ -215,7 +215,7 @@ const handleSubmit = async () => {
         // 立即重新聚焦到输入框
         nextTick(() => {
           const passwordInput = document.querySelector(
-            '.fast-master-password-dialog .el-input__inner'
+            '.fast-master-password-dialog .el-input__inner',
           ) as HTMLInputElement;
           if (passwordInput) {
             passwordInput.focus();

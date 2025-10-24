@@ -117,18 +117,18 @@ const emit = defineEmits<Emits>();
 
 const dialogVisible = computed({
   get: () => props.modelValue,
-  set: value => emit('update:modelValue', value)
+  set: value => emit('update:modelValue', value),
 });
 
 const formRef = ref<FormInstance>();
 const loading = ref(false);
 const errorMessage = ref(''); // 添加错误消息状态
 const form = ref({
-  password: ''
+  password: '',
 });
 
 const rules: FormRules = {
-  password: [{ required: true, message: '请输入主密码', trigger: 'blur' }]
+  password: [{ required: true, message: '请输入主密码', trigger: 'blur' }],
 };
 
 // 监听弹窗显示状态，重置表单
@@ -184,7 +184,7 @@ const handleVerify = async () => {
       // 立即重新聚焦到输入框
       nextTick(() => {
         const passwordInput = document.querySelector(
-          '.fast-password-verify-dialog .el-input__inner'
+          '.fast-password-verify-dialog .el-input__inner',
         ) as HTMLInputElement;
         if (passwordInput) {
           passwordInput.focus();
@@ -208,7 +208,7 @@ const resetMasterPassword = async () => {
       confirmButtonText: '确定重置',
       cancelButtonText: '取消',
       type: 'warning',
-      dangerouslyUseHTMLString: true
+      dangerouslyUseHTMLString: true,
     });
 
     await StorageUtils.clearAllData();
@@ -239,7 +239,7 @@ const debugPassword = async () => {
     message += `哈希预览: ${debugInfo.hashPreview}`;
 
     await ElMessageBox.alert(message, '调试信息', {
-      confirmButtonText: '关闭'
+      confirmButtonText: '关闭',
     });
   } catch (error) {
     console.error('获取调试信息失败:', error);
