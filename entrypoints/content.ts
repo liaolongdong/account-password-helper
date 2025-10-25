@@ -944,7 +944,7 @@ export default defineContentScript({
 
       // 查找共同祖先元素
       private findCommonAncestor(elem1: HTMLElement, elem2: HTMLElement): HTMLElement | null {
-        const ancestors1 = [];
+        const ancestors1: HTMLElement[] = [];
         let current = elem1.parentElement;
         while (current) {
           ancestors1.push(current);

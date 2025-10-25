@@ -1547,6 +1547,15 @@ const deletePassword = async (id: string) => {
       type: 'warning',
     });
 
+    // 添加删除密码项动画效果
+    const delItem = document.querySelector(`.${id}`) as HTMLElement | undefined;
+    if (delItem) {
+      delItem.classList.add('del-item');
+      setTimeout(() => {
+        delItem.remove();
+      }, 2000);
+    }
+
     await StorageUtils.deletePassword(id);
     await loadPasswords();
     ElMessage.success('删除成功');
@@ -1565,6 +1574,21 @@ const batchDelete = async () => {
       cancelButtonText: '取消',
       type: 'warning',
     });
+
+    const patchDelItems: HTMLElement[] = [];
+    // 获取选中删除项节点
+    selectedIds.value.forEach((id: string) => {
+      const delItem = document.querySelector(`.${id}`) as HTMLElement | undefined;
+      if (delItem) {
+        delItem.classList.add('del-item');
+        patchDelItems.push(delItem);
+      }
+    });
+    setTimeout(() => {
+      patchDelItems.forEach(delItem => {
+        delItem.remove();
+      });
+    }, 2000);
 
     await StorageUtils.deletePasswords(selectedIds.value);
     await loadPasswords();
@@ -1942,6 +1966,11 @@ const getTagType = (tag: string): string => {
   align-items: center;
 }
 
+/* 搜索输入框样式 */
+:deep(.el-input__wrapper) {
+  margin-right: 10px;
+}
+
 .password-list-info {
   margin: 0 32px 10px;
 }
@@ -1968,12 +1997,23 @@ const getTagType = (tag: string): string => {
 
 /* 新增条目高亮动画 */
 :deep(.el-table__body-wrapper .el-table__row.new-item) {
-  /* todo:这个虚线绿色边框没有生效 */
+  animation: fade-in 1s linear;
+}
 
-  /* border: 1px dashed var(--el-color-success); */
+@keyframes fade-in {
+  0% {
+    transform: translateY(-20px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
 
-  color: var(--el-color-success);
-  animation: highlight 6s ease;
+:deep(.el-table__body-wrapper .el-table__row.new-item td) {
+  border-bottom: 2px solid var(--el-color-success);
 }
 
 /* 表格操作栏样式 */
@@ -1981,21 +2021,25 @@ const getTagType = (tag: string): string => {
   padding: 0 8px;
 }
 
-@keyframes highlight {
-  0% {
-    background-color: #e8f4fd;
-  }
-  50% {
-    background-color: #d0e8ff;
-  }
-  100% {
-    background-color: transparent;
-  }
-}
-
 /* 表格行进入动画 */
 .password-row-enter-active {
   transition: all 0.5s ease;
+}
+
+/** 删除密码列表动效 */
+:deep(.el-table__body-wrapper .el-table__row.del-item) {
+  animation: fade-out 2s ease-in-out;
+}
+
+@keyframes fade-out {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(800px);
+  }
 }
 
 .password-row-enter-from {
@@ -2026,21 +2070,6 @@ const getTagType = (tag: string): string => {
 /* 表格行移动动画 */
 .password-row-move {
   transition: transform 0.5s ease;
-}
-
-@keyframes highlight {
-  0% {
-    background-color: #f0f9ff;
-    border-color: var(--el-color-success);
-  }
-  50% {
-    background-color: #d9f0ff;
-    border-color: var(--el-color-success);
-  }
-  100% {
-    background-color: transparent;
-    border-color: var(--el-color-success);
-  }
 }
 
 .password-cell {
