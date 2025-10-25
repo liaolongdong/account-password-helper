@@ -1551,14 +1551,13 @@ const deletePassword = async (id: string) => {
     const delItem = document.querySelector(`.${id}`) as HTMLElement | undefined;
     if (delItem) {
       delItem.classList.add('del-item');
-      setTimeout(() => {
+      setTimeout(async () => {
         delItem.remove();
-      }, 2000);
+        await StorageUtils.deletePassword(id);
+        await loadPasswords();
+        ElMessage.success('删除成功');
+      }, 1000);
     }
-
-    await StorageUtils.deletePassword(id);
-    await loadPasswords();
-    ElMessage.success('删除成功');
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('删除失败');
@@ -1584,16 +1583,16 @@ const batchDelete = async () => {
         patchDelItems.push(delItem);
       }
     });
-    setTimeout(() => {
+    setTimeout(async () => {
       patchDelItems.forEach(delItem => {
         delItem.remove();
       });
-    }, 2000);
 
-    await StorageUtils.deletePasswords(selectedIds.value);
-    await loadPasswords();
-    selectedIds.value = [];
-    ElMessage.success('批量删除成功');
+      await StorageUtils.deletePasswords(selectedIds.value);
+      await loadPasswords();
+      selectedIds.value = [];
+      ElMessage.success('批量删除成功');
+    }, 1000);
   } catch (error) {
     if (error !== 'cancel') {
       ElMessage.error('批量删除失败');
@@ -2028,7 +2027,7 @@ const getTagType = (tag: string): string => {
 
 /** 删除密码列表动效 */
 :deep(.el-table__body-wrapper .el-table__row.del-item) {
-  animation: fade-out 2s ease-in-out;
+  animation: fade-out 1s ease-in-out;
 }
 
 @keyframes fade-out {
