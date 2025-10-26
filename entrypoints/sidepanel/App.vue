@@ -96,12 +96,19 @@
           v-for="password in filteredPasswords"
           :key="password.id"
           class="password-item"
+          title="点击快速填充账号和密码"
           @click="fillPassword(password)"
         >
           <div class="password-info">
             <div class="username">
               <el-icon><User /></el-icon>
               {{ password.username }}
+              <el-icon
+                class="copy-icon"
+                @click.stop="copyUsername(password.username)"
+              >
+                <CopyDocument />
+              </el-icon>
             </div>
             <div class="details">
               <el-tag
@@ -154,7 +161,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { Key, Search, User, Right, Setting, Loading } from '@element-plus/icons-vue';
+import { Key, Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { MessageType, type PasswordEntry } from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
@@ -410,6 +417,17 @@ const fillPassword = async (password: PasswordEntry) => {
     } else {
       ElMessage.error('填充密码失败，请确保页面已加载完成');
     }
+  }
+};
+
+// 复制用户名到剪贴板
+const copyUsername = async (username: string) => {
+  try {
+    await navigator.clipboard.writeText(username);
+    ElMessage.success('用户名已复制到剪贴板');
+  } catch (error) {
+    console.error('复制用户名失败:', error);
+    ElMessage.error('复制用户名失败');
   }
 };
 
@@ -779,6 +797,18 @@ onUnmounted(() => {
   font-size: 16px;
   margin-right: 6px;
   color: #6b7280;
+}
+
+.copy-icon {
+  margin-left: 8px;
+  font-size: 14px;
+  color: #9ca3af;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.copy-icon:hover {
+  color: #409eff;
 }
 
 .details {
