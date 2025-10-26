@@ -406,6 +406,8 @@
             prop="url"
             label="URL"
             min-width="200"
+            sortable
+            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.url.localeCompare(b.url)"
           >
             <template #default="{ row }">
               <el-tooltip
@@ -431,6 +433,8 @@
             prop="tag"
             label="标签"
             min-width="100"
+            sortable
+            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.tag.localeCompare(b.tag)"
           >
             <template #default="{ row }">
               <el-tag
@@ -452,6 +456,8 @@
             prop="remark"
             label="备注"
             min-width="150"
+            sortable
+            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.remark.localeCompare(b.remark)"
           >
             <template #default="{ row }">
               <el-tooltip
