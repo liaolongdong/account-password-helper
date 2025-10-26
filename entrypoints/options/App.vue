@@ -351,6 +351,7 @@
           row-key="id"
           :row-class-name="handleRowClassName"
           @selection-change="handleSelectionChange"
+          :default-sort="{ prop: 'createTime', order: 'descending' }"
         >
           <el-table-column
             type="selection"
@@ -489,6 +490,7 @@
             min-width="110"
             sortable
             :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.createTime - b.createTime"
+            :sort-orders="['descending', 'ascending', null]"
           >
             <template #default="{ row }">
               {{ new Date(row.createTime).toLocaleDateString() }}
@@ -933,20 +935,20 @@ const editingPasswordId = ref<string>('');
 
 // 计算属性
 const filteredPasswords = computed(() => {
-  let result = passwords.value;
-
-  // 按照添加时间倒序排列
-  result = result.sort((a, b) => new Date(b.createTime).getTime() - new Date(a.createTime).getTime());
+  let result = [...passwords.value]; // 创建副本以避免修改原始数据
 
   // 搜索过滤
-  if (!searchKeyword.value) return result;
-  return result.filter(
-    p =>
-      p.username.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
-      p.tag.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
-      p.remark.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
-      p.url.toLowerCase().includes(searchKeyword.value.toLowerCase()),
-  );
+  if (searchKeyword.value) {
+    result = result.filter(
+      p =>
+        p.username.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+        p.tag.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+        p.remark.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+        p.url.toLowerCase().includes(searchKeyword.value.toLowerCase()),
+    );
+  }
+
+  return result;
 });
 
 // 初始化
@@ -1182,6 +1184,10 @@ const loadPasswords = async () => {
     const masterPassword = StorageUtils.getSessionMasterPassword();
 
     passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
+
+    // 按创建时间倒序排序（最新添加的在前面）
+    passwords.value.sort((a, b) => b.createTime - a.createTime);
+
     // 添加显示密码状态
     passwords.value.forEach(p => {
       (p as any).showPassword = false;
