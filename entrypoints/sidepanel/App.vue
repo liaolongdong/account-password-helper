@@ -105,6 +105,7 @@
               {{ password.username }}
               <el-icon
                 class="copy-icon"
+                title="复制用户名"
                 @click.stop="copyUsername(password.username)"
               >
                 <CopyDocument />
@@ -798,8 +799,7 @@ onUnmounted(() => {
   margin-right: 6px;
   color: #6b7280;
 }
-
-.copy-icon {
+.username .copy-icon {
   margin-left: 8px;
   font-size: 14px;
   color: #9ca3af;
