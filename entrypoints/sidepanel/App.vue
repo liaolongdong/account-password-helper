@@ -168,15 +168,24 @@ const showSidepanel = ref(true);
 
 // 计算属性
 const filteredPasswords = computed(() => {
-  if (!searchKeyword.value) return passwords.value;
-  const keyword = searchKeyword.value.toLowerCase();
-  return passwords.value.filter(
-    p =>
-      p.username.toLowerCase().includes(keyword) ||
-      p.tag.toLowerCase().includes(keyword) ||
-      p.remark.toLowerCase().includes(keyword) ||
-      p.url.toLowerCase().includes(keyword),
-  );
+  let result = [...passwords.value]; // 创建副本以避免修改原始数据
+
+  // 搜索过滤
+  if (searchKeyword.value) {
+    const keyword = searchKeyword.value.toLowerCase();
+    result = result.filter(
+      p =>
+        p.username.toLowerCase().includes(keyword) ||
+        p.tag.toLowerCase().includes(keyword) ||
+        p.remark.toLowerCase().includes(keyword) ||
+        p.url.toLowerCase().includes(keyword),
+    );
+  }
+
+  // 按保存的排序配置进行排序
+  sortPasswords(result);
+
+  return result;
 });
 
 // 监听会话状态变化
@@ -305,6 +314,8 @@ const loadPasswords = async () => {
       passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value, masterPassword);
     } else {
       passwords.value = await StorageUtils.getAllPasswords(masterPassword);
+      // 应用保存的排序配置
+      sortPasswords(passwords.value);
     }
     // SidePanel: 密码列表加载完成
   } catch (error) {
@@ -547,6 +558,72 @@ const hashString = (str: string): number => {
     hash = hash & hash; // 转换为32位整数
   }
   return Math.abs(hash);
+};
+
+// 密码排序函数
+const sortPasswords = (passwords: PasswordEntry[]) => {
+  // 获取保存的排序配置
+  StorageUtils.getSortConfig()
+    .then(sortConfig => {
+      if (sortConfig) {
+        // 根据保存的排序配置进行排序
+        passwords.sort((a, b) => {
+          let aValue: any, bValue: any;
+
+          switch (sortConfig.prop) {
+            case 'username':
+              aValue = a.username;
+              bValue = b.username;
+              break;
+            case 'url':
+              aValue = a.url;
+              bValue = b.url;
+              break;
+            case 'tag':
+              aValue = a.tag;
+              bValue = b.tag;
+              break;
+            case 'remark':
+              aValue = a.remark;
+              bValue = b.remark;
+              break;
+            case 'createTime':
+              aValue = a.createTime;
+              bValue = b.createTime;
+              break;
+            case 'updateTime':
+              aValue = a.updateTime;
+              bValue = b.updateTime;
+              break;
+            default:
+              // 默认按创建时间倒序排序
+              passwords.sort((a, b) => b.createTime - a.createTime);
+              return 0;
+          }
+
+          // 根据排序顺序进行比较
+          let comparison = 0;
+          if (typeof aValue === 'string' && typeof bValue === 'string') {
+            comparison = aValue.localeCompare(bValue);
+          } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+            comparison = aValue - bValue;
+          } else {
+            // 默认按创建时间倒序排序
+            return b.createTime - a.createTime;
+          }
+
+          return sortConfig.order === 'ascending' ? comparison : -comparison;
+        });
+      } else {
+        // 默认按创建时间倒序排序
+        passwords.sort((a, b) => b.createTime - a.createTime);
+      }
+    })
+    .catch(error => {
+      console.error('获取排序配置失败，使用默认排序:', error);
+      // 默认按创建时间倒序排序
+      passwords.sort((a, b) => b.createTime - a.createTime);
+    });
 };
 
 // 初始化

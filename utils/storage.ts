@@ -12,6 +12,7 @@ const STORAGE_KEYS = {
   MASTER_PASSWORD: 'master_password_config',
   SETTINGS: 'app_settings',
   MASTER_PASSWORD_VALIDITY: 'master_password_validity', // 添加主密码有效期存储键
+  SORT_CONFIG: 'password_sort_config', // 添加排序配置存储键
 };
 
 // 添加会话状态管理变量
@@ -528,12 +529,14 @@ export class StorageUtils {
   static async getPasswordsByUrl(url: string, masterPassword?: string): Promise<PasswordEntry[]> {
     try {
       const allPasswords = await this.getAllPasswords(masterPassword);
-      const filteredPasswords = allPasswords
-        .filter(p => {
-          if (!p.url || p.url.trim() === '') return true; // 未填URL的匹配所有
-          return url.includes(p.url) || p.url.includes(url);
-        })
-        .sort((a, b) => a.order - b.order);
+      const filteredPasswords = allPasswords.filter(p => {
+        if (!p.url || p.url.trim() === '') return true; // 未填URL的匹配所有
+        return url.includes(p.url) || p.url.includes(url);
+      });
+
+      // 应用保存的排序配置
+      await this.applySavedSortConfig(filteredPasswords);
+
       return filteredPasswords;
     } catch (error) {
       console.error('StorageUtils: 根据URL搜索密码失败:', error);
@@ -549,19 +552,89 @@ export class StorageUtils {
       const allPasswords = await this.getAllPasswords(masterPassword);
       const lowerKeyword = keyword.toLowerCase();
 
-      const filteredPasswords = allPasswords
-        .filter(
-          p =>
-            p.username.toLowerCase().includes(lowerKeyword) ||
-            p.tag.toLowerCase().includes(lowerKeyword) ||
-            p.remark.toLowerCase().includes(lowerKeyword) ||
-            p.url.toLowerCase().includes(lowerKeyword),
-        )
-        .sort((a, b) => a.order - b.order);
+      const filteredPasswords = allPasswords.filter(
+        p =>
+          p.username.toLowerCase().includes(lowerKeyword) ||
+          p.tag.toLowerCase().includes(lowerKeyword) ||
+          p.remark.toLowerCase().includes(lowerKeyword) ||
+          p.url.toLowerCase().includes(lowerKeyword),
+      );
+
+      // 应用保存的排序配置
+      await this.applySavedSortConfig(filteredPasswords);
+
       return filteredPasswords;
     } catch (error) {
       console.error('StorageUtils: 搜索密码失败:', error);
       return [];
+    }
+  }
+
+  /**
+   * 应用保存的排序配置
+   */
+  static async applySavedSortConfig(passwords: PasswordEntry[]): Promise<void> {
+    try {
+      // 获取保存的排序配置
+      const sortConfig = await this.getSortConfig();
+
+      if (sortConfig) {
+        // 根据保存的排序配置进行排序
+        passwords.sort((a, b) => {
+          let aValue: any, bValue: any;
+
+          switch (sortConfig.prop) {
+            case 'username':
+              aValue = a.username;
+              bValue = b.username;
+              break;
+            case 'url':
+              aValue = a.url;
+              bValue = b.url;
+              break;
+            case 'tag':
+              aValue = a.tag;
+              bValue = b.tag;
+              break;
+            case 'remark':
+              aValue = a.remark;
+              bValue = b.remark;
+              break;
+            case 'createTime':
+              aValue = a.createTime;
+              bValue = b.createTime;
+              break;
+            case 'updateTime':
+              aValue = a.updateTime;
+              bValue = b.updateTime;
+              break;
+            default:
+              // 默认按创建时间倒序排序
+              passwords.sort((a, b) => b.createTime - a.createTime);
+              return 0;
+          }
+
+          // 根据排序顺序进行比较
+          let comparison = 0;
+          if (typeof aValue === 'string' && typeof bValue === 'string') {
+            comparison = aValue.localeCompare(bValue);
+          } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+            comparison = aValue - bValue;
+          } else {
+            // 默认按创建时间倒序排序
+            return b.createTime - a.createTime;
+          }
+
+          return sortConfig.order === 'ascending' ? comparison : -comparison;
+        });
+      } else {
+        // 默认按创建时间倒序排序
+        passwords.sort((a, b) => b.createTime - a.createTime);
+      }
+    } catch (error) {
+      console.error('StorageUtils: 应用排序配置失败，使用默认排序:', error);
+      // 默认按创建时间倒序排序
+      passwords.sort((a, b) => b.createTime - a.createTime);
     }
   }
 
@@ -652,6 +725,34 @@ export class StorageUtils {
     } catch (error) {
       console.error('设置主密码有效期失败:', error);
       throw error;
+    }
+  }
+
+  /**
+   * 保存排序配置
+   */
+  static async saveSortConfig(sortConfig: { prop: string; order: string }): Promise<void> {
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.SORT_CONFIG]: sortConfig,
+      });
+    } catch (error) {
+      console.error('StorageUtils: 保存排序配置失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取排序配置
+   */
+  static async getSortConfig(): Promise<{ prop: string; order: string } | null> {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.SORT_CONFIG);
+      const sortConfig = result[STORAGE_KEYS.SORT_CONFIG] || null;
+      return sortConfig;
+    } catch (error) {
+      console.error('StorageUtils: 获取排序配置失败:', error);
+      return null;
     }
   }
 

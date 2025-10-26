@@ -352,6 +352,7 @@
           :row-class-name="handleRowClassName"
           @selection-change="handleSelectionChange"
           :default-sort="{ prop: 'createTime', order: 'descending' }"
+          @sort-change="handleSortChange"
         >
           <el-table-column
             type="selection"
@@ -810,6 +811,7 @@ const setupFormRef = ref<FormInstance>();
 const verifyFormRef = ref<FormInstance>();
 const passwordFormRef = ref<FormInstance>();
 const validityFormRef = ref<FormInstance>(); // 添加有效期表单引用
+const tableRef = ref(); // 添加表格引用
 const setupLoading = ref(false);
 const verifyLoading = ref(false);
 const passwordFormLoading = ref(false);
@@ -1196,6 +1198,16 @@ const loadPasswords = async () => {
     // 初始化有效期设置表单
     const validityHours = await StorageUtils.getMasterPasswordValidityHours();
     validityForm.value.validityHours = validityHours;
+
+    // 延迟设置表格的排序状态，确保DOM已更新
+    setTimeout(async () => {
+      // 获取保存的排序配置
+      const sortConfig = await StorageUtils.getSortConfig();
+      if (sortConfig && tableRef.value) {
+        // 设置表格的排序状态
+        tableRef.value.sort(sortConfig.prop, sortConfig.order);
+      }
+    }, 0);
   } catch (error: any) {
     console.error('加载密码列表失败:', error);
     ElMessage.error('加载密码列表失败: ' + (error.message || '未知错误'));
@@ -1205,6 +1217,16 @@ const loadPasswords = async () => {
 // 搜索处理
 const handleSearch = () => {
   // 搜索逻辑已通过计算属性实现
+};
+
+// 处理排序变化
+const handleSortChange = async ({ prop, order }: { prop: string; order: string }) => {
+  try {
+    // 保存排序配置到本地存储
+    await StorageUtils.saveSortConfig({ prop, order });
+  } catch (error) {
+    console.error('保存排序配置失败:', error);
+  }
 };
 
 // 切换密码可见性
@@ -1545,16 +1567,15 @@ const copyPassword = async (password: PasswordEntry) => {
     // 保存新的密码条目
     // 复制项id
     const copyItemId = password.id;
-    await StorageUtils.savePassword(newPasswordEntry, masterPassword || undefined, copyItemId);
+    const newEntry = await StorageUtils.savePassword(newPasswordEntry, masterPassword || undefined, copyItemId);
 
     // 重新加载密码列表
     await loadPasswords();
 
     // 高亮显示新复制的条目
     // 等待DOM更新后添加高亮类
-    nextTick(() => {
-      const copyItem = document.querySelector(`.${password.id}`);
-      const copyAddedItem = copyItem?.nextSibling as HTMLElement;
+    setTimeout(() => {
+      const copyAddedItem = document.querySelector(`.${newEntry.id}`);
       if (copyAddedItem) {
         // 为第一个（最新的）条目添加高亮类
         copyAddedItem.classList.add('new-item');
@@ -1567,7 +1588,7 @@ const copyPassword = async (password: PasswordEntry) => {
           copyAddedItem.classList.remove('new-item');
         }, 6000);
       }
-    });
+    }, 100);
 
     ElMessage.success('密码复制成功');
   } catch (error: any) {
