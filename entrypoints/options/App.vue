@@ -1261,6 +1261,26 @@ const resetPasswordForm = () => {
   }
 };
 
+// 添加或者更新密码滚动到可视区域
+const scrollToPassword = (id: string) => {
+  setTimeout(() => {
+    const passwordElement = document.querySelector(`.${id}`);
+    if (passwordElement) {
+      // 添加样式方便区分新增项
+      passwordElement.classList.add('new-item');
+      setTimeout(() => {
+        passwordElement.classList.remove('new-item');
+      }, 6000);
+
+      // 滚动到可视区域
+      passwordElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, 100);
+};
+
 // 处理密码表单保存
 const handlePasswordFormSave = async () => {
   if (!passwordFormRef.value) return;
@@ -1284,9 +1304,12 @@ const handlePasswordFormSave = async () => {
         updateTime: Date.now(),
       });
       ElMessage.success('密码更新成功');
+
+      // 滚动到可视区域
+      scrollToPassword(editingPasswordId.value);
     } else {
       // 添加新密码
-      await StorageUtils.savePassword({
+      const newEntry = await StorageUtils.savePassword({
         username: passwordForm.value.username.trim(),
         password: passwordForm.value.password,
         url: passwordForm.value.url.trim(),
@@ -1296,6 +1319,9 @@ const handlePasswordFormSave = async () => {
         updateTime: Date.now(),
       });
       ElMessage.success('密码添加成功');
+
+      // 滚动到可视区域
+      scrollToPassword(newEntry.id);
     }
 
     await loadPasswords();

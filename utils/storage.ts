@@ -346,7 +346,7 @@ export class StorageUtils {
     entry: Omit<PasswordEntry, 'id' | 'order'>,
     masterPassword?: string,
     copyItemId?: string,
-  ): Promise<void> {
+  ): Promise<PasswordEntry> {
     try {
       const passwords = masterPassword ? await this.getAllPasswords(masterPassword) : await this.getAllPasswordsRaw();
 
@@ -385,6 +385,8 @@ export class StorageUtils {
       await chrome.storage.local.set({
         [STORAGE_KEYS.PASSWORDS]: entriesToSave,
       });
+
+      return newEntry;
     } catch (error) {
       console.error('StorageUtils: 保存密码失败:', error);
       throw error;
