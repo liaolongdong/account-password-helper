@@ -58,6 +58,20 @@ export default defineContentScript({
           let shouldRedetect = false;
 
           mutations.forEach(mutation => {
+            // 通过检测点击的元素是否包含密码登录或者验证码登录
+            if (mutation.type === 'attributes') {
+              const element = mutation.target as HTMLElement;
+              const textContent = element.textContent || element.innerText || '';
+              if (
+                textContent.includes('密码登录') ||
+                textContent.includes('验证码登录') ||
+                textContent.includes('密码')
+              ) {
+                shouldRedetect = true;
+                return;
+              }
+            }
+            // todo: 这里的检测不准确
             mutation.addedNodes.forEach(node => {
               if (node.nodeType === Node.ELEMENT_NODE) {
                 const element = node as Element;
@@ -83,6 +97,8 @@ export default defineContentScript({
         observer.observe(document.body, {
           childList: true,
           subtree: true,
+          attributes: true,
+          attributeFilter: ['class', 'style', 'placeholder'],
         });
 
         return observer;
@@ -360,7 +376,16 @@ export default defineContentScript({
           return true;
         }
 
-        // 情况2: 手机号 + 短信验证码组合
+        // 情况2: 手机号 + 短信验证码组合（这里多一个处理逻辑是因为用户名包含了手机号）
+        if (
+          (isUsernameField || isVerifyCodeField) &&
+          this.usernameFields.length > 0 &&
+          this.verifyCodeFields.length > 0
+        ) {
+          console.log('检测到手机号/验证码组合');
+          return true;
+        }
+
         if ((isMobileField || isVerifyCodeField) && this.mobileFields.length > 0 && this.verifyCodeFields.length > 0) {
           console.log('检测到手机号/验证码组合');
           return true;
