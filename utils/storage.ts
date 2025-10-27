@@ -54,6 +54,11 @@ export class StorageUtils {
    * 生成唯一ID
    */
   static generateId(): string {
+    // 优先使用原生JS提供的crypto API生成uuid
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    // 降级处理
     const id = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     return id;
   }
