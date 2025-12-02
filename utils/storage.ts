@@ -6,7 +6,9 @@ interface EncryptedPasswordEntry extends PasswordEntry {
   encrypted?: boolean;
 }
 
-// 存储键名常量
+/**
+ * 存储键名常量
+ */
 const STORAGE_KEYS = {
   PASSWORDS: 'account_passwords',
   MASTER_PASSWORD: 'master_password_config',
@@ -20,7 +22,9 @@ let sessionMasterPassword: string | null = null;
 let sessionPasswordExpiry: number | null = null;
 let sessionValidityHours: number = 24; // 默认24小时
 
-// 会话存储键名
+/**
+ * 会话存储键名
+ */
 const SESSION_STORAGE_KEYS = {
   MASTER_PASSWORD: 'session_master_password',
   PASSWORD_EXPIRY: 'session_password_expiry',

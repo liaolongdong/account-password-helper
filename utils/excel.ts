@@ -15,6 +15,7 @@ export class ExcelUtils {
         标签: p.tag,
         备注: p.remark,
         创建时间: new Date(p.createTime || Date.now()).toLocaleString(),
+        更新时间: new Date(p.updateTime || Date.now()).toLocaleString(),
       }));
 
       // 创建工作簿
@@ -29,6 +30,7 @@ export class ExcelUtils {
         { wch: 15 }, // 标签
         { wch: 30 }, // 备注
         { wch: 20 }, // 创建时间
+        { wch: 20 }, // 更新时间
       ];
 
       // 添加工作表到工作簿
@@ -86,8 +88,8 @@ export class ExcelUtils {
                   url: String(url).trim(),
                   tag: String(tag).trim(),
                   remark: String(remark).trim(),
-                  createTime: new Date(String(createTime).trim()).getTime(),
-                  updateTime: new Date(String(updateTime).trim()).getTime(),
+                  createTime,
+                  updateTime,
                 };
               })
               .filter(item => item.username); // 过滤掉没有用户名的条目
@@ -118,11 +120,13 @@ export class ExcelUtils {
     try {
       const templateData = [
         {
-          用户名: 'example@email.com',
+          '用户名(必填)': 'example@email.com',
           密码: 'password123',
           URL: 'https://example.com',
           标签: '工作',
           备注: '示例账号',
+          创建时间: new Date().toLocaleDateString(),
+          更新时间: new Date().toLocaleDateString(),
         },
       ];
 
@@ -136,6 +140,8 @@ export class ExcelUtils {
         { wch: 30 }, // URL
         { wch: 15 }, // 标签
         { wch: 30 }, // 备注
+        { wch: 20 }, // 创建时间
+        { wch: 20 }, // 更新时间
       ];
 
       XLSX.utils.book_append_sheet(wb, ws, '密码模板');

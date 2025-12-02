@@ -52,6 +52,7 @@
           <el-table-column
             prop="username"
             label="用户名"
+            show-overflow-tooltip
           />
           <el-table-column
             prop="password"
@@ -72,6 +73,24 @@
             label="备注"
             show-overflow-tooltip
           />
+          <el-table-column
+            prop="createTime"
+            label="创建时间"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              {{ new Date(row.createTime).toLocaleDateString() }}
+            </template>
+          </el-table-column>
+          <el-table-column
+            prop="updateTime"
+            label="更新时间"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              {{ new Date(row.createTime).toLocaleDateString() }}
+            </template>
+          </el-table-column>
         </el-table>
         <p class="preview-info">共 {{ previewData.length }} 条有效数据</p>
       </div>
@@ -131,6 +150,7 @@ const handleFileChange = async (file: UploadFile) => {
   try {
     selectedFile.value = file.raw;
     const data = await ExcelUtils.importFromExcel(file.raw);
+    console.log('🚀 ~ handleFileChange ~ data:', data);
     previewData.value = data;
 
     if (data.length === 0) {
