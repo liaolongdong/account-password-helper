@@ -24,9 +24,9 @@ build/
 .env.production.local
 
 # IDE and Editor files
-.vscode/
-.idea/
-.qoder/
+# .vscode/
+# .idea/
+# .qoder/
 *.swp
 *.swo
 *~
