@@ -6,6 +6,18 @@ export default defineContentScript({
   main() {
     console.log('Account Password Helper content script loaded');
 
+    // 防抖工具函数
+    function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
+      let timeout: ReturnType<typeof setTimeout> | null = null;
+      return function (this: any, ...args: Parameters<T>) {
+        const context = this;
+        if (timeout) clearTimeout(timeout);
+        timeout = setTimeout(() => {
+          func.apply(context, args);
+        }, wait);
+      };
+    }
+
     // 表单检测器
     class FormDetector {
       private passwordFields: HTMLInputElement[] = [];
@@ -22,12 +34,29 @@ export default defineContentScript({
       private shortDelayTime = 500;
       /** 用于跟踪侧边栏显示状态 */
       private isSidePanelVisible = false;
+      /** 字段类型缓存，使用WeakMap避免内存泄漏 */
+      private fieldTypeCache = new WeakMap<HTMLInputElement, 'password' | 'username' | 'mobile' | 'verifyCode' | null>();
+      /** 字段集合，使用Set提高查找效率 */
+      private passwordFieldsSet = new WeakSet<HTMLInputElement>();
+      private usernameFieldsSet = new WeakSet<HTMLInputElement>();
+      private mobileFieldsSet = new WeakSet<HTMLInputElement>();
+      private verifyCodeFieldsSet = new WeakSet<HTMLInputElement>();
+      /** 防抖后的显示侧边栏函数 */
+      private debouncedShowSidePanel: () => void;
+      /** 缓存 isInLoginFormOrPopup 的检查结果，使用WeakMap避免内存泄漏 */
+      private loginFormCheckCache = new WeakMap<HTMLInputElement, boolean>();
 
       constructor() {
+        // 初始化防抖函数，优化延迟时间为150ms以提升响应速度
+        this.debouncedShowSidePanel = debounce(() => {
+          this.showSidePanel();
+        }, 150);
         this.init();
         this.observer = this.createMutationObserver();
         this.addPageVisibilityListener();
         this.addPageNavigationListener();
+        // 使用事件委托，只添加一个全局监听器
+        this.setupEventDelegation();
       }
 
       private init() {
@@ -111,10 +140,24 @@ export default defineContentScript({
         this.mobileFields = [];
         this.verifyCodeFields = [];
         this.checkboxFields = [];
+        // 清空Set缓存（WeakSet会自动清理，但为了保险起见重置数组）
+        this.passwordFieldsSet = new WeakSet();
+        this.usernameFieldsSet = new WeakSet();
+        this.mobileFieldsSet = new WeakSet();
+        this.verifyCodeFieldsSet = new WeakSet();
+        // 清空登录表单检查缓存，确保重新检测
+        this.loginFormCheckCache = new WeakMap();
 
         // 检测密码字段
         const passwordInputs = document.querySelectorAll('input[type="password"]') as NodeListOf<HTMLInputElement>;
-        this.passwordFields = Array.from(passwordInputs).filter(input => this.isVisible(input));
+        this.passwordFields = Array.from(passwordInputs).filter(input => {
+          if (this.isVisible(input)) {
+            this.passwordFieldsSet.add(input);
+            this.fieldTypeCache.set(input, 'password');
+            return true;
+          }
+          return false;
+        });
 
         // 检测用户名(号)/邮箱/手机号/账号字段
         const usernameSelectors = [
@@ -142,18 +185,77 @@ export default defineContentScript({
           'input[placeholder*="mobile"]',
           'input[placeholder*="phone"]',
           'input[placeholder*="account"]',
+          // 增强检测规则
+          'input[autocomplete="username"]',
+          'input[autocomplete="email"]',
+          'input[autocomplete="tel"]',
+          'input[aria-label*="用户"]',
+          'input[aria-label*="邮箱"]',
+          'input[aria-label*="账号"]',
+          'input[aria-label*="email"]',
+          'input[aria-label*="user"]',
+          'input[aria-label*="account"]',
+          'input[name*="username"]',
+          'input[name*="userName"]',
+          'input[id*="username"]',
+          'input[id*="userName"]',
+          // 扩展更多选择器以覆盖更多场景
+          'input[name*="user_name"]',
+          'input[name*="userName"]',
+          'input[name*="userName"]',
+          'input[id*="user_name"]',
+          'input[id*="userName"]',
+          'input[name*="emailAddress"]',
+          'input[name*="email_address"]',
+          'input[id*="emailAddress"]',
+          'input[id*="email_address"]',
+          'input[name*="accountName"]',
+          'input[name*="account_name"]',
+          'input[id*="accountName"]',
+          'input[id*="account_name"]',
+          'input[name*="loginName"]',
+          'input[name*="login_name"]',
+          'input[id*="loginName"]',
+          'input[id*="login_name"]',
+          'input[placeholder*="用户名"]',
+          'input[placeholder*="用户号"]',
+          'input[placeholder*="邮箱地址"]',
+          'input[placeholder*="电子邮箱"]',
+          'input[placeholder*="账号名"]',
+          'input[placeholder*="登录名"]',
+          'input[placeholder*="登录账号"]',
+          'input[placeholder*="请输入账号"]',
+          'input[placeholder*="请输入用户名"]',
+          'input[placeholder*="请输入邮箱"]',
+          'input[aria-label*="用户名"]',
+          'input[aria-label*="用户号"]',
+          'input[aria-label*="邮箱地址"]',
+          'input[aria-label*="电子邮箱"]',
+          'input[aria-label*="账号名"]',
+          'input[aria-label*="登录名"]',
+          'input[aria-label*="登录账号"]',
+          'input[autocomplete="username email"]',
+          'input[autocomplete="email username"]',
+          'input[autocomplete="off"][name*="user"]',
+          'input[autocomplete="off"][name*="email"]',
+          'input[autocomplete="off"][name*="account"]',
+          'input[autocomplete="off"][id*="user"]',
+          'input[autocomplete="off"][id*="email"]',
+          'input[autocomplete="off"][id*="account"]',
         ];
 
         usernameSelectors.forEach(selector => {
           const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
           Array.from(inputs).forEach(input => {
-            if (this.isVisible(input) && !this.usernameFields.includes(input)) {
+            if (this.isVisible(input) && !this.usernameFieldsSet.has(input)) {
               this.usernameFields.push(input);
+              this.usernameFieldsSet.add(input);
+              this.fieldTypeCache.set(input, 'username');
             }
           });
         });
 
-        // todo:检测手机号码字段 (用户名也包括手机号了)
+        // 检测手机号码字段 (用户名也包括手机号了)
         const mobileSelectors = [
           'input[type="tel"]',
           'input[type="text"][name*="phone"]',
@@ -170,13 +272,53 @@ export default defineContentScript({
           'input[placeholder*="mobile"]',
           'input[placeholder*="phone"]',
           'input[placeholder*="手机号"]',
+          // 增强检测规则
+          'input[autocomplete="tel"]',
+          'input[autocomplete="mobile"]',
+          'input[aria-label*="手机"]',
+          'input[aria-label*="电话"]',
+          'input[aria-label*="mobile"]',
+          'input[aria-label*="phone"]',
+          // 扩展更多选择器以覆盖更多场景
+          'input[name*="phone_number"]',
+          'input[name*="mobile_phone"]',
+          'input[name*="cellphone"]',
+          'input[name*="cell_phone"]',
+          'input[id*="phone_number"]',
+          'input[id*="mobile_phone"]',
+          'input[id*="cellphone"]',
+          'input[id*="cell_phone"]',
+          'input[placeholder*="手机号码"]',
+          'input[placeholder*="联系电话"]',
+          'input[placeholder*="电话号码"]',
+          'input[placeholder*="请输入手机号"]',
+          'input[placeholder*="请输入手机号码"]',
+          'input[placeholder*="请输入电话号码"]',
+          'input[aria-label*="手机号码"]',
+          'input[aria-label*="联系电话"]',
+          'input[aria-label*="电话号码"]',
+          'input[aria-label*="手机号"]',
+          'input[autocomplete="tel-national"]',
+          'input[autocomplete="tel-country-code"]',
+          'input[autocomplete="tel-area-code"]',
+          'input[autocomplete="tel-local"]',
+          'input[autocomplete="off"][name*="phone"]',
+          'input[autocomplete="off"][name*="mobile"]',
+          'input[autocomplete="off"][id*="phone"]',
+          'input[autocomplete="off"][id*="mobile"]',
         ];
 
         mobileSelectors.forEach(selector => {
           const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
           Array.from(inputs).forEach(input => {
-            if (this.isVisible(input) && !this.mobileFields.includes(input) && !this.usernameFields.includes(input)) {
+            if (
+              this.isVisible(input) &&
+              !this.mobileFieldsSet.has(input) &&
+              !this.usernameFieldsSet.has(input)
+            ) {
               this.mobileFields.push(input);
+              this.mobileFieldsSet.add(input);
+              this.fieldTypeCache.set(input, 'mobile');
             }
           });
         });
@@ -202,6 +344,44 @@ export default defineContentScript({
           'input[placeholder*="verifyCode"]',
           'input[placeholder*="短信验证码"]',
           'input[placeholder*="验证码"]',
+          // 增强检测规则
+          'input[aria-label*="验证码"]',
+          'input[aria-label*="code"]',
+          'input[aria-label*="verify"]',
+          'input[autocomplete="one-time-code"]',
+          // 扩展更多选择器以覆盖更多场景
+          'input[name*="verify_code"]',
+          'input[name*="auth_code"]',
+          'input[name*="check_code"]',
+          'input[name*="sms_code"]',
+          'input[name*="verificationCode"]',
+          'input[name*="verification_code"]',
+          'input[id*="verify_code"]',
+          'input[id*="auth_code"]',
+          'input[id*="check_code"]',
+          'input[id*="sms_code"]',
+          'input[id*="verificationCode"]',
+          'input[id*="verification_code"]',
+          'input[placeholder*="短信验证码"]',
+          'input[placeholder*="请输入验证码"]',
+          'input[placeholder*="请输入短信验证码"]',
+          'input[placeholder*="验证码"]',
+          'input[placeholder*="短信码"]',
+          'input[placeholder*="动态码"]',
+          'input[placeholder*="安全码"]',
+          'input[aria-label*="短信验证码"]',
+          'input[aria-label*="请输入验证码"]',
+          'input[aria-label*="请输入短信验证码"]',
+          'input[aria-label*="验证码"]',
+          'input[aria-label*="短信码"]',
+          'input[aria-label*="动态码"]',
+          'input[aria-label*="安全码"]',
+          'input[aria-label*="captcha"]',
+          'input[autocomplete="one-time-code"]',
+          'input[autocomplete="off"][name*="code"]',
+          'input[autocomplete="off"][name*="verify"]',
+          'input[autocomplete="off"][id*="code"]',
+          'input[autocomplete="off"][id*="verify"]',
         ];
 
         verifyCodeSelectors.forEach(selector => {
@@ -209,11 +389,13 @@ export default defineContentScript({
           Array.from(inputs).forEach(input => {
             if (
               this.isVisible(input) &&
-              !this.verifyCodeFields.includes(input) &&
-              !this.usernameFields.includes(input) &&
-              !this.mobileFields.includes(input)
+              !this.verifyCodeFieldsSet.has(input) &&
+              !this.usernameFieldsSet.has(input) &&
+              !this.mobileFieldsSet.has(input)
             ) {
               this.verifyCodeFields.push(input);
+              this.verifyCodeFieldsSet.add(input);
+              this.fieldTypeCache.set(input, 'verifyCode');
             }
           });
         });
@@ -233,9 +415,6 @@ export default defineContentScript({
 
           return isInteractable;
         });
-
-        // 为表单字段添加焦点监听器
-        this.addFormListeners();
 
         // 如果找到了登录表单字段（账号和密码或者手机号和验证码这两种组合），发送通知
         if (
@@ -262,90 +441,68 @@ export default defineContentScript({
         );
       }
 
-      private addFormListeners() {
-        // 移除之前的监听器避免重复
-        [...this.passwordFields, ...this.usernameFields, ...this.mobileFields, ...this.verifyCodeFields].forEach(
-          field => {
-            // 移除可能存在的旧监听器
-            field.removeEventListener('focus', this.handleFieldFocus);
-            field.removeEventListener('click', this.handleFieldFocus);
-            field.removeEventListener('input', this.handleFieldFocus);
-            field.removeEventListener('mousedown', this.handleFieldFocus);
-            field.removeEventListener('keydown', this.handleFieldFocus);
-          },
-        );
-
-        // 为所有表单字段添加多种事件监听器，确保能够触发
-        [...this.passwordFields, ...this.usernameFields, ...this.mobileFields, ...this.verifyCodeFields].forEach(
-          field => {
-            // 使用捕获阶段确保事件能被捕获
-            field.addEventListener('focus', this.handleFieldFocus, { capture: true });
-            field.addEventListener('click', this.handleFieldFocus, { capture: true });
-            field.addEventListener('input', this.handleFieldFocus, { capture: true });
-            field.addEventListener('mousedown', this.handleFieldFocus, { capture: true });
-            field.addEventListener('keydown', this.handleFieldFocus, { capture: true });
-
-            // 添加额外的监听器到父元素以防事件被阻止
-            if (field.parentElement) {
-              field.parentElement.addEventListener('click', this.handleFieldFocus);
-            }
-
-            const fieldType = this.getFieldType(field);
-            // 添加监听器到字段
-          },
-        );
-
-        // 添加全局监听器作为备选方案
-        document.addEventListener('focusin', this.handleGlobalFocus);
-        document.addEventListener('click', this.handleGlobalClick);
+      /**
+       * 使用事件委托设置全局监听器，替代为每个字段添加多个监听器
+       * 这样可以大幅减少内存占用和提高性能
+       */
+      private setupEventDelegation() {
+        // 使用focusin事件委托，捕获所有输入框焦点事件
+        document.addEventListener('focusin', this.handleDelegatedFocus, { capture: true });
       }
 
-      private getFieldType(field: HTMLInputElement): string {
-        if (this.passwordFields.includes(field)) return '密码字段';
-        if (this.usernameFields.includes(field)) return '用户名字段';
-        if (this.mobileFields.includes(field)) return '手机号码字段';
-        if (this.verifyCodeFields.includes(field)) return '验证码字段';
-        return '未知字段';
+      /**
+       * 事件委托处理焦点事件
+       */
+      private handleDelegatedFocus = (event: FocusEvent) => {
+        const target = event.target;
+        if (!target || !(target instanceof HTMLElement) || target.tagName !== 'INPUT') {
+          return;
+        }
+
+        const input = target as HTMLInputElement;
+        // 检查是否是我们识别的字段类型
+        if (this.shouldShowSidePanel(input)) {
+          // 当满足显示条件时，使用防抖函数显示侧边栏，提升性能
+          // 不依赖 isSidePanelVisible 状态，因为用户可能手动关闭了侧边栏
+          // 重置状态以确保能正确显示（即使状态不同步）
+          this.isSidePanelVisible = false;
+          // 使用防抖函数，避免频繁触发，提升性能
+          this.debouncedShowSidePanel();
+        }
+      };
+
+      /**
+       * 获取字段类型，使用缓存提高性能
+       */
+      private getFieldType(field: HTMLInputElement): 'password' | 'username' | 'mobile' | 'verifyCode' | null {
+        // 先从缓存中获取
+        const cachedType = this.fieldTypeCache.get(field);
+        if (cachedType !== undefined) {
+          return cachedType;
+        }
+
+        // 如果缓存中没有，使用Set快速查找
+        if (this.passwordFieldsSet.has(field)) {
+          this.fieldTypeCache.set(field, 'password');
+          return 'password';
+        }
+        if (this.usernameFieldsSet.has(field)) {
+          this.fieldTypeCache.set(field, 'username');
+          return 'username';
+        }
+        if (this.mobileFieldsSet.has(field)) {
+          this.fieldTypeCache.set(field, 'mobile');
+          return 'mobile';
+        }
+        if (this.verifyCodeFieldsSet.has(field)) {
+          this.fieldTypeCache.set(field, 'verifyCode');
+          return 'verifyCode';
+        }
+
+        // 未识别的字段
+        this.fieldTypeCache.set(field, null);
+        return null;
       }
-
-      private handleFieldFocus = (event?: Event) => {
-        const target = event?.target as HTMLInputElement;
-        if (!target) return;
-
-        const fieldType = this.getFieldType(target);
-        // 表单字段获得焦点
-
-        // 检查是否应该显示侧边栏
-        if (this.shouldShowSidePanel(target)) {
-          this.showSidePanel();
-        }
-      };
-
-      private handleGlobalFocus = (event: FocusEvent) => {
-        const target = event.target as HTMLElement;
-        if (target && target.tagName === 'INPUT') {
-          const input = target as HTMLInputElement;
-          // 检查是否应该显示侧边栏
-          if (this.shouldShowSidePanel(input)) {
-            const fieldType = this.getFieldType(input);
-            // 全局焦点检测到表单字段
-            this.showSidePanel();
-          }
-        }
-      };
-
-      private handleGlobalClick = (event: MouseEvent) => {
-        const target = event.target as HTMLElement;
-        if (target && target.tagName === 'INPUT') {
-          const input = target as HTMLInputElement;
-          // 检查是否应该显示侧边栏
-          if (this.shouldShowSidePanel(input)) {
-            const fieldType = this.getFieldType(input);
-            // 全局点击检测到表单字段
-            this.showSidePanel();
-          }
-        }
-      };
 
       /**
        * 判断是否应该显示侧边栏（登录表单页面或者弹窗中出现账号和密码或者手机号和短信验证码组合时，展示侧边栏密码填充功能）
@@ -355,87 +512,204 @@ export default defineContentScript({
        * 3. 必须是在登录表单界面或者弹窗输入框获取焦点才展示侧边栏
        */
       private shouldShowSidePanel(input: HTMLInputElement): boolean {
-        // 检查输入框是否属于我们识别的字段类型
-        const isPasswordField = this.passwordFields.includes(input);
-        const isUsernameField = this.usernameFields.includes(input);
-        const isMobileField = this.mobileFields.includes(input);
-        const isVerifyCodeField = this.verifyCodeFields.includes(input);
+        // 使用缓存的字段类型，提高性能
+        const fieldType = this.getFieldType(input);
 
         // 如果不是我们识别的字段类型，不显示侧边栏
-        if (!isPasswordField && !isUsernameField && !isMobileField && !isVerifyCodeField) {
+        if (!fieldType) {
           return false;
         }
+
         // 检查是否在登录表单页面或者弹窗中
         if (!this.isInLoginFormOrPopup(input)) {
           return false;
         }
 
-        // 情况1: 用户名/手机号/邮箱/账号 + 密码组合
-        if ((isUsernameField || isPasswordField) && this.passwordFields.length > 0 && this.usernameFields.length > 0) {
-          console.log('检测到账号/密码组合');
-          return true;
+        // 情况1: 账号 + 密码组合
+        // 当焦点在账号字段或密码字段时，且页面同时存在账号和密码字段
+        if (fieldType === 'username' || fieldType === 'password') {
+          const hasPasswordFields = this.passwordFields.length > 0;
+          const hasUsernameFields = this.usernameFields.length > 0;
+          
+          if (hasPasswordFields && hasUsernameFields) {
+            console.log('检测到账号/密码组合');
+            return true;
+          }
         }
 
-        // 情况2: 手机号 + 短信验证码组合（这里多一个处理逻辑是因为用户名包含了手机号）
-        if (
-          (isUsernameField || isVerifyCodeField) &&
-          this.usernameFields.length > 0 &&
-          this.verifyCodeFields.length > 0
-        ) {
-          console.log('检测到手机号/验证码组合');
-          return true;
-        }
-
-        if ((isMobileField || isVerifyCodeField) && this.mobileFields.length > 0 && this.verifyCodeFields.length > 0) {
-          console.log('检测到手机号/验证码组合');
-          return true;
+        // 情况2: 手机号 + 短信验证码组合
+        // 当焦点在手机号字段或验证码字段时，且页面同时存在手机号和验证码字段
+        if (fieldType === 'mobile' || fieldType === 'verifyCode') {
+          const hasMobileFields = this.mobileFields.length > 0;
+          const hasVerifyCodeFields = this.verifyCodeFields.length > 0;
+          const hasPasswordFields = this.passwordFields.length > 0;
+          const hasUsernameFields = this.usernameFields.length > 0;
+          
+          // 优先检查专门的手机号字段
+          if (hasMobileFields && hasVerifyCodeFields) {
+            console.log('检测到手机号/验证码组合');
+            return true;
+          }
+          
+          // 如果用户名字段包含手机号，也支持手机号+验证码组合
+          // 需要同时满足：有用户名字段、有验证码字段、没有密码字段（排除账号+密码场景）
+          if (hasUsernameFields && hasVerifyCodeFields && !hasPasswordFields) {
+            // 进一步检查：根据当前字段类型判断
+            switch (fieldType) {
+              case 'mobile':
+                // 检查手机号字段的特征，判断是否可能是手机号输入
+                const isLikelyMobileInput = this.isLikelyMobileInput(input);
+                if (isLikelyMobileInput) {
+                  console.log('检测到手机号/验证码组合（用户名字段作为手机号）');
+                  return true;
+                }
+                break;
+              case 'verifyCode':
+                // 如果当前焦点在验证码字段，且页面有用户名字段和验证码字段，但没有密码字段
+                // 很可能是手机号+验证码场景
+                console.log('检测到手机号/验证码组合（用户名字段作为手机号）');
+                return true;
+            }
+          }
         }
 
         return false;
       }
 
       /**
-       * todo:检查输入框是否在登录表单页面或登录弹窗中（这里待定增加检查包含登录按钮判断）
+       * 判断输入框是否可能是手机号输入框
+       * 通过检查输入框的特征来判断
+       */
+      private isLikelyMobileInput(input: HTMLInputElement): boolean {
+        const name = (input.name || '').toLowerCase();
+        const id = (input.id || '').toLowerCase();
+        const placeholder = (input.placeholder || '').toLowerCase();
+        const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
+        const type = input.type.toLowerCase();
+        const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase();
+
+        // 检查是否包含手机号相关的关键词
+        const mobileKeywords = ['phone', 'mobile', 'tel', 'cell', '手机', '电话', '号码'];
+        const textToCheck = `${name} ${id} ${placeholder} ${ariaLabel} ${autocomplete}`;
+
+        // 如果类型是tel，很可能是手机号
+        if (type === 'tel') {
+          return true;
+        }
+
+        // 如果autocomplete包含tel相关值
+        if (autocomplete.includes('tel') || autocomplete.includes('phone') || autocomplete.includes('mobile')) {
+          return true;
+        }
+
+        // 检查是否包含手机号关键词
+        return mobileKeywords.some(keyword => textToCheck.includes(keyword));
+      }
+
+      /**
+       * 检查输入框是否在登录表单页面或登录弹窗中
+       * 增强检测逻辑，提高场景识别准确性，使用缓存提升性能
        */
       private isInLoginFormOrPopup(input: HTMLInputElement): boolean {
+        // 先从缓存中获取结果
+        const cachedResult = this.loginFormCheckCache.get(input);
+        if (cachedResult !== undefined) {
+          return cachedResult;
+        }
+
+        // 快速检查：如果页面有登录字段组合，直接返回true（最常见的场景）
+        const hasLoginFields =
+          (this.passwordFields.length > 0 && this.usernameFields.length > 0) ||
+          (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0);
+
+        if (hasLoginFields) {
+          // 进一步检查输入框是否在表单中
+          const form = input.closest('form');
+          if (form) {
+            this.loginFormCheckCache.set(input, true);
+            return true;
+          }
+        }
+
         // 向上查找父元素，看是否包含登录表单特征
         let parent: HTMLElement | null = input.parentElement;
+        let depth = 0;
+        const maxDepth = 12; // 优化：减少最大深度，提升性能
 
-        while (parent) {
-          // todo:检查是否是登录表单元素
+        // 登录相关的关键词（提前定义，避免重复创建）
+        const loginKeywords = ['login', 'signin', 'sign-in', 'auth', 'authentication', '登录', '登陆', '登入'];
+        const popupKeywords = ['modal', 'popup', 'dialog', 'drawer', 'overlay', '弹窗', '对话框', '模态'];
+
+        while (parent && depth < maxDepth) {
+          depth++;
+
+          // 检查是否是表单元素
           if (parent.tagName === 'FORM') {
-            console.log('输入框在登录表单中');
-            return true;
+            // 快速检查：表单内有提交按钮即可认为可能是登录表单
+            const hasSubmitButton =
+              parent.querySelector('button[type="submit"]') !== null ||
+              parent.querySelector('input[type="submit"]') !== null;
+
+            if (hasSubmitButton) {
+              // 进一步检查表单文本（仅在必要时）
+              const formText = parent.textContent?.toLowerCase() || '';
+              const hasLoginText =
+                formText.includes('登录') ||
+                formText.includes('登陆') ||
+                formText.includes('sign in') ||
+                formText.includes('login');
+
+              if (hasLoginText || hasSubmitButton) {
+                this.loginFormCheckCache.set(input, true);
+                console.log('输入框在登录表单中');
+                return true;
+              }
+            }
           }
 
-          // todo:检查是否有登录相关的类名或ID
+          // 检查是否有登录相关的类名、ID或属性
           const id = parent.id?.toLowerCase() || '';
           const className = parent.className?.toLowerCase() || '';
+          const role = parent.getAttribute('role')?.toLowerCase() || '';
+          const ariaLabel = parent.getAttribute('aria-label')?.toLowerCase() || '';
 
-          if (
-            id.includes('login') ||
-            id.includes('signin') ||
-            id.includes('auth') ||
-            className.includes('login') ||
-            className.includes('signin') ||
-            className.includes('auth') ||
-            className.includes('modal') ||
-            className.includes('popup') ||
-            className.includes('dialog')
-          ) {
-            // 输入框在登录相关容器中
+          const hasLoginKeyword =
+            loginKeywords.some(keyword => id.includes(keyword) || className.includes(keyword) || ariaLabel.includes(keyword));
+          const hasPopupKeyword =
+            popupKeywords.some(keyword => id.includes(keyword) || className.includes(keyword) || role.includes(keyword));
+
+          if (hasLoginKeyword) {
+            this.loginFormCheckCache.set(input, true);
+            console.log('输入框在登录相关容器中');
             return true;
           }
 
-          // todo:检查是否是弹窗或模态框的常见特征
+          if (hasPopupKeyword) {
+            // 仅在必要时检查登录字段
+            if (this.hasLoginFieldsNearby(parent)) {
+              this.loginFormCheckCache.set(input, true);
+              console.log('输入框在登录相关容器中');
+              return true;
+            }
+          }
+
+          // 检查是否是弹窗或模态框的常见特征
           const style = window.getComputedStyle(parent);
-          if (
-            style.position === 'fixed' ||
-            style.position === 'absolute' ||
-            (parent.hasAttribute('role') && parent.getAttribute('role') === 'dialog')
-          ) {
-            // 输入框在弹窗中
-            return true;
+          if (style.position === 'fixed' || style.position === 'absolute') {
+            if (hasPopupKeyword || this.hasLoginFieldsNearby(parent)) {
+              this.loginFormCheckCache.set(input, true);
+              console.log('输入框在登录弹窗中');
+              return true;
+            }
+          }
+
+          // 检查role属性
+          if (role === 'dialog' || role === 'alertdialog') {
+            if (this.hasLoginFieldsNearby(parent)) {
+              this.loginFormCheckCache.set(input, true);
+              console.log('输入框在对话框中的登录表单');
+              return true;
+            }
           }
 
           parent = parent.parentElement;
@@ -443,30 +717,56 @@ export default defineContentScript({
 
         // 如果没有找到明确的表单或弹窗特征，但我们识别到了登录字段，仍然认为是在登录场景中
         // 这是一个宽松的检查，确保不会遗漏正常的登录表单(账号和密码或者手机和短信验证码组合)
-        const hasLoginFields =
-          (this.passwordFields.length > 0 && this.usernameFields.length > 0) ||
-          (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0);
-
         if (hasLoginFields) {
-          // 检测到登录字段，认为在登录场景中
+          this.loginFormCheckCache.set(input, true);
           return true;
         }
 
         // 输入框不在登录表单或登录弹窗中
+        this.loginFormCheckCache.set(input, false);
         return false;
+      }
+
+      /**
+       * 检查元素附近是否有登录相关字段
+       */
+      private hasLoginFieldsNearby(element: HTMLElement): boolean {
+        // 检查元素内是否有密码字段或验证码字段
+        const hasPassword = element.querySelector('input[type="password"]') !== null;
+        const hasVerifyCode =
+          element.querySelector('input[placeholder*="验证码"]') !== null ||
+          element.querySelector('input[name*="code"]') !== null ||
+          element.querySelector('input[id*="code"]') !== null;
+
+        // 检查是否有登录相关的文本
+        const text = element.textContent?.toLowerCase() || '';
+        const hasLoginText =
+          text.includes('登录') ||
+          text.includes('登陆') ||
+          text.includes('sign in') ||
+          text.includes('login') ||
+          text.includes('密码') ||
+          text.includes('password') ||
+          text.includes('验证码') ||
+          text.includes('验证');
+
+        return hasPassword || hasVerifyCode || hasLoginText;
       }
 
       private async showSidePanel() {
         try {
-          // 尝试显示侧边栏...
-          // 通知background script显示侧边栏
+          // 总是尝试显示侧边栏，不依赖 isSidePanelVisible 状态
+          // 因为用户可能手动关闭了侧边栏，导致状态不同步
+          // Chrome SidePanel API 的 open 方法是幂等的，多次调用不会产生副作用
           const response = await chrome.runtime.sendMessage({
             type: MessageType.SHOW_SIDEPANEL,
           });
-          // 侧边栏显示请求已发送
+          // 侧边栏显示请求已发送，更新状态
           this.isSidePanelVisible = true;
         } catch (error) {
           console.error('显示侧边栏失败:', error);
+          // 显示失败时，重置状态以便下次重试
+          this.isSidePanelVisible = false;
         }
       }
 
@@ -475,18 +775,18 @@ export default defineContentScript({
        */
       private async hideSidePanel() {
         try {
-          // 尝试隐藏侧边栏...
-          // 只有在侧边栏显示时才发送隐藏请求
-          if (this.isSidePanelVisible) {
-            // 通知background script隐藏侧边栏
-            const response = await chrome.runtime.sendMessage({
-              type: MessageType.HIDE_SIDEPANEL,
-            });
-            // 侧边栏隐藏请求已发送
-            this.isSidePanelVisible = false;
-          }
+          // 总是尝试隐藏侧边栏，不依赖 isSidePanelVisible 状态
+          // 因为填充完成后需要确保侧边栏被隐藏
+          // 通知background script隐藏侧边栏
+          await chrome.runtime.sendMessage({
+            type: MessageType.HIDE_SIDEPANEL,
+          });
+          // 侧边栏隐藏请求已发送
+          this.isSidePanelVisible = false;
         } catch (error) {
           console.error('隐藏侧边栏失败:', error);
+          // 隐藏失败时，重置状态以便下次重试
+          this.isSidePanelVisible = false;
         }
       }
 
@@ -608,7 +908,10 @@ export default defineContentScript({
           // 自动勾选最近的复选框
           this.autoCheckNearestCheckbox();
 
-          // 密码填充完成
+          // 密码填充完成，延迟隐藏侧边栏以确保填充操作完成
+          setTimeout(() => {
+            this.hideSidePanel();
+          }, 300);
         } catch (error) {
           console.error('填充密码失败:', error);
         }
@@ -644,6 +947,13 @@ export default defineContentScript({
             });
           }
 
+          // 如果用户名字段作为手机号使用，也填充到用户名字段
+          if (data.mobile && this.mobileFields.length === 0 && this.usernameFields.length > 0) {
+            const usernameField = this.usernameFields[0];
+            // 填充手机号到用户名字段
+            this.setInputValue(usernameField, data.mobile);
+          }
+
           // 填充验证码（无需填充短信验证码）
           // if (data.code && this.verifyCodeFields.length > 0) {
           //   const codeField = this.verifyCodeFields[0];
@@ -654,7 +964,10 @@ export default defineContentScript({
           // 自动勾选最近的复选框
           this.autoCheckNearestCheckbox();
 
-          // 手机号+验证码填充完成
+          // 手机号+验证码填充完成，延迟隐藏侧边栏以确保填充操作完成
+          setTimeout(() => {
+            this.hideSidePanel();
+          }, 300);
         } catch (error) {
           console.error('填充手机号+验证码失败:', error);
         }
@@ -1230,9 +1543,8 @@ export default defineContentScript({
         if (this.observer) {
           this.observer.disconnect();
         }
-        // 清理全局监听器
-        document.removeEventListener('focusin', this.handleGlobalFocus);
-        document.removeEventListener('click', this.handleGlobalClick);
+        // 清理事件委托监听器
+        document.removeEventListener('focusin', this.handleDelegatedFocus, { capture: true });
       }
     }
 

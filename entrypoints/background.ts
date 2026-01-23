@@ -78,6 +78,18 @@ export default defineBackground(() => {
       if (sender.tab?.id) {
         // 检查侧边栏API是否可用
         if (chrome.sidePanel) {
+          // 先确保侧边栏是启用的（用户手动关闭后可能会被禁用）
+          try {
+            await chrome.sidePanel.setOptions({
+              tabId: sender.tab.id,
+              enabled: true,
+            });
+          } catch (setOptionsError) {
+            // 如果设置选项失败，继续尝试打开（可能已经启用）
+            console.warn('设置侧边栏选项失败，继续尝试打开:', setOptionsError);
+          }
+
+          // 打开侧边栏
           await chrome.sidePanel.open({ tabId: sender.tab.id });
           return '侧边栏已打开';
         } else {
