@@ -107,7 +107,7 @@ export default defineContentScript({
                 shouldRedetect = true;
                 return;
               }
-              
+
               // 检查是否是登录按钮相关的属性变化
               const loginButtonKeywords = ['登录', '登陆', 'sign in', 'login', '登录按钮', '立即登录'];
               if (loginButtonKeywords.some(keyword => textContent.includes(keyword))) {
@@ -129,9 +129,14 @@ export default defineContentScript({
                 ) {
                   shouldRedetect = true;
                 }
-                
+
                 // 检查新增节点是否包含登录按钮
-                const loginButtonSelectors = ['button', 'input[type="submit"]', 'input[type="button"]', '[role="button"]'];
+                const loginButtonSelectors = [
+                  'button',
+                  'input[type="submit"]',
+                  'input[type="button"]',
+                  '[role="button"]',
+                ];
                 for (const selector of loginButtonSelectors) {
                   if (element.querySelector && element.querySelector(selector)) {
                     const button = element.querySelector(selector) as HTMLElement;
@@ -182,7 +187,7 @@ export default defineContentScript({
 
         // 检测登录按钮
         this.detectLoginButtons();
-        
+
         // 检测密码字段
         const passwordInputs = document.querySelectorAll('input[type="password"]') as NodeListOf<HTMLInputElement>;
         this.passwordFields = Array.from(passwordInputs).filter(input => {
@@ -474,25 +479,86 @@ export default defineContentScript({
        * 显示没有检测到登录表单的提示
        */
       private showNoLoginFormMessage() {
-        // 创建一个临时的提示元素
+        // 检查是否已有ElMessage相关的库可用
+        if ((window as any).ElementPlus && (window as any).ElementPlus.ElMessage) {
+          (window as any).ElementPlus.ElMessage.warning('当前页面未匹配到登录表单');
+        } else {
+          // 如果没有ElementPlus，使用原生方式创建类似ElMessage的提示
+          this.showNativeNotification('当前页面未匹配到登录表单', 'warning');
+        }
+      }
+
+      /**
+       * 显示原生通知（模拟Element Plus ElMessage样式）
+       */
+      private showNativeNotification(message: string, type: 'success' | 'warning' | 'info' | 'error' = 'warning') {
+        // 避免重复显示相同的通知
+        const existingNotification = document.querySelector('.el-message') as HTMLElement;
+        if (existingNotification) {
+          existingNotification.remove();
+        }
+
+        // 创建通知容器
         const notification = document.createElement('div');
+
+        // 根据类型设置样式
+        let bgColor = '#edf2fc'; // info 默认背景色
+        let borderColor = '#b3c1db';
+        let textColor = '#909399';
+
+        switch (type) {
+          case 'success':
+            bgColor = '#f0f9ec';
+            borderColor = '#b2d3a3';
+            textColor = '#67c23a';
+            break;
+          case 'warning':
+            bgColor = '#fdf6ec';
+            borderColor = '#f0c78a';
+            textColor = '#e6a23c';
+            break;
+          case 'error':
+            bgColor = '#fef0f0';
+            borderColor = '#f3b4b4';
+            textColor = '#f56c6c';
+            break;
+          case 'info':
+            bgColor = '#edf2fc';
+            borderColor = '#b3c1db';
+            textColor = '#909399';
+            break;
+        }
+
         notification.style.cssText = `
           position: fixed;
           top: 20px;
           right: 20px;
-          background: #fff5f5;
-          border: 1px solid #fed7d7;
-          color: #c53030;
+          background: ${bgColor};
+          border: 1px solid ${borderColor};
+          color: ${textColor};
           padding: 12px 16px;
-          border-radius: 6px;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          border-radius: 4px;
+          box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
           z-index: 2147483647;
           font-size: 14px;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
           max-width: 300px;
           word-wrap: break-word;
+          display: flex;
+          align-items: center;
+          min-height: 40px;
         `;
-        notification.textContent = '当前页面未匹配到登录表单';
+
+        // 添加图标
+        const icon = document.createElement('span');
+        icon.innerHTML = this.getMessageIcon(type);
+        icon.style.marginRight = '8px';
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = message;
+
+        notification.appendChild(icon);
+        notification.appendChild(textSpan);
 
         document.body.appendChild(notification);
 
@@ -502,6 +568,24 @@ export default defineContentScript({
             notification.parentNode.removeChild(notification);
           }
         }, 3000);
+      }
+
+      /**
+       * 获取消息类型对应的图标HTML
+       */
+      private getMessageIcon(type: 'success' | 'warning' | 'info' | 'error'): string {
+        switch (type) {
+          case 'success':
+            return '✓';
+          case 'warning':
+            return '!';
+          case 'info':
+            return 'ℹ';
+          case 'error':
+            return '✗';
+          default:
+            return 'ℹ';
+        }
       }
 
       /**
@@ -547,17 +631,8 @@ export default defineContentScript({
           this.isSidePanelVisible = false;
           // 使用防抖函数，避免频繁触发，提升性能
           this.debouncedShowSidePanel();
-        } else {
-          // 如果不应该显示侧边栏，但在登录相关环境中，可能需要显示无表单提示
-          // 检查是否在登录环境中但没有检测到对应的表单组合
-          const fieldType = this.getFieldType(input);
-          if (fieldType && this.isInLoginFormOrPopup(input) && !this.hasLoginFormFields()) {
-            // 延迟显示提示，避免干扰用户操作
-            setTimeout(() => {
-              this.showNoLoginFormMessage();
-            }, 500);
-          }
         }
+        // 注意：这里不再显示无表单提示，因为提示应该在点击快速填充按钮时才显示
       };
 
       /**
@@ -767,7 +842,7 @@ export default defineContentScript({
             const hasSubmitButton =
               parent.querySelector('button[type="submit"]') !== null ||
               parent.querySelector('input[type="submit"]') !== null;
-            
+
             // 检查表单内是否有登录相关的按钮
             const hasLoginButton = this.hasLoginButtonInForm(parent);
 
@@ -875,7 +950,7 @@ export default defineContentScript({
 
         return hasPassword || hasVerifyCode || hasLoginText;
       }
-      
+
       /**
        * 检查表单内是否有登录按钮
        */
@@ -888,7 +963,7 @@ export default defineContentScript({
         }
         return false;
       }
-      
+
       /**
        * 检查元素附近是否有登录按钮
        */
@@ -899,7 +974,7 @@ export default defineContentScript({
             return true;
           }
         }
-        
+
         // 检查是否有登录相关的文本
         const text = element.textContent?.toLowerCase() || '';
         const hasLoginText =
@@ -961,22 +1036,33 @@ export default defineContentScript({
           (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0)
         );
       }
-      
+
       /**
        * 检测页面上的登录按钮
        */
       private detectLoginButtons() {
         // 清空之前的登录按钮检测结果
         this.loginButtons = [];
-        
+
         // 定义登录相关的关键词
         const loginKeywords = [
-          '登录', '登陆', 'sign in', 'signin', 'log in', 'login', 
-          '密码登录', '验证码登录', '账号登录', '立即登录',
-          '登 录', '登  录', // 包含空格的情况
-          'SIGN IN', 'LOGIN', 'LOG IN'
+          '登录',
+          '登陆',
+          'sign in',
+          'signin',
+          'log in',
+          'login',
+          '密码登录',
+          '验证码登录',
+          '账号登录',
+          '立即登录',
+          '登 录',
+          '登  录', // 包含空格的情况
+          'SIGN IN',
+          'LOGIN',
+          'LOG IN',
         ];
-        
+
         // 查询可能的登录按钮
         const buttonSelectors = [
           'button',
@@ -988,9 +1074,9 @@ export default defineContentScript({
           '.login-button',
           '.sign-in-button',
           '.submit-btn',
-          '.submit-button'
+          '.submit-button',
         ];
-        
+
         buttonSelectors.forEach(selector => {
           const buttons = document.querySelectorAll(selector);
           buttons.forEach(button => {
@@ -1000,15 +1086,16 @@ export default defineContentScript({
               const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
               const title = (button.getAttribute('title') || '').toLowerCase();
               const value = (button.getAttribute('value') || '').toLowerCase();
-              
+
               // 检查是否包含登录关键词
-              const hasLoginKeyword = loginKeywords.some(keyword => 
-                buttonText.includes(keyword.toLowerCase()) || 
-                ariaLabel.includes(keyword.toLowerCase()) ||
-                title.includes(keyword.toLowerCase()) ||
-                value.includes(keyword.toLowerCase())
+              const hasLoginKeyword = loginKeywords.some(
+                keyword =>
+                  buttonText.includes(keyword.toLowerCase()) ||
+                  ariaLabel.includes(keyword.toLowerCase()) ||
+                  title.includes(keyword.toLowerCase()) ||
+                  value.includes(keyword.toLowerCase()),
               );
-              
+
               if (hasLoginKeyword && this.isVisible(button)) {
                 // 检查按钮是否未在我们的列表中
                 if (!this.loginButtons.includes(button)) {
@@ -1018,10 +1105,10 @@ export default defineContentScript({
             }
           });
         });
-        
+
         console.log(`检测到 ${this.loginButtons.length} 个登录按钮`);
       }
-      
+
       /**
        * 检查页面中是否存在登录按钮
        */
@@ -1109,8 +1196,14 @@ export default defineContentScript({
             sendResponse({ success: true, message: '填充完成' });
             break;
           case MessageType.SHOW_SIDEPANEL:
-            this.showSidePanel();
-            sendResponse({ success: true, message: '侧边栏显示请求已处理' });
+            // 检查是否检测到登录表单，如果没有则显示提示
+            if (!this.hasLoginFormFields()) {
+              this.showNoLoginFormMessage();
+              sendResponse({ success: false, message: '当前页面未匹配到登录表单' });
+            } else {
+              this.showSidePanel();
+              sendResponse({ success: true, message: '侧边栏显示请求已处理' });
+            }
             break;
           case MessageType.HIDE_SIDEPANEL:
             this.hideSidePanel();
