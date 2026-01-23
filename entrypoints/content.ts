@@ -35,7 +35,10 @@ export default defineContentScript({
       /** 用于跟踪侧边栏显示状态 */
       private isSidePanelVisible = false;
       /** 字段类型缓存，使用WeakMap避免内存泄漏 */
-      private fieldTypeCache = new WeakMap<HTMLInputElement, 'password' | 'username' | 'mobile' | 'verifyCode' | null>();
+      private fieldTypeCache = new WeakMap<
+        HTMLInputElement,
+        'password' | 'username' | 'mobile' | 'verifyCode' | null
+      >();
       /** 字段集合，使用Set提高查找效率 */
       private passwordFieldsSet = new WeakSet<HTMLInputElement>();
       private usernameFieldsSet = new WeakSet<HTMLInputElement>();
@@ -45,6 +48,10 @@ export default defineContentScript({
       private debouncedShowSidePanel: () => void;
       /** 缓存 isInLoginFormOrPopup 的检查结果，使用WeakMap避免内存泄漏 */
       private loginFormCheckCache = new WeakMap<HTMLInputElement, boolean>();
+      /** 记录上次检测到的登录表单类型 */
+      private lastDetectedFormType: 'username_password' | 'mobile_verify' | 'none' = 'none';
+      /** 记录是否显示了无表单提示 */
+      private showedNoFormMessage = false;
 
       constructor() {
         // 初始化防抖函数，优化延迟时间为150ms以提升响应速度
@@ -311,11 +318,7 @@ export default defineContentScript({
         mobileSelectors.forEach(selector => {
           const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
           Array.from(inputs).forEach(input => {
-            if (
-              this.isVisible(input) &&
-              !this.mobileFieldsSet.has(input) &&
-              !this.usernameFieldsSet.has(input)
-            ) {
+            if (this.isVisible(input) && !this.mobileFieldsSet.has(input) && !this.usernameFieldsSet.has(input)) {
               this.mobileFields.push(input);
               this.mobileFieldsSet.add(input);
               this.fieldTypeCache.set(input, 'mobile');
@@ -416,13 +419,61 @@ export default defineContentScript({
           return isInteractable;
         });
 
-        // 如果找到了登录表单字段（账号和密码或者手机号和验证码这两种组合），发送通知
-        if (
-          (this.usernameFields.length > 0 && this.passwordFields.length > 0) ||
-          (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0)
-        ) {
-          console.log('检测到登录表单字段，可以使用密码填充功能'); // 如果找到了登录表单字段（账号和密码或者手机号和验证码这两种组合），发送通知
+        // 记录本次检测到的表单类型
+        let currentFormType: 'username_password' | 'mobile_verify' | 'none' = 'none';
+
+        if (this.usernameFields.length > 0 && this.passwordFields.length > 0) {
+          currentFormType = 'username_password';
+          console.log('检测到账号/密码组合登录表单');
+        } else if (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0) {
+          currentFormType = 'mobile_verify';
+          console.log('检测到手机号/验证码组合登录表单');
+        } else {
+          currentFormType = 'none';
+          console.log('未检测到登录表单字段');
         }
+
+        // 更新最后检测到的表单类型
+        this.lastDetectedFormType = currentFormType;
+
+        // 如果当前检测到了表单，重置无表单提示标记
+        if (currentFormType !== 'none') {
+          this.showedNoFormMessage = false;
+        }
+      }
+
+      /**
+       * 显示没有检测到登录表单的提示
+       */
+      private showNoLoginFormMessage() {
+        // 创建一个临时的提示元素
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+          position: fixed;
+          top: 20px;
+          right: 20px;
+          background: #fff5f5;
+          border: 1px solid #fed7d7;
+          color: #c53030;
+          padding: 12px 16px;
+          border-radius: 6px;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          z-index: 2147483647;
+          font-size: 14px;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          max-width: 300px;
+          word-wrap: break-word;
+        `;
+        notification.textContent = '当前页面未匹配到登录表单';
+
+        document.body.appendChild(notification);
+
+        // 3秒后自动移除提示
+        setTimeout(() => {
+          if (notification.parentNode) {
+            notification.parentNode.removeChild(notification);
+          }
+        }, 3000);
       }
 
       /**
@@ -468,6 +519,16 @@ export default defineContentScript({
           this.isSidePanelVisible = false;
           // 使用防抖函数，避免频繁触发，提升性能
           this.debouncedShowSidePanel();
+        } else {
+          // 如果不应该显示侧边栏，但在登录相关环境中，可能需要显示无表单提示
+          // 检查是否在登录环境中但没有检测到对应的表单组合
+          const fieldType = this.getFieldType(input);
+          if (fieldType && this.isInLoginFormOrPopup(input) && !this.hasLoginFormFields()) {
+            // 延迟显示提示，避免干扰用户操作
+            setTimeout(() => {
+              this.showNoLoginFormMessage();
+            }, 500);
+          }
         }
       };
 
@@ -510,6 +571,7 @@ export default defineContentScript({
        * 1. 账号和密码必须同时出现在登录表单界面，账号或者密码输入框获取焦点才自动展示快速填充侧边栏，其中账号检测需要包含用户名、手机号、邮箱、账号关键字
        * 2. 手机号和短信验证码同时出现在登录表单界面，手机号和验证码输入框获取焦点才自动展示快速填充侧边栏
        * 3. 必须是在登录表单界面或者弹窗输入框获取焦点才展示侧边栏
+       * 4. 采用更宽松的策略，即使没有检测到完整表单，只要在登录环境中也尝试显示
        */
       private shouldShowSidePanel(input: HTMLInputElement): boolean {
         // 使用缓存的字段类型，提高性能
@@ -530,9 +592,20 @@ export default defineContentScript({
         if (fieldType === 'username' || fieldType === 'password') {
           const hasPasswordFields = this.passwordFields.length > 0;
           const hasUsernameFields = this.usernameFields.length > 0;
-          
+
           if (hasPasswordFields && hasUsernameFields) {
             console.log('检测到账号/密码组合');
+            return true;
+          }
+
+          // 宽松策略：如果在登录环境下，即使没有检测到完整表单也显示侧边栏
+          if (hasPasswordFields && fieldType === 'username') {
+            console.log('在登录环境下，账号字段获取焦点，显示侧边栏');
+            return true;
+          }
+
+          if (hasUsernameFields && fieldType === 'password') {
+            console.log('在登录环境下，密码字段获取焦点，显示侧边栏');
             return true;
           }
         }
@@ -544,13 +617,13 @@ export default defineContentScript({
           const hasVerifyCodeFields = this.verifyCodeFields.length > 0;
           const hasPasswordFields = this.passwordFields.length > 0;
           const hasUsernameFields = this.usernameFields.length > 0;
-          
+
           // 优先检查专门的手机号字段
           if (hasMobileFields && hasVerifyCodeFields) {
             console.log('检测到手机号/验证码组合');
             return true;
           }
-          
+
           // 如果用户名字段包含手机号，也支持手机号+验证码组合
           // 需要同时满足：有用户名字段、有验证码字段、没有密码字段（排除账号+密码场景）
           if (hasUsernameFields && hasVerifyCodeFields && !hasPasswordFields) {
@@ -570,6 +643,23 @@ export default defineContentScript({
                 console.log('检测到手机号/验证码组合（用户名字段作为手机号）');
                 return true;
             }
+          }
+
+          // 宽松策略：如果在登录环境下，即使没有检测到完整表单也显示侧边栏
+          if (hasMobileFields && fieldType === 'verifyCode') {
+            console.log('在登录环境下，验证码字段获取焦点，显示侧边栏');
+            return true;
+          }
+
+          if (hasVerifyCodeFields && fieldType === 'mobile') {
+            console.log('在登录环境下，手机号字段获取焦点，显示侧边栏');
+            return true;
+          }
+
+          // 如果用户名字段作为手机号使用
+          if (hasUsernameFields && hasVerifyCodeFields && fieldType === 'verifyCode') {
+            console.log('在登录环境下，验证码字段获取焦点（用户名字段作为手机号），显示侧边栏');
+            return true;
           }
         }
 
@@ -673,10 +763,12 @@ export default defineContentScript({
           const role = parent.getAttribute('role')?.toLowerCase() || '';
           const ariaLabel = parent.getAttribute('aria-label')?.toLowerCase() || '';
 
-          const hasLoginKeyword =
-            loginKeywords.some(keyword => id.includes(keyword) || className.includes(keyword) || ariaLabel.includes(keyword));
-          const hasPopupKeyword =
-            popupKeywords.some(keyword => id.includes(keyword) || className.includes(keyword) || role.includes(keyword));
+          const hasLoginKeyword = loginKeywords.some(
+            keyword => id.includes(keyword) || className.includes(keyword) || ariaLabel.includes(keyword),
+          );
+          const hasPopupKeyword = popupKeywords.some(
+            keyword => id.includes(keyword) || className.includes(keyword) || role.includes(keyword),
+          );
 
           if (hasLoginKeyword) {
             this.loginFormCheckCache.set(input, true);
@@ -788,6 +880,16 @@ export default defineContentScript({
           // 隐藏失败时，重置状态以便下次重试
           this.isSidePanelVisible = false;
         }
+      }
+
+      /**
+       * 检查页面中是否存在登录相关的字段组合
+       */
+      public hasLoginFormFields(): boolean {
+        return (
+          (this.usernameFields.length > 0 && this.passwordFields.length > 0) ||
+          (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0)
+        );
       }
 
       /**
