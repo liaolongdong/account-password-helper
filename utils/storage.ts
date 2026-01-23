@@ -18,9 +18,12 @@ const STORAGE_KEYS = {
 };
 
 // 添加会话状态管理变量
-let sessionMasterPassword: string | null = null;
+let encryptedSessionMasterPassword: string | null = null; // 存储加密后的主密码
 let sessionPasswordExpiry: number | null = null;
 let sessionValidityHours: number = 24; // 默认24小时
+
+// 内存临时密钥，用于加密/解密会话中的主密码
+let sessionEncryptionKey: string | null = null;
 
 /**
  * 会话存储键名
@@ -60,11 +63,11 @@ export class StorageUtils {
   static generateId(): string {
     // 优先使用原生JS提供的crypto API生成uuid
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
+      return 'uuid-' + crypto.randomUUID();
     }
     // 降级处理
     const id = Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
-    return id;
+    return `uuid-${id}`;
   }
 
   /**
@@ -190,8 +193,11 @@ export class StorageUtils {
       // 生成随机初始化向量
       const iv = CryptoJS.lib.WordArray.random(16);
 
+      // 将密钥作为UTF-8解析
+      const parsedKey = CryptoJS.enc.Utf8.parse(key);
+
       // 使用AES-256-CBC加密
-      const encrypted = CryptoJS.AES.encrypt(data, key, {
+      const encrypted = CryptoJS.AES.encrypt(data, parsedKey, {
         iv: iv,
         mode: CryptoJS.mode.CBC,
         padding: CryptoJS.pad.Pkcs7,
@@ -225,12 +231,18 @@ export class StorageUtils {
       }
 
       // 将Base64编码的数据转换为WordArray
-      const combined = CryptoJS.enc.Base64.parse(encryptedData);
+      let combined;
+      try {
+        combined = CryptoJS.enc.Base64.parse(encryptedData);
+      } catch (parseError) {
+        console.warn('StorageUtils: Base64解析失败，可能不是加密数据');
+        return encryptedData; // 返回原始数据，可能本身就是明文
+      }
 
       // 检查数据长度
       if (combined.words.length < 4) {
         console.warn('StorageUtils: 加密数据长度不足');
-        throw new Error('加密数据格式不正确');
+        return encryptedData; // 返回原始数据
       }
 
       // 提取IV（前16字节）
@@ -245,32 +257,42 @@ export class StorageUtils {
         return '';
       }
 
+      // 创建cipher params对象
+      const cipherParams = CryptoJS.lib.CipherParams.create({
+        ciphertext: ciphertext,
+        iv: iv,
+      });
+
       // 解密
-      const decrypted = CryptoJS.AES.decrypt({ ciphertext: ciphertext } as any, key, {
+      const decrypted = CryptoJS.AES.decrypt(cipherParams, CryptoJS.enc.Utf8.parse(key), {
         iv: iv,
         mode: CryptoJS.mode.CBC,
         padding: CryptoJS.pad.Pkcs7,
       });
 
-      const result = decrypted.toString(CryptoJS.enc.Utf8);
-
-      // 检查解密结果
-      if (!result) {
-        console.warn('StorageUtils: 解密结果为空，可能密钥错误');
+      try {
+        const result = decrypted.toString(CryptoJS.enc.Utf8);
+        // 检查解密结果
+        if (result === '') {
+          console.warn('StorageUtils: 解密结果为空，可能密钥错误');
+          return '';
+        }
+        return result;
+      } catch (utf8Error) {
+        console.warn('StorageUtils: UTF-8解码失败，可能密钥错误或数据损坏');
         return '';
       }
-
-      return result;
     } catch (error: any) {
       console.error('StorageUtils: 解密失败:', error);
 
       // 根据不同的错误类型返回不同的结果
-      if (error.message && error.message.includes('Malformed')) {
+      if (error.message && (error.message.includes('Malformed') || error.message.includes('malformed'))) {
         console.warn('StorageUtils: 检测到畸形数据，返回空字符串');
         return '';
       }
 
-      throw new Error('数据解密失败，请检查主密码');
+      // 对于其他错误，返回原始数据，可能是明文
+      return encryptedData;
     }
   }
 
@@ -337,10 +359,10 @@ export class StorageUtils {
    * 安全解密字段 - 即使解密失败也返回原始数据或空字符串
    */
   static decryptFieldSafely(encryptedData: string, key: string, fieldName: string): string {
+    if (!encryptedData) {
+      return '';
+    }
     try {
-      if (!encryptedData) {
-        return '';
-      }
       return this.decryptData(encryptedData, key);
     } catch (error) {
       console.warn(`StorageUtils: 字段 ${fieldName} 解密失败，返回原始数据`);
@@ -771,7 +793,7 @@ export class StorageUtils {
   static async isSessionValid(): Promise<boolean> {
     try {
       // 如果内存中没有会话信息，尝试从存储中恢复
-      if (!sessionMasterPassword || !sessionPasswordExpiry) {
+      if (!encryptedSessionMasterPassword || !sessionPasswordExpiry) {
         const result = await chrome.storage.local.get([
           SESSION_STORAGE_KEYS.MASTER_PASSWORD,
           SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
@@ -779,9 +801,23 @@ export class StorageUtils {
         ]);
 
         if (result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] && result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]) {
-          sessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] ?? null;
-          sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] ?? null;
+          // 直接从存储中获取加密的主密码和过期时间
+          encryptedSessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD];
+          sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
           sessionValidityHours = result[SESSION_STORAGE_KEYS.VALIDITY_HOURS] || 24;
+
+          // 使用固定的密钥派生方法，确保每次都能正确解密
+          // 使用主密码配置中的盐值的一部分作为会话加密密钥的基础
+          const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
+          const config: MasterPasswordConfig = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD];
+
+          if (config && config.salt) {
+            // 使用盐值派生一个稳定的密钥用于会话加密
+            sessionEncryptionKey = this.hashPassword(config.salt, 'session_encryption').substring(0, 32);
+          } else {
+            // 如果无法获取配置，尝试使用其他方式生成密钥
+            sessionEncryptionKey = await this.generateSessionEncryptionKey();
+          }
         } else {
           return false;
         }
@@ -806,9 +842,21 @@ export class StorageUtils {
 
   /**
    * 获取会话主密码
+   * 注意：为了安全起见，此方法已被弃用，建议使用 getSessionMasterPasswordDecrypted
    */
   static getSessionMasterPassword(): string | undefined {
-    return sessionMasterPassword ?? undefined;
+    // 此方法已弃用，为了向后兼容暂时保留但返回解密后的密码
+    // 实际上内存中不再存储明文主密码
+    try {
+      if (!encryptedSessionMasterPassword || !sessionEncryptionKey) {
+        return undefined;
+      }
+      const decrypted = this.decryptData(encryptedSessionMasterPassword, sessionEncryptionKey);
+      return decrypted;
+    } catch (error) {
+      console.error('StorageUtils: 解密会话主密码失败:', error);
+      return undefined;
+    }
   }
 
   /**
@@ -816,13 +864,26 @@ export class StorageUtils {
    */
   static async createSession(masterPassword: string, validityHours: number): Promise<void> {
     try {
-      sessionMasterPassword = masterPassword;
+      // 获取主密码配置以生成稳定加密密钥
+      const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
+      const config: MasterPasswordConfig = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD];
+
+      if (config && config.salt) {
+        // 使用盐值派生一个稳定的密钥用于会话加密
+        sessionEncryptionKey = this.hashPassword(config.salt, 'session_encryption').substring(0, 32);
+      } else {
+        // 如果无法获取配置，回退到生成随机密钥
+        sessionEncryptionKey = await this.generateSessionEncryptionKey();
+      }
+
+      // 加密主密码
+      encryptedSessionMasterPassword = this.encryptData(masterPassword, sessionEncryptionKey);
       sessionValidityHours = validityHours;
       sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
 
-      // 持久化会话信息
+      // 持久化会话信息（加密存储）
       await chrome.storage.local.set({
-        [SESSION_STORAGE_KEYS.MASTER_PASSWORD]: masterPassword,
+        [SESSION_STORAGE_KEYS.MASTER_PASSWORD]: encryptedSessionMasterPassword, // 加密存储
         [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: sessionPasswordExpiry,
         [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
       });
@@ -837,9 +898,10 @@ export class StorageUtils {
    */
   static async clearSession(): Promise<void> {
     try {
-      sessionMasterPassword = null;
+      encryptedSessionMasterPassword = null;
       sessionPasswordExpiry = null;
       sessionValidityHours = 24;
+      sessionEncryptionKey = null; // 清除会话加密密钥
 
       // 清除持久化的会话信息
       await chrome.storage.local.remove([
@@ -863,6 +925,38 @@ export class StorageUtils {
   /**
    * 调试工具：获取主密码配置信息
    */
+  /**
+   * 生成会话加密密钥
+   * 使用随机字符串作为临时密钥来加密内存中的主密码
+   */
+  static async generateSessionEncryptionKey(): Promise<string> {
+    // 使用当前时间戳和随机数生成临时密钥
+    const timestamp = Date.now().toString();
+    const randomPart = Math.random().toString(36).substring(2, 15);
+    const combined = timestamp + randomPart;
+
+    // 使用MD5生成固定长度的密钥
+    const key = this.hashPassword(combined, 'session_encryption_salt');
+    return key.substring(0, 32); // 截取前32个字符作为AES密钥
+  }
+
+  /**
+   * 获取会话主密码（解密后）
+   */
+  static async getSessionMasterPasswordDecrypted(): Promise<string | null> {
+    if (!encryptedSessionMasterPassword || !sessionEncryptionKey) {
+      return null;
+    }
+
+    try {
+      const decryptedPassword = this.decryptData(encryptedSessionMasterPassword, sessionEncryptionKey);
+      return decryptedPassword;
+    } catch (error) {
+      console.error('StorageUtils: 解密会话主密码失败:', error);
+      return null;
+    }
+  }
+
   static async debugMasterPassword(): Promise<any> {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
