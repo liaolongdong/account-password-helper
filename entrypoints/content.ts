@@ -25,6 +25,7 @@ export default defineContentScript({
       private mobileFields: HTMLInputElement[] = [];
       private verifyCodeFields: HTMLInputElement[] = [];
       private checkboxFields: HTMLInputElement[] = [];
+      private loginButtons: HTMLElement[] = [];
       private observer: MutationObserver;
       /** 设置长延迟时间 */
       private longDelayTime = 3000;
@@ -106,6 +107,13 @@ export default defineContentScript({
                 shouldRedetect = true;
                 return;
               }
+              
+              // 检查是否是登录按钮相关的属性变化
+              const loginButtonKeywords = ['登录', '登陆', 'sign in', 'login', '登录按钮', '立即登录'];
+              if (loginButtonKeywords.some(keyword => textContent.includes(keyword))) {
+                shouldRedetect = true;
+                return;
+              }
             }
             // todo: 这里的检测不准确
             mutation.addedNodes.forEach(node => {
@@ -120,6 +128,22 @@ export default defineContentScript({
                     element.querySelector('input[type="number"]'))
                 ) {
                   shouldRedetect = true;
+                }
+                
+                // 检查新增节点是否包含登录按钮
+                const loginButtonSelectors = ['button', 'input[type="submit"]', 'input[type="button"]', '[role="button"]'];
+                for (const selector of loginButtonSelectors) {
+                  if (element.querySelector && element.querySelector(selector)) {
+                    const button = element.querySelector(selector) as HTMLElement;
+                    if (button) {
+                      const textContent = button.textContent || button.innerText || '';
+                      const loginButtonKeywords = ['登录', '登陆', 'sign in', 'login', '登录按钮', '立即登录'];
+                      if (loginButtonKeywords.some(keyword => textContent.includes(keyword))) {
+                        shouldRedetect = true;
+                        break;
+                      }
+                    }
+                  }
                 }
               }
             });
@@ -147,6 +171,7 @@ export default defineContentScript({
         this.mobileFields = [];
         this.verifyCodeFields = [];
         this.checkboxFields = [];
+        this.loginButtons = [];
         // 清空Set缓存（WeakSet会自动清理，但为了保险起见重置数组）
         this.passwordFieldsSet = new WeakSet();
         this.usernameFieldsSet = new WeakSet();
@@ -155,6 +180,9 @@ export default defineContentScript({
         // 清空登录表单检查缓存，确保重新检测
         this.loginFormCheckCache = new WeakMap();
 
+        // 检测登录按钮
+        this.detectLoginButtons();
+        
         // 检测密码字段
         const passwordInputs = document.querySelectorAll('input[type="password"]') as NodeListOf<HTMLInputElement>;
         this.passwordFields = Array.from(passwordInputs).filter(input => {
@@ -735,12 +763,15 @@ export default defineContentScript({
 
           // 检查是否是表单元素
           if (parent.tagName === 'FORM') {
-            // 快速检查：表单内有提交按钮即可认为可能是登录表单
+            // 增强检查：表单内有提交按钮或登录按钮即可认为可能是登录表单
             const hasSubmitButton =
               parent.querySelector('button[type="submit"]') !== null ||
               parent.querySelector('input[type="submit"]') !== null;
+            
+            // 检查表单内是否有登录相关的按钮
+            const hasLoginButton = this.hasLoginButtonInForm(parent);
 
-            if (hasSubmitButton) {
+            if (hasSubmitButton || hasLoginButton) {
               // 进一步检查表单文本（仅在必要时）
               const formText = parent.textContent?.toLowerCase() || '';
               const hasLoginText =
@@ -749,7 +780,7 @@ export default defineContentScript({
                 formText.includes('sign in') ||
                 formText.includes('login');
 
-              if (hasLoginText || hasSubmitButton) {
+              if (hasLoginText || hasSubmitButton || hasLoginButton) {
                 this.loginFormCheckCache.set(input, true);
                 console.log('输入框在登录表单中');
                 return true;
@@ -778,7 +809,7 @@ export default defineContentScript({
 
           if (hasPopupKeyword) {
             // 仅在必要时检查登录字段
-            if (this.hasLoginFieldsNearby(parent)) {
+            if (this.hasLoginFieldsNearby(parent) || this.hasLoginButtonNearby(parent)) {
               this.loginFormCheckCache.set(input, true);
               console.log('输入框在登录相关容器中');
               return true;
@@ -788,7 +819,7 @@ export default defineContentScript({
           // 检查是否是弹窗或模态框的常见特征
           const style = window.getComputedStyle(parent);
           if (style.position === 'fixed' || style.position === 'absolute') {
-            if (hasPopupKeyword || this.hasLoginFieldsNearby(parent)) {
+            if (hasPopupKeyword || this.hasLoginFieldsNearby(parent) || this.hasLoginButtonNearby(parent)) {
               this.loginFormCheckCache.set(input, true);
               console.log('输入框在登录弹窗中');
               return true;
@@ -797,7 +828,7 @@ export default defineContentScript({
 
           // 检查role属性
           if (role === 'dialog' || role === 'alertdialog') {
-            if (this.hasLoginFieldsNearby(parent)) {
+            if (this.hasLoginFieldsNearby(parent) || this.hasLoginButtonNearby(parent)) {
               this.loginFormCheckCache.set(input, true);
               console.log('输入框在对话框中的登录表单');
               return true;
@@ -809,7 +840,7 @@ export default defineContentScript({
 
         // 如果没有找到明确的表单或弹窗特征，但我们识别到了登录字段，仍然认为是在登录场景中
         // 这是一个宽松的检查，确保不会遗漏正常的登录表单(账号和密码或者手机和短信验证码组合)
-        if (hasLoginFields) {
+        if (hasLoginFields || this.hasLoginButtons()) {
           this.loginFormCheckCache.set(input, true);
           return true;
         }
@@ -843,6 +874,45 @@ export default defineContentScript({
           text.includes('验证');
 
         return hasPassword || hasVerifyCode || hasLoginText;
+      }
+      
+      /**
+       * 检查表单内是否有登录按钮
+       */
+      private hasLoginButtonInForm(form: Element): boolean {
+        // 检查表单内是否包含检测到的登录按钮
+        for (const button of this.loginButtons) {
+          if (form.contains(button)) {
+            return true;
+          }
+        }
+        return false;
+      }
+      
+      /**
+       * 检查元素附近是否有登录按钮
+       */
+      private hasLoginButtonNearby(element: HTMLElement): boolean {
+        // 检查元素内是否有登录按钮
+        for (const button of this.loginButtons) {
+          if (element.contains(button)) {
+            return true;
+          }
+        }
+        
+        // 检查是否有登录相关的文本
+        const text = element.textContent?.toLowerCase() || '';
+        const hasLoginText =
+          text.includes('登录') ||
+          text.includes('登陆') ||
+          text.includes('sign in') ||
+          text.includes('login') ||
+          text.includes('密码') ||
+          text.includes('password') ||
+          text.includes('验证码') ||
+          text.includes('验证');
+
+        return hasLoginText;
       }
 
       private async showSidePanel() {
@@ -890,6 +960,73 @@ export default defineContentScript({
           (this.usernameFields.length > 0 && this.passwordFields.length > 0) ||
           (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0)
         );
+      }
+      
+      /**
+       * 检测页面上的登录按钮
+       */
+      private detectLoginButtons() {
+        // 清空之前的登录按钮检测结果
+        this.loginButtons = [];
+        
+        // 定义登录相关的关键词
+        const loginKeywords = [
+          '登录', '登陆', 'sign in', 'signin', 'log in', 'login', 
+          '密码登录', '验证码登录', '账号登录', '立即登录',
+          '登 录', '登  录', // 包含空格的情况
+          'SIGN IN', 'LOGIN', 'LOG IN'
+        ];
+        
+        // 查询可能的登录按钮
+        const buttonSelectors = [
+          'button',
+          'input[type="button"]',
+          'input[type="submit"]',
+          '[role="button"]',
+          '.login-btn',
+          '.sign-in-btn',
+          '.login-button',
+          '.sign-in-button',
+          '.submit-btn',
+          '.submit-button'
+        ];
+        
+        buttonSelectors.forEach(selector => {
+          const buttons = document.querySelectorAll(selector);
+          buttons.forEach(button => {
+            if (button instanceof HTMLElement) {
+              // 检查按钮文本
+              const buttonText = (button.textContent || button.innerText || '').trim().toLowerCase();
+              const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
+              const title = (button.getAttribute('title') || '').toLowerCase();
+              const value = (button.getAttribute('value') || '').toLowerCase();
+              
+              // 检查是否包含登录关键词
+              const hasLoginKeyword = loginKeywords.some(keyword => 
+                buttonText.includes(keyword.toLowerCase()) || 
+                ariaLabel.includes(keyword.toLowerCase()) ||
+                title.includes(keyword.toLowerCase()) ||
+                value.includes(keyword.toLowerCase())
+              );
+              
+              if (hasLoginKeyword && this.isVisible(button)) {
+                // 检查按钮是否未在我们的列表中
+                if (!this.loginButtons.includes(button)) {
+                  this.loginButtons.push(button);
+                }
+              }
+            }
+          });
+        });
+        
+        console.log(`检测到 ${this.loginButtons.length} 个登录按钮`);
+      }
+      
+      /**
+       * 检查页面中是否存在登录按钮
+       */
+      public hasLoginButtons(): boolean {
+        return this.loginButtons.length > 0;
       }
 
       /**
