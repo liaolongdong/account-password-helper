@@ -106,6 +106,7 @@
               <el-icon
                 class="copy-icon"
                 @click.stop="copyUsername(password.username)"
+                title="复制账号"
               >
                 <CopyDocument />
               </el-icon>
