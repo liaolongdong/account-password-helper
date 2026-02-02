@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>WXT Extension Template</title>
+    <!-- Meta tags for WXT configuration -->
+    <!-- <meta name="manifest.type" content="page_action" /> -->
+    <!-- <meta name="manifest.include" content="['chrome']" /> -->
+    <!-- <meta name="manifest.exclude" content="['firefox']" /> -->
+  </head>
+  <body>
+    <div id="app">
+      <!-- Your extension UI goes here -->
+      <h1>WXT Extension</h1>
+      <p>Replace this content with your extension UI</p>
+
+      <!-- Example components -->
+      <div class="example-section">
+        <h2>Quick Actions</h2>
+        <button id="action-button">Perform Action</button>
+        <button id="settings-button">Open Settings</button>
+      </div>
+
+      <div class="status-section">
+        <h2>Status</h2>
+        <div id="status">Ready</div>
+      </div>
+    </div>
+
+    <!-- Load your main script -->
+    <script
+      type="module"
+      src="./main.ts"
+    ></script>
+  </body>
+</html>
