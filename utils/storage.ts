@@ -297,19 +297,21 @@ export class StorageUtils {
   }
 
   /**
-   * todo:加密密码条目
+   * 加密密码条目
+   * 对敏感字段（username、password、url、remark）进行加密
    */
   static async encryptPasswordEntry(entry: PasswordEntry, masterPassword: string): Promise<EncryptedPasswordEntry> {
     try {
       // 派生加密密钥
       const key = await this.deriveEncryptionKey(masterPassword);
 
-      // 创建加密条目（类型断言确保兼容性）
+      // 创建加密条目，对所有敏感字段进行加密
       const encryptedEntry: EncryptedPasswordEntry = {
         ...entry,
-        // username: this.encryptData(entry.username, key),  // 用户名/用户号/邮箱/手机号/账号不加密
+        username: this.encryptData(entry.username, key),
         password: this.encryptData(entry.password, key),
-        // remark: this.encryptData(entry.remark, key),  // 备注不加密
+        url: this.encryptData(entry.url, key),
+        remark: this.encryptData(entry.remark, key),
         encrypted: true,
       } as EncryptedPasswordEntry;
       console.log('StorageUtils: 条目加密完成');
@@ -322,7 +324,8 @@ export class StorageUtils {
   }
 
   /**
-   * todo:解密密码条目
+   * 解密密码条目
+   * 对敏感字段（username、password、url、remark）进行解密
    */
   static async decryptPasswordEntry(entry: EncryptedPasswordEntry, masterPassword: string): Promise<PasswordEntry> {
     try {
@@ -336,12 +339,13 @@ export class StorageUtils {
       // 派生解密密钥
       const key = await this.deriveEncryptionKey(masterPassword);
 
-      // 解密条目字段，即使某些字段解密失败也要继续处理其他字段
+      // 解密条目所有敏感字段，即使某些字段解密失败也要继续处理其他字段
       const decryptedEntry: PasswordEntry = {
         ...entry,
-        // username: this.decryptFieldSafely(entry.username, key, 'username'),
+        username: this.decryptFieldSafely(entry.username, key, 'username'),
         password: this.decryptFieldSafely(entry.password, key, 'password'),
-        // remark: this.decryptFieldSafely(entry.remark, key, 'remark'),
+        url: this.decryptFieldSafely(entry.url, key, 'url'),
+        remark: this.decryptFieldSafely(entry.remark, key, 'remark'),
       };
       console.log('StorageUtils: 条目解密完成');
 
@@ -895,9 +899,17 @@ export class StorageUtils {
 
   /**
    * 清除会话缓存
+   * 在清除会话前确保所有密码条目的敏感字段已加密
    */
   static async clearSession(): Promise<void> {
     try {
+      // 会话失效前，确保密码列表中的敏感字段已加密
+      const masterPassword = await this.getSessionMasterPasswordDecrypted();
+      if (masterPassword) {
+        await this.encryptAllPasswordsBeforeSessionClear(masterPassword);
+      }
+
+      // 清除内存中的会话数据
       encryptedSessionMasterPassword = null;
       sessionPasswordExpiry = null;
       sessionValidityHours = 24;
@@ -912,6 +924,84 @@ export class StorageUtils {
     } catch (error) {
       console.error('清除会话缓存失败:', error);
       throw error;
+    }
+  }
+
+  /**
+   * 会话失效前加密所有密码条目
+   * 确保所有敏感字段（username、password、url、remark）都已加密
+   */
+  private static async encryptAllPasswordsBeforeSessionClear(masterPassword: string): Promise<void> {
+    try {
+      const rawPasswords = await this.getAllPasswordsRaw();
+
+      if (rawPasswords.length === 0) {
+        return;
+      }
+
+      const encryptedPasswords: EncryptedPasswordEntry[] = [];
+      let hasChanges = false;
+
+      for (const entry of rawPasswords) {
+        // 如果已加密，直接保留
+        if ('encrypted' in entry && entry.encrypted === true) {
+          encryptedPasswords.push(entry as EncryptedPasswordEntry);
+          continue;
+        }
+
+        // 加密未加密的条目
+        hasChanges = true;
+        const encryptedEntry = await this.encryptPasswordEntry(entry as PasswordEntry, masterPassword);
+        encryptedPasswords.push(encryptedEntry);
+      }
+
+      // 只有在有变更时才保存
+      if (hasChanges) {
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.PASSWORDS]: encryptedPasswords,
+        });
+        console.log('StorageUtils: 会话失效前，所有密码条目已加密');
+      }
+    } catch (error) {
+      console.error('StorageUtils: 会话失效前加密密码条目失败:', error);
+      // 不抛出错误，避免阻塞会话清除
+    }
+  }
+
+  /**
+   * 迁移未加密的密码条目
+   * 用于将旧版本的明文数据迁移为加密数据
+   */
+  static async migrateUnencryptedEntries(masterPassword: string): Promise<void> {
+    try {
+      const rawPasswords = await this.getAllPasswordsRaw();
+
+      if (rawPasswords.length === 0) {
+        return;
+      }
+
+      let hasUnencrypted = false;
+      const encryptedPasswords: EncryptedPasswordEntry[] = [];
+
+      for (const entry of rawPasswords) {
+        if (!('encrypted' in entry) || entry.encrypted !== true) {
+          hasUnencrypted = true;
+          const encryptedEntry = await this.encryptPasswordEntry(entry as PasswordEntry, masterPassword);
+          encryptedPasswords.push(encryptedEntry);
+        } else {
+          encryptedPasswords.push(entry as EncryptedPasswordEntry);
+        }
+      }
+
+      if (hasUnencrypted) {
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.PASSWORDS]: encryptedPasswords,
+        });
+        console.log('StorageUtils: 数据迁移完成，所有条目已加密');
+      }
+    } catch (error) {
+      console.error('StorageUtils: 数据迁移失败:', error);
+      // 不抛出错误，避免影响正常使用
     }
   }
 

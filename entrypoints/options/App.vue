@@ -1066,6 +1066,9 @@ const handleSetupSubmit = async () => {
     // 创建会话缓存
     await StorageUtils.createSession(setupForm.value.password.trim(), setupForm.value.validityHours);
 
+    // 迁移未加密的数据（向后兼容）
+    await StorageUtils.migrateUnencryptedEntries(setupForm.value.password.trim());
+
     ElMessage.success('主密码设置成功，欢迎使用');
 
     // 转入主界面
@@ -1107,6 +1110,9 @@ const handleVerifySubmit = async () => {
 
       // 创建会话缓存
       await StorageUtils.createSession(verifyForm.value.password.trim(), verifyForm.value.validityHours);
+
+      // 迁移未加密的数据（向后兼容）
+      await StorageUtils.migrateUnencryptedEntries(verifyForm.value.password.trim());
 
       // 转入主界面
       showPasswordVerify.value = false;
@@ -1672,10 +1678,39 @@ const exportPasswords = async () => {
       return;
     }
 
+    // 要求验证主密码
+    const { value: masterPassword } = await ElMessageBox.prompt(
+      '导出密码列表需要验证主密码，请输入主密码：',
+      '验证主密码',
+      {
+        confirmButtonText: '确认导出',
+        cancelButtonText: '取消',
+        inputType: 'password',
+        inputPlaceholder: '请输入主密码',
+        inputValidator: (value: string) => {
+          if (!value || !value.trim()) {
+            return '主密码不能为空';
+          }
+          return true;
+        },
+      },
+    );
+
+    // 验证主密码
+    const isValid = await StorageUtils.verifyMasterPassword(masterPassword.trim());
+    if (!isValid) {
+      ElMessage.error('主密码错误，导出失败');
+      return;
+    }
+
+    // 验证通过，执行导出
     ExcelUtils.exportToExcel(passwords.value);
     ElMessage.success('导出成功');
   } catch (error) {
-    ElMessage.error('导出失败');
+    if (error !== 'cancel') {
+      console.error('导出失败:', error);
+      ElMessage.error('导出失败');
+    }
   }
 };
 
