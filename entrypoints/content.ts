@@ -992,6 +992,13 @@ export default defineContentScript({
 
       private async showSidePanel() {
         try {
+          // 检查扩展上下文是否有效
+          if (!chrome.runtime?.id) {
+            console.warn('扩展上下文已失效，无法显示侧边栏');
+            this.isSidePanelVisible = false;
+            return;
+          }
+
           // 总是尝试显示侧边栏，不依赖 isSidePanelVisible 状态
           // 因为用户可能手动关闭了侧边栏，导致状态不同步
           // Chrome SidePanel API 的 open 方法是幂等的，多次调用不会产生副作用
@@ -1001,7 +1008,13 @@ export default defineContentScript({
           // 侧边栏显示请求已发送，更新状态
           this.isSidePanelVisible = true;
         } catch (error) {
-          console.error('显示侧边栏失败:', error);
+          // 检查是否是扩展上下文失效错误
+          const errorMsg = (error as Error).message || '';
+          if (errorMsg.includes('Extension context invalidated')) {
+            console.warn('扩展上下文已失效，请刷新页面');
+          } else {
+            console.error('显示侧边栏失败:', error);
+          }
           // 显示失败时，重置状态以便下次重试
           this.isSidePanelVisible = false;
         }
@@ -1012,6 +1025,13 @@ export default defineContentScript({
        */
       private async hideSidePanel() {
         try {
+          // 检查扩展上下文是否有效
+          if (!chrome.runtime?.id) {
+            console.warn('扩展上下文已失效，无法隐藏侧边栏');
+            this.isSidePanelVisible = false;
+            return;
+          }
+
           // 总是尝试隐藏侧边栏，不依赖 isSidePanelVisible 状态
           // 因为填充完成后需要确保侧边栏被隐藏
           // 通知background script隐藏侧边栏
@@ -1021,7 +1041,13 @@ export default defineContentScript({
           // 侧边栏隐藏请求已发送
           this.isSidePanelVisible = false;
         } catch (error) {
-          console.error('隐藏侧边栏失败:', error);
+          // 检查是否是扩展上下文失效错误
+          const errorMsg = (error as Error).message || '';
+          if (errorMsg.includes('Extension context invalidated')) {
+            console.warn('扩展上下文已失效，请刷新页面');
+          } else {
+            console.error('隐藏侧边栏失败:', error);
+          }
           // 隐藏失败时，重置状态以便下次重试
           this.isSidePanelVisible = false;
         }
@@ -1168,6 +1194,12 @@ export default defineContentScript({
        */
       private async notifyUrlChange() {
         try {
+          // 检查扩展上下文是否有效
+          if (!chrome.runtime?.id) {
+            console.warn('扩展上下文已失效，无法发送URL变化通知');
+            return;
+          }
+
           // 通知background script url发生了变化
           await chrome.runtime.sendMessage({
             type: MessageType.URL_CHANGED,
@@ -1177,7 +1209,13 @@ export default defineContentScript({
           });
           // URL变化通知已发送
         } catch (error) {
-          console.error('发送URL变化通知失败:', error);
+          // 检查是否是扩展上下文失效错误
+          const errorMsg = (error as Error).message || '';
+          if (errorMsg.includes('Extension context invalidated')) {
+            console.warn('扩展上下文已失效，请刷新页面');
+          } else {
+            console.error('发送URL变化通知失败:', error);
+          }
         }
       }
 

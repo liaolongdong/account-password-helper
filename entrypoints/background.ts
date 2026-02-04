@@ -78,31 +78,59 @@ export default defineBackground(() => {
       // 优先使用消息中传来的tabId，否则使用sender.tab.id
       const tabId = (message.data?.tabId || sender.tab?.id) as number;
 
-      if (tabId) {
-        // 检查侧边栏API是否可用
-        if (chrome.sidePanel) {
-          // 先确保侧边栏是启用的（用户手动关闭后可能会被禁用）
-          try {
-            await chrome.sidePanel.setOptions({
-              tabId: tabId,
-              enabled: true,
-            });
-          } catch (setOptionsError) {
-            // 如果设置选项失败，继续尝试打开（可能已经启用）
-            console.warn('设置侧边栏选项失败，继续尝试打开:', setOptionsError);
-          }
+      if (!tabId) {
+        // 如果都没有tabId，尝试获取当前活动标签页
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]?.id) {
+          const activeTabId = tabs[0].id;
+          // 检查侧边栏API是否可用
+          if (chrome.sidePanel) {
+            // 先确保侧边栏是启用的
+            try {
+              await chrome.sidePanel.setOptions({
+                tabId: activeTabId,
+                enabled: true,
+              });
+            } catch (setOptionsError) {
+              console.warn('设置侧边栏选项失败，继续尝试打开:', setOptionsError);
+            }
 
-          // 打开侧边栏
-          await chrome.sidePanel.open({ tabId: tabId });
-          return '侧边栏已打开';
+            // 打开侧边栏
+            await chrome.sidePanel.open({ tabId: activeTabId });
+            return '侧边栏已打开';
+          } else {
+            const errorMsg = '当前Chrome版本不支持sidePanel API';
+            console.warn(errorMsg);
+            alert(errorMsg);
+            throw new Error(errorMsg);
+          }
         } else {
-          const errorMsg = '当前Chrome版本不支持sidePanel API';
-          console.warn(errorMsg);
+          const errorMsg = '无法获取标签ID';
+          console.error(errorMsg);
           throw new Error(errorMsg);
         }
+      }
+
+      // 有tabId的情况
+      // 检查侧边栏API是否可用
+      if (chrome.sidePanel) {
+        // 先确保侧边栏是启用的（用户手动关闭后可能会被禁用）
+        try {
+          await chrome.sidePanel.setOptions({
+            tabId: tabId,
+            enabled: true,
+          });
+        } catch (setOptionsError) {
+          // 如果设置选项失败，继续尝试打开（可能已经启用）
+          console.warn('设置侧边栏选项失败，继续尝试打开:', setOptionsError);
+        }
+
+        // 打开侧边栏
+        await chrome.sidePanel.open({ tabId: tabId });
+        return '侧边栏已打开';
       } else {
-        const errorMsg = '无法获取标签ID';
-        console.error(errorMsg);
+        const errorMsg = '当前Chrome版本不支持sidePanel API';
+        console.warn(errorMsg);
         throw new Error(errorMsg);
       }
     } catch (error) {
@@ -117,24 +145,46 @@ export default defineBackground(() => {
       // 优先使用消息中传来的tabId，否则使用sender.tab.id
       const tabId = (message.data?.tabId || sender.tab?.id) as number;
 
-      if (tabId) {
-        // 检查侧边栏API是否可用
-        if (chrome.sidePanel) {
-          try {
-            // 关闭侧边栏
-            closeSidePanel(tabId);
-            return '侧边栏已隐藏';
-          } catch (msgError) {
-            console.log('无法直接向sidepanel发送消息:', msgError);
+      if (!tabId) {
+        // 如果都没有tabId，尝试获取当前活动标签页
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]?.id) {
+          const activeTabId = tabs[0].id;
+          // 检查侧边栏API是否可用
+          if (chrome.sidePanel) {
+            try {
+              // 关闭侧边栏
+              closeSidePanel(activeTabId);
+              return '侧边栏已隐藏';
+            } catch (msgError) {
+              console.log('无法直接向sidepanel发送消息:', msgError);
+            }
+          } else {
+            const errorMsg = '当前Chrome版本不支持sidePanel API，请升级到Chrome 116 及更高版本';
+            console.warn(errorMsg);
+            throw new Error(errorMsg);
           }
         } else {
-          const errorMsg = '当前Chrome版本不支持sidePanel API，请升级到Chrome 116 及更高版本';
-          console.warn(errorMsg);
+          const errorMsg = '无法获取标签ID';
+          console.error(errorMsg);
           throw new Error(errorMsg);
         }
+      }
+
+      // 有tabId的情况
+      // 检查侧边栏API是否可用
+      if (chrome.sidePanel) {
+        try {
+          // 关闭侧边栏
+          closeSidePanel(tabId);
+          return '侧边栏已隐藏';
+        } catch (msgError) {
+          console.log('无法直接向sidepanel发送消息:', msgError);
+        }
       } else {
-        const errorMsg = '无法获取标签ID';
-        console.error(errorMsg);
+        const errorMsg = '当前Chrome版本不支持sidePanel API，请升级到Chrome 116 及更高版本';
+        console.warn(errorMsg);
+        alert(errorMsg);
         throw new Error(errorMsg);
       }
     } catch (error) {
