@@ -34,7 +34,7 @@ export default defineBackground(() => {
   chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
     switch (message.type) {
       case MessageType.SHOW_SIDEPANEL:
-        handleShowSidePanel(sender)
+        handleShowSidePanel(sender, message)
           .then(result => {
             sendResponse({ success: true, result });
           })
@@ -45,7 +45,7 @@ export default defineBackground(() => {
         return true; // 保持消息通道开放用于异步响应
 
       case MessageType.HIDE_SIDEPANEL:
-        handleHideSidePanel(sender)
+        handleHideSidePanel(sender, message)
           .then(result => {
             sendResponse({ success: true, result });
           })
@@ -56,7 +56,7 @@ export default defineBackground(() => {
         return true; // 保持消息通道开放用于异步响应
 
       case MessageType.URL_CHANGED:
-        handleUrlChanged(sender, message.data)
+        handleUrlChanged(sender, message)
           .then(result => {
             sendResponse({ success: true, result });
           })
@@ -73,15 +73,18 @@ export default defineBackground(() => {
   });
 
   // 显示侧边栏
-  async function handleShowSidePanel(sender: chrome.runtime.MessageSender) {
+  async function handleShowSidePanel(sender: chrome.runtime.MessageSender, message: Message) {
     try {
-      if (sender.tab?.id) {
+      // 优先使用消息中传来的tabId，否则使用sender.tab.id
+      const tabId = (message.data?.tabId || sender.tab?.id) as number;
+
+      if (tabId) {
         // 检查侧边栏API是否可用
         if (chrome.sidePanel) {
           // 先确保侧边栏是启用的（用户手动关闭后可能会被禁用）
           try {
             await chrome.sidePanel.setOptions({
-              tabId: sender.tab.id,
+              tabId: tabId,
               enabled: true,
             });
           } catch (setOptionsError) {
@@ -90,7 +93,7 @@ export default defineBackground(() => {
           }
 
           // 打开侧边栏
-          await chrome.sidePanel.open({ tabId: sender.tab.id });
+          await chrome.sidePanel.open({ tabId: tabId });
           return '侧边栏已打开';
         } else {
           const errorMsg = '当前Chrome版本不支持sidePanel API';
@@ -109,14 +112,17 @@ export default defineBackground(() => {
   }
 
   // 隐藏侧边栏
-  async function handleHideSidePanel(sender: chrome.runtime.MessageSender) {
+  async function handleHideSidePanel(sender: chrome.runtime.MessageSender, message: Message) {
     try {
-      if (sender.tab?.id) {
+      // 优先使用消息中传来的tabId，否则使用sender.tab.id
+      const tabId = (message.data?.tabId || sender.tab?.id) as number;
+
+      if (tabId) {
         // 检查侧边栏API是否可用
         if (chrome.sidePanel) {
           try {
             // 关闭侧边栏
-            closeSidePanel(sender.tab.id);
+            closeSidePanel(tabId);
             return '侧边栏已隐藏';
           } catch (msgError) {
             console.log('无法直接向sidepanel发送消息:', msgError);
@@ -182,10 +188,13 @@ export default defineBackground(() => {
   }
 
   // 处理URL变化
-  async function handleUrlChanged(sender: chrome.runtime.MessageSender, data: any) {
+  async function handleUrlChanged(sender: chrome.runtime.MessageSender, message: Message) {
     try {
+      // 优先使用消息中传来的tabId，否则使用sender.tab.id
+      const tabId = (message.data?.tabId || sender.tab?.id) as number;
+
       // 如果有活动的标签页，通知侧边栏更新数据
-      if (sender.tab?.id) {
+      if (tabId) {
         // 可以在这里添加更多的逻辑来处理URL变化
         // 例如：检查是否需要显示侧边栏等
         return 'URL变化处理完成';

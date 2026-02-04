@@ -50,8 +50,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
 import { Setting, Key, View } from '@element-plus/icons-vue';
 import { StorageUtils } from '../../utils/storage';
+import { MessageType } from '../../utils/types';
 
 const passwordCount = ref(0);
 const showPasswordCount = ref(false); // 控制是否显示密码数量
@@ -142,8 +144,36 @@ const openSidePanel = async () => {
     // Popup: 会话有效，打开侧边栏
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
-      await chrome.sidePanel.open({ tabId: tab.id });
-      window.close();
+      try {
+        // 首先尝试直接调用，这在用户手势上下文中应该是有效的
+        await chrome.sidePanel.open({ tabId: tab.id });
+        window.close();
+      } catch (sidePanelError) {
+        console.error('直接打开侧边栏失败:', sidePanelError);
+
+        // 如果直接调用失败，尝试通过background脚本发送普通消息
+        try {
+          const response = await chrome.runtime.sendMessage({
+            type: MessageType.SHOW_SIDEPANEL,
+            data: { tabId: tab.id },
+          });
+
+          if (response.success) {
+            console.log('通过background脚本成功打开侧边栏');
+            window.close();
+          } else {
+            console.error('通过background脚本打开侧边栏失败:', response.error);
+
+            // 如果仍然失败，提示用户手动打开
+            alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
+          }
+        } catch (bgError) {
+          console.error('通过background脚本打开侧边栏也失败:', bgError);
+
+          // 如果仍然失败，提示用户手动打开
+          alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
+        }
+      }
     }
   } catch (error) {
     console.error('打开侧边栏失败:', error);
