@@ -345,6 +345,8 @@
       <div class="password-list">
         <el-table
           ref="tableRef"
+          v-loading="tableLoading"
+          element-loading-text="加载数据中..."
           :data="filteredPasswords"
           style="width: 100%"
           stripe
@@ -817,6 +819,7 @@ const verifyLoading = ref(false);
 const passwordFormLoading = ref(false);
 const validityLoading = ref(false); // 添加有效期表单加载状态
 const clearSessionLoading = ref(false); // 添加清除会话加载状态
+const tableLoading = ref(false); // 添加表格加载状态
 const verifyError = ref('');
 
 // 设置表单
@@ -1188,6 +1191,8 @@ const resetMasterPassword = async () => {
 // 加载密码列表
 const loadPasswords = async () => {
   try {
+    tableLoading.value = true;
+
     // 获取会话主密码
     const masterPassword = StorageUtils.getSessionMasterPassword();
 
@@ -1217,6 +1222,8 @@ const loadPasswords = async () => {
   } catch (error: any) {
     console.error('加载密码列表失败:', error);
     ElMessage.error('加载密码列表失败: ' + (error.message || '未知错误'));
+  } finally {
+    tableLoading.value = false;
   }
 };
 

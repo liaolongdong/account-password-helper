@@ -299,19 +299,20 @@ export class StorageUtils {
   /**
    * 加密密码条目
    * 对敏感字段（username、password、url、remark）进行加密
+   * 空字段不进行加密，保持原值
    */
   static async encryptPasswordEntry(entry: PasswordEntry, masterPassword: string): Promise<EncryptedPasswordEntry> {
     try {
       // 派生加密密钥
       const key = await this.deriveEncryptionKey(masterPassword);
 
-      // 创建加密条目，对所有敏感字段进行加密
+      // 创建加密条目，对非空敏感字段进行加密
       const encryptedEntry: EncryptedPasswordEntry = {
         ...entry,
-        username: this.encryptData(entry.username, key),
-        password: this.encryptData(entry.password, key),
-        url: this.encryptData(entry.url, key),
-        remark: this.encryptData(entry.remark, key),
+        username: entry.username ? this.encryptData(entry.username, key) : '',
+        password: entry.password ? this.encryptData(entry.password, key) : '',
+        url: entry.url ? this.encryptData(entry.url, key) : '',
+        remark: entry.remark ? this.encryptData(entry.remark, key) : '',
         encrypted: true,
       } as EncryptedPasswordEntry;
       console.log('StorageUtils: 条目加密完成');
