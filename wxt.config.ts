@@ -28,7 +28,7 @@ export default defineConfig({
           default: 'Ctrl+Shift+P',
           mac: 'Command+Shift+P',
         },
-        description: '打开密码管理选项页面',
+        description: '打开账号密码管理选项页面',
       },
       toggle_sidepanel: {
         suggested_key: {
