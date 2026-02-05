@@ -9,9 +9,9 @@
         <div class="setup-header">
           <div class="logo-section">
             <el-icon class="logo"><Key /></el-icon>
-            <h1>密码管理助手</h1>
+            <h1>账号密码管理助手</h1>
           </div>
-          <p class="subtitle">欢迎使用密码管理助手，请先设置主密码</p>
+          <p class="subtitle">欢迎使用账号密码管理助手，请先设置主密码</p>
         </div>
 
         <div class="setup-form">
@@ -131,7 +131,7 @@
         <div class="verify-header">
           <div class="logo-section">
             <el-icon class="logo"><Key /></el-icon>
-            <h1>密码管理助手</h1>
+            <h1>账号密码管理助手</h1>
           </div>
           <p class="subtitle">请输入主密码以继续</p>
         </div>
@@ -260,7 +260,7 @@
           <div class="header-title">
             <h1>
               <el-icon class="logo"><Key /></el-icon>
-              密码管理助手
+              账号密码管理助手
             </h1>
           </div>
         </div>

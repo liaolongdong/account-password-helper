@@ -2,7 +2,7 @@
   <div class="popup-container">
     <div class="header">
       <el-icon class="logo"><Key /></el-icon>
-      <h3>密码管理助手</h3>
+      <h3>账号密码管理助手</h3>
     </div>
 
     <div class="content">
@@ -184,7 +184,7 @@ const openSidePanel = async () => {
 const handleEmailClick = (event: Event) => {
   event.preventDefault();
   const email = '924902324@qq.com';
-  const subject = '密码管理助手反馈';
+  const subject = '账号密码管理助手反馈';
   const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
 
   // 尝试打开默认邮件客户端
