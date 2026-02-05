@@ -1004,6 +1004,10 @@ const checkAuth = async () => {
       showPasswordVerify.value = false;
       isAuthenticated.value = false;
 
+      // 加载保存的有效期设置（如果有）
+      const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+      setupForm.value.validityHours = validityHours;
+
       // 聚焦到密码输入框
       nextTick(() => {
         const passwordInput = document.querySelector('.setup-form .el-input__inner') as HTMLInputElement;

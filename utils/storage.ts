@@ -20,7 +20,7 @@ const STORAGE_KEYS = {
 // 添加会话状态管理变量
 let encryptedSessionMasterPassword: string | null = null; // 存储加密后的主密码
 let sessionPasswordExpiry: number | null = null;
-let sessionValidityHours: number = 24; // 默认24小时
+let sessionValidityHours: number | null = null; // 从存储中读取，初始为null
 
 // 内存临时密钥，用于加密/解密会话中的主密码
 let sessionEncryptionKey: string | null = null;
@@ -913,7 +913,7 @@ export class StorageUtils {
       // 清除内存中的会话数据
       encryptedSessionMasterPassword = null;
       sessionPasswordExpiry = null;
-      sessionValidityHours = 24;
+      sessionValidityHours = null;
       sessionEncryptionKey = null; // 清除会话加密密钥
 
       // 清除持久化的会话信息
