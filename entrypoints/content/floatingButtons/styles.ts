@@ -482,4 +482,13 @@ export const settingsPanelStyles = `
   padding-bottom: 8px;
   border-bottom: 1px solid #f0f0f0;
 }
+
+/* 设置提示文字 */
+.setting-tip {
+  font-size: 12px;
+  color: #999;
+  padding: 4px 0 10px;
+  line-height: 1.4;
+  border-bottom: 1px solid #f0f0f0;
+}
 `;

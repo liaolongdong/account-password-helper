@@ -130,4 +130,8 @@ export interface FloatingButtonConfig {
    * 按钮透明度（0-1）
    */
   opacity: number;
+  /**
+   * 输入框获取焦点时是否自动展示侧边栏
+   */
+  autoShowSidepanel: boolean;
 }

@@ -73,6 +73,14 @@ export class SettingsPanel {
         </div>
         
         <div class="setting-item">
+          <span class="setting-label">自动展示侧边栏</span>
+          <div class="switch ${this.config.autoShowSidepanel ? 'active' : ''}" data-setting="autoShowSidepanel">
+            <div class="switch-handle"></div>
+          </div>
+        </div>
+        <div class="setting-tip">开启后，登录输入框获取焦点时自动展示快速填充侧边栏</div>
+        
+        <div class="setting-item">
           <span class="setting-label">按钮透明度</span>
           <div class="slider-container">
             <div class="slider" data-setting="opacity">
@@ -105,6 +113,14 @@ export class SettingsPanel {
       this.config.visible = !this.config.visible;
       visibleSwitch.classList.toggle('active', this.config.visible);
       this.onConfigChange({ visible: this.config.visible });
+    });
+
+    // 自动展示侧边栏开关
+    const autoShowSwitch = this.panel.querySelector('[data-setting="autoShowSidepanel"]');
+    autoShowSwitch?.addEventListener('click', () => {
+      this.config.autoShowSidepanel = !this.config.autoShowSidepanel;
+      autoShowSwitch.classList.toggle('active', this.config.autoShowSidepanel);
+      this.onConfigChange({ autoShowSidepanel: this.config.autoShowSidepanel });
     });
 
     // 透明度滑块
@@ -225,6 +241,10 @@ export class SettingsPanel {
     // 更新显示开关
     const visibleSwitch = this.panel.querySelector('[data-setting="visible"]');
     visibleSwitch?.classList.toggle('active', this.config.visible);
+
+    // 更新自动展示侧边栏开关
+    const autoShowSwitch = this.panel.querySelector('[data-setting="autoShowSidepanel"]');
+    autoShowSwitch?.classList.toggle('active', this.config.autoShowSidepanel);
 
     // 更新透明度滑块
     const opacitySlider = this.panel.querySelector('[data-setting="opacity"]');

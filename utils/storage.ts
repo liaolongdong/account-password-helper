@@ -893,6 +893,9 @@ export class StorageUtils {
         [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: sessionPasswordExpiry,
         [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
       });
+
+      // 会话创建后，解密所有密码条目并明文存储
+      await this.decryptAllPasswordsOnSessionCreate(masterPassword);
     } catch (error) {
       console.error('创建会话缓存失败:', error);
       throw error;
@@ -967,6 +970,53 @@ export class StorageUtils {
     } catch (error) {
       console.error('StorageUtils: 会话失效前加密密码条目失败:', error);
       // 不抛出错误，避免阻塞会话清除
+    }
+  }
+
+  /**
+   * 会话创建后解密所有密码条目并明文存储
+   * 在会话有效期内，敏感字段以明文形式存储，提高读取性能
+   */
+  private static async decryptAllPasswordsOnSessionCreate(masterPassword: string): Promise<void> {
+    try {
+      const rawPasswords = await this.getAllPasswordsRaw();
+
+      if (rawPasswords.length === 0) {
+        return;
+      }
+
+      const decryptedPasswords: PasswordEntry[] = [];
+      let hasEncryptedEntries = false;
+
+      for (const entry of rawPasswords) {
+        // 如果是加密的条目，进行解密
+        if ('encrypted' in entry && entry.encrypted === true) {
+          hasEncryptedEntries = true;
+          try {
+            const decryptedEntry = await this.decryptPasswordEntry(entry, masterPassword);
+            decryptedPasswords.push(decryptedEntry);
+          } catch (decryptError) {
+            console.warn('StorageUtils: 跳过无法解密的条目:', entry.id);
+            // 保留原始加密条目以避免数据丢失
+            const { encrypted, ...rest } = entry;
+            decryptedPasswords.push(rest as PasswordEntry);
+          }
+        } else {
+          // 已经是明文的条目，直接保留
+          decryptedPasswords.push(entry as PasswordEntry);
+        }
+      }
+
+      // 只有在存在加密条目时才更新存储
+      if (hasEncryptedEntries) {
+        await chrome.storage.local.set({
+          [STORAGE_KEYS.PASSWORDS]: decryptedPasswords,
+        });
+        console.log('StorageUtils: 会话创建后，所有密码条目已解密为明文存储');
+      }
+    } catch (error) {
+      console.error('StorageUtils: 会话创建后解密密码条目失败:', error);
+      // 不抛出错误，避免影响会话创建
     }
   }
 
@@ -1079,6 +1129,7 @@ export class StorageUtils {
       position: 'right',
       offsetY: 0,
       opacity: 0.9,
+      autoShowSidepanel: true,
     };
   }
 

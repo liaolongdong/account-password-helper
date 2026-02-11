@@ -1,6 +1,7 @@
 import { defineContentScript } from 'wxt/sandbox';
-import { Message, MessageType } from '../utils/types';
+import { Message, MessageType, FloatingButtonConfig } from '../utils/types';
 import { getFloatingButtonManager, destroyFloatingButtonManager } from './content/floatingButtons';
+import { StorageUtils } from '../utils/storage';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -54,18 +55,55 @@ export default defineContentScript({
       private lastDetectedFormType: 'username_password' | 'mobile_verify' | 'none' = 'none';
       /** 记录是否显示了无表单提示 */
       private showedNoFormMessage = false;
+      /** 悬浮按钮配置 */
+      private floatingButtonConfig: FloatingButtonConfig;
+      /** 存储变化监听器 */
+      private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
 
       constructor() {
         // 初始化防抖函数，优化延迟时间为150ms以提升响应速度
         this.debouncedShowSidePanel = debounce(() => {
           this.showSidePanel();
         }, 150);
+        // 初始化默认配置
+        this.floatingButtonConfig = StorageUtils.getDefaultFloatingButtonConfig();
+        // 加载配置并初始化
+        this.loadConfig();
         this.init();
         this.observer = this.createMutationObserver();
         this.addPageVisibilityListener();
         this.addPageNavigationListener();
         // 使用事件委托，只添加一个全局监听器
         this.setupEventDelegation();
+        // 监听配置变化
+        this.setupStorageListener();
+      }
+
+      /**
+       * 加载悬浮按钮配置
+       */
+      private async loadConfig(): Promise<void> {
+        try {
+          this.floatingButtonConfig = await StorageUtils.getFloatingButtonConfig();
+        } catch (error) {
+          console.error('FormDetector: 加载配置失败:', error);
+        }
+      }
+
+      /**
+       * 设置存储变化监听器
+       */
+      private setupStorageListener(): void {
+        this.storageListener = changes => {
+          if (changes.floating_button_config) {
+            const newConfig = changes.floating_button_config.newValue as FloatingButtonConfig;
+            if (newConfig) {
+              this.floatingButtonConfig = newConfig;
+              console.log('FormDetector: 配置已更新', newConfig);
+            }
+          }
+        };
+        chrome.storage.onChanged.addListener(this.storageListener);
       }
 
       private init() {
@@ -626,6 +664,11 @@ export default defineContentScript({
         const input = target as HTMLInputElement;
         // 检查是否是我们识别的字段类型
         if (this.shouldShowSidePanel(input)) {
+          // 检查自动展示侧边栏开关是否开启
+          if (!this.floatingButtonConfig.autoShowSidepanel) {
+            console.log('FormDetector: 自动展示侧边栏已关闭，跳过自动显示');
+            return;
+          }
           // 当满足显示条件时，使用防抖函数显示侧边栏，提升性能
           // 不依赖 isSidePanelVisible 状态，因为用户可能手动关闭了侧边栏
           // 重置状态以确保能正确显示（即使状态不同步）
@@ -1916,6 +1959,11 @@ export default defineContentScript({
         }
         // 清理事件委托监听器
         document.removeEventListener('focusin', this.handleDelegatedFocus, { capture: true });
+        // 清理存储变化监听器
+        if (this.storageListener) {
+          chrome.storage.onChanged.removeListener(this.storageListener);
+          this.storageListener = null;
+        }
       }
     }
 
