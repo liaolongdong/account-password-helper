@@ -278,18 +278,37 @@ export default defineBackground(() => {
 
     try {
       const optionsUrl = chrome.runtime.getURL('options.html');
-      const tabs = await chrome.tabs.query({ url: optionsUrl + '*' });
+      // 查询所有匹配的标签页（包括带查询参数的情况）
+      const tabs = await chrome.tabs.query({});
+      const matchingTabs = tabs.filter(tab => tab.url && tab.url.startsWith(optionsUrl));
 
-      if (tabs.length > 0) {
-        const tab = tabs[0];
-        if (tab.id) {
-          await chrome.tabs.update(tab.id, { active: true });
-          if (tab.windowId) {
-            await chrome.windows.update(tab.windowId, { focused: true });
+      if (matchingTabs.length > 0) {
+        // 激活第一个匹配的标签页
+        const targetTab = matchingTabs[0];
+        if (targetTab.id) {
+          await chrome.tabs.update(targetTab.id, { active: true });
+          if (targetTab.windowId) {
+            await chrome.windows.update(targetTab.windowId, { focused: true });
           }
         }
+
+        // 如果存在多个密码管理标签页，关闭多余的
+        if (matchingTabs.length > 1) {
+          const tabIdsToClose = matchingTabs
+            .slice(1)
+            .map(tab => tab.id)
+            .filter((id): id is number => id !== undefined);
+          if (tabIdsToClose.length > 0) {
+            await chrome.tabs.remove(tabIdsToClose);
+            console.log('Background: 已关闭多余的密码管理标签页:', tabIdsToClose.length);
+          }
+        }
+
+        console.log('Background: 已跳转到已存在的密码管理标签页');
       } else {
+        // 不存在则创建新标签页
         await chrome.tabs.create({ url: optionsUrl });
+        console.log('Background: 已创建新的密码管理标签页');
       }
     } catch (error) {
       console.error('打开选项页面失败:', error);
