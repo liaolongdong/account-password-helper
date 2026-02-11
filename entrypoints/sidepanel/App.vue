@@ -314,21 +314,28 @@ const loadCurrentTab = async () => {
 const loadPasswords = async () => {
   try {
     loading.value = true;
-    // SidePanel: 开始加载密码列表
 
-    // 获取会话主密码
-    const masterPassword = StorageUtils.getSessionMasterPassword();
-    // SidePanel: 获取到的会话主密码
+    // 检查会话是否有效
+    const sessionValid = await StorageUtils.isSessionValid();
 
-    // 根据当前域名获取匹配的密码
-    if (currentDomain.value) {
-      passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value, masterPassword);
+    if (sessionValid) {
+      // 会话有效期内，数据已是明文，直接读取（无需解密会话主密码）
+      if (currentDomain.value) {
+        passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value);
+      } else {
+        passwords.value = await StorageUtils.getAllPasswords();
+        sortPasswords(passwords.value);
+      }
     } else {
-      passwords.value = await StorageUtils.getAllPasswords(masterPassword);
-      // 应用保存的排序配置
-      sortPasswords(passwords.value);
+      // 会话无效，需要通过主密码解密
+      const masterPassword = StorageUtils.getSessionMasterPassword();
+      if (currentDomain.value) {
+        passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value, masterPassword);
+      } else {
+        passwords.value = await StorageUtils.getAllPasswords(masterPassword);
+        sortPasswords(passwords.value);
+      }
     }
-    // SidePanel: 密码列表加载完成
   } catch (error) {
     console.error('加载密码列表失败:', error);
     ElMessage.error('加载密码列表失败');

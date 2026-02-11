@@ -386,7 +386,10 @@ export class StorageUtils {
     copyItemId?: string,
   ): Promise<PasswordEntry> {
     try {
-      const passwords = masterPassword ? await this.getAllPasswords(masterPassword) : await this.getAllPasswordsRaw();
+      // 会话有效期内，数据已是明文，直接读取原始数据
+      const sessionActive = this.isSessionActiveSync();
+      const passwords =
+        masterPassword && !sessionActive ? await this.getAllPasswords(masterPassword) : await this.getAllPasswordsRaw();
 
       const newEntry: PasswordEntry = {
         ...entry,
@@ -395,11 +398,11 @@ export class StorageUtils {
         order: passwords.length,
       };
 
-      // 如果提供了主密码，加密存储
+      // 会话有效期内跳过加密，直接明文存储
+      const shouldEncrypt = masterPassword && !sessionActive;
       let entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
-      if (masterPassword) {
+      if (shouldEncrypt) {
         const encryptedEntry = await this.encryptPasswordEntry(newEntry, masterPassword);
-        // 如果是复制的条目，则添加到复制条目下方
         if (copyItemId) {
           const copyIndex = entriesToSave.findIndex(p => p.id === copyItemId);
           if (copyIndex !== -1) {
@@ -409,7 +412,6 @@ export class StorageUtils {
           entriesToSave.push(encryptedEntry);
         }
       } else {
-        // 如果是复制的条目，则添加到复制条目下方
         if (copyItemId) {
           const copyIndex = entriesToSave.findIndex(p => p.id === copyItemId);
           if (copyIndex !== -1) {
@@ -436,7 +438,10 @@ export class StorageUtils {
    */
   static async updatePassword(id: string, updates: Partial<PasswordEntry>, masterPassword?: string): Promise<void> {
     try {
-      const passwords = masterPassword ? await this.getAllPasswords(masterPassword) : await this.getAllPasswordsRaw();
+      // 会话有效期内，数据已是明文，直接读取原始数据
+      const sessionActive = this.isSessionActiveSync();
+      const passwords =
+        masterPassword && !sessionActive ? await this.getAllPasswords(masterPassword) : await this.getAllPasswordsRaw();
 
       const index = passwords.findIndex(p => p.id === id);
 
@@ -444,12 +449,13 @@ export class StorageUtils {
         const updatedEntry: PasswordEntry = {
           ...passwords[index],
           ...updates,
-          updateTime: Date.now(), // 更新时间
+          updateTime: Date.now(),
         };
 
-        // 如果提供了主密码，加密存储
+        // 会话有效期内跳过加密，直接明文存储
+        const shouldEncrypt = masterPassword && !sessionActive;
         let entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
-        if (masterPassword) {
+        if (shouldEncrypt) {
           const encryptedEntry = await this.encryptPasswordEntry(updatedEntry, masterPassword);
           entriesToSave[index] = encryptedEntry;
         } else {
@@ -791,6 +797,17 @@ export class StorageUtils {
       console.error('StorageUtils: 获取排序配置失败:', error);
       return null;
     }
+  }
+
+  /**
+   * 同步检查会话是否有效（仅检查内存状态，不从存储恢复）
+   * 用于在 savePassword/updatePassword 中快速判断是否需要加密
+   */
+  static isSessionActiveSync(): boolean {
+    if (!encryptedSessionMasterPassword || !sessionPasswordExpiry) {
+      return false;
+    }
+    return Date.now() < sessionPasswordExpiry;
   }
 
   /**

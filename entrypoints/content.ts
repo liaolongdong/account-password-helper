@@ -8,18 +8,6 @@ export default defineContentScript({
   main() {
     console.log('Account Password Helper content script loaded');
 
-    // 防抖工具函数
-    function debounce<T extends (...args: any[]) => any>(func: T, wait: number): (...args: Parameters<T>) => void {
-      let timeout: ReturnType<typeof setTimeout> | null = null;
-      return function (this: any, ...args: Parameters<T>) {
-        const context = this;
-        if (timeout) clearTimeout(timeout);
-        timeout = setTimeout(() => {
-          func.apply(context, args);
-        }, wait);
-      };
-    }
-
     // 表单检测器
     class FormDetector {
       private passwordFields: HTMLInputElement[] = [];
@@ -47,8 +35,6 @@ export default defineContentScript({
       private usernameFieldsSet = new WeakSet<HTMLInputElement>();
       private mobileFieldsSet = new WeakSet<HTMLInputElement>();
       private verifyCodeFieldsSet = new WeakSet<HTMLInputElement>();
-      /** 防抖后的显示侧边栏函数 */
-      private debouncedShowSidePanel: () => void;
       /** 缓存 isInLoginFormOrPopup 的检查结果，使用WeakMap避免内存泄漏 */
       private loginFormCheckCache = new WeakMap<HTMLInputElement, boolean>();
       /** 记录上次检测到的登录表单类型 */
@@ -61,10 +47,6 @@ export default defineContentScript({
       private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
 
       constructor() {
-        // 初始化防抖函数，优化延迟时间为150ms以提升响应速度
-        this.debouncedShowSidePanel = debounce(() => {
-          this.showSidePanel();
-        }, 150);
         // 初始化默认配置
         this.floatingButtonConfig = StorageUtils.getDefaultFloatingButtonConfig();
         // 加载配置并初始化
@@ -646,16 +628,19 @@ export default defineContentScript({
       /**
        * 使用事件委托设置全局监听器，替代为每个字段添加多个监听器
        * 这样可以大幅减少内存占用和提高性能
+       * 使用 click 事件替代 focusin，确保用户手势链完整
+       * （Chrome 要求 sidePanel.open() 必须在用户手势上下文中调用）
        */
       private setupEventDelegation() {
-        // 使用focusin事件委托，捕获所有输入框焦点事件
-        document.addEventListener('focusin', this.handleDelegatedFocus, { capture: true });
+        // 使用 click 事件委托，点击输入框时触发自动展示侧边栏
+        document.addEventListener('click', this.handleDelegatedClick, { capture: true });
       }
 
       /**
-       * 事件委托处理焦点事件
+       * 事件委托处理点击事件
+       * 仅在用户点击登录相关输入框时自动展示侧边栏
        */
-      private handleDelegatedFocus = (event: FocusEvent) => {
+      private handleDelegatedClick = (event: MouseEvent) => {
         const target = event.target;
         if (!target || !(target instanceof HTMLElement) || target.tagName !== 'INPUT') {
           return;
@@ -669,14 +654,9 @@ export default defineContentScript({
             console.log('FormDetector: 自动展示侧边栏已关闭，跳过自动显示');
             return;
           }
-          // 当满足显示条件时，使用防抖函数显示侧边栏，提升性能
-          // 不依赖 isSidePanelVisible 状态，因为用户可能手动关闭了侧边栏
-          // 重置状态以确保能正确显示（即使状态不同步）
-          this.isSidePanelVisible = false;
-          // 使用防抖函数，避免频繁触发，提升性能
-          this.debouncedShowSidePanel();
+          // 立即发送消息，不使用防抖，保持用户手势链
+          this.showSidePanel();
         }
-        // 注意：这里不再显示无表单提示，因为提示应该在点击快速填充按钮时才显示
       };
 
       /**
@@ -1958,7 +1938,7 @@ export default defineContentScript({
           this.observer.disconnect();
         }
         // 清理事件委托监听器
-        document.removeEventListener('focusin', this.handleDelegatedFocus, { capture: true });
+        document.removeEventListener('click', this.handleDelegatedClick, { capture: true });
         // 清理存储变化监听器
         if (this.storageListener) {
           chrome.storage.onChanged.removeListener(this.storageListener);

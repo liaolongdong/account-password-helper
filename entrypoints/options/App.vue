@@ -1234,10 +1234,17 @@ const loadPasswords = async () => {
   try {
     tableLoading.value = true;
 
-    // 获取会话主密码
-    const masterPassword = StorageUtils.getSessionMasterPassword();
+    // 检查会话是否有效
+    const sessionValid = await StorageUtils.isSessionValid();
 
-    passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
+    if (sessionValid) {
+      // 会话有效期内，数据已是明文，直接读取（无需解密会话主密码）
+      passwords.value = await StorageUtils.getAllPasswords();
+    } else {
+      // 会话无效，需要通过主密码解密
+      const masterPassword = StorageUtils.getSessionMasterPassword();
+      passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
+    }
 
     // 按创建时间倒序排序（最新添加的在前面）
     passwords.value.sort((a, b) => b.createTime - a.createTime);
@@ -1601,9 +1608,6 @@ watch(showValiditySetting, newVal => {
 // 复制密码
 const copyPassword = async (password: PasswordEntry) => {
   try {
-    // 获取会话主密码用于加密保存
-    const masterPassword = StorageUtils.getSessionMasterPassword();
-
     // 创建一个新的密码条目，基于现有条目
     const newPasswordEntry = {
       username: password.username,
@@ -1618,10 +1622,9 @@ const copyPassword = async (password: PasswordEntry) => {
     // 保存添加前的密码列表
     const previousPasswords = [...passwords.value];
 
-    // 保存新的密码条目
-    // 复制项id
+    // 保存新的密码条目（savePassword 内部会根据会话状态决定是否加密）
     const copyItemId = password.id;
-    const newEntry = await StorageUtils.savePassword(newPasswordEntry, masterPassword || undefined, copyItemId);
+    const newEntry = await StorageUtils.savePassword(newPasswordEntry, undefined, copyItemId);
 
     // 重新加载密码列表
     await loadPasswords();
