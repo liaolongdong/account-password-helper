@@ -1,9 +1,13 @@
 import { defineBackground } from 'wxt/sandbox';
-import { Message, MessageType } from '../utils/types';
+import { Message, MessageType, PasswordCache, PasswordEntry } from '../utils/types';
 
 export default defineBackground(() => {
   // 通过 port 连接跟踪 sidepanel 的打开状态
   let sidePanelPort: chrome.runtime.Port | null = null;
+
+  // 密码缓存
+  let passwordCache: PasswordCache | null = null;
+  const CACHE_VALIDITY_MS = 5 * 60 * 1000; // 5分钟缓存有效期
 
   // 插件安装时的初始化
   chrome.runtime.onInstalled.addListener(() => {
@@ -162,6 +166,33 @@ export default defineBackground(() => {
           });
         return true;
 
+      case MessageType.GET_CACHED_PASSWORDS: {
+        // 获取缓存的密码数据
+        const requestedDomain = message.data?.domain;
+        const cachedData = getCachedPasswords(requestedDomain);
+        sendResponse({ success: true, data: cachedData });
+        break;
+      }
+
+      case MessageType.UPDATE_PASSWORD_CACHE: {
+        // 更新密码缓存
+        const { passwords, domain, isAuthenticated } = message.data || {};
+        if (passwords && domain !== undefined) {
+          updatePasswordCache(passwords, domain, isAuthenticated);
+          sendResponse({ success: true });
+        } else {
+          sendResponse({ success: false, error: '缺少缓存数据' });
+        }
+        break;
+      }
+
+      case MessageType.INVALIDATE_PASSWORD_CACHE: {
+        // 使缓存失效
+        invalidatePasswordCache();
+        sendResponse({ success: true });
+        break;
+      }
+
       default:
         sendResponse({ success: false, error: '未知消息类型' });
         break;
@@ -254,4 +285,66 @@ export default defineBackground(() => {
       console.error('打开选项页面失败:', error);
     }
   }
+
+  /**
+   * 获取缓存的密码数据
+   * @param requestedDomain 请求的域名，用于检查缓存是否匹配
+   */
+  function getCachedPasswords(requestedDomain?: string): PasswordCache | null {
+    if (!passwordCache) {
+      return null;
+    }
+
+    // 检查缓存是否过期
+    const now = Date.now();
+    if (now - passwordCache.timestamp > CACHE_VALIDITY_MS) {
+      console.log('Background: 密码缓存已过期');
+      passwordCache = null;
+      return null;
+    }
+
+    // 如果请求了特定域名，检查是否匹配
+    if (requestedDomain && passwordCache.domain !== requestedDomain) {
+      console.log('Background: 缓存域名不匹配，需要重新加载');
+      return null;
+    }
+
+    console.log('Background: 返回缓存数据，条目数:', passwordCache.passwords.length);
+    return passwordCache;
+  }
+
+  /**
+   * 更新密码缓存
+   */
+  function updatePasswordCache(passwords: PasswordEntry[], domain: string, isAuthenticated: boolean): void {
+    passwordCache = {
+      passwords,
+      domain,
+      timestamp: Date.now(),
+      isAuthenticated,
+    };
+    console.log('Background: 密码缓存已更新，条目数:', passwords.length, '域名:', domain);
+  }
+
+  /**
+   * 使密码缓存失效
+   */
+  function invalidatePasswordCache(): void {
+    passwordCache = null;
+    console.log('Background: 密码缓存已失效');
+  }
+
+  // 监听 storage 变化，自动使缓存失效
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local') {
+      // 检查是否是密码数据或会话相关的变化
+      const relevantKeys = ['account_passwords', 'session_master_password', 'session_password_expiry'];
+      const hasRelevantChange = Object.keys(changes).some(key => relevantKeys.includes(key));
+
+      if (hasRelevantChange) {
+        console.log('Background: 检测到存储变化，使缓存失效');
+        invalidatePasswordCache();
+      }
+    }
+  });
 });

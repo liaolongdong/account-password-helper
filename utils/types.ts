@@ -100,6 +100,18 @@ export enum MessageType {
    * 切换悬浮按钮显示状态
    */
   TOGGLE_FLOATING_BUTTONS = 'TOGGLE_FLOATING_BUTTONS',
+  /**
+   * 获取缓存的密码列表
+   */
+  GET_CACHED_PASSWORDS = 'GET_CACHED_PASSWORDS',
+  /**
+   * 更新密码缓存
+   */
+  UPDATE_PASSWORD_CACHE = 'UPDATE_PASSWORD_CACHE',
+  /**
+   * 使密码缓存失效
+   */
+  INVALIDATE_PASSWORD_CACHE = 'INVALIDATE_PASSWORD_CACHE',
 }
 
 /**
@@ -134,4 +146,26 @@ export interface FloatingButtonConfig {
    * 输入框获取焦点时是否自动展示侧边栏
    */
   autoShowSidepanel: boolean;
+}
+
+/**
+ * 密码缓存接口
+ */
+export interface PasswordCache {
+  /**
+   * 缓存的密码列表
+   */
+  passwords: PasswordEntry[];
+  /**
+   * 缓存对应的域名
+   */
+  domain: string;
+  /**
+   * 缓存时间戳
+   */
+  timestamp: number;
+  /**
+   * 是否已认证
+   */
+  isAuthenticated: boolean;
 }

@@ -164,7 +164,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Key, Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { MessageType, type PasswordEntry } from '../../utils/types';
+import { MessageType, type PasswordEntry, type PasswordCache } from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
 
 const loading = ref(true);
@@ -323,12 +323,18 @@ const loadPasswords = async () => {
       ? await StorageUtils.getSessionMasterPasswordDecrypted()
       : StorageUtils.getSessionMasterPassword();
 
+    let loadedPasswords: PasswordEntry[];
     if (currentDomain.value) {
-      passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value, masterPassword || undefined);
+      loadedPasswords = await StorageUtils.getPasswordsByUrl(currentDomain.value, masterPassword || undefined);
     } else {
-      passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
-      sortPasswords(passwords.value);
+      loadedPasswords = await StorageUtils.getAllPasswords(masterPassword || undefined);
+      sortPasswords(loadedPasswords);
     }
+
+    passwords.value = loadedPasswords;
+
+    // 更新缓存
+    await updatePasswordCacheInBackground(loadedPasswords, currentDomain.value, isAuthenticated.value);
   } catch (error) {
     console.error('加载密码列表失败:', error);
     ElMessage.error('加载密码列表失败');
@@ -648,6 +654,43 @@ const sortPasswords = (passwords: PasswordEntry[]) => {
     });
 };
 
+// 从 background 获取缓存的密码数据
+const getCachedPasswordsFromBackground = async (domain?: string): Promise<PasswordCache | null> => {
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: MessageType.GET_CACHED_PASSWORDS,
+      data: { domain },
+    });
+    if (response?.success && response.data) {
+      return response.data as PasswordCache;
+    }
+    return null;
+  } catch (error) {
+    console.error('SidePanel: 获取缓存数据失败:', error);
+    return null;
+  }
+};
+
+// 更新 background 中的密码缓存
+const updatePasswordCacheInBackground = async (
+  passwordList: PasswordEntry[],
+  domain: string,
+  authenticated: boolean,
+): Promise<void> => {
+  try {
+    await chrome.runtime.sendMessage({
+      type: MessageType.UPDATE_PASSWORD_CACHE,
+      data: {
+        passwords: passwordList,
+        domain,
+        isAuthenticated: authenticated,
+      },
+    });
+  } catch (error) {
+    console.error('SidePanel: 更新缓存失败:', error);
+  }
+};
+
 // 初始化
 onMounted(async () => {
   // SidePanel: 开始初始化
@@ -679,23 +722,26 @@ onMounted(async () => {
   chrome.tabs.onActivated.addListener(handleTabActivated);
 
   try {
-    // SidePanel: 开始检查会话状态...
-    // 检查会话是否有效
-    const isSessionValid = await StorageUtils.isSessionValid();
-    // SidePanel: 会话是否有效
-
-    if (!isSessionValid) {
-      // 会话无效，显示未验证状态
-      // SidePanel: 会话无效，显示未验证状态
-      isAuthenticated.value = false;
-      loading.value = false;
-      return;
-    }
-
-    // SidePanel: 会话有效，加载数据
-    isAuthenticated.value = true;
+    // 先获取当前标签页域名
     await loadCurrentTab();
-    await loadPasswords();
+
+    // 尝试从缓存获取数据
+    const cachedData = await getCachedPasswordsFromBackground(currentDomain.value);
+
+    if (cachedData && cachedData.isAuthenticated) {
+      // 有有效缓存，立即显示缓存数据
+      console.log('SidePanel: 使用缓存数据，条目数:', cachedData.passwords.length);
+      passwords.value = cachedData.passwords;
+      isAuthenticated.value = true;
+      loading.value = false;
+
+      // 后台验证会话状态，如果失效则重新加载
+      verifySessionAndRefreshIfNeeded();
+    } else {
+      // 无缓存，走原有加载逻辑
+      console.log('SidePanel: 无缓存，从存储加载数据');
+      await loadFromStorage();
+    }
   } catch (error) {
     console.error('SidePanel: 初始化失败:', error);
     // 出错时显示未验证状态
@@ -704,6 +750,38 @@ onMounted(async () => {
   }
   // SidePanel: 初始化完成
 });
+
+// 从存储加载数据（原有逻辑）
+const loadFromStorage = async () => {
+  // 检查会话是否有效
+  const isSessionValid = await StorageUtils.isSessionValid();
+
+  if (!isSessionValid) {
+    // 会话无效，显示未验证状态
+    isAuthenticated.value = false;
+    loading.value = false;
+    return;
+  }
+
+  // 会话有效，加载数据
+  isAuthenticated.value = true;
+  await loadPasswords();
+};
+
+// 验证会话状态，如果失效则重新加载
+const verifySessionAndRefreshIfNeeded = async () => {
+  try {
+    const isSessionValid = await StorageUtils.isSessionValid();
+    if (!isSessionValid) {
+      // 会话已失效，清除显示并显示未验证状态
+      console.log('SidePanel: 会话已失效，显示未验证状态');
+      isAuthenticated.value = false;
+      passwords.value = [];
+    }
+  } catch (error) {
+    console.error('SidePanel: 验证会话状态失败:', error);
+  }
+};
 
 // 组件卸载时移除监听器
 onUnmounted(() => {
