@@ -300,6 +300,15 @@
               有效期设置
             </el-button>
           </div>
+          <div class="header-actions-right">
+            <span class="floating-button-label">悬浮按钮</span>
+            <el-switch
+              v-model="floatingButtonVisible"
+              @change="toggleFloatingButton"
+              active-text=""
+              inactive-text=""
+            />
+          </div>
         </div>
       </div>
 
@@ -793,7 +802,7 @@ import {
   CopyDocument,
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import type { PasswordEntry } from '../../utils/types';
+import type { PasswordEntry, FloatingButtonConfig } from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
 import { sessionManager } from '../../utils/sessionManager';
 import { ExcelUtils } from '../../utils/excel';
@@ -807,6 +816,7 @@ const showMasterPasswordSetup = ref(false);
 const showPasswordVerify = ref(false);
 const showPasswordForm = ref(false);
 const showValiditySetting = ref(false); // 添加有效期设置弹窗状态
+const floatingButtonVisible = ref(true); // 悬浮按钮显示状态
 
 // 表单相关
 const setupFormRef = ref<FormInstance>();
@@ -964,6 +974,9 @@ onMounted(async () => {
   // 监听会话过期事件
   window.addEventListener('sessionExpired', handleSessionExpired);
 
+  // 加载悬浮按钮配置
+  await loadFloatingButtonConfig();
+
   await checkAuth();
 });
 
@@ -1052,6 +1065,30 @@ const checkAuth = async () => {
     showMasterPasswordSetup.value = false;
     showPasswordVerify.value = true;
     isAuthenticated.value = false;
+  }
+};
+
+// 加载悬浮按钮配置
+const loadFloatingButtonConfig = async () => {
+  try {
+    const config = await StorageUtils.getFloatingButtonConfig();
+    floatingButtonVisible.value = config.visible;
+  } catch (error) {
+    console.error('加载悬浮按钮配置失败:', error);
+  }
+};
+
+// 切换悬浮按钮显示状态
+const toggleFloatingButton = async (visible: boolean) => {
+  try {
+    await StorageUtils.setFloatingButtonVisible(visible);
+    floatingButtonVisible.value = visible;
+    ElMessage.success(visible ? '悬浮按钮已开启' : '悬浮按钮已关闭');
+  } catch (error) {
+    console.error('切换悬浮按钮状态失败:', error);
+    ElMessage.error('操作失败，请重试');
+    // 恢复原状态
+    floatingButtonVisible.value = !visible;
   }
 };
 
@@ -2017,7 +2054,7 @@ const getTagType = (tag: string): string => {
 .header-actions-row {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
   width: 100%;
 }
 
@@ -2025,6 +2062,18 @@ const getTagType = (tag: string): string => {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.header-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.floating-button-label {
+  color: rgb(255 255 255 / 85%);
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 :deep(.header-actions .el-button) {

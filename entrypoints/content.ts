@@ -1,5 +1,6 @@
 import { defineContentScript } from 'wxt/sandbox';
 import { Message, MessageType } from '../utils/types';
+import { getFloatingButtonManager, destroyFloatingButtonManager } from './content/floatingButtons';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -1921,9 +1922,16 @@ export default defineContentScript({
     // 初始化表单检测器
     const formDetector = new FormDetector();
 
+    // 初始化悬浮按钮管理器
+    const floatingButtonManager = getFloatingButtonManager();
+    floatingButtonManager.init().catch(error => {
+      console.error('FloatingButtonManager 初始化失败:', error);
+    });
+
     // 页面卸载时清理
     window.addEventListener('beforeunload', () => {
       formDetector.destroy();
+      destroyFloatingButtonManager();
     });
   },
 });

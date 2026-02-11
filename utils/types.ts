@@ -77,6 +77,14 @@ export enum MessageType {
    */
   HIDE_SIDEPANEL = 'HIDE_SIDEPANEL',
   /**
+   * 切换侧边栏消息类型（用于悬浮按钮）
+   */
+  TOGGLE_SIDEPANEL = 'TOGGLE_SIDEPANEL',
+  /**
+   * 关闭侧边栏消息类型（发送给sidepanel，让它自己关闭）
+   */
+  CLOSE_SIDEPANEL = 'CLOSE_SIDEPANEL',
+  /**
    * URL变化消息类型
    */
   URL_CHANGED = 'URL_CHANGED',
@@ -84,6 +92,14 @@ export enum MessageType {
    * 获取密码列表消息类型
    */
   GET_PASSWORDS = 'GET_PASSWORDS',
+  /**
+   * 打开密码管理页面
+   */
+  OPEN_OPTIONS_PAGE = 'OPEN_OPTIONS_PAGE',
+  /**
+   * 切换悬浮按钮显示状态
+   */
+  TOGGLE_FLOATING_BUTTONS = 'TOGGLE_FLOATING_BUTTONS',
 }
 
 /**
@@ -92,4 +108,26 @@ export enum MessageType {
 export interface Message {
   type: MessageType;
   data?: any;
+}
+
+/**
+ * 悬浮按钮配置接口
+ */
+export interface FloatingButtonConfig {
+  /**
+   * 是否显示悬浮按钮
+   */
+  visible: boolean;
+  /**
+   * 按钮位置（左侧/右侧）
+   */
+  position: 'left' | 'right';
+  /**
+   * 垂直偏移量（像素）
+   */
+  offsetY: number;
+  /**
+   * 按钮透明度（0-1）
+   */
+  opacity: number;
 }

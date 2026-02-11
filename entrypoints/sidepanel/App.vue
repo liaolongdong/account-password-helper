@@ -240,6 +240,15 @@ const handleMessage = (message: any, sender: chrome.runtime.MessageSender, sendR
       updateCurrentDomainAndLoadPasswords();
       sendResponse({ success: true, message: 'URL变化处理完成' });
       break;
+    case MessageType.CLOSE_SIDEPANEL:
+      // 收到关闭侧边栏的消息，调用window.close()关闭自己
+      console.log('SidePanel: 收到关闭消息，正在关闭侧边栏');
+      sendResponse({ success: true, message: '侧边栏正在关闭' });
+      // 延迟一点执行关闭，确保响应已发送
+      setTimeout(() => {
+        window.close();
+      }, 50);
+      break;
     default:
       sendResponse({ success: false, message: '未知消息类型' });
       break;

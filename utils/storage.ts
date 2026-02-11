@@ -1,5 +1,5 @@
 import CryptoJS from 'crypto-js';
-import type { PasswordEntry, MasterPasswordConfig } from './types';
+import type { PasswordEntry, MasterPasswordConfig, FloatingButtonConfig } from './types';
 
 // 扩展PasswordEntry接口以包含加密标识
 interface EncryptedPasswordEntry extends PasswordEntry {
@@ -15,6 +15,7 @@ const STORAGE_KEYS = {
   SETTINGS: 'app_settings',
   MASTER_PASSWORD_VALIDITY: 'master_password_validity', // 添加主密码有效期存储键
   SORT_CONFIG: 'password_sort_config', // 添加排序配置存储键
+  FLOATING_BUTTON_CONFIG: 'floating_button_config', // 悬浮按钮配置存储键
 };
 
 // 添加会话状态管理变量
@@ -1067,5 +1068,81 @@ export class StorageUtils {
       console.error('StorageUtils: 获取主密码调试信息失败:', error);
       return { error: error.message };
     }
+  }
+
+  /**
+   * 默认悬浮按钮配置
+   */
+  static getDefaultFloatingButtonConfig(): FloatingButtonConfig {
+    return {
+      visible: true,
+      position: 'right',
+      offsetY: 0,
+      opacity: 0.9,
+    };
+  }
+
+  /**
+   * 获取悬浮按钮配置
+   */
+  static async getFloatingButtonConfig(): Promise<FloatingButtonConfig> {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.FLOATING_BUTTON_CONFIG);
+      const config = result[STORAGE_KEYS.FLOATING_BUTTON_CONFIG];
+
+      if (!config) {
+        return this.getDefaultFloatingButtonConfig();
+      }
+
+      // 合并默认配置，确保所有字段都存在
+      return {
+        ...this.getDefaultFloatingButtonConfig(),
+        ...config,
+      };
+    } catch (error) {
+      console.error('StorageUtils: 获取悬浮按钮配置失败:', error);
+      return this.getDefaultFloatingButtonConfig();
+    }
+  }
+
+  /**
+   * 保存悬浮按钮配置
+   */
+  static async saveFloatingButtonConfig(config: Partial<FloatingButtonConfig>): Promise<void> {
+    try {
+      // 获取当前配置
+      const currentConfig = await this.getFloatingButtonConfig();
+
+      // 合并新配置
+      const newConfig: FloatingButtonConfig = {
+        ...currentConfig,
+        ...config,
+      };
+
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.FLOATING_BUTTON_CONFIG]: newConfig,
+      });
+    } catch (error) {
+      console.error('StorageUtils: 保存悬浮按钮配置失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 设置悬浮按钮显示状态
+   */
+  static async setFloatingButtonVisible(visible: boolean): Promise<void> {
+    await this.saveFloatingButtonConfig({ visible });
+  }
+
+  /**
+   * 设置悬浮按钮位置
+   */
+  static async setFloatingButtonPosition(position: 'left' | 'right', offsetY?: number): Promise<void> {
+    const config: Partial<FloatingButtonConfig> = { position };
+    if (offsetY !== undefined) {
+      config.offsetY = offsetY;
+    }
+    await this.saveFloatingButtonConfig(config);
   }
 }

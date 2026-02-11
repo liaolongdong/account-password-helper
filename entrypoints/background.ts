@@ -2,6 +2,9 @@ import { defineBackground } from 'wxt/sandbox';
 import { Message, MessageType } from '../utils/types';
 
 export default defineBackground(() => {
+  // 跟踪每个标签页的侧边栏打开状态
+  const sidePanelState = new Map<number, boolean>();
+
   // 插件安装时的初始化
   chrome.runtime.onInstalled.addListener(() => {
     console.log('账号密码管理助手插件已安装');
@@ -66,6 +69,40 @@ export default defineBackground(() => {
           });
         return true; // 保持消息通道开放用于异步响应
 
+      case MessageType.OPEN_OPTIONS_PAGE:
+        openOptionsPage()
+          .then(() => {
+            sendResponse({ success: true });
+          })
+          .catch(error => {
+            console.error('处理OPEN_OPTIONS_PAGE失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true; // 保持消息通道开放用于异步响应
+
+      case MessageType.TOGGLE_SIDEPANEL:
+        handleToggleSidePanel(sender, message)
+          .then(result => {
+            sendResponse({ success: true, result });
+          })
+          .catch(error => {
+            console.error('处理TOGGLE_SIDEPANEL失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true; // 保持消息通道开放用于异步响应
+
+      case MessageType.CLOSE_SIDEPANEL:
+        // 侧边栏关闭通知（从sidepanel发来的）
+        handleSidePanelClosed(sender, message)
+          .then(result => {
+            sendResponse({ success: true, result });
+          })
+          .catch(error => {
+            console.error('处理CLOSE_SIDEPANEL失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+
       default:
         sendResponse({ success: false, error: '未知消息类型' });
         break;
@@ -97,6 +134,8 @@ export default defineBackground(() => {
 
             // 打开侧边栏
             await chrome.sidePanel.open({ tabId: activeTabId });
+            // 更新状态
+            sidePanelState.set(activeTabId, true);
             return '侧边栏已打开';
           } else {
             const errorMsg = '当前Chrome版本不支持sidePanel API';
@@ -127,6 +166,8 @@ export default defineBackground(() => {
 
         // 打开侧边栏
         await chrome.sidePanel.open({ tabId: tabId });
+        // 更新状态
+        sidePanelState.set(tabId, true);
         return '侧边栏已打开';
       } else {
         const errorMsg = '当前Chrome版本不支持sidePanel API';
@@ -193,23 +234,100 @@ export default defineBackground(() => {
     }
   }
 
+  // 切换侧边栏（用于悬浮按钮）
+  async function handleToggleSidePanel(sender: chrome.runtime.MessageSender, message: Message) {
+    try {
+      // 优先使用消息中传来的tabId，否则使用sender.tab.id
+      let tabId = (message.data?.tabId || sender.tab?.id) as number;
+
+      if (!tabId) {
+        // 如果都没有tabId，尝试获取当前活动标签页
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs[0]?.id) {
+          tabId = tabs[0].id;
+        } else {
+          throw new Error('无法获取标签ID');
+        }
+      }
+
+      // 检查侧边栏API是否可用
+      if (!chrome.sidePanel) {
+        throw new Error('当前Chrome版本不支持sidePanel API');
+      }
+
+      // 检查当前侧边栏状态
+      const isOpen = sidePanelState.get(tabId) || false;
+
+      if (isOpen) {
+        // 侧边栏已打开，发送关闭消息给sidepanel让它自己关闭
+        try {
+          // 通过向所有扩展页面广播消息来通知sidepanel关闭
+          await chrome.runtime.sendMessage({
+            type: MessageType.CLOSE_SIDEPANEL,
+            data: { tabId },
+          });
+        } catch (err) {
+          // 如果发送失败，可能sidepanel已经关闭了，更新状态
+          console.log('发送关闭消息失败，sidepanel可能已经关闭:', err);
+        }
+        // 更新状态
+        sidePanelState.set(tabId, false);
+        return '侧边栏已关闭';
+      } else {
+        // 侧边栏未打开，打开它
+        try {
+          await chrome.sidePanel.setOptions({
+            tabId: tabId,
+            enabled: true,
+          });
+        } catch (setOptionsError) {
+          console.warn('设置侧边栏选项失败，继续尝试打开:', setOptionsError);
+        }
+
+        await chrome.sidePanel.open({ tabId: tabId });
+        // 更新状态
+        sidePanelState.set(tabId, true);
+        return '侧边栏已打开';
+      }
+    } catch (error) {
+      console.error('切换侧边栏失败:', error);
+      throw error;
+    }
+  }
+
+  // 处理侧边栏关闭通知
+  async function handleSidePanelClosed(sender: chrome.runtime.MessageSender, message: Message) {
+    try {
+      const tabId = message.data?.tabId as number;
+      if (tabId) {
+        sidePanelState.set(tabId, false);
+      }
+      return '侧边栏状态已更新';
+    } catch (error) {
+      console.error('处理侧边栏关闭通知失败:', error);
+      throw error;
+    }
+  }
+
   // 打开选项页面
   async function openOptionsPage() {
     try {
       // 获取选项页面的完整URL
       const optionsUrl = chrome.runtime.getURL('options.html');
 
-      // 首先检查是否已有标签页打开了选项页面
-      const tabs = await chrome.tabs.query({ url: optionsUrl });
+      // 使用通配符查询，避免URL参数影响匹配
+      const tabs = await chrome.tabs.query({ url: optionsUrl + '*' });
 
       if (tabs.length > 0) {
         // 如果已有标签页打开了选项页面，激活该标签页
         const tab = tabs[0];
-        await chrome.tabs.update(tab.id!, { active: true });
+        if (tab.id) {
+          await chrome.tabs.update(tab.id, { active: true });
 
-        // 如果该标签页在其他窗口中，也激活该窗口
-        if (tab.windowId) {
-          await chrome.windows.update(tab.windowId, { focused: true });
+          // 如果该标签页在其他窗口中，也激活该窗口
+          if (tab.windowId) {
+            await chrome.windows.update(tab.windowId, { focused: true });
+          }
         }
       } else {
         // 如果没有已存在的标签页，创建新标签页
