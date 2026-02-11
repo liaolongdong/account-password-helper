@@ -318,23 +318,16 @@ const loadPasswords = async () => {
     // 检查会话是否有效
     const sessionValid = await StorageUtils.isSessionValid();
 
-    if (sessionValid) {
-      // 会话有效期内，数据已是明文，直接读取（无需解密会话主密码）
-      if (currentDomain.value) {
-        passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value);
-      } else {
-        passwords.value = await StorageUtils.getAllPasswords();
-        sortPasswords(passwords.value);
-      }
+    // 获取会话主密码（无论会话是否有效，都尝试获取以防存储中仍有加密数据）
+    const masterPassword = sessionValid
+      ? await StorageUtils.getSessionMasterPasswordDecrypted()
+      : StorageUtils.getSessionMasterPassword();
+
+    if (currentDomain.value) {
+      passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value, masterPassword || undefined);
     } else {
-      // 会话无效，需要通过主密码解密
-      const masterPassword = StorageUtils.getSessionMasterPassword();
-      if (currentDomain.value) {
-        passwords.value = await StorageUtils.getPasswordsByUrl(currentDomain.value, masterPassword);
-      } else {
-        passwords.value = await StorageUtils.getAllPasswords(masterPassword);
-        sortPasswords(passwords.value);
-      }
+      passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
+      sortPasswords(passwords.value);
     }
   } catch (error) {
     console.error('加载密码列表失败:', error);

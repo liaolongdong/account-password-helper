@@ -69,11 +69,11 @@ onMounted(async () => {
     if (isSessionValid) {
       // 只有在会话有效时才获取密码数量
       // 获取会话主密码
-      const masterPassword = StorageUtils.getSessionMasterPassword();
+      const masterPassword = await StorageUtils.getSessionMasterPasswordDecrypted();
       // Popup: 获取到的会话主密码
 
       // 获取密码数量
-      const passwords = await StorageUtils.getAllPasswords(masterPassword);
+      const passwords = await StorageUtils.getAllPasswords(masterPassword || undefined);
       passwordCount.value = passwords.length;
       showPasswordCount.value = true; // 设置显示密码数量
       // Popup: 密码数量

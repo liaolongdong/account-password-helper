@@ -1237,14 +1237,11 @@ const loadPasswords = async () => {
     // 检查会话是否有效
     const sessionValid = await StorageUtils.isSessionValid();
 
-    if (sessionValid) {
-      // 会话有效期内，数据已是明文，直接读取（无需解密会话主密码）
-      passwords.value = await StorageUtils.getAllPasswords();
-    } else {
-      // 会话无效，需要通过主密码解密
-      const masterPassword = StorageUtils.getSessionMasterPassword();
-      passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
-    }
+    // 获取会话主密码（无论会话是否有效，都尝试获取以防存储中仍有加密数据）
+    const masterPassword = sessionValid
+      ? await StorageUtils.getSessionMasterPasswordDecrypted()
+      : StorageUtils.getSessionMasterPassword();
+    passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
 
     // 按创建时间倒序排序（最新添加的在前面）
     passwords.value.sort((a, b) => b.createTime - a.createTime);
@@ -1443,7 +1440,7 @@ const handleValiditySave = async () => {
     await StorageUtils.setMasterPasswordValidityHours(validityForm.value.validityHours);
 
     // 如果当前有会话，更新会话的有效期
-    const currentMasterPassword = StorageUtils.getSessionMasterPassword();
+    const currentMasterPassword = await StorageUtils.getSessionMasterPasswordDecrypted();
     if (currentMasterPassword) {
       await StorageUtils.createSession(currentMasterPassword, validityForm.value.validityHours);
     }
