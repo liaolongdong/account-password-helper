@@ -449,6 +449,12 @@ export const floatingButtonStyles = `
   visibility: visible;
 }
 
+/* 折叠和拖拽状态下禁用 hover 提示 */
+.button-group[data-state="collapsed"] .btn[title]::before,
+.button-group[data-state="dragging"] .btn[title]::before {
+  display: none !important;
+}
+
 /* 隐藏状态 */
 .floating-container.hidden {
   opacity: 0;

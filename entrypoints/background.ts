@@ -264,8 +264,18 @@ export default defineBackground(() => {
     }
   }
 
+  // 防止重复打开选项页面的标记
+  let isOpeningOptionsPage = false;
+
   // 打开选项页面
   async function openOptionsPage() {
+    // 防止短时间内重复触发
+    if (isOpeningOptionsPage) {
+      console.log('Background: 正在打开选项页面，忽略重复请求');
+      return;
+    }
+    isOpeningOptionsPage = true;
+
     try {
       const optionsUrl = chrome.runtime.getURL('options.html');
       const tabs = await chrome.tabs.query({ url: optionsUrl + '*' });
@@ -283,6 +293,11 @@ export default defineBackground(() => {
       }
     } catch (error) {
       console.error('打开选项页面失败:', error);
+    } finally {
+      // 500ms 后重置标记，防止过于频繁的调用
+      setTimeout(() => {
+        isOpeningOptionsPage = false;
+      }, 500);
     }
   }
 

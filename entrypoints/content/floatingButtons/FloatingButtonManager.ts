@@ -251,12 +251,12 @@ export class FloatingButtonManager {
    * 处理密码管理按钮点击
    */
   private async handleOptionsClick(): Promise<void> {
-    // 检查是否正在进行拖拽，如果是则不触发点击
-    if (this.dragHandler?.isDragging()) {
-      console.log('FloatingButtonManager: 正在拖拽中，忽略点击事件');
+    // 检查是否正在进行拖拽或刚完成拖拽，如果是则不触发点击
+    if (this.dragHandler?.isDragging() || this.dragHandler?.hasDraggedRecently()) {
+      console.log('FloatingButtonManager: 正在拖拽中或刚完成拖拽，忽略点击事件');
       return;
     }
-    
+
     try {
       const btn = this.buttonGroup?.querySelector('[data-action="open-options"]');
       if (btn) {

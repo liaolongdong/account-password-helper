@@ -38,6 +38,9 @@ export class DragHandler {
   private onDragEndCallback?: (position: 'left' | 'right', offsetY: number) => void;
   private dragThreshold: number;
 
+  // 标记本次操作是否真正发生了拖拽，用于防止拖拽结束后误触发点击
+  private hasDragged: boolean = false;
+
   private state: DragState = {
     isDragging: false,
     startX: 0,
@@ -183,6 +186,9 @@ export class DragHandler {
    * 开始拖拽
    */
   private startDrag(x: number, y: number): void {
+    // 重置拖拽标记
+    this.hasDragged = false;
+
     this.state.startX = x;
     this.state.startY = y;
     this.state.currentX = x;
@@ -216,6 +222,8 @@ export class DragHandler {
     // 首次超过阈值，开始拖拽
     if (!this.state.isDragging) {
       this.state.isDragging = true;
+      // 标记已发生拖拽，用于防止拖拽结束后误触发点击
+      this.hasDragged = true;
 
       // 触发折叠动画
       await this.animationController.collapse();
@@ -286,6 +294,11 @@ export class DragHandler {
 
     // 触发回调
     this.onDragEndCallback?.(targetPosition, targetOffsetY);
+
+    // 延时重置拖拽标记，防止拖拽结束后立即触发点击事件
+    setTimeout(() => {
+      this.hasDragged = false;
+    }, 200);
   }
 
   /**
@@ -343,6 +356,13 @@ export class DragHandler {
    */
   isDragging(): boolean {
     return this.state.isDragging;
+  }
+
+  /**
+   * 检查是否刚完成拖拽（用于防止拖拽结束后误触发点击）
+   */
+  hasDraggedRecently(): boolean {
+    return this.hasDragged;
   }
 
   /**
