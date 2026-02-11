@@ -7,7 +7,6 @@ export default defineBackground(() => {
 
   // 密码缓存
   let passwordCache: PasswordCache | null = null;
-  const CACHE_VALIDITY_MS = 5 * 60 * 1000; // 5分钟缓存有效期
 
   // 插件安装时的初始化
   chrome.runtime.onInstalled.addListener(() => {
@@ -167,11 +166,12 @@ export default defineBackground(() => {
         return true;
 
       case MessageType.GET_CACHED_PASSWORDS: {
-        // 获取缓存的密码数据
+        // 获取缓存的密码数据（异步）
         const requestedDomain = message.data?.domain;
-        const cachedData = getCachedPasswords(requestedDomain);
-        sendResponse({ success: true, data: cachedData });
-        break;
+        getCachedPasswords(requestedDomain).then(cachedData => {
+          sendResponse({ success: true, data: cachedData });
+        });
+        return true; // 表示异步响应
       }
 
       case MessageType.UPDATE_PASSWORD_CACHE: {
@@ -287,17 +287,35 @@ export default defineBackground(() => {
   }
 
   /**
+   * 获取缓存有效期（毫秒）
+   * 与主密码会话有效期保持一致
+   */
+  async function getCacheValidityMs(): Promise<number> {
+    try {
+      const result = await chrome.storage.local.get('master_password_validity');
+      const validityHours = result['master_password_validity'] || 24;
+      return validityHours * 60 * 60 * 1000; // 转换为毫秒
+    } catch (error) {
+      console.error('Background: 获取缓存有效期失败:', error);
+      return 24 * 60 * 60 * 1000; // 默认24小时
+    }
+  }
+
+  /**
    * 获取缓存的密码数据
    * @param requestedDomain 请求的域名，用于检查缓存是否匹配
    */
-  function getCachedPasswords(requestedDomain?: string): PasswordCache | null {
+  async function getCachedPasswords(requestedDomain?: string): Promise<PasswordCache | null> {
     if (!passwordCache) {
       return null;
     }
 
+    // 动态获取缓存有效期（与主密码会话有效期一致）
+    const cacheValidityMs = await getCacheValidityMs();
+
     // 检查缓存是否过期
     const now = Date.now();
-    if (now - passwordCache.timestamp > CACHE_VALIDITY_MS) {
+    if (now - passwordCache.timestamp > cacheValidityMs) {
       console.log('Background: 密码缓存已过期');
       passwordCache = null;
       return null;
