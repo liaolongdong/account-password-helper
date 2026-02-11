@@ -12,6 +12,9 @@ export interface DragState {
   currentY: number;
   initialPosition: 'left' | 'right';
   initialOffsetY: number;
+  // 鼠标点击位置与按钮中心的偏移量
+  mouseOffsetX: number;
+  mouseOffsetY: number;
 }
 
 export interface DragHandlerOptions {
@@ -43,12 +46,16 @@ export class DragHandler {
     currentY: 0,
     initialPosition: 'right',
     initialOffsetY: 0,
+    mouseOffsetX: 0,
+    mouseOffsetY: 0,
   };
 
   private boundHandleMouseMove: (e: MouseEvent) => void;
   private boundHandleMouseUp: (e: MouseEvent) => void;
   private boundHandleTouchMove: (e: TouchEvent) => void;
   private boundHandleTouchEnd: (e: TouchEvent) => void;
+  private boundHandleMouseDown: (e: MouseEvent) => void;
+  private boundHandleTouchStart: (e: TouchEvent) => void;
 
   constructor(options: DragHandlerOptions) {
     this.container = options.container;
@@ -65,6 +72,8 @@ export class DragHandler {
     this.boundHandleMouseUp = this.handleMouseUp.bind(this);
     this.boundHandleTouchMove = this.handleTouchMove.bind(this);
     this.boundHandleTouchEnd = this.handleTouchEnd.bind(this);
+    this.boundHandleMouseDown = this.handleMouseDown.bind(this);
+    this.boundHandleTouchStart = this.handleTouchStart.bind(this);
 
     this.init();
   }
@@ -74,10 +83,10 @@ export class DragHandler {
    */
   private init(): void {
     // 鼠标事件
-    this.dragButton.addEventListener('mousedown', this.handleMouseDown.bind(this));
+    this.dragButton.addEventListener('mousedown', this.boundHandleMouseDown);
 
     // 触摸事件
-    this.dragButton.addEventListener('touchstart', this.handleTouchStart.bind(this), {
+    this.dragButton.addEventListener('touchstart', this.boundHandleTouchStart, {
       passive: false,
     });
   }
@@ -179,10 +188,15 @@ export class DragHandler {
     this.state.currentY = y;
     this.state.initialPosition = this.getCurrentPosition();
 
-    // 获取当前容器的位置
+    // 获取当前容器的位置，计算鼠标相对按钮中心的偏移
     const rect = this.container.getBoundingClientRect();
     const viewportHeight = window.innerHeight;
     this.state.initialOffsetY = rect.top + rect.height / 2 - viewportHeight / 2;
+
+    // 计算鼠标点击位置与按钮中心的偏移（用于保持鼠标在按钮中心）
+    const buttonRect = this.dragButton.getBoundingClientRect();
+    this.state.mouseOffsetX = x - (buttonRect.left + buttonRect.width / 2);
+    this.state.mouseOffsetY = y - (buttonRect.top + buttonRect.height / 2);
   }
 
   /**
@@ -206,16 +220,21 @@ export class DragHandler {
       await this.animationController.collapse();
       this.animationController.setDragging(true);
 
-      // 禁用页面滚动
+      // 禁用页面滚动，设置拖拽光标
       document.body.style.overflow = 'hidden';
       document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'move';
     }
 
     this.state.currentX = x;
     this.state.currentY = y;
 
-    // 更新按钮位置
-    this.animationController.updateDragPosition(deltaX, deltaY + this.state.initialOffsetY);
+    // 使用鼠标偏移修正，确保按钮中心跟随鼠标
+    const correctedDeltaX = deltaX - this.state.mouseOffsetX;
+    const correctedDeltaY = deltaY - this.state.mouseOffsetY;
+
+    // 更新按钮位置（仅使用鼠标移动的差值，不叠加初始偏移）
+    this.animationController.updateDragPosition(correctedDeltaX, correctedDeltaY);
 
     // 更新吸附预览
     this.updateSnapPreview(x);
@@ -234,9 +253,10 @@ export class DragHandler {
     // 隐藏吸附预览
     this.hideSnapPreview();
 
-    // 恢复页面滚动
+    // 恢复页面滚动和光标
     document.body.style.overflow = '';
     document.body.style.userSelect = '';
+    document.body.style.cursor = '';
 
     // 计算目标位置
     const targetPosition = this.calculateSnapTarget();
@@ -268,11 +288,10 @@ export class DragHandler {
    */
   private calculateTargetOffsetY(): number {
     const viewportHeight = window.innerHeight;
-    const centerY = viewportHeight / 2;
     const buttonGroupHeight = this.buttonGroup.offsetHeight;
 
-    // 计算新的偏移量
-    let offsetY = this.state.currentY - centerY;
+    // 新偏移 = 初始偏移 + 鼠标Y轴变化量
+    let offsetY = this.state.initialOffsetY + (this.state.currentY - this.state.startY);
 
     // 限制在可视范围内
     const maxOffset = (viewportHeight - buttonGroupHeight) / 2 - 20;
@@ -315,8 +334,8 @@ export class DragHandler {
    * 清理资源
    */
   destroy(): void {
-    this.dragButton.removeEventListener('mousedown', this.handleMouseDown.bind(this));
-    this.dragButton.removeEventListener('touchstart', this.handleTouchStart.bind(this));
+    this.dragButton.removeEventListener('mousedown', this.boundHandleMouseDown);
+    this.dragButton.removeEventListener('touchstart', this.boundHandleTouchStart);
     document.removeEventListener('mousemove', this.boundHandleMouseMove);
     document.removeEventListener('mouseup', this.boundHandleMouseUp);
     document.removeEventListener('touchmove', this.boundHandleTouchMove);

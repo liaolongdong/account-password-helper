@@ -34,3 +34,23 @@ declare module 'element-plus/theme-chalk/index.css' {
   const content: any;
   export = content;
 }
+
+/**
+ * chrome.sidePanel.close() 类型补充
+ * Chrome 129+ 新增 API，当前 @types/chrome 尚未包含
+ * 官方文档: https://developer.chrome.com/docs/extensions/reference/api/sidePanel#method-close
+ */
+declare namespace chrome.sidePanel {
+  export interface CloseOptions {
+    /** The tab for which to close the side panel. If unspecified, closes the side panel for the current active tab. */
+    tabId?: number;
+    /** The window for which to close the side panel. */
+    windowId?: number;
+  }
+
+  /**
+   * @since Chrome 129
+   * Closes the side panel for the extension.
+   */
+  export function close(options?: CloseOptions): Promise<void>;
+}

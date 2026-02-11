@@ -2,7 +2,7 @@
  * 设置面板 - 悬浮按钮设置界面
  */
 
-import { closeIcon, linkIcon } from './icons';
+import { closeIcon } from './icons';
 import type { FloatingButtonConfig } from '@/utils/types';
 
 export interface SettingsPanelOptions {
@@ -82,14 +82,6 @@ export class SettingsPanel {
             <span class="slider-value">${Math.round(this.config.opacity * 100)}%</span>
           </div>
         </div>
-        
-        <div class="setting-item">
-          <span class="setting-label">快捷键设置</span>
-          <button class="link-button" data-action="shortcuts">
-            ${linkIcon}
-            <span>修改快捷键</span>
-          </button>
-        </div>
       </div>
     `;
   }
@@ -120,13 +112,6 @@ export class SettingsPanel {
     if (opacitySlider) {
       this.initSlider(opacitySlider, 'opacity');
     }
-
-    // 快捷键链接
-    const shortcutsBtn = this.panel.querySelector('[data-action="shortcuts"]');
-    shortcutsBtn?.addEventListener('click', () => {
-      // 打开Chrome扩展快捷键设置页面
-      chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
-    });
 
     // 阻止面板点击事件冒泡
     this.panel.addEventListener('click', e => {

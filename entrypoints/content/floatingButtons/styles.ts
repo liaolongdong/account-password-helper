@@ -1,12 +1,12 @@
 /**
  * 悬浮按钮样式定义
- * 主题色：玫瑰粉 #f472b6
+ * 主题色：浅蓝 #409eff（与项目 Element Plus 主色一致）
  */
 
 // 主题色定义
-const THEME_COLOR = '#f472b6';
-const THEME_COLOR_LIGHT = 'rgba(244, 114, 182, 0.1)';
-const THEME_COLOR_HOVER = 'rgba(244, 114, 182, 0.15)';
+const THEME_COLOR = '#409eff';
+const THEME_COLOR_LIGHT = 'rgba(64, 158, 255, 0.1)';
+const THEME_COLOR_HOVER = 'rgba(64, 158, 255, 0.15)';
 
 export const floatingButtonStyles = `
 /* 重置所有继承样式 */
@@ -27,7 +27,8 @@ export const floatingButtonStyles = `
   transform: translateY(-50%);
   transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1),
               right 0.3s cubic-bezier(0.4, 0, 0.2, 1),
-              opacity 0.3s ease;
+              opacity 0.3s ease,
+              visibility 0s linear 0s;
   pointer-events: auto;
 }
 
@@ -78,7 +79,7 @@ export const floatingButtonStyles = `
 .btn:hover {
   background: #ffffff;
   color: ${THEME_COLOR};
-  box-shadow: 0 4px 12px rgba(244, 114, 182, 0.25), 0 6px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.25), 0 6px 20px rgba(0, 0, 0, 0.1);
   transform: scale(1.08);
 }
 
@@ -140,8 +141,9 @@ export const floatingButtonStyles = `
   transform: scale(1.15);
   background: ${THEME_COLOR};
   color: #ffffff;
-  box-shadow: 0 6px 20px rgba(244, 114, 182, 0.4), 0 8px 28px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 20px rgba(64, 158, 255, 0.4), 0 8px 28px rgba(0, 0, 0, 0.15);
   z-index: 10;
+  cursor: move;
 }
 
 /* 拖拽中状态 */
@@ -163,7 +165,8 @@ export const floatingButtonStyles = `
   transform: scale(1.2);
   background: ${THEME_COLOR};
   color: #ffffff;
-  box-shadow: 0 8px 24px rgba(244, 114, 182, 0.45), 0 12px 36px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 8px 24px rgba(64, 158, 255, 0.45), 0 12px 36px rgba(0, 0, 0, 0.2);
+  cursor: move;
 }
 
 /* 展开状态 */
@@ -391,30 +394,6 @@ export const floatingButtonStyles = `
   text-align: right;
 }
 
-/* 链接按钮 */
-.link-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  font-size: 13px;
-  color: ${THEME_COLOR};
-  background: ${THEME_COLOR_LIGHT};
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.link-button:hover {
-  background: ${THEME_COLOR_HOVER};
-}
-
-.link-button svg {
-  width: 14px;
-  height: 14px;
-}
-
 /* 按钮loading状态 */
 .btn.loading {
   pointer-events: none;
@@ -473,12 +452,16 @@ export const floatingButtonStyles = `
 /* 隐藏状态 */
 .floating-container.hidden {
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transform: translateY(-50%) translateX(100%);
+  transform: translateY(-50%) translateX(200px);
+  transition: opacity 0.3s ease,
+              visibility 0s linear 0.3s,
+              transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .floating-container[data-position="left"].hidden {
-  transform: translateY(-50%) translateX(-100%);
+  transform: translateY(-50%) translateX(-200px);
 }
 `;
 
@@ -486,33 +469,6 @@ export const floatingButtonStyles = `
  * 设置面板样式（额外样式）
  */
 export const settingsPanelStyles = `
-/* 快捷键显示 */
-.shortcut-display {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.shortcut-key {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 24px;
-  height: 24px;
-  padding: 0 6px;
-  font-size: 12px;
-  font-family: monospace;
-  color: #666;
-  background: #f5f5f5;
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-}
-
-.shortcut-plus {
-  color: #999;
-  font-size: 12px;
-}
-
 /* 设置分组 */
 .setting-group {
   margin-bottom: 16px;
