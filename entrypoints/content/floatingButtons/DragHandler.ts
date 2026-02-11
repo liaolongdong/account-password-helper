@@ -65,7 +65,8 @@ export class DragHandler {
     this.snapPreviewLeft = options.snapPreviewLeft;
     this.snapPreviewRight = options.snapPreviewRight;
     this.onDragEndCallback = options.onDragEnd;
-    this.dragThreshold = options.dragThreshold ?? 5;
+    // 增加拖拽阈值到10px，避免误触
+    this.dragThreshold = options.dragThreshold ?? 10;
 
     // 绑定事件处理函数
     this.boundHandleMouseMove = this.handleMouseMove.bind(this);
@@ -257,6 +258,20 @@ export class DragHandler {
     document.body.style.overflow = '';
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
+
+    // 计算拖拽距离
+    const deltaX = this.state.currentX - this.state.startX;
+    const deltaY = this.state.currentY - this.state.startY;
+    const dragDistance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+
+    // 如果拖拽距离太小，视为点击而非拖拽
+    if (dragDistance < this.dragThreshold) {
+      console.log('FloatingButtonManager: 拖拽距离过小，视为点击');
+      // 不执行吸附动画，直接展开按钮组
+      this.animationController.resetDragPosition();
+      await this.animationController.expand();
+      return;
+    }
 
     // 计算目标位置
     const targetPosition = this.calculateSnapTarget();

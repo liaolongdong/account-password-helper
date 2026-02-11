@@ -34,13 +34,13 @@ export const floatingButtonStyles = `
 
 /* 右侧位置 */
 .floating-container[data-position="right"] {
-  right: 12px;
+  right: 6px;
   left: auto;
 }
 
 /* 左侧位置 */
 .floating-container[data-position="left"] {
-  left: 12px;
+  left: 6px;
   right: auto;
 }
 
@@ -60,8 +60,8 @@ export const floatingButtonStyles = `
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   margin: 0;
   border: none;
@@ -89,8 +89,8 @@ export const floatingButtonStyles = `
 }
 
 .btn svg {
-  width: 22px;
-  height: 22px;
+  width: 14px;
+  height: 14px;
   transition: transform 0.2s ease;
 }
 
@@ -141,7 +141,7 @@ export const floatingButtonStyles = `
   transform: scale(1.15);
   background: ${THEME_COLOR};
   color: #ffffff;
-  box-shadow: 0 6px 20px rgba(64, 158, 255, 0.4), 0 8px 28px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4), 0 6px 20px rgba(0, 0, 0, 0.15);
   z-index: 10;
   cursor: move;
 }
@@ -165,7 +165,7 @@ export const floatingButtonStyles = `
   transform: scale(1.2);
   background: ${THEME_COLOR};
   color: #ffffff;
-  box-shadow: 0 8px 24px rgba(64, 158, 255, 0.45), 0 12px 36px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 6px 18px rgba(64, 158, 255, 0.45), 0 9px 27px rgba(0, 0, 0, 0.2);
   cursor: move;
 }
 
@@ -178,8 +178,8 @@ export const floatingButtonStyles = `
   position: relative;
   opacity: 1;
   transform: scale(1);
-  width: 48px;
-  height: 48px;
+  width: 28px;
+  height: 28px;
   pointer-events: auto;
 }
 
@@ -255,7 +255,7 @@ export const floatingButtonStyles = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
+  padding: 14px 20px;
   border-bottom: 1px solid #f0f0f0;
 }
 
@@ -288,7 +288,7 @@ export const floatingButtonStyles = `
 
 /* 设置面板内容 */
 .settings-content {
-  padding: 20px;
+  padding: 16px 20px;
 }
 
 /* 设置项 */
@@ -296,7 +296,7 @@ export const floatingButtonStyles = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 0;
+  padding: 10px 0;
   border-bottom: 1px solid #f0f0f0;
 }
 
@@ -403,8 +403,8 @@ export const floatingButtonStyles = `
 .btn.loading::after {
   content: '';
   position: absolute;
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   border: 2px solid transparent;
   border-top-color: currentColor;
   border-radius: 50%;
