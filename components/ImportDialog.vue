@@ -206,6 +206,8 @@ const handleClose = () => {
 </script>
 
 <style scoped>
+@import url('../styles/dialog-full-width.css');
+
 .upload-area {
   margin: 20px 0;
   text-align: center;
@@ -246,74 +248,20 @@ const handleClose = () => {
   margin: 4px 0;
 }
 
-/* 全屏宽度浅蓝色弹窗样式 */
-:deep(.full-width-dialog) {
-  --el-dialog-margin-top: 0;
-}
-
-:deep(.full-width-dialog .el-dialog) {
-  width: 100vw !important;
-  max-width: none;
-  height: 100vh !important;
-  margin: 0 !important;
-  border: none;
-  border-radius: 0;
-  box-shadow: none;
-  transform: none !important;
-  transition: none !important;
-  animation: none !important;
-}
-
-:deep(.full-width-dialog .el-overlay) {
-  background-color: #f8fbff;
-  transition: none !important;
-  animation: none !important;
-}
-
-/* 弹窗内容区域优化 - 确保水平居中 */
+/* ImportDialog 特有样式覆盖 */
 :deep(.full-width-dialog .el-dialog__body) {
-  display: flex;
   align-items: flex-start;
-  justify-content: center;
-  min-height: calc(100vh - 160px);
-  padding: 5vh 10vw;
-  background: #f8fbff;
 }
 
-/* 弹窗头部优化 - 标题居中 */
 :deep(.full-width-dialog .el-dialog__header) {
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  padding: 24px 10vw;
-  color: white;
-  background: #409eff;
-  border-bottom: none;
-  border-radius: 0;
-  text-align: center; /* 标题居中 */
+  text-align: center;
 }
 
-:deep(.full-width-dialog .el-dialog__title) {
-  font-size: 20px;
-  font-weight: 500;
-}
-
-/* 弹窗底部优化 - 按钮居中 */
-:deep(.full-width-dialog .el-dialog__footer) {
-  position: sticky;
-  bottom: 0;
-  z-index: 100;
-  padding: 24px 10vw;
-  background: #fff;
-  border-top: 1px solid #e3f2fd;
-  text-align: center; /* 按钮居中 */
-}
-
-/* 内容容器优化 - 更好的水平居中效果 */
+/* 内容容器优化 */
 .import-content {
   width: 100%;
   max-width: 800px;
-  margin: 0 auto; /* 确保容器自身居中 */
+  margin: 0 auto;
   padding: 40px;
   background: white;
   border: 1px solid #e3f2fd;
@@ -321,20 +269,7 @@ const handleClose = () => {
   box-shadow: 0 4px 20px rgb(64 158 255 / 10%);
 }
 
-/* 响应式设计 */
 @media (width <= 768px) {
-  :deep(.full-width-dialog .el-dialog__body) {
-    padding: 5vh 5vw;
-  }
-
-  :deep(.full-width-dialog .el-dialog__header) {
-    padding: 20px 5vw;
-  }
-
-  :deep(.full-width-dialog .el-dialog__footer) {
-    padding: 20px 5vw;
-  }
-
   .import-content {
     padding: 24px;
   }

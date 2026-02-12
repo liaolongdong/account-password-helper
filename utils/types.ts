@@ -169,3 +169,65 @@ export interface PasswordCache {
    */
   isAuthenticated: boolean;
 }
+
+/**
+ * 填充密码数据接口
+ */
+export interface FillPasswordData {
+  username: string;
+  password: string;
+}
+
+/**
+ * 填充手机号验证码数据接口
+ */
+export interface FillMobileCodeData {
+  mobile: string;
+  code: string;
+}
+
+/**
+ * 字段检测状态接口
+ */
+export interface FieldsDetectedStatus {
+  username: number;
+  password: number;
+  mobile: number;
+  verifyCode: number;
+}
+
+/**
+ * PING响应接口
+ */
+export interface PingResponse {
+  success: boolean;
+  ready: boolean;
+  fieldsDetected: FieldsDetectedStatus;
+}
+
+/**
+ * 填充策略类型
+ */
+export type FillStrategy = 'native' | 'execCommand' | 'simulate';
+
+/**
+ * 单个字段填充结果接口
+ */
+export interface FieldFillResult {
+  found: boolean;
+  filled: boolean;
+  verified: boolean;
+}
+
+/**
+ * 填充结果接口
+ */
+export interface FillResult {
+  success: boolean;
+  message: string;
+  details: {
+    usernameField: FieldFillResult;
+    passwordField: FieldFillResult;
+    strategy: FillStrategy;
+  };
+}

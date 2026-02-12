@@ -1,5 +1,13 @@
 import { defineContentScript } from 'wxt/sandbox';
-import { Message, MessageType, FloatingButtonConfig } from '../utils/types';
+import {
+  Message,
+  MessageType,
+  FloatingButtonConfig,
+  FillPasswordData,
+  FillResult,
+  FillStrategy,
+  PingResponse,
+} from '../utils/types';
 import { getFloatingButtonManager, destroyFloatingButtonManager } from './content/floatingButtons';
 import { StorageUtils } from '../utils/storage';
 
@@ -19,12 +27,8 @@ export default defineContentScript({
       private observer: MutationObserver;
       /** 设置长延迟时间 */
       private longDelayTime = 3000;
-      /** 设置中延迟时间 */
-      private middleDelayTime = 2000;
       /** 设置短延迟时间 */
       private shortDelayTime = 500;
-      /** 用于跟踪侧边栏显示状态 */
-      private isSidePanelVisible = false;
       /** 字段类型缓存，使用WeakMap避免内存泄漏 */
       private fieldTypeCache = new WeakMap<
         HTMLInputElement,
@@ -37,10 +41,6 @@ export default defineContentScript({
       private verifyCodeFieldsSet = new WeakSet<HTMLInputElement>();
       /** 缓存 isInLoginFormOrPopup 的检查结果，使用WeakMap避免内存泄漏 */
       private loginFormCheckCache = new WeakMap<HTMLInputElement, boolean>();
-      /** 记录上次检测到的登录表单类型 */
-      private lastDetectedFormType: 'username_password' | 'mobile_verify' | 'none' = 'none';
-      /** 记录是否显示了无表单提示 */
-      private showedNoFormMessage = false;
       /** 悬浮按钮配置 */
       private floatingButtonConfig: FloatingButtonConfig;
       /** 存储变化监听器 */
@@ -474,25 +474,12 @@ export default defineContentScript({
         });
 
         // 记录本次检测到的表单类型
-        let currentFormType: 'username_password' | 'mobile_verify' | 'none' = 'none';
-
         if (this.usernameFields.length > 0 && this.passwordFields.length > 0) {
-          currentFormType = 'username_password';
           console.log('检测到账号/密码组合登录表单');
         } else if (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0) {
-          currentFormType = 'mobile_verify';
           console.log('检测到手机号/验证码组合登录表单');
         } else {
-          currentFormType = 'none';
           console.log('未检测到登录表单字段');
-        }
-
-        // 更新最后检测到的表单类型
-        this.lastDetectedFormType = currentFormType;
-
-        // 如果当前检测到了表单，重置无表单提示标记
-        if (currentFormType !== 'none') {
-          this.showedNoFormMessage = false;
         }
       }
 
@@ -1019,18 +1006,14 @@ export default defineContentScript({
           // 检查扩展上下文是否有效
           if (!chrome.runtime?.id) {
             console.warn('扩展上下文已失效，无法显示侧边栏');
-            this.isSidePanelVisible = false;
             return;
           }
 
-          // 总是尝试显示侧边栏，不依赖 isSidePanelVisible 状态
-          // 因为用户可能手动关闭了侧边栏，导致状态不同步
+          // 总是尝试显示侧边栏
           // Chrome SidePanel API 的 open 方法是幂等的，多次调用不会产生副作用
-          const response = await chrome.runtime.sendMessage({
+          await chrome.runtime.sendMessage({
             type: MessageType.SHOW_SIDEPANEL,
           });
-          // 侧边栏显示请求已发送，更新状态
-          this.isSidePanelVisible = true;
         } catch (error) {
           // 检查是否是扩展上下文失效错误
           const errorMsg = (error as Error).message || '';
@@ -1039,8 +1022,6 @@ export default defineContentScript({
           } else {
             console.error('显示侧边栏失败:', error);
           }
-          // 显示失败时，重置状态以便下次重试
-          this.isSidePanelVisible = false;
         }
       }
 
@@ -1052,18 +1033,14 @@ export default defineContentScript({
           // 检查扩展上下文是否有效
           if (!chrome.runtime?.id) {
             console.warn('扩展上下文已失效，无法隐藏侧边栏');
-            this.isSidePanelVisible = false;
             return;
           }
 
-          // 总是尝试隐藏侧边栏，不依赖 isSidePanelVisible 状态
-          // 因为填充完成后需要确保侧边栏被隐藏
+          // 总是尝试隐藏侧边栏
           // 通知background script隐藏侧边栏
           await chrome.runtime.sendMessage({
             type: MessageType.HIDE_SIDEPANEL,
           });
-          // 侧边栏隐藏请求已发送
-          this.isSidePanelVisible = false;
         } catch (error) {
           // 检查是否是扩展上下文失效错误
           const errorMsg = (error as Error).message || '';
@@ -1072,8 +1049,6 @@ export default defineContentScript({
           } else {
             console.error('隐藏侧边栏失败:', error);
           }
-          // 隐藏失败时，重置状态以便下次重试
-          this.isSidePanelVisible = false;
         }
       }
 
@@ -1243,16 +1218,29 @@ export default defineContentScript({
         }
       }
 
-      private handleMessage(message: any, sender: any, sendResponse: Function) {
+      private handleMessage(message: any, _sender: any, sendResponse: Function) {
         // Content script收到消息
         switch (message.type) {
           case MessageType.PING:
-            sendResponse({ success: true, message: 'content script is ready' });
+            // 返回详细的就绪状态，包括字段检测信息
+            const pingResponse: PingResponse = {
+              success: true,
+              ready: true,
+              fieldsDetected: {
+                username: this.usernameFields.length,
+                password: this.passwordFields.length,
+                mobile: this.mobileFields.length,
+                verifyCode: this.verifyCodeFields.length,
+              },
+            };
+            sendResponse(pingResponse);
             break;
           case MessageType.FILL_PASSWORD:
-            this.fillPassword(message.data);
-            sendResponse({ success: true, message: '填充完成' });
-            break;
+            // 异步执行填充并返回详细结果
+            this.fillPasswordWithResult(message.data).then(result => {
+              sendResponse(result);
+            });
+            return true; // 保持消息通道开放以支持异步响应
           case MessageType.FILL_MOBILE_CODE:
             this.fillMobileCode(message.data);
             sendResponse({ success: true, message: '填充完成' });
@@ -1279,120 +1267,178 @@ export default defineContentScript({
       }
 
       /**
-       * 填充账号+密码组合
+       * 等待字段检测完成
+       * 使用指数退避策略轮询检查
        */
-      private fillPassword(data: { username: string; password: string }) {
+      private async waitForFieldsDetected(maxRetries: number = 10): Promise<boolean> {
+        let delay = 100; // 初始延迟100ms
+        const maxDelay = 2000; // 最大延迟2s
+
+        for (let i = 0; i < maxRetries; i++) {
+          // 触发重新检测
+          this.detectForms();
+
+          // 检查是否检测到字段
+          if (this.usernameFields.length > 0 || this.passwordFields.length > 0) {
+            return true;
+          }
+
+          // 等待后重试
+          await new Promise(resolve => setTimeout(resolve, delay));
+
+          // 指数退避，但不超过最大延迟
+          delay = Math.min(delay * 1.5, maxDelay);
+        }
+
+        return false;
+      }
+
+      /**
+       * 填充账号+密码组合（带详细结果返回）
+       */
+      private async fillPasswordWithResult(data: FillPasswordData): Promise<FillResult> {
+        const result: FillResult = {
+          success: false,
+          message: '',
+          details: {
+            usernameField: { found: false, filled: false, verified: false },
+            passwordField: { found: false, filled: false, verified: false },
+            strategy: 'native',
+          },
+        };
+
         try {
-          // 开始填充密码
+          // 检查字段是否已检测，如果没有则触发检测并等待
+          if (this.usernameFields.length === 0 && this.passwordFields.length === 0) {
+            console.log('字段未检测到，触发重新检测...');
+            const detected = await this.waitForFieldsDetected();
+            if (!detected) {
+              result.message = '未检测到登录表单字段，请刷新页面后重试';
+              return result;
+            }
+          }
 
           // 填充用户名
-          if (data.username && this.usernameFields.length > 0) {
-            const usernameField = this.usernameFields[0];
-            // 填充用户名到字段
-            this.setInputValue(usernameField, data.username);
+          if (data.username) {
+            if (this.usernameFields.length > 0) {
+              result.details.usernameField.found = true;
+              const usernameField = this.usernameFields[0];
+              const fillResult = await this.setInputValueWithStrategies(usernameField, data.username);
+              result.details.usernameField.filled = fillResult.filled;
+              result.details.usernameField.verified = fillResult.verified;
+              result.details.strategy = fillResult.strategy;
+            } else {
+              console.warn('未找到用户名字段');
+            }
           }
 
           // 填充密码
-          if (data.password && this.passwordFields.length > 0) {
-            const passwordField = this.passwordFields[0];
-            // 填充密码到字段
-            this.setInputValue(passwordField, data.password);
+          if (data.password) {
+            if (this.passwordFields.length > 0) {
+              result.details.passwordField.found = true;
+              const passwordField = this.passwordFields[0];
+              const fillResult = await this.setInputValueWithStrategies(passwordField, data.password);
+              result.details.passwordField.filled = fillResult.filled;
+              result.details.passwordField.verified = fillResult.verified;
+              if (fillResult.strategy !== 'native') {
+                result.details.strategy = fillResult.strategy;
+              }
+            } else {
+              console.warn('未找到密码字段');
+            }
           }
 
           // 自动勾选最近的复选框
           this.autoCheckNearestCheckbox();
 
-          // 密码填充完成，延迟隐藏侧边栏以确保填充操作完成
+          // 判断填充是否成功
+          const usernameSuccess = !data.username || result.details.usernameField.verified;
+          const passwordSuccess = !data.password || result.details.passwordField.verified;
+
+          if (usernameSuccess && passwordSuccess) {
+            result.success = true;
+            result.message = '填充成功';
+          } else if (result.details.usernameField.filled || result.details.passwordField.filled) {
+            result.success = true;
+            result.message = '填充完成，请检查表单内容';
+          } else {
+            result.message = '填充可能未完成，请手动检查表单';
+          }
+
+          // 延迟隐藏侧边栏
           setTimeout(() => {
             this.hideSidePanel();
           }, 300);
         } catch (error) {
           console.error('填充密码失败:', error);
+          result.message = '填充过程中发生错误';
         }
+
+        return result;
       }
 
       /**
-       * 填充手机号+验证码组合（该组合只填充手机号，无需填充短信验证码）
+       * 多策略填充输入框
+       * 按优先级依次尝试不同策略，直到填充成功
        */
-      private fillMobileCode(data: { mobile: string; code: string }) {
-        try {
-          // 开始填充手机号+验证码
-
-          // 填充手机号
-          if (data.mobile && this.mobileFields.length > 0) {
-            const mobileField = this.mobileFields[0];
-            // 填充手机号到字段
-            this.setInputValue(mobileField, data.mobile);
-
-            // 额外触发电话号码专用事件
-            const telEvents = [
-              new InputEvent('input', { bubbles: true, data: data.mobile, inputType: 'insertText' }),
-              new Event('change', { bubbles: true }),
-              new KeyboardEvent('keydown', { bubbles: true, key: data.mobile }),
-              new KeyboardEvent('keyup', { bubbles: true, key: data.mobile }),
-            ];
-
-            telEvents.forEach(event => {
-              try {
-                mobileField.dispatchEvent(event);
-              } catch (e) {
-                console.warn('电话号码事件分发失败:', e);
-              }
-            });
-          }
-
-          // 如果用户名字段作为手机号使用，也填充到用户名字段
-          if (data.mobile && this.mobileFields.length === 0 && this.usernameFields.length > 0) {
-            const usernameField = this.usernameFields[0];
-            // 填充手机号到用户名字段
-            this.setInputValue(usernameField, data.mobile);
-          }
-
-          // 填充验证码（无需填充短信验证码）
-          // if (data.code && this.verifyCodeFields.length > 0) {
-          //   const codeField = this.verifyCodeFields[0];
-          //   console.log('填充验证码到字段:', codeField.type, codeField.name || codeField.id);
-          //   this.setInputValue(codeField, data.code);
-          // }
-
-          // 自动勾选最近的复选框
-          this.autoCheckNearestCheckbox();
-
-          // 手机号+验证码填充完成，延迟隐藏侧边栏以确保填充操作完成
-          setTimeout(() => {
-            this.hideSidePanel();
-          }, 300);
-        } catch (error) {
-          console.error('填充手机号+验证码失败:', error);
+      private async setInputValueWithStrategies(
+        input: HTMLInputElement,
+        value: string,
+      ): Promise<{ filled: boolean; verified: boolean; strategy: FillStrategy }> {
+        // 策略1: 原生setter + 完整事件序列
+        this.setInputValueNative(input, value);
+        await this.delay(50);
+        if (input.value === value) {
+          return { filled: true, verified: true, strategy: 'native' };
         }
+
+        // 策略2: execCommand模拟用户输入
+        this.setInputValueExecCommand(input, value);
+        await this.delay(50);
+        if (input.value === value) {
+          return { filled: true, verified: true, strategy: 'execCommand' };
+        }
+
+        // 策略3: 模拟逐字符输入
+        await this.setInputValueSimulate(input, value);
+        await this.delay(50);
+        if (input.value === value) {
+          return { filled: true, verified: true, strategy: 'simulate' };
+        }
+
+        // 所有策略都失败，返回最终状态
+        const filled = input.value.length > 0;
+        return { filled, verified: input.value === value, strategy: 'native' };
       }
 
-      private setInputValue(input: HTMLInputElement, value: string) {
-        // 设置输入框值
-
+      /**
+       * 策略1: 使用原生setter + 完整事件序列
+       */
+      private setInputValueNative(input: HTMLInputElement, value: string): void {
         try {
-          // 先聚焦输入框
+          // 聚焦输入框
           input.focus();
 
           // 选中所有文本
           input.select();
 
-          // 模拟用户删除现有内容
+          // 清空现有内容
           document.execCommand('selectAll');
           document.execCommand('delete');
 
-          // 使用原生方法设置值
+          // 使用原生setter设置值
           const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
             window.HTMLInputElement.prototype,
             'value',
           )?.set;
+
           if (nativeInputValueSetter) {
             nativeInputValueSetter.call(input, value);
           } else {
             input.value = value;
           }
 
-          // 触发全套事件序列
+          // 触发完整事件序列
           const events = [
             new Event('focus', { bubbles: true }),
             new Event('input', { bubbles: true, cancelable: true }),
@@ -1403,8 +1449,6 @@ export default defineContentScript({
               inputType: 'insertText',
             }),
             new Event('change', { bubbles: true, cancelable: true }),
-            new KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }),
-            new KeyboardEvent('keyup', { bubbles: true, key: 'Enter' }),
           ];
 
           events.forEach(event => {
@@ -1415,24 +1459,128 @@ export default defineContentScript({
             }
           });
 
-          // 延迟失去焦点
+          // 延迟触发blur
           setTimeout(() => {
             try {
               input.blur();
-              const blurEvent = new Event('blur', { bubbles: true });
-              input.dispatchEvent(blurEvent);
+              input.dispatchEvent(new Event('blur', { bubbles: true }));
             } catch (e) {
               console.warn('blur事件失败:', e);
             }
-          }, 200);
-
-          // 输入框值设置完成
+          }, 100);
         } catch (error) {
-          console.error('设置输入框值失败:', error);
-          // 备用方案
+          console.error('原生策略填充失败:', error);
           input.value = value;
-          input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      }
+
+      /**
+       * 策略2: 使用execCommand模拟用户输入
+       */
+      private setInputValueExecCommand(input: HTMLInputElement, value: string): void {
+        try {
+          // 聚焦并选中
+          input.focus();
+          input.select();
+
+          // 使用execCommand插入文本
+          document.execCommand('selectAll', false);
+          document.execCommand('insertText', false, value);
+
+          // 触发change事件
           input.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (error) {
+          console.warn('execCommand策略失败:', error);
+        }
+      }
+
+      /**
+       * 策略3: 模拟逐字符输入
+       */
+      private async setInputValueSimulate(input: HTMLInputElement, value: string): Promise<void> {
+        try {
+          // 聚焦并清空
+          input.focus();
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+
+          // 逐字符输入
+          for (const char of value) {
+            // 触发keydown
+            input.dispatchEvent(
+              new KeyboardEvent('keydown', {
+                bubbles: true,
+                cancelable: true,
+                key: char,
+              }),
+            );
+
+            // 追加字符
+            input.value += char;
+
+            // 触发input事件
+            input.dispatchEvent(
+              new InputEvent('input', {
+                bubbles: true,
+                cancelable: true,
+                data: char,
+                inputType: 'insertText',
+              }),
+            );
+
+            // 触发keyup
+            input.dispatchEvent(
+              new KeyboardEvent('keyup', {
+                bubbles: true,
+                cancelable: true,
+                key: char,
+              }),
+            );
+
+            // 短暂延迟模拟打字速度
+            await this.delay(10);
+          }
+
+          // 触发change事件
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (error) {
+          console.warn('模拟输入策略失败:', error);
+        }
+      }
+
+      /**
+       * 延迟工具方法
+       */
+      private delay(ms: number): Promise<void> {
+        return new Promise(resolve => setTimeout(resolve, ms));
+      }
+
+      /**
+       * 填充手机号+验证码组合（该组合只填充手机号，无需填充短信验证码）
+       */
+      private fillMobileCode(data: { mobile: string; code: string }) {
+        try {
+          // 填充手机号
+          if (data.mobile && this.mobileFields.length > 0) {
+            const mobileField = this.mobileFields[0];
+            this.setInputValueNative(mobileField, data.mobile);
+          }
+
+          // 如果用户名字段作为手机号使用，也填充到用户名字段
+          if (data.mobile && this.mobileFields.length === 0 && this.usernameFields.length > 0) {
+            const usernameField = this.usernameFields[0];
+            this.setInputValueNative(usernameField, data.mobile);
+          }
+
+          // 自动勾选最近的复选框
+          this.autoCheckNearestCheckbox();
+
+          // 延迟隐藏侧边栏
+          setTimeout(() => {
+            this.hideSidePanel();
+          }, 300);
+        } catch (error) {
+          console.error('填充手机号+验证码失败:', error);
         }
       }
 
@@ -1918,19 +2066,6 @@ export default defineContentScript({
         } catch (error) {
           console.error('模拟交互失败:', error);
         }
-      }
-
-      // todo: 该方法暂未使用，计算两个元素的距离
-      private calculateDistance(elem1: HTMLElement, elem2: HTMLElement): number {
-        const rect1 = elem1.getBoundingClientRect();
-        const rect2 = elem2.getBoundingClientRect();
-
-        const centerX1 = rect1.left + rect1.width / 2;
-        const centerY1 = rect1.top + rect1.height / 2;
-        const centerX2 = rect2.left + rect2.width / 2;
-        const centerY2 = rect2.top + rect2.height / 2;
-
-        return Math.sqrt(Math.pow(centerX2 - centerX1, 2) + Math.pow(centerY2 - centerY1, 2));
       }
 
       public destroy() {

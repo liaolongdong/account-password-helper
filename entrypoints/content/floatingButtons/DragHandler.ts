@@ -209,7 +209,7 @@ export class DragHandler {
   /**
    * 更新拖拽
    */
-  private async updateDrag(x: number, y: number): Promise<void> {
+  private updateDrag(x: number, y: number): void {
     const deltaX = x - this.state.startX;
     const deltaY = y - this.state.startY;
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
@@ -225,8 +225,8 @@ export class DragHandler {
       // 标记已发生拖拽，用于防止拖拽结束后误触发点击
       this.hasDragged = true;
 
-      // 触发折叠动画
-      await this.animationController.collapse();
+      // 关键修复：同步设置拖拽状态，立即隐藏其他按钮
+      // 不使用 await，确保 CSS 状态立即生效
       this.animationController.setDragging(true);
 
       // 禁用页面滚动，设置拖拽光标

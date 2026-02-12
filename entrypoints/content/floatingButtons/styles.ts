@@ -5,8 +5,6 @@
 
 // 主题色定义
 const THEME_COLOR = '#409eff';
-const THEME_COLOR_LIGHT = 'rgba(64, 158, 255, 0.1)';
-const THEME_COLOR_HOVER = 'rgba(64, 158, 255, 0.15)';
 
 export const floatingButtonStyles = `
 /* 重置所有继承样式 */
@@ -122,6 +120,9 @@ export const floatingButtonStyles = `
   pointer-events: none;
   margin: 0;
   padding: 0;
+  /* 关键修复：立即隐藏，不等待过渡动画 */
+  transition: none !important;
+  visibility: hidden;
 }
 
 .button-group[data-state="collapsed"] .btn-sidepanel {

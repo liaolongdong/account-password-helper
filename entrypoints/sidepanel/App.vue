@@ -164,8 +164,15 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { Key, Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { MessageType, type PasswordEntry, type PasswordCache } from '../../utils/types';
+import {
+  MessageType,
+  type PasswordEntry,
+  type PasswordCache,
+  type PingResponse,
+  type FillResult,
+} from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
+import { useChromeListeners } from '../../composables/useChromeListeners';
 
 const loading = ref(true);
 const searchKeyword = ref('');
@@ -173,6 +180,10 @@ const passwords = ref<PasswordEntry[]>([]);
 const currentDomain = ref('');
 const isAuthenticated = ref(false);
 const showSidepanel = ref(true);
+
+// 使用 Chrome 事件监听 composable
+const { onStorageChange, onMessage, onTabUpdated, onTabActivated, onDocumentEvent, onWindowEvent } =
+  useChromeListeners();
 
 // 计算属性
 const filteredPasswords = computed(() => {
@@ -350,11 +361,57 @@ const handleSearch = () => {
   // 搜索逻辑已通过计算属性实现
 };
 
+/**
+ * 向content script发送PING消息，验证就绪状态
+ * @param tabId 标签页ID
+ * @param maxRetries 最大重试次数
+ * @returns PingResponse或null
+ */
+const pingContentScript = async (tabId: number, maxRetries: number = 3): Promise<PingResponse | null> => {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      const response = await chrome.tabs.sendMessage(tabId, { type: MessageType.PING });
+      if (response && response.success) {
+        return response as PingResponse;
+      }
+    } catch (error) {
+      // PING失败，等待后重试
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  return null;
+};
+
+/**
+ * 等待字段检测完成
+ * 使用指数退避策略轮询检查
+ */
+const waitForFieldsDetected = async (tabId: number, maxRetries: number = 10): Promise<boolean> => {
+  let delay = 100; // 初始延迟100ms
+  const maxDelay = 2000; // 最大延迟2s
+
+  for (let i = 0; i < maxRetries; i++) {
+    const pingResponse = await pingContentScript(tabId, 1);
+    if (pingResponse && pingResponse.fieldsDetected) {
+      const { username, password, mobile } = pingResponse.fieldsDetected;
+      if (username > 0 || password > 0 || mobile > 0) {
+        return true;
+      }
+    }
+
+    // 等待后重试
+    await new Promise(resolve => setTimeout(resolve, delay));
+
+    // 指数退避，但不超过最大延迟
+    delay = Math.min(delay * 1.5, maxDelay);
+  }
+
+  return false;
+};
+
 // 填充密码
 const fillPassword = async (password: PasswordEntry) => {
   try {
-    // 开始填充密码
-
     // 获取当前活动标签页
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab || !tab.id) {
@@ -362,62 +419,65 @@ const fillPassword = async (password: PasswordEntry) => {
       return;
     }
 
-    // 确保content script已注入
-    try {
-      // 尝试注入content script
-      await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        files: ['content-scripts/content.js'],
-      });
-      // Content script 注入成功
-      // 稍待片刻再发送消息
-      await new Promise(resolve => setTimeout(resolve, 500));
-    } catch (injectError) {
-      console.error('Content script 注入失败:', injectError);
-      ElMessage.error('无法在当前页面中注入脚本，请刷新页面后重试');
-      return;
+    const tabId = tab.id;
+
+    // 步骤1: 先检查 content script 是否已就绪（通过 PING）
+    let pingResponse = await pingContentScript(tabId, 2);
+
+    // 步骤2: 只有在 PING 失败时才尝试注入 content script
+    if (!pingResponse) {
+      console.log('Content script 未就绪，尝试注入...');
+      try {
+        await chrome.scripting.executeScript({
+          target: { tabId },
+          files: ['content-scripts/content.js'],
+        });
+        // 注入后等待脚本初始化和字段检测（给足够时间）
+        await new Promise(resolve => setTimeout(resolve, 800));
+      } catch (injectError) {
+        console.error('Content script 注入失败:', injectError);
+        ElMessage.error('无法在当前页面中注入脚本，请刷新页面后重试');
+        return;
+      }
+
+      // 注入后重新 PING 验证
+      pingResponse = await pingContentScript(tabId, 5);
+      if (!pingResponse) {
+        ElMessage.error('页面脚本未就绪，请刷新页面后重试');
+        return;
+      }
     }
 
-    // 根据密码条目类型发送不同的填充消息
-    let response;
-    // todo:手机号+短信验证码组合也按照账号密码填充
-    // if (password.isMobileCode) {
-    //   // 手机号+验证码类型
-    //   response = await chrome.tabs.sendMessage(tab.id, {
-    //     type: MessageType.FILL_MOBILE_CODE,
-    //     data: {
-    //       mobile: password.username, // 手机号存储在username字段
-    //       code: password.password, // 验证码存储在password字段
-    //     },
-    //   });
-    // } else {
-    //   // 账号+密码类型
-    //   response = await chrome.tabs.sendMessage(tab.id, {
-    //     type: MessageType.FILL_PASSWORD,
-    //     data: {
-    //       username: password.username,
-    //       password: password.password,
-    //     },
-    //   });
-    // }
+    // 步骤3: 检查字段是否已检测到，如果没有则等待
+    const hasFields =
+      pingResponse.fieldsDetected &&
+      (pingResponse.fieldsDetected.username > 0 ||
+        pingResponse.fieldsDetected.password > 0 ||
+        pingResponse.fieldsDetected.mobile > 0);
 
-    // 账号+密码组合（包含手机号+短信验证码组合）
-    response = await chrome.tabs.sendMessage(tab.id, {
+    if (!hasFields) {
+      // 等待字段检测完成
+      const detected = await waitForFieldsDetected(tabId);
+      if (!detected) {
+        ElMessage.warning('未检测到登录表单，请确保页面包含登录输入框');
+        return;
+      }
+    }
+
+    // 步骤4: 发送填充消息
+    const response = (await chrome.tabs.sendMessage(tabId, {
       type: MessageType.FILL_PASSWORD,
       data: {
         username: password.username,
         password: password.password,
       },
-    });
+    })) as FillResult;
 
-    // 填充响应
-
+    // 步骤5: 根据响应显示结果
     if (response && response.success) {
-      ElMessage.success('密码填充成功');
-      // 密码填充成功，则隐藏密码快速填充侧边栏
+      ElMessage.success(response.message || '密码填充成功');
+      // 隐藏侧边栏
       await chrome.runtime.sendMessage({ type: MessageType.HIDE_SIDEPANEL });
-      // 这里使用隐藏侧边栏dom节点的方式来hack实现隐藏侧边栏
-      // showSidepanel.value = false;
     } else {
       const errorMsg = response?.message || '填充可能未完成，请检查页面表单';
       ElMessage.warning(errorMsg);
@@ -713,15 +773,13 @@ onMounted(async () => {
     console.error('SidePanel: 建立 port 连接失败:', err);
   }
 
-  // 添加监听器
-  chrome.storage.onChanged.addListener(handleStorageChange);
-  chrome.runtime.onMessage.addListener(handleMessage);
-  document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('sessionExpired', handleSessionChange);
-
-  // 添加标签页变化监听器
-  chrome.tabs.onUpdated.addListener(handleTabUpdated);
-  chrome.tabs.onActivated.addListener(handleTabActivated);
+  // 使用 composable 注册监听器（自动在组件卸载时清理）
+  onStorageChange(handleStorageChange);
+  onMessage(handleMessage);
+  onDocumentEvent('visibilitychange', handleVisibilityChange);
+  onWindowEvent('sessionExpired', handleSessionChange);
+  onTabUpdated(handleTabUpdated);
+  onTabActivated(handleTabActivated);
 
   try {
     // 先获取当前标签页域名
@@ -785,16 +843,13 @@ const verifySessionAndRefreshIfNeeded = async () => {
   }
 };
 
-// 组件卸载时移除监听器
+// 组件卸载时清理 port 连接
+// 注意：Chrome 事件监听器由 useChromeListeners composable 自动清理
 onUnmounted(() => {
-  chrome.storage.onChanged.removeListener(handleStorageChange);
-  chrome.runtime.onMessage.removeListener(handleMessage);
-  document.removeEventListener('visibilitychange', handleVisibilityChange);
-  window.removeEventListener('sessionExpired', handleSessionChange);
-
-  // 移除标签页变化监听器
-  chrome.tabs.onUpdated.removeListener(handleTabUpdated);
-  chrome.tabs.onActivated.removeListener(handleTabActivated);
+  if (bgPort) {
+    bgPort.disconnect();
+    bgPort = null;
+  }
 });
 </script>
 
