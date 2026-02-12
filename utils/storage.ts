@@ -1097,9 +1097,15 @@ export class StorageUtils {
   /**
    * 迁移未加密的密码条目
    * 用于将旧版本的明文数据迁移为加密数据
+   * 注意：会话有效期内数据以明文存储是正常状态，不应执行迁移
    */
   static async migrateUnencryptedEntries(masterPassword: string): Promise<void> {
     try {
+      // 会话有效期内，明文存储是预期行为，跳过迁移
+      if (this.isSessionActiveSync()) {
+        return;
+      }
+
       const rawPasswords = await this.getAllPasswordsRaw();
 
       if (rawPasswords.length === 0) {
