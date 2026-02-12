@@ -1236,12 +1236,14 @@ const loadPasswords = async () => {
 
     // 检查会话是否有效
     const sessionValid = await StorageUtils.isSessionValid();
+    if (!sessionValid) {
+      // 会话无效，不加载数据
+      passwords.value = [];
+      return;
+    }
 
-    // 获取会话主密码（无论会话是否有效，都尝试获取以防存储中仍有加密数据）
-    const masterPassword = sessionValid
-      ? await StorageUtils.getSessionMasterPasswordDecrypted()
-      : StorageUtils.getSessionMasterPassword();
-    passwords.value = await StorageUtils.getAllPasswords(masterPassword || undefined);
+    // 会话有效，直接获取数据（StorageUtils 内部会自动判断是否需要解密）
+    passwords.value = await StorageUtils.getAllPasswords();
 
     // 按创建时间倒序排序（最新添加的在前面）
     passwords.value.sort((a, b) => b.createTime - a.createTime);

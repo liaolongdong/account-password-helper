@@ -317,17 +317,19 @@ const loadPasswords = async () => {
 
     // 检查会话是否有效
     const sessionValid = await StorageUtils.isSessionValid();
+    if (!sessionValid) {
+      // 会话无效，清空密码列表并显示未认证状态
+      isAuthenticated.value = false;
+      passwords.value = [];
+      return;
+    }
 
-    // 获取会话主密码（无论会话是否有效，都尝试获取以防存储中仍有加密数据）
-    const masterPassword = sessionValid
-      ? await StorageUtils.getSessionMasterPasswordDecrypted()
-      : StorageUtils.getSessionMasterPassword();
-
+    // 会话有效，直接获取数据（StorageUtils 内部会自动判断是否需要解密）
     let loadedPasswords: PasswordEntry[];
     if (currentDomain.value) {
-      loadedPasswords = await StorageUtils.getPasswordsByUrl(currentDomain.value, masterPassword || undefined);
+      loadedPasswords = await StorageUtils.getPasswordsByUrl(currentDomain.value);
     } else {
-      loadedPasswords = await StorageUtils.getAllPasswords(masterPassword || undefined);
+      loadedPasswords = await StorageUtils.getAllPasswords();
       sortPasswords(loadedPasswords);
     }
 

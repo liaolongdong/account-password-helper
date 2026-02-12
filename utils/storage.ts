@@ -522,9 +522,17 @@ export class StorageUtils {
 
   /**
    * 获取所有密码条目（自动解密）
+   * 会话有效期内直接返回明文数据，无需加解密操作
    */
   static async getAllPasswords(masterPassword?: string): Promise<PasswordEntry[]> {
     try {
+      // 优化：会话有效时直接返回明文数据，无需任何加密检查
+      if (this.isSessionActiveSync()) {
+        const rawData = await this.getAllPasswordsRaw();
+        return rawData as PasswordEntry[];
+      }
+
+      // 会话无效时，执行原有逻辑
       const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
       const entries: (PasswordEntry | EncryptedPasswordEntry)[] = result[STORAGE_KEYS.PASSWORDS] || [];
 
@@ -568,10 +576,14 @@ export class StorageUtils {
 
   /**
    * 根据URL搜索密码
+   * 会话有效期内自动使用明文数据，无需传递主密码
    */
   static async getPasswordsByUrl(url: string, masterPassword?: string): Promise<PasswordEntry[]> {
     try {
-      const allPasswords = await this.getAllPasswords(masterPassword);
+      // 优化：会话有效时不传递 masterPassword，直接获取明文数据
+      const sessionActive = this.isSessionActiveSync();
+      const allPasswords = sessionActive ? await this.getAllPasswords() : await this.getAllPasswords(masterPassword);
+
       const filteredPasswords = allPasswords.filter(p => {
         if (!p.url || p.url.trim() === '') return true; // 未填URL的匹配所有
         return url.includes(p.url) || p.url.includes(url);
@@ -589,10 +601,14 @@ export class StorageUtils {
 
   /**
    * 搜索密码条目
+   * 会话有效期内自动使用明文数据，无需传递主密码
    */
   static async searchPasswords(keyword: string, masterPassword?: string): Promise<PasswordEntry[]> {
     try {
-      const allPasswords = await this.getAllPasswords(masterPassword);
+      // 优化：会话有效时不传递 masterPassword，直接获取明文数据
+      const sessionActive = this.isSessionActiveSync();
+      const allPasswords = sessionActive ? await this.getAllPasswords() : await this.getAllPasswords(masterPassword);
+
       const lowerKeyword = keyword.toLowerCase();
 
       const filteredPasswords = allPasswords.filter(
@@ -812,9 +828,13 @@ export class StorageUtils {
 
   /**
    * 检查会话是否有效
+   * 增强：会话恢复后自动检查数据状态一致性，必要时重新解密
    */
   static async isSessionValid(): Promise<boolean> {
     try {
+      // 标记是否需要检查数据一致性（从存储恢复时需要）
+      let needCheckDataConsistency = false;
+
       // 如果内存中没有会话信息，尝试从存储中恢复
       if (!encryptedSessionMasterPassword || !sessionPasswordExpiry) {
         const result = await chrome.storage.local.get([
@@ -841,6 +861,9 @@ export class StorageUtils {
             // 如果无法获取配置，尝试使用其他方式生成密钥
             sessionEncryptionKey = await this.generateSessionEncryptionKey();
           }
+
+          // 从存储恢复会话后，需要检查数据一致性
+          needCheckDataConsistency = true;
         } else {
           return false;
         }
@@ -854,12 +877,46 @@ export class StorageUtils {
         return false;
       }
 
+      // 会话有效，检查数据状态一致性（处理浏览器崩溃恢复等边界情况）
+      if (needCheckDataConsistency) {
+        await this.ensureDataConsistencyWithSession();
+      }
+
       return true;
     } catch (error) {
       console.error('StorageUtils: 会话验证失败:', error);
       // 出错时清除会话以确保安全
       await this.clearSession();
       return false;
+    }
+  }
+
+  /**
+   * 确保数据状态与会话状态一致
+   * 处理浏览器崩溃恢复等边界情况：会话有效但数据仍处于加密状态
+   */
+  private static async ensureDataConsistencyWithSession(): Promise<void> {
+    try {
+      const rawData = await this.getAllPasswordsRaw();
+      if (rawData.length === 0) {
+        return;
+      }
+
+      // 检查是否存在加密的条目
+      const hasEncrypted = rawData.some(e => 'encrypted' in e && (e as EncryptedPasswordEntry).encrypted === true);
+
+      if (hasEncrypted) {
+        // 会话有效但数据已加密，需要重新解密
+        console.warn('StorageUtils: 检测到会话有效但数据已加密，正在自动修复...');
+        const masterPassword = await this.getSessionMasterPasswordDecrypted();
+        if (masterPassword) {
+          await this.decryptAllPasswordsOnSessionCreate(masterPassword);
+          console.log('StorageUtils: 数据状态已修复，所有条目已解密为明文');
+        }
+      }
+    } catch (error) {
+      console.error('StorageUtils: 检查数据一致性失败:', error);
+      // 不抛出错误，避免影响会话验证
     }
   }
 
