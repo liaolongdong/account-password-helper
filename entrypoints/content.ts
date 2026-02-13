@@ -656,6 +656,12 @@ export default defineContentScript({
           return cachedType;
         }
 
+        // 优先检查是否是手机号类型（input[type="tel"] 应该有最高优先级）
+        if (this.isLikelyMobileInput(field)) {
+          this.fieldTypeCache.set(field, 'mobile');
+          return 'mobile';
+        }
+
         // 如果缓存中没有，使用Set快速查找
         if (this.passwordFieldsSet.has(field)) {
           this.fieldTypeCache.set(field, 'password');
@@ -721,6 +727,17 @@ export default defineContentScript({
           if (hasUsernameFields && fieldType === 'password') {
             console.log('在登录环境下，密码字段获取焦点，显示侧边栏');
             return true;
+          }
+
+          // 情况1.5: 用户名/账号字段可能是手机号（用于手机号+验证码登录场景）
+          const hasVerifyCodeFields = this.verifyCodeFields.length > 0;
+          const hasPasswordFieldsInUsername = this.passwordFields.length > 0;
+          if (fieldType === 'username' && hasVerifyCodeFields && !hasPasswordFieldsInUsername) {
+            const isLikelyMobileInput = this.isLikelyMobileInput(input);
+            if (isLikelyMobileInput) {
+              console.log('检测到手机号+验证码场景（通过username字段）');
+              return true;
+            }
           }
         }
 
