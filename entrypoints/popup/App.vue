@@ -37,11 +37,11 @@
       >
         如有任何问题或者建议，请联系
         <a
-          href="mailto:924902324@qq.com"
+          href="mailto:${contactEmail}"
           class="email-link"
           @click="handleEmailClick"
         >
-          924902324@qq.com
+          {{ contactEmail }}
         </a>
       </el-text>
     </div>
@@ -55,6 +55,10 @@ import { Setting, Key, View } from '@element-plus/icons-vue';
 import { StorageUtils } from '../../utils/storage';
 import { MessageType } from '../../utils/types';
 
+/**
+ * 联系方式
+ */
+const contactEmail = ref('924902324@qq.com');
 const passwordCount = ref(0);
 const showPasswordCount = ref(false); // 控制是否显示密码数量
 
@@ -183,9 +187,8 @@ const openSidePanel = async () => {
 // 处理邮件链接点击
 const handleEmailClick = (event: Event) => {
   event.preventDefault();
-  const email = '924902324@qq.com';
   const subject = '账号密码管理助手反馈';
-  const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+  const mailtoLink = `mailto:${contactEmail.value}?subject=${encodeURIComponent(subject)}`;
 
   // 尝试打开默认邮件客户端
   window.open(mailtoLink, '_blank');
