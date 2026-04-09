@@ -12,6 +12,13 @@
 - [README.md](file://README.md)
 </cite>
 
+## 更新摘要
+**变更内容**
+- 新增 `isSessionActiveSync()` 同步会话检查方法
+- 优化 `savePassword` 和 `updatePassword` 的加密逻辑，提升存储操作性能
+- 增强会话管理机制，支持明文缓存与加密存储的智能切换
+- 完善会话失效前的数据加密保护机制
+
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
@@ -25,7 +32,7 @@
 10. [附录](#附录)
 
 ## 简介
-本文件为 Account Password Helper 的“存储管理API”提供完整接口文档，覆盖 PasswordEntry 数据模型、MasterPasswordConfig 配置结构、加密存储机制、主密码验证流程、会话管理以及所有存储操作（增删改查、批量操作、排序与搜索）。同时给出错误处理指南、数据完整性检查建议与性能优化策略，并提供实际调用示例与最佳实践。
+本文件为 Account Password Helper 的"存储管理API"提供完整接口文档，覆盖 PasswordEntry 数据模型、MasterPasswordConfig 配置结构、加密存储机制、主密码验证流程、会话管理以及所有存储操作（增删改查、批量操作、排序与搜索）。同时给出错误处理指南、数据完整性检查建议与性能优化策略，并提供实际调用示例与最佳实践。
 
 ## 项目结构
 - 存储与加密核心：utils/storage.ts
@@ -57,21 +64,21 @@ SU --> T
 BG --> SU
 ```
 
-图表来源
+**图表来源**
 - [utils/storage.ts](file://utils/storage.ts#L37-L981)
-- [utils/types.ts](file://utils/types.ts#L1-L96)
+- [utils/types.ts](file://utils/types.ts#L1-L172)
 - [utils/sessionManager.ts](file://utils/sessionManager.ts#L1-L87)
 - [components/MasterPasswordDialog.vue](file://components/MasterPasswordDialog.vue#L1-L447)
 - [components/PasswordFormDialog.vue](file://components/PasswordFormDialog.vue#L1-L336)
-- [entrypoints/background.ts](file://entrypoints/background.ts#L1-L232)
+- [entrypoints/background.ts](file://entrypoints/background.ts#L1-L351)
 
-章节来源
-- [utils/storage.ts](file://utils/storage.ts#L1-L981)
-- [utils/types.ts](file://utils/types.ts#L1-L96)
+**章节来源**
+- [utils/storage.ts](file://utils/storage.ts#L1-L1217)
+- [utils/types.ts](file://utils/types.ts#L1-L172)
 - [utils/sessionManager.ts](file://utils/sessionManager.ts#L1-L87)
 - [components/MasterPasswordDialog.vue](file://components/MasterPasswordDialog.vue#L1-L447)
 - [components/PasswordFormDialog.vue](file://components/PasswordFormDialog.vue#L1-L336)
-- [entrypoints/background.ts](file://entrypoints/background.ts#L1-L232)
+- [entrypoints/background.ts](file://entrypoints/background.ts#L1-L351)
 
 ## 核心组件
 - 存储工具类 StorageUtils：提供主密码设置/验证、加密/解密、密码条目 CRUD、批量操作、排序与搜索、会话管理、配置持久化等能力。
@@ -79,13 +86,13 @@ BG --> SU
 - 类型定义 types.ts：定义 PasswordEntry、MasterPasswordConfig、消息类型等。
 - UI组件：主密码对话框与密码表单对话框，负责与 StorageUtils 的交互。
 
-章节来源
-- [utils/storage.ts](file://utils/storage.ts#L37-L981)
+**章节来源**
+- [utils/storage.ts](file://utils/storage.ts#L37-L1217)
 - [utils/sessionManager.ts](file://utils/sessionManager.ts#L1-L87)
-- [utils/types.ts](file://utils/types.ts#L1-L96)
+- [utils/types.ts](file://utils/types.ts#L1-L172)
 
 ## 架构总览
-存储管理API围绕 StorageUtils 展开，结合会话管理与UI组件，形成“主密码保护 + 本地加密存储 + 会话缓存”的整体方案。数据通过 chrome.storage.local 持久化，敏感字段（如密码）在内存中使用派生密钥加密存储；会话期间对主密码进行加密缓存，避免明文泄露。
+存储管理API围绕 StorageUtils 展开，结合会话管理与UI组件，形成"主密码保护 + 本地加密存储 + 会话缓存"的整体方案。数据通过 chrome.storage.local 持久化，敏感字段（如密码）在内存中使用派生密钥加密存储；会话期间对主密码进行加密缓存，避免明文泄露。
 
 ```mermaid
 sequenceDiagram
@@ -104,7 +111,7 @@ SM->>SU : 定时检查会话有效性
 SU-->>SM : 返回会话状态
 ```
 
-图表来源
+**图表来源**
 - [utils/storage.ts](file://utils/storage.ts#L76-L143)
 - [utils/storage.ts](file://utils/storage.ts#L377-L461)
 - [utils/storage.ts](file://utils/storage.ts#L514-L555)
@@ -132,7 +139,7 @@ SU-->>SM : 返回会话状态
   - createTime/updateTime 由系统维护，用于排序与审计
   - order 由系统维护，支持拖拽排序
 
-章节来源
+**章节来源**
 - [utils/types.ts](file://utils/types.ts#L4-L41)
 
 #### MasterPasswordConfig 配置结构
@@ -144,7 +151,7 @@ SU-->>SM : 返回会话状态
   - 仅保存哈希与盐值，不保存明文主密码
   - salt 用于 PBKDF2 派生密钥与 MD5 哈希
 
-章节来源
+**章节来源**
 - [utils/types.ts](file://utils/types.ts#L46-L49)
 
 ### 加密与存储机制
@@ -152,7 +159,7 @@ SU-->>SM : 返回会话状态
 #### 主密码设置与验证
 - 设置主密码
   - 生成随机盐值
-  - 使用 MD5 对“主密码+盐值”计算哈希
+  - 使用 MD5 对"主密码+盐值"计算哈希
   - 将 {hashedPassword, salt} 写入 chrome.storage.local
   - 立即验证设置结果
 - 验证主密码
@@ -160,7 +167,7 @@ SU-->>SM : 返回会话状态
 - 检查是否已设置主密码
   - 读取配置并校验字段完整性
 
-章节来源
+**章节来源**
 - [utils/storage.ts](file://utils/storage.ts#L76-L159)
 
 #### 密钥派生与数据加解密
@@ -175,7 +182,7 @@ SU-->>SM : 返回会话状态
   - 使用相同参数解密，UTF-8 解码
   - 安全降级：异常时返回原始数据或空串
 
-章节来源
+**章节来源**
 - [utils/storage.ts](file://utils/storage.ts#L164-L186)
 - [utils/storage.ts](file://utils/storage.ts#L191-L214)
 - [utils/storage.ts](file://utils/storage.ts#L219-L297)
@@ -185,7 +192,7 @@ SU-->>SM : 返回会话状态
 - 条目保存时根据是否存在主密码决定是否加密
 - 查询时自动识别加密条目并解密
 
-章节来源
+**章节来源**
 - [utils/storage.ts](file://utils/storage.ts#L302-L322)
 - [utils/storage.ts](file://utils/storage.ts#L327-L356)
 - [utils/storage.ts](file://utils/storage.ts#L514-L555)
@@ -194,10 +201,13 @@ SU-->>SM : 返回会话状态
 - 会话创建
   - 生成会话加密密钥（基于盐值或随机组合）
   - 加密主密码并持久化会话信息（含过期时间）
+  - 会话创建后解密所有密码条目并明文存储，提升读取性能
 - 会话验证
   - 优先检查内存缓存，其次从存储恢复
   - 比较当前时间与过期时间，过期则清理并返回无效
+  - 新增 `isSessionActiveSync()` 同步检查方法，提升性能
 - 会话清理
+  - 会话失效前确保所有敏感字段已加密
   - 清空内存缓存并移除持久化会话键
 - 定时检查
   - 每分钟检查一次，过期触发自定义事件并清理
@@ -218,14 +228,14 @@ ReturnFalse --> End(["结束"])
 ReturnTrue --> End
 ```
 
-图表来源
-- [utils/storage.ts](file://utils/storage.ts#L826-L841)
-- [utils/storage.ts](file://utils/storage.ts#L865-L894)
-- [utils/storage.ts](file://utils/storage.ts#L899-L916)
+**图表来源**
+- [utils/storage.ts](file://utils/storage.ts#L805-L811)
+- [utils/storage.ts](file://utils/storage.ts#L816-L864)
+- [utils/storage.ts](file://utils/storage.ts#L888-L950)
 - [utils/sessionManager.ts](file://utils/sessionManager.ts#L27-L80)
 
-章节来源
-- [utils/storage.ts](file://utils/storage.ts#L826-L958)
+**章节来源**
+- [utils/storage.ts](file://utils/storage.ts#L805-L1217)
 - [utils/sessionManager.ts](file://utils/sessionManager.ts#L1-L87)
 
 ### 存储操作API
@@ -240,15 +250,17 @@ ReturnTrue --> End
 - resetMasterPassword(): Promise<void>
   - 清空主密码配置
 
-章节来源
+**章节来源**
 - [utils/storage.ts](file://utils/storage.ts#L76-L159)
-- [utils/storage.ts](file://utils/storage.ts#L707-L714)
+- [utils/storage.ts](file://utils/storage.ts#L719-L726)
 
 #### 密码条目管理
 - savePassword(entry: Omit<PasswordEntry,'id'|'order'>, masterPassword?: string, copyItemId?: string): Promise<PasswordEntry>
   - 新增条目，自动生成 id 与 order，支持复制插入
+  - **优化**：新增 `isSessionActiveSync()` 检查，会话有效期内跳过加密，直接明文存储
 - updatePassword(id: string, updates: Partial<PasswordEntry>, masterPassword?: string): Promise<void>
   - 更新指定条目
+  - **优化**：新增 `isSessionActiveSync()` 检查，会话有效期内跳过加密，直接明文存储
 - getAllPasswords(masterPassword?: string): Promise<PasswordEntry[]>
   - 获取全部条目，自动解密加密条目
 - getAllPasswordsRaw(): Promise<(PasswordEntry|EncryptedPasswordEntry)[]>
@@ -258,11 +270,9 @@ ReturnTrue --> End
 - deletePasswords(ids: string[]): Promise<void>
   - 批量删除条目
 
-章节来源
-- [utils/storage.ts](file://utils/storage.ts#L377-L461)
-- [utils/storage.ts](file://utils/storage.ts#L466-L492)
-- [utils/storage.ts](file://utils/storage.ts#L497-L509)
-- [utils/storage.ts](file://utils/storage.ts#L514-L555)
+**章节来源**
+- [utils/storage.ts](file://utils/storage.ts#L383-L473)
+- [utils/storage.ts](file://utils/storage.ts#L492-L521)
 
 #### 搜索与排序
 - getPasswordsByUrl(url: string, masterPassword?: string): Promise<PasswordEntry[]>
@@ -274,17 +284,21 @@ ReturnTrue --> End
 - updatePasswordsOrder(passwords: PasswordEntry[]): Promise<void>
   - 更新排序并持久化
 
-章节来源
-- [utils/storage.ts](file://utils/storage.ts#L558-L602)
-- [utils/storage.ts](file://utils/storage.ts#L605-L690)
+**章节来源**
+- [utils/storage.ts](file://utils/storage.ts#L572-L614)
+- [utils/storage.ts](file://utils/storage.ts#L687-L702)
 
 #### 会话与配置
 - createSession(masterPassword: string, validityHours: number): Promise<void>
   - 创建会话缓存
+  - **新增**：会话创建后自动解密所有密码条目并明文存储
 - isSessionValid(): Promise<boolean>
   - 检查会话有效性
+- isSessionActiveSync(): boolean
+  - **新增**：同步会话检查方法，提升性能
 - clearSession(): Promise<void>
   - 清除会话
+  - **新增**：会话失效前自动加密所有密码条目
 - getMasterPasswordValidityHours(): Promise<number>
   - 获取主密码有效期（小时）
 - setMasterPasswordValidityHours(hours: number): Promise<void>
@@ -294,11 +308,11 @@ ReturnTrue --> End
 - getSortConfig(): Promise<{prop:string, order:string}|null>
   - 获取排序配置
 
-章节来源
-- [utils/storage.ts](file://utils/storage.ts#L865-L894)
-- [utils/storage.ts](file://utils/storage.ts#L899-L958)
-- [utils/storage.ts](file://utils/storage.ts#L719-L760)
-- [utils/storage.ts](file://utils/storage.ts#L765-L788)
+**章节来源**
+- [utils/storage.ts](file://utils/storage.ts#L888-L950)
+- [utils/storage.ts](file://utils/storage.ts#L805-L811)
+- [utils/storage.ts](file://utils/storage.ts#L731-L772)
+- [utils/storage.ts](file://utils/storage.ts#L777-L799)
 
 ### UI集成与调用示例
 
@@ -307,7 +321,7 @@ ReturnTrue --> End
 - 验证主密码：弹窗要求输入，调用 verifyMasterPassword 并提示成功
 - 错误处理：输入为空、验证失败、网络异常均在弹窗内提示并聚焦输入框
 
-章节来源
+**章节来源**
 - [components/MasterPasswordDialog.vue](file://components/MasterPasswordDialog.vue#L178-L237)
 - [utils/storage.ts](file://utils/storage.ts#L76-L159)
 
@@ -316,9 +330,9 @@ ReturnTrue --> End
 - 编辑密码：表单校验通过后调用 updatePassword
 - 成功/失败提示：统一使用消息组件反馈
 
-章节来源
+**章节来源**
 - [components/PasswordFormDialog.vue](file://components/PasswordFormDialog.vue#L158-L199)
-- [utils/storage.ts](file://utils/storage.ts#L377-L461)
+- [utils/storage.ts](file://utils/storage.ts#L383-L473)
 
 ## 依赖关系分析
 
@@ -347,6 +361,7 @@ class StorageUtils {
 +updatePasswordsOrder(passwords)
 +createSession(masterPassword, validityHours)
 +isSessionValid()
++isSessionActiveSync()
 +clearSession()
 +getMasterPasswordValidityHours()
 +setMasterPasswordValidityHours(hours)
@@ -357,7 +372,7 @@ class SessionManager {
 +startSessionCheck()
 +stopSessionCheck()
 +init()
--handleSessionExpired()
++handleSessionExpired()
 }
 class PasswordEntry {
 +id
@@ -379,20 +394,24 @@ StorageUtils --> MasterPasswordConfig : "使用"
 SessionManager --> StorageUtils : "依赖"
 ```
 
-图表来源
-- [utils/storage.ts](file://utils/storage.ts#L37-L981)
+**图表来源**
+- [utils/storage.ts](file://utils/storage.ts#L37-L1217)
 - [utils/sessionManager.ts](file://utils/sessionManager.ts#L1-L87)
-- [utils/types.ts](file://utils/types.ts#L1-L96)
+- [utils/types.ts](file://utils/types.ts#L1-L172)
 
-章节来源
-- [utils/storage.ts](file://utils/storage.ts#L37-L981)
+**章节来源**
+- [utils/storage.ts](file://utils/storage.ts#L37-L1217)
 - [utils/sessionManager.ts](file://utils/sessionManager.ts#L1-L87)
-- [utils/types.ts](file://utils/types.ts#L1-L96)
+- [utils/types.ts](file://utils/types.ts#L1-L172)
 
 ## 性能考虑
 - 加密成本控制
   - PBKDF2 迭代次数较高（10000），建议在后台线程或空闲时段执行
   - 批量操作时尽量合并存储写入，减少多次 chrome.storage.local.set 调用
+- **新增**：会话优化
+  - 使用 `isSessionActiveSync()` 进行快速同步检查，避免异步等待
+  - 会话有效期内跳过加密步骤，直接明文存储，显著提升读写性能
+  - 会话创建后解密所有条目并明文存储，会话期间避免重复解密
 - 解密策略
   - 仅对 password 字段解密，避免不必要的字段处理
   - 解密失败时安全降级，不影响其他字段
@@ -401,8 +420,6 @@ SessionManager --> StorageUtils : "依赖"
   - 保存排序配置，避免每次渲染重复计算
 - 会话检查
   - 每分钟检查一次，频率适中；可在页面不可见时降低检查频率
-
-[本节为通用性能建议，无需特定文件引用]
 
 ## 故障排查指南
 - 主密码设置失败
@@ -418,21 +435,21 @@ SessionManager --> StorageUtils : "依赖"
 - 会话过期
   - 检查过期时间与当前时间
   - 清理会话后重新创建
+  - **新增**：检查 `isSessionActiveSync()` 返回值是否正确
 - 存储读写失败
   - 检查 chrome.storage.local 权限与配额
   - 分批写入，避免一次性写入过多数据
+  - **新增**：会话失效前自动加密检查，确保数据安全
 
-章节来源
+**章节来源**
 - [utils/storage.ts](file://utils/storage.ts#L110-L114)
 - [utils/storage.ts](file://utils/storage.ts#L139-L142)
 - [utils/storage.ts](file://utils/storage.ts#L285-L297)
-- [utils/storage.ts](file://utils/storage.ts#L826-L841)
+- [utils/storage.ts](file://utils/storage.ts#L805-L811)
 - [utils/storage.ts](file://utils/storage.ts#L422-L426)
 
 ## 结论
-本存储管理API以主密码保护为核心，结合 PBKDF2 密钥派生与 AES-256-CBC 加密，实现了对敏感数据的安全存储；通过会话缓存与定时检查保障用户体验与安全性；提供完善的 CRUD、批量操作、排序与搜索能力，满足日常密码管理需求。建议在生产环境中进一步优化加密迭代次数与存储写入策略，并持续监控会话与存储稳定性。
-
-[本节为总结性内容，无需特定文件引用]
+本存储管理API以主密码保护为核心，结合 PBKDF2 密钥派生与 AES-256-CBC 加密，实现了对敏感数据的安全存储；通过会话缓存与定时检查保障用户体验与安全性；提供完善的 CRUD、批量操作、排序与搜索能力，满足日常密码管理需求。**最新优化**包括新增的同步会话检查方法、会话期间的性能优化、以及会话失效前的数据安全保障机制。建议在生产环境中进一步优化加密迭代次数与存储写入策略，并持续监控会话与存储稳定性。
 
 ## 附录
 
@@ -442,17 +459,19 @@ SessionManager --> StorageUtils : "依赖"
 - 验证主密码
   - [verifyMasterPassword](file://utils/storage.ts#L119-L143)
 - 保存密码条目
-  - [savePassword](file://utils/storage.ts#L377-L426)
+  - [savePassword](file://utils/storage.ts#L383-L434)
 - 更新密码条目
-  - [updatePassword](file://utils/storage.ts#L431-L461)
+  - [updatePassword](file://utils/storage.ts#L439-L473)
 - 获取全部密码条目
-  - [getAllPasswords](file://utils/storage.ts#L514-L555)
+  - [getAllPasswords](file://utils/storage.ts#L526-L567)
 - 搜索密码条目
-  - [searchPasswords](file://utils/storage.ts#L581-L602)
+  - [searchPasswords](file://utils/storage.ts#L593-L614)
 - 创建会话
-  - [createSession](file://utils/storage.ts#L865-L894)
+  - [createSession](file://utils/storage.ts#L888-L920)
 - 检查会话有效性
-  - [isSessionValid](file://utils/storage.ts#L793-L841)
+  - [isSessionValid](file://utils/storage.ts#L816-L864)
+- **新增**：同步会话检查
+  - [isSessionActiveSync](file://utils/storage.ts#L805-L811)
 
 ### 最佳实践
 - 主密码管理
@@ -461,11 +480,13 @@ SessionManager --> StorageUtils : "依赖"
 - 数据安全
   - 仅在需要时传入 masterPassword；避免在 UI 层暴露明文
   - 对外输出前再次确认解密成功
+  - **新增**：利用会话优化机制，在会话有效期内避免重复加密
 - 性能优化
   - 批量操作合并写入；避免频繁读写
   - 搜索与排序尽量在内存中完成，减少存储访问
+  - **新增**：使用 `isSessionActiveSync()` 进行快速会话检查
+  - **新增**：合理设置会话有效期，平衡安全性和性能
 - 错误处理
   - 对所有异步操作进行 try/catch 包裹
   - 对解密失败进行安全降级，保证 UI 不中断
-
-[本节为通用建议，无需特定文件引用]
+  - **新增**：会话失效前自动加密保护，确保数据安全
