@@ -5,6 +5,7 @@
 - [App.vue](file://entrypoints/popup/App.vue)
 - [main.ts](file://entrypoints/popup/main.ts)
 - [index.html](file://entrypoints/popup/index.html)
+- [createVueApp.ts](file://utils/createVueApp.ts)
 - [background.ts](file://entrypoints/background.ts)
 - [storage.ts](file://utils/storage.ts)
 - [types.ts](file://utils/types.ts)
@@ -17,7 +18,8 @@
 
 ## 更新摘要
 **变更内容**
-- 更新了Popup界面的会话状态检查逻辑：在会话有效时直接获取解密后的主密码，优化了密码数量获取流程
+- 更新了Popup界面的联系方式管理：从硬编码的字符串常量改为Vue 3响应式变量实现，提升了代码维护性和可扩展性
+- 优化了Popup界面的会话状态检查逻辑：在会话有效时直接获取解密后的主密码，优化了密码数量获取流程
 - 增强了初始化性能：通过直接获取解密后的主密码，减少了不必要的数据解密步骤
 - 优化了错误处理机制：在会话无效时静默处理并隐藏密码数量，避免泄露敏感信息
 - 保持了原有的多层回退机制、通知系统集成和错误处理机制
@@ -48,37 +50,40 @@ B["entrypoints/popup/main.ts"]
 C["entrypoints/popup/App.vue"]
 end
 subgraph "通用工具"
-D["utils/storage.ts"]
-E["utils/types.ts"]
-F["utils/sessionManager.ts"]
+D["utils/createVueApp.ts"]
+E["utils/storage.ts"]
+F["utils/types.ts"]
+G["utils/sessionManager.ts"]
 end
 subgraph "后台与内容脚本"
-G["entrypoints/background.ts"]
-H["entrypoints/content.ts"]
+H["entrypoints/background.ts"]
+I["entrypoints/content.ts"]
 end
 A --> B --> C
 C --> D
 C --> E
 C --> F
-C -.消息通信.-> G
-G -.消息通信.-> C
+C --> G
+C -.消息通信.-> H
 H -.消息通信.-> C
+I -.消息通信.-> C
 ```
 
 **图表来源**
-- [index.html](file://entrypoints/popup/index.html#L1-L19)
-- [main.ts](file://entrypoints/popup/main.ts#L1-L10)
-- [App.vue](file://entrypoints/popup/App.vue#L1-L264)
-- [storage.ts](file://utils/storage.ts#L1-L1217)
-- [types.ts](file://utils/types.ts#L1-L172)
-- [sessionManager.ts](file://utils/sessionManager.ts#L1-L87)
-- [background.ts](file://entrypoints/background.ts#L1-L351)
-- [content.ts](file://entrypoints/content.ts#L1-L1892)
+- [index.html:1-19](file://entrypoints/popup/index.html#L1-L19)
+- [main.ts:1-5](file://entrypoints/popup/main.ts#L1-L5)
+- [App.vue:1-267](file://entrypoints/popup/App.vue#L1-L267)
+- [createVueApp.ts:1-20](file://utils/createVueApp.ts#L1-L20)
+- [storage.ts:1-1217](file://utils/storage.ts#L1-L1217)
+- [types.ts:1-172](file://utils/types.ts#L1-L172)
+- [sessionManager.ts:1-87](file://utils/sessionManager.ts#L1-L87)
+- [background.ts:1-351](file://entrypoints/background.ts#L1-L351)
+- [content.ts:1-1892](file://entrypoints/content.ts#L1-L1892)
 
 **章节来源**
-- [index.html](file://entrypoints/popup/index.html#L1-L19)
-- [main.ts](file://entrypoints/popup/main.ts#L1-L10)
-- [App.vue](file://entrypoints/popup/App.vue#L1-L264)
+- [index.html:1-19](file://entrypoints/popup/index.html#L1-L19)
+- [main.ts:1-5](file://entrypoints/popup/main.ts#L1-L5)
+- [App.vue:1-267](file://entrypoints/popup/App.vue#L1-L267)
 
 ## 核心组件
 - **Popup主组件**：负责渲染头部、主要操作按钮、快速动作区、联系方式等；在挂载阶段执行会话校验与密码数量统计；提供打开选项页、打开侧边栏、邮件链接处理等交互。
@@ -87,8 +92,8 @@ H -.消息通信.-> C
 - **通知系统**：集成Element Plus的ElMessage，提供用户友好的错误提示和操作反馈。
 
 **章节来源**
-- [App.vue](file://entrypoints/popup/App.vue#L1-L264)
-- [main.ts](file://entrypoints/popup/main.ts#L1-L10)
+- [App.vue:1-267](file://entrypoints/popup/App.vue#L1-L267)
+- [main.ts:1-5](file://entrypoints/popup/main.ts#L1-L5)
 
 ## 架构总览
 Popup与Background Script之间的消息协议基于统一的Message与MessageType枚举，实现"显示/隐藏侧边栏""URL变化"等跨进程通信。Popup在初始化时检查会话有效性，决定是否展示密码数量；在用户点击按钮时，通过Chrome Tabs API打开选项页或侧边栏，并在必要时关闭自身。
@@ -125,13 +130,13 @@ end
 ```
 
 **图表来源**
-- [App.vue](file://entrypoints/popup/App.vue#L129-L187)
-- [background.ts](file://entrypoints/background.ts#L33-L73)
-- [background.ts](file://entrypoints/background.ts#L75-L139)
+- [App.vue:133-185](file://entrypoints/popup/App.vue#L133-L185)
+- [background.ts:33-73](file://entrypoints/background.ts#L33-L73)
+- [background.ts:75-139](file://entrypoints/background.ts#L75-L139)
 
 **章节来源**
-- [App.vue](file://entrypoints/popup/App.vue#L59-L90)
-- [background.ts](file://entrypoints/background.ts#L33-L73)
+- [App.vue:59-90](file://entrypoints/popup/App.vue#L59-L90)
+- [background.ts:33-73](file://entrypoints/background.ts#L33-L73)
 
 ## 详细组件分析
 
@@ -140,6 +145,7 @@ end
   - 简洁直观：顶部Logo与标题，中部主按钮"管理密码"，底部快速动作"快速填充"，联系方式区提供反馈入口。
   - 会话感知：仅在会话有效时展示密码数量，避免未授权访问。
   - 低耦合：与Background Script通过消息通信，不直接依赖内容脚本。
+  - **响应式联系方式管理**：联系方式从硬编码改为Vue 3响应式变量，提升了代码维护性和可扩展性。
   - **优化的会话检查**：在会话有效时直接获取解密后的主密码，优化性能。
   - **多层回退机制**：实现三层回退策略确保侧边栏可靠打开。
   - **通知系统集成**：使用Element Plus ElMessage提供用户友好的反馈。
@@ -154,6 +160,8 @@ end
   - 通过StorageUtils.isSessionValid与getAllPasswords获取数据，避免在Popup中直接暴露敏感数据。
 - **错误处理**
   - 初始化失败时隐藏数量并记录日志；打开侧边栏失败时通过ElMessage提供用户提示。
+
+**更新** 实现了响应式联系方式管理，将硬编码的联系方式改为Vue 3响应式变量，提升了代码的可维护性和可扩展性。
 
 **更新** 优化了会话状态检查逻辑，在会话有效时直接获取解密后的主密码，避免不必要的数据解密步骤，提升了初始化性能。
 
@@ -172,22 +180,23 @@ ShowCount --> End
 ```
 
 **图表来源**
-- [App.vue](file://entrypoints/popup/App.vue#L61-L92)
-- [storage.ts](file://utils/storage.ts#L1105-L1117)
+- [App.vue:65-96](file://entrypoints/popup/App.vue#L65-L96)
+- [storage.ts:1105-1117](file://utils/storage.ts#L1105-L1117)
 
 **章节来源**
-- [App.vue](file://entrypoints/popup/App.vue#L51-L199)
-- [storage.ts](file://utils/storage.ts#L1105-L1117)
+- [App.vue:51-195](file://entrypoints/popup/App.vue#L51-L195)
+- [storage.ts:1105-1117](file://utils/storage.ts#L1105-L1117)
 
 ### 应用启动器（main.ts）
 - **职责**
-  - 创建Vue应用实例，注册Element Plus，挂载到#app。
+  - 通过createAndMountApp工厂函数创建并挂载Vue应用，统一管理Element Plus的引入和应用实例。
 - **特殊考虑**
   - 在Chrome扩展中，Element Plus样式需显式引入，避免UI缺失。
   - 采用模块化脚本加载，符合WXT规范。
 
 **章节来源**
-- [main.ts](file://entrypoints/popup/main.ts#L1-L10)
+- [main.ts:1-5](file://entrypoints/popup/main.ts#L1-L5)
+- [createVueApp.ts:1-20](file://utils/createVueApp.ts#L1-L20)
 
 ### HTML入口（index.html）
 - **职责**
@@ -196,7 +205,20 @@ ShowCount --> End
   - 严格控制head元信息，确保Popup尺寸与样式稳定。
 
 **章节来源**
-- [index.html](file://entrypoints/popup/index.html#L1-L19)
+- [index.html:1-19](file://entrypoints/popup/index.html#L1-L19)
+
+### Vue应用创建工厂（createVueApp.ts）
+- **职责**
+  - 统一创建Vue应用实例，注册Element Plus插件，挂载到指定选择器。
+  - 提供createAndMountApp工厂函数，支持多个入口点的统一初始化。
+- **特殊考虑**
+  - Element Plus样式按需引入，避免冗余体积。
+  - 支持自定义挂载选择器，便于复用。
+
+**更新** 新增了Vue应用创建工厂函数，统一管理应用初始化流程。
+
+**章节来源**
+- [createVueApp.ts:1-20](file://utils/createVueApp.ts#L1-L20)
 
 ### 与Background Script的通信（background.ts）
 - **消息协议**
@@ -223,13 +245,13 @@ RT-->>P : 异步响应
 ```
 
 **图表来源**
-- [App.vue](file://entrypoints/popup/App.vue#L155-L162)
-- [background.ts](file://entrypoints/background.ts#L33-L73)
-- [background.ts](file://entrypoints/background.ts#L75-L139)
+- [App.vue:159-163](file://entrypoints/popup/App.vue#L159-L163)
+- [background.ts:33-73](file://entrypoints/background.ts#L33-L73)
+- [background.ts:75-139](file://entrypoints/background.ts#L75-L139)
 
 **章节来源**
-- [background.ts](file://entrypoints/background.ts#L33-L73)
-- [types.ts](file://utils/types.ts#L54-L115)
+- [background.ts:33-73](file://entrypoints/background.ts#L33-L73)
+- [types.ts:54-115](file://utils/types.ts#L54-L115)
 
 ### 会话与存储（storage.ts、sessionManager.ts）
 - **会话管理**
@@ -243,8 +265,8 @@ RT-->>P : 异步响应
 **更新** 增强了会话状态检查的性能优化，在会话有效时直接获取解密后的主密码。
 
 **章节来源**
-- [storage.ts](file://utils/storage.ts#L816-L864)
-- [sessionManager.ts](file://utils/sessionManager.ts#L27-L66)
+- [storage.ts:816-864](file://utils/storage.ts#L816-L864)
+- [sessionManager.ts:27-66](file://utils/sessionManager.ts#L27-L66)
 
 ### 内容脚本（content.ts）
 - **与Popup的间接关系**
@@ -253,16 +275,19 @@ RT-->>P : 异步响应
   - content.ts专注于页面内表单检测与填充，与Popup的职责互补。
 
 **章节来源**
-- [content.ts](file://entrypoints/content.ts#L1-L1892)
+- [content.ts:1-1892](file://entrypoints/content.ts#L1-L1892)
 
 ## 依赖关系分析
 - **组件耦合**
   - Popup与StorageUtils高内聚，负责数据读取与会话校验。
   - Popup与Background Script通过消息API弱耦合，职责清晰。
+  - Popup与createAndMountApp工厂函数通过main.ts间接耦合。
 - **外部依赖**
   - Element Plus：提供UI组件与样式，包括ElMessage通知系统。
   - crypto-js：用于主密码哈希与数据加解密。
   - WXT：构建与打包，提供Vue模块支持与别名配置。
+
+**更新** 新增了createAndMountApp工厂函数的依赖关系分析。
 
 **更新** 集成了Element Plus的ElMessage通知系统，增强了用户体验。
 
@@ -271,20 +296,22 @@ graph LR
 P["Popup(App.vue)"] --> S["StorageUtils(storage.ts)"]
 P -.消息.-> B["Background(background.ts)"]
 B -.消息.-> P
-P --> E["Element Plus(main.ts)<br/>+ ElMessage通知"]
+P --> E["Element Plus(createVueApp.ts)<br/>+ ElMessage通知"]
 S --> C["crypto-js(storage.ts)"]
 P --> T["MessageType(types.ts)"]
+P --> F["createAndMountApp(main.ts)"]
 ```
 
 **图表来源**
-- [App.vue](file://entrypoints/popup/App.vue#L51-L199)
-- [storage.ts](file://utils/storage.ts#L1-L1217)
-- [background.ts](file://entrypoints/background.ts#L1-L351)
-- [types.ts](file://utils/types.ts#L54-L115)
+- [App.vue:51-195](file://entrypoints/popup/App.vue#L51-L195)
+- [storage.ts:1-1217](file://utils/storage.ts#L1-L1217)
+- [background.ts:1-351](file://entrypoints/background.ts#L1-L351)
+- [types.ts:54-115](file://utils/types.ts#L54-L115)
+- [createVueApp.ts:1-20](file://utils/createVueApp.ts#L1-L20)
 
 **章节来源**
-- [package.json](file://package.json#L22-L47)
-- [wxt.config.ts](file://wxt.config.ts#L1-L48)
+- [package.json:22-47](file://package.json#L22-L47)
+- [wxt.config.ts:1-48](file://wxt.config.ts#L1-L48)
 
 ## 性能考量
 - **初始化性能**
@@ -316,36 +343,44 @@ P --> T["MessageType(types.ts)"]
   - 确认mailto协议可用；在部分系统中需配置默认邮件客户端。
 - **ElMessage通知不显示**
   - 确认Element Plus已正确引入；检查浏览器控制台是否有相关错误。
+- **联系方式无法更新**
+  - 检查contactEmail响应式变量是否正确绑定；确认Vue模板中使用了正确的插值语法。
+
+**更新** 新增了响应式联系方式管理的故障排查指南。
 
 **更新** 新增了多层回退机制和ElMessage通知系统的故障排查指南。
 
 **章节来源**
-- [App.vue](file://entrypoints/popup/App.vue#L129-L187)
-- [background.ts](file://entrypoints/background.ts#L75-L139)
-- [README.md](file://README.md#L174-L195)
+- [App.vue:133-185](file://entrypoints/popup/App.vue#L133-L185)
+- [background.ts:75-139](file://entrypoints/background.ts#L75-L139)
+- [README.md:174-195](file://README.md#L174-L195)
 
 ## 结论
 Popup界面以简洁、安全、高效为核心目标，通过会话感知与消息通信实现与后台的无缝协作。其Vue组件架构清晰、生命周期管理合理、错误处理稳健，配合WXT构建工具与Element Plus UI，为用户提供流畅的初始体验。
 
-**更新** 通过实现优化的会话状态检查逻辑和多层回退机制，显著提升了系统的性能和可靠性。标题更新为"账号密码管理助手"，保持了与扩展功能命名的一致性。建议在后续迭代中进一步完善错误提示的国际化支持和用户自定义配置选项。
+**更新** 通过实现优化的会话状态检查逻辑和多层回退机制，显著提升了系统的性能和可靠性。标题更新为"账号密码管理助手"，保持了与扩展功能命名的一致性。响应式联系方式管理的实现提升了代码的可维护性和可扩展性。
 
 ## 附录
 
 ### Vue 3在Chrome扩展中的特殊考虑
 - **组件加载**
   - 通过HTML中的模块脚本加载main.ts，再由main.ts创建并挂载Vue应用。
+  - createAndMountApp工厂函数统一管理应用初始化流程。
 - **样式隔离**
   - Element Plus样式需显式引入，避免UI缺失；scoped样式在扩展环境中表现稳定。
 - **事件处理**
   - 使用Chrome扩展API（tabs、runtime、storage）时，注意异步回调与错误捕获。
 - **通知系统集成**
   - Element Plus的ElMessage提供了统一的用户反馈机制，支持多种消息类型。
+- **响应式数据管理**
+  - Vue 3的ref和reactive提供了更好的数据响应能力，适合扩展界面的状态管理。
 
-**更新** 新增了Element Plus通知系统的集成考虑。
+**更新** 新增了Vue 3响应式数据管理和createAndMountApp工厂函数的集成考虑。
 
 **章节来源**
-- [index.html](file://entrypoints/popup/index.html#L12-L16)
-- [main.ts](file://entrypoints/popup/main.ts#L1-L10)
+- [index.html:12-16](file://entrypoints/popup/index.html#L12-L16)
+- [main.ts:1-5](file://entrypoints/popup/main.ts#L1-L5)
+- [createVueApp.ts:1-20](file://utils/createVueApp.ts#L1-L20)
 
 ### 最佳实践与常见问题
 - **最佳实践**
@@ -353,6 +388,7 @@ Popup界面以简洁、安全、高效为核心目标，通过会话感知与消
   - 标签页复用：优先激活已存在的选项页或侧边栏标签，避免重复创建。
   - **优化的会话检查**：在会话有效时直接获取解密后的主密码，提升性能。
   - **多层回退机制**：实现可靠的侧边栏打开策略，确保用户体验。
+  - **响应式联系方式管理**：使用Vue 3响应式变量替代硬编码，提升可维护性。
   - **错误静默**：对非关键错误进行静默处理，避免影响用户体验。
   - **权限最小化**：仅申请必要权限，遵循扩展安全规范。
   - **通知系统**：使用ElMessage提供一致的用户反馈。
@@ -361,13 +397,52 @@ Popup界面以简洁、安全、高效为核心目标，通过会话感知与消
   - 侧边栏不可用：检查Chrome版本与sidePanel API可用性。
   - 数据安全：主密码采用哈希与PBKDF2派生密钥，密码条目支持AES加密存储。
   - **多层回退机制**：理解三层回退策略的工作原理和适用场景。
+  - **响应式数据绑定**：确保Vue模板正确绑定响应式变量，避免数据不同步。
 
-**更新** 新增了优化会话检查和多层回退机制的最佳实践指导。
+**更新** 新增了响应式联系方式管理和Vue 3响应式数据管理的最佳实践指导。
 
 **章节来源**
-- [sessionManager.ts](file://utils/sessionManager.ts#L27-L66)
-- [storage.ts](file://utils/storage.ts#L164-L186)
-- [README.md](file://README.md#L151-L201)
+- [sessionManager.ts:27-66](file://utils/sessionManager.ts#L27-L66)
+- [storage.ts:164-186](file://utils/storage.ts#L164-L186)
+- [README.md:151-201](file://README.md#L151-L201)
+
+### 响应式联系方式管理实现
+**更新** 新增了响应式联系方式管理的技术实现说明。
+
+Popup中的联系方式管理已经从硬编码改为Vue 3响应式变量实现：
+
+1. **响应式变量声明**
+   ```typescript
+   const contactEmail = ref('924902324@qq.com');
+   ```
+
+2. **模板绑定**
+   ```html
+   <a href="mailto:${contactEmail}" class="email-link" @click="handleEmailClick">
+     {{ contactEmail }}
+   </a>
+   ```
+
+3. **事件处理**
+   ```typescript
+   const handleEmailClick = (event: Event) => {
+     event.preventDefault();
+     const subject = '账号密码管理助手反馈';
+     const mailtoLink = `mailto:${contactEmail.value}?subject=${encodeURIComponent(subject)}`;
+     window.open(mailtoLink, '_blank');
+   };
+   ```
+
+4. **优势**
+   - **可维护性**：联系方式可以在运行时动态修改，无需重新编译代码
+   - **可扩展性**：可以轻松添加更多联系方式字段，如电话号码、微信等
+   - **响应式更新**：联系方式变更会自动反映在UI中
+   - **类型安全**：TypeScript提供完整的类型检查和智能提示
+
+**章节来源**
+- [App.vue:58-61](file://entrypoints/popup/App.vue#L58-L61)
+- [App.vue:39-46](file://entrypoints/popup/App.vue#L39-L46)
+- [App.vue:187-195](file://entrypoints/popup/App.vue#L187-L195)
 
 ### 优化的会话状态检查机制
 **更新** 新增了优化会话状态检查机制的技术实现说明。
@@ -393,8 +468,8 @@ Popup中的会话状态检查逻辑经过优化，实现了更高效的性能：
 这种优化确保了Popup界面在会话有效时能够快速获取所需数据，同时在会话无效时保持安全性和隐私保护。
 
 **章节来源**
-- [App.vue](file://entrypoints/popup/App.vue#L61-L92)
-- [storage.ts](file://utils/storage.ts#L1105-L1117)
+- [App.vue:65-96](file://entrypoints/popup/App.vue#L65-L96)
+- [storage.ts:1105-1117](file://utils/storage.ts#L1105-L1117)
 
 ### 多层回退机制详解
 **更新** 新增了多层回退机制的技术实现说明。
@@ -416,8 +491,8 @@ Popup中的openSidePanel函数实现了三层回退机制：
 这种设计确保了即使在某些环境下侧边栏无法自动打开，用户也能得到适当的反馈和替代方案。
 
 **章节来源**
-- [App.vue](file://entrypoints/popup/App.vue#L129-L187)
-- [background.ts](file://entrypoints/background.ts#L75-L139)
+- [App.vue:133-185](file://entrypoints/popup/App.vue#L133-L185)
+- [background.ts:75-139](file://entrypoints/background.ts#L75-L139)
 
 ### 键盘快捷键配置
 **更新** 新增了键盘快捷键配置的详细说明。
@@ -430,8 +505,8 @@ Popup中的openSidePanel函数实现了三层回退机制：
 这些快捷键通过WXT的commands配置实现，描述信息明确反映了新的功能范围，从简单的"密码管理"扩展为"账号密码管理"。
 
 **章节来源**
-- [wxt.config.ts](file://wxt.config.ts#L24-L40)
-- [README.md](file://README.md#L111-L116)
+- [wxt.config.ts:24-40](file://wxt.config.ts#L24-L40)
+- [README.md:111-116](file://README.md#L111-L116)
 
 ### 标题命名一致性
 **更新** 新增了标题命名一致性的说明。
@@ -448,8 +523,8 @@ Popup中的openSidePanel函数实现了三层回退机制：
 这种一致性确保了用户在不同界面中都能获得统一的品牌认知。
 
 **章节来源**
-- [wxt.config.ts](file://wxt.config.ts#L18-L21)
-- [App.vue](file://entrypoints/popup/App.vue#L4-L5)
+- [wxt.config.ts:18-21](file://wxt.config.ts#L18-L21)
+- [App.vue:4-5](file://entrypoints/popup/App.vue#L4-L5)
 - [README.md](file://README.md#L0)
 
 ### 邮件反馈主题更新
@@ -459,10 +534,41 @@ Popup中的openSidePanel函数实现了三层回退机制：
 
 ```javascript
 const subject = '账号密码管理助手反馈';
-const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}`;
+const mailtoLink = `mailto:${contactEmail.value}?subject=${encodeURIComponent(subject)}`;
 ```
+
+**更新** 邮件反馈主题的更新体现了响应式联系方式管理的完整性。
 
 这种一致性不仅体现在界面标题上，也体现在用户反馈渠道中，增强了品牌的统一性和专业性。
 
 **章节来源**
-- [App.vue](file://entrypoints/popup/App.vue#L183-L192)
+- [App.vue:187-195](file://entrypoints/popup/App.vue#L187-L195)
+
+### Vue应用创建工厂模式
+**更新** 新增了Vue应用创建工厂模式的技术说明。
+
+Popup应用采用了createAndMountApp工厂函数模式，实现了统一的应用初始化流程：
+
+1. **工厂函数设计**
+   ```typescript
+   export function createAndMountApp(rootComponent: Component, selector: string = '#app'): App {
+     const app = createApp(rootComponent);
+     app.use(ElementPlus);
+     app.mount(selector);
+     return app;
+   }
+   ```
+
+2. **统一初始化**
+   - 所有入口点共享相同的初始化逻辑
+   - Element Plus插件统一注册
+   - 挂载选择器可配置
+
+3. **优势**
+   - **代码复用**：避免重复的初始化代码
+   - **一致性**：确保所有入口点具有相同的行为
+   - **可维护性**：集中管理应用配置和初始化逻辑
+
+**章节来源**
+- [createVueApp.ts:1-20](file://utils/createVueApp.ts#L1-L20)
+- [main.ts:1-5](file://entrypoints/popup/main.ts#L1-L5)
