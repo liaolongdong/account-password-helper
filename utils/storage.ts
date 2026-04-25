@@ -589,8 +589,8 @@ export class StorageUtils {
         return url.includes(p.url) || p.url.includes(url);
       });
 
-      // 应用保存的排序配置
-      await this.applySavedSortConfig(filteredPasswords);
+      // 应用保存的排序配置，传入域名以实现域名匹配优先级排序
+      await this.applySavedSortConfig(filteredPasswords, url);
 
       return filteredPasswords;
     } catch (error) {
@@ -631,8 +631,18 @@ export class StorageUtils {
 
   /**
    * 应用保存的排序配置
+   * @param passwords 密码列表
+   * @param domain 可选的当前域名，传入时域名匹配的条目排前面，未设置URL的排后面
    */
-  static async applySavedSortConfig(passwords: PasswordEntry[]): Promise<void> {
+  static async applySavedSortConfig(passwords: PasswordEntry[], domain?: string): Promise<void> {
+    // 域名匹配优先级辅助函数：0=域名匹配, 1=未设URL(低优先级)
+    const getDomainPriority = (entry: PasswordEntry): number => {
+      if (!domain) return 0; // 未传域名时不区分优先级
+      const hasUrl = entry.url && entry.url.trim() !== '';
+      if (hasUrl && (domain.includes(entry.url) || entry.url.includes(domain))) return 0; // 域名匹配
+      return 1; // 未设URL或不匹配（不匹配的在侧边栏已被过滤，此处兜底）
+    };
+
     try {
       // 获取保存的排序配置
       const sortConfig = await this.getSortConfig();
@@ -640,6 +650,11 @@ export class StorageUtils {
       if (sortConfig) {
         // 根据保存的排序配置进行排序
         passwords.sort((a, b) => {
+          // 域名匹配优先级排序（仅当传入domain时生效）
+          const aPriority = getDomainPriority(a);
+          const bPriority = getDomainPriority(b);
+          if (aPriority !== bPriority) return aPriority - bPriority;
+
           let aValue: any, bValue: any;
 
           switch (sortConfig.prop) {
@@ -669,8 +684,7 @@ export class StorageUtils {
               break;
             default:
               // 默认按创建时间倒序排序
-              passwords.sort((a, b) => b.createTime - a.createTime);
-              return 0;
+              return b.createTime - a.createTime;
           }
 
           // 根据排序顺序进行比较
@@ -687,13 +701,23 @@ export class StorageUtils {
           return sortConfig.order === 'ascending' ? comparison : -comparison;
         });
       } else {
-        // 默认按创建时间倒序排序
-        passwords.sort((a, b) => b.createTime - a.createTime);
+        // 默认按创建时间倒序排序，域名匹配优先
+        passwords.sort((a, b) => {
+          const aPriority = getDomainPriority(a);
+          const bPriority = getDomainPriority(b);
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          return b.createTime - a.createTime;
+        });
       }
     } catch (error) {
       console.error('StorageUtils: 应用排序配置失败，使用默认排序:', error);
-      // 默认按创建时间倒序排序
-      passwords.sort((a, b) => b.createTime - a.createTime);
+      // 默认按创建时间倒序排序，域名匹配优先
+      passwords.sort((a, b) => {
+        const aPriority = getDomainPriority(a);
+        const bPriority = getDomainPriority(b);
+        if (aPriority !== bPriority) return aPriority - bPriority;
+        return b.createTime - a.createTime;
+      });
     }
   }
 

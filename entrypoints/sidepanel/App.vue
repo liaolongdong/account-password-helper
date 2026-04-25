@@ -652,12 +652,25 @@ const hashString = (str: string): number => {
 
 // 密码排序函数
 const sortPasswords = (passwords: PasswordEntry[]) => {
+  // 域名匹配优先级辅助函数：0=域名匹配, 1=未设URL(低优先级)
+  const getDomainPriority = (entry: PasswordEntry): number => {
+    if (!currentDomain.value) return 0; // 无域名时不区分优先级
+    const hasUrl = entry.url && entry.url.trim() !== '';
+    if (hasUrl && (currentDomain.value.includes(entry.url) || entry.url.includes(currentDomain.value))) return 0; // 域名匹配
+    return 1; // 未设URL或不匹配
+  };
+
   // 获取保存的排序配置
   StorageUtils.getSortConfig()
     .then(sortConfig => {
       if (sortConfig) {
         // 根据保存的排序配置进行排序
         passwords.sort((a, b) => {
+          // 域名匹配优先级排序
+          const aPriority = getDomainPriority(a);
+          const bPriority = getDomainPriority(b);
+          if (aPriority !== bPriority) return aPriority - bPriority;
+
           let aValue: any, bValue: any;
 
           switch (sortConfig.prop) {
@@ -687,8 +700,7 @@ const sortPasswords = (passwords: PasswordEntry[]) => {
               break;
             default:
               // 默认按创建时间倒序排序
-              passwords.sort((a, b) => b.createTime - a.createTime);
-              return 0;
+              return b.createTime - a.createTime;
           }
 
           // 根据排序顺序进行比较
@@ -705,14 +717,24 @@ const sortPasswords = (passwords: PasswordEntry[]) => {
           return sortConfig.order === 'ascending' ? comparison : -comparison;
         });
       } else {
-        // 默认按创建时间倒序排序
-        passwords.sort((a, b) => b.createTime - a.createTime);
+        // 默认按创建时间倒序排序，域名匹配优先
+        passwords.sort((a, b) => {
+          const aPriority = getDomainPriority(a);
+          const bPriority = getDomainPriority(b);
+          if (aPriority !== bPriority) return aPriority - bPriority;
+          return b.createTime - a.createTime;
+        });
       }
     })
     .catch(error => {
       console.error('获取排序配置失败，使用默认排序:', error);
-      // 默认按创建时间倒序排序
-      passwords.sort((a, b) => b.createTime - a.createTime);
+      // 默认按创建时间倒序排序，域名匹配优先
+      passwords.sort((a, b) => {
+        const aPriority = getDomainPriority(a);
+        const bPriority = getDomainPriority(b);
+        if (aPriority !== bPriority) return aPriority - bPriority;
+        return b.createTime - a.createTime;
+      });
     });
 };
 
