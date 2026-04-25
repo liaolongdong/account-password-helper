@@ -1,0 +1,662 @@
+.options-page {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e8f4fd 0%, #f8fbff 100%);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 设置页面样式 */
+.setup-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.setup-container {
+  width: 100%;
+  max-width: 480px;
+}
+
+.setup-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.logo-section .logo {
+  font-size: 40px;
+  color: #409eff;
+  margin-right: 12px;
+}
+
+.setup-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0;
+  color: #2c3e50;
+  text-shadow: none;
+}
+
+.subtitle {
+  font-size: 15px;
+  margin: 0;
+  color: #6c757d;
+  font-weight: 400;
+}
+
+.setup-form,
+.verify-form {
+  margin-top: 24px;
+}
+
+.form-card {
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgb(64 158 255 / 10%);
+  border: 1px solid #e3f2fd;
+  overflow: hidden;
+}
+
+:deep(.form-card .el-card__body) {
+  padding: 32px;
+  background: #fff;
+}
+
+/* 验证页面样式 */
+.verify-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.verify-container {
+  width: 100%;
+  max-width: 420px;
+}
+
+.verify-header {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.verify-header h1 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0;
+  color: #2c3e50;
+}
+
+.verify-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+/* 密码表单页面样式 */
+.form-page {
+  min-height: 100vh;
+  background: #f8fbff;
+  padding: 0;
+}
+
+.form-container {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  padding: 16px 0;
+  border-bottom: 1px solid #e3f2fd;
+}
+
+.form-back {
+  display: flex;
+  align-items: center;
+}
+
+.form-title h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.form-content {
+  margin-top: 24px;
+}
+
+.password-form-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgb(64 158 255 / 8%);
+  border: 1px solid #e3f2fd;
+}
+
+:deep(.password-form-card .el-card__body) {
+  padding: 32px;
+}
+
+.form-row {
+  margin-bottom: 20px;
+}
+
+.form-row-half {
+  margin-bottom: 20px;
+  width: 300px;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid #f0f0f0;
+}
+
+/* 主内容区域样式 */
+.main-content {
+  min-height: 100vh;
+  background: #f8fbff;
+  padding: 0;
+}
+
+.header {
+  background: linear-gradient(135deg, #409eff 0%, #66b3ff 100%);
+  color: white;
+  padding: 24px 32px;
+  margin-bottom: 24px;
+  border-radius: 0;
+  box-shadow: 0 2px 12px rgb(64 158 255 / 15%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.header-title h1 {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-size: 24px;
+  font-weight: 500;
+  color: white;
+}
+
+.header-title .logo {
+  font-size: 28px;
+  color: #fff;
+  margin-right: 12px;
+}
+
+.header-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.header-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.header-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.floating-button-label {
+  color: rgb(255 255 255 / 85%);
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+:deep(.header-actions .el-button) {
+  background: rgb(255 255 255 / 15%);
+  border: 1px solid rgb(255 255 255 / 25%);
+  color: white;
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+  font-weight: 400;
+}
+
+:deep(.header-actions .el-button:hover) {
+  background: rgb(255 255 255 / 20%);
+  border-color: rgb(255 255 255 / 40%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+}
+
+:deep(.header-actions .el-button--primary) {
+  background: #fff;
+  border: 1px solid #fff;
+  color: #409eff;
+  font-weight: 500;
+}
+
+:deep(.header-actions .el-button--primary:hover) {
+  background: #f0f9ff;
+  border-color: #f0f9ff;
+  color: #1890ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+}
+
+.filters {
+  margin: 0 32px 20px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
+  border: 1px solid #e3f2fd;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+/* 搜索输入框样式 */
+:deep(.el-input__wrapper) {
+  margin-right: 10px;
+}
+
+.password-list-info {
+  margin: 0 32px 10px;
+}
+
+/* 密码列表动画 */
+.password-list {
+  margin: 0 32px 32px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
+  border: 1px solid #e3f2fd;
+  overflow: hidden;
+}
+
+/* 表格行动画 */
+:deep(.el-table__body-wrapper .el-table__row) {
+  transition: all 0.3s ease;
+}
+
+:deep(.el-table__body-wrapper .el-table__row:hover) {
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgb(64 158 255 / 20%);
+}
+
+/* 新增条目高亮动画 */
+:deep(.el-table__body-wrapper .el-table__row.new-item) {
+  animation: fade-in 1s linear;
+}
+
+@keyframes fade-in {
+  0% {
+    transform: translateY(-20px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+:deep(.el-table__body-wrapper .el-table__row.new-item td) {
+  border-bottom: 2px solid var(--el-color-success);
+}
+
+/* 表格操作栏样式 */
+:deep(.el-table-fixed-column--right .cell) {
+  padding: 0 8px;
+}
+
+/* 表格行进入动画 */
+.password-row-enter-active {
+  transition: all 0.5s ease;
+}
+
+/** 删除密码列表动效 */
+:deep(.el-table__body-wrapper .el-table__row.del-item) {
+  animation: fade-out 1s ease-in-out;
+}
+
+@keyframes fade-out {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(800px);
+  }
+}
+
+.password-row-enter-from {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+.password-row-enter-to {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* 表格行离开动画 */
+.password-row-leave-active {
+  transition: all 0.3s ease;
+}
+
+.password-row-leave-from {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.password-row-leave-to {
+  opacity: 0;
+  transform: translateX(30px);
+}
+
+/* 表格行移动动画 */
+.password-row-move {
+  transition: transform 0.5s ease;
+}
+
+.password-cell {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+:deep(.el-input--large .el-input__wrapper) {
+  border-radius: 6px;
+  box-shadow: none;
+  border: 1px solid #d9ecff;
+  transition: all 0.2s ease;
+}
+
+:deep(.el-input--large .el-input__wrapper:hover) {
+  border-color: #409eff;
+}
+
+:deep(.el-input--large .el-input__wrapper.is-focus) {
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgb(64 158 255 / 10%);
+}
+
+:deep(.el-input .el-input__wrapper) {
+  border-radius: 6px;
+  box-shadow: none;
+  border: 1px solid #d9ecff;
+  transition: all 0.2s ease;
+}
+
+:deep(.el-input .el-input__wrapper:hover) {
+  border-color: #409eff;
+}
+
+:deep(.el-input .el-input__wrapper.is-focus) {
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgb(64 158 255 / 10%);
+}
+
+/* 按钮优化 */
+:deep(.el-button--large.el-button--primary) {
+  background: #409eff;
+  border: 1px solid #409eff;
+  border-radius: 6px;
+  font-weight: 500;
+  font-size: 16px;
+  padding: 12px 24px;
+  transition: all 0.2s ease;
+}
+
+:deep(.el-button--large.el-button--primary:hover) {
+  background: #66b3ff;
+  border-color: #66b3ff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgb(64 158 255 / 30%);
+}
+
+:deep(.el-button--primary) {
+  background: #409eff;
+  border: 1px solid #409eff;
+  font-weight: 400;
+}
+
+:deep(.el-button--primary:hover) {
+  background: #66b3ff;
+  border-color: #66b3ff;
+}
+
+:deep(.el-button) {
+  border-radius: 6px;
+  font-weight: 400;
+  transition: all 0.2s ease;
+}
+
+:deep(.el-button:hover) {
+  transform: translateY(-1px);
+}
+
+/* alert 组件优化 */
+:deep(.el-alert) {
+  border-radius: 6px;
+  border: none;
+}
+
+:deep(.el-alert--info) {
+  background: #e8f4fd;
+  color: #2c3e50;
+}
+
+:deep(.el-alert--error) {
+  background: #fef0f0;
+  color: #f56c6c;
+}
+
+:deep(.el-alert--warning) {
+  background: #fdf6ec;
+  color: #e6a23c;
+}
+
+/* 表单标签 */
+:deep(.el-form-item__label) {
+  font-weight: 500;
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+/* 表格优化 */
+:deep(.el-table) {
+  font-size: 14px;
+  border-radius: 0;
+}
+
+:deep(.el-table th) {
+  background: #f8fbff;
+  font-weight: 500;
+  border-bottom: 1px solid #e3f2fd;
+  color: #2c3e50;
+}
+
+:deep(.el-table td) {
+  border-bottom: 1px solid #f0f9ff;
+}
+
+:deep(.el-table tbody tr:hover) {
+  background-color: #f8fbff;
+}
+
+:deep(.el-table .el-button--text) {
+  color: #409eff;
+}
+
+:deep(.el-table .el-button--text:hover) {
+  color: #66b3ff;
+}
+
+:deep(.el-table .el-button--text.is-danger) {
+  color: #f56c6c;
+}
+
+:deep(.el-table .el-button--text.is-danger:hover) {
+  color: #f78989;
+}
+
+/* 链接按钮优化 */
+:deep(.el-button--info.is-link) {
+  color: #409eff;
+  font-weight: 400;
+}
+
+:deep(.el-button--info.is-link:hover) {
+  color: #66b3ff;
+}
+
+:deep(.el-button--danger.is-link) {
+  color: #f56c6c;
+  font-weight: 400;
+}
+
+:deep(.el-button--danger.is-link:hover) {
+  color: #f78989;
+}
+
+/* 响应式设计 */
+@media (width <= 768px) {
+  .header {
+    padding: 20px;
+  }
+
+  .header-title h1 {
+    font-size: 20px;
+  }
+
+  .header-actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .header-actions-row {
+    justify-content: center;
+  }
+
+  .filters {
+    margin: 0 16px 20px;
+    padding: 16px;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .password-list {
+    margin: 0 16px 16px;
+  }
+
+  .form-container {
+    padding: 16px;
+  }
+
+  .form-row-half {
+    width: 100%;
+  }
+
+  .form-actions {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .form-actions .el-button {
+    width: 100%;
+  }
+}
+
+/* 标签样式 */
+.tag-item {
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.no-tag {
+  color: #c0c4cc;
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* 操作按钮样式 */
+.operation-buttons {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.operation-buttons .el-button {
+  font-size: 12px;
+  height: auto;
+  min-height: 28px;
+  margin-left: 2px;
+}
+
+/* 弹窗样式 */
+.dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+/* 表单提示样式 */
+.form-tip {
+  font-size: 12px;
+  color: #909399;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+/* 文本省略样式 */
+.text-ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* 会话信息样式 */
+.session-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.session-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.session-expiry {
+  font-size: 14px;
+  color: #606266;
+}

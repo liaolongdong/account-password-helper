@@ -1,5 +1,6 @@
 import { defineBackground } from 'wxt/sandbox';
 import { Message, MessageType, PasswordCache, PasswordEntry } from '../utils/types';
+import { logger } from '../utils/logger';
 
 export default defineBackground(() => {
   // 通过 port 连接跟踪 sidepanel 的打开状态
@@ -10,18 +11,18 @@ export default defineBackground(() => {
 
   // 插件安装时的初始化
   chrome.runtime.onInstalled.addListener(() => {
-    console.log('账号密码管理助手插件已安装');
+    logger.info('账号密码管理助手插件已安装');
   });
 
   // 监听 sidepanel 的 port 连接，用于可靠地追踪打开/关闭状态
   chrome.runtime.onConnect.addListener(port => {
     if (port.name === 'sidepanel') {
-      console.log('SidePanel 已连接');
+      logger.debug('SidePanel 已连接');
       sidePanelPort = port;
 
       // 监听 port 断开（sidepanel 关闭时触发）
       port.onDisconnect.addListener(() => {
-        console.log('SidePanel 已断开连接');
+        logger.debug('SidePanel 已断开连接');
         sidePanelPort = null;
       });
     }
@@ -40,12 +41,12 @@ export default defineBackground(() => {
         .then(tabs => {
           const tabId = tabs[0]?.id;
           if (!tabId) {
-            console.log('Background: 无法获取当前标签页');
+            logger.warn('Background: 无法获取当前标签页');
             return;
           }
 
           if (!chrome.sidePanel) {
-            console.error('Background: 当前Chrome版本不支持sidePanel API');
+            logger.error('Background: 当前Chrome版本不支持sidePanel API');
             return;
           }
 
@@ -56,11 +57,11 @@ export default defineBackground(() => {
             // 侧边栏未打开 → 打开
             chrome.sidePanel
               .open({ tabId })
-              .then(() => console.log('Background: 侧边栏已打开 (快捷键)'))
-              .catch(error => console.error('Background: 快捷键打开侧边栏失败:', error));
+              .then(() => logger.debug('Background: 侧边栏已打开 (快捷键)'))
+              .catch(error => logger.error('Background: 快捷键打开侧边栏失败:', error));
           }
         })
-        .catch(error => console.error('Background: 快捷键切换侧边栏失败:', error));
+        .catch(error => logger.error('Background: 快捷键切换侧边栏失败:', error));
     }
   });
 
@@ -86,11 +87,11 @@ export default defineBackground(() => {
         chrome.sidePanel
           .open({ tabId })
           .then(() => {
-            console.log('Background: 侧边栏已打开, tabId:', tabId);
+            logger.debug('Background: 侧边栏已打开, tabId:' + tabId);
             sendResponse({ success: true, result: '侧边栏已打开' });
           })
           .catch(error => {
-            console.error('Background: 打开侧边栏失败:', error);
+            logger.error('Background: 打开侧边栏失败:', error);
             sendResponse({ success: false, error: error.message });
           });
         return true;
@@ -125,7 +126,7 @@ export default defineBackground(() => {
           break;
         }
 
-        console.log('Background: 切换侧边栏, tabId:', tabId, ', port状态:', !!sidePanelPort);
+        logger.debug('Background: 切换侧边栏, tabId:' + tabId + ', port状态:' + !!sidePanelPort);
 
         if (sidePanelPort) {
           // 侧边栏已打开 → 关闭（close 不要求用户手势）
@@ -135,11 +136,11 @@ export default defineBackground(() => {
           chrome.sidePanel
             .open({ tabId })
             .then(() => {
-              console.log('Background: 侧边栏已打开');
+              logger.debug('Background: 侧边栏已打开');
               sendResponse({ success: true, result: '侧边栏已打开' });
             })
             .catch(error => {
-              console.error('Background: 打开侧边栏失败:', error);
+              logger.error('Background: 打开侧边栏失败:', error);
               sendResponse({ success: false, error: error.message });
             });
         }
@@ -160,7 +161,7 @@ export default defineBackground(() => {
         openOptionsPage()
           .then(() => sendResponse({ success: true }))
           .catch(error => {
-            console.error('处理OPEN_OPTIONS_PAGE失败:', error);
+            logger.error('处理OPEN_OPTIONS_PAGE失败:', error);
             sendResponse({ success: false, error: error.message });
           });
         return true;
@@ -213,9 +214,9 @@ export default defineBackground(() => {
     if (typeof chrome.sidePanel.close === 'function') {
       chrome.sidePanel
         .close({ tabId })
-        .then(() => console.log('Background: 侧边栏已关闭 (close API)'))
+        .then(() => logger.debug('Background: 侧边栏已关闭 (close API)'))
         .catch(error => {
-          console.error('Background: 关闭侧边栏失败:', error);
+          logger.error('Background: 关闭侧边栏失败:', error);
           // 降级：通过 port 通知关闭
           trySendCloseViaPort();
         });
@@ -232,11 +233,11 @@ export default defineBackground(() => {
       chrome.sidePanel
         .close({ tabId })
         .then(() => {
-          console.log('Background: 侧边栏已关闭 (close API)');
+          logger.debug('Background: 侧边栏已关闭 (close API)');
           sendResponse({ success: true, result: '侧边栏已关闭' });
         })
         .catch(error => {
-          console.error('Background: 关闭侧边栏失败:', error);
+          logger.error('Background: 关闭侧边栏失败:', error);
           // 降级：通过 port 通知关闭
           trySendCloseViaPort();
           sendResponse({ success: true, result: '侧边栏关闭消息已发送 (fallback)' });
@@ -256,9 +257,9 @@ export default defineBackground(() => {
     if (sidePanelPort) {
       try {
         sidePanelPort.postMessage({ type: MessageType.CLOSE_SIDEPANEL });
-        console.log('Background: 侧边栏关闭消息已发送 (port)');
+        logger.debug('Background: 侧边栏关闭消息已发送 (port)');
       } catch (err) {
-        console.error('Background: 通过 port 发送关闭消息失败:', err);
+        logger.error('Background: 通过 port 发送关闭消息失败:', err);
         sidePanelPort = null;
       }
     }
@@ -271,7 +272,7 @@ export default defineBackground(() => {
   async function openOptionsPage() {
     // 防止短时间内重复触发
     if (isOpeningOptionsPage) {
-      console.log('Background: 正在打开选项页面，忽略重复请求');
+      logger.debug('Background: 正在打开选项页面，忽略重复请求');
       return;
     }
     isOpeningOptionsPage = true;
@@ -300,18 +301,18 @@ export default defineBackground(() => {
             .filter((id): id is number => id !== undefined);
           if (tabIdsToClose.length > 0) {
             await chrome.tabs.remove(tabIdsToClose);
-            console.log('Background: 已关闭多余的密码管理标签页:', tabIdsToClose.length);
+            logger.debug('Background: 已关闭多余的密码管理标签页:' + tabIdsToClose.length);
           }
         }
 
-        console.log('Background: 已跳转到已存在的密码管理标签页');
+        logger.debug('Background: 已跳转到已存在的密码管理标签页');
       } else {
         // 不存在则创建新标签页
         await chrome.tabs.create({ url: optionsUrl });
-        console.log('Background: 已创建新的密码管理标签页');
+        logger.debug('Background: 已创建新的密码管理标签页');
       }
     } catch (error) {
-      console.error('打开选项页面失败:', error);
+      logger.error('打开选项页面失败:', error);
     } finally {
       // 500ms 后重置标记，防止过于频繁的调用
       setTimeout(() => {
@@ -330,7 +331,7 @@ export default defineBackground(() => {
       const validityHours = result['master_password_validity'] || 24;
       return validityHours * 60 * 60 * 1000; // 转换为毫秒
     } catch (error) {
-      console.error('Background: 获取缓存有效期失败:', error);
+      logger.error('Background: 获取缓存有效期失败:', error);
       return 24 * 60 * 60 * 1000; // 默认24小时
     }
   }
@@ -350,18 +351,18 @@ export default defineBackground(() => {
     // 检查缓存是否过期
     const now = Date.now();
     if (now - passwordCache.timestamp > cacheValidityMs) {
-      console.log('Background: 密码缓存已过期');
+      logger.debug('Background: 密码缓存已过期');
       passwordCache = null;
       return null;
     }
 
     // 如果请求了特定域名，检查是否匹配
     if (requestedDomain && passwordCache.domain !== requestedDomain) {
-      console.log('Background: 缓存域名不匹配，需要重新加载');
+      logger.debug('Background: 缓存域名不匹配，需要重新加载');
       return null;
     }
 
-    console.log('Background: 返回缓存数据，条目数:', passwordCache.passwords.length);
+    logger.debug('Background: 返回缓存数据，条目数:' + passwordCache.passwords.length);
     return passwordCache;
   }
 
@@ -375,7 +376,7 @@ export default defineBackground(() => {
       timestamp: Date.now(),
       isAuthenticated,
     };
-    console.log('Background: 密码缓存已更新，条目数:', passwords.length, '域名:', domain);
+    logger.debug('Background: 密码缓存已更新，条目数:' + passwords.length + ' 域名:' + domain);
   }
 
   /**
@@ -383,7 +384,7 @@ export default defineBackground(() => {
    */
   function invalidatePasswordCache(): void {
     passwordCache = null;
-    console.log('Background: 密码缓存已失效');
+    logger.debug('Background: 密码缓存已失效');
   }
 
   // 监听 storage 变化，自动使缓存失效
@@ -394,7 +395,7 @@ export default defineBackground(() => {
       const hasRelevantChange = Object.keys(changes).some(key => relevantKeys.includes(key));
 
       if (hasRelevantChange) {
-        console.log('Background: 检测到存储变化，使缓存失效');
+        logger.debug('Background: 检测到存储变化，使缓存失效');
         invalidatePasswordCache();
       }
     }

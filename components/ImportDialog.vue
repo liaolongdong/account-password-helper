@@ -119,6 +119,7 @@ import { Upload } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
 import { ExcelUtils } from '../utils/excel';
 import { StorageUtils } from '../utils/storage';
+import { logger } from '../utils/logger';
 import type { PasswordEntry } from '../utils/types';
 
 interface Props {
@@ -150,7 +151,6 @@ const handleFileChange = async (file: UploadFile) => {
   try {
     selectedFile.value = file.raw;
     const data = await ExcelUtils.importFromExcel(file.raw);
-    console.log('🚀 ~ handleFileChange ~ data:', data);
     previewData.value = data;
 
     if (data.length === 0) {
@@ -159,7 +159,7 @@ const handleFileChange = async (file: UploadFile) => {
       ElMessage.success(`解析成功，共找到 ${data.length} 条有效数据`);
     }
   } catch (error) {
-    console.error('解析Excel失败:', error);
+    logger.error('解析Excel失败:', error);
     ElMessage.error('Excel文件解析失败，请检查文件格式');
     previewData.value = [];
   }
@@ -187,7 +187,7 @@ const handleImport = async () => {
     emit('imported');
     handleClose();
   } catch (error) {
-    console.error('导入失败:', error);
+    logger.error('导入失败:', error);
     ElMessage.error('导入失败，请重试');
   } finally {
     loading.value = false;

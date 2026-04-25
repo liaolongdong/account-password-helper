@@ -1,0 +1,456 @@
+import { ref, computed, type Ref } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import type { FormRules, FormInstance } from 'element-plus';
+import type { PasswordEntry } from '../utils/types';
+import { StorageUtils } from '../utils/storage';
+import { ExcelUtils } from '../utils/excel';
+import { logger } from '../utils/logger';
+
+/**
+ * 密码管理 Composable
+ * 管理密码列表的 CRUD、搜索、排序、导入导出等逻辑
+ */
+export function usePasswordManagement(options: { validityForm: Ref<{ validityHours: number }> }) {
+  const { validityForm } = options;
+
+  // 状态
+  const passwords = ref<PasswordEntry[]>([]);
+  const showImportDialog = ref(false);
+  const showPasswordDialog = ref(false);
+  const searchKeyword = ref('');
+  const selectedIds = ref<string[]>([]);
+  const isEditingPassword = ref(false);
+  const editingPasswordId = ref<string>('');
+  const passwordFormLoading = ref(false);
+  const tableLoading = ref(false);
+  const tableRef = ref();
+
+  // 密码表单
+  const passwordFormRef = ref<FormInstance>();
+  const passwordForm = ref({
+    username: '',
+    password: '',
+    url: '',
+    tag: '',
+    remark: '',
+  });
+
+  const passwordFormRules: FormRules = {
+    username: [
+      { required: true, message: '请输入用户名', trigger: 'blur' },
+      { max: 50, message: '用户名不能超过50个字符', trigger: 'blur' },
+    ],
+    password: [{ max: 50, message: '密码不能超过50个字符', trigger: 'blur' }],
+    url: [{ max: 100, message: 'URL不能超过100个字符', trigger: 'blur' }],
+    tag: [{ max: 50, message: '标签不能超过50个字符', trigger: 'blur' }],
+    remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }],
+  };
+
+  // 悬浮按钮
+  const floatingButtonVisible = ref(true);
+
+  // 计算属性
+  const filteredPasswords = computed(() => {
+    let result = [...passwords.value];
+
+    if (searchKeyword.value) {
+      result = result.filter(
+        p =>
+          p.username.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+          p.tag.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+          p.remark.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
+          p.url.toLowerCase().includes(searchKeyword.value.toLowerCase()),
+      );
+    }
+
+    return result;
+  });
+
+  // 加载悬浮按钮配置
+  const loadFloatingButtonConfig = async () => {
+    try {
+      const config = await StorageUtils.getFloatingButtonConfig();
+      floatingButtonVisible.value = config.visible;
+    } catch (error) {
+      logger.error('加载悬浮按钮配置失败:', error);
+    }
+  };
+
+  // 切换悬浮按钮显示状态
+  const toggleFloatingButton = async (visible: boolean) => {
+    try {
+      await StorageUtils.setFloatingButtonVisible(visible);
+      floatingButtonVisible.value = visible;
+      ElMessage.success(visible ? '悬浮按钮已开启' : '悬浮按钮已关闭');
+    } catch (error) {
+      logger.error('切换悬浮按钮状态失败:', error);
+      ElMessage.error('操作失败，请重试');
+      floatingButtonVisible.value = !visible;
+    }
+  };
+
+  // 加载密码列表
+  const loadPasswords = async () => {
+    try {
+      tableLoading.value = true;
+
+      const sessionValid = await StorageUtils.isSessionValid();
+      if (!sessionValid) {
+        passwords.value = [];
+        return;
+      }
+
+      passwords.value = await StorageUtils.getAllPasswords();
+
+      // 按创建时间倒序排序
+      passwords.value.sort((a, b) => b.createTime - a.createTime);
+
+      // 添加显示密码状态
+      passwords.value.forEach(p => {
+        (p as any).showPassword = false;
+      });
+
+      // 初始化有效期设置表单
+      const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+      validityForm.value.validityHours = validityHours;
+
+      // 延迟设置表格的排序状态
+      setTimeout(async () => {
+        const sortConfig = await StorageUtils.getSortConfig();
+        if (sortConfig && tableRef.value) {
+          tableRef.value.sort(sortConfig.prop, sortConfig.order);
+        }
+      }, 0);
+    } catch (error: any) {
+      logger.error('加载密码列表失败:', error);
+      ElMessage.error('加载密码列表失败: ' + (error.message || '未知错误'));
+    } finally {
+      tableLoading.value = false;
+    }
+  };
+
+  // 搜索处理
+  const handleSearch = () => {
+    // 搜索逻辑已通过计算属性实现
+  };
+
+  // 处理排序变化
+  const handleSortChange = async ({ prop, order }: { prop: string; order: string }) => {
+    try {
+      await StorageUtils.saveSortConfig({ prop, order });
+    } catch (error) {
+      logger.error('保存排序配置失败:', error);
+    }
+  };
+
+  // 切换密码可见性
+  const togglePasswordVisibility = (row: any) => {
+    row.showPassword = !row.showPassword;
+  };
+
+  // 处理表格每行的样式名
+  const handleRowClassName = (data: { row: PasswordEntry; rowIndex: number }) => {
+    return data.row.id;
+  };
+
+  // 选择变更处理
+  const handleSelectionChange = (selection: PasswordEntry[]) => {
+    selectedIds.value = selection.map(item => item.id);
+  };
+
+  // 打开密码弹窗（新增）
+  const openPasswordDialog = () => {
+    isEditingPassword.value = false;
+    editingPasswordId.value = '';
+    passwordForm.value = {
+      username: '',
+      password: '',
+      url: '',
+      tag: '',
+      remark: '',
+    };
+    showPasswordDialog.value = true;
+  };
+
+  // 编辑密码
+  const editPassword = (password: PasswordEntry) => {
+    isEditingPassword.value = true;
+    editingPasswordId.value = password.id;
+    passwordForm.value = {
+      username: password.username,
+      password: password.password,
+      url: password.url,
+      tag: password.tag,
+      remark: password.remark,
+    };
+    showPasswordDialog.value = true;
+  };
+
+  // 重置密码表单
+  const resetPasswordForm = () => {
+    isEditingPassword.value = false;
+    editingPasswordId.value = '';
+    passwordForm.value = {
+      username: '',
+      password: '',
+      url: '',
+      tag: '',
+      remark: '',
+    };
+    if (passwordFormRef.value) {
+      passwordFormRef.value.clearValidate();
+    }
+  };
+
+  // 滚动到密码项
+  const scrollToPassword = (id: string) => {
+    setTimeout(() => {
+      const passwordElement = document.querySelector(`.${id}`);
+      if (passwordElement) {
+        passwordElement.classList.add('new-item');
+        setTimeout(() => {
+          passwordElement.classList.remove('new-item');
+        }, 6000);
+
+        passwordElement.scrollIntoView({
+          behavior: 'smooth',
+          block: 'center',
+        });
+      }
+    }, 100);
+  };
+
+  // 处理密码表单保存
+  const handlePasswordFormSave = async () => {
+    if (!passwordFormRef.value) return;
+
+    try {
+      await passwordFormRef.value.validate();
+      passwordFormLoading.value = true;
+
+      if (isEditingPassword.value) {
+        await StorageUtils.updatePassword(editingPasswordId.value, {
+          username: passwordForm.value.username.trim(),
+          password: passwordForm.value.password,
+          url: passwordForm.value.url.trim(),
+          tag: passwordForm.value.tag.trim(),
+          remark: passwordForm.value.remark.trim(),
+          updateTime: Date.now(),
+        });
+        ElMessage.success('密码更新成功');
+        scrollToPassword(editingPasswordId.value);
+      } else {
+        const newEntry = await StorageUtils.savePassword({
+          username: passwordForm.value.username.trim(),
+          password: passwordForm.value.password,
+          url: passwordForm.value.url.trim(),
+          tag: passwordForm.value.tag.trim(),
+          remark: passwordForm.value.remark.trim(),
+          createTime: Date.now(),
+          updateTime: Date.now(),
+        });
+        ElMessage.success('密码添加成功');
+        scrollToPassword(newEntry.id);
+      }
+
+      await loadPasswords();
+      showPasswordDialog.value = false;
+      resetPasswordForm();
+    } catch (error) {
+      logger.error('保存密码失败:', error);
+      ElMessage.error('保存失败');
+    } finally {
+      passwordFormLoading.value = false;
+    }
+  };
+
+  // 复制密码
+  const copyPassword = async (password: PasswordEntry) => {
+    try {
+      const newPasswordEntry = {
+        username: password.username,
+        password: password.password,
+        url: password.url,
+        tag: password.tag,
+        remark: password.remark,
+        createTime: password.createTime,
+        updateTime: Date.now(),
+      };
+
+      const copyItemId = password.id;
+      const newEntry = await StorageUtils.savePassword(newPasswordEntry, undefined, copyItemId);
+
+      await loadPasswords();
+
+      setTimeout(() => {
+        const copyAddedItem = document.querySelector(`.${newEntry.id}`);
+        if (copyAddedItem) {
+          copyAddedItem.classList.add('new-item');
+          copyAddedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => {
+            copyAddedItem.classList.remove('new-item');
+          }, 6000);
+        }
+      }, 100);
+
+      ElMessage.success('密码复制成功');
+    } catch (error: any) {
+      logger.error('复制密码失败:', error);
+      ElMessage.error('复制失败: ' + (error.message || '未知错误'));
+    }
+  };
+
+  // 删除密码
+  const deletePassword = async (id: string) => {
+    try {
+      await ElMessageBox.confirm('确定要删除这个密码吗？', '确认删除', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      });
+
+      const delItem = document.querySelector(`.${id}`) as HTMLElement | undefined;
+      if (delItem) {
+        delItem.classList.add('del-item');
+        setTimeout(async () => {
+          delItem.remove();
+          await StorageUtils.deletePassword(id);
+          await loadPasswords();
+          ElMessage.success('删除成功');
+        }, 1000);
+      }
+    } catch (error) {
+      if (error !== 'cancel') {
+        ElMessage.error('删除失败');
+      }
+    }
+  };
+
+  // 批量删除
+  const batchDelete = async () => {
+    try {
+      await ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 个密码吗？`, '确认批量删除', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      });
+
+      const patchDelItems: HTMLElement[] = [];
+      selectedIds.value.forEach((id: string) => {
+        const delItem = document.querySelector(`.${id}`) as HTMLElement | undefined;
+        if (delItem) {
+          delItem.classList.add('del-item');
+          patchDelItems.push(delItem);
+        }
+      });
+      setTimeout(async () => {
+        patchDelItems.forEach(delItem => {
+          delItem.remove();
+        });
+
+        await StorageUtils.deletePasswords(selectedIds.value);
+        await loadPasswords();
+        selectedIds.value = [];
+        ElMessage.success('批量删除成功');
+      }, 1000);
+    } catch (error) {
+      if (error !== 'cancel') {
+        ElMessage.error('批量删除失败');
+      }
+    }
+  };
+
+  // 密码导入处理
+  const handlePasswordsImported = async () => {
+    await loadPasswords();
+  };
+
+  // 导出密码
+  const exportPasswords = async () => {
+    try {
+      if (passwords.value.length === 0) {
+        ElMessage.warning('没有密码数据可导出');
+        return;
+      }
+
+      const { value: masterPassword } = await ElMessageBox.prompt(
+        '导出密码列表需要验证主密码，请输入主密码：',
+        '验证主密码',
+        {
+          confirmButtonText: '确认导出',
+          cancelButtonText: '取消',
+          inputType: 'password',
+          inputPlaceholder: '请输入主密码',
+          inputValidator: (value: string) => {
+            if (!value || !value.trim()) {
+              return '主密码不能为空';
+            }
+            return true;
+          },
+        },
+      );
+
+      const isValid = await StorageUtils.verifyMasterPassword(masterPassword.trim());
+      if (!isValid) {
+        ElMessage.error('主密码错误，导出失败');
+        return;
+      }
+
+      ExcelUtils.exportToExcel(passwords.value);
+      ElMessage.success('导出成功');
+    } catch (error) {
+      if (error !== 'cancel') {
+        logger.error('导出失败:', error);
+        ElMessage.error('导出失败');
+      }
+    }
+  };
+
+  // 下载模板
+  const downloadTemplate = () => {
+    try {
+      ExcelUtils.downloadTemplate();
+      ElMessage.success('模板下载成功');
+    } catch (error) {
+      ElMessage.error('模板下载失败');
+    }
+  };
+
+  return {
+    // 状态
+    passwords,
+    showImportDialog,
+    showPasswordDialog,
+    searchKeyword,
+    selectedIds,
+    isEditingPassword,
+    editingPasswordId,
+    passwordFormRef,
+    passwordForm,
+    passwordFormRules,
+    passwordFormLoading,
+    tableLoading,
+    tableRef,
+    floatingButtonVisible,
+    filteredPasswords,
+    // 方法
+    loadFloatingButtonConfig,
+    toggleFloatingButton,
+    loadPasswords,
+    handleSearch,
+    handleSortChange,
+    togglePasswordVisibility,
+    handleRowClassName,
+    handleSelectionChange,
+    openPasswordDialog,
+    editPassword,
+    resetPasswordForm,
+    handlePasswordFormSave,
+    copyPassword,
+    deletePassword,
+    batchDelete,
+    handlePasswordsImported,
+    exportPasswords,
+    downloadTemplate,
+  };
+}

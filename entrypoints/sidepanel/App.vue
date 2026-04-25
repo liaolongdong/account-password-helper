@@ -176,6 +176,8 @@ import {
 } from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
 import { useChromeListeners } from '../../composables/useChromeListeners';
+import { getTagType } from '../../utils/tagUtils';
+import { logger } from '../../utils/logger';
 
 const loading = ref(true);
 const searchKeyword = ref('');
@@ -183,16 +185,74 @@ const passwords = ref<PasswordEntry[]>([]);
 const currentDomain = ref('');
 const isAuthenticated = ref(false);
 const showSidepanel = ref(true);
+const sortConfig = ref<{ prop: string; order: string } | null>(null);
 
 // 使用 Chrome 事件监听 composable
 const { onStorageChange, onMessage, onTabUpdated, onTabActivated, onDocumentEvent, onWindowEvent } =
   useChromeListeners();
 
+// 域名匹配优先级：0=匹配, 1=不匹配
+const getDomainPriority = (entry: PasswordEntry): number => {
+  if (!currentDomain.value) return 0;
+  const hasUrl = entry.url && entry.url.trim() !== '';
+  if (hasUrl && (currentDomain.value.includes(entry.url) || entry.url.includes(currentDomain.value))) return 0;
+  return 1;
+};
+
+// 同步排序（使用缓存的 sortConfig）
+const applySortConfig = (list: PasswordEntry[]) => {
+  const config = sortConfig.value;
+  if (!config) {
+    list.sort((a, b) => {
+      const dp = getDomainPriority(a) - getDomainPriority(b);
+      return dp !== 0 ? dp : b.createTime - a.createTime;
+    });
+    return;
+  }
+  list.sort((a, b) => {
+    const dp = getDomainPriority(a) - getDomainPriority(b);
+    if (dp !== 0) return dp;
+    let aVal: any, bVal: any;
+    switch (config.prop) {
+      case 'username':
+        aVal = a.username;
+        bVal = b.username;
+        break;
+      case 'url':
+        aVal = a.url;
+        bVal = b.url;
+        break;
+      case 'tag':
+        aVal = a.tag;
+        bVal = b.tag;
+        break;
+      case 'remark':
+        aVal = a.remark;
+        bVal = b.remark;
+        break;
+      case 'createTime':
+        aVal = a.createTime;
+        bVal = b.createTime;
+        break;
+      case 'updateTime':
+        aVal = a.updateTime;
+        bVal = b.updateTime;
+        break;
+      default:
+        return b.createTime - a.createTime;
+    }
+    let cmp = 0;
+    if (typeof aVal === 'string' && typeof bVal === 'string') cmp = aVal.localeCompare(bVal);
+    else if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
+    else return b.createTime - a.createTime;
+    return config.order === 'ascending' ? cmp : -cmp;
+  });
+};
+
 // 计算属性
 const filteredPasswords = computed(() => {
-  let result = [...passwords.value]; // 创建副本以避免修改原始数据
+  let result = [...passwords.value];
 
-  // 搜索过滤
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase();
     result = result.filter(
@@ -204,9 +264,7 @@ const filteredPasswords = computed(() => {
     );
   }
 
-  // 按保存的排序配置进行排序
-  sortPasswords(result);
-
+  applySortConfig(result);
   return result;
 });
 
@@ -228,7 +286,7 @@ const handleSessionChange = async () => {
       passwords.value = [];
     }
   } catch (error) {
-    console.error('SidePanel: 检查会话状态失败:', error);
+    logger.error('SidePanel: 检查会话状态失败:', error);
   }
 };
 
@@ -307,7 +365,7 @@ const updateCurrentDomainAndLoadPasswords = async () => {
       }
     }
   } catch (error) {
-    console.error('更新当前域名失败:', error);
+    logger.error('更新当前域名失败:', error);
   }
 };
 
@@ -320,7 +378,7 @@ const loadCurrentTab = async () => {
       currentDomain.value = url.hostname;
     }
   } catch (error) {
-    console.error('获取当前标签页失败:', error);
+    logger.error('获取当前标签页失败:', error);
   }
 };
 
@@ -338,13 +396,19 @@ const loadPasswords = async () => {
       return;
     }
 
+    // 加载排序配置
+    try {
+      sortConfig.value = await StorageUtils.getSortConfig();
+    } catch {
+      sortConfig.value = null;
+    }
+
     // 会话有效，直接获取数据（StorageUtils 内部会自动判断是否需要解密）
     let loadedPasswords: PasswordEntry[];
     if (currentDomain.value) {
       loadedPasswords = await StorageUtils.getPasswordsByUrl(currentDomain.value);
     } else {
       loadedPasswords = await StorageUtils.getAllPasswords();
-      sortPasswords(loadedPasswords);
     }
 
     passwords.value = loadedPasswords;
@@ -352,7 +416,7 @@ const loadPasswords = async () => {
     // 更新缓存
     await updatePasswordCacheInBackground(loadedPasswords, currentDomain.value, isAuthenticated.value);
   } catch (error) {
-    console.error('加载密码列表失败:', error);
+    logger.error('加载密码列表失败:', error);
     ElMessage.error('加载密码列表失败');
   } finally {
     loading.value = false;
@@ -429,7 +493,7 @@ const fillPassword = async (password: PasswordEntry) => {
 
     // 步骤2: 只有在 PING 失败时才尝试注入 content script
     if (!pingResponse) {
-      console.log('Content script 未就绪，尝试注入...');
+      logger.debug('Content script 未就绪，尝试注入...');
       try {
         await chrome.scripting.executeScript({
           target: { tabId },
@@ -438,7 +502,7 @@ const fillPassword = async (password: PasswordEntry) => {
         // 注入后等待脚本初始化和字段检测（给足够时间）
         await new Promise(resolve => setTimeout(resolve, 800));
       } catch (injectError) {
-        console.error('Content script 注入失败:', injectError);
+        logger.error('Content script 注入失败:', injectError);
         ElMessage.error('无法在当前页面中注入脚本，请刷新页面后重试');
         return;
       }
@@ -486,7 +550,7 @@ const fillPassword = async (password: PasswordEntry) => {
       ElMessage.warning(errorMsg);
     }
   } catch (error: any) {
-    console.error('填充密码失败:', error);
+    logger.error('填充密码失败:', error);
     if (error.message && error.message.includes('Could not establish connection')) {
       ElMessage.error('无法连接到页面脚本，请刷新页面后重试');
     } else {
@@ -501,7 +565,7 @@ const copyUsername = async (username: string) => {
     await navigator.clipboard.writeText(username);
     ElMessage.success('用户名已复制到剪贴板');
   } catch (error) {
-    console.error('复制用户名失败:', error);
+    logger.error('复制用户名失败:', error);
     ElMessage.error('复制用户名失败');
   }
 };
@@ -535,210 +599,8 @@ const openOptions = async () => {
 
     // SidePanel: 选项页面打开完成
   } catch (error) {
-    console.error('SidePanel: 打开选项页面失败:', error);
+    logger.error('SidePanel: 打开选项页面失败:', error);
   }
-};
-
-// 标签颜色映射缓存
-const tagColorCache = new Map<string, string>();
-
-// 获取标签颜色类型
-const getTagType = (tag: string): string => {
-  const tagLower = tag.toLowerCase();
-
-  // 工作相关标签
-  if (
-    tagLower.includes('工作') ||
-    tagLower.includes('work') ||
-    tagLower.includes('office') ||
-    tagLower.includes('公司')
-  ) {
-    return 'primary';
-  }
-
-  // 个人相关标签
-  if (tagLower.includes('个人') || tagLower.includes('personal') || tagLower.includes('私人')) {
-    return 'success';
-  }
-
-  // 学习相关标签
-  if (
-    tagLower.includes('学习') ||
-    tagLower.includes('study') ||
-    tagLower.includes('课程') ||
-    tagLower.includes('教育')
-  ) {
-    return 'warning';
-  }
-
-  // 游戏相关标签
-  if (tagLower.includes('游戏') || tagLower.includes('game') || tagLower.includes('娱乐')) {
-    return 'danger';
-  }
-
-  // 购物相关标签
-  if (
-    tagLower.includes('购物') ||
-    tagLower.includes('shop') ||
-    tagLower.includes('电商') ||
-    tagLower.includes('淘宝') ||
-    tagLower.includes('京东')
-  ) {
-    return 'info';
-  }
-
-  // 社交相关标签
-  if (
-    tagLower.includes('社交') ||
-    tagLower.includes('social') ||
-    tagLower.includes('微信') ||
-    tagLower.includes('qq')
-  ) {
-    return 'success';
-  }
-
-  // 金融相关标签
-  if (
-    tagLower.includes('银行') ||
-    tagLower.includes('金融') ||
-    tagLower.includes('支付') ||
-    tagLower.includes('理财')
-  ) {
-    return 'warning';
-  }
-
-  // 开发相关标签
-  if (
-    tagLower.includes('开发') ||
-    tagLower.includes('dev') ||
-    tagLower.includes('github') ||
-    tagLower.includes('代码')
-  ) {
-    return 'primary';
-  }
-
-  // 媒体相关标签
-  if (
-    tagLower.includes('视频') ||
-    tagLower.includes('音乐') ||
-    tagLower.includes('直播') ||
-    tagLower.includes('媒体')
-  ) {
-    return 'danger';
-  }
-
-  // 对于未匹配的标签，使用随机颜色但保持一致性
-  if (tagColorCache.has(tag)) {
-    return tagColorCache.get(tag)!;
-  }
-
-  // 生成随机颜色类型（排除空字符串，确保有颜色）
-  const randomTypes = ['primary', 'success', 'warning', 'danger', 'info'];
-  const randomType = randomTypes[Math.abs(hashString(tag)) % randomTypes.length];
-
-  // 缓存颜色映射，确保同一标签始终使用相同颜色
-  tagColorCache.set(tag, randomType);
-
-  return randomType;
-};
-
-// 字符串哈希函数，用于生成一致的随机颜色
-const hashString = (str: string): number => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // 转换为32位整数
-  }
-  return Math.abs(hash);
-};
-
-// 密码排序函数
-const sortPasswords = (passwords: PasswordEntry[]) => {
-  // 域名匹配优先级辅助函数：0=域名匹配, 1=未设URL(低优先级)
-  const getDomainPriority = (entry: PasswordEntry): number => {
-    if (!currentDomain.value) return 0; // 无域名时不区分优先级
-    const hasUrl = entry.url && entry.url.trim() !== '';
-    if (hasUrl && (currentDomain.value.includes(entry.url) || entry.url.includes(currentDomain.value))) return 0; // 域名匹配
-    return 1; // 未设URL或不匹配
-  };
-
-  // 获取保存的排序配置
-  StorageUtils.getSortConfig()
-    .then(sortConfig => {
-      if (sortConfig) {
-        // 根据保存的排序配置进行排序
-        passwords.sort((a, b) => {
-          // 域名匹配优先级排序
-          const aPriority = getDomainPriority(a);
-          const bPriority = getDomainPriority(b);
-          if (aPriority !== bPriority) return aPriority - bPriority;
-
-          let aValue: any, bValue: any;
-
-          switch (sortConfig.prop) {
-            case 'username':
-              aValue = a.username;
-              bValue = b.username;
-              break;
-            case 'url':
-              aValue = a.url;
-              bValue = b.url;
-              break;
-            case 'tag':
-              aValue = a.tag;
-              bValue = b.tag;
-              break;
-            case 'remark':
-              aValue = a.remark;
-              bValue = b.remark;
-              break;
-            case 'createTime':
-              aValue = a.createTime;
-              bValue = b.createTime;
-              break;
-            case 'updateTime':
-              aValue = a.updateTime;
-              bValue = b.updateTime;
-              break;
-            default:
-              // 默认按创建时间倒序排序
-              return b.createTime - a.createTime;
-          }
-
-          // 根据排序顺序进行比较
-          let comparison = 0;
-          if (typeof aValue === 'string' && typeof bValue === 'string') {
-            comparison = aValue.localeCompare(bValue);
-          } else if (typeof aValue === 'number' && typeof bValue === 'number') {
-            comparison = aValue - bValue;
-          } else {
-            // 默认按创建时间倒序排序
-            return b.createTime - a.createTime;
-          }
-
-          return sortConfig.order === 'ascending' ? comparison : -comparison;
-        });
-      } else {
-        // 默认按创建时间倒序排序，域名匹配优先
-        passwords.sort((a, b) => {
-          const aPriority = getDomainPriority(a);
-          const bPriority = getDomainPriority(b);
-          if (aPriority !== bPriority) return aPriority - bPriority;
-          return b.createTime - a.createTime;
-        });
-      }
-    })
-    .catch(error => {
-      console.error('获取排序配置失败，使用默认排序:', error);
-      // 默认按创建时间倒序排序，域名匹配优先
-      passwords.sort((a, b) => {
-        const aPriority = getDomainPriority(a);
-        const bPriority = getDomainPriority(b);
-        if (aPriority !== bPriority) return aPriority - bPriority;
-        return b.createTime - a.createTime;
-      });
-    });
 };
 
 // 从 background 获取缓存的密码数据
@@ -753,7 +615,7 @@ const getCachedPasswordsFromBackground = async (domain?: string): Promise<Passwo
     }
     return null;
   } catch (error) {
-    console.error('SidePanel: 获取缓存数据失败:', error);
+    logger.error('SidePanel: 获取缓存数据失败:', error);
     return null;
   }
 };
@@ -774,7 +636,7 @@ const updatePasswordCacheInBackground = async (
       },
     });
   } catch (error) {
-    console.error('SidePanel: 更新缓存失败:', error);
+    logger.error('SidePanel: 更新缓存失败:', error);
   }
 };
 
@@ -787,7 +649,7 @@ onMounted(async () => {
     bgPort = chrome.runtime.connect({ name: 'sidepanel' });
     bgPort.onMessage.addListener((message: any) => {
       if (message.type === MessageType.CLOSE_SIDEPANEL) {
-        console.log('SidePanel: 收到关闭消息，正在关闭侧边栏');
+        logger.debug('SidePanel: 收到关闭消息，正在关闭侧边栏');
         window.close();
       }
     });
@@ -795,7 +657,7 @@ onMounted(async () => {
       bgPort = null;
     });
   } catch (err) {
-    console.error('SidePanel: 建立 port 连接失败:', err);
+    logger.error('SidePanel: 建立 port 连接失败:', err);
   }
 
   // 使用 composable 注册监听器（自动在组件卸载时清理）
@@ -815,7 +677,7 @@ onMounted(async () => {
 
     if (cachedData && cachedData.isAuthenticated) {
       // 有有效缓存，立即显示缓存数据
-      console.log('SidePanel: 使用缓存数据，条目数:', cachedData.passwords.length);
+      logger.debug('SidePanel: 使用缓存数据，条目数:' + cachedData.passwords.length);
       passwords.value = cachedData.passwords;
       isAuthenticated.value = true;
       loading.value = false;
@@ -824,11 +686,11 @@ onMounted(async () => {
       verifySessionAndRefreshIfNeeded();
     } else {
       // 无缓存，走原有加载逻辑
-      console.log('SidePanel: 无缓存，从存储加载数据');
+      logger.debug('SidePanel: 无缓存，从存储加载数据');
       await loadFromStorage();
     }
   } catch (error) {
-    console.error('SidePanel: 初始化失败:', error);
+    logger.error('SidePanel: 初始化失败:', error);
     // 出错时显示未验证状态
     isAuthenticated.value = false;
     loading.value = false;
@@ -859,12 +721,12 @@ const verifySessionAndRefreshIfNeeded = async () => {
     const isSessionValid = await StorageUtils.isSessionValid();
     if (!isSessionValid) {
       // 会话已失效，清除显示并显示未验证状态
-      console.log('SidePanel: 会话已失效，显示未验证状态');
+      logger.debug('SidePanel: 会话已失效，显示未验证状态');
       isAuthenticated.value = false;
       passwords.value = [];
     }
   } catch (error) {
-    console.error('SidePanel: 验证会话状态失败:', error);
+    logger.error('SidePanel: 验证会话状态失败:', error);
   }
 };
 
