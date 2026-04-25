@@ -4,7 +4,6 @@ import {
   FloatingButtonConfig,
   FillPasswordData,
   FillResult,
-  FillStrategy,
   PingResponse,
 } from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
@@ -15,43 +14,56 @@ import {
   VERIFY_CODE_SELECTORS,
   LOGIN_BUTTON_KEYWORDS,
   LOGIN_BUTTON_SELECTORS,
-  LOGIN_CONTAINER_KEYWORDS,
-  POPUP_KEYWORDS,
-  MOBILE_KEYWORDS,
   MUTATION_LOGIN_KEYWORDS,
-  CHECKBOX_POSITIVE_KEYWORDS,
-  CHECKBOX_NEGATIVE_KEYWORDS,
+  MOBILE_KEYWORDS,
 } from './formSelectors';
+import { InputFiller } from './InputFiller';
+import { CheckboxHandler } from './CheckboxHandler';
+import { LoginFormAnalyzer, FormFieldSets } from './LoginFormAnalyzer';
+import { showNoLoginFormMessage } from './NativeNotification';
 
 /**
  * 表单检测器
- * 负责检测页面中的登录表单字段，自动显示侧边栏，以及填充密码
+ * 负责检测页面中的登录表单字段，自动显示侧边栏，以及填充密码。
+ * 作为主编排器，组合 InputFiller、CheckboxHandler、LoginFormAnalyzer 等模块。
  */
 export class FormDetector {
+  /** 检测到的密码输入框列表 */
   private passwordFields: HTMLInputElement[] = [];
+  /** 检测到的用户名输入框列表 */
   private usernameFields: HTMLInputElement[] = [];
+  /** 检测到的手机号输入框列表 */
   private mobileFields: HTMLInputElement[] = [];
+  /** 检测到的验证码输入框列表 */
   private verifyCodeFields: HTMLInputElement[] = [];
+  /** 检测到的复选框列表 */
   private checkboxFields: HTMLInputElement[] = [];
+  /** 检测到的登录按钮列表 */
   private loginButtons: HTMLElement[] = [];
+  /** DOM 变化观察器 */
   private observer: MutationObserver;
-  /** 设置长延迟时间 */
+  /** 长延迟时间（毫秒） */
   private longDelayTime = 3000;
-  /** 设置短延迟时间 */
+  /** 短延迟时间（毫秒） */
   private shortDelayTime = 500;
-  /** 字段类型缓存，使用WeakMap避免内存泄漏 */
+  /** 字段类型缓存，使用 WeakMap 避免内存泄漏 */
   private fieldTypeCache = new WeakMap<HTMLInputElement, 'password' | 'username' | 'mobile' | 'verifyCode' | null>();
-  /** 字段集合，使用Set提高查找效率 */
+  /** 字段集合，使用 WeakSet 提高查找效率 */
   private passwordFieldsSet = new WeakSet<HTMLInputElement>();
   private usernameFieldsSet = new WeakSet<HTMLInputElement>();
   private mobileFieldsSet = new WeakSet<HTMLInputElement>();
   private verifyCodeFieldsSet = new WeakSet<HTMLInputElement>();
-  /** 缓存 isInLoginFormOrPopup 的检查结果，使用WeakMap避免内存泄漏 */
-  private loginFormCheckCache = new WeakMap<HTMLInputElement, boolean>();
   /** 悬浮按钮配置 */
   private floatingButtonConfig: FloatingButtonConfig;
   /** 存储变化监听器 */
   private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
+
+  /** 输入填充器 */
+  private inputFiller = new InputFiller();
+  /** 复选框处理器 */
+  private checkboxHandler = new CheckboxHandler();
+  /** 登录表单分析器 */
+  private loginFormAnalyzer = new LoginFormAnalyzer();
 
   constructor() {
     // 初始化默认配置
@@ -80,7 +92,7 @@ export class FormDetector {
   }
 
   /**
-   * 设置存储变化监听器
+   * 设置存储变化监听器，当配置变更时自动更新
    */
   private setupStorageListener(): void {
     this.storageListener = changes => {
@@ -94,7 +106,10 @@ export class FormDetector {
     chrome.storage.onChanged.addListener(this.storageListener);
   }
 
-  private init() {
+  /**
+   * 初始化表单检测和消息监听
+   */
+  private init(): void {
     // 页面加载完成后检测表单
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', () => {
@@ -111,6 +126,10 @@ export class FormDetector {
     });
   }
 
+  /**
+   * 创建 MutationObserver 监听 DOM 变化，检测动态加载的登录表单
+   * @returns MutationObserver 实例
+   */
   private createMutationObserver(): MutationObserver {
     const observer = new MutationObserver(mutations => {
       let shouldRedetect = false;
@@ -176,7 +195,10 @@ export class FormDetector {
     return observer;
   }
 
-  private detectForms() {
+  /**
+   * 检测页面中的所有表单字段（密码、用户名、手机号、验证码、复选框、登录按钮）
+   */
+  private detectForms(): void {
     // 清空之前的检测结果
     this.passwordFields = [];
     this.usernameFields = [];
@@ -188,7 +210,7 @@ export class FormDetector {
     this.usernameFieldsSet = new WeakSet();
     this.mobileFieldsSet = new WeakSet();
     this.verifyCodeFieldsSet = new WeakSet();
-    this.loginFormCheckCache = new WeakMap();
+    this.loginFormAnalyzer.clearCache();
 
     // 检测登录按钮
     this.detectLoginButtons();
@@ -259,108 +281,10 @@ export class FormDetector {
   }
 
   /**
-   * 显示没有检测到登录表单的提示
+   * 判断元素是否可见
+   * @param element - 要检查的 HTML 元素
+   * @returns 元素是否可见
    */
-  private showNoLoginFormMessage() {
-    if ((window as any).ElementPlus && (window as any).ElementPlus.ElMessage) {
-      (window as any).ElementPlus.ElMessage.warning('当前页面未匹配到登录表单');
-    } else {
-      this.showNativeNotification('当前页面未匹配到登录表单', 'warning');
-    }
-  }
-
-  /**
-   * 显示原生通知（模拟Element Plus ElMessage样式）
-   */
-  private showNativeNotification(message: string, type: 'success' | 'warning' | 'info' | 'error' = 'warning') {
-    const existingNotification = document.querySelector('.el-message') as HTMLElement;
-    if (existingNotification) {
-      existingNotification.remove();
-    }
-
-    const notification = document.createElement('div');
-
-    let bgColor = '#edf2fc';
-    let borderColor = '#b3c1db';
-    let textColor = '#909399';
-
-    switch (type) {
-      case 'success':
-        bgColor = '#f0f9ec';
-        borderColor = '#b2d3a3';
-        textColor = '#67c23a';
-        break;
-      case 'warning':
-        bgColor = '#fdf6ec';
-        borderColor = '#f0c78a';
-        textColor = '#e6a23c';
-        break;
-      case 'error':
-        bgColor = '#fef0f0';
-        borderColor = '#f3b4b4';
-        textColor = '#f56c6c';
-        break;
-      case 'info':
-        bgColor = '#edf2fc';
-        borderColor = '#b3c1db';
-        textColor = '#909399';
-        break;
-    }
-
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: ${bgColor};
-      border: 1px solid ${borderColor};
-      color: ${textColor};
-      padding: 12px 16px;
-      border-radius: 4px;
-      box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-      z-index: 2147483647;
-      font-size: 14px;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      max-width: 300px;
-      word-wrap: break-word;
-      display: flex;
-      align-items: center;
-      min-height: 40px;
-    `;
-
-    const icon = document.createElement('span');
-    icon.innerHTML = this.getMessageIcon(type);
-    icon.style.marginRight = '8px';
-
-    const textSpan = document.createElement('span');
-    textSpan.textContent = message;
-
-    notification.appendChild(icon);
-    notification.appendChild(textSpan);
-
-    document.body.appendChild(notification);
-
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 3000);
-  }
-
-  private getMessageIcon(type: 'success' | 'warning' | 'info' | 'error'): string {
-    switch (type) {
-      case 'success':
-        return '✓';
-      case 'warning':
-        return '!';
-      case 'info':
-        return 'ℹ';
-      case 'error':
-        return '✗';
-      default:
-        return 'ℹ';
-    }
-  }
-
   private isVisible(element: HTMLElement): boolean {
     const style = window.getComputedStyle(element);
     return (
@@ -372,11 +296,17 @@ export class FormDetector {
     );
   }
 
-  private setupEventDelegation() {
+  /**
+   * 设置全局点击事件委托，监听输入框点击
+   */
+  private setupEventDelegation(): void {
     document.addEventListener('click', this.handleDelegatedClick, { capture: true });
   }
 
-  private handleDelegatedClick = (event: MouseEvent) => {
+  /**
+   * 处理委托的点击事件，判断是否需要显示侧边栏
+   */
+  private handleDelegatedClick = (event: MouseEvent): void => {
     const target = event.target;
     if (!target || !(target instanceof HTMLElement) || target.tagName !== 'INPUT') {
       return;
@@ -391,6 +321,11 @@ export class FormDetector {
     }
   };
 
+  /**
+   * 获取输入框的字段类型（带缓存）
+   * @param field - 输入框元素
+   * @returns 字段类型或 null
+   */
   private getFieldType(field: HTMLInputElement): 'password' | 'username' | 'mobile' | 'verifyCode' | null {
     const cachedType = this.fieldTypeCache.get(field);
     if (cachedType !== undefined) {
@@ -423,13 +358,19 @@ export class FormDetector {
     return null;
   }
 
+  /**
+   * 判断是否应该显示侧边栏
+   * 根据字段组合判断：账号+密码、手机号+验证码等
+   * @param input - 当前点击的输入框
+   * @returns 是否应显示侧边栏
+   */
   private shouldShowSidePanel(input: HTMLInputElement): boolean {
     const fieldType = this.getFieldType(input);
     if (!fieldType) {
       return false;
     }
 
-    if (!this.isInLoginFormOrPopup(input)) {
+    if (!this.loginFormAnalyzer.isInLoginFormOrPopup(input, this.getFormFieldSets())) {
       return false;
     }
 
@@ -499,6 +440,11 @@ export class FormDetector {
     return false;
   }
 
+  /**
+   * 判断输入框是否可能是手机号输入框
+   * @param input - 输入框元素
+   * @returns 是否可能是手机号输入
+   */
   private isLikelyMobileInput(input: HTMLInputElement): boolean {
     const name = (input.name || '').toLowerCase();
     const id = (input.id || '').toLowerCase();
@@ -520,155 +466,24 @@ export class FormDetector {
     return MOBILE_KEYWORDS.some(keyword => textToCheck.includes(keyword));
   }
 
-  private isInLoginFormOrPopup(input: HTMLInputElement): boolean {
-    const cachedResult = this.loginFormCheckCache.get(input);
-    if (cachedResult !== undefined) {
-      return cachedResult;
-    }
-
-    const hasLoginFields =
-      (this.passwordFields.length > 0 && this.usernameFields.length > 0) ||
-      (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0);
-
-    if (hasLoginFields) {
-      const form = input.closest('form');
-      if (form) {
-        this.loginFormCheckCache.set(input, true);
-        return true;
-      }
-    }
-
-    let parent: HTMLElement | null = input.parentElement;
-    let depth = 0;
-    const maxDepth = 12;
-
-    while (parent && depth < maxDepth) {
-      depth++;
-
-      if (parent.tagName === 'FORM') {
-        const hasSubmitButton =
-          parent.querySelector('button[type="submit"]') !== null ||
-          parent.querySelector('input[type="submit"]') !== null;
-
-        const hasLoginButton = this.hasLoginButtonInForm(parent);
-
-        if (hasSubmitButton || hasLoginButton) {
-          const formText = parent.textContent?.toLowerCase() || '';
-          const hasLoginText =
-            formText.includes('登录') ||
-            formText.includes('登陆') ||
-            formText.includes('sign in') ||
-            formText.includes('login');
-
-          if (hasLoginText || hasSubmitButton || hasLoginButton) {
-            this.loginFormCheckCache.set(input, true);
-            return true;
-          }
-        }
-      }
-
-      const id = parent.id?.toLowerCase() || '';
-      const className = parent.className?.toLowerCase() || '';
-      const role = parent.getAttribute('role')?.toLowerCase() || '';
-      const ariaLabel = parent.getAttribute('aria-label')?.toLowerCase() || '';
-
-      const hasLoginKeyword = LOGIN_CONTAINER_KEYWORDS.some(
-        keyword => id.includes(keyword) || className.includes(keyword) || ariaLabel.includes(keyword),
-      );
-      const hasPopupKeyword = POPUP_KEYWORDS.some(
-        keyword => id.includes(keyword) || className.includes(keyword) || role.includes(keyword),
-      );
-
-      if (hasLoginKeyword) {
-        this.loginFormCheckCache.set(input, true);
-        return true;
-      }
-
-      if (hasPopupKeyword) {
-        if (this.hasLoginFieldsNearby(parent) || this.hasLoginButtonNearby(parent)) {
-          this.loginFormCheckCache.set(input, true);
-          return true;
-        }
-      }
-
-      const style = window.getComputedStyle(parent);
-      if (style.position === 'fixed' || style.position === 'absolute') {
-        if (hasPopupKeyword || this.hasLoginFieldsNearby(parent) || this.hasLoginButtonNearby(parent)) {
-          this.loginFormCheckCache.set(input, true);
-          return true;
-        }
-      }
-
-      if (role === 'dialog' || role === 'alertdialog') {
-        if (this.hasLoginFieldsNearby(parent) || this.hasLoginButtonNearby(parent)) {
-          this.loginFormCheckCache.set(input, true);
-          return true;
-        }
-      }
-
-      parent = parent.parentElement;
-    }
-
-    if (hasLoginFields || this.hasLoginButtons()) {
-      this.loginFormCheckCache.set(input, true);
-      return true;
-    }
-
-    this.loginFormCheckCache.set(input, false);
-    return false;
+  /**
+   * 获取当前表单字段集合，供 LoginFormAnalyzer 使用
+   * @returns 表单字段集合
+   */
+  private getFormFieldSets(): FormFieldSets {
+    return {
+      passwordFields: this.passwordFields,
+      usernameFields: this.usernameFields,
+      mobileFields: this.mobileFields,
+      verifyCodeFields: this.verifyCodeFields,
+      loginButtons: this.loginButtons,
+    };
   }
 
-  private hasLoginFieldsNearby(element: HTMLElement): boolean {
-    const hasPassword = element.querySelector('input[type="password"]') !== null;
-    const hasVerifyCode =
-      element.querySelector('input[placeholder*="验证码"]') !== null ||
-      element.querySelector('input[name*="code"]') !== null ||
-      element.querySelector('input[id*="code"]') !== null;
-
-    const text = element.textContent?.toLowerCase() || '';
-    const hasLoginText =
-      text.includes('登录') ||
-      text.includes('登陆') ||
-      text.includes('sign in') ||
-      text.includes('login') ||
-      text.includes('密码') ||
-      text.includes('password') ||
-      text.includes('验证码') ||
-      text.includes('验证');
-
-    return hasPassword || hasVerifyCode || hasLoginText;
-  }
-
-  private hasLoginButtonInForm(form: Element): boolean {
-    for (const button of this.loginButtons) {
-      if (form.contains(button)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private hasLoginButtonNearby(element: HTMLElement): boolean {
-    for (const button of this.loginButtons) {
-      if (element.contains(button)) {
-        return true;
-      }
-    }
-
-    const text = element.textContent?.toLowerCase() || '';
-    return (
-      text.includes('登录') ||
-      text.includes('登陆') ||
-      text.includes('sign in') ||
-      text.includes('login') ||
-      text.includes('密码') ||
-      text.includes('password') ||
-      text.includes('验证码') ||
-      text.includes('验证')
-    );
-  }
-
-  private async showSidePanel() {
+  /**
+   * 发送消息显示侧边栏
+   */
+  private async showSidePanel(): Promise<void> {
     try {
       if (!chrome.runtime?.id) {
         logger.warn('扩展上下文已失效，无法显示侧边栏');
@@ -688,7 +503,10 @@ export class FormDetector {
     }
   }
 
-  private async hideSidePanel() {
+  /**
+   * 发送消息隐藏侧边栏
+   */
+  private async hideSidePanel(): Promise<void> {
     try {
       if (!chrome.runtime?.id) {
         return;
@@ -707,6 +525,10 @@ export class FormDetector {
     }
   }
 
+  /**
+   * 判断是否检测到登录表单字段
+   * @returns 是否存在用户名+密码或手机号+验证码组合
+   */
   public hasLoginFormFields(): boolean {
     return (
       (this.usernameFields.length > 0 && this.passwordFields.length > 0) ||
@@ -714,7 +536,10 @@ export class FormDetector {
     );
   }
 
-  private detectLoginButtons() {
+  /**
+   * 检测页面中的登录按钮
+   */
+  private detectLoginButtons(): void {
     this.loginButtons = [];
 
     LOGIN_BUTTON_SELECTORS.forEach(selector => {
@@ -744,11 +569,18 @@ export class FormDetector {
     });
   }
 
+  /**
+   * 判断是否检测到登录按钮
+   * @returns 是否存在登录按钮
+   */
   public hasLoginButtons(): boolean {
     return this.loginButtons.length > 0;
   }
 
-  private addPageVisibilityListener() {
+  /**
+   * 监听页面可见性变化，页面隐藏时自动关闭侧边栏
+   */
+  private addPageVisibilityListener(): void {
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) {
         this.hideSidePanel();
@@ -756,7 +588,10 @@ export class FormDetector {
     });
   }
 
-  private addPageNavigationListener() {
+  /**
+   * 监听页面导航事件（beforeunload、URL 变化、popstate）
+   */
+  private addPageNavigationListener(): void {
     window.addEventListener('beforeunload', () => {
       this.hideSidePanel();
     });
@@ -775,7 +610,10 @@ export class FormDetector {
     });
   }
 
-  private async notifyUrlChange() {
+  /**
+   * 通知 background 页面 URL 发生了变化
+   */
+  private async notifyUrlChange(): Promise<void> {
     try {
       if (!chrome.runtime?.id) {
         return;
@@ -795,7 +633,17 @@ export class FormDetector {
     }
   }
 
-  private handleMessage(message: any, _sender: any, sendResponse: Function) {
+  /**
+   * 处理来自扩展其他部分的消息
+   * @param message - 消息对象
+   * @param _sender - 发送者信息
+   * @param sendResponse - 响应回调
+   */
+  private handleMessage(
+    message: Message,
+    _sender: chrome.runtime.MessageSender,
+    sendResponse: (response: unknown) => void,
+  ): void {
     switch (message.type) {
       case MessageType.PING: {
         const pingResponse: PingResponse = {
@@ -812,17 +660,17 @@ export class FormDetector {
         break;
       }
       case MessageType.FILL_PASSWORD:
-        this.fillPasswordWithResult(message.data).then(result => {
+        this.fillPasswordWithResult(message.data as FillPasswordData).then(result => {
           sendResponse(result);
         });
-        return true;
+        return;
       case MessageType.FILL_MOBILE_CODE:
-        this.fillMobileCode(message.data);
+        this.fillMobileCode(message.data as { mobile: string; code: string });
         sendResponse({ success: true, message: '填充完成' });
         break;
       case MessageType.SHOW_SIDEPANEL:
         if (!this.hasLoginFormFields()) {
-          this.showNoLoginFormMessage();
+          showNoLoginFormMessage();
           sendResponse({ success: false, message: '当前页面未匹配到登录表单' });
         } else {
           this.showSidePanel();
@@ -839,6 +687,11 @@ export class FormDetector {
     }
   }
 
+  /**
+   * 等待表单字段被检测到（带指数退避重试）
+   * @param maxRetries - 最大重试次数，默认 10
+   * @returns 是否成功检测到字段
+   */
   private async waitForFieldsDetected(maxRetries: number = 10): Promise<boolean> {
     let delay = 100;
     const maxDelay = 2000;
@@ -857,6 +710,11 @@ export class FormDetector {
     return false;
   }
 
+  /**
+   * 填充密码并返回详细结果
+   * @param data - 填充数据（用户名和密码）
+   * @returns 填充结果
+   */
   private async fillPasswordWithResult(data: FillPasswordData): Promise<FillResult> {
     const result: FillResult = {
       success: false,
@@ -882,7 +740,7 @@ export class FormDetector {
         if (this.usernameFields.length > 0) {
           result.details.usernameField.found = true;
           const usernameField = this.usernameFields[0];
-          const fillResult = await this.setInputValueWithStrategies(usernameField, data.username);
+          const fillResult = await this.inputFiller.setInputValueWithStrategies(usernameField, data.username);
           result.details.usernameField.filled = fillResult.filled;
           result.details.usernameField.verified = fillResult.verified;
           result.details.strategy = fillResult.strategy;
@@ -894,7 +752,7 @@ export class FormDetector {
         if (this.passwordFields.length > 0) {
           result.details.passwordField.found = true;
           const passwordField = this.passwordFields[0];
-          const fillResult = await this.setInputValueWithStrategies(passwordField, data.password);
+          const fillResult = await this.inputFiller.setInputValueWithStrategies(passwordField, data.password);
           result.details.passwordField.filled = fillResult.filled;
           result.details.passwordField.verified = fillResult.verified;
           if (fillResult.strategy !== 'native') {
@@ -903,7 +761,7 @@ export class FormDetector {
         }
       }
 
-      this.autoCheckNearestCheckbox();
+      this.checkboxHandler.autoCheckNearestCheckbox(this.checkboxFields, this.passwordFields, this.usernameFields);
 
       const usernameSuccess = !data.username || result.details.usernameField.verified;
       const passwordSuccess = !data.password || result.details.passwordField.verified;
@@ -929,133 +787,21 @@ export class FormDetector {
     return result;
   }
 
-  private async setInputValueWithStrategies(
-    input: HTMLInputElement,
-    value: string,
-  ): Promise<{ filled: boolean; verified: boolean; strategy: FillStrategy }> {
-    // 策略1: 原生setter + 完整事件序列
-    this.setInputValueNative(input, value);
-    await this.delay(50);
-    if (input.value === value) {
-      return { filled: true, verified: true, strategy: 'native' };
-    }
-
-    // 策略2: execCommand模拟用户输入
-    this.setInputValueExecCommand(input, value);
-    await this.delay(50);
-    if (input.value === value) {
-      return { filled: true, verified: true, strategy: 'execCommand' };
-    }
-
-    // 策略3: 模拟逐字符输入
-    await this.setInputValueSimulate(input, value);
-    await this.delay(50);
-    if (input.value === value) {
-      return { filled: true, verified: true, strategy: 'simulate' };
-    }
-
-    const filled = input.value.length > 0;
-    return { filled, verified: input.value === value, strategy: 'native' };
-  }
-
-  private setInputValueNative(input: HTMLInputElement, value: string): void {
-    try {
-      input.focus();
-      input.select();
-      document.execCommand('selectAll');
-      document.execCommand('delete');
-
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
-
-      if (nativeInputValueSetter) {
-        nativeInputValueSetter.call(input, value);
-      } else {
-        input.value = value;
-      }
-
-      const events = [
-        new Event('focus', { bubbles: true }),
-        new Event('input', { bubbles: true, cancelable: true }),
-        new InputEvent('input', {
-          bubbles: true,
-          cancelable: true,
-          data: value,
-          inputType: 'insertText',
-        }),
-        new Event('change', { bubbles: true, cancelable: true }),
-      ];
-
-      events.forEach(event => {
-        try {
-          input.dispatchEvent(event);
-        } catch (_e) {
-          // 事件分发失败，忽略
-        }
-      });
-
-      setTimeout(() => {
-        try {
-          input.blur();
-          input.dispatchEvent(new Event('blur', { bubbles: true }));
-        } catch (_e) {
-          // blur事件失败，忽略
-        }
-      }, 100);
-    } catch (error) {
-      logger.error('原生策略填充失败:', error);
-      input.value = value;
-    }
-  }
-
-  private setInputValueExecCommand(input: HTMLInputElement, value: string): void {
-    try {
-      input.focus();
-      input.select();
-      document.execCommand('selectAll', false);
-      document.execCommand('insertText', false, value);
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    } catch (_error) {
-      // execCommand策略失败，忽略
-    }
-  }
-
-  private async setInputValueSimulate(input: HTMLInputElement, value: string): Promise<void> {
-    try {
-      input.focus();
-      input.value = '';
-      input.dispatchEvent(new Event('input', { bubbles: true }));
-
-      for (const char of value) {
-        input.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, cancelable: true, key: char }));
-        input.value += char;
-        input.dispatchEvent(
-          new InputEvent('input', { bubbles: true, cancelable: true, data: char, inputType: 'insertText' }),
-        );
-        input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, cancelable: true, key: char }));
-        await this.delay(10);
-      }
-
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    } catch (_error) {
-      // 模拟输入策略失败，忽略
-    }
-  }
-
-  private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  private fillMobileCode(data: { mobile: string; code: string }) {
+  /**
+   * 填充手机号（验证码需用户手动获取）
+   * @param data - 包含手机号和验证码的数据
+   */
+  private fillMobileCode(data: { mobile: string; code: string }): void {
     try {
       if (data.mobile && this.mobileFields.length > 0) {
-        this.setInputValueNative(this.mobileFields[0], data.mobile);
+        this.inputFiller.setInputValueNative(this.mobileFields[0], data.mobile);
       }
 
       if (data.mobile && this.mobileFields.length === 0 && this.usernameFields.length > 0) {
-        this.setInputValueNative(this.usernameFields[0], data.mobile);
+        this.inputFiller.setInputValueNative(this.usernameFields[0], data.mobile);
       }
 
-      this.autoCheckNearestCheckbox();
+      this.checkboxHandler.autoCheckNearestCheckbox(this.checkboxFields, this.passwordFields, this.usernameFields);
 
       setTimeout(() => {
         this.hideSidePanel();
@@ -1065,311 +811,10 @@ export class FormDetector {
     }
   }
 
-  private autoCheckNearestCheckbox() {
-    if (this.checkboxFields.length === 0) {
-      return;
-    }
-
-    const referenceField =
-      this.passwordFields.length > 0
-        ? this.passwordFields[0]
-        : this.usernameFields.length > 0
-          ? this.usernameFields[0]
-          : null;
-
-    if (!referenceField) {
-      return;
-    }
-
-    const targetCheckbox = this.findBestCheckbox(referenceField);
-
-    if (targetCheckbox && !targetCheckbox.checked) {
-      this.checkCheckbox(targetCheckbox);
-    }
-  }
-
-  private findBestCheckbox(referenceField: HTMLInputElement): HTMLInputElement | null {
-    let bestCheckbox: HTMLInputElement | null = null;
-    let bestScore = -1;
-
-    this.checkboxFields.forEach(checkbox => {
-      const score = this.calculateCheckboxScore(referenceField, checkbox);
-      if (score > bestScore) {
-        bestScore = score;
-        bestCheckbox = checkbox;
-      }
-    });
-
-    return bestCheckbox;
-  }
-
-  private calculateCheckboxScore(referenceField: HTMLInputElement, checkbox: HTMLInputElement): number {
-    let score = 0;
-
-    const distance = this.calculateAccurateDistance(referenceField, checkbox);
-    const maxDistance = 2000;
-    const distanceScore = Math.max(0, (maxDistance - distance) / maxDistance) * 100;
-    score += distanceScore;
-
-    const labelText = this.getCheckboxLabel(checkbox).toLowerCase();
-
-    let keywordScore = 0;
-    CHECKBOX_POSITIVE_KEYWORDS.forEach(keyword => {
-      if (labelText.includes(keyword)) {
-        keywordScore += 50;
-      }
-    });
-    CHECKBOX_NEGATIVE_KEYWORDS.forEach(keyword => {
-      if (labelText.includes(keyword)) {
-        keywordScore -= 30;
-      }
-    });
-    score += keywordScore;
-
-    score += this.calculatePositionScore(referenceField, checkbox);
-
-    const refForm = referenceField.closest('form');
-    const checkboxForm = checkbox.closest('form');
-    if (refForm && checkboxForm && refForm === checkboxForm) {
-      score += 30;
-    }
-
-    score += this.calculateHierarchyScore(referenceField, checkbox);
-
-    return score;
-  }
-
-  private calculateAccurateDistance(elem1: HTMLElement, elem2: HTMLElement): number {
-    const rect1 = elem1.getBoundingClientRect();
-    const rect2 = elem2.getBoundingClientRect();
-
-    let dx = 0;
-    let dy = 0;
-
-    if (rect1.right < rect2.left) {
-      dx = rect2.left - rect1.right;
-    } else if (rect2.right < rect1.left) {
-      dx = rect1.left - rect2.right;
-    }
-
-    if (rect1.bottom < rect2.top) {
-      dy = rect2.top - rect1.bottom;
-    } else if (rect2.bottom < rect1.top) {
-      dy = rect1.top - rect2.bottom;
-    }
-
-    return Math.sqrt(dx * dx + dy * dy);
-  }
-
-  private calculatePositionScore(referenceField: HTMLInputElement, checkbox: HTMLInputElement): number {
-    const refRect = referenceField.getBoundingClientRect();
-    const checkboxRect = checkbox.getBoundingClientRect();
-    let score = 0;
-
-    if (checkboxRect.top > refRect.bottom) {
-      const verticalDistance = checkboxRect.top - refRect.bottom;
-      if (verticalDistance < 100) {
-        score += 40;
-      } else if (verticalDistance < 200) {
-        score += 20;
-      }
-    }
-
-    const horizontalOverlap = Math.min(refRect.right, checkboxRect.right) - Math.max(refRect.left, checkboxRect.left);
-    if (horizontalOverlap > 0) {
-      score += 15;
-    }
-
-    return score;
-  }
-
-  private calculateHierarchyScore(referenceField: HTMLInputElement, checkbox: HTMLInputElement): number {
-    let score = 0;
-    const commonAncestor = this.findCommonAncestor(referenceField, checkbox);
-    if (commonAncestor) {
-      const refDepth = this.getDepthFromAncestor(referenceField, commonAncestor);
-      const checkboxDepth = this.getDepthFromAncestor(checkbox, commonAncestor);
-      const totalDepth = refDepth + checkboxDepth;
-      if (totalDepth <= 4) {
-        score += 25;
-      } else if (totalDepth <= 8) {
-        score += 15;
-      } else if (totalDepth <= 12) {
-        score += 5;
-      }
-    }
-    return score;
-  }
-
-  private findCommonAncestor(elem1: HTMLElement, elem2: HTMLElement): HTMLElement | null {
-    const ancestors1: HTMLElement[] = [];
-    let current = elem1.parentElement;
-    while (current) {
-      ancestors1.push(current);
-      current = current.parentElement;
-    }
-
-    current = elem2.parentElement;
-    while (current) {
-      if (ancestors1.includes(current)) {
-        return current;
-      }
-      current = current.parentElement;
-    }
-
-    return null;
-  }
-
-  private getDepthFromAncestor(elem: HTMLElement, ancestor: HTMLElement): number {
-    let depth = 0;
-    let current = elem.parentElement;
-    while (current && current !== ancestor) {
-      depth++;
-      current = current.parentElement;
-    }
-    return depth;
-  }
-
-  private getCheckboxLabel(checkbox: HTMLInputElement): string {
-    if (checkbox.id) {
-      const label = document.querySelector(`label[for="${checkbox.id}"]`);
-      if (label) {
-        return label.textContent?.trim() || '';
-      }
-    }
-
-    const parentLabel = checkbox.closest('label');
-    if (parentLabel) {
-      return parentLabel.textContent?.trim() || '';
-    }
-
-    const nextSibling = checkbox.nextElementSibling;
-    if (nextSibling) {
-      const text = nextSibling.textContent?.trim();
-      if (text) return text;
-    }
-
-    const prevSibling = checkbox.previousElementSibling;
-    if (prevSibling) {
-      const text = prevSibling.textContent?.trim();
-      if (text) return text;
-    }
-
-    const parent = checkbox.parentElement;
-    if (parent) {
-      const clone = parent.cloneNode(true) as HTMLElement;
-      const checkboxClone = clone.querySelector('input[type="checkbox"]');
-      if (checkboxClone) {
-        checkboxClone.remove();
-      }
-      const text = clone.textContent?.trim();
-      if (text) return text;
-    }
-
-    return checkbox.name || checkbox.id || checkbox.className || '未知复选框';
-  }
-
-  private checkCheckbox(checkbox: HTMLInputElement) {
-    try {
-      if (checkbox.disabled) {
-        return;
-      }
-
-      checkbox.click();
-
-      setTimeout(() => {
-        if (!checkbox.checked) {
-          checkbox.checked = true;
-
-          const events = [
-            new Event('change', { bubbles: true, cancelable: true }),
-            new Event('input', { bubbles: true, cancelable: true }),
-            new MouseEvent('click', { bubbles: true, cancelable: true }),
-            new Event('focus', { bubbles: true }),
-            new Event('blur', { bubbles: true }),
-          ];
-
-          events.forEach(event => {
-            try {
-              checkbox.dispatchEvent(event);
-            } catch (_e) {
-              // 触发事件失败，忽略
-            }
-          });
-
-          setTimeout(() => {
-            if (!checkbox.checked) {
-              const label = this.findCheckboxLabel(checkbox);
-              if (label) {
-                label.click();
-                setTimeout(() => {
-                  if (!checkbox.checked) {
-                    this.simulateUserInteraction(checkbox);
-                  }
-                }, 100);
-              } else {
-                this.simulateUserInteraction(checkbox);
-              }
-            }
-          }, 100);
-        }
-      }, 100);
-    } catch (error) {
-      logger.error('勾选复选框失败:', error);
-    }
-  }
-
-  private findCheckboxLabel(checkbox: HTMLInputElement): HTMLElement | null {
-    if (checkbox.id) {
-      const label = document.querySelector(`label[for="${checkbox.id}"]`);
-      if (label) {
-        return label as HTMLElement;
-      }
-    }
-
-    const parentLabel = checkbox.closest('label');
-    if (parentLabel) {
-      return parentLabel;
-    }
-
-    const container = checkbox.parentElement;
-    if (container) {
-      const containerLabels = container.querySelectorAll('label');
-      if (containerLabels.length === 1) {
-        return containerLabels[0] as HTMLElement;
-      }
-    }
-
-    return null;
-  }
-
-  private simulateUserInteraction(checkbox: HTMLInputElement) {
-    try {
-      const rect = checkbox.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-
-      const mouseEvents = [
-        new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: centerX, clientY: centerY, button: 0 }),
-        new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: centerX, clientY: centerY, button: 0 }),
-        new MouseEvent('click', { bubbles: true, cancelable: true, clientX: centerX, clientY: centerY, button: 0 }),
-      ];
-
-      const originalValue = checkbox.checked;
-      checkbox.checked = !originalValue;
-
-      mouseEvents.forEach(event => {
-        checkbox.dispatchEvent(event);
-      });
-
-      checkbox.dispatchEvent(new Event('change', { bubbles: true }));
-      checkbox.dispatchEvent(new Event('input', { bubbles: true }));
-    } catch (error) {
-      logger.error('模拟交互失败:', error);
-    }
-  }
-
-  public destroy() {
+  /**
+   * 销毁实例，清理所有监听器
+   */
+  public destroy(): void {
     if (this.observer) {
       this.observer.disconnect();
     }
