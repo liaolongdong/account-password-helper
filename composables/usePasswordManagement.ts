@@ -1,7 +1,7 @@
 import { ref, computed, type Ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormRules, FormInstance } from 'element-plus';
-import type { PasswordEntry } from '../utils/types';
+import type { PasswordEntry, PasswordEntryWithUI } from '../utils/types';
 import { StorageUtils } from '../utils/storage';
 import { ExcelUtils } from '../utils/excel';
 import { logger } from '../utils/logger';
@@ -107,7 +107,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
       // 添加显示密码状态
       passwords.value.forEach(p => {
-        (p as any).showPassword = false;
+        (p as PasswordEntryWithUI).showPassword = false;
       });
 
       // 初始化有效期设置表单
@@ -121,9 +121,10 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           tableRef.value.sort(sortConfig.prop, sortConfig.order);
         }
       }, 0);
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('加载密码列表失败:', error);
-      ElMessage.error('加载密码列表失败: ' + (error.message || '未知错误'));
+      const message = error instanceof Error ? error.message : '未知错误';
+      ElMessage.error('加载密码列表失败: ' + message);
     } finally {
       tableLoading.value = false;
     }

@@ -2,6 +2,7 @@ import { ref, watch, type Ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormRules, FormInstance } from 'element-plus';
 import { StorageUtils } from '../utils/storage';
+import type { PasswordEntry } from '../utils/types';
 import { logger } from '../utils/logger';
 
 /**
@@ -12,7 +13,7 @@ export function useSessionTimer(options: {
   isAuthenticated: Ref<boolean>;
   showPasswordVerify: Ref<boolean>;
   showMasterPasswordSetup: Ref<boolean>;
-  passwords: Ref<any[]>;
+  passwords: Ref<PasswordEntry[]>;
   verifyForm: Ref<{ password: string; validityHours: number }>;
   loadPasswords: () => Promise<void>;
 }) {

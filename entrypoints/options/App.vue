@@ -68,38 +68,13 @@
                 label="验证有效期"
                 prop="validityHours"
               >
-                <el-select
+                <ValidityHoursSelect
                   v-model="setupForm.validityHours"
                   placeholder="选择验证有效期"
                   size="large"
                   :disabled="setupLoading"
                   style="width: 100%"
-                >
-                  <el-option
-                    label="1小时"
-                    :value="1"
-                  />
-                  <el-option
-                    label="2小时"
-                    :value="2"
-                  />
-                  <el-option
-                    label="4小时"
-                    :value="4"
-                  />
-                  <el-option
-                    label="8小时"
-                    :value="8"
-                  />
-                  <el-option
-                    label="12小时"
-                    :value="12"
-                  />
-                  <el-option
-                    label="24小时（推荐）"
-                    :value="24"
-                  />
-                </el-select>
+                />
                 <div class="form-tip">验证有效期内无需重新输入主密码，超过有效期需重新验证</div>
               </el-form-item>
 
@@ -175,38 +150,13 @@
                 label="验证有效期"
                 prop="validityHours"
               >
-                <el-select
+                <ValidityHoursSelect
                   v-model="verifyForm.validityHours"
                   placeholder="选择验证有效期"
                   size="large"
                   :disabled="verifyLoading"
                   style="width: 100%"
-                >
-                  <el-option
-                    label="1小时"
-                    :value="1"
-                  />
-                  <el-option
-                    label="2小时"
-                    :value="2"
-                  />
-                  <el-option
-                    label="4小时"
-                    :value="4"
-                  />
-                  <el-option
-                    label="8小时"
-                    :value="8"
-                  />
-                  <el-option
-                    label="12小时"
-                    :value="12"
-                  />
-                  <el-option
-                    label="24小时（推荐）"
-                    :value="24"
-                  />
-                </el-select>
+                />
                 <div class="form-tip">验证有效期内无需重新输入主密码，超过有效期需重新验证</div>
               </el-form-item>
 
@@ -671,122 +621,22 @@
     </el-dialog>
 
     <!-- 有效期设置弹窗 -->
-    <el-dialog
+    <ValiditySettingDialog
       v-model="showValiditySetting"
-      title="验证有效期设置"
-      width="500px"
-      :close-on-click-modal="false"
-    >
-      <el-form
-        ref="validityFormRef"
-        :model="validityForm"
-        :rules="validityRules"
-        label-width="100px"
-        size="large"
-      >
-        <el-alert
-          title="有效期设置"
-          description="设置主密码验证后的会话缓存时间，在有效期内无需重新输入主密码"
-          type="info"
-          :closable="false"
-          show-icon
-          style="margin-bottom: 24px"
-        />
-
-        <el-form-item
-          label="当前会话状态"
-          v-if="sessionInfo.expiryTime"
-        >
-          <div class="session-info">
-            <div class="session-status">
-              <el-tag
-                type="success"
-                size="small"
-                >会话有效</el-tag
-              >
-            </div>
-            <div class="session-expiry">剩余时间: {{ sessionInfo.remainingTime }}</div>
-            <div
-              class="session-actions"
-              style="margin-top: 8px"
-            >
-              <el-button
-                type="danger"
-                size="small"
-                :icon="Delete"
-                @click="handleClearSession"
-                :loading="clearSessionLoading"
-              >
-                清除当前会话
-              </el-button>
-            </div>
-          </div>
-        </el-form-item>
-
-        <el-form-item
-          label="验证有效期"
-          prop="validityHours"
-        >
-          <el-select
-            v-model="validityForm.validityHours"
-            placeholder="选择验证有效期"
-            size="large"
-            :disabled="validityLoading"
-            style="width: 100%"
-          >
-            <el-option
-              label="1小时"
-              :value="1"
-            />
-            <el-option
-              label="2小时"
-              :value="2"
-            />
-            <el-option
-              label="4小时"
-              :value="4"
-            />
-            <el-option
-              label="8小时"
-              :value="8"
-            />
-            <el-option
-              label="12小时"
-              :value="12"
-            />
-            <el-option
-              label="24小时（推荐）"
-              :value="24"
-            />
-          </el-select>
-          <div class="form-tip">当前设置将影响会话缓存时间</div>
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button
-            size="large"
-            @click="showValiditySetting = false"
-          >
-            取消
-          </el-button>
-          <el-button
-            type="primary"
-            size="large"
-            :loading="validityLoading"
-            @click="handleValiditySave"
-          >
-            保存设置
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
+      :form="validityForm"
+      :rules="validityRules"
+      :form-ref="validityFormRef"
+      :loading="validityLoading"
+      :clear-session-loading="clearSessionLoading"
+      :session-info="sessionInfo"
+      @save="handleValiditySave"
+      @clear-session="handleClearSession"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import {
   Key,
   Plus,
@@ -804,12 +654,17 @@ import type { PasswordEntry } from '../../utils/types';
 import { sessionManager } from '../../utils/sessionManager';
 import ImportDialog from '../../components/ImportDialog.vue';
 import DisclaimerInfo from '@/components/DisclaimerInfo.vue';
+import ValidityHoursSelect from '../../components/ValidityHoursSelect.vue';
+import ValiditySettingDialog from '../../components/ValiditySettingDialog.vue';
 import { getTagType } from '../../utils/tagUtils';
 import { useAuthFlow } from '../../composables/useAuthFlow';
 import { useSessionTimer } from '../../composables/useSessionTimer';
 import { usePasswordManagement } from '../../composables/usePasswordManagement';
 
-// 密码管理
+/** 临时有效期表单占位，在 useSessionTimer 初始化后会被覆盖 */
+const initialValidityForm = ref({ validityHours: 24 });
+
+/** 密码管理状态与操作方法 */
 const {
   passwords,
   showImportDialog,
@@ -845,10 +700,10 @@ const {
   exportPasswords,
   downloadTemplate,
 } = usePasswordManagement({
-  validityForm: { value: { validityHours: 24 } } as any, // 临时占位，下面会被覆盖
+  validityForm: initialValidityForm,
 });
 
-// 认证流程
+/** 认证流程状态与操作方法 */
 const {
   isAuthenticated,
   showMasterPasswordSetup,
@@ -872,7 +727,7 @@ const {
   loadPasswords,
 });
 
-// 会话定时器
+/** 会话定时器状态与操作方法 */
 const {
   showValiditySetting,
   validityFormRef,
@@ -893,7 +748,7 @@ const {
   loadPasswords,
 });
 
-// 初始化
+/** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */
 onMounted(async () => {
   sessionManager.init();
   window.addEventListener('sessionExpired', handleSessionExpired);

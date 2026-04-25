@@ -37,7 +37,7 @@
       >
         如有任何问题或者建议，请联系
         <a
-          href="mailto:${contactEmail}"
+          :href="'mailto:' + contactEmail"
           class="email-link"
           @click="handleEmailClick"
         >
@@ -50,66 +50,48 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { ElMessage } from 'element-plus';
 import { Setting, Key, View } from '@element-plus/icons-vue';
 import { StorageUtils } from '../../utils/storage';
 import { MessageType } from '../../utils/types';
 
-/**
- * 联系方式
- */
+/** 联系邮箱 */
 const contactEmail = ref('924902324@qq.com');
-const passwordCount = ref(0);
-const showPasswordCount = ref(false); // 控制是否显示密码数量
+
+// TODO: 密码数量展示功能，后续开放
+// const passwordCount = ref(0);
+// const showPasswordCount = ref(false);
 
 onMounted(async () => {
-  // Popup: 开始初始化
-  try {
-    // Popup: 开始检查会话状态...
-    // 检查会话是否有效
-    const isSessionValid = await StorageUtils.isSessionValid();
-    // Popup: 会话是否有效
-
-    if (isSessionValid) {
-      // 只有在会话有效时才获取密码数量
-      // 获取会话主密码
-      const masterPassword = await StorageUtils.getSessionMasterPasswordDecrypted();
-      // Popup: 获取到的会话主密码
-
-      // 获取密码数量
-      const passwords = await StorageUtils.getAllPasswords(masterPassword || undefined);
-      passwordCount.value = passwords.length;
-      showPasswordCount.value = true; // 设置显示密码数量
-      // Popup: 密码数量
-    } else {
-      // 会话无效时不显示密码数量
-      showPasswordCount.value = false;
-      passwordCount.value = 0;
-      // Popup: 会话无效，不显示密码数量
-    }
-  } catch (error) {
-    console.error('Popup: 获取密码数量失败:', error);
-    showPasswordCount.value = false;
-    passwordCount.value = 0;
-  }
-  // Popup: 初始化完成
+  // TODO: 后续开放密码数量展示时取消注释
+  // try {
+  //   const isSessionValid = await StorageUtils.isSessionValid();
+  //   if (isSessionValid) {
+  //     const masterPassword = await StorageUtils.getSessionMasterPasswordDecrypted();
+  //     const passwords = await StorageUtils.getAllPasswords(masterPassword || undefined);
+  //     passwordCount.value = passwords.length;
+  //     showPasswordCount.value = true;
+  //   } else {
+  //     showPasswordCount.value = false;
+  //     passwordCount.value = 0;
+  //   }
+  // } catch (error) {
+  //   console.error('获取密码数量失败:', error);
+  //   showPasswordCount.value = false;
+  //   passwordCount.value = 0;
+  // }
 });
 
-// 打开选项页面
+/**
+ * 打开选项页面
+ * 如果已有标签页打开了选项页面则激活该标签页，否则创建新标签页
+ */
 const openOptions = async () => {
   try {
-    // Popup: 打开选项页面
-
-    // 获取选项页面的完整URL
     const optionsUrl = chrome.runtime.getURL('options.html');
-
-    // 首先检查是否已有标签页打开了选项页面
     const tabs = await chrome.tabs.query({ url: optionsUrl });
 
     if (tabs.length > 0) {
-      // 如果已有标签页打开了选项页面，激活该标签页
       const tab = tabs[0];
-      // Popup: 发现已存在的选项页面标签页，激活该标签页
       await chrome.tabs.update(tab.id!, { active: true });
 
       // 如果该标签页在其他窗口中，也激活该窗口
@@ -117,35 +99,28 @@ const openOptions = async () => {
         await chrome.windows.update(tab.windowId, { focused: true });
       }
     } else {
-      // 如果没有已存在的标签页，创建新标签页
-      // Popup: 未发现已存在的选项页面标签页，创建新标签页
       await chrome.tabs.create({ url: optionsUrl });
     }
 
-    // 关闭当前弹窗
     window.close();
-    // Popup: 选项页面打开完成
   } catch (error) {
     console.error('打开选项页面失败:', error);
   }
 };
 
-// 打开侧边栏
+/**
+ * 打开侧边栏
+ * 会话无效时跳转到选项页面进行验证，会话有效时尝试打开侧边栏
+ */
 const openSidePanel = async () => {
   try {
-    // Popup: 开始检查会话状态以打开侧边栏...
-    // 检查会话是否有效
     const isSessionValid = await StorageUtils.isSessionValid();
-    // Popup: 会话是否有效
 
     if (!isSessionValid) {
-      // 会话无效，打开选项页面进行验证
-      // Popup: 会话无效，跳转到选项页面
       await openOptions();
       return;
     }
 
-    // Popup: 会话有效，打开侧边栏
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
       try {
@@ -184,7 +159,9 @@ const openSidePanel = async () => {
   }
 };
 
-// 处理邮件链接点击
+/**
+ * 处理邮件链接点击，打开默认邮件客户端
+ */
 const handleEmailClick = (event: Event) => {
   event.preventDefault();
   const subject = '账号密码管理助手反馈';

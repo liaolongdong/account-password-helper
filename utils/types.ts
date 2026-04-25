@@ -41,6 +41,14 @@ export interface PasswordEntry {
 }
 
 /**
+ * 带UI状态的密码条目（用于列表展示）
+ */
+export interface PasswordEntryWithUI extends PasswordEntry {
+  /** 是否显示明文密码 */
+  showPassword: boolean;
+}
+
+/**
  * 用户主密码配置
  */
 export interface MasterPasswordConfig {
