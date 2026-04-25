@@ -1163,17 +1163,13 @@ export default defineContentScript({
        */
       private addPageVisibilityListener() {
         // 监听页面可见性变化
+        // 注意：不监听 window blur 事件，因为用户点击侧边栏时主页面会失去焦点，
+        // 但此时不应关闭侧边栏。仅依赖 visibilitychange 检测真正的页面切换（如切换标签页、最小化窗口）
         document.addEventListener('visibilitychange', () => {
           if (document.hidden) {
-            // 页面变为隐藏状态，隐藏侧边栏
+            // 页面变为隐藏状态（切换标签页、最小化窗口等），隐藏侧边栏
             this.hideSidePanel();
           }
-        });
-
-        // 监听窗口失去焦点事件
-        window.addEventListener('blur', () => {
-          // 窗口失去焦点，隐藏侧边栏
-          this.hideSidePanel();
         });
       }
 

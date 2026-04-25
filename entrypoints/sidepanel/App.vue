@@ -103,13 +103,16 @@
             <div class="username">
               <el-icon><User /></el-icon>
               {{ password.username }}
-              <el-icon
-                class="copy-icon"
-                @click.stop="copyUsername(password.username)"
+              <span
+                class="copy-icon-wrapper"
+                @click.stop.prevent="copyUsername(password.username)"
+                @mousedown.stop
                 title="复制账号"
               >
-                <CopyDocument />
-              </el-icon>
+                <el-icon class="copy-icon">
+                  <CopyDocument />
+                </el-icon>
+              </span>
             </div>
             <div class="details">
               <el-tag
@@ -976,15 +979,30 @@ onUnmounted(() => {
   color: #6b7280;
 }
 
-.username .copy-icon {
-  margin-left: 8px;
-  font-size: 14px;
-  color: #9ca3af;
+.copy-icon-wrapper {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  margin-left: 4px;
   cursor: pointer;
-  transition: color 0.2s;
+  border-radius: 4px;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
 }
 
-.copy-icon:hover {
+.copy-icon-wrapper:hover {
+  background-color: rgb(64 158 255 / 10%);
+}
+
+.copy-icon-wrapper .copy-icon {
+  font-size: 14px;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.copy-icon-wrapper:hover .copy-icon {
   color: #409eff;
 }
 
