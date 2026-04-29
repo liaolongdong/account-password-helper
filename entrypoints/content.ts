@@ -1,4 +1,4 @@
-import { defineContentScript } from 'wxt/sandbox';
+import { defineContentScript } from '#imports';
 import { FormDetector } from './content/FormDetector';
 import { getFloatingButtonManager, destroyFloatingButtonManager } from './content/floatingButtons';
 import { logger } from '../utils/logger';

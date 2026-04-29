@@ -10,8 +10,8 @@ export default [
         console: 'readonly',
         process: 'readonly',
         document: 'readonly',
-        window: 'readonly'
-      }
+        window: 'readonly',
+      },
     },
     rules: {
       'no-console': 'off',
@@ -19,19 +19,20 @@ export default [
       'no-unused-vars': 'warn',
       'no-undef': 'off',
       'prefer-const': 'warn',
-      'no-var': 'error'
-    }
+      'no-var': 'error',
+    },
   },
   {
     ignores: [
       'dist/**',
       '.output/**',
       '.wxt/**',
+      '.qoder/**',
       'node_modules/**',
       '**/*.d.ts',
       '**/*.vue', // 暂时忽略Vue文件
       '**/*.ts', // 暂时忽略TypeScript文件
-      '**/*.tsx' // 暂时忽略TSX文件
-    ]
-  }
+      '**/*.tsx', // 暂时忽略TSX文件
+    ],
+  },
 ];

@@ -12,6 +12,7 @@
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "preserve",
+    "ignoreDeprecations": "6.0",
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
@@ -27,6 +28,6 @@
       "@/assets/*": ["./assets/*"]
     }
   },
-  "include": ["entrypoints/**/*", "components/**/*", "utils/**/*", "types/**/*"],
+  "include": [".wxt/wxt.d.ts", "entrypoints/**/*", "components/**/*", "utils/**/*", "types/**/*"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

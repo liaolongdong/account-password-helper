@@ -17,8 +17,14 @@ export function useSessionTimer(options: {
   verifyForm: Ref<{ password: string; validityHours: number }>;
   loadPasswords: () => Promise<void>;
 }) {
-  const { isAuthenticated, showPasswordVerify, showMasterPasswordSetup, passwords, verifyForm, loadPasswords } =
-    options;
+  const {
+    isAuthenticated,
+    showPasswordVerify,
+    showMasterPasswordSetup,
+    passwords,
+    verifyForm,
+    loadPasswords: _loadPasswords,
+  } = options;
 
   // 状态
   const showValiditySetting = ref(false);

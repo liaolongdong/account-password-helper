@@ -53,7 +53,7 @@ export function generateId(): string {
 export async function deriveEncryptionKey(masterPassword: string): Promise<string> {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
-    const config: MasterPasswordConfig = result[STORAGE_KEYS.MASTER_PASSWORD];
+    const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
     if (!config || !config.salt) {
       throw new Error('无法获取主密码配置');

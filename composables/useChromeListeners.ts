@@ -6,8 +6,8 @@ type MessageHandler = (
   sender: chrome.runtime.MessageSender,
   sendResponse: (response?: any) => void,
 ) => void | boolean;
-type TabUpdateHandler = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo, tab: chrome.tabs.Tab) => void;
-type TabActivatedHandler = (activeInfo: chrome.tabs.TabActiveInfo) => void;
+type TabUpdateHandler = (tabId: number, changeInfo: chrome.tabs.OnUpdatedInfo, tab: chrome.tabs.Tab) => void;
+type TabActivatedHandler = (activeInfo: chrome.tabs.OnActivatedInfo) => void;
 
 interface ListenerCleanup {
   remove: () => void;

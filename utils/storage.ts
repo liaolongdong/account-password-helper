@@ -163,7 +163,7 @@ export class StorageUtils {
   static async verifyMasterPassword(password: string): Promise<boolean> {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
-      const config: MasterPasswordConfig = result[STORAGE_KEYS.MASTER_PASSWORD];
+      const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
       if (!config || !config.salt || !config.hashedPassword) {
         return false;
@@ -188,7 +188,7 @@ export class StorageUtils {
   static async hasMasterPassword(): Promise<boolean> {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
-      const config = result[STORAGE_KEYS.MASTER_PASSWORD];
+      const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig | undefined;
       return !!(config && config.hashedPassword && config.salt);
     } catch (error) {
       logger.error('检查主密码失败:', error);
@@ -295,7 +295,7 @@ export class StorageUtils {
   static async getAllPasswordsRaw(): Promise<(PasswordEntry | EncryptedPasswordEntry)[]> {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-      return result[STORAGE_KEYS.PASSWORDS] || [];
+      return (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
     } catch (error) {
       logger.error('获取原始密码列表失败:', error);
       return [];
@@ -347,7 +347,8 @@ export class StorageUtils {
       }
 
       const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-      const entries: (PasswordEntry | EncryptedPasswordEntry)[] = result[STORAGE_KEYS.PASSWORDS] || [];
+      const entries: (PasswordEntry | EncryptedPasswordEntry)[] =
+        (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
 
       const hasEncryptedEntries = entries.some(entry => 'encrypted' in entry && entry.encrypted === true);
 
@@ -574,7 +575,7 @@ export class StorageUtils {
   static async getSortConfig(): Promise<{ prop: string; order: string } | null> {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.SORT_CONFIG);
-      return result[STORAGE_KEYS.SORT_CONFIG] || null;
+      return (result[STORAGE_KEYS.SORT_CONFIG] as { prop: string; order: string } | undefined) || null;
     } catch (error) {
       logger.error('获取排序配置失败:', error);
       return null;
@@ -586,7 +587,7 @@ export class StorageUtils {
   static async debugMasterPassword(): Promise<any> {
     try {
       const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
-      const config: MasterPasswordConfig = result[STORAGE_KEYS.MASTER_PASSWORD];
+      const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
       return {
         hasConfig: !!config,

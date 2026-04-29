@@ -37,7 +37,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       { required: true, message: '请输入密码', trigger: 'blur' },
       { min: 8, message: '密码长度至少8个字符', trigger: 'blur' },
       {
-        validator: (rule: any, value: string, callback: Function) => {
+        validator: (_rule: any, value: string, callback: Function) => {
           if (!value) {
             callback();
             return;
@@ -68,7 +68,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
     confirmPassword: [
       { required: true, message: '请确认密码', trigger: 'blur' },
       {
-        validator: (rule: any, value: string, callback: Function) => {
+        validator: (_rule: any, value: string, callback: Function) => {
           if (value !== setupForm.value.password) {
             callback(new Error('两次输入的密码不一致'));
           } else {

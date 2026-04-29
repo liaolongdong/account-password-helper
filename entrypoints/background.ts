@@ -1,4 +1,4 @@
-import { defineBackground } from 'wxt/sandbox';
+import { defineBackground } from '#imports';
 import { Message, MessageType, PasswordCache, PasswordEntry } from '../utils/types';
 import { logger } from '../utils/logger';
 
@@ -328,7 +328,7 @@ export default defineBackground(() => {
   async function getCacheValidityMs(): Promise<number> {
     try {
       const result = await chrome.storage.local.get('master_password_validity');
-      const validityHours = result['master_password_validity'] || 24;
+      const validityHours = (result['master_password_validity'] as number | undefined) || 24;
       return validityHours * 60 * 60 * 1000; // 转换为毫秒
     } catch (error) {
       logger.error('Background: 获取缓存有效期失败:', error);

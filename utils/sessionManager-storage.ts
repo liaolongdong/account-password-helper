@@ -51,12 +51,12 @@ export async function isSessionValid(): Promise<boolean> {
       ]);
 
       if (result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] && result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]) {
-        encryptedSessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD];
-        sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
-        sessionValidityHours = result[SESSION_STORAGE_KEYS.VALIDITY_HOURS] || 24;
+        encryptedSessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] as string | null;
+        sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | null;
+        sessionValidityHours = (result[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
 
         const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
-        const config: MasterPasswordConfig = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD];
+        const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
         if (config && config.salt) {
           sessionEncryptionKey = hashPassword(config.salt, 'session_encryption').substring(0, 32);
@@ -94,7 +94,8 @@ export async function isSessionValid(): Promise<boolean> {
 async function ensureDataConsistencyWithSession(): Promise<void> {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-    const rawData: (PasswordEntry | EncryptedPasswordEntry)[] = result[STORAGE_KEYS.PASSWORDS] || [];
+    const rawData: (PasswordEntry | EncryptedPasswordEntry)[] =
+      (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
     if (rawData.length === 0) return;
 
     const hasEncrypted = rawData.some(e => 'encrypted' in e && (e as EncryptedPasswordEntry).encrypted === true);
@@ -149,7 +150,7 @@ export async function getSessionMasterPasswordDecrypted(): Promise<string | null
 export async function createSession(masterPassword: string, validityHours: number): Promise<void> {
   try {
     const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
-    const config: MasterPasswordConfig = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD];
+    const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
     if (config && config.salt) {
       sessionEncryptionKey = hashPassword(config.salt, 'session_encryption').substring(0, 32);
@@ -206,7 +207,8 @@ export async function clearSession(): Promise<void> {
 async function encryptAllPasswordsBeforeSessionClear(masterPassword: string): Promise<void> {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-    const rawPasswords: (PasswordEntry | EncryptedPasswordEntry)[] = result[STORAGE_KEYS.PASSWORDS] || [];
+    const rawPasswords: (PasswordEntry | EncryptedPasswordEntry)[] =
+      (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
 
     if (rawPasswords.length === 0) return;
 
@@ -241,7 +243,8 @@ async function encryptAllPasswordsBeforeSessionClear(masterPassword: string): Pr
 async function decryptAllPasswordsOnSessionCreate(masterPassword: string): Promise<void> {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-    const rawPasswords: (PasswordEntry | EncryptedPasswordEntry)[] = result[STORAGE_KEYS.PASSWORDS] || [];
+    const rawPasswords: (PasswordEntry | EncryptedPasswordEntry)[] =
+      (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
 
     if (rawPasswords.length === 0) return;
 
@@ -283,7 +286,8 @@ export async function migrateUnencryptedEntries(masterPassword: string): Promise
     if (isSessionActiveSync()) return;
 
     const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-    const rawPasswords: (PasswordEntry | EncryptedPasswordEntry)[] = result[STORAGE_KEYS.PASSWORDS] || [];
+    const rawPasswords: (PasswordEntry | EncryptedPasswordEntry)[] =
+      (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
 
     if (rawPasswords.length === 0) return;
 
@@ -339,7 +343,7 @@ export async function getMasterPasswordValidityHours(): Promise<number> {
     }
 
     const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD_VALIDITY);
-    const validityHours = result[STORAGE_KEYS.MASTER_PASSWORD_VALIDITY] || 24;
+    const validityHours = (result[STORAGE_KEYS.MASTER_PASSWORD_VALIDITY] as number | undefined) || 24;
     sessionValidityHours = validityHours;
     return validityHours;
   } catch (error) {
