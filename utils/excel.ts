@@ -68,7 +68,8 @@ export class ExcelUtils {
             const passwords = jsonData
               .map((row: any) => {
                 // 支持多种列名格式
-                const username = row['用户名'] || row['username'] || row['Username'] || row['账号'] || '';
+                const username =
+                  row['用户名(必填)'] || row['用户名'] || row['username'] || row['Username'] || row['账号'] || '';
                 const password = row['密码'] || row['password'] || row['Password'] || '';
                 const url = row['URL'] || row['url'] || row['网址'] || row['链接'] || '';
                 const tag = row['标签'] || row['tag'] || row['Tag'] || row['分类'] || '';
