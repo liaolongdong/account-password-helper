@@ -191,6 +191,16 @@ const sortConfig = ref<{ prop: string; order: string } | null>(null);
 const { onStorageChange, onMessage, onTabUpdated, onTabActivated, onDocumentEvent, onWindowEvent } =
   useChromeListeners();
 
+/**
+ * 判断是否为本地开发环境域名
+ * 针对 localhost 和 127.0.0.1 域名，默认匹配所有账号密码，方便开发人员快速填充
+ * @param domain 当前页面域名
+ * @returns 是否为本地开发域名
+ */
+const isLocalDevDomain = (domain: string): boolean => {
+  return domain === 'localhost' || domain === '127.0.0.1';
+};
+
 // 域名匹配优先级：0=匹配, 1=不匹配
 const getDomainPriority = (entry: PasswordEntry): number => {
   if (!currentDomain.value) return 0;
@@ -406,7 +416,12 @@ const loadPasswords = async () => {
     // 会话有效，直接获取数据（StorageUtils 内部会自动判断是否需要解密）
     let loadedPasswords: PasswordEntry[];
     if (currentDomain.value) {
-      loadedPasswords = await StorageUtils.getPasswordsByUrl(currentDomain.value);
+      // 本地开发环境（localhost / 127.0.0.1）默认匹配所有账号密码
+      if (isLocalDevDomain(currentDomain.value)) {
+        loadedPasswords = await StorageUtils.getAllPasswords();
+      } else {
+        loadedPasswords = await StorageUtils.getPasswordsByUrl(currentDomain.value);
+      }
     } else {
       loadedPasswords = await StorageUtils.getAllPasswords();
     }
