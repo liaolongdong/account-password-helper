@@ -38,10 +38,5 @@ export default defineConfig({
         description: '打开/关闭密码快速填充侧边栏',
       },
     },
-    // 通过这种方式并没有实现整屏展示options页面
-    // options_ui: {
-    //   page: 'options.html',
-    //   open_in_tab: true // 强制在新标签页打开
-    // }
   },
 });
