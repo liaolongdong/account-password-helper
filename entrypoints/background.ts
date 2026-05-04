@@ -268,9 +268,14 @@ export default defineBackground(() => {
   // 防止重复打开选项页面的标记
   let isOpeningOptionsPage = false;
 
-  // 打开选项页面
+  /**
+   * 打开选项页面
+   * - 使用同步标记 isOpeningOptionsPage 做去重，确保异步流程完成后再释放（避免慢速 tabs.create 期间重复触发）
+   * - 若已存在 options 标签页：激活 lastAccessed 最大的一个并聚焦其所在窗口，不关闭其它历史标签页
+   * - 若不存在：创建新的 options 标签页
+   */
   async function openOptionsPage() {
-    // 防止短时间内重复触发
+    // 防止重复触发（流程完成后才释放）
     if (isOpeningOptionsPage) {
       logger.debug('Background: 正在打开选项页面，忽略重复请求');
       return;
@@ -279,33 +284,28 @@ export default defineBackground(() => {
 
     try {
       const optionsUrl = chrome.runtime.getURL('options.html');
-      // 查询所有匹配的标签页（包括带查询参数的情况）
+      // 查询所有标签页并按 URL 前缀过滤（兼容带 hash/query 的 options URL）
       const tabs = await chrome.tabs.query({});
       const matchingTabs = tabs.filter(tab => tab.url && tab.url.startsWith(optionsUrl));
 
       if (matchingTabs.length > 0) {
-        // 激活第一个匹配的标签页
-        const targetTab = matchingTabs[0];
-        if (targetTab.id) {
+        // 选择最近访问的 tab（lastAccessed 可能为 undefined，做回退处理）
+        const targetTab = matchingTabs.reduce((a, b) =>
+          (b.lastAccessed ?? 0) > (a.lastAccessed ?? 0) ? b : a
+        );
+
+        if (targetTab.id !== undefined) {
           await chrome.tabs.update(targetTab.id, { active: true });
-          if (targetTab.windowId) {
+          if (targetTab.windowId !== undefined) {
             await chrome.windows.update(targetTab.windowId, { focused: true });
           }
+          logger.debug(
+            'Background: 已激活最近访问的密码管理标签页 tabId=' +
+              targetTab.id +
+              '，匹配总数=' +
+              matchingTabs.length
+          );
         }
-
-        // 如果存在多个密码管理标签页，关闭多余的
-        if (matchingTabs.length > 1) {
-          const tabIdsToClose = matchingTabs
-            .slice(1)
-            .map(tab => tab.id)
-            .filter((id): id is number => id !== undefined);
-          if (tabIdsToClose.length > 0) {
-            await chrome.tabs.remove(tabIdsToClose);
-            logger.debug('Background: 已关闭多余的密码管理标签页:' + tabIdsToClose.length);
-          }
-        }
-
-        logger.debug('Background: 已跳转到已存在的密码管理标签页');
       } else {
         // 不存在则创建新标签页
         await chrome.tabs.create({ url: optionsUrl });
@@ -314,10 +314,8 @@ export default defineBackground(() => {
     } catch (error) {
       logger.error('打开选项页面失败:', error);
     } finally {
-      // 500ms 后重置标记，防止过于频繁的调用
-      setTimeout(() => {
-        isOpeningOptionsPage = false;
-      }, 500);
+      // 流程真正完成后再释放标记
+      isOpeningOptionsPage = false;
     }
   }
 

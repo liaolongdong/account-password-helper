@@ -83,28 +83,16 @@ onMounted(async () => {
 
 /**
  * 打开选项页面
- * 如果已有标签页打开了选项页面则激活该标签页，否则创建新标签页
+ * 统一由 background 的 OPEN_OPTIONS_PAGE 处理：若已存在则激活最近访问的 tab，否则创建新 tab
  */
 const openOptions = async () => {
   try {
-    const optionsUrl = chrome.runtime.getURL('options.html');
-    const tabs = await chrome.tabs.query({ url: optionsUrl });
-
-    if (tabs.length > 0) {
-      const tab = tabs[0];
-      await chrome.tabs.update(tab.id!, { active: true });
-
-      // 如果该标签页在其他窗口中，也激活该窗口
-      if (tab.windowId) {
-        await chrome.windows.update(tab.windowId, { focused: true });
-      }
-    } else {
-      await chrome.tabs.create({ url: optionsUrl });
-    }
-
-    window.close();
+    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_PAGE });
   } catch (error) {
     console.error('打开选项页面失败:', error);
+  } finally {
+    // 无论成功失败都关闭 popup
+    window.close();
   }
 };
 

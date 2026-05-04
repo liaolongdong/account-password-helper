@@ -25,6 +25,8 @@ export class FloatingButtonManager {
 
   private isInitialized: boolean = false;
   private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
+  /** 密码管理按钮点击处理中的标记，防止连点重复触发 */
+  private isHandlingOptionsClick: boolean = false;
 
   constructor() {
     this.config = StorageUtils.getDefaultFloatingButtonConfig();
@@ -249,6 +251,9 @@ export class FloatingButtonManager {
 
   /**
    * 处理密码管理按钮点击
+   * - 拖拽中/刚拖拽完忽略
+   * - 通过 isHandlingOptionsClick 做客户端级去重，避免连点重复发送消息
+   * - 异步期间按钮通过 loading 类被 pointer-events: none 禁用（见 styles.ts）
    */
   private async handleOptionsClick(): Promise<void> {
     // 检查是否正在进行拖拽或刚完成拖拽，如果是则不触发点击
@@ -257,27 +262,29 @@ export class FloatingButtonManager {
       return;
     }
 
-    try {
-      const btn = this.buttonGroup?.querySelector('[data-action="open-options"]');
-      if (btn) {
-        btn.classList.add('loading');
-        this.animationController?.buttonClickFeedback(btn as HTMLElement);
-      }
+    // 客户端去重：正在处理中则忽略后续点击
+    if (this.isHandlingOptionsClick) {
+      console.log('FloatingButtonManager: 密码管理按钮点击处理中，忽略重复点击');
+      return;
+    }
+    this.isHandlingOptionsClick = true;
 
-      // 发送消息给background打开options页面
+    const btn = this.buttonGroup?.querySelector('[data-action="open-options"]') as HTMLElement | null;
+    if (btn) {
+      btn.classList.add('loading');
+      this.animationController?.buttonClickFeedback(btn);
+    }
+
+    try {
+      // 发送消息给 background 打开 options 页面（由 background 统一去重并激活已有 tab）
       await chrome.runtime.sendMessage({
         type: MessageType.OPEN_OPTIONS_PAGE,
       });
-
-      if (btn) {
-        btn.classList.remove('loading');
-      }
     } catch (error) {
       console.error('FloatingButtonManager: 打开密码管理页面失败:', error);
-      const btn = this.buttonGroup?.querySelector('[data-action="open-options"]');
-      if (btn) {
-        btn.classList.remove('loading');
-      }
+    } finally {
+      btn?.classList.remove('loading');
+      this.isHandlingOptionsClick = false;
     }
   }
 
