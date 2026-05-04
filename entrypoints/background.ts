@@ -290,9 +290,7 @@ export default defineBackground(() => {
 
       if (matchingTabs.length > 0) {
         // 选择最近访问的 tab（lastAccessed 可能为 undefined，做回退处理）
-        const targetTab = matchingTabs.reduce((a, b) =>
-          (b.lastAccessed ?? 0) > (a.lastAccessed ?? 0) ? b : a
-        );
+        const targetTab = matchingTabs.reduce((a, b) => ((b.lastAccessed ?? 0) > (a.lastAccessed ?? 0) ? b : a));
 
         if (targetTab.id !== undefined) {
           await chrome.tabs.update(targetTab.id, { active: true });
@@ -300,10 +298,7 @@ export default defineBackground(() => {
             await chrome.windows.update(targetTab.windowId, { focused: true });
           }
           logger.debug(
-            'Background: 已激活最近访问的密码管理标签页 tabId=' +
-              targetTab.id +
-              '，匹配总数=' +
-              matchingTabs.length
+            'Background: 已激活最近访问的密码管理标签页 tabId=' + targetTab.id + '，匹配总数=' + matchingTabs.length,
           );
         }
       } else {
