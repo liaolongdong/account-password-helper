@@ -154,6 +154,10 @@ export interface FloatingButtonConfig {
    * 输入框获取焦点时是否自动展示侧边栏
    */
   autoShowSidepanel: boolean;
+  /**
+   * 点击侧边栏快速填充密码后是否自动触发登录操作（仅作用于账号密码场景）
+   */
+  autoTriggerLogin: boolean;
 }
 
 /**

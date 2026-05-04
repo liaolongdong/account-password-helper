@@ -613,6 +613,7 @@ export class StorageUtils {
       offsetY: 0,
       opacity: 0.9,
       autoShowSidepanel: true,
+      autoTriggerLogin: false,
     };
   }
 

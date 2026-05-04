@@ -79,6 +79,14 @@ export class SettingsPanel {
           </div>
         </div>
         <div class="setting-tip">开启后，登录输入框获取焦点时自动展示快速填充侧边栏</div>
+
+        <div class="setting-item">
+          <span class="setting-label">自动触发登录</span>
+          <div class="switch ${this.config.autoTriggerLogin ? 'active' : ''}" data-setting="autoTriggerLogin">
+            <div class="switch-handle"></div>
+          </div>
+        </div>
+        <div class="setting-tip">开启后，在侧边栏点击快速填充密码成功后将自动点击登录按钮（仅账号密码场景）</div>
         
         <div class="setting-item">
           <span class="setting-label">按钮透明度</span>
@@ -121,6 +129,14 @@ export class SettingsPanel {
       this.config.autoShowSidepanel = !this.config.autoShowSidepanel;
       autoShowSwitch.classList.toggle('active', this.config.autoShowSidepanel);
       this.onConfigChange({ autoShowSidepanel: this.config.autoShowSidepanel });
+    });
+
+    // 自动触发登录开关
+    const autoTriggerLoginSwitch = this.panel.querySelector('[data-setting="autoTriggerLogin"]');
+    autoTriggerLoginSwitch?.addEventListener('click', () => {
+      this.config.autoTriggerLogin = !this.config.autoTriggerLogin;
+      autoTriggerLoginSwitch.classList.toggle('active', this.config.autoTriggerLogin);
+      this.onConfigChange({ autoTriggerLogin: this.config.autoTriggerLogin });
     });
 
     // 透明度滑块
@@ -245,6 +261,10 @@ export class SettingsPanel {
     // 更新自动展示侧边栏开关
     const autoShowSwitch = this.panel.querySelector('[data-setting="autoShowSidepanel"]');
     autoShowSwitch?.classList.toggle('active', this.config.autoShowSidepanel);
+
+    // 更新自动触发登录开关
+    const autoTriggerLoginSwitch = this.panel.querySelector('[data-setting="autoTriggerLogin"]');
+    autoTriggerLoginSwitch?.classList.toggle('active', this.config.autoTriggerLogin);
 
     // 更新透明度滑块
     const opacitySlider = this.panel.querySelector('[data-setting="opacity"]');

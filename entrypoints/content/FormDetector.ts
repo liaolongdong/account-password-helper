@@ -776,6 +776,13 @@ export class FormDetector {
         result.message = '填充可能未完成，请手动检查表单';
       }
 
+      // 按配置自动触发登录（仅账号密码场景，且密码字段已实际填充）
+      if (result.success && result.details.passwordField.filled && this.floatingButtonConfig.autoTriggerLogin) {
+        setTimeout(() => {
+          this.triggerLogin();
+        }, 150);
+      }
+
       setTimeout(() => {
         this.hideSidePanel();
       }, 300);
@@ -785,6 +792,47 @@ export class FormDetector {
     }
 
     return result;
+  }
+
+  /**
+   * 按策略触发登录：优先点击已识别的登录按钮，失败则回退到 form 表单提交
+   * - 策略 A：点击 `loginButtons` 中第一个可见按钮
+   * - 策略 B：找到密码字段所在的 `<form>`，优先 `requestSubmit()`，回退 `submit()`
+   * 两种策略均失败时仅记录日志，不抛出，以免影响填充结果
+   */
+  private triggerLogin(): void {
+    try {
+      // 策略 A：点击已识别的登录按钮
+      const candidateButton = this.loginButtons.find(btn => this.isVisible(btn));
+      if (candidateButton) {
+        try {
+          candidateButton.click();
+          return;
+        } catch (clickError) {
+          logger.warn('FormDetector: 点击登录按钮失败，尝试提交表单:', clickError);
+        }
+      }
+
+      // 策略 B：提交密码字段所在的 form
+      const passwordField = this.passwordFields[0];
+      const form = passwordField?.closest('form') as HTMLFormElement | null;
+      if (form) {
+        try {
+          if (typeof form.requestSubmit === 'function') {
+            form.requestSubmit();
+          } else {
+            form.submit();
+          }
+          return;
+        } catch (submitError) {
+          logger.warn('FormDetector: 提交表单失败:', submitError);
+        }
+      }
+
+      logger.warn('FormDetector: 未找到可用的登录按钮或表单，跳过自动触发登录');
+    } catch (error) {
+      logger.warn('FormDetector: 自动触发登录异常:', error);
+    }
   }
 
   /**
