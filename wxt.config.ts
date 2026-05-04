@@ -30,6 +30,7 @@ export default defineConfig({
         },
         description: '打开账号密码管理选项页面',
       },
+      // todo 该功能还未正常实现（待实现）
       toggle_sidepanel: {
         suggested_key: {
           default: 'Ctrl+Shift+L',
