@@ -400,14 +400,17 @@
             :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.tag.localeCompare(b.tag)"
           >
             <template #default="{ row }">
-              <el-tag
-                v-if="row.tag"
-                :type="getTagType(row.tag)"
-                size="small"
-                class="tag-item"
-              >
-                {{ row.tag }}
-              </el-tag>
+              <template v-if="parseTags(row.tag).length">
+                <el-tag
+                  v-for="t in parseTags(row.tag)"
+                  :key="t"
+                  :type="getTagType(t)"
+                  size="small"
+                  class="tag-item"
+                >
+                  {{ t }}
+                </el-tag>
+              </template>
               <span
                 v-else
                 class="no-tag"
@@ -575,13 +578,24 @@
           label="标签"
           prop="tag"
         >
-          <el-input
-            v-model="passwordForm.tag"
-            placeholder="如：工作、个人等（最多50字符）"
+          <el-select
+            v-model="tagArray"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            clearable
             :disabled="passwordFormLoading"
-            maxlength="50"
-            show-word-limit
-          />
+            placeholder="选填，可多选或输入后回车新增"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="t in availableTags"
+              :key="t"
+              :label="t"
+              :value="t"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item
@@ -656,7 +670,7 @@ import ImportDialog from '../../components/ImportDialog.vue';
 import DisclaimerInfo from '@/components/DisclaimerInfo.vue';
 import ValidityHoursSelect from '../../components/ValidityHoursSelect.vue';
 import ValiditySettingDialog from '../../components/ValiditySettingDialog.vue';
-import { getTagType } from '../../utils/tagUtils';
+import { getTagType, parseTags } from '../../utils/tagUtils';
 import { useAuthFlow } from '../../composables/useAuthFlow';
 import { useSessionTimer } from '../../composables/useSessionTimer';
 import { usePasswordManagement } from '../../composables/usePasswordManagement';
@@ -681,6 +695,8 @@ const {
   tableRef,
   floatingButtonVisible,
   filteredPasswords,
+  availableTags,
+  tagArray,
   loadFloatingButtonConfig,
   toggleFloatingButton,
   loadPasswords,

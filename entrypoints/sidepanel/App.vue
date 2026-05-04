@@ -116,12 +116,13 @@
             </div>
             <div class="details">
               <el-tag
-                v-if="password.tag"
-                :type="getTagType(password.tag)"
+                v-for="t in parseTags(password.tag)"
+                :key="t"
+                :type="getTagType(t)"
                 size="small"
                 class="tag-item"
               >
-                {{ password.tag }}
+                {{ t }}
               </el-tag>
               <el-text
                 v-if="password.url"
@@ -176,7 +177,7 @@ import {
 } from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
 import { useChromeListeners } from '../../composables/useChromeListeners';
-import { getTagType } from '../../utils/tagUtils';
+import { getTagType, parseTags } from '../../utils/tagUtils';
 import { logger } from '../../utils/logger';
 
 const loading = ref(true);
@@ -891,6 +892,11 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 多标签并列时的横向间距 */
+.tag-item + .tag-item {
+  margin-left: 4px;
 }
 
 .remark {

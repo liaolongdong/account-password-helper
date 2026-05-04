@@ -600,6 +600,11 @@
   line-height: 1.5;
 }
 
+/* 多标签并列时的横向间距 */
+.tag-item + .tag-item {
+  margin-left: 4px;
+}
+
 .no-tag {
   color: #c0c4cc;
   font-style: italic;

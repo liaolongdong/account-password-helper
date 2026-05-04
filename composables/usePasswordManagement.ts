@@ -5,6 +5,7 @@ import type { PasswordEntry, PasswordEntryWithUI } from '../utils/types';
 import { StorageUtils } from '../utils/storage';
 import { ExcelUtils } from '../utils/excel';
 import { logger } from '../utils/logger';
+import { parseTags, stringifyTags, collectAllTags } from '../utils/tagUtils';
 
 /**
  * 密码管理 Composable
@@ -64,6 +65,25 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
 
     return result;
+  });
+
+  /**
+   * 下拉候选标签列表
+   * 从所有密码条目中聚合去重，供表单中的标签下拉选项使用。
+   */
+  const availableTags = computed<string[]>(() => collectAllTags(passwords.value));
+
+  /**
+   * 表单标签的数组视图
+   * `passwordForm.tag` 仍以逗号拼接字符串作为最终写入源，本 computed 提供
+   * 数组形式以便 `el-select multiple` 绑定；写入时自动调用 `stringifyTags`
+   * 做去重与空项过滤。
+   */
+  const tagArray = computed<string[]>({
+    get: () => parseTags(passwordForm.value.tag),
+    set: (value: string[]) => {
+      passwordForm.value.tag = stringifyTags(value);
+    },
   });
 
   // 加载悬浮按钮配置
@@ -229,12 +249,15 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       await passwordFormRef.value.validate();
       passwordFormLoading.value = true;
 
+      // 对标签做归一化：拆分 → 去空/去重 → 英文逗号拼接
+      const normalizedTag = stringifyTags(parseTags(passwordForm.value.tag));
+
       if (isEditingPassword.value) {
         await StorageUtils.updatePassword(editingPasswordId.value, {
           username: passwordForm.value.username.trim(),
           password: passwordForm.value.password,
           url: passwordForm.value.url.trim(),
-          tag: passwordForm.value.tag.trim(),
+          tag: normalizedTag,
           remark: passwordForm.value.remark.trim(),
           updateTime: Date.now(),
         });
@@ -246,7 +269,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           username: passwordForm.value.username.trim(),
           password: passwordForm.value.password,
           url: passwordForm.value.url.trim(),
-          tag: passwordForm.value.tag.trim(),
+          tag: normalizedTag,
           remark: passwordForm.value.remark.trim(),
           createTime: now,
           updateTime: now,
@@ -435,6 +458,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     tableRef,
     floatingButtonVisible,
     filteredPasswords,
+    availableTags,
+    tagArray,
     // 方法
     loadFloatingButtonConfig,
     toggleFloatingButton,

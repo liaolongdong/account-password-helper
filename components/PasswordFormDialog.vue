@@ -50,10 +50,23 @@
           label="标签"
           prop="tag"
         >
-          <el-input
-            v-model="form.tag"
-            placeholder="选填，如：工作、个人等"
-          />
+          <el-select
+            v-model="tagArray"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            clearable
+            placeholder="选填，可多选或输入后回车新增"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="t in availableTags"
+              :key="t"
+              :label="t"
+              :value="t"
+            />
+          </el-select>
         </el-form-item>
 
         <el-form-item
@@ -89,10 +102,16 @@ import { ElMessage } from 'element-plus';
 import type { FormRules, FormInstance } from 'element-plus';
 import type { PasswordEntry } from '../utils/types';
 import { StorageUtils } from '../utils/storage';
+import { parseTags, stringifyTags } from '../utils/tagUtils';
 
 interface Props {
   modelValue: boolean;
   passwordData?: PasswordEntry | null;
+  /**
+   * 标签下拉候选项
+   * 由调用方传入（通常为 collectAllTags(passwords) 的结果），避免组件直接访问存储。
+   */
+  availableTags?: string[];
 }
 
 interface Emits {
@@ -100,7 +119,10 @@ interface Emits {
   (e: 'saved'): void;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  passwordData: null,
+  availableTags: () => [],
+});
 const emit = defineEmits<Emits>();
 
 const dialogVisible = computed({
@@ -119,6 +141,20 @@ const form = ref({
   tag: '',
   remark: '',
 });
+
+/**
+ * 标签数组视图
+ * 表单中 `form.tag` 仍以逗号拼接字符串作为最终写入源，本 computed 提供
+ * 数组形式以便 `el-select multiple` 绑定。
+ */
+const tagArray = computed<string[]>({
+  get: () => parseTags(form.value.tag),
+  set: (value: string[]) => {
+    form.value.tag = stringifyTags(value);
+  },
+});
+
+const availableTags = computed<string[]>(() => props.availableTags);
 
 const rules: FormRules = {
   username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
@@ -163,13 +199,16 @@ const handleSave = async () => {
     await formRef.value.validate();
     loading.value = true;
 
+    // 对标签做归一化：拆分 → 去空/去重 → 英文逗号拼接
+    const normalizedTag = stringifyTags(parseTags(form.value.tag));
+
     if (isEdit.value && props.passwordData) {
       // 更新密码
       await StorageUtils.updatePassword(props.passwordData.id, {
         username: form.value.username.trim(),
         password: form.value.password,
         url: form.value.url.trim(),
-        tag: form.value.tag.trim(),
+        tag: normalizedTag,
         remark: form.value.remark.trim(),
         updateTime: Date.now(),
       });
@@ -181,7 +220,7 @@ const handleSave = async () => {
         username: form.value.username.trim(),
         password: form.value.password,
         url: form.value.url.trim(),
-        tag: form.value.tag.trim(),
+        tag: normalizedTag,
         remark: form.value.remark.trim(),
         createTime: now,
         updateTime: now,
