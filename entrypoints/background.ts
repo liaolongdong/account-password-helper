@@ -225,56 +225,91 @@ export default defineBackground(() => {
 
   /**
    * 关闭侧边栏（不需要用户手势）
+   * 策略：优先使用 chrome.sidePanel.close() API，失败时降级到 setOptions 强制禁用/恢复 + port 通知 window.close()
    */
   function closeSidePanel(tabId: number): void {
-    if (typeof chrome.sidePanel.close === 'function') {
-      chrome.sidePanel
-        .close({ tabId })
-        .then(() => logger.debug('Background: 侧边栏已关闭 (close API)'))
-        .catch(error => {
-          if (isExpectedCloseError(error)) {
-            logger.debug('Background: 侧边栏已不存在，视为关闭成功');
-            sidePanelPort = null;
-            return;
-          }
-          logger.error('Background: 关闭侧边栏失败:', error);
-          // 降级：通过 port 通知关闭
-          trySendCloseViaPort();
-        });
-    } else {
-      trySendCloseViaPort();
-    }
+    forceCloseSidePanel(tabId).catch(error => {
+      logger.error('Background: 关闭侧边栏失败:', error);
+    });
   }
 
   /**
    * 关闭侧边栏并发送响应
    */
   function closeSidePanelWithResponse(tabId: number, sendResponse: (response: any) => void): void {
+    forceCloseSidePanel(tabId)
+      .then(() => {
+        sendResponse({ success: true, result: '侧边栏已关闭' });
+      })
+      .catch(error => {
+        logger.error('Background: 关闭侧边栏失败:', error);
+        // 即使失败也回复 success，避免调用方卡住；具体失败信息已记录日志
+        sendResponse({ success: true, result: '侧边栏关闭请求已处理 (fallback)' });
+      });
+  }
+
+  /**
+   * 强制关闭侧边栏（多方案兜底）
+   *
+   * 关闭策略：
+   * 1. 优先使用 chrome.sidePanel.close({ tabId }) API（Chrome 129+）
+   * 2. 若 close API 不可用或失败：通过 setOptions({ enabled: false }) 强制禁用，
+   *    随后恢复 enabled=true 保证下次能打开
+   * 3. 同时通过 port 通知 sidepanel 执行 window.close() 作为 UI 层兜底
+   */
+  function forceCloseSidePanel(tabId: number): Promise<void> {
+    // UI 层兜底：同时通过 port 通知 sidepanel 自行关闭
+    trySendCloseViaPort();
+
     if (typeof chrome.sidePanel.close === 'function') {
-      chrome.sidePanel
+      return chrome.sidePanel
         .close({ tabId })
         .then(() => {
           logger.debug('Background: 侧边栏已关闭 (close API)');
-          sendResponse({ success: true, result: '侧边栏已关闭' });
         })
         .catch(error => {
           if (isExpectedCloseError(error)) {
             logger.debug('Background: 侧边栏已不存在，视为关闭成功');
             sidePanelPort = null;
-            sendResponse({ success: true, result: '侧边栏已关闭' });
             return;
           }
-          logger.error('Background: 关闭侧边栏失败:', error);
-          // 降级：通过 port 通知关闭
-          trySendCloseViaPort();
-          sendResponse({ success: true, result: '侧边栏关闭消息已发送 (fallback)' });
+          logger.warn('Background: close API 失败，尝试 setOptions 兜底:', error);
+          return disableThenEnableSidePanel(tabId);
         });
-    } else if (sidePanelPort) {
-      trySendCloseViaPort();
-      sendResponse({ success: true, result: '侧边栏关闭消息已发送' });
-    } else {
-      sendResponse({ success: true, result: '侧边栏未打开' });
     }
+
+    // close API 不可用，直接走 setOptions 兜底
+    return disableThenEnableSidePanel(tabId);
+  }
+
+  /**
+   * 通过 setOptions 强制关闭并恢复侧边栏
+   * 禁用 sidepanel 会使其立即关闭，随后恢复 enabled=true 以便下次能正常打开
+   */
+  function disableThenEnableSidePanel(tabId: number): Promise<void> {
+    return chrome.sidePanel
+      .setOptions({ tabId, enabled: false })
+      .then(() => {
+        logger.debug('Background: 侧边栏已强制禁用 (setOptions)');
+        // 恢复 enabled=true，保证下次能正常打开
+        return chrome.sidePanel.setOptions({
+          tabId,
+          path: 'sidepanel.html',
+          enabled: true,
+        });
+      })
+      .then(() => {
+        logger.debug('Background: 侧边栏已恢复 enabled=true');
+      })
+      .catch(error => {
+        if (isExpectedCloseError(error)) {
+          logger.debug('Background: 侧边栏已不存在，视为关闭成功');
+          sidePanelPort = null;
+          return;
+        }
+        logger.error('Background: setOptions 兜底失败:', error);
+        throw error;
+      });
   }
 
   /**

@@ -558,8 +558,11 @@ const fillPassword = async (password: PasswordEntry) => {
     // 步骤5: 根据响应显示结果
     if (response && response.success) {
       ElMessage.success(response.message || '密码填充成功');
-      // 隐藏侧边栏
-      await chrome.runtime.sendMessage({ type: MessageType.HIDE_SIDEPANEL });
+      // 隐藏侧边栏（必须携带 tabId，因为 sidepanel 发出的消息 sender.tab 为 undefined）
+      await chrome.runtime.sendMessage({
+        type: MessageType.HIDE_SIDEPANEL,
+        data: { tabId },
+      });
     } else {
       const errorMsg = response?.message || '填充可能未完成，请检查页面表单';
       ElMessage.warning(errorMsg);
@@ -642,7 +645,11 @@ onMounted(async () => {
     bgPort.onMessage.addListener((message: any) => {
       if (message.type === MessageType.CLOSE_SIDEPANEL) {
         logger.debug('SidePanel: 收到关闭消息，正在关闭侧边栏');
-        window.close();
+        try {
+          window.close();
+        } catch (err) {
+          logger.error('SidePanel: window.close() 失败:', err);
+        }
       }
     });
     bgPort.onDisconnect.addListener(() => {
