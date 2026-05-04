@@ -208,6 +208,22 @@ export default defineBackground(() => {
   }
 
   /**
+   * 判断关闭侧边栏时的错误是否为预期错误
+   * 预期错误场景：
+   * - 侧边栏已被用户关闭或页面已导航，tab 上不存在 tab-specific side panel
+   * - 扩展上下文失效（扩展重新加载）
+   * - tabId 已失效
+   */
+  function isExpectedCloseError(error: unknown): boolean {
+    const msg = (error as { message?: string } | undefined)?.message ?? String(error);
+    return (
+      msg.includes('No active tab-specific side panel') ||
+      msg.includes('Extension context invalidated') ||
+      msg.includes('No tab with id')
+    );
+  }
+
+  /**
    * 关闭侧边栏（不需要用户手势）
    */
   function closeSidePanel(tabId: number): void {
@@ -216,6 +232,11 @@ export default defineBackground(() => {
         .close({ tabId })
         .then(() => logger.debug('Background: 侧边栏已关闭 (close API)'))
         .catch(error => {
+          if (isExpectedCloseError(error)) {
+            logger.debug('Background: 侧边栏已不存在，视为关闭成功');
+            sidePanelPort = null;
+            return;
+          }
           logger.error('Background: 关闭侧边栏失败:', error);
           // 降级：通过 port 通知关闭
           trySendCloseViaPort();
@@ -237,6 +258,12 @@ export default defineBackground(() => {
           sendResponse({ success: true, result: '侧边栏已关闭' });
         })
         .catch(error => {
+          if (isExpectedCloseError(error)) {
+            logger.debug('Background: 侧边栏已不存在，视为关闭成功');
+            sidePanelPort = null;
+            sendResponse({ success: true, result: '侧边栏已关闭' });
+            return;
+          }
           logger.error('Background: 关闭侧边栏失败:', error);
           // 降级：通过 port 通知关闭
           trySendCloseViaPort();
