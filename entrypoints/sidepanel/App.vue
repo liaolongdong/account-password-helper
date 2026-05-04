@@ -115,15 +115,22 @@
               </span>
             </div>
             <div class="details">
-              <el-tag
+              <el-tooltip
                 v-for="t in parseTags(password.tag)"
                 :key="t"
-                :type="getTagType(t)"
-                size="small"
-                class="tag-item"
+                :content="t"
+                placement="top"
+                :show-after="300"
+                :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
               >
-                {{ t }}
-              </el-tag>
+                <el-tag
+                  :type="getTagType(t)"
+                  size="small"
+                  class="tag-item"
+                >
+                  {{ t }}
+                </el-tag>
+              </el-tooltip>
               <el-text
                 v-if="password.url"
                 type="info"
@@ -887,8 +894,18 @@ onUnmounted(() => {
   margin: 0;
   font-size: 11px;
   line-height: 1.4;
+
+  /* 单行展示，超长省略，配合外层 el-tooltip 显示完整内容 */
   min-width: 0;
-  max-width: 80px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* el-tag 内层文本节点继承省略策略，确保 inline-flex 下生效 */
+.tag-item :deep(.el-tag__content) {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -896,7 +913,7 @@ onUnmounted(() => {
 
 /* 多标签并列时的横向间距 */
 .tag-item + .tag-item {
-  margin-left: 4px;
+  margin-left: 2px;
 }
 
 .remark {

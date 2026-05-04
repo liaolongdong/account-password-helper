@@ -401,15 +401,22 @@
           >
             <template #default="{ row }">
               <template v-if="parseTags(row.tag).length">
-                <el-tag
+                <el-tooltip
                   v-for="t in parseTags(row.tag)"
                   :key="t"
-                  :type="getTagType(t)"
-                  size="small"
-                  class="tag-item"
+                  :content="t"
+                  placement="top"
+                  :show-after="300"
+                  :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
                 >
-                  {{ t }}
-                </el-tag>
+                  <el-tag
+                    :type="getTagType(t)"
+                    size="small"
+                    class="tag-item"
+                  >
+                    {{ t }}
+                  </el-tag>
+                </el-tooltip>
               </template>
               <span
                 v-else

@@ -57,7 +57,8 @@
             allow-create
             default-first-option
             clearable
-            placeholder="选填，可多选或输入后回车新增"
+            :multiple-limit="MAX_TAG_COUNT"
+            :placeholder="`选填，最多选择${MAX_TAG_COUNT}个，可输入后回车新增`"
             style="width: 100%"
           >
             <el-option
@@ -132,6 +133,11 @@ const dialogVisible = computed({
 
 const isEdit = computed(() => !!props.passwordData);
 
+/** 最多可选择的标签数量 */
+const MAX_TAG_COUNT = 3;
+/** 单个标签最大字符长度 */
+const MAX_TAG_LENGTH = 30;
+
 const formRef = ref<FormInstance>();
 const loading = ref(false);
 const form = ref({
@@ -146,11 +152,33 @@ const form = ref({
  * 标签数组视图
  * 表单中 `form.tag` 仍以逗号拼接字符串作为最终写入源，本 computed 提供
  * 数组形式以便 `el-select multiple` 绑定。
+ *
+ * setter 中做两重兜底：
+ * 1. 过滤超过 MAX_TAG_LENGTH 个字符的标签；
+ * 2. 截断超过 MAX_TAG_COUNT 个的标签。
  */
 const tagArray = computed<string[]>({
   get: () => parseTags(form.value.tag),
   set: (value: string[]) => {
-    form.value.tag = stringifyTags(value);
+    const trimmed = value.map(v => String(v ?? '').trim()).filter(Boolean);
+    const valid: string[] = [];
+    let hasTooLong = false;
+    for (const t of trimmed) {
+      if (t.length > MAX_TAG_LENGTH) {
+        hasTooLong = true;
+        continue;
+      }
+      valid.push(t);
+    }
+    if (hasTooLong) {
+      ElMessage.warning(`标签长度不能超过 ${MAX_TAG_LENGTH} 个字符`);
+    }
+    let finalTags = valid;
+    if (finalTags.length > MAX_TAG_COUNT) {
+      finalTags = finalTags.slice(0, MAX_TAG_COUNT);
+      ElMessage.warning(`最多只能选择 ${MAX_TAG_COUNT} 个标签`);
+    }
+    form.value.tag = stringifyTags(finalTags);
   },
 });
 
