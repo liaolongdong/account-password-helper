@@ -215,7 +215,7 @@ const applySortConfig = (list: PasswordEntry[]) => {
   if (!config) {
     list.sort((a, b) => {
       const dp = getDomainPriority(a) - getDomainPriority(b);
-      return dp !== 0 ? dp : b.createTime - a.createTime;
+      return dp !== 0 ? dp : b.updateTime - a.updateTime;
     });
     return;
   }
@@ -249,12 +249,12 @@ const applySortConfig = (list: PasswordEntry[]) => {
         bVal = b.updateTime;
         break;
       default:
-        return b.createTime - a.createTime;
+        return b.updateTime - a.updateTime;
     }
     let cmp = 0;
     if (typeof aVal === 'string' && typeof bVal === 'string') cmp = aVal.localeCompare(bVal);
     else if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
-    else return b.createTime - a.createTime;
+    else return b.updateTime - a.updateTime;
     return config.order === 'ascending' ? cmp : -cmp;
   });
 };

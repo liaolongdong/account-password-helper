@@ -211,10 +211,14 @@ export class StorageUtils {
       const passwords =
         masterPassword && !sessionActive ? await this.getAllPasswords(masterPassword) : await this.getAllPasswordsRaw();
 
+      const now = Date.now();
+      const createTime = entry.createTime ?? now;
+      const updateTime = entry.updateTime ?? createTime;
       const newEntry: PasswordEntry = {
         ...entry,
         id: this.generateId(),
-        updateTime: Date.now(),
+        createTime,
+        updateTime,
         order: passwords.length,
       };
 
@@ -479,7 +483,7 @@ export class StorageUtils {
               bValue = b.updateTime;
               break;
             default:
-              return b.createTime - a.createTime;
+              return b.updateTime - a.updateTime;
           }
 
           let comparison = 0;
@@ -488,7 +492,7 @@ export class StorageUtils {
           } else if (typeof aValue === 'number' && typeof bValue === 'number') {
             comparison = aValue - bValue;
           } else {
-            return b.createTime - a.createTime;
+            return b.updateTime - a.updateTime;
           }
 
           return sortConfig.order === 'ascending' ? comparison : -comparison;
@@ -498,7 +502,7 @@ export class StorageUtils {
           const aPriority = getDomainPriority(a);
           const bPriority = getDomainPriority(b);
           if (aPriority !== bPriority) return aPriority - bPriority;
-          return b.createTime - a.createTime;
+          return b.updateTime - a.updateTime;
         });
       }
     } catch (error) {
@@ -507,7 +511,7 @@ export class StorageUtils {
         const aPriority = getDomainPriority(a);
         const bPriority = getDomainPriority(b);
         if (aPriority !== bPriority) return aPriority - bPriority;
-        return b.createTime - a.createTime;
+        return b.updateTime - a.updateTime;
       });
     }
   }

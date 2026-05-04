@@ -64,6 +64,14 @@ export class ExcelUtils {
             // 转换为JSON
             const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
+            // 解析时间戳：支持 number 或可被 Date.parse 解析的字符串
+            const parseTimestamp = (v: unknown): number | undefined => {
+              if (v == null || v === '') return undefined;
+              if (typeof v === 'number' && Number.isFinite(v)) return v;
+              const t = Date.parse(String(v));
+              return Number.isNaN(t) ? undefined : t;
+            };
+
             // 解析数据
             const passwords = jsonData
               .map((row: any) => {
@@ -74,14 +82,28 @@ export class ExcelUtils {
                 const url = row['URL'] || row['url'] || row['网址'] || row['链接'] || '';
                 const tag = row['标签'] || row['tag'] || row['Tag'] || row['分类'] || '';
                 const remark = row['备注'] || row['remark'] || row['Remark'] || row['说明'] || '';
-                const createTime = row['创建时间'] || row['createTime'] || row['CreateTime'] || Date.now();
-                const updateTime =
-                  row['更新时间'] ||
-                  row['updateTime'] ||
-                  row['UpdateTime'] ||
-                  row['修改时间'] ||
-                  row['modifyTime'] ||
-                  Date.now();
+
+                // 时间字段策略：保留原表时间，仅缺失时统一为同一时间戳
+                const cTime = parseTimestamp(row['创建时间'] ?? row['createTime'] ?? row['CreateTime']);
+                const uTime = parseTimestamp(
+                  row['更新时间'] ?? row['updateTime'] ?? row['UpdateTime'] ?? row['修改时间'] ?? row['modifyTime'],
+                );
+                const now = Date.now();
+                let createTime: number;
+                let updateTime: number;
+                if (cTime != null && uTime != null) {
+                  createTime = cTime;
+                  updateTime = uTime;
+                } else if (cTime != null) {
+                  createTime = cTime;
+                  updateTime = cTime;
+                } else if (uTime != null) {
+                  createTime = uTime;
+                  updateTime = uTime;
+                } else {
+                  createTime = now;
+                  updateTime = now;
+                }
 
                 return {
                   username: String(username).trim(),

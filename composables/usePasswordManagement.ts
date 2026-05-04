@@ -102,8 +102,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
       passwords.value = await StorageUtils.getAllPasswords();
 
-      // 按创建时间倒序排序
-      passwords.value.sort((a, b) => b.createTime - a.createTime);
+      // 按更新时间倒序排序
+      passwords.value.sort((a, b) => b.updateTime - a.updateTime);
 
       // 添加显示密码状态
       passwords.value.forEach(p => {
@@ -241,14 +241,15 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         ElMessage.success('密码更新成功');
         scrollToPassword(editingPasswordId.value);
       } else {
+        const now = Date.now();
         const newEntry = await StorageUtils.savePassword({
           username: passwordForm.value.username.trim(),
           password: passwordForm.value.password,
           url: passwordForm.value.url.trim(),
           tag: passwordForm.value.tag.trim(),
           remark: passwordForm.value.remark.trim(),
-          createTime: Date.now(),
-          updateTime: Date.now(),
+          createTime: now,
+          updateTime: now,
         });
         ElMessage.success('密码添加成功');
         scrollToPassword(newEntry.id);

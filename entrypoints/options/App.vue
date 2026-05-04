@@ -312,7 +312,7 @@
           row-key="id"
           :row-class-name="handleRowClassName"
           @selection-change="handleSelectionChange"
-          :default-sort="{ prop: 'createTime', order: 'descending' }"
+          :default-sort="{ prop: 'updateTime', order: 'descending' }"
           @sort-change="handleSortChange"
         >
           <el-table-column
@@ -452,7 +452,6 @@
             min-width="110"
             sortable
             :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.createTime - b.createTime"
-            :sort-orders="['descending', 'ascending', null]"
           >
             <template #default="{ row }">
               {{ new Date(row.createTime).toLocaleDateString() }}
@@ -464,6 +463,7 @@
             min-width="110"
             sortable
             :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.updateTime - b.updateTime"
+            :sort-orders="['descending', 'ascending', null]"
           >
             <template #default="{ row }">
               {{ new Date(row.updateTime).toLocaleDateString() }}

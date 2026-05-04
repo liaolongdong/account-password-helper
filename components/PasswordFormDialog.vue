@@ -176,14 +176,15 @@ const handleSave = async () => {
       ElMessage.success('密码更新成功');
     } else {
       // 添加新密码
+      const now = Date.now();
       await StorageUtils.savePassword({
         username: form.value.username.trim(),
         password: form.value.password,
         url: form.value.url.trim(),
         tag: form.value.tag.trim(),
         remark: form.value.remark.trim(),
-        createTime: Date.now(),
-        updateTime: Date.now(),
+        createTime: now,
+        updateTime: now,
       });
       ElMessage.success('密码添加成功');
     }
