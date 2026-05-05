@@ -973,7 +973,7 @@ onUnmounted(() => {
 /* 去验证主密码按钮：放大钥匙图标并与文字拉开间距 */
 .auth-verify-btn :deep(.el-icon) {
   font-size: 20px;
-  margin-right: 6px;
+  margin-right: -4px;
 }
 
 .auth-verify-btn :deep(.el-icon svg) {
