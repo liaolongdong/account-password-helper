@@ -67,6 +67,7 @@
       >
         <div>
           <el-button
+            v-if="isDev"
             size="small"
             type="info"
             link
@@ -102,6 +103,7 @@ import { ref, computed, watch, nextTick } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormRules, FormInstance } from 'element-plus';
 import { StorageUtils } from '../utils/storage';
+import { isDev } from '../utils/env';
 
 interface Props {
   modelValue: boolean;

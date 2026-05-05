@@ -173,6 +173,7 @@
 
                 <div class="verify-actions">
                   <el-button
+                    v-if="isDev"
                     size="small"
                     type="info"
                     link
@@ -682,6 +683,7 @@ import { getTagType, parseTags } from '../../utils/tagUtils';
 import { useAuthFlow } from '../../composables/useAuthFlow';
 import { useSessionTimer } from '../../composables/useSessionTimer';
 import { usePasswordManagement, MAX_TAG_COUNT } from '../../composables/usePasswordManagement';
+import { isDev } from '../../utils/env';
 
 /** 临时有效期表单占位，在 useSessionTimer 初始化后会被覆盖 */
 const initialValidityForm = ref({ validityHours: 24 });

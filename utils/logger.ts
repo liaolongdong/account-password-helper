@@ -1,3 +1,5 @@
+import { isDev } from './env';
+
 /**
  * 日志工具类
  * 根据环境自动控制日志输出，生产环境禁用调试日志
@@ -6,10 +8,8 @@ class Logger {
   private isDev: boolean;
 
   constructor() {
-    // 检测是否为开发环境
-    // WXT 框架使用 import.meta.env.DEV 判断
-    // 使用类型断言处理 TypeScript 类型检查
-    this.isDev = (import.meta as any).env?.DEV ?? false;
+    // 统一从 utils/env 读取环境标识，Vite 会在构建期静态替换
+    this.isDev = isDev;
   }
 
   /**

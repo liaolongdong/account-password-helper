@@ -1,6 +1,24 @@
 // 全局类型声明文件
 // 用于解决 CSS 文件导入的 TypeScript 类型问题
 
+/**
+ * Vite / WXT 注入的构建期环境变量类型声明
+ * - DEV: `npm run dev` 时为 true
+ * - PROD: `npm run build` 时为 true
+ * - MODE: 当前构建模式（'development' | 'production' 等）
+ */
+interface ImportMetaEnv {
+  readonly MODE: string;
+  readonly DEV: boolean;
+  readonly PROD: boolean;
+  readonly BASE_URL: string;
+  readonly SSR: boolean;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
 // Vue 单文件组件声明
 declare module '*.vue' {
   import type { DefineComponent } from 'vue';
