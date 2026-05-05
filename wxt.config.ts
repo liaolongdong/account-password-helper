@@ -15,12 +15,18 @@ export default defineConfig({
       },
     },
   }),
+  // 扩展图标约定：图标来源于 public/icon/{16,32,48,96,128}.png，
+  // WXT 会自动注入 manifest.icons 与 action.default_icon，无需在此显式声明。
+  // 源 SVG 位于 assets/icons/icon.svg，通过 `npm run icons:build` 生成多尺寸 PNG。
   manifest: {
     name: 'Account Password Helper',
     description: '账号密码管理助手 - 自动填充和保存账号密码',
     version: '1.0.0',
     permissions: ['storage', 'activeTab', 'scripting', 'sidePanel'],
     host_permissions: ['<all_urls>'],
+    action: {
+      default_title: '账号密码管家',
+    },
     // 添加快捷键配置
     commands: {
       open_options: {
