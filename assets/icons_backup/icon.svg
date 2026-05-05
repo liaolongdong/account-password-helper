@@ -1,0 +1,21 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 底色：Element Plus 主题蓝，圆角方块 -->
+  <rect width="128" height="128" rx="20" fill="#409EFF"/>
+
+  <!-- 钥匙柄（圆环）：白色粗描边，内嵌蓝色孔心 -->
+  <circle cx="44" cy="56" r="18" stroke="#FFFFFF" stroke-width="8" fill="none"/>
+  <circle cx="44" cy="56" r="5" fill="#409EFF"/>
+
+  <!-- 钥匙杆：从柄右侧水平延伸 -->
+  <rect x="62" y="52" width="42" height="8" rx="4" fill="#FFFFFF"/>
+
+  <!-- 钥匙齿：末端两颗向下方齿 -->
+  <rect x="86" y="60" width="6" height="10" rx="2" fill="#FFFFFF"/>
+  <rect x="98" y="60" width="6" height="10" rx="2" fill="#FFFFFF"/>
+
+  <!-- 输入框下划线：底部横线，表示"填入表单" -->
+  <rect x="24" y="98" width="80" height="6" rx="3" fill="#FFFFFF"/>
+
+  <!-- 光标 caret：位于下划线上方、钥匙杆末端右侧，表达插入点 -->
+  <rect x="96" y="76" width="5" height="22" rx="2" fill="#FFFFFF"/>
+</svg>
