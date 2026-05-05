@@ -1,7 +1,7 @@
 <template>
   <div class="popup-container">
     <div class="header">
-      <el-icon class="logo"><Key /></el-icon>
+      <BrandLogo class="logo" />
       <h3>账号密码管理助手</h3>
     </div>
 
@@ -50,7 +50,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Setting, Key, View } from '@element-plus/icons-vue';
+import { Setting, View } from '@element-plus/icons-vue';
+import BrandLogo from '../../components/BrandLogo.vue';
 import { StorageUtils } from '../../utils/storage';
 import { MessageType } from '../../utils/types';
 

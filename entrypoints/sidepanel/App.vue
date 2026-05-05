@@ -6,7 +6,7 @@
     <!-- 头部 -->
     <div class="header">
       <h3>
-        <el-icon class="logo"><Key /></el-icon>
+        <BrandLogo class="logo" />
         快速填充
       </h3>
       <div class="current-url">
@@ -49,7 +49,7 @@
         </template>
         <el-button
           type="primary"
-          :icon="Key"
+          :icon="BrandLogo"
           @click="openOptions"
           size="large"
         >
@@ -173,8 +173,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { Key, Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
+import { Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import BrandLogo from '../../components/BrandLogo.vue';
 import {
   MessageType,
   type PasswordEntry,

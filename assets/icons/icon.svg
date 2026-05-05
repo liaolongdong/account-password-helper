@@ -1,20 +1,16 @@
 <svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <!-- 底色：Element Plus 主题蓝，圆角方块 -->
+  <!-- 背景：Element Plus 主蓝圆角方块 -->
   <rect width="128" height="128" rx="20" fill="#409EFF"/>
 
-  <!-- 锁环：加粗描边，确保小尺寸仍可辨识 -->
-  <path d="M44 60V50C44 38.9543 52.9543 30 64 30C75.0457 30 84 38.9543 84 50V60"
-        stroke="#FFFFFF" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <!-- 钥匙头：白色实心圆 -->
+  <circle cx="64" cy="46" r="20" fill="#FFFFFF"/>
+  <!-- 钥匙孔：主蓝圆，形成环形视觉 -->
+  <circle cx="64" cy="46" r="8" fill="#409EFF"/>
 
-  <!-- 锁体：圆角矩形，白色填充 -->
-  <rect x="32" y="58" width="64" height="48" rx="8" fill="#FFFFFF"/>
+  <!-- 钥匙杆：竖直白色圆角矩形，自钥匙头下缘延伸 -->
+  <rect x="59" y="62" width="10" height="48" rx="4" fill="#FFFFFF"/>
 
-  <!-- 钥匙孔：圆孔 + 短柄 -->
-  <circle cx="64" cy="76" r="5" fill="#409EFF"/>
-  <rect x="61.5" y="76" width="5" height="11" rx="2" fill="#409EFF"/>
-
-  <!-- 密码掩码：三个圆点，强化"密码"语义 -->
-  <circle cx="52" cy="96" r="2.5" fill="#409EFF"/>
-  <circle cx="64" cy="96" r="2.5" fill="#409EFF"/>
-  <circle cx="76" cy="96" r="2.5" fill="#409EFF"/>
+  <!-- 钥匙齿：杆右侧两个凸起，短齿在上、长齿在下（最底齿） -->
+  <rect x="69" y="86" width="8" height="6" rx="1.5" fill="#FFFFFF"/>
+  <rect x="69" y="98" width="11" height="6" rx="1.5" fill="#FFFFFF"/>
 </svg>

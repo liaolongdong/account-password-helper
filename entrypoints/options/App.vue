@@ -8,7 +8,7 @@
       <div class="setup-container">
         <div class="setup-header">
           <div class="logo-section">
-            <el-icon class="logo"><Key /></el-icon>
+            <BrandLogo class="logo" />
             <h1>账号密码管理助手</h1>
           </div>
           <p class="subtitle">欢迎使用账号密码管理助手，请先设置主密码</p>
@@ -105,7 +105,7 @@
       <div class="verify-container">
         <div class="verify-header">
           <div class="logo-section">
-            <el-icon class="logo"><Key /></el-icon>
+            <BrandLogo class="logo" />
             <h1>账号密码管理助手</h1>
           </div>
           <p class="subtitle">请输入主密码以继续</p>
@@ -209,7 +209,7 @@
         <div class="header-title-row">
           <div class="header-title">
             <h1>
-              <el-icon class="logo"><Key /></el-icon>
+              <BrandLogo class="logo" />
               账号密码管理助手
             </h1>
           </div>
@@ -660,7 +660,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue';
 import {
-  Key,
   Plus,
   Download,
   Upload,
@@ -675,6 +674,7 @@ import {
 import type { PasswordEntry } from '../../utils/types';
 import { sessionManager } from '../../utils/sessionManager';
 import ImportDialog from '../../components/ImportDialog.vue';
+import BrandLogo from '@/components/BrandLogo.vue';
 import DisclaimerInfo from '@/components/DisclaimerInfo.vue';
 import ValidityHoursSelect from '../../components/ValidityHoursSelect.vue';
 import ValiditySettingDialog from '../../components/ValiditySettingDialog.vue';
