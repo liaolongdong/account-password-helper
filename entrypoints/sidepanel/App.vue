@@ -48,6 +48,7 @@
           </div>
         </template>
         <el-button
+          class="auth-verify-btn"
           type="primary"
           :icon="BrandLogo"
           @click="openOptions"
@@ -967,6 +968,17 @@ onUnmounted(() => {
 .auth-tip {
   color: #999 !important;
   font-size: 12px !important;
+}
+
+/* 去验证主密码按钮：放大钥匙图标并与文字拉开间距 */
+.auth-verify-btn :deep(.el-icon) {
+  font-size: 20px;
+  margin-right: 6px;
+}
+
+.auth-verify-btn :deep(.el-icon svg) {
+  width: 1em;
+  height: 1em;
 }
 
 /* 滚动条样式 */
