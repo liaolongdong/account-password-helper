@@ -1,0 +1,16 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景：Element Plus 主蓝圆角方块 -->
+  <rect width="128" height="128" rx="20" fill="#409EFF"/>
+
+  <!-- 钥匙头：白色实心圆 -->
+  <circle cx="64" cy="46" r="20" fill="#FFFFFF"/>
+  <!-- 钥匙孔：主蓝圆，形成环形视觉 -->
+  <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+
+  <!-- 钥匙杆：竖直白色圆角矩形，自钥匙头下缘延伸 -->
+  <rect x="59" y="62" width="10" height="48" rx="4" fill="#FFFFFF"/>
+
+  <!-- 钥匙齿：杆右侧两个凸起，短齿在上、长齿在下（最底齿） -->
+  <rect x="69" y="86" width="8" height="6" rx="1.5" fill="#FFFFFF"/>
+  <rect x="69" y="98" width="11" height="6" rx="1.5" fill="#FFFFFF"/>
+</svg>

@@ -1,0 +1,27 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景：Element Plus 主蓝圆角方块 -->
+  <rect width="128" height="128" rx="20" fill="#409EFF"/>
+
+  <!-- 钥匙头：白色实心圆 -->
+  <circle cx="64" cy="46" r="20" fill="#FFFFFF"/>
+  <!-- 钥匙孔：主蓝圆 -->
+  <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+
+  <!-- 钥匙杆 -->
+  <rect x="59" y="62" width="10" height="48" rx="4" fill="#FFFFFF"/>
+
+  <!-- 钥匙齿 -->
+  <rect x="69" y="86" width="8" height="6" rx="1.5" fill="#FFFFFF"/>
+  <rect x="69" y="98" width="11" height="6" rx="1.5" fill="#FFFFFF"/>
+
+  <!-- 左下账号卡徽章：两张叠放的账号卡，寓意"多账号归档" -->
+  <!-- 底层卡：浅蓝 -->
+  <rect x="16" y="82" width="34" height="22" rx="4" fill="#79BBFF" stroke="#FFFFFF" stroke-width="2"/>
+  <!-- 顶层卡：白色 -->
+  <rect x="10" y="90" width="34" height="22" rx="4" fill="#FFFFFF"/>
+  <!-- 顶层卡头像圆：深蓝 -->
+  <circle cx="19" cy="101" r="4" fill="#337ECC"/>
+  <!-- 顶层卡占位条：浅蓝 -->
+  <rect x="26" y="97" width="14" height="3" rx="1.5" fill="#A0CFFF"/>
+  <rect x="26" y="103" width="10" height="3" rx="1.5" fill="#A0CFFF"/>
+</svg>

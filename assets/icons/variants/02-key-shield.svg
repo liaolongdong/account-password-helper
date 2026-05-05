@@ -1,0 +1,22 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景：Element Plus 主蓝圆角方块 -->
+  <rect width="128" height="128" rx="20" fill="#409EFF"/>
+
+  <!-- 钥匙头：白色实心圆 -->
+  <circle cx="64" cy="46" r="20" fill="#FFFFFF"/>
+
+  <!-- 钥匙孔内嵌盾牌：主蓝盾牌占据钥匙头中心，寓意"主密码保护" -->
+  <path d="M64 32L50 37V48C50 56.8 56 64 64 66C72 64 78 56.8 78 48V37L64 32Z"
+        fill="#409EFF"/>
+
+  <!-- 盾牌内勾号：白色粗描边，传达"已保护" -->
+  <path d="M57 48L62 53L72 43"
+        stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+
+  <!-- 钥匙杆：竖直白色圆角矩形 -->
+  <rect x="59" y="62" width="10" height="48" rx="4" fill="#FFFFFF"/>
+
+  <!-- 钥匙齿：短齿在上、长齿在下 -->
+  <rect x="69" y="86" width="8" height="6" rx="1.5" fill="#FFFFFF"/>
+  <rect x="69" y="98" width="11" height="6" rx="1.5" fill="#FFFFFF"/>
+</svg>

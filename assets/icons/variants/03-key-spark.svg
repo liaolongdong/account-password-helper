@@ -1,0 +1,22 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景：Element Plus 主蓝圆角方块 -->
+  <rect width="128" height="128" rx="20" fill="#409EFF"/>
+
+  <!-- 钥匙头：白色实心圆 -->
+  <circle cx="64" cy="46" r="20" fill="#FFFFFF"/>
+  <!-- 钥匙孔：主蓝圆 -->
+  <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+
+  <!-- 钥匙杆 -->
+  <rect x="59" y="62" width="10" height="48" rx="4" fill="#FFFFFF"/>
+
+  <!-- 钥匙齿 -->
+  <rect x="69" y="86" width="8" height="6" rx="1.5" fill="#FFFFFF"/>
+  <rect x="69" y="98" width="11" height="6" rx="1.5" fill="#FFFFFF"/>
+
+  <!-- 右上闪电徽章：深蓝圆底 + 白色描边，贴合钥匙头右上 -->
+  <circle cx="92" cy="26" r="14" fill="#337ECC" stroke="#FFFFFF" stroke-width="3"/>
+  <!-- 白色闪电：内部主视觉，寓意"一键极速填充" -->
+  <path d="M94 17L86 29H92L89 35L98 23H92L95 17Z"
+        fill="#FFFFFF" stroke-linejoin="round"/>
+</svg>
