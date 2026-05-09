@@ -751,14 +751,14 @@ onUnmounted(() => {
 
 <style scoped>
 .sidepanel-container {
-  height: 100vh;
+  height: 100%;
   display: flex;
   flex-direction: column;
   background: #f8f9fa;
 }
 
 .header {
-  padding: 16px;
+  padding: 10px 16px;
   background: white;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -766,7 +766,7 @@ onUnmounted(() => {
 .header h3 {
   display: flex;
   align-items: center;
-  margin: 0 0 8px;
+  margin: 0 0 4px;
   font-size: 16px;
   font-weight: 600;
   color: #1f2937;
@@ -784,7 +784,7 @@ onUnmounted(() => {
 }
 
 .search-section {
-  padding: 12px 16px;
+  padding: 10px 16px;
   background: white;
   border-bottom: 1px solid #e5e7eb;
 }
@@ -937,7 +937,7 @@ onUnmounted(() => {
 }
 
 .footer {
-  padding: 12px 16px;
+  padding: 8px 16px;
   background: white;
   border-top: 1px solid #e5e7eb;
   text-align: center;
@@ -997,5 +997,19 @@ onUnmounted(() => {
 
 .password-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+</style>
+
+<style>
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
 }
 </style>
