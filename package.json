@@ -1,7 +1,10 @@
 {
   "name": "account-password-helper",
+  "author": "Better",
+  "email": "924902324@qq.com",
+  "github": "https://github.com/liaolongdong/account-password-helper",
   "version": "1.0.0",
-  "description": "Chrome extension for account password management",
+  "description": "Chrome extension for account password management and auto-fill",
   "type": "module",
   "scripts": {
     "build": "wxt build",
