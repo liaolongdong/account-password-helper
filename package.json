@@ -4,7 +4,18 @@
   "email": "924902324@qq.com",
   "github": "https://github.com/liaolongdong/account-password-helper",
   "version": "1.0.0",
-  "description": "Chrome extension for account password management and auto-fill",
+  "description": "Chrome extension for account password management and auto-fill and auto-login",
+  "keywords": [
+    "account",
+    "password",
+    "management",
+    "auto-fill",
+    "auto-login",
+    "chrome-extension",
+    "账号密码管理",
+    "账号密码自动填充",
+    "账号自动登录浏览器插件"
+  ],
   "type": "module",
   "scripts": {
     "build": "wxt build",
