@@ -238,9 +238,9 @@ export class DragHandler {
     this.state.currentX = x;
     this.state.currentY = y;
 
-    // 使用鼠标偏移修正，确保按钮中心跟随鼠标
-    const correctedDeltaX = deltaX - this.state.mouseOffsetX;
-    const correctedDeltaY = deltaY - this.state.mouseOffsetY;
+    // 让按钮中心跟随鼠标：把点击时与中心的偏移量补偿回去
+    const correctedDeltaX = deltaX + this.state.mouseOffsetX;
+    const correctedDeltaY = deltaY + this.state.mouseOffsetY;
 
     // 更新按钮位置（仅使用鼠标移动的差值，不叠加初始偏移）
     this.animationController.updateDragPosition(correctedDeltaX, correctedDeltaY);
@@ -318,8 +318,8 @@ export class DragHandler {
     const viewportHeight = window.innerHeight;
     const buttonGroupHeight = this.buttonGroup.offsetHeight;
 
-    // 新偏移 = 初始偏移 + 鼠标Y轴变化量
-    let offsetY = this.state.initialOffsetY + (this.state.currentY - this.state.startY);
+    // 吸附后按钮中心应落在松手时的鼠标 Y，同样需补偿 mouseOffsetY
+    let offsetY = this.state.initialOffsetY + (this.state.currentY - this.state.startY) + this.state.mouseOffsetY;
 
     // 限制在可视范围内
     const maxOffset = (viewportHeight - buttonGroupHeight) / 2 - 20;
