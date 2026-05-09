@@ -20,7 +20,7 @@ export default defineConfig({
   // 源 SVG 位于 assets/icons/icon.svg，通过 `npm run icons:build` 生成多尺寸 PNG。
   manifest: {
     name: 'Account Password Helper',
-    description: '账号密码管理助手 - 自动填充和保存账号密码',
+    description: '账号密码管理助手 - 管理账号密码、自动填充账号密码、自动触发登录',
     version: '1.0.0',
     permissions: ['storage', 'activeTab', 'scripting', 'sidePanel'],
     host_permissions: ['<all_urls>'],
