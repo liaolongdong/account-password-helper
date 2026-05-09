@@ -813,17 +813,21 @@ onUnmounted(() => {
 }
 
 .password-items {
-  padding: 8px 0;
+  /* padding: 8px 0; */
 }
 
 .password-item {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
+  padding: 10px 16px;
   background: white;
   border-bottom: 1px solid #f0f0f0;
   cursor: pointer;
   transition: background-color 0.2s;
+}
+
+.password-item:last-child {
+  border-bottom: none;
 }
 
 .password-item:hover {
