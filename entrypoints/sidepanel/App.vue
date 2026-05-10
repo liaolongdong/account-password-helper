@@ -36,7 +36,10 @@
           title="操作指引与常见问题"
           @click="showHelpDialog = true"
         >
-          <el-icon><QuestionFilled /></el-icon>
+          <span
+            class="icon-btn__svg"
+            v-html="questionIconSvg"
+          ></span>
         </button>
         <button
           type="button"
@@ -268,7 +271,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
-import { Search, User, Right, Setting, Loading, CopyDocument, QuestionFilled } from '@element-plus/icons-vue';
+import { Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import BrandLogo from '../../components/BrandLogo.vue';
 import {
@@ -283,7 +286,7 @@ import { StorageUtils } from '../../utils/storage';
 import { useChromeListeners } from '../../composables/useChromeListeners';
 import { getTagType, parseTags } from '../../utils/tagUtils';
 import { logger } from '../../utils/logger';
-import { githubIconSvg } from './icons';
+import { githubIconSvg, questionIconSvg } from './icons';
 import {
   getSettingsPanelHTML,
   bindSettingsPanelView,
@@ -943,14 +946,11 @@ onUnmounted(() => {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
   flex-shrink: 0;
 }
 
 .icon-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   width: 28px;
   height: 28px;
   padding: 0;
