@@ -205,52 +205,10 @@
     </div>
 
     <!-- 操作指引与常见问题弹窗 -->
-    <el-dialog
+    <HelpDialog
       v-model="showHelpDialog"
-      title="操作指引与常见问题"
-      width="90%"
-      :append-to-body="true"
-      class="help-dialog"
-    >
-      <div class="help-content">
-        <section class="help-section">
-          <h4>操作指引</h4>
-          <ol>
-            <li>首次使用：请先设置主密码（至少 8 位，包含字母、数字和特殊字符）。</li>
-            <li>验证主密码后，侧边栏即可搜索已保存的账号、标签与备注，并快速填充。</li>
-            <li>点击列表条目一键填充账号与密码；可在「设置」中开启「自动触发登录」。</li>
-            <li>在密码管理页支持 Excel 导入导出（.xlsx），以及多标签、颜色稳定的标签体系。</li>
-            <li>快捷键：<code>Ctrl/Cmd + Shift + P</code> 打开密码管理页面。</li>
-            <li>
-              本地开发友好：当域名为 <code>localhost</code> 或 <code>127.0.0.1</code> 时，侧边栏默认展示全部密码。
-            </li>
-          </ol>
-        </section>
-        <section class="help-section">
-          <h4>常见问题</h4>
-          <ul>
-            <li><b>提示「未检测到登录表单」？</b> 请刷新页面，或确认当前页面包含账号/密码输入框。</li>
-            <li><b>填充失败或无响应？</b> 可能页面脚本未就绪，刷新页面后重试。</li>
-            <li><b>侧边栏列表为空？</b> 主密码会话可能已过期，请前往密码管理页重新验证主密码。</li>
-            <li><b>导入 Excel 报错？</b> 请使用「密码管理」页提供的模板下载，确保必填列完整。</li>
-            <li><b>悬浮按钮未显示？</b> 在本弹窗的「设置」（齿轮图标）中启用「显示悬浮按钮」。</li>
-            <li><b>数据安全？</b> 全部数据采用 PBKDF2 + AES-256-CBC 本地加密存储，零网络传输。</li>
-          </ul>
-        </section>
-      </div>
-      <template #footer>
-        <el-button @click="showHelpDialog = false">关闭</el-button>
-        <el-button
-          type="primary"
-          @click="
-            showHelpDialog = false;
-            openOptions();
-          "
-        >
-          前往密码管理
-        </el-button>
-      </template>
-    </el-dialog>
+      @go-to-options="openOptions"
+    />
 
     <!-- 悬浮按钮设置弹窗（与悬浮按钮共用同一套 HTML/CSS/事件） -->
     <div
@@ -274,6 +232,7 @@ import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import BrandLogo from '../../components/BrandLogo.vue';
+import HelpDialog from '../../components/HelpDialog.vue';
 import {
   MessageType,
   type PasswordEntry,
@@ -1215,42 +1174,6 @@ onUnmounted(() => {
 
 .password-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
-}
-
-/* 帮助弹窗样式 */
-.help-content {
-  font-size: 13px;
-  line-height: 1.6;
-  color: #374151;
-}
-
-.help-section + .help-section {
-  margin-top: 16px;
-}
-
-.help-section h4 {
-  margin: 0 0 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.help-section ol,
-.help-section ul {
-  margin: 0;
-  padding-left: 20px;
-}
-
-.help-section li {
-  margin-bottom: 6px;
-}
-
-.help-section code {
-  padding: 1px 6px;
-  background: #f3f4f6;
-  border-radius: 3px;
-  font-size: 12px;
-  color: #d6336c;
 }
 </style>
 
