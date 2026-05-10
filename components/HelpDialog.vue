@@ -16,9 +16,7 @@
           <li>点击列表条目一键填充账号与密码；可在「设置」中开启「自动触发登录」。</li>
           <li>在密码管理页支持 Excel 导入导出（.xlsx），以及多标签、颜色稳定的标签体系。</li>
           <li>快捷键：<code>Ctrl/Cmd + Shift + P</code> 打开密码管理页面。</li>
-          <li>
-            本地开发友好：当域名为 <code>localhost</code> 或 <code>127.0.0.1</code> 时，侧边栏默认展示全部密码。
-          </li>
+          <li>本地开发友好：当域名为 <code>localhost</code> 或 <code>127.0.0.1</code> 时，侧边栏默认展示全部密码。</li>
         </ol>
       </section>
       <section class="help-section">
