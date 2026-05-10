@@ -5,16 +5,47 @@
   >
     <!-- 头部 -->
     <div class="header">
-      <h3>
-        <BrandLogo class="logo" />
-        快速填充
-      </h3>
-      <div class="current-url">
-        <el-text
-          type="info"
-          size="small"
-          >{{ currentDomain }}</el-text
+      <div class="header-left">
+        <h3>
+          <BrandLogo class="logo" />
+          快速填充
+        </h3>
+        <div class="current-url">
+          <el-text
+            type="info"
+            size="small"
+            >{{ currentDomain }}</el-text
+          >
+        </div>
+      </div>
+      <div class="header-actions">
+        <button
+          type="button"
+          class="icon-btn"
+          title="查看开源仓库"
+          @click="openGithub"
         >
+          <span
+            class="icon-btn__svg"
+            v-html="githubIconSvg"
+          ></span>
+        </button>
+        <button
+          type="button"
+          class="icon-btn"
+          title="操作指引与常见问题"
+          @click="showHelpDialog = true"
+        >
+          <el-icon><QuestionFilled /></el-icon>
+        </button>
+        <button
+          type="button"
+          class="icon-btn"
+          title="设置"
+          @click="openSettingsDialog"
+        >
+          <el-icon><Setting /></el-icon>
+        </button>
       </div>
     </div>
 
@@ -169,12 +200,75 @@
         密码管理
       </el-button>
     </div>
+
+    <!-- 操作指引与常见问题弹窗 -->
+    <el-dialog
+      v-model="showHelpDialog"
+      title="操作指引与常见问题"
+      width="90%"
+      :append-to-body="true"
+      class="help-dialog"
+    >
+      <div class="help-content">
+        <section class="help-section">
+          <h4>操作指引</h4>
+          <ol>
+            <li>首次使用：请先设置主密码（至少 8 位，包含字母、数字和特殊字符）。</li>
+            <li>验证主密码后，侧边栏即可搜索已保存的账号、标签与备注，并快速填充。</li>
+            <li>点击列表条目一键填充账号与密码；可在「设置」中开启「自动触发登录」。</li>
+            <li>在密码管理页支持 Excel 导入导出（.xlsx），以及多标签、颜色稳定的标签体系。</li>
+            <li>快捷键：<code>Ctrl/Cmd + Shift + P</code> 打开密码管理页面。</li>
+            <li>
+              本地开发友好：当域名为 <code>localhost</code> 或 <code>127.0.0.1</code> 时，侧边栏默认展示全部密码。
+            </li>
+          </ol>
+        </section>
+        <section class="help-section">
+          <h4>常见问题</h4>
+          <ul>
+            <li><b>提示「未检测到登录表单」？</b> 请刷新页面，或确认当前页面包含账号/密码输入框。</li>
+            <li><b>填充失败或无响应？</b> 可能页面脚本未就绪，刷新页面后重试。</li>
+            <li><b>侧边栏列表为空？</b> 主密码会话可能已过期，请前往密码管理页重新验证主密码。</li>
+            <li><b>导入 Excel 报错？</b> 请使用「密码管理」页提供的模板下载，确保必填列完整。</li>
+            <li><b>悬浮按钮未显示？</b> 在本弹窗的「设置」（齿轮图标）中启用「显示悬浮按钮」。</li>
+            <li><b>数据安全？</b> 全部数据采用 PBKDF2 + AES-256-CBC 本地加密存储，零网络传输。</li>
+          </ul>
+        </section>
+      </div>
+      <template #footer>
+        <el-button @click="showHelpDialog = false">关闭</el-button>
+        <el-button
+          type="primary"
+          @click="
+            showHelpDialog = false;
+            openOptions();
+          "
+        >
+          前往密码管理
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 悬浮按钮设置弹窗（与悬浮按钮共用同一套 HTML/CSS/事件） -->
+    <div
+      v-if="showSettingsDialog"
+      class="sp-settings-host"
+    >
+      <div
+        ref="settingsOverlayEl"
+        class="settings-overlay visible"
+      ></div>
+      <div
+        ref="settingsPanelEl"
+        class="settings-panel visible"
+      ></div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue';
-import { Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
+import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
+import { Search, User, Right, Setting, Loading, CopyDocument, QuestionFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import BrandLogo from '../../components/BrandLogo.vue';
 import {
@@ -183,11 +277,19 @@ import {
   type PasswordCache,
   type PingResponse,
   type FillResult,
+  type FloatingButtonConfig,
 } from '../../utils/types';
 import { StorageUtils } from '../../utils/storage';
 import { useChromeListeners } from '../../composables/useChromeListeners';
 import { getTagType, parseTags } from '../../utils/tagUtils';
 import { logger } from '../../utils/logger';
+import { githubIconSvg } from './icons';
+import {
+  getSettingsPanelHTML,
+  bindSettingsPanelView,
+  settingsPanelViewStyles,
+  type SettingsPanelViewHandle,
+} from '../content/floatingButtons/settingsPanelView';
 
 const loading = ref(true);
 const searchKeyword = ref('');
@@ -196,6 +298,61 @@ const currentDomain = ref('');
 const isAuthenticated = ref(false);
 const showSidepanel = ref(true);
 const sortConfig = ref<{ prop: string; order: string } | null>(null);
+
+// 头部功能图标相关状态
+const GITHUB_URL = 'https://github.com/liaolongdong/account-password-helper';
+const showHelpDialog = ref(false);
+const showSettingsDialog = ref(false);
+const floatingConfig = ref<FloatingButtonConfig>(StorageUtils.getDefaultFloatingButtonConfig());
+
+// 设置弹窗 DOM 引用与共用视图句柄
+const settingsPanelEl = ref<HTMLElement | null>(null);
+const settingsOverlayEl = ref<HTMLElement | null>(null);
+let settingsViewHandle: SettingsPanelViewHandle | null = null;
+
+// 打开 GitHub 仓库
+const openGithub = () => {
+  chrome.tabs.create({ url: GITHUB_URL });
+};
+
+// 关闭设置弹窗
+const closeSettingsDialog = () => {
+  settingsViewHandle?.destroy();
+  settingsViewHandle = null;
+  showSettingsDialog.value = false;
+};
+
+// 打开设置弹窗：先从存储加载最新配置，再通过共用视图模块渲染与绑定事件
+const openSettingsDialog = async () => {
+  try {
+    floatingConfig.value = await StorageUtils.getFloatingButtonConfig();
+  } catch (error) {
+    logger.error('SidePanel: 加载悬浮按钮配置失败:', error);
+  }
+  showSettingsDialog.value = true;
+
+  await nextTick();
+  if (!settingsPanelEl.value) return;
+
+  settingsPanelEl.value.innerHTML = getSettingsPanelHTML(floatingConfig.value);
+  settingsViewHandle = bindSettingsPanelView(settingsPanelEl.value, settingsOverlayEl.value, floatingConfig.value, {
+    onConfigChange: patch => {
+      void updateFloatingConfig(patch);
+    },
+    onClose: closeSettingsDialog,
+  });
+};
+
+// 更新悬浮按钮配置（content 会通过 chrome.storage.onChanged 自动同步）
+const updateFloatingConfig = async (patch: Partial<FloatingButtonConfig>) => {
+  Object.assign(floatingConfig.value, patch);
+  try {
+    await StorageUtils.saveFloatingButtonConfig(patch);
+  } catch (error) {
+    logger.error('SidePanel: 保存悬浮按钮配置失败:', error);
+    ElMessage.error('保存设置失败');
+  }
+};
 
 // 使用 Chrome 事件监听 composable
 const { onStorageChange, onMessage, onTabUpdated, onTabActivated, onDocumentEvent, onWindowEvent } =
@@ -645,9 +802,20 @@ const updatePasswordCacheInBackground = async (
   }
 };
 
+// 将共用设置弹窗样式注入到 sidepanel 页面（仅注入一次）
+const injectSettingsViewStyles = () => {
+  const STYLE_ID = 'floating-settings-view-styles';
+  if (document.getElementById(STYLE_ID)) return;
+  const styleEl = document.createElement('style');
+  styleEl.id = STYLE_ID;
+  styleEl.textContent = settingsPanelViewStyles;
+  document.head.appendChild(styleEl);
+};
+
 // 初始化
 onMounted(async () => {
   // SidePanel: 开始初始化
+  injectSettingsViewStyles();
 
   // 建立与 background 的 port 连接，用于状态追踪和接收关闭消息
   try {
@@ -758,9 +926,55 @@ onUnmounted(() => {
 }
 
 .header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
   padding: 10px 16px;
   background: white;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  color: #374151;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.icon-btn:hover {
+  background: rgb(0 0 0 / 6%);
+}
+
+.icon-btn:active {
+  background: rgb(0 0 0 / 10%);
+}
+
+.icon-btn .el-icon,
+.icon-btn svg {
+  width: 18px;
+  height: 18px;
+  font-size: 18px;
 }
 
 .header h3 {
@@ -1001,6 +1215,42 @@ onUnmounted(() => {
 
 .password-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* 帮助弹窗样式 */
+.help-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #374151;
+}
+
+.help-section + .help-section {
+  margin-top: 16px;
+}
+
+.help-section h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.help-section ol,
+.help-section ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.help-section li {
+  margin-bottom: 6px;
+}
+
+.help-section code {
+  padding: 1px 6px;
+  background: #f3f4f6;
+  border-radius: 3px;
+  font-size: 12px;
+  color: #d6336c;
 }
 </style>
 

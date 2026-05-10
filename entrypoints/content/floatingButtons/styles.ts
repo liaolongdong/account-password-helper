@@ -3,6 +3,8 @@
  * 主题色：浅蓝 #409eff（与项目 Element Plus 主色一致）
  */
 
+import { settingsPanelViewStyles } from './settingsPanelView';
+
 // 主题色定义
 const THEME_COLOR = '#409eff';
 
@@ -209,191 +211,7 @@ export const floatingButtonStyles = `
   opacity: 0.6;
 }
 
-/* 设置面板遮罩 */
-.settings-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.3);
-  z-index: 2147483646;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
-}
-
-.settings-overlay.visible {
-  opacity: 1;
-  visibility: visible;
-}
-
-/* 设置面板 */
-.settings-panel {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%) scale(0.9);
-  width: 320px;
-  max-width: 90vw;
-  background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  z-index: 2147483647;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.settings-panel.visible {
-  opacity: 1;
-  visibility: visible;
-  transform: translate(-50%, -50%) scale(1);
-}
-
-/* 设置面板头部 */
-.settings-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 20px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.settings-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #333;
-  margin: 0;
-}
-
-.settings-close {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  color: #999;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.settings-close:hover {
-  background: #f5f5f5;
-  color: #666;
-}
-
-/* 设置面板内容 */
-.settings-content {
-  padding: 16px 20px;
-}
-
-/* 设置项 */
-.setting-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.setting-item:last-child {
-  border-bottom: none;
-}
-
-.setting-label {
-  font-size: 14px;
-  color: #333;
-}
-
-/* 开关样式 */
-.switch {
-  position: relative;
-  width: 44px;
-  height: 24px;
-  background: #dcdfe6;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background 0.3s ease;
-}
-
-.switch.active {
-  background: ${THEME_COLOR};
-}
-
-.switch-handle {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
-  background: #fff;
-  border-radius: 50%;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.switch.active .switch-handle {
-  transform: translateX(20px);
-}
-
-/* 滑块样式 */
-.slider-container {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.slider {
-  width: 100px;
-  height: 4px;
-  background: #e4e7ed;
-  border-radius: 2px;
-  cursor: pointer;
-  position: relative;
-}
-
-.slider-fill {
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background: ${THEME_COLOR};
-  border-radius: 2px;
-  transition: width 0.1s ease;
-}
-
-.slider-thumb {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 14px;
-  height: 14px;
-  background: #fff;
-  border: 2px solid ${THEME_COLOR};
-  border-radius: 50%;
-  cursor: grab;
-  transition: transform 0.1s ease;
-}
-
-.slider-thumb:hover {
-  transform: translate(-50%, -50%) scale(1.1);
-}
-
-.slider-thumb:active {
-  cursor: grabbing;
-}
-
-.slider-value {
-  font-size: 13px;
-  color: #666;
-  min-width: 36px;
-  text-align: right;
-}
+/* 设置面板相关样式已迁移到 settingsPanelView.ts，由 settingsPanelStyles 统一注入 */
 
 /* 按钮loading状态 */
 .btn.loading {
@@ -473,29 +291,11 @@ export const floatingButtonStyles = `
 `;
 
 /**
- * 设置面板样式（额外样式）
+ * 设置面板样式
+ * 各控件样式已由 settingsPanelView.ts 统一维护，供侧边栏与悬浮按钮共用。
+ * 此处仅保留悬浮按钮 Shadow DOM 专有的额外组封装样式（如分组/分组标题等），
+ * 并追加共用模块的完整样式字符串。
  */
 export const settingsPanelStyles = `
-/* 设置分组 */
-.setting-group {
-  margin-bottom: 16px;
-}
-
-.setting-group-title {
-  font-size: 13px;
-  font-weight: 500;
-  color: #666;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-/* 设置提示文字 */
-.setting-tip {
-  font-size: 12px;
-  color: #999;
-  padding: 4px 0 10px;
-  line-height: 1.4;
-  border-bottom: 1px solid #f0f0f0;
-}
+${settingsPanelViewStyles}
 `;
