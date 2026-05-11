@@ -78,11 +78,14 @@ export function useSessionTimer(options: {
       return;
     }
 
-    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
     const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
 
-    if (hours > 0) {
+    if (days > 0) {
+      sessionInfo.value.remainingTime = `${days}天${hours}小时`;
+    } else if (hours > 0) {
       sessionInfo.value.remainingTime = `${hours}小时${minutes}分钟`;
     } else if (minutes > 0) {
       sessionInfo.value.remainingTime = `${minutes}分钟${seconds}秒`;
