@@ -4,6 +4,7 @@
 
 /**
  * 侧边栏图标 - 展开状态
+ * 修改请同步到 components/QuickFillIcon.vue
  */
 export const sidebarOpenIcon = `
 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -25,11 +26,15 @@ export const sidebarCloseIcon = `
 `;
 
 /**
- * 密码管理图标 - 钥匙
+ * 密码管理图标 - 主题 Logo 钥匙
+ * 与 components/BrandLogo.vue 保持一致，修改请同步。
  */
 export const passwordIcon = `
-<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-  <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 128 128" fill="currentColor" aria-hidden="true">
+  <path fill-rule="evenodd" clip-rule="evenodd" d="M64 26a20 20 0 1 0 0 40 20 20 0 0 0 0-40Zm0 12a8 8 0 1 1 0 16 8 8 0 0 1 0-16Z"/>
+  <rect x="59" y="62" width="10" height="48" rx="4"/>
+  <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+  <rect x="69" y="98" width="11" height="6" rx="1.5"/>
 </svg>
 `;
 

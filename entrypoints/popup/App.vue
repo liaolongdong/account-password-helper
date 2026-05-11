@@ -8,7 +8,7 @@
     <div class="content">
       <el-button
         type="primary"
-        :icon="Key"
+        :icon="BrandLogo"
         @click="openOptions"
         class="main-button"
         size="large"
@@ -19,7 +19,7 @@
 
       <div class="quick-actions">
         <el-button
-          :icon="Operation"
+          :icon="QuickFillIcon"
           @click="openSidePanel"
           class="action-button"
           text
@@ -50,8 +50,8 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Key, Operation } from '@element-plus/icons-vue';
 import BrandLogo from '../../components/BrandLogo.vue';
+import QuickFillIcon from '../../components/QuickFillIcon.vue';
 import { StorageUtils } from '../../utils/storage';
 import { MessageType } from '../../utils/types';
 
