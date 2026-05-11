@@ -8,18 +8,18 @@
     <div class="content">
       <el-button
         type="primary"
-        :icon="Setting"
+        :icon="Key"
         @click="openOptions"
         class="main-button"
         size="large"
         title="打开密码管理快捷键（Ctrl+Shift+P）"
       >
-        管理密码
+        密码管理
       </el-button>
 
       <div class="quick-actions">
         <el-button
-          :icon="View"
+          :icon="Operation"
           @click="openSidePanel"
           class="action-button"
           text
@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Setting, View } from '@element-plus/icons-vue';
+import { Key, Operation } from '@element-plus/icons-vue';
 import BrandLogo from '../../components/BrandLogo.vue';
 import { StorageUtils } from '../../utils/storage';
 import { MessageType } from '../../utils/types';

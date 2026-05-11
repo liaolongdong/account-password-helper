@@ -196,7 +196,7 @@
     <!-- 底部操作 -->
     <div class="footer">
       <el-button
-        :icon="List"
+        :icon="Key"
         text
         @click="openOptions"
       >
@@ -229,7 +229,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
-import { Search, User, Right, Setting, Loading, CopyDocument, List } from '@element-plus/icons-vue';
+import { Search, User, Right, Setting, Loading, CopyDocument, Key } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import BrandLogo from '../../components/BrandLogo.vue';
 import HelpDialog from '../../components/HelpDialog.vue';
