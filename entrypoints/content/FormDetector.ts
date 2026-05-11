@@ -783,9 +783,12 @@ export class FormDetector {
         }, 150);
       }
 
-      setTimeout(() => {
-        this.hideSidePanel();
-      }, 300);
+      // 仅在填充成功时自动关闭侧边栏；失败场景保留侧边栏以便用户查看提示
+      if (result.success) {
+        setTimeout(() => {
+          this.hideSidePanel();
+        }, 300);
+      }
     } catch (error) {
       logger.error('填充密码失败:', error);
       result.message = '填充过程中发生错误';

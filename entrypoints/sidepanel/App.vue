@@ -693,7 +693,9 @@ const fillPassword = async (password: PasswordEntry) => {
         data: { tabId },
       });
     } else {
-      const errorMsg = response?.message || '填充可能未完成，请检查页面表单';
+      const rawMsg = response?.message || '';
+      const isNoForm = rawMsg.includes('未检测到登录表单');
+      const errorMsg = isNoForm ? '未检测到登录表单，请确保页面包含登录输入框' : rawMsg;
       ElMessage.warning(errorMsg);
     }
   } catch (error: any) {
