@@ -60,7 +60,7 @@ const handleGoToOptions = () => {
 </script>
 
 <style scoped>
-.help-dialog {
+.el-dialog.help-dialog {
   margin-top: 40px;
 }
 
