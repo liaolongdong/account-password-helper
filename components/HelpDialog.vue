@@ -60,6 +60,10 @@ const handleGoToOptions = () => {
 </script>
 
 <style scoped>
+.help-dialog {
+  margin-top: 40px;
+}
+
 .help-content {
   font-size: 13px;
   line-height: 1.6;
