@@ -648,7 +648,6 @@
       v-model="showValiditySetting"
       :form="validityForm"
       :rules="validityRules"
-      :form-ref="validityFormRef"
       :loading="validityLoading"
       :clear-session-loading="clearSessionLoading"
       :session-info="sessionInfo"
@@ -756,7 +755,6 @@ const {
 /** 会话定时器状态与操作方法 */
 const {
   showValiditySetting,
-  validityFormRef,
   validityForm,
   validityRules,
   validityLoading,

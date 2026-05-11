@@ -1,6 +1,6 @@
 import { ref, watch, type Ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import type { FormRules, FormInstance } from 'element-plus';
+import type { FormRules } from 'element-plus';
 import { StorageUtils } from '../utils/storage';
 import type { PasswordEntry } from '../utils/types';
 import { logger } from '../utils/logger';
@@ -32,7 +32,6 @@ export function useSessionTimer(options: {
   const clearSessionLoading = ref(false);
 
   // 有效期设置表单
-  const validityFormRef = ref<FormInstance>();
   const validityForm = ref({
     validityHours: 24,
   });
@@ -128,22 +127,47 @@ export function useSessionTimer(options: {
 
   // 处理有效期设置保存
   const handleValiditySave = async () => {
-    if (!validityFormRef.value) return;
-
     try {
-      await validityFormRef.value.validate();
+      // 保存前需验证主密码（与「导出密码」保持一致的交互模式）
+      const { value: masterPassword } = await ElMessageBox.prompt(
+        '修改验证有效期需要验证主密码，请输入主密码：',
+        '验证主密码',
+        {
+          confirmButtonText: '确认保存',
+          cancelButtonText: '取消',
+          inputType: 'password',
+          inputPlaceholder: '请输入主密码',
+          inputValidator: (value: string) => {
+            if (!value || !value.trim()) {
+              return '主密码不能为空';
+            }
+            return true;
+          },
+        },
+      );
+
+      const trimmedPassword = masterPassword.trim();
+      const isValid = await StorageUtils.verifyMasterPassword(trimmedPassword);
+      if (!isValid) {
+        ElMessage.error('主密码错误，保存失败');
+        return;
+      }
+
       validityLoading.value = true;
 
       await StorageUtils.setMasterPasswordValidityHours(validityForm.value.validityHours);
+      await StorageUtils.createSession(trimmedPassword, validityForm.value.validityHours);
 
-      const currentMasterPassword = await StorageUtils.getSessionMasterPasswordDecrypted();
-      if (currentMasterPassword) {
-        await StorageUtils.createSession(currentMasterPassword, validityForm.value.validityHours);
-      }
+      // 保存成功后刷新会话信息，保证剩余时间按新有效期重算
+      await updateSessionInfo();
 
       ElMessage.success('有效期设置保存成功');
       showValiditySetting.value = false;
     } catch (error) {
+      // 用户点击取消时静默返回，不弹错误提示
+      if (error === 'cancel' || error === 'close') {
+        return;
+      }
       logger.error('保存有效期设置失败:', error);
       ElMessage.error('保存失败');
     } finally {
@@ -211,7 +235,6 @@ export function useSessionTimer(options: {
 
   return {
     showValiditySetting,
-    validityFormRef,
     validityForm,
     validityRules,
     validityLoading,

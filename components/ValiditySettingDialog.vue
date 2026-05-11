@@ -79,7 +79,7 @@
           type="primary"
           size="large"
           :loading="loading"
-          @click="$emit('save')"
+          @click="handleSaveClick"
         >
           保存设置
         </el-button>
@@ -89,6 +89,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
 import { Delete } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import ValidityHoursSelect from './ValidityHoursSelect.vue';
@@ -113,8 +114,6 @@ defineProps<{
   form: { validityHours: number };
   /** 表单验证规则 */
   rules: FormRules;
-  /** 表单引用 */
-  formRef?: FormInstance;
   /** 保存加载状态 */
   loading: boolean;
   /** 清除会话加载状态 */
@@ -123,7 +122,7 @@ defineProps<{
   sessionInfo: SessionInfo;
 }>();
 
-defineEmits<{
+const emit = defineEmits<{
   /** 对话框显示状态变更 */
   (e: 'update:modelValue', value: boolean): void;
   /** 保存有效期设置 */
@@ -131,4 +130,26 @@ defineEmits<{
   /** 清除当前会话 */
   (e: 'clearSession'): void;
 }>();
+
+/** 表单引用，供父组件通过 defineExpose 访问（如需直接 validate） */
+const formRef = ref<FormInstance>();
+
+/**
+ * 点击保存按钮：先在组件内完成表单校验，校验通过才向父组件 emit save
+ * 避免父组件依赖未接线的 formRef 导致保存按钮无响应
+ */
+const handleSaveClick = async () => {
+  if (!formRef.value) {
+    emit('save');
+    return;
+  }
+  try {
+    await formRef.value.validate();
+    emit('save');
+  } catch {
+    // 校验失败由 el-form 内部给出红字提示，无需额外处理
+  }
+};
+
+defineExpose({ formRef });
 </script>
