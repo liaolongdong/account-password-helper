@@ -103,6 +103,11 @@ export const floatingButtonStyles = `
   cursor: grabbing;
 }
 
+.btn-options svg {
+  width: 18px;
+  height: 18px;
+}
+
 /* 拖拽手柄 - 隐藏，通过整个按钮拖拽 */
 .drag-handle {
   display: none;

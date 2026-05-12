@@ -1122,6 +1122,10 @@ onUnmounted(() => {
   text-align: center;
 }
 
+.footer :deep(.el-button .el-icon) {
+  font-size: 18px;
+}
+
 /* 未验证状态样式 */
 .auth-required {
   flex: 1;
