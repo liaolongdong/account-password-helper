@@ -17,7 +17,7 @@ export const githubIconSvg = `
  * 颜色通过 currentColor 继承；与 GitHub / Setting 图标视觉权重一致
  */
 export const questionIconSvg = `
-<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+<svg viewBox="1.715 1.715 20.57 20.57" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
   <circle cx="12" cy="12" r="9"/>
   <path d="M9.5 9a2.5 2.5 0 1 1 3.6 2.24c-.7.34-1.1.95-1.1 1.76V14"/>
   <circle cx="12" cy="17" r="0.6" fill="currentColor" stroke="none"/>
