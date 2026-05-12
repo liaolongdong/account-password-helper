@@ -60,10 +60,6 @@ const handleGoToOptions = () => {
 </script>
 
 <style scoped>
-.el-dialog.help-dialog {
-  margin-top: 40px;
-}
-
 .help-content {
   font-size: 13px;
   line-height: 1.6;
@@ -97,5 +93,11 @@ const handleGoToOptions = () => {
   border-radius: 3px;
   font-size: 12px;
   color: #d6336c;
+}
+</style>
+
+<style>
+.el-dialog.help-dialog {
+  margin-top: 40px;
 }
 </style>
