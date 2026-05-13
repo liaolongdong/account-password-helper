@@ -61,6 +61,8 @@ const handleGoToOptions = () => {
 
 <style scoped>
 .help-content {
+  max-height: 800px;
+  overflow-y: auto;
   font-size: 13px;
   line-height: 1.6;
   color: #374151;
@@ -100,5 +102,14 @@ const handleGoToOptions = () => {
 .el-dialog.help-dialog {
   margin-top: 40px;
   margin-bottom: 40px;
+}
+
+/* 弹性布局约束：让 body 作为唯一可滚动容器，header/footer 自然在滚动区之外保持固定 */
+.el-dialog.help-dialog .el-dialog__body {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 200px);
+  padding: 16px 20px;
+  overflow: hidden;
 }
 </style>
