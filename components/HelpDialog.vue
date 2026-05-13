@@ -109,7 +109,28 @@ const handleGoToOptions = () => {
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 200px);
-  padding: 16px 20px;
   overflow: hidden;
+}
+
+.el-dialog.help-dialog .help-content {
+  flex: 1 1 auto;
+  max-height: 800px;
+  overflow-y: auto;
+
+  /* scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent; */
+}
+
+.el-dialog.help-dialog .help-content::-webkit-scrollbar {
+  width: 3px;
+}
+
+.el-dialog.help-dialog .help-content::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 3px;
+}
+
+.el-dialog.help-dialog .help-content::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }
 </style>
