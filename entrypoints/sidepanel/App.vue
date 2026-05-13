@@ -597,9 +597,9 @@ const pingContentScript = async (tabId: number, maxRetries: number = 3): Promise
  * 等待字段检测完成
  * 使用指数退避策略轮询检查
  */
-const waitForFieldsDetected = async (tabId: number, maxRetries: number = 10): Promise<boolean> => {
+const waitForFieldsDetected = async (tabId: number, maxRetries: number = 3): Promise<boolean> => {
   let delay = 100; // 初始延迟100ms
-  const maxDelay = 2000; // 最大延迟2s
+  const maxDelay = 1000; // 最大延迟1s
 
   for (let i = 0; i < maxRetries; i++) {
     const pingResponse = await pingContentScript(tabId, 1);
