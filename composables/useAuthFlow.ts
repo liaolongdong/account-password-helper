@@ -96,10 +96,11 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       const hasMaster = await StorageUtils.hasMasterPassword();
 
       if (!hasMaster) {
-        logger.debug('Options: 首次使用，显示设置主密码页面');
-        showMasterPasswordSetup.value = true;
+        // 主密码配置不存在：强制重置为设置页，避免残留的已认证/验证页状态串台
+        logger.debug('Options: 主密码未设置，显示设置主密码页面');
         showPasswordVerify.value = false;
         isAuthenticated.value = false;
+        showMasterPasswordSetup.value = true;
 
         const validityHours = await StorageUtils.getMasterPasswordValidityHours();
         setupForm.value.validityHours = validityHours;
@@ -113,15 +114,19 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       } else {
         const isSessionValid = await StorageUtils.isSessionValid();
         if (isSessionValid) {
+          // 命中已认证：若先前已是已认证态，避免抖动；否则切换并加载
+          const wasAuthenticated = isAuthenticated.value;
           showMasterPasswordSetup.value = false;
           showPasswordVerify.value = false;
           isAuthenticated.value = true;
 
-          await loadPasswords();
+          if (!wasAuthenticated) {
+            await loadPasswords();
+          }
         } else {
           showMasterPasswordSetup.value = false;
-          showPasswordVerify.value = true;
           isAuthenticated.value = false;
+          showPasswordVerify.value = true;
 
           const validityHours = await StorageUtils.getMasterPasswordValidityHours();
           verifyForm.value.validityHours = validityHours;
