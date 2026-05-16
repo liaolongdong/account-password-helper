@@ -10,6 +10,8 @@
 一个现代化的 Chrome 浏览器扩展，提供安全、便捷的账号密码管理与自动填充能力。采用 **PBKDF2 + AES-256-CBC** 加密体系，支持 Excel 导入导出、智能表单识别和多策略自动填充。
 
 > **免责声明**：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发和测试环境使用，严禁保存办公和个人敏感密码，如发生密码泄露，后果自负！
+>
+> 🌐 **在线演示**: https://liaolongdong.github.io/account-password-helper/
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="插件图标" width="120" />
@@ -107,6 +109,12 @@ npm run build:firefox
 4. 首次使用需设置主密码（至少 8 位，含字母+数字+特殊字符）
 
 ## 使用指南
+
+### 在线演示
+
+访问 [在线演示页面](https://liaolongdong.github.io/account-password-helper/) 查看功能演示效果。
+
+> 注意：在线演示仅用于展示功能界面，不涉及真实的密码管理功能。完整功能请安装 Chrome 扩展体验。
 
 ### 初始设置
 
