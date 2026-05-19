@@ -230,7 +230,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
 import BrandLogo from '../../components/BrandLogo.vue';
 import HelpDialog from '../../components/HelpDialog.vue';
 import {

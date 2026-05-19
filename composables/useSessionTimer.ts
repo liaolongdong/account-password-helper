@@ -1,5 +1,4 @@
 import { ref, watch, type Ref } from 'vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
 import type { FormRules } from 'element-plus';
 import { StorageUtils } from '../utils/storage';
 import type { PasswordEntry } from '../utils/types';
