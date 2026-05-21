@@ -230,9 +230,8 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
 import { Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
-import BrandLogo from '../../components/BrandLogo.vue';
-import HelpDialog from '../../components/HelpDialog.vue';
+import BrandLogo from '@/components/BrandLogo.vue';
+import HelpDialog from '@/components/HelpDialog.vue';
 import {
   MessageType,
   type PasswordEntry,
@@ -240,18 +239,18 @@ import {
   type PingResponse,
   type FillResult,
   type FloatingButtonConfig,
-} from '../../utils/types';
-import { StorageUtils } from '../../utils/storage';
-import { useChromeListeners } from '../../composables/useChromeListeners';
-import { getTagType, parseTags } from '../../utils/tagUtils';
-import { logger } from '../../utils/logger';
-import { githubIconSvg, questionIconSvg } from './icons';
+} from '@/utils/types';
+import { StorageUtils } from '@/utils/storage';
+import { useChromeListeners } from '@/composables/useChromeListeners';
+import { getTagType, parseTags } from '@/utils/tagUtils';
+import { logger } from '@/utils/logger';
+import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
 import {
   getSettingsPanelHTML,
   bindSettingsPanelView,
   settingsPanelViewStyles,
   type SettingsPanelViewHandle,
-} from '../content/floatingButtons/settingsPanelView';
+} from '@/entrypoints/content/floatingButtons/settingsPanelView';
 
 const loading = ref(true);
 const searchKeyword = ref('');

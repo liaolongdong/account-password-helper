@@ -50,10 +50,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import BrandLogo from '../../components/BrandLogo.vue';
-import QuickFillIcon from '../../components/QuickFillIcon.vue';
-import { StorageUtils } from '../../utils/storage';
-import { MessageType } from '../../utils/types';
+import BrandLogo from '@/components/BrandLogo.vue';
+import QuickFillIcon from '@/components/QuickFillIcon.vue';
+import { StorageUtils } from '@/utils/storage';
+import { MessageType } from '@/utils/types';
 
 /** 联系邮箱 */
 const contactEmail = ref('924902324@qq.com');

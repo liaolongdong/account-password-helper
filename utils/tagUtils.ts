@@ -2,7 +2,7 @@
  * 标签颜色工具函数
  * 根据标签内容返回对应的 Element Plus Tag 类型
  */
-import type { PasswordEntry } from './types';
+import type { PasswordEntry } from '@/utils/types';
 
 // 标签颜色映射缓存
 const tagColorCache = new Map<string, string>();

@@ -30,6 +30,20 @@
           <li><b>数据安全？</b> 全部数据采用 PBKDF2 + AES-256-CBC 本地加密存储，零网络传输。</li>
         </ul>
       </section>
+      <section class="help-section help-link-section">
+        <div class="help-link-banner">
+          <el-icon class="help-link-icon"><Document /></el-icon>
+          <span>查看完整</span>
+          <a
+            href="https://liaolongdong.github.io/account-password-helper/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="help-link"
+          >
+            使用说明
+          </a>
+        </div>
+      </section>
     </div>
     <template #footer>
       <el-button @click="$emit('update:modelValue', false)">关闭</el-button>
@@ -44,6 +58,8 @@
 </template>
 
 <script setup lang="ts">
+import { Document } from '@element-plus/icons-vue';
+
 defineProps<{
   modelValue: boolean;
 }>();
@@ -95,6 +111,38 @@ const handleGoToOptions = () => {
   border-radius: 3px;
   font-size: 12px;
   color: #d6336c;
+}
+
+.help-link-section {
+  margin-bottom: 16px;
+}
+
+.help-link-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #1e40af;
+}
+
+.help-link-icon {
+  font-size: 16px;
+}
+
+.help-link {
+  color: #2563eb;
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.help-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
 }
 </style>
 

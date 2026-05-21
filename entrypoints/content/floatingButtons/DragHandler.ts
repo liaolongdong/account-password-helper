@@ -2,7 +2,7 @@
  * 拖拽处理器 - 处理悬浮按钮的拖拽交互
  */
 
-import { AnimationController } from './AnimationController';
+import { AnimationController } from '@/entrypoints/content/floatingButtons/AnimationController';
 
 export interface DragState {
   isDragging: boolean;

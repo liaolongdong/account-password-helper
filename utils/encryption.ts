@@ -1,6 +1,6 @@
 import CryptoJS from 'crypto-js';
-import type { PasswordEntry, MasterPasswordConfig } from './types';
-import { logger } from './logger';
+import type { PasswordEntry, MasterPasswordConfig } from '@/utils/types';
+import { logger } from '@/utils/logger';
 
 // 扩展PasswordEntry接口以包含加密标识
 export interface EncryptedPasswordEntry extends PasswordEntry {

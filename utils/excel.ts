@@ -1,11 +1,12 @@
-import * as XLSX from 'xlsx';
-import type { PasswordEntry } from './types';
+// import * as XLSX from 'xlsx';
+import type { PasswordEntry } from '@/utils/types';
 
 export class ExcelUtils {
   /**
    * 导出密码数据到Excel
    */
-  static exportToExcel(passwords: PasswordEntry[], filename: string = 'passwords.xlsx'): void {
+  static async exportToExcel(passwords: PasswordEntry[], filename: string = 'passwords.xlsx'): Promise<void> {
+    const XLSX = await import('xlsx');
     try {
       // 准备导出数据
       const exportData = passwords.map(p => ({
@@ -48,6 +49,7 @@ export class ExcelUtils {
    * 从Excel文件导入密码数据
    */
   static async importFromExcel(file: File): Promise<Omit<PasswordEntry, 'id' | 'order'>[]> {
+    const XLSX = await import('xlsx');
     return new Promise((resolve, reject) => {
       try {
         const reader = new FileReader();
@@ -139,7 +141,8 @@ export class ExcelUtils {
   /**
    * 下载模板文件
    */
-  static downloadTemplate(): void {
+  static async downloadTemplate(): Promise<void> {
+    const XLSX = await import('xlsx');
     try {
       const templateData = [
         {

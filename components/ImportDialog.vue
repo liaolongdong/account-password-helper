@@ -114,13 +114,12 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { ElMessage } from 'element-plus';
 import { Upload } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
-import { ExcelUtils } from '../utils/excel';
-import { StorageUtils } from '../utils/storage';
-import { logger } from '../utils/logger';
-import type { PasswordEntry } from '../utils/types';
+import { ExcelUtils } from '@/utils/excel';
+import { StorageUtils } from '@/utils/storage';
+import { logger } from '@/utils/logger';
+import type { PasswordEntry } from '@/utils/types';
 
 interface Props {
   modelValue: boolean;

@@ -28,6 +28,14 @@
       "@/assets/*": ["./assets/*"]
     }
   },
-  "include": [".wxt/wxt.d.ts", "entrypoints/**/*", "components/**/*", "utils/**/*", "types/**/*"],
+  "include": [
+    ".wxt/wxt.d.ts",
+    ".wxt/auto-imports.d.ts",
+    "entrypoints/**/*",
+    "components/**/*",
+    "composables/**/*",
+    "utils/**/*",
+    "types/**/*"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

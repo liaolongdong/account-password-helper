@@ -1,5 +1,5 @@
-import type { PasswordEntry, MasterPasswordConfig, FloatingButtonConfig } from './types';
-import { logger } from './logger';
+import type { PasswordEntry, MasterPasswordConfig, FloatingButtonConfig } from '@/utils/types';
+import { logger } from '@/utils/logger';
 import {
   STORAGE_KEYS,
   EncryptedPasswordEntry,
@@ -12,7 +12,7 @@ import {
   encryptPasswordEntry,
   decryptPasswordEntry,
   decryptFieldSafely,
-} from './encryption';
+} from '@/utils/encryption';
 import {
   isSessionActiveSync,
   isSessionValid,
@@ -25,11 +25,11 @@ import {
   migrateUnencryptedEntries,
   getMasterPasswordValidityHours,
   setMasterPasswordValidityHours,
-} from './sessionManager-storage';
+} from '@/utils/sessionManager-storage';
 
 // 重新导出供外部使用
-export type { EncryptedPasswordEntry } from './encryption';
-export { STORAGE_KEYS } from './encryption';
+export type { EncryptedPasswordEntry } from '@/utils/encryption';
+export { STORAGE_KEYS } from '@/utils/encryption';
 
 export class StorageUtils {
   // ==================== 加密相关（委托到 encryption.ts） ====================
