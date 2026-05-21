@@ -1,4 +1,7 @@
 import { createApp, type Component, type App } from 'vue';
+// 显式导入 Element Plus 命令式组件的样式
+import 'element-plus/es/components/message/style/css';
+import 'element-plus/es/components/message-box/style/css';
 
 /**
  * 抑制 Chromium / Element Plus 下的 ResizeObserver 良性警告

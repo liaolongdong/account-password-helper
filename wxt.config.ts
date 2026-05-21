@@ -3,6 +3,7 @@ import path from 'path';
 import Components from 'unplugin-vue-components/vite';
 import AutoImport from 'unplugin-auto-import/vite';
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers';
+import { visualizer } from 'rollup-plugin-visualizer';
 
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
@@ -17,7 +18,14 @@ export default defineConfig({
         '@/assets': path.resolve(__dirname, './assets'),
       },
     },
+    build: {
+      minify: 'esbuild',
+      esbuildOptions: {
+        drop: ['console', 'debugger'],
+      },
+    },
     plugins: [
+      process.env.ANALYZE === 'true' && visualizer({ open: true, filename: 'dist/stats.html', gzipSize: true }),
       // Element Plus 按需引入(包含组件和样式)
       AutoImport({
         imports: [
@@ -29,7 +37,7 @@ export default defineConfig({
         ],
         resolvers: [
           ElementPlusResolver({
-            importStyle: 'css', // 自动导入组件样式
+            importStyle: 'css', // 自动导入声明式组件样式
           }),
         ],
         dts: '.wxt/auto-imports.d.ts',

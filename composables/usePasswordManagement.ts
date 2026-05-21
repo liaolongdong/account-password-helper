@@ -447,7 +447,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         return;
       }
 
-      ExcelUtils.exportToExcel(passwords.value);
+      await ExcelUtils.exportToExcel(passwords.value);
       ElMessage.success('导出成功');
     } catch (error) {
       if (error !== 'cancel') {
@@ -458,9 +458,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   // 下载模板
-  const downloadTemplate = () => {
+  const downloadTemplate = async () => {
     try {
-      ExcelUtils.downloadTemplate();
+      await ExcelUtils.downloadTemplate();
       ElMessage.success('模板下载成功');
     } catch (error) {
       ElMessage.error('模板下载失败');
