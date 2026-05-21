@@ -1,4 +1,4 @@
-import { StorageUtils } from './storage';
+import { StorageUtils } from '@/utils/storage';
 
 /**
  * 全局会话管理器

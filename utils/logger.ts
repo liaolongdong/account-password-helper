@@ -1,4 +1,4 @@
-import { isDev } from './env';
+import { isDev } from '@/utils/env';
 
 /**
  * 日志工具类

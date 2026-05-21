@@ -1,13 +1,6 @@
-import {
-  Message,
-  MessageType,
-  FloatingButtonConfig,
-  FillPasswordData,
-  FillResult,
-  PingResponse,
-} from '../../utils/types';
-import { StorageUtils } from '../../utils/storage';
-import { logger } from '../../utils/logger';
+import { Message, MessageType, FloatingButtonConfig, FillPasswordData, FillResult, PingResponse } from '@/utils/types';
+import { StorageUtils } from '@/utils/storage';
+import { logger } from '@/utils/logger';
 import {
   USERNAME_SELECTORS,
   MOBILE_SELECTORS,
@@ -16,11 +9,11 @@ import {
   LOGIN_BUTTON_SELECTORS,
   MUTATION_LOGIN_KEYWORDS,
   MOBILE_KEYWORDS,
-} from './formSelectors';
-import { InputFiller } from './InputFiller';
-import { CheckboxHandler } from './CheckboxHandler';
-import { LoginFormAnalyzer, FormFieldSets } from './LoginFormAnalyzer';
-import { showNoLoginFormMessage } from './NativeNotification';
+} from '@/entrypoints/content/formSelectors';
+import { InputFiller } from '@/entrypoints/content/InputFiller';
+import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
+import { LoginFormAnalyzer, FormFieldSets } from '@/entrypoints/content/LoginFormAnalyzer';
+import { showNoLoginFormMessage } from '@/entrypoints/content/NativeNotification';
 
 /**
  * 表单检测器

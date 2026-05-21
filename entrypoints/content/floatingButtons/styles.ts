@@ -3,7 +3,7 @@
  * 主题色：浅蓝 #409eff（与项目 Element Plus 主色一致）
  */
 
-import { settingsPanelViewStyles } from './settingsPanelView';
+import { settingsPanelViewStyles } from '@/entrypoints/content/floatingButtons/settingsPanelView';
 
 // 主题色定义
 const THEME_COLOR = '#409eff';

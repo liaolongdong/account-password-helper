@@ -1,5 +1,5 @@
-import type { PasswordEntry, MasterPasswordConfig } from './types';
-import { logger } from './logger';
+import type { PasswordEntry, MasterPasswordConfig } from '@/utils/types';
+import { logger } from '@/utils/logger';
 import {
   STORAGE_KEYS,
   EncryptedPasswordEntry,
@@ -8,7 +8,7 @@ import {
   decryptData,
   encryptPasswordEntry,
   decryptPasswordEntry,
-} from './encryption';
+} from '@/utils/encryption';
 
 /**
  * 会话存储键名

@@ -1,4 +1,4 @@
-import { LOGIN_CONTAINER_KEYWORDS, POPUP_KEYWORDS } from './formSelectors';
+import { LOGIN_CONTAINER_KEYWORDS, POPUP_KEYWORDS } from '@/entrypoints/content/formSelectors';
 
 /**
  * 表单字段集合，用于登录表单分析

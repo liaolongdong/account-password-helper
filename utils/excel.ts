@@ -1,5 +1,5 @@
 // import * as XLSX from 'xlsx';
-import type { PasswordEntry } from './types';
+import type { PasswordEntry } from '@/utils/types';
 
 export class ExcelUtils {
   /**

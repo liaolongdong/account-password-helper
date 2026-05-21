@@ -1,8 +1,8 @@
 import { ref, watch, type Ref } from 'vue';
 import type { FormRules } from 'element-plus';
-import { StorageUtils } from '../utils/storage';
-import type { PasswordEntry } from '../utils/types';
-import { logger } from '../utils/logger';
+import { StorageUtils } from '@/utils/storage';
+import type { PasswordEntry } from '@/utils/types';
+import { logger } from '@/utils/logger';
 
 /**
  * 会话定时器 Composable

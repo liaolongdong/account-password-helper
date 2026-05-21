@@ -1,10 +1,10 @@
 import { ref, computed, type Ref } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
-import type { PasswordEntry, PasswordEntryWithUI } from '../utils/types';
-import { StorageUtils } from '../utils/storage';
-import { ExcelUtils } from '../utils/excel';
-import { logger } from '../utils/logger';
-import { parseTags, stringifyTags, collectAllTags } from '../utils/tagUtils';
+import type { PasswordEntry, PasswordEntryWithUI } from '@/utils/types';
+import { StorageUtils } from '@/utils/storage';
+import { ExcelUtils } from '@/utils/excel';
+import { logger } from '@/utils/logger';
+import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;

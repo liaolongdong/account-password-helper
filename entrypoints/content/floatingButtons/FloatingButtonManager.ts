@@ -6,11 +6,16 @@
 import { StorageUtils } from '@/utils/storage';
 import { MessageType } from '@/utils/types';
 import type { FloatingButtonConfig } from '@/utils/types';
-import { floatingButtonStyles, settingsPanelStyles } from './styles';
-import { sidebarOpenIcon, passwordIcon, settingsIcon, dragHandleIcon } from './icons';
-import { AnimationController } from './AnimationController';
-import { DragHandler } from './DragHandler';
-import { SettingsPanel } from './SettingsPanel';
+import { floatingButtonStyles, settingsPanelStyles } from '@/entrypoints/content/floatingButtons/styles';
+import {
+  sidebarOpenIcon,
+  passwordIcon,
+  settingsIcon,
+  dragHandleIcon,
+} from '@/entrypoints/content/floatingButtons/icons';
+import { AnimationController } from '@/entrypoints/content/floatingButtons/AnimationController';
+import { DragHandler } from '@/entrypoints/content/floatingButtons/DragHandler';
+import { SettingsPanel } from '@/entrypoints/content/floatingButtons/SettingsPanel';
 
 export class FloatingButtonManager {
   private shadowHost: HTMLElement | null = null;

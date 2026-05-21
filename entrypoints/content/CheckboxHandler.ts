@@ -1,5 +1,5 @@
-import { logger } from '../../utils/logger';
-import { CHECKBOX_POSITIVE_KEYWORDS, CHECKBOX_NEGATIVE_KEYWORDS } from './formSelectors';
+import { logger } from '@/utils/logger';
+import { CHECKBOX_POSITIVE_KEYWORDS, CHECKBOX_NEGATIVE_KEYWORDS } from '@/entrypoints/content/formSelectors';
 
 /**
  * 复选框处理器

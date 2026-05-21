@@ -1,7 +1,7 @@
 import { defineContentScript } from '#imports';
-import { FormDetector } from './content/FormDetector';
-import { getFloatingButtonManager, destroyFloatingButtonManager } from './content/floatingButtons';
-import { logger } from '../utils/logger';
+import { FormDetector } from '@/entrypoints/content/FormDetector';
+import { getFloatingButtonManager, destroyFloatingButtonManager } from '@/entrypoints/content/floatingButtons';
+import { logger } from '@/utils/logger';
 
 export default defineContentScript({
   matches: ['<all_urls>'],

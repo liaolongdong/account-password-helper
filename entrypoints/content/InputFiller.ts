@@ -1,5 +1,5 @@
-import { FillStrategy } from '../../utils/types';
-import { logger } from '../../utils/logger';
+import { FillStrategy } from '@/utils/types';
+import { logger } from '@/utils/logger';
 
 /**
  * 输入填充结果

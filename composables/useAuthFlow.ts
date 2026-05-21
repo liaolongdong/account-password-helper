@@ -1,7 +1,7 @@
 import { ref, nextTick } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
-import { StorageUtils } from '../utils/storage';
-import { logger } from '../utils/logger';
+import { StorageUtils } from '@/utils/storage';
+import { logger } from '@/utils/logger';
 
 /**
  * 认证流程 Composable

@@ -8,7 +8,7 @@
  * 因此以纯函数 + 命令式 API 形式导出，避免引入 Vue 到 content script。
  */
 
-import { closeIcon } from './icons';
+import { closeIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { FloatingButtonConfig } from '@/utils/types';
 
 const THEME_COLOR = '#409eff';
