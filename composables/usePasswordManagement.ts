@@ -447,7 +447,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         return;
       }
 
-      await ExcelUtils.exportToExcel(passwords.value);
+      // 生成带日期后缀的文件名：passwords_YYYYMMDD.xlsx
+      const date = new Date();
+      const dateStr =
+        date.getFullYear().toString() +
+        (date.getMonth() + 1).toString().padStart(2, '0') +
+        date.getDate().toString().padStart(2, '0');
+      const filename = `passwords_${dateStr}.xlsx`;
+      await ExcelUtils.exportToExcel(passwords.value, filename);
       ElMessage.success('导出成功');
     } catch (error) {
       if (error !== 'cancel') {
