@@ -9,6 +9,8 @@ import {
   LOGIN_BUTTON_SELECTORS,
   MUTATION_LOGIN_KEYWORDS,
   MOBILE_KEYWORDS,
+  normalizeButtonText,
+  shouldExcludeButton,
 } from '@/entrypoints/content/formSelectors';
 import { InputFiller } from '@/entrypoints/content/InputFiller';
 import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
@@ -161,8 +163,9 @@ export class FormDetector {
               if (element.querySelector && element.querySelector(selector)) {
                 const button = element.querySelector(selector) as HTMLElement;
                 if (button) {
-                  const textContent = button.textContent || button.innerText || '';
-                  if (MUTATION_LOGIN_KEYWORDS.some(keyword => textContent.includes(keyword))) {
+                  const buttonText = button.innerText || button.textContent || '';
+                  const normalizedText = normalizeButtonText(buttonText);
+                  if (MUTATION_LOGIN_KEYWORDS.some(keyword => normalizedText.includes(normalizeButtonText(keyword)))) {
                     shouldRedetect = true;
                     break;
                   }
@@ -539,18 +542,33 @@ export class FormDetector {
       const buttons = document.querySelectorAll(selector);
       buttons.forEach(button => {
         if (button instanceof HTMLElement) {
-          const buttonText = (button.textContent || button.innerText || '').trim().toLowerCase();
-          const ariaLabel = (button.getAttribute('aria-label') || '').toLowerCase();
-          const title = (button.getAttribute('title') || '').toLowerCase();
-          const value = (button.getAttribute('value') || '').toLowerCase();
+          // 使用 innerText 获取完整文本（自动包含子标签文本）
+          const buttonText = button.innerText || button.textContent || '';
+          const normalizedText = normalizeButtonText(buttonText);
 
-          const hasLoginKeyword = LOGIN_BUTTON_KEYWORDS.some(
-            keyword =>
-              buttonText.includes(keyword.toLowerCase()) ||
-              ariaLabel.includes(keyword.toLowerCase()) ||
-              title.includes(keyword.toLowerCase()) ||
-              value.includes(keyword.toLowerCase()),
-          );
+          const ariaLabel = normalizeButtonText(button.getAttribute('aria-label') || '');
+          const title = normalizeButtonText(button.getAttribute('title') || '');
+          const value = normalizeButtonText(button.getAttribute('value') || '');
+
+          // 先检查是否应该排除（纯注册按钮）
+          if (
+            shouldExcludeButton(normalizedText) &&
+            !shouldExcludeButton(ariaLabel) &&
+            !shouldExcludeButton(title) &&
+            !shouldExcludeButton(value)
+          ) {
+            return;
+          }
+
+          const hasLoginKeyword = LOGIN_BUTTON_KEYWORDS.some(keyword => {
+            const normalizedKeyword = normalizeButtonText(keyword);
+            return (
+              normalizedText.includes(normalizedKeyword) ||
+              ariaLabel.includes(normalizedKeyword) ||
+              title.includes(normalizedKeyword) ||
+              value.includes(normalizedKeyword)
+            );
+          });
 
           if (hasLoginKeyword && this.isVisible(button)) {
             if (!this.loginButtons.includes(button)) {

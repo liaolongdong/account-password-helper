@@ -217,6 +217,11 @@ export const LOGIN_BUTTON_KEYWORDS = [
   'SIGN IN',
   'LOGIN',
   'LOG IN',
+  '登录/注册',
+  '登录 / 注册',
+  '登录或注册',
+  'login/register',
+  'sign in/up',
 ] as const;
 
 /** 登录按钮 CSS 选择器 */
@@ -252,7 +257,17 @@ export const POPUP_KEYWORDS = ['modal', 'popup', 'dialog', 'drawer', 'overlay', 
 export const MOBILE_KEYWORDS = ['phone', 'mobile', 'tel', 'cell', '手机', '电话', '号码'] as const;
 
 /** MutationObserver 中使用的登录文本关键词 */
-export const MUTATION_LOGIN_KEYWORDS = ['登录', '登陆', 'sign in', 'login', '登录按钮', '立即登录'] as const;
+export const MUTATION_LOGIN_KEYWORDS = [
+  '登录',
+  '登陆',
+  'sign in',
+  'signin',
+  'login',
+  '登录按钮',
+  '立即登录',
+  '密码登录',
+  '验证码登录',
+] as const;
 
 /** 复选框正向关键词 */
 export const CHECKBOX_POSITIVE_KEYWORDS = [
@@ -298,3 +313,30 @@ export const CHECKBOX_NEGATIVE_KEYWORDS = [
   'ads',
   'promotion',
 ] as const;
+
+/**
+ * 规范化登录按钮文本，用于匹配检测
+ * - 去除首尾空格
+ * - 去除中间所有空格（如"登 录" → "登录"，"Sign In" → "signin"）
+ * - 转换为小写
+ * @param text - 原始按钮文本
+ * @returns 规范化后的文本
+ */
+export function normalizeButtonText(text: string): string {
+  return text.replace(/\s+/g, '').toLowerCase();
+}
+
+/**
+ * 判断按钮文本是否应该被排除（纯注册按钮）
+ * 排除纯注册按钮，但保留包含"登录"的组合按钮（如"登录/注册"）
+ * @param normalizedText - 已规范化的按钮文本
+ * @returns 是否应排除
+ */
+export function shouldExcludeButton(normalizedText: string): boolean {
+  // 排除纯注册按钮，但保留包含"登录"的组合按钮
+  const isPureRegister = /^(注册|立即注册|马上注册|免费注册|register|signup|sign-up)$/.test(normalizedText);
+  const hasLogin =
+    normalizedText.includes('登录') || normalizedText.includes('login') || normalizedText.includes('signin');
+
+  return isPureRegister && !hasLogin;
+}

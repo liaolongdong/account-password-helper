@@ -1,4 +1,4 @@
-import { LOGIN_CONTAINER_KEYWORDS, POPUP_KEYWORDS } from '@/entrypoints/content/formSelectors';
+import { LOGIN_CONTAINER_KEYWORDS, POPUP_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
 
 /**
  * 表单字段集合，用于登录表单分析
@@ -71,11 +71,11 @@ export class LoginFormAnalyzer {
         const hasLoginButton = this.hasLoginButtonInForm(parent, fields.loginButtons);
 
         if (hasSubmitButton || hasLoginButton) {
-          const formText = parent.textContent?.toLowerCase() || '';
+          const formText = normalizeButtonText(parent.innerText || parent.textContent || '');
           const hasLoginText =
             formText.includes('登录') ||
             formText.includes('登陆') ||
-            formText.includes('sign in') ||
+            formText.includes('signin') ||
             formText.includes('login');
 
           if (hasLoginText || hasSubmitButton || hasLoginButton) {
@@ -152,11 +152,11 @@ export class LoginFormAnalyzer {
       element.querySelector('input[name*="code"]') !== null ||
       element.querySelector('input[id*="code"]') !== null;
 
-    const text = element.textContent?.toLowerCase() || '';
+    const text = normalizeButtonText(element.innerText || element.textContent || '');
     const hasLoginText =
       text.includes('登录') ||
       text.includes('登陆') ||
-      text.includes('sign in') ||
+      text.includes('signin') ||
       text.includes('login') ||
       text.includes('密码') ||
       text.includes('password') ||
@@ -194,11 +194,11 @@ export class LoginFormAnalyzer {
       }
     }
 
-    const text = element.textContent?.toLowerCase() || '';
+    const text = normalizeButtonText(element.innerText || element.textContent || '');
     return (
       text.includes('登录') ||
       text.includes('登陆') ||
-      text.includes('sign in') ||
+      text.includes('signin') ||
       text.includes('login') ||
       text.includes('密码') ||
       text.includes('password') ||
