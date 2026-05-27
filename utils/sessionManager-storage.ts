@@ -176,10 +176,40 @@ export async function createSession(masterPassword: string, validityHours: numbe
 }
 
 /**
+ * 从 storage 恢复会话加密密钥（不触发过期检查）
+ */
+async function restoreSessionEncryptionKeyFromStorage(): Promise<void> {
+  const result = await chrome.storage.local.get([
+    SESSION_STORAGE_KEYS.MASTER_PASSWORD,
+    SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
+    SESSION_STORAGE_KEYS.VALIDITY_HOURS,
+  ]);
+
+  if (result[SESSION_STORAGE_KEYS.MASTER_PASSWORD]) {
+    encryptedSessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] as string;
+    sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number;
+    sessionValidityHours = (result[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
+
+    const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
+    const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
+    if (config && config.salt) {
+      sessionEncryptionKey = hashPassword(config.salt, 'session_encryption').substring(0, 32);
+    } else {
+      sessionEncryptionKey = await generateSessionEncryptionKey();
+    }
+  }
+}
+
+/**
  * 清除会话缓存
  */
 export async function clearSession(): Promise<void> {
   try {
+    // 内存状态可能因页面重载而丢失，直接从 storage 恢复（避免调用 isSessionValid 产生递归）
+    if (!encryptedSessionMasterPassword || !sessionEncryptionKey) {
+      await restoreSessionEncryptionKeyFromStorage();
+    }
+
     const masterPassword = await getSessionMasterPasswordDecrypted();
     if (masterPassword) {
       await encryptAllPasswordsBeforeSessionClear(masterPassword);
