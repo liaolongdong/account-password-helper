@@ -29,6 +29,9 @@ interface ValidityOption {
 
 /** 有效期选项列表（小时数：天 * 24） */
 const VALIDITY_OPTIONS: ValidityOption[] = [
+  /** todo 测试过期时间 别删除 start */
+  // { label: '6分钟', value: 0.1 },
+  /** todo 测试过期时间 别删除 end */
   { label: '1小时', value: 1 },
   { label: '2小时', value: 2 },
   { label: '4小时', value: 4 },

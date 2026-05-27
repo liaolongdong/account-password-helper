@@ -387,8 +387,9 @@ export async function getMasterPasswordValidityHours(): Promise<number> {
  */
 export async function setMasterPasswordValidityHours(hours: number): Promise<void> {
   try {
-    if (hours < 1 || hours > 168) {
-      throw new Error('有效期必须在1小时到7天（168小时）之间');
+    /** todo 测试过期时间 别删除 start */
+    if (hours < 0.1 || hours > 168) {
+      throw new Error('有效期必须在0.1小时到7天（168小时）之间');
     }
 
     await chrome.storage.local.set({
