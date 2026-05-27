@@ -14,6 +14,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
   const isAuthenticated = ref(false);
   const showMasterPasswordSetup = ref(false);
   const showPasswordVerify = ref(false);
+  let isAuthenticating = false;
 
   // 表单引用
   const setupFormRef = ref<FormInstance>();
@@ -91,6 +92,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
 
   // 检查认证状态
   const checkAuth = async () => {
+    if (isAuthenticating) return;
     try {
       const hasMaster = await StorageUtils.hasMasterPassword();
 
@@ -117,11 +119,11 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
           const wasAuthenticated = isAuthenticated.value;
           showMasterPasswordSetup.value = false;
           showPasswordVerify.value = false;
-          isAuthenticated.value = true;
 
           if (!wasAuthenticated) {
             await loadPasswords();
           }
+          isAuthenticated.value = true;
         } else {
           showMasterPasswordSetup.value = false;
           isAuthenticated.value = false;
@@ -154,6 +156,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       await setupFormRef.value.validate();
 
       setupLoading.value = true;
+      isAuthenticating = true;
 
       await StorageUtils.setMasterPassword(setupForm.value.password.trim());
       await StorageUtils.setMasterPasswordValidityHours(setupForm.value.validityHours);
@@ -164,14 +167,15 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
 
       showMasterPasswordSetup.value = false;
       showPasswordVerify.value = false;
-      isAuthenticated.value = true;
 
       await loadPasswords();
+      isAuthenticated.value = true;
     } catch (error) {
       logger.error('设置主密码失败:', error);
       ElMessage.error('设置失败，请重试');
     } finally {
       setupLoading.value = false;
+      isAuthenticating = false;
     }
   };
 
@@ -195,15 +199,17 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       if (isValid) {
         ElMessage.success('验证成功，欢迎使用');
 
+        isAuthenticating = true;
         await StorageUtils.setMasterPasswordValidityHours(verifyForm.value.validityHours);
         await StorageUtils.createSession(verifyForm.value.password.trim(), verifyForm.value.validityHours);
         await StorageUtils.migrateUnencryptedEntries(verifyForm.value.password.trim());
 
         showPasswordVerify.value = false;
         showMasterPasswordSetup.value = false;
-        isAuthenticated.value = true;
 
         await loadPasswords();
+        isAuthenticated.value = true;
+        isAuthenticating = false;
       } else {
         verifyError.value = '密码错误，请重新输入';
         verifyForm.value.password = '';
