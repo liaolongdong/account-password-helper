@@ -57,12 +57,10 @@ class SessionManager {
   /**
    * 处理会话过期
    */
-  private handleSessionExpired(): void {
-    // 触发自定义事件，通知其他组件会话已过期
+  private async handleSessionExpired(): Promise<void> {
+    // 先加密存储密码，再通知 UI
+    await StorageUtils.clearSession();
     window.dispatchEvent(new CustomEvent('sessionExpired'));
-
-    // 清除会话
-    StorageUtils.clearSession();
   }
 
   /**
