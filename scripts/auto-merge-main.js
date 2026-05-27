@@ -13,8 +13,11 @@
  * 6. 冲突时自动中止并记录
  */
 
-const { execSync } = require('child_process');
-const path = require('path');
+// const { execSync } = require('child_process');
+// const path = require('path');
+// 改为使用esmodule导入
+import { execSync } from 'child_process';
+import path from 'path';
 
 // 颜色定义
 const colors = {
