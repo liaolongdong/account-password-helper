@@ -542,8 +542,7 @@ export class FormDetector {
       const buttons = document.querySelectorAll(selector);
       buttons.forEach(button => {
         if (button instanceof HTMLElement) {
-          // 使用 innerText 获取完整文本（自动包含子标签文本）
-          const buttonText = button.innerText || button.textContent || '';
+          const buttonText = button.innerText || button.textContent || (button as HTMLInputElement).value || '';
           const normalizedText = normalizeButtonText(buttonText);
 
           const ariaLabel = normalizeButtonText(button.getAttribute('aria-label') || '');
