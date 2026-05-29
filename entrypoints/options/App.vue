@@ -245,6 +245,12 @@
               导出Excel
             </el-button>
             <el-button
+              :icon="Message"
+              @click="openEmailBackupDialog"
+            >
+              备份到邮箱
+            </el-button>
+            <el-button
               :icon="Setting"
               @click="openValiditySetting"
             >
@@ -654,6 +660,12 @@
       @save="handleValiditySave"
       @clear-session="handleClearSession"
     />
+
+    <!-- 邮箱备份弹窗 -->
+    <EmailBackupDialog
+      v-model="showEmailBackupDialog"
+      :backup-fn="backupToEmail"
+    />
   </div>
 </template>
 
@@ -670,6 +682,7 @@ import {
   Hide,
   Setting,
   CopyDocument,
+  Message,
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { sessionManager } from '@/utils/sessionManager';
@@ -681,6 +694,7 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import DisclaimerInfo from '@/components/DisclaimerInfo.vue';
 import ValidityHoursSelect from '@/components/ValidityHoursSelect.vue';
 import ValiditySettingDialog from '@/components/ValiditySettingDialog.vue';
+import EmailBackupDialog from '@/components/EmailBackupDialog.vue';
 import { getTagType, parseTags } from '@/utils/tagUtils';
 import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
@@ -695,6 +709,7 @@ const {
   passwords,
   showImportDialog,
   showPasswordDialog,
+  showEmailBackupDialog,
   searchKeyword,
   selectedIds,
   isEditingPassword,
@@ -727,6 +742,8 @@ const {
   handlePasswordsImported,
   exportPasswords,
   downloadTemplate,
+  openEmailBackupDialog,
+  backupToEmail,
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });

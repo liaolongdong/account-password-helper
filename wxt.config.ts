@@ -59,7 +59,7 @@ export default defineConfig({
     name: 'Account Password Helper',
     description: '账号密码管理助手 - 管理账号密码、自动填充账号密码、自动触发登录',
     version: '1.0.0',
-    permissions: ['storage', 'activeTab', 'scripting', 'sidePanel'],
+    permissions: ['storage', 'activeTab', 'scripting', 'sidePanel', 'alarms', 'downloads', 'notifications'],
     host_permissions: ['<all_urls>'],
     action: {
       default_title: '账号密码管家',

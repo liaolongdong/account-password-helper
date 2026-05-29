@@ -3,6 +3,7 @@ import type { FormRules, FormInstance } from 'element-plus';
 import type { PasswordEntry, PasswordEntryWithUI } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { ExcelUtils } from '@/utils/excel';
+import { EmailBackupUtils } from '@/utils/emailBackup';
 import { logger } from '@/utils/logger';
 import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
 
@@ -22,6 +23,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const passwords = ref<PasswordEntry[]>([]);
   const showImportDialog = ref(false);
   const showPasswordDialog = ref(false);
+  const showEmailBackupDialog = ref(false);
   const searchKeyword = ref('');
   const selectedIds = ref<string[]>([]);
   const isEditingPassword = ref(false);
@@ -453,7 +455,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         date.getFullYear().toString() +
         (date.getMonth() + 1).toString().padStart(2, '0') +
         date.getDate().toString().padStart(2, '0');
-      const filename = `passwords_${dateStr}.xlsx`;
+      const timeStr = [
+        String(date.getHours()).padStart(2, '0'),
+        String(date.getMinutes()).padStart(2, '0'),
+        String(date.getSeconds()).padStart(2, '0'),
+      ].join('');
+      const filename = `passwords_${dateStr}_${timeStr}.xlsx`;
       await ExcelUtils.exportToExcel(passwords.value, filename);
       ElMessage.success('导出成功');
     } catch (error) {
@@ -474,11 +481,66 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
   };
 
+  /**
+   * 打开邮箱备份弹窗
+   */
+  const openEmailBackupDialog = () => {
+    showEmailBackupDialog.value = true;
+  };
+
+  /**
+   * 执行密码备份到邮箱
+   * 流程：验证主密码 -> 读取邮箱配置 -> 调用备份工具
+   *
+   * @param email 目标邮箱地址
+   */
+  const backupToEmail = async (email: string) => {
+    try {
+      if (passwords.value.length === 0) {
+        ElMessage.warning('没有密码数据可备份');
+        return;
+      }
+
+      // 验证主密码
+      const { value: masterPassword } = await ElMessageBox.prompt(
+        '备份密码列表需要验证主密码，请输入主密码：',
+        '验证主密码',
+        {
+          confirmButtonText: '确认备份',
+          cancelButtonText: '取消',
+          inputType: 'password',
+          inputPlaceholder: '请输入主密码',
+          inputValidator: (value: string) => {
+            if (!value || !value.trim()) {
+              return '主密码不能为空';
+            }
+            return true;
+          },
+        },
+      );
+
+      const isValid = await StorageUtils.verifyMasterPassword(masterPassword.trim());
+      if (!isValid) {
+        ElMessage.error('主密码错误，备份失败');
+        return;
+      }
+
+      await EmailBackupUtils.backupToEmail(passwords.value, email);
+      ElMessage.success('备份文件已下载，邮件客户端已打开，请将文件作为附件发送');
+    } catch (error) {
+      if (error !== 'cancel') {
+        logger.error('备份到邮箱失败:', error);
+        ElMessage.error('备份失败');
+      }
+    }
+  };
+
   return {
     // 状态
     passwords,
     showImportDialog,
     showPasswordDialog,
+    showEmailBackupDialog,
     searchKeyword,
     selectedIds,
     isEditingPassword,
@@ -512,5 +574,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     handlePasswordsImported,
     exportPasswords,
     downloadTemplate,
+    openEmailBackupDialog,
+    backupToEmail,
   };
 }

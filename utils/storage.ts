@@ -1,4 +1,4 @@
-import type { PasswordEntry, MasterPasswordConfig, FloatingButtonConfig } from '@/utils/types';
+import type { PasswordEntry, MasterPasswordConfig, FloatingButtonConfig, EmailBackupConfig } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import {
   STORAGE_KEYS,
@@ -668,5 +668,70 @@ export class StorageUtils {
       config.offsetY = offsetY;
     }
     await this.saveFloatingButtonConfig(config);
+  }
+
+  // ==================== 邮箱备份配置 ====================
+
+  /**
+   * 获取邮箱备份配置（带默认值）
+   */
+  static async getEmailBackupConfig(): Promise<EmailBackupConfig> {
+    const defaultConfig: EmailBackupConfig = {
+      email: '',
+      autoBackup: false,
+      autoBackupIntervalDays: 7,
+    };
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.EMAIL_BACKUP_CONFIG);
+      const config = result[STORAGE_KEYS.EMAIL_BACKUP_CONFIG] as Partial<EmailBackupConfig> | undefined;
+      if (!config) return defaultConfig;
+      return { ...defaultConfig, ...config };
+    } catch (error) {
+      logger.error('获取邮箱备份配置失败:', error);
+      return defaultConfig;
+    }
+  }
+
+  /**
+   * 保存邮箱备份配置
+   */
+  static async saveEmailBackupConfig(config: Partial<EmailBackupConfig>): Promise<void> {
+    try {
+      const current = await this.getEmailBackupConfig();
+      const updated: EmailBackupConfig = { ...current, ...config };
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.EMAIL_BACKUP_CONFIG]: updated,
+      });
+    } catch (error) {
+      logger.error('保存邮箱备份配置失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取最后一次自动备份时间戳
+   */
+  static async getLastAutoBackupTime(): Promise<number | null> {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.LAST_AUTO_BACKUP_TIME);
+      return (result[STORAGE_KEYS.LAST_AUTO_BACKUP_TIME] as number | undefined) ?? null;
+    } catch (error) {
+      logger.error('获取最后自动备份时间失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 记录自动备份时间戳
+   */
+  static async setLastAutoBackupTime(timestamp: number = Date.now()): Promise<void> {
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.LAST_AUTO_BACKUP_TIME]: timestamp,
+      });
+    } catch (error) {
+      logger.error('记录自动备份时间失败:', error);
+      throw error;
+    }
   }
 }

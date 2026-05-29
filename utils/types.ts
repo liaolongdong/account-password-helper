@@ -222,6 +222,18 @@ export interface PingResponse {
 }
 
 /**
+ * 邮箱备份配置接口
+ */
+export interface EmailBackupConfig {
+  /** 备份目标邮箱地址 */
+  email: string;
+  /** 是否启用定时自动备份 */
+  autoBackup: boolean;
+  /** 自动备份间隔（天），如 1=每天, 7=每周 */
+  autoBackupIntervalDays: number;
+}
+
+/**
  * 填充策略类型
  */
 export type FillStrategy = 'native' | 'execCommand' | 'simulate';

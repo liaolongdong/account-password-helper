@@ -17,6 +17,8 @@ export const STORAGE_KEYS = {
   MASTER_PASSWORD_VALIDITY: 'master_password_validity',
   SORT_CONFIG: 'password_sort_config',
   FLOATING_BUTTON_CONFIG: 'floating_button_config',
+  EMAIL_BACKUP_CONFIG: 'email_backup_config',
+  LAST_AUTO_BACKUP_TIME: 'last_auto_backup_time',
 };
 
 /**
