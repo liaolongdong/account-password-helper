@@ -273,6 +273,14 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
       <div class="setting-tip">开启后，在侧边栏点击快速填充密码成功后将自动点击登录按钮（仅账号密码场景）</div>
 
       <div class="setting-item">
+        <span class="setting-label">密码显示切换</span>
+        <div class="switch ${config.passwordVisibilityToggle ? 'active' : ''}" data-setting="passwordVisibilityToggle">
+          <div class="switch-handle"></div>
+        </div>
+      </div>
+      <div class="setting-tip">开启后，密码输入框内将显示眼睛图标按钮，点击可切换密码明文/密文（页面自带切换按钮时自动跳过）</div>
+
+      <div class="setting-item">
         <span class="setting-label">按钮透明度</span>
         <div class="slider-container">
           <div class="slider" data-setting="opacity">
@@ -336,11 +344,12 @@ export function bindSettingsPanelView(
   panelRoot.addEventListener('click', onPanelClick);
   cleanups.push(() => panelRoot.removeEventListener('click', onPanelClick));
 
-  // 三个 switch
-  const switchKeys: Array<'visible' | 'autoShowSidepanel' | 'autoTriggerLogin'> = [
+  // 四个 switch
+  const switchKeys: Array<'visible' | 'autoShowSidepanel' | 'autoTriggerLogin' | 'passwordVisibilityToggle'> = [
     'visible',
     'autoShowSidepanel',
     'autoTriggerLogin',
+    'passwordVisibilityToggle',
   ];
   switchKeys.forEach(key => {
     const el = panelRoot.querySelector(`[data-setting="${key}"]`) as HTMLElement | null;
@@ -429,7 +438,7 @@ export function bindSettingsPanelView(
   const updateConfig = (newConfig: FloatingButtonConfig) => {
     Object.assign(config, newConfig);
 
-    // 更新三个 switch
+    // 更新四个 switch
     switchKeys.forEach(key => {
       const el = panelRoot.querySelector(`[data-setting="${key}"]`);
       el?.classList.toggle('active', !!config[key]);

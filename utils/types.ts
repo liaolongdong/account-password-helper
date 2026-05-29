@@ -158,6 +158,10 @@ export interface FloatingButtonConfig {
    * 点击侧边栏快速填充密码后是否自动触发登录操作（仅作用于账号密码场景）
    */
   autoTriggerLogin: boolean;
+  /**
+   * 是否在密码输入框内注入显示/隐藏切换按钮（若页面自带切换按钮则自动跳过）
+   */
+  passwordVisibilityToggle: boolean;
 }
 
 /**

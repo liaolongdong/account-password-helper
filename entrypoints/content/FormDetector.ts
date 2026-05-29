@@ -16,6 +16,7 @@ import { InputFiller } from '@/entrypoints/content/InputFiller';
 import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
 import { LoginFormAnalyzer, FormFieldSets } from '@/entrypoints/content/LoginFormAnalyzer';
 import { showNoLoginFormMessage } from '@/entrypoints/content/NativeNotification';
+import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
 
 /**
  * 表单检测器
@@ -59,6 +60,8 @@ export class FormDetector {
   private checkboxHandler = new CheckboxHandler();
   /** 登录表单分析器 */
   private loginFormAnalyzer = new LoginFormAnalyzer();
+  /** 密码显示/隐藏切换管理器 */
+  private passwordVisibilityToggle = new PasswordVisibilityToggle();
 
   constructor() {
     // 初始化默认配置
@@ -73,6 +76,8 @@ export class FormDetector {
     this.setupEventDelegation();
     // 监听配置变化
     this.setupStorageListener();
+    // 初始化密码显示/隐藏切换功能
+    this.initPasswordVisibilityToggle();
   }
 
   /**
@@ -87,6 +92,21 @@ export class FormDetector {
   }
 
   /**
+   * 初始化密码显示/隐藏切换功能
+   * 根据配置决定是否启用
+   */
+  private async initPasswordVisibilityToggle(): Promise<void> {
+    try {
+      const config = await StorageUtils.getFloatingButtonConfig();
+      if (config.passwordVisibilityToggle) {
+        this.passwordVisibilityToggle.init();
+      }
+    } catch (error) {
+      logger.error('FormDetector: 初始化密码切换功能失败:', error);
+    }
+  }
+
+  /**
    * 设置存储变化监听器，当配置变更时自动更新
    */
   private setupStorageListener(): void {
@@ -95,6 +115,8 @@ export class FormDetector {
         const newConfig = changes.floating_button_config.newValue as FloatingButtonConfig;
         if (newConfig) {
           this.floatingButtonConfig = newConfig;
+          // 同步密码切换功能开关
+          this.passwordVisibilityToggle.setEnabled(newConfig.passwordVisibilityToggle);
         }
       }
     };
@@ -884,5 +906,6 @@ export class FormDetector {
       chrome.storage.onChanged.removeListener(this.storageListener);
       this.storageListener = null;
     }
+    this.passwordVisibilityToggle.destroy();
   }
 }
