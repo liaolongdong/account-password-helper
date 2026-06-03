@@ -20,10 +20,9 @@ export default defineConfig({
     },
     build: {
       minify: 'esbuild',
-      esbuildOptions: {
-        drop: ['console', 'debugger'],
-      },
     },
+    // Vite 顶层 esbuild 配置：生产环境移除 console/debugger
+    esbuild: process.env.NODE_ENV === 'production' ? { drop: ['console', 'debugger'] } : {},
     plugins: [
       process.env.ANALYZE === 'true' && visualizer({ open: true, filename: 'dist/stats.html', gzipSize: true }),
       // Element Plus 按需引入(包含组件和样式)

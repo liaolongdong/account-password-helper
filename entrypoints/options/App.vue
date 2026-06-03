@@ -256,6 +256,12 @@
             >
               有效期设置
             </el-button>
+            <el-button
+              :icon="FolderChecked"
+              @click="showAutoSaveDialog = true"
+            >
+              自动保存设置
+            </el-button>
           </div>
           <div class="header-actions-right">
             <span class="floating-button-label">悬浮按钮</span>
@@ -666,6 +672,9 @@
       v-model="showEmailBackupDialog"
       :backup-fn="backupToEmail"
     />
+
+    <!-- 自动保存设置弹窗 -->
+    <AutoSaveSettingDialog v-model="showAutoSaveDialog" />
   </div>
 </template>
 
@@ -683,6 +692,7 @@ import {
   Setting,
   CopyDocument,
   Message,
+  FolderChecked,
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { sessionManager } from '@/utils/sessionManager';
@@ -695,14 +705,18 @@ import DisclaimerInfo from '@/components/DisclaimerInfo.vue';
 import ValidityHoursSelect from '@/components/ValidityHoursSelect.vue';
 import ValiditySettingDialog from '@/components/ValiditySettingDialog.vue';
 import EmailBackupDialog from '@/components/EmailBackupDialog.vue';
+import AutoSaveSettingDialog from '@/components/AutoSaveSettingDialog.vue';
 import { getTagType, parseTags } from '@/utils/tagUtils';
 import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
 import { usePasswordManagement, MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
 import { isDev } from '@/utils/env';
 
-/** 临时有效期表单占位，在 useSessionTimer 初始化后会被覆盖 */
+/** 临时有效期表单占位，在 useSessionTimer 初始化前会被覆盖 */
 const initialValidityForm = ref({ validityHours: 24 });
+
+/** 自动保存设置弹窗可见性 */
+const showAutoSaveDialog = ref(false);
 
 /** 密码管理状态与操作方法 */
 const {

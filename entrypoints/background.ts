@@ -1,7 +1,7 @@
 import { defineBackground } from '#imports';
-import { Message, MessageType, PasswordCache, PasswordEntry } from '../utils/types';
+import { Message, MessageType, PasswordCache, PasswordEntry, AutoSavePasswordData } from '../utils/types';
 import { logger } from '../utils/logger';
-import { STORAGE_KEYS } from '../utils/storage';
+import { STORAGE_KEYS, StorageUtils } from '../utils/storage';
 import { getSessionMasterPasswordDecrypted } from '../utils/sessionManager-storage';
 import { decryptPasswordEntry, type EncryptedPasswordEntry } from '../utils/encryption';
 import type { EmailBackupConfig } from '../utils/types';
@@ -197,6 +197,15 @@ export default defineBackground(() => {
         invalidatePasswordCache();
         sendResponse({ success: true });
         break;
+      }
+
+      case MessageType.AUTO_SAVE_PASSWORD: {
+        // 保存密码（用户确认后由 content script 触发）
+        const autoSaveData = message.data as AutoSavePasswordData;
+        handleAutoSavePassword(autoSaveData).then(result => {
+          sendResponse(result);
+        });
+        return true;
       }
 
       default:
@@ -447,6 +456,38 @@ export default defineBackground(() => {
     logger.debug('Background: 密码缓存已失效');
   }
 
+  /**
+   * 处理保存密码请求
+   * 由 content script 在用户确认后触发，执行会话校验、域名匹配、去重更新和存储
+   * @param data 自动保存密码数据
+   * @returns 保存结果
+   */
+  async function handleAutoSavePassword(data: AutoSavePasswordData): Promise<{ success: boolean; message: string }> {
+    try {
+      const result = await StorageUtils.autoSavePassword(data);
+      if (result.success) {
+        // 保存成功后使密码缓存失效，确保下次加载时获取最新数据
+        invalidatePasswordCache();
+
+        // 发送桌面通知提示用户已自动保存
+        try {
+          await chrome.notifications.create('auto-save-password', {
+            type: 'basic',
+            iconUrl: chrome.runtime.getURL('icon/128.png'),
+            title: '账号密码已保存',
+            message: `${data.username} - ${data.url} ${result.message}`,
+          });
+        } catch (notifyError) {
+          logger.warn('Background: 桌面通知发送失败（可能系统通知权限未开启）:', notifyError);
+        }
+      }
+      return result;
+    } catch (error) {
+      logger.error('Background: 处理自动保存密码失败:', error);
+      return { success: false, message: '自动保存处理失败' };
+    }
+  }
+
   // 监听 storage 变化，自动使缓存失效
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local') {
@@ -573,15 +614,7 @@ export default defineBackground(() => {
 
       const wb = XLSX.utils.book_new();
       const ws = XLSX.utils.json_to_sheet(exportData);
-      ws['!cols'] = [
-        { wch: 20 },
-        { wch: 20 },
-        { wch: 30 },
-        { wch: 15 },
-        { wch: 30 },
-        { wch: 20 },
-        { wch: 20 },
-      ];
+      ws['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 20 }];
       XLSX.utils.book_append_sheet(wb, ws, '密码数据');
 
       // 生成 ArrayBuffer（适用于 service worker）
@@ -595,8 +628,7 @@ export default defineBackground(() => {
       for (let i = 0; i < bytes.length; i++) {
         binary += String.fromCharCode(bytes[i]);
       }
-      const dataUrl =
-        'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + btoa(binary);
+      const dataUrl = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + btoa(binary);
 
       // 生成文件名
       const now = new Date();
@@ -605,10 +637,7 @@ export default defineBackground(() => {
         String(now.getMonth() + 1).padStart(2, '0'),
         String(now.getDate()).padStart(2, '0'),
       ].join('');
-      const timeStr = [
-        String(now.getHours()).padStart(2, '0'),
-        String(now.getMinutes()).padStart(2, '0'),
-      ].join('');
+      const timeStr = [String(now.getHours()).padStart(2, '0'), String(now.getMinutes()).padStart(2, '0')].join('');
       const filename = `passwords_auto_${dateStr}_${timeStr}.xlsx`;
 
       // 下载文件

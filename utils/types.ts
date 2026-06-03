@@ -120,6 +120,10 @@ export enum MessageType {
    * 使密码缓存失效
    */
   INVALIDATE_PASSWORD_CACHE = 'INVALIDATE_PASSWORD_CACHE',
+  /**
+   * 自动保存密码消息类型
+   */
+  AUTO_SAVE_PASSWORD = 'AUTO_SAVE_PASSWORD',
 }
 
 /**
@@ -200,6 +204,42 @@ export interface FillPasswordData {
 export interface FillMobileCodeData {
   mobile: string;
   code: string;
+}
+
+/**
+ * 自动保存密码数据接口
+ */
+export interface AutoSavePasswordData {
+  /** 用户名 */
+  username: string;
+  /** 密码 */
+  password: string;
+  /** 网站域名 */
+  url: string;
+  /** 页面标题，取自 document.title，用于 tag 字段 */
+  tag: string;
+}
+
+/**
+ * 域名匹配规则
+ */
+export interface DomainPattern {
+  /** 规则唯一标识 */
+  id: string;
+  /** 域名或正则表达式，如 "github.com" 或 ".*\\.example\\.com" */
+  pattern: string;
+  /** 是否为正则表达式模式 */
+  isRegex: boolean;
+}
+
+/**
+ * 自动保存配置接口
+ */
+export interface AutoSaveConfig {
+  /** 是否启用自动保存，默认 true */
+  enabled: boolean;
+  /** 域名匹配规则列表，为空时匹配所有域名 */
+  domainPatterns: DomainPattern[];
 }
 
 /**

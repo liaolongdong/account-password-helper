@@ -1,5 +1,6 @@
 import { defineContentScript } from '#imports';
 import { FormDetector } from '@/entrypoints/content/FormDetector';
+import { LoginAutoSave } from '@/entrypoints/content/LoginAutoSave';
 import { getFloatingButtonManager, destroyFloatingButtonManager } from '@/entrypoints/content/floatingButtons';
 import { logger } from '@/utils/logger';
 
@@ -14,6 +15,9 @@ export default defineContentScript({
     // 初始化表单检测器（所有 frame 都需要）
     const formDetector = new FormDetector();
 
+    // 初始化登录自动保存（所有 frame 都需要，以便捕获 iframe 内的登录表单）
+    const loginAutoSave = new LoginAutoSave();
+
     // 仅顶层 frame 初始化悬浮按钮管理器
     if (isTopFrame) {
       const floatingButtonManager = getFloatingButtonManager();
@@ -25,6 +29,7 @@ export default defineContentScript({
     // 页面卸载时清理
     window.addEventListener('beforeunload', () => {
       formDetector.destroy();
+      loginAutoSave.destroy();
       if (isTopFrame) {
         destroyFloatingButtonManager();
       }

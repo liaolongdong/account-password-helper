@@ -1,4 +1,11 @@
-import type { PasswordEntry, MasterPasswordConfig, FloatingButtonConfig, EmailBackupConfig } from '@/utils/types';
+import type {
+  PasswordEntry,
+  MasterPasswordConfig,
+  FloatingButtonConfig,
+  EmailBackupConfig,
+  AutoSaveConfig,
+  AutoSavePasswordData,
+} from '@/utils/types';
 import { logger } from '@/utils/logger';
 import {
   STORAGE_KEYS,
@@ -732,6 +739,160 @@ export class StorageUtils {
     } catch (error) {
       logger.error('记录自动备份时间失败:', error);
       throw error;
+    }
+  }
+
+  // ==================== 自动保存配置 ====================
+
+  /**
+   * 获取默认自动保存配置
+   */
+  static getDefaultAutoSaveConfig(): AutoSaveConfig {
+    return {
+      enabled: true,
+      domainPatterns: [],
+    };
+  }
+
+  /**
+   * 获取自动保存配置（带默认值）
+   */
+  static async getAutoSaveConfig(): Promise<AutoSaveConfig> {
+    const defaultConfig = this.getDefaultAutoSaveConfig();
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.AUTO_SAVE_CONFIG);
+      const config = result[STORAGE_KEYS.AUTO_SAVE_CONFIG] as Partial<AutoSaveConfig> | undefined;
+      if (!config) return defaultConfig;
+      return {
+        ...defaultConfig,
+        ...config,
+        domainPatterns: Array.isArray(config.domainPatterns) ? config.domainPatterns : defaultConfig.domainPatterns,
+      };
+    } catch (error) {
+      logger.error('获取自动保存配置失败:', error);
+      return defaultConfig;
+    }
+  }
+
+  /**
+   * 保存自动保存配置
+   */
+  static async saveAutoSaveConfig(config: Partial<AutoSaveConfig>): Promise<void> {
+    try {
+      const current = await this.getAutoSaveConfig();
+      const updated: AutoSaveConfig = { ...current, ...config };
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.AUTO_SAVE_CONFIG]: updated,
+      });
+    } catch (error) {
+      logger.error('保存自动保存配置失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 检测域名是否匹配自动保存规则
+   * - domainPatterns 为空时匹配所有域名
+   * - isRegex=false 时进行精确匹配或子域名匹配
+   * - isRegex=true 时使用正则表达式匹配
+   * @param hostname 当前页面域名
+   * @param config 自动保存配置
+   * @returns 是否匹配
+   */
+  static isDomainMatchForAutoSave(hostname: string, config: AutoSaveConfig): boolean {
+    if (!hostname) return false;
+    if (config.domainPatterns.length === 0) return true;
+
+    const lowerHostname = hostname.toLowerCase();
+    return config.domainPatterns.some(rule => {
+      if (!rule.pattern) return false;
+      if (rule.isRegex) {
+        try {
+          const regex = new RegExp(rule.pattern, 'i');
+          return regex.test(lowerHostname);
+        } catch {
+          logger.warn('自动保存域名正则表达式无效:', rule.pattern);
+          return false;
+        }
+      }
+      const lowerPattern = rule.pattern.toLowerCase();
+      return lowerHostname === lowerPattern || lowerHostname.endsWith('.' + lowerPattern);
+    });
+  }
+
+  /**
+   * 自动保存密码
+   * - 会话有效期内才保存
+   * - 同账号+同域名时更新已有条目
+   * - 新账号时新增条目，备注设为"自动保存"，tag标签取页面标题
+   * @param data 自动保存密码数据
+   * @returns 保存结果
+   */
+  static async autoSavePassword(data: AutoSavePasswordData): Promise<{ success: boolean; message: string }> {
+    try {
+      // 1. 校验会话有效性
+      const sessionValid = await this.isSessionValid();
+      if (!sessionValid) {
+        return { success: false, message: '会话已过期，跳过自动保存' };
+      }
+
+      // 2. 读取配置并校验域名
+      const config = await this.getAutoSaveConfig();
+      if (!config.enabled) {
+        return { success: false, message: '自动保存已禁用' };
+      }
+      if (!this.isDomainMatchForAutoSave(data.url, config)) {
+        return { success: false, message: '域名不匹配，跳过自动保存' };
+      }
+
+      // 3. 校验账号密码非空
+      if (!data.username || !data.password) {
+        return { success: false, message: '账号或密码为空，跳过保存' };
+      }
+
+      // 4. 获取当前密码列表（会话期内为明文）
+      const passwords = await this.getAllPasswordsRaw();
+
+      // 5. 查找同账号+同域名条目（精确域名/子域名匹配，避免子串误匹配）
+      const existingEntry = passwords.find(p => {
+        const entry = p as PasswordEntry;
+        if (!entry.url || entry.username !== data.username) return false;
+        const entryHost = (() => {
+          try {
+            return new URL(entry.url.startsWith('http') ? entry.url : `https://${entry.url}`).hostname;
+          } catch {
+            return entry.url;
+          }
+        })().toLowerCase();
+        const dataHost = data.url.toLowerCase();
+        return entryHost === dataHost || entryHost.endsWith('.' + dataHost) || dataHost.endsWith('.' + entryHost);
+      }) as PasswordEntry | undefined;
+
+      if (existingEntry) {
+        // 同账号+同域名，更新密码，原有的标签和备注保留
+        await this.updatePassword(existingEntry.id, {
+          password: data.password,
+          tag: existingEntry.tag || data.tag,
+          remark: existingEntry.remark || '自动保存',
+          updateTime: Date.now(),
+        });
+        return { success: true, message: '已更新已有账号密码' };
+      } else {
+        // 新账号，新增条目
+        await this.savePassword({
+          username: data.username,
+          password: data.password,
+          url: data.url,
+          tag: data.tag || '',
+          remark: '自动保存',
+          createTime: Date.now(),
+          updateTime: Date.now(),
+        });
+        return { success: true, message: '已自动保存新账号密码' };
+      }
+    } catch (error) {
+      logger.error('自动保存密码失败:', error);
+      return { success: false, message: '自动保存失败: ' + (error instanceof Error ? error.message : '未知错误') };
     }
   }
 }
