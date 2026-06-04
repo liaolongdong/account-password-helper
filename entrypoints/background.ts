@@ -2,8 +2,6 @@ import { defineBackground } from '#imports';
 import { Message, MessageType, PasswordCache, PasswordEntry, AutoSavePasswordData } from '../utils/types';
 import { logger } from '../utils/logger';
 import { STORAGE_KEYS, StorageUtils } from '../utils/storage';
-import { getSessionMasterPasswordDecrypted } from '../utils/sessionManager-storage';
-import { decryptPasswordEntry, type EncryptedPasswordEntry } from '../utils/encryption';
 import type { EmailBackupConfig } from '../utils/types';
 
 export default defineBackground(() => {
@@ -526,7 +524,7 @@ export default defineBackground(() => {
   });
 
   /**
-   * 设置自动备份闹钟
+   * 设置自动备份提醒闹钟
    * 读取邮箱备份配置，若启用自动备份则创建周期性 alarm
    */
   async function setupAutoBackupAlarm() {
@@ -539,12 +537,25 @@ export default defineBackground(() => {
 
       if (config?.autoBackup && config.email) {
         const periodInMinutes = config.autoBackupIntervalDays * 24 * 60;
+
+        // 根据上次备份时间计算首次延迟，避免短时间内重复触发
+        let delayInMinutes = 1; // 默认 1 分钟
+        const lastTimeResult = await chrome.storage.local.get(STORAGE_KEYS.LAST_AUTO_BACKUP_TIME);
+        const lastBackupTime = lastTimeResult[STORAGE_KEYS.LAST_AUTO_BACKUP_TIME] as number | undefined;
+        if (lastBackupTime) {
+          const elapsedMinutes = (Date.now() - lastBackupTime) / (60 * 1000);
+          const remainingMinutes = Math.max(periodInMinutes - elapsedMinutes, 1);
+          delayInMinutes = Math.min(remainingMinutes, periodInMinutes);
+          logger.debug(
+            `Background: 距上次备份已过 ${Math.round(elapsedMinutes)} 分钟，下次提醒延迟 ${Math.round(delayInMinutes)} 分钟`,
+          );
+        }
+
         await chrome.alarms.create('auto-backup-passwords', {
           periodInMinutes,
-          // 首次延迟 1 分钟后触发（避免立即触发）
-          delayInMinutes: 1,
+          delayInMinutes,
         });
-        logger.info(`Background: 自动备份闹钟已设置，间隔 ${config.autoBackupIntervalDays} 天`);
+        logger.info(`Background: 自动备份提醒闹钟已设置，间隔 ${config.autoBackupIntervalDays} 天`);
       } else {
         logger.debug('Background: 自动备份未启用或未配置邮箱');
       }
@@ -554,9 +565,8 @@ export default defineBackground(() => {
   }
 
   /**
-   * 执行自动备份
-   * 生成 Excel 文件并通过 chrome.downloads 下载，同时发送桌面通知
-   * 注意：不在 service worker 中打开 mailto，避免打断用户
+   * 执行自动备份提醒
+   * 仅发送桌面通知提醒用户手动备份，不自动下载密码文件（安全考虑）
    */
   async function performAutoBackup() {
     try {
@@ -565,121 +575,51 @@ export default defineBackground(() => {
       const config = result[STORAGE_KEYS.EMAIL_BACKUP_CONFIG] as EmailBackupConfig | undefined;
 
       if (!config?.email) {
-        logger.warn('Background: 未配置备份邮箱，跳过自动备份');
+        logger.warn('Background: 未配置备份邮箱，跳过备份提醒');
         return;
       }
 
-      // 读取密码数据
-      const pwResult = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-      const rawPasswords = pwResult[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined;
-
-      if (!rawPasswords || rawPasswords.length === 0) {
-        logger.info('Background: 无密码数据，跳过自动备份');
-        return;
-      }
-
-      // 检查是否有加密数据需要解密
-      let passwordsToExport: PasswordEntry[] = rawPasswords as PasswordEntry[];
-      const hasEncrypted = rawPasswords.some(p => 'encrypted' in p && (p as EncryptedPasswordEntry).encrypted === true);
-      if (hasEncrypted) {
-        const masterPassword = await getSessionMasterPasswordDecrypted();
-        if (!masterPassword) {
-          logger.warn('Background: 会话已过期，无法解密密码数据，跳过自动备份');
-          await chrome.notifications.create('auto-backup-skipped', {
-            type: 'basic',
-            iconUrl: chrome.runtime.getURL('icon/128.png'),
-            title: '自动备份已跳过',
-            message: '主密码会话已过期，无法解密密码数据，请验证主密码后重试。',
-          });
+      // 间隔检查：防止短时间内重复触发
+      const lastTimeResult = await chrome.storage.local.get(STORAGE_KEYS.LAST_AUTO_BACKUP_TIME);
+      const lastBackupTime = lastTimeResult[STORAGE_KEYS.LAST_AUTO_BACKUP_TIME] as number | undefined;
+      if (lastBackupTime) {
+        const elapsedMs = Date.now() - lastBackupTime;
+        const intervalMs = (config.autoBackupIntervalDays || 7) * 24 * 60 * 60 * 1000;
+        if (elapsedMs < intervalMs) {
+          const remainingHours = Math.round((intervalMs - elapsedMs) / (60 * 60 * 1000));
+          logger.info(
+            `Background: 距上次备份提醒不足 ${config.autoBackupIntervalDays} 天，跳过本次提醒 (剩余约 ${remainingHours} 小时)`,
+          );
           return;
         }
-        passwordsToExport = [];
-        for (const entry of rawPasswords) {
-          if ('encrypted' in entry && (entry as EncryptedPasswordEntry).encrypted === true) {
-            try {
-              const decrypted = await decryptPasswordEntry(entry as EncryptedPasswordEntry, masterPassword);
-              passwordsToExport.push(decrypted);
-            } catch (err) {
-              logger.warn('Background: 跳过无法解密的条目:', entry.id);
-            }
-          } else {
-            passwordsToExport.push(entry as PasswordEntry);
-          }
-        }
       }
 
-      // 动态导入 XLSX 并在 service worker 中生成文件
-      const XLSX = await import('xlsx');
+      // 统计密码数量（仅计数，不解密、不导出处密码内容）
+      const pwResult = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
+      const rawPasswords = pwResult[STORAGE_KEYS.PASSWORDS] as unknown[] | undefined;
+      const passwordCount = rawPasswords?.length ?? 0;
 
-      const exportData = passwordsToExport.map(p => ({
-        用户名: p.username,
-        密码: p.password,
-        URL: p.url,
-        标签: p.tag,
-        备注: p.remark,
-        创建时间: new Date(p.createTime || Date.now()).toLocaleString(),
-        更新时间: new Date(p.updateTime || Date.now()).toLocaleString(),
-      }));
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      ws['!cols'] = [{ wch: 20 }, { wch: 20 }, { wch: 30 }, { wch: 15 }, { wch: 30 }, { wch: 20 }, { wch: 20 }];
-      XLSX.utils.book_append_sheet(wb, ws, '密码数据');
-
-      // 生成 ArrayBuffer（适用于 service worker）
-      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-      const blob = new Blob([wbout], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-
-      // 转换为 data URL
-      const arrayBuffer = await blob.arrayBuffer();
-      const bytes = new Uint8Array(arrayBuffer);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) {
-        binary += String.fromCharCode(bytes[i]);
+      if (passwordCount === 0) {
+        logger.info('Background: 无密码数据，跳过备份提醒');
+        return;
       }
-      const dataUrl = 'data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,' + btoa(binary);
 
-      // 生成文件名
-      const now = new Date();
-      const dateStr = [
-        now.getFullYear(),
-        String(now.getMonth() + 1).padStart(2, '0'),
-        String(now.getDate()).padStart(2, '0'),
-      ].join('');
-      const timeStr = [String(now.getHours()).padStart(2, '0'), String(now.getMinutes()).padStart(2, '0')].join('');
-      const filename = `passwords_auto_${dateStr}_${timeStr}.xlsx`;
-
-      // 下载文件
-      await chrome.downloads.download({
-        url: dataUrl,
-        filename,
-        saveAs: false,
-      });
-
-      // 记录备份时间
+      // 记录本次提醒时间
       await chrome.storage.local.set({
         [STORAGE_KEYS.LAST_AUTO_BACKUP_TIME]: Date.now(),
       });
 
-      // 发送桌面通知
-      await chrome.notifications.create('auto-backup-complete', {
+      // 发送桌面提醒通知（引导用户手动备份，不自动下载文件）
+      await chrome.notifications.create('auto-backup-reminder', {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icon/128.png'),
-        title: '密码自动备份完成',
-        message: `已备份 ${passwordsToExport.length} 条密码到文件 ${filename}，请将该文件发送到 ${config.email}`,
+        title: '密码备份提醒',
+        message: `您配置的自动备份时间已到，共有 ${passwordCount} 条密码待备份。请在密码管理页面点击"备份到邮箱"按钮手动完成备份。`,
       });
 
-      logger.info(`Background: 自动备份完成，条目数: ${passwordsToExport.length}`);
+      logger.info(`Background: 自动备份提醒已发送，密码条目数: ${passwordCount}`);
     } catch (error) {
-      logger.error('Background: 自动备份失败:', error);
-
-      // 发送失败通知
-      await chrome.notifications.create('auto-backup-failed', {
-        type: 'basic',
-        iconUrl: chrome.runtime.getURL('icon/128.png'),
-        title: '密码自动备份失败',
-        message: '自动备份过程中发生错误，请手动检查。',
-      });
+      logger.error('Background: 发送自动备份提醒失败:', error);
     }
   }
 });

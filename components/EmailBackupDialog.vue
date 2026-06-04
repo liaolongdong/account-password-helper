@@ -23,7 +23,8 @@
         style="margin-bottom: 20px"
       >
         <template #default>
-          将密码列表导出为 Excel 文件并唤起邮件客户端，请将下载的文件作为附件发送。
+          将密码列表导出为 Excel 文件并唤起邮件客户端，请将下载的文件作为附件发送。<br />
+          开启「自动备份提醒」后，仅定时发送桌面提醒通知您手动备份，<strong>不会自动下载密码文件</strong>。
         </template>
       </el-alert>
 
@@ -39,7 +40,7 @@
         />
       </el-form-item>
 
-      <el-form-item label="自动备份">
+      <el-form-item label="自动备份提醒">
         <div class="auto-backup-row">
           <el-switch
             v-model="form.autoBackup"
@@ -50,7 +51,7 @@
             v-if="form.autoBackup"
             v-model="form.autoBackupIntervalDays"
             style="width: 140px; margin-left: 12px"
-            placeholder="备份间隔"
+            placeholder="备份提醒间隔"
           >
             <el-option
               v-for="opt in intervalOptions"
@@ -61,10 +62,16 @@
           </el-select>
         </div>
         <div
-          v-if="lastBackupTime"
+          v-if="form.autoBackup"
+          class="auto-backup-tip"
+        >
+          开启后将定时发送桌面通知提醒您手动备份，不会自动下载密码文件。
+        </div>
+        <div
+          v-if="form.autoBackup && lastBackupTime"
           class="last-backup-info"
         >
-          上次自动备份：{{ lastBackupTime }}
+          上次提醒：{{ lastBackupTime }}
         </div>
       </el-form-item>
     </el-form>
@@ -235,8 +242,13 @@ const handleClose = () => {
   align-items: center;
 }
 
+.auto-backup-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #909399;
+}
+
 .last-backup-info {
-  margin-top: 8px;
   font-size: 12px;
   color: #909399;
 }
