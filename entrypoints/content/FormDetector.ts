@@ -138,8 +138,8 @@ export class FormDetector {
 
     // 监听消息
     chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
-      this.handleMessage(message, sender, sendResponse);
-      return true; // 保持消息通道开放
+      const handled = this.handleMessage(message, sender, sendResponse);
+      return handled; // 仅对已处理的消息保持通道开放，未处理的消息传递给 background
     });
   }
 
@@ -675,7 +675,7 @@ export class FormDetector {
     message: Message,
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response: unknown) => void,
-  ): void {
+  ): boolean {
     switch (message.type) {
       case MessageType.PING: {
         const pingResponse: PingResponse = {
@@ -689,17 +689,17 @@ export class FormDetector {
           },
         };
         sendResponse(pingResponse);
-        break;
+        return true;
       }
       case MessageType.FILL_PASSWORD:
         this.fillPasswordWithResult(message.data as FillPasswordData).then(result => {
           sendResponse(result);
         });
-        return;
+        return true;
       case MessageType.FILL_MOBILE_CODE:
         this.fillMobileCode(message.data as { mobile: string; code: string });
         sendResponse({ success: true, message: '填充完成' });
-        break;
+        return true;
       case MessageType.SHOW_SIDEPANEL:
         if (!this.hasLoginFormFields()) {
           showNoLoginFormMessage();
@@ -708,14 +708,13 @@ export class FormDetector {
           this.showSidePanel();
           sendResponse({ success: true, message: '侧边栏显示请求已处理' });
         }
-        break;
+        return true;
       case MessageType.HIDE_SIDEPANEL:
         this.hideSidePanel();
         sendResponse({ success: true, message: '侧边栏隐藏请求已处理' });
-        break;
+        return true;
       default:
-        sendResponse({ success: false, message: '未知消息类型' });
-        break;
+        return false; // 不响应，让消息传递给 background 处理
     }
   }
 

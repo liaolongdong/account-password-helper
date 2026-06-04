@@ -5,7 +5,6 @@
     width="600px"
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
-    @open="loadConfig"
   >
     <el-form
       label-width="140px"
@@ -31,6 +30,7 @@
           </div>
 
           <el-table
+            :key="config.domainPatterns.length"
             :data="config.domainPatterns"
             style="width: 100%"
             size="small"
@@ -130,13 +130,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue';
+import { ref, reactive, watch } from 'vue';
 import { Plus } from '@element-plus/icons-vue';
 import { StorageUtils } from '@/utils/storage';
 import type { AutoSaveConfig, DomainPattern } from '@/utils/types';
 import { logger } from '@/utils/logger';
 
-defineProps<{
+const props = defineProps<{
   modelValue: boolean;
 }>();
 
@@ -167,10 +167,27 @@ const loadConfig = async (): Promise<void> => {
     const loaded = await StorageUtils.getAutoSaveConfig();
     config.enabled = loaded.enabled;
     config.domainPatterns = [...loaded.domainPatterns];
+    logger.debug(
+      'AutoSaveSettingDialog: 配置加载完成, enabled:',
+      loaded.enabled,
+      '规则数:',
+      loaded.domainPatterns.length,
+    );
   } catch (error) {
     logger.error('AutoSaveSettingDialog: 加载配置失败:', error);
+    ElMessage.error('加载配置失败，请关闭弹窗重试');
   }
 };
+
+// 监听弹窗打开时加载配置（immediate: true 确保首次打开也能触发）
+// 注：必须在 loadConfig 定义之后注册，避免 TDZ 问题
+watch(
+  () => props.modelValue,
+  visible => {
+    if (visible) loadConfig();
+  },
+  { immediate: true },
+);
 
 /**
  * 开关变化时即时保存
@@ -232,10 +249,8 @@ const removePattern = (index: number): void => {
 const handleSave = async (): Promise<void> => {
   saveLoading.value = true;
   try {
-    await StorageUtils.saveAutoSaveConfig({
-      enabled: config.enabled,
-      domainPatterns: config.domainPatterns,
-    });
+    const toRawConfig = toRaw(config);
+    await StorageUtils.saveAutoSaveConfig(toRawConfig);
     ElMessage.success('自动保存设置已保存');
     emit('update:modelValue', false);
   } catch (error) {

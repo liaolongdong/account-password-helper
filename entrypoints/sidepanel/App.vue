@@ -445,17 +445,14 @@ let bgPort: chrome.runtime.Port | null = null;
 
 // 监听来自background的消息
 const handleMessage = (message: any, sender: chrome.runtime.MessageSender, sendResponse: Function) => {
-  // SidePanel: 收到消息
-
   switch (message.type) {
     case MessageType.URL_CHANGED:
       // SidePanel: 检测到URL变化，更新数据
       updateCurrentDomainAndLoadPasswords();
       sendResponse({ success: true, message: 'URL变化处理完成' });
-      break;
+      return true;
     default:
-      sendResponse({ success: false, message: '未知消息类型' });
-      break;
+      return false; // 不响应，让消息传递给 background 处理
   }
 };
 

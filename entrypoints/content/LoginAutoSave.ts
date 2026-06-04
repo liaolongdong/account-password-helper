@@ -1,4 +1,4 @@
-import { MessageType, type AutoSaveConfig } from '@/utils/types';
+import { MessageType, type AutoSaveConfig, type DomainPattern } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { USERNAME_SELECTORS, LOGIN_BUTTON_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
@@ -36,8 +36,12 @@ interface PendingCredentials {
  * 5. 用户选择「暂不保存」→ 清除数据，不做任何操作
  */
 export class LoginAutoSave {
-  /** 自动保存功能是否启用 */
-  private isEnabled = true;
+  /** 自动保存功能是否启用（配置加载完成前默认禁用，防止竞态条件导致所有域名均弹窗） */
+  private isEnabled = false;
+  /** 配置是否已加载完成（区分「用户未配置」和「配置尚未加载」两种状态） */
+  private configLoaded = false;
+  /** 域名匹配规则列表，为空时匹配所有域名 */
+  private domainPatterns: DomainPattern[] = [];
   /** 当前页面是否已显示过弹窗（防止重复弹窗） */
   private promptShown = false;
 
@@ -68,10 +72,21 @@ export class LoginAutoSave {
     try {
       const config = await StorageUtils.getAutoSaveConfig();
       this.isEnabled = config.enabled;
+      this.domainPatterns = config.domainPatterns;
+      this.configLoaded = true;
     } catch {
-      this.isEnabled = true;
+      // 配置加载失败时禁用自动保存，避免空 domainPatterns 匹配所有域名
+      this.isEnabled = false;
+      this.configLoaded = true;
     }
-    console.warn('[APH] LoginAutoSave 初始化完成, isEnabled:', this.isEnabled);
+    console.warn(
+      '[APH] LoginAutoSave 初始化完成, isEnabled:',
+      this.isEnabled,
+      'domainPatterns:',
+      this.domainPatterns.length,
+      'configLoaded:',
+      this.configLoaded,
+    );
 
     // 检查是否有跨页面导航遗留的待确认凭证（传统表单提交场景）
     this.checkPendingCredentials();
@@ -84,7 +99,21 @@ export class LoginAutoSave {
     if (changes.auto_save_config) {
       const newConfig = changes.auto_save_config.newValue as Partial<AutoSaveConfig> | undefined;
       if (newConfig) {
-        this.isEnabled = newConfig.enabled !== false;
+        this.isEnabled = newConfig.enabled === true;
+        if (Array.isArray(newConfig.domainPatterns)) {
+          this.domainPatterns = newConfig.domainPatterns;
+        }
+        console.warn(
+          '[APH] handleStorageChange 同步配置: isEnabled:',
+          this.isEnabled,
+          'domainPatterns:',
+          this.domainPatterns.length,
+        );
+      } else {
+        // newValue 为空（存储被清除），回退到安全状态：禁用自动保存
+        this.isEnabled = false;
+        this.domainPatterns = [];
+        console.warn('[APH] handleStorageChange: 配置被清除，已禁用自动保存');
       }
     }
   };
@@ -96,7 +125,7 @@ export class LoginAutoSave {
    * 在 capture 阶段读取表单内的账号和密码字段值
    */
   private handleFormSubmit = (e: Event): void => {
-    if (!this.isEnabled) return;
+    if (!this.isEnabled || !this.configLoaded) return;
 
     const form = e.target as HTMLFormElement;
     if (!form || form.tagName !== 'FORM') {
@@ -127,7 +156,7 @@ export class LoginAutoSave {
    * 针对非 form 表单场景（如 SPA 中的 div 按钮）
    */
   private handleButtonClick = (e: MouseEvent): void => {
-    if (!this.isEnabled) return;
+    if (!this.isEnabled || !this.configLoaded) return;
 
     const target = e.target as HTMLElement;
     if (!target) return;
@@ -174,7 +203,7 @@ export class LoginAutoSave {
    * 当用户在密码输入框中按 Enter 键时，尝试捕获凭证
    */
   private handleKeyDown = (e: KeyboardEvent): void => {
-    if (!this.isEnabled) return;
+    if (!this.isEnabled || !this.configLoaded) return;
     if (e.key !== 'Enter') return;
 
     const target = e.target as HTMLInputElement;
@@ -202,6 +231,21 @@ export class LoginAutoSave {
     this.onCredentialsCaptured(username, password);
   };
 
+  // ── 域名匹配 ──
+
+  /**
+   * 检查当前页面域名是否匹配自动保存规则
+   * 规则列表为空时匹配所有域名
+   * @returns 是否匹配
+   */
+  private isDomainMatch(): boolean {
+    if (this.domainPatterns.length === 0) return true;
+    return StorageUtils.isDomainMatchForAutoSave(location.hostname, {
+      enabled: this.isEnabled,
+      domainPatterns: this.domainPatterns,
+    });
+  }
+
   // ── 弹窗与保存逻辑 ──
 
   /**
@@ -211,6 +255,18 @@ export class LoginAutoSave {
    * @param password 密码
    */
   private onCredentialsCaptured(username: string, password: string): void {
+    // 配置未加载完成时跳过，防止竞态条件导致空规则匹配所有域名
+    if (!this.configLoaded) {
+      console.warn('[APH] 配置尚未加载完成，跳过弹窗');
+      return;
+    }
+
+    // 域名匹配检查：配置的规则列表非空时，仅对匹配的域名弹窗
+    if (!this.isDomainMatch()) {
+      console.warn('[APH] 域名不匹配配置规则，跳过弹窗, hostname:', location.hostname);
+      return;
+    }
+
     // 防止同一页面重复弹窗
     if (this.promptShown) {
       console.warn('[APH] 弹窗已显示，跳过重复弹窗');
@@ -241,6 +297,9 @@ export class LoginAutoSave {
    * 传统表单提交会导致页面跳转，弹窗需要在目标页面显示
    */
   private checkPendingCredentials(): void {
+    // 配置未加载完成时跳过
+    if (!this.configLoaded) return;
+
     try {
       const raw = sessionStorage.getItem(PENDING_SAVE_KEY);
       if (!raw) return;
@@ -255,6 +314,12 @@ export class LoginAutoSave {
 
       const age = Date.now() - pending.timestamp;
       if (age > PENDING_MAX_AGE_MS) {
+        sessionStorage.removeItem(PENDING_SAVE_KEY);
+        return;
+      }
+
+      // 域名匹配检查：配置的规则列表非空时，仅对匹配的域名显示弹窗
+      if (!this.isDomainMatch()) {
         sessionStorage.removeItem(PENDING_SAVE_KEY);
         return;
       }
