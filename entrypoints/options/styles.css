@@ -643,7 +643,6 @@
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
 }
 
 /* 表单提示样式 */

@@ -254,6 +254,7 @@ const handleClose = () => {
 }
 
 .dialog-footer {
+  margin-top: -20px;
   text-align: right;
 }
 

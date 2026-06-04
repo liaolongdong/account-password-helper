@@ -293,4 +293,10 @@ const handleSave = async (): Promise<void> => {
 .add-pattern-form .el-input {
   flex: 1;
 }
+
+.dialog-footer {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 </style>
