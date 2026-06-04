@@ -16,7 +16,7 @@
           v-model="config.enabled"
           @change="handleEnabledChange"
         />
-        <div class="form-tip">开启后，网站登录成功时将自动保存账号密码到密码列表</div>
+        <div class="form-tip">开启后，网站登录时将弹窗提示是否自动保存账号密码到密码列表</div>
       </el-form-item>
 
       <el-form-item label="域名匹配规则">
@@ -26,7 +26,7 @@
               type="info"
               size="small"
             >
-              规则列表为空时匹配所有域名；配置后仅匹配的域名才会自动保存
+              规则列表为空时匹配所有域名；配置后仅匹配的域名才会提醒是否需要自动保存
             </el-text>
           </div>
 
@@ -203,9 +203,7 @@ const addPattern = (): void => {
   }
 
   // 检查重复
-  const isDuplicate = config.domainPatterns.some(
-    p => p.pattern === trimmed && p.isRegex === newPattern.isRegex,
-  );
+  const isDuplicate = config.domainPatterns.some(p => p.pattern === trimmed && p.isRegex === newPattern.isRegex);
   if (isDuplicate) {
     ElMessage.warning('该规则已存在');
     return;
@@ -253,7 +251,7 @@ const handleSave = async (): Promise<void> => {
 .form-tip {
   font-size: 12px;
   color: #909399;
-  margin-top: 4px;
+  margin-left: 4px;
   line-height: 1.4;
 }
 
