@@ -818,7 +818,7 @@ const AUTH_RELATED_STORAGE_KEYS = new Set<string>([
   SESSION_STORAGE_KEYS.VALIDITY_HOURS,
 ]);
 
-/** chrome.storage 变化监听：认证相关 key 变动时重跑 checkAuth */
+/** chrome.storage 变化监听：认证相关 key 变动时重跑 checkAuth，密码数据变化时重新加载列表 */
 const handleStorageChanged = (
   changes: Record<string, chrome.storage.StorageChange>,
   areaName: chrome.storage.AreaName,
@@ -828,6 +828,11 @@ const handleStorageChanged = (
   if (!hasAuthChange) return;
   logger.debug('Options: 检测到认证相关 storage 变动，重新检查认证状态');
   void checkAuth();
+  // 密码数据变化时，重新加载密码列表（解决自动保存后列表不刷新的问题）
+  if (STORAGE_KEYS.PASSWORDS in changes) {
+    logger.debug('Options: 检测到密码数据变动，重新加载密码列表');
+    void loadPasswords();
+  }
 };
 
 /** 可见性变化监听：页面重新可见时重跑 checkAuth（侧边栏激活已有 options tab 场景）*/

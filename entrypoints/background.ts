@@ -469,6 +469,15 @@ export default defineBackground(() => {
         // 保存成功后使密码缓存失效，确保下次加载时获取最新数据
         invalidatePasswordCache();
 
+        // 主动通知 sidepanel 刷新数据（如果打开的话）
+        if (sidePanelPort) {
+          try {
+            sidePanelPort.postMessage({ type: MessageType.URL_CHANGED });
+          } catch {
+            // port 可能已断开但尚未触发 disconnect 事件，忽略
+          }
+        }
+
         // 发送桌面通知提示用户已自动保存
         try {
           await chrome.notifications.create('auto-save-password', {

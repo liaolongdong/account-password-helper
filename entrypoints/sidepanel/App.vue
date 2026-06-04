@@ -438,6 +438,14 @@ const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageCha
     // SidePanel: 检测到会话存储变化
     handleSessionChange();
   }
+
+  // 密码数据变化时，重新加载密码列表（解决自动保存后快速填充列表不刷新的问题）
+  if (changes['account_passwords']) {
+    logger.debug('SidePanel: 检测到密码数据变动，重新加载');
+    if (isAuthenticated.value) {
+      void loadPasswords();
+    }
+  }
 };
 
 // 与 background 建立 port 连接，用于可靠的状态追踪和关闭通信
