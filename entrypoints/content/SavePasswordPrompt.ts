@@ -5,8 +5,13 @@
  * 纯 DOM 操作，无需 Shadow DOM，复用 NativeNotification 的视觉风格。
  */
 
+import { lockIcon } from '@/entrypoints/content/floatingButtons/icons';
+
 /** 弹窗 DOM 容器 class 名 */
 const PROMPT_CLASS = 'aph-save-password-prompt';
+
+/** Element Plus 主题蓝 */
+const THEME_BLUE = '#409eff';
 
 /**
  * 保存确认弹窗所需的数据
@@ -65,14 +70,14 @@ export function showSavePasswordPrompt(data: SavePromptData, onSave: () => void,
 
   // 锁形图标
   const icon = document.createElement('span');
-  icon.innerHTML = '&#x1F512;';
-  icon.style.cssText = 'font-size: 18px; line-height: 1;';
+  icon.innerHTML = lockIcon;
+  icon.style.cssText = `display: flex; align-items: center; color: ${THEME_BLUE}; flex-shrink: 0;`;
 
   const headerText = document.createElement('div');
   headerText.style.cssText = 'flex: 1; min-width: 0;';
 
   const title = document.createElement('div');
-  title.textContent = '保存账号密码？';
+  title.textContent = '自动保存账号密码到密码列表？';
   title.style.cssText = 'font-size: 14px; font-weight: 600; color: #1a1a1a;';
 
   const subtitle = document.createElement('div');
@@ -115,7 +120,7 @@ export function showSavePasswordPrompt(data: SavePromptData, onSave: () => void,
     onDismiss();
   });
 
-  const saveBtn = createButton('保存', '#67c23a', '#fff', '#67c23a');
+  const saveBtn = createButton('保存', THEME_BLUE, '#fff', THEME_BLUE);
   saveBtn.addEventListener('click', () => {
     dismissSavePasswordPrompt();
     onSave();
