@@ -14,11 +14,9 @@
 
 ```
 scripts/
-  ├── auto-merge-main.js          # Node.js 主脚本（推荐使用）
-  ├── auto-merge-main.sh          # Shell 脚本版本（已废弃）
+  ├── auto-merge-main.js          # Node.js 主脚本
+  ├── generate-icons.mjs          # SVG → 多尺寸 PNG 图标生成脚本
   └── README-auto-merge.md        # 说明文档
-.git/hooks/
-  └── post-merge                  # Git Hook（自动触发）
 ```
 
 ## 使用方法

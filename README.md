@@ -22,7 +22,10 @@
 - **加密安全**：PBKDF2（10000 次迭代）派生 256-bit 密钥 + AES-256-CBC 随机 IV；主密码 MD5 + 盐值存储；敏感字段（username/password/url/remark）加密。
 - **智能识别**：MutationObserver 动态检测登录表单，支持用户名+密码、手机号+验证码等多种场景；LoginFormAnalyzer 通过表单/容器/弹窗/按钮多维启发式判断。
 - **一键填充**：侧边栏点击即填充，三重策略（Native Setter / execCommand / 模拟输入）兼容 React/Vue 等主流框架；可选自动触发登录。
-- **数据管理**：Excel 导入导出（.xlsx），中英文列名映射；标签多选 + 自定义 + 颜色一致；多字段搜索与排序。
+- **自动保存**：Chrome 式登录凭证捕获，支持登录表单提交、按钮点击、回车提交三种场景；域名/正则白名单精准匹配；跨页面导航凭证不丢失。
+- **数据管理**：Excel 导入导出（.xlsx），中英文列名映射；标签多选 + 自定义 + 颜色一致；多字段搜索与排序；批量删除。
+- **邮箱备份**：导出 Excel 并唤起邮件客户端；支持定时自动备份提醒（chrome.alarms），间隔可选每天/3天/每周/两周/每月。
+- **密码可见性切换**：自动为页面密码框注入显示/隐藏按钮，智能检测网站自带切换按钮避免重复注入。
 - **会话可控**：1/2/4/8/12/24 小时和3/5/7天会话有效期；会话失效后敏感字段自动加密回密文。
 - **Shadow DOM 隔离**：悬浮按钮使用 Closed Shadow DOM，完全隔离页面样式。
 - **零网络传输**：所有数据存储在 Chrome Local Storage，不走任何网络。
@@ -49,8 +52,30 @@
 - 标签下拉多选 + 自定义新增；相同标签颜色稳定一致（见 [utils/tagUtils.ts](./utils/tagUtils.ts)）。
 - 密码列表与侧边栏默认按更新时间倒序；支持按用户名、URL、标签、备注、创建/更新时间切换排序。
 - 支持用户名、标签、备注、URL 的多字段模糊搜索。
+- 批量选择与批量删除密码条目。
 
-### 4. 快速填充
+### 4. 自动保存登录凭证
+
+- 启用后，网站登录时自动捕获账号密码并弹窗确认是否保存（见 [LoginAutoSave.ts](./entrypoints/content/LoginAutoSave.ts)）。
+- 三种凭证捕获场景：表单提交（capture 阶段）、登录按钮点击、密码框回车提交。
+- 域名匹配规则支持精确域名和正则表达式两种模式，规则为空时匹配所有域名（见 [AutoSaveSettingDialog.vue](./components/AutoSaveSettingDialog.vue)）。
+- sessionStorage 暂存凭证，支持传统表单提交导致的跨页面导航场景。
+- 保存成功后发送桌面通知，并使密码缓存失效以确保下次加载获取最新数据。
+
+### 5. 邮箱备份
+
+- 导出密码列表为 Excel 并唤起邮件客户端（见 [utils/emailBackup.ts](./utils/emailBackup.ts)）。
+- 支持配置自动备份提醒，通过 chrome.alarms 定时发送桌面通知（不解密、不自动下载文件）。
+- 备份间隔可选：每天 / 每3天 / 每周 / 每两周 / 每月。
+
+### 6. 密码可见性切换
+
+- 自动为页面中的密码输入框注入显示/隐藏切换按钮（见 [PasswordVisibilityToggle.ts](./entrypoints/content/PasswordVisibilityToggle.ts)）。
+- 智能检测网站自带的切换按钮（aria-label / class / data-\* / SVG 特征），避免重复注入。
+- MutationObserver 监听动态新增的密码输入框，自动注入。
+- 可在悬浮按钮设置面板中开关此功能。
+
+### 7. 快速填充
 
 - 侧边栏自动将与当前域名匹配的密码排在前面。
 - **本地开发友好**：当域名为 `localhost` 或 `127.0.0.1` 时，默认匹配所有密码（见 [sidepanel/App.vue](./entrypoints/sidepanel/App.vue)）。
@@ -222,6 +247,9 @@ graph TB
 │   │   ├── FormDetector.ts         # 表单检测编排器
 │   │   ├── InputFiller.ts          # 多策略输入填充
 │   │   ├── LoginFormAnalyzer.ts    # 登录表单启发式分析
+│   │   ├── LoginAutoSave.ts        # 登录凭证自动保存管理器
+│   │   ├── SavePasswordPrompt.ts   # Chrome 风格保存确认弹窗
+│   │   ├── PasswordVisibilityToggle.ts # 密码显示/隐藏切换
 │   │   ├── CheckboxHandler.ts      # 复选框自动勾选
 │   │   ├── NativeNotification.ts   # 原生浏览器通知
 │   │   ├── formSelectors.ts        # 选择器与关键词常量
@@ -230,12 +258,16 @@ graph TB
 │   ├── options/                    # 密码管理主页面
 │   └── sidepanel/                  # 侧边栏快速填充
 ├── components/                     # 共享 Vue 组件
+│   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
 │   ├── BrandLogo.vue               # 钥匙主题品牌 Logo
 │   ├── DisclaimerInfo.vue          # 免责声明
+│   ├── EmailBackupDialog.vue       # 邮箱备份对话框
+│   ├── HelpDialog.vue              # 操作指引与常见问题
 │   ├── ImportDialog.vue            # Excel 导入对话框
 │   ├── MasterPasswordDialog.vue    # 主密码设置/验证
 │   ├── PasswordFormDialog.vue      # 密码表单编辑
 │   ├── PasswordVerifyDialog.vue    # 密码查看验证
+│   ├── QuickFillIcon.vue           # 快速填充图标
 │   ├── ValidityHoursSelect.vue     # 有效期选择器
 │   └── ValiditySettingDialog.vue   # 有效期设置对话框
 ├── composables/                    # Vue 组合函数
@@ -249,6 +281,7 @@ graph TB
 │   ├── sessionManager.ts           # 全局会话检查单例
 │   ├── sessionManager-storage.ts   # 会话持久化与加解密转换
 │   ├── excel.ts                    # Excel 导入导出
+│   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── tagUtils.ts                 # 标签颜色生成
 │   ├── logger.ts                   # 环境感知日志
 │   ├── env.ts                      # isDev / isProd 常量
@@ -262,6 +295,7 @@ graph TB
 ├── scripts/generate-icons.mjs      # SVG → 多尺寸 PNG 生成脚本
 ├── styles/dialog-full-width.css    # 共享对话框全屏样式
 ├── types/global.d.ts               # 全局类型补充
+├── .github/workflows/static.yml    # GitHub Pages 部署
 ├── wxt.config.ts                   # WXT 配置
 └── package.json
 ```
@@ -270,18 +304,21 @@ graph TB
 
 ### 常用命令
 
-| 命令                       | 说明                                                                                           |
-| -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `npm run dev`              | 开发模式（HMR 热更新）                                                                         |
-| `npm run build`            | 生产构建（先执行 `prebuild` → 自动生成图标 PNG）                                               |
-| `npm run postbuild`        | 构建后产出 zip 包                                                                              |
-| `npm run icons:build`      | 将 [assets/icons/icon.svg](./assets/icons/icon.svg) 渲染为 `public/icon/{16,32,48,96,128}.png` |
-| `npm run typecheck`        | TypeScript 类型检查                                                                            |
-| `npm run lint` / `:fix`    | ESLint 检查 / 自动修复                                                                         |
-| `npm run lint:style(:fix)` | Stylelint 检查 / 自动修复                                                                      |
-| `npm run format(:check)`   | Prettier 格式化 / 检查                                                                         |
-| `npm run lint:all`         | 运行所有检查                                                                                   |
-| `npm run fix:all`          | 运行所有自动修复                                                                               |
+| 命令                                    | 说明                                                                                                        |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `npm run dev`                           | 开发模式（HMR 热更新）                                                                                      |
+| `npm run build`                         | 生产构建（先执行 `prebuild` → 自动生成图标 PNG）                                                            |
+| `npm run postbuild`                     | 构建后产出 zip 包                                                                                           |
+| `npm run icons:build`                   | 将 [assets/icons/icon.svg](./assets/icons/icon.svg) 渲染为 `public/icon/{16,32,48,96,128}.png`              |
+| `npm run analyze`                       | 构建并可视化分析打包体积（输出 `dist/stats.html`）                                                          |
+| `npm run auto-merge`                    | 将 main 分支自动合并到其他所有本地分支（见 [scripts/README-auto-merge.md](./scripts/README-auto-merge.md)） |
+| `npm run dev:firefox` / `build:firefox` | Firefox 浏览器支持                                                                                          |
+| `npm run typecheck`                     | TypeScript 类型检查                                                                                         |
+| `npm run lint` / `:fix`                 | ESLint 检查 / 自动修复                                                                                      |
+| `npm run lint:style(:fix)`              | Stylelint 检查 / 自动修复                                                                                   |
+| `npm run format(:check)`                | Prettier 格式化 / 检查                                                                                      |
+| `npm run lint:all`                      | 运行所有检查                                                                                                |
+| `npm run fix:all`                       | 运行所有自动修复                                                                                            |
 
 ### 图标工作流
 
@@ -295,13 +332,16 @@ graph TB
 
 ### Chrome 权限说明
 
-| 权限         | 用途                           |
-| ------------ | ------------------------------ |
-| `storage`    | 本地存储密码数据和配置         |
-| `activeTab`  | 获取当前标签页信息用于域名匹配 |
-| `scripting`  | 动态注入 Content Script        |
-| `sidePanel`  | 侧边栏快速填充功能             |
-| `<all_urls>` | Content Script 匹配所有页面    |
+| 权限            | 用途                           |
+| --------------- | ------------------------------ |
+| `storage`       | 本地存储密码数据和配置         |
+| `activeTab`     | 获取当前标签页信息用于域名匹配 |
+| `scripting`     | 动态注入 Content Script        |
+| `sidePanel`     | 侧边栏快速填充功能             |
+| `alarms`        | 定时自动备份提醒               |
+| `downloads`     | Excel 文件导出下载             |
+| `notifications` | 桌面通知（自动保存/备份提醒）  |
+| `<all_urls>`    | Content Script 匹配所有页面    |
 
 ## 安全提醒
 
@@ -348,6 +388,18 @@ A：当域名为 `localhost` 或 `127.0.0.1` 时，侧边栏默认展示所有�
 **Q：侧边栏会自动点击登录按钮吗？**
 
 A：仅在悬浮按钮设置面板中开启「自动触发登录」时，且账号密码字段均已成功填充，FormDetector 才会自动点击表单内的登录按钮。默认关闭。
+
+**Q：如何开启自动保存登录密码？**
+
+A：在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出 Chrome 风格的确认卡片，由用户选择是否保存。
+
+**Q：密码框没有显示/隐藏切换按钮？**
+
+A：悬浮按钮设置面板中默认启用「密码可见性切换」。如页面已自带切换按钮（如眼睛图标），插件会智能检测并跳过注入，避免重复。
+
+**Q：如何备份密码到邮箱？**
+
+A：在密码管理页点击「备份到邮箱」按钮，配置目标邮箱地址后点击「立即备份」，插件会导出 Excel 并唤起邮件客户端。可开启「自动备份提醒」定时发送桌面通知提醒手动备份。
 
 ## 许可证
 
