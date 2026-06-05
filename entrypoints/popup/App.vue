@@ -54,6 +54,7 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import { StorageUtils } from '@/utils/storage';
 import { MessageType } from '@/utils/types';
+import { logger } from '@/utils/logger';
 
 /** 联系邮箱 */
 const contactEmail = ref('924902324@qq.com');
@@ -76,7 +77,7 @@ onMounted(async () => {
   //     passwordCount.value = 0;
   //   }
   // } catch (error) {
-  //   console.error('获取密码数量失败:', error);
+  //   logger.error('获取密码数量失败:', error);
   //   showPasswordCount.value = false;
   //   passwordCount.value = 0;
   // }
@@ -90,7 +91,7 @@ const openOptions = async () => {
   try {
     await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_PAGE });
   } catch (error) {
-    console.error('打开选项页面失败:', error);
+    logger.error('打开选项页面失败:', error);
   } finally {
     // 无论成功失败都关闭 popup
     window.close();
@@ -117,7 +118,7 @@ const openSidePanel = async () => {
         await chrome.sidePanel.open({ tabId: tab.id });
         window.close();
       } catch (sidePanelError) {
-        console.error('直接打开侧边栏失败:', sidePanelError);
+        logger.error('直接打开侧边栏失败:', sidePanelError);
 
         // 如果直接调用失败，尝试通过background脚本发送普通消息
         try {
@@ -127,16 +128,16 @@ const openSidePanel = async () => {
           });
 
           if (response.success) {
-            console.log('通过background脚本成功打开侧边栏');
+            logger.info('通过background脚本成功打开侧边栏');
             window.close();
           } else {
-            console.error('通过background脚本打开侧边栏失败:', response.error);
+            logger.error('通过background脚本打开侧边栏失败:', response.error);
 
             // 如果仍然失败，提示用户手动打开
             alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
           }
         } catch (bgError) {
-          console.error('通过background脚本打开侧边栏也失败:', bgError);
+          logger.error('通过background脚本打开侧边栏也失败:', bgError);
 
           // 如果仍然失败，提示用户手动打开
           alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
@@ -144,7 +145,7 @@ const openSidePanel = async () => {
       }
     }
   } catch (error) {
-    console.error('打开侧边栏失败:', error);
+    logger.error('打开侧边栏失败:', error);
   }
 };
 

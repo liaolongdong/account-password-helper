@@ -1,5 +1,6 @@
 // import * as XLSX from 'xlsx';
 import type { PasswordEntry } from '@/utils/types';
+import { logger } from '@/utils/logger';
 
 export class ExcelUtils {
   /**
@@ -40,7 +41,7 @@ export class ExcelUtils {
       // 导出文件
       XLSX.writeFile(wb, filename);
     } catch (error) {
-      console.error('导出Excel失败:', error);
+      logger.error('导出Excel失败:', error);
       throw new Error('导出Excel失败');
     }
   }
@@ -121,7 +122,7 @@ export class ExcelUtils {
 
             resolve(passwords);
           } catch (error) {
-            console.error('解析Excel文件失败:', error);
+            logger.error('解析Excel文件失败:', error);
             reject(new Error('Excel文件格式不正确'));
           }
         };
@@ -132,7 +133,7 @@ export class ExcelUtils {
 
         reader.readAsBinaryString(file);
       } catch (error) {
-        console.error('导入Excel失败:', error);
+        logger.error('导入Excel失败:', error);
         reject(new Error('导入Excel失败'));
       }
     });
@@ -173,7 +174,7 @@ export class ExcelUtils {
       XLSX.utils.book_append_sheet(wb, ws, '密码模板');
       XLSX.writeFile(wb, 'password_template.xlsx');
     } catch (error) {
-      console.error('下载模板失败:', error);
+      logger.error('下载模板失败:', error);
       throw new Error('下载模板失败');
     }
   }

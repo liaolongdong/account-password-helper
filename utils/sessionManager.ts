@@ -1,4 +1,5 @@
 import { StorageUtils } from '@/utils/storage';
+import { logger } from '@/utils/logger';
 
 /**
  * 全局会话管理器
@@ -39,7 +40,7 @@ class SessionManager {
           this.handleSessionExpired();
         }
       } catch (error) {
-        console.error('SessionManager: 会话检查失败:', error);
+        logger.error('SessionManager: 会话检查失败:', error);
       }
     }, 60000); // 每分钟检查一次
   }

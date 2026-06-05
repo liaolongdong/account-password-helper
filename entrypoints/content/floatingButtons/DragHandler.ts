@@ -3,6 +3,7 @@
  */
 
 import { AnimationController } from '@/entrypoints/content/floatingButtons/AnimationController';
+import { logger } from '@/utils/logger';
 
 export interface DragState {
   isDragging: boolean;
@@ -274,7 +275,7 @@ export class DragHandler {
 
     // 如果拖拽距离太小，视为点击而非拖拽
     if (dragDistance < this.dragThreshold) {
-      console.log('FloatingButtonManager: 拖拽距离过小，视为点击');
+      logger.debug('FloatingButtonManager: 拖拽距离过小，视为点击');
       // 不执行吸附动画，直接展开按钮组
       this.animationController.resetDragPosition();
       await this.animationController.expand();

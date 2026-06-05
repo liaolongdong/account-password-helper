@@ -103,6 +103,7 @@ import type { FormRules, FormInstance } from 'element-plus';
 import type { PasswordEntry } from '../utils/types';
 import { StorageUtils } from '../utils/storage';
 import { parseTags, stringifyTags } from '../utils/tagUtils';
+import { logger } from '../utils/logger';
 
 interface Props {
   modelValue: boolean;
@@ -258,7 +259,7 @@ const handleSave = async () => {
     emit('saved');
     dialogVisible.value = false;
   } catch (error) {
-    console.error('保存密码失败:', error);
+    logger.error('保存密码失败:', error);
     ElMessage.error('保存失败');
   } finally {
     loading.value = false;

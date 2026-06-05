@@ -93,6 +93,7 @@
 import { ref, computed, watch, nextTick } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
 import { StorageUtils } from '../utils/storage';
+import { logger } from '../utils/logger';
 
 interface Props {
   modelValue: boolean;
@@ -226,7 +227,7 @@ const handleSubmit = async () => {
       }
     }
   } catch (error) {
-    console.error('密码操作失败:', error);
+    logger.error('密码操作失败:', error);
     errorMessage.value = '操作失败，请重试';
     form.value.password = '';
     form.value.confirmPassword = '';

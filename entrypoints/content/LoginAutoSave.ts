@@ -66,8 +66,6 @@ export class LoginAutoSave {
     // 监听 storage 变化，同步更新启用状态
     chrome.storage.onChanged.addListener(this.handleStorageChange);
 
-    console.warn('[APH] LoginAutoSave 事件监听器已注册');
-
     // 异步加载配置（不影响事件监听器注册）
     try {
       const config = await StorageUtils.getAutoSaveConfig();
@@ -79,14 +77,6 @@ export class LoginAutoSave {
       this.isEnabled = false;
       this.configLoaded = true;
     }
-    console.warn(
-      '[APH] LoginAutoSave 初始化完成, isEnabled:',
-      this.isEnabled,
-      'domainPatterns:',
-      this.domainPatterns.length,
-      'configLoaded:',
-      this.configLoaded,
-    );
 
     // 检查是否有跨页面导航遗留的待确认凭证（传统表单提交场景）
     this.checkPendingCredentials();
@@ -103,17 +93,10 @@ export class LoginAutoSave {
         if (Array.isArray(newConfig.domainPatterns)) {
           this.domainPatterns = newConfig.domainPatterns;
         }
-        console.warn(
-          '[APH] handleStorageChange 同步配置: isEnabled:',
-          this.isEnabled,
-          'domainPatterns:',
-          this.domainPatterns.length,
-        );
       } else {
         // newValue 为空（存储被清除），回退到安全状态：禁用自动保存
         this.isEnabled = false;
         this.domainPatterns = [];
-        console.warn('[APH] handleStorageChange: 配置被清除，已禁用自动保存');
       }
     }
   };
@@ -129,25 +112,21 @@ export class LoginAutoSave {
 
     const form = e.target as HTMLFormElement;
     if (!form || form.tagName !== 'FORM') {
-      console.warn('[APH] form submit: 非 FORM 元素, tag=', (e.target as HTMLElement)?.tagName);
       return;
     }
 
     // 检查 form 内是否有密码字段
     const passwordField = form.querySelector('input[type="password"]') as HTMLInputElement | null;
     if (!passwordField || !passwordField.value) {
-      console.warn('[APH] form submit: 未找到密码字段或密码为空');
       return;
     }
 
     const password = passwordField.value;
     const username = this.findUsernameInForm(form);
     if (!username) {
-      console.warn('[APH] form submit: 未找到用户名');
       return;
     }
 
-    console.warn('[APH] form submit 捕获凭证:', username, '***');
     this.onCredentialsCaptured(username, password);
   };
 
@@ -173,7 +152,6 @@ export class LoginAutoSave {
     );
     const isLoginButton = LOGIN_BUTTON_KEYWORDS.some(keyword => buttonText.includes(normalizeButtonText(keyword)));
     if (!isLoginButton) {
-      console.warn('[APH] 按钮点击: 非登录按钮, text="' + buttonText + '"');
       return;
     }
 
@@ -183,18 +161,15 @@ export class LoginAutoSave {
       ? (form.querySelector('input[type="password"]') as HTMLInputElement | null)
       : (document.querySelector('input[type="password"]') as HTMLInputElement | null);
     if (!passwordField || !passwordField.value) {
-      console.warn('[APH] 按钮点击: 未找到密码字段或密码为空');
       return;
     }
 
     const password = passwordField.value;
     const username = form ? this.findUsernameInForm(form) : this.findUsernameInPage();
     if (!username) {
-      console.warn('[APH] 按钮点击: 未找到用户名');
       return;
     }
 
-    console.warn('[APH] 按钮点击 捕获凭证:', username, '***');
     this.onCredentialsCaptured(username, password);
   };
 
@@ -223,11 +198,9 @@ export class LoginAutoSave {
     const password = passwordField.value;
     const username = form ? this.findUsernameInForm(form) : this.findUsernameInPage();
     if (!username) {
-      console.warn('[APH] Enter 键: 未找到用户名');
       return;
     }
 
-    console.warn('[APH] Enter 键 捕获凭证:', username, '***');
     this.onCredentialsCaptured(username, password);
   };
 
@@ -257,23 +230,19 @@ export class LoginAutoSave {
   private onCredentialsCaptured(username: string, password: string): void {
     // 配置未加载完成时跳过，防止竞态条件导致空规则匹配所有域名
     if (!this.configLoaded) {
-      console.warn('[APH] 配置尚未加载完成，跳过弹窗');
       return;
     }
 
     // 域名匹配检查：配置的规则列表非空时，仅对匹配的域名弹窗
     if (!this.isDomainMatch()) {
-      console.warn('[APH] 域名不匹配配置规则，跳过弹窗, hostname:', location.hostname);
       return;
     }
 
     // 防止同一页面重复弹窗
     if (this.promptShown) {
-      console.warn('[APH] 弹窗已显示，跳过重复弹窗');
       return;
     }
     this.promptShown = true;
-    console.warn('[APH] 准备显示保存确认弹窗:', username);
 
     // 存入 sessionStorage，支持传统页面导航后在新页面恢复
     const pending: PendingCredentials = {
@@ -350,9 +319,8 @@ export class LoginAutoSave {
         () => this.handleSave(pending),
         () => this.handleDismiss(),
       );
-      console.warn('[APH] 弹窗已显示');
     } catch (err) {
-      console.warn('[APH] 弹窗显示失败:', err);
+      logger.warn('[APH] 弹窗显示失败:', err);
       // 弹窗显示失败时回退到通知提示
       showNativeNotification(`发现账号密码，但弹窗显示失败，请手动在密码管理页添加`, 'warning');
     }

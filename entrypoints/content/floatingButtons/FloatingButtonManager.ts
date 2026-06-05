@@ -4,6 +4,7 @@
  */
 
 import { StorageUtils } from '@/utils/storage';
+import { logger } from '@/utils/logger';
 import { MessageType } from '@/utils/types';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { floatingButtonStyles, settingsPanelStyles } from '@/entrypoints/content/floatingButtons/styles';
@@ -79,9 +80,9 @@ export class FloatingButtonManager {
       this.setupStorageListener();
 
       this.isInitialized = true;
-      console.log('FloatingButtonManager: 初始化完成');
+      logger.debug('FloatingButtonManager: 初始化完成');
     } catch (error) {
-      console.error('FloatingButtonManager: 初始化失败:', error);
+      logger.error('FloatingButtonManager: 初始化失败:', error);
     }
   }
 
@@ -192,7 +193,7 @@ export class FloatingButtonManager {
       config: this.config,
       onConfigChange: this.handleConfigChange.bind(this),
       onClose: () => {
-        console.log('FloatingButtonManager: 设置面板关闭');
+        logger.debug('FloatingButtonManager: 设置面板关闭');
       },
     });
   }
@@ -246,7 +247,7 @@ export class FloatingButtonManager {
         btn.classList.remove('loading');
       }
     } catch (error) {
-      console.error('FloatingButtonManager: 切换侧边栏失败:', error);
+      logger.error('FloatingButtonManager: 切换侧边栏失败:', error);
       const btn = this.buttonGroup?.querySelector('[data-action="toggle-sidepanel"]');
       if (btn) {
         btn.classList.remove('loading');
@@ -263,13 +264,13 @@ export class FloatingButtonManager {
   private async handleOptionsClick(): Promise<void> {
     // 检查是否正在进行拖拽或刚完成拖拽，如果是则不触发点击
     if (this.dragHandler?.isDragging() || this.dragHandler?.hasDraggedRecently()) {
-      console.log('FloatingButtonManager: 正在拖拽中或刚完成拖拽，忽略点击事件');
+      logger.debug('FloatingButtonManager: 正在拖拽中或刚完成拖拽，忽略点击事件');
       return;
     }
 
     // 客户端去重：正在处理中则忽略后续点击
     if (this.isHandlingOptionsClick) {
-      console.log('FloatingButtonManager: 密码管理按钮点击处理中，忽略重复点击');
+      logger.debug('FloatingButtonManager: 密码管理按钮点击处理中，忽略重复点击');
       return;
     }
     this.isHandlingOptionsClick = true;
@@ -286,7 +287,7 @@ export class FloatingButtonManager {
         type: MessageType.OPEN_OPTIONS_PAGE,
       });
     } catch (error) {
-      console.error('FloatingButtonManager: 打开密码管理页面失败:', error);
+      logger.error('FloatingButtonManager: 打开密码管理页面失败:', error);
     } finally {
       btn?.classList.remove('loading');
       this.isHandlingOptionsClick = false;
@@ -315,9 +316,9 @@ export class FloatingButtonManager {
         offsetY,
       });
 
-      console.log('FloatingButtonManager: 位置已保存', { position, offsetY });
+      logger.debug('FloatingButtonManager: 位置已保存', { position, offsetY });
     } catch (error) {
-      console.error('FloatingButtonManager: 保存位置失败:', error);
+      logger.error('FloatingButtonManager: 保存位置失败:', error);
     }
   }
 
@@ -335,9 +336,9 @@ export class FloatingButtonManager {
       // 保存到存储
       await StorageUtils.saveFloatingButtonConfig(config);
 
-      console.log('FloatingButtonManager: 配置已保存', config);
+      logger.debug('FloatingButtonManager: 配置已保存', config);
     } catch (error) {
-      console.error('FloatingButtonManager: 保存配置失败:', error);
+      logger.error('FloatingButtonManager: 保存配置失败:', error);
     }
   }
 
@@ -482,7 +483,7 @@ export class FloatingButtonManager {
     this.settingsPanel = null;
 
     this.isInitialized = false;
-    console.log('FloatingButtonManager: 已销毁');
+    logger.debug('FloatingButtonManager: 已销毁');
   }
 }
 

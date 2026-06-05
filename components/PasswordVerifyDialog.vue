@@ -103,6 +103,7 @@ import { ref, computed, watch, nextTick } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
 import { StorageUtils } from '../utils/storage';
 import { isDev } from '../utils/env';
+import { logger } from '../utils/logger';
 
 interface Props {
   modelValue: boolean;
@@ -194,7 +195,7 @@ const handleVerify = async () => {
       });
     }
   } catch (error) {
-    console.error('密码验证过程出错:', error);
+    logger.error('密码验证过程出错:', error);
     errorMessage.value = '验证过程出现错误，请重试';
     form.value.password = '';
   } finally {
@@ -219,7 +220,7 @@ const resetMasterPassword = async () => {
     window.location.reload();
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('重置失败:', error);
+      logger.error('重置失败:', error);
       ElMessage.error('重置失败');
     }
   }
@@ -243,7 +244,7 @@ const debugPassword = async () => {
       confirmButtonText: '关闭',
     });
   } catch (error) {
-    console.error('获取调试信息失败:', error);
+    logger.error('获取调试信息失败:', error);
     ElMessage.error('获取调试信息失败');
   }
 };

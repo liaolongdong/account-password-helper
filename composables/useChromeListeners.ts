@@ -1,4 +1,5 @@
 import { onUnmounted } from 'vue';
+import { logger } from '@/utils/logger';
 
 type StorageChangeHandler = (changes: { [key: string]: chrome.storage.StorageChange }) => void;
 type MessageHandler = (
@@ -88,7 +89,7 @@ export function useChromeListeners() {
       try {
         listener.remove();
       } catch (error) {
-        console.warn('清理监听器失败:', error);
+        logger.warn('清理监听器失败:', error);
       }
     });
     listeners.length = 0;
