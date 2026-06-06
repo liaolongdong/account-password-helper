@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="modelValue"
     title="自动保存设置"
-    width="600px"
+    width="650px"
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >
@@ -28,6 +28,31 @@
               >
                 规则列表为空时匹配所有域名；配置后仅匹配的域名才会提醒是否需要自动保存
               </el-text>
+            </div>
+
+            <div class="add-pattern-form">
+              <el-input
+                v-model="newPattern.pattern"
+                :placeholder="newPattern.isRegex ? '输入正则表达式，如 .*\\.example\\.com' : '输入域名，如 github.com'"
+                clearable
+                size="default"
+                @keyup.enter="addPattern"
+              />
+              <el-checkbox
+                v-model="newPattern.isRegex"
+                size="default"
+              >
+                正则
+              </el-checkbox>
+              <el-button
+                type="primary"
+                size="default"
+                :icon="Plus"
+                :disabled="!newPattern.pattern.trim()"
+                @click="addPattern"
+              >
+                添加
+              </el-button>
             </div>
 
             <el-table
@@ -80,31 +105,6 @@
                 </template>
               </el-table-column>
             </el-table>
-
-            <div class="add-pattern-form">
-              <el-input
-                v-model="newPattern.pattern"
-                :placeholder="newPattern.isRegex ? '输入正则表达式，如 .*\\.example\\.com' : '输入域名，如 github.com'"
-                clearable
-                size="default"
-                @keyup.enter="addPattern"
-              />
-              <el-checkbox
-                v-model="newPattern.isRegex"
-                size="default"
-              >
-                正则
-              </el-checkbox>
-              <el-button
-                type="primary"
-                size="default"
-                :icon="Plus"
-                :disabled="!newPattern.pattern.trim()"
-                @click="addPattern"
-              >
-                添加
-              </el-button>
-            </div>
           </div>
         </el-form-item>
 
@@ -352,7 +352,7 @@ const handleSave = async (): Promise<void> => {
   display: flex;
   gap: 8px;
   align-items: center;
-  margin-top: 12px;
+  margin-bottom: 10px;
 }
 
 .add-pattern-form .el-input {
