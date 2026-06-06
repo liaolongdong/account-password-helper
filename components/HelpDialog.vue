@@ -12,9 +12,9 @@
         <h4>操作指引</h4>
         <ol>
           <li>首次使用：请先设置主密码（至少 8 位，包含字母、数字和特殊字符）。</li>
-          <li>验证主密码后，侧边栏即可搜索已保存的账号、标签与备注，并快速填充。</li>
-          <li>点击列表条目一键填充账号与密码；可在「设置」中开启「自动触发登录」。</li>
-          <li>在密码管理页支持 Excel 导入导出（.xlsx），以及多标签、颜色稳定的标签体系。</li>
+          <li>验证主密码后，侧边栏即可搜索已保存的账号、标签、备注与网址，并快速填充。</li>
+          <li>点击列表条目一键填充账号与密码；可在悬浮按钮「设置」（齿轮图标）中开启「自动触发登录」。</li>
+          <li>在密码管理页支持 Excel 导入导出（.xlsx/.xls），以及多标签、颜色稳定的标签体系。</li>
           <li>快捷键：<code>Ctrl/Cmd + Shift + P</code> 打开密码管理页面。</li>
           <li>本地开发友好：当域名为 <code>localhost</code> 或 <code>127.0.0.1</code> 时，侧边栏默认展示全部密码。</li>
         </ol>
@@ -28,6 +28,18 @@
           <li><b>导入 Excel 报错？</b> 请使用「密码管理」页提供的模板下载，确保必填列完整。</li>
           <li><b>悬浮按钮未显示？</b> 在本弹窗的「设置」（齿轮图标）中启用「显示悬浮按钮」。</li>
           <li><b>数据安全？</b> 全部数据采用 PBKDF2 + AES-256-CBC 本地加密存储，零网络传输。</li>
+          <li>
+            <b>如何开启自动保存？</b>
+            密码管理页点击「自动保存设置」，开启后登录时自动弹窗确认是否保存；支持域名白名单/黑名单匹配，已保存的凭证不会重复弹窗。
+          </li>
+          <li>
+            <b>密码框没有显示/隐藏按钮？</b>
+            悬浮按钮「设置」中默认启用「密码可见性切换」；若页面自带切换按钮则不会重复注入。
+          </li>
+          <li>
+            <b>如何备份到邮箱？</b> 密码管理页点击「备份到邮箱」，配置目标邮箱后可一键导出 Excel
+            并唤起邮件客户端，也可开启定时提醒。
+          </li>
         </ul>
       </section>
       <section class="help-section help-link-section">
@@ -97,8 +109,8 @@ const handleGoToOptions = () => {
 
 .help-section ol,
 .help-section ul {
-  margin: 0;
   padding-left: 20px;
+  margin: 0;
 }
 
 .help-section li {
@@ -107,10 +119,10 @@ const handleGoToOptions = () => {
 
 .help-section code {
   padding: 1px 6px;
-  background: #f3f4f6;
-  border-radius: 3px;
   font-size: 12px;
   color: #d6336c;
+  background: #f3f4f6;
+  border-radius: 3px;
 }
 
 .help-link-section {
@@ -119,14 +131,14 @@ const handleGoToOptions = () => {
 
 .help-link-banner {
   display: flex;
-  align-items: center;
   gap: 8px;
+  align-items: center;
   padding: 12px 16px;
+  font-size: 13px;
+  color: #1e40af;
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   border-radius: 6px;
-  font-size: 13px;
-  color: #1e40af;
 }
 
 .help-link-icon {
@@ -134,9 +146,9 @@ const handleGoToOptions = () => {
 }
 
 .help-link {
+  font-weight: 500;
   color: #2563eb;
   text-decoration: none;
-  font-weight: 500;
   transition: color 0.2s;
 }
 
