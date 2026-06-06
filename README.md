@@ -22,7 +22,7 @@
 - **加密安全**：PBKDF2（10000 次迭代）派生 256-bit 密钥 + AES-256-CBC 随机 IV；主密码 MD5 + 盐值存储；敏感字段（username/password/url/remark）加密。
 - **智能识别**：MutationObserver 动态检测登录表单，支持用户名+密码、手机号+验证码等多种场景；LoginFormAnalyzer 通过表单/容器/弹窗/按钮多维启发式判断。
 - **一键填充**：侧边栏点击即填充，三重策略（Native Setter / execCommand / 模拟输入）兼容 React/Vue 等主流框架；可选自动触发登录。
-- **自动保存**：Chrome 式登录凭证捕获，支持登录表单提交、按钮点击、回车提交三种场景；域名/正则白名单精准匹配；跨页面导航凭证不丢失。
+- **自动保存**：Chrome 式登录凭证捕获，支持登录表单提交、按钮点击、回车提交三种场景；域名白名单/黑名单精准匹配；凭证指纹智能去重避免重复弹窗；「不再提示」一键屏蔽域名；跨页面导航凭证不丢失。
 - **数据管理**：Excel 导入导出（.xlsx），中英文列名映射；标签多选 + 自定义 + 颜色一致；多字段搜索与排序；批量删除。
 - **邮箱备份**：导出 Excel 并唤起邮件客户端；支持定时自动备份提醒（chrome.alarms），间隔可选每天/3天/每周/两周/每月。
 - **密码可见性切换**：自动为页面密码框注入显示/隐藏按钮，智能检测网站自带切换按钮避免重复注入。
@@ -61,6 +61,9 @@
 - 域名匹配规则支持精确域名和正则表达式两种模式，规则为空时匹配所有域名（见 [AutoSaveSettingDialog.vue](./components/AutoSaveSettingDialog.vue)）。
 - sessionStorage 暂存凭证，支持传统表单提交导致的跨页面导航场景。
 - 保存成功后发送桌面通知，并使密码缓存失效以确保下次加载获取最新数据。
+- **三选项交互**：保存确认弹窗提供「保存」、「暂不保存」和「不再提示」三个操作选项。
+- **黑名单屏蔽**：保存弹窗中点击「不再提示」可将当前域名加入屏蔽列表（见 [SavePasswordPrompt.ts](./entrypoints/content/SavePasswordPrompt.ts)）；该域名下所有登录均不再弹窗。可在设置对话框的「已屏蔽的域名」中删除以恢复提示。
+- **智能防重复**：基于凭证指纹（用户名 + 密码长度）的去重策略（见 [LoginAutoSave.ts](./entrypoints/content/LoginAutoSave.ts)）：已保存的凭证永不重复弹窗；相同凭证 60 秒冷却期内不重复弹窗（避免重试登录时反复打扰）；不同凭证或冷却期过后重新弹窗。
 
 ### 5. 邮箱备份
 
@@ -91,7 +94,7 @@
 | ----------- | --------------------------------------------------------------------- | ---------------------------------------- |
 | 扩展框架    | [WXT](https://wxt.dev/)                                               | v0.20，基于 Manifest V3                  |
 | 前端框架    | [Vue 3](https://vuejs.org/) + TypeScript                              | v3.5，Composition API + `<script setup>` |
-| UI 组件库   | [Element Plus](https://element-plus.org/)                             | v2.13，全局注册                          |
+| UI 组件库   | [Element Plus](https://element-plus.org/)                             | v2.13，按需引入（unplugin-auto-import）  |
 | 加密        | [crypto-js](https://github.com/brix/crypto-js)                        | v4.2，PBKDF2 + AES-256-CBC + MD5         |
 | 表格处理    | [xlsx](https://github.com/SheetJS/sheetjs)                            | v0.18，Excel 导入导出                    |
 | 构建工具    | Vite                                                                  | WXT 内置，HMR 热更新                     |
@@ -311,6 +314,7 @@ graph TB
 | `npm run postbuild`                     | 构建后产出 zip 包                                                                                           |
 | `npm run icons:build`                   | 将 [assets/icons/icon.svg](./assets/icons/icon.svg) 渲染为 `public/icon/{16,32,48,96,128}.png`              |
 | `npm run analyze`                       | 构建并可视化分析打包体积（输出 `dist/stats.html`）                                                          |
+| `npm run analyze:firefox`               | Firefox 构建并可视化分析打包体积（输出 `dist/stats.html`）                                                  |
 | `npm run auto-merge`                    | 将 main 分支自动合并到其他所有本地分支（见 [scripts/README-auto-merge.md](./scripts/README-auto-merge.md)） |
 | `npm run dev:firefox` / `build:firefox` | Firefox 浏览器支持                                                                                          |
 | `npm run typecheck`                     | TypeScript 类型检查                                                                                         |
@@ -391,7 +395,17 @@ A：仅在悬浮按钮设置面板中开启「自动触发登录」时，且账�
 
 **Q：如何开启自动保存登录密码？**
 
-A：在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出 Chrome 风格的确认卡片，由用户选择是否保存。
+A：在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，提供三个选项：
+
+- 「保存」：将凭证写入密码列表
+- 「暂不保存」：本次跳过，60 秒内相同凭证不会重复弹窗
+- 「不再提示」：将该域名加入屏蔽黑名单，后续该域名下所有登录均不再弹窗
+
+屏蔽的域名可在设置对话框的「已屏蔽的域名」列表中删除以恢复提示。插件内置智能防重复机制：已保存的凭证不会重复弹窗，点击「暂不保存」后 60 秒内相同凭证也不会重复弹窗。
+
+**Q：为什么有时登录后没有弹出保存提示？**
+
+A：可能原因包括：①该域名已被加入屏蔽黑名单（检查自动保存设置中的「已屏蔽的域名」）；②相同凭证刚弹过提示且在 60 秒冷却期内；③该凭证已成功保存过；④域名不匹配配置的白名单规则。
 
 **Q：密码框没有显示/隐藏切换按钮？**
 

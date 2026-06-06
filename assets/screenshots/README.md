@@ -19,9 +19,8 @@
 | `03-excel-import.png`     | Excel 批量导入   | 导入对话框或导入成功后的列表           |
 | `04-excel-export.png`     | Excel 批量导出   | 导出成功后的文件下载场景               |
 | `05-add-account.png`      | 添加新账号       | 密码表单编辑对话框                     |
-| `05-floating-button.png`  | 悬浮按钮快捷入口 | 悬浮按钮在登录页上的展示效果           |
 | `06-sidepanel-fill.png`   | 侧边栏一键填充   | 登录页 + 侧边栏匹配账号的截图          |
-| `07-floating-button.png`  | 悬浮按钮设置面板 | 悬浮按钮的设置面板展示效果             |
+| `07-floating-button.png`  | 悬浮按钮快捷入口 | 悬浮按钮在登录页上的展示效果           |
 | `08-session-validity.png` | 灵活的会话有效期 | 会话有效期设置对话框                   |
 
 ## 建议

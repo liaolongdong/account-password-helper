@@ -34,7 +34,7 @@ Account Password Helper 是一款基于 Chrome 扩展的账号密码管理工具
    npm run dev
    ```
 
-4. 在 Chrome 中加载 `dist` 目录生成的扩展。
+4. 在 Chrome 中加载 `.output/chrome-mv3/` 目录生成的扩展。
 
 ### Windows 用户提示
 
