@@ -11,6 +11,9 @@ const PENDING_SAVE_KEY = '__aph_pending_save__';
 /** 待确认凭证最大有效期（30 秒），超过则丢弃 */
 const PENDING_MAX_AGE_MS = 30_000;
 
+/** 「暂不保存」后的冷却期（60 秒），冷却期内相同凭证不重复弹窗 */
+const DISMISS_COOLDOWN_MS = 60_000;
+
 /**
  * 存储到 sessionStorage 的待确认凭证结构
  */
@@ -42,8 +45,14 @@ export class LoginAutoSave {
   private configLoaded = false;
   /** 域名匹配规则列表，为空时匹配所有域名 */
   private domainPatterns: DomainPattern[] = [];
-  /** 当前页面是否已显示过弹窗（防止重复弹窗） */
-  private promptShown = false;
+  /** 已屏蔽的域名列表（用户点击「不再提示」后加入） */
+  private excludedDomains: string[] = [];
+  /** 上次弹窗对应的凭证指纹（用于智能去重） */
+  private lastPromptedFingerprint = '';
+  /** 上次弹窗的时间戳 */
+  private lastPromptTime = 0;
+  /** 上次弹窗的凭证是否已被用户确认保存 */
+  private lastPromptSaved = false;
 
   constructor() {
     this.init();
@@ -71,6 +80,7 @@ export class LoginAutoSave {
       const config = await StorageUtils.getAutoSaveConfig();
       this.isEnabled = config.enabled;
       this.domainPatterns = config.domainPatterns;
+      this.excludedDomains = config.excludedDomains;
       this.configLoaded = true;
     } catch {
       // 配置加载失败时禁用自动保存，避免空 domainPatterns 匹配所有域名
@@ -93,10 +103,14 @@ export class LoginAutoSave {
         if (Array.isArray(newConfig.domainPatterns)) {
           this.domainPatterns = newConfig.domainPatterns;
         }
+        if (Array.isArray(newConfig.excludedDomains)) {
+          this.excludedDomains = newConfig.excludedDomains;
+        }
       } else {
         // newValue 为空（存储被清除），回退到安全状态：禁用自动保存
         this.isEnabled = false;
         this.domainPatterns = [];
+        this.excludedDomains = [];
       }
     }
   };
@@ -207,15 +221,18 @@ export class LoginAutoSave {
   // ── 域名匹配 ──
 
   /**
-   * 检查当前页面域名是否匹配自动保存规则
-   * 规则列表为空时匹配所有域名
-   * @returns 是否匹配
+   * 检查当前页面域名是否匹配自动保存规则（含黑名单检查）
+   *
+   * 黑名单优先级最高：已屏蔽的域名直接跳过，不再弹窗。
+   * 域名匹配规则为空时匹配所有非黑名单域名。
+   *
+   * @returns 是否匹配（且未被屏蔽）
    */
   private isDomainMatch(): boolean {
-    if (this.domainPatterns.length === 0) return true;
     return StorageUtils.isDomainMatchForAutoSave(location.hostname, {
       enabled: this.isEnabled,
       domainPatterns: this.domainPatterns,
+      excludedDomains: this.excludedDomains,
     });
   }
 
@@ -238,11 +255,14 @@ export class LoginAutoSave {
       return;
     }
 
-    // 防止同一页面重复弹窗
-    if (this.promptShown) {
+    // 智能防重复：基于凭证指纹 + 冷却期的去重策略
+    const fingerprint = this.createCredentialFingerprint(username, password);
+    if (!this.shouldShowPrompt(fingerprint)) {
       return;
     }
-    this.promptShown = true;
+    this.lastPromptedFingerprint = fingerprint;
+    this.lastPromptTime = Date.now();
+    this.lastPromptSaved = false;
 
     // 存入 sessionStorage，支持传统页面导航后在新页面恢复
     const pending: PendingCredentials = {
@@ -293,10 +313,15 @@ export class LoginAutoSave {
         return;
       }
 
-      // 有效凭证，显示弹窗
-      if (!this.promptShown) {
-        this.promptShown = true;
+      // 有效凭证，通过智能去重检查后显示弹窗
+      const fingerprint = this.createCredentialFingerprint(pending.username, pending.password);
+      if (this.shouldShowPrompt(fingerprint)) {
+        this.lastPromptedFingerprint = fingerprint;
+        this.lastPromptTime = Date.now();
+        this.lastPromptSaved = false;
         this.showPrompt(pending);
+      } else {
+        sessionStorage.removeItem(PENDING_SAVE_KEY);
       }
     } catch {
       // 解析失败，清除脏数据
@@ -318,6 +343,7 @@ export class LoginAutoSave {
         { username: pending.username, password: pending.password, url: pending.url },
         () => this.handleSave(pending),
         () => this.handleDismiss(),
+        () => this.handleNeverAsk(pending),
       );
     } catch (err) {
       logger.warn('[APH] 弹窗显示失败:', err);
@@ -327,7 +353,11 @@ export class LoginAutoSave {
   }
 
   /**
-   * 用户确认保存：清除 sessionStorage → 发送到 background 保存 → 显示成功通知
+   * 用户确认保存：清除 sessionStorage → 发送到 background → 成功后标记已保存 → 显示通知
+   *
+   * 注意：lastPromptSaved 仅在保存成功后才标记为 true，
+   * 避免保存失败时规则 1 永久阻止该凭证再次弹窗。
+   *
    * @param pending 待保存的凭证
    */
   private async handleSave(pending: PendingCredentials): Promise<void> {
@@ -351,6 +381,7 @@ export class LoginAutoSave {
       });
 
       if (response?.success) {
+        this.lastPromptSaved = true;
         showNativeNotification('账号密码已保存', 'success');
       } else {
         showNativeNotification(`保存失败: ${response?.message || '未知原因'}`, 'warning');
@@ -366,10 +397,29 @@ export class LoginAutoSave {
   }
 
   /**
-   * 用户选择暂不保存：清除 sessionStorage 和弹窗
+   * 用户选择暂不保存：清除 sessionStorage 和弹窗，保留冷却期记录
    */
   private handleDismiss(): void {
+    // lastPromptSaved 保持 false，lastPromptTime 保留用于冷却期计算
     this.clearPending();
+  }
+
+  /**
+   * 用户选择「不再提示」：将当前域名加入屏蔽黑名单
+   *
+   * 加入黑名单后，该域名下所有登录行为均不再弹窗提示保存密码。
+   * 用户可在自动保存设置弹窗的「已屏蔽的域名」列表中移除域名以恢复提示。
+   *
+   * @param pending 当前凭证数据（用于提取域名）
+   */
+  private async handleNeverAsk(pending: PendingCredentials): Promise<void> {
+    this.clearPending();
+    try {
+      await StorageUtils.addExcludedDomain(pending.url);
+      showNativeNotification(`已不再提醒 ${pending.url}，可在自动保存设置中恢复`, 'info');
+    } catch {
+      showNativeNotification('操作失败，请重试', 'error');
+    }
   }
 
   /**
@@ -381,6 +431,52 @@ export class LoginAutoSave {
     } catch {
       // 忽略
     }
+  }
+
+  // ── 智能防重复工具方法 ──
+
+  /**
+   * 生成凭证指纹（不存储原始密码，仅用用户名 + 密码长度标识）
+   *
+   * 同一用户名 + 同长度密码视为同一组凭证，可有效识别「重试登录」场景，
+   * 避免相同凭证反复弹窗。不同密码长度变化会触发新弹窗。
+   *
+   * @param username 用户名
+   * @param password 密码
+   * @returns 凭证指纹字符串
+   */
+  private createCredentialFingerprint(username: string, password: string): string {
+    return `${username}::${password.length}`;
+  }
+
+  /**
+   * 智能判断是否应该显示保存弹窗
+   *
+   * 去重规则：
+   * 1. 已保存过的凭证 → 永不重复弹窗
+   * 2. 相同凭证 + 冷却期内 → 跳过（避免重试登录时反复弹窗）
+   * 3. 不同凭证 → 允许弹窗（用户换了账号，应给予保存机会）
+   * 4. 相同凭证 + 冷却期已过 → 允许弹窗（用户可能改变了主意）
+   *
+   * @param fingerprint 当前凭证指纹
+   * @returns 是否应该显示弹窗
+   */
+  private shouldShowPrompt(fingerprint: string): boolean {
+    const isSameCredential = fingerprint === this.lastPromptedFingerprint;
+
+    // 规则 1：已保存过的凭证不再弹窗
+    if (isSameCredential && this.lastPromptSaved) {
+      return false;
+    }
+
+    // 规则 3：不同凭证，直接允许弹窗
+    if (!isSameCredential) {
+      return true;
+    }
+
+    // 规则 2 & 4：相同凭证，检查冷却期
+    const elapsed = Date.now() - this.lastPromptTime;
+    return elapsed > DISMISS_COOLDOWN_MS;
   }
 
   // ── 表单字段查找工具方法 ──

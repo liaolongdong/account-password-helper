@@ -240,6 +240,8 @@ export interface AutoSaveConfig {
   enabled: boolean;
   /** 域名匹配规则列表，为空时匹配所有域名 */
   domainPatterns: DomainPattern[];
+  /** 已屏蔽的域名列表（用户点击「不再提示」后加入） */
+  excludedDomains: string[];
 }
 
 /**

@@ -29,13 +29,19 @@ export interface SavePromptData {
  * 显示保存密码确认弹窗
  *
  * 在页面右上角弹出 Chrome 风格的确认卡片，包含用户名和密码信息，
- * 用户可选择「保存」或「暂不保存」。
+ * 用户可选择「保存」、「暂不保存」或「不再提示」。
  *
  * @param data - 待保存的账号密码数据
  * @param onSave - 用户点击「保存」时的回调
  * @param onDismiss - 用户点击「暂不保存」时的回调
+ * @param onNeverAsk - 用户点击「不再提示」时的回调（将域名加入屏蔽列表）
  */
-export function showSavePasswordPrompt(data: SavePromptData, onSave: () => void, onDismiss: () => void): void {
+export function showSavePasswordPrompt(
+  data: SavePromptData,
+  onSave: () => void,
+  onDismiss: () => void,
+  onNeverAsk: () => void,
+): void {
   // 移除已有弹窗，避免重复
   dismissSavePasswordPrompt();
 
@@ -110,9 +116,38 @@ export function showSavePasswordPrompt(data: SavePromptData, onSave: () => void,
   footer.style.cssText = `
     padding: 12px 16px 16px;
     display: flex;
-    gap: 8px;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
   `;
+
+  // 左侧：「不再提示」文字链接按钮
+  const neverAskBtn = document.createElement('button');
+  neverAskBtn.textContent = '不再提示';
+  neverAskBtn.style.cssText = `
+    font-size: 12px;
+    color: #999;
+    background: none;
+    border: none;
+    cursor: pointer;
+    text-decoration: underline;
+    padding: 6px 0;
+    outline: none;
+    line-height: 1.4;
+  `;
+  neverAskBtn.addEventListener('mouseenter', () => {
+    neverAskBtn.style.color = '#666';
+  });
+  neverAskBtn.addEventListener('mouseleave', () => {
+    neverAskBtn.style.color = '#999';
+  });
+  neverAskBtn.addEventListener('click', () => {
+    dismissSavePasswordPrompt();
+    onNeverAsk();
+  });
+
+  // 右侧：「暂不保存」+「保存」按钮组
+  const rightBtns = document.createElement('div');
+  rightBtns.style.cssText = 'display: flex; gap: 8px;';
 
   const dismissBtn = createButton('暂不保存', '#f5f5f5', '#666', '#e8e8e8');
   dismissBtn.addEventListener('click', () => {
@@ -126,8 +161,11 @@ export function showSavePasswordPrompt(data: SavePromptData, onSave: () => void,
     onSave();
   });
 
-  footer.appendChild(dismissBtn);
-  footer.appendChild(saveBtn);
+  rightBtns.appendChild(dismissBtn);
+  rightBtns.appendChild(saveBtn);
+
+  footer.appendChild(neverAskBtn);
+  footer.appendChild(rightBtns);
 
   // 组装
   overlay.appendChild(header);

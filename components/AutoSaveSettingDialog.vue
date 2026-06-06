@@ -6,107 +6,158 @@
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <el-form
-      label-width="140px"
-      size="large"
-    >
-      <el-form-item label="启用自动保存">
-        <el-switch
-          v-model="config.enabled"
-          @change="handleEnabledChange"
-        />
-        <div class="form-tip">开启后，网站登录时将弹窗提示是否自动保存账号密码到密码列表</div>
-      </el-form-item>
+    <div class="dialog-body-scroll">
+      <el-form
+        label-width="140px"
+        size="large"
+      >
+        <el-form-item label="启用自动保存">
+          <el-switch
+            v-model="config.enabled"
+            @change="handleEnabledChange"
+          />
+          <div class="form-tip">开启后，网站登录时将弹窗提示是否自动保存账号密码到密码列表</div>
+        </el-form-item>
 
-      <el-form-item label="域名匹配规则">
-        <div class="domain-patterns-section">
-          <div class="domain-patterns-header">
-            <el-text
-              type="info"
+        <el-form-item label="域名匹配规则">
+          <div class="domain-patterns-section">
+            <div class="domain-patterns-header">
+              <el-text
+                type="info"
+                size="small"
+              >
+                规则列表为空时匹配所有域名；配置后仅匹配的域名才会提醒是否需要自动保存
+              </el-text>
+            </div>
+
+            <el-table
+              :key="config.domainPatterns.length"
+              :data="config.domainPatterns"
+              style="width: 100%"
               size="small"
+              stripe
+              empty-text="暂无规则，匹配所有域名"
+              max-height="260"
             >
-              规则列表为空时匹配所有域名；配置后仅匹配的域名才会提醒是否需要自动保存
-            </el-text>
-          </div>
+              <el-table-column
+                prop="pattern"
+                label="域名 / 正则表达式"
+                min-width="200"
+              >
+                <template #default="{ row }">
+                  <span class="pattern-text">{{ row.pattern }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                prop="isRegex"
+                label="类型"
+                width="100"
+                align="center"
+              >
+                <template #default="{ row }">
+                  <el-tag
+                    :type="row.isRegex ? 'warning' : 'info'"
+                    size="small"
+                  >
+                    {{ row.isRegex ? '正则' : '域名' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="操作"
+                width="80"
+                align="center"
+              >
+                <template #default="{ $index }">
+                  <el-button
+                    type="danger"
+                    link
+                    size="small"
+                    @click="removePattern($index)"
+                  >
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
 
-          <el-table
-            :key="config.domainPatterns.length"
-            :data="config.domainPatterns"
-            style="width: 100%"
-            size="small"
-            stripe
-            empty-text="暂无规则，匹配所有域名"
-            max-height="260"
-          >
-            <el-table-column
-              prop="pattern"
-              label="域名 / 正则表达式"
-              min-width="200"
-            >
-              <template #default="{ row }">
-                <span class="pattern-text">{{ row.pattern }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="isRegex"
-              label="类型"
-              width="100"
-              align="center"
-            >
-              <template #default="{ row }">
-                <el-tag
-                  :type="row.isRegex ? 'warning' : 'info'"
-                  size="small"
-                >
-                  {{ row.isRegex ? '正则' : '域名' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column
-              label="操作"
-              width="80"
-              align="center"
-            >
-              <template #default="{ $index }">
-                <el-button
-                  type="danger"
-                  link
-                  size="small"
-                  @click="removePattern($index)"
-                >
-                  删除
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-
-          <div class="add-pattern-form">
-            <el-input
-              v-model="newPattern.pattern"
-              :placeholder="newPattern.isRegex ? '输入正则表达式，如 .*\\.example\\.com' : '输入域名，如 github.com'"
-              clearable
-              size="default"
-              @keyup.enter="addPattern"
-            />
-            <el-checkbox
-              v-model="newPattern.isRegex"
-              size="default"
-            >
-              正则
-            </el-checkbox>
-            <el-button
-              type="primary"
-              size="default"
-              :icon="Plus"
-              :disabled="!newPattern.pattern.trim()"
-              @click="addPattern"
-            >
-              添加
-            </el-button>
+            <div class="add-pattern-form">
+              <el-input
+                v-model="newPattern.pattern"
+                :placeholder="newPattern.isRegex ? '输入正则表达式，如 .*\\.example\\.com' : '输入域名，如 github.com'"
+                clearable
+                size="default"
+                @keyup.enter="addPattern"
+              />
+              <el-checkbox
+                v-model="newPattern.isRegex"
+                size="default"
+              >
+                正则
+              </el-checkbox>
+              <el-button
+                type="primary"
+                size="default"
+                :icon="Plus"
+                :disabled="!newPattern.pattern.trim()"
+                @click="addPattern"
+              >
+                添加
+              </el-button>
+            </div>
           </div>
-        </div>
-      </el-form-item>
-    </el-form>
+        </el-form-item>
+
+        <el-form-item label="已屏蔽的域名">
+          <div class="excluded-domains-section">
+            <div class="excluded-domains-header">
+              <el-text
+                type="info"
+                size="small"
+              >
+                以下域名的登录将不再弹窗提示保存密码，可在保存密码弹窗中点击「不再提示」添加
+              </el-text>
+            </div>
+
+            <el-table
+              :key="config.excludedDomains.length"
+              :data="excludedDomainsTableData"
+              style="width: 100%"
+              size="small"
+              stripe
+              empty-text="暂无屏蔽域名"
+              max-height="200"
+            >
+              <el-table-column
+                prop="domain"
+                label="域名"
+                min-width="200"
+              >
+                <template #default="{ row }">
+                  <span class="pattern-text">{{ row.domain }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="操作"
+                width="80"
+                align="center"
+              >
+                <template #default="{ $index }">
+                  <el-button
+                    type="danger"
+                    link
+                    size="small"
+                    @click="removeExcludedDomain($index)"
+                  >
+                    删除
+                  </el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </el-form-item>
+      </el-form>
+    </div>
 
     <template #footer>
       <div class="dialog-footer">
@@ -148,6 +199,7 @@ const emit = defineEmits<{
 const config = reactive<AutoSaveConfig>({
   enabled: true,
   domainPatterns: [],
+  excludedDomains: [],
 });
 
 /** 新增规则表单 */
@@ -167,17 +219,23 @@ const loadConfig = async (): Promise<void> => {
     const loaded = await StorageUtils.getAutoSaveConfig();
     config.enabled = loaded.enabled;
     config.domainPatterns = [...loaded.domainPatterns];
+    config.excludedDomains = [...loaded.excludedDomains];
     logger.debug(
       'AutoSaveSettingDialog: 配置加载完成, enabled:',
       loaded.enabled,
       '规则数:',
       loaded.domainPatterns.length,
+      '屏蔽域名数:',
+      loaded.excludedDomains.length,
     );
   } catch (error) {
     logger.error('AutoSaveSettingDialog: 加载配置失败:', error);
     ElMessage.error('加载配置失败，请关闭弹窗重试');
   }
 };
+
+/** 已屏蔽域名表格数据（将 string[] 转换为对象数组供 el-table 使用） */
+const excludedDomainsTableData = computed(() => config.excludedDomains.map(domain => ({ domain })));
 
 // 监听弹窗打开时加载配置（immediate: true 确保首次打开也能触发）
 // 注：必须在 loadConfig 定义之后注册，避免 TDZ 问题
@@ -244,6 +302,13 @@ const removePattern = (index: number): void => {
 };
 
 /**
+ * 删除已屏蔽的域名
+ */
+const removeExcludedDomain = (index: number): void => {
+  config.excludedDomains.splice(index, 1);
+};
+
+/**
  * 保存配置
  */
 const handleSave = async (): Promise<void> => {
@@ -264,10 +329,10 @@ const handleSave = async (): Promise<void> => {
 
 <style scoped>
 .form-tip {
-  font-size: 12px;
-  color: #909399;
   margin-left: 4px;
+  font-size: 12px;
   line-height: 1.4;
+  color: #909399;
 }
 
 .domain-patterns-section {
@@ -285,8 +350,8 @@ const handleSave = async (): Promise<void> => {
 
 .add-pattern-form {
   display: flex;
-  align-items: center;
   gap: 8px;
+  align-items: center;
   margin-top: 12px;
 }
 
@@ -294,9 +359,23 @@ const handleSave = async (): Promise<void> => {
   flex: 1;
 }
 
+.dialog-body-scroll {
+  max-height: 60vh;
+  padding-right: 4px;
+  overflow-y: auto;
+}
+
 .dialog-footer {
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+}
+
+.excluded-domains-section {
+  width: 100%;
+}
+
+.excluded-domains-header {
+  margin-bottom: 8px;
 }
 </style>

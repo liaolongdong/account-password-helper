@@ -753,6 +753,7 @@ export class StorageUtils {
     return {
       enabled: true,
       domainPatterns: [],
+      excludedDomains: [],
     };
   }
 
@@ -769,6 +770,7 @@ export class StorageUtils {
         ...defaultConfig,
         ...config,
         domainPatterns: Array.isArray(config.domainPatterns) ? config.domainPatterns : defaultConfig.domainPatterns,
+        excludedDomains: Array.isArray(config.excludedDomains) ? config.excludedDomains : defaultConfig.excludedDomains,
       };
     } catch (error) {
       logger.error('获取自动保存配置失败:', error);
@@ -793,6 +795,41 @@ export class StorageUtils {
   }
 
   /**
+   * 添加域名到自动保存黑名单（去重）
+   *
+   * 用户在保存密码弹窗中点击「不再提示」后调用，
+   * 后续该域名下的登录将不再弹窗提示保存密码。
+   *
+   * @param domain 要屏蔽的域名
+   */
+  static async addExcludedDomain(domain: string): Promise<void> {
+    const config = await this.getAutoSaveConfig();
+    const lowerDomain = domain.toLowerCase();
+    if (config.excludedDomains.some(d => d.toLowerCase() === lowerDomain)) {
+      return;
+    }
+    config.excludedDomains.push(lowerDomain);
+    await this.saveAutoSaveConfig({ excludedDomains: config.excludedDomains });
+    logger.info(`[APH] 已将 ${lowerDomain} 加入自动保存屏蔽列表`);
+  }
+
+  /**
+   * 从自动保存黑名单中移除域名
+   *
+   * 用户在设置弹窗中删除屏蔽域名后调用，
+   * 恢复该域名的自动保存弹窗提示。
+   *
+   * @param domain 要移除的域名
+   */
+  static async removeExcludedDomain(domain: string): Promise<void> {
+    const config = await this.getAutoSaveConfig();
+    const lowerDomain = domain.toLowerCase();
+    config.excludedDomains = config.excludedDomains.filter(d => d.toLowerCase() !== lowerDomain);
+    await this.saveAutoSaveConfig({ excludedDomains: config.excludedDomains });
+    logger.info(`[APH] 已将 ${lowerDomain} 从自动保存屏蔽列表移除`);
+  }
+
+  /**
    * 检测域名是否匹配自动保存规则
    * - domainPatterns 为空时匹配所有域名
    * - isRegex=false 时进行精确匹配或子域名匹配
@@ -803,6 +840,17 @@ export class StorageUtils {
    */
   static isDomainMatchForAutoSave(hostname: string, config: AutoSaveConfig): boolean {
     if (!hostname) return false;
+
+    // 黑名单前置检查：已屏蔽的域名直接返回 false，优先级高于 domainPatterns
+    if (config.excludedDomains && config.excludedDomains.length > 0) {
+      const lowerHostname = hostname.toLowerCase();
+      const isExcluded = config.excludedDomains.some(excluded => {
+        const lowerExcluded = excluded.toLowerCase();
+        return lowerHostname === lowerExcluded || lowerHostname.endsWith('.' + lowerExcluded);
+      });
+      if (isExcluded) return false;
+    }
+
     if (config.domainPatterns.length === 0) return true;
 
     const lowerHostname = hostname.toLowerCase();
