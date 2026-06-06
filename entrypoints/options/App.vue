@@ -83,8 +83,8 @@
                   type="primary"
                   size="large"
                   :loading="setupLoading"
-                  @click="handleSetupSubmit"
                   style="width: 100%"
+                  @click="handleSetupSubmit"
                 >
                   设置主密码并开始使用
                 </el-button>
@@ -165,8 +165,8 @@
                   type="primary"
                   size="large"
                   :loading="verifyLoading"
-                  @click="handleVerifySubmit"
                   style="width: 100%; margin-bottom: 16px"
+                  @click="handleVerifySubmit"
                 >
                   验证密码
                 </el-button>
@@ -267,9 +267,9 @@
             <span class="floating-button-label">悬浮按钮</span>
             <el-switch
               v-model="floatingButtonVisible"
-              @change="toggleFloatingButton"
               active-text=""
               inactive-text=""
+              @change="toggleFloatingButton"
             />
           </div>
         </div>
@@ -296,8 +296,8 @@
 
       <!-- 展示密码列表总数和搜索结果总数 -->
       <div
-        class="password-list-info"
         v-if="passwords.length > 0"
+        class="password-list-info"
       >
         <span>
           总共
@@ -324,8 +324,8 @@
           stripe
           row-key="id"
           :row-class-name="handleRowClassName"
-          @selection-change="handleSelectionChange"
           :default-sort="{ prop: 'updateTime', order: 'descending' }"
+          @selection-change="handleSelectionChange"
           @sort-change="handleSortChange"
         >
           <el-table-column
@@ -453,7 +453,7 @@
                 :popper-style="{ maxWidth: '500px', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }"
               >
                 <template #content>
-                  <div style="white-space: pre-wrap; word-break: break-all; max-width: 480px">
+                  <div style="max-width: 480px; word-break: break-all; white-space: pre-wrap">
                     {{ row.remark }}
                   </div>
                 </template>
@@ -727,7 +727,7 @@ const {
   searchKeyword,
   selectedIds,
   isEditingPassword,
-  editingPasswordId,
+  editingPasswordId: _editingPasswordId,
   passwordFormRef,
   passwordForm,
   passwordFormRules,

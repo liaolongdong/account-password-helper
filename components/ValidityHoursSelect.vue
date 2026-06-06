@@ -1,8 +1,8 @@
 <template>
   <el-select
     :model-value="modelValue"
-    @update:model-value="$emit('update:modelValue', $event)"
     v-bind="$attrs"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
     <el-option
       v-for="option in VALIDITY_OPTIONS"

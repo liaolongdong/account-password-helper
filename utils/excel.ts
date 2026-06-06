@@ -42,7 +42,9 @@ export class ExcelUtils {
       XLSX.writeFile(wb, filename);
     } catch (error) {
       logger.error('导出Excel失败:', error);
-      throw new Error('导出Excel失败');
+      const err = new Error('导出Excel失败');
+      (err as any).cause = error;
+      throw err;
     }
   }
 
@@ -175,7 +177,9 @@ export class ExcelUtils {
       XLSX.writeFile(wb, 'password_template.xlsx');
     } catch (error) {
       logger.error('下载模板失败:', error);
-      throw new Error('下载模板失败');
+      const err = new Error('下载模板失败');
+      (err as any).cause = error;
+      throw err;
     }
   }
 }

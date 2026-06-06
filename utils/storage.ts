@@ -230,7 +230,7 @@ export class StorageUtils {
       };
 
       const shouldEncrypt = masterPassword && !sessionActive;
-      let entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
+      const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
       if (shouldEncrypt) {
         const encryptedEntry = await this.encryptPasswordEntry(newEntry, masterPassword);
         if (copyItemId) {
@@ -282,7 +282,7 @@ export class StorageUtils {
         };
 
         const shouldEncrypt = masterPassword && !sessionActive;
-        let entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
+        const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
         if (shouldEncrypt) {
           const encryptedEntry = await this.encryptPasswordEntry(updatedEntry, masterPassword);
           entriesToSave[index] = encryptedEntry;
@@ -377,7 +377,7 @@ export class StorageUtils {
           try {
             const decryptedEntry = await this.decryptPasswordEntry(entry, masterPassword);
             decryptedEntries.push(decryptedEntry);
-          } catch (decryptError) {
+          } catch (_decryptError) {
             logger.warn('跳过无法解密的条目: ' + entry.id);
             continue;
           }
@@ -389,7 +389,9 @@ export class StorageUtils {
       return decryptedEntries;
     } catch (error) {
       logger.error('获取密码列表失败:', error);
-      throw new Error('加载密码列表失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      const err = new Error('加载密码列表失败: ' + (error instanceof Error ? error.message : '未知错误'));
+      (err as any).cause = error;
+      throw err;
     }
   }
 
@@ -493,7 +495,7 @@ export class StorageUtils {
               return b.updateTime - a.updateTime;
           }
 
-          let comparison = 0;
+          let comparison;
           if (typeof aValue === 'string' && typeof bValue === 'string') {
             comparison = aValue.localeCompare(bValue);
           } else if (typeof aValue === 'number' && typeof bValue === 'number') {
@@ -606,8 +608,8 @@ export class StorageUtils {
         hasHashedPassword: !!config?.hashedPassword,
         saltLength: config?.salt?.length || 0,
         hashLength: config?.hashedPassword?.length || 0,
-        saltPreview: `${config?.salt?.substring(0, 8)}...` || 'N/A',
-        hashPreview: `${config?.hashedPassword?.substring(0, 10)}...` || 'N/A',
+        saltPreview: config?.salt ? `${config.salt.substring(0, 8)}...` : 'N/A',
+        hashPreview: config?.hashedPassword ? `${config.hashedPassword.substring(0, 10)}...` : 'N/A',
       };
     } catch (error: any) {
       logger.error('获取主密码调试信息失败:', error);

@@ -287,9 +287,9 @@ async function decryptAllPasswordsOnSessionCreate(masterPassword: string): Promi
         try {
           const decryptedEntry = await decryptPasswordEntry(entry, masterPassword);
           decryptedPasswords.push(decryptedEntry);
-        } catch (decryptError) {
+        } catch (_decryptError) {
           logger.warn('跳过无法解密的条目: ' + entry.id);
-          const { encrypted, ...rest } = entry;
+          const { encrypted: _encrypted, ...rest } = entry;
           decryptedPasswords.push(rest as PasswordEntry);
         }
       } else {

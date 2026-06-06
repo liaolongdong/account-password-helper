@@ -114,7 +114,7 @@ export function decryptData(encryptedData: string, key: string): string {
     let combined;
     try {
       combined = CryptoJS.enc.Base64.parse(encryptedData);
-    } catch (parseError) {
+    } catch (_parseError) {
       logger.warn('Base64解析失败，可能不是加密数据');
       return encryptedData;
     }
@@ -150,7 +150,7 @@ export function decryptData(encryptedData: string, key: string): string {
         return '';
       }
       return result;
-    } catch (utf8Error) {
+    } catch (_utf8Error) {
       logger.warn('UTF-8解码失败，可能密钥错误或数据损坏');
       return '';
     }
@@ -205,7 +205,7 @@ export async function decryptPasswordEntry(
 ): Promise<PasswordEntry> {
   try {
     if (!entry.encrypted) {
-      const { encrypted, ...decryptedEntry } = entry;
+      const { encrypted: _encrypted, ...decryptedEntry } = entry;
       return decryptedEntry as PasswordEntry;
     }
 
@@ -237,7 +237,7 @@ export function decryptFieldSafely(encryptedData: string, key: string, fieldName
   }
   try {
     return decryptData(encryptedData, key);
-  } catch (error) {
+  } catch (_error) {
     logger.warn(`字段 ${fieldName} 解密失败，返回原始数据`);
     return encryptedData;
   }

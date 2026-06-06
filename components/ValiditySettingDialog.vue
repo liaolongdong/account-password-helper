@@ -1,10 +1,10 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    @update:model-value="$emit('update:modelValue', $event)"
     title="验证有效期设置"
     width="500px"
     :close-on-click-modal="false"
+    @update:model-value="$emit('update:modelValue', $event)"
   >
     <el-form
       ref="formRef"
@@ -23,8 +23,8 @@
       />
 
       <el-form-item
-        label="当前会话状态"
         v-if="sessionInfo.expiryTime"
+        label="当前会话状态"
       >
         <div class="session-info">
           <div class="session-status">
@@ -43,8 +43,8 @@
               type="danger"
               size="small"
               :icon="Delete"
-              @click="$emit('clearSession')"
               :loading="clearSessionLoading"
+              @click="$emit('clearSession')"
             >
               清除当前会话
             </el-button>
@@ -57,7 +57,7 @@
         prop="validityHours"
       >
         <ValidityHoursSelect
-          v-model="form.validityHours"
+          v-model="localValidityHours"
           placeholder="选择验证有效期"
           size="large"
           :disabled="loading"
@@ -89,7 +89,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, computed } from 'vue';
 import { Delete } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import ValidityHoursSelect from './ValidityHoursSelect.vue';
@@ -107,7 +107,7 @@ interface SessionInfo {
   remainingTime: string;
 }
 
-defineProps<{
+const props = defineProps<{
   /** 控制对话框显示/隐藏 */
   modelValue: boolean;
   /** 有效期表单数据 */
@@ -121,6 +121,15 @@ defineProps<{
   /** 会话状态信息 */
   sessionInfo: SessionInfo;
 }>();
+
+/** 本地计算属性，避免直接 mutate props */
+const localValidityHours = computed({
+  get: () => props.form.validityHours,
+  set: (val: number) => {
+    // eslint-disable-next-line vue/no-mutating-props
+    props.form.validityHours = val;
+  },
+});
 
 const emit = defineEmits<{
   /** 对话框显示状态变更 */

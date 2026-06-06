@@ -51,10 +51,10 @@
             type="password"
             placeholder="请输入主密码"
             show-password
-            @keyup.enter="handleSubmit"
-            @input="errorMessage = ''"
             :disabled="loading"
             autocomplete="new-password"
+            @keyup.enter="handleSubmit"
+            @input="errorMessage = ''"
           />
         </el-form-item>
 
@@ -68,10 +68,10 @@
             type="password"
             placeholder="请再次输入主密码"
             show-password
-            @keyup.enter="handleSubmit"
-            @input="errorMessage = ''"
             :disabled="loading"
             autocomplete="new-password"
+            @keyup.enter="handleSubmit"
+            @input="errorMessage = ''"
           />
         </el-form-item>
       </el-form>
@@ -136,7 +136,7 @@ const rules = computed<FormRules>(() => {
       confirmPassword: [
         { required: true, message: '请确认密码', trigger: 'blur' },
         {
-          validator: (_rule: any, value: string, callback: Function) => {
+          validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
             if (value !== form.value.password) {
               callback(new Error('两次输入的密码不一致'));
             } else {

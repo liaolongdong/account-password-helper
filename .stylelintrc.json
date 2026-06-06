@@ -1,6 +1,6 @@
 {
-  "extends": ["stylelint-config-standard"],
-  "plugins": [],
+  "extends": ["stylelint-config-standard", "stylelint-config-recess-order"],
+  "plugins": ["stylelint-order"],
   "rules": {
     "color-hex-length": "short",
     "selector-pseudo-class-no-unknown": [

@@ -1,7 +1,7 @@
 <template>
   <div
-    class="sidepanel-container"
     v-show="showSidepanel"
+    class="sidepanel-container"
   >
     <!-- 头部 -->
     <div class="header">
@@ -85,8 +85,8 @@
           class="auth-verify-btn"
           type="primary"
           :icon="BrandLogo"
-          @click="openOptions"
           size="large"
+          @click="openOptions"
         >
           去验证主密码
         </el-button>
@@ -140,9 +140,9 @@
               {{ password.username }}
               <span
                 class="copy-icon-wrapper"
+                title="复制账号"
                 @click.stop.prevent="copyUsername(password.username)"
                 @mousedown.stop
-                title="复制账号"
               >
                 <el-icon class="copy-icon">
                   <CopyDocument />
@@ -379,7 +379,7 @@ const applySortConfig = (list: PasswordEntry[]) => {
       default:
         return b.updateTime - a.updateTime;
     }
-    let cmp = 0;
+    let cmp;
     if (typeof aVal === 'string' && typeof bVal === 'string') cmp = aVal.localeCompare(bVal);
     else if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
     else return b.updateTime - a.updateTime;
@@ -452,7 +452,7 @@ const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageCha
 let bgPort: chrome.runtime.Port | null = null;
 
 // 监听来自background的消息
-const handleMessage = (message: any, sender: chrome.runtime.MessageSender, sendResponse: Function) => {
+const handleMessage = (message: any, _sender: chrome.runtime.MessageSender, sendResponse: (response: any) => void) => {
   switch (message.type) {
     case MessageType.URL_CHANGED:
       // SidePanel: 检测到URL变化，更新数据
@@ -482,7 +482,7 @@ const handleTabUpdated = async (tabId: number, changeInfo: any, tab: any) => {
 };
 
 // 监听标签页激活
-const handleTabActivated = async (activeInfo: any) => {
+const handleTabActivated = async (_activeInfo: any) => {
   // SidePanel: 检测到标签页激活
   await updateCurrentDomainAndLoadPasswords();
 };
@@ -589,7 +589,7 @@ const pingContentScript = async (tabId: number, maxRetries: number = 3): Promise
       if (response && response.success) {
         return response as PingResponse;
       }
-    } catch (error) {
+    } catch (_error) {
       // PING失败，等待后重试
       await new Promise(resolve => setTimeout(resolve, 100));
     }
@@ -887,17 +887,17 @@ onUnmounted(() => {
 
 <style scoped>
 .sidepanel-container {
-  height: 100%;
   display: flex;
   flex-direction: column;
+  height: 100%;
   background: #f8f9fa;
 }
 
 .header {
   display: flex;
+  gap: 8px;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
   padding: 10px 16px;
   background: white;
   border-bottom: 1px solid #e5e7eb;
@@ -910,20 +910,20 @@ onUnmounted(() => {
 
 .header-actions {
   display: flex;
-  align-items: center;
-  gap: 0;
   flex-shrink: 0;
+  gap: 0;
+  align-items: center;
 }
 
 .icon-btn {
   width: 28px;
   height: 28px;
   padding: 0;
+  color: #374151;
+  cursor: pointer;
   background: transparent;
   border: none;
   border-radius: 50%;
-  color: #374151;
-  cursor: pointer;
   transition: background-color 0.2s;
 }
 
@@ -952,9 +952,9 @@ onUnmounted(() => {
 }
 
 .logo {
+  margin-right: 8px;
   font-size: 20px;
   color: #409eff;
-  margin-right: 8px;
 }
 
 .current-url {
@@ -983,8 +983,8 @@ onUnmounted(() => {
 }
 
 .loading .el-icon {
-  font-size: 24px;
   margin-bottom: 8px;
+  font-size: 24px;
 }
 
 .empty {
@@ -999,9 +999,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   padding: 10px 16px;
+  cursor: pointer;
   background: white;
   border-bottom: 1px solid #f0f0f0;
-  cursor: pointer;
   transition: background-color 0.2s;
 }
 
@@ -1021,15 +1021,15 @@ onUnmounted(() => {
 .username {
   display: flex;
   align-items: center;
+  margin-bottom: 4px;
   font-size: 14px;
   font-weight: 500;
   color: #1f2937;
-  margin-bottom: 4px;
 }
 
 .username .el-icon {
-  font-size: 16px;
   margin-right: 6px;
+  font-size: 16px;
   color: #6b7280;
 }
 
@@ -1062,8 +1062,8 @@ onUnmounted(() => {
 
 .details {
   display: flex;
-  align-items: center;
   gap: 4px;
+  align-items: center;
   margin-bottom: 4px;
 }
 
@@ -1073,19 +1073,18 @@ onUnmounted(() => {
 
 /* 标签样式 */
 .tag-item {
-  font-weight: 500;
-  border-radius: 4px;
-  padding: 2px 6px;
-  margin: 0;
-  font-size: 11px;
-  line-height: 1.4;
-
   /* 单行展示，超长省略，配合外层 el-tooltip 显示完整内容 */
   min-width: 0;
   max-width: 200px;
+  padding: 2px 6px;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
   white-space: nowrap;
+  border-radius: 4px;
 }
 
 /* el-tag 内层文本节点继承省略策略，确保 inline-flex 下生效 */
@@ -1102,10 +1101,10 @@ onUnmounted(() => {
 }
 
 .remark {
-  font-size: 12px;
-  color: #6b7280;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 12px;
+  color: #6b7280;
   white-space: nowrap;
 }
 
@@ -1121,9 +1120,9 @@ onUnmounted(() => {
 
 .footer {
   padding: 8px 16px;
+  text-align: center;
   background: white;
   border-top: 1px solid #e5e7eb;
-  text-align: center;
 }
 
 .footer :deep(.el-button .el-icon) {
@@ -1132,35 +1131,35 @@ onUnmounted(() => {
 
 /* 未验证状态样式 */
 .auth-required {
-  flex: 1;
   display: flex;
+  flex: 1;
   align-items: center;
   justify-content: center;
+  min-height: 300px;
   padding: 40px 20px;
   background: #f8f9fa;
-  min-height: 300px;
 }
 
 .auth-description {
-  text-align: center;
   margin-bottom: 20px;
+  text-align: center;
 }
 
 .auth-description p {
   margin: 8px 0;
-  color: #666;
   font-size: 14px;
+  color: #666;
 }
 
 .auth-tip {
-  color: #999 !important;
   font-size: 12px !important;
+  color: #999 !important;
 }
 
 /* 去验证主密码按钮：放大钥匙图标并与文字拉开间距 */
 .auth-verify-btn :deep(.el-icon) {
-  font-size: 20px;
   margin-right: -4px;
+  font-size: 20px;
 }
 
 .auth-verify-btn :deep(.el-icon svg) {
@@ -1190,9 +1189,9 @@ onUnmounted(() => {
 <style>
 html,
 body {
-  margin: 0;
-  padding: 0;
   height: 100%;
+  padding: 0;
+  margin: 0;
   overflow: hidden;
 }
 

@@ -79,8 +79,8 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button
-          @click="handleClose"
           :disabled="backupLoading"
+          @click="handleClose"
         >
           取消
         </el-button>

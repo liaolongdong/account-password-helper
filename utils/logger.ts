@@ -15,8 +15,9 @@ class Logger {
   /**
    * 调试日志 - 仅开发环境输出
    */
-  debug(message: string, ...args: any[]): void {
+  debug(message: string, ...args: unknown[]): void {
     if (this.isDev) {
+      // eslint-disable-next-line no-console
       console.log(`[DEBUG] ${message}`, ...args);
     }
   }
@@ -24,8 +25,9 @@ class Logger {
   /**
    * 信息日志 - 仅开发环境输出
    */
-  info(message: string, ...args: any[]): void {
+  info(message: string, ...args: unknown[]): void {
     if (this.isDev) {
+      // eslint-disable-next-line no-console
       console.info(`[INFO] ${message}`, ...args);
     }
   }
@@ -33,14 +35,14 @@ class Logger {
   /**
    * 警告日志 - 始终输出
    */
-  warn(message: string, ...args: any[]): void {
+  warn(message: string, ...args: unknown[]): void {
     console.warn(`[WARN] ${message}`, ...args);
   }
 
   /**
    * 错误日志 - 始终输出
    */
-  error(message: string, error?: any): void {
+  error(message: string, error?: unknown): void {
     console.error(`[ERROR] ${message}`, error);
   }
 
@@ -49,6 +51,7 @@ class Logger {
    */
   group(label: string): void {
     if (this.isDev) {
+      // eslint-disable-next-line no-console
       console.group(label);
     }
   }
@@ -58,6 +61,7 @@ class Logger {
    */
   groupEnd(): void {
     if (this.isDev) {
+      // eslint-disable-next-line no-console
       console.groupEnd();
     }
   }

@@ -29,14 +29,20 @@
     "prebuild": "npm run icons:build",
     "postbuild": "wxt zip",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint . --ext .vue,.js,.ts,.jsx,.tsx --max-warnings 0",
-    "lint:fix": "eslint . --ext .vue,.js,.ts,.jsx,.tsx --fix",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
     "lint:style": "stylelint **/*.{vue,css,scss} --cache --cache-location node_modules/.cache/stylelint/",
     "lint:style:fix": "stylelint **/*.{vue,css,scss} --fix --cache --cache-location node_modules/.cache/stylelint/",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint:all": "npm run lint && npm run lint:style && npm run format:check",
-    "fix:all": "npm run lint:fix && npm run lint:style:fix && npm run format"
+    "fix:all": "npm run lint:fix && npm run lint:style:fix && npm run format",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
     "crypto-js": "^4.2.0",
@@ -45,6 +51,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/chrome": "^0.1.40",
     "@types/crypto-js": "^4.2.1",
     "@typescript-eslint/eslint-plugin": "^8.59.0",
@@ -54,12 +61,13 @@
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.9.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "postcss-html": "^1.8.1",
     "prettier": "^3.8.3",
     "rollup-plugin-visualizer": "^7.0.1",
     "sharp": "^0.33.5",
     "stylelint": "^17.9.0",
-    "stylelint-config-prettier": "^9.0.5",
     "stylelint-config-recess-order": "^7.7.0",
     "stylelint-config-standard": "^40.0.0",
     "stylelint-order": "^8.1.1",

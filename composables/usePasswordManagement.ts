@@ -476,7 +476,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     try {
       await ExcelUtils.downloadTemplate();
       ElMessage.success('模板下载成功');
-    } catch (error) {
+    } catch (_error) {
       ElMessage.error('模板下载失败');
     }
   };

@@ -8,3 +8,6 @@ trigger: always_on
 4. 必须使用ESLint + Prettier进行代码格式化和静态代码分析，确保代码风格一致性和可读性。
 5. 文件引入规则，除了同级目录的文件使用`./`引入，其它引入的本地文件，必须使用`@/`开头，如果这种引入方式未配置，则在构建工具配置支持。
 6. 日志打印必须使用`utils/logger.ts`封装的日志方法，禁止直接使用`console`。
+7. 项目已配置 husky + lint-staged，提交代码前会自动运行 ESLint + Prettier + Stylelint 检查变更文件，必须确保提交前通过所有检查。
+8. ESLint 配置全面覆盖 TypeScript 和 Vue 文件，新增代码必须通过 `npm run lint` 检查，禁止使用 `eslint-disable` 规避规则（logger.ts 等底层封装除外）。
+9. CSS/Stylelint 已启用属性排序（recess-order），新增样式代码必须符合属性顺序规范。

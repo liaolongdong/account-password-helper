@@ -46,10 +46,10 @@
             type="password"
             placeholder="请输入主密码"
             show-password
-            @keyup.enter="handleVerify"
-            @input="errorMessage = ''"
             :disabled="loading"
             autocomplete="current-password"
+            @keyup.enter="handleVerify"
+            @input="errorMessage = ''"
           />
         </el-form-item>
       </el-form>

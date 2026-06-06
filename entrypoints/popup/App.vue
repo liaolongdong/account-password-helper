@@ -9,10 +9,10 @@
       <el-button
         type="primary"
         :icon="BrandLogo"
-        @click="openOptions"
         class="main-button"
         size="large"
         title="打开密码管理快捷键（Ctrl+Shift+P）"
+        @click="openOptions"
       >
         密码管理
       </el-button>
@@ -20,9 +20,9 @@
       <div class="quick-actions">
         <el-button
           :icon="QuickFillIcon"
-          @click="openSidePanel"
           class="action-button"
           text
+          @click="openSidePanel"
         >
           快速填充
         </el-button>
@@ -173,15 +173,15 @@ const handleEmailClick = (event: Event) => {
 .header {
   display: flex;
   align-items: center;
-  margin-bottom: 20px;
   padding-bottom: 12px;
+  margin-bottom: 20px;
   border-bottom: 1px solid #f0f0f0;
 }
 
 .logo {
+  margin-right: 8px;
   font-size: 24px;
   color: #409eff;
-  margin-right: 8px;
 }
 
 .header h3 {
@@ -198,9 +198,9 @@ const handleEmailClick = (event: Event) => {
 .main-button {
   width: 100%;
   height: 48px;
+  margin-bottom: 16px;
   font-size: 16px;
   font-weight: 600;
-  margin-bottom: 16px;
 }
 
 .quick-actions {

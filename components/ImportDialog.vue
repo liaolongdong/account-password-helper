@@ -165,7 +165,7 @@ const handleFileChange = async (file: UploadFile) => {
 };
 
 // 处理文件删除（但不使用参数）
-const handleFileRemove = () => {
+const _handleFileRemove = () => {
   previewData.value = [];
   selectedFile.value = undefined;
 };
@@ -260,8 +260,8 @@ const handleClose = () => {
 .import-content {
   width: 100%;
   max-width: 800px;
-  margin: 0 auto;
   padding: 40px;
+  margin: 0 auto;
   background: white;
   border: 1px solid #e3f2fd;
   border-radius: 12px;

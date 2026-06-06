@@ -37,7 +37,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       { required: true, message: '请输入密码', trigger: 'blur' },
       { min: 8, message: '密码长度至少8个字符', trigger: 'blur' },
       {
-        validator: (_rule: any, value: string, callback: Function) => {
+        validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
           if (!value) {
             callback();
             return;
@@ -45,7 +45,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
 
           const hasLetter = /[a-zA-Z]/.test(value);
           const hasNumber = /[0-9]/.test(value);
-          const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?~`]/.test(value);
+          const hasSpecialChar = /[!@#$%^&*()_+\-={}[\];':"\\|,.<>/?~`]/.test(value);
 
           if (!hasLetter) {
             callback(new Error('密码必须包含字母'));
@@ -68,7 +68,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
     confirmPassword: [
       { required: true, message: '请确认密码', trigger: 'blur' },
       {
-        validator: (_rule: any, value: string, callback: Function) => {
+        validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
           if (value !== setupForm.value.password) {
             callback(new Error('两次输入的密码不一致'));
           } else {
