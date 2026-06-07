@@ -278,7 +278,7 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
           <div class="switch-handle"></div>
         </div>
       </div>
-      <div class="setting-tip">开启后，密码输入框内将显示眼睛图标按钮，点击可切换密码明文/密文（页面自带切换按钮时自动跳过）</div>
+      <div class="setting-tip">开启后，密码输入框内将显示眼睛图标按钮，点击可切换密码明文/密文（注：页面如有自带的眼睛图标会重叠显示）</div>
 
       <div class="setting-item">
         <span class="setting-label">按钮透明度</span>

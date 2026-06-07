@@ -3,6 +3,7 @@ import { eyeOpenIcon, eyeClosedIcon } from '@/entrypoints/content/floatingButton
 /**
  * 注入到页面中的 CSS 样式
  * 使用 `.aph-pwd-toggle-` 前缀避免与宿主页面样式冲突
+ * 按钮颜色使用主题蓝 #409eff，与项目 Element Plus 主色一致
  */
 const INJECTED_STYLES = `
 .aph-pwd-toggle-wrapper {
@@ -26,7 +27,7 @@ const INJECTED_STYLES = `
   margin: 0;
   border: none;
   background: transparent;
-  color: #6b7280;
+  color: #409eff;
   cursor: pointer;
   opacity: 0;
   visibility: hidden;
@@ -47,13 +48,13 @@ const INJECTED_STYLES = `
 }
 
 .aph-pwd-toggle-btn:hover {
-  color: #374151;
-  background: rgba(0, 0, 0, 0.06);
+  color: #66b1ff;
+  background: rgba(64, 158, 255, 0.1);
 }
 
 .aph-pwd-toggle-btn:active {
-  color: #1f2937;
-  background: rgba(0, 0, 0, 0.1);
+  color: #3a8ee6;
+  background: rgba(64, 158, 255, 0.18);
 }
 
 .aph-pwd-toggle-btn svg {
@@ -66,34 +67,6 @@ const INJECTED_STYLES = `
 
 /** STYLE 元素 ID，保证只注入一次 */
 const STYLE_ELEMENT_ID = 'aph-pwd-toggle-styles';
-
-/**
- * 检测已有切换按钮的关键词集合
- * 用于判断页面是否已自带密码显示/隐藏功能，避免重复注入
- */
-const EXISTING_TOGGLE_KEYWORDS = {
-  /** aria-label / title 关键词 */
-  ariaTitle: ['eye', 'view', 'show', 'hide', 'password', '显示', '隐藏', '密码', '可见', 'visible', 'reveal', 'conceal'],
-  /** class / id 关键词 */
-  classId: [
-    'eye',
-    'view',
-    'password-toggle',
-    'show-password',
-    'visible',
-    'visibility',
-    'pwd-toggle',
-    'reveal',
-    'toggle-password',
-    'pass-toggle',
-    'pwd-visibility',
-    'password-eye',
-    'show-pwd',
-    'hide-pwd',
-  ],
-  /** data-* 属性名/值关键词 */
-  dataAttr: ['eye','view', 'toggle', 'password', 'visible', 'visibility', 'reveal', 'pwd-toggle', 'show-password'],
-};
 
 /**
  * 每个被托管的密码输入框的状态记录
@@ -109,8 +82,6 @@ interface ToggleEntry {
   onInput: () => void;
   /** click 事件监听器引用（用于解绑） */
   onClick: () => void;
-  /** 是否已被切换为明文 */
-  isRevealed: boolean;
   /** 输入框原始 padding-right 值 */
   originalPaddingRight: string;
 }
@@ -119,9 +90,9 @@ interface ToggleEntry {
  * 密码输入框显示/隐藏切换管理器
  *
  * 负责：
- * - 扫描页面中所有 `input[type="password"]`，注入切换按钮
+ * - 扫描页面中所有 `input[type="password"]`，注入主题蓝色切换按钮
  * - 通过 MutationObserver 监听动态新增的密码输入框
- * - 智能检测页面自带的切换按钮并跳过注入
+ * - 对所有密码输入框一律注入，不判断页面是否已有切换按钮
  * - 支持动态启用/禁用，不干扰现有账号密码填充功能
  */
 export class PasswordVisibilityToggle {
@@ -130,9 +101,6 @@ export class PasswordVisibilityToggle {
 
   /** 已处理过的输入框集合（用于去重） */
   private processedInputs = new WeakSet<HTMLInputElement>();
-
-  /** 已检测为"页面自带切换按钮"的输入框（跳过注入） */
-  private skippedInputs = new WeakSet<HTMLInputElement>();
 
   /** DOM 变化观察器 */
   private observer: MutationObserver | null = null;
@@ -204,18 +172,13 @@ export class PasswordVisibilityToggle {
 
   /**
    * 为单个密码输入框注入切换按钮
+   * 所有密码输入框一律注入，不判断页面是否已有切换按钮
    * @param input - 目标密码输入框
    */
   private injectToggle(input: HTMLInputElement): void {
     // 跳过已处理或不可见的输入框
-    if (this.processedInputs.has(input) || this.skippedInputs.has(input)) return;
+    if (this.processedInputs.has(input)) return;
     if (!this.isElementVisible(input)) return;
-
-    // 检测页面是否已自带切换按钮
-    if (this.hasExistingToggle(input)) {
-      this.skippedInputs.add(input);
-      return;
-    }
 
     this.processedInputs.add(input);
 
@@ -276,102 +239,9 @@ export class PasswordVisibilityToggle {
       button,
       onInput,
       onClick,
-      isRevealed: false,
       originalPaddingRight,
     };
     this.entries.set(input, entry);
-  }
-
-  /**
-   * 检测密码输入框附近是否已存在切换按钮
-   * @param input - 密码输入框
-   * @returns 是否已存在
-   */
-  private hasExistingToggle(input: HTMLInputElement): boolean {
-    let ancestor: HTMLElement | null = input.parentElement;
-    let depth = 0;
-    const maxDepth = 3;
-
-    while (ancestor && depth < maxDepth) {
-      depth++;
-
-      // 检查祖先的所有子元素（排除 input 自身和我们注入的元素）
-      const children = ancestor.querySelectorAll<HTMLElement>('button, [role="button"], span, div, a, i, svg');
-      for (const child of Array.from(children)) {
-        // 跳过我们自己注入的元素
-        if (child.classList.contains('aph-pwd-toggle-btn') || child.classList.contains('aph-pwd-toggle-wrapper')) {
-          continue;
-        }
-        // 跳过密码输入框自身
-        if (child === input) continue;
-
-        if (this.isToggleElement(child)) return true;
-      }
-
-      ancestor = ancestor.parentElement;
-    }
-
-    return false;
-  }
-
-  /**
-   * 判断单个元素是否是密码切换按钮
-   * @param el - 待检查的元素
-   * @returns 是否为切换按钮
-   */
-  private isToggleElement(el: HTMLElement): boolean {
-    // 规则 1: aria-label / title 包含关键词
-    const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
-    const title = (el.getAttribute('title') || '').toLowerCase();
-    const textToCheck = `${ariaLabel} ${title}`;
-    if (EXISTING_TOGGLE_KEYWORDS.ariaTitle.some(kw => textToCheck.includes(kw))) {
-      return true;
-    }
-
-    // 规则 2: class / id 包含关键词
-    const className = (el.className?.toString?.() || '').toLowerCase();
-    const id = (el.id || '').toLowerCase();
-    const classIdText = `${className} ${id}`;
-    if (EXISTING_TOGGLE_KEYWORDS.classId.some(kw => classIdText.includes(kw))) {
-      return true;
-    }
-
-    // 规则 3: data-* 属性名或值包含关键词
-    for (const attr of Array.from(el.attributes)) {
-      if (!attr.name.startsWith('data-')) continue;
-      const attrName = attr.name.toLowerCase();
-      const attrValue = attr.value.toLowerCase();
-      const attrText = `${attrName} ${attrValue}`;
-      if (EXISTING_TOGGLE_KEYWORDS.dataAttr.some(kw => attrText.includes(kw))) {
-        return true;
-      }
-    }
-
-    // 规则 4: role="button" 且内含眼睛 SVG
-    if (el.getAttribute('role') === 'button' || el.tagName === 'BUTTON') {
-      const svg = el.querySelector('svg');
-      if (svg) {
-        const paths = svg.querySelectorAll('path');
-        for (const path of Array.from(paths)) {
-          const d = path.getAttribute('d') || '';
-          // 眼睛图标 SVG path 特征检测（包含典型的圆弧和曲线）
-          if (
-            (d.includes('12s4') && d.includes('circle')) ||
-            (d.includes('M1 12') && d.includes('11 8')) ||
-            d.includes('17.94') ||
-            d.includes('M9.9')
-          ) {
-            return true;
-          }
-        }
-        // 检查是否有 circle（眼睛瞳孔）
-        if (svg.querySelector('circle')) {
-          return true;
-        }
-      }
-    }
-
-    return false;
   }
 
   /**
@@ -415,8 +285,7 @@ export class PasswordVisibilityToggle {
    * 移除所有注入的切换按钮，恢复原始 DOM 结构
    */
   private removeAll(): void {
-    // 遍历所有已记录的条目，恢复原始 DOM
-    // 由于 WeakMap 不可遍历，改为查询所有注入的 wrapper
+    // 遍历所有已注入的 wrapper，恢复原始 DOM
     const wrappers = document.querySelectorAll<HTMLElement>('.aph-pwd-toggle-wrapper');
     wrappers.forEach(wrapper => {
       const input = wrapper.querySelector<HTMLInputElement>('input[type="password"], input[type="text"]');

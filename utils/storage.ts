@@ -627,7 +627,7 @@ export class StorageUtils {
       opacity: 0.9,
       autoShowSidepanel: true,
       autoTriggerLogin: false,
-      passwordVisibilityToggle: true,
+      passwordVisibilityToggle: false,
     };
   }
 

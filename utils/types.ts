@@ -163,7 +163,7 @@ export interface FloatingButtonConfig {
    */
   autoTriggerLogin: boolean;
   /**
-   * 是否在密码输入框内注入显示/隐藏切换按钮（若页面自带切换按钮则自动跳过）
+   * 是否在密码输入框内注入显示/隐藏切换按钮
    */
   passwordVisibilityToggle: boolean;
 }
