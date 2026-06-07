@@ -218,6 +218,8 @@ export interface AutoSavePasswordData {
   url: string;
   /** 页面标题，取自 document.title，用于 tag 字段 */
   tag: string;
+  /** 备注信息，默认值为 "自动保存" */
+  remark: string;
 }
 
 /**

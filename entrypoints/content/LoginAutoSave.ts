@@ -22,6 +22,7 @@ interface PendingCredentials {
   password: string;
   url: string;
   tag: string;
+  remark: string;
   timestamp: number;
 }
 
@@ -270,6 +271,7 @@ export class LoginAutoSave {
       password,
       url: location.hostname,
       tag: document.title,
+      remark: '自动保存',
       timestamp: Date.now(),
     };
     try {
@@ -335,13 +337,24 @@ export class LoginAutoSave {
 
   /**
    * 显示保存确认弹窗
-   * @param pending 待确认的凭证数据
+   * @param pending 待确认的凭证数据（含标签和备注默认值）
    */
   private showPrompt(pending: PendingCredentials): void {
     try {
       showSavePasswordPrompt(
-        { username: pending.username, password: pending.password, url: pending.url },
-        () => this.handleSave(pending),
+        {
+          username: pending.username,
+          password: pending.password,
+          url: pending.url,
+          tag: pending.tag,
+          remark: pending.remark,
+        },
+        editedData =>
+          this.handleSave({
+            ...pending,
+            tag: editedData.tag,
+            remark: editedData.remark,
+          }),
         () => this.handleDismiss(),
         () => this.handleNeverAsk(pending),
       );
@@ -377,6 +390,7 @@ export class LoginAutoSave {
           password: pending.password,
           url: pending.url,
           tag: pending.tag,
+          remark: pending.remark,
         },
       });
 

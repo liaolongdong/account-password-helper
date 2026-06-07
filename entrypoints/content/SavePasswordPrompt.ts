@@ -23,22 +23,36 @@ export interface SavePromptData {
   password: string;
   /** 网站域名 */
   url: string;
+  /** 标签默认值，通常为 document.title */
+  tag: string;
+  /** 备注默认值，通常为 "自动保存" */
+  remark: string;
+}
+
+/**
+ * 用户在弹窗中编辑后的保存数据
+ */
+export interface SavePromptEditedData {
+  /** 用户编辑后的标签 */
+  tag: string;
+  /** 用户编辑后的备注 */
+  remark: string;
 }
 
 /**
  * 显示保存密码确认弹窗
  *
  * 在页面右上角弹出 Chrome 风格的确认卡片，包含用户名和密码信息，
- * 用户可选择「保存」、「暂不保存」或「不再提示」。
+ * 以及可编辑的标签和备注字段，用户可选择「保存」、「暂不保存」或「不再提示」。
  *
- * @param data - 待保存的账号密码数据
- * @param onSave - 用户点击「保存」时的回调
+ * @param data - 待保存的账号密码数据（含标签和备注默认值）
+ * @param onSave - 用户点击「保存」时的回调，接收用户编辑后的标签和备注
  * @param onDismiss - 用户点击「暂不保存」时的回调
  * @param onNeverAsk - 用户点击「不再提示」时的回调（将域名加入屏蔽列表）
  */
 export function showSavePasswordPrompt(
   data: SavePromptData,
-  onSave: () => void,
+  onSave: (editedData: SavePromptEditedData) => void,
   onDismiss: () => void,
   onNeverAsk: () => void,
 ): void {
@@ -111,6 +125,14 @@ export function showSavePasswordPrompt(
   body.appendChild(userRow);
   body.appendChild(passRow);
 
+  // 可编辑字段：标签
+  const { row: tagRow, input: tagInput } = createEditableRow('标签', data.tag, '输入标签，逗号分隔', false);
+  body.appendChild(tagRow);
+
+  // 可编辑字段：备注
+  const { row: remarkRow, input: remarkInput } = createEditableRow('备注', data.remark, '输入备注信息', true);
+  body.appendChild(remarkRow);
+
   // ── 底部按钮 ──
   const footer = document.createElement('div');
   footer.style.cssText = `
@@ -157,8 +179,10 @@ export function showSavePasswordPrompt(
 
   const saveBtn = createButton('保存', THEME_BLUE, '#fff', THEME_BLUE);
   saveBtn.addEventListener('click', () => {
+    const editedTag = tagInput.value.trim();
+    const editedRemark = remarkInput.value.trim();
     dismissSavePasswordPrompt();
-    onSave();
+    onSave({ tag: editedTag, remark: editedRemark || '自动保存' });
   });
 
   rightBtns.appendChild(dismissBtn);
@@ -219,6 +243,75 @@ function createInfoRow(label: string, value: string, isPassword: boolean): HTMLE
   row.appendChild(labelEl);
   row.appendChild(valueEl);
   return row;
+}
+
+/**
+ * 创建可编辑信息行（标签/备注），包含 label 和 input/textarea
+ * @param label 标签文本
+ * @param defaultValue 默认值
+ * @param placeholder 占位提示文本
+ * @param isTextarea 是否使用 textarea（用于备注多行输入）
+ * @returns row 容器元素和 input 输入框元素
+ */
+function createEditableRow(
+  label: string,
+  defaultValue: string,
+  placeholder: string,
+  isTextarea: boolean,
+): { row: HTMLElement; input: HTMLInputElement | HTMLTextAreaElement } {
+  const row = document.createElement('div');
+  row.style.cssText = `
+    display: flex;
+    align-items: flex-start;
+    padding: 6px 0;
+    font-size: 13px;
+    gap: 8px;
+  `;
+
+  const labelEl = document.createElement('span');
+  labelEl.textContent = label;
+  labelEl.style.cssText = 'color: #999; width: 40px; flex-shrink: 0; padding-top: 5px;';
+
+  const inputStyle = `
+    flex: 1;
+    padding: 4px 8px;
+    border: 1px solid #dcdfe6;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #333;
+    outline: none;
+    font-family: inherit;
+    resize: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+  `;
+
+  let input: HTMLInputElement | HTMLTextAreaElement;
+  if (isTextarea) {
+    input = document.createElement('textarea');
+    input.rows = 2;
+    input.value = defaultValue;
+    input.placeholder = placeholder;
+    input.style.cssText = inputStyle;
+  } else {
+    input = document.createElement('input');
+    input.type = 'text';
+    input.value = defaultValue;
+    input.placeholder = placeholder;
+    input.style.cssText = inputStyle;
+  }
+
+  // 聚焦时高亮边框
+  input.addEventListener('focus', () => {
+    input.style.borderColor = THEME_BLUE;
+  });
+  input.addEventListener('blur', () => {
+    input.style.borderColor = '#dcdfe6';
+  });
+
+  row.appendChild(labelEl);
+  row.appendChild(input);
+  return { row, input };
 }
 
 /**
