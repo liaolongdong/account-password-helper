@@ -37,6 +37,10 @@ export interface SavePromptEditedData {
   tag: string;
   /** 用户编辑后的备注 */
   remark: string;
+  /** 用户是否主动编辑过标签输入框 */
+  tagEdited: boolean;
+  /** 用户是否主动编辑过备注输入框 */
+  remarkEdited: boolean;
 }
 
 /**
@@ -133,6 +137,16 @@ export function showSavePasswordPrompt(
   const { row: remarkRow, input: remarkInput } = createEditableRow('备注', data.remark, '输入备注信息', true);
   body.appendChild(remarkRow);
 
+  // 追踪用户是否主动编辑过标签和备注输入框
+  let tagEdited = false;
+  let remarkEdited = false;
+  tagInput.addEventListener('input', () => {
+    tagEdited = true;
+  });
+  remarkInput.addEventListener('input', () => {
+    remarkEdited = true;
+  });
+
   // ── 底部按钮 ──
   const footer = document.createElement('div');
   footer.style.cssText = `
@@ -182,7 +196,12 @@ export function showSavePasswordPrompt(
     const editedTag = tagInput.value.trim();
     const editedRemark = remarkInput.value.trim();
     dismissSavePasswordPrompt();
-    onSave({ tag: editedTag, remark: editedRemark || '自动保存' });
+    onSave({
+      tag: editedTag,
+      remark: editedRemark || '自动保存',
+      tagEdited,
+      remarkEdited,
+    });
   });
 
   rightBtns.appendChild(dismissBtn);

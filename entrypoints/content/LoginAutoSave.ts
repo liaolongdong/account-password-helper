@@ -23,6 +23,10 @@ interface PendingCredentials {
   url: string;
   tag: string;
   remark: string;
+  /** 用户是否在弹窗中主动编辑了标签字段 */
+  tagEdited: boolean;
+  /** 用户是否在弹窗中主动编辑了备注字段 */
+  remarkEdited: boolean;
   timestamp: number;
 }
 
@@ -272,6 +276,8 @@ export class LoginAutoSave {
       url: location.hostname,
       tag: document.title,
       remark: '自动保存',
+      tagEdited: false,
+      remarkEdited: false,
       timestamp: Date.now(),
     };
     try {
@@ -354,6 +360,8 @@ export class LoginAutoSave {
             ...pending,
             tag: editedData.tag,
             remark: editedData.remark,
+            tagEdited: editedData.tagEdited,
+            remarkEdited: editedData.remarkEdited,
           }),
         () => this.handleDismiss(),
         () => this.handleNeverAsk(pending),
@@ -391,6 +399,8 @@ export class LoginAutoSave {
           url: pending.url,
           tag: pending.tag,
           remark: pending.remark,
+          tagEdited: pending.tagEdited,
+          remarkEdited: pending.remarkEdited,
         },
       });
 

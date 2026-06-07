@@ -220,6 +220,10 @@ export interface AutoSavePasswordData {
   tag: string;
   /** 备注信息，默认值为 "自动保存" */
   remark: string;
+  /** 用户是否在弹窗中主动编辑了标签字段 */
+  tagEdited: boolean;
+  /** 用户是否在弹窗中主动编辑了备注字段 */
+  remarkEdited: boolean;
 }
 
 /**

@@ -919,15 +919,18 @@ export class StorageUtils {
       }) as PasswordEntry | undefined;
 
       if (existingEntry) {
-        // 同账号+同域名，更新密码和标签
-        // 备注保护：存量备注有值且不为默认值"自动保存"时保留，防止用户自定义备注被覆盖
-        const shouldPreserveRemark =
-          existingEntry.remark && existingEntry.remark.trim() !== '' && existingEntry.remark.trim() !== '自动保存';
+        // 同账号+同域名，更新密码
+        // 标签更新策略：用户主动编辑过则使用新值，否则保留存量值
+        const newTag = data.tagEdited ? data.tag : existingEntry.tag || data.tag || '';
+        // 备注更新策略：用户主动编辑过则使用新值，否则保留存量值（存量为空时用新值兜底）
+        const newRemark = data.remarkEdited
+          ? data.remark || '自动保存'
+          : existingEntry.remark || data.remark || '自动保存';
 
         await this.updatePassword(existingEntry.id, {
           password: data.password,
-          tag: data.tag,
-          remark: shouldPreserveRemark ? existingEntry.remark : data.remark || '自动保存',
+          tag: newTag,
+          remark: newRemark,
           updateTime: Date.now(),
         });
         return { success: true, message: '已更新已有账号密码' };
