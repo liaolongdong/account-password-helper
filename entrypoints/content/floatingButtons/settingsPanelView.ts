@@ -11,8 +11,20 @@
 import { closeIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { FloatingButtonConfig } from '@/utils/types';
 
+/**
+ * 主题色
+ */
 const THEME_COLOR = '#409eff';
 
+/**
+ * 警告提醒颜色
+ */
+const WARNING_COLOR = '#E6A23C';
+
+/**
+ * 危险警告颜色
+ */
+const DANGER_COLOR = '#F56C6C';
 /**
  * 设置弹窗共用样式
  * 注入到：悬浮按钮的 Shadow DOM（由 SettingsPanel 使用）/ 侧边栏的 document head
@@ -234,6 +246,12 @@ export const settingsPanelViewStyles = `
   line-height: 1.4;
   border-bottom: 1px solid #f0f0f0;
 }
+
+/* 括号内说明文字高亮提醒 */
+.setting-tip .highlight-tip {
+  color: ${WARNING_COLOR};
+  font-weight: 500;
+}
 `;
 
 /**
@@ -270,7 +288,7 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
           <div class="switch-handle"></div>
         </div>
       </div>
-      <div class="setting-tip">开启后，在侧边栏点击快速填充密码成功后将自动点击登录按钮（仅账号密码场景）</div>
+      <div class="setting-tip">开启后，在侧边栏点击快速填充密码成功后将自动点击登录按钮<span class="highlight-tip">（仅账号密码场景）</span></div>
 
       <div class="setting-item">
         <span class="setting-label">密码显示切换</span>
@@ -278,7 +296,7 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
           <div class="switch-handle"></div>
         </div>
       </div>
-      <div class="setting-tip">开启后，密码输入框内将显示眼睛图标按钮，点击可切换密码明文/密文（注：页面如有自带的眼睛图标会重叠显示）</div>
+      <div class="setting-tip">开启后，密码输入框内将显示眼睛图标按钮，点击可切换密码明文/密文<span class="highlight-tip">（注：页面如有自带的眼睛图标会重叠显示）</span></div>
 
       <div class="setting-item">
         <span class="setting-label">按钮透明度</span>
