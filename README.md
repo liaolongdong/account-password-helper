@@ -270,9 +270,6 @@ graph TB
 │   ├── EmailBackupDialog.vue       # 邮箱备份对话框
 │   ├── HelpDialog.vue              # 操作指引与常见问题
 │   ├── ImportDialog.vue            # Excel 导入对话框
-│   ├── MasterPasswordDialog.vue    # 主密码设置/验证
-│   ├── PasswordFormDialog.vue      # 密码表单编辑
-│   ├── PasswordVerifyDialog.vue    # 密码查看验证
 │   ├── QuickFillIcon.vue           # 快速填充图标
 │   ├── ValidityHoursSelect.vue     # 有效期选择器
 │   └── ValiditySettingDialog.vue   # 有效期设置对话框
@@ -290,9 +287,8 @@ graph TB
 │   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── tagUtils.ts                 # 标签颜色生成
 │   ├── logger.ts                   # 环境感知日志
-│   ├── env.ts                      # isDev / isProd 常量
+│   ├── env.ts                      # isDev 常量
 │   ├── createVueApp.ts             # Vue 应用工厂
-│   ├── shadowDomStyles.ts          # Shadow DOM 样式注入
 │   └── types.ts                    # 公共类型定义
 ├── assets/icons/                   # 源 SVG 图标
 │   ├── icon.svg                    # 当前生效图标
