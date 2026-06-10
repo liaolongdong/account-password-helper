@@ -286,6 +286,12 @@ export class FormDetector {
       });
     });
 
+    // 回退策略：密码字段存在但未检测到账号/手机号字段时，
+    // 取密码字段前方最近的可见 input 作为账号字段
+    if (this.passwordFields.length > 0 && this.usernameFields.length === 0 && this.mobileFields.length === 0) {
+      this.detectUsernameByProximity();
+    }
+
     // 检测复选框
     const checkboxInputs = document.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
     this.checkboxFields = Array.from(checkboxInputs).filter(input => {
@@ -297,6 +303,101 @@ export class FormDetector {
         input.offsetParent !== null
       );
     });
+  }
+
+  /**
+   * 回退检测：当标准选择器未匹配到账号字段时，
+   * 在密码字段前方查找最近的可见文本输入框作为账号字段。
+   * 查找策略：先在同一 form/容器中查找，未找到则向上扩展父容器（最多 6 层）。
+   */
+  private detectUsernameByProximity(): void {
+    /** 需要排除的非文本输入类型 */
+    const EXCLUDED_TYPES = new Set([
+      'password',
+      'hidden',
+      'submit',
+      'button',
+      'checkbox',
+      'radio',
+      'file',
+      'image',
+      'reset',
+      'range',
+      'color',
+      'date',
+      'time',
+      'datetime-local',
+      'month',
+      'week',
+    ]);
+
+    for (const passwordField of this.passwordFields) {
+      // 优先取密码字段所在的 form，否则取父元素作为起始容器
+      let container: HTMLElement | null = passwordField.closest('form') ?? passwordField.parentElement;
+      let maxExpand = 6;
+
+      while (container && maxExpand > 0) {
+        const candidate = this.findNearestUsernameBefore(container, passwordField, EXCLUDED_TYPES);
+        if (candidate) {
+          this.usernameFields.push(candidate);
+          this.usernameFieldsSet.add(candidate);
+          this.fieldTypeCache.set(candidate, 'username');
+          logger.info('FormDetector: 通过位置回退检测到账号字段:', candidate);
+          return;
+        }
+
+        // 向上扩展一层父容器
+        container = container.parentElement;
+        maxExpand--;
+      }
+    }
+  }
+
+  /**
+   * 在指定容器中查找位于 passwordField 之前、距离最近的可见文本输入框
+   * @param container - 搜索容器
+   * @param passwordField - 密码字段参照点
+   * @param excludedTypes - 需排除的 input type 集合
+   * @returns 符合条件的账号输入框，未找到返回 null
+   */
+  private findNearestUsernameBefore(
+    container: HTMLElement,
+    passwordField: HTMLInputElement,
+    excludedTypes: Set<string>,
+  ): HTMLInputElement | null {
+    const allInputs = container.querySelectorAll('input') as NodeListOf<HTMLInputElement>;
+    let nearestCandidate: HTMLInputElement | null = null;
+
+    for (const input of allInputs) {
+      // 遇到密码字段本身即停止（DOM 顺序中在它之前的才有效）
+      if (input === passwordField) {
+        break;
+      }
+
+      const type = (input.type || 'text').toLowerCase();
+      if (excludedTypes.has(type)) {
+        continue;
+      }
+
+      if (!this.isVisible(input)) {
+        continue;
+      }
+
+      // 排除已被其他分类占用的字段
+      if (
+        this.passwordFieldsSet.has(input) ||
+        this.mobileFieldsSet.has(input) ||
+        this.verifyCodeFieldsSet.has(input) ||
+        this.usernameFieldsSet.has(input)
+      ) {
+        continue;
+      }
+
+      // 持续更新，最终保留距离密码字段最近的（即最后一个符合条件的）
+      nearestCandidate = input;
+    }
+
+    return nearestCandidate;
   }
 
   /**
