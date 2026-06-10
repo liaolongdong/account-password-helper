@@ -10,6 +10,10 @@
 
 import { closeIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { FloatingButtonConfig } from '@/utils/types';
+import type { SettingsPanelViewOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
+
+// 重新导出供外部使用
+export type { SettingsPanelViewOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
 
 /**
  * 主题色
@@ -310,20 +314,6 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
       </div>
     </div>
   `;
-}
-
-export interface SettingsPanelViewOptions {
-  /** 任一配置字段变更时回调 */
-  onConfigChange: (patch: Partial<FloatingButtonConfig>) => void;
-  /** 点击关闭按钮或遮罩时回调（可选） */
-  onClose?: () => void;
-}
-
-export interface SettingsPanelViewHandle {
-  /** 根据新配置刷新视图（开关状态、滑块位置） */
-  updateConfig(config: FloatingButtonConfig): void;
-  /** 解绑所有事件（DOM 由调用方移除） */
-  destroy(): void;
 }
 
 /**

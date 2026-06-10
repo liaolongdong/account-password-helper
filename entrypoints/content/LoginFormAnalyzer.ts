@@ -1,20 +1,5 @@
 import { LOGIN_CONTAINER_KEYWORDS, POPUP_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
-
-/**
- * 表单字段集合，用于登录表单分析
- */
-export interface FormFieldSets {
-  /** 密码输入框列表 */
-  passwordFields: HTMLInputElement[];
-  /** 用户名输入框列表 */
-  usernameFields: HTMLInputElement[];
-  /** 手机号输入框列表 */
-  mobileFields: HTMLInputElement[];
-  /** 验证码输入框列表 */
-  verifyCodeFields: HTMLInputElement[];
-  /** 登录按钮列表 */
-  loginButtons: HTMLElement[];
-}
+import type { FormFieldSets } from '@/entrypoints/content/types';
 
 /**
  * 登录表单分析器

@@ -1,4 +1,5 @@
 import { eyeOpenIcon, eyeClosedIcon } from '@/entrypoints/content/floatingButtons/icons';
+import type { ToggleEntry } from '@/entrypoints/content/types';
 
 /**
  * 注入到页面中的 CSS 样式
@@ -67,24 +68,6 @@ const INJECTED_STYLES = `
 
 /** STYLE 元素 ID，保证只注入一次 */
 const STYLE_ELEMENT_ID = 'aph-pwd-toggle-styles';
-
-/**
- * 每个被托管的密码输入框的状态记录
- */
-interface ToggleEntry {
-  /** 原始密码输入框 */
-  input: HTMLInputElement;
-  /** 包裹容器 */
-  wrapper: HTMLElement;
-  /** 切换按钮 */
-  button: HTMLButtonElement;
-  /** input 事件监听器引用（用于解绑） */
-  onInput: () => void;
-  /** click 事件监听器引用（用于解绑） */
-  onClick: () => void;
-  /** 输入框原始 padding-right 值 */
-  originalPaddingRight: string;
-}
 
 /**
  * 密码输入框显示/隐藏切换管理器

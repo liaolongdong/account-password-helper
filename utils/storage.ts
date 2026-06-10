@@ -5,11 +5,11 @@ import type {
   EmailBackupConfig,
   AutoSaveConfig,
   AutoSavePasswordData,
+  EncryptedPasswordEntry,
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import {
   STORAGE_KEYS,
-  EncryptedPasswordEntry,
   hashPassword,
   generateSalt,
   generateId,
@@ -35,7 +35,7 @@ import {
 } from '@/utils/sessionManager-storage';
 
 // 重新导出供外部使用
-export type { EncryptedPasswordEntry } from '@/utils/encryption';
+export type { EncryptedPasswordEntry } from '@/utils/types';
 export { STORAGE_KEYS } from '@/utils/encryption';
 
 export class StorageUtils {

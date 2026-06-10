@@ -49,6 +49,14 @@ export interface PasswordEntryWithUI extends PasswordEntry {
 }
 
 /**
+ * 带加密标识的密码条目（用于存储层区分加密/明文数据）
+ */
+export interface EncryptedPasswordEntry extends PasswordEntry {
+  /** 是否已加密 */
+  encrypted?: boolean;
+}
+
+/**
  * 用户主密码配置
  */
 export interface MasterPasswordConfig {

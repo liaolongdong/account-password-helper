@@ -1,4 +1,5 @@
 import { MessageType, type AutoSaveConfig, type DomainPattern } from '@/utils/types';
+import type { PendingCredentials } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { USERNAME_SELECTORS, LOGIN_BUTTON_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
@@ -13,22 +14,6 @@ const PENDING_MAX_AGE_MS = 30_000;
 
 /** 「暂不保存」后的冷却期（60 秒），冷却期内相同凭证不重复弹窗 */
 const DISMISS_COOLDOWN_MS = 60_000;
-
-/**
- * 存储到 sessionStorage 的待确认凭证结构
- */
-interface PendingCredentials {
-  username: string;
-  password: string;
-  url: string;
-  tag: string;
-  remark: string;
-  /** 用户是否在弹窗中主动编辑了标签字段 */
-  tagEdited: boolean;
-  /** 用户是否在弹窗中主动编辑了备注字段 */
-  remarkEdited: boolean;
-  timestamp: number;
-}
 
 /**
  * 登录账号密码保存管理器（Chrome 式交互）

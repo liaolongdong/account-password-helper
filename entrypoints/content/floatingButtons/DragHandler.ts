@@ -3,31 +3,8 @@
  */
 
 import { AnimationController } from '@/entrypoints/content/floatingButtons/AnimationController';
+import type { DragState, DragHandlerOptions } from '@/entrypoints/content/floatingButtons/types';
 import { logger } from '@/utils/logger';
-
-export interface DragState {
-  isDragging: boolean;
-  startX: number;
-  startY: number;
-  currentX: number;
-  currentY: number;
-  initialPosition: 'left' | 'right';
-  initialOffsetY: number;
-  // 鼠标点击位置与按钮中心的偏移量
-  mouseOffsetX: number;
-  mouseOffsetY: number;
-}
-
-export interface DragHandlerOptions {
-  container: HTMLElement;
-  buttonGroup: HTMLElement;
-  dragButton: HTMLElement;
-  animationController: AnimationController;
-  snapPreviewLeft: HTMLElement;
-  snapPreviewRight: HTMLElement;
-  onDragEnd?: (position: 'left' | 'right', offsetY: number) => void;
-  dragThreshold?: number;
-}
 
 export class DragHandler {
   private container: HTMLElement;

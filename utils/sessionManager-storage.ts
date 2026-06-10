@@ -1,8 +1,7 @@
-import type { PasswordEntry, MasterPasswordConfig } from '@/utils/types';
+import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import {
   STORAGE_KEYS,
-  EncryptedPasswordEntry,
   hashPassword,
   encryptData,
   decryptData,

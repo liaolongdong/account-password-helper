@@ -14,7 +14,8 @@ import {
 } from '@/entrypoints/content/formSelectors';
 import { InputFiller } from '@/entrypoints/content/InputFiller';
 import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
-import { LoginFormAnalyzer, FormFieldSets } from '@/entrypoints/content/LoginFormAnalyzer';
+import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
+import type { FormFieldSets } from '@/entrypoints/content/types';
 import { showNoLoginFormMessage } from '@/entrypoints/content/NativeNotification';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
 

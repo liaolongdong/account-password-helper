@@ -1,11 +1,9 @@
 import CryptoJS from 'crypto-js';
-import type { PasswordEntry, MasterPasswordConfig } from '@/utils/types';
+import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 
-// 扩展PasswordEntry接口以包含加密标识
-export interface EncryptedPasswordEntry extends PasswordEntry {
-  encrypted?: boolean;
-}
+// 重新导出供外部使用
+export type { EncryptedPasswordEntry } from '@/utils/types';
 
 /**
  * 存储键名常量（加密模块使用的部分）

@@ -1,19 +1,4 @@
-/**
- * 通知消息类型
- */
-type NotificationType = 'success' | 'warning' | 'info' | 'error';
-
-/**
- * 各类型通知的样式颜色配置
- */
-interface NotificationColors {
-  /** 背景色 */
-  bgColor: string;
-  /** 边框色 */
-  borderColor: string;
-  /** 文字色 */
-  textColor: string;
-}
+import type { NotificationType, NotificationColors } from '@/entrypoints/content/types';
 
 /** 通知类型到颜色的映射 */
 const NOTIFICATION_COLOR_MAP: Record<NotificationType, NotificationColors> = {

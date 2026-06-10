@@ -1,17 +1,5 @@
-import { FillStrategy } from '@/utils/types';
+import type { InputFillResult } from '@/entrypoints/content/types';
 import { logger } from '@/utils/logger';
-
-/**
- * 输入填充结果
- */
-export interface InputFillResult {
-  /** 是否成功填充 */
-  filled: boolean;
-  /** 填充值是否与预期一致 */
-  verified: boolean;
-  /** 使用的填充策略 */
-  strategy: FillStrategy;
-}
 
 /**
  * 输入框填充器

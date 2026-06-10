@@ -9,18 +9,8 @@
  */
 
 import type { FloatingButtonConfig } from '@/utils/types';
-import {
-  getSettingsPanelHTML,
-  bindSettingsPanelView,
-  type SettingsPanelViewHandle,
-} from '@/entrypoints/content/floatingButtons/settingsPanelView';
-
-export interface SettingsPanelOptions {
-  shadowRoot: ShadowRoot;
-  config: FloatingButtonConfig;
-  onConfigChange: (config: Partial<FloatingButtonConfig>) => void;
-  onClose: () => void;
-}
+import type { SettingsPanelOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
+import { getSettingsPanelHTML, bindSettingsPanelView } from '@/entrypoints/content/floatingButtons/settingsPanelView';
 
 export class SettingsPanel {
   private shadowRoot: ShadowRoot;

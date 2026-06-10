@@ -6,42 +6,13 @@
  */
 
 import { lockIcon } from '@/entrypoints/content/floatingButtons/icons';
+import type { SavePromptData, SavePromptEditedData } from '@/entrypoints/content/types';
 
 /** 弹窗 DOM 容器 class 名 */
 const PROMPT_CLASS = 'aph-save-password-prompt';
 
 /** Element Plus 主题蓝 */
 const THEME_BLUE = '#409eff';
-
-/**
- * 保存确认弹窗所需的数据
- */
-export interface SavePromptData {
-  /** 用户名 */
-  username: string;
-  /** 密码 */
-  password: string;
-  /** 网站域名 */
-  url: string;
-  /** 标签默认值，通常为 document.title */
-  tag: string;
-  /** 备注默认值，通常为 "自动保存" */
-  remark: string;
-}
-
-/**
- * 用户在弹窗中编辑后的保存数据
- */
-export interface SavePromptEditedData {
-  /** 用户编辑后的标签 */
-  tag: string;
-  /** 用户编辑后的备注 */
-  remark: string;
-  /** 用户是否主动编辑过标签输入框 */
-  tagEdited: boolean;
-  /** 用户是否主动编辑过备注输入框 */
-  remarkEdited: boolean;
-}
 
 /**
  * 显示保存密码确认弹窗

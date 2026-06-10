@@ -2,13 +2,7 @@
  * 动画控制器 - 管理悬浮按钮的动画效果
  */
 
-export type AnimationState = 'expanded' | 'collapsed';
-
-export interface AnimationOptions {
-  duration?: number;
-  easing?: string;
-  onComplete?: () => void;
-}
+import type { AnimationState, AnimationOptions } from '@/entrypoints/content/floatingButtons/types';
 
 export class AnimationController {
   private buttonGroup: HTMLElement;
