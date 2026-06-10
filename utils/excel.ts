@@ -1,5 +1,6 @@
 // import * as XLSX from 'xlsx';
 import type { PasswordEntry } from '@/utils/types';
+import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 
 export class ExcelUtils {
@@ -16,8 +17,8 @@ export class ExcelUtils {
         URL: p.url,
         标签: p.tag,
         备注: p.remark,
-        创建时间: new Date(p.createTime || Date.now()).toLocaleString(),
-        更新时间: new Date(p.updateTime || Date.now()).toLocaleString(),
+        创建时间: formatDate(p.createTime || Date.now()),
+        更新时间: formatDate(p.updateTime || Date.now()),
       }));
 
       // 创建工作簿
@@ -154,8 +155,8 @@ export class ExcelUtils {
           URL: 'https://example.com',
           标签: '工作',
           备注: '示例账号',
-          创建时间: new Date().toLocaleDateString(),
-          更新时间: new Date().toLocaleDateString(),
+          创建时间: formatDate(Date.now()),
+          更新时间: formatDate(Date.now()),
         },
       ];
 

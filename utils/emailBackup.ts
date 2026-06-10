@@ -1,5 +1,6 @@
 import type { PasswordEntry } from '@/utils/types';
 import { ExcelUtils } from '@/utils/excel';
+import { formatDateTime } from '@/utils/dateFormat';
 
 /**
  * 邮箱备份工具类
@@ -41,7 +42,7 @@ export class EmailBackupUtils {
     // 构造 mailto 链接，唤起邮件客户端
     const subject = `密码备份-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     const body = [
-      `备份时间：${now.toLocaleString()}`,
+      `备份时间：${formatDateTime(now)}`,
       `备份条数：${passwords.length}条账号密码`,
       `附件文件：${filename}`,
       '',

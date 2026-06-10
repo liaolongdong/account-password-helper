@@ -117,7 +117,7 @@
             min-width="100"
           >
             <template #default="{ row }">
-              {{ new Date(row.createTime).toLocaleDateString() }}
+              {{ formatDate(row.createTime) }}
             </template>
           </el-table-column>
           <el-table-column
@@ -126,7 +126,7 @@
             min-width="100"
           >
             <template #default="{ row }">
-              {{ new Date(row.updateTime).toLocaleDateString() }}
+              {{ formatDate(row.updateTime) }}
             </template>
           </el-table-column>
         </el-table>
@@ -175,6 +175,7 @@ import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
 import { ExcelUtils } from '@/utils/excel';
 import { StorageUtils } from '@/utils/storage';
+import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
 

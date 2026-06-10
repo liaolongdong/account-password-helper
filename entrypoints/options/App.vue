@@ -502,7 +502,7 @@
             :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.createTime - b.createTime"
           >
             <template #default="{ row }">
-              {{ new Date(row.createTime).toLocaleDateString() }}
+              {{ formatDate(row.createTime) }}
             </template>
           </el-table-column>
           <el-table-column
@@ -514,7 +514,7 @@
             :sort-orders="['descending', 'ascending', null]"
           >
             <template #default="{ row }">
-              {{ new Date(row.updateTime).toLocaleDateString() }}
+              {{ formatDate(row.updateTime) }}
             </template>
           </el-table-column>
           <el-table-column
@@ -738,6 +738,7 @@ import type { PasswordEntry } from '@/utils/types';
 import { sessionManager } from '@/utils/sessionManager';
 import { STORAGE_KEYS } from '@/utils/encryption';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
+import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import ImportDialog from '@/components/ImportDialog.vue';
 import BrandLogo from '@/components/BrandLogo.vue';

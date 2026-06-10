@@ -109,6 +109,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import type { EmailBackupConfig } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { EmailBackupUtils } from '@/utils/emailBackup';
+import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 
 /** 自动备份间隔选项 */
@@ -174,7 +175,7 @@ const handleOpen = async () => {
     form.value = { ...config };
 
     const lastTime = await StorageUtils.getLastAutoBackupTime();
-    lastBackupTime.value = lastTime ? new Date(lastTime).toLocaleString() : '';
+    lastBackupTime.value = lastTime ? formatDateTime(lastTime) : '';
   } catch (error) {
     logger.error('加载邮箱备份配置失败:', error);
   }
