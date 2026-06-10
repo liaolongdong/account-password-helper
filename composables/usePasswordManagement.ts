@@ -356,7 +356,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   // 删除密码
   const deletePassword = async (id: string) => {
     try {
-      await ElMessageBox.confirm('确定要删除这个密码吗？', '确认删除', {
+      await ElMessageBox.confirm('确定要删除这条账号密码吗？', '确认删除', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning',
@@ -382,7 +382,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   // 批量删除
   const batchDelete = async () => {
     try {
-      await ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 个密码吗？`, '确认批量删除', {
+      await ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 条账号密码吗？`, '确认批量删除', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'warning',

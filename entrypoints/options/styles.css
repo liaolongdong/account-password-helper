@@ -1,15 +1,15 @@
 .options-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #e8f4fd 0%, #f8fbff 100%);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: linear-gradient(135deg, #e8f4fd 0%, #f8fbff 100%);
 }
 
 /* 设置页面样式 */
 .setup-page {
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 100vh;
   padding: 20px;
 }
 
@@ -19,8 +19,8 @@
 }
 
 .setup-header {
-  text-align: center;
   margin-bottom: 32px;
+  text-align: center;
 }
 
 .logo-section {
@@ -31,24 +31,24 @@
 }
 
 .logo-section .logo {
+  margin-right: 12px;
   font-size: 40px;
   color: #409eff;
-  margin-right: 12px;
 }
 
 .setup-header h1 {
+  margin: 0;
   font-size: 28px;
   font-weight: 600;
-  margin: 0;
   color: #2c3e50;
   text-shadow: none;
 }
 
 .subtitle {
-  font-size: 15px;
   margin: 0;
-  color: #6c757d;
+  font-size: 15px;
   font-weight: 400;
+  color: #6c757d;
 }
 
 .setup-form,
@@ -57,10 +57,10 @@
 }
 
 .form-card {
+  overflow: hidden;
+  border: 1px solid #e3f2fd;
   border-radius: 12px;
   box-shadow: 0 4px 12px rgb(64 158 255 / 10%);
-  border: 1px solid #e3f2fd;
-  overflow: hidden;
 }
 
 :deep(.form-card .el-card__body) {
@@ -70,10 +70,10 @@
 
 /* 验证页面样式 */
 .verify-page {
-  min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-height: 100vh;
   padding: 20px;
 }
 
@@ -83,14 +83,14 @@
 }
 
 .verify-header {
-  text-align: center;
   margin-bottom: 32px;
+  text-align: center;
 }
 
 .verify-header h1 {
+  margin: 0;
   font-size: 24px;
   font-weight: 600;
-  margin: 0;
   color: #2c3e50;
 }
 
@@ -103,22 +103,22 @@
 /* 密码表单页面样式 */
 .form-page {
   min-height: 100vh;
-  background: #f8fbff;
   padding: 0;
+  background: #f8fbff;
 }
 
 .form-container {
   max-width: 800px;
-  margin: 0 auto;
   padding: 20px;
+  margin: 0 auto;
 }
 
 .form-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 24px;
   padding: 16px 0;
+  margin-bottom: 24px;
   border-bottom: 1px solid #e3f2fd;
 }
 
@@ -139,9 +139,9 @@
 }
 
 .password-form-card {
+  border: 1px solid #e3f2fd;
   border-radius: 12px;
   box-shadow: 0 2px 8px rgb(64 158 255 / 8%);
-  border: 1px solid #e3f2fd;
 }
 
 :deep(.password-form-card .el-card__body) {
@@ -153,36 +153,36 @@
 }
 
 .form-row-half {
-  margin-bottom: 20px;
   width: 300px;
+  margin-bottom: 20px;
 }
 
 .form-actions {
   display: flex;
-  justify-content: flex-end;
   gap: 12px;
-  margin-top: 32px;
+  justify-content: flex-end;
   padding-top: 24px;
+  margin-top: 32px;
   border-top: 1px solid #f0f0f0;
 }
 
 /* 主内容区域样式 */
 .main-content {
   min-height: 100vh;
-  background: #f8fbff;
   padding: 0;
+  background: #f8fbff;
 }
 
 .header {
-  background: linear-gradient(135deg, #409eff 0%, #66b3ff 100%);
-  color: white;
-  padding: 24px 32px;
-  margin-bottom: 24px;
-  border-radius: 0;
-  box-shadow: 0 2px 12px rgb(64 158 255 / 15%);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  padding: 24px 32px;
+  margin-bottom: 24px;
+  color: white;
+  background: linear-gradient(135deg, #409eff 0%, #66b3ff 100%);
+  border-radius: 0;
+  box-shadow: 0 2px 12px rgb(64 158 255 / 15%);
 }
 
 .header-title-row {
@@ -201,9 +201,9 @@
 }
 
 .header-title .logo {
+  margin-right: 12px;
   font-size: 28px;
   color: #fff;
-  margin-right: 12px;
 }
 
 .header-actions-row {
@@ -215,63 +215,63 @@
 
 .header-actions {
   display: flex;
-  gap: 12px;
   flex-wrap: wrap;
+  gap: 12px;
 }
 
 .header-actions-right {
   display: flex;
-  align-items: center;
   gap: 8px;
+  align-items: center;
 }
 
 .floating-button-label {
-  color: rgb(255 255 255 / 85%);
   font-size: 14px;
+  color: rgb(255 255 255 / 85%);
   white-space: nowrap;
 }
 
 :deep(.header-actions .el-button) {
+  font-weight: 400;
+  color: white;
   background: rgb(255 255 255 / 15%);
   border: 1px solid rgb(255 255 255 / 25%);
-  color: white;
   backdrop-filter: blur(10px);
   transition: all 0.2s ease;
-  font-weight: 400;
 }
 
 :deep(.header-actions .el-button:hover) {
   background: rgb(255 255 255 / 20%);
   border-color: rgb(255 255 255 / 40%);
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+  transform: translateY(-1px);
 }
 
 :deep(.header-actions .el-button--primary) {
+  font-weight: 500;
+  color: #409eff;
   background: #fff;
   border: 1px solid #fff;
-  color: #409eff;
-  font-weight: 500;
 }
 
 :deep(.header-actions .el-button--primary:hover) {
+  color: #1890ff;
   background: #f0f9ff;
   border-color: #f0f9ff;
-  color: #1890ff;
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+  transform: translateY(-1px);
 }
 
 .filters {
-  margin: 0 32px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 20px;
+  margin: 0 32px 20px;
   background: white;
+  border: 1px solid #e3f2fd;
   border-radius: 8px;
   box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
-  border: 1px solid #e3f2fd;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 /* 搜索输入框样式 */
@@ -286,11 +286,11 @@
 /* 密码列表动画 */
 .password-list {
   margin: 0 32px 32px;
+  overflow: hidden;
   background: white;
+  border: 1px solid #e3f2fd;
   border-radius: 8px;
   box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
-  border: 1px solid #e3f2fd;
-  overflow: hidden;
 }
 
 /* 表格行动画 */
@@ -299,8 +299,8 @@
 }
 
 :deep(.el-table__body-wrapper .el-table__row:hover) {
-  transform: translateY(-2px);
   box-shadow: 0 2px 8px rgb(64 158 255 / 20%);
+  transform: translateY(-2px);
 }
 
 /* 新增条目高亮动画 */
@@ -382,15 +382,15 @@
 
 .password-cell {
   display: flex;
+  gap: 8px;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
 }
 
 :deep(.el-input--large .el-input__wrapper) {
+  border: 1px solid #d9ecff;
   border-radius: 6px;
   box-shadow: none;
-  border: 1px solid #d9ecff;
   transition: all 0.2s ease;
 }
 
@@ -404,9 +404,9 @@
 }
 
 :deep(.el-input .el-input__wrapper) {
+  border: 1px solid #d9ecff;
   border-radius: 6px;
   box-shadow: none;
-  border: 1px solid #d9ecff;
   transition: all 0.2s ease;
 }
 
@@ -421,26 +421,26 @@
 
 /* 按钮优化 */
 :deep(.el-button--large.el-button--primary) {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 500;
   background: #409eff;
   border: 1px solid #409eff;
   border-radius: 6px;
-  font-weight: 500;
-  font-size: 16px;
-  padding: 12px 24px;
   transition: all 0.2s ease;
 }
 
 :deep(.el-button--large.el-button--primary:hover) {
   background: #66b3ff;
   border-color: #66b3ff;
-  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgb(64 158 255 / 30%);
+  transform: translateY(-1px);
 }
 
 :deep(.el-button--primary) {
+  font-weight: 400;
   background: #409eff;
   border: 1px solid #409eff;
-  font-weight: 400;
 }
 
 :deep(.el-button--primary:hover) {
@@ -449,8 +449,8 @@
 }
 
 :deep(.el-button) {
-  border-radius: 6px;
   font-weight: 400;
+  border-radius: 6px;
   transition: all 0.2s ease;
 }
 
@@ -460,30 +460,30 @@
 
 /* alert 组件优化 */
 :deep(.el-alert) {
-  border-radius: 6px;
   border: none;
+  border-radius: 6px;
 }
 
 :deep(.el-alert--info) {
-  background: #e8f4fd;
   color: #2c3e50;
+  background: #e8f4fd;
 }
 
 :deep(.el-alert--error) {
-  background: #fef0f0;
   color: #f56c6c;
+  background: #fef0f0;
 }
 
 :deep(.el-alert--warning) {
-  background: #fdf6ec;
   color: #e6a23c;
+  background: #fdf6ec;
 }
 
 /* 表单标签 */
 :deep(.el-form-item__label) {
+  font-size: 14px;
   font-weight: 500;
   color: #2c3e50;
-  font-size: 14px;
 }
 
 /* 表格优化 */
@@ -493,10 +493,10 @@
 }
 
 :deep(.el-table th) {
-  background: #f8fbff;
   font-weight: 500;
-  border-bottom: 1px solid #e3f2fd;
   color: #2c3e50;
+  background: #f8fbff;
+  border-bottom: 1px solid #e3f2fd;
 }
 
 :deep(.el-table td) {
@@ -525,8 +525,8 @@
 
 /* 链接按钮优化 */
 :deep(.el-button--info.is-link) {
-  color: #409eff;
   font-weight: 400;
+  color: #409eff;
 }
 
 :deep(.el-button--info.is-link:hover) {
@@ -534,8 +534,8 @@
 }
 
 :deep(.el-button--danger.is-link) {
-  color: #f56c6c;
   font-weight: 400;
+  color: #f56c6c;
 }
 
 :deep(.el-button--danger.is-link:hover) {
@@ -562,10 +562,10 @@
   }
 
   .filters {
-    margin: 0 16px 20px;
-    padding: 16px;
     flex-direction: column;
     gap: 16px;
+    padding: 16px;
+    margin: 0 16px 20px;
   }
 
   .password-list {
@@ -592,18 +592,17 @@
 
 /* 标签样式 */
 .tag-item {
-  font-weight: 500;
-  border-radius: 4px;
-  padding: 2px 8px;
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.5;
-
   /* 单行展示，超长省略，配合外层 el-tooltip 显示完整内容 */
   max-width: 200px;
+  padding: 2px 8px;
+  margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.5;
   white-space: nowrap;
+  border-radius: 4px;
 }
 
 /* el-tag 内层文本节点继承省略策略，确保 inline-flex 下生效 */
@@ -620,23 +619,23 @@
 }
 
 .no-tag {
-  color: #c0c4cc;
-  font-style: italic;
   font-size: 12px;
+  font-style: italic;
+  color: #c0c4cc;
 }
 
 /* 操作按钮样式 */
 .operation-buttons {
   display: flex;
   align-items: center;
+  justify-content: center;
   white-space: nowrap;
 }
 
 .operation-buttons .el-button {
-  font-size: 12px;
-  height: auto;
-  min-height: 28px;
-  margin-left: 2px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
 }
 
 /* 弹窗样式 */
@@ -647,18 +646,18 @@
 
 /* 表单提示样式 */
 .form-tip {
-  font-size: 12px;
-  color: #909399;
   margin-top: 4px;
+  font-size: 12px;
   line-height: 1.4;
+  color: #909399;
 }
 
 /* 文本省略样式 */
 .text-ellipsis {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
   max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 会话信息样式 */
@@ -670,8 +669,8 @@
 
 .session-status {
   display: flex;
-  align-items: center;
   gap: 8px;
+  align-items: center;
 }
 
 .session-expiry {

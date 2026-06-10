@@ -495,36 +495,48 @@
           <el-table-column
             label="操作"
             header-align="center"
-            width="160"
+            width="130"
             fixed="right"
           >
             <template #default="{ row }">
               <div class="operation-buttons">
-                <el-button
-                  :icon="CopyDocument"
-                  link
-                  size="small"
-                  @click="copyPassword(row)"
+                <el-tooltip
+                  content="复制条目"
+                  placement="top"
+                  :show-after="400"
                 >
-                  复制
-                </el-button>
-                <el-button
-                  :icon="Edit"
-                  link
-                  size="small"
-                  @click="editPassword(row)"
+                  <el-button
+                    :icon="CopyDocument"
+                    circle
+                    size="small"
+                    @click="copyPassword(row)"
+                  />
+                </el-tooltip>
+                <el-tooltip
+                  content="编辑"
+                  placement="top"
+                  :show-after="400"
                 >
-                  编辑
-                </el-button>
-                <el-button
-                  :icon="Delete"
-                  link
-                  size="small"
-                  type="danger"
-                  @click="deletePassword(row.id)"
+                  <el-button
+                    :icon="Edit"
+                    circle
+                    size="small"
+                    @click="editPassword(row)"
+                  />
+                </el-tooltip>
+                <el-tooltip
+                  content="删除"
+                  placement="top"
+                  :show-after="400"
                 >
-                  删除
-                </el-button>
+                  <el-button
+                    :icon="Delete"
+                    circle
+                    size="small"
+                    type="danger"
+                    @click="deletePassword(row.id)"
+                  />
+                </el-tooltip>
               </div>
             </template>
           </el-table-column>

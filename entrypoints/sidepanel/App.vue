@@ -148,6 +148,16 @@
                   <CopyDocument />
                 </el-icon>
               </span>
+              <span
+                class="copy-icon-wrapper"
+                title="复制密码"
+                @click.stop.prevent="copyPassword(password.password)"
+                @mousedown.stop
+              >
+                <el-icon class="copy-icon">
+                  <Key />
+                </el-icon>
+              </span>
             </div>
             <div class="details">
               <el-tooltip
@@ -229,7 +239,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
-import { Search, User, Right, Setting, Loading, CopyDocument } from '@element-plus/icons-vue';
+import { Search, User, Right, Setting, Loading, CopyDocument, Key } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import HelpDialog from '@/components/HelpDialog.vue';
 import {
@@ -720,6 +730,20 @@ const copyUsername = async (username: string) => {
   } catch (error) {
     logger.error('复制用户名失败:', error);
     ElMessage.error('复制用户名失败');
+  }
+};
+
+/**
+ * 复制密码到剪贴板
+ * @param password 要复制的密码明文
+ */
+const copyPassword = async (password: string) => {
+  try {
+    await navigator.clipboard.writeText(password);
+    ElMessage.success('密码已复制到剪贴板');
+  } catch (error) {
+    logger.error('复制密码失败:', error);
+    ElMessage.error('复制密码失败');
   }
 };
 
