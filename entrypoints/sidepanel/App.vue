@@ -149,7 +149,7 @@
                 </el-icon>
               </span>
               <span
-                class="copy-icon-wrapper"
+                class="copy-icon-wrapper copy-password"
                 title="复制密码"
                 @click.stop.prevent="copyPassword(password.password)"
                 @mousedown.stop
@@ -1051,7 +1051,7 @@ onUnmounted(() => {
   color: #1f2937;
 }
 
-.username .el-icon {
+.username > .el-icon {
   margin-right: 6px;
   font-size: 16px;
   color: #6b7280;
@@ -1068,6 +1068,10 @@ onUnmounted(() => {
   transition:
     background-color 0.2s,
     color 0.2s;
+}
+
+.copy-icon-wrapper.copy-password {
+  margin-left: 0;
 }
 
 .copy-icon-wrapper:hover {
