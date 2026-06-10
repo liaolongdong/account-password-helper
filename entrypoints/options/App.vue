@@ -226,42 +226,67 @@
             >
               添加密码
             </el-button>
-            <el-button
-              :icon="Download"
-              @click="downloadTemplate"
+            <el-dropdown
+              trigger="click"
+              @command="handleDataCommand"
             >
-              下载模板
-            </el-button>
-            <el-button
-              :icon="Upload"
-              @click="showImportDialog = true"
+              <el-button :icon="FolderOpened">
+                数据管理<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    command="downloadTemplate"
+                    :icon="Download"
+                  >
+                    下载模板
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="import"
+                    :icon="Upload"
+                  >
+                    导入Excel
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="export"
+                    :icon="Download"
+                  >
+                    导出Excel
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    divided
+                    command="backup"
+                    :icon="Message"
+                  >
+                    备份到邮箱
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+            <el-dropdown
+              trigger="click"
+              @command="handleSettingsCommand"
             >
-              导入Excel
-            </el-button>
-            <el-button
-              :icon="Download"
-              @click="exportPasswords"
-            >
-              导出Excel
-            </el-button>
-            <el-button
-              :icon="Message"
-              @click="openEmailBackupDialog"
-            >
-              备份到邮箱
-            </el-button>
-            <el-button
-              :icon="Setting"
-              @click="openValiditySetting"
-            >
-              有效期设置
-            </el-button>
-            <el-button
-              :icon="FolderChecked"
-              @click="showAutoSaveDialog = true"
-            >
-              自动保存设置
-            </el-button>
+              <el-button :icon="Setting">
+                设置<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    command="validity"
+                    :icon="Timer"
+                  >
+                    有效期设置
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="autoSave"
+                    :icon="FolderChecked"
+                  >
+                    自动保存设置
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
           <div class="header-actions-right">
             <span class="floating-button-label">悬浮按钮</span>
@@ -705,6 +730,9 @@ import {
   CopyDocument,
   Message,
   FolderChecked,
+  ArrowDown,
+  FolderOpened,
+  Timer,
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { sessionManager } from '@/utils/sessionManager';
@@ -729,6 +757,42 @@ const initialValidityForm = ref({ validityHours: 24 });
 
 /** 自动保存设置弹窗可见性 */
 const showAutoSaveDialog = ref(false);
+
+/**
+ * 数据管理下拉菜单命令处理
+ * @param command 菜单项命令标识
+ */
+const handleDataCommand = (command: string) => {
+  switch (command) {
+    case 'downloadTemplate':
+      downloadTemplate();
+      break;
+    case 'import':
+      showImportDialog.value = true;
+      break;
+    case 'export':
+      exportPasswords();
+      break;
+    case 'backup':
+      openEmailBackupDialog();
+      break;
+  }
+};
+
+/**
+ * 设置下拉菜单命令处理
+ * @param command 菜单项命令标识
+ */
+const handleSettingsCommand = (command: string) => {
+  switch (command) {
+    case 'validity':
+      openValiditySetting();
+      break;
+    case 'autoSave':
+      showAutoSaveDialog.value = true;
+      break;
+  }
+};
 
 /** 密码管理状态与操作方法 */
 const {

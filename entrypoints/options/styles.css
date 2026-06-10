@@ -231,6 +231,27 @@
   white-space: nowrap;
 }
 
+/* 下拉菜单触发按钮继承 header 按钮风格 */
+:deep(.header-actions .el-dropdown .el-button) {
+  font-weight: 400;
+  color: white;
+  background: rgb(255 255 255 / 15%);
+  border: 1px solid rgb(255 255 255 / 25%);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
+}
+
+:deep(.header-actions .el-dropdown .el-button:hover) {
+  background: rgb(255 255 255 / 20%);
+  border-color: rgb(255 255 255 / 40%);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+  transform: translateY(-1px);
+}
+
+:deep(.header-actions .el-dropdown .el-button .el-icon--right) {
+  margin-left: 4px;
+}
+
 :deep(.header-actions .el-button) {
   font-weight: 400;
   color: white;
