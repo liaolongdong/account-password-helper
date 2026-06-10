@@ -659,6 +659,13 @@
   padding: 0;
 }
 
+/* 删除按钮 hover 颜色加深，提供明确的危险操作反馈 */
+:deep(.operation-buttons .el-button--danger:hover) {
+  color: #fff;
+  background: #e04040;
+  border-color: #e04040;
+}
+
 /* 弹窗样式 */
 .dialog-footer {
   display: flex;

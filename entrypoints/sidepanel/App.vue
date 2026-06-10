@@ -207,7 +207,7 @@
     <div class="footer">
       <el-button
         :icon="BrandLogo"
-        text
+        class="footer-manage-btn"
         @click="openOptions"
       >
         密码管理
@@ -1147,13 +1147,35 @@ onUnmounted(() => {
 }
 
 .footer {
-  padding: 8px 16px;
+  padding: 10px 16px;
   text-align: center;
   background: white;
-  border-top: 1px solid #e5e7eb;
+  border-top: none;
+  box-shadow: 0 -2px 8px rgb(0 0 0 / 4%);
 }
 
-.footer :deep(.el-button .el-icon) {
+/* 密码管理按钮：浅蓝背景 + hover 变实心蓝 */
+:deep(.footer-manage-btn) {
+  width: 100%;
+  padding: 10px 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #409eff;
+  background: #ecf5ff;
+  border: 1px solid #d9ecff;
+  border-radius: 8px;
+  transition: all 0.25s ease;
+}
+
+:deep(.footer-manage-btn:hover) {
+  color: #fff;
+  background: #409eff;
+  border-color: #409eff;
+  box-shadow: 0 2px 8px rgb(64 158 255 / 30%);
+  transform: translateY(-1px);
+}
+
+:deep(.footer-manage-btn .el-icon) {
   font-size: 18px;
 }
 
