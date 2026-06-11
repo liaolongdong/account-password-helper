@@ -1,7 +1,8 @@
 import { defineBackground } from '#imports';
 import { Message, MessageType, PasswordCache, PasswordEntry, AutoSavePasswordData } from '../utils/types';
 import { logger } from '../utils/logger';
-import { STORAGE_KEYS, StorageUtils } from '../utils/storage';
+import { STORAGE_KEYS } from '@/utils/encryption';
+import { StorageUtils } from '@/utils/storage';
 import type { EmailBackupConfig } from '../utils/types';
 
 export default defineBackground(() => {

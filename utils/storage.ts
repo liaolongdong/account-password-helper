@@ -34,10 +34,6 @@ import {
   setMasterPasswordValidityHours,
 } from '@/utils/sessionManager-storage';
 
-// 重新导出供外部使用
-export type { EncryptedPasswordEntry } from '@/utils/types';
-export { STORAGE_KEYS } from '@/utils/encryption';
-
 export class StorageUtils {
   // ==================== 加密相关（委托到 encryption.ts） ====================
 
