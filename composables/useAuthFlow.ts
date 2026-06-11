@@ -243,7 +243,17 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
   };
 
   // 处理会话过期事件
-  const handleSessionExpired = () => {
+  const handleSessionExpired = async () => {
+    const hasMaster = await StorageUtils.hasMasterPassword();
+    if (!hasMaster) {
+      // 主密码未设置，保持/回到设置页面，避免误切换到验证页面
+      logger.debug('Auth: 会话过期事件触发但主密码未设置，保持设置页面');
+      showPasswordVerify.value = false;
+      isAuthenticated.value = false;
+      showMasterPasswordSetup.value = true;
+      return;
+    }
+
     showMasterPasswordSetup.value = false;
     showPasswordVerify.value = true;
     isAuthenticated.value = false;

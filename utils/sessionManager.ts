@@ -7,6 +7,8 @@ import { logger } from '@/utils/logger';
 class SessionManager {
   private static instance: SessionManager;
   private sessionCheckInterval: number | null = null;
+  /** 记录上次检查时会话是否有效，仅当从有效变为无效时才触发过期事件 */
+  private lastSessionWasValid = false;
 
   private constructor() {
     // 构造函数保持空实现
@@ -35,10 +37,11 @@ class SessionManager {
     this.sessionCheckInterval = window.setInterval(async () => {
       try {
         const isSessionValid = await StorageUtils.isSessionValid();
-        if (!isSessionValid) {
-          // 会话已过期，触发过期事件
+        if (!isSessionValid && this.lastSessionWasValid) {
+          // 仅当会话从有效变为无效时才触发过期事件，避免首次打开时无会话误触发
           this.handleSessionExpired();
         }
+        this.lastSessionWasValid = isSessionValid;
       } catch (error) {
         logger.error('SessionManager: 会话检查失败:', error);
       }
