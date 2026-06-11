@@ -25,27 +25,71 @@
             >
               <el-alert
                 title="设置主密码"
-                description="主密码用于保护您的所有账号信息，请妥善保管。密码设置必须同时包含字母、数字和特殊字符，且长度不少于8个字符。"
+                description="主密码用于保护您的所有账号信息，请妥善保管，切勿遗忘。"
                 type="info"
                 :closable="false"
                 show-icon
-                style="margin-bottom: 24px"
               />
 
               <el-form-item
                 label="主密码"
                 prop="password"
               >
-                <el-input
-                  v-model="setupForm.password"
-                  type="password"
-                  placeholder="请输入主密码（至少8个字符，包含字母、数字、特殊字符）"
-                  show-password
-                  size="large"
-                  :disabled="setupLoading"
-                  autocomplete="new-password"
-                  @keyup.enter="handleSetupSubmit"
-                />
+                <el-popover
+                  :visible="passwordInputFocused"
+                  placement="right"
+                  :width="220"
+                  :show-arrow="true"
+                  popper-class="password-rules-popover"
+                >
+                  <template #reference>
+                    <el-input
+                      v-model="setupForm.password"
+                      type="password"
+                      placeholder="请输入主密码（至少8个字符，包含字母、数字、特殊字符）"
+                      show-password
+                      size="large"
+                      :disabled="setupLoading"
+                      autocomplete="new-password"
+                      @keyup.enter="handleSetupSubmit"
+                      @focus="passwordInputFocused = true"
+                      @blur="passwordInputFocused = false"
+                    />
+                  </template>
+                  <!-- 弹窗内容：密码要求与规则校验清单 -->
+                  <div class="password-rules-popover-content">
+                    <div class="rules-title">密码要求</div>
+                    <el-progress
+                      v-if="setupForm.password"
+                      :percentage="passwordStrength.percentage"
+                      :color="passwordStrength.color"
+                      :stroke-width="6"
+                      :show-text="false"
+                    />
+                    <p
+                      v-else
+                      class="rules-hint"
+                    >
+                      请输入密码查看要求
+                    </p>
+                    <ul class="password-rules-list">
+                      <li
+                        v-for="rule in passwordRules"
+                        :key="rule.label"
+                        :class="{ passed: rule.passed }"
+                      >
+                        <el-icon
+                          :color="rule.passed ? '#67c23a' : '#c0c4cc'"
+                          :size="14"
+                        >
+                          <CircleCheckFilled v-if="rule.passed" />
+                          <CircleCloseFilled v-else />
+                        </el-icon>
+                        <span>{{ rule.label }}</span>
+                      </li>
+                    </ul>
+                  </div>
+                </el-popover>
               </el-form-item>
 
               <el-form-item
@@ -91,7 +135,9 @@
               </el-form-item>
             </el-form>
             <!-- 免责声明 -->
-            <DisclaimerInfo />
+            <div class="disclaimer-compact">
+              <DisclaimerInfo />
+            </div>
           </el-card>
         </div>
       </div>
@@ -120,15 +166,6 @@
               label-width="80px"
               label-position="top"
             >
-              <el-alert
-                v-if="verifyError"
-                :title="verifyError"
-                type="error"
-                :closable="false"
-                show-icon
-                style="margin-bottom: 20px"
-              />
-
               <el-form-item
                 label="主密码"
                 prop="password"
@@ -140,10 +177,18 @@
                   show-password
                   size="large"
                   :disabled="verifyLoading"
+                  :class="{ shake: verifyShake }"
+                  :style="{ '--shake-duration': SHAKE_DURATION_MS + 'ms' }"
                   autocomplete="current-password"
                   @keyup.enter="handleVerifySubmit"
                   @input="verifyError = ''"
                 />
+                <div
+                  v-if="verifyError"
+                  class="verify-error-inline"
+                >
+                  {{ verifyError }}
+                </div>
               </el-form-item>
 
               <el-form-item
@@ -165,7 +210,7 @@
                   type="primary"
                   size="large"
                   :loading="verifyLoading"
-                  style="width: 100%; margin-bottom: 16px"
+                  style="width: 100%"
                   @click="handleVerifySubmit"
                 >
                   验证密码
@@ -193,7 +238,9 @@
               </el-form-item>
             </el-form>
             <!-- 免责声明 -->
-            <DisclaimerInfo />
+            <div class="disclaimer-compact">
+              <DisclaimerInfo />
+            </div>
           </el-card>
         </div>
       </div>
@@ -748,7 +795,8 @@ import ValiditySettingDialog from '@/components/ValiditySettingDialog.vue';
 import EmailBackupDialog from '@/components/EmailBackupDialog.vue';
 import AutoSaveSettingDialog from '@/components/AutoSaveSettingDialog.vue';
 import { getTagType, parseTags } from '@/utils/tagUtils';
-import { useAuthFlow } from '@/composables/useAuthFlow';
+import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue';
+import { useAuthFlow, SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
 import { usePasswordManagement, MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
 import { isDev } from '@/utils/env';
@@ -758,6 +806,46 @@ const initialValidityForm = ref({ validityHours: 24 });
 
 /** 自动保存设置弹窗可见性 */
 const showAutoSaveDialog = ref(false);
+
+/** 主密码输入框是否获取焦点（控制规则气泡弹窗显示） */
+const passwordInputFocused = ref(false);
+
+/** 密码规则逐条校验结果 */
+const passwordRules = computed(() => {
+  const pwd = setupForm.value.password;
+  return [
+    { label: '至少 8 个字符', passed: pwd.length >= 8 },
+    { label: '包含字母（a-z 或 A-Z）', passed: /[a-zA-Z]/.test(pwd) },
+    { label: '包含数字（0-9）', passed: /\d/.test(pwd) },
+    { label: '包含特殊字符（如 !@#$%...）', passed: /[!@#$%^&*()_+\-={[\]};':"\\|,.<>/?~`]/.test(pwd) },
+  ];
+});
+
+/** 密码强度计算结果（基于规则通过数量） */
+const passwordStrength = computed(() => {
+  const pwd = setupForm.value.password;
+  if (!pwd) return { percentage: 0, color: '#e4e7ed', label: '', allPassed: false };
+
+  const passedCount = passwordRules.value.filter(r => r.passed).length;
+  const total = passwordRules.value.length;
+  const percentage = Math.round((passedCount / total) * 100);
+  const allPassed = passedCount === total;
+
+  let color = '#f56c6c';
+  let label = '弱';
+  if (allPassed) {
+    color = '#67c23a';
+    label = '强';
+  } else if (passedCount >= 3) {
+    color = '#e6a23c';
+    label = '中';
+  } else if (passedCount >= 2) {
+    color = '#e6a23c';
+    label = '中';
+  }
+
+  return { percentage, color, label, allPassed };
+});
 
 /**
  * 数据管理下拉菜单命令处理
@@ -849,6 +937,7 @@ const {
   setupLoading,
   verifyLoading,
   verifyError,
+  verifyShake,
   setupForm,
   setupRules,
   verifyForm,
@@ -942,4 +1031,16 @@ onUnmounted(() => {
 
 <style scoped>
 @import url('./styles.css');
+</style>
+
+<style>
+/* 全局重置：防止 body 默认 margin 导致纵向滚动条 */
+html,
+body {
+  height: 100%;
+  padding: 0;
+  margin: 0;
+
+  /* overflow: hidden; */
+}
 </style>

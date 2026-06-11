@@ -3,6 +3,9 @@ import type { FormRules, FormInstance } from 'element-plus';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 
+/** 输入框抖动动画持续时间（毫秒） */
+export const SHAKE_DURATION_MS = 400;
+
 /**
  * 认证流程 Composable
  * 管理主密码设置、验证、会话过期等认证相关逻辑
@@ -24,6 +27,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
   const setupLoading = ref(false);
   const verifyLoading = ref(false);
   const verifyError = ref('');
+  const verifyShake = ref(false);
 
   // 设置表单
   const setupForm = ref({
@@ -87,7 +91,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
   });
 
   const verifyRules: FormRules = {
-    password: [{ required: true, message: '请输入主密码', trigger: 'blur' }],
+    password: [],
   };
 
   // 检查认证状态
@@ -213,6 +217,10 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       } else {
         verifyError.value = '密码错误，请重新输入';
         verifyForm.value.password = '';
+        verifyShake.value = true;
+        setTimeout(() => {
+          verifyShake.value = false;
+        }, SHAKE_DURATION_MS);
         nextTick(() => {
           const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
           if (passwordInput) {
@@ -225,6 +233,10 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       logger.error('验证失败:', error);
       verifyError.value = '验证过程出现错误，请重试';
       verifyForm.value.password = '';
+      verifyShake.value = true;
+      setTimeout(() => {
+        verifyShake.value = false;
+      }, SHAKE_DURATION_MS);
     } finally {
       verifyLoading.value = false;
     }
@@ -301,6 +313,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
     setupLoading,
     verifyLoading,
     verifyError,
+    verifyShake,
     setupForm,
     setupRules,
     verifyForm,
