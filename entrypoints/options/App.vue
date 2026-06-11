@@ -54,7 +54,15 @@
                       @keyup.enter="handleSetupSubmit"
                       @focus="passwordInputFocused = true"
                       @blur="passwordInputFocused = false"
-                    />
+                    >
+                      <!-- 动作语义：密文显示睁眼（点击查看），明文显示闭眼（点击隐藏） -->
+                      <template #password-icon="{ visible }">
+                        <el-icon>
+                          <Hide v-if="visible" />
+                          <View v-else />
+                        </el-icon>
+                      </template>
+                    </el-input>
                   </template>
                   <!-- 弹窗内容：密码要求与规则校验清单 -->
                   <div class="password-rules-popover-content">
@@ -105,7 +113,14 @@
                   :disabled="setupLoading"
                   autocomplete="new-password"
                   @keyup.enter="handleSetupSubmit"
-                />
+                >
+                  <template #password-icon="{ visible }">
+                    <el-icon>
+                      <Hide v-if="visible" />
+                      <View v-else />
+                    </el-icon>
+                  </template>
+                </el-input>
               </el-form-item>
 
               <el-form-item
@@ -182,7 +197,14 @@
                   autocomplete="current-password"
                   @keyup.enter="handleVerifySubmit"
                   @input="verifyError = ''"
-                />
+                >
+                  <template #password-icon="{ visible }">
+                    <el-icon>
+                      <Hide v-if="visible" />
+                      <View v-else />
+                    </el-icon>
+                  </template>
+                </el-input>
                 <div
                   v-if="verifyError"
                   class="verify-error-inline"
@@ -662,7 +684,14 @@
             :disabled="passwordFormLoading"
             maxlength="50"
             show-word-limit
-          />
+          >
+            <template #password-icon="{ visible }">
+              <el-icon>
+                <Hide v-if="visible" />
+                <View v-else />
+              </el-icon>
+            </template>
+          </el-input>
         </el-form-item>
 
         <el-form-item
