@@ -137,61 +137,6 @@
   animation: shake var(--shake-duration, 400ms) ease-in-out;
 }
 
-/* 密码规则弹窗标题行（标题 + 强度文案） */
-.rules-title-row {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.strength-label {
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 1;
-  transition: color 0.2s ease;
-}
-
-/* 密码规则气泡弹窗 */
-.password-rules-popover {
-  padding: 12px 14px;
-}
-
-.password-rules-popover-content .rules-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.password-rules-popover-content .rules-hint {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: #909399;
-}
-
-.password-rules-list {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 0;
-  margin: 8px 0 0;
-  list-style: none;
-}
-
-.password-rules-list li {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  font-size: 12px;
-  line-height: 1.4;
-  color: #909399;
-  transition: color 0.25s ease;
-}
-
-.password-rules-list li.passed {
-  color: #67c23a;
-}
-
 /* 紧凑免责声明 */
 .disclaimer-compact :deep(.el-alert) {
   padding: 8px 12px;

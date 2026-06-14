@@ -35,78 +35,35 @@
                 label="主密码"
                 prop="password"
               >
-                <el-popover
-                  :visible="passwordInputFocused"
-                  placement="right"
-                  :width="220"
-                  :show-arrow="true"
-                  popper-class="password-rules-popover"
+                <PasswordStrengthPopover
+                  v-model:visible="passwordInputFocused"
+                  title="密码要求"
+                  hint="请输入密码查看要求"
+                  :password="setupForm.password"
+                  :strength="passwordStrength"
+                  :rules="passwordRules"
                 >
-                  <template #reference>
-                    <el-input
-                      v-model="setupForm.password"
-                      type="password"
-                      placeholder="请输入主密码（至少8个字符，包含字母、数字、特殊字符）"
-                      show-password
-                      size="large"
-                      :disabled="setupLoading"
-                      autocomplete="new-password"
-                      @keyup.enter="handleSetupSubmit"
-                      @focus="passwordInputFocused = true"
-                      @blur="passwordInputFocused = false"
-                    >
-                      <!-- 动作语义：密文显示睁眼（点击查看），明文显示闭眼（点击隐藏） -->
-                      <template #password-icon="{ visible }">
-                        <el-icon>
-                          <Hide v-if="visible" />
-                          <View v-else />
-                        </el-icon>
-                      </template>
-                    </el-input>
-                  </template>
-                  <!-- 弹窗内容：密码要求与规则校验清单 -->
-                  <div class="password-rules-popover-content">
-                    <div class="rules-title-row">
-                      <span class="rules-title">密码要求</span>
-                      <span
-                        v-if="setupForm.password && passwordStrength.label"
-                        class="strength-label"
-                        :style="{ color: passwordStrength.color }"
-                      >
-                        {{ passwordStrength.label }}
-                      </span>
-                    </div>
-                    <el-progress
-                      v-if="setupForm.password"
-                      :percentage="passwordStrength.percentage"
-                      :color="passwordStrength.color"
-                      :stroke-width="6"
-                      :show-text="false"
-                    />
-                    <p
-                      v-else
-                      class="rules-hint"
-                    >
-                      请输入密码查看要求
-                    </p>
-                    <ul class="password-rules-list">
-                      <li
-                        v-for="rule in passwordRules"
-                        :key="rule.label"
-                        :class="{ passed: rule.passed }"
-                      >
-                        <el-icon
-                          :color="rule.passed ? '#67c23a' : '#c0c4cc'"
-                          :size="14"
-                        >
-                          <CircleCheckFilled v-if="rule.passed" />
-                          <CircleCloseFilled v-else />
-                        </el-icon>
-                        <span>{{ rule.label }}</span>
-                      </li>
-                    </ul>
-                  </div>
-                </el-popover>
+                  <el-input
+                    v-model="setupForm.password"
+                    type="password"
+                    placeholder="请输入主密码（至少8个字符，包含字母、数字、特殊字符）"
+                    show-password
+                    size="large"
+                    :disabled="setupLoading"
+                    autocomplete="new-password"
+                    @keyup.enter="handleSetupSubmit"
+                    @focus="passwordInputFocused = true"
+                    @blur="passwordInputFocused = false"
+                  >
+                    <!-- 动作语义：密文显示睁眼（点击查看），明文显示闭眼（点击隐藏） -->
+                    <template #password-icon="{ visible }">
+                      <el-icon>
+                        <Hide v-if="visible" />
+                        <View v-else />
+                      </el-icon>
+                    </template>
+                  </el-input>
+                </PasswordStrengthPopover>
               </el-form-item>
 
               <el-form-item
@@ -715,76 +672,33 @@
           label="密码"
           prop="password"
         >
-          <el-popover
-            :visible="formPasswordInputFocused"
-            placement="right"
-            :width="220"
-            :show-arrow="true"
-            popper-class="password-rules-popover"
+          <PasswordStrengthPopover
+            v-model:visible="formPasswordInputFocused"
+            title="密码强度"
+            hint="请输入密码查看强度"
+            :password="passwordForm.password"
+            :strength="formPasswordStrength"
+            :rules="formPasswordRules"
           >
-            <template #reference>
-              <el-input
-                v-model="passwordForm.password"
-                type="password"
-                placeholder="选填，密码信息（最多50字符）"
-                show-password
-                :disabled="passwordFormLoading"
-                maxlength="50"
-                show-word-limit
-                @focus="formPasswordInputFocused = true"
-                @blur="formPasswordInputFocused = false"
-              >
-                <template #password-icon="{ visible }">
-                  <el-icon>
-                    <Hide v-if="visible" />
-                    <View v-else />
-                  </el-icon>
-                </template>
-              </el-input>
-            </template>
-            <!-- 弹窗内容：密码强度与规则校验清单 -->
-            <div class="password-rules-popover-content">
-              <div class="rules-title-row">
-                <span class="rules-title">密码强度</span>
-                <span
-                  v-if="passwordForm.password && formPasswordStrength.label"
-                  class="strength-label"
-                  :style="{ color: formPasswordStrength.color }"
-                >
-                  {{ formPasswordStrength.label }}
-                </span>
-              </div>
-              <el-progress
-                v-if="passwordForm.password"
-                :percentage="formPasswordStrength.percentage"
-                :color="formPasswordStrength.color"
-                :stroke-width="6"
-                :show-text="false"
-              />
-              <p
-                v-else
-                class="rules-hint"
-              >
-                请输入密码查看强度
-              </p>
-              <ul class="password-rules-list">
-                <li
-                  v-for="rule in formPasswordRules"
-                  :key="rule.label"
-                  :class="{ passed: rule.passed }"
-                >
-                  <el-icon
-                    :color="rule.passed ? '#67c23a' : '#c0c4cc'"
-                    :size="14"
-                  >
-                    <CircleCheckFilled v-if="rule.passed" />
-                    <CircleCloseFilled v-else />
-                  </el-icon>
-                  <span>{{ rule.label }}</span>
-                </li>
-              </ul>
-            </div>
-          </el-popover>
+            <el-input
+              v-model="passwordForm.password"
+              type="password"
+              placeholder="选填，密码信息（最多50字符）"
+              show-password
+              :disabled="passwordFormLoading"
+              maxlength="50"
+              show-word-limit
+              @focus="formPasswordInputFocused = true"
+              @blur="formPasswordInputFocused = false"
+            >
+              <template #password-icon="{ visible }">
+                <el-icon>
+                  <Hide v-if="visible" />
+                  <View v-else />
+                </el-icon>
+              </template>
+            </el-input>
+          </PasswordStrengthPopover>
         </el-form-item>
 
         <el-form-item
@@ -922,8 +836,9 @@ import ValiditySettingDialog from '@/components/ValiditySettingDialog.vue';
 import EmailBackupDialog from '@/components/EmailBackupDialog.vue';
 import AutoSaveSettingDialog from '@/components/AutoSaveSettingDialog.vue';
 import IdleLockSetting from '@/components/IdleLockSetting.vue';
+import PasswordStrengthPopover from '@/components/PasswordStrengthPopover.vue';
 import { getTagType, parseTags } from '@/utils/tagUtils';
-import { CircleCheckFilled, CircleCloseFilled, Lock, Unlock, Clock } from '@element-plus/icons-vue';
+import { Lock, Unlock, Clock } from '@element-plus/icons-vue';
 import { useAuthFlow, SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
 import { usePasswordManagement, MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
