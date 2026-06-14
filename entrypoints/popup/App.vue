@@ -9,6 +9,8 @@
         :icon="Lock"
         circle
         size="small"
+        :loading="lockLoading"
+        :disabled="lockLoading"
         title="锁定（清除会话）"
         @click="lockSession"
       />
@@ -118,6 +120,9 @@ const contactEmail = ref('924902324@qq.com');
 /** 会话状态 */
 const isSessionValid = ref(false);
 
+/** 锁定操作 loading 状态 */
+const lockLoading = ref(false);
+
 /** 密码列表 */
 const allPasswords = ref<PasswordEntry[]>([]);
 
@@ -163,13 +168,24 @@ onMounted(async () => {
 
 /** 锁定会话 */
 const lockSession = async () => {
+  lockLoading.value = true;
   try {
     await StorageUtils.clearSession();
     isSessionValid.value = false;
     allPasswords.value = [];
+
+    // 通知 background 使密码缓存失效
+    try {
+      await chrome.runtime.sendMessage({ type: MessageType.INVALIDATE_PASSWORD_CACHE });
+    } catch {
+      // background 可能未就绪，忽略
+    }
+
     ElMessage.success('已锁定');
   } catch (error) {
     logger.error('锁定失败:', error);
+  } finally {
+    lockLoading.value = false;
   }
 };
 
