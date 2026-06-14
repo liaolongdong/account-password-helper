@@ -286,11 +286,6 @@
   box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
 }
 
-/* 搜索输入框样式 */
-:deep(.el-input__wrapper) {
-  margin-right: 10px;
-}
-
 .password-list-info {
   margin: 0 32px 10px;
 }
