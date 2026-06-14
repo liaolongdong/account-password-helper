@@ -1,4 +1,4 @@
-import { ref, computed, type Ref } from 'vue';
+import { ref, computed, watch, type Ref } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
 import type { PasswordEntry, PasswordEntryWithUI } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
@@ -25,6 +25,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const showPasswordDialog = ref(false);
   const showEmailBackupDialog = ref(false);
   const searchKeyword = ref('');
+  /** 是否仅显示收藏条目 */
+  const favoriteOnly = ref(false);
   const selectedIds = ref<string[]>([]);
   const isEditingPassword = ref(false);
   const editingPasswordId = ref<string>('');
@@ -71,7 +73,16 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       );
     }
 
+    if (favoriteOnly.value) {
+      result = result.filter(p => p.favorite);
+    }
+
     return result;
+  });
+
+  /** 收藏过滤变化时清空选中状态（符合交互策略：过滤条件变化清空选中） */
+  watch(favoriteOnly, () => {
+    selectedIds.value = [];
   });
 
   /**
@@ -577,6 +588,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     tableLoading,
     tableRef,
     floatingButtonVisible,
+    favoriteOnly,
     filteredPasswords,
     availableTags,
     tagArray,

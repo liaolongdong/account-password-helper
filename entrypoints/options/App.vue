@@ -361,6 +361,18 @@
           :prefix-icon="Search"
           clearable
         />
+        <el-tooltip
+          :content="favoriteOnly ? '显示全部' : '只看收藏'"
+          placement="top"
+          :show-after="400"
+        >
+          <el-button
+            :icon="favoriteOnly ? StarFilled : Star"
+            circle
+            :type="favoriteOnly ? 'warning' : 'default'"
+            @click="favoriteOnly = !favoriteOnly"
+          />
+        </el-tooltip>
         <el-button
           v-if="selectedIds.length > 0"
           :icon="Delete"
@@ -1011,6 +1023,7 @@ const {
   tableLoading,
   tableRef,
   floatingButtonVisible,
+  favoriteOnly,
   filteredPasswords,
   availableTags,
   tagArray,

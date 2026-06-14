@@ -276,14 +276,19 @@
 
 .filters {
   display: flex;
+  gap: 12px;
   align-items: center;
-  justify-content: space-between;
   padding: 20px;
   margin: 0 32px 20px;
   background: white;
   border: 1px solid #e3f2fd;
   border-radius: 8px;
   box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
+}
+
+/* 搜索框占据剩余空间 */
+.filters > :deep(.el-input) {
+  flex: 1;
 }
 
 .password-list-info {

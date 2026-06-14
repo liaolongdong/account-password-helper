@@ -66,6 +66,19 @@
         clearable
         @input="handleSearch"
       />
+      <el-tooltip
+        :content="favoriteOnly ? '显示全部' : '只看收藏'"
+        placement="top"
+        :show-after="400"
+      >
+        <el-button
+          :icon="favoriteOnly ? StarFilled : Star"
+          circle
+          size="small"
+          :type="favoriteOnly ? 'warning' : 'default'"
+          @click="favoriteOnly = !favoriteOnly"
+        />
+      </el-tooltip>
     </div>
 
     <!-- 未验证状态 -->
@@ -258,7 +271,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import {
   Search,
   User,
@@ -295,6 +308,8 @@ import {
 
 const loading = ref(true);
 const searchKeyword = ref('');
+/** 是否仅显示收藏条目 */
+const favoriteOnly = ref(false);
 const passwords = ref<PasswordEntry[]>([]);
 const currentDomain = ref('');
 const isAuthenticated = ref(false);
@@ -445,6 +460,10 @@ const filteredPasswords = computed(() => {
     );
   }
 
+  if (favoriteOnly.value) {
+    result = result.filter(p => p.favorite);
+  }
+
   applySortConfig(result);
 
   // 收藏条目始终置顶
@@ -456,6 +475,11 @@ const filteredPasswords = computed(() => {
   });
 
   return result;
+});
+
+/** 收藏过滤变化时重置选中索引 */
+watch(favoriteOnly, () => {
+  activeIndex.value = 0;
 });
 
 // 监听会话状态变化
@@ -1111,9 +1135,16 @@ onUnmounted(() => {
 }
 
 .search-section {
+  display: flex;
+  gap: 8px;
+  align-items: center;
   padding: 10px 16px;
   background: white;
   border-bottom: 1px solid #e5e7eb;
+}
+
+.search-section :deep(.el-input) {
+  flex: 1;
 }
 
 .password-list {
