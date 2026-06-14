@@ -35,6 +35,10 @@ export interface PasswordEntry {
    */
   updateTime: number;
   /**
+   * 是否收藏（收藏条目置顶显示）
+   */
+  favorite?: boolean;
+  /**
    * 排列顺序
    */
   order: number;
@@ -204,6 +208,7 @@ export interface PasswordCache {
 export interface FillPasswordData {
   username: string;
   password: string;
+  autoLogin?: boolean;
 }
 
 /**

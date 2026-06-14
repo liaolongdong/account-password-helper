@@ -137,13 +137,27 @@
   animation: shake var(--shake-duration, 400ms) ease-in-out;
 }
 
+/* 密码规则弹窗标题行（标题 + 强度文案） */
+.rules-title-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.strength-label {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  transition: color 0.2s ease;
+}
+
 /* 密码规则气泡弹窗 */
 .password-rules-popover {
   padding: 12px 14px;
 }
 
 .password-rules-popover-content .rules-title {
-  margin-bottom: 8px;
   font-size: 13px;
   font-weight: 600;
   color: #303133;
@@ -195,72 +209,6 @@
 .disclaimer-compact {
   padding-top: 10px;
   margin-top: 12px;
-  border-top: 1px solid #f0f0f0;
-}
-
-/* 密码表单页面样式 */
-.form-page {
-  min-height: 100vh;
-  padding: 0;
-  background: #f8fbff;
-}
-
-.form-container {
-  max-width: 800px;
-  padding: 20px;
-  margin: 0 auto;
-}
-
-.form-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px 0;
-  margin-bottom: 24px;
-  border-bottom: 1px solid #e3f2fd;
-}
-
-.form-back {
-  display: flex;
-  align-items: center;
-}
-
-.form-title h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.form-content {
-  margin-top: 24px;
-}
-
-.password-form-card {
-  border: 1px solid #e3f2fd;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgb(64 158 255 / 8%);
-}
-
-:deep(.password-form-card .el-card__body) {
-  padding: 32px;
-}
-
-.form-row {
-  margin-bottom: 20px;
-}
-
-.form-row-half {
-  width: 300px;
-  margin-bottom: 20px;
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  padding-top: 24px;
-  margin-top: 32px;
   border-top: 1px solid #f0f0f0;
 }
 
@@ -448,11 +396,6 @@
   padding: 0 8px;
 }
 
-/* 表格行进入动画 */
-.password-row-enter-active {
-  transition: all 0.5s ease;
-}
-
 /** 删除密码列表动效 */
 :deep(.el-table__body-wrapper .el-table__row.del-item) {
   animation: fade-out 1s ease-in-out;
@@ -467,36 +410,6 @@
     opacity: 0;
     transform: translateX(800px);
   }
-}
-
-.password-row-enter-from {
-  opacity: 0;
-  transform: translateX(30px);
-}
-
-.password-row-enter-to {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-/* 表格行离开动画 */
-.password-row-leave-active {
-  transition: all 0.3s ease;
-}
-
-.password-row-leave-from {
-  opacity: 1;
-  transform: translateX(0);
-}
-
-.password-row-leave-to {
-  opacity: 0;
-  transform: translateX(30px);
-}
-
-/* 表格行移动动画 */
-.password-row-move {
-  transition: transform 0.5s ease;
 }
 
 .password-cell {
@@ -690,23 +603,6 @@
   .password-list {
     margin: 0 16px 16px;
   }
-
-  .form-container {
-    padding: 16px;
-  }
-
-  .form-row-half {
-    width: 100%;
-  }
-
-  .form-actions {
-    flex-direction: column;
-    gap: 12px;
-  }
-
-  .form-actions .el-button {
-    width: 100%;
-  }
 }
 
 /* 标签样式 */
@@ -795,22 +691,4 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* 会话信息样式 */
-.session-info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.session-status {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.session-expiry {
-  font-size: 14px;
-  color: #606266;
 }

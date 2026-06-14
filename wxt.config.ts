@@ -58,7 +58,7 @@ export default defineConfig({
     name: 'Account Password Helper',
     description: '账号密码管理助手 - 管理账号密码、自动填充账号密码、自动触发登录',
     version: '1.0.0',
-    permissions: ['storage', 'activeTab', 'scripting', 'sidePanel', 'alarms', 'downloads', 'notifications'],
+    permissions: ['storage', 'activeTab', 'scripting', 'sidePanel', 'alarms', 'downloads', 'notifications', 'idle'],
     host_permissions: ['<all_urls>'],
     action: {
       default_title: '账号密码管家',
@@ -72,7 +72,6 @@ export default defineConfig({
         },
         description: '打开账号密码管理选项页面',
       },
-      // todo 该功能还未正常实现（待实现）
       toggle_sidepanel: {
         suggested_key: {
           default: 'Ctrl+Shift+L',

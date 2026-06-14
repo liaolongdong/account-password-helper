@@ -16,6 +16,65 @@ export default defineBackground(() => {
   chrome.runtime.onInstalled.addListener(() => {
     logger.info('账号密码管理助手插件已安装');
     setupAutoBackupAlarm();
+    setupIdleLock();
+  });
+
+  /**
+   * 设置闲置锁定检测
+   */
+  async function setupIdleLock() {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.IDLE_LOCK_CONFIG);
+      const config = result[STORAGE_KEYS.IDLE_LOCK_CONFIG] as { idleLockMinutes: number } | undefined;
+      const minutes = config?.idleLockMinutes ?? 0; // 0 表示不锁定
+
+      if (minutes > 0) {
+        chrome.idle.setDetectionInterval(minutes * 60); // 转为秒
+        logger.debug(`Background: 闲置锁定已启用，间隔 ${minutes} 分钟`);
+      } else {
+        logger.debug('Background: 闲置锁定未启用');
+      }
+    } catch (error) {
+      logger.error('Background: 设置闲置锁定失败:', error);
+    }
+  }
+
+  // 监听闲置状态变化
+  chrome.idle.onStateChanged.addListener(async newState => {
+    if (newState === 'locked') {
+      try {
+        const result = await chrome.storage.local.get(STORAGE_KEYS.IDLE_LOCK_CONFIG);
+        const config = result[STORAGE_KEYS.IDLE_LOCK_CONFIG] as { idleLockMinutes: number } | undefined;
+        const minutes = config?.idleLockMinutes ?? 0;
+
+        if (minutes > 0) {
+          // 清除会话
+          await StorageUtils.clearSession();
+          logger.info('Background: 系统锁定，已清除主密码会话');
+
+          // 使缓存失效
+          invalidatePasswordCache();
+
+          // 通知 sidepanel 和 popup 刷新
+          if (sidePanelPort) {
+            try {
+              sidePanelPort.postMessage({ type: 'SESSION_EXPIRED' });
+            } catch {
+              // port 可能已断开
+            }
+          }
+        }
+      } catch (error) {
+        logger.error('Background: 闲置锁定处理失败:', error);
+      }
+    }
+  });
+
+  // 监听存储变化，更新闲置锁定配置
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local' && STORAGE_KEYS.IDLE_LOCK_CONFIG in changes) {
+      setupIdleLock();
+    }
   });
 
   // 监听 sidepanel 的 port 连接，用于可靠地追踪打开/关闭状态

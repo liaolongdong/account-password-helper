@@ -3,6 +3,61 @@
     <div class="header">
       <BrandLogo class="logo" />
       <h3>账号密码管理助手</h3>
+      <el-button
+        v-if="isSessionValid"
+        class="lock-btn"
+        :icon="Lock"
+        circle
+        size="small"
+        title="锁定（清除会话）"
+        @click="lockSession"
+      />
+    </div>
+
+    <!-- 会话状态指示器 -->
+    <div
+      v-if="isSessionValid"
+      class="session-status"
+    >
+      <el-tag
+        type="success"
+        size="small"
+      >
+        <el-icon><CircleCheckFilled /></el-icon>
+        已验证
+      </el-tag>
+      <el-text
+        type="info"
+        size="small"
+      >
+        共 {{ passwordCount }} 条密码
+      </el-text>
+      <el-text
+        v-if="domainMatchCount > 0"
+        type="success"
+        size="small"
+      >
+        · 当前页面匹配 {{ domainMatchCount }} 条
+      </el-text>
+    </div>
+
+    <div
+      v-else
+      class="session-status"
+    >
+      <el-tag
+        type="warning"
+        size="small"
+      >
+        <el-icon><WarningFilled /></el-icon>
+        未验证
+      </el-tag>
+      <el-text
+        type="info"
+        size="small"
+      >
+        请先验证主密码
+      </el-text>
     </div>
 
     <div class="content">
@@ -49,39 +104,74 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
+import { Lock, CircleCheckFilled, WarningFilled } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import { StorageUtils } from '@/utils/storage';
-import { MessageType } from '@/utils/types';
+import { MessageType, type PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 
 /** 联系邮箱 */
 const contactEmail = ref('924902324@qq.com');
 
-// TODO: 密码数量展示功能，后续开放
-// const passwordCount = ref(0);
-// const showPasswordCount = ref(false);
+/** 会话状态 */
+const isSessionValid = ref(false);
+
+/** 密码列表 */
+const allPasswords = ref<PasswordEntry[]>([]);
+
+/** 当前域名 */
+const currentDomain = ref('');
+
+/** 密码总数 */
+const passwordCount = computed(() => allPasswords.value.length);
+
+/** 当前域名匹配数 */
+const domainMatchCount = computed(() => {
+  if (!currentDomain.value) return 0;
+  return allPasswords.value.filter(p => {
+    if (!p.url) return false;
+    return currentDomain.value.includes(p.url) || p.url.includes(currentDomain.value);
+  }).length;
+});
 
 onMounted(async () => {
-  // TODO: 后续开放密码数量展示时取消注释
-  // try {
-  //   const isSessionValid = await StorageUtils.isSessionValid();
-  //   if (isSessionValid) {
-  //     const masterPassword = await StorageUtils.getSessionMasterPasswordDecrypted();
-  //     const passwords = await StorageUtils.getAllPasswords(masterPassword || undefined);
-  //     passwordCount.value = passwords.length;
-  //     showPasswordCount.value = true;
-  //   } else {
-  //     showPasswordCount.value = false;
-  //     passwordCount.value = 0;
-  //   }
-  // } catch (error) {
-  //   logger.error('获取密码数量失败:', error);
-  //   showPasswordCount.value = false;
-  //   passwordCount.value = 0;
-  // }
+  try {
+    // 检查会话状态
+    isSessionValid.value = await StorageUtils.isSessionValid();
+
+    // 获取当前域名
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.url) {
+      try {
+        const url = new URL(tab.url);
+        currentDomain.value = url.hostname;
+      } catch {
+        // URL 解析失败，忽略
+      }
+    }
+
+    // 加载密码列表
+    if (isSessionValid.value) {
+      allPasswords.value = await StorageUtils.getAllPasswords();
+    }
+  } catch (error) {
+    logger.error('Popup: 初始化失败:', error);
+  }
 });
+
+/** 锁定会话 */
+const lockSession = async () => {
+  try {
+    await StorageUtils.clearSession();
+    isSessionValid.value = false;
+    allPasswords.value = [];
+    ElMessage.success('已锁定');
+  } catch (error) {
+    logger.error('锁定失败:', error);
+  }
+};
 
 /**
  * 打开选项页面
@@ -104,9 +194,7 @@ const openOptions = async () => {
  */
 const openSidePanel = async () => {
   try {
-    const isSessionValid = await StorageUtils.isSessionValid();
-
-    if (!isSessionValid) {
+    if (!isSessionValid.value) {
       await openOptions();
       return;
     }
@@ -126,7 +214,6 @@ const openSidePanel = async () => {
             type: MessageType.SHOW_SIDEPANEL,
             data: { tabId: tab.id },
           });
-
           if (response.success) {
             logger.info('通过background脚本成功打开侧边栏');
             window.close();
@@ -172,23 +259,36 @@ const handleEmailClick = (event: Event) => {
 
 .header {
   display: flex;
+  gap: 8px;
   align-items: center;
   padding-bottom: 12px;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
   border-bottom: 1px solid #f0f0f0;
 }
 
 .logo {
-  margin-right: 8px;
+  margin-right: 0;
   font-size: 24px;
   color: #409eff;
 }
 
 .header h3 {
+  flex: 1;
   margin: 0;
   font-size: 16px;
   font-weight: 600;
   color: #303133;
+}
+
+.lock-btn {
+  flex-shrink: 0;
+}
+
+.session-status {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
 .content {
@@ -204,21 +304,15 @@ const handleEmailClick = (event: Event) => {
 }
 
 .quick-actions {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .action-button {
   font-size: 14px;
 }
 
-.pwd-save-count {
-  position: relative;
-  top: -12px;
-  text-align: center;
-}
-
 .contact-info {
-  padding-top: 20px;
+  padding-top: 12px;
   border-top: 1px solid #f0f0f0;
 }
 

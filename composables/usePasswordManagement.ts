@@ -61,12 +61,13 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     let result = [...passwords.value];
 
     if (searchKeyword.value) {
+      const keyword = searchKeyword.value.toLowerCase();
       result = result.filter(
         p =>
-          p.username.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
-          p.tag.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
-          p.remark.toLowerCase().includes(searchKeyword.value.toLowerCase()) ||
-          p.url.toLowerCase().includes(searchKeyword.value.toLowerCase()),
+          p.username.toLowerCase().includes(keyword) ||
+          p.tag.toLowerCase().includes(keyword) ||
+          p.remark.toLowerCase().includes(keyword) ||
+          p.url.toLowerCase().includes(keyword),
       );
     }
 
@@ -114,6 +115,30 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     },
   });
 
+  /**
+   * 切换收藏状态
+   */
+  const toggleFavorite = async (id: string) => {
+    try {
+      const entry = passwords.value.find(p => p.id === id);
+      if (!entry) return;
+      const newFav = !entry.favorite;
+      await StorageUtils.updatePassword(id, { favorite: newFav, updateTime: entry.updateTime });
+      entry.favorite = newFav;
+      // 重新排序确保收藏置顶
+      passwords.value.sort((a, b) => {
+        const favA = a.favorite ? 1 : 0;
+        const favB = b.favorite ? 1 : 0;
+        if (favA !== favB) return favB - favA;
+        return b.updateTime - a.updateTime;
+      });
+      ElMessage.success(newFav ? '已收藏' : '已取消收藏');
+    } catch (error) {
+      logger.error('切换收藏失败:', error);
+      ElMessage.error('操作失败');
+    }
+  };
+
   // 加载悬浮按钮配置
   const loadFloatingButtonConfig = async () => {
     try {
@@ -150,8 +175,13 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
       passwords.value = await StorageUtils.getAllPasswords();
 
-      // 按更新时间倒序排序
-      passwords.value.sort((a, b) => b.updateTime - a.updateTime);
+      // 按更新时间倒序排序，收藏条目始终置顶
+      passwords.value.sort((a, b) => {
+        const favA = a.favorite ? 1 : 0;
+        const favB = b.favorite ? 1 : 0;
+        if (favA !== favB) return favB - favA;
+        return b.updateTime - a.updateTime;
+      });
 
       // 添加显示密码状态
       passwords.value.forEach(p => {
@@ -176,11 +206,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     } finally {
       tableLoading.value = false;
     }
-  };
-
-  // 搜索处理
-  const handleSearch = () => {
-    // 搜索逻辑已通过计算属性实现
   };
 
   // 处理排序变化
@@ -559,7 +584,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     loadFloatingButtonConfig,
     toggleFloatingButton,
     loadPasswords,
-    handleSearch,
     handleSortChange,
     togglePasswordVisibility,
     handleRowClassName,
@@ -576,5 +600,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     downloadTemplate,
     openEmailBackupDialog,
     backupToEmail,
+    toggleFavorite,
   };
 }

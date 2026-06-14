@@ -3,6 +3,50 @@ import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 
+/** 导入格式类型 */
+export type ImportFormat = 'auto' | 'chrome' | 'lastpass' | 'bitwarden' | '1password';
+
+/** CSV 列映射配置 */
+interface CsvColumnMapping {
+  username: string[];
+  password: string[];
+  url: string[];
+  tag: string[];
+  remark: string[];
+}
+
+/** 各格式列映射配置 */
+const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnMapping> = {
+  chrome: {
+    username: ['username', 'Username'],
+    password: ['password', 'Password'],
+    url: ['url', 'URL', 'origin'],
+    tag: ['name', 'Name'],
+    remark: ['note', 'Note'],
+  },
+  lastpass: {
+    username: ['username', 'Username'],
+    password: ['password', 'Password'],
+    url: ['url', 'URL'],
+    tag: ['grouping', 'Grouping'],
+    remark: ['extra', 'Extra'],
+  },
+  bitwarden: {
+    username: ['login_username', 'Login Username'],
+    password: ['login_password', 'Login Password'],
+    url: ['login_uri', 'Login URI'],
+    tag: ['folder', 'Folder'],
+    remark: ['notes', 'Notes'],
+  },
+  '1password': {
+    username: ['Username', 'username'],
+    password: ['Password', 'password'],
+    url: ['Url', 'URL', 'url'],
+    tag: ['Title', 'title'],
+    remark: ['Notes', 'notes'],
+  },
+};
+
 export class ExcelUtils {
   /**
    * 导出密码数据到Excel
@@ -140,6 +184,131 @@ export class ExcelUtils {
         reject(new Error('导入Excel失败'));
       }
     });
+  }
+
+  /**
+   * 解析 CSV 文本为密码数据
+   * @param text CSV 文本内容
+   * @param format 导入格式，'auto' 时自动检测
+   */
+  static parseCSV(text: string, format: ImportFormat = 'auto'): Omit<PasswordEntry, 'id' | 'order'>[] {
+    const lines = text.split(/\r?\n/).filter(line => line.trim());
+    if (lines.length < 2) return []; // 至少需要表头 + 1行数据
+
+    // 解析表头
+    const headers = this.parseCSVLine(lines[0]);
+
+    // 确定使用哪个列映射
+    let mapping: CsvColumnMapping;
+    if (format === 'auto') {
+      mapping = this.detectFormat(headers);
+    } else {
+      mapping = FORMAT_COLUMN_MAP[format];
+    }
+
+    const now = Date.now();
+    const results: Omit<PasswordEntry, 'id' | 'order'>[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      const values = this.parseCSVLine(lines[i]);
+      if (values.length < 2) continue;
+
+      const row: Record<string, string> = {};
+      headers.forEach((h, idx) => {
+        row[h] = values[idx] || '';
+      });
+
+      const username = this.findColumn(row, mapping.username);
+      if (!username) continue;
+
+      results.push({
+        username: username.trim(),
+        password: (this.findColumn(row, mapping.password) || '').trim(),
+        url: (this.findColumn(row, mapping.url) || '').trim(),
+        tag: (this.findColumn(row, mapping.tag) || '').trim(),
+        remark: (this.findColumn(row, mapping.remark) || '').trim(),
+        createTime: now,
+        updateTime: now,
+      });
+    }
+
+    return results;
+  }
+
+  /**
+   * 解析单行 CSV（支持引号包裹的字段）
+   */
+  private static parseCSVLine(line: string): string[] {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (inQuotes) {
+        if (char === '"' && line[i + 1] === '"') {
+          current += '"';
+          i++;
+        } else if (char === '"') {
+          inQuotes = false;
+        } else {
+          current += char;
+        }
+      } else {
+        if (char === '"') {
+          inQuotes = true;
+        } else if (char === ',') {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+    }
+    result.push(current.trim());
+    return result;
+  }
+
+  /**
+   * 根据表头自动检测格式
+   */
+  private static detectFormat(headers: string[]): CsvColumnMapping {
+    const headerSet = new Set(headers.map(h => h.toLowerCase()));
+
+    // Chrome: name,url,username,password
+    if (headerSet.has('origin') || (headerSet.has('name') && headerSet.has('username') && headerSet.has('password'))) {
+      return FORMAT_COLUMN_MAP.chrome;
+    }
+    // LastPass: url,username,password,totp,extra,name,grouping,fav
+    if (headerSet.has('grouping') || headerSet.has('totp')) {
+      return FORMAT_COLUMN_MAP.lastpass;
+    }
+    // Bitwarden: folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password
+    if (headerSet.has('login_uri') || headerSet.has('login_username') || headerSet.has('reprompt')) {
+      return FORMAT_COLUMN_MAP.bitwarden;
+    }
+    // 1Password: Title,Url,Username,Password,Notes
+    if (headerSet.has('title') && headerSet.has('notes')) {
+      return FORMAT_COLUMN_MAP['1password'];
+    }
+
+    // 默认使用 Chrome 映射
+    return FORMAT_COLUMN_MAP.chrome;
+  }
+
+  /**
+   * 根据列映射配置查找对应列值
+   */
+  private static findColumn(row: Record<string, string>, candidates: string[]): string {
+    for (const key of candidates) {
+      if (row[key] !== undefined && row[key] !== '') return row[key];
+      // 大小写不敏感回退
+      const lowerKey = key.toLowerCase();
+      for (const rowKey of Object.keys(row)) {
+        if (rowKey.toLowerCase() === lowerKey && row[rowKey] !== '') return row[rowKey];
+      }
+    }
+    return '';
   }
 
   /**

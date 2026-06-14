@@ -66,7 +66,16 @@
                   </template>
                   <!-- 弹窗内容：密码要求与规则校验清单 -->
                   <div class="password-rules-popover-content">
-                    <div class="rules-title">密码要求</div>
+                    <div class="rules-title-row">
+                      <span class="rules-title">密码要求</span>
+                      <span
+                        v-if="setupForm.password && passwordStrength.label"
+                        class="strength-label"
+                        :style="{ color: passwordStrength.color }"
+                      >
+                        {{ passwordStrength.label }}
+                      </span>
+                    </div>
                     <el-progress
                       v-if="setupForm.password"
                       :percentage="passwordStrength.percentage"
@@ -314,13 +323,25 @@
                     command="import"
                     :icon="Upload"
                   >
-                    导入Excel
+                    导入数据
                   </el-dropdown-item>
                   <el-dropdown-item
                     command="export"
                     :icon="Download"
                   >
                     导出Excel
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="backupExport"
+                    :icon="Lock"
+                  >
+                    加密备份导出
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="backupImport"
+                    :icon="Unlock"
+                  >
+                    加密备份导入
                   </el-dropdown-item>
                   <el-dropdown-item
                     divided
@@ -353,6 +374,12 @@
                   >
                     自动保存设置
                   </el-dropdown-item>
+                  <el-dropdown-item
+                    command="idleLock"
+                    :icon="Clock"
+                  >
+                    自动锁定设置
+                  </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
@@ -376,7 +403,6 @@
           placeholder="搜索用户名、标签、备注或URL"
           :prefix-icon="Search"
           clearable
-          @input="handleSearch"
         />
         <el-button
           v-if="selectedIds.length > 0"
@@ -589,7 +615,7 @@
           <el-table-column
             label="操作"
             header-align="center"
-            width="130"
+            width="206"
             fixed="right"
           >
             <template #default="{ row }">
@@ -616,6 +642,19 @@
                     circle
                     size="small"
                     @click="editPassword(row)"
+                  />
+                </el-tooltip>
+                <el-tooltip
+                  :content="row.favorite ? '取消收藏' : '收藏'"
+                  placement="top"
+                  :show-after="400"
+                >
+                  <el-button
+                    :icon="row.favorite ? StarFilled : Star"
+                    circle
+                    size="small"
+                    :type="row.favorite ? 'warning' : 'default'"
+                    @click="toggleFavorite(row.id)"
                   />
                 </el-tooltip>
                 <el-tooltip
@@ -676,22 +715,76 @@
           label="密码"
           prop="password"
         >
-          <el-input
-            v-model="passwordForm.password"
-            type="password"
-            placeholder="选填，密码信息（最多50字符）"
-            show-password
-            :disabled="passwordFormLoading"
-            maxlength="50"
-            show-word-limit
+          <el-popover
+            :visible="formPasswordInputFocused"
+            placement="right"
+            :width="220"
+            :show-arrow="true"
+            popper-class="password-rules-popover"
           >
-            <template #password-icon="{ visible }">
-              <el-icon>
-                <Hide v-if="visible" />
-                <View v-else />
-              </el-icon>
+            <template #reference>
+              <el-input
+                v-model="passwordForm.password"
+                type="password"
+                placeholder="选填，密码信息（最多50字符）"
+                show-password
+                :disabled="passwordFormLoading"
+                maxlength="50"
+                show-word-limit
+                @focus="formPasswordInputFocused = true"
+                @blur="formPasswordInputFocused = false"
+              >
+                <template #password-icon="{ visible }">
+                  <el-icon>
+                    <Hide v-if="visible" />
+                    <View v-else />
+                  </el-icon>
+                </template>
+              </el-input>
             </template>
-          </el-input>
+            <!-- 弹窗内容：密码强度与规则校验清单 -->
+            <div class="password-rules-popover-content">
+              <div class="rules-title-row">
+                <span class="rules-title">密码强度</span>
+                <span
+                  v-if="passwordForm.password && formPasswordStrength.label"
+                  class="strength-label"
+                  :style="{ color: formPasswordStrength.color }"
+                >
+                  {{ formPasswordStrength.label }}
+                </span>
+              </div>
+              <el-progress
+                v-if="passwordForm.password"
+                :percentage="formPasswordStrength.percentage"
+                :color="formPasswordStrength.color"
+                :stroke-width="6"
+                :show-text="false"
+              />
+              <p
+                v-else
+                class="rules-hint"
+              >
+                请输入密码查看强度
+              </p>
+              <ul class="password-rules-list">
+                <li
+                  v-for="rule in formPasswordRules"
+                  :key="rule.label"
+                  :class="{ passed: rule.passed }"
+                >
+                  <el-icon
+                    :color="rule.passed ? '#67c23a' : '#c0c4cc'"
+                    :size="14"
+                  >
+                    <CircleCheckFilled v-if="rule.passed" />
+                    <CircleCloseFilled v-else />
+                  </el-icon>
+                  <span>{{ rule.label }}</span>
+                </li>
+              </ul>
+            </div>
+          </el-popover>
         </el-form-item>
 
         <el-form-item
@@ -788,11 +881,14 @@
 
     <!-- 自动保存设置弹窗 -->
     <AutoSaveSettingDialog v-model="showAutoSaveDialog" />
+
+    <!-- 闲置锁定设置弹窗 -->
+    <IdleLockSetting v-model="showIdleLockDialog" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import {
   Plus,
   Download,
@@ -809,6 +905,8 @@ import {
   ArrowDown,
   FolderOpened,
   Timer,
+  Star,
+  StarFilled,
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { sessionManager } from '@/utils/sessionManager';
@@ -823,11 +921,14 @@ import ValidityHoursSelect from '@/components/ValidityHoursSelect.vue';
 import ValiditySettingDialog from '@/components/ValiditySettingDialog.vue';
 import EmailBackupDialog from '@/components/EmailBackupDialog.vue';
 import AutoSaveSettingDialog from '@/components/AutoSaveSettingDialog.vue';
+import IdleLockSetting from '@/components/IdleLockSetting.vue';
 import { getTagType, parseTags } from '@/utils/tagUtils';
-import { CircleCheckFilled, CircleCloseFilled } from '@element-plus/icons-vue';
+import { CircleCheckFilled, CircleCloseFilled, Lock, Unlock, Clock } from '@element-plus/icons-vue';
 import { useAuthFlow, SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
 import { usePasswordManagement, MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
+import { usePasswordStrength } from '@/composables/usePasswordStrength';
+import { exportEncryptedBackup, importEncryptedBackup } from '@/utils/backupExport';
 import { isDev } from '@/utils/env';
 
 /** 临时有效期表单占位，在 useSessionTimer 初始化前会被覆盖 */
@@ -836,45 +937,102 @@ const initialValidityForm = ref({ validityHours: 24 });
 /** 自动保存设置弹窗可见性 */
 const showAutoSaveDialog = ref(false);
 
+/** 闲置锁定设置弹窗可见性 */
+const showIdleLockDialog = ref(false);
+
 /** 主密码输入框是否获取焦点（控制规则气泡弹窗显示） */
 const passwordInputFocused = ref(false);
 
-/** 密码规则逐条校验结果 */
-const passwordRules = computed(() => {
-  const pwd = setupForm.value.password;
-  return [
-    { label: '至少 8 个字符', passed: pwd.length >= 8 },
-    { label: '包含字母（a-z 或 A-Z）', passed: /[a-zA-Z]/.test(pwd) },
-    { label: '包含数字（0-9）', passed: /\d/.test(pwd) },
-    { label: '包含特殊字符（如 !@#$%...）', passed: /[!@#$%^&*()_+\-={[\]};':"\\|,.<>/?~`]/.test(pwd) },
-  ];
-});
+/** 密码表单弹窗 - 密码输入框是否获取焦点（控制强度气泡弹窗显示） */
+const formPasswordInputFocused = ref(false);
 
-/** 密码强度计算结果（基于规则通过数量） */
-const passwordStrength = computed(() => {
-  const pwd = setupForm.value.password;
-  if (!pwd) return { percentage: 0, color: '#e4e7ed', label: '', allPassed: false };
+/** 主密码设置页强度校验（复用 usePasswordStrength composable） */
+const setupPasswordRef = computed(() => setupForm.value.password);
+const { rules: passwordRules, strength: passwordStrength } = usePasswordStrength(setupPasswordRef);
 
-  const passedCount = passwordRules.value.filter(r => r.passed).length;
-  const total = passwordRules.value.length;
-  const percentage = Math.round((passedCount / total) * 100);
-  const allPassed = passedCount === total;
+/** 密码表单弹窗强度校验 */
+const formPasswordRef = computed(() => passwordForm.value.password);
+const { rules: formPasswordRules, strength: formPasswordStrength } = usePasswordStrength(formPasswordRef);
 
-  let color = '#f56c6c';
-  let label = '弱';
-  if (allPassed) {
-    color = '#67c23a';
-    label = '强';
-  } else if (passedCount >= 3) {
-    color = '#e6a23c';
-    label = '中';
-  } else if (passedCount >= 2) {
-    color = '#e6a23c';
-    label = '中';
+/** 加密备份导出 */
+const handleEncryptedBackupExport = async () => {
+  try {
+    if (passwords.value.length === 0) {
+      ElMessage.warning('没有密码数据可备份');
+      return;
+    }
+    const { value: masterPassword } = await ElMessageBox.prompt(
+      '加密备份需要验证主密码，请输入主密码：',
+      '加密备份导出',
+      {
+        confirmButtonText: '确认导出',
+        cancelButtonText: '取消',
+        inputType: 'password',
+        inputPlaceholder: '请输入主密码',
+        inputValidator: (v: string) => (!v || !v.trim() ? '主密码不能为空' : true),
+      },
+    );
+    const isValid = await StorageUtils.verifyMasterPassword(masterPassword.trim());
+    if (!isValid) {
+      ElMessage.error('主密码错误，导出失败');
+      return;
+    }
+    await exportEncryptedBackup(passwords.value, masterPassword.trim());
+    ElMessage.success('加密备份导出成功');
+  } catch (error) {
+    if (error !== 'cancel') {
+      logger.error('加密备份导出失败:', error);
+      ElMessage.error('加密备份导出失败');
+    }
   }
+};
 
-  return { percentage, color, label, allPassed };
-});
+/** 加密备份导入 */
+const handleEncryptedBackupImport = async () => {
+  try {
+    // 创建文件选择器
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.aph';
+    input.click();
+
+    input.onchange = async () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const { value: masterPassword } = await ElMessageBox.prompt('请输入用于解密备份文件的主密码：', '加密备份导入', {
+        confirmButtonText: '确认导入',
+        cancelButtonText: '取消',
+        inputType: 'password',
+        inputPlaceholder: '请输入主密码',
+        inputValidator: (v: string) => (!v || !v.trim() ? '主密码不能为空' : true),
+      });
+
+      const entries = await importEncryptedBackup(file, masterPassword.trim());
+      if (entries.length === 0) {
+        ElMessage.warning('备份文件中没有有效数据');
+        return;
+      }
+
+      await ElMessageBox.confirm(`备份文件中包含 ${entries.length} 条密码数据，确认导入吗？`, '确认导入', {
+        confirmButtonText: '确认',
+        cancelButtonText: '取消',
+        type: 'warning',
+      });
+
+      for (const entry of entries) {
+        await StorageUtils.savePassword(entry);
+      }
+      await loadPasswords();
+      ElMessage.success(`成功导入 ${entries.length} 条密码`);
+    };
+  } catch (error) {
+    if (error !== 'cancel') {
+      logger.error('加密备份导入失败:', error);
+      ElMessage.error(error instanceof Error ? error.message : '加密备份导入失败');
+    }
+  }
+};
 
 /**
  * 数据管理下拉菜单命令处理
@@ -890,6 +1048,12 @@ const handleDataCommand = (command: string) => {
       break;
     case 'export':
       exportPasswords();
+      break;
+    case 'backupExport':
+      handleEncryptedBackupExport();
+      break;
+    case 'backupImport':
+      handleEncryptedBackupImport();
       break;
     case 'backup':
       openEmailBackupDialog();
@@ -908,6 +1072,9 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'autoSave':
       showAutoSaveDialog.value = true;
+      break;
+    case 'idleLock':
+      showIdleLockDialog.value = true;
       break;
   }
 };
@@ -935,7 +1102,6 @@ const {
   loadFloatingButtonConfig,
   toggleFloatingButton,
   loadPasswords,
-  handleSearch,
   handleSortChange,
   togglePasswordVisibility,
   handleRowClassName,
@@ -952,6 +1118,7 @@ const {
   downloadTemplate,
   openEmailBackupDialog,
   backupToEmail,
+  toggleFavorite,
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });

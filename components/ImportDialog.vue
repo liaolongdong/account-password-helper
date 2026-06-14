@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="导入Excel"
+    title="导入密码数据"
     width="920px"
     top="10vh"
     class="import-dialog"
@@ -17,10 +17,45 @@
         show-icon
       >
         <template #default>
-          <p>支持列名：用户名、密码、URL、标签、备注（用户名必填，其余选填）</p>
-          <p>列名别名：username/password/url/tag/remark 等均可识别</p>
+          <p>支持 Excel（.xlsx/.xls）和 CSV 文件格式导入</p>
+          <p>CSV 支持 Chrome、LastPass、Bitwarden、1Password 导出格式，也可自动检测</p>
         </template>
       </el-alert>
+
+      <!-- 格式选择 -->
+      <div class="format-selector">
+        <span class="format-label">导入格式：</span>
+        <el-select
+          v-model="importFormat"
+          style="width: 200px"
+          size="default"
+        >
+          <el-option
+            label="自动检测"
+            value="auto"
+          />
+          <el-option
+            label="自有模板（Excel）"
+            value="native"
+          />
+          <el-option
+            label="Chrome 密码"
+            value="chrome"
+          />
+          <el-option
+            label="LastPass"
+            value="lastpass"
+          />
+          <el-option
+            label="Bitwarden"
+            value="bitwarden"
+          />
+          <el-option
+            label="1Password"
+            value="1password"
+          />
+        </el-select>
+      </div>
 
       <!-- 拖拽上传区域 -->
       <div class="upload-area">
@@ -30,16 +65,16 @@
           :auto-upload="false"
           :show-file-list="false"
           :limit="1"
-          accept=".xlsx,.xls"
+          accept=".xlsx,.xls,.csv"
           @change="handleFileChange"
         >
           <div class="upload-dragger-content">
             <el-icon class="upload-icon"><Upload /></el-icon>
             <div class="upload-text">
-              <span>将 Excel 文件拖拽到此处，或</span>
+              <span>将文件拖拽到此处，或</span>
               <em>点击选择文件</em>
             </div>
-            <div class="upload-hint">支持 .xlsx、.xls 格式</div>
+            <div class="upload-hint">支持 .xlsx、.xls、.csv 格式</div>
           </div>
         </el-upload>
 
@@ -173,7 +208,7 @@
 import { ref, computed, nextTick } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
-import { ExcelUtils } from '@/utils/excel';
+import { ExcelUtils, type ImportFormat } from '@/utils/excel';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
@@ -201,6 +236,7 @@ const loading = ref(false);
 const previewData = ref<Omit<PasswordEntry, 'id' | 'order'>[]>([]);
 const selectedFile = ref<File | undefined>(undefined);
 const showPreviewPassword = ref(false);
+const importFormat = ref<ImportFormat | 'native'>('auto');
 
 /**
  * 格式化文件大小为可读字符串
@@ -219,11 +255,23 @@ const handleFileChange = async (file: UploadFile) => {
 
   try {
     selectedFile.value = file.raw;
-    const data = await ExcelUtils.importFromExcel(file.raw);
+    const fileName = file.raw.name.toLowerCase();
+    const isCSV = fileName.endsWith('.csv');
+
+    let data: Omit<PasswordEntry, 'id' | 'order'>[];
+    if (isCSV) {
+      // CSV 解析路径
+      const text = await file.raw.text();
+      const format = importFormat.value === 'native' ? 'auto' : importFormat.value;
+      data = ExcelUtils.parseCSV(text, format as ImportFormat);
+    } else {
+      // Excel 解析路径
+      data = await ExcelUtils.importFromExcel(file.raw);
+    }
     previewData.value = data;
 
     if (data.length === 0) {
-      ElMessage.warning('Excel文件中没有找到有效的密码数据');
+      ElMessage.warning('文件中没有找到有效的密码数据');
     } else {
       ElMessage.success(`解析成功，共找到 ${data.length} 条有效数据`);
       // 有有效数据时，等 DOM 和 el-table 完全渲染后自动滚动弹窗内容区到底部
@@ -236,8 +284,8 @@ const handleFileChange = async (file: UploadFile) => {
       }, 150);
     }
   } catch (error) {
-    logger.error('解析Excel失败:', error);
-    ElMessage.error('Excel文件解析失败，请检查文件格式');
+    logger.error('解析文件失败:', error);
+    ElMessage.error('文件解析失败，请检查文件格式');
     previewData.value = [];
   }
 };
@@ -280,6 +328,7 @@ const handleClose = () => {
   previewData.value = [];
   selectedFile.value = undefined;
   showPreviewPassword.value = false;
+  importFormat.value = 'auto';
   if (uploadRef.value) {
     uploadRef.value.clearFiles();
   }
@@ -318,6 +367,20 @@ const handleClose = () => {
 
 :deep(.el-alert__description) {
   line-height: 1;
+}
+
+/* 格式选择器 */
+.format-selector {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.format-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+  white-space: nowrap;
 }
 
 /* 拖拽上传区域 */

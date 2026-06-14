@@ -2,6 +2,7 @@
   <div
     v-show="showSidepanel"
     class="sidepanel-container"
+    @keydown="handleKeydown"
   >
     <!-- 头部 -->
     <div class="header">
@@ -58,6 +59,7 @@
       class="search-section"
     >
       <el-input
+        ref="searchInputRef"
         v-model="searchKeyword"
         placeholder="搜索用户名、标签、备注..."
         :prefix-icon="Search"
@@ -128,11 +130,13 @@
         class="password-items"
       >
         <div
-          v-for="password in filteredPasswords"
+          v-for="(password, index) in filteredPasswords"
           :key="password.id"
           class="password-item"
+          :class="{ active: activeIndex === index }"
           title="点击快速填充账号和密码"
           @click="fillPassword(password)"
+          @mouseenter="activeIndex = index"
         >
           <div class="password-info">
             <div class="username">
@@ -197,6 +201,22 @@
             </div>
           </div>
           <div class="password-actions">
+            <el-icon
+              class="action-icon favorite-icon"
+              :class="{ 'is-favorite': password.favorite }"
+              :title="password.favorite ? '取消收藏' : '收藏'"
+              @click.stop="toggleFavorite(password)"
+            >
+              <StarFilled v-if="password.favorite" />
+              <Star v-else />
+            </el-icon>
+            <el-icon
+              class="action-icon auto-login-icon"
+              title="填充并登录"
+              @click.stop="handleFillAndLogin(password)"
+            >
+              <VideoPlay />
+            </el-icon>
             <el-icon class="action-icon"><Right /></el-icon>
           </div>
         </div>
@@ -239,7 +259,18 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue';
-import { Search, User, Right, Setting, Loading, CopyDocument, Key } from '@element-plus/icons-vue';
+import {
+  Search,
+  User,
+  Right,
+  Setting,
+  Loading,
+  CopyDocument,
+  Key,
+  Star,
+  StarFilled,
+  VideoPlay,
+} from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import HelpDialog from '@/components/HelpDialog.vue';
 import {
@@ -269,6 +300,8 @@ const currentDomain = ref('');
 const isAuthenticated = ref(false);
 const showSidepanel = ref(true);
 const sortConfig = ref<{ prop: string; order: string } | null>(null);
+const activeIndex = ref(0);
+const searchInputRef = ref();
 
 // 头部功能图标相关状态
 const GITHUB_URL = 'https://github.com/liaolongdong/account-password-helper';
@@ -413,6 +446,15 @@ const filteredPasswords = computed(() => {
   }
 
   applySortConfig(result);
+
+  // 收藏条目始终置顶
+  result.sort((a, b) => {
+    const favA = a.favorite ? 1 : 0;
+    const favB = b.favorite ? 1 : 0;
+    if (favA !== favB) return favB - favA;
+    return 0; // 保持 applySortConfig 的排序
+  });
+
   return result;
 });
 
@@ -584,6 +626,62 @@ const loadPasswords = async () => {
 // 搜索处理
 const handleSearch = () => {
   // 搜索逻辑已通过计算属性实现
+  activeIndex.value = 0; // 搜索时重置选中索引
+};
+
+// 键盘导航处理
+const handleKeydown = (e: KeyboardEvent) => {
+  const list = filteredPasswords.value;
+  if (!list.length) return;
+
+  switch (e.key) {
+    case 'ArrowDown':
+      e.preventDefault();
+      activeIndex.value = Math.min(activeIndex.value + 1, list.length - 1);
+      scrollToActiveItem();
+      break;
+    case 'ArrowUp':
+      e.preventDefault();
+      activeIndex.value = Math.max(activeIndex.value - 1, 0);
+      scrollToActiveItem();
+      break;
+    case 'Enter':
+      e.preventDefault();
+      if (activeIndex.value >= 0 && activeIndex.value < list.length) {
+        fillPassword(list[activeIndex.value]);
+      }
+      break;
+    case 'Escape':
+      e.preventDefault();
+      window.close();
+      break;
+    case 'c':
+    case 'C':
+      if (e.ctrlKey && e.shiftKey) {
+        // Ctrl+Shift+C: 复制密码 暂不需要（注释，别删除）
+        // e.preventDefault();
+        // if (activeIndex.value >= 0 && activeIndex.value < list.length) {
+        //   copyPassword(list[activeIndex.value].password);
+        // }
+      } else if (e.ctrlKey) {
+        // Ctrl+C: 复制用户名
+        e.preventDefault();
+        if (activeIndex.value >= 0 && activeIndex.value < list.length) {
+          copyUsername(list[activeIndex.value].username);
+        }
+      }
+      break;
+  }
+};
+
+// 滚动到当前选中条目
+const scrollToActiveItem = () => {
+  nextTick(() => {
+    const activeEl = document.querySelector('.password-item.active');
+    if (activeEl) {
+      activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+  });
 };
 
 /**
@@ -635,7 +733,7 @@ const waitForFieldsDetected = async (tabId: number, maxRetries: number = 3): Pro
 };
 
 // 填充密码
-const fillPassword = async (password: PasswordEntry) => {
+const fillPassword = async (password: PasswordEntry, options?: { autoLogin?: boolean }) => {
   try {
     // 获取当前活动标签页
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -645,6 +743,7 @@ const fillPassword = async (password: PasswordEntry) => {
     }
 
     const tabId = tab.id;
+    const autoLogin = options?.autoLogin ?? false;
 
     // 步骤1: 先检查 content script 是否已就绪（通过 PING）
     let pingResponse = await pingContentScript(tabId, 2);
@@ -695,6 +794,7 @@ const fillPassword = async (password: PasswordEntry) => {
       data: {
         username: password.username,
         password: password.password,
+        autoLogin,
       },
     })) as FillResult;
 
@@ -722,6 +822,11 @@ const fillPassword = async (password: PasswordEntry) => {
   }
 };
 
+/** 填充密码并自动触发登录 */
+const handleFillAndLogin = (password: PasswordEntry) => {
+  fillPassword(password, { autoLogin: true });
+};
+
 // 复制用户名到剪贴板
 const copyUsername = async (username: string) => {
   try {
@@ -744,6 +849,19 @@ const copyPassword = async (password: string) => {
   } catch (error) {
     logger.error('复制密码失败:', error);
     ElMessage.error('复制密码失败');
+  }
+};
+
+// 切换收藏状态
+const toggleFavorite = async (password: PasswordEntry) => {
+  try {
+    const newFav = !password.favorite;
+    await StorageUtils.updatePassword(password.id, { favorite: newFav, updateTime: password.updateTime });
+    password.favorite = newFav;
+    ElMessage.success(newFav ? '已收藏' : '已取消收藏');
+  } catch (error) {
+    logger.error('切换收藏失败:', error);
+    ElMessage.error('操作失败');
   }
 };
 
@@ -808,6 +926,12 @@ const injectSettingsViewStyles = () => {
 onMounted(async () => {
   // SidePanel: 开始初始化
   injectSettingsViewStyles();
+
+  // 搜索框自动聚焦
+  nextTick(() => {
+    const inputEl = searchInputRef.value?.$el?.querySelector('input');
+    if (inputEl) inputEl.focus();
+  });
 
   // 建立与 background 的 port 连接，用于状态追踪和接收关闭消息
   try {
@@ -1037,6 +1161,12 @@ onUnmounted(() => {
   background: #f8f9fa;
 }
 
+.password-item.active {
+  padding-left: 13px;
+  background: #ecf5ff;
+  border-left: 3px solid #409eff;
+}
+
 .password-info {
   flex: 1;
   min-width: 0;
@@ -1144,6 +1274,32 @@ onUnmounted(() => {
 
 .action-icon {
   font-size: 16px;
+}
+
+.favorite-icon {
+  margin-right: 8px;
+  color: #d1d5db;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.favorite-icon:hover {
+  color: #e6a23c;
+}
+
+.favorite-icon.is-favorite {
+  color: #e6a23c;
+}
+
+.auto-login-icon {
+  margin-right: 8px;
+  color: #d1d5db;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.auto-login-icon:hover {
+  color: #67c23a;
 }
 
 .footer {

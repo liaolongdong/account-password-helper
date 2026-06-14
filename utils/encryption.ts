@@ -14,6 +14,7 @@ export const STORAGE_KEYS = {
   EMAIL_BACKUP_CONFIG: 'email_backup_config',
   LAST_AUTO_BACKUP_TIME: 'last_auto_backup_time',
   AUTO_SAVE_CONFIG: 'auto_save_config',
+  IDLE_LOCK_CONFIG: 'idle_lock_config',
 };
 
 /**

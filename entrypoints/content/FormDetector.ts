@@ -910,10 +910,13 @@ export class FormDetector {
       }
 
       // 按配置自动触发登录（仅账号密码场景，且密码字段已实际填充）
-      if (result.success && result.details.passwordField.filled && this.floatingButtonConfig.autoTriggerLogin) {
-        setTimeout(() => {
-          this.triggerLogin();
-        }, 150);
+      // 当 autoLogin 为 true 时强制触发登录
+      if (result.success && result.details.passwordField.filled) {
+        if (data.autoLogin || this.floatingButtonConfig.autoTriggerLogin) {
+          setTimeout(() => {
+            this.triggerLogin();
+          }, 150);
+        }
       }
 
       // 仅在填充成功时自动关闭侧边栏；失败场景保留侧边栏以便用户查看提示
