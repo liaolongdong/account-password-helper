@@ -571,6 +571,54 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
   };
 
+  /**
+   * 一键去重
+   * 检测并删除 username/password/url/tag/remark 所有字段完全相同的重复条目，
+   * 每组仅保留 updateTime 最新的一项。
+   */
+  const removeDuplicates = async () => {
+    const groups = new Map<string, PasswordEntry[]>();
+    for (const entry of passwords.value) {
+      const key = [entry.username, entry.password, entry.url, entry.tag, entry.remark].join('|');
+      const group = groups.get(key) ?? [];
+      group.push(entry);
+      groups.set(key, group);
+    }
+
+    const idsToRemove: string[] = [];
+    for (const group of groups.values()) {
+      if (group.length <= 1) continue;
+      // 按 updateTime 降序，保留第一条（最新更新的）
+      group.sort((a, b) => b.updateTime - a.updateTime);
+      for (let i = 1; i < group.length; i++) {
+        idsToRemove.push(group[i].id);
+      }
+    }
+
+    if (idsToRemove.length === 0) {
+      ElMessage.info('没有检测到重复条目');
+      return;
+    }
+
+    try {
+      await ElMessageBox.confirm(`检测到 ${idsToRemove.length} 条重复条目，确定删除多余项吗？`, '一键去重', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+      });
+
+      await StorageUtils.deletePasswords(idsToRemove);
+      await loadPasswords();
+      selectedIds.value = [];
+      ElMessage.success(`已删除 ${idsToRemove.length} 条重复条目`);
+    } catch (error) {
+      if (error !== 'cancel') {
+        logger.error('一键去重失败:', error);
+        ElMessage.error('去重失败');
+      }
+    }
+  };
+
   return {
     // 状态
     passwords,
@@ -613,5 +661,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     openEmailBackupDialog,
     backupToEmail,
     toggleFavorite,
+    removeDuplicates,
   };
 }

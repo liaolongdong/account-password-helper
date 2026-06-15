@@ -301,6 +301,12 @@
                     加密备份导入
                   </el-dropdown-item>
                   <el-dropdown-item
+                    command="removeDuplicates"
+                    :icon="Delete"
+                  >
+                    一键去重
+                  </el-dropdown-item>
+                  <el-dropdown-item
                     divided
                     command="backup"
                     :icon="Message"
@@ -948,6 +954,9 @@ const handleDataCommand = (command: string) => {
     case 'backup':
       openEmailBackupDialog();
       break;
+    case 'removeDuplicates':
+      removeDuplicates();
+      break;
   }
 };
 
@@ -1010,6 +1019,7 @@ const {
   openEmailBackupDialog,
   backupToEmail,
   toggleFavorite,
+  removeDuplicates,
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
