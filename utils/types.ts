@@ -136,6 +136,10 @@ export enum MessageType {
    * 自动保存密码消息类型
    */
   AUTO_SAVE_PASSWORD = 'AUTO_SAVE_PASSWORD',
+  /**
+   * 会话过期/锁定通知消息类型（由 background 广播，各 UI 上下文接收后切换到未验证状态）
+   */
+  SESSION_EXPIRED = 'SESSION_EXPIRED',
 }
 
 /**

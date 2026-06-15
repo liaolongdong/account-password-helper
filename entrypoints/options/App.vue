@@ -846,7 +846,7 @@ import {
   Star,
   StarFilled,
 } from '@element-plus/icons-vue';
-import type { PasswordEntry } from '@/utils/types';
+import { type PasswordEntry, MessageType } from '@/utils/types';
 import { sessionManager } from '@/utils/sessionManager';
 import { STORAGE_KEYS } from '@/utils/encryption';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
@@ -1047,6 +1047,9 @@ const {
   resetMasterPassword,
 } = useAuthFlow({
   loadPasswords,
+  onSessionExpired: () => {
+    passwords.value = [];
+  },
 });
 
 /** 会话定时器状态与操作方法 */
@@ -1067,6 +1070,11 @@ const {
   passwords,
   verifyForm,
   loadPasswords,
+  broadcastSessionExpired: () => {
+    chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
+      // 无监听者时忽略
+    });
+  },
 });
 
 /**
@@ -1105,10 +1113,19 @@ const handleVisibilityChange = () => {
   void checkAuth();
 };
 
+/** 监听 background 广播的 SESSION_EXPIRED 消息（闲时锁定/自动锁定触发） */
+const handleRuntimeMessage = (message: any) => {
+  if (message.type === MessageType.SESSION_EXPIRED) {
+    logger.debug('Options: 收到锁定广播消息，执行会话过期处理');
+    handleSessionExpired();
+  }
+};
+
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */
 onMounted(async () => {
   sessionManager.init();
   window.addEventListener('sessionExpired', handleSessionExpired);
+  chrome.runtime.onMessage.addListener(handleRuntimeMessage);
   if (chrome?.storage?.onChanged) {
     chrome.storage.onChanged.addListener(handleStorageChanged);
   }
@@ -1119,6 +1136,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   window.removeEventListener('sessionExpired', handleSessionExpired);
+  chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
   if (chrome?.storage?.onChanged) {
     chrome.storage.onChanged.removeListener(handleStorageChanged);
   }

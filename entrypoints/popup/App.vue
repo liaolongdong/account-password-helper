@@ -181,6 +181,13 @@ const lockSession = async () => {
       // background 可能未就绪，忽略
     }
 
+    // 广播会话过期到所有上下文（sidepanel、options），确保各处立即切换到未验证状态
+    try {
+      await chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
+    } catch {
+      // 无监听者时忽略
+    }
+
     ElMessage.success('已锁定');
   } catch (error) {
     logger.error('锁定失败:', error);

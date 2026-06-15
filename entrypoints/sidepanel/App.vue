@@ -535,6 +535,13 @@ const handleMessage = (message: any, _sender: chrome.runtime.MessageSender, send
       updateCurrentDomainAndLoadPasswords();
       sendResponse({ success: true, message: 'URL变化处理完成' });
       return true;
+    case MessageType.SESSION_EXPIRED:
+      // 锁定/会话过期：立即切换到未验证状态，清空密码列表防止乱码
+      logger.debug('SidePanel: 收到锁定广播消息，立即切换到未验证状态');
+      isAuthenticated.value = false;
+      passwords.value = [];
+      sendResponse({ success: true });
+      return true;
     default:
       return false; // 不响应，让消息传递给 background 处理
   }
@@ -968,6 +975,11 @@ onMounted(async () => {
         } catch (err) {
           logger.error('SidePanel: window.close() 失败:', err);
         }
+      } else if (message.type === MessageType.SESSION_EXPIRED) {
+        // 锁定/会话过期：立即切换到未验证状态，清空密码列表防止乱码
+        logger.debug('SidePanel: 收到锁定消息（port），立即切换到未验证状态');
+        isAuthenticated.value = false;
+        passwords.value = [];
       }
     });
     bgPort.onDisconnect.addListener(() => {

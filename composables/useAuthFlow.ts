@@ -10,7 +10,11 @@ export const SHAKE_DURATION_MS = 400;
  * 认证流程 Composable
  * 管理主密码设置、验证、会话过期等认证相关逻辑
  */
-export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
+export function useAuthFlow(options: {
+  loadPasswords: () => Promise<void>;
+  /** 会话过期时的额外清理回调（如清除密码列表），在状态切换前调用 */
+  onSessionExpired?: () => void;
+}) {
   const { loadPasswords } = options;
 
   // 页面状态
@@ -18,6 +22,9 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
   const showMasterPasswordSetup = ref(false);
   const showPasswordVerify = ref(false);
   let isAuthenticating = false;
+
+  /** 防护标志：当广播导致会话过期时为 true，阻止 checkAuth 覆盖已过期状态 */
+  const sessionExpiredByBroadcast = ref(false);
 
   // 表单引用
   const setupFormRef = ref<FormInstance>();
@@ -119,6 +126,11 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       } else {
         const isSessionValid = await StorageUtils.isSessionValid();
         if (isSessionValid) {
+          // 竞态防护：如果会话已被广播标记为过期，不覆盖状态，避免显示加密乱码
+          if (sessionExpiredByBroadcast.value) {
+            logger.debug('Auth: checkAuth 跳过（会话已被广播标记为过期）');
+            return;
+          }
           // 命中已认证：若先前已是已认证态，避免抖动；否则切换并加载
           const wasAuthenticated = isAuthenticated.value;
           showMasterPasswordSetup.value = false;
@@ -169,6 +181,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
 
       ElMessage.success('主密码设置成功，欢迎使用');
 
+      sessionExpiredByBroadcast.value = false;
       showMasterPasswordSetup.value = false;
       showPasswordVerify.value = false;
 
@@ -203,6 +216,7 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
       if (isValid) {
         ElMessage.success('验证成功，欢迎使用');
 
+        sessionExpiredByBroadcast.value = false;
         isAuthenticating = true;
         await StorageUtils.setMasterPasswordValidityHours(verifyForm.value.validityHours);
         await StorageUtils.createSession(verifyForm.value.password.trim(), verifyForm.value.validityHours);
@@ -244,6 +258,12 @@ export function useAuthFlow(options: { loadPasswords: () => Promise<void> }) {
 
   // 处理会话过期事件
   const handleSessionExpired = async () => {
+    // 设置竞态防护标志，阻止后续的 checkAuth 覆盖状态
+    sessionExpiredByBroadcast.value = true;
+
+    // 调用外部清理回调（如清除密码列表，防止加密数据残留显示）
+    options.onSessionExpired?.();
+
     const hasMaster = await StorageUtils.hasMasterPassword();
     if (!hasMaster) {
       // 主密码未设置，保持/回到设置页面，避免误切换到验证页面

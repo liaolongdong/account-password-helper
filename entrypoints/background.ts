@@ -55,13 +55,20 @@ export default defineBackground(() => {
           // 使缓存失效
           invalidatePasswordCache();
 
-          // 通知 sidepanel 和 popup 刷新
+          // 通知 sidepanel 刷新（通过 port）
           if (sidePanelPort) {
             try {
-              sidePanelPort.postMessage({ type: 'SESSION_EXPIRED' });
+              sidePanelPort.postMessage({ type: MessageType.SESSION_EXPIRED });
             } catch {
               // port 可能已断开
             }
+          }
+
+          // 广播到所有 runtime 上下文（options 页面等），确保各处立即切换到未验证状态
+          try {
+            await chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
+          } catch {
+            // 无监听者时 sendMessage 会抛错，忽略
           }
         }
       } catch (error) {
@@ -253,6 +260,23 @@ export default defineBackground(() => {
       case MessageType.INVALIDATE_PASSWORD_CACHE: {
         // 使缓存失效
         invalidatePasswordCache();
+
+        // 通知 sidepanel（通过 port）会话已过期
+        if (sidePanelPort) {
+          try {
+            sidePanelPort.postMessage({ type: MessageType.SESSION_EXPIRED });
+          } catch {
+            // port 可能已断开
+          }
+        }
+
+        // 广播到所有上下文，确保各处立即切换到未验证状态
+        try {
+          chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
+        } catch {
+          // 无监听者时忽略
+        }
+
         sendResponse({ success: true });
         break;
       }

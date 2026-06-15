@@ -15,6 +15,8 @@ export function useSessionTimer(options: {
   passwords: Ref<PasswordEntry[]>;
   verifyForm: Ref<{ password: string; validityHours: number }>;
   loadPasswords: () => Promise<void>;
+  /** 清除会话后向其他上下文广播会话过期通知的回调（保持与 Chrome API 解耦） */
+  broadcastSessionExpired?: () => void;
 }) {
   const {
     isAuthenticated,
@@ -191,6 +193,10 @@ export function useSessionTimer(options: {
       clearSessionLoading.value = true;
 
       await StorageUtils.clearSession();
+
+      // 广播会话过期到其他上下文（sidepanel、popup 等）
+      options.broadcastSessionExpired?.();
+
       await updateSessionInfo();
       stopSessionTimer();
 
