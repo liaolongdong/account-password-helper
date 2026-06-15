@@ -100,38 +100,47 @@ export default defineBackground(() => {
 
   // 监听快捷键命令
   // commands.onCommand 是合法的用户手势来源
-  chrome.commands.onCommand.addListener(command => {
+  // 必须接收 tab 参数并同步使用，以保持用户手势调用栈
+  chrome.commands.onCommand.addListener((command, tab) => {
     if (command === 'open_options') {
       openOptionsPage();
     } else if (command === 'toggle_sidepanel') {
-      // 快捷键触发：获取当前标签页并切换侧边栏
-      // 使用 Promise 链而非 async/await，尽量保持用户手势链
-      chrome.tabs
-        .query({ active: true, currentWindow: true })
-        .then(tabs => {
-          const tabId = tabs[0]?.id;
-          if (!tabId) {
-            logger.warn('Background: 无法获取当前标签页');
-            return;
-          }
+      if (!chrome.sidePanel) {
+        logger.error('Background: 当前Chrome版本不支持sidePanel API');
+        return;
+      }
 
-          if (!chrome.sidePanel) {
-            logger.error('Background: 当前Chrome版本不支持sidePanel API');
-            return;
-          }
-
-          if (sidePanelPort) {
-            // 侧边栏已打开 → 关闭
-            closeSidePanel(tabId);
-          } else {
-            // 侧边栏未打开 → 打开
-            chrome.sidePanel
-              .open({ tabId })
-              .then(() => logger.debug('Background: 侧边栏已打开 (快捷键)'))
-              .catch(error => logger.error('Background: 快捷键打开侧边栏失败:', error));
-          }
-        })
-        .catch(error => logger.error('Background: 快捷键切换侧边栏失败:', error));
+      if (sidePanelPort) {
+        // 侧边栏已打开 → 关闭（close 不要求用户手势，可异步兜底）
+        const tabId = tab?.id;
+        if (tabId) {
+          closeSidePanel(tabId);
+        } else {
+          // tab 为 undefined（如焦点在 sidepanel 窗口时），异步兜底查询 tabId
+          chrome.tabs
+            .query({ active: true, lastFocusedWindow: true })
+            .then(tabs => {
+              const fallbackTabId = tabs[0]?.id;
+              if (fallbackTabId) {
+                closeSidePanel(fallbackTabId);
+              } else {
+                logger.warn('Background: 无法获取当前标签页，关闭侧边栏失败');
+              }
+            })
+            .catch(error => logger.error('Background: 查询标签页失败:', error));
+        }
+      } else {
+        // 侧边栏未打开 → 打开（必须同步调用，保持用户手势链）
+        const tabId = tab?.id;
+        if (!tabId) {
+          logger.warn('Background: 无法获取当前标签页，打开侧边栏失败');
+          return;
+        }
+        chrome.sidePanel
+          .open({ tabId })
+          .then(() => logger.debug('Background: 侧边栏已打开 (快捷键)'))
+          .catch(error => logger.error('Background: 快捷键打开侧边栏失败:', error));
+      }
     }
   });
 
