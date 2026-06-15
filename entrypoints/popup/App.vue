@@ -62,28 +62,41 @@
       </el-text>
     </div>
 
-    <div class="content">
-      <el-button
-        type="primary"
-        :icon="BrandLogo"
-        class="main-button"
-        size="large"
-        title="打开密码管理快捷键(Ctrl+Shift+P)"
+    <div class="action-list">
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
         @click="openOptions"
+        @keydown.enter="openOptions"
+        @keydown.space.prevent="openOptions"
       >
-        密码管理
-      </el-button>
+        <div class="action-card__icon action-card__icon--primary">
+          <BrandLogo />
+        </div>
+        <div class="action-card__content">
+          <div class="action-card__title">密码管理</div>
+          <div class="action-card__desc">管理所有已保存的账号密码</div>
+        </div>
+        <kbd class="action-card__shortcut">Ctrl+Shift+P</kbd>
+      </div>
 
-      <div class="quick-actions">
-        <el-button
-          :icon="QuickFillIcon"
-          class="action-button"
-          title="打开/关闭密码快速填充侧边(Ctrl+Shift+L)"
-          text
-          @click="openSidePanel"
-        >
-          快速填充
-        </el-button>
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        @click="openSidePanel"
+        @keydown.enter="openSidePanel"
+        @keydown.space.prevent="openSidePanel"
+      >
+        <div class="action-card__icon action-card__icon--secondary">
+          <QuickFillIcon />
+        </div>
+        <div class="action-card__content">
+          <div class="action-card__title">快速填充</div>
+          <div class="action-card__desc">在当前页面快速填充账号密码</div>
+        </div>
+        <kbd class="action-card__shortcut">Ctrl+Shift+L</kbd>
       </div>
     </div>
 
@@ -315,24 +328,95 @@ const handleEmailClick = (event: Event) => {
   margin-bottom: 12px;
 }
 
-.content {
-  text-align: center;
-}
-
-.main-button {
-  width: 100%;
-  height: 48px;
-  margin-bottom: 16px;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.quick-actions {
+.action-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 12px;
 }
 
-.action-button {
+.action-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  background: #fafafa;
+  border: 1px solid #ebeef5;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.action-card:hover {
+  background: #f0f7ff;
+  border-color: #c6e2ff;
+  box-shadow: 0 2px 8px rgb(64 158 255 / 10%);
+}
+
+.action-card:active {
+  background: #e1effe;
+  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
+  transform: scale(0.99);
+}
+
+.action-card:focus-visible {
+  border-color: #409eff;
+  box-shadow: 0 0 0 2px rgb(64 158 255 / 25%);
+}
+
+.action-card__icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  border-radius: 50%;
+}
+
+.action-card__icon--primary {
+  color: #fff;
+  background: #409eff;
+}
+
+.action-card__icon--secondary {
+  color: #409eff;
+  background: #ecf5ff;
+}
+
+.action-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.action-card__title {
   font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #303133;
+}
+
+.action-card__desc {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #909399;
+}
+
+.action-card__shortcut {
+  flex-shrink: 0;
+  padding: 3px 6px;
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: #606266;
+  background: #e8eaed;
+  border: 1px solid #d4d7de;
+  border-radius: 4px;
+  box-shadow: 0 1px 0 #c8c9cc;
 }
 
 .contact-info {
