@@ -573,23 +573,30 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   /**
    * 一键去重
-   * 检测并删除 username/password/url/tag/remark 所有字段完全相同的重复条目，
-   * 每组仅保留 updateTime 最新的一项。
+   * 检测 username + url 相同的重复条目，每组优先保留收藏项（多条收藏时保留 updateTime 最新的），
+   * 无收藏时保留 updateTime 最新的一项，其余删除。
    */
   const removeDuplicates = async () => {
     const groups = new Map<string, PasswordEntry[]>();
     for (const entry of passwords.value) {
-      const key = [entry.username, entry.password, entry.url, entry.tag, entry.remark].join('|');
+      const key = [entry.username, entry.url].join('|');
       const group = groups.get(key) ?? [];
       group.push(entry);
       groups.set(key, group);
     }
 
     const idsToRemove: string[] = [];
+    let duplicateGroupCount = 0;
     for (const group of groups.values()) {
       if (group.length <= 1) continue;
-      // 按 updateTime 降序，保留第一条（最新更新的）
-      group.sort((a, b) => b.updateTime - a.updateTime);
+      duplicateGroupCount++;
+      // 收藏优先，其次按 updateTime 降序，保留第一条
+      group.sort((a, b) => {
+        const favA = a.favorite ? 1 : 0;
+        const favB = b.favorite ? 1 : 0;
+        if (favA !== favB) return favB - favA;
+        return b.updateTime - a.updateTime;
+      });
       for (let i = 1; i < group.length; i++) {
         idsToRemove.push(group[i].id);
       }
@@ -601,11 +608,15 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
 
     try {
-      await ElMessageBox.confirm(`检测到 ${idsToRemove.length} 条重复条目，确定删除多余项吗？`, '一键去重', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      });
+      await ElMessageBox.confirm(
+        `检测到 ${duplicateGroupCount} 组重复（共 ${idsToRemove.length} 条多余），将保留每组最新更新项，确定删除吗？`,
+        '一键去重',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning',
+        },
+      );
 
       await StorageUtils.deletePasswords(idsToRemove);
       await loadPasswords();
