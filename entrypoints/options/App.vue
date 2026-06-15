@@ -590,7 +590,7 @@
           <el-table-column
             label="操作"
             header-align="center"
-            width="206"
+            width="180"
             fixed="right"
           >
             <template #default="{ row }">
