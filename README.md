@@ -23,10 +23,12 @@
 - **智能识别**：MutationObserver 动态检测登录表单，支持用户名+密码、手机号+验证码等多种场景；LoginFormAnalyzer 通过表单/容器/弹窗/按钮多维启发式判断。
 - **一键填充**：侧边栏点击即填充，三重策略（Native Setter / execCommand / 模拟输入）兼容 React/Vue 等主流框架；可选自动触发登录。
 - **自动保存**：Chrome 式登录凭证捕获，支持登录表单提交、按钮点击、回车提交三种场景；域名白名单/黑名单精准匹配；凭证指纹智能去重避免重复弹窗；「不再提示」一键屏蔽域名；跨页面导航凭证不丢失；保存弹窗中可编辑标签和备注。
-- **数据管理**：Excel 导入导出（.xlsx），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.xlsx`；中英文列名映射；标签多选（每条最多 3 个，单个最长 30 字符）+ 自定义 + 颜色一致；多字段搜索与排序；复制密码条目；批量删除。
+- **数据管理**：Excel 导入导出（.xlsx），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.xlsx`；多格式 CSV 导入（自动识别 Chrome/LastPass/Bitwarden/1Password 导出格式）；中英文列名映射；标签多选（每条最多 3 个，单个最长 30 字符）+ 自定义 + 颜色一致；收藏标记与「只看收藏」过滤；一键去重；多字段搜索与排序；复制密码条目；批量删除。
 - **邮箱备份**：导出 Excel 并唤起邮件客户端；支持定时自动备份提醒（chrome.alarms），间隔可选每天/3天/每周/两周/每月。
 - **密码可见性切换**：自动为页面密码框注入显示/隐藏按钮，输入有值时按钮自动可见（默认关闭，需在设置中手动开启）。
-- **会话可控**：1/2/4/8/12/24 小时和3/5/7天会话有效期；会话失效后敏感字段自动加密回密文。
+- **加密备份**：.aph 格式 AES-GCM 加密导出/导入（PBKDF2 100000 次迭代派生密钥）；导入时支持解密预览后再确认，安全可靠。
+- **密码强度可视化**：密码输入时实时显示强度进度条（弱/中/强）与规则校验清单（长度、字母、数字、特殊字符），通过气泡弹窗直观呈现。
+- **会话可控**：1/2/4/8/12/24 小时和3/5/7天会话有效期；会话失效后敏感字段自动加密回密文；支持自动闲置锁定（5/10/30/60分钟）；Popup 一键锁定；会话过期跨上下文广播同步。
 - **Shadow DOM 隔离**：悬浮按钮使用 Closed Shadow DOM，完全隔离页面样式。
 - **零网络传输**：所有数据存储在 Chrome Local Storage，不走任何网络。
 
@@ -53,6 +55,9 @@
 - 密码列表与侧边栏默认按更新时间倒序；支持按用户名、URL、标签、备注、创建/更新时间切换排序。
 - 支持用户名、标签、备注、URL 的多字段模糊搜索。
 - 批量选择与批量删除密码条目。
+- 收藏标记：点击星标收藏常用条目，支持「只看收藏」过滤，收藏条目始终置顶。
+- 一键去重：智能检测重复条目（相同用户名 + 相同 URL）并提供一键清理。
+- 多格式 CSV 导入：自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式（见 [utils/excel.ts](./utils/excel.ts)）。
 
 ### 4. 自动保存登录凭证
 
@@ -73,14 +78,32 @@
 - 支持配置自动备份提醒，通过 chrome.alarms 定时发送桌面通知（不解密、不自动下载文件）。
 - 备份间隔可选：每天 / 每3天 / 每周 / 每两周 / 每月。
 
-### 6. 密码可见性切换
+### 6. 加密备份导入导出
+
+- 导出：使用主密码通过 AES-GCM 加密全部密码数据，下载为 `.aph` 文件（见 [utils/backupExport.ts](./utils/backupExport.ts)），文件名格式为 `backup_YYYYMMDD.aph`。
+- 导入：上传 `.aph` 文件后输入导出时使用的主密码进行解密，解密后可预览数据（前 5 条）再确认导入（见 [BackupImportDialog.vue](./components/BackupImportDialog.vue)）。
+- 加密方案：PBKDF2（100000 次迭代）+ AES-256-GCM + 随机 Salt + 随机 IV，安全性高于常规存储。
+
+### 7. 密码可见性切换
 
 - 自动为页面中的密码输入框注入显示/隐藏切换按钮（见 [PasswordVisibilityToggle.ts](./entrypoints/content/PasswordVisibilityToggle.ts)），默认关闭，需在悬浮按钮设置面板中手动开启。
 - 对所有密码输入框统一注入切换按钮，使用 Element Plus 主题蓝色，输入有值时按钮自动可见。
 - MutationObserver 监听动态新增的密码输入框，自动注入。
 - 可在悬浮按钮设置面板中开关此功能。
 
-### 7. 快速填充
+### 8. 自动闲置锁定
+
+- 在密码管理页「自动锁定设置」中配置闲置时间（5/10/30/60 分钟或不锁定），系统闲置超过设定时间后自动清除主密码会话并锁定密码管理（见 [IdleLockSetting.vue](./components/IdleLockSetting.vue)）。
+- 锁定后需重新验证主密码才能恢复访问，与手动锁定和会话过期行为一致。
+- Popup 弹窗也提供一键「锁定」按钮，可快速清除当前会话。
+
+### 9. 密码强度可视化
+
+- 在主密码设置和密码表单中，密码输入时通过气泡弹窗实时展示强度等级（弱/中/强）和进度条（见 [PasswordStrengthPopover.vue](./components/PasswordStrengthPopover.vue)）。
+- 逐条校验密码规则：至少 8 字符、包含字母、包含数字、包含特殊字符，通过/未通过状态一目了然。
+- 基于 [usePasswordStrength](./composables/usePasswordStrength.ts) Composable 实现，可在多处复用。
+
+### 10. 快速填充
 
 - 侧边栏自动将与当前域名匹配的密码排在前面。
 - **本地开发友好**：当域名为 `localhost` 或 `127.0.0.1` 时，默认匹配所有密码（见 [sidepanel/App.vue](./entrypoints/sidepanel/App.vue)）。
@@ -265,17 +288,21 @@ graph TB
 │   └── sidepanel/                  # 侧边栏快速填充
 ├── components/                     # 共享 Vue 组件
 │   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
+│   ├── BackupImportDialog.vue        # 加密备份导入对话框
 │   ├── BrandLogo.vue               # 钥匙主题品牌 Logo
 │   ├── DisclaimerInfo.vue          # 免责声明
 │   ├── EmailBackupDialog.vue       # 邮箱备份对话框
 │   ├── HelpDialog.vue              # 操作指引与常见问题
+│   ├── IdleLockSetting.vue         # 自动闲置锁定设置
 │   ├── ImportDialog.vue            # Excel 导入对话框
+│   ├── PasswordStrengthPopover.vue # 密码强度可视化弹窗
 │   ├── QuickFillIcon.vue           # 快速填充图标
 │   ├── ValidityHoursSelect.vue     # 有效期选择器
 │   └── ValiditySettingDialog.vue   # 有效期设置对话框
 ├── composables/                    # Vue 组合函数
 │   ├── useAuthFlow.ts              # 认证流程
-│   ├── usePasswordManagement.ts    # 密码 CRUD + 搜索排序
+│   ├── usePasswordManagement.ts    # 密码 CRUD + 搜索排序 + 收藏
+│   ├── usePasswordStrength.ts      # 密码强度校验
 │   ├── useSessionTimer.ts          # 会话定时器
 │   └── useChromeListeners.ts       # Chrome API 监听器自动清理
 ├── utils/                          # 核心工具库
@@ -283,7 +310,8 @@ graph TB
 │   ├── encryption.ts               # PBKDF2 + AES-256-CBC
 │   ├── sessionManager.ts           # 全局会话检查单例
 │   ├── sessionManager-storage.ts   # 会话持久化与加解密转换
-│   ├── excel.ts                    # Excel 导入导出
+│   ├── backupExport.ts             # 加密备份导出/导入（AES-GCM）
+│   ├── excel.ts                    # Excel 导入导出 + 多格式 CSV 导入
 │   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── tagUtils.ts                 # 标签颜色生成
 │   ├── logger.ts                   # 环境感知日志
@@ -345,6 +373,7 @@ graph TB
 | `alarms`        | 定时自动备份提醒               |
 | `downloads`     | Excel 文件导出下载             |
 | `notifications` | 桌面通知（自动保存/备份提醒）  |
+| `idle`          | 自动闲置锁定检测               |
 | `<all_urls>`    | Content Script 匹配所有页面    |
 
 ## 安全提醒
@@ -422,6 +451,22 @@ A：当同一网站（同域名）使用相同账号登录时，插件会更新�
 **Q：如何备份密码到邮箱？**
 
 A：在密码管理页点击「备份到邮箱」按钮，配置目标邮箱地址后点击「立即备份」，插件会导出 Excel 并唤起邮件客户端。可开启「自动备份提醒」定时发送桌面通知提醒手动备份。
+
+**Q：如何导出/导入加密备份？**
+
+A：在密码管理页的「数据管理」下拉菜单中，选择「加密备份导出」会用主密码将所有密码数据加密为 `.aph` 文件下载。选择「加密备份导入」上传 `.aph` 文件后，输入导出时使用的主密码进行解密，解密成功可预览数据（前 5 条）再确认导入。加密方案为 PBKDF2（100000 次迭代）+ AES-256-GCM，安全性极高。
+
+**Q：什么是自动闲置锁定？**
+
+A：在密码管理页「自动锁定设置」中可配置闲置时间（5/10/30/60 分钟或不锁定）。当系统检测到用户在设定时间内无任何操作时，会自动清除主密码会话并锁定密码管理，效果与手动锁定一致，需重新验证主密码才能恢复访问。此功能可有效防止离开电脑时密码列表被他人查看。
+
+**Q：如何一键去重？**
+
+A：在密码管理页的「数据管理」下拉菜单中点击「一键去重」，插件会智能检测重复条目（相同用户名 + 相同 URL），展示去重结果供确认后清理。已收藏的条目不会被删除。
+
+**Q：支持从其他密码管理器导入吗？**
+
+A：支持。在 Excel 导入弹窗中，选择 CSV 文件格式后插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。
 
 ## 许可证
 
