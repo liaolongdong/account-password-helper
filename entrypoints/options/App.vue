@@ -652,6 +652,12 @@
       @imported="handlePasswordsImported"
     />
 
+    <!-- 加密备份导入弹窗 -->
+    <BackupImportDialog
+      v-model="showBackupImportDialog"
+      @imported="handlePasswordsImported"
+    />
+
     <!-- 密码表单弹窗 -->
     <el-dialog
       v-model="showPasswordDialog"
@@ -841,6 +847,7 @@ import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import ImportDialog from '@/components/ImportDialog.vue';
+import BackupImportDialog from '@/components/BackupImportDialog.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import DisclaimerInfo from '@/components/DisclaimerInfo.vue';
 import ValidityHoursSelect from '@/components/ValidityHoursSelect.vue';
@@ -855,7 +862,7 @@ import { useAuthFlow, SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
 import { usePasswordManagement, MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
-import { exportEncryptedBackup, importEncryptedBackup } from '@/utils/backupExport';
+import { exportEncryptedBackup } from '@/utils/backupExport';
 import { isDev } from '@/utils/env';
 
 /** 临时有效期表单占位，在 useSessionTimer 初始化前会被覆盖 */
@@ -880,6 +887,9 @@ const { rules: passwordRules, strength: passwordStrength } = usePasswordStrength
 /** 密码表单弹窗强度校验 */
 const formPasswordRef = computed(() => passwordForm.value.password);
 const { rules: formPasswordRules, strength: formPasswordStrength } = usePasswordStrength(formPasswordRef);
+
+/** 加密备份导入弹窗可见性 */
+const showBackupImportDialog = ref(false);
 
 /** 加密备份导出 */
 const handleEncryptedBackupExport = async () => {
@@ -914,53 +924,6 @@ const handleEncryptedBackupExport = async () => {
   }
 };
 
-/** 加密备份导入 */
-const handleEncryptedBackupImport = async () => {
-  try {
-    // 创建文件选择器
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.aph';
-    input.click();
-
-    input.onchange = async () => {
-      const file = input.files?.[0];
-      if (!file) return;
-
-      const { value: masterPassword } = await ElMessageBox.prompt('请输入用于解密备份文件的主密码：', '加密备份导入', {
-        confirmButtonText: '确认导入',
-        cancelButtonText: '取消',
-        inputType: 'password',
-        inputPlaceholder: '请输入主密码',
-        inputValidator: (v: string) => (!v || !v.trim() ? '主密码不能为空' : true),
-      });
-
-      const entries = await importEncryptedBackup(file, masterPassword.trim());
-      if (entries.length === 0) {
-        ElMessage.warning('备份文件中没有有效数据');
-        return;
-      }
-
-      await ElMessageBox.confirm(`备份文件中包含 ${entries.length} 条密码数据，确认导入吗？`, '确认导入', {
-        confirmButtonText: '确认',
-        cancelButtonText: '取消',
-        type: 'warning',
-      });
-
-      for (const entry of entries) {
-        await StorageUtils.savePassword(entry);
-      }
-      await loadPasswords();
-      ElMessage.success(`成功导入 ${entries.length} 条密码`);
-    };
-  } catch (error) {
-    if (error !== 'cancel') {
-      logger.error('加密备份导入失败:', error);
-      ElMessage.error(error instanceof Error ? error.message : '加密备份导入失败');
-    }
-  }
-};
-
 /**
  * 数据管理下拉菜单命令处理
  * @param command 菜单项命令标识
@@ -980,7 +943,7 @@ const handleDataCommand = (command: string) => {
       handleEncryptedBackupExport();
       break;
     case 'backupImport':
-      handleEncryptedBackupImport();
+      showBackupImportDialog.value = true;
       break;
     case 'backup':
       openEmailBackupDialog();
