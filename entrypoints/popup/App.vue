@@ -68,7 +68,7 @@
         :icon="BrandLogo"
         class="main-button"
         size="large"
-        title="打开密码管理快捷键（Ctrl+Shift+P）"
+        title="打开密码管理快捷键(Ctrl+Shift+P)"
         @click="openOptions"
       >
         密码管理
@@ -78,6 +78,7 @@
         <el-button
           :icon="QuickFillIcon"
           class="action-button"
+          title="打开/关闭密码快速填充侧边(Ctrl+Shift+L)"
           text
           @click="openSidePanel"
         >
