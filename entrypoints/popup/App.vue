@@ -78,7 +78,7 @@
           <div class="action-card__title">密码管理</div>
           <div class="action-card__desc">管理所有已保存的账号密码</div>
         </div>
-        <kbd class="action-card__shortcut">Ctrl+Shift+P</kbd>
+        <kbd class="action-card__shortcut">{{ shortcuts.open_options }}</kbd>
       </div>
 
       <div
@@ -96,7 +96,7 @@
           <div class="action-card__title">快速填充</div>
           <div class="action-card__desc">在当前页面快速填充账号密码</div>
         </div>
-        <kbd class="action-card__shortcut">Ctrl+Shift+L</kbd>
+        <kbd class="action-card__shortcut">{{ shortcuts.toggle_sidepanel }}</kbd>
       </div>
     </div>
 
@@ -128,6 +128,50 @@ import { StorageUtils } from '@/utils/storage';
 import { MessageType, type PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 
+/**
+ * 格式化快捷键显示文本
+ * 将 Chrome API 返回的快捷键字符串转换为更友好的显示格式
+ * @param shortcut - Chrome API 返回的快捷键，如 "Ctrl+Shift+P" 或 "Command+Shift+L"
+ * @returns 格式化后的快捷键文本
+ */
+const formatShortcut = (shortcut: string): string => {
+  if (!shortcut) return '';
+  return shortcut
+    .replace(/Command/gi, '⌘')
+    .replace(/Ctrl/gi, 'Ctrl')
+    .replace(/Shift/gi, '⇧')
+    .replace(/Alt/gi, '⌥')
+    .replace(/\+/g, '');
+};
+
+/** 命令名称到快捷键的映射 */
+const shortcuts = ref<Record<string, string>>({
+  open_options: formatShortcut('Ctrl+Shift+P'),
+  toggle_sidepanel: formatShortcut('Ctrl+Shift+L'),
+});
+
+/**
+ * 从 Chrome API 动态获取已绑定的快捷键
+ * 用户在 chrome://extensions/shortcuts 修改后会自动同步
+ */
+const loadShortcuts = async () => {
+  try {
+    const commands = await chrome.commands.getAll();
+    const map: Record<string, string> = {};
+    for (const cmd of commands) {
+      if (cmd.name && cmd.shortcut) {
+        map[cmd.name] = formatShortcut(cmd.shortcut);
+      }
+    }
+    shortcuts.value = {
+      open_options: map.open_options || shortcuts.value.open_options,
+      toggle_sidepanel: map.toggle_sidepanel || shortcuts.value.toggle_sidepanel,
+    };
+  } catch (error) {
+    logger.warn('Popup: 获取快捷键失败，使用默认值:', error);
+  }
+};
+
 /** 联系邮箱 */
 const contactEmail = ref('924902324@qq.com');
 
@@ -157,8 +201,9 @@ const domainMatchCount = computed(() => {
 
 onMounted(async () => {
   try {
-    // 检查会话状态
-    isSessionValid.value = await StorageUtils.isSessionValid();
+    // 并行加载：会话状态 + 快捷键
+    const [sessionValid] = await Promise.all([StorageUtils.isSessionValid(), loadShortcuts()]);
+    isSessionValid.value = sessionValid;
 
     // 获取当前域名
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
