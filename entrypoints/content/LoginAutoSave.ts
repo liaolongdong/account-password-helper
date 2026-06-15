@@ -43,6 +43,8 @@ export class LoginAutoSave {
   private lastPromptTime = 0;
   /** 上次弹窗的凭证是否已被用户确认保存 */
   private lastPromptSaved = false;
+  /** 会话是否已被外部通知过期（闲时锁定、手动清除等场景，由 SESSION_EXPIRED 广播触发） */
+  private sessionExpired = false;
 
   constructor() {
     this.init();
@@ -64,6 +66,8 @@ export class LoginAutoSave {
     document.addEventListener('keydown', this.handleKeyDown, { capture: true });
     // 监听 storage 变化，同步更新启用状态
     chrome.storage.onChanged.addListener(this.handleStorageChange);
+    // 监听 runtime 消息，感知会话过期广播（闲时锁定、手动清除等场景）
+    chrome.runtime.onMessage.addListener(this.handleRuntimeMessage);
 
     // 异步加载配置（不影响事件监听器注册）
     try {
@@ -79,7 +83,7 @@ export class LoginAutoSave {
     }
 
     // 检查是否有跨页面导航遗留的待确认凭证（传统表单提交场景）
-    this.checkPendingCredentials();
+    void this.checkPendingCredentials();
   }
 
   /**
@@ -102,6 +106,19 @@ export class LoginAutoSave {
         this.domainPatterns = [];
         this.excludedDomains = [];
       }
+    }
+  };
+
+  /**
+   * 处理 runtime 消息，感知会话过期广播
+   * 闲时锁定或手动清除会话时，background 会广播 SESSION_EXPIRED，
+   * content script 的内存缓存不会自动清除，需通过此标记同步。
+   */
+  private handleRuntimeMessage = (message: { type?: string }): void => {
+    if (message?.type === MessageType.SESSION_EXPIRED) {
+      this.sessionExpired = true;
+      // 立即关闭已显示的弹窗
+      dismissSavePasswordPrompt();
     }
   };
 
@@ -131,7 +148,7 @@ export class LoginAutoSave {
       return;
     }
 
-    this.onCredentialsCaptured(username, password);
+    void this.onCredentialsCaptured(username, password);
   };
 
   /**
@@ -174,7 +191,7 @@ export class LoginAutoSave {
       return;
     }
 
-    this.onCredentialsCaptured(username, password);
+    void this.onCredentialsCaptured(username, password);
   };
 
   /**
@@ -205,7 +222,7 @@ export class LoginAutoSave {
       return;
     }
 
-    this.onCredentialsCaptured(username, password);
+    void this.onCredentialsCaptured(username, password);
   };
 
   // ── 域名匹配 ──
@@ -234,9 +251,26 @@ export class LoginAutoSave {
    * @param username 用户名
    * @param password 密码
    */
-  private onCredentialsCaptured(username: string, password: string): void {
+  private async onCredentialsCaptured(username: string, password: string): Promise<void> {
     // 配置未加载完成时跳过，防止竞态条件导致空规则匹配所有域名
     if (!this.configLoaded) {
+      return;
+    }
+
+    // 会话过期快速拦截：收到 SESSION_EXPIRED 广播后直接跳过
+    if (this.sessionExpired) {
+      return;
+    }
+
+    // 会话有效性检查：会话过期时不弹窗（兜底，覆盖自然过期场景）
+    try {
+      const sessionValid = await StorageUtils.isSessionValid();
+      if (!sessionValid) {
+        logger.debug('[APH] 会话已过期，跳过保存弹窗');
+        return;
+      }
+    } catch {
+      // 会话检查失败时视为无效，不弹窗
       return;
     }
 
@@ -278,9 +312,20 @@ export class LoginAutoSave {
    * 页面加载时检查是否有跨页面导航遗留的待确认凭证
    * 传统表单提交会导致页面跳转，弹窗需要在目标页面显示
    */
-  private checkPendingCredentials(): void {
+  private async checkPendingCredentials(): Promise<void> {
     // 配置未加载完成时跳过
     if (!this.configLoaded) return;
+
+    // 会话过期快速拦截：收到 SESSION_EXPIRED 广播后直接跳过
+    if (this.sessionExpired) return;
+
+    // 会话有效性检查：会话过期时不弹窗（兜底，覆盖自然过期场景）
+    try {
+      const sessionValid = await StorageUtils.isSessionValid();
+      if (!sessionValid) return;
+    } catch {
+      return;
+    }
 
     try {
       const raw = sessionStorage.getItem(PENDING_SAVE_KEY);
@@ -566,6 +611,7 @@ export class LoginAutoSave {
     document.removeEventListener('click', this.handleButtonClick, { capture: true });
     document.removeEventListener('keydown', this.handleKeyDown, { capture: true });
     chrome.storage.onChanged.removeListener(this.handleStorageChange);
+    chrome.runtime.onMessage.removeListener(this.handleRuntimeMessage);
     dismissSavePasswordPrompt();
   }
 }
