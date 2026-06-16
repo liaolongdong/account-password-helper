@@ -125,17 +125,27 @@
         v-else-if="filteredPasswords.length === 0"
         class="empty"
       >
+        <!-- 全部无数据：显示引导添加 -->
         <el-empty
+          v-if="passwords.length === 0"
           :image-size="80"
-          description="暂无匹配的密码"
+          description="还没有保存的密码，点击下方按钮添加吧"
         >
           <el-button
             type="primary"
-            @click="openOptions"
+            :icon="Plus"
+            class="empty-add-btn"
+            @click="openOptionsAndAdd"
           >
             去添加密码
           </el-button>
         </el-empty>
+        <!-- 搜索/过滤无结果 -->
+        <el-empty
+          v-else
+          :image-size="80"
+          description="暂无匹配的密码"
+        />
       </div>
 
       <div
@@ -228,9 +238,15 @@
               title="填充并登录"
               @click.stop="handleFillAndLogin(password)"
             >
-              <VideoPlay />
+              <Promotion />
             </el-icon>
-            <el-icon class="action-icon"><Right /></el-icon>
+            <el-icon
+              class="action-icon edit-icon"
+              title="编辑"
+              @click.stop="handleEditPassword(password)"
+            >
+              <EditPen />
+            </el-icon>
           </div>
         </div>
       </div>
@@ -275,14 +291,15 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick } from 'vue';
 import {
   Search,
   User,
-  Right,
   Setting,
   Loading,
   CopyDocument,
   Key,
   Star,
   StarFilled,
-  VideoPlay,
+  Promotion,
+  EditPen,
+  Plus,
 } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import HelpDialog from '@/components/HelpDialog.vue';
@@ -858,6 +875,19 @@ const handleFillAndLogin = (password: PasswordEntry) => {
   fillPassword(password, { autoLogin: true });
 };
 
+/** 跳转到密码管理页并打开指定条目的编辑弹窗 */
+const handleEditPassword = async (password: PasswordEntry) => {
+  try {
+    await chrome.runtime.sendMessage({
+      type: MessageType.OPEN_OPTIONS_AND_EDIT,
+      data: { editId: password.id },
+    });
+  } catch (error) {
+    logger.error('SidePanel: 打开编辑页面失败:', error);
+    ElMessage.error('打开编辑页面失败');
+  }
+};
+
 // 复制用户名到剪贴板
 const copyUsername = async (username: string) => {
   try {
@@ -903,6 +933,15 @@ const openOptions = async () => {
     await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_PAGE });
   } catch (error) {
     logger.error('SidePanel: 打开选项页面失败:', error);
+  }
+};
+
+/** 跳转到密码管理页并自动打开添加密码弹窗 */
+const openOptionsAndAdd = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_ADD });
+  } catch (error) {
+    logger.error('SidePanel: 打开添加密码页面失败:', error);
   }
 };
 
@@ -1185,8 +1224,19 @@ onUnmounted(() => {
   padding: 20px;
 }
 
-.password-items {
-  /* padding: 8px 0; */
+/* 去添加密码按钮：圆角 + hover 上浮动效 */
+:deep(.empty-add-btn) {
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 20px;
+  box-shadow: 0 2px 8px rgb(64 158 255 / 25%);
+  transition: all 0.25s ease;
+}
+
+:deep(.empty-add-btn:hover) {
+  box-shadow: 0 4px 14px rgb(64 158 255 / 40%);
+  transform: translateY(-1px);
 }
 
 .password-item {
@@ -1360,6 +1410,23 @@ onUnmounted(() => {
 
 .auto-login-icon:hover {
   color: #67c23a;
+}
+
+.edit-icon {
+  color: #d1d5db;
+  cursor: pointer;
+  opacity: 0;
+  transition:
+    color 0.2s,
+    opacity 0.2s;
+}
+
+.password-item:hover .edit-icon {
+  opacity: 1;
+}
+
+.edit-icon:hover {
+  color: #409eff;
 }
 
 .footer {

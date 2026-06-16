@@ -1200,11 +1200,44 @@ const handleVisibilityChange = () => {
   void checkAuth();
 };
 
-/** 监听 background 广播的 SESSION_EXPIRED 消息（闲时锁定/自动锁定触发） */
+/** 监听 background 广播的 SESSION_EXPIRED 消息（闲时锁定/自动锁定触发）及编辑指令 */
 const handleRuntimeMessage = (message: any) => {
   if (message.type === MessageType.SESSION_EXPIRED) {
     logger.debug('Options: 收到锁定广播消息，执行会话过期处理');
     handleSessionExpired();
+  } else if (message.type === MessageType.OPEN_OPTIONS_AND_EDIT) {
+    const editId = message.data?.editId;
+    if (!editId) return;
+    logger.debug('Options: 收到侧边栏编辑指令，editId=' + editId);
+    // 等待密码列表加载完成后打开编辑弹窗
+    const tryOpenEdit = async () => {
+      // 等待认证和密码加载完成（最多等待 3 秒）
+      for (let i = 0; i < 30; i++) {
+        if (passwords.value.length > 0) break;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      const entry = passwords.value.find(p => p.id === editId);
+      if (entry) {
+        editPassword(entry);
+      } else {
+        ElMessage.warning('未找到对应的密码条目，可能已被删除');
+      }
+    };
+    tryOpenEdit();
+  } else if (message.type === MessageType.OPEN_OPTIONS_AND_ADD) {
+    logger.debug('Options: 收到侧边栏添加密码指令');
+    // 等待密码列表加载完成后打开添加弹窗（仅在已有数据时弹窗，避免遮盖空数据引导）
+    const tryOpenAdd = async () => {
+      for (let i = 0; i < 30; i++) {
+        if (passwords.value.length > 0 || isAuthenticated.value) break;
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      // 密码列表有数据时才自动弹窗，空数据时不弹，让用户看到空状态引导
+      if (passwords.value.length > 0) {
+        openPasswordDialog();
+      }
+    };
+    tryOpenAdd();
   }
 };
 

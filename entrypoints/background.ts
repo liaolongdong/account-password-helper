@@ -245,6 +245,51 @@ export default defineBackground(() => {
           });
         return true;
 
+      case MessageType.OPEN_OPTIONS_AND_EDIT:
+        openOptionsPage()
+          .then(async tabId => {
+            if (tabId !== undefined) {
+              // 等待页面加载就绪后发送编辑指令
+              await new Promise(resolve => setTimeout(resolve, 500));
+              try {
+                await chrome.tabs.sendMessage(tabId, {
+                  type: MessageType.OPEN_OPTIONS_AND_EDIT,
+                  data: message.data,
+                });
+              } catch (err) {
+                logger.error('Background: 向选项页发送编辑指令失败:', err);
+              }
+            }
+            sendResponse({ success: true });
+          })
+          .catch(error => {
+            logger.error('处理OPEN_OPTIONS_AND_EDIT失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+
+      case MessageType.OPEN_OPTIONS_AND_ADD:
+        openOptionsPage()
+          .then(async tabId => {
+            if (tabId !== undefined) {
+              // 等待页面加载就绪后发送添加指令
+              await new Promise(resolve => setTimeout(resolve, 500));
+              try {
+                await chrome.tabs.sendMessage(tabId, {
+                  type: MessageType.OPEN_OPTIONS_AND_ADD,
+                });
+              } catch (err) {
+                logger.error('Background: 向选项页发送添加指令失败:', err);
+              }
+            }
+            sendResponse({ success: true });
+          })
+          .catch(error => {
+            logger.error('处理OPEN_OPTIONS_AND_ADD失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+
       case MessageType.GET_CACHED_PASSWORDS: {
         // 获取缓存的密码数据（异步）
         const requestedDomain = message.data?.domain;
@@ -441,11 +486,11 @@ export default defineBackground(() => {
    * - 若已存在 options 标签页：激活 lastAccessed 最大的一个并聚焦其所在窗口，不关闭其它历史标签页
    * - 若不存在：创建新的 options 标签页
    */
-  async function openOptionsPage() {
+  async function openOptionsPage(): Promise<number | undefined> {
     // 防止重复触发（流程完成后才释放）
     if (isOpeningOptionsPage) {
       logger.debug('Background: 正在打开选项页面，忽略重复请求');
-      return;
+      return undefined;
     }
     isOpeningOptionsPage = true;
 
@@ -467,11 +512,13 @@ export default defineBackground(() => {
           logger.debug(
             'Background: 已激活最近访问的密码管理标签页 tabId=' + targetTab.id + '，匹配总数=' + matchingTabs.length,
           );
+          return targetTab.id;
         }
       } else {
         // 不存在则创建新标签页
-        await chrome.tabs.create({ url: optionsUrl });
+        const newTab = await chrome.tabs.create({ url: optionsUrl });
         logger.debug('Background: 已创建新的密码管理标签页');
+        return newTab.id;
       }
     } catch (error) {
       logger.error('打开选项页面失败:', error);
@@ -479,6 +526,7 @@ export default defineBackground(() => {
       // 流程真正完成后再释放标记
       isOpeningOptionsPage = false;
     }
+    return undefined;
   }
 
   /**

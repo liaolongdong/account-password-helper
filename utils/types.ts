@@ -140,6 +140,14 @@ export enum MessageType {
    * 会话过期/锁定通知消息类型（由 background 广播，各 UI 上下文接收后切换到未验证状态）
    */
   SESSION_EXPIRED = 'SESSION_EXPIRED',
+  /**
+   * 从侧边栏跳转到密码管理页并编辑指定条目
+   */
+  OPEN_OPTIONS_AND_EDIT = 'OPEN_OPTIONS_AND_EDIT',
+  /**
+   * 从侧边栏跳转到密码管理页并自动打开添加密码弹窗
+   */
+  OPEN_OPTIONS_AND_ADD = 'OPEN_OPTIONS_AND_ADD',
 }
 
 /**
