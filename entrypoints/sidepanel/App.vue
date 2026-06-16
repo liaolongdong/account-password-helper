@@ -1142,8 +1142,11 @@ onUnmounted(() => {
 }
 
 .current-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   color: #6b7280;
+  white-space: nowrap;
 }
 
 .search-section {
@@ -1218,7 +1221,9 @@ onUnmounted(() => {
 .username {
   display: flex;
   align-items: center;
+  min-width: 0;
   margin-bottom: 4px;
+  overflow: hidden;
   font-size: 14px;
   font-weight: 500;
   color: #1f2937;
@@ -1265,7 +1270,9 @@ onUnmounted(() => {
   display: flex;
   gap: 4px;
   align-items: center;
+  min-width: 0;
   margin-bottom: 4px;
+  overflow: hidden;
 }
 
 .details .el-tag {
@@ -1301,6 +1308,15 @@ onUnmounted(() => {
   margin-left: 2px;
 }
 
+/* URL 文本截断，防止长 URL 挤占右侧按钮 */
+.details > .el-text {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .remark {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1311,6 +1327,7 @@ onUnmounted(() => {
 
 .password-actions {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   color: #d1d5db;
 }

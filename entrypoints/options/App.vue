@@ -359,8 +359,11 @@
         </div>
       </div>
 
-      <!-- 搜索和筛选 -->
-      <div class="filters">
+      <!-- 搜索和筛选（空数据时隐藏） -->
+      <div
+        v-if="passwords.length > 0 || tableLoading"
+        class="filters"
+      >
         <el-input
           v-model="searchKeyword"
           placeholder="搜索用户名、标签、备注或URL"
@@ -408,7 +411,7 @@
         </span>
       </div>
 
-      <!-- 空状态引导 -->
+      <!-- 空数据状态引导 -->
       <div
         v-if="passwords.length === 0 && !tableLoading"
         class="empty-guide"
