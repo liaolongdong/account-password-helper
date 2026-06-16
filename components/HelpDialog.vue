@@ -27,6 +27,9 @@
             显示/隐藏侧边栏。快捷键支持在 <code>chrome://extensions/shortcuts</code> 中自定义。
           </li>
           <li>本地开发友好：当域名为 <code>localhost</code> 或 <code>127.0.0.1</code> 时，侧边栏默认展示全部密码。</li>
+          <li>
+            版本更新检测：插件每 6 小时自动检测最新版本，发现新版本时 Popup 弹窗会提示更新信息，点击即可跳转下载。
+          </li>
         </ol>
       </section>
       <section class="help-section">
@@ -77,6 +80,11 @@
             <b>如何自定义快捷键？</b>
             在地址栏输入 <code>chrome://extensions/shortcuts</code>，找到「Account Password
             Helper」，点击对应命令的快捷键输入框，按下新组合键即可。修改后 Popup 弹窗会自动同步显示。
+          </li>
+          <li>
+            <b>插件会自动检测更新吗？</b>
+            会。插件通过 GitHub Releases API 每 6 小时自动检测最新版本，发现新版本时 Popup
+            弹窗会展示更新提示（含版本号和更新说明），点击即可跳转下载页面。也可在 Popup 中手动触发检测。
           </li>
         </ul>
       </section>

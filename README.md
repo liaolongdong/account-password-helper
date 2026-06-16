@@ -29,6 +29,7 @@
 - **加密备份**：.aph 格式 AES-GCM 加密导出/导入（PBKDF2 100000 次迭代派生密钥）；导入时支持解密预览后再确认，安全可靠。
 - **密码强度可视化**：密码输入时实时显示强度进度条（弱/中/强）与规则校验清单（长度、字母、数字、特殊字符），通过气泡弹窗直观呈现。
 - **会话可控**：1/2/4/8/12/24 小时和3/5/7天会话有效期；会话失效后敏感字段自动加密回密文；支持自动闲置锁定（5/10/30/60分钟）；Popup 一键锁定；会话过期跨上下文广播同步。
+- **版本更新检测**：基于 GitHub Releases API，每 6 小时自动检测最新版本；发现更新时在 Popup 弹窗中展示版本号和更新说明，点击即可跳转下载页面。
 - **Shadow DOM 隔离**：悬浮按钮使用 Closed Shadow DOM，完全隔离页面样式。
 - **零网络传输**：所有数据存储在 Chrome Local Storage，不走任何网络。
 
@@ -108,11 +109,19 @@
 - 侧边栏自动将与当前域名匹配的密码排在前面。
 - **本地开发友好**：当域名为 `localhost` 或 `127.0.0.1` 时，默认匹配所有密码（见 [sidepanel/App.vue](./entrypoints/sidepanel/App.vue)）。
 - 点击条目一键填充并自动关闭侧边栏；若无登录表单，给出「当前页面未检测到登录表单」提示。
+- 侧边栏条目支持右键或操作按钮跳转到密码管理页，直接编辑该条目或添加新条目。
 - 快捷键：
   - `Ctrl+Shift+P` / `Cmd+Shift+P`：打开密码管理页面
   - `Ctrl+Shift+L` / `Cmd+Shift+L`：显示/隐藏侧边栏
   - 快捷键支持自定义，详见 [常见问题 - 如何自定义快捷键](#常见问题)
 - Background 维护密码缓存，侧边栏优先读取缓存，后台异步验证。
+
+### 11. 版本更新检测
+
+- 通过 GitHub Releases API 定期检测最新版本（见 [utils/updateChecker.ts](./utils/updateChecker.ts)）。
+- 每 6 小时自动检测一次，发现新版本时在 Popup 弹窗中展示更新提示，包含版本号和更新说明。
+- 点击更新提示可直接跳转到 GitHub Releases 页面下载最新版本。
+- 检测结果缓存 24 小时，避免频繁请求；缓存过期后自动重新检测。
 
 ## 技术栈
 
@@ -315,6 +324,7 @@ graph TB
 │   ├── excel.ts                    # Excel 导入导出 + 多格式 CSV 导入
 │   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── tagUtils.ts                 # 标签颜色生成
+│   ├── updateChecker.ts            # 版本更新检测（GitHub Releases API）
 │   ├── logger.ts                   # 环境感知日志
 │   ├── env.ts                      # isDev 常量
 │   ├── createVueApp.ts             # Vue 应用工厂
@@ -325,7 +335,6 @@ graph TB
 │   └── variants/                   # 4 款钥匙主题候选图标
 ├── public/icon/                    # 构建期 PNG 产物（WXT 自动注入 manifest）
 ├── scripts/generate-icons.mjs      # SVG → 多尺寸 PNG 生成脚本
-├── styles/dialog-full-width.css    # 共享对话框全屏样式
 ├── types/global.d.ts               # 全局类型补充
 ├── .github/workflows/static.yml    # GitHub Pages 部署
 ├── wxt.config.ts                   # WXT 配置
@@ -472,6 +481,10 @@ A：支持。在 Excel 导入弹窗中，选择 CSV 文件格式后插件会自�
 **Q：如何自定义快捷键？**
 
 A：Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 `chrome://extensions/shortcuts`，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可修改。修改后 Popup 弹窗中显示的快捷键会自动同步。
+
+**Q：插件会自动检测更新吗？**
+
+A：会。插件通过 GitHub Releases API 每 6 小时自动检测一次最新版本，发现新版本时会在 Popup 弹窗中展示更新提示（包含版本号和更新说明），点击即可跳转到下载页面。检测结果会缓存 24 小时，避免频繁请求。你也可以在 Popup 弹窗中手动触发检测。
 
 ## 许可证
 
