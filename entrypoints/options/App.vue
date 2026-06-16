@@ -408,8 +408,63 @@
         </span>
       </div>
 
+      <!-- 空状态引导 -->
+      <div
+        v-if="passwords.length === 0 && !tableLoading"
+        class="empty-guide"
+      >
+        <el-empty
+          :image-size="120"
+          description="还没有保存的密码，开始添加吧"
+        />
+        <div class="empty-guide__cards">
+          <div
+            class="empty-guide__card"
+            @click="openPasswordDialog"
+          >
+            <el-icon
+              :size="28"
+              class="empty-guide__card-icon--primary"
+            >
+              <Plus />
+            </el-icon>
+            <div class="empty-guide__card-title">手动添加</div>
+            <div class="empty-guide__card-desc">逐条添加账号密码信息</div>
+          </div>
+          <div
+            class="empty-guide__card"
+            @click="showImportDialog = true"
+          >
+            <el-icon
+              :size="28"
+              class="empty-guide__card-icon--success"
+            >
+              <Upload />
+            </el-icon>
+            <div class="empty-guide__card-title">导入数据</div>
+            <div class="empty-guide__card-desc">从 Excel 文件批量导入</div>
+          </div>
+          <div
+            class="empty-guide__card"
+            @click="showBackupImportDialog = true"
+          >
+            <el-icon
+              :size="28"
+              class="empty-guide__card-icon--warning"
+            >
+              <Unlock />
+            </el-icon>
+            <div class="empty-guide__card-title">恢复备份</div>
+            <div class="empty-guide__card-desc">从备份文件或邮箱恢复</div>
+          </div>
+        </div>
+      </div>
+
       <!-- 密码列表 -->
-      <div class="password-list">
+      <div
+        v-else
+        class="password-list"
+      >
         <el-table
           ref="tableRef"
           v-loading="tableLoading"
@@ -478,26 +533,41 @@
             label="URL"
             min-width="200"
             sortable
-            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.url.localeCompare(b.url)"
+            :sort-method="(a: PasswordEntry, b: PasswordEntry) => (a.url || '').localeCompare(b.url || '')"
           >
             <template #default="{ row }">
-              <el-tooltip
-                v-if="row.url && row.url.length > 30"
-                :content="row.url"
-                placement="top"
-                :show-after="300"
-                :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
-              >
-                <div class="text-ellipsis">
+              <template v-if="row.url">
+                <el-tooltip
+                  v-if="row.url.length > 30"
+                  :content="row.url"
+                  placement="top"
+                  :show-after="300"
+                  :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
+                >
+                  <a
+                    :href="normalizeUrl(row.url)"
+                    class="url-link text-ellipsis"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    @click.stop
+                  >
+                    <el-icon class="url-link__icon"><Link /></el-icon>
+                    {{ row.url }}
+                  </a>
+                </el-tooltip>
+                <a
+                  v-else
+                  :href="normalizeUrl(row.url)"
+                  class="url-link"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  @click.stop
+                >
+                  <el-icon class="url-link__icon"><Link /></el-icon>
                   {{ row.url }}
-                </div>
-              </el-tooltip>
-              <div
-                v-else
-                class="text-ellipsis"
-              >
-                {{ row.url || '-' }}
-              </div>
+                </a>
+              </template>
+              <span v-else>-</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -845,6 +915,7 @@ import {
   Timer,
   Star,
   StarFilled,
+  Link,
 } from '@element-plus/icons-vue';
 import { type PasswordEntry, MessageType } from '@/utils/types';
 import { sessionManager } from '@/utils/sessionManager';
@@ -870,6 +941,19 @@ import { usePasswordManagement, MAX_TAG_COUNT } from '@/composables/usePasswordM
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { isDev } from '@/utils/env';
+
+/**
+ * 将 URL 文本归一化为可跳转的完整链接
+ * - 已有协议（http/https）的直接使用
+ * - 纯域名（如 github.com）自动补全 https:// 前缀
+ * @param url 原始 URL 文本
+ * @returns 带协议的完整 URL，空值返回空字符串
+ */
+const normalizeUrl = (url: string): string => {
+  if (!url) return '';
+  if (/^https?:\/\//i.test(url)) return url;
+  return `https://${url}`;
+};
 
 /** 临时有效期表单占位，在 useSessionTimer 初始化前会被覆盖 */
 const initialValidityForm = ref({ validityHours: 24 });

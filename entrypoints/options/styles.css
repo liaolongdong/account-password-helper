@@ -637,3 +637,95 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ==================== URL 链接样式 ==================== */
+.url-link {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  max-width: 100%;
+  color: var(--el-color-primary);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.url-link:hover {
+  color: var(--el-color-primary-light-3);
+  text-decoration: underline;
+}
+
+.url-link.text-ellipsis {
+  display: inline-flex;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.url-link__icon {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+/* ==================== 空状态引导样式 ==================== */
+.empty-guide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px 40px;
+}
+
+.empty-guide__cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: center;
+  margin-top: 32px;
+}
+
+.empty-guide__card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: 180px;
+  padding: 24px 16px;
+  cursor: pointer;
+  background: var(--el-bg-color, #fff);
+  border: 1px solid var(--el-border-color, #e4e7ed);
+  border-radius: 12px;
+  transition:
+    border-color 0.25s,
+    box-shadow 0.25s,
+    transform 0.25s;
+}
+
+.empty-guide__card:hover {
+  border-color: var(--el-color-primary);
+  box-shadow: 0 4px 12px rgb(64 158 255 / 12%);
+  transform: translateY(-2px);
+}
+
+.empty-guide__card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary, #303133);
+}
+
+.empty-guide__card-desc {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  text-align: center;
+}
+
+.empty-guide__card-icon--primary {
+  color: var(--el-color-primary);
+}
+
+.empty-guide__card-icon--success {
+  color: var(--el-color-success);
+}
+
+.empty-guide__card-icon--warning {
+  color: var(--el-color-warning);
+}

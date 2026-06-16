@@ -61,7 +61,7 @@
       <el-input
         ref="searchInputRef"
         v-model="searchKeyword"
-        placeholder="搜索用户名、标签、备注..."
+        placeholder="搜索用户名、URL、标签、备注..."
         :prefix-icon="Search"
         clearable
         @input="handleSearch"
