@@ -4,6 +4,12 @@ import { logger } from '../utils/logger';
 import { STORAGE_KEYS } from '@/utils/encryption';
 import { StorageUtils } from '@/utils/storage';
 import type { EmailBackupConfig } from '../utils/types';
+import {
+  checkForUpdate,
+  getReleasesPageUrl,
+  UPDATE_CHECK_ALARM_NAME,
+  UPDATE_CHECK_INTERVAL_MINUTES,
+} from '@/utils/updateChecker';
 
 export default defineBackground(() => {
   // 通过 port 连接跟踪 sidepanel 的打开状态
@@ -17,6 +23,7 @@ export default defineBackground(() => {
     logger.info('账号密码管理助手插件已安装');
     setupAutoBackupAlarm();
     setupIdleLock();
+    setupUpdateCheckAlarm();
   });
 
   /**
@@ -344,6 +351,14 @@ export default defineBackground(() => {
         return true;
       }
 
+      case MessageType.CHECK_UPDATE: {
+        // 主动触发版本更新检测（由 Popup/Sidepanel 发起）
+        performUpdateCheck().then(updateInfo => {
+          sendResponse({ success: true, data: updateInfo });
+        });
+        return true;
+      }
+
       default:
         sendResponse({ success: false, error: '未知消息类型' });
         break;
@@ -636,6 +651,57 @@ export default defineBackground(() => {
     }
   }
 
+  // 监听通知点击事件，用户点击更新通知时打开 GitHub Release 页面
+  chrome.notifications.onClicked.addListener(notificationId => {
+    if (notificationId === 'extension-update-available') {
+      chrome.tabs.create({ url: getReleasesPageUrl() });
+      // 点击后清除通知
+      chrome.notifications.clear('extension-update-available');
+    }
+  });
+
+  /**
+   * 设置版本更新检测闹钟
+   * 使用 chrome.alarms API 每 6 小时自动检测 GitHub Releases 上的新版本
+   */
+  async function setupUpdateCheckAlarm() {
+    try {
+      await chrome.alarms.clear(UPDATE_CHECK_ALARM_NAME);
+      await chrome.alarms.create(UPDATE_CHECK_ALARM_NAME, {
+        periodInMinutes: UPDATE_CHECK_INTERVAL_MINUTES,
+        delayInMinutes: 1, // 插件启动 1 分钟后进行首次检测
+      });
+      logger.info(`Background: 版本更新检测闹钟已设置，间隔 ${UPDATE_CHECK_INTERVAL_MINUTES} 分钟`);
+    } catch (error) {
+      logger.error('Background: 设置版本更新检测闹钟失败:', error);
+    }
+  }
+
+  /**
+   * 执行版本更新检测并发送桌面通知
+   * 检测到新版本时通过 chrome.notifications 提示用户，用户点击后跳转到 GitHub Release 下载页面
+   */
+  async function performUpdateCheck() {
+    try {
+      const updateInfo = await checkForUpdate();
+
+      if (updateInfo) {
+        await chrome.notifications.create('extension-update-available', {
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icon/128.png'),
+          title: '插件有新版本可用',
+          message: `发现新版本 v${updateInfo.latestVersion}，点击前往下载更新。`,
+        });
+        logger.info(`Background: 更新通知已发送，最新版本 v${updateInfo.latestVersion}`);
+      }
+
+      return updateInfo;
+    } catch (error) {
+      logger.error('Background: 执行版本更新检测失败:', error);
+      return null;
+    }
+  }
+
   // 监听 storage 变化，自动使缓存失效
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local') {
@@ -656,11 +722,14 @@ export default defineBackground(() => {
     }
   });
 
-  // 监听 alarm 事件，执行定时自动备份
+  // 监听 alarm 事件，执行定时任务（自动备份 / 版本检测）
   chrome.alarms.onAlarm.addListener(alarm => {
     if (alarm.name === 'auto-backup-passwords') {
       logger.info('Background: 触发自动备份闹钟');
       performAutoBackup();
+    } else if (alarm.name === UPDATE_CHECK_ALARM_NAME) {
+      logger.info('Background: 触发版本更新检测闹钟');
+      performUpdateCheck();
     }
   });
 

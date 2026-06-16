@@ -148,6 +148,10 @@ export enum MessageType {
    * 从侧边栏跳转到密码管理页并自动打开添加密码弹窗
    */
   OPEN_OPTIONS_AND_ADD = 'OPEN_OPTIONS_AND_ADD',
+  /**
+   * 主动触发版本更新检测
+   */
+  CHECK_UPDATE = 'CHECK_UPDATE',
 }
 
 /**
@@ -304,6 +308,22 @@ export interface EmailBackupConfig {
   autoBackup: boolean;
   /** 自动备份间隔（天），如 1=每天, 7=每周 */
   autoBackupIntervalDays: number;
+}
+
+/**
+ * 插件版本更新信息接口
+ */
+export interface UpdateInfo {
+  /** 最新版本号（语义化版本，如 "1.2.0"） */
+  latestVersion: string;
+  /** 版本发布页面下载链接 */
+  downloadUrl: string;
+  /** 版本更新说明（Release body 摘要） */
+  releaseNotes: string;
+  /** 版本发布时间（ISO 8601） */
+  publishedAt: string;
+  /** 本次检测时间戳（毫秒） */
+  checkedAt: number;
 }
 
 /**

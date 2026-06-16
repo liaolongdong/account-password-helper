@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   LAST_AUTO_BACKUP_TIME: 'last_auto_backup_time',
   AUTO_SAVE_CONFIG: 'auto_save_config',
   IDLE_LOCK_CONFIG: 'idle_lock_config',
+  UPDATE_INFO: 'extension_update_info',
 };
 
 /**

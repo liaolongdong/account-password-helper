@@ -43,6 +43,34 @@
       </el-text>
     </div>
 
+    <!-- 版本更新提示卡片 -->
+    <div
+      v-if="updateInfo"
+      class="update-card"
+      role="button"
+      tabindex="0"
+      @click="openUpdatePage"
+      @keydown.enter="openUpdatePage"
+      @keydown.space.prevent="openUpdatePage"
+    >
+      <div class="update-card__icon update-card__icon--warn">
+        <el-icon><UploadFilled /></el-icon>
+      </div>
+      <div class="update-card__content">
+        <div class="update-card__title">
+          发现新版本
+          <el-tag
+            type="danger"
+            size="small"
+            round
+          >
+            v{{ updateInfo.latestVersion }}
+          </el-tag>
+        </div>
+        <div class="update-card__desc">点击前往下载更新</div>
+      </div>
+    </div>
+
     <div
       v-else
       class="session-status"
@@ -121,12 +149,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
-import { Lock, CircleCheckFilled, WarningFilled } from '@element-plus/icons-vue';
+import { Lock, CircleCheckFilled, WarningFilled, UploadFilled } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import { StorageUtils } from '@/utils/storage';
-import { MessageType, type PasswordEntry } from '@/utils/types';
+import { MessageType, type PasswordEntry, type UpdateInfo } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { getCachedUpdateInfo } from '@/utils/updateChecker';
 
 /**
  * 格式化快捷键显示文本
@@ -175,6 +204,9 @@ const loadShortcuts = async () => {
 /** 联系邮箱 */
 const contactEmail = ref('924902324@qq.com');
 
+/** 版本更新信息 */
+const updateInfo = ref<UpdateInfo | null>(null);
+
 /** 会话状态 */
 const isSessionValid = ref(false);
 
@@ -201,9 +233,14 @@ const domainMatchCount = computed(() => {
 
 onMounted(async () => {
   try {
-    // 并行加载：会话状态 + 快捷键
-    const [sessionValid] = await Promise.all([StorageUtils.isSessionValid(), loadShortcuts()]);
+    // 并行加载：会话状态 + 快捷键 + 更新信息
+    const [sessionValid, , cachedUpdate] = await Promise.all([
+      StorageUtils.isSessionValid(),
+      loadShortcuts(),
+      getCachedUpdateInfo(),
+    ]);
     isSessionValid.value = sessionValid;
+    updateInfo.value = cachedUpdate;
 
     // 获取当前域名
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -328,6 +365,19 @@ const handleEmailClick = (event: Event) => {
 
   // 尝试打开默认邮件客户端
   window.open(mailtoLink, '_blank');
+};
+
+/**
+ * 打开版本更新下载页面
+ * 跳转到 GitHub Release 页面，同时关闭 Popup
+ */
+const openUpdatePage = () => {
+  if (updateInfo.value?.downloadUrl) {
+    chrome.tabs.create({ url: updateInfo.value.downloadUrl });
+  } else {
+    chrome.tabs.create({ url: 'https://github.com/liaolongdong/account-password-helper/releases/latest' });
+  }
+  window.close();
 };
 </script>
 
@@ -462,6 +512,76 @@ const handleEmailClick = (event: Event) => {
   border: 1px solid #d4d7de;
   border-radius: 4px;
   box-shadow: 0 1px 0 #c8c9cc;
+}
+
+.update-card {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  background: #fef0f0;
+  border: 1px solid #fbc4c4;
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.update-card:hover {
+  background: #fde2e2;
+  border-color: #f56c6c;
+  box-shadow: 0 2px 8px rgb(245 108 108 / 15%);
+}
+
+.update-card:active {
+  background: #fcd5d5;
+  box-shadow: 0 1px 4px rgb(245 108 108 / 10%);
+  transform: scale(0.99);
+}
+
+.update-card:focus-visible {
+  border-color: #f56c6c;
+  box-shadow: 0 0 0 2px rgb(245 108 108 / 25%);
+}
+
+.update-card__icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  border-radius: 50%;
+}
+
+.update-card__icon--warn {
+  color: #fff;
+  background: #f56c6c;
+}
+
+.update-card__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-card__title {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: #303133;
+}
+
+.update-card__desc {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: #909399;
 }
 
 .contact-info {
