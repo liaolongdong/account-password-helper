@@ -102,8 +102,8 @@ const hashString = (str: string): number => {
  *
  * 算法说明：
  * - 色相（Hue）：由标签字符串哈希映射到 0-359 度，保证不同标签色相均匀分布
- * - 饱和度（Saturation）：固定 65%，色彩鲜明但不刺眼，呈现清新活力感
- * - 亮度（Lightness）：背景 95%（清透底色），文字 45%（柔和可读），边框 85%（轻柔描边）
+ * - 饱和度（Saturation）：背景 70% / 文字 65% / 边框 55%，色彩亮丽鲜明
+ * - 亮度（Lightness）：背景 88%（明亮底色），文字 32%（高对比可读），边框 78%（柔和描边）
  * - 同一标签始终生成相同颜色，保证视觉一致性
  *
  * @param tag 标签文本
@@ -111,8 +111,8 @@ const hashString = (str: string): number => {
  */
 export const getTagColor = (tag: string): TagColor => {
   const hue = hashString(tag) % 360;
-  const background = `hsl(${hue}, 65%, 95%)`;
-  const text = `hsl(${hue}, 65%, 45%)`;
-  const border = `hsl(${hue}, 50%, 85%)`;
+  const background = `hsl(${hue}, 70%, 88%)`;
+  const text = `hsl(${hue}, 65%, 32%)`;
+  const border = `hsl(${hue}, 55%, 78%)`;
   return { background, text, border };
 };

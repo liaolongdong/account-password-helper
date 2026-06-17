@@ -562,13 +562,15 @@
                   :content="t"
                   placement="top"
                   :show-after="300"
-                  :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
+                  :disabled="!isTagOverflowed(t)"
+                  :popper-style="{ maxWidth: '500px', wordBreak: 'break-word' }"
                 >
                   <el-tag
                     :color="getTagColor(t).background"
                     :style="{ color: getTagColor(t).text, borderColor: getTagColor(t).border }"
                     size="small"
                     class="tag-item"
+                    @mouseenter="(e: MouseEvent) => checkTagOverflow(e, t)"
                   >
                     {{ t }}
                   </el-tag>
@@ -893,6 +895,7 @@ import AutoSaveSettingDialog from '@/components/AutoSaveSettingDialog.vue';
 import IdleLockSetting from '@/components/IdleLockSetting.vue';
 import PasswordStrengthPopover from '@/components/PasswordStrengthPopover.vue';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
+import { useTagOverflow } from '@/composables/useTagOverflow';
 import { Lock, Unlock, Clock } from '@element-plus/icons-vue';
 import { useAuthFlow, SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
@@ -925,6 +928,9 @@ const showIdleLockDialog = ref(false);
 
 /** 当前插件版本号 */
 const currentVersion = ref(chrome.runtime.getManifest().version);
+
+/** Tag 标签溢出检测 */
+const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 
 /** 主密码输入框是否获取焦点（控制规则气泡弹窗显示） */
 const passwordInputFocused = ref(false);

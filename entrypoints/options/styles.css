@@ -582,7 +582,7 @@
 }
 
 /* el-tag 内层文本节点负责截断，确保 inline-flex 布局下边框不被裁切 */
-.tag-item .el-tag__content {
+.tag-item :deep(.el-tag__content) {
   max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;

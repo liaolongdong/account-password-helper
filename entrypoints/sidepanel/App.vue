@@ -201,7 +201,7 @@
                 placement="top"
                 :show-after="300"
                 :disabled="!isTagOverflowed(t)"
-                :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
+                :popper-style="{ maxWidth: '500px', wordBreak: 'break-word' }"
               >
                 <el-tag
                   :color="getTagColor(t).background"
@@ -324,6 +324,7 @@ import {
 import { StorageUtils } from '@/utils/storage';
 import { useChromeListeners } from '@/composables/useChromeListeners';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
+import { useTagOverflow } from '@/composables/useTagOverflow';
 import { logger } from '@/utils/logger';
 import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
 import {
@@ -335,24 +336,8 @@ import {
 
 const loading = ref(true);
 
-/** 记录当前发生文本溢出的标签文本，用于按需显示 tooltip */
-const overflowedTag = ref<string | null>(null);
-
-/**
- * 检查当前 hover 的标签是否发生文本溢出
- * 仅当 scrollWidth > clientWidth 时才标记为溢出，触发 tooltip
- */
-const checkTagOverflow = (e: MouseEvent, tag: string) => {
-  const el = e.currentTarget as HTMLElement | null;
-  if (!el) return;
-  // 检测内层 .el-tag__content 是否发生文本截断
-  const contentEl = el.querySelector('.el-tag__content') as HTMLElement | null;
-  const target = contentEl ?? el;
-  overflowedTag.value = target.scrollWidth > target.clientWidth ? tag : null;
-};
-
-/** 判断指定标签是否处于溢出状态 */
-const isTagOverflowed = (tag: string): boolean => overflowedTag.value === tag;
+/** Tag 标签溢出检测 */
+const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 const searchKeyword = ref('');
 /** 是否仅显示收藏条目 */
 const favoriteOnly = ref(false);
@@ -1376,9 +1361,12 @@ onUnmounted(() => {
 .tag-item {
   /* 单行展示，超长省略，配合外层 el-tooltip 显示完整内容 */
   min-width: 0;
-  max-width: 160px;
+  max-width: 120px;
   padding: 2px 6px;
   margin: 0;
+
+  /* 覆盖 Element Plus .el-tag 默认 overflow: hidden，防止裁切右侧边框 */
+  overflow: visible;
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
