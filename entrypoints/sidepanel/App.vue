@@ -10,6 +10,13 @@
         <h3>
           <BrandLogo class="logo" />
           快速填充
+          <el-tag
+            size="small"
+            type="info"
+            class="version-tag"
+          >
+            v{{ currentVersion }}
+          </el-tag>
         </h3>
         <div class="current-url">
           <el-text
@@ -340,6 +347,9 @@ const GITHUB_URL = 'https://github.com/liaolongdong/account-password-helper';
 const showHelpDialog = ref(false);
 const showSettingsDialog = ref(false);
 const floatingConfig = ref<FloatingButtonConfig>(StorageUtils.getDefaultFloatingButtonConfig());
+
+/** 当前插件版本号 */
+const currentVersion = ref(chrome.runtime.getManifest().version);
 
 // 设置弹窗 DOM 引用与共用视图句柄
 const settingsPanelEl = ref<HTMLElement | null>(null);
@@ -1178,6 +1188,17 @@ onUnmounted(() => {
   margin-right: 8px;
   font-size: 20px;
   color: #409eff;
+}
+
+.version-tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  margin-left: 6px;
+  font-size: 11px;
+  line-height: 18px;
+  color: #909399;
+  cursor: default;
+  user-select: none;
 }
 
 .current-url {

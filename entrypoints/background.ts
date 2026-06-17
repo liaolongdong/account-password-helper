@@ -6,6 +6,7 @@ import { StorageUtils } from '@/utils/storage';
 import type { EmailBackupConfig } from '../utils/types';
 import {
   checkForUpdate,
+  getCachedUpdateInfo,
   getReleasesPageUrl,
   UPDATE_CHECK_ALARM_NAME,
   UPDATE_CHECK_INTERVAL_MINUTES,
@@ -17,6 +18,34 @@ export default defineBackground(() => {
 
   // 密码缓存
   let passwordCache: PasswordCache | null = null;
+
+  /**
+   * 设置插件图标更新徽标（表示有新版本可用）
+   * 使用 "new" 文本 + 蓝色背景，在图标右下角显示紧凑的更新提示标签
+   * 蓝色与插件主题色一致，白色文字确保在蓝色背景上清晰可读
+   */
+  async function showUpdateBadge(): Promise<void> {
+    try {
+      await chrome.action.setBadgeBackgroundColor({ color: '#409eff' });
+      await chrome.action.setBadgeTextColor({ color: '#FFFFFF' });
+      await chrome.action.setBadgeText({ text: 'new' });
+      logger.debug('Background: 更新徽标已显示');
+    } catch (error) {
+      logger.error('Background: 设置更新徽标失败:', error);
+    }
+  }
+
+  /**
+   * 清除插件图标更新徽标
+   */
+  async function clearUpdateBadge(): Promise<void> {
+    try {
+      await chrome.action.setBadgeText({ text: '' });
+      logger.debug('Background: 更新徽标已清除');
+    } catch (error) {
+      logger.error('Background: 清除更新徽标失败:', error);
+    }
+  }
 
   // 插件安装时的初始化
   chrome.runtime.onInstalled.addListener(() => {
@@ -102,6 +131,13 @@ export default defineBackground(() => {
         logger.debug('SidePanel 已断开连接');
         sidePanelPort = null;
       });
+    }
+  });
+
+  // 启动时检查缓存的更新信息，恢复徽标状态（Service Worker 重启后徽标会丢失）
+  getCachedUpdateInfo().then(info => {
+    if (info) {
+      showUpdateBadge();
     }
   });
 
@@ -651,12 +687,13 @@ export default defineBackground(() => {
     }
   }
 
-  // 监听通知点击事件，用户点击更新通知时打开 GitHub Release 页面
+  // 监听通知点击事件，用户点击更新通知时打开 GitHub Release 页面并清除徽标
   chrome.notifications.onClicked.addListener(notificationId => {
     if (notificationId === 'extension-update-available') {
       chrome.tabs.create({ url: getReleasesPageUrl() });
-      // 点击后清除通知
+      // 点击后清除通知和更新徽标
       chrome.notifications.clear('extension-update-available');
+      clearUpdateBadge();
     }
   });
 
@@ -679,13 +716,17 @@ export default defineBackground(() => {
 
   /**
    * 执行版本更新检测并发送桌面通知
-   * 检测到新版本时通过 chrome.notifications 提示用户，用户点击后跳转到 GitHub Release 下载页面
+   * 检测到新版本时通过 chrome.notifications 提示用户，并在图标上显示更新徽标
+   * 用户点击通知后跳转到 GitHub Release 下载页面
    */
   async function performUpdateCheck() {
     try {
       const updateInfo = await checkForUpdate();
 
       if (updateInfo) {
+        // 显示图标更新徽标
+        await showUpdateBadge();
+
         await chrome.notifications.create('extension-update-available', {
           type: 'basic',
           iconUrl: chrome.runtime.getURL('icon/128.png'),
@@ -693,6 +734,9 @@ export default defineBackground(() => {
           message: `发现新版本 v${updateInfo.latestVersion}，点击前往下载更新。`,
         });
         logger.info(`Background: 更新通知已发送，最新版本 v${updateInfo.latestVersion}`);
+      } else {
+        // 已是最新版本，清除徽标
+        await clearUpdateBadge();
       }
 
       return updateInfo;

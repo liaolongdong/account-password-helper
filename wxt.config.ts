@@ -57,7 +57,7 @@ export default defineConfig({
   manifest: {
     name: 'Account Password Helper',
     description: '账号密码管理助手 - 管理账号密码、自动填充账号密码、自动触发登录',
-    version: '1.0.0',
+    version: '2.0.0',
     permissions: ['storage', 'activeTab', 'scripting', 'sidePanel', 'alarms', 'downloads', 'notifications', 'idle'],
     host_permissions: ['<all_urls>'],
     action: {

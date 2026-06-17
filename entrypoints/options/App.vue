@@ -247,6 +247,13 @@
             <h1>
               <BrandLogo class="logo" />
               账号密码管理助手
+              <el-tag
+                size="small"
+                type="info"
+                class="version-tag"
+              >
+                v{{ currentVersion }}
+              </el-tag>
             </h1>
           </div>
         </div>
@@ -966,6 +973,9 @@ const showAutoSaveDialog = ref(false);
 
 /** 闲置锁定设置弹窗可见性 */
 const showIdleLockDialog = ref(false);
+
+/** 当前插件版本号 */
+const currentVersion = ref(chrome.runtime.getManifest().version);
 
 /** 主密码输入框是否获取焦点（控制规则气泡弹窗显示） */
 const passwordInputFocused = ref(false);

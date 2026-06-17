@@ -197,6 +197,19 @@
   color: #fff;
 }
 
+.header-title .version-tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  margin-left: 10px;
+  font-size: 11px;
+  line-height: 18px;
+  color: rgb(255 255 255 / 70%);
+  cursor: default;
+  user-select: none;
+  background: rgb(255 255 255 / 15%);
+  border-color: rgb(255 255 255 / 20%);
+}
+
 .header-actions-row {
   display: flex;
   align-items: center;

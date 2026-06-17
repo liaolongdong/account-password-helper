@@ -2,7 +2,16 @@
   <div class="popup-container">
     <div class="header">
       <BrandLogo class="logo" />
-      <h3>账号密码管理助手</h3>
+      <div class="header-title-group">
+        <h3>账号密码管理助手</h3>
+        <el-tag
+          size="small"
+          type="info"
+          class="version-tag"
+        >
+          v{{ currentVersion }}
+        </el-tag>
+      </div>
       <el-button
         v-if="isSessionValid"
         class="lock-btn"
@@ -42,6 +51,24 @@
         · 当前页面匹配 {{ domainMatchCount }} 条
       </el-text>
     </div>
+    <div
+      v-else
+      class="session-status"
+    >
+      <el-tag
+        type="warning"
+        size="small"
+      >
+        <el-icon><WarningFilled /></el-icon>
+        未验证
+      </el-tag>
+      <el-text
+        type="info"
+        size="small"
+      >
+        请先验证主密码
+      </el-text>
+    </div>
 
     <!-- 版本更新提示卡片 -->
     <div
@@ -60,6 +87,14 @@
         <div class="update-card__title">
           发现新版本
           <el-tag
+            type="info"
+            size="small"
+            round
+          >
+            v{{ currentVersion }}
+          </el-tag>
+          <span class="update-arrow">&rarr;</span>
+          <el-tag
             type="danger"
             size="small"
             round
@@ -69,25 +104,6 @@
         </div>
         <div class="update-card__desc">点击前往下载更新</div>
       </div>
-    </div>
-
-    <div
-      v-else
-      class="session-status"
-    >
-      <el-tag
-        type="warning"
-        size="small"
-      >
-        <el-icon><WarningFilled /></el-icon>
-        未验证
-      </el-tag>
-      <el-text
-        type="info"
-        size="small"
-      >
-        请先验证主密码
-      </el-text>
     </div>
 
     <div class="action-list">
@@ -204,6 +220,9 @@ const loadShortcuts = async () => {
 /** 联系邮箱 */
 const contactEmail = ref('924902324@qq.com');
 
+/** 当前插件版本号 */
+const currentVersion = ref(chrome.runtime.getManifest().version);
+
 /** 版本更新信息 */
 const updateInfo = ref<UpdateInfo | null>(null);
 
@@ -241,6 +260,15 @@ onMounted(async () => {
     ]);
     isSessionValid.value = sessionValid;
     updateInfo.value = cachedUpdate;
+
+    // Popup 已打开并展示更新提示卡片，清除图标红点（用户已知晓）
+    if (cachedUpdate) {
+      try {
+        await chrome.action.setBadgeText({ text: '' });
+      } catch {
+        // 清除徽标失败不影响主流程
+      }
+    }
 
     // 获取当前域名
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -404,8 +432,16 @@ const openUpdatePage = () => {
   color: #409eff;
 }
 
-.header h3 {
+.header-title-group {
+  display: flex;
   flex: 1;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.header h3 {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
@@ -414,6 +450,21 @@ const openUpdatePage = () => {
 
 .lock-btn {
   flex-shrink: 0;
+}
+
+.version-tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 18px;
+  color: #909399;
+  cursor: default;
+  user-select: none;
+}
+
+.update-arrow {
+  font-size: 12px;
+  color: #909399;
 }
 
 .session-status {
