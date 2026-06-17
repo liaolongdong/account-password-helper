@@ -1,9 +1,13 @@
 import { defineConfig } from 'wxt';
 import path from 'path';
+import { readFileSync } from 'fs';
 import Components from 'unplugin-vue-components/vite';
 import AutoImport from 'unplugin-auto-import/vite';
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers';
 import { visualizer } from 'rollup-plugin-visualizer';
+
+// 从 package.json 读取版本号，确保单一版本源（release-please 自动维护）
+const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8'));
 
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
@@ -57,7 +61,7 @@ export default defineConfig({
   manifest: {
     name: 'Account Password Helper',
     description: '账号密码管理助手 - 管理账号密码、自动填充账号密码、自动触发登录',
-    version: '2.0.0',
+    version: pkg.version,
     permissions: ['storage', 'activeTab', 'scripting', 'sidePanel', 'alarms', 'downloads', 'notifications', 'idle'],
     host_permissions: ['<all_urls>'],
     action: {
