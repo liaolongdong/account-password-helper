@@ -200,12 +200,15 @@
                 :content="t"
                 placement="top"
                 :show-after="300"
+                :disabled="!isTagOverflowed(t)"
                 :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
               >
                 <el-tag
-                  :type="getTagType(t)"
+                  :color="getTagColor(t).background"
+                  :style="{ color: getTagColor(t).text, borderColor: getTagColor(t).border }"
                   size="small"
                   class="tag-item"
+                  @mouseenter="(e: MouseEvent) => checkTagOverflow(e, t)"
                 >
                   {{ t }}
                 </el-tag>
@@ -320,7 +323,7 @@ import {
 } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { useChromeListeners } from '@/composables/useChromeListeners';
-import { getTagType, parseTags } from '@/utils/tagUtils';
+import { getTagColor, parseTags } from '@/utils/tagUtils';
 import { logger } from '@/utils/logger';
 import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
 import {
@@ -331,6 +334,25 @@ import {
 } from '@/entrypoints/content/floatingButtons/settingsPanelView';
 
 const loading = ref(true);
+
+/** 记录当前发生文本溢出的标签文本，用于按需显示 tooltip */
+const overflowedTag = ref<string | null>(null);
+
+/**
+ * 检查当前 hover 的标签是否发生文本溢出
+ * 仅当 scrollWidth > clientWidth 时才标记为溢出，触发 tooltip
+ */
+const checkTagOverflow = (e: MouseEvent, tag: string) => {
+  const el = e.currentTarget as HTMLElement | null;
+  if (!el) return;
+  // 检测内层 .el-tag__content 是否发生文本截断
+  const contentEl = el.querySelector('.el-tag__content') as HTMLElement | null;
+  const target = contentEl ?? el;
+  overflowedTag.value = target.scrollWidth > target.clientWidth ? tag : null;
+};
+
+/** 判断指定标签是否处于溢出状态 */
+const isTagOverflowed = (tag: string): boolean => overflowedTag.value === tag;
 const searchKeyword = ref('');
 /** 是否仅显示收藏条目 */
 const favoriteOnly = ref(false);
@@ -1354,15 +1376,14 @@ onUnmounted(() => {
 .tag-item {
   /* 单行展示，超长省略，配合外层 el-tooltip 显示完整内容 */
   min-width: 0;
-  max-width: 200px;
+  max-width: 160px;
   padding: 2px 6px;
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
   white-space: nowrap;
+  cursor: default;
   border-radius: 4px;
 }
 

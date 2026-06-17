@@ -1,11 +1,8 @@
 /**
  * 标签颜色工具函数
- * 根据标签内容返回对应的 Element Plus Tag 类型
+ * 根据标签内容生成基于 HSL 色彩空间的自定义颜色，确保不同标签颜色区分度高、同一标签颜色始终一致。
  */
 import type { PasswordEntry } from '@/utils/types';
-
-// 标签颜色映射缓存
-const tagColorCache = new Map<string, string>();
 
 /**
  * 解析标签字符串为数组
@@ -71,7 +68,24 @@ export const collectAllTags = (passwords: Array<Pick<PasswordEntry, 'tag'>>): st
 };
 
 /**
- * 字符串哈希函数，用于生成一致的随机颜色
+ * 标签颜色对象，包含背景色、文字色和边框色
+ */
+export interface TagColor {
+  /** 背景色（HSL 浅色） */
+  background: string;
+  /** 文字色（HSL 深色） */
+  text: string;
+  /** 边框色（与文字色一致） */
+  border: string;
+}
+
+/**
+ * 字符串哈希函数
+ * 基于 DJB2 变体算法，将字符串映射为稳定的 32 位正整数，
+ * 确保相同输入始终产生相同输出。
+ *
+ * @param str 输入字符串
+ * @returns 非负整数哈希值
  */
 const hashString = (str: string): number => {
   let hash = 0;
@@ -84,104 +98,21 @@ const hashString = (str: string): number => {
 };
 
 /**
- * 获取标签颜色类型
- * 根据标签内容匹配预定义的类别，返回对应的 Element Plus Tag 类型
+ * 根据标签内容生成基于 HSL 色彩空间的自定义颜色
+ *
+ * 算法说明：
+ * - 色相（Hue）：由标签字符串哈希映射到 0-359 度，保证不同标签色相均匀分布
+ * - 饱和度（Saturation）：固定 65%，色彩鲜明但不刺眼，呈现清新活力感
+ * - 亮度（Lightness）：背景 95%（清透底色），文字 45%（柔和可读），边框 85%（轻柔描边）
+ * - 同一标签始终生成相同颜色，保证视觉一致性
+ *
+ * @param tag 标签文本
+ * @returns 包含 background、text、border 的颜色对象
  */
-export const getTagType = (tag: string): string => {
-  const tagLower = tag.toLowerCase();
-
-  // 工作相关标签
-  if (
-    tagLower.includes('工作') ||
-    tagLower.includes('work') ||
-    tagLower.includes('office') ||
-    tagLower.includes('公司')
-  ) {
-    return 'primary';
-  }
-
-  // 个人相关标签
-  if (tagLower.includes('个人') || tagLower.includes('personal') || tagLower.includes('私人')) {
-    return 'success';
-  }
-
-  // 学习相关标签
-  if (
-    tagLower.includes('学习') ||
-    tagLower.includes('study') ||
-    tagLower.includes('课程') ||
-    tagLower.includes('教育')
-  ) {
-    return 'warning';
-  }
-
-  // 游戏相关标签
-  if (tagLower.includes('游戏') || tagLower.includes('game') || tagLower.includes('娱乐')) {
-    return 'danger';
-  }
-
-  // 购物相关标签
-  if (
-    tagLower.includes('购物') ||
-    tagLower.includes('shop') ||
-    tagLower.includes('电商') ||
-    tagLower.includes('淘宝') ||
-    tagLower.includes('京东')
-  ) {
-    return 'info';
-  }
-
-  // 社交相关标签
-  if (
-    tagLower.includes('社交') ||
-    tagLower.includes('social') ||
-    tagLower.includes('微信') ||
-    tagLower.includes('qq')
-  ) {
-    return 'success';
-  }
-
-  // 金融相关标签
-  if (
-    tagLower.includes('银行') ||
-    tagLower.includes('金融') ||
-    tagLower.includes('支付') ||
-    tagLower.includes('理财')
-  ) {
-    return 'warning';
-  }
-
-  // 开发相关标签
-  if (
-    tagLower.includes('开发') ||
-    tagLower.includes('dev') ||
-    tagLower.includes('github') ||
-    tagLower.includes('代码')
-  ) {
-    return 'primary';
-  }
-
-  // 媒体相关标签
-  if (
-    tagLower.includes('视频') ||
-    tagLower.includes('音乐') ||
-    tagLower.includes('直播') ||
-    tagLower.includes('媒体')
-  ) {
-    return 'danger';
-  }
-
-  // 对于未匹配的标签，使用随机颜色但保持一致性
-  if (tagColorCache.has(tag)) {
-    return tagColorCache.get(tag)!;
-  }
-
-  // 生成随机颜色类型（排除空字符串，确保有颜色）
-  const randomTypes = ['primary', 'success', 'warning', 'danger', 'info'];
-  const randomType = randomTypes[hashString(tag) % randomTypes.length];
-
-  // 缓存颜色映射，确保同一标签始终使用相同颜色
-  tagColorCache.set(tag, randomType);
-
-  return randomType;
+export const getTagColor = (tag: string): TagColor => {
+  const hue = hashString(tag) % 360;
+  const background = `hsl(${hue}, 65%, 95%)`;
+  const text = `hsl(${hue}, 65%, 45%)`;
+  const border = `hsl(${hue}, 50%, 85%)`;
+  return { background, text, border };
 };

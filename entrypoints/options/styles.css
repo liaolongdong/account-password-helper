@@ -565,22 +565,25 @@
 
 /* 标签样式 */
 .tag-item {
-  /* 单行展示，超长省略，配合外层 el-tooltip 显示完整内容 */
-  max-width: 200px;
+  /* 限制宽度范围，超出文本交由内部 .el-tag__content 截断，避免裁切右侧边框 */
+  min-width: 48px;
+  max-width: 120px;
   padding: 2px 8px;
   margin: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+  /* 覆盖 Element Plus .el-tag 默认 overflow: hidden，防止裁切右侧边框 */
+  overflow: visible;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
   white-space: nowrap;
+  cursor: default;
   border-radius: 4px;
 }
 
-/* el-tag 内层文本节点继承省略策略，确保 inline-flex 下生效 */
+/* el-tag 内层文本节点负责截断，确保 inline-flex 布局下边框不被裁切 */
 .tag-item .el-tag__content {
-  max-width: 100%;
+  max-width: 120px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -643,14 +646,6 @@
   margin-bottom: 18px;
 }
 
-/* 文本省略样式 */
-.text-ellipsis {
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 /* ==================== URL 链接样式 ==================== */
 .url-link {
   display: inline-flex;
@@ -668,16 +663,17 @@
   text-decoration: underline;
 }
 
-.url-link.text-ellipsis {
-  display: inline-flex;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .url-link__icon {
   flex-shrink: 0;
   font-size: 14px;
+}
+
+/* URL 文本节点：在 flex 容器内正确截断 */
+.url-link__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ==================== 空状态引导样式 ==================== */

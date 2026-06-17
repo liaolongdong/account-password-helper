@@ -498,26 +498,11 @@
             label="用户名"
             min-width="150"
             sortable
+            show-overflow-tooltip
             :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.username.localeCompare(b.username)"
           >
             <template #default="{ row }">
-              <el-tooltip
-                v-if="row.username && row.username.length > 20"
-                :content="row.username"
-                placement="top"
-                :show-after="300"
-                :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
-              >
-                <div class="text-ellipsis">
-                  {{ row.username }}
-                </div>
-              </el-tooltip>
-              <div
-                v-else
-                class="text-ellipsis"
-              >
-                {{ row.username }}
-              </div>
+              {{ row.username }}
             </template>
           </el-table-column>
           <el-table-column
@@ -543,30 +528,12 @@
             label="URL"
             min-width="200"
             sortable
+            show-overflow-tooltip
             :sort-method="(a: PasswordEntry, b: PasswordEntry) => (a.url || '').localeCompare(b.url || '')"
           >
             <template #default="{ row }">
               <template v-if="row.url">
-                <el-tooltip
-                  v-if="row.url.length > 30"
-                  :content="row.url"
-                  placement="top"
-                  :show-after="300"
-                  :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
-                >
-                  <a
-                    :href="normalizeUrl(row.url)"
-                    class="url-link text-ellipsis"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    @click.stop
-                  >
-                    <el-icon class="url-link__icon"><Link /></el-icon>
-                    {{ row.url }}
-                  </a>
-                </el-tooltip>
                 <a
-                  v-else
                   :href="normalizeUrl(row.url)"
                   class="url-link"
                   target="_blank"
@@ -574,7 +541,7 @@
                   @click.stop
                 >
                   <el-icon class="url-link__icon"><Link /></el-icon>
-                  {{ row.url }}
+                  <span class="url-link__text">{{ row.url }}</span>
                 </a>
               </template>
               <span v-else>-</span>
@@ -598,7 +565,8 @@
                   :popper-style="{ maxWidth: '500px', wordBreak: 'break-all' }"
                 >
                   <el-tag
-                    :type="getTagType(t)"
+                    :color="getTagColor(t).background"
+                    :style="{ color: getTagColor(t).text, borderColor: getTagColor(t).border }"
                     size="small"
                     class="tag-item"
                   >
@@ -618,30 +586,11 @@
             label="备注"
             min-width="150"
             sortable
+            show-overflow-tooltip
             :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.remark.localeCompare(b.remark)"
           >
             <template #default="{ row }">
-              <el-tooltip
-                v-if="row.remark && row.remark.length > 15"
-                placement="top"
-                :show-after="300"
-                :popper-style="{ maxWidth: '500px', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }"
-              >
-                <template #content>
-                  <div style="max-width: 480px; word-break: break-all; white-space: pre-wrap">
-                    {{ row.remark }}
-                  </div>
-                </template>
-                <div class="text-ellipsis">
-                  {{ row.remark }}
-                </div>
-              </el-tooltip>
-              <div
-                v-else
-                class="text-ellipsis"
-              >
-                {{ row.remark || '-' }}
-              </div>
+              {{ row.remark || '-' }}
             </template>
           </el-table-column>
           <el-table-column
@@ -943,7 +892,7 @@ import EmailBackupDialog from '@/components/EmailBackupDialog.vue';
 import AutoSaveSettingDialog from '@/components/AutoSaveSettingDialog.vue';
 import IdleLockSetting from '@/components/IdleLockSetting.vue';
 import PasswordStrengthPopover from '@/components/PasswordStrengthPopover.vue';
-import { getTagType, parseTags } from '@/utils/tagUtils';
+import { getTagColor, parseTags } from '@/utils/tagUtils';
 import { Lock, Unlock, Clock } from '@element-plus/icons-vue';
 import { useAuthFlow, SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
