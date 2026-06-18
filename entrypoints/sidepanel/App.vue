@@ -1360,13 +1360,14 @@ onUnmounted(() => {
 /* 标签样式 */
 .tag-item {
   /* 单行展示，超长省略，配合外层 el-tooltip 显示完整内容 */
+  box-sizing: border-box;
   min-width: 0;
   max-width: 120px;
-  padding: 2px 6px;
+  padding: 0 6px;
   margin: 0;
 
   /* 覆盖 Element Plus .el-tag 默认 overflow: hidden，防止裁切右侧边框 */
-  overflow: visible;
+  overflow: visible !important;
   font-size: 11px;
   font-weight: 500;
   line-height: 1.4;
@@ -1375,8 +1376,9 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 
-/* el-tag 内层文本节点继承省略策略，确保 inline-flex 下生效 */
+/* el-tag 内层文本节点负责截断，确保边框不被裁切 */
 .tag-item :deep(.el-tag__content) {
+  display: block;
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;

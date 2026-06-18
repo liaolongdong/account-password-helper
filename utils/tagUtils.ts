@@ -100,10 +100,10 @@ const hashString = (str: string): number => {
 /**
  * 根据标签内容生成基于 HSL 色彩空间的自定义颜色
  *
- * 算法说明：
+ * 算法说明（马卡龙色系）：
  * - 色相（Hue）：由标签字符串哈希映射到 0-359 度，保证不同标签色相均匀分布
- * - 饱和度（Saturation）：背景 70% / 文字 65% / 边框 55%，色彩亮丽鲜明
- * - 亮度（Lightness）：背景 88%（明亮底色），文字 32%（高对比可读），边框 78%（柔和描边）
+ * - 饱和度（Saturation）：背景 55% / 文字 45% / 边框 45%，柔和清新不刺眼
+ * - 亮度（Lightness）：背景 93%（极浅通透），文字 42%（温和可读），边框 85%（与背景自然过渡）
  * - 同一标签始终生成相同颜色，保证视觉一致性
  *
  * @param tag 标签文本
@@ -111,8 +111,8 @@ const hashString = (str: string): number => {
  */
 export const getTagColor = (tag: string): TagColor => {
   const hue = hashString(tag) % 360;
-  const background = `hsl(${hue}, 70%, 88%)`;
-  const text = `hsl(${hue}, 65%, 32%)`;
-  const border = `hsl(${hue}, 55%, 78%)`;
+  const background = `hsl(${hue}, 55%, 93%)`;
+  const text = `hsl(${hue}, 45%, 42%)`;
+  const border = `hsl(${hue}, 45%, 85%)`;
   return { background, text, border };
 };

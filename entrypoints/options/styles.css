@@ -565,14 +565,13 @@
 
 /* 标签样式 */
 .tag-item {
-  /* 限制宽度范围，超出文本交由内部 .el-tag__content 截断，避免裁切右侧边框 */
-  min-width: 48px;
+  box-sizing: border-box;
   max-width: 120px;
-  padding: 2px 8px;
+  padding: 0 8px;
   margin: 0;
 
   /* 覆盖 Element Plus .el-tag 默认 overflow: hidden，防止裁切右侧边框 */
-  overflow: visible;
+  overflow: visible !important;
   font-size: 12px;
   font-weight: 500;
   line-height: 1.5;
@@ -581,9 +580,10 @@
   border-radius: 4px;
 }
 
-/* el-tag 内层文本节点负责截断，确保 inline-flex 布局下边框不被裁切 */
+/* el-tag 内层文本节点负责截断，确保边框不被裁切 */
 .tag-item :deep(.el-tag__content) {
-  max-width: 120px;
+  display: block;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
