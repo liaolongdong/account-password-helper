@@ -563,10 +563,15 @@
   }
 }
 
+/* 标签列单元格允许溢出，防止右边框/圆角被裁切 */
+:deep(.tag-col .cell) {
+  overflow: visible;
+}
+
 /* 标签样式 */
 .tag-item {
   box-sizing: border-box;
-  max-width: 120px;
+  max-width: 110px;
   padding: 0 8px;
   margin: 0;
 

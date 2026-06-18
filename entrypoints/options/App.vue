@@ -551,6 +551,7 @@
             prop="tag"
             label="标签"
             min-width="100"
+            class-name="tag-col"
             sortable
             :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.tag.localeCompare(b.tag)"
           >
