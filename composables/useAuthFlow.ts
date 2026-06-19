@@ -271,6 +271,7 @@ export function useAuthFlow(options: {
     isAuthenticated.value = false;
 
     StorageUtils.getMasterPasswordValidityHours().then(validityHours => {
+      verifyForm.value.password = '';
       verifyForm.value.validityHours = validityHours;
     });
 

@@ -183,6 +183,7 @@ export function useSessionTimer(options: {
       showMasterPasswordSetup.value = false;
 
       const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+      verifyForm.value.password = '';
       verifyForm.value.validityHours = validityHours;
 
       nextTick(() => {

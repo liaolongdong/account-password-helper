@@ -167,6 +167,7 @@ watch(
     formModel.password = val.password;
     formModel.validityHours = val.validityHours;
   },
+  { deep: true },
 );
 
 watch(formModel, val => {

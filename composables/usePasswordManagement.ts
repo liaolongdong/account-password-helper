@@ -14,6 +14,43 @@ export const MAX_TAG_COUNT = 3;
 export const MAX_TAG_LENGTH = 30;
 
 /**
+ * URL/域名自定义校验器
+ * 支持完整 URL（https://example.com）和纯域名（example.com / localhost）
+ * @param _rule 校验规则（未使用）
+ * @param value 用户输入的 URL 值
+ * @param callback 校验回调函数
+ */
+const urlValidator = (_rule: any, value: string, callback: any) => {
+  if (!value || !value.trim()) {
+    callback(); // 选填，空值通过
+    return;
+  }
+  const trimmed = value.trim();
+  try {
+    if (trimmed.includes('://')) {
+      // 完整 URL 格式
+      const url = new URL(trimmed);
+      if (!url.hostname) {
+        callback(new Error('请输入有效的网站地址'));
+        return;
+      }
+    } else {
+      // 纯域名格式：允许字母、数字、连字符、点号
+      // 支持 localhost、IP 地址、标准域名
+      const domainPattern =
+        /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})$/;
+      if (!domainPattern.test(trimmed)) {
+        callback(new Error('请输入有效的域名（如 github.com）或完整网址'));
+        return;
+      }
+    }
+    callback();
+  } catch {
+    callback(new Error('请输入有效的网站地址或域名'));
+  }
+};
+
+/**
  * 密码管理 Composable
  * 管理密码列表的 CRUD、搜索、排序、导入导出等逻辑
  */
@@ -47,7 +84,10 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       { max: 50, message: '用户名不能超过50个字符', trigger: 'blur' },
     ],
     password: [{ max: 50, message: '密码不能超过50个字符', trigger: 'blur' }],
-    url: [{ max: 100, message: 'URL不能超过100个字符', trigger: 'blur' }],
+    url: [
+      { max: 100, message: '网站地址不能超过100个字符', trigger: 'blur' },
+      { validator: urlValidator, trigger: 'blur' },
+    ],
     tag: [{ max: 50, message: '标签不能超过50个字符', trigger: 'blur' }],
     remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }],
   };

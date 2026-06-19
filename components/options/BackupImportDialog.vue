@@ -128,7 +128,7 @@
           </el-table-column>
           <el-table-column
             prop="url"
-            label="URL"
+            label="网站地址"
             show-overflow-tooltip
             min-width="160"
           />

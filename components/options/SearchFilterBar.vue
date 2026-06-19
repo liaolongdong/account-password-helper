@@ -2,7 +2,7 @@
   <div class="filters">
     <el-input
       :model-value="searchKeyword"
-      placeholder="搜索用户名、标签、备注或URL"
+      placeholder="搜索用户名、标签、备注或网站地址"
       :prefix-icon="Search"
       clearable
       @update:model-value="$emit('update:searchKeyword', $event)"
