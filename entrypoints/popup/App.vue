@@ -152,11 +152,11 @@
       >
         如有任何问题或者建议，请联系
         <a
-          :href="'mailto:' + contactEmail"
+          :href="'mailto:' + CONTACT_EMAIL"
           class="email-link"
           @click="handleEmailClick"
         >
-          {{ contactEmail }}
+          {{ CONTACT_EMAIL }}
         </a>
       </el-text>
     </div>
@@ -164,161 +164,30 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
 import { Lock, CircleCheckFilled, WarningFilled, UploadFilled } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
-import { StorageUtils } from '@/utils/storage';
-import { MessageType, type PasswordEntry, type UpdateInfo } from '@/utils/types';
+import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { getCachedUpdateInfo } from '@/utils/updateChecker';
+import { usePopupInit } from '@/composables/usePopupInit';
 
-/**
- * 格式化快捷键显示文本
- * 将 Chrome API 返回的快捷键字符串转换为更友好的显示格式
- * @param shortcut - Chrome API 返回的快捷键，如 "Ctrl+Shift+P" 或 "Command+Shift+L"
- * @returns 格式化后的快捷键文本
- */
-const formatShortcut = (shortcut: string): string => {
-  if (!shortcut) return '';
-  return shortcut
-    .replace(/Command/gi, '⌘')
-    .replace(/Ctrl/gi, 'Ctrl')
-    .replace(/Shift/gi, '⇧')
-    .replace(/Alt/gi, '⌥')
-    .replace(/\+/g, '');
-};
+/** 联系邮箱（常量，无需响应式） */
+const CONTACT_EMAIL = '924902324@qq.com';
 
-/** 命令名称到快捷键的映射 */
-const shortcuts = ref<Record<string, string>>({
-  open_options: formatShortcut('Ctrl+Shift+P'),
-  toggle_sidepanel: formatShortcut('Ctrl+Shift+L'),
-});
+// ==================== 组合 usePopupInit（会话、快捷键、版本更新、锁定） ====================
+const {
+  isSessionValid,
+  passwordCount,
+  domainMatchCount,
+  shortcuts,
+  currentVersion,
+  updateInfo,
+  lockLoading,
+  lockSession,
+  openUpdatePage,
+} = usePopupInit();
 
-/**
- * 从 Chrome API 动态获取已绑定的快捷键
- * 用户在 chrome://extensions/shortcuts 修改后会自动同步
- */
-const loadShortcuts = async () => {
-  try {
-    const commands = await chrome.commands.getAll();
-    const map: Record<string, string> = {};
-    for (const cmd of commands) {
-      if (cmd.name && cmd.shortcut) {
-        map[cmd.name] = formatShortcut(cmd.shortcut);
-      }
-    }
-    shortcuts.value = {
-      open_options: map.open_options || shortcuts.value.open_options,
-      toggle_sidepanel: map.toggle_sidepanel || shortcuts.value.toggle_sidepanel,
-    };
-  } catch (error) {
-    logger.warn('Popup: 获取快捷键失败，使用默认值:', error);
-  }
-};
-
-/** 联系邮箱 */
-const contactEmail = ref('924902324@qq.com');
-
-/** 当前插件版本号 */
-const currentVersion = ref(chrome.runtime.getManifest().version);
-
-/** 版本更新信息 */
-const updateInfo = ref<UpdateInfo | null>(null);
-
-/** 会话状态 */
-const isSessionValid = ref(false);
-
-/** 锁定操作 loading 状态 */
-const lockLoading = ref(false);
-
-/** 密码列表 */
-const allPasswords = ref<PasswordEntry[]>([]);
-
-/** 当前域名 */
-const currentDomain = ref('');
-
-/** 密码总数 */
-const passwordCount = computed(() => allPasswords.value.length);
-
-/** 当前域名匹配数 */
-const domainMatchCount = computed(() => {
-  if (!currentDomain.value) return 0;
-  return allPasswords.value.filter(p => {
-    if (!p.url) return false;
-    return currentDomain.value.includes(p.url) || p.url.includes(currentDomain.value);
-  }).length;
-});
-
-onMounted(async () => {
-  try {
-    // 并行加载：会话状态 + 快捷键 + 更新信息
-    const [sessionValid, , cachedUpdate] = await Promise.all([
-      StorageUtils.isSessionValid(),
-      loadShortcuts(),
-      getCachedUpdateInfo(),
-    ]);
-    isSessionValid.value = sessionValid;
-    updateInfo.value = cachedUpdate;
-
-    // Popup 已打开并展示更新提示卡片，清除图标红点（用户已知晓）
-    if (cachedUpdate) {
-      try {
-        await chrome.action.setBadgeText({ text: '' });
-      } catch {
-        // 清除徽标失败不影响主流程
-      }
-    }
-
-    // 获取当前域名
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (tab?.url) {
-      try {
-        const url = new URL(tab.url);
-        currentDomain.value = url.hostname;
-      } catch {
-        // URL 解析失败，忽略
-      }
-    }
-
-    // 加载密码列表
-    if (isSessionValid.value) {
-      allPasswords.value = await StorageUtils.getAllPasswords();
-    }
-  } catch (error) {
-    logger.error('Popup: 初始化失败:', error);
-  }
-});
-
-/** 锁定会话 */
-const lockSession = async () => {
-  lockLoading.value = true;
-  try {
-    await StorageUtils.clearSession();
-    isSessionValid.value = false;
-    allPasswords.value = [];
-
-    // 通知 background 使密码缓存失效
-    try {
-      await chrome.runtime.sendMessage({ type: MessageType.INVALIDATE_PASSWORD_CACHE });
-    } catch {
-      // background 可能未就绪，忽略
-    }
-
-    // 广播会话过期到所有上下文（sidepanel、options），确保各处立即切换到未验证状态
-    try {
-      await chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-    } catch {
-      // 无监听者时忽略
-    }
-
-    ElMessage.success('已锁定');
-  } catch (error) {
-    logger.error('锁定失败:', error);
-  } finally {
-    lockLoading.value = false;
-  }
-};
+// ==================== 导航操作（与 UI 交互紧密，保留在组件内） ====================
 
 /**
  * 打开选项页面
@@ -366,14 +235,10 @@ const openSidePanel = async () => {
             window.close();
           } else {
             logger.error('通过background脚本打开侧边栏失败:', response.error);
-
-            // 如果仍然失败，提示用户手动打开
             alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
           }
         } catch (bgError) {
           logger.error('通过background脚本打开侧边栏也失败:', bgError);
-
-          // 如果仍然失败，提示用户手动打开
           alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
         }
       }
@@ -389,23 +254,8 @@ const openSidePanel = async () => {
 const handleEmailClick = (event: Event) => {
   event.preventDefault();
   const subject = '账号密码管理助手反馈';
-  const mailtoLink = `mailto:${contactEmail.value}?subject=${encodeURIComponent(subject)}`;
-
-  // 尝试打开默认邮件客户端
+  const mailtoLink = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;
   window.open(mailtoLink, '_blank');
-};
-
-/**
- * 打开版本更新下载页面
- * 跳转到 GitHub Release 页面，同时关闭 Popup
- */
-const openUpdatePage = () => {
-  if (updateInfo.value?.downloadUrl) {
-    chrome.tabs.create({ url: updateInfo.value.downloadUrl });
-  } else {
-    chrome.tabs.create({ url: 'https://github.com/liaolongdong/account-password-helper/releases/latest' });
-  }
-  window.close();
 };
 </script>
 

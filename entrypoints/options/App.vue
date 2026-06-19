@@ -1,238 +1,32 @@
 <template>
   <div class="options-page">
     <!-- 设置主密码页面 -->
-    <div
+    <MasterPasswordSetupView
       v-if="showMasterPasswordSetup"
-      class="setup-page"
-    >
-      <div class="setup-container">
-        <div class="setup-header">
-          <div class="logo-section">
-            <BrandLogo class="logo" />
-            <h1>账号密码管理助手</h1>
-          </div>
-          <p class="subtitle">欢迎使用账号密码管理助手，请先设置主密码</p>
-        </div>
-
-        <div class="setup-form">
-          <el-card class="form-card">
-            <el-form
-              ref="setupFormRef"
-              :model="setupForm"
-              :rules="setupRules"
-              label-width="100px"
-              label-position="top"
-            >
-              <el-alert
-                title="设置主密码"
-                description="主密码用于保护您的所有账号信息，请妥善保管，切勿遗忘。"
-                type="info"
-                :closable="false"
-                show-icon
-              />
-
-              <el-form-item
-                label="主密码"
-                prop="password"
-              >
-                <PasswordStrengthPopover
-                  v-model:visible="passwordInputFocused"
-                  title="密码要求"
-                  hint="请输入密码查看要求"
-                  :password="setupForm.password"
-                  :strength="passwordStrength"
-                  :rules="passwordRules"
-                >
-                  <el-input
-                    v-model="setupForm.password"
-                    type="password"
-                    placeholder="请输入主密码（至少8个字符，包含字母、数字、特殊字符）"
-                    show-password
-                    size="large"
-                    :disabled="setupLoading"
-                    autocomplete="new-password"
-                    @keyup.enter="handleSetupSubmit"
-                    @focus="passwordInputFocused = true"
-                    @blur="passwordInputFocused = false"
-                  >
-                    <!-- 动作语义：密文显示睁眼（点击查看），明文显示闭眼（点击隐藏） -->
-                    <template #password-icon="{ visible }">
-                      <el-icon>
-                        <Hide v-if="visible" />
-                        <View v-else />
-                      </el-icon>
-                    </template>
-                  </el-input>
-                </PasswordStrengthPopover>
-              </el-form-item>
-
-              <el-form-item
-                label="确认密码"
-                prop="confirmPassword"
-              >
-                <el-input
-                  v-model="setupForm.confirmPassword"
-                  type="password"
-                  placeholder="请再次输入主密码"
-                  show-password
-                  size="large"
-                  :disabled="setupLoading"
-                  autocomplete="new-password"
-                  @keyup.enter="handleSetupSubmit"
-                >
-                  <template #password-icon="{ visible }">
-                    <el-icon>
-                      <Hide v-if="visible" />
-                      <View v-else />
-                    </el-icon>
-                  </template>
-                </el-input>
-              </el-form-item>
-
-              <el-form-item
-                label="验证有效期"
-                prop="validityHours"
-              >
-                <ValidityHoursSelect
-                  v-model="setupForm.validityHours"
-                  placeholder="选择验证有效期"
-                  size="large"
-                  :disabled="setupLoading"
-                  style="width: 100%"
-                />
-                <div class="form-tip">验证有效期内无需重新输入主密码，超过有效期需重新验证</div>
-              </el-form-item>
-
-              <el-form-item>
-                <el-button
-                  type="primary"
-                  size="large"
-                  :loading="setupLoading"
-                  style="width: 100%"
-                  @click="handleSetupSubmit"
-                >
-                  设置主密码并开始使用
-                </el-button>
-              </el-form-item>
-            </el-form>
-            <!-- 免责声明 -->
-            <div class="disclaimer-compact">
-              <DisclaimerInfo />
-            </div>
-          </el-card>
-        </div>
-      </div>
-    </div>
+      :setup-form="setupForm"
+      :setup-rules="setupRules"
+      :setup-loading="setupLoading"
+      :password-strength="passwordStrength"
+      :password-rules="passwordRules"
+      @submit="handleSetupSubmit"
+      @update:setup-form="Object.assign(setupForm, $event)"
+    />
 
     <!-- 密码验证页面 -->
-    <div
+    <PasswordVerifyView
       v-else-if="showPasswordVerify"
-      class="verify-page"
-    >
-      <div class="verify-container">
-        <div class="verify-header">
-          <div class="logo-section">
-            <BrandLogo class="logo" />
-            <h1>账号密码管理助手</h1>
-          </div>
-          <p class="subtitle">请输入主密码以继续</p>
-        </div>
-
-        <div class="verify-form">
-          <el-card class="form-card">
-            <el-form
-              ref="verifyFormRef"
-              :model="verifyForm"
-              :rules="verifyRules"
-              label-width="80px"
-              label-position="top"
-            >
-              <el-form-item
-                label="主密码"
-                prop="password"
-              >
-                <el-input
-                  v-model="verifyForm.password"
-                  type="password"
-                  placeholder="请输入主密码"
-                  show-password
-                  size="large"
-                  :disabled="verifyLoading"
-                  :class="{ shake: verifyShake }"
-                  :style="{ '--shake-duration': SHAKE_DURATION_MS + 'ms' }"
-                  autocomplete="current-password"
-                  @keyup.enter="handleVerifySubmit"
-                  @input="verifyError = ''"
-                >
-                  <template #password-icon="{ visible }">
-                    <el-icon>
-                      <Hide v-if="visible" />
-                      <View v-else />
-                    </el-icon>
-                  </template>
-                </el-input>
-                <div
-                  v-if="verifyError"
-                  class="verify-error-inline"
-                >
-                  {{ verifyError }}
-                </div>
-              </el-form-item>
-
-              <el-form-item
-                label="验证有效期"
-                prop="validityHours"
-              >
-                <ValidityHoursSelect
-                  v-model="verifyForm.validityHours"
-                  placeholder="选择验证有效期"
-                  size="large"
-                  :disabled="verifyLoading"
-                  style="width: 100%"
-                />
-                <div class="form-tip">验证有效期内无需重新输入主密码，超过有效期需重新验证</div>
-              </el-form-item>
-
-              <el-form-item>
-                <el-button
-                  type="primary"
-                  size="large"
-                  :loading="verifyLoading"
-                  style="width: 100%"
-                  @click="handleVerifySubmit"
-                >
-                  验证密码
-                </el-button>
-
-                <div class="verify-actions">
-                  <el-button
-                    v-if="isDev"
-                    size="small"
-                    type="info"
-                    link
-                    @click="debugPassword"
-                  >
-                    🔍 调试信息
-                  </el-button>
-                  <el-button
-                    size="small"
-                    type="danger"
-                    link
-                    @click="resetMasterPassword"
-                  >
-                    忘记密码？重置所有数据
-                  </el-button>
-                </div>
-              </el-form-item>
-            </el-form>
-            <!-- 免责声明 -->
-            <div class="disclaimer-compact">
-              <DisclaimerInfo />
-            </div>
-          </el-card>
-        </div>
-      </div>
-    </div>
+      :verify-form="verifyForm"
+      :verify-rules="verifyRules"
+      :verify-loading="verifyLoading"
+      :verify-error="verifyError"
+      :verify-shake="verifyShake"
+      :is-dev="isDev"
+      @submit="handleVerifySubmit"
+      @debug="debugPassword"
+      @reset="resetMasterPassword"
+      @clear-error="verifyError = ''"
+      @update:verify-form="Object.assign(verifyForm, $event)"
+    />
 
     <!-- 主内容区域 -->
     <div
@@ -240,164 +34,23 @@
       class="main-content"
     >
       <!-- 头部 -->
-      <div class="header">
-        <!-- 第一行：标题和Logo -->
-        <div class="header-title-row">
-          <div class="header-title">
-            <h1>
-              <BrandLogo class="logo" />
-              账号密码管理助手
-              <el-tag
-                size="small"
-                type="info"
-                class="version-tag"
-              >
-                v{{ currentVersion }}
-              </el-tag>
-            </h1>
-          </div>
-        </div>
-
-        <!-- 第二行：操作按钮 -->
-        <div class="header-actions-row">
-          <div class="header-actions">
-            <el-button
-              type="primary"
-              :icon="Plus"
-              @click="openPasswordDialog"
-            >
-              添加密码
-            </el-button>
-            <el-dropdown
-              trigger="click"
-              @command="handleDataCommand"
-            >
-              <el-button :icon="FolderOpened">
-                数据管理<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    command="downloadTemplate"
-                    :icon="Download"
-                  >
-                    下载模板
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="import"
-                    :icon="Upload"
-                  >
-                    导入数据
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="export"
-                    :icon="Download"
-                  >
-                    导出Excel
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="backupExport"
-                    :icon="Lock"
-                  >
-                    加密备份导出
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="backupImport"
-                    :icon="Unlock"
-                  >
-                    加密备份导入
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="removeDuplicates"
-                    :icon="Delete"
-                  >
-                    一键去重
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    divided
-                    command="backup"
-                    :icon="Message"
-                  >
-                    备份到邮箱
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-            <el-dropdown
-              trigger="click"
-              @command="handleSettingsCommand"
-            >
-              <el-button :icon="Setting">
-                设置<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    command="validity"
-                    :icon="Timer"
-                  >
-                    有效期设置
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="autoSave"
-                    :icon="FolderChecked"
-                  >
-                    自动保存设置
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="idleLock"
-                    :icon="Clock"
-                  >
-                    自动锁定设置
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
-          <div class="header-actions-right">
-            <span class="floating-button-label">悬浮按钮</span>
-            <el-switch
-              v-model="floatingButtonVisible"
-              active-text=""
-              inactive-text=""
-              @change="toggleFloatingButton"
-            />
-          </div>
-        </div>
-      </div>
+      <HeaderBar
+        :current-version="currentVersion"
+        :floating-button-visible="floatingButtonVisible"
+        @add-password="openPasswordDialog"
+        @data-command="handleDataCommand"
+        @settings-command="handleSettingsCommand"
+        @toggle-floating-button="toggleFloatingButton"
+      />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
-      <div
+      <SearchFilterBar
         v-if="passwords.length > 0 || tableLoading"
-        class="filters"
-      >
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索用户名、标签、备注或URL"
-          :prefix-icon="Search"
-          clearable
-        />
-        <el-tooltip
-          :content="favoriteOnly ? '显示全部' : '只看收藏'"
-          placement="top"
-          :show-after="400"
-        >
-          <el-button
-            :icon="favoriteOnly ? StarFilled : Star"
-            circle
-            :type="favoriteOnly ? 'warning' : 'default'"
-            @click="favoriteOnly = !favoriteOnly"
-          />
-        </el-tooltip>
-        <el-button
-          v-if="selectedIds.length > 0"
-          :icon="Delete"
-          type="danger"
-          @click="batchDelete"
-        >
-          批量删除 ({{ selectedIds.length }})
-        </el-button>
-      </div>
+        v-model:search-keyword="searchKeyword"
+        v-model:favorite-only="favoriteOnly"
+        :selected-count="selectedIds.length"
+        @batch-delete="batchDelete"
+      />
 
       <!-- 展示密码列表总数和搜索结果总数 -->
       <div
@@ -419,269 +72,28 @@
       </div>
 
       <!-- 空数据状态引导 -->
-      <div
+      <EmptyGuide
         v-if="passwords.length === 0 && !tableLoading"
-        class="empty-guide"
-      >
-        <el-empty
-          :image-size="120"
-          description="还没有保存的密码，开始添加吧"
-        />
-        <div class="empty-guide__cards">
-          <div
-            class="empty-guide__card"
-            @click="openPasswordDialog"
-          >
-            <el-icon
-              :size="28"
-              class="empty-guide__card-icon--primary"
-            >
-              <Plus />
-            </el-icon>
-            <div class="empty-guide__card-title">手动添加</div>
-            <div class="empty-guide__card-desc">逐条添加账号密码信息</div>
-          </div>
-          <div
-            class="empty-guide__card"
-            @click="showImportDialog = true"
-          >
-            <el-icon
-              :size="28"
-              class="empty-guide__card-icon--success"
-            >
-              <Upload />
-            </el-icon>
-            <div class="empty-guide__card-title">导入数据</div>
-            <div class="empty-guide__card-desc">从 Excel 文件批量导入</div>
-          </div>
-          <div
-            class="empty-guide__card"
-            @click="showBackupImportDialog = true"
-          >
-            <el-icon
-              :size="28"
-              class="empty-guide__card-icon--warning"
-            >
-              <Unlock />
-            </el-icon>
-            <div class="empty-guide__card-title">恢复备份</div>
-            <div class="empty-guide__card-desc">从备份文件或邮箱恢复</div>
-          </div>
-        </div>
-      </div>
+        @add="openPasswordDialog"
+        @import="showImportDialog = true"
+        @restore="showBackupImportDialog = true"
+      />
 
       <!-- 密码列表 -->
-      <div
+      <PasswordTable
         v-else
-        class="password-list"
-      >
-        <el-table
-          ref="tableRef"
-          v-loading="tableLoading"
-          element-loading-text="加载数据中..."
-          :data="filteredPasswords"
-          style="width: 100%"
-          stripe
-          row-key="id"
-          :row-class-name="handleRowClassName"
-          :default-sort="{ prop: 'updateTime', order: 'descending' }"
-          @selection-change="handleSelectionChange"
-          @sort-change="handleSortChange"
-        >
-          <el-table-column
-            type="selection"
-            width="36"
-            fixed="left"
-          />
-          <el-table-column
-            prop="username"
-            label="用户名"
-            min-width="150"
-            sortable
-            show-overflow-tooltip
-            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.username.localeCompare(b.username)"
-          >
-            <template #default="{ row }">
-              {{ row.username }}
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="password"
-            label="密码"
-            min-width="110"
-            show-overflow-tooltip
-          >
-            <template #default="{ row }">
-              <div class="password-cell">
-                <span v-if="!row.showPassword">{{ '*'.repeat(8) }}</span>
-                <span v-else>{{ row.password }}</span>
-                <el-button
-                  :icon="row.showPassword ? Hide : View"
-                  link
-                  @click="togglePasswordVisibility(row)"
-                />
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="url"
-            label="URL"
-            min-width="200"
-            sortable
-            show-overflow-tooltip
-            :sort-method="(a: PasswordEntry, b: PasswordEntry) => (a.url || '').localeCompare(b.url || '')"
-          >
-            <template #default="{ row }">
-              <template v-if="row.url">
-                <a
-                  :href="normalizeUrl(row.url)"
-                  class="url-link"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  @click.stop
-                >
-                  <el-icon class="url-link__icon"><Link /></el-icon>
-                  <span class="url-link__text">{{ row.url }}</span>
-                </a>
-              </template>
-              <span v-else>-</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="tag"
-            label="标签"
-            min-width="100"
-            class-name="tag-col"
-            sortable
-            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.tag.localeCompare(b.tag)"
-          >
-            <template #default="{ row }">
-              <template v-if="parseTags(row.tag).length">
-                <el-tooltip
-                  v-for="t in parseTags(row.tag)"
-                  :key="t"
-                  :content="t"
-                  placement="top"
-                  :show-after="300"
-                  :disabled="!isTagOverflowed(t)"
-                  :popper-style="{ maxWidth: '500px', wordBreak: 'break-word' }"
-                >
-                  <el-tag
-                    :color="getTagColor(t).background"
-                    :style="{ color: getTagColor(t).text, borderColor: getTagColor(t).border }"
-                    size="small"
-                    class="tag-item"
-                    @mouseenter="(e: MouseEvent) => checkTagOverflow(e, t)"
-                  >
-                    {{ t }}
-                  </el-tag>
-                </el-tooltip>
-              </template>
-              <span
-                v-else
-                class="no-tag"
-                >-</span
-              >
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="remark"
-            label="备注"
-            min-width="150"
-            sortable
-            show-overflow-tooltip
-            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.remark.localeCompare(b.remark)"
-          >
-            <template #default="{ row }">
-              {{ row.remark || '-' }}
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="createTime"
-            label="创建时间"
-            min-width="110"
-            sortable
-            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.createTime - b.createTime"
-          >
-            <template #default="{ row }">
-              {{ formatDate(row.createTime) }}
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="updateTime"
-            label="更新时间"
-            min-width="110"
-            sortable
-            :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.updateTime - b.updateTime"
-            :sort-orders="['descending', 'ascending', null]"
-          >
-            <template #default="{ row }">
-              {{ formatDate(row.updateTime) }}
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="操作"
-            header-align="center"
-            width="180"
-            fixed="right"
-          >
-            <template #default="{ row }">
-              <div class="operation-buttons">
-                <el-tooltip
-                  content="复制条目"
-                  placement="top"
-                  :show-after="400"
-                >
-                  <el-button
-                    :icon="CopyDocument"
-                    circle
-                    size="small"
-                    @click="copyPassword(row)"
-                  />
-                </el-tooltip>
-                <el-tooltip
-                  content="编辑"
-                  placement="top"
-                  :show-after="400"
-                >
-                  <el-button
-                    :icon="Edit"
-                    circle
-                    size="small"
-                    @click="editPassword(row)"
-                  />
-                </el-tooltip>
-                <el-tooltip
-                  :content="row.favorite ? '取消收藏' : '收藏'"
-                  placement="top"
-                  :show-after="400"
-                >
-                  <el-button
-                    :icon="row.favorite ? StarFilled : Star"
-                    circle
-                    size="small"
-                    :type="row.favorite ? 'warning' : 'default'"
-                    @click="toggleFavorite(row.id)"
-                  />
-                </el-tooltip>
-                <el-tooltip
-                  content="删除"
-                  placement="top"
-                  :show-after="400"
-                >
-                  <el-button
-                    :icon="Delete"
-                    circle
-                    size="small"
-                    type="danger"
-                    @click="deletePassword(row.id)"
-                  />
-                </el-tooltip>
-              </div>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
+        ref="passwordTableRef"
+        :data="filteredPasswords"
+        :loading="tableLoading"
+        :row-class-name="handleRowClassName"
+        @selection-change="handleSelectionChange"
+        @sort-change="handleSortChange"
+        @toggle-password="togglePasswordVisibility"
+        @copy="copyPassword"
+        @edit="editPassword"
+        @toggle-favorite="toggleFavorite"
+        @delete-password="deletePassword"
+      />
     </div>
 
     <!-- 导入Excel弹窗 -->
@@ -697,139 +109,22 @@
     />
 
     <!-- 密码表单弹窗 -->
-    <el-dialog
+    <PasswordFormDialog
+      ref="passwordFormDialogRef"
       v-model="showPasswordDialog"
-      :title="isEditingPassword ? '编辑密码' : '添加密码'"
-      width="600px"
-      :close-on-click-modal="false"
-      @closed="resetPasswordForm"
-    >
-      <el-form
-        ref="passwordFormRef"
-        :model="passwordForm"
-        :rules="passwordFormRules"
-        label-width="100px"
-        size="large"
-      >
-        <el-form-item
-          label="用户名"
-          prop="username"
-        >
-          <el-input
-            v-model="passwordForm.username"
-            placeholder="请输入用户名或邮箱（最多50字符）"
-            :disabled="passwordFormLoading"
-            maxlength="50"
-            show-word-limit
-          />
-        </el-form-item>
-
-        <el-form-item
-          label="密码"
-          prop="password"
-        >
-          <PasswordStrengthPopover
-            v-model:visible="formPasswordInputFocused"
-            title="密码强度"
-            hint="请输入密码查看强度"
-            :password="passwordForm.password"
-            :strength="formPasswordStrength"
-            :rules="formPasswordRules"
-          >
-            <el-input
-              v-model="passwordForm.password"
-              type="password"
-              placeholder="选填，密码信息（最多50字符）"
-              show-password
-              :disabled="passwordFormLoading"
-              maxlength="50"
-              show-word-limit
-              @focus="formPasswordInputFocused = true"
-              @blur="formPasswordInputFocused = false"
-            >
-              <template #password-icon="{ visible }">
-                <el-icon>
-                  <Hide v-if="visible" />
-                  <View v-else />
-                </el-icon>
-              </template>
-            </el-input>
-          </PasswordStrengthPopover>
-        </el-form-item>
-
-        <el-form-item
-          label="网站URL"
-          prop="url"
-        >
-          <el-input
-            v-model="passwordForm.url"
-            placeholder="选填，不填则匹配所有网站（最多100字符）"
-            :disabled="passwordFormLoading"
-            maxlength="100"
-            show-word-limit
-          />
-        </el-form-item>
-
-        <el-form-item
-          label="标签"
-          prop="tag"
-        >
-          <el-select
-            v-model="tagArray"
-            multiple
-            filterable
-            allow-create
-            default-first-option
-            clearable
-            :disabled="passwordFormLoading"
-            :multiple-limit="MAX_TAG_COUNT"
-            :placeholder="`选填，最多选择${MAX_TAG_COUNT}个，可输入后回车新增`"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="t in availableTags"
-              :key="t"
-              :label="t"
-              :value="t"
-            />
-          </el-select>
-        </el-form-item>
-
-        <el-form-item
-          label="备注"
-          prop="remark"
-        >
-          <el-input
-            v-model="passwordForm.remark"
-            type="textarea"
-            :rows="3"
-            placeholder="选填，备注信息（最多1000字符）"
-            :disabled="passwordFormLoading"
-            maxlength="1000"
-            show-word-limit
-          />
-        </el-form-item>
-      </el-form>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button
-            size="large"
-            @click="showPasswordDialog = false"
-          >
-            取消
-          </el-button>
-          <el-button
-            type="primary"
-            size="large"
-            :loading="passwordFormLoading"
-            @click="handlePasswordFormSave"
-          >
-            {{ isEditingPassword ? '更新' : '保存' }}
-          </el-button>
-        </div>
-      </template>
-    </el-dialog>
+      :is-editing="isEditingPassword"
+      :form="passwordForm"
+      :form-rules="passwordFormRules"
+      :loading="passwordFormLoading"
+      :available-tags="availableTags"
+      :tag-array="tagArray"
+      :password-strength="formPasswordStrength"
+      :password-rules="formPasswordRules"
+      @save="handleSavePasswordWithValidation"
+      @closed="handleResetPasswordForm"
+      @update:form="Object.assign(passwordForm, $event)"
+      @update:tag-array="tagArray = $event"
+    />
 
     <!-- 有效期设置弹窗 -->
     <ValiditySettingDialog
@@ -858,64 +153,57 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import {
-  Plus,
-  Download,
-  Upload,
-  Search,
-  Delete,
-  Edit,
-  View,
-  Hide,
-  Setting,
-  CopyDocument,
-  Message,
-  FolderChecked,
-  ArrowDown,
-  FolderOpened,
-  Timer,
-  Star,
-  StarFilled,
-  Link,
-} from '@element-plus/icons-vue';
-import { type PasswordEntry, MessageType } from '@/utils/types';
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { MessageType } from '@/utils/types';
 import { sessionManager } from '@/utils/sessionManager';
-import { STORAGE_KEYS } from '@/utils/encryption';
-import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
-import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
-import ImportDialog from '@/components/ImportDialog.vue';
-import BackupImportDialog from '@/components/BackupImportDialog.vue';
-import BrandLogo from '@/components/BrandLogo.vue';
-import DisclaimerInfo from '@/components/DisclaimerInfo.vue';
-import ValidityHoursSelect from '@/components/ValidityHoursSelect.vue';
-import ValiditySettingDialog from '@/components/ValiditySettingDialog.vue';
-import EmailBackupDialog from '@/components/EmailBackupDialog.vue';
-import AutoSaveSettingDialog from '@/components/AutoSaveSettingDialog.vue';
-import IdleLockSetting from '@/components/IdleLockSetting.vue';
-import PasswordStrengthPopover from '@/components/PasswordStrengthPopover.vue';
-import { getTagColor, parseTags } from '@/utils/tagUtils';
-import { useTagOverflow } from '@/composables/useTagOverflow';
-import { Lock, Unlock, Clock } from '@element-plus/icons-vue';
-import { useAuthFlow, SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
-import { useSessionTimer } from '@/composables/useSessionTimer';
-import { usePasswordManagement, MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
+import ImportDialog from '@/components/options/ImportDialog.vue';
+import BackupImportDialog from '@/components/options/BackupImportDialog.vue';
+import ValiditySettingDialog from '@/components/options/ValiditySettingDialog.vue';
+import EmailBackupDialog from '@/components/options/EmailBackupDialog.vue';
+import AutoSaveSettingDialog from '@/components/options/AutoSaveSettingDialog.vue';
+import IdleLockSetting from '@/components/options/IdleLockSetting.vue';
+import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
+import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
+import PasswordFormDialog from '@/components/options/PasswordFormDialog.vue';
+import PasswordTable from '@/components/options/PasswordTable.vue';
+import HeaderBar from '@/components/options/HeaderBar.vue';
+import EmptyGuide from '@/components/options/EmptyGuide.vue';
+import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
+import { useAuthFlow } from '@/composables/useAuthFlow';
+import { useSessionTimer } from '@/composables/useSessionTimer';
+import { usePasswordManagement } from '@/composables/usePasswordManagement';
+import { useStorageWatcher } from '@/composables/useStorageWatcher';
+import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
+import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { exportEncryptedBackup } from '@/utils/backupExport';
+import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { isDev } from '@/utils/env';
+import { StorageUtils } from '@/utils/storage';
+
+/** 密码表单弹窗组件引用（用于获取内部 form ref） */
+const passwordFormDialogRef = ref();
+
+/** 密码列表表格组件引用（用于恢复排序配置） */
+const passwordTableRef = ref();
 
 /**
- * 将 URL 文本归一化为可跳转的完整链接
- * - 已有协议（http/https）的直接使用
- * - 纯域名（如 github.com）自动补全 https:// 前缀
- * @param url 原始 URL 文本
- * @returns 带协议的完整 URL，空值返回空字符串
+ * 带表单校验的密码保存处理
+ * 从 PasswordFormDialog 组件获取内部 formRef 进行校验，校验通过后调用 composable 的保存逻辑
  */
-const normalizeUrl = (url: string): string => {
-  if (!url) return '';
-  if (/^https?:\/\//i.test(url)) return url;
-  return `https://${url}`;
+const handleSavePasswordWithValidation = () => {
+  const formRef = passwordFormDialogRef.value?.formRef;
+  handlePasswordFormSave(formRef);
+};
+
+/**
+ * 重置密码表单并清除校验状态
+ */
+const handleResetPasswordForm = () => {
+  const formRef = passwordFormDialogRef.value?.formRef;
+  formRef?.clearValidate();
+  resetPasswordForm();
 };
 
 /** 临时有效期表单占位，在 useSessionTimer 初始化前会被覆盖 */
@@ -927,19 +215,10 @@ const showAutoSaveDialog = ref(false);
 /** 闲置锁定设置弹窗可见性 */
 const showIdleLockDialog = ref(false);
 
-/** 当前插件版本号 */
-const currentVersion = ref(chrome.runtime.getManifest().version);
+/** 当前插件版本号（复用 useVersionUpdate） */
+const { currentVersion } = useVersionUpdate();
 
-/** Tag 标签溢出检测 */
-const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
-
-/** 主密码输入框是否获取焦点（控制规则气泡弹窗显示） */
-const passwordInputFocused = ref(false);
-
-/** 密码表单弹窗 - 密码输入框是否获取焦点（控制强度气泡弹窗显示） */
-const formPasswordInputFocused = ref(false);
-
-/** 主密码设置页强度校验（复用 usePasswordStrength composable） */
+/** 主密码设置页强度校验 */
 const setupPasswordRef = computed(() => setupForm.value.password);
 const { rules: passwordRules, strength: passwordStrength } = usePasswordStrength(setupPasswordRef);
 
@@ -952,34 +231,18 @@ const showBackupImportDialog = ref(false);
 
 /** 加密备份导出 */
 const handleEncryptedBackupExport = async () => {
+  if (passwords.value.length === 0) {
+    ElMessage.warning('没有密码数据可备份');
+    return;
+  }
+  const masterPassword = await promptAndVerifyMasterPassword('加密备份导出', '加密备份需要验证主密码，请输入主密码：');
+  if (!masterPassword) return;
   try {
-    if (passwords.value.length === 0) {
-      ElMessage.warning('没有密码数据可备份');
-      return;
-    }
-    const { value: masterPassword } = await ElMessageBox.prompt(
-      '加密备份需要验证主密码，请输入主密码：',
-      '加密备份导出',
-      {
-        confirmButtonText: '确认导出',
-        cancelButtonText: '取消',
-        inputType: 'password',
-        inputPlaceholder: '请输入主密码',
-        inputValidator: (v: string) => (!v || !v.trim() ? '主密码不能为空' : true),
-      },
-    );
-    const isValid = await StorageUtils.verifyMasterPassword(masterPassword.trim());
-    if (!isValid) {
-      ElMessage.error('主密码错误，导出失败');
-      return;
-    }
-    await exportEncryptedBackup(passwords.value, masterPassword.trim());
+    await exportEncryptedBackup(passwords.value, masterPassword);
     ElMessage.success('加密备份导出成功');
   } catch (error) {
-    if (error !== 'cancel') {
-      logger.error('加密备份导出失败:', error);
-      ElMessage.error('加密备份导出失败');
-    }
+    logger.error('加密备份导出失败:', error);
+    ElMessage.error('加密备份导出失败');
   }
 };
 
@@ -1040,13 +303,10 @@ const {
   searchKeyword,
   selectedIds,
   isEditingPassword,
-  editingPasswordId: _editingPasswordId,
-  passwordFormRef,
   passwordForm,
   passwordFormRules,
   passwordFormLoading,
   tableLoading,
-  tableRef,
   floatingButtonVisible,
   favoriteOnly,
   filteredPasswords,
@@ -1082,8 +342,6 @@ const {
   isAuthenticated,
   showMasterPasswordSetup,
   showPasswordVerify,
-  setupFormRef,
-  verifyFormRef,
   setupLoading,
   verifyLoading,
   verifyError,
@@ -1122,7 +380,6 @@ const {
   showMasterPasswordSetup,
   passwords,
   verifyForm,
-  loadPasswords,
   broadcastSessionExpired: () => {
     chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
       // 无监听者时忽略
@@ -1130,103 +387,49 @@ const {
   },
 });
 
-/**
- * 需要重跑认证判定的 storage key。
- * 外部（如 DevTools）清空或变更这些 key 时，需要同步重新评估主密码/会话状态。
- */
-const AUTH_RELATED_STORAGE_KEYS = new Set<string>([
-  STORAGE_KEYS.MASTER_PASSWORD,
-  STORAGE_KEYS.PASSWORDS,
-  SESSION_STORAGE_KEYS.MASTER_PASSWORD,
-  SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
-  SESSION_STORAGE_KEYS.VALIDITY_HOURS,
-]);
+/** Storage 与可见性变化监听 */
+useStorageWatcher({
+  onAuthChange: () => void checkAuth(),
+  onPasswordDataChange: () => void loadPasswords(),
+});
 
-/** chrome.storage 变化监听：认证相关 key 变动时重跑 checkAuth，密码数据变化时重新加载列表 */
-const handleStorageChanged = (
-  changes: Record<string, chrome.storage.StorageChange>,
-  areaName: chrome.storage.AreaName,
-) => {
-  if (areaName !== 'local') return;
-  const hasAuthChange = Object.keys(changes).some(key => AUTH_RELATED_STORAGE_KEYS.has(key));
-  if (!hasAuthChange) return;
-  logger.debug('Options: 检测到认证相关 storage 变动，重新检查认证状态');
-  void checkAuth();
-  // 密码数据变化时，重新加载密码列表（解决自动保存后列表不刷新的问题）
-  if (STORAGE_KEYS.PASSWORDS in changes) {
-    logger.debug('Options: 检测到密码数据变动，重新加载密码列表');
-    void loadPasswords();
-  }
-};
-
-/** 可见性变化监听：页面重新可见时重跑 checkAuth（侧边栏激活已有 options tab 场景）*/
-const handleVisibilityChange = () => {
-  if (document.visibilityState !== 'visible') return;
-  logger.debug('Options: 页面重新可见，重新检查认证状态');
-  void checkAuth();
-};
-
-/** 监听 background 广播的 SESSION_EXPIRED 消息（闲时锁定/自动锁定触发）及编辑指令 */
-const handleRuntimeMessage = (message: any) => {
-  if (message.type === MessageType.SESSION_EXPIRED) {
-    logger.debug('Options: 收到锁定广播消息，执行会话过期处理');
-    handleSessionExpired();
-  } else if (message.type === MessageType.OPEN_OPTIONS_AND_EDIT) {
-    const editId = message.data?.editId;
-    if (!editId) return;
-    logger.debug('Options: 收到侧边栏编辑指令，editId=' + editId);
-    // 等待密码列表加载完成后打开编辑弹窗
-    const tryOpenEdit = async () => {
-      // 等待认证和密码加载完成（最多等待 3 秒）
-      for (let i = 0; i < 30; i++) {
-        if (passwords.value.length > 0) break;
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      const entry = passwords.value.find(p => p.id === editId);
-      if (entry) {
-        editPassword(entry);
-      } else {
-        ElMessage.warning('未找到对应的密码条目，可能已被删除');
-      }
-    };
-    tryOpenEdit();
-  } else if (message.type === MessageType.OPEN_OPTIONS_AND_ADD) {
-    logger.debug('Options: 收到侧边栏添加密码指令');
-    // 等待密码列表加载完成后打开添加弹窗（仅在已有数据时弹窗，避免遮盖空数据引导）
-    const tryOpenAdd = async () => {
-      for (let i = 0; i < 30; i++) {
-        if (passwords.value.length > 0 || isAuthenticated.value) break;
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
-      // 密码列表有数据时才自动弹窗，空数据时不弹，让用户看到空状态引导
-      if (passwords.value.length > 0) {
-        openPasswordDialog();
-      }
-    };
-    tryOpenAdd();
-  }
-};
+/** Runtime 消息监听 */
+useRuntimeMessageHandler({
+  passwords,
+  isAuthenticated,
+  handleSessionExpired,
+  editPassword,
+  openPasswordDialog,
+});
 
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */
 onMounted(async () => {
   sessionManager.init();
   window.addEventListener('sessionExpired', handleSessionExpired);
-  chrome.runtime.onMessage.addListener(handleRuntimeMessage);
-  if (chrome?.storage?.onChanged) {
-    chrome.storage.onChanged.addListener(handleStorageChanged);
-  }
-  document.addEventListener('visibilitychange', handleVisibilityChange);
   await loadFloatingButtonConfig();
   await checkAuth();
+  // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载
+  await nextTick();
+  // 恢复表格排序配置
+  restoreSortConfig();
 });
+
+/**
+ * 从存储恢复表格排序状态
+ */
+const restoreSortConfig = async () => {
+  try {
+    const sortConfig = await StorageUtils.getSortConfig();
+    if (sortConfig && passwordTableRef.value?.tableRef) {
+      passwordTableRef.value.tableRef.sort(sortConfig.prop, sortConfig.order);
+    }
+  } catch (error) {
+    logger.debug('恢复排序配置失败:', error);
+  }
+};
 
 onUnmounted(() => {
   window.removeEventListener('sessionExpired', handleSessionExpired);
-  chrome.runtime.onMessage.removeListener(handleRuntimeMessage);
-  if (chrome?.storage?.onChanged) {
-    chrome.storage.onChanged.removeListener(handleStorageChanged);
-  }
-  document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 </script>
 

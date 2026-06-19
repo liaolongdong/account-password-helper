@@ -1,8 +1,9 @@
-import { ref, watch, type Ref } from 'vue';
+import { ref, watch, nextTick, type Ref } from 'vue';
 import type { FormRules } from 'element-plus';
 import { StorageUtils } from '@/utils/storage';
 import type { PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 
 /**
  * 会话定时器 Composable
@@ -14,18 +15,10 @@ export function useSessionTimer(options: {
   showMasterPasswordSetup: Ref<boolean>;
   passwords: Ref<PasswordEntry[]>;
   verifyForm: Ref<{ password: string; validityHours: number }>;
-  loadPasswords: () => Promise<void>;
   /** 清除会话后向其他上下文广播会话过期通知的回调（保持与 Chrome API 解耦） */
   broadcastSessionExpired?: () => void;
 }) {
-  const {
-    isAuthenticated,
-    showPasswordVerify,
-    showMasterPasswordSetup,
-    passwords,
-    verifyForm,
-    loadPasswords: _loadPasswords,
-  } = options;
+  const { isAuthenticated, showPasswordVerify, showMasterPasswordSetup, passwords, verifyForm } = options;
 
   // 状态
   const showValiditySetting = ref(false);
@@ -129,35 +122,16 @@ export function useSessionTimer(options: {
   // 处理有效期设置保存
   const handleValiditySave = async () => {
     try {
-      // 保存前需验证主密码（与「导出密码」保持一致的交互模式）
-      const { value: masterPassword } = await ElMessageBox.prompt(
-        '修改验证有效期需要验证主密码，请输入主密码：',
+      const masterPassword = await promptAndVerifyMasterPassword(
         '验证主密码',
-        {
-          confirmButtonText: '确认保存',
-          cancelButtonText: '取消',
-          inputType: 'password',
-          inputPlaceholder: '请输入主密码',
-          inputValidator: (value: string) => {
-            if (!value || !value.trim()) {
-              return '主密码不能为空';
-            }
-            return true;
-          },
-        },
+        '修改验证有效期需要验证主密码，请输入主密码：',
       );
-
-      const trimmedPassword = masterPassword.trim();
-      const isValid = await StorageUtils.verifyMasterPassword(trimmedPassword);
-      if (!isValid) {
-        ElMessage.error('主密码错误，保存失败');
-        return;
-      }
+      if (!masterPassword) return;
 
       validityLoading.value = true;
 
       await StorageUtils.setMasterPasswordValidityHours(validityForm.value.validityHours);
-      await StorageUtils.createSession(trimmedPassword, validityForm.value.validityHours);
+      await StorageUtils.createSession(masterPassword, validityForm.value.validityHours);
 
       // 保存成功后刷新会话信息，保证剩余时间按新有效期重算
       await updateSessionInfo();
@@ -211,13 +185,11 @@ export function useSessionTimer(options: {
       const validityHours = await StorageUtils.getMasterPasswordValidityHours();
       verifyForm.value.validityHours = validityHours;
 
-      import('vue').then(({ nextTick }) => {
-        nextTick(() => {
-          const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
-          if (passwordInput) {
-            passwordInput.focus();
-          }
-        });
+      nextTick(() => {
+        const passwordInput = document.querySelector('.verify-form .el-input__inner') as HTMLInputElement;
+        if (passwordInput) {
+          passwordInput.focus();
+        }
       });
 
       ElMessage.success('主密码会话已清除');

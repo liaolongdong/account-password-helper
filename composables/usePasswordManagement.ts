@@ -6,6 +6,7 @@ import { ExcelUtils } from '@/utils/excel';
 import { EmailBackupUtils } from '@/utils/emailBackup';
 import { logger } from '@/utils/logger';
 import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
+import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
@@ -32,10 +33,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const editingPasswordId = ref<string>('');
   const passwordFormLoading = ref(false);
   const tableLoading = ref(false);
-  const tableRef = ref();
-
-  // 密码表单
-  const passwordFormRef = ref<FormInstance>();
   const passwordForm = ref({
     username: '',
     password: '',
@@ -202,14 +199,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       // 初始化有效期设置表单
       const validityHours = await StorageUtils.getMasterPasswordValidityHours();
       validityForm.value.validityHours = validityHours;
-
-      // 延迟设置表格的排序状态
-      setTimeout(async () => {
-        const sortConfig = await StorageUtils.getSortConfig();
-        if (sortConfig && tableRef.value) {
-          tableRef.value.sort(sortConfig.prop, sortConfig.order);
-        }
-      }, 0);
     } catch (error: unknown) {
       logger.error('加载密码列表失败:', error);
       const message = error instanceof Error ? error.message : '未知错误';
@@ -282,9 +271,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       tag: '',
       remark: '',
     };
-    if (passwordFormRef.value) {
-      passwordFormRef.value.clearValidate();
-    }
   };
 
   // 滚动到密码项
@@ -306,11 +292,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   // 处理密码表单保存
-  const handlePasswordFormSave = async () => {
-    if (!passwordFormRef.value) return;
-
+  const handlePasswordFormSave = async (formRef?: FormInstance) => {
     try {
-      await passwordFormRef.value.validate();
+      if (formRef) {
+        await formRef.validate();
+      }
       passwordFormLoading.value = true;
 
       // 对标签做归一化：拆分 → 去空/去重 → 英文逗号拼接
@@ -462,28 +448,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         return;
       }
 
-      const { value: masterPassword } = await ElMessageBox.prompt(
-        '导出密码列表需要验证主密码，请输入主密码：',
+      const masterPassword = await promptAndVerifyMasterPassword(
         '验证主密码',
-        {
-          confirmButtonText: '确认导出',
-          cancelButtonText: '取消',
-          inputType: 'password',
-          inputPlaceholder: '请输入主密码',
-          inputValidator: (value: string) => {
-            if (!value || !value.trim()) {
-              return '主密码不能为空';
-            }
-            return true;
-          },
-        },
+        '导出密码列表需要验证主密码，请输入主密码：',
       );
-
-      const isValid = await StorageUtils.verifyMasterPassword(masterPassword.trim());
-      if (!isValid) {
-        ElMessage.error('主密码错误，导出失败');
-        return;
-      }
+      if (!masterPassword) return;
 
       // 生成带日期后缀的文件名：passwords_YYYYMMDD.xlsx
       const date = new Date();
@@ -537,29 +506,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         return;
       }
 
-      // 验证主密码
-      const { value: masterPassword } = await ElMessageBox.prompt(
-        '备份密码列表需要验证主密码，请输入主密码：',
+      const masterPassword = await promptAndVerifyMasterPassword(
         '验证主密码',
-        {
-          confirmButtonText: '确认备份',
-          cancelButtonText: '取消',
-          inputType: 'password',
-          inputPlaceholder: '请输入主密码',
-          inputValidator: (value: string) => {
-            if (!value || !value.trim()) {
-              return '主密码不能为空';
-            }
-            return true;
-          },
-        },
+        '备份密码列表需要验证主密码，请输入主密码：',
       );
-
-      const isValid = await StorageUtils.verifyMasterPassword(masterPassword.trim());
-      if (!isValid) {
-        ElMessage.error('主密码错误，备份失败');
-        return;
-      }
+      if (!masterPassword) return;
 
       await EmailBackupUtils.backupToEmail(passwords.value, email);
       ElMessage.success('备份文件已下载，邮件客户端已打开，请将文件作为附件发送');
@@ -640,12 +591,10 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     selectedIds,
     isEditingPassword,
     editingPasswordId,
-    passwordFormRef,
     passwordForm,
     passwordFormRules,
     passwordFormLoading,
     tableLoading,
-    tableRef,
     floatingButtonVisible,
     favoriteOnly,
     filteredPasswords,

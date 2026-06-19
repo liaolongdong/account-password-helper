@@ -1,9 +1,9 @@
 import { defineBackground } from '#imports';
-import { Message, MessageType, PasswordCache, PasswordEntry, AutoSavePasswordData } from '../utils/types';
-import { logger } from '../utils/logger';
+import { Message, MessageType, PasswordCache, PasswordEntry, AutoSavePasswordData } from '@/utils/types';
+import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/encryption';
 import { StorageUtils } from '@/utils/storage';
-import type { EmailBackupConfig } from '../utils/types';
+import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import {
   checkForUpdate,
   getCachedUpdateInfo,
@@ -11,6 +11,9 @@ import {
   UPDATE_CHECK_ALARM_NAME,
   UPDATE_CHECK_INTERVAL_MINUTES,
 } from '@/utils/updateChecker';
+
+/** 自动备份提醒闹钟名称 */
+const AUTO_BACKUP_ALARM_NAME = 'auto-backup-passwords';
 
 export default defineBackground(() => {
   // 通过 port 连接跟踪 sidepanel 的打开状态
@@ -113,13 +116,6 @@ export default defineBackground(() => {
     }
   });
 
-  // 监听存储变化，更新闲置锁定配置
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === 'local' && STORAGE_KEYS.IDLE_LOCK_CONFIG in changes) {
-      setupIdleLock();
-    }
-  });
-
   // 监听 sidepanel 的 port 连接，用于可靠地追踪打开/关闭状态
   chrome.runtime.onConnect.addListener(port => {
     if (port.name === 'sidepanel') {
@@ -206,16 +202,7 @@ export default defineBackground(() => {
         }
 
         // 直接调用 open()，保持用户手势上下文
-        chrome.sidePanel
-          .open({ tabId })
-          .then(() => {
-            logger.debug('Background: 侧边栏已打开, tabId:' + tabId);
-            sendResponse({ success: true, result: '侧边栏已打开' });
-          })
-          .catch(error => {
-            logger.error('Background: 打开侧边栏失败:', error);
-            sendResponse({ success: false, error: error.message });
-          });
+        openSidePanelAndRespond(tabId, sendResponse);
         return true;
       }
 
@@ -255,16 +242,7 @@ export default defineBackground(() => {
           closeSidePanelWithResponse(tabId, sendResponse);
         } else {
           // 侧边栏未打开 → 打开（必须在用户手势上下文中同步调用）
-          chrome.sidePanel
-            .open({ tabId })
-            .then(() => {
-              logger.debug('Background: 侧边栏已打开');
-              sendResponse({ success: true, result: '侧边栏已打开' });
-            })
-            .catch(error => {
-              logger.error('Background: 打开侧边栏失败:', error);
-              sendResponse({ success: false, error: error.message });
-            });
+          openSidePanelAndRespond(tabId, sendResponse);
         }
         return true;
       }
@@ -289,48 +267,11 @@ export default defineBackground(() => {
         return true;
 
       case MessageType.OPEN_OPTIONS_AND_EDIT:
-        openOptionsPage()
-          .then(async tabId => {
-            if (tabId !== undefined) {
-              // 等待页面加载就绪后发送编辑指令
-              await new Promise(resolve => setTimeout(resolve, 500));
-              try {
-                await chrome.tabs.sendMessage(tabId, {
-                  type: MessageType.OPEN_OPTIONS_AND_EDIT,
-                  data: message.data,
-                });
-              } catch (err) {
-                logger.error('Background: 向选项页发送编辑指令失败:', err);
-              }
-            }
-            sendResponse({ success: true });
-          })
-          .catch(error => {
-            logger.error('处理OPEN_OPTIONS_AND_EDIT失败:', error);
-            sendResponse({ success: false, error: error.message });
-          });
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_EDIT, message.data).then(sendResponse);
         return true;
 
       case MessageType.OPEN_OPTIONS_AND_ADD:
-        openOptionsPage()
-          .then(async tabId => {
-            if (tabId !== undefined) {
-              // 等待页面加载就绪后发送添加指令
-              await new Promise(resolve => setTimeout(resolve, 500));
-              try {
-                await chrome.tabs.sendMessage(tabId, {
-                  type: MessageType.OPEN_OPTIONS_AND_ADD,
-                });
-              } catch (err) {
-                logger.error('Background: 向选项页发送添加指令失败:', err);
-              }
-            }
-            sendResponse({ success: true });
-          })
-          .catch(error => {
-            logger.error('处理OPEN_OPTIONS_AND_ADD失败:', error);
-            sendResponse({ success: false, error: error.message });
-          });
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_ADD).then(sendResponse);
         return true;
 
       case MessageType.GET_CACHED_PASSWORDS: {
@@ -405,7 +346,7 @@ export default defineBackground(() => {
    * 同步获取 tabId（不使用 async/await，避免打断用户手势链）
    */
   function getTabIdSync(sender: chrome.runtime.MessageSender, message: Message): number | undefined {
-    return (message.data?.tabId || sender.tab?.id) as number | undefined;
+    return (message.data?.tabId ?? sender.tab?.id) as number | undefined;
   }
 
   /**
@@ -581,13 +522,61 @@ export default defineBackground(() => {
   }
 
   /**
+   * 打开侧边栏并发送响应
+   * @param tabId 目标标签页 ID
+   * @param sendResponse 消息响应回调
+   */
+  function openSidePanelAndRespond(tabId: number, sendResponse: (response: any) => void): void {
+    chrome.sidePanel
+      .open({ tabId })
+      .then(() => {
+        logger.debug('Background: 侧边栏已打开, tabId:' + tabId);
+        sendResponse({ success: true, result: '侧边栏已打开' });
+      })
+      .catch(error => {
+        logger.error('Background: 打开侧边栏失败:', error);
+        sendResponse({ success: false, error: error.message });
+      });
+  }
+
+  /**
+   * 打开选项页面并向其发送指定消息
+   * 用于 OPEN_OPTIONS_AND_EDIT 和 OPEN_OPTIONS_AND_ADD 消息的公共处理逻辑
+   * @param messageType 要发送给选项页的消息类型
+   * @param data 可选的消息数据
+   * @returns 操作结果
+   */
+  function openOptionsAndSendMessage(
+    messageType: MessageType,
+    data?: any,
+  ): Promise<{ success: boolean; error?: string }> {
+    return openOptionsPage()
+      .then(async tabId => {
+        if (tabId !== undefined) {
+          // 等待页面加载就绪后发送指令
+          await new Promise(resolve => setTimeout(resolve, 500));
+          try {
+            await chrome.tabs.sendMessage(tabId, { type: messageType, data });
+          } catch (err) {
+            logger.error(`Background: 向选项页发送 ${messageType} 指令失败:`, err);
+          }
+        }
+        return { success: true };
+      })
+      .catch(error => ({
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      }));
+  }
+
+  /**
    * 获取缓存有效期（毫秒）
    * 与主密码会话有效期保持一致
    */
   async function getCacheValidityMs(): Promise<number> {
     try {
-      const result = await chrome.storage.local.get('master_password_validity');
-      const validityHours = (result['master_password_validity'] as number | undefined) || 24;
+      const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD_VALIDITY);
+      const validityHours = (result[STORAGE_KEYS.MASTER_PASSWORD_VALIDITY] as number | undefined) || 24;
       return validityHours * 60 * 60 * 1000; // 转换为毫秒
     } catch (error) {
       logger.error('Background: 获取缓存有效期失败:', error);
@@ -746,11 +735,20 @@ export default defineBackground(() => {
     }
   }
 
-  // 监听 storage 变化，自动使缓存失效
+  // 监听 storage 变化，统一处理闲置锁定、缓存失效和备份配置
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName === 'local') {
-      // 检查是否是密码数据或会话相关的变化
-      const relevantKeys = ['account_passwords', 'session_master_password', 'session_password_expiry'];
+      // 闲置锁定配置变化，重新设置检测间隔
+      if (STORAGE_KEYS.IDLE_LOCK_CONFIG in changes) {
+        setupIdleLock();
+      }
+
+      // 密码数据或会话相关的变化，使缓存失效
+      const relevantKeys = [
+        STORAGE_KEYS.PASSWORDS,
+        SESSION_STORAGE_KEYS.MASTER_PASSWORD,
+        SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
+      ];
       const hasRelevantChange = Object.keys(changes).some(key => relevantKeys.includes(key));
 
       if (hasRelevantChange) {
@@ -758,7 +756,7 @@ export default defineBackground(() => {
         invalidatePasswordCache();
       }
 
-      // 检查邮箱备份配置是否变化，重新设置 alarm
+      // 邮箱备份配置变化，重新设置 alarm
       if (STORAGE_KEYS.EMAIL_BACKUP_CONFIG in changes) {
         logger.debug('Background: 邮箱备份配置变化，重新设置自动备份闹钟');
         setupAutoBackupAlarm();
@@ -768,7 +766,7 @@ export default defineBackground(() => {
 
   // 监听 alarm 事件，执行定时任务（自动备份 / 版本检测）
   chrome.alarms.onAlarm.addListener(alarm => {
-    if (alarm.name === 'auto-backup-passwords') {
+    if (alarm.name === AUTO_BACKUP_ALARM_NAME) {
       logger.info('Background: 触发自动备份闹钟');
       performAutoBackup();
     } else if (alarm.name === UPDATE_CHECK_ALARM_NAME) {
@@ -784,18 +782,16 @@ export default defineBackground(() => {
   async function setupAutoBackupAlarm() {
     try {
       // 先清除已有的 alarm
-      await chrome.alarms.clear('auto-backup-passwords');
+      await chrome.alarms.clear(AUTO_BACKUP_ALARM_NAME);
 
-      const result = await chrome.storage.local.get(STORAGE_KEYS.EMAIL_BACKUP_CONFIG);
-      const config = result[STORAGE_KEYS.EMAIL_BACKUP_CONFIG] as EmailBackupConfig | undefined;
+      const config = await StorageUtils.getEmailBackupConfig();
 
-      if (config?.autoBackup && config.email) {
+      if (config.autoBackup && config.email) {
         const periodInMinutes = config.autoBackupIntervalDays * 24 * 60;
 
         // 根据上次备份时间计算首次延迟，避免短时间内重复触发
         let delayInMinutes = 1; // 默认 1 分钟
-        const lastTimeResult = await chrome.storage.local.get(STORAGE_KEYS.LAST_AUTO_BACKUP_TIME);
-        const lastBackupTime = lastTimeResult[STORAGE_KEYS.LAST_AUTO_BACKUP_TIME] as number | undefined;
+        const lastBackupTime = await StorageUtils.getLastAutoBackupTime();
         if (lastBackupTime) {
           const elapsedMinutes = (Date.now() - lastBackupTime) / (60 * 1000);
           const remainingMinutes = Math.max(periodInMinutes - elapsedMinutes, 1);
@@ -805,7 +801,7 @@ export default defineBackground(() => {
           );
         }
 
-        await chrome.alarms.create('auto-backup-passwords', {
+        await chrome.alarms.create(AUTO_BACKUP_ALARM_NAME, {
           periodInMinutes,
           delayInMinutes,
         });
@@ -825,17 +821,15 @@ export default defineBackground(() => {
   async function performAutoBackup() {
     try {
       // 读取配置
-      const result = await chrome.storage.local.get(STORAGE_KEYS.EMAIL_BACKUP_CONFIG);
-      const config = result[STORAGE_KEYS.EMAIL_BACKUP_CONFIG] as EmailBackupConfig | undefined;
+      const config = await StorageUtils.getEmailBackupConfig();
 
-      if (!config?.email) {
+      if (!config.email) {
         logger.warn('Background: 未配置备份邮箱，跳过备份提醒');
         return;
       }
 
       // 间隔检查：防止短时间内重复触发
-      const lastTimeResult = await chrome.storage.local.get(STORAGE_KEYS.LAST_AUTO_BACKUP_TIME);
-      const lastBackupTime = lastTimeResult[STORAGE_KEYS.LAST_AUTO_BACKUP_TIME] as number | undefined;
+      const lastBackupTime = await StorageUtils.getLastAutoBackupTime();
       if (lastBackupTime) {
         const elapsedMs = Date.now() - lastBackupTime;
         const intervalMs = (config.autoBackupIntervalDays || 7) * 24 * 60 * 60 * 1000;
@@ -859,9 +853,7 @@ export default defineBackground(() => {
       }
 
       // 记录本次提醒时间
-      await chrome.storage.local.set({
-        [STORAGE_KEYS.LAST_AUTO_BACKUP_TIME]: Date.now(),
-      });
+      await StorageUtils.setLastAutoBackupTime();
 
       // 发送桌面提醒通知（引导用户手动备份，不自动下载文件）
       await chrome.notifications.create('auto-backup-reminder', {

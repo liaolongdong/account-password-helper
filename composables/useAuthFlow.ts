@@ -164,13 +164,9 @@ export function useAuthFlow(options: {
     }
   };
 
-  // 处理设置主密码
+  // 处理设置主密码（表单验证由 MasterPasswordSetupView 组件处理）
   const handleSetupSubmit = async () => {
-    if (!setupFormRef.value) return;
-
     try {
-      await setupFormRef.value.validate();
-
       setupLoading.value = true;
       isAuthenticating = true;
 
@@ -196,13 +192,9 @@ export function useAuthFlow(options: {
     }
   };
 
-  // 处理密码验证
+  // 处理密码验证（表单验证由 PasswordVerifyView 组件处理）
   const handleVerifySubmit = async () => {
-    if (!verifyFormRef.value) return;
-
     try {
-      await verifyFormRef.value.validate();
-
       if (!verifyForm.value.password.trim()) {
         verifyError.value = '请输入主密码';
         return;
