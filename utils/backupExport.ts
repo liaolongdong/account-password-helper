@@ -1,5 +1,6 @@
 import type { PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { formatDateCompact } from '@/utils/dateFormat';
 
 /** 备份文件版本标识 */
 const BACKUP_VERSION = 1;
@@ -84,11 +85,7 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
     const blob = new Blob([output], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    const date = new Date();
-    const dateStr =
-      date.getFullYear().toString() +
-      (date.getMonth() + 1).toString().padStart(2, '0') +
-      date.getDate().toString().padStart(2, '0');
+    const dateStr = formatDateCompact(new Date());
     a.href = url;
     a.download = `backup_${dateStr}.aph`;
     document.body.appendChild(a);

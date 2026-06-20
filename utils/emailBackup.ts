@@ -1,6 +1,6 @@
 import type { PasswordEntry } from '@/utils/types';
 import { ExcelUtils } from '@/utils/excel';
-import { formatDateTime } from '@/utils/dateFormat';
+import { formatDateTime, formatDate, formatDateCompact, formatTimeCompact } from '@/utils/dateFormat';
 
 /**
  * 邮箱备份工具类
@@ -24,23 +24,13 @@ export class EmailBackupUtils {
 
     // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.xlsx
     const now = new Date();
-    const dateStr = [
-      now.getFullYear(),
-      String(now.getMonth() + 1).padStart(2, '0'),
-      String(now.getDate()).padStart(2, '0'),
-    ].join('');
-    const timeStr = [
-      String(now.getHours()).padStart(2, '0'),
-      String(now.getMinutes()).padStart(2, '0'),
-      String(now.getSeconds()).padStart(2, '0'),
-    ].join('');
-    const filename = `passwords_${dateStr}_${timeStr}.xlsx`;
+    const filename = `passwords_${formatDateCompact(now)}_${formatTimeCompact(now)}.xlsx`;
 
     // 生成并下载 Excel 文件
     await ExcelUtils.exportToExcel(passwords, filename);
 
     // 构造 mailto 链接，唤起邮件客户端
-    const subject = `密码备份-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const subject = `密码备份-${formatDate(now)}`;
     const body = [
       `备份时间：${formatDateTime(now)}`,
       `备份条数：${passwords.length}条账号密码`,

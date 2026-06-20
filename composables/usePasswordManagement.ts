@@ -7,6 +7,7 @@ import { EmailBackupUtils } from '@/utils/emailBackup';
 import { logger } from '@/utils/logger';
 import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
+import { formatDateCompact, formatTimeCompact } from '@/utils/dateFormat';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
@@ -540,17 +541,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       );
       if (!masterPassword) return;
 
-      const date = new Date();
-      const dateStr =
-        date.getFullYear().toString() +
-        (date.getMonth() + 1).toString().padStart(2, '0') +
-        date.getDate().toString().padStart(2, '0');
-      const timeStr = [
-        String(date.getHours()).padStart(2, '0'),
-        String(date.getMinutes()).padStart(2, '0'),
-        String(date.getSeconds()).padStart(2, '0'),
-      ].join('');
-      const filename = `passwords_${dateStr}_${timeStr}.json`;
+      const now = new Date();
+      const filename = `passwords_${formatDateCompact(now)}_${formatTimeCompact(now)}.json`;
       ExcelUtils.exportToJSON(passwords.value, filename);
       ElMessage.success('导出成功');
     } catch (error) {
