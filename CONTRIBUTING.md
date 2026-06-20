@@ -50,10 +50,11 @@ Account Password Helper 是一款基于 Chrome 扩展的账号密码管理工具
 │   ├── popup/          # Popup 弹窗页
 │   ├── options/        # 设置页（密码管理主界面）
 │   └── sidepanel/      # 侧边栏
-├── components/         # 公共 Vue 组件
+├── components/         # Vue 组件
+│   ├── options/        # Options 页面组件
+│   └── sidepanel/      # SidePanel 侧边栏组件
 ├── composables/        # Vue 组合式函数（业务逻辑复用）
 ├── utils/              # 工具函数（加密、存储、日志等）
-├── styles/             # 全局样式
 ├── types/              # 全局 TypeScript 类型声明
 └── scripts/            # 构建/辅助脚本
 ```

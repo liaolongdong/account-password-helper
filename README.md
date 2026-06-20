@@ -23,7 +23,7 @@
 - **智能识别**：MutationObserver 动态检测登录表单，支持用户名+密码、手机号+验证码等多种场景；LoginFormAnalyzer 通过表单/容器/弹窗/按钮多维启发式判断。
 - **一键填充**：侧边栏点击即填充，三重策略（Native Setter / execCommand / 模拟输入）兼容 React/Vue 等主流框架；可选自动触发登录。
 - **自动保存**：Chrome 式登录凭证捕获，支持登录表单提交、按钮点击、回车提交三种场景；域名白名单/黑名单精准匹配；凭证指纹智能去重避免重复弹窗；「不再提示」一键屏蔽域名；跨页面导航凭证不丢失；保存弹窗中可编辑标签和备注。
-- **数据管理**：Excel 导入导出（.xlsx），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.xlsx`；多格式 CSV 导入（自动识别 Chrome/LastPass/Bitwarden/1Password 导出格式）；中英文列名映射；标签多选（每条最多 3 个，单个最长 30 字符）+ 自定义 + 颜色一致；收藏标记与「只看收藏」过滤；一键去重；多字段搜索与排序；复制密码条目；批量删除。
+- **数据管理**：Excel 导入导出（.xlsx），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.xlsx`；JSON 导入导出（.json），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；多格式 CSV 导入（自动识别 Chrome/LastPass/Bitwarden/1Password 导出格式）；中英文列名映射；标签多选（每条最多 3 个，单个最长 30 字符）+ 自定义 + 颜色一致；收藏标记与「只看收藏」过滤；一键去重；多字段搜索与排序；复制密码条目；批量删除。
 - **邮箱备份**：导出 Excel 并唤起邮件客户端；支持定时自动备份提醒（chrome.alarms），间隔可选每天/3天/每周/两周/每月。
 - **密码可见性切换**：自动为页面密码框注入显示/隐藏按钮，输入有值时按钮自动可见（默认关闭，需在设置中手动开启）。
 - **加密备份**：.aph 格式 AES-GCM 加密导出/导入（PBKDF2 100000 次迭代派生密钥）；导入时支持解密预览后再确认，安全可靠。
@@ -52,6 +52,7 @@
 ### 3. 数据管理
 
 - Excel 导入导出（.xlsx/.xls），提供标准模板下载。
+- JSON 导入导出：支持密码数据的 JSON 格式导出（需验证主密码），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；也支持从 JSON 文件导入。
 - 标签下拉多选 + 自定义新增（每条最多 3 个，单个最长 30 字符）；相同标签颜色稳定一致（见 [utils/tagUtils.ts](./utils/tagUtils.ts)）。
 - 密码列表与侧边栏默认按更新时间倒序；支持按用户名、URL、标签、备注、创建/更新时间切换排序。
 - 支持用户名、标签、备注、URL 的多字段模糊搜索。
@@ -64,7 +65,7 @@
 
 - 启用后，网站登录时自动捕获账号密码并弹窗确认是否保存（见 [LoginAutoSave.ts](./entrypoints/content/LoginAutoSave.ts)）。
 - 三种凭证捕获场景：表单提交（capture 阶段）、登录按钮点击、密码框回车提交。
-- 域名匹配规则支持精确域名和正则表达式两种模式，规则为空时匹配所有域名（见 [AutoSaveSettingDialog.vue](./components/AutoSaveSettingDialog.vue)）。
+- 域名匹配规则支持精确域名和正则表达式两种模式，规则为空时匹配所有域名（见 [AutoSaveSettingDialog.vue](./components/options/AutoSaveSettingDialog.vue)）。
 - sessionStorage 暂存凭证，支持传统表单提交导致的跨页面导航场景。
 - 保存成功后发送桌面通知，并使密码缓存失效以确保下次加载获取最新数据。
 - **三选项交互**：保存确认弹窗提供「保存」、「暂不保存」和「不再提示」三个操作选项。
@@ -82,7 +83,7 @@
 ### 6. 加密备份导入导出
 
 - 导出：使用主密码通过 AES-GCM 加密全部密码数据，下载为 `.aph` 文件（见 [utils/backupExport.ts](./utils/backupExport.ts)），文件名格式为 `backup_YYYYMMDD.aph`。
-- 导入：上传 `.aph` 文件后输入导出时使用的主密码进行解密，解密后可预览数据（前 5 条）再确认导入（见 [BackupImportDialog.vue](./components/BackupImportDialog.vue)）。
+- 导入：上传 `.aph` 文件后输入导出时使用的主密码进行解密，解密后可预览数据（前 5 条）再确认导入（见 [BackupImportDialog.vue](./components/options/BackupImportDialog.vue)）。
 - 加密方案：PBKDF2（100000 次迭代）+ AES-256-GCM + 随机 Salt + 随机 IV，安全性高于常规存储。
 
 ### 7. 密码可见性切换
@@ -94,13 +95,13 @@
 
 ### 8. 自动闲置锁定
 
-- 在密码管理页「自动锁定设置」中配置闲置时间（5/10/30/60 分钟或不锁定），系统闲置超过设定时间后自动清除主密码会话并锁定密码管理（见 [IdleLockSetting.vue](./components/IdleLockSetting.vue)）。
+- 在密码管理页「自动锁定设置」中配置闲置时间（5/10/30/60 分钟或不锁定），系统闲置超过设定时间后自动清除主密码会话并锁定密码管理（见 [IdleLockSetting.vue](./components/options/IdleLockSetting.vue)）。
 - 锁定后需重新验证主密码才能恢复访问，与手动锁定和会话过期行为一致。
 - Popup 弹窗也提供一键「锁定」按钮，可快速清除当前会话。
 
 ### 9. 密码强度可视化
 
-- 在主密码设置和密码表单中，密码输入时通过气泡弹窗实时展示强度等级（弱/中/强）和进度条（见 [PasswordStrengthPopover.vue](./components/PasswordStrengthPopover.vue)）。
+- 在主密码设置和密码表单中，密码输入时通过气泡弹窗实时展示强度等级（弱/中/强）和进度条（见 [PasswordStrengthPopover.vue](./components/options/PasswordStrengthPopover.vue)）。
 - 逐条校验密码规则：至少 8 字符、包含字母、包含数字、包含特殊字符，通过/未通过状态一目了然。
 - 基于 [usePasswordStrength](./composables/usePasswordStrength.ts) Composable 实现，可在多处复用。
 
@@ -200,7 +201,9 @@ npm run build:firefox
 3. 点击条目一键填充，自动关闭侧边栏；可配置点击自动触发登录
 4. 也可通过点击插件图标或悬浮按钮中的“快速填充”手动切换
 
-### Excel 字段支持
+### Excel / JSON 字段支持
+
+#### Excel 导入导出（.xlsx/.xls）
 
 | 中文列名            | 英文列名                | 必填 | 说明             |
 | ------------------- | ----------------------- | ---- | ---------------- |
@@ -217,6 +220,22 @@ npm run build:firefox
 ```
 用户名(必填)     密码          URL                   标签   备注
 user@email.com  password123   https://example.com   工作   示例账号
+```
+
+#### JSON 导入导出（.json）
+
+JSON 格式使用与插件内部一致的字段结构，导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`，导出前需验证主密码。
+
+```json
+[
+  {
+    "username": "user@email.com",
+    "password": "password123",
+    "url": "https://example.com",
+    "tag": "工作",
+    "remark": "示例账号"
+  }
+]
 ```
 
 ## 架构设计
@@ -292,36 +311,58 @@ graph TB
 │   │   ├── CheckboxHandler.ts      # 复选框自动勾选
 │   │   ├── NativeNotification.ts   # 原生浏览器通知
 │   │   ├── formSelectors.ts        # 选择器与关键词常量
+│   │   ├── types.ts                # Content Script 类型定义
 │   │   └── floatingButtons/        # 悬浮按钮系统（Closed Shadow DOM）
 │   ├── popup/                      # 扩展图标弹窗
 │   ├── options/                    # 密码管理主页面
 │   └── sidepanel/                  # 侧边栏快速填充
-├── components/                     # 共享 Vue 组件
-│   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
-│   ├── BackupImportDialog.vue        # 加密备份导入对话框
+├── components/                     # Vue 组件
 │   ├── BrandLogo.vue               # 钥匙主题品牌 Logo
-│   ├── DisclaimerInfo.vue          # 免责声明
-│   ├── EmailBackupDialog.vue       # 邮箱备份对话框
-│   ├── HelpDialog.vue              # 操作指引与常见问题
-│   ├── IdleLockSetting.vue         # 自动闲置锁定设置
-│   ├── ImportDialog.vue            # Excel 导入对话框
-│   ├── PasswordStrengthPopover.vue # 密码强度可视化弹窗
 │   ├── QuickFillIcon.vue           # 快速填充图标
-│   ├── ValidityHoursSelect.vue     # 有效期选择器
-│   └── ValiditySettingDialog.vue   # 有效期设置对话框
+│   ├── options/                    # Options 页面组件
+│   │   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
+│   │   ├── BackupImportDialog.vue      # 加密备份导入对话框
+│   │   ├── DisclaimerInfo.vue          # 免责声明
+│   │   ├── EmailBackupDialog.vue       # 邮箱备份对话框
+│   │   ├── EmptyGuide.vue              # 空数据引导卡片
+│   │   ├── HeaderBar.vue               # 顶部操作栏
+│   │   ├── IdleLockSetting.vue         # 自动闲置锁定设置
+│   │   ├── ImportDialog.vue            # Excel/JSON 导入对话框
+│   │   ├── MasterPasswordSetupView.vue # 主密码设置视图
+│   │   ├── PasswordFormDialog.vue      # 密码表单对话框
+│   │   ├── PasswordStrengthPopover.vue # 密码强度可视化弹窗
+│   │   ├── PasswordTable.vue           # 密码列表表格
+│   │   ├── PasswordVerifyView.vue      # 主密码验证视图
+│   │   ├── SearchFilterBar.vue         # 搜索过滤栏
+│   │   ├── ValidityHoursSelect.vue     # 有效期选择器
+│   │   └── ValiditySettingDialog.vue   # 有效期设置对话框
+│   └── sidepanel/                  # SidePanel 侧边栏组件
+│       ├── HelpDialog.vue          # 操作指引与常见问题
+│       ├── PasswordListItem.vue    # 密码列表条目
+│       └── SidepanelHeader.vue     # 侧边栏头部
 ├── composables/                    # Vue 组合函数
 │   ├── useAuthFlow.ts              # 认证流程
+│   ├── useChromeListeners.ts       # Chrome API 监听器自动清理
 │   ├── usePasswordManagement.ts    # 密码 CRUD + 搜索排序 + 收藏
 │   ├── usePasswordStrength.ts      # 密码强度校验
+│   ├── usePopupInit.ts             # Popup 初始化逻辑
+│   ├── useRuntimeMessageHandler.ts # 运行时消息处理
+│   ├── useSessionLock.ts           # 会话锁定
 │   ├── useSessionTimer.ts          # 会话定时器
-│   └── useChromeListeners.ts       # Chrome API 监听器自动清理
+│   ├── useShortcuts.ts             # 快捷键管理
+│   ├── useSidepanelData.ts         # 侧边栏数据管理
+│   ├── useSidepanelFill.ts         # 侧边栏填充逻辑
+│   ├── useSidepanelSettings.ts     # 侧边栏设置
+│   ├── useStorageWatcher.ts        # Storage 监听
+│   ├── useTagOverflow.ts           # 标签溢出检测
+│   └── useVersionUpdate.ts         # 版本更新检测
 ├── utils/                          # 核心工具库
 │   ├── storage.ts                  # 存储门面
 │   ├── encryption.ts               # PBKDF2 + AES-256-CBC
 │   ├── sessionManager.ts           # 全局会话检查单例
 │   ├── sessionManager-storage.ts   # 会话持久化与加解密转换
 │   ├── backupExport.ts             # 加密备份导出/导入（AES-GCM）
-│   ├── excel.ts                    # Excel 导入导出 + 多格式 CSV 导入
+│   ├── excel.ts                    # Excel/JSON 导入导出 + 多格式 CSV 导入
 │   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── tagUtils.ts                 # 标签颜色生成
 │   ├── updateChecker.ts            # 版本更新检测（GitHub Releases API）
@@ -329,6 +370,7 @@ graph TB
 │   ├── env.ts                      # isDev 常量
 │   ├── createVueApp.ts             # Vue 应用工厂
 │   ├── dateFormat.ts               # 日期格式化工具
+│   ├── formatShortcut.ts           # 快捷键格式化工具
 │   └── types.ts                    # 公共类型定义
 ├── assets/icons/                   # 源 SVG 图标
 │   ├── icon.svg                    # 当前生效图标
@@ -477,6 +519,10 @@ A：在密码管理页的「数据管理」下拉菜单中点击「一键去重�
 **Q：支持从其他密码管理器导入吗？**
 
 A：支持。在 Excel 导入弹窗中，选择 CSV 文件格式后插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。
+
+**Q：支持 JSON 格式导入导出吗？**
+
+A：支持。在密码管理页「数据管理」下拉菜单中选择「导出JSON」即可将所有密码数据导出为 JSON 文件（需验证主密码），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`。导入时同样在导入弹窗中选择 JSON 文件即可，字段结构与插件内部存储一致。
 
 **Q：如何自定义快捷键？**
 
