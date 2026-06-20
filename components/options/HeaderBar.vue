@@ -55,6 +55,12 @@
                 导出Excel
               </el-dropdown-item>
               <el-dropdown-item
+                command="exportJson"
+                :icon="Download"
+              >
+                导出JSON
+              </el-dropdown-item>
+              <el-dropdown-item
                 command="backupExport"
                 :icon="Lock"
               >

@@ -113,21 +113,6 @@ async function ensureDataConsistencyWithSession(): Promise<void> {
 }
 
 /**
- * 获取会话主密码（已弃用，保留向后兼容）
- */
-export function getSessionMasterPassword(): string | undefined {
-  try {
-    if (!encryptedSessionMasterPassword || !sessionEncryptionKey) {
-      return undefined;
-    }
-    return decryptData(encryptedSessionMasterPassword, sessionEncryptionKey);
-  } catch (error) {
-    logger.error('解密会话主密码失败:', error);
-    return undefined;
-  }
-}
-
-/**
  * 获取会话主密码（解密后）
  */
 export async function getSessionMasterPasswordDecrypted(): Promise<string | null> {

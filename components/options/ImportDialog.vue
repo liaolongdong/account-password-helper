@@ -17,7 +17,7 @@
         show-icon
       >
         <template #default>
-          <p>支持 Excel（.xlsx/.xls）和 CSV 文件格式导入</p>
+          <p>支持 Excel（.xlsx/.xls）、CSV 和 JSON 文件格式导入</p>
           <p>CSV 支持 Chrome、LastPass、Bitwarden、1Password 导出格式，也可自动检测</p>
         </template>
       </el-alert>
@@ -65,7 +65,7 @@
           :auto-upload="false"
           :show-file-list="false"
           :limit="1"
-          accept=".xlsx,.xls,.csv"
+          accept=".xlsx,.xls,.csv,.json"
           @change="handleFileChange"
         >
           <div class="upload-dragger-content">
@@ -74,7 +74,7 @@
               <span>将文件拖拽到此处，或</span>
               <em>点击选择文件</em>
             </div>
-            <div class="upload-hint">支持 .xlsx、.xls、.csv 格式</div>
+            <div class="upload-hint">支持 .xlsx、.xls、.csv、.json 格式</div>
           </div>
         </el-upload>
 
@@ -257,9 +257,14 @@ const handleFileChange = async (file: UploadFile) => {
     selectedFile.value = file.raw;
     const fileName = file.raw.name.toLowerCase();
     const isCSV = fileName.endsWith('.csv');
+    const isJSON = fileName.endsWith('.json');
 
     let data: Omit<PasswordEntry, 'id' | 'order'>[];
-    if (isCSV) {
+    if (isJSON) {
+      // JSON 解析路径
+      const text = await file.raw.text();
+      data = ExcelUtils.parseJSON(text);
+    } else if (isCSV) {
       // CSV 解析路径
       const text = await file.raw.text();
       const format = importFormat.value === 'native' ? 'auto' : importFormat.value;

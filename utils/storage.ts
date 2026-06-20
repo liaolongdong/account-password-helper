@@ -25,7 +25,6 @@ import {
   isSessionValid,
   createSession,
   clearSession,
-  getSessionMasterPassword,
   getSessionMasterPasswordDecrypted,
   getSessionExpiryTime,
   generateSessionEncryptionKey,
@@ -89,10 +88,6 @@ export class StorageUtils {
 
   static async clearSession(): Promise<void> {
     return clearSession();
-  }
-
-  static getSessionMasterPassword(): string | undefined {
-    return getSessionMasterPassword();
   }
 
   static async getSessionMasterPasswordDecrypted(): Promise<string | null> {
@@ -412,32 +407,6 @@ export class StorageUtils {
     }
   }
 
-  /**
-   * 搜索密码条目
-   */
-  static async searchPasswords(keyword: string, masterPassword?: string): Promise<PasswordEntry[]> {
-    try {
-      const sessionActive = this.isSessionActiveSync();
-      const allPasswords = sessionActive ? await this.getAllPasswords() : await this.getAllPasswords(masterPassword);
-
-      const lowerKeyword = keyword.toLowerCase();
-
-      const filteredPasswords = allPasswords.filter(
-        p =>
-          p.username.toLowerCase().includes(lowerKeyword) ||
-          p.tag.toLowerCase().includes(lowerKeyword) ||
-          p.remark.toLowerCase().includes(lowerKeyword) ||
-          p.url.toLowerCase().includes(lowerKeyword),
-      );
-
-      await this.applySavedSortConfig(filteredPasswords);
-      return filteredPasswords;
-    } catch (error) {
-      logger.error('搜索密码失败:', error);
-      return [];
-    }
-  }
-
   // ==================== 排序配置 ====================
 
   /**
@@ -518,25 +487,6 @@ export class StorageUtils {
         if (aPriority !== bPriority) return aPriority - bPriority;
         return b.updateTime - a.updateTime;
       });
-    }
-  }
-
-  /**
-   * 更新密码排序
-   */
-  static async updatePasswordsOrder(passwords: PasswordEntry[]): Promise<void> {
-    try {
-      const updatedPasswords = passwords.map((p, index) => ({
-        ...p,
-        order: index,
-      }));
-
-      await chrome.storage.local.set({
-        [STORAGE_KEYS.PASSWORDS]: updatedPasswords,
-      });
-    } catch (error) {
-      logger.error('更新密码排序失败:', error);
-      throw error;
     }
   }
 
@@ -665,14 +615,6 @@ export class StorageUtils {
 
   static async setFloatingButtonVisible(visible: boolean): Promise<void> {
     await this.saveFloatingButtonConfig({ visible });
-  }
-
-  static async setFloatingButtonPosition(position: 'left' | 'right', offsetY?: number): Promise<void> {
-    const config: Partial<FloatingButtonConfig> = { position };
-    if (offsetY !== undefined) {
-      config.offsetY = offsetY;
-    }
-    await this.saveFloatingButtonConfig(config);
   }
 
   // ==================== 邮箱备份配置 ====================

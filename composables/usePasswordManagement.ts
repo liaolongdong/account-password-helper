@@ -526,6 +526,41 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
   };
 
+  // 导出密码为 JSON
+  const exportPasswordsJson = async () => {
+    try {
+      if (passwords.value.length === 0) {
+        ElMessage.warning('没有密码数据可导出');
+        return;
+      }
+
+      const masterPassword = await promptAndVerifyMasterPassword(
+        '验证主密码',
+        '导出密码列表需要验证主密码，请输入主密码：',
+      );
+      if (!masterPassword) return;
+
+      const date = new Date();
+      const dateStr =
+        date.getFullYear().toString() +
+        (date.getMonth() + 1).toString().padStart(2, '0') +
+        date.getDate().toString().padStart(2, '0');
+      const timeStr = [
+        String(date.getHours()).padStart(2, '0'),
+        String(date.getMinutes()).padStart(2, '0'),
+        String(date.getSeconds()).padStart(2, '0'),
+      ].join('');
+      const filename = `passwords_${dateStr}_${timeStr}.json`;
+      ExcelUtils.exportToJSON(passwords.value, filename);
+      ElMessage.success('导出成功');
+    } catch (error) {
+      if (error !== 'cancel') {
+        logger.error('JSON 导出失败:', error);
+        ElMessage.error('导出失败');
+      }
+    }
+  };
+
   /**
    * 打开邮箱备份弹窗
    */
@@ -657,6 +692,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     batchDelete,
     handlePasswordsImported,
     exportPasswords,
+    exportPasswordsJson,
     downloadTemplate,
     openEmailBackupDialog,
     backupToEmail,

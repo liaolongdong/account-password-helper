@@ -261,6 +261,9 @@ const handleDataCommand = (command: string) => {
     case 'export':
       exportPasswords();
       break;
+    case 'exportJson':
+      exportPasswordsJson();
+      break;
     case 'backupExport':
       handleEncryptedBackupExport();
       break;
@@ -328,6 +331,7 @@ const {
   batchDelete,
   handlePasswordsImported,
   exportPasswords,
+  exportPasswordsJson,
   downloadTemplate,
   openEmailBackupDialog,
   backupToEmail,

@@ -352,4 +352,111 @@ export class ExcelUtils {
       throw err;
     }
   }
+
+  // ==================== JSON 格式支持 ====================
+
+  /**
+   * 解析 JSON 文本为密码数据
+   * 支持数组格式或 `{ entries: [...] }` 包裹格式，字段映射兼容中英文列名。
+   *
+   * @param text JSON 文本内容
+   * @returns 解析后的密码数据数组
+   */
+  static parseJSON(text: string): Omit<PasswordEntry, 'id' | 'order'>[] {
+    const now = Date.now();
+
+    /** 解析时间字段，兼容 number / string */
+    const parseTimestamp = (v: unknown): number | undefined => {
+      if (v == null || v === '') return undefined;
+      if (typeof v === 'number' && Number.isFinite(v)) return v;
+      const t = Date.parse(String(v));
+      return Number.isNaN(t) ? undefined : t;
+    };
+
+    try {
+      const raw = JSON.parse(text);
+
+      // 支持数组 或 { entries: [...] } 包裹格式
+      const entries: unknown[] = Array.isArray(raw) ? raw : Array.isArray(raw?.entries) ? raw.entries : [];
+
+      if (entries.length === 0) {
+        logger.warn('JSON 文件中未发现有效数据条目');
+        return [];
+      }
+
+      return entries
+        .map((row: any) => {
+          const username = row.username || row['用户名'] || row['账号'] || '';
+          const password = row.password || row['密码'] || '';
+          const url = row.url || row['网址'] || row['网站地址'] || row['链接'] || '';
+          const tag = row.tag || row['标签'] || row['分类'] || '';
+          const remark = row.remark || row['备注'] || row['说明'] || '';
+
+          const cTime = parseTimestamp(row.createTime ?? row['创建时间'] ?? row.CreateTime);
+          const uTime = parseTimestamp(
+            row.updateTime ?? row['更新时间'] ?? row.UpdateTime ?? row.modifyTime ?? row['修改时间'],
+          );
+          const createTime = cTime ?? uTime ?? now;
+          const updateTime = uTime ?? cTime ?? now;
+
+          return {
+            username: String(username).trim(),
+            password: String(password).trim(),
+            url: String(url).trim(),
+            tag: String(tag).trim(),
+            remark: String(remark).trim(),
+            createTime,
+            updateTime,
+          };
+        })
+        .filter(item => item.username);
+    } catch (error) {
+      logger.error('解析 JSON 文件失败:', error);
+      const err = new Error('JSON 文件格式不正确');
+      (err as any).cause = error;
+      throw err;
+    }
+  }
+
+  /**
+   * 导出密码数据为 JSON 文件
+   * 导出结构：`{ version, exportedAt, count, entries }`
+   *
+   * @param passwords 待导出的密码列表
+   * @param filename  导出文件名，默认 `passwords.json`
+   */
+  static exportToJSON(passwords: PasswordEntry[], filename: string = 'passwords.json'): void {
+    try {
+      const exportData = {
+        version: 1,
+        exportedAt: Date.now(),
+        count: passwords.length,
+        entries: passwords.map(p => ({
+          username: p.username,
+          password: p.password,
+          url: p.url,
+          tag: p.tag,
+          remark: p.remark,
+          createTime: p.createTime,
+          updateTime: p.updateTime,
+        })),
+      };
+
+      const jsonStr = JSON.stringify(exportData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      logger.error('导出 JSON 失败:', error);
+      const err = new Error('导出 JSON 失败');
+      (err as any).cause = error;
+      throw err;
+    }
+  }
 }
