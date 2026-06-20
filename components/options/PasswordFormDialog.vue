@@ -61,7 +61,7 @@
       </el-form-item>
 
       <el-form-item
-        label="网站地址"
+        label="网址"
         prop="url"
       >
         <el-input

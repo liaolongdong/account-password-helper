@@ -31,7 +31,7 @@ const urlValidator = (_rule: any, value: string, callback: any) => {
       // 完整 URL 格式
       const url = new URL(trimmed);
       if (!url.hostname) {
-        callback(new Error('请输入有效的网站地址'));
+        callback(new Error('请输入有效的网址'));
         return;
       }
     } else {
@@ -40,13 +40,13 @@ const urlValidator = (_rule: any, value: string, callback: any) => {
       const domainPattern =
         /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})$/;
       if (!domainPattern.test(trimmed)) {
-        callback(new Error('请输入有效的域名（如 github.com）或完整网址'));
+        callback(new Error('请输入有效的网址（如 github.com 或 https://github.com）'));
         return;
       }
     }
     callback();
   } catch {
-    callback(new Error('请输入有效的网站地址或域名'));
+    callback(new Error('请输入有效的网址'));
   }
 };
 
@@ -85,7 +85,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     ],
     password: [{ max: 50, message: '密码不能超过50个字符', trigger: 'blur' }],
     url: [
-      { max: 100, message: '网站地址不能超过100个字符', trigger: 'blur' },
+      { max: 100, message: '网址不能超过100个字符', trigger: 'blur' },
       { validator: urlValidator, trigger: 'blur' },
     ],
     tag: [{ max: 50, message: '标签不能超过50个字符', trigger: 'blur' }],

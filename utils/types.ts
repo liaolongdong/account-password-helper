@@ -15,7 +15,7 @@ export interface PasswordEntry {
    */
   password: string;
   /**
-   * 网站地址
+   * 网址
    */
   url: string;
   /**

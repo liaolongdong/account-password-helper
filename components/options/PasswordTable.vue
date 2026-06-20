@@ -50,7 +50,7 @@
       </el-table-column>
       <el-table-column
         prop="url"
-        label="网站地址"
+        label="网址"
         min-width="200"
         sortable
         show-overflow-tooltip

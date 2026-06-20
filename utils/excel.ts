@@ -58,7 +58,7 @@ export class ExcelUtils {
       const exportData = passwords.map(p => ({
         用户名: p.username,
         密码: p.password,
-        网站地址: p.url,
+        网址: p.url,
         标签: p.tag,
         备注: p.remark,
         创建时间: formatDate(p.createTime || Date.now()),
@@ -73,7 +73,7 @@ export class ExcelUtils {
       ws['!cols'] = [
         { wch: 20 }, // 用户名
         { wch: 20 }, // 密码
-        { wch: 30 }, // 网站地址
+        { wch: 30 }, // 网址
         { wch: 15 }, // 标签
         { wch: 30 }, // 备注
         { wch: 20 }, // 创建时间
@@ -129,7 +129,7 @@ export class ExcelUtils {
                 const username =
                   row['用户名(必填)'] || row['用户名'] || row['username'] || row['Username'] || row['账号'] || '';
                 const password = row['密码'] || row['password'] || row['Password'] || '';
-                const url = row['URL'] || row['url'] || row['网址'] || row['链接'] || '';
+                const url = row['URL'] || row['url'] || row['网址'] || row['网站地址'] || row['链接'] || '';
                 const tag = row['标签'] || row['tag'] || row['Tag'] || row['分类'] || '';
                 const remark = row['备注'] || row['remark'] || row['Remark'] || row['说明'] || '';
 
@@ -321,7 +321,7 @@ export class ExcelUtils {
         {
           '用户名(必填)': 'example@email.com',
           密码: 'password123',
-          网站地址: 'https://example.com',
+          网址: 'https://example.com',
           标签: '工作',
           备注: '示例账号',
           创建时间: formatDate(Date.now()),
@@ -336,7 +336,7 @@ export class ExcelUtils {
       ws['!cols'] = [
         { wch: 20 }, // 用户名
         { wch: 20 }, // 密码
-        { wch: 30 }, // 网站地址
+        { wch: 30 }, // 网址
         { wch: 15 }, // 标签
         { wch: 30 }, // 备注
         { wch: 20 }, // 创建时间
