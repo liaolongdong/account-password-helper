@@ -35,7 +35,7 @@
             value="auto"
           />
           <el-option
-            label="自有模板（Excel）"
+            label="自有模板"
             value="native"
           />
           <el-option
@@ -267,8 +267,7 @@ const handleFileChange = async (file: UploadFile) => {
     } else if (isCSV) {
       // CSV 解析路径
       const text = await file.raw.text();
-      const format = importFormat.value === 'native' ? 'auto' : importFormat.value;
-      data = ExcelUtils.parseCSV(text, format as ImportFormat);
+      data = ExcelUtils.parseCSV(text, importFormat.value as ImportFormat);
     } else {
       ElMessage.error('不支持的文件格式，请使用 CSV 或 JSON 文件');
       return;

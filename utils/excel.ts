@@ -1,10 +1,9 @@
-// import * as XLSX from 'xlsx';
 import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 
 /** 导入格式类型 */
-export type ImportFormat = 'auto' | 'chrome' | 'lastpass' | 'bitwarden' | '1password';
+export type ImportFormat = 'auto' | 'native' | 'chrome' | 'lastpass' | 'bitwarden' | '1password';
 
 /** CSV 列映射配置 */
 interface CsvColumnMapping {
@@ -17,6 +16,13 @@ interface CsvColumnMapping {
 
 /** 各格式列映射配置 */
 const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnMapping> = {
+  native: {
+    username: ['用户名(必填)', '用户名', '账号', 'username', 'Username'],
+    password: ['密码', 'password', 'Password'],
+    url: ['网址', 'URL', 'url', '网站地址', '链接'],
+    tag: ['标签', 'tag', 'Tag', '分类'],
+    remark: ['备注', 'remark', 'Remark', '说明'],
+  },
   chrome: {
     username: ['username', 'Username'],
     password: ['password', 'Password'],
@@ -87,7 +93,9 @@ export class ExcelUtils {
    * @param format 导入格式，'auto' 时自动检测
    */
   static parseCSV(text: string, format: ImportFormat = 'auto'): Omit<PasswordEntry, 'id' | 'order'>[] {
-    const lines = text.split(/\r?\n/).filter(line => line.trim());
+    // 去除 BOM，防止首个表头字段被污染（如 \uFEFF用户名(必填)）
+    const cleanText = text.replace(/^\uFEFF/, '');
+    const lines = cleanText.split(/\r?\n/).filter(line => line.trim());
     if (lines.length < 2) return []; // 至少需要表头 + 1行数据
 
     // 解析表头
@@ -185,6 +193,10 @@ export class ExcelUtils {
     // 1Password: Title,Url,Username,Password,Notes
     if (headerSet.has('title') && headerSet.has('notes')) {
       return FORMAT_COLUMN_MAP['1password'];
+    }
+    // 自有模板：中文表头（用户名(必填)、用户名、账号、密码 等）
+    if (headerSet.has('用户名(必填)') || headerSet.has('用户名') || headerSet.has('账号')) {
+      return FORMAT_COLUMN_MAP.native;
     }
 
     // 默认使用 Chrome 映射
