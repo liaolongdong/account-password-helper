@@ -25,13 +25,13 @@ Account Password Helper 是一款基于 Chrome 扩展的账号密码管理工具
 2. 安装依赖（要求 Node.js >= 18）：
 
    ```sh
-   npm install
+   pnpm install
    ```
 
 3. 启动开发模式（Chrome）：
 
    ```sh
-   npm run dev
+   pnpm dev
    ```
 
 4. 在 Chrome 中加载 `.output/chrome-mv3/` 目录生成的扩展。
@@ -68,7 +68,7 @@ Account Password Helper 是一款基于 Chrome 扩展的账号密码管理工具
 - 新增代码必须通过以下命令检查：
 
   ```sh
-  npm run lint:all
+  pnpm lint:all
   ```
 
 ### 日志规范

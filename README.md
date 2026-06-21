@@ -31,6 +31,8 @@
 - **会话可控**：1/2/4/8/12/24 小时和3/5/7天会话有效期；会话失效后敏感字段自动加密回密文；支持自动闲置锁定（5/10/30/60分钟）；Popup 一键锁定；会话过期跨上下文广播同步。
 - **版本更新检测**：基于 GitHub Releases API，每 6 小时自动检测最新版本；发现更新时在 Popup 弹窗中展示版本号和更新说明，点击即可跳转下载页面。
 - **Shadow DOM 隔离**：悬浮按钮使用 Closed Shadow DOM，完全隔离页面样式。
+- **随机密码生成**：添加/编辑密码时通过魔棒按钮一键生成随机密码，基于 Web Crypto API 保证密码学安全；支持自定义长度（6~50）和字符集（大写/小写/数字/特殊字符），可排除易混淆字符（1/l/I/0/O），生成后实时显示强度进度条。
+- **剪贴板自动清除**：复制密码后自动定时清除剪贴板内容，延时可选 10/15/30/60/120 秒；复制用户名时自动取消密码清除定时器；失焦场景采用「尽力清除」策略确保密码安全；配置入口在密码管理页「剪贴板设置」中。
 - **零网络传输**：所有数据存储在 Chrome Local Storage，不走任何网络。
 
 ## 功能速览
@@ -124,6 +126,22 @@
 - 点击更新提示可直接跳转到 GitHub Releases 页面下载最新版本。
 - 检测结果缓存 24 小时，避免频繁请求；缓存过期后自动重新检测。
 
+### 12. 随机密码生成
+
+- 在添加/编辑密码表单中，密码输入框旁有一个魔棒按钮（`MagicStick` 图标），点击弹出密码生成器。
+- 自定义长度（6~50）、字符集开关（大写字母 / 小写字母 / 数字 / 特殊字符）。
+- 可排除易混淆字符（1、l、I、0、O），避免视觉辨识困难。
+- 生成后实时显示密码强度进度条，点击「使用此密码」即可填入表单。
+- 基于 Web Crypto API（`crypto.getRandomValues`）保证密码学安全随机性（见 [utils/passwordGenerator.ts](./utils/passwordGenerator.ts)）。
+
+### 13. 剪贴板自动清除
+
+- 在侧边栏复制密码后，自动启动定时器在指定延时后清除剪贴板内容。
+- 清除延时可配置为 10/15/30/60/120 秒，默认 30 秒（见 [ClipboardSettingDialog.vue](./components/options/ClipboardSettingDialog.vue)）。
+- 清除前验证剪贴板内容未被用户替换（优先使用 Async Clipboard API 读取验证；失焦时降级为「尽力清除」策略）。
+- 复制用户名时自动取消密码清除定时器，避免误清除用户名。
+- 配置入口位于密码管理页「数据管理」下拉菜单 →「剪贴板设置」。
+
 ## 技术栈
 
 | 类别        | 技术                                                                  | 版本 / 说明                              |
@@ -149,25 +167,25 @@
 
 ```bash
 # 安装依赖
-npm install
+pnpm install
 
 # 开发模式（HMR 热更新）
-npm run dev
+pnpm dev
 
 # 生产构建（会先跑 prebuild → 生成图标 PNG）
-npm run build
+pnpm build
 
 # 构建并打包为 zip
-npm run postbuild
+pnpm postbuild
 
 # Firefox 支持
-npm run dev:firefox
-npm run build:firefox
+pnpm dev:firefox
+pnpm build:firefox
 ```
 
 ### 加载到 Chrome
 
-1. `npm run build` 产出 `.output/chrome-mv3/`
+1. `pnpm build` 产出 `.output/chrome-mv3/`
 2. 打开 `chrome://extensions/`，开启「开发者模式」
 3. 点击「加载已解压的扩展程序」，选择 `.output/chrome-mv3`
 4. 首次使用需设置主密码（至少 8 位，含字母+数字+特殊字符）
@@ -322,6 +340,7 @@ graph TB
 │   ├── options/                    # Options 页面组件
 │   │   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
 │   │   ├── BackupImportDialog.vue      # 加密备份导入对话框
+│   │   ├── ClipboardSettingDialog.vue  # 剪贴板设置对话框
 │   │   ├── DisclaimerInfo.vue          # 免责声明
 │   │   ├── EmailBackupDialog.vue       # 邮箱备份对话框
 │   │   ├── EmptyGuide.vue              # 空数据引导卡片
@@ -330,6 +349,7 @@ graph TB
 │   │   ├── ImportDialog.vue            # Excel/JSON 导入对话框
 │   │   ├── MasterPasswordSetupView.vue # 主密码设置视图
 │   │   ├── PasswordFormDialog.vue      # 密码表单对话框
+│   │   ├── PasswordGeneratorPopover.vue # 密码生成器弹窗
 │   │   ├── PasswordStrengthPopover.vue # 密码强度可视化弹窗
 │   │   ├── PasswordTable.vue           # 密码列表表格
 │   │   ├── PasswordVerifyView.vue      # 主密码验证视图
@@ -367,6 +387,7 @@ graph TB
 │   ├── tagUtils.ts                 # 标签颜色生成
 │   ├── updateChecker.ts            # 版本更新检测（GitHub Releases API）
 │   ├── logger.ts                   # 环境感知日志
+│   ├── passwordGenerator.ts        # 随机密码生成器
 │   ├── env.ts                      # isDev 常量
 │   ├── createVueApp.ts             # Vue 应用工厂
 │   ├── dateFormat.ts               # 日期格式化工具
@@ -387,27 +408,27 @@ graph TB
 
 ### 常用命令
 
-| 命令                                    | 说明                                                                                                        |
-| --------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `npm run dev`                           | 开发模式（HMR 热更新）                                                                                      |
-| `npm run build`                         | 生产构建（先执行 `prebuild` → 自动生成图标 PNG）                                                            |
-| `npm run postbuild`                     | 构建后产出 zip 包                                                                                           |
-| `npm run icons:build`                   | 将 [assets/icons/icon.svg](./assets/icons/icon.svg) 渲染为 `public/icon/{16,32,48,96,128}.png`              |
-| `npm run analyze`                       | 构建并可视化分析打包体积（输出 `dist/stats.html`）                                                          |
-| `npm run analyze:firefox`               | Firefox 构建并可视化分析打包体积（输出 `dist/stats.html`）                                                  |
-| `npm run auto-merge`                    | 将 main 分支自动合并到其他所有本地分支（见 [scripts/README-auto-merge.md](./scripts/README-auto-merge.md)） |
-| `npm run dev:firefox` / `build:firefox` | Firefox 浏览器支持                                                                                          |
-| `npm run typecheck`                     | TypeScript 类型检查                                                                                         |
-| `npm run lint` / `:fix`                 | ESLint 检查 / 自动修复                                                                                      |
-| `npm run lint:style(:fix)`              | Stylelint 检查 / 自动修复                                                                                   |
-| `npm run format(:check)`                | Prettier 格式化 / 检查                                                                                      |
-| `npm run lint:all`                      | 运行所有检查                                                                                                |
-| `npm run fix:all`                       | 运行所有自动修复                                                                                            |
+| 命令                                 | 说明                                                                                                        |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                           | 开发模式（HMR 热更新）                                                                                      |
+| `pnpm build`                         | 生产构建（先执行 `prebuild` → 自动生成图标 PNG）                                                            |
+| `pnpm postbuild`                     | 构建后产出 zip 包                                                                                           |
+| `pnpm icons:build`                   | 将 [assets/icons/icon.svg](./assets/icons/icon.svg) 渲染为 `public/icon/{16,32,48,96,128}.png`              |
+| `pnpm analyze`                       | 构建并可视化分析打包体积（输出 `dist/stats.html`）                                                          |
+| `pnpm analyze:firefox`               | Firefox 构建并可视化分析打包体积（输出 `dist/stats.html`）                                                  |
+| `pnpm auto-merge`                    | 将 main 分支自动合并到其他所有本地分支（见 [scripts/README-auto-merge.md](./scripts/README-auto-merge.md)） |
+| `pnpm dev:firefox` / `build:firefox` | Firefox 浏览器支持                                                                                          |
+| `pnpm typecheck`                     | TypeScript 类型检查                                                                                         |
+| `pnpm lint` / `:fix`                 | ESLint 检查 / 自动修复                                                                                      |
+| `pnpm lint:style(:fix)`              | Stylelint 检查 / 自动修复                                                                                   |
+| `pnpm format(:check)`                | Prettier 格式化 / 检查                                                                                      |
+| `pnpm lint:all`                      | 运行所有检查                                                                                                |
+| `pnpm fix:all`                       | 运行所有自动修复                                                                                            |
 
 ### 图标工作流
 
 1. 编辑或替换 [assets/icons/icon.svg](./assets/icons/icon.svg)（可从 [variants](./assets/icons/variants) 挑选一款覆盖）
-2. 运行 `npm run icons:build` 生成 `public/icon/{16,32,48,96,128}.png`
+2. 运行 `pnpm icons:build` 生成 `public/icon/{16,32,48,96,128}.png`
 3. WXT 会自动识别为 `manifest.icons` 和 `action.default_icon`，无需在 [wxt.config.ts](./wxt.config.ts) 显式声明
 
 ### 测试页面
@@ -531,6 +552,14 @@ A：Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 `chro
 **Q：插件会自动检测更新吗？**
 
 A：会。插件通过 GitHub Releases API 每 6 小时自动检测一次最新版本，发现新版本时会在 Popup 弹窗中展示更新提示（包含版本号和更新说明），点击即可跳转到下载页面。检测结果会缓存 24 小时，避免频繁请求。你也可以在 Popup 弹窗中手动触发检测。
+
+**Q：复制密码后剪贴板会自动清除吗？**
+
+A：会。在侧边栏或密码管理页复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被用户替换（优先通过 Async Clipboard API 读取验证；若 SidePanel 已失焦无法验证，则采用「尽力清除」策略直接清除）。复制用户名时会自动取消密码清除定时器，避免误清除用户名。建议在密码管理页「数据管理」→「剪贴板设置」中确认开关已启用。
+
+**Q：如何生成随机密码？**
+
+A：在添加或编辑密码的表单中，密码输入框旁有一个魔棒（MagicStick）图标按钮，点击即可打开密码生成器弹窗。你可以自定义密码长度（6~50）、选择包含的字符集（大写字母 / 小写字母 / 数字 / 特殊字符），还可排除易混淆字符（1、l、I、0、O）。生成后实时显示密码强度进度条，点击「使用此密码」即可填入表单。密码生成基于 Web Crypto API（crypto.getRandomValues），安全可靠。
 
 ## 许可证
 

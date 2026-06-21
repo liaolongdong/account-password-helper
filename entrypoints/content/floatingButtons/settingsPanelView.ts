@@ -28,7 +28,7 @@ const WARNING_COLOR = '#E6A23C';
 /**
  * 危险警告颜色
  */
-const DANGER_COLOR = '#F56C6C';
+const _DANGER_COLOR = '#F56C6C';
 /**
  * 设置弹窗共用样式
  * 注入到：悬浮按钮的 Shadow DOM（由 SettingsPanel 使用）/ 侧边栏的 document head

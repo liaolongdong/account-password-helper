@@ -52,10 +52,12 @@ defineEmits<Emits>();
         title="查看开源仓库"
         @click="$emit('openGithub')"
       >
+        <!-- eslint-disable vue/no-v-html -->
         <span
           class="icon-btn__svg"
           v-html="githubIconSvg"
         ></span>
+        <!-- eslint-enable vue/no-v-html -->
       </button>
       <button
         type="button"
@@ -63,10 +65,12 @@ defineEmits<Emits>();
         title="操作指引与常见问题"
         @click="$emit('openHelp')"
       >
+        <!-- eslint-disable vue/no-v-html -->
         <span
           class="icon-btn__svg"
           v-html="questionIconSvg"
         ></span>
+        <!-- eslint-enable vue/no-v-html -->
       </button>
       <button
         type="button"
