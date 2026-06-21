@@ -1,4 +1,4 @@
-import { shallowRef } from 'vue';
+import { shallowRef, nextTick } from 'vue';
 import { StorageUtils } from '@/utils/storage';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
@@ -33,6 +33,7 @@ export function useSessionLock(options: UseSessionLockOptions) {
    */
   const lockSession = async () => {
     lockLoading.value = true;
+    await nextTick(); // 确保 Vue 先渲染 loading 状态，再执行重 PBKDF2 操作
     try {
       await StorageUtils.clearSession();
 

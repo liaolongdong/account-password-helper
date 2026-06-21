@@ -1,3 +1,4 @@
+import CryptoJS from 'crypto-js';
 import type {
   PasswordEntry,
   MasterPasswordConfig,
@@ -12,6 +13,7 @@ import { logger } from '@/utils/logger';
 import {
   STORAGE_KEYS,
   hashPassword,
+  timingSafeEqual,
   generateSalt,
   generateId,
   deriveEncryptionKey,
@@ -174,7 +176,19 @@ export class StorageUtils {
       }
 
       const hashedInput = this.hashPassword(cleanPassword, config.salt);
-      return hashedInput === config.hashedPassword;
+      if (timingSafeEqual(hashedInput, config.hashedPassword)) return true;
+
+      // 兼容旧版 MD5 哈希（32位十六进制），自动迁移到 SHA-256
+      if (config.hashedPassword.length === 32) {
+        const md5Hash = CryptoJS.MD5(cleanPassword + config.salt).toString();
+        if (timingSafeEqual(md5Hash, config.hashedPassword)) {
+          await chrome.storage.local.set({
+            [STORAGE_KEYS.MASTER_PASSWORD]: { ...config, hashedPassword: hashedInput },
+          });
+          return true;
+        }
+      }
+      return false;
     } catch (error) {
       logger.error('验证主密码失败:', error);
       return false;

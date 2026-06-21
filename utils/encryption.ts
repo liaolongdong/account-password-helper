@@ -20,13 +20,23 @@ export const STORAGE_KEYS = {
 };
 
 /**
- * MD5 加密
+ * 常量时间字符串比较，防止时序攻击
+ */
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return result === 0;
+}
+
+/**
+ * SHA-256 哈希（原 MD5，已升级）
  */
 export function hashPassword(password: string, salt: string = ''): string {
   const cleanPassword = String(password || '').trim();
   const cleanSalt = String(salt || '').trim();
   const combined = cleanPassword + cleanSalt;
-  return CryptoJS.MD5(combined).toString();
+  return CryptoJS.SHA256(combined).toString();
 }
 
 /**
@@ -48,7 +58,7 @@ export function generateId(): string {
 }
 
 /**
- * 从主密码派生密钥
+ * 从主密码派生密钥（使用原生 Web Crypto PBKDF2，非阻塞，速度比 crypto-js 快 10-50x）
  */
 export async function deriveEncryptionKey(masterPassword: string): Promise<string> {
   try {
@@ -59,12 +69,19 @@ export async function deriveEncryptionKey(masterPassword: string): Promise<strin
       throw new Error('无法获取主密码配置');
     }
 
-    const key = CryptoJS.PBKDF2(masterPassword, config.salt, {
-      keySize: 256 / 32,
-      iterations: 10000,
-    });
-
-    return key.toString();
+    const enc = new TextEncoder();
+    const baseKey = await crypto.subtle.importKey('raw', enc.encode(masterPassword), 'PBKDF2', false, ['deriveKey']);
+    const derivedKey = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: enc.encode(config.salt), iterations: 600000, hash: 'SHA-256' },
+      baseKey,
+      { name: 'AES-CBC', length: 256 },
+      true,
+      ['encrypt', 'decrypt'],
+    );
+    const raw = await crypto.subtle.exportKey('raw', derivedKey);
+    return Array.from(new Uint8Array(raw))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
   } catch (error) {
     logger.error('派生加密密钥失败:', error);
     throw error;
@@ -77,7 +94,7 @@ export async function deriveEncryptionKey(masterPassword: string): Promise<strin
 export function encryptData(data: string, key: string): string {
   try {
     const iv = CryptoJS.lib.WordArray.random(16);
-    const parsedKey = CryptoJS.enc.Utf8.parse(key);
+    const parsedKey = CryptoJS.enc.Hex.parse(key);
 
     const encrypted = CryptoJS.AES.encrypt(data, parsedKey, {
       iv: iv,
@@ -134,7 +151,7 @@ export function decryptData(encryptedData: string, key: string): string {
       iv: iv,
     });
 
-    const decrypted = CryptoJS.AES.decrypt(cipherParams, CryptoJS.enc.Utf8.parse(key), {
+    const decrypted = CryptoJS.AES.decrypt(cipherParams, CryptoJS.enc.Hex.parse(key), {
       iv: iv,
       mode: CryptoJS.mode.CBC,
       padding: CryptoJS.pad.Pkcs7,
@@ -171,9 +188,10 @@ export function decryptData(encryptedData: string, key: string): string {
 export async function encryptPasswordEntry(
   entry: PasswordEntry,
   masterPassword: string,
+  precomputedKey?: string,
 ): Promise<EncryptedPasswordEntry> {
   try {
-    const key = await deriveEncryptionKey(masterPassword);
+    const key = precomputedKey ?? (await deriveEncryptionKey(masterPassword));
 
     const encryptedEntry: EncryptedPasswordEntry = {
       ...entry,
@@ -199,6 +217,7 @@ export async function encryptPasswordEntry(
 export async function decryptPasswordEntry(
   entry: EncryptedPasswordEntry,
   masterPassword: string,
+  precomputedKey?: string,
 ): Promise<PasswordEntry> {
   try {
     if (!entry.encrypted) {
@@ -206,7 +225,7 @@ export async function decryptPasswordEntry(
       return decryptedEntry as PasswordEntry;
     }
 
-    const key = await deriveEncryptionKey(masterPassword);
+    const key = precomputedKey ?? (await deriveEncryptionKey(masterPassword));
 
     const decryptedEntry: PasswordEntry = {
       ...entry,

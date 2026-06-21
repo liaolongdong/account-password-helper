@@ -226,26 +226,24 @@ async function encryptAllPasswordsBeforeSessionClear(masterPassword: string): Pr
 
     if (rawPasswords.length === 0) return;
 
-    const encryptedPasswords: EncryptedPasswordEntry[] = [];
-    let hasChanges = false;
+    const unencrypted = rawPasswords.filter(e => !('encrypted' in e && e.encrypted === true));
+    if (unencrypted.length === 0) return;
 
+    // 派生一次密钥，所有条目复用，避免 PBKDF2 × N 次
+    const key = await deriveEncryptionKey(masterPassword);
+
+    const encryptedPasswords: EncryptedPasswordEntry[] = [];
     for (const entry of rawPasswords) {
       if ('encrypted' in entry && entry.encrypted === true) {
         encryptedPasswords.push(entry as EncryptedPasswordEntry);
         continue;
       }
-
-      hasChanges = true;
-      const encryptedEntry = await encryptPasswordEntry(entry as PasswordEntry, masterPassword);
+      const encryptedEntry = await encryptPasswordEntry(entry as PasswordEntry, masterPassword, key);
       encryptedPasswords.push(encryptedEntry);
     }
 
-    if (hasChanges) {
-      await chrome.storage.local.set({
-        [STORAGE_KEYS.PASSWORDS]: encryptedPasswords,
-      });
-      logger.debug('会话失效前，所有密码条目已加密');
-    }
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: encryptedPasswords });
+    logger.debug('会话失效前，所有密码条目已加密');
   } catch (error) {
     logger.error('会话失效前加密密码条目失败:', error);
   }
@@ -262,14 +260,17 @@ async function decryptAllPasswordsOnSessionCreate(masterPassword: string): Promi
 
     if (rawPasswords.length === 0) return;
 
-    const decryptedPasswords: PasswordEntry[] = [];
-    let hasEncryptedEntries = false;
+    const hasEncrypted = rawPasswords.some(e => 'encrypted' in e && e.encrypted === true);
+    if (!hasEncrypted) return;
 
+    // 派生一次密钥，所有条目复用
+    const key = await deriveEncryptionKey(masterPassword);
+
+    const decryptedPasswords: PasswordEntry[] = [];
     for (const entry of rawPasswords) {
       if ('encrypted' in entry && entry.encrypted === true) {
-        hasEncryptedEntries = true;
         try {
-          const decryptedEntry = await decryptPasswordEntry(entry, masterPassword);
+          const decryptedEntry = await decryptPasswordEntry(entry, masterPassword, key);
           decryptedPasswords.push(decryptedEntry);
         } catch (_decryptError) {
           logger.warn('跳过无法解密的条目: ' + entry.id);
@@ -281,7 +282,7 @@ async function decryptAllPasswordsOnSessionCreate(masterPassword: string): Promi
       }
     }
 
-    if (hasEncryptedEntries) {
+    if (hasEncrypted) {
       await chrome.storage.local.set({
         [STORAGE_KEYS.PASSWORDS]: decryptedPasswords,
       });
@@ -340,11 +341,10 @@ export async function getSessionExpiryTime(): Promise<number | null> {
  * 生成会话加密密钥
  */
 export async function generateSessionEncryptionKey(): Promise<string> {
-  const timestamp = Date.now().toString();
-  const randomPart = Math.random().toString(36).substring(2, 15);
-  const combined = timestamp + randomPart;
-  const key = hashPassword(combined, 'session_encryption_salt');
-  return key.substring(0, 32);
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 /**
