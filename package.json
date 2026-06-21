@@ -16,6 +16,10 @@
     "账号密码自动填充",
     "账号自动登录浏览器插件"
   ],
+  "packageManager": "pnpm@10.12.1",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"]
+  },
   "type": "module",
   "scripts": {
     "build": "wxt build",
@@ -26,7 +30,7 @@
     "analyze": "ANALYZE=true wxt build",
     "analyze:firefox": "ANALYZE=true wxt build -b firefox",
     "icons:build": "node scripts/generate-icons.mjs",
-    "prebuild": "npm run icons:build",
+    "prebuild": "pnpm run icons:build",
     "postbuild": "wxt zip",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
@@ -35,21 +39,14 @@
     "lint:style:fix": "stylelint **/*.{vue,css,scss} --fix --cache --cache-location node_modules/.cache/stylelint/",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:all": "npm run lint && npm run lint:style && npm run format:check",
-    "fix:all": "npm run lint:fix && npm run lint:style:fix && npm run format",
+    "lint:all": "pnpm run lint && pnpm run lint:style && pnpm run format:check",
+    "fix:all": "pnpm run lint:fix && pnpm run lint:style:fix && pnpm run format",
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
     "crypto-js": "^4.2.0",
