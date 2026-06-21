@@ -4,7 +4,7 @@
 
 ## 项目简介
 
-Account Password Helper 是一款基于 Chrome 扩展的账号密码管理工具，支持密码加密存储、自动填充、自动登录、Excel 导入导出、主密码保护等功能。
+Account Password Helper 是一款基于 Chrome 扩展的账号密码管理工具，支持密码加密存储、自动填充、自动登录、CSV / JSON 导入导出、主密码保护等功能。
 
 ## 技术栈
 

@@ -7,7 +7,7 @@
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#许可证)
 
-一个现代化的 Chrome 浏览器扩展，提供安全、便捷的账号密码管理与自动填充能力。采用 **PBKDF2 + AES-256-CBC** 加密体系，支持 Excel 导入导出、智能表单识别和多策略自动填充。
+一个现代化的 Chrome 浏览器扩展，提供安全、便捷的账号密码管理与自动填充能力。采用 **PBKDF2 + AES-256-CBC** 加密体系，支持数据导入导出、智能表单识别和多策略自动填充。
 
 > **免责声明**：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发和测试环境使用，严禁保存办公和个人敏感密码，如发生密码泄露，后果自负！
 >
@@ -23,8 +23,8 @@
 - **智能识别**：MutationObserver 动态检测登录表单，支持用户名+密码、手机号+验证码等多种场景；LoginFormAnalyzer 通过表单/容器/弹窗/按钮多维启发式判断。
 - **一键填充**：侧边栏点击即填充，三重策略（Native Setter / execCommand / 模拟输入）兼容 React/Vue 等主流框架；可选自动触发登录。
 - **自动保存**：Chrome 式登录凭证捕获，支持登录表单提交、按钮点击、回车提交三种场景；域名白名单/黑名单精准匹配；凭证指纹智能去重避免重复弹窗；「不再提示」一键屏蔽域名；跨页面导航凭证不丢失；保存弹窗中可编辑标签和备注。
-- **数据管理**：Excel 导入导出（.xlsx），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.xlsx`；JSON 导入导出（.json），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；多格式 CSV 导入（自动识别 Chrome/LastPass/Bitwarden/1Password 导出格式）；中英文列名映射；标签多选（每条最多 3 个，单个最长 30 字符）+ 自定义 + 颜色一致；收藏标记与「只看收藏」过滤；一键去重；多字段搜索与排序；复制密码条目；批量删除。
-- **邮箱备份**：导出 Excel 并唤起邮件客户端；支持定时自动备份提醒（chrome.alarms），间隔可选每天/3天/每周/两周/每月。
+- **数据管理**：CSV 导入导出（.csv），支持多格式 CSV 自动识别，导出文件名格式为 `passwords_YYYYMMDD_HHmmss.csv`；JSON 导入导出（.json），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；中英文列名映射；标签多选（每条最多 3 个，单个最长 30 字符）+ 自定义 + 颜色一致；收藏标记与「只看收藏」过滤；一键去重；多字段搜索与排序；复制密码条目；批量删除。
+- **邮箱备份**：导出数据并唤起邮件客户端；支持定时自动备份提醒（chrome.alarms），间隔可选每天/3天/每周/两周/每月。
 - **密码可见性切换**：自动为页面密码框注入显示/隐藏按钮，输入有值时按钮自动可见（默认关闭，需在设置中手动开启）。
 - **加密备份**：.aph 格式 AES-GCM 加密导出/导入（PBKDF2 100000 次迭代派生密钥）；导入时支持解密预览后再确认，安全可靠。
 - **密码强度可视化**：密码输入时实时显示强度进度条（弱/中/强）与规则校验清单（长度、字母、数字、特殊字符），通过气泡弹窗直观呈现。
@@ -53,7 +53,7 @@
 
 ### 3. 数据管理
 
-- Excel 导入导出（.xlsx/.xls），提供标准模板下载。
+- CSV 导入导出（.csv），提供标准模板下载。
 - JSON 导入导出：支持密码数据的 JSON 格式导出（需验证主密码），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；也支持从 JSON 文件导入。
 - 标签下拉多选 + 自定义新增（每条最多 3 个，单个最长 30 字符）；相同标签颜色稳定一致（见 [utils/tagUtils.ts](./utils/tagUtils.ts)）。
 - 密码列表与侧边栏默认按更新时间倒序；支持按用户名、URL、标签、备注、创建/更新时间切换排序。
@@ -78,7 +78,7 @@
 
 ### 5. 邮箱备份
 
-- 导出密码列表为 Excel 并唤起邮件客户端（见 [utils/emailBackup.ts](./utils/emailBackup.ts)）。
+- 导出密码列表为数据文件并唤起邮件客户端（见 [utils/emailBackup.ts](./utils/emailBackup.ts)）。
 - 支持配置自动备份提醒，通过 chrome.alarms 定时发送桌面通知（不解密、不自动下载文件）。
 - 备份间隔可选：每天 / 每3天 / 每周 / 每两周 / 每月。
 
@@ -150,7 +150,6 @@
 | 前端框架    | [Vue 3](https://vuejs.org/) + TypeScript                              | v3.5，Composition API + `<script setup>` |
 | UI 组件库   | [Element Plus](https://element-plus.org/)                             | v2.13，按需引入（unplugin-auto-import）  |
 | 加密        | [crypto-js](https://github.com/brix/crypto-js)                        | v4.2，PBKDF2 + AES-256-CBC + MD5         |
-| 表格处理    | [xlsx](https://github.com/SheetJS/sheetjs)                            | v0.18，Excel 导入导出                    |
 | 构建工具    | Vite                                                                  | WXT 内置，HMR 热更新                     |
 | 图标生成    | [sharp](https://github.com/lovell/sharp)                              | v0.33，SVG → 多尺寸 PNG                  |
 | 日志 / 环境 | [utils/logger.ts](./utils/logger.ts) + [utils/env.ts](./utils/env.ts) | 生产构建 tree-shake 掉调试日志           |
@@ -208,7 +207,7 @@ pnpm build:firefox
 
 - **新增 / 编辑 / 复制 / 删除**：选项页提供完整 CRUD；字段约束：用户名≤50 字符、密码≤50 字符、URL≤100 字符、备注≤1000 字符
 - **复制密码**：点击「复制」按钮快速复制条目，默认排序规则（更新时间倒序）下新增或者编辑条目插入到第一条，高亮提示并自动滚动的该位置
-- **批量导入导出**：Excel 模板导入，提供「下载模板」，导出密码需验证主密码
+- **批量导入导出**：提供「下载模板」下载标准模板，导入数据；导出数据需验证主密码
 - **搜索 / 排序**：多字段模糊搜索，点击表头切换升降序
 - **标签**：下拉多选，可自定义添加，颜色稳定一致
 
@@ -219,9 +218,9 @@ pnpm build:firefox
 3. 点击条目一键填充，自动关闭侧边栏；可配置点击自动触发登录
 4. 也可通过点击插件图标或悬浮按钮中的“快速填充”手动切换
 
-### Excel / JSON 字段支持
+### CSV / JSON 字段格式
 
-#### Excel 导入导出（.xlsx/.xls）
+#### 数据导入导出（.csv）
 
 | 中文列名            | 英文列名                | 必填 | 说明             |
 | ------------------- | ----------------------- | ---- | ---------------- |
@@ -233,11 +232,13 @@ pnpm build:firefox
 | 创建时间            | createTime / CreateTime | 否   | 自动填充         |
 | 更新时间 / 修改时间 | updateTime / modifyTime | 否   | 自动填充         |
 
+> 「下载模板」会生成标准 CSV 文件（BOM UTF-8，Excel / Numbers 可直接打开）。
+
 示例：
 
 ```
-用户名(必填)     密码          URL                   标签   备注
-user@email.com  password123   https://example.com   工作   示例账号
+用户名(必填),密码,网址,标签,备注
+user@email.com,password123,https://example.com,工作,示例账号
 ```
 
 #### JSON 导入导出（.json）
@@ -346,7 +347,7 @@ graph TB
 │   │   ├── EmptyGuide.vue              # 空数据引导卡片
 │   │   ├── HeaderBar.vue               # 顶部操作栏
 │   │   ├── IdleLockSetting.vue         # 自动闲置锁定设置
-│   │   ├── ImportDialog.vue            # Excel/JSON 导入对话框
+│   │   ├── ImportDialog.vue            # CSV/JSON 导入对话框
 │   │   ├── MasterPasswordSetupView.vue # 主密码设置视图
 │   │   ├── PasswordFormDialog.vue      # 密码表单对话框
 │   │   ├── PasswordGeneratorPopover.vue # 密码生成器弹窗
@@ -382,7 +383,7 @@ graph TB
 │   ├── sessionManager.ts           # 全局会话检查单例
 │   ├── sessionManager-storage.ts   # 会话持久化与加解密转换
 │   ├── backupExport.ts             # 加密备份导出/导入（AES-GCM）
-│   ├── excel.ts                    # Excel/JSON 导入导出 + 多格式 CSV 导入
+│   ├── excel.ts                    # CSV/JSON 导入导出 + 多格式 CSV 解析
 │   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── tagUtils.ts                 # 标签颜色生成
 │   ├── updateChecker.ts            # 版本更新检测（GitHub Releases API）
@@ -444,7 +445,7 @@ graph TB
 | `scripting`     | 动态注入 Content Script        |
 | `sidePanel`     | 侧边栏快速填充功能             |
 | `alarms`        | 定时自动备份提醒               |
-| `downloads`     | Excel 文件导出下载             |
+| `downloads`     | 数据文件导出下载               |
 | `notifications` | 桌面通知（自动保存/备份提醒）  |
 | `idle`          | 自动闲置锁定检测               |
 | `<all_urls>`    | Content Script 匹配所有页面    |
@@ -453,7 +454,7 @@ graph TB
 
 - 主密码遗忘**无法恢复**，请务必妥善保管。
 - 所有数据本地 AES-256-CBC 加密存储，不经过任何网络传输。
-- 建议定期通过 Excel 导出功能备份数据。
+- 建议定期通过数据导出功能备份数据。
 - 会话过期后需重新验证主密码，届时所有密码自动加密。
 - 本插件仅用于开发和测试环境，**严禁保存生产环境或个人敏感密码**。
 
@@ -461,15 +462,15 @@ graph TB
 
 **Q：忘记主密码怎么办？**
 
-A：主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过 Excel 导出备份。
+A：主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出备份。
 
 **Q：侧边栏不显示？**
 
 A：确认 Chrome >= 114，检查页面是否包含登录表单；也可用点击插件图标或悬浮按钮，点击“快速填充”手动打开。
 
-**Q：Excel 导入失败？**
+**Q：CSV 导入失败？**
 
-A：点击「下载模板」获取标准模板，确保用户名列不为空；支持 `.xlsx` 与 `.xls`。
+A：点击「下载模板」获取标准 CSV 模板，确保用户名列不为空。插件支持 `.csv` 格式。
 
 **Q：密码填充不生效？**
 
@@ -523,7 +524,7 @@ A：当同一网站（同域名）使用相同账号登录时，插件会更新�
 
 **Q：如何备份密码到邮箱？**
 
-A：在密码管理页点击「备份到邮箱」按钮，配置目标邮箱地址后点击「立即备份」，插件会导出 Excel 并唤起邮件客户端。可开启「自动备份提醒」定时发送桌面通知提醒手动备份。
+A：在密码管理页点击「备份到邮箱」按钮，配置目标邮箱地址后点击「立即备份」，插件会导出数据并唤起邮件客户端。可开启「自动备份提醒」定时发送桌面通知提醒手动备份。
 
 **Q：如何导出/导入加密备份？**
 
@@ -539,7 +540,7 @@ A：在密码管理页的「数据管理」下拉菜单中点击「一键去重�
 
 **Q：支持从其他密码管理器导入吗？**
 
-A：支持。在 Excel 导入弹窗中，选择 CSV 文件格式后插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。
+A：支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。
 
 **Q：支持 JSON 格式导入导出吗？**
 
@@ -571,7 +572,6 @@ A：在添加或编辑密码的表单中，密码输入框旁有一个魔棒（M
 - [Vue 3](https://vuejs.org/) — 渐进式 JavaScript 框架
 - [Element Plus](https://element-plus.org/) — Vue 3 UI 组件库
 - [crypto-js](https://github.com/brix/crypto-js) — JavaScript 加密库
-- [xlsx](https://github.com/SheetJS/sheetjs) — Excel 文件处理库
 - [sharp](https://github.com/lovell/sharp) — 高性能图像处理
 
 ## 联系方式

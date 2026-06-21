@@ -23,7 +23,7 @@
         style="margin-bottom: 20px"
       >
         <template #default>
-          将密码列表导出为 Excel 文件并唤起邮件客户端，请将下载的文件作为附件发送。<br />
+          将密码列表导出为数据文件并唤起邮件客户端，请将下载的文件作为附件发送。<br />
           开启「自动备份提醒」后，仅定时发送桌面提醒通知您手动备份，<strong>不会自动下载密码文件</strong>。
         </template>
       </el-alert>

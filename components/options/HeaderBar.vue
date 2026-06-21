@@ -52,7 +52,7 @@
                 command="export"
                 :icon="Download"
               >
-                导出Excel
+                导出数据
               </el-dropdown-item>
               <el-dropdown-item
                 command="exportJson"

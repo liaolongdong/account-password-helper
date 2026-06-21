@@ -29,7 +29,7 @@
           <Upload />
         </el-icon>
         <div class="empty-guide__card-title">导入数据</div>
-        <div class="empty-guide__card-desc">从 Excel 文件批量导入</div>
+        <div class="empty-guide__card-desc">从 CSV 文件批量导入</div>
       </div>
       <div
         class="empty-guide__card"
