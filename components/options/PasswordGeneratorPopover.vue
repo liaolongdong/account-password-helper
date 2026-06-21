@@ -282,11 +282,19 @@ watch(popoverVisible, visible => {
   color: #606266;
 }
 
-.length-slider {
-  width: 160px;
-}
-
 .use-password-btn {
   align-self: stretch;
+}
+</style>
+
+<style>
+/* 密码生成器弹窗 - 全局样式（popover 内容通过 teleport 渲染到 body，scoped 样式不生效） */
+.password-generator-popover .length-slider {
+  width: 230px;
+}
+
+/* 缩小输入框宽度，为滑动条轨道腾出更多拖拽空间 */
+.password-generator-popover .length-slider .el-slider__input {
+  width: 88px;
 }
 </style>
