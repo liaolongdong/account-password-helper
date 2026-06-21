@@ -121,7 +121,7 @@ export async function getSessionMasterPasswordDecrypted(): Promise<string | null
   }
 
   try {
-    return decryptData(encryptedSessionMasterPassword, sessionEncryptionKey);
+    return await decryptData(encryptedSessionMasterPassword, sessionEncryptionKey);
   } catch (error) {
     logger.error('解密会话主密码失败:', error);
     return null;
@@ -226,8 +226,8 @@ async function encryptAllPasswordsBeforeSessionClear(masterPassword: string): Pr
 
     if (rawPasswords.length === 0) return;
 
-    const unencrypted = rawPasswords.filter(e => !('encrypted' in e && e.encrypted === true));
-    if (unencrypted.length === 0) return;
+    const hasUnencrypted = rawPasswords.some(e => !('encrypted' in e && e.encrypted === true));
+    if (!hasUnencrypted) return;
 
     // 派生一次密钥，所有条目复用，避免 PBKDF2 × N 次
     const key = await deriveEncryptionKey(masterPassword);
@@ -274,8 +274,8 @@ async function decryptAllPasswordsOnSessionCreate(masterPassword: string): Promi
           decryptedPasswords.push(decryptedEntry);
         } catch (_decryptError) {
           logger.warn('跳过无法解密的条目: ' + entry.id);
-          const { encrypted: _encrypted, ...rest } = entry;
-          decryptedPasswords.push(rest as PasswordEntry);
+          // 保留加密条目原样，防止密文被当作明文重新加密导致数据丢失
+          decryptedPasswords.push(entry as unknown as PasswordEntry);
         }
       } else {
         decryptedPasswords.push(entry as PasswordEntry);

@@ -22,12 +22,12 @@ export class EmailBackupUtils {
       throw new Error('没有可备份的密码数据');
     }
 
-    // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.xlsx
+    // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.csv
     const now = new Date();
-    const filename = `passwords_${formatDateCompact(now)}_${formatTimeCompact(now)}.xlsx`;
+    const filename = `passwords_${formatDateCompact(now)}_${formatTimeCompact(now)}.csv`;
 
-    // 生成并下载 Excel 文件
-    await ExcelUtils.exportToExcel(passwords, filename);
+    // 生成并下载 CSV 文件
+    ExcelUtils.exportToCSV(passwords, filename);
 
     // 构造 mailto 链接，唤起邮件客户端
     const subject = `密码备份-${formatDate(now)}`;

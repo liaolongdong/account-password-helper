@@ -50,8 +50,7 @@
   },
   "dependencies": {
     "element-plus": "^2.13.7",
-    "vue": "^3.5.33",
-    "xlsx": "^0.18.5"
+    "vue": "^3.5.33"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

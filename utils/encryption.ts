@@ -135,23 +135,19 @@ export async function decryptData(encryptedData: string, hexKey: string): Promis
       combined.slice(16),
     );
     return new TextDecoder().decode(plaintext);
-  } catch {
+  } catch (error) {
     logger.warn('解密失败，可能密钥错误或数据损坏');
-    return '';
+    throw error; // 让调用方决定如何处理，避免静默返回空字符串导致数据丢失
   }
 }
 
 /**
- * 安全解密字段（失败返回空字符串）
+ * 安全解密字段（失败抛出异常，由调用方保留原始加密数据）
  */
 export async function decryptFieldSafely(encryptedData: string, hexKey: string, fieldName: string): Promise<string> {
   if (!encryptedData) return '';
-  try {
-    return await decryptData(encryptedData, hexKey);
-  } catch {
-    logger.warn(`字段 ${fieldName} 解密失败`);
-    return '';
-  }
+  logger.debug(`解密字段 ${fieldName}`);
+  return decryptData(encryptedData, hexKey); // 让错误向上传播
 }
 
 /**

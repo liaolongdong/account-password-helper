@@ -495,7 +495,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       );
       if (!masterPassword) return;
 
-      // 生成带日期后缀的文件名：passwords_YYYYMMDD.xlsx
+      // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.csv
       const date = new Date();
       const dateStr =
         date.getFullYear().toString() +
@@ -506,8 +506,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         String(date.getMinutes()).padStart(2, '0'),
         String(date.getSeconds()).padStart(2, '0'),
       ].join('');
-      const filename = `passwords_${dateStr}_${timeStr}.xlsx`;
-      await ExcelUtils.exportToExcel(passwords.value, filename);
+      const filename = `passwords_${dateStr}_${timeStr}.csv`;
+      ExcelUtils.exportToCSV(passwords.value, filename);
       ElMessage.success('导出成功');
     } catch (error) {
       if (error !== 'cancel') {
@@ -518,9 +518,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   // 下载模板
-  const downloadTemplate = async () => {
+  const downloadTemplate = () => {
     try {
-      await ExcelUtils.downloadTemplate();
+      ExcelUtils.downloadTemplate();
       ElMessage.success('模板下载成功');
     } catch (_error) {
       ElMessage.error('模板下载失败');
