@@ -42,9 +42,11 @@ jobs:
       - name: Generate Icons
         run: node scripts/generate-icons.mjs
       - name: Build Extension
-        run: npx wxt build
+        run: pnpm exec wxt build
+        env:
+          NODE_ENV: production
       - name: Zip Extension
-        run: npx wxt zip
+        run: pnpm exec wxt zip
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
