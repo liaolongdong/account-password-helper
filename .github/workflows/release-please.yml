@@ -40,7 +40,7 @@ jobs:
           cache: pnpm
       - run: pnpm install
       - name: Build Extension
-        run: pnpm exec wxt build
+        run: node ./node_modules/wxt/bin/wxt.mjs build
         env:
           NODE_OPTIONS: --max-old-space-size=4096
       - name: Upload Release Asset
