@@ -39,10 +39,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install
-      - name: Build Extension
-        run: pnpm run build
-        env:
-          NODE_ENV: production
+      - name: Generate Icons
+        run: node scripts/generate-icons.mjs
+      - name: Build & Zip Extension
+        run: pnpm exec wxt build
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
