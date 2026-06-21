@@ -58,7 +58,7 @@ export async function isSessionValid(): Promise<boolean> {
         const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
         if (config && config.salt) {
-          sessionEncryptionKey = hashPassword(config.salt, 'session_encryption').substring(0, 32);
+          sessionEncryptionKey = await hashPassword(config.salt, 'session_encryption');
         } else {
           sessionEncryptionKey = await generateSessionEncryptionKey();
         }
@@ -137,12 +137,12 @@ export async function createSession(masterPassword: string, validityHours: numbe
     const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
     if (config && config.salt) {
-      sessionEncryptionKey = hashPassword(config.salt, 'session_encryption').substring(0, 32);
+      sessionEncryptionKey = await hashPassword(config.salt, 'session_encryption');
     } else {
       sessionEncryptionKey = await generateSessionEncryptionKey();
     }
 
-    encryptedSessionMasterPassword = encryptData(masterPassword, sessionEncryptionKey);
+    encryptedSessionMasterPassword = await encryptData(masterPassword, sessionEncryptionKey);
     sessionValidityHours = validityHours;
     sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
 
@@ -177,7 +177,7 @@ async function restoreSessionEncryptionKeyFromStorage(): Promise<void> {
     const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
     const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
     if (config && config.salt) {
-      sessionEncryptionKey = hashPassword(config.salt, 'session_encryption').substring(0, 32);
+      sessionEncryptionKey = await hashPassword(config.salt, 'session_encryption');
     } else {
       sessionEncryptionKey = await generateSessionEncryptionKey();
     }

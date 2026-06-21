@@ -1,4 +1,3 @@
-import CryptoJS from 'crypto-js';
 import type {
   PasswordEntry,
   MasterPasswordConfig,
@@ -39,7 +38,7 @@ import {
 export class StorageUtils {
   // ==================== 加密相关（委托到 encryption.ts） ====================
 
-  static hashPassword(password: string, salt: string = ''): string {
+  static async hashPassword(password: string, salt: string = ''): Promise<string> {
     return hashPassword(password, salt);
   }
 
@@ -55,11 +54,11 @@ export class StorageUtils {
     return deriveEncryptionKey(masterPassword);
   }
 
-  static encryptData(data: string, key: string): string {
+  static async encryptData(data: string, key: string): Promise<string> {
     return encryptData(data, key);
   }
 
-  static decryptData(encryptedData: string, key: string): string {
+  static async decryptData(encryptedData: string, key: string): Promise<string> {
     return decryptData(encryptedData, key);
   }
 
@@ -71,7 +70,7 @@ export class StorageUtils {
     return decryptPasswordEntry(entry, masterPassword);
   }
 
-  static decryptFieldSafely(encryptedData: string, key: string, fieldName: string): string {
+  static async decryptFieldSafely(encryptedData: string, key: string, fieldName: string): Promise<string> {
     return decryptFieldSafely(encryptedData, key, fieldName);
   }
 
@@ -130,7 +129,7 @@ export class StorageUtils {
       }
 
       const salt = this.generateSalt();
-      const hashedPassword = this.hashPassword(cleanPassword, salt);
+      const hashedPassword = await this.hashPassword(cleanPassword, salt);
 
       const config: MasterPasswordConfig = {
         hashedPassword,
@@ -175,20 +174,8 @@ export class StorageUtils {
         return false;
       }
 
-      const hashedInput = this.hashPassword(cleanPassword, config.salt);
-      if (timingSafeEqual(hashedInput, config.hashedPassword)) return true;
-
-      // 兼容旧版 MD5 哈希（32位十六进制），自动迁移到 SHA-256
-      if (config.hashedPassword.length === 32) {
-        const md5Hash = CryptoJS.MD5(cleanPassword + config.salt).toString();
-        if (timingSafeEqual(md5Hash, config.hashedPassword)) {
-          await chrome.storage.local.set({
-            [STORAGE_KEYS.MASTER_PASSWORD]: { ...config, hashedPassword: hashedInput },
-          });
-          return true;
-        }
-      }
-      return false;
+      const hashedInput = await this.hashPassword(cleanPassword, config.salt);
+      return timingSafeEqual(hashedInput, config.hashedPassword);
     } catch (error) {
       logger.error('验证主密码失败:', error);
       return false;
