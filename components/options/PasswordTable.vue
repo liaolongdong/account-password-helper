@@ -153,6 +153,7 @@
         <template #default="{ row }">
           <div class="operation-buttons">
             <el-tooltip
+              :ref="(el: any) => collectTooltipRef(el)"
               content="复制条目"
               placement="top"
               :show-after="400"
@@ -165,6 +166,7 @@
               />
             </el-tooltip>
             <el-tooltip
+              :ref="(el: any) => collectTooltipRef(el)"
               content="编辑"
               placement="top"
               :show-after="400"
@@ -177,6 +179,7 @@
               />
             </el-tooltip>
             <el-tooltip
+              :ref="(el: any) => collectTooltipRef(el)"
               :content="row.favorite ? '取消收藏' : '收藏'"
               placement="top"
               :show-after="400"
@@ -190,6 +193,7 @@
               />
             </el-tooltip>
             <el-tooltip
+              :ref="(el: any) => collectTooltipRef(el)"
               content="删除"
               placement="top"
               :show-after="400"
@@ -210,7 +214,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted, onBeforeUnmount, onBeforeUpdate } from 'vue';
 import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
@@ -247,6 +251,44 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 
 /** 表格引用（暴露给父组件） */
 const localTableRef = ref();
+
+/**
+ * 操作栏 Tooltip 引用集合
+ * 用于在表格滚动时主动关闭残留 tooltip，避免 popper 残留在视口中
+ */
+const tooltipRefs = ref<any[]>([]);
+
+/**
+ * 收集 tooltip 组件引用（函数式 ref，每次渲染时调用）
+ * @param el tooltip 组件实例
+ */
+const collectTooltipRef = (el: any) => {
+  if (el) tooltipRefs.value.push(el);
+};
+
+/** 每次重新渲染前清空引用数组，避免重复积累 */
+onBeforeUpdate(() => {
+  tooltipRefs.value = [];
+});
+
+/**
+ * 表格滚动时关闭所有已打开的 tooltip
+ * 使用 document 级 capture 监听，捕获所有滚动容器的 scroll 事件，
+ * 解决 el-tooltip popper teleport 到 body 后无法感知表格内部滚动的问题
+ */
+const handleScrollHideTooltips = () => {
+  for (const t of tooltipRefs.value) {
+    t?.onClose?.();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('scroll', handleScrollHideTooltips, { capture: true, passive: true });
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('scroll', handleScrollHideTooltips, { capture: true });
+});
 
 /**
  * 将 URL 文本归一化为可跳转的完整链接

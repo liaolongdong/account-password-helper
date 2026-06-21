@@ -166,6 +166,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   /**
    * 切换收藏状态
+   * 切换后自动滚动到目标行并短暂高亮，提供操作反馈
    */
   const toggleFavorite = async (id: string) => {
     try {
@@ -182,6 +183,15 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         return b.updateTime - a.updateTime;
       });
       ElMessage.success(newFav ? '已收藏' : '已取消收藏');
+      // 等待 el-table 完成虚拟 DOM 更新后滚动到目标行并高亮（复用 new-item 样式）
+      setTimeout(() => {
+        const row = document.querySelector(`.${id}`);
+        if (row) {
+          row.classList.add('new-item');
+          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => row.classList.remove('new-item'), 6000);
+        }
+      }, 100);
     } catch (error) {
       logger.error('切换收藏失败:', error);
       ElMessage.error('操作失败');
