@@ -18,11 +18,7 @@
   ],
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ]
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"]
   },
   "type": "module",
   "scripts": {
@@ -48,16 +44,9 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
     "crypto-js": "^4.2.0",
