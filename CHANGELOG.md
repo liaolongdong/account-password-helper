@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.4.0](https://github.com/liaolongdong/account-password-helper/compare/v2.3.0...v2.4.0) (2026-06-21)
+
+
+### Features
+
+* 测试 release-please 自动发版与构建上传流程 ([4eaf76a](https://github.com/liaolongdong/account-password-helper/commit/4eaf76a06f065fb835567ddf6a6157537af5f452))
+
+
+### Bug Fixes
+
+* **ci:** 恢复使用 PAT，保留 checkout tag 修复 ([c8ed3e7](https://github.com/liaolongdong/account-password-helper/commit/c8ed3e7a7d69d72d3ffa0c8fb24894739fada643))
+* **ci:** 统一使用 GITHUB_TOKEN，修复 release-please 构建上传不执行的问题 ([203a3e5](https://github.com/liaolongdong/account-password-helper/commit/203a3e5c0a64803a7e62f91d8ba19a2586cbabaa))
+
 ## [2.3.0](https://github.com/liaolongdong/account-password-helper/compare/v2.2.0...v2.3.0) (2026-06-21)
 
 
