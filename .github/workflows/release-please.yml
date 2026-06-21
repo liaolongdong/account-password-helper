@@ -44,7 +44,8 @@ jobs:
       - name: Build & Zip Extension
         run: pnpm exec wxt build
         env:
-          DEBUG: wxt:*
+          NODE_ENV: production
+          NODE_OPTIONS: --max-old-space-size=4096
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
