@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.2.0](https://github.com/liaolongdong/account-password-helper/compare/v2.1.0...v2.2.0) (2026-06-21)
+
+
+### Features
+
+* **clipboard:** 添加剪贴板自动清除功能及密码生成器 ([f0fed69](https://github.com/liaolongdong/account-password-helper/commit/f0fed6912516db83e849c81285bcaffb984bf162))
+
 ## [2.1.0](https://github.com/liaolongdong/account-password-helper/compare/v2.0.0...v2.1.0) (2026-06-20)
 
 
