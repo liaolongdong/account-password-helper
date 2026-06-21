@@ -115,6 +115,12 @@
               >
                 自动锁定设置
               </el-dropdown-item>
+              <el-dropdown-item
+                command="clipboard"
+                :icon="DocumentCopy"
+              >
+                剪贴板设置
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -147,6 +153,7 @@ import {
   Lock,
   Unlock,
   Clock,
+  DocumentCopy,
 } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 

@@ -6,6 +6,7 @@ import type {
   AutoSaveConfig,
   AutoSavePasswordData,
   EncryptedPasswordEntry,
+  ClipboardConfig,
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import {
@@ -888,6 +889,50 @@ export class StorageUtils {
     } catch (error) {
       logger.error('自动保存密码失败:', error);
       return { success: false, message: '自动保存失败: ' + (error instanceof Error ? error.message : '未知错误') };
+    }
+  }
+
+  // ==================== 剪贴板配置 ====================
+
+  /**
+   * 获取默认剪贴板配置
+   */
+  static getDefaultClipboardConfig(): ClipboardConfig {
+    return {
+      autoClear: true,
+      clearAfterSeconds: 30,
+    };
+  }
+
+  /**
+   * 获取剪贴板配置（带默认值）
+   */
+  static async getClipboardConfig(): Promise<ClipboardConfig> {
+    const defaultConfig = this.getDefaultClipboardConfig();
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.CLIPBOARD_CONFIG);
+      const config = result[STORAGE_KEYS.CLIPBOARD_CONFIG] as Partial<ClipboardConfig> | undefined;
+      if (!config) return defaultConfig;
+      return { ...defaultConfig, ...config };
+    } catch (error) {
+      logger.error('获取剪贴板配置失败:', error);
+      return defaultConfig;
+    }
+  }
+
+  /**
+   * 保存剪贴板配置
+   */
+  static async saveClipboardConfig(config: Partial<ClipboardConfig>): Promise<void> {
+    try {
+      const current = await this.getClipboardConfig();
+      const updated: ClipboardConfig = { ...current, ...config };
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.CLIPBOARD_CONFIG]: updated,
+      });
+    } catch (error) {
+      logger.error('保存剪贴板配置失败:', error);
+      throw error;
     }
   }
 }

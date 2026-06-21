@@ -149,6 +149,9 @@
 
     <!-- 闲置锁定设置弹窗 -->
     <IdleLockSetting v-model="showIdleLockDialog" />
+
+    <!-- 剪贴板设置弹窗 -->
+    <ClipboardSettingDialog v-model="showClipboardDialog" />
   </div>
 </template>
 
@@ -163,6 +166,7 @@ import ValiditySettingDialog from '@/components/options/ValiditySettingDialog.vu
 import EmailBackupDialog from '@/components/options/EmailBackupDialog.vue';
 import AutoSaveSettingDialog from '@/components/options/AutoSaveSettingDialog.vue';
 import IdleLockSetting from '@/components/options/IdleLockSetting.vue';
+import ClipboardSettingDialog from '@/components/options/ClipboardSettingDialog.vue';
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
 import PasswordFormDialog from '@/components/options/PasswordFormDialog.vue';
@@ -214,6 +218,9 @@ const showAutoSaveDialog = ref(false);
 
 /** 闲置锁定设置弹窗可见性 */
 const showIdleLockDialog = ref(false);
+
+/** 剪贴板设置弹窗可见性 */
+const showClipboardDialog = ref(false);
 
 /** 当前插件版本号（复用 useVersionUpdate） */
 const { currentVersion } = useVersionUpdate();
@@ -293,6 +300,9 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'idleLock':
       showIdleLockDialog.value = true;
+      break;
+    case 'clipboard':
+      showClipboardDialog.value = true;
       break;
   }
 };

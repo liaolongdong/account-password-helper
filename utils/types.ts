@@ -332,6 +332,16 @@ export interface UpdateInfo {
 export type FillStrategy = 'native' | 'execCommand' | 'simulate';
 
 /**
+ * 剪贴板配置接口
+ */
+export interface ClipboardConfig {
+  /** 是否启用复制密码后自动清除剪贴板，默认 true */
+  autoClear: boolean;
+  /** 清除延时（秒），默认 30 */
+  clearAfterSeconds: number;
+}
+
+/**
  * 单个字段填充结果接口
  */
 export interface FieldFillResult {

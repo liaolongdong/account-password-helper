@@ -58,6 +58,10 @@
             </template>
           </el-input>
         </PasswordStrengthPopover>
+        <PasswordGeneratorPopover
+          :disabled="loading"
+          @confirm="handleGeneratedPassword"
+        />
       </el-form-item>
 
       <el-form-item
@@ -141,6 +145,7 @@ import { ref, reactive, watch } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
+import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopover.vue';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
 
@@ -210,6 +215,14 @@ const localFormRef = ref<FormInstance>();
 
 /** 密码输入框焦点状态 */
 const formPasswordInputFocused = ref(false);
+
+/**
+ * 处理密码生成器确认事件
+ * @param password 生成的密码
+ */
+const handleGeneratedPassword = (password: string) => {
+  localForm.password = password;
+};
 
 /** 暴露表单引用供父组件调用 validate / clearValidate */
 defineExpose({ formRef: localFormRef });
