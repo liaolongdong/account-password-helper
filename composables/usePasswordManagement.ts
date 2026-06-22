@@ -8,6 +8,7 @@ import { logger } from '@/utils/logger';
 import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimeCompact } from '@/utils/dateFormat';
+import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
@@ -60,6 +61,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   // 状态
   const passwords = ref<PasswordEntry[]>([]);
+  /** 当前排序状态（由 el-table @sort-change 驱动更新） */
+  const currentSort = ref<SortState>({ ...DEFAULT_SORT });
   const showImportDialog = ref(false);
   const showPasswordDialog = ref(false);
   const showEmailBackupDialog = ref(false);
@@ -96,9 +99,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   // 悬浮按钮
   const floatingButtonVisible = ref(true);
 
-  // 计算属性
+  // 计算属性（过滤 + 排序，替代 el-table 客户端排序）
   const filteredPasswords = computed(() => {
-    let result = [...passwords.value];
+    let result: PasswordEntry[] = passwords.value;
 
     if (searchKeyword.value) {
       const keyword = searchKeyword.value.toLowerCase();
@@ -115,7 +118,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       result = result.filter(p => p.favorite);
     }
 
-    return result;
+    // 始终按当前排序状态排序（替代 el-table 客户端排序）
+    return sortPasswordEntries([...result], currentSort.value);
   });
 
   /** 收藏过滤变化时清空选中状态（符合交互策略：过滤条件变化清空选中） */
@@ -166,6 +170,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   /**
    * 切换收藏状态
+   * 当收藏数已达上限时，自动淘汰最近最少使用（LRU）的收藏条目，再添加新收藏
    * 切换后自动滚动到目标行并短暂高亮，提供操作反馈
    */
   const toggleFavorite = async (id: string) => {
@@ -173,16 +178,32 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       const entry = passwords.value.find(p => p.id === id);
       if (!entry) return;
       const newFav = !entry.favorite;
-      await StorageUtils.updatePassword(id, { favorite: newFav, updateTime: entry.updateTime });
-      entry.favorite = newFav;
-      // 重新排序确保收藏置顶
-      passwords.value.sort((a, b) => {
-        const favA = a.favorite ? 1 : 0;
-        const favB = b.favorite ? 1 : 0;
-        if (favA !== favB) return favB - favA;
-        return b.updateTime - a.updateTime;
-      });
-      ElMessage.success(newFav ? '已收藏' : '已取消收藏');
+
+      if (newFav) {
+        // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目
+        const evicted = await StorageUtils.evictLRUFavoriteIfNeeded(passwords.value);
+        if (evicted) {
+          const limit = await StorageUtils.getFavoriteLimit();
+          ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
+        }
+        // 设置新收藏条目及其使用时间戳
+        const now = Date.now();
+        await StorageUtils.updatePassword(id, { favorite: true, favoriteUsedAt: now, updateTime: entry.updateTime });
+        entry.favorite = true;
+        entry.favoriteUsedAt = now;
+        ElMessage.success('已收藏');
+      } else {
+        // 取消收藏，清除使用时间戳
+        await StorageUtils.updatePassword(id, {
+          favorite: false,
+          favoriteUsedAt: undefined,
+          updateTime: entry.updateTime,
+        });
+        entry.favorite = false;
+        entry.favoriteUsedAt = undefined;
+        ElMessage.success('已取消收藏');
+      }
+
       // 等待 el-table 完成虚拟 DOM 更新后滚动到目标行并高亮（复用 new-item 样式）
       setTimeout(() => {
         const row = document.querySelector(`.${id}`);
@@ -234,18 +255,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
       passwords.value = await StorageUtils.getAllPasswords();
 
-      // 按更新时间倒序排序，收藏条目始终置顶
-      passwords.value.sort((a, b) => {
-        const favA = a.favorite ? 1 : 0;
-        const favB = b.favorite ? 1 : 0;
-        if (favA !== favB) return favB - favA;
-        return b.updateTime - a.updateTime;
-      });
-
-      // 添加显示密码状态
+      // 初始化每条记录的密码显隐状态
       passwords.value.forEach(p => {
         (p as PasswordEntryWithUI).showPassword = false;
       });
+      // 排序由 filteredPasswords computed 处理，此处不再排序
 
       // 初始化有效期设置表单
       const validityHours = await StorageUtils.getMasterPasswordValidityHours();
@@ -259,12 +273,28 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
   };
 
-  // 处理排序变化
+  // 处理排序变化（同步更新 currentSort 并持久化）
   const handleSortChange = async ({ prop, order }: { prop: string; order: string }) => {
+    currentSort.value = { prop, order: (order || null) as SortState['order'] };
     try {
       await StorageUtils.saveSortConfig({ prop, order });
     } catch (error) {
       logger.error('保存排序配置失败:', error);
+    }
+  };
+
+  /**
+   * 从存储恢复排序状态到 currentSort
+   * 需在 onMounted 中、loadPasswords 之后调用，确保首次渲染使用正确的排序
+   */
+  const restoreSortConfig = async () => {
+    try {
+      const sortConfig = await StorageUtils.getSortConfig();
+      if (sortConfig) {
+        currentSort.value = { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] };
+      }
+    } catch (error) {
+      logger.debug('恢复排序配置失败:', error);
     }
   };
 
@@ -354,14 +384,20 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       const normalizedTag = stringifyTags(parseTags(passwordForm.value.tag));
 
       if (isEditingPassword.value) {
-        await StorageUtils.updatePassword(editingPasswordId.value, {
+        const updatedFields = {
           username: passwordForm.value.username.trim(),
           password: passwordForm.value.password,
           url: passwordForm.value.url.trim(),
           tag: normalizedTag,
           remark: passwordForm.value.remark.trim(),
           updateTime: Date.now(),
-        });
+        };
+        await StorageUtils.updatePassword(editingPasswordId.value, updatedFields);
+        // 就地更新：filteredPasswords computed 会自动重新排序
+        const entry = passwords.value.find(p => p.id === editingPasswordId.value);
+        if (entry) {
+          Object.assign(entry, updatedFields);
+        }
         ElMessage.success('密码更新成功');
         scrollToPassword(editingPasswordId.value);
       } else {
@@ -375,11 +411,13 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           createTime: now,
           updateTime: now,
         });
+        // 就地插入：filteredPasswords computed 会自动重新排序
+        (newEntry as PasswordEntryWithUI).showPassword = false;
+        passwords.value.push(newEntry);
         ElMessage.success('密码添加成功');
         scrollToPassword(newEntry.id);
       }
 
-      await loadPasswords();
       showPasswordDialog.value = false;
       resetPasswordForm();
     } catch (error) {
@@ -405,8 +443,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
       const copyItemId = password.id;
       const newEntry = await StorageUtils.savePassword(newPasswordEntry, undefined, copyItemId);
-
-      await loadPasswords();
+      // 就地插入：filteredPasswords computed 会自动重新排序
+      (newEntry as PasswordEntryWithUI).showPassword = false;
+      passwords.value.push(newEntry);
 
       setTimeout(() => {
         const copyAddedItem = document.querySelector(`.${newEntry.id}`);
@@ -618,13 +657,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     for (const group of groups.values()) {
       if (group.length <= 1) continue;
       duplicateGroupCount++;
-      // 收藏优先，其次按 updateTime 降序，保留第一条
-      group.sort((a, b) => {
-        const favA = a.favorite ? 1 : 0;
-        const favB = b.favorite ? 1 : 0;
-        if (favA !== favB) return favB - favA;
-        return b.updateTime - a.updateTime;
-      });
+      // 收藏优先，其次按 updateTime 降序，保留第一条（复用公共比较器）
+      group.sort((a, b) => comparePasswordEntries(a, b, DEFAULT_SORT));
       for (let i = 1; i < group.length; i++) {
         idsToRemove.push(group[i].id);
       }
@@ -675,6 +709,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     floatingButtonVisible,
     favoriteOnly,
     filteredPasswords,
+    currentSort,
     availableTags,
     tagArray,
     // 方法
@@ -682,6 +717,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     toggleFloatingButton,
     loadPasswords,
     handleSortChange,
+    restoreSortConfig,
     togglePasswordVisibility,
     handleRowClassName,
     handleSelectionChange,

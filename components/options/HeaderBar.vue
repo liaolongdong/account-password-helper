@@ -116,6 +116,12 @@
                 自动锁定设置
               </el-dropdown-item>
               <el-dropdown-item
+                command="favoriteLimit"
+                :icon="Star"
+              >
+                收藏上限设置
+              </el-dropdown-item>
+              <el-dropdown-item
                 command="clipboard"
                 :icon="DocumentCopy"
               >
@@ -154,6 +160,7 @@ import {
   Unlock,
   Clock,
   DocumentCopy,
+  Star,
 } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 

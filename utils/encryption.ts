@@ -13,6 +13,8 @@ export const STORAGE_KEYS = {
   AUTO_SAVE_CONFIG: 'auto_save_config',
   IDLE_LOCK_CONFIG: 'idle_lock_config',
   CLIPBOARD_CONFIG: 'clipboard_config',
+  FAVORITE_LIMIT: 'favorite_limit',
+  SIDEPANEL_SORT_CONFIG: 'sidepanel_sort_config',
   UPDATE_INFO: 'extension_update_info',
 };
 

@@ -2,6 +2,7 @@ import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { StorageUtils } from '@/utils/storage';
+import type { Ref } from 'vue';
 
 /** 剪贴板自动清除定时器（模块级变量，确保同一时刻只有一个定时器） */
 let clipboardClearTimer: ReturnType<typeof setTimeout> | null = null;
@@ -17,9 +18,10 @@ let copiedPasswordSnapshot: string | null = null;
  * - 剪贴板操作（复制用户名/密码，密码复制后自动清除）
  * - 编辑跳转
  *
+ * @param passwords 密码列表引用，用于就地更新 favoriteUsedAt
  * @returns 填充与剪贴板操作方法
  */
-export function useSidepanelFill() {
+export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
   /**
    * 清除剪贴板并显示通知
    *
@@ -231,6 +233,20 @@ export function useSidepanelFill() {
       // 步骤5: 根据响应显示结果
       if (response && response.success) {
         ElMessage.success(response.message || '密码填充成功');
+        // 填充成功时，刷新 lastUsedAt（"最近使用"排序依据）和 favoriteUsedAt（LRU 依据）
+        const now = Date.now();
+        if (passwords?.value) {
+          const entry = passwords.value.find(p => p.id === password.id);
+          if (entry) {
+            entry.lastUsedAt = now;
+            if (password.favorite) entry.favoriteUsedAt = now;
+          }
+        }
+        // 后台持久化，不阻塞填充流程
+        StorageUtils.updatePassword(password.id, {
+          lastUsedAt: now,
+          ...(password.favorite ? { favoriteUsedAt: now } : {}),
+        }).catch(error => logger.error('更新使用时间戳失败:', error));
         // 隐藏侧边栏（必须携带 tabId，因为 sidepanel 发出的消息 sender.tab 为 undefined）
         await chrome.runtime.sendMessage({
           type: MessageType.HIDE_SIDEPANEL,

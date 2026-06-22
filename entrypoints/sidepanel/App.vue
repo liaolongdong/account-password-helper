@@ -39,6 +39,87 @@
           @click="favoriteOnly = !favoriteOnly"
         />
       </el-tooltip>
+      <el-tooltip
+        content="排序方式"
+        placement="top"
+        :show-after="400"
+      >
+        <el-dropdown
+          trigger="click"
+          popper-class="sort-dropdown-popper"
+          @command="handleSortChange"
+        >
+          <el-button
+            :icon="Sort"
+            circle
+            size="small"
+          />
+          <template #dropdown>
+            <el-dropdown-menu>
+              <el-dropdown-item
+                command="lastUsedAt"
+                :class="{ 'is-active': sidepanelSortProp === 'lastUsedAt' }"
+              >
+                <el-icon class="sort-item-icon"><Timer /></el-icon>
+                <span>最近使用</span>
+                <el-icon
+                  v-if="sidepanelSortProp === 'lastUsedAt'"
+                  class="sort-check-icon"
+                  ><Check
+                /></el-icon>
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="updateTime"
+                :class="{ 'is-active': sidepanelSortProp === 'updateTime' }"
+              >
+                <el-icon class="sort-item-icon"><Refresh /></el-icon>
+                <span>最近更新</span>
+                <el-icon
+                  v-if="sidepanelSortProp === 'updateTime'"
+                  class="sort-check-icon"
+                  ><Check
+                /></el-icon>
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="username"
+                :class="{ 'is-active': sidepanelSortProp === 'username' }"
+              >
+                <el-icon class="sort-item-icon"><User /></el-icon>
+                <span>用户名</span>
+                <el-icon
+                  v-if="sidepanelSortProp === 'username'"
+                  class="sort-check-icon"
+                  ><Check
+                /></el-icon>
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="url"
+                :class="{ 'is-active': sidepanelSortProp === 'url' }"
+              >
+                <el-icon class="sort-item-icon"><Link /></el-icon>
+                <span>网址</span>
+                <el-icon
+                  v-if="sidepanelSortProp === 'url'"
+                  class="sort-check-icon"
+                  ><Check
+                /></el-icon>
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="createTime"
+                :class="{ 'is-active': sidepanelSortProp === 'createTime' }"
+              >
+                <el-icon class="sort-item-icon"><Clock /></el-icon>
+                <span>创建时间</span>
+                <el-icon
+                  v-if="sidepanelSortProp === 'createTime'"
+                  class="sort-check-icon"
+                  ><Check
+                /></el-icon>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
+      </el-tooltip>
     </div>
 
     <!-- 未验证状态 -->
@@ -164,7 +245,20 @@
 
 <script setup lang="ts">
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
-import { Search, Loading, Star, StarFilled, Plus } from '@element-plus/icons-vue';
+import {
+  Search,
+  Loading,
+  Star,
+  StarFilled,
+  Plus,
+  Sort,
+  Check,
+  Timer,
+  Refresh,
+  User,
+  Link,
+  Clock,
+} from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import HelpDialog from '@/components/sidepanel/HelpDialog.vue';
 import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
@@ -173,6 +267,7 @@ import type { PasswordEntry } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { useSidepanelSettings } from '@/composables/useSidepanelSettings';
@@ -191,7 +286,8 @@ const {
   getDomainPriority,
 } = useSidepanelData();
 
-const { fillPassword, handleFillAndLogin, handleEditPassword, copyUsername, copyPassword } = useSidepanelFill();
+const { fillPassword, handleFillAndLogin, handleEditPassword, copyUsername, copyPassword } =
+  useSidepanelFill(passwords);
 
 /** 设置弹窗 DOM 引用（本地声明以确保 vue-tsc 可追踪模板引用） */
 const settingsPanelEl = ref<HTMLElement | null>(null);
@@ -218,56 +314,6 @@ const showHelpDialog = ref(false);
 
 // ==================== 排序与过滤 ====================
 
-/** 同步排序（使用缓存的 sortConfig） */
-const applySortConfig = (list: PasswordEntry[]) => {
-  const config = sortConfig.value;
-  if (!config) {
-    list.sort((a, b) => {
-      const dp = getDomainPriority(a) - getDomainPriority(b);
-      return dp !== 0 ? dp : b.updateTime - a.updateTime;
-    });
-    return;
-  }
-  list.sort((a, b) => {
-    const dp = getDomainPriority(a) - getDomainPriority(b);
-    if (dp !== 0) return dp;
-    let aVal: any, bVal: any;
-    switch (config.prop) {
-      case 'username':
-        aVal = a.username;
-        bVal = b.username;
-        break;
-      case 'url':
-        aVal = a.url;
-        bVal = b.url;
-        break;
-      case 'tag':
-        aVal = a.tag;
-        bVal = b.tag;
-        break;
-      case 'remark':
-        aVal = a.remark;
-        bVal = b.remark;
-        break;
-      case 'createTime':
-        aVal = a.createTime;
-        bVal = b.createTime;
-        break;
-      case 'updateTime':
-        aVal = a.updateTime;
-        bVal = b.updateTime;
-        break;
-      default:
-        return b.updateTime - a.updateTime;
-    }
-    let cmp;
-    if (typeof aVal === 'string' && typeof bVal === 'string') cmp = aVal.localeCompare(bVal);
-    else if (typeof aVal === 'number' && typeof bVal === 'number') cmp = aVal - bVal;
-    else return b.updateTime - a.updateTime;
-    return config.order === 'ascending' ? cmp : -cmp;
-  });
-};
-
 /** 搜索 + 过滤 + 排序的派生计算属性 */
 const filteredPasswords = computed(() => {
   let result = [...passwords.value];
@@ -287,15 +333,11 @@ const filteredPasswords = computed(() => {
     result = result.filter(p => p.favorite);
   }
 
-  applySortConfig(result);
-
-  // 收藏条目始终置顶
-  result.sort((a, b) => {
-    const favA = a.favorite ? 1 : 0;
-    const favB = b.favorite ? 1 : 0;
-    if (favA !== favB) return favB - favA;
-    return 0;
-  });
+  // 应用排序：域名优先级 + 收藏置顶 + 字段排序（复用公共比较器）
+  const sortState: SortState = sortConfig.value
+    ? { prop: sortConfig.value.prop, order: (sortConfig.value.order || null) as SortState['order'] }
+    : DEFAULT_SIDEPANEL_SORT;
+  sortPasswordEntries(result, sortState, getDomainPriority);
 
   return result;
 });
@@ -304,6 +346,22 @@ const filteredPasswords = computed(() => {
 watch(favoriteOnly, () => {
   activeIndex.value = 0;
 });
+
+// ==================== 排序切换 ====================
+
+/** 当前排序字段（派生自 sortConfig，用于 UI 高亮选中项） */
+const sidepanelSortProp = computed(() => sortConfig.value?.prop ?? DEFAULT_SIDEPANEL_SORT.prop);
+
+/** 排序下拉切换处理 */
+const handleSortChange = async (prop: string) => {
+  const config = { prop, order: 'descending' as const };
+  sortConfig.value = config;
+  try {
+    await StorageUtils.saveSidepanelSortConfig(config);
+  } catch (error) {
+    logger.error('SidePanel: 保存排序配置失败:', error);
+  }
+};
 
 // ==================== UI 交互方法 ====================
 
@@ -363,15 +421,42 @@ const scrollToActiveItem = () => {
   });
 };
 
-/** 切换收藏状态 */
+/** 切换收藏状态（支持 LRU 淘汰：收藏数达上限时自动替换最近最少使用的收藏条目） */
 const toggleFavorite = async (password: PasswordEntry) => {
   try {
     const newFav = !password.favorite;
-    await StorageUtils.updatePassword(password.id, { favorite: newFav, updateTime: password.updateTime });
-    // 通过 passwords 数组查找更新，而非直接变更 prop
     const entry = passwords.value.find(p => p.id === password.id);
-    if (entry) entry.favorite = newFav;
-    ElMessage.success(newFav ? '已收藏' : '已取消收藏');
+
+    if (newFav) {
+      // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目
+      const evicted = await StorageUtils.evictLRUFavoriteIfNeeded(passwords.value);
+      if (evicted) {
+        const limit = await StorageUtils.getFavoriteLimit();
+        ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
+      }
+      const now = Date.now();
+      await StorageUtils.updatePassword(password.id, {
+        favorite: true,
+        favoriteUsedAt: now,
+        updateTime: password.updateTime,
+      });
+      if (entry) {
+        entry.favorite = true;
+        entry.favoriteUsedAt = now;
+      }
+      ElMessage.success('已收藏');
+    } else {
+      await StorageUtils.updatePassword(password.id, {
+        favorite: false,
+        favoriteUsedAt: undefined,
+        updateTime: password.updateTime,
+      });
+      if (entry) {
+        entry.favorite = false;
+        entry.favoriteUsedAt = undefined;
+      }
+      ElMessage.success('已取消收藏');
+    }
   } catch (error) {
     logger.error('切换收藏失败:', error);
     ElMessage.error('操作失败');
@@ -571,9 +656,79 @@ onMounted(async () => {
 .password-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+/* 排序触发按钮：当选中非默认排序时显示微妙激活态 */
+.search-section :deep(.el-dropdown) .el-button.is-active-sort {
+  color: #409eff;
+  background: #ecf5ff;
+  border-color: #d9ecff;
+}
 </style>
 
 <style>
+/* 排序下拉菜单（popper teleported 到 body，无法使用 scoped） */
+.sort-dropdown-popper {
+  border-radius: 8px !important;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 10%) !important;
+}
+
+.sort-dropdown-popper .el-dropdown-menu {
+  padding: 4px 0;
+}
+
+.sort-dropdown-popper .el-dropdown-menu__item {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  padding: 8px 12px;
+  margin: 0 4px;
+  font-size: 12px;
+  color: #374151;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.sort-dropdown-popper .el-dropdown-menu__item .sort-item-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  font-size: 15px;
+  color: #9ca3af;
+  transition: color 0.2s ease;
+}
+
+.sort-dropdown-popper .el-dropdown-menu__item span {
+  flex: 1;
+  text-align: left;
+}
+
+.sort-dropdown-popper .el-dropdown-menu__item .sort-check-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #409eff;
+}
+
+.sort-dropdown-popper .el-dropdown-menu__item:hover {
+  color: #1f2937;
+  background: #f5f7fa;
+}
+
+.sort-dropdown-popper .el-dropdown-menu__item:hover .sort-item-icon {
+  color: #6b7280;
+}
+
+.sort-dropdown-popper .el-dropdown-menu__item.is-active {
+  color: #409eff;
+  background: #ecf5ff;
+}
+
+.sort-dropdown-popper .el-dropdown-menu__item.is-active .sort-item-icon {
+  color: #409eff;
+}
+
 html,
 body {
   height: 100%;

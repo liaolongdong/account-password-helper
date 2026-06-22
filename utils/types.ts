@@ -39,6 +39,14 @@ export interface PasswordEntry {
    */
   favorite?: boolean;
   /**
+   * 收藏最后使用时间戳（LRU 淘汰依据），未收藏或从未使用时为 undefined
+   */
+  favoriteUsedAt?: number;
+  /**
+   * 最后使用时间戳（侧边栏填充时刷新），从未使用时为 undefined
+   */
+  lastUsedAt?: number;
+  /**
    * 排列顺序
    */
   order: number;

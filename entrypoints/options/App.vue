@@ -150,6 +150,9 @@
     <!-- 闲置锁定设置弹窗 -->
     <IdleLockSetting v-model="showIdleLockDialog" />
 
+    <!-- 收藏上限设置弹窗 -->
+    <FavoriteLimitSetting v-model="showFavoriteLimitDialog" />
+
     <!-- 剪贴板设置弹窗 -->
     <ClipboardSettingDialog v-model="showClipboardDialog" />
   </div>
@@ -166,6 +169,7 @@ import ValiditySettingDialog from '@/components/options/ValiditySettingDialog.vu
 import EmailBackupDialog from '@/components/options/EmailBackupDialog.vue';
 import AutoSaveSettingDialog from '@/components/options/AutoSaveSettingDialog.vue';
 import IdleLockSetting from '@/components/options/IdleLockSetting.vue';
+import FavoriteLimitSetting from '@/components/options/FavoriteLimitSetting.vue';
 import ClipboardSettingDialog from '@/components/options/ClipboardSettingDialog.vue';
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -184,7 +188,6 @@ import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { isDev } from '@/utils/env';
-import { StorageUtils } from '@/utils/storage';
 
 /** 密码表单弹窗组件引用（用于获取内部 form ref） */
 const passwordFormDialogRef = ref();
@@ -218,6 +221,9 @@ const showAutoSaveDialog = ref(false);
 
 /** 闲置锁定设置弹窗可见性 */
 const showIdleLockDialog = ref(false);
+
+/** 收藏上限设置弹窗可见性 */
+const showFavoriteLimitDialog = ref(false);
 
 /** 剪贴板设置弹窗可见性 */
 const showClipboardDialog = ref(false);
@@ -301,6 +307,9 @@ const handleSettingsCommand = (command: string) => {
     case 'idleLock':
       showIdleLockDialog.value = true;
       break;
+    case 'favoriteLimit':
+      showFavoriteLimitDialog.value = true;
+      break;
     case 'clipboard':
       showClipboardDialog.value = true;
       break;
@@ -323,12 +332,14 @@ const {
   floatingButtonVisible,
   favoriteOnly,
   filteredPasswords,
+  currentSort,
   availableTags,
   tagArray,
   loadFloatingButtonConfig,
   toggleFloatingButton,
   loadPasswords,
   handleSortChange,
+  restoreSortConfig: initSortConfig,
   togglePasswordVisibility,
   handleRowClassName,
   handleSelectionChange,
@@ -430,15 +441,13 @@ onMounted(async () => {
 
 /**
  * 从存储恢复表格排序状态
+ * 先同步 currentSort（驱动 filteredPasswords computed），再调用 el-table.sort() 恢复视觉排序指示器
  */
 const restoreSortConfig = async () => {
-  try {
-    const sortConfig = await StorageUtils.getSortConfig();
-    if (sortConfig && passwordTableRef.value?.tableRef) {
-      passwordTableRef.value.tableRef.sort(sortConfig.prop, sortConfig.order);
-    }
-  } catch (error) {
-    logger.debug('恢复排序配置失败:', error);
+  await initSortConfig();
+  const sortConfig = currentSort.value;
+  if (sortConfig.prop && sortConfig.order && passwordTableRef.value?.tableRef) {
+    passwordTableRef.value.tableRef.sort(sortConfig.prop, sortConfig.order);
   }
 };
 

@@ -136,9 +136,9 @@ export function useSidepanelData() {
         return;
       }
 
-      // 加载排序配置
+      // 加载侧边栏专属排序配置（独立于 Options 排序配置）
       try {
-        sortConfig.value = await StorageUtils.getSortConfig();
+        sortConfig.value = await StorageUtils.getSidepanelSortConfig();
       } catch {
         sortConfig.value = null;
       }

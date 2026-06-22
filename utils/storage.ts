@@ -9,6 +9,7 @@ import type {
   ClipboardConfig,
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
 import {
   STORAGE_KEYS,
   hashPassword,
@@ -413,6 +414,7 @@ export class StorageUtils {
 
   /**
    * 应用保存的排序配置
+   * 读取存储的排序状态，结合可选的域名优先级函数，对密码列表就地排序
    */
   static async applySavedSortConfig(passwords: PasswordEntry[], domain?: string): Promise<void> {
     const getDomainPriority = (entry: PasswordEntry): number => {
@@ -424,71 +426,13 @@ export class StorageUtils {
 
     try {
       const sortConfig = await this.getSortConfig();
-
-      if (sortConfig) {
-        passwords.sort((a, b) => {
-          const aPriority = getDomainPriority(a);
-          const bPriority = getDomainPriority(b);
-          if (aPriority !== bPriority) return aPriority - bPriority;
-
-          let aValue: any, bValue: any;
-
-          switch (sortConfig.prop) {
-            case 'username':
-              aValue = a.username;
-              bValue = b.username;
-              break;
-            case 'url':
-              aValue = a.url;
-              bValue = b.url;
-              break;
-            case 'tag':
-              aValue = a.tag;
-              bValue = b.tag;
-              break;
-            case 'remark':
-              aValue = a.remark;
-              bValue = b.remark;
-              break;
-            case 'createTime':
-              aValue = a.createTime;
-              bValue = b.createTime;
-              break;
-            case 'updateTime':
-              aValue = a.updateTime;
-              bValue = b.updateTime;
-              break;
-            default:
-              return b.updateTime - a.updateTime;
-          }
-
-          let comparison;
-          if (typeof aValue === 'string' && typeof bValue === 'string') {
-            comparison = aValue.localeCompare(bValue);
-          } else if (typeof aValue === 'number' && typeof bValue === 'number') {
-            comparison = aValue - bValue;
-          } else {
-            return b.updateTime - a.updateTime;
-          }
-
-          return sortConfig.order === 'ascending' ? comparison : -comparison;
-        });
-      } else {
-        passwords.sort((a, b) => {
-          const aPriority = getDomainPriority(a);
-          const bPriority = getDomainPriority(b);
-          if (aPriority !== bPriority) return aPriority - bPriority;
-          return b.updateTime - a.updateTime;
-        });
-      }
+      const sortState = sortConfig
+        ? { prop: sortConfig.prop, order: (sortConfig.order || null) as 'ascending' | 'descending' | null }
+        : DEFAULT_SORT;
+      sortPasswordEntries(passwords, sortState, getDomainPriority);
     } catch (error) {
       logger.error('应用排序配置失败，使用默认排序:', error);
-      passwords.sort((a, b) => {
-        const aPriority = getDomainPriority(a);
-        const bPriority = getDomainPriority(b);
-        if (aPriority !== bPriority) return aPriority - bPriority;
-        return b.updateTime - a.updateTime;
-      });
+      sortPasswordEntries(passwords, DEFAULT_SORT, getDomainPriority);
     }
   }
 
@@ -540,6 +484,35 @@ export class StorageUtils {
     } catch (error) {
       logger.error('获取排序配置失败:', error);
       return null;
+    }
+  }
+
+  // ==================== 侧边栏专属排序配置 ====================
+
+  /**
+   * 获取侧边栏排序配置（独立于 Options 排序配置）
+   */
+  static async getSidepanelSortConfig(): Promise<{ prop: string; order: string } | null> {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.SIDEPANEL_SORT_CONFIG);
+      return (result[STORAGE_KEYS.SIDEPANEL_SORT_CONFIG] as { prop: string; order: string } | undefined) || null;
+    } catch (error) {
+      logger.error('获取侧边栏排序配置失败:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 保存侧边栏排序配置
+   */
+  static async saveSidepanelSortConfig(config: { prop: string; order: string }): Promise<void> {
+    try {
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.SIDEPANEL_SORT_CONFIG]: config,
+      });
+    } catch (error) {
+      logger.error('保存侧边栏排序配置失败:', error);
+      throw error;
     }
   }
 
@@ -903,6 +876,80 @@ export class StorageUtils {
       autoClear: true,
       clearAfterSeconds: 30,
     };
+  }
+
+  // ==================== 收藏上限配置 ====================
+
+  /** 默认收藏上限 */
+  static readonly DEFAULT_FAVORITE_LIMIT = 10;
+
+  /**
+   * 获取收藏上限配置
+   */
+  static async getFavoriteLimit(): Promise<number> {
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.FAVORITE_LIMIT);
+      const limit = result[STORAGE_KEYS.FAVORITE_LIMIT] as number | undefined;
+      return limit ?? this.DEFAULT_FAVORITE_LIMIT;
+    } catch (error) {
+      logger.error('获取收藏上限失败:', error);
+      return this.DEFAULT_FAVORITE_LIMIT;
+    }
+  }
+
+  /**
+   * 设置收藏上限
+   * @param limit 收藏上限值，范围 1~50
+   */
+  static async setFavoriteLimit(limit: number): Promise<void> {
+    try {
+      if (limit < 1 || limit > 50) {
+        throw new Error('收藏上限必须在 1 到 50 之间');
+      }
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.FAVORITE_LIMIT]: limit,
+      });
+    } catch (error) {
+      logger.error('设置收藏上限失败:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * LRU 淘汰：当收藏数已达上限时，取消最近最少使用的收藏条目
+   *
+   * 在最近收藏条目中找出 favoriteUsedAt 最小的一项，将其 favorite 置为 false、
+   * favoriteUsedAt 清除，并持久化到存储。
+   *
+   * @param passwords 当前密码列表（就地修改，调用方无需额外同步）
+   * @returns 被淘汰的条目（未发生淘汰时返回 null）
+   */
+  static async evictLRUFavoriteIfNeeded(passwords: PasswordEntry[]): Promise<PasswordEntry | null> {
+    try {
+      const limit = await this.getFavoriteLimit();
+      const favorites = passwords.filter(p => p.favorite);
+      if (favorites.length < limit) return null;
+
+      // 找 favoriteUsedAt 最小的条目（无 favoriteUsedAt 视为最旧，优先淘汰）
+      const lruEntry = favorites.reduce((oldest, cur) => {
+        const oldestTs = oldest.favoriteUsedAt ?? 0;
+        const curTs = cur.favoriteUsedAt ?? 0;
+        return curTs < oldestTs ? cur : oldest;
+      });
+
+      // 就地更新并持久化
+      lruEntry.favorite = false;
+      lruEntry.favoriteUsedAt = undefined;
+      await this.updatePassword(lruEntry.id, {
+        favorite: false,
+        favoriteUsedAt: undefined,
+        updateTime: lruEntry.updateTime,
+      });
+      return lruEntry;
+    } catch (error) {
+      logger.error('LRU 收藏淘汰失败:', error);
+      return null;
+    }
   }
 
   /**

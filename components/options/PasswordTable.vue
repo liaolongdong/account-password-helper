@@ -22,9 +22,8 @@
         prop="username"
         label="用户名"
         min-width="150"
-        sortable
+        sortable="custom"
         show-overflow-tooltip
-        :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.username.localeCompare(b.username)"
       >
         <template #default="{ row }">
           {{ row.username }}
@@ -52,9 +51,8 @@
         prop="url"
         label="网址"
         min-width="200"
-        sortable
+        sortable="custom"
         show-overflow-tooltip
-        :sort-method="(a: PasswordEntry, b: PasswordEntry) => (a.url || '').localeCompare(b.url || '')"
       >
         <template #default="{ row }">
           <template v-if="row.url">
@@ -77,8 +75,7 @@
         label="标签"
         min-width="100"
         class-name="tag-col"
-        sortable
-        :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.tag.localeCompare(b.tag)"
+        sortable="custom"
       >
         <template #default="{ row }">
           <template v-if="parseTags(row.tag).length">
@@ -93,7 +90,7 @@
             >
               <el-tag
                 :color="getTagColor(t).background"
-                :style="{ color: getTagColor(t).text, borderColor: getTagColor(t).border }"
+                :style="getTagStyle(t)"
                 size="small"
                 class="tag-item"
                 @mouseenter="(e: MouseEvent) => checkTagOverflow(e, t)"
@@ -113,9 +110,8 @@
         prop="remark"
         label="备注"
         min-width="150"
-        sortable
+        sortable="custom"
         show-overflow-tooltip
-        :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.remark.localeCompare(b.remark)"
       >
         <template #default="{ row }">
           {{ row.remark || '-' }}
@@ -125,8 +121,7 @@
         prop="createTime"
         label="创建时间"
         min-width="110"
-        sortable
-        :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.createTime - b.createTime"
+        sortable="custom"
       >
         <template #default="{ row }">
           {{ formatDate(row.createTime) }}
@@ -136,8 +131,7 @@
         prop="updateTime"
         label="更新时间"
         min-width="110"
-        sortable
-        :sort-method="(a: PasswordEntry, b: PasswordEntry) => a.updateTime - b.updateTime"
+        sortable="custom"
         :sort-orders="['descending', 'ascending', null]"
       >
         <template #default="{ row }">
@@ -220,6 +214,17 @@ import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
 import { useTagOverflow } from '@/composables/useTagOverflow';
+
+/**
+ * 获取标签的合并样式对象
+ * 避免模板中对同一标签多次调用 getTagColor
+ * @param tag 标签文本
+ * @returns 包含 color 和 borderColor 的 CSSStyleDeclaration 子集
+ */
+const getTagStyle = (tag: string): Record<string, string> => {
+  const { text, border } = getTagColor(tag);
+  return { color: text, borderColor: border };
+};
 
 /**
  * 密码列表表格组件
