@@ -96,9 +96,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }],
   };
 
-  // 悬浮按钮
-  const floatingButtonVisible = ref(true);
-
   // 计算属性（过滤 + 排序，替代 el-table 客户端排序）
   const filteredPasswords = computed(() => {
     let result: PasswordEntry[] = passwords.value;
@@ -216,29 +213,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     } catch (error) {
       logger.error('切换收藏失败:', error);
       ElMessage.error('操作失败');
-    }
-  };
-
-  // 加载悬浮按钮配置
-  const loadFloatingButtonConfig = async () => {
-    try {
-      const config = await StorageUtils.getFloatingButtonConfig();
-      floatingButtonVisible.value = config.visible;
-    } catch (error) {
-      logger.error('加载悬浮按钮配置失败:', error);
-    }
-  };
-
-  // 切换悬浮按钮显示状态
-  const toggleFloatingButton = async (visible: boolean) => {
-    try {
-      await StorageUtils.setFloatingButtonVisible(visible);
-      floatingButtonVisible.value = visible;
-      ElMessage.success(visible ? '悬浮按钮已开启' : '悬浮按钮已关闭');
-    } catch (error) {
-      logger.error('切换悬浮按钮状态失败:', error);
-      ElMessage.error('操作失败，请重试');
-      floatingButtonVisible.value = !visible;
     }
   };
 
@@ -696,15 +670,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     passwordFormRules,
     passwordFormLoading,
     tableLoading,
-    floatingButtonVisible,
     favoriteOnly,
     filteredPasswords,
     currentSort,
     availableTags,
     tagArray,
     // 方法
-    loadFloatingButtonConfig,
-    toggleFloatingButton,
     loadPasswords,
     handleSortChange,
     restoreSortConfig,

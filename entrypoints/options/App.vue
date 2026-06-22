@@ -36,11 +36,10 @@
       <!-- 头部 -->
       <HeaderBar
         :current-version="currentVersion"
-        :floating-button-visible="floatingButtonVisible"
         @add-password="openPasswordDialog"
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
-        @toggle-floating-button="toggleFloatingButton"
+        @open-personalization="openPersonalizationDialog"
       />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
@@ -94,6 +93,21 @@
         @toggle-favorite="toggleFavorite"
         @delete-password="deletePassword"
       />
+    </div>
+
+    <!-- 偏好设置弹窗（复用悬浮按钮设置面板） -->
+    <div
+      v-if="showPersonalizationDialog"
+      class="sp-settings-host"
+    >
+      <div
+        ref="personalizationOverlayEl"
+        class="settings-overlay visible"
+      ></div>
+      <div
+        ref="personalizationPanelEl"
+        class="settings-panel visible"
+      ></div>
     </div>
 
     <!-- 导入Excel弹窗 -->
@@ -160,9 +174,17 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import type { FloatingButtonConfig } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { sessionManager } from '@/utils/sessionManager';
+import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import {
+  getSettingsPanelHTML,
+  bindSettingsPanelView,
+  settingsPanelViewStyles,
+  type SettingsPanelViewHandle,
+} from '@/entrypoints/content/floatingButtons/settingsPanelView';
 import ImportDialog from '@/components/options/ImportDialog.vue';
 import BackupImportDialog from '@/components/options/BackupImportDialog.vue';
 import ValiditySettingDialog from '@/components/options/ValiditySettingDialog.vue';
@@ -227,6 +249,67 @@ const showFavoriteLimitDialog = ref(false);
 
 /** 剪贴板设置弹窗可见性 */
 const showClipboardDialog = ref(false);
+
+/** 偏好设置弹窗可见性 */
+const showPersonalizationDialog = ref(false);
+const personalizationPanelEl = ref<HTMLElement | null>(null);
+const personalizationOverlayEl = ref<HTMLElement | null>(null);
+let personalizationViewHandle: SettingsPanelViewHandle | null = null;
+
+/**
+ * 关闭偏好设置弹窗
+ */
+const closePersonalizationDialog = () => {
+  personalizationViewHandle?.destroy();
+  personalizationViewHandle = null;
+  showPersonalizationDialog.value = false;
+};
+
+/**
+ * 打开偏好设置弹窗
+ * 加载最新悬浮按钮配置后渲染共用设置面板
+ */
+const openPersonalizationDialog = async () => {
+  let config: FloatingButtonConfig;
+  try {
+    config = await StorageUtils.getFloatingButtonConfig();
+  } catch (error) {
+    logger.error('Options: 加载悬浮按钮配置失败:', error);
+    return;
+  }
+  showPersonalizationDialog.value = true;
+  await nextTick();
+  if (!personalizationPanelEl.value) return;
+  personalizationPanelEl.value.innerHTML = getSettingsPanelHTML(config);
+  personalizationViewHandle = bindSettingsPanelView(
+    personalizationPanelEl.value,
+    personalizationOverlayEl.value,
+    config,
+    {
+      onConfigChange: async patch => {
+        try {
+          await StorageUtils.saveFloatingButtonConfig(patch);
+        } catch (error) {
+          logger.error('Options: 保存悬浮按钮配置失败:', error);
+          ElMessage.error('保存设置失败');
+        }
+      },
+      onClose: closePersonalizationDialog,
+    },
+  );
+};
+
+/**
+ * 将共用设置弹窗样式注入到 options 页面（仅注入一次）
+ */
+const injectPersonalizationStyles = () => {
+  const STYLE_ID = 'floating-settings-view-styles';
+  if (document.getElementById(STYLE_ID)) return;
+  const styleEl = document.createElement('style');
+  styleEl.id = STYLE_ID;
+  styleEl.textContent = settingsPanelViewStyles;
+  document.head.appendChild(styleEl);
+};
 
 /** 当前插件版本号（复用 useVersionUpdate） */
 const { currentVersion } = useVersionUpdate();
@@ -329,14 +412,11 @@ const {
   passwordFormRules,
   passwordFormLoading,
   tableLoading,
-  floatingButtonVisible,
   favoriteOnly,
   filteredPasswords,
   currentSort,
   availableTags,
   tagArray,
-  loadFloatingButtonConfig,
-  toggleFloatingButton,
   loadPasswords,
   handleSortChange,
   restoreSortConfig: initSortConfig,
@@ -429,9 +509,9 @@ useRuntimeMessageHandler({
 
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */
 onMounted(async () => {
+  injectPersonalizationStyles();
   sessionManager.init();
   window.addEventListener('sessionExpired', handleSessionExpired);
-  await loadFloatingButtonConfig();
   await checkAuth();
   // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载
   await nextTick();
@@ -452,6 +532,7 @@ const restoreSortConfig = async () => {
 };
 
 onUnmounted(() => {
+  personalizationViewHandle?.destroy();
   window.removeEventListener('sessionExpired', handleSessionExpired);
 });
 </script>

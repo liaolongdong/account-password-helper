@@ -131,15 +131,13 @@
           </template>
         </el-dropdown>
       </div>
-      <div class="header-actions-right">
-        <span class="floating-button-label">悬浮按钮</span>
-        <el-switch
-          :model-value="floatingButtonVisible"
-          active-text=""
-          inactive-text=""
-          @change="(val: any) => $emit('toggleFloatingButton', val)"
-        />
-      </div>
+      <el-button
+        type="primary"
+        :icon="Setting"
+        @click="$emit('openPersonalization')"
+      >
+        偏好设置
+      </el-button>
     </div>
   </div>
 </template>
@@ -172,8 +170,6 @@ import BrandLogo from '@/components/BrandLogo.vue';
 defineProps<{
   /** 当前插件版本号 */
   currentVersion: string;
-  /** 悬浮按钮显示状态 */
-  floatingButtonVisible: boolean;
 }>();
 
 defineEmits<{
@@ -183,8 +179,8 @@ defineEmits<{
   dataCommand: [command: string];
   /** 设置菜单项点击 */
   settingsCommand: [command: string];
-  /** 悬浮按钮开关切换 */
-  toggleFloatingButton: [visible: boolean];
+  /** 打开偏好设置弹窗 */
+  openPersonalization: [];
 }>();
 </script>
 
@@ -248,18 +244,6 @@ defineEmits<{
   gap: 12px;
 }
 
-.header-actions-right {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.floating-button-label {
-  font-size: 14px;
-  color: rgb(255 255 255 / 85%);
-  white-space: nowrap;
-}
-
 /* 下拉菜单触发按钮样式 */
 :deep(.header-actions .el-dropdown .el-button) {
   font-weight: 400;
@@ -305,6 +289,22 @@ defineEmits<{
 }
 
 :deep(.header-actions .el-button--primary:hover) {
+  color: #1890ff;
+  background: #f0f9ff;
+  border-color: #f0f9ff;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
+  transform: translateY(-1px);
+}
+
+/* 偏好设置按钮：与添加密码按钮一致的 primary 样式（位于 .header-actions 外部） */
+:deep(.header-actions-row > .el-button--primary) {
+  font-weight: 400;
+  color: #409eff;
+  background: #fff;
+  border: 1px solid #fff;
+}
+
+:deep(.header-actions-row > .el-button--primary:hover) {
   color: #1890ff;
   background: #f0f9ff;
   border-color: #f0f9ff;

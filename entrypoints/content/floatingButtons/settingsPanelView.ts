@@ -265,7 +265,7 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
   const opacityPct = Math.round(config.opacity * 100);
   return `
     <div class="settings-header">
-      <h3 class="settings-title">悬浮按钮设置</h3>
+      <h3 class="settings-title">偏好设置</h3>
       <button class="settings-close" data-action="close" title="关闭">
         ${closeIcon}
       </button>
