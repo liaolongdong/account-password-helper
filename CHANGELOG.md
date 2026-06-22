@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.4.0](https://github.com/liaolongdong/account-password-helper/compare/v2.3.0...v2.4.0) (2026-06-22)
+
+
+### Features
+
+* **favoriteLimit:** 新增收藏上限设置功能，支持收藏自动替换 ([2ab5543](https://github.com/liaolongdong/account-password-helper/commit/2ab5543105c43725435484a39ade2fb46e8075d7))
+* **import:** 支持自有模板格式的CSV导入 ([410d7d2](https://github.com/liaolongdong/account-password-helper/commit/410d7d248efe07156ef6e303e3e0c35e665b3e3e))
+* **options:** 将悬浮按钮设置整合为偏好设置弹窗 ([1c044a7](https://github.com/liaolongdong/account-password-helper/commit/1c044a78831c771c173cdc7d1468b107fe44a2c8))
+* **passwordTable:** 优化操作栏 tooltip 行为及收藏交互反馈 ([eee8a40](https://github.com/liaolongdong/account-password-helper/commit/eee8a40153d5d8013317ed4014d489743b708b9b))
+
+
+### Bug Fixes
+
+* **options:** 优化备份及导入文件格式校验和处理 ([aaa16d7](https://github.com/liaolongdong/account-password-helper/commit/aaa16d780ddbd7af3080544645fe433f43f8b238))
+
+
+### Performance Improvements
+
+* **storage:** 优化批量保存密码的性能 ([08683fb](https://github.com/liaolongdong/account-password-helper/commit/08683fbfb56b14e4756caec7280f0693b90a5e2b))
+
 ## [2.3.0](https://github.com/liaolongdong/account-password-helper/compare/v2.2.0...v2.3.0) (2026-06-21)
 
 ### Features
