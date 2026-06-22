@@ -21,6 +21,8 @@ export function useSidepanelData() {
 
   const passwords = ref<PasswordEntry[]>([]);
   const loading = ref(true);
+  /** 是否正在进行首次初始化（含缓存检测 + 会话验证），用于模板显示 loading 过渡态 */
+  const initializing = ref(true);
   const isAuthenticated = ref(false);
   const currentDomain = ref('');
   const showSidepanel = ref(true);
@@ -375,6 +377,8 @@ export function useSidepanelData() {
       logger.error('SidePanel: 初始化失败:', error);
       isAuthenticated.value = false;
       loading.value = false;
+    } finally {
+      initializing.value = false;
     }
   };
 
@@ -392,6 +396,7 @@ export function useSidepanelData() {
     // 状态
     passwords,
     loading,
+    initializing,
     isAuthenticated,
     currentDomain,
     showSidepanel,

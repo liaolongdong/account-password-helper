@@ -310,10 +310,8 @@ const handleImport = async () => {
   try {
     loading.value = true;
 
-    // 批量保存密码
-    for (const passwordData of previewData.value) {
-      await StorageUtils.savePassword(passwordData);
-    }
+    // 批量保存密码（单次读写，避免逐条 savePassword 导致的 O(M×N) 数据搬运）
+    await StorageUtils.batchSavePasswords(previewData.value);
 
     ElMessage.success(`成功导入 ${previewData.value.length} 条密码`);
     emit('imported');

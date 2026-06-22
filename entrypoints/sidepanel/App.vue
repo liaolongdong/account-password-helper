@@ -13,118 +13,18 @@
       @open-settings="openSettingsDialog"
     />
 
-    <!-- 搜索框 -->
+    <!-- 初始化 loading 过渡态：避免先闪现"需要验证主密码"再切换到密码列表 -->
     <div
-      v-if="isAuthenticated"
-      class="search-section"
+      v-if="initializing"
+      class="loading"
     >
-      <el-input
-        ref="searchInputRef"
-        v-model="searchKeyword"
-        placeholder="搜索用户名、标签、备注、网址..."
-        :prefix-icon="Search"
-        clearable
-        @input="handleSearch"
-      />
-      <el-tooltip
-        :content="favoriteOnly ? '显示全部' : '只看收藏'"
-        placement="top"
-        :show-after="400"
-      >
-        <el-button
-          :icon="favoriteOnly ? StarFilled : Star"
-          circle
-          size="small"
-          :type="favoriteOnly ? 'warning' : 'default'"
-          @click="favoriteOnly = !favoriteOnly"
-        />
-      </el-tooltip>
-      <el-tooltip
-        content="排序方式"
-        placement="top"
-        :show-after="400"
-      >
-        <el-dropdown
-          trigger="click"
-          popper-class="sort-dropdown-popper"
-          @command="handleSortChange"
-        >
-          <el-button
-            :icon="Sort"
-            circle
-            size="small"
-          />
-          <template #dropdown>
-            <el-dropdown-menu>
-              <el-dropdown-item
-                command="lastUsedAt"
-                :class="{ 'is-active': sidepanelSortProp === 'lastUsedAt' }"
-              >
-                <el-icon class="sort-item-icon"><Timer /></el-icon>
-                <span>最近使用</span>
-                <el-icon
-                  v-if="sidepanelSortProp === 'lastUsedAt'"
-                  class="sort-check-icon"
-                  ><Check
-                /></el-icon>
-              </el-dropdown-item>
-              <el-dropdown-item
-                command="updateTime"
-                :class="{ 'is-active': sidepanelSortProp === 'updateTime' }"
-              >
-                <el-icon class="sort-item-icon"><Refresh /></el-icon>
-                <span>最近更新</span>
-                <el-icon
-                  v-if="sidepanelSortProp === 'updateTime'"
-                  class="sort-check-icon"
-                  ><Check
-                /></el-icon>
-              </el-dropdown-item>
-              <el-dropdown-item
-                command="username"
-                :class="{ 'is-active': sidepanelSortProp === 'username' }"
-              >
-                <el-icon class="sort-item-icon"><User /></el-icon>
-                <span>用户名</span>
-                <el-icon
-                  v-if="sidepanelSortProp === 'username'"
-                  class="sort-check-icon"
-                  ><Check
-                /></el-icon>
-              </el-dropdown-item>
-              <el-dropdown-item
-                command="url"
-                :class="{ 'is-active': sidepanelSortProp === 'url' }"
-              >
-                <el-icon class="sort-item-icon"><Link /></el-icon>
-                <span>网址</span>
-                <el-icon
-                  v-if="sidepanelSortProp === 'url'"
-                  class="sort-check-icon"
-                  ><Check
-                /></el-icon>
-              </el-dropdown-item>
-              <el-dropdown-item
-                command="createTime"
-                :class="{ 'is-active': sidepanelSortProp === 'createTime' }"
-              >
-                <el-icon class="sort-item-icon"><Clock /></el-icon>
-                <span>创建时间</span>
-                <el-icon
-                  v-if="sidepanelSortProp === 'createTime'"
-                  class="sort-check-icon"
-                  ><Check
-                /></el-icon>
-              </el-dropdown-item>
-            </el-dropdown-menu>
-          </template>
-        </el-dropdown>
-      </el-tooltip>
+      <el-icon class="is-loading"><Loading /></el-icon>
+      <span>加载中...</span>
     </div>
 
     <!-- 未验证状态 -->
     <div
-      v-if="!isAuthenticated"
+      v-else-if="!isAuthenticated"
       class="auth-required"
     >
       <el-empty
@@ -149,65 +49,171 @@
       </el-empty>
     </div>
 
-    <!-- 密码列表 -->
-    <div
-      v-else
-      class="password-list"
-    >
-      <div
-        v-if="loading"
-        class="loading"
-      >
-        <el-icon class="is-loading"><Loading /></el-icon>
-        <span>加载中...</span>
-      </div>
-
-      <div
-        v-else-if="filteredPasswords.length === 0"
-        class="empty"
-      >
-        <!-- 全部无数据：显示引导添加 -->
-        <el-empty
-          v-if="passwords.length === 0"
-          :image-size="80"
-          description="还没有保存的密码，点击下方按钮添加吧"
+    <!-- 已认证状态：搜索框 + 密码列表 -->
+    <template v-else>
+      <!-- 搜索框 -->
+      <div class="search-section">
+        <el-input
+          ref="searchInputRef"
+          v-model="searchKeyword"
+          placeholder="搜索用户名、标签、备注、网址..."
+          :prefix-icon="Search"
+          clearable
+          @input="handleSearch"
+        />
+        <el-tooltip
+          :content="favoriteOnly ? '显示全部' : '只看收藏'"
+          placement="top"
+          :show-after="400"
         >
           <el-button
-            type="primary"
-            :icon="Plus"
-            class="empty-add-btn"
-            @click="openOptionsAndAdd"
+            :icon="favoriteOnly ? StarFilled : Star"
+            circle
+            size="small"
+            :type="favoriteOnly ? 'warning' : 'default'"
+            @click="favoriteOnly = !favoriteOnly"
+          />
+        </el-tooltip>
+        <el-tooltip
+          content="排序方式"
+          placement="top"
+          :show-after="400"
+        >
+          <el-dropdown
+            trigger="click"
+            popper-class="sort-dropdown-popper"
+            @command="handleSortChange"
           >
-            去添加密码
-          </el-button>
-        </el-empty>
-        <!-- 搜索/过滤无结果 -->
-        <el-empty
-          v-else
-          :image-size="80"
-          description="暂无匹配的密码"
-        />
+            <el-button
+              :icon="Sort"
+              circle
+              size="small"
+            />
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item
+                  command="lastUsedAt"
+                  :class="{ 'is-active': sidepanelSortProp === 'lastUsedAt' }"
+                >
+                  <el-icon class="sort-item-icon"><Timer /></el-icon>
+                  <span>最近使用</span>
+                  <el-icon
+                    v-if="sidepanelSortProp === 'lastUsedAt'"
+                    class="sort-check-icon"
+                    ><Check
+                  /></el-icon>
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="updateTime"
+                  :class="{ 'is-active': sidepanelSortProp === 'updateTime' }"
+                >
+                  <el-icon class="sort-item-icon"><Refresh /></el-icon>
+                  <span>最近更新</span>
+                  <el-icon
+                    v-if="sidepanelSortProp === 'updateTime'"
+                    class="sort-check-icon"
+                    ><Check
+                  /></el-icon>
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="username"
+                  :class="{ 'is-active': sidepanelSortProp === 'username' }"
+                >
+                  <el-icon class="sort-item-icon"><User /></el-icon>
+                  <span>用户名</span>
+                  <el-icon
+                    v-if="sidepanelSortProp === 'username'"
+                    class="sort-check-icon"
+                    ><Check
+                  /></el-icon>
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="url"
+                  :class="{ 'is-active': sidepanelSortProp === 'url' }"
+                >
+                  <el-icon class="sort-item-icon"><Link /></el-icon>
+                  <span>网址</span>
+                  <el-icon
+                    v-if="sidepanelSortProp === 'url'"
+                    class="sort-check-icon"
+                    ><Check
+                  /></el-icon>
+                </el-dropdown-item>
+                <el-dropdown-item
+                  command="createTime"
+                  :class="{ 'is-active': sidepanelSortProp === 'createTime' }"
+                >
+                  <el-icon class="sort-item-icon"><Clock /></el-icon>
+                  <span>创建时间</span>
+                  <el-icon
+                    v-if="sidepanelSortProp === 'createTime'"
+                    class="sort-check-icon"
+                    ><Check
+                  /></el-icon>
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </el-tooltip>
       </div>
 
-      <div
-        v-else
-        class="password-items"
-      >
-        <PasswordListItem
-          v-for="(password, index) in filteredPasswords"
-          :key="password.id"
-          :password="password"
-          :is-active="activeIndex === index"
-          @fill="fillPassword"
-          @fill-and-login="handleFillAndLogin"
-          @edit="handleEditPassword"
-          @toggle-favorite="toggleFavorite"
-          @copy-username="copyUsername"
-          @copy-password="copyPassword"
-          @mouseenter="activeIndex = index"
-        />
+      <!-- 密码列表 -->
+      <div class="password-list">
+        <div
+          v-if="loading"
+          class="loading"
+        >
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>加载中...</span>
+        </div>
+
+        <div
+          v-else-if="filteredPasswords.length === 0"
+          class="empty"
+        >
+          <!-- 全部无数据：显示引导添加 -->
+          <el-empty
+            v-if="passwords.length === 0"
+            :image-size="80"
+            description="还没有保存的密码，点击下方按钮添加吧"
+          >
+            <el-button
+              type="primary"
+              :icon="Plus"
+              class="empty-add-btn"
+              @click="openOptionsAndAdd"
+            >
+              去添加密码
+            </el-button>
+          </el-empty>
+          <!-- 搜索/过滤无结果 -->
+          <el-empty
+            v-else
+            :image-size="80"
+            description="暂无匹配的密码"
+          />
+        </div>
+
+        <div
+          v-else
+          class="password-items"
+        >
+          <PasswordListItem
+            v-for="(password, index) in filteredPasswords"
+            :key="password.id"
+            :password="password"
+            :is-active="activeIndex === index"
+            @fill="fillPassword"
+            @fill-and-login="handleFillAndLogin"
+            @edit="handleEditPassword"
+            @toggle-favorite="toggleFavorite"
+            @copy-username="copyUsername"
+            @copy-password="copyPassword"
+            @mouseenter="activeIndex = index"
+          />
+        </div>
       </div>
-    </div>
+    </template>
 
     <!-- 底部操作 -->
     <div class="footer">
@@ -278,6 +284,7 @@ import { useVersionUpdate } from '@/composables/useVersionUpdate';
 const {
   passwords,
   loading,
+  initializing,
   isAuthenticated,
   currentDomain,
   showSidepanel,
@@ -537,10 +544,11 @@ onMounted(async () => {
 
 .loading {
   display: flex;
+  flex: 1;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 200px;
+  min-height: 200px;
   color: #6b7280;
 }
 

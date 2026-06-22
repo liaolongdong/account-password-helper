@@ -258,6 +258,63 @@ export class StorageUtils {
   }
 
   /**
+   * 批量保存密码条目（性能优化：单次读写替代 N 次循环调用 savePassword）
+   *
+   * 避免逐条 savePassword 导致的 O(M×N) 数据搬运：
+   * 原有逻辑每条都先读全量、再写全量；本方法一次读取、一次写入。
+   *
+   * @param entries 待批量保存的密码数据（不含 id / order）
+   * @param masterPassword 可选主密码，用于会话外加密保存
+   * @returns 新创建的密码条目数组（含 id / order）
+   */
+  static async batchSavePasswords(
+    entries: Omit<PasswordEntry, 'id' | 'order'>[],
+    masterPassword?: string,
+  ): Promise<PasswordEntry[]> {
+    try {
+      if (!entries || entries.length === 0) return [];
+
+      const sessionActive = this.isSessionActiveSync();
+      const existingPasswords =
+        masterPassword && !sessionActive ? await this.getAllPasswords(masterPassword) : await this.getAllPasswordsRaw();
+
+      const now = Date.now();
+      const newEntries: PasswordEntry[] = entries.map((entry, i) => ({
+        ...entry,
+        id: this.generateId(),
+        createTime: entry.createTime ?? now,
+        updateTime: entry.updateTime ?? now,
+        order: existingPasswords.length + i,
+      }));
+
+      const shouldEncrypt = masterPassword && !sessionActive;
+      let combinedEntries: (PasswordEntry | EncryptedPasswordEntry)[];
+
+      if (shouldEncrypt) {
+        // 派生一次密钥，所有条目复用，避免 PBKDF2 × N 次
+        const key = await deriveEncryptionKey(masterPassword);
+        const encryptedNewEntries: EncryptedPasswordEntry[] = [];
+        for (const entry of newEntries) {
+          const encrypted = await encryptPasswordEntry(entry, masterPassword, key);
+          encryptedNewEntries.push(encrypted);
+        }
+        combinedEntries = [...existingPasswords, ...encryptedNewEntries];
+      } else {
+        combinedEntries = [...existingPasswords, ...newEntries];
+      }
+
+      await chrome.storage.local.set({
+        [STORAGE_KEYS.PASSWORDS]: combinedEntries,
+      });
+
+      return newEntries;
+    } catch (error) {
+      logger.error('批量保存密码失败:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 更新密码条目
    */
   static async updatePassword(id: string, updates: Partial<PasswordEntry>, masterPassword?: string): Promise<void> {

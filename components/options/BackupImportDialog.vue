@@ -312,9 +312,7 @@ const handleImport = async () => {
 
   try {
     importing.value = true;
-    for (const entry of previewData.value) {
-      await StorageUtils.savePassword(entry);
-    }
+    await StorageUtils.batchSavePasswords(previewData.value);
     ElMessage.success(`成功导入 ${previewData.value.length} 条密码`);
     emit('imported');
     handleClose();
