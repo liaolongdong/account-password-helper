@@ -251,6 +251,14 @@ const formatFileSize = (bytes: number): string => {
 /** 处理文件选择 */
 const handleFileChange = async (file: UploadFile) => {
   if (!file.raw) return;
+  const fileName = file.raw.name.toLowerCase();
+  if (!fileName.endsWith('.aph')) {
+    ElMessage.error('不支持的文件格式，请使用 .aph 加密备份文件');
+    if (uploadRef.value) {
+      uploadRef.value.clearFiles();
+    }
+    return;
+  }
   selectedFile.value = file.raw;
   previewData.value = [];
   masterPassword.value = '';

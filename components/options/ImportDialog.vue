@@ -205,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
 import { ExcelUtils, type ImportFormat } from '@/utils/excel';
@@ -254,7 +254,6 @@ const handleFileChange = async (file: UploadFile) => {
   if (!file.raw) return;
 
   try {
-    selectedFile.value = file.raw;
     const fileName = file.raw.name.toLowerCase();
     const isCSV = fileName.endsWith('.csv');
     const isJSON = fileName.endsWith('.json');
@@ -262,14 +261,20 @@ const handleFileChange = async (file: UploadFile) => {
     let data: Omit<PasswordEntry, 'id' | 'order'>[];
     if (isJSON) {
       // JSON 解析路径
+      selectedFile.value = file.raw;
       const text = await file.raw.text();
       data = ExcelUtils.parseJSON(text);
     } else if (isCSV) {
       // CSV 解析路径
+      selectedFile.value = file.raw;
       const text = await file.raw.text();
       data = ExcelUtils.parseCSV(text, importFormat.value as ImportFormat);
     } else {
       ElMessage.error('不支持的文件格式，请使用 CSV 或 JSON 文件');
+      selectedFile.value = undefined;
+      if (uploadRef.value) {
+        uploadRef.value.clearFiles();
+      }
       return;
     }
     previewData.value = data;
@@ -302,6 +307,15 @@ const handleFileRemove = () => {
     uploadRef.value.clearFiles();
   }
 };
+
+// 监听导入格式变化，自动重新解析已选文件
+watch(importFormat, () => {
+  if (selectedFile.value) {
+    // 重新解析当前文件（使用新格式）
+    const fakeUploadFile = { raw: selectedFile.value } as UploadFile;
+    handleFileChange(fakeUploadFile);
+  }
+});
 
 // 处理导入
 const handleImport = async () => {
