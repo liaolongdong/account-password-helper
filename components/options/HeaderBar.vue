@@ -132,7 +132,6 @@
         </el-dropdown>
       </div>
       <el-button
-        type="primary"
         :icon="Setting"
         @click="$emit('openPersonalization')"
       >
@@ -296,18 +295,19 @@ defineEmits<{
   transform: translateY(-1px);
 }
 
-/* 偏好设置按钮：与添加密码按钮一致的 primary 样式（位于 .header-actions 外部） */
-:deep(.header-actions-row > .el-button--primary) {
+/* 偏好设置按钮：半透明蓝样式，与数据管理/设置按钮视觉一致（位于 .header-actions 外部） */
+:deep(.header-actions-row > .el-button) {
   font-weight: 400;
-  color: #409eff;
-  background: #fff;
-  border: 1px solid #fff;
+  color: white;
+  background: rgb(255 255 255 / 15%);
+  border: 1px solid rgb(255 255 255 / 25%);
+  backdrop-filter: blur(10px);
+  transition: all 0.2s ease;
 }
 
-:deep(.header-actions-row > .el-button--primary:hover) {
-  color: #1890ff;
-  background: #f0f9ff;
-  border-color: #f0f9ff;
+:deep(.header-actions-row > .el-button:hover) {
+  background: rgb(255 255 255 / 20%);
+  border-color: rgb(255 255 255 / 40%);
   box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
   transform: translateY(-1px);
 }
