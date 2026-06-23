@@ -19,7 +19,7 @@
 
 ## 核心特性
 
-- **加密安全**：PBKDF2（10000 次迭代）派生 256-bit 密钥 + AES-256-CBC 随机 IV；主密码 MD5 + 盐值存储；敏感字段（username/password/url/remark）加密。
+- **加密安全**：PBKDF2（600000 次迭代）派生 256-bit 密钥 + AES-256-CBC 随机 IV；主密码 SHA-256 + 盐值存储；敏感字段（username/password/url/remark）加密。基于 Web Crypto API 原生实现。
 - **智能识别**：MutationObserver 动态检测登录表单，支持用户名+密码、手机号+验证码等多种场景；LoginFormAnalyzer 通过表单/容器/弹窗/按钮多维启发式判断。
 - **一键填充**：侧边栏点击即填充，三重策略（Native Setter / execCommand / 模拟输入）兼容 React/Vue 等主流框架；可选自动触发登录。
 - **自动保存**：Chrome 式登录凭证捕获，支持登录表单提交、按钮点击、回车提交三种场景；域名白名单/黑名单精准匹配；凭证指纹智能去重避免重复弹窗；「不再提示」一键屏蔽域名；跨页面导航凭证不丢失；保存弹窗中可编辑标签和备注。
@@ -145,16 +145,16 @@
 
 ## 技术栈
 
-| 类别        | 技术                                                                  | 版本 / 说明                              |
-| ----------- | --------------------------------------------------------------------- | ---------------------------------------- |
-| 扩展框架    | [WXT](https://wxt.dev/)                                               | v0.20，基于 Manifest V3                  |
-| 前端框架    | [Vue 3](https://vuejs.org/) + TypeScript                              | v3.5，Composition API + `<script setup>` |
-| UI 组件库   | [Element Plus](https://element-plus.org/)                             | v2.13，按需引入（unplugin-auto-import）  |
-| 加密        | [crypto-js](https://github.com/brix/crypto-js)                        | v4.2，PBKDF2 + AES-256-CBC + MD5         |
-| 构建工具    | Vite                                                                  | WXT 内置，HMR 热更新                     |
-| 图标生成    | [sharp](https://github.com/lovell/sharp)                              | v0.33，SVG → 多尺寸 PNG                  |
-| 日志 / 环境 | [utils/logger.ts](./utils/logger.ts) + [utils/env.ts](./utils/env.ts) | 生产构建 tree-shake 掉调试日志           |
-| 代码规范    | ESLint + Prettier + Stylelint                                         | TS v6，完整质量工具链                    |
+| 类别        | 技术                                                                              | 版本 / 说明                                |
+| ----------- | --------------------------------------------------------------------------------- | ------------------------------------------ |
+| 扩展框架    | [WXT](https://wxt.dev/)                                                           | v0.20，基于 Manifest V3                    |
+| 前端框架    | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5，Composition API + `<script setup>`   |
+| UI 组件库   | [Element Plus](https://element-plus.org/)                                         | v2.13，按需引入（unplugin-auto-import）    |
+| 加密        | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-CBC + SHA-256，浏览器原生 |
+| 构建工具    | Vite                                                                              | WXT 内置，HMR 热更新                       |
+| 图标生成    | [sharp](https://github.com/lovell/sharp)                                          | v0.33，SVG → 多尺寸 PNG                    |
+| 日志 / 环境 | [utils/logger.ts](./utils/logger.ts) + [utils/env.ts](./utils/env.ts)             | 生产构建 tree-shake 掉调试日志             |
+| 代码规范    | ESLint + Prettier + Stylelint                                                     | TS v6，完整质量工具链                      |
 
 ## 快速开始
 
@@ -307,13 +307,13 @@ graph TB
 ### 加密机制
 
 ```
-主密码 + 盐值 → PBKDF2 (10000次迭代) → 256-bit 密钥
+主密码 + 盐值 → PBKDF2 (600000次迭代) → 256-bit 密钥
 明文 + 密钥 + 随机IV → AES-256-CBC → Base64(IV + 密文)
 ```
 
 - 敏感字段加密：`username`、`password`、`url`、`remark`
 - 空字段不参与加密（写空字符串）；解密失败安全降级返回原始数据
-- 内存中的主密码副本使用 MD5(盐值 + 常量) 截取 32 字符作为会话密钥，通过 AES-256-CBC 二次加密后再存入 chrome.storage.local
+- 内存中的主密码副本使用 SHA-256(盐值 + 常量) 派生会话密钥，通过 AES-256-CBC 二次加密后再存入 chrome.storage.local
 
 ## 项目结构
 
@@ -440,17 +440,19 @@ graph TB
 
 ### Chrome 权限说明
 
-| 权限            | 用途                           |
-| --------------- | ------------------------------ |
-| `storage`       | 本地存储密码数据和配置         |
-| `activeTab`     | 获取当前标签页信息用于域名匹配 |
-| `scripting`     | 动态注入 Content Script        |
-| `sidePanel`     | 侧边栏快速填充功能             |
-| `alarms`        | 定时自动备份提醒               |
-| `downloads`     | 数据文件导出下载               |
-| `notifications` | 桌面通知（自动保存/备份提醒）  |
-| `idle`          | 自动闲置锁定检测               |
-| `<all_urls>`    | Content Script 匹配所有页面    |
+| 权限             | 用途                           |
+| ---------------- | ------------------------------ |
+| `storage`        | 本地存储密码数据和配置         |
+| `activeTab`      | 获取当前标签页信息用于域名匹配 |
+| `scripting`      | 动态注入 Content Script        |
+| `sidePanel`      | 侧边栏快速填充功能             |
+| `alarms`         | 定时自动备份提醒               |
+| `downloads`      | 数据文件导出下载               |
+| `notifications`  | 桌面通知（自动保存/备份提醒）  |
+| `idle`           | 自动闲置锁定检测               |
+| `clipboardWrite` | 写入剪贴板（复制密码）         |
+| `clipboardRead`  | 读取剪贴板（验证清除前内容）   |
+| `<all_urls>`     | Content Script 匹配所有页面    |
 
 ## 安全提醒
 
@@ -581,7 +583,7 @@ A：在添加或编辑密码的表单中，密码输入框旁有一个魔棒（M
 - [WXT](https://wxt.dev/) — 现代化 Chrome 扩展开发框架
 - [Vue 3](https://vuejs.org/) — 渐进式 JavaScript 框架
 - [Element Plus](https://element-plus.org/) — Vue 3 UI 组件库
-- [crypto-js](https://github.com/brix/crypto-js) — JavaScript 加密库
+- [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) — 浏览器原生加密 API
 - [sharp](https://github.com/lovell/sharp) — 高性能图像处理
 
 ## 联系方式
