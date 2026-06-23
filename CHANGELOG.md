@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.5.0](https://github.com/liaolongdong/account-password-helper/compare/v2.4.0...v2.5.0) (2026-06-23)
+
+
+### Features
+
+* **settings:** 添加收藏上限与悬浮按钮偏好设置功能 ([eda3ceb](https://github.com/liaolongdong/account-password-helper/commit/eda3ceb680aeefd127b6e1b99a1f1468253ad8cf))
+
+
+### Bug Fixes
+
+* **build:** 解决无效注释构建警告 ([4256cc6](https://github.com/liaolongdong/account-password-helper/commit/4256cc643cd132f30e1af999f069d9958864eacb))
+* **passwords:** 优化本地操作避免存储监听重复触发刷新 ([727ace5](https://github.com/liaolongdong/account-password-helper/commit/727ace560d2f3cac855c6a2c2b9a3cd295bef9a9))
+
 ## [2.4.0](https://github.com/liaolongdong/account-password-helper/compare/v2.3.0...v2.4.0) (2026-06-22)
 
 
