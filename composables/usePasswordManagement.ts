@@ -74,6 +74,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const editingPasswordId = ref<string>('');
   const passwordFormLoading = ref(false);
   const tableLoading = ref(false);
+  /** 本地操作进行中标志，用于通知 storage watcher 跳过本轮 loadPasswords */
+  const isLocalOperation = ref(false);
   const passwordForm = ref({
     username: '',
     password: '',
@@ -118,6 +120,30 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     // 始终按当前排序状态排序（替代 el-table 客户端排序）
     return sortPasswordEntries([...result], currentSort.value);
   });
+
+  /**
+   * 包裹本地 storage 写入操作，设置标志位防止 storage watcher 重复触发 loadPasswords
+   *
+   * 原理：本地操作（复制/编辑/收藏/删除）已在 Vue 层就地更新状态，
+   * 无需 storage watcher 再触发全量 loadPasswords。设置 isLocalOperation 标志后，
+   * useStorageWatcher 会跳过 onPasswordDataChange 回调，避免 tableLoading 闪烁和全量替换数组引用。
+   *
+   * 延迟清除标志使用 setTimeout(0) 确保覆盖 chrome.storage.onChanged 的异步派发时序。
+   *
+   * @param fn 包含 storage 写入的异步操作
+   */
+  const runLocalOperation = async (fn: () => Promise<void>) => {
+    isLocalOperation.value = true;
+    try {
+      await fn();
+    } finally {
+      // 延迟清除标志：chrome.storage.onChanged 在当前微任务之后派发，
+      // setTimeout(0) 将清除推迟到下一个宏任务，确保事件处理时标志仍为 true
+      setTimeout(() => {
+        isLocalOperation.value = false;
+      }, 0);
+    }
+  };
 
   /** 收藏过滤变化时清空选中状态（符合交互策略：过滤条件变化清空选中） */
   watch(favoriteOnly, () => {
@@ -176,30 +202,32 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       if (!entry) return;
       const newFav = !entry.favorite;
 
-      if (newFav) {
-        // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目
-        const evicted = await StorageUtils.evictLRUFavoriteIfNeeded(passwords.value);
-        if (evicted) {
-          const limit = await StorageUtils.getFavoriteLimit();
-          ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
+      await runLocalOperation(async () => {
+        if (newFav) {
+          // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目
+          const evicted = await StorageUtils.evictLRUFavoriteIfNeeded(passwords.value);
+          if (evicted) {
+            const limit = await StorageUtils.getFavoriteLimit();
+            ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
+          }
+          // 设置新收藏条目及其使用时间戳
+          const now = Date.now();
+          await StorageUtils.updatePassword(id, { favorite: true, favoriteUsedAt: now, updateTime: entry.updateTime });
+          entry.favorite = true;
+          entry.favoriteUsedAt = now;
+          ElMessage.success('已收藏');
+        } else {
+          // 取消收藏，清除使用时间戳
+          await StorageUtils.updatePassword(id, {
+            favorite: false,
+            favoriteUsedAt: undefined,
+            updateTime: entry.updateTime,
+          });
+          entry.favorite = false;
+          entry.favoriteUsedAt = undefined;
+          ElMessage.success('已取消收藏');
         }
-        // 设置新收藏条目及其使用时间戳
-        const now = Date.now();
-        await StorageUtils.updatePassword(id, { favorite: true, favoriteUsedAt: now, updateTime: entry.updateTime });
-        entry.favorite = true;
-        entry.favoriteUsedAt = now;
-        ElMessage.success('已收藏');
-      } else {
-        // 取消收藏，清除使用时间戳
-        await StorageUtils.updatePassword(id, {
-          favorite: false,
-          favoriteUsedAt: undefined,
-          updateTime: entry.updateTime,
-        });
-        entry.favorite = false;
-        entry.favoriteUsedAt = undefined;
-        ElMessage.success('已取消收藏');
-      }
+      });
 
       // 等待 el-table 完成虚拟 DOM 更新后滚动到目标行并高亮（复用 new-item 样式）
       setTimeout(() => {
@@ -366,7 +394,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           remark: passwordForm.value.remark.trim(),
           updateTime: Date.now(),
         };
-        await StorageUtils.updatePassword(editingPasswordId.value, updatedFields);
+        await runLocalOperation(async () => {
+          await StorageUtils.updatePassword(editingPasswordId.value, updatedFields);
+        });
         // 就地更新：filteredPasswords computed 会自动重新排序
         const entry = passwords.value.find(p => p.id === editingPasswordId.value);
         if (entry) {
@@ -376,20 +406,23 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         scrollToPassword(editingPasswordId.value);
       } else {
         const now = Date.now();
-        const newEntry = await StorageUtils.savePassword({
-          username: passwordForm.value.username.trim(),
-          password: passwordForm.value.password,
-          url: passwordForm.value.url.trim(),
-          tag: normalizedTag,
-          remark: passwordForm.value.remark.trim(),
-          createTime: now,
-          updateTime: now,
+        let newEntry: PasswordEntry;
+        await runLocalOperation(async () => {
+          newEntry = await StorageUtils.savePassword({
+            username: passwordForm.value.username.trim(),
+            password: passwordForm.value.password,
+            url: passwordForm.value.url.trim(),
+            tag: normalizedTag,
+            remark: passwordForm.value.remark.trim(),
+            createTime: now,
+            updateTime: now,
+          });
         });
         // 就地插入：filteredPasswords computed 会自动重新排序
-        (newEntry as PasswordEntryWithUI).showPassword = false;
-        passwords.value.push(newEntry);
+        (newEntry! as PasswordEntryWithUI).showPassword = false;
+        passwords.value.push(newEntry!);
         ElMessage.success('密码添加成功');
-        scrollToPassword(newEntry.id);
+        scrollToPassword(newEntry!.id);
       }
 
       showPasswordDialog.value = false;
@@ -416,13 +449,16 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       };
 
       const copyItemId = password.id;
-      const newEntry = await StorageUtils.savePassword(newPasswordEntry, undefined, copyItemId);
+      let newEntry: PasswordEntry;
+      await runLocalOperation(async () => {
+        newEntry = await StorageUtils.savePassword(newPasswordEntry, undefined, copyItemId);
+      });
       // 就地插入：filteredPasswords computed 会自动重新排序
-      (newEntry as PasswordEntryWithUI).showPassword = false;
-      passwords.value.push(newEntry);
+      (newEntry! as PasswordEntryWithUI).showPassword = false;
+      passwords.value.push(newEntry!);
 
       setTimeout(() => {
-        const copyAddedItem = document.querySelector(`.${newEntry.id}`);
+        const copyAddedItem = document.querySelector(`.${newEntry!.id}`);
         if (copyAddedItem) {
           copyAddedItem.classList.add('new-item');
           copyAddedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -453,7 +489,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         delItem.classList.add('del-item');
         setTimeout(async () => {
           delItem.remove();
-          await StorageUtils.deletePassword(id);
+          await runLocalOperation(async () => {
+            await StorageUtils.deletePassword(id);
+          });
           await loadPasswords();
           ElMessage.success('删除成功');
         }, 1000);
@@ -487,7 +525,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           delItem.remove();
         });
 
-        await StorageUtils.deletePasswords(selectedIds.value);
+        await runLocalOperation(async () => {
+          await StorageUtils.deletePasswords(selectedIds.value);
+        });
         await loadPasswords();
         selectedIds.value = [];
         ElMessage.success('批量删除成功');
@@ -644,7 +684,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         },
       );
 
-      await StorageUtils.deletePasswords(idsToRemove);
+      await runLocalOperation(async () => {
+        await StorageUtils.deletePasswords(idsToRemove);
+      });
       await loadPasswords();
       selectedIds.value = [];
       ElMessage.success(`已删除 ${idsToRemove.length} 条重复条目`);
@@ -697,5 +739,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     backupToEmail,
     toggleFavorite,
     removeDuplicates,
+    isLocalOperation,
   };
 }

@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, type Ref } from 'vue';
 import { STORAGE_KEYS } from '@/utils/encryption';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import { logger } from '@/utils/logger';
@@ -21,14 +21,21 @@ const AUTH_RELATED_STORAGE_KEYS = new Set<string>([
  * 封装 chrome.storage.onChanged 和 document.visibilitychange 监听逻辑，
  * 在认证相关 key 变动时触发认证检查，在密码数据变化时触发列表刷新，
  * 并在页面重新可见时触发认证状态检查。
+ *
+ * @param options.onAuthChange - 认证相关 storage 变化时的回调
+ * @param options.onPasswordDataChange - 密码数据变化时的回调
+ * @param options.skipIf - 当此 Ref 为 true 时，跳过 onPasswordDataChange 回调
+ *   （用于本地操作标志位，避免 storage watcher 覆盖 Vue 层就地更新）
  */
 export function useStorageWatcher(options: {
   /** 认证相关 storage 变化时的回调 */
   onAuthChange: () => void;
   /** 密码数据变化时的回调 */
   onPasswordDataChange: () => void;
+  /** 当值为 true 时跳过 onPasswordDataChange，避免本地操作触发全量重载 */
+  skipIf?: Ref<boolean>;
 }) {
-  const { onAuthChange, onPasswordDataChange } = options;
+  const { onAuthChange, onPasswordDataChange, skipIf } = options;
 
   /** chrome.storage 变化监听 */
   const handleStorageChanged = (
@@ -41,7 +48,12 @@ export function useStorageWatcher(options: {
     logger.debug('StorageWatcher: 检测到认证相关 storage 变动，重新检查认证状态');
     onAuthChange();
     // 密码数据变化时，重新加载密码列表
+    // 若 skipIf 标志为 true（本地操作进行中），跳过重载，因为 Vue 层已就地更新状态
     if (STORAGE_KEYS.PASSWORDS in changes) {
+      if (skipIf?.value) {
+        logger.debug('StorageWatcher: 本地操作进行中，跳过密码列表重载');
+        return;
+      }
       logger.debug('StorageWatcher: 检测到密码数据变动，重新加载密码列表');
       onPasswordDataChange();
     }

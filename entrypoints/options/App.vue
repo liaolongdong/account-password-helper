@@ -438,6 +438,7 @@ const {
   backupToEmail,
   toggleFavorite,
   removeDuplicates,
+  isLocalOperation,
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
@@ -496,6 +497,7 @@ const {
 useStorageWatcher({
   onAuthChange: () => void checkAuth(),
   onPasswordDataChange: () => void loadPasswords(),
+  skipIf: isLocalOperation,
 });
 
 /** Runtime 消息监听 */
