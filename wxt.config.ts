@@ -24,6 +24,12 @@ export default defineConfig({
     },
     build: {
       minify: 'esbuild',
+      rollupOptions: {
+        checks: {
+          // 将 invalidAnnotation 设为 false，以消除 @vueuse/core 中无效注释的构建警告。
+          invalidAnnotation: false,
+        },
+      },
     },
     // Vite 顶层 esbuild 配置：生产环境移除 console/debugger
     esbuild: process.env.NODE_ENV === 'production' ? { drop: ['console', 'debugger'] } : {},
