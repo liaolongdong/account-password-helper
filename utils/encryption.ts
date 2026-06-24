@@ -53,6 +53,35 @@ export async function hashPassword(password: string, salt: string = ''): Promise
 }
 
 /**
+ * 使用 HKDF 派生会话加密密钥（256-bit AES-GCM）
+ *
+ * 从主密码 salt 通过 HKDF + SHA-256 派生独立于主密码体系的会话密钥，
+ * 遵循密钥分离原则，避免复用主密码 KDF 输出。
+ *
+ * @param salt 主密码盐值
+ * @returns 64-char hex string（32 bytes raw AES key）
+ */
+export async function deriveSessionKey(salt: string): Promise<string> {
+  const enc = new TextEncoder();
+  const ikm = enc.encode(salt);
+  const baseKey = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveKey']);
+  const derivedKey = await crypto.subtle.deriveKey(
+    {
+      name: 'HKDF',
+      hash: 'SHA-256',
+      salt: enc.encode('aph-session-salt'),
+      info: enc.encode('session-encryption-v2'),
+    },
+    baseKey,
+    { name: 'AES-GCM', length: 256 },
+    true,
+    ['encrypt', 'decrypt'],
+  );
+  const raw = await crypto.subtle.exportKey('raw', derivedKey);
+  return bytesToHex(new Uint8Array(raw));
+}
+
+/**
  * 生成随机盐值（32 hex chars = 16 bytes）
  */
 export function generateSalt(): string {
@@ -70,7 +99,7 @@ export function generateId(): string {
 }
 
 /**
- * 从主密码派生 AES-256 密钥（Web Crypto PBKDF2，原生实现，不阻塞主线程）
+ * 从主密码派生 AES-256-GCM 密钥（Web Crypto PBKDF2，原生实现，不阻塞主线程）
  * 返回 64-char hex string（32 bytes）
  */
 export async function deriveEncryptionKey(masterPassword: string): Promise<string> {
@@ -84,7 +113,7 @@ export async function deriveEncryptionKey(masterPassword: string): Promise<strin
     const derivedKey = await crypto.subtle.deriveKey(
       { name: 'PBKDF2', salt: enc.encode(config.salt), iterations: 600000, hash: 'SHA-256' },
       baseKey,
-      { name: 'AES-CBC', length: 256 },
+      { name: 'AES-GCM', length: 256 },
       true,
       ['encrypt', 'decrypt'],
     );
@@ -97,17 +126,17 @@ export async function deriveEncryptionKey(masterPassword: string): Promise<strin
 }
 
 /**
- * AES-256-CBC 加密（Web Crypto 原生，随机 IV）
- * 格式：Base64(IV[16] + ciphertext)
+ * AES-256-GCM 加密（Web Crypto 原生，随机 IV，认证加密）
+ * 格式：Base64(IV[12] + ciphertext)，authTag 由 Web Crypto 自动追加
  */
 export async function encryptData(data: string, hexKey: string): Promise<string> {
   try {
-    const iv = crypto.getRandomValues(new Uint8Array(16));
-    const key = await crypto.subtle.importKey('raw', hexToBytes(hexKey), 'AES-CBC', false, ['encrypt']);
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-CBC', iv }, key, new TextEncoder().encode(data));
-    const combined = new Uint8Array(16 + ciphertext.byteLength);
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const key = await crypto.subtle.importKey('raw', hexToBytes(hexKey), 'AES-GCM', false, ['encrypt']);
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(data));
+    const combined = new Uint8Array(12 + ciphertext.byteLength);
     combined.set(iv);
-    combined.set(new Uint8Array(ciphertext), 16);
+    combined.set(new Uint8Array(ciphertext), 12);
     return btoa(Array.from(combined, b => String.fromCharCode(b)).join(''));
   } catch (error) {
     logger.error('加密失败:', error);
@@ -116,7 +145,7 @@ export async function encryptData(data: string, hexKey: string): Promise<string>
 }
 
 /**
- * AES-256-CBC 解密（Web Crypto 原生）
+ * AES-256-GCM 解密（Web Crypto 原生，认证加密）
  */
 export async function decryptData(encryptedData: string, hexKey: string): Promise<string> {
   if (!encryptedData) return '';
@@ -128,13 +157,13 @@ export async function decryptData(encryptedData: string, hexKey: string): Promis
     logger.warn('Base64解析失败，可能不是加密数据');
     return encryptedData;
   }
-  if (combined.length <= 16) return encryptedData;
-  const key = await crypto.subtle.importKey('raw', hexToBytes(hexKey), 'AES-CBC', false, ['decrypt']);
+  if (combined.length <= 12) return encryptedData;
+  const key = await crypto.subtle.importKey('raw', hexToBytes(hexKey), 'AES-GCM', false, ['decrypt']);
   try {
     const plaintext = await crypto.subtle.decrypt(
-      { name: 'AES-CBC', iv: combined.slice(0, 16) },
+      { name: 'AES-GCM', iv: combined.slice(0, 12) },
       key,
-      combined.slice(16),
+      combined.slice(12),
     );
     return new TextDecoder().decode(plaintext);
   } catch (error) {
