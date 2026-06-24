@@ -145,7 +145,10 @@
         fixed="right"
       >
         <template #default="{ row }">
-          <div class="operation-buttons">
+          <div
+            class="operation-buttons"
+            @click="closeAllTooltips"
+          >
             <el-tooltip
               :ref="(el: any) => collectTooltipRef(el)"
               content="复制条目"
@@ -208,7 +211,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, onBeforeUpdate } from 'vue';
+import { ref, onBeforeUpdate } from 'vue';
 import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
@@ -259,7 +262,7 @@ const localTableRef = ref();
 
 /**
  * 操作栏 Tooltip 引用集合
- * 用于在表格滚动时主动关闭残留 tooltip，避免 popper 残留在视口中
+ * 用于在操作触发时主动关闭残留 tooltip，避免 popper 残留在视口中
  */
 const tooltipRefs = ref<any[]>([]);
 
@@ -271,28 +274,20 @@ const collectTooltipRef = (el: any) => {
   if (el) tooltipRefs.value.push(el);
 };
 
-/** 每次重新渲染前清空引用数组，避免重复积累 */
-onBeforeUpdate(() => {
-  tooltipRefs.value = [];
-});
-
 /**
- * 表格滚动时关闭所有已打开的 tooltip
- * 使用 document 级 capture 监听，捕获所有滚动容器的 scroll 事件，
- * 解决 el-tooltip popper teleport 到 body 后无法感知表格内部滚动的问题
+ * 主动关闭所有操作栏 tooltip
+ * 用于操作按钮点击时兜底关闭，避免弹窗/重渲染导致的 tooltip 残留
  */
-const handleScrollHideTooltips = () => {
+const closeAllTooltips = () => {
   for (const t of tooltipRefs.value) {
     t?.onClose?.();
   }
 };
 
-onMounted(() => {
-  document.addEventListener('scroll', handleScrollHideTooltips, { capture: true, passive: true });
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('scroll', handleScrollHideTooltips, { capture: true });
+/** 每次重新渲染前先关闭已打开 tooltip 再清空引用，避免旧 tooltip 实例因引用丢失而残留 */
+onBeforeUpdate(() => {
+  closeAllTooltips();
+  tooltipRefs.value = [];
 });
 
 /**
