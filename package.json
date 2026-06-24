@@ -49,6 +49,7 @@
     "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
     "element-plus": "^2.13.7",
     "vue": "^3.5.33"
   },
