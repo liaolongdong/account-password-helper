@@ -6,8 +6,8 @@ import { formatDateCompact } from '@/utils/dateFormat';
 const BACKUP_VERSION = 1;
 /** AES-GCM IV 长度 */
 const IV_LENGTH = 12;
-/** PBKDF2 迭代次数 */
-const PBKDF2_ITERATIONS = 100_000;
+/** PBKDF2 迭代次数（与主加密体系一致的 600K） */
+const PBKDF2_ITERATIONS = 600_000;
 /** Salt 长度 */
 const SALT_LENGTH = 16;
 
