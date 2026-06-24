@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.6.0](https://github.com/liaolongdong/account-password-helper/compare/v2.5.0...v2.6.0) (2026-06-24)
+
+
+### Features
+
+* **deps:** 添加 @element-plus/icons-vue 依赖 ([bfa8ed5](https://github.com/liaolongdong/account-password-helper/commit/bfa8ed5c557d92d9d5cc079afe18682b583b7223))
+* **floating-buttons:** 实现页面悬浮按钮组功能 ([eae34fc](https://github.com/liaolongdong/account-password-helper/commit/eae34fc33ca7ca53f34c2de2fc8257a0ca839129))
+* **ui:** 增加下载链接与下载按钮，完善安装指引 ([5e4812b](https://github.com/liaolongdong/account-password-helper/commit/5e4812bbef781021d176ab3b2035c5de23d3e937))
+* **ui:** 增加下载链接与下载按钮，完善安装指引 ([a7f5fef](https://github.com/liaolongdong/account-password-helper/commit/a7f5fefab93c588891677872d0fdfa4258533498))
+
 ## [2.5.0](https://github.com/liaolongdong/account-password-helper/compare/v2.4.0...v2.5.0) (2026-06-23)
 
 ### Features
