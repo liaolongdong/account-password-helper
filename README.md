@@ -1,13 +1,13 @@
 # Account Password Helper · 账号密码管理助手
 
-[![WXT](https://img.shields.io/badge/WXT-v0.20-4E88FF)](https://wxt.dev/)
-[![Vue](https://img.shields.io/badge/Vue-v3.5-42b883)](https://vuejs.org/)
+[![WXT](https://img.shields.io/badge/WXT-v0.20.25-4E88FF)](https://wxt.dev/)
+[![Vue](https://img.shields.io/badge/Vue-v3.5.33-42b883)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-v6-3178c6)](https://www.typescriptlang.org/)
-[![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13-409EFF)](https://element-plus.org/)
+[![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13.7-409EFF)](https://element-plus.org/)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#许可证)
 
-一个现代化的 Chrome 浏览器扩展，提供安全、便捷的账号密码管理与自动填充能力。采用 **PBKDF2 + AES-256-CBC** 加密体系，支持数据导入导出、智能表单识别和多策略自动填充。
+一款功能强大的 Chrome 浏览器扩展，提供安全、便捷的账号密码管理与自动填充能力。采用 **PBKDF2 + AES-256-GCM** 加密体系，支持数据导入导出、智能表单识别和多策略自动填充。
 
 > **免责声明**：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发和测试环境使用，严禁保存办公和个人敏感密码，如发生密码泄露，后果自负！
 >
@@ -19,14 +19,14 @@
 
 ## 核心特性
 
-- **加密安全**：PBKDF2（600000 次迭代）派生 256-bit 密钥 + AES-256-CBC 随机 IV；主密码 SHA-256 + 盐值存储；敏感字段（username/password/url/remark）加密。基于 Web Crypto API 原生实现。
+- **加密安全**：PBKDF2（600000 次迭代）派生 256-bit 密钥 + AES-256-GCM 随机 IV；主密码 SHA-256 + 盐值存储；敏感字段（username/password/url/remark）加密。基于 Web Crypto API 原生实现。
 - **智能识别**：MutationObserver 动态检测登录表单，支持用户名+密码、手机号+验证码等多种场景；LoginFormAnalyzer 通过表单/容器/弹窗/按钮多维启发式判断。
 - **一键填充**：侧边栏点击即填充，三重策略（Native Setter / execCommand / 模拟输入）兼容 React/Vue 等主流框架；可选自动触发登录。
 - **自动保存**：Chrome 式登录凭证捕获，支持登录表单提交、按钮点击、回车提交三种场景；域名白名单/黑名单精准匹配；凭证指纹智能去重避免重复弹窗；「不再提示」一键屏蔽域名；跨页面导航凭证不丢失；保存弹窗中可编辑标签和备注。
 - **数据管理**：CSV 导入导出（.csv），支持多格式 CSV 自动识别，导出文件名格式为 `passwords_YYYYMMDD_HHmmss.csv`；JSON 导入导出（.json），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；中英文列名映射；标签多选（每条最多 3 个，单个最长 30 字符）+ 自定义 + 颜色一致；收藏标记与「只看收藏」过滤；一键去重；多字段搜索与排序；复制密码条目；批量删除。
 - **邮箱备份**：导出数据并唤起邮件客户端；支持定时自动备份提醒（chrome.alarms），间隔可选每天/3天/每周/两周/每月。
 - **密码可见性切换**：自动为页面密码框注入显示/隐藏按钮，输入有值时按钮自动可见（默认关闭，需在设置中手动开启）。
-- **加密备份**：.aph 格式 AES-GCM 加密导出/导入（PBKDF2 100000 次迭代派生密钥）；导入时支持解密预览后再确认，安全可靠。
+- **加密备份**：.aph 格式 AES-GCM 加密导出/导入（PBKDF2 600000 次迭代派生密钥）；导入时支持解密预览后再确认，安全可靠。
 - **密码强度可视化**：密码输入时实时显示强度进度条（弱/中/强）与规则校验清单（长度、字母、数字、特殊字符），通过气泡弹窗直观呈现。
 - **会话可控**：1/2/4/8/12/24 小时和3/5/7天会话有效期；会话失效后敏感字段自动加密回密文；支持自动闲置锁定（5/10/30/60分钟）；Popup 一键锁定；会话过期跨上下文广播同步。
 - **版本更新检测**：基于 GitHub Releases API，每 6 小时自动检测最新版本；发现更新时在 Popup 弹窗中展示版本号和更新说明，点击即可跳转下载页面。
@@ -57,7 +57,7 @@
 - CSV 导入导出（.csv），提供标准模板下载。
 - JSON 导入导出：支持密码数据的 JSON 格式导出（需验证主密码），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；也支持从 JSON 文件导入。
 - 标签下拉多选 + 自定义新增（每条最多 3 个，单个最长 30 字符）；相同标签颜色稳定一致（见 [utils/tagUtils.ts](./utils/tagUtils.ts)）。
-- 密码列表与侧边栏默认按更新时间倒序；支持按用户名、URL、标签、备注、创建/更新时间切换排序。
+- 密码列表默认按更新时间倒序；侧边栏默认按最近使用倒序。支持按用户名、URL、标签、备注、创建/更新时间切换排序。
 - 支持用户名、标签、备注、URL 的多字段模糊搜索。
 - 批量选择与批量删除密码条目。
 - 收藏标记：点击星标收藏常用条目，支持「只看收藏」过滤；收藏上限默认可配置（1~50 条），超限时 LRU 自动淘汰最早使用的收藏条目；侧边栏填充时自动更新收藏使用时间戳确保 LRU 准确。
@@ -87,7 +87,7 @@
 
 - 导出：使用主密码通过 AES-GCM 加密全部密码数据，下载为 `.aph` 文件（见 [utils/backupExport.ts](./utils/backupExport.ts)），文件名格式为 `backup_YYYYMMDD.aph`。
 - 导入：上传 `.aph` 文件后输入导出时使用的主密码进行解密，解密后可预览数据（前 5 条）再确认导入（见 [BackupImportDialog.vue](./components/options/BackupImportDialog.vue)）。
-- 加密方案：PBKDF2（100000 次迭代）+ AES-256-GCM + 随机 Salt + 随机 IV，安全性高于常规存储。
+- 加密方案：PBKDF2（600000 次迭代）+ AES-256-GCM + 随机 Salt + 随机 IV，安全性高于常规存储。
 
 ### 7. 密码可见性切换
 
@@ -145,16 +145,16 @@
 
 ## 技术栈
 
-| 类别        | 技术                                                                              | 版本 / 说明                                |
-| ----------- | --------------------------------------------------------------------------------- | ------------------------------------------ |
-| 扩展框架    | [WXT](https://wxt.dev/)                                                           | v0.20，基于 Manifest V3                    |
-| 前端框架    | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5，Composition API + `<script setup>`   |
-| UI 组件库   | [Element Plus](https://element-plus.org/)                                         | v2.13，按需引入（unplugin-auto-import）    |
-| 加密        | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-CBC + SHA-256，浏览器原生 |
-| 构建工具    | Vite                                                                              | WXT 内置，HMR 热更新                       |
-| 图标生成    | [sharp](https://github.com/lovell/sharp)                                          | v0.33，SVG → 多尺寸 PNG                    |
-| 日志 / 环境 | [utils/logger.ts](./utils/logger.ts) + [utils/env.ts](./utils/env.ts)             | 生产构建 tree-shake 掉调试日志             |
-| 代码规范    | ESLint + Prettier + Stylelint                                                     | TS v6，完整质量工具链                      |
+| 类别        | 技术                                                                              | 版本 / 说明                                 |
+| ----------- | --------------------------------------------------------------------------------- | ------------------------------------------- |
+| 扩展框架    | [WXT](https://wxt.dev/)                                                           | v0.20.25，基于 Manifest V3                  |
+| 前端框架    | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.33，Composition API + `<script setup>` |
+| UI 组件库   | [Element Plus](https://element-plus.org/)                                         | v2.13.7，按需引入（unplugin-auto-import）   |
+| 加密        | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256，浏览器原生  |
+| 构建工具    | Vite                                                                              | WXT 内置，HMR 热更新                        |
+| 图标生成    | [sharp](https://github.com/lovell/sharp)                                          | v0.33.5，SVG → 多尺寸 PNG                   |
+| 日志 / 环境 | [utils/logger.ts](./utils/logger.ts) + [utils/env.ts](./utils/env.ts)             | 生产构建 tree-shake 掉调试日志              |
+| 代码规范    | ESLint + Prettier + Stylelint                                                     | TS v6，完整质量工具链                       |
 
 ## 快速开始
 
@@ -308,12 +308,12 @@ graph TB
 
 ```
 主密码 + 盐值 → PBKDF2 (600000次迭代) → 256-bit 密钥
-明文 + 密钥 + 随机IV → AES-256-CBC → Base64(IV + 密文)
+明文 + 密钥 + 随机IV → AES-256-GCM → Base64(IV + 密文)
 ```
 
 - 敏感字段加密：`username`、`password`、`url`、`remark`
 - 空字段不参与加密（写空字符串）；解密失败安全降级返回原始数据
-- 内存中的主密码副本使用 SHA-256(盐值 + 常量) 派生会话密钥，通过 AES-256-CBC 二次加密后再存入 chrome.storage.local
+- 内存中的主密码副本使用 HKDF + SHA-256 派生会话密钥，通过 AES-256-GCM 二次加密后再存入 chrome.storage.local
 
 ## 项目结构
 
@@ -381,7 +381,7 @@ graph TB
 │   └── useVersionUpdate.ts         # 版本更新检测
 ├── utils/                          # 核心工具库
 │   ├── storage.ts                  # 存储门面
-│   ├── encryption.ts               # PBKDF2 + AES-256-CBC
+│   ├── encryption.ts               # PBKDF2 + AES-256-GCM
 │   ├── sessionManager.ts           # 全局会话检查单例
 │   ├── sessionManager-storage.ts   # 会话持久化与加解密转换
 │   ├── backupExport.ts             # 加密备份导出/导入（AES-GCM）
@@ -457,7 +457,7 @@ graph TB
 ## 安全提醒
 
 - 主密码遗忘**无法恢复**，请务必妥善保管。
-- 所有数据本地 AES-256-CBC 加密存储，不经过任何网络传输。
+- 所有数据本地 AES-256-GCM 加密存储，不经过任何网络传输。
 - 建议定期通过数据导出功能备份数据。
 - 会话过期后需重新验证主密码，届时所有密码自动加密。
 - 本插件仅用于开发和测试环境，**严禁保存生产环境或个人敏感密码**。
@@ -532,7 +532,7 @@ A：在密码管理页点击「备份到邮箱」按钮，配置目标邮箱地�
 
 **Q：如何导出/导入加密备份？**
 
-A：在密码管理页的「数据管理」下拉菜单中，选择「加密备份导出」会用主密码将所有密码数据加密为 `.aph` 文件下载。选择「加密备份导入」上传 `.aph` 文件后，输入导出时使用的主密码进行解密，解密成功可预览数据（前 5 条）再确认导入。加密方案为 PBKDF2（100000 次迭代）+ AES-256-GCM，安全性极高。
+A：在密码管理页的「数据管理」下拉菜单中，选择「加密备份导出」会用主密码将所有密码数据加密为 `.aph` 文件下载。选择「加密备份导入」上传 `.aph` 文件后，输入导出时使用的主密码进行解密，解密成功可预览数据（前 5 条）再确认导入。加密方案为 PBKDF2（600000 次迭代）+ AES-256-GCM，安全性极高。
 
 **Q：什么是自动闲置锁定？**
 
