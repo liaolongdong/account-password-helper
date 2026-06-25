@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.6.1](https://github.com/liaolongdong/account-password-helper/compare/v2.6.0...v2.6.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* **ui:** 优化侧边栏自动弹出提示文案 ([e17324c](https://github.com/liaolongdong/account-password-helper/commit/e17324c7ce8f1358428df26dc357487068b2b1ca))
+
 ## [2.6.0](https://github.com/liaolongdong/account-password-helper/compare/v2.5.0...v2.6.0) (2026-06-24)
 
 
