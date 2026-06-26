@@ -1,4 +1,4 @@
-![文章封面](account_password_helper_banner.png)
+![文章封面](imgs/account_password_helper_banner.png)
 
 # 别再手输账号密码了：我开发了一款一键自动登录的插件
 
