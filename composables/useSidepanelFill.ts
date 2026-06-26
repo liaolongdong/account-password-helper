@@ -136,15 +136,84 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
   };
 
   /**
-   * 等待字段检测完成
-   * 使用指数退避策略轮询检查
+   * 获取标签页中所有 frame 的 ID 列表
+   * 通过 webNavigation API 获取，包含顶层 frame（frameId=0）和所有 iframe
+   * @param tabId 标签页ID
+   * @returns frame ID 数组，获取失败时返回 [0]（仅顶层 frame）
    */
-  const waitForFieldsDetected = async (tabId: number, maxRetries: number = 3): Promise<boolean> => {
+  const getAllFrameIds = async (tabId: number): Promise<number[]> => {
+    try {
+      const frames = await chrome.webNavigation.getAllFrames({ tabId });
+      if (!frames || frames.length === 0) {
+        return [0];
+      }
+      return frames.map(f => f.frameId);
+    } catch (error) {
+      logger.warn('获取 frame 列表失败，回退到仅顶层 frame:', error);
+      return [0];
+    }
+  };
+
+  /**
+   * 向所有 frame 并行发送 PING 并聚合检测结果
+   * 任一 frame 检测到登录字段即视为 success，
+   * 同时收集所有 frame 的字段统计，返回汇总结果
+   * @param tabId 标签页ID
+   * @param frameIds 所有 frame ID 列表
+   * @returns 聚合后的 PingResponse 或 null
+   */
+  const pingAllFrames = async (tabId: number, frameIds: number[]): Promise<PingResponse | null> => {
+    let aggregatedResponse: PingResponse | null = null;
+
+    const results = await Promise.allSettled(
+      frameIds.map(frameId => chrome.tabs.sendMessage(tabId, { type: MessageType.PING }, { frameId })),
+    );
+
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const response = result.value;
+        if (response && response.success) {
+          const pingRes = response as PingResponse;
+          if (!aggregatedResponse) {
+            aggregatedResponse = { ...pingRes, fieldsDetected: { ...pingRes.fieldsDetected } };
+          } else {
+            // 累加各 frame 的字段数量
+            aggregatedResponse.fieldsDetected = {
+              username: (aggregatedResponse.fieldsDetected?.username ?? 0) + (pingRes.fieldsDetected?.username ?? 0),
+              password: (aggregatedResponse.fieldsDetected?.password ?? 0) + (pingRes.fieldsDetected?.password ?? 0),
+              mobile: (aggregatedResponse.fieldsDetected?.mobile ?? 0) + (pingRes.fieldsDetected?.mobile ?? 0),
+              verifyCode:
+                (aggregatedResponse.fieldsDetected?.verifyCode ?? 0) + (pingRes.fieldsDetected?.verifyCode ?? 0),
+            };
+          }
+        }
+      }
+      // rejected 的 frame 没有 content script，跳过
+    }
+
+    return aggregatedResponse;
+  };
+
+  /**
+   * 等待字段检测完成
+   * 使用指数退避策略轮询检查，支持跨 frame 检测
+   * @param tabId 标签页ID
+   * @param maxRetries 最大重试次数
+   * @param frameIds 可选，所有 frame ID 列表，传入时会跨 frame PING
+   * @returns 是否检测到字段
+   */
+  const waitForFieldsDetected = async (
+    tabId: number,
+    maxRetries: number = 3,
+    frameIds?: number[],
+  ): Promise<boolean> => {
     let delay = 100;
     const maxDelay = 1000;
+    const useMultiFrame = frameIds && frameIds.length > 0;
 
     for (let i = 0; i < maxRetries; i++) {
-      const pingResponse = await pingContentScript(tabId, 1);
+      const pingResponse = useMultiFrame ? await pingAllFrames(tabId, frameIds) : await pingContentScript(tabId, 1);
+
       if (pingResponse && pingResponse.fieldsDetected) {
         const { username, password, mobile } = pingResponse.fieldsDetected;
         if (username > 0 || password > 0 || mobile > 0) {
@@ -157,6 +226,46 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
     }
 
     return false;
+  };
+
+  /**
+   * 向所有 frame 发送填充消息，返回第一个成功的响应
+   * 各 frame 的 FormDetector 收到消息后自行判断是否有匹配字段并尝试填充
+   * @param tabId 标签页ID
+   * @param frameIds 所有 frame ID 列表
+   * @param fillData 填充数据（用户名、密码、autoLogin）
+   * @returns FillResult 或 null
+   */
+  const fillPasswordInAllFrames = async (
+    tabId: number,
+    frameIds: number[],
+    fillData: { username: string; password: string; autoLogin: boolean },
+  ): Promise<FillResult | null> => {
+    // 并行向所有 frame 发送填充消息，避免顶层 frame 的慢响应（~9s 重试）阻塞 iframe 的快速填充（~0.2s）
+    const results = await Promise.allSettled(
+      frameIds.map(frameId =>
+        chrome.tabs.sendMessage(
+          tabId,
+          {
+            type: MessageType.FILL_PASSWORD,
+            data: fillData,
+          },
+          { frameId },
+        ),
+      ),
+    );
+
+    // 取第一个成功的响应
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const response = result.value as FillResult | undefined;
+        if (response?.success) {
+          return response;
+        }
+      }
+    }
+
+    return null;
   };
 
   // ==================== 填充密码 ====================
@@ -180,10 +289,15 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
       const tabId = tab.id;
       const autoLogin = options?.autoLogin ?? false;
 
-      // 步骤1: 先检查 content script 是否已就绪（通过 PING）
-      let pingResponse = await pingContentScript(tabId, 2);
+      // 获取所有 frame ID（包括顶层 frame 和 iframe），
+      // 以便后续 PING 和 FILL 能够命中 iframe 内嵌的登录表单
+      const frameIds = await getAllFrameIds(tabId);
 
-      // 步骤2: 只有在 PING 失败时才尝试注入 content script
+      // 步骤1: 先检查所有 frame 中 content script 是否已就绪（通过 PING）
+      let pingResponse = await pingAllFrames(tabId, frameIds);
+
+      // 步骤2: 只有在所有 frame 都 PING 失败时才尝试注入 content script
+      // 注入顶层 frame 即可（allFrames: true 配置会使其在所有 frame 中运行）
       if (!pingResponse) {
         logger.debug('Content script 未就绪，尝试注入...');
         try {
@@ -198,14 +312,14 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
           return;
         }
 
-        pingResponse = await pingContentScript(tabId, 5);
+        pingResponse = await pingAllFrames(tabId, frameIds);
         if (!pingResponse) {
           ElMessage.error('页面脚本未就绪，请刷新页面后重试');
           return;
         }
       }
 
-      // 步骤3: 检查字段是否已检测到，如果没有则等待
+      // 步骤3: 检查所有 frame 中是否已检测到字段，如果没有则等待
       const hasFields =
         pingResponse.fieldsDetected &&
         (pingResponse.fieldsDetected.username > 0 ||
@@ -213,22 +327,20 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
           pingResponse.fieldsDetected.mobile > 0);
 
       if (!hasFields) {
-        const detected = await waitForFieldsDetected(tabId);
+        const detected = await waitForFieldsDetected(tabId, 3, frameIds);
         if (!detected) {
           ElMessage.warning('未检测到登录表单，请确保页面包含登录输入框');
           return;
         }
       }
 
-      // 步骤4: 发送填充消息
-      const response = (await chrome.tabs.sendMessage(tabId, {
-        type: MessageType.FILL_PASSWORD,
-        data: {
-          username: password.username,
-          password: password.password,
-          autoLogin,
-        },
-      })) as FillResult;
+      // 步骤4: 向所有 frame 发送填充消息，取第一个成功的响应
+      const fillData = {
+        username: password.username,
+        password: password.password,
+        autoLogin,
+      };
+      const response = await fillPasswordInAllFrames(tabId, frameIds, fillData);
 
       // 步骤5: 根据响应显示结果
       if (response && response.success) {

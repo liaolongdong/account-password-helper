@@ -1,5 +1,6 @@
 import { MessageType, type AutoSaveConfig, type DomainPattern } from '@/utils/types';
-import type { PendingCredentials } from '@/entrypoints/content/types';
+import { PostMessageType, isSameMainDomain } from '@/utils/domain';
+import type { PendingCredentials, SavePromptData, NotificationType } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { USERNAME_SELECTORS, LOGIN_BUTTON_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
@@ -376,6 +377,13 @@ export class LoginAutoSave {
    * @param pending 待确认的凭证数据（含标签和备注默认值）
    */
   private showPrompt(pending: PendingCredentials): void {
+    // 如果在 iframe 中运行，委托给顶层 frame 渲染弹窗，
+    // 避免弹窗被限制在 iframe 的小视口内（而非整个页面右上角）
+    if (window !== window.top) {
+      this.delegatePromptToTopFrame(pending);
+      return;
+    }
+
     try {
       showSavePasswordPrompt(
         {
@@ -400,6 +408,119 @@ export class LoginAutoSave {
       logger.warn('[APH] 弹窗显示失败:', err);
       // 弹窗显示失败时回退到通知提示
       showNativeNotification(`发现账号密码，但弹窗显示失败，请手动在密码管理页添加`, 'warning');
+    }
+  }
+
+  /**
+   * 将保存确认弹窗委托给顶层 frame 渲染
+   *
+   * 通过 window.top.postMessage 将凭证数据发送给顶层 frame 的 content script，
+   * 由顶层 frame 调用 showSavePasswordPrompt 在页面右上角正常渲染弹窗。
+   * 用户操作结果通过 postMessage 回传，由当前实例执行保存/忽略/不再提示。
+   *
+   * @param pending 待确认的凭证数据
+   */
+  private delegatePromptToTopFrame(pending: PendingCredentials): void {
+    // 安全校验：仅在顶层 frame 与当前 frame 同主域名时才委托，
+    // 防止跨域 iframe 场景下明文密码通过 postMessage 泄露给第三方页面
+    // 使用 location.ancestorOrigins（Chrome 专有 API）获取顶层 origin，
+    // 不会因跨子域名（如 account.aliyun.com ⊂ bailian.console.aliyun.com）抛出 SecurityError
+    const ancestorOrigins = location.ancestorOrigins;
+    const topOrigin = ancestorOrigins[ancestorOrigins.length - 1];
+    if (!topOrigin) {
+      // sandbox iframe 等极端情况禁止 ancestorOrigins 时回退
+      this.delegateNotificationToTopFrame(`发现 ${pending.url} 的账号密码，请在密码管理页手动添加`, 'warning');
+      return;
+    }
+
+    if (!isSameMainDomain(topOrigin, location.origin)) {
+      // 不同主域名的 iframe（如 attacker.com 嵌入 bank.com），不委托
+      this.delegateNotificationToTopFrame(`发现 ${pending.url} 的账号密码，请在密码管理页手动添加`, 'warning');
+      return;
+    }
+
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    const promptData: SavePromptData = {
+      username: pending.username,
+      password: pending.password,
+      url: pending.url,
+      tag: pending.tag,
+      remark: pending.remark,
+    };
+
+    /** 超时定时器 ID，用于 30s 后自动清理监听器 */
+    const timeoutId = setTimeout(() => {
+      window.removeEventListener('message', handleResult);
+      logger.warn('[LoginAutoSave] 顶层 frame 未响应委托请求，已超时清理');
+    }, PENDING_MAX_AGE_MS);
+
+    /** 接收顶层 frame 回传的用户操作结果 */
+    const handleResult = (event: MessageEvent): void => {
+      // 仅接受同主域名顶层 frame 的响应
+      if (!isSameMainDomain(event.origin, location.origin)) return;
+      if (event.data?.type !== PostMessageType.SAVE_PROMPT_RESULT || event.data?.requestId !== requestId) {
+        return;
+      }
+
+      clearTimeout(timeoutId);
+      window.removeEventListener('message', handleResult);
+
+      const { action, editedData } = event.data as {
+        action: 'save' | 'dismiss' | 'neverAsk';
+        editedData?: { tag: string; remark: string; tagEdited: boolean; remarkEdited: boolean };
+      };
+
+      switch (action) {
+        case 'save':
+          this.handleSave({
+            ...pending,
+            tag: editedData?.tag ?? pending.tag,
+            remark: editedData?.remark ?? pending.remark,
+            tagEdited: editedData?.tagEdited ?? false,
+            remarkEdited: editedData?.remarkEdited ?? false,
+          });
+          break;
+        case 'dismiss':
+          this.handleDismiss();
+          break;
+        case 'neverAsk':
+          this.handleNeverAsk(pending);
+          break;
+      }
+    };
+
+    window.addEventListener('message', handleResult);
+
+    try {
+      window.top!.postMessage({ type: PostMessageType.SHOW_SAVE_PROMPT, requestId, data: promptData }, '*');
+      // postMessage 成功后立即清除 sessionStorage 中的待确认凭证，
+      // 防止 iframe 导航后 checkPendingCredentials 重入触发第二次弹窗导致闪烁
+      this.clearPending();
+    } catch {
+      // postMessage 失败（极端情况），清理监听器和超时定时器后回退到通知
+      clearTimeout(timeoutId);
+      window.removeEventListener('message', handleResult);
+      showNativeNotification(`发现 ${pending.url} 的账号密码，请在密码管理页手动添加`, 'warning');
+    }
+  }
+
+  /**
+   * 将通知委托给顶层 frame 渲染
+   *
+   * 当 iframe 中无法显示保存弹窗（跨域/沙箱限制）时，
+   * 优先通过 postMessage 委托顶层 frame 渲染通知，确保通知出现在整个页面右上角。
+   * postMessage 失败时回退到 iframe 内渲染。
+   *
+   * @param message - 通知消息内容
+   * @param type - 通知类型
+   */
+  private delegateNotificationToTopFrame(message: string, type: NotificationType): void {
+    try {
+      window.top!.postMessage({ type: PostMessageType.SHOW_NOTIFICATION, data: { message, type } }, '*');
+    } catch {
+      // postMessage 失败时回退到 iframe 内渲染
+      showNativeNotification(message, type);
     }
   }
 

@@ -79,6 +79,7 @@ export default defineConfig({
       'idle',
       'clipboardWrite',
       'clipboardRead',
+      'webNavigation',
     ],
     host_permissions: ['<all_urls>'],
     action: {

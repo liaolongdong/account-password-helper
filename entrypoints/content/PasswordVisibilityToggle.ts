@@ -3,20 +3,14 @@ import type { ToggleEntry } from '@/entrypoints/content/types';
 
 /**
  * 注入到页面中的 CSS 样式
- * 使用 `.aph-pwd-toggle-` 前缀避免与宿主页面样式冲突
- * 按钮颜色使用主题蓝 #409eff，与项目 Element Plus 主色一致
+ *
+ * 零侵入方案：按钮作为 input 兄弟节点，position: absolute 定位。
+ * 垂直居中由 CSS 处理，水平位置由 JS 计算。
+ * 不包裹 input，不修改 input 样式，仅父元素临时设为 position: relative。
  */
 const INJECTED_STYLES = `
-.aph-pwd-toggle-wrapper {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  width: 100%;
-}
-
 .aph-pwd-toggle-btn {
   position: absolute;
-  right: 8px;
   top: 50%;
   transform: translateY(-50%);
   display: flex;
@@ -33,7 +27,7 @@ const INJECTED_STYLES = `
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.2s ease, visibility 0.2s ease, color 0.15s ease;
-  z-index: 10000;
+  z-index: 200;
   border-radius: 4px;
   outline: none;
   -webkit-tap-highlight-color: transparent;
@@ -66,17 +60,20 @@ const INJECTED_STYLES = `
 }
 `;
 
-/** STYLE 元素 ID，保证只注入一次 */
+/** STYLE 元素 ID */
 const STYLE_ELEMENT_ID = 'aph-pwd-toggle-styles';
+
+/** 按钮左边缘距 input 右边缘的距离 = 按钮宽度(24) + 间距(4) */
+const BUTTON_LEFT_OFFSET = 28;
 
 /**
  * 密码输入框显示/隐藏切换管理器
  *
- * 负责：
- * - 扫描页面中所有 `input[type="password"]`，注入主题蓝色切换按钮
- * - 通过 MutationObserver 监听动态新增的密码输入框
- * - 对所有密码输入框一律注入，不判断页面是否已有切换按钮
- * - 支持动态启用/禁用，不干扰现有账号密码填充功能
+ * 零侵入方案：
+ * - 不对 input 做 DOM 包裹或样式修改
+ * - 按钮作为 input 兄弟节点插入（同一父元素）
+ * - 父元素设为 position: relative（无偏移量，视觉零影响）
+ * - 按钮 position: absolute，CSS 垂直居中 + JS 水平定位
  */
 export class PasswordVisibilityToggle {
   /** 所有已注入的条目（WeakMap 防止内存泄漏） */
@@ -91,21 +88,21 @@ export class PasswordVisibilityToggle {
   /** 功能开关状态 */
   private enabled = true;
 
-  /** 样式元素引用（用于 destroy 时移除） */
+  /** 样式元素引用 */
   private styleElement: HTMLStyleElement | null = null;
 
   /**
-   * 初始化：注入样式、扫描现有密码输入框、启动 MutationObserver
+   * 初始化
    */
   init(): void {
     this.injectStyles();
     this.scanAndInject();
     this.startObserver();
+    window.addEventListener('resize', this.onWindowResize, { passive: true });
   }
 
   /**
-   * 动态启用或禁用功能
-   * @param enabled - 是否启用
+   * 动态启用/禁用
    */
   setEnabled(enabled: boolean): void {
     if (this.enabled === enabled) return;
@@ -115,13 +112,14 @@ export class PasswordVisibilityToggle {
       this.injectStyles();
       this.scanAndInject();
       this.startObserver();
+      window.addEventListener('resize', this.onWindowResize, { passive: true });
     } else {
       this.removeAll();
     }
   }
 
   /**
-   * 销毁：移除所有注入的 DOM 元素、解绑事件、停止观察器
+   * 销毁
    */
   destroy(): void {
     this.removeAll();
@@ -129,6 +127,7 @@ export class PasswordVisibilityToggle {
     this.observer = null;
     this.styleElement?.remove();
     this.styleElement = null;
+    window.removeEventListener('resize', this.onWindowResize);
   }
 
   /**
@@ -144,41 +143,37 @@ export class PasswordVisibilityToggle {
   }
 
   /**
-   * 扫描页面中所有 `input[type="password"]` 并注入切换按钮
+   * 扫描所有密码输入框并注入按钮
    */
   private scanAndInject(): void {
     if (!this.enabled) return;
-
     const passwordInputs = document.querySelectorAll('input[type="password"]') as NodeListOf<HTMLInputElement>;
     passwordInputs.forEach(input => this.injectToggle(input));
   }
 
   /**
    * 为单个密码输入框注入切换按钮
-   * 所有密码输入框一律注入，不判断页面是否已有切换按钮
-   * @param input - 目标密码输入框
+   *
+   * 使用双帧 requestAnimationFrame 延迟初始定位，
+   * 确保弹窗动画/布局完成后再计算位置。
    */
   private injectToggle(input: HTMLInputElement): void {
-    // 跳过已处理或不可见的输入框
     if (this.processedInputs.has(input)) return;
     if (!this.isElementVisible(input)) return;
 
+    const parent = input.parentElement;
+    if (!parent) return;
+
     this.processedInputs.add(input);
 
-    // 创建包裹容器
-    const wrapper = document.createElement('span');
-    wrapper.className = 'aph-pwd-toggle-wrapper';
+    // 父元素设为 position: relative（无偏移量 = 视觉零影响）
+    const computedPosition = window.getComputedStyle(parent).position;
+    const originalParentPosition = parent.style.position || '';
+    if (computedPosition === 'static') {
+      parent.style.position = 'relative';
+    }
 
-    // 把输入框包进去（保持原有 DOM 位置）
-    input.parentNode?.insertBefore(wrapper, input);
-    wrapper.appendChild(input);
-
-    // 增加输入框右侧内边距，避免文字与图标重叠
-    const originalPaddingRight = input.style.paddingRight || '';
-    const currentPaddingRight = parseInt(window.getComputedStyle(input).paddingRight, 10) || 0;
-    input.style.paddingRight = `${Math.max(currentPaddingRight, 36)}px`;
-
-    // 创建切换按钮
+    // 创建按钮
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'aph-pwd-toggle-btn';
@@ -186,7 +181,9 @@ export class PasswordVisibilityToggle {
     button.setAttribute('aria-label', '显示密码');
     // 动作语义：密文状态显示睁眼图标（提示"点击可查看密码"）
     button.innerHTML = eyeOpenIcon;
-    wrapper.appendChild(button);
+
+    // 按钮作为兄弟节点插入到 input 之后
+    parent.insertBefore(button, input.nextSibling);
 
     // 根据当前是否有值控制按钮可见性
     if (input.value.length > 0) {
@@ -211,26 +208,34 @@ export class PasswordVisibilityToggle {
       // 保持焦点在输入框上，不影响用户操作
       input.focus();
 
-      // 触发事件，确保网站自身的表单验证正常工作
+      // 切换 type 后重定位（尺寸可能有细微差异）
+      this.positionButton(input, button);
+
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
     };
     button.addEventListener('click', onClick);
 
+    // 双帧 rAF 延迟初始定位，确保弹窗布局完成（修复弹窗错位问题）
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        this.positionButton(input, button);
+      });
+    });
+
     // 记录条目
-    const entry: ToggleEntry = {
+    this.entries.set(input, {
       input,
-      wrapper,
+      parent,
       button,
       onInput,
       onClick,
-      originalPaddingRight,
-    };
-    this.entries.set(input, entry);
+      originalParentPosition,
+    });
   }
 
   /**
-   * 启动 MutationObserver 监听动态新增的密码输入框
+   * MutationObserver：监听动态新增的密码输入框
    */
   private startObserver(): void {
     if (this.observer) return;
@@ -270,33 +275,33 @@ export class PasswordVisibilityToggle {
    * 移除所有注入的切换按钮，恢复原始 DOM 结构
    */
   private removeAll(): void {
-    // 遍历所有已注入的 wrapper，恢复原始 DOM
-    const wrappers = document.querySelectorAll<HTMLElement>('.aph-pwd-toggle-wrapper');
-    wrappers.forEach(wrapper => {
-      const input = wrapper.querySelector<HTMLInputElement>('input[type="password"], input[type="text"]');
+    const buttons = document.querySelectorAll<HTMLButtonElement>('.aph-pwd-toggle-btn');
+    buttons.forEach(button => {
+      const input = this.findInputForButton(button);
       if (!input) return;
 
       const entry = this.entries.get(input);
-      if (entry) {
-        // 解绑事件
-        input.removeEventListener('input', entry.onInput);
-        entry.button.removeEventListener('click', entry.onClick);
+      if (!entry) return;
 
-        // 恢复原始 type
-        input.type = 'password';
-        // 恢复原始 padding-right
-        input.style.paddingRight = entry.originalPaddingRight;
+      // 解绑事件
+      input.removeEventListener('input', entry.onInput);
+      button.removeEventListener('click', entry.onClick);
 
-        // 移除按钮
-        entry.button.remove();
+      // 恢复原始 type
+      input.type = 'password';
 
-        // 解包：把 input 移回 wrapper 的父节点
-        wrapper.parentNode?.insertBefore(input, wrapper);
-        wrapper.remove();
+      // 移除按钮
+      button.remove();
 
-        this.entries.delete(input);
-        this.processedInputs.delete(input);
+      // 恢复父元素 position
+      if (entry.originalParentPosition) {
+        entry.parent.style.position = entry.originalParentPosition;
+      } else if (window.getComputedStyle(entry.parent).position === 'relative') {
+        entry.parent.style.position = '';
       }
+
+      this.entries.delete(input);
+      this.processedInputs.delete(input);
     });
 
     // 移除样式
@@ -307,6 +312,51 @@ export class PasswordVisibilityToggle {
     this.observer?.disconnect();
     this.observer = null;
   }
+
+  /**
+   * 查找按钮关联的 input（按钮紧跟在 input 之后作为兄弟节点）
+   */
+  private findInputForButton(button: HTMLButtonElement): HTMLInputElement | null {
+    let sibling = button.previousElementSibling;
+    while (sibling) {
+      if (sibling.tagName === 'INPUT' && this.entries.has(sibling as HTMLInputElement)) {
+        return sibling as HTMLInputElement;
+      }
+      sibling = sibling.previousElementSibling;
+    }
+    return null;
+  }
+
+  /**
+   * 计算按钮水平位置（垂直方向由 CSS top:50% + translateY(-50%) 处理）
+   *
+   * 通过 getBoundingClientRect 差值计算按钮在父元素内的绝对 left 坐标。
+   */
+  private positionButton(input: HTMLInputElement, button: HTMLButtonElement): void {
+    const parent = input.parentElement;
+    if (!parent) return;
+
+    const parentRect = parent.getBoundingClientRect();
+    const inputRect = input.getBoundingClientRect();
+
+    // 按钮定位在 input 右侧内部 4px 处
+    const left = inputRect.right - parentRect.left - BUTTON_LEFT_OFFSET;
+    button.style.left = `${left}px`;
+  }
+
+  /**
+   * window resize 回调：遍历所有已注入按钮并重新定位
+   * （响应式布局下 input 宽度可能变化）
+   */
+  private onWindowResize = (): void => {
+    const buttons = document.querySelectorAll<HTMLButtonElement>('.aph-pwd-toggle-btn');
+    buttons.forEach(button => {
+      const input = this.findInputForButton(button);
+      if (input) {
+        this.positionButton(input, button);
+      }
+    });
+  };
 
   /**
    * 判断元素是否可见

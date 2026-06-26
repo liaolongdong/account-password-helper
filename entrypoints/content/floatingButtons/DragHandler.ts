@@ -19,6 +19,9 @@ export class DragHandler {
   // 标记本次操作是否真正发生了拖拽，用于防止拖拽结束后误触发点击
   private hasDragged: boolean = false;
 
+  /** 拖拽期间保存的 iframe 原始 pointer-events 值，用于拖拽结束后恢复 */
+  private iframePointerEvents: Map<HTMLIFrameElement, string> = new Map();
+
   private state: DragState = {
     isDragging: false,
     startX: 0,
@@ -120,6 +123,9 @@ export class DragHandler {
     // 移除全局事件监听
     document.removeEventListener('mousemove', this.boundHandleMouseMove);
     document.removeEventListener('mouseup', this.boundHandleMouseUp);
+
+    // 无论是否实际拖拽（包括点击后未移动的情况），都需恢复 iframe pointer-events
+    this.restoreIframePointerEvents();
   }
 
   /**
@@ -158,6 +164,9 @@ export class DragHandler {
     // 移除全局事件监听
     document.removeEventListener('touchmove', this.boundHandleTouchMove);
     document.removeEventListener('touchend', this.boundHandleTouchEnd);
+
+    // 无论是否实际拖拽，都需恢复 iframe pointer-events
+    this.restoreIframePointerEvents();
   }
 
   /**
@@ -182,6 +191,11 @@ export class DragHandler {
     const buttonRect = this.dragButton.getBoundingClientRect();
     this.state.mouseOffsetX = x - (buttonRect.left + buttonRect.width / 2);
     this.state.mouseOffsetY = y - (buttonRect.top + buttonRect.height / 2);
+
+    // 立即禁用页面中所有 iframe 的 pointer-events，防止 iframe 捕获后续 mousemove 事件
+    // 必须在 mousedown 阶段就执行，否则鼠标一旦移入 iframe 区域，
+    // 顶层 document 的 mousemove 事件就停止触发，导致阈值永远达不到、拖拽卡死
+    this.disableIframePointerEvents();
   }
 
   /**
@@ -327,6 +341,28 @@ export class DragHandler {
   private hideSnapPreview(): void {
     this.snapPreviewLeft.classList.remove('visible');
     this.snapPreviewRight.classList.remove('visible');
+  }
+
+  /**
+   * 拖拽期间禁用页面中所有 iframe 的 pointer-events
+   * 防止 iframe 捕获鼠标事件导致拖拽卡顿/按钮偏离鼠标
+   */
+  private disableIframePointerEvents(): void {
+    const iframes = document.querySelectorAll('iframe');
+    iframes.forEach(iframe => {
+      this.iframePointerEvents.set(iframe, iframe.style.pointerEvents);
+      iframe.style.pointerEvents = 'none';
+    });
+  }
+
+  /**
+   * 拖拽结束后恢复所有 iframe 的原始 pointer-events 值
+   */
+  private restoreIframePointerEvents(): void {
+    this.iframePointerEvents.forEach((original, iframe) => {
+      iframe.style.pointerEvents = original;
+    });
+    this.iframePointerEvents.clear();
   }
 
   /**

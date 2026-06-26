@@ -539,7 +539,9 @@ onMounted(async () => {
 
 .password-list {
   flex: 1;
-  overflow-y: auto;
+
+  /* hidden=水平裁剪，auto=垂直滚动 */
+  overflow: hidden auto;
 }
 
 .loading {

@@ -139,17 +139,25 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
   align-items: center;
   padding: 10px 16px;
   cursor: pointer;
-  background: white;
-  border-bottom: 1px solid #f0f0f0;
-  transition: background-color 0.2s;
+  user-select: none;
+  border-bottom: 1px solid #f3f4f5;
+  transition:
+    background-color 0.2s,
+    transform 0.2s ease;
 }
 
-.password-item:last-child {
-  border-bottom: none;
+/* 斑马条纹：奇偶行交替背景，提升长列表可扫读性 */
+.password-item:nth-child(odd) {
+  background: #fff;
+}
+
+.password-item:nth-child(even) {
+  background: #f8f9fb;
 }
 
 .password-item:hover {
-  background: #f8f9fa;
+  background: #eef1f5;
+  transform: translateX(2px);
 }
 
 .password-item.active {
@@ -190,7 +198,8 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
   border-radius: 4px;
   transition:
     background-color 0.2s,
-    color 0.2s;
+    color 0.2s,
+    transform 0.15s ease;
 }
 
 .copy-icon-wrapper.copy-password {
@@ -199,6 +208,7 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 
 .copy-icon-wrapper:hover {
   background-color: rgb(64 158 255 / 10%);
+  transform: scale(1.12);
 }
 
 .copy-icon-wrapper .copy-icon {
@@ -278,7 +288,7 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  color: #d1d5db;
+  color: #b0b7c3;
 }
 
 .action-icon {
@@ -287,7 +297,7 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 
 .favorite-icon {
   margin-right: 8px;
-  color: #d1d5db;
+  color: #b0b7c3;
   cursor: pointer;
   transition: color 0.2s;
 }
@@ -302,7 +312,7 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 
 .auto-login-icon {
   margin-right: 8px;
-  color: #d1d5db;
+  color: #b0b7c3;
   cursor: pointer;
   transition: color 0.2s;
 }
@@ -312,7 +322,7 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 }
 
 .edit-icon {
-  color: #d1d5db;
+  color: #b0b7c3;
   cursor: pointer;
   opacity: 0;
   transition:
