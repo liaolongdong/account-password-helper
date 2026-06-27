@@ -26,7 +26,7 @@ const THEME_COLOR = '#409eff';
 const WARNING_COLOR = '#E6A23C';
 
 /**
- * 危险警告颜色
+ * 危险警告颜色，勿删，留着备用
  */
 const _DANGER_COLOR = '#F56C6C';
 /**

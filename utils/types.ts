@@ -85,10 +85,6 @@ export enum MessageType {
    */
   PING = 'PING',
   /**
-   * 检测表单消息类型
-   */
-  DETECT_FORM = 'DETECT_FORM',
-  /**
    * 填充密码消息类型
    */
   FILL_PASSWORD = 'FILL_PASSWORD',
@@ -117,17 +113,9 @@ export enum MessageType {
    */
   URL_CHANGED = 'URL_CHANGED',
   /**
-   * 获取密码列表消息类型
-   */
-  GET_PASSWORDS = 'GET_PASSWORDS',
-  /**
    * 打开密码管理页面
    */
   OPEN_OPTIONS_PAGE = 'OPEN_OPTIONS_PAGE',
-  /**
-   * 切换悬浮按钮显示状态
-   */
-  TOGGLE_FLOATING_BUTTONS = 'TOGGLE_FLOATING_BUTTONS',
   /**
    * 获取缓存的密码列表
    */
@@ -163,15 +151,6 @@ export enum MessageType {
 }
 
 /**
- * 消息接口（已废弃，请使用 RuntimeMessage 判别联合类型）
- * @deprecated 使用 RuntimeMessage 替代，可获得类型安全的数据载荷
- */
-export interface Message {
-  type: MessageType;
-  data?: any;
-}
-
-/**
  * 运行时消息判别联合类型
  *
  * 每个消息类型都有精确的 data 载荷类型（或无 data），
@@ -179,7 +158,6 @@ export interface Message {
  */
 export type RuntimeMessage =
   | { type: MessageType.PING }
-  | { type: MessageType.DETECT_FORM }
   | { type: MessageType.FILL_PASSWORD; data: FillPasswordData }
   | { type: MessageType.FILL_MOBILE_CODE; data: FillMobileCodeData }
   | { type: MessageType.SHOW_SIDEPANEL; data?: { tabId?: number } }
@@ -187,11 +165,9 @@ export type RuntimeMessage =
   | { type: MessageType.TOGGLE_SIDEPANEL; data?: { tabId?: number } }
   | { type: MessageType.CLOSE_SIDEPANEL }
   | { type: MessageType.URL_CHANGED; data: { url: string } }
-  | { type: MessageType.GET_PASSWORDS; data: { domain: string } }
   | { type: MessageType.OPEN_OPTIONS_PAGE }
   | { type: MessageType.OPEN_OPTIONS_AND_EDIT; data: { editId: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_ADD }
-  | { type: MessageType.TOGGLE_FLOATING_BUTTONS }
   | { type: MessageType.GET_CACHED_PASSWORDS; data?: { domain?: string } }
   | { type: MessageType.UPDATE_PASSWORD_CACHE; data: Omit<PasswordCache, 'timestamp'> }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
