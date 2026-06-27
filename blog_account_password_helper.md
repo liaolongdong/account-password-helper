@@ -153,6 +153,8 @@ and so on, 还有更多隐藏实用的细节需要你来探索发现。
 
 通信层面，Background 作为消息路由中心处理跨组件通信：`SidePanel` 通过 Port 长连接实现可靠状态追踪，`Content Script` 和其他页面通过 `sendMessage` 短消息交互。`WeakMap / WeakSet` 缓存字段判断结果，避免内存泄漏。
 
+![技术架构：给同行开发者一个交代](imgs/05-framework-architecture.png)
+
 ## 我现在最常用的工作流
 
 我的习惯是：

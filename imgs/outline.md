@@ -1,39 +1,55 @@
 ---
 type: mixed
-density: balanced
+density: per-section
 style: sketch-notes
 palette: macaron
-image_count: 4
+image_count: 6
 ---
 
-## Illustration 1
+## Illustration 0 — Banner
 
-**Position**: After "真正的痛点不是存密码" section (line 23)
+**Position**: Article header (line 1)
+**Purpose**: Eye-catching cover that tells the before/after story of the plugin
+**Visual Content**: Split narrative — left half shows chaos (scattered accounts, sticky notes, stressed developer), center shows the extension icon as transition, right half shows order (clean sidebar, one-click fill, happy developer)
+**Type Application**: scene — narrative before/after
+**Filename**: account_password_helper_banner.png
+
+## Illustration 1 — Pain Points
+
+**Position**: After "真正的痛点不是存密码" section (line 27)
 **Purpose**: Visualize the 5 core pain points that dev/test/PM teams face with multi-account management
-**Visual Content**: A central figure surrounded by 5 pain-point icons: (1) multi-environment account chaos — dev/test/prod scattered, (2) manual entry prone to errors, (3) copy-paste loop from Excel, (4) outdated docs nobody maintains, (5) temporary accounts feel too heavy for enterprise password managers. Warm cream paper base with hand-drawn black outlines, soft macaron pastel fills.
+**Visual Content**: Central frustrated figure surrounded by 5 pain-point zones: (1) multi-environment account chaos, (2) manual entry errors, (3) copy-paste loop, (4) scattered outdated docs, (5) temp accounts too heavy for enterprise tools
 **Type Application**: infographic — concept explainer with annotated icons
 **Filename**: 01-infographic-pain-points.png
 
-## Illustration 2
+## Illustration 2 — Tool Comparison
 
-**Position**: After "我为什么不用 Chrome 自带" comparison section (line 50)
+**Position**: After "我为什么不用 Chrome 自带" comparison section (line 56)
 **Purpose**: Side-by-side comparison of three tools highlighting why this plugin fits the dev/test workflow
-**Visual Content**: Three columns comparing "账号密码管理助手" (left, highlighted), "Chrome 自带" (center), "1Password / Bitwarden" (right). Key dimensions: 本地安全 (padlock), 开源免费 (code icon), 侧边栏快速填充 (sidebar), 标签分类 (tags), 多账号切换 (switch), 自动保存 (save). The left column is visually emphasized with warm accent colors.
+**Visual Content**: Three columns: 账号密码管理助手 (highlighted), Chrome 自带, 1Password/Bitwarden. 6 key dimensions with icons.
 **Type Application**: comparison — side-by-side with emphasis on the left column
 **Filename**: 02-comparison-tools.png
 
-## Illustration 3
+## Illustration 3 — 9 Core Features
 
-**Position**: After "这个插件最打动我的几个点" section intro (line 52, before 第一)
+**Position**: After "这款插件9大核心功能" section intro (line 60)
 **Purpose**: Overview infographic of the 9 standout features as a visual index
-**Visual Content**: A 3×3 grid of feature icons with short labels: (1) 本地加密存储, (2) MIT 开源, (3) 侧边栏一键填充, (4) 自动保存+三选项, (5) 批量管理+LRU收藏, (6) .aph加密备份+邮件提醒, (7) 密码可见性切换, (8) 随机密码生成器, (9) 剪贴板清除+闲置锁定. Each icon is hand-drawn with macaron pastel fills on cream paper.
+**Visual Content**: 3x3 grid: 本地加密存储, MIT开源, 侧边栏一键填充, 自动保存, 批量管理, 加密备份, 密码可见性, 随机密码生成, 安全细节
 **Type Application**: infographic — grid layout summarizing key features
 **Filename**: 03-infographic-features.png
 
-## Illustration 4
+## Illustration 4 — Workflow
 
-**Position**: After "我现在最常用的工作流" section (line 100)
+**Position**: After "我现在最常用的工作流" section (line 170)
 **Purpose**: Visualize the 7-step daily workflow from import to cleanup
-**Visual Content**: A horizontal flowchart with 7 connected steps using hand-drawn arrows and icons: (1) 导入模板 (upload icon) → (2) 打标签 (tag icon) → (3) 收藏+LRU (star icon) → (4) 自动保存 (save icon) → (5) 侧边栏填充+生成密码 (fill icon with wand) → (6) 加密备份+邮件提醒 (backup icon) → (7) 一键去重 (dedup icon). Steps flow left to right with macaron-colored nodes and sketch-notes line treatment.
+**Visual Content**: Horizontal flowchart with 7 steps: 导入模板 → 打标签 → 收藏+LRU → 自动保存 → 填充+生成 → 加密备份+提醒 → 一键去重
 **Type Application**: flowchart — horizontal process with annotated steps
 **Filename**: 04-flowchart-workflow.png
+
+## Illustration 5 — Technical Architecture (NEW)
+
+**Position**: After "技术架构：给同行开发者一个交代" section (line 153)
+**Purpose**: Show the 5 entry points, encryption pipeline, and communication architecture for developer audience
+**Visual Content**: Framework diagram with 5 entry points (Background, Content Script, Popup, Options, SidePanel), encryption flow (PBKDF2 → AES-256-GCM), and communication patterns (Port long-connection, sendMessage)
+**Type Application**: framework — architecture overview with component relationships
+**Filename**: 05-framework-architecture.png

@@ -54,6 +54,8 @@ Chinese — no computer fonts. Short labels and keywords only. Generous
 white space. Human figures: simplified stylized silhouettes or symbolic
 representations, not photorealistic.
 
+NO WATERMARKS, NO LOGOS, NO SIGNATURES anywhere in the image.
+
 Color values (#hex) and color names are rendering guidance only — do NOT
 display color names, hex codes, or palette labels as visible text in
 the image.
