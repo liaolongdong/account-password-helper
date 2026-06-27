@@ -45,10 +45,7 @@ export const USERNAME_SELECTORS = [
   'input[id*="userName"]',
   // 扩展选择器
   'input[name*="user_name"]',
-  'input[name*="userName"]',
-  'input[name*="userName"]',
   'input[id*="user_name"]',
-  'input[id*="userName"]',
   'input[name*="emailAddress"]',
   'input[name*="email_address"]',
   'input[id*="emailAddress"]',

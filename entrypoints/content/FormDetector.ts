@@ -1,4 +1,11 @@
-import { Message, MessageType, FloatingButtonConfig, FillPasswordData, FillResult, PingResponse } from '@/utils/types';
+import {
+  type RuntimeMessage,
+  MessageType,
+  FloatingButtonConfig,
+  FillPasswordData,
+  FillResult,
+  PingResponse,
+} from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import {
@@ -54,6 +61,8 @@ export class FormDetector {
   private floatingButtonConfig: FloatingButtonConfig;
   /** 存储变化监听器 */
   private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
+  /** DOM 变化检测的 debounce 计时器（可取消） */
+  private detectionTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** 输入填充器 */
   private inputFiller = new InputFiller();
@@ -138,7 +147,7 @@ export class FormDetector {
     }
 
     // 监听消息
-    chrome.runtime.onMessage.addListener((message: Message, sender, sendResponse) => {
+    chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
       const handled = this.handleMessage(message, sender, sendResponse);
       return handled; // 仅对已处理的消息保持通道开放，未处理的消息传递给 background
     });
@@ -166,7 +175,8 @@ export class FormDetector {
             return;
           }
         }
-        // todo: 这里的检测不准确
+        // 只在有密码框、邮箱框或表单结构时触发重新检测
+        // 避免对普通 text 输入框的误触发
         mutation.addedNodes.forEach(node => {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const element = node as Element;
@@ -174,7 +184,6 @@ export class FormDetector {
               element.querySelector &&
               (element.querySelector('input[type="password"]') ||
                 element.querySelector('input[type="email"]') ||
-                element.querySelector('input[type="text"]') ||
                 element.querySelector('input[type="tel"]') ||
                 element.querySelector('input[type="number"]'))
             ) {
@@ -200,7 +209,12 @@ export class FormDetector {
       });
 
       if (shouldRedetect) {
-        setTimeout(() => this.detectForms(), this.shortDelayTime);
+        // 使用可取消的 debounce，避免连续 DOM 变化导致重复检测
+        if (this.detectionTimer) clearTimeout(this.detectionTimer);
+        this.detectionTimer = setTimeout(() => {
+          this.detectionTimer = null;
+          this.detectForms();
+        }, this.shortDelayTime);
       }
     });
 
@@ -774,7 +788,7 @@ export class FormDetector {
    * @param sendResponse - 响应回调
    */
   private handleMessage(
-    message: Message,
+    message: RuntimeMessage,
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response: unknown) => void,
   ): boolean {
@@ -794,12 +808,12 @@ export class FormDetector {
         return true;
       }
       case MessageType.FILL_PASSWORD:
-        this.fillPasswordWithResult(message.data as FillPasswordData).then(result => {
+        this.fillPasswordWithResult(message.data).then(result => {
           sendResponse(result);
         });
         return true;
       case MessageType.FILL_MOBILE_CODE:
-        this.fillMobileCode(message.data as { mobile: string; code: string });
+        this.fillMobileCode(message.data);
         sendResponse({ success: true, message: '填充完成' });
         return true;
       case MessageType.SHOW_SIDEPANEL:
@@ -1004,6 +1018,10 @@ export class FormDetector {
   public destroy(): void {
     if (this.observer) {
       this.observer.disconnect();
+    }
+    if (this.detectionTimer) {
+      clearTimeout(this.detectionTimer);
+      this.detectionTimer = null;
     }
     document.removeEventListener('click', this.handleDelegatedClick, { capture: true });
     if (this.storageListener) {

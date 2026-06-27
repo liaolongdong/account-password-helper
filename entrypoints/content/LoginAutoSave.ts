@@ -1,4 +1,4 @@
-import { MessageType, type AutoSaveConfig, type DomainPattern } from '@/utils/types';
+import { MessageType, type AutoSaveConfig, type DomainPattern, type RuntimeMessage } from '@/utils/types';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import type { PendingCredentials, SavePromptData, NotificationType } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
@@ -115,7 +115,7 @@ export class LoginAutoSave {
    * 闲时锁定或手动清除会话时，background 会广播 SESSION_EXPIRED，
    * content script 的内存缓存不会自动清除，需通过此标记同步。
    */
-  private handleRuntimeMessage = (message: { type?: string }): void => {
+  private handleRuntimeMessage = (message: RuntimeMessage): void => {
     if (message?.type === MessageType.SESSION_EXPIRED) {
       this.sessionExpired = true;
       // 立即关闭已显示的弹窗

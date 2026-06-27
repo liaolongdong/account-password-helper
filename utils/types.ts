@@ -163,12 +163,41 @@ export enum MessageType {
 }
 
 /**
- * 消息接口
+ * 消息接口（已废弃，请使用 RuntimeMessage 判别联合类型）
+ * @deprecated 使用 RuntimeMessage 替代，可获得类型安全的数据载荷
  */
 export interface Message {
   type: MessageType;
   data?: any;
 }
+
+/**
+ * 运行时消息判别联合类型
+ *
+ * 每个消息类型都有精确的 data 载荷类型（或无 data），
+ * 在 switch/if 分支中 TypeScript 自动收窄类型，消除 `as any` 断言。
+ */
+export type RuntimeMessage =
+  | { type: MessageType.PING }
+  | { type: MessageType.DETECT_FORM }
+  | { type: MessageType.FILL_PASSWORD; data: FillPasswordData }
+  | { type: MessageType.FILL_MOBILE_CODE; data: FillMobileCodeData }
+  | { type: MessageType.SHOW_SIDEPANEL; data?: { tabId?: number } }
+  | { type: MessageType.HIDE_SIDEPANEL; data?: { tabId?: number } }
+  | { type: MessageType.TOGGLE_SIDEPANEL; data?: { tabId?: number } }
+  | { type: MessageType.CLOSE_SIDEPANEL }
+  | { type: MessageType.URL_CHANGED; data: { url: string } }
+  | { type: MessageType.GET_PASSWORDS; data: { domain: string } }
+  | { type: MessageType.OPEN_OPTIONS_PAGE }
+  | { type: MessageType.OPEN_OPTIONS_AND_EDIT; data: { editId: string } }
+  | { type: MessageType.OPEN_OPTIONS_AND_ADD }
+  | { type: MessageType.TOGGLE_FLOATING_BUTTONS }
+  | { type: MessageType.GET_CACHED_PASSWORDS; data?: { domain?: string } }
+  | { type: MessageType.UPDATE_PASSWORD_CACHE; data: Omit<PasswordCache, 'timestamp'> }
+  | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
+  | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
+  | { type: MessageType.SESSION_EXPIRED }
+  | { type: MessageType.CHECK_UPDATE };
 
 /**
  * 悬浮按钮配置接口
