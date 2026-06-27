@@ -210,6 +210,8 @@ and so on, 还有更多隐藏实用的细节需要你来探索发现。
 项目地址：https://github.com/liaolongdong/account-password-helper  
 在线演示：https://liaolongdong.github.io/account-password-helper/
 
+**如果这个插件对您有帮助，请帮忙点个⭐️，如有更好的想法或建议，欢迎提 Issue 和 Pull Request。**
+
 > 安全提醒：
 >
 > - 本插件仅用于开发和测试环境，**严禁保存生产环境或个人敏感密码**（如银行、支付、社交核心密码）；
