@@ -2,7 +2,7 @@
 
 [![WXT](https://img.shields.io/badge/WXT-v0.20.25-4E88FF)](https://wxt.dev/)
 [![Vue](https://img.shields.io/badge/Vue-v3.5.33-42b883)](https://vuejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-v6-3178c6)](https://www.typescriptlang.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-v6.0-3178c6)](https://www.typescriptlang.org/)
 [![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13.7-409EFF)](https://element-plus.org/)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#许可证)
@@ -253,16 +253,25 @@ user@email.com,password123,https://example.com,工作,示例账号
 JSON 格式使用与插件内部一致的字段结构，导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`，导出前需验证主密码。
 
 ```json
-[
-  {
-    "username": "user@email.com",
-    "password": "password123",
-    "url": "https://example.com",
-    "tag": "工作",
-    "remark": "示例账号"
-  }
-]
+{
+  "version": 1,
+  "exportedAt": 1700000000000,
+  "count": 1,
+  "entries": [
+    {
+      "username": "user@email.com",
+      "password": "password123",
+      "url": "https://example.com",
+      "tag": "工作",
+      "remark": "示例账号",
+      "createTime": 1700000000000,
+      "updateTime": 1700000000000
+    }
+  ]
+}
 ```
+
+> 导出格式为 `{ version, exportedAt, count, entries }` 包裹结构，导入时同时支持扁平数组 `[{...}]` 和包裹格式，兼容中英文列名映射。
 
 ## 架构设计
 
@@ -318,7 +327,7 @@ graph TB
 ```
 
 - 敏感字段加密：`username`、`password`、`url`、`remark`
-- 空字段不参与加密（写空字符串）；解密失败安全降级返回原始数据
+- 空字段不参与加密（写空字符串）；Base64 解码失败安全降级返回原始数据，GCM 解密失败抛出错误由调用方按需处理
 - 内存中的主密码副本使用 HKDF + SHA-256 派生会话密钥，通过 AES-256-GCM 二次加密后再存入 chrome.storage.local
 
 ## 项目结构
@@ -458,6 +467,7 @@ graph TB
 | `idle`           | 自动闲置锁定检测               |
 | `clipboardWrite` | 写入剪贴板（复制密码）         |
 | `clipboardRead`  | 读取剪贴板（验证清除前内容）   |
+| `webNavigation`  | 跨 iframe 表单检测与填充       |
 | `<all_urls>`     | Content Script 匹配所有页面    |
 
 ## 安全提醒
