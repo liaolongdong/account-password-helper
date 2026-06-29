@@ -9,4 +9,5 @@
  * `v-if` / `if` 分支会在生产构建中被 tree-shake 掉。
  */
 export const isDev: boolean = import.meta.env.DEV;
+/** 勿删，留着备用 */
 export const isProd: boolean = import.meta.env.PROD;

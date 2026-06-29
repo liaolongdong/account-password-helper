@@ -88,6 +88,18 @@ export interface SavePromptEditedData {
   remarkEdited: boolean;
 }
 
+/**
+ * showSavePasswordPrompt 返回的弹窗实时更新控制接口
+ *
+ * 用于弹窗显示期间，宿主页面表单字段变化时实时同步弹窗内展示的用户名和密码文本。
+ */
+export interface SavePromptControls {
+  /** 更新弹窗中展示的用户名文本 */
+  updateUsername: (username: string) => void;
+  /** 更新弹窗中展示的密码文本（自动转为圆点显示） */
+  updatePassword: (password: string) => void;
+}
+
 // ── LoginAutoSave 相关 ──
 
 /**
@@ -116,18 +128,25 @@ export interface PendingCredentials {
 
 /**
  * 每个被托管的密码输入框的状态记录
+ *
+ * 采用零侵入方案：按钮作为 input 的兄弟节点插入同一父元素，
+ * 不对 input 做任何 DOM 包裹或样式修改，仅将父元素设为 position: relative
+ * 以创建定位上下文（无视觉影响）。
+ *
+ * 垂直居中由 CSS（top: 50%; transform: translateY(-50%)）处理，
+ * 水平位置由 JS 计算，无需 ResizeObserver 或 scroll 追踪。
  */
 export interface ToggleEntry {
   /** 原始密码输入框 */
   input: HTMLInputElement;
-  /** 包裹容器 */
-  wrapper: HTMLElement;
-  /** 切换按钮 */
+  /** input 的父元素（按钮挂载在此，设为 position: relative 作为定位上下文） */
+  parent: HTMLElement;
+  /** 切换按钮（position: absolute 定位在 input 右侧） */
   button: HTMLButtonElement;
   /** input 事件监听器引用（用于解绑） */
   onInput: () => void;
   /** click 事件监听器引用（用于解绑） */
   onClick: () => void;
-  /** 输入框原始 padding-right 值 */
-  originalPaddingRight: string;
+  /** 父元素原始的 style.position 值（用于 cleanup 恢复） */
+  originalParentPosition: string;
 }

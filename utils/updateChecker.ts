@@ -1,18 +1,7 @@
 import type { UpdateInfo } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/encryption';
-
-/**
- * GitHub Releases API 地址
- * 用于获取最新发布的版本信息
- */
-const GITHUB_RELEASES_API = 'https://api.github.com/repos/liaolongdong/account-password-helper/releases/latest';
-
-/**
- * GitHub Release 版本下载页面 URL
- * 用户点击更新提示后跳转到此页面下载最新版本
- */
-const GITHUB_RELEASES_PAGE = 'https://github.com/liaolongdong/account-password-helper/releases/latest';
+import { GITHUB_RELEASES_API_URL, GITHUB_RELEASES_PAGE_URL } from '@/utils/constants';
 
 /**
  * 版本更新检测闹钟名称
@@ -62,7 +51,7 @@ export function isNewerVersion(current: string, latest: string): boolean {
  */
 async function fetchLatestRelease(): Promise<UpdateInfo | null> {
   try {
-    const response = await fetch(GITHUB_RELEASES_API, {
+    const response = await fetch(GITHUB_RELEASES_API_URL, {
       headers: { Accept: 'application/vnd.github+json' },
     });
 
@@ -88,7 +77,7 @@ async function fetchLatestRelease(): Promise<UpdateInfo | null> {
 
     return {
       latestVersion,
-      downloadUrl: data.html_url || GITHUB_RELEASES_PAGE,
+      downloadUrl: data.html_url || GITHUB_RELEASES_PAGE_URL,
       releaseNotes,
       publishedAt: data.published_at ?? '',
       checkedAt: Date.now(),
@@ -170,5 +159,5 @@ export async function getCachedUpdateInfo(): Promise<UpdateInfo | null> {
  * 获取 GitHub Release 页面 URL（用于通知点击跳转）
  */
 export function getReleasesPageUrl(): string {
-  return GITHUB_RELEASES_PAGE;
+  return GITHUB_RELEASES_PAGE_URL;
 }

@@ -176,7 +176,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { MessageType } from '@/utils/types';
-import { sessionManager } from '@/utils/sessionManager';
+import { initSessionManager } from '@/utils/sessionManager';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import {
@@ -512,7 +512,7 @@ useRuntimeMessageHandler({
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */
 onMounted(async () => {
   injectPersonalizationStyles();
-  sessionManager.init();
+  initSessionManager();
   window.addEventListener('sessionExpired', handleSessionExpired);
   await checkAuth();
   // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载

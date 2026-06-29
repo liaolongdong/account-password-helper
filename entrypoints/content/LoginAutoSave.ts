@@ -1,5 +1,11 @@
-import { MessageType, type AutoSaveConfig, type DomainPattern } from '@/utils/types';
-import type { PendingCredentials } from '@/entrypoints/content/types';
+import { MessageType, type AutoSaveConfig, type DomainPattern, type RuntimeMessage } from '@/utils/types';
+import { PostMessageType, isSameMainDomain } from '@/utils/domain';
+import type {
+  PendingCredentials,
+  SavePromptControls,
+  SavePromptData,
+  NotificationType,
+} from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { USERNAME_SELECTORS, LOGIN_BUTTON_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
@@ -45,6 +51,12 @@ export class LoginAutoSave {
   private lastPromptSaved = false;
   /** 会话是否已被外部通知过期（闲时锁定、手动清除等场景，由 SESSION_EXPIRED 广播触发） */
   private sessionExpired = false;
+  /** 最近一次捕获的密码输入框 DOM 引用（用于弹窗显示期间实时同步表单值） */
+  private lastCapturedPasswordField: HTMLInputElement | null = null;
+  /** 最近一次捕获的表单 DOM 引用（用于查找用户名字段以实时同步） */
+  private lastCapturedForm: HTMLFormElement | null = null;
+  /** 字段同步监听器的清理函数列表 */
+  private fieldSyncCleanups: (() => void)[] = [];
 
   constructor() {
     this.init();
@@ -114,11 +126,13 @@ export class LoginAutoSave {
    * 闲时锁定或手动清除会话时，background 会广播 SESSION_EXPIRED，
    * content script 的内存缓存不会自动清除，需通过此标记同步。
    */
-  private handleRuntimeMessage = (message: { type?: string }): void => {
+  private handleRuntimeMessage = (message: RuntimeMessage): void => {
     if (message?.type === MessageType.SESSION_EXPIRED) {
       this.sessionExpired = true;
       // 立即关闭已显示的弹窗
       dismissSavePasswordPrompt();
+      // 清理表单字段同步监听器
+      this.teardownFieldSync();
     }
   };
 
@@ -147,6 +161,10 @@ export class LoginAutoSave {
     if (!username) {
       return;
     }
+
+    // 存储字段引用，用于弹窗显示期间实时同步表单值
+    this.lastCapturedPasswordField = passwordField;
+    this.lastCapturedForm = form;
 
     void this.onCredentialsCaptured(username, password);
   };
@@ -191,6 +209,10 @@ export class LoginAutoSave {
       return;
     }
 
+    // 存储字段引用，用于弹窗显示期间实时同步表单值
+    this.lastCapturedPasswordField = passwordField;
+    this.lastCapturedForm = form;
+
     void this.onCredentialsCaptured(username, password);
   };
 
@@ -221,6 +243,10 @@ export class LoginAutoSave {
     if (!username) {
       return;
     }
+
+    // 存储字段引用，用于弹窗显示期间实时同步表单值
+    this.lastCapturedPasswordField = passwordField;
+    this.lastCapturedForm = form;
 
     void this.onCredentialsCaptured(username, password);
   };
@@ -376,8 +402,18 @@ export class LoginAutoSave {
    * @param pending 待确认的凭证数据（含标签和备注默认值）
    */
   private showPrompt(pending: PendingCredentials): void {
+    // 如果在 iframe 中运行，委托给顶层 frame 渲染弹窗，
+    // 避免弹窗被限制在 iframe 的小视口内（而非整个页面右上角）
+    if (window !== window.top) {
+      this.delegatePromptToTopFrame(pending);
+      return;
+    }
+
+    // 先清理上一次弹窗的字段同步监听器，防止重复弹窗时泄漏
+    this.teardownFieldSync();
+
     try {
-      showSavePasswordPrompt(
+      const controls = showSavePasswordPrompt(
         {
           username: pending.username,
           password: pending.password,
@@ -396,11 +432,238 @@ export class LoginAutoSave {
         () => this.handleDismiss(),
         () => this.handleNeverAsk(pending),
       );
+
+      // 弹窗显示后，监听宿主页面表单字段的 input 事件实时同步展示值
+      this.setupFieldSync(controls);
     } catch (err) {
       logger.warn('[APH] 弹窗显示失败:', err);
       // 弹窗显示失败时回退到通知提示
       showNativeNotification(`发现账号密码，但弹窗显示失败，请手动在密码管理页添加`, 'warning');
     }
+  }
+
+  /**
+   * 将保存确认弹窗委托给顶层 frame 渲染
+   *
+   * 通过 window.top.postMessage 将凭证数据发送给顶层 frame 的 content script，
+   * 由顶层 frame 调用 showSavePasswordPrompt 在页面右上角正常渲染弹窗。
+   * 用户操作结果通过 postMessage 回传，由当前实例执行保存/忽略/不再提示。
+   *
+   * @param pending 待确认的凭证数据
+   */
+  private delegatePromptToTopFrame(pending: PendingCredentials): void {
+    // 安全校验：仅在顶层 frame 与当前 frame 同主域名时才委托，
+    // 防止跨域 iframe 场景下明文密码通过 postMessage 泄露给第三方页面
+    // 使用 location.ancestorOrigins（Chrome 专有 API）获取顶层 origin，
+    // 不会因跨子域名（如 account.aliyun.com ⊂ bailian.console.aliyun.com）抛出 SecurityError
+    const ancestorOrigins = location.ancestorOrigins;
+    const topOrigin = ancestorOrigins[ancestorOrigins.length - 1];
+    if (!topOrigin) {
+      // sandbox iframe 等极端情况禁止 ancestorOrigins 时回退
+      this.delegateNotificationToTopFrame(`发现 ${pending.url} 的账号密码，请在密码管理页手动添加`, 'warning');
+      return;
+    }
+
+    if (!isSameMainDomain(topOrigin, location.origin)) {
+      // 不同主域名的 iframe（如 attacker.com 嵌入 bank.com），不委托
+      this.delegateNotificationToTopFrame(`发现 ${pending.url} 的账号密码，请在密码管理页手动添加`, 'warning');
+      return;
+    }
+
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+
+    const promptData: SavePromptData = {
+      username: pending.username,
+      password: pending.password,
+      url: pending.url,
+      tag: pending.tag,
+      remark: pending.remark,
+    };
+
+    /** 超时定时器 ID，用于 30s 后自动清理监听器 */
+    const timeoutId = setTimeout(() => {
+      window.removeEventListener('message', handleResult);
+      logger.warn('[LoginAutoSave] 顶层 frame 未响应委托请求，已超时清理');
+    }, PENDING_MAX_AGE_MS);
+
+    /** 接收顶层 frame 回传的用户操作结果 */
+    const handleResult = (event: MessageEvent): void => {
+      // 仅接受同主域名顶层 frame 的响应
+      if (!isSameMainDomain(event.origin, location.origin)) return;
+      if (event.data?.type !== PostMessageType.SAVE_PROMPT_RESULT || event.data?.requestId !== requestId) {
+        return;
+      }
+
+      clearTimeout(timeoutId);
+      window.removeEventListener('message', handleResult);
+
+      const { action, editedData } = event.data as {
+        action: 'save' | 'dismiss' | 'neverAsk';
+        editedData?: { tag: string; remark: string; tagEdited: boolean; remarkEdited: boolean };
+      };
+
+      switch (action) {
+        case 'save':
+          this.handleSave({
+            ...pending,
+            tag: editedData?.tag ?? pending.tag,
+            remark: editedData?.remark ?? pending.remark,
+            tagEdited: editedData?.tagEdited ?? false,
+            remarkEdited: editedData?.remarkEdited ?? false,
+          });
+          break;
+        case 'dismiss':
+          this.handleDismiss();
+          break;
+        case 'neverAsk':
+          this.handleNeverAsk(pending);
+          break;
+      }
+    };
+
+    window.addEventListener('message', handleResult);
+
+    try {
+      window.top!.postMessage({ type: PostMessageType.SHOW_SAVE_PROMPT, requestId, data: promptData }, '*');
+      // postMessage 成功后立即清除 sessionStorage 中的待确认凭证，
+      // 防止 iframe 导航后 checkPendingCredentials 重入触发第二次弹窗导致闪烁
+      this.clearPending();
+    } catch {
+      // postMessage 失败（极端情况），清理监听器和超时定时器后回退到通知
+      clearTimeout(timeoutId);
+      window.removeEventListener('message', handleResult);
+      showNativeNotification(`发现 ${pending.url} 的账号密码，请在密码管理页手动添加`, 'warning');
+    }
+  }
+
+  /**
+   * 将通知委托给顶层 frame 渲染
+   *
+   * 当 iframe 中无法显示保存弹窗（跨域/沙箱限制）时，
+   * 优先通过 postMessage 委托顶层 frame 渲染通知，确保通知出现在整个页面右上角。
+   * postMessage 失败时回退到 iframe 内渲染。
+   *
+   * @param message - 通知消息内容
+   * @param type - 通知类型
+   */
+  private delegateNotificationToTopFrame(message: string, type: NotificationType): void {
+    try {
+      window.top!.postMessage({ type: PostMessageType.SHOW_NOTIFICATION, data: { message, type } }, '*');
+    } catch {
+      // postMessage 失败时回退到 iframe 内渲染
+      showNativeNotification(message, type);
+    }
+  }
+
+  /**
+   * 重新从 DOM 中捕获当前表单中的用户名和密码
+   *
+   * 优先使用捕获时存储的精确字段引用（lastCapturedPasswordField），
+   * 避免全局 document.querySelector 在 SPA 清空字段后返回 null 导致回退到旧值。
+   * 仅在存储引用失效时回退到全局查询。
+   *
+   * @returns 当前表单中的用户名和密码，或 null
+   */
+  private captureCurrentCredentials(): { username: string; password: string } | null {
+    // 优先使用捕获时存储的精确字段引用
+    const storedField = this.lastCapturedPasswordField;
+    if (storedField?.isConnected && storedField.value) {
+      const username = this.lastCapturedForm
+        ? this.findUsernameInForm(this.lastCapturedForm)
+        : this.findUsernameInPage();
+      // 即使 username 查找失败（SPA 清空了用户名字段），
+      // 密码值从精确引用读取也是正确的，username 为空时由 handleSave 的 ?? 回退到 pending 值
+      return { username: username || '', password: storedField.value };
+    }
+
+    // 引用失效时回退到全局查询
+    const passwordField = document.querySelector('input[type="password"]') as HTMLInputElement | null;
+    if (!passwordField?.value) return null;
+
+    const form = passwordField.closest('form') as HTMLFormElement | null;
+    const username = form ? this.findUsernameInForm(form) : this.findUsernameInPage();
+    if (!username) return null;
+
+    return { username, password: passwordField.value };
+  }
+
+  /**
+   * 在宿主页面表单字段上注册 input 事件监听器，实时同步弹窗展示值
+   *
+   * 弹窗显示期间，用户可能在宿主页面修改登录表单的账号或密码，
+   * 通过监听 input 事件实时调用 controls.updateUsername / updatePassword 更新弹窗文本。
+   *
+   * @param controls - 弹窗更新控制接口
+   */
+  private setupFieldSync(controls: SavePromptControls): void {
+    const passwordField = this.lastCapturedPasswordField;
+    if (!passwordField) return;
+
+    // 监听密码框 input 事件，实时更新弹窗密码展示
+    const onPasswordInput = () => {
+      controls.updatePassword(passwordField.value);
+      // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
+      this.syncPendingToSession(passwordField.value);
+    };
+    passwordField.addEventListener('input', onPasswordInput);
+    this.fieldSyncCleanups.push(() => {
+      passwordField.removeEventListener('input', onPasswordInput);
+    });
+    // 立即同步当前值，避免弹窗显示时已存在延迟修改
+    onPasswordInput();
+
+    // 查找并监听用户名输入框
+    const form = this.lastCapturedForm;
+    const usernameField = form ? this.findUsernameFieldInForm(form) : this.findUsernameFieldInPage();
+    if (usernameField) {
+      const onUsernameInput = () => {
+        controls.updateUsername(usernameField.value);
+        // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
+        this.syncPendingToSession(undefined, usernameField.value);
+      };
+      usernameField.addEventListener('input', onUsernameInput);
+      this.fieldSyncCleanups.push(() => {
+        usernameField.removeEventListener('input', onUsernameInput);
+      });
+      // 立即同步当前值
+      onUsernameInput();
+    }
+  }
+
+  /**
+   * 将最新值同步到 sessionStorage 中的待确认凭证
+   *
+   * 弹窗显示期间用户修改表单字段后，需将最新值回写 sessionStorage，
+   * 确保页面跳转/刷新后 checkPendingCredentials 能读取到最新值。
+   *
+   * @param password - 最新的密码值，undefined 表示不更新
+   * @param username - 最新的用户名值，undefined 表示不更新
+   */
+  private syncPendingToSession(password?: string, username?: string): void {
+    try {
+      const raw = sessionStorage.getItem(PENDING_SAVE_KEY);
+      if (!raw) return;
+      const pending = JSON.parse(raw) as PendingCredentials;
+      if (password !== undefined) pending.password = password;
+      if (username !== undefined) pending.username = username;
+      sessionStorage.setItem(PENDING_SAVE_KEY, JSON.stringify(pending));
+    } catch {
+      // sessionStorage 不可用时忽略（如隐私模式）
+    }
+  }
+
+  /**
+   * 清理表单字段同步监听器
+   *
+   * 移除所有通过 setupFieldSync 注册的 input 事件监听器。
+   * 注意：不清空 lastCapturedPasswordField / lastCapturedForm 引用，
+   * 因为 setupFieldSync 紧接着需要读取这些引用来注册新监听器。
+   */
+  private teardownFieldSync(): void {
+    for (const cleanup of this.fieldSyncCleanups) {
+      cleanup();
+    }
+    this.fieldSyncCleanups = [];
   }
 
   /**
@@ -412,7 +675,17 @@ export class LoginAutoSave {
    * @param pending 待保存的凭证
    */
   private async handleSave(pending: PendingCredentials): Promise<void> {
+    // 在 teardown 清空引用之前先读取当前表单值
+    const current = this.captureCurrentCredentials();
+    this.teardownFieldSync();
     this.clearPending();
+
+    // 优先使用实时读取的当前值，读取失败时回退到弹窗出现时捕获的 pending 值
+    const finalUsername = current?.username ?? pending.username;
+    const finalPassword = current?.password ?? pending.password;
+    // 清理字段引用（弹窗已关闭，不再需要）
+    this.lastCapturedPasswordField = null;
+    this.lastCapturedForm = null;
 
     try {
       if (!chrome.runtime?.id) {
@@ -424,8 +697,8 @@ export class LoginAutoSave {
       const response = await chrome.runtime.sendMessage({
         type: MessageType.AUTO_SAVE_PASSWORD,
         data: {
-          username: pending.username,
-          password: pending.password,
+          username: finalUsername,
+          password: finalPassword,
           url: pending.url,
           tag: pending.tag,
           remark: pending.remark,
@@ -454,6 +727,9 @@ export class LoginAutoSave {
    * 用户选择暂不保存：清除 sessionStorage 和弹窗，保留冷却期记录
    */
   private handleDismiss(): void {
+    this.teardownFieldSync();
+    this.lastCapturedPasswordField = null;
+    this.lastCapturedForm = null;
     // lastPromptSaved 保持 false，lastPromptTime 保留用于冷却期计算
     this.clearPending();
   }
@@ -467,6 +743,9 @@ export class LoginAutoSave {
    * @param pending 当前凭证数据（用于提取域名）
    */
   private async handleNeverAsk(pending: PendingCredentials): Promise<void> {
+    this.teardownFieldSync();
+    this.lastCapturedPasswordField = null;
+    this.lastCapturedForm = null;
     this.clearPending();
     try {
       await StorageUtils.addExcludedDomain(pending.url);
@@ -569,6 +848,38 @@ export class LoginAutoSave {
   }
 
   /**
+   * 从表单中查找用户名输入框元素
+   * 与 findUsernameInForm 查找逻辑一致，但返回 DOM 元素引用而非值
+   * @param form 表单元素
+   * @returns 用户名输入框元素或 null
+   */
+  private findUsernameFieldInForm(form: HTMLFormElement): HTMLInputElement | null {
+    // autocomplete="username" 是最可靠的标识，不需要值检查
+    const autoCompField = form.querySelector('input[autocomplete="username"]') as HTMLInputElement | null;
+    if (autoCompField) return autoCompField;
+
+    for (const selector of USERNAME_SELECTORS) {
+      try {
+        const field = form.querySelector(selector) as HTMLInputElement | null;
+        if (field?.value) return field;
+      } catch {
+        // 跳过
+      }
+    }
+
+    const allInputs = form.querySelectorAll(
+      'input[type="text"], input[type="email"], input[type="tel"]',
+    ) as NodeListOf<HTMLInputElement>;
+    for (const input of allInputs) {
+      if (input.value && this.isElementVisible(input)) {
+        return input;
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * 从页面中查找用户名输入框的值（无 form 场景回退）
    * @returns 用户名值或空字符串
    */
@@ -585,6 +896,27 @@ export class LoginAutoSave {
       }
     }
     return '';
+  }
+
+  /**
+   * 从页面中查找用户名输入框元素
+   * 与 findUsernameInPage 查找逻辑一致，但返回 DOM 元素引用而非值
+   * @returns 用户名输入框元素或 null
+   */
+  private findUsernameFieldInPage(): HTMLInputElement | null {
+    // autocomplete="username" 是最可靠的标识，不需要值检查
+    const autoCompField = document.querySelector('input[autocomplete="username"]') as HTMLInputElement | null;
+    if (autoCompField) return autoCompField;
+
+    for (const selector of USERNAME_SELECTORS) {
+      try {
+        const field = document.querySelector(selector) as HTMLInputElement | null;
+        if (field?.value && this.isElementVisible(field)) return field;
+      } catch {
+        // 跳过
+      }
+    }
+    return null;
   }
 
   /**
@@ -607,6 +939,9 @@ export class LoginAutoSave {
    * 销毁实例，清理所有事件监听器
    */
   public destroy(): void {
+    this.teardownFieldSync();
+    this.lastCapturedPasswordField = null;
+    this.lastCapturedForm = null;
     document.removeEventListener('submit', this.handleFormSubmit, { capture: true });
     document.removeEventListener('click', this.handleButtonClick, { capture: true });
     document.removeEventListener('keydown', this.handleKeyDown, { capture: true });

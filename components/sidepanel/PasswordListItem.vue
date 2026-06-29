@@ -2,7 +2,6 @@
 import { User, CopyDocument, Key, Star, StarFilled, Promotion, EditPen } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
-import { useTagOverflow } from '@/composables/useTagOverflow';
 
 interface Props {
   /** 密码条目数据 */
@@ -28,9 +27,6 @@ interface Emits {
 
 defineProps<Props>();
 defineEmits<Emits>();
-
-/** Tag 标签溢出检测 */
-const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 </script>
 
 <template>
@@ -66,25 +62,17 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
         </span>
       </div>
       <div class="details">
-        <el-tooltip
+        <el-tag
           v-for="t in parseTags(password.tag)"
           :key="t"
-          :content="t"
-          placement="top"
-          :show-after="300"
-          :disabled="!isTagOverflowed(t)"
-          :popper-style="{ maxWidth: '500px', wordBreak: 'break-word' }"
+          :title="t"
+          :color="getTagColor(t).background"
+          :style="{ color: getTagColor(t).text, borderColor: getTagColor(t).border }"
+          size="small"
+          class="tag-item"
         >
-          <el-tag
-            :color="getTagColor(t).background"
-            :style="{ color: getTagColor(t).text, borderColor: getTagColor(t).border }"
-            size="small"
-            class="tag-item"
-            @mouseenter="(e: MouseEvent) => checkTagOverflow(e, t)"
-          >
-            {{ t }}
-          </el-tag>
-        </el-tooltip>
+          {{ t }}
+        </el-tag>
         <el-text
           v-if="password.url"
           type="info"

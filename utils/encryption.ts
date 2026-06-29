@@ -221,15 +221,15 @@ export async function decryptPasswordEntry(
       return decryptedEntry as PasswordEntry;
     }
     const key = precomputedKey ?? (await deriveEncryptionKey(masterPassword));
+    const { encrypted: _encrypted, ...rest } = entry;
     const decryptedEntry: PasswordEntry = {
-      ...entry,
+      ...rest,
       username: await decryptFieldSafely(entry.username, key, 'username'),
       password: await decryptFieldSafely(entry.password, key, 'password'),
       url: await decryptFieldSafely(entry.url, key, 'url'),
       remark: await decryptFieldSafely(entry.remark, key, 'remark'),
     };
     logger.debug('条目解密完成');
-    delete (decryptedEntry as any).encrypted;
     return decryptedEntry;
   } catch (error) {
     logger.error('解密密码条目失败:', error);

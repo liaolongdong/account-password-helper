@@ -50,6 +50,8 @@ export class InputFiller {
     try {
       input.focus();
       input.select();
+      // @deprecated: document.execCommand 已废弃，作为清除已有内容的 fallback 保留。
+      // 未来迁移方案：使用原生 setter 直接赋空值 + InputEvent 替代。
       document.execCommand('selectAll');
       document.execCommand('delete');
 
@@ -104,6 +106,8 @@ export class InputFiller {
     try {
       input.focus();
       input.select();
+      // @deprecated: document.execCommand 已废弃，作为第二级降级策略保留。
+      // 未来迁移方案：InputEvent(isTrusted) + beforeinput 事件替代。
       document.execCommand('selectAll', false);
       document.execCommand('insertText', false, value);
       input.dispatchEvent(new Event('change', { bubbles: true }));

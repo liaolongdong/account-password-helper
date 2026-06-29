@@ -278,6 +278,7 @@ import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { useSidepanelSettings } from '@/composables/useSidepanelSettings';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
+import { REPO_GITHUB_URL } from '@/utils/constants';
 
 // ==================== 组合 composables ====================
 
@@ -472,12 +473,9 @@ const toggleFavorite = async (password: PasswordEntry) => {
 
 // ==================== 导航操作 ====================
 
-/** GitHub 仓库地址 */
-const GITHUB_URL = 'https://github.com/liaolongdong/account-password-helper';
-
 /** 打开 GitHub 仓库 */
 const openGithub = () => {
-  chrome.tabs.create({ url: GITHUB_URL });
+  chrome.tabs.create({ url: REPO_GITHUB_URL });
 };
 
 /**

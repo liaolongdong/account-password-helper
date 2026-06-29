@@ -1,12 +1,7 @@
 import { shallowRef, ref } from 'vue';
 import type { UpdateInfo } from '@/utils/types';
 import { getCachedUpdateInfo } from '@/utils/updateChecker';
-
-/**
- * GitHub Release 版本下载页面（兜底地址）
- * 当缓存的更新信息中无 downloadUrl 时，跳转至此页面
- */
-const GITHUB_RELEASES_PAGE = 'https://github.com/liaolongdong/account-password-helper/releases/latest';
+import { GITHUB_RELEASES_PAGE_URL } from '@/utils/constants';
 
 /**
  * 版本更新管理 Composable
@@ -47,7 +42,7 @@ export function useVersionUpdate() {
     if (updateInfo.value?.downloadUrl) {
       chrome.tabs.create({ url: updateInfo.value.downloadUrl });
     } else {
-      chrome.tabs.create({ url: GITHUB_RELEASES_PAGE });
+      chrome.tabs.create({ url: GITHUB_RELEASES_PAGE_URL });
     }
     window.close();
   };

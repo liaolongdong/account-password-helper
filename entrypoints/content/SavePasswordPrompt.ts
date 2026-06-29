@@ -6,7 +6,7 @@
  */
 
 import { lockIcon } from '@/entrypoints/content/floatingButtons/icons';
-import type { SavePromptData, SavePromptEditedData } from '@/entrypoints/content/types';
+import type { SavePromptData, SavePromptControls, SavePromptEditedData } from '@/entrypoints/content/types';
 
 /** 弹窗 DOM 容器 class 名 */
 const PROMPT_CLASS = 'aph-save-password-prompt';
@@ -30,7 +30,7 @@ export function showSavePasswordPrompt(
   onSave: (editedData: SavePromptEditedData) => void,
   onDismiss: () => void,
   onNeverAsk: () => void,
-): void {
+): SavePromptControls {
   // 移除已有弹窗，避免重复
   dismissSavePasswordPrompt();
 
@@ -95,8 +95,8 @@ export function showSavePasswordPrompt(
   const body = document.createElement('div');
   body.style.cssText = 'padding: 12px 16px;';
 
-  const userRow = createInfoRow('账号', data.username, false);
-  const passRow = createInfoRow('密码', data.password, true);
+  const { row: userRow, valueEl: usernameValueEl } = createInfoRow('账号', data.username, false);
+  const { row: passRow, valueEl: passwordValueEl } = createInfoRow('密码', data.password, true);
   body.appendChild(userRow);
   body.appendChild(passRow);
 
@@ -187,6 +187,15 @@ export function showSavePasswordPrompt(
   overlay.appendChild(footer);
 
   document.body.appendChild(overlay);
+
+  return {
+    updateUsername: (username: string) => {
+      usernameValueEl.textContent = username;
+    },
+    updatePassword: (password: string) => {
+      passwordValueEl.textContent = '•'.repeat(Math.min(password.length, 12));
+    },
+  };
 }
 
 /**
@@ -206,8 +215,9 @@ export function dismissSavePasswordPrompt(): void {
  * @param label 标签文本
  * @param value 值
  * @param isPassword 是否为密码字段（密码用圆点遮挡）
+ * @returns row 容器元素和 valueEl 值元素引用
  */
-function createInfoRow(label: string, value: string, isPassword: boolean): HTMLElement {
+function createInfoRow(label: string, value: string, isPassword: boolean): { row: HTMLElement; valueEl: HTMLElement } {
   const row = document.createElement('div');
   row.style.cssText = `
     display: flex;
@@ -232,7 +242,7 @@ function createInfoRow(label: string, value: string, isPassword: boolean): HTMLE
 
   row.appendChild(labelEl);
   row.appendChild(valueEl);
-  return row;
+  return { row, valueEl };
 }
 
 /**
