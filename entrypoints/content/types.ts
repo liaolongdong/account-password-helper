@@ -88,6 +88,18 @@ export interface SavePromptEditedData {
   remarkEdited: boolean;
 }
 
+/**
+ * showSavePasswordPrompt 返回的弹窗实时更新控制接口
+ *
+ * 用于弹窗显示期间，宿主页面表单字段变化时实时同步弹窗内展示的用户名和密码文本。
+ */
+export interface SavePromptControls {
+  /** 更新弹窗中展示的用户名文本 */
+  updateUsername: (username: string) => void;
+  /** 更新弹窗中展示的密码文本（自动转为圆点显示） */
+  updatePassword: (password: string) => void;
+}
+
 // ── LoginAutoSave 相关 ──
 
 /**
