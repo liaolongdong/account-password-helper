@@ -1,5 +1,5 @@
 import { ref, onUnmounted } from 'vue';
-import type { PasswordEntry, PasswordCache } from '@/utils/types';
+import type { PasswordEntry, PasswordCache, RuntimeMessage } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { useChromeListeners } from '@/composables/useChromeListeners';
@@ -270,7 +270,7 @@ export function useSidepanelData() {
    * 监听来自 background 的消息
    */
   const handleMessage = (
-    message: any,
+    message: RuntimeMessage,
     _sender: chrome.runtime.MessageSender,
     sendResponse: (response: any) => void,
   ) => {

@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted, type Ref } from 'vue';
-import { MessageType, type PasswordEntry } from '@/utils/types';
+import { MessageType, type PasswordEntry, type RuntimeMessage } from '@/utils/types';
 import { logger } from '@/utils/logger';
 
 /**
@@ -36,7 +36,7 @@ export function useRuntimeMessageHandler(options: {
   };
 
   /** 处理运行时消息 */
-  const handleRuntimeMessage = (message: any) => {
+  const handleRuntimeMessage = (message: RuntimeMessage) => {
     if (message.type === MessageType.SESSION_EXPIRED) {
       logger.debug('RuntimeMsg: 收到锁定广播消息，执行会话过期处理');
       handleSessionExpired();

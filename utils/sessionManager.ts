@@ -84,5 +84,10 @@ class SessionManager {
 // 创建并导出单例实例
 export const sessionManager = SessionManager.getInstance();
 
-// 默认初始化会话管理器
-sessionManager.init();
+/**
+ * 显式初始化会话管理器
+ * 仅在前台 UI 上下文（如 Options 页面）中调用，避免后台 Service Worker 等不需要会话检查的上下文产生副作用
+ */
+export function initSessionManager(): void {
+  sessionManager.init();
+}

@@ -85,6 +85,10 @@ export default defineConfig({
     action: {
       default_title: '账号密码管家',
     },
+    // 内容安全策略：MV3 默认策略，显式声明确保安全基线
+    content_security_policy: {
+      extension_pages: "script-src 'self'; object-src 'self'",
+    },
     // 添加快捷键配置
     commands: {
       open_options: {

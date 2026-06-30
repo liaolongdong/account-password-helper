@@ -1,9 +1,10 @@
 import { onUnmounted } from 'vue';
 import { logger } from '@/utils/logger';
+import type { RuntimeMessage } from '@/utils/types';
 
 type StorageChangeHandler = (changes: { [key: string]: chrome.storage.StorageChange }) => void;
 type MessageHandler = (
-  message: any,
+  message: RuntimeMessage,
   sender: chrome.runtime.MessageSender,
   sendResponse: (response?: any) => void,
 ) => void | boolean;
