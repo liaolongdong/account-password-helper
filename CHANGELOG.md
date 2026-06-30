@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.8.0](https://github.com/liaolongdong/account-password-helper/compare/v2.7.0...v2.8.0) (2026-06-30)
+
+
+### Features
+
+* **LoginAutoSave:** 增强密码字段标记和动态监听功能 ([e0a4d21](https://github.com/liaolongdong/account-password-helper/commit/e0a4d21d057ce881d776e3b14aa0ca5182fe808f))
+* **LoginAutoSave:** 增强密码字段标记和动态监听功能 ([eba118e](https://github.com/liaolongdong/account-password-helper/commit/eba118ec1a92cbecc2a50e088b6481c08f3ba1d1))
+
 ## [2.7.0](https://github.com/liaolongdong/account-password-helper/compare/v2.6.1...v2.7.0) (2026-06-29)
 
 
