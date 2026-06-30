@@ -57,6 +57,8 @@ export class LoginAutoSave {
   private lastCapturedForm: HTMLFormElement | null = null;
   /** 字段同步监听器的清理函数列表 */
   private fieldSyncCleanups: (() => void)[] = [];
+  /** MutationObserver 用于监听动态新增的密码字段并自动标记 data-aph-password */
+  private passwordFieldObserver: MutationObserver | null = null;
 
   constructor() {
     this.init();
@@ -80,6 +82,10 @@ export class LoginAutoSave {
     chrome.storage.onChanged.addListener(this.handleStorageChange);
     // 监听 runtime 消息，感知会话过期广播（闲时锁定、手动清除等场景）
     chrome.runtime.onMessage.addListener(this.handleRuntimeMessage);
+
+    // 标记页面上所有密码字段，确保 type 被切换为 text 后仍能通过组合选择器定位
+    this.markExistingPasswordFields();
+    this.observeNewPasswordFields();
 
     // 异步加载配置（不影响事件监听器注册）
     try {
@@ -151,7 +157,9 @@ export class LoginAutoSave {
     }
 
     // 检查 form 内是否有密码字段
-    const passwordField = form.querySelector('input[type="password"]') as HTMLInputElement | null;
+    const passwordField = form.querySelector(
+      'input[type="password"], input[data-aph-password]',
+    ) as HTMLInputElement | null;
     if (!passwordField || !passwordField.value) {
       return;
     }
@@ -197,8 +205,8 @@ export class LoginAutoSave {
     // 从按钮所在的 form 或页面中获取账号密码
     const form = button.closest('form') as HTMLFormElement | null;
     const passwordField = form
-      ? (form.querySelector('input[type="password"]') as HTMLInputElement | null)
-      : (document.querySelector('input[type="password"]') as HTMLInputElement | null);
+      ? (form.querySelector('input[type="password"], input[data-aph-password]') as HTMLInputElement | null)
+      : (document.querySelector('input[type="password"], input[data-aph-password]') as HTMLInputElement | null);
     if (!passwordField || !passwordField.value) {
       return;
     }
@@ -234,8 +242,8 @@ export class LoginAutoSave {
     // 查找密码字段
     const form = target.closest('form') as HTMLFormElement | null;
     const passwordField = form
-      ? (form.querySelector('input[type="password"]') as HTMLInputElement | null)
-      : (document.querySelector('input[type="password"]') as HTMLInputElement | null);
+      ? (form.querySelector('input[type="password"], input[data-aph-password]') as HTMLInputElement | null)
+      : (document.querySelector('input[type="password"], input[data-aph-password]') as HTMLInputElement | null);
     if (!passwordField || !passwordField.value) return;
 
     const password = passwordField.value;
@@ -577,7 +585,9 @@ export class LoginAutoSave {
     }
 
     // 引用失效时回退到全局查询
-    const passwordField = document.querySelector('input[type="password"]') as HTMLInputElement | null;
+    const passwordField = document.querySelector(
+      'input[type="password"], input[data-aph-password]',
+    ) as HTMLInputElement | null;
     if (!passwordField?.value) return null;
 
     const form = passwordField.closest('form') as HTMLFormElement | null;
@@ -936,12 +946,56 @@ export class LoginAutoSave {
   }
 
   /**
+   * 扫描并标记页面上所有现有的密码字段
+   * 在 init() 阶段调用，确保 type 被切换前已打上 data-aph-password 标记
+   */
+  private markExistingPasswordFields(): void {
+    const passwordInputs = document.querySelectorAll('input[type="password"]');
+    passwordInputs.forEach(input => {
+      (input as HTMLInputElement).dataset.aphPassword = 'true';
+    });
+  }
+
+  /**
+   * 注册 MutationObserver 监听动态新增的密码字段并自动标记
+   * 覆盖 SPA 动态渲染和宿主页面自带 toggle 的场景
+   */
+  private observeNewPasswordFields(): void {
+    if (this.passwordFieldObserver) return;
+    this.passwordFieldObserver = new MutationObserver(mutations => {
+      for (const mutation of mutations) {
+        for (const node of mutation.addedNodes) {
+          if (node.nodeType !== Node.ELEMENT_NODE) continue;
+          const el = node as Element;
+          // 新增节点本身是密码输入框
+          if (el.tagName === 'INPUT' && (el as HTMLInputElement).type === 'password') {
+            (el as HTMLInputElement).dataset.aphPassword = 'true';
+          }
+          // 新增节点的子树中包含密码输入框
+          if (el.querySelectorAll) {
+            const nestedInputs = el.querySelectorAll('input[type="password"]');
+            nestedInputs.forEach(input => {
+              (input as HTMLInputElement).dataset.aphPassword = 'true';
+            });
+          }
+        }
+      }
+    });
+    this.passwordFieldObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+    });
+  }
+
+  /**
    * 销毁实例，清理所有事件监听器
    */
   public destroy(): void {
     this.teardownFieldSync();
     this.lastCapturedPasswordField = null;
     this.lastCapturedForm = null;
+    this.passwordFieldObserver?.disconnect();
+    this.passwordFieldObserver = null;
     document.removeEventListener('submit', this.handleFormSubmit, { capture: true });
     document.removeEventListener('click', this.handleButtonClick, { capture: true });
     document.removeEventListener('keydown', this.handleKeyDown, { capture: true });

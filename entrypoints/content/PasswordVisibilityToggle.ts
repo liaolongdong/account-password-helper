@@ -165,6 +165,8 @@ export class PasswordVisibilityToggle {
     if (!parent) return;
 
     this.processedInputs.add(input);
+    // 标记为密码字段，确保 LoginAutoSave 在 type 被切换为 text 后仍能通过选择器定位
+    input.dataset.aphPassword = 'true';
 
     // 父元素设为 position: relative（无偏移量 = 视觉零影响）
     const computedPosition = window.getComputedStyle(parent).position;
