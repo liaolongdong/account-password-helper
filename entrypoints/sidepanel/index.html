@@ -10,41 +10,67 @@
   </head>
   <body>
     <div id="app">
-      <!-- Vue 挂载前的纯 HTML/CSS loading 占位，Vue mount 后自动替换 -->
-      <div
-        id="app-loading"
-        style="
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          height: 100vh;
-          color: #6b7280;
-          font-size: 14px;
-          font-family:
-            system-ui,
-            -apple-system,
-            sans-serif;
-        "
-      >
-        <div
-          style="
-            width: 24px;
-            height: 24px;
-            border: 2.5px solid #e5e7eb;
-            border-top-color: #409eff;
-            border-radius: 50%;
-            animation: app-spin 0.8s linear infinite;
-          "
-        ></div>
-        <span style="margin-top: 12px">加载中...</span>
+      <!--
+        Vue 挂载前的 Skeleton Screen 占位，Vue mount 后自动替换。
+        模拟实际 UI 布局：头部栏 → 搜索框 → 密码列表 → 底部按钮，
+        使用 CSS pulse 动画提供加载中的视觉反馈，消除白屏焦虑。
+      -->
+      <div id="app-loading">
+        <!-- 头部栏骨架 -->
+        <div class="sk-header">
+          <div class="sk-header-left">
+            <div class="sk-block sk-brand-icon"></div>
+            <div class="sk-block sk-brand-text"></div>
+          </div>
+          <div class="sk-header-right">
+            <div class="sk-block sk-version"></div>
+          </div>
+        </div>
+        <!-- 搜索框骨架 -->
+        <div class="sk-search">
+          <div class="sk-block sk-search-bar"></div>
+          <div class="sk-block sk-search-btn"></div>
+        </div>
+        <!-- 密码列表骨架（3 个条目） -->
+        <div class="sk-list">
+          <div class="sk-item">
+            <div class="sk-item-main">
+              <div class="sk-block sk-item-icon"></div>
+              <div class="sk-item-info">
+                <div class="sk-block sk-item-line1"></div>
+                <div class="sk-block sk-item-line2"></div>
+              </div>
+            </div>
+            <div class="sk-block sk-item-actions"></div>
+          </div>
+          <div class="sk-item">
+            <div class="sk-item-main">
+              <div class="sk-block sk-item-icon"></div>
+              <div class="sk-item-info">
+                <div class="sk-block sk-item-line1"></div>
+                <div class="sk-block sk-item-line2"></div>
+              </div>
+            </div>
+            <div class="sk-block sk-item-actions"></div>
+          </div>
+          <div class="sk-item">
+            <div class="sk-item-main">
+              <div class="sk-block sk-item-icon"></div>
+              <div class="sk-item-info">
+                <div class="sk-block sk-item-line1"></div>
+                <div class="sk-block sk-item-line2"></div>
+              </div>
+            </div>
+            <div class="sk-block sk-item-actions"></div>
+          </div>
+        </div>
+        <!-- 底部按钮骨架 -->
+        <div class="sk-footer">
+          <div class="sk-block sk-footer-btn"></div>
+        </div>
       </div>
       <style>
-        @keyframes app-spin {
-          to {
-            transform: rotate(360deg);
-          }
-        }
+        /* ===== 基础重置 ===== */
         html,
         body {
           height: 100%;
@@ -52,6 +78,169 @@
           padding: 0;
           overflow: hidden;
           background: #f8f9fa;
+        }
+
+        /* ===== Skeleton 容器 ===== */
+        #app-loading {
+          display: flex;
+          flex-direction: column;
+          height: 100%;
+          font-family:
+            system-ui,
+            -apple-system,
+            sans-serif;
+        }
+
+        /* ===== 骨架块通用样式 ===== */
+        .sk-block {
+          background: #e5e7eb;
+          border-radius: 4px;
+          animation: sk-pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes sk-pulse {
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.4;
+          }
+        }
+
+        /* ===== 头部栏骨架 ===== */
+        .sk-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 16px;
+          background: #fff;
+          border-bottom: 1px solid #e5e7eb;
+          flex-shrink: 0;
+        }
+
+        .sk-header-left {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .sk-brand-icon {
+          width: 22px;
+          height: 22px;
+          border-radius: 4px;
+        }
+
+        .sk-brand-text {
+          width: 80px;
+          height: 14px;
+        }
+
+        .sk-header-right {
+          display: flex;
+          gap: 6px;
+        }
+
+        .sk-version {
+          width: 36px;
+          height: 14px;
+        }
+
+        /* ===== 搜索框骨架 ===== */
+        .sk-search {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+          padding: 10px 16px;
+          background: #fff;
+          border-bottom: 1px solid #e5e7eb;
+          flex-shrink: 0;
+        }
+
+        .sk-search-bar {
+          flex: 1;
+          height: 32px;
+          border-radius: 6px;
+        }
+
+        .sk-search-btn {
+          width: 32px;
+          height: 32px;
+          border-radius: 50%;
+          flex-shrink: 0;
+        }
+
+        /* ===== 密码列表骨架 ===== */
+        .sk-list {
+          flex: 1;
+          padding: 8px 12px;
+          overflow: hidden;
+        }
+
+        .sk-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 10px 8px;
+          margin-bottom: 6px;
+          background: #fff;
+          border-radius: 8px;
+          border: 1px solid #f0f0f0;
+        }
+
+        .sk-item:last-child {
+          margin-bottom: 0;
+        }
+
+        .sk-item-main {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex: 1;
+          min-width: 0;
+        }
+
+        .sk-item-icon {
+          width: 28px;
+          height: 28px;
+          border-radius: 6px;
+          flex-shrink: 0;
+        }
+
+        .sk-item-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .sk-item-line1 {
+          width: 70%;
+          height: 13px;
+          margin-bottom: 6px;
+        }
+
+        .sk-item-line2 {
+          width: 45%;
+          height: 10px;
+        }
+
+        .sk-item-actions {
+          width: 48px;
+          height: 14px;
+          flex-shrink: 0;
+        }
+
+        /* ===== 底部按钮骨架 ===== */
+        .sk-footer {
+          padding: 10px 16px;
+          background: #fff;
+          border-top: 1px solid #f0f0f0;
+          flex-shrink: 0;
+        }
+
+        .sk-footer-btn {
+          width: 100%;
+          height: 38px;
+          border-radius: 8px;
         }
       </style>
     </div>

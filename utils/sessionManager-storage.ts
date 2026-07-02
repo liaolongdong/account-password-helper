@@ -46,14 +46,13 @@ export function isSessionActiveSync(): boolean {
 export async function isSessionValid(): Promise<boolean> {
   try {
     if (!encryptedSessionMasterPassword || !sessionPasswordExpiry) {
-      // 性能优化：合并 session keys + MASTER_PASSWORD + PASSWORDS 为单次 storage 批量读取
+      // 批量读取 session keys + MASTER_PASSWORD（不含 PASSWORDS，由调用方按需读取）
       const result = await chrome.storage.local.get([
         SESSION_STORAGE_KEYS.MASTER_PASSWORD,
         SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
         SESSION_STORAGE_KEYS.VALIDITY_HOURS,
         SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
         STORAGE_KEYS.MASTER_PASSWORD,
-        STORAGE_KEYS.PASSWORDS,
       ]);
 
       if (result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] && result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]) {
@@ -72,10 +71,8 @@ export async function isSessionValid(): Promise<boolean> {
         // 检查解密标记：如果标记为 true，跳过 expensive 的数据一致性检查（避免重复解密）
         const passwordsDecrypted = result[SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED] as boolean | undefined;
         if (!passwordsDecrypted) {
-          // flag 为 false 时需要进行数据一致性检查，但 PASSWORDS 已在批量读取中获取，直接传入避免重复读取
-          const rawPasswords =
-            (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
-          await ensureDataConsistencyWithSession(rawPasswords);
+          // flag 为 false 时需要进行数据一致性检查，由 ensureDataConsistencyWithSession 自行读取 PASSWORDS
+          await ensureDataConsistencyWithSession();
         }
       } else {
         return false;

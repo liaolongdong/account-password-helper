@@ -276,7 +276,6 @@ import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { REPO_GITHUB_URL } from '@/utils/constants';
 
 // ==================== 组合 composables ====================
@@ -334,8 +333,8 @@ const favoriteOnly = ref(false);
 const activeIndex = ref(0);
 const searchInputRef = ref();
 
-/** 当前插件版本号（复用 useVersionUpdate） */
-const { currentVersion } = useVersionUpdate();
+/** 当前插件版本号，直接读取 manifest 避免加载 useVersionUpdate 的 192K JS + 56K CSS 依赖 */
+const currentVersion = chrome.runtime.getManifest().version;
 
 /** 操作指引弹窗可见性 */
 const showHelpDialog = ref(false);
