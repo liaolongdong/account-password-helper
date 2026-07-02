@@ -10,7 +10,7 @@
       :current-domain="currentDomain"
       @open-github="openGithub"
       @open-help="showHelpDialog = true"
-      @open-settings="openSettingsDialog"
+      @open-settings="handleOpenSettings"
     />
 
     <!-- 初始化 loading 过渡态：避免先闪现"需要验证主密码"再切换到密码列表 -->
@@ -276,7 +276,6 @@ import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { useSidepanelSettings } from '@/composables/useSidepanelSettings';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { REPO_GITHUB_URL } from '@/utils/constants';
 
@@ -301,10 +300,31 @@ const { fillPassword, handleFillAndLogin, handleEditPassword, copyUsername, copy
 const settingsPanelEl = ref<HTMLElement | null>(null);
 const settingsOverlayEl = ref<HTMLElement | null>(null);
 
-const { showSettingsDialog, openSettingsDialog, injectSettingsViewStyles } = useSidepanelSettings(
-  settingsPanelEl,
-  settingsOverlayEl,
-);
+/** 设置弹窗可见性（本地 ref，与延迟加载的 composable 同步） */
+const showSettingsDialog = ref(false);
+
+/** 设置弹窗相关方法（延迟加载，减小初始包体积，加快首屏渲染） */
+let _openSettingsDialog: (() => Promise<void>) | null = null;
+
+/** 延迟加载设置弹窗模块，首次调用时动态导入 */
+const ensureSettingsModule = async () => {
+  if (!_openSettingsDialog) {
+    const { useSidepanelSettings } = await import('@/composables/useSidepanelSettings');
+    const settings = useSidepanelSettings(settingsPanelEl, settingsOverlayEl);
+    _openSettingsDialog = settings.openSettingsDialog;
+    // 同步 composable 内部的 showSettingsDialog 状态到本地 ref
+    watch(settings.showSettingsDialog, val => {
+      showSettingsDialog.value = val;
+    });
+    settings.injectSettingsViewStyles();
+  }
+};
+
+/** 打开设置弹窗（首次调用时自动延迟加载模块） */
+const handleOpenSettings = async () => {
+  await ensureSettingsModule();
+  await _openSettingsDialog!();
+};
 
 // ==================== 本地状态（与 UI 模板紧密耦合） ====================
 
@@ -502,8 +522,6 @@ const openOptionsAndAdd = async () => {
 // ==================== 初始化 ====================
 
 onMounted(async () => {
-  injectSettingsViewStyles();
-
   // 搜索框自动聚焦
   nextTick(() => {
     const inputEl = searchInputRef.value?.$el?.querySelector('input');
@@ -511,6 +529,17 @@ onMounted(async () => {
   });
 
   await initSidepanelData();
+
+  // 数据加载完成后，空闲时预加载设置弹窗模块（不阻塞首屏渲染）
+  if (typeof requestIdleCallback !== 'undefined') {
+    requestIdleCallback(() => {
+      void ensureSettingsModule();
+    });
+  } else {
+    setTimeout(() => {
+      void ensureSettingsModule();
+    }, 1000);
+  }
 });
 </script>
 

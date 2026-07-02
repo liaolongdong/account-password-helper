@@ -38,6 +38,11 @@ export function useSidepanelData() {
   /** 与 background 建立 port 连接，用于可靠的状态追踪和关闭通信 */
   let bgPort: chrome.runtime.Port | null = null;
 
+  // ==================== 初始化竞速状态 ====================
+
+  /** 标记初始化时缓存是否已先于 storage 返回并设置了数据，用于避免 loadPasswords 覆盖缓存数据 */
+  let _cacheWonInitRace = false;
+
   // ==================== 域名工具 ====================
 
   /**
@@ -64,15 +69,23 @@ export function useSidepanelData() {
 
   /**
    * 从 background 获取缓存的密码数据
+   * 用于后台预热缓存，不阻塞首屏加载。超时缩短为 500ms。
    * @param domain 域名
+   * @param timeoutMs 超时毫秒数，默认 500ms
    * @returns 缓存的密码数据或 null
    */
-  const getCachedPasswordsFromBackground = async (domain?: string): Promise<PasswordCache | null> => {
+  const getCachedPasswordsFromBackground = async (domain?: string, timeoutMs = 500): Promise<PasswordCache | null> => {
     try {
-      const response = await chrome.runtime.sendMessage({
-        type: MessageType.GET_CACHED_PASSWORDS,
-        data: { domain },
+      const timeoutPromise = new Promise<null>(resolve => {
+        setTimeout(() => resolve(null), timeoutMs);
       });
+      const response = await Promise.race([
+        chrome.runtime.sendMessage({
+          type: MessageType.GET_CACHED_PASSWORDS,
+          data: { domain },
+        }),
+        timeoutPromise,
+      ]);
       if (response?.success && response.data) {
         return response.data as PasswordCache;
       }
@@ -125,40 +138,54 @@ export function useSidepanelData() {
   /**
    * 加载密码列表
    * 根据会话状态和当前域名加载对应的密码数据，并同步更新 background 缓存
+   *
+   * 性能优化：
+   * - skipSessionCheck: 调用方已检查过 session 时跳过重复检查
+   * - 并行读取排序配置和密码数据，减少串行 IPC 延迟
+   *
+   * @param skipSessionCheck 是否跳过会话有效性检查（默认 false）
    */
-  const loadPasswords = async () => {
+  const loadPasswords = async (skipSessionCheck = false) => {
     try {
-      loading.value = true;
-
-      // 检查会话是否有效
-      const sessionValid = await StorageUtils.isSessionValid();
-      if (!sessionValid) {
-        isAuthenticated.value = false;
-        passwords.value = [];
-        return;
+      // 竞速模式下缓存已先返回并设置了数据时，静默更新（不动 loading/passwords 状态）
+      if (!_cacheWonInitRace) {
+        loading.value = true;
       }
 
-      // 加载侧边栏专属排序配置（独立于 Options 排序配置）
-      try {
-        sortConfig.value = await StorageUtils.getSidepanelSortConfig();
-      } catch {
-        sortConfig.value = null;
-      }
-
-      // 会话有效，直接获取数据（StorageUtils 内部会自动判断是否需要解密）
-      let loadedPasswords: PasswordEntry[];
-      if (currentDomain.value) {
-        // 本地开发环境（localhost / 127.0.0.1）默认匹配所有账号密码
-        if (isLocalDevDomain(currentDomain.value)) {
-          loadedPasswords = await StorageUtils.getAllPasswords();
-        } else {
-          loadedPasswords = await StorageUtils.getPasswordsByUrl(currentDomain.value);
+      if (!skipSessionCheck) {
+        // 检查会话是否有效
+        const sessionValid = await StorageUtils.isSessionValid();
+        if (!sessionValid) {
+          isAuthenticated.value = false;
+          passwords.value = [];
+          return;
         }
-      } else {
-        loadedPasswords = await StorageUtils.getAllPasswords();
       }
 
-      passwords.value = loadedPasswords;
+      // 并行读取：排序配置 + 密码数据（两个 IPC 互相独立，并行执行减少等待）
+      const fetchPasswords = (): Promise<PasswordEntry[]> => {
+        if (currentDomain.value) {
+          // 本地开发环境（localhost / 127.0.0.1）默认匹配所有账号密码
+          if (isLocalDevDomain(currentDomain.value)) {
+            return StorageUtils.getAllPasswords();
+          }
+          return StorageUtils.getPasswordsByUrl(currentDomain.value);
+        }
+        return StorageUtils.getAllPasswords();
+      };
+
+      const [sortConfigResult, loadedPasswords] = await Promise.all([
+        StorageUtils.getSidepanelSortConfig().catch(() => null),
+        fetchPasswords(),
+      ]);
+
+      // 竞速模式下缓存已先返回时，保留缓存数据（两者应一致），仅同步 sortConfig 和 background 缓存
+      if (!_cacheWonInitRace) {
+        sortConfig.value = sortConfigResult;
+        passwords.value = loadedPasswords;
+      } else {
+        sortConfig.value = sortConfigResult;
+      }
 
       // 更新缓存
       await updatePasswordCacheInBackground(loadedPasswords, currentDomain.value, isAuthenticated.value);
@@ -166,39 +193,9 @@ export function useSidepanelData() {
       logger.error('加载密码列表失败:', error);
       ElMessage.error('加载密码列表失败');
     } finally {
-      loading.value = false;
-    }
-  };
-
-  /**
-   * 从存储加载数据（无缓存时的兜底逻辑）
-   */
-  const loadFromStorage = async () => {
-    const isSessionValid = await StorageUtils.isSessionValid();
-
-    if (!isSessionValid) {
-      isAuthenticated.value = false;
-      loading.value = false;
-      return;
-    }
-
-    isAuthenticated.value = true;
-    await loadPasswords();
-  };
-
-  /**
-   * 验证会话状态，如果失效则重新加载
-   */
-  const verifySessionAndRefreshIfNeeded = async () => {
-    try {
-      const isSessionValid = await StorageUtils.isSessionValid();
-      if (!isSessionValid) {
-        logger.debug('SidePanel: 会话已失效，显示未验证状态');
-        isAuthenticated.value = false;
-        passwords.value = [];
+      if (!_cacheWonInitRace) {
+        loading.value = false;
       }
-    } catch (error) {
-      logger.error('SidePanel: 验证会话状态失败:', error);
     }
   };
 
@@ -320,6 +317,12 @@ export function useSidepanelData() {
   /**
    * SidePanel 数据层初始化
    * 建立 port 连接、注册 Chrome 事件监听器、加载初始数据
+   *
+   * 性能优化：「竞速 + 降级」模式
+   * - 同时启动 storage 直读和 background 缓存查询
+   * - 缓存先返回 → 立即展示缓存数据（SW 热启动时 ~20ms）
+   * - storage 先返回 → 使用 storage 数据（SW 冷启动时直接读 storage 更快）
+   * - 缓存稍后返回 → 仅用于后台同步，不打断用户（降级路径）
    */
   const initSidepanelData = async () => {
     // 建立与 background 的 port 连接，用于状态追踪和接收关闭消息
@@ -355,24 +358,36 @@ export function useSidepanelData() {
     onTabActivated(handleTabActivated);
 
     try {
-      // 先获取当前标签页域名
-      await loadCurrentTab();
+      // 并行执行 tab 查询和 session 预检查
+      const [, sessionValid] = await Promise.all([loadCurrentTab(), StorageUtils.isSessionValid()]);
 
-      // 尝试从缓存获取数据
-      const cachedData = await getCachedPasswordsFromBackground(currentDomain.value);
-
-      if (cachedData && cachedData.isAuthenticated) {
-        logger.debug('SidePanel: 使用缓存数据，条目数:' + cachedData.passwords.length);
-        passwords.value = cachedData.passwords;
-        isAuthenticated.value = true;
+      if (!sessionValid) {
+        logger.debug('SidePanel: 会话无效，显示未验证状态');
+        isAuthenticated.value = false;
         loading.value = false;
-
-        // 后台验证会话状态，如果失效则重新加载
-        verifySessionAndRefreshIfNeeded();
-      } else {
-        logger.debug('SidePanel: 无缓存，从存储加载数据');
-        await loadFromStorage();
+        initializing.value = false;
+        return;
       }
+
+      // 竞速 + 降级：同时启动 storage 直读和 background 缓存查询
+      // storage 路径始终会完成（最终一致性保证），缓存路径可能先返回（快速路径）
+      isAuthenticated.value = true;
+      const storagePromise = loadPasswords(true);
+      const cachePromise = getCachedPasswordsFromBackground(currentDomain.value, 500);
+
+      // 等待缓存响应（最多 500ms 超时）
+      const cacheResult = await cachePromise;
+      if (cacheResult && cacheResult.isAuthenticated) {
+        // 缓存竞速胜出 → 立即展示缓存数据，storage 路径静默完成以便同步 background 缓存
+        _cacheWonInitRace = true;
+        passwords.value = cacheResult.passwords;
+        loading.value = false;
+        logger.debug('SidePanel: 缓存竞速胜出，条目数:' + cacheResult.passwords.length);
+      }
+
+      // 确保 storage 加载完成：无论缓存是否胜出，storage 路径都会更新 sortConfig 和 background 缓存
+      await storagePromise;
+      _cacheWonInitRace = false;
     } catch (error) {
       logger.error('SidePanel: 初始化失败:', error);
       isAuthenticated.value = false;

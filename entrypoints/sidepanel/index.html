@@ -9,7 +9,52 @@
     <title>账号密码管理助手 - 侧边栏</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <!-- Vue 挂载前的纯 HTML/CSS loading 占位，Vue mount 后自动替换 -->
+      <div
+        id="app-loading"
+        style="
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          color: #6b7280;
+          font-size: 14px;
+          font-family:
+            system-ui,
+            -apple-system,
+            sans-serif;
+        "
+      >
+        <div
+          style="
+            width: 24px;
+            height: 24px;
+            border: 2.5px solid #e5e7eb;
+            border-top-color: #409eff;
+            border-radius: 50%;
+            animation: app-spin 0.8s linear infinite;
+          "
+        ></div>
+        <span style="margin-top: 12px">加载中...</span>
+      </div>
+      <style>
+        @keyframes app-spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        html,
+        body {
+          height: 100%;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+          background: #f8f9fa;
+        }
+      </style>
+    </div>
     <script
       type="module"
       src="./main.ts"
