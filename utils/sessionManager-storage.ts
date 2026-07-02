@@ -26,6 +26,9 @@ let sessionPasswordExpiry: number | null = null;
 let sessionValidityHours: number | null = null;
 let sessionEncryptionKey: string | null = null;
 
+/** 标记数据一致性检查是否已完成（SW 生命周期内只需执行一次） */
+let _consistencyCheckDone = false;
+
 /**
  * 同步检查会话是否有效（仅检查内存状态，不从存储恢复）
  */
@@ -95,11 +98,14 @@ export async function isSessionValid(): Promise<boolean> {
 
 /**
  * 确保数据状态与会话状态一致
+ * 使用模块级锁保证 SW 生命周期内只执行一次，避免重复触发全量解密
  * @param preloadedPasswords 可选，从批量 storage 读取中已获取的密码数据，传入可避免重复读取
  */
 async function ensureDataConsistencyWithSession(
   preloadedPasswords?: (PasswordEntry | EncryptedPasswordEntry)[],
 ): Promise<void> {
+  if (_consistencyCheckDone) return;
+  _consistencyCheckDone = true;
   try {
     const rawData: (PasswordEntry | EncryptedPasswordEntry)[] =
       preloadedPasswords ??
@@ -221,6 +227,7 @@ export async function clearSession(): Promise<void> {
     sessionPasswordExpiry = null;
     sessionValidityHours = null;
     sessionEncryptionKey = null;
+    _consistencyCheckDone = false; // 会话清除后下次登录需重新做一致性检查
 
     await chrome.storage.local.remove([
       SESSION_STORAGE_KEYS.MASTER_PASSWORD,

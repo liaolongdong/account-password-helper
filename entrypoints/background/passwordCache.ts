@@ -5,15 +5,21 @@ import { logger } from '@/utils/logger';
 /** 模块级缓存状态（Service Worker 生命周期内有效） */
 let passwordCache: PasswordCache | null = null;
 
+/** 缓存有效期（毫秒），模块级缓存避免每次查询都读 storage */
+let _cachedValidityMs: number | null = null;
+
 /**
  * 获取缓存有效期（毫秒）
  * 与主密码会话有效期保持一致
+ * 结果在 SW 生命周期内缓存，配置变更时随 invalidatePasswordCache 一起重置
  */
 async function getCacheValidityMs(): Promise<number> {
+  if (_cachedValidityMs !== null) return _cachedValidityMs;
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD_VALIDITY);
     const validityHours = (result[STORAGE_KEYS.MASTER_PASSWORD_VALIDITY] as number | undefined) || 24;
-    return validityHours * 60 * 60 * 1000;
+    _cachedValidityMs = validityHours * 60 * 60 * 1000;
+    return _cachedValidityMs;
   } catch (error) {
     logger.error('Background: 获取缓存有效期失败:', error);
     return 24 * 60 * 60 * 1000;
@@ -62,8 +68,10 @@ export function updatePasswordCache(passwords: PasswordEntry[], domain: string, 
 
 /**
  * 使密码缓存失效
+ * 同时重置 _cachedValidityMs，确保配置变更后下次重新读取
  */
 export function invalidatePasswordCache(): void {
   passwordCache = null;
+  _cachedValidityMs = null;
   logger.debug('Background: 密码缓存已失效');
 }

@@ -183,16 +183,18 @@ export function useSidepanelData() {
       if (!_cacheWonInitRace) {
         sortConfig.value = sortConfigResult;
         passwords.value = loadedPasswords;
+        loading.value = false; // 提前清除 loading 状态，不等待缓存更新
       } else {
         sortConfig.value = sortConfigResult;
       }
 
-      // 更新缓存
-      await updatePasswordCacheInBackground(loadedPasswords, currentDomain.value, isAuthenticated.value);
+      // 后台静默更新缓存（不阻塞 UI 渲染）
+      void updatePasswordCacheInBackground(loadedPasswords, currentDomain.value, isAuthenticated.value);
     } catch (error) {
       logger.error('加载密码列表失败:', error);
       ElMessage.error('加载密码列表失败');
     } finally {
+      // 兜底确保 loading 状态清除（异常路径安全网）
       if (!_cacheWonInitRace) {
         loading.value = false;
       }
@@ -373,9 +375,10 @@ export function useSidepanelData() {
       // storage 路径始终会完成（最终一致性保证），缓存路径可能先返回（快速路径）
       isAuthenticated.value = true;
       const storagePromise = loadPasswords(true);
-      const cachePromise = getCachedPasswordsFromBackground(currentDomain.value, 500);
+      // Windows SW 冷启动可达 800-1500ms，超时延长到 1200ms 以提升缓存命中率
+      const cachePromise = getCachedPasswordsFromBackground(currentDomain.value, 1200);
 
-      // 等待缓存响应（最多 500ms 超时）
+      // 等待缓存响应（最多 1200ms 超时，兼容 Windows SW 冷启动延迟）
       const cacheResult = await cachePromise;
       if (cacheResult && cacheResult.isAuthenticated) {
         // 缓存竞速胜出 → 立即展示缓存数据，storage 路径静默完成以便同步 background 缓存
