@@ -8,13 +8,17 @@ import {
   getSidePanelPort,
 } from './sidePanelManager';
 import { openOptionsPage, openOptionsAndSendMessage } from './optionsPageManager';
-import { getCachedPasswords, updatePasswordCache, invalidatePasswordCache } from './passwordCache';
+import {
+  getCachedPasswords,
+  updatePasswordCache,
+  invalidatePasswordCache,
+  getCachedSortConfig,
+  warmPasswordCache,
+} from './passwordCache';
 import { handleAutoSavePassword } from './autoSaveHandler';
 import { performUpdateCheck } from './backgroundServices';
 import { isSessionValid } from '@/utils/sessionManager-storage';
-import { getAllPasswords, getPasswordsByUrl } from '@/utils/storage/passwordCrud';
-import { getSidepanelSortConfig } from '@/utils/storage/configManager';
-import { isLocalDevDomain } from '@/utils/domain';
+import { getAllPasswords } from '@/utils/storage/passwordCrud';
 
 /**
  * 处理 GET_INITIAL_DATA 请求
@@ -24,39 +28,36 @@ import { isLocalDevDomain } from '@/utils/domain';
  * （isSessionActiveSync → true）在 ~1ms 内完成，消除 Windows 上
  * sidepanel 端的 storage IPC 和加密模块开销。
  *
- * @param domain 当前页面域名，用于过滤密码列表
+ * 缓存加速路径：
+ * - 热缓存（passwordCache + sortConfig 都已预热）：~1ms 返回
+ * - 冷缓存（首次打开）：~100-300ms（storage 读取），完成后自动预热
+ *
+ * @param domain 当前页面域名（当前未使用，保留兼容性）
  * @returns 包含会话状态、密码列表、排序配置的响应数据
  */
-async function handleGetInitialData(domain?: string) {
+async function handleGetInitialData(_domain?: string) {
   const sessionValid = await isSessionValid();
 
   if (!sessionValid) {
     return { sessionValid: false, passwords: [], sortConfig: null };
   }
 
-  // 并行加载密码列表和排序配置
-  const [sortConfig, passwords] = await Promise.all([
-    getSidepanelSortConfig().catch(() => null),
-    loadFilteredPasswords(domain),
-  ]);
+  // 快速路径：尝试命中内存缓存（由 warmPasswordCache 或上次 sidepanel 填充）
+  const cached = await getCachedPasswords();
+  if (cached && cached.isAuthenticated) {
+    const sortConfig = await getCachedSortConfig();
+    logger.debug('Background: GET_INITIAL_DATA 命中缓存，条目数:' + cached.passwords.length);
+    return { sessionValid: true, passwords: cached.passwords, sortConfig };
+  }
+
+  // 冷路径：从 storage 读取全量密码列表和排序配置
+  // 始终返回全量列表，由 sidepanel 端做域名过滤和排序（filteredPasswords computed）
+  const [sortConfig, passwords] = await Promise.all([getCachedSortConfig(), getAllPasswords()]);
+
+  // 读取完成后自动预热缓存，后续请求直接命中
+  updatePasswordCache(passwords, '*', true);
 
   return { sessionValid: true, passwords, sortConfig };
-}
-
-/**
- * 根据域名加载过滤后的密码列表
- *
- * @param domain 当前页面域名
- * @returns 过滤后的密码列表
- */
-async function loadFilteredPasswords(domain?: string) {
-  if (domain) {
-    if (isLocalDevDomain(domain)) {
-      return getAllPasswords();
-    }
-    return getPasswordsByUrl(domain);
-  }
-  return getAllPasswords();
 }
 
 /**
@@ -68,6 +69,13 @@ async function loadFilteredPasswords(domain?: string) {
  */
 export function setupMessageRouter(): void {
   chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+    // SIDEPANEL_PRELOAD 是预唤醒消息（非 MessageType 枚举），主动预热缓存
+    if ((message as { type: string }).type === 'SIDEPANEL_PRELOAD') {
+      warmPasswordCache();
+      sendResponse({ success: true });
+      return;
+    }
+
     switch (message.type) {
       case MessageType.SHOW_SIDEPANEL: {
         const tabId = getTabIdSync(sender, message.data?.tabId);

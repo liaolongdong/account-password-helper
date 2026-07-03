@@ -11,7 +11,7 @@ import {
   UPDATE_CHECK_INTERVAL_MINUTES,
 } from '@/utils/updateChecker';
 import { getSidePanelPort } from './sidePanelManager';
-import { invalidatePasswordCache } from './passwordCache';
+import { invalidatePasswordCache, warmPasswordCache } from './passwordCache';
 
 /** 自动备份提醒闹钟名称 */
 const AUTO_BACKUP_ALARM_NAME = 'auto-backup-passwords';
@@ -294,6 +294,11 @@ export function setupBackgroundServices(): void {
   // SW 启动时同步保活闹钟状态：会话有效则启用，无效则停止
   syncSwKeepaliveAlarm();
 
+  // 延迟预热密码缓存：SW 启动后 500ms 异步执行，不阻塞其他初始化
+  // 当会话有效时从 storage 加载密码列表到内存缓存，
+  // 使首次 sidepanel 打开时 GET_INITIAL_DATA 可直接命中缓存（~1ms）
+  setTimeout(() => warmPasswordCache(), 500);
+
   // 监听闲置状态变化
   chrome.idle.onStateChanged.addListener(async newState => {
     if (newState === 'locked') {
@@ -369,6 +374,8 @@ export function setupBackgroundServices(): void {
       const sessionKeys = [SESSION_STORAGE_KEYS.MASTER_PASSWORD, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
       if (Object.keys(changes).some(key => sessionKeys.includes(key))) {
         syncSwKeepaliveAlarm();
+        // 会话创建后主动预热缓存，确保首次 sidepanel 打开时数据就绪
+        warmPasswordCache();
       }
 
       if (STORAGE_KEYS.EMAIL_BACKUP_CONFIG in changes) {

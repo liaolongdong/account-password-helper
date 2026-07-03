@@ -1,12 +1,35 @@
 import { ref, onUnmounted } from 'vue';
 import type { PasswordEntry, PasswordCache, RuntimeMessage } from '@/utils/types';
 import { MessageType } from '@/utils/types';
-import { isSessionValid } from '@/utils/sessionManager-storage';
-import { getAllPasswords, getPasswordsByUrl } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
 import { logger } from '@/utils/logger';
-import { isLocalDevDomain } from '@/utils/domain';
+
+// ==================== 延迟加载模块（避免初始加载拉入 encryption.ts 加密链） ====================
+
+/**
+ * 延迟加载 sessionManager-storage 模块（首次回退/事件触发时加载）
+ * isSessionValid 在热路径中由 background SW 执行，本地仅在回退和事件处理中使用
+ */
+let _sessionModule: typeof import('@/utils/sessionManager-storage') | null = null;
+const getIsSessionValid = async () => {
+  if (!_sessionModule) {
+    _sessionModule = await import('@/utils/sessionManager-storage');
+  }
+  return _sessionModule.isSessionValid;
+};
+
+/**
+ * 延迟加载 passwordCrud 模块（首次回退路径时加载）
+ * getAllPasswords/getPasswordsByUrl 在热路径中由 background SW 执行，本地仅在回退时使用
+ */
+let _crudModule: typeof import('@/utils/storage/passwordCrud') | null = null;
+const getPasswordCrudModule = async () => {
+  if (!_crudModule) {
+    _crudModule = await import('@/utils/storage/passwordCrud');
+  }
+  return _crudModule;
+};
 
 /**
  * SidePanel 数据加载与会话管理 Composable
@@ -40,6 +63,9 @@ export function useSidepanelData() {
 
   /** 与 background 建立 port 连接，用于可靠的状态追踪和关闭通信 */
   let bgPort: chrome.runtime.Port | null = null;
+
+  /** port 心跳定时器，每 25 秒发送轻量消息保持 SW 活跃（Chrome idle timeout = 30s） */
+  let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   // ==================== 初始化竞速状态 ====================
 
@@ -146,8 +172,9 @@ export function useSidepanelData() {
       }
 
       if (!skipSessionCheck) {
-        // 检查会话是否有效
-        const sessionValid = await isSessionValid();
+        // 检查会话是否有效（延迟加载 sessionManager-storage）
+        const isSessionValidFn = await getIsSessionValid();
+        const sessionValid = await isSessionValidFn();
         if (!sessionValid) {
           isAuthenticated.value = false;
           passwords.value = [];
@@ -155,16 +182,11 @@ export function useSidepanelData() {
         }
       }
 
-      // 并行读取：排序配置 + 密码数据（两个 IPC 互相独立，并行执行减少等待）
-      const fetchPasswords = (): Promise<PasswordEntry[]> => {
-        if (currentDomain.value) {
-          // 本地开发环境（localhost / 127.0.0.1）默认匹配所有账号密码
-          if (isLocalDevDomain(currentDomain.value)) {
-            return getAllPasswords();
-          }
-          return getPasswordsByUrl(currentDomain.value);
-        }
-        return getAllPasswords();
+      // 始终加载全量密码列表，域名过滤统一由 filteredPasswords computed 处理
+      // 避免 GET_INITIAL_DATA（全量）与 loadPasswords（过滤子集）两条路径数据不一致
+      const fetchPasswords = async (): Promise<PasswordEntry[]> => {
+        const crud = await getPasswordCrudModule();
+        return crud.getAllPasswords();
       };
 
       const [sortConfigResult, loadedPasswords] = await Promise.all([
@@ -201,7 +223,8 @@ export function useSidepanelData() {
    */
   const handleSessionChange = async () => {
     try {
-      const sessionActive = await isSessionValid();
+      const isSessionValidFn = await getIsSessionValid();
+      const sessionActive = await isSessionValidFn();
       if (sessionActive && !isAuthenticated.value) {
         isAuthenticated.value = true;
         await loadCurrentTab();
@@ -284,10 +307,15 @@ export function useSidepanelData() {
 
   /**
    * 监听页面可见性变化
+   *
+   * 侧边栏重新可见时刷新当前 Tab 域名，确保切换 Tab 后回到侧边栏时
+   * 域名过滤及时更新（computed 的 filteredPasswords 会自动重新过滤）。
    */
-  const handleVisibilityChange = () => {
+  const handleVisibilityChange = async () => {
     if (!document.hidden) {
-      handleSessionChange();
+      // 刷新当前 Tab 域名（切换 Tab 后回到侧边栏时域名可能已变）
+      await loadCurrentTab();
+      await handleSessionChange();
     }
   };
 
@@ -340,7 +368,27 @@ export function useSidepanelData() {
       });
       bgPort.onDisconnect.addListener(() => {
         bgPort = null;
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
       });
+
+      // 启动心跳：每 25 秒发送轻量消息，保持 SW 在 sidepanel 打开期间持续活跃
+      // Chrome MV3 idle timeout = 30s，alarm 最小间隔 = 60s（不够），port 连接本身可保活但需消息触发
+      heartbeatTimer = setInterval(() => {
+        if (bgPort) {
+          try {
+            bgPort.postMessage({ type: 'HEARTBEAT' });
+          } catch {
+            // port 已断开，停止心跳
+            if (heartbeatTimer) {
+              clearInterval(heartbeatTimer);
+              heartbeatTimer = null;
+            }
+          }
+        }
+      }, 25000);
     } catch (err) {
       logger.error('SidePanel: 建立 port 连接失败:', err);
     }
@@ -354,7 +402,8 @@ export function useSidepanelData() {
     onTabActivated(handleTabActivated);
 
     try {
-      // 先获取当前标签页域名
+      // 先 await 获取当前标签页域名（chrome.tabs.query 本地调用 ~1-5ms），
+      // 确保 currentDomain 在 GET_INITIAL_DATA 返回前已就绪，消除域名过滤的时序竞争
       await loadCurrentTab();
 
       // 从 background SW 获取初始化数据（会话验证 + 密码列表 + 排序配置一站式完成）
@@ -362,7 +411,6 @@ export function useSidepanelData() {
       const response = await Promise.race([
         chrome.runtime.sendMessage({
           type: MessageType.GET_INITIAL_DATA,
-          data: { domain: currentDomain.value },
         }),
         new Promise<null>(resolve => setTimeout(() => resolve(null), 2000)),
       ]);
@@ -395,7 +443,8 @@ export function useSidepanelData() {
 
       // Background 调用超时或失败（极端冷启动场景），回退到本地验证
       logger.debug('SidePanel: Background GET_INITIAL_DATA 超时，回退到本地验证');
-      const sessionValid = await isSessionValid();
+      const isSessionValidFn = await getIsSessionValid();
+      const sessionValid = await isSessionValidFn();
 
       if (!sessionValid) {
         isAuthenticated.value = false;
@@ -438,8 +487,12 @@ export function useSidepanelData() {
 
   // ==================== 清理 ====================
 
-  /** 组件卸载时清理 port 连接 */
+  /** 组件卸载时清理 port 连接和心跳定时器 */
   onUnmounted(() => {
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
     if (bgPort) {
       bgPort.disconnect();
       bgPort = null;
