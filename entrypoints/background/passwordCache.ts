@@ -1,5 +1,5 @@
 import { type PasswordCache, type PasswordEntry } from '@/utils/types';
-import { STORAGE_KEYS } from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 
 /** 模块级缓存状态（Service Worker 生命周期内有效） */

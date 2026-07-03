@@ -1,12 +1,7 @@
 import type { PasswordEntry, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import {
-  STORAGE_KEYS,
-  deriveEncryptionKey,
-  encryptPasswordEntry,
-  decryptPasswordEntry,
-  generateId,
-} from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { deriveEncryptionKey, encryptPasswordEntry, decryptPasswordEntry, generateId } from '@/utils/encryption';
 import { isSessionActiveSync } from './facades';
 import { applySavedSortConfig } from './configManager';
 

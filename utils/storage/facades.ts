@@ -1,6 +1,6 @@
 import type { MasterPasswordConfig } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS } from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 // ==================== 加密相关（委托到 encryption.ts） ====================
 

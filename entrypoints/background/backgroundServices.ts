@@ -1,6 +1,6 @@
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS } from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { StorageUtils } from '@/utils/storage';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import {

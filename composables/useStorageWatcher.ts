@@ -1,5 +1,5 @@
 import { onMounted, onUnmounted, type Ref } from 'vue';
-import { STORAGE_KEYS } from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import { logger } from '@/utils/logger';
 

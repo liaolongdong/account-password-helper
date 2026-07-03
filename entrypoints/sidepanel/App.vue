@@ -276,7 +276,9 @@ import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { REPO_GITHUB_URL } from '@/utils/constants';
+
+/** GitHub 仓库首页地址（内联常量避免引入 193K constants 模块预加载） */
+const REPO_GITHUB_URL = 'https://github.com/liaolongdong/account-password-helper';
 
 // ==================== 组合 composables ====================
 

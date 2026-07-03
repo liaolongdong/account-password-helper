@@ -1,6 +1,6 @@
 import type { AutoSaveConfig, AutoSavePasswordData, PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS } from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { isSessionValid } from './facades';
 import { getAllPasswordsRaw, updatePassword, savePassword } from './passwordCrud';
 import { getFavoriteLimit } from './configManager';
