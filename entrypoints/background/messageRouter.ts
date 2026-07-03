@@ -11,6 +11,53 @@ import { openOptionsPage, openOptionsAndSendMessage } from './optionsPageManager
 import { getCachedPasswords, updatePasswordCache, invalidatePasswordCache } from './passwordCache';
 import { handleAutoSavePassword } from './autoSaveHandler';
 import { performUpdateCheck } from './backgroundServices';
+import { isSessionValid } from '@/utils/sessionManager-storage';
+import { getAllPasswords, getPasswordsByUrl } from '@/utils/storage/passwordCrud';
+import { getSidepanelSortConfig } from '@/utils/storage/configManager';
+import { isLocalDevDomain } from '@/utils/domain';
+
+/**
+ * 处理 GET_INITIAL_DATA 请求
+ *
+ * 在 Background SW 中执行会话验证 + 数据加载 + 排序配置读取，
+ * 将结果打包返回给 sidepanel。利用 SW 保活机制（Phase 1）使热路径
+ * （isSessionActiveSync → true）在 ~1ms 内完成，消除 Windows 上
+ * sidepanel 端的 storage IPC 和加密模块开销。
+ *
+ * @param domain 当前页面域名，用于过滤密码列表
+ * @returns 包含会话状态、密码列表、排序配置的响应数据
+ */
+async function handleGetInitialData(domain?: string) {
+  const sessionValid = await isSessionValid();
+
+  if (!sessionValid) {
+    return { sessionValid: false, passwords: [], sortConfig: null };
+  }
+
+  // 并行加载密码列表和排序配置
+  const [sortConfig, passwords] = await Promise.all([
+    getSidepanelSortConfig().catch(() => null),
+    loadFilteredPasswords(domain),
+  ]);
+
+  return { sessionValid: true, passwords, sortConfig };
+}
+
+/**
+ * 根据域名加载过滤后的密码列表
+ *
+ * @param domain 当前页面域名
+ * @returns 过滤后的密码列表
+ */
+async function loadFilteredPasswords(domain?: string) {
+  if (domain) {
+    if (isLocalDevDomain(domain)) {
+      return getAllPasswords();
+    }
+    return getPasswordsByUrl(domain);
+  }
+  return getAllPasswords();
+}
 
 /**
  * 设置消息路由监听器
@@ -155,6 +202,19 @@ export function setupMessageRouter(): void {
         performUpdateCheck().then(updateInfo => {
           sendResponse({ success: true, data: updateInfo });
         });
+        return true;
+      }
+
+      case MessageType.GET_INITIAL_DATA: {
+        const requestedDomain = message.data?.domain;
+        handleGetInitialData(requestedDomain)
+          .then(data => {
+            sendResponse({ success: true, data });
+          })
+          .catch(error => {
+            logger.error('Background: GET_INITIAL_DATA 处理失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
         return true;
       }
 

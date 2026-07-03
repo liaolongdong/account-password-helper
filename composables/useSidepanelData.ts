@@ -6,6 +6,7 @@ import { getAllPasswords, getPasswordsByUrl } from '@/utils/storage/passwordCrud
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
 import { logger } from '@/utils/logger';
+import { isLocalDevDomain } from '@/utils/domain';
 
 /**
  * SidePanel 数据加载与会话管理 Composable
@@ -46,16 +47,6 @@ export function useSidepanelData() {
   let _cacheWonInitRace = false;
 
   // ==================== 域名工具 ====================
-
-  /**
-   * 判断是否为本地开发环境域名
-   * 针对 localhost 和 127.0.0.1 域名，默认匹配所有账号密码，方便开发人员快速填充
-   * @param domain 当前页面域名
-   * @returns 是否为本地开发域名
-   */
-  const isLocalDevDomain = (domain: string): boolean => {
-    return domain === 'localhost' || domain === '127.0.0.1';
-  };
 
   /**
    * 域名匹配优先级：0=匹配, 1=不匹配
@@ -322,11 +313,12 @@ export function useSidepanelData() {
    * SidePanel 数据层初始化
    * 建立 port 连接、注册 Chrome 事件监听器、加载初始数据
    *
-   * 性能优化：「非阻塞竞速 + 立即展示」模式
-   * - storage 路径是 authoritative source，完成即展示 UI（不等待缓存）
-   * - 缓存路径并行运行，若先于 storage 返回则立即展示（Mac 热 SW ~20ms）
-   * - 缓存超时缩短至 400ms，避免 Windows 冷 SW 场景下无效等待
-   * - 无论竞速结果如何，storage 完成后都会同步 sortConfig 和 background 缓存
+   * 性能优化（Phase 2）：「Background 一站式加载」模式
+   * - 将原 sidepanel 端的多步操作（session 验证 + storage 读取 + 排序读取）
+   *   合并为 background SW 端的单次 GET_INITIAL_DATA 调用
+   * - 配合 SW 保活策略（Phase 1），热 SW 场景数据在 20-50ms 内返回
+   * - Background SW 已完成会话验证、密码加载和域名过滤，sidepanel 直接展示
+   * - 若 background 调用失败（极端冷启动），回退到本地 session 验证 + storage 直读
    */
   const initSidepanelData = async () => {
     // 建立与 background 的 port 连接，用于状态追踪和接收关闭消息
@@ -362,47 +354,78 @@ export function useSidepanelData() {
     onTabActivated(handleTabActivated);
 
     try {
-      // 并行执行 tab 查询和 session 预检查
-      const [, sessionValid] = await Promise.all([loadCurrentTab(), isSessionValid()]);
+      // 先获取当前标签页域名
+      await loadCurrentTab();
 
-      if (!sessionValid) {
-        logger.debug('SidePanel: 会话无效，显示未验证状态');
+      // 从 background SW 获取初始化数据（会话验证 + 密码列表 + 排序配置一站式完成）
+      // 配合 SW 保活策略，热 SW 场景 20-50ms 返回；冷 SW 设置 2000ms 超时兜底
+      const response = await Promise.race([
+        chrome.runtime.sendMessage({
+          type: MessageType.GET_INITIAL_DATA,
+          data: { domain: currentDomain.value },
+        }),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 2000)),
+      ]);
+
+      if (response?.success && response.data) {
+        const data = response.data;
+
+        if (data.sessionValid) {
+          // Background 验证通过，直接展示数据
+          isAuthenticated.value = true;
+          passwords.value = data.passwords;
+          sortConfig.value = data.sortConfig;
+          loading.value = false;
+          initializing.value = false;
+
+          logger.debug('SidePanel: Background 初始化数据加载完成，条目数:' + data.passwords.length);
+
+          // 后台静默更新缓存，确保后续缓存竞速可用
+          void updatePasswordCacheInBackground(data.passwords, currentDomain.value, true);
+          return;
+        }
+
+        // 会话无效
+        logger.debug('SidePanel: 会话无效（Background 验证），显示未验证状态');
         isAuthenticated.value = false;
         loading.value = false;
         initializing.value = false;
         return;
       }
 
-      // 会话有效 → 启动数据加载
+      // Background 调用超时或失败（极端冷启动场景），回退到本地验证
+      logger.debug('SidePanel: Background GET_INITIAL_DATA 超时，回退到本地验证');
+      const sessionValid = await isSessionValid();
+
+      if (!sessionValid) {
+        isAuthenticated.value = false;
+        loading.value = false;
+        initializing.value = false;
+        return;
+      }
+
       isAuthenticated.value = true;
 
-      // 启动 storage 直读（authoritative source），完成后自动解除 initializing
+      // 回退路径：使用原有的 storage 直读 + 缓存竞速
       const storagePromise = loadPasswords(true).finally(() => {
-        // storage 完成后立即展示 UI，不等待缓存响应
         if (!_cacheWonInitRace) {
           initializing.value = false;
         }
       });
 
-      // 并行启动缓存查询（best-effort 优化，不阻塞 UI）
-      // 超时 400ms：热 SW 20ms 可命中，冷 SW 场景不浪费等待时间
-      const cachePromise = getCachedPasswordsFromBackground(currentDomain.value, 400);
+      const cachePromise = getCachedPasswordsFromBackground(currentDomain.value, 600);
       cachePromise
         .then(cacheResult => {
           if (cacheResult && cacheResult.isAuthenticated) {
-            // 缓存竞速胜出 → 立即展示缓存数据
             _cacheWonInitRace = true;
             passwords.value = cacheResult.passwords;
             loading.value = false;
             initializing.value = false;
-            logger.debug('SidePanel: 缓存竞速胜出，条目数:' + cacheResult.passwords.length);
+            logger.debug('SidePanel: 缓存竞速胜出（回退路径），条目数:' + cacheResult.passwords.length);
           }
         })
-        .catch(() => {
-          // 缓存查询失败静默忽略，storage 路径会兜底
-        });
+        .catch(() => {});
 
-      // 等待两条路径都完成（storage 做最终一致性保证，缓存做 background 同步）
       await Promise.allSettled([storagePromise, cachePromise]);
       _cacheWonInitRace = false;
     } catch (error) {

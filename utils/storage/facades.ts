@@ -21,6 +21,7 @@ export {
 export {
   isSessionActiveSync,
   isSessionValid,
+  invalidateSessionCache,
   createSession,
   clearSession,
   getSessionMasterPasswordDecrypted,

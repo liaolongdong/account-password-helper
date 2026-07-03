@@ -30,6 +30,26 @@ let sessionEncryptionKey: string | null = null;
 let _consistencyCheckDone = false;
 
 /**
+ * isSessionValid() 结果缓存
+ *
+ * 避免同一 sidepanel 生命周期内重复执行 storage 读取 + HKDF 密钥派生（Windows ~40-80ms）。
+ * TTL 5 秒：会话状态不会在 5 秒内变化（除非 createSession/clearSession 被调用），
+ * 而这两个操作会主动调用 invalidateSessionCache() 清除缓存。
+ */
+let _sessionValidCache: { valid: boolean; timestamp: number } | null = null;
+const SESSION_VALID_CACHE_TTL = 5000;
+
+/**
+ * 清除会话验证结果缓存
+ *
+ * 在 createSession()、clearSession() 以及 storage change 监听中调用，
+ * 确保缓存不会返回过期的会话状态。
+ */
+export function invalidateSessionCache(): void {
+  _sessionValidCache = null;
+}
+
+/**
  * 同步检查会话是否有效（仅检查内存状态，不从存储恢复）
  */
 export function isSessionActiveSync(): boolean {
@@ -42,8 +62,16 @@ export function isSessionActiveSync(): boolean {
 /**
  * 检查会话是否有效
  * 增强：会话恢复后自动检查数据状态一致性，必要时重新解密
+ *
+ * 性能优化：内置 5 秒 TTL 结果缓存，避免重复的 storage 读取 + HKDF 密钥派生
+ * （Windows ~40-80ms，Mac ~10-20ms）。会话创建/清除时缓存自动失效。
  */
 export async function isSessionValid(): Promise<boolean> {
+  // 检查缓存：5 秒内的结果直接返回，避免重复的 storage IPC + HKDF 开销
+  if (_sessionValidCache && Date.now() - _sessionValidCache.timestamp < SESSION_VALID_CACHE_TTL) {
+    return _sessionValidCache.valid;
+  }
+
   try {
     if (!encryptedSessionMasterPassword || !sessionPasswordExpiry) {
       // 批量读取 session keys + MASTER_PASSWORD（不含 PASSWORDS，由调用方按需读取）
@@ -75,6 +103,7 @@ export async function isSessionValid(): Promise<boolean> {
           await ensureDataConsistencyWithSession();
         }
       } else {
+        _sessionValidCache = { valid: false, timestamp: Date.now() };
         return false;
       }
     }
@@ -82,13 +111,16 @@ export async function isSessionValid(): Promise<boolean> {
     const now = Date.now();
     if (sessionPasswordExpiry !== null && now >= sessionPasswordExpiry) {
       await clearSession();
+      _sessionValidCache = { valid: false, timestamp: Date.now() };
       return false;
     }
 
+    _sessionValidCache = { valid: true, timestamp: Date.now() };
     return true;
   } catch (error) {
     logger.error('会话验证失败:', error);
     await clearSession();
+    _sessionValidCache = { valid: false, timestamp: Date.now() };
     return false;
   }
 }
@@ -148,6 +180,7 @@ export async function getSessionMasterPasswordDecrypted(): Promise<string | null
  */
 export async function createSession(masterPassword: string, validityHours: number): Promise<void> {
   try {
+    invalidateSessionCache();
     const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
     const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
@@ -210,6 +243,7 @@ async function restoreSessionEncryptionKeyFromStorage(): Promise<void> {
  */
 export async function clearSession(): Promise<void> {
   try {
+    invalidateSessionCache();
     // 内存状态可能因页面重载而丢失，直接从 storage 恢复（避免调用 isSessionValid 产生递归）
     if (!encryptedSessionMasterPassword || !sessionEncryptionKey) {
       await restoreSessionEncryptionKeyFromStorage();

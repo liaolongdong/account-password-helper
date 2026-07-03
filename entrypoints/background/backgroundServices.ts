@@ -17,6 +17,23 @@ import { invalidatePasswordCache } from './passwordCache';
 const AUTO_BACKUP_ALARM_NAME = 'auto-backup-passwords';
 
 /**
+ * Service Worker 保活闹钟名称
+ *
+ * 在会话有效期内定期唤醒 SW，防止因 30 秒空闲超时被终止，
+ * 确保 passwordCache（内存缓存）持续可用，使侧边栏首屏加载走缓存竞速快速通道。
+ */
+const SW_KEEPALIVE_ALARM_NAME = 'sw-keepalive';
+
+/**
+ * SW 保活间隔（分钟）
+ *
+ * Chrome 扩展 MV3 的 chrome.alarms.create 最小 periodInMinutes 为 0.5（30 秒），
+ * 但实际测试中部分 Chrome 版本限制为 1 分钟。使用 1 分钟确保兼容性。
+ * 每次 alarm 触发会重置 SW 的 30 秒空闲计时器，从而保持 SW 存活。
+ */
+const SW_KEEPALIVE_INTERVAL_MINUTES = 1;
+
+/**
  * 设置插件图标更新徽标
  */
 async function showUpdateBadge(): Promise<void> {
@@ -192,6 +209,74 @@ async function performAutoBackup() {
 }
 
 /**
+ * 设置 Service Worker 保活闹钟
+ *
+ * 每隔 SW_KEEPALIVE_INTERVAL_MINUTES 分钟唤醒 SW 一次，
+ * 防止因 30 秒空闲超时被 Chrome 终止。SW 存活意味着 passwordCache（内存缓存）
+ * 持续可用，使侧边栏首屏加载能通过缓存竞速快速通道在 20-50ms 内获得数据。
+ *
+ * 仅在会话有效期内启用，会话过期后自动停止，避免无谓的 CPU 和电池消耗。
+ */
+async function setupSwKeepaliveAlarm(): Promise<void> {
+  try {
+    await chrome.alarms.clear(SW_KEEPALIVE_ALARM_NAME);
+    await chrome.alarms.create(SW_KEEPALIVE_ALARM_NAME, {
+      periodInMinutes: SW_KEEPALIVE_INTERVAL_MINUTES,
+    });
+    logger.debug('Background: SW 保活闹钟已启用');
+  } catch (error) {
+    logger.error('Background: 设置 SW 保活闹钟失败:', error);
+  }
+}
+
+/**
+ * 停止 Service Worker 保活闹钟
+ *
+ * 会话过期或清除时调用，避免无会话时的无效唤醒。
+ */
+async function clearSwKeepaliveAlarm(): Promise<void> {
+  try {
+    await chrome.alarms.clear(SW_KEEPALIVE_ALARM_NAME);
+    logger.debug('Background: SW 保活闹钟已停止');
+  } catch (error) {
+    logger.error('Background: 停止 SW 保活闹钟失败:', error);
+  }
+}
+
+/**
+ * 根据会话状态同步 SW 保活闹钟
+ *
+ * 检查 storage 中是否存在有效的会话（session_master_password + session_password_expiry），
+ * 有效则启用保活闹钟，无效则停止。在 SW 启动、会话创建/清除时调用。
+ *
+ * Windows 性能优化核心：SW 保活使 passwordCache 持续在内存中，
+ * 侧边栏的缓存竞速（GET_CACHED_PASSWORDS）可在 20-50ms 内命中，
+ * 避免因 SW 冷启动（Windows 300-800ms）导致竞速超时回退到慢速 storage 直读路径。
+ */
+export async function syncSwKeepaliveAlarm(): Promise<void> {
+  try {
+    const result = await chrome.storage.local.get([
+      SESSION_STORAGE_KEYS.MASTER_PASSWORD,
+      SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
+    ]);
+
+    const hasSession = !!(
+      result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] &&
+      result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] &&
+      Date.now() < (result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number)
+    );
+
+    if (hasSession) {
+      await setupSwKeepaliveAlarm();
+    } else {
+      await clearSwKeepaliveAlarm();
+    }
+  } catch (error) {
+    logger.error('Background: 同步 SW 保活闹钟状态失败:', error);
+  }
+}
+
+/**
  * 初始化后台配置（在 onInstalled 时调用）
  * 创建闹钟和设置闲置锁定
  */
@@ -206,6 +291,9 @@ export function initBackgroundConfig(): void {
  * 在 Service Worker 启动时调用一次，注册所有持久监听器
  */
 export function setupBackgroundServices(): void {
+  // SW 启动时同步保活闹钟状态：会话有效则启用，无效则停止
+  syncSwKeepaliveAlarm();
+
   // 监听闲置状态变化
   chrome.idle.onStateChanged.addListener(async newState => {
     if (newState === 'locked') {
@@ -219,6 +307,7 @@ export function setupBackgroundServices(): void {
           logger.info('Background: 系统锁定，已清除主密码会话');
 
           invalidatePasswordCache();
+          await clearSwKeepaliveAlarm();
 
           const port = getSidePanelPort();
           if (port) {
@@ -276,6 +365,12 @@ export function setupBackgroundServices(): void {
         invalidatePasswordCache();
       }
 
+      // 会话状态变化时同步 SW 保活闹钟（会话创建 → 启用，会话清除 → 停止）
+      const sessionKeys = [SESSION_STORAGE_KEYS.MASTER_PASSWORD, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+      if (Object.keys(changes).some(key => sessionKeys.includes(key))) {
+        syncSwKeepaliveAlarm();
+      }
+
       if (STORAGE_KEYS.EMAIL_BACKUP_CONFIG in changes) {
         logger.debug('Background: 邮箱备份配置变化，重新设置自动备份闹钟');
         setupAutoBackupAlarm();
@@ -291,6 +386,21 @@ export function setupBackgroundServices(): void {
     } else if (alarm.name === UPDATE_CHECK_ALARM_NAME) {
       logger.info('Background: 触发版本更新检测闹钟');
       performUpdateCheck();
+    } else if (alarm.name === SW_KEEPALIVE_ALARM_NAME) {
+      // SW 保活：alarm 触发本身即已唤醒 SW，重置 30 秒空闲计时器
+      // 额外检查会话有效性，过期则停止保活闹钟以节省资源
+      chrome.storage.local
+        .get([SESSION_STORAGE_KEYS.PASSWORD_EXPIRY])
+        .then(result => {
+          const expiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined;
+          if (!expiry || Date.now() >= expiry) {
+            clearSwKeepaliveAlarm();
+            logger.debug('Background: 会话已过期，SW 保活闹钟已自动停止');
+          }
+        })
+        .catch(() => {
+          // storage 读取失败时静默忽略，下次 alarm 触发会重试
+        });
     }
   });
 }
