@@ -167,6 +167,38 @@ export async function updatePassword(
 }
 
 /**
+ * 会话期内更新密码条目（不导入加密模块，供 SidePanel 等前台 UI 使用）
+ *
+ * 仅在 session active 时调用，直接操作明文数据，无需加密/解密。
+ * 与 updatePassword 的区别：不引入 encryption.ts 的 PBKDF2/AES 依赖。
+ *
+ * @param id 条目 ID
+ * @param updates 要更新的字段（不含密码明文时无需传 masterPassword）
+ */
+export async function updatePasswordInSession(id: string, updates: Partial<PasswordEntry>): Promise<void> {
+  try {
+    const passwords = await getAllPasswordsRaw();
+    const index = passwords.findIndex(p => p.id === id);
+    if (index === -1) return;
+
+    const updatedEntry: PasswordEntry = {
+      ...(passwords[index] as PasswordEntry),
+      ...updates,
+      updateTime: Date.now(),
+    };
+    const entriesToSave = [...passwords];
+    entriesToSave[index] = updatedEntry;
+
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.PASSWORDS]: entriesToSave,
+    });
+  } catch (error) {
+    logger.error('会话期内更新密码失败:', error);
+    throw error;
+  }
+}
+
+/**
  * 删除密码条目
  */
 export async function deletePassword(id: string): Promise<void> {

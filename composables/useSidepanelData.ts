@@ -1,7 +1,9 @@
 import { ref, onUnmounted } from 'vue';
 import type { PasswordEntry, PasswordCache, RuntimeMessage } from '@/utils/types';
 import { MessageType } from '@/utils/types';
-import { StorageUtils } from '@/utils/storage';
+import { isSessionValid } from '@/utils/sessionManager-storage';
+import { getAllPasswords, getPasswordsByUrl } from '@/utils/storage/passwordCrud';
+import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
 import { logger } from '@/utils/logger';
 
@@ -154,7 +156,7 @@ export function useSidepanelData() {
 
       if (!skipSessionCheck) {
         // 检查会话是否有效
-        const sessionValid = await StorageUtils.isSessionValid();
+        const sessionValid = await isSessionValid();
         if (!sessionValid) {
           isAuthenticated.value = false;
           passwords.value = [];
@@ -167,15 +169,15 @@ export function useSidepanelData() {
         if (currentDomain.value) {
           // 本地开发环境（localhost / 127.0.0.1）默认匹配所有账号密码
           if (isLocalDevDomain(currentDomain.value)) {
-            return StorageUtils.getAllPasswords();
+            return getAllPasswords();
           }
-          return StorageUtils.getPasswordsByUrl(currentDomain.value);
+          return getPasswordsByUrl(currentDomain.value);
         }
-        return StorageUtils.getAllPasswords();
+        return getAllPasswords();
       };
 
       const [sortConfigResult, loadedPasswords] = await Promise.all([
-        StorageUtils.getSidepanelSortConfig().catch(() => null),
+        getSidepanelSortConfig().catch(() => null),
         fetchPasswords(),
       ]);
 
@@ -208,12 +210,12 @@ export function useSidepanelData() {
    */
   const handleSessionChange = async () => {
     try {
-      const isSessionValid = await StorageUtils.isSessionValid();
-      if (isSessionValid && !isAuthenticated.value) {
+      const sessionActive = await isSessionValid();
+      if (sessionActive && !isAuthenticated.value) {
         isAuthenticated.value = true;
         await loadCurrentTab();
         await loadPasswords();
-      } else if (!isSessionValid && isAuthenticated.value) {
+      } else if (!sessionActive && isAuthenticated.value) {
         isAuthenticated.value = false;
         passwords.value = [];
       }
@@ -361,7 +363,7 @@ export function useSidepanelData() {
 
     try {
       // 并行执行 tab 查询和 session 预检查
-      const [, sessionValid] = await Promise.all([loadCurrentTab(), StorageUtils.isSessionValid()]);
+      const [, sessionValid] = await Promise.all([loadCurrentTab(), isSessionValid()]);
 
       if (!sessionValid) {
         logger.debug('SidePanel: 会话无效，显示未验证状态');

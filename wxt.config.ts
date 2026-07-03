@@ -35,18 +35,6 @@ export default defineConfig({
     esbuild: process.env.NODE_ENV === 'production' ? { drop: ['console', 'debugger'] } : {},
     plugins: [
       process.env.ANALYZE === 'true' && visualizer({ open: true, filename: 'dist/stats.html', gzipSize: true }),
-      // 将 render-blocking CSS <link> 转为非阻塞，消除首帧白屏时间
-      // 使用 media="print" 跳过渲染阻塞，onload 后还原为 media="all"
-      {
-        name: 'non-blocking-css',
-        enforce: 'post' as const,
-        transformIndexHtml(html) {
-          return html.replace(
-            /<link rel="stylesheet"/g,
-            '<link rel="stylesheet" media="print" onload="this.media=\'all\'"',
-          );
-        },
-      },
       // Element Plus 按需引入(包含组件和样式)
       AutoImport({
         imports: [

@@ -1,7 +1,8 @@
 import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { StorageUtils } from '@/utils/storage';
+import { updatePasswordInSession } from '@/utils/storage/passwordCrud';
+import { getClipboardConfig } from '@/utils/storage/configManager';
 import type { Ref } from 'vue';
 
 /** 剪贴板自动清除定时器（模块级变量，确保同一时刻只有一个定时器） */
@@ -102,7 +103,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
     }
 
     try {
-      const config = await StorageUtils.getClipboardConfig();
+      const config = await getClipboardConfig();
       if (config.autoClear && config.clearAfterSeconds > 0) {
         clipboardClearTimer = setTimeout(() => {
           clipboardClearTimer = null;
@@ -355,7 +356,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
           }
         }
         // 后台持久化，不阻塞填充流程
-        StorageUtils.updatePassword(password.id, {
+        updatePasswordInSession(password.id, {
           lastUsedAt: now,
           ...(password.favorite ? { favoriteUsedAt: now } : {}),
         }).catch(error => logger.error('更新使用时间戳失败:', error));

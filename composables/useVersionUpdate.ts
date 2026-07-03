@@ -1,7 +1,7 @@
 import { shallowRef, ref } from 'vue';
 import type { UpdateInfo } from '@/utils/types';
 import { getCachedUpdateInfo } from '@/utils/updateChecker';
-import { GITHUB_RELEASES_PAGE_URL } from '@/utils/constants';
+import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 
 /**
  * 版本更新管理 Composable

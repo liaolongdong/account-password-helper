@@ -250,7 +250,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, computed, watch, nextTick, defineAsyncComponent } from 'vue';
 import {
   Search,
   Loading,
@@ -265,20 +265,24 @@ import {
   Link,
   Clock,
 } from '@element-plus/icons-vue';
-import BrandLogo from '@/components/BrandLogo.vue';
-import HelpDialog from '@/components/sidepanel/HelpDialog.vue';
 import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
 import { MessageType } from '@/utils/types';
-import { StorageUtils } from '@/utils/storage';
+import { updatePasswordInSession } from '@/utils/storage/passwordCrud';
+import { saveSidepanelSortConfig, getFavoriteLimit } from '@/utils/storage/configManager';
+import { evictLRUFavoriteIfNeeded } from '@/utils/storage/autoSaveManager';
 import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
+import { REPO_GITHUB_URL } from '@/utils/urls';
 
-/** GitHub 仓库首页地址（内联常量避免引入 193K constants 模块预加载） */
-const REPO_GITHUB_URL = 'https://github.com/liaolongdong/account-password-helper';
+/** 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载） */
+const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
+
+/** 品牌 Logo——异步加载（纯 SVG，Footer 按钮 icon 使用） */
+const BrandLogo = defineAsyncComponent(() => import('@/components/BrandLogo.vue'));
 
 // ==================== 组合 composables ====================
 
@@ -386,7 +390,7 @@ const handleSortChange = async (prop: string) => {
   const config = { prop, order: 'descending' as const };
   sortConfig.value = config;
   try {
-    await StorageUtils.saveSidepanelSortConfig(config);
+    await saveSidepanelSortConfig(config);
   } catch (error) {
     logger.error('SidePanel: 保存排序配置失败:', error);
   }
@@ -458,13 +462,13 @@ const toggleFavorite = async (password: PasswordEntry) => {
 
     if (newFav) {
       // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目
-      const evicted = await StorageUtils.evictLRUFavoriteIfNeeded(passwords.value);
+      const evicted = await evictLRUFavoriteIfNeeded(passwords.value);
       if (evicted) {
-        const limit = await StorageUtils.getFavoriteLimit();
+        const limit = await getFavoriteLimit();
         ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
       }
       const now = Date.now();
-      await StorageUtils.updatePassword(password.id, {
+      await updatePasswordInSession(password.id, {
         favorite: true,
         favoriteUsedAt: now,
         updateTime: password.updateTime,
@@ -475,7 +479,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
       }
       ElMessage.success('已收藏');
     } else {
-      await StorageUtils.updatePassword(password.id, {
+      await updatePasswordInSession(password.id, {
         favorite: false,
         favoriteUsedAt: undefined,
         updateTime: password.updateTime,

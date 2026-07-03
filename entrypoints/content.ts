@@ -7,6 +7,7 @@ import type { SavePromptData, SavePromptEditedData, NotificationType } from '@/e
 import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import { logger } from '@/utils/logger';
+import { preWarmServiceWorker } from '@/utils/preWarmSw';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -21,6 +22,22 @@ export default defineContentScript({
 
     // 初始化登录自动保存（所有 frame 都需要，以便捕获 iframe 内的登录表单）
     const loginAutoSave = new LoginAutoSave();
+
+    // 预唤醒 SW：用户聚焦表单输入框时，很可能即将使用侧边栏快速填充
+    // 提前发送消息唤醒 SW，与用户操作并行，消除后续 sidePanel.open() 的冷启动延迟
+    document.addEventListener(
+      'focusin',
+      e => {
+        const target = e.target as HTMLElement;
+        if (
+          target instanceof HTMLInputElement &&
+          (target.type === 'password' || target.type === 'text' || target.type === 'email')
+        ) {
+          preWarmServiceWorker();
+        }
+      },
+      { capture: true },
+    );
 
     // 仅顶层 frame 初始化悬浮按钮管理器
     if (isTopFrame) {
