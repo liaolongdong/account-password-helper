@@ -1,7 +1,7 @@
 import { type PasswordCache, type PasswordEntry } from '@/utils/types';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
-import { isSessionActiveSync } from '@/utils/sessionManager-storage';
+import { isSessionValid } from '@/utils/sessionManager-storage';
 import { getAllPasswordsRaw } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 
@@ -96,7 +96,12 @@ export function invalidatePasswordCache(): void {
 export async function warmPasswordCache(): Promise<void> {
   try {
     // 仅在会话有效且缓存为空时预热
-    if (!isSessionActiveSync() || passwordCache) return;
+    // 使用 isSessionValid()（异步）而非 isSessionActiveSync()（同步）：
+    // SW 冷启动后模块级变量为 null，isSessionActiveSync() 永远返回 false，
+    // 导致缓存预热成为空操作，首次 GET_INITIAL_DATA 始终走冷路径
+    if (passwordCache) return;
+    const valid = await isSessionValid();
+    if (!valid) return;
 
     const [passwords, sortConfig] = await Promise.all([
       getAllPasswordsRaw(),

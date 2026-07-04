@@ -239,7 +239,19 @@ export async function getAllPasswords(masterPassword?: string): Promise<Password
   try {
     if (isSessionActiveSync()) {
       const rawData = await getAllPasswordsRaw();
-      return rawData as PasswordEntry[];
+      // 防御性检查：会话活跃但数据已加密时（clearSession 竞态窗口），
+      // 不走快路径，避免将 EncryptedPasswordEntry 当作 PasswordEntry 返回
+      const hasEncrypted = rawData.some(e => 'encrypted' in e && (e as any).encrypted === true);
+      if (!hasEncrypted) {
+        return rawData as PasswordEntry[];
+      }
+      // 数据已加密但无 masterPassword（调用方因 isSessionActiveSync=true 未传入），
+      // 返回空列表而非抛出异常，下次会话重新验证后数据将恢复正常
+      if (!masterPassword) {
+        logger.warn('getAllPasswords: 会话活跃但数据已加密，无法解密，返回空列表');
+        return [];
+      }
+      // 有 masterPassword 时继续下方解密路径
     }
 
     const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);

@@ -50,6 +50,20 @@ export function invalidateSessionCache(): void {
 }
 
 /**
+ * 立即将会话验证结果标记为无效
+ *
+ * 与 invalidateSessionCache()（设为 null，下次 isSessionValid 需重新检查 storage）不同，
+ * 此函数直接将缓存设为 { valid: false }，使后续的 isSessionValid() 调用在 TTL 窗口内
+ * 立即返回 false，无需等待异步的 clearSession() 完成 storage 键删除。
+ *
+ * 在 INVALIDATE_PASSWORD_CACHE 消息处理器中调用，用于消除 async clearSession() 与
+ * 并发 GET_INITIAL_DATA 之间的竞态窗口（~100-200ms）。
+ */
+export function markSessionInvalid(): void {
+  _sessionValidCache = { valid: false, timestamp: Date.now() };
+}
+
+/**
  * 同步检查会话是否有效（仅检查内存状态，不从存储恢复）
  */
 export function isSessionActiveSync(): boolean {
@@ -249,16 +263,17 @@ export async function clearSession(): Promise<void> {
       await restoreSessionEncryptionKeyFromStorage();
     }
 
+    // 在加密密码之前获取主密码（加密操作需要它）
     const masterPassword = await getSessionMasterPasswordDecrypted();
-    if (masterPassword) {
-      await encryptAllPasswordsBeforeSessionClear(masterPassword);
-    }
 
+    // 先清除内存中的会话状态和 storage 中的会话键，
+    // 确保并发的 isSessionValid() 调用立即返回 false，
+    // 消除「会话有效但数据已加密」的竞态窗口
     encryptedSessionMasterPassword = null;
     sessionPasswordExpiry = null;
     sessionValidityHours = null;
     sessionEncryptionKey = null;
-    _consistencyCheckDone = false; // 会话清除后下次登录需重新做一致性检查
+    _consistencyCheckDone = false;
 
     await chrome.storage.local.remove([
       SESSION_STORAGE_KEYS.MASTER_PASSWORD,
@@ -266,6 +281,13 @@ export async function clearSession(): Promise<void> {
       SESSION_STORAGE_KEYS.VALIDITY_HOURS,
       SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
     ]);
+
+    // 会话状态已完全清除后再加密密码（安全操作）
+    // 加密使用 masterPassword 派生的密钥，不依赖已清除的会话状态
+    // 正常情况下密码数据已由 lockSession/createSession 加密，此处为防御性操作
+    if (masterPassword) {
+      await encryptAllPasswordsBeforeSessionClear(masterPassword);
+    }
   } catch (error) {
     logger.error('清除会话缓存失败:', error);
     throw error;

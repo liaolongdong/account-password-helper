@@ -16,8 +16,13 @@ import {
   warmPasswordCache,
 } from './passwordCache';
 import { handleAutoSavePassword } from './autoSaveHandler';
-import { performUpdateCheck } from './backgroundServices';
-import { isSessionValid } from '@/utils/sessionManager-storage';
+import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
+import {
+  isSessionValid,
+  clearSession,
+  invalidateSessionCache,
+  markSessionInvalid,
+} from '@/utils/sessionManager-storage';
 import { getAllPasswords } from '@/utils/storage/passwordCrud';
 
 /**
@@ -179,6 +184,22 @@ export function setupMessageRouter(): void {
 
       case MessageType.INVALIDATE_PASSWORD_CACHE: {
         invalidatePasswordCache();
+        invalidateSessionCache();
+        // 同步标记会话为无效（在 async clearSession 之前执行），
+        // 使并发的 isSessionValid() 调用立即从缓存返回 false，
+        // 消除 clearSession() 异步执行期间（~100-200ms）的竞态窗口
+        markSessionInvalid();
+
+        // 在 BG SW 上下文中清除会话（lockSession 已在 popup/options 上下文中调用过 clearSession，
+        // 但 BG SW 有独立的模块级状态和 _sessionValidCache，必须同步清除，
+        // 否则 isSessionValid() 的 5 秒 TTL 缓存会返回过期的 true，
+        // 导致后续 GET_INITIAL_DATA 在用户重新打开侧边栏时返回错误的已认证状态）
+        clearSession().catch(e => {
+          logger.error('Background: INVALIDATE_PASSWORD_CACHE 清除会话失败:', e);
+        });
+
+        // 会话已清除，停止 SW 保活闹钟
+        syncSwKeepaliveAlarm();
 
         const port = getSidePanelPort();
         if (port) {

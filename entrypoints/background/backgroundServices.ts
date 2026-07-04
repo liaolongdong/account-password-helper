@@ -2,7 +2,7 @@ import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { StorageUtils } from '@/utils/storage';
-import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
+import { SESSION_STORAGE_KEYS, invalidateSessionCache, markSessionInvalid } from '@/utils/sessionManager-storage';
 import {
   checkForUpdate,
   getCachedUpdateInfo,
@@ -372,7 +372,35 @@ export function setupBackgroundServices(): void {
 
       // 会话状态变化时同步 SW 保活闹钟（会话创建 → 启用，会话清除 → 停止）
       const sessionKeys = [SESSION_STORAGE_KEYS.MASTER_PASSWORD, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
-      if (Object.keys(changes).some(key => sessionKeys.includes(key))) {
+      const sessionKeyChanges = Object.entries(changes).filter(([key]) => sessionKeys.includes(key));
+
+      if (sessionKeyChanges.length > 0) {
+        // 检测会话键是否被删除（clearSession 从任意上下文调用都会触发 storage 变化）
+        // 这是通用安全网：覆盖手动清除（弹窗）、自动过期、锁定按钮等所有清除路径
+        const sessionRemoved = sessionKeyChanges.some(([, change]) => change.newValue === undefined);
+
+        if (sessionRemoved) {
+          // 会话被清除：清除 BG 的会话验证缓存，防止 isSessionValid() 返回过期的 true
+          invalidateSessionCache();
+
+          // 通知所有打开的 UI 上下文切换到未验证状态
+          const port = getSidePanelPort();
+          if (port) {
+            try {
+              port.postMessage({ type: MessageType.SESSION_EXPIRED });
+            } catch {
+              // port 可能已断开
+            }
+          }
+          try {
+            chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
+          } catch {
+            // 无监听者时忽略
+          }
+
+          logger.debug('Background: 检测到会话清除，已通知所有上下文');
+        }
+
         syncSwKeepaliveAlarm();
         // 会话创建后主动预热缓存，确保首次 sidepanel 打开时数据就绪
         warmPasswordCache();
@@ -401,8 +429,30 @@ export function setupBackgroundServices(): void {
         .then(result => {
           const expiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined;
           if (!expiry || Date.now() >= expiry) {
+            invalidatePasswordCache();
+            // 使用 markSessionInvalid() 而非 invalidateSessionCache()：
+            // 时间过期场景下 storage 中的会话键仍然存在，invalidateSessionCache() 设为 null
+            // 会导致 isSessionValid() 回退到 storage 检查并误判为有效；
+            // markSessionInvalid() 直接标记 {valid: false}，5s TTL 内立即返回 false
+            markSessionInvalid();
             clearSwKeepaliveAlarm();
-            logger.debug('Background: 会话已过期，SW 保活闹钟已自动停止');
+
+            // 通知打开的侧边栏切换到未验证状态
+            const port = getSidePanelPort();
+            if (port) {
+              try {
+                port.postMessage({ type: MessageType.SESSION_EXPIRED });
+              } catch {
+                // port 可能已断开
+              }
+            }
+            try {
+              chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
+            } catch {
+              // 无监听者时忽略
+            }
+
+            logger.debug('Background: 会话已过期，缓存已清除，SW 保活闹钟已自动停止');
           }
         })
         .catch(() => {

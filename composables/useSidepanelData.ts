@@ -20,6 +20,18 @@ const getIsSessionValid = async () => {
 };
 
 /**
+ * 延迟调用 invalidateSessionCache（fire-and-forget）
+ * 在 clearSession 路径中异步失效 session 缓存，防止并发 isSessionValid()
+ * 从 5s TTL 缓存中返回过期 true 值。首次调用时触发 dynamic import。
+ */
+const invalidateSessionCacheAsync = async () => {
+  if (!_sessionModule) {
+    _sessionModule = await import('@/utils/sessionManager-storage');
+  }
+  _sessionModule.invalidateSessionCache();
+};
+
+/**
  * 延迟加载 passwordCrud 模块（首次回退路径时加载）
  * getAllPasswords/getPasswordsByUrl 在热路径中由 background SW 执行，本地仅在回退时使用
  */
@@ -71,6 +83,15 @@ export function useSidepanelData() {
 
   /** 标记初始化时缓存是否已先于 storage 返回并设置了数据，用于避免 loadPasswords 覆盖缓存数据 */
   let _cacheWonInitRace = false;
+
+  /**
+   * 模块级标志：已知会话过期
+   *
+   * 在 handleSessionChange 检测到会话过期时同步设置，后续调用直接同步清除认证状态，
+   * 跳过异步检查，避免异步延迟导致加密数据短暂闪烁。
+   * 在 initSidepanelData 和 handleSessionChange 检测到会话有效时重置。
+   */
+  let _sessionKnownExpired = false;
 
   // ==================== 域名工具 ====================
 
@@ -176,6 +197,7 @@ export function useSidepanelData() {
         const isSessionValidFn = await getIsSessionValid();
         const sessionValid = await isSessionValidFn();
         if (!sessionValid) {
+          _sessionKnownExpired = true;
           isAuthenticated.value = false;
           passwords.value = [];
           return;
@@ -193,6 +215,12 @@ export function useSidepanelData() {
         getSidepanelSortConfig().catch(() => null),
         fetchPasswords(),
       ]);
+
+      // 二次检查：异步操作期间会话可能已过期（storage change 并行触发），
+      // 防止将加密数据设置到 UI 上导致闪烁
+      if (!isAuthenticated.value) {
+        return;
+      }
 
       // 竞速模式下缓存已先返回时，保留缓存数据（两者应一致），仅同步 sortConfig 和 background 缓存
       if (!_cacheWonInitRace) {
@@ -220,16 +248,32 @@ export function useSidepanelData() {
 
   /**
    * 监听会话状态变化
+   *
+   * 包含同步守卫：当 _sessionKnownExpired 为 true 时，直接同步处理状态，
+   * 跳过异步 isSessionValid() 检查。防止 isSessionValid() 的 5s TTL 缓存
+   * 返回过期 true 值，导致错误地将 isAuthenticated 重新设为 true 并加载加密数据。
    */
   const handleSessionChange = async () => {
     try {
+      // 同步守卫：已知会话过期时，避免 isSessionValid() 缓存返回过期 true
+      // 导致错误地将 isAuthenticated 重新设为 true 并加载加密数据
+      if (_sessionKnownExpired) {
+        if (isAuthenticated.value) {
+          isAuthenticated.value = false;
+          passwords.value = [];
+        }
+        return;
+      }
+
       const isSessionValidFn = await getIsSessionValid();
       const sessionActive = await isSessionValidFn();
       if (sessionActive && !isAuthenticated.value) {
+        _sessionKnownExpired = false;
         isAuthenticated.value = true;
         await loadCurrentTab();
         await loadPasswords();
       } else if (!sessionActive && isAuthenticated.value) {
+        _sessionKnownExpired = true;
         isAuthenticated.value = false;
         passwords.value = [];
       }
@@ -240,17 +284,49 @@ export function useSidepanelData() {
 
   /**
    * 监听存储变化
+   *
+   * clearSession() 分两步执行存储操作（先 remove session keys，再 set 加密密码），
+   * 在 SidePanel 中以两个独立的 storage.onChanged 事件到达。若不在第一个事件中
+   * 同步标记 _sessionKnownExpired，第二个事件（account_passwords 变更）会在
+   * handleSessionChange 异步完成前触发 loadPasswords，此时 isSessionValid()
+   * 的 5s TTL 缓存可能仍返回 true，导致加密数据被加载到 UI 上闪烁。
    */
   const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
     const sessionKeys = ['session_master_password', 'session_password_expiry', 'session_validity_hours'];
     const hasSessionChange = Object.keys(changes).some(key => sessionKeys.includes(key));
 
     if (hasSessionChange) {
+      // 检测 session key 是被创建还是被移除：
+      // - 移除（newValue 为 undefined）：同步标记会话过期，阻止紧随的 account_passwords
+      //   变更触发 loadPasswords，消除 clearSession 两步存储操作的竞态窗口
+      // - 创建/更新（newValue 存在）：重置过期标记，由异步 handleSessionChange
+      //   验证 session 有效性并恢复认证状态
+      const isSessionRemoved = Object.entries(changes).some(
+        ([key, change]) => sessionKeys.includes(key) && change.newValue === undefined,
+      );
+      if (isSessionRemoved) {
+        _sessionKnownExpired = true;
+        // 异步失效 session 缓存（fire-and-forget），确保并发 isSessionValid()
+        // 调用不会从 5s TTL 缓存中返回过期 true 值
+        void invalidateSessionCacheAsync();
+      } else {
+        _sessionKnownExpired = false;
+      }
+
+      // 会话变化时，先处理会话状态，不再继续处理 account_passwords，
+      // 避免 handleSessionChange 与 loadPasswords 并行执行导致竞态闪烁
       handleSessionChange();
+      return;
     }
 
     // 密码数据变化时，重新加载密码列表（解决自动保存后快速填充列表不刷新的问题）
+    // 增加 _sessionKnownExpired 守卫：clearSession 时 password 加密写入会触发本分支，
+    // 此时若 _sessionKnownExpired 已为 true（由前置 session key 移除事件设置），跳过加载
     if (changes['account_passwords']) {
+      if (_sessionKnownExpired) {
+        logger.debug('SidePanel: 检测到密码数据变动但会话已知过期，跳过重新加载');
+        return;
+      }
       logger.debug('SidePanel: 检测到密码数据变动，重新加载');
       if (isAuthenticated.value) {
         void loadPasswords();
@@ -296,6 +372,7 @@ export function useSidepanelData() {
         return true;
       case MessageType.SESSION_EXPIRED:
         logger.debug('SidePanel: 收到锁定广播消息，立即切换到未验证状态');
+        _sessionKnownExpired = true;
         isAuthenticated.value = false;
         passwords.value = [];
         sendResponse({ success: true });
@@ -310,11 +387,22 @@ export function useSidepanelData() {
    *
    * 侧边栏重新可见时刷新当前 Tab 域名，确保切换 Tab 后回到侧边栏时
    * 域名过滤及时更新（computed 的 filteredPasswords 会自动重新过滤）。
+   *
+   * 快速路径：当 _sessionKnownExpired 已为 true 时，同步清除认证状态后
+   * 仅刷新域名即返回，跳过不必要的 handleSessionChange 异步调用
+   * （含 storage 读取 + HKDF 密钥派生，Windows ~40-80ms）。
    */
   const handleVisibilityChange = async () => {
     if (!document.hidden) {
+      // 同步守卫：已知会话过期时立即清除认证状态，防止 loadCurrentTab 异步期间加密数据闪烁
+      if (_sessionKnownExpired && isAuthenticated.value) {
+        isAuthenticated.value = false;
+        passwords.value = [];
+      }
       // 刷新当前 Tab 域名（切换 Tab 后回到侧边栏时域名可能已变）
       await loadCurrentTab();
+      // 已知会话过期时跳过异步 session 检查
+      if (_sessionKnownExpired) return;
       await handleSessionChange();
     }
   };
@@ -362,6 +450,7 @@ export function useSidepanelData() {
           }
         } else if (message.type === MessageType.SESSION_EXPIRED) {
           logger.debug('SidePanel: 收到锁定消息（port），立即切换到未验证状态');
+          _sessionKnownExpired = true;
           isAuthenticated.value = false;
           passwords.value = [];
         }
@@ -420,6 +509,7 @@ export function useSidepanelData() {
 
         if (data.sessionValid) {
           // Background 验证通过，直接展示数据
+          _sessionKnownExpired = false;
           isAuthenticated.value = true;
           passwords.value = data.passwords;
           sortConfig.value = data.sortConfig;
@@ -435,6 +525,7 @@ export function useSidepanelData() {
 
         // 会话无效
         logger.debug('SidePanel: 会话无效（Background 验证），显示未验证状态');
+        _sessionKnownExpired = true;
         isAuthenticated.value = false;
         loading.value = false;
         initializing.value = false;
@@ -447,12 +538,17 @@ export function useSidepanelData() {
       const sessionValid = await isSessionValidFn();
 
       if (!sessionValid) {
+        _sessionKnownExpired = true;
         isAuthenticated.value = false;
         loading.value = false;
         initializing.value = false;
         return;
       }
 
+      _sessionKnownExpired = false;
+      // 先设置 loading=true 再设置 isAuthenticated=true，
+      // 避免中间渲染帧显示「已认证但空列表」的闪烁状态
+      loading.value = true;
       isAuthenticated.value = true;
 
       // 回退路径：使用原有的 storage 直读 + 缓存竞速
