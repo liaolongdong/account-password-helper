@@ -1,5 +1,5 @@
 import { ref, onUnmounted } from 'vue';
-import type { PasswordEntry, PasswordCache, RuntimeMessage } from '@/utils/types';
+import type { PasswordEntry, RuntimeMessage } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
@@ -79,11 +79,6 @@ export function useSidepanelData() {
   /** port 心跳定时器，每 25 秒发送轻量消息保持 SW 活跃（Chrome idle timeout = 30s） */
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-  // ==================== 初始化竞速状态 ====================
-
-  /** 标记初始化时缓存是否已先于 storage 返回并设置了数据，用于避免 loadPasswords 覆盖缓存数据 */
-  let _cacheWonInitRace = false;
-
   /**
    * 模块级标志：已知会话过期
    *
@@ -106,35 +101,6 @@ export function useSidepanelData() {
   };
 
   // ==================== 缓存操作 ====================
-
-  /**
-   * 从 background 获取缓存的密码数据
-   * 用于后台预热缓存，不阻塞首屏加载。超时缩短为 500ms。
-   * @param domain 域名
-   * @param timeoutMs 超时毫秒数，默认 500ms
-   * @returns 缓存的密码数据或 null
-   */
-  const getCachedPasswordsFromBackground = async (domain?: string, timeoutMs = 500): Promise<PasswordCache | null> => {
-    try {
-      const timeoutPromise = new Promise<null>(resolve => {
-        setTimeout(() => resolve(null), timeoutMs);
-      });
-      const response = await Promise.race([
-        chrome.runtime.sendMessage({
-          type: MessageType.GET_CACHED_PASSWORDS,
-          data: { domain },
-        }),
-        timeoutPromise,
-      ]);
-      if (response?.success && response.data) {
-        return response.data as PasswordCache;
-      }
-      return null;
-    } catch (error) {
-      logger.error('SidePanel: 获取缓存数据失败:', error);
-      return null;
-    }
-  };
 
   /**
    * 更新 background 中的密码缓存
@@ -187,10 +153,7 @@ export function useSidepanelData() {
    */
   const loadPasswords = async (skipSessionCheck = false) => {
     try {
-      // 竞速模式下缓存已先返回并设置了数据时，静默更新（不动 loading/passwords 状态）
-      if (!_cacheWonInitRace) {
-        loading.value = true;
-      }
+      loading.value = true;
 
       if (!skipSessionCheck) {
         // 检查会话是否有效（延迟加载 sessionManager-storage）
@@ -222,14 +185,9 @@ export function useSidepanelData() {
         return;
       }
 
-      // 竞速模式下缓存已先返回时，保留缓存数据（两者应一致），仅同步 sortConfig 和 background 缓存
-      if (!_cacheWonInitRace) {
-        sortConfig.value = sortConfigResult;
-        passwords.value = loadedPasswords;
-        loading.value = false; // 提前清除 loading 状态，不等待缓存更新
-      } else {
-        sortConfig.value = sortConfigResult;
-      }
+      sortConfig.value = sortConfigResult;
+      passwords.value = loadedPasswords;
+      loading.value = false;
 
       // 后台静默更新缓存（不阻塞 UI 渲染）
       void updatePasswordCacheInBackground(loadedPasswords, currentDomain.value, isAuthenticated.value);
@@ -238,9 +196,7 @@ export function useSidepanelData() {
       ElMessage.error('加载密码列表失败');
     } finally {
       // 兜底确保 loading 状态清除（异常路径安全网）
-      if (!_cacheWonInitRace) {
-        loading.value = false;
-      }
+      loading.value = false;
     }
   };
 
@@ -429,12 +385,12 @@ export function useSidepanelData() {
    * SidePanel 数据层初始化
    * 建立 port 连接、注册 Chrome 事件监听器、加载初始数据
    *
-   * 性能优化（Phase 2）：「Background 一站式加载」模式
-   * - 将原 sidepanel 端的多步操作（session 验证 + storage 读取 + 排序读取）
-   *   合并为 background SW 端的单次 GET_INITIAL_DATA 调用
-   * - 配合 SW 保活策略（Phase 1），热 SW 场景数据在 20-50ms 内返回
-   * - Background SW 已完成会话验证、密码加载和域名过滤，sidepanel 直接展示
-   * - 若 background 调用失败（极端冷启动），回退到本地 session 验证 + storage 直读
+   * 性能优化（Phase 3）：「真并行竞速」模式
+   * - Background GET_INITIAL_DATA 与本地 storage 直读路径同时启动，取先到者
+   * - 热 SW 场景：Background 路径 ~20ms 胜出，本地路径静默完成
+   * - 冷 SW 场景：本地路径 ~200-400ms 先完成，Background 迟到结果用于缓存更新
+   * - GET_INITIAL_DATA 超时从 2000ms 降至 1200ms，避免冷 SW 场景无谓等待
+   * - loadCurrentTab 与 GET_INITIAL_DATA 并行执行，节约 ~5ms 串行延迟
    */
   const initSidepanelData = async () => {
     // 建立与 background 的 port 连接，用于状态追踪和接收关闭消息
@@ -491,40 +447,124 @@ export function useSidepanelData() {
     onTabActivated(handleTabActivated);
 
     try {
-      // 先 await 获取当前标签页域名（chrome.tabs.query 本地调用 ~1-5ms），
-      // 确保 currentDomain 在 GET_INITIAL_DATA 返回前已就绪，消除域名过滤的时序竞争
-      await loadCurrentTab();
+      // ---- 并行竞速模式 ----
+      // 竞速标记：null = 未决出胜负，'bg' = Background 路径胜出，'local' = 本地路径胜出
+      let raceWinner: 'bg' | 'local' | null = null;
+      /** Background 路径迟到结果（本地路径先胜出时保存，用于静默更新缓存） */
+      let bgLateResult: {
+        success?: boolean;
+        data?: {
+          sessionValid: boolean;
+          passwords: PasswordEntry[];
+          sortConfig: { prop: string; order: string } | null;
+        };
+      } | null = null;
 
-      // 从 background SW 获取初始化数据（会话验证 + 密码列表 + 排序配置一站式完成）
-      // 配合 SW 保活策略，热 SW 场景 20-50ms 返回；冷 SW 设置 2000ms 超时兜底
-      const response = await Promise.race([
+      // 路径 A: loadCurrentTab（并行，不阻塞 GET_INITIAL_DATA）
+      const tabPromise = loadCurrentTab();
+
+      // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道，1200ms 超时）
+      const bgPromise = Promise.race([
         chrome.runtime.sendMessage({
           type: MessageType.GET_INITIAL_DATA,
         }),
-        new Promise<null>(resolve => setTimeout(() => resolve(null), 2000)),
-      ]);
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 1200)),
+      ]).then(result => {
+        if (raceWinner) {
+          // 本地路径已胜出，保存 bg 结果用于静默更新缓存
+          bgLateResult = result as typeof bgLateResult;
+          return null;
+        }
+        raceWinner = 'bg';
+        return { source: 'bg' as const, data: result };
+      });
 
-      if (response?.success && response.data) {
-        const data = response.data;
+      // 路径 C: 本地 storage 直读（冷 SW 回退通道，动态 import + storage 读取并行启动）
+      const localPromise = (async () => {
+        const isSessionValidFn = await getIsSessionValid();
+        const sessionValid = await isSessionValidFn();
+        if (!sessionValid) {
+          return { sessionValid: false, passwords: [] as PasswordEntry[], sortConfig: null };
+        }
+        const crud = await getPasswordCrudModule();
+        const [sortConfigResult, loadedPasswords] = await Promise.all([
+          getSidepanelSortConfig().catch(() => null),
+          crud.getAllPasswords(),
+        ]);
+        return { sessionValid: true, passwords: loadedPasswords as PasswordEntry[], sortConfig: sortConfigResult };
+      })().then(result => {
+        if (raceWinner) {
+          // Background 路径已胜出，本地结果静默丢弃
+          return null;
+        }
+        raceWinner = 'local';
+        return { source: 'local' as const, data: result };
+      });
 
-        if (data.sessionValid) {
-          // Background 验证通过，直接展示数据
-          _sessionKnownExpired = false;
-          isAuthenticated.value = true;
-          passwords.value = data.passwords;
-          sortConfig.value = data.sortConfig;
+      // 等待两条路径之一完成（取先到者）
+      const winner = await Promise.race([bgPromise, localPromise]);
+
+      // 确保 currentDomain 已就绪（loadCurrentTab 应在 winner 返回时已完成，此处防御性等待）
+      await tabPromise;
+
+      if (!winner) {
+        // 两条路径都未返回有效结果（极端异常），降级为错误处理
+        throw new Error('SidePanel: 所有初始化路径均失败');
+      }
+
+      if (winner.source === 'bg') {
+        const response = winner.data;
+        if (response?.success && response.data) {
+          const data = response.data;
+
+          if (data.sessionValid) {
+            // Background 验证通过，直接展示数据
+            _sessionKnownExpired = false;
+            isAuthenticated.value = true;
+            passwords.value = data.passwords;
+            sortConfig.value = data.sortConfig;
+            loading.value = false;
+            initializing.value = false;
+
+            logger.debug('SidePanel: Background 初始化数据加载完成（竞速胜出），条目数:' + data.passwords.length);
+
+            // 后台静默更新缓存
+            void updatePasswordCacheInBackground(data.passwords, currentDomain.value, true);
+
+            // 本地路径可能仍在执行（dynamic import），让其静默完成
+            localPromise.catch(() => {});
+            return;
+          }
+
+          // 会话无效
+          logger.debug('SidePanel: 会话无效（Background 验证），显示未验证状态');
+          _sessionKnownExpired = true;
+          isAuthenticated.value = false;
           loading.value = false;
           initializing.value = false;
 
-          logger.debug('SidePanel: Background 初始化数据加载完成，条目数:' + data.passwords.length);
-
-          // 后台静默更新缓存，确保后续缓存竞速可用
-          void updatePasswordCacheInBackground(data.passwords, currentDomain.value, true);
+          localPromise.catch(() => {});
           return;
         }
 
-        // 会话无效
-        logger.debug('SidePanel: 会话无效（Background 验证），显示未验证状态');
+        // Background 返回了响应但格式异常，回退到本地路径
+        logger.debug('SidePanel: Background 响应异常，等待本地路径');
+        raceWinner = null;
+        const localWinner = await localPromise;
+        if (localWinner && localWinner.data.sessionValid) {
+          _sessionKnownExpired = false;
+          loading.value = true;
+          isAuthenticated.value = true;
+          passwords.value = localWinner.data.passwords;
+          sortConfig.value = localWinner.data.sortConfig;
+          loading.value = false;
+          initializing.value = false;
+
+          logger.debug('SidePanel: 本地初始化数据加载完成（bg 异常回退），条目数:' + localWinner.data.passwords.length);
+          void updatePasswordCacheInBackground(localWinner.data.passwords, currentDomain.value, true);
+          return;
+        }
+
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
         loading.value = false;
@@ -532,16 +572,18 @@ export function useSidepanelData() {
         return;
       }
 
-      // Background 调用超时或失败（极端冷启动场景），回退到本地验证
-      logger.debug('SidePanel: Background GET_INITIAL_DATA 超时，回退到本地验证');
-      const isSessionValidFn = await getIsSessionValid();
-      const sessionValid = await isSessionValidFn();
+      // 本地路径竞速胜出
+      const localData = winner.data;
 
-      if (!sessionValid) {
+      if (!localData.sessionValid) {
+        logger.debug('SidePanel: 会话无效（本地验证），显示未验证状态');
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
         loading.value = false;
         initializing.value = false;
+
+        // 等待 bg 路径完成（可能迟到），用于同步状态
+        bgPromise.catch(() => {});
         return;
       }
 
@@ -550,29 +592,22 @@ export function useSidepanelData() {
       // 避免中间渲染帧显示「已认证但空列表」的闪烁状态
       loading.value = true;
       isAuthenticated.value = true;
+      passwords.value = localData.passwords;
+      sortConfig.value = localData.sortConfig;
+      loading.value = false;
+      initializing.value = false;
 
-      // 回退路径：使用原有的 storage 直读 + 缓存竞速
-      const storagePromise = loadPasswords(true).finally(() => {
-        if (!_cacheWonInitRace) {
-          initializing.value = false;
-        }
-      });
+      logger.debug('SidePanel: 本地初始化数据加载完成（竞速胜出），条目数:' + localData.passwords.length);
 
-      const cachePromise = getCachedPasswordsFromBackground(currentDomain.value, 600);
-      cachePromise
-        .then(cacheResult => {
-          if (cacheResult && cacheResult.isAuthenticated) {
-            _cacheWonInitRace = true;
-            passwords.value = cacheResult.passwords;
-            loading.value = false;
-            initializing.value = false;
-            logger.debug('SidePanel: 缓存竞速胜出（回退路径），条目数:' + cacheResult.passwords.length);
+      // Background 路径可能迟到，等待其结果用于静默更新缓存
+      bgPromise
+        .then(() => {
+          if (bgLateResult?.success && bgLateResult.data?.sessionValid) {
+            logger.debug('SidePanel: Background 迟到结果到达，静默更新缓存');
+            void updatePasswordCacheInBackground(bgLateResult.data.passwords, currentDomain.value, true);
           }
         })
         .catch(() => {});
-
-      await Promise.allSettled([storagePromise, cachePromise]);
-      _cacheWonInitRace = false;
     } catch (error) {
       logger.error('SidePanel: 初始化失败:', error);
       isAuthenticated.value = false;

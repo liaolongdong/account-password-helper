@@ -39,6 +39,17 @@ export default defineContentScript({
       { capture: true },
     );
 
+    // 被动预唤醒：用户切换回当前标签页时（页面变为可见），预唤醒 SW。
+    // 覆盖用户从其他应用切回 Chrome 后直接使用快捷键 Cmd+Shift+L 打开侧边栏的场景，
+    // 此时可能尚未聚焦表单输入框或 hover 悬浮按钮，需要 visibilitychange 作为兜底。
+    if (isTopFrame) {
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          preWarmServiceWorker();
+        }
+      });
+    }
+
     // 仅顶层 frame 初始化悬浮按钮管理器
     if (isTopFrame) {
       const floatingButtonManager = getFloatingButtonManager();
