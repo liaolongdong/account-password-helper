@@ -31,7 +31,7 @@ export default defineContentScript({
         const target = e.target as HTMLElement;
         if (
           target instanceof HTMLInputElement &&
-          (target.type === 'password' || target.type === 'text' || target.type === 'email')
+          (target.type === 'password' || target.type === 'text' || target.type === 'email' || target.type === 'tel')
         ) {
           preWarmServiceWorker();
         }
