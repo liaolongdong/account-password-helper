@@ -243,6 +243,8 @@ export class FormDetector {
     this.usernameFieldsSet = new WeakSet();
     this.mobileFieldsSet = new WeakSet();
     this.verifyCodeFieldsSet = new WeakSet();
+    // 清除字段类型缓存，避免重检测时使用过期的分类结果
+    this.fieldTypeCache = new WeakMap();
     this.loginFormAnalyzer.clearCache();
 
     // 检测登录按钮
@@ -569,6 +571,12 @@ export class FormDetector {
       if (hasUsernameFields && hasVerifyCodeFields && fieldType === 'verifyCode') {
         return true;
       }
+    }
+
+    // 情况3: 单字段手机号登录（分步登录、手机号+验证码但验证码尚未渲染等场景）
+    // 当手机号输入框被 isLikelyMobileInput 识别，且页面存在登录按钮时，允许触发侧边栏
+    if (this.isLikelyMobileInput(input) && this.loginButtons.length > 0) {
+      return true;
     }
 
     return false;

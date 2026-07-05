@@ -6,7 +6,6 @@
 /** 用户名/邮箱/账号字段选择器 */
 export const USERNAME_SELECTORS = [
   'input[type="email"]',
-  'input[type="tel"]',
   'input[type="text"][name*="user"]',
   'input[type="text"][name*="email"]',
   'input[type="text"][name*="account"]',

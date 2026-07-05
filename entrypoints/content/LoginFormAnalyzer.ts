@@ -31,7 +31,9 @@ export class LoginFormAnalyzer {
 
     const hasLoginFields =
       (fields.passwordFields.length > 0 && fields.usernameFields.length > 0) ||
-      (fields.mobileFields.length > 0 && fields.verifyCodeFields.length > 0);
+      (fields.mobileFields.length > 0 && fields.verifyCodeFields.length > 0) ||
+      // 单手机号 + 登录按钮场景（分步登录、手机号+验证码但验证码尚未渲染）
+      (fields.mobileFields.length > 0 && fields.loginButtons.length > 0);
 
     if (hasLoginFields) {
       const form = input.closest('form');
