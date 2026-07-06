@@ -10,13 +10,17 @@ import { logger } from '@/utils/logger';
 /**
  * 延迟加载 sessionManager-storage 模块（首次回退/事件触发时加载）
  * isSessionValid 在热路径中由 background SW 执行，本地仅在回退和事件处理中使用
+ *
+ * SidePanel 上下文统一跳过 ensureDataConsistencyWithSession：
+ * 后续 getAllPasswords 会自行处理加密数据状态，无需在 isSessionValid 中
+ * 重复读取全量密码并触发 O(n) 解密（Windows Web Crypto 较慢，数百条密码需 2~4 秒）
  */
 let _sessionModule: typeof import('@/utils/sessionManager-storage') | null = null;
 const getIsSessionValid = async () => {
   if (!_sessionModule) {
     _sessionModule = await import('@/utils/sessionManager-storage');
   }
-  return _sessionModule.isSessionValid;
+  return () => _sessionModule!.isSessionValid({ skipConsistencyCheck: true });
 };
 
 /**
@@ -446,6 +450,7 @@ export function useSidepanelData() {
 
     try {
       // ---- 并行竞速模式 ----
+      const _perfRaceStart = performance.now();
       // 竞速标记：null = 未决出胜负，'bg' = Background 路径胜出，'local' = 本地路径胜出
       let raceWinner: 'bg' | 'local' | null = null;
       /** Background 路径迟到结果（本地路径先胜出时保存，用于静默更新缓存） */
@@ -462,6 +467,7 @@ export function useSidepanelData() {
       const tabPromise = loadCurrentTab();
 
       // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道，1200ms 超时）
+      const _perfBgStart = performance.now();
       const bgPromise = Promise.race([
         chrome.runtime.sendMessage({
           type: MessageType.GET_INITIAL_DATA,
@@ -471,20 +477,24 @@ export function useSidepanelData() {
         if (raceWinner) {
           // 本地路径已胜出，保存 bg 结果用于静默更新缓存
           bgLateResult = result as typeof bgLateResult;
+          logger.debug(`SidePanel: bg 路径迟到 (${(performance.now() - _perfBgStart).toFixed(1)}ms)，静默更新缓存`);
           return null;
         }
         raceWinner = 'bg';
+        logger.debug(`SidePanel: bg 路径竞速胜出 (${(performance.now() - _perfBgStart).toFixed(1)}ms)`);
         return { source: 'bg' as const, data: result };
       });
 
-      // 路径 C: 本地 storage 直读（冷 SW 回退通道，动态 import + storage 读取并行启动）
+      // 路径 C: 本地 storage 直读（冷 SW 回退通道）
+      // 性能优化：并行启动 sessionManager-storage 和 passwordCrud 两个 dynamic import，
+      // 利用模块系统自动去重，将串行 2×import 改为并行，Windows 上节省 100~300ms
+      const _perfLocalStart = performance.now();
       const localPromise = (async () => {
-        const isSessionValidFn = await getIsSessionValid();
+        const [isSessionValidFn, crud] = await Promise.all([getIsSessionValid(), getPasswordCrudModule()]);
         const sessionValid = await isSessionValidFn();
         if (!sessionValid) {
           return { sessionValid: false, passwords: [] as PasswordEntry[], sortConfig: null };
         }
-        const crud = await getPasswordCrudModule();
         const [sortConfigResult, loadedPasswords] = await Promise.all([
           getSidepanelSortConfig().catch(() => null),
           crud.getAllPasswords(),
@@ -496,11 +506,15 @@ export function useSidepanelData() {
           return null;
         }
         raceWinner = 'local';
+        logger.debug(`SidePanel: 本地路径竞速胜出 (${(performance.now() - _perfLocalStart).toFixed(1)}ms)`);
         return { source: 'local' as const, data: result };
       });
 
       // 等待两条路径之一完成（取先到者）
       const winner = await Promise.race([bgPromise, localPromise]);
+      logger.debug(
+        `SidePanel: 竞速完成，胜出路径=${raceWinner}，总耗时 ${(performance.now() - _perfRaceStart).toFixed(1)}ms`,
+      );
 
       // 确保 currentDomain 已就绪（loadCurrentTab 应在 winner 返回时已完成，此处防御性等待）
       await tabPromise;

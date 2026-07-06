@@ -79,8 +79,11 @@ export function isSessionActiveSync(): boolean {
  *
  * 性能优化：内置 5 秒 TTL 结果缓存，避免重复的 storage 读取 + HKDF 密钥派生
  * （Windows ~40-80ms，Mac ~10-20ms）。会话创建/清除时缓存自动失效。
+ *
+ * @param options.skipConsistencyCheck 跳过 ensureDataConsistencyWithSession（sidepanel 热路径使用，
+ *   后续 getAllPasswords 会自行处理加密数据状态，无需在此阻塞）
  */
-export async function isSessionValid(): Promise<boolean> {
+export async function isSessionValid(options?: { skipConsistencyCheck?: boolean }): Promise<boolean> {
   // 检查缓存：5 秒内的结果直接返回，避免重复的 storage IPC + HKDF 开销
   if (_sessionValidCache && Date.now() - _sessionValidCache.timestamp < SESSION_VALID_CACHE_TTL) {
     return _sessionValidCache.valid;
@@ -89,13 +92,21 @@ export async function isSessionValid(): Promise<boolean> {
   try {
     if (!encryptedSessionMasterPassword || !sessionPasswordExpiry) {
       // 批量读取 session keys + MASTER_PASSWORD（不含 PASSWORDS，由调用方按需读取）
-      const result = await chrome.storage.local.get([
-        SESSION_STORAGE_KEYS.MASTER_PASSWORD,
-        SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
-        SESSION_STORAGE_KEYS.VALIDITY_HOURS,
-        SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
-        STORAGE_KEYS.MASTER_PASSWORD,
-      ]);
+      // 性能优化：skipConsistencyCheck 时仅读 3 个必需 key，Windows 上省 2 个 storage IPC
+      const keysToRead = options?.skipConsistencyCheck
+        ? [SESSION_STORAGE_KEYS.MASTER_PASSWORD, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY, STORAGE_KEYS.MASTER_PASSWORD]
+        : [
+            SESSION_STORAGE_KEYS.MASTER_PASSWORD,
+            SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
+            SESSION_STORAGE_KEYS.VALIDITY_HOURS,
+            SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
+            STORAGE_KEYS.MASTER_PASSWORD,
+          ];
+      const _perfStorageStart = performance.now();
+      const result = await chrome.storage.local.get(keysToRead);
+      logger.debug(
+        `isSessionValid: storage.get(${keysToRead.length} keys) ${(performance.now() - _perfStorageStart).toFixed(1)}ms`,
+      );
 
       if (result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] && result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]) {
         encryptedSessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] as string | null;
@@ -104,14 +115,18 @@ export async function isSessionValid(): Promise<boolean> {
 
         const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig | undefined;
 
+        const _perfHkdfStart = performance.now();
         if (config && config.salt) {
           sessionEncryptionKey = await deriveSessionKey(config.salt);
         } else {
           sessionEncryptionKey = await generateSessionEncryptionKey();
         }
+        logger.debug(`isSessionValid: HKDF derive ${(performance.now() - _perfHkdfStart).toFixed(1)}ms`);
 
         // 检查解密标记：如果标记为 true，跳过 expensive 的数据一致性检查（避免重复解密）
-        const passwordsDecrypted = result[SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED] as boolean | undefined;
+        const passwordsDecrypted = options?.skipConsistencyCheck
+          ? true // sidepanel 热路径：跳过检查，由 getAllPasswords 自行处理
+          : (result[SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED] as boolean | undefined);
         if (!passwordsDecrypted) {
           // flag 为 false 时需要进行数据一致性检查，由 ensureDataConsistencyWithSession 自行读取 PASSWORDS
           await ensureDataConsistencyWithSession();
