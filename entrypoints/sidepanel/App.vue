@@ -552,6 +552,12 @@ const openOptionsAndAdd = async () => {
 // ==================== 初始化 ====================
 
 onMounted(async () => {
+  // 性能埋点：测量 Vue mount 开始（main.ts performance.mark）→ onMounted 回调触发的间隔
+  const _vueMountMeasure = performance.measure('vue-mount', 'vue-mount-start');
+  logger.debug(`SidePanel: Vue mount → onMounted ${_vueMountMeasure.duration.toFixed(1)}ms`);
+
+  const _perfMountStart = performance.now();
+
   // 获取骨架屏元素（兄弟节点模式，Vue 挂载不会替换它）
   const skeletonEl = document.getElementById('app-loading');
 
@@ -562,6 +568,11 @@ onMounted(async () => {
   });
 
   await initSidepanelData();
+
+  const _perfDataReady = performance.now();
+  logger.debug(
+    `SidePanel: 首屏数据就绪，initSidepanelData 耗时 ${(_perfDataReady - _perfMountStart).toFixed(1)}ms，总计 ${(_perfDataReady - _vueMountMeasure.startTime).toFixed(1)}ms`,
+  );
 
   // 数据就绪后淡出骨架屏，实现 骨架屏 → 真实UI 的无缝过渡
   // 骨架屏作为兄弟节点保持可见直到此处，避免了中间的 loading spinner 闪烁
