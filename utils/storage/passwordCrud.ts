@@ -1,9 +1,23 @@
 import type { PasswordEntry, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { deriveEncryptionKey, encryptPasswordEntry, decryptPasswordEntry, generateId } from '@/utils/encryption';
+import { generateId } from '@/utils/generateId';
 import { isSessionActiveSync } from './facades';
 import { applySavedSortConfig } from './configManager';
+
+/**
+ * 延迟加载加密模块（deriveEncryptionKey / encryptPasswordEntry / decryptPasswordEntry）
+ *
+ * 仅在 savePassword / batchSavePasswords / updatePassword / getAllPasswords 中按需使用，
+ * 避免静态导入将 PBKDF2/AES-GCM 打入 SW 初始包，减少冷启动时 V8 JIT 编译开销。
+ */
+let _encryptionModule: typeof import('@/utils/encryption') | null = null;
+async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
+  if (!_encryptionModule) {
+    _encryptionModule = await import('@/utils/encryption');
+  }
+  return _encryptionModule;
+}
 
 /**
  * 获取所有密码条目（原始数据，不进行解密）
@@ -45,7 +59,8 @@ export async function savePassword(
     const shouldEncrypt = masterPassword && !sessionActive;
     const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
     if (shouldEncrypt) {
-      const encryptedEntry = await encryptPasswordEntry(newEntry, masterPassword);
+      const enc = await _getEncryption();
+      const encryptedEntry = await enc.encryptPasswordEntry(newEntry, masterPassword);
       if (copyItemId) {
         const copyIndex = entriesToSave.findIndex(p => p.id === copyItemId);
         if (copyIndex !== -1) {
@@ -103,10 +118,11 @@ export async function batchSavePasswords(
     let combinedEntries: (PasswordEntry | EncryptedPasswordEntry)[];
 
     if (shouldEncrypt) {
-      const key = await deriveEncryptionKey(masterPassword);
+      const enc = await _getEncryption();
+      const key = await enc.deriveEncryptionKey(masterPassword);
       const encryptedNewEntries: EncryptedPasswordEntry[] = [];
       for (const entry of newEntries) {
-        const encrypted = await encryptPasswordEntry(entry, masterPassword, key);
+        const encrypted = await enc.encryptPasswordEntry(entry, masterPassword, key);
         encryptedNewEntries.push(encrypted);
       }
       combinedEntries = [...existingPasswords, ...encryptedNewEntries];
@@ -150,7 +166,8 @@ export async function updatePassword(
       const shouldEncrypt = masterPassword && !sessionActive;
       const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
       if (shouldEncrypt) {
-        const encryptedEntry = await encryptPasswordEntry(updatedEntry, masterPassword);
+        const enc = await _getEncryption();
+        const encryptedEntry = await enc.encryptPasswordEntry(updatedEntry, masterPassword);
         entriesToSave[index] = encryptedEntry;
       } else {
         entriesToSave[index] = updatedEntry;
@@ -268,11 +285,12 @@ export async function getAllPasswords(masterPassword?: string): Promise<Password
       throw new Error('需要主密码来解密数据');
     }
 
+    const enc = await _getEncryption();
     const decryptedEntries: PasswordEntry[] = [];
     for (const entry of entries) {
       if ('encrypted' in entry && entry.encrypted === true) {
         try {
-          const decryptedEntry = await decryptPasswordEntry(entry, masterPassword);
+          const decryptedEntry = await enc.decryptPasswordEntry(entry, masterPassword);
           decryptedEntries.push(decryptedEntry);
         } catch (_decryptError) {
           logger.warn('跳过无法解密的条目: ' + entry.id);

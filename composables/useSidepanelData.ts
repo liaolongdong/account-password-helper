@@ -391,7 +391,7 @@ export function useSidepanelData() {
    * - Background GET_INITIAL_DATA 与本地 storage 直读路径同时启动，取先到者
    * - 热 SW 场景：Background 路径 ~20ms 胜出，本地路径静默完成
    * - 冷 SW 场景：本地路径 ~200-400ms 先完成，Background 迟到结果用于缓存更新
-   * - GET_INITIAL_DATA 超时从 2000ms 降至 1200ms，避免冷 SW 场景无谓等待
+   * - GET_INITIAL_DATA 超时从 2000ms 降至 400ms，Windows 冷 SW 场景下 SW 启动 + HKDF 约 400-800ms，<br>400ms 超时确保本地路径不空等
    * - loadCurrentTab 与 GET_INITIAL_DATA 并行执行，节约 ~5ms 串行延迟
    */
   const initSidepanelData = async () => {
@@ -466,13 +466,13 @@ export function useSidepanelData() {
       // 路径 A: loadCurrentTab（并行，不阻塞 GET_INITIAL_DATA）
       const tabPromise = loadCurrentTab();
 
-      // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道，1200ms 超时）
+      // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道，400ms 超时）
       const _perfBgStart = performance.now();
       const bgPromise = Promise.race([
         chrome.runtime.sendMessage({
           type: MessageType.GET_INITIAL_DATA,
         }),
-        new Promise<null>(resolve => setTimeout(() => resolve(null), 1200)),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 400)),
       ]).then(result => {
         if (raceWinner) {
           // 本地路径已胜出，保存 bg 结果用于静默更新缓存

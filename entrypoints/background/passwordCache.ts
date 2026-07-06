@@ -1,7 +1,7 @@
 import { type PasswordCache, type PasswordEntry } from '@/utils/types';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
-import { isSessionValid } from '@/utils/sessionManager-storage';
+import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getAllPasswordsRaw } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 
@@ -95,13 +95,17 @@ export function invalidatePasswordCache(): void {
  */
 export async function warmPasswordCache(): Promise<void> {
   try {
-    // 仅在会话有效且缓存为空时预热
-    // 使用 isSessionValid()（异步）而非 isSessionActiveSync()（同步）：
-    // SW 冷启动后模块级变量为 null，isSessionActiveSync() 永远返回 false，
-    // 导致缓存预热成为空操作，首次 GET_INITIAL_DATA 始终走冷路径
+    // 缓存已存在且有效时直接返回
     if (passwordCache) return;
-    const valid = await isSessionValid();
-    if (!valid) return;
+
+    // 快速路径：同步检查内存会话状态，避免每次冷启动都执行
+    // isSessionValid() → storage.get() + HKDF 密钥派生（Windows ~40-80ms）。
+    // SW 冷启动后模块变量为 null，isSessionActiveSync() 返回 false，
+    // 此时回退到 isSessionValid() 从 storage 恢复会话并派生密钥。
+    if (!isSessionActiveSync()) {
+      const valid = await isSessionValid();
+      if (!valid) return;
+    }
 
     const [passwords, sortConfig] = await Promise.all([
       getAllPasswordsRaw(),
