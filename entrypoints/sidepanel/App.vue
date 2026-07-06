@@ -13,18 +13,9 @@
       @open-settings="handleOpenSettings"
     />
 
-    <!-- 初始化 loading 过渡态：避免先闪现"需要验证主密码"再切换到密码列表 -->
-    <div
-      v-if="initializing"
-      class="loading"
-    >
-      <el-icon class="is-loading"><Loading /></el-icon>
-      <span>加载中...</span>
-    </div>
-
     <!-- 未验证状态 -->
     <div
-      v-else-if="!isAuthenticated"
+      v-if="!isAuthenticated"
       class="auth-required"
     >
       <el-empty
@@ -274,7 +265,6 @@ import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { REPO_GITHUB_URL } from '@/utils/urls';
 import { isLocalDevDomain } from '@/utils/domain';
 
 /** 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载） */
@@ -312,7 +302,6 @@ const getEvictLRUFavoriteIfNeeded = async () => {
 const {
   passwords,
   loading,
-  initializing,
   isAuthenticated,
   currentDomain,
   showSidepanel,
@@ -536,7 +525,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
 
 /** 打开 GitHub 仓库 */
 const openGithub = () => {
-  chrome.tabs.create({ url: REPO_GITHUB_URL });
+  chrome.tabs.create({ url: 'https://github.com/liaolongdong/account-password-helper' });
 };
 
 /**
@@ -563,6 +552,9 @@ const openOptionsAndAdd = async () => {
 // ==================== 初始化 ====================
 
 onMounted(async () => {
+  // 获取骨架屏元素（兄弟节点模式，Vue 挂载不会替换它）
+  const skeletonEl = document.getElementById('app-loading');
+
   // 搜索框自动聚焦
   nextTick(() => {
     const inputEl = searchInputRef.value?.$el?.querySelector('input');
@@ -570,6 +562,15 @@ onMounted(async () => {
   });
 
   await initSidepanelData();
+
+  // 数据就绪后淡出骨架屏，实现 骨架屏 → 真实UI 的无缝过渡
+  // 骨架屏作为兄弟节点保持可见直到此处，避免了中间的 loading spinner 闪烁
+  if (skeletonEl) {
+    skeletonEl.classList.add('fade-out');
+    skeletonEl.addEventListener('transitionend', () => skeletonEl.remove(), { once: true });
+    // 安全兜底：transitionend 未触发时强制移除（200ms = CSS transition 时长）
+    setTimeout(() => skeletonEl.remove(), 250);
+  }
 
   // 数据加载完成后，空闲时预加载设置弹窗模块（不阻塞首屏渲染）
   if (typeof requestIdleCallback !== 'undefined') {

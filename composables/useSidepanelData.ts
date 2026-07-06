@@ -59,8 +59,6 @@ export function useSidepanelData() {
 
   const passwords = ref<PasswordEntry[]>([]);
   const loading = ref(true);
-  /** 是否正在进行首次初始化（含缓存检测 + 会话验证），用于模板显示 loading 过渡态 */
-  const initializing = ref(true);
   const isAuthenticated = ref(false);
   const currentDomain = ref('');
   const showSidepanel = ref(true);
@@ -524,7 +522,6 @@ export function useSidepanelData() {
             passwords.value = data.passwords;
             sortConfig.value = data.sortConfig;
             loading.value = false;
-            initializing.value = false;
 
             logger.debug('SidePanel: Background 初始化数据加载完成（竞速胜出），条目数:' + data.passwords.length);
 
@@ -541,7 +538,6 @@ export function useSidepanelData() {
           _sessionKnownExpired = true;
           isAuthenticated.value = false;
           loading.value = false;
-          initializing.value = false;
 
           localPromise.catch(() => {});
           return;
@@ -558,7 +554,6 @@ export function useSidepanelData() {
           passwords.value = localWinner.data.passwords;
           sortConfig.value = localWinner.data.sortConfig;
           loading.value = false;
-          initializing.value = false;
 
           logger.debug('SidePanel: 本地初始化数据加载完成（bg 异常回退），条目数:' + localWinner.data.passwords.length);
           void updatePasswordCacheInBackground(localWinner.data.passwords, currentDomain.value, true);
@@ -568,7 +563,6 @@ export function useSidepanelData() {
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
         loading.value = false;
-        initializing.value = false;
         return;
       }
 
@@ -580,7 +574,6 @@ export function useSidepanelData() {
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
         loading.value = false;
-        initializing.value = false;
 
         // 等待 bg 路径完成（可能迟到），用于同步状态
         bgPromise.catch(() => {});
@@ -588,14 +581,12 @@ export function useSidepanelData() {
       }
 
       _sessionKnownExpired = false;
-      // 先设置 loading=true 再设置 isAuthenticated=true，
-      // 避免中间渲染帧显示「已认证但空列表」的闪烁状态
-      loading.value = true;
+      // 先设置 isAuthenticated 再设置 passwords，
+      // Vue 批量更新保证同一 tick 内不会渲染「已认证但空列表」的中间态
       isAuthenticated.value = true;
       passwords.value = localData.passwords;
       sortConfig.value = localData.sortConfig;
       loading.value = false;
-      initializing.value = false;
 
       logger.debug('SidePanel: 本地初始化数据加载完成（竞速胜出），条目数:' + localData.passwords.length);
 
@@ -612,7 +603,6 @@ export function useSidepanelData() {
       logger.error('SidePanel: 初始化失败:', error);
       isAuthenticated.value = false;
       loading.value = false;
-      initializing.value = false;
     }
   };
 
@@ -634,7 +624,6 @@ export function useSidepanelData() {
     // 状态
     passwords,
     loading,
-    initializing,
     isAuthenticated,
     currentDomain,
     showSidepanel,
