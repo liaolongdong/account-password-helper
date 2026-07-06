@@ -93,88 +93,26 @@
         height: 14px;
       }
 
-      /* ===== 搜索框骨架 ===== */
-      .sk-search {
+      /* ===== 中性内容占位 ===== */
+      .sk-content {
+        flex: 1;
         display: flex;
-        gap: 8px;
+        flex-direction: column;
+        justify-content: center;
         align-items: center;
-        padding: 10px 16px;
-        background: #fff;
-        border-bottom: 1px solid #e5e7eb;
-        flex-shrink: 0;
+        gap: 14px;
+        padding: 40px 32px;
       }
 
-      .sk-search-bar {
-        flex: 1;
-        height: 32px;
+      .sk-content-line {
+        height: 12px;
         border-radius: 6px;
       }
 
-      .sk-search-btn {
-        width: 32px;
-        height: 32px;
-        border-radius: 50%;
-        flex-shrink: 0;
-      }
-
-      /* ===== 密码列表骨架 ===== */
-      .sk-list {
-        flex: 1;
-        padding: 8px 12px;
-        overflow: hidden;
-      }
-
-      .sk-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 10px 8px;
-        margin-bottom: 6px;
-        background: #fff;
-        border-radius: 8px;
-        border: 1px solid #f0f0f0;
-      }
-
-      .sk-item:last-child {
-        margin-bottom: 0;
-      }
-
-      .sk-item-main {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        flex: 1;
-        min-width: 0;
-      }
-
-      .sk-item-icon {
-        width: 28px;
-        height: 28px;
-        border-radius: 6px;
-        flex-shrink: 0;
-      }
-
-      .sk-item-info {
-        flex: 1;
-        min-width: 0;
-      }
-
-      .sk-item-line1 {
-        width: 70%;
-        height: 13px;
-        margin-bottom: 6px;
-      }
-
-      .sk-item-line2 {
-        width: 45%;
-        height: 10px;
-      }
-
-      .sk-item-actions {
-        width: 48px;
-        height: 14px;
-        flex-shrink: 0;
-      }
+      .sk-w80 { width: 80%; }
+      .sk-w60 { width: 60%; }
+      .sk-w90 { width: 90%; }
+      .sk-w45 { width: 45%; }
 
       /* ===== 底部按钮骨架 ===== */
       .sk-footer {
@@ -209,43 +147,12 @@
           <div class="sk-block sk-version"></div>
         </div>
       </div>
-      <!-- 搜索框骨架 -->
-      <div class="sk-search">
-        <div class="sk-block sk-search-bar"></div>
-        <div class="sk-block sk-search-btn"></div>
-      </div>
-      <!-- 密码列表骨架（3 个条目） -->
-      <div class="sk-list">
-        <div class="sk-item">
-          <div class="sk-item-main">
-            <div class="sk-block sk-item-icon"></div>
-            <div class="sk-item-info">
-              <div class="sk-block sk-item-line1"></div>
-              <div class="sk-block sk-item-line2"></div>
-            </div>
-          </div>
-          <div class="sk-block sk-item-actions"></div>
-        </div>
-        <div class="sk-item">
-          <div class="sk-item-main">
-            <div class="sk-block sk-item-icon"></div>
-            <div class="sk-item-info">
-              <div class="sk-block sk-item-line1"></div>
-              <div class="sk-block sk-item-line2"></div>
-            </div>
-          </div>
-          <div class="sk-block sk-item-actions"></div>
-        </div>
-        <div class="sk-item">
-          <div class="sk-item-main">
-            <div class="sk-block sk-item-icon"></div>
-            <div class="sk-item-info">
-              <div class="sk-block sk-item-line1"></div>
-              <div class="sk-block sk-item-line2"></div>
-            </div>
-          </div>
-          <div class="sk-block sk-item-actions"></div>
-        </div>
+      <!-- 中性内容占位（不暗示密码列表或空状态，适配认证/未认证两种场景） -->
+      <div class="sk-content">
+        <div class="sk-block sk-content-line sk-w80"></div>
+        <div class="sk-block sk-content-line sk-w60"></div>
+        <div class="sk-block sk-content-line sk-w90"></div>
+        <div class="sk-block sk-content-line sk-w45"></div>
       </div>
       <!-- 底部按钮骨架 -->
       <div class="sk-footer">
