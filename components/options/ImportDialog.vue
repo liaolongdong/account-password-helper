@@ -267,8 +267,8 @@ const handleFileChange = async (file: UploadFile) => {
     } else if (isCSV) {
       // CSV 解析路径
       selectedFile.value = file.raw;
-      const text = await file.raw.text();
-      data = ExcelUtils.parseCSV(text, importFormat.value as ImportFormat);
+      const buffer = await file.raw.arrayBuffer();
+      data = ExcelUtils.parseCSV(buffer, importFormat.value as ImportFormat);
     } else {
       ElMessage.error('不支持的文件格式，请使用 CSV 或 JSON 文件');
       selectedFile.value = undefined;
