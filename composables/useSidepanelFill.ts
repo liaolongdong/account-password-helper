@@ -1,7 +1,7 @@
 import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { StorageUtils } from '@/utils/storage';
+import { getClipboardConfig } from '@/utils/storage/configManager';
 import type { Ref } from 'vue';
 
 /** 剪贴板自动清除定时器（模块级变量，确保同一时刻只有一个定时器） */
@@ -9,6 +9,18 @@ let clipboardClearTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** 当前已复制到剪贴板的密码值，用于定时器触发时验证内容是否被替换 */
 let copiedPasswordSnapshot: string | null = null;
+
+/**
+ * 延迟加载 passwordCrud 模块（首次用户交互时触发）
+ * 避免在 sidepanel 初始加载时拉入 encryption.ts 加密模块链
+ */
+let _passwordCrudModule: typeof import('@/utils/storage/passwordCrud') | null = null;
+const getUpdatePasswordInSession = async () => {
+  if (!_passwordCrudModule) {
+    _passwordCrudModule = await import('@/utils/storage/passwordCrud');
+  }
+  return _passwordCrudModule.updatePasswordInSession;
+};
 
 /**
  * SidePanel 密码填充 Composable
@@ -102,7 +114,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
     }
 
     try {
-      const config = await StorageUtils.getClipboardConfig();
+      const config = await getClipboardConfig();
       if (config.autoClear && config.clearAfterSeconds > 0) {
         clipboardClearTimer = setTimeout(() => {
           clipboardClearTimer = null;
@@ -354,11 +366,15 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
             if (password.favorite) entry.favoriteUsedAt = now;
           }
         }
-        // 后台持久化，不阻塞填充流程
-        StorageUtils.updatePassword(password.id, {
-          lastUsedAt: now,
-          ...(password.favorite ? { favoriteUsedAt: now } : {}),
-        }).catch(error => logger.error('更新使用时间戳失败:', error));
+        // 后台持久化，不阻塞填充流程（延迟加载 passwordCrud 模块）
+        getUpdatePasswordInSession()
+          .then(fn =>
+            fn(password.id, {
+              lastUsedAt: now,
+              ...(password.favorite ? { favoriteUsedAt: now } : {}),
+            }),
+          )
+          .catch(error => logger.error('更新使用时间戳失败:', error));
         // 隐藏侧边栏（必须携带 tabId，因为 sidepanel 发出的消息 sender.tab 为 undefined）
         await chrome.runtime.sendMessage({
           type: MessageType.HIDE_SIDEPANEL,

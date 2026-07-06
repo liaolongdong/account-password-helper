@@ -1,22 +1,6 @@
 import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
-
-export const STORAGE_KEYS = {
-  PASSWORDS: 'account_passwords',
-  MASTER_PASSWORD: 'master_password_config',
-  SETTINGS: 'app_settings',
-  MASTER_PASSWORD_VALIDITY: 'master_password_validity',
-  SORT_CONFIG: 'password_sort_config',
-  FLOATING_BUTTON_CONFIG: 'floating_button_config',
-  EMAIL_BACKUP_CONFIG: 'email_backup_config',
-  LAST_AUTO_BACKUP_TIME: 'last_auto_backup_time',
-  AUTO_SAVE_CONFIG: 'auto_save_config',
-  IDLE_LOCK_CONFIG: 'idle_lock_config',
-  CLIPBOARD_CONFIG: 'clipboard_config',
-  FAVORITE_LIMIT: 'favorite_limit',
-  SIDEPANEL_SORT_CONFIG: 'sidepanel_sort_config',
-  UPDATE_INFO: 'extension_update_info',
-};
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 // ── 内部工具 ──────────────────────────────────────────────
 

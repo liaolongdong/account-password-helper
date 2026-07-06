@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { Setting } from '@element-plus/icons-vue';
-import BrandLogo from '@/components/BrandLogo.vue';
+import { defineAsyncComponent } from 'vue';
 import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
+
+/** 品牌 Logo 异步加载（64 行纯 SVG，独立 chunk 避免阻塞 SidepanelHeader 首屏） */
+const BrandLogo = defineAsyncComponent(() => import('@/components/BrandLogo.vue'));
 
 interface Props {
   /** 当前插件版本号 */

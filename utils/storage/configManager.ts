@@ -1,6 +1,6 @@
 import type { FloatingButtonConfig, EmailBackupConfig, ClipboardConfig, PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS } from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
 
 /** 默认收藏上限 */

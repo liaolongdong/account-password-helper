@@ -107,6 +107,26 @@ export function getMainDomain(hostname: string): string {
   return parts.length >= 2 ? parts.slice(-2).join('.') : hostname;
 }
 
+// ── 本地开发域名判断 ──
+
+/**
+ * 判断是否为本地开发环境域名
+ *
+ * 针对 localhost 和 127.0.0.1 域名，默认匹配所有账号密码，
+ * 方便开发人员在不同本地项目间快速填充密码。
+ *
+ * @param domain - 当前页面域名（hostname）
+ * @returns 是否为本地开发域名
+ *
+ * @example
+ * isLocalDevDomain('localhost')       // → true
+ * isLocalDevDomain('127.0.0.1')       // → true
+ * isLocalDevDomain('example.com')     // → false
+ */
+export function isLocalDevDomain(domain: string): boolean {
+  return domain === 'localhost' || domain === '127.0.0.1';
+}
+
 // ── 同主域名校验 ──
 
 /**

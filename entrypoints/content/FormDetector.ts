@@ -175,8 +175,7 @@ export class FormDetector {
             return;
           }
         }
-        // 只在有密码框、邮箱框或表单结构时触发重新检测
-        // 避免对普通 text 输入框的误触发
+        // 检测新增的登录相关输入框和按钮，触发重新检测
         mutation.addedNodes.forEach(node => {
           if (node.nodeType === Node.ELEMENT_NODE) {
             const element = node as Element;
@@ -185,7 +184,9 @@ export class FormDetector {
               (element.querySelector('input[type="password"]') ||
                 element.querySelector('input[type="email"]') ||
                 element.querySelector('input[type="tel"]') ||
-                element.querySelector('input[type="number"]'))
+                element.querySelector('input[type="number"]') ||
+                // 动态渲染的验证码/手机号文本输入框
+                element.querySelector('input[type="text"]'))
             ) {
               shouldRedetect = true;
             }
@@ -243,6 +244,8 @@ export class FormDetector {
     this.usernameFieldsSet = new WeakSet();
     this.mobileFieldsSet = new WeakSet();
     this.verifyCodeFieldsSet = new WeakSet();
+    // 清除字段类型缓存，避免重检测时使用过期的分类结果
+    this.fieldTypeCache = new WeakMap();
     this.loginFormAnalyzer.clearCache();
 
     // 检测登录按钮
@@ -442,11 +445,15 @@ export class FormDetector {
    */
   private handleDelegatedClick = (event: MouseEvent): void => {
     const target = event.target;
-    if (!target || !(target instanceof HTMLElement) || target.tagName !== 'INPUT') {
+    if (!target || !(target instanceof HTMLElement)) {
       return;
     }
 
-    const input = target as HTMLInputElement;
+    // 兜底：用户可能点击了输入框的装饰元素（图标前缀/后缀），通过 closest 查找最近的 INPUT
+    const input = target instanceof HTMLInputElement ? target : target.closest('input');
+    if (!input) {
+      return;
+    }
     if (this.shouldShowSidePanel(input)) {
       if (!this.floatingButtonConfig.autoShowSidepanel) {
         return;
@@ -569,6 +576,12 @@ export class FormDetector {
       if (hasUsernameFields && hasVerifyCodeFields && fieldType === 'verifyCode') {
         return true;
       }
+    }
+
+    // 情况3: 单字段手机号登录（分步登录、手机号+验证码但验证码尚未渲染等场景）
+    // 当手机号输入框被 isLikelyMobileInput 识别，且页面存在登录按钮时，允许触发侧边栏
+    if (this.isLikelyMobileInput(input) && this.loginButtons.length > 0) {
+      return true;
     }
 
     return false;
