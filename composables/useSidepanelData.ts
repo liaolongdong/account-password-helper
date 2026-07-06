@@ -466,13 +466,13 @@ export function useSidepanelData() {
       // 路径 A: loadCurrentTab（并行，不阻塞 GET_INITIAL_DATA）
       const tabPromise = loadCurrentTab();
 
-      // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道，400ms 超时）
+      // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道，800ms 超时）
       const _perfBgStart = performance.now();
       const bgPromise = Promise.race([
         chrome.runtime.sendMessage({
           type: MessageType.GET_INITIAL_DATA,
         }),
-        new Promise<null>(resolve => setTimeout(() => resolve(null), 400)),
+        new Promise<null>(resolve => setTimeout(() => resolve(null), 800)),
       ]).then(result => {
         if (raceWinner) {
           // 本地路径已胜出，保存 bg 结果用于静默更新缓存
@@ -563,7 +563,6 @@ export function useSidepanelData() {
         const localWinner = await localPromise;
         if (localWinner && localWinner.data.sessionValid) {
           _sessionKnownExpired = false;
-          loading.value = true;
           isAuthenticated.value = true;
           passwords.value = localWinner.data.passwords;
           sortConfig.value = localWinner.data.sortConfig;

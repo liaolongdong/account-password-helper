@@ -195,6 +195,15 @@ export async function updatePassword(
 export async function updatePasswordInSession(id: string, updates: Partial<PasswordEntry>): Promise<void> {
   try {
     const passwords = await getAllPasswordsRaw();
+
+    // 防御性检查：若数据已加密（clearSession 竞态窗口），跳过更新，
+    // 避免将 EncryptedPasswordEntry 误当 PasswordEntry 操作后写回 storage 导致数据损坏
+    const hasEncrypted = passwords.some(e => 'encrypted' in e && (e as EncryptedPasswordEntry).encrypted === true);
+    if (hasEncrypted) {
+      logger.warn('updatePasswordInSession: 检测到加密数据，跳过更新（会话可能已过期）');
+      return;
+    }
+
     const index = passwords.findIndex(p => p.id === id);
     if (index === -1) return;
 

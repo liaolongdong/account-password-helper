@@ -97,14 +97,14 @@ async function handleGetInitialData(_domain?: string) {
  */
 export function setupMessageRouter(): void {
   chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
-    // SIDEPANEL_PRELOAD 是预唤醒消息（非 MessageType 枚举），主动预热缓存
-    if ((message as { type: string }).type === 'SIDEPANEL_PRELOAD') {
-      warmPasswordCache();
-      sendResponse({ success: true });
-      return;
-    }
-
     switch (message.type) {
+      case MessageType.SIDEPANEL_PRELOAD: {
+        // 预唤醒消息：主动预热缓存，无需额外处理
+        warmPasswordCache();
+        sendResponse({ success: true });
+        return;
+      }
+
       case MessageType.SHOW_SIDEPANEL: {
         const tabId = getTabIdSync(sender, message.data?.tabId);
         if (!tabId) {
