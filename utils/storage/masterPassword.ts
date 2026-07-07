@@ -1,7 +1,7 @@
 import type { MasterPasswordConfig } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { hashPassword, generateSalt, timingSafeEqual } from '@/utils/encryption';
+import { hashPassword, generateSalt, timingSafeEqual } from '@/utils/crypto-light';
 
 /**
  * 设置主密码

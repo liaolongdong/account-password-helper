@@ -160,6 +160,13 @@ export function setupSidePanelListeners(): void {
       logger.debug('SidePanel 已连接');
       sidePanelPort = port;
 
+      port.onMessage.addListener((message: any) => {
+        if (message.type === 'HEARTBEAT') {
+          // 心跳消息到达即保持 SW 活跃（重置 30s 空闲计时器），无需额外处理
+          return;
+        }
+      });
+
       port.onDisconnect.addListener(() => {
         logger.debug('SidePanel 已断开连接');
         sidePanelPort = null;

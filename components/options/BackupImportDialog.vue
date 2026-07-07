@@ -77,11 +77,11 @@
           :disabled="decrypting"
           @keyup.enter="handleDecrypt"
         >
-          <!-- 动作语义：密文显示睁眼（点击查看），明文显示闭眼（点击隐藏） -->
+          <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
           <template #password-icon="{ visible }">
             <el-icon>
-              <Hide v-if="visible" />
-              <View v-else />
+              <View v-if="visible" />
+              <Hide v-else />
             </el-icon>
           </template>
         </el-input>
@@ -168,17 +168,18 @@
             type="primary"
             @click="showPreviewPassword = !showPreviewPassword"
           >
+            <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
             <el-icon
               v-if="showPreviewPassword"
               style="margin-right: 4px"
             >
-              <Hide />
+              <View />
             </el-icon>
             <el-icon
               v-else
               style="margin-right: 4px"
             >
-              <View />
+              <Hide />
             </el-icon>
             {{ showPreviewPassword ? '隐藏密码' : '显示密码' }}
           </el-button>

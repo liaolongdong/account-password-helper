@@ -50,11 +50,11 @@
                   @focus="passwordInputFocused = true"
                   @blur="passwordInputFocused = false"
                 >
-                  <!-- 动作语义：密文显示睁眼（点击查看），明文显示闭眼（点击隐藏） -->
+                  <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
                   <template #password-icon="{ visible }">
                     <el-icon>
-                      <Hide v-if="visible" />
-                      <View v-else />
+                      <View v-if="visible" />
+                      <Hide v-else />
                     </el-icon>
                   </template>
                 </el-input>
@@ -77,8 +77,8 @@
               >
                 <template #password-icon="{ visible }">
                   <el-icon>
-                    <Hide v-if="visible" />
-                    <View v-else />
+                    <View v-if="visible" />
+                    <Hide v-else />
                   </el-icon>
                 </template>
               </el-input>

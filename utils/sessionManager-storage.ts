@@ -1,13 +1,24 @@
 import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import {
-  encryptData,
-  decryptData,
-  encryptPasswordEntry,
-  decryptPasswordEntry,
-  deriveSessionKey,
-} from '@/utils/encryption';
+
+/**
+ * 延迟加载加密模块
+ *
+ * 避免在 Service Worker 冷启动时静态导入 encryption.ts（223 行 Web Crypto 代码），
+ * 减少 SW 初始包体积和 V8 JIT 编译开销。
+ * Windows 上冷启动时模块解析/JIT 编译 encryption.ts 约需 200-500ms。
+ *
+ * 所有加密函数调用均在 async 函数内部，使用动态 import 按需加载。
+ * 模块系统自动去重：多次 import('@/utils/encryption') 返回同一实例。
+ */
+let _encryptionModule: typeof import('@/utils/encryption') | null = null;
+async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
+  if (!_encryptionModule) {
+    _encryptionModule = await import('@/utils/encryption');
+  }
+  return _encryptionModule;
+}
 
 /**
  * 会话存储键名
@@ -117,7 +128,8 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
 
         const _perfHkdfStart = performance.now();
         if (config && config.salt) {
-          sessionEncryptionKey = await deriveSessionKey(config.salt);
+          const enc = await _getEncryption();
+          sessionEncryptionKey = await enc.deriveSessionKey(config.salt);
         } else {
           sessionEncryptionKey = await generateSessionEncryptionKey();
         }
@@ -197,7 +209,7 @@ export async function getSessionMasterPasswordDecrypted(): Promise<string | null
   }
 
   try {
-    return await decryptData(encryptedSessionMasterPassword, sessionEncryptionKey);
+    return await (await _getEncryption()).decryptData(encryptedSessionMasterPassword, sessionEncryptionKey);
   } catch (error) {
     logger.error('解密会话主密码失败:', error);
     return null;
@@ -214,12 +226,13 @@ export async function createSession(masterPassword: string, validityHours: numbe
     const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
     if (config && config.salt) {
-      sessionEncryptionKey = await deriveSessionKey(config.salt);
+      const enc = await _getEncryption();
+      sessionEncryptionKey = await enc.deriveSessionKey(config.salt);
     } else {
       sessionEncryptionKey = await generateSessionEncryptionKey();
     }
 
-    encryptedSessionMasterPassword = await encryptData(masterPassword, sessionEncryptionKey);
+    encryptedSessionMasterPassword = await (await _getEncryption()).encryptData(masterPassword, sessionEncryptionKey);
     sessionValidityHours = validityHours;
     sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
 
@@ -260,7 +273,8 @@ async function restoreSessionEncryptionKeyFromStorage(): Promise<void> {
 
     const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig | undefined;
     if (config && config.salt) {
-      sessionEncryptionKey = await deriveSessionKey(config.salt);
+      const enc = await _getEncryption();
+      sessionEncryptionKey = await enc.deriveSessionKey(config.salt);
     } else {
       sessionEncryptionKey = await generateSessionEncryptionKey();
     }
@@ -324,7 +338,7 @@ async function encryptAllPasswordsBeforeSessionClear(masterPassword: string): Pr
     if (!hasUnencrypted) return;
 
     // 派生一次密钥，所有条目复用，避免 PBKDF2 × N 次
-    const key = await deriveEncryptionKey(masterPassword);
+    const key = await (await _getEncryption()).deriveEncryptionKey(masterPassword);
 
     const encryptedPasswords: EncryptedPasswordEntry[] = [];
     for (const entry of rawPasswords) {
@@ -332,7 +346,9 @@ async function encryptAllPasswordsBeforeSessionClear(masterPassword: string): Pr
         encryptedPasswords.push(entry as EncryptedPasswordEntry);
         continue;
       }
-      const encryptedEntry = await encryptPasswordEntry(entry as PasswordEntry, masterPassword, key);
+      const encryptedEntry = await (
+        await _getEncryption()
+      ).encryptPasswordEntry(entry as PasswordEntry, masterPassword, key);
       encryptedPasswords.push(encryptedEntry);
     }
 
@@ -358,13 +374,13 @@ async function decryptAllPasswordsOnSessionCreate(masterPassword: string): Promi
     if (!hasEncrypted) return;
 
     // 派生一次密钥，所有条目复用
-    const key = await deriveEncryptionKey(masterPassword);
+    const key = await (await _getEncryption()).deriveEncryptionKey(masterPassword);
 
     const decryptedPasswords: PasswordEntry[] = [];
     for (const entry of rawPasswords) {
       if ('encrypted' in entry && entry.encrypted === true) {
         try {
-          const decryptedEntry = await decryptPasswordEntry(entry, masterPassword, key);
+          const decryptedEntry = await (await _getEncryption()).decryptPasswordEntry(entry, masterPassword, key);
           decryptedPasswords.push(decryptedEntry);
         } catch (_decryptError) {
           logger.warn('跳过无法解密的条目: ' + entry.id);
@@ -406,7 +422,9 @@ export async function migrateUnencryptedEntries(masterPassword: string): Promise
     for (const entry of rawPasswords) {
       if (!('encrypted' in entry) || entry.encrypted !== true) {
         hasUnencrypted = true;
-        const encryptedEntry = await encryptPasswordEntry(entry as PasswordEntry, masterPassword);
+        const encryptedEntry = await (
+          await _getEncryption()
+        ).encryptPasswordEntry(entry as PasswordEntry, masterPassword);
         encryptedPasswords.push(encryptedEntry);
       } else {
         encryptedPasswords.push(entry as EncryptedPasswordEntry);

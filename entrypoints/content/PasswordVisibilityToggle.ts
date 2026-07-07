@@ -181,8 +181,8 @@ export class PasswordVisibilityToggle {
     button.className = 'aph-pwd-toggle-btn';
     button.setAttribute('tabindex', '-1');
     button.setAttribute('aria-label', '显示密码');
-    // 动作语义：密文状态显示睁眼图标（提示"点击可查看密码"）
-    button.innerHTML = eyeOpenIcon;
+    // 状态语义：密文状态显示闭眼图标（表示"密码不可见"）
+    button.innerHTML = eyeClosedIcon;
 
     // 按钮作为兄弟节点插入到 input 之后
     parent.insertBefore(button, input.nextSibling);
@@ -203,8 +203,8 @@ export class PasswordVisibilityToggle {
     const onClick = () => {
       isRevealed = !isRevealed;
       input.type = isRevealed ? 'text' : 'password';
-      // 动作语义：明文显示闭眼（点击将隐藏），密文显示睁眼（点击将查看）
-      button.innerHTML = isRevealed ? eyeClosedIcon : eyeOpenIcon;
+      // 状态语义：明文显示睁眼（表示"密码可见"），密文显示闭眼（表示"密码不可见"）
+      button.innerHTML = isRevealed ? eyeOpenIcon : eyeClosedIcon;
       button.setAttribute('aria-label', isRevealed ? '隐藏密码' : '显示密码');
 
       // 保持焦点在输入框上，不影响用户操作

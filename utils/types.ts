@@ -156,6 +156,10 @@ export enum MessageType {
    * 消除 Windows 上 sidepanel 端的 storage IPC 开销和加密模块解析开销。
    */
   GET_INITIAL_DATA = 'GET_INITIAL_DATA',
+  /**
+   * 侧边栏预唤醒消息（由 sidepanel/content script 发送，触发 SW 启动和缓存预热）
+   */
+  SIDEPANEL_PRELOAD = 'SIDEPANEL_PRELOAD',
 }
 
 /**
@@ -182,7 +186,8 @@ export type RuntimeMessage =
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
   | { type: MessageType.SESSION_EXPIRED }
   | { type: MessageType.CHECK_UPDATE }
-  | { type: MessageType.GET_INITIAL_DATA; data?: { domain?: string } };
+  | { type: MessageType.GET_INITIAL_DATA; data?: { domain?: string } }
+  | { type: MessageType.SIDEPANEL_PRELOAD };
 
 /**
  * 悬浮按钮配置接口

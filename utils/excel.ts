@@ -88,11 +88,43 @@ export class ExcelUtils {
   }
 
   /**
-   * 解析 CSV 文本为密码数据
-   * @param text CSV 文本内容
+   * 解析 CSV 文件为密码数据，支持多编码自动回退
+   * @param buffer CSV 文件原始字节
    * @param format 导入格式，'auto' 时自动检测
    */
-  static parseCSV(text: string, format: ImportFormat = 'auto'): Omit<PasswordEntry, 'id' | 'order'>[] {
+  static parseCSV(buffer: ArrayBuffer, format: ImportFormat = 'auto'): Omit<PasswordEntry, 'id' | 'order'>[] {
+    // 优先使用 UTF-8 解码
+    const utf8Text = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+    let results = this.parseCSVFromText(utf8Text, format);
+
+    if (results.length === 0) {
+      // UTF-8 无结果时尝试 GBK 解码（WPS / 中文 Excel 常见编码）
+      try {
+        const gbkText = new TextDecoder('gbk', { fatal: false }).decode(buffer);
+        // 仅在解码结果不同时才重试（避免相同文本重复解析）
+        if (gbkText !== utf8Text) {
+          logger.info('UTF-8 解析无结果，尝试 GBK 编码回退');
+          results = this.parseCSVFromText(gbkText, format);
+          if (results.length > 0) {
+            logger.info(`GBK 编码回退成功，解析出 ${results.length} 条数据`);
+          }
+        }
+      } catch {
+        // 当前环境不支持 GBK 解码器，忽略
+      }
+    }
+
+    if (results.length === 0) {
+      logger.warn('CSV 解析结果为空，请检查文件编码和格式');
+    }
+
+    return results;
+  }
+
+  /**
+   * 从文本解析 CSV（内部方法，已处理 BOM 和编码）
+   */
+  private static parseCSVFromText(text: string, format: ImportFormat): Omit<PasswordEntry, 'id' | 'order'>[] {
     // 去除 BOM，防止首个表头字段被污染（如 \uFEFF用户名(必填)）
     const cleanText = text.replace(/^\uFEFF/, '');
     const lines = cleanText.split(/\r?\n/).filter(line => line.trim());
@@ -100,15 +132,53 @@ export class ExcelUtils {
 
     // 解析表头
     const headers = this.parseCSVLine(lines[0]);
+    logger.info('CSV 解析表头:', headers);
 
     // 确定使用哪个列映射
     let mapping: CsvColumnMapping;
+    let detectedFormatName: string;
     if (format === 'auto') {
       mapping = this.detectFormat(headers);
+      detectedFormatName = this.getDetectedFormatName(mapping);
+      logger.info(`CSV 自动检测格式: ${detectedFormatName}`);
     } else {
       mapping = FORMAT_COLUMN_MAP[format];
+      detectedFormatName = format;
     }
 
+    let results = this.parseRowsWithMapping(lines, headers, mapping);
+
+    // 格式回退：auto 模式下若首轮解析无结果，遍历其他格式尝试
+    if (format === 'auto' && results.length === 0) {
+      const allFormats = Object.keys(FORMAT_COLUMN_MAP) as Exclude<ImportFormat, 'auto'>[];
+      for (const fmt of allFormats) {
+        if (FORMAT_COLUMN_MAP[fmt] === mapping) continue; // 跳过已尝试的格式
+        const altResults = this.parseRowsWithMapping(lines, headers, FORMAT_COLUMN_MAP[fmt]);
+        if (altResults.length > 0) {
+          logger.info(
+            `自动检测格式 '${detectedFormatName}' 无结果，回退到 '${fmt}' 格式，解析出 ${altResults.length} 条数据`,
+          );
+          results = altResults;
+          break;
+        }
+      }
+    }
+
+    if (results.length === 0) {
+      logger.warn('CSV 解析无有效数据，表头:', headers, '检测格式:', detectedFormatName);
+    }
+
+    return results;
+  }
+
+  /**
+   * 使用指定列映射解析数据行
+   */
+  private static parseRowsWithMapping(
+    lines: string[],
+    headers: string[],
+    mapping: CsvColumnMapping,
+  ): Omit<PasswordEntry, 'id' | 'order'>[] {
     const now = Date.now();
     const results: Omit<PasswordEntry, 'id' | 'order'>[] = [];
 
@@ -136,6 +206,17 @@ export class ExcelUtils {
     }
 
     return results;
+  }
+
+  /**
+   * 根据映射对象反查格式名称（用于日志）
+   */
+  private static getDetectedFormatName(mapping: CsvColumnMapping): string {
+    const entries = Object.entries(FORMAT_COLUMN_MAP) as [Exclude<ImportFormat, 'auto'>, CsvColumnMapping][];
+    for (const [name, map] of entries) {
+      if (map === mapping) return name;
+    }
+    return 'chrome';
   }
 
   /**

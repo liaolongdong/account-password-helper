@@ -6,6 +6,8 @@
  *
  * 多处复用：sidepanel/main.ts、content.ts、FloatingButtonManager
  */
+import { MessageType } from '@/utils/types';
+
 let _swPreWarmed = false;
 
 /**
@@ -17,7 +19,7 @@ let _swPreWarmed = false;
 export function preWarmServiceWorker(): void {
   if (_swPreWarmed) return;
   _swPreWarmed = true;
-  chrome.runtime.sendMessage({ type: 'SIDEPANEL_PRELOAD' }).catch(() => {
+  chrome.runtime.sendMessage({ type: MessageType.SIDEPANEL_PRELOAD }).catch(() => {
     // SW 冷启动中或上下文不可用，静默忽略（SW 进程已由本调用触发启动）
   });
 }

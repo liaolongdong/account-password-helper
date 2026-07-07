@@ -25,7 +25,7 @@
         z-index: 9999;
         display: flex;
         flex-direction: column;
-        background: #f8f9fa;
+        background: #f0f2f5;
         font-family:
           system-ui,
           -apple-system,
@@ -40,7 +40,7 @@
 
       /* ===== 骨架块通用样式 ===== */
       .sk-block {
-        background: #e5e7eb;
+        background: #e8eaed;
         border-radius: 4px;
         animation: sk-pulse 1.5s ease-in-out infinite;
       }
@@ -60,9 +60,11 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 10px 16px;
+        padding: 12px 16px;
+        margin: 8px 8px 0;
         background: #fff;
-        border-bottom: 1px solid #e5e7eb;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
         flex-shrink: 0;
       }
 
@@ -85,12 +87,17 @@
 
       .sk-header-right {
         display: flex;
-        gap: 6px;
+        gap: 2px;
+        align-items: center;
+        padding: 3px;
+        background: #f1f5f9;
+        border-radius: 20px;
       }
 
-      .sk-version {
-        width: 36px;
-        height: 14px;
+      .sk-pill-btn {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
       }
 
       /* ===== 中性内容占位 ===== */
@@ -102,6 +109,10 @@
         align-items: center;
         gap: 14px;
         padding: 40px 32px;
+        margin: 8px 8px 0;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
       }
 
       .sk-content-line {
@@ -109,16 +120,26 @@
         border-radius: 6px;
       }
 
-      .sk-w80 { width: 80%; }
-      .sk-w60 { width: 60%; }
-      .sk-w90 { width: 90%; }
-      .sk-w45 { width: 45%; }
+      .sk-w80 {
+        width: 80%;
+      }
+      .sk-w60 {
+        width: 60%;
+      }
+      .sk-w90 {
+        width: 90%;
+      }
+      .sk-w45 {
+        width: 45%;
+      }
 
       /* ===== 底部按钮骨架 ===== */
       .sk-footer {
         padding: 10px 16px;
+        margin: 8px 8px 8px;
         background: #fff;
-        border-top: 1px solid #f0f0f0;
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
         flex-shrink: 0;
       }
 
@@ -144,7 +165,9 @@
           <div class="sk-block sk-brand-text"></div>
         </div>
         <div class="sk-header-right">
-          <div class="sk-block sk-version"></div>
+          <div class="sk-block sk-pill-btn"></div>
+          <div class="sk-block sk-pill-btn"></div>
+          <div class="sk-block sk-pill-btn"></div>
         </div>
       </div>
       <!-- 中性内容占位（不暗示密码列表或空状态，适配认证/未认证两种场景） -->

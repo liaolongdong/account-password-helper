@@ -52,6 +52,10 @@ export default defineContentScript({
 
     // 仅顶层 frame 初始化悬浮按钮管理器
     if (isTopFrame) {
+      // 页面加载完成后预唤醒 SW：用户在页面初期就可能使用快捷键 Ctrl+Shift+L 打开侧边栏，
+      // 提前触发 SW 启动可消除冷启动延迟。延迟 100ms 避免阻塞页面首屏渲染。
+      setTimeout(() => preWarmServiceWorker(), 100);
+
       const floatingButtonManager = getFloatingButtonManager();
       floatingButtonManager.init().catch(error => {
         logger.error('FloatingButtonManager 初始化失败:', error);
