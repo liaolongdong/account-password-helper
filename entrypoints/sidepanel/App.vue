@@ -4,30 +4,28 @@
     class="sidepanel-container"
     @keydown="handleKeydown"
   >
-    <!-- 头部 -->
-    <SidepanelHeader
-      :current-version="currentVersion"
-      :current-domain="currentDomain"
-      @open-github="openGithub"
-      @open-help="showHelpDialog = true"
-      @open-settings="handleOpenSettings"
-    />
+    <!-- 头部卡片 -->
+    <div class="header-card">
+      <SidepanelHeader
+        :current-version="currentVersion"
+        :current-domain="currentDomain"
+        @open-github="openGithub"
+        @open-help="showHelpDialog = true"
+        @open-settings="handleOpenSettings"
+      />
+    </div>
 
     <!-- 未验证状态 -->
     <div
       v-if="!isAuthenticated"
-      class="auth-required"
+      class="auth-card"
     >
-      <el-empty
-        :image-size="100"
-        description="需要验证主密码"
-      >
-        <template #description>
-          <div class="auth-description">
-            <p>请先验证主密码以使用快速填充功能</p>
-            <p class="auth-tip">验证后即可搜索和填充保存的密码</p>
-          </div>
-        </template>
+      <div class="auth-card-content">
+        <div class="auth-icon-circle">
+          <el-icon class="auth-icon"><Lock /></el-icon>
+        </div>
+        <h3 class="auth-title">会话已失效</h3>
+        <p class="auth-desc">请在选项中验证主密码以解锁快速填充功能</p>
         <el-button
           class="auth-verify-btn"
           type="primary"
@@ -37,177 +35,184 @@
         >
           去验证主密码
         </el-button>
-      </el-empty>
+      </div>
     </div>
 
     <!-- 已认证状态：搜索框 + 密码列表 -->
     <template v-else>
-      <!-- 搜索框 -->
-      <div class="search-section">
-        <el-input
-          ref="searchInputRef"
-          v-model="searchKeyword"
-          placeholder="搜索用户名、标签、备注、网址..."
-          :prefix-icon="Search"
-          clearable
-          @input="handleSearch"
-        />
-        <el-tooltip
-          :content="favoriteOnly ? '显示全部' : '只看收藏'"
-          placement="top"
-          :show-after="400"
-        >
-          <el-button
-            :icon="favoriteOnly ? StarFilled : Star"
-            circle
-            size="small"
-            :type="favoriteOnly ? 'warning' : 'default'"
-            @click="favoriteOnly = !favoriteOnly"
+      <!-- 搜索卡片 -->
+      <div class="search-card">
+        <div class="search-section">
+          <el-input
+            ref="searchInputRef"
+            v-model="searchKeyword"
+            placeholder="搜索用户名、标签、备注、网址..."
+            :prefix-icon="Search"
+            clearable
+            @input="handleSearch"
           />
-        </el-tooltip>
-        <el-tooltip
-          content="排序方式"
-          placement="top"
-          :show-after="400"
-        >
-          <el-dropdown
-            trigger="click"
-            popper-class="sort-dropdown-popper"
-            @command="handleSortChange"
+          <el-tooltip
+            :content="favoriteOnly ? '显示全部' : '只看收藏'"
+            placement="top"
+            :show-after="400"
           >
             <el-button
-              :icon="Sort"
+              :icon="favoriteOnly ? StarFilled : Star"
               circle
               size="small"
+              :type="favoriteOnly ? 'warning' : 'default'"
+              @click="favoriteOnly = !favoriteOnly"
             />
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item
-                  command="lastUsedAt"
-                  :class="{ 'is-active': sidepanelSortProp === 'lastUsedAt' }"
-                >
-                  <el-icon class="sort-item-icon"><Timer /></el-icon>
-                  <span>最近使用</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'lastUsedAt'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="updateTime"
-                  :class="{ 'is-active': sidepanelSortProp === 'updateTime' }"
-                >
-                  <el-icon class="sort-item-icon"><Refresh /></el-icon>
-                  <span>最近更新</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'updateTime'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="username"
-                  :class="{ 'is-active': sidepanelSortProp === 'username' }"
-                >
-                  <el-icon class="sort-item-icon"><User /></el-icon>
-                  <span>用户名</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'username'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="url"
-                  :class="{ 'is-active': sidepanelSortProp === 'url' }"
-                >
-                  <el-icon class="sort-item-icon"><Link /></el-icon>
-                  <span>网址</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'url'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="createTime"
-                  :class="{ 'is-active': sidepanelSortProp === 'createTime' }"
-                >
-                  <el-icon class="sort-item-icon"><Clock /></el-icon>
-                  <span>创建时间</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'createTime'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </el-tooltip>
+          </el-tooltip>
+          <el-tooltip
+            content="排序方式"
+            placement="top"
+            :show-after="400"
+          >
+            <el-dropdown
+              trigger="click"
+              popper-class="sort-dropdown-popper"
+              @command="handleSortChange"
+            >
+              <el-button
+                :icon="Sort"
+                circle
+                size="small"
+              />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    command="lastUsedAt"
+                    :class="{ 'is-active': sidepanelSortProp === 'lastUsedAt' }"
+                  >
+                    <el-icon class="sort-item-icon"><Timer /></el-icon>
+                    <span>最近使用</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'lastUsedAt'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="updateTime"
+                    :class="{ 'is-active': sidepanelSortProp === 'updateTime' }"
+                  >
+                    <el-icon class="sort-item-icon"><Refresh /></el-icon>
+                    <span>最近更新</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'updateTime'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="username"
+                    :class="{ 'is-active': sidepanelSortProp === 'username' }"
+                  >
+                    <el-icon class="sort-item-icon"><User /></el-icon>
+                    <span>用户名</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'username'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="url"
+                    :class="{ 'is-active': sidepanelSortProp === 'url' }"
+                  >
+                    <el-icon class="sort-item-icon"><Link /></el-icon>
+                    <span>网址</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'url'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="createTime"
+                    :class="{ 'is-active': sidepanelSortProp === 'createTime' }"
+                  >
+                    <el-icon class="sort-item-icon"><Clock /></el-icon>
+                    <span>创建时间</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'createTime'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </el-tooltip>
+        </div>
       </div>
 
-      <!-- 密码列表 -->
-      <div class="password-list">
-        <div
-          v-if="loading"
-          class="loading"
-        >
-          <el-icon class="is-loading"><Loading /></el-icon>
-          <span>加载中...</span>
-        </div>
-
-        <div
-          v-else-if="filteredPasswords.length === 0"
-          class="empty"
-        >
-          <!-- 全部无数据：显示引导添加 -->
-          <el-empty
-            v-if="passwords.length === 0"
-            :image-size="80"
-            description="还没有保存的密码，点击下方按钮添加吧"
+      <!-- 密码列表卡片 -->
+      <div class="list-card">
+        <div class="password-list">
+          <div
+            v-if="loading"
+            class="loading-state"
           >
-            <el-button
-              type="primary"
-              :icon="Plus"
-              class="empty-add-btn"
-              @click="openOptionsAndAdd"
-            >
-              去添加密码
-            </el-button>
-          </el-empty>
-          <!-- 搜索/过滤无结果 -->
-          <el-empty
-            v-else
-            :image-size="80"
-            description="暂无匹配的密码"
-          />
-        </div>
+            <el-icon class="is-loading loading-spinner"><Loading /></el-icon>
+            <span>加载中...</span>
+          </div>
 
-        <div
-          v-else
-          class="password-items"
-        >
-          <PasswordListItem
-            v-for="(password, index) in filteredPasswords"
-            :key="password.id"
-            :password="password"
-            :is-active="activeIndex === index"
-            @fill="fillPassword"
-            @fill-and-login="handleFillAndLogin"
-            @edit="handleEditPassword"
-            @toggle-favorite="toggleFavorite"
-            @copy-username="copyUsername"
-            @copy-password="copyPassword"
-            @mouseenter="activeIndex = index"
-          />
+          <div
+            v-else-if="filteredPasswords.length === 0"
+            class="empty-state"
+          >
+            <!-- 全部无数据：显示引导添加 -->
+            <template v-if="passwords.length === 0">
+              <div class="empty-icon-circle">
+                <el-icon class="empty-icon"><Plus /></el-icon>
+              </div>
+              <h3 class="empty-title">还没有保存的密码</h3>
+              <p class="empty-desc">在密码管理中导入或添加密码</p>
+              <el-button
+                type="primary"
+                :icon="Plus"
+                class="empty-add-btn"
+                @click="openOptionsAndAdd"
+              >
+                去添加密码
+              </el-button>
+            </template>
+            <!-- 搜索/过滤无结果 -->
+            <template v-else>
+              <div class="empty-icon-circle empty-icon-circle--muted">
+                <el-icon class="empty-icon empty-icon--muted"><Search /></el-icon>
+              </div>
+              <h3 class="empty-title">暂无匹配的密码</h3>
+              <p class="empty-desc">试试调整搜索关键词或筛选条件</p>
+            </template>
+          </div>
+
+          <div
+            v-else
+            class="password-items"
+          >
+            <PasswordListItem
+              v-for="(password, index) in filteredPasswords"
+              :key="password.id"
+              :password="password"
+              :is-active="activeIndex === index"
+              @fill="fillPassword"
+              @fill-and-login="handleFillAndLogin"
+              @edit="handleEditPassword"
+              @toggle-favorite="toggleFavorite"
+              @copy-username="copyUsername"
+              @copy-password="copyPassword"
+              @mouseenter="activeIndex = index"
+            />
+          </div>
         </div>
       </div>
     </template>
 
     <!-- 底部操作 -->
-    <div class="footer">
+    <div class="footer-card">
       <el-button
         :icon="BrandLogo"
         class="footer-manage-btn"
@@ -254,6 +259,7 @@ import {
   Refresh,
   User,
   Link,
+  Lock,
   Clock,
 } from '@element-plus/icons-vue';
 import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
@@ -604,7 +610,44 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f8f9fa;
+  background: #f0f2f5;
+}
+
+/* ========== 卡片通用样式 ========== */
+.header-card,
+.search-card,
+.list-card,
+.footer-card {
+  margin: 0 8px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
+}
+
+.header-card {
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.search-card {
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.list-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.footer-card {
+  padding: 10px 16px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  text-align: center;
 }
 
 .search-section {
@@ -612,8 +655,6 @@ onMounted(async () => {
   gap: 8px;
   align-items: center;
   padding: 10px 16px;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
 }
 
 .search-section :deep(.el-input) {
@@ -627,7 +668,7 @@ onMounted(async () => {
   overflow: hidden auto;
 }
 
-.loading {
+.loading-state {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -637,13 +678,57 @@ onMounted(async () => {
   color: #6b7280;
 }
 
-.loading .el-icon {
+.loading-spinner {
   margin-bottom: 8px;
   font-size: 24px;
 }
 
-.empty {
-  padding: 20px;
+/* ========== 空状态（列表内） ========== */
+.empty-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.empty-icon-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  background: #f0fdf4;
+  border-radius: 50%;
+}
+
+.empty-icon-circle--muted {
+  background: #f1f5f9;
+}
+
+.empty-icon {
+  font-size: 24px;
+  color: #22c55e;
+}
+
+.empty-icon--muted {
+  color: #94a3b8;
+}
+
+.empty-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.empty-desc {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: #6b7280;
 }
 
 /* 去添加密码按钮：圆角 + hover 上浮动效 */
@@ -659,14 +744,6 @@ onMounted(async () => {
 :deep(.empty-add-btn:hover) {
   box-shadow: 0 4px 14px rgb(64 158 255 / 40%);
   transform: translateY(-1px);
-}
-
-.footer {
-  padding: 10px 16px;
-  text-align: center;
-  background: white;
-  border-top: none;
-  box-shadow: 0 -2px 8px rgb(0 0 0 / 4%);
 }
 
 /* 密码管理按钮：浅蓝背景 + hover 变实心蓝 */
@@ -694,31 +771,55 @@ onMounted(async () => {
   font-size: 18px;
 }
 
-/* 未验证状态样式 */
-.auth-required {
+/* ========== 会话失效卡片 ========== */
+.auth-card {
   display: flex;
   flex: 1;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
-  padding: 40px 20px;
-  background: #f8f9fa;
+  min-height: 0;
+  margin: 8px 8px 0;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
 }
 
-.auth-description {
-  margin-bottom: 20px;
+.auth-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 32px;
   text-align: center;
 }
 
-.auth-description p {
-  margin: 8px 0;
-  font-size: 14px;
-  color: #666;
+.auth-icon-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 20px;
+  background: #ecf5ff;
+  border-radius: 50%;
 }
 
-.auth-tip {
-  font-size: 12px !important;
-  color: #999 !important;
+.auth-icon {
+  font-size: 28px;
+  color: #409eff;
+}
+
+.auth-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.auth-desc {
+  margin: 0 0 24px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6b7280;
 }
 
 /* 去验证主密码按钮：放大钥匙图标并与文字拉开间距 */
