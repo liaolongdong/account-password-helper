@@ -1,7 +1,7 @@
 import type { UpdateInfo } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS } from '@/utils/encryption';
-import { GITHUB_RELEASES_API_URL, GITHUB_RELEASES_PAGE_URL } from '@/utils/constants';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { GITHUB_RELEASES_API_URL, GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 
 /**
  * 版本更新检测闹钟名称

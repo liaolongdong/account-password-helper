@@ -1,13 +1,24 @@
 import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import {
-  STORAGE_KEYS,
-  encryptData,
-  decryptData,
-  encryptPasswordEntry,
-  decryptPasswordEntry,
-  deriveSessionKey,
-} from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
+
+/**
+ * 延迟加载加密模块
+ *
+ * 避免在 Service Worker 冷启动时静态导入 encryption.ts（223 行 Web Crypto 代码），
+ * 减少 SW 初始包体积和 V8 JIT 编译开销。
+ * Windows 上冷启动时模块解析/JIT 编译 encryption.ts 约需 200-500ms。
+ *
+ * 所有加密函数调用均在 async 函数内部，使用动态 import 按需加载。
+ * 模块系统自动去重：多次 import('@/utils/encryption') 返回同一实例。
+ */
+let _encryptionModule: typeof import('@/utils/encryption') | null = null;
+async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
+  if (!_encryptionModule) {
+    _encryptionModule = await import('@/utils/encryption');
+  }
+  return _encryptionModule;
+}
 
 /**
  * 会话存储键名
@@ -16,6 +27,8 @@ export const SESSION_STORAGE_KEYS = {
   MASTER_PASSWORD: 'session_master_password',
   PASSWORD_EXPIRY: 'session_password_expiry',
   VALIDITY_HOURS: 'session_validity_hours',
+  /** 标记密码数据已在 storage 中解密为明文，避免 ensureDataConsistencyWithSession 重复读取 PASSWORDS */
+  PASSWORDS_DECRYPTED: 'session_passwords_decrypted',
 };
 
 // 会话状态管理变量
@@ -23,6 +36,43 @@ let encryptedSessionMasterPassword: string | null = null;
 let sessionPasswordExpiry: number | null = null;
 let sessionValidityHours: number | null = null;
 let sessionEncryptionKey: string | null = null;
+
+/** 标记数据一致性检查是否已完成（SW 生命周期内只需执行一次） */
+let _consistencyCheckDone = false;
+
+/**
+ * isSessionValid() 结果缓存
+ *
+ * 避免同一 sidepanel 生命周期内重复执行 storage 读取 + HKDF 密钥派生（Windows ~40-80ms）。
+ * TTL 5 秒：会话状态不会在 5 秒内变化（除非 createSession/clearSession 被调用），
+ * 而这两个操作会主动调用 invalidateSessionCache() 清除缓存。
+ */
+let _sessionValidCache: { valid: boolean; timestamp: number } | null = null;
+const SESSION_VALID_CACHE_TTL = 5000;
+
+/**
+ * 清除会话验证结果缓存
+ *
+ * 在 createSession()、clearSession() 以及 storage change 监听中调用，
+ * 确保缓存不会返回过期的会话状态。
+ */
+export function invalidateSessionCache(): void {
+  _sessionValidCache = null;
+}
+
+/**
+ * 立即将会话验证结果标记为无效
+ *
+ * 与 invalidateSessionCache()（设为 null，下次 isSessionValid 需重新检查 storage）不同，
+ * 此函数直接将缓存设为 { valid: false }，使后续的 isSessionValid() 调用在 TTL 窗口内
+ * 立即返回 false，无需等待异步的 clearSession() 完成 storage 键删除。
+ *
+ * 在 INVALIDATE_PASSWORD_CACHE 消息处理器中调用，用于消除 async clearSession() 与
+ * 并发 GET_INITIAL_DATA 之间的竞态窗口（~100-200ms）。
+ */
+export function markSessionInvalid(): void {
+  _sessionValidCache = { valid: false, timestamp: Date.now() };
+}
 
 /**
  * 同步检查会话是否有效（仅检查内存状态，不从存储恢复）
@@ -37,34 +87,64 @@ export function isSessionActiveSync(): boolean {
 /**
  * 检查会话是否有效
  * 增强：会话恢复后自动检查数据状态一致性，必要时重新解密
+ *
+ * 性能优化：内置 5 秒 TTL 结果缓存，避免重复的 storage 读取 + HKDF 密钥派生
+ * （Windows ~40-80ms，Mac ~10-20ms）。会话创建/清除时缓存自动失效。
+ *
+ * @param options.skipConsistencyCheck 跳过 ensureDataConsistencyWithSession（sidepanel 热路径使用，
+ *   后续 getAllPasswords 会自行处理加密数据状态，无需在此阻塞）
  */
-export async function isSessionValid(): Promise<boolean> {
-  try {
-    let needCheckDataConsistency = false;
+export async function isSessionValid(options?: { skipConsistencyCheck?: boolean }): Promise<boolean> {
+  // 检查缓存：5 秒内的结果直接返回，避免重复的 storage IPC + HKDF 开销
+  if (_sessionValidCache && Date.now() - _sessionValidCache.timestamp < SESSION_VALID_CACHE_TTL) {
+    return _sessionValidCache.valid;
+  }
 
+  try {
     if (!encryptedSessionMasterPassword || !sessionPasswordExpiry) {
-      const result = await chrome.storage.local.get([
-        SESSION_STORAGE_KEYS.MASTER_PASSWORD,
-        SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
-        SESSION_STORAGE_KEYS.VALIDITY_HOURS,
-      ]);
+      // 批量读取 session keys + MASTER_PASSWORD（不含 PASSWORDS，由调用方按需读取）
+      // 性能优化：skipConsistencyCheck 时仅读 3 个必需 key，Windows 上省 2 个 storage IPC
+      const keysToRead = options?.skipConsistencyCheck
+        ? [SESSION_STORAGE_KEYS.MASTER_PASSWORD, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY, STORAGE_KEYS.MASTER_PASSWORD]
+        : [
+            SESSION_STORAGE_KEYS.MASTER_PASSWORD,
+            SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
+            SESSION_STORAGE_KEYS.VALIDITY_HOURS,
+            SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
+            STORAGE_KEYS.MASTER_PASSWORD,
+          ];
+      const _perfStorageStart = performance.now();
+      const result = await chrome.storage.local.get(keysToRead);
+      logger.debug(
+        `isSessionValid: storage.get(${keysToRead.length} keys) ${(performance.now() - _perfStorageStart).toFixed(1)}ms`,
+      );
 
       if (result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] && result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]) {
         encryptedSessionMasterPassword = result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] as string | null;
         sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | null;
         sessionValidityHours = (result[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
 
-        const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
-        const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
+        const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig | undefined;
 
+        const _perfHkdfStart = performance.now();
         if (config && config.salt) {
-          sessionEncryptionKey = await deriveSessionKey(config.salt);
+          const enc = await _getEncryption();
+          sessionEncryptionKey = await enc.deriveSessionKey(config.salt);
         } else {
           sessionEncryptionKey = await generateSessionEncryptionKey();
         }
+        logger.debug(`isSessionValid: HKDF derive ${(performance.now() - _perfHkdfStart).toFixed(1)}ms`);
 
-        needCheckDataConsistency = true;
+        // 检查解密标记：如果标记为 true，跳过 expensive 的数据一致性检查（避免重复解密）
+        const passwordsDecrypted = options?.skipConsistencyCheck
+          ? true // sidepanel 热路径：跳过检查，由 getAllPasswords 自行处理
+          : (result[SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED] as boolean | undefined);
+        if (!passwordsDecrypted) {
+          // flag 为 false 时需要进行数据一致性检查，由 ensureDataConsistencyWithSession 自行读取 PASSWORDS
+          await ensureDataConsistencyWithSession();
+        }
       } else {
+        _sessionValidCache = { valid: false, timestamp: Date.now() };
         return false;
       }
     }
@@ -72,29 +152,37 @@ export async function isSessionValid(): Promise<boolean> {
     const now = Date.now();
     if (sessionPasswordExpiry !== null && now >= sessionPasswordExpiry) {
       await clearSession();
+      _sessionValidCache = { valid: false, timestamp: Date.now() };
       return false;
     }
 
-    if (needCheckDataConsistency) {
-      await ensureDataConsistencyWithSession();
-    }
-
+    _sessionValidCache = { valid: true, timestamp: Date.now() };
     return true;
   } catch (error) {
     logger.error('会话验证失败:', error);
     await clearSession();
+    _sessionValidCache = { valid: false, timestamp: Date.now() };
     return false;
   }
 }
 
 /**
  * 确保数据状态与会话状态一致
+ * 使用模块级锁保证 SW 生命周期内只执行一次，避免重复触发全量解密
+ * @param preloadedPasswords 可选，从批量 storage 读取中已获取的密码数据，传入可避免重复读取
  */
-async function ensureDataConsistencyWithSession(): Promise<void> {
+async function ensureDataConsistencyWithSession(
+  preloadedPasswords?: (PasswordEntry | EncryptedPasswordEntry)[],
+): Promise<void> {
+  if (_consistencyCheckDone) return;
+  _consistencyCheckDone = true;
   try {
-    const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
     const rawData: (PasswordEntry | EncryptedPasswordEntry)[] =
-      (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
+      preloadedPasswords ??
+      (((await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS))[STORAGE_KEYS.PASSWORDS] as
+        | (PasswordEntry | EncryptedPasswordEntry)[]
+        | undefined) ||
+        []);
     if (rawData.length === 0) return;
 
     const hasEncrypted = rawData.some(e => 'encrypted' in e && (e as EncryptedPasswordEntry).encrypted === true);
@@ -121,7 +209,7 @@ export async function getSessionMasterPasswordDecrypted(): Promise<string | null
   }
 
   try {
-    return await decryptData(encryptedSessionMasterPassword, sessionEncryptionKey);
+    return await (await _getEncryption()).decryptData(encryptedSessionMasterPassword, sessionEncryptionKey);
   } catch (error) {
     logger.error('解密会话主密码失败:', error);
     return null;
@@ -133,16 +221,18 @@ export async function getSessionMasterPasswordDecrypted(): Promise<string | null
  */
 export async function createSession(masterPassword: string, validityHours: number): Promise<void> {
   try {
+    invalidateSessionCache();
     const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
     const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
     if (config && config.salt) {
-      sessionEncryptionKey = await deriveSessionKey(config.salt);
+      const enc = await _getEncryption();
+      sessionEncryptionKey = await enc.deriveSessionKey(config.salt);
     } else {
       sessionEncryptionKey = await generateSessionEncryptionKey();
     }
 
-    encryptedSessionMasterPassword = await encryptData(masterPassword, sessionEncryptionKey);
+    encryptedSessionMasterPassword = await (await _getEncryption()).encryptData(masterPassword, sessionEncryptionKey);
     sessionValidityHours = validityHours;
     sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
 
@@ -150,9 +240,15 @@ export async function createSession(masterPassword: string, validityHours: numbe
       [SESSION_STORAGE_KEYS.MASTER_PASSWORD]: encryptedSessionMasterPassword,
       [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: sessionPasswordExpiry,
       [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
+      [SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED]: false, // 解密前先设为 false，解密成功后更新
     });
 
     await decryptAllPasswordsOnSessionCreate(masterPassword);
+
+    // 解密成功，标记密码数据已为明文
+    await chrome.storage.local.set({
+      [SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED]: true,
+    });
   } catch (error) {
     logger.error('创建会话缓存失败:', error);
     throw error;
@@ -167,6 +263,7 @@ async function restoreSessionEncryptionKeyFromStorage(): Promise<void> {
     SESSION_STORAGE_KEYS.MASTER_PASSWORD,
     SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
     SESSION_STORAGE_KEYS.VALIDITY_HOURS,
+    STORAGE_KEYS.MASTER_PASSWORD,
   ]);
 
   if (result[SESSION_STORAGE_KEYS.MASTER_PASSWORD]) {
@@ -174,10 +271,10 @@ async function restoreSessionEncryptionKeyFromStorage(): Promise<void> {
     sessionPasswordExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number;
     sessionValidityHours = (result[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
 
-    const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
-    const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
+    const config = result[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig | undefined;
     if (config && config.salt) {
-      sessionEncryptionKey = await deriveSessionKey(config.salt);
+      const enc = await _getEncryption();
+      sessionEncryptionKey = await enc.deriveSessionKey(config.salt);
     } else {
       sessionEncryptionKey = await generateSessionEncryptionKey();
     }
@@ -189,26 +286,37 @@ async function restoreSessionEncryptionKeyFromStorage(): Promise<void> {
  */
 export async function clearSession(): Promise<void> {
   try {
+    invalidateSessionCache();
     // 内存状态可能因页面重载而丢失，直接从 storage 恢复（避免调用 isSessionValid 产生递归）
     if (!encryptedSessionMasterPassword || !sessionEncryptionKey) {
       await restoreSessionEncryptionKeyFromStorage();
     }
 
+    // 在加密密码之前获取主密码（加密操作需要它）
     const masterPassword = await getSessionMasterPasswordDecrypted();
-    if (masterPassword) {
-      await encryptAllPasswordsBeforeSessionClear(masterPassword);
-    }
 
+    // 先清除内存中的会话状态和 storage 中的会话键，
+    // 确保并发的 isSessionValid() 调用立即返回 false，
+    // 消除「会话有效但数据已加密」的竞态窗口
     encryptedSessionMasterPassword = null;
     sessionPasswordExpiry = null;
     sessionValidityHours = null;
     sessionEncryptionKey = null;
+    _consistencyCheckDone = false;
 
     await chrome.storage.local.remove([
       SESSION_STORAGE_KEYS.MASTER_PASSWORD,
       SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
       SESSION_STORAGE_KEYS.VALIDITY_HOURS,
+      SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
     ]);
+
+    // 会话状态已完全清除后再加密密码（安全操作）
+    // 加密使用 masterPassword 派生的密钥，不依赖已清除的会话状态
+    // 正常情况下密码数据已由 lockSession/createSession 加密，此处为防御性操作
+    if (masterPassword) {
+      await encryptAllPasswordsBeforeSessionClear(masterPassword);
+    }
   } catch (error) {
     logger.error('清除会话缓存失败:', error);
     throw error;
@@ -230,7 +338,7 @@ async function encryptAllPasswordsBeforeSessionClear(masterPassword: string): Pr
     if (!hasUnencrypted) return;
 
     // 派生一次密钥，所有条目复用，避免 PBKDF2 × N 次
-    const key = await deriveEncryptionKey(masterPassword);
+    const key = await (await _getEncryption()).deriveEncryptionKey(masterPassword);
 
     const encryptedPasswords: EncryptedPasswordEntry[] = [];
     for (const entry of rawPasswords) {
@@ -238,7 +346,9 @@ async function encryptAllPasswordsBeforeSessionClear(masterPassword: string): Pr
         encryptedPasswords.push(entry as EncryptedPasswordEntry);
         continue;
       }
-      const encryptedEntry = await encryptPasswordEntry(entry as PasswordEntry, masterPassword, key);
+      const encryptedEntry = await (
+        await _getEncryption()
+      ).encryptPasswordEntry(entry as PasswordEntry, masterPassword, key);
       encryptedPasswords.push(encryptedEntry);
     }
 
@@ -264,13 +374,13 @@ async function decryptAllPasswordsOnSessionCreate(masterPassword: string): Promi
     if (!hasEncrypted) return;
 
     // 派生一次密钥，所有条目复用
-    const key = await deriveEncryptionKey(masterPassword);
+    const key = await (await _getEncryption()).deriveEncryptionKey(masterPassword);
 
     const decryptedPasswords: PasswordEntry[] = [];
     for (const entry of rawPasswords) {
       if ('encrypted' in entry && entry.encrypted === true) {
         try {
-          const decryptedEntry = await decryptPasswordEntry(entry, masterPassword, key);
+          const decryptedEntry = await (await _getEncryption()).decryptPasswordEntry(entry, masterPassword, key);
           decryptedPasswords.push(decryptedEntry);
         } catch (_decryptError) {
           logger.warn('跳过无法解密的条目: ' + entry.id);
@@ -312,7 +422,9 @@ export async function migrateUnencryptedEntries(masterPassword: string): Promise
     for (const entry of rawPasswords) {
       if (!('encrypted' in entry) || entry.encrypted !== true) {
         hasUnencrypted = true;
-        const encryptedEntry = await encryptPasswordEntry(entry as PasswordEntry, masterPassword);
+        const encryptedEntry = await (
+          await _getEncryption()
+        ).encryptPasswordEntry(entry as PasswordEntry, masterPassword);
         encryptedPasswords.push(encryptedEntry);
       } else {
         encryptedPasswords.push(entry as EncryptedPasswordEntry);

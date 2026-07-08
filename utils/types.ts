@@ -148,6 +148,18 @@ export enum MessageType {
    * 主动触发版本更新检测
    */
   CHECK_UPDATE = 'CHECK_UPDATE',
+  /**
+   * 获取侧边栏初始化数据（会话验证 + 密码列表 + 排序配置）
+   *
+   * 性能优化：将原 sidepanel 端的多步操作（session 验证 + storage 读取 + 排序读取）
+   * 合并为 background SW 端的单次调用，利用 SW 保活机制（Phase 1）使数据在 20-50ms 内返回。
+   * 消除 Windows 上 sidepanel 端的 storage IPC 开销和加密模块解析开销。
+   */
+  GET_INITIAL_DATA = 'GET_INITIAL_DATA',
+  /**
+   * 侧边栏预唤醒消息（由 sidepanel/content script 发送，触发 SW 启动和缓存预热）
+   */
+  SIDEPANEL_PRELOAD = 'SIDEPANEL_PRELOAD',
 }
 
 /**
@@ -173,7 +185,9 @@ export type RuntimeMessage =
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
   | { type: MessageType.SESSION_EXPIRED }
-  | { type: MessageType.CHECK_UPDATE };
+  | { type: MessageType.CHECK_UPDATE }
+  | { type: MessageType.GET_INITIAL_DATA; data?: { domain?: string } }
+  | { type: MessageType.SIDEPANEL_PRELOAD };
 
 /**
  * 悬浮按钮配置接口
@@ -229,6 +243,21 @@ export interface PasswordCache {
    * 是否已认证
    */
   isAuthenticated: boolean;
+}
+
+/**
+ * 侧边栏初始化数据响应接口
+ *
+ * 由 background SW 在 GET_INITIAL_DATA 消息处理中返回，
+ * 包含会话验证结果、密码列表和排序配置，使 sidepanel 无需自行执行加密验证。
+ */
+export interface InitialDataResponse {
+  /** 会话是否有效 */
+  sessionValid: boolean;
+  /** 密码列表（会话有效时返回，已按域名过滤） */
+  passwords: PasswordEntry[];
+  /** 排序配置 */
+  sortConfig: { prop: string; order: string } | null;
 }
 
 /**

@@ -6,6 +6,7 @@
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { MessageType } from '@/utils/types';
+import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { floatingButtonStyles, settingsPanelStyles } from '@/entrypoints/content/floatingButtons/styles';
 import {
@@ -203,6 +204,9 @@ export class FloatingButtonManager {
    */
   private bindButtonEvents(): void {
     if (!this.buttonGroup) return;
+
+    // 预唤醒 SW：用户 hover 悬浮按钮时，很可能即将打开侧边栏
+    this.container?.addEventListener('mouseenter', preWarmServiceWorker, { once: true });
 
     // 侧边栏按钮
     const sidepanelBtn = this.buttonGroup.querySelector('[data-action="toggle-sidepanel"]');

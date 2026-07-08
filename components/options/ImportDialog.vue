@@ -170,17 +170,18 @@
             type="primary"
             @click="showPreviewPassword = !showPreviewPassword"
           >
+            <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
             <el-icon
               v-if="showPreviewPassword"
               style="margin-right: 4px"
             >
-              <Hide />
+              <View />
             </el-icon>
             <el-icon
               v-else
               style="margin-right: 4px"
             >
-              <View />
+              <Hide />
             </el-icon>
             {{ showPreviewPassword ? '隐藏密码' : '显示密码' }}
           </el-button>
@@ -267,8 +268,8 @@ const handleFileChange = async (file: UploadFile) => {
     } else if (isCSV) {
       // CSV 解析路径
       selectedFile.value = file.raw;
-      const text = await file.raw.text();
-      data = ExcelUtils.parseCSV(text, importFormat.value as ImportFormat);
+      const buffer = await file.raw.arrayBuffer();
+      data = ExcelUtils.parseCSV(buffer, importFormat.value as ImportFormat);
     } else {
       ElMessage.error('不支持的文件格式，请使用 CSV 或 JSON 文件');
       selectedFile.value = undefined;

@@ -1,26 +1,22 @@
 import type { MasterPasswordConfig } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS } from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 
-// ==================== 加密相关（委托到 encryption.ts） ====================
+// ==================== 加密委托 ====================
+// 注意：所有加密函数（deriveEncryptionKey / encryptPasswordEntry 等）
+// 仅在 sessionManager-storage.ts 和 passwordCrud.ts 中通过
+// 延迟 import('@/utils/encryption') 按需加载，不在此处静态 re-export，
+// 避免将 PBKDF2/HKDF/AES-GCM 打入 SW 初始包。
 
-export {
-  hashPassword,
-  generateSalt,
-  generateId,
-  deriveEncryptionKey,
-  encryptData,
-  decryptData,
-  encryptPasswordEntry,
-  decryptPasswordEntry,
-  decryptFieldSafely,
-} from '@/utils/encryption';
+// generateId 从独立文件中导入，避免静态 import 将 encryption.ts 的 PBKDF2 代码打入 SW 包
+export { generateId } from '@/utils/generateId';
 
 // ==================== 会话管理（委托到 sessionManager-storage.ts） ====================
 
 export {
   isSessionActiveSync,
   isSessionValid,
+  invalidateSessionCache,
   createSession,
   clearSession,
   getSessionMasterPasswordDecrypted,

@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { Setting } from '@element-plus/icons-vue';
-import BrandLogo from '@/components/BrandLogo.vue';
+import { defineAsyncComponent } from 'vue';
 import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
+
+/** 品牌 Logo 异步加载（64 行纯 SVG，独立 chunk 避免阻塞 SidepanelHeader 首屏） */
+const BrandLogo = defineAsyncComponent(() => import('@/components/BrandLogo.vue'));
 
 interface Props {
   /** 当前插件版本号 */
@@ -46,40 +49,42 @@ defineEmits<Emits>();
       </div>
     </div>
     <div class="header-actions">
-      <button
-        type="button"
-        class="icon-btn"
-        title="查看开源仓库"
-        @click="$emit('openGithub')"
-      >
-        <!-- eslint-disable vue/no-v-html -->
-        <span
-          class="icon-btn__svg"
-          v-html="githubIconSvg"
-        ></span>
-        <!-- eslint-enable vue/no-v-html -->
-      </button>
-      <button
-        type="button"
-        class="icon-btn"
-        title="操作指引与常见问题"
-        @click="$emit('openHelp')"
-      >
-        <!-- eslint-disable vue/no-v-html -->
-        <span
-          class="icon-btn__svg"
-          v-html="questionIconSvg"
-        ></span>
-        <!-- eslint-enable vue/no-v-html -->
-      </button>
-      <button
-        type="button"
-        class="icon-btn"
-        title="设置"
-        @click="$emit('openSettings')"
-      >
-        <el-icon><Setting /></el-icon>
-      </button>
+      <div class="actions-pill">
+        <button
+          type="button"
+          class="pill-btn"
+          title="查看开源仓库"
+          @click="$emit('openGithub')"
+        >
+          <!-- eslint-disable vue/no-v-html -->
+          <span
+            class="pill-btn__svg"
+            v-html="githubIconSvg"
+          ></span>
+          <!-- eslint-enable vue/no-v-html -->
+        </button>
+        <button
+          type="button"
+          class="pill-btn"
+          title="操作指引与常见问题"
+          @click="$emit('openHelp')"
+        >
+          <!-- eslint-disable vue/no-v-html -->
+          <span
+            class="pill-btn__svg"
+            v-html="questionIconSvg"
+          ></span>
+          <!-- eslint-enable vue/no-v-html -->
+        </button>
+        <button
+          type="button"
+          class="pill-btn"
+          title="设置"
+          @click="$emit('openSettings')"
+        >
+          <el-icon><Setting /></el-icon>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -90,9 +95,7 @@ defineEmits<Emits>();
   gap: 8px;
   align-items: flex-start;
   justify-content: space-between;
-  padding: 10px 16px;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 12px 16px;
 }
 
 .header-left {
@@ -103,35 +106,56 @@ defineEmits<Emits>();
 .header-actions {
   display: flex;
   flex-shrink: 0;
-  gap: 0;
   align-items: center;
 }
 
-.icon-btn {
-  width: 28px;
-  height: 28px;
+/* 按钮组 pill 容器 */
+.actions-pill {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  align-items: center;
+  padding: 3px;
+  background: #f1f5f9;
+  border-radius: 20px;
+}
+
+.pill-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
   padding: 0;
-  color: #374151;
+  color: #64748b;
   cursor: pointer;
   background: transparent;
   border: none;
   border-radius: 50%;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
 }
 
-.icon-btn:hover {
-  background: rgb(0 0 0 / 6%);
+.pill-btn:hover {
+  color: #334155;
+  background: #fff;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 8%);
 }
 
-.icon-btn:active {
-  background: rgb(0 0 0 / 10%);
+.pill-btn:active {
+  transform: scale(0.95);
 }
 
-.icon-btn .el-icon,
-.icon-btn svg {
+.pill-btn .el-icon,
+.pill-btn svg,
+.pill-btn__svg {
   width: 18px;
   height: 18px;
-  font-size: 18px;
+}
+
+.pill-btn__svg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .header h3 {

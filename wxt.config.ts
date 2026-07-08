@@ -35,6 +35,19 @@ export default defineConfig({
     esbuild: process.env.NODE_ENV === 'production' ? { drop: ['console', 'debugger'] } : {},
     plugins: [
       process.env.ANALYZE === 'true' && visualizer({ open: true, filename: 'dist/stats.html', gzipSize: true }),
+      // SidePanel 非阻塞 CSS 加载：将外部样式表设为 media="print"，避免阻塞首次绘制。
+      // 通过 sidepanel/main.ts 在脚本执行后立即切换为 media="all"，实现 CSP 安全的非阻塞加载。
+      // 仅作用于 sidepanel.html，不影响 options/popup 等入口。
+      {
+        name: 'wxt:nonblocking-css-for-sidepanel',
+        enforce: 'post' as const,
+        transformIndexHtml(html: string, ctx: { filename: string }) {
+          if (!ctx.filename.includes('sidepanel')) return html;
+          // 将 <link rel="stylesheet" ...> 改为 <link rel="stylesheet" media="print" ...>
+          // 保留已有的 media 属性（如 media="print"）不变
+          return html.replace(/<link\s+rel="stylesheet"(?![^>]*\bmedia=)/g, '<link rel="stylesheet" media="print"');
+        },
+      },
       // Element Plus 按需引入(包含组件和样式)
       AutoImport({
         imports: [

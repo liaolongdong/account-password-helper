@@ -1,14 +1,23 @@
 import type { PasswordEntry, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import {
-  STORAGE_KEYS,
-  deriveEncryptionKey,
-  encryptPasswordEntry,
-  decryptPasswordEntry,
-  generateId,
-} from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { generateId } from '@/utils/generateId';
 import { isSessionActiveSync } from './facades';
 import { applySavedSortConfig } from './configManager';
+
+/**
+ * 延迟加载加密模块（deriveEncryptionKey / encryptPasswordEntry / decryptPasswordEntry）
+ *
+ * 仅在 savePassword / batchSavePasswords / updatePassword / getAllPasswords 中按需使用，
+ * 避免静态导入将 PBKDF2/AES-GCM 打入 SW 初始包，减少冷启动时 V8 JIT 编译开销。
+ */
+let _encryptionModule: typeof import('@/utils/encryption') | null = null;
+async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
+  if (!_encryptionModule) {
+    _encryptionModule = await import('@/utils/encryption');
+  }
+  return _encryptionModule;
+}
 
 /**
  * 获取所有密码条目（原始数据，不进行解密）
@@ -50,7 +59,8 @@ export async function savePassword(
     const shouldEncrypt = masterPassword && !sessionActive;
     const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
     if (shouldEncrypt) {
-      const encryptedEntry = await encryptPasswordEntry(newEntry, masterPassword);
+      const enc = await _getEncryption();
+      const encryptedEntry = await enc.encryptPasswordEntry(newEntry, masterPassword);
       if (copyItemId) {
         const copyIndex = entriesToSave.findIndex(p => p.id === copyItemId);
         if (copyIndex !== -1) {
@@ -108,10 +118,11 @@ export async function batchSavePasswords(
     let combinedEntries: (PasswordEntry | EncryptedPasswordEntry)[];
 
     if (shouldEncrypt) {
-      const key = await deriveEncryptionKey(masterPassword);
+      const enc = await _getEncryption();
+      const key = await enc.deriveEncryptionKey(masterPassword);
       const encryptedNewEntries: EncryptedPasswordEntry[] = [];
       for (const entry of newEntries) {
-        const encrypted = await encryptPasswordEntry(entry, masterPassword, key);
+        const encrypted = await enc.encryptPasswordEntry(entry, masterPassword, key);
         encryptedNewEntries.push(encrypted);
       }
       combinedEntries = [...existingPasswords, ...encryptedNewEntries];
@@ -155,7 +166,8 @@ export async function updatePassword(
       const shouldEncrypt = masterPassword && !sessionActive;
       const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
       if (shouldEncrypt) {
-        const encryptedEntry = await encryptPasswordEntry(updatedEntry, masterPassword);
+        const enc = await _getEncryption();
+        const encryptedEntry = await enc.encryptPasswordEntry(updatedEntry, masterPassword);
         entriesToSave[index] = encryptedEntry;
       } else {
         entriesToSave[index] = updatedEntry;
@@ -167,6 +179,47 @@ export async function updatePassword(
     }
   } catch (error) {
     logger.error('更新密码失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 会话期内更新密码条目（不导入加密模块，供 SidePanel 等前台 UI 使用）
+ *
+ * 仅在 session active 时调用，直接操作明文数据，无需加密/解密。
+ * 与 updatePassword 的区别：不引入 encryption.ts 的 PBKDF2/AES 依赖。
+ *
+ * @param id 条目 ID
+ * @param updates 要更新的字段（不含密码明文时无需传 masterPassword）
+ */
+export async function updatePasswordInSession(id: string, updates: Partial<PasswordEntry>): Promise<void> {
+  try {
+    const passwords = await getAllPasswordsRaw();
+
+    // 防御性检查：若数据已加密（clearSession 竞态窗口），跳过更新，
+    // 避免将 EncryptedPasswordEntry 误当 PasswordEntry 操作后写回 storage 导致数据损坏
+    const hasEncrypted = passwords.some(e => 'encrypted' in e && (e as EncryptedPasswordEntry).encrypted === true);
+    if (hasEncrypted) {
+      logger.warn('updatePasswordInSession: 检测到加密数据，跳过更新（会话可能已过期）');
+      return;
+    }
+
+    const index = passwords.findIndex(p => p.id === id);
+    if (index === -1) return;
+
+    const updatedEntry: PasswordEntry = {
+      ...(passwords[index] as PasswordEntry),
+      ...updates,
+      updateTime: Date.now(),
+    };
+    const entriesToSave = [...passwords];
+    entriesToSave[index] = updatedEntry;
+
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.PASSWORDS]: entriesToSave,
+    });
+  } catch (error) {
+    logger.error('会话期内更新密码失败:', error);
     throw error;
   }
 }
@@ -212,7 +265,19 @@ export async function getAllPasswords(masterPassword?: string): Promise<Password
   try {
     if (isSessionActiveSync()) {
       const rawData = await getAllPasswordsRaw();
-      return rawData as PasswordEntry[];
+      // 防御性检查：会话活跃但数据已加密时（clearSession 竞态窗口），
+      // 不走快路径，避免将 EncryptedPasswordEntry 当作 PasswordEntry 返回
+      const hasEncrypted = rawData.some(e => 'encrypted' in e && (e as any).encrypted === true);
+      if (!hasEncrypted) {
+        return rawData as PasswordEntry[];
+      }
+      // 数据已加密但无 masterPassword（调用方因 isSessionActiveSync=true 未传入），
+      // 返回空列表而非抛出异常，下次会话重新验证后数据将恢复正常
+      if (!masterPassword) {
+        logger.warn('getAllPasswords: 会话活跃但数据已加密，无法解密，返回空列表');
+        return [];
+      }
+      // 有 masterPassword 时继续下方解密路径
     }
 
     const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
@@ -229,11 +294,12 @@ export async function getAllPasswords(masterPassword?: string): Promise<Password
       throw new Error('需要主密码来解密数据');
     }
 
+    const enc = await _getEncryption();
     const decryptedEntries: PasswordEntry[] = [];
     for (const entry of entries) {
       if ('encrypted' in entry && entry.encrypted === true) {
         try {
-          const decryptedEntry = await decryptPasswordEntry(entry, masterPassword);
+          const decryptedEntry = await enc.decryptPasswordEntry(entry, masterPassword);
           decryptedEntries.push(decryptedEntry);
         } catch (_decryptError) {
           logger.warn('跳过无法解密的条目: ' + entry.id);

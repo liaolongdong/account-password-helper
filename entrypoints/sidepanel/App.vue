@@ -4,39 +4,28 @@
     class="sidepanel-container"
     @keydown="handleKeydown"
   >
-    <!-- 头部 -->
-    <SidepanelHeader
-      :current-version="currentVersion"
-      :current-domain="currentDomain"
-      @open-github="openGithub"
-      @open-help="showHelpDialog = true"
-      @open-settings="openSettingsDialog"
-    />
-
-    <!-- 初始化 loading 过渡态：避免先闪现"需要验证主密码"再切换到密码列表 -->
-    <div
-      v-if="initializing"
-      class="loading"
-    >
-      <el-icon class="is-loading"><Loading /></el-icon>
-      <span>加载中...</span>
+    <!-- 头部卡片 -->
+    <div class="header-card">
+      <SidepanelHeader
+        :current-version="currentVersion"
+        :current-domain="currentDomain"
+        @open-github="openGithub"
+        @open-help="showHelpDialog = true"
+        @open-settings="handleOpenSettings"
+      />
     </div>
 
     <!-- 未验证状态 -->
     <div
-      v-else-if="!isAuthenticated"
-      class="auth-required"
+      v-if="!isAuthenticated"
+      class="auth-card"
     >
-      <el-empty
-        :image-size="100"
-        description="需要验证主密码"
-      >
-        <template #description>
-          <div class="auth-description">
-            <p>请先验证主密码以使用快速填充功能</p>
-            <p class="auth-tip">验证后即可搜索和填充保存的密码</p>
-          </div>
-        </template>
+      <div class="auth-card-content">
+        <div class="auth-icon-circle">
+          <el-icon class="auth-icon"><Lock /></el-icon>
+        </div>
+        <h3 class="auth-title">会话已失效</h3>
+        <p class="auth-desc">请在选项中验证主密码以解锁快速填充功能</p>
         <el-button
           class="auth-verify-btn"
           type="primary"
@@ -46,177 +35,184 @@
         >
           去验证主密码
         </el-button>
-      </el-empty>
+      </div>
     </div>
 
     <!-- 已认证状态：搜索框 + 密码列表 -->
     <template v-else>
-      <!-- 搜索框 -->
-      <div class="search-section">
-        <el-input
-          ref="searchInputRef"
-          v-model="searchKeyword"
-          placeholder="搜索用户名、标签、备注、网址..."
-          :prefix-icon="Search"
-          clearable
-          @input="handleSearch"
-        />
-        <el-tooltip
-          :content="favoriteOnly ? '显示全部' : '只看收藏'"
-          placement="top"
-          :show-after="400"
-        >
-          <el-button
-            :icon="favoriteOnly ? StarFilled : Star"
-            circle
-            size="small"
-            :type="favoriteOnly ? 'warning' : 'default'"
-            @click="favoriteOnly = !favoriteOnly"
+      <!-- 搜索卡片 -->
+      <div class="search-card">
+        <div class="search-section">
+          <el-input
+            ref="searchInputRef"
+            v-model="searchKeyword"
+            placeholder="搜索用户名、标签、备注、网址..."
+            :prefix-icon="Search"
+            clearable
+            @input="handleSearch"
           />
-        </el-tooltip>
-        <el-tooltip
-          content="排序方式"
-          placement="top"
-          :show-after="400"
-        >
-          <el-dropdown
-            trigger="click"
-            popper-class="sort-dropdown-popper"
-            @command="handleSortChange"
+          <el-tooltip
+            :content="favoriteOnly ? '显示全部' : '只看收藏'"
+            placement="top"
+            :show-after="400"
           >
             <el-button
-              :icon="Sort"
+              :icon="favoriteOnly ? StarFilled : Star"
               circle
               size="small"
+              :type="favoriteOnly ? 'warning' : 'default'"
+              @click="favoriteOnly = !favoriteOnly"
             />
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item
-                  command="lastUsedAt"
-                  :class="{ 'is-active': sidepanelSortProp === 'lastUsedAt' }"
-                >
-                  <el-icon class="sort-item-icon"><Timer /></el-icon>
-                  <span>最近使用</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'lastUsedAt'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="updateTime"
-                  :class="{ 'is-active': sidepanelSortProp === 'updateTime' }"
-                >
-                  <el-icon class="sort-item-icon"><Refresh /></el-icon>
-                  <span>最近更新</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'updateTime'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="username"
-                  :class="{ 'is-active': sidepanelSortProp === 'username' }"
-                >
-                  <el-icon class="sort-item-icon"><User /></el-icon>
-                  <span>用户名</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'username'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="url"
-                  :class="{ 'is-active': sidepanelSortProp === 'url' }"
-                >
-                  <el-icon class="sort-item-icon"><Link /></el-icon>
-                  <span>网址</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'url'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-                <el-dropdown-item
-                  command="createTime"
-                  :class="{ 'is-active': sidepanelSortProp === 'createTime' }"
-                >
-                  <el-icon class="sort-item-icon"><Clock /></el-icon>
-                  <span>创建时间</span>
-                  <el-icon
-                    v-if="sidepanelSortProp === 'createTime'"
-                    class="sort-check-icon"
-                    ><Check
-                  /></el-icon>
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
-        </el-tooltip>
+          </el-tooltip>
+          <el-tooltip
+            content="排序方式"
+            placement="top"
+            :show-after="400"
+          >
+            <el-dropdown
+              trigger="click"
+              popper-class="sort-dropdown-popper"
+              @command="handleSortChange"
+            >
+              <el-button
+                :icon="Sort"
+                circle
+                size="small"
+              />
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    command="lastUsedAt"
+                    :class="{ 'is-active': sidepanelSortProp === 'lastUsedAt' }"
+                  >
+                    <el-icon class="sort-item-icon"><Timer /></el-icon>
+                    <span>最近使用</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'lastUsedAt'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="updateTime"
+                    :class="{ 'is-active': sidepanelSortProp === 'updateTime' }"
+                  >
+                    <el-icon class="sort-item-icon"><Refresh /></el-icon>
+                    <span>最近更新</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'updateTime'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="username"
+                    :class="{ 'is-active': sidepanelSortProp === 'username' }"
+                  >
+                    <el-icon class="sort-item-icon"><User /></el-icon>
+                    <span>用户名</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'username'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="url"
+                    :class="{ 'is-active': sidepanelSortProp === 'url' }"
+                  >
+                    <el-icon class="sort-item-icon"><Link /></el-icon>
+                    <span>网址</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'url'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                  <el-dropdown-item
+                    command="createTime"
+                    :class="{ 'is-active': sidepanelSortProp === 'createTime' }"
+                  >
+                    <el-icon class="sort-item-icon"><Clock /></el-icon>
+                    <span>创建时间</span>
+                    <el-icon
+                      v-if="sidepanelSortProp === 'createTime'"
+                      class="sort-check-icon"
+                      ><Check
+                    /></el-icon>
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </el-tooltip>
+        </div>
       </div>
 
-      <!-- 密码列表 -->
-      <div class="password-list">
-        <div
-          v-if="loading"
-          class="loading"
-        >
-          <el-icon class="is-loading"><Loading /></el-icon>
-          <span>加载中...</span>
-        </div>
-
-        <div
-          v-else-if="filteredPasswords.length === 0"
-          class="empty"
-        >
-          <!-- 全部无数据：显示引导添加 -->
-          <el-empty
-            v-if="passwords.length === 0"
-            :image-size="80"
-            description="还没有保存的密码，点击下方按钮添加吧"
+      <!-- 密码列表卡片 -->
+      <div class="list-card">
+        <div class="password-list">
+          <div
+            v-if="loading"
+            class="loading-state"
           >
-            <el-button
-              type="primary"
-              :icon="Plus"
-              class="empty-add-btn"
-              @click="openOptionsAndAdd"
-            >
-              去添加密码
-            </el-button>
-          </el-empty>
-          <!-- 搜索/过滤无结果 -->
-          <el-empty
-            v-else
-            :image-size="80"
-            description="暂无匹配的密码"
-          />
-        </div>
+            <el-icon class="is-loading loading-spinner"><Loading /></el-icon>
+            <span>加载中...</span>
+          </div>
 
-        <div
-          v-else
-          class="password-items"
-        >
-          <PasswordListItem
-            v-for="(password, index) in filteredPasswords"
-            :key="password.id"
-            :password="password"
-            :is-active="activeIndex === index"
-            @fill="fillPassword"
-            @fill-and-login="handleFillAndLogin"
-            @edit="handleEditPassword"
-            @toggle-favorite="toggleFavorite"
-            @copy-username="copyUsername"
-            @copy-password="copyPassword"
-            @mouseenter="activeIndex = index"
-          />
+          <div
+            v-else-if="filteredPasswords.length === 0"
+            class="empty-state"
+          >
+            <!-- 全部无数据：显示引导添加 -->
+            <template v-if="passwords.length === 0">
+              <div class="empty-icon-circle">
+                <el-icon class="empty-icon"><Plus /></el-icon>
+              </div>
+              <h3 class="empty-title">还没有保存的密码</h3>
+              <p class="empty-desc">在密码管理中导入或添加密码</p>
+              <el-button
+                type="primary"
+                :icon="Plus"
+                class="empty-add-btn"
+                @click="openOptionsAndAdd"
+              >
+                去添加密码
+              </el-button>
+            </template>
+            <!-- 搜索/过滤无结果 -->
+            <template v-else>
+              <div class="empty-icon-circle empty-icon-circle--muted">
+                <el-icon class="empty-icon empty-icon--muted"><Search /></el-icon>
+              </div>
+              <h3 class="empty-title">暂无匹配的密码</h3>
+              <p class="empty-desc">试试调整搜索关键词或筛选条件</p>
+            </template>
+          </div>
+
+          <div
+            v-else
+            class="password-items"
+          >
+            <PasswordListItem
+              v-for="(password, index) in filteredPasswords"
+              :key="password.id"
+              :password="password"
+              :is-active="activeIndex === index"
+              @fill="fillPassword"
+              @fill-and-login="handleFillAndLogin"
+              @edit="handleEditPassword"
+              @toggle-favorite="toggleFavorite"
+              @copy-username="copyUsername"
+              @copy-password="copyPassword"
+              @mouseenter="activeIndex = index"
+            />
+          </div>
         </div>
       </div>
     </template>
 
     <!-- 底部操作 -->
-    <div class="footer">
+    <div class="footer-card">
       <el-button
         :icon="BrandLogo"
         class="footer-manage-btn"
@@ -250,7 +246,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick } from 'vue';
+import { ref, onMounted, computed, watch, nextTick, defineAsyncComponent } from 'vue';
 import {
   Search,
   Loading,
@@ -263,29 +259,55 @@ import {
   Refresh,
   User,
   Link,
+  Lock,
   Clock,
 } from '@element-plus/icons-vue';
-import BrandLogo from '@/components/BrandLogo.vue';
-import HelpDialog from '@/components/sidepanel/HelpDialog.vue';
 import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
 import { MessageType } from '@/utils/types';
-import { StorageUtils } from '@/utils/storage';
+import { saveSidepanelSortConfig, getFavoriteLimit } from '@/utils/storage/configManager';
 import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { useSidepanelSettings } from '@/composables/useSidepanelSettings';
-import { useVersionUpdate } from '@/composables/useVersionUpdate';
-import { REPO_GITHUB_URL } from '@/utils/constants';
+import { isLocalDevDomain } from '@/utils/domain';
+
+/** 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载） */
+const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
+
+/** 品牌 Logo——异步加载（纯 SVG，Footer 按钮 icon 使用） */
+const BrandLogo = defineAsyncComponent(() => import('@/components/BrandLogo.vue'));
+
+// ==================== 延迟加载模块（用户交互时触发，避免初始加载拉入 encryption.ts） ====================
+
+/** 延迟加载的 passwordCrud 模块引用 */
+let _passwordCrudModule: typeof import('@/utils/storage/passwordCrud') | null = null;
+
+/** 延迟加载的 autoSaveManager 模块引用 */
+let _autoSaveModule: typeof import('@/utils/storage/autoSaveManager') | null = null;
+
+/** 获取 updatePasswordInSession（首次收藏/填充操作时加载） */
+const getUpdatePasswordInSession = async () => {
+  if (!_passwordCrudModule) {
+    _passwordCrudModule = await import('@/utils/storage/passwordCrud');
+  }
+  return _passwordCrudModule.updatePasswordInSession;
+};
+
+/** 获取 evictLRUFavoriteIfNeeded（首次收藏操作时加载） */
+const getEvictLRUFavoriteIfNeeded = async () => {
+  if (!_autoSaveModule) {
+    _autoSaveModule = await import('@/utils/storage/autoSaveManager');
+  }
+  return _autoSaveModule.evictLRUFavoriteIfNeeded;
+};
 
 // ==================== 组合 composables ====================
 
 const {
   passwords,
   loading,
-  initializing,
   isAuthenticated,
   currentDomain,
   showSidepanel,
@@ -301,10 +323,31 @@ const { fillPassword, handleFillAndLogin, handleEditPassword, copyUsername, copy
 const settingsPanelEl = ref<HTMLElement | null>(null);
 const settingsOverlayEl = ref<HTMLElement | null>(null);
 
-const { showSettingsDialog, openSettingsDialog, injectSettingsViewStyles } = useSidepanelSettings(
-  settingsPanelEl,
-  settingsOverlayEl,
-);
+/** 设置弹窗可见性（本地 ref，与延迟加载的 composable 同步） */
+const showSettingsDialog = ref(false);
+
+/** 设置弹窗相关方法（延迟加载，减小初始包体积，加快首屏渲染） */
+let _openSettingsDialog: (() => Promise<void>) | null = null;
+
+/** 延迟加载设置弹窗模块，首次调用时动态导入 */
+const ensureSettingsModule = async () => {
+  if (!_openSettingsDialog) {
+    const { useSidepanelSettings } = await import('@/composables/useSidepanelSettings');
+    const settings = useSidepanelSettings(settingsPanelEl, settingsOverlayEl);
+    _openSettingsDialog = settings.openSettingsDialog;
+    // 同步 composable 内部的 showSettingsDialog 状态到本地 ref
+    watch(settings.showSettingsDialog, val => {
+      showSettingsDialog.value = val;
+    });
+    settings.injectSettingsViewStyles();
+  }
+};
+
+/** 打开设置弹窗（首次调用时自动延迟加载模块） */
+const handleOpenSettings = async () => {
+  await ensureSettingsModule();
+  await _openSettingsDialog!();
+};
 
 // ==================== 本地状态（与 UI 模板紧密耦合） ====================
 
@@ -314,17 +357,27 @@ const favoriteOnly = ref(false);
 const activeIndex = ref(0);
 const searchInputRef = ref();
 
-/** 当前插件版本号（复用 useVersionUpdate） */
-const { currentVersion } = useVersionUpdate();
+/** 当前插件版本号，直接读取 manifest 避免加载 useVersionUpdate 的 192K JS + 56K CSS 依赖 */
+const currentVersion = chrome.runtime.getManifest().version;
 
 /** 操作指引弹窗可见性 */
 const showHelpDialog = ref(false);
 
 // ==================== 排序与过滤 ====================
 
-/** 搜索 + 过滤 + 排序的派生计算属性 */
+/** 搜索 + 域名过滤 + 收藏过滤 + 排序的派生计算属性 */
 const filteredPasswords = computed(() => {
   let result = [...passwords.value];
+
+  // 域名过滤：只显示匹配当前域名的条目 + URL 为空的条目（与 getPasswordsByUrl 逻辑一致）
+  // 本地开发域名（localhost / 127.0.0.1）跳过过滤，显示全部
+  if (currentDomain.value && !isLocalDevDomain(currentDomain.value)) {
+    const domain = currentDomain.value;
+    result = result.filter(p => {
+      if (!p.url || p.url.trim() === '') return true;
+      return domain.includes(p.url) || p.url.includes(domain);
+    });
+  }
 
   if (searchKeyword.value) {
     const keyword = searchKeyword.value.toLowerCase();
@@ -365,7 +418,7 @@ const handleSortChange = async (prop: string) => {
   const config = { prop, order: 'descending' as const };
   sortConfig.value = config;
   try {
-    await StorageUtils.saveSidepanelSortConfig(config);
+    await saveSidepanelSortConfig(config);
   } catch (error) {
     logger.error('SidePanel: 保存排序配置失败:', error);
   }
@@ -436,14 +489,16 @@ const toggleFavorite = async (password: PasswordEntry) => {
     const entry = passwords.value.find(p => p.id === password.id);
 
     if (newFav) {
-      // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目
-      const evicted = await StorageUtils.evictLRUFavoriteIfNeeded(passwords.value);
+      // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目（延迟加载 autoSaveManager）
+      const evictFn = await getEvictLRUFavoriteIfNeeded();
+      const evicted = await evictFn(passwords.value);
       if (evicted) {
-        const limit = await StorageUtils.getFavoriteLimit();
+        const limit = await getFavoriteLimit();
         ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
       }
       const now = Date.now();
-      await StorageUtils.updatePassword(password.id, {
+      const updateFn = await getUpdatePasswordInSession();
+      await updateFn(password.id, {
         favorite: true,
         favoriteUsedAt: now,
         updateTime: password.updateTime,
@@ -454,7 +509,8 @@ const toggleFavorite = async (password: PasswordEntry) => {
       }
       ElMessage.success('已收藏');
     } else {
-      await StorageUtils.updatePassword(password.id, {
+      const updateFn = await getUpdatePasswordInSession();
+      await updateFn(password.id, {
         favorite: false,
         favoriteUsedAt: undefined,
         updateTime: password.updateTime,
@@ -475,7 +531,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
 
 /** 打开 GitHub 仓库 */
 const openGithub = () => {
-  chrome.tabs.create({ url: REPO_GITHUB_URL });
+  chrome.tabs.create({ url: 'https://github.com/liaolongdong/account-password-helper' });
 };
 
 /**
@@ -502,7 +558,17 @@ const openOptionsAndAdd = async () => {
 // ==================== 初始化 ====================
 
 onMounted(async () => {
-  injectSettingsViewStyles();
+  // 性能埋点：测量 Vue mount 开始（main.ts performance.mark）→ onMounted 回调触发的间隔
+  const _vueMountMeasure = performance.measure('vue-mount', 'vue-mount-start');
+  const vueMountDuration = _vueMountMeasure?.duration ?? 0;
+  if (_vueMountMeasure) {
+    logger.debug(`SidePanel: Vue mount → onMounted ${vueMountDuration.toFixed(1)}ms`);
+  }
+
+  const _perfMountStart = performance.now();
+
+  // 获取骨架屏元素（兄弟节点模式，Vue 挂载不会替换它）
+  const skeletonEl = document.getElementById('app-loading');
 
   // 搜索框自动聚焦
   nextTick(() => {
@@ -511,6 +577,31 @@ onMounted(async () => {
   });
 
   await initSidepanelData();
+
+  const _perfDataReady = performance.now();
+  logger.debug(
+    `SidePanel: 首屏数据就绪，initSidepanelData 耗时 ${(_perfDataReady - _perfMountStart).toFixed(1)}ms，总计 ${(_perfDataReady - (_vueMountMeasure?.startTime ?? 0)).toFixed(1)}ms`,
+  );
+
+  // 数据就绪后淡出骨架屏，实现 骨架屏 → 真实UI 的无缝过渡
+  // 骨架屏作为兄弟节点保持可见直到此处，避免了中间的 loading spinner 闪烁
+  if (skeletonEl) {
+    skeletonEl.classList.add('fade-out');
+    skeletonEl.addEventListener('transitionend', () => skeletonEl.remove(), { once: true });
+    // 安全兜底：transitionend 未触发时强制移除（200ms = CSS transition 时长）
+    setTimeout(() => skeletonEl.remove(), 250);
+  }
+
+  // 数据加载完成后，空闲时预加载设置弹窗模块（不阻塞首屏渲染）
+  if (typeof requestIdleCallback !== 'undefined') {
+    requestIdleCallback(() => {
+      void ensureSettingsModule();
+    });
+  } else {
+    setTimeout(() => {
+      void ensureSettingsModule();
+    }, 1000);
+  }
 });
 </script>
 
@@ -519,7 +610,44 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   height: 100%;
-  background: #f8f9fa;
+  background: #f0f2f5;
+}
+
+/* ========== 卡片通用样式 ========== */
+.header-card,
+.search-card,
+.list-card,
+.footer-card {
+  margin: 0 8px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
+}
+
+.header-card {
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.search-card {
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.list-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.footer-card {
+  padding: 10px 16px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  text-align: center;
 }
 
 .search-section {
@@ -527,8 +655,6 @@ onMounted(async () => {
   gap: 8px;
   align-items: center;
   padding: 10px 16px;
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
 }
 
 .search-section :deep(.el-input) {
@@ -537,12 +663,13 @@ onMounted(async () => {
 
 .password-list {
   flex: 1;
+  padding: 8px 0;
 
   /* hidden=水平裁剪，auto=垂直滚动 */
   overflow: hidden auto;
 }
 
-.loading {
+.loading-state {
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -552,13 +679,57 @@ onMounted(async () => {
   color: #6b7280;
 }
 
-.loading .el-icon {
+.loading-spinner {
   margin-bottom: 8px;
   font-size: 24px;
 }
 
-.empty {
-  padding: 20px;
+/* ========== 空状态（列表内） ========== */
+.empty-state {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 32px;
+  text-align: center;
+}
+
+.empty-icon-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  background: #f0fdf4;
+  border-radius: 50%;
+}
+
+.empty-icon-circle--muted {
+  background: #f1f5f9;
+}
+
+.empty-icon {
+  font-size: 24px;
+  color: #22c55e;
+}
+
+.empty-icon--muted {
+  color: #94a3b8;
+}
+
+.empty-title {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.empty-desc {
+  margin: 0 0 20px;
+  font-size: 13px;
+  color: #6b7280;
 }
 
 /* 去添加密码按钮：圆角 + hover 上浮动效 */
@@ -574,14 +745,6 @@ onMounted(async () => {
 :deep(.empty-add-btn:hover) {
   box-shadow: 0 4px 14px rgb(64 158 255 / 40%);
   transform: translateY(-1px);
-}
-
-.footer {
-  padding: 10px 16px;
-  text-align: center;
-  background: white;
-  border-top: none;
-  box-shadow: 0 -2px 8px rgb(0 0 0 / 4%);
 }
 
 /* 密码管理按钮：浅蓝背景 + hover 变实心蓝 */
@@ -609,31 +772,55 @@ onMounted(async () => {
   font-size: 18px;
 }
 
-/* 未验证状态样式 */
-.auth-required {
+/* ========== 会话失效卡片 ========== */
+.auth-card {
   display: flex;
   flex: 1;
   align-items: center;
   justify-content: center;
-  min-height: 300px;
-  padding: 40px 20px;
-  background: #f8f9fa;
+  min-height: 0;
+  margin: 8px 8px 0;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
 }
 
-.auth-description {
-  margin-bottom: 20px;
+.auth-card-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 32px;
   text-align: center;
 }
 
-.auth-description p {
-  margin: 8px 0;
-  font-size: 14px;
-  color: #666;
+.auth-icon-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  margin-bottom: 20px;
+  background: #ecf5ff;
+  border-radius: 50%;
 }
 
-.auth-tip {
-  font-size: 12px !important;
-  color: #999 !important;
+.auth-icon {
+  font-size: 28px;
+  color: #409eff;
+}
+
+.auth-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.auth-desc {
+  margin: 0 0 24px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #6b7280;
 }
 
 /* 去验证主密码按钮：放大钥匙图标并与文字拉开间距 */

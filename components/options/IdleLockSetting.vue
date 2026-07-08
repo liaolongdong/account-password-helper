@@ -65,7 +65,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { STORAGE_KEYS } from '@/utils/encryption';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 
 const props = defineProps<{

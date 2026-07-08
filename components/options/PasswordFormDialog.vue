@@ -50,10 +50,11 @@
             @focus="formPasswordInputFocused = true"
             @blur="formPasswordInputFocused = false"
           >
+            <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
             <template #password-icon="{ visible }">
               <el-icon>
-                <Hide v-if="visible" />
-                <View v-else />
+                <View v-if="visible" />
+                <Hide v-else />
               </el-icon>
             </template>
           </el-input>
