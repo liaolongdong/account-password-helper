@@ -663,6 +663,7 @@ onMounted(async () => {
 
 .password-list {
   flex: 1;
+  padding: 8px 0;
 
   /* hidden=水平裁剪，auto=垂直滚动 */
   overflow: hidden auto;
