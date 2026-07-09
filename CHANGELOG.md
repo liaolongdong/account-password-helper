@@ -1,5 +1,35 @@
 # Changelog
 
+## [2.9.0](https://github.com/liaolongdong/account-password-helper/compare/v2.8.0...v2.9.0) (2026-07-08)
+
+
+### Features
+
+* **background:** 实现 Service Worker 保活及侧边栏数据一站式加载 ([2a73c30](https://github.com/liaolongdong/account-password-helper/commit/2a73c30256bd1d272a74b8c3ac98913881bcff2d))
+* **content:** 新增页面切换时预唤醒 Service Worker 机制 ([844de77](https://github.com/liaolongdong/account-password-helper/commit/844de779ca3656e9e86f21b523eb452a7471f104))
+* **form:** 支持更多输入类型并完善登录元素检测触发机制 ([0969407](https://github.com/liaolongdong/account-password-helper/commit/09694073e0c345403b70b5a92e5c6e36f27568a3))
+* **parser:** 优化 CSV 文件解析支持多编码回退 ([5033e42](https://github.com/liaolongdong/account-password-helper/commit/5033e42fdea7962cd1f95bbca3855b44a6706d5c))
+* **popup:** 打开 popup 时预唤醒 Service Worker ([844de77](https://github.com/liaolongdong/account-password-helper/commit/844de779ca3656e9e86f21b523eb452a7471f104))
+* **sidepanel:** 实现初始化数据并行竞速加载 ([844de77](https://github.com/liaolongdong/account-password-helper/commit/844de779ca3656e9e86f21b523eb452a7471f104))
+
+
+### Bug Fixes
+
+* **form-detector:** 修复手机号单字段登录检测逻辑及缓存管理 ([00e34c3](https://github.com/liaolongdong/account-password-helper/commit/00e34c3eb8c8c2b72104e0f9675c3f7c80edb4b3))
+* **session:** 优化会话过期状态管理，防止认证状态闪烁 ([708ca95](https://github.com/liaolongdong/account-password-helper/commit/708ca9590b4753680a67804274f06a645d887afd))
+* **sidepanel:** 延长超时及增强缓存预热逻辑 ([4df28a8](https://github.com/liaolongdong/account-password-helper/commit/4df28a8927bc2159063e6e7e06bf42d45c57dc27))
+* **storage:** 优化缓存和加载流程，提升性能和稳定性 ([01235a9](https://github.com/liaolongdong/account-password-helper/commit/01235a992f46a116ab44c3d9d285d41b7106ebb5))
+
+
+### Performance Improvements
+
+* **sidepanel:** 优化 SidePanel 性能与非阻塞 CSS 加载 ([c8ea61f](https://github.com/liaolongdong/account-password-helper/commit/c8ea61fb0ceae525ff728342dd24217c5ee3f1c3))
+* **sidepanel:** 优化 Windows 下侧边栏性能与加载体验 ([5a72683](https://github.com/liaolongdong/account-password-helper/commit/5a72683a2dd6dc2dcf239f102b7fc995f80d6890))
+* **sidepanel:** 优化侧边栏密码数据加载流程及设置弹窗加载时机 ([4364aa7](https://github.com/liaolongdong/account-password-helper/commit/4364aa7283d2f6d4a2113df90bc1e600ed7a9f3d))
+* **sidepanel:** 优化加载体验与数据初始化策略 ([ae41eb5](https://github.com/liaolongdong/account-password-helper/commit/ae41eb5cb070de4416b29ec776db5f324e0b0c6b))
+* **sidepanel:** 优化模块延迟加载与缓存预热提升性能 ([0aa80d9](https://github.com/liaolongdong/account-password-helper/commit/0aa80d900acf4fa19412ba91db82f1c3d76938f6))
+* **sw:** 优化 Service Worker 冷启动性能和加密模块按需加载 ([ff9e05e](https://github.com/liaolongdong/account-password-helper/commit/ff9e05ecb2e891603ba19ccae667dd551f380db4))
+
 ## [2.8.0](https://github.com/liaolongdong/account-password-helper/compare/v2.7.0...v2.8.0) (2026-06-30)
 
 

@@ -11,6 +11,11 @@ const pkg = JSON.parse(readFileSync(path.resolve(__dirname, 'package.json'), 'ut
 
 export default defineConfig({
   modules: ['@wxt-dev/module-vue'],
+  dev: {
+    server: {
+      port: 8899,
+    },
+  },
   // Vite 配置,包括路径别名和 Element Plus 按需引入
   vite: () => ({
     resolve: {

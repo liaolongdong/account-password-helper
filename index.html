@@ -675,6 +675,77 @@
         color: white;
       }
 
+      /* ============ FAQ Categories ============ */
+      .faq-category {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 16px 0 8px;
+        margin-top: 12px;
+      }
+      .faq-category:first-child {
+        margin-top: 0;
+      }
+      .faq-category-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+      }
+      .faq-category-icon.security {
+        background: rgba(66, 184, 131, 0.12);
+        color: var(--accent);
+      }
+      .faq-category-icon.basic {
+        background: var(--primary-soft);
+        color: var(--primary);
+      }
+      .faq-category-icon.data {
+        background: rgba(155, 89, 255, 0.12);
+        color: #9b59ff;
+      }
+      .faq-category-icon.config {
+        background: rgba(255, 159, 67, 0.12);
+        color: #ff9f43;
+      }
+      .faq-category-title {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--text);
+        letter-spacing: -0.01em;
+      }
+
+      /* ============ Scroll Reveal ============ */
+      .reveal {
+        opacity: 0;
+        transform: translateY(24px);
+        transition:
+          opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+          transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      .reveal.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .reveal-delay-1 {
+        transition-delay: 0.08s;
+      }
+      .reveal-delay-2 {
+        transition-delay: 0.16s;
+      }
+      .reveal-delay-3 {
+        transition-delay: 0.24s;
+      }
+      .reveal-delay-4 {
+        transition-delay: 0.32s;
+      }
+      .reveal-delay-5 {
+        transition-delay: 0.4s;
+      }
+
       /* ============ Responsive ============ */
       @media (max-width: 1024px) {
         .feature-grid {
@@ -937,7 +1008,7 @@
               />
             </svg>
             <span
-              >本插件所有数据均保存在本地（敏感信息加密保存），仅用于开发和测试环境使用，严禁保存办公或个人敏感密码，如发生密码泄露，后果自负。</span
+              >免责声明：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发、测试和普通生产环境登录使用，严禁保存办公或个人敏感密码（如银行、支付、社交核心密码），如发生密码泄露，后果自负！</span
             >
           </div>
         </div>
@@ -1008,7 +1079,7 @@
           <p class="section-sub">为开发者和测试人员打造的轻量、安全、好用的密码管理工具</p>
         </div>
         <div class="feature-grid">
-          <article class="feature-card">
+          <article class="feature-card reveal reveal-delay-1">
             <div class="feature-icon">
               <svg
                 width="22"
@@ -1026,7 +1097,7 @@
             <h3>端到端本地加密</h3>
             <p>采用业界标准 AES-256-GCM 加密体系，敏感数据本地加密存储，永远不上传任何服务器。</p>
           </article>
-          <article class="feature-card">
+          <article class="feature-card reveal reveal-delay-2">
             <div class="feature-icon">
               <svg
                 width="22"
@@ -1049,7 +1120,7 @@
             <h3>智能识别登录表单</h3>
             <p>自动识别用户名、密码、手机号、验证码字段，并能自动勾选「记住密码」「同意条款」等选项。</p>
           </article>
-          <article class="feature-card">
+          <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
               <svg
                 width="22"
@@ -1067,7 +1138,7 @@
             <h3>一键智能填充</h3>
             <p>无论是 React、Vue 等现代框架还是传统页面，都能稳定填充；可选填充后自动触发登录。</p>
           </article>
-          <article class="feature-card">
+          <article class="feature-card reveal reveal-delay-1">
             <div class="feature-icon">
               <svg
                 width="22"
@@ -1092,7 +1163,7 @@
             <h3>CSV / JSON 批量导入导出</h3>
             <p>提供标准 CSV 模板，支持中英文列名；同时支持 JSON 格式导入导出；导出前自动验证主密码，方便备份与迁移。</p>
           </article>
-          <article class="feature-card">
+          <article class="feature-card reveal reveal-delay-2">
             <div class="feature-icon">
               <svg
                 width="22"
@@ -1122,7 +1193,7 @@
             <h3>侧边栏快速填充</h3>
             <p>登录页输入框获得焦点时，侧边栏自动展示匹配账号；点击即填充，效率倍增。</p>
           </article>
-          <article class="feature-card">
+          <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
               <svg
                 width="22"
@@ -1225,7 +1296,7 @@
           <p class="section-sub">无需注册，无需登录，下载即用</p>
         </div>
         <div class="step-grid">
-          <article class="step-card">
+          <article class="step-card reveal reveal-delay-1">
             <div class="step-num">01</div>
             <h3>安装扩展</h3>
             <p>
@@ -1240,17 +1311,17 @@
               下载并安装本扩展，安装完成后即可在工具栏看到钥匙图标。
             </p>
           </article>
-          <article class="step-card">
+          <article class="step-card reveal reveal-delay-2">
             <div class="step-num">02</div>
             <h3>设置主密码</h3>
             <p>首次使用设置一个至少 8 位、包含字母数字与特殊字符的主密码，作为唯一钥匙。</p>
           </article>
-          <article class="step-card">
+          <article class="step-card reveal reveal-delay-3">
             <div class="step-num">03</div>
             <h3>添加或导入密码</h3>
             <p>手动新增账号，或通过 CSV 模板、JSON 文件批量导入历史账号，标签分类一目了然。</p>
           </article>
-          <article class="step-card">
+          <article class="step-card reveal reveal-delay-4">
             <div class="step-num">04</div>
             <h3>享受自动填充</h3>
             <p>访问登录页面，点击侧边栏或悬浮按钮的对应账号，账号密码即刻填入。</p>
@@ -1326,7 +1397,7 @@
             <span>账号密码管理助手</span>
           </div>
           <p class="footer-disclaimer">
-            本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发和测试环境使用，严禁保存办公和个人敏感密码，如发生密码泄露，后果自负。
+            免责声明：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发、测试和普通生产环境登录使用，严禁保存办公或个人敏感密码（如银行、支付、社交核心密码），如发生密码泄露，后果自负！
           </p>
           <div class="footer-meta">
             <span>邮箱：<a href="mailto:924902324@qq.com?subject=账号密码管理助手反馈">924902324@qq.com</a></span>
@@ -1410,81 +1481,44 @@
       ];
 
       const FAQS = [
+        // ===== 安全与隐私 =====
         {
-          q: '忘记主密码了怎么办？',
-          a: '主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议你定期通过数据导出功能备份账号数据，避免丢失。',
+          category: '安全与隐私',
+          iconClass: 'security',
+          iconSvg:
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
         },
         {
           q: '我的密码会被上传到云端吗？',
-          a: '不会。本插件采用纯本地存储方案，所有数据保存在你的浏览器本地空间，敏感字段经 AES-256-GCM 加密保存，永远不经过任何网络传输。',
+          a: '不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM 加密保存，永远不经过任何网络传输。',
         },
         {
-          q: '为什么有时候侧边栏没有自动弹出？',
-          a: '请确认 Chrome 浏览器版本不低于 114；同时该页面需要包含登录表单。如果没有自动弹出，也可以点击插件图标(支持快捷键)，或通过悬浮按钮的「快速填充」手动打开。',
-        },
-        {
-          q: 'CSV 导入失败要怎么排查？',
-          a: '点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式。',
-        },
-        {
-          q: '密码填充到部分网站不生效？',
-          a: '请等待页面完全加载完成后再尝试填充；如果仍然不生效，可以刷新页面后重试。插件内置三套填充策略，会自动切换以适配不同网站。',
+          q: '忘记主密码了怎么办？',
+          a: '主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph 文件）功能备份，避免数据丢失。',
         },
         {
           q: '会话有效期到了会发生什么？',
-          a: '会话过期后，所有敏感字段会自动重新加密为密文；下次使用时只需重新输入主密码即可恢复访问，账号数据不会丢失。',
-        },
-        {
-          q: '如何开启自动保存登录密码？',
-          a: '在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中除显示账号和密码外，还提供可编辑的标签（默认取页面标题）和备注（默认为"自动保存"）输入框，可在保存前自定义。选择「不再提示」会将该域名加入屏蔽列表，后续不再弹窗；已屏蔽的域名可在设置中移除以恢复提示。插件内置智能防重复机制，已保存的凭证或冷却期内的相同凭证不会重复弹窗。',
-        },
-        {
-          q: '如何备份密码到邮箱？',
-          a: '在密码管理页点击「备份到邮箱」，配置目标邮箱后可立即备份或开启定时提醒。插件会导出数据并唤起邮件客户端，安全便捷。',
-        },
-        {
-          q: '为什么有时候自动保存弹窗不出现？',
-          a: '插件有智能防重复机制：已成功保存的凭证不会重复弹窗；点击「暂不保存」后 60 秒内相同凭证也不会再次弹窗。此外，已加入屏蔽黑名单的域名始终不会弹窗。如果换了不同账号或冷却期已过，弹窗会重新出现。可检查自动保存设置中的屏蔽域名列表。',
-        },
-        {
-          q: '保存弹窗中可以编辑标签和备注吗？',
-          a: '可以。弹窗中除显示账号和密码信息外，还提供标签和备注输入框，可在保存前自定义。标签默认取页面标题，备注默认为"自动保存"。',
-        },
-        {
-          q: '自动保存会覆盖已有的密码吗？',
-          a: '当同一网站（同域名）使用相同账号登录时，插件会更新已有条目的密码，但保留原有的标签和备注（除非在弹窗中手动修改）。不同账号则新增条目，不会影响已有数据。',
-        },
-        {
-          q: '密码框没有显示/隐藏切换按钮？',
-          a: '悬浮按钮「设置」中默认关闭「密码可见性切换」，需手动开启。开启后插件对所有密码输入框统一注入切换按钮，输入有值时按钮自动可见。',
-        },
-        {
-          q: '如何导出/导入加密备份？',
-          a: '在密码管理页「数据管理」中，「加密备份导出」会用主密码将所有密码数据加密为 .aph 文件下载。「加密备份导入」上传 .aph 文件后输入导出时使用的主密码解密，解密成功可预览数据（前 5 条）再确认导入。加密方案为 PBKDF2 + AES-256-GCM，安全性极高。',
+          a: '会话过期后，所有敏感字段会自动重新加密为密文；下次使用时只需重新验证主密码即可恢复访问，账号数据不会丢失。',
         },
         {
           q: '什么是自动闲置锁定？',
           a: '在密码管理页「自动锁定设置」中可配置闲置时间（5/10/30/60 分钟或不锁定）。系统检测到用户在设定时间内无操作时，自动清除会话并锁定密码管理，需重新验证主密码才能恢复访问，有效防止离开电脑时密码列表被他人查看。',
         },
+
+        // ===== 基础使用 =====
         {
-          q: '如何一键去重？',
-          a: '在密码管理页「数据管理」中点击「一键去重」，插件会智能检测重复条目（相同用户名 + 相同 URL），展示去重结果供确认后清理。已收藏的条目不会被删除。',
+          category: '基础使用',
+          iconClass: 'basic',
+          iconSvg:
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
         },
         {
-          q: '如何设置收藏上限？',
-          a: '在密码管理页点击「设置」→「收藏上限设置」，可调整收藏条目上限（1~50 条，默认 10 条）。当收藏条目数量达到上限时，新收藏会自动淘汰最近最少使用（LRU）的已收藏条目，确保常用账号始终置顶。侧边栏填充密码时自动更新收藏使用时间戳，确保 LRU 淘汰准确性。被淘汰的条目仅取消收藏标记，密码数据不受影响。',
+          q: '为什么有时候侧边栏没有自动弹出？',
+          a: '请确认 Chrome 浏览器版本不低于 114；同时该页面需要包含登录表单。如果没有自动弹出，也可以点击插件图标（支持快捷键 Ctrl+Shift+L / Cmd+Shift+L），或通过悬浮按钮的「快速填充」手动打开。',
         },
         {
-          q: '如何配置悬浮按钮的偏好设置？',
-          a: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。偏好设置面板中可配置：悬浮按钮显示/隐藏、自动展示侧边栏、自动触发登录、密码可见性切换以及按钮透明度。',
-        },
-        {
-          q: '支持从其他密码管理器导入吗？',
-          a: '支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。',
-        },
-        {
-          q: '支持 JSON 格式导入导出吗？',
-          a: '支持。在密码管理页「数据管理」下拉菜单中选择「导出JSON」即可将所有密码数据导出为 JSON 文件（需验证主密码），导出文件名格式为 passwords_YYYYMMDD_HHmmss.json。导入时同样在导入弹窗中选择 JSON 文件即可，字段结构与插件内部存储一致。',
+          q: '密码填充到部分网站不生效？',
+          a: '请等待页面完全加载完成后再尝试填充；如果仍然不生效，可以刷新页面后重试。插件内置三套填充策略（Native Setter / execCommand / 模拟键盘事件），会自动切换以适配不同网站。',
         },
         {
           q: '如何自定义快捷键？',
@@ -1495,12 +1529,80 @@
           a: '会。插件通过 GitHub Releases API 每 6 小时自动检测一次最新版本，发现新版本时会在 Popup 弹窗中展示更新提示（包含版本号和更新说明），点击即可跳转到下载页面。你也可以在 Popup 弹窗中手动触发检测。',
         },
         {
+          q: '会话有效期修改何时生效？',
+          a: '修改后立即创建新会话，新有效期即时生效。',
+        },
+
+        // ===== 数据管理 =====
+        {
+          category: '数据管理',
+          iconClass: 'data',
+          iconSvg:
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
+        },
+        {
+          q: 'CSV 导入失败要怎么排查？',
+          a: '点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式。',
+        },
+        {
+          q: '支持从其他密码管理器导入吗？',
+          a: '支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。',
+        },
+        {
+          q: '支持 JSON 格式导入导出吗？',
+          a: '支持。在密码管理页「数据管理」下拉菜单中选择「导出JSON」即可将所有密码数据导出为 JSON 文件（需验证主密码），导出文件名格式为 passwords_YYYYMMDD_HHmmss.json。导入时同样在导入弹窗中选择 JSON 文件即可，字段结构与插件内部存储一致。',
+        },
+        {
+          q: '如何一键去重？',
+          a: '在密码管理页「数据管理」中点击「一键去重」，插件会智能检测重复条目（相同用户名 + 相同 URL），展示去重结果供确认后清理。已收藏的条目不会被删除。',
+        },
+        {
+          q: '如何备份密码到邮箱？',
+          a: '在密码管理页点击「备份到邮箱」，配置目标邮箱后可立即备份或开启定时提醒。插件会导出数据并唤起邮件客户端，安全便捷。备份间隔可选每天/3天/每周/两周/每月。',
+        },
+        {
+          q: '如何导出/导入加密备份？',
+          a: '在密码管理页「数据管理」中，「加密备份导出」会用主密码将所有密码数据加密为 .aph 文件下载。「加密备份导入」上传 .aph 文件后输入导出时使用的主密码解密，解密成功可预览数据（前 5 条）再确认导入。加密方案为 PBKDF2 + AES-256-GCM，安全性极高。',
+        },
+
+        // ===== 高级配置 =====
+        {
+          category: '高级配置',
+          iconClass: 'config',
+          iconSvg:
+            '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
+        },
+        {
+          q: '如何开启自动保存登录密码？',
+          a: '在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认取页面标题）和备注（默认为"自动保存"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件内置智能防重复机制，已保存的凭证或冷却期内的相同凭证不会重复弹窗。',
+        },
+        {
+          q: '为什么有时登录后没有弹出保存提示？',
+          a: '可能原因包括：①该域名已被加入屏蔽黑名单（检查自动保存设置中的「已屏蔽的域名」）；②相同凭证刚弹过提示且在 60 秒冷却期内；③该凭证已成功保存过；④域名不匹配配置的白名单规则。',
+        },
+        {
+          q: '自动保存会覆盖已有的密码吗？',
+          a: '当同一网站（同域名）使用相同账号登录时，插件会更新已有条目的密码，但保留原有的标签和备注（除非在弹窗中手动修改）。不同账号则新增条目，不会影响已有数据。',
+        },
+        {
+          q: '如何设置收藏上限？',
+          a: '在密码管理页点击「设置」→「收藏上限设置」，可调整收藏条目上限（1~50 条，默认 10 条）。达到上限时新收藏自动淘汰最近最少使用（LRU）的条目，确保常用账号置顶。被淘汰的条目仅取消收藏标记，密码数据不受影响。',
+        },
+        {
+          q: '如何配置悬浮按钮的偏好设置？',
+          a: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。可配置：悬浮按钮显示/隐藏、自动展示侧边栏、自动触发登录、密码可见性切换以及按钮透明度。',
+        },
+        {
+          q: '密码框没有显示/隐藏切换按钮？',
+          a: '悬浮按钮「设置」中默认关闭「密码可见性切换」，需手动开启。开启后插件对所有密码输入框统一注入切换按钮，输入有值时按钮自动可见。',
+        },
+        {
           q: '复制密码后剪贴板会自动清除吗？',
-          a: '会。在侧边栏或密码管理页复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被用户替换；若侧边栏已失焦无法验证，则采用「尽力清除」策略直接清除以保证密码安全。复制用户名时会自动取消密码清除定时器，避免误清除用户名。建议在密码管理页「数据管理」→「剪贴板设置」中确认开关已启用。',
+          a: '会。复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被替换；若已失焦无法验证，则采用「尽力清除」策略。复制用户名时会自动取消清除定时器。建议在密码管理页「数据管理」→「剪贴板设置」中确认开关已启用。',
         },
         {
           q: '如何生成随机密码？',
-          a: '在添加或编辑密码的表单中，密码输入框旁有一个魔棒图标按钮，点击即可打开密码生成器。你可以自定义密码长度（6~50）、选择包含的字符集（大写字母 / 小写字母 / 数字 / 特殊字符），还可排除易混淆字符（1、l、I、0、O）。生成后实时显示密码强度进度条，点击「使用此密码」即可填入表单。密码生成基于 Web Crypto API（crypto.getRandomValues），保证密码学安全随机性。',
+          a: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器。可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
         },
       ];
 
@@ -1681,6 +1783,18 @@
       // =================== FAQ ===================
       const faqBox = document.getElementById('faqList');
       FAQS.forEach((item, idx) => {
+        // 分类标题
+        if (item.category) {
+          const catEl = document.createElement('div');
+          catEl.className = 'faq-category';
+          catEl.innerHTML = `
+            <span class="faq-category-icon ${item.iconClass}">${item.iconSvg}</span>
+            <span class="faq-category-title">${item.category}</span>
+          `;
+          faqBox.appendChild(catEl);
+          return;
+        }
+        // 问答条目
         const el = document.createElement('div');
         el.className = 'faq-item';
         el.innerHTML = `
@@ -1738,6 +1852,20 @@
       navLinksBox.addEventListener('click', e => {
         if (e.target.tagName === 'A') navLinksBox.classList.remove('open');
       });
+
+      // =================== Scroll Reveal ===================
+      const revealObserver = new IntersectionObserver(
+        entries => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('visible');
+              revealObserver.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+      );
+      document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
     </script>
   </body>
 </html>
