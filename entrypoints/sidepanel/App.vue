@@ -314,10 +314,13 @@ const {
   sortConfig,
   initSidepanelData,
   getDomainPriority,
+  runLocalOperation,
 } = useSidepanelData();
 
-const { fillPassword, handleFillAndLogin, handleEditPassword, copyUsername, copyPassword } =
-  useSidepanelFill(passwords);
+const { fillPassword, handleFillAndLogin, handleEditPassword, copyUsername, copyPassword } = useSidepanelFill(
+  passwords,
+  runLocalOperation,
+);
 
 /** 设置弹窗 DOM 引用（本地声明以确保 vue-tsc 可追踪模板引用） */
 const settingsPanelEl = ref<HTMLElement | null>(null);
@@ -488,39 +491,42 @@ const toggleFavorite = async (password: PasswordEntry) => {
     const newFav = !password.favorite;
     const entry = passwords.value.find(p => p.id === password.id);
 
-    if (newFav) {
-      // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目（延迟加载 autoSaveManager）
-      const evictFn = await getEvictLRUFavoriteIfNeeded();
-      const evicted = await evictFn(passwords.value);
-      if (evicted) {
-        const limit = await getFavoriteLimit();
-        ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
+    // 提前获取 updateFn 引用，避免在 runLocalOperation async 闭包内 await 导致时序问题
+    const updateFn = await getUpdatePasswordInSession();
+
+    await runLocalOperation(async () => {
+      if (newFav) {
+        // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目（延迟加载 autoSaveManager）
+        const evictFn = await getEvictLRUFavoriteIfNeeded();
+        const evicted = await evictFn(passwords.value);
+        if (evicted) {
+          const limit = await getFavoriteLimit();
+          ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
+        }
+        const now = Date.now();
+        await updateFn(password.id, {
+          favorite: true,
+          favoriteUsedAt: now,
+          updateTime: password.updateTime,
+        });
+        if (entry) {
+          entry.favorite = true;
+          entry.favoriteUsedAt = now;
+        }
+        ElMessage.success('已收藏');
+      } else {
+        await updateFn(password.id, {
+          favorite: false,
+          favoriteUsedAt: undefined,
+          updateTime: password.updateTime,
+        });
+        if (entry) {
+          entry.favorite = false;
+          entry.favoriteUsedAt = undefined;
+        }
+        ElMessage.success('已取消收藏');
       }
-      const now = Date.now();
-      const updateFn = await getUpdatePasswordInSession();
-      await updateFn(password.id, {
-        favorite: true,
-        favoriteUsedAt: now,
-        updateTime: password.updateTime,
-      });
-      if (entry) {
-        entry.favorite = true;
-        entry.favoriteUsedAt = now;
-      }
-      ElMessage.success('已收藏');
-    } else {
-      const updateFn = await getUpdatePasswordInSession();
-      await updateFn(password.id, {
-        favorite: false,
-        favoriteUsedAt: undefined,
-        updateTime: password.updateTime,
-      });
-      if (entry) {
-        entry.favorite = false;
-        entry.favoriteUsedAt = undefined;
-      }
-      ElMessage.success('已取消收藏');
-    }
+    });
   } catch (error) {
     logger.error('切换收藏失败:', error);
     ElMessage.error('操作失败');
