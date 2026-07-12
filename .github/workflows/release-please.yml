@@ -38,6 +38,7 @@ jobs:
           cache: pnpm
       - run: pnpm install
       - run: pnpm run build
+
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
@@ -45,3 +46,21 @@ jobs:
           files: .output/*-chrome.zip
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+
+      # ──────────────────────────────────────────────────────────────
+      # Chrome Web Store auto-publish
+      # 需要在 GitHub repo Settings → Secrets and variables → Actions 中配置：
+      #   CWS_EXTENSION_ID  — 扩展 ID（从 CWS Dashboard 获取）
+      #   CWS_CLIENT_ID     — Google Cloud OAuth 2.0 Client ID
+      #   CWS_CLIENT_SECRET — Google Cloud OAuth 2.0 Client Secret
+      #   CWS_REFRESH_TOKEN — OAuth 2.0 Refresh Token
+      # ──────────────────────────────────────────────────────────────
+      - name: Publish to Chrome Web Store
+        if: ${{ secrets.CWS_EXTENSION_ID != '' }}
+        uses: mnao305/chrome-extension-upload@v5.0.0
+        with:
+          file-path: .output/*-chrome.zip
+          extension-id: ${{ secrets.CWS_EXTENSION_ID }}
+          client-id: ${{ secrets.CWS_CLIENT_ID }}
+          client-secret: ${{ secrets.CWS_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CWS_REFRESH_TOKEN }}

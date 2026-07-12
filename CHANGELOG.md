@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.10.0](https://github.com/liaolongdong/account-password-helper/compare/v2.9.0...v2.10.0) (2026-07-09)
+
+
+### Features
+
+* **faq:** 优化常见问题与帮助对话框分类和动效 ([f1b4745](https://github.com/liaolongdong/account-password-helper/commit/f1b47454dd50d2f4ea78deff2e74d00740c995eb))
+
 ## [2.9.0](https://github.com/liaolongdong/account-password-helper/compare/v2.8.0...v2.9.0) (2026-07-08)
 
 

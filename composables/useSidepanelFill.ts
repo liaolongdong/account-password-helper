@@ -31,9 +31,13 @@ const getUpdatePasswordInSession = async () => {
  * - 编辑跳转
  *
  * @param passwords 密码列表引用，用于就地更新 favoriteUsedAt
+ * @param runLocalOperation 本地操作守卫，包裹 storage 写入防止 handleStorageChange 触发全量重载
  * @returns 填充与剪贴板操作方法
  */
-export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
+export function useSidepanelFill(
+  passwords?: Ref<PasswordEntry[]>,
+  runLocalOperation?: (fn: () => Promise<void>) => Promise<void>,
+) {
   /**
    * 清除剪贴板并显示通知
    *
@@ -367,7 +371,8 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
           }
         }
         // 后台持久化，不阻塞填充流程（延迟加载 passwordCrud 模块）
-        getUpdatePasswordInSession()
+        // 使用 runLocalOperation 包裹，防止 storage change 触发全量 loadPasswords
+        const persistPromise = getUpdatePasswordInSession()
           .then(fn =>
             fn(password.id, {
               lastUsedAt: now,
@@ -375,6 +380,14 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
             }),
           )
           .catch(error => logger.error('更新使用时间戳失败:', error));
+
+        if (runLocalOperation) {
+          void runLocalOperation(async () => {
+            await persistPromise;
+          });
+        } else {
+          void persistPromise;
+        }
         // 隐藏侧边栏（必须携带 tabId，因为 sidepanel 发出的消息 sender.tab 为 undefined）
         await chrome.runtime.sendMessage({
           type: MessageType.HIDE_SIDEPANEL,

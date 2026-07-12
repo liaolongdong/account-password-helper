@@ -224,6 +224,7 @@ function createInfoRow(label: string, value: string, isPassword: boolean): { row
     align-items: center;
     padding: 6px 0;
     font-size: 13px;
+    gap: 5px;
   `;
 
   const labelEl = document.createElement('span');
@@ -265,7 +266,7 @@ function createEditableRow(
     align-items: flex-start;
     padding: 6px 0;
     font-size: 13px;
-    gap: 8px;
+    gap: 5px;
   `;
 
   const labelEl = document.createElement('span');
