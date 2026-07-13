@@ -84,7 +84,8 @@ export default defineConfig({
   // 源 SVG 位于 assets/icons/icon.svg，通过 `npm run icons:build` 生成多尺寸 PNG。
   manifest: {
     name: 'Account Password Helper',
-    description: '账号密码管理助手 - 管理账号密码、自动填充账号密码、自动触发登录',
+    description:
+      '账号密码管理助手 - 安全高效的本地密码管理工具。AES-256-GCM 企业级加密，零网络传输，密码绝不出浏览器，开源免费。登录表单智能检测、一键填充自动登录、自动保存、批量导入导出、加密备份、密码可见性切换、密码生成器。',
     version: pkg.version,
     permissions: [
       'storage',
