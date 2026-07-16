@@ -1,572 +1,688 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>隐私政策 / Privacy Policy - Account Password Helper</title>
-  <meta name="description" content="Account Password Helper 隐私政策 / Privacy Policy" />
-  <style>
-    :root {
-      --primary: #4f6ef7;
-      --primary-light: #e8ecff;
-      --text: #1a1a2e;
-      --text-secondary: #555;
-      --bg: #ffffff;
-      --bg-alt: #f8f9fc;
-      --border: #e2e6ef;
-      --radius: 12px;
-      --max-width: 800px;
-    }
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>隐私政策 / Privacy Policy - Account Password Helper</title>
+    <meta
+      name="description"
+      content="Account Password Helper 隐私政策 / Privacy Policy"
+    />
+    <style>
+      :root {
+        --primary: #4f6ef7;
+        --primary-light: #e8ecff;
+        --text: #1a1a2e;
+        --text-secondary: #555;
+        --bg: #ffffff;
+        --bg-alt: #f8f9fc;
+        --border: #e2e6ef;
+        --radius: 12px;
+        --max-width: 800px;
+      }
 
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
 
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-        "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
-      color: var(--text);
-      background: var(--bg);
-      line-height: 1.8;
-      -webkit-font-smoothing: antialiased;
-    }
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans SC', 'PingFang SC',
+          'Microsoft YaHei', sans-serif;
+        color: var(--text);
+        background: var(--bg);
+        line-height: 1.8;
+        -webkit-font-smoothing: antialiased;
+      }
 
-    .container {
-      max-width: var(--max-width);
-      margin: 0 auto;
-      padding: 40px 24px 80px;
-    }
-
-    /* Language switcher */
-    .lang-switch {
-      display: flex;
-      justify-content: flex-end;
-      gap: 8px;
-      margin-bottom: 24px;
-    }
-
-    .lang-btn {
-      padding: 6px 16px;
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      background: var(--bg);
-      color: var(--text-secondary);
-      font-size: 14px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .lang-btn:hover {
-      border-color: var(--primary);
-      color: var(--primary);
-    }
-
-    .lang-btn.active {
-      background: var(--primary);
-      border-color: var(--primary);
-      color: #fff;
-    }
-
-    /* Header */
-    .header {
-      text-align: center;
-      margin-bottom: 48px;
-    }
-
-    .header h1 {
-      font-size: 28px;
-      font-weight: 700;
-      margin-bottom: 8px;
-    }
-
-    .header .subtitle {
-      color: var(--text-secondary);
-      font-size: 15px;
-    }
-
-    .update-date {
-      display: inline-block;
-      margin-top: 12px;
-      padding: 4px 14px;
-      background: var(--bg-alt);
-      border-radius: 20px;
-      font-size: 13px;
-      color: var(--text-secondary);
-    }
-
-    /* Sections */
-    .policy-section {
-      margin-bottom: 36px;
-    }
-
-    .policy-section h2 {
-      font-size: 20px;
-      font-weight: 600;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid var(--primary-light);
-    }
-
-    .policy-section p {
-      margin-bottom: 12px;
-      color: var(--text);
-    }
-
-    .policy-section ul {
-      margin: 8px 0 12px 24px;
-    }
-
-    .policy-section li {
-      margin-bottom: 6px;
-    }
-
-    /* Highlight box */
-    .highlight-box {
-      background: var(--primary-light);
-      border-left: 4px solid var(--primary);
-      border-radius: 0 var(--radius) var(--radius) 0;
-      padding: 16px 20px;
-      margin: 16px 0;
-    }
-
-    .highlight-box p {
-      margin-bottom: 0;
-      font-weight: 500;
-    }
-
-    /* Table */
-    .perm-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 12px 0;
-      font-size: 14px;
-    }
-
-    .perm-table th,
-    .perm-table td {
-      padding: 10px 14px;
-      border: 1px solid var(--border);
-      text-align: left;
-    }
-
-    .perm-table th {
-      background: var(--bg-alt);
-      font-weight: 600;
-    }
-
-    /* Divider */
-    .lang-divider {
-      border: none;
-      border-top: 2px dashed var(--border);
-      margin: 60px 0;
-    }
-
-    /* Footer */
-    .footer {
-      text-align: center;
-      margin-top: 60px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border);
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-
-    .footer a {
-      color: var(--primary);
-      text-decoration: none;
-    }
-
-    .footer a:hover {
-      text-decoration: underline;
-    }
-
-    /* Language visibility */
-    .lang-en {
-      display: none;
-    }
-
-    body.show-en .lang-zh {
-      display: none;
-    }
-
-    body.show-en .lang-en {
-      display: block;
-    }
-
-    body.show-both .lang-zh,
-    body.show-both .lang-en {
-      display: block;
-    }
-
-    /* Responsive */
-    @media (max-width: 600px) {
       .container {
-        padding: 24px 16px 60px;
+        max-width: var(--max-width);
+        margin: 0 auto;
+        padding: 40px 24px 80px;
+      }
+
+      /* Language switcher */
+      .lang-switch {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-bottom: 24px;
+      }
+
+      .lang-btn {
+        padding: 6px 16px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: var(--bg);
+        color: var(--text-secondary);
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .lang-btn:hover {
+        border-color: var(--primary);
+        color: var(--primary);
+      }
+
+      .lang-btn.active {
+        background: var(--primary);
+        border-color: var(--primary);
+        color: #fff;
+      }
+
+      /* Header */
+      .header {
+        text-align: center;
+        margin-bottom: 48px;
       }
 
       .header h1 {
-        font-size: 22px;
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 8px;
+      }
+
+      .header .subtitle {
+        color: var(--text-secondary);
+        font-size: 15px;
+      }
+
+      .update-date {
+        display: inline-block;
+        margin-top: 12px;
+        padding: 4px 14px;
+        background: var(--bg-alt);
+        border-radius: 20px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+
+      /* Sections */
+      .policy-section {
+        margin-bottom: 36px;
       }
 
       .policy-section h2 {
-        font-size: 18px;
+        font-size: 20px;
+        font-weight: 600;
+        margin-bottom: 12px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid var(--primary-light);
       }
 
+      .policy-section p {
+        margin-bottom: 12px;
+        color: var(--text);
+      }
+
+      .policy-section ul {
+        margin: 8px 0 12px 24px;
+      }
+
+      .policy-section li {
+        margin-bottom: 6px;
+      }
+
+      /* Highlight box */
+      .highlight-box {
+        background: var(--primary-light);
+        border-left: 4px solid var(--primary);
+        border-radius: 0 var(--radius) var(--radius) 0;
+        padding: 16px 20px;
+        margin: 16px 0;
+      }
+
+      .highlight-box p {
+        margin-bottom: 0;
+        font-weight: 500;
+      }
+
+      /* Table */
       .perm-table {
-        font-size: 12px;
+        width: 100%;
+        border-collapse: collapse;
+        margin: 12px 0;
+        font-size: 14px;
       }
 
       .perm-table th,
       .perm-table td {
-        padding: 6px 8px;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        text-align: left;
       }
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <!-- Language Switcher -->
-    <div class="lang-switch">
-      <button class="lang-btn active" data-lang="zh" onclick="switchLang('zh')">中文</button>
-      <button class="lang-btn" data-lang="en" onclick="switchLang('en')">English</button>
-      <button class="lang-btn" data-lang="both" onclick="switchLang('both')">双语</button>
-    </div>
 
-    <!-- Header -->
-    <div class="header">
+      .perm-table th {
+        background: var(--bg-alt);
+        font-weight: 600;
+      }
+
+      /* Divider */
+      .lang-divider {
+        border: none;
+        border-top: 2px dashed var(--border);
+        margin: 60px 0;
+      }
+
+      /* Footer */
+      .footer {
+        text-align: center;
+        margin-top: 60px;
+        padding-top: 24px;
+        border-top: 1px solid var(--border);
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+
+      .footer a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+
+      .footer a:hover {
+        text-decoration: underline;
+      }
+
+      /* Language visibility */
+      .lang-en {
+        display: none;
+      }
+
+      body.show-en .lang-zh {
+        display: none;
+      }
+
+      body.show-en .lang-en {
+        display: block;
+      }
+
+      body.show-both .lang-zh,
+      body.show-both .lang-en {
+        display: block;
+      }
+
+      /* Responsive */
+      @media (max-width: 600px) {
+        .container {
+          padding: 24px 16px 60px;
+        }
+
+        .header h1 {
+          font-size: 22px;
+        }
+
+        .policy-section h2 {
+          font-size: 18px;
+        }
+
+        .perm-table {
+          font-size: 12px;
+        }
+
+        .perm-table th,
+        .perm-table td {
+          padding: 6px 8px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <!-- Language Switcher -->
+      <div class="lang-switch">
+        <button
+          class="lang-btn active"
+          data-lang="zh"
+          onclick="switchLang('zh')"
+        >
+          中文
+        </button>
+        <button
+          class="lang-btn"
+          data-lang="en"
+          onclick="switchLang('en')"
+        >
+          English
+        </button>
+        <button
+          class="lang-btn"
+          data-lang="both"
+          onclick="switchLang('both')"
+        >
+          双语
+        </button>
+      </div>
+
+      <!-- Header -->
+      <div class="header">
+        <div class="lang-zh">
+          <h1>隐私政策</h1>
+          <p class="subtitle">Account Password Helper 浏览器扩展</p>
+        </div>
+        <div class="lang-en">
+          <h1>Privacy Policy</h1>
+          <p class="subtitle">Account Password Helper Browser Extension</p>
+        </div>
+        <span class="update-date">
+          <span class="lang-zh">最后更新：2026年7月11日</span>
+          <span class="lang-en">Last updated: July 11, 2026</span>
+        </span>
+      </div>
+
+      <!-- ==================== 中文部分 ==================== -->
       <div class="lang-zh">
-        <h1>隐私政策</h1>
-        <p class="subtitle">Account Password Helper 浏览器扩展</p>
-      </div>
-      <div class="lang-en">
-        <h1>Privacy Policy</h1>
-        <p class="subtitle">Account Password Helper Browser Extension</p>
-      </div>
-      <span class="update-date">
-        <span class="lang-zh">最后更新：2026年7月11日</span>
-        <span class="lang-en">Last updated: July 11, 2026</span>
-      </span>
-    </div>
+        <div class="highlight-box">
+          <p>核心承诺：本扩展不会将您的任何数据发送到外部服务器。所有密码数据均加密存储在您的本地浏览器中。</p>
+        </div>
 
-    <!-- ==================== 中文部分 ==================== -->
-    <div class="lang-zh">
-      <div class="highlight-box">
-        <p>核心承诺：本扩展不会将您的任何数据发送到外部服务器。所有密码数据均加密存储在您的本地浏览器中。</p>
-      </div>
+        <div class="policy-section">
+          <h2>1. 概述</h2>
+          <p>
+            Account Password Helper（以下简称"本扩展"）是一款开源的 Chrome
+            浏览器扩展，用于管理和自动填充账号密码。本隐私政策说明我们如何收集、使用和保护您的信息。
+          </p>
+          <p>
+            本扩展的源代码完全开源，您可以在
+            <a
+              href="https://github.com/liaolongdong/account-password-helper"
+              target="_blank"
+              >GitHub</a
+            >
+            上查阅和审计所有代码。
+          </p>
+        </div>
 
-      <div class="policy-section">
-        <h2>1. 概述</h2>
-        <p>Account Password Helper（以下简称"本扩展"）是一款开源的 Chrome 浏览器扩展，用于管理和自动填充账号密码。本隐私政策说明我们如何收集、使用和保护您的信息。</p>
-        <p>本扩展的源代码完全开源，您可以在 <a href="https://github.com/liaolongdong/account-password-helper" target="_blank">GitHub</a> 上查阅和审计所有代码。</p>
-      </div>
+        <div class="policy-section">
+          <h2>2. 数据收集</h2>
+          <p><strong>本扩展不收集任何用户数据。</strong>具体来说：</p>
+          <ul>
+            <li>不使用任何分析工具（如 Google Analytics、Mixpanel 等）</li>
+            <li>不包含任何遥测或追踪代码</li>
+            <li>不记录用户行为或使用统计</li>
+            <li>不收集设备信息或浏览器指纹</li>
+          </ul>
+        </div>
 
-      <div class="policy-section">
-        <h2>2. 数据收集</h2>
-        <p><strong>本扩展不收集任何用户数据。</strong>具体来说：</p>
-        <ul>
-          <li>不使用任何分析工具（如 Google Analytics、Mixpanel 等）</li>
-          <li>不包含任何遥测或追踪代码</li>
-          <li>不记录用户行为或使用统计</li>
-          <li>不收集设备信息或浏览器指纹</li>
-        </ul>
-      </div>
+        <div class="policy-section">
+          <h2>3. 数据存储</h2>
+          <p>
+            所有数据仅存储在您的本地浏览器中（使用 Chrome Storage Local
+            API），<strong>不会同步到云端或任何远程服务器</strong>。
+          </p>
+          <p>敏感数据（用户名、密码、URL、备注）使用以下加密方式保护：</p>
+          <ul>
+            <li><strong>加密算法：</strong>AES-256-GCM（认证加密）</li>
+            <li><strong>密钥派生：</strong>PBKDF2，600,000 次迭代，SHA-256</li>
+            <li><strong>加密实现：</strong>浏览器原生 Web Crypto API（无第三方加密库）</li>
+            <li><strong>随机数：</strong>使用密码学安全的随机数生成器（crypto.getRandomValues）</li>
+          </ul>
+          <p>主密码使用 SHA-256 加盐哈希存储，不以明文形式保存。</p>
+        </div>
 
-      <div class="policy-section">
-        <h2>3. 数据存储</h2>
-        <p>所有数据仅存储在您的本地浏览器中（使用 Chrome Storage Local API），<strong>不会同步到云端或任何远程服务器</strong>。</p>
-        <p>敏感数据（用户名、密码、URL、备注）使用以下加密方式保护：</p>
-        <ul>
-          <li><strong>加密算法：</strong>AES-256-GCM（认证加密）</li>
-          <li><strong>密钥派生：</strong>PBKDF2，600,000 次迭代，SHA-256</li>
-          <li><strong>加密实现：</strong>浏览器原生 Web Crypto API（无第三方加密库）</li>
-          <li><strong>随机数：</strong>使用密码学安全的随机数生成器（crypto.getRandomValues）</li>
-        </ul>
-        <p>主密码使用 SHA-256 加盐哈希存储，不以明文形式保存。</p>
-      </div>
+        <div class="policy-section">
+          <h2>4. 网络通信</h2>
+          <p>本扩展仅进行以下一项网络请求：</p>
+          <ul>
+            <li>
+              <strong>版本更新检查：</strong>每 6 小时向 GitHub 公开
+              API（api.github.com）发送一次只读请求，检查是否有新版本。<strong>此请求不发送任何用户数据</strong>，仅接收版本号和更新说明。
+            </li>
+          </ul>
+          <p>除此之外，本扩展不进行任何其他网络通信。密码的导入/导出、邮件备份提醒均为本地操作。</p>
+        </div>
 
-      <div class="policy-section">
-        <h2>4. 网络通信</h2>
-        <p>本扩展仅进行以下一项网络请求：</p>
-        <ul>
-          <li><strong>版本更新检查：</strong>每 6 小时向 GitHub 公开 API（api.github.com）发送一次只读请求，检查是否有新版本。<strong>此请求不发送任何用户数据</strong>，仅接收版本号和更新说明。</li>
-        </ul>
-        <p>除此之外，本扩展不进行任何其他网络通信。密码的导入/导出、邮件备份提醒均为本地操作。</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>5. 权限使用说明</h2>
-        <p>本扩展使用以下 Chrome 权限，每项均有明确的功能用途：</p>
-        <table class="perm-table">
-          <thead>
-            <tr>
-              <th>权限</th>
-              <th>用途</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>storage</td>
-              <td>在本地浏览器中存储加密后的密码数据和用户设置</td>
-            </tr>
-            <tr>
-              <td>activeTab</td>
-              <td>在当前标签页中检测登录表单并执行自动填充</td>
-            </tr>
-            <tr>
-              <td>scripting</td>
-              <td>向网页注入表单检测和自动填充脚本</td>
-            </tr>
-            <tr>
-              <td>sidePanel</td>
-              <td>提供侧边栏面板用于管理密码</td>
-            </tr>
-            <tr>
-              <td>alarms</td>
-              <td>定时检查版本更新和自动备份提醒</td>
-            </tr>
-            <tr>
+        <div class="policy-section">
+          <h2>5. 权限使用说明</h2>
+          <p>本扩展使用以下 Chrome 权限，每项均有明确的功能用途：</p>
+          <table class="perm-table">
+            <thead>
+              <tr>
+                <th>权限</th>
+                <th>用途</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>storage</td>
+                <td>在本地浏览器中存储加密后的密码数据和用户设置</td>
+              </tr>
+              <tr>
+                <td>activeTab</td>
+                <td>在当前标签页中检测登录表单并执行自动填充</td>
+              </tr>
+              <tr>
+                <td>scripting</td>
+                <td>向网页注入表单检测和自动填充脚本</td>
+              </tr>
+              <tr>
+                <td>sidePanel</td>
+                <td>提供侧边栏面板用于管理密码</td>
+              </tr>
+              <tr>
+                <td>alarms</td>
+                <td>定时检查版本更新和自动备份提醒</td>
+              </tr>
+              <!-- <tr>
               <td>downloads</td>
               <td>导出密码数据和备份文件</td>
-            </tr>
-            <tr>
-              <td>notifications</td>
-              <td>发送版本更新和备份提醒通知</td>
-            </tr>
-            <tr>
-              <td>idle</td>
-              <td>检测用户空闲状态以实现自动锁定</td>
-            </tr>
-            <tr>
-              <td>clipboardWrite</td>
-              <td>复制密码到剪贴板并自动清除</td>
-            </tr>
-            <tr>
-              <td>clipboardRead</td>
-              <td>支持从剪贴板粘贴导入数据</td>
-            </tr>
-            <tr>
-              <td>webNavigation</td>
-              <td>监听页面导航事件以优化表单检测时机</td>
-            </tr>
-            <tr>
-              <td>&lt;all_urls&gt;（host）</td>
-              <td>在任意网站上检测登录表单并提供自动填充功能</td>
-            </tr>
-          </tbody>
-        </table>
+            </tr> -->
+              <tr>
+                <td>notifications</td>
+                <td>发送版本更新和备份提醒通知</td>
+              </tr>
+              <tr>
+                <td>idle</td>
+                <td>检测用户空闲状态以实现自动锁定</td>
+              </tr>
+              <tr>
+                <td>clipboardWrite</td>
+                <td>复制密码到剪贴板并自动清除</td>
+              </tr>
+              <tr>
+                <td>clipboardRead</td>
+                <td>支持从剪贴板粘贴导入数据</td>
+              </tr>
+              <tr>
+                <td>webNavigation</td>
+                <td>监听页面导航事件以优化表单检测时机</td>
+              </tr>
+              <tr>
+                <td>&lt;all_urls&gt;（host）</td>
+                <td>在任意网站上检测登录表单并提供自动填充功能</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="policy-section">
+          <h2>6. 第三方服务</h2>
+          <p>
+            本扩展在运行时不使用任何第三方服务、CDN
+            或外部脚本。所有代码均打包在扩展内部运行，内容安全策略（CSP）限制为仅允许加载自身资源（script-src 'self';
+            object-src 'self'）。
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>7. 数据导出与备份</h2>
+          <p>本扩展提供多种本地数据导出方式：</p>
+          <ul>
+            <li><strong>CSV/JSON 导出：</strong>生成本地文件下载，不经过任何服务器</li>
+            <li><strong>加密备份（.aph）：</strong>使用 AES-256-GCM 加密的本地文件</li>
+            <li>
+              <strong>邮件备份提醒：</strong>仅通过 mailto: 协议打开系统邮件客户端，扩展本身不发送邮件也不接触邮件服务器
+            </li>
+          </ul>
+        </div>
+
+        <div class="policy-section">
+          <h2>8. 儿童隐私</h2>
+          <p>本扩展不会有意收集任何用户（包括 13 岁以下儿童）的个人信息。所有数据仅存储在用户本地设备上。</p>
+        </div>
+
+        <div class="policy-section">
+          <h2>9. 隐私政策变更</h2>
+          <p>如本隐私政策有任何变更，将在本页面更新并标注变更日期。重大变更将通过扩展内通知提示用户。</p>
+        </div>
+
+        <div class="policy-section">
+          <h2>10. 联系我们</h2>
+          <p>如对本隐私政策有任何疑问，请通过以下方式联系：</p>
+          <ul>
+            <li>邮箱：924902324@qq.com</li>
+            <li>
+              GitHub：<a
+                href="https://github.com/liaolongdong/account-password-helper"
+                target="_blank"
+                >github.com/liaolongdong/account-password-helper</a
+              >
+            </li>
+          </ul>
+        </div>
       </div>
 
-      <div class="policy-section">
-        <h2>6. 第三方服务</h2>
-        <p>本扩展在运行时不使用任何第三方服务、CDN 或外部脚本。所有代码均打包在扩展内部运行，内容安全策略（CSP）限制为仅允许加载自身资源（script-src 'self'; object-src 'self'）。</p>
+      <!-- ==================== English Section ==================== -->
+      <div class="lang-en">
+        <div class="highlight-box">
+          <p>
+            Core Commitment: This extension does not send any of your data to external servers. All password data is
+            encrypted and stored locally in your browser.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>1. Overview</h2>
+          <p>
+            Account Password Helper (hereafter "the Extension") is an open-source Chrome browser extension for managing
+            and auto-filling account credentials. This Privacy Policy explains how we collect, use, and protect your
+            information.
+          </p>
+          <p>
+            The Extension's source code is fully open-source. You can review and audit all code on
+            <a
+              href="https://github.com/liaolongdong/account-password-helper"
+              target="_blank"
+              >GitHub</a
+            >.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>2. Data Collection</h2>
+          <p><strong>The Extension does not collect any user data.</strong> Specifically:</p>
+          <ul>
+            <li>No analytics tools are used (no Google Analytics, Mixpanel, etc.)</li>
+            <li>No telemetry or tracking code is included</li>
+            <li>No user behavior or usage statistics are recorded</li>
+            <li>No device information or browser fingerprints are collected</li>
+          </ul>
+        </div>
+
+        <div class="policy-section">
+          <h2>3. Data Storage</h2>
+          <p>
+            All data is stored exclusively in your local browser (via Chrome Storage Local API) and
+            <strong>is never synced to the cloud or any remote server</strong>.
+          </p>
+          <p>Sensitive data (usernames, passwords, URLs, remarks) is protected with the following encryption:</p>
+          <ul>
+            <li><strong>Encryption:</strong> AES-256-GCM (authenticated encryption)</li>
+            <li><strong>Key Derivation:</strong> PBKDF2 with 600,000 iterations, SHA-256</li>
+            <li><strong>Implementation:</strong> Browser-native Web Crypto API (no third-party crypto libraries)</li>
+            <li>
+              <strong>Randomness:</strong> Cryptographically secure random number generator (crypto.getRandomValues)
+            </li>
+          </ul>
+          <p>The master password is stored as a SHA-256 salted hash and is never saved in plaintext.</p>
+        </div>
+
+        <div class="policy-section">
+          <h2>4. Network Communication</h2>
+          <p>The Extension makes only one type of network request:</p>
+          <ul>
+            <li>
+              <strong>Version Update Check:</strong> A read-only request to GitHub's public API (api.github.com) every 6
+              hours to check for new releases. <strong>No user data is sent</strong> — only version numbers and release
+              notes are received.
+            </li>
+          </ul>
+          <p>
+            No other network communication occurs. Password import/export and email backup reminders are all local
+            operations.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>5. Permissions Usage</h2>
+          <p>The Extension uses the following Chrome permissions, each with a specific functional purpose:</p>
+          <table class="perm-table">
+            <thead>
+              <tr>
+                <th>Permission</th>
+                <th>Purpose</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>storage</td>
+                <td>Store encrypted password data and user settings locally</td>
+              </tr>
+              <tr>
+                <td>activeTab</td>
+                <td>Detect login forms and perform auto-fill on the current tab</td>
+              </tr>
+              <tr>
+                <td>scripting</td>
+                <td>Inject form detection and auto-fill scripts into web pages</td>
+              </tr>
+              <tr>
+                <td>sidePanel</td>
+                <td>Provide a side panel for password management</td>
+              </tr>
+              <tr>
+                <td>alarms</td>
+                <td>Schedule version update checks and auto-backup reminders</td>
+              </tr>
+              <tr>
+                <td>downloads</td>
+                <td>Export password data and backup files</td>
+              </tr>
+              <tr>
+                <td>notifications</td>
+                <td>Send version update and backup reminder notifications</td>
+              </tr>
+              <tr>
+                <td>idle</td>
+                <td>Detect user idle state for auto-lock functionality</td>
+              </tr>
+              <tr>
+                <td>clipboardWrite</td>
+                <td>Copy passwords to clipboard with auto-clear</td>
+              </tr>
+              <tr>
+                <td>clipboardRead</td>
+                <td>Support data import via clipboard paste</td>
+              </tr>
+              <tr>
+                <td>webNavigation</td>
+                <td>Monitor page navigation events to optimize form detection timing</td>
+              </tr>
+              <tr>
+                <td>&lt;all_urls&gt; (host)</td>
+                <td>Detect login forms and provide auto-fill on any website</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="policy-section">
+          <h2>6. Third-Party Services</h2>
+          <p>
+            The Extension does not use any third-party services, CDNs, or external scripts at runtime. All code is
+            bundled within the extension, and the Content Security Policy (CSP) restricts loading to self-only resources
+            (script-src 'self'; object-src 'self').
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>7. Data Export &amp; Backup</h2>
+          <p>The Extension provides several local data export options:</p>
+          <ul>
+            <li><strong>CSV/JSON Export:</strong> Generates local file downloads without passing through any server</li>
+            <li><strong>Encrypted Backup (.aph):</strong> AES-256-GCM encrypted local files</li>
+            <li>
+              <strong>Email Backup Reminder:</strong> Opens the system email client via the mailto: protocol only; the
+              Extension does not send emails or contact any mail server
+            </li>
+          </ul>
+        </div>
+
+        <div class="policy-section">
+          <h2>8. Children's Privacy</h2>
+          <p>
+            The Extension does not knowingly collect personal information from any user, including children under 13.
+            All data is stored only on the user's local device.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>9. Changes to This Policy</h2>
+          <p>
+            Any changes to this Privacy Policy will be updated on this page with the revised date. Significant changes
+            will be communicated to users via in-extension notifications.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>10. Contact Us</h2>
+          <p>If you have any questions about this Privacy Policy, please contact us at:</p>
+          <ul>
+            <li>Email: 924902324@qq.com</li>
+            <li>
+              GitHub:
+              <a
+                href="https://github.com/liaolongdong/account-password-helper"
+                target="_blank"
+                >github.com/liaolongdong/account-password-helper</a
+              >
+            </li>
+          </ul>
+        </div>
       </div>
 
-      <div class="policy-section">
-        <h2>7. 数据导出与备份</h2>
-        <p>本扩展提供多种本地数据导出方式：</p>
-        <ul>
-          <li><strong>CSV/JSON 导出：</strong>生成本地文件下载，不经过任何服务器</li>
-          <li><strong>加密备份（.aph）：</strong>使用 AES-256-GCM 加密的本地文件</li>
-          <li><strong>邮件备份提醒：</strong>仅通过 mailto: 协议打开系统邮件客户端，扩展本身不发送邮件也不接触邮件服务器</li>
-        </ul>
-      </div>
-
-      <div class="policy-section">
-        <h2>8. 儿童隐私</h2>
-        <p>本扩展不会有意收集任何用户（包括 13 岁以下儿童）的个人信息。所有数据仅存储在用户本地设备上。</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>9. 隐私政策变更</h2>
-        <p>如本隐私政策有任何变更，将在本页面更新并标注变更日期。重大变更将通过扩展内通知提示用户。</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>10. 联系我们</h2>
-        <p>如对本隐私政策有任何疑问，请通过以下方式联系：</p>
-        <ul>
-          <li>邮箱：924902324@qq.com</li>
-          <li>GitHub：<a href="https://github.com/liaolongdong/account-password-helper" target="_blank">github.com/liaolongdong/account-password-helper</a></li>
-        </ul>
+      <!-- Footer -->
+      <div class="footer">
+        <p>
+          <span class="lang-zh"
+            >Account Password Helper &copy; 2026 ·
+            <a
+              href="https://github.com/liaolongdong/account-password-helper"
+              target="_blank"
+              >GitHub</a
+            >
+            · MIT License</span
+          >
+          <span class="lang-en"
+            >Account Password Helper &copy; 2026 ·
+            <a
+              href="https://github.com/liaolongdong/account-password-helper"
+              target="_blank"
+              >GitHub</a
+            >
+            · MIT License</span
+          >
+        </p>
       </div>
     </div>
 
-    <!-- ==================== English Section ==================== -->
-    <div class="lang-en">
-      <div class="highlight-box">
-        <p>Core Commitment: This extension does not send any of your data to external servers. All password data is encrypted and stored locally in your browser.</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>1. Overview</h2>
-        <p>Account Password Helper (hereafter "the Extension") is an open-source Chrome browser extension for managing and auto-filling account credentials. This Privacy Policy explains how we collect, use, and protect your information.</p>
-        <p>The Extension's source code is fully open-source. You can review and audit all code on <a href="https://github.com/liaolongdong/account-password-helper" target="_blank">GitHub</a>.</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>2. Data Collection</h2>
-        <p><strong>The Extension does not collect any user data.</strong> Specifically:</p>
-        <ul>
-          <li>No analytics tools are used (no Google Analytics, Mixpanel, etc.)</li>
-          <li>No telemetry or tracking code is included</li>
-          <li>No user behavior or usage statistics are recorded</li>
-          <li>No device information or browser fingerprints are collected</li>
-        </ul>
-      </div>
-
-      <div class="policy-section">
-        <h2>3. Data Storage</h2>
-        <p>All data is stored exclusively in your local browser (via Chrome Storage Local API) and <strong>is never synced to the cloud or any remote server</strong>.</p>
-        <p>Sensitive data (usernames, passwords, URLs, remarks) is protected with the following encryption:</p>
-        <ul>
-          <li><strong>Encryption:</strong> AES-256-GCM (authenticated encryption)</li>
-          <li><strong>Key Derivation:</strong> PBKDF2 with 600,000 iterations, SHA-256</li>
-          <li><strong>Implementation:</strong> Browser-native Web Crypto API (no third-party crypto libraries)</li>
-          <li><strong>Randomness:</strong> Cryptographically secure random number generator (crypto.getRandomValues)</li>
-        </ul>
-        <p>The master password is stored as a SHA-256 salted hash and is never saved in plaintext.</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>4. Network Communication</h2>
-        <p>The Extension makes only one type of network request:</p>
-        <ul>
-          <li><strong>Version Update Check:</strong> A read-only request to GitHub's public API (api.github.com) every 6 hours to check for new releases. <strong>No user data is sent</strong> — only version numbers and release notes are received.</li>
-        </ul>
-        <p>No other network communication occurs. Password import/export and email backup reminders are all local operations.</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>5. Permissions Usage</h2>
-        <p>The Extension uses the following Chrome permissions, each with a specific functional purpose:</p>
-        <table class="perm-table">
-          <thead>
-            <tr>
-              <th>Permission</th>
-              <th>Purpose</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>storage</td>
-              <td>Store encrypted password data and user settings locally</td>
-            </tr>
-            <tr>
-              <td>activeTab</td>
-              <td>Detect login forms and perform auto-fill on the current tab</td>
-            </tr>
-            <tr>
-              <td>scripting</td>
-              <td>Inject form detection and auto-fill scripts into web pages</td>
-            </tr>
-            <tr>
-              <td>sidePanel</td>
-              <td>Provide a side panel for password management</td>
-            </tr>
-            <tr>
-              <td>alarms</td>
-              <td>Schedule version update checks and auto-backup reminders</td>
-            </tr>
-            <tr>
-              <td>downloads</td>
-              <td>Export password data and backup files</td>
-            </tr>
-            <tr>
-              <td>notifications</td>
-              <td>Send version update and backup reminder notifications</td>
-            </tr>
-            <tr>
-              <td>idle</td>
-              <td>Detect user idle state for auto-lock functionality</td>
-            </tr>
-            <tr>
-              <td>clipboardWrite</td>
-              <td>Copy passwords to clipboard with auto-clear</td>
-            </tr>
-            <tr>
-              <td>clipboardRead</td>
-              <td>Support data import via clipboard paste</td>
-            </tr>
-            <tr>
-              <td>webNavigation</td>
-              <td>Monitor page navigation events to optimize form detection timing</td>
-            </tr>
-            <tr>
-              <td>&lt;all_urls&gt; (host)</td>
-              <td>Detect login forms and provide auto-fill on any website</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="policy-section">
-        <h2>6. Third-Party Services</h2>
-        <p>The Extension does not use any third-party services, CDNs, or external scripts at runtime. All code is bundled within the extension, and the Content Security Policy (CSP) restricts loading to self-only resources (script-src 'self'; object-src 'self').</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>7. Data Export &amp; Backup</h2>
-        <p>The Extension provides several local data export options:</p>
-        <ul>
-          <li><strong>CSV/JSON Export:</strong> Generates local file downloads without passing through any server</li>
-          <li><strong>Encrypted Backup (.aph):</strong> AES-256-GCM encrypted local files</li>
-          <li><strong>Email Backup Reminder:</strong> Opens the system email client via the mailto: protocol only; the Extension does not send emails or contact any mail server</li>
-        </ul>
-      </div>
-
-      <div class="policy-section">
-        <h2>8. Children's Privacy</h2>
-        <p>The Extension does not knowingly collect personal information from any user, including children under 13. All data is stored only on the user's local device.</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>9. Changes to This Policy</h2>
-        <p>Any changes to this Privacy Policy will be updated on this page with the revised date. Significant changes will be communicated to users via in-extension notifications.</p>
-      </div>
-
-      <div class="policy-section">
-        <h2>10. Contact Us</h2>
-        <p>If you have any questions about this Privacy Policy, please contact us at:</p>
-        <ul>
-          <li>Email: 924902324@qq.com</li>
-          <li>GitHub: <a href="https://github.com/liaolongdong/account-password-helper" target="_blank">github.com/liaolongdong/account-password-helper</a></li>
-        </ul>
-      </div>
-    </div>
-
-    <!-- Footer -->
-    <div class="footer">
-      <p>
-        <span class="lang-zh">Account Password Helper &copy; 2026 · <a href="https://github.com/liaolongdong/account-password-helper" target="_blank">GitHub</a> · MIT License</span>
-        <span class="lang-en">Account Password Helper &copy; 2026 · <a href="https://github.com/liaolongdong/account-password-helper" target="_blank">GitHub</a> · MIT License</span>
-      </p>
-    </div>
-  </div>
-
-  <script>
-    function switchLang(lang) {
-      document.body.className = '';
-      if (lang === 'zh') {
-        // Only show Chinese (default is show-both, so remove lang-en visibility)
-        document.body.classList.add('show-zh');
-        document.documentElement.lang = 'zh-CN';
-      } else if (lang === 'en') {
-        document.body.classList.add('show-en');
-        document.documentElement.lang = 'en';
-      } else {
-        document.body.classList.add('show-both');
-        document.documentElement.lang = 'zh-CN';
+    <script>
+      function switchLang(lang) {
+        document.body.className = '';
+        if (lang === 'zh') {
+          // Only show Chinese (default is show-both, so remove lang-en visibility)
+          document.body.classList.add('show-zh');
+          document.documentElement.lang = 'zh-CN';
+        } else if (lang === 'en') {
+          document.body.classList.add('show-en');
+          document.documentElement.lang = 'en';
+        } else {
+          document.body.classList.add('show-both');
+          document.documentElement.lang = 'zh-CN';
+        }
+        // Update active button
+        document.querySelectorAll('.lang-btn').forEach(function (btn) {
+          btn.classList.toggle('active', btn.dataset.lang === lang);
+        });
       }
-      // Update active button
-      document.querySelectorAll('.lang-btn').forEach(function(btn) {
-        btn.classList.toggle('active', btn.dataset.lang === lang);
-      });
-    }
 
-    // Default: show Chinese only
-    switchLang('zh');
-  </script>
-</body>
+      // Default: show Chinese only
+      switchLang('zh');
+    </script>
+  </body>
 </html>
