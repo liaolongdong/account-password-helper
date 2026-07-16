@@ -4,6 +4,25 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { hashPassword, generateSalt, timingSafeEqual } from '@/utils/crypto-light';
 
 /**
+ * 惰性加载加密模块（仅用于 PBKDF2 校验哈希派生）
+ *
+ * 避免将 encryption.ts 的 PBKDF2/AES-GCM 重代码静态打入 Service Worker 冷启动初始包，
+ * 与 sessionManager-storage.ts / passwordCrud.ts 中的惰性加载模式保持一致。
+ */
+let _encryptionModule: typeof import('@/utils/encryption') | null = null;
+async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
+  if (!_encryptionModule) {
+    _encryptionModule = await import('@/utils/encryption');
+  }
+  return _encryptionModule;
+}
+
+/**
+ * 当前校验哈希使用的 KDF 算法标记
+ */
+const CURRENT_VERIFIER_KDF = 'pbkdf2-sha256' as const;
+
+/**
  * 设置主密码
  */
 export async function setMasterPassword(password: string): Promise<void> {
@@ -14,11 +33,13 @@ export async function setMasterPassword(password: string): Promise<void> {
     }
 
     const salt = generateSalt();
-    const hashedPassword = await hashPassword(cleanPassword, salt);
+    const enc = await _getEncryption();
+    const hashedPassword = await enc.deriveVerifierHash(cleanPassword, salt);
 
     const config: MasterPasswordConfig = {
       hashedPassword,
       salt,
+      kdf: CURRENT_VERIFIER_KDF,
     };
 
     await chrome.storage.local.set({
@@ -44,6 +65,10 @@ export async function setMasterPassword(password: string): Promise<void> {
 
 /**
  * 验证主密码
+ *
+ * - 新版配置（kdf === 'pbkdf2-sha256'）：直接用 PBKDF2 校验哈希比对。
+ * - 旧版配置（无 kdf，单轮 SHA-256）：先用 SHA-256 比对；通过后透明迁移为 PBKDF2，
+ *   用户无感知，不需重设或重输主密码。
  */
 export async function verifyMasterPassword(password: string): Promise<boolean> {
   try {
@@ -59,8 +84,35 @@ export async function verifyMasterPassword(password: string): Promise<boolean> {
       return false;
     }
 
-    const hashedInput = await hashPassword(cleanPassword, config.salt);
-    return timingSafeEqual(hashedInput, config.hashedPassword);
+    const enc = await _getEncryption();
+
+    // 新版：PBKDF2 慢哈希校验
+    if (config.kdf === CURRENT_VERIFIER_KDF) {
+      const hashedInput = await enc.deriveVerifierHash(cleanPassword, config.salt);
+      return timingSafeEqual(hashedInput, config.hashedPassword);
+    }
+
+    // 旧版：单轮 SHA-256 校验，成功后透明迁移升级为 PBKDF2
+    const legacyHash = await hashPassword(cleanPassword, config.salt);
+    if (!timingSafeEqual(legacyHash, config.hashedPassword)) {
+      return false;
+    }
+
+    try {
+      const upgradedHash = await enc.deriveVerifierHash(cleanPassword, config.salt);
+      const upgradedConfig: MasterPasswordConfig = {
+        hashedPassword: upgradedHash,
+        salt: config.salt,
+        kdf: CURRENT_VERIFIER_KDF,
+      };
+      await chrome.storage.local.set({ [STORAGE_KEYS.MASTER_PASSWORD]: upgradedConfig });
+      logger.debug('主密码校验哈希已自动升级为 PBKDF2');
+    } catch (upgradeError) {
+      // 升级写回失败不影响本次验证结果，下次验证会再次尝试升级
+      logger.warn('主密码校验哈希升级写回失败，将在下次验证时重试:', upgradeError);
+    }
+
+    return true;
   } catch (error) {
     logger.error('验证主密码失败:', error);
     return false;
