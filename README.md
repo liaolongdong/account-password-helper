@@ -172,7 +172,7 @@
 
 ### 环境要求
 
-- Node.js >= 18
+- Node.js >= 22（rolldown 依赖 `node:util.styleText`）
 - Chrome >= 114（支持 SidePanel API，>= 129 支持 `sidePanel.close`）
 
 ### 安装与构建
@@ -289,13 +289,13 @@ JSON 格式使用与插件内部一致的字段结构，导出文件名格式为
 
 ### 扩展入口点
 
-| 入口点             | 职责                                                       |
-| ------------------ | ---------------------------------------------------------- |
-| **Background**     | Service Worker，消息路由、密码缓存、侧边栏状态、快捷键处理 |
-| **Content Script** | 注入所有页面，初始化表单检测与悬浮按钮                     |
-| **Popup**          | 扩展图标弹窗，提供「管理密码」和「快速填充」快捷入口       |
-| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理       |
-| **SidePanel**      | 侧边栏快速填充，支持搜索、排序、域名匹配、缓存加速         |
+| 入口点             | 职责                                                                                                                                                                                         |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Background**     | Service Worker，消息路由（判别联合类型）、密码缓存（域名无关）、侧边栏状态（Port 连接追踪）、快捷键处理；6 子模块：消息路由/缓存管理/侧边栏管理/选项页管理/自动保存/后台服务（SW 保活+闹钟） |
+| **Content Script** | 注入所有页面，初始化表单检测与悬浮按钮                                                                                                                                                       |
+| **Popup**          | 扩展图标弹窗，提供「管理密码」和「快速填充」快捷入口                                                                                                                                         |
+| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理                                                                                                                                         |
+| **SidePanel**      | 侧边栏快速填充，支持搜索、排序、域名匹配、缓存加速                                                                                                                                           |
 
 ### 消息与数据流
 
@@ -346,7 +346,14 @@ graph TB
 
 ```
 ├── entrypoints/                    # WXT 扩展入口点
-│   ├── background.ts               # Background Service Worker
+│   ├── background.ts               # Background Service Worker 入口
+│   ├── background/                 # Background 子模块
+│   │   ├── backgroundServices.ts   # 核心后台服务（保活/闲置/更新/备份闹钟）
+│   │   ├── messageRouter.ts        # 运行时消息路由（判别联合类型）
+│   │   ├── sidePanelManager.ts     # 侧边栏生命周期管理（Port 连接追踪）
+│   │   ├── passwordCache.ts        # 密码缓存（域名无关/SW 内存）
+│   │   ├── optionsPageManager.ts   # 选项页管理（复用/创建/激活）
+│   │   └── autoSaveHandler.ts      # 自动保存凭证处理
 │   ├── content.ts                  # Content Script 入口
 │   ├── content/                    # Content Script 模块
 │   │   ├── FormDetector.ts         # 表单检测编排器
@@ -407,8 +414,15 @@ graph TB
 │   ├── useTagOverflow.ts           # 标签溢出检测
 │   └── useVersionUpdate.ts         # 版本更新检测
 ├── utils/                          # 核心工具库
-│   ├── storage.ts                  # 存储门面
+│   ├── storage.ts                  # 存储门面（StorageFacade）
+│   ├── storage/                    # 存储领域模块
+│   │   ├── autoSaveManager.ts      # 自动保存配置管理
+│   │   ├── configManager.ts        # 用户配置管理
+│   │   ├── facades.ts              # 存储门面聚合
+│   │   ├── masterPassword.ts       # 主密码存储与验证
+│   │   └── passwordCrud.ts         # 密码 CRUD 操作
 │   ├── encryption.ts               # PBKDF2 + AES-256-GCM
+│   ├── crypto-light.ts             # 轻量加密工具
 │   ├── sessionManager.ts           # 全局会话检查单例
 │   ├── sessionManager-storage.ts   # 会话持久化与加解密转换
 │   ├── backupExport.ts             # 加密备份导出/导入（AES-GCM）
@@ -416,12 +430,20 @@ graph TB
 │   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── tagUtils.ts                 # 标签颜色生成
 │   ├── updateChecker.ts            # 版本更新检测（GitHub Releases API）
-│   ├── logger.ts                   # 环境感知日志
 │   ├── passwordGenerator.ts        # 随机密码生成器
+│   ├── passwordSort.ts             # 密码排序工具
+│   ├── logger.ts                   # 环境感知日志
 │   ├── env.ts                      # isDev 常量
 │   ├── createVueApp.ts             # Vue 应用工厂
 │   ├── dateFormat.ts               # 日期格式化工具
+│   ├── domain.ts                   # 域名提取与匹配工具
 │   ├── formatShortcut.ts           # 快捷键格式化工具
+│   ├── generateId.ts               # ID 生成工具
+│   ├── masterPasswordVerify.ts     # 主密码验证工具
+│   ├── preWarmSw.ts                # Service Worker 预热工具
+│   ├── storageKeys.ts              # Storage Key 常量
+│   ├── constants.ts                # 全局常量
+│   ├── urls.ts                     # URL 常量
 │   └── types.ts                    # 公共类型定义
 ├── assets/icons/                   # 源 SVG 图标
 │   ├── icon.svg                    # 当前生效图标
@@ -467,20 +489,19 @@ graph TB
 
 ### Chrome 权限说明
 
-| 权限             | 用途                           |
-| ---------------- | ------------------------------ |
-| `storage`        | 本地存储密码数据和配置         |
-| `activeTab`      | 获取当前标签页信息用于域名匹配 |
-| `scripting`      | 动态注入 Content Script        |
-| `sidePanel`      | 侧边栏快速填充功能             |
-| `alarms`         | 定时自动备份提醒               |
-| `downloads`      | 数据文件导出下载               |
-| `notifications`  | 桌面通知（自动保存/备份提醒）  |
-| `idle`           | 自动闲置锁定检测               |
-| `clipboardWrite` | 写入剪贴板（复制密码）         |
-| `clipboardRead`  | 读取剪贴板（验证清除前内容）   |
-| `webNavigation`  | 跨 iframe 表单检测与填充       |
-| `<all_urls>`     | Content Script 匹配所有页面    |
+| 权限             | 用途                                   |
+| ---------------- | -------------------------------------- |
+| `storage`        | 本地存储密码数据和配置                 |
+| `activeTab`      | 获取当前标签页信息用于域名匹配         |
+| `scripting`      | 动态注入 Content Script                |
+| `sidePanel`      | 侧边栏快速填充功能                     |
+| `alarms`         | 定时自动备份提醒和 Service Worker 保活 |
+| `notifications`  | 桌面通知（自动保存/备份提醒/版本更新） |
+| `idle`           | 自动闲置锁定检测                       |
+| `clipboardWrite` | 写入剪贴板（复制密码）                 |
+| `clipboardRead`  | 读取剪贴板（验证清除前内容）           |
+| `webNavigation`  | 跨 iframe 表单检测与填充               |
+| `<all_urls>`     | Content Script 匹配所有页面            |
 
 ## 安全提醒
 

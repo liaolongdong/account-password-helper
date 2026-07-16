@@ -9,10 +9,10 @@
 在 Dashboard 点击「新建商品」(New Item)，上传以下文件：
 
 ```
-.output/account-password-helper-2.9.0-chrome.zip
+.output/account-password-helper-2.10.0-chrome.zip
 ```
 
-文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-2.9.0-chrome.zip`
+文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-2.10.0-chrome.zip`
 
 ---
 
@@ -44,11 +44,12 @@ Account Password Helper
 
 ⚡ 便捷功能
 • 智能表单检测，一键自动填充
-• 侧边栏快捷管理密码
+• 侧边栏快捷管理密码（毫秒级响应）
 • 自动保存新登录凭据
 • CSV / JSON / 加密备份导入导出
 • 随机密码生成器
 • 剪贴板自动清除
+• Service Worker 保活，确保持续可用
 
 🎯 适用场景
 • 开发测试多账号切换
@@ -169,13 +170,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **alarms**
 
 ```
-定时执行版本更新检查（每 6 小时）和自动备份提醒，通过 chrome.alarms API 实现。
-```
-
-**downloads**
-
-```
-支持将密码数据导出为 CSV、JSON 文件或加密备份文件（.aph 格式）到本地。
+定时执行版本更新检查（每 6 小时）、自动备份提醒和 Service Worker 保活（会话期间每 1 分钟），通过 chrome.alarms API 实现。
 ```
 
 **notifications**
@@ -199,7 +194,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **clipboardRead**
 
 ```
-支持从剪贴板粘贴数据以实现批量导入功能。
+读取剪贴板内容，用于在自动清除剪贴板前验证内容未被用户替换，确保密码清除的安全性和准确性。
 ```
 
 **webNavigation**
