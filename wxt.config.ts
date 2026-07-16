@@ -93,7 +93,6 @@ export default defineConfig({
       'scripting',
       'sidePanel',
       'alarms',
-      'downloads',
       'notifications',
       'idle',
       'clipboardWrite',
