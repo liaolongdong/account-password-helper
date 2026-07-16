@@ -3,122 +3,125 @@
     :model-value="modelValue"
     :title="isEditing ? '编辑密码' : '添加密码'"
     width="600px"
+    align-center
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
     @closed="$emit('closed')"
   >
-    <el-form
-      ref="localFormRef"
-      :model="localForm"
-      :rules="formRules"
-      label-width="100px"
-      size="large"
-    >
-      <el-form-item
-        label="用户名"
-        prop="username"
+    <div class="dialog-body-scroll">
+      <el-form
+        ref="localFormRef"
+        :model="localForm"
+        :rules="formRules"
+        label-width="100px"
+        size="large"
       >
-        <el-input
-          v-model="localForm.username"
-          placeholder="请输入用户名或邮箱（最多50字符）"
-          :disabled="loading"
-          maxlength="50"
-          show-word-limit
-        />
-      </el-form-item>
-
-      <el-form-item
-        label="密码"
-        prop="password"
-      >
-        <PasswordStrengthPopover
-          v-model:visible="formPasswordInputFocused"
-          title="密码强度"
-          hint="请输入密码查看强度"
-          :password="localForm.password"
-          :strength="passwordStrength"
-          :rules="passwordRules"
+        <el-form-item
+          label="用户名"
+          prop="username"
         >
           <el-input
-            v-model="localForm.password"
-            type="password"
-            placeholder="选填，密码信息（最多50字符）"
-            show-password
+            v-model="localForm.username"
+            placeholder="请输入用户名或邮箱（最多50字符）"
             :disabled="loading"
             maxlength="50"
             show-word-limit
-            @focus="formPasswordInputFocused = true"
-            @blur="formPasswordInputFocused = false"
-          >
-            <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
-            <template #password-icon="{ visible }">
-              <el-icon>
-                <View v-if="visible" />
-                <Hide v-else />
-              </el-icon>
-            </template>
-          </el-input>
-        </PasswordStrengthPopover>
-        <PasswordGeneratorPopover
-          :disabled="loading"
-          @confirm="handleGeneratedPassword"
-        />
-      </el-form-item>
-
-      <el-form-item
-        label="网址"
-        prop="url"
-      >
-        <el-input
-          v-model="localForm.url"
-          placeholder="选填，不填则匹配所有网站（最多100字符）"
-          :disabled="loading"
-          maxlength="100"
-          show-word-limit
-        />
-      </el-form-item>
-
-      <el-form-item
-        label="标签"
-        prop="tag"
-      >
-        <el-select
-          :model-value="tagArray"
-          multiple
-          filterable
-          allow-create
-          default-first-option
-          clearable
-          :disabled="loading"
-          :multiple-limit="MAX_TAG_COUNT"
-          :placeholder="`选填，最多选择${MAX_TAG_COUNT}个，可输入后回车新增`"
-          style="width: 100%"
-          @update:model-value="$emit('update:tagArray', $event)"
-        >
-          <el-option
-            v-for="t in availableTags"
-            :key="t"
-            :label="t"
-            :value="t"
           />
-        </el-select>
-      </el-form-item>
+        </el-form-item>
 
-      <el-form-item
-        label="备注"
-        prop="remark"
-      >
-        <el-input
-          v-model="localForm.remark"
-          type="textarea"
-          :rows="3"
-          placeholder="选填，备注信息（最多1000字符）"
-          :disabled="loading"
-          maxlength="1000"
-          show-word-limit
-        />
-      </el-form-item>
-    </el-form>
+        <el-form-item
+          label="密码"
+          prop="password"
+        >
+          <PasswordStrengthPopover
+            v-model:visible="formPasswordInputFocused"
+            title="密码强度"
+            hint="请输入密码查看强度"
+            :password="localForm.password"
+            :strength="passwordStrength"
+            :rules="passwordRules"
+          >
+            <el-input
+              v-model="localForm.password"
+              type="password"
+              placeholder="选填，密码信息（最多50字符）"
+              show-password
+              :disabled="loading"
+              maxlength="50"
+              show-word-limit
+              @focus="formPasswordInputFocused = true"
+              @blur="formPasswordInputFocused = false"
+            >
+              <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
+              <template #password-icon="{ visible }">
+                <el-icon>
+                  <View v-if="visible" />
+                  <Hide v-else />
+                </el-icon>
+              </template>
+            </el-input>
+          </PasswordStrengthPopover>
+          <PasswordGeneratorPopover
+            :disabled="loading"
+            @confirm="handleGeneratedPassword"
+          />
+        </el-form-item>
+
+        <el-form-item
+          label="网址"
+          prop="url"
+        >
+          <el-input
+            v-model="localForm.url"
+            placeholder="选填，不填则匹配所有网站（最多100字符）"
+            :disabled="loading"
+            maxlength="100"
+            show-word-limit
+          />
+        </el-form-item>
+
+        <el-form-item
+          label="标签"
+          prop="tag"
+        >
+          <el-select
+            :model-value="tagArray"
+            multiple
+            filterable
+            allow-create
+            default-first-option
+            clearable
+            :disabled="loading"
+            :multiple-limit="MAX_TAG_COUNT"
+            :placeholder="`选填，最多选择${MAX_TAG_COUNT}个，可输入后回车新增`"
+            style="width: 100%"
+            @update:model-value="$emit('update:tagArray', $event)"
+          >
+            <el-option
+              v-for="t in availableTags"
+              :key="t"
+              :label="t"
+              :value="t"
+            />
+          </el-select>
+        </el-form-item>
+
+        <el-form-item
+          label="备注"
+          prop="remark"
+        >
+          <el-input
+            v-model="localForm.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="选填，备注信息（最多1000字符）"
+            :disabled="loading"
+            maxlength="1000"
+            show-word-limit
+          />
+        </el-form-item>
+      </el-form>
+    </div>
 
     <template #footer>
       <div class="dialog-footer">

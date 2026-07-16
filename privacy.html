@@ -225,13 +225,13 @@
     }
   </style>
 </head>
-<body class="show-both">
+<body>
   <div class="container">
     <!-- Language Switcher -->
     <div class="lang-switch">
-      <button class="lang-btn" data-lang="zh" onclick="switchLang('zh')">中文</button>
-      <button class="lang-btn active" data-lang="both" onclick="switchLang('both')">双语</button>
+      <button class="lang-btn active" data-lang="zh" onclick="switchLang('zh')">中文</button>
       <button class="lang-btn" data-lang="en" onclick="switchLang('en')">English</button>
+      <button class="lang-btn" data-lang="both" onclick="switchLang('both')">双语</button>
     </div>
 
     <!-- Header -->
@@ -565,8 +565,8 @@
       });
     }
 
-    // Default: show both
-    switchLang('both');
+    // Default: show Chinese only
+    switchLang('zh');
   </script>
 </body>
 </html>

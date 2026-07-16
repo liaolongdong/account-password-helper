@@ -4,6 +4,7 @@ import type { PasswordEntry, PasswordEntryWithUI } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { ExcelUtils } from '@/utils/excel';
 import { EmailBackupUtils } from '@/utils/emailBackup';
+import { exportEncryptedBackup } from '@/utils/backupExport';
 import { logger } from '@/utils/logger';
 import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
@@ -615,11 +616,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   /**
    * 执行密码备份到邮箱
-   * 流程：验证主密码 -> 读取邮箱配置 -> 调用备份工具
+   * 流程：验证主密码 -> 根据加密选项导出文件 -> 调用邮件工具
    *
-   * @param email 目标邮箱地址
+   * @param email     目标邮箱地址
+   * @param encrypted 是否使用加密备份（.aph 格式）
    */
-  const backupToEmail = async (email: string) => {
+  const backupToEmail = async (email: string, encrypted: boolean) => {
     try {
       if (passwords.value.length === 0) {
         ElMessage.warning('没有密码数据可备份');
@@ -628,12 +630,32 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
       const masterPassword = await promptAndVerifyMasterPassword(
         '验证主密码',
-        '备份密码列表需要验证主密码，请输入主密码：',
+        encrypted ? '加密备份需要验证主密码，请输入主密码：' : '备份密码列表需要验证主密码，请输入主密码：',
       );
       if (!masterPassword) return;
 
-      await EmailBackupUtils.backupToEmail(passwords.value, email);
-      ElMessage.success('备份文件已下载，邮件客户端已打开，请将文件作为附件发送');
+      if (encrypted) {
+        // 加密备份：导出 .aph 文件并打开邮件客户端
+        await exportEncryptedBackup(passwords.value, masterPassword);
+        const mailtoUrl = EmailBackupUtils.buildMailtoUrl(
+          email,
+          `加密备份-${formatDateCompact(new Date())}`,
+          [
+            `备份时间：${new Date().toLocaleString('zh-CN')}`,
+            `备份条数：${passwords.value.length}条账号密码`,
+            '附件文件：加密备份文件（.aph格式）',
+            '',
+            '请将已下载的 .aph 加密备份文件作为附件发送。',
+            '注意：该文件只能通过本插件的加密备份导入功能解密查看。',
+          ].join('\n'),
+        );
+        window.open(mailtoUrl, '_blank');
+        ElMessage.success('加密备份文件已下载，邮件客户端已打开，请将文件作为附件发送');
+      } else {
+        // 不加密备份：导出 CSV 文件
+        await EmailBackupUtils.backupToEmail(passwords.value, email);
+        ElMessage.success('备份文件已下载，邮件客户端已打开，请将文件作为附件发送');
+      }
     } catch (error) {
       if (error !== 'cancel') {
         logger.error('备份到邮箱失败:', error);

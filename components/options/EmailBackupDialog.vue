@@ -3,78 +3,101 @@
     v-model="dialogVisible"
     title="备份到邮箱"
     width="520px"
+    align-center
     :close-on-click-modal="false"
     @open="handleOpen"
     @close="handleClose"
   >
-    <el-form
-      ref="formRef"
-      :model="form"
-      :rules="rules"
-      label-width="100px"
-      label-position="top"
-      size="large"
-    >
-      <el-alert
-        title="备份说明"
-        type="info"
-        :closable="false"
-        show-icon
-        style="margin-bottom: 20px"
+    <div class="dialog-body-scroll">
+      <el-form
+        ref="formRef"
+        :model="form"
+        :rules="rules"
+        label-width="100px"
+        label-position="top"
+        size="large"
       >
-        <template #default>
-          将密码列表导出为数据文件并唤起邮件客户端，请将下载的文件作为附件发送。<br />
-          开启「自动备份提醒」后，仅定时发送桌面提醒通知您手动备份，<strong>不会自动下载密码文件</strong>。
-        </template>
-      </el-alert>
+        <el-alert
+          title="备份说明"
+          type="info"
+          :closable="false"
+          show-icon
+          style="margin-bottom: 20px"
+        >
+          <template #default>
+            将密码列表导出为数据文件并唤起邮件客户端，请将下载的文件作为附件发送。<br />
+            开启「自动备份提醒」后，仅定时发送桌面提醒通知您手动备份，<strong>不会自动下载密码文件</strong>。
+          </template>
+        </el-alert>
 
-      <el-form-item
-        label="备份邮箱"
-        prop="email"
-      >
-        <el-input
-          v-model="form.email"
-          placeholder="请输入备份目标邮箱地址"
-          :disabled="backupLoading"
-          clearable
-        />
-      </el-form-item>
-
-      <el-form-item label="自动备份提醒">
-        <div class="auto-backup-row">
-          <el-switch
-            v-model="form.autoBackup"
-            active-text="开启"
-            inactive-text="关闭"
-          />
-          <el-select
-            v-if="form.autoBackup"
-            v-model="form.autoBackupIntervalDays"
-            style="width: 140px; margin-left: 12px"
-            placeholder="备份提醒间隔"
+        <el-form-item label="备份方式">
+          <el-radio-group v-model="backupType">
+            <el-radio value="unencrypted">不加密备份</el-radio>
+            <el-radio value="encrypted">加密备份</el-radio>
+          </el-radio-group>
+          <el-alert
+            v-if="backupType === 'encrypted'"
+            type="warning"
+            :closable="false"
+            show-icon
+            class="encrypted-backup-tip"
           >
-            <el-option
-              v-for="opt in intervalOptions"
-              :key="opt.value"
-              :label="opt.label"
-              :value="opt.value"
+            <template #default>
+              加密备份的文件只能通过本插件的
+              <strong>数据管理 -> 加密备份导入功能，且必须验证导出时设置的主密码</strong>
+              才能看到解密后的账号密码数据。<strong>请务必牢记主密码！</strong>
+            </template>
+          </el-alert>
+        </el-form-item>
+
+        <el-form-item
+          label="备份邮箱"
+          prop="email"
+        >
+          <el-input
+            v-model="form.email"
+            placeholder="请输入备份目标邮箱地址"
+            :disabled="backupLoading"
+            clearable
+          />
+        </el-form-item>
+
+        <el-form-item label="自动备份提醒">
+          <div class="auto-backup-row">
+            <el-switch
+              v-model="form.autoBackup"
+              active-text="开启"
+              inactive-text="关闭"
             />
-          </el-select>
-        </div>
-        <div
-          v-if="form.autoBackup"
-          class="auto-backup-tip"
-        >
-          开启后将定时发送桌面通知提醒您手动备份，不会自动下载密码文件。
-        </div>
-        <div
-          v-if="form.autoBackup && lastBackupTime"
-          class="last-backup-info"
-        >
-          上次提醒：{{ lastBackupTime }}
-        </div>
-      </el-form-item>
-    </el-form>
+            <el-select
+              v-if="form.autoBackup"
+              v-model="form.autoBackupIntervalDays"
+              style="width: 140px; margin-left: 12px"
+              placeholder="备份提醒间隔"
+            >
+              <el-option
+                v-for="opt in intervalOptions"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-select>
+          </div>
+          <div
+            v-if="form.autoBackup"
+            class="auto-backup-tip"
+          >
+            开启后将定时发送桌面通知提醒您手动备份，不会自动下载密码文件。
+          </div>
+          <div
+            v-if="form.autoBackup && lastBackupTime"
+            class="last-backup-info"
+          >
+            上次提醒：{{ lastBackupTime }}
+          </div>
+        </el-form-item>
+      </el-form>
+    </div>
 
     <template #footer>
       <div class="dialog-footer">
@@ -121,10 +144,13 @@ const intervalOptions = [
   { label: '每月', value: 30 },
 ];
 
+/** 备份方式：不加密 / 加密 */
+type BackupType = 'unencrypted' | 'encrypted';
+
 interface Props {
   modelValue: boolean;
-  /** 父组件提供的备份执行函数，返回 Promise */
-  backupFn?: (email: string) => Promise<void>;
+  /** 父组件提供的备份执行函数，支持加密/不加密两种模式 */
+  backupFn?: (email: string, encrypted: boolean) => Promise<void>;
 }
 
 interface Emits {
@@ -143,6 +169,7 @@ const formRef = ref<FormInstance>();
 const backupLoading = ref(false);
 const saveLoading = ref(false);
 const lastBackupTime = ref('');
+const backupType = ref<BackupType>('unencrypted');
 
 const form = ref<EmailBackupConfig>({
   email: '',
@@ -215,7 +242,7 @@ const handleBackup = async () => {
 
     // 调用父组件提供的备份函数（包含主密码验证等异步操作）
     if (props.backupFn) {
-      await props.backupFn(form.value.email);
+      await props.backupFn(form.value.email, backupType.value === 'encrypted');
       // 备份成功后关闭弹窗
       dialogVisible.value = false;
     }
@@ -247,6 +274,15 @@ const handleClose = () => {
   margin-top: 6px;
   font-size: 12px;
   color: #909399;
+}
+
+.encrypted-backup-tip {
+  margin-top: 10px;
+}
+
+:deep(.encrypted-backup-tip .el-alert__content) {
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .last-backup-info {

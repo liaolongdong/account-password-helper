@@ -553,4 +553,32 @@ body {
 
   /* overflow: hidden; */
 }
+
+/* ==================== 弹窗滚动容器与滚动条全局样式 ==================== */
+
+/**
+ * 弹窗内容区滚动容器
+ * 用于 align-center 弹窗中包裹可能超长的表单内容，
+ * 超出 max-height 时显示垂直滚动条，底部按钮（#footer slot）固定在弹窗底部不随内容滚动。
+ * 注意：el-dialog 默认 teleport 到 body，必须放在非 scoped 样式块中才能生效。
+ */
+.dialog-body-scroll {
+  max-height: 70vh;
+  padding-right: 4px;
+  overflow-y: auto;
+}
+
+/* 滚动条样式（参考 HelpDialog 风格：纤细 4px，slate 色调，无轨道背景） */
+.dialog-body-scroll::-webkit-scrollbar {
+  width: 4px;
+}
+
+.dialog-body-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+.dialog-body-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
 </style>
