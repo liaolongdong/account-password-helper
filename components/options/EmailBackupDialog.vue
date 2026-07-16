@@ -45,7 +45,7 @@
             <template #default>
               加密备份的文件只能通过本插件的
               <strong>数据管理 -> 加密备份导入功能，且必须验证导出时设置的主密码</strong>
-              才能看到解密后的账号密码数据。
+              才能看到解密后的账号密码数据。<strong>请务必牢记主密码！</strong>
             </template>
           </el-alert>
         </el-form-item>
