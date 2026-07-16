@@ -265,7 +265,7 @@ const handleClose = () => {
 
 <style scoped>
 .dialog-body-scroll {
-  max-height: 70vh;
+  max-height: 80vh;
   padding-right: 4px;
   overflow-y: auto;
 }
