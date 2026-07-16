@@ -44,7 +44,8 @@
           >
             <template #default>
               加密备份的文件只能通过本插件的
-              <strong>数据管理 -> 加密备份导入</strong> 功能才能正常看到明文账号密码数据。
+              <strong>数据管理 -> 加密备份导入功能，且必须验证导出时设置的主密码</strong>
+              才能看到解密后的账号密码数据。
             </template>
           </el-alert>
         </el-form-item>
@@ -264,12 +265,6 @@ const handleClose = () => {
 </script>
 
 <style scoped>
-.dialog-body-scroll {
-  max-height: 80vh;
-  padding-right: 4px;
-  overflow-y: auto;
-}
-
 .auto-backup-row {
   display: flex;
   align-items: center;
