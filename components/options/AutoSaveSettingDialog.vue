@@ -3,6 +3,7 @@
     :model-value="modelValue"
     title="自动保存设置"
     width="650px"
+    align-center
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >
@@ -357,12 +358,6 @@ const handleSave = async (): Promise<void> => {
 
 .add-pattern-form .el-input {
   flex: 1;
-}
-
-.dialog-body-scroll {
-  max-height: 60vh;
-  padding-right: 4px;
-  overflow-y: auto;
 }
 
 .dialog-footer {

@@ -35,6 +35,28 @@ export async function deriveSessionKey(salt: string): Promise<string> {
 }
 
 /**
+ * 派生主密码校验哈希（PBKDF2-SHA256 慢哈希，抗离线爆破）
+ *
+ * 与 deriveEncryptionKey 使用相同的迭代强度（600k），使攻击者即便拿到存储也无法
+ * 以 GPU 快速爆破主密码。通过对 salt 做域分离（前缀 'aph-verify|'），保证校验值与
+ * 加密密钥在密码学上相互独立——存储的校验值无法被反推为解密密钥。
+ *
+ * @param password 主密码明文
+ * @param salt 主密码盐值（与加密密钥共享同一盐值，但派生上下文不同）
+ * @returns 64-char hex string（32 bytes raw）
+ */
+export async function deriveVerifierHash(password: string, salt: string): Promise<string> {
+  const enc = new TextEncoder();
+  const baseKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', salt: enc.encode('aph-verify|' + salt), iterations: 600000, hash: 'SHA-256' },
+    baseKey,
+    256,
+  );
+  return bytesToHex(new Uint8Array(bits));
+}
+
+/**
  * 从主密码派生 AES-256-GCM 密钥（Web Crypto PBKDF2，原生实现，不阻塞主线程）
  * 返回 64-char hex string（32 bytes）
  */

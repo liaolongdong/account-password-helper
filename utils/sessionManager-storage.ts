@@ -41,6 +41,16 @@ let sessionEncryptionKey: string | null = null;
 let _consistencyCheckDone = false;
 
 /**
+ * clearSession() 进行中的 Promise（同一上下文内去重）
+ *
+ * 过期检测（isSessionValid）、缓存预热（warmPasswordCache）、
+ * INVALIDATE_PASSWORD_CACHE 等多个入口可能在短时间内并发触发 clearSession()，
+ * 其内部 encryptAllPasswordsBeforeSessionClear() 含 PBKDF2 + 全量 AES-GCM 重加密。
+ * 复用同一次执行可降低 CPU 峰值与 storage 写竞争，避免 Windows 上重复重加密。
+ */
+let _clearSessionInFlight: Promise<void> | null = null;
+
+/**
  * isSessionValid() 结果缓存
  *
  * 避免同一 sidepanel 生命周期内重复执行 storage 读取 + HKDF 密钥派生（Windows ~40-80ms）。
@@ -151,8 +161,11 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
 
     const now = Date.now();
     if (sessionPasswordExpiry !== null && now >= sessionPasswordExpiry) {
-      await clearSession();
+      // 先写缓存并立即返回 false，将 clearSession()（含 O(n) 全量重加密）
+      // 改为 fire-and-forget 后台执行，避免 Windows Web Crypto 较慢时阻塞
+      // 侧边栏首屏渲染与 SW 消息处理（详见 clearSession 内的重加密逻辑）
       _sessionValidCache = { valid: false, timestamp: Date.now() };
+      void clearSession();
       return false;
     }
 
@@ -160,8 +173,9 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
     return true;
   } catch (error) {
     logger.error('会话验证失败:', error);
-    await clearSession();
+    // 异常路径同样不阻塞：先写缓存返回 false，清理异步执行
     _sessionValidCache = { valid: false, timestamp: Date.now() };
+    void clearSession();
     return false;
   }
 }
@@ -283,8 +297,24 @@ async function restoreSessionEncryptionKeyFromStorage(): Promise<void> {
 
 /**
  * 清除会话缓存
+ *
+ * 使用模块级 in-flight Promise 去重：短时间内并发调用复用同一次执行，
+ * 避免 encryptAllPasswordsBeforeSessionClear() 的全量重加密被重复触发。
  */
 export async function clearSession(): Promise<void> {
+  if (_clearSessionInFlight) {
+    return _clearSessionInFlight;
+  }
+  _clearSessionInFlight = _doClearSession().finally(() => {
+    _clearSessionInFlight = null;
+  });
+  return _clearSessionInFlight;
+}
+
+/**
+ * 清除会话缓存的实际执行体（由 clearSession 去重包装调用）
+ */
+async function _doClearSession(): Promise<void> {
   try {
     invalidateSessionCache();
     // 内存状态可能因页面重载而丢失，直接从 storage 恢复（避免调用 isSessionValid 产生递归）

@@ -89,6 +89,21 @@ async function handleGetInitialData(_domain?: string) {
 }
 
 /**
+ * 判定消息是否来自可信的扩展内部页面上下文（sidepanel/popup/options）
+ *
+ * 仅扩展自身页面满足：`sender.id === chrome.runtime.id` 且 `sender.tab === undefined`
+ * （网页内容脚本的 `sender.tab` 恒有值，因此被拒）；并附加 url 同源校验作为纵深防御。
+ *
+ * 用于保护会返回明文密码列表的消息（GET_INITIAL_DATA / GET_CACHED_PASSWORDS），
+ * 避免任意内容脚本上下文越权读取整份密码数据。
+ */
+function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean {
+  if (sender.id !== chrome.runtime.id) return false;
+  if (sender.tab !== undefined) return false;
+  return sender.url ? sender.url.startsWith(chrome.runtime.getURL('')) : true;
+}
+
+/**
  * 设置消息路由监听器
  * 处理来自 content script 和 popup 的所有 runtime 消息
  *
@@ -187,6 +202,11 @@ export function setupMessageRouter(): void {
         return true;
 
       case MessageType.GET_CACHED_PASSWORDS: {
+        // 安全校验：仅允许扩展内部页面获取明文密码列表
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         const requestedDomain = message.data?.domain;
         getCachedPasswords(requestedDomain).then(cachedData => {
           sendResponse({ success: true, data: cachedData });
@@ -267,6 +287,11 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.GET_INITIAL_DATA: {
+        // 安全校验：仅允许扩展内部页面获取明文密码列表
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         const requestedDomain = message.data?.domain;
         handleGetInitialData(requestedDomain)
           .then(data => {

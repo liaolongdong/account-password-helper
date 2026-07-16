@@ -74,6 +74,13 @@ export interface EncryptedPasswordEntry extends PasswordEntry {
 export interface MasterPasswordConfig {
   hashedPassword: string;
   salt: string;
+  /**
+   * 校验哈希使用的 KDF 算法标记
+   *
+   * - `'pbkdf2-sha256'`：PBKDF2-SHA256 慢哈希（当前版本）
+   * - 缺失（undefined）：旧版单轮 SHA-256，在下次成功验证时透明迁移升级
+   */
+  kdf?: 'pbkdf2-sha256';
 }
 
 /**

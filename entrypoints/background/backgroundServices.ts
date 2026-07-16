@@ -426,7 +426,7 @@ export function setupBackgroundServices(): void {
       // 额外检查会话有效性，过期则停止保活闹钟以节省资源
       chrome.storage.local
         .get([SESSION_STORAGE_KEYS.PASSWORD_EXPIRY])
-        .then(result => {
+        .then(async result => {
           const expiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined;
           if (!expiry || Date.now() >= expiry) {
             invalidatePasswordCache();
@@ -435,6 +435,14 @@ export function setupBackgroundServices(): void {
             // 会导致 isSessionValid() 回退到 storage 检查并误判为有效；
             // markSessionInvalid() 直接标记 {valid: false}，5s TTL 内立即返回 false
             markSessionInvalid();
+
+            // 主动锁定：会话仍存活的 SW 中一次性完成「加密全部密码 + 删除会话键」，
+            // 使用户之后打开侧边栏走 isSessionValid 的「无会话键 → 立即 false」快路径，
+            // 从根上避免打开侧边栏时才触发全量重加密（Windows Web Crypto 慢导致数秒卡顿）。
+            await StorageUtils.clearSession().catch(e => {
+              logger.error('Background: SW 保活闹钟过期锁定失败:', e);
+            });
+
             clearSwKeepaliveAlarm();
 
             // 通知打开的侧边栏切换到未验证状态
@@ -452,7 +460,7 @@ export function setupBackgroundServices(): void {
               // 无监听者时忽略
             }
 
-            logger.debug('Background: 会话已过期，缓存已清除，SW 保活闹钟已自动停止');
+            logger.debug('Background: 会话已过期，已锁定并加密，缓存已清除，SW 保活闹钟已自动停止');
           }
         })
         .catch(() => {

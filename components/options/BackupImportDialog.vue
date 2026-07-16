@@ -3,186 +3,188 @@
     v-model="dialogVisible"
     title="加密备份导入"
     width="920px"
-    top="10vh"
+    align-center
     class="backup-import-dialog"
     :close-on-click-modal="false"
     @close="handleClose"
   >
-    <div class="import-content">
-      <!-- 导入说明 -->
-      <el-alert
-        title="导入说明"
-        type="info"
-        :closable="false"
-        show-icon
-      >
-        <template #default>
-          <p>仅支持加密备份文件（.aph 格式）</p>
-          <p>请输入导出时使用的主密码进行解密，解密后可预览数据再确认导入</p>
-        </template>
-      </el-alert>
-
-      <!-- 拖拽上传区域 -->
-      <div class="upload-area">
-        <el-upload
-          ref="uploadRef"
-          drag
-          :auto-upload="false"
-          :show-file-list="false"
-          :limit="1"
-          accept=".aph"
-          @change="handleFileChange"
+    <div class="dialog-body-scroll">
+      <div class="import-content">
+        <!-- 导入说明 -->
+        <el-alert
+          title="导入说明"
+          type="info"
+          :closable="false"
+          show-icon
         >
-          <div class="upload-dragger-content">
-            <el-icon class="upload-icon"><Upload /></el-icon>
-            <div class="upload-text">
-              <span>将文件拖拽到此处，或</span>
-              <em>点击选择文件</em>
-            </div>
-            <div class="upload-hint">仅支持 .aph 加密备份文件</div>
-          </div>
-        </el-upload>
-
-        <!-- 文件信息展示 -->
-        <div
-          v-if="selectedFile"
-          class="file-info"
-        >
-          <el-icon class="file-info-icon"><Document /></el-icon>
-          <div class="file-info-detail">
-            <span class="file-info-name">{{ selectedFile.name }}</span>
-            <span class="file-info-size">{{ formatFileSize(selectedFile.size) }}</span>
-          </div>
-          <el-button
-            type="danger"
-            :icon="Delete"
-            circle
-            size="small"
-            @click="handleFileRemove"
-          />
-        </div>
-      </div>
-
-      <!-- 主密码输入区（文件选择后才显示） -->
-      <div
-        v-if="selectedFile && previewData.length === 0"
-        class="password-section"
-      >
-        <div class="password-label">主密码</div>
-        <el-input
-          v-model="masterPassword"
-          type="password"
-          placeholder="请输入导出时使用的主密码"
-          show-password
-          :disabled="decrypting"
-          @keyup.enter="handleDecrypt"
-        >
-          <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
-          <template #password-icon="{ visible }">
-            <el-icon>
-              <View v-if="visible" />
-              <Hide v-else />
-            </el-icon>
+          <template #default>
+            <p>仅支持加密备份文件（.aph 格式）</p>
+            <p>请输入导出时使用的主密码进行解密，解密后可预览数据再确认导入</p>
           </template>
-        </el-input>
-        <el-button
-          type="primary"
-          :loading="decrypting"
-          :disabled="!masterPassword.trim()"
-          style="margin-top: 10px"
-          @click="handleDecrypt"
-        >
-          解密并预览
-        </el-button>
-      </div>
+        </el-alert>
 
-      <!-- 预览数据 -->
-      <div
-        v-if="previewData.length > 0"
-        class="preview-section"
-      >
-        <div class="preview-header">
-          <h4>预览数据（前5条）</h4>
-          <span class="preview-total">共 {{ previewData.length }} 条有效数据</span>
+        <!-- 拖拽上传区域 -->
+        <div class="upload-area">
+          <el-upload
+            ref="uploadRef"
+            drag
+            :auto-upload="false"
+            :show-file-list="false"
+            :limit="1"
+            accept=".aph"
+            @change="handleFileChange"
+          >
+            <div class="upload-dragger-content">
+              <el-icon class="upload-icon"><Upload /></el-icon>
+              <div class="upload-text">
+                <span>将文件拖拽到此处，或</span>
+                <em>点击选择文件</em>
+              </div>
+              <div class="upload-hint">仅支持 .aph 加密备份文件</div>
+            </div>
+          </el-upload>
+
+          <!-- 文件信息展示 -->
+          <div
+            v-if="selectedFile"
+            class="file-info"
+          >
+            <el-icon class="file-info-icon"><Document /></el-icon>
+            <div class="file-info-detail">
+              <span class="file-info-name">{{ selectedFile.name }}</span>
+              <span class="file-info-size">{{ formatFileSize(selectedFile.size) }}</span>
+            </div>
+            <el-button
+              type="danger"
+              :icon="Delete"
+              circle
+              size="small"
+              @click="handleFileRemove"
+            />
+          </div>
         </div>
-        <el-table
-          :data="previewData.slice(0, 5)"
-          style="width: 100%"
-          stripe
-          size="small"
+
+        <!-- 主密码输入区（文件选择后才显示） -->
+        <div
+          v-if="selectedFile && previewData.length === 0"
+          class="password-section"
         >
-          <el-table-column
-            prop="username"
-            label="用户名"
-            show-overflow-tooltip
-            min-width="120"
-          />
-          <el-table-column
-            prop="password"
-            label="密码"
-            min-width="100"
-          >
-            <template #default="{ row }">
-              <span>{{ showPreviewPassword ? row.password : '*'.repeat(8) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="url"
-            label="网址"
-            show-overflow-tooltip
-            min-width="160"
-          />
-          <el-table-column
-            prop="tag"
-            label="标签"
-            show-overflow-tooltip
-            min-width="100"
-          />
-          <el-table-column
-            prop="remark"
-            label="备注"
-            show-overflow-tooltip
-            min-width="120"
-          />
-          <el-table-column
-            prop="createTime"
-            label="创建时间"
-            min-width="100"
-          >
-            <template #default="{ row }">
-              {{ formatDate(row.createTime) }}
-            </template>
-          </el-table-column>
-          <el-table-column
-            prop="updateTime"
-            label="更新时间"
-            min-width="100"
-          >
-            <template #default="{ row }">
-              {{ formatDate(row.updateTime) }}
-            </template>
-          </el-table-column>
-        </el-table>
-        <div class="preview-footer">
-          <el-button
-            type="primary"
-            @click="showPreviewPassword = !showPreviewPassword"
+          <div class="password-label">主密码</div>
+          <el-input
+            v-model="masterPassword"
+            type="password"
+            placeholder="请输入导出时使用的主密码"
+            show-password
+            :disabled="decrypting"
+            @keyup.enter="handleDecrypt"
           >
             <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
-            <el-icon
-              v-if="showPreviewPassword"
-              style="margin-right: 4px"
-            >
-              <View />
-            </el-icon>
-            <el-icon
-              v-else
-              style="margin-right: 4px"
-            >
-              <Hide />
-            </el-icon>
-            {{ showPreviewPassword ? '隐藏密码' : '显示密码' }}
+            <template #password-icon="{ visible }">
+              <el-icon>
+                <View v-if="visible" />
+                <Hide v-else />
+              </el-icon>
+            </template>
+          </el-input>
+          <el-button
+            type="primary"
+            :loading="decrypting"
+            :disabled="!masterPassword.trim()"
+            style="margin-top: 10px"
+            @click="handleDecrypt"
+          >
+            解密并预览
           </el-button>
+        </div>
+
+        <!-- 预览数据 -->
+        <div
+          v-if="previewData.length > 0"
+          class="preview-section"
+        >
+          <div class="preview-header">
+            <h4>预览数据（前5条）</h4>
+            <span class="preview-total">共 {{ previewData.length }} 条有效数据</span>
+          </div>
+          <el-table
+            :data="previewData.slice(0, 5)"
+            style="width: 100%"
+            stripe
+            size="small"
+          >
+            <el-table-column
+              prop="username"
+              label="用户名"
+              show-overflow-tooltip
+              min-width="120"
+            />
+            <el-table-column
+              prop="password"
+              label="密码"
+              min-width="100"
+            >
+              <template #default="{ row }">
+                <span>{{ showPreviewPassword ? row.password : '*'.repeat(8) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="url"
+              label="网址"
+              show-overflow-tooltip
+              min-width="160"
+            />
+            <el-table-column
+              prop="tag"
+              label="标签"
+              show-overflow-tooltip
+              min-width="100"
+            />
+            <el-table-column
+              prop="remark"
+              label="备注"
+              show-overflow-tooltip
+              min-width="120"
+            />
+            <el-table-column
+              prop="createTime"
+              label="创建时间"
+              min-width="100"
+            >
+              <template #default="{ row }">
+                {{ formatDate(row.createTime) }}
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="updateTime"
+              label="更新时间"
+              min-width="100"
+            >
+              <template #default="{ row }">
+                {{ formatDate(row.updateTime) }}
+              </template>
+            </el-table-column>
+          </el-table>
+          <div class="preview-footer">
+            <el-button
+              type="primary"
+              @click="showPreviewPassword = !showPreviewPassword"
+            >
+              <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
+              <el-icon
+                v-if="showPreviewPassword"
+                style="margin-right: 4px"
+              >
+                <View />
+              </el-icon>
+              <el-icon
+                v-else
+                style="margin-right: 4px"
+              >
+                <Hide />
+              </el-icon>
+              {{ showPreviewPassword ? '隐藏密码' : '显示密码' }}
+            </el-button>
+          </div>
         </div>
       </div>
     </div>
@@ -266,7 +268,7 @@ const handleFileChange = async (file: UploadFile) => {
   // 文件选择后，密码输入区出现，等 DOM 渲染完毕后滚动弹窗内容区到底部
   await nextTick();
   setTimeout(() => {
-    const dialogBody = document.querySelector('.backup-import-dialog .el-dialog__body');
+    const dialogBody = document.querySelector('.backup-import-dialog .dialog-body-scroll');
     if (dialogBody) {
       dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
     }
@@ -300,7 +302,7 @@ const handleDecrypt = async () => {
     ElMessage.success(`解密成功，共找到 ${entries.length} 条有效数据`);
     await nextTick();
     setTimeout(() => {
-      const dialogBody = document.querySelector('.backup-import-dialog .el-dialog__body');
+      const dialogBody = document.querySelector('.backup-import-dialog .dialog-body-scroll');
       if (dialogBody) {
         dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
       }
@@ -347,12 +349,7 @@ const handleClose = () => {
 </script>
 
 <style>
-/* 非 scoped 样式：el-dialog__body 是组件内部元素，scoped 选择器无法穿透 */
-.backup-import-dialog .el-dialog__body {
-  max-height: 60vh;
-  padding: 16px 20px;
-  overflow-y: auto;
-}
+/* 非 scoped 样式块保留供其他全局覆盖使用，滚动样式已迁移至全局 styles.css */
 </style>
 
 <style scoped>
