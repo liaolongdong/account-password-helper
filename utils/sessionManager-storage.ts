@@ -1,6 +1,6 @@
 import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 
 /**
  * 延迟加载加密模块
@@ -27,7 +27,7 @@ export const SESSION_STORAGE_KEYS = {
   MASTER_PASSWORD: 'session_master_password',
   PASSWORD_EXPIRY: 'session_password_expiry',
   VALIDITY_HOURS: 'session_validity_hours',
-  /** 标记密码数据已在 storage 中解密为明文，避免 ensureDataConsistencyWithSession 重复读取 PASSWORDS */
+  /** 旧版遗留键（曾用于标记明文解密状态）；现已废弃，仅在 clearSession 时一并清理 */
   PASSWORDS_DECRYPTED: 'session_passwords_decrypted',
 };
 
@@ -36,17 +36,24 @@ let encryptedSessionMasterPassword: string | null = null;
 let sessionPasswordExpiry: number | null = null;
 let sessionValidityHours: number | null = null;
 let sessionEncryptionKey: string | null = null;
+/** 会话期派生的数据加密密钥（hex）；SW 内存热缓存，与 storage.session 互为镜像 */
+let sessionDataKey: string | null = null;
 
-/** 标记数据一致性检查是否已完成（SW 生命周期内只需执行一次） */
-let _consistencyCheckDone = false;
+/** 标记 at-rest 密文化（明文→密文迁移）是否已在本 SW 生命周期内完成 */
+let _encryptAtRestDone = false;
+/** at-rest 密文化正在执行中的去重标志，避免并发重复执行 */
+let _encryptAtRestInFlight = false;
+/** getSessionDataKey level-3 重派生（PBKDF2）的 in-flight 去重锁，避免冷启动并发重复派生 */
+let _dataKeyDerivingPromise: Promise<string | null> | null = null;
+/** 是否为 Service Worker 后台上下文（用于门控 at-rest 迁移仅在后台触发） */
+const _isBackgroundContext = typeof window === 'undefined';
 
 /**
  * clearSession() 进行中的 Promise（同一上下文内去重）
  *
  * 过期检测（isSessionValid）、缓存预热（warmPasswordCache）、
  * INVALIDATE_PASSWORD_CACHE 等多个入口可能在短时间内并发触发 clearSession()，
- * 其内部 encryptAllPasswordsBeforeSessionClear() 含 PBKDF2 + 全量 AES-GCM 重加密。
- * 复用同一次执行可降低 CPU 峰值与 storage 写竞争，避免 Windows 上重复重加密。
+ * 复用同一次执行可避免并发重复的 storage 读写与状态清理竞争。
  */
 let _clearSessionInFlight: Promise<void> | null = null;
 
@@ -96,13 +103,13 @@ export function isSessionActiveSync(): boolean {
 
 /**
  * 检查会话是否有效
- * 增强：会话恢复后自动检查数据状态一致性，必要时重新解密
+ * 增强：会话恢复后确保 storage.local 中数据均为密文（at-rest 不变量）
  *
  * 性能优化：内置 5 秒 TTL 结果缓存，避免重复的 storage 读取 + HKDF 密钥派生
  * （Windows ~40-80ms，Mac ~10-20ms）。会话创建/清除时缓存自动失效。
  *
- * @param options.skipConsistencyCheck 跳过 ensureDataConsistencyWithSession（sidepanel 热路径使用，
- *   后续 getAllPasswords 会自行处理加密数据状态，无需在此阻塞）
+ * @param options.skipConsistencyCheck 跳过 at-rest 密文化检查（sidepanel 热路径使用，
+ *   后续 getAllPasswords 会自行按需解密，无需在此阻塞）
  */
 export async function isSessionValid(options?: { skipConsistencyCheck?: boolean }): Promise<boolean> {
   // 检查缓存：5 秒内的结果直接返回，避免重复的 storage IPC + HKDF 开销
@@ -113,14 +120,13 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
   try {
     if (!encryptedSessionMasterPassword || !sessionPasswordExpiry) {
       // 批量读取 session keys + MASTER_PASSWORD（不含 PASSWORDS，由调用方按需读取）
-      // 性能优化：skipConsistencyCheck 时仅读 3 个必需 key，Windows 上省 2 个 storage IPC
+      // 性能优化：skipConsistencyCheck 时仅读 3 个必需 key，Windows 上省 storage IPC
       const keysToRead = options?.skipConsistencyCheck
         ? [SESSION_STORAGE_KEYS.MASTER_PASSWORD, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY, STORAGE_KEYS.MASTER_PASSWORD]
         : [
             SESSION_STORAGE_KEYS.MASTER_PASSWORD,
             SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
             SESSION_STORAGE_KEYS.VALIDITY_HOURS,
-            SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
             STORAGE_KEYS.MASTER_PASSWORD,
           ];
       const _perfStorageStart = performance.now();
@@ -145,13 +151,16 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
         }
         logger.debug(`isSessionValid: HKDF derive ${(performance.now() - _perfHkdfStart).toFixed(1)}ms`);
 
-        // 检查解密标记：如果标记为 true，跳过 expensive 的数据一致性检查（避免重复解密）
-        const passwordsDecrypted = options?.skipConsistencyCheck
-          ? true // sidepanel 热路径：跳过检查，由 getAllPasswords 自行处理
-          : (result[SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED] as boolean | undefined);
-        if (!passwordsDecrypted) {
-          // flag 为 false 时需要进行数据一致性检查，由 ensureDataConsistencyWithSession 自行读取 PASSWORDS
-          await ensureDataConsistencyWithSession();
+        // at-rest 不变量维护：确保 storage.local 中所有条目均为密文
+        //（覆盖旧版本升级后磁盘仍为明文、或会话跨 SW 重启恢复的场景）。
+        // 仅在「非 skip 路径 + 后台上下文」触发：fire-and-forget 不阻塞会话验证热路径。
+        // 收敛到后台单点触发，避免 popup/options/sidepanel 各自并发触发迁移写入，
+        // 消除重复的 storage 读写与随之而来的缓存失效 / 侧边栏重载连锁。
+        // 登录场景由 createSession 显式 await 迁移覆盖；跨 SW 重启恢复由后台预热覆盖。
+        // 说明：旧版升级期的一次性迁移写入仍会触发一次缓存失效与一次侧边栏重载，
+        // 属可接受且自愈的行为（下次读取即恢复），不额外引入抑制逻辑。
+        if (!options?.skipConsistencyCheck && _isBackgroundContext) {
+          void ensurePasswordsEncryptedAtRest();
         }
       } else {
         _sessionValidCache = { valid: false, timestamp: Date.now() };
@@ -161,9 +170,8 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
 
     const now = Date.now();
     if (sessionPasswordExpiry !== null && now >= sessionPasswordExpiry) {
-      // 先写缓存并立即返回 false，将 clearSession()（含 O(n) 全量重加密）
-      // 改为 fire-and-forget 后台执行，避免 Windows Web Crypto 较慢时阻塞
-      // 侧边栏首屏渲染与 SW 消息处理（详见 clearSession 内的重加密逻辑）
+      // 先写缓存并立即返回 false，将 clearSession()（仅清理会话密钥、无全量重加密）
+      // 改为 fire-and-forget 后台执行，避免阻塞侧边栏首屏渲染与 SW 消息处理。
       _sessionValidCache = { valid: false, timestamp: Date.now() };
       void clearSession();
       return false;
@@ -181,37 +189,158 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
 }
 
 /**
- * 确保数据状态与会话状态一致
- * 使用模块级锁保证 SW 生命周期内只执行一次，避免重复触发全量解密
- * @param preloadedPasswords 可选，从批量 storage 读取中已获取的密码数据，传入可避免重复读取
+ * 获取会话期数据加密密钥（hex）
+ *
+ * 三级回退：SW 内存热缓存 → storage.session（跨上下文、活过 SW 终止）→
+ * 由主密码恢复 blob 重派生（PBKDF2，仅在缓存缺失/重启后执行一次）并回填两级缓存。
+ *
+ * 注意：不独立校验会话是否过期，调用方须先经过 isSessionValid 门禁。
+ * @returns 数据密钥 hex；无法获取（无有效会话）时返回 null
  */
-async function ensureDataConsistencyWithSession(
-  preloadedPasswords?: (PasswordEntry | EncryptedPasswordEntry)[],
-): Promise<void> {
-  if (_consistencyCheckDone) return;
-  _consistencyCheckDone = true;
+export async function getSessionDataKey(): Promise<string | null> {
+  // 1. SW 内存热缓存
+  if (sessionDataKey) return sessionDataKey;
+
+  // 2. storage.session（仅内存，跨上下文共享，活过 SW 终止）
   try {
-    const rawData: (PasswordEntry | EncryptedPasswordEntry)[] =
-      preloadedPasswords ??
-      (((await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS))[STORAGE_KEYS.PASSWORDS] as
+    const r = await chrome.storage.session.get(SESSION_MEMORY_KEYS.DATA_KEY);
+    const cached = r[SESSION_MEMORY_KEYS.DATA_KEY] as string | undefined;
+    if (cached) {
+      sessionDataKey = cached;
+      return cached;
+    }
+  } catch {
+    // storage.session 不可用时静默回退到重派生路径
+  }
+
+  // 3. 兜底：从主密码恢复 blob 重派生（PBKDF2，冷启动/重启后一次）。
+  // 用模块级 in-flight 去重，避免冷启动并发多次触发昂贵的 PBKDF2。
+  if (_dataKeyDerivingPromise) return _dataKeyDerivingPromise;
+  _dataKeyDerivingPromise = _deriveDataKeyFromMaster().finally(() => {
+    _dataKeyDerivingPromise = null;
+  });
+  return _dataKeyDerivingPromise;
+}
+
+/**
+ * 从主密码恢复 blob 重派生数据密钥（PBKDF2）并回填两级缓存。
+ * 仅由 getSessionDataKey 的三级回退在缓存缺失时调用，外层已用 in-flight 锁去重。
+ * @returns 数据密钥 hex；无有效会话（无法恢复主密码）时返回 null
+ */
+async function _deriveDataKeyFromMaster(): Promise<string | null> {
+  if (!encryptedSessionMasterPassword || !sessionEncryptionKey) {
+    await restoreSessionEncryptionKeyFromStorage();
+  }
+  const masterPassword = await getSessionMasterPasswordDecrypted();
+  if (!masterPassword) return null;
+
+  const enc = await _getEncryption();
+  const key = await enc.deriveEncryptionKey(masterPassword);
+  sessionDataKey = key;
+  try {
+    await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.DATA_KEY]: key });
+  } catch {
+    // 回填失败不影响本次返回
+  }
+  return key;
+}
+
+/**
+ * 确保 storage.local 中所有密码条目均为密文（at-rest 不变量，严重-1）
+ *
+ * 覆盖两类场景：
+ * - 旧版本升级：升级前会话活跃时磁盘残留明文，需一次性加密。
+ * - 新条目落盘前的兜底。
+ *
+ * 幂等且 SW 生命周期内仅有效执行一次（_encryptAtRestDone）；逐条失败不丢弃，
+ * 无法获取密钥时不置完成标志，留待下次重试。
+ *
+ * @param masterPassword 可选，显式主密码（登录流程传入）；缺省时用会话数据密钥
+ */
+async function ensurePasswordsEncryptedAtRest(masterPassword?: string): Promise<void> {
+  if (_encryptAtRestDone || _encryptAtRestInFlight) return;
+  _encryptAtRestInFlight = true;
+  try {
+    const isEncrypted = (e: PasswordEntry | EncryptedPasswordEntry): boolean =>
+      'encrypted' in e && (e as EncryptedPasswordEntry).encrypted === true;
+
+    const snapshot: (PasswordEntry | EncryptedPasswordEntry)[] =
+      ((await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS))[STORAGE_KEYS.PASSWORDS] as
         | (PasswordEntry | EncryptedPasswordEntry)[]
-        | undefined) ||
-        []);
-    if (rawData.length === 0) return;
+        | undefined) || [];
+    if (snapshot.length === 0) {
+      _encryptAtRestDone = true;
+      return;
+    }
+    if (!snapshot.some(e => !isEncrypted(e))) {
+      _encryptAtRestDone = true;
+      return;
+    }
 
-    const hasEncrypted = rawData.some(e => 'encrypted' in e && (e as EncryptedPasswordEntry).encrypted === true);
+    const enc = await _getEncryption();
+    const key = masterPassword ? await enc.deriveEncryptionKey(masterPassword) : await getSessionDataKey();
+    if (!key) {
+      // 无法获取密钥（无有效会话），不置完成标志，留待下次触发时重试
+      return;
+    }
 
-    if (hasEncrypted) {
-      logger.warn('检测到会话有效但数据已加密，正在自动修复...');
-      const masterPassword = await getSessionMasterPasswordDecrypted();
-      if (masterPassword) {
-        await decryptAllPasswordsOnSessionCreate(masterPassword);
-        logger.debug('数据状态已修复，所有条目已解密为明文');
+    // 预先加密快照中的明文条目，并记录其 updateTime 以便检测并发修改
+    const encById = new Map<string, { enc: EncryptedPasswordEntry; updateTime?: number }>();
+    for (const e of snapshot) {
+      if (!isEncrypted(e)) {
+        const plain = e as PasswordEntry;
+        encById.set(plain.id, {
+          enc: await enc.encryptPasswordEntry(plain, '', key),
+          updateTime: plain.updateTime,
+        });
       }
     }
+
+    // 重新读取最新快照，仅替换「仍为明文且自快照以来未被并发修改」的条目，
+    // 并发新增/修改/删除的条目原样保留，彻底避免与并发写入互相覆盖导致数据丢失。
+    const latest: (PasswordEntry | EncryptedPasswordEntry)[] =
+      ((await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS))[STORAGE_KEYS.PASSWORDS] as
+        | (PasswordEntry | EncryptedPasswordEntry)[]
+        | undefined) || [];
+    let changed = false;
+    const out = latest.map(e => {
+      if (isEncrypted(e)) return e;
+      const m = encById.get(e.id);
+      if (m && (e as PasswordEntry).updateTime === m.updateTime) {
+        changed = true;
+        return m.enc;
+      }
+      return e; // 并发新增/修改的明文条目：保留，交由下一轮迁移处理
+    });
+
+    if (changed) {
+      await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: out });
+    }
+    // 仅当最新快照中已无明文时才标记完成，否则留待下次触发继续迁移
+    if (!out.some(e => !isEncrypted(e))) {
+      _encryptAtRestDone = true;
+      logger.debug('at-rest 不变量已满足：storage.local 中所有密码条目均为密文');
+    }
   } catch (error) {
-    logger.error('检查数据一致性失败:', error);
+    logger.error('确保密码密文落盘失败:', error);
+  } finally {
+    _encryptAtRestInFlight = false;
   }
+}
+
+/**
+ * 后台安全网：请求重新执行一次 at-rest 密文化。
+ *
+ * 用于旧版升级期：某上下文的并发 CRUD 写入可能把尚未迁移的明文条目重新写回
+ * storage.local；后台 storage 监听检测到明文残留时调用本函数，重置完成标志并
+ * 重跑一次密文化，使明文再落盘窗口尽快自愈，而不必等待下次 SW 重启。
+ *
+ * 幂等：稳态全密文时 ensurePasswordsEncryptedAtRest 会快速返回；迁移写回全密文后
+ * 不再检测到明文，不会形成循环。
+ */
+export function requestReEncryptAtRest(): void {
+  _encryptAtRestDone = false;
+  void ensurePasswordsEncryptedAtRest();
 }
 
 /**
@@ -239,30 +368,37 @@ export async function createSession(masterPassword: string, validityHours: numbe
     const masterPasswordConfig = await chrome.storage.local.get(STORAGE_KEYS.MASTER_PASSWORD);
     const config = masterPasswordConfig[STORAGE_KEYS.MASTER_PASSWORD] as MasterPasswordConfig;
 
+    const enc = await _getEncryption();
+
     if (config && config.salt) {
-      const enc = await _getEncryption();
       sessionEncryptionKey = await enc.deriveSessionKey(config.salt);
     } else {
       sessionEncryptionKey = await generateSessionEncryptionKey();
     }
 
-    encryptedSessionMasterPassword = await (await _getEncryption()).encryptData(masterPassword, sessionEncryptionKey);
+    encryptedSessionMasterPassword = await enc.encryptData(masterPassword, sessionEncryptionKey);
     sessionValidityHours = validityHours;
     sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
+
+    // 派生数据加密密钥并写入两级缓存（SW 内存 + storage.session，仅内存不落盘）
+    sessionDataKey = await enc.deriveEncryptionKey(masterPassword);
+    try {
+      await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.DATA_KEY]: sessionDataKey });
+    } catch (sessionSetError) {
+      logger.warn('写入 storage.session 数据密钥失败（将回退到按需重派生）:', sessionSetError);
+    }
 
     await chrome.storage.local.set({
       [SESSION_STORAGE_KEYS.MASTER_PASSWORD]: encryptedSessionMasterPassword,
       [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: sessionPasswordExpiry,
       [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
-      [SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED]: false, // 解密前先设为 false，解密成功后更新
     });
 
-    await decryptAllPasswordsOnSessionCreate(masterPassword);
-
-    // 解密成功，标记密码数据已为明文
-    await chrome.storage.local.set({
-      [SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED]: true,
-    });
+    // 确保 at-rest 全部为密文（加密新条目 / 迁移旧版本残留明文），明文绝不落盘。
+    // sessionDataKey 已于上方派生并缓存，此处不传 masterPassword，
+    // 经 getSessionDataKey() 命中内存缓存复用同一密钥，避免二次 PBKDF2。
+    _encryptAtRestDone = false;
+    await ensurePasswordsEncryptedAtRest();
   } catch (error) {
     logger.error('创建会话缓存失败:', error);
     throw error;
@@ -299,7 +435,7 @@ async function restoreSessionEncryptionKeyFromStorage(): Promise<void> {
  * 清除会话缓存
  *
  * 使用模块级 in-flight Promise 去重：短时间内并发调用复用同一次执行，
- * 避免 encryptAllPasswordsBeforeSessionClear() 的全量重加密被重复触发。
+ * 避免并发重复的会话键清理与 storage 写竞争。
  */
 export async function clearSession(): Promise<void> {
   if (_clearSessionInFlight) {
@@ -317,22 +453,22 @@ export async function clearSession(): Promise<void> {
 async function _doClearSession(): Promise<void> {
   try {
     invalidateSessionCache();
-    // 内存状态可能因页面重载而丢失，直接从 storage 恢复（避免调用 isSessionValid 产生递归）
-    if (!encryptedSessionMasterPassword || !sessionEncryptionKey) {
-      await restoreSessionEncryptionKeyFromStorage();
-    }
 
-    // 在加密密码之前获取主密码（加密操作需要它）
-    const masterPassword = await getSessionMasterPasswordDecrypted();
-
-    // 先清除内存中的会话状态和 storage 中的会话键，
-    // 确保并发的 isSessionValid() 调用立即返回 false，
-    // 消除「会话有效但数据已加密」的竞态窗口
+    // 清除内存与 storage.session 中的会话密钥材料。
+    // storage.local 中的密码数据本就是密文（at-rest 不变量），无需再做全量重加密，
+    // 上锁因此更快，也消除了旧实现「明文↔密文」重写引入的竞态窗口。
     encryptedSessionMasterPassword = null;
     sessionPasswordExpiry = null;
     sessionValidityHours = null;
     sessionEncryptionKey = null;
-    _consistencyCheckDone = false;
+    sessionDataKey = null;
+    _encryptAtRestDone = false;
+
+    try {
+      await chrome.storage.session.remove(SESSION_MEMORY_KEYS.DATA_KEY);
+    } catch {
+      // storage.session 不可用时忽略
+    }
 
     await chrome.storage.local.remove([
       SESSION_STORAGE_KEYS.MASTER_PASSWORD,
@@ -340,13 +476,6 @@ async function _doClearSession(): Promise<void> {
       SESSION_STORAGE_KEYS.VALIDITY_HOURS,
       SESSION_STORAGE_KEYS.PASSWORDS_DECRYPTED,
     ]);
-
-    // 会话状态已完全清除后再加密密码（安全操作）
-    // 加密使用 masterPassword 派生的密钥，不依赖已清除的会话状态
-    // 正常情况下密码数据已由 lockSession/createSession 加密，此处为防御性操作
-    if (masterPassword) {
-      await encryptAllPasswordsBeforeSessionClear(masterPassword);
-    }
   } catch (error) {
     logger.error('清除会话缓存失败:', error);
     throw error;
@@ -354,122 +483,12 @@ async function _doClearSession(): Promise<void> {
 }
 
 /**
- * 会话失效前加密所有密码条目
- */
-async function encryptAllPasswordsBeforeSessionClear(masterPassword: string): Promise<void> {
-  try {
-    const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-    const rawPasswords: (PasswordEntry | EncryptedPasswordEntry)[] =
-      (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
-
-    if (rawPasswords.length === 0) return;
-
-    const hasUnencrypted = rawPasswords.some(e => !('encrypted' in e && e.encrypted === true));
-    if (!hasUnencrypted) return;
-
-    // 派生一次密钥，所有条目复用，避免 PBKDF2 × N 次
-    const key = await (await _getEncryption()).deriveEncryptionKey(masterPassword);
-
-    const encryptedPasswords: EncryptedPasswordEntry[] = [];
-    for (const entry of rawPasswords) {
-      if ('encrypted' in entry && entry.encrypted === true) {
-        encryptedPasswords.push(entry as EncryptedPasswordEntry);
-        continue;
-      }
-      const encryptedEntry = await (
-        await _getEncryption()
-      ).encryptPasswordEntry(entry as PasswordEntry, masterPassword, key);
-      encryptedPasswords.push(encryptedEntry);
-    }
-
-    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: encryptedPasswords });
-    logger.debug('会话失效前，所有密码条目已加密');
-  } catch (error) {
-    logger.error('会话失效前加密密码条目失败:', error);
-  }
-}
-
-/**
- * 会话创建后解密所有密码条目并明文存储
- */
-async function decryptAllPasswordsOnSessionCreate(masterPassword: string): Promise<void> {
-  try {
-    const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-    const rawPasswords: (PasswordEntry | EncryptedPasswordEntry)[] =
-      (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
-
-    if (rawPasswords.length === 0) return;
-
-    const hasEncrypted = rawPasswords.some(e => 'encrypted' in e && e.encrypted === true);
-    if (!hasEncrypted) return;
-
-    // 派生一次密钥，所有条目复用
-    const key = await (await _getEncryption()).deriveEncryptionKey(masterPassword);
-
-    const decryptedPasswords: PasswordEntry[] = [];
-    for (const entry of rawPasswords) {
-      if ('encrypted' in entry && entry.encrypted === true) {
-        try {
-          const decryptedEntry = await (await _getEncryption()).decryptPasswordEntry(entry, masterPassword, key);
-          decryptedPasswords.push(decryptedEntry);
-        } catch (_decryptError) {
-          logger.warn('跳过无法解密的条目: ' + entry.id);
-          // 保留加密条目原样，防止密文被当作明文重新加密导致数据丢失
-          decryptedPasswords.push(entry as unknown as PasswordEntry);
-        }
-      } else {
-        decryptedPasswords.push(entry as PasswordEntry);
-      }
-    }
-
-    if (hasEncrypted) {
-      await chrome.storage.local.set({
-        [STORAGE_KEYS.PASSWORDS]: decryptedPasswords,
-      });
-      logger.debug('会话创建后，所有密码条目已解密为明文存储');
-    }
-  } catch (error) {
-    logger.error('会话创建后解密密码条目失败:', error);
-  }
-}
-
-/**
  * 迁移未加密的密码条目
  */
 export async function migrateUnencryptedEntries(masterPassword: string): Promise<void> {
-  try {
-    if (isSessionActiveSync()) return;
-
-    const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
-    const rawPasswords: (PasswordEntry | EncryptedPasswordEntry)[] =
-      (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
-
-    if (rawPasswords.length === 0) return;
-
-    let hasUnencrypted = false;
-    const encryptedPasswords: EncryptedPasswordEntry[] = [];
-
-    for (const entry of rawPasswords) {
-      if (!('encrypted' in entry) || entry.encrypted !== true) {
-        hasUnencrypted = true;
-        const encryptedEntry = await (
-          await _getEncryption()
-        ).encryptPasswordEntry(entry as PasswordEntry, masterPassword);
-        encryptedPasswords.push(encryptedEntry);
-      } else {
-        encryptedPasswords.push(entry as EncryptedPasswordEntry);
-      }
-    }
-
-    if (hasUnencrypted) {
-      await chrome.storage.local.set({
-        [STORAGE_KEYS.PASSWORDS]: encryptedPasswords,
-      });
-      logger.debug('数据迁移完成，所有条目已加密');
-    }
-  } catch (error) {
-    logger.error('数据迁移失败:', error);
-  }
+  // 统一委托到 ensurePasswordsEncryptedAtRest：确保 storage.local 中所有条目均为密文。
+  // 登录流程在 createSession 之后调用本函数，此处为幂等兜底（若已完成则快速返回）。
+  await ensurePasswordsEncryptedAtRest(masterPassword);
 }
 
 /**

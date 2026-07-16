@@ -2,7 +2,12 @@ import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { StorageUtils } from '@/utils/storage';
-import { SESSION_STORAGE_KEYS, invalidateSessionCache, markSessionInvalid } from '@/utils/sessionManager-storage';
+import {
+  SESSION_STORAGE_KEYS,
+  invalidateSessionCache,
+  markSessionInvalid,
+  requestReEncryptAtRest,
+} from '@/utils/sessionManager-storage';
 import {
   checkForUpdate,
   getCachedUpdateInfo,
@@ -368,6 +373,17 @@ export function setupBackgroundServices(): void {
       if (hasRelevantChange) {
         logger.debug('Background: 检测到存储变化，使缓存失效');
         invalidatePasswordCache();
+      }
+
+      // at-rest 安全网：旧版升级期并发 CRUD 写入可能把尚未迁移的明文重新写回，
+      // 检测到明文残留时请求后台重跑一次密文化，尽快自愈明文再落盘窗口。
+      // 稳态全密文时 some() 快速返回、无副作用；迁移写回全密文后不再触发，无循环。
+      const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
+      if (passwordsChange) {
+        const newPasswords = passwordsChange.newValue as { encrypted?: boolean }[] | undefined;
+        if (Array.isArray(newPasswords) && newPasswords.some(e => e.encrypted !== true)) {
+          requestReEncryptAtRest();
+        }
       }
 
       // 会话状态变化时同步 SW 保活闹钟（会话创建 → 启用，会话清除 → 停止）

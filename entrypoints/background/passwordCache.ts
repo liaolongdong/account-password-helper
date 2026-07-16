@@ -1,8 +1,8 @@
-import { type PasswordCache, type PasswordEntry, type EncryptedPasswordEntry } from '@/utils/types';
+import { type PasswordCache, type PasswordEntry } from '@/utils/types';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
-import { getAllPasswordsRaw } from '@/utils/storage/passwordCrud';
+import { getAllPasswords } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 
 /** 模块级缓存状态（Service Worker 生命周期内有效） */
@@ -107,21 +107,10 @@ export async function warmPasswordCache(): Promise<void> {
       if (!valid) return;
     }
 
-    const [passwords, sortConfig] = await Promise.all([
-      getAllPasswordsRaw(),
-      getSidepanelSortConfig().catch(() => null),
-    ]);
-
-    // 防御性检查：若数据已加密（clearSession 竞态窗口），跳过缓存，
-    // 避免将 EncryptedPasswordEntry 当作 PasswordEntry 缓存，导致后续 GET_INITIAL_DATA 返回加密数据
-    const hasEncrypted = passwords.some(e => 'encrypted' in e && (e as EncryptedPasswordEntry).encrypted === true);
-    if (hasEncrypted) {
-      logger.warn('Background: 预热缓存时发现加密数据，跳过缓存（会话可能已过期）');
-      return;
-    }
+    const [passwords, sortConfig] = await Promise.all([getAllPasswords(), getSidepanelSortConfig().catch(() => null)]);
 
     passwordCache = {
-      passwords: passwords as PasswordEntry[],
+      passwords,
       domain: '*', // 全域名可用标记
       timestamp: Date.now(),
       isAuthenticated: true,

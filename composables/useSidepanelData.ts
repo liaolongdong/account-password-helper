@@ -11,9 +11,9 @@ import { logger } from '@/utils/logger';
  * 延迟加载 sessionManager-storage 模块（首次回退/事件触发时加载）
  * isSessionValid 在热路径中由 background SW 执行，本地仅在回退和事件处理中使用
  *
- * SidePanel 上下文统一跳过 ensureDataConsistencyWithSession：
- * 后续 getAllPasswords 会自行处理加密数据状态，无需在 isSessionValid 中
- * 重复读取全量密码并触发 O(n) 解密（Windows Web Crypto 较慢，数百条密码需 2~4 秒）
+ * SidePanel 上下文统一跳过 at-rest 密文化检查（skipConsistencyCheck）：
+ * 后续 getAllPasswords 会用会话数据密钥按需解密，无需在 isSessionValid 中
+ * 触发额外的全量读取（Windows Web Crypto 较慢，数百条密码开销明显）
  */
 let _sessionModule: typeof import('@/utils/sessionManager-storage') | null = null;
 const getIsSessionValid = async () => {
