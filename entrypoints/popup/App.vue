@@ -206,15 +206,11 @@ const openOptions = async () => {
 
 /**
  * 打开侧边栏
- * 会话无效时跳转到选项页面进行验证，会话有效时尝试打开侧边栏
+ * 始终打开侧边栏（与快捷键、悬浮按钮入口一致）；
+ * 会话失效时由侧边栏内的「会话已失效」卡片引导去选项页验证。
  */
 const openSidePanel = async () => {
   try {
-    if (!isSessionValid.value) {
-      await openOptions();
-      return;
-    }
-
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
       try {
