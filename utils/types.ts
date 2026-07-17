@@ -391,6 +391,16 @@ export interface ClipboardConfig {
 }
 
 /**
+ * 自动锁定配置接口
+ */
+export interface IdleLockConfig {
+  /** 闲置多少分钟后自动锁定，0 表示不锁定 */
+  idleLockMinutes: number;
+  /** 关闭浏览器后是否需要重新输入主密码（默认 false，保持在有效期内跨浏览器重启免输入） */
+  relockOnBrowserRestart?: boolean;
+}
+
+/**
  * 单个字段填充结果接口
  */
 export interface FieldFillResult {

@@ -1,4 +1,10 @@
-import type { FloatingButtonConfig, EmailBackupConfig, ClipboardConfig, PasswordEntry } from '@/utils/types';
+import type {
+  FloatingButtonConfig,
+  EmailBackupConfig,
+  ClipboardConfig,
+  IdleLockConfig,
+  PasswordEntry,
+} from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
@@ -219,6 +225,50 @@ export async function saveClipboardConfig(config: Partial<ClipboardConfig>): Pro
     });
   } catch (error) {
     logger.error('保存剪贴板配置失败:', error);
+    throw error;
+  }
+}
+
+// ==================== 自动锁定配置 ====================
+
+/**
+ * 默认自动锁定配置
+ */
+export function getDefaultIdleLockConfig(): IdleLockConfig {
+  return {
+    idleLockMinutes: 0,
+    relockOnBrowserRestart: false,
+  };
+}
+
+/**
+ * 获取自动锁定配置
+ */
+export async function getIdleLockConfig(): Promise<IdleLockConfig> {
+  const defaultConfig = getDefaultIdleLockConfig();
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.IDLE_LOCK_CONFIG);
+    const config = result[STORAGE_KEYS.IDLE_LOCK_CONFIG] as Partial<IdleLockConfig> | undefined;
+    if (!config) return defaultConfig;
+    return { ...defaultConfig, ...config };
+  } catch (error) {
+    logger.error('获取自动锁定配置失败:', error);
+    return defaultConfig;
+  }
+}
+
+/**
+ * 保存自动锁定配置（增量合并，保留未变更字段）
+ */
+export async function saveIdleLockConfig(config: Partial<IdleLockConfig>): Promise<void> {
+  try {
+    const current = await getIdleLockConfig();
+    const updated: IdleLockConfig = { ...current, ...config };
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.IDLE_LOCK_CONFIG]: updated,
+    });
+  } catch (error) {
+    logger.error('保存自动锁定配置失败:', error);
     throw error;
   }
 }

@@ -286,7 +286,7 @@ export function useSidepanelData() {
    * 的 5s TTL 缓存可能仍返回 true，导致加密数据被加载到 UI 上闪烁。
    */
   const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
-    const sessionKeys = ['session_master_password', 'session_password_expiry', 'session_validity_hours'];
+    const sessionKeys = ['session_wrapped_data_key', 'session_password_expiry', 'session_validity_hours'];
     const hasSessionChange = Object.keys(changes).some(key => sessionKeys.includes(key));
 
     if (hasSessionChange) {

@@ -1,6 +1,7 @@
 import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { isSameMainDomain } from '@/utils/domain';
 import { getClipboardConfig } from '@/utils/storage/configManager';
 import type { Ref } from 'vue';
 
@@ -152,20 +153,48 @@ export function useSidepanelFill(
   };
 
   /**
-   * 获取标签页中所有 frame 的 ID 列表
-   * 通过 webNavigation API 获取，包含顶层 frame（frameId=0）和所有 iframe
+   * 获取可安全填充的 frame ID 列表：仅顶层 frame 及与顶层同主域名的 frame。
+   *
+   * 安全加固：避免将凭证广播给页面内嵌的跨域第三方 iframe（如广告/统计）导致泄露。
+   * 检测（PING）与填充（FILL）复用同一集合，保证"检测到即可填充"的一致性。
+   *
+   * about: 系列（about:blank / about:srcdoc）继承其父帧来源：沿父链回溯至首个非 about:
+   * 祖先再判定，仅当该祖先为顶层或同主域名帧时才纳入——避免跨域 iframe 派生的 about: 子帧
+   * （与该跨域帧同源）截获明文凭证。与自动保存路径的 isSameMainDomain 校验保持一致。
+   *
    * @param tabId 标签页ID
-   * @returns frame ID 数组，获取失败时返回 [0]（仅顶层 frame）
+   * @returns 可填充的 frame ID 列表；获取失败时回退到 [0]（仅顶层 frame）
    */
-  const getAllFrameIds = async (tabId: number): Promise<number[]> => {
+  const getFillableFrameIds = async (tabId: number): Promise<number[]> => {
     try {
       const frames = await chrome.webNavigation.getAllFrames({ tabId });
-      if (!frames || frames.length === 0) {
-        return [0];
-      }
-      return frames.map(f => f.frameId);
+      if (!frames || frames.length === 0) return [0];
+
+      const topFrame = frames.find(f => f.frameId === 0);
+      const topUrl = topFrame?.url;
+      if (!topUrl) return [0];
+
+      const framesById = new Map(frames.map(f => [f.frameId, f] as const));
+
+      /**
+       * 判断 frame 是否可安全填充；about: 帧沿父链回溯判定，防止跨域 about: 子帧被误纳入。
+       */
+      const isFillable = (frame: { frameId: number; parentFrameId: number; url?: string }): boolean => {
+        if (frame.frameId === 0) return true; // 顶层 frame 恒可填充
+        const url = frame.url || '';
+        if (url.startsWith('about:')) {
+          const parent = framesById.get(frame.parentFrameId);
+          // 无父帧信息或自引用：保守拒绝，避免误填
+          if (!parent || parent.frameId === frame.frameId) return false;
+          return isFillable(parent);
+        }
+        return isSameMainDomain(url, topUrl);
+      };
+
+      const fillable = frames.filter(f => isFillable(f)).map(f => f.frameId);
+      return fillable.length > 0 ? fillable : [0];
     } catch (error) {
-      logger.warn('获取 frame 列表失败，回退到仅顶层 frame:', error);
+      logger.warn('获取可填充 frame 列表失败，回退到仅顶层 frame:', error);
       return [0];
     }
   };
@@ -305,11 +334,11 @@ export function useSidepanelFill(
       const tabId = tab.id;
       const autoLogin = options?.autoLogin ?? false;
 
-      // 获取所有 frame ID（包括顶层 frame 和 iframe），
-      // 以便后续 PING 和 FILL 能够命中 iframe 内嵌的登录表单
-      const frameIds = await getAllFrameIds(tabId);
+      // 获取「顶层 + 同主域名」可填充 frame 集合：检测（PING）与填充（FILL）复用同一集合，
+      // 既命中同站 iframe 内嵌登录表单，又避免向跨域第三方 iframe 广播明文凭证
+      const frameIds = await getFillableFrameIds(tabId);
 
-      // 步骤1: 先检查所有 frame 中 content script 是否已就绪（通过 PING）
+      // 步骤1: 先检查各 frame 中 content script 是否已就绪（通过 PING）
       let pingResponse = await pingAllFrames(tabId, frameIds);
 
       // 步骤2: 只有在所有 frame 都 PING 失败时才尝试注入 content script
@@ -335,7 +364,7 @@ export function useSidepanelFill(
         }
       }
 
-      // 步骤3: 检查所有 frame 中是否已检测到字段，如果没有则等待
+      // 步骤3: 检查各 frame 中是否已检测到字段，如果没有则等待
       const hasFields =
         pingResponse.fieldsDetected &&
         (pingResponse.fieldsDetected.username > 0 ||
@@ -350,7 +379,7 @@ export function useSidepanelFill(
         }
       }
 
-      // 步骤4: 向所有 frame 发送填充消息，取第一个成功的响应
+      // 步骤4: 向可填充 frame 集合发送填充消息，取第一个成功的响应
       const fillData = {
         username: password.username,
         password: password.password,

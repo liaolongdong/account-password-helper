@@ -251,7 +251,7 @@ async function clearSwKeepaliveAlarm(): Promise<void> {
 /**
  * 根据会话状态同步 SW 保活闹钟
  *
- * 检查 storage 中是否存在有效的会话（session_master_password + session_password_expiry），
+ * 检查 storage 中是否存在有效的会话（session_wrapped_data_key/旧版 session_master_password + session_password_expiry），
  * 有效则启用保活闹钟，无效则停止。在 SW 启动、会话创建/清除时调用。
  *
  * Windows 性能优化核心：SW 保活使 passwordCache 持续在内存中，
@@ -261,12 +261,13 @@ async function clearSwKeepaliveAlarm(): Promise<void> {
 export async function syncSwKeepaliveAlarm(): Promise<void> {
   try {
     const result = await chrome.storage.local.get([
+      SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
       SESSION_STORAGE_KEYS.MASTER_PASSWORD,
       SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
     ]);
 
     const hasSession = !!(
-      result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] &&
+      (result[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] || result[SESSION_STORAGE_KEYS.MASTER_PASSWORD]) &&
       result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] &&
       Date.now() < (result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number)
     );
@@ -278,6 +279,30 @@ export async function syncSwKeepaliveAlarm(): Promise<void> {
     }
   } catch (error) {
     logger.error('Background: 同步 SW 保活闹钟状态失败:', error);
+  }
+}
+
+/**
+ * 浏览器启动时按设置执行安全重锁
+ *
+ * 当用户开启「浏览器重启后重新锁定」时，浏览器/配置文件启动（chrome.runtime.onStartup）
+ * 清除会话，使数据密钥不再从磁盘自动恢复——彻底关闭「活动会话期磁盘可解密」向量。
+ * onStartup 仅在浏览器/配置文件启动时触发，Service Worker 空闲重启不会触发，
+ * 因此不影响会话跨 SW 重启存活；默认关闭时行为完全不变。
+ */
+export async function handleBrowserStartupRelock(): Promise<void> {
+  try {
+    const config = await StorageUtils.getIdleLockConfig();
+    if (!config.relockOnBrowserRestart) return;
+
+    // 显式、同步地完成清理：clearSession 触发的 storage.onChanged 虽也会失效缓存 / 同步保活闹钟，
+    // 但此处不依赖该异步事件时序，直接调用以确保浏览器启动重锁即时生效（防御性冗余）。
+    await StorageUtils.clearSession();
+    invalidatePasswordCache();
+    await clearSwKeepaliveAlarm();
+    logger.info('Background: 已按设置在浏览器启动时清除会话，需重新输入主密码');
+  } catch (error) {
+    logger.error('Background: 浏览器启动重锁处理失败:', error);
   }
 }
 
@@ -365,7 +390,7 @@ export function setupBackgroundServices(): void {
 
       const relevantKeys = [
         STORAGE_KEYS.PASSWORDS,
-        SESSION_STORAGE_KEYS.MASTER_PASSWORD,
+        SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
         SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
       ];
       const hasRelevantChange = Object.keys(changes).some(key => relevantKeys.includes(key));
@@ -387,7 +412,7 @@ export function setupBackgroundServices(): void {
       }
 
       // 会话状态变化时同步 SW 保活闹钟（会话创建 → 启用，会话清除 → 停止）
-      const sessionKeys = [SESSION_STORAGE_KEYS.MASTER_PASSWORD, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+      const sessionKeys = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
       const sessionKeyChanges = Object.entries(changes).filter(([key]) => sessionKeys.includes(key));
 
       if (sessionKeyChanges.length > 0) {
