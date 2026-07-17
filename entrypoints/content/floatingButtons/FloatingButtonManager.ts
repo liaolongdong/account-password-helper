@@ -205,8 +205,10 @@ export class FloatingButtonManager {
   private bindButtonEvents(): void {
     if (!this.buttonGroup) return;
 
-    // 预唤醒 SW：用户 hover 悬浮按钮时，很可能即将打开侧边栏
-    this.container?.addEventListener('mouseenter', preWarmServiceWorker, { once: true });
+    // 预唤醒 SW：用户 hover 悬浮按钮时，很可能即将打开侧边栏。
+    // 不使用 { once: true }：会话过期后 SW 可能已休眠，需要每次 hover 都能重新唤醒；
+    // 高频调用由 preWarmServiceWorker 内部节流去重，不会造成消息风暴。
+    this.container?.addEventListener('mouseenter', preWarmServiceWorker);
 
     // 侧边栏按钮
     const sidepanelBtn = this.buttonGroup.querySelector('[data-action="toggle-sidepanel"]');
@@ -237,6 +239,10 @@ export class FloatingButtonManager {
    */
   private async handleSidepanelClick(): Promise<void> {
     try {
+      // 点击即预热：覆盖用户未经 hover/focusin 直接点击的场景，
+      // 尽早唤醒可能已休眠的 SW，缩短后续 sidePanel.open() 的冷启动等待
+      preWarmServiceWorker();
+
       const btn = this.buttonGroup?.querySelector('[data-action="toggle-sidepanel"]');
       if (btn) {
         btn.classList.add('loading');

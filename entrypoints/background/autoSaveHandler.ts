@@ -1,5 +1,4 @@
 import { type AutoSavePasswordData, MessageType } from '@/utils/types';
-import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { getSidePanelPort } from './sidePanelManager';
 import { invalidatePasswordCache } from './passwordCache';
@@ -14,6 +13,9 @@ export async function handleAutoSavePassword(
   data: AutoSavePasswordData,
 ): Promise<{ success: boolean; message: string }> {
   try {
+    // 动态导入 StorageUtils，避免将 storage 层（masterPassword/autoSaveManager 等）
+    // 打入 SW 初始包，减少冷启动 parse/compile 开销；仅在自动保存消息到达时加载。
+    const { StorageUtils } = await import('@/utils/storage');
     const result = await StorageUtils.autoSavePassword(data);
     if (result.success) {
       // 保存成功后使密码缓存失效，确保下次加载时获取最新数据

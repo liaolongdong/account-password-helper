@@ -1,7 +1,6 @@
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { StorageUtils } from '@/utils/storage';
 import {
   SESSION_STORAGE_KEYS,
   invalidateSessionCache,
@@ -17,6 +16,21 @@ import {
 } from '@/utils/updateChecker';
 import { getSidePanelPort } from './sidePanelManager';
 import { invalidatePasswordCache, warmPasswordCache } from './passwordCache';
+
+/**
+ * 惰性加载 StorageUtils
+ *
+ * backgroundServices 对 StorageUtils 的调用均发生在事件回调（alarm/idle/onStartup）中，
+ * 而非 SW 启动同步路径。动态导入可将整个 storage 层移出 SW 初始包，
+ * 减少 Windows 冷启动时的 parse/compile 开销，与 messageRouter 的惰性加载模式一致。
+ */
+let _storageModule: typeof import('@/utils/storage') | null = null;
+async function _getStorageUtils(): Promise<(typeof import('@/utils/storage'))['StorageUtils']> {
+  if (!_storageModule) {
+    _storageModule = await import('@/utils/storage');
+  }
+  return _storageModule.StorageUtils;
+}
 
 /** 自动备份提醒闹钟名称 */
 const AUTO_BACKUP_ALARM_NAME = 'auto-backup-passwords';
@@ -135,6 +149,7 @@ async function setupAutoBackupAlarm() {
   try {
     await chrome.alarms.clear(AUTO_BACKUP_ALARM_NAME);
 
+    const StorageUtils = await _getStorageUtils();
     const config = await StorageUtils.getEmailBackupConfig();
 
     if (config.autoBackup && config.email) {
@@ -169,6 +184,7 @@ async function setupAutoBackupAlarm() {
  */
 async function performAutoBackup() {
   try {
+    const StorageUtils = await _getStorageUtils();
     const config = await StorageUtils.getEmailBackupConfig();
 
     if (!config.email) {
@@ -292,6 +308,7 @@ export async function syncSwKeepaliveAlarm(): Promise<void> {
  */
 export async function handleBrowserStartupRelock(): Promise<void> {
   try {
+    const StorageUtils = await _getStorageUtils();
     const config = await StorageUtils.getIdleLockConfig();
     if (!config.relockOnBrowserRestart) return;
 
@@ -338,6 +355,7 @@ export function setupBackgroundServices(): void {
         const minutes = config?.idleLockMinutes ?? 0;
 
         if (minutes > 0) {
+          const StorageUtils = await _getStorageUtils();
           await StorageUtils.clearSession();
           logger.info('Background: 系统锁定，已清除主密码会话');
 
@@ -480,6 +498,7 @@ export function setupBackgroundServices(): void {
             // 主动锁定：会话仍存活的 SW 中一次性完成「加密全部密码 + 删除会话键」，
             // 使用户之后打开侧边栏走 isSessionValid 的「无会话键 → 立即 false」快路径，
             // 从根上避免打开侧边栏时才触发全量重加密（Windows Web Crypto 慢导致数秒卡顿）。
+            const StorageUtils = await _getStorageUtils();
             await StorageUtils.clearSession().catch(e => {
               logger.error('Background: SW 保活闹钟过期锁定失败:', e);
             });
