@@ -1,7 +1,9 @@
 import { createAndMountApp } from '@/utils/createVueApp';
 import App from '@/entrypoints/sidepanel/App.vue';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
+import { initThemeSync } from '@/utils/theme';
 import { logger } from '@/utils/logger';
+import '@/assets/theme/tokens.css';
 
 // 预唤醒 Service Worker：尽早触发 SW 启动，与后续 CSS 切换 + Vue 初始化并行执行，
 // 消除后续 initSidepanelData() 中 GET_INITIAL_DATA 的冷启动延迟
@@ -14,6 +16,9 @@ const t0 = performance.now();
 document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][media="print"]').forEach(link => {
   link.media = 'all';
 });
+
+// 尽早读取并应用主题（fire-and-forget），并监听配置变更实时切换
+initThemeSync();
 
 // 性能埋点：使用 User Timing API 测量 Vue mount 耗时
 // App.vue onMounted 中通过 performance.measure 计算 interval

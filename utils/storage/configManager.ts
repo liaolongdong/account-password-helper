@@ -7,6 +7,7 @@ import type {
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { DEFAULT_THEME } from '@/utils/theme';
 import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
 
 /** 默认收藏上限 */
@@ -98,6 +99,8 @@ export function getDefaultFloatingButtonConfig(): FloatingButtonConfig {
     autoShowSidepanel: true,
     autoTriggerLogin: false,
     passwordVisibilityToggle: false,
+    fillMode: 'sidepanel',
+    theme: DEFAULT_THEME,
   };
 }
 

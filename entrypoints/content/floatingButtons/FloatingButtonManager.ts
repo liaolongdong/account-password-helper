@@ -7,6 +7,7 @@ import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { MessageType } from '@/utils/types';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
+import { applyThemeTokensToHost } from '@/utils/theme';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { floatingButtonStyles, settingsPanelStyles } from '@/entrypoints/content/floatingButtons/styles';
 import {
@@ -94,6 +95,8 @@ export class FloatingButtonManager {
     // 创建Shadow Host
     this.shadowHost = document.createElement('floating-button-root');
     this.shadowHost.style.cssText = 'all: initial; position: fixed; z-index: 2147483647;';
+    // 写入主题令牌（供 Shadow DOM 内 var(--aph-*) 解析），令悬浮按钮随主题切换
+    applyThemeTokensToHost(this.shadowHost, this.config.theme);
 
     // 创建Shadow Root（使用closed模式增强隔离）
     this.shadowRoot = this.shadowHost.attachShadow({ mode: 'closed' });
@@ -397,6 +400,11 @@ export class FloatingButtonManager {
   private async handleStorageChange(newConfig: FloatingButtonConfig): Promise<void> {
     const wasVisible = this.config.visible;
     this.config = { ...newConfig };
+
+    // 主题变更时重新写入 shadow host 令牌，实现悬浮按钮实时换肤
+    if (this.shadowHost) {
+      applyThemeTokensToHost(this.shadowHost, this.config.theme);
+    }
 
     // 如果从隐藏变为显示，需要创建元素
     if (!wasVisible && newConfig.visible && !this.container) {

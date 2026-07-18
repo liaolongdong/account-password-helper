@@ -275,7 +275,7 @@ const handleEmailClick = (event: Event) => {
 .logo {
   margin-right: 0;
   font-size: 24px;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .header-title-group {
@@ -342,20 +342,20 @@ const handleEmailClick = (event: Event) => {
 }
 
 .action-card:hover {
-  background: #f0f7ff;
-  border-color: #c6e2ff;
-  box-shadow: 0 2px 8px rgb(64 158 255 / 10%);
+  background: var(--aph-primary-bg-hover);
+  border-color: var(--aph-primary-border);
+  box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 10%);
 }
 
 .action-card:active {
-  background: #e1effe;
-  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
+  background: var(--aph-primary-bg);
+  box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
   transform: scale(0.99);
 }
 
 .action-card:focus-visible {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgb(64 158 255 / 25%);
+  border-color: var(--aph-primary);
+  box-shadow: 0 0 0 2px rgb(var(--aph-primary-rgb) / 25%);
 }
 
 .action-card__icon {
@@ -371,12 +371,12 @@ const handleEmailClick = (event: Event) => {
 
 .action-card__icon--primary {
   color: #fff;
-  background: #409eff;
+  background: var(--aph-primary);
 }
 
 .action-card__icon--secondary {
-  color: #409eff;
-  background: #ecf5ff;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
 }
 
 .action-card__content {
@@ -487,7 +487,7 @@ const handleEmailClick = (event: Event) => {
 }
 
 .email-link {
-  color: #409eff;
+  color: var(--aph-primary);
   text-decoration: none;
 }
 

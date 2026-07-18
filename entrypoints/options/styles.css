@@ -2,14 +2,14 @@
   min-height: 100vh;
   overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: linear-gradient(135deg, #e8f4fd 0%, #f8fbff 100%);
+  background: linear-gradient(135deg, var(--aph-surface) 0%, var(--aph-surface-2) 100%);
 }
 
 /* 主内容区域样式 */
 .main-content {
   min-height: 100vh;
   padding: 0;
-  background: #f8fbff;
+  background: var(--aph-surface-2);
 }
 
 .password-list-info {
@@ -33,35 +33,35 @@
 /* ==================== 全局 Element Plus 深度覆盖 ==================== */
 
 :deep(.el-input--large .el-input__wrapper) {
-  border: 1px solid #d9ecff;
+  border: 1px solid var(--aph-primary-border);
   border-radius: 6px;
   box-shadow: none;
   transition: all 0.2s ease;
 }
 
 :deep(.el-input--large .el-input__wrapper:hover) {
-  border-color: #409eff;
+  border-color: var(--aph-primary);
 }
 
 :deep(.el-input--large .el-input__wrapper.is-focus) {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgb(64 158 255 / 10%);
+  border-color: var(--aph-primary);
+  box-shadow: 0 0 0 2px rgb(var(--aph-primary-rgb) / 10%);
 }
 
 :deep(.el-input .el-input__wrapper) {
-  border: 1px solid #d9ecff;
+  border: 1px solid var(--aph-primary-border);
   border-radius: 6px;
   box-shadow: none;
   transition: all 0.2s ease;
 }
 
 :deep(.el-input .el-input__wrapper:hover) {
-  border-color: #409eff;
+  border-color: var(--aph-primary);
 }
 
 :deep(.el-input .el-input__wrapper.is-focus) {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgb(64 158 255 / 10%);
+  border-color: var(--aph-primary);
+  box-shadow: 0 0 0 2px rgb(var(--aph-primary-rgb) / 10%);
 }
 
 /* 按钮优化 */
@@ -69,28 +69,28 @@
   padding: 12px 24px;
   font-size: 16px;
   font-weight: 500;
-  background: #409eff;
-  border: 1px solid #409eff;
+  background: var(--aph-primary);
+  border: 1px solid var(--aph-primary);
   border-radius: 6px;
   transition: all 0.2s ease;
 }
 
 :deep(.el-button--large.el-button--primary:hover) {
-  background: #66b3ff;
-  border-color: #66b3ff;
-  box-shadow: 0 4px 12px rgb(64 158 255 / 30%);
+  background: var(--aph-primary-hover);
+  border-color: var(--aph-primary-hover);
+  box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 30%);
   transform: translateY(-1px);
 }
 
 :deep(.el-button--primary) {
   font-weight: 400;
-  background: #409eff;
-  border: 1px solid #409eff;
+  background: var(--aph-primary);
+  border: 1px solid var(--aph-primary);
 }
 
 :deep(.el-button--primary:hover) {
-  background: #66b3ff;
-  border-color: #66b3ff;
+  background: var(--aph-primary-hover);
+  border-color: var(--aph-primary-hover);
 }
 
 :deep(.el-button) {
@@ -111,7 +111,7 @@
 
 :deep(.el-alert--info) {
   color: #2c3e50;
-  background: #e8f4fd;
+  background: var(--aph-surface);
 }
 
 :deep(.el-alert--error) {
@@ -140,24 +140,24 @@
 :deep(.el-table th) {
   font-weight: 500;
   color: #2c3e50;
-  background: #f8fbff;
-  border-bottom: 1px solid #e3f2fd;
+  background: var(--aph-surface-2);
+  border-bottom: 1px solid var(--aph-surface-line);
 }
 
 :deep(.el-table td) {
-  border-bottom: 1px solid #f0f9ff;
+  border-bottom: 1px solid var(--aph-surface-hover);
 }
 
 :deep(.el-table tbody tr:hover) {
-  background-color: #f8fbff;
+  background-color: var(--aph-surface-2);
 }
 
 :deep(.el-table .el-button--text) {
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 :deep(.el-table .el-button--text:hover) {
-  color: #66b3ff;
+  color: var(--aph-primary-hover);
 }
 
 :deep(.el-table .el-button--text.is-danger) {
@@ -171,11 +171,11 @@
 /* 链接按钮优化 */
 :deep(.el-button--info.is-link) {
   font-weight: 400;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 :deep(.el-button--info.is-link:hover) {
-  color: #66b3ff;
+  color: var(--aph-primary-hover);
 }
 
 :deep(.el-button--danger.is-link) {

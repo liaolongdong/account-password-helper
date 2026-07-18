@@ -147,7 +147,7 @@ const handleCopy = async (): Promise<void> => {
 
 .totp-code__ring-progress {
   fill: none;
-  stroke: #409eff;
+  stroke: var(--aph-primary);
   stroke-width: 3;
   stroke-linecap: round;
   transition:
@@ -194,7 +194,7 @@ const handleCopy = async (): Promise<void> => {
 }
 
 .totp-code__copy:hover {
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .totp-code__invalid {

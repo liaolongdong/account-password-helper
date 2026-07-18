@@ -14,6 +14,8 @@ import {
   invalidatePasswordCache,
   getCachedSortConfig,
   warmPasswordCache,
+  getMatchingAccounts,
+  getDecryptedEntryById,
 } from './passwordCache';
 import { handleAutoSavePassword } from './autoSaveHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
@@ -86,6 +88,46 @@ async function handleGetInitialData(_domain?: string) {
   updatePasswordCache(passwords, '*', true);
 
   return { sessionValid: true, passwords, sortConfig };
+}
+
+/**
+ * 处理 FILL_BY_ID：按条目 ID 从缓存取明文，复用 FILL_PASSWORD 下发到发起填充的 frame
+ *
+ * 安全：明文仅在此刻经 FILL_PASSWORD 瞬时下发到内容脚本所在 frame（与侧边栏填充暴露面一致），
+ * 且只能回填发起请求的 tab/frame 自身，无法定向其他标签页。
+ *
+ * @param data FILL_BY_ID 载荷（条目 ID 与是否自动登录）
+ * @param tabId 发起请求的标签页 ID
+ * @param frameId 发起请求的 frame ID（用于精确回填含表单的 frame）
+ * @returns 填充结果或失败信息
+ */
+async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: number, frameId: number | undefined) {
+  const entry = await getDecryptedEntryById(data.id);
+  if (!entry) {
+    return { success: false, message: '会话已锁定或账号不存在' };
+  }
+
+  const fillMessage = {
+    type: MessageType.FILL_PASSWORD,
+    data: { username: entry.username, password: entry.password, autoLogin: data.autoLogin },
+  };
+  const result =
+    typeof frameId === 'number'
+      ? await chrome.tabs.sendMessage(tabId, fillMessage, { frameId })
+      : await chrome.tabs.sendMessage(tabId, fillMessage);
+
+  // 后台静默刷新最近使用时间（不阻塞填充结果），保持“最近使用”排序与 LRU 依据一致
+  void _getCrudModule()
+    .then(({ updatePasswordInSession }) => {
+      const now = Date.now();
+      return updatePasswordInSession(entry.id, {
+        lastUsedAt: now,
+        ...(entry.favorite ? { favoriteUsedAt: now } : {}),
+      });
+    })
+    .catch(error => logger.error('Background: FILL_BY_ID 更新最近使用时间失败:', error));
+
+  return result;
 }
 
 /**
@@ -300,6 +342,41 @@ export function setupMessageRouter(): void {
           .catch(error => {
             logger.error('Background: GET_INITIAL_DATA 处理失败:', error);
             sendResponse({ success: false, error: error.message });
+          });
+        return true;
+      }
+
+      case MessageType.GET_MATCHING_ACCOUNTS: {
+        // 域名从 sender.tab.url 派生（可信），仅返回元数据，内容脚本可调用
+        const rawUrl = sender.tab?.url;
+        let domain = message.data?.domain ?? '';
+        if (rawUrl) {
+          try {
+            domain = new URL(rawUrl).hostname;
+          } catch {
+            // 解析失败时保底使用 message.data.domain
+          }
+        }
+        getMatchingAccounts(domain)
+          .then(data => sendResponse({ success: true, data }))
+          .catch(error => {
+            logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+      }
+
+      case MessageType.FILL_BY_ID: {
+        const tabId = sender.tab?.id;
+        if (!tabId) {
+          sendResponse({ success: false, error: '无法获取标签ID' });
+          break;
+        }
+        handleFillById(message.data, tabId, sender.frameId)
+          .then(sendResponse)
+          .catch(error => {
+            logger.error('Background: FILL_BY_ID 处理失败:', error);
+            sendResponse({ success: false, message: '填充失败' });
           });
         return true;
       }

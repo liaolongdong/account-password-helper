@@ -189,8 +189,8 @@ defineEmits<Emits>();
 
 .password-item.active {
   padding-left: 13px;
-  background: #ecf5ff;
-  border-left: 3px solid #409eff;
+  background: var(--aph-primary-bg);
+  border-left: 3px solid var(--aph-primary);
 }
 
 .password-info {
@@ -234,7 +234,7 @@ defineEmits<Emits>();
 }
 
 .copy-icon-wrapper:hover {
-  background-color: rgb(64 158 255 / 10%);
+  background-color: rgb(var(--aph-primary-rgb) / 10%);
   transform: scale(1.12);
 }
 
@@ -245,7 +245,7 @@ defineEmits<Emits>();
 }
 
 .copy-icon-wrapper:hover .copy-icon {
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .details {
@@ -362,7 +362,7 @@ defineEmits<Emits>();
 
 .totp-fill-icon:hover,
 .totp-copy-icon:hover {
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .edit-icon {
@@ -379,6 +379,6 @@ defineEmits<Emits>();
 }
 
 .edit-icon:hover {
-  color: #409eff;
+  color: var(--aph-primary);
 }
 </style>

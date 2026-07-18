@@ -1,9 +1,11 @@
-import { type PasswordCache, type PasswordEntry } from '@/utils/types';
+import { type PasswordCache, type PasswordEntry, type MatchingAccountsResponse } from '@/utils/types';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getAllPasswords } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
+import { isLocalDevDomain } from '@/utils/domain';
+import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 
 /** 模块级缓存状态（Service Worker 生命周期内有效） */
 let passwordCache: PasswordCache | null = null;
@@ -137,4 +139,94 @@ export async function getCachedSortConfig(): Promise<{ prop: string; order: stri
   const config = await getSidepanelSortConfig().catch(() => null);
   _cachedSortConfig = config;
   return config;
+}
+
+// ==================== 内联下拉：域名匹配与条目查询 ====================
+
+/**
+ * 确保缓存已就绪（会话有效时）
+ *
+ * 先取带 TTL 校验的缓存，未命中或未认证时触发一次预热后重取。
+ * @returns 有效的密码缓存，会话无效/失败时返回 null
+ */
+async function ensureAuthenticatedCache(): Promise<PasswordCache | null> {
+  let cache = await getCachedPasswords();
+  if (!cache || !cache.isAuthenticated) {
+    await warmPasswordCache();
+    cache = await getCachedPasswords();
+  }
+  return cache && cache.isAuthenticated ? cache : null;
+}
+
+/**
+ * 获取匹配当前域名的账号元数据（供内联下拉使用，绝不返回密码）
+ *
+ * 安全：会话锁定时返回 `{ locked: true, accounts: [] }`，不触碰任何凭证；
+ * 匹配规则与侧边栏 filteredPasswords 一致（本地开发域名放行全部，否则纳入「URL 为空」或「域名与 url 双向包含」的条目）。
+ * 排序：复用 sortPasswordEntries + 侧边栏排序配置 + 域名优先级 + 收藏置顶。
+ *
+ * @param domain 当前页面顶层域名（hostname）
+ * @returns 锁定标记与匹配账号元数据列表
+ */
+export async function getMatchingAccounts(domain: string): Promise<MatchingAccountsResponse> {
+  // 会话状态门禁：优先同步判断，未命中再异步校验
+  if (!isSessionActiveSync()) {
+    const valid = await isSessionValid();
+    if (!valid) return { locked: true, accounts: [] };
+  }
+
+  const cache = await ensureAuthenticatedCache();
+  if (!cache) return { locked: true, accounts: [] };
+
+  const list = cache.passwords;
+  // 过滤（与侧边栏 filteredPasswords 一致，含无 URL 条目）
+  const matched = list.filter(p => {
+    if (isLocalDevDomain(domain)) return true;
+    if (!p.url || p.url.trim() === '') return true;
+    return domain.includes(p.url) || p.url.includes(domain);
+  });
+
+  // 域名优先级（与侧边栏 getDomainPriority 一致）：0=匹配，1=不匹配
+  const getDomainPriority = (entry: PasswordEntry): number => {
+    if (!domain) return 0;
+    const hasUrl = !!entry.url && entry.url.trim() !== '';
+    if (hasUrl && (domain.includes(entry.url) || entry.url.includes(domain))) return 0;
+    return 1;
+  };
+
+  // 排序：复用侧边栏排序配置 + 域名优先 + 收藏置顶
+  const sortConfig = await getCachedSortConfig();
+  const sortState: SortState = sortConfig
+    ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
+    : DEFAULT_SIDEPANEL_SORT;
+  sortPasswordEntries(matched, sortState, getDomainPriority);
+
+  const accounts = matched.map(p => ({
+    id: p.id,
+    title: (p.tag && p.tag.trim()) || (p.url && p.url.trim()) || p.username || '未命名',
+    username: p.username,
+    tag: p.tag || '',
+    remark: p.remark || '',
+    url: p.url || '',
+    favorite: !!p.favorite,
+    hasTotp: !!(p.totp && p.totp.trim()),
+  }));
+
+  return { locked: false, accounts };
+}
+
+/**
+ * 按条目 ID 获取解密后的完整条目（供 FILL_BY_ID 使用）
+ *
+ * 会话无效或条目不存在时返回 null，由调用方区分处理。
+ * @param id 目标条目 ID
+ * @returns 解密后的密码条目，或 null
+ */
+export async function getDecryptedEntryById(id: string): Promise<PasswordEntry | null> {
+  if (!isSessionActiveSync()) {
+    const valid = await isSessionValid();
+    if (!valid) return null;
+  }
+  const cache = await ensureAuthenticatedCache();
+  return cache?.passwords.find(p => p.id === id) ?? null;
 }

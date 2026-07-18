@@ -1,5 +1,6 @@
 import { eyeOpenIcon, eyeClosedIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { ToggleEntry } from '@/entrypoints/content/types';
+import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 
 /**
  * 注入到页面中的 CSS 样式
@@ -22,7 +23,7 @@ const INJECTED_STYLES = `
   margin: 0;
   border: none;
   background: transparent;
-  color: #409eff;
+  color: var(--aph-primary);
   cursor: pointer;
   opacity: 0;
   visibility: hidden;
@@ -43,13 +44,13 @@ const INJECTED_STYLES = `
 }
 
 .aph-pwd-toggle-btn:hover {
-  color: #66b1ff;
-  background: rgba(64, 158, 255, 0.1);
+  color: var(--aph-primary-hover);
+  background: rgb(var(--aph-primary-rgb) / 10%);
 }
 
 .aph-pwd-toggle-btn:active {
-  color: #3a8ee6;
-  background: rgba(64, 158, 255, 0.18);
+  color: var(--aph-primary);
+  background: rgb(var(--aph-primary-rgb) / 18%);
 }
 
 .aph-pwd-toggle-btn svg {
@@ -91,6 +92,9 @@ export class PasswordVisibilityToggle {
   /** 样式元素引用 */
   private styleElement: HTMLStyleElement | null = null;
 
+  /** 当前主题（用于注入按钮的令牌换肤） */
+  private currentTheme: ThemeName = DEFAULT_THEME;
+
   /**
    * 初始化
    */
@@ -116,6 +120,16 @@ export class PasswordVisibilityToggle {
     } else {
       this.removeAll();
     }
+  }
+
+  /**
+   * 更新主题：刷新当前主题并对已注入按钮重写令牌，实现实时换肤
+   * @param theme 主题名
+   */
+  setTheme(theme: ThemeName): void {
+    this.currentTheme = theme;
+    const buttons = document.querySelectorAll<HTMLButtonElement>('.aph-pwd-toggle-btn');
+    buttons.forEach(button => applyThemeTokensToHost(button, theme));
   }
 
   /**
@@ -183,6 +197,9 @@ export class PasswordVisibilityToggle {
     button.setAttribute('aria-label', '显示密码');
     // 状态语义：密文状态显示闭眼图标（表示"密码不可见"）
     button.innerHTML = eyeClosedIcon;
+
+    // 写入当前主题令牌到按钮元素（light DOM，仅作用于自身及其伪类，零侵入页面）
+    applyThemeTokensToHost(button, this.currentTheme);
 
     // 按钮作为兄弟节点插入到 input 之后
     parent.insertBefore(button, input.nextSibling);

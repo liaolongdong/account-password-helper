@@ -330,9 +330,9 @@ defineExpose({ tableRef: localTableRef });
   margin: 0 32px 32px;
   overflow: hidden;
   background: white;
-  border: 1px solid #e3f2fd;
+  border: 1px solid var(--aph-surface-line);
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
+  box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
 }
 
 .password-cell {
@@ -348,7 +348,7 @@ defineExpose({ tableRef: localTableRef });
 }
 
 :deep(.el-table__body-wrapper .el-table__row:hover) {
-  box-shadow: 0 2px 8px rgb(64 158 255 / 20%);
+  box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 20%);
   transform: translateY(-2px);
 }
 

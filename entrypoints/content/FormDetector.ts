@@ -25,6 +25,10 @@ import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
 import type { FormFieldSets } from '@/entrypoints/content/types';
 import { showNoLoginFormMessage } from '@/entrypoints/content/NativeNotification';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
+import {
+  getInlineFillDropdown,
+  destroyInlineFillDropdown,
+} from '@/entrypoints/content/inlineDropdown/InlineFillDropdown';
 
 /**
  * 表单检测器
@@ -72,6 +76,8 @@ export class FormDetector {
   private loginFormAnalyzer = new LoginFormAnalyzer();
   /** 密码显示/隐藏切换管理器 */
   private passwordVisibilityToggle = new PasswordVisibilityToggle();
+  /** 内联填充下拉（fillMode==='inline' 时使用） */
+  private inlineDropdown = getInlineFillDropdown();
 
   constructor() {
     // 初始化默认配置
@@ -96,6 +102,8 @@ export class FormDetector {
   private async loadConfig(): Promise<void> {
     try {
       this.floatingButtonConfig = await StorageUtils.getFloatingButtonConfig();
+      // 预置内联下拉主题（缓存于其实例），避免其在每次获焦时读取 storage
+      this.inlineDropdown.setTheme(this.floatingButtonConfig.theme);
     } catch (error) {
       logger.error('FormDetector: 加载配置失败:', error);
     }
@@ -109,6 +117,7 @@ export class FormDetector {
     try {
       const config = await StorageUtils.getFloatingButtonConfig();
       if (config.passwordVisibilityToggle) {
+        this.passwordVisibilityToggle.setTheme(config.theme);
         this.passwordVisibilityToggle.init();
       }
     } catch (error) {
@@ -127,6 +136,10 @@ export class FormDetector {
           this.floatingButtonConfig = newConfig;
           // 同步密码切换功能开关
           this.passwordVisibilityToggle.setEnabled(newConfig.passwordVisibilityToggle);
+          // 同步主题，实现注入按钮实时换肤
+          this.passwordVisibilityToggle.setTheme(newConfig.theme);
+          // 同步内联下拉主题，实现图标/面板实时换肤
+          this.inlineDropdown.setTheme(newConfig.theme);
         }
       }
     };
@@ -438,7 +451,25 @@ export class FormDetector {
    */
   private setupEventDelegation(): void {
     document.addEventListener('click', this.handleDelegatedClick, { capture: true });
+    // 内联模式下，输入框获焦即弹出快速填充下拉
+    document.addEventListener('focusin', this.handleDelegatedFocusIn, { capture: true });
   }
+
+  /**
+   * 处理委托的聚焦事件：内联模式下为登录字段显示钥匙触发图标
+   */
+  private handleDelegatedFocusIn = (event: FocusEvent): void => {
+    if (this.floatingButtonConfig.fillMode !== 'inline') return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const input = target instanceof HTMLInputElement ? target : target.closest('input');
+    if (!input) return;
+    if (this.shouldShowSidePanel(input)) {
+      this.inlineDropdown.showTriggerFor(input, {
+        hasEyeToggle: input.type === 'password' && this.floatingButtonConfig.passwordVisibilityToggle,
+      });
+    }
+  };
 
   /**
    * 处理委托的点击事件，判断是否需要显示侧边栏
@@ -455,6 +486,13 @@ export class FormDetector {
       return;
     }
     if (this.shouldShowSidePanel(input)) {
+      // 内联模式：不自动打开侧边栏，改为显示钥匙触发图标（点击图标展开面板）
+      if (this.floatingButtonConfig.fillMode === 'inline') {
+        this.inlineDropdown.showTriggerFor(input, {
+          hasEyeToggle: input.type === 'password' && this.floatingButtonConfig.passwordVisibilityToggle,
+        });
+        return;
+      }
       if (!this.floatingButtonConfig.autoShowSidepanel) {
         return;
       }
@@ -1090,10 +1128,12 @@ export class FormDetector {
       this.detectionTimer = null;
     }
     document.removeEventListener('click', this.handleDelegatedClick, { capture: true });
+    document.removeEventListener('focusin', this.handleDelegatedFocusIn, { capture: true });
     if (this.storageListener) {
       chrome.storage.onChanged.removeListener(this.storageListener);
       this.storageListener = null;
     }
     this.passwordVisibilityToggle.destroy();
+    destroyInlineFillDropdown();
   }
 }

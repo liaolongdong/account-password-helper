@@ -1,3 +1,12 @@
+import type { ThemeName } from '@/utils/theme';
+
+/**
+ * 页面填充模式
+ * - sidepanel：聚焦登录框时自动打开侧边栏（默认，保持历史交互）
+ * - inline：聚焦登录框时在页面内弹出内联填充下拉
+ */
+export type FillMode = 'sidepanel' | 'inline';
+
 /**
  * 账号密码数据接口
  */
@@ -179,6 +188,14 @@ export enum MessageType {
    * 侧边栏预唤醒消息（由 sidepanel/content script 发送，触发 SW 启动和缓存预热）
    */
   SIDEPANEL_PRELOAD = 'SIDEPANEL_PRELOAD',
+  /**
+   * 内联下拉：获取当前域名匹配账号的元数据列表（仅标题/用户名，绝不含密码）
+   */
+  GET_MATCHING_ACCOUNTS = 'GET_MATCHING_ACCOUNTS',
+  /**
+   * 内联下拉：按条目 ID 触发填充（由 background 取明文后复用 FILL_PASSWORD 下发）
+   */
+  FILL_BY_ID = 'FILL_BY_ID',
 }
 
 /**
@@ -207,7 +224,9 @@ export type RuntimeMessage =
   | { type: MessageType.SESSION_EXPIRED }
   | { type: MessageType.CHECK_UPDATE }
   | { type: MessageType.GET_INITIAL_DATA; data?: { domain?: string } }
-  | { type: MessageType.SIDEPANEL_PRELOAD };
+  | { type: MessageType.SIDEPANEL_PRELOAD }
+  | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string } }
+  | { type: MessageType.FILL_BY_ID; data: FillByIdData };
 
 /**
  * 悬浮按钮配置接口
@@ -241,6 +260,14 @@ export interface FloatingButtonConfig {
    * 是否在密码输入框内注入显示/隐藏切换按钮
    */
   passwordVisibilityToggle: boolean;
+  /**
+   * 页面填充模式（侧边栏 / 页面内联下拉），默认 'sidepanel' 保持历史交互
+   */
+  fillMode: FillMode;
+  /**
+   * 界面主题名，默认 'sky'（晴空蓝，等同历史配色）
+   */
+  theme: ThemeName;
 }
 
 /**
@@ -303,6 +330,48 @@ export interface FillMobileCodeData {
 export interface FillTotpData {
   /** 本地计算得到的动态验证码 */
   code: string;
+}
+
+/**
+ * 内联下拉：单个匹配账号的元数据（不含密码，供内容脚本安全展示）
+ */
+export interface MatchingAccountMeta {
+  /** 条目 ID */
+  id: string;
+  /** 展示标题（标签 / 网址 / 用户名，择优） */
+  title: string;
+  /** 用户名（展示用） */
+  username: string;
+  /** 标签 */
+  tag: string;
+  /** 备注（hover 展示） */
+  remark: string;
+  /** 网址 */
+  url: string;
+  /** 是否收藏 */
+  favorite: boolean;
+  /** 是否配置了两步验证 */
+  hasTotp: boolean;
+}
+
+/**
+ * 内联下拉：GET_MATCHING_ACCOUNTS 的响应数据
+ */
+export interface MatchingAccountsResponse {
+  /** 会话是否已锁定（锁定时 accounts 为空，前端提示解锁） */
+  locked: boolean;
+  /** 匹配当前域名的账号元数据列表 */
+  accounts: MatchingAccountMeta[];
+}
+
+/**
+ * 内联下拉：FILL_BY_ID 的请求数据
+ */
+export interface FillByIdData {
+  /** 目标条目 ID */
+  id: string;
+  /** 是否填充后自动触发登录 */
+  autoLogin?: boolean;
 }
 
 /**

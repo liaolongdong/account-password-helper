@@ -9,16 +9,17 @@
  */
 
 import { closeIcon } from '@/entrypoints/content/floatingButtons/icons';
-import type { FloatingButtonConfig } from '@/utils/types';
+import type { FloatingButtonConfig, FillMode } from '@/utils/types';
+import { THEME_OPTIONS, type ThemeName } from '@/utils/theme';
 import type { SettingsPanelViewOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
 
 // 重新导出供外部使用
 export type { SettingsPanelViewOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
 
 /**
- * 主题色
+ * 主色（主题令牌，在 Shadow DOM 由 host 提供，在扩展页由 tokens.css 的 :root 提供）
  */
-const THEME_COLOR = '#409eff';
+const THEME_COLOR = 'var(--aph-primary)';
 
 /**
  * 警告提醒颜色
@@ -26,9 +27,9 @@ const THEME_COLOR = '#409eff';
 const WARNING_COLOR = '#E6A23C';
 
 /**
- * 危险警告颜色，勿删，留着备用
+ * 危险警告颜色：#F56C6C（预留备用，暂未使用；如需启用取消下方注释即可）
  */
-const _DANGER_COLOR = '#F56C6C';
+// const DANGER_COLOR = '#F56C6C';
 /**
  * 设置弹窗共用样式
  * 注入到：悬浮按钮的 Shadow DOM（由 SettingsPanel 使用）/ 侧边栏的 document head
@@ -256,6 +257,39 @@ export const settingsPanelViewStyles = `
   color: ${WARNING_COLOR};
   font-weight: 500;
 }
+
+/* 主题色块选择器 */
+.theme-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 210px;
+}
+
+.theme-swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: var(--swatch);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  outline: 1px solid #dcdfe6;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    outline-color 0.15s ease;
+}
+
+.theme-swatch:hover {
+  transform: scale(1.12);
+}
+
+.theme-swatch.active {
+  outline: 2px solid var(--swatch);
+  outline-offset: 1px;
+}
 `;
 
 /**
@@ -263,6 +297,10 @@ export const settingsPanelViewStyles = `
  */
 export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
   const opacityPct = Math.round(config.opacity * 100);
+  const themeSwatches = THEME_OPTIONS.map(
+    option =>
+      `<button class="theme-swatch ${config.theme === option.name ? 'active' : ''}" data-theme="${option.name}" title="${option.label}" style="--swatch: ${option.swatch}"></button>`,
+  ).join('');
   return `
     <div class="settings-header">
       <h3 class="settings-title">偏好设置</h3>
@@ -271,6 +309,11 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
       </button>
     </div>
     <div class="settings-content">
+      <div class="setting-item">
+        <span class="setting-label">主题风格</span>
+        <div class="theme-swatches" data-setting="theme">${themeSwatches}</div>
+      </div>
+
       <div class="setting-item">
         <span class="setting-label">显示悬浮按钮</span>
         <div class="switch ${config.visible ? 'active' : ''}" data-setting="visible">
@@ -285,6 +328,14 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
         </div>
       </div>
       <div class="setting-tip">开启后，登录输入框获取焦点时自动展示快速填充侧边栏</div>
+
+      <div class="setting-item">
+        <span class="setting-label">页面内联填充</span>
+        <div class="switch ${config.fillMode === 'inline' ? 'active' : ''}" data-setting="fillMode">
+          <div class="switch-handle"></div>
+        </div>
+      </div>
+      <div class="setting-tip">开启后，登录框内显示钥匙图标，点击展开页面内快速填充面板；关闭则使用侧边栏（默认）</div>
 
       <div class="setting-item">
         <span class="setting-label">自动触发登录</span>
@@ -372,6 +423,36 @@ export function bindSettingsPanelView(
     cleanups.push(() => el.removeEventListener('click', onClick));
   });
 
+  // 填充方式开关（字符串枚举，独立于布尔开关处理）
+  const fillModeEl = panelRoot.querySelector('[data-setting="fillMode"]') as HTMLElement | null;
+  if (fillModeEl) {
+    const onFillModeClick = () => {
+      const next: FillMode = config.fillMode === 'inline' ? 'sidepanel' : 'inline';
+      config.fillMode = next;
+      fillModeEl.classList.toggle('active', next === 'inline');
+      options.onConfigChange({ fillMode: next });
+    };
+    fillModeEl.addEventListener('click', onFillModeClick);
+    cleanups.push(() => fillModeEl.removeEventListener('click', onFillModeClick));
+  }
+
+  // 主题色块选择
+  const themeContainer = panelRoot.querySelector('[data-setting="theme"]') as HTMLElement | null;
+  if (themeContainer) {
+    const swatches = Array.from(themeContainer.querySelectorAll<HTMLElement>('.theme-swatch'));
+    swatches.forEach(swatch => {
+      const onSwatchClick = () => {
+        const name = swatch.getAttribute('data-theme') as ThemeName | null;
+        if (!name || config.theme === name) return;
+        config.theme = name;
+        swatches.forEach(item => item.classList.toggle('active', item === swatch));
+        options.onConfigChange({ theme: name });
+      };
+      swatch.addEventListener('click', onSwatchClick);
+      cleanups.push(() => swatch.removeEventListener('click', onSwatchClick));
+    });
+  }
+
   // 透明度滑块
   const opacitySlider = panelRoot.querySelector('[data-setting="opacity"]') as HTMLElement | null;
   if (opacitySlider) {
@@ -450,6 +531,15 @@ export function bindSettingsPanelView(
     switchKeys.forEach(key => {
       const el = panelRoot.querySelector(`[data-setting="${key}"]`);
       el?.classList.toggle('active', !!config[key]);
+    });
+
+    // 更新填充方式开关
+    const fillModeSwitch = panelRoot.querySelector('[data-setting="fillMode"]');
+    fillModeSwitch?.classList.toggle('active', config.fillMode === 'inline');
+
+    // 更新主题色块选中态
+    panelRoot.querySelectorAll<HTMLElement>('.theme-swatch').forEach(swatch => {
+      swatch.classList.toggle('active', swatch.getAttribute('data-theme') === config.theme);
     });
 
     // 更新滑块

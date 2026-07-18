@@ -744,12 +744,12 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 500;
   border-radius: 20px;
-  box-shadow: 0 2px 8px rgb(64 158 255 / 25%);
+  box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 25%);
   transition: all 0.25s ease;
 }
 
 :deep(.empty-add-btn:hover) {
-  box-shadow: 0 4px 14px rgb(64 158 255 / 40%);
+  box-shadow: 0 4px 14px rgb(var(--aph-primary-rgb) / 40%);
   transform: translateY(-1px);
 }
 
@@ -759,18 +759,18 @@ onMounted(async () => {
   padding: 10px 0;
   font-size: 14px;
   font-weight: 500;
-  color: #409eff;
-  background: #ecf5ff;
-  border: 1px solid #d9ecff;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+  border: 1px solid var(--aph-primary-border);
   border-radius: 8px;
   transition: all 0.25s ease;
 }
 
 :deep(.footer-manage-btn:hover) {
   color: #fff;
-  background: #409eff;
-  border-color: #409eff;
-  box-shadow: 0 2px 8px rgb(64 158 255 / 30%);
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
+  box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 30%);
   transform: translateY(-1px);
 }
 
@@ -806,13 +806,13 @@ onMounted(async () => {
   width: 56px;
   height: 56px;
   margin-bottom: 20px;
-  background: #ecf5ff;
+  background: var(--aph-primary-bg);
   border-radius: 50%;
 }
 
 .auth-icon {
   font-size: 28px;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .auth-title {
@@ -860,9 +860,9 @@ onMounted(async () => {
 
 /* 排序触发按钮：当选中非默认排序时显示微妙激活态 */
 .search-section :deep(.el-dropdown) .el-button.is-active-sort {
-  color: #409eff;
-  background: #ecf5ff;
-  border-color: #d9ecff;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+  border-color: var(--aph-primary-border);
 }
 </style>
 
@@ -909,7 +909,7 @@ onMounted(async () => {
   align-items: center;
   font-size: 14px;
   font-weight: 700;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item:hover {
@@ -922,12 +922,12 @@ onMounted(async () => {
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item.is-active {
-  color: #409eff;
-  background: #ecf5ff;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item.is-active .sort-item-icon {
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 html,

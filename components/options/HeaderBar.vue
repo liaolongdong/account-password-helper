@@ -191,9 +191,9 @@ defineEmits<{
   padding: 24px 32px;
   margin-bottom: 24px;
   color: white;
-  background: linear-gradient(135deg, #409eff 0%, #66b3ff 100%);
+  background: linear-gradient(135deg, var(--aph-primary) 0%, var(--aph-primary-hover) 100%);
   border-radius: 0;
-  box-shadow: 0 2px 12px rgb(64 158 255 / 15%);
+  box-shadow: 0 2px 12px rgb(var(--aph-primary-rgb) / 15%);
 }
 
 .header-title-row {
@@ -282,15 +282,15 @@ defineEmits<{
 
 :deep(.header-actions .el-button--primary) {
   font-weight: 500;
-  color: #409eff;
+  color: var(--aph-primary);
   background: #fff;
   border: 1px solid #fff;
 }
 
 :deep(.header-actions .el-button--primary:hover) {
-  color: #1890ff;
-  background: #f0f9ff;
-  border-color: #f0f9ff;
+  color: var(--aph-primary);
+  background: var(--aph-surface-hover);
+  border-color: var(--aph-surface-hover);
   box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
   transform: translateY(-1px);
 }
