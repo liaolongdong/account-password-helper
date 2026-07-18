@@ -829,6 +829,11 @@ export class FormDetector {
         this.fillMobileCode(message.data);
         sendResponse({ success: true, message: '填充完成' });
         return true;
+      case MessageType.FILL_TOTP:
+        this.fillTotpCode(message.data.code).then(result => {
+          sendResponse(result);
+        });
+        return true;
       case MessageType.SHOW_SIDEPANEL:
         if (!this.hasLoginFormFields()) {
           showNoLoginFormMessage();
@@ -1023,6 +1028,54 @@ export class FormDetector {
     } catch (error) {
       logger.error('填充手机号+验证码失败:', error);
     }
+  }
+
+  /**
+   * 填充 TOTP 两步验证码到页面检测到的验证码输入框
+   *
+   * 复用已有的 verifyCodeFields 检测（含 `input[autocomplete="one-time-code"]`），
+   * 仅在用户显式触发时填入，不介入现有账号密码自动填充流程。
+   * @param code 本地计算得到的动态验证码
+   * @returns 填充结果
+   */
+  private async fillTotpCode(code: string): Promise<FillResult> {
+    const result: FillResult = {
+      success: false,
+      message: '',
+      details: {
+        usernameField: { found: false, filled: false, verified: false },
+        passwordField: { found: false, filled: false, verified: false },
+        strategy: 'native',
+      },
+    };
+
+    try {
+      // 验证码输入框常在二步验证页面动态渲染，未检测到时先重新检测一次
+      if (this.verifyCodeFields.length === 0) {
+        this.detectForms();
+      }
+      if (this.verifyCodeFields.length === 0) {
+        result.message = '当前页面未检测到验证码输入框';
+        return result;
+      }
+
+      const field = this.verifyCodeFields[0];
+      const fillResult = await this.inputFiller.setInputValueWithStrategies(field, code);
+      result.success = fillResult.filled;
+      result.details.strategy = fillResult.strategy;
+      result.message = fillResult.filled ? '验证码填充成功' : '验证码填充失败，请手动输入';
+
+      if (result.success) {
+        setTimeout(() => {
+          this.hideSidePanel();
+        }, 300);
+      }
+    } catch (error) {
+      logger.error('填充 TOTP 验证码失败:', error);
+      result.message = '填充验证码时发生错误';
+    }
+
+    return result;
   }
 
   /**

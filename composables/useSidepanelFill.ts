@@ -1,6 +1,7 @@
 import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { generateTOTP } from '@/utils/totp';
 import { isSameMainDomain } from '@/utils/domain';
 import { getClipboardConfig } from '@/utils/storage/configManager';
 import type { Ref } from 'vue';
@@ -313,6 +314,36 @@ export function useSidepanelFill(
     return null;
   };
 
+  /**
+   * 向所有 frame 发送 TOTP 验证码填充消息，返回首个成功响应（均失败时返回首个响应以展示提示）
+   * @param tabId 标签页ID
+   * @param frameIds 所有 frame ID 列表
+   * @param code 本地计算得到的动态验证码
+   * @returns FillResult 或 null
+   */
+  const fillTotpInAllFrames = async (tabId: number, frameIds: number[], code: string): Promise<FillResult | null> => {
+    const results = await Promise.allSettled(
+      frameIds.map(frameId =>
+        chrome.tabs.sendMessage(tabId, { type: MessageType.FILL_TOTP, data: { code } }, { frameId }),
+      ),
+    );
+
+    let firstResponse: FillResult | null = null;
+    for (const result of results) {
+      if (result.status === 'fulfilled') {
+        const response = result.value as FillResult | undefined;
+        if (response?.success) {
+          return response;
+        }
+        if (response && !firstResponse) {
+          firstResponse = response;
+        }
+      }
+    }
+
+    return firstResponse;
+  };
+
   // ==================== 填充密码 ====================
 
   /**
@@ -445,6 +476,128 @@ export function useSidepanelFill(
     fillPassword(password, { autoLogin: true });
   };
 
+  // ==================== 填充 / 复制 TOTP 验证码 ====================
+
+  /**
+   * 填充条目的 TOTP 两步验证码到当前页面
+   *
+   * 本地计算当前动态码 → 确保 content script 就绪 → 向可填充 frame 集合发送 FILL_TOTP。
+   * @param password 目标密码条目
+   */
+  const fillTotp = async (password: PasswordEntry) => {
+    if (!password.totp || !password.totp.trim()) {
+      ElMessage.warning('该条目未配置两步验证');
+      return;
+    }
+
+    let code: string;
+    try {
+      code = await generateTOTP(password.totp);
+    } catch (error) {
+      logger.error('生成验证码失败:', error);
+      ElMessage.error('生成验证码失败，请检查密钥');
+      return;
+    }
+
+    try {
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab || !tab.id) {
+        ElMessage.error('无法获取当前页面信息');
+        return;
+      }
+      const tabId = tab.id;
+      const frameIds = await getFillableFrameIds(tabId);
+
+      // 确保 content script 就绪（必要时注入）
+      let pingResponse = await pingAllFrames(tabId, frameIds);
+      if (!pingResponse) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ['content-scripts/content.js'],
+          });
+          await new Promise(resolve => setTimeout(resolve, 800));
+        } catch (injectError) {
+          logger.error('Content script 注入失败:', injectError);
+          ElMessage.error('无法在当前页面中注入脚本，请刷新页面后重试');
+          return;
+        }
+        pingResponse = await pingAllFrames(tabId, frameIds);
+        if (!pingResponse) {
+          ElMessage.error('页面脚本未就绪，请刷新页面后重试');
+          return;
+        }
+      }
+
+      const response = await fillTotpInAllFrames(tabId, frameIds, code);
+      if (response && response.success) {
+        ElMessage.success(response.message || '验证码填充成功');
+        await chrome.runtime.sendMessage({
+          type: MessageType.HIDE_SIDEPANEL,
+          data: { tabId },
+        });
+      } else {
+        ElMessage.warning(response?.message || '当前页面未检测到验证码输入框');
+      }
+    } catch (error: any) {
+      logger.error('填充验证码失败:', error);
+      ElMessage.error('填充验证码失败，请刷新页面后重试');
+    }
+  };
+
+  /**
+   * 复制条目的 TOTP 两步验证码到剪贴板
+   * 验证码 30 秒自失效，不挂自动清除定时器
+   *
+   * 注意：先异步生成动态码（Web Crypto）会耗掉侧边栏的瞬时用户激活/文档聚焦，
+   * 导致 Async Clipboard API 可能抛错；因此失败时降级到 execCommand 兑底（与 clearClipboard 一致）。
+   * @param password 目标密码条目
+   */
+  const copyTotp = async (password: PasswordEntry) => {
+    if (!password.totp || !password.totp.trim()) {
+      ElMessage.warning('该条目未配置两步验证');
+      return;
+    }
+
+    let code: string;
+    try {
+      code = await generateTOTP(password.totp);
+    } catch (error) {
+      logger.error('生成验证码失败:', error);
+      ElMessage.error('生成验证码失败，请检查密钥');
+      return;
+    }
+
+    // 优先 Async Clipboard API（需文档聚焦）；因上方 await 生成可能丢失瞬时激活，失败时降级 execCommand
+    try {
+      await navigator.clipboard.writeText(code);
+      ElMessage.success('验证码已复制到剪贴板');
+      return;
+    } catch {
+      logger.info('Async Clipboard 写入失败（可能文档失焦），降级 execCommand');
+    }
+
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = code;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (ok) {
+        ElMessage.success('验证码已复制到剪贴板');
+      } else {
+        ElMessage.error('复制验证码失败');
+      }
+    } catch (fallbackError) {
+      logger.error('复制验证码失败:', fallbackError);
+      ElMessage.error('复制验证码失败');
+    }
+  };
+
   // ==================== 编辑跳转 ====================
 
   /**
@@ -503,6 +656,8 @@ export function useSidepanelFill(
   return {
     fillPassword,
     handleFillAndLogin,
+    fillTotp,
+    copyTotp,
     handleEditPassword,
     copyUsername,
     copyPassword,

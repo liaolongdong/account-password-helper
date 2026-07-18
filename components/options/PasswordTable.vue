@@ -49,6 +49,23 @@
         </template>
       </el-table-column>
       <el-table-column
+        label="两步验证"
+        min-width="120"
+      >
+        <template #default="{ row }">
+          <TotpCode
+            v-if="row.totp"
+            :secret="row.totp"
+            copyable
+          />
+          <span
+            v-else
+            class="no-tag"
+            >-</span
+          >
+        </template>
+      </el-table-column>
+      <el-table-column
         prop="url"
         label="网址"
         min-width="200"
@@ -121,7 +138,7 @@
       <el-table-column
         prop="createTime"
         label="创建时间"
-        min-width="110"
+        min-width="100"
         sortable="custom"
       >
         <template #default="{ row }">
@@ -131,7 +148,7 @@
       <el-table-column
         prop="updateTime"
         label="更新时间"
-        min-width="110"
+        min-width="100"
         sortable="custom"
         :sort-orders="['descending', 'ascending', null]"
       >
@@ -218,6 +235,7 @@ import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
 import { useTagOverflow } from '@/composables/useTagOverflow';
+import TotpCode from '@/components/TotpCode.vue';
 
 /**
  * 获取标签的合并样式对象
@@ -426,6 +444,7 @@ defineExpose({ tableRef: localTableRef });
   width: 28px;
   height: 28px;
   padding: 0;
+  margin-left: 10px;
 }
 
 :deep(.operation-buttons .el-button--danger:hover) {

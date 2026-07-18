@@ -204,6 +204,8 @@
               @toggle-favorite="toggleFavorite"
               @copy-username="copyUsername"
               @copy-password="copyPassword"
+              @fill-totp="fillTotp"
+              @copy-totp="copyTotp"
               @mouseenter="activeIndex = index"
             />
           </div>
@@ -317,10 +319,8 @@ const {
   runLocalOperation,
 } = useSidepanelData();
 
-const { fillPassword, handleFillAndLogin, handleEditPassword, copyUsername, copyPassword } = useSidepanelFill(
-  passwords,
-  runLocalOperation,
-);
+const { fillPassword, handleFillAndLogin, fillTotp, copyTotp, handleEditPassword, copyUsername, copyPassword } =
+  useSidepanelFill(passwords, runLocalOperation);
 
 /** 设置弹窗 DOM 引用（本地声明以确保 vue-tsc 可追踪模板引用） */
 const settingsPanelEl = ref<HTMLElement | null>(null);

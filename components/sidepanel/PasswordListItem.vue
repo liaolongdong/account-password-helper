@@ -1,7 +1,18 @@
 <script setup lang="ts">
-import { User, CopyDocument, Key, Star, StarFilled, Promotion, EditPen } from '@element-plus/icons-vue';
+import {
+  User,
+  CopyDocument,
+  Key,
+  Star,
+  StarFilled,
+  Promotion,
+  EditPen,
+  Timer,
+  DocumentCopy,
+} from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
+import TotpCode from '@/components/TotpCode.vue';
 
 interface Props {
   /** 密码条目数据 */
@@ -23,6 +34,10 @@ interface Emits {
   copyUsername: [username: string];
   /** 复制密码 */
   copyPassword: [password: string];
+  /** 填充 TOTP 两步验证码 */
+  fillTotp: [password: PasswordEntry];
+  /** 复制 TOTP 两步验证码 */
+  copyTotp: [password: PasswordEntry];
 }
 
 defineProps<Props>();
@@ -92,8 +107,32 @@ defineEmits<Emits>();
           {{ password.remark }}
         </el-text>
       </div>
+      <div
+        v-if="password.totp"
+        class="totp-row"
+        @click.stop
+        @mousedown.stop
+      >
+        <TotpCode :secret="password.totp" />
+      </div>
     </div>
     <div class="password-actions">
+      <el-icon
+        v-if="password.totp"
+        class="action-icon totp-fill-icon"
+        title="填充验证码"
+        @click.stop="$emit('fillTotp', password)"
+      >
+        <Timer />
+      </el-icon>
+      <el-icon
+        v-if="password.totp"
+        class="action-icon totp-copy-icon"
+        title="复制验证码"
+        @click.stop="$emit('copyTotp', password)"
+      >
+        <DocumentCopy />
+      </el-icon>
       <el-icon
         class="action-icon favorite-icon"
         :class="{ 'is-favorite': password.favorite }"
@@ -272,6 +311,10 @@ defineEmits<Emits>();
   white-space: nowrap;
 }
 
+.totp-row {
+  margin-top: 4px;
+}
+
 .password-actions {
   display: flex;
   flex-shrink: 0;
@@ -307,6 +350,19 @@ defineEmits<Emits>();
 
 .auto-login-icon:hover {
   color: #67c23a;
+}
+
+.totp-fill-icon,
+.totp-copy-icon {
+  margin-right: 8px;
+  color: #b0b7c3;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.totp-fill-icon:hover,
+.totp-copy-icon:hover {
+  color: #409eff;
 }
 
 .edit-icon {

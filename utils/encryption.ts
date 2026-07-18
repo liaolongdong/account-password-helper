@@ -140,7 +140,7 @@ export async function decryptFieldSafely(encryptedData: string, hexKey: string, 
 }
 
 /**
- * 加密密码条目的敏感字段（username/password/url/remark）
+ * 加密密码条目的敏感字段（username/password/url/remark/totp）
  */
 export async function encryptPasswordEntry(
   entry: PasswordEntry,
@@ -155,6 +155,7 @@ export async function encryptPasswordEntry(
       password: entry.password ? await encryptData(entry.password, key) : '',
       url: entry.url ? await encryptData(entry.url, key) : '',
       remark: entry.remark ? await encryptData(entry.remark, key) : '',
+      totp: entry.totp ? await encryptData(entry.totp, key) : '',
       encrypted: true,
     } as EncryptedPasswordEntry;
     logger.debug('条目加密完成');
@@ -186,6 +187,7 @@ export async function decryptPasswordEntry(
       password: await decryptFieldSafely(entry.password, key, 'password'),
       url: await decryptFieldSafely(entry.url, key, 'url'),
       remark: await decryptFieldSafely(entry.remark, key, 'remark'),
+      totp: await decryptFieldSafely(entry.totp ?? '', key, 'totp'),
     };
     logger.debug('条目解密完成');
     return decryptedEntry;

@@ -56,6 +56,7 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
         url: p.url,
         tag: p.tag,
         remark: p.remark,
+        totp: p.totp,
         createTime: p.createTime,
         updateTime: p.updateTime,
         favorite: p.favorite,

@@ -27,6 +27,14 @@ export interface PasswordEntry {
    */
   remark: string;
   /**
+   * 两步验证（TOTP）密钥
+   *
+   * 存储 `otpauth://totp/...` 标准 URI 或裸 Base32 密钥；
+   * 作为敏感字段随主密码体系加密存储，动态码在本地按 RFC 6238 计算。
+   * 未配置 2FA 时为空字符串或 undefined。
+   */
+  totp?: string;
+  /**
    * 创建时间
    */
   createTime: number;
@@ -99,6 +107,10 @@ export enum MessageType {
    * 填充手机号消息类型
    */
   FILL_MOBILE_CODE = 'FILL_MOBILE_CODE', // 新增手机号+验证码填充消息类型
+  /**
+   * 填充 TOTP 两步验证码消息类型（填入页面检测到的验证码输入框）
+   */
+  FILL_TOTP = 'FILL_TOTP',
   /**
    * 显示侧边栏消息类型
    */
@@ -179,6 +191,7 @@ export type RuntimeMessage =
   | { type: MessageType.PING }
   | { type: MessageType.FILL_PASSWORD; data: FillPasswordData }
   | { type: MessageType.FILL_MOBILE_CODE; data: FillMobileCodeData }
+  | { type: MessageType.FILL_TOTP; data: FillTotpData }
   | { type: MessageType.SHOW_SIDEPANEL; data?: { tabId?: number } }
   | { type: MessageType.HIDE_SIDEPANEL; data?: { tabId?: number } }
   | { type: MessageType.TOGGLE_SIDEPANEL; data?: { tabId?: number } }
@@ -281,6 +294,14 @@ export interface FillPasswordData {
  */
 export interface FillMobileCodeData {
   mobile: string;
+  code: string;
+}
+
+/**
+ * 填充 TOTP 两步验证码数据接口
+ */
+export interface FillTotpData {
+  /** 本地计算得到的动态验证码 */
   code: string;
 }
 

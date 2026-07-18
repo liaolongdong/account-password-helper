@@ -20,7 +20,7 @@ async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
 }
 
 /** 敏感字段集合：仅这些字段以密文形式存储，其余为明文元数据 */
-const SENSITIVE_FIELDS = ['username', 'password', 'url', 'remark'] as const;
+const SENSITIVE_FIELDS = ['username', 'password', 'url', 'remark', 'totp'] as const;
 
 /** 判断 updates 是否触及任一敏感字段（触及则需解密-合并-重新加密） */
 function updatesTouchSensitiveFields(updates: Partial<PasswordEntry>): boolean {
