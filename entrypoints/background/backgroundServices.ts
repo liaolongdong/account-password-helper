@@ -46,11 +46,14 @@ const SW_KEEPALIVE_ALARM_NAME = 'sw-keepalive';
 /**
  * SW 保活间隔（分钟）
  *
- * Chrome 扩展 MV3 的 chrome.alarms.create 最小 periodInMinutes 为 0.5（30 秒），
- * 但实际测试中部分 Chrome 版本限制为 1 分钟。使用 1 分钟确保兼容性。
- * 每次 alarm 触发会重置 SW 的 30 秒空闲计时器，从而保持 SW 存活。
+ * Chrome 扩展 MV3 的 chrome.alarms.create 最小 periodInMinutes 为 0.5（30 秒）。
+ * 每次 alarm 触发会唤醒 SW 并重置其 30 秒空闲计时器。使用 0.5 分钟（30 秒）
+ * 尽量收窄「alarm 间隔 - 空闲 30s」的冷启动空档，逼近连续保活；
+ * 不支持 0.5 的旧版 Chrome 会自动上钳到 1 分钟，安全兼容。
+ * 注意：MV3 下无客户端连接时仅能靠 alarm 外部唤醒，无法达成 100% 保活，
+ * 仍需配合 preWarmServiceWorker 覆盖用户点击前的时刻。
  */
-const SW_KEEPALIVE_INTERVAL_MINUTES = 1;
+const SW_KEEPALIVE_INTERVAL_MINUTES = 0.5;
 
 /**
  * 设置插件图标更新徽标

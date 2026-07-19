@@ -14,6 +14,7 @@ import {
   invalidatePasswordCache,
   getCachedSortConfig,
   warmPasswordCache,
+  getOrWarmCache,
   getMatchingAccounts,
   getDecryptedEntryById,
 } from './passwordCache';
@@ -79,13 +80,11 @@ async function handleGetInitialData(_domain?: string) {
     return { sessionValid: true, passwords: cached.passwords, sortConfig };
   }
 
-  // 冷路径：从 storage 读取全量密码列表和排序配置
-  // 始终返回全量列表，由 sidepanel 端做域名过滤和排序（filteredPasswords computed）
-  const { getAllPasswords } = await _getCrudModule();
-  const [sortConfig, passwords] = await Promise.all([getCachedSortConfig(), getAllPasswords()]);
-
-  // 读取完成后自动预热缓存，后续请求直接命中
-  updatePasswordCache(passwords, '*', true);
+  // 冷路径：经 getOrWarmCache 去重执行全量解密并回填缓存，与并发的
+  // SIDEPANEL_PRELOAD(warmPasswordCache) 共享同一 in-flight，避免重复 AES-GCM 解密。
+  // 始终返回全量列表，由 sidepanel 端做域名过滤和排序（filteredPasswords computed）。
+  const [warmed, sortConfig] = await Promise.all([getOrWarmCache(), getCachedSortConfig()]);
+  const passwords = warmed?.passwords ?? [];
 
   return { sessionValid: true, passwords, sortConfig };
 }

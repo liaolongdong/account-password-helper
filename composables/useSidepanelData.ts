@@ -432,7 +432,8 @@ export function useSidepanelData() {
    * - Background GET_INITIAL_DATA 与本地 storage 直读路径同时启动，取先到者
    * - 热 SW 场景：Background 路径 ~20ms 胜出，本地路径静默完成
    * - 冷 SW 场景：本地路径 ~200-400ms 先完成，Background 迟到结果用于缓存更新
-   * - GET_INITIAL_DATA 超时从 2000ms 降至 400ms，Windows 冷 SW 场景下 SW 启动 + HKDF 约 400-800ms，<br>400ms 超时确保本地路径不空等
+   * - Background 分支设 800ms 兜底上限（见下方 setTimeout）：仅用于让迟到的 bg 结果最终
+   *   resolve 以静默更新缓存，并非竞速主门；冷 SW 场景由本地路径（~200-400ms）先胜出，无需等待该上限
    * - loadCurrentTab 与 GET_INITIAL_DATA 并行执行，节约 ~5ms 串行延迟
    */
   const initSidepanelData = async () => {
