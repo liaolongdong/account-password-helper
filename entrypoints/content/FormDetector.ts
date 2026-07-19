@@ -65,6 +65,16 @@ export class FormDetector {
   private floatingButtonConfig: FloatingButtonConfig;
   /** 存储变化监听器 */
   private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
+  /** runtime 消息监听器引用（保存以便 destroy 时精确移除，避免上下文失效后残留触发 chrome API） */
+  private messageListener:
+    | ((
+        message: RuntimeMessage,
+        sender: chrome.runtime.MessageSender,
+        sendResponse: (response?: unknown) => void,
+      ) => boolean)
+    | null = null;
+  /** URL 变化检测观察器（SPA 场景），保存引用以便 destroy 时断开，防止资源泄漏 */
+  private urlChangeObserver: MutationObserver | null = null;
   /** DOM 变化检测的 debounce 计时器（可取消） */
   private detectionTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -159,11 +169,12 @@ export class FormDetector {
       setTimeout(() => this.detectForms(), this.shortDelayTime);
     }
 
-    // 监听消息
-    chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
-      const handled = this.handleMessage(message, sender, sendResponse);
-      return handled; // 仅对已处理的消息保持通道开放，未处理的消息传递给 background
-    });
+    // 监听消息（保存监听器引用，destroy 时移除，避免上下文失效后监听器残留触发 chrome API）
+    this.messageListener = (message, sender, sendResponse) => {
+      // 仅对已处理的消息保持通道开放，未处理的消息传递给 background
+      return this.handleMessage(message, sender, sendResponse);
+    };
+    chrome.runtime.onMessage.addListener(this.messageListener);
   }
 
   /**
@@ -796,13 +807,15 @@ export class FormDetector {
     });
 
     let lastUrl = location.href;
-    new MutationObserver(() => {
+    // 保存观察器引用，destroy 时断开，避免 SPA 场景下的资源泄漏
+    this.urlChangeObserver = new MutationObserver(() => {
       const url = location.href;
       if (url !== lastUrl) {
         this.notifyUrlChange();
         lastUrl = url;
       }
-    }).observe(document, { subtree: true, childList: true });
+    });
+    this.urlChangeObserver.observe(document, { subtree: true, childList: true });
 
     window.addEventListener('popstate', () => {
       this.notifyUrlChange();
@@ -1123,6 +1136,11 @@ export class FormDetector {
     if (this.observer) {
       this.observer.disconnect();
     }
+    // 断开 SPA URL 变化观察器，防止资源泄漏
+    if (this.urlChangeObserver) {
+      this.urlChangeObserver.disconnect();
+      this.urlChangeObserver = null;
+    }
     if (this.detectionTimer) {
       clearTimeout(this.detectionTimer);
       this.detectionTimer = null;
@@ -1130,8 +1148,20 @@ export class FormDetector {
     document.removeEventListener('click', this.handleDelegatedClick, { capture: true });
     document.removeEventListener('focusin', this.handleDelegatedFocusIn, { capture: true });
     if (this.storageListener) {
-      chrome.storage.onChanged.removeListener(this.storageListener);
+      try {
+        chrome.storage.onChanged.removeListener(this.storageListener);
+      } catch {
+        // 上下文失效时 removeListener 可能抛错，监听器已被 Chrome 自动清理，忽略
+      }
       this.storageListener = null;
+    }
+    if (this.messageListener) {
+      try {
+        chrome.runtime.onMessage.removeListener(this.messageListener);
+      } catch {
+        // 同上，忽略上下文失效导致的移除异常
+      }
+      this.messageListener = null;
     }
     this.passwordVisibilityToggle.destroy();
     destroyInlineFillDropdown();

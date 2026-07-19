@@ -999,8 +999,13 @@ export class LoginAutoSave {
     document.removeEventListener('submit', this.handleFormSubmit, { capture: true });
     document.removeEventListener('click', this.handleButtonClick, { capture: true });
     document.removeEventListener('keydown', this.handleKeyDown, { capture: true });
-    chrome.storage.onChanged.removeListener(this.handleStorageChange);
-    chrome.runtime.onMessage.removeListener(this.handleRuntimeMessage);
+    // 上下文失效时 removeListener 可能抛 "Extension context invalidated"，包裹兜底
+    try {
+      chrome.storage.onChanged.removeListener(this.handleStorageChange);
+      chrome.runtime.onMessage.removeListener(this.handleRuntimeMessage);
+    } catch {
+      // 监听器已被 Chrome 自动清理，忽略
+    }
     dismissSavePasswordPrompt();
   }
 }

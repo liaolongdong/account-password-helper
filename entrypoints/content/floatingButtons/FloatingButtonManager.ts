@@ -479,7 +479,11 @@ export class FloatingButtonManager {
   destroy(): void {
     // 移除存储监听器
     if (this.storageListener) {
-      chrome.storage.onChanged.removeListener(this.storageListener);
+      try {
+        chrome.storage.onChanged.removeListener(this.storageListener);
+      } catch {
+        // 上下文失效时 removeListener 可能抛错，监听器已被 Chrome 自动清理，忽略
+      }
       this.storageListener = null;
     }
 
