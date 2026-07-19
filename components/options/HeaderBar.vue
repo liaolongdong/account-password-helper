@@ -27,6 +27,19 @@
         >
           添加密码
         </el-button>
+        <el-button
+          :icon="Aim"
+          :title="healthGrade ? `安全评分 ${healthScore} 分` : undefined"
+          @click="$emit('openHealth')"
+        >
+          安全体检
+          <span
+            v-if="healthGrade"
+            class="health-dot"
+            :style="{ backgroundColor: healthDotColor }"
+            aria-hidden="true"
+          ></span>
+        </el-button>
         <el-dropdown
           trigger="click"
           @command="(cmd: string) => $emit('dataCommand', cmd)"
@@ -142,6 +155,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import {
   Plus,
   Download,
@@ -158,22 +172,30 @@ import {
   Clock,
   DocumentCopy,
   Star,
+  Aim,
 } from '@element-plus/icons-vue';
+import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
 
 /**
  * Options 页面头部组件
  *
- * 包含标题、版本号、数据管理/设置下拉菜单以及悬浮按钮开关。
+ * 包含标题、版本号、安全体检入口、数据管理/设置下拉菜单以及偏好设置按钮。
  */
-defineProps<{
+const props = defineProps<{
   /** 当前插件版本号 */
   currentVersion: string;
+  /** 综合安全评分（0~100），空库时不传 */
+  healthScore?: number;
+  /** 健康等级，空库时不传（决定是否显示体检小圆点） */
+  healthGrade?: HealthGrade;
 }>();
 
 defineEmits<{
   /** 点击添加密码按钮 */
   addPassword: [];
+  /** 打开安全体检弹窗 */
+  openHealth: [];
   /** 数据管理菜单项点击 */
   dataCommand: [command: string];
   /** 设置菜单项点击 */
@@ -181,6 +203,21 @@ defineEmits<{
   /** 打开偏好设置弹窗 */
   openPersonalization: [];
 }>();
+
+/**
+ * 体检小圆点颜色（一眼可见的红黄绿信号灯）
+ * 优秀/良好为绿色（健康），一般为橙色（需关注），较差为红色（需尽快处理）。
+ */
+const healthDotColor = computed(() => {
+  switch (props.healthGrade) {
+    case 'poor':
+      return '#f56c6c';
+    case 'fair':
+      return '#e6a23c';
+    default:
+      return '#67c23a';
+  }
+});
 </script>
 
 <style scoped>
@@ -241,6 +278,17 @@ defineEmits<{
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/* 安全体检小圆点：一眼可见的健康信号灯 */
+.health-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  vertical-align: middle;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 35%);
 }
 
 /* 下拉菜单触发按钮样式 */

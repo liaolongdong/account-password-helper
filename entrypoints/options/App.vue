@@ -36,7 +36,10 @@
       <!-- 头部 -->
       <HeaderBar
         :current-version="currentVersion"
+        :health-score="passwords.length ? healthReport.score : undefined"
+        :health-grade="passwords.length ? healthReport.grade : undefined"
         @add-password="openPasswordDialog"
+        @open-health="showHealthDialog = true"
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
         @open-personalization="openPersonalizationDialog"
@@ -169,6 +172,13 @@
 
     <!-- 剪贴板设置弹窗 -->
     <ClipboardSettingDialog v-model="showClipboardDialog" />
+
+    <!-- 安全体检仪表盘弹窗 -->
+    <PasswordHealthDialog
+      v-model="showHealthDialog"
+      :report="healthReport"
+      @edit="onHealthEdit"
+    />
   </div>
 </template>
 
@@ -200,6 +210,7 @@ import PasswordTable from '@/components/options/PasswordTable.vue';
 import HeaderBar from '@/components/options/HeaderBar.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
+import PasswordHealthDialog from '@/components/options/PasswordHealthDialog.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
@@ -209,6 +220,7 @@ import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
+import { buildHealthReport } from '@/utils/passwordHealth';
 import { isDev } from '@/utils/env';
 
 /** 密码表单弹窗组件引用（用于获取内部 form ref） */
@@ -249,6 +261,9 @@ const showFavoriteLimitDialog = ref(false);
 
 /** 剪贴板设置弹窗可见性 */
 const showClipboardDialog = ref(false);
+
+/** 安全体检弹窗可见性 */
+const showHealthDialog = ref(false);
 
 /** 偏好设置弹窗可见性 */
 const showPersonalizationDialog = ref(false);
@@ -442,6 +457,24 @@ const {
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
+
+/**
+ * 密码健康报告（纯本地内存计算，随密码列表变化自动更新）
+ * 直接消费已解密的 passwords，无额外解密、存储或网络操作。
+ */
+const healthReport = computed(() => buildHealthReport(passwords.value, Date.now()));
+
+/**
+ * 安全体检「去处理」：关闭体检弹窗并跳转到对应条目的编辑流程
+ * @param id 目标条目 ID
+ */
+const onHealthEdit = (id: string) => {
+  showHealthDialog.value = false;
+  const entry = passwords.value.find(p => p.id === id);
+  if (entry) {
+    editPassword(entry);
+  }
+};
 
 /** 认证流程状态与操作方法 */
 const {
