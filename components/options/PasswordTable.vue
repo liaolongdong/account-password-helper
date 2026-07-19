@@ -402,7 +402,9 @@ defineExpose({ tableRef: localTableRef });
 /* 标签样式 */
 .tag-item {
   box-sizing: border-box;
-  max-width: 110px;
+
+  /* 上限 110px，同时不超过所在单元格宽度：窄列时随之收缩，避免标签溢出单元格导致右侧圆角被相邻列覆盖/裁切 */
+  max-width: min(110px, 100%);
   padding: 0 8px;
   margin: 0;
   overflow: visible !important;

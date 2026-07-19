@@ -266,7 +266,9 @@ defineEmits<Emits>();
   /* 单行展示，超长省略，配合外层 el-tooltip 显示完整内容 */
   box-sizing: border-box;
   min-width: 0;
-  max-width: 120px;
+
+  /* 上限 120px，同时不超过容器宽度：窄容器时随之收缩，避免标签溢出导致右侧圆角被裁切，与列表表格截断行为保持一致 */
+  max-width: min(120px, 100%);
   padding: 0 6px;
   margin: 0;
 
