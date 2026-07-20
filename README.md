@@ -40,6 +40,7 @@
 - **密码可见性切换**：自动为页面密码框注入显示/隐藏按钮，输入有值时按钮自动可见（默认关闭，需在设置中手动开启）。
 - **加密备份**：.aph 格式 AES-GCM 加密导出/导入（PBKDF2 600000 次迭代派生密钥）；导入时支持解密预览后再确认，安全可靠。
 - **密码强度可视化**：密码输入时实时显示强度进度条（弱/中/强）与规则校验清单（长度、字母、数字、特殊字符），通过气泡弹窗直观呈现。
+- **安全体检仪表盘**：一键扫描全部密码，生成综合安全评分（0~100）与等级（优秀/良好/一般/较差）；检测弱密码、密码复用（多账号共用同一密码）、长时间未更新（90/180/365 天分级预警）及未开启两步验证条目；全程本地计算，零网络传输；支持点击「去处理」直接跳转编辑。
 - **会话可控**：1/2/4/8/12/24 小时和3/5/7天会话有效期；会话失效后敏感字段自动加密回密文；支持自动闲置锁定（5/10/30/60分钟）；支持浏览器重启锁定（关闭浏览器后需重新验证主密码）；Popup 一键锁定；会话过期跨上下文广播同步。
 - **版本更新检测**：基于 GitHub Releases API，每 6 小时自动检测最新版本；发现更新时在 Popup 弹窗中展示版本号和更新说明，点击即可跳转下载页面。
 - **Shadow DOM 隔离**：悬浮按钮使用 Closed Shadow DOM，完全隔离页面样式。
@@ -125,7 +126,17 @@
 - 逐条校验密码规则：至少 8 字符、包含字母、包含数字、包含特殊字符，通过/未通过状态一目了然。
 - 基于 [usePasswordStrength](./composables/usePasswordStrength.ts) Composable 实现，可在多处复用。
 
-### 10. 快速填充
+### 10. 安全体检仪表盘
+
+- 在密码管理页顶部操作栏点击「安全体检」按钮（带健康信号灯圆点），打开安全体检仪表盘弹窗（见 [PasswordHealthDialog.vue](./components/options/PasswordHealthDialog.vue)）。
+- 综合安全评分（0~100 分）+ 等级（优秀/良好/一般/较差），环形进度动画直观展示（见 [utils/passwordHealth.ts](./utils/passwordHealth.ts)）。
+- 四维检测指标：弱密码（强度为「弱」的条目）、密码复用（多账号共用同一密码，按组展示）、长时间未更新（90/180/365 天三级预警）、未开启两步验证（仅信息展示，不计入扣分）。
+- 评分权重：密码复用 40% + 弱密码 40% + 陈旧密码 20%，按受影响占比线性扣分。
+- 明细区支持展开/折叠，每条问题提供「去处理」按钮，点击直接跳转到对应条目的编辑流程。
+- 全程本地内存计算，不做在线泄露检测（HIBP 等需联网的能力被刻意排除），不返回任何明文密码，零网络传输。
+- 入口按钮旁的信号灯圆点颜色随健康等级变化（绿/蓝/橙/红），一眼可见密码库健康状态。
+
+### 11. 快速填充
 
 - 侧边栏自动将与当前域名匹配的密码排在前面。
 - **本地开发友好**：当域名为 `localhost` 或 `127.0.0.1` 时，默认匹配所有密码（见 [sidepanel/App.vue](./entrypoints/sidepanel/App.vue)）。
@@ -137,14 +148,14 @@
   - 快捷键支持自定义，详见 [常见问题 - 如何自定义快捷键](#常见问题)
 - Background 维护密码缓存，侧边栏优先读取缓存，后台异步验证。
 
-### 11. 版本更新检测
+### 12. 版本更新检测
 
 - 通过 GitHub Releases API 定期检测最新版本（见 [utils/updateChecker.ts](./utils/updateChecker.ts)）。
 - 每 6 小时自动检测一次，发现新版本时在 Popup 弹窗中展示更新提示，包含版本号和更新说明。
 - 点击更新提示可直接跳转到 GitHub Releases 页面下载最新版本。
 - 检测结果缓存 24 小时，避免频繁请求；缓存过期后自动重新检测。
 
-### 12. 随机密码生成
+### 13. 随机密码生成
 
 - 在添加/编辑密码表单中，密码输入框旁有一个魔棒按钮（`MagicStick` 图标），点击弹出密码生成器。
 - 自定义长度（6~50）、字符集开关（大写字母 / 小写字母 / 数字 / 特殊字符）。
@@ -152,7 +163,7 @@
 - 生成后实时显示密码强度进度条，点击「使用此密码」即可填入表单。
 - 基于 Web Crypto API（`crypto.getRandomValues`）保证密码学安全随机性（见 [utils/passwordGenerator.ts](./utils/passwordGenerator.ts)）。
 
-### 13. 剪贴板自动清除
+### 14. 剪贴板自动清除
 
 - 在侧边栏复制密码后，自动启动定时器在指定延时后清除剪贴板内容。
 - 清除延时可配置为 10/15/30/60/120 秒，默认 30 秒（见 [ClipboardSettingDialog.vue](./components/options/ClipboardSettingDialog.vue)）。
@@ -160,7 +171,7 @@
 - 复制用户名时自动取消密码清除定时器，避免误清除用户名。
 - 配置入口位于密码管理页「数据管理」下拉菜单 →「剪贴板设置」。
 
-### 14. 两步验证（TOTP）
+### 15. 两步验证（TOTP）
 
 - 在添加/编辑密码表单的「两步验证」字段中，粘贴 `otpauth://` 链接或 Base32 密钥即可为账号启用 TOTP 两步验证（见 [PasswordFormDialog.vue](./components/options/PasswordFormDialog.vue)）。
 - 动态码基于 [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) 的 HMAC 在本地按 RFC 6238 计算，**不产生任何网络请求**，与插件零网络定位一致（见 [utils/totp.ts](./utils/totp.ts)）。
@@ -176,7 +187,7 @@
 - **时钟必须准确**：动态码按 UTC 绝对时间计算，本机时钟与服务器相差超过约 30 秒即会失败，请开启系统自动校时。
 - **参数需匹配**：本插件默认 SHA-1 / 6 位 / 30 秒（与主流服务一致）；若粘贴的 `otpauth://` 链接带非默认参数（如 SHA-256、8 位），会按链接参数计算，需与服务端一致（可在添加/编辑表单的预览处查看解析出的参数）。
 
-### 15. 主题换肤
+### 16. 主题换肤
 
 - 提供 6 款色彩主题：晴空蓝（默认）、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰（见 [utils/theme.ts](./utils/theme.ts)）。
 - 主题配置保存在悬浮按钮偏好中，有三种方式进入设置：①密码管理页「偏好设置」按钮；②悬浮按钮齿轮图标；③侧边栏右上角齿轮图标。
@@ -184,7 +195,7 @@
 - 内容脚本的 Shadow DOM 组件（悬浮按钮、内联填充面板、密码可见性切换按钮）以内联方式写入主题令牌，与扩展页面同步生效。
 - 切换主题即时生效，无需刷新页面。
 
-### 16. 内联填充
+### 17. 内联填充
 
 - 侧边栏之外的另一种填充方式（见 [InlineFillDropdown.ts](./entrypoints/content/inlineDropdown/InlineFillDropdown.ts)），无需打开侧边栏，直接在页面内完成填充。
 - 当填充模式为「内联」时，登录输入框获焦后右侧内缘自动显示一个钥匙图标（若密码框已有显隐眼睛图标，钥匙图标会自动避让）。
@@ -404,6 +415,7 @@ graph TB
 │   │   ├── CheckboxHandler.ts      # 复选框自动勾选
 │   │   ├── NativeNotification.ts   # 原生浏览器通知
 │   │   ├── formSelectors.ts        # 选择器与关键词常量
+│   │   ├── domUtils.ts             # DOM 元素可见性检测工具
 │   │   ├── types.ts                # Content Script 类型定义
 │   │   ├── floatingButtons/        # 悬浮按钮系统（Closed Shadow DOM）
 │   │   └── inlineDropdown/         # 内联填充系统（字段内钥匙图标 + 迷你面板）
@@ -414,6 +426,7 @@ graph TB
 ├── components/                     # Vue 组件
 │   ├── BrandLogo.vue               # 钥匙主题品牌 Logo
 │   ├── QuickFillIcon.vue           # 快速填充图标
+│   ├── TotpCode.vue                # TOTP 动态码展示（环形倒计时）
 │   ├── options/                    # Options 页面组件
 │   │   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
 │   │   ├── BackupImportDialog.vue      # 加密备份导入对话框
@@ -422,12 +435,13 @@ graph TB
 │   │   ├── EmailBackupDialog.vue       # 邮箱备份对话框
 │   │   ├── EmptyGuide.vue              # 空数据引导卡片
 │   │   ├── FavoriteLimitSetting.vue     # 收藏上限设置对话框
-│   │   ├── HeaderBar.vue               # 顶部操作栏
+│   │   ├── HeaderBar.vue               # 顶部操作栏（含安全体检入口）
 │   │   ├── IdleLockSetting.vue         # 自动闲置锁定设置
 │   │   ├── ImportDialog.vue            # CSV/JSON 导入对话框
 │   │   ├── MasterPasswordSetupView.vue # 主密码设置视图
-│   │   ├── PasswordFormDialog.vue      # 密码表单对话框
+│   │   ├── PasswordFormDialog.vue      # 密码表单对话框（含 TOTP 字段）
 │   │   ├── PasswordGeneratorPopover.vue # 密码生成器弹窗
+│   │   ├── PasswordHealthDialog.vue    # 安全体检仪表盘弹窗
 │   │   ├── PasswordStrengthPopover.vue # 密码强度可视化弹窗
 │   │   ├── PasswordTable.vue           # 密码列表表格
 │   │   ├── PasswordVerifyView.vue      # 主密码验证视图
@@ -436,7 +450,7 @@ graph TB
 │   │   └── ValiditySettingDialog.vue   # 有效期设置对话框
 │   └── sidepanel/                  # SidePanel 侧边栏组件
 │       ├── HelpDialog.vue          # 操作指引与常见问题
-│       ├── PasswordListItem.vue    # 密码列表条目
+│       ├── PasswordListItem.vue    # 密码列表条目（含 TOTP 动态码）
 │       └── SidepanelHeader.vue     # 侧边栏头部
 ├── composables/                    # Vue 组合函数
 │   ├── useAuthFlow.ts              # 认证流程
@@ -449,10 +463,11 @@ graph TB
 │   ├── useSessionTimer.ts          # 会话定时器
 │   ├── useShortcuts.ts             # 快捷键管理
 │   ├── useSidepanelData.ts         # 侧边栏数据管理
-│   ├── useSidepanelFill.ts         # 侧边栏填充逻辑
+│   ├── useSidepanelFill.ts         # 侧边栏填充逻辑（含 TOTP 填充）
 │   ├── useSidepanelSettings.ts     # 侧边栏设置
 │   ├── useStorageWatcher.ts        # Storage 监听
 │   ├── useTagOverflow.ts           # 标签溢出检测
+│   ├── useTotp.ts                  # TOTP 动态码生成与倒计时
 │   └── useVersionUpdate.ts         # 版本更新检测
 ├── utils/                          # 核心工具库
 │   ├── storage.ts                  # 存储门面（StorageFacade）
@@ -469,7 +484,9 @@ graph TB
 │   ├── backupExport.ts             # 加密备份导出/导入（AES-GCM）
 │   ├── excel.ts                    # CSV/JSON 导入导出 + 多格式 CSV 解析
 │   ├── emailBackup.ts              # 邮箱备份工具
+│   ├── passwordHealth.ts           # 密码健康体检（评分/弱密码/复用/陈旧检测）
 │   ├── tagUtils.ts                 # 标签颜色生成
+│   ├── totp.ts                     # TOTP 动态码生成（RFC 6238，Web Crypto HMAC）
 │   ├── updateChecker.ts            # 版本更新检测（GitHub Releases API）
 │   ├── passwordGenerator.ts        # 随机密码生成器
 │   ├── passwordSort.ts             # 密码排序工具
@@ -477,9 +494,10 @@ graph TB
 │   ├── env.ts                      # isDev 常量
 │   ├── createVueApp.ts             # Vue 应用工厂
 │   ├── dateFormat.ts               # 日期格式化工具
-│   ├── domain.ts                   # 域名提取与匹配工具
+│   ├── domain.ts                   # 域名提取与匹配工具（isDomainMatch）
 │   ├── formatShortcut.ts           # 快捷键格式化工具
 │   ├── generateId.ts               # ID 生成工具
+│   ├── lazyImport.ts               # 泛型懒加载工具
 │   ├── masterPasswordVerify.ts     # 主密码验证工具
 │   ├── preWarmSw.ts                # Service Worker 预热工具
 │   ├── theme.ts                    # 主题工具（主题名类型、令牌映射、应用/同步）
@@ -582,6 +600,10 @@ A：在密码管理页「自动锁定设置」中可配置闲置时间（5/10/30
 
 A：在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需要重新输入主密码。此功能适合对安全性要求更高的场景——确保每次启动浏览器都需要身份验证。关闭此选项则在会话有效期内自动保持登录状态，无需重复输入主密码。
 
+**Q：什么是安全体检？**
+
+A：安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示当前健康等级），会打开仪表盘弹窗，展示综合安全评分（0~100 分）和四个维度的检测结果：弱密码、密码复用（多账号共用同一密码）、长时间未更新（90/180/365 天分级预警）、未开启两步验证。每条问题都提供「去处理」按钮，点击可直接跳转到对应条目的编辑流程。全程本地计算，不联网、不上传任何数据。
+
 ### 基础使用
 
 **Q：侧边栏不显示？**
@@ -675,6 +697,10 @@ A：在添加或编辑密码的表单中，密码输入框旁有一个魔棒（M
 **Q：侧边栏和内联填充有什么区别？**
 
 A：两者都是密码填充方式，功能互补。侧边栏是浏览器侧边的完整面板，适合搜索浏览全部密码、管理收藏等；内联填充是页面内的迷你面板，登录框获焦后显示钥匙图标，点击即可快速选择账号填充，无需切换到侧边栏。可在偏好设置中选择填充模式：「侧边栏」适合习惯侧边操作的用户，「内联」适合追求快速填充的用户。
+
+**Q：如何使用两步验证（TOTP）？**
+
+A：在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 `otpauth://` 链接或 Base32 密钥即可。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮，填充会自动写入页面检测到的验证码输入框。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，零网络传输。注意：本机时钟必须准确（误差 < 30 秒），否则动态码验证会失败。
 
 **Q：插件的性能表现如何？**
 
