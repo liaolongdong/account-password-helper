@@ -25,6 +25,7 @@ import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
 import type { FormFieldSets } from '@/entrypoints/content/types';
 import { showNoLoginFormMessage } from '@/entrypoints/content/NativeNotification';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
+import { isElementVisible } from './domUtils';
 import {
   getInlineFillDropdown,
   destroyInlineFillDropdown,
@@ -73,8 +74,8 @@ export class FormDetector {
         sendResponse: (response?: unknown) => void,
       ) => boolean)
     | null = null;
-  /** URL 变化检测观察器（SPA 场景），保存引用以便 destroy 时断开，防止资源泄漏 */
-  private urlChangeObserver: MutationObserver | null = null;
+  /** 上一次记录的页面 URL（SPA 场景下用于检测路由变化） */
+  private lastUrl: string = location.href;
   /** DOM 变化检测的 debounce 计时器（可取消） */
   private detectionTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -183,6 +184,13 @@ export class FormDetector {
    */
   private createMutationObserver(): MutationObserver {
     const observer = new MutationObserver(mutations => {
+      // SPA 路由变化检测：合并至主观察器，避免额外的 MutationObserver 开销
+      const currentUrl = location.href;
+      if (currentUrl !== this.lastUrl) {
+        this.lastUrl = currentUrl;
+        this.notifyUrlChange();
+      }
+
       let shouldRedetect = false;
 
       mutations.forEach(mutation => {
@@ -278,7 +286,7 @@ export class FormDetector {
     // 检测密码字段
     const passwordInputs = document.querySelectorAll('input[type="password"]') as NodeListOf<HTMLInputElement>;
     this.passwordFields = Array.from(passwordInputs).filter(input => {
-      if (this.isVisible(input)) {
+      if (isElementVisible(input)) {
         this.passwordFieldsSet.add(input);
         this.fieldTypeCache.set(input, 'password');
         return true;
@@ -286,45 +294,39 @@ export class FormDetector {
       return false;
     });
 
-    // 检测用户名字段
-    USERNAME_SELECTORS.forEach(selector => {
-      const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
-      Array.from(inputs).forEach(input => {
-        if (this.isVisible(input) && !this.usernameFieldsSet.has(input)) {
-          this.usernameFields.push(input);
-          this.usernameFieldsSet.add(input);
-          this.fieldTypeCache.set(input, 'username');
-        }
-      });
+    // 检测用户名字段（合并选择器为单次 DOM 查询，减少重排开销）
+    const usernameInputs = document.querySelectorAll(USERNAME_SELECTORS.join(',')) as NodeListOf<HTMLInputElement>;
+    Array.from(usernameInputs).forEach(input => {
+      if (isElementVisible(input) && !this.usernameFieldsSet.has(input)) {
+        this.usernameFields.push(input);
+        this.usernameFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'username');
+      }
     });
 
-    // 检测手机号码字段
-    MOBILE_SELECTORS.forEach(selector => {
-      const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
-      Array.from(inputs).forEach(input => {
-        if (this.isVisible(input) && !this.mobileFieldsSet.has(input) && !this.usernameFieldsSet.has(input)) {
-          this.mobileFields.push(input);
-          this.mobileFieldsSet.add(input);
-          this.fieldTypeCache.set(input, 'mobile');
-        }
-      });
+    // 检测手机号码字段（排除已归类为用户名的字段）
+    const mobileInputs = document.querySelectorAll(MOBILE_SELECTORS.join(',')) as NodeListOf<HTMLInputElement>;
+    Array.from(mobileInputs).forEach(input => {
+      if (isElementVisible(input) && !this.mobileFieldsSet.has(input) && !this.usernameFieldsSet.has(input)) {
+        this.mobileFields.push(input);
+        this.mobileFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'mobile');
+      }
     });
 
-    // 检测验证码字段
-    VERIFY_CODE_SELECTORS.forEach(selector => {
-      const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
-      Array.from(inputs).forEach(input => {
-        if (
-          this.isVisible(input) &&
-          !this.verifyCodeFieldsSet.has(input) &&
-          !this.usernameFieldsSet.has(input) &&
-          !this.mobileFieldsSet.has(input)
-        ) {
-          this.verifyCodeFields.push(input);
-          this.verifyCodeFieldsSet.add(input);
-          this.fieldTypeCache.set(input, 'verifyCode');
-        }
-      });
+    // 检测验证码字段（排除已归类为用户名和手机号的字段）
+    const verifyCodeInputs = document.querySelectorAll(VERIFY_CODE_SELECTORS.join(',')) as NodeListOf<HTMLInputElement>;
+    Array.from(verifyCodeInputs).forEach(input => {
+      if (
+        isElementVisible(input) &&
+        !this.verifyCodeFieldsSet.has(input) &&
+        !this.usernameFieldsSet.has(input) &&
+        !this.mobileFieldsSet.has(input)
+      ) {
+        this.verifyCodeFields.push(input);
+        this.verifyCodeFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'verifyCode');
+      }
     });
 
     // 回退策略：密码字段存在但未检测到账号/手机号字段时，
@@ -420,7 +422,7 @@ export class FormDetector {
         continue;
       }
 
-      if (!this.isVisible(input)) {
+      if (!isElementVisible(input)) {
         continue;
       }
 
@@ -439,22 +441,6 @@ export class FormDetector {
     }
 
     return nearestCandidate;
-  }
-
-  /**
-   * 判断元素是否可见
-   * @param element - 要检查的 HTML 元素
-   * @returns 元素是否可见
-   */
-  private isVisible(element: HTMLElement): boolean {
-    const style = window.getComputedStyle(element);
-    return (
-      style.display !== 'none' &&
-      style.visibility !== 'hidden' &&
-      style.opacity !== '0' &&
-      element.offsetWidth > 0 &&
-      element.offsetHeight > 0
-    );
   }
 
   /**
@@ -769,7 +755,7 @@ export class FormDetector {
             );
           });
 
-          if (hasLoginKeyword && this.isVisible(button)) {
+          if (hasLoginKeyword && isElementVisible(button)) {
             if (!this.loginButtons.includes(button)) {
               this.loginButtons.push(button);
             }
@@ -799,23 +785,13 @@ export class FormDetector {
   }
 
   /**
-   * 监听页面导航事件（beforeunload、URL 变化、popstate）
+   * 监听页面导航事件（beforeunload、popstate）
+   * URL 变化检测已合并至主 MutationObserver，此处仅保留 popstate 以捕获浏览器前进/后退
    */
   private addPageNavigationListener(): void {
     window.addEventListener('beforeunload', () => {
       this.hideSidePanel();
     });
-
-    let lastUrl = location.href;
-    // 保存观察器引用，destroy 时断开，避免 SPA 场景下的资源泄漏
-    this.urlChangeObserver = new MutationObserver(() => {
-      const url = location.href;
-      if (url !== lastUrl) {
-        this.notifyUrlChange();
-        lastUrl = url;
-      }
-    });
-    this.urlChangeObserver.observe(document, { subtree: true, childList: true });
 
     window.addEventListener('popstate', () => {
       this.notifyUrlChange();
@@ -1025,7 +1001,7 @@ export class FormDetector {
   private triggerLogin(): void {
     try {
       // 策略 A：点击已识别的登录按钮
-      const candidateButton = this.loginButtons.find(btn => this.isVisible(btn));
+      const candidateButton = this.loginButtons.find(btn => isElementVisible(btn));
       if (candidateButton) {
         try {
           candidateButton.click();
@@ -1135,11 +1111,6 @@ export class FormDetector {
   public destroy(): void {
     if (this.observer) {
       this.observer.disconnect();
-    }
-    // 断开 SPA URL 变化观察器，防止资源泄漏
-    if (this.urlChangeObserver) {
-      this.urlChangeObserver.disconnect();
-      this.urlChangeObserver = null;
     }
     if (this.detectionTimer) {
       clearTimeout(this.detectionTimer);

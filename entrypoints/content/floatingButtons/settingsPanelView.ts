@@ -9,7 +9,7 @@
  */
 
 import { closeIcon } from '@/entrypoints/content/floatingButtons/icons';
-import type { FloatingButtonConfig, FillMode } from '@/utils/types';
+import type { FloatingButtonConfig } from '@/utils/types';
 import { THEME_OPTIONS, type ThemeName } from '@/utils/theme';
 import type { SettingsPanelViewOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
 
@@ -258,6 +258,47 @@ export const settingsPanelViewStyles = `
   font-weight: 500;
 }
 
+/* 快速填充方式 - 三选一分段控件 */
+.setting-item.setting-item-stack {
+  flex-direction: column;
+  align-items: stretch;
+  border-bottom: none;
+}
+
+.fill-mode-group {
+  display: flex;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 3px;
+  background: #f0f2f5;
+  border-radius: 10px;
+}
+
+.fill-mode-option {
+  flex: 1;
+  padding: 7px 0;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #4b5563;
+  text-align: center;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.fill-mode-option:hover {
+  color: #333;
+}
+
+.fill-mode-option.active {
+  color: #fff;
+  background: ${THEME_COLOR};
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
 /* 主题色块选择器 */
 .theme-swatches {
   display: flex;
@@ -292,11 +333,56 @@ export const settingsPanelViewStyles = `
 }
 `;
 
+/** 快速填充入口（3 选 1，由 autoShowSidepanel + fillMode 两字段派生） */
+type FillEntry = 'sidepanel' | 'inline' | 'manual';
+
+/** 各填充入口的说明文案（随选择动态切换） */
+const FILL_ENTRY_TIPS: Record<FillEntry, string> = {
+  sidepanel: '聚焦登录框时自动弹出侧边栏，账号信息展示最全',
+  inline: '登录框内显示钥匙图标，点击展开页面内填充面板，轻量不占屏',
+  manual: '聚焦时不自动弹出；点击悬浮按钮或浏览器工具栏图标再打开侧边栏',
+};
+
+/**
+ * 由配置派生当前填充入口
+ *
+ * 三态互斥，消除“内联开启 + 侧边栏自动”这种自相矛盾的组合：
+ * - fillMode 为 'inline' 时优先判定为内联（此时 autoShowSidepanel 不生效）
+ * - 否则按 autoShowSidepanel 区分“侧边栏自动”与“仅手动”
+ * @param config 悬浮按钮配置
+ * @returns 当前填充入口
+ */
+function getFillEntry(config: FloatingButtonConfig): FillEntry {
+  if (config.fillMode === 'inline') return 'inline';
+  return config.autoShowSidepanel ? 'sidepanel' : 'manual';
+}
+
+/**
+ * 将填充入口映射回存储字段
+ *
+ * 每次选择都同时写入 fillMode 与 autoShowSidepanel，保证存储始终为规范态、
+ * 不残留旧的矛盾组合。
+ * @param entry 目标填充入口
+ * @returns 需增量保存的配置补丁
+ */
+function fillEntryToPatch(entry: FillEntry): Partial<FloatingButtonConfig> {
+  switch (entry) {
+    case 'inline':
+      return { fillMode: 'inline', autoShowSidepanel: false };
+    case 'manual':
+      return { fillMode: 'sidepanel', autoShowSidepanel: false };
+    case 'sidepanel':
+    default:
+      return { fillMode: 'sidepanel', autoShowSidepanel: true };
+  }
+}
+
 /**
  * 生成设置面板内部 HTML（不含外层 .settings-panel 容器本身，由调用方提供容器）
  */
 export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
   const opacityPct = Math.round(config.opacity * 100);
+  const fillEntry = getFillEntry(config);
   const themeSwatches = THEME_OPTIONS.map(
     option =>
       `<button class="theme-swatch ${config.theme === option.name ? 'active' : ''}" data-theme="${option.name}" title="${option.label}" style="--swatch: ${option.swatch}"></button>`,
@@ -321,21 +407,15 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
         </div>
       </div>
 
-      <div class="setting-item">
-        <span class="setting-label">自动展示侧边栏</span>
-        <div class="switch ${config.autoShowSidepanel ? 'active' : ''}" data-setting="autoShowSidepanel">
-          <div class="switch-handle"></div>
+      <div class="setting-item setting-item-stack">
+        <span class="setting-label">快速填充方式</span>
+        <div class="fill-mode-group" data-setting="fillEntry">
+          <button class="fill-mode-option ${fillEntry === 'sidepanel' ? 'active' : ''}" data-value="sidepanel">侧边栏</button>
+          <button class="fill-mode-option ${fillEntry === 'inline' ? 'active' : ''}" data-value="inline">页面内联</button>
+          <button class="fill-mode-option ${fillEntry === 'manual' ? 'active' : ''}" data-value="manual">仅手动</button>
         </div>
       </div>
-      <div class="setting-tip">开启后，登录输入框获取焦点时自动展示快速填充侧边栏</div>
-
-      <div class="setting-item">
-        <span class="setting-label">页面内联填充</span>
-        <div class="switch ${config.fillMode === 'inline' ? 'active' : ''}" data-setting="fillMode">
-          <div class="switch-handle"></div>
-        </div>
-      </div>
-      <div class="setting-tip">开启后，登录框内显示钥匙图标，点击展开页面内快速填充面板；关闭则使用侧边栏（默认）</div>
+      <div class="setting-tip" data-fill-tip>${FILL_ENTRY_TIPS[fillEntry]}</div>
 
       <div class="setting-item">
         <span class="setting-label">自动触发登录</span>
@@ -403,10 +483,9 @@ export function bindSettingsPanelView(
   panelRoot.addEventListener('click', onPanelClick);
   cleanups.push(() => panelRoot.removeEventListener('click', onPanelClick));
 
-  // 四个 switch
-  const switchKeys: Array<'visible' | 'autoShowSidepanel' | 'autoTriggerLogin' | 'passwordVisibilityToggle'> = [
+  // 布尔 switch
+  const switchKeys: Array<'visible' | 'autoTriggerLogin' | 'passwordVisibilityToggle'> = [
     'visible',
-    'autoShowSidepanel',
     'autoTriggerLogin',
     'passwordVisibilityToggle',
   ];
@@ -423,17 +502,24 @@ export function bindSettingsPanelView(
     cleanups.push(() => el.removeEventListener('click', onClick));
   });
 
-  // 填充方式开关（字符串枚举，独立于布尔开关处理）
-  const fillModeEl = panelRoot.querySelector('[data-setting="fillMode"]') as HTMLElement | null;
-  if (fillModeEl) {
-    const onFillModeClick = () => {
-      const next: FillMode = config.fillMode === 'inline' ? 'sidepanel' : 'inline';
-      config.fillMode = next;
-      fillModeEl.classList.toggle('active', next === 'inline');
-      options.onConfigChange({ fillMode: next });
-    };
-    fillModeEl.addEventListener('click', onFillModeClick);
-    cleanups.push(() => fillModeEl.removeEventListener('click', onFillModeClick));
+  // 快速填充方式（3 选 1 分段控件，写回 fillMode + autoShowSidepanel 两字段）
+  const fillGroup = panelRoot.querySelector('[data-setting="fillEntry"]') as HTMLElement | null;
+  const fillTipEl = panelRoot.querySelector('[data-fill-tip]') as HTMLElement | null;
+  if (fillGroup) {
+    const optionEls = Array.from(fillGroup.querySelectorAll<HTMLButtonElement>('.fill-mode-option'));
+    optionEls.forEach(optionEl => {
+      const onOptionClick = () => {
+        const entry = optionEl.getAttribute('data-value') as FillEntry | null;
+        if (!entry || getFillEntry(config) === entry) return;
+        const patch = fillEntryToPatch(entry);
+        Object.assign(config, patch);
+        optionEls.forEach(item => item.classList.toggle('active', item === optionEl));
+        if (fillTipEl) fillTipEl.textContent = FILL_ENTRY_TIPS[entry];
+        options.onConfigChange(patch);
+      };
+      optionEl.addEventListener('click', onOptionClick);
+      cleanups.push(() => optionEl.removeEventListener('click', onOptionClick));
+    });
   }
 
   // 主题色块选择
@@ -527,15 +613,19 @@ export function bindSettingsPanelView(
   const updateConfig = (newConfig: FloatingButtonConfig) => {
     Object.assign(config, newConfig);
 
-    // 更新四个 switch
+    // 更新布尔 switch
     switchKeys.forEach(key => {
       const el = panelRoot.querySelector(`[data-setting="${key}"]`);
       el?.classList.toggle('active', !!config[key]);
     });
 
-    // 更新填充方式开关
-    const fillModeSwitch = panelRoot.querySelector('[data-setting="fillMode"]');
-    fillModeSwitch?.classList.toggle('active', config.fillMode === 'inline');
+    // 更新快速填充方式分段控件与说明文案
+    const currentEntry = getFillEntry(config);
+    panelRoot.querySelectorAll<HTMLElement>('.fill-mode-option').forEach(optionEl => {
+      optionEl.classList.toggle('active', optionEl.getAttribute('data-value') === currentEntry);
+    });
+    const fillTip = panelRoot.querySelector('[data-fill-tip]');
+    if (fillTip) fillTip.textContent = FILL_ENTRY_TIPS[currentEntry];
 
     // 更新主题色块选中态
     panelRoot.querySelectorAll<HTMLElement>('.theme-swatch').forEach(swatch => {

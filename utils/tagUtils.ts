@@ -116,3 +116,17 @@ export const getTagColor = (tag: string): TagColor => {
   const border = `hsl(${hue}, 35%, 91%)`;
   return { background, text, border };
 };
+
+/**
+ * 获取标签的完整内联样式对象（单次调用，避免模板中多次调用 getTagColor）
+ *
+ * 返回可直接绑定到 :style 的对象，包含背景色、文字色和边框色。
+ * 适用于 el-tag 等需要同时设置 color 属性和 style 的场景。
+ *
+ * @param tag 标签文本
+ * @returns 包含 background、color、borderColor 的样式对象
+ */
+export const getTagFullStyle = (tag: string): Record<string, string> => {
+  const { background, text, border } = getTagColor(tag);
+  return { background, color: text, borderColor: border };
+};

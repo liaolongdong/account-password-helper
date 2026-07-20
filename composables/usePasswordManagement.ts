@@ -17,6 +17,9 @@ export const MAX_TAG_COUNT = 3;
 /** 单个标签最大字符长度 */
 export const MAX_TAG_LENGTH = 30;
 
+/** 密码表单空值初始状态（避免多处重复字面量） */
+const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
+
 /**
  * URL/域名自定义校验器
  * 支持完整 URL（https://example.com）和纯域名（example.com / localhost）
@@ -339,14 +342,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const openPasswordDialog = () => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
-    passwordForm.value = {
-      username: '',
-      password: '',
-      url: '',
-      tag: '',
-      remark: '',
-      totp: '',
-    };
+    passwordForm.value = { ...EMPTY_PASSWORD_FORM };
     showPasswordDialog.value = true;
   };
 
@@ -369,14 +365,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const resetPasswordForm = () => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
-    passwordForm.value = {
-      username: '',
-      password: '',
-      url: '',
-      tag: '',
-      remark: '',
-      totp: '',
-    };
+    passwordForm.value = { ...EMPTY_PASSWORD_FORM };
   };
 
   // 滚动到密码项

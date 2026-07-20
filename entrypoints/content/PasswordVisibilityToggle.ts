@@ -1,6 +1,7 @@
 import { eyeOpenIcon, eyeClosedIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { ToggleEntry } from '@/entrypoints/content/types';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
+import { isElementVisible } from './domUtils';
 
 /**
  * 注入到页面中的 CSS 样式
@@ -173,7 +174,7 @@ export class PasswordVisibilityToggle {
    */
   private injectToggle(input: HTMLInputElement): void {
     if (this.processedInputs.has(input)) return;
-    if (!this.isElementVisible(input)) return;
+    if (!isElementVisible(input)) return;
 
     const parent = input.parentElement;
     if (!parent) return;
@@ -376,20 +377,4 @@ export class PasswordVisibilityToggle {
       }
     });
   };
-
-  /**
-   * 判断元素是否可见
-   * @param element - 要检查的元素
-   * @returns 是否可见
-   */
-  private isElementVisible(element: HTMLElement): boolean {
-    const style = window.getComputedStyle(element);
-    return (
-      style.display !== 'none' &&
-      style.visibility !== 'hidden' &&
-      style.opacity !== '0' &&
-      element.offsetWidth > 0 &&
-      element.offsetHeight > 0
-    );
-  }
 }

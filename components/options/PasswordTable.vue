@@ -107,8 +107,7 @@
               :popper-style="{ maxWidth: '500px', wordBreak: 'break-word' }"
             >
               <el-tag
-                :color="getTagColor(t).background"
-                :style="getTagStyle(t)"
+                :style="getTagFullStyle(t)"
                 size="small"
                 class="tag-item"
                 @mouseenter="(e: MouseEvent) => checkTagOverflow(e, t)"
@@ -233,20 +232,9 @@ import { ref, onBeforeUpdate } from 'vue';
 import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
-import { getTagColor, parseTags } from '@/utils/tagUtils';
+import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 import { useTagOverflow } from '@/composables/useTagOverflow';
 import TotpCode from '@/components/TotpCode.vue';
-
-/**
- * 获取标签的合并样式对象
- * 避免模板中对同一标签多次调用 getTagColor
- * @param tag 标签文本
- * @returns 包含 color 和 borderColor 的 CSSStyleDeclaration 子集
- */
-const getTagStyle = (tag: string): Record<string, string> => {
-  const { text, border } = getTagColor(tag);
-  return { color: text, borderColor: border };
-};
 
 /**
  * 密码列表表格组件

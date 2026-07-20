@@ -11,7 +11,7 @@ import {
   DocumentCopy,
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
-import { getTagColor, parseTags } from '@/utils/tagUtils';
+import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 import TotpCode from '@/components/TotpCode.vue';
 
 interface Props {
@@ -81,8 +81,7 @@ defineEmits<Emits>();
           v-for="t in parseTags(password.tag)"
           :key="t"
           :title="t"
-          :color="getTagColor(t).background"
-          :style="{ color: getTagColor(t).text, borderColor: getTagColor(t).border }"
+          :style="getTagFullStyle(t)"
           size="small"
           class="tag-item"
         >

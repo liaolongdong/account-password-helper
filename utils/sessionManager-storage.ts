@@ -1,6 +1,7 @@
 import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
+import { lazyImport } from '@/utils/lazyImport';
 
 /**
  * 延迟加载加密模块
@@ -12,13 +13,7 @@ import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
  * 所有加密函数调用均在 async 函数内部，使用动态 import 按需加载。
  * 模块系统自动去重：多次 import('@/utils/encryption') 返回同一实例。
  */
-let _encryptionModule: typeof import('@/utils/encryption') | null = null;
-async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
-  if (!_encryptionModule) {
-    _encryptionModule = await import('@/utils/encryption');
-  }
-  return _encryptionModule;
-}
+const _getEncryption = lazyImport(() => import('@/utils/encryption'));
 
 /**
  * 会话存储键名

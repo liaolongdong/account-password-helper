@@ -196,6 +196,7 @@
             <PasswordListItem
               v-for="(password, index) in filteredPasswords"
               :key="password.id"
+              v-memo="[activeIndex === index, password.favorite, password.updateTime]"
               :password="password"
               :is-active="activeIndex === index"
               @fill="fillPassword"
@@ -273,7 +274,7 @@ import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { isLocalDevDomain } from '@/utils/domain';
+import { isDomainMatch, isLocalDevDomain } from '@/utils/domain';
 
 /** 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载） */
 const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
@@ -372,13 +373,14 @@ const showHelpDialog = ref(false);
 const filteredPasswords = computed(() => {
   let result = [...passwords.value];
 
-  // 域名过滤：只显示匹配当前域名的条目 + URL 为空的条目（与 getPasswordsByUrl 逻辑一致）
+  // 域名过滤：只显示匹配当前域名的条目 + URL 为空的条目
+  // 复用 isDomainMatch，与 getPasswordsByUrl / 后台 getMatchingAccounts 匹配逻辑保持一致
   // 本地开发域名（localhost / 127.0.0.1）跳过过滤，显示全部
   if (currentDomain.value && !isLocalDevDomain(currentDomain.value)) {
     const domain = currentDomain.value;
     result = result.filter(p => {
       if (!p.url || p.url.trim() === '') return true;
-      return domain.includes(p.url) || p.url.includes(domain);
+      return isDomainMatch(domain, p.url);
     });
   }
 
@@ -494,39 +496,51 @@ const toggleFavorite = async (password: PasswordEntry) => {
     // 提前获取 updateFn 引用，避免在 runLocalOperation async 闭包内 await 导致时序问题
     const updateFn = await getUpdatePasswordInSession();
 
-    await runLocalOperation(async () => {
-      if (newFav) {
-        // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目（延迟加载 autoSaveManager）
-        const evictFn = await getEvictLRUFavoriteIfNeeded();
+    if (newFav) {
+      // 收藏前需先处理 LRU 淘汰（需 evicted 结果用于提示），淘汰写入放在守卫内
+      const evictFn = await getEvictLRUFavoriteIfNeeded();
+      // 持久化走 1.5s 防抖批量写：不阻塞点击交互；用 runLocalOperation 包裹并在其内部 await，
+      // 使本地操作守卫覆盖淘汰写入与真实写入（flush）时刻，避免触发全量重载闪烁
+      void runLocalOperation(async () => {
         const evicted = await evictFn(passwords.value);
         if (evicted) {
           const limit = await getFavoriteLimit();
           ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
         }
         const now = Date.now();
-        await updateFn(password.id, {
-          favorite: true,
-          favoriteUsedAt: now,
-          updateTime: password.updateTime,
-        });
+        // 乐观更新：先就地更新 UI 与提示，避免受防抖写入阻塞造成的交互卡顿
         if (entry) {
           entry.favorite = true;
           entry.favoriteUsedAt = now;
         }
         ElMessage.success('已收藏');
-      } else {
+        await updateFn(password.id, {
+          favorite: true,
+          favoriteUsedAt: now,
+          updateTime: password.updateTime,
+        });
+      }).catch(error => {
+        logger.error('切换收藏失败:', error);
+        ElMessage.error('操作失败');
+      });
+    } else {
+      // 乐观更新：先就地更新 UI 与提示（取消收藏无淘汰逻辑，可立即反馈）
+      if (entry) {
+        entry.favorite = false;
+        entry.favoriteUsedAt = undefined;
+      }
+      ElMessage.success('已取消收藏');
+      void runLocalOperation(async () => {
         await updateFn(password.id, {
           favorite: false,
           favoriteUsedAt: undefined,
           updateTime: password.updateTime,
         });
-        if (entry) {
-          entry.favorite = false;
-          entry.favoriteUsedAt = undefined;
-        }
-        ElMessage.success('已取消收藏');
-      }
-    });
+      }).catch(error => {
+        logger.error('切换收藏失败:', error);
+        ElMessage.error('操作失败');
+      });
+    }
   } catch (error) {
     logger.error('切换收藏失败:', error);
     ElMessage.error('操作失败');

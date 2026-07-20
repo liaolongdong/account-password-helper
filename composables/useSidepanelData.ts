@@ -4,6 +4,8 @@ import { MessageType } from '@/utils/types';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
 import { logger } from '@/utils/logger';
+import { isDomainMatch } from '@/utils/domain';
+import { lazyImport } from '@/utils/lazyImport';
 
 // ==================== 延迟加载模块（避免初始加载拉入 encryption.ts 加密链） ====================
 
@@ -15,12 +17,11 @@ import { logger } from '@/utils/logger';
  * 后续 getAllPasswords 会用会话数据密钥按需解密，无需在 isSessionValid 中
  * 触发额外的全量读取（Windows Web Crypto 较慢，数百条密码开销明显）
  */
-let _sessionModule: typeof import('@/utils/sessionManager-storage') | null = null;
+const getSessionModule = lazyImport(() => import('@/utils/sessionManager-storage'));
+
 const getIsSessionValid = async () => {
-  if (!_sessionModule) {
-    _sessionModule = await import('@/utils/sessionManager-storage');
-  }
-  return () => _sessionModule!.isSessionValid({ skipConsistencyCheck: true });
+  const sessionModule = await getSessionModule();
+  return () => sessionModule.isSessionValid({ skipConsistencyCheck: true });
 };
 
 /**
@@ -29,23 +30,15 @@ const getIsSessionValid = async () => {
  * 从 5s TTL 缓存中返回过期 true 值。首次调用时触发 dynamic import。
  */
 const invalidateSessionCacheAsync = async () => {
-  if (!_sessionModule) {
-    _sessionModule = await import('@/utils/sessionManager-storage');
-  }
-  _sessionModule.invalidateSessionCache();
+  const sessionModule = await getSessionModule();
+  sessionModule.invalidateSessionCache();
 };
 
 /**
  * 延迟加载 passwordCrud 模块（首次回退路径时加载）
  * getAllPasswords/getPasswordsByUrl 在热路径中由 background SW 执行，本地仅在回退时使用
  */
-let _crudModule: typeof import('@/utils/storage/passwordCrud') | null = null;
-const getPasswordCrudModule = async () => {
-  if (!_crudModule) {
-    _crudModule = await import('@/utils/storage/passwordCrud');
-  }
-  return _crudModule;
-};
+const getPasswordCrudModule = lazyImport(() => import('@/utils/storage/passwordCrud'));
 
 /**
  * SidePanel 数据加载与会话管理 Composable
@@ -108,7 +101,7 @@ export function useSidepanelData() {
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!currentDomain.value) return 0;
     const hasUrl = entry.url && entry.url.trim() !== '';
-    if (hasUrl && (currentDomain.value.includes(entry.url) || entry.url.includes(currentDomain.value))) return 0;
+    if (hasUrl && isDomainMatch(currentDomain.value, entry.url)) return 0;
     return 1;
   };
 

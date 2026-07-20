@@ -2,7 +2,9 @@ import type { PasswordEntry, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { generateId } from '@/utils/generateId';
+import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
+import { isDomainMatch } from '@/utils/domain';
 import { applySavedSortConfig } from './configManager';
 
 /**
@@ -11,13 +13,7 @@ import { applySavedSortConfig } from './configManager';
  * 仅在 savePassword / batchSavePasswords / updatePassword / getAllPasswords 中按需使用，
  * 避免静态导入将 PBKDF2/AES-GCM 打入 SW 初始包，减少冷启动时 V8 JIT 编译开销。
  */
-let _encryptionModule: typeof import('@/utils/encryption') | null = null;
-async function _getEncryption(): Promise<typeof import('@/utils/encryption')> {
-  if (!_encryptionModule) {
-    _encryptionModule = await import('@/utils/encryption');
-  }
-  return _encryptionModule;
-}
+const _getEncryption = lazyImport(() => import('@/utils/encryption'));
 
 /** 敏感字段集合：仅这些字段以密文形式存储，其余为明文元数据 */
 const SENSITIVE_FIELDS = ['username', 'password', 'url', 'remark', 'totp'] as const;
@@ -210,17 +206,94 @@ type MetadataUpdate = Partial<
   Pick<PasswordEntry, 'favorite' | 'favoriteUsedAt' | 'lastUsedAt' | 'updateTime' | 'tag' | 'order'>
 >;
 
+// ── 元数据批量写入（防抖） ──
+
+/** 待刷新的元数据更新队列（id → 合并后的 updates） */
+const _pendingMetadataUpdates = new Map<string, MetadataUpdate>();
+
+/** 防抖定时器 */
+let _metadataFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * 待触发的 resolve 回调队列
+ *
+ * 防抖窗口内每次调用都会入队一个 resolve；flush 完成后统一触发，
+ * 确保被 clearTimeout 取消定时器的历史调用其 Promise 仍能正常 resolve（杜绝永挂）。
+ */
+const _metadataFlushResolvers: Array<() => void> = [];
+
+/** 防抖延迟（毫秒）：收集窗口内的多次更新合并为单次 storage 写入 */
+const METADATA_FLUSH_DELAY_MS = 1500;
+
+/**
+ * 将队列中所有待更新的元数据一次性写入 storage
+ *
+ * 单次 read-modify-write 替代 N 次独立写入，减少序列化/反序列化开销。
+ * 写入失败时不重试（下次填充会再次触发），仅记录日志。
+ */
+async function flushMetadataUpdates(): Promise<void> {
+  _metadataFlushTimer = null;
+
+  if (_pendingMetadataUpdates.size === 0) return;
+
+  // 快照并清空队列（防止 flush 期间新入队的数据被本次写入覆盖）
+  const batch = new Map(_pendingMetadataUpdates);
+  _pendingMetadataUpdates.clear();
+
+  try {
+    const passwords = await getAllPasswordsRaw();
+    let modified = false;
+
+    for (const [id, updates] of batch) {
+      const index = passwords.findIndex(p => p.id === id);
+      if (index === -1) continue;
+      passwords[index] = { ...passwords[index], ...updates, updateTime: Date.now() } as
+        | PasswordEntry
+        | EncryptedPasswordEntry;
+      modified = true;
+    }
+
+    if (modified) {
+      await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: passwords });
+    }
+  } catch (error) {
+    logger.error('批量更新元数据失败:', error);
+  }
+}
+
 /**
  * 会话期内更新密码条目（轻量元数据更新，供 SidePanel 等前台 UI 使用）
  *
- * 调用方仅传入非敏感元数据（收藏/使用时间戳等），updatePassword 对非敏感更新
- * 走「就地更新、无需加解密」的快路径，因此保持轻量、不引入 PBKDF2/AES 开销。
+ * 采用防抖批量写入策略：1.5 秒内的多次更新合并为单次 storage 读写，
+ * 避免每次填充操作都触发全量密码数组的序列化/反序列化。
+ *
+ * 调用方仅传入非敏感元数据（收藏/使用时间戳等），无需加解密。
+ * 返回的 Promise 在数据实际写入 storage 后 resolve（调用方通常 fire-and-forget）。
  *
  * @param id 条目 ID
  * @param updates 要更新的非敏感元数据字段（见 MetadataUpdate）
  */
-export async function updatePasswordInSession(id: string, updates: MetadataUpdate): Promise<void> {
-  await updatePassword(id, updates);
+export function updatePasswordInSession(id: string, updates: MetadataUpdate): Promise<void> {
+  // 合并同一 ID 的多次更新（后到覆盖先到）
+  const existing = _pendingMetadataUpdates.get(id);
+  _pendingMetadataUpdates.set(id, existing ? { ...existing, ...updates } : { ...updates });
+
+  // 重置防抖定时器
+  if (_metadataFlushTimer) clearTimeout(_metadataFlushTimer);
+
+  return new Promise<void>(resolve => {
+    // 入队 resolve：即使本次定时器随后被 clearTimeout 取消，
+    // 也会在下一次 flush 完成时统一 resolve，避免 Promise 永挂
+    _metadataFlushResolvers.push(resolve);
+    _metadataFlushTimer = setTimeout(async () => {
+      try {
+        await flushMetadataUpdates();
+      } finally {
+        // 一次性 resolve 窗口内累积的全部调用（含 flush 异常场景）
+        _metadataFlushResolvers.splice(0).forEach(r => r());
+      }
+    }, METADATA_FLUSH_DELAY_MS);
+  });
 }
 
 /**
@@ -282,18 +355,23 @@ export async function getAllPasswords(masterPassword?: string): Promise<Password
     }
 
     const enc = await _getEncryption();
-    const decryptedEntries: PasswordEntry[] = [];
-    for (const entry of entries) {
-      if ('encrypted' in entry && entry.encrypted === true) {
-        try {
-          const decryptedEntry = await enc.decryptPasswordEntry(entry, masterPassword ?? '', key);
-          decryptedEntries.push(decryptedEntry);
-        } catch (_decryptError) {
-          logger.warn('跳过无法解密的条目: ' + entry.id);
-          continue;
+    // 并行解密：各条目独立，Promise.allSettled 避免单条失败中断整体
+    const decryptResults = await Promise.allSettled(
+      entries.map(entry => {
+        if ('encrypted' in entry && entry.encrypted === true) {
+          return enc.decryptPasswordEntry(entry, masterPassword ?? '', key);
         }
+        return Promise.resolve(entry as PasswordEntry);
+      }),
+    );
+
+    const decryptedEntries: PasswordEntry[] = [];
+    for (let i = 0; i < decryptResults.length; i++) {
+      const result = decryptResults[i];
+      if (result.status === 'fulfilled') {
+        decryptedEntries.push(result.value);
       } else {
-        decryptedEntries.push(entry as PasswordEntry);
+        logger.warn('跳过无法解密的条目: ' + entries[i].id);
       }
     }
 
@@ -315,7 +393,7 @@ export async function getPasswordsByUrl(url: string, masterPassword?: string): P
 
     const filteredPasswords = allPasswords.filter(p => {
       if (!p.url || p.url.trim() === '') return true;
-      return url.includes(p.url) || p.url.includes(url);
+      return isDomainMatch(url, p.url);
     });
 
     await applySavedSortConfig(filteredPasswords, url);

@@ -183,7 +183,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { initSessionManager } from '@/utils/sessionManager';
@@ -195,14 +195,17 @@ import {
   settingsPanelViewStyles,
   type SettingsPanelViewHandle,
 } from '@/entrypoints/content/floatingButtons/settingsPanelView';
-import ImportDialog from '@/components/options/ImportDialog.vue';
-import BackupImportDialog from '@/components/options/BackupImportDialog.vue';
-import ValiditySettingDialog from '@/components/options/ValiditySettingDialog.vue';
-import EmailBackupDialog from '@/components/options/EmailBackupDialog.vue';
-import AutoSaveSettingDialog from '@/components/options/AutoSaveSettingDialog.vue';
-import IdleLockSetting from '@/components/options/IdleLockSetting.vue';
-import FavoriteLimitSetting from '@/components/options/FavoriteLimitSetting.vue';
-import ClipboardSettingDialog from '@/components/options/ClipboardSettingDialog.vue';
+// 对话框/设置类组件：用户交互触发，异步加载减少初始包体积
+const ImportDialog = defineAsyncComponent(() => import('@/components/options/ImportDialog.vue'));
+const BackupImportDialog = defineAsyncComponent(() => import('@/components/options/BackupImportDialog.vue'));
+const ValiditySettingDialog = defineAsyncComponent(() => import('@/components/options/ValiditySettingDialog.vue'));
+const EmailBackupDialog = defineAsyncComponent(() => import('@/components/options/EmailBackupDialog.vue'));
+const AutoSaveSettingDialog = defineAsyncComponent(() => import('@/components/options/AutoSaveSettingDialog.vue'));
+const IdleLockSetting = defineAsyncComponent(() => import('@/components/options/IdleLockSetting.vue'));
+const FavoriteLimitSetting = defineAsyncComponent(() => import('@/components/options/FavoriteLimitSetting.vue'));
+const ClipboardSettingDialog = defineAsyncComponent(() => import('@/components/options/ClipboardSettingDialog.vue'));
+const PasswordHealthDialog = defineAsyncComponent(() => import('@/components/options/PasswordHealthDialog.vue'));
+// 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
 import PasswordFormDialog from '@/components/options/PasswordFormDialog.vue';
@@ -210,7 +213,6 @@ import PasswordTable from '@/components/options/PasswordTable.vue';
 import HeaderBar from '@/components/options/HeaderBar.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
-import PasswordHealthDialog from '@/components/options/PasswordHealthDialog.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';

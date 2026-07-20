@@ -186,7 +186,9 @@ const inlineStyles = `
 }
 
 .aph-row-account .aph-star {
+  display: flex;
   flex-shrink: 0;
+  align-items: center;
   color: #e6a23c;
 }
 

@@ -4,7 +4,7 @@ import { logger } from '@/utils/logger';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getAllPasswords } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
-import { isLocalDevDomain } from '@/utils/domain';
+import { isLocalDevDomain, isDomainMatch } from '@/utils/domain';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 
 /** 模块级缓存状态（Service Worker 生命周期内有效） */
@@ -237,14 +237,14 @@ export async function getMatchingAccounts(domain: string): Promise<MatchingAccou
   const matched = list.filter(p => {
     if (isLocalDevDomain(domain)) return true;
     if (!p.url || p.url.trim() === '') return true;
-    return domain.includes(p.url) || p.url.includes(domain);
+    return isDomainMatch(domain, p.url);
   });
 
   // 域名优先级（与侧边栏 getDomainPriority 一致）：0=匹配，1=不匹配
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!domain) return 0;
     const hasUrl = !!entry.url && entry.url.trim() !== '';
-    if (hasUrl && (domain.includes(entry.url) || entry.url.includes(domain))) return 0;
+    if (hasUrl && isDomainMatch(domain, entry.url)) return 0;
     return 1;
   };
 

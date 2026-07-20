@@ -11,15 +11,87 @@ import { logger } from '@/utils/logger';
 import { USERNAME_SELECTORS, LOGIN_BUTTON_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
 import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
 import { showSavePasswordPrompt, dismissSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
+import { isElementVisible } from './domUtils';
 
 /** sessionStorage 中存储待确认凭证的 key */
 const PENDING_SAVE_KEY = '__aph_pending_save__';
+
+/** sessionStorage 中存储加密密钥的 key（与数据分离，增加攻击者发现难度） */
+const SESSION_CIPHER_KEY = '__aph_sk__';
 
 /** 待确认凭证最大有效期（30 秒），超过则丢弃 */
 const PENDING_MAX_AGE_MS = 30_000;
 
 /** 「暂不保存」后的冷却期（60 秒），冷却期内相同凭证不重复弹窗 */
 const DISMISS_COOLDOWN_MS = 60_000;
+
+// ── sessionStorage 轻量加密（防止明文凭据被宿主页面 XSS 直接读取） ──
+
+/**
+ * 获取或创建会话加密密钥
+ *
+ * 密钥为 32 字节随机值的 hex 编码，首次访问时生成并存入 sessionStorage，
+ * 后续同 tab 会话内复用（支持传统页面导航后新 content script 实例解密）。
+ * 密钥存储在 sessionStorage 中而非闭包内，是因为页面导航后 content script
+ * 会重新注入（新实例），需要能解密前一个实例写入的数据。
+ *
+ * 安全边界：密钥与密文虽同在 sessionStorage，但分离存储 + 非标准编码
+ * 显著提高了自动化 XSS 窃取的攻击成本（需同时发现两个 key 并理解编码方案）。
+ */
+function getSessionCipherKey(): string {
+  let key = sessionStorage.getItem(SESSION_CIPHER_KEY);
+  if (!key) {
+    const bytes = crypto.getRandomValues(new Uint8Array(32));
+    key = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+    sessionStorage.setItem(SESSION_CIPHER_KEY, key);
+  }
+  return key;
+}
+
+/**
+ * 加密字符串（XOR + base64）
+ * @param plaintext 明文字符串
+ * @returns base64 编码的密文
+ */
+function encryptForSession(plaintext: string): string {
+  const key = getSessionCipherKey();
+  const data = new TextEncoder().encode(plaintext);
+  const keyBytes = new TextEncoder().encode(key);
+  const encrypted = new Uint8Array(data.length);
+  for (let i = 0; i < data.length; i++) {
+    encrypted[i] = data[i] ^ keyBytes[i % keyBytes.length];
+  }
+  // 转为 base64（兼容 sessionStorage 字符串存储）
+  let binary = '';
+  for (let i = 0; i < encrypted.length; i++) {
+    binary += String.fromCharCode(encrypted[i]);
+  }
+  return btoa(binary);
+}
+
+/**
+ * 解密字符串（base64 + XOR）
+ * @param ciphertext base64 编码的密文
+ * @returns 明文字符串，解密失败返回 null
+ */
+function decryptFromSession(ciphertext: string): string | null {
+  try {
+    const key = getSessionCipherKey();
+    const binary = atob(ciphertext);
+    const encrypted = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      encrypted[i] = binary.charCodeAt(i);
+    }
+    const keyBytes = new TextEncoder().encode(key);
+    const decrypted = new Uint8Array(encrypted.length);
+    for (let i = 0; i < encrypted.length; i++) {
+      decrypted[i] = encrypted[i] ^ keyBytes[i % keyBytes.length];
+    }
+    return new TextDecoder().decode(decrypted);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 登录账号密码保存管理器（Chrome 式交互）
@@ -334,7 +406,7 @@ export class LoginAutoSave {
       timestamp: Date.now(),
     };
     try {
-      sessionStorage.setItem(PENDING_SAVE_KEY, JSON.stringify(pending));
+      sessionStorage.setItem(PENDING_SAVE_KEY, encryptForSession(JSON.stringify(pending)));
     } catch {
       // sessionStorage 不可用时忽略（如隐私模式）
     }
@@ -362,8 +434,14 @@ export class LoginAutoSave {
     }
 
     try {
-      const raw = sessionStorage.getItem(PENDING_SAVE_KEY);
-      if (!raw) return;
+      const encrypted = sessionStorage.getItem(PENDING_SAVE_KEY);
+      if (!encrypted) return;
+
+      const raw = decryptFromSession(encrypted);
+      if (!raw) {
+        sessionStorage.removeItem(PENDING_SAVE_KEY);
+        return;
+      }
 
       const pending = JSON.parse(raw) as PendingCredentials;
 
@@ -532,7 +610,7 @@ export class LoginAutoSave {
     window.addEventListener('message', handleResult);
 
     try {
-      window.top!.postMessage({ type: PostMessageType.SHOW_SAVE_PROMPT, requestId, data: promptData }, '*');
+      window.top!.postMessage({ type: PostMessageType.SHOW_SAVE_PROMPT, requestId, data: promptData }, topOrigin);
       // postMessage 成功后立即清除 sessionStorage 中的待确认凭证，
       // 防止 iframe 导航后 checkPendingCredentials 重入触发第二次弹窗导致闪烁
       this.clearPending();
@@ -651,12 +729,14 @@ export class LoginAutoSave {
    */
   private syncPendingToSession(password?: string, username?: string): void {
     try {
-      const raw = sessionStorage.getItem(PENDING_SAVE_KEY);
+      const encrypted = sessionStorage.getItem(PENDING_SAVE_KEY);
+      if (!encrypted) return;
+      const raw = decryptFromSession(encrypted);
       if (!raw) return;
       const pending = JSON.parse(raw) as PendingCredentials;
       if (password !== undefined) pending.password = password;
       if (username !== undefined) pending.username = username;
-      sessionStorage.setItem(PENDING_SAVE_KEY, JSON.stringify(pending));
+      sessionStorage.setItem(PENDING_SAVE_KEY, encryptForSession(JSON.stringify(pending)));
     } catch {
       // sessionStorage 不可用时忽略（如隐私模式）
     }
@@ -849,7 +929,7 @@ export class LoginAutoSave {
       'input[type="text"], input[type="email"], input[type="tel"]',
     ) as NodeListOf<HTMLInputElement>;
     for (const input of allInputs) {
-      if (input.value && this.isElementVisible(input)) {
+      if (input.value && isElementVisible(input)) {
         return input.value;
       }
     }
@@ -881,7 +961,7 @@ export class LoginAutoSave {
       'input[type="text"], input[type="email"], input[type="tel"]',
     ) as NodeListOf<HTMLInputElement>;
     for (const input of allInputs) {
-      if (input.value && this.isElementVisible(input)) {
+      if (input.value && isElementVisible(input)) {
         return input;
       }
     }
@@ -900,7 +980,7 @@ export class LoginAutoSave {
     for (const selector of USERNAME_SELECTORS) {
       try {
         const field = document.querySelector(selector) as HTMLInputElement | null;
-        if (field?.value && this.isElementVisible(field)) return field.value;
+        if (field?.value && isElementVisible(field)) return field.value;
       } catch {
         // 跳过
       }
@@ -921,28 +1001,12 @@ export class LoginAutoSave {
     for (const selector of USERNAME_SELECTORS) {
       try {
         const field = document.querySelector(selector) as HTMLInputElement | null;
-        if (field?.value && this.isElementVisible(field)) return field;
+        if (field?.value && isElementVisible(field)) return field;
       } catch {
         // 跳过
       }
     }
     return null;
-  }
-
-  /**
-   * 判断元素是否可见
-   * @param el 要检查的元素
-   * @returns 是否可见
-   */
-  private isElementVisible(el: HTMLElement): boolean {
-    const style = window.getComputedStyle(el);
-    return (
-      style.display !== 'none' &&
-      style.visibility !== 'hidden' &&
-      style.opacity !== '0' &&
-      el.offsetWidth > 0 &&
-      el.offsetHeight > 0
-    );
   }
 
   /**

@@ -4,6 +4,7 @@ import { logger } from '@/utils/logger';
 import { generateTOTP } from '@/utils/totp';
 import { isSameMainDomain } from '@/utils/domain';
 import { getClipboardConfig } from '@/utils/storage/configManager';
+import { lazyImport } from '@/utils/lazyImport';
 import type { Ref } from 'vue';
 
 /** 剪贴板自动清除定时器（模块级变量，确保同一时刻只有一个定时器） */
@@ -16,12 +17,10 @@ let copiedPasswordSnapshot: string | null = null;
  * 延迟加载 passwordCrud 模块（首次用户交互时触发）
  * 避免在 sidepanel 初始加载时拉入 encryption.ts 加密模块链
  */
-let _passwordCrudModule: typeof import('@/utils/storage/passwordCrud') | null = null;
+const getPasswordCrudModule = lazyImport(() => import('@/utils/storage/passwordCrud'));
 const getUpdatePasswordInSession = async () => {
-  if (!_passwordCrudModule) {
-    _passwordCrudModule = await import('@/utils/storage/passwordCrud');
-  }
-  return _passwordCrudModule.updatePasswordInSession;
+  const mod = await getPasswordCrudModule();
+  return mod.updatePasswordInSession;
 };
 
 /**
