@@ -7,12 +7,18 @@
 
 import { lockIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { SavePromptData, SavePromptControls, SavePromptEditedData } from '@/entrypoints/content/types';
+import { getStoredTheme, THEME_SHADOW_TOKENS, DEFAULT_THEME } from '@/utils/theme';
 
 /** 弹窗 DOM 容器 class 名 */
 const PROMPT_CLASS = 'aph-save-password-prompt';
 
-/** Element Plus 主题蓝 */
-const THEME_BLUE = '#409eff';
+/**
+ * 主色（主题令牌 + 晴空蓝回退）
+ *
+ * 本弹窗直接挂到页面 body（非 Shadow DOM），无法继承扩展页 :root 上的令牌，
+ * 因此在 overlay 元素上内联写入 --aph-primary（后代继承），并异步解析当前主题。
+ */
+const THEME_BLUE = 'var(--aph-primary, #409eff)';
 
 /**
  * 显示保存密码确认弹窗
@@ -49,6 +55,13 @@ export function showSavePasswordPrompt(
     overflow: hidden;
     animation: aphSlideIn 0.25s ease-out;
   `;
+
+  // 写入主题令牌（必须在 cssText 之后，否则会被整体覆盖）：先默认晴空蓝，
+  // 后异步读取当前主题覆盖，供子元素 var(--aph-primary) 继承
+  overlay.style.setProperty('--aph-primary', THEME_SHADOW_TOKENS[DEFAULT_THEME]['--aph-primary']);
+  void getStoredTheme().then(theme => {
+    overlay.style.setProperty('--aph-primary', THEME_SHADOW_TOKENS[theme]['--aph-primary']);
+  });
 
   // 注入动画样式（仅一次）
   injectAnimationStyle();

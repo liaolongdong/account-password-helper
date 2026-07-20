@@ -63,9 +63,9 @@ defineEmits<{
   padding: 20px;
   margin: 0 32px 20px;
   background: white;
-  border: 1px solid #e3f2fd;
+  border: 1px solid var(--aph-surface-line);
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
+  box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
 }
 
 /* 搜索框占据剩余空间 */

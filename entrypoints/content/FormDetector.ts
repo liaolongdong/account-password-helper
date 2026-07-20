@@ -25,6 +25,11 @@ import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
 import type { FormFieldSets } from '@/entrypoints/content/types';
 import { showNoLoginFormMessage } from '@/entrypoints/content/NativeNotification';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
+import { isElementVisible } from './domUtils';
+import {
+  getInlineFillDropdown,
+  destroyInlineFillDropdown,
+} from '@/entrypoints/content/inlineDropdown/InlineFillDropdown';
 
 /**
  * 表单检测器
@@ -61,6 +66,16 @@ export class FormDetector {
   private floatingButtonConfig: FloatingButtonConfig;
   /** 存储变化监听器 */
   private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
+  /** runtime 消息监听器引用（保存以便 destroy 时精确移除，避免上下文失效后残留触发 chrome API） */
+  private messageListener:
+    | ((
+        message: RuntimeMessage,
+        sender: chrome.runtime.MessageSender,
+        sendResponse: (response?: unknown) => void,
+      ) => boolean)
+    | null = null;
+  /** 上一次记录的页面 URL（SPA 场景下用于检测路由变化） */
+  private lastUrl: string = location.href;
   /** DOM 变化检测的 debounce 计时器（可取消） */
   private detectionTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -72,6 +87,8 @@ export class FormDetector {
   private loginFormAnalyzer = new LoginFormAnalyzer();
   /** 密码显示/隐藏切换管理器 */
   private passwordVisibilityToggle = new PasswordVisibilityToggle();
+  /** 内联填充下拉（fillMode==='inline' 时使用） */
+  private inlineDropdown = getInlineFillDropdown();
 
   constructor() {
     // 初始化默认配置
@@ -96,6 +113,8 @@ export class FormDetector {
   private async loadConfig(): Promise<void> {
     try {
       this.floatingButtonConfig = await StorageUtils.getFloatingButtonConfig();
+      // 预置内联下拉主题（缓存于其实例），避免其在每次获焦时读取 storage
+      this.inlineDropdown.setTheme(this.floatingButtonConfig.theme);
     } catch (error) {
       logger.error('FormDetector: 加载配置失败:', error);
     }
@@ -109,6 +128,7 @@ export class FormDetector {
     try {
       const config = await StorageUtils.getFloatingButtonConfig();
       if (config.passwordVisibilityToggle) {
+        this.passwordVisibilityToggle.setTheme(config.theme);
         this.passwordVisibilityToggle.init();
       }
     } catch (error) {
@@ -127,6 +147,10 @@ export class FormDetector {
           this.floatingButtonConfig = newConfig;
           // 同步密码切换功能开关
           this.passwordVisibilityToggle.setEnabled(newConfig.passwordVisibilityToggle);
+          // 同步主题，实现注入按钮实时换肤
+          this.passwordVisibilityToggle.setTheme(newConfig.theme);
+          // 同步内联下拉主题，实现图标/面板实时换肤
+          this.inlineDropdown.setTheme(newConfig.theme);
         }
       }
     };
@@ -146,11 +170,12 @@ export class FormDetector {
       setTimeout(() => this.detectForms(), this.shortDelayTime);
     }
 
-    // 监听消息
-    chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
-      const handled = this.handleMessage(message, sender, sendResponse);
-      return handled; // 仅对已处理的消息保持通道开放，未处理的消息传递给 background
-    });
+    // 监听消息（保存监听器引用，destroy 时移除，避免上下文失效后监听器残留触发 chrome API）
+    this.messageListener = (message, sender, sendResponse) => {
+      // 仅对已处理的消息保持通道开放，未处理的消息传递给 background
+      return this.handleMessage(message, sender, sendResponse);
+    };
+    chrome.runtime.onMessage.addListener(this.messageListener);
   }
 
   /**
@@ -159,6 +184,13 @@ export class FormDetector {
    */
   private createMutationObserver(): MutationObserver {
     const observer = new MutationObserver(mutations => {
+      // SPA 路由变化检测：合并至主观察器，避免额外的 MutationObserver 开销
+      const currentUrl = location.href;
+      if (currentUrl !== this.lastUrl) {
+        this.lastUrl = currentUrl;
+        this.notifyUrlChange();
+      }
+
       let shouldRedetect = false;
 
       mutations.forEach(mutation => {
@@ -254,7 +286,7 @@ export class FormDetector {
     // 检测密码字段
     const passwordInputs = document.querySelectorAll('input[type="password"]') as NodeListOf<HTMLInputElement>;
     this.passwordFields = Array.from(passwordInputs).filter(input => {
-      if (this.isVisible(input)) {
+      if (isElementVisible(input)) {
         this.passwordFieldsSet.add(input);
         this.fieldTypeCache.set(input, 'password');
         return true;
@@ -262,45 +294,39 @@ export class FormDetector {
       return false;
     });
 
-    // 检测用户名字段
-    USERNAME_SELECTORS.forEach(selector => {
-      const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
-      Array.from(inputs).forEach(input => {
-        if (this.isVisible(input) && !this.usernameFieldsSet.has(input)) {
-          this.usernameFields.push(input);
-          this.usernameFieldsSet.add(input);
-          this.fieldTypeCache.set(input, 'username');
-        }
-      });
+    // 检测用户名字段（合并选择器为单次 DOM 查询，减少重排开销）
+    const usernameInputs = document.querySelectorAll(USERNAME_SELECTORS.join(',')) as NodeListOf<HTMLInputElement>;
+    Array.from(usernameInputs).forEach(input => {
+      if (isElementVisible(input) && !this.usernameFieldsSet.has(input)) {
+        this.usernameFields.push(input);
+        this.usernameFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'username');
+      }
     });
 
-    // 检测手机号码字段
-    MOBILE_SELECTORS.forEach(selector => {
-      const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
-      Array.from(inputs).forEach(input => {
-        if (this.isVisible(input) && !this.mobileFieldsSet.has(input) && !this.usernameFieldsSet.has(input)) {
-          this.mobileFields.push(input);
-          this.mobileFieldsSet.add(input);
-          this.fieldTypeCache.set(input, 'mobile');
-        }
-      });
+    // 检测手机号码字段（排除已归类为用户名的字段）
+    const mobileInputs = document.querySelectorAll(MOBILE_SELECTORS.join(',')) as NodeListOf<HTMLInputElement>;
+    Array.from(mobileInputs).forEach(input => {
+      if (isElementVisible(input) && !this.mobileFieldsSet.has(input) && !this.usernameFieldsSet.has(input)) {
+        this.mobileFields.push(input);
+        this.mobileFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'mobile');
+      }
     });
 
-    // 检测验证码字段
-    VERIFY_CODE_SELECTORS.forEach(selector => {
-      const inputs = document.querySelectorAll(selector) as NodeListOf<HTMLInputElement>;
-      Array.from(inputs).forEach(input => {
-        if (
-          this.isVisible(input) &&
-          !this.verifyCodeFieldsSet.has(input) &&
-          !this.usernameFieldsSet.has(input) &&
-          !this.mobileFieldsSet.has(input)
-        ) {
-          this.verifyCodeFields.push(input);
-          this.verifyCodeFieldsSet.add(input);
-          this.fieldTypeCache.set(input, 'verifyCode');
-        }
-      });
+    // 检测验证码字段（排除已归类为用户名和手机号的字段）
+    const verifyCodeInputs = document.querySelectorAll(VERIFY_CODE_SELECTORS.join(',')) as NodeListOf<HTMLInputElement>;
+    Array.from(verifyCodeInputs).forEach(input => {
+      if (
+        isElementVisible(input) &&
+        !this.verifyCodeFieldsSet.has(input) &&
+        !this.usernameFieldsSet.has(input) &&
+        !this.mobileFieldsSet.has(input)
+      ) {
+        this.verifyCodeFields.push(input);
+        this.verifyCodeFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'verifyCode');
+      }
     });
 
     // 回退策略：密码字段存在但未检测到账号/手机号字段时，
@@ -396,7 +422,7 @@ export class FormDetector {
         continue;
       }
 
-      if (!this.isVisible(input)) {
+      if (!isElementVisible(input)) {
         continue;
       }
 
@@ -418,27 +444,29 @@ export class FormDetector {
   }
 
   /**
-   * 判断元素是否可见
-   * @param element - 要检查的 HTML 元素
-   * @returns 元素是否可见
-   */
-  private isVisible(element: HTMLElement): boolean {
-    const style = window.getComputedStyle(element);
-    return (
-      style.display !== 'none' &&
-      style.visibility !== 'hidden' &&
-      style.opacity !== '0' &&
-      element.offsetWidth > 0 &&
-      element.offsetHeight > 0
-    );
-  }
-
-  /**
    * 设置全局点击事件委托，监听输入框点击
    */
   private setupEventDelegation(): void {
     document.addEventListener('click', this.handleDelegatedClick, { capture: true });
+    // 内联模式下，输入框获焦即弹出快速填充下拉
+    document.addEventListener('focusin', this.handleDelegatedFocusIn, { capture: true });
   }
+
+  /**
+   * 处理委托的聚焦事件：内联模式下为登录字段显示钥匙触发图标
+   */
+  private handleDelegatedFocusIn = (event: FocusEvent): void => {
+    if (this.floatingButtonConfig.fillMode !== 'inline') return;
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const input = target instanceof HTMLInputElement ? target : target.closest('input');
+    if (!input) return;
+    if (this.shouldShowSidePanel(input)) {
+      this.inlineDropdown.showTriggerFor(input, {
+        hasEyeToggle: input.type === 'password' && this.floatingButtonConfig.passwordVisibilityToggle,
+      });
+    }
+  };
 
   /**
    * 处理委托的点击事件，判断是否需要显示侧边栏
@@ -455,6 +483,13 @@ export class FormDetector {
       return;
     }
     if (this.shouldShowSidePanel(input)) {
+      // 内联模式：不自动打开侧边栏，改为显示钥匙触发图标（点击图标展开面板）
+      if (this.floatingButtonConfig.fillMode === 'inline') {
+        this.inlineDropdown.showTriggerFor(input, {
+          hasEyeToggle: input.type === 'password' && this.floatingButtonConfig.passwordVisibilityToggle,
+        });
+        return;
+      }
       if (!this.floatingButtonConfig.autoShowSidepanel) {
         return;
       }
@@ -720,7 +755,7 @@ export class FormDetector {
             );
           });
 
-          if (hasLoginKeyword && this.isVisible(button)) {
+          if (hasLoginKeyword && isElementVisible(button)) {
             if (!this.loginButtons.includes(button)) {
               this.loginButtons.push(button);
             }
@@ -750,21 +785,13 @@ export class FormDetector {
   }
 
   /**
-   * 监听页面导航事件（beforeunload、URL 变化、popstate）
+   * 监听页面导航事件（beforeunload、popstate）
+   * URL 变化检测已合并至主 MutationObserver，此处仅保留 popstate 以捕获浏览器前进/后退
    */
   private addPageNavigationListener(): void {
     window.addEventListener('beforeunload', () => {
       this.hideSidePanel();
     });
-
-    let lastUrl = location.href;
-    new MutationObserver(() => {
-      const url = location.href;
-      if (url !== lastUrl) {
-        this.notifyUrlChange();
-        lastUrl = url;
-      }
-    }).observe(document, { subtree: true, childList: true });
 
     window.addEventListener('popstate', () => {
       this.notifyUrlChange();
@@ -828,6 +855,11 @@ export class FormDetector {
       case MessageType.FILL_MOBILE_CODE:
         this.fillMobileCode(message.data);
         sendResponse({ success: true, message: '填充完成' });
+        return true;
+      case MessageType.FILL_TOTP:
+        this.fillTotpCode(message.data.code).then(result => {
+          sendResponse(result);
+        });
         return true;
       case MessageType.SHOW_SIDEPANEL:
         if (!this.hasLoginFormFields()) {
@@ -969,7 +1001,7 @@ export class FormDetector {
   private triggerLogin(): void {
     try {
       // 策略 A：点击已识别的登录按钮
-      const candidateButton = this.loginButtons.find(btn => this.isVisible(btn));
+      const candidateButton = this.loginButtons.find(btn => isElementVisible(btn));
       if (candidateButton) {
         try {
           candidateButton.click();
@@ -1026,6 +1058,54 @@ export class FormDetector {
   }
 
   /**
+   * 填充 TOTP 两步验证码到页面检测到的验证码输入框
+   *
+   * 复用已有的 verifyCodeFields 检测（含 `input[autocomplete="one-time-code"]`），
+   * 仅在用户显式触发时填入，不介入现有账号密码自动填充流程。
+   * @param code 本地计算得到的动态验证码
+   * @returns 填充结果
+   */
+  private async fillTotpCode(code: string): Promise<FillResult> {
+    const result: FillResult = {
+      success: false,
+      message: '',
+      details: {
+        usernameField: { found: false, filled: false, verified: false },
+        passwordField: { found: false, filled: false, verified: false },
+        strategy: 'native',
+      },
+    };
+
+    try {
+      // 验证码输入框常在二步验证页面动态渲染，未检测到时先重新检测一次
+      if (this.verifyCodeFields.length === 0) {
+        this.detectForms();
+      }
+      if (this.verifyCodeFields.length === 0) {
+        result.message = '当前页面未检测到验证码输入框';
+        return result;
+      }
+
+      const field = this.verifyCodeFields[0];
+      const fillResult = await this.inputFiller.setInputValueWithStrategies(field, code);
+      result.success = fillResult.filled;
+      result.details.strategy = fillResult.strategy;
+      result.message = fillResult.filled ? '验证码填充成功' : '验证码填充失败，请手动输入';
+
+      if (result.success) {
+        setTimeout(() => {
+          this.hideSidePanel();
+        }, 300);
+      }
+    } catch (error) {
+      logger.error('填充 TOTP 验证码失败:', error);
+      result.message = '填充验证码时发生错误';
+    }
+
+    return result;
+  }
+
+  /**
    * 销毁实例，清理所有监听器
    */
   public destroy(): void {
@@ -1037,10 +1117,24 @@ export class FormDetector {
       this.detectionTimer = null;
     }
     document.removeEventListener('click', this.handleDelegatedClick, { capture: true });
+    document.removeEventListener('focusin', this.handleDelegatedFocusIn, { capture: true });
     if (this.storageListener) {
-      chrome.storage.onChanged.removeListener(this.storageListener);
+      try {
+        chrome.storage.onChanged.removeListener(this.storageListener);
+      } catch {
+        // 上下文失效时 removeListener 可能抛错，监听器已被 Chrome 自动清理，忽略
+      }
       this.storageListener = null;
     }
+    if (this.messageListener) {
+      try {
+        chrome.runtime.onMessage.removeListener(this.messageListener);
+      } catch {
+        // 同上，忽略上下文失效导致的移除异常
+      }
+      this.messageListener = null;
+    }
     this.passwordVisibilityToggle.destroy();
+    destroyInlineFillDropdown();
   }
 }

@@ -10,11 +10,15 @@ import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimeCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
+import { isValidTotpInput } from '@/utils/totp';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
 /** 单个标签最大字符长度 */
 export const MAX_TAG_LENGTH = 30;
+
+/** 密码表单空值初始状态（避免多处重复字面量） */
+const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
 
 /**
  * URL/域名自定义校验器
@@ -54,6 +58,22 @@ const urlValidator = (_rule: any, value: string, callback: any) => {
 };
 
 /**
+ * TOTP 密钥自定义校验器
+ * 允许为空；非空时必须为合法的 otpauth:// 链接或 Base32 密钥
+ * @param _rule 校验规则（未使用）
+ * @param value 用户输入的密钥值
+ * @param callback 校验回调函数
+ */
+const totpValidator = (_rule: any, value: string, callback: any) => {
+  const trimmed = (value || '').trim();
+  if (!trimmed || isValidTotpInput(trimmed)) {
+    callback();
+    return;
+  }
+  callback(new Error('请输入有效的 otpauth:// 链接或 Base32 密钥'));
+};
+
+/**
  * 密码管理 Composable
  * 管理密码列表的 CRUD、搜索、排序、导入导出等逻辑
  */
@@ -83,6 +103,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     url: '',
     tag: '',
     remark: '',
+    totp: '',
   });
 
   const passwordFormRules: FormRules = {
@@ -97,6 +118,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     ],
     tag: [{ max: 50, message: '标签不能超过50个字符', trigger: 'blur' }],
     remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }],
+    totp: [{ validator: totpValidator, trigger: 'blur' }],
   };
 
   // 计算属性（过滤 + 排序，替代 el-table 客户端排序）
@@ -320,13 +342,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const openPasswordDialog = () => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
-    passwordForm.value = {
-      username: '',
-      password: '',
-      url: '',
-      tag: '',
-      remark: '',
-    };
+    passwordForm.value = { ...EMPTY_PASSWORD_FORM };
     showPasswordDialog.value = true;
   };
 
@@ -340,6 +356,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       url: password.url,
       tag: password.tag,
       remark: password.remark,
+      totp: password.totp ?? '',
     };
     showPasswordDialog.value = true;
   };
@@ -348,13 +365,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const resetPasswordForm = () => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
-    passwordForm.value = {
-      username: '',
-      password: '',
-      url: '',
-      tag: '',
-      remark: '',
-    };
+    passwordForm.value = { ...EMPTY_PASSWORD_FORM };
   };
 
   // 滚动到密码项
@@ -393,6 +404,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           url: passwordForm.value.url.trim(),
           tag: normalizedTag,
           remark: passwordForm.value.remark.trim(),
+          totp: passwordForm.value.totp.trim(),
           updateTime: Date.now(),
         };
         await runLocalOperation(async () => {
@@ -415,6 +427,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
             url: passwordForm.value.url.trim(),
             tag: normalizedTag,
             remark: passwordForm.value.remark.trim(),
+            totp: passwordForm.value.totp.trim(),
             createTime: now,
             updateTime: now,
           });
@@ -445,6 +458,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         url: password.url,
         tag: password.tag,
         remark: password.remark,
+        totp: password.totp,
         createTime: password.createTime,
         updateTime: Date.now(),
       };

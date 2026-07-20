@@ -410,13 +410,13 @@ const handleClose = () => {
 
 :deep(.el-upload-dragger) {
   padding: 24px 0;
-  border: 2px dashed #d9ecff;
+  border: 2px dashed var(--aph-primary-border);
   border-radius: 10px;
   transition: border-color 0.25s ease;
 }
 
 :deep(.el-upload-dragger:hover) {
-  border-color: #409eff;
+  border-color: var(--aph-primary);
 }
 
 .upload-dragger-content {
@@ -428,7 +428,7 @@ const handleClose = () => {
 
 .upload-icon {
   font-size: 40px;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .upload-text {
@@ -439,7 +439,7 @@ const handleClose = () => {
 .upload-text em {
   font-style: normal;
   font-weight: 500;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .upload-hint {
@@ -453,14 +453,14 @@ const handleClose = () => {
   gap: 10px;
   align-items: center;
   padding: 10px 14px;
-  background: #f0f9ff;
-  border: 1px solid #d9ecff;
+  background: var(--aph-surface-hover);
+  border: 1px solid var(--aph-primary-border);
   border-radius: 8px;
 }
 
 .file-info-icon {
   font-size: 20px;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .file-info-detail {

@@ -2,7 +2,7 @@ import type { AutoSaveConfig, AutoSavePasswordData, PasswordEntry } from '@/util
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { isSessionValid } from './facades';
-import { getAllPasswordsRaw, updatePassword, savePassword } from './passwordCrud';
+import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
 import { getFavoriteLimit } from './configManager';
 
 // ==================== 自动保存配置 ====================
@@ -136,7 +136,9 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
       return { success: false, message: '账号或密码为空，跳过保存' };
     }
 
-    const passwords = await getAllPasswordsRaw();
+    // 匹配需基于明文 username/url，而 storage.local 中为密文（at-rest 不变量），
+    // 故这里用 getAllPasswords()（会话期用缓存数据密钥解密，无 PBKDF2）而非原始密文。
+    const passwords = await getAllPasswords();
 
     const existingEntry = passwords.find(p => {
       const entry = p as PasswordEntry;

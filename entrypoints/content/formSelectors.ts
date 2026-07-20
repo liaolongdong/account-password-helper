@@ -194,6 +194,18 @@ export const VERIFY_CODE_SELECTORS = [
   'input[autocomplete="off"][name*="verify"]',
   'input[autocomplete="off"][id*="code"]',
   'input[autocomplete="off"][id*="verify"]',
+  // TOTP / 两步验证（2FA）动态口令字段（如 GitHub 的 app_otp、通用 one-time-code）
+  'input[name*="otp"]',
+  'input[id*="otp"]',
+  'input[name*="totp"]',
+  'input[id*="totp"]',
+  'input[name*="2fa"]',
+  'input[id*="2fa"]',
+  'input[aria-label*="one-time"]',
+  'input[aria-label*="authentication code"]',
+  'input[placeholder*="authentication code"]',
+  'input[placeholder*="身份验证器"]',
+  'input[placeholder*="动态口令"]',
 ] as const;
 
 /** 登录按钮关键词 */

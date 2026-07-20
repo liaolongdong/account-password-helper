@@ -39,6 +39,12 @@
           </el-select>
           <div class="form-tip">系统闲置超过设定时间后，将自动清除主密码会话并锁定密码管理</div>
         </el-form-item>
+        <el-form-item label="浏览器重启锁定">
+          <el-switch v-model="relockOnBrowserRestart" />
+          <div class="form-tip">
+            开启后，完全关闭并重新打开浏览器时需重新输入主密码（更安全）；关闭则在有效期内自动保持登录，无需重复输入。
+          </div>
+        </el-form-item>
       </el-form>
     </div>
 
@@ -65,7 +71,7 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 
 const props = defineProps<{
@@ -77,6 +83,8 @@ const emit = defineEmits<{
 }>();
 
 const idleMinutes = ref(0);
+/** 关闭浏览器后是否需要重新输入主密码 */
+const relockOnBrowserRestart = ref(false);
 const saveLoading = ref(false);
 
 /**
@@ -84,9 +92,9 @@ const saveLoading = ref(false);
  */
 const loadConfig = async (): Promise<void> => {
   try {
-    const result = await chrome.storage.local.get(STORAGE_KEYS.IDLE_LOCK_CONFIG);
-    const config = result[STORAGE_KEYS.IDLE_LOCK_CONFIG] as { idleLockMinutes: number } | undefined;
-    idleMinutes.value = config?.idleLockMinutes ?? 0;
+    const config = await StorageUtils.getIdleLockConfig();
+    idleMinutes.value = config.idleLockMinutes;
+    relockOnBrowserRestart.value = config.relockOnBrowserRestart ?? false;
   } catch (error) {
     logger.error('IdleLockSetting: 加载配置失败:', error);
     ElMessage.error('加载配置失败');
@@ -108,10 +116,11 @@ watch(
 const handleSave = async (): Promise<void> => {
   saveLoading.value = true;
   try {
-    await chrome.storage.local.set({
-      [STORAGE_KEYS.IDLE_LOCK_CONFIG]: { idleLockMinutes: idleMinutes.value },
+    await StorageUtils.saveIdleLockConfig({
+      idleLockMinutes: idleMinutes.value,
+      relockOnBrowserRestart: relockOnBrowserRestart.value,
     });
-    ElMessage.success(idleMinutes.value > 0 ? `已设置 ${idleMinutes.value} 分钟闲置锁定` : '已关闭闲置锁定');
+    ElMessage.success('自动锁定设置已保存');
     emit('update:modelValue', false);
   } catch (error) {
     logger.error('IdleLockSetting: 保存配置失败:', error);

@@ -20,6 +20,8 @@ export {
   createSession,
   clearSession,
   getSessionMasterPasswordDecrypted,
+  getSessionDataKey,
+  requestReEncryptAtRest,
   getSessionExpiryTime,
   generateSessionEncryptionKey,
   migrateUnencryptedEntries,

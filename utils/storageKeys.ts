@@ -20,3 +20,14 @@ export const STORAGE_KEYS = {
   SIDEPANEL_SORT_CONFIG: 'sidepanel_sort_config',
   UPDATE_INFO: 'extension_update_info',
 };
+
+/**
+ * storage.session 键名常量（仅内存，不落盘，浏览器/扩展重启即清）
+ *
+ * 用于缓存会话期派生的数据加密密钥，使 storage.local 始终只存密文（严重-1 修复），
+ * 明文密码仅存在于易失内存。默认访问级别 TRUSTED_CONTEXTS 已排除内容脚本。
+ */
+export const SESSION_MEMORY_KEYS = {
+  /** 会话期派生的 AES-256-GCM 数据密钥（hex） */
+  DATA_KEY: 'session_data_key',
+};

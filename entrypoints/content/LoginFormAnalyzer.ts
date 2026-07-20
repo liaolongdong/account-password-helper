@@ -140,17 +140,7 @@ export class LoginFormAnalyzer {
       element.querySelector('input[id*="code"]') !== null;
 
     const text = normalizeButtonText(element.innerText || element.textContent || '');
-    const hasLoginText =
-      text.includes('登录') ||
-      text.includes('登陆') ||
-      text.includes('signin') ||
-      text.includes('login') ||
-      text.includes('密码') ||
-      text.includes('password') ||
-      text.includes('验证码') ||
-      text.includes('验证');
-
-    return hasPassword || hasVerifyCode || hasLoginText;
+    return hasPassword || hasVerifyCode || this.hasLoginText(text);
   }
 
   /**
@@ -182,15 +172,27 @@ export class LoginFormAnalyzer {
     }
 
     const text = normalizeButtonText(element.innerText || element.textContent || '');
-    return (
-      text.includes('登录') ||
-      text.includes('登陆') ||
-      text.includes('signin') ||
-      text.includes('login') ||
-      text.includes('密码') ||
-      text.includes('password') ||
-      text.includes('验证码') ||
-      text.includes('验证')
-    );
+    return this.hasLoginText(text);
+  }
+
+  /** 登录相关文本关键词（中英文） */
+  private static readonly LOGIN_TEXT_KEYWORDS = [
+    '登录',
+    '登陆',
+    'signin',
+    'login',
+    '密码',
+    'password',
+    '验证码',
+    '验证',
+  ];
+
+  /**
+   * 检查规范化后的文本是否包含登录相关关键词
+   * @param normalizedText - 已规范化的按钮/容器文本
+   * @returns 是否包含登录关键词
+   */
+  private hasLoginText(normalizedText: string): boolean {
+    return LoginFormAnalyzer.LOGIN_TEXT_KEYWORDS.some(keyword => normalizedText.includes(keyword));
   }
 }

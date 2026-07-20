@@ -22,7 +22,7 @@ Account Password Helper 是一款基于 Chrome 扩展的账号密码管理工具
 
 1. Fork 本仓库并 clone 到本地。
 
-2. 安装依赖（要求 Node.js >= 18）：
+2. 安装依赖（要求 Node.js >= 22）：
 
    ```sh
    pnpm install

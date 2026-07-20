@@ -1,0 +1,146 @@
+/**
+ * 主题设计令牌层（浅色淡雅多主题）
+ *
+ * - `:root` 定义默认主题「晴空蓝」的令牌，取值与历史硬编码色完全一致，
+ *   因此默认主题下视觉零变化、老用户无感知。
+ * - `:root[data-theme='xxx']` 覆盖品牌令牌，并同步重写 Element Plus 主色梯度
+ *   （`--el-color-primary` 及 light-3/5/7/8/9、dark-2），使 EP 组件跟随主题。
+ * - 语义色（成功/警告/错误）与中性文字色不在此定义，保持全主题一致。
+ *
+ * 说明：本文件由各扩展页入口（options/popup/sidepanel）在 main.ts 中全局引入；
+ * 内容脚本 Shadow DOM 的同名令牌由 `utils/theme.ts` 的 THEME_SHADOW_TOKENS
+ * 以内联方式写入 shadow host，二者取值保持一致，修改时请同步。
+ */
+
+:root {
+  /* 品牌主色及其状态 */
+  --aph-primary: #409eff;
+  --aph-primary-hover: #66b3ff;
+  --aph-primary-rgb: 64 158 255;
+
+  /* 品牌浅色填充 / 边框 */
+  --aph-primary-bg: #ecf5ff;
+  --aph-primary-bg-hover: #f0f7ff;
+  --aph-primary-border: #d9ecff;
+
+  /* 品牌背景面（页面渐变、分隔线、行悬浮） */
+  --aph-surface: #e8f4fd;
+  --aph-surface-2: #f8fbff;
+  --aph-surface-line: #e3f2fd;
+  --aph-surface-hover: #f0f9ff;
+}
+
+/* ==================== 青竹绿 ==================== */
+:root[data-theme='green'] {
+  --aph-primary: #69b599;
+  --aph-primary-hover: #88c5ae;
+  --aph-primary-rgb: 105 181 153;
+  --aph-primary-bg: #f2f9f6;
+  --aph-primary-bg-hover: #f5faf8;
+  --aph-primary-border: #e5f2ee;
+  --aph-surface: #eef7f4;
+  --aph-surface-2: #fafdfc;
+  --aph-surface-line: #ebf5f1;
+  --aph-surface-hover: #f5faf8;
+
+  /* Element Plus 主色梯度 */
+  --el-color-primary: #69b599;
+  --el-color-primary-light-3: #96cbb8;
+  --el-color-primary-light-5: #b4dacc;
+  --el-color-primary-light-7: #d2e9e0;
+  --el-color-primary-light-8: #e1f0eb;
+  --el-color-primary-light-9: #f0f8f5;
+  --el-color-primary-dark-2: #54917a;
+}
+
+/* ==================== 粉色 ==================== */
+:root[data-theme='pink'] {
+  --aph-primary: #d87998;
+  --aph-primary-hover: #e199b1;
+  --aph-primary-rgb: 216 121 152;
+  --aph-primary-bg: #fbf0f4;
+  --aph-primary-bg-hover: #fcf4f6;
+  --aph-primary-border: #f6e1e8;
+  --aph-surface: #f9ecf0;
+  --aph-surface-2: #fdf9fb;
+  --aph-surface-line: #f8e8ed;
+  --aph-surface-hover: #fcf4f6;
+
+  /* Element Plus 主色梯度 */
+  --el-color-primary: #d87998;
+  --el-color-primary-light-3: #e4a1b7;
+  --el-color-primary-light-5: #ecbccc;
+  --el-color-primary-light-7: #f3d7e0;
+  --el-color-primary-light-8: #f7e4ea;
+  --el-color-primary-light-9: #fbf2f5;
+  --el-color-primary-dark-2: #ad617a;
+}
+
+/* ==================== 樱粉紫 ==================== */
+:root[data-theme='mauve'] {
+  --aph-primary: #ad84cd;
+  --aph-primary-hover: #c0a0da;
+  --aph-primary-rgb: 173 132 205;
+  --aph-primary-bg: #f6f2fa;
+  --aph-primary-bg-hover: #f8f4fb;
+  --aph-primary-border: #ede4f4;
+  --aph-surface: #f3edf8;
+  --aph-surface-2: #fcfafd;
+  --aph-surface-line: #f1eaf6;
+  --aph-surface-hover: #f8f4fb;
+
+  /* Element Plus 主色梯度 */
+  --el-color-primary: #ad84cd;
+  --el-color-primary-light-3: #c6a9dc;
+  --el-color-primary-light-5: #d6c2e6;
+  --el-color-primary-light-7: #e6daf0;
+  --el-color-primary-light-8: #efe6f5;
+  --el-color-primary-light-9: #f7f3fa;
+  --el-color-primary-dark-2: #8a6aa4;
+}
+
+/* ==================== 橙色 ==================== */
+:root[data-theme='orange'] {
+  --aph-primary: #e28e65;
+  --aph-primary-hover: #eaa886;
+  --aph-primary-rgb: 226 142 101;
+  --aph-primary-bg: #fcf3ef;
+  --aph-primary-bg-hover: #fdf6f3;
+  --aph-primary-border: #f9e7df;
+  --aph-surface: #fbf0ea;
+  --aph-surface-2: #fefbf9;
+  --aph-surface-line: #faece6;
+  --aph-surface-hover: #fdf6f3;
+
+  /* Element Plus 主色梯度（刻意区别于警告色 #e6a23c） */
+  --el-color-primary: #e28e65;
+  --el-color-primary-light-3: #ebb093;
+  --el-color-primary-light-5: #f0c6b2;
+  --el-color-primary-light-7: #f6ddd1;
+  --el-color-primary-light-8: #f9e8e0;
+  --el-color-primary-light-9: #fcf4f0;
+  --el-color-primary-dark-2: #b57251;
+}
+
+/* ==================== 雾墨灰 ==================== */
+:root[data-theme='slate'] {
+  --aph-primary: #7f92b4;
+  --aph-primary-hover: #98a7c2;
+  --aph-primary-rgb: 127 146 180;
+  --aph-primary-bg: #f3f5f8;
+  --aph-primary-bg-hover: #f6f7fa;
+  --aph-primary-border: #e7eaf1;
+  --aph-surface: #eff2f6;
+  --aph-surface-2: #fafbfc;
+  --aph-surface-line: #eceff4;
+  --aph-surface-hover: #f6f7fa;
+
+  /* Element Plus 主色梯度 */
+  --el-color-primary: #7f92b4;
+  --el-color-primary-light-3: #a5b3ca;
+  --el-color-primary-light-5: #bfc8da;
+  --el-color-primary-light-7: #d9dee8;
+  --el-color-primary-light-8: #e5e9f0;
+  --el-color-primary-light-9: #f2f4f8;
+  --el-color-primary-dark-2: #667590;
+}

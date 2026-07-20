@@ -12,6 +12,7 @@ interface CsvColumnMapping {
   url: string[];
   tag: string[];
   remark: string[];
+  totp: string[];
 }
 
 /** 各格式列映射配置 */
@@ -22,6 +23,7 @@ const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnMapping>
     url: ['网址', 'URL', 'url', '网站地址', '链接'],
     tag: ['标签', 'tag', 'Tag', '分类'],
     remark: ['备注', 'remark', 'Remark', '说明'],
+    totp: ['两步验证', 'TOTP', 'totp', '密钥'],
   },
   chrome: {
     username: ['username', 'Username'],
@@ -29,6 +31,7 @@ const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnMapping>
     url: ['url', 'URL', 'origin'],
     tag: ['name', 'Name'],
     remark: ['note', 'Note'],
+    totp: ['otpauth', 'otp_auth'],
   },
   lastpass: {
     username: ['username', 'Username'],
@@ -36,6 +39,7 @@ const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnMapping>
     url: ['url', 'URL'],
     tag: ['grouping', 'Grouping'],
     remark: ['extra', 'Extra'],
+    totp: ['totp', 'TOTP'],
   },
   bitwarden: {
     username: ['login_username', 'Login Username'],
@@ -43,6 +47,7 @@ const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnMapping>
     url: ['login_uri', 'Login URI'],
     tag: ['folder', 'Folder'],
     remark: ['notes', 'Notes'],
+    totp: ['login_totp', 'Login TOTP'],
   },
   '1password': {
     username: ['Username', 'username'],
@@ -50,6 +55,7 @@ const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnMapping>
     url: ['Url', 'URL', 'url'],
     tag: ['Title', 'title'],
     remark: ['Notes', 'notes'],
+    totp: ['OTPAuth', 'otpauth', 'totp'],
   },
 };
 
@@ -59,13 +65,14 @@ export class ExcelUtils {
    */
   static exportToCSV(passwords: PasswordEntry[], filename: string = 'passwords.csv'): void {
     try {
-      const headers = ['用户名', '密码', '网址', '标签', '备注', '创建时间', '更新时间'];
+      const headers = ['用户名', '密码', '网址', '标签', '备注', '两步验证', '创建时间', '更新时间'];
       const rows = passwords.map(p => [
         p.username,
         p.password,
         p.url,
         p.tag || '',
         p.remark || '',
+        p.totp || '',
         formatDate(p.createTime || Date.now()),
         formatDate(p.updateTime || Date.now()),
       ]);
@@ -200,6 +207,7 @@ export class ExcelUtils {
         url: (this.findColumn(row, mapping.url) || '').trim(),
         tag: (this.findColumn(row, mapping.tag) || '').trim(),
         remark: (this.findColumn(row, mapping.remark) || '').trim(),
+        totp: (this.findColumn(row, mapping.totp) || '').trim(),
         createTime: now,
         updateTime: now,
       });
@@ -308,8 +316,8 @@ export class ExcelUtils {
   static downloadTemplate(): void {
     const now = formatDate(Date.now());
     const csv = [
-      ['用户名(必填)', '密码', '网址', '标签', '备注', '创建时间', '更新时间'],
-      ['example@email.com', 'password123', 'https://example.com', '工作', '示例账号', now, now],
+      ['用户名(必填)', '密码', '网址', '标签', '备注', '两步验证', '创建时间', '更新时间'],
+      ['example@email.com', 'password123', 'https://example.com', '工作', '示例账号', '', now, now],
     ]
       .map(row => row.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
       .join('\r\n');
@@ -360,6 +368,7 @@ export class ExcelUtils {
           const url = row.url || row['网址'] || row['网站地址'] || row['链接'] || '';
           const tag = row.tag || row['标签'] || row['分类'] || '';
           const remark = row.remark || row['备注'] || row['说明'] || '';
+          const totp = row.totp || row['两步验证'] || row.otpauth || '';
 
           const cTime = parseTimestamp(row.createTime ?? row['创建时间'] ?? row.CreateTime);
           const uTime = parseTimestamp(
@@ -374,6 +383,7 @@ export class ExcelUtils {
             url: String(url).trim(),
             tag: String(tag).trim(),
             remark: String(remark).trim(),
+            totp: String(totp).trim(),
             createTime,
             updateTime,
           };
@@ -406,6 +416,7 @@ export class ExcelUtils {
           url: p.url,
           tag: p.tag,
           remark: p.remark,
+          totp: p.totp,
           createTime: p.createTime,
           updateTime: p.updateTime,
         })),

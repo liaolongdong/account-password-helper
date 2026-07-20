@@ -170,7 +170,7 @@ defineEmits<Emits>();
 .logo {
   margin-right: 8px;
   font-size: 20px;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .version-tag {

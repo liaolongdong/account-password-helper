@@ -49,6 +49,23 @@
         </template>
       </el-table-column>
       <el-table-column
+        label="两步验证"
+        min-width="120"
+      >
+        <template #default="{ row }">
+          <TotpCode
+            v-if="row.totp"
+            :secret="row.totp"
+            copyable
+          />
+          <span
+            v-else
+            class="no-tag"
+            >-</span
+          >
+        </template>
+      </el-table-column>
+      <el-table-column
         prop="url"
         label="网址"
         min-width="200"
@@ -90,8 +107,7 @@
               :popper-style="{ maxWidth: '500px', wordBreak: 'break-word' }"
             >
               <el-tag
-                :color="getTagColor(t).background"
-                :style="getTagStyle(t)"
+                :style="getTagFullStyle(t)"
                 size="small"
                 class="tag-item"
                 @mouseenter="(e: MouseEvent) => checkTagOverflow(e, t)"
@@ -121,7 +137,7 @@
       <el-table-column
         prop="createTime"
         label="创建时间"
-        min-width="110"
+        min-width="100"
         sortable="custom"
       >
         <template #default="{ row }">
@@ -131,7 +147,7 @@
       <el-table-column
         prop="updateTime"
         label="更新时间"
-        min-width="110"
+        min-width="100"
         sortable="custom"
         :sort-orders="['descending', 'ascending', null]"
       >
@@ -216,19 +232,9 @@ import { ref, onBeforeUpdate } from 'vue';
 import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
-import { getTagColor, parseTags } from '@/utils/tagUtils';
+import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 import { useTagOverflow } from '@/composables/useTagOverflow';
-
-/**
- * 获取标签的合并样式对象
- * 避免模板中对同一标签多次调用 getTagColor
- * @param tag 标签文本
- * @returns 包含 color 和 borderColor 的 CSSStyleDeclaration 子集
- */
-const getTagStyle = (tag: string): Record<string, string> => {
-  const { text, border } = getTagColor(tag);
-  return { color: text, borderColor: border };
-};
+import TotpCode from '@/components/TotpCode.vue';
 
 /**
  * 密码列表表格组件
@@ -312,9 +318,9 @@ defineExpose({ tableRef: localTableRef });
   margin: 0 32px 32px;
   overflow: hidden;
   background: white;
-  border: 1px solid #e3f2fd;
+  border: 1px solid var(--aph-surface-line);
   border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
+  box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
 }
 
 .password-cell {
@@ -330,7 +336,7 @@ defineExpose({ tableRef: localTableRef });
 }
 
 :deep(.el-table__body-wrapper .el-table__row:hover) {
-  box-shadow: 0 2px 8px rgb(64 158 255 / 20%);
+  box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 20%);
   transform: translateY(-2px);
 }
 
@@ -384,7 +390,9 @@ defineExpose({ tableRef: localTableRef });
 /* 标签样式 */
 .tag-item {
   box-sizing: border-box;
-  max-width: 110px;
+
+  /* 上限 110px，同时不超过所在单元格宽度：窄列时随之收缩，避免标签溢出单元格导致右侧圆角被相邻列覆盖/裁切 */
+  max-width: min(110px, 100%);
   padding: 0 8px;
   margin: 0;
   overflow: visible !important;
@@ -426,6 +434,7 @@ defineExpose({ tableRef: localTableRef });
   width: 28px;
   height: 28px;
   padding: 0;
+  margin-left: 10px;
 }
 
 :deep(.operation-buttons .el-button--danger:hover) {

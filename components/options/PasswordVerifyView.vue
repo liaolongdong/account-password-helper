@@ -212,7 +212,7 @@ defineExpose({ formRef: localVerifyFormRef });
 .logo-section .logo {
   margin-right: 10px;
   font-size: 32px;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .verify-header h1 {
@@ -235,9 +235,9 @@ defineExpose({ formRef: localVerifyFormRef });
 
 .form-card {
   overflow: hidden;
-  border: 1px solid #e3f2fd;
+  border: 1px solid var(--aph-surface-line);
   border-radius: 12px;
-  box-shadow: 0 4px 12px rgb(64 158 255 / 10%);
+  box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 10%);
 }
 
 :deep(.form-card .el-card__body) {
