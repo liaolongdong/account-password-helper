@@ -8,3 +8,5 @@ export const REPO_GITHUB_URL = 'https://github.com/liaolongdong/account-password
 export const GITHUB_RELEASES_API_URL =
   'https://api.github.com/repos/liaolongdong/account-password-helper/releases/latest';
 export const GITHUB_RELEASES_PAGE_URL = `${REPO_GITHUB_URL}/releases/latest`;
+export const CHROME_WEB_STORE_URL =
+  'https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli';

@@ -11,3 +11,4 @@ trigger: always_on
 7. 项目已配置 husky + lint-staged，提交代码前会自动运行 ESLint + Prettier + Stylelint 检查变更文件，必须确保提交前通过所有检查。
 8. ESLint 配置全面覆盖 TypeScript 和 Vue 文件，新增代码必须通过 `npm run lint` 检查，禁止使用 `eslint-disable` 规避规则（logger.ts 等底层封装除外）。
 9. CSS/Stylelint 已启用属性排序（recess-order），新增样式代码必须符合属性顺序规范。
+10. 新增功能必须同步更新和完善四处文档（README / index.html / HelpDialog / CWS）、`wxt.config.ts`插件描述等相关文档描述信息。

@@ -274,6 +274,20 @@
         border-color: var(--primary);
         color: var(--primary);
       }
+      .hero-hint {
+        margin: 14px 0 0;
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+      .hero-hint a {
+        color: var(--primary);
+        font-weight: 500;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .hero-hint a:hover {
+        color: var(--primary-dark);
+      }
 
       .hero-visual {
         position: relative;
@@ -859,10 +873,16 @@
           <a href="#steps">使用步骤</a>
           <a href="#faq">常见问题</a>
           <a
+            href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Chrome 应用商店下载</a
+          >
+          <a
             href="https://github.com/liaolongdong/account-password-helper/releases/latest"
             target="_blank"
             rel="noopener noreferrer"
-            >下载</a
+            >GitHub 下载</a
           >
         </div>
         <a
@@ -938,7 +958,7 @@
           <div class="hero-cta">
             <a
               class="btn btn-primary"
-              href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -965,6 +985,25 @@
             </a>
             <a
               class="btn btn-ghost"
+              href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+                />
+              </svg>
+              GitHub 下载
+            </a>
+            <a
+              class="btn btn-ghost"
               href="#showcase"
             >
               查看功能演示
@@ -986,6 +1025,16 @@
               >如何开始</a
             >
           </div>
+          <p class="hero-hint">
+            无法访问 Google？可从
+            <a
+              href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+              >GitHub Releases</a
+            >
+            下载 zip 包手动安装
+          </p>
           <div class="disclaimer-banner">
             <svg
               width="18"
@@ -1306,13 +1355,21 @@
             <p>
               从
               <a
+                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+                target="_blank"
+                rel="noopener noreferrer"
+                style="color: var(--primary); font-weight: 500; text-decoration: underline"
+                >Chrome 应用商店</a
+              >
+              一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从
+              <a
                 href="https://github.com/liaolongdong/account-password-helper/releases/latest"
                 target="_blank"
                 rel="noopener noreferrer"
                 style="color: var(--primary); font-weight: 500; text-decoration: underline"
                 >GitHub Releases</a
               >
-              下载并安装本扩展，安装完成后即可在工具栏看到钥匙图标。
+              下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。
             </p>
           </article>
           <article class="step-card reveal reveal-delay-2">
@@ -1513,6 +1570,10 @@
           q: '什么是浏览器重启锁定？',
           a: '在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需重新输入主密码，适合对安全性要求更高的场景。关闭此选项则在有效期内自动保持登录，无需重复输入。',
         },
+        {
+          q: '什么是安全体检？',
+          a: '安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分）和四维检测结果：弱密码、密码复用（多账号共用同一密码）、长时间未更新（90/180/365 天分级预警）、未开启两步验证。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。',
+        },
 
         // ===== 基础使用 =====
         {
@@ -1535,7 +1596,7 @@
         },
         {
           q: '插件会自动检测更新吗？',
-          a: '会。插件通过 GitHub Releases API 每 6 小时自动检测一次最新版本，发现新版本时会在 Popup 弹窗中展示更新提示（包含版本号和更新说明），点击即可跳转到下载页面。你也可以在 Popup 弹窗中手动触发检测。',
+          a: '通过 Chrome 应用商店安装的用户，版本更新由商店自动推送，无需手动操作。此外，插件还通过 GitHub Releases API 每 6 小时自动检测最新版本，发现新版本时会在 Popup 弹窗中展示更新提示，点击即可跳转到下载页面。你也可以在 Popup 弹窗中手动触发检测。',
         },
         {
           q: '会话有效期修改何时生效？',
@@ -1624,6 +1685,10 @@
         {
           q: '侧边栏和内联填充有什么区别？',
           a: '两者都是密码填充方式，功能互补。侧边栏是浏览器侧边的完整面板，适合搜索浏览全部密码、管理收藏等；内联填充是页面内的迷你面板，登录框获焦后显示钥匙图标，点击即可快速选择账号填充，无需切换到侧边栏。可在偏好设置中选择填充模式：「侧边栏」适合习惯侧边操作的用户，「内联」适合追求快速填充的用户。',
+        },
+        {
+          q: '如何使用两步验证（TOTP）？',
+          a: '在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 otpauth:// 链接或 Base32 密钥即可。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，零网络传输。注意：本机时钟必须准确（误差 < 30 秒），否则动态码验证会失败。',
         },
         {
           q: '插件的性能表现如何？',
