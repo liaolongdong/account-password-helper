@@ -1,6 +1,8 @@
 # CWS 商店填写素材 — 复制粘贴用
 
-> 按 Developer Console 的页面顺序整理，逐项复制粘贴即可。
+> ✅ **已上架**：https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli
+>
+> 按 Developer Console 的页面顺序整理，逐项复制粘贴即可。后续版本更新时仅需重新上传 zip 包。
 
 ---
 

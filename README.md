@@ -6,6 +6,8 @@
 [![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13.7-409EFF)](https://element-plus.org/)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#许可证)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-已上架-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![GitHub Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=GitHub%20Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
 
 一款功能强大的 Chrome 浏览器扩展，提供安全、便捷的账号密码管理与自动填充能力。采用 **PBKDF2 + AES-256-GCM** 加密体系，零网络传输，密码绝不出浏览器，支持登录表单智能识别、多策略自动填充、一键自动登录、自动保存账号密码、批量导入导出、加密备份、密码可见性切换、闲时锁定、TOTP两步验证码、密码强度检测、密码生成器等功能。
 
@@ -225,7 +227,22 @@
 - Node.js >= 22（rolldown 依赖 `node:util.styleText`）
 - Chrome >= 114（支持 SidePanel API，>= 129 支持 `sidePanel.close`）
 
-### 安装与构建
+### 从 Chrome 应用商店安装（推荐）
+
+直接访问 [Chrome Web Store 页面](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，点击「添加至 Chrome」即可一键安装，后续版本更新由商店自动推送。
+
+### 从 GitHub Releases 下载（无法访问 Google 的用户）
+
+如果你无法访问 Chrome 应用商店（如中国大陆地区用户），可从 [GitHub Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) 下载最新版安装包（zip），手动安装：
+
+1. 下载 zip 并解压到任意目录（请妥善保留该目录，后续更新时需覆盖此目录）
+2. 打开 `chrome://extensions/`，开启「开发者模式」
+3. 点击「加载已解压的扩展程序」，选择解压后的目录
+4. 首次使用需设置主密码（至少 8 位，含字母+数字+特殊字符）
+
+> 💡 手动加载的扩展不会自动更新，但插件会通过 GitHub Releases API 每 6 小时检测新版本，并在 Popup 弹窗中展示更新提示。收到提示后下载新包，将文件覆盖到原安装目录即可（详见下文「更新版本」）。
+
+### 安装与构建（开发者）
 
 ```bash
 # 安装依赖
@@ -254,8 +271,9 @@ pnpm build:firefox
 
 ### 更新版本
 
-> ⚠️ **重要提示**：更新版本时，只需将压缩包内的文件**直接覆盖**原有安装目录下的文件即可，**切勿**重新选择其他目录加载扩展。Chrome 扩展的本地数据（包括密码数据、配置等）存储在浏览器内部存储空间中，只要扩展 ID 不变，覆盖文件更新不会影响已有数据。如果更换了加载目录（即重新在 `chrome://extensions/` 中「加载已解压的扩展程序」选择了不同的路径），Chrome 会将其视为全新安装，**原有的密码数据将无法访问**。
->
+- **Chrome 应用商店用户**：版本更新由商店自动推送，无需手动操作。
+- **手动加载用户（GitHub Releases 下载 / 开发者）**：只需将压缩包内的文件**直接覆盖**原有安装目录下的文件即可，**切勿**重新选择其他目录加载扩展。Chrome 扩展的本地数据（包括密码数据、配置等）存储在浏览器内部存储空间中，只要扩展 ID 不变，覆盖文件更新不会影响已有数据。如果更换了加载目录（即重新在 `chrome://extensions/` 中「加载已解压的扩展程序」选择了不同的路径），Chrome 会将其视为全新安装，**原有的密码数据将无法访问**。
+
 > 💡 **如何查看当前安装目录**：打开 `chrome://extensions/`，找到「账号密码管理助手」的卡片，点击"详情"，在扩展详情页下方可以看到「来源：/path/to/your/directory」，冒号后面的路径即为当前安装目录。更新时将压缩包内的文件覆盖到此目录即可。
 
 ## 使用指南
@@ -620,7 +638,7 @@ A：Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 `chro
 
 **Q：插件会自动检测更新吗？**
 
-A：会。插件通过 GitHub Releases API 每 6 小时自动检测一次最新版本，发现新版本时会在 Popup 弹窗中展示更新提示（包含版本号和更新说明），点击即可跳转到下载页面。检测结果会缓存 24 小时，你也可以在 Popup 弹窗中手动触发检测。
+A：通过 Chrome 应用商店安装的用户，版本更新由商店自动推送，无需手动操作。此外，插件还通过 GitHub Releases API 每 6 小时自动检测一次最新版本，发现新版本时会在 Popup 弹窗中展示更新提示（包含版本号和更新说明），点击即可跳转到下载页面。检测结果会缓存 24 小时，你也可以在 Popup 弹窗中手动触发检测。
 
 **Q：会话有效期修改何时生效？**
 
