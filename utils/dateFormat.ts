@@ -52,3 +52,14 @@ export function formatTimeCompact(ts: number | Date = Date.now()): string {
   const s = String(d.getSeconds()).padStart(2, '0');
   return `${h}${min}${s}`;
 }
+
+/**
+ * 将时间戳或 Date 对象格式化为 YYYYMMDD_HHmmss（紧凑日期时间，无特殊分隔符）
+ * 作为各类导出文件名时间戳的统一来源，避免多处拼接导致格式不一致
+ * @param ts - 时间戳（number）或 Date 对象，默认当前时间
+ * @returns 格式化后的紧凑日期时间字符串，如 "20250610_153000"
+ */
+export function formatTimestampCompact(ts: number | Date = Date.now()): string {
+  const d = typeof ts === 'number' ? new Date(ts) : ts;
+  return `${formatDateCompact(d)}_${formatTimeCompact(d)}`;
+}
