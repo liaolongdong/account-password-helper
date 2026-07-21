@@ -8,7 +8,7 @@ import { exportEncryptedBackup } from '@/utils/backupExport';
 import { logger } from '@/utils/logger';
 import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
-import { formatDateCompact, formatTimeCompact } from '@/utils/dateFormat';
+import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
 import { isValidTotpInput } from '@/utils/totp';
 
@@ -574,7 +574,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       if (!masterPassword) return;
 
       // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.csv
-      const filename = `passwords_${formatDateCompact()}_${formatTimeCompact()}.csv`;
+      const filename = `passwords_${formatTimestampCompact()}.csv`;
       ExcelUtils.exportToCSV(passwords.value, filename);
       ElMessage.success('导出成功');
     } catch (error) {
@@ -610,7 +610,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       if (!masterPassword) return;
 
       const now = new Date();
-      const filename = `passwords_${formatDateCompact(now)}_${formatTimeCompact(now)}.json`;
+      const filename = `passwords_${formatTimestampCompact(now)}.json`;
       ExcelUtils.exportToJSON(passwords.value, filename);
       ElMessage.success('导出成功');
     } catch (error) {

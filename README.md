@@ -104,7 +104,7 @@
 
 ### 6. 加密备份导入导出
 
-- 导出：使用主密码通过 AES-GCM 加密全部密码数据，下载为 `.aph` 文件（见 [utils/backupExport.ts](./utils/backupExport.ts)），文件名格式为 `backup_YYYYMMDD.aph`。
+- 导出：使用主密码通过 AES-GCM 加密全部密码数据，下载为 `.aph` 文件（见 [utils/backupExport.ts](./utils/backupExport.ts)），文件名格式为 `backup_YYYYMMDD_HHmmss.aph`。
 - 导入：上传 `.aph` 文件后输入导出时使用的主密码进行解密，解密后可预览数据（前 5 条）再确认导入（见 [BackupImportDialog.vue](./components/options/BackupImportDialog.vue)）。
 - 加密方案：PBKDF2（600000 次迭代）+ AES-256-GCM + 随机 Salt + 随机 IV，安全性高于常规存储。
 
@@ -635,6 +635,10 @@ A：等待页面完全加载后重试，填充器会依次尝试三种策略（N
 **Q：如何自定义快捷键？**
 
 A：Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 `chrome://extensions/shortcuts`，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可修改。修改后 Popup 弹窗中显示的快捷键会自动同步。
+
+**Q：为什么快捷键默认没有生效，需要手动设置？**
+
+A：Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发环境下重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达设置页。
 
 **Q：插件会自动检测更新吗？**
 

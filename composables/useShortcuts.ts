@@ -25,8 +25,19 @@ const DEFAULT_SHORTCUTS: Record<string, string> = {
  * 不内置 onMounted，由调用方控制加载时机以支持并行初始化。
  */
 export function useShortcuts() {
-  /** 命令名称到格式化快捷键的映射 */
+  /** 命令名称到格式化快捷键的映射（已绑定为真实按键，未绑定回退为建议按键文案） */
   const shortcuts = ref<Record<string, string>>({ ...DEFAULT_SHORTCUTS });
+
+  /**
+   * 命令是否已在 Chrome 中真正绑定快捷键
+   *
+   * Chrome 不会为“更新后新增的命令”自动绑定 suggested_key，此时 getAll() 返回的
+   * shortcut 为空字符串。乐观默认为 true 以避免已绑定用户看到闪烁，加载后按真实状态回填。
+   */
+  const shortcutAssigned = ref<Record<string, boolean>>({
+    open_options: true,
+    toggle_sidepanel: true,
+  });
 
   /**
    * 从 Chrome API 动态获取已绑定的快捷键
@@ -35,22 +46,30 @@ export function useShortcuts() {
   const loadShortcuts = async () => {
     try {
       const commands = await chrome.commands.getAll();
-      const map: Record<string, string> = {};
+      const shortcutMap: Record<string, string> = {};
+      const assignedMap: Record<string, boolean> = {};
 
       for (const cmd of commands) {
-        if (cmd.name && cmd.shortcut) {
-          map[cmd.name] = formatShortcut(cmd.shortcut);
+        if (cmd.name) {
+          assignedMap[cmd.name] = Boolean(cmd.shortcut);
+          if (cmd.shortcut) {
+            shortcutMap[cmd.name] = formatShortcut(cmd.shortcut);
+          }
         }
       }
 
       shortcuts.value = {
-        open_options: map[SHORTCUT_NAME_MAP.open_options] || DEFAULT_SHORTCUTS.open_options,
-        toggle_sidepanel: map[SHORTCUT_NAME_MAP.toggle_sidepanel] || DEFAULT_SHORTCUTS.toggle_sidepanel,
+        open_options: shortcutMap[SHORTCUT_NAME_MAP.open_options] || DEFAULT_SHORTCUTS.open_options,
+        toggle_sidepanel: shortcutMap[SHORTCUT_NAME_MAP.toggle_sidepanel] || DEFAULT_SHORTCUTS.toggle_sidepanel,
+      };
+      shortcutAssigned.value = {
+        open_options: assignedMap[SHORTCUT_NAME_MAP.open_options] ?? false,
+        toggle_sidepanel: assignedMap[SHORTCUT_NAME_MAP.toggle_sidepanel] ?? false,
       };
     } catch (error) {
       logger.warn('Popup: 获取快捷键失败，使用默认值:', error);
     }
   };
 
-  return { shortcuts, loadShortcuts };
+  return { shortcuts, shortcutAssigned, loadShortcuts };
 }

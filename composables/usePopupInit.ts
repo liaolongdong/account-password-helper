@@ -14,7 +14,7 @@ import { isDomainMatch } from '@/utils/domain';
  */
 export function usePopupInit() {
   // ==================== 组合子 composables ====================
-  const { shortcuts, loadShortcuts } = useShortcuts();
+  const { shortcuts, shortcutAssigned, loadShortcuts } = useShortcuts();
   const { currentVersion, updateInfo, initUpdateCheck, openUpdatePage } = useVersionUpdate();
 
   // ==================== 自身状态 ====================
@@ -89,6 +89,7 @@ export function usePopupInit() {
     domainMatchCount,
     // 子 composable 暴露
     shortcuts,
+    shortcutAssigned,
     currentVersion,
     updateInfo,
     lockLoading,

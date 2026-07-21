@@ -35,7 +35,8 @@
     "components/**/*",
     "composables/**/*",
     "utils/**/*",
-    "types/**/*"
+    "types/**/*",
+    "tests/**/*"
   ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

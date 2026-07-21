@@ -211,7 +211,8 @@
 import { ref, computed, watch, nextTick } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
-import { ExcelUtils, type ImportFormat } from '@/utils/excel';
+import { ExcelUtils } from '@/utils/excel';
+import type { ImportFormat } from '@/utils/excelFormatMap';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';

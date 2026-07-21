@@ -18,11 +18,7 @@
   ],
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ]
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"]
   },
   "type": "module",
   "scripts": {
@@ -37,6 +33,9 @@
     "prebuild": "pnpm run icons:build",
     "postbuild": "wxt zip",
     "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
     "lint:style": "stylelint **/*.{vue,css,scss} --cache --cache-location node_modules/.cache/stylelint/",
@@ -48,16 +47,9 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
@@ -68,6 +60,7 @@
     "@eslint/js": "^10.0.1",
     "@types/chrome": "^0.1.40",
     "@typescript-eslint/parser": "^8.59.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "@vue/eslint-config-typescript": "^14.7.0",
     "@wxt-dev/module-vue": "^1.0.1",
     "eslint": "^10.2.1",
@@ -86,6 +79,7 @@
     "typescript": "^6.0.3",
     "unplugin-auto-import": "^21.0.0",
     "unplugin-vue-components": "^32.0.0",
+    "vitest": "^4.1.10",
     "wxt": "^0.20.25"
   }
 }

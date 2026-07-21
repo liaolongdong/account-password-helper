@@ -1,6 +1,6 @@
 import type { PasswordEntry } from '@/utils/types';
 import { ExcelUtils } from '@/utils/excel';
-import { formatDateTime, formatDate, formatDateCompact, formatTimeCompact } from '@/utils/dateFormat';
+import { formatDateTime, formatDate, formatTimestampCompact } from '@/utils/dateFormat';
 
 /**
  * 邮箱备份工具类
@@ -24,7 +24,7 @@ export class EmailBackupUtils {
 
     // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.csv
     const now = new Date();
-    const filename = `passwords_${formatDateCompact(now)}_${formatTimeCompact(now)}.csv`;
+    const filename = `passwords_${formatTimestampCompact(now)}.csv`;
 
     // 生成并下载 CSV 文件
     ExcelUtils.exportToCSV(passwords, filename);
