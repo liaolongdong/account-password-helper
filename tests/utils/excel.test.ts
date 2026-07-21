@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ExcelUtils, type ImportFormat } from '@/utils/excel';
+import { ExcelUtils } from '@/utils/excel';
+import type { ImportFormat } from '@/utils/excelFormatMap';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
 
 /**
@@ -253,6 +254,6 @@ describe('导出序列化（经 Blob/document/URL 打桩捕获生成内容）', 
   });
 });
 
-// 类型层面确认 ImportFormat 契约仍可用
+// 类型层面确认 ImportFormat 类型契约仍可用（典型来源：@/utils/excelFormatMap）
 const _fmt: ImportFormat = 'auto';
 void _fmt;

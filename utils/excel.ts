@@ -8,8 +8,6 @@ import {
   exportToJSON as exportJson,
 } from '@/utils/excelExport';
 
-export type { ImportFormat };
-
 /**
  * Excel / CSV / JSON 导入导出工具（门面）
  *
