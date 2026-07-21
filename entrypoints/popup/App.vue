@@ -122,7 +122,22 @@
           <div class="action-card__title">密码管理</div>
           <div class="action-card__desc">管理所有已保存的账号密码</div>
         </div>
-        <kbd class="action-card__shortcut">{{ shortcuts.open_options }}</kbd>
+        <kbd
+          v-if="shortcutAssigned.open_options"
+          class="action-card__shortcut"
+          >{{ shortcuts.open_options }}</kbd
+        >
+        <button
+          v-else
+          type="button"
+          class="action-card__shortcut action-card__shortcut-btn"
+          title="前往 Chrome 设置快捷键"
+          @click.stop="openShortcutsPage"
+          @keydown.enter.stop.prevent="openShortcutsPage"
+          @keydown.space.stop.prevent="openShortcutsPage"
+        >
+          设置快捷键
+        </button>
       </div>
 
       <div
@@ -140,7 +155,22 @@
           <div class="action-card__title">快速填充</div>
           <div class="action-card__desc">在当前页面快速填充账号密码</div>
         </div>
-        <kbd class="action-card__shortcut">{{ shortcuts.toggle_sidepanel }}</kbd>
+        <kbd
+          v-if="shortcutAssigned.toggle_sidepanel"
+          class="action-card__shortcut"
+          >{{ shortcuts.toggle_sidepanel }}</kbd
+        >
+        <button
+          v-else
+          type="button"
+          class="action-card__shortcut action-card__shortcut-btn"
+          title="前往 Chrome 设置快捷键"
+          @click.stop="openShortcutsPage"
+          @keydown.enter.stop.prevent="openShortcutsPage"
+          @keydown.space.stop.prevent="openShortcutsPage"
+        >
+          设置快捷键
+        </button>
       </div>
     </div>
 
@@ -180,6 +210,7 @@ const {
   passwordCount,
   domainMatchCount,
   shortcuts,
+  shortcutAssigned,
   currentVersion,
   updateInfo,
   lockLoading,
@@ -200,6 +231,20 @@ const openOptions = async () => {
     logger.error('打开选项页面失败:', error);
   } finally {
     // 无论成功失败都关闭 popup
+    window.close();
+  }
+};
+
+/**
+ * 打开 Chrome 快捷键设置页
+ * 用于命令未绑定 suggested_key（多因更新后新增命令）时，引导用户手动设置。
+ */
+const openShortcutsPage = async () => {
+  try {
+    await chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  } catch (error) {
+    logger.error('打开快捷键设置页失败:', error);
+  } finally {
     window.close();
   }
 };
@@ -409,6 +454,21 @@ const handleEmailClick = (event: Event) => {
   border: 1px solid #d4d7de;
   border-radius: 4px;
   box-shadow: 0 1px 0 #c8c9cc;
+}
+
+/* 未绑定快捷键时的“设置快捷键”入口按钮：复用 chip 视觉并叠加可点击态 */
+.action-card__shortcut-btn {
+  cursor: pointer;
+  transition:
+    color 0.2s,
+    background-color 0.2s,
+    border-color 0.2s;
+}
+
+.action-card__shortcut-btn:hover {
+  color: #fff;
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
 }
 
 .update-card {
