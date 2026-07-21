@@ -178,39 +178,32 @@ export function normalizeToHostname(value: string): string {
 }
 
 /**
- * 判断当前页面域名是否匹配密码条目中存储的 URL
+ * 判断当前页面域名是否与密码条目中存储的 URL 精确匹配（仅比较完整 hostname）
  *
- * 安全匹配策略（替代不安全的双向 includes）：
- * 0. 先将两侧规范化为 hostname（兼容完整 URL / 带端口 / 纯域名）
- * 1. 精确匹配（忽略大小写）
- * 2. 子域名关系：当前域名是存储 URL 的子域，或反之
- * 3. 主域名相同（通过 getMainDomain 提取比较）
+ * 匹配策略：
+ * 0. 先将两侧规范化为 hostname（兼容完整 URL / 带端口 / 纯域名，忽略大小写）
+ * 1. 仅当两侧 hostname 完全相同时才匹配
  *
- * 防止 `evil-bank.com` 匹配 `bank.com` 等钓鱼场景。
+ * 不做子域名或主域名模糊匹配，确保多测试环境账号严格隔离：
+ * 如 fat.example.com 页面不会展示 uat.example.com 或 example.com 的条目。
+ * URL 为空的条目不受此函数影响（由调用方处理"空 URL 始终展示"逻辑）。
  *
  * @param currentDomain - 当前页面的 hostname
  * @param storedUrl - 密码条目中存储的 URL/域名
- * @returns 是否匹配
+ * @returns 是否精确匹配
  *
  * @example
- * isDomainMatch('login.example.com', 'example.com')   // → true（子域名）
- * isDomainMatch('example.com', 'login.example.com')   // → true（反向子域名）
- * isDomainMatch('evil-bank.com', 'bank.com')          // → false（非子域名关系）
- * isDomainMatch('sub.example.com', 'example.com')     // → true
+ * isExactHostMatch('fat.example.com', 'fat.example.com')    // → true（精确匹配）
+ * isExactHostMatch('fat.example.com', 'uat.example.com')    // → false（不同子域名）
+ * isExactHostMatch('fat.example.com', 'example.com')        // → false（主域名也不跨环境匹配）
+ * isExactHostMatch('example.com', 'https://example.com/login') // → true（规范化后精确匹配）
  */
-export function isDomainMatch(currentDomain: string, storedUrl: string): boolean {
+export function isExactHostMatch(currentDomain: string, storedUrl: string): boolean {
   if (!currentDomain || !storedUrl) return false;
 
   const a = normalizeToHostname(currentDomain);
   const b = normalizeToHostname(storedUrl);
   if (!a || !b) return false;
 
-  // 1. 精确匹配
-  if (a === b) return true;
-
-  // 2. 子域名关系：a 是 b 的子域（a 以 .b 结尾），或 b 是 a 的子域
-  if (a.endsWith('.' + b) || b.endsWith('.' + a)) return true;
-
-  // 3. 主域名相同（处理同主域名不同子域的场景，如 app.example.com vs login.example.com）
-  return getMainDomain(a) === getMainDomain(b);
+  return a === b;
 }

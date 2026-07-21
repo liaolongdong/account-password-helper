@@ -4,7 +4,7 @@ import { MessageType } from '@/utils/types';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
 import { logger } from '@/utils/logger';
-import { isDomainMatch } from '@/utils/domain';
+import { isExactHostMatch } from '@/utils/domain';
 import { lazyImport } from '@/utils/lazyImport';
 
 // ==================== 延迟加载模块（避免初始加载拉入 encryption.ts 加密链） ====================
@@ -101,7 +101,7 @@ export function useSidepanelData() {
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!currentDomain.value) return 0;
     const hasUrl = entry.url && entry.url.trim() !== '';
-    if (hasUrl && isDomainMatch(currentDomain.value, entry.url)) return 0;
+    if (hasUrl && isExactHostMatch(currentDomain.value, entry.url)) return 0;
     return 1;
   };
 

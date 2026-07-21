@@ -5,7 +5,7 @@ import { logger } from '@/utils/logger';
 import { useShortcuts } from '@/composables/useShortcuts';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useSessionLock } from '@/composables/useSessionLock';
-import { isDomainMatch } from '@/utils/domain';
+import { isExactHostMatch } from '@/utils/domain';
 
 /**
  * Popup 初始化编排 Composable
@@ -38,7 +38,7 @@ export function usePopupInit() {
     if (!currentDomain.value) return 0;
     return allPasswords.value.filter(p => {
       if (!p.url) return false;
-      return isDomainMatch(currentDomain.value, p.url);
+      return isExactHostMatch(currentDomain.value, p.url);
     }).length;
   });
 

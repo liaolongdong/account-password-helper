@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { generateId } from '@/utils/generateId';
 import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
-import { isDomainMatch } from '@/utils/domain';
+import { isExactHostMatch } from '@/utils/domain';
 import { applySavedSortConfig } from './configManager';
 
 /**
@@ -393,7 +393,7 @@ export async function getPasswordsByUrl(url: string, masterPassword?: string): P
 
     const filteredPasswords = allPasswords.filter(p => {
       if (!p.url || p.url.trim() === '') return true;
-      return isDomainMatch(url, p.url);
+      return isExactHostMatch(url, p.url);
     });
 
     await applySavedSortConfig(filteredPasswords, url);
