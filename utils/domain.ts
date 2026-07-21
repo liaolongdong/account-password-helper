@@ -149,3 +149,61 @@ export function isSameMainDomain(originA: string, originB: string): boolean {
     return false;
   }
 }
+
+// ── 密码条目域名匹配 ──
+
+/**
+ * 将 URL 或域名规范化为 hostname
+ *
+ * 兼容存储中可能出现的多种格式：完整 URL（https://example.com/login）、
+ * 带端口（example.com:8080）、纯域名（example.com）、localhost / IP。
+ * 无 scheme 时补 `https://` 以便 URL 解析；解析失败则回退为去除路径/查询/锚点后的首段。
+ *
+ * @param value - 原始 URL 或域名字符串
+ * @returns 规范化后的 hostname（小写）；空输入返回空串
+ *
+ * @example
+ * normalizeToHostname('https://example.com/login') // → 'example.com'
+ * normalizeToHostname('example.com')               // → 'example.com'
+ * normalizeToHostname('localhost:3000')            // → 'localhost'
+ */
+export function normalizeToHostname(value: string): string {
+  const s = value.toLowerCase().trim();
+  if (!s) return s;
+  try {
+    return new URL(s.includes('://') ? s : `https://${s}`).hostname;
+  } catch {
+    return s.split('/')[0].split('?')[0].split('#')[0];
+  }
+}
+
+/**
+ * 判断当前页面域名是否与密码条目中存储的 URL 精确匹配（仅比较完整 hostname）
+ *
+ * 匹配策略：
+ * 0. 先将两侧规范化为 hostname（兼容完整 URL / 带端口 / 纯域名，忽略大小写）
+ * 1. 仅当两侧 hostname 完全相同时才匹配
+ *
+ * 不做子域名或主域名模糊匹配，确保多测试环境账号严格隔离：
+ * 如 fat.example.com 页面不会展示 uat.example.com 或 example.com 的条目。
+ * URL 为空的条目不受此函数影响（由调用方处理"空 URL 始终展示"逻辑）。
+ *
+ * @param currentDomain - 当前页面的 hostname
+ * @param storedUrl - 密码条目中存储的 URL/域名
+ * @returns 是否精确匹配
+ *
+ * @example
+ * isExactHostMatch('fat.example.com', 'fat.example.com')    // → true（精确匹配）
+ * isExactHostMatch('fat.example.com', 'uat.example.com')    // → false（不同子域名）
+ * isExactHostMatch('fat.example.com', 'example.com')        // → false（主域名也不跨环境匹配）
+ * isExactHostMatch('example.com', 'https://example.com/login') // → true（规范化后精确匹配）
+ */
+export function isExactHostMatch(currentDomain: string, storedUrl: string): boolean {
+  if (!currentDomain || !storedUrl) return false;
+
+  const a = normalizeToHostname(currentDomain);
+  const b = normalizeToHostname(storedUrl);
+  if (!a || !b) return false;
+
+  return a === b;
+}

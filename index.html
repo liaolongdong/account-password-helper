@@ -274,6 +274,20 @@
         border-color: var(--primary);
         color: var(--primary);
       }
+      .hero-hint {
+        margin: 14px 0 0;
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+      .hero-hint a {
+        color: var(--primary);
+        font-weight: 500;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+      }
+      .hero-hint a:hover {
+        color: var(--primary-dark);
+      }
 
       .hero-visual {
         position: relative;
@@ -859,10 +873,16 @@
           <a href="#steps">使用步骤</a>
           <a href="#faq">常见问题</a>
           <a
+            href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Chrome 应用商店下载</a
+          >
+          <a
             href="https://github.com/liaolongdong/account-password-helper/releases/latest"
             target="_blank"
             rel="noopener noreferrer"
-            >下载</a
+            >GitHub 下载</a
           >
         </div>
         <a
@@ -938,7 +958,7 @@
           <div class="hero-cta">
             <a
               class="btn btn-primary"
-              href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -965,6 +985,25 @@
             </a>
             <a
               class="btn btn-ghost"
+              href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+                />
+              </svg>
+              GitHub 下载
+            </a>
+            <a
+              class="btn btn-ghost"
               href="#showcase"
             >
               查看功能演示
@@ -986,6 +1025,16 @@
               >如何开始</a
             >
           </div>
+          <p class="hero-hint">
+            无法访问 Google？可从
+            <a
+              href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+              >GitHub Releases</a
+            >
+            下载 zip 包手动安装
+          </p>
           <div class="disclaimer-banner">
             <svg
               width="18"
@@ -1306,13 +1355,21 @@
             <p>
               从
               <a
+                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+                target="_blank"
+                rel="noopener noreferrer"
+                style="color: var(--primary); font-weight: 500; text-decoration: underline"
+                >Chrome 应用商店</a
+              >
+              一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从
+              <a
                 href="https://github.com/liaolongdong/account-password-helper/releases/latest"
                 target="_blank"
                 rel="noopener noreferrer"
                 style="color: var(--primary); font-weight: 500; text-decoration: underline"
                 >GitHub Releases</a
               >
-              下载并安装本扩展，安装完成后即可在工具栏看到钥匙图标。
+              下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。
             </p>
           </article>
           <article class="step-card reveal reveal-delay-2">
@@ -1509,6 +1566,14 @@
           q: '什么是自动闲置锁定？',
           a: '在密码管理页「自动锁定设置」中可配置闲置时间（5/10/30/60 分钟或不锁定）。系统检测到用户在设定时间内无操作时，自动清除会话并锁定密码管理，需重新验证主密码才能恢复访问，有效防止离开电脑时密码列表被他人查看。',
         },
+        {
+          q: '什么是浏览器重启锁定？',
+          a: '在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需重新输入主密码，适合对安全性要求更高的场景。关闭此选项则在有效期内自动保持登录，无需重复输入。',
+        },
+        {
+          q: '什么是安全体检？',
+          a: '安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分）和四维检测结果：弱密码、密码复用（多账号共用同一密码）、长时间未更新（90/180/365 天分级预警）、未开启两步验证。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。',
+        },
 
         // ===== 基础使用 =====
         {
@@ -1530,12 +1595,24 @@
           a: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。',
         },
         {
+          q: '为什么快捷键默认没有生效，需要手动设置？',
+          a: 'Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts。',
+        },
+        {
           q: '插件会自动检测更新吗？',
-          a: '会。插件通过 GitHub Releases API 每 6 小时自动检测一次最新版本，发现新版本时会在 Popup 弹窗中展示更新提示（包含版本号和更新说明），点击即可跳转到下载页面。你也可以在 Popup 弹窗中手动触发检测。',
+          a: '通过 Chrome 应用商店安装的用户，版本更新由商店自动推送，无需手动操作。此外，插件还通过 GitHub Releases API 每 6 小时自动检测最新版本，发现新版本时会在 Popup 弹窗中展示更新提示，点击即可跳转到下载页面。你也可以在 Popup 弹窗中手动触发检测。',
         },
         {
           q: '会话有效期修改何时生效？',
           a: '修改后立即创建新会话，新有效期即时生效。',
+        },
+        {
+          q: '如何切换主题配色？',
+          a: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。在偏好设置面板中可以看到 6 款色彩主题选项（晴空蓝、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰），点击色块即可切换，所有页面和组件即时生效，无需刷新。',
+        },
+        {
+          q: '什么是内联填充？',
+          a: '内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），使用 Closed Shadow DOM 完全隔离页面样式。',
         },
 
         // ===== 数据管理 =====
@@ -1563,7 +1640,7 @@
         },
         {
           q: '如何备份密码到邮箱？',
-          a: '在密码管理页点击「备份到邮箱」，配置目标邮箱后可立即备份或开启定时提醒。插件会导出数据并唤起邮件客户端，安全便捷。备份间隔可选每天/3天/每周/两周/每月。',
+          a: '在密码管理页点击「备份到邮箱」，配置目标邮箱后可选择备份方式：「不加密备份」导出标准数据文件，「加密备份」导出 .aph 加密文件（只能通过本插件「加密备份导入」功能并验证原主密码才能查看）。可开启「自动备份提醒」定时发送桌面通知，间隔可选每天/3天/每周/两周/每月。',
         },
         {
           q: '如何导出/导入加密备份？',
@@ -1595,7 +1672,7 @@
         },
         {
           q: '如何配置悬浮按钮的偏好设置？',
-          a: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。可配置：悬浮按钮显示/隐藏、自动展示侧边栏、自动触发登录、密码可见性切换以及按钮透明度。',
+          a: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。可配置：主题换肤（6 款色彩主题）、悬浮按钮显示/隐藏、自动展示侧边栏、自动触发登录、密码可见性切换以及按钮透明度。',
         },
         {
           q: '密码框没有显示/隐藏切换按钮？',
@@ -1608,6 +1685,18 @@
         {
           q: '如何生成随机密码？',
           a: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器。可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
+        },
+        {
+          q: '侧边栏和内联填充有什么区别？',
+          a: '两者都是密码填充方式，功能互补。侧边栏是浏览器侧边的完整面板，适合搜索浏览全部密码、管理收藏等；内联填充是页面内的迷你面板，登录框获焦后显示钥匙图标，点击即可快速选择账号填充，无需切换到侧边栏。可在偏好设置中选择填充模式：「侧边栏」适合习惯侧边操作的用户，「内联」适合追求快速填充的用户。',
+        },
+        {
+          q: '如何使用两步验证（TOTP）？',
+          a: '在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 otpauth:// 链接或 Base32 密钥即可。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，零网络传输。注意：本机时钟必须准确（误差 < 30 秒），否则动态码验证会失败。',
+        },
+        {
+          q: '插件的性能表现如何？',
+          a: '插件在性能方面做了大量优化。Service Worker 在会话有效期内通过保活闹钟（每 1 分钟唤醒）持续运行，确保密码缓存始终在内存中可用，侧边栏打开时可直接从缓存加载数据（约 20-50ms），避免冷启动延迟。Service Worker 启动后还会延迟 500ms 预热密码缓存，进一步提升首次打开侧边栏的响应速度。保活仅在会话有效期内启用，会话过期后自动停止，不影响电池续航。',
         },
       ];
 

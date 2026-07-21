@@ -7,6 +7,7 @@ import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { MessageType } from '@/utils/types';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
+import { applyThemeTokensToHost } from '@/utils/theme';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { floatingButtonStyles, settingsPanelStyles } from '@/entrypoints/content/floatingButtons/styles';
 import {
@@ -94,6 +95,8 @@ export class FloatingButtonManager {
     // 创建Shadow Host
     this.shadowHost = document.createElement('floating-button-root');
     this.shadowHost.style.cssText = 'all: initial; position: fixed; z-index: 2147483647;';
+    // 写入主题令牌（供 Shadow DOM 内 var(--aph-*) 解析），令悬浮按钮随主题切换
+    applyThemeTokensToHost(this.shadowHost, this.config.theme);
 
     // 创建Shadow Root（使用closed模式增强隔离）
     this.shadowRoot = this.shadowHost.attachShadow({ mode: 'closed' });
@@ -205,8 +208,10 @@ export class FloatingButtonManager {
   private bindButtonEvents(): void {
     if (!this.buttonGroup) return;
 
-    // 预唤醒 SW：用户 hover 悬浮按钮时，很可能即将打开侧边栏
-    this.container?.addEventListener('mouseenter', preWarmServiceWorker, { once: true });
+    // 预唤醒 SW：用户 hover 悬浮按钮时，很可能即将打开侧边栏。
+    // 不使用 { once: true }：会话过期后 SW 可能已休眠，需要每次 hover 都能重新唤醒；
+    // 高频调用由 preWarmServiceWorker 内部节流去重，不会造成消息风暴。
+    this.container?.addEventListener('mouseenter', preWarmServiceWorker);
 
     // 侧边栏按钮
     const sidepanelBtn = this.buttonGroup.querySelector('[data-action="toggle-sidepanel"]');
@@ -237,6 +242,10 @@ export class FloatingButtonManager {
    */
   private async handleSidepanelClick(): Promise<void> {
     try {
+      // 点击即预热：覆盖用户未经 hover/focusin 直接点击的场景，
+      // 尽早唤醒可能已休眠的 SW，缩短后续 sidePanel.open() 的冷启动等待
+      preWarmServiceWorker();
+
       const btn = this.buttonGroup?.querySelector('[data-action="toggle-sidepanel"]');
       if (btn) {
         btn.classList.add('loading');
@@ -392,6 +401,11 @@ export class FloatingButtonManager {
     const wasVisible = this.config.visible;
     this.config = { ...newConfig };
 
+    // 主题变更时重新写入 shadow host 令牌，实现悬浮按钮实时换肤
+    if (this.shadowHost) {
+      applyThemeTokensToHost(this.shadowHost, this.config.theme);
+    }
+
     // 如果从隐藏变为显示，需要创建元素
     if (!wasVisible && newConfig.visible && !this.container) {
       this.createShadowDOM();
@@ -465,7 +479,11 @@ export class FloatingButtonManager {
   destroy(): void {
     // 移除存储监听器
     if (this.storageListener) {
-      chrome.storage.onChanged.removeListener(this.storageListener);
+      try {
+        chrome.storage.onChanged.removeListener(this.storageListener);
+      } catch {
+        // 上下文失效时 removeListener 可能抛错，监听器已被 Chrome 自动清理，忽略
+      }
       this.storageListener = null;
     }
 

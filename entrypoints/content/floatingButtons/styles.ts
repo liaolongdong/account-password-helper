@@ -1,12 +1,13 @@
 /**
  * 悬浮按钮样式定义
- * 主题色：浅蓝 #409eff（与项目 Element Plus 主色一致）
+ * 主色使用主题令牌 var(--aph-primary)，由 shadow host 内联写入（见 FloatingButtonManager），
+ * 令悬浮按钮随整体主题切换。
  */
 
 import { settingsPanelViewStyles } from '@/entrypoints/content/floatingButtons/settingsPanelView';
 
-// 主题色定义
-const THEME_COLOR = '#409eff';
+// 主色令牌（由 shadow host 提供具体取值）
+const THEME_COLOR = 'var(--aph-primary)';
 
 export const floatingButtonStyles = `
 /* 重置所有继承样式 */
@@ -79,7 +80,7 @@ export const floatingButtonStyles = `
 .btn:hover {
   background: #ffffff;
   color: ${THEME_COLOR};
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.25), 0 6px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 25%), 0 6px 20px rgba(0, 0, 0, 0.1);
   transform: scale(1.08);
 }
 
@@ -149,7 +150,7 @@ export const floatingButtonStyles = `
   transform: scale(1.15);
   background: ${THEME_COLOR};
   color: #ffffff;
-  box-shadow: 0 4px 12px rgba(64, 158, 255, 0.4), 0 6px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 40%), 0 6px 20px rgba(0, 0, 0, 0.15);
   z-index: 10;
   cursor: move;
 }
@@ -173,7 +174,7 @@ export const floatingButtonStyles = `
   transform: scale(1.2);
   background: ${THEME_COLOR};
   color: #ffffff;
-  box-shadow: 0 6px 18px rgba(64, 158, 255, 0.45), 0 9px 27px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 6px 18px rgb(var(--aph-primary-rgb) / 45%), 0 9px 27px rgba(0, 0, 0, 0.2);
   cursor: move;
 }
 

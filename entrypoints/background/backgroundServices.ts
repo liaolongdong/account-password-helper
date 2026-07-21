@@ -1,8 +1,12 @@
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { StorageUtils } from '@/utils/storage';
-import { SESSION_STORAGE_KEYS, invalidateSessionCache, markSessionInvalid } from '@/utils/sessionManager-storage';
+import {
+  SESSION_STORAGE_KEYS,
+  invalidateSessionCache,
+  markSessionInvalid,
+  requestReEncryptAtRest,
+} from '@/utils/sessionManager-storage';
 import {
   checkForUpdate,
   getCachedUpdateInfo,
@@ -12,6 +16,21 @@ import {
 } from '@/utils/updateChecker';
 import { getSidePanelPort } from './sidePanelManager';
 import { invalidatePasswordCache, warmPasswordCache } from './passwordCache';
+
+/**
+ * 惰性加载 StorageUtils
+ *
+ * backgroundServices 对 StorageUtils 的调用均发生在事件回调（alarm/idle/onStartup）中，
+ * 而非 SW 启动同步路径。动态导入可将整个 storage 层移出 SW 初始包，
+ * 减少 Windows 冷启动时的 parse/compile 开销，与 messageRouter 的惰性加载模式一致。
+ */
+let _storageModule: typeof import('@/utils/storage') | null = null;
+async function _getStorageUtils(): Promise<(typeof import('@/utils/storage'))['StorageUtils']> {
+  if (!_storageModule) {
+    _storageModule = await import('@/utils/storage');
+  }
+  return _storageModule.StorageUtils;
+}
 
 /** 自动备份提醒闹钟名称 */
 const AUTO_BACKUP_ALARM_NAME = 'auto-backup-passwords';
@@ -27,11 +46,14 @@ const SW_KEEPALIVE_ALARM_NAME = 'sw-keepalive';
 /**
  * SW 保活间隔（分钟）
  *
- * Chrome 扩展 MV3 的 chrome.alarms.create 最小 periodInMinutes 为 0.5（30 秒），
- * 但实际测试中部分 Chrome 版本限制为 1 分钟。使用 1 分钟确保兼容性。
- * 每次 alarm 触发会重置 SW 的 30 秒空闲计时器，从而保持 SW 存活。
+ * Chrome 扩展 MV3 的 chrome.alarms.create 最小 periodInMinutes 为 0.5（30 秒）。
+ * 每次 alarm 触发会唤醒 SW 并重置其 30 秒空闲计时器。使用 0.5 分钟（30 秒）
+ * 尽量收窄「alarm 间隔 - 空闲 30s」的冷启动空档，逼近连续保活；
+ * 不支持 0.5 的旧版 Chrome 会自动上钳到 1 分钟，安全兼容。
+ * 注意：MV3 下无客户端连接时仅能靠 alarm 外部唤醒，无法达成 100% 保活，
+ * 仍需配合 preWarmServiceWorker 覆盖用户点击前的时刻。
  */
-const SW_KEEPALIVE_INTERVAL_MINUTES = 1;
+const SW_KEEPALIVE_INTERVAL_MINUTES = 0.5;
 
 /**
  * 设置插件图标更新徽标
@@ -130,6 +152,7 @@ async function setupAutoBackupAlarm() {
   try {
     await chrome.alarms.clear(AUTO_BACKUP_ALARM_NAME);
 
+    const StorageUtils = await _getStorageUtils();
     const config = await StorageUtils.getEmailBackupConfig();
 
     if (config.autoBackup && config.email) {
@@ -164,6 +187,7 @@ async function setupAutoBackupAlarm() {
  */
 async function performAutoBackup() {
   try {
+    const StorageUtils = await _getStorageUtils();
     const config = await StorageUtils.getEmailBackupConfig();
 
     if (!config.email) {
@@ -246,7 +270,7 @@ async function clearSwKeepaliveAlarm(): Promise<void> {
 /**
  * 根据会话状态同步 SW 保活闹钟
  *
- * 检查 storage 中是否存在有效的会话（session_master_password + session_password_expiry），
+ * 检查 storage 中是否存在有效的会话（session_wrapped_data_key/旧版 session_master_password + session_password_expiry），
  * 有效则启用保活闹钟，无效则停止。在 SW 启动、会话创建/清除时调用。
  *
  * Windows 性能优化核心：SW 保活使 passwordCache 持续在内存中，
@@ -256,12 +280,13 @@ async function clearSwKeepaliveAlarm(): Promise<void> {
 export async function syncSwKeepaliveAlarm(): Promise<void> {
   try {
     const result = await chrome.storage.local.get([
+      SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
       SESSION_STORAGE_KEYS.MASTER_PASSWORD,
       SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
     ]);
 
     const hasSession = !!(
-      result[SESSION_STORAGE_KEYS.MASTER_PASSWORD] &&
+      (result[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] || result[SESSION_STORAGE_KEYS.MASTER_PASSWORD]) &&
       result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] &&
       Date.now() < (result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number)
     );
@@ -273,6 +298,31 @@ export async function syncSwKeepaliveAlarm(): Promise<void> {
     }
   } catch (error) {
     logger.error('Background: 同步 SW 保活闹钟状态失败:', error);
+  }
+}
+
+/**
+ * 浏览器启动时按设置执行安全重锁
+ *
+ * 当用户开启「浏览器重启后重新锁定」时，浏览器/配置文件启动（chrome.runtime.onStartup）
+ * 清除会话，使数据密钥不再从磁盘自动恢复——彻底关闭「活动会话期磁盘可解密」向量。
+ * onStartup 仅在浏览器/配置文件启动时触发，Service Worker 空闲重启不会触发，
+ * 因此不影响会话跨 SW 重启存活；默认关闭时行为完全不变。
+ */
+export async function handleBrowserStartupRelock(): Promise<void> {
+  try {
+    const StorageUtils = await _getStorageUtils();
+    const config = await StorageUtils.getIdleLockConfig();
+    if (!config.relockOnBrowserRestart) return;
+
+    // 显式、同步地完成清理：clearSession 触发的 storage.onChanged 虽也会失效缓存 / 同步保活闹钟，
+    // 但此处不依赖该异步事件时序，直接调用以确保浏览器启动重锁即时生效（防御性冗余）。
+    await StorageUtils.clearSession();
+    invalidatePasswordCache();
+    await clearSwKeepaliveAlarm();
+    logger.info('Background: 已按设置在浏览器启动时清除会话，需重新输入主密码');
+  } catch (error) {
+    logger.error('Background: 浏览器启动重锁处理失败:', error);
   }
 }
 
@@ -308,6 +358,7 @@ export function setupBackgroundServices(): void {
         const minutes = config?.idleLockMinutes ?? 0;
 
         if (minutes > 0) {
+          const StorageUtils = await _getStorageUtils();
           await StorageUtils.clearSession();
           logger.info('Background: 系统锁定，已清除主密码会话');
 
@@ -360,7 +411,7 @@ export function setupBackgroundServices(): void {
 
       const relevantKeys = [
         STORAGE_KEYS.PASSWORDS,
-        SESSION_STORAGE_KEYS.MASTER_PASSWORD,
+        SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
         SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
       ];
       const hasRelevantChange = Object.keys(changes).some(key => relevantKeys.includes(key));
@@ -370,8 +421,19 @@ export function setupBackgroundServices(): void {
         invalidatePasswordCache();
       }
 
+      // at-rest 安全网：旧版升级期并发 CRUD 写入可能把尚未迁移的明文重新写回，
+      // 检测到明文残留时请求后台重跑一次密文化，尽快自愈明文再落盘窗口。
+      // 稳态全密文时 some() 快速返回、无副作用；迁移写回全密文后不再触发，无循环。
+      const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
+      if (passwordsChange) {
+        const newPasswords = passwordsChange.newValue as { encrypted?: boolean }[] | undefined;
+        if (Array.isArray(newPasswords) && newPasswords.some(e => e.encrypted !== true)) {
+          requestReEncryptAtRest();
+        }
+      }
+
       // 会话状态变化时同步 SW 保活闹钟（会话创建 → 启用，会话清除 → 停止）
-      const sessionKeys = [SESSION_STORAGE_KEYS.MASTER_PASSWORD, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
+      const sessionKeys = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
       const sessionKeyChanges = Object.entries(changes).filter(([key]) => sessionKeys.includes(key));
 
       if (sessionKeyChanges.length > 0) {
@@ -439,6 +501,7 @@ export function setupBackgroundServices(): void {
             // 主动锁定：会话仍存活的 SW 中一次性完成「加密全部密码 + 删除会话键」，
             // 使用户之后打开侧边栏走 isSessionValid 的「无会话键 → 立即 false」快路径，
             // 从根上避免打开侧边栏时才触发全量重加密（Windows Web Crypto 慢导致数秒卡顿）。
+            const StorageUtils = await _getStorageUtils();
             await StorageUtils.clearSession().catch(e => {
               logger.error('Background: SW 保活闹钟过期锁定失败:', e);
             });

@@ -122,7 +122,22 @@
           <div class="action-card__title">密码管理</div>
           <div class="action-card__desc">管理所有已保存的账号密码</div>
         </div>
-        <kbd class="action-card__shortcut">{{ shortcuts.open_options }}</kbd>
+        <kbd
+          v-if="shortcutAssigned.open_options"
+          class="action-card__shortcut"
+          >{{ shortcuts.open_options }}</kbd
+        >
+        <button
+          v-else
+          type="button"
+          class="action-card__shortcut action-card__shortcut-btn"
+          title="前往 Chrome 设置快捷键"
+          @click.stop="openShortcutsPage"
+          @keydown.enter.stop.prevent="openShortcutsPage"
+          @keydown.space.stop.prevent="openShortcutsPage"
+        >
+          设置快捷键
+        </button>
       </div>
 
       <div
@@ -140,7 +155,22 @@
           <div class="action-card__title">快速填充</div>
           <div class="action-card__desc">在当前页面快速填充账号密码</div>
         </div>
-        <kbd class="action-card__shortcut">{{ shortcuts.toggle_sidepanel }}</kbd>
+        <kbd
+          v-if="shortcutAssigned.toggle_sidepanel"
+          class="action-card__shortcut"
+          >{{ shortcuts.toggle_sidepanel }}</kbd
+        >
+        <button
+          v-else
+          type="button"
+          class="action-card__shortcut action-card__shortcut-btn"
+          title="前往 Chrome 设置快捷键"
+          @click.stop="openShortcutsPage"
+          @keydown.enter.stop.prevent="openShortcutsPage"
+          @keydown.space.stop.prevent="openShortcutsPage"
+        >
+          设置快捷键
+        </button>
       </div>
     </div>
 
@@ -180,6 +210,7 @@ const {
   passwordCount,
   domainMatchCount,
   shortcuts,
+  shortcutAssigned,
   currentVersion,
   updateInfo,
   lockLoading,
@@ -205,16 +236,26 @@ const openOptions = async () => {
 };
 
 /**
+ * 打开 Chrome 快捷键设置页
+ * 用于命令未绑定 suggested_key（多因更新后新增命令）时，引导用户手动设置。
+ */
+const openShortcutsPage = async () => {
+  try {
+    await chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  } catch (error) {
+    logger.error('打开快捷键设置页失败:', error);
+  } finally {
+    window.close();
+  }
+};
+
+/**
  * 打开侧边栏
- * 会话无效时跳转到选项页面进行验证，会话有效时尝试打开侧边栏
+ * 始终打开侧边栏（与快捷键、悬浮按钮入口一致）；
+ * 会话失效时由侧边栏内的「会话已失效」卡片引导去选项页验证。
  */
 const openSidePanel = async () => {
   try {
-    if (!isSessionValid.value) {
-      await openOptions();
-      return;
-    }
-
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
       try {
@@ -279,7 +320,7 @@ const handleEmailClick = (event: Event) => {
 .logo {
   margin-right: 0;
   font-size: 24px;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .header-title-group {
@@ -346,20 +387,20 @@ const handleEmailClick = (event: Event) => {
 }
 
 .action-card:hover {
-  background: #f0f7ff;
-  border-color: #c6e2ff;
-  box-shadow: 0 2px 8px rgb(64 158 255 / 10%);
+  background: var(--aph-primary-bg-hover);
+  border-color: var(--aph-primary-border);
+  box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 10%);
 }
 
 .action-card:active {
-  background: #e1effe;
-  box-shadow: 0 1px 4px rgb(64 158 255 / 8%);
+  background: var(--aph-primary-bg);
+  box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
   transform: scale(0.99);
 }
 
 .action-card:focus-visible {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgb(64 158 255 / 25%);
+  border-color: var(--aph-primary);
+  box-shadow: 0 0 0 2px rgb(var(--aph-primary-rgb) / 25%);
 }
 
 .action-card__icon {
@@ -375,12 +416,12 @@ const handleEmailClick = (event: Event) => {
 
 .action-card__icon--primary {
   color: #fff;
-  background: #409eff;
+  background: var(--aph-primary);
 }
 
 .action-card__icon--secondary {
-  color: #409eff;
-  background: #ecf5ff;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
 }
 
 .action-card__content {
@@ -413,6 +454,21 @@ const handleEmailClick = (event: Event) => {
   border: 1px solid #d4d7de;
   border-radius: 4px;
   box-shadow: 0 1px 0 #c8c9cc;
+}
+
+/* 未绑定快捷键时的“设置快捷键”入口按钮：复用 chip 视觉并叠加可点击态 */
+.action-card__shortcut-btn {
+  cursor: pointer;
+  transition:
+    color 0.2s,
+    background-color 0.2s,
+    border-color 0.2s;
+}
+
+.action-card__shortcut-btn:hover {
+  color: #fff;
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
 }
 
 .update-card {
@@ -491,7 +547,7 @@ const handleEmailClick = (event: Event) => {
 }
 
 .email-link {
-  color: #409eff;
+  color: var(--aph-primary);
   text-decoration: none;
 }
 

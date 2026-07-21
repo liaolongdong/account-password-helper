@@ -120,6 +120,36 @@
             show-word-limit
           />
         </el-form-item>
+
+        <el-form-item
+          label="两步验证"
+          prop="totp"
+        >
+          <el-input
+            v-model="localForm.totp"
+            placeholder="选填，粘贴 otpauth:// 链接或密钥（TOTP 两步验证）"
+            :disabled="loading"
+            clearable
+          />
+          <div
+            v-if="localForm.totp && localForm.totp.trim()"
+            class="totp-preview"
+          >
+            <TotpCode
+              v-if="totpPreviewValid"
+              :secret="localForm.totp"
+              diagnostic
+            />
+            <span
+              v-else
+              class="totp-preview__hint"
+              >密钥无法识别，请粘贴 otpauth:// 链接或 Base32 密钥</span
+            >
+          </div>
+          <div class="totp-tip">
+            一个账号只能绑定一把密钥；若要多个验证器同时可用，请在同一次设置中把同一把密钥录入所有 App 后再验证。
+          </div>
+        </el-form-item>
       </el-form>
     </div>
 
@@ -145,11 +175,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, watch } from 'vue';
+import { ref, reactive, watch, computed } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
 import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopover.vue';
+import TotpCode from '@/components/TotpCode.vue';
+import { isValidTotpInput } from '@/utils/totp';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
 
@@ -165,7 +197,7 @@ const props = defineProps<{
   /** 是否为编辑模式 */
   isEditing: boolean;
   /** 表单数据 */
-  form: { username: string; password: string; url: string; tag: string; remark: string };
+  form: { username: string; password: string; url: string; tag: string; remark: string; totp: string };
   /** 表单校验规则 */
   formRules: FormRules;
   /** 提交加载状态 */
@@ -182,7 +214,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
-  'update:form': [value: { username: string; password: string; url: string; tag: string; remark: string }];
+  'update:form': [
+    value: { username: string; password: string; url: string; tag: string; remark: string; totp: string },
+  ];
   'update:tagArray': [value: string[]];
   save: [];
   closed: [];
@@ -195,6 +229,7 @@ const localForm = reactive({
   url: props.form.url,
   tag: props.form.tag,
   remark: props.form.remark,
+  totp: props.form.totp,
 });
 
 /** props -> local 同步（父组件重置时生效，如编辑/新增切换） */
@@ -206,6 +241,7 @@ watch(
     localForm.url = val.url;
     localForm.tag = val.tag;
     localForm.remark = val.remark;
+    localForm.totp = val.totp;
   },
 );
 
@@ -219,6 +255,9 @@ const localFormRef = ref<FormInstance>();
 
 /** 密码输入框焦点状态 */
 const formPasswordInputFocused = ref(false);
+
+/** TOTP 密钥预览是否有效（控制是否展示实时动态码） */
+const totpPreviewValid = computed(() => isValidTotpInput((localForm.totp || '').trim()));
 
 /**
  * 处理密码生成器确认事件
@@ -236,5 +275,24 @@ defineExpose({ formRef: localFormRef });
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
+}
+
+.totp-preview {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  margin-top: 8px;
+}
+
+.totp-preview__hint {
+  font-size: 12px;
+  color: #f56c6c;
+}
+
+.totp-tip {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #909399;
 }
 </style>

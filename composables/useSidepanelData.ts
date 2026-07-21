@@ -4,6 +4,8 @@ import { MessageType } from '@/utils/types';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
 import { logger } from '@/utils/logger';
+import { isExactHostMatch } from '@/utils/domain';
+import { lazyImport } from '@/utils/lazyImport';
 
 // ==================== 延迟加载模块（避免初始加载拉入 encryption.ts 加密链） ====================
 
@@ -11,16 +13,15 @@ import { logger } from '@/utils/logger';
  * 延迟加载 sessionManager-storage 模块（首次回退/事件触发时加载）
  * isSessionValid 在热路径中由 background SW 执行，本地仅在回退和事件处理中使用
  *
- * SidePanel 上下文统一跳过 ensureDataConsistencyWithSession：
- * 后续 getAllPasswords 会自行处理加密数据状态，无需在 isSessionValid 中
- * 重复读取全量密码并触发 O(n) 解密（Windows Web Crypto 较慢，数百条密码需 2~4 秒）
+ * SidePanel 上下文统一跳过 at-rest 密文化检查（skipConsistencyCheck）：
+ * 后续 getAllPasswords 会用会话数据密钥按需解密，无需在 isSessionValid 中
+ * 触发额外的全量读取（Windows Web Crypto 较慢，数百条密码开销明显）
  */
-let _sessionModule: typeof import('@/utils/sessionManager-storage') | null = null;
+const getSessionModule = lazyImport(() => import('@/utils/sessionManager-storage'));
+
 const getIsSessionValid = async () => {
-  if (!_sessionModule) {
-    _sessionModule = await import('@/utils/sessionManager-storage');
-  }
-  return () => _sessionModule!.isSessionValid({ skipConsistencyCheck: true });
+  const sessionModule = await getSessionModule();
+  return () => sessionModule.isSessionValid({ skipConsistencyCheck: true });
 };
 
 /**
@@ -29,23 +30,15 @@ const getIsSessionValid = async () => {
  * 从 5s TTL 缓存中返回过期 true 值。首次调用时触发 dynamic import。
  */
 const invalidateSessionCacheAsync = async () => {
-  if (!_sessionModule) {
-    _sessionModule = await import('@/utils/sessionManager-storage');
-  }
-  _sessionModule.invalidateSessionCache();
+  const sessionModule = await getSessionModule();
+  sessionModule.invalidateSessionCache();
 };
 
 /**
  * 延迟加载 passwordCrud 模块（首次回退路径时加载）
  * getAllPasswords/getPasswordsByUrl 在热路径中由 background SW 执行，本地仅在回退时使用
  */
-let _crudModule: typeof import('@/utils/storage/passwordCrud') | null = null;
-const getPasswordCrudModule = async () => {
-  if (!_crudModule) {
-    _crudModule = await import('@/utils/storage/passwordCrud');
-  }
-  return _crudModule;
-};
+const getPasswordCrudModule = lazyImport(() => import('@/utils/storage/passwordCrud'));
 
 /**
  * SidePanel 数据加载与会话管理 Composable
@@ -108,7 +101,7 @@ export function useSidepanelData() {
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!currentDomain.value) return 0;
     const hasUrl = entry.url && entry.url.trim() !== '';
-    if (hasUrl && (currentDomain.value.includes(entry.url) || entry.url.includes(currentDomain.value))) return 0;
+    if (hasUrl && isExactHostMatch(currentDomain.value, entry.url)) return 0;
     return 1;
   };
 
@@ -286,7 +279,7 @@ export function useSidepanelData() {
    * 的 5s TTL 缓存可能仍返回 true，导致加密数据被加载到 UI 上闪烁。
    */
   const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
-    const sessionKeys = ['session_master_password', 'session_password_expiry', 'session_validity_hours'];
+    const sessionKeys = ['session_wrapped_data_key', 'session_password_expiry', 'session_validity_hours'];
     const hasSessionChange = Object.keys(changes).some(key => sessionKeys.includes(key));
 
     if (hasSessionChange) {
@@ -432,7 +425,8 @@ export function useSidepanelData() {
    * - Background GET_INITIAL_DATA 与本地 storage 直读路径同时启动，取先到者
    * - 热 SW 场景：Background 路径 ~20ms 胜出，本地路径静默完成
    * - 冷 SW 场景：本地路径 ~200-400ms 先完成，Background 迟到结果用于缓存更新
-   * - GET_INITIAL_DATA 超时从 2000ms 降至 400ms，Windows 冷 SW 场景下 SW 启动 + HKDF 约 400-800ms，<br>400ms 超时确保本地路径不空等
+   * - Background 分支设 800ms 兜底上限（见下方 setTimeout）：仅用于让迟到的 bg 结果最终
+   *   resolve 以静默更新缓存，并非竞速主门；冷 SW 场景由本地路径（~200-400ms）先胜出，无需等待该上限
    * - loadCurrentTab 与 GET_INITIAL_DATA 并行执行，节约 ~5ms 串行延迟
    */
   const initSidepanelData = async () => {

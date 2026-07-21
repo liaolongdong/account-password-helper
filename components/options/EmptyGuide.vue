@@ -99,7 +99,7 @@ defineEmits<{
 
 .empty-guide__card:hover {
   border-color: var(--el-color-primary);
-  box-shadow: 0 4px 12px rgb(64 158 255 / 12%);
+  box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 12%);
   transform: translateY(-2px);
 }
 

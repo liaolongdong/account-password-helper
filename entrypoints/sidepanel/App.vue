@@ -196,6 +196,7 @@
             <PasswordListItem
               v-for="(password, index) in filteredPasswords"
               :key="password.id"
+              v-memo="[activeIndex === index, password.favorite, password.updateTime]"
               :password="password"
               :is-active="activeIndex === index"
               @fill="fillPassword"
@@ -204,6 +205,8 @@
               @toggle-favorite="toggleFavorite"
               @copy-username="copyUsername"
               @copy-password="copyPassword"
+              @fill-totp="fillTotp"
+              @copy-totp="copyTotp"
               @mouseenter="activeIndex = index"
             />
           </div>
@@ -271,7 +274,7 @@ import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { isLocalDevDomain } from '@/utils/domain';
+import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
 
 /** 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载） */
 const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
@@ -317,10 +320,8 @@ const {
   runLocalOperation,
 } = useSidepanelData();
 
-const { fillPassword, handleFillAndLogin, handleEditPassword, copyUsername, copyPassword } = useSidepanelFill(
-  passwords,
-  runLocalOperation,
-);
+const { fillPassword, handleFillAndLogin, fillTotp, copyTotp, handleEditPassword, copyUsername, copyPassword } =
+  useSidepanelFill(passwords, runLocalOperation);
 
 /** 设置弹窗 DOM 引用（本地声明以确保 vue-tsc 可追踪模板引用） */
 const settingsPanelEl = ref<HTMLElement | null>(null);
@@ -372,13 +373,15 @@ const showHelpDialog = ref(false);
 const filteredPasswords = computed(() => {
   let result = [...passwords.value];
 
-  // 域名过滤：只显示匹配当前域名的条目 + URL 为空的条目（与 getPasswordsByUrl 逻辑一致）
+  // 域名过滤：只显示与当前域名精确匹配（完整 hostname）的条目 + URL 为空的条目
+  // 复用 isExactHostMatch，与 getPasswordsByUrl / 后台 getMatchingAccounts 匹配逻辑保持一致
+  // 不做子域名/主域名模糊匹配，确保 fat/uat 等多测试环境账号严格隔离
   // 本地开发域名（localhost / 127.0.0.1）跳过过滤，显示全部
   if (currentDomain.value && !isLocalDevDomain(currentDomain.value)) {
     const domain = currentDomain.value;
     result = result.filter(p => {
       if (!p.url || p.url.trim() === '') return true;
-      return domain.includes(p.url) || p.url.includes(domain);
+      return isExactHostMatch(domain, p.url);
     });
   }
 
@@ -494,39 +497,51 @@ const toggleFavorite = async (password: PasswordEntry) => {
     // 提前获取 updateFn 引用，避免在 runLocalOperation async 闭包内 await 导致时序问题
     const updateFn = await getUpdatePasswordInSession();
 
-    await runLocalOperation(async () => {
-      if (newFav) {
-        // 收藏前检查是否已达上限，若达则先淘汰 LRU 条目（延迟加载 autoSaveManager）
-        const evictFn = await getEvictLRUFavoriteIfNeeded();
+    if (newFav) {
+      // 收藏前需先处理 LRU 淘汰（需 evicted 结果用于提示），淘汰写入放在守卫内
+      const evictFn = await getEvictLRUFavoriteIfNeeded();
+      // 持久化走 1.5s 防抖批量写：不阻塞点击交互；用 runLocalOperation 包裹并在其内部 await，
+      // 使本地操作守卫覆盖淘汰写入与真实写入（flush）时刻，避免触发全量重载闪烁
+      void runLocalOperation(async () => {
         const evicted = await evictFn(passwords.value);
         if (evicted) {
           const limit = await getFavoriteLimit();
           ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
         }
         const now = Date.now();
-        await updateFn(password.id, {
-          favorite: true,
-          favoriteUsedAt: now,
-          updateTime: password.updateTime,
-        });
+        // 乐观更新：先就地更新 UI 与提示，避免受防抖写入阻塞造成的交互卡顿
         if (entry) {
           entry.favorite = true;
           entry.favoriteUsedAt = now;
         }
         ElMessage.success('已收藏');
-      } else {
+        await updateFn(password.id, {
+          favorite: true,
+          favoriteUsedAt: now,
+          updateTime: password.updateTime,
+        });
+      }).catch(error => {
+        logger.error('切换收藏失败:', error);
+        ElMessage.error('操作失败');
+      });
+    } else {
+      // 乐观更新：先就地更新 UI 与提示（取消收藏无淘汰逻辑，可立即反馈）
+      if (entry) {
+        entry.favorite = false;
+        entry.favoriteUsedAt = undefined;
+      }
+      ElMessage.success('已取消收藏');
+      void runLocalOperation(async () => {
         await updateFn(password.id, {
           favorite: false,
           favoriteUsedAt: undefined,
           updateTime: password.updateTime,
         });
-        if (entry) {
-          entry.favorite = false;
-          entry.favoriteUsedAt = undefined;
-        }
-        ElMessage.success('已取消收藏');
-      }
-    });
+      }).catch(error => {
+        logger.error('切换收藏失败:', error);
+        ElMessage.error('操作失败');
+      });
+    }
   } catch (error) {
     logger.error('切换收藏失败:', error);
     ElMessage.error('操作失败');
@@ -744,12 +759,12 @@ onMounted(async () => {
   font-size: 14px;
   font-weight: 500;
   border-radius: 20px;
-  box-shadow: 0 2px 8px rgb(64 158 255 / 25%);
+  box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 25%);
   transition: all 0.25s ease;
 }
 
 :deep(.empty-add-btn:hover) {
-  box-shadow: 0 4px 14px rgb(64 158 255 / 40%);
+  box-shadow: 0 4px 14px rgb(var(--aph-primary-rgb) / 40%);
   transform: translateY(-1px);
 }
 
@@ -759,18 +774,18 @@ onMounted(async () => {
   padding: 10px 0;
   font-size: 14px;
   font-weight: 500;
-  color: #409eff;
-  background: #ecf5ff;
-  border: 1px solid #d9ecff;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+  border: 1px solid var(--aph-primary-border);
   border-radius: 8px;
   transition: all 0.25s ease;
 }
 
 :deep(.footer-manage-btn:hover) {
   color: #fff;
-  background: #409eff;
-  border-color: #409eff;
-  box-shadow: 0 2px 8px rgb(64 158 255 / 30%);
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
+  box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 30%);
   transform: translateY(-1px);
 }
 
@@ -806,13 +821,13 @@ onMounted(async () => {
   width: 56px;
   height: 56px;
   margin-bottom: 20px;
-  background: #ecf5ff;
+  background: var(--aph-primary-bg);
   border-radius: 50%;
 }
 
 .auth-icon {
   font-size: 28px;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .auth-title {
@@ -860,9 +875,9 @@ onMounted(async () => {
 
 /* 排序触发按钮：当选中非默认排序时显示微妙激活态 */
 .search-section :deep(.el-dropdown) .el-button.is-active-sort {
-  color: #409eff;
-  background: #ecf5ff;
-  border-color: #d9ecff;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+  border-color: var(--aph-primary-border);
 }
 </style>
 
@@ -909,7 +924,7 @@ onMounted(async () => {
   align-items: center;
   font-size: 14px;
   font-weight: 700;
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item:hover {
@@ -922,12 +937,12 @@ onMounted(async () => {
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item.is-active {
-  color: #409eff;
-  background: #ecf5ff;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item.is-active .sort-item-icon {
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 html,

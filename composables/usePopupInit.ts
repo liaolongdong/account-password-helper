@@ -5,6 +5,7 @@ import { logger } from '@/utils/logger';
 import { useShortcuts } from '@/composables/useShortcuts';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useSessionLock } from '@/composables/useSessionLock';
+import { isExactHostMatch } from '@/utils/domain';
 
 /**
  * Popup 初始化编排 Composable
@@ -13,7 +14,7 @@ import { useSessionLock } from '@/composables/useSessionLock';
  */
 export function usePopupInit() {
   // ==================== 组合子 composables ====================
-  const { shortcuts, loadShortcuts } = useShortcuts();
+  const { shortcuts, shortcutAssigned, loadShortcuts } = useShortcuts();
   const { currentVersion, updateInfo, initUpdateCheck, openUpdatePage } = useVersionUpdate();
 
   // ==================== 自身状态 ====================
@@ -37,7 +38,7 @@ export function usePopupInit() {
     if (!currentDomain.value) return 0;
     return allPasswords.value.filter(p => {
       if (!p.url) return false;
-      return currentDomain.value.includes(p.url) || p.url.includes(currentDomain.value);
+      return isExactHostMatch(currentDomain.value, p.url);
     }).length;
   });
 
@@ -88,6 +89,7 @@ export function usePopupInit() {
     domainMatchCount,
     // 子 composable 暴露
     shortcuts,
+    shortcutAssigned,
     currentVersion,
     updateInfo,
     lockLoading,

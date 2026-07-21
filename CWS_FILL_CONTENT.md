@@ -1,6 +1,8 @@
 # CWS 商店填写素材 — 复制粘贴用
 
-> 按 Developer Console 的页面顺序整理，逐项复制粘贴即可。
+> ✅ **已上架**：https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli
+>
+> 按 Developer Console 的页面顺序整理，逐项复制粘贴即可。后续版本更新时仅需重新上传 zip 包。
 
 ---
 
@@ -9,10 +11,10 @@
 在 Dashboard 点击「新建商品」(New Item)，上传以下文件：
 
 ```
-.output/account-password-helper-2.9.0-chrome.zip
+.output/account-password-helper-2.10.0-chrome.zip
 ```
 
-文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-2.9.0-chrome.zip`
+文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-2.10.0-chrome.zip`
 
 ---
 
@@ -27,7 +29,7 @@ Account Password Helper
 ### 摘要 (Summary) — 最多 132 字符
 
 ```
-安全、便捷的本地密码管理工具。AES-256 加密，数据不出浏览器。支持智能表单检测、一键填充、自动保存、导入导出。
+安全、便捷的本地密码管理工具。AES-256 加密，数据不出浏览器。智能表单检测、一键填充、自动保存、加密备份、TOTP验证码、安全体检、浏览器重启锁定。
 ```
 
 ### 说明 (Description) — 最多 16,000 字符
@@ -41,14 +43,28 @@ Account Password Helper
 • 数据全部存储在本地，零网络传输
 • 主密码加盐哈希保护
 • 会话超时自动锁定
+• 支持配置闲置自动锁定
+• 浏览器重启锁定（可选）
+• 跨 iframe 表单检测与填充
 
 ⚡ 便捷功能
 • 智能表单检测，一键自动填充
-• 侧边栏快捷管理密码
+• 侧边栏快捷管理密码（毫秒级响应）
+• 内联填充模式（登录框内钥匙图标，点击即填充）
 • 自动保存新登录凭据
 • CSV / JSON / 加密备份导入导出
+• 邮箱备份（支持加密/不加密两种方式）
 • 随机密码生成器
 • 剪贴板自动清除
+• TOTP 两步验证码（本地 RFC 6238 动态码，零网络）
+• 6 款色彩主题（晴空蓝/青竹绿/桃花粉/樱粉紫/落霞橙/雾墨灰）
+• Service Worker 保活，确保持续可用
+
+🔍 安全体检
+• 一键扫描密码库健康状况（0~100 分综合评分）
+• 检测弱密码、密码复用、长时间未更新（90/180/365 天分级预警）
+• 提示未开启两步验证的账号
+• 全程本地计算，不联网、不上传任何数据
 
 🎯 适用场景
 • 开发测试多账号切换
@@ -58,11 +74,13 @@ Account Password Helper
 📦 数据管理
 • CSV / JSON 导入导出
 • 加密备份文件（.aph 格式）
-• 邮件备份提醒
+• 邮件备份提醒（支持加密备份）
 • 密码收藏夹
 
 ⚙️ 高度可定制
+• 6 款色彩主题，一键换肤
 • 可配置会话超时时间
+• 浏览器重启锁定开关
 • 浮动按钮位置、透明度可调
 • 自动保存行为可开关
 • 排序方式自定义
@@ -169,13 +187,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **alarms**
 
 ```
-定时执行版本更新检查（每 6 小时）和自动备份提醒，通过 chrome.alarms API 实现。
-```
-
-**downloads**
-
-```
-支持将密码数据导出为 CSV、JSON 文件或加密备份文件（.aph 格式）到本地。
+定时执行版本更新检查（每 6 小时）、自动备份提醒和 Service Worker 保活（会话期间每 1 分钟），通过 chrome.alarms API 实现。
 ```
 
 **notifications**
@@ -187,7 +199,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **idle**
 
 ```
-检测用户空闲状态，在超过设定的超时时间后自动锁定扩展，保护密码安全。
+检测用户空闲状态，在超过设定的超时时间后自动锁定扩展；同时支持浏览器重启锁定功能，在浏览器重新启动时检测是否需要重新验证主密码，保护密码安全。
 ```
 
 **clipboardWrite**
@@ -199,7 +211,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **clipboardRead**
 
 ```
-支持从剪贴板粘贴数据以实现批量导入功能。
+读取剪贴板内容，用于在自动清除剪贴板前验证内容未被用户替换，确保密码清除的安全性和准确性。
 ```
 
 **webNavigation**

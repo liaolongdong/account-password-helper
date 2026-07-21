@@ -1,7 +1,18 @@
 <script setup lang="ts">
-import { User, CopyDocument, Key, Star, StarFilled, Promotion, EditPen } from '@element-plus/icons-vue';
+import {
+  User,
+  CopyDocument,
+  Key,
+  Star,
+  StarFilled,
+  Promotion,
+  EditPen,
+  Timer,
+  DocumentCopy,
+} from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
-import { getTagColor, parseTags } from '@/utils/tagUtils';
+import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
+import TotpCode from '@/components/TotpCode.vue';
 
 interface Props {
   /** 密码条目数据 */
@@ -23,6 +34,10 @@ interface Emits {
   copyUsername: [username: string];
   /** 复制密码 */
   copyPassword: [password: string];
+  /** 填充 TOTP 两步验证码 */
+  fillTotp: [password: PasswordEntry];
+  /** 复制 TOTP 两步验证码 */
+  copyTotp: [password: PasswordEntry];
 }
 
 defineProps<Props>();
@@ -66,8 +81,7 @@ defineEmits<Emits>();
           v-for="t in parseTags(password.tag)"
           :key="t"
           :title="t"
-          :color="getTagColor(t).background"
-          :style="{ color: getTagColor(t).text, borderColor: getTagColor(t).border }"
+          :style="getTagFullStyle(t)"
           size="small"
           class="tag-item"
         >
@@ -92,8 +106,32 @@ defineEmits<Emits>();
           {{ password.remark }}
         </el-text>
       </div>
+      <div
+        v-if="password.totp"
+        class="totp-row"
+        @click.stop
+        @mousedown.stop
+      >
+        <TotpCode :secret="password.totp" />
+      </div>
     </div>
     <div class="password-actions">
+      <el-icon
+        v-if="password.totp"
+        class="action-icon totp-fill-icon"
+        title="填充验证码"
+        @click.stop="$emit('fillTotp', password)"
+      >
+        <Timer />
+      </el-icon>
+      <el-icon
+        v-if="password.totp"
+        class="action-icon totp-copy-icon"
+        title="复制验证码"
+        @click.stop="$emit('copyTotp', password)"
+      >
+        <DocumentCopy />
+      </el-icon>
       <el-icon
         class="action-icon favorite-icon"
         :class="{ 'is-favorite': password.favorite }"
@@ -150,8 +188,8 @@ defineEmits<Emits>();
 
 .password-item.active {
   padding-left: 13px;
-  background: #ecf5ff;
-  border-left: 3px solid #409eff;
+  background: var(--aph-primary-bg);
+  border-left: 3px solid var(--aph-primary);
 }
 
 .password-info {
@@ -195,7 +233,7 @@ defineEmits<Emits>();
 }
 
 .copy-icon-wrapper:hover {
-  background-color: rgb(64 158 255 / 10%);
+  background-color: rgb(var(--aph-primary-rgb) / 10%);
   transform: scale(1.12);
 }
 
@@ -206,7 +244,7 @@ defineEmits<Emits>();
 }
 
 .copy-icon-wrapper:hover .copy-icon {
-  color: #409eff;
+  color: var(--aph-primary);
 }
 
 .details {
@@ -227,7 +265,9 @@ defineEmits<Emits>();
   /* 单行展示，超长省略，配合外层 el-tooltip 显示完整内容 */
   box-sizing: border-box;
   min-width: 0;
-  max-width: 120px;
+
+  /* 上限 120px，同时不超过容器宽度：窄容器时随之收缩，避免标签溢出导致右侧圆角被裁切，与列表表格截断行为保持一致 */
+  max-width: min(120px, 100%);
   padding: 0 6px;
   margin: 0;
 
@@ -272,6 +312,10 @@ defineEmits<Emits>();
   white-space: nowrap;
 }
 
+.totp-row {
+  margin-top: 4px;
+}
+
 .password-actions {
   display: flex;
   flex-shrink: 0;
@@ -309,6 +353,19 @@ defineEmits<Emits>();
   color: #67c23a;
 }
 
+.totp-fill-icon,
+.totp-copy-icon {
+  margin-right: 8px;
+  color: #b0b7c3;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.totp-fill-icon:hover,
+.totp-copy-icon:hover {
+  color: var(--aph-primary);
+}
+
 .edit-icon {
   color: #b0b7c3;
   cursor: pointer;
@@ -323,6 +380,6 @@ defineEmits<Emits>();
 }
 
 .edit-icon:hover {
-  color: #409eff;
+  color: var(--aph-primary);
 }
 </style>
