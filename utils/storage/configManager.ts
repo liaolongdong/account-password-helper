@@ -9,7 +9,7 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { DEFAULT_THEME } from '@/utils/theme';
 import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
-import { isDomainMatch } from '@/utils/domain';
+import { isExactHostMatch } from '@/utils/domain';
 
 /** 默认收藏上限 */
 export const DEFAULT_FAVORITE_LIMIT = 10;
@@ -97,7 +97,7 @@ export async function applySavedSortConfig(passwords: PasswordEntry[], domain?: 
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!domain) return 0;
     const hasUrl = entry.url && entry.url.trim() !== '';
-    if (hasUrl && isDomainMatch(domain, entry.url)) return 0;
+    if (hasUrl && isExactHostMatch(domain, entry.url)) return 0;
     return 1;
   };
 

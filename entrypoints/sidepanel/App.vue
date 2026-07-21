@@ -274,7 +274,7 @@ import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { isDomainMatch, isLocalDevDomain } from '@/utils/domain';
+import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
 
 /** 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载） */
 const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
@@ -373,14 +373,15 @@ const showHelpDialog = ref(false);
 const filteredPasswords = computed(() => {
   let result = [...passwords.value];
 
-  // 域名过滤：只显示匹配当前域名的条目 + URL 为空的条目
-  // 复用 isDomainMatch，与 getPasswordsByUrl / 后台 getMatchingAccounts 匹配逻辑保持一致
+  // 域名过滤：只显示与当前域名精确匹配（完整 hostname）的条目 + URL 为空的条目
+  // 复用 isExactHostMatch，与 getPasswordsByUrl / 后台 getMatchingAccounts 匹配逻辑保持一致
+  // 不做子域名/主域名模糊匹配，确保 fat/uat 等多测试环境账号严格隔离
   // 本地开发域名（localhost / 127.0.0.1）跳过过滤，显示全部
   if (currentDomain.value && !isLocalDevDomain(currentDomain.value)) {
     const domain = currentDomain.value;
     result = result.filter(p => {
       if (!p.url || p.url.trim() === '') return true;
-      return isDomainMatch(domain, p.url);
+      return isExactHostMatch(domain, p.url);
     });
   }
 

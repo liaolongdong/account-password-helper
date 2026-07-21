@@ -4,7 +4,7 @@ import { logger } from '@/utils/logger';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getAllPasswords } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
-import { isLocalDevDomain, isDomainMatch } from '@/utils/domain';
+import { isLocalDevDomain, isExactHostMatch } from '@/utils/domain';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 
 /** 模块级缓存状态（Service Worker 生命周期内有效） */
@@ -234,17 +234,18 @@ export async function getMatchingAccounts(domain: string): Promise<MatchingAccou
 
   const list = cache.passwords;
   // 过滤（与侧边栏 filteredPasswords 一致，含无 URL 条目）
+  // 仅精确匹配完整 hostname，确保 fat/uat 等多测试环境账号严格隔离
   const matched = list.filter(p => {
     if (isLocalDevDomain(domain)) return true;
     if (!p.url || p.url.trim() === '') return true;
-    return isDomainMatch(domain, p.url);
+    return isExactHostMatch(domain, p.url);
   });
 
   // 域名优先级（与侧边栏 getDomainPriority 一致）：0=匹配，1=不匹配
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!domain) return 0;
     const hasUrl = !!entry.url && entry.url.trim() !== '';
-    if (hasUrl && isDomainMatch(domain, entry.url)) return 0;
+    if (hasUrl && isExactHostMatch(domain, entry.url)) return 0;
     return 1;
   };
 
