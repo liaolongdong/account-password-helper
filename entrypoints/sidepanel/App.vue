@@ -267,6 +267,7 @@ import {
 } from '@element-plus/icons-vue';
 import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
+import BrandLogo from '@/components/BrandLogo.vue';
 import type { PasswordEntry } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { saveSidepanelSortConfig, getFavoriteLimit } from '@/utils/storage/configManager';
@@ -276,11 +277,14 @@ import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
 
-/** 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载） */
+/**
+ * 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载）
+ *
+ * 保持独立 chunk 不打进初始关键包（含较重的 el-dialog），避免拖慢首帧；
+ * 首帧后由 onMounted 空闲预取该 chunk（见下方 preloadIdleModules），
+ * 使 Windows 会话失效冷环境下首次点击「?」时 chunk 已温热、即时打开。
+ */
 const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
-
-/** 品牌 Logo——异步加载（纯 SVG，Footer 按钮 icon 使用） */
-const BrandLogo = defineAsyncComponent(() => import('@/components/BrandLogo.vue'));
 
 // ==================== 延迟加载模块（用户交互时触发，避免初始加载拉入 encryption.ts） ====================
 
@@ -613,15 +617,18 @@ onMounted(async () => {
     setTimeout(() => skeletonEl.remove(), 250);
   }
 
-  // 数据加载完成后，空闲时预加载设置弹窗模块（不阻塞首屏渲染）
+  // 数据加载完成后，空闲时预加载设置弹窗模块 + 预取操作指引弹窗 chunk（不阻塞首屏渲染）
+  // 预取 HelpDialog：冷环境（Windows 会话失效期）下用户首次点击「?」时 chunk 已温热、即时打开，
+  // 避免首次点击触发冷 chunk fetch 造成数秒延迟；未取完前点击则退化为按需加载，无回退风险。
+  const preloadIdleModules = () => {
+    void ensureSettingsModule();
+    // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk
+    void import('@/components/sidepanel/HelpDialog.vue');
+  };
   if (typeof requestIdleCallback !== 'undefined') {
-    requestIdleCallback(() => {
-      void ensureSettingsModule();
-    });
+    requestIdleCallback(preloadIdleModules);
   } else {
-    setTimeout(() => {
-      void ensureSettingsModule();
-    }, 1000);
+    setTimeout(preloadIdleModules, 1000);
   }
 });
 </script>
