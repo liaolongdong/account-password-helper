@@ -155,8 +155,12 @@ export function setupMessageRouter(): void {
   chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
     switch (message.type) {
       case MessageType.SIDEPANEL_PRELOAD: {
-        // 预唤醒消息：主动预热缓存，无需额外处理
+        // 预唤醒消息：主动预热密码缓存
         warmPasswordCache();
+        // Windows 会话失效期额外预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，缓解冷启动白屏）：
+        // 用户 hover/focus「即将打开」时抢跑一次。懒 import 不增大 SW 初始包，fire-and-forget 不阻塞响应；
+        // 函数内自带平台/会话门控与节流，非 Windows / 会话有效直接跳过
+        void import('@/utils/warmSidePanelResources').then(m => m.maybeWarmSidePanelResources()).catch(() => {});
         sendResponse({ success: true });
         return;
       }

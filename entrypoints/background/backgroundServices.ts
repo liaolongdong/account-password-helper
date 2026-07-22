@@ -14,6 +14,7 @@ import {
   UPDATE_CHECK_ALARM_NAME,
   UPDATE_CHECK_INTERVAL_MINUTES,
 } from '@/utils/updateChecker';
+import { isWindowsPlatform } from '@/utils/platform';
 import { getSidePanelPort } from './sidePanelManager';
 import { invalidatePasswordCache, warmPasswordCache } from './passwordCache';
 
@@ -38,8 +39,10 @@ const AUTO_BACKUP_ALARM_NAME = 'auto-backup-passwords';
 /**
  * Service Worker 保活闹钟名称
  *
- * 在会话有效期内定期唤醒 SW，防止因 30 秒空闲超时被终止，
- * 确保 passwordCache（内存缓存）持续可用，使侧边栏首屏加载走缓存竞速快速通道。
+ * 定期唤醒 SW，防止因 30 秒空闲超时被终止。
+ * - 会话有效期内（全平台）：保持 passwordCache（内存缓存）常驻，使侧边栏首屏走缓存竞速快速通道。
+ * - Windows 会话失效后（差异化策略）：仍保持常驻，使侧边栏任何打开路径都命中热 SW，
+ *   消除 Windows 冷启动导致的数秒白屏；非 Windows 会话失效后停止保活以节省资源。
  */
 const SW_KEEPALIVE_ALARM_NAME = 'sw-keepalive';
 
@@ -239,7 +242,8 @@ async function performAutoBackup() {
  * 防止因 30 秒空闲超时被 Chrome 终止。SW 存活意味着 passwordCache（内存缓存）
  * 持续可用，使侧边栏首屏加载能通过缓存竞速快速通道在 20-50ms 内获得数据。
  *
- * 仅在会话有效期内启用，会话过期后自动停止，避免无谓的 CPU 和电池消耗。
+ * 启用时机见 syncSwKeepaliveAlarm：非 Windows 仅会话有效期内启用（过期即停止以省资源）；
+ * Windows 始终启用（含会话失效后），以消除侧边栏打开时的冷启动白屏。
  */
 async function setupSwKeepaliveAlarm(): Promise<void> {
   try {
@@ -256,7 +260,8 @@ async function setupSwKeepaliveAlarm(): Promise<void> {
 /**
  * 停止 Service Worker 保活闹钟
  *
- * 会话过期或清除时调用，避免无会话时的无效唤醒。
+ * 非 Windows 在会话过期或清除时调用，避免无会话时的无效唤醒；
+ * Windows 上因需常驻保活，各上锁路径改调 syncSwKeepaliveAlarm，不会走到此处停止。
  */
 async function clearSwKeepaliveAlarm(): Promise<void> {
   try {
@@ -268,17 +273,25 @@ async function clearSwKeepaliveAlarm(): Promise<void> {
 }
 
 /**
- * 根据会话状态同步 SW 保活闹钟
+ * 根据平台与会话状态同步 SW 保活闹钟
  *
- * 检查 storage 中是否存在有效的会话（session_wrapped_data_key/旧版 session_master_password + session_password_expiry），
- * 有效则启用保活闹钟，无效则停止。在 SW 启动、会话创建/清除时调用。
+ * - Windows（差异化策略）：始终启用保活闹钟，无论会话是否有效。使侧边栏任何打开路径
+ *   （悬浮按钮消息 / 快捷键命令）都命中热 SW，从根上消除会话失效后 Chrome 冷启动
+ *   （Windows 300-800ms 起，极端可达数秒）导致的白屏卡顿。
+ * - 非 Windows：仅在会话有效期内启用，会话过期/清除后停止，避免无谓的 CPU 和电池消耗
+ *   （Mac 冷启动足够快，本就秒开，无需常驻）。
  *
- * Windows 性能优化核心：SW 保活使 passwordCache 持续在内存中，
- * 侧边栏的缓存竞速（GET_CACHED_PASSWORDS）可在 20-50ms 内命中，
- * 避免因 SW 冷启动（Windows 300-800ms）导致竞速超时回退到慢速 storage 直读路径。
+ * 在 SW 启动、会话创建/清除、上锁等时机调用，作为「是否保活」的集中决策点。
  */
 export async function syncSwKeepaliveAlarm(): Promise<void> {
   try {
+    // Windows：始终常驻保活，短路返回，不依赖会话状态
+    if (await isWindowsPlatform()) {
+      await setupSwKeepaliveAlarm();
+      return;
+    }
+
+    // 非 Windows：仅会话有效期内保活
     const result = await chrome.storage.local.get([
       SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
       SESSION_STORAGE_KEYS.MASTER_PASSWORD,
@@ -319,7 +332,8 @@ export async function handleBrowserStartupRelock(): Promise<void> {
     // 但此处不依赖该异步事件时序，直接调用以确保浏览器启动重锁即时生效（防御性冗余）。
     await StorageUtils.clearSession();
     invalidatePasswordCache();
-    await clearSwKeepaliveAlarm();
+    // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
+    await syncSwKeepaliveAlarm();
     logger.info('Background: 已按设置在浏览器启动时清除会话，需重新输入主密码');
   } catch (error) {
     logger.error('Background: 浏览器启动重锁处理失败:', error);
@@ -363,7 +377,8 @@ export function setupBackgroundServices(): void {
           logger.info('Background: 系统锁定，已清除主密码会话');
 
           invalidatePasswordCache();
-          await clearSwKeepaliveAlarm();
+          // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
+          await syncSwKeepaliveAlarm();
 
           const port = getSidePanelPort();
           if (port) {
@@ -484,13 +499,21 @@ export function setupBackgroundServices(): void {
       logger.info('Background: 触发版本更新检测闹钟');
       performUpdateCheck();
     } else if (alarm.name === SW_KEEPALIVE_ALARM_NAME) {
-      // SW 保活：alarm 触发本身即已唤醒 SW，重置 30 秒空闲计时器
-      // 额外检查会话有效性，过期则停止保活闹钟以节省资源
+      // Windows 会话失效期：借本次保活唤醒顺带预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，
+      // 缓解冷启动白屏）。懒 import 不增大 SW 初始包；函数内自带平台/会话门控与 60s 节流，
+      // 非 Windows / 会话有效直接跳过，避免每 30 秒无谓预热。
+      void import('@/utils/warmSidePanelResources').then(m => m.maybeWarmSidePanelResources()).catch(() => {});
+
+      // SW 保活：alarm 触发本身即已唤醒 SW，重置 30 秒空闲计时器。
+      // 仅当「会话键存在且已过期」时执行一次性上锁；expiry 为空（无会话，含已上锁）
+      // 或未来（会话有效）时不做任何处理，仅借本次唤醒保持 SW 热。
+      // 该条件天然防止 Windows 常驻场景下每 30 秒重复上锁 / 重复广播 SESSION_EXPIRED：
+      // clearSession 会删除 PASSWORD_EXPIRY，后续 alarm 读到 expiry 为空即跳过。
       chrome.storage.local
         .get([SESSION_STORAGE_KEYS.PASSWORD_EXPIRY])
         .then(async result => {
           const expiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined;
-          if (!expiry || Date.now() >= expiry) {
+          if (expiry && Date.now() >= expiry) {
             invalidatePasswordCache();
             // 使用 markSessionInvalid() 而非 invalidateSessionCache()：
             // 时间过期场景下 storage 中的会话键仍然存在，invalidateSessionCache() 设为 null
@@ -506,7 +529,9 @@ export function setupBackgroundServices(): void {
               logger.error('Background: SW 保活闹钟过期锁定失败:', e);
             });
 
-            clearSwKeepaliveAlarm();
+            // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止闹钟以省资源；
+            // Windows→保持常驻，使会话失效后打开侧边栏仍走热 SW，消除白屏。
+            await syncSwKeepaliveAlarm();
 
             // 通知打开的侧边栏切换到未验证状态
             const port = getSidePanelPort();
@@ -523,7 +548,7 @@ export function setupBackgroundServices(): void {
               // 无监听者时忽略
             }
 
-            logger.debug('Background: 会话已过期，已锁定并加密，缓存已清除，SW 保活闹钟已自动停止');
+            logger.debug('Background: 会话已过期，已锁定并加密，缓存已清除，保活闹钟状态已按平台同步');
           }
         })
         .catch(() => {
