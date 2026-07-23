@@ -423,7 +423,7 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
           <div class="switch-handle"></div>
         </div>
       </div>
-      <div class="setting-tip">开启后，在侧边栏点击快速填充密码成功后将自动点击登录按钮<span class="highlight-tip">（仅账号密码场景）</span></div>
+      <div class="setting-tip">开启后，在侧边栏或页面内联快速填充密码成功后将自动点击登录按钮<span class="highlight-tip">（仅账号密码场景）</span></div>
 
       <div class="setting-item">
         <span class="setting-label">密码显示切换</span>
