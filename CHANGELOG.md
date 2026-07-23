@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.11.1](https://github.com/liaolongdong/account-password-helper/compare/v2.11.0...v2.11.1) (2026-07-23)
+
+
+### Bug Fixes
+
+* **config:** 优化扩展名称和描述文本 ([367568e](https://github.com/liaolongdong/account-password-helper/commit/367568e4e972d2f4942530b6b1fab3b09fad4296))
+
 ## [2.11.0](https://github.com/liaolongdong/account-password-helper/compare/v2.10.0...v2.11.0) (2026-07-23)
 
 
