@@ -29,13 +29,13 @@ Account Password Helper
 ### 摘要 (Summary) — 最多 132 字符
 
 ```
-安全、便捷的本地密码管理工具。AES-256 加密，数据不出浏览器。智能表单检测、一键填充、自动保存、加密备份、TOTP验证码、安全体检、浏览器重启锁定。
+本地密码管理工具，AES-256-GCM 加密、零网络传输，密码不出浏览器。智能识别登录表单、一键填充自动登录、自动保存账号密码、批量导入导出、加密备份、TOTP 两步验证、安全体检仪表盘、密码可见性切换、闲时锁定、密码强度检测、密码生成器，开源免费。
 ```
 
 ### 说明 (Description) — 最多 16,000 字符
 
 ```
-一款专为开发者和测试人员设计的本地密码管理工具，让多账号登录更安全、更高效。
+一款专为开发、测试、产品以及普通人员设计的本地账号密码管理工具，让多账号、多系统登录更安全、更高效、更便捷。
 
 🔒 安全特性
 • AES-256-GCM 军事级加密
@@ -85,7 +85,9 @@ Account Password Helper
 • 自动保存行为可开关
 • 排序方式自定义
 
-完全开源，代码可审计：https://github.com/liaolongdong/account-password-helper
+插件操作指引和演示地址：https://liaolongdong.github.io/account-password-helper/
+完全开源，代码可审计，github地址：https://github.com/liaolongdong/account-password-helper
+
 ```
 
 ### 分类 (Category)
