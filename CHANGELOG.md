@@ -1,5 +1,46 @@
 # Changelog
 
+## [2.11.0](https://github.com/liaolongdong/account-password-helper/compare/v2.10.0...v2.11.0) (2026-07-23)
+
+
+### Features
+
+* **assets:** 添加功能插图及大纲文档 ([692c309](https://github.com/liaolongdong/account-password-helper/commit/692c3091561702fb3d3947b0557089067c1c55af))
+* **auth:** 增加两步验证(TOTP)功能支持 ([76cd669](https://github.com/liaolongdong/account-password-helper/commit/76cd6699f244a4b5c92840df9cf83e4051db4fb0))
+* **autoSave:** 优化自动保存密码的智能提示和更新逻辑 ([2f7575a](https://github.com/liaolongdong/account-password-helper/commit/2f7575a8a78b175d342fd7e0d99bac63f4c14c4a))
+* **chrome-store:** 集成并推广Chrome应用商店安装方式 ([bdf3137](https://github.com/liaolongdong/account-password-helper/commit/bdf31376bb25143790d65f60c70d43d84903f2a8))
+* **idleLock:** 新增浏览器重启锁定功能 ([a65eadb](https://github.com/liaolongdong/account-password-helper/commit/a65eadb2838ab4e0b0fe881d26e6d719c449bd67))
+* **options:** 增加邮箱备份加密功能及界面优化 ([75808c4](https://github.com/liaolongdong/account-password-helper/commit/75808c4ca272a727023ea7e15d4863f66e0bce9f))
+* **security:** 增加浏览器重启锁定功能并增强备份安全性 ([bacc90b](https://github.com/liaolongdong/account-password-helper/commit/bacc90be0a3c109d6be1a2311847edddbbf2c8ea))
+* **security:** 添加安全体检仪表盘与本地TOTP两步验证码功能 ([1f5dce8](https://github.com/liaolongdong/account-password-helper/commit/1f5dce888e90c88230399fdf6d474a93a119b20d))
+* **security:** 添加安全体检仪表盘及入口按钮 ([7958ff3](https://github.com/liaolongdong/account-password-helper/commit/7958ff3a8d9c6ef36783a0d44f4f338ffcf4bba9))
+* **shortcuts:** 新增快捷键绑定状态及手动设置引导 ([e15fabd](https://github.com/liaolongdong/account-password-helper/commit/e15fabd27fc6740a773f86e3ef14a21e5832b036))
+* **sidepanel:** 支持全局自动触发登录功能 ([f2373c2](https://github.com/liaolongdong/account-password-helper/commit/f2373c279c27f72c170b811ba87222c9822ab728))
+* **sidepanel:** 添加本地操作标志防止全量重载闪烁 ([5ac20a6](https://github.com/liaolongdong/account-password-helper/commit/5ac20a69bb27ecf45d522ffa0b77be100f0c26c1))
+* **swpersist:** 实现 Windows 平台 Service Worker 差异化保活策略 ([b58b278](https://github.com/liaolongdong/account-password-helper/commit/b58b278d63852b0f92b59fcf175ccd71fb15f009))
+* **ui:** 添加主题换肤与内联填充功能 ([ff75836](https://github.com/liaolongdong/account-password-helper/commit/ff7583679d7c502847bd20dca8cf19e46e579cde))
+
+
+### Bug Fixes
+
+* **binary:** 修复二进制文件差异问题 ([28cf8d6](https://github.com/liaolongdong/account-password-helper/commit/28cf8d6c248f41e65277759fbb57733701154c51))
+* **binary:** 解决二进制文件差异问题 ([df88c19](https://github.com/liaolongdong/account-password-helper/commit/df88c197478332c781bd501e5328e9292243c2b2))
+* **ci:** 修复 GitHub Actions secrets 引用问题 ([ccf4a8a](https://github.com/liaolongdong/account-password-helper/commit/ccf4a8a36da7644821b9d05519095e99bd0f4401))
+* **content:** 规避扩展上下文失效导致的异常问题 ([1b8d42a](https://github.com/liaolongdong/account-password-helper/commit/1b8d42a96054eda9c340c0a0ccc165fa03cb2a43))
+* **lang-switch:** 优化语言切换按钮默认状态和顺序 ([a16446b](https://github.com/liaolongdong/account-password-helper/commit/a16446bd7f0dea14258caa6a287a6a3d40095d5f))
+* **options:** 补充加密备份主密码的提醒信息 ([d6dba00](https://github.com/liaolongdong/account-password-helper/commit/d6dba00ee4f4b979d372673705008b45417a7669))
+* **popup:** 优化侧边栏打开逻辑 ([d0b6973](https://github.com/liaolongdong/account-password-helper/commit/d0b69730c8de20b121a94bd7804e8cd893fd0531))
+* **security:** 增强密码数据访问安全与主密码校验机制 ([a07b3cb](https://github.com/liaolongdong/account-password-helper/commit/a07b3cbe494548834fda7191702269a86574a772))
+* **session:** 优化会话过期处理与清除逻辑 ([9bfb008](https://github.com/liaolongdong/account-password-helper/commit/9bfb00888f1b1374601e675e1d2a8e1da13f7017))
+* **storage:** 确保密码数据 at-rest 全部以密文存储 ([ddd56f9](https://github.com/liaolongdong/account-password-helper/commit/ddd56f9cfb86827bdeeb8aca595abf3337187b31))
+* **ui:** 优化标签最大宽度避免溢出裁切 ([131a97d](https://github.com/liaolongdong/account-password-helper/commit/131a97da3b827aee974e6d9236ec776b3a144cd6))
+* **ui:** 注释禁用下载权限显示行 ([5c53a39](https://github.com/liaolongdong/account-password-helper/commit/5c53a39a91ea73c7c946d7aa68c070b2686acdf6))
+
+
+### Performance Improvements
+
+* **sidepanel:** 优化侧边栏资源预热逻辑，缩短冷启动等待时间 ([72645ad](https://github.com/liaolongdong/account-password-helper/commit/72645ad2db42365a95c45bedcb401c2655b36b34))
+
 ## [2.10.0](https://github.com/liaolongdong/account-password-helper/compare/v2.9.0...v2.10.0) (2026-07-09)
 
 
