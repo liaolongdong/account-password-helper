@@ -58,11 +58,22 @@ jobs:
       #   CWS_CLIENT_SECRET — Google Cloud OAuth 2.0 Client Secret
       #   CWS_REFRESH_TOKEN — OAuth 2.0 Refresh Token
       # ──────────────────────────────────────────────────────────────
+      # mnao305/chrome-extension-upload 的 file-path 不支持 glob 通配符，
+      # 会将 ".output/*-chrome.zip" 当作字面文件名打开而报 ENOENT。
+      # 因此先解析出实际的 zip 路径（取最新构建产物），再传入发布步骤。
+      - name: Resolve extension zip path
+        if: ${{ env.CWS_EXTENSION_ID != '' }}
+        id: cws_zip
+        run: |
+          ZIP_PATH="$(ls -t .output/*-chrome.zip | head -n1)"
+          echo "path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
+          echo "Resolved Chrome zip: $ZIP_PATH"
+
       - name: Publish to Chrome Web Store
         if: ${{ env.CWS_EXTENSION_ID != '' }}
         uses: mnao305/chrome-extension-upload@v5.0.0
         with:
-          file-path: .output/*-chrome.zip
+          file-path: ${{ steps.cws_zip.outputs.path }}
           extension-id: ${{ secrets.CWS_EXTENSION_ID }}
           client-id: ${{ secrets.CWS_CLIENT_ID }}
           client-secret: ${{ secrets.CWS_CLIENT_SECRET }}

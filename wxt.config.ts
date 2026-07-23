@@ -85,7 +85,7 @@ export default defineConfig({
   manifest: {
     name: 'Account Password Helper',
     description:
-      '账号密码管理助手 - 安全高效的本地密码管理工具。AES-256-GCM 企业级加密，零网络传输，密码绝不出浏览器，开源免费。登录表单智能识别、一键填充自动登录、自动保存账号密码、批量导入导出、加密备份、密码可见性切换、闲时锁定、TOTP两步验证码、安全体检仪表盘、密码强度检测、密码生成器。',
+      '本地密码管理工具，AES-256-GCM 加密、零网络传输，密码不出浏览器。智能识别登录表单、一键填充自动登录、自动保存账号密码、批量导入导出、加密备份、TOTP 两步验证、安全体检仪表盘、密码可见性切换、闲时锁定、密码强度检测、密码生成器，开源免费。',
     version: pkg.version,
     permissions: [
       'storage',
@@ -101,7 +101,7 @@ export default defineConfig({
     ],
     host_permissions: ['<all_urls>'],
     action: {
-      default_title: '账号密码管家',
+      default_title: 'Account Password Helper',
     },
     // 内容安全策略：MV3 默认策略，显式声明确保安全基线
     content_security_policy: {
