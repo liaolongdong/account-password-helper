@@ -40,6 +40,9 @@ export function showSavePasswordPrompt(
   // 移除已有弹窗，避免重复
   dismissSavePasswordPrompt();
 
+  // 展示模式：update 时用于区分「更新已有密码」与「保存新密码」的标题与按钮文案
+  const isUpdate = data.mode === 'update';
+
   const overlay = document.createElement('div');
   overlay.className = PROMPT_CLASS;
   overlay.style.cssText = `
@@ -85,7 +88,7 @@ export function showSavePasswordPrompt(
   headerText.style.cssText = 'flex: 1; min-width: 0;';
 
   const title = document.createElement('div');
-  title.textContent = '自动保存账号密码到密码列表？';
+  title.textContent = isUpdate ? '检测到密码有更新，是否更新？' : '自动保存账号密码到密码列表？';
   title.style.cssText = 'font-size: 14px; font-weight: 600; color: #1a1a1a;';
 
   const subtitle = document.createElement('div');
@@ -175,7 +178,7 @@ export function showSavePasswordPrompt(
     onDismiss();
   });
 
-  const saveBtn = createButton('保存', THEME_BLUE, '#fff', THEME_BLUE);
+  const saveBtn = createButton(isUpdate ? '更新' : '保存', THEME_BLUE, '#fff', THEME_BLUE);
   saveBtn.addEventListener('click', () => {
     const editedTag = tagInput.value.trim();
     const editedRemark = remarkInput.value.trim();

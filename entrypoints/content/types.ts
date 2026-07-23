@@ -59,6 +59,14 @@ export interface NotificationColors {
 // ── SavePasswordPrompt 相关 ──
 
 /**
+ * 保存确认弹窗的展示模式
+ *
+ * - `save`：新账号，展示「保存」弹窗（默认）
+ * - `update`：已存账号且密码发生变化，展示「更新」弹窗
+ */
+export type SavePromptMode = 'save' | 'update';
+
+/**
  * 保存确认弹窗所需的数据
  */
 export interface SavePromptData {
@@ -72,6 +80,8 @@ export interface SavePromptData {
   tag: string;
   /** 备注默认值，通常为 "自动保存" */
   remark: string;
+  /** 展示模式（save/update），缺省为 save */
+  mode?: SavePromptMode;
 }
 
 /**
@@ -122,6 +132,8 @@ export interface PendingCredentials {
   remarkEdited: boolean;
   /** 凭证捕获时的时间戳 */
   timestamp: number;
+  /** 弹窗展示模式（save/update），由库级预检查判定，缺省为 save */
+  mode?: SavePromptMode;
 }
 
 // ── PasswordVisibilityToggle 相关 ──
