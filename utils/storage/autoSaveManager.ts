@@ -1,4 +1,10 @@
-import type { AutoSaveConfig, AutoSavePasswordData, PasswordEntry } from '@/utils/types';
+import type {
+  AutoSaveConfig,
+  AutoSavePasswordData,
+  CheckCredentialStatusData,
+  CredentialStatusResponse,
+  PasswordEntry,
+} from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { isSessionValid } from './facades';
@@ -115,6 +121,34 @@ export function isDomainMatchForAutoSave(hostname: string, config: AutoSaveConfi
 }
 
 /**
+ * 在密码库中查找与给定账号+域名匹配的已存条目
+ *
+ * 匹配条件：用户名完全一致，且域名双向包含（entryHost === dataHost，
+ * 或任一方为另一方的子域名）。供自动保存与保存前预检查复用，确保两者判定一致。
+ *
+ * @param passwords 已解密的密码条目列表
+ * @param data 待匹配的账号与域名
+ * @returns 匹配到的条目，未找到返回 undefined
+ */
+export function findMatchingEntry(
+  passwords: PasswordEntry[],
+  data: { username: string; url: string },
+): PasswordEntry | undefined {
+  const dataHost = data.url.toLowerCase();
+  return passwords.find(entry => {
+    if (!entry.url || entry.username !== data.username) return false;
+    const entryHost = (() => {
+      try {
+        return new URL(entry.url.startsWith('http') ? entry.url : `https://${entry.url}`).hostname;
+      } catch {
+        return entry.url;
+      }
+    })().toLowerCase();
+    return entryHost === dataHost || entryHost.endsWith('.' + dataHost) || dataHost.endsWith('.' + entryHost);
+  });
+}
+
+/**
  * 自动保存密码
  */
 export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ success: boolean; message: string }> {
@@ -140,19 +174,7 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
     // 故这里用 getAllPasswords()（会话期用缓存数据密钥解密，无 PBKDF2）而非原始密文。
     const passwords = await getAllPasswords();
 
-    const existingEntry = passwords.find(p => {
-      const entry = p as PasswordEntry;
-      if (!entry.url || entry.username !== data.username) return false;
-      const entryHost = (() => {
-        try {
-          return new URL(entry.url.startsWith('http') ? entry.url : `https://${entry.url}`).hostname;
-        } catch {
-          return entry.url;
-        }
-      })().toLowerCase();
-      const dataHost = data.url.toLowerCase();
-      return entryHost === dataHost || entryHost.endsWith('.' + dataHost) || dataHost.endsWith('.' + entryHost);
-    }) as PasswordEntry | undefined;
+    const existingEntry = findMatchingEntry(passwords, data);
 
     if (existingEntry) {
       const newTag = data.tagEdited ? data.tag : existingEntry.tag || data.tag || '';
@@ -182,6 +204,50 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
   } catch (error) {
     logger.error('自动保存密码失败:', error);
     return { success: false, message: '自动保存失败: ' + (error instanceof Error ? error.message : '未知错误') };
+  }
+}
+
+/**
+ * 保存前预检查：查询当前域名+账号在密码库中的凭证状态
+ *
+ * 会话无效返回 `locked`；否则用 findMatchingEntry 定位条目：无 → `new`，
+ * 有且密码相同 → `identical`，密码不同 → `password_changed`（附标签/备注）。
+ * 仅返回状态枚举与非密码元数据，绝不回传已存明文密码。
+ *
+ * @param data 待检查的账号、密码与域名
+ * @returns 凭证状态与（password_changed 时）已存条目的标签/备注
+ */
+export async function checkCredentialStatus(data: CheckCredentialStatusData): Promise<CredentialStatusResponse> {
+  try {
+    const sessionValid = await isSessionValid();
+    if (!sessionValid) {
+      return { status: 'locked' };
+    }
+
+    // 无有效凭证可比对时按新账号处理，交由后续弹窗流程判定
+    if (!data.username || !data.password) {
+      return { status: 'new' };
+    }
+
+    const passwords = await getAllPasswords();
+    const existingEntry = findMatchingEntry(passwords, data);
+
+    if (!existingEntry) {
+      return { status: 'new' };
+    }
+
+    if (existingEntry.password === data.password) {
+      return { status: 'identical' };
+    }
+
+    return {
+      status: 'password_changed',
+      existing: { tag: existingEntry.tag || '', remark: existingEntry.remark || '' },
+    };
+  } catch (error) {
+    logger.error('自动保存预检查失败:', error);
+    // 检查失败时按新账号处理，保底弹「保存」弹窗，不阻断用户保存
+    return { status: 'new' };
   }
 }
 

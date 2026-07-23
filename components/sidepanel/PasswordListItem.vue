@@ -19,6 +19,8 @@ interface Props {
   password: PasswordEntry;
   /** 是否处于激活（选中）状态 */
   isActive: boolean;
+  /** 全局「自动触发登录」是否开启（开启时点条目即等于填充并登录，隐藏每条冗余的「填充并登录」按钮） */
+  autoLoginEnabled: boolean;
 }
 
 interface Emits {
@@ -142,6 +144,7 @@ defineEmits<Emits>();
         <Star v-else />
       </el-icon>
       <el-icon
+        v-if="!autoLoginEnabled"
         class="action-icon auto-login-icon"
         title="填充并登录"
         @click.stop="$emit('fillAndLogin', password)"
@@ -369,14 +372,7 @@ defineEmits<Emits>();
 .edit-icon {
   color: #b0b7c3;
   cursor: pointer;
-  opacity: 0;
-  transition:
-    color 0.2s,
-    opacity 0.2s;
-}
-
-.password-item:hover .edit-icon {
-  opacity: 1;
+  transition: color 0.2s;
 }
 
 .edit-icon:hover {

@@ -196,9 +196,10 @@
             <PasswordListItem
               v-for="(password, index) in filteredPasswords"
               :key="password.id"
-              v-memo="[activeIndex === index, password.favorite, password.updateTime]"
+              v-memo="[activeIndex === index, password.favorite, password.updateTime, autoTriggerLogin]"
               :password="password"
               :is-active="activeIndex === index"
+              :auto-login-enabled="autoTriggerLogin"
               @fill="fillPassword"
               @fill-and-login="handleFillAndLogin"
               @edit="handleEditPassword"
@@ -249,7 +250,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick, defineAsyncComponent } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick, defineAsyncComponent } from 'vue';
 import {
   Search,
   Loading,
@@ -267,20 +268,25 @@ import {
 } from '@element-plus/icons-vue';
 import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
+import BrandLogo from '@/components/BrandLogo.vue';
 import type { PasswordEntry } from '@/utils/types';
 import { MessageType } from '@/utils/types';
-import { saveSidepanelSortConfig, getFavoriteLimit } from '@/utils/storage/configManager';
+import { saveSidepanelSortConfig, getFavoriteLimit, getFloatingButtonConfig } from '@/utils/storage/configManager';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
 
-/** 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载） */
+/**
+ * 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载）
+ *
+ * 保持独立 chunk 不打进初始关键包（含较重的 el-dialog），避免拖慢首帧；
+ * 首帧后由 onMounted 空闲预取该 chunk（见下方 preloadIdleModules），
+ * 使 Windows 会话失效冷环境下首次点击「?」时 chunk 已温热、即时打开。
+ */
 const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
-
-/** 品牌 Logo——异步加载（纯 SVG，Footer 按钮 icon 使用） */
-const BrandLogo = defineAsyncComponent(() => import('@/components/BrandLogo.vue'));
 
 // ==================== 延迟加载模块（用户交互时触发，避免初始加载拉入 encryption.ts） ====================
 
@@ -576,6 +582,24 @@ const openOptionsAndAdd = async () => {
   }
 };
 
+// ==================== 全局「自动触发登录」同步 ====================
+
+/** 全局「自动触发登录」开关：开启时侧边栏点条目即等于「填充并登录」，隐藏每条冗余的「填充并登录」按钮 */
+const autoTriggerLogin = ref(false);
+
+/**
+ * chrome.storage 变化监听：在悬浮按钮/侧边栏设置弹窗内切换「自动触发登录」时实时同步，
+ * 使列表项「填充并登录」按钮显隐即时生效，无需重开侧边栏。
+ */
+const handleFloatingConfigChange = (
+  changes: Record<string, chrome.storage.StorageChange>,
+  areaName: chrome.storage.AreaName,
+) => {
+  if (areaName !== 'local' || !(STORAGE_KEYS.FLOATING_BUTTON_CONFIG in changes)) return;
+  const next = changes[STORAGE_KEYS.FLOATING_BUTTON_CONFIG].newValue as { autoTriggerLogin?: boolean } | undefined;
+  autoTriggerLogin.value = next?.autoTriggerLogin ?? false;
+};
+
 // ==================== 初始化 ====================
 
 onMounted(async () => {
@@ -597,6 +621,16 @@ onMounted(async () => {
     if (inputEl) inputEl.focus();
   });
 
+  // 读取全局「自动触发登录」以决定每条「填充并登录」按钮显隐，并监听后续变更；均不阻塞首屏
+  if (chrome?.storage?.onChanged) {
+    chrome.storage.onChanged.addListener(handleFloatingConfigChange);
+  }
+  void getFloatingButtonConfig()
+    .then(cfg => {
+      autoTriggerLogin.value = cfg.autoTriggerLogin;
+    })
+    .catch(error => logger.error('SidePanel: 读取自动触发登录配置失败:', error));
+
   await initSidepanelData();
 
   const _perfDataReady = performance.now();
@@ -613,15 +647,24 @@ onMounted(async () => {
     setTimeout(() => skeletonEl.remove(), 250);
   }
 
-  // 数据加载完成后，空闲时预加载设置弹窗模块（不阻塞首屏渲染）
+  // 数据加载完成后，空闲时预加载设置弹窗模块 + 预取操作指引弹窗 chunk（不阻塞首屏渲染）
+  // 预取 HelpDialog：冷环境（Windows 会话失效期）下用户首次点击「?」时 chunk 已温热、即时打开，
+  // 避免首次点击触发冷 chunk fetch 造成数秒延迟；未取完前点击则退化为按需加载，无回退风险。
+  const preloadIdleModules = () => {
+    void ensureSettingsModule();
+    // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk
+    void import('@/components/sidepanel/HelpDialog.vue');
+  };
   if (typeof requestIdleCallback !== 'undefined') {
-    requestIdleCallback(() => {
-      void ensureSettingsModule();
-    });
+    requestIdleCallback(preloadIdleModules);
   } else {
-    setTimeout(() => {
-      void ensureSettingsModule();
-    }, 1000);
+    setTimeout(preloadIdleModules, 1000);
+  }
+});
+
+onUnmounted(() => {
+  if (chrome?.storage?.onChanged) {
+    chrome.storage.onChanged.removeListener(handleFloatingConfigChange);
   }
 });
 </script>

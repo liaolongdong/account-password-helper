@@ -1,4 +1,10 @@
-import { MessageType, type AutoSaveConfig, type DomainPattern, type RuntimeMessage } from '@/utils/types';
+import {
+  MessageType,
+  type AutoSaveConfig,
+  type CredentialStatusResponse,
+  type DomainPattern,
+  type RuntimeMessage,
+} from '@/utils/types';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import type {
   PendingCredentials,
@@ -385,16 +391,17 @@ export class LoginAutoSave {
       return;
     }
 
-    // 智能防重复：基于凭证指纹 + 冷却期的去重策略
+    // 同页防抖：基于凭证指纹 + 冷却期，吸收 submit+click+enter 三连触发
     const fingerprint = this.createCredentialFingerprint(username, password);
     if (!this.shouldShowPrompt(fingerprint)) {
       return;
     }
+    // 立即记录指纹与时间作为「处理中」闩锁，避免同一次登录重复发起库级预检查
     this.lastPromptedFingerprint = fingerprint;
     this.lastPromptTime = Date.now();
     this.lastPromptSaved = false;
 
-    // 存入 sessionStorage，支持传统页面导航后在新页面恢复
+    // 先持久化待确认凭证（支持传统表单提交导航后在新页面恢复弹窗），再执行库级预检查
     const pending: PendingCredentials = {
       username,
       password,
@@ -404,13 +411,96 @@ export class LoginAutoSave {
       tagEdited: false,
       remarkEdited: false,
       timestamp: Date.now(),
+      mode: 'save',
     };
+    this.persistPending(pending);
+
+    // 库级预检查：查询该域名+账号在密码库中的状态，决定是否/如何弹窗
+    await this.evaluateAndPrompt(pending);
+  }
+
+  /**
+   * 将待确认凭证持久化到 sessionStorage
+   *
+   * 支持传统表单提交导航后，在目标页面由 checkPendingCredentials 恢复弹窗。
+   * sessionStorage 不可用时（如隐私模式）静默忽略。
+   * @param pending 待确认的凭证数据
+   */
+  private persistPending(pending: PendingCredentials): void {
     try {
       sessionStorage.setItem(PENDING_SAVE_KEY, encryptForSession(JSON.stringify(pending)));
     } catch {
       // sessionStorage 不可用时忽略（如隐私模式）
     }
+  }
 
+  /**
+   * 向 background 查询凭证在密码库中的状态
+   *
+   * 仅发送账号/密码/域名，background 侧比对后返回状态枚举与非密码元数据，
+   * 绝不回传已存明文密码。上下文失效或查询失败时保底返回 new，不阻断保存流程。
+   * @param username 用户名
+   * @param password 密码
+   * @returns 凭证状态响应
+   */
+  private async resolveCredentialStatus(username: string, password: string): Promise<CredentialStatusResponse> {
+    try {
+      if (!chrome.runtime?.id) {
+        return { status: 'new' };
+      }
+      const response = (await chrome.runtime.sendMessage({
+        type: MessageType.CHECK_CREDENTIAL_STATUS,
+        data: { username, password, url: location.hostname },
+      })) as CredentialStatusResponse | undefined;
+      return response?.status ? response : { status: 'new' };
+    } catch {
+      // 预检查失败时保底按新账号处理，不阻断保存流程
+      return { status: 'new' };
+    }
+  }
+
+  /**
+   * 对待确认凭证执行库级预检查并据此展示弹窗
+   *
+   * - identical：账号密码已是最新，无需保存，完全静默并清除待确认凭证
+   * - locked：会话失效，清除并跳过
+   * - password_changed：以「更新」模式展示（用户未编辑时用已存标签/备注预填）
+   * - new：以「保存」模式展示
+   *
+   * @param pending 待确认的凭证数据
+   */
+  private async evaluateAndPrompt(pending: PendingCredentials): Promise<void> {
+    const { status, existing } = await this.resolveCredentialStatus(pending.username, pending.password);
+
+    // await 期间可能收到 SESSION_EXPIRED 广播，二次确认避免过期后仍弹窗
+    if (this.sessionExpired) {
+      this.clearPending();
+      return;
+    }
+
+    if (status === 'identical') {
+      // 相同凭证无需保存：完全静默，并标记已保存以短路同页后续触发
+      this.lastPromptSaved = true;
+      this.clearPending();
+      return;
+    }
+
+    if (status === 'locked') {
+      this.clearPending();
+      return;
+    }
+
+    if (status === 'password_changed') {
+      pending.mode = 'update';
+      // 用户尚未在弹窗中编辑时，用已存条目的标签/备注预填，保持与列表一致
+      if (!pending.tagEdited && existing?.tag) pending.tag = existing.tag;
+      if (!pending.remarkEdited && existing?.remark) pending.remark = existing.remark;
+    } else {
+      pending.mode = 'save';
+    }
+
+    // 回写带最终 mode/预填的 pending，确保传统导航后新页面恢复一致
+    this.persistPending(pending);
     this.showPrompt(pending);
   }
 
@@ -463,13 +553,13 @@ export class LoginAutoSave {
         return;
       }
 
-      // 有效凭证，通过智能去重检查后显示弹窗
+      // 有效凭证，先经同页防抖，再交由库级预检查决定是否/如何弹窗
       const fingerprint = this.createCredentialFingerprint(pending.username, pending.password);
       if (this.shouldShowPrompt(fingerprint)) {
         this.lastPromptedFingerprint = fingerprint;
         this.lastPromptTime = Date.now();
         this.lastPromptSaved = false;
-        this.showPrompt(pending);
+        await this.evaluateAndPrompt(pending);
       } else {
         sessionStorage.removeItem(PENDING_SAVE_KEY);
       }
@@ -506,6 +596,7 @@ export class LoginAutoSave {
           url: pending.url,
           tag: pending.tag,
           remark: pending.remark,
+          mode: pending.mode ?? 'save',
         },
         editedData =>
           this.handleSave({
@@ -564,6 +655,7 @@ export class LoginAutoSave {
       url: pending.url,
       tag: pending.tag,
       remark: pending.remark,
+      mode: pending.mode ?? 'save',
     };
 
     /** 超时定时器 ID，用于 30s 后自动清理监听器 */
@@ -861,8 +953,9 @@ export class LoginAutoSave {
   /**
    * 生成凭证指纹（不存储原始密码，仅用用户名 + 密码长度标识）
    *
-   * 同一用户名 + 同长度密码视为同一组凭证，可有效识别「重试登录」场景，
-   * 避免相同凭证反复弹窗。不同密码长度变化会触发新弹窗。
+   * 用于「同页防抖」：吸收同一次登录的 submit+click+enter 三连触发，
+   * 避免短时间内对同一组凭证重复发起库级预检查与弹窗。跨登录的「是否已保存」
+   * 判定以库级预检查（checkCredentialStatus）为准，不再依赖此内存指纹。
    *
    * @param username 用户名
    * @param password 密码
@@ -873,16 +966,18 @@ export class LoginAutoSave {
   }
 
   /**
-   * 智能判断是否应该显示保存弹窗
+   * 同页防抖判断：是否应继续处理该凭证（后续仍需库级预检查决定是否弹窗）
    *
-   * 去重规则：
-   * 1. 已保存过的凭证 → 永不重复弹窗
-   * 2. 相同凭证 + 冷却期内 → 跳过（避免重试登录时反复弹窗）
-   * 3. 不同凭证 → 允许弹窗（用户换了账号，应给予保存机会）
-   * 4. 相同凭证 + 冷却期已过 → 允许弹窗（用户可能改变了主意）
+   * 仅作用于当前页面实例的内存状态，用于抑制同一次登录的重复触发：
+   * 1. 本页已确认保存/已判定相同的凭证 → 不再处理
+   * 2. 相同凭证 + 冷却期内 → 跳过（吸收 submit+click+enter 三连触发）
+   * 3. 不同凭证 → 继续处理
+   * 4. 相同凭证 + 冷却期已过 → 继续处理
+   *
+   * 注意：跨登录/跨页面的「是否已保存」以库级预检查为准，本方法不承担该职责。
    *
    * @param fingerprint 当前凭证指纹
-   * @returns 是否应该显示弹窗
+   * @returns 是否应继续处理（true 后仍会经库级预检查）
    */
   private shouldShowPrompt(fingerprint: string): boolean {
     const isSameCredential = fingerprint === this.lastPromptedFingerprint;
