@@ -1,4 +1,9 @@
-import { type AutoSavePasswordData, MessageType } from '@/utils/types';
+import {
+  type AutoSavePasswordData,
+  type CheckCredentialStatusData,
+  type CredentialStatusResponse,
+  MessageType,
+} from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { getSidePanelPort } from './sidePanelManager';
 import { invalidatePasswordCache } from './passwordCache';
@@ -47,5 +52,24 @@ export async function handleAutoSavePassword(
   } catch (error) {
     logger.error('Background: 处理自动保存密码失败:', error);
     return { success: false, message: '自动保存处理失败' };
+  }
+}
+
+/**
+ * 处理保存前凭证状态预检查请求
+ *
+ * 由 content script 在捕获登录凭证后、弹窗前触发。沿用与 handleAutoSavePassword
+ * 一致的动态 import 模式，避免将 storage 层打入 SW 初始包。
+ * 检查失败时保底返回 new，不阻断后续保存流程。
+ * @param data 预检查请求数据
+ * @returns 凭证状态响应
+ */
+export async function handleCheckCredentialStatus(data: CheckCredentialStatusData): Promise<CredentialStatusResponse> {
+  try {
+    const { StorageUtils } = await import('@/utils/storage');
+    return await StorageUtils.checkCredentialStatus(data);
+  } catch (error) {
+    logger.error('Background: 处理保存前预检查失败:', error);
+    return { status: 'new' };
   }
 }

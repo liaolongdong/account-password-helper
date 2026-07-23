@@ -18,7 +18,7 @@ import {
   getMatchingAccounts,
   getDecryptedEntryById,
 } from './passwordCache';
-import { handleAutoSavePassword } from './autoSaveHandler';
+import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
 
 /**
@@ -319,6 +319,14 @@ export function setupMessageRouter(): void {
 
       case MessageType.AUTO_SAVE_PASSWORD: {
         handleAutoSavePassword(message.data).then(result => {
+          sendResponse(result);
+        });
+        return true;
+      }
+
+      case MessageType.CHECK_CREDENTIAL_STATUS: {
+        // 仅返回状态枚举与非密码元数据，不回传已存明文密码，内容脚本可调用
+        handleCheckCredentialStatus(message.data).then(result => {
           sendResponse(result);
         });
         return true;

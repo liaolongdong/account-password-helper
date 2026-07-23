@@ -196,6 +196,10 @@ export enum MessageType {
    * 内联下拉：按条目 ID 触发填充（由 background 取明文后复用 FILL_PASSWORD 下发）
    */
   FILL_BY_ID = 'FILL_BY_ID',
+  /**
+   * 自动保存预检查：查询当前域名+账号的凭证状态，决定是否/如何弹出保存确认弹窗
+   */
+  CHECK_CREDENTIAL_STATUS = 'CHECK_CREDENTIAL_STATUS',
 }
 
 /**
@@ -226,7 +230,8 @@ export type RuntimeMessage =
   | { type: MessageType.GET_INITIAL_DATA; data?: { domain?: string } }
   | { type: MessageType.SIDEPANEL_PRELOAD }
   | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string } }
-  | { type: MessageType.FILL_BY_ID; data: FillByIdData };
+  | { type: MessageType.FILL_BY_ID; data: FillByIdData }
+  | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData };
 
 /**
  * 悬浮按钮配置接口
@@ -392,6 +397,42 @@ export interface AutoSavePasswordData {
   tagEdited: boolean;
   /** 用户是否在弹窗中主动编辑了备注字段 */
   remarkEdited: boolean;
+}
+
+/**
+ * 自动保存预检查请求数据
+ *
+ * 由 content script 在捕获登录凭证后、弹窗前发送，供 background 比对已保存密码库。
+ */
+export interface CheckCredentialStatusData {
+  /** 用户名 */
+  username: string;
+  /** 密码（仅用于在 background 侧比对是否变化，绝不回传） */
+  password: string;
+  /** 网站域名（捕获帧 hostname） */
+  url: string;
+}
+
+/**
+ * 自动保存预检查结果状态
+ *
+ * - `new`：密码库中无匹配账号，应弹「保存」弹窗
+ * - `identical`：账号已存在且密码相同，无需保存，静默跳过
+ * - `password_changed`：账号已存在但密码不同，应弹「更新」弹窗
+ * - `locked`：会话失效，跳过
+ */
+export type CredentialStatus = 'new' | 'identical' | 'password_changed' | 'locked';
+
+/**
+ * 自动保存预检查响应数据
+ *
+ * 仅返回状态枚举与非密码元数据，绝不回传已存明文密码。
+ */
+export interface CredentialStatusResponse {
+  /** 凭证状态 */
+  status: CredentialStatus;
+  /** 已存条目的标签/备注（仅 password_changed 时返回，用于弹窗预填，非密码） */
+  existing?: { tag: string; remark: string };
 }
 
 /**
