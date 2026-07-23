@@ -196,9 +196,10 @@
             <PasswordListItem
               v-for="(password, index) in filteredPasswords"
               :key="password.id"
-              v-memo="[activeIndex === index, password.favorite, password.updateTime]"
+              v-memo="[activeIndex === index, password.favorite, password.updateTime, autoTriggerLogin]"
               :password="password"
               :is-active="activeIndex === index"
+              :auto-login-enabled="autoTriggerLogin"
               @fill="fillPassword"
               @fill-and-login="handleFillAndLogin"
               @edit="handleEditPassword"
@@ -249,7 +250,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed, watch, nextTick, defineAsyncComponent } from 'vue';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick, defineAsyncComponent } from 'vue';
 import {
   Search,
   Loading,
@@ -270,7 +271,8 @@ import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import type { PasswordEntry } from '@/utils/types';
 import { MessageType } from '@/utils/types';
-import { saveSidepanelSortConfig, getFavoriteLimit } from '@/utils/storage/configManager';
+import { saveSidepanelSortConfig, getFavoriteLimit, getFloatingButtonConfig } from '@/utils/storage/configManager';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
@@ -580,6 +582,24 @@ const openOptionsAndAdd = async () => {
   }
 };
 
+// ==================== 全局「自动触发登录」同步 ====================
+
+/** 全局「自动触发登录」开关：开启时侧边栏点条目即等于「填充并登录」，隐藏每条冗余的「填充并登录」按钮 */
+const autoTriggerLogin = ref(false);
+
+/**
+ * chrome.storage 变化监听：在悬浮按钮/侧边栏设置弹窗内切换「自动触发登录」时实时同步，
+ * 使列表项「填充并登录」按钮显隐即时生效，无需重开侧边栏。
+ */
+const handleFloatingConfigChange = (
+  changes: Record<string, chrome.storage.StorageChange>,
+  areaName: chrome.storage.AreaName,
+) => {
+  if (areaName !== 'local' || !(STORAGE_KEYS.FLOATING_BUTTON_CONFIG in changes)) return;
+  const next = changes[STORAGE_KEYS.FLOATING_BUTTON_CONFIG].newValue as { autoTriggerLogin?: boolean } | undefined;
+  autoTriggerLogin.value = next?.autoTriggerLogin ?? false;
+};
+
 // ==================== 初始化 ====================
 
 onMounted(async () => {
@@ -600,6 +620,16 @@ onMounted(async () => {
     const inputEl = searchInputRef.value?.$el?.querySelector('input');
     if (inputEl) inputEl.focus();
   });
+
+  // 读取全局「自动触发登录」以决定每条「填充并登录」按钮显隐，并监听后续变更；均不阻塞首屏
+  if (chrome?.storage?.onChanged) {
+    chrome.storage.onChanged.addListener(handleFloatingConfigChange);
+  }
+  void getFloatingButtonConfig()
+    .then(cfg => {
+      autoTriggerLogin.value = cfg.autoTriggerLogin;
+    })
+    .catch(error => logger.error('SidePanel: 读取自动触发登录配置失败:', error));
 
   await initSidepanelData();
 
@@ -629,6 +659,12 @@ onMounted(async () => {
     requestIdleCallback(preloadIdleModules);
   } else {
     setTimeout(preloadIdleModules, 1000);
+  }
+});
+
+onUnmounted(() => {
+  if (chrome?.storage?.onChanged) {
+    chrome.storage.onChanged.removeListener(handleFloatingConfigChange);
   }
 });
 </script>

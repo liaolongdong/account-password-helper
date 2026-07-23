@@ -29,6 +29,9 @@ jobs:
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
+    # secrets 上下文不能在 step 级 if 中直接引用，先提升为 job 级 env 供条件判断
+    env:
+      CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -56,7 +59,7 @@ jobs:
       #   CWS_REFRESH_TOKEN — OAuth 2.0 Refresh Token
       # ──────────────────────────────────────────────────────────────
       - name: Publish to Chrome Web Store
-        if: ${{ secrets.CWS_EXTENSION_ID != '' }}
+        if: ${{ env.CWS_EXTENSION_ID != '' }}
         uses: mnao305/chrome-extension-upload@v5.0.0
         with:
           file-path: .output/*-chrome.zip
