@@ -2,6 +2,7 @@ import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { lazyImport } from '@/utils/lazyImport';
+import { bytesToHex } from '@/utils/crypto-light';
 
 /**
  * 延迟加载加密模块
@@ -562,19 +563,31 @@ export async function migrateUnencryptedEntries(masterPassword: string): Promise
 
 /**
  * 获取会话过期时间
+ *
+ * 优先返回内存镜像；SW 冷启动后尚未经过 isSessionValid 时内存为 null，
+ * 此时从 storage.local 读取持久化的 PASSWORD_EXPIRY 兜底，避免 UI 误显示为「无会话」。
+ * 仅做只读兜底：不触发会话恢复/迁移等副作用，也不回写内存镜像。
  */
 export async function getSessionExpiryTime(): Promise<number | null> {
-  return sessionPasswordExpiry;
+  if (sessionPasswordExpiry !== null) {
+    return sessionPasswordExpiry;
+  }
+  try {
+    const result = await chrome.storage.local.get(SESSION_STORAGE_KEYS.PASSWORD_EXPIRY);
+    return (result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined) ?? null;
+  } catch (error) {
+    logger.error('读取会话过期时间失败:', error);
+    return null;
+  }
 }
 
 /**
- * 生成会话加密密钥
+ * 生成会话包裹密钥（32 字节随机数的 hex 表示，256-bit）
+ *
+ * 复用 crypto-light 的 bytesToHex，避免重复实现字节到 hex 的转换逻辑。
  */
 export async function generateSessionEncryptionKey(): Promise<string> {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+  return bytesToHex(crypto.getRandomValues(new Uint8Array(32)));
 }
 
 /**
@@ -605,6 +618,7 @@ export async function setMasterPasswordValidityHours(hours: number): Promise<voi
     if (hours < 0.1 || hours > 168) {
       throw new Error('有效期必须在0.1小时到7天（168小时）之间');
     }
+    /** todo 测试过期时间 别删除 end */
 
     await chrome.storage.local.set({
       [STORAGE_KEYS.MASTER_PASSWORD_VALIDITY]: hours,

@@ -6,12 +6,15 @@ import { hexToBytes, bytesToHex } from '@/utils/crypto-light';
 // ── 公开 API ──────────────────────────────────────────────
 
 /**
- * 使用 HKDF 派生会话加密密钥（256-bit AES-GCM）
+ * 使用 HKDF 派生「旧版会话包裹密钥」（256-bit AES-GCM）
  *
- * 从主密码 salt 通过 HKDF + SHA-256 派生独立于主密码体系的会话密钥，
- * 遵循密钥分离原则，避免复用主密码 KDF 输出。
+ * 仅用于旧版会话迁移：解包历史遗留的 session_master_password blob
+ * （见 getSessionMasterPasswordDecrypted）。新版主密码不再落盘，此函数不参与新会话流程。
  *
- * @param salt 主密码盐值
+ * 注意：salt 为公开值（明文存于 storage.local），故本密钥不提供抗磁盘访问的机密性，
+ * 仅用于一次性迁移旧数据。
+ *
+ * @param salt 主密码盐值（公开）
  * @returns 64-char hex string（32 bytes raw AES key）
  */
 export async function deriveSessionKey(salt: string): Promise<string> {

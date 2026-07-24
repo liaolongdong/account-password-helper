@@ -62,7 +62,7 @@ class SessionManager {
    * 处理会话过期
    */
   private async handleSessionExpired(): Promise<void> {
-    // 先加密存储密码，再通知 UI
+    // 先清除会话密钥材料（磁盘中的密码本就是密文），再通知 UI 切换到锁定态
     await StorageUtils.clearSession();
     window.dispatchEvent(new CustomEvent('sessionExpired'));
   }
