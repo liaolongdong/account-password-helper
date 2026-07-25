@@ -32,10 +32,10 @@ async function loadDict(): Promise<Set<string>> {
         return _dictSet;
       })
       .catch(error => {
-        // 加载失败时返回空 Set，不阻塞业务逻辑（fail-open），但记录日志便于排查
+        // 加载失败时返回临时空 Set（fail-open），但不缓存到 _dictSet，
+        // 下次调用可重试 import（避免瞬态 I/O 错误永久禁用字典功能）
         logger.warn('WeakPasswordDict: 字典加载失败，弱口令校验降级为空字典:', error);
-        _dictSet = new Set();
-        return _dictSet;
+        return new Set<string>();
       })
       .finally(() => {
         _loadingPromise = null;

@@ -37,7 +37,7 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   // 1. 验证旧密码
   const isValid = await verifyMasterPassword(oldPassword);
   if (!isValid) {
-    throw new Error('当前密码验证失败');
+    throw Object.assign(new Error('当前密码验证失败'), { code: 'WRONG_PASSWORD' });
   }
 
   const enc = await _getEncryption();

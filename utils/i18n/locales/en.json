@@ -212,7 +212,7 @@
   "options.emailBackup.unencrypted": "Unencrypted backup",
   "options.emailBackup.encrypted": "Encrypted backup",
   "options.emailBackup.encryptedTipPrefix": "Encrypted backup data can only be viewed via this extension's",
-  "options.emailBackup.encryptedTipStrong": "\"Data - Import Encrypted Backup\" with the original master password.",
+  "options.emailBackup.encryptedTipStrong": "\"Data Management - Import Encrypted Backup\" with the original master password.",
   "options.emailBackup.encryptedTipRemember": "Be sure to remember your master password!",
   "options.emailBackup.emailLabel": "Backup email",
   "options.emailBackup.emailPlaceholder": "Enter the target email address",

@@ -2,6 +2,7 @@ import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry } from
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { deleteHistoryByEntryIds } from './passwordHistory';
+import { removeReminder } from './reminderManager';
 
 /** 回收站条目保留天数 */
 const TRASH_RETENTION_DAYS = 30;
@@ -80,6 +81,11 @@ export async function moveToTrash(ids: string[]): Promise<void> {
       [STORAGE_KEYS.PASSWORDS]: remainingPasswords,
       [STORAGE_KEYS.TRASH]: [...trash, ...movedEntries],
     });
+
+    // 清理已移入回收站条目的到期提醒（避免对非活跃条目发送通知）
+    for (const id of ids) {
+      await removeReminder(id).catch(() => {});
+    }
   } catch (error) {
     logger.error('移入回收站失败:', error);
     throw error;
@@ -142,6 +148,11 @@ export async function permanentDeleteFromTrash(ids: string[]): Promise<void> {
 
     // 清理对应的密码历史记录
     await deleteHistoryByEntryIds(ids);
+
+    // 安全兜底：清理可能残留的到期提醒
+    for (const id of ids) {
+      await removeReminder(id).catch(() => {});
+    }
   } catch (error) {
     logger.error('彻底删除失败:', error);
     throw error;
@@ -161,6 +172,11 @@ export async function emptyTrash(): Promise<void> {
     const entryIds = trash.map(entry => entry.id);
     await writeTrash([]);
     await deleteHistoryByEntryIds(entryIds);
+
+    // 安全兜底：清理可能残留的到期提醒
+    for (const id of entryIds) {
+      await removeReminder(id).catch(() => {});
+    }
   } catch (error) {
     logger.error('清空回收站失败:', error);
     throw error;
@@ -196,6 +212,11 @@ export async function cleanExpiredTrash(): Promise<void> {
     // 清理过期条目的历史记录
     const expiredIds = expired.map(e => e.id);
     await deleteHistoryByEntryIds(expiredIds);
+
+    // 安全兜底：清理过期条目可能残留的到期提醒
+    for (const id of expiredIds) {
+      await removeReminder(id).catch(() => {});
+    }
 
     logger.debug(`回收站自动清理: 移除 ${expired.length} 条过期条目`);
   } catch (error) {

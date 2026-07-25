@@ -179,7 +179,7 @@ const handleSubmit = async () => {
   } catch (error: any) {
     logger.error('修改主密码失败:', error);
     const msg = error?.message || '';
-    if (msg.includes('验证失败')) {
+    if (error?.code === 'WRONG_PASSWORD' || msg.includes('验证失败')) {
       ElMessage.error(t('options.changePwd.wrongOldPassword'));
     } else {
       ElMessage.error(t('options.changePwd.failed', { msg: msg || t('message.unknownError') }));

@@ -162,12 +162,20 @@ export function usePasswordStrength(passwordRef: Ref<string>) {
   // passwordRef（computed getter），若调用方的 getter 闭包引用了后声明的变量
   //（如 App.vue 中的 setupForm）会触发 TDZ ReferenceError 导致整页白屏。
   // 初始密码为空时 isBreached 默认 false 即为正确初值，无需立即校验。
+  //
+  // 竞态保护：用户快速输入时异步字典校验可能乱序返回，
+  // 使用递增计数器确保只有最新一次调用的结果才写入 isBreached。
+  let checkId = 0;
   watch(passwordRef, async pwd => {
+    const id = ++checkId;
     if (!pwd) {
       isBreached.value = false;
       return;
     }
-    isBreached.value = await isCommonPassword(pwd);
+    const result = await isCommonPassword(pwd);
+    if (id === checkId) {
+      isBreached.value = result;
+    }
   });
 
   return { rules, strength, isBreached };

@@ -44,16 +44,14 @@ async function loadMessages(locale: Locale): Promise<Messages> {
   if (!loadingPromises[locale]) {
     loadingPromises[locale] = (async () => {
       try {
-        const module =
-          locale === 'zh-CN'
-            ? await import('@/utils/i18n/locales/zh-CN.json')
-            : await import('@/utils/i18n/locales/en.json');
+        // zh-CN 已在模块初始化时静态内置，此处仅处理 en 的懒加载
+        const module = await import('@/utils/i18n/locales/en.json');
         const messages = (module.default ?? module) as Messages;
         messagesCache[locale] = messages;
         return messages;
       } catch (error) {
         logger.error(`i18n: 加载语言包 [${locale}] 失败:`, error);
-        messagesCache[locale] = {};
+        // 不缓存失败结果（{} 为 truthy 会永久阻断重试），下次调用可重新加载
         return {};
       } finally {
         loadingPromises[locale] = null;

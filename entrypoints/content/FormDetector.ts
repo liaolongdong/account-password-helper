@@ -868,12 +868,12 @@ export class FormDetector {
           sendResponse({ success: false, message: tl('cs.notify.noLoginForm'), reason: 'no_form' });
         } else {
           this.showSidePanel();
-          sendResponse({ success: true, message: '侧边栏显示请求已处理' });
+          sendResponse({ success: true, message: tl('cs.fd.sidepanelShown') });
         }
         return true;
       case MessageType.HIDE_SIDEPANEL:
         this.hideSidePanel();
-        sendResponse({ success: true, message: '侧边栏隐藏请求已处理' });
+        sendResponse({ success: true, message: tl('cs.fd.sidepanelHidden') });
         return true;
       default:
         return false; // 不响应，让消息传递给 background 处理

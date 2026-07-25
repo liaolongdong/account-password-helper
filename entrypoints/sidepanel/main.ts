@@ -27,12 +27,13 @@ document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][media="print"
 // 尽早读取并应用主题（fire-and-forget），并监听配置变更实时切换
 initThemeSync();
 
-// 初始化 i18n（fire-and-forget，不阻塞首屏）
-initI18n();
-
-// 性能埋点：使用 User Timing API 测量 Vue mount 耗时
-// App.vue onMounted 中通过 performance.measure 计算 interval
-performance.mark('vue-mount-start');
-createAndMountApp(App);
-const _perfMountMs = performance.now() - t0;
-logger.debug(`SidePanel: createAndMountApp 耗时 ${_perfMountMs.toFixed(1)}ms（含 Vue 同步挂载）`);
+// 初始化 i18n：等待语言偏好与语言包加载完成后再挂载，避免非中文用户首帧闪中文
+// （与 options/popup 入口保持一致；storage.local.get 耗时极短，不影响首屏体感）
+initI18n().then(() => {
+  // 性能埋点：使用 User Timing API 测量 Vue mount 耗时
+  // App.vue onMounted 中通过 performance.measure 计算 interval
+  performance.mark('vue-mount-start');
+  createAndMountApp(App);
+  const _perfMountMs = performance.now() - t0;
+  logger.debug(`SidePanel: createAndMountApp 耗时 ${_perfMountMs.toFixed(1)}ms（含 Vue 同步挂载）`);
+});

@@ -35,13 +35,13 @@
         <el-table-column
           :label="t('common.username')"
           prop="username"
-          min-width="140"
+          min-width="120"
           show-overflow-tooltip
         />
         <el-table-column
           :label="t('common.url')"
           prop="url"
-          min-width="200"
+          min-width="180"
           show-overflow-tooltip
         />
         <el-table-column
