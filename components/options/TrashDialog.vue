@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="modelValue"
     :title="t('options.trash.title')"
-    width="860px"
+    width="920px"
     align-center
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
@@ -35,13 +35,13 @@
         <el-table-column
           :label="t('common.username')"
           prop="username"
-          min-width="120"
+          min-width="100"
           show-overflow-tooltip
         />
         <el-table-column
           :label="t('common.url')"
           prop="url"
-          min-width="180"
+          min-width="120"
           show-overflow-tooltip
         />
         <el-table-column
@@ -52,7 +52,7 @@
         />
         <el-table-column
           :label="t('options.trash.deletedAt')"
-          width="95"
+          width="110"
           align="center"
         >
           <template #default="{ row }">
@@ -61,7 +61,7 @@
         </el-table-column>
         <el-table-column
           :label="t('options.trash.remainingDays')"
-          width="70"
+          width="90"
           align="center"
         >
           <template #default="{ row }">
@@ -76,7 +76,7 @@
         </el-table-column>
         <el-table-column
           :label="t('common.actions')"
-          width="130"
+          width="160"
           fixed="right"
           align="center"
         >
@@ -121,7 +121,7 @@
 import { ref, watch } from 'vue';
 import { getTrashEntries, restoreFromTrash, permanentDeleteFromTrash, emptyTrash } from '@/utils/storage/trashManager';
 import { getSessionDataKey } from '@/utils/storage/facades';
-import { formatDateCompact } from '@/utils/dateFormat';
+import { formatDate as formatDateYmd } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import { lazyImport } from '@/utils/lazyImport';
 import { useI18n } from '@/utils/i18n';
@@ -218,9 +218,9 @@ const loadTrash = async () => {
   }
 };
 
-/** 格式化日期 */
+/** 格式化删除日期为 YYYY-MM-DD */
 const formatDate = (timestamp: number): string => {
-  return formatDateCompact(timestamp);
+  return formatDateYmd(timestamp);
 };
 
 /** 计算剩余天数 */

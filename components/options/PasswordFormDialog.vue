@@ -218,7 +218,7 @@ import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopove
 import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopover.vue';
 import TotpCode from '@/components/TotpCode.vue';
 import { isValidTotpInput } from '@/utils/totp';
-import { formatDateCompact } from '@/utils/dateFormat';
+import { formatDateTime } from '@/utils/dateFormat';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
@@ -315,7 +315,7 @@ const handleGeneratedPassword = (password: string) => {
 const { historyList, loadHistory, decryptHistoryPassword } = usePasswordHistory();
 
 /** 格式化历史时间 */
-const formatHistoryTime = (timestamp: number): string => formatDateCompact(timestamp);
+const formatHistoryTime = (timestamp: number): string => formatDateTime(timestamp);
 
 /** 复制历史密码 */
 const handleCopyHistory = async (item: { password: string; loading: boolean }, index: number) => {
