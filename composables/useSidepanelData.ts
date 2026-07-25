@@ -299,6 +299,28 @@ export function useSidepanelData() {
         void invalidateSessionCacheAsync();
       } else {
         _sessionKnownExpired = false;
+
+        // rekey 自愈：包裹数据密钥被更新（如修改主密码）时，本上下文内存中的旧数据密钥
+        // 已无法解密新密文（AES-GCM 全量认证失败会被空值防护降级为空列表），
+        // 需先失效旧密钥热缓存再重载列表；未认证态则交由 handleSessionChange 恢复认证
+        const wrappedKeyChange = changes['session_wrapped_data_key'];
+        if (wrappedKeyChange?.newValue !== undefined) {
+          void (async () => {
+            const sessionModule = await getSessionModule();
+            sessionModule.adoptRekeyedSession(
+              wrappedKeyChange.newValue as string,
+              changes['session_password_expiry']?.newValue as number | undefined,
+              changes['session_validity_hours']?.newValue as number | undefined,
+            );
+            if (isAuthenticated.value) {
+              logger.debug('SidePanel: 检测到会话密钥更换（rekey），已失效旧密钥并重载列表');
+              await loadPasswords();
+            } else {
+              await handleSessionChange();
+            }
+          })();
+          return;
+        }
       }
 
       // 会话变化时，先处理会话状态，不再继续处理 account_passwords，

@@ -476,6 +476,72 @@ export async function createSession(masterPassword: string, validityHours: numbe
 }
 
 /**
+ * 为修改主密码（rekey）准备新的会话密钥材料
+ *
+ * 与 createSession 不同：不直接写 storage.local，而是返回需与重加密数据
+ * 一并原子写入的会话键值对，消除「新密文已落盘、会话密钥仍是旧值」的
+ * 存储态竞态窗口（该窗口会导致各上下文监听器用旧密钥解密新密文全部失败）。
+ *
+ * 调用完成后，本上下文内存镜像与 storage.session 均已更新为新数据密钥，
+ * 其它上下文在 onChanged 回调中回退读取 storage.session 时即可取到新密钥。
+ *
+ * @param dataKey 新数据加密密钥（hex，由新主密码派生；salt 不变时与 createSession 派生结果一致）
+ * @param validityHours 会话有效期（小时）
+ * @returns 需由调用方与数据密文原子写入 storage.local 的会话键值对
+ */
+export async function prepareSessionRekey(dataKey: string, validityHours: number): Promise<Record<string, unknown>> {
+  const enc = await _getEncryption();
+  const wrapKey = await generateSessionEncryptionKey();
+  const wrapped = await enc.encryptData(dataKey, wrapKey);
+
+  invalidateSessionCache();
+  sessionDataKey = dataKey;
+  sessionWrappedDataKey = wrapped;
+  sessionValidityHours = validityHours;
+  sessionPasswordExpiry = Date.now() + validityHours * 60 * 60 * 1000;
+
+  // 先更新 storage.session：保证其它上下文失效旧密钥后回退读取时拿到的已是新密钥
+  try {
+    await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.DATA_KEY]: dataKey });
+  } catch (sessionSetError) {
+    logger.warn('写入 storage.session 数据密钥失败（将回退到按需重新解包）:', sessionSetError);
+  }
+
+  return {
+    [SESSION_STORAGE_KEYS.WRAP_KEY]: wrapKey,
+    [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: wrapped,
+    [SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]: sessionPasswordExpiry,
+    [SESSION_STORAGE_KEYS.VALIDITY_HOURS]: validityHours,
+  };
+}
+
+/**
+ * 采纳其它上下文完成的会话密钥更换（rekey 自愈）
+ *
+ * 修改主密码会用新密钥重加密全部数据并更新包裹数据密钥；本上下文内存中的
+ * 旧数据密钥热缓存若不失效，后续解密将全部失败并被空值防护降级为空列表。
+ * 各上下文的 storage 监听在检测到 WRAPPED_DATA_KEY 被更新（newValue 存在）时调用：
+ * 若与内存镜像不一致，则清除旧数据密钥热缓存，下次 getSessionDataKey 经
+ * storage.session / 解包三级回退取得新密钥。
+ *
+ * 注意：与 clearSession 的删除语义（newValue === undefined）严格区分，
+ * 调用方必须仅在 newValue 存在时调用本函数，避免干扰锁定流程的竞态防护。
+ *
+ * @param wrappedKey storage 变更事件中的新包裹数据密钥密文
+ * @param expiry 变更事件中的新会话过期时间戳（rekey 原子写入必然同事件携带）；
+ *   不采纳会导致内存镜像停留在旧过期时间，旧时间到点时 isSessionValid 误触发提前锁定
+ * @param validityHours 变更事件中的新会话有效期（小时）
+ */
+export function adoptRekeyedSession(wrappedKey: string, expiry?: number, validityHours?: number): void {
+  if (sessionWrappedDataKey === wrappedKey) return;
+  sessionWrappedDataKey = wrappedKey;
+  sessionDataKey = null;
+  if (typeof expiry === 'number') sessionPasswordExpiry = expiry;
+  if (typeof validityHours === 'number') sessionValidityHours = validityHours;
+  invalidateSessionCache();
+}
+
+/**
  * 从 storage 恢复会话状态到内存镜像（不触发过期检查）
  *
  * 优先恢复新格式（WRAPPED_DATA_KEY）；若仅存在旧版 blob 则透明迁移。

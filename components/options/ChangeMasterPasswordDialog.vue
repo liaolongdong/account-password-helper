@@ -113,6 +113,8 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
+  /** 修改成功事件：父组件据此确定性重载密码列表（不依赖 storage watcher 时序） */
+  success: [];
 }>();
 
 const { t } = useI18n();
@@ -176,6 +178,7 @@ const handleSubmit = async () => {
     await changeMasterPassword(form.oldPassword, form.newPassword);
     ElMessage.success(t('options.changePwd.success'));
     emit('update:modelValue', false);
+    emit('success');
   } catch (error: any) {
     logger.error('修改主密码失败:', error);
     const msg = error?.message || '';

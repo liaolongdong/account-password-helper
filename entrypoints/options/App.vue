@@ -188,7 +188,10 @@
     />
 
     <!-- 修改主密码弹窗 -->
-    <ChangeMasterPasswordDialog v-model="showChangeMasterPasswordDialog" />
+    <ChangeMasterPasswordDialog
+      v-model="showChangeMasterPasswordDialog"
+      @success="loadPasswords"
+    />
   </div>
 </template>
 

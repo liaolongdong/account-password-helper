@@ -6,6 +6,7 @@ import {
   invalidateSessionCache,
   markSessionInvalid,
   requestReEncryptAtRest,
+  adoptRekeyedSession,
 } from '@/utils/sessionManager-storage';
 import {
   checkForUpdate,
@@ -571,6 +572,18 @@ export function setupBackgroundServices(): void {
           }
 
           logger.debug('Background: 检测到会话清除，已通知所有上下文');
+        } else {
+          // rekey 自愈：包裹数据密钥被更新（修改主密码/重新登录）时，先失效 SW 内存中的
+          // 旧数据密钥热缓存，确保下方 warmPasswordCache 用新密钥解密预热，
+          // 避免旧密钥解密失败产出「已认证的空缓存」毒化 GET_INITIAL_DATA 热路径
+          const wrappedKeyChange = changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
+          if (wrappedKeyChange?.newValue !== undefined) {
+            adoptRekeyedSession(
+              wrappedKeyChange.newValue as string,
+              changes[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]?.newValue as number | undefined,
+              changes[SESSION_STORAGE_KEYS.VALIDITY_HOURS]?.newValue as number | undefined,
+            );
+          }
         }
 
         syncSwKeepaliveAlarm();

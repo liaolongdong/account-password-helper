@@ -22,11 +22,12 @@ const _getSessionManager = lazyImport(() => import('@/utils/sessionManager-stora
 /**
  * 修改主密码（Rekey）
  *
- * 核心编排流程：验证旧密码 → 解密全部数据 → 用新密码重新加密 → 原子写入 → 建立新会话。
+ * 核心编排流程：验证旧密码 → 解密全部数据 → 用新密码重新加密 → 准备新会话密钥 → 原子写入。
  *
  * 安全保证：
- * - 步骤 1-8 任意失败直接抛出，storage 未被写入，数据安全无损
- * - 步骤 9 使用单次 `chrome.storage.local.set()` 原子写入所有键
+ * - 步骤 1-9 任意失败直接抛出，storage 未被写入，数据安全无损
+ * - 步骤 11 使用单次 `chrome.storage.local.set()` 将数据密文与新会话密钥原子写入，
+ *   不存在「新密文 + 旧会话密钥」的中间状态
  * - 加密备份文件（.aph）不受影响：导入时使用导出时的密码解密，与当前主密码无关
  *
  * @param oldPassword 当前主密码（明文）
@@ -116,25 +117,38 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   const existingSalt = existingConfig.salt;
   const newVerifierHash = await enc.deriveVerifierHash(newPassword, existingSalt);
 
-  // 10. 原子写入：单次 chrome.storage.local.set() 保证全成功或全失败
-  await chrome.storage.local.set({
-    [STORAGE_KEYS.PASSWORDS]: reEncryptedPasswords,
-    [STORAGE_KEYS.TRASH]: reEncryptedTrash,
-    [STORAGE_KEYS.PASSWORD_HISTORY]: reEncryptedHistory,
-    [STORAGE_KEYS.MASTER_PASSWORD]: {
-      hashedPassword: newVerifierHash,
-      salt: existingSalt,
-      kdf: 'pbkdf2-sha256' as const,
-    },
-  });
-
-  // 11. 建立新会话
-  // 读取当前有效期配置（默认 24 小时）
+  // 10. 准备新会话密钥材料（rekey）
+  // salt 未变，步骤 7 派生的 newKey 即新会话数据密钥；prepareSessionRekey 会同步
+  // 更新本上下文内存镜像与 storage.session，并返回需一并原子落盘的会话键值对。
   const sessionResult = await chrome.storage.local.get(SESSION_STORAGE_KEYS.VALIDITY_HOURS);
   const validityHours = (sessionResult[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
-
   const sessionManager = await _getSessionManager();
-  await sessionManager.createSession(newPassword, validityHours);
+  const sessionKeysToWrite = await sessionManager.prepareSessionRekey(newKey, validityHours);
+
+  // 11. 原子写入：数据密文 + 校验哈希 + 新会话密钥单次 chrome.storage.local.set()，
+  // 全成功或全失败，消除「新密文已落盘、会话密钥仍是旧值」的竞态窗口
+  // （各上下文的 storage 监听器会用旧密钥解密新密文全部失败，导致列表被清空）
+  try {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.PASSWORDS]: reEncryptedPasswords,
+      [STORAGE_KEYS.TRASH]: reEncryptedTrash,
+      [STORAGE_KEYS.PASSWORD_HISTORY]: reEncryptedHistory,
+      [STORAGE_KEYS.MASTER_PASSWORD]: {
+        hashedPassword: newVerifierHash,
+        salt: existingSalt,
+        kdf: 'pbkdf2-sha256' as const,
+      },
+      ...sessionKeysToWrite,
+    });
+  } catch (error) {
+    // 写入失败时数据仍为旧密文，但会话密钥材料（内存/storage.session）已更新为新值，
+    // 主动清除会话强制重新验证，避免「新密钥 + 旧密文」的不一致状态
+    await sessionManager.clearSession().catch(() => {});
+    throw error;
+  }
+
+  // 12. 清理旧版遗留的主密码密文（若存在），与 createSession 的清理行为保持一致
+  await chrome.storage.local.remove(SESSION_STORAGE_KEYS.MASTER_PASSWORD);
 
   logger.info('主密码修改成功，所有数据已重新加密');
 }
