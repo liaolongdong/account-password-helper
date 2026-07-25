@@ -36,6 +36,12 @@ async function _getStorageUtils(): Promise<(typeof import('@/utils/storage'))['S
 /** 自动备份提醒闹钟名称 */
 const AUTO_BACKUP_ALARM_NAME = 'auto-backup-passwords';
 
+/** 回收站过期清理闹钟名称 */
+const TRASH_CLEANUP_ALARM_NAME = 'trash-cleanup';
+
+/** 回收站清理间隔（分钟）：每 24 小时执行一次 */
+const TRASH_CLEANUP_INTERVAL_MINUTES = 24 * 60;
+
 /**
  * Service Worker 保活闹钟名称
  *
@@ -117,6 +123,36 @@ async function setupUpdateCheckAlarm() {
     logger.info(`Background: 版本更新检测闹钟已设置，间隔 ${UPDATE_CHECK_INTERVAL_MINUTES} 分钟`);
   } catch (error) {
     logger.error('Background: 设置版本更新检测闹钟失败:', error);
+  }
+}
+
+/**
+ * 设置回收站过期清理闹钟
+ *
+ * 每 24 小时执行一次，清理超过 30 天的回收站条目。
+ */
+async function setupTrashCleanupAlarm() {
+  try {
+    await chrome.alarms.clear(TRASH_CLEANUP_ALARM_NAME);
+    await chrome.alarms.create(TRASH_CLEANUP_ALARM_NAME, {
+      periodInMinutes: TRASH_CLEANUP_INTERVAL_MINUTES,
+      delayInMinutes: 5, // 延迟 5 分钟后首次执行，避免 SW 启动时竞争
+    });
+    logger.debug('Background: 回收站清理闹钟已设置，间隔 24 小时');
+  } catch (error) {
+    logger.error('Background: 设置回收站清理闹钟失败:', error);
+  }
+}
+
+/**
+ * 执行回收站过期清理
+ */
+async function performTrashCleanup() {
+  try {
+    const { cleanExpiredTrash } = await import('@/utils/storage/trashManager');
+    await cleanExpiredTrash();
+  } catch (error) {
+    logger.error('Background: 回收站过期清理失败:', error);
   }
 }
 
@@ -348,6 +384,7 @@ export function initBackgroundConfig(): void {
   setupAutoBackupAlarm();
   setupIdleLock();
   setupUpdateCheckAlarm();
+  setupTrashCleanupAlarm();
 }
 
 /**
@@ -498,6 +535,9 @@ export function setupBackgroundServices(): void {
     } else if (alarm.name === UPDATE_CHECK_ALARM_NAME) {
       logger.info('Background: 触发版本更新检测闹钟');
       performUpdateCheck();
+    } else if (alarm.name === TRASH_CLEANUP_ALARM_NAME) {
+      logger.info('Background: 触发回收站过期清理闹钟');
+      performTrashCleanup();
     } else if (alarm.name === SW_KEEPALIVE_ALARM_NAME) {
       // Windows 会话失效期：借本次保活唤醒顺带预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，
       // 缓解冷启动白屏）。懒 import 不增大 SW 初始包；函数内自带平台/会话门控与 60s 节流，

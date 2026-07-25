@@ -19,6 +19,10 @@ export const STORAGE_KEYS = {
   FAVORITE_LIMIT: 'favorite_limit',
   SIDEPANEL_SORT_CONFIG: 'sidepanel_sort_config',
   UPDATE_INFO: 'extension_update_info',
+  /** 回收站条目（软删除，30 天 TTL 自动清理） */
+  TRASH: 'account_passwords_trash',
+  /** 密码修改历史记录（每条最多 5 条快照） */
+  PASSWORD_HISTORY: 'password_change_history',
 };
 
 /**

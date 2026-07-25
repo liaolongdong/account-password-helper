@@ -6,6 +6,8 @@ import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
 import { isExactHostMatch } from '@/utils/domain';
 import { applySavedSortConfig } from './configManager';
+import { snapshotPasswordHistory } from './passwordHistory';
+import { moveToTrash } from './trashManager';
 
 /**
  * 延迟加载加密模块（deriveEncryptionKey / encryptPasswordEntry / decryptPasswordEntry）
@@ -184,6 +186,12 @@ export async function updatePassword(
     }
     const enc = await _getEncryption();
     const currentPlain = await enc.decryptPasswordEntry(current as EncryptedPasswordEntry, masterPassword ?? '', key);
+
+    // 密码字段变更时快照旧密文（fire-and-forget，不阻塞主流程）
+    if ('password' in updates && updates.password !== currentPlain.password) {
+      snapshotPasswordHistory(id, current.password).catch(() => {});
+    }
+
     const updatedPlain: PasswordEntry = { ...currentPlain, ...updates, updateTime: Date.now() };
     entriesToSave[index] = await enc.encryptPasswordEntry(updatedPlain, masterPassword ?? '', key);
 
@@ -297,16 +305,11 @@ export function updatePasswordInSession(id: string, updates: MetadataUpdate): Pr
 }
 
 /**
- * 删除密码条目
+ * 删除密码条目（软删除：移入回收站）
  */
 export async function deletePassword(id: string): Promise<void> {
   try {
-    const passwords = await getAllPasswordsRaw();
-    const filteredPasswords = passwords.filter((p: PasswordEntry | EncryptedPasswordEntry) => p.id !== id);
-
-    await chrome.storage.local.set({
-      [STORAGE_KEYS.PASSWORDS]: filteredPasswords,
-    });
+    await moveToTrash([id]);
   } catch (error) {
     logger.error('删除密码失败:', error);
     throw error;
@@ -314,16 +317,11 @@ export async function deletePassword(id: string): Promise<void> {
 }
 
 /**
- * 批量删除密码条目
+ * 批量删除密码条目（软删除：移入回收站）
  */
 export async function deletePasswords(ids: string[]): Promise<void> {
   try {
-    const passwords = await getAllPasswordsRaw();
-    const filteredPasswords = passwords.filter((p: PasswordEntry | EncryptedPasswordEntry) => !ids.includes(p.id));
-
-    await chrome.storage.local.set({
-      [STORAGE_KEYS.PASSWORDS]: filteredPasswords,
-    });
+    await moveToTrash(ids);
   } catch (error) {
     logger.error('批量删除密码失败:', error);
     throw error;

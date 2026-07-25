@@ -493,8 +493,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   // 删除密码
   const deletePassword = async (id: string) => {
     try {
-      await ElMessageBox.confirm('确定要删除这条账号密码吗？', '确认删除', {
-        confirmButtonText: '确定',
+      await ElMessageBox.confirm('确定将此条目移入回收站？（30天内可恢复）', '确认删除', {
+        confirmButtonText: '移入回收站',
         cancelButtonText: '取消',
         type: 'warning',
       });
@@ -508,7 +508,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
             await StorageUtils.deletePassword(id);
           });
           await loadPasswords();
-          ElMessage.success('删除成功');
+          ElMessage.success('已移入回收站');
         }, 1000);
       }
     } catch (error) {
@@ -521,11 +521,15 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   // 批量删除
   const batchDelete = async () => {
     try {
-      await ElMessageBox.confirm(`确定要删除选中的 ${selectedIds.value.length} 条账号密码吗？`, '确认批量删除', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning',
-      });
+      await ElMessageBox.confirm(
+        `确定将选中的 ${selectedIds.value.length} 条账号密码移入回收站？（30天内可恢复）`,
+        '确认批量删除',
+        {
+          confirmButtonText: '移入回收站',
+          cancelButtonText: '取消',
+          type: 'warning',
+        },
+      );
 
       const patchDelItems: HTMLElement[] = [];
       selectedIds.value.forEach((id: string) => {
@@ -545,7 +549,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         });
         await loadPasswords();
         selectedIds.value = [];
-        ElMessage.success('批量删除成功');
+        ElMessage.success('已移入回收站');
       }, 1000);
     } catch (error) {
       if (error !== 'cancel') {
@@ -711,7 +715,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
     try {
       await ElMessageBox.confirm(
-        `检测到 ${duplicateGroupCount} 组重复（共 ${idsToRemove.length} 条多余），将保留每组最新更新项，确定删除吗？`,
+        `检测到 ${duplicateGroupCount} 组重复（共 ${idsToRemove.length} 条多余），将保留每组最新更新项，多余条目移入回收站，确定吗？`,
         '一键去重',
         {
           confirmButtonText: '确定',
@@ -725,7 +729,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       });
       await loadPasswords();
       selectedIds.value = [];
-      ElMessage.success(`已删除 ${idsToRemove.length} 条重复条目`);
+      ElMessage.success(`已将 ${idsToRemove.length} 条重复条目移入回收站`);
     } catch (error) {
       if (error !== 'cancel') {
         logger.error('一键去重失败:', error);

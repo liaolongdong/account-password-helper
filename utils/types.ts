@@ -532,6 +532,32 @@ export interface IdleLockConfig {
 }
 
 /**
+ * 回收站条目接口
+ *
+ * 继承加密态密码条目，额外记录删除时间戳用于 30 天 TTL 自动清理。
+ * 条目在回收站中保持密文存储，安全模型与主列表一致。
+ */
+export interface TrashedPasswordEntry extends EncryptedPasswordEntry {
+  /** 移入回收站的时间戳（毫秒） */
+  deletedAt: number;
+}
+
+/**
+ * 密码修改历史记录
+ *
+ * 密码字段变更时快照旧密文，每条条目最多保留 5 条历史记录。
+ * 历史密码以密文存储（同主密码体系加密），与数据库整体 rekey 联动。
+ */
+export interface PasswordHistoryRecord {
+  /** 所属密码条目 ID */
+  entryId: string;
+  /** 历史密码（密文，同主密码体系 AES-256-GCM 加密） */
+  password: string;
+  /** 密码变更时间戳（毫秒） */
+  changedAt: number;
+}
+
+/**
  * 单个字段填充结果接口
  */
 export interface FieldFillResult {

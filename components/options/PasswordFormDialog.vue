@@ -151,6 +151,42 @@
           </div>
         </el-form-item>
       </el-form>
+
+      <!-- 密码修改历史（仅编辑模式且有历史记录时展示） -->
+      <div
+        v-if="isEditing && historyList.length > 0"
+        class="password-history-section"
+      >
+        <el-divider content-position="left">密码修改历史</el-divider>
+        <div class="history-list">
+          <div
+            v-for="(item, index) in historyList"
+            :key="index"
+            class="history-item"
+          >
+            <span class="history-time">{{ formatHistoryTime(item.changedAt) }}</span>
+            <span class="history-password">••••••••</span>
+            <div class="history-actions">
+              <el-button
+                type="primary"
+                size="small"
+                :loading="item.loading"
+                @click="handleCopyHistory(item, index)"
+              >
+                复制
+              </el-button>
+              <el-button
+                type="warning"
+                size="small"
+                :loading="item.loading"
+                @click="handleRestoreHistory(item, index)"
+              >
+                恢复
+              </el-button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <template #footer>
@@ -182,6 +218,8 @@ import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopove
 import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopover.vue';
 import TotpCode from '@/components/TotpCode.vue';
 import { isValidTotpInput } from '@/utils/totp';
+import { formatDateCompact } from '@/utils/dateFormat';
+import { usePasswordHistory } from '@/composables/usePasswordHistory';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
 
@@ -196,6 +234,8 @@ const props = defineProps<{
   modelValue: boolean;
   /** 是否为编辑模式 */
   isEditing: boolean;
+  /** 当前编辑的条目 ID（编辑模式下用于加载历史） */
+  editingId?: string;
   /** 表单数据 */
   form: { username: string; password: string; url: string; tag: string; remark: string; totp: string };
   /** 表单校验规则 */
@@ -267,6 +307,57 @@ const handleGeneratedPassword = (password: string) => {
   localForm.password = password;
 };
 
+// ==================== 密码修改历史 ====================
+
+const { historyList, loadHistory, decryptHistoryPassword } = usePasswordHistory();
+
+/** 格式化历史时间 */
+const formatHistoryTime = (timestamp: number): string => formatDateCompact(timestamp);
+
+/** 复制历史密码 */
+const handleCopyHistory = async (item: { password: string; loading: boolean }, index: number) => {
+  historyList.value[index].loading = true;
+  try {
+    const plain = await decryptHistoryPassword(item.password);
+    if (plain) {
+      await navigator.clipboard.writeText(plain);
+      ElMessage.success('历史密码已复制');
+    } else {
+      ElMessage.error('解密失败');
+    }
+  } finally {
+    historyList.value[index].loading = false;
+  }
+};
+
+/** 恢复历史密码到表单 */
+const handleRestoreHistory = async (item: { password: string; loading: boolean }, index: number) => {
+  historyList.value[index].loading = true;
+  try {
+    const plain = await decryptHistoryPassword(item.password);
+    if (plain) {
+      localForm.password = plain;
+      ElMessage.success('已恢复到密码输入框');
+    } else {
+      ElMessage.error('解密失败');
+    }
+  } finally {
+    historyList.value[index].loading = false;
+  }
+};
+
+/** 弹窗打开时，编辑模式下加载历史 */
+watch(
+  () => props.modelValue,
+  visible => {
+    if (visible && props.isEditing && props.editingId) {
+      loadHistory(props.editingId);
+    } else if (!visible) {
+      historyList.value = [];
+    }
+  },
+);
+
 /** 暴露表单引用供父组件调用 validate / clearValidate */
 defineExpose({ formRef: localFormRef });
 </script>
@@ -294,5 +385,42 @@ defineExpose({ formRef: localFormRef });
   font-size: 12px;
   line-height: 1.5;
   color: #909399;
+}
+
+.password-history-section {
+  margin-top: 8px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-item {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f5f7fa;
+  border-radius: 6px;
+}
+
+.history-time {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #909399;
+}
+
+.history-password {
+  flex: 1;
+  font-size: 13px;
+  color: #606266;
+  letter-spacing: 2px;
+}
+
+.history-actions {
+  display: flex;
+  flex-shrink: 0;
 }
 </style>

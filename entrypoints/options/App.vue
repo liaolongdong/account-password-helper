@@ -130,6 +130,7 @@
       ref="passwordFormDialogRef"
       v-model="showPasswordDialog"
       :is-editing="isEditingPassword"
+      :editing-id="editingPasswordId"
       :form="passwordForm"
       :form-rules="passwordFormRules"
       :loading="passwordFormLoading"
@@ -179,6 +180,15 @@
       :report="healthReport"
       @edit="onHealthEdit"
     />
+
+    <!-- 回收站弹窗 -->
+    <TrashDialog
+      v-model="showTrashDialog"
+      @restored="loadPasswords"
+    />
+
+    <!-- 修改主密码弹窗 -->
+    <ChangeMasterPasswordDialog v-model="showChangeMasterPasswordDialog" />
   </div>
 </template>
 
@@ -205,6 +215,10 @@ const IdleLockSetting = defineAsyncComponent(() => import('@/components/options/
 const FavoriteLimitSetting = defineAsyncComponent(() => import('@/components/options/FavoriteLimitSetting.vue'));
 const ClipboardSettingDialog = defineAsyncComponent(() => import('@/components/options/ClipboardSettingDialog.vue'));
 const PasswordHealthDialog = defineAsyncComponent(() => import('@/components/options/PasswordHealthDialog.vue'));
+const TrashDialog = defineAsyncComponent(() => import('@/components/options/TrashDialog.vue'));
+const ChangeMasterPasswordDialog = defineAsyncComponent(
+  () => import('@/components/options/ChangeMasterPasswordDialog.vue'),
+);
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -266,6 +280,12 @@ const showClipboardDialog = ref(false);
 
 /** 安全体检弹窗可见性 */
 const showHealthDialog = ref(false);
+
+/** 回收站弹窗可见性 */
+const showTrashDialog = ref(false);
+
+/** 修改主密码弹窗可见性 */
+const showChangeMasterPasswordDialog = ref(false);
 
 /** 偏好设置弹窗可见性 */
 const showPersonalizationDialog = ref(false);
@@ -389,6 +409,9 @@ const handleDataCommand = (command: string) => {
     case 'removeDuplicates':
       removeDuplicates();
       break;
+    case 'trash':
+      showTrashDialog.value = true;
+      break;
   }
 };
 
@@ -398,6 +421,9 @@ const handleDataCommand = (command: string) => {
  */
 const handleSettingsCommand = (command: string) => {
   switch (command) {
+    case 'changeMasterPassword':
+      showChangeMasterPasswordDialog.value = true;
+      break;
     case 'validity':
       openValiditySetting();
       break;
@@ -425,6 +451,7 @@ const {
   searchKeyword,
   selectedIds,
   isEditingPassword,
+  editingPasswordId,
   passwordForm,
   passwordFormRules,
   passwordFormLoading,

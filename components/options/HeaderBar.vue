@@ -92,6 +92,12 @@
                 一键去重
               </el-dropdown-item>
               <el-dropdown-item
+                command="trash"
+                :icon="Delete"
+              >
+                回收站
+              </el-dropdown-item>
+              <el-dropdown-item
                 divided
                 command="backup"
                 :icon="Message"
@@ -111,6 +117,13 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item
+                command="changeMasterPassword"
+                :icon="Key"
+              >
+                修改主密码
+              </el-dropdown-item>
+              <el-dropdown-item
+                divided
                 command="validity"
                 :icon="Timer"
               >
@@ -173,6 +186,7 @@ import {
   DocumentCopy,
   Star,
   Aim,
+  Key,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
