@@ -1,6 +1,7 @@
 import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 
 /**
  * CSV/JSON 导出与模板下载
@@ -9,8 +10,25 @@ import { logger } from '@/utils/logger';
  * exportToJSON 委托本模块，公开契约保持不变。
  */
 
-/** CSV 导出表头 */
-const CSV_EXPORT_HEADERS = ['用户名', '密码', '网址', '标签', '备注', '两步验证', '创建时间', '更新时间'];
+/** CSV 表头 i18n key 列表（顺序即导出列顺序，用户名列可切换「必填」标注） */
+const CSV_HEADER_KEYS = [
+  'excel.header.password',
+  'excel.header.url',
+  'excel.header.tag',
+  'excel.header.remark',
+  'excel.header.totp',
+  'excel.header.createTime',
+  'excel.header.updateTime',
+] as const;
+
+/**
+ * 按当前语言生成 CSV 表头（导出/模板共用，模板的用户名列带「必填」标注）
+ * @param usernameRequired 用户名列是否使用「必填」标注文案
+ */
+function buildCsvHeaders(usernameRequired = false): string[] {
+  const usernameKey = usernameRequired ? 'excel.header.usernameRequired' : 'excel.header.username';
+  return [t(usernameKey), ...CSV_HEADER_KEYS.map(key => t(key))];
+}
 
 /**
  * 将二维行数据序列化为 CSV 文本
@@ -56,7 +74,7 @@ export function exportToCSV(passwords: PasswordEntry[], filename: string = 'pass
       formatDate(p.createTime || Date.now()),
       formatDate(p.updateTime || Date.now()),
     ]);
-    const csv = serializeCsvRows([CSV_EXPORT_HEADERS, ...rows]);
+    const csv = serializeCsvRows([buildCsvHeaders(), ...rows]);
     downloadBlob(['\uFEFF' + csv], 'text/csv;charset=utf-8', filename);
   } catch (error) {
     logger.error('导出CSV失败:', error);
@@ -72,8 +90,17 @@ export function exportToCSV(passwords: PasswordEntry[], filename: string = 'pass
 export function downloadTemplate(): void {
   const now = formatDate(Date.now());
   const csv = serializeCsvRows([
-    ['用户名(必填)', '密码', '网址', '标签', '备注', '两步验证', '创建时间', '更新时间'],
-    ['example@email.com', 'password123', 'https://example.com', '工作', '示例账号', '', now, now],
+    buildCsvHeaders(true),
+    [
+      'example@email.com',
+      'password123',
+      'https://example.com',
+      t('excel.template.exampleTag'),
+      t('excel.template.exampleRemark'),
+      '',
+      now,
+      now,
+    ],
   ]);
   downloadBlob(['\uFEFF' + csv], 'text/csv;charset=utf-8', 'password_template.csv');
 }

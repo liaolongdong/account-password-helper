@@ -322,7 +322,7 @@ pnpm build:firefox
 | 创建时间            | createTime / CreateTime | 否   | 自动填充         |
 | 更新时间 / 修改时间 | updateTime / modifyTime | 否   | 自动填充         |
 
-> 「下载模板」会生成标准 CSV 文件（BOM UTF-8，Excel / Numbers 可直接打开）。
+> 「下载模板」会生成标准 CSV 文件（BOM UTF-8，Excel / Numbers 可直接打开）。模板与导出文件的表头跟随界面语言（中文 / English），两种语言的表头均可被导入自动识别。
 
 示例：
 
