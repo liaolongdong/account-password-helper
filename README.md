@@ -1,5 +1,7 @@
 # Account Password Helper · 账号密码管理助手
 
+**中文** | [English](./README.en.md)
+
 [![WXT](https://img.shields.io/badge/WXT-v0.20.25-4E88FF)](https://wxt.dev/)
 [![Vue](https://img.shields.io/badge/Vue-v3.5.33-42b883)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-v6.0-3178c6)](https://www.typescriptlang.org/)

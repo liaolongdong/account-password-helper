@@ -170,6 +170,34 @@
         background: var(--text);
         transform: translateY(-1px);
       }
+
+      /* 语言切换按钮（中 / EN） */
+      .lang-toggle {
+        flex-shrink: 0;
+        padding: 5px 12px;
+        margin-left: 16px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-muted);
+        letter-spacing: 0.02em;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        transition:
+          color 0.2s,
+          border-color 0.2s,
+          background 0.2s;
+      }
+
+      .lang-toggle:hover {
+        color: var(--primary);
+        background: var(--primary-soft);
+        border-color: var(--primary);
+      }
+
+      .lang-toggle:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
       .footer-meta a svg {
         vertical-align: -3px;
         margin-right: 4px;
@@ -862,29 +890,54 @@
             src="./assets/icons/icon.svg"
             alt="Logo"
           />
-          <span>账号密码管理助手</span>
+          <span data-i18n="nav.brand">账号密码管理助手</span>
         </a>
         <div
           class="nav-links"
           id="navLinks"
         >
-          <a href="#features">特性</a>
-          <a href="#showcase">演示</a>
-          <a href="#steps">使用步骤</a>
-          <a href="#faq">常见问题</a>
+          <a
+            href="#features"
+            data-i18n="nav.features"
+            >特性</a
+          >
+          <a
+            href="#showcase"
+            data-i18n="nav.showcase"
+            >演示</a
+          >
+          <a
+            href="#steps"
+            data-i18n="nav.steps"
+            >使用步骤</a
+          >
+          <a
+            href="#faq"
+            data-i18n="nav.faq"
+            >常见问题</a
+          >
           <a
             href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
             target="_blank"
             rel="noopener noreferrer"
+            data-i18n="nav.cws"
             >Chrome 应用商店下载</a
           >
           <a
             href="https://github.com/liaolongdong/account-password-helper/releases/latest"
             target="_blank"
             rel="noopener noreferrer"
+            data-i18n="nav.github"
             >GitHub 下载</a
           >
         </div>
+        <button
+          class="lang-toggle"
+          id="langToggle"
+          aria-label="Switch language / 切换语言"
+        >
+          EN
+        </button>
         <a
           class="nav-github"
           href="https://github.com/liaolongdong/account-password-helper"
@@ -949,9 +1002,14 @@
     >
       <div class="container hero-inner">
         <div>
-          <span class="hero-eyebrow"><span class="dot"></span>本地加密 · 零网络传输</span>
-          <h1>让账号密码管理<br />更安全、更省心</h1>
-          <p class="lead">
+          <span class="hero-eyebrow"
+            ><span class="dot"></span><span data-i18n="hero.eyebrow">本地加密 · 零网络传输</span></span
+          >
+          <h1 data-i18n-html="hero.title">让账号密码管理<br />更安全、更省心</h1>
+          <p
+            class="lead"
+            data-i18n="hero.lead"
+          >
             一款现代化的 Chrome
             浏览器扩展，自动识别登录表单，一键安全填充账号密码；所有数据本地加密存储，永远不离开你的电脑。
           </p>
@@ -981,7 +1039,7 @@
                   y2="3"
                 />
               </svg>
-              下载插件
+              <span data-i18n="hero.download">下载插件</span>
             </a>
             <a
               class="btn btn-ghost"
@@ -1000,13 +1058,13 @@
                   d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"
                 />
               </svg>
-              GitHub 下载
+              <span data-i18n="hero.githubDownload">GitHub 下载</span>
             </a>
             <a
               class="btn btn-ghost"
               href="#showcase"
             >
-              查看功能演示
+              <span data-i18n="hero.viewDemo">查看功能演示</span>
               <svg
                 width="16"
                 height="16"
@@ -1022,10 +1080,14 @@
             <a
               class="btn btn-ghost"
               href="#steps"
+              data-i18n="hero.getStarted"
               >如何开始</a
             >
           </div>
-          <p class="hero-hint">
+          <p
+            class="hero-hint"
+            data-i18n-html="hero.hint"
+          >
             无法访问 Google？可从
             <a
               href="https://github.com/liaolongdong/account-password-helper/releases/latest"
@@ -1060,7 +1122,7 @@
                 y2="17"
               />
             </svg>
-            <span
+            <span data-i18n="common.disclaimer"
               >免责声明：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发、测试和普通生产环境登录使用，严禁保存办公或个人敏感密码（如银行、支付、社交核心密码），如发生密码泄露，后果自负！</span
             >
           </div>
@@ -1115,7 +1177,7 @@
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
             </span>
-            AES-256-GCM 本地加密
+            <span data-i18n="hero.badge">AES-256-GCM 本地加密</span>
           </div>
         </div>
       </div>
@@ -1128,8 +1190,13 @@
     >
       <div class="container">
         <div class="section-head">
-          <h2>核心特性</h2>
-          <p class="section-sub">为开发者和测试人员打造的轻量、安全、好用的密码管理工具</p>
+          <h2 data-i18n="features.title">核心特性</h2>
+          <p
+            class="section-sub"
+            data-i18n="features.sub"
+          >
+            为开发者和测试人员打造的轻量、安全、好用的密码管理工具
+          </p>
         </div>
         <div class="feature-grid">
           <article class="feature-card reveal reveal-delay-1">
@@ -1147,8 +1214,10 @@
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
-            <h3>端到端本地加密</h3>
-            <p>采用业界标准 AES-256-GCM 加密体系，敏感数据本地加密存储，永远不上传任何服务器。</p>
+            <h3 data-i18n="features.f1.title">端到端本地加密</h3>
+            <p data-i18n="features.f1.desc">
+              采用业界标准 AES-256-GCM 加密体系，敏感数据本地加密存储，永远不上传任何服务器。
+            </p>
           </article>
           <article class="feature-card reveal reveal-delay-2">
             <div class="feature-icon">
@@ -1170,8 +1239,10 @@
                 <path d="m21 21-4.3-4.3" />
               </svg>
             </div>
-            <h3>智能识别登录表单</h3>
-            <p>自动识别用户名、密码、手机号、验证码字段，并能自动勾选「记住密码」「同意条款」等选项。</p>
+            <h3 data-i18n="features.f2.title">智能识别登录表单</h3>
+            <p data-i18n="features.f2.desc">
+              自动识别用户名、密码、手机号、验证码字段，并能自动勾选「记住密码」「同意条款」等选项。
+            </p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
@@ -1188,8 +1259,10 @@
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
             </div>
-            <h3>一键智能填充</h3>
-            <p>无论是 React、Vue 等现代框架还是传统页面，都能稳定填充；可选填充后自动触发登录。</p>
+            <h3 data-i18n="features.f3.title">一键智能填充</h3>
+            <p data-i18n="features.f3.desc">
+              无论是 React、Vue 等现代框架还是传统页面，都能稳定填充；可选填充后自动触发登录。
+            </p>
           </article>
           <article class="feature-card reveal reveal-delay-1">
             <div class="feature-icon">
@@ -1213,8 +1286,10 @@
                 />
               </svg>
             </div>
-            <h3>CSV / JSON 批量导入导出</h3>
-            <p>提供标准 CSV 模板，支持中英文列名；同时支持 JSON 格式导入导出；导出前自动验证主密码，方便备份与迁移。</p>
+            <h3 data-i18n="features.f4.title">CSV / JSON 批量导入导出</h3>
+            <p data-i18n="features.f4.desc">
+              提供标准 CSV 模板，支持中英文列名；同时支持 JSON 格式导入导出；导出前自动验证主密码，方便备份与迁移。
+            </p>
           </article>
           <article class="feature-card reveal reveal-delay-2">
             <div class="feature-icon">
@@ -1243,8 +1318,8 @@
                 />
               </svg>
             </div>
-            <h3>侧边栏快速填充</h3>
-            <p>登录页输入框获得焦点时，侧边栏自动展示匹配账号；点击即填充，效率倍增。</p>
+            <h3 data-i18n="features.f5.title">侧边栏快速填充</h3>
+            <p data-i18n="features.f5.desc">登录页输入框获得焦点时，侧边栏自动展示匹配账号；点击即填充，效率倍增。</p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
@@ -1263,8 +1338,8 @@
                 <polyline points="7 3 7 8 15 8" />
               </svg>
             </div>
-            <h3>自动保存登录凭证</h3>
-            <p>
+            <h3 data-i18n="features.f6.title">自动保存登录凭证</h3>
+            <p data-i18n="features.f6.desc">
               Chrome
               式凭证捕获，登录时弹窗确认；弹窗中可编辑标签和备注；支持白名单/黑名单匹配、凭证指纹智能去重、「不再提示」一键屏蔽域名。
             </p>
@@ -1277,8 +1352,13 @@
     <section id="showcase">
       <div class="container">
         <div class="section-head">
-          <h2>功能演示</h2>
-          <p class="section-sub">从初次设置到日常使用，一图看懂每一项功能</p>
+          <h2 data-i18n="showcase.title">功能演示</h2>
+          <p
+            class="section-sub"
+            data-i18n="showcase.sub"
+          >
+            从初次设置到日常使用，一图看懂每一项功能
+          </p>
         </div>
         <div class="carousel-wrap">
           <div
@@ -1345,14 +1425,19 @@
     >
       <div class="container">
         <div class="section-head">
-          <h2>四步开始使用</h2>
-          <p class="section-sub">无需注册，无需登录，下载即用</p>
+          <h2 data-i18n="steps.title">四步开始使用</h2>
+          <p
+            class="section-sub"
+            data-i18n="steps.sub"
+          >
+            无需注册，无需登录，下载即用
+          </p>
         </div>
         <div class="step-grid">
           <article class="step-card reveal reveal-delay-1">
             <div class="step-num">01</div>
-            <h3>安装扩展</h3>
-            <p>
+            <h3 data-i18n="steps.s1.title">安装扩展</h3>
+            <p data-i18n-html="steps.s1.desc">
               从
               <a
                 href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
@@ -1374,18 +1459,20 @@
           </article>
           <article class="step-card reveal reveal-delay-2">
             <div class="step-num">02</div>
-            <h3>设置主密码</h3>
-            <p>首次使用设置一个至少 8 位、包含字母数字与特殊字符的主密码，作为唯一钥匙。</p>
+            <h3 data-i18n="steps.s2.title">设置主密码</h3>
+            <p data-i18n="steps.s2.desc">首次使用设置一个至少 8 位、包含字母数字与特殊字符的主密码，作为唯一钥匙。</p>
           </article>
           <article class="step-card reveal reveal-delay-3">
             <div class="step-num">03</div>
-            <h3>添加或导入密码</h3>
-            <p>手动新增账号，或通过 CSV 模板、JSON 文件批量导入历史账号，标签分类一目了然。</p>
+            <h3 data-i18n="steps.s3.title">添加或导入密码</h3>
+            <p data-i18n="steps.s3.desc">
+              手动新增账号，或通过 CSV 模板、JSON 文件批量导入历史账号，标签分类一目了然。
+            </p>
           </article>
           <article class="step-card reveal reveal-delay-4">
             <div class="step-num">04</div>
-            <h3>享受自动填充</h3>
-            <p>访问登录页面，点击侧边栏或悬浮按钮的对应账号，账号密码即刻填入。</p>
+            <h3 data-i18n="steps.s4.title">享受自动填充</h3>
+            <p data-i18n="steps.s4.desc">访问登录页面，点击侧边栏或悬浮按钮的对应账号，账号密码即刻填入。</p>
           </article>
         </div>
         <div
@@ -1416,7 +1503,7 @@
               y2="17"
             />
           </svg>
-          <span
+          <span data-i18n-html="steps.updateTip"
             ><strong>更新版本提示：</strong
             >更新时只需将压缩包内的文件<strong>直接覆盖</strong>原有安装目录下的文件即可，<strong>切勿</strong>重新选择其他目录加载扩展。更换加载目录会导致
             Chrome 将其视为全新安装，<strong>原有的密码数据将无法访问</strong>。<br /><br />💡
@@ -1432,8 +1519,13 @@
     <section id="faq">
       <div class="container">
         <div class="section-head">
-          <h2>常见问题</h2>
-          <p class="section-sub">使用前后你可能会关心的问题</p>
+          <h2 data-i18n="faq.title">常见问题</h2>
+          <p
+            class="section-sub"
+            data-i18n="faq.sub"
+          >
+            使用前后你可能会关心的问题
+          </p>
         </div>
         <div
           class="faq-list"
@@ -1455,14 +1547,19 @@
               width="24"
               height="24"
             />
-            <span>账号密码管理助手</span>
+            <span data-i18n="nav.brand">账号密码管理助手</span>
           </div>
-          <p class="footer-disclaimer">
+          <p
+            class="footer-disclaimer"
+            data-i18n="common.disclaimer"
+          >
             免责声明：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发、测试和普通生产环境登录使用，严禁保存办公或个人敏感密码（如银行、支付、社交核心密码），如发生密码泄露，后果自负！
           </p>
           <div class="footer-meta">
-            <span>邮箱：<a href="mailto:924902324@qq.com?subject=账号密码管理助手反馈">924902324@qq.com</a></span>
-            <span>本地加密 · 零网络传输</span>
+            <span data-i18n-html="footer.email"
+              >邮箱：<a href="mailto:924902324@qq.com?subject=账号密码管理助手反馈">924902324@qq.com</a></span
+            >
+            <span data-i18n="hero.eyebrow">本地加密 · 零网络传输</span>
             <span><a href="./privacy.html">隐私政策 / Privacy Policy</a></span>
             <span>
               <a
@@ -1481,7 +1578,7 @@
                     d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"
                   />
                 </svg>
-                GitHub 仓库
+                <span data-i18n="footer.repo">GitHub 仓库</span>
               </a>
             </span>
           </div>
@@ -1490,217 +1587,491 @@
     </footer>
 
     <script>
+      // =================== 国际化 ===================
+      const LANG_KEY = 'aph_guide_lang';
+
+      /** 当前语言：localStorage 持久化，缺省跟随浏览器语言 */
+      let lang = (() => {
+        try {
+          const saved = localStorage.getItem(LANG_KEY);
+          if (saved === 'zh' || saved === 'en') return saved;
+        } catch {
+          /* localStorage 不可用时跟随浏览器语言 */
+        }
+        return (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+      })();
+
+      /** 静态文案字典：与 data-i18n / data-i18n-html 属性一一对应 */
+      const I18N = {
+        'meta.title': { zh: '账号密码管理助手 · 使用说明', en: 'Account Password Helper · User Guide' },
+        'meta.description': {
+          zh: '一款现代化的 Chrome 浏览器扩展，让账号密码管理与自动填充更安全、 更便捷。',
+          en: 'A modern Chrome extension that makes password management and auto-fill safer and easier.',
+        },
+        'nav.brand': { zh: '账号密码管理助手', en: 'Account Password Helper' },
+        'nav.features': { zh: '特性', en: 'Features' },
+        'nav.showcase': { zh: '演示', en: 'Showcase' },
+        'nav.steps': { zh: '使用步骤', en: 'Steps' },
+        'nav.faq': { zh: '常见问题', en: 'FAQ' },
+        'nav.cws': { zh: 'Chrome 应用商店下载', en: 'Chrome Web Store' },
+        'nav.github': { zh: 'GitHub 下载', en: 'GitHub Download' },
+        'hero.eyebrow': { zh: '本地加密 · 零网络传输', en: 'Local encryption · Zero network transfer' },
+        'hero.title': {
+          zh: '让账号密码管理<br />更安全、更省心',
+          en: 'Make password management<br />safer and easier',
+        },
+        'hero.lead': {
+          zh: '一款现代化的 Chrome 浏览器扩展，自动识别登录表单，一键安全填充账号密码；所有数据本地加密存储，永远不离开你的电脑。',
+          en: 'A modern Chrome extension that detects login forms and securely fills your credentials with one click. All data is encrypted locally and never leaves your computer.',
+        },
+        'hero.download': { zh: '下载插件', en: 'Install Extension' },
+        'hero.githubDownload': { zh: 'GitHub 下载', en: 'GitHub Download' },
+        'hero.viewDemo': { zh: '查看功能演示', en: 'View Demo' },
+        'hero.getStarted': { zh: '如何开始', en: 'Get Started' },
+        'hero.hint': {
+          zh: '无法访问 Google？可从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 下载 zip 包手动安装',
+          en: 'Can\'t access Google? Download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> and install it manually',
+        },
+        'hero.badge': { zh: 'AES-256-GCM 本地加密', en: 'AES-256-GCM local encryption' },
+        'common.disclaimer': {
+          zh: '免责声明：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发、测试和普通生产环境登录使用，严禁保存办公或个人敏感密码（如银行、支付、社交核心密码），如发生密码泄露，后果自负！',
+          en: 'Disclaimer: All data is stored locally (sensitive fields encrypted). For development, testing, and ordinary production logins only. Never store work or personal sensitive passwords (banking, payment, or core social accounts). You bear full responsibility for any password leakage!',
+        },
+        'features.title': { zh: '核心特性', en: 'Core Features' },
+        'features.sub': {
+          zh: '为开发者和测试人员打造的轻量、安全、好用的密码管理工具',
+          en: 'A lightweight, secure, easy-to-use password manager built for developers and testers',
+        },
+        'features.f1.title': { zh: '端到端本地加密', en: 'Local End-to-End Encryption' },
+        'features.f1.desc': {
+          zh: '采用业界标准 AES-256-GCM 加密体系，敏感数据本地加密存储，永远不上传任何服务器。',
+          en: 'Industry-standard AES-256-GCM encryption. Sensitive data is encrypted and stored locally — never uploaded to any server.',
+        },
+        'features.f2.title': { zh: '智能识别登录表单', en: 'Smart Login Form Detection' },
+        'features.f2.desc': {
+          zh: '自动识别用户名、密码、手机号、验证码字段，并能自动勾选「记住密码」「同意条款」等选项。',
+          en: 'Automatically detects username, password, phone, and verification-code fields, and can auto-check options like "Remember me" and "Agree to terms".',
+        },
+        'features.f3.title': { zh: '一键智能填充', en: 'One-Click Smart Fill' },
+        'features.f3.desc': {
+          zh: '无论是 React、Vue 等现代框架还是传统页面，都能稳定填充；可选填充后自动触发登录。',
+          en: 'Fills reliably on React, Vue, and classic pages alike; optionally triggers login automatically after filling.',
+        },
+        'features.f4.title': { zh: 'CSV / JSON 批量导入导出', en: 'CSV / JSON Bulk Import & Export' },
+        'features.f4.desc': {
+          zh: '提供标准 CSV 模板，支持中英文列名；同时支持 JSON 格式导入导出；导出前自动验证主密码，方便备份与迁移。',
+          en: 'Standard CSV template with Chinese and English headers; JSON import/export supported; master password verified before export — easy backup and migration.',
+        },
+        'features.f5.title': { zh: '侧边栏快速填充', en: 'Side Panel Quick Fill' },
+        'features.f5.desc': {
+          zh: '登录页输入框获得焦点时，侧边栏自动展示匹配账号；点击即填充，效率倍增。',
+          en: 'When a login field gets focus, the side panel shows matching accounts; click to fill instantly.',
+        },
+        'features.f6.title': { zh: '自动保存登录凭证', en: 'Auto-Save Login Credentials' },
+        'features.f6.desc': {
+          zh: 'Chrome 式凭证捕获，登录时弹窗确认；弹窗中可编辑标签和备注；支持白名单/黑名单匹配、凭证指纹智能去重、「不再提示」一键屏蔽域名。',
+          en: 'Chrome-style credential capture with a confirmation prompt on login; edit tag and remark in the prompt; allowlist/blocklist matching, fingerprint-based dedup, and one-click "Never for this site".',
+        },
+        'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
+        'showcase.sub': {
+          zh: '从初次设置到日常使用，一图看懂每一项功能',
+          en: 'From first-time setup to daily use — one image per feature',
+        },
+        'steps.title': { zh: '四步开始使用', en: 'Get Started in Four Steps' },
+        'steps.sub': { zh: '无需注册，无需登录，下载即用', en: 'No sign-up, no login — download and go' },
+        'steps.s1.title': { zh: '安装扩展', en: 'Install the Extension' },
+        'steps.s1.desc': {
+          zh: '从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">Chrome 应用商店</a> 一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">GitHub Releases</a> 下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。',
+          en: 'Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can\'t access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.',
+        },
+        'steps.s2.title': { zh: '设置主密码', en: 'Set a Master Password' },
+        'steps.s2.desc': {
+          zh: '首次使用设置一个至少 8 位、包含字母数字与特殊字符的主密码，作为唯一钥匙。',
+          en: 'On first use, set a master password of at least 8 characters with letters, numbers, and special characters — your only key.',
+        },
+        'steps.s3.title': { zh: '添加或导入密码', en: 'Add or Import Passwords' },
+        'steps.s3.desc': {
+          zh: '手动新增账号，或通过 CSV 模板、JSON 文件批量导入历史账号，标签分类一目了然。',
+          en: 'Add accounts manually, or bulk import via the CSV template or a JSON file; tags keep everything organized.',
+        },
+        'steps.s4.title': { zh: '享受自动填充', en: 'Enjoy Auto-Fill' },
+        'steps.s4.desc': {
+          zh: '访问登录页面，点击侧边栏或悬浮按钮的对应账号，账号密码即刻填入。',
+          en: 'Open a login page and click an account in the side panel or floating button — credentials are filled instantly.',
+        },
+        'steps.updateTip': {
+          zh: '<strong>更新版本提示：</strong>更新时只需将压缩包内的文件<strong>直接覆盖</strong>原有安装目录下的文件即可，<strong>切勿</strong>重新选择其他目录加载扩展。更换加载目录会导致 Chrome 将其视为全新安装，<strong>原有的密码数据将无法访问</strong>。<br /><br />💡 <strong>如何查看当前安装目录：</strong>打开 <code>chrome://extensions/</code>，找到本扩展的卡片，点击"详情"，在扩展详情页下方可以看到「来源：/path/to/your/directory」，冒号后面的路径即为当前安装目录，更新时将文件覆盖到此目录即可。',
+          en: '<strong>Updating:</strong> simply <strong>overwrite</strong> the files in the original installation directory with the files from the new zip. <strong>Never</strong> load the extension from a different directory — Chrome would treat it as a fresh install and <strong>your existing password data would become inaccessible</strong>.<br /><br />💡 <strong>How to find the current installation directory:</strong> open <code>chrome://extensions/</code>, find this extension\'s card, click "Details", and look for "Source: /path/to/your/directory" near the bottom — that path is the installation directory to overwrite when updating.',
+        },
+        'faq.title': { zh: '常见问题', en: 'FAQ' },
+        'faq.sub': {
+          zh: '使用前后你可能会关心的问题',
+          en: 'Questions you may have before and after using',
+        },
+        'footer.email': {
+          zh: '邮箱：<a href="mailto:924902324@qq.com?subject=账号密码管理助手反馈">924902324@qq.com</a>',
+          en: 'Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a>',
+        },
+        'footer.repo': { zh: 'GitHub 仓库', en: 'GitHub Repo' },
+        'aria.menu': { zh: '菜单', en: 'Menu' },
+        'aria.prev': { zh: '上一张', en: 'Previous slide' },
+        'aria.next': { zh: '下一张', en: 'Next slide' },
+        'aria.goto': { zh: '跳转到第 {n} 张', en: 'Go to slide {n}' },
+        'ph.sample': { zh: '示例预览图', en: 'Sample preview' },
+      };
+
       // =================== 数据 ===================
       const SLIDES = [
         {
           file: '01-master-password.png',
           tag: 'STEP 01',
-          title: '设置主密码',
-          desc: '首次启用时设置一个独一无二的主密码，它是访问所有账号的唯一钥匙。',
+          title: { zh: '设置主密码', en: 'Set the master password' },
+          desc: {
+            zh: '首次启用时设置一个独一无二的主密码，它是访问所有账号的唯一钥匙。',
+            en: 'Set a unique master password on first launch — the only key to all your accounts.',
+          },
         },
         {
           file: '02-password-list.png',
           tag: 'STEP 02',
-          title: '密码列表与管理',
-          desc: '集中查看、搜索、编辑全部账号；多字段模糊搜索 + 标签分类，效率拉满。',
+          title: { zh: '密码列表与管理', en: 'Password list & management' },
+          desc: {
+            zh: '集中查看、搜索、编辑全部账号；多字段模糊搜索 + 标签分类，效率拉满。',
+            en: 'View, search, and edit all accounts in one place; multi-field fuzzy search plus tags for maximum efficiency.',
+          },
         },
         {
           file: '03-excel-import.png',
           tag: 'STEP 03',
-          title: 'CSV 批量导入',
-          desc: '下载标准模板，一次导入所有历史账号；支持中英文列名，自动识别。',
+          title: { zh: 'CSV 批量导入', en: 'CSV bulk import' },
+          desc: {
+            zh: '下载标准模板，一次导入所有历史账号；支持中英文列名，自动识别。',
+            en: 'Download the standard template and import all your accounts at once; Chinese and English headers are auto-detected.',
+          },
         },
         {
           file: '04-excel-export.png',
           tag: 'STEP 04',
-          title: '数据批量导出',
-          desc: '验证主密码，全量导出密码列表，及时备份账号数据。',
+          title: { zh: '数据批量导出', en: 'Bulk data export' },
+          desc: {
+            zh: '验证主密码，全量导出密码列表，及时备份账号数据。',
+            en: 'Verify the master password and export the full password list for timely backup.',
+          },
         },
         {
           file: '05-add-account.png',
           tag: 'STEP 05',
-          title: '添加新账号',
-          desc: '添加新账号，再也不用担心忘记密码，支持复制、编辑、删除，让密码管理更轻松。',
+          title: { zh: '添加新账号', en: 'Add new accounts' },
+          desc: {
+            zh: '添加新账号，再也不用担心忘记密码，支持复制、编辑、删除，让密码管理更轻松。',
+            en: 'Add new accounts and never worry about forgetting passwords; copy, edit, and delete supported.',
+          },
         },
         {
           file: '06-sidepanel-fill.png',
           tag: 'STEP 06',
-          title: '侧边栏一键填充',
-          desc: '打开登录页，侧边栏按当前域名优先展示，点击账号即可自动填充表单。支持自动保存账号密码',
+          title: { zh: '侧边栏一键填充', en: 'One-click side panel fill' },
+          desc: {
+            zh: '打开登录页，侧边栏按当前域名优先展示，点击账号即可自动填充表单。支持自动保存账号密码',
+            en: 'On login pages the side panel prioritizes the current domain; click an account to auto-fill. Auto-save supported.',
+          },
         },
         {
           file: '07-floating-button.png',
           tag: 'STEP 07',
-          title: '悬浮按钮快捷入口',
-          desc: '可拖动的悬浮按钮始终伴随登录页，一键唤起填充面板，位置可自定义。',
+          title: { zh: '悬浮按钮快捷入口', en: 'Floating button shortcut' },
+          desc: {
+            zh: '可拖动的悬浮按钮始终伴随登录页，一键唤起填充面板，位置可自定义。',
+            en: 'A draggable floating button follows every login page; open the fill panel with one click, position customizable.',
+          },
         },
         {
           file: '08-session-validity.png',
           tag: 'STEP 08',
-          title: '灵活的会话有效期',
-          desc: '从 1 小时到 7 天任你选；会话过期所有敏感字段自动加密回密文，安全无忧。',
+          title: { zh: '灵活的会话有效期', en: 'Flexible session validity' },
+          desc: {
+            zh: '从 1 小时到 7 天任你选；会话过期所有敏感字段自动加密回密文，安全无忧。',
+            en: 'From 1 hour to 7 days; when the session expires, all sensitive fields are automatically re-encrypted.',
+          },
         },
       ];
 
       const FAQS = [
         // ===== 安全与隐私 =====
         {
-          category: '安全与隐私',
+          category: { zh: '安全与隐私', en: 'Security & Privacy' },
           iconClass: 'security',
           iconSvg:
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>',
         },
         {
-          q: '我的密码会被上传到云端吗？',
-          a: '不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM 加密保存，永远不经过任何网络传输。',
+          q: { zh: '我的密码会被上传到云端吗？', en: 'Will my passwords be uploaded to the cloud?' },
+          a: {
+            zh: '不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM 加密保存，永远不经过任何网络传输。',
+            en: 'No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM and never travel over the network.',
+          },
         },
         {
-          q: '忘记主密码了怎么办？',
-          a: '主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph 文件）功能备份，避免数据丢失。',
+          q: { zh: '忘记主密码了怎么办？', en: 'What if I forget the master password?' },
+          a: {
+            zh: '主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph 文件）功能备份，避免数据丢失。',
+            en: 'The master password cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up regularly via data export or encrypted backup (.aph) to avoid data loss.',
+          },
         },
         {
-          q: '会话有效期到了会发生什么？',
-          a: '会话过期后，所有敏感字段会自动重新加密为密文；下次使用时只需重新验证主密码即可恢复访问，账号数据不会丢失。',
+          q: { zh: '会话有效期到了会发生什么？', en: 'What happens when the session expires?' },
+          a: {
+            zh: '会话过期后，所有敏感字段会自动重新加密为密文；下次使用时只需重新验证主密码即可恢复访问，账号数据不会丢失。',
+            en: 'All sensitive fields are automatically re-encrypted. Verify the master password again to restore access — no data is lost.',
+          },
         },
         {
-          q: '什么是自动闲置锁定？',
-          a: '在密码管理页「自动锁定设置」中可配置闲置时间（5/10/30/60 分钟或不锁定）。系统检测到用户在设定时间内无操作时，自动清除会话并锁定密码管理，需重新验证主密码才能恢复访问，有效防止离开电脑时密码列表被他人查看。',
+          q: { zh: '什么是自动闲置锁定？', en: 'What is auto idle lock?' },
+          a: {
+            zh: '在密码管理页「自动锁定设置」中可配置闲置时间（5/10/30/60 分钟或不锁定）。系统检测到用户在设定时间内无操作时，自动清除会话并锁定密码管理，需重新验证主密码才能恢复访问，有效防止离开电脑时密码列表被他人查看。',
+            en: 'In "Auto lock settings" on the management page, set an idle period (5/10/30/60 minutes or off). When no activity is detected within that period, the session is cleared and the manager locks, requiring the master password again — protecting your list while you are away.',
+          },
         },
         {
-          q: '什么是浏览器重启锁定？',
-          a: '在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需重新输入主密码，适合对安全性要求更高的场景。关闭此选项则在有效期内自动保持登录，无需重复输入。',
+          q: { zh: '什么是浏览器重启锁定？', en: 'What is lock on browser restart?' },
+          a: {
+            zh: '在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需重新输入主密码，适合对安全性要求更高的场景。关闭此选项则在有效期内自动保持登录，无需重复输入。',
+            en: 'Enable "Lock on browser restart" in "Auto lock settings". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period.',
+          },
         },
         {
-          q: '什么是安全体检？',
-          a: '安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分）和五维检测结果：弱密码、密码复用（多账号共用同一密码）、常见泄露密码（离线 top-1000 弱口令字典命中）、长时间未更新（90/180/365 天分级预警）、未开启两步验证。长时间未更新的条目还可设置密码到期提醒（7/30/90 天后桌面通知提醒更换）。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。',
+          q: { zh: '什么是安全体检？', en: 'What is Health Check?' },
+          a: {
+            zh: '安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分）和五维检测结果：弱密码、密码复用（多账号共用同一密码）、常见泄露密码（离线 top-1000 弱口令字典命中）、长时间未更新（90/180/365 天分级预警）、未开启两步验证。长时间未更新的条目还可设置密码到期提醒（7/30/90 天后桌面通知提醒更换）。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。',
+            en: 'A one-click password health scan in the top toolbar of the management page. Click "Health Check" (with a traffic-light dot showing the grade) to see an overall score (0–100) and five checks: weak passwords, reused passwords, commonly leaked passwords (offline top-1000 dictionary), long-unchanged passwords (90/180/365-day tiers), and accounts without 2FA. Stale entries can get expiry reminders (desktop notification after 7/30/90 days). Each issue has a "Fix" button that jumps straight to editing. Everything is computed locally — no network, no data upload.',
+          },
         },
 
         // ===== 基础使用 =====
         {
-          category: '基础使用',
+          category: { zh: '基础使用', en: 'Basics' },
           iconClass: 'basic',
           iconSvg:
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>',
         },
         {
-          q: '为什么有时候侧边栏没有自动弹出？',
-          a: '请确认 Chrome 浏览器版本不低于 114；同时该页面需要包含登录表单。如果没有自动弹出，也可以点击插件图标（支持快捷键 Ctrl+Shift+L / Cmd+Shift+L），或通过悬浮按钮的「快速填充」手动打开。',
+          q: {
+            zh: '为什么有时候侧边栏没有自动弹出？',
+            en: "Why doesn't the side panel open automatically sometimes?",
+          },
+          a: {
+            zh: '请确认 Chrome 浏览器版本不低于 114；同时该页面需要包含登录表单。如果没有自动弹出，也可以点击插件图标（支持快捷键 Ctrl+Shift+L / Cmd+Shift+L），或通过悬浮按钮的「快速填充」手动打开。',
+            en: 'Make sure Chrome is 114 or later and the page contains a login form. You can also click the extension icon (shortcut Ctrl+Shift+L / Cmd+Shift+L) or use "Quick fill" on the floating button.',
+          },
         },
         {
-          q: '密码填充到部分网站不生效？',
-          a: '请等待页面完全加载完成后再尝试填充；如果仍然不生效，可以刷新页面后重试。插件内置三套填充策略（Native Setter / execCommand / 模拟键盘事件），会自动切换以适配不同网站。',
+          q: { zh: '密码填充到部分网站不生效？', en: "Filling doesn't work on some sites?" },
+          a: {
+            zh: '请等待页面完全加载完成后再尝试填充；如果仍然不生效，可以刷新页面后重试。插件内置三套填充策略（Native Setter / execCommand / 模拟键盘事件），会自动切换以适配不同网站。',
+            en: 'Wait for the page to fully load and try again, or refresh the page. The extension ships three fill strategies (Native setter / execCommand / simulated typing) and switches automatically to fit different sites.',
+          },
         },
         {
-          q: '如何自定义快捷键？',
-          a: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。',
+          q: { zh: '如何自定义快捷键？', en: 'How do I customize shortcuts?' },
+          a: {
+            zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。',
+            en: 'Chrome supports this natively. Go to chrome://extensions/shortcuts, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically.',
+          },
         },
         {
-          q: '为什么快捷键默认没有生效，需要手动设置？',
-          a: 'Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts。',
+          q: {
+            zh: '为什么快捷键默认没有生效，需要手动设置？',
+            en: "Why aren't shortcuts bound by default?",
+          },
+          a: {
+            zh: 'Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts。',
+            en: 'For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see "Not set" — bind it once as above and it sticks. Unbound entries in the popup show a "Set shortcut" button linking to chrome://extensions/shortcuts.',
+          },
         },
         {
-          q: '插件会自动检测更新吗？',
-          a: '通过 Chrome 应用商店安装的用户，版本更新由商店自动推送，无需手动操作。此外，插件还通过 GitHub Releases API 每 6 小时自动检测最新版本，发现新版本时会在 Popup 弹窗中展示更新提示，点击即可跳转到下载页面。你也可以在 Popup 弹窗中手动触发检测。',
+          q: { zh: '插件会自动检测更新吗？', en: 'Does the extension check for updates?' },
+          a: {
+            zh: '通过 Chrome 应用商店安装的用户，版本更新由商店自动推送，无需手动操作。此外，插件还通过 GitHub Releases API 每 6 小时自动检测最新版本，发现新版本时会在 Popup 弹窗中展示更新提示，点击即可跳转到下载页面。你也可以在 Popup 弹窗中手动触发检测。',
+            en: 'Chrome Web Store installs update automatically. The extension also checks GitHub Releases every 6 hours and shows an update notice in the popup; click it to open the download page. You can also trigger a check manually in the popup.',
+          },
         },
         {
-          q: '会话有效期修改何时生效？',
-          a: '修改后立即创建新会话，新有效期即时生效。',
+          q: { zh: '会话有效期修改何时生效？', en: 'When does a validity change take effect?' },
+          a: {
+            zh: '修改后立即创建新会话，新有效期即时生效。',
+            en: 'Immediately — a new session is created with the new validity right away.',
+          },
         },
         {
-          q: '如何切换主题配色？',
-          a: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。在偏好设置面板中可以看到 6 款色彩主题选项（晴空蓝、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰），点击色块即可切换，所有页面和组件即时生效，无需刷新。',
+          q: { zh: '如何切换主题配色？', en: 'How do I switch themes?' },
+          a: {
+            zh: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。在偏好设置面板中可以看到 6 款色彩主题选项（晴空蓝、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰），点击色块即可切换，所有页面和组件即时生效，无需刷新。',
+            en: 'Open the preferences panel via ① the "Preferences" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Pick one of 6 color themes; all pages and components update instantly, no refresh needed.',
+          },
         },
         {
-          q: '什么是内联填充？',
-          a: '内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），使用 Closed Shadow DOM 完全隔离页面样式。',
+          q: { zh: '什么是内联填充？', en: 'What is inline fill?' },
+          a: {
+            zh: '内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），使用 Closed Shadow DOM 完全隔离页面样式。',
+            en: 'An alternative to the side panel. In "Inline" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. Supports keyboard navigation (↑↓ browse, Enter fill, Esc close) and uses a closed Shadow DOM for full style isolation.',
+          },
         },
 
         // ===== 数据管理 =====
         {
-          category: '数据管理',
+          category: { zh: '数据管理', en: 'Data Management' },
           iconClass: 'data',
           iconSvg:
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>',
         },
         {
-          q: 'CSV 导入失败要怎么排查？',
-          a: '点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式。',
+          q: { zh: 'CSV 导入失败要怎么排查？', en: 'How do I troubleshoot a failed CSV import?' },
+          a: {
+            zh: '点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式。',
+            en: 'Click "Download Template" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats.',
+          },
         },
         {
-          q: '支持从其他密码管理器导入吗？',
-          a: '支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。',
+          q: { zh: '支持从其他密码管理器导入吗？', en: 'Can I import from other password managers?' },
+          a: {
+            zh: '支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。',
+            en: 'Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected and mapped. Just export a CSV from the source manager and select it.',
+          },
         },
         {
-          q: '支持 JSON 格式导入导出吗？',
-          a: '支持。在密码管理页「数据管理」下拉菜单中选择「导出JSON」即可将所有密码数据导出为 JSON 文件（需验证主密码），导出文件名格式为 passwords_YYYYMMDD_HHmmss.json。导入时同样在导入弹窗中选择 JSON 文件即可，字段结构与插件内部存储一致。',
+          q: { zh: '支持 JSON 格式导入导出吗？', en: 'Is JSON import/export supported?' },
+          a: {
+            zh: '支持。在密码管理页「数据管理」下拉菜单中选择「导出JSON」即可将所有密码数据导出为 JSON 文件（需验证主密码），导出文件名格式为 passwords_YYYYMMDD_HHmmss.json。导入时同样在导入弹窗中选择 JSON 文件即可，字段结构与插件内部存储一致。',
+            en: 'Yes. Choose "Export JSON" in the "Data Management" menu to export all data as JSON (master password required); the filename is passwords_YYYYMMDD_HHmmss.json. To import, select a JSON file in the import dialog — the structure matches internal storage.',
+          },
         },
         {
-          q: '如何一键去重？',
-          a: '在密码管理页「数据管理」中点击「一键去重」，插件会智能检测重复条目（相同用户名 + 相同 URL），展示去重结果供确认后清理。已收藏的条目不会被删除。',
+          q: { zh: '如何一键去重？', en: 'How does one-click dedup work?' },
+          a: {
+            zh: '在密码管理页「数据管理」中点击「一键去重」，插件会智能检测重复条目（相同用户名 + 相同 URL），展示去重结果供确认后清理。已收藏的条目不会被删除。',
+            en: 'Click "Remove Duplicates" under "Data Management". The extension detects duplicates (same username + same URL) and shows the result for confirmation before cleanup. Favorited entries are never deleted.',
+          },
         },
         {
-          q: '如何备份密码到邮箱？',
-          a: '在密码管理页点击「备份到邮箱」，配置目标邮箱后可选择备份方式：「不加密备份」导出标准数据文件，「加密备份」导出 .aph 加密文件（只能通过本插件「加密备份导入」功能并验证原主密码才能查看）。可开启「自动备份提醒」定时发送桌面通知，间隔可选每天/3天/每周/两周/每月。',
+          q: { zh: '如何备份密码到邮箱？', en: 'How do I back up to email?' },
+          a: {
+            zh: '在密码管理页点击「备份到邮箱」，配置目标邮箱后可选择备份方式：「不加密备份」导出标准数据文件，「加密备份」导出 .aph 加密文件（只能通过本插件「加密备份导入」功能并验证原主密码才能查看）。可开启「自动备份提醒」定时发送桌面通知，间隔可选每天/3天/每周/两周/每月。',
+            en: 'Click "Email Backup" on the management page, configure the target address, and choose "Plain backup" (standard data file) or "Encrypted backup" (.aph file, viewable only via this extension\'s encrypted import with the original master password). Enable "Auto backup reminder" for scheduled desktop notifications — daily / every 3 days / weekly / biweekly / monthly.',
+          },
         },
         {
-          q: '如何导出/导入加密备份？',
-          a: '在密码管理页「数据管理」中，「加密备份导出」会用主密码将所有密码数据加密为 .aph 文件下载。「加密备份导入」上传 .aph 文件后输入导出时使用的主密码解密，解密成功可预览数据（前 5 条）再确认导入。加密方案为 PBKDF2 + AES-256-GCM，安全性极高。',
+          q: { zh: '如何导出/导入加密备份？', en: 'How do encrypted backups work?' },
+          a: {
+            zh: '在密码管理页「数据管理」中，「加密备份导出」会用主密码将所有密码数据加密为 .aph 文件下载。「加密备份导入」上传 .aph 文件后输入导出时使用的主密码解密，解密成功可预览数据（前 5 条）再确认导入。加密方案为 PBKDF2 + AES-256-GCM，安全性极高。',
+            en: 'Under "Data Management", "Encrypted Backup Export" encrypts all data with your master password into an .aph file. "Encrypted Backup Import" decrypts an uploaded .aph with the original master password, previews the first 5 entries, then imports on confirmation. The scheme is PBKDF2 + AES-256-GCM.',
+          },
         },
 
         // ===== 高级配置 =====
         {
-          category: '高级配置',
+          category: { zh: '高级配置', en: 'Advanced' },
           iconClass: 'config',
           iconSvg:
             '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>',
         },
         {
-          q: '如何开启自动保存登录密码？',
-          a: '在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认取页面标题）和备注（默认为"自动保存"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。',
+          q: { zh: '如何开启自动保存登录密码？', en: 'How do I enable auto-save?' },
+          a: {
+            zh: '在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认取页面标题）和备注（默认为"自动保存"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。',
+            en: 'Click "Auto-save Settings" on the management page and turn on "Enable auto-save". Optionally configure domain rules (exact domains or regex; empty matches all). On login a confirmation card appears with "Save", "Not now", and "Never" options, plus editable tag (defaults to page title) and remark (defaults to "Auto-saved"). "Never" adds the domain to the block list, removable later in settings. Before prompting, the extension compares against your vault: identical credentials are skipped silently, and changed passwords trigger an "Update" prompt.',
+          },
         },
         {
-          q: '为什么有时登录后没有弹出保存提示？',
-          a: '可能原因包括：①该域名已被加入屏蔽黑名单（检查自动保存设置中的「已屏蔽的域名」）；②该账号密码与已保存的完全相同，无需重复提示；③域名不匹配配置的白名单规则；④会话已锁定或已过期。',
+          q: {
+            zh: '为什么有时登录后没有弹出保存提示？',
+            en: 'Why is there no save prompt after login sometimes?',
+          },
+          a: {
+            zh: '可能原因包括：①该域名已被加入屏蔽黑名单（检查自动保存设置中的「已屏蔽的域名」）；②该账号密码与已保存的完全相同，无需重复提示；③域名不匹配配置的白名单规则；④会话已锁定或已过期。',
+            en: 'Possible reasons: ① the domain is on the block list (check "Blocked domains" in auto-save settings); ② the credentials are identical to what is already saved; ③ the domain does not match your allowlist rules; ④ the session is locked or expired.',
+          },
         },
         {
-          q: '自动保存会覆盖已有的密码吗？',
-          a: '当同一网站（同域名）相同账号但密码发生变化时，插件会弹出「更新」确认，确认后更新该条目的密码，并保留原有的标签和备注（除非在弹窗中手动修改）；账号密码完全相同则不打扰；不同账号则新增条目，不会影响已有数据。',
+          q: { zh: '自动保存会覆盖已有的密码吗？', en: 'Will auto-save overwrite existing passwords?' },
+          a: {
+            zh: '当同一网站（同域名）相同账号但密码发生变化时，插件会弹出「更新」确认，确认后更新该条目的密码，并保留原有的标签和备注（除非在弹窗中手动修改）；账号密码完全相同则不打扰；不同账号则新增条目，不会影响已有数据。',
+            en: 'When the same account on the same site has a changed password, an "Update" prompt appears; on confirmation the password is updated while existing tags and remarks are kept (unless you edit them in the prompt). Identical credentials are skipped; different accounts create new entries without touching existing data.',
+          },
         },
         {
-          q: '如何设置收藏上限？',
-          a: '在密码管理页点击「设置」→「收藏上限设置」，可调整收藏条目上限（1~50 条，默认 10 条）。达到上限时新收藏自动淘汰最近最少使用（LRU）的条目，确保常用账号置顶。被淘汰的条目仅取消收藏标记，密码数据不受影响。',
+          q: { zh: '如何设置收藏上限？', en: 'How do I set the favorites limit?' },
+          a: {
+            zh: '在密码管理页点击「设置」→「收藏上限设置」，可调整收藏条目上限（1~50 条，默认 10 条）。达到上限时新收藏自动淘汰最近最少使用（LRU）的条目，确保常用账号置顶。被淘汰的条目仅取消收藏标记，密码数据不受影响。',
+            en: 'Go to "Settings" → "Favorites Limit" on the management page (1–50, default 10). When the limit is reached, the least recently used favorite is evicted so frequent accounts stay pinned. Evicted entries only lose the star — password data is untouched.',
+          },
         },
         {
-          q: '如何配置悬浮按钮的偏好设置？',
-          a: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。可配置：主题换肤（6 款色彩主题）、界面语言（中文 / English）、悬浮按钮显示/隐藏、快速填充方式、自动触发登录、密码可见性切换以及按钮透明度。',
+          q: {
+            zh: '如何配置悬浮按钮的偏好设置？',
+            en: 'How do I configure floating button preferences?',
+          },
+          a: {
+            zh: '有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。可配置：主题换肤（6 款色彩主题）、界面语言（中文 / English）、悬浮按钮显示/隐藏、快速填充方式、自动触发登录、密码可见性切换以及按钮透明度。',
+            en: 'Open the preferences panel via ① the "Preferences" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, auto login trigger, password visibility toggle, and opacity.',
+          },
         },
         {
-          q: '如何切换界面语言（中文 / English）？',
-          a: '在偏好设置面板的「语言 / Language」分组中点击「中文」或「English」即可切换，切换后即时生效并自动同步到所有已打开的插件页面（管理页 / 侧边栏 / Popup），无需刷新。',
+          q: {
+            zh: '如何切换界面语言（中文 / English）？',
+            en: 'How do I switch the interface language?',
+          },
+          a: {
+            zh: '在偏好设置面板的「语言 / Language」分组中点击「中文」或「English」即可切换，切换后即时生效并自动同步到所有已打开的插件页面（管理页 / 侧边栏 / Popup），无需刷新。',
+            en: 'In the "Language" group of the preferences panel, click "中文" or "English". The change applies instantly and syncs to all open extension pages (manager / side panel / popup) — no refresh needed.',
+          },
         },
         {
-          q: '密码框没有显示/隐藏切换按钮？',
-          a: '悬浮按钮「设置」中默认关闭「密码可见性切换」，需手动开启。开启后插件对所有密码输入框统一注入切换按钮，输入有值时按钮自动可见。',
+          q: {
+            zh: '密码框没有显示/隐藏切换按钮？',
+            en: 'No show/hide button on password fields?',
+          },
+          a: {
+            zh: '悬浮按钮「设置」中默认关闭「密码可见性切换」，需手动开启。开启后插件对所有密码输入框统一注入切换按钮，输入有值时按钮自动可见。',
+            en: '"Password visibility toggle" is off by default in the floating button settings. Once enabled, a toggle is injected into every password field and becomes visible when the field has a value.',
+          },
         },
         {
-          q: '复制密码后剪贴板会自动清除吗？',
-          a: '会。复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被替换；若已失焦无法验证，则采用「尽力清除」策略。复制用户名时会自动取消清除定时器。建议在密码管理页「数据管理」→「剪贴板设置」中确认开关已启用。',
+          q: {
+            zh: '复制密码后剪贴板会自动清除吗？',
+            en: 'Is the clipboard cleared after copying a password?',
+          },
+          a: {
+            zh: '会。复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被替换；若已失焦无法验证，则采用「尽力清除」策略。复制用户名时会自动取消清除定时器。建议在密码管理页「数据管理」→「剪贴板设置」中确认开关已启用。',
+            en: 'Yes. Per "Clipboard Settings", the clipboard is cleared after a delay (default 30s; options 10/15/30/60/120s). Before clearing, the extension verifies the content has not been replaced; if unfocused, it falls back to best-effort clearing. Copying a username cancels the timer. Confirm the switch is on under "Data Management" → "Clipboard Settings".',
+          },
         },
         {
-          q: '如何生成随机密码？',
-          a: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器。可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
+          q: { zh: '如何生成随机密码？', en: 'How do I generate a random password?' },
+          a: {
+            zh: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器。可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
+            en: 'In the add/edit form, click the magic-wand icon next to the password field. Customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). A strength bar shows in real time; click "Use this password" to fill it in. Backed by the Web Crypto API for cryptographic randomness.',
+          },
         },
         {
-          q: '侧边栏和内联填充有什么区别？',
-          a: '两者都是密码填充方式，功能互补。侧边栏是浏览器侧边的完整面板，适合搜索浏览全部密码、管理收藏等；内联填充是页面内的迷你面板，登录框获焦后显示钥匙图标，点击即可快速选择账号填充，无需切换到侧边栏。可在偏好设置中选择填充模式：「侧边栏」适合习惯侧边操作的用户，「内联」适合追求快速填充的用户。',
+          q: { zh: '侧边栏和内联填充有什么区别？', en: 'Side panel vs inline fill?' },
+          a: {
+            zh: '两者都是密码填充方式，功能互补。侧边栏是浏览器侧边的完整面板，适合搜索浏览全部密码、管理收藏等；内联填充是页面内的迷你面板，登录框获焦后显示钥匙图标，点击即可快速选择账号填充，无需切换到侧边栏。可在偏好设置中选择填充模式：「侧边栏」适合习惯侧边操作的用户，「内联」适合追求快速填充的用户。',
+            en: 'Both fill passwords and complement each other. The side panel is a full browser panel, great for searching all passwords and managing favorites; inline fill is an in-page mini panel — focus a login field, click the key icon, pick an account. Choose the mode in preferences: "Side panel" for panel lovers, "Inline" for the fastest fill.',
+          },
         },
         {
-          q: '如何使用两步验证（TOTP）？',
-          a: '在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 otpauth:// 链接或 Base32 密钥即可。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，零网络传输。注意：本机时钟必须准确（误差 < 30 秒），否则动态码验证会失败。',
+          q: { zh: '如何使用两步验证（TOTP）？', en: 'How do I use two-factor codes (TOTP)?' },
+          a: {
+            zh: '在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 otpauth:// 链接或 Base32 密钥即可。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，零网络传输。注意：本机时钟必须准确（误差 < 30 秒），否则动态码验证会失败。',
+            en: 'In the add/edit form\'s "2FA" field, paste the site\'s otpauth:// link or Base32 secret. Afterwards, the list and side panel show a live 6-digit code with a ring countdown (color shift in the last 5 seconds). Side panel entries offer "Fill code" and "Copy code" buttons. Codes are computed locally per RFC 6238 with Web Crypto HMAC — zero network. Note: your clock must be accurate (within ~30 seconds) or verification will fail.',
+          },
         },
         {
-          q: '插件的性能表现如何？',
-          a: '插件在性能方面做了大量优化。Service Worker 在会话有效期内通过保活闹钟（每 1 分钟唤醒）持续运行，确保密码缓存始终在内存中可用，侧边栏打开时可直接从缓存加载数据（约 20-50ms），避免冷启动延迟。Service Worker 启动后还会延迟 500ms 预热密码缓存，进一步提升首次打开侧边栏的响应速度。保活仅在会话有效期内启用，会话过期后自动停止，不影响电池续航。',
+          q: { zh: '插件的性能表现如何？', en: 'How is the performance?' },
+          a: {
+            zh: '插件在性能方面做了大量优化。Service Worker 在会话有效期内通过保活闹钟（每 1 分钟唤醒）持续运行，确保密码缓存始终在内存中可用，侧边栏打开时可直接从缓存加载数据（约 20-50ms），避免冷启动延迟。Service Worker 启动后还会延迟 500ms 预热密码缓存，进一步提升首次打开侧边栏的响应速度。保活仅在会话有效期内启用，会话过期后自动停止，不影响电池续航。',
+            en: 'Heavily optimized. During a valid session the service worker stays alive via a 1-minute keep-alive alarm so the password cache is always in memory — the side panel loads from cache in about 20–50ms with no cold-start delay. The worker also pre-warms the cache 500ms after startup. Keep-alive runs only during valid sessions and stops automatically after expiry, so battery impact is minimal.',
+          },
         },
       ];
 
@@ -1753,7 +2124,7 @@
             <rect x="320" y="630" width="640" height="60" rx="30" fill="rgba(255,255,255,0.85)" stroke="#E2E8F0"/>
             <text x="640" y="668" text-anchor="middle" fill="#4E88FF" font-family="-apple-system, PingFang SC, sans-serif" font-size="24" font-weight="600">${safe}</text>
           </g>
-          <text x="1240" y="700" text-anchor="end" fill="#94A3B8" font-family="-apple-system, PingFang SC, sans-serif" font-size="14">示例预览图</text>
+          <text x="1240" y="700" text-anchor="end" fill="#94A3B8" font-family="-apple-system, PingFang SC, sans-serif" font-size="14">${I18N['ph.sample'][lang]}</text>
         </svg>`;
         return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
       }
@@ -1765,37 +2136,42 @@
       const total = SLIDES.length;
       let current = 0;
       let timer = null;
-      let progressTimer = null;
       const INTERVAL = 5000;
 
-      SLIDES.forEach((s, i) => {
-        const slide = document.createElement('div');
-        slide.className = 'slide';
-        slide.innerHTML = `
+      /** 按当前语言（重）渲染全部轮播 slide 与圆点，保留当前所在位置 */
+      function renderCarousel() {
+        track.innerHTML = '';
+        dotsBox.innerHTML = '';
+        SLIDES.forEach((s, i) => {
+          const slide = document.createElement('div');
+          slide.className = 'slide';
+          slide.innerHTML = `
         <div class="slide-shot">
-          <img src="./assets/screenshots/${s.file}" alt="${s.title}" data-title="${s.title}" loading="lazy" />
+          <img src="./assets/screenshots/${s.file}" alt="${s.title[lang]}" data-title="${s.title[lang]}" loading="lazy" />
         </div>
         <div class="slide-info">
           <span class="step-tag">${s.tag}</span>
-          <h3>${s.title}</h3>
-          <p>${s.desc}</p>
+          <h3>${s.title[lang]}</h3>
+          <p>${s.desc[lang]}</p>
         </div>
       `;
-        track.appendChild(slide);
+          track.appendChild(slide);
 
-        // 占位图回退
-        const img = slide.querySelector('img');
-        img.addEventListener('error', () => {
-          img.src = buildPlaceholder(s.title);
+          // 占位图回退
+          const img = slide.querySelector('img');
+          img.addEventListener('error', () => {
+            img.src = buildPlaceholder(s.title[lang]);
+          });
+
+          // 圆点
+          const dot = document.createElement('button');
+          dot.setAttribute('aria-label', I18N['aria.goto'][lang].replace('{n}', i + 1));
+          if (i === current) dot.classList.add('active');
+          dot.addEventListener('click', () => goTo(i));
+          dotsBox.appendChild(dot);
         });
-
-        // 圆点
-        const dot = document.createElement('button');
-        dot.setAttribute('aria-label', `跳转到第 ${i + 1} 张`);
-        if (i === 0) dot.classList.add('active');
-        dot.addEventListener('click', () => goTo(i));
-        dotsBox.appendChild(dot);
-      });
+        update();
+      }
 
       function update() {
         track.style.transform = `translateX(-${current * 100}%)`;
@@ -1875,54 +2251,58 @@
         { passive: true },
       );
 
-      update();
       start();
 
       // =================== FAQ ===================
       const faqBox = document.getElementById('faqList');
-      FAQS.forEach((item, idx) => {
-        // 分类标题
-        if (item.category) {
-          const catEl = document.createElement('div');
-          catEl.className = 'faq-category';
-          catEl.innerHTML = `
+
+      /** 按当前语言（重）渲染 FAQ 列表（切换语言时收起全部展开项） */
+      function renderFaqs() {
+        faqBox.innerHTML = '';
+        FAQS.forEach(item => {
+          // 分类标题
+          if (item.category) {
+            const catEl = document.createElement('div');
+            catEl.className = 'faq-category';
+            catEl.innerHTML = `
             <span class="faq-category-icon ${item.iconClass}">${item.iconSvg}</span>
-            <span class="faq-category-title">${item.category}</span>
+            <span class="faq-category-title">${item.category[lang]}</span>
           `;
-          faqBox.appendChild(catEl);
-          return;
-        }
-        // 问答条目
-        const el = document.createElement('div');
-        el.className = 'faq-item';
-        el.innerHTML = `
+            faqBox.appendChild(catEl);
+            return;
+          }
+          // 问答条目
+          const el = document.createElement('div');
+          el.className = 'faq-item';
+          el.innerHTML = `
         <button class="faq-q" aria-expanded="false">
-          <span>${item.q}</span>
+          <span>${item.q[lang]}</span>
           <span class="chev">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
           </span>
         </button>
-        <div class="faq-a"><div class="faq-a-inner">${item.a}</div></div>
+        <div class="faq-a"><div class="faq-a-inner">${item.a[lang]}</div></div>
       `;
-        faqBox.appendChild(el);
+          faqBox.appendChild(el);
 
-        const btn = el.querySelector('.faq-q');
-        const ans = el.querySelector('.faq-a');
-        btn.addEventListener('click', () => {
-          const opening = !el.classList.contains('open');
-          // 单展开
-          document.querySelectorAll('.faq-item.open').forEach(other => {
-            other.classList.remove('open');
-            other.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
-            other.querySelector('.faq-a').style.maxHeight = '0';
+          const btn = el.querySelector('.faq-q');
+          const ans = el.querySelector('.faq-a');
+          btn.addEventListener('click', () => {
+            const opening = !el.classList.contains('open');
+            // 单展开
+            document.querySelectorAll('.faq-item.open').forEach(other => {
+              other.classList.remove('open');
+              other.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
+              other.querySelector('.faq-a').style.maxHeight = '0';
+            });
+            if (opening) {
+              el.classList.add('open');
+              btn.setAttribute('aria-expanded', 'true');
+              ans.style.maxHeight = ans.scrollHeight + 'px';
+            }
           });
-          if (opening) {
-            el.classList.add('open');
-            btn.setAttribute('aria-expanded', 'true');
-            ans.style.maxHeight = ans.scrollHeight + 'px';
-          }
         });
-      });
+      }
 
       // =================== Nav 滚动高亮 ===================
       const navLinks = document.querySelectorAll('.nav-links a');
@@ -1950,6 +2330,47 @@
       navLinksBox.addEventListener('click', e => {
         if (e.target.tagName === 'A') navLinksBox.classList.remove('open');
       });
+
+      // =================== 语言切换 ===================
+      const langToggle = document.getElementById('langToggle');
+
+      /** 应用当前语言：静态 data-i18n 标记 + 动态渲染区（轮播/FAQ）+ 文档元信息 */
+      function applyLang() {
+        document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+        document.title = I18N['meta.title'][lang];
+        const metaDesc = document.querySelector('meta[name="description"]');
+        if (metaDesc) metaDesc.setAttribute('content', I18N['meta.description'][lang]);
+
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+          const entry = I18N[el.dataset.i18n];
+          if (entry) el.textContent = entry[lang];
+        });
+        document.querySelectorAll('[data-i18n-html]').forEach(el => {
+          const entry = I18N[el.dataset.i18nHtml];
+          if (entry) el.innerHTML = entry[lang];
+        });
+
+        navToggle.setAttribute('aria-label', I18N['aria.menu'][lang]);
+        document.getElementById('prevBtn').setAttribute('aria-label', I18N['aria.prev'][lang]);
+        document.getElementById('nextBtn').setAttribute('aria-label', I18N['aria.next'][lang]);
+        // 按钮展示目标语言，点击即切换
+        langToggle.textContent = lang === 'zh' ? 'EN' : '中文';
+
+        renderCarousel();
+        renderFaqs();
+      }
+
+      langToggle.addEventListener('click', () => {
+        lang = lang === 'zh' ? 'en' : 'zh';
+        try {
+          localStorage.setItem(LANG_KEY, lang);
+        } catch {
+          /* 隐私模式等场景下持久化失败不影响本次切换 */
+        }
+        applyLang();
+      });
+
+      applyLang();
 
       // =================== Scroll Reveal ===================
       const revealObserver = new IntersectionObserver(

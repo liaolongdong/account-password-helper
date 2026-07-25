@@ -52,7 +52,7 @@
   "options.header.healthCheck": "Health Check",
   "options.header.healthScore": "Security score: {score}",
   "options.header.settings": "Settings",
-  "options.header.data": "Data",
+  "options.header.data": "Data Management",
   "options.header.downloadTemplate": "Download Template",
   "options.header.importData": "Import Data",
   "options.header.exportData": "Export Data",
