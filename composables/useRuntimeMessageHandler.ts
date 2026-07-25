@@ -1,6 +1,7 @@
 import { onMounted, onUnmounted, type Ref } from 'vue';
 import { MessageType, type PasswordEntry, type RuntimeMessage } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 
 /**
  * Runtime 消息监听 Composable
@@ -49,7 +50,7 @@ export function useRuntimeMessageHandler(options: {
         if (entry) {
           editPassword(entry);
         } else {
-          ElMessage.warning('未找到对应的密码条目，可能已被删除');
+          ElMessage.warning(t('message.entryNotFound'));
         }
       });
     } else if (message.type === MessageType.OPEN_OPTIONS_AND_ADD) {

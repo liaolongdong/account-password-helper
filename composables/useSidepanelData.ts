@@ -4,6 +4,7 @@ import { MessageType } from '@/utils/types';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 import { isExactHostMatch } from '@/utils/domain';
 import { lazyImport } from '@/utils/lazyImport';
 
@@ -224,7 +225,7 @@ export function useSidepanelData() {
       void updatePasswordCacheInBackground(loadedPasswords, currentDomain.value, isAuthenticated.value);
     } catch (error) {
       logger.error('加载密码列表失败:', error);
-      ElMessage.error('加载密码列表失败');
+      ElMessage.error(t('message.loadListFailed'));
     } finally {
       // 兜底确保 loading 状态清除（异常路径安全网）
       loading.value = false;

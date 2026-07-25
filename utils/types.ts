@@ -572,6 +572,8 @@ export interface FieldFillResult {
 export interface FillResult {
   success: boolean;
   message: string;
+  /** 结构化失败原因（跨语言稳定判断，替代对 message 文案的字符串匹配） */
+  reason?: 'no_form';
   details: {
     usernameField: FieldFillResult;
     passwordField: FieldFillResult;

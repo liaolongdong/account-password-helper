@@ -24,8 +24,8 @@
         <div class="auth-icon-circle">
           <el-icon class="auth-icon"><Lock /></el-icon>
         </div>
-        <h3 class="auth-title">会话已失效</h3>
-        <p class="auth-desc">请在选项中验证主密码以解锁快速填充功能</p>
+        <h3 class="auth-title">{{ t('sidepanel.sessionExpired') }}</h3>
+        <p class="auth-desc">{{ t('sidepanel.sessionExpiredDesc') }}</p>
         <el-button
           class="auth-verify-btn"
           type="primary"
@@ -33,7 +33,7 @@
           size="large"
           @click="openOptions"
         >
-          去验证主密码
+          {{ t('sidepanel.verifyPassword') }}
         </el-button>
       </div>
     </div>
@@ -46,13 +46,13 @@
           <el-input
             ref="searchInputRef"
             v-model="searchKeyword"
-            placeholder="搜索用户名、标签、备注、网址..."
+            :placeholder="t('sidepanel.searchPlaceholder')"
             :prefix-icon="Search"
             clearable
             @input="handleSearch"
           />
           <el-tooltip
-            :content="favoriteOnly ? '显示全部' : '只看收藏'"
+            :content="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
             placement="top"
             :show-after="400"
           >
@@ -65,7 +65,7 @@
             />
           </el-tooltip>
           <el-tooltip
-            content="排序方式"
+            :content="t('sidepanel.sortBy')"
             placement="top"
             :show-after="400"
           >
@@ -86,7 +86,7 @@
                     :class="{ 'is-active': sidepanelSortProp === 'lastUsedAt' }"
                   >
                     <el-icon class="sort-item-icon"><Timer /></el-icon>
-                    <span>最近使用</span>
+                    <span>{{ t('sidepanel.recentlyUsed') }}</span>
                     <el-icon
                       v-if="sidepanelSortProp === 'lastUsedAt'"
                       class="sort-check-icon"
@@ -98,7 +98,7 @@
                     :class="{ 'is-active': sidepanelSortProp === 'updateTime' }"
                   >
                     <el-icon class="sort-item-icon"><Refresh /></el-icon>
-                    <span>最近更新</span>
+                    <span>{{ t('sidepanel.recentlyUpdated') }}</span>
                     <el-icon
                       v-if="sidepanelSortProp === 'updateTime'"
                       class="sort-check-icon"
@@ -110,7 +110,7 @@
                     :class="{ 'is-active': sidepanelSortProp === 'username' }"
                   >
                     <el-icon class="sort-item-icon"><User /></el-icon>
-                    <span>用户名</span>
+                    <span>{{ t('sidepanel.username') }}</span>
                     <el-icon
                       v-if="sidepanelSortProp === 'username'"
                       class="sort-check-icon"
@@ -122,7 +122,7 @@
                     :class="{ 'is-active': sidepanelSortProp === 'url' }"
                   >
                     <el-icon class="sort-item-icon"><Link /></el-icon>
-                    <span>网址</span>
+                    <span>{{ t('sidepanel.url') }}</span>
                     <el-icon
                       v-if="sidepanelSortProp === 'url'"
                       class="sort-check-icon"
@@ -134,7 +134,7 @@
                     :class="{ 'is-active': sidepanelSortProp === 'createTime' }"
                   >
                     <el-icon class="sort-item-icon"><Clock /></el-icon>
-                    <span>创建时间</span>
+                    <span>{{ t('sidepanel.createTime') }}</span>
                     <el-icon
                       v-if="sidepanelSortProp === 'createTime'"
                       class="sort-check-icon"
@@ -156,7 +156,7 @@
             class="loading-state"
           >
             <el-icon class="is-loading loading-spinner"><Loading /></el-icon>
-            <span>加载中...</span>
+            <span>{{ t('sidepanel.loading') }}</span>
           </div>
 
           <div
@@ -168,15 +168,15 @@
               <div class="empty-icon-circle">
                 <el-icon class="empty-icon"><Plus /></el-icon>
               </div>
-              <h3 class="empty-title">还没有保存的密码</h3>
-              <p class="empty-desc">在密码管理中导入或添加密码</p>
+              <h3 class="empty-title">{{ t('sidepanel.noPasswords') }}</h3>
+              <p class="empty-desc">{{ t('sidepanel.noPasswordsDesc') }}</p>
               <el-button
                 type="primary"
                 :icon="Plus"
                 class="empty-add-btn"
                 @click="openOptionsAndAdd"
               >
-                去添加密码
+                {{ t('sidepanel.addPassword') }}
               </el-button>
             </template>
             <!-- 搜索/过滤无结果 -->
@@ -184,8 +184,8 @@
               <div class="empty-icon-circle empty-icon-circle--muted">
                 <el-icon class="empty-icon empty-icon--muted"><Search /></el-icon>
               </div>
-              <h3 class="empty-title">暂无匹配的密码</h3>
-              <p class="empty-desc">试试调整搜索关键词或筛选条件</p>
+              <h3 class="empty-title">{{ t('sidepanel.noMatch') }}</h3>
+              <p class="empty-desc">{{ t('sidepanel.noMatchDesc') }}</p>
             </template>
           </div>
 
@@ -222,7 +222,7 @@
         class="footer-manage-btn"
         @click="openOptions"
       >
-        密码管理
+        {{ t('sidepanel.manage') }}
       </el-button>
     </div>
 
@@ -274,6 +274,7 @@ import { MessageType } from '@/utils/types';
 import { saveSidepanelSortConfig, getFavoriteLimit, getFloatingButtonConfig } from '@/utils/storage/configManager';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
@@ -512,7 +513,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
         const evicted = await evictFn(passwords.value);
         if (evicted) {
           const limit = await getFavoriteLimit();
-          ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
+          ElMessage.info(t('sidepanel.favoriteEvicted', { limit, username: evicted.username }));
         }
         const now = Date.now();
         // 乐观更新：先就地更新 UI 与提示，避免受防抖写入阻塞造成的交互卡顿
@@ -520,7 +521,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
           entry.favorite = true;
           entry.favoriteUsedAt = now;
         }
-        ElMessage.success('已收藏');
+        ElMessage.success(t('sidepanel.favorited'));
         await updateFn(password.id, {
           favorite: true,
           favoriteUsedAt: now,
@@ -528,7 +529,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
         });
       }).catch(error => {
         logger.error('切换收藏失败:', error);
-        ElMessage.error('操作失败');
+        ElMessage.error(t('message.operationFailed'));
       });
     } else {
       // 乐观更新：先就地更新 UI 与提示（取消收藏无淘汰逻辑，可立即反馈）
@@ -536,7 +537,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
         entry.favorite = false;
         entry.favoriteUsedAt = undefined;
       }
-      ElMessage.success('已取消收藏');
+      ElMessage.success(t('sidepanel.unfavorited'));
       void runLocalOperation(async () => {
         await updateFn(password.id, {
           favorite: false,
@@ -545,12 +546,12 @@ const toggleFavorite = async (password: PasswordEntry) => {
         });
       }).catch(error => {
         logger.error('切换收藏失败:', error);
-        ElMessage.error('操作失败');
+        ElMessage.error(t('message.operationFailed'));
       });
     }
   } catch (error) {
     logger.error('切换收藏失败:', error);
-    ElMessage.error('操作失败');
+    ElMessage.error(t('message.operationFailed'));
   }
 };
 

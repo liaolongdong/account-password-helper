@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    :title="isEditing ? '编辑密码' : '添加密码'"
+    :title="isEditing ? t('options.form.editTitle') : t('options.form.addTitle')"
     width="600px"
     align-center
     :close-on-click-modal="false"
@@ -17,12 +17,12 @@
         size="large"
       >
         <el-form-item
-          label="用户名"
+          :label="t('common.username')"
           prop="username"
         >
           <el-input
             v-model="localForm.username"
-            placeholder="请输入用户名或邮箱（最多50字符）"
+            :placeholder="t('options.form.usernamePlaceholder')"
             :disabled="loading"
             maxlength="50"
             show-word-limit
@@ -30,13 +30,13 @@
         </el-form-item>
 
         <el-form-item
-          label="密码"
+          :label="t('common.password')"
           prop="password"
         >
           <PasswordStrengthPopover
             v-model:visible="formPasswordInputFocused"
-            title="密码强度"
-            hint="请输入密码查看强度"
+            :title="t('options.form.strengthTitle')"
+            :hint="t('options.form.strengthHint')"
             :password="localForm.password"
             :strength="passwordStrength"
             :rules="passwordRules"
@@ -44,7 +44,7 @@
             <el-input
               v-model="localForm.password"
               type="password"
-              placeholder="选填，密码信息（最多50字符）"
+              :placeholder="t('options.form.passwordPlaceholder')"
               show-password
               :disabled="loading"
               maxlength="50"
@@ -68,12 +68,12 @@
         </el-form-item>
 
         <el-form-item
-          label="网址"
+          :label="t('common.url')"
           prop="url"
         >
           <el-input
             v-model="localForm.url"
-            placeholder="选填，不填则匹配所有网站（最多100字符）"
+            :placeholder="t('options.form.urlPlaceholder')"
             :disabled="loading"
             maxlength="100"
             show-word-limit
@@ -81,7 +81,7 @@
         </el-form-item>
 
         <el-form-item
-          label="标签"
+          :label="t('common.tag')"
           prop="tag"
         >
           <el-select
@@ -93,28 +93,28 @@
             clearable
             :disabled="loading"
             :multiple-limit="MAX_TAG_COUNT"
-            :placeholder="`选填，最多选择${MAX_TAG_COUNT}个，可输入后回车新增`"
+            :placeholder="t('options.form.tagPlaceholder', { max: MAX_TAG_COUNT })"
             style="width: 100%"
             @update:model-value="$emit('update:tagArray', $event)"
           >
             <el-option
-              v-for="t in availableTags"
-              :key="t"
-              :label="t"
-              :value="t"
+              v-for="tagOption in availableTags"
+              :key="tagOption"
+              :label="tagOption"
+              :value="tagOption"
             />
           </el-select>
         </el-form-item>
 
         <el-form-item
-          label="备注"
+          :label="t('common.remark')"
           prop="remark"
         >
           <el-input
             v-model="localForm.remark"
             type="textarea"
             :rows="3"
-            placeholder="选填，备注信息（最多1000字符）"
+            :placeholder="t('options.form.remarkPlaceholder')"
             :disabled="loading"
             maxlength="1000"
             show-word-limit
@@ -122,12 +122,12 @@
         </el-form-item>
 
         <el-form-item
-          label="两步验证"
+          :label="t('common.totp')"
           prop="totp"
         >
           <el-input
             v-model="localForm.totp"
-            placeholder="选填，粘贴 otpauth:// 链接或密钥（TOTP 两步验证）"
+            :placeholder="t('options.form.totpPlaceholder')"
             :disabled="loading"
             clearable
           />
@@ -143,11 +143,11 @@
             <span
               v-else
               class="totp-preview__hint"
-              >密钥无法识别，请粘贴 otpauth:// 链接或 Base32 密钥</span
+              >{{ t('options.form.totpInvalid') }}</span
             >
           </div>
           <div class="totp-tip">
-            一个账号只能绑定一把密钥；若要多个验证器同时可用，请在同一次设置中把同一把密钥录入所有 App 后再验证。
+            {{ t('options.form.totpTip') }}
           </div>
         </el-form-item>
       </el-form>
@@ -157,7 +157,7 @@
         v-if="isEditing && historyList.length > 0"
         class="password-history-section"
       >
-        <el-divider content-position="left">密码修改历史</el-divider>
+        <el-divider content-position="left">{{ t('options.form.historyTitle') }}</el-divider>
         <div class="history-list">
           <div
             v-for="(item, index) in historyList"
@@ -173,7 +173,7 @@
                 :loading="item.loading"
                 @click="handleCopyHistory(item, index)"
               >
-                复制
+                {{ t('common.copy') }}
               </el-button>
               <el-button
                 type="warning"
@@ -181,7 +181,7 @@
                 :loading="item.loading"
                 @click="handleRestoreHistory(item, index)"
               >
-                恢复
+                {{ t('options.form.restore') }}
               </el-button>
             </div>
           </div>
@@ -195,7 +195,7 @@
           size="large"
           @click="$emit('update:modelValue', false)"
         >
-          取消
+          {{ t('common.cancel') }}
         </el-button>
         <el-button
           type="primary"
@@ -203,7 +203,7 @@
           :loading="loading"
           @click="$emit('save')"
         >
-          {{ isEditing ? '更新' : '保存' }}
+          {{ isEditing ? t('common.update') : t('common.save') }}
         </el-button>
       </div>
     </template>
@@ -222,6 +222,7 @@ import { formatDateCompact } from '@/utils/dateFormat';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 密码表单弹窗组件
@@ -261,6 +262,8 @@ const emit = defineEmits<{
   save: [];
   closed: [];
 }>();
+
+const { t } = useI18n();
 
 /** 本地表单模型，从 props 同步并通过事件回写 */
 const localForm = reactive({
@@ -321,9 +324,9 @@ const handleCopyHistory = async (item: { password: string; loading: boolean }, i
     const plain = await decryptHistoryPassword(item.password);
     if (plain) {
       await navigator.clipboard.writeText(plain);
-      ElMessage.success('历史密码已复制');
+      ElMessage.success(t('options.form.historyCopied'));
     } else {
-      ElMessage.error('解密失败');
+      ElMessage.error(t('message.decryptFailed'));
     }
   } finally {
     historyList.value[index].loading = false;
@@ -337,9 +340,9 @@ const handleRestoreHistory = async (item: { password: string; loading: boolean }
     const plain = await decryptHistoryPassword(item.password);
     if (plain) {
       localForm.password = plain;
-      ElMessage.success('已恢复到密码输入框');
+      ElMessage.success(t('options.form.historyRestored'));
     } else {
-      ElMessage.error('解密失败');
+      ElMessage.error(t('message.decryptFailed'));
     }
   } finally {
     historyList.value[index].loading = false;

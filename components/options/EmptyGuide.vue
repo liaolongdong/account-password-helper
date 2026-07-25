@@ -2,7 +2,7 @@
   <div class="empty-guide">
     <el-empty
       :image-size="120"
-      description="还没有保存的密码，开始添加吧"
+      :description="t('options.emptyGuide.title')"
     />
     <div class="empty-guide__cards">
       <div
@@ -15,8 +15,8 @@
         >
           <Plus />
         </el-icon>
-        <div class="empty-guide__card-title">手动添加</div>
-        <div class="empty-guide__card-desc">逐条添加账号密码信息</div>
+        <div class="empty-guide__card-title">{{ t('options.emptyGuide.addTitle') }}</div>
+        <div class="empty-guide__card-desc">{{ t('options.emptyGuide.addDesc') }}</div>
       </div>
       <div
         class="empty-guide__card"
@@ -28,8 +28,8 @@
         >
           <Upload />
         </el-icon>
-        <div class="empty-guide__card-title">导入数据</div>
-        <div class="empty-guide__card-desc">从 CSV 文件批量导入</div>
+        <div class="empty-guide__card-title">{{ t('options.emptyGuide.importTitle') }}</div>
+        <div class="empty-guide__card-desc">{{ t('options.emptyGuide.importDesc') }}</div>
       </div>
       <div
         class="empty-guide__card"
@@ -41,8 +41,8 @@
         >
           <Unlock />
         </el-icon>
-        <div class="empty-guide__card-title">恢复备份</div>
-        <div class="empty-guide__card-desc">从备份文件或邮箱恢复</div>
+        <div class="empty-guide__card-title">{{ t('options.emptyGuide.restoreTitle') }}</div>
+        <div class="empty-guide__card-desc">{{ t('options.emptyGuide.restoreDesc') }}</div>
       </div>
     </div>
   </div>
@@ -50,6 +50,7 @@
 
 <script setup lang="ts">
 import { Plus, Upload, Unlock } from '@element-plus/icons-vue';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 空数据引导组件
@@ -62,6 +63,8 @@ defineEmits<{
   import: [];
   restore: [];
 }>();
+
+const { t } = useI18n();
 </script>
 
 <style scoped>

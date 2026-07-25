@@ -23,6 +23,10 @@ export const STORAGE_KEYS = {
   TRASH: 'account_passwords_trash',
   /** 密码修改历史记录（每条最多 5 条快照） */
   PASSWORD_HISTORY: 'password_change_history',
+  /** 密码到期提醒配置（每条目独立提醒时间） */
+  PASSWORD_REMINDERS: 'password_reminders',
+  /** 用户语言偏好（'zh-CN' | 'en'） */
+  LOCALE: 'app_locale',
 };
 
 /**

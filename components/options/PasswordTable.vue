@@ -3,7 +3,7 @@
     <el-table
       ref="localTableRef"
       v-loading="loading"
-      element-loading-text="加载数据中..."
+      :element-loading-text="t('options.table.loading')"
       :data="data"
       style="width: 100%"
       stripe
@@ -20,7 +20,7 @@
       />
       <el-table-column
         prop="username"
-        label="用户名"
+        :label="t('common.username')"
         min-width="150"
         sortable="custom"
         show-overflow-tooltip
@@ -31,7 +31,7 @@
       </el-table-column>
       <el-table-column
         prop="password"
-        label="密码"
+        :label="t('common.password')"
         min-width="110"
         show-overflow-tooltip
       >
@@ -49,7 +49,7 @@
         </template>
       </el-table-column>
       <el-table-column
-        label="两步验证"
+        :label="t('common.totp')"
         min-width="120"
       >
         <template #default="{ row }">
@@ -67,7 +67,7 @@
       </el-table-column>
       <el-table-column
         prop="url"
-        label="网址"
+        :label="t('common.url')"
         min-width="200"
         sortable="custom"
         show-overflow-tooltip
@@ -90,7 +90,7 @@
       </el-table-column>
       <el-table-column
         prop="tag"
-        label="标签"
+        :label="t('common.tag')"
         min-width="100"
         class-name="tag-col"
         sortable="custom"
@@ -98,21 +98,21 @@
         <template #default="{ row }">
           <template v-if="parseTags(row.tag).length">
             <el-tooltip
-              v-for="t in parseTags(row.tag)"
-              :key="t"
-              :content="t"
+              v-for="tagName in parseTags(row.tag)"
+              :key="tagName"
+              :content="tagName"
               placement="top"
               :show-after="300"
-              :disabled="!isTagOverflowed(t)"
+              :disabled="!isTagOverflowed(tagName)"
               :popper-style="{ maxWidth: '500px', wordBreak: 'break-word' }"
             >
               <el-tag
-                :style="getTagFullStyle(t)"
+                :style="getTagFullStyle(tagName)"
                 size="small"
                 class="tag-item"
-                @mouseenter="(e: MouseEvent) => checkTagOverflow(e, t)"
+                @mouseenter="(e: MouseEvent) => checkTagOverflow(e, tagName)"
               >
-                {{ t }}
+                {{ tagName }}
               </el-tag>
             </el-tooltip>
           </template>
@@ -125,7 +125,7 @@
       </el-table-column>
       <el-table-column
         prop="remark"
-        label="备注"
+        :label="t('common.remark')"
         min-width="150"
         sortable="custom"
         show-overflow-tooltip
@@ -136,7 +136,7 @@
       </el-table-column>
       <el-table-column
         prop="createTime"
-        label="创建时间"
+        :label="t('sidepanel.createTime')"
         min-width="100"
         sortable="custom"
       >
@@ -146,7 +146,7 @@
       </el-table-column>
       <el-table-column
         prop="updateTime"
-        label="更新时间"
+        :label="t('options.table.updateTime')"
         min-width="100"
         sortable="custom"
         :sort-orders="['descending', 'ascending', null]"
@@ -156,7 +156,7 @@
         </template>
       </el-table-column>
       <el-table-column
-        label="操作"
+        :label="t('common.actions')"
         header-align="center"
         width="180"
         fixed="right"
@@ -168,7 +168,7 @@
           >
             <el-tooltip
               :ref="(el: any) => collectTooltipRef(el)"
-              content="复制条目"
+              :content="t('options.table.copyEntry')"
               placement="top"
               :show-after="400"
             >
@@ -181,7 +181,7 @@
             </el-tooltip>
             <el-tooltip
               :ref="(el: any) => collectTooltipRef(el)"
-              content="编辑"
+              :content="t('common.edit')"
               placement="top"
               :show-after="400"
             >
@@ -194,7 +194,7 @@
             </el-tooltip>
             <el-tooltip
               :ref="(el: any) => collectTooltipRef(el)"
-              :content="row.favorite ? '取消收藏' : '收藏'"
+              :content="row.favorite ? t('options.table.unfavorite') : t('options.table.favorite')"
               placement="top"
               :show-after="400"
             >
@@ -208,7 +208,7 @@
             </el-tooltip>
             <el-tooltip
               :ref="(el: any) => collectTooltipRef(el)"
-              content="删除"
+              :content="t('common.delete')"
               placement="top"
               :show-after="400"
             >
@@ -235,6 +235,7 @@ import { formatDate } from '@/utils/dateFormat';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 import { useTagOverflow } from '@/composables/useTagOverflow';
 import TotpCode from '@/components/TotpCode.vue';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 密码列表表格组件
@@ -260,6 +261,8 @@ defineEmits<{
   toggleFavorite: [id: string];
   deletePassword: [id: string];
 }>();
+
+const { t } = useI18n();
 
 /** Tag 标签溢出检测 */
 const { checkTagOverflow, isTagOverflowed } = useTagOverflow();

@@ -13,6 +13,7 @@ import {
 import type { PasswordEntry } from '@/utils/types';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 import TotpCode from '@/components/TotpCode.vue';
+import { useI18n } from '@/utils/i18n';
 
 interface Props {
   /** 密码条目数据 */
@@ -44,13 +45,15 @@ interface Emits {
 
 defineProps<Props>();
 defineEmits<Emits>();
+
+const { t } = useI18n();
 </script>
 
 <template>
   <div
     class="password-item"
     :class="{ active: isActive }"
-    title="点击快速填充账号和密码"
+    :title="t('sidepanel.item.fillTitle')"
     @click="$emit('fill', password)"
   >
     <div class="password-info">
@@ -59,7 +62,7 @@ defineEmits<Emits>();
         {{ password.username }}
         <span
           class="copy-icon-wrapper"
-          title="复制账号"
+          :title="t('sidepanel.item.copyUsername')"
           @click.stop.prevent="$emit('copyUsername', password.username)"
           @mousedown.stop
         >
@@ -69,7 +72,7 @@ defineEmits<Emits>();
         </span>
         <span
           class="copy-icon-wrapper copy-password"
-          title="复制密码"
+          :title="t('sidepanel.item.copyPassword')"
           @click.stop.prevent="$emit('copyPassword', password.password)"
           @mousedown.stop
         >
@@ -80,14 +83,14 @@ defineEmits<Emits>();
       </div>
       <div class="details">
         <el-tag
-          v-for="t in parseTags(password.tag)"
-          :key="t"
-          :title="t"
-          :style="getTagFullStyle(t)"
+          v-for="tagName in parseTags(password.tag)"
+          :key="tagName"
+          :title="tagName"
+          :style="getTagFullStyle(tagName)"
           size="small"
           class="tag-item"
         >
-          {{ t }}
+          {{ tagName }}
         </el-tag>
         <el-text
           v-if="password.url"
@@ -121,7 +124,7 @@ defineEmits<Emits>();
       <el-icon
         v-if="password.totp"
         class="action-icon totp-fill-icon"
-        title="填充验证码"
+        :title="t('sidepanel.item.fillTotp')"
         @click.stop="$emit('fillTotp', password)"
       >
         <Timer />
@@ -129,7 +132,7 @@ defineEmits<Emits>();
       <el-icon
         v-if="password.totp"
         class="action-icon totp-copy-icon"
-        title="复制验证码"
+        :title="t('sidepanel.item.copyTotp')"
         @click.stop="$emit('copyTotp', password)"
       >
         <DocumentCopy />
@@ -137,7 +140,7 @@ defineEmits<Emits>();
       <el-icon
         class="action-icon favorite-icon"
         :class="{ 'is-favorite': password.favorite }"
-        :title="password.favorite ? '取消收藏' : '收藏'"
+        :title="password.favorite ? t('options.table.unfavorite') : t('options.table.favorite')"
         @click.stop="$emit('toggleFavorite', password)"
       >
         <StarFilled v-if="password.favorite" />
@@ -146,14 +149,14 @@ defineEmits<Emits>();
       <el-icon
         v-if="!autoLoginEnabled"
         class="action-icon auto-login-icon"
-        title="填充并登录"
+        :title="t('sidepanel.item.fillAndLogin')"
         @click.stop="$emit('fillAndLogin', password)"
       >
         <Promotion />
       </el-icon>
       <el-icon
         class="action-icon edit-icon"
-        title="编辑"
+        :title="t('common.edit')"
         @click.stop="$emit('edit', password)"
       >
         <EditPen />

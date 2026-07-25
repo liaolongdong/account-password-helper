@@ -6,6 +6,7 @@ import { ExcelUtils } from '@/utils/excel';
 import { EmailBackupUtils } from '@/utils/emailBackup';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
@@ -38,7 +39,7 @@ const urlValidator = (_rule: any, value: string, callback: any) => {
       // 完整 URL 格式
       const url = new URL(trimmed);
       if (!url.hostname) {
-        callback(new Error('请输入有效的网址'));
+        callback(new Error(t('form.invalidUrl')));
         return;
       }
     } else {
@@ -47,13 +48,13 @@ const urlValidator = (_rule: any, value: string, callback: any) => {
       const domainPattern =
         /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})$/;
       if (!domainPattern.test(trimmed)) {
-        callback(new Error('请输入有效的网址（如 github.com 或 https://github.com）'));
+        callback(new Error(t('form.invalidUrlExample')));
         return;
       }
     }
     callback();
   } catch {
-    callback(new Error('请输入有效的网址'));
+    callback(new Error(t('form.invalidUrl')));
   }
 };
 
@@ -70,7 +71,7 @@ const totpValidator = (_rule: any, value: string, callback: any) => {
     callback();
     return;
   }
-  callback(new Error('请输入有效的 otpauth:// 链接或 Base32 密钥'));
+  callback(new Error(t('form.invalidTotp')));
 };
 
 /**
@@ -106,20 +107,20 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     totp: '',
   });
 
-  const passwordFormRules: FormRules = {
+  const passwordFormRules = computed<FormRules>(() => ({
     username: [
-      { required: true, message: '请输入用户名', trigger: 'blur' },
-      { max: 50, message: '用户名不能超过50个字符', trigger: 'blur' },
+      { required: true, message: t('form.usernameRequired'), trigger: 'blur' },
+      { max: 50, message: t('form.usernameMax'), trigger: 'blur' },
     ],
-    password: [{ max: 50, message: '密码不能超过50个字符', trigger: 'blur' }],
+    password: [{ max: 50, message: t('form.passwordMax'), trigger: 'blur' }],
     url: [
-      { max: 100, message: '网址不能超过100个字符', trigger: 'blur' },
+      { max: 100, message: t('form.urlMax'), trigger: 'blur' },
       { validator: urlValidator, trigger: 'blur' },
     ],
-    tag: [{ max: 50, message: '标签不能超过50个字符', trigger: 'blur' }],
-    remark: [{ max: 1000, message: '备注不能超过1000个字符', trigger: 'blur' }],
+    tag: [{ max: 50, message: t('form.tagMax'), trigger: 'blur' }],
+    remark: [{ max: 1000, message: t('form.remarkMax'), trigger: 'blur' }],
     totp: [{ validator: totpValidator, trigger: 'blur' }],
-  };
+  }));
 
   // 计算属性（过滤 + 排序，替代 el-table 客户端排序）
   const filteredPasswords = computed(() => {
@@ -203,12 +204,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         valid.push(t);
       }
       if (hasTooLong) {
-        ElMessage.warning(`标签长度不能超过 ${MAX_TAG_LENGTH} 个字符`);
+        ElMessage.warning(t('form.tagLengthLimit', { max: MAX_TAG_LENGTH }));
       }
       let finalTags = valid;
       if (finalTags.length > MAX_TAG_COUNT) {
         finalTags = finalTags.slice(0, MAX_TAG_COUNT);
-        ElMessage.warning(`最多只能选择 ${MAX_TAG_COUNT} 个标签`);
+        ElMessage.warning(t('form.tagCountLimit', { max: MAX_TAG_COUNT }));
       }
       passwordForm.value.tag = stringifyTags(finalTags);
     },
@@ -231,14 +232,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           const evicted = await StorageUtils.evictLRUFavoriteIfNeeded(passwords.value);
           if (evicted) {
             const limit = await StorageUtils.getFavoriteLimit();
-            ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
+            ElMessage.info(t('sidepanel.favoriteEvicted', { limit, username: evicted.username }));
           }
           // 设置新收藏条目及其使用时间戳
           const now = Date.now();
           await StorageUtils.updatePassword(id, { favorite: true, favoriteUsedAt: now, updateTime: entry.updateTime });
           entry.favorite = true;
           entry.favoriteUsedAt = now;
-          ElMessage.success('已收藏');
+          ElMessage.success(t('sidepanel.favorited'));
         } else {
           // 取消收藏，清除使用时间戳
           await StorageUtils.updatePassword(id, {
@@ -248,7 +249,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           });
           entry.favorite = false;
           entry.favoriteUsedAt = undefined;
-          ElMessage.success('已取消收藏');
+          ElMessage.success(t('sidepanel.unfavorited'));
         }
       });
 
@@ -263,7 +264,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       }, 100);
     } catch (error) {
       logger.error('切换收藏失败:', error);
-      ElMessage.error('操作失败');
+      ElMessage.error(t('message.operationFailed'));
     }
   };
 
@@ -291,8 +292,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       validityForm.value.validityHours = validityHours;
     } catch (error: unknown) {
       logger.error('加载密码列表失败:', error);
-      const message = error instanceof Error ? error.message : '未知错误';
-      ElMessage.error('加载密码列表失败: ' + message);
+      const message = error instanceof Error ? error.message : t('message.unknownError');
+      ElMessage.error(t('message.loadListFailedDetail', { message }));
     } finally {
       tableLoading.value = false;
     }
@@ -415,7 +416,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         if (entry) {
           Object.assign(entry, updatedFields);
         }
-        ElMessage.success('密码更新成功');
+        ElMessage.success(t('form.updateSuccess'));
         scrollToPassword(editingPasswordId.value);
       } else {
         const now = Date.now();
@@ -435,7 +436,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         // 就地插入：filteredPasswords computed 会自动重新排序
         (newEntry! as PasswordEntryWithUI).showPassword = false;
         passwords.value.push(newEntry!);
-        ElMessage.success('密码添加成功');
+        ElMessage.success(t('form.addSuccess'));
         scrollToPassword(newEntry!.id);
       }
 
@@ -443,7 +444,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       resetPasswordForm();
     } catch (error) {
       logger.error('保存密码失败:', error);
-      ElMessage.error('保存失败');
+      ElMessage.error(t('message.saveFailed'));
     } finally {
       passwordFormLoading.value = false;
     }
@@ -483,19 +484,19 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         }
       }, 100);
 
-      ElMessage.success('密码复制成功');
+      ElMessage.success(t('form.copySuccess'));
     } catch (error: any) {
       logger.error('复制密码失败:', error);
-      ElMessage.error('复制失败: ' + (error.message || '未知错误'));
+      ElMessage.error(t('form.copyFailedDetail', { message: error.message || t('message.unknownError') }));
     }
   };
 
   // 删除密码
   const deletePassword = async (id: string) => {
     try {
-      await ElMessageBox.confirm('确定将此条目移入回收站？（30天内可恢复）', '确认删除', {
-        confirmButtonText: '移入回收站',
-        cancelButtonText: '取消',
+      await ElMessageBox.confirm(t('form.deleteConfirm'), t('form.deleteConfirmTitle'), {
+        confirmButtonText: t('form.moveToTrash'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       });
 
@@ -508,12 +509,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
             await StorageUtils.deletePassword(id);
           });
           await loadPasswords();
-          ElMessage.success('已移入回收站');
+          ElMessage.success(t('form.movedToTrash'));
         }, 1000);
       }
     } catch (error) {
       if (error !== 'cancel') {
-        ElMessage.error('删除失败');
+        ElMessage.error(t('message.deleteFailed'));
       }
     }
   };
@@ -522,11 +523,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const batchDelete = async () => {
     try {
       await ElMessageBox.confirm(
-        `确定将选中的 ${selectedIds.value.length} 条账号密码移入回收站？（30天内可恢复）`,
-        '确认批量删除',
+        t('form.batchDeleteConfirm', { count: selectedIds.value.length }),
+        t('form.batchDeleteConfirmTitle'),
         {
-          confirmButtonText: '移入回收站',
-          cancelButtonText: '取消',
+          confirmButtonText: t('form.moveToTrash'),
+          cancelButtonText: t('common.cancel'),
           type: 'warning',
         },
       );
@@ -549,11 +550,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         });
         await loadPasswords();
         selectedIds.value = [];
-        ElMessage.success('已移入回收站');
+        ElMessage.success(t('form.movedToTrash'));
       }, 1000);
     } catch (error) {
       if (error !== 'cancel') {
-        ElMessage.error('批量删除失败');
+        ElMessage.error(t('form.batchDeleteFailed'));
       }
     }
   };
@@ -567,24 +568,24 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const exportPasswords = async () => {
     try {
       if (passwords.value.length === 0) {
-        ElMessage.warning('没有密码数据可导出');
+        ElMessage.warning(t('form.noDataToExport'));
         return;
       }
 
       const masterPassword = await promptAndVerifyMasterPassword(
-        '验证主密码',
-        '导出密码列表需要验证主密码，请输入主密码：',
+        t('session.verifyTitle'),
+        t('form.exportVerifyPrompt'),
       );
       if (!masterPassword) return;
 
       // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.csv
       const filename = `passwords_${formatTimestampCompact()}.csv`;
       ExcelUtils.exportToCSV(passwords.value, filename);
-      ElMessage.success('导出成功');
+      ElMessage.success(t('form.exportSuccess'));
     } catch (error) {
       if (error !== 'cancel') {
         logger.error('导出失败:', error);
-        ElMessage.error('导出失败');
+        ElMessage.error(t('form.exportFailed'));
       }
     }
   };
@@ -593,9 +594,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const downloadTemplate = () => {
     try {
       ExcelUtils.downloadTemplate();
-      ElMessage.success('模板下载成功');
+      ElMessage.success(t('form.templateSuccess'));
     } catch (_error) {
-      ElMessage.error('模板下载失败');
+      ElMessage.error(t('form.templateFailed'));
     }
   };
 
@@ -603,24 +604,24 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const exportPasswordsJson = async () => {
     try {
       if (passwords.value.length === 0) {
-        ElMessage.warning('没有密码数据可导出');
+        ElMessage.warning(t('form.noDataToExport'));
         return;
       }
 
       const masterPassword = await promptAndVerifyMasterPassword(
-        '验证主密码',
-        '导出密码列表需要验证主密码，请输入主密码：',
+        t('session.verifyTitle'),
+        t('form.exportVerifyPrompt'),
       );
       if (!masterPassword) return;
 
       const now = new Date();
       const filename = `passwords_${formatTimestampCompact(now)}.json`;
       ExcelUtils.exportToJSON(passwords.value, filename);
-      ElMessage.success('导出成功');
+      ElMessage.success(t('form.exportSuccess'));
     } catch (error) {
       if (error !== 'cancel') {
         logger.error('JSON 导出失败:', error);
-        ElMessage.error('导出失败');
+        ElMessage.error(t('form.exportFailed'));
       }
     }
   };
@@ -642,13 +643,13 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const backupToEmail = async (email: string, encrypted: boolean) => {
     try {
       if (passwords.value.length === 0) {
-        ElMessage.warning('没有密码数据可备份');
+        ElMessage.warning(t('message.noDataToBackup'));
         return;
       }
 
       const masterPassword = await promptAndVerifyMasterPassword(
-        '验证主密码',
-        encrypted ? '加密备份需要验证主密码，请输入主密码：' : '备份密码列表需要验证主密码，请输入主密码：',
+        t('session.verifyTitle'),
+        encrypted ? t('options.backup.exportPrompt') : t('form.backupVerifyPrompt'),
       );
       if (!masterPassword) return;
 
@@ -657,27 +658,27 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         await exportEncryptedBackup(passwords.value, masterPassword);
         const mailtoUrl = EmailBackupUtils.buildMailtoUrl(
           email,
-          `加密备份-${formatDateCompact(new Date())}`,
+          t('form.emailSubjectEncrypted', { date: formatDateCompact(new Date()) }),
           [
-            `备份时间：${new Date().toLocaleString('zh-CN')}`,
-            `备份条数：${passwords.value.length}条账号密码`,
-            '附件文件：加密备份文件（.aph格式）',
+            t('form.emailBodyTime', { time: new Date().toLocaleString() }),
+            t('form.emailBodyCount', { count: passwords.value.length }),
+            t('form.emailBodyAttachment'),
             '',
-            '请将已下载的 .aph 加密备份文件作为附件发送。',
-            '注意：该文件只能通过本插件的加密备份导入功能解密查看。',
+            t('form.emailBodySend'),
+            t('form.emailBodyNote'),
           ].join('\n'),
         );
         window.open(mailtoUrl, '_blank');
-        ElMessage.success('加密备份文件已下载，邮件客户端已打开，请将文件作为附件发送');
+        ElMessage.success(t('form.encryptedBackupDone'));
       } else {
         // 不加密备份：导出 CSV 文件
         await EmailBackupUtils.backupToEmail(passwords.value, email);
-        ElMessage.success('备份文件已下载，邮件客户端已打开，请将文件作为附件发送');
+        ElMessage.success(t('form.backupDone'));
       }
     } catch (error) {
       if (error !== 'cancel') {
         logger.error('备份到邮箱失败:', error);
-        ElMessage.error('备份失败');
+        ElMessage.error(t('options.emailBackup.backupFailed'));
       }
     }
   };
@@ -709,17 +710,17 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
 
     if (idsToRemove.length === 0) {
-      ElMessage.info('没有检测到重复条目');
+      ElMessage.info(t('form.noDuplicates'));
       return;
     }
 
     try {
       await ElMessageBox.confirm(
-        `检测到 ${duplicateGroupCount} 组重复（共 ${idsToRemove.length} 条多余），将保留每组最新更新项，多余条目移入回收站，确定吗？`,
-        '一键去重',
+        t('form.dedupeConfirm', { groups: duplicateGroupCount, count: idsToRemove.length }),
+        t('options.header.removeDuplicates'),
         {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
+          confirmButtonText: t('common.confirm'),
+          cancelButtonText: t('common.cancel'),
           type: 'warning',
         },
       );
@@ -729,11 +730,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       });
       await loadPasswords();
       selectedIds.value = [];
-      ElMessage.success(`已将 ${idsToRemove.length} 条重复条目移入回收站`);
+      ElMessage.success(t('form.dedupeDone', { count: idsToRemove.length }));
     } catch (error) {
       if (error !== 'cancel') {
         logger.error('一键去重失败:', error);
-        ElMessage.error('去重失败');
+        ElMessage.error(t('form.dedupeFailed'));
       }
     }
   };

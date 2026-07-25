@@ -1,5 +1,6 @@
 import { defineBackground } from '#imports';
 import { logger } from '@/utils/logger';
+import { initLiteI18n } from '@/utils/i18n-lite';
 import { setupSidePanelListeners } from './background/sidePanelManager';
 import { setupMessageRouter } from './background/messageRouter';
 import {
@@ -9,6 +10,9 @@ import {
 } from './background/backgroundServices';
 
 export default defineBackground(() => {
+  // 初始化轻量 i18n（桌面通知等文案按用户语言渲染，storage 监听实时切换）
+  initLiteI18n();
+
   // 插件安装时的初始化
   chrome.runtime.onInstalled.addListener(() => {
     logger.info('账号密码管理助手插件已安装');

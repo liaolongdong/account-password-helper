@@ -2,6 +2,7 @@
 import { Setting } from '@element-plus/icons-vue';
 import { defineAsyncComponent } from 'vue';
 import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
+import { useI18n } from '@/utils/i18n';
 
 /** 品牌 Logo 异步加载（64 行纯 SVG，独立 chunk 避免阻塞 SidepanelHeader 首屏） */
 const BrandLogo = defineAsyncComponent(() => import('@/components/BrandLogo.vue'));
@@ -24,6 +25,8 @@ interface Emits {
 
 defineProps<Props>();
 defineEmits<Emits>();
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -31,7 +34,7 @@ defineEmits<Emits>();
     <div class="header-left">
       <h3>
         <BrandLogo class="logo" />
-        快速填充
+        {{ t('popup.quickFill') }}
         <el-tag
           size="small"
           type="info"
@@ -53,7 +56,7 @@ defineEmits<Emits>();
         <button
           type="button"
           class="pill-btn"
-          title="查看开源仓库"
+          :title="t('sidepanel.header.github')"
           @click="$emit('openGithub')"
         >
           <!-- eslint-disable vue/no-v-html -->
@@ -66,7 +69,7 @@ defineEmits<Emits>();
         <button
           type="button"
           class="pill-btn"
-          title="操作指引与常见问题"
+          :title="t('sidepanel.header.help')"
           @click="$emit('openHelp')"
         >
           <!-- eslint-disable vue/no-v-html -->
@@ -79,7 +82,7 @@ defineEmits<Emits>();
         <button
           type="button"
           class="pill-btn"
-          title="设置"
+          :title="t('options.header.settings')"
           @click="$emit('openSettings')"
         >
           <el-icon><Setting /></el-icon>

@@ -5,7 +5,7 @@
       <div class="header-title">
         <h1>
           <BrandLogo class="logo" />
-          账号密码管理助手
+          {{ t('appName') }}
           <el-tag
             size="small"
             type="info"
@@ -25,14 +25,14 @@
           :icon="Plus"
           @click="$emit('addPassword')"
         >
-          添加密码
+          {{ t('options.header.addPassword') }}
         </el-button>
         <el-button
           :icon="Aim"
-          :title="healthGrade ? `安全评分 ${healthScore} 分` : undefined"
+          :title="healthGrade ? t('options.header.healthScore', { score: healthScore ?? 0 }) : undefined"
           @click="$emit('openHealth')"
         >
-          安全体检
+          {{ t('options.header.healthCheck') }}
           <span
             v-if="healthGrade"
             class="health-dot"
@@ -45,7 +45,7 @@
           @command="(cmd: string) => $emit('dataCommand', cmd)"
         >
           <el-button :icon="FolderOpened">
-            数据管理<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            {{ t('options.header.data') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
@@ -53,56 +53,56 @@
                 command="downloadTemplate"
                 :icon="Download"
               >
-                下载模板
+                {{ t('options.header.downloadTemplate') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="import"
                 :icon="Upload"
               >
-                导入数据
+                {{ t('options.header.importData') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="export"
                 :icon="Download"
               >
-                导出数据
+                {{ t('options.header.exportData') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="exportJson"
                 :icon="Download"
               >
-                导出JSON
+                {{ t('options.header.exportJson') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="backupExport"
                 :icon="Lock"
               >
-                加密备份导出
+                {{ t('options.header.backupExport') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="backupImport"
                 :icon="Unlock"
               >
-                加密备份导入
+                {{ t('options.header.backupImport') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="removeDuplicates"
                 :icon="Delete"
               >
-                一键去重
+                {{ t('options.header.removeDuplicates') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="trash"
                 :icon="Delete"
               >
-                回收站
+                {{ t('options.header.trash') }}
               </el-dropdown-item>
               <el-dropdown-item
                 divided
                 command="backup"
                 :icon="Message"
               >
-                备份到邮箱
+                {{ t('options.header.emailBackup') }}
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -112,7 +112,7 @@
           @command="(cmd: string) => $emit('settingsCommand', cmd)"
         >
           <el-button :icon="Setting">
-            设置<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            {{ t('options.header.settings') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
@@ -120,38 +120,38 @@
                 command="changeMasterPassword"
                 :icon="Key"
               >
-                修改主密码
+                {{ t('options.header.changeMasterPassword') }}
               </el-dropdown-item>
               <el-dropdown-item
                 divided
                 command="validity"
                 :icon="Timer"
               >
-                有效期设置
+                {{ t('options.header.validity') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="autoSave"
                 :icon="FolderChecked"
               >
-                自动保存设置
+                {{ t('options.header.autoSave') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="idleLock"
                 :icon="Clock"
               >
-                自动锁定设置
+                {{ t('options.header.idleLock') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="favoriteLimit"
                 :icon="Star"
               >
-                收藏上限设置
+                {{ t('options.header.favoriteLimit') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="clipboard"
                 :icon="DocumentCopy"
               >
-                剪贴板设置
+                {{ t('options.header.clipboard') }}
               </el-dropdown-item>
             </el-dropdown-menu>
           </template>
@@ -161,7 +161,7 @@
         :icon="Setting"
         @click="$emit('openPersonalization')"
       >
-        偏好设置
+        {{ t('options.header.personalization') }}
       </el-button>
     </div>
   </div>
@@ -190,11 +190,13 @@ import {
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * Options 页面头部组件
  *
  * 包含标题、版本号、安全体检入口、数据管理/设置下拉菜单以及偏好设置按钮。
+ * 语言切换已迁移至「偏好设置」面板（与主题风格同组，三入口可达）。
  */
 const props = defineProps<{
   /** 当前插件版本号 */
@@ -217,6 +219,8 @@ defineEmits<{
   /** 打开偏好设置弹窗 */
   openPersonalization: [];
 }>();
+
+const { t } = useI18n();
 
 /**
  * 体检小圆点颜色（一眼可见的红黄绿信号灯）

@@ -12,7 +12,7 @@
         circle
         size="small"
         class="generator-trigger-btn"
-        title="生成随机密码"
+        :title="t('options.generator.title')"
         :disabled="disabled"
         @click="togglePopover"
       />
@@ -26,7 +26,7 @@
           :icon="RefreshRight"
           link
           size="small"
-          title="重新生成"
+          :title="t('options.generator.regenerate')"
           @click="regenerate"
         />
       </div>
@@ -52,7 +52,7 @@
       <div class="config-section">
         <!-- 长度滑块 -->
         <div class="config-row">
-          <span class="config-label">长度</span>
+          <span class="config-label">{{ t('options.generator.length') }}</span>
           <el-slider
             v-model="config.length"
             :min="6"
@@ -66,35 +66,35 @@
 
         <!-- 字符集开关 -->
         <div class="config-row">
-          <span class="config-label">大写字母</span>
+          <span class="config-label">{{ t('options.generator.uppercase') }}</span>
           <el-switch
             v-model="config.uppercase"
             size="small"
           />
         </div>
         <div class="config-row">
-          <span class="config-label">小写字母</span>
+          <span class="config-label">{{ t('options.generator.lowercase') }}</span>
           <el-switch
             v-model="config.lowercase"
             size="small"
           />
         </div>
         <div class="config-row">
-          <span class="config-label">数字</span>
+          <span class="config-label">{{ t('options.generator.numbers') }}</span>
           <el-switch
             v-model="config.numbers"
             size="small"
           />
         </div>
         <div class="config-row">
-          <span class="config-label">特殊字符</span>
+          <span class="config-label">{{ t('options.generator.symbols') }}</span>
           <el-switch
             v-model="config.symbols"
             size="small"
           />
         </div>
         <div class="config-row">
-          <span class="config-label">排除易混淆字符</span>
+          <span class="config-label">{{ t('options.generator.excludeAmbiguous') }}</span>
           <el-switch
             v-model="config.excludeAmbiguous"
             size="small"
@@ -110,7 +110,7 @@
         :disabled="!generatedPassword"
         @click="handleConfirm"
       >
-        使用此密码
+        {{ t('options.generator.usePassword') }}
       </el-button>
     </div>
   </el-popover>
@@ -122,6 +122,7 @@ import { MagicStick, RefreshRight } from '@element-plus/icons-vue';
 import { generatePassword, type PasswordGeneratorOptions } from '@/utils/passwordGenerator';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { logger } from '@/utils/logger';
+import { useI18n } from '@/utils/i18n';
 
 const emit = defineEmits<{
   /** 确认使用生成的密码 */
@@ -132,6 +133,8 @@ defineProps<{
   /** 是否禁用（表单加载时禁用） */
   disabled?: boolean;
 }>();
+
+const { t } = useI18n();
 
 /** 弹窗可见状态 */
 const popoverVisible = ref(false);

@@ -2,6 +2,7 @@ import { type Ref, ref, nextTick } from 'vue';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { currentLocale, t } from '@/utils/i18n';
 import {
   getSettingsPanelHTML,
   bindSettingsPanelView,
@@ -54,7 +55,7 @@ export function useSidepanelSettings(
       await StorageUtils.saveFloatingButtonConfig(patch);
     } catch (error) {
       logger.error('SidePanel: 保存悬浮按钮配置失败:', error);
-      ElMessage.error('保存设置失败');
+      ElMessage.error(t('message.saveSettingsFailed'));
     }
   };
 
@@ -73,13 +74,19 @@ export function useSidepanelSettings(
     await nextTick();
     if (!settingsPanelEl.value) return;
 
-    settingsPanelEl.value.innerHTML = getSettingsPanelHTML(floatingConfig.value);
-    settingsViewHandle = bindSettingsPanelView(settingsPanelEl.value, settingsOverlayEl.value, floatingConfig.value, {
-      onConfigChange: patch => {
-        void updateFloatingConfig(patch);
+    settingsPanelEl.value.innerHTML = getSettingsPanelHTML(floatingConfig.value, currentLocale.value);
+    settingsViewHandle = bindSettingsPanelView(
+      settingsPanelEl.value,
+      settingsOverlayEl.value,
+      floatingConfig.value,
+      {
+        onConfigChange: patch => {
+          void updateFloatingConfig(patch);
+        },
+        onClose: closeSettingsDialog,
       },
-      onClose: closeSettingsDialog,
-    });
+      currentLocale.value,
+    );
   };
 
   /**

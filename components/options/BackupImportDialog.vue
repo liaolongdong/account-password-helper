@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="加密备份导入"
+    :title="t('options.header.backupImport')"
     width="920px"
     align-center
     class="backup-import-dialog"
@@ -12,14 +12,14 @@
       <div class="import-content">
         <!-- 导入说明 -->
         <el-alert
-          title="导入说明"
+          :title="t('options.import.noteTitle')"
           type="info"
           :closable="false"
           show-icon
         >
           <template #default>
-            <p>仅支持加密备份文件（.aph 格式）</p>
-            <p>请输入导出时使用的主密码进行解密，解密后可预览数据再确认导入</p>
+            <p>{{ t('options.backupImport.noteLine1') }}</p>
+            <p>{{ t('options.backupImport.noteLine2') }}</p>
           </template>
         </el-alert>
 
@@ -37,10 +37,10 @@
             <div class="upload-dragger-content">
               <el-icon class="upload-icon"><Upload /></el-icon>
               <div class="upload-text">
-                <span>将文件拖拽到此处，或</span>
-                <em>点击选择文件</em>
+                <span>{{ t('options.import.dragText') }}</span>
+                <em>{{ t('options.import.clickText') }}</em>
               </div>
-              <div class="upload-hint">仅支持 .aph 加密备份文件</div>
+              <div class="upload-hint">{{ t('options.backupImport.acceptHint') }}</div>
             </div>
           </el-upload>
 
@@ -69,11 +69,11 @@
           v-if="selectedFile && previewData.length === 0"
           class="password-section"
         >
-          <div class="password-label">主密码</div>
+          <div class="password-label">{{ t('auth.masterPassword') }}</div>
           <el-input
             v-model="masterPassword"
             type="password"
-            placeholder="请输入导出时使用的主密码"
+            :placeholder="t('options.backupImport.passwordPlaceholder')"
             show-password
             :disabled="decrypting"
             @keyup.enter="handleDecrypt"
@@ -93,7 +93,7 @@
             style="margin-top: 10px"
             @click="handleDecrypt"
           >
-            解密并预览
+            {{ t('options.backupImport.decryptPreview') }}
           </el-button>
         </div>
 
@@ -103,8 +103,8 @@
           class="preview-section"
         >
           <div class="preview-header">
-            <h4>预览数据（前5条）</h4>
-            <span class="preview-total">共 {{ previewData.length }} 条有效数据</span>
+            <h4>{{ t('options.import.previewTitle') }}</h4>
+            <span class="preview-total">{{ t('options.import.previewTotal', { count: previewData.length }) }}</span>
           </div>
           <el-table
             :data="previewData.slice(0, 5)"
@@ -114,13 +114,13 @@
           >
             <el-table-column
               prop="username"
-              label="用户名"
+              :label="t('common.username')"
               show-overflow-tooltip
               min-width="120"
             />
             <el-table-column
               prop="password"
-              label="密码"
+              :label="t('common.password')"
               min-width="100"
             >
               <template #default="{ row }">
@@ -129,25 +129,25 @@
             </el-table-column>
             <el-table-column
               prop="url"
-              label="网址"
+              :label="t('common.url')"
               show-overflow-tooltip
               min-width="160"
             />
             <el-table-column
               prop="tag"
-              label="标签"
+              :label="t('common.tag')"
               show-overflow-tooltip
               min-width="100"
             />
             <el-table-column
               prop="remark"
-              label="备注"
+              :label="t('common.remark')"
               show-overflow-tooltip
               min-width="120"
             />
             <el-table-column
               prop="createTime"
-              label="创建时间"
+              :label="t('sidepanel.createTime')"
               min-width="100"
             >
               <template #default="{ row }">
@@ -156,7 +156,7 @@
             </el-table-column>
             <el-table-column
               prop="updateTime"
-              label="更新时间"
+              :label="t('options.table.updateTime')"
               min-width="100"
             >
               <template #default="{ row }">
@@ -182,7 +182,7 @@
               >
                 <Hide />
               </el-icon>
-              {{ showPreviewPassword ? '隐藏密码' : '显示密码' }}
+              {{ showPreviewPassword ? t('options.import.hidePassword') : t('options.import.showPassword') }}
             </el-button>
           </div>
         </div>
@@ -191,14 +191,16 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleClose">取消</el-button>
+        <el-button @click="handleClose">{{ t('common.cancel') }}</el-button>
         <el-button
           type="success"
           :disabled="previewData.length === 0"
           :loading="importing"
           @click="handleImport"
         >
-          {{ importing ? '导入中...' : `确认导入（${previewData.length} 条）` }}
+          {{
+            importing ? t('options.import.importing') : t('options.import.confirmImport', { count: previewData.length })
+          }}
         </el-button>
       </div>
     </template>
@@ -214,6 +216,7 @@ import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
+import { useI18n } from '@/utils/i18n';
 
 interface Props {
   modelValue: boolean;
@@ -226,6 +229,8 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+const { t } = useI18n();
 
 const dialogVisible = computed({
   get: () => props.modelValue,
@@ -256,7 +261,7 @@ const handleFileChange = async (file: UploadFile) => {
   if (!file.raw) return;
   const fileName = file.raw.name.toLowerCase();
   if (!fileName.endsWith('.aph')) {
-    ElMessage.error('不支持的文件格式，请使用 .aph 加密备份文件');
+    ElMessage.error(t('options.backupImport.unsupportedFormat'));
     if (uploadRef.value) {
       uploadRef.value.clearFiles();
     }
@@ -294,12 +299,12 @@ const handleDecrypt = async () => {
     const entries = await importEncryptedBackup(selectedFile.value, masterPassword.value.trim());
 
     if (entries.length === 0) {
-      ElMessage.warning('备份文件中没有有效数据');
+      ElMessage.warning(t('options.backupImport.noValidData'));
       return;
     }
 
     previewData.value = entries;
-    ElMessage.success(`解密成功，共找到 ${entries.length} 条有效数据`);
+    ElMessage.success(t('options.backupImport.decryptSuccess', { count: entries.length }));
     await nextTick();
     setTimeout(() => {
       const dialogBody = document.querySelector('.backup-import-dialog .dialog-body-scroll');
@@ -309,7 +314,7 @@ const handleDecrypt = async () => {
     }, 150);
   } catch (error) {
     logger.error('解密备份文件失败:', error);
-    const message = error instanceof Error ? error.message : '解密失败，请检查主密码或文件';
+    const message = error instanceof Error ? error.message : t('options.backupImport.decryptFailed');
     ElMessage.error(message);
     previewData.value = [];
   } finally {
@@ -324,12 +329,12 @@ const handleImport = async () => {
   try {
     importing.value = true;
     await StorageUtils.batchSavePasswords(previewData.value);
-    ElMessage.success(`成功导入 ${previewData.value.length} 条密码`);
+    ElMessage.success(t('options.import.importSuccess', { count: previewData.value.length }));
     emit('imported');
     handleClose();
   } catch (error) {
     logger.error('导入失败:', error);
-    ElMessage.error('导入失败，请重试');
+    ElMessage.error(t('options.import.importFailed'));
   } finally {
     importing.value = false;
   }

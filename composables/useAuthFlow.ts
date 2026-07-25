@@ -1,7 +1,8 @@
-import { ref, nextTick } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 
 /** 输入框抖动动画持续时间（毫秒） */
 export const SHAKE_DURATION_MS = 400;
@@ -43,10 +44,11 @@ export function useAuthFlow(options: {
     validityHours: 24,
   });
 
-  const setupRules: FormRules = {
+  /** 设置表单校验规则（computed 保证语言切换后错误提示同步更新） */
+  const setupRules = computed<FormRules>(() => ({
     password: [
-      { required: true, message: '请输入密码', trigger: 'blur' },
-      { min: 8, message: '密码长度至少8个字符', trigger: 'blur' },
+      { required: true, message: t('auth.rulePasswordRequired'), trigger: 'blur' },
+      { min: 8, message: t('auth.ruleMinLength'), trigger: 'blur' },
       {
         validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
           if (!value) {
@@ -59,15 +61,15 @@ export function useAuthFlow(options: {
           const hasSpecialChar = /[!@#$%^&*()_+\-={}[\];':"\\|,.<>/?~`]/.test(value);
 
           if (!hasLetter) {
-            callback(new Error('密码必须包含字母'));
+            callback(new Error(t('auth.ruleNeedLetter')));
             return;
           }
           if (!hasNumber) {
-            callback(new Error('密码必须包含数字'));
+            callback(new Error(t('auth.ruleNeedNumber')));
             return;
           }
           if (!hasSpecialChar) {
-            callback(new Error('密码必须包含特殊字符'));
+            callback(new Error(t('auth.ruleNeedSymbol')));
             return;
           }
 
@@ -77,11 +79,11 @@ export function useAuthFlow(options: {
       },
     ],
     confirmPassword: [
-      { required: true, message: '请确认密码', trigger: 'blur' },
+      { required: true, message: t('auth.ruleConfirmRequired'), trigger: 'blur' },
       {
         validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
           if (value !== setupForm.value.password) {
-            callback(new Error('两次输入的密码不一致'));
+            callback(new Error(t('options.changePwd.mismatch')));
           } else {
             callback();
           }
@@ -89,7 +91,7 @@ export function useAuthFlow(options: {
         trigger: 'blur',
       },
     ],
-  };
+  }));
 
   // 验证表单
   const verifyForm = ref({
@@ -175,7 +177,7 @@ export function useAuthFlow(options: {
       await StorageUtils.createSession(setupForm.value.password.trim(), setupForm.value.validityHours);
       await StorageUtils.migrateUnencryptedEntries(setupForm.value.password.trim());
 
-      ElMessage.success('主密码设置成功，欢迎使用');
+      ElMessage.success(t('auth.setupSuccess'));
 
       sessionExpiredByBroadcast.value = false;
       showMasterPasswordSetup.value = false;
@@ -185,7 +187,7 @@ export function useAuthFlow(options: {
       isAuthenticated.value = true;
     } catch (error) {
       logger.error('设置主密码失败:', error);
-      ElMessage.error('设置失败，请重试');
+      ElMessage.error(t('auth.setupFailed'));
     } finally {
       setupLoading.value = false;
       isAuthenticating = false;
@@ -196,7 +198,7 @@ export function useAuthFlow(options: {
   const handleVerifySubmit = async () => {
     try {
       if (!verifyForm.value.password.trim()) {
-        verifyError.value = '请输入主密码';
+        verifyError.value = t('auth.verifyPasswordPlaceholder');
         return;
       }
 
@@ -206,7 +208,7 @@ export function useAuthFlow(options: {
       const isValid = await StorageUtils.verifyMasterPassword(verifyForm.value.password.trim());
 
       if (isValid) {
-        ElMessage.success('验证成功，欢迎使用');
+        ElMessage.success(t('auth.verifySuccess'));
 
         sessionExpiredByBroadcast.value = false;
         isAuthenticating = true;
@@ -221,7 +223,7 @@ export function useAuthFlow(options: {
         isAuthenticated.value = true;
         isAuthenticating = false;
       } else {
-        verifyError.value = '密码错误，请重新输入';
+        verifyError.value = t('auth.wrongPassword');
         verifyForm.value.password = '';
         verifyShake.value = true;
         setTimeout(() => {
@@ -237,7 +239,7 @@ export function useAuthFlow(options: {
       }
     } catch (error) {
       logger.error('验证失败:', error);
-      verifyError.value = '验证过程出现错误，请重试';
+      verifyError.value = t('auth.verifyError');
       verifyForm.value.password = '';
       verifyShake.value = true;
       setTimeout(() => {
@@ -296,32 +298,32 @@ export function useAuthFlow(options: {
       message += `盐值预览: ${debugInfo.saltPreview}\n`;
       message += `哈希预览: ${debugInfo.hashPreview}`;
 
-      await ElMessageBox.alert(message, '调试信息', {
-        confirmButtonText: '关闭',
+      await ElMessageBox.alert(message, t('auth.debugInfo'), {
+        confirmButtonText: t('common.close'),
       });
     } catch (error) {
       logger.error('获取调试信息失败:', error);
-      ElMessage.error('获取调试信息失败');
+      ElMessage.error(t('auth.debugFailed'));
     }
   };
 
   // 重置主密码
   const resetMasterPassword = async () => {
     try {
-      await ElMessageBox.confirm('此操作将清空所有已保存的密码数据，确定继续吗？', '确认重置', {
-        confirmButtonText: '确定重置',
-        cancelButtonText: '取消',
+      await ElMessageBox.confirm(t('auth.resetConfirm'), t('auth.resetConfirmTitle'), {
+        confirmButtonText: t('auth.resetConfirmBtn'),
+        cancelButtonText: t('common.cancel'),
         type: 'warning',
       });
 
       await StorageUtils.clearAllData();
-      ElMessage.success('数据已清空，请重新设置主密码');
+      ElMessage.success(t('auth.resetDone'));
 
       await checkAuth();
     } catch (error) {
       if (error !== 'cancel') {
         logger.error('重置失败:', error);
-        ElMessage.error('重置失败');
+        ElMessage.error(t('auth.resetFailed'));
       }
     }
   };

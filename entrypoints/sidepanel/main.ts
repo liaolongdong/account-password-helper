@@ -2,6 +2,7 @@ import { createAndMountApp } from '@/utils/createVueApp';
 import App from '@/entrypoints/sidepanel/App.vue';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { initThemeSync } from '@/utils/theme';
+import { initI18n } from '@/utils/i18n';
 import { logger } from '@/utils/logger';
 import '@/assets/theme/tokens.css';
 
@@ -25,6 +26,9 @@ document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][media="print"
 
 // 尽早读取并应用主题（fire-and-forget），并监听配置变更实时切换
 initThemeSync();
+
+// 初始化 i18n（fire-and-forget，不阻塞首屏）
+initI18n();
 
 // 性能埋点：使用 User Timing API 测量 Vue mount 耗时
 // App.vue onMounted 中通过 performance.measure 计算 interval

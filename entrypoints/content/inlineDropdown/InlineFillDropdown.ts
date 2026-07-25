@@ -18,6 +18,7 @@ import type { MatchingAccountMeta, MatchingAccountsResponse } from '@/utils/type
 import { logger } from '@/utils/logger';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
+import { tl } from '@/utils/i18n-lite';
 
 /** 钥匙图标 */
 const KEY_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="m16 7 3 3"/></svg>`;
@@ -440,7 +441,7 @@ export class InlineFillDropdown {
 
     this.triggerEl = document.createElement('button');
     this.triggerEl.className = 'aph-trigger';
-    this.triggerEl.setAttribute('title', '快速填充');
+    this.triggerEl.setAttribute('title', tl('cs.inline.trigger'));
     this.triggerEl.innerHTML = KEY_ICON;
     // mousedown 阻止默认，避免点击图标令登录框失焦（保持后续 blur 时序可控）
     this.triggerEl.addEventListener('mousedown', e => e.preventDefault());
@@ -593,8 +594,8 @@ export class InlineFillDropdown {
         <div class="aph-locked" data-action="unlock">
           <div class="aph-locked-icon">${LOCK_ICON}</div>
           <div>
-            <div class="aph-locked-title">解锁后填充</div>
-            <div class="aph-locked-desc">点击验证主密码以使用快速填充</div>
+            <div class="aph-locked-title">${tl('cs.inline.lockedTitle')}</div>
+            <div class="aph-locked-desc">${tl('cs.inline.lockedDesc')}</div>
           </div>
         </div>
       `;
@@ -606,11 +607,11 @@ export class InlineFillDropdown {
     this.panelEl.innerHTML = `
       <div class="aph-search">
         <span class="aph-search-icon">${SEARCH_ICON}</span>
-        <input type="text" placeholder="搜索账号、标签、备注、网址..." spellcheck="false" autocomplete="off" />
+        <input type="text" placeholder="${tl('cs.inline.searchPlaceholder')}" spellcheck="false" autocomplete="off" />
       </div>
       <div class="aph-list"></div>
       <div class="aph-footer">
-        <button class="aph-manage" type="button">${KEY_ICON}<span>密码管理</span></button>
+        <button class="aph-manage" type="button">${KEY_ICON}<span>${tl('cs.inline.manage')}</span></button>
       </div>
     `;
 
@@ -652,7 +653,7 @@ export class InlineFillDropdown {
     if (!listEl) return;
 
     if (this.filtered.length === 0) {
-      listEl.innerHTML = `<div class="aph-empty">${this.accounts.length === 0 ? '当前网站暂无匹配账号' : '未找到匹配的账号'}</div>`;
+      listEl.innerHTML = `<div class="aph-empty">${this.accounts.length === 0 ? tl('cs.inline.emptyNoAccounts') : tl('cs.inline.emptyNoMatch')}</div>`;
       return;
     }
 
@@ -660,7 +661,7 @@ export class InlineFillDropdown {
       .map((acc, index) => {
         const star = acc.favorite ? `<span class="aph-star">${STAR_ICON}</span>` : '';
         const badge = acc.hasTotp ? `<span class="aph-badge">2FA</span>` : '';
-        const account = escapeHtml(acc.username || '(无账号)');
+        const account = escapeHtml(acc.username || tl('cs.inline.noUsername'));
         // 标签与侧边栏保持一致：按分隔符拆分为多枚，并按标签内容生成稳定的哈希配色
         const tagsHtml = parseTags(acc.tag)
           .map(t => {
@@ -670,7 +671,9 @@ export class InlineFillDropdown {
           .join('');
         const url = acc.url ? `<span class="aph-url">${escapeHtml(acc.url)}</span>` : '';
         const sub = tagsHtml || url ? `<div class="aph-row-sub">${tagsHtml}${url}</div>` : '';
-        const titleAttr = acc.remark ? ` title="备注：${escapeHtml(acc.remark)}"` : '';
+        const titleAttr = acc.remark
+          ? ` title="${tl('cs.inline.remarkTitle', { remark: escapeHtml(acc.remark) })}"`
+          : '';
         return `
           <div class="aph-row" data-index="${index}"${titleAttr}>
             <div class="aph-row-icon">${KEY_ICON}</div>

@@ -2,13 +2,13 @@
   <div class="filters">
     <el-input
       :model-value="searchKeyword"
-      placeholder="搜索用户名、标签、备注或网址"
+      :placeholder="t('options.filter.searchPlaceholder')"
       :prefix-icon="Search"
       clearable
       @update:model-value="$emit('update:searchKeyword', $event)"
     />
     <el-tooltip
-      :content="favoriteOnly ? '显示全部' : '只看收藏'"
+      :content="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
       placement="top"
       :show-after="400"
     >
@@ -25,13 +25,14 @@
       type="danger"
       @click="$emit('batchDelete')"
     >
-      批量删除 ({{ selectedCount }})
+      {{ t('options.filter.batchDelete', { count: selectedCount }) }}
     </el-button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Search, Delete, Star, StarFilled } from '@element-plus/icons-vue';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 搜索与筛选栏组件
@@ -53,6 +54,8 @@ defineEmits<{
   'update:favoriteOnly': [value: boolean];
   batchDelete: [];
 }>();
+
+const { t } = useI18n();
 </script>
 
 <style scoped>

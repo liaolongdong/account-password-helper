@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="回收站"
+    :title="t('options.trash.title')"
     width="860px"
     align-center
     :close-on-click-modal="false"
@@ -13,7 +13,7 @@
         v-if="!loading && trashList.length === 0"
         class="trash-empty"
       >
-        <el-empty description="回收站为空" />
+        <el-empty :description="t('options.trash.empty')" />
       </div>
 
       <!-- 列表 -->
@@ -21,7 +21,7 @@
         v-if="trashList.length > 0"
         class="trash-stats"
       >
-        共 {{ trashList.length }} 条记录
+        {{ t('options.trash.total', { count: trashList.length }) }}
       </div>
       <el-table
         v-if="trashList.length > 0 || loading"
@@ -33,25 +33,25 @@
         class="trash-table"
       >
         <el-table-column
-          label="用户名"
+          :label="t('common.username')"
           prop="username"
           min-width="140"
           show-overflow-tooltip
         />
         <el-table-column
-          label="网址"
+          :label="t('common.url')"
           prop="url"
           min-width="200"
           show-overflow-tooltip
         />
         <el-table-column
-          label="标签"
+          :label="t('common.tag')"
           prop="tag"
           width="100"
           show-overflow-tooltip
         />
         <el-table-column
-          label="删除时间"
+          :label="t('options.trash.deletedAt')"
           width="95"
           align="center"
         >
@@ -60,7 +60,7 @@
           </template>
         </el-table-column>
         <el-table-column
-          label="剩余(天)"
+          :label="t('options.trash.remainingDays')"
           width="70"
           align="center"
         >
@@ -75,7 +75,7 @@
           </template>
         </el-table-column>
         <el-table-column
-          label="操作"
+          :label="t('common.actions')"
           width="130"
           fixed="right"
           align="center"
@@ -86,14 +86,14 @@
               size="small"
               @click="handleRestore(row.id)"
             >
-              恢复
+              {{ t('options.form.restore') }}
             </el-button>
             <el-button
               type="danger"
               size="small"
               @click="handlePermanentDelete(row.id)"
             >
-              删除
+              {{ t('common.delete') }}
             </el-button>
           </template>
         </el-table-column>
@@ -109,9 +109,9 @@
           :disabled="loading"
           @click="handleEmptyTrash"
         >
-          清空回收站
+          {{ t('options.trash.emptyTrash') }}
         </el-button>
-        <el-button @click="$emit('update:modelValue', false)">关闭</el-button>
+        <el-button @click="$emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
       </div>
     </template>
   </el-dialog>
@@ -119,14 +119,16 @@
 
 <script setup lang="ts">
 import { ref, watch } from 'vue';
-import type { TrashedPasswordEntry } from '@/utils/types';
 import { getTrashEntries, restoreFromTrash, permanentDeleteFromTrash, emptyTrash } from '@/utils/storage/trashManager';
 import { getSessionDataKey } from '@/utils/storage/facades';
 import { formatDateCompact } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import { lazyImport } from '@/utils/lazyImport';
+import { useI18n } from '@/utils/i18n';
 
 const _getEncryption = lazyImport(() => import('@/utils/encryption'));
+
+const { t } = useI18n();
 
 /**
  * 回收站对话框
@@ -174,7 +176,7 @@ const loadTrash = async () => {
       // 会话无效，无法解密，展示占位符
       trashList.value = entries.map(e => ({
         id: e.id,
-        username: '•••（需验证主密码）',
+        username: t('options.trash.lockedPlaceholder'),
         url: '•••',
         tag: e.tag || '',
         deletedAt: e.deletedAt,
@@ -200,7 +202,7 @@ const loadTrash = async () => {
         // 单条解密失败时降级展示
         decrypted.push({
           id: entry.id,
-          username: '解密失败',
+          username: t('message.decryptFailed'),
           url: '',
           tag: '',
           deletedAt: entry.deletedAt,
@@ -210,7 +212,7 @@ const loadTrash = async () => {
     trashList.value = decrypted;
   } catch (error) {
     logger.error('加载回收站失败:', error);
-    ElMessage.error('加载回收站失败');
+    ElMessage.error(t('options.trash.loadFailed'));
   } finally {
     loading.value = false;
   }
@@ -232,30 +234,30 @@ const getRemainingDays = (deletedAt: number): number => {
 const handleRestore = async (id: string) => {
   try {
     await restoreFromTrash([id]);
-    ElMessage.success('已恢复到密码列表');
+    ElMessage.success(t('options.trash.restored'));
     await loadTrash();
     emit('restored');
   } catch (error) {
     logger.error('恢复条目失败:', error);
-    ElMessage.error('恢复失败');
+    ElMessage.error(t('options.trash.restoreFailed'));
   }
 };
 
 /** 彻底删除条目 */
 const handlePermanentDelete = async (id: string) => {
   try {
-    await ElMessageBox.confirm('彻底删除后将无法恢复，确定吗？', '确认彻底删除', {
-      confirmButtonText: '彻底删除',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('options.trash.deleteConfirm'), t('options.trash.deleteConfirmTitle'), {
+      confirmButtonText: t('options.trash.deleteForever'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
     });
     await permanentDeleteFromTrash([id]);
-    ElMessage.success('已彻底删除');
+    ElMessage.success(t('options.trash.deleted'));
     await loadTrash();
   } catch (error) {
     if (error !== 'cancel') {
       logger.error('彻底删除失败:', error);
-      ElMessage.error('删除失败');
+      ElMessage.error(t('message.deleteFailed'));
     }
   }
 };
@@ -263,18 +265,18 @@ const handlePermanentDelete = async (id: string) => {
 /** 清空回收站 */
 const handleEmptyTrash = async () => {
   try {
-    await ElMessageBox.confirm('清空后所有条目将无法恢复，确定清空回收站吗？', '确认清空', {
-      confirmButtonText: '清空',
-      cancelButtonText: '取消',
+    await ElMessageBox.confirm(t('options.trash.emptyConfirm'), t('options.trash.emptyConfirmTitle'), {
+      confirmButtonText: t('options.trash.emptyAction'),
+      cancelButtonText: t('common.cancel'),
       type: 'warning',
     });
     await emptyTrash();
-    ElMessage.success('回收站已清空');
+    ElMessage.success(t('options.trash.emptied'));
     trashList.value = [];
   } catch (error) {
     if (error !== 'cancel') {
       logger.error('清空回收站失败:', error);
-      ElMessage.error('清空失败');
+      ElMessage.error(t('options.trash.emptyFailed'));
     }
   }
 };

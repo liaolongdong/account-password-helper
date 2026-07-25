@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="修改主密码"
+    :title="t('options.header.changeMasterPassword')"
     width="440px"
     :close-on-click-modal="false"
     :close-on-press-escape="!loading"
@@ -13,8 +13,8 @@
       show-icon
       style="margin-bottom: 16px"
     >
-      <template #title>修改主密码将重新加密所有数据，请确保新密码安全且牢记。</template>
-      <template #default>已导出的加密备份（.aph 文件）不受影响，仍使用导出时的密码解密。</template>
+      <template #title>{{ t('options.changePwd.alertTitle') }}</template>
+      <template #default>{{ t('options.changePwd.alertDesc') }}</template>
     </el-alert>
 
     <el-form
@@ -25,26 +25,26 @@
       :disabled="loading"
     >
       <el-form-item
-        label="当前密码"
+        :label="t('options.changePwd.oldPassword')"
         prop="oldPassword"
       >
         <el-input
           v-model="form.oldPassword"
           type="password"
-          placeholder="请输入当前主密码"
+          :placeholder="t('options.changePwd.oldPasswordPlaceholder')"
           show-password
           @keyup.enter="handleSubmit"
         />
       </el-form-item>
 
       <el-form-item
-        label="新密码"
+        :label="t('options.changePwd.newPassword')"
         prop="newPassword"
       >
         <PasswordStrengthPopover
           v-model:visible="newPasswordFocused"
-          title="密码要求"
-          hint="请输入密码查看要求"
+          :title="t('auth.passwordRequirements')"
+          :hint="t('auth.passwordRequirementsHint')"
           :password="form.newPassword"
           :strength="passwordStrength"
           :rules="passwordRules"
@@ -52,7 +52,7 @@
           <el-input
             v-model="form.newPassword"
             type="password"
-            placeholder="请输入新主密码（至少8个字符，包含字母、数字、特殊字符）"
+            :placeholder="t('options.changePwd.newPasswordPlaceholder')"
             show-password
             @focus="newPasswordFocused = true"
             @blur="newPasswordFocused = false"
@@ -62,13 +62,13 @@
       </el-form-item>
 
       <el-form-item
-        label="确认新密码"
+        :label="t('options.changePwd.confirmPassword')"
         prop="confirmPassword"
       >
         <el-input
           v-model="form.confirmPassword"
           type="password"
-          placeholder="请再次输入新主密码"
+          :placeholder="t('options.changePwd.confirmPasswordPlaceholder')"
           show-password
           @keyup.enter="handleSubmit"
         />
@@ -80,14 +80,14 @@
         :disabled="loading"
         @click="$emit('update:modelValue', false)"
       >
-        取消
+        {{ t('common.cancel') }}
       </el-button>
       <el-button
         type="primary"
         :loading="loading"
         @click="handleSubmit"
       >
-        {{ loading ? '正在重新加密...' : '确认修改' }}
+        {{ loading ? t('options.changePwd.reencrypting') : t('options.changePwd.confirm') }}
       </el-button>
     </template>
   </el-dialog>
@@ -100,6 +100,7 @@ import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopove
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { changeMasterPassword } from '@/utils/storage/changeMasterPassword';
 import { logger } from '@/utils/logger';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 修改主密码对话框
@@ -113,6 +114,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
 }>();
+
+const { t } = useI18n();
 
 const formRef = ref<FormInstance>();
 const loading = ref(false);
@@ -130,7 +133,7 @@ const { strength: passwordStrength, rules: passwordRules } = usePasswordStrength
 /** 密码强度校验器：必须至少为「中」 */
 const strengthValidator = (_rule: any, _value: string, callback: any) => {
   if (form.newPassword && passwordStrength.value.level === 'weak') {
-    callback(new Error('密码强度不够，请包含字母、数字和特殊字符'));
+    callback(new Error(t('options.changePwd.weakPassword')));
   } else {
     callback();
   }
@@ -139,24 +142,25 @@ const strengthValidator = (_rule: any, _value: string, callback: any) => {
 /** 确认密码校验器 */
 const confirmValidator = (_rule: any, value: string, callback: any) => {
   if (value !== form.newPassword) {
-    callback(new Error('两次输入的密码不一致'));
+    callback(new Error(t('options.changePwd.mismatch')));
   } else {
     callback();
   }
 };
 
-const rules: FormRules = {
-  oldPassword: [{ required: true, message: '请输入当前主密码', trigger: 'blur' }],
+/** 表单校验规则（computed 保证语言切换后错误提示同步更新） */
+const rules = computed<FormRules>(() => ({
+  oldPassword: [{ required: true, message: t('options.changePwd.oldPasswordPlaceholder'), trigger: 'blur' }],
   newPassword: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 8, message: '密码至少 8 个字符', trigger: 'blur' },
+    { required: true, message: t('options.changePwd.newPasswordRequired'), trigger: 'blur' },
+    { min: 8, message: t('options.changePwd.minLength'), trigger: 'blur' },
     { validator: strengthValidator, trigger: 'blur' },
   ],
   confirmPassword: [
-    { required: true, message: '请确认新密码', trigger: 'blur' },
+    { required: true, message: t('options.changePwd.confirmRequired'), trigger: 'blur' },
     { validator: confirmValidator, trigger: 'blur' },
   ],
-};
+}));
 
 /** 提交修改主密码 */
 const handleSubmit = async () => {
@@ -170,15 +174,15 @@ const handleSubmit = async () => {
   loading.value = true;
   try {
     await changeMasterPassword(form.oldPassword, form.newPassword);
-    ElMessage.success('主密码修改成功，所有数据已重新加密');
+    ElMessage.success(t('options.changePwd.success'));
     emit('update:modelValue', false);
   } catch (error: any) {
     logger.error('修改主密码失败:', error);
-    const msg = error?.message || '未知错误';
+    const msg = error?.message || '';
     if (msg.includes('验证失败')) {
-      ElMessage.error('当前密码错误，请重新输入');
+      ElMessage.error(t('options.changePwd.wrongOldPassword'));
     } else {
-      ElMessage.error('修改失败: ' + msg);
+      ElMessage.error(t('options.changePwd.failed', { msg: msg || t('message.unknownError') }));
     }
   } finally {
     loading.value = false;

@@ -6,6 +6,7 @@ import { getAllPasswords } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { isLocalDevDomain, isExactHostMatch } from '@/utils/domain';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import { tl } from '@/utils/i18n-lite';
 
 /** 模块级缓存状态（Service Worker 生命周期内有效） */
 let passwordCache: PasswordCache | null = null;
@@ -258,7 +259,7 @@ export async function getMatchingAccounts(domain: string): Promise<MatchingAccou
 
   const accounts = matched.map(p => ({
     id: p.id,
-    title: (p.tag && p.tag.trim()) || (p.url && p.url.trim()) || p.username || '未命名',
+    title: (p.tag && p.tag.trim()) || (p.url && p.url.trim()) || p.username || tl('bg.cache.untitled'),
     username: p.username,
     tag: p.tag || '',
     remark: p.remark || '',

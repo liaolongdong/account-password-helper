@@ -3,7 +3,7 @@
     <div class="header">
       <BrandLogo class="logo" />
       <div class="header-title-group">
-        <h3>账号密码管理助手</h3>
+        <h3>{{ t('popup.title') }}</h3>
         <el-tag
           size="small"
           type="info"
@@ -20,7 +20,7 @@
         size="small"
         :loading="lockLoading"
         :disabled="lockLoading"
-        title="锁定（清除会话）"
+        :title="t('popup.lock')"
         @click="lockSession"
       />
     </div>
@@ -35,20 +35,20 @@
         size="small"
       >
         <el-icon><CircleCheckFilled /></el-icon>
-        已验证
+        {{ t('popup.verified') }}
       </el-tag>
       <el-text
         type="info"
         size="small"
       >
-        共 {{ passwordCount }} 条密码
+        {{ t('popup.passwordCount', { count: passwordCount }) }}
       </el-text>
       <el-text
         v-if="domainMatchCount > 0"
         type="success"
         size="small"
       >
-        · 当前页面匹配 {{ domainMatchCount }} 条
+        · {{ t('popup.domainMatch', { count: domainMatchCount }) }}
       </el-text>
     </div>
     <div
@@ -60,13 +60,13 @@
         size="small"
       >
         <el-icon><WarningFilled /></el-icon>
-        未验证
+        {{ t('popup.unverified') }}
       </el-tag>
       <el-text
         type="info"
         size="small"
       >
-        请先验证主密码
+        {{ t('popup.verifyFirst') }}
       </el-text>
     </div>
 
@@ -85,7 +85,7 @@
       </div>
       <div class="update-card__content">
         <div class="update-card__title">
-          发现新版本
+          {{ t('popup.newVersion') }}
           <el-tag
             type="info"
             size="small"
@@ -102,7 +102,7 @@
             v{{ updateInfo.latestVersion }}
           </el-tag>
         </div>
-        <div class="update-card__desc">点击前往下载更新</div>
+        <div class="update-card__desc">{{ t('popup.clickToUpdate') }}</div>
       </div>
     </div>
 
@@ -119,8 +119,8 @@
           <BrandLogo />
         </div>
         <div class="action-card__content">
-          <div class="action-card__title">密码管理</div>
-          <div class="action-card__desc">管理所有已保存的账号密码</div>
+          <div class="action-card__title">{{ t('popup.passwordManagement') }}</div>
+          <div class="action-card__desc">{{ t('popup.passwordManagementDesc') }}</div>
         </div>
         <kbd
           v-if="shortcutAssigned.open_options"
@@ -131,12 +131,12 @@
           v-else
           type="button"
           class="action-card__shortcut action-card__shortcut-btn"
-          title="前往 Chrome 设置快捷键"
+          :title="t('popup.goToShortcuts')"
           @click.stop="openShortcutsPage"
           @keydown.enter.stop.prevent="openShortcutsPage"
           @keydown.space.stop.prevent="openShortcutsPage"
         >
-          设置快捷键
+          {{ t('popup.setShortcut') }}
         </button>
       </div>
 
@@ -152,8 +152,8 @@
           <QuickFillIcon />
         </div>
         <div class="action-card__content">
-          <div class="action-card__title">快速填充</div>
-          <div class="action-card__desc">在当前页面快速填充账号密码</div>
+          <div class="action-card__title">{{ t('popup.quickFill') }}</div>
+          <div class="action-card__desc">{{ t('popup.quickFillDesc') }}</div>
         </div>
         <kbd
           v-if="shortcutAssigned.toggle_sidepanel"
@@ -164,12 +164,12 @@
           v-else
           type="button"
           class="action-card__shortcut action-card__shortcut-btn"
-          title="前往 Chrome 设置快捷键"
+          :title="t('popup.goToShortcuts')"
           @click.stop="openShortcutsPage"
           @keydown.enter.stop.prevent="openShortcutsPage"
           @keydown.space.stop.prevent="openShortcutsPage"
         >
-          设置快捷键
+          {{ t('popup.setShortcut') }}
         </button>
       </div>
     </div>
@@ -180,7 +180,7 @@
         type="info"
         size="small"
       >
-        如有任何问题或者建议，请联系
+        {{ t('popup.contact') }}
         <a
           :href="'mailto:' + CONTACT_EMAIL"
           class="email-link"
@@ -200,6 +200,7 @@ import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { usePopupInit } from '@/composables/usePopupInit';
+import { useI18n } from '@/utils/i18n';
 
 /** 联系邮箱（常量，无需响应式） */
 const CONTACT_EMAIL = '924902324@qq.com';
@@ -217,6 +218,9 @@ const {
   lockSession,
   openUpdatePage,
 } = usePopupInit();
+
+// ==================== i18n（语言切换入口已移至密码管理页「设置」菜单） ====================
+const { t } = useI18n();
 
 // ==================== 导航操作（与 UI 交互紧密，保留在组件内） ====================
 
@@ -276,11 +280,11 @@ const openSidePanel = async () => {
             window.close();
           } else {
             logger.error('通过background脚本打开侧边栏失败:', response.error);
-            alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
+            alert(t('popup.openSidepanelFailed'));
           }
         } catch (bgError) {
           logger.error('通过background脚本打开侧边栏也失败:', bgError);
-          alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
+          alert(t('popup.openSidepanelFailed'));
         }
       }
     }
@@ -294,7 +298,7 @@ const openSidePanel = async () => {
  */
 const handleEmailClick = (event: Event) => {
   event.preventDefault();
-  const subject = '账号密码管理助手反馈';
+  const subject = t('popup.feedbackSubject');
   const mailtoLink = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;
   window.open(mailtoLink, '_blank');
 };
@@ -360,7 +364,8 @@ const handleEmailClick = (event: Event) => {
 
 .session-status {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap; /* 英文文案较长（passwords in total / matches for this page），300px 宽度内允许换行 */
+  gap: 4px 8px;
   align-items: center;
   margin-bottom: 12px;
 }
@@ -526,6 +531,7 @@ const handleEmailClick = (event: Event) => {
 
 .update-card__title {
   display: flex;
+  flex-wrap: wrap; /* 英文标题 + 双版本号 tag 超出 300px 宽度时允许换行 */
   gap: 6px;
   align-items: center;
   font-size: 14px;

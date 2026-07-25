@@ -4,9 +4,9 @@
       <div class="setup-header">
         <div class="logo-section">
           <BrandLogo class="logo" />
-          <h1>账号密码管理助手</h1>
+          <h1>{{ t('appName') }}</h1>
         </div>
-        <p class="subtitle">欢迎使用账号密码管理助手，请先设置主密码</p>
+        <p class="subtitle">{{ t('auth.setupSubtitle') }}</p>
       </div>
 
       <div class="setup-form">
@@ -19,21 +19,21 @@
             label-position="top"
           >
             <el-alert
-              title="设置主密码"
-              description="主密码用于保护您的所有账号信息，请妥善保管，切勿遗忘。"
+              :title="t('auth.setupAlertTitle')"
+              :description="t('auth.setupAlertDesc')"
               type="info"
               :closable="false"
               show-icon
             />
 
             <el-form-item
-              label="主密码"
+              :label="t('auth.masterPassword')"
               prop="password"
             >
               <PasswordStrengthPopover
                 v-model:visible="passwordInputFocused"
-                title="密码要求"
-                hint="请输入密码查看要求"
+                :title="t('auth.passwordRequirements')"
+                :hint="t('auth.passwordRequirementsHint')"
                 :password="formModel.password"
                 :strength="passwordStrength"
                 :rules="passwordRules"
@@ -41,7 +41,7 @@
                 <el-input
                   v-model="formModel.password"
                   type="password"
-                  placeholder="请输入主密码（至少8个字符，包含字母、数字、特殊字符）"
+                  :placeholder="t('auth.setupPasswordPlaceholder')"
                   show-password
                   size="large"
                   :disabled="setupLoading"
@@ -62,13 +62,13 @@
             </el-form-item>
 
             <el-form-item
-              label="确认密码"
+              :label="t('auth.confirmPassword')"
               prop="confirmPassword"
             >
               <el-input
                 v-model="formModel.confirmPassword"
                 type="password"
-                placeholder="请再次输入主密码"
+                :placeholder="t('auth.confirmPasswordPlaceholder')"
                 show-password
                 size="large"
                 :disabled="setupLoading"
@@ -85,17 +85,17 @@
             </el-form-item>
 
             <el-form-item
-              label="验证有效期"
+              :label="t('auth.validityLabel')"
               prop="validityHours"
             >
               <ValidityHoursSelect
                 v-model="formModel.validityHours"
-                placeholder="选择验证有效期"
+                :placeholder="t('auth.validityPlaceholder')"
                 size="large"
                 :disabled="setupLoading"
                 style="width: 100%"
               />
-              <div class="form-tip">验证有效期内无需重新输入主密码，超过有效期需重新验证</div>
+              <div class="form-tip">{{ t('auth.validityTip') }}</div>
             </el-form-item>
 
             <el-form-item>
@@ -106,7 +106,7 @@
                 style="width: 100%"
                 @click="handleSubmit"
               >
-                设置主密码并开始使用
+                {{ t('auth.setupSubmit') }}
               </el-button>
             </el-form-item>
           </el-form>
@@ -129,6 +129,7 @@ import DisclaimerInfo from '@/components/options/DisclaimerInfo.vue';
 import ValidityHoursSelect from '@/components/options/ValidityHoursSelect.vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 主密码设置视图组件
@@ -154,6 +155,8 @@ const emit = defineEmits<{
   submit: [];
   'update:setupForm': [value: { password: string; confirmPassword: string; validityHours: number }];
 }>();
+
+const { t } = useI18n();
 
 /** 提交前本地表单校验，通过后通知父组件 */
 const handleSubmit = async () => {
