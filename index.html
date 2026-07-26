@@ -1819,6 +1819,13 @@
           },
         },
         {
+          q: { zh: '如何修改主密码？', en: 'How do I change the master password?' },
+          a: {
+            zh: '在密码管理页「设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据（密码列表、回收站、修改历史）会用新密钥重新加密并原子写入，中途失败不会损坏数据；已打开的页面自动采纳新会话密钥，无需重新登录。已导出的加密备份（.aph）不受影响。',
+            en: 'Click "Change master password" in the "Settings" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written atomically — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Exported encrypted backups (.aph) are unaffected.',
+          },
+        },
+        {
           q: { zh: '会话有效期到了会发生什么？', en: 'What happens when the session expires?' },
           a: {
             zh: '会话过期后，所有敏感字段会自动重新加密为密文；下次使用时只需重新验证主密码即可恢复访问，账号数据不会丢失。',
@@ -1876,6 +1883,16 @@
           a: {
             zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。',
             en: 'Chrome supports this natively. Go to chrome://extensions/shortcuts, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically.',
+          },
+        },
+        {
+          q: {
+            zh: '一键填充快捷键（Ctrl+Shift+F）是怎么工作的？',
+            en: 'How does the quick-fill shortcut (Ctrl+Shift+F) work?',
+          },
+          a: {
+            zh: '按下 Ctrl+Shift+F / Cmd+Shift+F 后，插件直接填充与侧边栏列表首条一致的账号密码（域名匹配优先 + 收藏置顶），无需打开侧边栏。多条匹配时通知会告知填充了哪条、共几条匹配；未验证主密码或无匹配账号时通过桌面通知提示，填充结果同时通过工具栏图标角标反馈（成功绿色对勾 / 失败红色感叹号）。',
+            en: 'Pressing Ctrl+Shift+F / Cmd+Shift+F fills the same entry as the top of the side panel list (domain match first + favorites pinned) without opening the panel. With multiple matches, the notification states which entry was filled and how many matched; an unverified session or no matching account triggers a desktop notification, and results also show as a toolbar badge (green check / red exclamation).',
           },
         },
         {
@@ -1950,6 +1967,20 @@
           a: {
             zh: '在密码管理页「数据管理」中点击「一键去重」，插件会智能检测重复条目（相同用户名 + 相同 URL），展示去重结果供确认后清理。已收藏的条目不会被删除。',
             en: 'Click "Remove Duplicates" under "Data Management". The extension detects duplicates (same username + same URL) and shows the result for confirmation before cleanup. Favorited entries are never deleted.',
+          },
+        },
+        {
+          q: { zh: '删除的密码能找回吗？', en: 'Can I recover deleted passwords?' },
+          a: {
+            zh: '能。删除的密码会先移入回收站保留 30 天，在密码管理页「数据管理」下拉菜单 →「回收站」中可查看已删除条目，支持单条「恢复」、「彻底删除」和「清空回收站」。超过 30 天的条目会自动清理；回收站条目保持加密存储。',
+            en: 'Yes. Deleted passwords move to the trash for 30 days. Open "Data Management" → "Trash" to restore, permanently delete, or empty the trash. Entries older than 30 days are cleaned automatically; trash entries stay encrypted.',
+          },
+        },
+        {
+          q: { zh: '改错密码了能恢复旧密码吗？', en: 'Can I restore an old password after a change?' },
+          a: {
+            zh: '能。每次修改密码时，插件会自动将旧密码加密快照入历史（每个条目保留最近 5 条）。在编辑该条目的弹窗底部可看到「密码修改历史」区块，点击「复制」可复制旧密码，点击「恢复」即将旧密码回填到密码框。历史以加密态存储，查看需会话有效。',
+            en: 'Yes. Every password change snapshots the old password (encrypted, last 5 per entry). The edit dialog shows a "Password history" section — "Copy" copies the old password, "Restore" fills it back into the password field. History is stored encrypted and requires a valid session to view.',
           },
         },
         {
@@ -2048,8 +2079,8 @@
         {
           q: { zh: '如何生成随机密码？', en: 'How do I generate a random password?' },
           a: {
-            zh: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器。可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
-            en: 'In the add/edit form, click the magic-wand icon next to the password field. Customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). A strength bar shows in real time; click "Use this password" to fill it in. Backed by the Web Crypto API for cryptographic randomness.',
+            zh: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器，顶部可切换「随机密码」与「助记词组」模式。随机密码可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）；助记词组从 2048 词库随机选取 3~8 个单词组合，支持分隔符、首字母大写、末尾追加数字，既安全又易记。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
+            en: 'In the add/edit form, click the magic-wand icon next to the password field, then toggle between "Random" and "Passphrase" modes. Random: customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). Passphrase: 3–8 random words from a 2048-word list with separator, capitalization, and trailing-digit options — secure yet memorable. A strength bar shows in real time; click "Use this password" to fill it in. Backed by the Web Crypto API for cryptographic randomness.',
           },
         },
         {

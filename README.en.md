@@ -11,7 +11,7 @@
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Published-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 [![GitHub Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=GitHub%20Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
 
-A powerful Chrome extension for secure, convenient password management and auto-fill. Built on a **PBKDF2 + AES-256-GCM** encryption scheme with zero network transfer — passwords never leave your browser. Features include smart login form detection, multi-strategy auto-fill, one-click auto login, auto-save of credentials, bulk import/export, encrypted backup, password visibility toggle, idle lock, TOTP two-factor codes, password strength checks, a password generator, and more.
+A powerful Chrome extension for secure, convenient password management and auto-fill. Built on a **PBKDF2 + AES-256-GCM** encryption scheme with zero network transfer — passwords never leave your browser. Features include smart login form detection, multi-strategy auto-fill, one-click auto login, auto-save of credentials, bulk import/export, encrypted backup, password visibility toggle, idle lock, TOTP two-factor codes, password strength checks, a password generator, security health check, trash bin, password change history, master password change, and more.
 
 > **Disclaimer**: All data is stored locally (sensitive fields encrypted). This extension is intended for development, testing, and ordinary production logins only. **Never store work or personal sensitive passwords (banking, payment, or core social accounts).** You bear full responsibility for any password leakage!
 >
@@ -48,7 +48,10 @@ A powerful Chrome extension for secure, convenient password management and auto-
 - **Session control**: validity of 1/2/4/8/12/24 hours or 3/5/7 days; sensitive fields re-encrypt automatically when the session expires; auto idle lock (5/10/30/60 minutes); lock on browser restart; one-click lock in the popup; cross-context expiry broadcast.
 - **Update detection**: checks the latest version via the GitHub Releases API every 6 hours; update notice with version and changelog shown in the popup, linking to the download page.
 - **Shadow DOM isolation**: the floating button uses a closed Shadow DOM, fully isolated from page styles.
-- **Random password generator**: one-click generation from the magic-wand button in the add/edit form, backed by the Web Crypto API; customizable length (6–50) and character sets (upper/lower/digits/specials); optional exclusion of ambiguous characters (1/l/I/0/O); live strength bar.
+- **Random password generator**: one-click generation from the magic-wand button in the add/edit form, backed by the Web Crypto API; customizable length (6–50) and character sets (upper/lower/digits/specials); optional exclusion of ambiguous characters (1/l/I/0/O); live strength bar; plus a **Passphrase mode** built on the EFF Diceware idea — 3–8 random words from a 2048-word list with separator, capitalization, and trailing-digit options for secure yet memorable passwords.
+- **Trash bin (soft delete)**: deleted passwords go to the trash for 30 days with restore, permanent delete, and empty-all; expired entries are cleaned automatically by a background alarm; trash entries stay encrypted with the same security model as the main list.
+- **Password change history**: every password change snapshots the old password (encrypted, last 5 per entry); view the change time and copy or restore an old password right in the edit dialog.
+- **Master password change**: rekey without losing data — all data (passwords/trash/history) is re-encrypted with the new key and written in a single atomic operation with automatic rollback on failure; open pages adopt the new session key automatically, no re-login needed.
 - **Clipboard auto-clear**: automatically clears the clipboard after copying a password, with a configurable delay of 10/15/30/60/120 seconds; copying a username cancels the timer; best-effort clearing when unfocused; configured under "Clipboard Settings" on the management page.
 - **Favorites limit with LRU eviction**: configurable limit (1–50, default 10); when exceeded, the least recently used favorite is evicted so frequent accounts stay pinned; filling from the side panel refreshes the favorite's usage timestamp.
 - **Themes**: 6 curated color themes — Sky Blue (default), Bamboo Green, Peach Pink, Sakura Purple, Sunset Orange, Mist Gray; implemented via CSS design tokens for consistent theming across extension pages and content-script Shadow DOM components; instant switching without refresh.
@@ -80,7 +83,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 - Tag multi-select with custom tags (up to 3 per entry, max 30 chars each); identical tags keep stable, consistent colors (see [utils/tagUtils.ts](./utils/tagUtils.ts)).
 - Password list sorts by update time (desc) by default; the side panel sorts by recent usage. Sortable by username, URL, tag, remark, and create/update time.
 - Multi-field fuzzy search across username, tag, remark, and URL.
-- Batch selection and batch deletion of entries.
+- Batch selection and batch deletion of entries; deleted entries go to the trash for 30 days and can be restored anytime.
 - Favorites: star frequent entries and filter with "favorites only"; configurable limit (1–50) with LRU eviction when exceeded; filling from the side panel refreshes the usage timestamp for accurate LRU.
 - One-click dedup: detects duplicates (same username + same URL) and cleans them up after confirmation.
 - Multi-format CSV import: auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats (see [utils/excel.ts](./utils/excel.ts)).
@@ -152,6 +155,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 - Shortcuts:
   - `Ctrl+Shift+P` / `Cmd+Shift+P`: open the password manager
   - `Ctrl+Shift+L` / `Cmd+Shift+L`: toggle the side panel
+  - `Ctrl+Shift+F` / `Cmd+Shift+F`: quick-fill credentials on the current page (fills the same entry as the top of the side panel list, no panel needed; feedback via desktop notification + toolbar badge, see [quickFillHandler.ts](./entrypoints/background/quickFillHandler.ts))
   - Shortcuts are customizable — see [FAQ — How do I customize shortcuts](#faq)
 - Background maintains a password cache; the side panel reads the cache first and validates asynchronously.
 
@@ -162,11 +166,11 @@ A powerful Chrome extension for secure, convenient password management and auto-
 - Clicking the notice opens the GitHub Releases page.
 - Results are cached for 24 hours to avoid excessive requests; the cache refreshes automatically after expiry.
 
-### 13. Random Password Generator
+### 13. Password Generator (Random / Passphrase)
 
-- In the add/edit form, a magic-wand button (`MagicStick` icon) next to the password field opens the generator.
-- Custom length (6–50) and character set switches (upper / lower / digits / specials).
-- Optionally exclude ambiguous characters (1, l, I, 0, O).
+- In the add/edit form, a magic-wand button (`MagicStick` icon) next to the password field opens the generator, with a toggle between **Random** and **Passphrase** modes.
+- **Random mode**: custom length (6–50) and character set switches (upper / lower / digits / specials); optionally exclude ambiguous characters (1, l, I, 0, O).
+- **Passphrase mode**: built on the EFF Diceware idea — 3–8 random words from a built-in 2048-word English list (e.g. `Apple-River-Cloud-Tiger42`), with 5 separator options (`-`/`_`/`.`/space/none), capitalization switch, and 1–4 trailing random digits; a 4-word phrase carries ≈44 bits of entropy — secure yet memorable (see [utils/passphraseGenerator.ts](./utils/passphraseGenerator.ts)).
 - Live strength bar after generation; click "Use this password" to fill the form.
 - Backed by the Web Crypto API (`crypto.getRandomValues`) for cryptographic randomness (see [utils/passwordGenerator.ts](./utils/passwordGenerator.ts)).
 
@@ -211,6 +215,35 @@ A powerful Chrome extension for secure, convenient password management and auto-
 - The panel shows only account metadata (username, tag, remark, URL); the password is delivered transiently by the background only upon explicit selection — same security model as the side panel.
 - When the session is locked, the panel shows an "unlock to fill" guide linking to the manager for master password verification.
 - Closed Shadow DOM (`all: initial`) fully isolates page styles; theme tokens are written inline on the host element and follow the global theme.
+
+### 18. Trash Bin
+
+- Deleting passwords (single or batch) no longer erases them — entries move to the trash as a soft delete and stay for **30 days** (see [utils/storage/trashManager.ts](./utils/storage/trashManager.ts)).
+- Entry point: "Data Management" menu → "Trash" on the manager page, opening the trash dialog (see [TrashDialog.vue](./components/options/TrashDialog.vue)).
+- Each row supports "Restore" (back to the list) and "Delete permanently"; the footer offers "Empty trash". Permanent deletion also cleans the entry's password history and expiry reminders.
+- Entries older than 30 days are removed automatically by a background alarm; trash entries stay encrypted — username/URL decrypt for display only within a valid session, placeholders show when locked.
+
+### 19. Password Change History
+
+- When a password field changes on edit, the old ciphertext is snapshotted into history (see [utils/storage/passwordHistory.ts](./utils/storage/passwordHistory.ts)); each entry keeps the latest **5** records, oldest evicted automatically.
+- The edit dialog shows a "Password history" section (edit mode with history only): each record shows the change time and a mask, with "Copy" and "Restore" buttons — restore fills the old password back into the form.
+- History is stored encrypted, never in plaintext; viewing/restoring requires a valid session; history is purged with permanent deletion and re-encrypted on master password change.
+
+### 20. Master Password Change
+
+- Entry point: "Settings" menu → "Change master password" on the manager page (see [ChangeMasterPasswordDialog.vue](./components/options/ChangeMasterPasswordDialog.vue)).
+- Flow: verify the current master password → decrypt all data (passwords + trash + history) with the old key → re-encrypt with the new key → a single **atomic** `chrome.storage.local.set()` writes ciphertext and the new session key (see [utils/storage/changeMasterPassword.ts](./utils/storage/changeMasterPassword.ts)).
+- Safety: any failure before the write aborts with data untouched — there is no "new ciphertext + old session key" intermediate state.
+- Session self-healing: other open extension pages (side panel/popup) detect the rekey and adopt the new session key automatically — no re-login, no cleared lists (see `adoptRekeyedSession` in [utils/sessionManager-storage.ts](./utils/sessionManager-storage.ts)).
+- Encrypted backups (.aph) are unaffected: imports decrypt with the password used at export time.
+
+### 21. Quick-Fill Shortcut
+
+- Press `Ctrl+Shift+F` / `Cmd+Shift+F` to fill credentials on the current page without opening the side panel (see [quickFillHandler.ts](./entrypoints/background/quickFillHandler.ts)).
+- The filled entry matches the top of the side panel list (domain match first + favorites pinned + sort config); with multiple matches, the notification states which entry was filled and how many matched — open the side panel to switch.
+- Unverified session → notification to verify first; no match for the domain → "no matching account"; page not ready (stale tab after an extension update) → refresh guidance.
+- Dual-channel feedback: desktop notification + toolbar icon badge (green check on success / red exclamation on failure, auto-cleared after 3 seconds) — covering cases where system notifications are disabled.
+- Successful fills silently refresh the entry's last-used time, keeping the side panel's recency sort accurate.
 
 ## Tech Stack
 
@@ -489,6 +522,10 @@ A: No. The extension stores everything locally in your browser. Sensitive fields
 
 A: It cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up regularly via data export or encrypted backup (.aph) to avoid data loss.
 
+**Q: How do I change the master password?**
+
+A: Click "Change master password" in the "Settings" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written in one atomic operation — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Note: existing encrypted backups (.aph) are unaffected and still decrypt with the password used at export time.
+
 **Q: What happens when the session expires?**
 
 A: All sensitive fields are automatically re-encrypted. Verify the master password again to restore access — no data is lost.
@@ -518,6 +555,10 @@ A: Wait for the page to fully load and retry; the filler tries three strategies 
 **Q: How do I customize shortcuts?**
 
 A: Chrome supports this natively. Go to `chrome://extensions/shortcuts`, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The popup display syncs automatically.
+
+**Q: How does the quick-fill shortcut (Ctrl+Shift+F) work?**
+
+A: Pressing `Ctrl+Shift+F` / `Cmd+Shift+F` fills the same entry as the top of the side panel list (domain match first + favorites pinned + sort config) without opening the panel. With multiple matches, the notification states which entry was filled and how many matched — open the side panel to pick another. Unverified session, no matching account, or a not-ready page all produce a desktop notification; results also show as a toolbar badge (green check / red exclamation).
 
 **Q: Why aren't shortcuts bound by default?**
 
@@ -556,6 +597,14 @@ A: Yes. Choose "Export JSON" in the "Data Management" menu to export everything 
 **Q: How does one-click dedup work?**
 
 A: Click "Remove Duplicates" under "Data Management". Duplicates (same username + same URL) are detected and shown for confirmation before cleanup. Favorited entries are never deleted.
+
+**Q: Can I recover deleted passwords? (Trash)**
+
+A: Yes. Deleted passwords move to the trash for 30 days. Open "Data Management" → "Trash" on the manager page to restore, permanently delete, or empty the trash. Entries older than 30 days are cleaned automatically; permanent deletion also purges the entry's password history. Trash entries stay encrypted — placeholders show when locked.
+
+**Q: Can I restore an old password after changing it? (Password history)**
+
+A: Yes. Every password change snapshots the old password (encrypted, last 5 per entry). The edit dialog shows a "Password history" section with the change time per record — "Copy" copies the old password, "Restore" fills it back into the password field. History is stored encrypted and requires a valid session to view.
 
 **Q: How do I back up to email?**
 
@@ -601,7 +650,7 @@ A: Yes. Per "Clipboard Settings", the clipboard clears after a delay (default 30
 
 **Q: How do I generate a random password?**
 
-A: Click the magic-wand (MagicStick) icon next to the password field in the add/edit form. Customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). A live strength bar shows; click "Use this password" to fill it in. Backed by Web Crypto (`crypto.getRandomValues`).
+A: Click the magic-wand (MagicStick) icon next to the password field in the add/edit form, then toggle between **Random** and **Passphrase** modes. Random mode: customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). Passphrase mode: 3–8 random words from a built-in 2048-word list (e.g. `Apple-River-Cloud-Tiger42`) with separator, capitalization, and trailing-digit options — secure yet memorable. A live strength bar shows; click "Use this password" to fill it in. Backed by Web Crypto (`crypto.getRandomValues`).
 
 **Q: Side panel vs inline fill?**
 
