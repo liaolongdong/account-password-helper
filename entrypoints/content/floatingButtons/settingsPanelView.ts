@@ -11,10 +11,84 @@
 import { closeIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { THEME_OPTIONS, type ThemeName } from '@/utils/theme';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { getStoredLocale, isLiteLocale, type LiteLocale } from '@/utils/i18n-lite';
 import type { SettingsPanelViewOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
 
 // 重新导出供外部使用
 export type { SettingsPanelViewOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
+
+/**
+ * 面板语言类型（复用 i18n-lite 的 LiteLocale；
+ * 本模块被 content script 复用，为避免打包引入 Vue 与全量语言包，独立维护面板双语 map）
+ */
+export type PanelLocale = LiteLocale;
+
+/**
+ * 读取用户语言偏好（复用 i18n-lite 的 storage 读取，供 content script 等无 Vue 环境使用）
+ */
+export const getStoredPanelLocale = getStoredLocale;
+
+/** 面板文案 key 类型 */
+type PanelMessageKey =
+  | 'title'
+  | 'close'
+  | 'theme'
+  | 'visible'
+  | 'fillMode'
+  | 'fillSidebar'
+  | 'fillInline'
+  | 'fillManual'
+  | 'autoTriggerLogin'
+  | 'autoTriggerTip'
+  | 'passwordVisibility'
+  | 'passwordVisibilityTip'
+  | 'opacity';
+
+/** 面板内建双语文案（tip 类文案含 highlight-tip 高亮标记，需以 innerHTML 渲染） */
+const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
+  'zh-CN': {
+    title: '偏好设置',
+    close: '关闭',
+    theme: '主题风格',
+    visible: '显示悬浮按钮',
+    fillMode: '快速填充方式',
+    fillSidebar: '侧边栏',
+    fillInline: '页面内联',
+    fillManual: '仅手动',
+    autoTriggerLogin: '自动触发登录',
+    autoTriggerTip:
+      '开启后，在侧边栏或页面内联快速填充密码成功后将自动点击登录按钮<span class="highlight-tip">（仅账号密码场景）</span>',
+    passwordVisibility: '密码显示切换',
+    passwordVisibilityTip:
+      '开启后，密码输入框内将显示眼睛图标按钮，点击可切换密码明文/密文<span class="highlight-tip">（注：页面如有自带的眼睛图标会重叠显示）</span>',
+    opacity: '按钮透明度',
+  },
+  en: {
+    title: 'Preferences',
+    close: 'Close',
+    theme: 'Theme',
+    visible: 'Show floating button',
+    fillMode: 'Quick fill mode',
+    fillSidebar: 'Sidebar',
+    fillInline: 'Inline',
+    fillManual: 'Manual',
+    autoTriggerLogin: 'Auto-submit login',
+    autoTriggerTip:
+      'When enabled, the login button is clicked automatically after a successful quick fill from the sidebar or inline panel<span class="highlight-tip"> (username &amp; password forms only)</span>',
+    passwordVisibility: 'Password visibility toggle',
+    passwordVisibilityTip:
+      'When enabled, an eye icon appears inside password fields to toggle between plain and masked text<span class="highlight-tip"> (note: it may overlap the site&#39;s own eye icon)</span>',
+    opacity: 'Button opacity',
+  },
+};
+
+/**
+ * 判断任意值是否为合法面板语言
+ * @param value 待校验值
+ * @returns 是否为 PanelLocale
+ */
+const isPanelLocale = isLiteLocale;
 
 /**
  * 主色（主题令牌，在 Shadow DOM 由 host 提供，在扩展页由 tokens.css 的 :root 提供）
@@ -60,10 +134,16 @@ export const settingsPanelViewStyles = `
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%) scale(0.9);
-  width: 320px;
+  display: flex;
+  flex-direction: column;
+  /* 400px 宽度让中文 tip 基本单行展示，降低整体高度，常规小屏下无需滚动；
+     窄视口（如侧边栏内）由 max-width 自动收窄 */
+  width: 400px;
   max-width: 90vw;
+  /* 小屏/长文案（如英文 tip）下限制整体高度，内容区滚动，避免面板占满甚至溢出视口 */
+  max-height: min(600px, 90vh);
   background: #fff;
-  border-radius: 16px;
+  border-radius: 10px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   z-index: 2147483647;
   opacity: 0;
@@ -90,6 +170,7 @@ export const settingsPanelViewStyles = `
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-shrink: 0;
   padding: 14px 20px;
   border-bottom: 1px solid #f0f0f0;
 }
@@ -121,9 +202,25 @@ export const settingsPanelViewStyles = `
   color: #666;
 }
 
-/* 设置面板内容 */
+/* 设置面板内容（面板超高时作为唯一滚动区，header 保持固定） */
 .settings-content {
+  flex: 1 1 auto;
   padding: 16px 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.settings-content::-webkit-scrollbar {
+  width: 4px;
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+.settings-content::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }
 
 /* 设置项 */
@@ -131,6 +228,7 @@ export const settingsPanelViewStyles = `
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 10px 0;
   border-bottom: 1px solid #f0f0f0;
 }
@@ -147,6 +245,7 @@ export const settingsPanelViewStyles = `
 /* 开关样式 */
 .switch {
   position: relative;
+  flex-shrink: 0;
   width: 44px;
   height: 24px;
   background: #dcdfe6;
@@ -179,11 +278,12 @@ export const settingsPanelViewStyles = `
 .slider-container {
   display: flex;
   align-items: center;
+  flex-shrink: 0;
   gap: 12px;
 }
 
 .slider {
-  width: 100px;
+  width: 140px;
   height: 4px;
   background: #e4e7ed;
   border-radius: 2px;
@@ -331,16 +431,34 @@ export const settingsPanelViewStyles = `
   outline: 2px solid var(--swatch);
   outline-offset: 1px;
 }
+
+/* 语言切换 - 二选一分段控件（复用 fill-mode 胶囊样式，行内右对齐） */
+.locale-group {
+  flex: 0 0 auto;
+  width: 156px;
+  margin-top: 0;
+}
+
+.locale-group .fill-mode-option.active::before {
+  content: '✓ ';
+}
 `;
 
 /** 快速填充入口（3 选 1，由 autoShowSidepanel + fillMode 两字段派生） */
 type FillEntry = 'sidepanel' | 'inline' | 'manual';
 
-/** 各填充入口的说明文案（随选择动态切换） */
-const FILL_ENTRY_TIPS: Record<FillEntry, string> = {
-  sidepanel: '聚焦登录框时自动弹出侧边栏，账号信息展示最全',
-  inline: '登录框内显示钥匙图标，点击展开页面内填充面板，轻量不占屏',
-  manual: '聚焦时不自动弹出；点击悬浮按钮或浏览器工具栏图标再打开侧边栏',
+/** 各填充入口的说明文案（随选择与语言动态切换） */
+const FILL_ENTRY_TIPS: Record<PanelLocale, Record<FillEntry, string>> = {
+  'zh-CN': {
+    sidepanel: '聚焦登录框时自动弹出侧边栏，账号信息展示最全',
+    inline: '登录框内显示钥匙图标，点击展开页面内填充面板，轻量不占屏',
+    manual: '聚焦时不自动弹出；点击悬浮按钮或浏览器工具栏图标再打开侧边栏',
+  },
+  en: {
+    sidepanel: 'Automatically opens the sidebar when a login field is focused, showing the most complete account info',
+    inline: 'Shows a key icon inside the login field; click it to open a lightweight in-page fill panel',
+    manual: 'No auto popup on focus; open the sidebar via the floating button or the toolbar icon',
+  },
 };
 
 /**
@@ -378,63 +496,84 @@ function fillEntryToPatch(entry: FillEntry): Partial<FloatingButtonConfig> {
 }
 
 /**
- * 生成设置面板内部 HTML（不含外层 .settings-panel 容器本身，由调用方提供容器）
+ * 获取主题选项在指定语言下的展示标签
+ * @param option 主题选项
+ * @param locale 面板语言
+ * @returns 主题标签
  */
-export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
+function getThemeLabel(option: (typeof THEME_OPTIONS)[number], locale: PanelLocale): string {
+  return locale === 'en' ? option.labelEn : option.label;
+}
+
+/**
+ * 生成设置面板内部 HTML（不含外层 .settings-panel 容器本身，由调用方提供容器）
+ * @param config 悬浮按钮配置
+ * @param locale 面板语言（扩展页传 currentLocale，content script 经 getStoredPanelLocale 获取）
+ */
+export function getSettingsPanelHTML(config: FloatingButtonConfig, locale: PanelLocale = 'zh-CN'): string {
+  const msg = PANEL_MESSAGES[locale];
   const opacityPct = Math.round(config.opacity * 100);
   const fillEntry = getFillEntry(config);
   const themeSwatches = THEME_OPTIONS.map(
     option =>
-      `<button class="theme-swatch ${config.theme === option.name ? 'active' : ''}" data-theme="${option.name}" title="${option.label}" style="--swatch: ${option.swatch}"></button>`,
+      `<button class="theme-swatch ${config.theme === option.name ? 'active' : ''}" data-theme="${option.name}" title="${getThemeLabel(option, locale)}" style="--swatch: ${option.swatch}"></button>`,
   ).join('');
   return `
     <div class="settings-header">
-      <h3 class="settings-title">偏好设置</h3>
-      <button class="settings-close" data-action="close" title="关闭">
+      <h3 class="settings-title" data-i18n="title">${msg.title}</h3>
+      <button class="settings-close" data-action="close" title="${msg.close}">
         ${closeIcon}
       </button>
     </div>
     <div class="settings-content">
       <div class="setting-item">
-        <span class="setting-label">主题风格</span>
+        <span class="setting-label" data-i18n="theme">${msg.theme}</span>
         <div class="theme-swatches" data-setting="theme">${themeSwatches}</div>
       </div>
 
       <div class="setting-item">
-        <span class="setting-label">显示悬浮按钮</span>
+        <span class="setting-label">语言 / Language</span>
+        <div class="fill-mode-group locale-group" data-setting="locale">
+          <button class="fill-mode-option ${locale === 'zh-CN' ? 'active' : ''}" data-value="zh-CN">中文</button>
+          <button class="fill-mode-option ${locale === 'en' ? 'active' : ''}" data-value="en">English</button>
+        </div>
+      </div>
+
+      <div class="setting-item">
+        <span class="setting-label" data-i18n="visible">${msg.visible}</span>
         <div class="switch ${config.visible ? 'active' : ''}" data-setting="visible">
           <div class="switch-handle"></div>
         </div>
       </div>
 
       <div class="setting-item setting-item-stack">
-        <span class="setting-label">快速填充方式</span>
+        <span class="setting-label" data-i18n="fillMode">${msg.fillMode}</span>
         <div class="fill-mode-group" data-setting="fillEntry">
-          <button class="fill-mode-option ${fillEntry === 'sidepanel' ? 'active' : ''}" data-value="sidepanel">侧边栏</button>
-          <button class="fill-mode-option ${fillEntry === 'inline' ? 'active' : ''}" data-value="inline">页面内联</button>
-          <button class="fill-mode-option ${fillEntry === 'manual' ? 'active' : ''}" data-value="manual">仅手动</button>
+          <button class="fill-mode-option ${fillEntry === 'sidepanel' ? 'active' : ''}" data-value="sidepanel" data-i18n="fillSidebar">${msg.fillSidebar}</button>
+          <button class="fill-mode-option ${fillEntry === 'inline' ? 'active' : ''}" data-value="inline" data-i18n="fillInline">${msg.fillInline}</button>
+          <button class="fill-mode-option ${fillEntry === 'manual' ? 'active' : ''}" data-value="manual" data-i18n="fillManual">${msg.fillManual}</button>
         </div>
       </div>
-      <div class="setting-tip" data-fill-tip>${FILL_ENTRY_TIPS[fillEntry]}</div>
+      <div class="setting-tip" data-fill-tip>${FILL_ENTRY_TIPS[locale][fillEntry]}</div>
 
       <div class="setting-item">
-        <span class="setting-label">自动触发登录</span>
+        <span class="setting-label" data-i18n="autoTriggerLogin">${msg.autoTriggerLogin}</span>
         <div class="switch ${config.autoTriggerLogin ? 'active' : ''}" data-setting="autoTriggerLogin">
           <div class="switch-handle"></div>
         </div>
       </div>
-      <div class="setting-tip">开启后，在侧边栏或页面内联快速填充密码成功后将自动点击登录按钮<span class="highlight-tip">（仅账号密码场景）</span></div>
+      <div class="setting-tip" data-i18n="autoTriggerTip">${msg.autoTriggerTip}</div>
 
       <div class="setting-item">
-        <span class="setting-label">密码显示切换</span>
+        <span class="setting-label" data-i18n="passwordVisibility">${msg.passwordVisibility}</span>
         <div class="switch ${config.passwordVisibilityToggle ? 'active' : ''}" data-setting="passwordVisibilityToggle">
           <div class="switch-handle"></div>
         </div>
       </div>
-      <div class="setting-tip">开启后，密码输入框内将显示眼睛图标按钮，点击可切换密码明文/密文<span class="highlight-tip">（注：页面如有自带的眼睛图标会重叠显示）</span></div>
+      <div class="setting-tip" data-i18n="passwordVisibilityTip">${msg.passwordVisibilityTip}</div>
 
       <div class="setting-item">
-        <span class="setting-label">按钮透明度</span>
+        <span class="setting-label" data-i18n="opacity">${msg.opacity}</span>
         <div class="slider-container">
           <div class="slider" data-setting="opacity">
             <div class="slider-fill" style="width: ${opacityPct}%"></div>
@@ -448,20 +587,60 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig): string {
 }
 
 /**
- * 绑定事件：close、overlay 点击、switch、slider 拖拽
+ * 将指定语言的文案应用到面板 DOM（含 data-i18n 文案、填充提示、主题色块 title、语言选中态）
+ *
+ * @param panelRoot 面板根元素
+ * @param locale 目标语言
+ * @param config 当前配置（用于计算填充提示文案）
+ */
+function applyPanelLocale(panelRoot: HTMLElement, locale: PanelLocale, config: FloatingButtonConfig): void {
+  const msg = PANEL_MESSAGES[locale];
+
+  // data-i18n 标记的文案（tip 类含高亮 span，统一以 innerHTML 渲染静态内建文案）
+  panelRoot.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {
+    const key = el.getAttribute('data-i18n') as PanelMessageKey | null;
+    if (key && msg[key]) el.innerHTML = msg[key];
+  });
+
+  // 关闭按钮 title
+  const closeBtn = panelRoot.querySelector('[data-action="close"]');
+  closeBtn?.setAttribute('title', msg.close);
+
+  // 填充方式说明文案
+  const fillTip = panelRoot.querySelector('[data-fill-tip]');
+  if (fillTip) fillTip.textContent = FILL_ENTRY_TIPS[locale][getFillEntry(config)];
+
+  // 主题色块 tooltip
+  panelRoot.querySelectorAll<HTMLElement>('.theme-swatch').forEach(swatch => {
+    const name = swatch.getAttribute('data-theme');
+    const option = THEME_OPTIONS.find(item => item.name === name);
+    if (option) swatch.setAttribute('title', getThemeLabel(option, locale));
+  });
+
+  // 语言分段控件选中态
+  panelRoot.querySelectorAll<HTMLElement>('[data-setting="locale"] .fill-mode-option').forEach(optionEl => {
+    optionEl.classList.toggle('active', optionEl.getAttribute('data-value') === locale);
+  });
+}
+
+/**
+ * 绑定事件：close、overlay 点击、switch、slider 拖拽、语言切换
  *
  * @param panelRoot 面板根元素（.settings-panel）
  * @param overlayEl 遮罩元素（.settings-overlay），可为 null
  * @param initialConfig 初始配置（内部维护一份副本用于事件处理）
  * @param options 回调集合
+ * @param initialLocale 初始面板语言（需与 getSettingsPanelHTML 的 locale 一致）
  */
 export function bindSettingsPanelView(
   panelRoot: HTMLElement,
   overlayEl: HTMLElement | null,
   initialConfig: FloatingButtonConfig,
   options: SettingsPanelViewOptions,
+  initialLocale: PanelLocale = 'zh-CN',
 ): SettingsPanelViewHandle {
   const config: FloatingButtonConfig = { ...initialConfig };
+  let locale: PanelLocale = initialLocale;
   const cleanups: Array<() => void> = [];
 
   // 关闭按钮
@@ -514,12 +693,47 @@ export function bindSettingsPanelView(
         const patch = fillEntryToPatch(entry);
         Object.assign(config, patch);
         optionEls.forEach(item => item.classList.toggle('active', item === optionEl));
-        if (fillTipEl) fillTipEl.textContent = FILL_ENTRY_TIPS[entry];
+        if (fillTipEl) fillTipEl.textContent = FILL_ENTRY_TIPS[locale][entry];
         options.onConfigChange(patch);
       };
       optionEl.addEventListener('click', onOptionClick);
       cleanups.push(() => optionEl.removeEventListener('click', onOptionClick));
     });
+  }
+
+  // 语言切换（2 选 1 分段控件，直接写 storage 的 LOCALE 键，扩展页经 storage 监听自动同步）
+  const setPanelLocale = (next: PanelLocale) => {
+    if (locale === next) return;
+    locale = next;
+    applyPanelLocale(panelRoot, next, config);
+  };
+  const localeGroup = panelRoot.querySelector('[data-setting="locale"]') as HTMLElement | null;
+  if (localeGroup) {
+    const localeOptionEls = Array.from(localeGroup.querySelectorAll<HTMLButtonElement>('.fill-mode-option'));
+    localeOptionEls.forEach(optionEl => {
+      const onLocaleClick = () => {
+        const next = optionEl.getAttribute('data-value');
+        if (!isPanelLocale(next) || locale === next) return;
+        setPanelLocale(next);
+        void chrome.storage.local.set({ [STORAGE_KEYS.LOCALE]: next });
+      };
+      optionEl.addEventListener('click', onLocaleClick);
+      cleanups.push(() => optionEl.removeEventListener('click', onLocaleClick));
+    });
+
+    // 其它入口切换语言时，本面板文案同步刷新
+    if (chrome?.storage?.onChanged) {
+      const onLocaleStorageChange = (
+        changes: Record<string, chrome.storage.StorageChange>,
+        area: chrome.storage.AreaName,
+      ) => {
+        if (area !== 'local' || !changes[STORAGE_KEYS.LOCALE]) return;
+        const next = changes[STORAGE_KEYS.LOCALE].newValue;
+        if (isPanelLocale(next)) setPanelLocale(next);
+      };
+      chrome.storage.onChanged.addListener(onLocaleStorageChange);
+      cleanups.push(() => chrome.storage.onChanged.removeListener(onLocaleStorageChange));
+    }
   }
 
   // 主题色块选择
@@ -619,13 +833,13 @@ export function bindSettingsPanelView(
       el?.classList.toggle('active', !!config[key]);
     });
 
-    // 更新快速填充方式分段控件与说明文案
+    // 更新快速填充方式分段控件与说明文案（限定 fillEntry 分组，避免误改语言分段控件）
     const currentEntry = getFillEntry(config);
-    panelRoot.querySelectorAll<HTMLElement>('.fill-mode-option').forEach(optionEl => {
+    panelRoot.querySelectorAll<HTMLElement>('[data-setting="fillEntry"] .fill-mode-option').forEach(optionEl => {
       optionEl.classList.toggle('active', optionEl.getAttribute('data-value') === currentEntry);
     });
     const fillTip = panelRoot.querySelector('[data-fill-tip]');
-    if (fillTip) fillTip.textContent = FILL_ENTRY_TIPS[currentEntry];
+    if (fillTip) fillTip.textContent = FILL_ENTRY_TIPS[locale][currentEntry];
 
     // 更新主题色块选中态
     panelRoot.querySelectorAll<HTMLElement>('.theme-swatch').forEach(swatch => {
@@ -650,5 +864,5 @@ export function bindSettingsPanelView(
     cleanups.length = 0;
   };
 
-  return { updateConfig, destroy };
+  return { updateConfig, setLocale: setPanelLocale, destroy };
 }

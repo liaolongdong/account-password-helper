@@ -1,0 +1,4 @@
+{
+  "verify.passwordEmpty": "Master password cannot be empty",
+  "verify.wrongPassword": "Incorrect master password"
+}

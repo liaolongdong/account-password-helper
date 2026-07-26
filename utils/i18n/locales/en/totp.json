@@ -1,0 +1,5 @@
+{
+  "totp.params": "{algorithm} · {digits} digits · {period}s",
+  "totp.copied": "Code copied",
+  "totp.invalidSecret": "Invalid secret"
+}

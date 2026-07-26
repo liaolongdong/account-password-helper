@@ -10,6 +10,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
 import { getFavoriteLimit } from './configManager';
+import { tl } from '@/utils/i18n-lite';
 
 // ==================== 自动保存配置 ====================
 
@@ -155,19 +156,19 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
   try {
     const sessionValid = await isSessionValid();
     if (!sessionValid) {
-      return { success: false, message: '会话已过期，跳过自动保存' };
+      return { success: false, message: tl('bg.autoSave.sessionExpired') };
     }
 
     const config = await getAutoSaveConfig();
     if (!config.enabled) {
-      return { success: false, message: '自动保存已禁用' };
+      return { success: false, message: tl('bg.autoSave.disabled') };
     }
     if (!isDomainMatchForAutoSave(data.url, config)) {
-      return { success: false, message: '域名不匹配，跳过自动保存' };
+      return { success: false, message: tl('bg.autoSave.domainMismatch') };
     }
 
     if (!data.username || !data.password) {
-      return { success: false, message: '账号或密码为空，跳过保存' };
+      return { success: false, message: tl('bg.autoSave.emptyFields') };
     }
 
     // 匹配需基于明文 username/url，而 storage.local 中为密文（at-rest 不变量），
@@ -179,8 +180,8 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
     if (existingEntry) {
       const newTag = data.tagEdited ? data.tag : existingEntry.tag || data.tag || '';
       const newRemark = data.remarkEdited
-        ? data.remark || '自动保存'
-        : existingEntry.remark || data.remark || '自动保存';
+        ? data.remark || tl('cs.save.autoSaveRemark')
+        : existingEntry.remark || data.remark || tl('cs.save.autoSaveRemark');
 
       await updatePassword(existingEntry.id, {
         password: data.password,
@@ -188,22 +189,27 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
         remark: newRemark,
         updateTime: Date.now(),
       });
-      return { success: true, message: '已更新已有账号密码' };
+      return { success: true, message: tl('bg.autoSave.updated') };
     } else {
       await savePassword({
         username: data.username,
         password: data.password,
         url: data.url,
         tag: data.tag || '',
-        remark: data.remark || '自动保存',
+        remark: data.remark || tl('cs.save.autoSaveRemark'),
         createTime: Date.now(),
         updateTime: Date.now(),
       });
-      return { success: true, message: '已自动保存新账号密码' };
+      return { success: true, message: tl('bg.autoSave.savedNew') };
     }
   } catch (error) {
     logger.error('自动保存密码失败:', error);
-    return { success: false, message: '自动保存失败: ' + (error instanceof Error ? error.message : '未知错误') };
+    return {
+      success: false,
+      message: tl('bg.autoSave.failed', {
+        message: error instanceof Error ? error.message : tl('bg.common.unknownError'),
+      }),
+    };
   }
 }
 

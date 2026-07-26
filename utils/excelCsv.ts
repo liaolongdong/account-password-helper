@@ -190,6 +190,10 @@ function detectFormat(headers: string[]): CsvColumnMapping {
   if (headerSet.has('origin') || (headerSet.has('name') && headerSet.has('username') && headerSet.has('password'))) {
     return FORMAT_COLUMN_MAP.chrome;
   }
+  // 自有模板：英文表头（英文导出含 TOTP 列，需早于 LastPass 的 totp 判定，避免标签/备注列丢失）
+  if (headerSet.has('username (required)') || (headerSet.has('tag') && headerSet.has('remark'))) {
+    return FORMAT_COLUMN_MAP.native;
+  }
   // LastPass: url,username,password,totp,extra,name,grouping,fav
   if (headerSet.has('grouping') || headerSet.has('totp')) {
     return FORMAT_COLUMN_MAP.lastpass;

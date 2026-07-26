@@ -69,6 +69,36 @@ jobs:
           echo "path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
           echo "Resolved Chrome zip: $ZIP_PATH"
 
+      # 校验 CWS OAuth 凭据：用 refresh_token 换取 access_token。
+      # chrome-extension-upload 上传前会先做此交换，返回 400 通常意味着：
+      #   - invalid_grant：refresh token 过期/被撤销（OAuth 应用处于 Testing 模式时约 7 天过期，最常见）
+      #   - invalid_client：client id/secret 与该 refresh token 不是同一套
+      # 本步骤把不透明的 400 转成明确错误信息；仅打印错误体，绝不打印 access_token。
+      - name: Verify CWS OAuth credentials
+        if: ${{ env.CWS_EXTENSION_ID != '' }}
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+        run: |
+          HTTP_CODE=$(curl -s -o token_resp.json -w '%{http_code}' \
+            --data-urlencode "client_id=$CWS_CLIENT_ID" \
+            --data-urlencode "client_secret=$CWS_CLIENT_SECRET" \
+            --data-urlencode "refresh_token=$CWS_REFRESH_TOKEN" \
+            --data-urlencode "grant_type=refresh_token" \
+            https://oauth2.googleapis.com/token)
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "OAuth credentials OK（已获取 access_token，不打印）。若发布仍报 400，问题在扩展条目状态/版本号/包内容，而非凭据。"
+            rm -f token_resp.json
+          else
+            echo "OAuth token exchange failed，HTTP $HTTP_CODE："
+            cat token_resp.json
+            echo ""
+            echo "修复：重新走 OAuth 授权流程生成新的 refresh token，将 client-id/secret/refresh-token 作为同一套更新到仓库 Secrets；并把 OAuth 应用发布为 In production 以避免 token 过期。"
+            rm -f token_resp.json
+            exit 1
+          fi
+
       - name: Publish to Chrome Web Store
         if: ${{ env.CWS_EXTENSION_ID != '' }}
         uses: mnao305/chrome-extension-upload@v5.0.0

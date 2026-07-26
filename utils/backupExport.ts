@@ -1,5 +1,6 @@
 import type { PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 import { formatTimestampCompact } from '@/utils/dateFormat';
 
 /** 备份文件版本标识 */
@@ -95,7 +96,7 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
     URL.revokeObjectURL(url);
   } catch (error) {
     logger.error('导出加密备份失败:', error);
-    const err = new Error('导出加密备份失败');
+    const err = new Error(t('backup.exportError'));
     (err as any).cause = error;
     throw err;
   }
@@ -114,7 +115,7 @@ export async function importEncryptedBackup(
     const data = new Uint8Array(buffer);
 
     if (data.length < SALT_LENGTH + IV_LENGTH + 1) {
-      throw new Error('备份文件格式无效');
+      throw new Error(t('backup.invalidFile'));
     }
 
     // 拆解: salt + iv + ciphertext
@@ -133,18 +134,18 @@ export async function importEncryptedBackup(
     const backupData: BackupData = JSON.parse(jsonStr);
 
     if (!backupData.version || !Array.isArray(backupData.entries)) {
-      throw new Error('备份数据结构不正确');
+      throw new Error(t('backup.invalidStructure'));
     }
 
     return backupData.entries;
   } catch (error: any) {
     if (error.message?.includes('decrypt') || error.name === 'OperationError') {
-      const err = new Error('主密码错误或备份文件已损坏');
+      const err = new Error(t('backup.wrongPasswordOrCorrupted'));
       (err as any).cause = error;
       throw err;
     }
     logger.error('导入加密备份失败:', error);
-    const err = new Error(error.message || '导入加密备份失败');
+    const err = new Error(error.message || t('backup.importError'));
     (err as any).cause = error;
     throw err;
   }

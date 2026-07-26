@@ -121,12 +121,27 @@ async function isSessionCurrentlyValid(): Promise<boolean> {
 }
 
 /**
- * 按需预热侧边栏全量渲染资源（Windows 会话失效期）
+ * 预热选项
+ */
+export interface WarmSidePanelOptions {
+  /**
+   * 忽略「会话有效 → 跳过」门控
+   *
+   * 浏览器刚启动（chrome.runtime.onStartup）时 OS 磁盘缓存全冷、渲染进程冷，
+   * 即使会话仍在有效期内也会白屏（密码缓存可由 warmPasswordCache 预热，
+   * 但渲染资源无人预热）。此场景下置 true 强制执行一次资源预热。
+   */
+  ignoreSessionGate?: boolean;
+}
+
+/**
+ * 按需预热侧边栏全量渲染资源（Windows 会话失效期 / 浏览器启动冷缓存期）
  *
  * 门控与节流（依次判定，任一不满足即跳过）：
  * 1. 非 Windows → 跳过（Mac/Linux 冷路径本就快）；
  * 2. 命中 30s 节流窗口 → 跳过；
  * 3. 会话有效 → 跳过（本就秒开；此时不占用节流窗口，使会话一旦失效即可立即预热）。
+ *    浏览器启动等磁盘缓存全冷场景可经 options.ignoreSessionGate 跳过本门控。
  *
  * 预热范围（三层递进）：
  * - 第一层：sidepanel.html 本身（温热入口 HTML）
@@ -134,18 +149,21 @@ async function isSessionCurrentlyValid(): Promise<boolean> {
  * - 第三层：入口 JS 中的动态 import chunk（sessionManager-storage / passwordCrud /
  *   HelpDialog / autoSaveManager / useSidepanelSettings 等按需模块）
  *
- * 全程 fire-and-forget：任何异常均静默吞掉，绝不影响调用方（保活 / 预唤醒路径）。
+ * 全程 fire-and-forget：任何异常均静默吞掉，绝不影响调用方（保活 / 预唤醒 / 启动路径）。
+ *
+ * @param options 预热选项（缺省保持原有门控行为）
  */
-export async function maybeWarmSidePanelResources(): Promise<void> {
+export async function maybeWarmSidePanelResources(options: WarmSidePanelOptions = {}): Promise<void> {
   try {
     if (!(await isWindowsPlatform())) return;
 
     const now = Date.now();
     if (now - _lastWarmAt < WARM_THROTTLE_MS) return;
 
-    // 会话有效期内无需预热；此处不占用节流窗口，
-    // 以便会话一旦失效，下一次调用（hover 抢跑 / 保活 tick）能立即预热
-    if (await isSessionCurrentlyValid()) return;
+    // 会话有效期内默认无需预热；此处不占用节流窗口，
+    // 以便会话一旦失效，下一次调用（hover 抢跑 / 保活 tick）能立即预热。
+    // 浏览器启动冷缓存场景（ignoreSessionGate）例外：会话有效也需温热渲染资源
+    if (!options.ignoreSessionGate && (await isSessionCurrentlyValid())) return;
 
     // 通过全部门控，占用节流窗口后再执行预热
     _lastWarmAt = now;

@@ -1,0 +1,17 @@
+{
+  "session.none": "No session",
+  "session.fetchFailed": "Failed to fetch",
+  "session.expired": "Expired",
+  "session.dayHour": "{days}d {hours}h",
+  "session.hourMinute": "{hours}h {minutes}m",
+  "session.minuteSecond": "{minutes}m {seconds}s",
+  "session.second": "{seconds}s",
+  "session.verifyTitle": "Verify master password",
+  "session.verifyPrompt": "Changing the session validity requires master password verification. Enter your master password:",
+  "session.validitySaved": "Validity settings saved",
+  "session.clearConfirm": "Clear the current master password session? You will need to re-enter the master password to access the password list.",
+  "session.clearConfirmTitle": "Confirm session clearing",
+  "session.clearConfirmBtn": "Clear",
+  "session.cleared": "Master password session cleared",
+  "session.clearFailed": "Failed to clear the master password session"
+}

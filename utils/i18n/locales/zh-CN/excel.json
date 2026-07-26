@@ -1,0 +1,13 @@
+{
+  "excel.header.username": "用户名",
+  "excel.header.usernameRequired": "用户名(必填)",
+  "excel.header.password": "密码",
+  "excel.header.url": "网址",
+  "excel.header.tag": "标签",
+  "excel.header.remark": "备注",
+  "excel.header.totp": "两步验证",
+  "excel.header.createTime": "创建时间",
+  "excel.header.updateTime": "更新时间",
+  "excel.template.exampleTag": "工作",
+  "excel.template.exampleRemark": "示例账号"
+}

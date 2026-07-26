@@ -1,5 +1,6 @@
 import type { PasswordEntry } from '@/utils/types';
 import { evaluatePasswordStrength } from '@/composables/usePasswordStrength';
+import { filterCommonPasswords } from '@/utils/weakPasswordDict';
 
 /**
  * 密码健康统计核心逻辑（纯函数，零副作用、零网络、零存储写入）
@@ -28,9 +29,9 @@ export const STALE_THRESHOLDS = { warn: 90, high: 180, critical: 365 } as const;
  * 安全评分各维度扣分权重（满分 100）
  *
  * 每个维度按「受影响占比」线性扣分，占比越高扣分越多。
- * 仅 reuse / weak / stale 计入评分；未开启两步验证仅作信息展示，不扣分。
+ * reuse / weak / breached / stale 计入评分；未开启两步验证仅作信息展示，不扣分。
  */
-export const HEALTH_WEIGHTS = { reuse: 40, weak: 40, stale: 20 } as const;
+export const HEALTH_WEIGHTS = { reuse: 35, weak: 25, breached: 20, stale: 20 } as const;
 
 /** 健康等级 */
 export type HealthGrade = 'excellent' | 'good' | 'fair' | 'poor';
@@ -54,6 +55,9 @@ export interface HealthEntryMeta {
 
 /** 弱密码条目 */
 export type WeakEntry = HealthEntryMeta;
+
+/** 常见泄露密码条目（命中 top-1000 字典） */
+export type BreachedEntry = HealthEntryMeta;
 
 /** 长时间未更新条目 */
 export interface StaleEntry extends HealthEntryMeta {
@@ -81,6 +85,8 @@ export interface HealthReport {
   grade: HealthGrade;
   /** 弱密码条目 */
   weak: WeakEntry[];
+  /** 命中常见泄露密码字典的条目 */
+  breached: BreachedEntry[];
   /** 密码复用组（按组内数量降序） */
   reuseGroups: ReuseGroup[];
   /** 受密码复用影响的条目总数（各组求和） */
@@ -183,11 +189,31 @@ export function computeStaleEntries(list: PasswordEntry[], now: number = Date.no
 }
 
 /**
+ * 统计命中常见泄露密码字典的条目
+ *
+ * 使用 {@link filterCommonPasswords} 批量检查 top-1000 离线字典（懒加载、零联网）。
+ * 空密码条目被跳过。
+ *
+ * @param list 已解密的密码条目列表
+ * @returns 命中字典的条目元数据
+ */
+export async function computeBreachedEntries(list: PasswordEntry[]): Promise<BreachedEntry[]> {
+  const passwordsWithIndex = list.map((e, i) => ({ entry: e, index: i })).filter(({ entry }) => hasPassword(entry));
+
+  if (passwordsWithIndex.length === 0) return [];
+
+  const passwords = passwordsWithIndex.map(({ entry }) => entry.password);
+  const hitIndices = await filterCommonPasswords(passwords);
+
+  return passwordsWithIndex.filter((_, i) => hitIndices.has(i)).map(({ entry }) => toMeta(entry));
+}
+
+/**
  * 计算综合安全评分（0~100）
  *
  * 以受影响条目占总数的比例线性扣分：
- * `100 - 40*reuseRatio - 40*weakRatio - 20*staleRatio`，结果 clamp 到 0~100 并取整。
- * 总数为 0 时返回满分 100。
+ * `100 - 35*reuseRatio - 25*weakRatio - 20*breachedRatio - 20*staleRatio`，
+ * 结果 clamp 到 0~100 并取整。总数为 0 时返回满分 100。
  *
  * @param input 各维度受影响计数与总数
  * @returns 0~100 的整数评分
@@ -195,18 +221,24 @@ export function computeStaleEntries(list: PasswordEntry[], now: number = Date.no
 export function computeSecurityScore(input: {
   total: number;
   weakCount: number;
+  breachedCount: number;
   reuseAffectedCount: number;
   staleCount: number;
 }): number {
-  const { total, weakCount, reuseAffectedCount, staleCount } = input;
+  const { total, weakCount, breachedCount, reuseAffectedCount, staleCount } = input;
   if (total <= 0) return 100;
 
   const reuseRatio = reuseAffectedCount / total;
   const weakRatio = weakCount / total;
+  const breachedRatio = breachedCount / total;
   const staleRatio = staleCount / total;
 
   const raw =
-    100 - HEALTH_WEIGHTS.reuse * reuseRatio - HEALTH_WEIGHTS.weak * weakRatio - HEALTH_WEIGHTS.stale * staleRatio;
+    100 -
+    HEALTH_WEIGHTS.reuse * reuseRatio -
+    HEALTH_WEIGHTS.weak * weakRatio -
+    HEALTH_WEIGHTS.breached * breachedRatio -
+    HEALTH_WEIGHTS.stale * staleRatio;
 
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
@@ -226,14 +258,15 @@ export function scoreToGrade(score: number): HealthGrade {
 }
 
 /**
- * 构建完整的密码健康报告
+ * 构建完整的密码健康报告（同步版本，不含字典校验）
  *
  * 聚合弱密码、密码复用、长时间未更新、未开启两步验证四项统计并给出综合评分与等级。
+ * breached 字段为空数组（需异步版本 {@link buildHealthReportAsync} 才能填充）。
  * 空库（`total === 0`）直接返回满分、各项为空的报告。
  *
  * @param list 已解密的密码条目列表
  * @param now  当前时间戳（毫秒），默认 `Date.now()`
- * @returns 密码健康报告
+ * @returns 密码健康报告（breached 为空）
  */
 export function buildHealthReport(list: PasswordEntry[], now: number = Date.now()): HealthReport {
   const total = list.length;
@@ -243,6 +276,7 @@ export function buildHealthReport(list: PasswordEntry[], now: number = Date.now(
       score: 100,
       grade: 'excellent',
       weak: [],
+      breached: [],
       reuseGroups: [],
       reuseAffectedCount: 0,
       stale: [],
@@ -259,6 +293,7 @@ export function buildHealthReport(list: PasswordEntry[], now: number = Date.now(
   const score = computeSecurityScore({
     total,
     weakCount: weak.length,
+    breachedCount: 0,
     reuseAffectedCount,
     staleCount: stale.length,
   });
@@ -268,6 +303,61 @@ export function buildHealthReport(list: PasswordEntry[], now: number = Date.now(
     score,
     grade: scoreToGrade(score),
     weak,
+    breached: [],
+    reuseGroups,
+    reuseAffectedCount,
+    stale,
+    noTotpCount,
+  };
+}
+
+/**
+ * 构建完整的密码健康报告（异步版本，含字典校验）
+ *
+ * 在同步版本基础上追加 top-1000 常见泄露密码字典离线校验，
+ * 填充 breached 字段并将其纳入评分计算。
+ *
+ * @param list 已解密的密码条目列表
+ * @param now  当前时间戳（毫秒），默认 `Date.now()`
+ * @returns 含字典校验的完整健康报告
+ */
+export async function buildHealthReportAsync(list: PasswordEntry[], now: number = Date.now()): Promise<HealthReport> {
+  const total = list.length;
+  if (total === 0) {
+    return {
+      total: 0,
+      score: 100,
+      grade: 'excellent',
+      weak: [],
+      breached: [],
+      reuseGroups: [],
+      reuseAffectedCount: 0,
+      stale: [],
+      noTotpCount: 0,
+    };
+  }
+
+  const weak = computeWeakEntries(list);
+  const breached = await computeBreachedEntries(list);
+  const reuseGroups = computeReuseGroups(list);
+  const reuseAffectedCount = reuseGroups.reduce((sum, g) => sum + g.count, 0);
+  const stale = computeStaleEntries(list, now);
+  const noTotpCount = list.filter(e => !e.totp || !e.totp.trim()).length;
+
+  const score = computeSecurityScore({
+    total,
+    weakCount: weak.length,
+    breachedCount: breached.length,
+    reuseAffectedCount,
+    staleCount: stale.length,
+  });
+
+  return {
+    total,
+    score,
+    grade: scoreToGrade(score),
+    weak,
+    breached,
     reuseGroups,
     reuseAffectedCount,
     stale,

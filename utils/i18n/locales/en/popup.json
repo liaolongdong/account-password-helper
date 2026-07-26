@@ -1,0 +1,21 @@
+{
+  "popup.title": "Account Password Helper",
+  "popup.verified": "Verified",
+  "popup.unverified": "Unverified",
+  "popup.verifyFirst": "Please verify your master password first",
+  "popup.passwordCount": "{count} passwords in total",
+  "popup.domainMatch": "{count} matches for this page",
+  "popup.passwordManagement": "Password Manager",
+  "popup.passwordManagementDesc": "Manage all saved accounts and passwords",
+  "popup.quickFillDesc": "Quickly fill credentials on the current page",
+  "popup.directFill": "Direct Fill",
+  "popup.directFillDesc": "One-click fill without opening the side panel",
+  "popup.setShortcut": "Set shortcut",
+  "popup.goToShortcuts": "Open Chrome shortcut settings",
+  "popup.newVersion": "New version available",
+  "popup.clickToUpdate": "Click to download the update",
+  "popup.lock": "Lock (clear session)",
+  "popup.contact": "For questions or suggestions, contact",
+  "popup.feedbackSubject": "Account Password Helper feedback",
+  "popup.openSidepanelFailed": "Failed to open the sidebar automatically. Please click the extension icon next to the address bar to open it manually"
+}

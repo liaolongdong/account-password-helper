@@ -4,9 +4,9 @@
       <div class="verify-header">
         <div class="logo-section">
           <BrandLogo class="logo" />
-          <h1>账号密码管理助手</h1>
+          <h1>{{ t('appName') }}</h1>
         </div>
-        <p class="subtitle">请输入主密码以继续</p>
+        <p class="subtitle">{{ t('auth.verifySubtitle') }}</p>
       </div>
 
       <div class="verify-form">
@@ -19,13 +19,13 @@
             label-position="top"
           >
             <el-form-item
-              label="主密码"
+              :label="t('auth.masterPassword')"
               prop="password"
             >
               <el-input
                 v-model="formModel.password"
                 type="password"
-                placeholder="请输入主密码"
+                :placeholder="t('auth.verifyPasswordPlaceholder')"
                 show-password
                 size="large"
                 :disabled="verifyLoading"
@@ -52,17 +52,17 @@
             </el-form-item>
 
             <el-form-item
-              label="验证有效期"
+              :label="t('auth.validityLabel')"
               prop="validityHours"
             >
               <ValidityHoursSelect
                 v-model="formModel.validityHours"
-                placeholder="选择验证有效期"
+                :placeholder="t('auth.validityPlaceholder')"
                 size="large"
                 :disabled="verifyLoading"
                 style="width: 100%"
               />
-              <div class="form-tip">验证有效期内无需重新输入主密码，超过有效期需重新验证</div>
+              <div class="form-tip">{{ t('auth.validityTip') }}</div>
             </el-form-item>
 
             <el-form-item>
@@ -73,7 +73,7 @@
                 style="width: 100%"
                 @click="handleSubmit"
               >
-                验证密码
+                {{ t('auth.verifySubmit') }}
               </el-button>
 
               <div class="verify-actions">
@@ -84,7 +84,7 @@
                   link
                   @click="$emit('debug')"
                 >
-                  🔍 调试信息
+                  🔍 {{ t('auth.debugInfo') }}
                 </el-button>
                 <el-button
                   size="small"
@@ -92,7 +92,7 @@
                   link
                   @click="$emit('reset')"
                 >
-                  忘记密码？重置所有数据
+                  {{ t('auth.forgotPassword') }}
                 </el-button>
               </div>
             </el-form-item>
@@ -115,6 +115,7 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import DisclaimerInfo from '@/components/options/DisclaimerInfo.vue';
 import ValidityHoursSelect from '@/components/options/ValidityHoursSelect.vue';
 import { SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 主密码验证视图组件
@@ -144,6 +145,8 @@ const emit = defineEmits<{
   clearError: [];
   'update:verifyForm': [value: { password: string; validityHours: number }];
 }>();
+
+const { t } = useI18n();
 
 /** 提交前本地表单校验，通过后通知父组件 */
 const handleSubmit = async () => {

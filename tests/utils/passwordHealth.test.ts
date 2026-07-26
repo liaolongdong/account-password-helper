@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   buildHealthReport,
+  buildHealthReportAsync,
+  computeBreachedEntries,
   computeReuseGroups,
   computeSecurityScore,
   computeStaleEntries,
@@ -21,6 +23,20 @@ import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
  */
 vi.mock('@/composables/usePasswordStrength', () => ({
   evaluatePasswordStrength: (pw: string) => ({ level: pw.startsWith('weak') ? 'weak' : 'strong' }),
+}));
+
+/**
+ * 字典校验 mock：「password 以 breached 开头即命中字典」，
+ * 隔离 top-1000 字典懒加载、只验证 passwordHealth 的索引映射与聚合逻辑。
+ */
+vi.mock('@/utils/weakPasswordDict', () => ({
+  filterCommonPasswords: async (passwords: string[]) => {
+    const hits = new Set<number>();
+    passwords.forEach((pw, i) => {
+      if (pw.startsWith('breached')) hits.add(i);
+    });
+    return hits;
+  },
 }));
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -90,20 +106,28 @@ describe('computeStaleEntries', () => {
 
 describe('computeSecurityScore', () => {
   it('总数为 0 返回满分 100', () => {
-    expect(computeSecurityScore({ total: 0, weakCount: 0, reuseAffectedCount: 0, staleCount: 0 })).toBe(100);
+    expect(
+      computeSecurityScore({ total: 0, weakCount: 0, breachedCount: 0, reuseAffectedCount: 0, staleCount: 0 }),
+    ).toBe(100);
   });
 
   it('无风险返回 100', () => {
-    expect(computeSecurityScore({ total: 10, weakCount: 0, reuseAffectedCount: 0, staleCount: 0 })).toBe(100);
+    expect(
+      computeSecurityScore({ total: 10, weakCount: 0, breachedCount: 0, reuseAffectedCount: 0, staleCount: 0 }),
+    ).toBe(100);
   });
 
   it('按占比线性扣分并四舍五入', () => {
-    // 100 - 40*(1/3) = 86.67 → 87
-    expect(computeSecurityScore({ total: 3, weakCount: 1, reuseAffectedCount: 0, staleCount: 0 })).toBe(87);
+    // 100 - 25*(1/3) = 91.67 → 92
+    expect(
+      computeSecurityScore({ total: 3, weakCount: 1, breachedCount: 0, reuseAffectedCount: 0, staleCount: 0 }),
+    ).toBe(92);
   });
 
   it('全维度受影响时扣至下限 0', () => {
-    expect(computeSecurityScore({ total: 5, weakCount: 5, reuseAffectedCount: 5, staleCount: 5 })).toBe(0);
+    expect(
+      computeSecurityScore({ total: 5, weakCount: 5, breachedCount: 5, reuseAffectedCount: 5, staleCount: 5 }),
+    ).toBe(0);
   });
 });
 
@@ -127,6 +151,7 @@ describe('buildHealthReport', () => {
       score: 100,
       grade: 'excellent',
       weak: [],
+      breached: [],
       reuseGroups: [],
       reuseAffectedCount: 0,
       stale: [],
@@ -151,8 +176,76 @@ describe('buildHealthReport', () => {
     expect(report.stale[0].severity).toBe('critical');
     // 无 totp：'2' 无、'3' 无、'4' 为空白 → 3；'1' 有 JBSW
     expect(report.noTotpCount).toBe(3);
-    // 100 - 40*(2/4) - 40*(1/4) - 20*(1/4) = 65
-    expect(report.score).toBe(65);
+    // 新权重：100 - 35*(2/4) - 25*(1/4) - 20*(0/4) - 20*(1/4) = 100 - 17.5 - 6.25 - 0 - 5 = 71
+    expect(report.score).toBe(71);
+    expect(report.grade).toBe('good');
+  });
+});
+
+describe('computeBreachedEntries', () => {
+  it('空密码被跳过且命中索引正确映射回原条目，只返回元数据', async () => {
+    const list = [
+      makePasswordEntry({ id: 'empty', password: '' }),
+      makePasswordEntry({ id: 'b1', password: 'breached-a', username: 'u1', url: 'x', tag: 't' }),
+      makePasswordEntry({ id: 'safe', password: 'strong-a' }),
+      makePasswordEntry({ id: 'b2', password: 'breached-b' }),
+    ];
+    const breached = await computeBreachedEntries(list);
+    // 空密码条目 'empty' 被过滤后，命中索引 0/2 应映射回 'b1' / 'b2'
+    expect(breached.map(b => b.id)).toEqual(['b1', 'b2']);
+    expect(breached[0]).toEqual({ id: 'b1', username: 'u1', url: 'x', tag: 't' });
+    expect('password' in breached[0]).toBe(false);
+  });
+
+  it('全部为空密码时返回空数组（不触发字典查询）', async () => {
+    const list = [makePasswordEntry({ id: 'e1', password: '' }), makePasswordEntry({ id: 'e2', password: '' })];
+    expect(await computeBreachedEntries(list)).toEqual([]);
+  });
+});
+
+describe('buildHealthReportAsync', () => {
+  it('空库返回满分、各项为空', async () => {
+    expect(await buildHealthReportAsync([], NOW)).toEqual({
+      total: 0,
+      score: 100,
+      grade: 'excellent',
+      weak: [],
+      breached: [],
+      reuseGroups: [],
+      reuseAffectedCount: 0,
+      stale: [],
+      noTotpCount: 0,
+    });
+  });
+
+  it('填充 breached 字段并将其纳入评分计算', async () => {
+    const list = [
+      makePasswordEntry({ id: '1', password: 'dup', totp: 'JBSW', updateTime: NOW }),
+      makePasswordEntry({ id: '2', password: 'dup', updateTime: NOW }),
+      makePasswordEntry({ id: '3', password: 'weak-x', updateTime: NOW - 400 * DAY }),
+      makePasswordEntry({ id: '4', password: 'breached-y', totp: '   ', updateTime: NOW }),
+    ];
+    const report = await buildHealthReportAsync(list, NOW);
+
+    expect(report.total).toBe(4);
+    expect(report.weak.map(w => w.id)).toEqual(['3']);
+    expect(report.breached.map(b => b.id)).toEqual(['4']);
+    expect(report.reuseAffectedCount).toBe(2);
+    expect(report.stale.map(s => s.id)).toEqual(['3']);
+    // 与同步版唯一差异：breached 维度扣分。
+    // 100 - 35*(2/4) - 25*(1/4) - 20*(1/4) - 20*(1/4) = 100 - 17.5 - 6.25 - 5 - 5 = 66.25 → 66
+    expect(report.score).toBe(66);
     expect(report.grade).toBe('fair');
+  });
+
+  it('无字典命中时与同步版 buildHealthReport 结果一致', async () => {
+    const list = [
+      makePasswordEntry({ id: '1', password: 'dup', totp: 'JBSW', updateTime: NOW }),
+      makePasswordEntry({ id: '2', password: 'dup', updateTime: NOW }),
+      makePasswordEntry({ id: '3', password: 'weak-x', updateTime: NOW - 400 * DAY }),
+      makePasswordEntry({ id: '4', password: 'unique', totp: '   ', updateTime: NOW }),
+    ];
+    const asyncReport = await buildHealthReportAsync(list, NOW);
+    expect(asyncReport).toEqual(buildHealthReport(list, NOW));
   });
 });

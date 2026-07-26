@@ -1,4 +1,5 @@
 import type { PasswordEntry } from '@/utils/types';
+import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
 
 /**
  * 密码列表排序状态接口
@@ -92,4 +93,43 @@ export function sortPasswordEntries(
   priorityFn?: (entry: PasswordEntry) => number,
 ): PasswordEntry[] {
   return list.sort((a, b) => comparePasswordEntries(a, b, sort, priorityFn));
+}
+
+/**
+ * 按域名过滤并按侧边栏展示顺序排序密码条目（纯函数）
+ *
+ * 过滤规则（与侧边栏 filteredPasswords / 内联下拉 getMatchingAccounts 一致）：
+ * - 本地开发域名（localhost 等）放行全部条目
+ * - URL 为空的条目始终纳入
+ * - 其余仅纳入与当前域名精确主机匹配的条目
+ *
+ * 排序规则：域名匹配优先 → 收藏置顶 → 指定排序字段（与侧边栏展示顺序一致，
+ * 结果首条即侧边栏列表第一条）。供 quickFillHandler（填充首条）与
+ * getMatchingAccounts（内联下拉列表）共用。
+ *
+ * @param passwords 全量密码条目
+ * @param domain 当前页面域名（hostname）
+ * @param sort 排序状态，默认侧边栏排序
+ * @returns 过滤并排序后的新数组（不修改入参数组）
+ */
+export function filterAndSortEntriesForDomain(
+  passwords: PasswordEntry[],
+  domain: string,
+  sort: SortState = DEFAULT_SIDEPANEL_SORT,
+): PasswordEntry[] {
+  const matched = passwords.filter(p => {
+    if (isLocalDevDomain(domain)) return true;
+    if (!p.url || p.url.trim() === '') return true;
+    return isExactHostMatch(domain, p.url);
+  });
+
+  // 域名优先级（与侧边栏 getDomainPriority 一致）：0=匹配，1=不匹配
+  const getDomainPriority = (entry: PasswordEntry): number => {
+    if (!domain) return 0;
+    const hasUrl = !!entry.url && entry.url.trim() !== '';
+    if (hasUrl && isExactHostMatch(domain, entry.url)) return 0;
+    return 1;
+  };
+
+  return sortPasswordEntries(matched, sort, getDomainPriority);
 }

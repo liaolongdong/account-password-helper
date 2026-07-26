@@ -1,7 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ExcelUtils } from '@/utils/excel';
 import type { ImportFormat } from '@/utils/excelFormatMap';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
+import { registerMessages, type Messages } from '@/utils/i18n';
+import zhExcel from '@/utils/i18n/locales/zh-CN/excel.json';
+import enExcel from '@/utils/i18n/locales/en/excel.json';
+
+// 语言包已改为各入口按命名空间注册（生产中 excel 导出仅在 options 页使用，
+// 经 bundles/options 注册全量）；测试环境对齐生产行为，注册 excel 命名空间
+registerMessages('zh-CN', zhExcel as Messages);
+registerMessages('en', enExcel as Messages);
 
 /**
  * excel.ts 特征化测试
@@ -138,6 +146,31 @@ describe('parseCSV：auto 自动检测与解析细节', () => {
     expect(result[0]).toMatchObject({ username: 'u1', password: 'p1', url: 'https://x.com', tag: 'MySite' });
   });
 
+  it('auto 检测 native（英文表头）：含 TOTP 列不误判为 lastpass，标签/备注不丢失', () => {
+    const csv = [
+      'Username,Password,URL,Tag,Remark,TOTP,Created At,Updated At',
+      'alice,secret,https://a.com,work,note1,JBSW,2026/1/1,2026/1/1',
+    ].join('\n');
+    const result = ExcelUtils.parseCSV(buf(csv));
+    expect(result[0]).toMatchObject({
+      username: 'alice',
+      password: 'secret',
+      url: 'https://a.com',
+      tag: 'work',
+      remark: 'note1',
+      totp: 'JBSW',
+    });
+  });
+
+  it('auto 检测 native（英文模板表头 Username (Required)）', () => {
+    const csv = [
+      '"Username (Required)","Password","URL","Tag","Remark","TOTP"',
+      'bob,pw,https://b.com,Work,Sample,',
+    ].join('\n');
+    const result = ExcelUtils.parseCSV(buf(csv));
+    expect(result[0]).toMatchObject({ username: 'bob', password: 'pw', url: 'https://b.com', tag: 'Work' });
+  });
+
   it('支持引号包裹字段：内嵌逗号与转义双引号', () => {
     const csv = [
       '用户名(必填),密码,网址,标签,备注,两步验证',
@@ -210,6 +243,13 @@ describe('parseJSON', () => {
 describe('导出序列化（经 Blob/document/URL 打桩捕获生成内容）', () => {
   let blobContent: string;
 
+  beforeAll(async () => {
+    // 预加载 en 语言包：后续 beforeEach 会 stub 全局 URL，破坏动态 import
+    const { setLocale } = await import('@/utils/i18n');
+    await setLocale('en');
+    await setLocale('zh-CN');
+  });
+
   beforeEach(() => {
     blobContent = '';
     vi.stubGlobal(
@@ -251,6 +291,21 @@ describe('导出序列化（经 Blob/document/URL 打桩捕获生成内容）', 
     ExcelUtils.downloadTemplate();
     expect(blobContent).toContain('"用户名(必填)"');
     expect(blobContent).toContain('example@email.com');
+  });
+
+  it('英文语言下导出/模板使用英文表头（可被 auto 导入回读）', async () => {
+    const { setLocale } = await import('@/utils/i18n');
+    await setLocale('en');
+    try {
+      ExcelUtils.exportToCSV([makePasswordEntry({ username: 'alice' })], 'f.csv');
+      expect(blobContent).toContain('"Username","Password","URL","Tag","Remark","TOTP","Created At","Updated At"');
+
+      ExcelUtils.downloadTemplate();
+      expect(blobContent).toContain('"Username (Required)"');
+      expect(blobContent).toContain('"Work"');
+    } finally {
+      await setLocale('zh-CN');
+    }
   });
 });
 

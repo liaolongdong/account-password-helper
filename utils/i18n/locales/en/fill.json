@@ -1,0 +1,23 @@
+{
+  "fill.clipboardCleared": "Clipboard cleared automatically",
+  "fill.clipboardClearFailed": "Failed to auto-clear the clipboard, please clear it manually",
+  "fill.noTabInfo": "Unable to get current page info",
+  "fill.injectFailed": "Cannot inject scripts into this page, please refresh and retry",
+  "fill.scriptNotReady": "Page script not ready, please refresh and retry",
+  "fill.noLoginForm": "No login form detected; make sure the page has login inputs",
+  "fill.fillSuccess": "Password filled",
+  "fill.fillFailed": "Failed to fill the password; make sure the page has finished loading",
+  "fill.connectFailed": "Cannot connect to the page script, please refresh and retry",
+  "fill.noTotpConfigured": "This entry has no 2FA configured",
+  "fill.totpGenerateFailed": "Failed to generate the code, please check the secret",
+  "fill.totpFillSuccess": "2FA code filled",
+  "fill.totpFillFailed": "Failed to fill the 2FA code, please refresh and retry",
+  "fill.noTotpInput": "No 2FA code input detected on this page",
+  "fill.totpCopied": "2FA code copied to clipboard",
+  "fill.totpCopyFailed": "Failed to copy the 2FA code",
+  "fill.openEditFailed": "Failed to open the edit page",
+  "fill.usernameCopied": "Username copied to clipboard",
+  "fill.usernameCopyFailed": "Failed to copy the username",
+  "fill.passwordCopied": "Password copied to clipboard",
+  "fill.passwordCopyFailed": "Failed to copy the password"
+}

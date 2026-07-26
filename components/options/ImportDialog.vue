@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="导入密码数据"
+    :title="t('options.import.title')"
     width="920px"
     align-center
     class="import-dialog"
@@ -12,35 +12,35 @@
       <div class="import-content">
         <!-- 导入说明 -->
         <el-alert
-          title="导入说明"
+          :title="t('options.import.noteTitle')"
           type="info"
           :closable="false"
           show-icon
         >
           <template #default>
-            <p>支持 CSV 和 JSON 文件格式导入</p>
-            <p>CSV 支持 Chrome、LastPass、Bitwarden、1Password 导出格式，也可自动检测</p>
+            <p>{{ t('options.import.noteLine1') }}</p>
+            <p>{{ t('options.import.noteLine2') }}</p>
           </template>
         </el-alert>
 
         <!-- 格式选择 -->
         <div class="format-selector">
-          <span class="format-label">导入格式：</span>
+          <span class="format-label">{{ t('options.import.formatLabel') }}</span>
           <el-select
             v-model="importFormat"
             style="width: 200px"
             size="default"
           >
             <el-option
-              label="自动检测"
+              :label="t('options.import.autoDetect')"
               value="auto"
             />
             <el-option
-              label="自有模板"
+              :label="t('options.import.nativeTemplate')"
               value="native"
             />
             <el-option
-              label="Chrome 密码"
+              :label="t('options.import.chromePasswords')"
               value="chrome"
             />
             <el-option
@@ -72,10 +72,10 @@
             <div class="upload-dragger-content">
               <el-icon class="upload-icon"><Upload /></el-icon>
               <div class="upload-text">
-                <span>将文件拖拽到此处，或</span>
-                <em>点击选择文件</em>
+                <span>{{ t('options.import.dragText') }}</span>
+                <em>{{ t('options.import.clickText') }}</em>
               </div>
-              <div class="upload-hint">支持 .csv、.json 格式</div>
+              <div class="upload-hint">{{ t('options.import.acceptHint') }}</div>
             </div>
           </el-upload>
 
@@ -105,8 +105,8 @@
           class="preview-section"
         >
           <div class="preview-header">
-            <h4>预览数据（前5条）</h4>
-            <span class="preview-total">共 {{ previewData.length }} 条有效数据</span>
+            <h4>{{ t('options.import.previewTitle') }}</h4>
+            <span class="preview-total">{{ t('options.import.previewTotal', { count: previewData.length }) }}</span>
           </div>
           <el-table
             :data="previewData.slice(0, 5)"
@@ -116,13 +116,13 @@
           >
             <el-table-column
               prop="username"
-              label="用户名"
+              :label="t('common.username')"
               show-overflow-tooltip
               min-width="120"
             />
             <el-table-column
               prop="password"
-              label="密码"
+              :label="t('common.password')"
               min-width="100"
             >
               <template #default="{ row }">
@@ -131,25 +131,25 @@
             </el-table-column>
             <el-table-column
               prop="url"
-              label="网址"
+              :label="t('common.url')"
               show-overflow-tooltip
               min-width="160"
             />
             <el-table-column
               prop="tag"
-              label="标签"
+              :label="t('common.tag')"
               show-overflow-tooltip
               min-width="100"
             />
             <el-table-column
               prop="remark"
-              label="备注"
+              :label="t('common.remark')"
               show-overflow-tooltip
               min-width="120"
             />
             <el-table-column
               prop="createTime"
-              label="创建时间"
+              :label="t('sidepanel.createTime')"
               min-width="100"
             >
               <template #default="{ row }">
@@ -158,7 +158,7 @@
             </el-table-column>
             <el-table-column
               prop="updateTime"
-              label="更新时间"
+              :label="t('options.table.updateTime')"
               min-width="100"
             >
               <template #default="{ row }">
@@ -184,7 +184,7 @@
               >
                 <Hide />
               </el-icon>
-              {{ showPreviewPassword ? '隐藏密码' : '显示密码' }}
+              {{ showPreviewPassword ? t('options.import.hidePassword') : t('options.import.showPassword') }}
             </el-button>
           </div>
         </div>
@@ -193,14 +193,16 @@
 
     <template #footer>
       <div class="dialog-footer">
-        <el-button @click="handleClose">取消</el-button>
+        <el-button @click="handleClose">{{ t('common.cancel') }}</el-button>
         <el-button
           type="success"
           :disabled="previewData.length === 0"
           :loading="loading"
           @click="handleImport"
         >
-          {{ loading ? '导入中...' : `确认导入（${previewData.length} 条）` }}
+          {{
+            loading ? t('options.import.importing') : t('options.import.confirmImport', { count: previewData.length })
+          }}
         </el-button>
       </div>
     </template>
@@ -217,6 +219,7 @@ import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
+import { useI18n } from '@/utils/i18n';
 
 interface Props {
   modelValue: boolean;
@@ -229,6 +232,8 @@ interface Emits {
 
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
+
+const { t } = useI18n();
 
 const dialogVisible = computed({
   get: () => props.modelValue,
@@ -274,7 +279,7 @@ const handleFileChange = async (file: UploadFile) => {
       const buffer = await file.raw.arrayBuffer();
       data = ExcelUtils.parseCSV(buffer, importFormat.value as ImportFormat);
     } else {
-      ElMessage.error('不支持的文件格式，请使用 CSV 或 JSON 文件');
+      ElMessage.error(t('options.import.unsupportedFormat'));
       selectedFile.value = undefined;
       if (uploadRef.value) {
         uploadRef.value.clearFiles();
@@ -284,9 +289,9 @@ const handleFileChange = async (file: UploadFile) => {
     previewData.value = data;
 
     if (data.length === 0) {
-      ElMessage.warning('文件中没有找到有效的密码数据');
+      ElMessage.warning(t('options.import.noValidData'));
     } else {
-      ElMessage.success(`解析成功，共找到 ${data.length} 条有效数据`);
+      ElMessage.success(t('options.import.parseSuccess', { count: data.length }));
       // 有有效数据时，等 DOM 和 el-table 完全渲染后自动滚动弹窗内容区到底部
       await nextTick();
       setTimeout(() => {
@@ -298,7 +303,7 @@ const handleFileChange = async (file: UploadFile) => {
     }
   } catch (error) {
     logger.error('解析文件失败:', error);
-    ElMessage.error('文件解析失败，请检查文件格式');
+    ElMessage.error(t('options.import.parseFailed'));
     previewData.value = [];
   }
 };
@@ -331,12 +336,12 @@ const handleImport = async () => {
     // 批量保存密码（单次读写，避免逐条 savePassword 导致的 O(M×N) 数据搬运）
     await StorageUtils.batchSavePasswords(previewData.value);
 
-    ElMessage.success(`成功导入 ${previewData.value.length} 条密码`);
+    ElMessage.success(t('options.import.importSuccess', { count: previewData.value.length }));
     emit('imported');
     handleClose();
   } catch (error) {
     logger.error('导入失败:', error);
-    ElMessage.error('导入失败，请重试');
+    ElMessage.error(t('options.import.importFailed'));
   } finally {
     loading.value = false;
   }

@@ -1,0 +1,7 @@
+{
+  "backup.exportError": "Failed to export the encrypted backup",
+  "backup.invalidFile": "Invalid backup file format",
+  "backup.invalidStructure": "Invalid backup data structure",
+  "backup.wrongPasswordOrCorrupted": "Wrong master password or corrupted backup file",
+  "backup.importError": "Failed to import the encrypted backup"
+}

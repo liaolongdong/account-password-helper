@@ -8,6 +8,7 @@
 import { lockIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { SavePromptData, SavePromptControls, SavePromptEditedData } from '@/entrypoints/content/types';
 import { getStoredTheme, THEME_SHADOW_TOKENS, DEFAULT_THEME } from '@/utils/theme';
+import { tl } from '@/utils/i18n-lite';
 
 /** 弹窗 DOM 容器 class 名 */
 const PROMPT_CLASS = 'aph-save-password-prompt';
@@ -88,7 +89,7 @@ export function showSavePasswordPrompt(
   headerText.style.cssText = 'flex: 1; min-width: 0;';
 
   const title = document.createElement('div');
-  title.textContent = isUpdate ? '检测到密码有更新，是否更新？' : '自动保存账号密码到密码列表？';
+  title.textContent = isUpdate ? tl('cs.save.titleUpdate') : tl('cs.save.titleSave');
   title.style.cssText = 'font-size: 14px; font-weight: 600; color: #1a1a1a;';
 
   const subtitle = document.createElement('div');
@@ -111,17 +112,27 @@ export function showSavePasswordPrompt(
   const body = document.createElement('div');
   body.style.cssText = 'padding: 12px 16px;';
 
-  const { row: userRow, valueEl: usernameValueEl } = createInfoRow('账号', data.username, false);
-  const { row: passRow, valueEl: passwordValueEl } = createInfoRow('密码', data.password, true);
+  const { row: userRow, valueEl: usernameValueEl } = createInfoRow(tl('cs.save.username'), data.username, false);
+  const { row: passRow, valueEl: passwordValueEl } = createInfoRow(tl('cs.save.password'), data.password, true);
   body.appendChild(userRow);
   body.appendChild(passRow);
 
   // 可编辑字段：标签
-  const { row: tagRow, input: tagInput } = createEditableRow('标签', data.tag, '输入标签，逗号分隔', false);
+  const { row: tagRow, input: tagInput } = createEditableRow(
+    tl('cs.save.tag'),
+    data.tag,
+    tl('cs.save.tagPlaceholder'),
+    false,
+  );
   body.appendChild(tagRow);
 
   // 可编辑字段：备注
-  const { row: remarkRow, input: remarkInput } = createEditableRow('备注', data.remark, '输入备注信息', true);
+  const { row: remarkRow, input: remarkInput } = createEditableRow(
+    tl('cs.save.remark'),
+    data.remark,
+    tl('cs.save.remarkPlaceholder'),
+    true,
+  );
   body.appendChild(remarkRow);
 
   // 追踪用户是否主动编辑过标签和备注输入框
@@ -145,7 +156,7 @@ export function showSavePasswordPrompt(
 
   // 左侧：「不再提示」文字链接按钮
   const neverAskBtn = document.createElement('button');
-  neverAskBtn.textContent = '不再提示';
+  neverAskBtn.textContent = tl('cs.save.neverAsk');
   neverAskBtn.style.cssText = `
     font-size: 12px;
     color: #999;
@@ -172,20 +183,20 @@ export function showSavePasswordPrompt(
   const rightBtns = document.createElement('div');
   rightBtns.style.cssText = 'display: flex; gap: 8px;';
 
-  const dismissBtn = createButton('暂不保存', '#f5f5f5', '#666', '#e8e8e8');
+  const dismissBtn = createButton(tl('cs.save.dismiss'), '#f5f5f5', '#666', '#e8e8e8');
   dismissBtn.addEventListener('click', () => {
     dismissSavePasswordPrompt();
     onDismiss();
   });
 
-  const saveBtn = createButton(isUpdate ? '更新' : '保存', THEME_BLUE, '#fff', THEME_BLUE);
+  const saveBtn = createButton(isUpdate ? tl('cs.save.update') : tl('cs.save.save'), THEME_BLUE, '#fff', THEME_BLUE);
   saveBtn.addEventListener('click', () => {
     const editedTag = tagInput.value.trim();
     const editedRemark = remarkInput.value.trim();
     dismissSavePasswordPrompt();
     onSave({
       tag: editedTag,
-      remark: editedRemark || '自动保存',
+      remark: editedRemark || tl('cs.save.autoSaveRemark'),
       tagEdited,
       remarkEdited,
     });

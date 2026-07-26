@@ -10,7 +10,6 @@ import {
 import { openOptionsPage, openOptionsAndSendMessage } from './optionsPageManager';
 import {
   getCachedPasswords,
-  updatePasswordCache,
   invalidatePasswordCache,
   getCachedSortConfig,
   warmPasswordCache,
@@ -19,6 +18,7 @@ import {
   getDecryptedEntryById,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
+import { handleQuickFill } from './quickFillHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
 
 /**
@@ -135,7 +135,7 @@ async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: 
  * 仅扩展自身页面满足：`sender.id === chrome.runtime.id` 且 `sender.tab === undefined`
  * （网页内容脚本的 `sender.tab` 恒有值，因此被拒）；并附加 url 同源校验作为纵深防御。
  *
- * 用于保护会返回明文密码列表的消息（GET_INITIAL_DATA / GET_CACHED_PASSWORDS），
+ * 用于保护会返回明文密码列表的消息（GET_INITIAL_DATA），
  * 避免任意内容脚本上下文越权读取整份密码数据。
  */
 function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean {
@@ -246,27 +246,12 @@ export function setupMessageRouter(): void {
         openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_ADD).then(sendResponse);
         return true;
 
-      case MessageType.GET_CACHED_PASSWORDS: {
-        // 安全校验：仅允许扩展内部页面获取明文密码列表
-        if (!isTrustedInternalSender(sender)) {
-          sendResponse({ success: false, error: '未授权的请求来源' });
-          break;
-        }
-        const requestedDomain = message.data?.domain;
-        getCachedPasswords(requestedDomain).then(cachedData => {
-          sendResponse({ success: true, data: cachedData });
-        });
-        return true;
-      }
-
       case MessageType.UPDATE_PASSWORD_CACHE: {
-        const { passwords, domain, isAuthenticated } = message.data || {};
-        if (passwords && domain !== undefined) {
-          updatePasswordCache(passwords, domain, isAuthenticated);
-          sendResponse({ success: true });
-        } else {
-          sendResponse({ success: false, error: '缺少缓存数据' });
-        }
+        // 轻量触发（无载荷）：由 background 自行经 warmPasswordCache 去重预热缓存，
+        // 避免 sidepanel 回传全量明文列表的序列化开销（数百条目时主线程 5-30ms）；
+        // 缓存已存在时 no-op，会话无效时内部门控自动跳过
+        void warmPasswordCache();
+        sendResponse({ success: true });
         break;
       }
 
@@ -388,6 +373,16 @@ export function setupMessageRouter(): void {
           .catch(error => {
             logger.error('Background: FILL_BY_ID 处理失败:', error);
             sendResponse({ success: false, message: '填充失败' });
+          });
+        return true;
+      }
+
+      case MessageType.QUICK_FILL: {
+        handleQuickFill()
+          .then(() => sendResponse({ success: true }))
+          .catch(error => {
+            logger.error('Background: QUICK_FILL 处理失败:', error);
+            sendResponse({ success: false, error: error.message });
           });
         return true;
       }

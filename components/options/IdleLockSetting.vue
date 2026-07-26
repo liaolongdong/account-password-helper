@@ -1,48 +1,49 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="自动锁定设置"
+    :title="t('options.header.idleLock')"
     width="500px"
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div class="dialog-body-scroll">
+      <!-- label-width auto：中英文标签宽度差异大（如 Lock on browser restart），按最长标签自适应 -->
       <el-form
-        label-width="140px"
+        label-width="auto"
         size="large"
       >
-        <el-form-item label="闲置锁定时间">
+        <el-form-item :label="t('options.idleLock.idleTime')">
           <el-select
             v-model="idleMinutes"
             style="width: 100%"
           >
             <el-option
-              label="不锁定"
+              :label="t('options.idleLock.never')"
               :value="0"
             />
             <el-option
-              label="5 分钟"
+              :label="t('options.idleLock.min5')"
               :value="5"
             />
             <el-option
-              label="10 分钟"
+              :label="t('options.idleLock.min10')"
               :value="10"
             />
             <el-option
-              label="30 分钟"
+              :label="t('options.idleLock.min30')"
               :value="30"
             />
             <el-option
-              label="60 分钟"
+              :label="t('options.idleLock.min60')"
               :value="60"
             />
           </el-select>
-          <div class="form-tip">系统闲置超过设定时间后，将自动清除主密码会话并锁定密码管理</div>
+          <div class="form-tip">{{ t('options.idleLock.idleTip') }}</div>
         </el-form-item>
-        <el-form-item label="浏览器重启锁定">
+        <el-form-item :label="t('options.idleLock.restartLock')">
           <el-switch v-model="relockOnBrowserRestart" />
           <div class="form-tip">
-            开启后，完全关闭并重新打开浏览器时需重新输入主密码（更安全）；关闭则在有效期内自动保持登录，无需重复输入。
+            {{ t('options.idleLock.restartTip') }}
           </div>
         </el-form-item>
       </el-form>
@@ -54,7 +55,7 @@
           size="large"
           @click="$emit('update:modelValue', false)"
         >
-          取消
+          {{ t('common.cancel') }}
         </el-button>
         <el-button
           type="primary"
@@ -62,7 +63,7 @@
           :loading="saveLoading"
           @click="handleSave"
         >
-          保存
+          {{ t('common.save') }}
         </el-button>
       </div>
     </template>
@@ -73,6 +74,7 @@
 import { ref, watch } from 'vue';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { useI18n } from '@/utils/i18n';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -81,6 +83,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
 }>();
+
+const { t } = useI18n();
 
 const idleMinutes = ref(0);
 /** 关闭浏览器后是否需要重新输入主密码 */
@@ -97,7 +101,7 @@ const loadConfig = async (): Promise<void> => {
     relockOnBrowserRestart.value = config.relockOnBrowserRestart ?? false;
   } catch (error) {
     logger.error('IdleLockSetting: 加载配置失败:', error);
-    ElMessage.error('加载配置失败');
+    ElMessage.error(t('message.loadConfigFailed'));
   }
 };
 
@@ -120,11 +124,11 @@ const handleSave = async (): Promise<void> => {
       idleLockMinutes: idleMinutes.value,
       relockOnBrowserRestart: relockOnBrowserRestart.value,
     });
-    ElMessage.success('自动锁定设置已保存');
+    ElMessage.success(t('options.idleLock.saved'));
     emit('update:modelValue', false);
   } catch (error) {
     logger.error('IdleLockSetting: 保存配置失败:', error);
-    ElMessage.error('保存失败');
+    ElMessage.error(t('message.saveFailed'));
   } finally {
     saveLoading.value = false;
   }

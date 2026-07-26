@@ -1,6 +1,7 @@
 import type { PasswordEntry } from '@/utils/types';
 import { ExcelUtils } from '@/utils/excel';
 import { formatDateTime, formatDate, formatTimestampCompact } from '@/utils/dateFormat';
+import { t } from '@/utils/i18n';
 
 /**
  * 邮箱备份工具类
@@ -30,13 +31,13 @@ export class EmailBackupUtils {
     ExcelUtils.exportToCSV(passwords, filename);
 
     // 构造 mailto 链接，唤起邮件客户端
-    const subject = `密码备份-${formatDate(now)}`;
+    const subject = t('form.emailSubject', { date: formatDate(now) });
     const body = [
-      `备份时间：${formatDateTime(now)}`,
-      `备份条数：${passwords.length}条账号密码`,
-      `附件文件：${filename}`,
+      t('form.emailBodyTime', { time: formatDateTime(now) }),
+      t('form.emailBodyCount', { count: passwords.length }),
+      t('form.emailBodyFile', { filename }),
       '',
-      '请将已下载的Excel文件作为附件发送。',
+      t('form.emailBodySendCsv'),
     ].join('\n');
 
     const mailtoUrl = this.buildMailtoUrl(email, subject, body);

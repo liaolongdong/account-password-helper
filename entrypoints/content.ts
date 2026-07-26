@@ -8,12 +8,16 @@ import { showNativeNotification } from '@/entrypoints/content/NativeNotification
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import { logger } from '@/utils/logger';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
+import { initLiteI18n } from '@/utils/i18n-lite';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
   // 注入到所有 frame（含 iframe），让 iframe 内的登录表单也能被检测和填充
   allFrames: true,
   main(ctx) {
+    // 初始化轻量 i18n（注入 UI 文案按用户语言渲染，storage 监听实时切换）
+    initLiteI18n();
+
     // 仅顶层 frame 渲染悬浮按钮，避免每个 iframe 都重复注入 UI 造成重复与定位错乱
     const isTopFrame = window === window.top;
 

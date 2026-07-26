@@ -1,0 +1,10 @@
+{
+  "strength.weak": "弱",
+  "strength.medium": "中",
+  "strength.strong": "强",
+  "strength.ruleMinLength": "至少 8 个字符",
+  "strength.ruleHasLetter": "包含字母（a-z 或 A-Z）",
+  "strength.ruleHasNumber": "包含数字（0-9）",
+  "strength.ruleHasSymbol": "包含特殊字符（如 !@#$%...）",
+  "strength.ruleNotBreached": "不在常见泄露密码列表中"
+}

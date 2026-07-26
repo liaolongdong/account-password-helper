@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="自动保存设置"
+    :title="t('options.header.autoSave')"
     width="650px"
     align-center
     :close-on-click-modal="false"
@@ -12,29 +12,31 @@
         label-width="140px"
         size="large"
       >
-        <el-form-item label="启用自动保存">
+        <el-form-item :label="t('options.autoSave.enable')">
           <el-switch
             v-model="config.enabled"
             @change="handleEnabledChange"
           />
-          <div class="form-tip">开启后，网站登录时将弹窗提示是否自动保存账号密码到密码列表</div>
+          <div class="form-tip">{{ t('options.autoSave.enableTip') }}</div>
         </el-form-item>
 
-        <el-form-item label="域名匹配规则">
+        <el-form-item :label="t('options.autoSave.domainRules')">
           <div class="domain-patterns-section">
             <div class="domain-patterns-header">
               <el-text
                 type="info"
                 size="small"
               >
-                规则列表为空时匹配所有域名；配置后仅匹配的域名才会提醒是否需要自动保存
+                {{ t('options.autoSave.rulesTip') }}
               </el-text>
             </div>
 
             <div class="add-pattern-form">
               <el-input
                 v-model="newPattern.pattern"
-                :placeholder="newPattern.isRegex ? '输入正则表达式，如 .*\\.example\\.com' : '输入域名，如 github.com'"
+                :placeholder="
+                  newPattern.isRegex ? t('options.autoSave.regexPlaceholder') : t('options.autoSave.domainPlaceholder')
+                "
                 clearable
                 size="default"
                 @keyup.enter="addPattern"
@@ -43,7 +45,7 @@
                 v-model="newPattern.isRegex"
                 size="default"
               >
-                正则
+                {{ t('options.autoSave.regex') }}
               </el-checkbox>
               <el-button
                 type="primary"
@@ -52,7 +54,7 @@
                 :disabled="!newPattern.pattern.trim()"
                 @click="addPattern"
               >
-                添加
+                {{ t('common.add') }}
               </el-button>
             </div>
 
@@ -62,12 +64,12 @@
               style="width: 100%"
               size="small"
               stripe
-              empty-text="暂无规则，匹配所有域名"
+              :empty-text="t('options.autoSave.noRules')"
               max-height="260"
             >
               <el-table-column
                 prop="pattern"
-                label="域名 / 正则表达式"
+                :label="t('options.autoSave.patternColumn')"
                 min-width="200"
               >
                 <template #default="{ row }">
@@ -76,7 +78,7 @@
               </el-table-column>
               <el-table-column
                 prop="isRegex"
-                label="类型"
+                :label="t('options.autoSave.typeColumn')"
                 width="100"
                 align="center"
               >
@@ -85,12 +87,12 @@
                     :type="row.isRegex ? 'warning' : 'info'"
                     size="small"
                   >
-                    {{ row.isRegex ? '正则' : '域名' }}
+                    {{ row.isRegex ? t('options.autoSave.regex') : t('options.autoSave.domain') }}
                   </el-tag>
                 </template>
               </el-table-column>
               <el-table-column
-                label="操作"
+                :label="t('common.actions')"
                 width="80"
                 align="center"
               >
@@ -101,7 +103,7 @@
                     size="small"
                     @click="removePattern($index)"
                   >
-                    删除
+                    {{ t('common.delete') }}
                   </el-button>
                 </template>
               </el-table-column>
@@ -109,14 +111,14 @@
           </div>
         </el-form-item>
 
-        <el-form-item label="已屏蔽的域名">
+        <el-form-item :label="t('options.autoSave.excludedDomains')">
           <div class="excluded-domains-section">
             <div class="excluded-domains-header">
               <el-text
                 type="info"
                 size="small"
               >
-                以下域名的登录将不再弹窗提示保存密码，可在保存密码弹窗中点击「不再提示」添加
+                {{ t('options.autoSave.excludedTip') }}
               </el-text>
             </div>
 
@@ -126,12 +128,12 @@
               style="width: 100%"
               size="small"
               stripe
-              empty-text="暂无屏蔽域名"
+              :empty-text="t('options.autoSave.noExcluded')"
               max-height="200"
             >
               <el-table-column
                 prop="domain"
-                label="域名"
+                :label="t('options.autoSave.domain')"
                 min-width="200"
               >
                 <template #default="{ row }">
@@ -139,7 +141,7 @@
                 </template>
               </el-table-column>
               <el-table-column
-                label="操作"
+                :label="t('common.actions')"
                 width="80"
                 align="center"
               >
@@ -150,7 +152,7 @@
                     size="small"
                     @click="removeExcludedDomain($index)"
                   >
-                    删除
+                    {{ t('common.delete') }}
                   </el-button>
                 </template>
               </el-table-column>
@@ -166,7 +168,7 @@
           size="large"
           @click="$emit('update:modelValue', false)"
         >
-          取消
+          {{ t('common.cancel') }}
         </el-button>
         <el-button
           type="primary"
@@ -174,7 +176,7 @@
           :loading="saveLoading"
           @click="handleSave"
         >
-          保存
+          {{ t('common.save') }}
         </el-button>
       </div>
     </template>
@@ -187,6 +189,7 @@ import { Plus } from '@element-plus/icons-vue';
 import { StorageUtils } from '@/utils/storage';
 import type { AutoSaveConfig, DomainPattern } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { useI18n } from '@/utils/i18n';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -195,6 +198,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
 }>();
+
+const { t } = useI18n();
 
 /** 当前配置（本地编辑副本） */
 const config = reactive<AutoSaveConfig>({
@@ -231,7 +236,7 @@ const loadConfig = async (): Promise<void> => {
     );
   } catch (error) {
     logger.error('AutoSaveSettingDialog: 加载配置失败:', error);
-    ElMessage.error('加载配置失败，请关闭弹窗重试');
+    ElMessage.error(t('options.autoSave.loadFailed'));
   }
 };
 
@@ -254,10 +259,10 @@ watch(
 const handleEnabledChange = async (value: boolean | string | number): Promise<void> => {
   try {
     await StorageUtils.saveAutoSaveConfig({ enabled: !!value });
-    ElMessage.success(value ? '已启用自动保存' : '已禁用自动保存');
+    ElMessage.success(value ? t('options.autoSave.enabled') : t('options.autoSave.disabled'));
   } catch (error) {
     logger.error('AutoSaveSettingDialog: 保存开关失败:', error);
-    ElMessage.error('保存失败');
+    ElMessage.error(t('message.saveFailed'));
   }
 };
 
@@ -273,7 +278,7 @@ const addPattern = (): void => {
     try {
       new RegExp(trimmed);
     } catch {
-      ElMessage.warning('正则表达式格式不正确，请检查后重新输入');
+      ElMessage.warning(t('options.autoSave.invalidRegex'));
       return;
     }
   }
@@ -281,7 +286,7 @@ const addPattern = (): void => {
   // 检查重复
   const isDuplicate = config.domainPatterns.some(p => p.pattern === trimmed && p.isRegex === newPattern.isRegex);
   if (isDuplicate) {
-    ElMessage.warning('该规则已存在');
+    ElMessage.warning(t('options.autoSave.duplicateRule'));
     return;
   }
 
@@ -317,11 +322,11 @@ const handleSave = async (): Promise<void> => {
   try {
     const toRawConfig = toRaw(config);
     await StorageUtils.saveAutoSaveConfig(toRawConfig);
-    ElMessage.success('自动保存设置已保存');
+    ElMessage.success(t('options.autoSave.saved'));
     emit('update:modelValue', false);
   } catch (error) {
     logger.error('AutoSaveSettingDialog: 保存配置失败:', error);
-    ElMessage.error('保存失败');
+    ElMessage.error(t('message.saveFailed'));
   } finally {
     saveLoading.value = false;
   }

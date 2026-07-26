@@ -2,6 +2,7 @@ import { shallowRef, nextTick } from 'vue';
 import { StorageUtils } from '@/utils/storage';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 
 /**
  * useSessionLock 配置选项
@@ -54,7 +55,7 @@ export function useSessionLock(options: UseSessionLockOptions) {
         // 无监听者时忽略
       }
 
-      ElMessage.success('已锁定');
+      ElMessage.success(t('message.locked'));
     } catch (error) {
       logger.error('锁定失败:', error);
     } finally {
