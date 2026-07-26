@@ -1,4 +1,4 @@
-import { ref, computed, watch, type Ref } from 'vue';
+import { ref, computed, watch, onScopeDispose, type Ref } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
 import type { PasswordEntry, PasswordEntryWithUI } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
@@ -89,6 +89,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const showPasswordDialog = ref(false);
   const showEmailBackupDialog = ref(false);
   const searchKeyword = ref('');
+  /** 搜索关键词防抖副本：驱动 filteredPasswords 过滤，避免每次击键都重排大列表 */
+  const debouncedSearchKeyword = ref('');
   /** 是否仅显示收藏条目 */
   const favoriteOnly = ref(false);
   const selectedIds = ref<string[]>([]);
@@ -126,8 +128,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const filteredPasswords = computed(() => {
     let result: PasswordEntry[] = passwords.value;
 
-    if (searchKeyword.value) {
-      const keyword = searchKeyword.value.toLowerCase();
+    if (debouncedSearchKeyword.value) {
+      const keyword = debouncedSearchKeyword.value.toLowerCase();
       result = result.filter(
         p =>
           p.username.toLowerCase().includes(keyword) ||
@@ -168,6 +170,22 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       }, 0);
     }
   };
+
+  /**
+   * 搜索关键词防抖：输入框保持即时响应（v-model 仍绑定 searchKeyword），
+   * 仅将驱动过滤的 debouncedSearchKeyword 延迟 200ms 更新，
+   * 降低大列表连续击键时 filter + sort 的重排开销。
+   */
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+  watch(searchKeyword, value => {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(() => {
+      debouncedSearchKeyword.value = value;
+    }, 200);
+  });
+
+  // 作用域销毁时清理未触发的防抖定时器，避免向已停用作用域赋值
+  onScopeDispose(() => clearTimeout(searchDebounceTimer));
 
   /** 收藏过滤变化时清空选中状态（符合交互策略：过滤条件变化清空选中） */
   watch(favoriteOnly, () => {

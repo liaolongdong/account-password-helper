@@ -14,6 +14,7 @@
     >
       <el-button
         :icon="favoriteOnly ? StarFilled : Star"
+        :aria-label="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
         circle
         :type="favoriteOnly ? 'warning' : 'default'"
         @click="$emit('update:favoriteOnly', !favoriteOnly)"

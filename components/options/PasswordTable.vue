@@ -42,6 +42,7 @@
             <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
             <el-button
               :icon="row.showPassword ? View : Hide"
+              :aria-label="row.showPassword ? t('common.hidePassword') : t('common.showPassword')"
               link
               @click="$emit('togglePassword', row)"
             />
@@ -174,6 +175,7 @@
             >
               <el-button
                 :icon="CopyDocument"
+                :aria-label="t('options.table.copyEntry')"
                 circle
                 size="small"
                 @click="$emit('copy', row)"
@@ -187,6 +189,7 @@
             >
               <el-button
                 :icon="Edit"
+                :aria-label="t('common.edit')"
                 circle
                 size="small"
                 @click="$emit('edit', row)"
@@ -200,6 +203,7 @@
             >
               <el-button
                 :icon="row.favorite ? StarFilled : Star"
+                :aria-label="row.favorite ? t('common.unfavorite') : t('common.favorite')"
                 circle
                 size="small"
                 :type="row.favorite ? 'warning' : 'default'"
@@ -214,6 +218,7 @@
             >
               <el-button
                 :icon="Delete"
+                :aria-label="t('common.delete')"
                 circle
                 size="small"
                 type="danger"
@@ -434,10 +439,18 @@ defineExpose({ tableRef: localTableRef });
 }
 
 .operation-buttons .el-button {
+  position: relative;
   width: 28px;
   height: 28px;
   padding: 0;
   margin-left: 10px;
+}
+
+/* 扩大触控热区至约 38px（视觉尺寸不变）；inset 5px 与按钮间距 10px 匹配，相邻热区恰好相接不重叠 */
+.operation-buttons .el-button::after {
+  position: absolute;
+  inset: -5px;
+  content: '';
 }
 
 :deep(.operation-buttons .el-button--danger:hover) {

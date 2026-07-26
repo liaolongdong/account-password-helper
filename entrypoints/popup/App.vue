@@ -319,11 +319,11 @@ const openSidePanel = async () => {
             window.close();
           } else {
             logger.error('通过background脚本打开侧边栏失败:', response.error);
-            alert(t('popup.openSidepanelFailed'));
+            ElMessage.error(t('popup.openSidepanelFailed'));
           }
         } catch (bgError) {
           logger.error('通过background脚本打开侧边栏也失败:', bgError);
-          alert(t('popup.openSidepanelFailed'));
+          ElMessage.error(t('popup.openSidepanelFailed'));
         }
       }
     }
