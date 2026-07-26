@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { Setting } from '@element-plus/icons-vue';
-import { defineAsyncComponent } from 'vue';
 import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
 import { useI18n } from '@/utils/i18n';
-
-/** 品牌 Logo 异步加载（64 行纯 SVG，独立 chunk 避免阻塞 SidepanelHeader 首屏） */
-const BrandLogo = defineAsyncComponent(() => import('@/components/BrandLogo.vue'));
+// 品牌 Logo 静态导入：App.vue 已静态引用同组件（已在入口 chunk 内），
+// 异步包装无体积收益反增一次 resolve tick，导致品牌图标晚一帧出现
+import BrandLogo from '@/components/BrandLogo.vue';
 
 interface Props {
   /** 当前插件版本号 */

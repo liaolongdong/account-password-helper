@@ -268,9 +268,10 @@ export class FloatingButtonManager {
         btn.classList.add('loading');
       }
 
-      // 发送消息给background切换侧边栏
+      // 发送消息给background切换侧边栏（clickTs=点击时刻，覆盖「点击 → SW 唤醒」埋点盲区）
       await chrome.runtime.sendMessage({
         type: MessageType.TOGGLE_SIDEPANEL,
+        data: { clickTs: Date.now() },
       });
 
       if (btn) {

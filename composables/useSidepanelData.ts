@@ -517,6 +517,7 @@ export function useSidepanelData() {
           sessionValid: boolean;
           passwords: PasswordEntry[];
           sortConfig: { prop: string; order: string } | null;
+          perf?: { swProcessMs: number; cacheHit: boolean; swUptimeMs: number };
         };
       } | null = null;
 
@@ -556,11 +557,16 @@ export function useSidepanelData() {
         sortConfig: { prop: string; order: string } | null;
       } | null = null;
       const localPromise = (async () => {
-        const [isSessionValidFn, crud] = await Promise.all([getIsSessionValid(), getPasswordCrudModule()]);
+        // 锁屏态优先：先完成会话判定（仅需 sessionManager-storage chunk），
+        // 会话无效时完全跳过 passwordCrud chunk 加载（Windows 冷盘减少一次文件冷读）；
+        // 会话有效的冷 SW 场景下，Windows 由保活闹钟保证 bg 路径热胜出，
+        // 本地路径串行加载 crud 的增量耗时不在关键路径上
+        const isSessionValidFn = await getIsSessionValid();
         const sessionValid = await isSessionValidFn();
         if (!sessionValid) {
           return { sessionValid: false, passwords: [] as PasswordEntry[], sortConfig: null };
         }
+        const crud = await getPasswordCrudModule();
         const [sortConfigResult, loadedPasswords] = await Promise.all([
           getSidepanelSortConfig().catch(() => null),
           crud.getAllPasswords(),
@@ -584,12 +590,19 @@ export function useSidepanelData() {
         `SidePanel: 竞速完成，胜出路径=${raceWinner}，总耗时 ${(performance.now() - _perfRaceStart).toFixed(1)}ms`,
       );
 
-      /** 组装初始化元信息（含竞速内部耗时，供性能环形日志归因 Windows 慢点） */
-      const buildMeta = (winnerPath: 'bg' | 'local' | null, sessionValid: boolean): SidepanelInitMeta => ({
+      /** 组装初始化元信息（含竞速内部耗时与 SW 侧分解，供性能环形日志归因 Windows 慢点） */
+      const buildMeta = (
+        winnerPath: 'bg' | 'local' | null,
+        sessionValid: boolean,
+        bgPerf?: { swProcessMs: number; cacheHit: boolean; swUptimeMs: number },
+      ): SidepanelInitMeta => ({
         raceWinner: winnerPath,
         sessionValid,
         bgPathMs,
         localPathMs,
+        bgSwProcessMs: bgPerf?.swProcessMs ?? null,
+        bgCacheHit: bgPerf?.cacheHit ?? null,
+        bgSwUptimeMs: bgPerf?.swUptimeMs ?? null,
       });
 
       // 确保 currentDomain 已就绪（loadCurrentTab 应在 winner 返回时已完成，此处防御性等待）
@@ -621,7 +634,7 @@ export function useSidepanelData() {
 
             // 本地路径可能仍在执行（dynamic import），让其静默完成
             localPromise.catch(() => {});
-            return buildMeta('bg', true);
+            return buildMeta('bg', true, data.perf);
           }
 
           // 会话无效
@@ -631,7 +644,7 @@ export function useSidepanelData() {
           loading.value = false;
 
           localPromise.catch(() => {});
-          return buildMeta('bg', false);
+          return buildMeta('bg', false, data.perf);
         }
 
         // Background 返回了响应但格式异常，回退到本地路径

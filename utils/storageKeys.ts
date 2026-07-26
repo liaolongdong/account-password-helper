@@ -40,6 +40,6 @@ export const STORAGE_KEYS = {
 export const SESSION_MEMORY_KEYS = {
   /** 会话期派生的 AES-256-GCM 数据密钥（hex） */
   DATA_KEY: 'session_data_key',
-  /** 侧边栏打开请求时间戳（epoch 毫秒），用于量化「用户点击 → 渲染进程 timeOrigin」耗时 */
+  /** 侧边栏打开请求记录（{ at: epoch 毫秒, trigger: 触发源 }），用于量化「用户点击 → 渲染进程 timeOrigin」耗时与打开路径归因 */
   SIDEPANEL_OPEN_REQUESTED_AT: 'sidepanel_open_requested_at',
 };

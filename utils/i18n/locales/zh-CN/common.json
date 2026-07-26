@@ -26,5 +26,7 @@
   "common.settings": "设置",
   "common.validityRequired": "请选择有效期",
   "common.pwdMismatch": "两次输入的密码不一致",
-  "common.quickFill": "快速填充"
+  "common.quickFill": "快速填充",
+  "common.showPassword": "显示密码",
+  "common.hidePassword": "隐藏密码"
 }

@@ -4,7 +4,7 @@
     "description": "Extension name displayed in Chrome Web Store and browser UI"
   },
   "extensionDescription": {
-    "message": "Local password manager: AES-256-GCM encryption, zero network, auto-fill, auto-save, TOTP 2FA, health check, expiry reminders.",
+    "message": "Local password manager: AES-256-GCM, zero network, auto-fill, auto-save, TOTP 2FA, health check, trash, history, rekey, bilingual.",
     "description": "Extension description for Chrome Web Store (max 132 chars, longer breaks zip upload)"
   },
   "commandOpenOptions": {

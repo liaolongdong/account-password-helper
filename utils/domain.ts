@@ -53,6 +53,32 @@ const KNOWN_TWO_PART_TLDS = new Set([
   'org.sg',
 ]);
 
+/**
+ * 常见两段式 ccTLD 的二级注册标签集合
+ *
+ * 许多国家/地区采用「二级标签.两字母国家码」形式的公共后缀（如 com.br、co.in、com.mx），
+ * KNOWN_TWO_PART_TLDS 无法穷举所有国家。此集合配合「末段为两字母国家码」的判断，
+ * 兜底识别未显式收录的两段式 ccTLD，避免把不同注册主体的域名
+ * （如 bank.com.br 与 evil.com.br）误判为同一主域名而向跨域 iframe 泄露凭证。
+ */
+const CCTLD_SECOND_LEVEL_LABELS = new Set([
+  'com',
+  'net',
+  'org',
+  'edu',
+  'gov',
+  'co',
+  'ac',
+  'ne',
+  'or',
+  'gob',
+  'go',
+  'mil',
+]);
+
+/** 两字母国家码（ccTLD）正则，如 cn / uk / br / in */
+const TWO_LETTER_CCTLD_RE = /^[a-z]{2}$/;
+
 // ── postMessage 跨 frame 通信 ──
 
 /**
@@ -84,6 +110,7 @@ export const PostMessageType = {
  * getMainDomain('login.example.com')    // → 'example.com'
  * getMainDomain('app.example.com.cn')   // → 'example.com.cn'
  * getMainDomain('mail.example.co.uk')   // → 'example.co.uk'
+ * getMainDomain('shop.example.com.br')  // → 'example.com.br'（启发式识别未收录 ccTLD）
  * getMainDomain('localhost')            // → 'localhost'
  * getMainDomain('192.168.1.1')          // → '192.168.1.1'
  */
@@ -100,6 +127,16 @@ export function getMainDomain(hostname: string): string {
     const lastTwo = parts.slice(-2).join('.');
     if (KNOWN_TWO_PART_TLDS.has(lastTwo)) {
       return parts.slice(-3).join('.'); // 如 example.com.cn
+    }
+
+    // 兜底：末段为两字母国家码且二级为常见注册标签（com/co/net…）时，
+    // 视为未显式收录的两段式 ccTLD，取最后三段（如 example.com.br）。
+    // 该分支只会让主域名更「具体」（三段而非两段），仅收窄匹配、绝不新增误匹配，
+    // 因此对 isSameMainDomain 等安全判定始终更保守。
+    const tld = parts[parts.length - 1];
+    const secondLevel = parts[parts.length - 2];
+    if (TWO_LETTER_CCTLD_RE.test(tld) && CCTLD_SECOND_LEVEL_LABELS.has(secondLevel)) {
+      return parts.slice(-3).join('.');
     }
   }
 

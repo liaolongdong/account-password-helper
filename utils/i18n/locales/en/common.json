@@ -26,5 +26,7 @@
   "common.settings": "Settings",
   "common.validityRequired": "Please select a validity period",
   "common.pwdMismatch": "The two passwords do not match",
-  "common.quickFill": "Quick Fill"
+  "common.quickFill": "Quick Fill",
+  "common.showPassword": "Show password",
+  "common.hidePassword": "Hide password"
 }

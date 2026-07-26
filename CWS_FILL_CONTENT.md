@@ -11,10 +11,10 @@
 在 Dashboard 点击「新建商品」(New Item)，上传以下文件：
 
 ```
-.output/account-password-helper-2.10.0-chrome.zip
+.output/account-password-helper-2.11.0-chrome.zip
 ```
 
-文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-2.10.0-chrome.zip`
+文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-2.11.0-chrome.zip`
 
 ---
 
@@ -29,7 +29,7 @@ Account Password Helper
 ### 摘要 (Summary) — 最多 132 字符
 
 ```
-本地密码管理工具，AES-256-GCM 加密、零网络传输。智能识别登录表单、一键填充自动登录、自动保存、导入导出、加密备份、TOTP 两步验证、安全体检、密码到期提醒、离线弱口令检测、回收站、中英双语，开源免费。
+本地密码管理工具，AES-256-GCM 加密、零网络传输。智能识别登录表单、一键填充自动登录、自动保存、导入导出、加密备份、TOTP 两步验证、安全体检、到期提醒、弱口令检测、回收站、密码历史、修改主密码、中英双语，开源免费。
 ```
 
 ### 说明 (Description) — 最多 16,000 字符
@@ -42,6 +42,7 @@ Account Password Helper
 • PBKDF2 密钥派生（600,000 次迭代）
 • 数据全部存储在本地，零网络传输
 • 主密码加盐哈希保护
+• 支持修改主密码（全部数据原子换钥重加密，不丢数据、无需重新登录）
 • 会话超时自动锁定
 • 支持配置闲置自动锁定
 • 浏览器重启锁定（可选）
@@ -49,12 +50,13 @@ Account Password Helper
 
 ⚡ 便捷功能
 • 智能表单检测，一键自动填充
+• 一键填充快捷键（Ctrl+Shift+F，无需打开侧边栏直接填充，通知 + 角标双通道反馈）
 • 侧边栏快捷管理密码（毫秒级响应）
 • 内联填充模式（登录框内钥匙图标，点击即填充）
 • 自动保存新登录凭据
-• CSV / JSON / 加密备份导入导出
+• CSV / JSON / 加密备份导入导出（表头跟随界面语言，中英文表头均可自动识别）
 • 邮箱备份（支持加密/不加密两种方式）
-• 随机密码生成器
+• 密码生成器（随机密码 + 助记词组两种模式，助记词组既安全又易记）
 • 剪贴板自动清除
 • TOTP 两步验证码（本地 RFC 6238 动态码，零网络）
 • 6 款色彩主题（晴空蓝/青竹绿/桃花粉/樱粉紫/落霞橙/雾墨灰）
@@ -83,6 +85,8 @@ Account Password Helper
 • 加密备份文件（.aph 格式）
 • 邮件备份提醒（支持加密备份）
 • 密码收藏夹
+• 回收站：删除的密码保留 30 天，可随时恢复、彻底删除或清空，超期自动清理
+• 密码修改历史：自动快照旧密码（加密存储，每条保留 5 条），编辑弹窗中可复制或恢复
 
 ⚙️ 高度可定制
 • 6 款色彩主题，一键换肤

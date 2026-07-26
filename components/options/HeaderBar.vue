@@ -37,7 +37,8 @@
             v-if="healthGrade"
             class="health-dot"
             :style="{ backgroundColor: healthDotColor }"
-            aria-hidden="true"
+            role="img"
+            :aria-label="t('options.header.healthScore', { score: healthScore ?? 0 })"
           ></span>
         </el-button>
         <el-dropdown

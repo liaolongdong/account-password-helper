@@ -2,7 +2,6 @@ import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
-import { generateTOTP } from '@/utils/totp';
 import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
 import { getClipboardConfig } from '@/utils/storage/configManager';
 import { lazyImport } from '@/utils/lazyImport';
@@ -22,6 +21,17 @@ const getPasswordCrudModule = lazyImport(() => import('@/utils/storage/passwordC
 const getUpdatePasswordInSession = async () => {
   const mod = await getPasswordCrudModule();
   return mod.updatePasswordInSession;
+};
+
+/**
+ * 延迟加载 totp 模块（首次填充/复制验证码时触发）
+ * 静态导入会将 totp chunk 拉入侧边栏入口 modulepreload 清单，
+ * 增加锁屏态（Windows 冷盘）首屏关键路径的文件冷读数量
+ */
+const getTotpModule = lazyImport(() => import('@/utils/totp'));
+const generateTotpCode = async (secret: string): Promise<string> => {
+  const mod = await getTotpModule();
+  return mod.generateTOTP(secret);
 };
 
 /**
@@ -406,7 +416,7 @@ export function useSidepanelFill(
 
     let code: string;
     try {
-      code = await generateTOTP(password.totp);
+      code = await generateTotpCode(password.totp);
     } catch (error) {
       logger.error('生成验证码失败:', error);
       ElMessage.error(t('fill.totpGenerateFailed'));
@@ -475,7 +485,7 @@ export function useSidepanelFill(
 
     let code: string;
     try {
-      code = await generateTOTP(password.totp);
+      code = await generateTotpCode(password.totp);
     } catch (error) {
       logger.error('生成验证码失败:', error);
       ElMessage.error(t('fill.totpGenerateFailed'));

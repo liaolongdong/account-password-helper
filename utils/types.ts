@@ -1,4 +1,5 @@
 import type { ThemeName } from '@/utils/theme';
+import type { SidepanelOpenTrigger } from '@/utils/perfMetrics';
 
 /**
  * 页面填充模式
@@ -213,9 +214,9 @@ export type RuntimeMessage =
   | { type: MessageType.FILL_PASSWORD; data: FillPasswordData }
   | { type: MessageType.FILL_MOBILE_CODE; data: FillMobileCodeData }
   | { type: MessageType.FILL_TOTP; data: FillTotpData }
-  | { type: MessageType.SHOW_SIDEPANEL; data?: { tabId?: number } }
+  | { type: MessageType.SHOW_SIDEPANEL; data?: { tabId?: number; clickTs?: number; trigger?: SidepanelOpenTrigger } }
   | { type: MessageType.HIDE_SIDEPANEL; data?: { tabId?: number } }
-  | { type: MessageType.TOGGLE_SIDEPANEL; data?: { tabId?: number } }
+  | { type: MessageType.TOGGLE_SIDEPANEL; data?: { tabId?: number; clickTs?: number } }
   | { type: MessageType.CLOSE_SIDEPANEL }
   | { type: MessageType.URL_CHANGED; data: { url: string } }
   | { type: MessageType.OPEN_OPTIONS_PAGE }
