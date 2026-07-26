@@ -276,6 +276,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import { markPerf, recordSidepanelOpenMetrics, SP_PERF_MARKS } from '@/utils/perfMetrics';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
@@ -604,7 +605,8 @@ const handleFloatingConfigChange = (
 // ==================== 初始化 ====================
 
 onMounted(async () => {
-  // 性能埋点：测量 Vue mount 开始（main.ts performance.mark）→ onMounted 回调触发的间隔
+  // 性能埋点：首帧已渲染（onMounted 触发）+ 测量 Vue mount 开始 → onMounted 的间隔
+  markPerf(SP_PERF_MARKS.MOUNTED);
   const _vueMountMeasure = performance.measure('vue-mount', 'vue-mount-start');
   const vueMountDuration = _vueMountMeasure?.duration ?? 0;
   if (_vueMountMeasure) {
@@ -632,7 +634,12 @@ onMounted(async () => {
     })
     .catch(error => logger.error('SidePanel: 读取自动触发登录配置失败:', error));
 
-  await initSidepanelData();
+  const initMeta = await initSidepanelData();
+
+  // 性能埋点：首屏数据就绪，记录完整耗时分解到 performance 时间线与 storage 环形日志
+  // （User Timing API 不受生产构建 drop console 影响，可量化四种场景的真实打开耗时）
+  markPerf(SP_PERF_MARKS.DATA_READY);
+  recordSidepanelOpenMetrics(initMeta);
 
   const _perfDataReady = performance.now();
   logger.debug(

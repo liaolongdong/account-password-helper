@@ -14,5 +14,9 @@
   "commandToggleSidepanel": {
     "message": "Open/close quick-fill side panel",
     "description": "Keyboard shortcut description for toggling side panel"
+  },
+  "commandQuickFill": {
+    "message": "Quick fill credentials on current page",
+    "description": "Keyboard shortcut description for one-click quick fill"
   }
 }

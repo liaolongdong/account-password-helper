@@ -27,6 +27,8 @@ export const STORAGE_KEYS = {
   PASSWORD_REMINDERS: 'password_reminders',
   /** 用户语言偏好（'zh-CN' | 'en'） */
   LOCALE: 'app_locale',
+  /** 侧边栏打开性能埋点环形日志（最近 20 次，用于生产环境量化白屏/卡顿） */
+  SIDEPANEL_PERF_LOG: 'sidepanel_perf_log',
 };
 
 /**

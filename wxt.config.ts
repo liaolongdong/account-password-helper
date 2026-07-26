@@ -124,6 +124,13 @@ export default defineConfig({
         },
         description: '__MSG_commandToggleSidepanel__',
       },
+      quick_fill: {
+        suggested_key: {
+          default: 'Ctrl+Shift+F',
+          mac: 'Command+Shift+F',
+        },
+        description: '__MSG_commandQuickFill__',
+      },
     },
   },
 });

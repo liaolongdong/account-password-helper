@@ -1,6 +1,7 @@
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { openOptionsPage } from './optionsPageManager';
+import { handleQuickFill } from './quickFillHandler';
 
 /** 模块级 port 状态（Service Worker 生命周期内有效） */
 let sidePanelPort: chrome.runtime.Port | null = null;
@@ -178,6 +179,9 @@ export function setupSidePanelListeners(): void {
   chrome.commands.onCommand.addListener((command, tab) => {
     if (command === 'open_options') {
       openOptionsPage();
+    } else if (command === 'quick_fill') {
+      // 透传 onCommand 回调提供的 tab，避免处理器内冗余查询与窗口焦点竞态
+      handleQuickFill(tab).catch(error => logger.error('Background: 一键填充快捷键处理失败:', error));
     } else if (command === 'toggle_sidepanel') {
       if (!chrome.sidePanel) {
         logger.error('Background: 当前Chrome版本不支持sidePanel API');

@@ -1,6 +1,7 @@
 import { ref, onUnmounted } from 'vue';
 import type { PasswordEntry, RuntimeMessage } from '@/utils/types';
 import { MessageType } from '@/utils/types';
+import type { SidepanelInitMeta } from '@/utils/perfMetrics';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
 import { logger } from '@/utils/logger';
@@ -109,24 +110,17 @@ export function useSidepanelData() {
   // ==================== 缓存操作 ====================
 
   /**
-   * 更新 background 中的密码缓存
+   * 触发 background 预热/刷新密码缓存（无载荷轻量消息）
+   *
+   * 不再回传全量明文列表（数百条目时序列化占用主线程 5-30ms），
+   * 由 background 自行经 warmPasswordCache 去重预热：缓存已存在时 no-op，
+   * 失效后（storage 变更监听已统一失效）重新解密填充，数据一致性不变。
    */
-  const updatePasswordCacheInBackground = async (
-    passwordList: PasswordEntry[],
-    domain: string,
-    authenticated: boolean,
-  ): Promise<void> => {
+  const triggerBackgroundCacheRefresh = async (): Promise<void> => {
     try {
-      await chrome.runtime.sendMessage({
-        type: MessageType.UPDATE_PASSWORD_CACHE,
-        data: {
-          passwords: passwordList,
-          domain,
-          isAuthenticated: authenticated,
-        },
-      });
+      await chrome.runtime.sendMessage({ type: MessageType.UPDATE_PASSWORD_CACHE });
     } catch (error) {
-      logger.error('SidePanel: 更新缓存失败:', error);
+      logger.error('SidePanel: 触发缓存刷新失败:', error);
     }
   };
 
@@ -221,8 +215,8 @@ export function useSidepanelData() {
       passwords.value = loadedPasswords;
       loading.value = false;
 
-      // 后台静默更新缓存（不阻塞 UI 渲染）
-      void updatePasswordCacheInBackground(loadedPasswords, currentDomain.value, isAuthenticated.value);
+      // 后台静默触发缓存刷新（不阻塞 UI 渲染）
+      void triggerBackgroundCacheRefresh();
     } catch (error) {
       logger.error('加载密码列表失败:', error);
       ElMessage.error(t('message.loadListFailed'));
@@ -451,8 +445,10 @@ export function useSidepanelData() {
    * - Background 分支设 800ms 兜底上限（见下方 setTimeout）：仅用于让迟到的 bg 结果最终
    *   resolve 以静默更新缓存，并非竞速主门；冷 SW 场景由本地路径（~200-400ms）先胜出，无需等待该上限
    * - loadCurrentTab 与 GET_INITIAL_DATA 并行执行，节约 ~5ms 串行延迟
+   *
+   * @returns 初始化元信息（竞速胜出路径 + 会话状态），供性能埋点记录维度使用
    */
-  const initSidepanelData = async () => {
+  const initSidepanelData = async (): Promise<SidepanelInitMeta> => {
     // 建立与 background 的 port 连接，用于状态追踪和接收关闭消息
     try {
       bgPort = chrome.runtime.connect({ name: 'sidepanel' });
@@ -597,12 +593,13 @@ export function useSidepanelData() {
 
             logger.debug('SidePanel: Background 初始化数据加载完成（竞速胜出），条目数:' + data.passwords.length);
 
-            // 后台静默更新缓存
-            void updatePasswordCacheInBackground(data.passwords, currentDomain.value, true);
+            // 胜出数据来自 bg 自身（命中缓存或冷路径已经 getOrWarmCache 回填），无需回传；
+            // 轻量触发一次去重预热作为防御性兜底（缓存存在时 no-op）
+            void triggerBackgroundCacheRefresh();
 
             // 本地路径可能仍在执行（dynamic import），让其静默完成
             localPromise.catch(() => {});
-            return;
+            return { raceWinner: 'bg', sessionValid: true };
           }
 
           // 会话无效
@@ -612,7 +609,7 @@ export function useSidepanelData() {
           loading.value = false;
 
           localPromise.catch(() => {});
-          return;
+          return { raceWinner: 'bg', sessionValid: false };
         }
 
         // Background 返回了响应但格式异常，回退到本地路径
@@ -627,14 +624,14 @@ export function useSidepanelData() {
           loading.value = false;
 
           logger.debug('SidePanel: 本地初始化数据加载完成（bg 异常回退），条目数:' + localWinner.data.passwords.length);
-          void updatePasswordCacheInBackground(localWinner.data.passwords, currentDomain.value, true);
-          return;
+          void triggerBackgroundCacheRefresh();
+          return { raceWinner: 'local', sessionValid: true };
         }
 
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
         loading.value = false;
-        return;
+        return { raceWinner: 'local', sessionValid: false };
       }
 
       // 本地路径竞速胜出
@@ -648,7 +645,7 @@ export function useSidepanelData() {
 
         // 等待 bg 路径完成（可能迟到），用于同步状态
         bgPromise.catch(() => {});
-        return;
+        return { raceWinner: 'local', sessionValid: false };
       }
 
       _sessionKnownExpired = false;
@@ -661,19 +658,22 @@ export function useSidepanelData() {
 
       logger.debug('SidePanel: 本地初始化数据加载完成（竞速胜出），条目数:' + localData.passwords.length);
 
-      // Background 路径可能迟到，等待其结果用于静默更新缓存
+      // Background 路径可能迟到（冷 SW）：其 GET_INITIAL_DATA 冷分支已经 getOrWarmCache
+      // 自行回填缓存，无需回传全量明文；迟到后轻量触发一次去重预热作为兜底
       bgPromise
         .then(() => {
           if (bgLateResult?.success && bgLateResult.data?.sessionValid) {
-            logger.debug('SidePanel: Background 迟到结果到达，静默更新缓存');
-            void updatePasswordCacheInBackground(bgLateResult.data.passwords, currentDomain.value, true);
+            logger.debug('SidePanel: Background 迟到结果到达，触发缓存预热兜底');
+            void triggerBackgroundCacheRefresh();
           }
         })
         .catch(() => {});
+      return { raceWinner: 'local', sessionValid: true };
     } catch (error) {
       logger.error('SidePanel: 初始化失败:', error);
       isAuthenticated.value = false;
       loading.value = false;
+      return { raceWinner: null, sessionValid: false };
     }
   };
 

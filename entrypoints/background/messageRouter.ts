@@ -10,7 +10,6 @@ import {
 import { openOptionsPage, openOptionsAndSendMessage } from './optionsPageManager';
 import {
   getCachedPasswords,
-  updatePasswordCache,
   invalidatePasswordCache,
   getCachedSortConfig,
   warmPasswordCache,
@@ -19,6 +18,7 @@ import {
   getDecryptedEntryById,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
+import { handleQuickFill } from './quickFillHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
 
 /**
@@ -260,13 +260,11 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.UPDATE_PASSWORD_CACHE: {
-        const { passwords, domain, isAuthenticated } = message.data || {};
-        if (passwords && domain !== undefined) {
-          updatePasswordCache(passwords, domain, isAuthenticated);
-          sendResponse({ success: true });
-        } else {
-          sendResponse({ success: false, error: '缺少缓存数据' });
-        }
+        // 轻量触发（无载荷）：由 background 自行经 warmPasswordCache 去重预热缓存，
+        // 避免 sidepanel 回传全量明文列表的序列化开销（数百条目时主线程 5-30ms）；
+        // 缓存已存在时 no-op，会话无效时内部门控自动跳过
+        void warmPasswordCache();
+        sendResponse({ success: true });
         break;
       }
 
@@ -388,6 +386,16 @@ export function setupMessageRouter(): void {
           .catch(error => {
             logger.error('Background: FILL_BY_ID 处理失败:', error);
             sendResponse({ success: false, message: '填充失败' });
+          });
+        return true;
+      }
+
+      case MessageType.QUICK_FILL: {
+        handleQuickFill()
+          .then(() => sendResponse({ success: true }))
+          .catch(error => {
+            logger.error('Background: QUICK_FILL 处理失败:', error);
+            sendResponse({ success: false, error: error.message });
           });
         return true;
       }

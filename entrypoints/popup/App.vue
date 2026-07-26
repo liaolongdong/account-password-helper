@@ -172,6 +172,39 @@
           {{ t('popup.setShortcut') }}
         </button>
       </div>
+
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        @click="triggerDirectFill"
+        @keydown.enter="triggerDirectFill"
+        @keydown.space.prevent="triggerDirectFill"
+      >
+        <div class="action-card__icon action-card__icon--accent">
+          <el-icon><Position /></el-icon>
+        </div>
+        <div class="action-card__content">
+          <div class="action-card__title">{{ t('popup.directFill') }}</div>
+          <div class="action-card__desc">{{ t('popup.directFillDesc') }}</div>
+        </div>
+        <kbd
+          v-if="shortcutAssigned.quick_fill"
+          class="action-card__shortcut"
+          >{{ shortcuts.quick_fill }}</kbd
+        >
+        <button
+          v-else
+          type="button"
+          class="action-card__shortcut action-card__shortcut-btn"
+          :title="t('popup.goToShortcuts')"
+          @click.stop="openShortcutsPage"
+          @keydown.enter.stop.prevent="openShortcutsPage"
+          @keydown.space.stop.prevent="openShortcutsPage"
+        >
+          {{ t('popup.setShortcut') }}
+        </button>
+      </div>
     </div>
 
     <!-- 联系方式 -->
@@ -194,7 +227,7 @@
 </template>
 
 <script setup lang="ts">
-import { Lock, CircleCheckFilled, WarningFilled, UploadFilled } from '@element-plus/icons-vue';
+import { Lock, CircleCheckFilled, WarningFilled, UploadFilled, Position } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import { MessageType } from '@/utils/types';
@@ -290,6 +323,21 @@ const openSidePanel = async () => {
     }
   } catch (error) {
     logger.error('打开侧边栏失败:', error);
+  }
+};
+
+/**
+ * 触发一键填充
+ * 发送 QUICK_FILL 消息到 background，由其自动匹配当前域名并填充。
+ * 填充结果通过桌面通知反馈给用户。
+ */
+const triggerDirectFill = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.QUICK_FILL });
+  } catch (error) {
+    logger.error('一键填充触发失败:', error);
+  } finally {
+    window.close();
   }
 };
 
@@ -419,14 +467,28 @@ const handleEmailClick = (event: Event) => {
   border-radius: 50%;
 }
 
+/* 三张操作卡图标为同一主题色的三层色阶家族（实心 / 描边 / 浅调渐变），
+   全部由 --aph-primary 系列令牌派生，自动跟随 6 套主题切换；
+   更新提醒卡片图标保持语义红色，不随主题变化 */
 .action-card__icon--primary {
   color: #fff;
   background: var(--aph-primary);
 }
 
 .action-card__icon--secondary {
-  color: var(--aph-primary);
+  /* 描边变体（导航类动作，最轻层级）：主题浅底 + 主题色圆环与图标；
+     图标色向深色收敛保证淡雅主题（如青竹绿）下仍有足够对比度，
+     inset 圆环不改变 36px 容器尺寸 */
+  color: color-mix(in srgb, var(--aph-primary) 78%, #303133);
   background: var(--aph-primary-bg);
+  box-shadow: inset 0 0 0 1.5px rgb(var(--aph-primary-rgb) / 45%);
+}
+
+.action-card__icon--accent {
+  /* 浅调渐变变体（直达填充动作）：主题悬浮浅色 → 主题色的 135° 渐变，
+     全由现成令牌派生，比实心主色卡更轻盈提亮，避免深色收敛带来的沉闷感 */
+  color: #fff;
+  background: linear-gradient(135deg, var(--aph-primary-hover) 0%, var(--aph-primary) 100%);
 }
 
 .action-card__content {

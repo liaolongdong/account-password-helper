@@ -4,8 +4,7 @@ import { logger } from '@/utils/logger';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getAllPasswords } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
-import { isLocalDevDomain, isExactHostMatch } from '@/utils/domain';
-import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { tl } from '@/utils/i18n-lite';
 
 /** 模块级缓存状态（Service Worker 生命周期内有效） */
@@ -196,7 +195,26 @@ export async function getCachedSortConfig(): Promise<{ prop: string; order: stri
   return config;
 }
 
-// ==================== 内联下拉：域名匹配与条目查询 ====================
+// ==================== 内联下拉/一键填充：域名匹配与条目查询 ====================
+
+/**
+ * 按域名过滤并按侧边栏展示顺序排序（带缓存排序配置读取）
+ *
+ * 在纯函数 filterAndSortEntriesForDomain 基础上叠加侧边栏排序配置的
+ * 缓存读取，供 getMatchingAccounts（内联下拉）与 handleQuickFill（一键填充
+ * 取首条）共用，保证两处的列表顺序与侧边栏完全一致。
+ *
+ * @param passwords 全量密码条目
+ * @param domain 当前页面域名（hostname）
+ * @returns 过滤并排序后的新数组（首条即侧边栏展示第一条）
+ */
+export async function sortMatchesForDomain(passwords: PasswordEntry[], domain: string): Promise<PasswordEntry[]> {
+  const sortConfig = await getCachedSortConfig();
+  const sortState: SortState = sortConfig
+    ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
+    : DEFAULT_SIDEPANEL_SORT;
+  return filterAndSortEntriesForDomain(passwords, domain, sortState);
+}
 
 /**
  * 确保缓存已就绪（会话有效时）
@@ -233,29 +251,10 @@ export async function getMatchingAccounts(domain: string): Promise<MatchingAccou
   const cache = await ensureAuthenticatedCache();
   if (!cache) return { locked: true, accounts: [] };
 
-  const list = cache.passwords;
-  // 过滤（与侧边栏 filteredPasswords 一致，含无 URL 条目）
-  // 仅精确匹配完整 hostname，确保 fat/uat 等多测试环境账号严格隔离
-  const matched = list.filter(p => {
-    if (isLocalDevDomain(domain)) return true;
-    if (!p.url || p.url.trim() === '') return true;
-    return isExactHostMatch(domain, p.url);
-  });
-
-  // 域名优先级（与侧边栏 getDomainPriority 一致）：0=匹配，1=不匹配
-  const getDomainPriority = (entry: PasswordEntry): number => {
-    if (!domain) return 0;
-    const hasUrl = !!entry.url && entry.url.trim() !== '';
-    if (hasUrl && isExactHostMatch(domain, entry.url)) return 0;
-    return 1;
-  };
-
-  // 排序：复用侧边栏排序配置 + 域名优先 + 收藏置顶
-  const sortConfig = await getCachedSortConfig();
-  const sortState: SortState = sortConfig
-    ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
-    : DEFAULT_SIDEPANEL_SORT;
-  sortPasswordEntries(matched, sortState, getDomainPriority);
+  // 过滤 + 排序：与侧边栏 filteredPasswords 一致（含无 URL 条目），
+  // 仅精确匹配完整 hostname，确保 fat/uat 等多测试环境账号严格隔离；
+  // 复用 sortMatchesForDomain（侧边栏排序配置 + 域名优先 + 收藏置顶）
+  const matched = await sortMatchesForDomain(cache.passwords, domain);
 
   const accounts = matched.map(p => ({
     id: p.id,

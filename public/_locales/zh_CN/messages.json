@@ -14,5 +14,9 @@
   "commandToggleSidepanel": {
     "message": "打开/关闭密码快速填充侧边栏",
     "description": "键盘快捷键描述：切换侧边栏"
+  },
+  "commandQuickFill": {
+    "message": "一键填充当前页面账号密码",
+    "description": "键盘快捷键描述：一键快速填充"
   }
 }

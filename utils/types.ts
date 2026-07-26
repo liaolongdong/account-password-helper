@@ -149,7 +149,7 @@ export enum MessageType {
    */
   GET_CACHED_PASSWORDS = 'GET_CACHED_PASSWORDS',
   /**
-   * 更新密码缓存
+   * 触发 background 预热/刷新密码缓存（无载荷，由 background 自行去重解密填充）
    */
   UPDATE_PASSWORD_CACHE = 'UPDATE_PASSWORD_CACHE',
   /**
@@ -200,6 +200,10 @@ export enum MessageType {
    * 自动保存预检查：查询当前域名+账号的凭证状态，决定是否/如何弹出保存确认弹窗
    */
   CHECK_CREDENTIAL_STATUS = 'CHECK_CREDENTIAL_STATUS',
+  /**
+   * 一键填充：由 Popup 或快捷键触发，Background 自动匹配当前域名并填充
+   */
+  QUICK_FILL = 'QUICK_FILL',
 }
 
 /**
@@ -222,7 +226,7 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_AND_EDIT; data: { editId: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_ADD }
   | { type: MessageType.GET_CACHED_PASSWORDS; data?: { domain?: string } }
-  | { type: MessageType.UPDATE_PASSWORD_CACHE; data: Omit<PasswordCache, 'timestamp'> }
+  | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
   | { type: MessageType.SESSION_EXPIRED }
@@ -231,7 +235,8 @@ export type RuntimeMessage =
   | { type: MessageType.SIDEPANEL_PRELOAD }
   | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string } }
   | { type: MessageType.FILL_BY_ID; data: FillByIdData }
-  | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData };
+  | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData }
+  | { type: MessageType.QUICK_FILL };
 
 /**
  * 悬浮按钮配置接口

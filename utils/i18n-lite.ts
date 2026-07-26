@@ -96,6 +96,14 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.autoSave.savedNew': '已自动保存新账号密码',
     'bg.autoSave.failed': '自动保存失败: {message}',
     'bg.autoSave.failedGeneric': '自动保存处理失败',
+    'bg.quickFill.title': '一键填充',
+    'bg.quickFill.sessionExpired': '会话未验证，请先验证主密码',
+    'bg.quickFill.noUrl': '无法获取当前页面地址',
+    'bg.quickFill.noMatch': '当前页面没有匹配的账号密码',
+    'bg.quickFill.fillSuccess': '填充成功',
+    'bg.quickFill.fillFailed': '填充失败，请重试或手动填充',
+    'bg.quickFill.multiMatch': '已填充“{title}”（共 {count} 条匹配，可打开侧边栏切换）',
+    'bg.quickFill.pageNotReady': '页面未就绪，请刷新页面后重试',
     'bg.common.unknownError': '未知错误',
     'bg.cache.untitled': '未命名',
   },
@@ -167,6 +175,14 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.autoSave.savedNew': 'New credentials auto-saved',
     'bg.autoSave.failed': 'Auto-save failed: {message}',
     'bg.autoSave.failedGeneric': 'Auto-save processing failed',
+    'bg.quickFill.title': 'Quick Fill',
+    'bg.quickFill.sessionExpired': 'Session not verified. Please verify your master password first.',
+    'bg.quickFill.noUrl': 'Unable to get the current page URL',
+    'bg.quickFill.noMatch': 'No matching credentials found for this page',
+    'bg.quickFill.fillSuccess': 'Credentials filled successfully',
+    'bg.quickFill.fillFailed': 'Fill failed. Please retry or fill manually.',
+    'bg.quickFill.multiMatch': 'Filled "{title}" ({count} matches in total; open the side panel to switch)',
+    'bg.quickFill.pageNotReady': 'Page not ready. Please refresh the page and try again.',
     'bg.common.unknownError': 'Unknown error',
     'bg.cache.untitled': 'Untitled',
   },
@@ -218,7 +234,9 @@ export function tl(key: string, params?: Record<string, string | number>): strin
   if (params) {
     for (const [paramKey, paramValue] of Object.entries(params)) {
       const escapedKey = paramKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      result = result.replace(new RegExp(`\\{${escapedKey}\\}`, 'g'), String(paramValue));
+      // 函数替换器：避免替换值中的 $& / $' 等序列被解释为特殊替换模式
+      // （multiMatch 的 {title} 取自用户可控的标签/URL，可能含 $ 字符）
+      result = result.replace(new RegExp(`\\{${escapedKey}\\}`, 'g'), () => String(paramValue));
     }
   }
   return result;
