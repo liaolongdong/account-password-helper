@@ -3,6 +3,9 @@ import App from '@/entrypoints/sidepanel/App.vue';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { initThemeSync } from '@/utils/theme';
 import { initI18n } from '@/utils/i18n';
+// 注册侧边栏所需命名空间语言包（副作用模块，需在 initI18n 前完成）：
+// 仅内置 ~100 个 key 替代全量 575 key，首屏关键 JS 减少约 100KB
+import '@/utils/i18n/bundles/sidepanel';
 import { logger } from '@/utils/logger';
 import { markPerf, SP_PERF_MARKS } from '@/utils/perfMetrics';
 import '@/assets/theme/tokens.css';
@@ -33,7 +36,8 @@ document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"][media="print"
 initThemeSync();
 
 // 初始化 i18n：等待语言偏好加载完成后再挂载，避免非中文用户首帧闪中文
-// （与 options/popup 入口保持一致；语言包已全部静态内置，仅余 storage.local.get 耗时，不影响首屏体感）
+// （与 options/popup 入口保持一致；语言包已按需静态内置，语言偏好命中
+// localStorage 同步镜像时零 IPC 即刻返回，不阻塞首屏）
 initI18n().then(() => {
   // 性能埋点：i18n 就绪 + Vue mount 开始（App.vue onMounted 中通过 performance.measure 计算 interval）
   markPerf(SP_PERF_MARKS.I18N_READY);

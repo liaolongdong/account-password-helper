@@ -34,7 +34,7 @@ export function useSessionTimer(options: {
 
   // 校验规则需响应语言切换，故用 computed 包裹（与 useAuthFlow/usePasswordManagement 保持一致）
   const validityRules = computed<FormRules>(() => ({
-    validityHours: [{ required: true, message: t('options.validity.required'), trigger: 'change' }],
+    validityHours: [{ required: true, message: t('common.validityRequired'), trigger: 'change' }],
   }));
 
   // 会话信息

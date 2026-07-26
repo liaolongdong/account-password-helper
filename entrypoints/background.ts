@@ -22,6 +22,13 @@ export default defineBackground(() => {
   // 浏览器/配置文件启动时，按「浏览器重启后重新锁定」设置执行安全重锁（默认关闭时无副作用）
   chrome.runtime.onStartup.addListener(() => {
     void handleBrowserStartupRelock();
+    // 启动预热（Windows）：浏览器刚启动时 OS 磁盘缓存全冷，无论会话是否有效，
+    // 首次打开侧边栏都会命中「进程冷 + 资源冷 + SW 冷」三冷叠加白屏。
+    // ignoreSessionGate 跳过会话门控强制温热一次渲染资源；
+    // 懒 import 不增大 SW 初始包，fire-and-forget 不阻塞启动，函数内自带平台门控与节流
+    void import('@/utils/warmSidePanelResources')
+      .then(m => m.maybeWarmSidePanelResources({ ignoreSessionGate: true }))
+      .catch(() => {});
   });
 
   // 注册事件监听器（Service Worker 启动时立即执行）

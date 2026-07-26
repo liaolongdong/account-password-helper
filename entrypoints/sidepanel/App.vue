@@ -276,7 +276,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
-import { markPerf, recordSidepanelOpenMetrics, SP_PERF_MARKS } from '@/utils/perfMetrics';
+import { markPerf, measurePerf, recordSidepanelOpenMetrics, SP_PERF_MARKS } from '@/utils/perfMetrics';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
@@ -607,9 +607,9 @@ const handleFloatingConfigChange = (
 onMounted(async () => {
   // 性能埋点：首帧已渲染（onMounted 触发）+ 测量 Vue mount 开始 → onMounted 的间隔
   markPerf(SP_PERF_MARKS.MOUNTED);
-  const _vueMountMeasure = performance.measure('vue-mount', 'vue-mount-start');
-  const vueMountDuration = _vueMountMeasure?.duration ?? 0;
-  if (_vueMountMeasure) {
+  // measurePerf 内部已容错（mark 缺失时返回 null），与 perfMetrics 模块容错风格一致
+  const vueMountDuration = measurePerf('vue-mount', 'vue-mount-start');
+  if (vueMountDuration !== null) {
     logger.debug(`SidePanel: Vue mount → onMounted ${vueMountDuration.toFixed(1)}ms`);
   }
 
@@ -643,7 +643,7 @@ onMounted(async () => {
 
   const _perfDataReady = performance.now();
   logger.debug(
-    `SidePanel: 首屏数据就绪，initSidepanelData 耗时 ${(_perfDataReady - _perfMountStart).toFixed(1)}ms，总计 ${(_perfDataReady - (_vueMountMeasure?.startTime ?? 0)).toFixed(1)}ms`,
+    `SidePanel: 首屏数据就绪，initSidepanelData 耗时 ${(_perfDataReady - _perfMountStart).toFixed(1)}ms，总计 ${_perfDataReady.toFixed(1)}ms`,
   );
 
   // 数据就绪后淡出骨架屏，实现 骨架屏 → 真实UI 的无缝过渡

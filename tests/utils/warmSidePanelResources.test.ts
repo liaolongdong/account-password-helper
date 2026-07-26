@@ -183,6 +183,27 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('Windows + 会话有效但 ignoreSessionGate=true（浏览器启动冷缓存）时仍预热', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'win' });
+    await chrome.storage.local.set({ session_password_expiry: Date.now() + 3_600_000 });
+    setupFetchReturningHtml();
+    const { maybeWarmSidePanelResources } = await loadModule();
+
+    await maybeWarmSidePanelResources({ ignoreSessionGate: true });
+
+    expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
+  });
+
+  it('非 Windows 平台即使 ignoreSessionGate=true 也跳过（平台门控优先）', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'mac' });
+    setupFetchReturningHtml();
+    const { maybeWarmSidePanelResources } = await loadModule();
+
+    await maybeWarmSidePanelResources({ ignoreSessionGate: true });
+
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('Windows + 会话失效时预热 sidepanel.html 及其入口资源', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'win' });
     await chrome.storage.local.set({ session_password_expiry: Date.now() - 1000 });

@@ -34,7 +34,7 @@ const { t } = useI18n();
     <div class="header-left">
       <h3>
         <BrandLogo class="logo" />
-        {{ t('popup.quickFill') }}
+        {{ t('common.quickFill') }}
         <el-tag
           size="small"
           type="info"
@@ -82,7 +82,7 @@ const { t } = useI18n();
         <button
           type="button"
           class="pill-btn"
-          :title="t('options.header.settings')"
+          :title="t('common.settings')"
           @click="$emit('openSettings')"
         >
           <el-icon><Setting /></el-icon>

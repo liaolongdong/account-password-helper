@@ -140,7 +140,7 @@ const { t } = useI18n();
       <el-icon
         class="action-icon favorite-icon"
         :class="{ 'is-favorite': password.favorite }"
-        :title="password.favorite ? t('options.table.unfavorite') : t('options.table.favorite')"
+        :title="password.favorite ? t('common.unfavorite') : t('common.favorite')"
         @click.stop="$emit('toggleFavorite', password)"
       >
         <StarFilled v-if="password.favorite" />

@@ -152,7 +152,7 @@
           <QuickFillIcon />
         </div>
         <div class="action-card__content">
-          <div class="action-card__title">{{ t('popup.quickFill') }}</div>
+          <div class="action-card__title">{{ t('common.quickFill') }}</div>
           <div class="action-card__desc">{{ t('popup.quickFillDesc') }}</div>
         </div>
         <kbd
@@ -232,6 +232,7 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
 import { usePopupInit } from '@/composables/usePopupInit';
 import { useI18n } from '@/utils/i18n';
 
@@ -296,6 +297,8 @@ const openSidePanel = async () => {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
       try {
+        // 性能埋点：记录打开请求时间戳（同步发起不 await，不打断用户手势链）
+        markSidepanelOpenRequested();
         // 首先尝试直接调用，这在用户手势上下文中应该是有效的
         await chrome.sidePanel.open({ tabId: tab.id });
         window.close();

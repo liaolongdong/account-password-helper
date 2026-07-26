@@ -54,13 +54,10 @@ async function getCacheValidityMs(): Promise<number> {
 /**
  * 获取缓存的密码数据
  *
- * 域名匹配策略（放宽）：缓存存储全量密码列表（域名无关），
- * 由 sidepanel 端做域名过滤（filteredPasswords computed），
- * 因此不再因域名不匹配而拒绝返回缓存。
- *
- * @param _requestedDomain 请求的域名（已忽略，保留参数兼容性）
+ * 缓存存储全量密码列表（域名无关），由 sidepanel 端做域名过滤
+ * （filteredPasswords computed），因此无域名参数。
  */
-export async function getCachedPasswords(_requestedDomain?: string): Promise<PasswordCache | null> {
+export async function getCachedPasswords(): Promise<PasswordCache | null> {
   if (!passwordCache) {
     return null;
   }

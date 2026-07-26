@@ -2,6 +2,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { ExcelUtils } from '@/utils/excel';
 import type { ImportFormat } from '@/utils/excelFormatMap';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
+import { registerMessages, type Messages } from '@/utils/i18n';
+import zhExcel from '@/utils/i18n/locales/zh-CN/excel.json';
+import enExcel from '@/utils/i18n/locales/en/excel.json';
+
+// 语言包已改为各入口按命名空间注册（生产中 excel 导出仅在 options 页使用，
+// 经 bundles/options 注册全量）；测试环境对齐生产行为，注册 excel 命名空间
+registerMessages('zh-CN', zhExcel as Messages);
+registerMessages('en', enExcel as Messages);
 
 /**
  * excel.ts 特征化测试

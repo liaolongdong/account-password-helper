@@ -145,10 +145,6 @@ export enum MessageType {
    */
   OPEN_OPTIONS_PAGE = 'OPEN_OPTIONS_PAGE',
   /**
-   * 获取缓存的密码列表
-   */
-  GET_CACHED_PASSWORDS = 'GET_CACHED_PASSWORDS',
-  /**
    * 触发 background 预热/刷新密码缓存（无载荷，由 background 自行去重解密填充）
    */
   UPDATE_PASSWORD_CACHE = 'UPDATE_PASSWORD_CACHE',
@@ -225,7 +221,6 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_PAGE }
   | { type: MessageType.OPEN_OPTIONS_AND_EDIT; data: { editId: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_ADD }
-  | { type: MessageType.GET_CACHED_PASSWORDS; data?: { domain?: string } }
   | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }

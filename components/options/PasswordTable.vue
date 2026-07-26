@@ -194,7 +194,7 @@
             </el-tooltip>
             <el-tooltip
               :ref="(el: any) => collectTooltipRef(el)"
-              :content="row.favorite ? t('options.table.unfavorite') : t('options.table.favorite')"
+              :content="row.favorite ? t('common.unfavorite') : t('common.favorite')"
               placement="top"
               :show-after="400"
             >

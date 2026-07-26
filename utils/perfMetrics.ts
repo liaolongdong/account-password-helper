@@ -12,7 +12,7 @@
  *
  * @module utils/perfMetrics
  */
-import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 
 /**
@@ -36,11 +36,18 @@ export const SP_PERF_MARKS = {
 /** 环形缓冲最大记录数 */
 const PERF_LOG_MAX_ENTRIES = 20;
 
+/** 打开请求时间戳的有效窗口（毫秒）：超出视为陈旧记录（上次打开失败等场景残留） */
+const OPEN_REQUEST_MAX_AGE_MS = 60000;
+
 /** 单次侧边栏打开的性能记录（写入 storage.local 环形缓冲） */
 export interface SidepanelOpenMetrics {
   /** 记录时间（epoch 毫秒） */
   ts: number;
-  /** 文档启动 → 入口 JS 开始执行（渲染进程创建 + 资源加载 + 编译） */
+  /** 运行平台（win/mac/linux 等，区分 Windows/Mac 耗时分布） */
+  os: string | null;
+  /** 用户点击（sidePanel.open 请求）→ 文档 timeOrigin（渲染进程创建段，仅有时间戳时可算） */
+  clickToDocMs: number | null;
+  /** 文档启动 → 入口 JS 开始执行（资源加载 + 编译） */
   docToMainMs: number | null;
   /** 入口 JS 开始 → i18n 就绪（storage 语言偏好读取） */
   mainToI18nMs: number | null;
@@ -52,6 +59,10 @@ export interface SidepanelOpenMetrics {
   totalMs: number | null;
   /** 竞速胜出路径（bg=Background 缓存，local=本地直读，null=异常/未决出） */
   raceWinner: 'bg' | 'local' | null;
+  /** Background 路径耗时（毫秒，未完成时为 null） */
+  bgPathMs: number | null;
+  /** 本地直读路径耗时（毫秒，未完成时为 null） */
+  localPathMs: number | null;
   /** 数据就绪时会话是否有效（区分锁定态/解锁态打开场景） */
   sessionValid: boolean;
 }
@@ -62,6 +73,10 @@ export interface SidepanelInitMeta {
   raceWinner: 'bg' | 'local' | null;
   /** 初始化完成时会话是否有效 */
   sessionValid: boolean;
+  /** Background 路径耗时（毫秒，未完成时为 null） */
+  bgPathMs?: number | null;
+  /** 本地直读路径耗时（毫秒，未完成时为 null） */
+  localPathMs?: number | null;
 }
 
 /**
@@ -95,32 +110,91 @@ export function measurePerf(name: string, start: string | number, end?: string |
 }
 
 /**
+ * 记录「侧边栏打开请求」时间戳（调用侧：background / popup）
+ *
+ * 在调用 chrome.sidePanel.open() 之前同步发起（fire-and-forget，不 await，
+ * 不打断用户手势链）。侧边栏页面启动后读取并与 performance.timeOrigin 对齐，
+ * 得到「点击 → 渲染进程创建」段耗时（Windows 白屏的最大嫌疑段，此前不可观测）。
+ * 使用 storage.session（仅内存、TRUSTED_CONTEXTS）：不落盘、内容脚本不可读。
+ */
+export function markSidepanelOpenRequested(): void {
+  try {
+    void chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SIDEPANEL_OPEN_REQUESTED_AT]: Date.now() }).catch(() => {});
+  } catch {
+    // 埋点失败静默忽略，不影响打开流程
+  }
+}
+
+/**
+ * 读取并消耗「打开请求」时间戳，计算点击 → 文档 timeOrigin 耗时
+ *
+ * 时间戳与 timeOrigin 均为 epoch 毫秒，可直接相减；读后即删除防止陈旧值污染下次记录。
+ * 仅接受 [0, 60s) 窗口内的合理值（负值/超窗口视为无效，如直接刷新侧边栏页面的场景）。
+ *
+ * @returns 点击到渲染进程启动的耗时（毫秒），无有效时间戳时返回 null
+ */
+async function consumeClickToDocMs(): Promise<number | null> {
+  try {
+    const key = SESSION_MEMORY_KEYS.SIDEPANEL_OPEN_REQUESTED_AT;
+    const result = await chrome.storage.session.get(key);
+    const requestedAt = result[key] as number | undefined;
+    if (typeof requestedAt !== 'number') return null;
+    void chrome.storage.session.remove(key).catch(() => {});
+    const delta = performance.timeOrigin - requestedAt;
+    return delta >= 0 && delta < OPEN_REQUEST_MAX_AGE_MS ? delta : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 获取运行平台标识（win/mac/linux 等），失败时返回 null
+ */
+async function getPlatformOs(): Promise<string | null> {
+  try {
+    const info = await chrome.runtime.getPlatformInfo();
+    return info.os;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * 记录本次侧边栏打开的完整耗时分解，并写入 storage.local 环形缓冲
  *
  * 应在首屏数据就绪（DATA_READY mark 已打点）后调用一次。
  * 存储写入为 fire-and-forget，不阻塞 UI；同时生成的 measure
  * 可在生产环境经 DevTools 时间线直接查看。
  *
- * @param meta 初始化元信息（竞速胜出路径 + 会话状态）
+ * @param meta 初始化元信息（竞速胜出路径 + 会话状态 + 竞速内部耗时）
  */
 export function recordSidepanelOpenMetrics(meta: SidepanelInitMeta): void {
   try {
     const record: SidepanelOpenMetrics = {
       ts: Date.now(),
+      os: null,
+      clickToDocMs: null,
       docToMainMs: measurePerf('sp:doc→main', 0, SP_PERF_MARKS.MAIN_START),
       mainToI18nMs: measurePerf('sp:main→i18n', SP_PERF_MARKS.MAIN_START, SP_PERF_MARKS.I18N_READY),
       i18nToMountedMs: measurePerf('sp:i18n→mounted', SP_PERF_MARKS.I18N_READY, SP_PERF_MARKS.MOUNTED),
       mountedToDataMs: measurePerf('sp:mounted→data', SP_PERF_MARKS.MOUNTED, SP_PERF_MARKS.DATA_READY),
       totalMs: measurePerf('sp:doc→data-ready', 0, SP_PERF_MARKS.DATA_READY),
       raceWinner: meta.raceWinner,
+      bgPathMs: meta.bgPathMs ?? null,
+      localPathMs: meta.localPathMs ?? null,
       sessionValid: meta.sessionValid,
     };
 
     logger.debug('PerfMetrics: 侧边栏打开耗时', record);
 
-    // 环形缓冲写入（fire-and-forget）：读取现有日志 → 追加 → 截断至上限
-    void chrome.storage.local
-      .get(STORAGE_KEYS.SIDEPANEL_PERF_LOG)
+    // 异步补齐平台与点击前置段后写入环形缓冲（fire-and-forget）：
+    // 读取现有日志 → 追加 → 截断至上限
+    void Promise.all([getPlatformOs(), consumeClickToDocMs()])
+      .then(([os, clickToDocMs]) => {
+        record.os = os;
+        record.clickToDocMs = clickToDocMs;
+        return chrome.storage.local.get(STORAGE_KEYS.SIDEPANEL_PERF_LOG);
+      })
       .then(result => {
         const log = (result[STORAGE_KEYS.SIDEPANEL_PERF_LOG] as SidepanelOpenMetrics[] | undefined) ?? [];
         log.push(record);

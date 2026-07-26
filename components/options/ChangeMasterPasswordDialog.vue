@@ -144,7 +144,7 @@ const strengthValidator = (_rule: any, _value: string, callback: any) => {
 /** 确认密码校验器 */
 const confirmValidator = (_rule: any, value: string, callback: any) => {
   if (value !== form.newPassword) {
-    callback(new Error(t('options.changePwd.mismatch')));
+    callback(new Error(t('common.pwdMismatch')));
   } else {
     callback();
   }

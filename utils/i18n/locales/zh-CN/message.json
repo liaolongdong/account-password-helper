@@ -1,0 +1,16 @@
+{
+  "message.saveFailed": "保存失败",
+  "message.saveSettingsFailed": "保存设置失败",
+  "message.saveConfigFailed": "保存配置失败",
+  "message.loadConfigFailed": "加载配置失败",
+  "message.loadListFailed": "加载密码列表失败",
+  "message.loadListFailedDetail": "加载密码列表失败: {message}",
+  "message.deleteFailed": "删除失败",
+  "message.decryptFailed": "解密失败",
+  "message.copyFailed": "复制失败",
+  "message.operationFailed": "操作失败",
+  "message.noDataToBackup": "没有密码数据可备份",
+  "message.unknownError": "未知错误",
+  "message.locked": "已锁定",
+  "message.entryNotFound": "未找到对应的密码条目，可能已被删除"
+}

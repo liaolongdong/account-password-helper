@@ -292,6 +292,8 @@
 <script setup lang="ts">
 import { Document } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
+// help 命名空间语言包随本组件懒加载 chunk 按需注册，不占用侧边栏首屏体积
+import '@/utils/i18n/bundles/help';
 
 defineProps<{
   modelValue: boolean;

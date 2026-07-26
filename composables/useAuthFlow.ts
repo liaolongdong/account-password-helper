@@ -83,7 +83,7 @@ export function useAuthFlow(options: {
       {
         validator: (_rule: any, value: string, callback: (error?: Error) => void) => {
           if (value !== setupForm.value.password) {
-            callback(new Error(t('options.changePwd.mismatch')));
+            callback(new Error(t('common.pwdMismatch')));
           } else {
             callback();
           }

@@ -1,0 +1,4 @@
+{
+  "verify.passwordEmpty": "主密码不能为空",
+  "verify.wrongPassword": "主密码错误"
+}

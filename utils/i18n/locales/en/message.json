@@ -1,0 +1,16 @@
+{
+  "message.saveFailed": "Save failed",
+  "message.saveSettingsFailed": "Failed to save settings",
+  "message.saveConfigFailed": "Failed to save settings",
+  "message.loadConfigFailed": "Failed to load settings",
+  "message.loadListFailed": "Failed to load the password list",
+  "message.loadListFailedDetail": "Failed to load the password list: {message}",
+  "message.deleteFailed": "Deletion failed",
+  "message.decryptFailed": "Decryption failed",
+  "message.copyFailed": "Copy failed",
+  "message.operationFailed": "Operation failed",
+  "message.noDataToBackup": "No password data to back up",
+  "message.unknownError": "Unknown error",
+  "message.locked": "Locked",
+  "message.entryNotFound": "Matching password entry not found; it may have been deleted"
+}

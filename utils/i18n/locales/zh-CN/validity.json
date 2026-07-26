@@ -1,0 +1,11 @@
+{
+  "validity.h1": "1小时",
+  "validity.h2": "2小时",
+  "validity.h4": "4小时",
+  "validity.h8": "8小时",
+  "validity.h12": "12小时",
+  "validity.h24": "24小时（推荐）",
+  "validity.d3": "3天",
+  "validity.d5": "5天",
+  "validity.d7": "7天"
+}

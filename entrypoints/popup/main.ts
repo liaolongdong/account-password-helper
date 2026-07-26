@@ -3,6 +3,8 @@ import App from '@/entrypoints/popup/App.vue';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { initThemeSync } from '@/utils/theme';
 import { initI18n } from '@/utils/i18n';
+// 注册 popup 所需命名空间语言包（副作用模块，需在 initI18n 前完成）
+import '@/utils/i18n/bundles/popup';
 import '@/assets/theme/tokens.css';
 
 // 预唤醒 Service Worker：用户打开 popup 后大概率会点击「快速填充」打开侧边栏，

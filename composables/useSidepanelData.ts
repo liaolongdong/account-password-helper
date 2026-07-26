@@ -507,6 +507,9 @@ export function useSidepanelData() {
       const _perfRaceStart = performance.now();
       // 竞速标记：null = 未决出胜负，'bg' = Background 路径胜出，'local' = 本地路径胜出
       let raceWinner: 'bg' | 'local' | null = null;
+      // 性能埋点：两条路径各自耗时（写入环形日志，生产环境可定位 Windows 慢点归属）
+      let bgPathMs: number | null = null;
+      let localPathMs: number | null = null;
       /** Background 路径迟到结果（本地路径先胜出时保存，用于静默更新缓存） */
       let bgLateResult: {
         success?: boolean;
@@ -528,14 +531,15 @@ export function useSidepanelData() {
         }),
         new Promise<null>(resolve => setTimeout(() => resolve(null), 800)),
       ]).then(result => {
+        bgPathMs = performance.now() - _perfBgStart;
         if (raceWinner) {
           // 本地路径已胜出，保存 bg 结果用于静默更新缓存
           bgLateResult = result as typeof bgLateResult;
-          logger.debug(`SidePanel: bg 路径迟到 (${(performance.now() - _perfBgStart).toFixed(1)}ms)，静默更新缓存`);
+          logger.debug(`SidePanel: bg 路径迟到 (${bgPathMs.toFixed(1)}ms)，静默更新缓存`);
           return null;
         }
         raceWinner = 'bg';
-        logger.debug(`SidePanel: bg 路径竞速胜出 (${(performance.now() - _perfBgStart).toFixed(1)}ms)`);
+        logger.debug(`SidePanel: bg 路径竞速胜出 (${bgPathMs.toFixed(1)}ms)`);
         return { source: 'bg' as const, data: result };
       });
 
@@ -543,6 +547,14 @@ export function useSidepanelData() {
       // 性能优化：并行启动 sessionManager-storage 和 passwordCrud 两个 dynamic import，
       // 利用模块系统自动去重，将串行 2×import 改为并行，Windows 上节省 100~300ms
       const _perfLocalStart = performance.now();
+      /** 本地路径原始结果（无论竞速胜负均保存）：bg 响应格式异常回退时，
+       *  若本地路径已在 bg 胜出期间完成（.then 返回了 null），可直接复用此结果，
+       *  避免被误判为会话无效（极低概率边缘竞态加固） */
+      let localRawResult: {
+        sessionValid: boolean;
+        passwords: PasswordEntry[];
+        sortConfig: { prop: string; order: string } | null;
+      } | null = null;
       const localPromise = (async () => {
         const [isSessionValidFn, crud] = await Promise.all([getIsSessionValid(), getPasswordCrudModule()]);
         const sessionValid = await isSessionValidFn();
@@ -555,12 +567,14 @@ export function useSidepanelData() {
         ]);
         return { sessionValid: true, passwords: loadedPasswords as PasswordEntry[], sortConfig: sortConfigResult };
       })().then(result => {
+        localPathMs = performance.now() - _perfLocalStart;
+        localRawResult = result;
         if (raceWinner) {
           // Background 路径已胜出，本地结果静默丢弃
           return null;
         }
         raceWinner = 'local';
-        logger.debug(`SidePanel: 本地路径竞速胜出 (${(performance.now() - _perfLocalStart).toFixed(1)}ms)`);
+        logger.debug(`SidePanel: 本地路径竞速胜出 (${localPathMs.toFixed(1)}ms)`);
         return { source: 'local' as const, data: result };
       });
 
@@ -569,6 +583,14 @@ export function useSidepanelData() {
       logger.debug(
         `SidePanel: 竞速完成，胜出路径=${raceWinner}，总耗时 ${(performance.now() - _perfRaceStart).toFixed(1)}ms`,
       );
+
+      /** 组装初始化元信息（含竞速内部耗时，供性能环形日志归因 Windows 慢点） */
+      const buildMeta = (winnerPath: 'bg' | 'local' | null, sessionValid: boolean): SidepanelInitMeta => ({
+        raceWinner: winnerPath,
+        sessionValid,
+        bgPathMs,
+        localPathMs,
+      });
 
       // 确保 currentDomain 已就绪（loadCurrentTab 应在 winner 返回时已完成，此处防御性等待）
       await tabPromise;
@@ -599,7 +621,7 @@ export function useSidepanelData() {
 
             // 本地路径可能仍在执行（dynamic import），让其静默完成
             localPromise.catch(() => {});
-            return { raceWinner: 'bg', sessionValid: true };
+            return buildMeta('bg', true);
           }
 
           // 会话无效
@@ -609,29 +631,32 @@ export function useSidepanelData() {
           loading.value = false;
 
           localPromise.catch(() => {});
-          return { raceWinner: 'bg', sessionValid: false };
+          return buildMeta('bg', false);
         }
 
         // Background 返回了响应但格式异常，回退到本地路径
         logger.debug('SidePanel: Background 响应异常，等待本地路径');
         raceWinner = null;
         const localWinner = await localPromise;
-        if (localWinner && localWinner.data.sessionValid) {
+        // 边缘竞态加固：若本地路径已在 bg 胜出期间完成（localWinner 为 null），
+        // 复用已保存的原始结果，避免会话有效场景被误置为锁定态
+        const localData2 = localWinner?.data ?? localRawResult;
+        if (localData2?.sessionValid) {
           _sessionKnownExpired = false;
           isAuthenticated.value = true;
-          passwords.value = localWinner.data.passwords;
-          sortConfig.value = localWinner.data.sortConfig;
+          passwords.value = localData2.passwords;
+          sortConfig.value = localData2.sortConfig;
           loading.value = false;
 
-          logger.debug('SidePanel: 本地初始化数据加载完成（bg 异常回退），条目数:' + localWinner.data.passwords.length);
+          logger.debug('SidePanel: 本地初始化数据加载完成（bg 异常回退），条目数:' + localData2.passwords.length);
           void triggerBackgroundCacheRefresh();
-          return { raceWinner: 'local', sessionValid: true };
+          return buildMeta('local', true);
         }
 
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
         loading.value = false;
-        return { raceWinner: 'local', sessionValid: false };
+        return buildMeta('local', false);
       }
 
       // 本地路径竞速胜出
@@ -645,7 +670,7 @@ export function useSidepanelData() {
 
         // 等待 bg 路径完成（可能迟到），用于同步状态
         bgPromise.catch(() => {});
-        return { raceWinner: 'local', sessionValid: false };
+        return buildMeta('local', false);
       }
 
       _sessionKnownExpired = false;
@@ -668,7 +693,7 @@ export function useSidepanelData() {
           }
         })
         .catch(() => {});
-      return { raceWinner: 'local', sessionValid: true };
+      return buildMeta('local', true);
     } catch (error) {
       logger.error('SidePanel: 初始化失败:', error);
       isAuthenticated.value = false;

@@ -1,0 +1,23 @@
+{
+  "fill.clipboardCleared": "剪贴板已自动清除",
+  "fill.clipboardClearFailed": "自动清除剪贴板失败，请手动清除",
+  "fill.noTabInfo": "无法获取当前页面信息",
+  "fill.injectFailed": "无法在当前页面中注入脚本，请刷新页面后重试",
+  "fill.scriptNotReady": "页面脚本未就绪，请刷新页面后重试",
+  "fill.noLoginForm": "未检测到登录表单，请确保页面包含登录输入框",
+  "fill.fillSuccess": "密码填充成功",
+  "fill.fillFailed": "填充密码失败，请确保页面已加载完成",
+  "fill.connectFailed": "无法连接到页面脚本，请刷新页面后重试",
+  "fill.noTotpConfigured": "该条目未配置两步验证",
+  "fill.totpGenerateFailed": "生成验证码失败，请检查密钥",
+  "fill.totpFillSuccess": "验证码填充成功",
+  "fill.totpFillFailed": "填充验证码失败，请刷新页面后重试",
+  "fill.noTotpInput": "当前页面未检测到验证码输入框",
+  "fill.totpCopied": "验证码已复制到剪贴板",
+  "fill.totpCopyFailed": "复制验证码失败",
+  "fill.openEditFailed": "打开编辑页面失败",
+  "fill.usernameCopied": "用户名已复制到剪贴板",
+  "fill.usernameCopyFailed": "复制用户名失败",
+  "fill.passwordCopied": "密码已复制到剪贴板",
+  "fill.passwordCopyFailed": "复制密码失败"
+}

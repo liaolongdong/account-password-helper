@@ -112,7 +112,7 @@
           @command="(cmd: string) => $emit('settingsCommand', cmd)"
         >
           <el-button :icon="Setting">
-            {{ t('options.header.settings') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            {{ t('common.settings') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
