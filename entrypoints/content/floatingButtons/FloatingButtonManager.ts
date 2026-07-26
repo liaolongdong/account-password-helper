@@ -8,6 +8,7 @@ import { logger } from '@/utils/logger';
 import { MessageType } from '@/utils/types';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { applyThemeTokensToHost } from '@/utils/theme';
+import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { floatingButtonStyles, settingsPanelStyles } from '@/entrypoints/content/floatingButtons/styles';
 import {
@@ -35,6 +36,8 @@ export class FloatingButtonManager {
   private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
   /** 密码管理按钮点击处理中的标记，防止连点重复触发 */
   private isHandlingOptionsClick: boolean = false;
+  /** 语言变更订阅的取消函数（销毁时解除，避免残留回调） */
+  private unsubscribeLocale: (() => void) | null = null;
 
   constructor() {
     this.config = StorageUtils.getDefaultFloatingButtonConfig();
@@ -128,17 +131,21 @@ export class FloatingButtonManager {
 
     // 创建按钮
     this.buttonGroup.innerHTML = `
-      <button class="btn btn-sidepanel" data-action="toggle-sidepanel" title="快速填充">
+      <button class="btn btn-sidepanel" data-action="toggle-sidepanel" title="${tl('cs.fab.quickFill')}">
         ${sidebarOpenIcon}
       </button>
-      <button class="btn btn-options" data-action="open-options" title="密码管理">
+      <button class="btn btn-options" data-action="open-options" title="${tl('cs.fab.manage')}">
         ${passwordIcon}
         <span class="drag-handle">${dragHandleIcon}</span>
       </button>
-      <button class="btn btn-settings" data-action="open-settings" title="设置">
+      <button class="btn btn-settings" data-action="open-settings" title="${tl('cs.fab.settings')}">
         ${settingsIcon}
       </button>
     `;
+
+    // 语言切换时就地刷新按钮 tooltip（含初始化异步加载完成后的首次通知）
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = onLiteLocaleChanged(() => this.refreshButtonTitles());
 
     this.container.appendChild(this.buttonGroup);
 
@@ -152,6 +159,16 @@ export class FloatingButtonManager {
     this.shadowRoot.appendChild(this.container);
     this.shadowRoot.appendChild(snapPreviewLeft);
     this.shadowRoot.appendChild(snapPreviewRight);
+  }
+
+  /**
+   * 按当前语言就地刷新三个按钮的 tooltip（语言切换时调用，无需重建 DOM）
+   */
+  private refreshButtonTitles(): void {
+    if (!this.buttonGroup) return;
+    this.buttonGroup.querySelector('.btn-sidepanel')?.setAttribute('title', tl('cs.fab.quickFill'));
+    this.buttonGroup.querySelector('.btn-options')?.setAttribute('title', tl('cs.fab.manage'));
+    this.buttonGroup.querySelector('.btn-settings')?.setAttribute('title', tl('cs.fab.settings'));
   }
 
   /**
@@ -251,9 +268,10 @@ export class FloatingButtonManager {
         btn.classList.add('loading');
       }
 
-      // 发送消息给background切换侧边栏
+      // 发送消息给background切换侧边栏（clickTs=点击时刻，覆盖「点击 → SW 唤醒」埋点盲区）
       await chrome.runtime.sendMessage({
         type: MessageType.TOGGLE_SIDEPANEL,
+        data: { clickTs: Date.now() },
       });
 
       if (btn) {
@@ -486,6 +504,10 @@ export class FloatingButtonManager {
       }
       this.storageListener = null;
     }
+
+    // 解除语言变更订阅
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = null;
 
     // 销毁子组件
     this.animationController?.destroy();

@@ -1,0 +1,5 @@
+{
+  "totp.params": "{algorithm} · {digits} 位 · {period} 秒",
+  "totp.copied": "验证码已复制",
+  "totp.invalidSecret": "无效密钥"
+}

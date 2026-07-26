@@ -10,7 +10,7 @@
     <template #header>
       <div class="health-dialog__title">
         <el-icon><Aim /></el-icon>
-        <span>安全体检</span>
+        <span>{{ t('health.title') }}</span>
       </div>
     </template>
 
@@ -21,8 +21,8 @@
         class="health-empty"
       >
         <el-icon class="health-empty__icon"><FolderOpened /></el-icon>
-        <p class="health-empty__title">还没有密码</p>
-        <p class="health-empty__desc">先添加或导入账号密码，再回来查看安全体检报告。</p>
+        <p class="health-empty__title">{{ t('health.empty') }}</p>
+        <p class="health-empty__desc">{{ t('health.emptyDesc') }}</p>
       </div>
 
       <div
@@ -41,7 +41,7 @@
               :height="RING_SIZE"
               :viewBox="`0 0 ${RING_SIZE} ${RING_SIZE}`"
               role="img"
-              :aria-label="`安全评分 ${report.score} 分，${gradeText}`"
+              :aria-label="t('options.header.healthScore', { score: report.score }) + '，' + gradeText"
             >
               <circle
                 class="ring-track"
@@ -65,14 +65,14 @@
             </svg>
             <div class="score-center">
               <span class="score-num">{{ report.score }}</span>
-              <span class="score-unit">分</span>
+              <span class="score-unit">{{ t('health.score') }}</span>
             </div>
           </div>
 
           <div class="hero-text">
             <div class="hero-grade">{{ gradeText }}</div>
             <p class="hero-summary">{{ summaryText }}</p>
-            <p class="hero-total">共 {{ report.total }} 条账号密码 · 全程本地计算，不联网</p>
+            <p class="hero-total">{{ t('health.total', { count: report.total }) }}</p>
           </div>
         </section>
 
@@ -86,7 +86,9 @@
             :class="[`tone-${metric.tone}`, { 'is-clickable': metric.clickable }]"
             :type="metric.clickable ? 'button' : undefined"
             :aria-label="
-              metric.clickable ? `${metric.label}：${metric.count}，点击查看明细` : `${metric.label}：${metric.count}`
+              metric.clickable
+                ? `${metric.label}: ${metric.count} (${t('health.goFix')})`
+                : `${metric.label}: ${metric.count}`
             "
             @click="metric.clickable ? scrollToIssue(metric.key) : undefined"
           >
@@ -105,7 +107,7 @@
           class="health-allgood"
         >
           <el-icon class="health-allgood__icon"><CircleCheckFilled /></el-icon>
-          <span>太棒了，未发现密码安全问题。</span>
+          <span>{{ t('health.allGood') }}</span>
         </div>
 
         <!-- 明细区 -->
@@ -123,11 +125,11 @@
               <template #title>
                 <span class="panel-title">
                   <el-icon class="panel-title__icon tone-danger"><CopyDocument /></el-icon>
-                  密码复用
+                  {{ t('health.reuse') }}
                   <span class="panel-badge tone-danger">{{ report.reuseAffectedCount }}</span>
                 </span>
               </template>
-              <p class="panel-hint">这些账号共用了相同的密码，一处泄露将波及全部，建议逐一改为独立密码。</p>
+              <p class="panel-hint">{{ t('health.reuseHint') }}</p>
               <div
                 v-for="(group, gi) in report.reuseGroups"
                 :key="gi"
@@ -135,7 +137,7 @@
               >
                 <div class="reuse-group__head">
                   <el-icon><WarningFilled /></el-icon>
-                  {{ group.count }} 个账号共用同一密码
+                  {{ t('health.reuseGroupHead', { count: group.count }) }}
                 </div>
                 <div
                   v-for="entry in group.entries"
@@ -143,7 +145,7 @@
                   class="issue-row"
                 >
                   <div class="issue-info">
-                    <span class="issue-name">{{ entry.username || '（无用户名）' }}</span>
+                    <span class="issue-name">{{ entry.username || t('health.noUsername') }}</span>
                     <span
                       v-if="entry.url"
                       class="issue-url"
@@ -157,7 +159,7 @@
                     :icon="Edit"
                     @click="onEdit(entry.id)"
                   >
-                    去处理
+                    {{ t('health.goFix') }}
                   </el-button>
                 </div>
               </div>
@@ -172,11 +174,11 @@
               <template #title>
                 <span class="panel-title">
                   <el-icon class="panel-title__icon tone-danger"><WarningFilled /></el-icon>
-                  弱密码
+                  {{ t('health.weak') }}
                   <span class="panel-badge tone-danger">{{ report.weak.length }}</span>
                 </span>
               </template>
-              <p class="panel-hint">这些密码强度较弱，建议增加长度并混合大小写字母、数字与特殊字符。</p>
+              <p class="panel-hint">{{ t('health.weakHint') }}</p>
               <div class="issue-card">
                 <div
                   v-for="entry in report.weak"
@@ -184,7 +186,7 @@
                   class="issue-row"
                 >
                   <div class="issue-info">
-                    <span class="issue-name">{{ entry.username || '（无用户名）' }}</span>
+                    <span class="issue-name">{{ entry.username || t('health.noUsername') }}</span>
                     <span
                       v-if="entry.url"
                       class="issue-url"
@@ -198,7 +200,50 @@
                     :icon="Edit"
                     @click="onEdit(entry.id)"
                   >
-                    去处理
+                    {{ t('health.goFix') }}
+                  </el-button>
+                </div>
+              </div>
+            </el-collapse-item>
+
+            <!-- 常见泄露密码（命中 top-1000 离线字典） -->
+            <el-collapse-item
+              v-if="report.breached.length"
+              name="breached"
+              class="health-panel-breached"
+            >
+              <template #title>
+                <span class="panel-title">
+                  <el-icon class="panel-title__icon tone-danger"><Unlock /></el-icon>
+                  {{ t('health.breached') }}
+                  <span class="panel-badge tone-danger">{{ report.breached.length }}</span>
+                </span>
+              </template>
+              <p class="panel-hint">
+                {{ t('health.breachedHint') }}
+              </p>
+              <div class="issue-card">
+                <div
+                  v-for="entry in report.breached"
+                  :key="entry.id"
+                  class="issue-row"
+                >
+                  <div class="issue-info">
+                    <span class="issue-name">{{ entry.username || t('health.noUsername') }}</span>
+                    <span
+                      v-if="entry.url"
+                      class="issue-url"
+                    >
+                      {{ entry.url }}
+                    </span>
+                  </div>
+                  <el-button
+                    link
+                    type="primary"
+                    :icon="Edit"
+                    @click="onEdit(entry.id)"
+                  >
+                    {{ t('health.goFix') }}
                   </el-button>
                 </div>
               </div>
@@ -213,11 +258,11 @@
               <template #title>
                 <span class="panel-title">
                   <el-icon class="panel-title__icon tone-warning"><Timer /></el-icon>
-                  长时间未更新
+                  {{ t('health.stale') }}
                   <span class="panel-badge tone-warning">{{ report.stale.length }}</span>
                 </span>
               </template>
-              <p class="panel-hint">这些条目长时间未更新（以最后修改时间估算），建议定期更换重要账号的密码。</p>
+              <p class="panel-hint">{{ t('health.staleHint') }}</p>
               <div class="issue-card">
                 <div
                   v-for="entry in report.stale"
@@ -225,7 +270,7 @@
                   class="issue-row"
                 >
                   <div class="issue-info">
-                    <span class="issue-name">{{ entry.username || '（无用户名）' }}</span>
+                    <span class="issue-name">{{ entry.username || t('health.noUsername') }}</span>
                     <span
                       v-if="entry.url"
                       class="issue-url"
@@ -240,13 +285,40 @@
                     >
                       {{ formatAge(entry.ageDays) }}
                     </span>
+                    <el-dropdown
+                      trigger="click"
+                      size="small"
+                      @command="(days: number) => handleSetReminder(entry.id, entry.username, days)"
+                    >
+                      <el-button
+                        link
+                        type="warning"
+                        :icon="Bell"
+                        :class="{ 'reminder-set': reminderStates[entry.id] }"
+                      >
+                        {{ reminderStates[entry.id] ? reminderStates[entry.id] : t('health.setReminder') }}
+                      </el-button>
+                      <template #dropdown>
+                        <el-dropdown-menu>
+                          <el-dropdown-item :command="7">{{
+                            t('health.remindAfterDays', { days: 7 })
+                          }}</el-dropdown-item>
+                          <el-dropdown-item :command="30">{{
+                            t('health.remindAfterDays', { days: 30 })
+                          }}</el-dropdown-item>
+                          <el-dropdown-item :command="90">{{
+                            t('health.remindAfterDays', { days: 90 })
+                          }}</el-dropdown-item>
+                        </el-dropdown-menu>
+                      </template>
+                    </el-dropdown>
                     <el-button
                       link
                       type="primary"
                       :icon="Edit"
                       @click="onEdit(entry.id)"
                     >
-                      去处理
+                      {{ t('health.goFix') }}
                     </el-button>
                   </div>
                 </div>
@@ -263,7 +335,7 @@
           type="primary"
           @click="$emit('update:modelValue', false)"
         >
-          关闭
+          {{ t('common.close') }}
         </el-button>
       </div>
     </template>
@@ -281,8 +353,12 @@ import {
   Edit,
   CircleCheckFilled,
   FolderOpened,
+  Unlock,
+  Bell,
 } from '@element-plus/icons-vue';
 import type { HealthReport, HealthGrade } from '@/utils/passwordHealth';
+import { setReminder, getReminders } from '@/utils/storage/reminderManager';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 密码健康仪表盘弹窗
@@ -306,6 +382,8 @@ const emit = defineEmits<{
   (e: 'edit', id: string): void;
 }>();
 
+const { t } = useI18n();
+
 /** 环形进度几何参数（纯 SVG，避免引入图表库增大打包体积） */
 const RING_SIZE = 112;
 const RING_STROKE = 10;
@@ -322,70 +400,84 @@ const animatedScore = ref(0);
 /** 环形进度偏移量：评分越高，空缺越小 */
 const ringOffset = computed(() => RING_C * (1 - animatedScore.value / 100));
 
-/** 健康等级中文文案 */
+/** 健康等级文案（随语言实时切换） */
 const gradeText = computed(() => {
   const map: Record<HealthGrade, string> = {
-    excellent: '优秀',
-    good: '良好',
-    fair: '一般',
-    poor: '较差',
+    excellent: t('health.excellent'),
+    good: t('health.good'),
+    fair: t('health.fair'),
+    poor: t('health.poor'),
   };
   return map[props.report.grade];
 });
 
-/** 是否存在需要关注的问题（复用 / 弱密码 / 陈旧） */
+/** 是否存在需要关注的问题（复用 / 弱密码 / 字典命中 / 陈旧） */
 const hasIssues = computed(
-  () => props.report.reuseGroups.length > 0 || props.report.weak.length > 0 || props.report.stale.length > 0,
+  () =>
+    props.report.reuseGroups.length > 0 ||
+    props.report.weak.length > 0 ||
+    props.report.breached.length > 0 ||
+    props.report.stale.length > 0,
 );
 
 /** hero 区摘要文案 */
 const summaryText = computed(() => {
-  if (!hasIssues.value) return '账号密码结构健康，继续保持。';
+  if (!hasIssues.value) return t('health.allGood');
   const categories = [
     props.report.reuseGroups.length > 0,
     props.report.weak.length > 0,
+    props.report.breached.length > 0,
     props.report.stale.length > 0,
   ].filter(Boolean).length;
-  return `发现 ${categories} 项需要关注`;
+  return t('health.issuesFound', { count: categories });
 });
 
-/** 指标卡数据（复用 / 弱密码 / 陈旧为可点击明细项，未开启两步验证仅信息展示） */
+/** 指标卡数据（复用 / 弱密码 / 字典命中 / 陈旧为可点击明细项，未开启两步验证仅信息展示） */
 const metrics = computed(() => {
   const r = props.report;
   return [
     {
       key: 'reuse' as const,
-      label: '密码复用',
+      label: t('health.reuse'),
       icon: CopyDocument,
       count: r.reuseAffectedCount,
-      caption: r.reuseGroups.length ? `${r.reuseGroups.length} 组共用` : '无复用',
+      caption: r.reuseGroups.length ? t('health.reuseCaption', { count: r.reuseGroups.length }) : t('health.noReuse'),
       tone: r.reuseAffectedCount > 0 ? 'danger' : 'ok',
       clickable: r.reuseGroups.length > 0,
     },
     {
       key: 'weak' as const,
-      label: '弱密码',
+      label: t('health.weak'),
       icon: WarningFilled,
       count: r.weak.length,
-      caption: r.weak.length ? '建议增强' : '无弱密码',
+      caption: r.weak.length ? t('health.weakCaption') : t('health.noWeak'),
       tone: r.weak.length > 0 ? 'danger' : 'ok',
       clickable: r.weak.length > 0,
     },
     {
+      key: 'breached' as const,
+      label: t('health.breached'),
+      icon: Unlock,
+      count: r.breached.length,
+      caption: r.breached.length ? t('health.breachedCaption') : t('health.notInDict'),
+      tone: r.breached.length > 0 ? 'danger' : 'ok',
+      clickable: r.breached.length > 0,
+    },
+    {
       key: 'stale' as const,
-      label: '长时间未更新',
+      label: t('health.stale'),
       icon: Timer,
       count: r.stale.length,
-      caption: r.stale.length ? '建议更换' : '较新',
+      caption: r.stale.length ? t('health.staleCaption') : t('health.fresh'),
       tone: r.stale.length > 0 ? 'warning' : 'ok',
       clickable: r.stale.length > 0,
     },
     {
       key: 'noTotp' as const,
-      label: '未开启两步验证',
+      label: t('health.noTotp'),
       icon: Key,
       count: r.noTotpCount,
-      caption: r.noTotpCount ? '可选增强' : '已全部开启',
+      caption: r.noTotpCount ? t('health.noTotpCaption') : t('health.allTotpOn'),
       tone: r.noTotpCount > 0 ? 'info' : 'ok',
       clickable: false,
     },
@@ -399,9 +491,9 @@ const metrics = computed(() => {
 function formatAge(days: number): string {
   if (days >= 365) {
     const years = Math.floor(days / 365);
-    return `超过 ${years} 年未更新`;
+    return t('health.ageYears', { years });
   }
-  return `${days} 天未更新`;
+  return t('health.ageDays', { days });
 }
 
 /**
@@ -426,14 +518,52 @@ function onEdit(id: string): void {
   emit('edit', id);
 }
 
-/** 弹窗打开时：重置并触发环形开场动画、默认展开全部问题面板 */
+/** 每条陈旧条目的提醒状态显示文案（反应式，弹窗打开时加载） */
+const reminderStates = ref<Record<string, string>>({});
+
+/**
+ * 设置密码到期提醒
+ * @param entryId 条目 ID
+ * @param username 用户名
+ * @param days N 天后提醒
+ */
+async function handleSetReminder(entryId: string, username: string, days: number): Promise<void> {
+  try {
+    await setReminder(entryId, username, days);
+    reminderStates.value[entryId] = t('health.remindDays', { days });
+    ElMessage.success(t('health.reminderSet', { username, days }));
+  } catch {
+    ElMessage.error(t('health.reminderFailed'));
+  }
+}
+
+/**
+ * 加载各条目已有的提醒状态（弹窗打开时异步加载）
+ *
+ * 单次读取全量提醒映射表，避免逐条读取造成 N 次冗余 storage IO。
+ */
+async function loadReminderStates(): Promise<void> {
+  const states: Record<string, string> = {};
+  const reminders = await getReminders();
+  for (const entry of props.report.stale) {
+    const reminder = reminders[entry.id];
+    if (reminder && !reminder.notified) {
+      const daysLeft = Math.max(0, Math.ceil((reminder.remindAt - Date.now()) / (24 * 60 * 60 * 1000)));
+      states[entry.id] = daysLeft > 0 ? t('health.remindDays', { days: daysLeft }) : t('health.reminderExpired');
+    }
+  }
+  reminderStates.value = states;
+}
+
+/** 弹窗打开时：重置并触发环形开场动画、默认展开全部问题面板、加载提醒状态 */
 watch(
   () => props.modelValue,
   visible => {
     if (!visible) return;
-    activePanels.value = ['reuse', 'weak', 'stale'].filter(k => {
+    activePanels.value = ['reuse', 'weak', 'breached', 'stale'].filter(k => {
       if (k === 'reuse') return props.report.reuseGroups.length > 0;
       if (k === 'weak') return props.report.weak.length > 0;
+      if (k === 'breached') return props.report.breached.length > 0;
       return props.report.stale.length > 0;
     });
     animatedScore.value = 0;
@@ -442,6 +572,8 @@ watch(
         animatedScore.value = props.report.score;
       });
     });
+    // 异步加载提醒状态（不阻塞弹窗打开）
+    loadReminderStates();
   },
 );
 </script>

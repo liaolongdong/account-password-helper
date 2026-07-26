@@ -19,6 +19,16 @@ export const STORAGE_KEYS = {
   FAVORITE_LIMIT: 'favorite_limit',
   SIDEPANEL_SORT_CONFIG: 'sidepanel_sort_config',
   UPDATE_INFO: 'extension_update_info',
+  /** 回收站条目（软删除，30 天 TTL 自动清理） */
+  TRASH: 'account_passwords_trash',
+  /** 密码修改历史记录（每条最多 5 条快照） */
+  PASSWORD_HISTORY: 'password_change_history',
+  /** 密码到期提醒配置（每条目独立提醒时间） */
+  PASSWORD_REMINDERS: 'password_reminders',
+  /** 用户语言偏好（'zh-CN' | 'en'） */
+  LOCALE: 'app_locale',
+  /** 侧边栏打开性能埋点环形日志（最近 20 次，用于生产环境量化白屏/卡顿） */
+  SIDEPANEL_PERF_LOG: 'sidepanel_perf_log',
 };
 
 /**
@@ -30,4 +40,6 @@ export const STORAGE_KEYS = {
 export const SESSION_MEMORY_KEYS = {
   /** 会话期派生的 AES-256-GCM 数据密钥（hex） */
   DATA_KEY: 'session_data_key',
+  /** 侧边栏打开请求记录（{ at: epoch 毫秒, trigger: 触发源 }），用于量化「用户点击 → 渲染进程 timeOrigin」耗时与打开路径归因 */
+  SIDEPANEL_OPEN_REQUESTED_AT: 'sidepanel_open_requested_at',
 };

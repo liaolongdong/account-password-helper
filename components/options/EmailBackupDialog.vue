@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="备份到邮箱"
+    :title="t('options.header.emailBackup')"
     width="520px"
     align-center
     :close-on-click-modal="false"
@@ -18,22 +18,23 @@
         size="large"
       >
         <el-alert
-          title="备份说明"
+          :title="t('options.emailBackup.noteTitle')"
           type="info"
           :closable="false"
           show-icon
           style="margin-bottom: 20px"
         >
           <template #default>
-            将密码列表导出为数据文件并唤起邮件客户端，请将下载的文件作为附件发送。<br />
-            开启「自动备份提醒」后，仅定时发送桌面提醒通知您手动备份，<strong>不会自动下载密码文件</strong>。
+            {{ t('options.emailBackup.noteLine1') }}<br />
+            {{ t('options.emailBackup.noteLine2Prefix') }}<strong>{{ t('options.emailBackup.noteLine2Strong') }}</strong
+            >{{ t('options.emailBackup.noteLine2Suffix') }}
           </template>
         </el-alert>
 
-        <el-form-item label="备份方式">
+        <el-form-item :label="t('options.emailBackup.backupType')">
           <el-radio-group v-model="backupType">
-            <el-radio value="unencrypted">不加密备份</el-radio>
-            <el-radio value="encrypted">加密备份</el-radio>
+            <el-radio value="unencrypted">{{ t('options.emailBackup.unencrypted') }}</el-radio>
+            <el-radio value="encrypted">{{ t('options.emailBackup.encrypted') }}</el-radio>
           </el-radio-group>
           <el-alert
             v-if="backupType === 'encrypted'"
@@ -43,37 +44,37 @@
             class="encrypted-backup-tip"
           >
             <template #default>
-              加密备份文件数据只能通过本插件的
-              <strong>「数据管理 - 加密备份导入」</strong>功能并验证原主密码才能查看
-              <strong>请务必牢记主密码！</strong>
+              {{ t('options.emailBackup.encryptedTipPrefix') }}
+              <strong>{{ t('options.emailBackup.encryptedTipStrong') }}</strong>
+              <strong>{{ t('options.emailBackup.encryptedTipRemember') }}</strong>
             </template>
           </el-alert>
         </el-form-item>
 
         <el-form-item
-          label="备份邮箱"
+          :label="t('options.emailBackup.emailLabel')"
           prop="email"
         >
           <el-input
             v-model="form.email"
-            placeholder="请输入备份目标邮箱地址"
+            :placeholder="t('options.emailBackup.emailPlaceholder')"
             :disabled="backupLoading"
             clearable
           />
         </el-form-item>
 
-        <el-form-item label="自动备份提醒">
+        <el-form-item :label="t('options.emailBackup.autoRemind')">
           <div class="auto-backup-row">
             <el-switch
               v-model="form.autoBackup"
-              active-text="开启"
-              inactive-text="关闭"
+              :active-text="t('common.on')"
+              :inactive-text="t('common.off')"
             />
             <el-select
               v-if="form.autoBackup"
               v-model="form.autoBackupIntervalDays"
               style="width: 140px; margin-left: 12px"
-              placeholder="备份提醒间隔"
+              :placeholder="t('options.emailBackup.intervalPlaceholder')"
             >
               <el-option
                 v-for="opt in intervalOptions"
@@ -87,13 +88,13 @@
             v-if="form.autoBackup"
             class="auto-backup-tip"
           >
-            开启后将定时发送桌面通知提醒您手动备份，不会自动下载密码文件。
+            {{ t('options.emailBackup.autoRemindTip') }}
           </div>
           <div
             v-if="form.autoBackup && lastBackupTime"
             class="last-backup-info"
           >
-            上次提醒：{{ lastBackupTime }}
+            {{ t('options.emailBackup.lastRemind', { time: lastBackupTime }) }}
           </div>
         </el-form-item>
       </el-form>
@@ -105,21 +106,21 @@
           :disabled="backupLoading"
           @click="handleClose"
         >
-          取消
+          {{ t('common.cancel') }}
         </el-button>
         <el-button
           :loading="saveLoading"
           :disabled="backupLoading"
           @click="handleSaveConfig"
         >
-          保存配置
+          {{ t('options.emailBackup.saveConfig') }}
         </el-button>
         <el-button
           type="primary"
           :loading="backupLoading"
           @click="handleBackup"
         >
-          立即备份
+          {{ t('options.emailBackup.backupNow') }}
         </el-button>
       </div>
     </template>
@@ -134,15 +135,18 @@ import { StorageUtils } from '@/utils/storage';
 import { EmailBackupUtils } from '@/utils/emailBackup';
 import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
+import { useI18n } from '@/utils/i18n';
 
-/** 自动备份间隔选项 */
-const intervalOptions = [
-  { label: '每天', value: 1 },
-  { label: '每3天', value: 3 },
-  { label: '每周', value: 7 },
-  { label: '每两周', value: 14 },
-  { label: '每月', value: 30 },
-];
+const { t } = useI18n();
+
+/** 自动备份间隔选项（label 随语言实时切换） */
+const intervalOptions = computed(() => [
+  { label: t('options.emailBackup.everyDay'), value: 1 },
+  { label: t('options.emailBackup.every3Days'), value: 3 },
+  { label: t('options.emailBackup.everyWeek'), value: 7 },
+  { label: t('options.emailBackup.every2Weeks'), value: 14 },
+  { label: t('options.emailBackup.everyMonth'), value: 30 },
+]);
 
 /** 备份方式：不加密 / 加密 */
 type BackupType = 'unencrypted' | 'encrypted';
@@ -177,13 +181,14 @@ const form = ref<EmailBackupConfig>({
   autoBackupIntervalDays: 7,
 });
 
-const rules: FormRules = {
+/** 表单校验规则（computed 保证语言切换后错误提示同步更新） */
+const rules = computed<FormRules>(() => ({
   email: [
-    { required: true, message: '请输入备份邮箱地址', trigger: 'blur' },
+    { required: true, message: t('options.emailBackup.emailRequired'), trigger: 'blur' },
     {
       validator: (_rule, value, callback) => {
         if (value && !EmailBackupUtils.isValidEmail(value)) {
-          callback(new Error('邮箱格式不正确'));
+          callback(new Error(t('options.emailBackup.emailInvalid')));
         } else {
           callback();
         }
@@ -191,7 +196,7 @@ const rules: FormRules = {
       trigger: 'blur',
     },
   ],
-};
+}));
 
 /**
  * 弹窗打开时加载最新配置
@@ -217,11 +222,11 @@ const handleSaveConfig = async () => {
     await formRef.value.validate();
     saveLoading.value = true;
     await StorageUtils.saveEmailBackupConfig(form.value);
-    ElMessage.success('备份配置已保存');
+    ElMessage.success(t('options.emailBackup.configSaved'));
   } catch (error) {
     if (error !== false) {
       logger.error('保存邮箱备份配置失败:', error);
-      ElMessage.error('保存配置失败');
+      ElMessage.error(t('message.saveConfigFailed'));
     }
   } finally {
     saveLoading.value = false;
@@ -249,7 +254,7 @@ const handleBackup = async () => {
   } catch (error) {
     if (error !== false && error !== 'cancel') {
       logger.error('备份操作失败:', error);
-      ElMessage.error('备份失败');
+      ElMessage.error(t('options.emailBackup.backupFailed'));
     }
   } finally {
     backupLoading.value = false;

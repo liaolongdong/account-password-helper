@@ -1,0 +1,10 @@
+{
+  "strength.weak": "Weak",
+  "strength.medium": "Medium",
+  "strength.strong": "Strong",
+  "strength.ruleMinLength": "At least 8 characters",
+  "strength.ruleHasLetter": "Contains letters (a-z or A-Z)",
+  "strength.ruleHasNumber": "Contains numbers (0-9)",
+  "strength.ruleHasSymbol": "Contains symbols (e.g. !@#$%...)",
+  "strength.ruleNotBreached": "Not in the common breached password list"
+}

@@ -38,18 +38,20 @@ export interface ThemeOption {
   name: ThemeName;
   /** 中文标签 */
   label: string;
+  /** 英文标签（偏好设置面板按语言展示） */
+  labelEn: string;
   /** 色块主色（primary 十六进制值） */
   swatch: string;
 }
 
 /** 可选主题列表（含标签与色块），顺序即 UI 展示顺序 */
 export const THEME_OPTIONS: readonly ThemeOption[] = [
-  { name: 'sky', label: '晴空蓝', swatch: '#409eff' },
-  { name: 'green', label: '青竹绿', swatch: '#69b599' },
-  { name: 'pink', label: '桃花粉', swatch: '#d87998' },
-  { name: 'mauve', label: '樱粉紫', swatch: '#ad84cd' },
-  { name: 'orange', label: '落霞橙', swatch: '#e28e65' },
-  { name: 'slate', label: '雾墨灰', swatch: '#7f92b4' },
+  { name: 'sky', label: '晴空蓝', labelEn: 'Sky Blue', swatch: '#409eff' },
+  { name: 'green', label: '青竹绿', labelEn: 'Bamboo Green', swatch: '#69b599' },
+  { name: 'pink', label: '桃花粉', labelEn: 'Peach Pink', swatch: '#d87998' },
+  { name: 'mauve', label: '樱粉紫', labelEn: 'Blossom Mauve', swatch: '#ad84cd' },
+  { name: 'orange', label: '落霞橙', labelEn: 'Sunset Orange', swatch: '#e28e65' },
+  { name: 'slate', label: '雾墨灰', labelEn: 'Misty Slate', swatch: '#7f92b4' },
 ];
 
 /**

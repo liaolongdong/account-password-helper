@@ -9,6 +9,7 @@ import { formatShortcut } from '@/utils/formatShortcut';
 const SHORTCUT_NAME_MAP: Record<string, string> = {
   open_options: 'open_options',
   toggle_sidepanel: 'toggle_sidepanel',
+  quick_fill: 'quick_fill',
 };
 
 /**
@@ -17,6 +18,7 @@ const SHORTCUT_NAME_MAP: Record<string, string> = {
 const DEFAULT_SHORTCUTS: Record<string, string> = {
   open_options: formatShortcut('Ctrl+Shift+P'),
   toggle_sidepanel: formatShortcut('Ctrl+Shift+L'),
+  quick_fill: formatShortcut('Ctrl+Shift+F'),
 };
 
 /**
@@ -37,6 +39,7 @@ export function useShortcuts() {
   const shortcutAssigned = ref<Record<string, boolean>>({
     open_options: true,
     toggle_sidepanel: true,
+    quick_fill: true,
   });
 
   /**
@@ -61,10 +64,12 @@ export function useShortcuts() {
       shortcuts.value = {
         open_options: shortcutMap[SHORTCUT_NAME_MAP.open_options] || DEFAULT_SHORTCUTS.open_options,
         toggle_sidepanel: shortcutMap[SHORTCUT_NAME_MAP.toggle_sidepanel] || DEFAULT_SHORTCUTS.toggle_sidepanel,
+        quick_fill: shortcutMap[SHORTCUT_NAME_MAP.quick_fill] || DEFAULT_SHORTCUTS.quick_fill,
       };
       shortcutAssigned.value = {
         open_options: assignedMap[SHORTCUT_NAME_MAP.open_options] ?? false,
         toggle_sidepanel: assignedMap[SHORTCUT_NAME_MAP.toggle_sidepanel] ?? false,
+        quick_fill: assignedMap[SHORTCUT_NAME_MAP.quick_fill] ?? false,
       };
     } catch (error) {
       logger.warn('Popup: 获取快捷键失败，使用默认值:', error);

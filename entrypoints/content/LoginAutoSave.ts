@@ -18,6 +18,7 @@ import { USERNAME_SELECTORS, LOGIN_BUTTON_KEYWORDS, normalizeButtonText } from '
 import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
 import { showSavePasswordPrompt, dismissSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
 import { isElementVisible } from './domUtils';
+import { tl } from '@/utils/i18n-lite';
 
 /** sessionStorage 中存储待确认凭证的 key */
 const PENDING_SAVE_KEY = '__aph_pending_save__';
@@ -407,7 +408,7 @@ export class LoginAutoSave {
       password,
       url: location.hostname,
       tag: document.title,
-      remark: '自动保存',
+      remark: tl('cs.save.autoSaveRemark'),
       tagEdited: false,
       remarkEdited: false,
       timestamp: Date.now(),
@@ -615,7 +616,7 @@ export class LoginAutoSave {
     } catch (err) {
       logger.warn('[APH] 弹窗显示失败:', err);
       // 弹窗显示失败时回退到通知提示
-      showNativeNotification(`发现账号密码，但弹窗显示失败，请手动在密码管理页添加`, 'warning');
+      showNativeNotification(tl('cs.notify.promptFailed'), 'warning');
     }
   }
 
@@ -637,13 +638,13 @@ export class LoginAutoSave {
     const topOrigin = ancestorOrigins[ancestorOrigins.length - 1];
     if (!topOrigin) {
       // sandbox iframe 等极端情况禁止 ancestorOrigins 时回退
-      this.delegateNotificationToTopFrame(`发现 ${pending.url} 的账号密码，请在密码管理页手动添加`, 'warning');
+      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
       return;
     }
 
     if (!isSameMainDomain(topOrigin, location.origin)) {
       // 不同主域名的 iframe（如 attacker.com 嵌入 bank.com），不委托
-      this.delegateNotificationToTopFrame(`发现 ${pending.url} 的账号密码，请在密码管理页手动添加`, 'warning');
+      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
       return;
     }
 
@@ -710,7 +711,7 @@ export class LoginAutoSave {
       // postMessage 失败（极端情况），清理监听器和超时定时器后回退到通知
       clearTimeout(timeoutId);
       window.removeEventListener('message', handleResult);
-      showNativeNotification(`发现 ${pending.url} 的账号密码，请在密码管理页手动添加`, 'warning');
+      showNativeNotification(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
     }
   }
 
@@ -872,7 +873,7 @@ export class LoginAutoSave {
     try {
       if (!chrome.runtime?.id) {
         logger.warn('LoginAutoSave: 扩展上下文已失效，无法保存');
-        showNativeNotification('保存失败：扩展上下文已失效', 'error');
+        showNativeNotification(tl('cs.notify.saveFailedContext'), 'error');
         return;
       }
 
@@ -891,16 +892,19 @@ export class LoginAutoSave {
 
       if (response?.success) {
         this.lastPromptSaved = true;
-        showNativeNotification('账号密码已保存', 'success');
+        showNativeNotification(tl('cs.notify.saved'), 'success');
       } else {
-        showNativeNotification(`保存失败: ${response?.message || '未知原因'}`, 'warning');
+        showNativeNotification(
+          tl('cs.notify.saveFailedMsg', { message: response?.message || tl('cs.notify.unknownReason') }),
+          'warning',
+        );
       }
     } catch (error) {
       const errorMsg = (error as Error).message || '';
       if (errorMsg.includes('Extension context invalidated')) {
-        showNativeNotification('保存失败：扩展上下文已失效，请刷新页面', 'error');
+        showNativeNotification(tl('cs.notify.saveFailedContextRefresh'), 'error');
       } else {
-        showNativeNotification('保存失败，请重试', 'error');
+        showNativeNotification(tl('cs.notify.saveFailedRetry'), 'error');
       }
     }
   }
@@ -931,9 +935,9 @@ export class LoginAutoSave {
     this.clearPending();
     try {
       await StorageUtils.addExcludedDomain(pending.url);
-      showNativeNotification(`已不再提醒 ${pending.url}，可在自动保存设置中恢复`, 'info');
+      showNativeNotification(tl('cs.notify.neverAskDone', { url: pending.url }), 'info');
     } catch {
-      showNativeNotification('操作失败，请重试', 'error');
+      showNativeNotification(tl('cs.notify.operationFailed'), 'error');
     }
   }
 

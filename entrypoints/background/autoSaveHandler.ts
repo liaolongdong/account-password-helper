@@ -7,6 +7,7 @@ import {
 import { logger } from '@/utils/logger';
 import { getSidePanelPort } from './sidePanelManager';
 import { invalidatePasswordCache } from './passwordCache';
+import { tl } from '@/utils/i18n-lite';
 
 /**
  * 处理保存密码请求
@@ -41,7 +42,7 @@ export async function handleAutoSavePassword(
         await chrome.notifications.create('auto-save-password', {
           type: 'basic',
           iconUrl: chrome.runtime.getURL('icon/128.png'),
-          title: '账号密码已保存',
+          title: tl('bg.autoSave.savedTitle'),
           message: `${data.username} - ${data.url} ${result.message}`,
         });
       } catch (notifyError) {
@@ -51,7 +52,7 @@ export async function handleAutoSavePassword(
     return result;
   } catch (error) {
     logger.error('Background: 处理自动保存密码失败:', error);
-    return { success: false, message: '自动保存处理失败' };
+    return { success: false, message: tl('bg.autoSave.failedGeneric') };
   }
 }
 

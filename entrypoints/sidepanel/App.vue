@@ -24,8 +24,8 @@
         <div class="auth-icon-circle">
           <el-icon class="auth-icon"><Lock /></el-icon>
         </div>
-        <h3 class="auth-title">会话已失效</h3>
-        <p class="auth-desc">请在选项中验证主密码以解锁快速填充功能</p>
+        <h3 class="auth-title">{{ t('sidepanel.sessionExpired') }}</h3>
+        <p class="auth-desc">{{ t('sidepanel.sessionExpiredDesc') }}</p>
         <el-button
           class="auth-verify-btn"
           type="primary"
@@ -33,187 +33,36 @@
           size="large"
           @click="openOptions"
         >
-          去验证主密码
+          {{ t('sidepanel.verifyPassword') }}
         </el-button>
       </div>
     </div>
 
-    <!-- 已认证状态：搜索框 + 密码列表 -->
-    <template v-else>
-      <!-- 搜索卡片 -->
-      <div class="search-card">
-        <div class="search-section">
-          <el-input
-            ref="searchInputRef"
-            v-model="searchKeyword"
-            placeholder="搜索用户名、标签、备注、网址..."
-            :prefix-icon="Search"
-            clearable
-            @input="handleSearch"
-          />
-          <el-tooltip
-            :content="favoriteOnly ? '显示全部' : '只看收藏'"
-            placement="top"
-            :show-after="400"
-          >
-            <el-button
-              :icon="favoriteOnly ? StarFilled : Star"
-              circle
-              size="small"
-              :type="favoriteOnly ? 'warning' : 'default'"
-              @click="favoriteOnly = !favoriteOnly"
-            />
-          </el-tooltip>
-          <el-tooltip
-            content="排序方式"
-            placement="top"
-            :show-after="400"
-          >
-            <el-dropdown
-              trigger="click"
-              popper-class="sort-dropdown-popper"
-              @command="handleSortChange"
-            >
-              <el-button
-                :icon="Sort"
-                circle
-                size="small"
-              />
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    command="lastUsedAt"
-                    :class="{ 'is-active': sidepanelSortProp === 'lastUsedAt' }"
-                  >
-                    <el-icon class="sort-item-icon"><Timer /></el-icon>
-                    <span>最近使用</span>
-                    <el-icon
-                      v-if="sidepanelSortProp === 'lastUsedAt'"
-                      class="sort-check-icon"
-                      ><Check
-                    /></el-icon>
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="updateTime"
-                    :class="{ 'is-active': sidepanelSortProp === 'updateTime' }"
-                  >
-                    <el-icon class="sort-item-icon"><Refresh /></el-icon>
-                    <span>最近更新</span>
-                    <el-icon
-                      v-if="sidepanelSortProp === 'updateTime'"
-                      class="sort-check-icon"
-                      ><Check
-                    /></el-icon>
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="username"
-                    :class="{ 'is-active': sidepanelSortProp === 'username' }"
-                  >
-                    <el-icon class="sort-item-icon"><User /></el-icon>
-                    <span>用户名</span>
-                    <el-icon
-                      v-if="sidepanelSortProp === 'username'"
-                      class="sort-check-icon"
-                      ><Check
-                    /></el-icon>
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="url"
-                    :class="{ 'is-active': sidepanelSortProp === 'url' }"
-                  >
-                    <el-icon class="sort-item-icon"><Link /></el-icon>
-                    <span>网址</span>
-                    <el-icon
-                      v-if="sidepanelSortProp === 'url'"
-                      class="sort-check-icon"
-                      ><Check
-                    /></el-icon>
-                  </el-dropdown-item>
-                  <el-dropdown-item
-                    command="createTime"
-                    :class="{ 'is-active': sidepanelSortProp === 'createTime' }"
-                  >
-                    <el-icon class="sort-item-icon"><Clock /></el-icon>
-                    <span>创建时间</span>
-                    <el-icon
-                      v-if="sidepanelSortProp === 'createTime'"
-                      class="sort-check-icon"
-                      ><Check
-                    /></el-icon>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </el-tooltip>
-        </div>
-      </div>
-
-      <!-- 密码列表卡片 -->
-      <div class="list-card">
-        <div class="password-list">
-          <div
-            v-if="loading"
-            class="loading-state"
-          >
-            <el-icon class="is-loading loading-spinner"><Loading /></el-icon>
-            <span>加载中...</span>
-          </div>
-
-          <div
-            v-else-if="filteredPasswords.length === 0"
-            class="empty-state"
-          >
-            <!-- 全部无数据：显示引导添加 -->
-            <template v-if="passwords.length === 0">
-              <div class="empty-icon-circle">
-                <el-icon class="empty-icon"><Plus /></el-icon>
-              </div>
-              <h3 class="empty-title">还没有保存的密码</h3>
-              <p class="empty-desc">在密码管理中导入或添加密码</p>
-              <el-button
-                type="primary"
-                :icon="Plus"
-                class="empty-add-btn"
-                @click="openOptionsAndAdd"
-              >
-                去添加密码
-              </el-button>
-            </template>
-            <!-- 搜索/过滤无结果 -->
-            <template v-else>
-              <div class="empty-icon-circle empty-icon-circle--muted">
-                <el-icon class="empty-icon empty-icon--muted"><Search /></el-icon>
-              </div>
-              <h3 class="empty-title">暂无匹配的密码</h3>
-              <p class="empty-desc">试试调整搜索关键词或筛选条件</p>
-            </template>
-          </div>
-
-          <div
-            v-else
-            class="password-items"
-          >
-            <PasswordListItem
-              v-for="(password, index) in filteredPasswords"
-              :key="password.id"
-              v-memo="[activeIndex === index, password.favorite, password.updateTime, autoTriggerLogin]"
-              :password="password"
-              :is-active="activeIndex === index"
-              :auto-login-enabled="autoTriggerLogin"
-              @fill="fillPassword"
-              @fill-and-login="handleFillAndLogin"
-              @edit="handleEditPassword"
-              @toggle-favorite="toggleFavorite"
-              @copy-username="copyUsername"
-              @copy-password="copyPassword"
-              @fill-totp="fillTotp"
-              @copy-totp="copyTotp"
-              @mouseenter="activeIndex = index"
-            />
-          </div>
-        </div>
-      </div>
-    </template>
+    <!-- 已认证状态：搜索框 + 密码列表（异步组件，锁屏态不加载其 Element Plus 重依赖） -->
+    <SidepanelAuthView
+      v-else
+      v-model:search-keyword="searchKeyword"
+      v-model:favorite-only="favoriteOnly"
+      :loading="loading"
+      :filtered-passwords="filteredPasswords"
+      :total-count="passwords.length"
+      :active-index="activeIndex"
+      :auto-trigger-login="autoTriggerLogin"
+      :sort-prop="sidepanelSortProp"
+      @sort-change="handleSortChange"
+      @search="handleSearch"
+      @add-password="openOptionsAndAdd"
+      @activate="index => (activeIndex = index)"
+      @rendered="handleAuthViewRendered"
+      @fill="fillPassword"
+      @fill-and-login="handleFillAndLogin"
+      @edit="handleEditPassword"
+      @toggle-favorite="toggleFavorite"
+      @copy-username="copyUsername"
+      @copy-password="copyPassword"
+      @fill-totp="fillTotp"
+      @copy-totp="copyTotp"
+    />
 
     <!-- 底部操作 -->
     <div class="footer-card">
@@ -222,7 +71,7 @@
         class="footer-manage-btn"
         @click="openOptions"
       >
-        密码管理
+        {{ t('sidepanel.manage') }}
       </el-button>
     </div>
 
@@ -250,31 +99,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, watch, nextTick, defineAsyncComponent } from 'vue';
-import {
-  Search,
-  Loading,
-  Star,
-  StarFilled,
-  Plus,
-  Sort,
-  Check,
-  Timer,
-  Refresh,
-  User,
-  Link,
-  Lock,
-  Clock,
-} from '@element-plus/icons-vue';
+import { ref, onMounted, onUnmounted, computed, watch, nextTick, defineAsyncComponent, h } from 'vue';
+import { Lock } from '@element-plus/icons-vue';
 import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
-import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import type { PasswordEntry } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { saveSidepanelSortConfig, getFavoriteLimit, getFloatingButtonConfig } from '@/utils/storage/configManager';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import { markPerf, measurePerf, recordSidepanelOpenMetrics, SP_PERF_MARKS } from '@/utils/perfMetrics';
 import { useSidepanelData } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
@@ -287,6 +123,39 @@ import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
  * 使 Windows 会话失效冷环境下首次点击「?」时 chunk 已温热、即时打开。
  */
 const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
+
+/**
+ * 认证视图 chunk 加载占位（函数式组件，经 defineAsyncComponent 默认 200ms delay 后显示）：
+ * 热路径 chunk 秒开不闪烁；Windows 冷盘极端场景（chunk 加载超 2.5s 骨架屏兜底淡出）
+ * 由本占位接管列表区，避免露出空白窗口。样式见底部全局样式块（h() 渲染无 scoped 作用域）。
+ */
+const AuthViewLoading = () =>
+  h('div', { class: 'sp-auth-view-loading' }, [
+    h('span', { class: 'sp-auth-view-loading__spinner' }),
+    h('span', t('sidepanel.loading')),
+  ]);
+
+/**
+ * 认证态视图（搜索卡片 + 密码列表卡片）——异步加载
+ *
+ * 将 el-input/el-dropdown/el-tooltip 与 PasswordListItem 依赖链从入口关键 chunk
+ * 中剥离，锁屏态（Windows 会话失效冷启动的头号白屏场景）首屏 JS 收敛至按钮 +
+ * 图标级依赖；onMounted 即发起预取（见下方）与数据竞速加载重叠，
+ * 会话有效态挂载时 chunk 已就绪，无可感知延迟。
+ * onError 重试加固：扩展版本更新瞬间旧页面动态 import 可能 404，重试 2 次降低列表区空白风险。
+ */
+const SidepanelAuthView = defineAsyncComponent({
+  loader: () => import('@/components/sidepanel/SidepanelAuthView.vue'),
+  loadingComponent: AuthViewLoading,
+  onError(error, retry, fail, attempts) {
+    if (attempts <= 2) {
+      logger.warn(`SidePanel: 认证视图 chunk 加载失败，重试第 ${attempts} 次:`, error);
+      retry();
+    } else {
+      fail();
+    }
+  },
+});
 
 // ==================== 延迟加载模块（用户交互时触发，避免初始加载拉入 encryption.ts） ====================
 
@@ -365,7 +234,6 @@ const searchKeyword = ref('');
 /** 是否仅显示收藏条目 */
 const favoriteOnly = ref(false);
 const activeIndex = ref(0);
-const searchInputRef = ref();
 
 /** 当前插件版本号，直接读取 manifest 避免加载 useVersionUpdate 的 192K JS + 56K CSS 依赖 */
 const currentVersion = chrome.runtime.getManifest().version;
@@ -512,7 +380,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
         const evicted = await evictFn(passwords.value);
         if (evicted) {
           const limit = await getFavoriteLimit();
-          ElMessage.info(`收藏已满（${limit} 条），已自动替换「${evicted.username}」`);
+          ElMessage.info(t('sidepanel.favoriteEvicted', { limit, username: evicted.username }));
         }
         const now = Date.now();
         // 乐观更新：先就地更新 UI 与提示，避免受防抖写入阻塞造成的交互卡顿
@@ -520,7 +388,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
           entry.favorite = true;
           entry.favoriteUsedAt = now;
         }
-        ElMessage.success('已收藏');
+        ElMessage.success(t('sidepanel.favorited'));
         await updateFn(password.id, {
           favorite: true,
           favoriteUsedAt: now,
@@ -528,7 +396,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
         });
       }).catch(error => {
         logger.error('切换收藏失败:', error);
-        ElMessage.error('操作失败');
+        ElMessage.error(t('message.operationFailed'));
       });
     } else {
       // 乐观更新：先就地更新 UI 与提示（取消收藏无淘汰逻辑，可立即反馈）
@@ -536,7 +404,7 @@ const toggleFavorite = async (password: PasswordEntry) => {
         entry.favorite = false;
         entry.favoriteUsedAt = undefined;
       }
-      ElMessage.success('已取消收藏');
+      ElMessage.success(t('sidepanel.unfavorited'));
       void runLocalOperation(async () => {
         await updateFn(password.id, {
           favorite: false,
@@ -545,12 +413,12 @@ const toggleFavorite = async (password: PasswordEntry) => {
         });
       }).catch(error => {
         logger.error('切换收藏失败:', error);
-        ElMessage.error('操作失败');
+        ElMessage.error(t('message.operationFailed'));
       });
     }
   } catch (error) {
     logger.error('切换收藏失败:', error);
-    ElMessage.error('操作失败');
+    ElMessage.error(t('message.operationFailed'));
   }
 };
 
@@ -602,24 +470,41 @@ const handleFloatingConfigChange = (
 
 // ==================== 初始化 ====================
 
+/**
+ * 首屏打开收尾回调（由 onMounted 内赋值，幂等）：
+ * 认证态由 SidepanelAuthView 首帧渲染完成（rendered 事件）触发，
+ * 锁屏态由 onMounted 内 nextTick + rAF 触发
+ */
+let _finishOpen: (() => void) | null = null;
+
+/** 认证视图首帧实际渲染条目数（分片渲染下与过滤后全量可能不同，供埋点精确归因） */
+let _authRenderedCount: number | null = null;
+
+/** 认证视图首帧渲染完成（含会话中途恢复场景，收尾回调自身幂等） */
+const handleAuthViewRendered = (renderedCount: number) => {
+  _authRenderedCount = renderedCount;
+  _finishOpen?.();
+};
+
 onMounted(async () => {
-  // 性能埋点：测量 Vue mount 开始（main.ts performance.mark）→ onMounted 回调触发的间隔
-  const _vueMountMeasure = performance.measure('vue-mount', 'vue-mount-start');
-  const vueMountDuration = _vueMountMeasure?.duration ?? 0;
-  if (_vueMountMeasure) {
+  // 性能埋点：首帧已渲染（onMounted 触发）+ 测量 Vue mount 开始 → onMounted 的间隔
+  markPerf(SP_PERF_MARKS.MOUNTED);
+  // measurePerf 内部已容错（mark 缺失时返回 null），与 perfMetrics 模块容错风格一致
+  const vueMountDuration = measurePerf('vue-mount', 'vue-mount-start');
+  if (vueMountDuration !== null) {
     logger.debug(`SidePanel: Vue mount → onMounted ${vueMountDuration.toFixed(1)}ms`);
   }
 
   const _perfMountStart = performance.now();
 
+  // 预取认证态视图 chunk（fire-and-forget，与下方数据竞速加载并行重叠）：
+  // 会话有效态数据就绪时 chunk 已就绪，挂载零等待；锁屏态也顺带温热，解锁后即时切换。
+  // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk；
+  // 吞掉加载失败（扩展更新瞬间旧页面 404），避免 unhandled rejection（组件侧有 onError 重试兜底）
+  void import('@/components/sidepanel/SidepanelAuthView.vue').catch(() => {});
+
   // 获取骨架屏元素（兄弟节点模式，Vue 挂载不会替换它）
   const skeletonEl = document.getElementById('app-loading');
-
-  // 搜索框自动聚焦
-  nextTick(() => {
-    const inputEl = searchInputRef.value?.$el?.querySelector('input');
-    if (inputEl) inputEl.focus();
-  });
 
   // 读取全局「自动触发登录」以决定每条「填充并登录」按钮显隐，并监听后续变更；均不阻塞首屏
   if (chrome?.storage?.onChanged) {
@@ -631,34 +516,72 @@ onMounted(async () => {
     })
     .catch(error => logger.error('SidePanel: 读取自动触发登录配置失败:', error));
 
-  await initSidepanelData();
+  const initMeta = await initSidepanelData();
+
+  // 性能埋点：首屏数据就绪（User Timing API 不受生产构建 drop console 影响）
+  markPerf(SP_PERF_MARKS.DATA_READY);
 
   const _perfDataReady = performance.now();
   logger.debug(
-    `SidePanel: 首屏数据就绪，initSidepanelData 耗时 ${(_perfDataReady - _perfMountStart).toFixed(1)}ms，总计 ${(_perfDataReady - (_vueMountMeasure?.startTime ?? 0)).toFixed(1)}ms`,
+    `SidePanel: 首屏数据就绪，initSidepanelData 耗时 ${(_perfDataReady - _perfMountStart).toFixed(1)}ms，总计 ${_perfDataReady.toFixed(1)}ms`,
   );
 
-  // 数据就绪后淡出骨架屏，实现 骨架屏 → 真实UI 的无缝过渡
-  // 骨架屏作为兄弟节点保持可见直到此处，避免了中间的 loading spinner 闪烁
-  if (skeletonEl) {
-    skeletonEl.classList.add('fade-out');
-    skeletonEl.addEventListener('transitionend', () => skeletonEl.remove(), { once: true });
-    // 安全兜底：transitionend 未触发时强制移除（200ms = CSS transition 时长）
-    setTimeout(() => skeletonEl.remove(), 250);
-  }
+  // 数据就绪后的统一收尾（幂等，仅首次生效）：
+  // 1. 打 sp-list-rendered 埋点并写入性能环形日志（含列表渲染段分解，此前为盲区）
+  // 2. 淡出骨架屏，实现 骨架屏 → 真实UI 的无缝过渡（骨架屏作为兄弟节点保持可见直到此处）
+  // 3. 空闲预取按需模块（设置弹窗 / HelpDialog / TotpCode）
+  let _opened = false;
+  let _renderFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  const finishOpen = () => {
+    if (_opened) return;
+    _opened = true;
+    if (_renderFallbackTimer) {
+      clearTimeout(_renderFallbackTimer);
+      _renderFallbackTimer = null;
+    }
 
-  // 数据加载完成后，空闲时预加载设置弹窗模块 + 预取操作指引弹窗 chunk（不阻塞首屏渲染）
-  // 预取 HelpDialog：冷环境（Windows 会话失效期）下用户首次点击「?」时 chunk 已温热、即时打开，
-  // 避免首次点击触发冷 chunk fetch 造成数秒延迟；未取完前点击则退化为按需加载，无回退风险。
-  const preloadIdleModules = () => {
-    void ensureSettingsModule();
-    // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk
-    void import('@/components/sidepanel/HelpDialog.vue');
+    markPerf(SP_PERF_MARKS.LIST_RENDERED);
+    // 优先采用认证视图回传的实际首帧渲染数（分片渲染下首帧上限 30 条），
+    // 兜底/锁屏态回退为过滤后全量（锁屏态恒为 0）
+    recordSidepanelOpenMetrics({
+      ...initMeta,
+      renderedItemCount: _authRenderedCount ?? filteredPasswords.value.length,
+    });
+
+    if (skeletonEl) {
+      skeletonEl.classList.add('fade-out');
+      skeletonEl.addEventListener('transitionend', () => skeletonEl.remove(), { once: true });
+      // 安全兜底：transitionend 未触发时强制移除（200ms = CSS transition 时长）
+      setTimeout(() => skeletonEl.remove(), 250);
+    }
+
+    // 空闲预取：设置弹窗模块 + HelpDialog + TotpCode chunk（不阻塞首屏渲染），
+    // 冷环境（Windows 会话失效期）下用户首次交互时 chunk 已温热、即时打开；
+    // 未取完前触发则退化为按需加载，无回退风险；预取失败静默吞掉（交互时按需加载兜底）
+    const preloadIdleModules = () => {
+      void ensureSettingsModule().catch(() => {});
+      // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk
+      void import('@/components/sidepanel/HelpDialog.vue').catch(() => {});
+      void import('@/components/TotpCode.vue').catch(() => {});
+    };
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(preloadIdleModules);
+    } else {
+      setTimeout(preloadIdleModules, 1000);
+    }
   };
-  if (typeof requestIdleCallback !== 'undefined') {
-    requestIdleCallback(preloadIdleModules);
+
+  if (initMeta.sessionValid) {
+    // 认证态：等待异步认证视图首帧渲染完成（rendered 事件）后收尾，
+    // 避免骨架屏提前淡出露出空白列表区；2.5s 兜底防止 chunk 加载异常卡死骨架屏
+    _finishOpen = finishOpen;
+    _renderFallbackTimer = setTimeout(finishOpen, 2500);
   } else {
-    setTimeout(preloadIdleModules, 1000);
+    // 锁屏态：同步视图，DOM flush + 首帧绘制后收尾；
+    // 窗口被遮挡/不可见时 Chrome 会冻结 rAF，加 500ms 定时兜底（finishOpen 幂等，先到者生效）
+    _finishOpen = finishOpen;
+    _renderFallbackTimer = setTimeout(finishOpen, 500);
+    nextTick(() => requestAnimationFrame(finishOpen));
   }
 });
 
@@ -677,10 +600,8 @@ onUnmounted(() => {
   background: #f0f2f5;
 }
 
-/* ========== 卡片通用样式 ========== */
+/* ========== 卡片通用样式（search-card/list-card 已随认证态视图迁至 SidepanelAuthView） ========== */
 .header-card,
-.search-card,
-.list-card,
 .footer-card {
   margin: 0 8px;
   background: #fff;
@@ -693,122 +614,11 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.search-card {
-  margin-top: 8px;
-  overflow: hidden;
-}
-
-.list-card {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  margin-top: 8px;
-  overflow: hidden;
-}
-
 .footer-card {
   padding: 10px 16px;
   margin-top: 8px;
   margin-bottom: 8px;
   text-align: center;
-}
-
-.search-section {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  padding: 10px 16px;
-}
-
-.search-section :deep(.el-input) {
-  flex: 1;
-}
-
-.password-list {
-  flex: 1;
-  padding: 8px 0;
-
-  /* hidden=水平裁剪，auto=垂直滚动 */
-  overflow: hidden auto;
-}
-
-.loading-state {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  color: #6b7280;
-}
-
-.loading-spinner {
-  margin-bottom: 8px;
-  font-size: 24px;
-}
-
-/* ========== 空状态（列表内） ========== */
-.empty-state {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px 32px;
-  text-align: center;
-}
-
-.empty-icon-circle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  margin-bottom: 16px;
-  background: #f0fdf4;
-  border-radius: 50%;
-}
-
-.empty-icon-circle--muted {
-  background: #f1f5f9;
-}
-
-.empty-icon {
-  font-size: 24px;
-  color: #22c55e;
-}
-
-.empty-icon--muted {
-  color: #94a3b8;
-}
-
-.empty-title {
-  margin: 0 0 8px;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.empty-desc {
-  margin: 0 0 20px;
-  font-size: 13px;
-  color: #6b7280;
-}
-
-/* 去添加密码按钮：圆角 + hover 上浮动效 */
-:deep(.empty-add-btn) {
-  padding: 10px 24px;
-  font-size: 14px;
-  font-weight: 500;
-  border-radius: 20px;
-  box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 25%);
-  transition: all 0.25s ease;
-}
-
-:deep(.empty-add-btn:hover) {
-  box-shadow: 0 4px 14px rgb(var(--aph-primary-rgb) / 40%);
-  transform: translateY(-1px);
 }
 
 /* 密码管理按钮：浅蓝背景 + hover 变实心蓝 */
@@ -897,97 +707,9 @@ onUnmounted(() => {
   width: 1em;
   height: 1em;
 }
-
-/* 滚动条样式 */
-.password-list::-webkit-scrollbar {
-  width: 4px;
-}
-
-.password-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
-}
-
-.password-list::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 2px;
-}
-
-.password-list::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
-}
-
-/* 排序触发按钮：当选中非默认排序时显示微妙激活态 */
-.search-section :deep(.el-dropdown) .el-button.is-active-sort {
-  color: var(--aph-primary);
-  background: var(--aph-primary-bg);
-  border-color: var(--aph-primary-border);
-}
 </style>
 
 <style>
-/* 排序下拉菜单（popper teleported 到 body，无法使用 scoped） */
-.sort-dropdown-popper {
-  border-radius: 8px !important;
-  box-shadow: 0 4px 16px rgb(0 0 0 / 10%) !important;
-}
-
-.sort-dropdown-popper .el-dropdown-menu {
-  padding: 4px 0;
-}
-
-.sort-dropdown-popper .el-dropdown-menu__item {
-  display: flex;
-  gap: 2px;
-  align-items: center;
-  padding: 8px 12px;
-  margin: 0 4px;
-  font-size: 12px;
-  color: #374151;
-  border-radius: 6px;
-  transition: all 0.2s ease;
-}
-
-.sort-dropdown-popper .el-dropdown-menu__item .sort-item-icon {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  font-size: 15px;
-  color: #9ca3af;
-  transition: color 0.2s ease;
-}
-
-.sort-dropdown-popper .el-dropdown-menu__item span {
-  flex: 1;
-  text-align: left;
-}
-
-.sort-dropdown-popper .el-dropdown-menu__item .sort-check-icon {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--aph-primary);
-}
-
-.sort-dropdown-popper .el-dropdown-menu__item:hover {
-  color: #1f2937;
-  background: #f5f7fa;
-}
-
-.sort-dropdown-popper .el-dropdown-menu__item:hover .sort-item-icon {
-  color: #6b7280;
-}
-
-.sort-dropdown-popper .el-dropdown-menu__item.is-active {
-  color: var(--aph-primary);
-  background: var(--aph-primary-bg);
-}
-
-.sort-dropdown-popper .el-dropdown-menu__item.is-active .sort-item-icon {
-  color: var(--aph-primary);
-}
-
 html,
 body {
   height: 100%;
@@ -998,5 +720,37 @@ body {
 
 #app {
   height: 100%;
+}
+
+/* ========== 认证视图 chunk 加载占位（h() 渲染的函数式组件，无 scoped 作用域） ========== */
+.sp-auth-view-loading {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  margin: 8px 8px 0;
+  font-size: 13px;
+  color: #6b7280;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
+}
+
+.sp-auth-view-loading__spinner {
+  width: 22px;
+  height: 22px;
+  border: 2px solid #e5e7eb;
+  border-top-color: var(--aph-primary);
+  border-radius: 50%;
+  animation: sp-auth-loading-spin 0.8s linear infinite;
+}
+
+@keyframes sp-auth-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>

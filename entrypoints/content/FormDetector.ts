@@ -26,6 +26,7 @@ import type { FormFieldSets } from '@/entrypoints/content/types';
 import { showNoLoginFormMessage } from '@/entrypoints/content/NativeNotification';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
 import { isElementVisible } from './domUtils';
+import { tl } from '@/utils/i18n-lite';
 import {
   getInlineFillDropdown,
   destroyInlineFillDropdown,
@@ -672,8 +673,10 @@ export class FormDetector {
         return;
       }
 
+      // clickTs=发起时刻，覆盖「点击 → SW 唤醒」埋点盲区
       await chrome.runtime.sendMessage({
         type: MessageType.SHOW_SIDEPANEL,
+        data: { clickTs: Date.now() },
       });
     } catch (error) {
       const errorMsg = (error as Error).message || '';
@@ -854,7 +857,7 @@ export class FormDetector {
         return true;
       case MessageType.FILL_MOBILE_CODE:
         this.fillMobileCode(message.data);
-        sendResponse({ success: true, message: '填充完成' });
+        sendResponse({ success: true, message: tl('cs.fd.fillDone') });
         return true;
       case MessageType.FILL_TOTP:
         this.fillTotpCode(message.data.code).then(result => {
@@ -864,15 +867,15 @@ export class FormDetector {
       case MessageType.SHOW_SIDEPANEL:
         if (!this.hasLoginFormFields()) {
           showNoLoginFormMessage();
-          sendResponse({ success: false, message: '当前页面未匹配到登录表单' });
+          sendResponse({ success: false, message: tl('cs.notify.noLoginForm'), reason: 'no_form' });
         } else {
           this.showSidePanel();
-          sendResponse({ success: true, message: '侧边栏显示请求已处理' });
+          sendResponse({ success: true, message: tl('cs.fd.sidepanelShown') });
         }
         return true;
       case MessageType.HIDE_SIDEPANEL:
         this.hideSidePanel();
-        sendResponse({ success: true, message: '侧边栏隐藏请求已处理' });
+        sendResponse({ success: true, message: tl('cs.fd.sidepanelHidden') });
         return true;
       default:
         return false; // 不响应，让消息传递给 background 处理
@@ -922,7 +925,8 @@ export class FormDetector {
       if (this.usernameFields.length === 0 && this.passwordFields.length === 0) {
         const detected = await this.waitForFieldsDetected();
         if (!detected) {
-          result.message = '未检测到登录表单字段，请刷新页面后重试';
+          result.message = tl('cs.fd.noFormFields');
+          result.reason = 'no_form';
           return result;
         }
       }
@@ -960,12 +964,12 @@ export class FormDetector {
 
       if (usernameSuccess && passwordSuccess) {
         result.success = true;
-        result.message = '填充成功';
+        result.message = tl('cs.fd.fillSuccess');
       } else if (result.details.usernameField.filled || result.details.passwordField.filled) {
         result.success = true;
-        result.message = '填充完成，请检查表单内容';
+        result.message = tl('cs.fd.fillCheck');
       } else {
-        result.message = '填充可能未完成，请手动检查表单';
+        result.message = tl('cs.fd.fillIncomplete');
       }
 
       // 按配置自动触发登录（仅账号密码场景，且密码字段已实际填充）
@@ -986,7 +990,7 @@ export class FormDetector {
       }
     } catch (error) {
       logger.error('填充密码失败:', error);
-      result.message = '填充过程中发生错误';
+      result.message = tl('cs.fd.fillError');
     }
 
     return result;
@@ -1082,7 +1086,7 @@ export class FormDetector {
         this.detectForms();
       }
       if (this.verifyCodeFields.length === 0) {
-        result.message = '当前页面未检测到验证码输入框';
+        result.message = tl('cs.fd.noTotpInput');
         return result;
       }
 
@@ -1090,7 +1094,7 @@ export class FormDetector {
       const fillResult = await this.inputFiller.setInputValueWithStrategies(field, code);
       result.success = fillResult.filled;
       result.details.strategy = fillResult.strategy;
-      result.message = fillResult.filled ? '验证码填充成功' : '验证码填充失败，请手动输入';
+      result.message = fillResult.filled ? tl('cs.fd.totpFillSuccess') : tl('cs.fd.totpFillManual');
 
       if (result.success) {
         setTimeout(() => {
@@ -1099,7 +1103,7 @@ export class FormDetector {
       }
     } catch (error) {
       logger.error('填充 TOTP 验证码失败:', error);
-      result.message = '填充验证码时发生错误';
+      result.message = tl('cs.fd.totpFillError');
     }
 
     return result;

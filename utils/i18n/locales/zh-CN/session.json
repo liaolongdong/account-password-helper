@@ -1,0 +1,17 @@
+{
+  "session.none": "无会话",
+  "session.fetchFailed": "获取失败",
+  "session.expired": "已过期",
+  "session.dayHour": "{days}天{hours}小时",
+  "session.hourMinute": "{hours}小时{minutes}分钟",
+  "session.minuteSecond": "{minutes}分钟{seconds}秒",
+  "session.second": "{seconds}秒",
+  "session.verifyTitle": "验证主密码",
+  "session.verifyPrompt": "修改验证有效期需要验证主密码，请输入主密码：",
+  "session.validitySaved": "有效期设置保存成功",
+  "session.clearConfirm": "确定要清除当前主密码会话吗？清除后需要重新输入主密码才能访问密码列表。",
+  "session.clearConfirmTitle": "确认清除会话",
+  "session.clearConfirmBtn": "确定清除",
+  "session.cleared": "主密码会话已清除",
+  "session.clearFailed": "清除主密码会话失败"
+}

@@ -1,0 +1,11 @@
+{
+  "validity.h1": "1 hour",
+  "validity.h2": "2 hours",
+  "validity.h4": "4 hours",
+  "validity.h8": "8 hours",
+  "validity.h12": "12 hours",
+  "validity.h24": "24 hours (recommended)",
+  "validity.d3": "3 days",
+  "validity.d5": "5 days",
+  "validity.d7": "7 days"
+}

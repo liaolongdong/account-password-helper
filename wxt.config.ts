@@ -83,9 +83,10 @@ export default defineConfig({
   // WXT 会自动注入 manifest.icons 与 action.default_icon，无需在此显式声明。
   // 源 SVG 位于 assets/icons/icon.svg，通过 `npm run icons:build` 生成多尺寸 PNG。
   manifest: {
-    name: 'Account Password Helper',
-    description:
-      '本地密码管理工具，AES-256-GCM 加密、零网络传输，密码不出浏览器。智能识别登录表单、一键填充自动登录、自动保存账号密码、批量导入导出、加密备份、TOTP 两步验证、安全体检仪表盘、密码可见性切换、闲时锁定、密码强度检测、密码生成器，开源免费。',
+    name: '__MSG_extensionName__',
+    // Chrome应用商店描述字符不能超过132个字符，超出会导致 zip 包上传失败。
+    description: '__MSG_extensionDescription__',
+    default_locale: 'zh_CN',
     version: pkg.version,
     permissions: [
       'storage',
@@ -114,14 +115,21 @@ export default defineConfig({
           default: 'Ctrl+Shift+P',
           mac: 'Command+Shift+P',
         },
-        description: '打开账号密码管理选项页面',
+        description: '__MSG_commandOpenOptions__',
       },
       toggle_sidepanel: {
         suggested_key: {
           default: 'Ctrl+Shift+L',
           mac: 'Command+Shift+L',
         },
-        description: '打开/关闭密码快速填充侧边栏',
+        description: '__MSG_commandToggleSidepanel__',
+      },
+      quick_fill: {
+        suggested_key: {
+          default: 'Ctrl+Shift+F',
+          mac: 'Command+Shift+F',
+        },
+        description: '__MSG_commandQuickFill__',
       },
     },
   },

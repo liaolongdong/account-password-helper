@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Setting } from '@element-plus/icons-vue';
-import { defineAsyncComponent } from 'vue';
 import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
-
-/** 品牌 Logo 异步加载（64 行纯 SVG，独立 chunk 避免阻塞 SidepanelHeader 首屏） */
-const BrandLogo = defineAsyncComponent(() => import('@/components/BrandLogo.vue'));
+import { useI18n } from '@/utils/i18n';
+// 品牌 Logo 静态导入：App.vue 已静态引用同组件（已在入口 chunk 内），
+// 异步包装无体积收益反增一次 resolve tick，导致品牌图标晚一帧出现
+import BrandLogo from '@/components/BrandLogo.vue';
 
 interface Props {
   /** 当前插件版本号 */
@@ -24,6 +24,8 @@ interface Emits {
 
 defineProps<Props>();
 defineEmits<Emits>();
+
+const { t } = useI18n();
 </script>
 
 <template>
@@ -31,7 +33,7 @@ defineEmits<Emits>();
     <div class="header-left">
       <h3>
         <BrandLogo class="logo" />
-        快速填充
+        {{ t('common.quickFill') }}
         <el-tag
           size="small"
           type="info"
@@ -53,7 +55,7 @@ defineEmits<Emits>();
         <button
           type="button"
           class="pill-btn"
-          title="查看开源仓库"
+          :title="t('sidepanel.header.github')"
           @click="$emit('openGithub')"
         >
           <!-- eslint-disable vue/no-v-html -->
@@ -66,7 +68,7 @@ defineEmits<Emits>();
         <button
           type="button"
           class="pill-btn"
-          title="操作指引与常见问题"
+          :title="t('sidepanel.header.help')"
           @click="$emit('openHelp')"
         >
           <!-- eslint-disable vue/no-v-html -->
@@ -79,7 +81,7 @@ defineEmits<Emits>();
         <button
           type="button"
           class="pill-btn"
-          title="设置"
+          :title="t('common.settings')"
           @click="$emit('openSettings')"
         >
           <el-icon><Setting /></el-icon>

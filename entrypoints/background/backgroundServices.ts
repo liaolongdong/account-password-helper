@@ -6,6 +6,7 @@ import {
   invalidateSessionCache,
   markSessionInvalid,
   requestReEncryptAtRest,
+  adoptRekeyedSession,
 } from '@/utils/sessionManager-storage';
 import {
   checkForUpdate,
@@ -17,6 +18,7 @@ import {
 import { isWindowsPlatform } from '@/utils/platform';
 import { getSidePanelPort } from './sidePanelManager';
 import { invalidatePasswordCache, warmPasswordCache } from './passwordCache';
+import { tl } from '@/utils/i18n-lite';
 
 /**
  * 惰性加载 StorageUtils
@@ -35,6 +37,18 @@ async function _getStorageUtils(): Promise<(typeof import('@/utils/storage'))['S
 
 /** 自动备份提醒闹钟名称 */
 const AUTO_BACKUP_ALARM_NAME = 'auto-backup-passwords';
+
+/** 回收站过期清理闹钟名称 */
+const TRASH_CLEANUP_ALARM_NAME = 'trash-cleanup';
+
+/** 密码到期提醒检查闹钟名称 */
+const PASSWORD_REMINDER_ALARM_NAME = 'password-reminder-check';
+
+/** 密码提醒检查间隔（分钟）：每 12 小时执行一次 */
+const PASSWORD_REMINDER_INTERVAL_MINUTES = 12 * 60;
+
+/** 回收站清理间隔（分钟）：每 24 小时执行一次 */
+const TRASH_CLEANUP_INTERVAL_MINUTES = 24 * 60;
 
 /**
  * Service Worker 保活闹钟名称
@@ -121,6 +135,82 @@ async function setupUpdateCheckAlarm() {
 }
 
 /**
+ * 设置密码到期提醒检查闹钟
+ *
+ * 每 12 小时执行一次，检查是否有到期的密码提醒并发送通知。
+ */
+async function setupPasswordReminderAlarm() {
+  try {
+    await chrome.alarms.clear(PASSWORD_REMINDER_ALARM_NAME);
+    await chrome.alarms.create(PASSWORD_REMINDER_ALARM_NAME, {
+      periodInMinutes: PASSWORD_REMINDER_INTERVAL_MINUTES,
+      delayInMinutes: 10, // 延迟 10 分钟后首次执行，避免 SW 启动时竞争
+    });
+    logger.debug('Background: 密码提醒检查闹钟已设置，间隔 12 小时');
+  } catch (error) {
+    logger.error('Background: 设置密码提醒闹钟失败:', error);
+  }
+}
+
+/**
+ * 执行密码到期提醒检查
+ *
+ * 检查所有已到期且未通知的提醒，逐条发送桌面通知。
+ */
+async function performReminderCheck() {
+  try {
+    const { getDueReminders, markNotified } = await import('@/utils/storage/reminderManager');
+    const dueReminders = await getDueReminders();
+
+    if (dueReminders.length === 0) return;
+
+    for (const reminder of dueReminders) {
+      const notificationId = `password-reminder-${reminder.entryId}`;
+      await chrome.notifications.create(notificationId, {
+        type: 'basic',
+        iconUrl: chrome.runtime.getURL('icon/128.png'),
+        title: tl('bg.reminder.title'),
+        message: tl('bg.reminder.message', { username: reminder.username }),
+      });
+      await markNotified(reminder.entryId);
+      logger.info(`Background: 密码提醒已发送 [${reminder.username}]`);
+    }
+  } catch (error) {
+    logger.error('Background: 密码提醒检查失败:', error);
+  }
+}
+
+/**
+ * 设置回收站过期清理闹钟
+ *
+ * 每 24 小时执行一次，清理超过 30 天的回收站条目。
+ */
+async function setupTrashCleanupAlarm() {
+  try {
+    await chrome.alarms.clear(TRASH_CLEANUP_ALARM_NAME);
+    await chrome.alarms.create(TRASH_CLEANUP_ALARM_NAME, {
+      periodInMinutes: TRASH_CLEANUP_INTERVAL_MINUTES,
+      delayInMinutes: 5, // 延迟 5 分钟后首次执行，避免 SW 启动时竞争
+    });
+    logger.debug('Background: 回收站清理闹钟已设置，间隔 24 小时');
+  } catch (error) {
+    logger.error('Background: 设置回收站清理闹钟失败:', error);
+  }
+}
+
+/**
+ * 执行回收站过期清理
+ */
+async function performTrashCleanup() {
+  try {
+    const { cleanExpiredTrash } = await import('@/utils/storage/trashManager');
+    await cleanExpiredTrash();
+  } catch (error) {
+    logger.error('Background: 回收站过期清理失败:', error);
+  }
+}
+
+/**
  * 执行版本更新检测并发送桌面通知
  */
 export async function performUpdateCheck() {
@@ -133,8 +223,8 @@ export async function performUpdateCheck() {
       await chrome.notifications.create('extension-update-available', {
         type: 'basic',
         iconUrl: chrome.runtime.getURL('icon/128.png'),
-        title: '插件有新版本可用',
-        message: `发现新版本 v${updateInfo.latestVersion}，点击前往下载更新。`,
+        title: tl('bg.update.title'),
+        message: tl('bg.update.message', { version: updateInfo.latestVersion }),
       });
       logger.info(`Background: 更新通知已发送，最新版本 v${updateInfo.latestVersion}`);
     } else {
@@ -225,8 +315,8 @@ async function performAutoBackup() {
     await chrome.notifications.create('auto-backup-reminder', {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icon/128.png'),
-      title: '密码备份提醒',
-      message: `您配置的自动备份时间已到，共有 ${passwordCount} 条密码待备份。请在密码管理页面点击"备份到邮箱"按钮手动完成备份。`,
+      title: tl('bg.backup.title'),
+      message: tl('bg.backup.message', { count: passwordCount }),
     });
 
     logger.info(`Background: 自动备份提醒已发送，密码条目数: ${passwordCount}`);
@@ -348,6 +438,8 @@ export function initBackgroundConfig(): void {
   setupAutoBackupAlarm();
   setupIdleLock();
   setupUpdateCheckAlarm();
+  setupTrashCleanupAlarm();
+  setupPasswordReminderAlarm();
 }
 
 /**
@@ -414,6 +506,10 @@ export function setupBackgroundServices(): void {
       chrome.tabs.create({ url: getReleasesPageUrl() });
       chrome.notifications.clear('extension-update-available');
       clearUpdateBadge();
+    } else if (notificationId.startsWith('password-reminder-')) {
+      // 密码提醒通知点击：打开选项页面
+      chrome.runtime.openOptionsPage();
+      chrome.notifications.clear(notificationId);
     }
   });
 
@@ -476,6 +572,18 @@ export function setupBackgroundServices(): void {
           }
 
           logger.debug('Background: 检测到会话清除，已通知所有上下文');
+        } else {
+          // rekey 自愈：包裹数据密钥被更新（修改主密码/重新登录）时，先失效 SW 内存中的
+          // 旧数据密钥热缓存，确保下方 warmPasswordCache 用新密钥解密预热，
+          // 避免旧密钥解密失败产出「已认证的空缓存」毒化 GET_INITIAL_DATA 热路径
+          const wrappedKeyChange = changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
+          if (wrappedKeyChange?.newValue !== undefined) {
+            adoptRekeyedSession(
+              wrappedKeyChange.newValue as string,
+              changes[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]?.newValue as number | undefined,
+              changes[SESSION_STORAGE_KEYS.VALIDITY_HOURS]?.newValue as number | undefined,
+            );
+          }
         }
 
         syncSwKeepaliveAlarm();
@@ -498,6 +606,12 @@ export function setupBackgroundServices(): void {
     } else if (alarm.name === UPDATE_CHECK_ALARM_NAME) {
       logger.info('Background: 触发版本更新检测闹钟');
       performUpdateCheck();
+    } else if (alarm.name === TRASH_CLEANUP_ALARM_NAME) {
+      logger.info('Background: 触发回收站过期清理闹钟');
+      performTrashCleanup();
+    } else if (alarm.name === PASSWORD_REMINDER_ALARM_NAME) {
+      logger.info('Background: 触发密码到期提醒检查闹钟');
+      performReminderCheck();
     } else if (alarm.name === SW_KEEPALIVE_ALARM_NAME) {
       // Windows 会话失效期：借本次保活唤醒顺带预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，
       // 缓解冷启动白屏）。懒 import 不增大 SW 初始包；函数内自带平台/会话门控与 60s 节流，

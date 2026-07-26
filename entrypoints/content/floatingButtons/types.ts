@@ -107,6 +107,8 @@ export interface SettingsPanelViewOptions {
 export interface SettingsPanelViewHandle {
   /** 根据新配置刷新视图（开关状态、滑块位置） */
   updateConfig(config: FloatingButtonConfig): void;
+  /** 切换面板展示语言（刷新全部内建文案与语言选中态） */
+  setLocale(locale: 'zh-CN' | 'en'): void;
   /** 解绑所有事件（DOM 由调用方移除） */
   destroy(): void;
 }

@@ -1,8 +1,8 @@
 import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { generateTOTP } from '@/utils/totp';
-import { isSameMainDomain } from '@/utils/domain';
+import { t } from '@/utils/i18n';
+import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
 import { getClipboardConfig } from '@/utils/storage/configManager';
 import { lazyImport } from '@/utils/lazyImport';
 import type { Ref } from 'vue';
@@ -21,6 +21,17 @@ const getPasswordCrudModule = lazyImport(() => import('@/utils/storage/passwordC
 const getUpdatePasswordInSession = async () => {
   const mod = await getPasswordCrudModule();
   return mod.updatePasswordInSession;
+};
+
+/**
+ * 延迟加载 totp 模块（首次填充/复制验证码时触发）
+ * 静态导入会将 totp chunk 拉入侧边栏入口 modulepreload 清单，
+ * 增加锁屏态（Windows 冷盘）首屏关键路径的文件冷读数量
+ */
+const getTotpModule = lazyImport(() => import('@/utils/totp'));
+const generateTotpCode = async (secret: string): Promise<string> => {
+  const mod = await getTotpModule();
+  return mod.generateTOTP(secret);
 };
 
 /**
@@ -69,7 +80,7 @@ export function useSidepanelFill(
 
     try {
       await navigator.clipboard.writeText('');
-      ElMessage.info('剪贴板已自动清除');
+      ElMessage.info(t('fill.clipboardCleared'));
     } catch {
       // Async Clipboard API 需要文档有焦点，SidePanel 无焦点时降级
       // execCommand('copy') 搭配空选择是 no-op，必须写入非空内容才能覆写剪贴板
@@ -84,13 +95,13 @@ export function useSidepanelFill(
         const success = document.execCommand('copy');
         document.body.removeChild(textarea);
         if (success) {
-          ElMessage.info('剪贴板已自动清除');
+          ElMessage.info(t('fill.clipboardCleared'));
         } else {
-          ElMessage.warning('自动清除剪贴板失败，请手动清除');
+          ElMessage.warning(t('fill.clipboardClearFailed'));
         }
       } catch (fallbackError) {
         logger.error('自动清除剪贴板失败:', fallbackError);
-        ElMessage.warning('自动清除剪贴板失败，请手动清除');
+        ElMessage.warning(t('fill.clipboardClearFailed'));
       }
     }
   };
@@ -150,53 +161,6 @@ export function useSidepanelFill(
       }
     }
     return null;
-  };
-
-  /**
-   * 获取可安全填充的 frame ID 列表：仅顶层 frame 及与顶层同主域名的 frame。
-   *
-   * 安全加固：避免将凭证广播给页面内嵌的跨域第三方 iframe（如广告/统计）导致泄露。
-   * 检测（PING）与填充（FILL）复用同一集合，保证"检测到即可填充"的一致性。
-   *
-   * about: 系列（about:blank / about:srcdoc）继承其父帧来源：沿父链回溯至首个非 about:
-   * 祖先再判定，仅当该祖先为顶层或同主域名帧时才纳入——避免跨域 iframe 派生的 about: 子帧
-   * （与该跨域帧同源）截获明文凭证。与自动保存路径的 isSameMainDomain 校验保持一致。
-   *
-   * @param tabId 标签页ID
-   * @returns 可填充的 frame ID 列表；获取失败时回退到 [0]（仅顶层 frame）
-   */
-  const getFillableFrameIds = async (tabId: number): Promise<number[]> => {
-    try {
-      const frames = await chrome.webNavigation.getAllFrames({ tabId });
-      if (!frames || frames.length === 0) return [0];
-
-      const topFrame = frames.find(f => f.frameId === 0);
-      const topUrl = topFrame?.url;
-      if (!topUrl) return [0];
-
-      const framesById = new Map(frames.map(f => [f.frameId, f] as const));
-
-      /**
-       * 判断 frame 是否可安全填充；about: 帧沿父链回溯判定，防止跨域 about: 子帧被误纳入。
-       */
-      const isFillable = (frame: { frameId: number; parentFrameId: number; url?: string }): boolean => {
-        if (frame.frameId === 0) return true; // 顶层 frame 恒可填充
-        const url = frame.url || '';
-        if (url.startsWith('about:')) {
-          const parent = framesById.get(frame.parentFrameId);
-          // 无父帧信息或自引用：保守拒绝，避免误填
-          if (!parent || parent.frameId === frame.frameId) return false;
-          return isFillable(parent);
-        }
-        return isSameMainDomain(url, topUrl);
-      };
-
-      const fillable = frames.filter(f => isFillable(f)).map(f => f.frameId);
-      return fillable.length > 0 ? fillable : [0];
-    } catch (error) {
-      logger.warn('获取可填充 frame 列表失败，回退到仅顶层 frame:', error);
-      return [0];
-    }
   };
 
   /**
@@ -274,46 +238,6 @@ export function useSidepanelFill(
   };
 
   /**
-   * 向所有 frame 发送填充消息，返回第一个成功的响应
-   * 各 frame 的 FormDetector 收到消息后自行判断是否有匹配字段并尝试填充
-   * @param tabId 标签页ID
-   * @param frameIds 所有 frame ID 列表
-   * @param fillData 填充数据（用户名、密码、autoLogin）
-   * @returns FillResult 或 null
-   */
-  const fillPasswordInAllFrames = async (
-    tabId: number,
-    frameIds: number[],
-    fillData: { username: string; password: string; autoLogin: boolean },
-  ): Promise<FillResult | null> => {
-    // 并行向所有 frame 发送填充消息，避免顶层 frame 的慢响应（~9s 重试）阻塞 iframe 的快速填充（~0.2s）
-    const results = await Promise.allSettled(
-      frameIds.map(frameId =>
-        chrome.tabs.sendMessage(
-          tabId,
-          {
-            type: MessageType.FILL_PASSWORD,
-            data: fillData,
-          },
-          { frameId },
-        ),
-      ),
-    );
-
-    // 取第一个成功的响应
-    for (const result of results) {
-      if (result.status === 'fulfilled') {
-        const response = result.value as FillResult | undefined;
-        if (response?.success) {
-          return response;
-        }
-      }
-    }
-
-    return null;
-  };
-
-  /**
    * 向所有 frame 发送 TOTP 验证码填充消息，返回首个成功响应（均失败时返回首个响应以展示提示）
    * @param tabId 标签页ID
    * @param frameIds 所有 frame ID 列表
@@ -357,7 +281,7 @@ export function useSidepanelFill(
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab || !tab.id) {
-        ElMessage.error('无法获取当前页面信息');
+        ElMessage.error(t('fill.noTabInfo'));
         return;
       }
 
@@ -383,13 +307,13 @@ export function useSidepanelFill(
           await new Promise(resolve => setTimeout(resolve, 800));
         } catch (injectError) {
           logger.error('Content script 注入失败:', injectError);
-          ElMessage.error('无法在当前页面中注入脚本，请刷新页面后重试');
+          ElMessage.error(t('fill.injectFailed'));
           return;
         }
 
         pingResponse = await pingAllFrames(tabId, frameIds);
         if (!pingResponse) {
-          ElMessage.error('页面脚本未就绪，请刷新页面后重试');
+          ElMessage.error(t('fill.scriptNotReady'));
           return;
         }
       }
@@ -404,7 +328,7 @@ export function useSidepanelFill(
       if (!hasFields) {
         const detected = await waitForFieldsDetected(tabId, 3, frameIds);
         if (!detected) {
-          ElMessage.warning('未检测到登录表单，请确保页面包含登录输入框');
+          ElMessage.warning(t('fill.noLoginForm'));
           return;
         }
       }
@@ -415,11 +339,11 @@ export function useSidepanelFill(
         password: password.password,
         autoLogin,
       };
-      const response = await fillPasswordInAllFrames(tabId, frameIds, fillData);
+      const response = await fillPasswordInFrames(tabId, frameIds, fillData);
 
       // 步骤5: 根据响应显示结果
       if (response && response.success) {
-        ElMessage.success(response.message || '密码填充成功');
+        ElMessage.success(response.message || t('fill.fillSuccess'));
         // 填充成功时，刷新 lastUsedAt（"最近使用"排序依据）和 favoriteUsedAt（LRU 依据）
         const now = Date.now();
         if (passwords?.value) {
@@ -454,16 +378,17 @@ export function useSidepanelFill(
         });
       } else {
         const rawMsg = response?.message || '';
-        const isNoForm = rawMsg.includes('未检测到登录表单');
-        const errorMsg = isNoForm ? '未检测到登录表单，请确保页面包含登录输入框' : rawMsg;
+        // 优先用结构化 reason 判断（跨语言稳定）；字符串匹配保留作旧版本 content script 兜底
+        const isNoForm = response?.reason === 'no_form' || rawMsg.includes('未检测到登录表单');
+        const errorMsg = isNoForm ? t('fill.noLoginForm') : rawMsg;
         ElMessage.warning(errorMsg);
       }
     } catch (error: any) {
       logger.error('填充密码失败:', error);
       if (error.message && error.message.includes('Could not establish connection')) {
-        ElMessage.error('无法连接到页面脚本，请刷新页面后重试');
+        ElMessage.error(t('fill.connectFailed'));
       } else {
-        ElMessage.error('填充密码失败，请确保页面已加载完成');
+        ElMessage.error(t('fill.fillFailed'));
       }
     }
   };
@@ -485,23 +410,23 @@ export function useSidepanelFill(
    */
   const fillTotp = async (password: PasswordEntry) => {
     if (!password.totp || !password.totp.trim()) {
-      ElMessage.warning('该条目未配置两步验证');
+      ElMessage.warning(t('fill.noTotpConfigured'));
       return;
     }
 
     let code: string;
     try {
-      code = await generateTOTP(password.totp);
+      code = await generateTotpCode(password.totp);
     } catch (error) {
       logger.error('生成验证码失败:', error);
-      ElMessage.error('生成验证码失败，请检查密钥');
+      ElMessage.error(t('fill.totpGenerateFailed'));
       return;
     }
 
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab || !tab.id) {
-        ElMessage.error('无法获取当前页面信息');
+        ElMessage.error(t('fill.noTabInfo'));
         return;
       }
       const tabId = tab.id;
@@ -518,29 +443,29 @@ export function useSidepanelFill(
           await new Promise(resolve => setTimeout(resolve, 800));
         } catch (injectError) {
           logger.error('Content script 注入失败:', injectError);
-          ElMessage.error('无法在当前页面中注入脚本，请刷新页面后重试');
+          ElMessage.error(t('fill.injectFailed'));
           return;
         }
         pingResponse = await pingAllFrames(tabId, frameIds);
         if (!pingResponse) {
-          ElMessage.error('页面脚本未就绪，请刷新页面后重试');
+          ElMessage.error(t('fill.scriptNotReady'));
           return;
         }
       }
 
       const response = await fillTotpInAllFrames(tabId, frameIds, code);
       if (response && response.success) {
-        ElMessage.success(response.message || '验证码填充成功');
+        ElMessage.success(response.message || t('fill.totpFillSuccess'));
         await chrome.runtime.sendMessage({
           type: MessageType.HIDE_SIDEPANEL,
           data: { tabId },
         });
       } else {
-        ElMessage.warning(response?.message || '当前页面未检测到验证码输入框');
+        ElMessage.warning(response?.message || t('fill.noTotpInput'));
       }
     } catch (error: any) {
       logger.error('填充验证码失败:', error);
-      ElMessage.error('填充验证码失败，请刷新页面后重试');
+      ElMessage.error(t('fill.totpFillFailed'));
     }
   };
 
@@ -554,23 +479,23 @@ export function useSidepanelFill(
    */
   const copyTotp = async (password: PasswordEntry) => {
     if (!password.totp || !password.totp.trim()) {
-      ElMessage.warning('该条目未配置两步验证');
+      ElMessage.warning(t('fill.noTotpConfigured'));
       return;
     }
 
     let code: string;
     try {
-      code = await generateTOTP(password.totp);
+      code = await generateTotpCode(password.totp);
     } catch (error) {
       logger.error('生成验证码失败:', error);
-      ElMessage.error('生成验证码失败，请检查密钥');
+      ElMessage.error(t('fill.totpGenerateFailed'));
       return;
     }
 
     // 优先 Async Clipboard API（需文档聚焦）；因上方 await 生成可能丢失瞬时激活，失败时降级 execCommand
     try {
       await navigator.clipboard.writeText(code);
-      ElMessage.success('验证码已复制到剪贴板');
+      ElMessage.success(t('fill.totpCopied'));
       return;
     } catch {
       logger.info('Async Clipboard 写入失败（可能文档失焦），降级 execCommand');
@@ -587,13 +512,13 @@ export function useSidepanelFill(
       const ok = document.execCommand('copy');
       document.body.removeChild(textarea);
       if (ok) {
-        ElMessage.success('验证码已复制到剪贴板');
+        ElMessage.success(t('fill.totpCopied'));
       } else {
-        ElMessage.error('复制验证码失败');
+        ElMessage.error(t('fill.totpCopyFailed'));
       }
     } catch (fallbackError) {
       logger.error('复制验证码失败:', fallbackError);
-      ElMessage.error('复制验证码失败');
+      ElMessage.error(t('fill.totpCopyFailed'));
     }
   };
 
@@ -610,7 +535,7 @@ export function useSidepanelFill(
       });
     } catch (error) {
       logger.error('SidePanel: 打开编辑页面失败:', error);
-      ElMessage.error('打开编辑页面失败');
+      ElMessage.error(t('fill.openEditFailed'));
     }
   };
 
@@ -624,12 +549,12 @@ export function useSidepanelFill(
   const copyUsername = async (username: string) => {
     try {
       await navigator.clipboard.writeText(username);
-      ElMessage.success('用户名已复制到剪贴板');
+      ElMessage.success(t('fill.usernameCopied'));
       // 取消密码自动清除定时器，避免误清除刚复制的用户名
       cancelPendingClear();
     } catch (error) {
       logger.error('复制用户名失败:', error);
-      ElMessage.error('复制用户名失败');
+      ElMessage.error(t('fill.usernameCopyFailed'));
     }
   };
 
@@ -641,14 +566,14 @@ export function useSidepanelFill(
   const copyPassword = async (password: string) => {
     try {
       await navigator.clipboard.writeText(password);
-      ElMessage.success('密码已复制到剪贴板');
+      ElMessage.success(t('fill.passwordCopied'));
       // 记录当前密码快照，用于定时器触发时验证剪贴板内容
       copiedPasswordSnapshot = password;
       // 启动自动清除定时器
       scheduleClearClipboard();
     } catch (error) {
       logger.error('复制密码失败:', error);
-      ElMessage.error('复制密码失败');
+      ElMessage.error(t('fill.passwordCopyFailed'));
     }
   };
 

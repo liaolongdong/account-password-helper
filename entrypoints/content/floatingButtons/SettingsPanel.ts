@@ -10,7 +10,11 @@
 
 import type { FloatingButtonConfig } from '@/utils/types';
 import type { SettingsPanelOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
-import { getSettingsPanelHTML, bindSettingsPanelView } from '@/entrypoints/content/floatingButtons/settingsPanelView';
+import {
+  getSettingsPanelHTML,
+  bindSettingsPanelView,
+  getStoredPanelLocale,
+} from '@/entrypoints/content/floatingButtons/settingsPanelView';
 
 export class SettingsPanel {
   private shadowRoot: ShadowRoot;
@@ -52,6 +56,9 @@ export class SettingsPanel {
       onConfigChange: patch => this.onConfigChange(patch),
       onClose: () => this.hide(),
     });
+
+    // 异步读取用户语言偏好并应用（构造期默认中文渲染，storage 读取通常在面板展示前完成）
+    void getStoredPanelLocale().then(locale => this.viewHandle?.setLocale(locale));
   }
 
   /**

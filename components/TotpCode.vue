@@ -4,6 +4,7 @@ import { CopyDocument } from '@element-plus/icons-vue';
 import { useTotp } from '@/composables/useTotp';
 import { parseOtpAuth } from '@/utils/totp';
 import { logger } from '@/utils/logger';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 两步验证码（TOTP）展示组件
@@ -30,6 +31,8 @@ const props = withDefaults(defineProps<Props>(), {
 const secretRef = computed(() => props.secret);
 const { code, valid, remaining, progress } = useTotp(secretRef);
 
+const { t } = useI18n();
+
 /** 圆环周长（r=15.9155 时约等于 100，使 dashoffset 直接映射为百分比） */
 const RING_CIRCUMFERENCE = 100;
 
@@ -43,7 +46,7 @@ const ringStyle = computed(() => ({
 const paramsText = computed(() => {
   const parsed = parseOtpAuth((props.secret || '').trim());
   if (!parsed) return '';
-  return `${parsed.algorithm} · ${parsed.digits} 位 · ${parsed.period} 秒`;
+  return t('totp.params', { algorithm: parsed.algorithm, digits: parsed.digits, period: parsed.period });
 });
 
 /**
@@ -53,10 +56,10 @@ const handleCopy = async (): Promise<void> => {
   if (!valid.value || !code.value) return;
   try {
     await navigator.clipboard.writeText(code.value);
-    ElMessage.success('验证码已复制');
+    ElMessage.success(t('totp.copied'));
   } catch (error) {
     logger.error('复制验证码失败:', error);
-    ElMessage.error('复制失败');
+    ElMessage.error(t('message.copyFailed'));
   }
 };
 </script>
@@ -95,7 +98,7 @@ const handleCopy = async (): Promise<void> => {
       <el-icon
         v-if="copyable"
         class="totp-code__copy"
-        title="复制验证码"
+        :title="t('sidepanel.item.copyTotp')"
         @click.stop="handleCopy"
       >
         <CopyDocument />
@@ -110,7 +113,7 @@ const handleCopy = async (): Promise<void> => {
     <span
       v-else
       class="totp-code__invalid"
-      >无效密钥</span
+      >{{ t('totp.invalidSecret') }}</span
     >
   </div>
 </template>

@@ -60,16 +60,16 @@
         class="password-list-info"
       >
         <span>
-          总共
+          {{ t('options.totalPasswords') }}
           <el-text type="success">
             {{ passwords.length }}
           </el-text>
-          条账号密码
+          {{ t('options.totalUnit') }}
         </span>
         <span v-if="filteredPasswords.length !== passwords.length">
-          ，过滤筛选出
+          {{ t('options.filtered') }}
           <el-text type="success">{{ filteredPasswords.length }}</el-text>
-          条
+          {{ t('options.filteredUnit') }}
         </span>
       </div>
 
@@ -130,6 +130,7 @@
       ref="passwordFormDialogRef"
       v-model="showPasswordDialog"
       :is-editing="isEditingPassword"
+      :editing-id="editingPasswordId"
       :form="passwordForm"
       :form-rules="passwordFormRules"
       :loading="passwordFormLoading"
@@ -179,16 +180,29 @@
       :report="healthReport"
       @edit="onHealthEdit"
     />
+
+    <!-- 回收站弹窗 -->
+    <TrashDialog
+      v-model="showTrashDialog"
+      @restored="loadPasswords"
+    />
+
+    <!-- 修改主密码弹窗 -->
+    <ChangeMasterPasswordDialog
+      v-model="showChangeMasterPasswordDialog"
+      @success="loadPasswords"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
+import { ref, computed, nextTick, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue';
 import type { FloatingButtonConfig } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { initSessionManager } from '@/utils/sessionManager';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { t, currentLocale } from '@/utils/i18n';
 import {
   getSettingsPanelHTML,
   bindSettingsPanelView,
@@ -205,6 +219,10 @@ const IdleLockSetting = defineAsyncComponent(() => import('@/components/options/
 const FavoriteLimitSetting = defineAsyncComponent(() => import('@/components/options/FavoriteLimitSetting.vue'));
 const ClipboardSettingDialog = defineAsyncComponent(() => import('@/components/options/ClipboardSettingDialog.vue'));
 const PasswordHealthDialog = defineAsyncComponent(() => import('@/components/options/PasswordHealthDialog.vue'));
+const TrashDialog = defineAsyncComponent(() => import('@/components/options/TrashDialog.vue'));
+const ChangeMasterPasswordDialog = defineAsyncComponent(
+  () => import('@/components/options/ChangeMasterPasswordDialog.vue'),
+);
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -222,7 +240,7 @@ import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
-import { buildHealthReport } from '@/utils/passwordHealth';
+import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
 import { isDev } from '@/utils/env';
 
 /** 密码表单弹窗组件引用（用于获取内部 form ref） */
@@ -267,6 +285,12 @@ const showClipboardDialog = ref(false);
 /** 安全体检弹窗可见性 */
 const showHealthDialog = ref(false);
 
+/** 回收站弹窗可见性 */
+const showTrashDialog = ref(false);
+
+/** 修改主密码弹窗可见性 */
+const showChangeMasterPasswordDialog = ref(false);
+
 /** 偏好设置弹窗可见性 */
 const showPersonalizationDialog = ref(false);
 const personalizationPanelEl = ref<HTMLElement | null>(null);
@@ -297,7 +321,7 @@ const openPersonalizationDialog = async () => {
   showPersonalizationDialog.value = true;
   await nextTick();
   if (!personalizationPanelEl.value) return;
-  personalizationPanelEl.value.innerHTML = getSettingsPanelHTML(config);
+  personalizationPanelEl.value.innerHTML = getSettingsPanelHTML(config, currentLocale.value);
   personalizationViewHandle = bindSettingsPanelView(
     personalizationPanelEl.value,
     personalizationOverlayEl.value,
@@ -308,11 +332,12 @@ const openPersonalizationDialog = async () => {
           await StorageUtils.saveFloatingButtonConfig(patch);
         } catch (error) {
           logger.error('Options: 保存悬浮按钮配置失败:', error);
-          ElMessage.error('保存设置失败');
+          ElMessage.error(t('message.saveSettingsFailed'));
         }
       },
       onClose: closePersonalizationDialog,
     },
+    currentLocale.value,
   );
 };
 
@@ -331,31 +356,26 @@ const injectPersonalizationStyles = () => {
 /** 当前插件版本号（复用 useVersionUpdate） */
 const { currentVersion } = useVersionUpdate();
 
-/** 主密码设置页强度校验 */
-const setupPasswordRef = computed(() => setupForm.value.password);
-const { rules: passwordRules, strength: passwordStrength } = usePasswordStrength(setupPasswordRef);
-
-/** 密码表单弹窗强度校验 */
-const formPasswordRef = computed(() => passwordForm.value.password);
-const { rules: formPasswordRules, strength: formPasswordStrength } = usePasswordStrength(formPasswordRef);
-
 /** 加密备份导入弹窗可见性 */
 const showBackupImportDialog = ref(false);
 
 /** 加密备份导出 */
 const handleEncryptedBackupExport = async () => {
   if (passwords.value.length === 0) {
-    ElMessage.warning('没有密码数据可备份');
+    ElMessage.warning(t('message.noDataToBackup'));
     return;
   }
-  const masterPassword = await promptAndVerifyMasterPassword('加密备份导出', '加密备份需要验证主密码，请输入主密码：');
+  const masterPassword = await promptAndVerifyMasterPassword(
+    t('options.backup.exportTitle'),
+    t('options.backup.exportPrompt'),
+  );
   if (!masterPassword) return;
   try {
     await exportEncryptedBackup(passwords.value, masterPassword);
-    ElMessage.success('加密备份导出成功');
+    ElMessage.success(t('options.backup.exportSuccess'));
   } catch (error) {
     logger.error('加密备份导出失败:', error);
-    ElMessage.error('加密备份导出失败');
+    ElMessage.error(t('options.backup.exportFailed'));
   }
 };
 
@@ -389,6 +409,9 @@ const handleDataCommand = (command: string) => {
     case 'removeDuplicates':
       removeDuplicates();
       break;
+    case 'trash':
+      showTrashDialog.value = true;
+      break;
   }
 };
 
@@ -398,6 +421,9 @@ const handleDataCommand = (command: string) => {
  */
 const handleSettingsCommand = (command: string) => {
   switch (command) {
+    case 'changeMasterPassword':
+      showChangeMasterPasswordDialog.value = true;
+      break;
     case 'validity':
       openValiditySetting();
       break;
@@ -425,6 +451,7 @@ const {
   searchKeyword,
   selectedIds,
   isEditingPassword,
+  editingPasswordId,
   passwordForm,
   passwordFormRules,
   passwordFormLoading,
@@ -461,10 +488,29 @@ const {
 });
 
 /**
- * 密码健康报告（纯本地内存计算，随密码列表变化自动更新）
- * 直接消费已解密的 passwords，无额外解密、存储或网络操作。
+ * 密码健康报告（异步计算，含字典校验，随密码列表变化自动更新）
+ * 消费已解密的 passwords，无额外解密、存储或网络操作。
  */
-const healthReport = computed(() => buildHealthReport(passwords.value, Date.now()));
+const healthReport = ref<HealthReport>({
+  total: 0,
+  score: 100,
+  grade: 'excellent',
+  weak: [],
+  breached: [],
+  reuseGroups: [],
+  reuseAffectedCount: 0,
+  stale: [],
+  noTotpCount: 0,
+});
+
+/** 异步更新健康报告（密码列表变化时触发） */
+watch(
+  passwords,
+  async list => {
+    healthReport.value = await buildHealthReportAsync(list, Date.now());
+  },
+  { immediate: true },
+);
 
 /**
  * 安全体检「去处理」：关闭体检弹窗并跳转到对应条目的编辑流程
@@ -503,6 +549,20 @@ const {
     passwords.value = [];
   },
 });
+
+/**
+ * 主密码设置页 / 密码表单弹窗强度校验
+ *
+ * 必须声明在 useAuthFlow / usePasswordManagement 解构之后：
+ * usePasswordStrength 内部的 watch 在建立监听时会立即求值 computed source
+ * 以收集依赖，若此时 setupForm / passwordForm 尚未初始化（TDZ）会抛
+ * ReferenceError 导致整页白屏。
+ */
+const setupPasswordRef = computed(() => setupForm.value.password);
+const { rules: passwordRules, strength: passwordStrength } = usePasswordStrength(setupPasswordRef);
+
+const formPasswordRef = computed(() => passwordForm.value.password);
+const { rules: formPasswordRules, strength: formPasswordStrength } = usePasswordStrength(formPasswordRef);
 
 /** 会话定时器状态与操作方法 */
 const {

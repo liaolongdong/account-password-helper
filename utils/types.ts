@@ -1,4 +1,5 @@
 import type { ThemeName } from '@/utils/theme';
+import type { SidepanelOpenTrigger } from '@/utils/perfMetrics';
 
 /**
  * 页面填充模式
@@ -145,11 +146,7 @@ export enum MessageType {
    */
   OPEN_OPTIONS_PAGE = 'OPEN_OPTIONS_PAGE',
   /**
-   * 获取缓存的密码列表
-   */
-  GET_CACHED_PASSWORDS = 'GET_CACHED_PASSWORDS',
-  /**
-   * 更新密码缓存
+   * 触发 background 预热/刷新密码缓存（无载荷，由 background 自行去重解密填充）
    */
   UPDATE_PASSWORD_CACHE = 'UPDATE_PASSWORD_CACHE',
   /**
@@ -200,6 +197,10 @@ export enum MessageType {
    * 自动保存预检查：查询当前域名+账号的凭证状态，决定是否/如何弹出保存确认弹窗
    */
   CHECK_CREDENTIAL_STATUS = 'CHECK_CREDENTIAL_STATUS',
+  /**
+   * 一键填充：由 Popup 或快捷键触发，Background 自动匹配当前域名并填充
+   */
+  QUICK_FILL = 'QUICK_FILL',
 }
 
 /**
@@ -213,16 +214,15 @@ export type RuntimeMessage =
   | { type: MessageType.FILL_PASSWORD; data: FillPasswordData }
   | { type: MessageType.FILL_MOBILE_CODE; data: FillMobileCodeData }
   | { type: MessageType.FILL_TOTP; data: FillTotpData }
-  | { type: MessageType.SHOW_SIDEPANEL; data?: { tabId?: number } }
+  | { type: MessageType.SHOW_SIDEPANEL; data?: { tabId?: number; clickTs?: number; trigger?: SidepanelOpenTrigger } }
   | { type: MessageType.HIDE_SIDEPANEL; data?: { tabId?: number } }
-  | { type: MessageType.TOGGLE_SIDEPANEL; data?: { tabId?: number } }
+  | { type: MessageType.TOGGLE_SIDEPANEL; data?: { tabId?: number; clickTs?: number } }
   | { type: MessageType.CLOSE_SIDEPANEL }
   | { type: MessageType.URL_CHANGED; data: { url: string } }
   | { type: MessageType.OPEN_OPTIONS_PAGE }
   | { type: MessageType.OPEN_OPTIONS_AND_EDIT; data: { editId: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_ADD }
-  | { type: MessageType.GET_CACHED_PASSWORDS; data?: { domain?: string } }
-  | { type: MessageType.UPDATE_PASSWORD_CACHE; data: Omit<PasswordCache, 'timestamp'> }
+  | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
   | { type: MessageType.SESSION_EXPIRED }
@@ -231,7 +231,8 @@ export type RuntimeMessage =
   | { type: MessageType.SIDEPANEL_PRELOAD }
   | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string } }
   | { type: MessageType.FILL_BY_ID; data: FillByIdData }
-  | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData };
+  | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData }
+  | { type: MessageType.QUICK_FILL };
 
 /**
  * 悬浮按钮配置接口
@@ -532,6 +533,32 @@ export interface IdleLockConfig {
 }
 
 /**
+ * 回收站条目接口
+ *
+ * 继承加密态密码条目，额外记录删除时间戳用于 30 天 TTL 自动清理。
+ * 条目在回收站中保持密文存储，安全模型与主列表一致。
+ */
+export interface TrashedPasswordEntry extends EncryptedPasswordEntry {
+  /** 移入回收站的时间戳（毫秒） */
+  deletedAt: number;
+}
+
+/**
+ * 密码修改历史记录
+ *
+ * 密码字段变更时快照旧密文，每条条目最多保留 5 条历史记录。
+ * 历史密码以密文存储（同主密码体系加密），与数据库整体 rekey 联动。
+ */
+export interface PasswordHistoryRecord {
+  /** 所属密码条目 ID */
+  entryId: string;
+  /** 历史密码（密文，同主密码体系 AES-256-GCM 加密） */
+  password: string;
+  /** 密码变更时间戳（毫秒） */
+  changedAt: number;
+}
+
+/**
  * 单个字段填充结果接口
  */
 export interface FieldFillResult {
@@ -546,6 +573,8 @@ export interface FieldFillResult {
 export interface FillResult {
   success: boolean;
   message: string;
+  /** 结构化失败原因（跨语言稳定判断，替代对 message 文案的字符串匹配） */
+  reason?: 'no_form';
   details: {
     usernameField: FieldFillResult;
     passwordField: FieldFillResult;

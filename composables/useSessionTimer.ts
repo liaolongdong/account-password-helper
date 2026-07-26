@@ -1,9 +1,10 @@
-import { ref, watch, nextTick, type Ref } from 'vue';
+import { ref, computed, watch, nextTick, type Ref } from 'vue';
 import type { FormRules } from 'element-plus';
 import { StorageUtils } from '@/utils/storage';
 import type { PasswordEntry } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 
 /**
@@ -31,9 +32,10 @@ export function useSessionTimer(options: {
     validityHours: 24,
   });
 
-  const validityRules: FormRules = {
-    validityHours: [{ required: true, message: '请选择有效期', trigger: 'change' }],
-  };
+  // 校验规则需响应语言切换，故用 computed 包裹（与 useAuthFlow/usePasswordManagement 保持一致）
+  const validityRules = computed<FormRules>(() => ({
+    validityHours: [{ required: true, message: t('common.validityRequired'), trigger: 'change' }],
+  }));
 
   // 会话信息
   const sessionInfo = ref({
@@ -53,12 +55,12 @@ export function useSessionTimer(options: {
         updateRemainingTime(expiryTime);
       } else {
         sessionInfo.value.expiryTime = null;
-        sessionInfo.value.remainingTime = '无会话';
+        sessionInfo.value.remainingTime = t('session.none');
       }
     } catch (error) {
       logger.error('获取会话信息失败:', error);
       sessionInfo.value.expiryTime = null;
-      sessionInfo.value.remainingTime = '获取失败';
+      sessionInfo.value.remainingTime = t('session.fetchFailed');
     }
   };
 
@@ -68,7 +70,7 @@ export function useSessionTimer(options: {
     const remaining = expiryTime - now;
 
     if (remaining <= 0) {
-      sessionInfo.value.remainingTime = '已过期';
+      sessionInfo.value.remainingTime = t('session.expired');
       return;
     }
 
@@ -78,13 +80,13 @@ export function useSessionTimer(options: {
     const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
 
     if (days > 0) {
-      sessionInfo.value.remainingTime = `${days}天${hours}小时`;
+      sessionInfo.value.remainingTime = t('session.dayHour', { days, hours });
     } else if (hours > 0) {
-      sessionInfo.value.remainingTime = `${hours}小时${minutes}分钟`;
+      sessionInfo.value.remainingTime = t('session.hourMinute', { hours, minutes });
     } else if (minutes > 0) {
-      sessionInfo.value.remainingTime = `${minutes}分钟${seconds}秒`;
+      sessionInfo.value.remainingTime = t('session.minuteSecond', { minutes, seconds });
     } else {
-      sessionInfo.value.remainingTime = `${seconds}秒`;
+      sessionInfo.value.remainingTime = t('session.second', { seconds });
     }
   };
 
@@ -123,10 +125,7 @@ export function useSessionTimer(options: {
   // 处理有效期设置保存
   const handleValiditySave = async () => {
     try {
-      const masterPassword = await promptAndVerifyMasterPassword(
-        '验证主密码',
-        '修改验证有效期需要验证主密码，请输入主密码：',
-      );
+      const masterPassword = await promptAndVerifyMasterPassword(t('session.verifyTitle'), t('session.verifyPrompt'));
       if (!masterPassword) return;
 
       validityLoading.value = true;
@@ -137,7 +136,7 @@ export function useSessionTimer(options: {
       // 保存成功后刷新会话信息，保证剩余时间按新有效期重算
       await updateSessionInfo();
 
-      ElMessage.success('有效期设置保存成功');
+      ElMessage.success(t('session.validitySaved'));
       showValiditySetting.value = false;
     } catch (error) {
       // 用户点击取消时静默返回，不弹错误提示
@@ -145,7 +144,7 @@ export function useSessionTimer(options: {
         return;
       }
       logger.error('保存有效期设置失败:', error);
-      ElMessage.error('保存失败');
+      ElMessage.error(t('message.saveFailed'));
     } finally {
       validityLoading.value = false;
     }
@@ -154,16 +153,12 @@ export function useSessionTimer(options: {
   // 处理清除会话
   const handleClearSession = async () => {
     try {
-      await ElMessageBox.confirm(
-        '确定要清除当前主密码会话吗？清除后需要重新输入主密码才能访问密码列表。',
-        '确认清除会话',
-        {
-          confirmButtonText: '确定清除',
-          cancelButtonText: '取消',
-          type: 'warning',
-          confirmButtonClass: 'el-button--danger',
-        },
-      );
+      await ElMessageBox.confirm(t('session.clearConfirm'), t('session.clearConfirmTitle'), {
+        confirmButtonText: t('session.clearConfirmBtn'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      });
 
       clearSessionLoading.value = true;
 
@@ -203,11 +198,11 @@ export function useSessionTimer(options: {
         }
       });
 
-      ElMessage.success('主密码会话已清除');
+      ElMessage.success(t('session.cleared'));
     } catch (error) {
       if (error !== 'cancel') {
         logger.error('清除主密码会话失败:', error);
-        ElMessage.error('清除主密码会话失败');
+        ElMessage.error(t('session.clearFailed'));
       }
     } finally {
       clearSessionLoading.value = false;

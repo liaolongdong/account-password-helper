@@ -14,7 +14,7 @@ export interface CsvColumnMapping {
 /** 各格式列映射配置 */
 export const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnMapping> = {
   native: {
-    username: ['用户名(必填)', '用户名', '账号', 'username', 'Username'],
+    username: ['用户名(必填)', '用户名', '账号', 'Username (Required)', 'username', 'Username'],
     password: ['密码', 'password', 'Password'],
     url: ['网址', 'URL', 'url', '网站地址', '链接'],
     tag: ['标签', 'tag', 'Tag', '分类'],

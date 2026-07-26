@@ -10,7 +10,6 @@ import {
 import { openOptionsPage, openOptionsAndSendMessage } from './optionsPageManager';
 import {
   getCachedPasswords,
-  updatePasswordCache,
   invalidatePasswordCache,
   getCachedSortConfig,
   warmPasswordCache,
@@ -19,7 +18,17 @@ import {
   getDecryptedEntryById,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
+import { handleQuickFill } from './quickFillHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
+import { isFrameFillable } from '@/utils/frameFill';
+
+/**
+ * SW 模块加载时刻（epoch 毫秒）
+ *
+ * GET_INITIAL_DATA 响应体附带 swUptimeMs = Date.now() - _swLoadedAt，
+ * 侧边栏环形日志据此判定慢点归属于 SW 冷启动还是解密/storage 读取。
+ */
+const _swLoadedAt = Date.now();
 
 /**
  * 延迟加载 sessionManager-storage 模块
@@ -62,14 +71,23 @@ async function _getCrudModule(): Promise<typeof import('@/utils/storage/password
  * - 冷缓存（首次打开）：~100-300ms（storage 读取），完成后自动预热
  *
  * @param domain 当前页面域名（当前未使用，保留兼容性）
- * @returns 包含会话状态、密码列表、排序配置的响应数据
+ * @returns 包含会话状态、密码列表、排序配置及 SW 侧性能分解（perf）的响应数据
  */
 async function handleGetInitialData(_domain?: string) {
+  // SW 侧性能分解：处理耗时 + 冷/热启动判定 + 缓存命中标记，
+  // 与侧边栏侧 bgPathMs 对照可归因「IPC + SW 唤醒」与「SW 内处理」各自占比
+  const _perfStart = performance.now();
+  const _buildPerf = (cacheHit: boolean) => ({
+    swProcessMs: Math.round((performance.now() - _perfStart) * 10) / 10,
+    cacheHit,
+    swUptimeMs: Date.now() - _swLoadedAt,
+  });
+
   const { isSessionValid } = await _getSessionModule();
   const sessionValid = await isSessionValid();
 
   if (!sessionValid) {
-    return { sessionValid: false, passwords: [], sortConfig: null };
+    return { sessionValid: false, passwords: [], sortConfig: null, perf: _buildPerf(false) };
   }
 
   // 快速路径：尝试命中内存缓存（由 warmPasswordCache 或上次 sidepanel 填充）
@@ -77,7 +95,7 @@ async function handleGetInitialData(_domain?: string) {
   if (cached && cached.isAuthenticated) {
     const sortConfig = await getCachedSortConfig();
     logger.debug('Background: GET_INITIAL_DATA 命中缓存，条目数:' + cached.passwords.length);
-    return { sessionValid: true, passwords: cached.passwords, sortConfig };
+    return { sessionValid: true, passwords: cached.passwords, sortConfig, perf: _buildPerf(true) };
   }
 
   // 冷路径：经 getOrWarmCache 去重执行全量解密并回填缓存，与并发的
@@ -86,14 +104,15 @@ async function handleGetInitialData(_domain?: string) {
   const [warmed, sortConfig] = await Promise.all([getOrWarmCache(), getCachedSortConfig()]);
   const passwords = warmed?.passwords ?? [];
 
-  return { sessionValid: true, passwords, sortConfig };
+  return { sessionValid: true, passwords, sortConfig, perf: _buildPerf(false) };
 }
 
 /**
  * 处理 FILL_BY_ID：按条目 ID 从缓存取明文，复用 FILL_PASSWORD 下发到发起填充的 frame
  *
  * 安全：明文仅在此刻经 FILL_PASSWORD 瞬时下发到内容脚本所在 frame（与侧边栏填充暴露面一致），
- * 且只能回填发起请求的 tab/frame 自身，无法定向其他标签页。
+ * 且只能回填发起请求的 tab/frame 自身，无法定向其他标签页；下发前经 isFrameFillable 校验，
+ * 仅顶层或与顶层同主域名的 frame 可接收，跨域 iframe（如第三方广告位）会被拒绝，防止越权骗取顶层站点凭证。
  *
  * @param data FILL_BY_ID 载荷（条目 ID 与是否自动登录）
  * @param tabId 发起请求的标签页 ID
@@ -101,6 +120,12 @@ async function handleGetInitialData(_domain?: string) {
  * @returns 填充结果或失败信息
  */
 async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: number, frameId: number | undefined) {
+  // 安全：仅允许顶层或与顶层同主域名的 frame 接收明文凭证，
+  // 避免跨域 iframe 伪造登录框骗取顶层站点账密（与侧边栏 getFillableFrameIds 同一道防线）
+  if (!(await isFrameFillable(tabId, frameId))) {
+    return { success: false, message: '当前 frame 无权填充' };
+  }
+
   const entry = await getDecryptedEntryById(data.id);
   if (!entry) {
     return { success: false, message: '会话已锁定或账号不存在' };
@@ -110,10 +135,9 @@ async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: 
     type: MessageType.FILL_PASSWORD,
     data: { username: entry.username, password: entry.password, autoLogin: data.autoLogin },
   };
-  const result =
-    typeof frameId === 'number'
-      ? await chrome.tabs.sendMessage(tabId, fillMessage, { frameId })
-      : await chrome.tabs.sendMessage(tabId, fillMessage);
+  // 显式定向发起 frame：frameId 缺失时回退顶层（0）而非广播全帧，
+  // 与上方 isFrameFillable「仅顶层或同主域名 frame 可接收」的门控语义保持一致
+  const result = await chrome.tabs.sendMessage(tabId, fillMessage, { frameId: frameId ?? 0 });
 
   // 后台静默刷新最近使用时间（不阻塞填充结果），保持“最近使用”排序与 LRU 依据一致
   void _getCrudModule()
@@ -135,7 +159,7 @@ async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: 
  * 仅扩展自身页面满足：`sender.id === chrome.runtime.id` 且 `sender.tab === undefined`
  * （网页内容脚本的 `sender.tab` 恒有值，因此被拒）；并附加 url 同源校验作为纵深防御。
  *
- * 用于保护会返回明文密码列表的消息（GET_INITIAL_DATA / GET_CACHED_PASSWORDS），
+ * 用于保护会返回明文密码列表的消息（GET_INITIAL_DATA），
  * 避免任意内容脚本上下文越权读取整份密码数据。
  */
 function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean {
@@ -177,7 +201,11 @@ export function setupMessageRouter(): void {
           break;
         }
 
-        openSidePanelAndRespond(tabId, sendResponse);
+        // 埋点元信息优先透传消息体（popup 回退路径携带 trigger='popup'，避免覆盖为 'content'）
+        openSidePanelAndRespond(tabId, sendResponse, {
+          clickTs: message.data?.clickTs,
+          trigger: message.data?.trigger ?? 'content',
+        });
         return true;
       }
 
@@ -214,7 +242,7 @@ export function setupMessageRouter(): void {
         if (isSidePanelOpen()) {
           closeSidePanelWithResponse(tabId, sendResponse);
         } else {
-          openSidePanelAndRespond(tabId, sendResponse);
+          openSidePanelAndRespond(tabId, sendResponse, { clickTs: message.data?.clickTs, trigger: 'float' });
         }
         return true;
       }
@@ -246,27 +274,12 @@ export function setupMessageRouter(): void {
         openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_ADD).then(sendResponse);
         return true;
 
-      case MessageType.GET_CACHED_PASSWORDS: {
-        // 安全校验：仅允许扩展内部页面获取明文密码列表
-        if (!isTrustedInternalSender(sender)) {
-          sendResponse({ success: false, error: '未授权的请求来源' });
-          break;
-        }
-        const requestedDomain = message.data?.domain;
-        getCachedPasswords(requestedDomain).then(cachedData => {
-          sendResponse({ success: true, data: cachedData });
-        });
-        return true;
-      }
-
       case MessageType.UPDATE_PASSWORD_CACHE: {
-        const { passwords, domain, isAuthenticated } = message.data || {};
-        if (passwords && domain !== undefined) {
-          updatePasswordCache(passwords, domain, isAuthenticated);
-          sendResponse({ success: true });
-        } else {
-          sendResponse({ success: false, error: '缺少缓存数据' });
-        }
+        // 轻量触发（无载荷）：由 background 自行经 warmPasswordCache 去重预热缓存，
+        // 避免 sidepanel 回传全量明文列表的序列化开销（数百条目时主线程 5-30ms）；
+        // 缓存已存在时 no-op，会话无效时内部门控自动跳过
+        void warmPasswordCache();
+        sendResponse({ success: true });
         break;
       }
 
@@ -358,7 +371,9 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.GET_MATCHING_ACCOUNTS: {
-        // 域名从 sender.tab.url 派生（可信），仅返回元数据，内容脚本可调用
+        // 域名从 sender.tab.url 派生（顶层可信），仅返回元数据，内容脚本可调用
+        const gmaTabId = sender.tab?.id;
+        const gmaFrameId = sender.frameId;
         const rawUrl = sender.tab?.url;
         let domain = message.data?.domain ?? '';
         if (rawUrl) {
@@ -368,12 +383,21 @@ export function setupMessageRouter(): void {
             // 解析失败时保底使用 message.data.domain
           }
         }
-        getMatchingAccounts(domain)
-          .then(data => sendResponse({ success: true, data }))
-          .catch(error => {
+        void (async () => {
+          try {
+            // 安全：跨域 iframe（与顶层不同主域名）不得读取顶层站点账号元数据（含用户名/标签/备注/URL），
+            // 返回空列表而非锁定态，既不泄露账号存在性、也不触发误导性的解锁提示
+            if (typeof gmaTabId === 'number' && !(await isFrameFillable(gmaTabId, gmaFrameId))) {
+              sendResponse({ success: true, data: { locked: false, accounts: [] } });
+              return;
+            }
+            const data = await getMatchingAccounts(domain);
+            sendResponse({ success: true, data });
+          } catch (error) {
             logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);
-            sendResponse({ success: false, error: error.message });
-          });
+            sendResponse({ success: false, error: error instanceof Error ? error.message : String(error) });
+          }
+        })();
         return true;
       }
 
@@ -388,6 +412,16 @@ export function setupMessageRouter(): void {
           .catch(error => {
             logger.error('Background: FILL_BY_ID 处理失败:', error);
             sendResponse({ success: false, message: '填充失败' });
+          });
+        return true;
+      }
+
+      case MessageType.QUICK_FILL: {
+        handleQuickFill()
+          .then(() => sendResponse({ success: true }))
+          .catch(error => {
+            logger.error('Background: QUICK_FILL 处理失败:', error);
+            sendResponse({ success: false, error: error.message });
           });
         return true;
       }

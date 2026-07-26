@@ -1,8 +1,9 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="验证有效期设置"
+    :title="t('options.validity.title')"
     width="500px"
+    align-center
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >
@@ -14,8 +15,8 @@
       size="large"
     >
       <el-alert
-        title="有效期设置"
-        description="设置主密码验证后的会话缓存时间，在有效期内无需重新输入主密码"
+        :title="t('options.validity.alertTitle')"
+        :description="t('options.validity.alertDesc')"
         type="info"
         :closable="false"
         show-icon
@@ -24,17 +25,17 @@
 
       <el-form-item
         v-if="sessionInfo.expiryTime"
-        label="当前会话状态"
+        :label="t('options.validity.sessionStatus')"
       >
         <div class="session-info">
           <div class="session-status">
             <el-tag
               type="success"
               size="small"
-              >会话有效</el-tag
+              >{{ t('options.validity.sessionActive') }}</el-tag
             >
           </div>
-          <div class="session-expiry">剩余时间: {{ sessionInfo.remainingTime }}</div>
+          <div class="session-expiry">{{ t('options.validity.remaining', { time: sessionInfo.remainingTime }) }}</div>
           <div
             class="session-actions"
             style="margin-top: 8px"
@@ -46,24 +47,24 @@
               :loading="clearSessionLoading"
               @click="$emit('clearSession')"
             >
-              清除当前会话
+              {{ t('options.validity.clearSession') }}
             </el-button>
           </div>
         </div>
       </el-form-item>
 
       <el-form-item
-        label="验证有效期"
+        :label="t('auth.validityLabel')"
         prop="validityHours"
       >
         <ValidityHoursSelect
           v-model="localValidityHours"
-          placeholder="选择验证有效期"
+          :placeholder="t('auth.validityPlaceholder')"
           size="large"
           :disabled="loading"
           style="width: 100%"
         />
-        <div class="form-tip">当前设置将影响会话缓存时间</div>
+        <div class="form-tip">{{ t('options.validity.tip') }}</div>
       </el-form-item>
     </el-form>
 
@@ -73,7 +74,7 @@
           size="large"
           @click="$emit('update:modelValue', false)"
         >
-          取消
+          {{ t('common.cancel') }}
         </el-button>
         <el-button
           type="primary"
@@ -81,7 +82,7 @@
           :loading="loading"
           @click="handleSaveClick"
         >
-          保存设置
+          {{ t('common.saveSettings') }}
         </el-button>
       </div>
     </template>
@@ -93,11 +94,14 @@ import { ref, computed } from 'vue';
 import { Delete } from '@element-plus/icons-vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import ValidityHoursSelect from './ValidityHoursSelect.vue';
+import { useI18n } from '@/utils/i18n';
 
 /**
  * 有效期设置对话框组件
  * 展示当前会话状态，支持修改有效期和清除会话
  */
+
+const { t } = useI18n();
 
 /** 会话信息 */
 interface SessionInfo {

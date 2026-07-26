@@ -2,6 +2,7 @@ import { eyeOpenIcon, eyeClosedIcon } from '@/entrypoints/content/floatingButton
 import type { ToggleEntry } from '@/entrypoints/content/types';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { isElementVisible } from './domUtils';
+import { tl } from '@/utils/i18n-lite';
 
 /**
  * 注入到页面中的 CSS 样式
@@ -195,7 +196,7 @@ export class PasswordVisibilityToggle {
     button.type = 'button';
     button.className = 'aph-pwd-toggle-btn';
     button.setAttribute('tabindex', '-1');
-    button.setAttribute('aria-label', '显示密码');
+    button.setAttribute('aria-label', tl('cs.pv.show'));
     // 状态语义：密文状态显示闭眼图标（表示"密码不可见"）
     button.innerHTML = eyeClosedIcon;
 
@@ -223,7 +224,7 @@ export class PasswordVisibilityToggle {
       input.type = isRevealed ? 'text' : 'password';
       // 状态语义：明文显示睁眼（表示"密码可见"），密文显示闭眼（表示"密码不可见"）
       button.innerHTML = isRevealed ? eyeOpenIcon : eyeClosedIcon;
-      button.setAttribute('aria-label', isRevealed ? '隐藏密码' : '显示密码');
+      button.setAttribute('aria-label', isRevealed ? tl('cs.pv.hide') : tl('cs.pv.show'));
 
       // 保持焦点在输入框上，不影响用户操作
       input.focus();

@@ -4,6 +4,7 @@ import {
   DEFAULT_SIDEPANEL_SORT,
   DEFAULT_SORT,
   sortPasswordEntries,
+  filterAndSortEntriesForDomain,
   type SortState,
 } from '@/utils/passwordSort';
 import type { PasswordEntry } from '@/utils/types';
@@ -92,5 +93,56 @@ describe('sortPasswordEntries', () => {
     ];
     const result = sortPasswordEntries(list);
     expect(result.map(e => e.id)).toEqual(['fav', 'new', 'old']);
+  });
+});
+
+describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', () => {
+  it('仅纳入精确主机匹配条目，且域名匹配优先于空 URL 条目', () => {
+    const list = [
+      entry({ id: 'noUrl', url: '', lastUsedAt: 999 }),
+      entry({ id: 'match', url: 'https://a.example.com/login', lastUsedAt: 1 }),
+      entry({ id: 'other', url: 'https://b.example.com', lastUsedAt: 500 }),
+    ];
+    const result = filterAndSortEntriesForDomain(list, 'a.example.com');
+    // b.example.com 不匹配被过滤；域名匹配的 match 优先于 lastUsedAt 更大的空 URL 条目
+    expect(result.map(e => e.id)).toEqual(['match', 'noUrl']);
+  });
+
+  it('本地开发域名放行全部条目', () => {
+    const list = [
+      entry({ id: 'a', url: 'https://a.example.com', lastUsedAt: 1 }),
+      entry({ id: 'b', url: 'https://b.example.com', lastUsedAt: 2 }),
+    ];
+    const result = filterAndSortEntriesForDomain(list, 'localhost');
+    expect(result).toHaveLength(2);
+    // localhost 下两条均不精确匹配（优先级相同），按侧边栏默认 lastUsedAt 降序
+    expect(result.map(e => e.id)).toEqual(['b', 'a']);
+  });
+
+  it('同为域名匹配时收藏置顶，首条即侧边栏展示第一条', () => {
+    const list = [
+      entry({ id: 'recent', url: 'https://x.com', lastUsedAt: 999 }),
+      entry({ id: 'fav', url: 'https://x.com', favorite: true, lastUsedAt: 1 }),
+    ];
+    const result = filterAndSortEntriesForDomain(list, 'x.com');
+    expect(result[0].id).toBe('fav');
+  });
+
+  it('自定义排序配置生效（username 升序）', () => {
+    const list = [
+      entry({ id: 'z', url: 'https://x.com', username: 'zoe' }),
+      entry({ id: 'a', url: 'https://x.com', username: 'amy' }),
+    ];
+    const sort: SortState = { prop: 'username', order: 'ascending' };
+    const result = filterAndSortEntriesForDomain(list, 'x.com', sort);
+    expect(result.map(e => e.id)).toEqual(['a', 'z']);
+  });
+
+  it('无匹配时返回空数组，且不修改入参数组', () => {
+    const list = [entry({ id: 'a', url: 'https://a.com' }), entry({ id: 'b', url: 'https://b.com' })];
+    const snapshot = list.map(e => e.id);
+    const result = filterAndSortEntriesForDomain(list, 'no-match.example.org');
+    expect(result).toEqual([]);
+    expect(list.map(e => e.id)).toEqual(snapshot);
   });
 });

@@ -1,17 +1,18 @@
 <template>
   <el-dialog
     :model-value="modelValue"
-    title="收藏上限设置"
+    :title="t('options.header.favoriteLimit')"
     width="500px"
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div class="dialog-body-scroll">
+      <!-- label-width auto：中英文标签宽度差异大，按最长标签自适应 -->
       <el-form
-        label-width="140px"
+        label-width="auto"
         size="large"
       >
-        <el-form-item label="收藏条目上限">
+        <el-form-item :label="t('options.favoriteLimit.label')">
           <el-input-number
             v-model="favoriteLimit"
             :min="1"
@@ -20,7 +21,7 @@
             style="width: 100%"
           />
           <div class="form-tip">
-            收藏条目达到上限后，新收藏将自动替换最近最少使用（LRU）的收藏条目，确保常用账号始终置顶
+            {{ t('options.favoriteLimit.tip') }}
           </div>
         </el-form-item>
       </el-form>
@@ -32,7 +33,7 @@
           size="large"
           @click="$emit('update:modelValue', false)"
         >
-          取消
+          {{ t('common.cancel') }}
         </el-button>
         <el-button
           type="primary"
@@ -40,7 +41,7 @@
           :loading="saveLoading"
           @click="handleSave"
         >
-          保存
+          {{ t('common.save') }}
         </el-button>
       </div>
     </template>
@@ -51,6 +52,7 @@
 import { ref, watch } from 'vue';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { useI18n } from '@/utils/i18n';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -59,6 +61,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
 }>();
+
+const { t } = useI18n();
 
 const favoriteLimit = ref(StorageUtils.DEFAULT_FAVORITE_LIMIT);
 const saveLoading = ref(false);
@@ -71,7 +75,7 @@ const loadConfig = async (): Promise<void> => {
     favoriteLimit.value = await StorageUtils.getFavoriteLimit();
   } catch (error) {
     logger.error('FavoriteLimitSetting: 加载配置失败:', error);
-    ElMessage.error('加载配置失败');
+    ElMessage.error(t('message.loadConfigFailed'));
   }
 };
 
@@ -91,11 +95,11 @@ const handleSave = async (): Promise<void> => {
   saveLoading.value = true;
   try {
     await StorageUtils.setFavoriteLimit(favoriteLimit.value);
-    ElMessage.success(`收藏上限已设置为 ${favoriteLimit.value} 条`);
+    ElMessage.success(t('options.favoriteLimit.saved', { count: favoriteLimit.value }));
     emit('update:modelValue', false);
   } catch (error) {
     logger.error('FavoriteLimitSetting: 保存配置失败:', error);
-    ElMessage.error('保存失败');
+    ElMessage.error(t('message.saveFailed'));
   } finally {
     saveLoading.value = false;
   }

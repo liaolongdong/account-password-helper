@@ -3,7 +3,7 @@
     <div class="header">
       <BrandLogo class="logo" />
       <div class="header-title-group">
-        <h3>账号密码管理助手</h3>
+        <h3>{{ t('popup.title') }}</h3>
         <el-tag
           size="small"
           type="info"
@@ -20,7 +20,7 @@
         size="small"
         :loading="lockLoading"
         :disabled="lockLoading"
-        title="锁定（清除会话）"
+        :title="t('popup.lock')"
         @click="lockSession"
       />
     </div>
@@ -35,20 +35,20 @@
         size="small"
       >
         <el-icon><CircleCheckFilled /></el-icon>
-        已验证
+        {{ t('popup.verified') }}
       </el-tag>
       <el-text
         type="info"
         size="small"
       >
-        共 {{ passwordCount }} 条密码
+        {{ t('popup.passwordCount', { count: passwordCount }) }}
       </el-text>
       <el-text
         v-if="domainMatchCount > 0"
         type="success"
         size="small"
       >
-        · 当前页面匹配 {{ domainMatchCount }} 条
+        · {{ t('popup.domainMatch', { count: domainMatchCount }) }}
       </el-text>
     </div>
     <div
@@ -60,13 +60,13 @@
         size="small"
       >
         <el-icon><WarningFilled /></el-icon>
-        未验证
+        {{ t('popup.unverified') }}
       </el-tag>
       <el-text
         type="info"
         size="small"
       >
-        请先验证主密码
+        {{ t('popup.verifyFirst') }}
       </el-text>
     </div>
 
@@ -85,7 +85,7 @@
       </div>
       <div class="update-card__content">
         <div class="update-card__title">
-          发现新版本
+          {{ t('popup.newVersion') }}
           <el-tag
             type="info"
             size="small"
@@ -102,7 +102,7 @@
             v{{ updateInfo.latestVersion }}
           </el-tag>
         </div>
-        <div class="update-card__desc">点击前往下载更新</div>
+        <div class="update-card__desc">{{ t('popup.clickToUpdate') }}</div>
       </div>
     </div>
 
@@ -119,8 +119,8 @@
           <BrandLogo />
         </div>
         <div class="action-card__content">
-          <div class="action-card__title">密码管理</div>
-          <div class="action-card__desc">管理所有已保存的账号密码</div>
+          <div class="action-card__title">{{ t('popup.passwordManagement') }}</div>
+          <div class="action-card__desc">{{ t('popup.passwordManagementDesc') }}</div>
         </div>
         <kbd
           v-if="shortcutAssigned.open_options"
@@ -131,12 +131,12 @@
           v-else
           type="button"
           class="action-card__shortcut action-card__shortcut-btn"
-          title="前往 Chrome 设置快捷键"
+          :title="t('popup.goToShortcuts')"
           @click.stop="openShortcutsPage"
           @keydown.enter.stop.prevent="openShortcutsPage"
           @keydown.space.stop.prevent="openShortcutsPage"
         >
-          设置快捷键
+          {{ t('popup.setShortcut') }}
         </button>
       </div>
 
@@ -152,8 +152,8 @@
           <QuickFillIcon />
         </div>
         <div class="action-card__content">
-          <div class="action-card__title">快速填充</div>
-          <div class="action-card__desc">在当前页面快速填充账号密码</div>
+          <div class="action-card__title">{{ t('common.quickFill') }}</div>
+          <div class="action-card__desc">{{ t('popup.quickFillDesc') }}</div>
         </div>
         <kbd
           v-if="shortcutAssigned.toggle_sidepanel"
@@ -164,12 +164,45 @@
           v-else
           type="button"
           class="action-card__shortcut action-card__shortcut-btn"
-          title="前往 Chrome 设置快捷键"
+          :title="t('popup.goToShortcuts')"
           @click.stop="openShortcutsPage"
           @keydown.enter.stop.prevent="openShortcutsPage"
           @keydown.space.stop.prevent="openShortcutsPage"
         >
-          设置快捷键
+          {{ t('popup.setShortcut') }}
+        </button>
+      </div>
+
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        @click="triggerDirectFill"
+        @keydown.enter="triggerDirectFill"
+        @keydown.space.prevent="triggerDirectFill"
+      >
+        <div class="action-card__icon action-card__icon--accent">
+          <el-icon><Position /></el-icon>
+        </div>
+        <div class="action-card__content">
+          <div class="action-card__title">{{ t('popup.directFill') }}</div>
+          <div class="action-card__desc">{{ t('popup.directFillDesc') }}</div>
+        </div>
+        <kbd
+          v-if="shortcutAssigned.quick_fill"
+          class="action-card__shortcut"
+          >{{ shortcuts.quick_fill }}</kbd
+        >
+        <button
+          v-else
+          type="button"
+          class="action-card__shortcut action-card__shortcut-btn"
+          :title="t('popup.goToShortcuts')"
+          @click.stop="openShortcutsPage"
+          @keydown.enter.stop.prevent="openShortcutsPage"
+          @keydown.space.stop.prevent="openShortcutsPage"
+        >
+          {{ t('popup.setShortcut') }}
         </button>
       </div>
     </div>
@@ -180,7 +213,7 @@
         type="info"
         size="small"
       >
-        如有任何问题或者建议，请联系
+        {{ t('popup.contact') }}
         <a
           :href="'mailto:' + CONTACT_EMAIL"
           class="email-link"
@@ -194,12 +227,14 @@
 </template>
 
 <script setup lang="ts">
-import { Lock, CircleCheckFilled, WarningFilled, UploadFilled } from '@element-plus/icons-vue';
+import { Lock, CircleCheckFilled, WarningFilled, UploadFilled, Position } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
 import { usePopupInit } from '@/composables/usePopupInit';
+import { useI18n } from '@/utils/i18n';
 
 /** 联系邮箱（常量，无需响应式） */
 const CONTACT_EMAIL = '924902324@qq.com';
@@ -217,6 +252,9 @@ const {
   lockSession,
   openUpdatePage,
 } = usePopupInit();
+
+// ==================== i18n（语言切换入口已移至密码管理页「设置」菜单） ====================
+const { t } = useI18n();
 
 // ==================== 导航操作（与 UI 交互紧密，保留在组件内） ====================
 
@@ -258,29 +296,34 @@ const openSidePanel = async () => {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
+      // 点击时刻：直接打开与回退路径共用，保证 clickToDocMs 起点一致
+      const clickTs = Date.now();
       try {
+        // 性能埋点：记录打开请求时间戳与触发源（同步发起不 await，不打断用户手势链）
+        markSidepanelOpenRequested({ clickTs, trigger: 'popup' });
         // 首先尝试直接调用，这在用户手势上下文中应该是有效的
         await chrome.sidePanel.open({ tabId: tab.id });
         window.close();
       } catch (sidePanelError) {
         logger.error('直接打开侧边栏失败:', sidePanelError);
 
-        // 如果直接调用失败，尝试通过background脚本发送普通消息
+        // 如果直接调用失败，尝试通过background脚本发送普通消息；
+        // 携带原始 clickTs 与 trigger，避免 router 侧覆盖为 'content' 导致埋点归因失真
         try {
           const response = await chrome.runtime.sendMessage({
             type: MessageType.SHOW_SIDEPANEL,
-            data: { tabId: tab.id },
+            data: { tabId: tab.id, clickTs, trigger: 'popup' as const },
           });
           if (response.success) {
             logger.info('通过background脚本成功打开侧边栏');
             window.close();
           } else {
             logger.error('通过background脚本打开侧边栏失败:', response.error);
-            alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
+            ElMessage.error(t('popup.openSidepanelFailed'));
           }
         } catch (bgError) {
           logger.error('通过background脚本打开侧边栏也失败:', bgError);
-          alert('自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏');
+          ElMessage.error(t('popup.openSidepanelFailed'));
         }
       }
     }
@@ -290,11 +333,26 @@ const openSidePanel = async () => {
 };
 
 /**
+ * 触发一键填充
+ * 发送 QUICK_FILL 消息到 background，由其自动匹配当前域名并填充。
+ * 填充结果通过桌面通知反馈给用户。
+ */
+const triggerDirectFill = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.QUICK_FILL });
+  } catch (error) {
+    logger.error('一键填充触发失败:', error);
+  } finally {
+    window.close();
+  }
+};
+
+/**
  * 处理邮件链接点击，打开默认邮件客户端
  */
 const handleEmailClick = (event: Event) => {
   event.preventDefault();
-  const subject = '账号密码管理助手反馈';
+  const subject = t('popup.feedbackSubject');
   const mailtoLink = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}`;
   window.open(mailtoLink, '_blank');
 };
@@ -360,7 +418,8 @@ const handleEmailClick = (event: Event) => {
 
 .session-status {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap; /* 英文文案较长（passwords in total / matches for this page），300px 宽度内允许换行 */
+  gap: 4px 8px;
   align-items: center;
   margin-bottom: 12px;
 }
@@ -414,14 +473,28 @@ const handleEmailClick = (event: Event) => {
   border-radius: 50%;
 }
 
+/* 三张操作卡图标为同一主题色的三层色阶家族（实心 / 描边 / 浅调渐变），
+   全部由 --aph-primary 系列令牌派生，自动跟随 6 套主题切换；
+   更新提醒卡片图标保持语义红色，不随主题变化 */
 .action-card__icon--primary {
   color: #fff;
   background: var(--aph-primary);
 }
 
 .action-card__icon--secondary {
-  color: var(--aph-primary);
+  /* 描边变体（导航类动作，最轻层级）：主题浅底 + 主题色圆环与图标；
+     图标色向深色收敛保证淡雅主题（如青竹绿）下仍有足够对比度，
+     inset 圆环不改变 36px 容器尺寸 */
+  color: color-mix(in srgb, var(--aph-primary) 78%, #303133);
   background: var(--aph-primary-bg);
+  box-shadow: inset 0 0 0 1.5px rgb(var(--aph-primary-rgb) / 45%);
+}
+
+.action-card__icon--accent {
+  /* 浅调渐变变体（直达填充动作）：主题悬浮浅色 → 主题色的 135° 渐变，
+     全由现成令牌派生，比实心主色卡更轻盈提亮，避免深色收敛带来的沉闷感 */
+  color: #fff;
+  background: linear-gradient(135deg, var(--aph-primary-hover) 0%, var(--aph-primary) 100%);
 }
 
 .action-card__content {
@@ -526,6 +599,7 @@ const handleEmailClick = (event: Event) => {
 
 .update-card__title {
   display: flex;
+  flex-wrap: wrap; /* 英文标题 + 双版本号 tag 超出 300px 宽度时允许换行 */
   gap: 6px;
   align-items: center;
   font-size: 14px;

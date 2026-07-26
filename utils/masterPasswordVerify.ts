@@ -1,5 +1,6 @@
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { t } from '@/utils/i18n';
 
 /**
  * 弹出主密码验证对话框并验证
@@ -14,17 +15,17 @@ import { logger } from '@/utils/logger';
 export async function promptAndVerifyMasterPassword(title: string, description: string): Promise<string | null> {
   try {
     const { value: masterPassword } = await ElMessageBox.prompt(description, title, {
-      confirmButtonText: '确认',
-      cancelButtonText: '取消',
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
       inputType: 'password',
-      inputPlaceholder: '请输入主密码',
-      inputValidator: (v: string) => (!v || !v.trim() ? '主密码不能为空' : true),
+      inputPlaceholder: t('auth.verifyPasswordPlaceholder'),
+      inputValidator: (v: string) => (!v || !v.trim() ? t('verify.passwordEmpty') : true),
     });
 
     const trimmed = masterPassword.trim();
     const isValid = await StorageUtils.verifyMasterPassword(trimmed);
     if (!isValid) {
-      ElMessage.error('主密码错误');
+      ElMessage.error(t('verify.wrongPassword'));
       return null;
     }
 
