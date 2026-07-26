@@ -8,6 +8,22 @@
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div class="help-content">
+      <!-- ====== 完整使用说明入口 ====== -->
+      <section class="help-section help-link-section">
+        <div class="help-link-banner">
+          <el-icon class="help-link-icon"><Document /></el-icon>
+          <span>{{ t('help.viewFull') }}</span>
+          <a
+            href="https://liaolongdong.github.io/account-password-helper/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="help-link"
+          >
+            {{ t('help.userGuide') }}
+          </a>
+        </div>
+      </section>
+
       <!-- ====== 操作指引 ====== -->
       <section class="help-section">
         <h4>{{ t('help.guideTitle') }}</h4>
@@ -262,20 +278,6 @@
           <!-- eslint-enable vue/no-v-html -->
         </ul>
       </section>
-      <section class="help-section help-link-section">
-        <div class="help-link-banner">
-          <el-icon class="help-link-icon"><Document /></el-icon>
-          <span>{{ t('help.viewFull') }}</span>
-          <a
-            href="https://liaolongdong.github.io/account-password-helper/"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="help-link"
-          >
-            {{ t('help.userGuide') }}
-          </a>
-        </div>
-      </section>
     </div>
     <template #footer>
       <el-button @click="$emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
@@ -399,10 +401,6 @@ const handleGoToOptions = () => {
   color: #d6336c;
   background: #f3f4f6;
   border-radius: 3px;
-}
-
-.help-link-section {
-  margin-bottom: 16px;
 }
 
 .help-link-banner {
