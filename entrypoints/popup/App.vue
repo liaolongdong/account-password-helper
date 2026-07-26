@@ -296,20 +296,23 @@ const openSidePanel = async () => {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (tab.id) {
+      // 点击时刻：直接打开与回退路径共用，保证 clickToDocMs 起点一致
+      const clickTs = Date.now();
       try {
-        // 性能埋点：记录打开请求时间戳（同步发起不 await，不打断用户手势链）
-        markSidepanelOpenRequested();
+        // 性能埋点：记录打开请求时间戳与触发源（同步发起不 await，不打断用户手势链）
+        markSidepanelOpenRequested({ clickTs, trigger: 'popup' });
         // 首先尝试直接调用，这在用户手势上下文中应该是有效的
         await chrome.sidePanel.open({ tabId: tab.id });
         window.close();
       } catch (sidePanelError) {
         logger.error('直接打开侧边栏失败:', sidePanelError);
 
-        // 如果直接调用失败，尝试通过background脚本发送普通消息
+        // 如果直接调用失败，尝试通过background脚本发送普通消息；
+        // 携带原始 clickTs 与 trigger，避免 router 侧覆盖为 'content' 导致埋点归因失真
         try {
           const response = await chrome.runtime.sendMessage({
             type: MessageType.SHOW_SIDEPANEL,
-            data: { tabId: tab.id },
+            data: { tabId: tab.id, clickTs, trigger: 'popup' as const },
           });
           if (response.success) {
             logger.info('通过background脚本成功打开侧边栏');

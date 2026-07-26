@@ -1,6 +1,6 @@
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
+import { markSidepanelOpenRequested, type SidepanelOpenTrigger } from '@/utils/perfMetrics';
 import { openOptionsPage } from './optionsPageManager';
 import { handleQuickFill } from './quickFillHandler';
 
@@ -38,10 +38,18 @@ function isExpectedCloseError(error: unknown): boolean {
 
 /**
  * 打开侧边栏并发送响应
+ *
+ * @param tabId 目标标签页 ID
+ * @param sendResponse 消息响应回调
+ * @param openMeta 打开请求埋点元信息（clickTs=内容脚本侧点击时刻，可覆盖 SW 唤醒等待盲区；trigger=触发源）
  */
-export function openSidePanelAndRespond(tabId: number, sendResponse: (response: any) => void): void {
-  // 性能埋点：记录打开请求时间戳（同步发起不 await，不打断用户手势链）
-  markSidepanelOpenRequested();
+export function openSidePanelAndRespond(
+  tabId: number,
+  sendResponse: (response: any) => void,
+  openMeta?: { clickTs?: number; trigger?: SidepanelOpenTrigger },
+): void {
+  // 性能埋点：记录打开请求时间戳与触发源（同步发起不 await，不打断用户手势链）
+  markSidepanelOpenRequested(openMeta);
   chrome.sidePanel
     .open({ tabId })
     .then(() => {
@@ -214,8 +222,8 @@ export function setupSidePanelListeners(): void {
           logger.warn('Background: 无法获取当前标签页，打开侧边栏失败');
           return;
         }
-        // 性能埋点：记录打开请求时间戳（同步发起，不打断用户手势链）
-        markSidepanelOpenRequested();
+        // 性能埋点：记录打开请求时间戳与触发源（同步发起，不打断用户手势链）
+        markSidepanelOpenRequested({ trigger: 'shortcut' });
         chrome.sidePanel
           .open({ tabId })
           .then(() => logger.debug('Background: 侧边栏已打开 (快捷键)'))

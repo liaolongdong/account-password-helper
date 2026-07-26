@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { defineAsyncComponent } from 'vue';
 import {
   User,
   CopyDocument,
@@ -12,8 +13,16 @@ import {
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
-import TotpCode from '@/components/TotpCode.vue';
 import { useI18n } from '@/utils/i18n';
+
+/**
+ * TOTP 验证码组件——异步加载（仅存在 totp 条目时渲染）
+ *
+ * 静态导入会将 utils/totp 及其 Element Plus 重依赖拖入列表 chunk，
+ * 改为异步后该依赖链退出首屏关键路径；首帧后由 App.vue 空闲预取温热，
+ * 含 totp 条目的列表渲染无可感知延迟。
+ */
+const TotpCode = defineAsyncComponent(() => import('@/components/TotpCode.vue'));
 
 interface Props {
   /** 密码条目数据 */

@@ -673,8 +673,10 @@ export class FormDetector {
         return;
       }
 
+      // clickTs=发起时刻，覆盖「点击 → SW 唤醒」埋点盲区
       await chrome.runtime.sendMessage({
         type: MessageType.SHOW_SIDEPANEL,
+        data: { clickTs: Date.now() },
       });
     } catch (error) {
       const errorMsg = (error as Error).message || '';

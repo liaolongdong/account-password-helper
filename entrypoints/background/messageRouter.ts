@@ -22,6 +22,14 @@ import { handleQuickFill } from './quickFillHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
 
 /**
+ * SW 模块加载时刻（epoch 毫秒）
+ *
+ * GET_INITIAL_DATA 响应体附带 swUptimeMs = Date.now() - _swLoadedAt，
+ * 侧边栏环形日志据此判定慢点归属于 SW 冷启动还是解密/storage 读取。
+ */
+const _swLoadedAt = Date.now();
+
+/**
  * 延迟加载 sessionManager-storage 模块
  *
  * 仅在 GET_INITIAL_DATA（isSessionValid）和 INVALIDATE_PASSWORD_CACHE
@@ -62,14 +70,23 @@ async function _getCrudModule(): Promise<typeof import('@/utils/storage/password
  * - 冷缓存（首次打开）：~100-300ms（storage 读取），完成后自动预热
  *
  * @param domain 当前页面域名（当前未使用，保留兼容性）
- * @returns 包含会话状态、密码列表、排序配置的响应数据
+ * @returns 包含会话状态、密码列表、排序配置及 SW 侧性能分解（perf）的响应数据
  */
 async function handleGetInitialData(_domain?: string) {
+  // SW 侧性能分解：处理耗时 + 冷/热启动判定 + 缓存命中标记，
+  // 与侧边栏侧 bgPathMs 对照可归因「IPC + SW 唤醒」与「SW 内处理」各自占比
+  const _perfStart = performance.now();
+  const _buildPerf = (cacheHit: boolean) => ({
+    swProcessMs: Math.round((performance.now() - _perfStart) * 10) / 10,
+    cacheHit,
+    swUptimeMs: Date.now() - _swLoadedAt,
+  });
+
   const { isSessionValid } = await _getSessionModule();
   const sessionValid = await isSessionValid();
 
   if (!sessionValid) {
-    return { sessionValid: false, passwords: [], sortConfig: null };
+    return { sessionValid: false, passwords: [], sortConfig: null, perf: _buildPerf(false) };
   }
 
   // 快速路径：尝试命中内存缓存（由 warmPasswordCache 或上次 sidepanel 填充）
@@ -77,7 +94,7 @@ async function handleGetInitialData(_domain?: string) {
   if (cached && cached.isAuthenticated) {
     const sortConfig = await getCachedSortConfig();
     logger.debug('Background: GET_INITIAL_DATA 命中缓存，条目数:' + cached.passwords.length);
-    return { sessionValid: true, passwords: cached.passwords, sortConfig };
+    return { sessionValid: true, passwords: cached.passwords, sortConfig, perf: _buildPerf(true) };
   }
 
   // 冷路径：经 getOrWarmCache 去重执行全量解密并回填缓存，与并发的
@@ -86,7 +103,7 @@ async function handleGetInitialData(_domain?: string) {
   const [warmed, sortConfig] = await Promise.all([getOrWarmCache(), getCachedSortConfig()]);
   const passwords = warmed?.passwords ?? [];
 
-  return { sessionValid: true, passwords, sortConfig };
+  return { sessionValid: true, passwords, sortConfig, perf: _buildPerf(false) };
 }
 
 /**
@@ -177,7 +194,11 @@ export function setupMessageRouter(): void {
           break;
         }
 
-        openSidePanelAndRespond(tabId, sendResponse);
+        // 埋点元信息优先透传消息体（popup 回退路径携带 trigger='popup'，避免覆盖为 'content'）
+        openSidePanelAndRespond(tabId, sendResponse, {
+          clickTs: message.data?.clickTs,
+          trigger: message.data?.trigger ?? 'content',
+        });
         return true;
       }
 
@@ -214,7 +235,7 @@ export function setupMessageRouter(): void {
         if (isSidePanelOpen()) {
           closeSidePanelWithResponse(tabId, sendResponse);
         } else {
-          openSidePanelAndRespond(tabId, sendResponse);
+          openSidePanelAndRespond(tabId, sendResponse, { clickTs: message.data?.clickTs, trigger: 'float' });
         }
         return true;
       }
