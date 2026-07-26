@@ -1,5 +1,32 @@
 # Changelog
 
+## [2.12.0](https://github.com/liaolongdong/account-password-helper/compare/v2.11.1...v2.12.0) (2026-07-26)
+
+
+### Features
+
+* **background:** 启动时预热 Windows 侧边栏资源以减少首次加载白屏 ([816563f](https://github.com/liaolongdong/account-password-helper/commit/816563f3e9220ba5e0cc0b3468b2c8a159e5a5a3))
+* **ci:** 增加 Chrome Web Store OAuth 凭据校验步骤 ([3487a55](https://github.com/liaolongdong/account-password-helper/commit/3487a55bf4b1f55d8c7c2b4a2ece224af8a4a77c))
+* **core:** 增加密码健康检测新维度及多语言支持 ([b7d8da9](https://github.com/liaolongdong/account-password-helper/commit/b7d8da981e3980c7766efd97c951b1d37c2810a6))
+* **core:** 增强密码管理功能，支持主密码修改与回收站 ([293e823](https://github.com/liaolongdong/account-password-helper/commit/293e82325d30dbd0649a0d2918479442e67f73d0))
+* **excel:** 支持多语言表头导入导出及模板改进 ([3b5a52f](https://github.com/liaolongdong/account-password-helper/commit/3b5a52fdeef93f97d9c18758510e0991523662bd))
+* **i18n:** 增加多语言支持及语言切换功能 ([468edb4](https://github.com/liaolongdong/account-password-helper/commit/468edb45f4ccbd8ba8d70d45e7d97e87ddb48302))
+* **perfMetrics:** 侧边栏打开性能埋点及时间戳追踪改进 ([816563f](https://github.com/liaolongdong/account-password-helper/commit/816563f3e9220ba5e0cc0b3468b2c8a159e5a5a3))
+* **quick_fill:** 添加一键填充快捷键及相关支持功能 ([64693d3](https://github.com/liaolongdong/account-password-helper/commit/64693d32057ebc9cb5889602c3dba433e79ab040))
+* **security:** 强化跨域 frame 填充权限及委托通知安全校验 ([9ffcdf8](https://github.com/liaolongdong/account-password-helper/commit/9ffcdf8698a65d8e97e494c001ac15407dfd5cba))
+* **session:** 实现主密码修改后会话密钥重置自愈机制 ([94c4430](https://github.com/liaolongdong/account-password-helper/commit/94c443052039d9edf34cd55f212e8bc830f8226a))
+* **storage:** 添加回收站和密码修改历史功能 ([358450a](https://github.com/liaolongdong/account-password-helper/commit/358450a1277f3eb5596588e9ae5cd194df1f78e0))
+
+
+### Bug Fixes
+
+* **storage:** 优化回收站删除及主密码修改错误处理 ([d443c57](https://github.com/liaolongdong/account-password-helper/commit/d443c57f8bcbff71ec703756680b2c1bff2a4e29))
+
+
+### Performance Improvements
+
+* **sidepanel:** 优化侧边栏数据加载及竞速逻辑性能采集 ([816563f](https://github.com/liaolongdong/account-password-helper/commit/816563f3e9220ba5e0cc0b3468b2c8a159e5a5a3))
+
 ## [2.11.1](https://github.com/liaolongdong/account-password-helper/compare/v2.11.0...v2.11.1) (2026-07-23)
 
 
