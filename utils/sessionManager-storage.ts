@@ -676,15 +676,24 @@ export async function getMasterPasswordValidityHours(): Promise<number> {
 }
 
 /**
+ * 主密码有效期允许范围（小时）
+ *
+ * 上限 168h = 7 天，与 ValidityHoursSelect 生产选项一致；
+ * 下限 0.1h（6 分钟）兼容 ValidityHoursSelect 中预留的开发调试选项
+ * （生产选项最小为 1h，调试选项需短有效期验证会话过期链路）。
+ */
+const VALIDITY_HOURS_MIN = 0.1;
+const VALIDITY_HOURS_MAX = 168;
+
+/**
  * 设置主密码有效期
  */
 export async function setMasterPasswordValidityHours(hours: number): Promise<void> {
   try {
-    /** todo 测试过期时间 别删除 start */
-    if (hours < 0.1 || hours > 168) {
-      throw new Error('有效期必须在0.1小时到7天（168小时）之间');
+    // 防御性范围校验：拒绝写入超出允许范围的有效期，避免会话过期时间异常
+    if (hours < VALIDITY_HOURS_MIN || hours > VALIDITY_HOURS_MAX) {
+      throw new Error(`有效期必须在${VALIDITY_HOURS_MIN}小时到7天（${VALIDITY_HOURS_MAX}小时）之间`);
     }
-    /** todo 测试过期时间 别删除 end */
 
     await chrome.storage.local.set({
       [STORAGE_KEYS.MASTER_PASSWORD_VALIDITY]: hours,
