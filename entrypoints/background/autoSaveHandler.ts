@@ -19,8 +19,9 @@ export async function handleAutoSavePassword(
   data: AutoSavePasswordData,
 ): Promise<{ success: boolean; message: string }> {
   try {
-    // 动态导入 StorageUtils，避免将 storage 层（masterPassword/autoSaveManager 等）
-    // 打入 SW 初始包，减少冷启动 parse/compile 开销；仅在自动保存消息到达时加载。
+    // 动态导入 StorageUtils，将 storage 层（masterPassword/autoSaveManager 等）的
+    // 模块初始化延迟到自动保存消息到达时（SW 产物被 WXT 内联为单文件，
+    // 此懒加载不减少冷启动解析/编译量）。
     const { StorageUtils } = await import('@/utils/storage');
     const result = await StorageUtils.autoSavePassword(data);
     if (result.success) {
@@ -60,7 +61,7 @@ export async function handleAutoSavePassword(
  * 处理保存前凭证状态预检查请求
  *
  * 由 content script 在捕获登录凭证后、弹窗前触发。沿用与 handleAutoSavePassword
- * 一致的动态 import 模式，避免将 storage 层打入 SW 初始包。
+ * 一致的动态 import 模式，延迟 storage 层的模块初始化执行。
  * 检查失败时保底返回 new，不阻断后续保存流程。
  * @param data 预检查请求数据
  * @returns 凭证状态响应

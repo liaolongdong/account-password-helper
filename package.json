@@ -13,16 +13,15 @@
     "auto-login",
     "chrome-extension",
     "账号密码管理",
-    "账号密码自动填充",
+    "账号密码管理助手",
+    "一键登录",
+    "自动登录",
+    "自动填充",
     "账号自动登录浏览器插件"
   ],
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ]
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"]
   },
   "type": "module",
   "scripts": {
@@ -51,16 +50,9 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",

@@ -37,10 +37,38 @@ const invalidateSessionCacheAsync = async () => {
 };
 
 /**
+ * 延迟加载加密模块（仅锁定感知点清理句柄缓存使用，不引入首屏加密链）
+ */
+const getEncryptionModule = lazyImport(() => import('@/utils/encryption'));
+
+/**
+ * 延迟清空加密模块的 CryptoKey 句柄缓存（fire-and-forget）
+ *
+ * 句柄缓存为每 JS 上下文独立，background 发起的锁定（空闲锁/系统锁）无法
+ * 清理本页面因本地路径解密而填充的句柄，需在 sidepanel 自身的锁定感知点
+ * （SESSION_EXPIRED 广播 / 会话键移除）补充清理；加密模块尚未加载时
+ * 缓存必为空，dynamic import 仅命中构建产物缓存，开销可忽略
+ */
+const clearCryptoKeyCacheAsync = async () => {
+  const enc = await getEncryptionModule();
+  enc.clearCryptoKeyCache();
+};
+
+/**
  * 延迟加载 passwordCrud 模块（首次回退路径时加载）
  * getAllPasswords/getPasswordsByUrl 在热路径中由 background SW 执行，本地仅在回退时使用
  */
 const getPasswordCrudModule = lazyImport(() => import('@/utils/storage/passwordCrud'));
+
+/**
+ * 本地竞速路径超时（毫秒）
+ *
+ * bg 路径自带 800ms 超时，但其超时/响应异常后会回退等待本地路径，
+ * 而本地路径（chunk 冷读 + storage IO + 全量解密）在冷盘极端场景下可能
+ * 长尾阻塞，导致骨架屏无限等待。超时后先渲染锁定态降级 UI（确定性兜底），
+ * 本地路径迟到完成后再采纳真实结果。
+ */
+const LOCAL_PATH_TIMEOUT_MS = 3000;
 
 /**
  * SidePanel 数据加载与会话管理 Composable
@@ -291,6 +319,8 @@ export function useSidepanelData() {
         // 异步失效 session 缓存（fire-and-forget），确保并发 isSessionValid()
         // 调用不会从 5s TTL 缓存中返回过期 true 值
         void invalidateSessionCacheAsync();
+        // 清理本上下文的 CryptoKey 句柄缓存（background 发起的锁定无法跨上下文清理）
+        void clearCryptoKeyCacheAsync().catch(() => {});
       } else {
         _sessionKnownExpired = false;
 
@@ -384,6 +414,8 @@ export function useSidepanelData() {
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
         passwords.value = [];
+        // 清理本上下文的 CryptoKey 句柄缓存（锁定后不残留可用解密句柄）
+        void clearCryptoKeyCacheAsync().catch(() => {});
         sendResponse({ success: true });
         return true;
       default:
@@ -647,14 +679,48 @@ export function useSidepanelData() {
           return buildMeta('bg', false, data.perf);
         }
 
-        // Background 返回了响应但格式异常，回退到本地路径
+        // Background 返回了响应但格式异常（含 800ms 超时的 null），回退到本地路径
         logger.debug('SidePanel: Background 响应异常，等待本地路径');
         raceWinner = null;
-        const localWinner = await localPromise;
+        // 冷盘 IO 长尾兜底：本地路径附加超时，避免极端慢盘场景骨架屏无限等待
+        const localWinner = await Promise.race([
+          localPromise,
+          new Promise<null>(resolve => setTimeout(() => resolve(null), LOCAL_PATH_TIMEOUT_MS)),
+        ]);
         // 边缘竞态加固：若本地路径已在 bg 胜出期间完成（localWinner 为 null），
         // 复用已保存的原始结果，避免会话有效场景被误置为锁定态
         const localData2 = localWinner?.data ?? localRawResult;
-        if (localData2?.sessionValid) {
+
+        if (!localData2) {
+          // 本地路径超时：先渲染锁定态降级 UI（用户可立即交互/重试解锁），
+          // 迟到结果到达后静默采纳：会话有效则切回列表态，无效则维持锁定态不变
+          logger.warn(`SidePanel: 本地路径超时（${LOCAL_PATH_TIMEOUT_MS}ms），降级渲染锁定态兜底 UI`);
+          _sessionKnownExpired = true;
+          isAuthenticated.value = false;
+          loading.value = false;
+          localPromise
+            .then(async () => {
+              if (!localRawResult?.sessionValid) return;
+              // 竞态防护：用户已在等待窗口内手动解锁时，勿用陈旧快照覆盖更新的状态
+              if (isAuthenticated.value) return;
+              // 采纳前复核实时会话状态：sessionValid 是本地路径起点快照，
+              // 若等待窗口内发生外部锁定（SESSION_EXPIRED 广播/会话键移除，
+              // 锁定路径均已失效 TTL 缓存），此处实时检查会返回 false，
+              // 放弃采纳，避免反向覆盖锁定状态导致解密数据重新展示
+              const isSessionValidFn = await getIsSessionValid();
+              if (!(await isSessionValidFn())) return;
+              logger.debug('SidePanel: 本地路径迟到结果会话有效，采纳并切回列表态');
+              _sessionKnownExpired = false;
+              isAuthenticated.value = true;
+              passwords.value = localRawResult.passwords;
+              sortConfig.value = localRawResult.sortConfig;
+              void triggerBackgroundCacheRefresh();
+            })
+            .catch(() => {});
+          return buildMeta(null, false);
+        }
+
+        if (localData2.sessionValid) {
           _sessionKnownExpired = false;
           isAuthenticated.value = true;
           passwords.value = localData2.passwords;

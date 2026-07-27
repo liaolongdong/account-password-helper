@@ -3,12 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * warmSidePanelResources.ts 单元测试
  *
- * 覆盖三部分可观察契约：
+ * 覆盖四部分可观察契约：
  * - extractSidePanelAssetUrls：从侧边栏 HTML 提取 module 脚本 src、modulepreload 依赖 href
  *   与样式表 href，兼容属性顺序与 media 属性，忽略非 module 脚本 / 非 stylesheet 链接，去重且保持顺序；
  * - extractDynamicImportUrls：从入口 JS 文本中提取动态 import chunk 的相对路径，去重；
- * - maybeWarmSidePanelResources：仅在 Windows + 会话失效时预热，且共用 30s 节流，
- *   预热范围覆盖 HTML 静态资源 + 入口 JS 中的动态 import chunk。
+ * - extractStaticImportUrls：从 JS 文本中提取静态 import/export 引用的 chunk 相对路径，
+ *   不命中动态 import，去重；
+ * - maybeWarmSidePanelResources：常规调用仅在 Windows + 会话失效时预热，
+ *   ignoreSessionGate（浏览器首启）跨平台预热，且共用 30s 节流，
+ *   预热范围覆盖 HTML 静态资源 + 动态 import chunk + 动态 chunk 的二级静态依赖。
  *
  * 说明：
  * - 环境为 node，全局 chrome 由 WxtVitest 的 fakeBrowser 注入；
@@ -148,6 +151,33 @@ describe('extractDynamicImportUrls', () => {
   });
 });
 
+describe('extractStaticImportUrls', () => {
+  it('提取压缩产物中 from"./xxx.js" 与 import"./xxx.js" 模式的静态引用', async () => {
+    const { extractStaticImportUrls } = await loadModule();
+    const jsText =
+      'import{E as a,b as c}from"./css-Dp9q5L7q.js";import"./tokens-DlSzj_g_.js";export{d}from\'./logger-ABC.js\';';
+    expect(extractStaticImportUrls(jsText)).toEqual(['./css-Dp9q5L7q.js', './tokens-DlSzj_g_.js', './logger-ABC.js']);
+  });
+
+  it('不命中动态 import（带括号），由 extractDynamicImportUrls 单独处理', async () => {
+    const { extractStaticImportUrls } = await loadModule();
+    const jsText = 'const a = () => import("./dynamic-chunk-XYZ.js");';
+    expect(extractStaticImportUrls(jsText)).toEqual([]);
+  });
+
+  it('去重重复的静态引用并忽略非 .js / 非相对路径', async () => {
+    const { extractStaticImportUrls } = await loadModule();
+    const jsText = 'import{a}from"./dep-A.js";import{b}from"./dep-A.js";import{c}from"vue";import"./style.css";';
+    expect(extractStaticImportUrls(jsText)).toEqual(['./dep-A.js']);
+  });
+
+  it('空文本返回空数组', async () => {
+    const { extractStaticImportUrls } = await loadModule();
+    expect(extractStaticImportUrls('')).toEqual([]);
+    expect(extractStaticImportUrls('const x = 1;')).toEqual([]);
+  });
+});
+
 describe('maybeWarmSidePanelResources', () => {
   const htmlWithAssets =
     '<link rel="stylesheet" href="/assets/sidepanel.css" /><script type="module" src="/sidepanel.js"></script>';
@@ -162,7 +192,7 @@ describe('maybeWarmSidePanelResources', () => {
     });
   }
 
-  it('非 Windows 平台直接跳过，不发起任何 fetch', async () => {
+  it('非 Windows 平台常规调用直接跳过，不发起任何 fetch', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'mac' });
     setupFetchReturningHtml();
     const { maybeWarmSidePanelResources } = await loadModule();
@@ -194,14 +224,14 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
   });
 
-  it('非 Windows 平台即使 ignoreSessionGate=true 也跳过（平台门控优先）', async () => {
+  it('非 Windows 平台但 ignoreSessionGate=true（浏览器首启冷缓存）时跨平台预热', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'mac' });
     setupFetchReturningHtml();
     const { maybeWarmSidePanelResources } = await loadModule();
 
     await maybeWarmSidePanelResources({ ignoreSessionGate: true });
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
   });
 
   it('Windows + 会话失效时预热 sidepanel.html 及其入口资源', async () => {
@@ -276,6 +306,40 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).toHaveBeenCalledWith(
       new URL('./HelpDialog-DEF.js', new URL('/chunks/sidepanel-ABC.js', SIDEPANEL_HTML_URL).href).href,
     );
+  });
+
+  it('递归预热动态 chunk 静态引入的二级依赖 chunk，且与已预热资源去重', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'win' });
+    await chrome.storage.local.set({ session_password_expiry: Date.now() - 1000 });
+
+    const entryHref = new URL('/chunks/sidepanel-ABC.js', SIDEPANEL_HTML_URL).href;
+    const authViewHref = new URL('./SidepanelAuthView-QRS.js', entryHref).href;
+    const cssChunkHref = new URL('./css-Dp9q5L7q.js', entryHref).href;
+    const htmlWithEntry = '<script type="module" src="/chunks/sidepanel-ABC.js"></script>';
+    // 入口动态 import 认证视图 chunk；认证视图 chunk 静态引入 EP 重组件 chunk
+    // 与入口自身（后者已预热，应被去重不重复 fetch）
+    const entryJsText = 'const a = () => import("./SidepanelAuthView-QRS.js");';
+    const authViewJsText = 'import{E}from"./css-Dp9q5L7q.js";import{L}from"./sidepanel-ABC.js";';
+
+    fetchMock.mockImplementation((input: string) => {
+      if (input === SIDEPANEL_HTML_URL) {
+        return Promise.resolve({ text: () => Promise.resolve(htmlWithEntry), ok: true } as Response);
+      }
+      if (input === entryHref) {
+        return Promise.resolve({ text: () => Promise.resolve(entryJsText), ok: true } as Response);
+      }
+      if (input === authViewHref) {
+        return Promise.resolve({ text: () => Promise.resolve(authViewJsText), ok: true } as Response);
+      }
+      return Promise.resolve({ text: () => Promise.resolve(''), ok: true } as Response);
+    });
+    const { maybeWarmSidePanelResources } = await loadModule();
+
+    await maybeWarmSidePanelResources();
+
+    // HTML + 入口 JS + 认证视图 chunk + 二级依赖 css chunk = 4 次 fetch（入口自身被去重）
+    expect(fetchMock).toHaveBeenCalledWith(cssChunkHref);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it('会话键缺失（视为失效）时也执行预热', async () => {
