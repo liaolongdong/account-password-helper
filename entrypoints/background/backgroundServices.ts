@@ -24,8 +24,9 @@ import { tl } from '@/utils/i18n-lite';
  * 惰性加载 StorageUtils
  *
  * backgroundServices 对 StorageUtils 的调用均发生在事件回调（alarm/idle/onStartup）中，
- * 而非 SW 启动同步路径。动态导入可将整个 storage 层移出 SW 初始包，
- * 减少 Windows 冷启动时的 parse/compile 开销，与 messageRouter 的惰性加载模式一致。
+ * 而非 SW 启动同步路径。动态导入将 storage 层的模块初始化延迟到首次事件触发时，
+ * 与 messageRouter 的惰性加载模式一致。注：SW 产物被 WXT 内联为单文件，
+ * 此懒加载不减少冷启动解析/编译量。
  */
 let _storageModule: typeof import('@/utils/storage') | null = null;
 async function _getStorageUtils(): Promise<(typeof import('@/utils/storage'))['StorageUtils']> {
@@ -614,8 +615,8 @@ export function setupBackgroundServices(): void {
       performReminderCheck();
     } else if (alarm.name === SW_KEEPALIVE_ALARM_NAME) {
       // Windows 会话失效期：借本次保活唤醒顺带预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，
-      // 缓解冷启动白屏）。懒 import 不增大 SW 初始包；函数内自带平台/会话门控与 60s 节流，
-      // 非 Windows / 会话有效直接跳过，避免每 30 秒无谓预热。
+      // 缓解冷启动白屏）。懒 import 延迟模块初始化（SW 产物已内联）；函数内自带平台/会话
+      // 门控与 60s 节流，非 Windows / 会话有效直接跳过，避免每 30 秒无谓预热。
       void import('@/utils/warmSidePanelResources').then(m => m.maybeWarmSidePanelResources()).catch(() => {});
 
       // SW 保活：alarm 触发本身即已唤醒 SW，重置 30 秒空闲计时器。
