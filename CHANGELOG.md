@@ -1,5 +1,23 @@
 # Changelog
 
+## [2.13.0](https://github.com/liaolongdong/account-password-helper/compare/v2.12.0...v2.13.0) (2026-07-27)
+
+
+### Features
+
+* **sidepanel:** 优化侧边栏资源预热机制，支持多层依赖递归加载 ([b5c8c37](https://github.com/liaolongdong/account-password-helper/commit/b5c8c37a7d0043ebed2807618cda917c62933f98))
+* **ui:** 新增微信交流群信息及回顶滚动功能 ([9982020](https://github.com/liaolongdong/account-password-helper/commit/9982020f2947b47470de6a9fc3b06a85a15070f6))
+
+
+### Bug Fixes
+
+* **ci:** 校验 Chrome 扩展 ID 格式防止发布失败 ([891275f](https://github.com/liaolongdong/account-password-helper/commit/891275f8e848c80555fedd295fc8c355107fcc21))
+
+
+### Performance Improvements
+
+* **sidepanel:** 优化加密模块延迟加载与超时处理 ([7f5c021](https://github.com/liaolongdong/account-password-helper/commit/7f5c0218ef6dfa1a0a743ed5023d9ef55c411f41))
+
 ## [2.12.0](https://github.com/liaolongdong/account-password-helper/compare/v2.11.1...v2.12.0) (2026-07-26)
 
 
