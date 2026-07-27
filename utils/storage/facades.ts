@@ -6,9 +6,10 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 // 注意：所有加密函数（deriveEncryptionKey / encryptPasswordEntry 等）
 // 仅在 sessionManager-storage.ts 和 passwordCrud.ts 中通过
 // 延迟 import('@/utils/encryption') 按需加载，不在此处静态 re-export，
-// 避免将 PBKDF2/HKDF/AES-GCM 打入 SW 初始包。
+// 避免将 PBKDF2/HKDF/AES-GCM 拉入页面首屏 chunk（SW 产物由 WXT
+// 内联为单文件，不受此拆分影响）。
 
-// generateId 从独立文件中导入，避免静态 import 将 encryption.ts 的 PBKDF2 代码打入 SW 包
+// generateId 从独立文件中导入，避免静态 import 将 encryption.ts 的 PBKDF2 代码拉入页面首屏 chunk
 export { generateId } from '@/utils/generateId';
 
 // ==================== 会话管理（委托到 sessionManager-storage.ts） ====================

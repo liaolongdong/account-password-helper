@@ -2,7 +2,8 @@
  * 轻量级加密工具（不包含 PBKDF2/HKDF/AES-GCM）
  *
  * 从 encryption.ts 中分离，使 masterPassword.ts 等模块可以静态导入
- * 这些轻量函数而不将重型 Web Crypto 代码打入 SW 初始包。
+ * 这些轻量函数而不将重型 Web Crypto 代码拉入页面首屏 chunk
+ * （SW 产物由 WXT 内联为单文件，不受此拆分影响）。
  */
 
 // ── 内部工具 ──────────────────────────────────────────────

@@ -99,9 +99,23 @@ jobs:
             exit 1
           fi
 
+      # 校验扩展 ID 格式：CWS 扩展 ID 必须是 32 位 a-p 小写字母。
+      # Secret 值若混入空格/换行等不可见字符，上传 URL 会变形导致 Google 返回 404，
+      # 且该问题不会被 OAuth 凭据校验步骤拦截，故在发布前显式校验并给出明确错误。
+      - name: Verify CWS extension id format
+        if: ${{ env.CWS_EXTENSION_ID != '' }}
+        run: |
+          if printf '%s' "$CWS_EXTENSION_ID" | grep -qE '^[a-p]{32}$'; then
+            echo "CWS_EXTENSION_ID 格式 OK（32 位 a-p 字母）。"
+          else
+            echo "CWS_EXTENSION_ID 格式非法：应为 32 位 a-p 小写字母，实际长度 $(printf '%s' "$CWS_EXTENSION_ID" | wc -c | tr -d ' ')。"
+            echo "多为复制时带入了空格/换行，请在仓库 Secrets 中重新粘贴纯净的扩展 ID。"
+            exit 1
+          fi
+
       - name: Publish to Chrome Web Store
         if: ${{ env.CWS_EXTENSION_ID != '' }}
-        uses: mnao305/chrome-extension-upload@v5.0.0
+        uses: mnao305/chrome-extension-upload@v6.0.0
         with:
           file-path: ${{ steps.cws_zip.outputs.path }}
           extension-id: ${{ secrets.CWS_EXTENSION_ID }}

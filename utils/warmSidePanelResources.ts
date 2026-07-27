@@ -6,13 +6,15 @@
  * SW 进程，管不到侧边栏渲染进程/JS chunk 的磁盘缓存。
  *
  * 本工具从 SW 侧 `fetch()` 侧边栏全量打包资源——包括入口 HTML、module 脚本、
- * modulepreload 依赖 chunk（Vue 运行时等）、样式表、以及入口 JS 中的动态 import chunk
- * （sessionManager-storage / passwordCrud / HelpDialog 等），将文件读入以温热 OS 磁盘
+ * modulepreload 依赖 chunk（Vue 运行时等）、样式表、入口 JS 中的动态 import chunk
+ * （sessionManager-storage / passwordCrud / HelpDialog 等），以及动态 chunk 静态引入的
+ * 二级依赖 chunk（如认证视图的 Element Plus 重组件），将文件读入以温热 OS 磁盘
  * 缓存与 Chrome 资源缓存，最大限度降低后续渲染进程冷加载文件的耗时。
  * 属尽力而为的缓解：可缩短冷文件读取/扫描耗时，但无法温热「渲染进程创建」本身。
  *
  * 免新权限：扩展在自身上下文 `fetch` 自身打包资源无需 web_accessible_resources 或额外权限。
- * 仅在 Windows + 会话失效时按节流执行；非 Windows / 会话有效期直接跳过，避免无谓开销。
+ * 常规调用仅在 Windows + 会话失效时按节流执行；浏览器首启（ignoreSessionGate）场景
+ * OS 磁盘缓存全冷，Mac 重启后首开同样白屏，故该场景跨平台执行。
  */
 import { logger } from '@/utils/logger';
 import { isWindowsPlatform } from '@/utils/platform';
@@ -83,6 +85,63 @@ export function extractSidePanelAssetUrls(html: string): string[] {
 }
 
 /**
+ * 从 JS chunk 文本中提取静态 import/export 引用的同目录 chunk 相对路径
+ *
+ * Vite 压缩产物中静态引用形如 `from"./chunkName-HASH.js"`（具名导入/再导出）
+ * 或 `import"./chunkName-HASH.js"`（副作用导入）。动态 import 因带括号
+ * `import(...)` 不会被本正则命中，由 extractDynamicImportUrls 单独处理。
+ *
+ * 用于递归预热动态 chunk 的二级静态依赖（如认证视图静态引入的 Element Plus
+ * 重组件 chunk，认证态首屏最大的冷读单体）。纯函数、无副作用，导出以便单测。
+ *
+ * @param jsText JS chunk 的文本内容
+ * @returns 去重后的静态引用 chunk 相对路径列表（保持出现顺序）
+ */
+export function extractStaticImportUrls(jsText: string): string[] {
+  const urls: string[] = [];
+  for (const match of jsText.matchAll(/\b(?:from|import)\s*["'](\.\/[^"']+\.js)["']/g)) {
+    urls.push(match[1]);
+  }
+  return [...new Set(urls)];
+}
+
+/**
+ * 从动态 chunk 的 fetch 结果中收集尚未预热的二级静态依赖绝对 URL
+ *
+ * 相对路径以各动态 chunk 自身的绝对 URL 为基准解析（Promise.allSettled 保序，
+ * 结果与 dynamicHrefs 一一对应），不依赖「所有 chunk 同目录」的构建假设。
+ * 单个 chunk 文本读取失败静默跳过，不影响其余依赖收集；收集到的 URL
+ * 同步写入 warmedHrefs 集合完成跨层去重。
+ *
+ * @param dynamicResults 动态 chunk 的 fetch settled 结果列表（与 dynamicHrefs 同序）
+ * @param dynamicHrefs 动态 chunk 的绝对 URL 列表（作为各自二级依赖的解析基准）
+ * @param warmedHrefs 已预热资源的绝对 URL 集合（原地追加新收集的 URL）
+ * @returns 尚未预热的二级依赖 chunk 绝对 URL 列表
+ */
+async function collectStaticDepHrefs(
+  dynamicResults: PromiseSettledResult<Response>[],
+  dynamicHrefs: string[],
+  warmedHrefs: Set<string>,
+): Promise<string[]> {
+  const secondaryHrefs: string[] = [];
+  for (const [index, result] of dynamicResults.entries()) {
+    if (result.status !== 'fulfilled' || !result.value.ok) continue;
+    try {
+      const chunkText = await result.value.text();
+      for (const relUrl of extractStaticImportUrls(chunkText)) {
+        const href = new URL(relUrl, dynamicHrefs[index]).href;
+        if (warmedHrefs.has(href)) continue;
+        warmedHrefs.add(href);
+        secondaryHrefs.push(href);
+      }
+    } catch {
+      // 单个动态 chunk 文本读取失败不影响其余依赖收集
+    }
+  }
+  return secondaryHrefs;
+}
+
+/**
  * 从入口 JS chunk 文本中提取动态 import 的 chunk URL
  *
  * Vite 构建产物中动态 import 形如 `import("./chunkName-HASH.js")`，
@@ -125,11 +184,12 @@ async function isSessionCurrentlyValid(): Promise<boolean> {
  */
 export interface WarmSidePanelOptions {
   /**
-   * 忽略「会话有效 → 跳过」门控
+   * 浏览器首启冷缓存模式：忽略「会话有效 → 跳过」与「非 Windows → 跳过」两道门控
    *
-   * 浏览器刚启动（chrome.runtime.onStartup）时 OS 磁盘缓存全冷、渲染进程冷，
-   * 即使会话仍在有效期内也会白屏（密码缓存可由 warmPasswordCache 预热，
-   * 但渲染资源无人预热）。此场景下置 true 强制执行一次资源预热。
+   * 浏览器刚启动（chrome.runtime.onStartup）时 OS 磁盘缓存全冷、渲染进程冷、
+   * V8 无 code cache，即使会话仍在有效期内也会白屏（密码缓存可由
+   * warmPasswordCache 预热，但渲染资源无人预热）；且该场景 Mac 重启后首开
+   * 同样出现长白屏，故置 true 时跨平台强制执行一次资源预热。
    */
   ignoreSessionGate?: boolean;
 }
@@ -138,16 +198,20 @@ export interface WarmSidePanelOptions {
  * 按需预热侧边栏全量渲染资源（Windows 会话失效期 / 浏览器启动冷缓存期）
  *
  * 门控与节流（依次判定，任一不满足即跳过）：
- * 1. 非 Windows → 跳过（Mac/Linux 冷路径本就快）；
+ * 1. 非 Windows 且非浏览器首启 → 跳过（Mac/Linux 日常热路径本就快；
+ *    浏览器首启经 options.ignoreSessionGate 跨平台放行——重启后磁盘缓存全冷，
+ *    Mac 首开同样白屏）；
  * 2. 命中 30s 节流窗口 → 跳过；
  * 3. 会话有效 → 跳过（本就秒开；此时不占用节流窗口，使会话一旦失效即可立即预热）。
  *    浏览器启动等磁盘缓存全冷场景可经 options.ignoreSessionGate 跳过本门控。
  *
- * 预热范围（三层递进）：
+ * 预热范围（四层递进）：
  * - 第一层：sidepanel.html 本身（温热入口 HTML）
  * - 第二层：HTML 中引用的 module 脚本 + modulepreload 依赖 + 样式表
  * - 第三层：入口 JS 中的动态 import chunk（sessionManager-storage / passwordCrud /
  *   HelpDialog / autoSaveManager / useSidepanelSettings 等按需模块）
+ * - 第四层：动态 chunk 静态引入的二级依赖 chunk（如认证视图的 Element Plus
+ *   重组件 chunk，认证态首屏最大的冷读单体）
  *
  * 全程 fire-and-forget：任何异常均静默吞掉，绝不影响调用方（保活 / 预唤醒 / 启动路径）。
  *
@@ -155,7 +219,10 @@ export interface WarmSidePanelOptions {
  */
 export async function maybeWarmSidePanelResources(options: WarmSidePanelOptions = {}): Promise<void> {
   try {
-    if (!(await isWindowsPlatform())) return;
+    // 平台门控：常规调用（保活 tick / hover 抢跑）仅 Windows 执行；
+    // 浏览器首启（ignoreSessionGate）跨平台执行——重启后 OS 磁盘缓存全冷、
+    // V8 无 code cache，Mac 首次打开侧边栏同样出现长白屏
+    if (!options.ignoreSessionGate && !(await isWindowsPlatform())) return;
 
     const now = Date.now();
     if (now - _lastWarmAt < WARM_THROTTLE_MS) return;
@@ -188,9 +255,24 @@ export async function maybeWarmSidePanelResources(options: WarmSidePanelOptions 
           if (dynamicUrls.length > 0) {
             // 动态 import chunk 相对于入口 JS 所在目录（通常为 /chunks/）
             const entryBase = new URL(entryJsUrl, baseUrl).href;
-            await Promise.allSettled(dynamicUrls.map(relUrl => fetch(new URL(relUrl, entryBase).href)));
+            // 已预热资源的绝对 URL 集合，供第三/四层跨层去重（避免重复 fetch 同一 chunk）
+            const warmedHrefs = new Set(assetUrls.map(url => new URL(url, baseUrl).href));
+            const dynamicHrefs = dynamicUrls
+              .map(relUrl => new URL(relUrl, entryBase).href)
+              .filter(href => !warmedHrefs.has(href));
+            dynamicHrefs.forEach(href => warmedHrefs.add(href));
+            const dynamicResults = await Promise.allSettled(dynamicHrefs.map(href => fetch(href)));
+
+            // 第四层：递归一层，预热动态 chunk 静态引入的二级依赖 chunk
+            //（认证视图依赖的 Element Plus 重组件 chunk 经静态 import 引入，
+            //  仅靠动态 import 正则会漏网，需从动态 chunk 文本中二次提取）
+            const secondaryHrefs = await collectStaticDepHrefs(dynamicResults, dynamicHrefs, warmedHrefs);
+            if (secondaryHrefs.length > 0) {
+              await Promise.allSettled(secondaryHrefs.map(href => fetch(href)));
+            }
+
             logger.debug(
-              `SidePanel: 资源预热完成（Windows 会话失效期），静态资源 ${assetUrls.length} + 动态 chunk ${dynamicUrls.length}`,
+              `SidePanel: 资源预热完成，静态资源 ${assetUrls.length} + 动态 chunk ${dynamicHrefs.length} + 二级依赖 ${secondaryHrefs.length}`,
             );
             return;
           }
@@ -200,7 +282,7 @@ export async function maybeWarmSidePanelResources(options: WarmSidePanelOptions 
       }
     }
 
-    logger.debug(`SidePanel: 资源预热完成（Windows 会话失效期），资源数 ${assetUrls.length}`);
+    logger.debug(`SidePanel: 资源预热完成，资源数 ${assetUrls.length}`);
   } catch (error) {
     // 预热为尽力而为的优化，任何异常静默吞掉，绝不影响调用方
     logger.debug('SidePanel: 资源预热跳过/失败', error);

@@ -35,7 +35,8 @@ const _swLoadedAt = Date.now();
  *
  * 仅在 GET_INITIAL_DATA（isSessionValid）和 INVALIDATE_PASSWORD_CACHE
  * （invalidateSessionCache / markSessionInvalid / clearSession）路径中使用，
- * 避免静态导入将 session/encryption 代码打入 SW 初始包。
+ * 延迟 session/encryption 模块的初始化执行到首次消息到达时。
+ * 注：SW 产物被 WXT 内联为单文件，此懒加载不减少冷启动解析/编译量。
  */
 let _sessionModule: typeof import('@/utils/sessionManager-storage') | null = null;
 async function _getSessionModule(): Promise<typeof import('@/utils/sessionManager-storage')> {
@@ -182,8 +183,8 @@ export function setupMessageRouter(): void {
         // 预唤醒消息：主动预热密码缓存
         warmPasswordCache();
         // Windows 会话失效期额外预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，缓解冷启动白屏）：
-        // 用户 hover/focus「即将打开」时抢跑一次。懒 import 不增大 SW 初始包，fire-and-forget 不阻塞响应；
-        // 函数内自带平台/会话门控与节流，非 Windows / 会话有效直接跳过
+        // 用户 hover/focus「即将打开」时抢跑一次。懒 import 延迟模块初始化（SW 产物已内联），
+        // fire-and-forget 不阻塞响应；函数内自带平台/会话门控与节流，非 Windows / 会话有效直接跳过
         void import('@/utils/warmSidePanelResources').then(m => m.maybeWarmSidePanelResources()).catch(() => {});
         sendResponse({ success: true });
         return;

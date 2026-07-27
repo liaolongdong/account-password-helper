@@ -12,8 +12,10 @@ import { moveToTrash } from './trashManager';
 /**
  * 延迟加载加密模块（deriveEncryptionKey / encryptPasswordEntry / decryptPasswordEntry）
  *
- * 仅在 savePassword / batchSavePasswords / updatePassword / getAllPasswords 中按需使用，
- * 避免静态导入将 PBKDF2/AES-GCM 打入 SW 初始包，减少冷启动时 V8 JIT 编译开销。
+ * 仅在 savePassword / batchSavePasswords / updatePassword / getAllPasswords 中按需使用。
+ * 页面上下文（sidepanel/options）中该拆分真实生效：PBKDF2/AES-GCM 不进入
+ * 首屏 chunk；SW 产物被 WXT 内联为单文件，懒加载在 SW 中仅延迟模块
+ * 初始化执行，不减少冷启动解析/编译量。
  */
 const _getEncryption = lazyImport(() => import('@/utils/encryption'));
 
