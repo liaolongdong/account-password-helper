@@ -7,9 +7,10 @@ import { bytesToHex } from '@/utils/crypto-light';
 /**
  * 延迟加载加密模块
  *
- * 避免在 Service Worker 冷启动时静态导入 encryption.ts（Web Crypto 代码），
- * 减少 SW 初始包体积和 V8 JIT 编译开销。
- * Windows 上冷启动时模块解析/JIT 编译 encryption.ts 约需 200-500ms。
+ * 页面上下文（sidepanel/options）中该拆分真实生效：encryption.ts 不进入
+ * 首屏 chunk，锁屏路径无需加载加密链。注：SW 产物被 WXT 内联为单文件
+ * （MV3 SW 禁止运行期动态加载），懒加载在 SW 中仅延迟模块初始化执行，
+ * 不减少冷启动解析/编译量。
  *
  * 所有加密函数调用均在 async 函数内部，使用动态 import 按需加载。
  * 模块系统自动去重：多次 import('@/utils/encryption') 返回同一实例。
@@ -587,6 +588,13 @@ export async function clearSession(): Promise<void> {
 async function _doClearSession(): Promise<void> {
   try {
     invalidateSessionCache();
+
+    // 清空加密模块内的 CryptoKey 句柄缓存，锁定后不残留可用的加解密句柄。
+    // fire-and-forget：不阻塞锁定流程；若加密模块尚未加载（缓存必为空），
+    // 此处 dynamic import 仅命中构建产物缓存，开销可忽略
+    void _getEncryption()
+      .then(m => m.clearCryptoKeyCache())
+      .catch(() => {});
 
     // 清除内存与 storage.session 中的会话密钥材料。
     // storage.local 中的密码数据本就是密文（at-rest 不变量），无需再做全量重加密，
