@@ -295,6 +295,10 @@ This project is released under the MIT License.
 
 Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20Helper%20Feedback)
 
+**WeChat group**: scan the QR code below to add the author on WeChat (ID: `lld_1025`) with the note "aph" to get invited into the plugin user group for feedback and discussion.
+
+<img src="./assets/wx-qrcode/wechat-qrcode.jpg" alt="WeChat group QR code" width="160" />
+
 If this project helps you, please give it a ⭐️ — thank you!
 
 Issues and pull requests are welcome!
