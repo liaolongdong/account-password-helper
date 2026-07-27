@@ -204,6 +204,8 @@ defineExpose({ formRef: localSetupFormRef });
 <style scoped>
 /* 设置页面样式 */
 .setup-page {
+  /* 默认 content-box 会使实际高度为 100vh + 上下 padding，导致小屏出现多余的垂直滚动条 */
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
