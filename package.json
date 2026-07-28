@@ -3,7 +3,7 @@
   "author": "Better",
   "email": "924902324@qq.com",
   "github": "https://github.com/liaolongdong/account-password-helper",
-  "version": "2.14.0",
+  "version": "2.15.0",
   "description": "Chrome extension for account password management and auto-fill and auto-login",
   "keywords": [
     "account",
@@ -21,7 +21,11 @@
   ],
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "spawn-sync"
+    ]
   },
   "type": "module",
   "scripts": {
@@ -50,9 +54,16 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
-    "*.{css,scss,vue}": ["stylelint --fix"],
-    "*.{json,md}": ["prettier --write"]
+    "*.{ts,vue,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,scss,vue}": [
+      "stylelint --fix"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
