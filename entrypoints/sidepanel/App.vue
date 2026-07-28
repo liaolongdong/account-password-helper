@@ -110,8 +110,14 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
-import { markPerf, measurePerf, recordSidepanelOpenMetrics, SP_PERF_MARKS } from '@/utils/perfMetrics';
-import { useSidepanelData } from '@/composables/useSidepanelData';
+import {
+  markPerf,
+  measurePerf,
+  recordSidepanelOpenMetrics,
+  SP_PERF_MARKS,
+  type SidepanelInitMeta,
+} from '@/utils/perfMetrics';
+import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
 
@@ -472,8 +478,9 @@ const handleFloatingConfigChange = (
 
 /**
  * 首屏打开收尾回调（由 onMounted 内赋值，幂等）：
- * 认证态由 SidepanelAuthView 首帧渲染完成（rendered 事件）触发，
- * 锁屏态由 onMounted 内 nextTick + rAF 触发
+ * - 锁屏快速路径：轻量会话判定确认失效后立即触发（不等数据竞速）
+ * - 认证态由 SidepanelAuthView 首帧渲染完成（rendered 事件）触发
+ * - 兜底计时器自 onMounted 即启动，封顶骨架屏最长停留时长
  */
 let _finishOpen: (() => void) | null = null;
 
@@ -486,6 +493,17 @@ const handleAuthViewRendered = (renderedCount: number) => {
   _finishOpen?.();
 };
 
+/**
+ * 骨架屏兜底计时周期（毫秒）
+ *
+ * 自 onMounted 即启动的总兜底：已确认锁屏/竞速已返回的场景一个周期后强制淡出；
+ * 会话状态未判定（竞速进行中）时续期一个周期（总封顶 2 周期 = 5s，覆盖竞速
+ * bg 800ms + 本地 3000ms 的确定性上限），避免误露「会话已过期」卡片。
+ * 此前兜底计时器在 await initSidepanelData() 之后才启动，Windows 会话失效
+ * 冷环境下竞速瀑布（bg 800ms 超时 + 本地 3000ms 兜底）会先行阻塞 ≈3.8s。
+ */
+const SKELETON_MAX_LIFETIME_MS = 2500;
+
 onMounted(async () => {
   // 性能埋点：首帧已渲染（onMounted 触发）+ 测量 Vue mount 开始 → onMounted 的间隔
   markPerf(SP_PERF_MARKS.MOUNTED);
@@ -497,11 +515,22 @@ onMounted(async () => {
 
   const _perfMountStart = performance.now();
 
-  // 预取认证态视图 chunk（fire-and-forget，与下方数据竞速加载并行重叠）：
-  // 会话有效态数据就绪时 chunk 已就绪，挂载零等待；锁屏态也顺带温热，解锁后即时切换。
+  // 轻量会话判定提前发起（单次 storage.local IPC，毫秒级），一次判定双用途：
+  // ① 锁屏快速路径（见下方）；② 认证态视图 chunk 的预取调度
+  const quickInvalidPromise = isSessionQuicklyKnownInvalid().catch(() => false);
+
+  // 预取认证态视图 chunk（fire-and-forget）：按会话判定调度——
+  // 可能有效（含判定失败）时立即预取，与数据竞速加载并行重叠，挂载零等待；
+  // 已确认失效时跳过（锁屏首帧用不到该 chunk + Element Plus 重依赖 ≈89KB，
+  // 冷盘环境立即预取会与锁屏首帧绘制/竞速关键路径争抢磁盘 IO），
+  // 延后至首屏收尾后的空闲预取（preloadIdleModules），解锁前通常已温热。
   // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk；
   // 吞掉加载失败（扩展更新瞬间旧页面 404），避免 unhandled rejection（组件侧有 onError 重试兜底）
-  void import('@/components/sidepanel/SidepanelAuthView.vue').catch(() => {});
+  void quickInvalidPromise.then(knownInvalid => {
+    if (!knownInvalid) {
+      void import('@/components/sidepanel/SidepanelAuthView.vue').catch(() => {});
+    }
+  });
 
   // 获取骨架屏元素（兄弟节点模式，Vue 挂载不会替换它）
   const skeletonEl = document.getElementById('app-loading');
@@ -516,6 +545,106 @@ onMounted(async () => {
     })
     .catch(error => logger.error('SidePanel: 读取自动触发登录配置失败:', error));
 
+  // ==================== 首屏收尾编排（先于数据竞速定义，快速路径/兜底可提前触发） ====================
+  // 1. 打 sp-list-rendered 埋点，数据就绪后写入性能环形日志（含列表渲染段分解）
+  // 2. 淡出骨架屏，实现 骨架屏 → 真实UI 的无缝过渡（骨架屏作为兄弟节点保持可见直到此处）
+  // 3. 空闲预取按需模块（设置弹窗 / HelpDialog / TotpCode）
+  let _opened = false;
+  let _renderFallbackTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 数据竞速元信息（initSidepanelData 完成后赋值；锁屏快速路径下晚于骨架屏淡出到达） */
+  let _initMeta: SidepanelInitMeta | null = null;
+  let _metricsRecorded = false;
+  /** 锁屏快速路径已确认会话失效（兜底计时器据此区分「已确认失效」与「状态未判定」） */
+  let _quickKnownInvalid = false;
+
+  /**
+   * 写入性能环形日志（幂等）：需同时满足「骨架屏已淡出」与「竞速元信息已就绪」。
+   * 锁屏快速路径下骨架屏先淡出、竞速后台完成后补记，埋点归因维度不缺失
+   * （dataToRenderMs 为负值即标识「渲染先于数据就绪」的快速路径场景）
+   */
+  const recordMetricsOnce = () => {
+    if (_metricsRecorded || !_opened || !_initMeta) return;
+    _metricsRecorded = true;
+    // 优先采用认证视图回传的实际首帧渲染数（分片渲染下首帧上限 30 条），
+    // 兜底/锁屏态回退为过滤后全量（锁屏态恒为 0）
+    recordSidepanelOpenMetrics({
+      ..._initMeta,
+      renderedItemCount: _authRenderedCount ?? filteredPasswords.value.length,
+    });
+  };
+
+  const finishOpen = () => {
+    if (_opened) return;
+    _opened = true;
+    if (_renderFallbackTimer) {
+      clearTimeout(_renderFallbackTimer);
+      _renderFallbackTimer = null;
+    }
+
+    markPerf(SP_PERF_MARKS.LIST_RENDERED);
+    recordMetricsOnce();
+
+    if (skeletonEl) {
+      skeletonEl.classList.add('fade-out');
+      skeletonEl.addEventListener('transitionend', () => skeletonEl.remove(), { once: true });
+      // 安全兜底：transitionend 未触发时强制移除（200ms = CSS transition 时长）
+      setTimeout(() => skeletonEl.remove(), 250);
+    }
+
+    // 空闲预取：设置弹窗模块 + HelpDialog + TotpCode + 认证视图 chunk（不阻塞首屏渲染），
+    // 冷环境（Windows 会话失效期 / 浏览器重启引导期）下用户首次交互时 chunk 已温热、即时打开；
+    // 认证视图 chunk 在锁屏态被跳过立即预取（见 onMounted 前段），此处补齐使解锁切换零等待；
+    // 未取完前触发则退化为按需加载，无回退风险；预取失败静默吞掉（交互时按需加载兜底）
+    const preloadIdleModules = () => {
+      void ensureSettingsModule().catch(() => {});
+      // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk
+      void import('@/components/sidepanel/SidepanelAuthView.vue').catch(() => {});
+      void import('@/components/sidepanel/HelpDialog.vue').catch(() => {});
+      void import('@/components/TotpCode.vue').catch(() => {});
+    };
+    if (typeof requestIdleCallback !== 'undefined') {
+      requestIdleCallback(preloadIdleModules);
+    } else {
+      setTimeout(preloadIdleModules, 1000);
+    }
+  };
+  _finishOpen = finishOpen;
+
+  // 总兜底计时器提前至数据竞速之前启动：封顶骨架屏最长停留时长，
+  // 消除「竞速瀑布阻塞收尾启动」的白屏叠加（Windows 会话失效态白屏主因）。
+  // 会话状态尚未判定时（快速路径未确认失效、竞速未返回）不能直接淡出——
+  // 模板初始 isAuthenticated=false 会误露「会话已过期」卡片（实际可能有效），
+  // 此时一次性续期等待竞速决出（竞速自身有 bg 800ms + 本地 3000ms 确定性上限，
+  // 续期后总封顶 5s 足以覆盖），仅对「已确认失效/竞速已返回」的场景立即淡出
+  let _fallbackExtended = false;
+  const onSkeletonFallback = () => {
+    if (_opened) return;
+    if (_initMeta === null && !_quickKnownInvalid && !_fallbackExtended) {
+      _fallbackExtended = true;
+      _renderFallbackTimer = setTimeout(onSkeletonFallback, SKELETON_MAX_LIFETIME_MS);
+      return;
+    }
+    finishOpen();
+  };
+  _renderFallbackTimer = setTimeout(onSkeletonFallback, SKELETON_MAX_LIFETIME_MS);
+
+  // ==================== 锁屏快速路径（Windows 会话失效态白屏根治） ====================
+  // 轻量判定（复用 onMounted 前段发起的 quickInvalidPromise）确认会话已失效时，
+  // 立即淡出骨架屏：锁屏卡片为内联模板（isAuthenticated 初始 false），挂载即已渲染就绪、
+  // 无需任何数据。完整竞速继续在后台执行：结果为失效时状态不变；极小概率窗口内会话
+  // 恰好恢复有效则由竞速结果静默切换到列表态（与既有「迟到结果采纳」路径行为一致）。
+  // 判定方向仅可能「提前展示锁屏」（fail-locked），无误判解锁风险。
+  void quickInvalidPromise
+    .then(knownInvalid => {
+      if (!knownInvalid || _opened) return;
+      _quickKnownInvalid = true;
+      logger.debug(`SidePanel: 锁屏快速路径命中，${(performance.now() - _perfMountStart).toFixed(1)}ms 淡出骨架屏`);
+      // 窗口被遮挡/不可见时 Chrome 会冻结 rAF，加 500ms 定时兜底（finishOpen 幂等，先到者生效）
+      setTimeout(finishOpen, 500);
+      nextTick(() => requestAnimationFrame(finishOpen));
+    })
+    .catch(() => {});
+
   const initMeta = await initSidepanelData();
 
   // 性能埋点：首屏数据就绪（User Timing API 不受生产构建 drop console 影响）
@@ -526,63 +655,17 @@ onMounted(async () => {
     `SidePanel: 首屏数据就绪，initSidepanelData 耗时 ${(_perfDataReady - _perfMountStart).toFixed(1)}ms，总计 ${_perfDataReady.toFixed(1)}ms`,
   );
 
-  // 数据就绪后的统一收尾（幂等，仅首次生效）：
-  // 1. 打 sp-list-rendered 埋点并写入性能环形日志（含列表渲染段分解，此前为盲区）
-  // 2. 淡出骨架屏，实现 骨架屏 → 真实UI 的无缝过渡（骨架屏作为兄弟节点保持可见直到此处）
-  // 3. 空闲预取按需模块（设置弹窗 / HelpDialog / TotpCode）
-  let _opened = false;
-  let _renderFallbackTimer: ReturnType<typeof setTimeout> | null = null;
-  const finishOpen = () => {
-    if (_opened) return;
-    _opened = true;
-    if (_renderFallbackTimer) {
-      clearTimeout(_renderFallbackTimer);
-      _renderFallbackTimer = null;
-    }
+  // 竞速元信息就绪：骨架屏已先行淡出（快速路径/兜底）则立即补记性能日志
+  _initMeta = initMeta;
+  recordMetricsOnce();
 
-    markPerf(SP_PERF_MARKS.LIST_RENDERED);
-    // 优先采用认证视图回传的实际首帧渲染数（分片渲染下首帧上限 30 条），
-    // 兜底/锁屏态回退为过滤后全量（锁屏态恒为 0）
-    recordSidepanelOpenMetrics({
-      ...initMeta,
-      renderedItemCount: _authRenderedCount ?? filteredPasswords.value.length,
-    });
-
-    if (skeletonEl) {
-      skeletonEl.classList.add('fade-out');
-      skeletonEl.addEventListener('transitionend', () => skeletonEl.remove(), { once: true });
-      // 安全兜底：transitionend 未触发时强制移除（200ms = CSS transition 时长）
-      setTimeout(() => skeletonEl.remove(), 250);
-    }
-
-    // 空闲预取：设置弹窗模块 + HelpDialog + TotpCode chunk（不阻塞首屏渲染），
-    // 冷环境（Windows 会话失效期）下用户首次交互时 chunk 已温热、即时打开；
-    // 未取完前触发则退化为按需加载，无回退风险；预取失败静默吞掉（交互时按需加载兜底）
-    const preloadIdleModules = () => {
-      void ensureSettingsModule().catch(() => {});
-      // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk
-      void import('@/components/sidepanel/HelpDialog.vue').catch(() => {});
-      void import('@/components/TotpCode.vue').catch(() => {});
-    };
-    if (typeof requestIdleCallback !== 'undefined') {
-      requestIdleCallback(preloadIdleModules);
-    } else {
-      setTimeout(preloadIdleModules, 1000);
-    }
-  };
-
-  if (initMeta.sessionValid) {
-    // 认证态：等待异步认证视图首帧渲染完成（rendered 事件）后收尾，
-    // 避免骨架屏提前淡出露出空白列表区；2.5s 兜底防止 chunk 加载异常卡死骨架屏
-    _finishOpen = finishOpen;
-    _renderFallbackTimer = setTimeout(finishOpen, 2500);
-  } else {
-    // 锁屏态：同步视图，DOM flush + 首帧绘制后收尾；
-    // 窗口被遮挡/不可见时 Chrome 会冻结 rAF，加 500ms 定时兜底（finishOpen 幂等，先到者生效）
-    _finishOpen = finishOpen;
-    _renderFallbackTimer = setTimeout(finishOpen, 500);
+  if (!initMeta.sessionValid && !_opened) {
+    // 锁屏态（快速路径未命中，如 storage 读取失败）：同步视图，DOM flush + 首帧绘制后收尾；
+    // rAF 冻结场景由已运行的总兜底计时器封顶
     nextTick(() => requestAnimationFrame(finishOpen));
   }
+  // 认证态：等待异步认证视图首帧渲染完成（rendered 事件，见 handleAuthViewRendered）后收尾，
+  // 避免骨架屏提前淡出露出空白列表区；chunk 加载异常由总兜底计时器封顶
 });
 
 onUnmounted(() => {

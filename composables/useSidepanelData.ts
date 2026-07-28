@@ -71,6 +71,38 @@ const getPasswordCrudModule = lazyImport(() => import('@/utils/storage/passwordC
 const LOCAL_PATH_TIMEOUT_MS = 3000;
 
 /**
+ * 会话过期时间戳的 storage.local 键名
+ *
+ * 与 sessionManager-storage 的 SESSION_STORAGE_KEYS.PASSWORD_EXPIRY 保持一致；
+ * 使用字面量避免静态引入 sessionManager-storage 模块，破坏其懒加载 chunk 拆分
+ * （该模块在本文件中统一经 getSessionModule 动态加载）。
+ */
+const SESSION_EXPIRY_KEY = 'session_password_expiry';
+
+/**
+ * 轻量会话失效快速判定（锁屏快速路径专用）
+ *
+ * 仅读取会话过期时间戳做时间比较（单次 storage.local IPC，毫秒级），
+ * 不加载 sessionManager-storage chunk、不触发密钥派生/解密。
+ *
+ * 返回 true 表示会话已确定失效（无会话键或已过期），调用方可立即淡出骨架屏
+ * 展示锁屏 UI，无需等待完整竞速（Windows 会话失效冷环境下竞速瀑布最坏
+ * bg 800ms 超时 + 本地 3000ms 兜底 ≈ 3.8s，是白屏的主要来源）；
+ * 返回 false（可能有效 / 读取失败）时不走快速路径，交由 initSidepanelData
+ * 完整竞速判定——判定方向仅可能「提前展示锁屏」，不存在误判解锁风险（fail-locked）。
+ */
+export async function isSessionQuicklyKnownInvalid(): Promise<boolean> {
+  try {
+    const result = await chrome.storage.local.get(SESSION_EXPIRY_KEY);
+    const expiry = result[SESSION_EXPIRY_KEY] as number | undefined;
+    return !expiry || Date.now() >= expiry;
+  } catch {
+    // 读取失败不走快速路径，交由完整竞速判定
+    return false;
+  }
+}
+
+/**
  * SidePanel 数据加载与会话管理 Composable
  *
  * 职责：

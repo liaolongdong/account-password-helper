@@ -205,6 +205,39 @@
           {{ t('popup.setShortcut') }}
         </button>
       </div>
+
+      <div
+        class="action-card"
+        role="button"
+        tabindex="0"
+        @click="triggerInlineDropdown"
+        @keydown.enter="triggerInlineDropdown"
+        @keydown.space.prevent="triggerInlineDropdown"
+      >
+        <div class="action-card__icon action-card__icon--tint">
+          <InlineKeyIcon />
+        </div>
+        <div class="action-card__content">
+          <div class="action-card__title">{{ t('popup.inlineDropdown') }}</div>
+          <div class="action-card__desc">{{ t('popup.inlineDropdownDesc') }}</div>
+        </div>
+        <kbd
+          v-if="shortcutAssigned.open_inline_dropdown"
+          class="action-card__shortcut"
+          >{{ shortcuts.open_inline_dropdown }}</kbd
+        >
+        <button
+          v-else
+          type="button"
+          class="action-card__shortcut action-card__shortcut-btn"
+          :title="t('popup.goToShortcuts')"
+          @click.stop="openShortcutsPage"
+          @keydown.enter.stop.prevent="openShortcutsPage"
+          @keydown.space.stop.prevent="openShortcutsPage"
+        >
+          {{ t('popup.setShortcut') }}
+        </button>
+      </div>
     </div>
 
     <!-- 联系方式 -->
@@ -230,6 +263,7 @@
 import { Lock, CircleCheckFilled, WarningFilled, UploadFilled, Position } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
+import InlineKeyIcon from '@/components/InlineKeyIcon.vue';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
@@ -342,6 +376,21 @@ const triggerDirectFill = async () => {
     await chrome.runtime.sendMessage({ type: MessageType.QUICK_FILL });
   } catch (error) {
     logger.error('一键填充触发失败:', error);
+  } finally {
+    window.close();
+  }
+};
+
+/**
+ * 触发内联下拉展开
+ * 发送 OPEN_INLINE_DROPDOWN 消息到 background，由其在当前页面定位登录字段并展开内联面板
+ * （与快捷键 Ctrl+Shift+K、点击输入框内钥匙图标一致）。无登录字段时通过桌面通知反馈。
+ */
+const triggerInlineDropdown = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.OPEN_INLINE_DROPDOWN });
+  } catch (error) {
+    logger.error('内联下拉触发失败:', error);
   } finally {
     window.close();
   }
@@ -495,6 +544,14 @@ const handleEmailClick = (event: Event) => {
      全由现成令牌派生，比实心主色卡更轻盈提亮，避免深色收敛带来的沉闷感 */
   color: #fff;
   background: linear-gradient(135deg, var(--aph-primary-hover) 0%, var(--aph-primary) 100%);
+}
+
+.action-card__icon--tint {
+  /* 浅底纯调变体（内联下拉动作）：主题色 15% 透明浅底 + 主题色图标，无圆环；
+     比 --aph-primary-bg（约 7% 色调）略深一档，保证圆形底在 #fafafa 卡片上清晰可辨，
+     与描边变体形成层级递减，保持四卡同属一个主题色阶家族 */
+  color: var(--aph-primary);
+  background: rgb(var(--aph-primary-rgb) / 15%);
 }
 
 .action-card__content {

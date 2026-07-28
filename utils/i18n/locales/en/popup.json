@@ -10,6 +10,8 @@
   "popup.quickFillDesc": "Quickly fill credentials on the current page",
   "popup.directFill": "Direct Fill",
   "popup.directFillDesc": "One-click fill without opening the side panel",
+  "popup.inlineDropdown": "Inline Dropdown",
+  "popup.inlineDropdownDesc": "Open the account dropdown at the login field",
   "popup.setShortcut": "Set shortcut",
   "popup.goToShortcuts": "Open Chrome shortcut settings",
   "popup.newVersion": "New version available",

@@ -20,7 +20,7 @@ import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/t
 import { getTagColor, parseTags } from '@/utils/tagUtils';
 import { tl } from '@/utils/i18n-lite';
 
-/** 钥匙图标 */
+/** 钥匙图标（与 components/InlineKeyIcon.vue 保持一致，修改请同步） */
 const KEY_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="m16 7 3 3"/></svg>`;
 
 /** 搜索图标 */
@@ -384,6 +384,31 @@ export class InlineFillDropdown {
     this.positionTrigger();
     this.triggerEl?.classList.add('visible');
     this.attachTriggerInteractions();
+  }
+
+  /**
+   * 直接为指定输入框展开面板（快捷键 / Popup 触发，行为与点击钥匙图标一致）
+   *
+   * 跳过图标展示阶段，复用 openPanel 的完整链路（失焦登录框 → 拉取匹配账号 → 渲染定位）。
+   * @param input 目标输入框（面板锚定其下方）
+   */
+  openPanelFor(input: HTMLInputElement): void {
+    // 面板已针对同一输入框打开时，无需重复处理
+    if (this.panelOpen && this.currentInput === input) return;
+
+    // 清除上一字段遗留的隐藏计时器，避免其在面板打开后误触发图标态清理
+    if (this.hideIconTimer) {
+      clearTimeout(this.hideIconTimer);
+      this.hideIconTimer = null;
+    }
+    // 切换到新字段前解绑旧输入框的 blur 监听，避免监听器泄漏
+    if (this.currentInput && this.currentInput !== input) {
+      this.currentInput.removeEventListener('blur', this.handleFieldBlur);
+    }
+
+    this.currentInput = input;
+    this.ensureShadow();
+    void this.openPanel();
   }
 
   /**

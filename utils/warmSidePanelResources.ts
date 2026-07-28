@@ -19,6 +19,7 @@
 import { logger } from '@/utils/logger';
 import { isWindowsPlatform } from '@/utils/platform';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
+import { SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 
 /** 侧边栏入口 HTML（相对扩展根路径），经 chrome.runtime.getURL 解析为绝对 URL */
 const SIDEPANEL_HTML = 'sidepanel.html';
@@ -26,16 +27,41 @@ const SIDEPANEL_HTML = 'sidepanel.html';
 /**
  * 预热节流窗口（毫秒）
  *
- * SIDEPANEL_PRELOAD（hover/focus 抢跑）与 SW 保活 tick（空闲期持续温热）共用本节流：
- * 先触发者预热、后触发者在窗口内被去重，兼顾缓存新鲜度与低损耗。
+ * 侧边栏打开后延时预热与 SW 保活 tick（空闲期温热）共用本节流：
+ * 先触发者预热、后触发者在窗口内被去重。
  *
- * 取值 30s 与 Windows SW 保活 alarm 间隔对齐，确保每次保活 tick 都能执行预热，
- * 防止 Windows 激进内存管理在 60s 内淘汰磁盘缓存导致预热失效。
+ * 取值 5 分钟：与保活 tick 周期（~15s）解耦——此前取 30s 与保活间隔对齐，
+ * 等于会话失效期全天候每 30s 一轮全量 fetch（~20 文件），既加剧系统 IO/杀软
+ * 扫描压力，用户点击落在预热窗口内时还会与渲染进程首屏资源加载争抢磁盘带宽
+ * （白屏放大器）。OS 磁盘缓存并不会在分钟级被逐出，5 分钟粒度的温热已覆盖
+ * 绝大多数冷读场景，同时把预热的常态开销降低一个数量级。
  */
-const WARM_THROTTLE_MS = 30000;
+const WARM_THROTTLE_MS = 5 * 60 * 1000;
 
-/** 上次预热时间戳（毫秒），模块级维护（Service Worker 生命周期内有效） */
+/**
+ * 上次预热时间戳（毫秒），内存镜像
+ *
+ * 真实来源持久化于 chrome.storage.session（SW 重启不归零，浏览器重启即清——
+ * 与「重启后磁盘缓存全冷需重新预热」语义天然一致）。此前仅模块级维护，
+ * SW 冷启后归零导致用户打开侧边栏瞬间必然触发全量预热，
+ * 与渲染进程关键资源加载争抢磁盘 IO / 杀软扫描带宽，放大白屏时长。
+ */
 let _lastWarmAt = 0;
+
+/** 进行中的预热 Promise（模块级 in-flight 互斥，防止并发触发源重复全量 fetch） */
+let _warmInFlight: Promise<void> | null = null;
+
+/**
+ * 读取持久化的上次预热时间戳（读取失败按 0 处理，倾向执行预热的安全侧）
+ */
+async function readPersistedWarmAt(): Promise<number> {
+  try {
+    const result = await chrome.storage.session.get(SESSION_MEMORY_KEYS.SIDEPANEL_WARM_AT);
+    return (result[SESSION_MEMORY_KEYS.SIDEPANEL_WARM_AT] as number | undefined) ?? 0;
+  } catch {
+    return 0;
+  }
+}
 
 /**
  * 从侧边栏 HTML 文本中提取需预热的静态资源 URL
@@ -217,23 +243,45 @@ export interface WarmSidePanelOptions {
  *
  * @param options 预热选项（缺省保持原有门控行为）
  */
-export async function maybeWarmSidePanelResources(options: WarmSidePanelOptions = {}): Promise<void> {
+export function maybeWarmSidePanelResources(options: WarmSidePanelOptions = {}): Promise<void> {
+  // in-flight 并发去重：节流判定含多次 await（平台/持久化/会话读取），
+  // 并发触发源（保活 tick / 打开后延时预热）可能在异步间隙内同时通过节流检查，
+  // 导致两轮全量 fetch 并发执行（IO 突刺加倍），以模块级互斥消除
+  if (_warmInFlight) return _warmInFlight;
+  _warmInFlight = doWarmSidePanelResources(options).finally(() => {
+    _warmInFlight = null;
+  });
+  return _warmInFlight;
+}
+
+/** 预热执行体（由 maybeWarmSidePanelResources 经 in-flight 互斥调度） */
+async function doWarmSidePanelResources(options: WarmSidePanelOptions): Promise<void> {
   try {
-    // 平台门控：常规调用（保活 tick / hover 抢跑）仅 Windows 执行；
+    // 平台门控：常规调用（保活 tick / 打开完成后空闲预热）仅 Windows 执行；
     // 浏览器首启（ignoreSessionGate）跨平台执行——重启后 OS 磁盘缓存全冷、
     // V8 无 code cache，Mac 首次打开侧边栏同样出现长白屏
     if (!options.ignoreSessionGate && !(await isWindowsPlatform())) return;
 
+    // 节流判定：内存镜像快路径命中直接跳过；未命中时读取 storage.session
+    // 持久化时间戳复核（SW 冷启后内存镜像归零，避免误判为「从未预热」）
     const now = Date.now();
+    if (now - _lastWarmAt < WARM_THROTTLE_MS) return;
+    _lastWarmAt = Math.max(_lastWarmAt, await readPersistedWarmAt());
     if (now - _lastWarmAt < WARM_THROTTLE_MS) return;
 
     // 会话有效期内默认无需预热；此处不占用节流窗口，
-    // 以便会话一旦失效，下一次调用（hover 抢跑 / 保活 tick）能立即预热。
+    // 以便会话一旦失效，下一次调用（保活 tick / 打开后空闲预热）能立即预热。
     // 浏览器启动冷缓存场景（ignoreSessionGate）例外：会话有效也需温热渲染资源
     if (!options.ignoreSessionGate && (await isSessionCurrentlyValid())) return;
 
-    // 通过全部门控，占用节流窗口后再执行预热
+    // 通过全部门控，占用节流窗口后再执行预热（同步更新内存镜像 +
+    // fire-and-forget 持久化，跨 SW 生命周期保持窗口有效）
     _lastWarmAt = now;
+    try {
+      void chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SIDEPANEL_WARM_AT]: now }).catch(() => {});
+    } catch {
+      // storage.session 不可用时退化为纯内存节流，不影响预热执行
+    }
 
     const baseUrl = chrome.runtime.getURL(SIDEPANEL_HTML);
     const html = await fetch(baseUrl).then(res => res.text());

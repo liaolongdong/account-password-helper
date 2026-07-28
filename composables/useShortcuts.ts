@@ -10,6 +10,7 @@ const SHORTCUT_NAME_MAP: Record<string, string> = {
   open_options: 'open_options',
   toggle_sidepanel: 'toggle_sidepanel',
   quick_fill: 'quick_fill',
+  open_inline_dropdown: 'open_inline_dropdown',
 };
 
 /**
@@ -19,6 +20,7 @@ const DEFAULT_SHORTCUTS: Record<string, string> = {
   open_options: formatShortcut('Ctrl+Shift+P'),
   toggle_sidepanel: formatShortcut('Ctrl+Shift+L'),
   quick_fill: formatShortcut('Ctrl+Shift+F'),
+  open_inline_dropdown: formatShortcut('Ctrl+Shift+K'),
 };
 
 /**
@@ -40,6 +42,7 @@ export function useShortcuts() {
     open_options: true,
     toggle_sidepanel: true,
     quick_fill: true,
+    open_inline_dropdown: true,
   });
 
   /**
@@ -65,11 +68,14 @@ export function useShortcuts() {
         open_options: shortcutMap[SHORTCUT_NAME_MAP.open_options] || DEFAULT_SHORTCUTS.open_options,
         toggle_sidepanel: shortcutMap[SHORTCUT_NAME_MAP.toggle_sidepanel] || DEFAULT_SHORTCUTS.toggle_sidepanel,
         quick_fill: shortcutMap[SHORTCUT_NAME_MAP.quick_fill] || DEFAULT_SHORTCUTS.quick_fill,
+        open_inline_dropdown:
+          shortcutMap[SHORTCUT_NAME_MAP.open_inline_dropdown] || DEFAULT_SHORTCUTS.open_inline_dropdown,
       };
       shortcutAssigned.value = {
         open_options: assignedMap[SHORTCUT_NAME_MAP.open_options] ?? false,
         toggle_sidepanel: assignedMap[SHORTCUT_NAME_MAP.toggle_sidepanel] ?? false,
         quick_fill: assignedMap[SHORTCUT_NAME_MAP.quick_fill] ?? false,
+        open_inline_dropdown: assignedMap[SHORTCUT_NAME_MAP.open_inline_dropdown] ?? false,
       };
     } catch (error) {
       logger.warn('Popup: 获取快捷键失败，使用默认值:', error);

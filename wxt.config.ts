@@ -131,6 +131,13 @@ export default defineConfig({
         },
         description: '__MSG_commandQuickFill__',
       },
+      open_inline_dropdown: {
+        suggested_key: {
+          default: 'Ctrl+Shift+K',
+          mac: 'Command+Shift+K',
+        },
+        description: '__MSG_commandOpenInlineDropdown__',
+      },
     },
   },
 });
