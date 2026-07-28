@@ -10,6 +10,8 @@
   "popup.quickFillDesc": "在当前页面快速填充账号密码",
   "popup.directFill": "一键填充",
   "popup.directFillDesc": "无需打开侧边栏，直接填充当前页面",
+  "popup.inlineDropdown": "内联下拉填充",
+  "popup.inlineDropdownDesc": "在登录框处展开账号下拉列表选择填充",
   "popup.setShortcut": "设置快捷键",
   "popup.goToShortcuts": "前往 Chrome 设置快捷键",
   "popup.newVersion": "发现新版本",

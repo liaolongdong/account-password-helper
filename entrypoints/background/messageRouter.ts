@@ -19,6 +19,7 @@ import {
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { handleQuickFill } from './quickFillHandler';
+import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
 import { isFrameFillable } from '@/utils/frameFill';
 
@@ -422,6 +423,17 @@ export function setupMessageRouter(): void {
           .then(() => sendResponse({ success: true }))
           .catch(error => {
             logger.error('Background: QUICK_FILL 处理失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+      }
+
+      case MessageType.OPEN_INLINE_DROPDOWN: {
+        // popup 入口：在当前活跃标签页展开内联下拉（与快捷键 open_inline_dropdown 同一处理器）
+        handleOpenInlineDropdown()
+          .then(() => sendResponse({ success: true }))
+          .catch(error => {
+            logger.error('Background: OPEN_INLINE_DROPDOWN 处理失败:', error);
             sendResponse({ success: false, error: error.message });
           });
         return true;

@@ -18,5 +18,9 @@
   "commandQuickFill": {
     "message": "一键填充当前页面账号密码",
     "description": "键盘快捷键描述：一键快速填充"
+  },
+  "commandOpenInlineDropdown": {
+    "message": "展开内联填充下拉列表",
+    "description": "键盘快捷键描述：展开内联填充下拉列表（与点击输入框内钥匙图标一致）"
   }
 }

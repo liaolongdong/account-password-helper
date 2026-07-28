@@ -33,13 +33,14 @@ const BADGE_CLEAR_DELAY_MS = 3000;
 /**
  * 显示桌面通知
  * @param message 通知内容
+ * @param title 通知标题（默认「一键填充」，供内联下拉等复用方覆盖）
  */
-async function showNotification(message: string): Promise<void> {
+async function showNotification(message: string, title?: string): Promise<void> {
   try {
     await chrome.notifications.create(NOTIFICATION_ID, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icon/128.png'),
-      title: tl('bg.quickFill.title'),
+      title: title ?? tl('bg.quickFill.title'),
       message,
     });
   } catch (error) {
@@ -76,18 +77,23 @@ async function showBadgeFeedback(success: boolean): Promise<void> {
 
 /**
  * 统一的失败反馈：桌面通知 + 失败角标
+ *
+ * 导出供内联下拉快捷键处理（inlineDropdownHandler）复用同一反馈通道。
  * @param message 通知内容
+ * @param title 通知标题（默认「一键填充」）
  */
-async function notifyFailure(message: string): Promise<void> {
+export async function notifyFailure(message: string, title?: string): Promise<void> {
   void showBadgeFeedback(false);
-  await showNotification(message);
+  await showNotification(message, title);
 }
 
 /**
  * 获取当前活跃标签页
+ *
+ * 导出供内联下拉快捷键处理（inlineDropdownHandler）复用。
  * @returns 活跃标签页或 null
  */
-async function getActiveTab(): Promise<chrome.tabs.Tab | null> {
+export async function getActiveTab(): Promise<chrome.tabs.Tab | null> {
   try {
     const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     return tabs[0] ?? null;
