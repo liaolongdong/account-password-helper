@@ -19,6 +19,7 @@ import {
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { handleQuickFill } from './quickFillHandler';
+import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
 import { isFrameFillable } from '@/utils/frameFill';
 
@@ -180,12 +181,13 @@ export function setupMessageRouter(): void {
   chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
     switch (message.type) {
       case MessageType.SIDEPANEL_PRELOAD: {
-        // 预唤醒消息：主动预热密码缓存
+        // 预唤醒消息：主动预热密码缓存（轻量、缓存已存在时 no-op）。
+        // 注意：此处不触发 maybeWarmSidePanelResources——本消息到达即意味着用户
+        // 「即将/正在」打开侧边栏，此刻从 SW 侧全量 fetch ~20 个 chunk 会与
+        // 渲染进程加载关键资源争抢磁盘 IO / 杀软扫描带宽，反而放大白屏时长
+        // （Windows 会话失效态白屏的主要放大器）。资源预热改由「侧边栏打开完成后
+        // 延时空闲执行」（见 sidePanelManager port 连接）与 SW 保活 tick 承担。
         warmPasswordCache();
-        // Windows 会话失效期额外预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，缓解冷启动白屏）：
-        // 用户 hover/focus「即将打开」时抢跑一次。懒 import 延迟模块初始化（SW 产物已内联），
-        // fire-and-forget 不阻塞响应；函数内自带平台/会话门控与节流，非 Windows / 会话有效直接跳过
-        void import('@/utils/warmSidePanelResources').then(m => m.maybeWarmSidePanelResources()).catch(() => {});
         sendResponse({ success: true });
         return;
       }
@@ -422,6 +424,17 @@ export function setupMessageRouter(): void {
           .then(() => sendResponse({ success: true }))
           .catch(error => {
             logger.error('Background: QUICK_FILL 处理失败:', error);
+            sendResponse({ success: false, error: error.message });
+          });
+        return true;
+      }
+
+      case MessageType.OPEN_INLINE_DROPDOWN: {
+        // popup 入口：在当前活跃标签页展开内联下拉（与快捷键 open_inline_dropdown 同一处理器）
+        handleOpenInlineDropdown()
+          .then(() => sendResponse({ success: true }))
+          .catch(error => {
+            logger.error('Background: OPEN_INLINE_DROPDOWN 处理失败:', error);
             sendResponse({ success: false, error: error.message });
           });
         return true;

@@ -29,6 +29,8 @@ export const STORAGE_KEYS = {
   LOCALE: 'app_locale',
   /** 侧边栏打开性能埋点环形日志（最近 20 次，用于生产环境量化白屏/卡顿） */
   SIDEPANEL_PERF_LOG: 'sidepanel_perf_log',
+  /** 平台检测结果持久化（是否 Windows），供 SW 冷启动早期 getPlatformInfo 异常时兜底 */
+  PLATFORM_IS_WINDOWS: 'platform_is_windows',
 };
 
 /**
@@ -42,4 +44,8 @@ export const SESSION_MEMORY_KEYS = {
   DATA_KEY: 'session_data_key',
   /** 侧边栏打开请求记录（{ at: epoch 毫秒, trigger: 触发源 }），用于量化「用户点击 → 渲染进程 timeOrigin」耗时与打开路径归因 */
   SIDEPANEL_OPEN_REQUESTED_AT: 'sidepanel_open_requested_at',
+  /** 侧边栏资源预热上次执行时间戳（epoch 毫秒），跨 SW 生命周期保持节流窗口有效 */
+  SIDEPANEL_WARM_AT: 'sidepanel_warm_at',
+  /** 浏览器启动引导期保活截止时间戳（epoch 毫秒）：窗口内跨平台强制 SW 保活，覆盖重启后全冷首开 */
+  SW_BOOT_KEEPALIVE_UNTIL: 'sw_boot_keepalive_until',
 };

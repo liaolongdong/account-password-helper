@@ -877,9 +877,53 @@ export class FormDetector {
         this.hideSidePanel();
         sendResponse({ success: true, message: tl('cs.fd.sidepanelHidden') });
         return true;
+      case MessageType.OPEN_INLINE_DROPDOWN: {
+        const handled = this.openInlineDropdown(message.data?.focusedOnly === true);
+        sendResponse({ success: handled, handled });
+        return true;
+      }
       default:
         return false; // 不响应，让消息传递给 background 处理
     }
+  }
+
+  /**
+   * 快捷键 / Popup 触发：定位登录字段并直接展开内联下拉面板（与点击钥匙图标一致）
+   *
+   * 目标字段选取：优先当前聚焦的登录字段；focusedOnly 为 false 时回退到页面已检测的
+   * 首个可见登录字段（用户名 → 手机号 → 密码），复用 shouldShowSidePanel 的同一套
+   * 字段组合判定，保证快捷键触发范围与钥匙图标展示范围一致。
+   *
+   * @param focusedOnly 是否仅允许锚定当前聚焦的登录字段（background 两轮委派的第一轮）
+   * @returns 本 frame 是否已定位到登录字段并展开面板
+   */
+  private openInlineDropdown(focusedOnly: boolean): boolean {
+    const target = this.resolveInlineDropdownTarget(focusedOnly);
+    if (!target) return false;
+    this.inlineDropdown.openPanelFor(target);
+    return true;
+  }
+
+  /**
+   * 解析内联下拉的锚定输入框
+   * @param focusedOnly 是否仅允许锚定当前聚焦的登录字段
+   * @returns 目标输入框或 null
+   */
+  private resolveInlineDropdownTarget(focusedOnly: boolean): HTMLInputElement | null {
+    // 优先：当前聚焦元素是本 frame 内的登录字段
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement && this.shouldShowSidePanel(active)) {
+      return active;
+    }
+    if (focusedOnly) return null;
+
+    // 回退：同步重检测（覆盖 SPA 动态渲染后检测结果过期的场景）后，
+    // 取首个仍在文档中且可见、并通过字段组合判定的登录字段
+    this.detectForms();
+    const candidates = [...this.usernameFields, ...this.mobileFields, ...this.passwordFields];
+    return (
+      candidates.find(input => input.isConnected && isElementVisible(input) && this.shouldShowSidePanel(input)) ?? null
+    );
   }
 
   /**

@@ -201,6 +201,11 @@ export enum MessageType {
    * 一键填充：由 Popup 或快捷键触发，Background 自动匹配当前域名并填充
    */
   QUICK_FILL = 'QUICK_FILL',
+  /**
+   * 内联下拉：由快捷键或 Popup 触发，content script 定位登录字段后直接展开内联填充面板
+   * （与点击输入框内钥匙图标一致）
+   */
+  OPEN_INLINE_DROPDOWN = 'OPEN_INLINE_DROPDOWN',
 }
 
 /**
@@ -232,7 +237,8 @@ export type RuntimeMessage =
   | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string } }
   | { type: MessageType.FILL_BY_ID; data: FillByIdData }
   | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData }
-  | { type: MessageType.QUICK_FILL };
+  | { type: MessageType.QUICK_FILL }
+  | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean } };
 
 /**
  * 悬浮按钮配置接口
