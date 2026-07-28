@@ -1,5 +1,14 @@
 # Changelog
 
+## [2.14.0](https://github.com/liaolongdong/account-password-helper/compare/v2.13.0...v2.14.0) (2026-07-28)
+
+
+### Features
+
+* **background:** 优化 Service Worker 保活机制，提升启动性能和锁屏体验 ([3cc0bde](https://github.com/liaolongdong/account-password-helper/commit/3cc0bdee3f858abb9d928c536f2db6e9be9f1140))
+* **core:** 优化一键填充快捷键的会话未验证处理 ([0e7c3d8](https://github.com/liaolongdong/account-password-helper/commit/0e7c3d80fa642e7e0e64f5069930606659a96c37))
+* **inlineDropdown:** 新增内联下拉快捷键及面板展开功能 ([1f77940](https://github.com/liaolongdong/account-password-helper/commit/1f779401086c2e7e5e51ab3cba6920e9024b1f0d))
+
 ## [2.13.0](https://github.com/liaolongdong/account-password-helper/compare/v2.12.0...v2.13.0) (2026-07-27)
 
 
