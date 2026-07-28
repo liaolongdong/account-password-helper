@@ -364,6 +364,14 @@ export interface MatchingAccountMeta {
   favorite: boolean;
   /** 是否配置了两步验证 */
   hasTotp: boolean;
+  /**
+   * 网站图标 dataURL（`data:image/...;base64,...`）
+   *
+   * 由 background 经 Chrome 本地 `_favicon/` 端点读取转码后下发（零外部网络），
+   * 避免将 `_favicon/*` 暴露为 web_accessible_resources 引入网页探测浏览历史的
+   * 隐私风险；无图标/获取失败时为空字符串，内容脚本降级渲染钥匙图标。
+   */
+  favicon: string;
 }
 
 /**

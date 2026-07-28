@@ -107,6 +107,7 @@ graph TB
 │   ├── BrandLogo.vue               # 钥匙主题品牌 Logo
 │   ├── QuickFillIcon.vue           # 快速填充图标
 │   ├── TotpCode.vue                # TOTP 动态码展示（环形倒计时）
+│   ├── SiteFavicon.vue             # 网站图标组件（本地 _favicon 缓存，失败降级默认图标）
 │   ├── options/                    # Options 页面组件
 │   │   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
 │   │   ├── BackupImportDialog.vue      # 加密备份导入对话框
@@ -180,6 +181,8 @@ graph TB
 │   ├── passwordHealth.ts           # 密码健康体检（评分/弱密码/复用/泄露/陈旧检测）
 │   ├── tagUtils.ts                 # 标签颜色生成
 │   ├── totp.ts                     # TOTP 动态码生成（RFC 6238，Web Crypto HMAC）
+│   ├── favicon.ts                  # 网站图标 URL 构造（Chrome 本地 _favicon/ 端点，零网络）
+│   ├── qrScanner.ts                # 二维码识别（截取标签页/图片 + jsQR 本地解码）
 │   ├── updateChecker.ts            # 版本更新检测（GitHub Releases API）
 │   ├── passwordGenerator.ts        # 随机密码生成器
 │   ├── passphraseGenerator.ts      # 助记词组生成器（EFF Diceware，2048 词库）
@@ -302,6 +305,7 @@ graph TB
 - 侧边栏自动将与当前域名匹配的密码排在前面。
 - **精确域名匹配**：仅展示与当前页面 host 完全一致的条目（不做子域名/主域名模糊匹配），方便区分多测试环境账号（如 `fat.example.com` 与 `uat.example.com` 互不干扰）；未填写域名的条目始终展示。
 - **本地开发友好**：当域名为 `localhost` 或 `127.0.0.1` 时，默认匹配所有密码（见 [sidepanel/App.vue](../entrypoints/sidepanel/App.vue)）。
+- **网站图标展示**：密码列表与侧边栏条目展示对应网站的图标，经 Chrome 本地 `_favicon/` 端点读取浏览器图标缓存，零外部网络请求（见 [SiteFavicon.vue](../components/SiteFavicon.vue)）；无缓存图标或不支持的环境自动降级为默认图标，布局零偏移。
 - 点击条目一键填充并自动关闭侧边栏；若无登录表单，给出「当前页面未检测到登录表单」提示。
 - 侧边栏条目支持右键或操作按钮跳转到密码管理页，直接编辑该条目或添加新条目。
 - 快捷键：
@@ -337,6 +341,7 @@ graph TB
 ### 15. 两步验证（TOTP）
 
 - 在添加/编辑密码表单的「两步验证」字段中，粘贴 `otpauth://` 链接或 Base32 密钥即可为账号启用 TOTP 两步验证（见 [PasswordFormDialog.vue](../components/options/PasswordFormDialog.vue)）。
+- **扫码添加**：密钥输入框下提供「扫描网页二维码」与「上传二维码图片」两个入口（见 [utils/qrScanner.ts](../utils/qrScanner.ts)）：前者自动定位用户最近浏览的网页标签页，短暂切换过去 `captureVisibleTab` 截屏后立即切回；后者读取用户上传的二维码截图。两者均由 jsQR 在本地解码（按需动态导入，不进首屏 chunk），不产生任何网络请求；识别结果经 `isValidTotpInput` 校验后才填入密钥字段。
 - 动态码基于 [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) 的 HMAC 在本地按 RFC 6238 计算，**不产生任何网络请求**，与插件零网络定位一致（见 [utils/totp.ts](../utils/totp.ts)）。
 - 密码列表与侧边栏对已配置条目实时展示动态码与环形倒计时（末 5 秒变色提示即将刷新，见 [TotpCode.vue](../components/TotpCode.vue)）。
 - 侧边栏条目提供「填充验证码」与「复制验证码」：填充会写入页面检测到的验证码输入框（复用 `autocomplete="one-time-code"` 等选择器），仅在显式点击时触发，不影响账号密码自动填充流程。
@@ -365,6 +370,7 @@ graph TB
 - 点击钥匙图标后，登录框主动失焦（关闭 Chrome 原生密码下拉），展开一个迷你面板：顶部搜索栏 + 可滚动账号列表 + 底部「密码管理」入口。
 - 支持键盘导航：`↑` / `↓` 浏览列表、`Enter` 填充高亮项、`Esc` 关闭面板。
 - 面板内容仅展示账号元数据（用户名、标签、备注、网址），密码仅在用户显式选择时经 Background 瞬时下发，安全模型与侧边栏一致。
+- 条目前的钥匙图标优先展示对应网站图标：由 Background 经本地 `_favicon/` 端点读取并转为 dataURL 随元数据下发（内存缓存 + 失败降级钥匙图标，见 [utils/favicon.ts](../utils/favicon.ts) 的 `fetchFaviconDataUrl`）；不将 `_favicon/*` 暴露为 web_accessible_resources，避免网页借端点探测浏览历史的隐私风险，全程零外部网络请求。
 - 会话锁定态下，面板显示「解锁后填充」引导，点击跳转密码管理页验证主密码。
 - 使用 Closed Shadow DOM（`all: initial`）完全隔离页面样式，主题令牌内联写入宿主元素，跟随整体主题换肤。
 

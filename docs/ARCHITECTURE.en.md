@@ -177,6 +177,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - The side panel puts passwords matching the current domain first.
 - **Exact domain matching**: only entries whose host exactly matches the current page are shown (no subdomain/parent-domain fuzzy matching), keeping multi-environment accounts apart (e.g. `fat.example.com` vs `uat.example.com`); entries without a URL always show.
 - **Local dev friendly**: on `localhost` or `127.0.0.1`, all passwords match by default (see [sidepanel/App.vue](../entrypoints/sidepanel/App.vue)).
+- **Site favicons**: list and side panel entries show the matching website icon, read from Chrome's local favicon cache via the `_favicon/` endpoint — zero external network requests (see [SiteFavicon.vue](../components/SiteFavicon.vue)); falls back to the default icon with zero layout shift when unavailable.
 - Click an entry to fill and auto-close the side panel; if no login form is present, a "no login form detected" notice appears.
 - Side panel entries can jump to the manager to edit that entry or add a new one.
 - Shortcuts:
@@ -212,6 +213,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 ### 15. Two-Factor Authentication (TOTP)
 
 - Paste an `otpauth://` link or Base32 secret into the "2FA" field of the add/edit form (see [PasswordFormDialog.vue](../components/options/PasswordFormDialog.vue)).
+- **QR scanning**: two entries below the secret input — "Scan QR on webpage" and "Upload QR image" (see [utils/qrScanner.ts](../utils/qrScanner.ts)). The former locates the most recently viewed web tab, briefly switches to it for a `captureVisibleTab` screenshot and switches right back; the latter reads an uploaded screenshot. Both decode locally with jsQR (dynamically imported, kept out of the first-screen chunk) with no network requests; results are validated by `isValidTotpInput` before filling the secret field.
 - Codes are computed locally per RFC 6238 using [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) HMAC — **no network requests**, consistent with the extension's zero-network stance (see [utils/totp.ts](../utils/totp.ts)).
 - The list and side panel show live codes with a ring countdown (color shift in the last 5 seconds, see [TotpCode.vue](../components/TotpCode.vue)).
 - Side panel entries offer "Fill code" and "Copy code": filling writes into detected verification-code inputs (reusing selectors like `autocomplete="one-time-code"`), triggered only on explicit click.
@@ -240,6 +242,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - Clicking the key icon blurs the field (closing Chrome's native password dropdown) and opens a mini panel: search bar on top + scrollable account list + "Password Manager" entry at the bottom.
 - Keyboard navigation: `↑` / `↓` browse, `Enter` fills the highlighted item, `Esc` closes the panel.
 - The panel shows only account metadata (username, tag, remark, URL); the password is delivered transiently by the background only upon explicit selection — same security model as the side panel.
+- The key icon in front of each entry prefers the matching website favicon: the background reads it from the local `_favicon/` endpoint and ships it as a dataURL with the metadata (in-memory cache + fallback to the key icon, see `fetchFaviconDataUrl` in [utils/favicon.ts](../utils/favicon.ts)); `_favicon/*` is never exposed as a web-accessible resource, avoiding history-probing privacy risks — zero external network requests.
 - When the session is locked, the panel shows an "unlock to fill" guide linking to the manager for master password verification.
 - Closed Shadow DOM (`all: initial`) fully isolates page styles; theme tokens are written inline on the host element and follow the global theme.
 

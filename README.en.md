@@ -40,7 +40,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 - **Strong encryption**: PBKDF2 (600,000 iterations) derives a 256-bit key + AES-256-GCM with random IV; sensitive fields (username/password/URL/remark/TOTP) stored as ciphertext; built on the native Web Crypto API with zero network transfer
 - **Session control**: validity from 1 hour to 7 days; auto idle lock (5–60 minutes), lock on browser restart, one-click lock in the popup; sensitive fields re-encrypt automatically on expiry
 - **Health check**: one-click scan producing a 0–100 score; detects weak, reused, commonly leaked (offline dictionary), long-unchanged passwords and missing 2FA; expiry reminders supported
-- **Safety details**: clipboard auto-clear (10–120s), password strength visualization, local TOTP code generation (RFC 6238, fully offline)
+- **Safety details**: clipboard auto-clear (10–120s), password strength visualization, local TOTP code generation (RFC 6238, fully offline); add a TOTP secret in one click by scanning the QR code on a webpage or uploading a QR image (local jsQR decoding, no network)
 
 ### ⚡ Smart Fill
 
@@ -59,6 +59,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 ### 🎨 Experience
 
 - **Themes & language**: 6 color themes + bilingual UI (中文 / English), instant switching without refresh, synchronized across extension pages and injected in-page UI
+- **Site favicons**: password list, side panel and inline dropdown entries show the matching website icon (read from Chrome's local favicon cache, zero external network requests); falls back to the default icon when unavailable
 - **Password generator**: random mode (length/charset/ambiguous-character exclusion) and passphrase mode (EFF Diceware, 2048-word list)
 - **Style isolation**: floating button and inline panel use closed Shadow DOM, fully isolated from page styles
 - **Update detection**: checks GitHub Releases every 6 hours and shows an update notice in the popup

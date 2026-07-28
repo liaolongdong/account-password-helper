@@ -5,6 +5,7 @@ import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-stor
 import { getAllPasswords } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import { fetchFaviconDataUrl } from '@/utils/favicon';
 import { tl } from '@/utils/i18n-lite';
 
 /** 模块级缓存状态（Service Worker 生命周期内有效） */
@@ -253,16 +254,21 @@ export async function getMatchingAccounts(domain: string): Promise<MatchingAccou
   // 复用 sortMatchesForDomain（侧边栏排序配置 + 域名优先 + 收藏置顶）
   const matched = await sortMatchesForDomain(cache.passwords, domain);
 
-  const accounts = matched.map(p => ({
-    id: p.id,
-    title: (p.tag && p.tag.trim()) || (p.url && p.url.trim()) || p.username || tl('bg.cache.untitled'),
-    username: p.username,
-    tag: p.tag || '',
-    remark: p.remark || '',
-    url: p.url || '',
-    favorite: !!p.favorite,
-    hasTotp: !!(p.totp && p.totp.trim()),
-  }));
+  // 并行附带网站图标 dataURL（本地 _favicon/ 端点 + 内存缓存，失败降级空串），
+  // 避免将 _favicon/* 暴露为 web_accessible_resources 供网页直接加载
+  const accounts = await Promise.all(
+    matched.map(async p => ({
+      id: p.id,
+      title: (p.tag && p.tag.trim()) || (p.url && p.url.trim()) || p.username || tl('bg.cache.untitled'),
+      username: p.username,
+      tag: p.tag || '',
+      remark: p.remark || '',
+      url: p.url || '',
+      favorite: !!p.favorite,
+      hasTotp: !!(p.totp && p.totp.trim()),
+      favicon: p.url ? await fetchFaviconDataUrl(p.url, 32) : '',
+    })),
+  );
 
   return { locked: false, accounts };
 }

@@ -131,6 +131,34 @@
             :disabled="loading"
             clearable
           />
+          <!-- 扫码识别：截取网页 / 上传图片，本地 jsQR 解码，零网络请求 -->
+          <div class="totp-scan-actions">
+            <el-button
+              size="small"
+              :icon="Camera"
+              :loading="qrScanning"
+              :disabled="loading"
+              :title="t('options.form.totpScanFromTabTip')"
+              @click="handleScanFromTab"
+            >
+              {{ t('options.form.totpScanFromTab') }}
+            </el-button>
+            <el-button
+              size="small"
+              :icon="Upload"
+              :disabled="loading || qrScanning"
+              @click="triggerQrUpload"
+            >
+              {{ t('options.form.totpScanUpload') }}
+            </el-button>
+            <input
+              ref="qrFileInputRef"
+              type="file"
+              accept="image/*"
+              class="totp-scan-actions__file"
+              @change="handleQrFileSelected"
+            />
+          </div>
           <div
             v-if="localForm.totp && localForm.totp.trim()"
             class="totp-preview"
@@ -213,12 +241,13 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import { View, Hide } from '@element-plus/icons-vue';
+import { View, Hide, Camera, Upload } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
 import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopover.vue';
 import TotpCode from '@/components/TotpCode.vue';
 import { isValidTotpInput } from '@/utils/totp';
 import { formatDateTime } from '@/utils/dateFormat';
+import { logger } from '@/utils/logger';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
@@ -310,6 +339,99 @@ const handleGeneratedPassword = (password: string) => {
   localForm.password = password;
 };
 
+// ==================== TOTP 扫码识别 ====================
+
+/** 扫码识别进行中状态（截取网页 / 解码图片期间禁用相关按钮） */
+const qrScanning = ref(false);
+
+/** 隐藏的二维码图片选择输入框引用 */
+const qrFileInputRef = ref<HTMLInputElement>();
+
+/**
+ * 校验并应用二维码识别出的文本（仅接受合法 TOTP 密钥）
+ * @param text 二维码内容
+ */
+const applyQrText = (text: string) => {
+  const trimmed = text.trim();
+  if (isValidTotpInput(trimmed)) {
+    localForm.totp = trimmed;
+    ElMessage.success(t('options.form.totpScanSuccess'));
+  } else {
+    ElMessage.error(t('options.form.totpScanInvalid'));
+  }
+};
+
+/**
+ * 从最近浏览的网页截屏并识别二维码（扫码模块按需动态导入）
+ */
+const handleScanFromTab = async () => {
+  qrScanning.value = true;
+  try {
+    const { scanQrFromRecentTab } = await import('@/utils/qrScanner');
+    const result = await scanQrFromRecentTab();
+    if (result.status === 'no-tab') {
+      ElMessage.warning(t('options.form.totpScanNoTab'));
+    } else if (result.status === 'not-found') {
+      ElMessage.warning(t('options.form.totpScanNotFound'));
+    } else if (result.text) {
+      applyQrText(result.text);
+    }
+  } catch (error) {
+    logger.error('网页二维码识别失败:', error);
+    ElMessage.error(t('options.form.totpScanFailed'));
+  } finally {
+    qrScanning.value = false;
+  }
+};
+
+/**
+ * 触发二维码图片选择
+ */
+const triggerQrUpload = () => {
+  qrFileInputRef.value?.click();
+};
+
+/**
+ * 读取文件为 dataURL
+ * @param file 图片文件
+ */
+const readFileAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+/**
+ * 处理用户上传的二维码图片并识别
+ * @param event 文件选择事件
+ */
+const handleQrFileSelected = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  // 立即清空选择，允许重复选择同一文件重试
+  input.value = '';
+  if (!file) return;
+
+  qrScanning.value = true;
+  try {
+    const dataUrl = await readFileAsDataUrl(file);
+    const { decodeQrFromImage } = await import('@/utils/qrScanner');
+    const text = await decodeQrFromImage(dataUrl);
+    if (text) {
+      applyQrText(text);
+    } else {
+      ElMessage.warning(t('options.form.totpScanNotFound'));
+    }
+  } catch (error) {
+    logger.error('二维码图片识别失败:', error);
+    ElMessage.error(t('options.form.totpScanFailed'));
+  } finally {
+    qrScanning.value = false;
+  }
+};
+
 // ==================== 密码修改历史 ====================
 
 const { historyList, loadHistory, decryptHistoryPassword } = usePasswordHistory();
@@ -371,11 +493,23 @@ defineExpose({ formRef: localFormRef });
   justify-content: flex-end;
 }
 
+/* el-form-item 内容区为 flex-wrap 容器，辅助行（扫码按钮/动态码预览/提示）均需 width:100% 独占一行，避免互相挤占同行错位 */
 .totp-preview {
   display: flex;
   align-items: center;
+  width: 100%;
   min-height: 24px;
   margin-top: 8px;
+}
+
+.totp-scan-actions {
+  display: flex;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.totp-scan-actions__file {
+  display: none;
 }
 
 .totp-preview__hint {
@@ -384,6 +518,7 @@ defineExpose({ formRef: localFormRef });
 }
 
 .totp-tip {
+  width: 100%;
   margin-top: 6px;
   font-size: 12px;
   line-height: 1.5;
