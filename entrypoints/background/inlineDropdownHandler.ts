@@ -27,6 +27,9 @@ interface OpenInlineDropdownResponse {
   handled?: boolean;
 }
 
+/** tryOpenInlineDropdown 的展开结果 */
+export type InlineDropdownOpenResult = 'opened' | 'pageNotReady' | 'noLoginField';
+
 /**
  * 向单个 frame 下发展开指令
  * @param tabId 标签页 ID
@@ -49,13 +52,46 @@ async function dispatchToFrame(tabId: number, frameId: number, focusedOnly: bool
 }
 
 /**
+ * 尝试在指定标签页展开内联下拉面板（无通知副作用的核心流程）
+ *
+ * PING 顶层 frame 确认 content script 可达 → getFillableFrameIds 取安全 frame 集合
+ * → 两轮逐 frame 委派（聚焦字段优先 → 回退检测到的首个登录字段）。
+ * 供 handleOpenInlineDropdown 与一键填充会话失效兜底（quickFillHandler）复用，
+ * 失败反馈由各调用方按自身语境处理。
+ *
+ * @param tabId 目标标签页 ID
+ * @returns 展开结果：'opened' 已展开 / 'pageNotReady' content script 不可达 / 'noLoginField' 无登录字段
+ */
+export async function tryOpenInlineDropdown(tabId: number): Promise<InlineDropdownOpenResult> {
+  // 可达性探测：content script 未注入（扩展更新/重载后的旧标签页）时
+  // sendMessage 抛 "Could not establish connection"，引导用户刷新页面
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: MessageType.PING }, { frameId: 0 });
+  } catch {
+    return 'pageNotReady';
+  }
+
+  const frameIds = await getFillableFrameIds(tabId);
+
+  // 两轮委派：第一轮聚焦字段优先（跨域 iframe 登录场景不被顶层抢占），第二轮回退检测字段
+  for (const focusedOnly of [true, false]) {
+    for (const frameId of frameIds) {
+      if (await dispatchToFrame(tabId, frameId, focusedOnly)) {
+        return 'opened';
+      }
+    }
+  }
+
+  return 'noLoginField';
+}
+
+/**
  * 处理展开内联下拉（快捷键命令 / popup OPEN_INLINE_DROPDOWN 消息共用入口）
  *
  * 完整流程：
  * 1. 复用命令回调提供的 tab（无则查询当前活跃标签页）
- * 2. PING 顶层 frame 确认 content script 可达（旧标签页未注入时引导刷新）
- * 3. 两轮逐 frame 委派：聚焦字段优先 → 回退检测到的首个登录字段
- * 4. 所有 frame 均无登录字段时通知用户（通知 + badge 双通道）
+ * 2. tryOpenInlineDropdown 执行核心展开流程
+ * 3. 页面未就绪 / 无登录字段时通知用户（通知 + badge 双通道）
  *
  * @param commandTab 快捷键命令回调提供的标签页（可选，popup 消息路径无此参数）
  */
@@ -66,27 +102,11 @@ export async function handleOpenInlineDropdown(commandTab?: chrome.tabs.Tab): Pr
     logger.warn('Background: 内联下拉 - 无法获取当前标签页');
     return;
   }
-  const tabId = tab.id;
 
-  // 可达性探测：content script 未注入（扩展更新/重载后的旧标签页）时
-  // sendMessage 抛 "Could not establish connection"，引导用户刷新页面
-  try {
-    await chrome.tabs.sendMessage(tabId, { type: MessageType.PING }, { frameId: 0 });
-  } catch {
+  const result = await tryOpenInlineDropdown(tab.id);
+  if (result === 'pageNotReady') {
     await notifyFailure(tl('bg.quickFill.pageNotReady'), tl('bg.inline.title'));
-    return;
+  } else if (result === 'noLoginField') {
+    await notifyFailure(tl('bg.inline.noLoginField'), tl('bg.inline.title'));
   }
-
-  const frameIds = await getFillableFrameIds(tabId);
-
-  // 两轮委派：第一轮聚焦字段优先（跨域 iframe 登录场景不被顶层抢占），第二轮回退检测字段
-  for (const focusedOnly of [true, false]) {
-    for (const frameId of frameIds) {
-      if (await dispatchToFrame(tabId, frameId, focusedOnly)) {
-        return;
-      }
-    }
-  }
-
-  await notifyFailure(tl('bg.inline.noLoginField'), tl('bg.inline.title'));
 }

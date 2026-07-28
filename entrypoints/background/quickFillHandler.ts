@@ -2,7 +2,8 @@
  * 一键填充快捷键处理模块
  *
  * 处理 quick_fill 快捷键命令与 popup 的 QUICK_FILL 消息：
- * - 会话未验证 → 通知用户先验证主密码
+ * - 会话未验证 → 就地展开内联下拉面板（自带锁定态解锁引导），
+ *   页面不可达或无登录字段时回退通知用户先验证主密码
  * - 当前域名无匹配 → 通知无匹配账号
  * - 有匹配（1 条或多条）→ 直接填充侧边栏展示顺序的第一条
  *   （域名匹配优先 + 收藏置顶 + 侧边栏排序配置，与侧边栏列表首条一致）
@@ -133,7 +134,7 @@ function deriveEntryTitle(entry: { tag?: string; url?: string; username?: string
  *
  * 完整流程：
  * 1. 复用命令回调提供的 tab（无则查询当前活跃标签页）并提取域名
- * 2. 验证会话有效性（同步快路径优先）
+ * 2. 验证会话有效性（同步快路径优先），失效时就地展开内联下拉面板引导解锁
  * 3. 从缓存获取密码列表，按侧边栏展示顺序过滤排序
  * 4. PING 顶层 frame 确认 content script 可达（旧标签页未注入时引导刷新）
  * 5. 填充排序首条，校验 FillResult 后如实反馈（通知 + badge）
@@ -160,7 +161,16 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
   if (!isSessionActiveSync()) {
     const sessionValid = await isSessionValid();
     if (!sessionValid) {
-      await notifyFailure(tl('bg.quickFill.sessionExpired'));
+      // 会话失效时不仅通知，而是就地展开内联下拉面板：面板自带锁定态
+      // 「解锁后填充」引导，点击直达主密码验证，比纯通知更可操作。
+      // 动态 import 避免与 inlineDropdownHandler（其静态导入本模块的
+      // getActiveTab/notifyFailure）形成循环依赖
+      const { tryOpenInlineDropdown } = await import('./inlineDropdownHandler');
+      const opened = await tryOpenInlineDropdown(tabId);
+      if (opened !== 'opened') {
+        // 页面不可达 / 无登录字段时回退原通知链路，确保用户有感知
+        await notifyFailure(tl('bg.quickFill.sessionExpired'));
+      }
       return;
     }
   }
