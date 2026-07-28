@@ -82,7 +82,13 @@
               rel="noopener noreferrer"
               @click.stop
             >
-              <el-icon class="url-link__icon"><Link /></el-icon>
+              <!-- 网站图标（Chrome 本地缓存，零网络），无图标/加载失败时降级为原有链接图标 -->
+              <SiteFavicon
+                :url="row.url"
+                :size="14"
+              >
+                <el-icon class="url-link__icon"><Link /></el-icon>
+              </SiteFavicon>
               <span class="url-link__text">{{ row.url }}</span>
             </a>
           </template>
@@ -240,6 +246,7 @@ import { formatDate } from '@/utils/dateFormat';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 import { useTagOverflow } from '@/composables/useTagOverflow';
 import TotpCode from '@/components/TotpCode.vue';
+import SiteFavicon from '@/components/SiteFavicon.vue';
 import { useI18n } from '@/utils/i18n';
 
 /**

@@ -169,6 +169,14 @@ const inlineStyles = `
   background: var(--aph-primary);
 }
 
+/* 网站图标：与钥匙图标同位展示，尺寸固定零偏移 */
+.aph-row-favicon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 3px;
+}
+
 .aph-row-main {
   flex: 1;
   min-width: 0;
@@ -699,9 +707,14 @@ export class InlineFillDropdown {
         const titleAttr = acc.remark
           ? ` title="${tl('cs.inline.remarkTitle', { remark: escapeHtml(acc.remark) })}"`
           : '';
+        // 网站图标（background 下发的 dataURL，严格校验前缀 + 转义，防属性注入），
+        // 无图标时降级为原钥匙图标
+        const rowIcon = acc.favicon?.startsWith('data:image/')
+          ? `<img class="aph-row-favicon" src="${escapeHtml(acc.favicon)}" alt="" draggable="false" />`
+          : KEY_ICON;
         return `
           <div class="aph-row" data-index="${index}"${titleAttr}>
-            <div class="aph-row-icon">${KEY_ICON}</div>
+            <div class="aph-row-icon">${rowIcon}</div>
             <div class="aph-row-main">
               <div class="aph-row-account">${star}<span class="aph-row-account-text">${account}</span></div>
               ${sub}

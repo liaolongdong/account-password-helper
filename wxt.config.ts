@@ -99,6 +99,8 @@ export default defineConfig({
       'clipboardWrite',
       'clipboardRead',
       'webNavigation',
+      // 读取 Chrome 本地缓存的网站图标（_favicon/ 端点），零外部网络请求
+      'favicon',
     ],
     host_permissions: ['<all_urls>'],
     action: {
