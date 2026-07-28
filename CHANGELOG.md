@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.15.0](https://github.com/liaolongdong/account-password-helper/compare/v2.14.0...v2.15.0) (2026-07-28)
+
+
+### Features
+
+* **core:** 支持TOTP扫码添加和网站图标展示 ([17f770a](https://github.com/liaolongdong/account-password-helper/commit/17f770abd41d346cefa671bd53e36c62ff0ab520))
+
 ## [2.14.0](https://github.com/liaolongdong/account-password-helper/compare/v2.13.0...v2.14.0) (2026-07-28)
 
 
