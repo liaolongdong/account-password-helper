@@ -8,6 +8,15 @@ import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 /** 模块级 port 状态（Service Worker 生命周期内有效） */
 let sidePanelPort: chrome.runtime.Port | null = null;
 
+/**
+ * 侧边栏打开完成后的资源预热延时（毫秒）
+ *
+ * port 连接建立即侧边栏渲染进程已启动，此时首屏关键资源正在加载，
+ * 延时至首屏收尾（骨架屏淡出 + 数据竞速）完成后再从 SW 侧预热剩余
+ * 按需 chunk，避免与渲染进程争抢磁盘 IO / 杀软扫描带宽。
+ */
+const WARM_AFTER_OPEN_DELAY_MS = 5000;
+
 /** 获取 sidePanelPort（供其他模块读取） */
 export function getSidePanelPort(): chrome.runtime.Port | null {
   return sidePanelPort;
@@ -172,6 +181,14 @@ export function setupSidePanelListeners(): void {
     if (port.name === 'sidepanel') {
       logger.debug('SidePanel 已连接');
       sidePanelPort = port;
+
+      // 打开完成后延时空闲预热渲染资源（替代原 SIDEPANEL_PRELOAD 时机的预热——
+      // 后者在用户点击瞬间触发全量 fetch，与渲染进程首屏加载争抢磁盘 IO）。
+      // 侧边栏打开期间 port 心跳保持 SW 活跃，定时器可靠触发；
+      // 函数内自带平台/会话门控与持久化节流，非 Windows / 会话有效 / 窗口内重复调用直接跳过
+      setTimeout(() => {
+        void import('@/utils/warmSidePanelResources').then(m => m.maybeWarmSidePanelResources()).catch(() => {});
+      }, WARM_AFTER_OPEN_DELAY_MS);
 
       port.onMessage.addListener((message: any) => {
         if (message.type === 'HEARTBEAT') {

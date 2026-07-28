@@ -7,6 +7,7 @@ import {
   setupBackgroundServices,
   initBackgroundConfig,
   handleBrowserStartupRelock,
+  markBrowserBootKeepaliveWindow,
 } from './background/backgroundServices';
 
 export default defineBackground(() => {
@@ -32,6 +33,10 @@ export default defineBackground(() => {
   // 浏览器/配置文件启动时，按「浏览器重启后重新锁定」设置执行安全重锁（默认关闭时无副作用）
   chrome.runtime.onStartup.addListener(() => {
     void handleBrowserStartupRelock();
+    // 启动引导期保活窗口（跨平台，10 分钟）：重启后全冷阶段强制 SW 保活，
+    // 把 SW 冷启动从首开链路摘除（Mac 重启后前几次打开的长白屏主因之一）；
+    // 窗口截止后由保活 tick 内的重同步自动收敛回常规平台/会话门控
+    void markBrowserBootKeepaliveWindow();
     // 启动预热（跨平台）：浏览器刚启动时 OS 磁盘缓存全冷、V8 无 code cache，
     // 无论会话是否有效，首次打开侧边栏都会命中「进程冷 + 资源冷 + SW 冷」
     // 三冷叠加白屏（Mac 重启后首开同样受影响）。

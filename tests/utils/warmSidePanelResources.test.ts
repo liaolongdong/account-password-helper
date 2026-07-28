@@ -10,13 +10,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * - extractStaticImportUrls：从 JS 文本中提取静态 import/export 引用的 chunk 相对路径，
  *   不命中动态 import，去重；
  * - maybeWarmSidePanelResources：常规调用仅在 Windows + 会话失效时预热，
- *   ignoreSessionGate（浏览器首启）跨平台预热，且共用 30s 节流，
+ *   ignoreSessionGate（浏览器首启）跨平台预热，且共用 5min 节流
+ *   （时间戳持久化于 storage.session，SW 重启不归零），
  *   预热范围覆盖 HTML 静态资源 + 动态 import chunk + 动态 chunk 的二级静态依赖。
  *
  * 说明：
  * - 环境为 node，全局 chrome 由 WxtVitest 的 fakeBrowser 注入；
  * - getPlatformInfo / getURL / fetch 经 mock 从接缝注入，模块级缓存与节流态
- *   通过 vi.resetModules + 动态 import 隔离。
+ *   通过 vi.resetModules + 动态 import + storage.session 清理隔离。
  */
 
 const getPlatformInfoMock = vi.fn<() => Promise<{ os: string }>>();
@@ -35,6 +36,8 @@ beforeEach(async () => {
   global.fetch = fetchMock as unknown as typeof fetch;
 
   await chrome.storage.local.clear();
+  // 清理持久化的预热节流时间戳，避免用例间互相污染
+  await chrome.storage.session.clear();
 });
 
 afterEach(() => {
@@ -352,7 +355,20 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
   });
 
-  it('30s 节流窗口内的重复调用被去重', async () => {
+  it('并发调用共享同一 in-flight，仅执行一轮预热', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'win' });
+    await chrome.storage.local.set({ session_password_expiry: Date.now() - 1000 });
+    setupFetchReturningHtml();
+    const { maybeWarmSidePanelResources } = await loadModule();
+
+    // 两个触发源同刻并发（不 await 第一个）：节流判定含多次 await，
+    // 若无 in-flight 互斥会双双通过检查并发执行两轮全量 fetch
+    await Promise.all([maybeWarmSidePanelResources(), maybeWarmSidePanelResources()]);
+
+    expect(fetchMock.mock.calls.filter(call => call[0] === SIDEPANEL_HTML_URL).length).toBe(1);
+  });
+
+  it('节流窗口内的重复调用被去重', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'win' });
     await chrome.storage.local.set({ session_password_expiry: Date.now() - 1000 });
     setupFetchReturningHtml();
@@ -363,5 +379,35 @@ describe('maybeWarmSidePanelResources', () => {
     await maybeWarmSidePanelResources();
 
     expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
+  });
+
+  it('节流时间戳持久化：SW 重启（模块重载）后窗口内调用仍被去重', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'win' });
+    await chrome.storage.local.set({ session_password_expiry: Date.now() - 1000 });
+    setupFetchReturningHtml();
+    const { maybeWarmSidePanelResources } = await loadModule();
+
+    await maybeWarmSidePanelResources();
+    const callsAfterFirst = fetchMock.mock.calls.length;
+
+    // 模拟 SW 重启：重置模块（内存镜像归零），storage.session 持久化时间戳保留
+    vi.resetModules();
+    const { maybeWarmSidePanelResources: reloadedWarm } = await loadModule();
+    await reloadedWarm();
+
+    expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
+  });
+
+  it('节流窗口过期后（持久化时间戳过旧）重新执行预热', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'win' });
+    await chrome.storage.local.set({ session_password_expiry: Date.now() - 1000 });
+    // 预置一个已过窗口（6 分钟前，超过 5min 节流）的持久化时间戳
+    await chrome.storage.session.set({ sidepanel_warm_at: Date.now() - 6 * 60 * 1000 });
+    setupFetchReturningHtml();
+    const { maybeWarmSidePanelResources } = await loadModule();
+
+    await maybeWarmSidePanelResources();
+
+    expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
   });
 });
