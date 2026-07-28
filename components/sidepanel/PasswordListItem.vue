@@ -13,6 +13,7 @@ import {
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
+import SiteFavicon from '@/components/SiteFavicon.vue';
 import { useI18n } from '@/utils/i18n';
 
 /**
@@ -67,7 +68,13 @@ const { t } = useI18n();
   >
     <div class="password-info">
       <div class="username">
-        <el-icon><User /></el-icon>
+        <!-- 网站图标（Chrome 本地缓存，零网络），无图标/加载失败时降级为原有用户图标 -->
+        <SiteFavicon
+          :url="password.url"
+          :size="16"
+        >
+          <el-icon><User /></el-icon>
+        </SiteFavicon>
         {{ password.username }}
         <span
           class="copy-icon-wrapper"
@@ -227,6 +234,11 @@ const { t } = useI18n();
   margin-right: 6px;
   font-size: 16px;
   color: #6b7280;
+}
+
+/* 网站图标与原用户图标占位一致，布局零偏移 */
+.username :deep(.site-favicon) {
+  margin-right: 6px;
 }
 
 .copy-icon-wrapper {

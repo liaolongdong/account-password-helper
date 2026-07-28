@@ -103,12 +103,12 @@ const handleCopy = async (): Promise<void> => {
       >
         <CopyDocument />
       </el-icon>
-      <div
+      <span
         v-if="diagnostic"
         class="totp-code__params"
       >
         {{ paramsText }}
-      </div>
+      </span>
     </template>
     <span
       v-else
@@ -183,10 +183,11 @@ const handleCopy = async (): Promise<void> => {
   letter-spacing: 1px;
 }
 
+/* 参数文案紧跟动态码同行展示（仅 diagnostic 预览模式），容器窄时由 flex-wrap 自然换行 */
 .totp-code__params {
-  flex-basis: 100%;
   font-size: 11px;
   color: #909399;
+  white-space: nowrap;
 }
 
 .totp-code__copy {
