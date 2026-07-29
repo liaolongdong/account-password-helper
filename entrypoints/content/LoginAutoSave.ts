@@ -14,6 +14,7 @@ import type {
 } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
+import { hashStringLight } from '@/utils/crypto-light';
 import { USERNAME_SELECTORS, LOGIN_BUTTON_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
 import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
 import { showSavePasswordPrompt, dismissSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
@@ -955,18 +956,22 @@ export class LoginAutoSave {
   // ── 智能防重复工具方法 ──
 
   /**
-   * 生成凭证指纹（不存储原始密码，仅用用户名 + 密码长度标识）
+   * 生成凭证指纹（不存储原始密码，用「用户名 + 密码长度 + 密码内容轻量哈希」标识）
    *
    * 用于「同页防抖」：吸收同一次登录的 submit+click+enter 三连触发，
    * 避免短时间内对同一组凭证重复发起库级预检查与弹窗。跨登录的「是否已保存」
    * 判定以库级预检查（checkCredentialStatus）为准，不再依赖此内存指纹。
+   *
+   * 指纹拼入密码内容的 DJB2 轻量哈希（非明文、不可逆），确保用户在同一页面
+   * 改用「长度相同但内容不同」的新密码登录时指纹必然变化，防抖规则不会
+   * 误吞「密码已变更」场景的更新弹窗。
    *
    * @param username 用户名
    * @param password 密码
    * @returns 凭证指纹字符串
    */
   private createCredentialFingerprint(username: string, password: string): string {
-    return `${username}::${password.length}`;
+    return `${username}::${password.length}::${hashStringLight(password).toString(36)}`;
   }
 
   /**

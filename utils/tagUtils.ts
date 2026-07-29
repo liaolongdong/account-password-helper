@@ -3,6 +3,7 @@
  * 根据标签内容生成基于 HSL 色彩空间的自定义颜色，确保不同标签颜色区分度高、同一标签颜色始终一致。
  */
 import type { PasswordEntry } from '@/utils/types';
+import { hashStringLight } from '@/utils/crypto-light';
 
 /**
  * 解析标签字符串为数组
@@ -81,21 +82,13 @@ export interface TagColor {
 
 /**
  * 字符串哈希函数
- * 基于 DJB2 变体算法，将字符串映射为稳定的 32 位正整数，
- * 确保相同输入始终产生相同输出。
+ * 复用 crypto-light 的 DJB2 变体实现（hashStringLight），将字符串映射为
+ * 稳定的 32 位正整数，确保相同输入始终产生相同输出。
  *
  * @param str 输入字符串
  * @returns 非负整数哈希值
  */
-const hashString = (str: string): number => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // 转换为32位整数
-  }
-  return Math.abs(hash);
-};
+const hashString = hashStringLight;
 
 /**
  * 根据标签内容生成基于 HSL 色彩空间的自定义颜色
