@@ -21,6 +21,26 @@ export function bytesToHex(bytes: Uint8Array): string {
 // ── 公开 API ──────────────────────────────────────────────
 
 /**
+ * 轻量字符串哈希（DJB2 变体，非加密用途）
+ *
+ * 将字符串映射为稳定的 32 位非负整数，相同输入始终产生相同输出。
+ * 适用于内存内去重指纹、颜色映射等场景；不可用于安全敏感的哈希需求
+ * （安全场景请使用 hashPassword 的 SHA-256 实现）。
+ *
+ * @param str 输入字符串
+ * @returns 非负整数哈希值
+ */
+export function hashStringLight(str: string): number {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // 转换为32位整数
+  }
+  return Math.abs(hash);
+}
+
+/**
  * 常量时间字符串比较，防止时序攻击
  */
 export function timingSafeEqual(a: string, b: string): boolean {

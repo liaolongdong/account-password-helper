@@ -397,10 +397,11 @@
       }
       .feature-grid {
         display: grid;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(6, 1fr);
         gap: 20px;
       }
       .feature-card {
+        grid-column: span 2;
         background: white;
         padding: 28px;
         border-radius: var(--radius);
@@ -408,6 +409,30 @@
         transition:
           transform 0.25s ease,
           box-shadow 0.25s ease;
+      }
+      /* 焦点大卡：占半行，承载安全与填充两大核心卖点 */
+      .feature-card-lg {
+        grid-column: span 3;
+        padding: 32px;
+        background: linear-gradient(160deg, #ffffff 0%, #f6f9ff 100%);
+        border: 1px solid rgba(78, 136, 255, 0.14);
+      }
+      .feature-card-lg h3 {
+        font-size: 20px;
+      }
+      .feature-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .feature-chip {
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: var(--primary);
+        background: rgba(78, 136, 255, 0.08);
+        border-radius: 999px;
       }
       .feature-card:hover {
         transform: translateY(-4px);
@@ -443,6 +468,26 @@
       .feature-card:nth-child(6) .feature-icon {
         background: rgba(255, 99, 132, 0.12);
         color: #ff6384;
+      }
+      .feature-card:nth-child(7) .feature-icon {
+        background: rgba(20, 184, 166, 0.12);
+        color: #14b8a6;
+      }
+      .feature-card:nth-child(8) .feature-icon {
+        background: rgba(99, 102, 241, 0.12);
+        color: #6366f1;
+      }
+      .feature-card:nth-child(9) .feature-icon {
+        background: rgba(244, 63, 94, 0.12);
+        color: #f43f5e;
+      }
+      .feature-card:nth-child(10) .feature-icon {
+        background: rgba(245, 158, 11, 0.12);
+        color: #f59e0b;
+      }
+      .feature-card:nth-child(11) .feature-icon {
+        background: rgba(14, 165, 233, 0.12);
+        color: #0ea5e9;
       }
       .feature-card h3 {
         margin: 0 0 8px;
@@ -929,6 +974,12 @@
         .feature-grid {
           grid-template-columns: repeat(2, 1fr);
         }
+        .feature-card {
+          grid-column: span 1;
+        }
+        .feature-card-lg {
+          grid-column: span 2;
+        }
         .step-grid {
           grid-template-columns: repeat(2, 1fr);
         }
@@ -960,6 +1011,10 @@
         }
         .feature-grid {
           grid-template-columns: 1fr;
+        }
+        .feature-card,
+        .feature-card-lg {
+          grid-column: span 1;
         }
         .step-grid {
           grid-template-columns: 1fr;
@@ -1142,8 +1197,8 @@
             class="lead"
             data-i18n="hero.lead"
           >
-            一款现代化的 Chrome
-            浏览器扩展，自动识别登录表单，一键安全填充账号密码；所有数据本地加密存储，永远不离开你的电脑。
+            一款现代化的 Chrome 浏览器扩展：智能识别登录表单，侧边栏 / 内联面板 / 快捷键三种方式一键安全填充；内置 TOTP
+            两步验证、安全体检与加密备份，所有数据本地 AES-256-GCM 加密，永远不离开你的电脑。
           </p>
           <div class="hero-cta">
             <a
@@ -1327,11 +1382,11 @@
             class="section-sub"
             data-i18n="features.sub"
           >
-            为开发、测试、产品以及普通用户打造的轻量、安全、好用的密码管理工具
+            从加密存储到智能填充，从两步验证到安全体检，一站式覆盖账号密码的全生命周期
           </p>
         </div>
         <div class="feature-grid">
-          <article class="feature-card reveal reveal-delay-1">
+          <article class="feature-card feature-card-lg reveal reveal-delay-1">
             <div class="feature-icon">
               <svg
                 width="22"
@@ -1346,12 +1401,78 @@
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
-            <h3 data-i18n="features.f1.title">端到端本地加密</h3>
+            <h3 data-i18n="features.f1.title">端到端本地加密，密码绝不出浏览器</h3>
             <p data-i18n="features.f1.desc">
-              采用业界标准 AES-256-GCM 加密体系，敏感数据本地加密存储，永远不上传任何服务器。
+              主密码经 PBKDF2（600000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP
+              全部密文存储；会话过期自动加密回密文，永远不上传任何服务器。
             </p>
+            <div class="feature-chips">
+              <span
+                class="feature-chip"
+                data-i18n="features.f1.c1"
+                >PBKDF2 · 600K 迭代</span
+              >
+              <span
+                class="feature-chip"
+                data-i18n="features.f1.c2"
+                >AES-256-GCM</span
+              >
+              <span
+                class="feature-chip"
+                data-i18n="features.f1.c3"
+                >零网络传输</span
+              >
+              <span
+                class="feature-chip"
+                data-i18n="features.f1.c4"
+                >闲置 / 重启自动锁定</span
+              >
+            </div>
           </article>
-          <article class="feature-card reveal reveal-delay-2">
+          <article class="feature-card feature-card-lg reveal reveal-delay-2">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f2.title">三种方式，一键安全填充</h3>
+            <p data-i18n="features.f2.desc">
+              侧边栏、输入框内联迷你面板、一键填充快捷键任你选；三重填充策略兼容 React / Vue
+              等现代框架与传统页面，精确域名匹配区分多测试环境，可选填充后自动登录。
+            </p>
+            <div class="feature-chips">
+              <span
+                class="feature-chip"
+                data-i18n="features.f2.c1"
+                >侧边栏 Ctrl+Shift+L</span
+              >
+              <span
+                class="feature-chip"
+                data-i18n="features.f2.c2"
+                >内联面板 Ctrl+Shift+K</span
+              >
+              <span
+                class="feature-chip"
+                data-i18n="features.f2.c3"
+                >一键填充 Ctrl+Shift+F</span
+              >
+              <span
+                class="feature-chip"
+                data-i18n="features.f2.c4"
+                >自动触发登录</span
+              >
+            </div>
+          </article>
+          <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
               <svg
                 width="22"
@@ -1371,9 +1492,56 @@
                 <path d="m21 21-4.3-4.3" />
               </svg>
             </div>
-            <h3 data-i18n="features.f2.title">智能识别登录表单</h3>
-            <p data-i18n="features.f2.desc">
-              自动识别用户名、密码、手机号、验证码字段，并能自动勾选「记住密码」「同意条款」等选项。
+            <h3 data-i18n="features.f3.title">智能识别登录表单</h3>
+            <p data-i18n="features.f3.desc">
+              自动识别用户名、密码、手机号、验证码字段（含跨 iframe），并能自动勾选「记住密码」「同意条款」等选项。
+            </p>
+          </article>
+          <article class="feature-card reveal reveal-delay-1">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                />
+                <polyline points="12 7 12 12 15.5 14" />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f4.title">TOTP 两步验证</h3>
+            <p data-i18n="features.f4.desc">
+              扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC
+              6238，零联网），列表与侧边栏实时展示环形倒计时，支持一键填充 / 复制验证码。
+            </p>
+          </article>
+          <article class="feature-card reveal reveal-delay-2">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f5.title">安全体检仪表盘</h3>
+            <p data-i18n="features.f5.desc">
+              一键生成 0~100
+              综合评分，五维检测弱密码、密码复用、常见泄露密码（离线字典）、长期未更新与未开两步验证，支持到期提醒，全程本地计算。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
@@ -1388,12 +1556,15 @@
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                <polyline points="17 21 17 13 7 13 7 21" />
+                <polyline points="7 3 7 8 15 8" />
               </svg>
             </div>
-            <h3 data-i18n="features.f3.title">一键智能填充</h3>
-            <p data-i18n="features.f3.desc">
-              无论是 React、Vue 等现代框架还是传统页面，都能稳定填充；可选填充后自动触发登录。
+            <h3 data-i18n="features.f6.title">自动保存登录凭证</h3>
+            <p data-i18n="features.f6.desc">
+              Chrome
+              式凭证捕获，登录时弹窗确认；弹窗中可编辑标签和备注；支持白名单/黑名单匹配、凭证指纹智能去重、「不再提示」一键屏蔽域名。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-1">
@@ -1418,9 +1589,33 @@
                 />
               </svg>
             </div>
-            <h3 data-i18n="features.f4.title">CSV / JSON 批量导入导出</h3>
-            <p data-i18n="features.f4.desc">
-              提供标准 CSV 模板，支持中英文列名；同时支持 JSON 格式导入导出；导出前自动验证主密码，方便备份与迁移。
+            <h3 data-i18n="features.f7.title">导入导出与加密备份</h3>
+            <p data-i18n="features.f7.desc">
+              CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph
+              加密备份导出/导入，邮箱备份 + 定时备份提醒。
+            </p>
+          </article>
+          <article class="feature-card reveal reveal-delay-3">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polygon
+                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f11.title">标签、收藏与智能搜索</h3>
+            <p data-i18n="features.f11.desc">
+              标签多选（颜色稳定一致）、收藏置顶（上限可配 + LRU
+              淘汰）、多字段模糊搜索与排序、一键去重、批量删除，长列表管理井井有条。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-2">
@@ -1435,23 +1630,15 @@
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <rect
-                  x="3"
-                  y="3"
-                  width="18"
-                  height="18"
-                  rx="2"
-                />
-                <line
-                  x1="15"
-                  y1="3"
-                  x2="15"
-                  y2="21"
-                />
+                <path d="M15 4V2m0 12v-2m-7-5H6m14 0h-2m-1.8-4.2 1.4-1.4M9.4 5.8 8 4.4m0 9.2 1.4-1.4m8.4-8.4-1.4 1.4" />
+                <path d="m14 7 6.5 6.5a2.1 2.1 0 0 1-3 3L11 10z" />
               </svg>
             </div>
-            <h3 data-i18n="features.f5.title">侧边栏快速填充</h3>
-            <p data-i18n="features.f5.desc">登录页输入框获得焦点时，侧边栏自动展示匹配账号；点击即填充，效率倍增。</p>
+            <h3 data-i18n="features.f8.title">密码生成器双模式</h3>
+            <p data-i18n="features.f8.desc">
+              随机密码（长度 / 字符集 / 排除易混淆字符可配）与助记词组（EFF Diceware 2048 词库）双模式，基于 Web Crypto
+              密码学安全随机，实时展示强度。
+            </p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
@@ -1465,15 +1652,57 @@
                 stroke-linecap="round"
                 stroke-linejoin="round"
               >
-                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
-                <polyline points="17 21 17 13 7 13 7 21" />
-                <polyline points="7 3 7 8 15 8" />
+                <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+                <polyline points="3 3 3 8 8 8" />
+                <polyline points="12 7 12 12 15 14" />
               </svg>
             </div>
-            <h3 data-i18n="features.f6.title">自动保存登录凭证</h3>
-            <p data-i18n="features.f6.desc">
-              Chrome
-              式凭证捕获，登录时弹窗确认；弹窗中可编辑标签和备注；支持白名单/黑名单匹配、凭证指纹智能去重、「不再提示」一键屏蔽域名。
+            <h3 data-i18n="features.f9.title">回收站与修改历史</h3>
+            <p data-i18n="features.f9.desc">
+              删除条目进回收站保留 30 天可随时恢复；每条密码保留 5
+              份加密快照，改错一键回滚；修改主密码原子换钥不丢数据。
+            </p>
+          </article>
+          <article class="feature-card reveal reveal-delay-1">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle
+                  cx="13.5"
+                  cy="6.5"
+                  r="0.5"
+                />
+                <circle
+                  cx="17.5"
+                  cy="10.5"
+                  r="0.5"
+                />
+                <circle
+                  cx="8.5"
+                  cy="7.5"
+                  r="0.5"
+                />
+                <circle
+                  cx="6.5"
+                  cy="12.5"
+                  r="0.5"
+                />
+                <path
+                  d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f10.title">主题换肤与双语界面</h3>
+            <p data-i18n="features.f10.desc">
+              6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，零联网），长列表辨识更快。
             </p>
           </article>
         </div>
@@ -1604,7 +1833,9 @@
           <article class="step-card reveal reveal-delay-4">
             <div class="step-num">04</div>
             <h3 data-i18n="steps.s4.title">享受自动填充</h3>
-            <p data-i18n="steps.s4.desc">访问登录页面，点击侧边栏或悬浮按钮的对应账号，账号密码即刻填入。</p>
+            <p data-i18n="steps.s4.desc">
+              访问登录页面，通过侧边栏、内联面板或一键填充快捷键（Ctrl+Shift+F），账号密码即刻填入。
+            </p>
           </article>
         </div>
         <div
@@ -1846,8 +2077,8 @@
       const I18N = {
         'meta.title': { zh: '账号密码管理助手 · 使用说明', en: 'Account Password Helper · User Guide' },
         'meta.description': {
-          zh: '一款现代化的 Chrome 浏览器扩展，让账号密码管理与自动填充更安全、 更便捷。',
-          en: 'A modern Chrome extension that makes password management and auto-fill safer and easier.',
+          zh: '一款现代化的 Chrome 浏览器扩展：智能填充、TOTP 两步验证、安全体检与加密备份，所有数据本地加密，让账号密码管理更安全、更便捷。',
+          en: 'A modern Chrome extension with smart auto-fill, TOTP 2FA, security health checks, and encrypted backup — all data encrypted locally.',
         },
         'nav.brand': { zh: '账号密码管理助手', en: 'Account Password Helper' },
         'nav.features': { zh: '特性', en: 'Features' },
@@ -1862,8 +2093,8 @@
           en: 'Make password management<br />safer and easier',
         },
         'hero.lead': {
-          zh: '一款现代化的 Chrome 浏览器扩展，自动识别登录表单，一键安全填充账号密码；所有数据本地加密存储，永远不离开你的电脑。',
-          en: 'A modern Chrome extension that detects login forms and securely fills your credentials with one click. All data is encrypted locally and never leaves your computer.',
+          zh: '一款现代化的 Chrome 浏览器扩展：智能识别登录表单，侧边栏 / 内联面板 / 快捷键三种方式一键安全填充；内置 TOTP 两步验证、安全体检与加密备份，所有数据本地 AES-256-GCM 加密，永远不离开你的电脑。',
+          en: 'A modern Chrome extension: smart login-form detection with one-click secure filling via side panel, inline panel, or shortcut; built-in TOTP 2FA, security health check, and encrypted backup. All data is AES-256-GCM encrypted locally and never leaves your computer.',
         },
         'hero.download': { zh: '下载插件', en: 'Install Extension' },
         'hero.githubDownload': { zh: 'GitHub 下载', en: 'GitHub Download' },
@@ -1880,38 +2111,74 @@
         },
         'features.title': { zh: '核心特性', en: 'Core Features' },
         'features.sub': {
-          zh: '为开发者和测试人员打造的轻量、安全、好用的密码管理工具',
-          en: 'A lightweight, secure, easy-to-use password manager built for developers and testers',
+          zh: '从加密存储到智能填充，从两步验证到安全体检，一站式覆盖账号密码的全生命周期',
+          en: 'From encrypted storage to smart filling, from 2FA to health checks — the full lifecycle of your credentials in one place',
         },
-        'features.f1.title': { zh: '端到端本地加密', en: 'Local End-to-End Encryption' },
+        'features.f1.title': {
+          zh: '端到端本地加密，密码绝不出浏览器',
+          en: 'Local Encryption — Passwords Never Leave the Browser',
+        },
         'features.f1.desc': {
-          zh: '采用业界标准 AES-256-GCM 加密体系，敏感数据本地加密存储，永远不上传任何服务器。',
-          en: 'Industry-standard AES-256-GCM encryption. Sensitive data is encrypted and stored locally — never uploaded to any server.',
+          zh: '主密码经 PBKDF2（600000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 全部密文存储；会话过期自动加密回密文，永远不上传任何服务器。',
+          en: 'The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded.',
         },
-        'features.f2.title': { zh: '智能识别登录表单', en: 'Smart Login Form Detection' },
+        'features.f1.c1': { zh: 'PBKDF2 · 600K 迭代', en: 'PBKDF2 · 600K iterations' },
+        'features.f1.c2': { zh: 'AES-256-GCM', en: 'AES-256-GCM' },
+        'features.f1.c3': { zh: '零网络传输', en: 'Zero network transfer' },
+        'features.f1.c4': { zh: '闲置 / 重启自动锁定', en: 'Idle / restart auto-lock' },
+        'features.f2.title': { zh: '三种方式，一键安全填充', en: 'Three Ways to Fill — One Click' },
         'features.f2.desc': {
-          zh: '自动识别用户名、密码、手机号、验证码字段，并能自动勾选「记住密码」「同意条款」等选项。',
-          en: 'Automatically detects username, password, phone, and verification-code fields, and can auto-check options like "Remember me" and "Agree to terms".',
+          zh: '侧边栏、输入框内联迷你面板、一键填充快捷键任你选；三重填充策略兼容 React / Vue 等现代框架与传统页面，精确域名匹配区分多测试环境，可选填充后自动登录。',
+          en: 'Pick your style: side panel, in-field inline mini panel, or the quick-fill shortcut. Triple fill strategies work on React / Vue and classic pages alike; exact domain matching separates test environments; optional auto-login after filling.',
         },
-        'features.f3.title': { zh: '一键智能填充', en: 'One-Click Smart Fill' },
+        'features.f2.c1': { zh: '侧边栏 Ctrl+Shift+L', en: 'Side panel Ctrl+Shift+L' },
+        'features.f2.c2': { zh: '内联面板 Ctrl+Shift+K', en: 'Inline panel Ctrl+Shift+K' },
+        'features.f2.c3': { zh: '一键填充 Ctrl+Shift+F', en: 'Quick fill Ctrl+Shift+F' },
+        'features.f2.c4': { zh: '自动触发登录', en: 'Auto login trigger' },
+        'features.f3.title': { zh: '智能识别登录表单', en: 'Smart Login Form Detection' },
         'features.f3.desc': {
-          zh: '无论是 React、Vue 等现代框架还是传统页面，都能稳定填充；可选填充后自动触发登录。',
-          en: 'Fills reliably on React, Vue, and classic pages alike; optionally triggers login automatically after filling.',
+          zh: '自动识别用户名、密码、手机号、验证码字段（含跨 iframe），并能自动勾选「记住密码」「同意条款」等选项。',
+          en: 'Automatically detects username, password, phone, and verification-code fields (including cross-iframe), and can auto-check options like "Remember me" and "Agree to terms".',
         },
-        'features.f4.title': { zh: 'CSV / JSON 批量导入导出', en: 'CSV / JSON Bulk Import & Export' },
+        'features.f4.title': { zh: 'TOTP 两步验证', en: 'TOTP Two-Factor Codes' },
         'features.f4.desc': {
-          zh: '提供标准 CSV 模板，支持中英文列名；同时支持 JSON 格式导入导出；导出前自动验证主密码，方便备份与迁移。',
-          en: 'Standard CSV template with Chinese and English headers; JSON import/export supported; master password verified before export — easy backup and migration.',
+          zh: '扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC 6238，零联网），列表与侧边栏实时展示环形倒计时，支持一键填充 / 复制验证码。',
+          en: 'Add a secret by scanning an on-page QR code or uploading an image; codes are generated locally (RFC 6238, zero network) with a live ring countdown in the list and side panel, plus one-click fill / copy.',
         },
-        'features.f5.title': { zh: '侧边栏快速填充', en: 'Side Panel Quick Fill' },
+        'features.f5.title': { zh: '安全体检仪表盘', en: 'Security Health Dashboard' },
         'features.f5.desc': {
-          zh: '登录页输入框获得焦点时，侧边栏自动展示匹配账号；条目展示网站图标（读取浏览器本地缓存，零联网）辨识更快，点击即填充，效率倍增。',
-          en: "When a login field gets focus, the side panel shows matching accounts with site favicons (read from the browser's local cache, zero network); click to fill instantly.",
+          zh: '一键生成 0~100 综合评分，五维检测弱密码、密码复用、常见泄露密码（离线字典）、长期未更新与未开两步验证，支持到期提醒，全程本地计算。',
+          en: 'One click yields a 0–100 score across five checks: weak, reused, and commonly leaked passwords (offline dictionary), long-unchanged entries, and missing 2FA — with expiry reminders, all computed locally.',
         },
         'features.f6.title': { zh: '自动保存登录凭证', en: 'Auto-Save Login Credentials' },
         'features.f6.desc': {
           zh: 'Chrome 式凭证捕获，登录时弹窗确认；弹窗中可编辑标签和备注；支持白名单/黑名单匹配、凭证指纹智能去重、「不再提示」一键屏蔽域名。',
           en: 'Chrome-style credential capture with a confirmation prompt on login; edit tag and remark in the prompt; allowlist/blocklist matching, fingerprint-based dedup, and one-click "Never for this site".',
+        },
+        'features.f7.title': { zh: '导入导出与加密备份', en: 'Import, Export & Encrypted Backup' },
+        'features.f7.desc': {
+          zh: 'CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph 加密备份导出/导入，邮箱备份 + 定时备份提醒。',
+          en: 'CSV / JSON formats with auto-detection of Chrome, LastPass, Bitwarden, and 1Password exports; encrypted .aph backup export/import, plus email backup with scheduled reminders.',
+        },
+        'features.f11.title': { zh: '标签、收藏与智能搜索', en: 'Tags, Favorites & Smart Search' },
+        'features.f11.desc': {
+          zh: '标签多选（颜色稳定一致）、收藏置顶（上限可配 + LRU 淘汰）、多字段模糊搜索与排序、一键去重、批量删除，长列表管理井井有条。',
+          en: 'Multi-select tags with stable colors, pinned favorites (configurable limit + LRU eviction), multi-field fuzzy search and sorting, one-click dedup, and batch delete — long lists stay organized.',
+        },
+        'features.f8.title': { zh: '密码生成器双模式', en: 'Dual-Mode Password Generator' },
+        'features.f8.desc': {
+          zh: '随机密码（长度 / 字符集 / 排除易混淆字符可配）与助记词组（EFF Diceware 2048 词库）双模式，基于 Web Crypto 密码学安全随机，实时展示强度。',
+          en: 'Random passwords (length, character sets, ambiguous-character exclusion) and passphrases (EFF Diceware, 2048-word list) — cryptographically secure via Web Crypto, with a live strength bar.',
+        },
+        'features.f9.title': { zh: '回收站与修改历史', en: 'Trash & Password History' },
+        'features.f9.desc': {
+          zh: '删除条目进回收站保留 30 天可随时恢复；每条密码保留 5 份加密快照，改错一键回滚；修改主密码原子换钥不丢数据。',
+          en: 'Deleted entries stay in the trash for 30 days and can be restored anytime; each password keeps 5 encrypted snapshots for one-click rollback; changing the master password re-keys atomically without data loss.',
+        },
+        'features.f10.title': { zh: '主题换肤与双语界面', en: 'Themes & Bilingual UI' },
+        'features.f10.desc': {
+          zh: '6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，零联网），长列表辨识更快。',
+          en: "6 color themes and instant Chinese/English switching; entries show site favicons (read from the browser's local cache, zero network) for faster recognition in long lists.",
         },
         'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
         'showcase.sub': {
@@ -1937,8 +2204,8 @@
         },
         'steps.s4.title': { zh: '享受自动填充', en: 'Enjoy Auto-Fill' },
         'steps.s4.desc': {
-          zh: '访问登录页面，点击侧边栏或悬浮按钮的对应账号，账号密码即刻填入。',
-          en: 'Open a login page and click an account in the side panel or floating button — credentials are filled instantly.',
+          zh: '访问登录页面，通过侧边栏、内联面板或一键填充快捷键（Ctrl+Shift+F），账号密码即刻填入。',
+          en: 'Open a login page and fill instantly via the side panel, the inline panel, or the quick-fill shortcut (Ctrl+Shift+F).',
         },
         'steps.updateTip': {
           zh: '<strong>更新版本提示：</strong>更新时只需将压缩包内的文件<strong>直接覆盖</strong>原有安装目录下的文件即可，<strong>切勿</strong>重新选择其他目录加载扩展。更换加载目录会导致 Chrome 将其视为全新安装，<strong>原有的密码数据将无法访问</strong>。<br /><br />💡 <strong>如何查看当前安装目录：</strong>打开 <code>chrome://extensions/</code>，找到本扩展的卡片，点击"详情"，在扩展详情页下方可以看到「来源：/path/to/your/directory」，冒号后面的路径即为当前安装目录，更新时将文件覆盖到此目录即可。',
@@ -2043,6 +2310,42 @@
           desc: {
             zh: '从 1 小时到 7 天任你选；会话过期所有敏感字段自动加密回密文，安全无忧。',
             en: 'From 1 hour to 7 days; when the session expires, all sensitive fields are automatically re-encrypted.',
+          },
+        },
+        {
+          file: '09-totp-code.png',
+          tag: 'STEP 09',
+          title: { zh: 'TOTP 两步验证', en: 'TOTP two-factor codes' },
+          desc: {
+            zh: '扫描网页二维码或上传图片一键添加密钥，动态验证码本地生成，环形倒计时实时展示，支持一键填充 / 复制。',
+            en: 'Add a secret by scanning an on-page QR code or uploading an image; codes are generated locally with a live ring countdown, plus one-click fill / copy.',
+          },
+        },
+        {
+          file: '10-health-check.png',
+          tag: 'STEP 10',
+          title: { zh: '安全体检仪表盘', en: 'Security health dashboard' },
+          desc: {
+            zh: '一键体检生成 0~100 综合评分，五维检测密码风险并支持到期提醒，全程本地计算不联网。',
+            en: 'One-click scan yields a 0–100 score across five risk checks, with expiry reminders — computed fully locally.',
+          },
+        },
+        {
+          file: '11-inline-fill.png',
+          tag: 'STEP 11',
+          title: { zh: '内联填充迷你面板', en: 'Inline fill mini panel' },
+          desc: {
+            zh: '登录框内钥匙图标展开迷你面板，搜索选择账号即填，快捷键 Ctrl+Shift+K 直接唤起。',
+            en: 'A key icon inside the login field opens a mini panel — search, pick, fill; open directly with Ctrl+Shift+K.',
+          },
+        },
+        {
+          file: '12-theme-skin.png',
+          tag: 'STEP 12',
+          title: { zh: '主题换肤与双语界面', en: 'Themes & bilingual UI' },
+          desc: {
+            zh: '6 款色彩主题与中英文界面即时切换，扩展页与页面内组件同步生效。',
+            en: 'Six color themes and instant Chinese/English switching, synchronized across extension pages and in-page UI.',
           },
         },
       ];
