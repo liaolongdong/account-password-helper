@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { bytesToHex, generateSalt, hashPassword, hexToBytes, timingSafeEqual } from '@/utils/crypto-light';
+import {
+  bytesToHex,
+  generateSalt,
+  hashPassword,
+  hashStringLight,
+  hexToBytes,
+  timingSafeEqual,
+} from '@/utils/crypto-light';
 
 /**
  * crypto-light.ts 特征化测试
@@ -80,5 +87,29 @@ describe('generateSalt', () => {
 
   it('多次调用产生不同值', () => {
     expect(generateSalt()).not.toBe(generateSalt());
+  });
+});
+
+describe('hashStringLight', () => {
+  it('相同输入始终产生相同输出（稳定性）', () => {
+    expect(hashStringLight('abc')).toBe(hashStringLight('abc'));
+    expect(hashStringLight('密码123')).toBe(hashStringLight('密码123'));
+  });
+
+  it('返回非负整数', () => {
+    for (const input of ['', 'a', 'abc', 'P@ssw0rd!', '一二三四五']) {
+      const hash = hashStringLight(input);
+      expect(Number.isInteger(hash)).toBe(true);
+      expect(hash).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('空字符串哈希为 0', () => {
+    expect(hashStringLight('')).toBe(0);
+  });
+
+  it('长度相同但内容不同的字符串产生不同哈希（凭证指纹去重场景）', () => {
+    expect(hashStringLight('Passw0rd!')).not.toBe(hashStringLight('Passw1rd!'));
+    expect(hashStringLight('12345678')).not.toBe(hashStringLight('87654321'));
   });
 });
