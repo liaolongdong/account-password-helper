@@ -45,7 +45,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 ### ⚡ Smart Fill
 
 - **Form detection**: MutationObserver dynamically detects login forms (including cross-iframe), covering username + password, phone + verification code, and more
-- **Multiple fill modes**: side panel one-click fill, inline fill (key-icon mini panel inside the field, open directly with `Ctrl+Shift+K`), quick-fill shortcut (`Ctrl+Shift+F`); triple fill strategy compatible with React/Vue and other frameworks; optional auto login trigger
+- **Multiple fill modes**: side panel one-click fill, inline fill (key-icon mini panel inside the field, open directly with `Ctrl+Shift+K`), quick-fill shortcut (`Ctrl+Shift+F`, results reported via desktop notification + toolbar badge dual-channel feedback); triple fill strategy compatible with React/Vue and other frameworks; optional auto login trigger
 - **Exact domain matching**: only entries whose host exactly matches the current page are shown, keeping multi-environment accounts apart; `localhost` matches everything by default
 - **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"
 
@@ -62,6 +62,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 - **Site favicons**: password list, side panel and inline dropdown entries show the matching website icon (read from Chrome's local favicon cache, zero external network requests); falls back to the default icon when unavailable
 - **Password generator**: random mode (length/charset/ambiguous-character exclusion) and passphrase mode (EFF Diceware, 2048-word list)
 - **Style isolation**: floating button and inline panel use closed Shadow DOM, fully isolated from page styles
+- **Instant open**: service worker keep-alive during valid sessions + pre-warmed in-memory password cache lets the side panel load in about 20–50ms; keep-alive stops automatically after session expiry to preserve battery
 - **Update detection**: checks GitHub Releases every 6 hours and shows an update notice in the popup
 
 > 📖 Per-feature implementation details (source paths, strategies, constraints) live in [docs/ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details).
