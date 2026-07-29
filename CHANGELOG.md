@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.16.0](https://github.com/liaolongdong/account-password-helper/compare/v2.15.0...v2.16.0) (2026-07-29)
+
+
+### Features
+
+* **security:** 改进凭证指纹生成策略以防止误判 ([70628dc](https://github.com/liaolongdong/account-password-helper/commit/70628dc40af3dc3d36ff95be6dbd30511d551c52))
+* **ui:** 重构首页特性展示与文案优化 ([a94f742](https://github.com/liaolongdong/account-password-helper/commit/a94f7425d9806e881a718b3d47ffb829193477fd))
+
 ## [2.15.0](https://github.com/liaolongdong/account-password-helper/compare/v2.14.0...v2.15.0) (2026-07-28)
 
 
