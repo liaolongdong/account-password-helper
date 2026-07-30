@@ -439,7 +439,8 @@ export const settingsPanelViewStyles = `
   margin-top: 0;
 }
 
-.locale-group .fill-mode-option.active::before {
+/* 分段胶囊通用选中标识：✓ 作为不依赖颜色的第二信号，浅色主题下也可辨识 */
+.fill-mode-option.active::before {
   content: '✓ ';
 }
 `;

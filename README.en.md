@@ -45,7 +45,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 ### ⚡ Smart Fill
 
 - **Form detection**: MutationObserver dynamically detects login forms (including cross-iframe), covering username + password, phone + verification code, and more
-- **Multiple fill modes**: side panel one-click fill, inline fill (key-icon mini panel inside the field, open directly with `Ctrl+Shift+K`), quick-fill shortcut (`Ctrl+Shift+F`, results reported via desktop notification + toolbar badge dual-channel feedback); triple fill strategy compatible with React/Vue and other frameworks; optional auto login trigger
+- **Multiple fill modes**: inline fill (the default — key-icon mini panel inside the field, open directly with `Ctrl+Shift+K`), side panel one-click fill, quick-fill shortcut (`Ctrl+Shift+F`, results reported via desktop notification + toolbar badge dual-channel feedback); triple fill strategy compatible with React/Vue and other frameworks; optional auto login trigger
 - **Exact domain matching**: only entries whose host exactly matches the current page are shown, keeping multi-environment accounts apart; `localhost` matches everything by default
 - **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"
 
@@ -133,7 +133,7 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 
 1. **Initial setup**: click the extension icon to open the manager, set a master password, and choose a session validity (default 24 hours); "Preferences" configures themes, language, floating button, fill mode, and more
 2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field search/sort, tags and favorites
-3. **Quick fill**: the side panel opens automatically when a login field gains focus (when enabled); click an entry to fill — or use inline fill / the shortcut
+3. **Quick fill**: inline fill by default — a key icon appears in a focused login field; click it to pick an account and fill instantly. Switch to "Sidebar" (auto-opens on focus) or "Manual" in Preferences, or use the shortcuts
 4. **Shortcuts**: `Ctrl+Shift+P` (open manager), `Ctrl+Shift+L` (toggle side panel), `Ctrl+Shift+F` (quick fill), `Ctrl+Shift+K` (open the inline dropdown, same as clicking the key icon); all customizable at `chrome://extensions/shortcuts` (`Cmd` on Mac)
 
 > 📖 Full walkthroughs and demos are on the [live demo page](https://liaolongdong.github.io/account-password-helper/) (bilingual FAQ included), or via the "Help" entry inside the side panel.

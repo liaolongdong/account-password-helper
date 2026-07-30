@@ -31,6 +31,8 @@ export const STORAGE_KEYS = {
   SIDEPANEL_PERF_LOG: 'sidepanel_perf_log',
   /** 平台检测结果持久化（是否 Windows），供 SW 冷启动早期 getPlatformInfo 异常时兜底 */
   PLATFORM_IS_WINDOWS: 'platform_is_windows',
+  /** 内联填充首次引导气泡已展示标记（终生仅展示一次） */
+  INLINE_FILL_HINT_SHOWN: 'inline_fill_hint_shown',
 };
 
 /**

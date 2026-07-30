@@ -172,10 +172,10 @@ const floatingButtonStore = createConfigStore<FloatingButtonConfig>(
     position: 'right',
     offsetY: 0,
     opacity: 0.9,
-    autoShowSidepanel: true,
+    autoShowSidepanel: false,
     autoTriggerLogin: false,
     passwordVisibilityToggle: false,
-    fillMode: 'sidepanel',
+    fillMode: 'inline',
     theme: DEFAULT_THEME,
   }),
   '悬浮按钮配置',
@@ -183,6 +183,33 @@ const floatingButtonStore = createConfigStore<FloatingButtonConfig>(
 
 export function getDefaultFloatingButtonConfig(): FloatingButtonConfig {
   return floatingButtonStore.getDefaults();
+}
+
+/**
+ * 冻结存量用户的历史填充默认值（扩展升级钩子专用）
+ *
+ * 背景：默认填充方式由「侧边栏自动弹出」切换为「页面内联」后，仅应对新安装用户生效。
+ * 由于 get() 采用 { ...默认值, ...存储值 } 合并，从未保存过偏好设置（storage 无键）或
+ * 旧版本存储缺少 fillMode/autoShowSidepanel 字段的存量用户会被新默认值静默改变行为，
+ * 因此在 onInstalled(reason === 'update') 时把历史默认值补写进原始存储对象。
+ *
+ * 注意：直接增量写回原始存储值而非经 floatingButtonStore.save()（后者会将全量新默认值
+ * 固化进存储，导致存量用户无法接收未来其他字段的默认值演进）。
+ */
+export async function freezeLegacyFillDefaults(): Promise<void> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.FLOATING_BUTTON_CONFIG);
+    const stored = (result[STORAGE_KEYS.FLOATING_BUTTON_CONFIG] as Partial<FloatingButtonConfig> | undefined) ?? {};
+    const patch: Partial<FloatingButtonConfig> = {};
+    if (stored.fillMode === undefined) patch.fillMode = 'sidepanel';
+    if (stored.autoShowSidepanel === undefined) patch.autoShowSidepanel = true;
+    if (Object.keys(patch).length === 0) return;
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.FLOATING_BUTTON_CONFIG]: { ...stored, ...patch },
+    });
+  } catch (error) {
+    logger.error('冻结存量填充默认值失败:', error);
+  }
 }
 
 export async function getFloatingButtonConfig(): Promise<FloatingButtonConfig> {

@@ -143,8 +143,14 @@ export class FormDetector {
   private setupStorageListener(): void {
     this.storageListener = changes => {
       if (changes.floating_button_config) {
-        const newConfig = changes.floating_button_config.newValue as FloatingButtonConfig;
-        if (newConfig) {
+        const rawConfig = changes.floating_button_config.newValue as Partial<FloatingButtonConfig> | undefined;
+        if (rawConfig) {
+          // 合并默认值兜底：升级钩子 freezeLegacyFillDefaults 可能写入部分对象，
+          // 直接整体替换会令 visible/theme 等未覆盖字段变为 undefined
+          const newConfig: FloatingButtonConfig = {
+            ...StorageUtils.getDefaultFloatingButtonConfig(),
+            ...rawConfig,
+          };
           this.floatingButtonConfig = newConfig;
           // 同步密码切换功能开关
           this.passwordVisibilityToggle.setEnabled(newConfig.passwordVisibilityToggle);
