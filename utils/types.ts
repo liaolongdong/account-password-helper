@@ -273,7 +273,8 @@ export interface FloatingButtonConfig {
    */
   passwordVisibilityToggle: boolean;
   /**
-   * 页面填充模式（侧边栏 / 页面内联下拉），默认 'sidepanel' 保持历史交互
+   * 页面填充模式（侧边栏 / 页面内联下拉），默认 'inline'（仅新安装生效；
+   * 存量用户由升级钩子 freezeLegacyFillDefaults 冻结为历史的 'sidepanel' 行为）
    */
   fillMode: FillMode;
   /**
