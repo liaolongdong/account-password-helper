@@ -1,6 +1,7 @@
 import { defineBackground } from '#imports';
 import { logger } from '@/utils/logger';
 import { initLiteI18n } from '@/utils/i18n-lite';
+import { freezeLegacyFillDefaults } from '@/utils/storage/configManager';
 import { setupSidePanelListeners } from './background/sidePanelManager';
 import { setupMessageRouter } from './background/messageRouter';
 import {
@@ -25,8 +26,13 @@ export default defineBackground(() => {
   initLiteI18n();
 
   // 插件安装时的初始化
-  chrome.runtime.onInstalled.addListener(() => {
+  chrome.runtime.onInstalled.addListener(details => {
     logger.info('账号密码管理助手插件已安装');
+    // 升级场景：冻结存量用户的历史填充默认值（新默认 'inline' 仅对新安装生效）；
+    // 内部已捕获异常并记录日志，失败不阻断其余初始化
+    if (details.reason === 'update') {
+      void freezeLegacyFillDefaults();
+    }
     initBackgroundConfig();
   });
 

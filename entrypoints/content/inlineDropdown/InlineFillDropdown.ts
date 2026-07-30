@@ -16,6 +16,7 @@
 import { MessageType } from '@/utils/types';
 import type { MatchingAccountMeta, MatchingAccountsResponse } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
 import { tl } from '@/utils/i18n-lite';
@@ -68,6 +69,30 @@ const inlineStyles = `
 .aph-trigger:hover {
   transform: scale(1.08);
   box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 30%);
+}
+
+/* 首次引导气泡（终生仅展示一次，锚定钥匙图标上方，避开下方的 Chrome 原生密码下拉） */
+.aph-hint {
+  position: fixed;
+  z-index: 2147483647;
+  max-width: 240px;
+  padding: 6px 10px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #fff;
+  pointer-events: none;
+  background: var(--aph-primary);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb) / 35%);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateY(4px);
+}
+
+.aph-hint.visible {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 /* 迷你面板 */
@@ -229,7 +254,9 @@ const inlineStyles = `
   border-radius: 4px;
 }
 
-.aph-url {
+/* 补充信息槽位（备注优先、URL 兜底，二者互斥展示）的弱化样式 */
+.aph-url,
+.aph-remark {
   overflow: hidden;
   font-size: 11px;
   color: #9aa3af;
@@ -321,6 +348,12 @@ const inlineStyles = `
 }
 `;
 
+/** 首次引导气泡自动消失延迟（毫秒） */
+const HINT_AUTO_HIDE_MS = 5000;
+
+/** 首次引导气泡淡出过渡时长（毫秒，与 .aph-hint 的 CSS transition 保持一致） */
+const HINT_FADE_MS = 200;
+
 /** showTriggerFor 选项 */
 interface TriggerOptions {
   /** 该字段是否已存在密码显隐眼睛图标（用于图标避让） */
@@ -362,6 +395,12 @@ export class InlineFillDropdown {
   private repositionRaf: number | null = null;
   /** 图标失焦隐藏计时器 */
   private hideIconTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 首次引导气泡元素（终生仅展示一次） */
+  private hintEl: HTMLElement | null = null;
+  /** 引导气泡自动隐藏计时器 */
+  private hintTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 引导是否已处理完毕（内存缓存，避免每次获焦重复读 storage） */
+  private hintSettled = false;
   /** 当前主题（由 FormDetector 依据配置推送，避免每次获焦读取 storage） */
   private currentTheme: ThemeName = DEFAULT_THEME;
 
@@ -392,6 +431,8 @@ export class InlineFillDropdown {
     this.positionTrigger();
     this.triggerEl?.classList.add('visible');
     this.attachTriggerInteractions();
+    // 首次使用引导：内联为默认填充方式后，用一次性气泡补偿钥匙图标的可发现性
+    void this.maybeShowFirstUseHint();
   }
 
   /**
@@ -426,6 +467,7 @@ export class InlineFillDropdown {
     this.iconVisible = false;
     this.triggerEl?.classList.remove('visible');
     this.detachTriggerInteractions();
+    this.hideHint();
   }
 
   /**
@@ -446,6 +488,11 @@ export class InlineFillDropdown {
       clearTimeout(this.hideIconTimer);
       this.hideIconTimer = null;
     }
+    if (this.hintTimer) {
+      clearTimeout(this.hintTimer);
+      this.hintTimer = null;
+    }
+    this.hintEl = null;
     this.shadowHost?.remove();
     this.shadowHost = null;
     this.shadowRoot = null;
@@ -527,6 +574,87 @@ export class InlineFillDropdown {
     const top = rect.top + (rect.height - size) / 2;
     this.triggerEl.style.left = `${Math.round(left)}px`;
     this.triggerEl.style.top = `${Math.round(top)}px`;
+    this.positionHint();
+  }
+
+  // ==================== 首次引导气泡 ====================
+
+  /**
+   * 首次展示钥匙图标时展示一次性引导气泡（终生仅一次，展示即写入标记）
+   *
+   * 默认填充方式切换为内联后，钥匙图标相比自动弹出的侧边栏更隐蔽，
+   * 用气泡提示补偿可发现性；5 秒后自动淡出，图标点击/面板展开/失焦时立即移除。
+   */
+  private async maybeShowFirstUseHint(): Promise<void> {
+    if (this.hintSettled || this.hintEl) return;
+    // 先行占位，避免快速多次获焦并发重复展示
+    this.hintSettled = true;
+    try {
+      const result = await chrome.storage.local.get(STORAGE_KEYS.INLINE_FILL_HINT_SHOWN);
+      if (result[STORAGE_KEYS.INLINE_FILL_HINT_SHOWN]) return;
+      // 异步窗口内图标可能已隐藏/面板已打开，不再展示（标记未写入，下次获焦仍有机会）
+      if (!this.iconVisible || this.panelOpen || !this.shadowRoot) {
+        this.hintSettled = false;
+        return;
+      }
+      // 先写标记再渲染：把多 frame / 多标签页并发窗口从“渲染+写入”压缩至单次 get/set 间隙
+      await chrome.storage.local.set({ [STORAGE_KEYS.INLINE_FILL_HINT_SHOWN]: true });
+      // 写标记期间的 await 窗口内状态可能再变，渲染前复查一次
+      if (this.iconVisible && !this.panelOpen && this.shadowRoot) {
+        this.renderHint();
+      }
+    } catch (error) {
+      logger.debug('内联首次引导气泡处理失败（扩展上下文可能失效）:', error);
+    }
+  }
+
+  /**
+   * 渲染引导气泡并启动自动消失计时
+   */
+  private renderHint(): void {
+    if (!this.shadowRoot) return;
+    this.hintEl = document.createElement('div');
+    this.hintEl.className = 'aph-hint';
+    this.hintEl.textContent = tl('cs.inline.firstUseHint');
+    this.shadowRoot.appendChild(this.hintEl);
+    this.positionHint();
+    // 下一帧再添加 visible，确保淡入过渡生效
+    requestAnimationFrame(() => this.hintEl?.classList.add('visible'));
+    this.hintTimer = setTimeout(() => this.hideHint(), HINT_AUTO_HIDE_MS);
+  }
+
+  /**
+   * 将引导气泡定位到钥匙图标上方（右对齐，随滚动/缩放重定位）
+   *
+   * 放上方而非下方：Chrome 原生密码下拉固定出现在输入框正下方，
+   * 且作为浏览器级 UI 层级永远高于页面内容，下方放置会被其遮挡；
+   * 仅当输入框贴近视口顶部、上方放不下时降级回下方。
+   */
+  private positionHint(): void {
+    if (!this.hintEl || !this.triggerEl) return;
+    const triggerLeft = parseFloat(this.triggerEl.style.left) || 0;
+    const triggerTop = parseFloat(this.triggerEl.style.top) || 0;
+    const left = Math.max(8, triggerLeft + 22 - this.hintEl.offsetWidth);
+    const above = triggerTop - this.hintEl.offsetHeight - 10;
+    const top = above >= 8 ? above : triggerTop + 28;
+    this.hintEl.style.left = `${Math.round(left)}px`;
+    this.hintEl.style.top = `${Math.round(top)}px`;
+  }
+
+  /**
+   * 淡出并移除引导气泡
+   */
+  private hideHint(): void {
+    if (this.hintTimer) {
+      clearTimeout(this.hintTimer);
+      this.hintTimer = null;
+    }
+    const el = this.hintEl;
+    if (!el) return;
+    this.hintEl = null;
+    el.classList.remove('visible');
+    // 过渡结束后移除节点
+    setTimeout(() => el.remove(), HINT_FADE_MS);
   }
 
   /**
@@ -702,8 +830,15 @@ export class InlineFillDropdown {
             return `<span class="aph-tag" style="color:${c.text};background:${c.background};border-color:${c.border}" title="${escapeHtml(t)}">${escapeHtml(t)}</span>`;
           })
           .join('');
-        const url = acc.url ? `<span class="aph-url">${escapeHtml(acc.url)}</span>` : '';
-        const sub = tagsHtml || url ? `<div class="aph-row-sub">${tagsHtml}${url}</div>` : '';
+        // 补充信息槽位：备注优先、URL 兜底，二者互斥——列表已按域名过滤，
+        // URL 区分度趋近于零；备注是事实上的账号标签且参与搜索过滤，
+        // 必须行内可见；截断后的全文由行级 title 兜底展示
+        const supplementText = acc.remark || acc.url || '';
+        const supplementClass = acc.remark ? 'aph-remark' : 'aph-url';
+        const supplement = supplementText
+          ? `<span class="${supplementClass}">${escapeHtml(supplementText)}</span>`
+          : '';
+        const sub = tagsHtml || supplement ? `<div class="aph-row-sub">${tagsHtml}${supplement}</div>` : '';
         const titleAttr = acc.remark
           ? ` title="${tl('cs.inline.remarkTitle', { remark: escapeHtml(acc.remark) })}"`
           : '';

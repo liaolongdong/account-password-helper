@@ -402,9 +402,14 @@ export class FloatingButtonManager {
   private setupStorageListener(): void {
     this.storageListener = changes => {
       if (changes.floating_button_config) {
-        const newConfig = changes.floating_button_config.newValue as FloatingButtonConfig;
-        if (newConfig) {
-          this.handleStorageChange(newConfig);
+        const rawConfig = changes.floating_button_config.newValue as Partial<FloatingButtonConfig> | undefined;
+        if (rawConfig) {
+          // 合并默认值兜底：升级钩子 freezeLegacyFillDefaults 可能写入部分对象，
+          // 避免 visible 等字段缺失时悬浮按钮被误隐藏
+          this.handleStorageChange({
+            ...StorageUtils.getDefaultFloatingButtonConfig(),
+            ...rawConfig,
+          });
         }
       }
     };
