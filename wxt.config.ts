@@ -88,6 +88,8 @@ export default defineConfig({
     description: '__MSG_extensionDescription__',
     default_locale: 'zh_CN',
     version: pkg.version,
+    // options 页单实例复用依赖 runtime.getContexts（Chrome 116+）；sidePanel 本身需 114+
+    // minimum_chrome_version: '116',
     permissions: [
       'storage',
       'activeTab',
