@@ -711,9 +711,10 @@ export function setupBackgroundServices(): void {
       performReminderCheck();
     } else if (alarm.name === SW_KEEPALIVE_ALARM_NAME) {
       // 复活闹钟触发（SW 被强杀后的唤醒入口；心跳存活期间本 tick 仅是例行唤醒）：
-      // Windows 会话失效期：借本次保活唤醒顺带预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，
-      // 缓解冷启动白屏）。懒 import 延迟模块初始化（SW 产物已内联）；函数内自带平台/会话
-      // 门控与 5min 持久化节流（storage.session，SW 重启不归零），非 Windows / 会话有效直接跳过。
+      // Windows 借本次保活唤醒顺带预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，
+      // 缓解冷启动白屏）。懒 import 延迟模块初始化（SW 产物已内联）；函数内自带平台
+      // 门控与 5min 持久化节流（storage.session，SW 重启不归零），非 Windows 直接跳过，
+      // Windows 不区分会话状态（磁盘缓存逐出与会话有效性无关）。
       void import('@/utils/warmSidePanelResources').then(m => m.maybeWarmSidePanelResources()).catch(() => {});
 
       // 定期重同步保活门控（幂等、开销为 1-2 次 storage 读）：

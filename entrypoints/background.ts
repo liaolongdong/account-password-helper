@@ -46,12 +46,12 @@ export default defineBackground(() => {
     // 启动预热（跨平台）：浏览器刚启动时 OS 磁盘缓存全冷、V8 无 code cache，
     // 无论会话是否有效，首次打开侧边栏都会命中「进程冷 + 资源冷 + SW 冷」
     // 三冷叠加白屏（Mac 重启后首开同样受影响）。
-    // ignoreSessionGate 跳过会话/平台门控强制温热一次渲染资源；短延迟执行
+    // ignorePlatformGate 跳过平台门控强制温热一次渲染资源；短延迟执行
     // 在避开启动同步峰值与尽早覆盖首开之间取平衡；懒 import 延迟模块初始化
     // （SW 产物已被 WXT 内联，不影响包体积），fire-and-forget 不阻塞启动
     setTimeout(() => {
       void import('@/utils/warmSidePanelResources')
-        .then(m => m.maybeWarmSidePanelResources({ ignoreSessionGate: true }))
+        .then(m => m.maybeWarmSidePanelResources({ ignorePlatformGate: true }))
         .catch(() => {});
     }, STARTUP_WARM_DELAY_MS);
   });

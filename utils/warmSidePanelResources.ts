@@ -13,12 +13,13 @@
  * 属尽力而为的缓解：可缩短冷文件读取/扫描耗时，但无法温热「渲染进程创建」本身。
  *
  * 免新权限：扩展在自身上下文 `fetch` 自身打包资源无需 web_accessible_resources 或额外权限。
- * 常规调用仅在 Windows + 会话失效时按节流执行；浏览器首启（ignoreSessionGate）场景
- * OS 磁盘缓存全冷，Mac 重启后首开同样白屏，故该场景跨平台执行。
+ * 常规调用仅在 Windows 按 5 分钟节流执行，不区分会话状态——OS 磁盘缓存逐出
+ * （杀软扫描 / 内存压力）与会话有效性无关，会话有效期内同样会命中冷读白屏；
+ * 浏览器首启（ignorePlatformGate）场景 OS 磁盘缓存全冷，Mac 重启后首开同样白屏，
+ * 故该场景跨平台执行。
  */
 import { logger } from '@/utils/logger';
 import { isWindowsPlatform } from '@/utils/platform';
-import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import { SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 
 /** 侧边栏入口 HTML（相对扩展根路径），经 chrome.runtime.getURL 解析为绝对 URL */
@@ -190,46 +191,31 @@ export function extractDynamicImportUrls(jsText: string): string[] {
 }
 
 /**
- * 依据 storage.local 中的会话过期时间戳，轻量判定当前会话是否有效
- *
- * 仅做过期时间比较（不触发密钥派生/解密），供预热门控使用：
- * 会话有效期内本就秒开、无需预热。读取失败时按「无效」处理（倾向于执行预热的安全侧）。
- */
-async function isSessionCurrentlyValid(): Promise<boolean> {
-  try {
-    const result = await chrome.storage.local.get(SESSION_STORAGE_KEYS.PASSWORD_EXPIRY);
-    const expiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined;
-    return !!expiry && Date.now() < expiry;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * 预热选项
  */
 export interface WarmSidePanelOptions {
   /**
-   * 浏览器首启冷缓存模式：忽略「会话有效 → 跳过」与「非 Windows → 跳过」两道门控
+   * 浏览器首启冷缓存模式：忽略「非 Windows → 跳过」平台门控
    *
    * 浏览器刚启动（chrome.runtime.onStartup）时 OS 磁盘缓存全冷、渲染进程冷、
-   * V8 无 code cache，即使会话仍在有效期内也会白屏（密码缓存可由
-   * warmPasswordCache 预热，但渲染资源无人预热）；且该场景 Mac 重启后首开
-   * 同样出现长白屏，故置 true 时跨平台强制执行一次资源预热。
+   * V8 无 code cache，Mac 重启后首开同样出现长白屏，
+   * 故置 true 时跨平台强制执行一次资源预热。
    */
-  ignoreSessionGate?: boolean;
+  ignorePlatformGate?: boolean;
 }
 
 /**
- * 按需预热侧边栏全量渲染资源（Windows 会话失效期 / 浏览器启动冷缓存期）
+ * 按需预热侧边栏全量渲染资源（Windows 常规节流预热 / 浏览器启动冷缓存期跨平台预热）
  *
  * 门控与节流（依次判定，任一不满足即跳过）：
- * 1. 非 Windows 且非浏览器首启 → 跳过（Mac/Linux 日常热路径本就快；
- *    浏览器首启经 options.ignoreSessionGate 跨平台放行——重启后磁盘缓存全冷，
- *    Mac 首开同样白屏）；
- * 2. 命中 30s 节流窗口 → 跳过；
- * 3. 会话有效 → 跳过（本就秒开；此时不占用节流窗口，使会话一旦失效即可立即预热）。
- *    浏览器启动等磁盘缓存全冷场景可经 options.ignoreSessionGate 跳过本门控。
+ * 1. 非 Windows 且非浏览器首启 → 跳过（Mac/Linux 磁盘 IO 快、无杀软扫描放大，
+ *    日常路径本就快；浏览器首启经 options.ignorePlatformGate 跨平台放行——
+ *    重启后磁盘缓存全冷，Mac 首开同样白屏）；
+ * 2. 命中 5 分钟节流窗口 → 跳过。
+ *
+ * 不设会话状态门控：OS 磁盘缓存逐出（杀软扫描 / 内存压力）与会话有效性无关，
+ * 会话有效期内扩展文件同样可能被逐出导致骨架屏前白屏，Windows 常规调用
+ * 无论会话状态均按节流预热（每 5 分钟最多一轮 ~25 个小文件 fetch，开销可忽略）。
  *
  * 预热范围（四层递进）：
  * - 第一层：sidepanel.html 本身（温热入口 HTML）
@@ -258,9 +244,9 @@ export function maybeWarmSidePanelResources(options: WarmSidePanelOptions = {}):
 async function doWarmSidePanelResources(options: WarmSidePanelOptions): Promise<void> {
   try {
     // 平台门控：常规调用（保活 tick / 打开完成后空闲预热）仅 Windows 执行；
-    // 浏览器首启（ignoreSessionGate）跨平台执行——重启后 OS 磁盘缓存全冷、
+    // 浏览器首启（ignorePlatformGate）跨平台执行——重启后 OS 磁盘缓存全冷、
     // V8 无 code cache，Mac 首次打开侧边栏同样出现长白屏
-    if (!options.ignoreSessionGate && !(await isWindowsPlatform())) return;
+    if (!options.ignorePlatformGate && !(await isWindowsPlatform())) return;
 
     // 节流判定：内存镜像快路径命中直接跳过；未命中时读取 storage.session
     // 持久化时间戳复核（SW 冷启后内存镜像归零，避免误判为「从未预热」）
@@ -269,10 +255,8 @@ async function doWarmSidePanelResources(options: WarmSidePanelOptions): Promise<
     _lastWarmAt = Math.max(_lastWarmAt, await readPersistedWarmAt());
     if (now - _lastWarmAt < WARM_THROTTLE_MS) return;
 
-    // 会话有效期内默认无需预热；此处不占用节流窗口，
-    // 以便会话一旦失效，下一次调用（保活 tick / 打开后空闲预热）能立即预热。
-    // 浏览器启动冷缓存场景（ignoreSessionGate）例外：会话有效也需温热渲染资源
-    if (!options.ignoreSessionGate && (await isSessionCurrentlyValid())) return;
+    // 注意：不设会话状态门控——磁盘缓存逐出与会话有效性无关（详见函数头注释），
+    // 会话有效期内同样按节流预热，根治「会话有效 + 文件被逐出」的冷读白屏
 
     // 通过全部门控，占用节流窗口后再执行预热（同步更新内存镜像 +
     // fire-and-forget 持久化，跨 SW 生命周期保持窗口有效）
