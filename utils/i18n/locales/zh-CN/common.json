@@ -21,7 +21,7 @@
   "common.totp": "两步验证",
   "common.success": "成功",
   "common.failed": "失败",
-  "common.favorite": "收藏",
+  "common.favorite": "收藏（置顶显示）",
   "common.unfavorite": "取消收藏",
   "common.settings": "设置",
   "common.validityRequired": "请选择有效期",
