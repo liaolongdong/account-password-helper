@@ -11,21 +11,26 @@ import {
   markBrowserBootKeepaliveWindow,
 } from './background/backgroundServices';
 
-export default defineBackground(() => {
-  /**
-   * 浏览器首启资源预热延迟（毫秒）
-   *
-   * 避开 Chrome 启动风暴最初的同步峰值（标签页恢复 / 各扩展初始化）后尽早温热
-   * 侧边栏渲染资源：重启后首次打开侧边栏是「进程冷 + 资源冷 + SW 冷」叠加的
-   * 最差场景，500ms 将原 3s 全冷窗口收窄至几乎不可能被用户命中；
-   * 远小于 MV3 SW 空闲存活窗口（≈30s），setTimeout 可靠触发，无需 alarm。
-   */
-  const STARTUP_WARM_DELAY_MS = 500;
+/**
+ * 触发侧边栏渲染资源预热（fire-and-forget，静默容错）
+ *
+ * 懒 import 延迟模块初始化（SW 产物已被 WXT 内联，不影响包体积）。
+ * 预热函数内自带平台门控与 5 分钟持久化节流（storage.session），
+ * 多次调用不会导致重复全量 fetch。
+ *
+ * @param ignorePlatformGate 是否跳过平台门控（浏览器首启/扩展安装时跨平台执行）
+ */
+function triggerWarmSidePanelResources(ignorePlatformGate = false): void {
+  void import('@/utils/warmSidePanelResources')
+    .then(m => m.maybeWarmSidePanelResources({ ignorePlatformGate }))
+    .catch(() => {});
+}
 
+export default defineBackground(() => {
   // 初始化轻量 i18n（桌面通知等文案按用户语言渲染，storage 监听实时切换）
   initLiteI18n();
 
-  // 插件安装时的初始化
+  // 插件安装/更新时的初始化
   chrome.runtime.onInstalled.addListener(details => {
     logger.info('账号密码管理助手插件已安装');
     // 升级场景：冻结存量用户的历史填充默认值（新默认 'inline' 仅对新安装生效）；
@@ -34,6 +39,10 @@ export default defineBackground(() => {
       void freezeLegacyFillDefaults();
     }
     initBackgroundConfig();
+    // 扩展安装/更新后预热侧边栏渲染资源（跨平台）：
+    // 新版本 chunk hash 全部变化，OS 磁盘缓存中的旧文件不再命中，
+    // 首次打开侧边栏等同于全冷启动；ignorePlatformGate 跳过平台门控强制温热一次
+    triggerWarmSidePanelResources(true);
   });
 
   // 浏览器/配置文件启动时，按「浏览器重启后重新锁定」设置执行安全重锁（默认关闭时无副作用）
@@ -43,17 +52,22 @@ export default defineBackground(() => {
     // 把 SW 冷启动从首开链路摘除（Mac 重启后前几次打开的长白屏主因之一）；
     // 窗口截止后由保活 tick 内的重同步自动收敛回常规平台/会话门控
     void markBrowserBootKeepaliveWindow();
-    // 启动预热（跨平台）：浏览器刚启动时 OS 磁盘缓存全冷、V8 无 code cache，
+    // 启动预热（跨平台，立即执行）：浏览器刚启动时 OS 磁盘缓存全冷、V8 无 code cache，
     // 无论会话是否有效，首次打开侧边栏都会命中「进程冷 + 资源冷 + SW 冷」
     // 三冷叠加白屏（Mac 重启后首开同样受影响）。
-    // ignorePlatformGate 跳过平台门控强制温热一次渲染资源；短延迟执行
-    // 在避开启动同步峰值与尽早覆盖首开之间取平衡；懒 import 延迟模块初始化
-    // （SW 产物已被 WXT 内联，不影响包体积），fire-and-forget 不阻塞启动
-    setTimeout(() => {
-      void import('@/utils/warmSidePanelResources')
-        .then(m => m.maybeWarmSidePanelResources({ ignorePlatformGate: true }))
-        .catch(() => {});
-    }, STARTUP_WARM_DELAY_MS);
+    // ignorePlatformGate 跳过平台门控强制温热一次渲染资源；
+    // 预热函数为全异步（fetch），不阻塞 SW 事件循环与 Chrome 启动同步峰值；
+    // 内建 5 分钟节流 + in-flight 互斥，与后续保活 tick 预热不冲突
+    triggerWarmSidePanelResources(true);
+  });
+
+  // 窗口焦点恢复时预热（覆盖「切走再切回」场景）：
+  // 用户切换到其他应用再回到 Chrome 时，OS 磁盘缓存中的扩展文件可能已被逐出
+  // （Windows 内存压力 / 杀毒扫描），预热函数内建 5 分钟节流，频繁切换不会重复 fetch
+  chrome.windows.onFocusChanged.addListener(windowId => {
+    // WINDOW_ID_NONE（-1）表示所有窗口失焦，仅在窗口获得焦点时触发
+    if (windowId === chrome.windows.WINDOW_ID_NONE) return;
+    triggerWarmSidePanelResources();
   });
 
   // 注册事件监听器（Service Worker 启动时立即执行）

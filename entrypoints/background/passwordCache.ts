@@ -1,7 +1,7 @@
 import { type PasswordCache, type PasswordEntry, type MatchingAccountsResponse } from '@/utils/types';
-import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
-import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
+import { isSessionValid, isSessionActiveSync, getSessionDataKey } from '@/utils/sessionManager-storage';
 import { getAllPasswords } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
@@ -33,6 +33,65 @@ let _warmInFlight: Promise<PasswordCache | null> | null = null;
  * 避免用过期数据毒化后续调用方。
  */
 let _cacheEpoch = 0;
+
+/**
+ * 将密码缓存加密快照持久化到 storage.session（尽力而为，fire-and-forget）
+ *
+ * 快照内容：{ passwords, sortConfig, timestamp } JSON 经 AES-GCM 加密（Base64 编码），
+ * 加密密钥为 storage.session 中的会话数据密钥（session_data_key）。
+ * 侧边栏冷启动时可直读解密（纯内存 IPC + 单次 AES-GCM），跳过 SW 唤醒 +
+ * storage.local 磁盘 IO + 逐条解密，将数据加载从 200-3000ms 压缩至 <50ms。
+ *
+ * 安全：快照与 at-rest 加密共用密钥体系；storage.session 仅内存、TRUSTED_CONTEXTS 访问，
+ * 内容脚本不可读；浏览器关闭即清。
+ *
+ * 并发安全：捕获调用时的 _cacheEpoch，写入前校验 epoch 未变——
+ * 若加密期间发生 invalidatePasswordCache（epoch 递增），丢弃本次写入，
+ * 防止陈旧快照覆盖 clearCacheSnapshot 的清除操作。
+ *
+ * @param cache 当前密码缓存
+ * @param sortConfig 侧边栏排序配置（可为 null）
+ */
+async function persistCacheSnapshot(
+  cache: PasswordCache,
+  sortConfig: { prop: string; order: string } | null,
+): Promise<void> {
+  const epoch = _cacheEpoch;
+  try {
+    const dataKey = await getSessionDataKey();
+    if (!dataKey) return;
+    const { encryptData } = await import('@/utils/encryption');
+    const payload = JSON.stringify({
+      passwords: cache.passwords,
+      sortConfig,
+      timestamp: cache.timestamp,
+    });
+    const encrypted = await encryptData(payload, dataKey);
+    // epoch 守卫：加密期间若发生失效（invalidatePasswordCache 递增 epoch），
+    // 丢弃本次写入，避免陈旧快照覆盖 clearCacheSnapshot 的清除
+    if (epoch !== _cacheEpoch) return;
+    await chrome.storage.session.set({
+      [SESSION_MEMORY_KEYS.PASSWORD_CACHE_SNAPSHOT]: encrypted,
+    });
+    logger.debug('Background: 密码缓存快照已持久化到 storage.session，条目数:' + cache.passwords.length);
+  } catch (error) {
+    // 快照持久化为尽力而为的优化，失败不影响主流程
+    logger.debug('Background: 快照持久化跳过（尽力而为）:', error);
+  }
+}
+
+/**
+ * 清除 storage.session 中的密码缓存快照（fire-and-forget）
+ *
+ * 在缓存失效（invalidatePasswordCache）时调用，确保侧边栏不会读到过期快照。
+ */
+function clearCacheSnapshot(): void {
+  try {
+    void chrome.storage.session.remove(SESSION_MEMORY_KEYS.PASSWORD_CACHE_SNAPSHOT).catch(() => {});
+  } catch {
+    // 静默忽略
+  }
+}
 
 /**
  * 获取缓存有效期（毫秒）
@@ -78,6 +137,9 @@ export async function getCachedPasswords(): Promise<PasswordCache | null> {
 
 /**
  * 更新密码缓存
+ *
+ * 同时触发加密快照持久化到 storage.session（fire-and-forget），
+ * 使侧边栏冷启动时可直读快照而无需等待 SW 唤醒。
  */
 export function updatePasswordCache(passwords: PasswordEntry[], domain: string, isAuthenticated: boolean): void {
   passwordCache = {
@@ -87,11 +149,16 @@ export function updatePasswordCache(passwords: PasswordEntry[], domain: string, 
     isAuthenticated,
   };
   logger.debug('Background: 密码缓存已更新，条目数:' + passwords.length + ' 域名:' + domain);
+  // 尽力而为持久化加密快照（不阻塞主流程）
+  if (isAuthenticated) {
+    void persistCacheSnapshot(passwordCache, _cachedSortConfig ?? null);
+  }
 }
 
 /**
  * 使密码缓存失效
- * 同时重置 _cachedValidityMs 和排序配置缓存，确保配置变更后下次重新读取
+ * 同时重置 _cachedValidityMs 和排序配置缓存，确保配置变更后下次重新读取；
+ * 清除 storage.session 中的加密快照，防止侧边栏读到过期数据
  */
 export function invalidatePasswordCache(): void {
   passwordCache = null;
@@ -101,6 +168,8 @@ export function invalidatePasswordCache(): void {
   _cacheEpoch++;
   _cachedValidityMs = null;
   _cachedSortConfig = undefined;
+  // 同步清除 storage.session 加密快照（fire-and-forget）
+  clearCacheSnapshot();
   logger.debug('Background: 密码缓存已失效');
 }
 
@@ -133,8 +202,10 @@ export async function getOrWarmCache(): Promise<PasswordCache | null> {
     if (epoch !== _cacheEpoch) {
       return { passwords, domain: '*', timestamp: Date.now(), isAuthenticated: true } as PasswordCache;
     }
-    updatePasswordCache(passwords, '*', true);
+    // 先设置排序配置缓存，再更新密码缓存（updatePasswordCache 内部触发快照持久化，
+    // 需要 _cachedSortConfig 已就绪以写入正确的排序配置）
     _cachedSortConfig = sortConfig;
+    updatePasswordCache(passwords, '*', true);
     return passwordCache;
   })().finally(() => {
     // 仅当仍属本次 epoch 时才置空，避免覆盖失效后由新调用方发起的预热

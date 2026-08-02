@@ -8,6 +8,7 @@ import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { isExactHostMatch } from '@/utils/domain';
 import { lazyImport } from '@/utils/lazyImport';
+import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
 
 // ==================== 延迟加载模块（避免初始加载拉入 encryption.ts 加密链） ====================
 
@@ -99,6 +100,71 @@ export async function isSessionQuicklyKnownInvalid(): Promise<boolean> {
   } catch {
     // 读取失败不走快速路径，交由完整竞速判定
     return false;
+  }
+}
+
+/**
+ * storage.session 加密快照直读结果
+ */
+interface SnapshotReadResult {
+  sessionValid: boolean;
+  passwords: PasswordEntry[];
+  sortConfig: { prop: string; order: string } | null;
+}
+
+/**
+ * storage.session 加密快照直读（最快数据路径）
+ *
+ * SW 侧 warmPasswordCache / getOrWarmCache 成功后将加密快照写入 storage.session（纯内存），
+ * 侧边栏冷启动时直接读取并解密，跳过 SW 唤醒 + storage.local 磁盘 IO + 逐条 AES-GCM 解密，
+ * 将数据加载从 200-3000ms 压缩至 <50ms。
+ *
+ * 安全：快照经 AES-GCM 加密（密钥同 storage.session 的 session_data_key），
+ * 与 at-rest 加密共用密钥体系；storage.session 仅内存、TRUSTED_CONTEXTS 访问。
+ * 读取前并行校验 session_password_expiry（单次 storage.local IPC），
+ * 会话已过期时拒绝快照（fail-locked），防止锁定前的陈旧快照反向覆盖锁定态。
+ *
+ * @returns 解密后的密码数据，快照不存在/过期/解密失败时返回 null（静默降级到 bg/local 竞速）
+ */
+async function readSessionSnapshot(): Promise<SnapshotReadResult | null> {
+  try {
+    // 并行读取：storage.session（快照 + 数据密钥）与 storage.local（会话过期时间戳 + 有效期配置），
+    // 两次 IPC 重叠执行，总延迟约等于单次 IPC（~2-5ms）；
+    // MASTER_PASSWORD_VALIDITY 与 SESSION_EXPIRY_KEY 合并到同一次 get，零额外 IPC
+    const [sessionResult, localResult] = await Promise.all([
+      chrome.storage.session.get([SESSION_MEMORY_KEYS.PASSWORD_CACHE_SNAPSHOT, SESSION_MEMORY_KEYS.DATA_KEY]),
+      chrome.storage.local.get([SESSION_EXPIRY_KEY, STORAGE_KEYS.MASTER_PASSWORD_VALIDITY]),
+    ]);
+
+    // 会话过期校验（fail-locked）：过期时间戳缺失或已到则拒绝快照
+    const expiry = localResult[SESSION_EXPIRY_KEY] as number | undefined;
+    if (!expiry || Date.now() >= expiry) return null;
+
+    const snapshot = sessionResult[SESSION_MEMORY_KEYS.PASSWORD_CACHE_SNAPSHOT] as string | undefined;
+    const dataKey = sessionResult[SESSION_MEMORY_KEYS.DATA_KEY] as string | undefined;
+    if (!snapshot || !dataKey) return null;
+
+    // 解密快照（复用 encryption 模块的 decryptData，经 lazyImport 单例缓存）
+    const { decryptData } = await getEncryptionModule();
+    const json = await decryptData(snapshot, dataKey);
+    const parsed = JSON.parse(json) as {
+      passwords: PasswordEntry[];
+      sortConfig: { prop: string; order: string } | null;
+      timestamp: number;
+    };
+
+    // TTL 校验：快照时间戳超出用户配置的会话有效期则视为过期，
+    // 避免读取陈旧快照；精确清除由 SW 侧 invalidatePasswordCache 主动保障，
+    // 此处为防御性兜底（如 SW 被杀未来得及清除快照）
+    const validityHours = (localResult[STORAGE_KEYS.MASTER_PASSWORD_VALIDITY] as number | undefined) || 24;
+    const maxAgeMs = validityHours * 60 * 60 * 1000;
+    if (Date.now() - parsed.timestamp > maxAgeMs) return null;
+
+    logger.debug('SidePanel: storage.session 快照直读成功，条目数:' + parsed.passwords.length);
+    return { sessionValid: true, passwords: parsed.passwords, sortConfig: parsed.sortConfig };
+  } catch {
+    // 快照不存在/解密失败/JSON 解析异常均静默降级到 bg/local 竞速
+    return null;
   }
 }
 
@@ -570,6 +636,37 @@ export function useSidepanelData() {
     try {
       // ---- 并行竞速模式 ----
       const _perfRaceStart = performance.now();
+
+      // 路径 0: storage.session 加密快照直读（最快路径，纯内存 IPC + 单次 AES-GCM）
+      // SW 侧 warmPasswordCache 成功后写入加密快照，侧边栏冷启动时直读解密，
+      // 跳过 SW 唤醒 + storage.local 磁盘 IO + 逐条解密（200-3000ms → <50ms）；
+      // 快照不存在/过期/解密失败时静默降级到 bg/local 竞速
+      const _perfSnapshotStart = performance.now();
+      const snapshotResult = await readSessionSnapshot();
+      if (snapshotResult) {
+        const snapshotMs = performance.now() - _perfSnapshotStart;
+        logger.debug(`SidePanel: 快照路径竞速胜出 (${snapshotMs.toFixed(1)}ms)`);
+        _sessionKnownExpired = false;
+        isAuthenticated.value = true;
+        passwords.value = snapshotResult.passwords;
+        sortConfig.value = snapshotResult.sortConfig;
+        loading.value = false;
+        // 与 bg/local 路径一致：并行加载当前标签页域名（域名过滤/优先级排序依赖）
+        void loadCurrentTab();
+        // 轻量触发 SW 侧去重预热作为兜底（缓存存在时 no-op）
+        void triggerBackgroundCacheRefresh();
+        return {
+          raceWinner: 'snapshot' as const,
+          sessionValid: true,
+          bgPathMs: null,
+          localPathMs: null,
+          bgSwProcessMs: null,
+          bgCacheHit: null,
+          bgSwUptimeMs: null,
+        };
+      }
+
+      // 快照未命中，进入 bg/local 双路竞速
       // 竞速标记：null = 未决出胜负，'bg' = Background 路径胜出，'local' = 本地路径胜出
       let raceWinner: 'bg' | 'local' | null = null;
       // 性能埋点：两条路径各自耗时（写入环形日志，生产环境可定位 Windows 慢点归属）

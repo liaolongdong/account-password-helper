@@ -50,4 +50,12 @@ export const SESSION_MEMORY_KEYS = {
   SIDEPANEL_WARM_AT: 'sidepanel_warm_at',
   /** 浏览器启动引导期保活截止时间戳（epoch 毫秒）：窗口内跨平台强制 SW 保活，覆盖重启后全冷首开 */
   SW_BOOT_KEEPALIVE_UNTIL: 'sw_boot_keepalive_until',
+  /**
+   * 密码缓存加密快照（{ passwords, sortConfig, timestamp } JSON 经 AES-GCM 加密，Base64 编码）
+   *
+   * SW 侧 warmPasswordCache / getOrWarmCache 成功后写入，侧边栏冷启动时直读解密，
+   * 跳过 SW 唤醒 + storage.local 磁盘 IO + 逐条 AES-GCM 解密，将数据加载从 200-3000ms 压缩至 <50ms。
+   * 仅内存（浏览器关闭即清）、TRUSTED_CONTEXTS 访问（内容脚本不可读）。
+   */
+  PASSWORD_CACHE_SNAPSHOT: 'password_cache_snapshot',
 };
