@@ -271,7 +271,7 @@
         <ul>
           <!-- eslint-disable vue/no-v-html -->
           <li
-            v-for="(item, idx) in helpItems('help.fc', 11)"
+            v-for="(item, idx) in helpItems('help.fc', 12)"
             :key="idx"
             v-html="item"
           ></li>
