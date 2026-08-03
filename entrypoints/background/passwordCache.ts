@@ -2,11 +2,20 @@ import { type PasswordCache, type PasswordEntry, type MatchingAccountsResponse }
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { isSessionValid, isSessionActiveSync, getSessionDataKey } from '@/utils/sessionManager-storage';
-import { getAllPasswords, METADATA_FLUSH_MARK_TTL_MS } from '@/utils/storage/passwordCrud';
+import {
+  getAllPasswords,
+  METADATA_FLUSH_MARK_TTL_MS,
+  METADATA_FIELDS,
+  isMetadataOnlyChange,
+} from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { fetchFaviconDataUrl } from '@/utils/favicon';
 import { tl } from '@/utils/i18n-lite';
+
+// 兼容既有导入路径：backgroundServices 等从本模块导入 isMetadataOnlyChange，
+// 实现已下沉至 passwordCrud（单一事实源，面板侧可复用同一判定做就地修补）
+export { isMetadataOnlyChange };
 
 /** 模块级缓存状态（Service Worker 生命周期内有效） */
 let passwordCache: PasswordCache | null = null;
@@ -132,23 +141,35 @@ export async function applyMetadataOnlyUpdate(changedEntries: unknown): Promise<
     return false;
   }
 
-  // 仅同步非敏感元数据字段；敏感字段在 at-rest 条目中为密文，绝不能拷入明文缓存
-  const METADATA_FIELDS = ['favorite', 'favoriteUsedAt', 'lastUsedAt', 'updateTime', 'tag', 'order'] as const;
+  // 仅同步非敏感元数据字段（单一事实源 METADATA_FIELDS）；敏感字段在 at-rest
+  // 条目中为密文，绝不能拷入明文缓存。按键存在性判定（而非 undefined 比较）：
+  // 取消收藏等场景 at-rest 条目会删除 favoriteUsedAt 键，需同步从缓存中删除，
+  // 避免内存缓存/快照残留陈旧字段与 storage 持续偏离
   const changedById = new Map<string, Partial<PasswordEntry>>();
+  const removalsById = new Map<string, string[]>();
   for (const entry of changedEntries as Array<{ id?: string }>) {
     if (!entry?.id) continue;
     const patch: Partial<PasswordEntry> = {};
+    const removals: string[] = [];
     for (const field of METADATA_FIELDS) {
-      const value = (entry as Record<string, unknown>)[field];
-      if (value !== undefined) {
-        (patch as Record<string, unknown>)[field] = value;
+      if (field in (entry as Record<string, unknown>)) {
+        (patch as Record<string, unknown>)[field] = (entry as Record<string, unknown>)[field];
+      } else {
+        removals.push(field);
       }
     }
     changedById.set(entry.id, patch);
+    if (removals.length) removalsById.set(entry.id, removals);
   }
   for (const cached of passwordCache.passwords) {
     const patch = changedById.get(cached.id);
     if (patch) Object.assign(cached, patch);
+    const removals = removalsById.get(cached.id);
+    if (removals) {
+      for (const field of removals) {
+        delete (cached as unknown as Record<string, unknown>)[field];
+      }
+    }
   }
 
   // 用修补后的内存明文重加密快照覆盖写入（epoch 守卫由 persistCacheSnapshot 内部保障）；
@@ -178,37 +199,6 @@ export async function consumeMetadataFlushMarker(): Promise<boolean> {
   } catch {
     return false;
   }
-}
-
-/** 允许原地修补的非敏感元数据字段（与 flushMetadataUpdates 可写字段集一致） */
-const METADATA_ONLY_FIELDS = new Set(['favorite', 'favoriteUsedAt', 'lastUsedAt', 'updateTime', 'tag', 'order']);
-
-/**
- * 基于内容校验本次 PASSWORDS 变更是否「仅元数据」（与打标互为双重保险）
- *
- * 打标只能证明「有过 flush」，无法证明「本次变更仅元数据」（标记残留/
- * 双消费竞态场景）。本函数逐条对比 oldValue/newValue：长度与 id 序列对齐
- * （捕获增删），除白名单字段外无任何差异（捕获敏感字段编辑）才返回 true，
- * 确保误判场景回退全量失效，不会把真实数据变更当作元数据 patch 掉。
- *
- * @param oldValue 变更前全量条目
- * @param newValue 变更后全量条目
- * @returns true 表示确认为仅元数据变更
- */
-export function isMetadataOnlyChange(oldValue: unknown, newValue: unknown): boolean {
-  if (!Array.isArray(oldValue) || !Array.isArray(newValue) || oldValue.length !== newValue.length) {
-    return false;
-  }
-  for (let i = 0; i < newValue.length; i++) {
-    const oldEntry = oldValue[i] as Record<string, unknown> | undefined;
-    const newEntry = newValue[i] as Record<string, unknown> | undefined;
-    if (!oldEntry || !newEntry || oldEntry.id !== newEntry.id) return false;
-    const keys = new Set([...Object.keys(oldEntry), ...Object.keys(newEntry)]);
-    for (const key of keys) {
-      if (oldEntry[key] !== newEntry[key] && !METADATA_ONLY_FIELDS.has(key)) return false;
-    }
-  }
-  return true;
 }
 
 /**

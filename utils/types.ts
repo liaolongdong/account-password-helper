@@ -408,12 +408,22 @@ export interface FillByIdData {
  *
  * 仅允许非敏感元数据字段（与 passwordCrud 的 MetadataUpdate 对齐），
  * 敏感字段变更必须走 updatePassword 的解密-重加密路径。
+ * 跨上下文消息无法传递 undefined，字段需删除时（如取消收藏的 favoriteUsedAt）
+ * 传 null，由 SW 侧转换为 undefined 后落盘时自然删除该键。
  */
 export interface UpdatePasswordMetadataData {
   /** 目标条目 ID */
   id: string;
-  /** 要更新的非敏感元数据字段 */
-  updates: Partial<Pick<PasswordEntry, 'favorite' | 'favoriteUsedAt' | 'lastUsedAt' | 'updateTime' | 'tag' | 'order'>>;
+  /**
+   * 要更新的非敏感元数据字段（传 null 表示删除该字段）
+   *
+   * 字段集必须与 passwordCrud.METADATA_FIELDS 单一事实源保持一致
+   * （本文件为纯类型模块，不引入运行时常量以避免循环依赖），
+   * 新增字段时两处同步修改。
+   */
+  updates: {
+    [K in 'favorite' | 'favoriteUsedAt' | 'lastUsedAt' | 'updateTime' | 'tag' | 'order']?: PasswordEntry[K] | null;
+  };
 }
 
 /**

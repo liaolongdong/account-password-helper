@@ -174,7 +174,9 @@ export async function updatePassword(
     // 直接在（密文）条目上就地更新，无需加解密也无需会话密钥，
     // 保留 sidepanel 收藏/填充热路径的轻量特性。
     if (!updatesTouchSensitiveFields(updates)) {
-      entriesToSave[index] = { ...current, ...updates, updateTime: Date.now() } as
+      // updateTime 优先尊重调用方显式传入：收藏/取消收藏传入原值即保持不变
+      // （只改收藏时间 favoriteUsedAt，不推高 updateTime），未传时默认 Date.now()
+      entriesToSave[index] = { ...current, ...updates, updateTime: updates.updateTime ?? Date.now() } as
         | PasswordEntry
         | EncryptedPasswordEntry;
       await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: entriesToSave });
@@ -194,7 +196,8 @@ export async function updatePassword(
       snapshotPasswordHistory(id, current.password).catch(() => {});
     }
 
-    const updatedPlain: PasswordEntry = { ...currentPlain, ...updates, updateTime: Date.now() };
+    // 同上：显式传入的 updateTime 优先生效（编辑场景均传 Date.now() 或依赖默认值，行为不变）
+    const updatedPlain: PasswordEntry = { ...currentPlain, ...updates, updateTime: updates.updateTime ?? Date.now() };
     entriesToSave[index] = await enc.encryptPasswordEntry(updatedPlain, masterPassword ?? '', key);
 
     await chrome.storage.local.set({
@@ -207,14 +210,49 @@ export async function updatePassword(
 }
 
 /**
- * 会话期内可更新的非敏感元数据字段子集（与 SENSITIVE_FIELDS 互补）
+ * 会话期内可更新的非敏感元数据字段（与 SENSITIVE_FIELDS 互补）——单一事实源
+ *
+ * 路由白名单（messageRouter ALLOWED_METADATA_FIELDS）、缓存修补字段集
+ * （passwordCache）均必须从本常量派生，禁止另行硬编码；未来新增字段
+ * 只需改这一处，避免漂移导致路由误收敏感字段破坏 at-rest 密文不变量。
+ */
+export const METADATA_FIELDS = ['favorite', 'favoriteUsedAt', 'lastUsedAt', 'updateTime', 'tag', 'order'] as const;
+
+/**
+ * 会话期内可更新的非敏感元数据字段子集类型
  *
  * 仅这些非敏感字段可经 updatePasswordInSession 更新，编译期禁止误传敏感字段
- *（username/password/url/remark，应走 updatePassword 的解密-重加密路径）。
+ * （username/password/url/remark，应走 updatePassword 的解密-重加密路径）。
  */
-type MetadataUpdate = Partial<
-  Pick<PasswordEntry, 'favorite' | 'favoriteUsedAt' | 'lastUsedAt' | 'updateTime' | 'tag' | 'order'>
->;
+export type MetadataUpdate = Partial<Pick<PasswordEntry, (typeof METADATA_FIELDS)[number]>>;
+
+/**
+ * 基于内容校验两次 PASSWORDS 全量数据是否「仅元数据」差异（纯函数，跨上下文复用）
+ *
+ * SW 侧与元数据 flush 打标互为双重保险；面板侧用于 storage.onChanged 时
+ * 就地修补列表、跳过全量解密重载。逐条对比 oldValue/newValue：长度与 id
+ * 序列对齐（捕获增删），除白名单字段外无任何差异（捕获敏感字段编辑）才返回
+ * true，确保误判场景回退全量失效/重载，不会把真实数据变更当作元数据 patch。
+ *
+ * @param oldValue 变更前全量条目
+ * @param newValue 变更后全量条目
+ * @returns true 表示确认为仅元数据变更
+ */
+export function isMetadataOnlyChange(oldValue: unknown, newValue: unknown): boolean {
+  if (!Array.isArray(oldValue) || !Array.isArray(newValue) || oldValue.length !== newValue.length) {
+    return false;
+  }
+  for (let i = 0; i < newValue.length; i++) {
+    const oldEntry = oldValue[i] as Record<string, unknown> | undefined;
+    const newEntry = newValue[i] as Record<string, unknown> | undefined;
+    if (!oldEntry || !newEntry || oldEntry.id !== newEntry.id) return false;
+    const keys = new Set([...Object.keys(oldEntry), ...Object.keys(newEntry)]);
+    for (const key of keys) {
+      if (oldEntry[key] !== newEntry[key] && !(METADATA_FIELDS as readonly string[]).includes(key)) return false;
+    }
+  }
+  return true;
+}
 
 // ── 元数据批量写入（防抖） ──
 
@@ -260,7 +298,9 @@ async function flushMetadataUpdates(): Promise<void> {
     for (const [id, updates] of batch) {
       const index = passwords.findIndex(p => p.id === id);
       if (index === -1) continue;
-      passwords[index] = { ...passwords[index], ...updates, updateTime: Date.now() } as
+      // updateTime 优先尊重调用方显式传入：收藏/取消收藏传入原值即保持不变，
+      // 填充类更新（lastUsedAt）未传时默认 Date.now()
+      passwords[index] = { ...passwords[index], ...updates, updateTime: updates.updateTime ?? Date.now() } as
         | PasswordEntry
         | EncryptedPasswordEntry;
       modified = true;

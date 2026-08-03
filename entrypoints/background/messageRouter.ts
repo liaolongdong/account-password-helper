@@ -21,6 +21,7 @@ import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveH
 import { handleQuickFill } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
+import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { isFrameFillable } from '@/utils/frameFill';
 
 /**
@@ -294,8 +295,8 @@ export function setupMessageRouter(): void {
         }
         // 运行时白名单守卫：跨上下文消息仅有编译期类型约束，需在边界过滤非
         // 元数据字段，防止误传敏感字段被 { ...current, ...updates } 合并进密文
-        // 条目落盘，破坏 at-rest 始终密文不变量（与 passwordCrud.MetadataUpdate 字段集对齐）
-        const ALLOWED_METADATA_FIELDS = ['favorite', 'favoriteUsedAt', 'lastUsedAt', 'updateTime', 'tag', 'order'];
+        // 条目落盘，破坏 at-rest 始终密文不变量（派生自 passwordCrud 单一事实源）
+        const ALLOWED_METADATA_FIELDS: readonly string[] = METADATA_FIELDS;
         const metaId = message.data?.id;
         const metaUpdates = message.data?.updates;
         if (
@@ -306,11 +307,19 @@ export function setupMessageRouter(): void {
           sendResponse({ success: false, error: '非法的元数据更新载荷' });
           break;
         }
-        // 在 SW 上下文执行防抖批量写入：侧边栏填充后立即隐藏面板，
+        // 在 SW 上下文执行防抖批量写入：侧边栏填充/收藏后立即隐藏面板，
         // 页面上下文的防抖定时器会随卸载被销毁，委托 SW 确保持久化不丢失
         // （与 FILL_BY_ID / 一键填充的 lastUsedAt 更新路径一致）
+        // null 约定为字段删除：跨上下文消息无法传递 undefined，发送方（如取消
+        // 收藏的 favoriteUsedAt）传 null，此处转换为 undefined 使落盘时删除该键
+        const normalizedUpdates: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(metaUpdates)) {
+          normalizedUpdates[key] = value === null ? undefined : value;
+        }
         void _getCrudModule()
-          .then(({ updatePasswordInSession }) => updatePasswordInSession(metaId, metaUpdates))
+          .then(({ updatePasswordInSession }) =>
+            updatePasswordInSession(metaId, normalizedUpdates as Parameters<typeof updatePasswordInSession>[1]),
+          )
           .catch(error => logger.error('Background: UPDATE_PASSWORD_METADATA 更新失败:', error));
         sendResponse({ success: true });
         break;

@@ -347,7 +347,9 @@ export function useSidepanelData() {
       void triggerBackgroundCacheRefresh();
     } catch (error) {
       logger.error('加载密码列表失败:', error);
-      ElMessage.error(t('message.loadListFailed'));
+      // 静默刷新本意为「无感」：失败时仅记日志不弹 toast，避免与并发的
+      // 非静默加载重叠时误报「加载失败」（列表随后会正常加载出来）
+      if (!silent) ElMessage.error(t('message.loadListFailed'));
     } finally {
       // 兜底确保 loading 状态清除（异常路径安全网）
       loading.value = false;
@@ -468,9 +470,53 @@ export function useSidepanelData() {
       }
       logger.debug('SidePanel: 检测到密码数据变动，重新加载');
       if (isAuthenticated.value) {
-        // 静默刷新：外部变更（自动保存/SW 延迟落盘元数据等）不置 loading，
-        // 避免已展示的列表被骨架屏替换造成闪烁
-        void loadPasswords(false, true);
+        // 仅元数据变更（使用痕迹落盘等）：复用 SW 侧同一判定 + 白名单就地修补，
+        // 零解密零整表替换（Windows Web Crypto 较慢，数百条全量 AES-GCM 解密
+        // 开销明显）；未命中（真实增删改）或修补异常时回退静默全量重载
+        const change = changes['account_passwords'];
+        void (async () => {
+          try {
+            const crud = await getPasswordCrudModule();
+            if (crud.isMetadataOnlyChange(change.oldValue, change.newValue)) {
+              applyMetadataOnlyPatch(crud.METADATA_FIELDS, change.newValue);
+              logger.debug('SidePanel: 元数据变更命中，已就地修补列表');
+              return;
+            }
+          } catch (error) {
+            logger.error('SidePanel: 元数据就地修补失败，回退静默重载:', error);
+          }
+          // 静默刷新：外部变更（自动保存等）不置 loading，避免已展示的列表被骨架屏替换造成闪烁
+          void loadPasswords(false, true);
+        })();
+      }
+    }
+  };
+
+  /**
+   * 仅元数据变更的就地修补（与 SW 侧 applyMetadataOnlyUpdate 语义对齐）
+   *
+   * 按键存在性同步白名单字段：存在的拷入新值，缺失的（如取消收藏后
+   * at-rest 删除的 favoriteUsedAt 键）从列表条目中删除，避免 UI 与
+   * storage 持续偏离。仅改条目字段不替换数组引用，Vue 层无闪烁。
+   *
+   * @param metadataFields 元数据白名单（派生自 passwordCrud 单一事实源）
+   * @param newEntries 本次写入后的 at-rest 全量条目（非敏感字段明文可读）
+   */
+  const applyMetadataOnlyPatch = (metadataFields: readonly string[], newEntries: unknown): void => {
+    if (!Array.isArray(newEntries)) return;
+    const byId = new Map(passwords.value.map(p => [p.id, p]));
+    for (const raw of newEntries) {
+      const entry = raw as Record<string, unknown> | null;
+      if (!entry || typeof entry.id !== 'string') continue;
+      const cached = byId.get(entry.id);
+      if (!cached) continue;
+      const target = cached as unknown as Record<string, unknown>;
+      for (const field of metadataFields) {
+        if (field in entry) {
+          target[field] = entry[field];
+        } else {
+          delete target[field];
+        }
       }
     }
   };

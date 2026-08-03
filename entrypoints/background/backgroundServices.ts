@@ -638,7 +638,14 @@ export function setupBackgroundServices(): void {
       if (hasRelevantChange) {
         logger.debug('Background: 检测到存储变化，处理缓存失效');
 
-        if (passwordsChange) {
+        // 复合事件：Chrome 会把短时间内多次 set 合并为单个 onChanged 事件派发，
+        // PASSWORDS 与 SIDEPANEL_SORT_CONFIG 同批到达时（排序切换与元数据 flush/
+        // 自动保存落盘重叠），禁止走元数据原地修补路径——修补会沿用尚未重置的
+        // _cachedSortConfig 重持久化快照，导致快照/内联下拉/一键填充停留旧排序；
+        // 回退全量失效 + 回温，回温重读新排序配置并按新排序重建快照
+        const sortConfigAlsoChanged = STORAGE_KEYS.SIDEPANEL_SORT_CONFIG in changes;
+
+        if (passwordsChange && !sortConfigAlsoChanged) {
           // 元数据 flush 识别：使用痕迹落盘（lastUsedAt/favoriteUsedAt 防抖批量写）
           // 仅改非敏感元数据，命中时原地修补内存缓存与快照（零全量解密、
           // 快照无缺失时刻），避免内联/侧边栏填充后重开侧边栏白屏变长。
@@ -661,6 +668,11 @@ export function setupBackgroundServices(): void {
             invalidatePasswordCache();
             void warmPasswordCache();
           })();
+        } else if (passwordsChange) {
+          // PASSWORDS + SIDEPANEL_SORT_CONFIG 复合事件：全量失效（重置 _cachedSortConfig）
+          // + 回温重读新排序并重建快照，不保留旧快照（内嵌排序已陈旧）
+          invalidatePasswordCache();
+          void warmPasswordCache();
         } else {
           // 纯排序配置变更：密码数据未变，覆盖式重建快照（读新 sortConfig）
           // 避免全量解密回温；同事件内伴随会话键变更时不保留重建（锁定/清除
