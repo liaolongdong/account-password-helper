@@ -202,7 +202,7 @@ const {
 } = useSidepanelData();
 
 const { fillPassword, handleFillAndLogin, fillTotp, copyTotp, handleEditPassword, copyUsername, copyPassword } =
-  useSidepanelFill(passwords, runLocalOperation);
+  useSidepanelFill(passwords);
 
 /** 设置弹窗 DOM 引用（本地声明以确保 vue-tsc 可追踪模板引用） */
 const settingsPanelEl = ref<HTMLElement | null>(null);

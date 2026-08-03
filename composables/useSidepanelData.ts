@@ -302,10 +302,12 @@ export function useSidepanelData() {
    * - 并行读取排序配置和密码数据，减少串行 IPC 延迟
    *
    * @param skipSessionCheck 是否跳过会话有效性检查（默认 false）
+   * @param silent 静默刷新：不置 loading，避免外部 storage 变更（如 SW 延迟落盘的
+   *   lastUsedAt 元数据）触发全量重载时列表被骨架屏/spinner 整体替换造成闪烁
    */
-  const loadPasswords = async (skipSessionCheck = false) => {
+  const loadPasswords = async (skipSessionCheck = false, silent = false) => {
     try {
-      loading.value = true;
+      if (!silent) loading.value = true;
 
       if (!skipSessionCheck) {
         // 检查会话是否有效（延迟加载 sessionManager-storage）
@@ -466,7 +468,9 @@ export function useSidepanelData() {
       }
       logger.debug('SidePanel: 检测到密码数据变动，重新加载');
       if (isAuthenticated.value) {
-        void loadPasswords();
+        // 静默刷新：外部变更（自动保存/SW 延迟落盘元数据等）不置 loading，
+        // 避免已展示的列表被骨架屏替换造成闪烁
+        void loadPasswords(false, true);
       }
     }
   };

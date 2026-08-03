@@ -286,6 +286,36 @@ export function setupMessageRouter(): void {
         break;
       }
 
+      case MessageType.UPDATE_PASSWORD_METADATA: {
+        // 仅允许扩展内部页面（sidepanel/options）：防止内容脚本越权改条目元数据
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
+        // 运行时白名单守卫：跨上下文消息仅有编译期类型约束，需在边界过滤非
+        // 元数据字段，防止误传敏感字段被 { ...current, ...updates } 合并进密文
+        // 条目落盘，破坏 at-rest 始终密文不变量（与 passwordCrud.MetadataUpdate 字段集对齐）
+        const ALLOWED_METADATA_FIELDS = ['favorite', 'favoriteUsedAt', 'lastUsedAt', 'updateTime', 'tag', 'order'];
+        const metaId = message.data?.id;
+        const metaUpdates = message.data?.updates;
+        if (
+          typeof metaId !== 'string' ||
+          !metaUpdates ||
+          Object.keys(metaUpdates).some(key => !ALLOWED_METADATA_FIELDS.includes(key))
+        ) {
+          sendResponse({ success: false, error: '非法的元数据更新载荷' });
+          break;
+        }
+        // 在 SW 上下文执行防抖批量写入：侧边栏填充后立即隐藏面板，
+        // 页面上下文的防抖定时器会随卸载被销毁，委托 SW 确保持久化不丢失
+        // （与 FILL_BY_ID / 一键填充的 lastUsedAt 更新路径一致）
+        void _getCrudModule()
+          .then(({ updatePasswordInSession }) => updatePasswordInSession(metaId, metaUpdates))
+          .catch(error => logger.error('Background: UPDATE_PASSWORD_METADATA 更新失败:', error));
+        sendResponse({ success: true });
+        break;
+      }
+
       case MessageType.INVALIDATE_PASSWORD_CACHE: {
         // 使用 async IIFE 使动态 import + 异步 clearSession 在 switch-case 内正确执行
         void (async () => {

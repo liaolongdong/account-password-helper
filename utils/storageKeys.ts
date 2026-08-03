@@ -58,4 +58,12 @@ export const SESSION_MEMORY_KEYS = {
    * 仅内存（浏览器关闭即清）、TRUSTED_CONTEXTS 访问（内容脚本不可读）。
    */
   PASSWORD_CACHE_SNAPSHOT: 'password_cache_snapshot',
+  /**
+   * 元数据防抖 flush 打标时间戳（epoch 毫秒）
+   *
+   * flushMetadataUpdates 写入 account_passwords 前设置，供 SW 的 storage 变更监听
+   * 识别「仅元数据变更」：命中时原地修补内存缓存与快照（零全量解密、快照无缺失），
+   * 避免使用痕迹落盘击穿侧边栏快照直读快路径。短 TTL 消费后即移除。
+   */
+  METADATA_FLUSH_AT: 'metadata_flush_at',
 };

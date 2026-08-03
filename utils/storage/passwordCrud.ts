@@ -1,6 +1,6 @@
 import type { PasswordEntry, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { generateId } from '@/utils/generateId';
 import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
@@ -235,6 +235,9 @@ const _metadataFlushResolvers: Array<() => void> = [];
 /** 防抖延迟（毫秒）：收集窗口内的多次更新合并为单次 storage 写入 */
 const METADATA_FLUSH_DELAY_MS = 1500;
 
+/** 元数据 flush 打标有效期（毫秒）：SW 监听器据此识别「仅元数据变更」，超期视为无效 */
+export const METADATA_FLUSH_MARK_TTL_MS = 3000;
+
 /**
  * 将队列中所有待更新的元数据一次性写入 storage
  *
@@ -264,7 +267,17 @@ async function flushMetadataUpdates(): Promise<void> {
     }
 
     if (modified) {
-      await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: passwords });
+      // 先打标再写数据：SW 的 storage.onChanged 据此识别「仅元数据变更」，
+      // 原地修补内存缓存与快照而非全量失效（避免使用痕迹落盘击穿侧边栏
+      // 快照直读快路径导致重开白屏变长）；写入失败/中断时清除残留标记，
+      // 防止 TTL 窗口内的真实数据变更被误判为元数据类而跳过全量失效
+      try {
+        await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.METADATA_FLUSH_AT]: Date.now() });
+        await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: passwords });
+      } catch (error) {
+        void chrome.storage.session.remove(SESSION_MEMORY_KEYS.METADATA_FLUSH_AT).catch(() => {});
+        throw error;
+      }
     }
   } catch (error) {
     logger.error('批量更新元数据失败:', error);

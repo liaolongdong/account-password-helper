@@ -2,7 +2,7 @@ import { type PasswordCache, type PasswordEntry, type MatchingAccountsResponse }
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { isSessionValid, isSessionActiveSync, getSessionDataKey } from '@/utils/sessionManager-storage';
-import { getAllPasswords } from '@/utils/storage/passwordCrud';
+import { getAllPasswords, METADATA_FLUSH_MARK_TTL_MS } from '@/utils/storage/passwordCrud';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { fetchFaviconDataUrl } from '@/utils/favicon';
@@ -94,6 +94,124 @@ function clearCacheSnapshot(): void {
 }
 
 /**
+ * 以失效前捕获的内存明文重建快照并覆盖写入（替代「先删后建」）
+ *
+ * 直接复用失效前的明文缓存做单次 AES-GCM 加密 + session.set 覆盖，
+ * 跳过全量解密且快照无缺失时刻；无可用明文（缓存本就缺失）时降级为删除旧快照。
+ * 排序配置始终从 storage 读新值（失效往往正是配置变更触发，旧缓存已陈旧）。
+ * epoch 守卫沿用 persistCacheSnapshot 内部机制：重建期间再次失效则丢弃写入。
+ *
+ * 注意：仅适用于密码数据未变的路径（如排序配置变更）；数据变更场景的
+ * 内存缓存已陈旧，必须走删除 + 回温，禁止用本函数覆盖写入旧数据。
+ *
+ * @param oldCache 失效前捕获的密码缓存（可为 null）
+ */
+async function rebuildSnapshotFromCaptured(oldCache: PasswordCache | null): Promise<void> {
+  if (!oldCache || !oldCache.isAuthenticated) {
+    clearCacheSnapshot();
+    return;
+  }
+  const sortConfig = await getSidepanelSortConfig().catch(() => null);
+  await persistCacheSnapshot(oldCache, sortConfig);
+}
+
+/**
+ * 元数据类 PASSWORDS 变更的原地修补（方案 A）
+ *
+ * 使用痕迹落盘（lastUsedAt/favoriteUsedAt 等防抖批量写）只改非敏感元数据，
+ * 无需走「全量失效→清快照→全量解密回温」重链：SW 内存缓存与快照本就持有明文，
+ * 直接 patch 对应条目字段后用内存明文重加密快照覆盖写入，全程无快照缺失时刻、
+ * 零全量解密，消除内联/侧边栏填充后重开侧边栏白屏变长问题。
+ *
+ * @param changedEntries 本次写入后的全量条目（非敏感元数据字段为明文可读）
+ * @returns true 表示修补成功（缓存与快照已同步）；false 表示内存缓存缺失，
+ *   调用方需回退到常规失效回温路径
+ */
+export async function applyMetadataOnlyUpdate(changedEntries: unknown): Promise<boolean> {
+  if (!passwordCache || !passwordCache.isAuthenticated || !Array.isArray(changedEntries)) {
+    return false;
+  }
+
+  // 仅同步非敏感元数据字段；敏感字段在 at-rest 条目中为密文，绝不能拷入明文缓存
+  const METADATA_FIELDS = ['favorite', 'favoriteUsedAt', 'lastUsedAt', 'updateTime', 'tag', 'order'] as const;
+  const changedById = new Map<string, Partial<PasswordEntry>>();
+  for (const entry of changedEntries as Array<{ id?: string }>) {
+    if (!entry?.id) continue;
+    const patch: Partial<PasswordEntry> = {};
+    for (const field of METADATA_FIELDS) {
+      const value = (entry as Record<string, unknown>)[field];
+      if (value !== undefined) {
+        (patch as Record<string, unknown>)[field] = value;
+      }
+    }
+    changedById.set(entry.id, patch);
+  }
+  for (const cached of passwordCache.passwords) {
+    const patch = changedById.get(cached.id);
+    if (patch) Object.assign(cached, patch);
+  }
+
+  // 用修补后的内存明文重加密快照覆盖写入（epoch 守卫由 persistCacheSnapshot 内部保障）；
+  // 排序配置缓存缺失时（SW 冷启动边缘）从 storage 读新值，避免快照内嵌陈旧/空配置
+  const sortConfig =
+    _cachedSortConfig !== undefined ? _cachedSortConfig : await getSidepanelSortConfig().catch(() => null);
+  await persistCacheSnapshot(passwordCache, sortConfig);
+  return true;
+}
+
+/**
+ * 消费元数据 flush 打标（storage.session，短 TTL）
+ *
+ * flushMetadataUpdates 写入 account_passwords 前打标，本函数在 storage.onChanged
+ * 中消费：命中（未超期）即移除并返回 true，调用方据此走原地修补路径而非全量失效。
+ * 超期未消费的残留标记视为无效（防止误判后续真实数据变更为元数据类）。
+ *
+ * @returns true 表示本次 PASSWORDS 变更为元数据防抖 flush 所致
+ */
+export async function consumeMetadataFlushMarker(): Promise<boolean> {
+  try {
+    const result = await chrome.storage.session.get(SESSION_MEMORY_KEYS.METADATA_FLUSH_AT);
+    const markedAt = result[SESSION_MEMORY_KEYS.METADATA_FLUSH_AT] as number | undefined;
+    if (!markedAt || Date.now() - markedAt > METADATA_FLUSH_MARK_TTL_MS) return false;
+    void chrome.storage.session.remove(SESSION_MEMORY_KEYS.METADATA_FLUSH_AT).catch(() => {});
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** 允许原地修补的非敏感元数据字段（与 flushMetadataUpdates 可写字段集一致） */
+const METADATA_ONLY_FIELDS = new Set(['favorite', 'favoriteUsedAt', 'lastUsedAt', 'updateTime', 'tag', 'order']);
+
+/**
+ * 基于内容校验本次 PASSWORDS 变更是否「仅元数据」（与打标互为双重保险）
+ *
+ * 打标只能证明「有过 flush」，无法证明「本次变更仅元数据」（标记残留/
+ * 双消费竞态场景）。本函数逐条对比 oldValue/newValue：长度与 id 序列对齐
+ * （捕获增删），除白名单字段外无任何差异（捕获敏感字段编辑）才返回 true，
+ * 确保误判场景回退全量失效，不会把真实数据变更当作元数据 patch 掉。
+ *
+ * @param oldValue 变更前全量条目
+ * @param newValue 变更后全量条目
+ * @returns true 表示确认为仅元数据变更
+ */
+export function isMetadataOnlyChange(oldValue: unknown, newValue: unknown): boolean {
+  if (!Array.isArray(oldValue) || !Array.isArray(newValue) || oldValue.length !== newValue.length) {
+    return false;
+  }
+  for (let i = 0; i < newValue.length; i++) {
+    const oldEntry = oldValue[i] as Record<string, unknown> | undefined;
+    const newEntry = newValue[i] as Record<string, unknown> | undefined;
+    if (!oldEntry || !newEntry || oldEntry.id !== newEntry.id) return false;
+    const keys = new Set([...Object.keys(oldEntry), ...Object.keys(newEntry)]);
+    for (const key of keys) {
+      if (oldEntry[key] !== newEntry[key] && !METADATA_ONLY_FIELDS.has(key)) return false;
+    }
+  }
+  return true;
+}
+
+/**
  * 获取缓存有效期（毫秒）
  * 与主密码会话有效期保持一致
  * 结果在 SW 生命周期内缓存，配置变更时随 invalidatePasswordCache 一起重置
@@ -157,10 +275,16 @@ export function updatePasswordCache(passwords: PasswordEntry[], domain: string, 
 
 /**
  * 使密码缓存失效
- * 同时重置 _cachedValidityMs 和排序配置缓存，确保配置变更后下次重新读取；
- * 清除 storage.session 中的加密快照，防止侧边栏读到过期数据
+ * 同时重置 _cachedValidityMs 和排序配置缓存，确保配置变更后下次重新读取。
+ *
+ * 快照处理策略（keepSnapshotForRebuild）：
+ * - false（默认，锁定/会话清除等安全路径）：立即删除快照，fail-locked；
+ * - true（数据/排序配置变更路径）：捕获失效前的内存明文，后台覆盖式重建快照
+ *   替代「先删后建」，快照无缺失时刻，避免下一次打开侧边栏击穿直读快路径；
+ *   无明文可用时降级为删除（与旧行为一致）。
  */
-export function invalidatePasswordCache(): void {
+export function invalidatePasswordCache(keepSnapshotForRebuild = false): void {
+  const oldCache = passwordCache;
   passwordCache = null;
   // 置空进行中的预热并递增 epoch：使已启动但未完成的 getOrWarmCache
   // 不再回填过期数据，新调用方发起 fresh read（消除并发写入期的缓存陈旧窗口）
@@ -168,8 +292,14 @@ export function invalidatePasswordCache(): void {
   _cacheEpoch++;
   _cachedValidityMs = null;
   _cachedSortConfig = undefined;
-  // 同步清除 storage.session 加密快照（fire-and-forget）
-  clearCacheSnapshot();
+  if (keepSnapshotForRebuild) {
+    // 覆盖式重建（尽力而为，仅适用于密码数据未变的路径如排序配置变更）：
+    // 新快照就绪前旧快照仍可安全服务；重建失败/无明文时降级为删除，由 TTL 兜底防陈旧
+    void rebuildSnapshotFromCaptured(oldCache).catch(() => clearCacheSnapshot());
+  } else {
+    // 同步清除 storage.session 加密快照（fire-and-forget）
+    clearCacheSnapshot();
+  }
   logger.debug('Background: 密码缓存已失效');
 }
 

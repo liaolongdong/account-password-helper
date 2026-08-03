@@ -17,7 +17,13 @@ import {
 } from '@/utils/updateChecker';
 import { detectWindowsPlatform } from '@/utils/platform';
 import { getSidePanelPort } from './sidePanelManager';
-import { invalidatePasswordCache, warmPasswordCache } from './passwordCache';
+import {
+  invalidatePasswordCache,
+  warmPasswordCache,
+  applyMetadataOnlyUpdate,
+  consumeMetadataFlushMarker,
+  isMetadataOnlyChange,
+} from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
 
 /**
@@ -619,20 +625,55 @@ export function setupBackgroundServices(): void {
 
       const relevantKeys = [
         STORAGE_KEYS.PASSWORDS,
+        // 侧边栏排序配置变更需同步失效缓存：否则 SW 内存的 _cachedSortConfig 与
+        // storage.session 快照内嵌的 sortConfig 保持陈旧，侧边栏重开（快照直读路径）
+        // 与内联下拉/一键填充（sortMatchesForDomain）会应用过期的排序方式
+        STORAGE_KEYS.SIDEPANEL_SORT_CONFIG,
         SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
         SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
       ];
       const hasRelevantChange = Object.keys(changes).some(key => relevantKeys.includes(key));
+      const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
 
       if (hasRelevantChange) {
-        logger.debug('Background: 检测到存储变化，使缓存失效');
-        invalidatePasswordCache();
+        logger.debug('Background: 检测到存储变化，处理缓存失效');
+
+        if (passwordsChange) {
+          // 元数据 flush 识别：使用痕迹落盘（lastUsedAt/favoriteUsedAt 防抖批量写）
+          // 仅改非敏感元数据，命中时原地修补内存缓存与快照（零全量解密、
+          // 快照无缺失时刻），避免内联/侧边栏填充后重开侧边栏白屏变长。
+          // 双重保险：打标（证明有过 flush）+ oldValue/newValue 内容校验
+          // （证明本次变更确实仅元数据，拦截标记残留/双消费竞态误判）；
+          // 未命中或修补失败（缓存缺失）时回退全量失效 + 回温，回温把解密
+          // 成本提前到写入后空闲，会话无效时 warmPasswordCache 内部门控自动跳过
+          void (async () => {
+            const marked = await consumeMetadataFlushMarker();
+            if (marked && isMetadataOnlyChange(passwordsChange.oldValue, passwordsChange.newValue)) {
+              const patched = await applyMetadataOnlyUpdate(passwordsChange.newValue).catch(error => {
+                logger.error('Background: 元数据原地修补失败，回退全量失效:', error);
+                return false;
+              });
+              if (patched) {
+                logger.debug('Background: 元数据 flush 命中，已原地修补缓存与快照');
+                return;
+              }
+            }
+            invalidatePasswordCache();
+            void warmPasswordCache();
+          })();
+        } else {
+          // 纯排序配置变更：密码数据未变，覆盖式重建快照（读新 sortConfig）
+          // 避免全量解密回温；同事件内伴随会话键变更时不保留重建（锁定/清除
+          // 语义优先 fail-locked 删快照），其回温时机由下方会话分支自行处理
+          const hasSessionKeyChange =
+            SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY in changes || SESSION_STORAGE_KEYS.PASSWORD_EXPIRY in changes;
+          invalidatePasswordCache(STORAGE_KEYS.SIDEPANEL_SORT_CONFIG in changes && !hasSessionKeyChange);
+        }
       }
 
       // at-rest 安全网：旧版升级期并发 CRUD 写入可能把尚未迁移的明文重新写回，
       // 检测到明文残留时请求后台重跑一次密文化，尽快自愈明文再落盘窗口。
       // 稳态全密文时 some() 快速返回、无副作用；迁移写回全密文后不再触发，无循环。
-      const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
       if (passwordsChange) {
         const newPasswords = passwordsChange.newValue as { encrypted?: boolean }[] | undefined;
         if (Array.isArray(newPasswords) && newPasswords.some(e => e.encrypted !== true)) {
