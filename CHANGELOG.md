@@ -1,5 +1,25 @@
 # Changelog
 
+## [2.18.0](https://github.com/liaolongdong/account-password-helper/compare/v2.17.0...v2.18.0) (2026-08-03)
+
+
+### Features
+
+* **background:** 优化侧边栏密码缓存加载性能 ([9019f40](https://github.com/liaolongdong/account-password-helper/commit/9019f40d1d99a0f491036f63196ea5284523ed48))
+
+
+### Bug Fixes
+
+* **content:** 优化表单填充的焦点和字段检测逻辑 ([b240bd1](https://github.com/liaolongdong/account-password-helper/commit/b240bd1e20877486c8f5d5b62d0de697f66236c6))
+* **sidepanel:** 优化密码列表元数据静默刷新和就地修补逻辑 ([30c56e0](https://github.com/liaolongdong/account-password-helper/commit/30c56e03e26718bba110c9156142b69156d51dd3))
+* **sidepanel:** 使用静默刷新避免侧边栏列表闪烁 ([c7f6b8f](https://github.com/liaolongdong/account-password-helper/commit/c7f6b8f6a62ad2ab92eaeb6eaad768b6d601e9d0))
+
+
+### Performance Improvements
+
+* **sidepanel:** 优化冷启动背景数据竞速与迟到数据处理 ([284f8ae](https://github.com/liaolongdong/account-password-helper/commit/284f8aeddb8618a4563136ff10e388a5f6d8defa))
+* **utils:** 调整侧边栏资源预热逻辑及门控策略 ([284f8ae](https://github.com/liaolongdong/account-password-helper/commit/284f8aeddb8618a4563136ff10e388a5f6d8defa))
+
 ## [2.17.0](https://github.com/liaolongdong/account-password-helper/compare/v2.16.0...v2.17.0) (2026-07-30)
 
 
