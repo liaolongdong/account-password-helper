@@ -66,8 +66,10 @@ export interface SidepanelOpenMetrics {
   dataToRenderMs: number | null;
   /** 文档启动 → 首屏数据就绪（端到端总耗时） */
   totalMs: number | null;
-  /** 竞速胜出路径（bg=Background 缓存，local=本地直读，null=异常/未决出） */
-  raceWinner: 'bg' | 'local' | null;
+  /** 竞速胜出路径（bg=Background 缓存，local=本地直读，snapshot=storage.session 加密快照直读，null=异常/未决出） */
+  raceWinner: 'bg' | 'local' | 'snapshot' | null;
+  /** bg 结果是否为回退阶段迟到采纳（true 时 bgPathMs 为冷 SW 真实耗时而非 800ms 门限内胜出） */
+  bgLateAdopted: boolean;
   /** Background 路径耗时（毫秒，未完成时为 null） */
   bgPathMs: number | null;
   /** 本地直读路径耗时（毫秒，未完成时为 null） */
@@ -88,8 +90,10 @@ export interface SidepanelOpenMetrics {
 
 /** initSidepanelData 返回的初始化元信息（性能记录维度） */
 export interface SidepanelInitMeta {
-  /** 竞速胜出路径 */
-  raceWinner: 'bg' | 'local' | null;
+  /** 竞速胜出路径（bg=Background 缓存，local=本地直读，snapshot=storage.session 加密快照直读） */
+  raceWinner: 'bg' | 'local' | 'snapshot' | null;
+  /** bg 结果是否为回退阶段迟到采纳（区分「800ms 内热胜出」与「冷 SW 迟到采纳」两类样本） */
+  bgLateAdopted?: boolean;
   /** 初始化完成时会话是否有效 */
   sessionValid: boolean;
   /** Background 路径耗时（毫秒，未完成时为 null） */
@@ -246,6 +250,7 @@ export function recordSidepanelOpenMetrics(meta: SidepanelInitMeta): void {
       dataToRenderMs: measurePerf('sp:data→rendered', SP_PERF_MARKS.DATA_READY, SP_PERF_MARKS.LIST_RENDERED),
       totalMs: measurePerf('sp:doc→data-ready', 0, SP_PERF_MARKS.DATA_READY),
       raceWinner: meta.raceWinner,
+      bgLateAdopted: meta.bgLateAdopted ?? false,
       bgPathMs: meta.bgPathMs ?? null,
       localPathMs: meta.localPathMs ?? null,
       bgSwProcessMs: meta.bgSwProcessMs ?? null,

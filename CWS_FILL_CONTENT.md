@@ -97,6 +97,7 @@ Account Password Helper
 • 浮动按钮位置、透明度可调
 • 自动保存行为可开关
 • 排序方式自定义
+• Windows 冷启动优化引导（可选排除杀软扫描，侧边栏秒开）
 
 插件操作指引和演示地址：https://liaolongdong.github.io/account-password-helper/
 完全开源，代码可审计，github地址：https://github.com/liaolongdong/account-password-helper

@@ -2658,6 +2658,16 @@
             en: 'Heavily optimized. During a valid session the service worker stays alive via a 1-minute keep-alive alarm so the password cache is always in memory — the side panel loads from cache in about 20–50ms with no cold-start delay. The worker also pre-warms the cache 500ms after startup. Keep-alive runs only during valid sessions and stops automatically after expiry, so battery impact is minimal.',
           },
         },
+        {
+          q: {
+            zh: 'Windows 首次打开侧边栏较慢怎么办？',
+            en: 'Why is the first sidebar open on Windows slow?',
+          },
+          a: {
+            zh: 'Windows Defender 会在扩展文件首次加载时逐文件扫描，导致冷启动延迟增加 1-2 秒。建议将 Chrome 扩展目录加入 Defender 排除列表以跳过扫描：打开「Windows 安全中心」→「病毒和威胁防护」→「管理设置」→「排除项」→「添加排除项」→选择「文件夹」→粘贴路径 %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Extensions。加入后冷启动可从 2-3 秒降至 1 秒以内。Mac 用户无需此操作。',
+            en: 'Windows Defender scans each extension file on first load, adding 1-2 seconds to cold starts. Add the Chrome extensions folder to Defender\'s exclusion list to skip scanning: open "Windows Security" → "Virus & threat protection" → "Manage settings" → "Exclusions" → "Add an exclusion" → select "Folder" → paste %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Extensions. This cuts cold-start time from 2-3s to under 1s. Not needed on Mac.',
+          },
+        },
       ];
 
       // =================== 占位图（SVG 内嵌 dataURL） ===================

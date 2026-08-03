@@ -21,7 +21,7 @@
   "common.totp": "2FA",
   "common.success": "Success",
   "common.failed": "Failed",
-  "common.favorite": "Favorite",
+  "common.favorite": "Favorite (pinned to top)",
   "common.unfavorite": "Unfavorite",
   "common.settings": "Settings",
   "common.validityRequired": "Please select a validity period",

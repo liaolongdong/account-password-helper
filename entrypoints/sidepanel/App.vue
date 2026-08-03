@@ -103,7 +103,7 @@ import { ref, onMounted, onUnmounted, computed, watch, nextTick, defineAsyncComp
 import { Lock } from '@element-plus/icons-vue';
 import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
-import type { PasswordEntry } from '@/utils/types';
+import type { PasswordEntry, RuntimeMessage, UpdatePasswordMetadataData } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { saveSidepanelSortConfig, getFavoriteLimit, getFloatingButtonConfig } from '@/utils/storage/configManager';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
@@ -165,19 +165,8 @@ const SidepanelAuthView = defineAsyncComponent({
 
 // ==================== 延迟加载模块（用户交互时触发，避免初始加载拉入 encryption.ts） ====================
 
-/** 延迟加载的 passwordCrud 模块引用 */
-let _passwordCrudModule: typeof import('@/utils/storage/passwordCrud') | null = null;
-
 /** 延迟加载的 autoSaveManager 模块引用 */
 let _autoSaveModule: typeof import('@/utils/storage/autoSaveManager') | null = null;
-
-/** 获取 updatePasswordInSession（首次收藏/填充操作时加载） */
-const getUpdatePasswordInSession = async () => {
-  if (!_passwordCrudModule) {
-    _passwordCrudModule = await import('@/utils/storage/passwordCrud');
-  }
-  return _passwordCrudModule.updatePasswordInSession;
-};
 
 /** 获取 evictLRUFavoriteIfNeeded（首次收藏操作时加载） */
 const getEvictLRUFavoriteIfNeeded = async () => {
@@ -202,7 +191,7 @@ const {
 } = useSidepanelData();
 
 const { fillPassword, handleFillAndLogin, fillTotp, copyTotp, handleEditPassword, copyUsername, copyPassword } =
-  useSidepanelFill(passwords, runLocalOperation);
+  useSidepanelFill(passwords);
 
 /** 设置弹窗 DOM 引用（本地声明以确保 vue-tsc 可追踪模板引用） */
 const settingsPanelEl = ref<HTMLElement | null>(null);
@@ -368,20 +357,33 @@ const scrollToActiveItem = () => {
   });
 };
 
-/** 切换收藏状态（支持 LRU 淘汰：收藏数达上限时自动替换最近最少使用的收藏条目） */
+/**
+ * 切换收藏状态（支持 LRU 淘汰：收藏数达上限时自动替换最近最少使用的收藏条目）
+ *
+ * 持久化与填充路径对称：经 UPDATE_PASSWORD_METADATA 委托 SW 上下文的防抖队列落盘，
+ * 避免收藏后关闭面板时页面上下文的防抖定时器随卸载销毁导致收藏静默丢失，
+ * 并使所有元数据写入收敛到 SW 单一 read-modify-write 队列，消除跨上下文双写丢更新。
+ */
 const toggleFavorite = async (password: PasswordEntry) => {
   try {
     const newFav = !password.favorite;
     const entry = passwords.value.find(p => p.id === password.id);
 
-    // 提前获取 updateFn 引用，避免在 runLocalOperation async 闭包内 await 导致时序问题
-    const updateFn = await getUpdatePasswordInSession();
+    /** 委托 SW 持久化元数据（取消收藏的 favoriteUsedAt 传 null，由 SW 侧转换为字段删除） */
+    const persistMetadata = (updates: UpdatePasswordMetadataData['updates']) =>
+      chrome.runtime
+        .sendMessage({
+          type: MessageType.UPDATE_PASSWORD_METADATA,
+          data: { id: password.id, updates },
+        } as RuntimeMessage)
+        .catch(error => {
+          logger.error('切换收藏失败:', error);
+          ElMessage.error(t('message.operationFailed'));
+        });
 
     if (newFav) {
       // 收藏前需先处理 LRU 淘汰（需 evicted 结果用于提示），淘汰写入放在守卫内
       const evictFn = await getEvictLRUFavoriteIfNeeded();
-      // 持久化走 1.5s 防抖批量写：不阻塞点击交互；用 runLocalOperation 包裹并在其内部 await，
-      // 使本地操作守卫覆盖淘汰写入与真实写入（flush）时刻，避免触发全量重载闪烁
       void runLocalOperation(async () => {
         const evicted = await evictFn(passwords.value);
         if (evicted) {
@@ -389,13 +391,13 @@ const toggleFavorite = async (password: PasswordEntry) => {
           ElMessage.info(t('sidepanel.favoriteEvicted', { limit, username: evicted.username }));
         }
         const now = Date.now();
-        // 乐观更新：先就地更新 UI 与提示，避免受防抖写入阻塞造成的交互卡顿
+        // 乐观更新：先就地更新 UI 与提示，避免受委托写入延迟造成的交互卡顿
         if (entry) {
           entry.favorite = true;
           entry.favoriteUsedAt = now;
         }
         ElMessage.success(t('sidepanel.favorited'));
-        await updateFn(password.id, {
+        await persistMetadata({
           favorite: true,
           favoriteUsedAt: now,
           updateTime: password.updateTime,
@@ -411,15 +413,11 @@ const toggleFavorite = async (password: PasswordEntry) => {
         entry.favoriteUsedAt = undefined;
       }
       ElMessage.success(t('sidepanel.unfavorited'));
-      void runLocalOperation(async () => {
-        await updateFn(password.id, {
-          favorite: false,
-          favoriteUsedAt: undefined,
-          updateTime: password.updateTime,
-        });
-      }).catch(error => {
-        logger.error('切换收藏失败:', error);
-        ElMessage.error(t('message.operationFailed'));
+      // favoriteUsedAt 传 null：跨上下文消息无法传递 undefined，由 SW 侧转换为删除该字段落盘
+      void persistMetadata({
+        favorite: false,
+        favoriteUsedAt: null,
+        updateTime: password.updateTime,
       });
     }
   } catch (error) {

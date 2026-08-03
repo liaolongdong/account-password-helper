@@ -956,6 +956,41 @@ export class FormDetector {
   }
 
   /**
+   * 失焦当前处于编辑态的输入框
+   *
+   * 快捷键填充时用户往往正聚焦在登录输入框上：聚焦编辑态下站点脚本可能回写/
+   * 清空程序化填充的值，Chrome 原生密码下拉也会展开遮挡。填充前主动失焦可
+   * 复现"失焦后填充成功"的稳定条件（填充策略内部会重新 focus 目标字段）。
+   *
+   * @returns 是否实际执行了失焦操作
+   */
+  private blurActiveInput(): boolean {
+    const active = document.activeElement;
+    if (active instanceof HTMLInputElement) {
+      try {
+        active.blur();
+        return true;
+      } catch {
+        // 忽略 blur 异常
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 从字段列表中选取首个仍在文档中且可见的可填充字段
+   *
+   * SPA 页面在输入框聚焦/失焦时可能重渲染表单节点，使缓存引用变为已分离的
+   * 旧节点，与 resolveInlineDropdownTarget 的校验策略保持一致。
+   *
+   * @param fields - 候选字段列表
+   * @returns 可填充字段，无有效字段时返回 null
+   */
+  private findFillableField(fields: HTMLInputElement[]): HTMLInputElement | null {
+    return fields.find(input => input.isConnected && isElementVisible(input)) ?? null;
+  }
+
+  /**
    * 填充密码并返回详细结果
    * @param data - 填充数据（用户名和密码）
    * @returns 填充结果
@@ -972,6 +1007,19 @@ export class FormDetector {
     };
 
     try {
+      // 聚焦态防护：与打开内联面板一致（InlineFillDropdown），先失焦当前编辑中的
+      // 输入框——关闭 Chrome 原生密码下拉并退出站点的聚焦编辑态，避免站点脚本在
+      // 聚焦态下回写/清空非可信 input 事件填充的值（快捷键填充"聚焦不生效、失焦
+      // 才生效"的根因之一），并等待失焦触发的重渲染稳定后再重检测
+      if (this.blurActiveInput()) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+
+      // 同步重检测（与 resolveInlineDropdownTarget 一致）：输入框获焦可能触发 SPA
+      // 重渲染（浮动标签/受控组件重建），使缓存字段引用脱离文档，直接填充旧节点
+      // 会导致可见输入框保持空白
+      this.detectForms();
+
       if (this.usernameFields.length === 0 && this.passwordFields.length === 0) {
         const detected = await this.waitForFieldsDetected();
         if (!detected) {
@@ -981,11 +1029,11 @@ export class FormDetector {
         }
       }
 
-      // 填充用户名
+      // 填充用户名（仅选取仍在文档中且可见的字段，避免写入已分离的过期节点）
       if (data.username) {
-        if (this.usernameFields.length > 0) {
+        const usernameField = this.findFillableField(this.usernameFields);
+        if (usernameField) {
           result.details.usernameField.found = true;
-          const usernameField = this.usernameFields[0];
           const fillResult = await this.inputFiller.setInputValueWithStrategies(usernameField, data.username);
           result.details.usernameField.filled = fillResult.filled;
           result.details.usernameField.verified = fillResult.verified;
@@ -993,11 +1041,11 @@ export class FormDetector {
         }
       }
 
-      // 填充密码
+      // 填充密码（仅选取仍在文档中且可见的字段，避免写入已分离的过期节点）
       if (data.password) {
-        if (this.passwordFields.length > 0) {
+        const passwordField = this.findFillableField(this.passwordFields);
+        if (passwordField) {
           result.details.passwordField.found = true;
-          const passwordField = this.passwordFields[0];
           const fillResult = await this.inputFiller.setInputValueWithStrategies(passwordField, data.password);
           result.details.passwordField.filled = fillResult.filled;
           result.details.passwordField.verified = fillResult.verified;
