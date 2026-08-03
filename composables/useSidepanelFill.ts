@@ -14,16 +14,6 @@ let clipboardClearTimer: ReturnType<typeof setTimeout> | null = null;
 let copiedPasswordSnapshot: string | null = null;
 
 /**
- * 延迟加载 passwordCrud 模块（首次用户交互时触发）
- * 避免在 sidepanel 初始加载时拉入 encryption.ts 加密模块链
- */
-const getPasswordCrudModule = lazyImport(() => import('@/utils/storage/passwordCrud'));
-const getUpdatePasswordInSession = async () => {
-  const mod = await getPasswordCrudModule();
-  return mod.updatePasswordInSession;
-};
-
-/**
  * 延迟加载 totp 模块（首次填充/复制验证码时触发）
  * 静态导入会将 totp chunk 拉入侧边栏入口 modulepreload 清单，
  * 增加锁屏态（Windows 冷盘）首屏关键路径的文件冷读数量
@@ -43,13 +33,9 @@ const generateTotpCode = async (secret: string): Promise<string> => {
  * - 编辑跳转
  *
  * @param passwords 密码列表引用，用于就地更新 favoriteUsedAt
- * @param runLocalOperation 本地操作守卫，包裹 storage 写入防止 handleStorageChange 触发全量重载
  * @returns 填充与剪贴板操作方法
  */
-export function useSidepanelFill(
-  passwords?: Ref<PasswordEntry[]>,
-  runLocalOperation?: (fn: () => Promise<void>) => Promise<void>,
-) {
+export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
   /**
    * 清除剪贴板并显示通知
    *
@@ -353,24 +339,21 @@ export function useSidepanelFill(
             if (password.favorite) entry.favoriteUsedAt = now;
           }
         }
-        // 后台持久化，不阻塞填充流程（延迟加载 passwordCrud 模块）
-        // 使用 runLocalOperation 包裹，防止 storage change 触发全量 loadPasswords
-        const persistPromise = getUpdatePasswordInSession()
-          .then(fn =>
-            fn(password.id, {
-              lastUsedAt: now,
-              ...(password.favorite ? { favoriteUsedAt: now } : {}),
-            }),
-          )
+        // 后台持久化，不阻塞填充流程：委托 background SW 上下文执行防抖写入，
+        // 因为填充成功后立即隐藏面板，sidepanel 页面上下文中的防抖定时器
+        // 会随页面卸载被销毁导致 lastUsedAt 丢失（"最近使用"排序不更新）
+        chrome.runtime
+          .sendMessage({
+            type: MessageType.UPDATE_PASSWORD_METADATA,
+            data: {
+              id: password.id,
+              updates: {
+                lastUsedAt: now,
+                ...(password.favorite ? { favoriteUsedAt: now } : {}),
+              },
+            },
+          })
           .catch(error => logger.error('更新使用时间戳失败:', error));
-
-        if (runLocalOperation) {
-          void runLocalOperation(async () => {
-            await persistPromise;
-          });
-        } else {
-          void persistPromise;
-        }
         // 隐藏侧边栏（必须携带 tabId，因为 sidepanel 发出的消息 sender.tab 为 undefined）
         await chrome.runtime.sendMessage({
           type: MessageType.HIDE_SIDEPANEL,

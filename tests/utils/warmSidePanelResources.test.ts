@@ -9,8 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * - extractDynamicImportUrls：从入口 JS 文本中提取动态 import chunk 的相对路径，去重；
  * - extractStaticImportUrls：从 JS 文本中提取静态 import/export 引用的 chunk 相对路径，
  *   不命中动态 import，去重；
- * - maybeWarmSidePanelResources：常规调用仅在 Windows + 会话失效时预热，
- *   ignoreSessionGate（浏览器首启）跨平台预热，且共用 5min 节流
+ * - maybeWarmSidePanelResources：常规调用仅在 Windows 按 5min 节流预热（不区分会话状态），
+ *   ignorePlatformGate（浏览器首启）跨平台预热，共用同一 5min 节流
  *   （时间戳持久化于 storage.session，SW 重启不归零），
  *   预热范围覆盖 HTML 静态资源 + 动态 import chunk + 动态 chunk 的二级静态依赖。
  *
@@ -205,7 +205,7 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('Windows 但会话有效时跳过，不发起任何 fetch', async () => {
+  it('Windows 会话有效时仍预热（磁盘缓存逐出与会话状态无关）', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'win' });
     await chrome.storage.local.set({ session_password_expiry: Date.now() + 3_600_000 });
     setupFetchReturningHtml();
@@ -213,31 +213,31 @@ describe('maybeWarmSidePanelResources', () => {
 
     await maybeWarmSidePanelResources();
 
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
   });
 
-  it('Windows + 会话有效但 ignoreSessionGate=true（浏览器启动冷缓存）时仍预热', async () => {
-    getPlatformInfoMock.mockResolvedValue({ os: 'win' });
+  it('非 Windows + 会话有效但 ignorePlatformGate=true（浏览器启动冷缓存）时仍预热', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'mac' });
     await chrome.storage.local.set({ session_password_expiry: Date.now() + 3_600_000 });
     setupFetchReturningHtml();
     const { maybeWarmSidePanelResources } = await loadModule();
 
-    await maybeWarmSidePanelResources({ ignoreSessionGate: true });
+    await maybeWarmSidePanelResources({ ignorePlatformGate: true });
 
     expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
   });
 
-  it('非 Windows 平台但 ignoreSessionGate=true（浏览器首启冷缓存）时跨平台预热', async () => {
+  it('非 Windows 平台但 ignorePlatformGate=true（浏览器首启冷缓存）时跨平台预热', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'mac' });
     setupFetchReturningHtml();
     const { maybeWarmSidePanelResources } = await loadModule();
 
-    await maybeWarmSidePanelResources({ ignoreSessionGate: true });
+    await maybeWarmSidePanelResources({ ignorePlatformGate: true });
 
     expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
   });
 
-  it('Windows + 会话失效时预热 sidepanel.html 及其入口资源', async () => {
+  it('Windows 常规调用预热 sidepanel.html 及其入口资源', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'win' });
     await chrome.storage.local.set({ session_password_expiry: Date.now() - 1000 });
     setupFetchReturningHtml();
@@ -251,7 +251,7 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
-  it('Windows + 会话失效时预热 modulepreload 依赖 chunk', async () => {
+  it('Windows 常规调用预热 modulepreload 依赖 chunk', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'win' });
     await chrome.storage.local.set({ session_password_expiry: Date.now() - 1000 });
 
@@ -280,7 +280,7 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
-  it('Windows + 会话失效时预热入口 JS 中的动态 import chunk', async () => {
+  it('Windows 常规调用预热入口 JS 中的动态 import chunk', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'win' });
     await chrome.storage.local.set({ session_password_expiry: Date.now() - 1000 });
 
