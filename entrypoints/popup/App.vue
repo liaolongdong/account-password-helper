@@ -20,7 +20,7 @@
         size="small"
         :loading="lockLoading"
         :disabled="lockLoading"
-        :title="t('popup.lock')"
+        :title="lockBtnTitle"
         @click="lockSession"
       />
     </div>
@@ -260,6 +260,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed, onMounted } from 'vue';
 import { Lock, CircleCheckFilled, WarningFilled, UploadFilled, Position } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
@@ -268,6 +269,7 @@ import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
 import { usePopupInit } from '@/composables/usePopupInit';
+import { useIdleLockSettings } from '@/composables/useIdleLockSettings';
 import { useI18n } from '@/utils/i18n';
 
 /** 联系邮箱（常量，无需响应式） */
@@ -289,6 +291,22 @@ const {
 
 // ==================== i18n（语言切换入口已移至密码管理页「设置」菜单） ====================
 const { t } = useI18n();
+
+// ==================== 锁按钮动态提示（闲置锁定时长） ====================
+const { idleLockMinutes, loadIdleLockSettings } = useIdleLockSettings();
+
+/**
+ * 锁按钮 tooltip：启用闲置自动锁定时附带闲置时长，
+ * 将配置信息附着在用户可操作的锁定控件上；未启用时退化为静态文案
+ */
+const lockBtnTitle = computed(() =>
+  idleLockMinutes.value > 0 ? t('popup.lockWithIdle', { minutes: idleLockMinutes.value }) : t('popup.lock'),
+);
+
+// 加载闲置锁定配置（fire-and-forget，失败时保持静态文案不影响主流程）
+onMounted(() => {
+  loadIdleLockSettings();
+});
 
 // ==================== 导航操作（与 UI 交互紧密，保留在组件内） ====================
 

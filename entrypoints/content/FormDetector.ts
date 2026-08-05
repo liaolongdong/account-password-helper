@@ -978,6 +978,36 @@ export class FormDetector {
   }
 
   /**
+   * 等待 DOM 进入静默期（无新增变更持续 quietMs），上限 budgetMs
+   *
+   * 事件驱动替代固定延时：blur 可能触发 SPA 重渲染（浮动标签/受控组件重建），
+   * 重渲染落地时刻不可预测（慢机器上可能远超固定窗口），固定 sleep 会拿到
+   * 即将被替换的旧节点。稳定页面仅需 quietMs 即返回，确有重渲染时按需等待。
+   *
+   * @param quietMs - 判定静默的无变更持续时长（毫秒），默认 50
+   * @param budgetMs - 最长等待上限（毫秒），默认 300
+   */
+  private waitForDomStable(quietMs = 50, budgetMs = 300): Promise<void> {
+    return new Promise(resolve => {
+      let quietTimer: ReturnType<typeof setTimeout> | null = null;
+      const finish = (): void => {
+        observer.disconnect();
+        if (quietTimer) clearTimeout(quietTimer);
+        clearTimeout(budgetTimer);
+        resolve();
+      };
+      const observer = new MutationObserver(() => {
+        if (quietTimer) clearTimeout(quietTimer);
+        quietTimer = setTimeout(finish, quietMs);
+      });
+      const budgetTimer = setTimeout(finish, budgetMs);
+      observer.observe(document.body, { childList: true, subtree: true });
+      // 无变更则 quietMs 后即结束（稳定页面快路径）
+      quietTimer = setTimeout(finish, quietMs);
+    });
+  }
+
+  /**
    * 从字段列表中选取首个仍在文档中且可见的可填充字段
    *
    * SPA 页面在输入框聚焦/失焦时可能重渲染表单节点，使缓存引用变为已分离的
@@ -1009,10 +1039,10 @@ export class FormDetector {
     try {
       // 聚焦态防护：与打开内联面板一致（InlineFillDropdown），先失焦当前编辑中的
       // 输入框——关闭 Chrome 原生密码下拉并退出站点的聚焦编辑态，避免站点脚本在
-      // 聚焦态下回写/清空非可信 input 事件填充的值（快捷键填充"聚焦不生效、失焦
-      // 才生效"的根因之一），并等待失焦触发的重渲染稳定后再重检测
+      // 聚焦态下回写/清空非可信 input 事件填充的值（快捷键填充“聚焦不生效、失焦
+      // 才生效”的根因之一），并事件驱动等待失焦触发的重渲染落地后再重检测
       if (this.blurActiveInput()) {
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await this.waitForDomStable();
       }
 
       // 同步重检测（与 resolveInlineDropdownTarget 一致）：输入框获焦可能触发 SPA

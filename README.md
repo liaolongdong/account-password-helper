@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-v6.0-3178c6)](https://www.typescriptlang.org/)
 [![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13.7-409EFF)](https://element-plus.org/)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#许可证)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](#许可证)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-已上架-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 [![GitHub Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=GitHub%20Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
 
@@ -287,7 +287,12 @@ A：Windows Defender 会在扩展文件首次加载时逐文件扫描，导致�
 
 ## 许可证
 
-本项目采用 MIT License 开源协议。
+本项目采用 GNU GPL-3.0 开源协议（仅 v3 版本，不含“或更高版本”）。
+
+- 允许自由使用、修改与分发（含商用），但**衍生作品必须以 GPL-3.0 同等开源**，禁止闭源分发。
+- 插件名称 “Account Password Helper（账号密码管理助手）”、logo 及品牌素材为作者商标，不在协议授权范围内，详见 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。
+- 本项目打包了第三方依赖（含 Apache-2.0 协议的 jsQR），归属声明见 [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md)。
+- 本仓库已发布的历史版本仍按当时的 MIT 协议存续，GPL-3.0 自切换后的新版本起生效。
 
 ## 致谢
 
