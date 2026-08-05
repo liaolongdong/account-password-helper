@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.0.0](https://github.com/liaolongdong/account-password-helper/compare/v2.18.0...v3.0.0) (2026-08-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **license:** 开源协议由 MIT 切换为 GPL-3.0-only
+
+### Features
+
+* **popup:** 添加闲置自动锁定时长设置及锁按钮提示文案 ([621f5b5](https://github.com/liaolongdong/account-password-helper/commit/621f5b50e502f21e3be8b6a05e2fae45e1437e56))
+
+
+### Bug Fixes
+
+* **FormDetector:** 改进失焦后等待 DOM 稳定机制并同步失焦处理 ([206a8e0](https://github.com/liaolongdong/account-password-helper/commit/206a8e060d05705f95118b37e72cdd2ef9809324))
+
+
+### Miscellaneous Chores
+
+* **license:** 开源协议由 MIT 切换为 GPL-3.0-only ([bedbbf2](https://github.com/liaolongdong/account-password-helper/commit/bedbbf2ffc817882654ed3ccfb1dcae57df11862))
+
 ## [2.18.0](https://github.com/liaolongdong/account-password-helper/compare/v2.17.0...v2.18.0) (2026-08-03)
 
 ### Features

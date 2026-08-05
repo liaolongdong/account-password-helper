@@ -1,5 +1,28 @@
 # Third-Party Notices / 第三方声明
 
+## Copyright and License Statement / 版权与协议声明
+
+Account Password Helper - Chrome extension for account password management,
+auto-fill and auto-login.
+
+Copyright (C) 2024-present Better(liaolongdong)
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, **version 3 of the License only**. This program is distributed in
+the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the
+implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See
+the [LICENSE](LICENSE) file for the full GNU GPL-3.0 text.
+
+本项目为自由软件：可在 GNU 自由软件基金会发布的 GNU 通用公共许可证**第 3 版
+（仅限 v3，不含"或更高版本"）**的条款下重新分发和/或修改。本项目分发时不带任何
+明示或暗示的担保。完整协议文本见 [LICENSE](LICENSE) 文件。
+
+Third-party components bundled with this program are listed, together with
+their respective licenses, in the sections below.
+
+本项目发布产物中打包的第三方组件及其许可证见下文各节。
+
 ## Trademark Notice / 商标声明
 
 The name "Account Password Helper"（账号密码管理助手）, its logos, icons and
