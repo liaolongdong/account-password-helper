@@ -1,28 +1,3 @@
-Account Password Helper - Chrome extension for account password management,
-auto-fill and auto-login.
-Copyright (C) 2024-present Better(liaolongdong)
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, version 3 of the License.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-Trademark notice: the name "Account Password Helper", its logos and brand
-assets are trademarks of Better(liaolongdong) and are NOT licensed under
-the GNU GPL. See THIRD-PARTY-NOTICES.md for details.
-
-Third-party components bundled with this program are listed, together with
-their respective licenses, in THIRD-PARTY-NOTICES.md.
-
----
-
                     GNU GENERAL PUBLIC LICENSE
                        Version 3, 29 June 2007
 
