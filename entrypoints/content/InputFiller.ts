@@ -83,14 +83,14 @@ export class InputFiller {
         }
       });
 
-      setTimeout(() => {
-        try {
-          input.blur();
-          input.dispatchEvent(new Event('blur', { bubbles: true }));
-        } catch (_e) {
-          // blur事件失败，忽略
-        }
-      }, 100);
+      // 同步失焦：站点 blur 处理器在调用方校验窗口之前运行，回写清空会被既有
+      // 校验如实捕获；避免延迟 blur 在校验通过后清空值并抢占后续待填字段焦点
+      try {
+        input.blur();
+        input.dispatchEvent(new Event('blur', { bubbles: true }));
+      } catch (_e) {
+        // blur事件失败，忽略
+      }
     } catch (error) {
       logger.error('原生策略填充失败:', error);
       input.value = value;

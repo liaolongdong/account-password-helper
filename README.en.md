@@ -7,7 +7,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-v6.0-3178c6)](https://www.typescriptlang.org/)
 [![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13.7-409EFF)](https://element-plus.org/)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](#license)
 [![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Published-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 [![GitHub Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=GitHub%20Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
 
@@ -287,7 +287,12 @@ A: Windows Defender scans each extension file on first load, adding 1-2 seconds 
 
 ## License
 
-This project is released under the MIT License.
+This project is released under the GNU GPL-3.0 (version 3 only, not "or any later version").
+
+- Free to use, modify and distribute (including commercially), but **derivative works must be open-sourced under GPL-3.0**; closed-source redistribution is not permitted.
+- The name "Account Password Helper", its logos and brand assets are trademarks of the author and are NOT covered by the license. See [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
+- This project bundles third-party dependencies (including jsQR under Apache-2.0); attribution is provided in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
+- Previously released versions remain under the MIT license they were published with; GPL-3.0 applies from the first version after the switch.
 
 ## Acknowledgements
 
