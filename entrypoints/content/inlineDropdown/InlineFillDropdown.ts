@@ -750,6 +750,14 @@ export class InlineFillDropdown {
   private buildPanel(): void {
     if (!this.panelEl) return;
 
+    // 面板事件隔离（统一挂载于面板容器，覆盖列表项/底部按钮/锁定态行/搜索区）：
+    // Shadow DOM 只隔离样式，不隔离事件冒泡与焦点变化——面板宿主挂在 body 下，
+    // 点击泄漏到页面 document 会被弹窗「点击外部关闭」监听判定为外部交互，
+    // 焦点从面板跌落 body 亦会触发「焦点逃出容器即关闭」类弹窗逻辑。
+    // 监听器引用稳定，重复调用 buildPanel 不会产生重复绑定。
+    this.panelEl.addEventListener('mousedown', this.handlePanelMouseDown);
+    this.panelEl.addEventListener('click', this.handlePanelClick);
+
     if (this.locked) {
       this.panelEl.innerHTML = `
         <div class="aph-locked" data-action="unlock">
@@ -860,6 +868,20 @@ export class InlineFillDropdown {
       })
       .join('');
   }
+
+  /**
+   * 面板 mousedown 拦截：阻止默认行为，避免焦点从面板（搜索框）跌落至 body
+   */
+  private handlePanelMouseDown = (e: MouseEvent): void => {
+    e.preventDefault();
+  };
+
+  /**
+   * 面板 click 拦截：阻止冒泡穿透 Shadow DOM 到达页面 document
+   */
+  private handlePanelClick = (e: MouseEvent): void => {
+    e.stopPropagation();
+  };
 
   /**
    * 搜索输入处理
