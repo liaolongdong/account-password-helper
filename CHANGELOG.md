@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.0.2](https://github.com/liaolongdong/account-password-helper/compare/v3.0.1...v3.0.2) (2026-08-06)
+
+
+### Bug Fixes
+
+* **inlineDropdown:** 修复面板事件冒泡及焦点泄漏问题 ([f9d831b](https://github.com/liaolongdong/account-password-helper/commit/f9d831b39fa329aba825f283a9c2f658185111f6))
+
+## [3.0.1](https://github.com/liaolongdong/account-password-helper/compare/v3.0.0...v3.0.1) (2026-08-05)
+
+
+### Bug Fixes
+
+* **license:** LICENSE 还原为 GPL-3.0 官方全文以修复 GitHub 许可证识别 ([db03acd](https://github.com/liaolongdong/account-password-helper/commit/db03acd83a73e5ad3ef4f9d9855194da7a16bc07))
+* **license:** LICENSE 还原为 GPL-3.0 官方全文以修复 GitHub 许可证识别 ([190cdf9](https://github.com/liaolongdong/account-password-helper/commit/190cdf9d866ae7919c668243e6037be8d7f55d6f))
+
 ## [3.0.0](https://github.com/liaolongdong/account-password-helper/compare/v2.18.0...v3.0.0) (2026-08-05)
 
 
