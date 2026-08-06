@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.2](https://github.com/liaolongdong/account-password-helper/compare/v3.0.1...v3.0.2) (2026-08-06)
+
+
+### Bug Fixes
+
+* **inlineDropdown:** 修复面板事件冒泡及焦点泄漏问题 ([f9d831b](https://github.com/liaolongdong/account-password-helper/commit/f9d831b39fa329aba825f283a9c2f658185111f6))
+
 ## [3.0.1](https://github.com/liaolongdong/account-password-helper/compare/v3.0.0...v3.0.1) (2026-08-05)
 
 
