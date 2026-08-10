@@ -18,6 +18,7 @@
   "options.header.idleLock": "自动锁定设置",
   "options.header.favoriteLimit": "收藏上限设置",
   "options.header.clipboard": "剪贴板设置",
+  "options.header.securitySettings": "安全设置",
   "options.header.personalization": "偏好设置",
   "options.totalPasswords": "总共",
   "options.totalUnit": "条账号密码",

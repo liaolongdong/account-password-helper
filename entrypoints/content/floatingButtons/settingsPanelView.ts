@@ -1,5 +1,5 @@
 /**
- * 悬浮按钮设置弹窗 - 共用视图模块
+ * 悬浮按钮偏好设置弹窗 - 共用视图模块
  *
  * 共用目标：
  * 1. 悬浮按钮（content script Shadow DOM）通过 SettingsPanel.ts 使用
@@ -105,7 +105,7 @@ const WARNING_COLOR = '#E6A23C';
  */
 // const DANGER_COLOR = '#F56C6C';
 /**
- * 设置弹窗共用样式
+ * 偏好设置弹窗共用样式
  * 注入到：悬浮按钮的 Shadow DOM（由 SettingsPanel 使用）/ 侧边栏的 document head
  */
 export const settingsPanelViewStyles = `

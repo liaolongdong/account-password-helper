@@ -2375,8 +2375,8 @@
         {
           q: { zh: '如何修改主密码？', en: 'How do I change the master password?' },
           a: {
-            zh: '在密码管理页「设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据（密码列表、回收站、修改历史）会用新密钥重新加密并原子写入，中途失败不会损坏数据；已打开的页面自动采纳新会话密钥，无需重新登录。已导出的加密备份（.aph）不受影响。',
-            en: 'Click "Change master password" in the "Settings" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written atomically — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Exported encrypted backups (.aph) are unaffected.',
+            zh: '在密码管理页「安全设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据（密码列表、回收站、修改历史）会用新密钥重新加密并原子写入，中途失败不会损坏数据；已打开的页面自动采纳新会话密钥，无需重新登录。已导出的加密备份（.aph）不受影响。',
+            en: 'Click "Change master password" in the "Security Settings" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written atomically — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Exported encrypted backups (.aph) are unaffected.',
           },
         },
         {
@@ -2586,8 +2586,8 @@
         {
           q: { zh: '如何设置收藏上限？', en: 'How do I set the favorites limit?' },
           a: {
-            zh: '在密码管理页点击「设置」→「收藏上限设置」，可调整收藏条目上限（1~50 条，默认 10 条）。达到上限时新收藏自动淘汰最近最少使用（LRU）的条目，确保常用账号置顶。被淘汰的条目仅取消收藏标记，密码数据不受影响。',
-            en: 'Go to "Settings" → "Favorites Limit" on the management page (1–50, default 10). When the limit is reached, the least recently used favorite is evicted so frequent accounts stay pinned. Evicted entries only lose the star — password data is untouched.',
+            zh: '在密码管理页点击「安全设置」→「收藏上限设置」，可调整收藏条目上限（1~50 条，默认 10 条）。达到上限时新收藏自动淘汰最近最少使用（LRU）的条目，确保常用账号置顶。被淘汰的条目仅取消收藏标记，密码数据不受影响。',
+            en: 'Go to "Security Settings" → "Favorites Limit" on the management page (1–50, default 10). When the limit is reached, the least recently used favorite is evicted so frequent accounts stay pinned. Evicted entries only lose the star — password data is untouched.',
           },
         },
         {
@@ -2616,8 +2616,8 @@
             en: 'No show/hide button on password fields?',
           },
           a: {
-            zh: '悬浮按钮「设置」中默认关闭「密码可见性切换」，需手动开启。开启后插件对所有密码输入框统一注入切换按钮，输入有值时按钮自动可见。',
-            en: '"Password visibility toggle" is off by default in the floating button settings. Once enabled, a toggle is injected into every password field and becomes visible when the field has a value.',
+            zh: '悬浮按钮「偏好设置」中默认关闭「密码可见性切换」，需手动开启。开启后插件对所有密码输入框统一注入切换按钮，输入有值时按钮自动可见。',
+            en: '"Password visibility toggle" is off by default in the floating button preferences. Once enabled, a toggle is injected into every password field and becomes visible when the field has a value.',
           },
         },
         {
@@ -2626,8 +2626,8 @@
             en: 'Is the clipboard cleared after copying a password?',
           },
           a: {
-            zh: '会。复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被替换；若已失焦无法验证，则采用「尽力清除」策略。复制用户名时会自动取消清除定时器。建议在密码管理页「数据管理」→「剪贴板设置」中确认开关已启用。',
-            en: 'Yes. Per "Clipboard Settings", the clipboard is cleared after a delay (default 30s; options 10/15/30/60/120s). Before clearing, the extension verifies the content has not been replaced; if unfocused, it falls back to best-effort clearing. Copying a username cancels the timer. Confirm the switch is on under "Data Management" → "Clipboard Settings".',
+            zh: '会。复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被替换；若已失焦无法验证，则采用「尽力清除」策略。复制用户名时会自动取消清除定时器。建议在密码管理页「安全设置」→「剪贴板设置」中确认开关已启用。',
+            en: 'Yes. Per "Clipboard Settings", the clipboard is cleared after a delay (default 30s; options 10/15/30/60/120s). Before clearing, the extension verifies the content has not been replaced; if unfocused, it falls back to best-effort clearing. Copying a username cancels the timer. Confirm the switch is on under "Security Settings" → "Clipboard Settings".',
           },
         },
         {

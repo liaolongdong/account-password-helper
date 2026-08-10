@@ -208,7 +208,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - Delay options: 10/15/30/60/120 seconds, default 30 (see [ClipboardSettingDialog.vue](../components/options/ClipboardSettingDialog.vue)).
 - Before clearing, the clipboard content is verified as unchanged (Async Clipboard API preferred; best-effort clearing when unfocused).
 - Copying a username cancels the password-clear timer to avoid wiping the username.
-- Configured under "Data Management" → "Clipboard Settings" on the management page.
+- Configured under "Security Settings" → "Clipboard Settings" on the management page.
 
 ### 15. Two-Factor Authentication (TOTP)
 
@@ -261,7 +261,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 
 ### 20. Master Password Change
 
-- Entry point: "Settings" menu → "Change master password" on the manager page (see [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)).
+- Entry point: "Security Settings" menu → "Change master password" on the manager page (see [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)).
 - Flow: verify the current master password → decrypt all data (passwords + trash + history) with the old key → re-encrypt with the new key → a single **atomic** `chrome.storage.local.set()` writes ciphertext and the new session key (see [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)).
 - Safety: any failure before the write aborts with data untouched — there is no "new ciphertext + old session key" intermediate state.
 - Session self-healing: other open extension pages (side panel/popup) detect the rekey and adopt the new session key automatically — no re-login, no cleared lists (see `adoptRekeyedSession` in [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts)).

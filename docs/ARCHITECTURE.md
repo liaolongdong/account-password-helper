@@ -336,7 +336,7 @@ graph TB
 - 清除延时可配置为 10/15/30/60/120 秒，默认 30 秒（见 [ClipboardSettingDialog.vue](../components/options/ClipboardSettingDialog.vue)）。
 - 清除前验证剪贴板内容未被用户替换（优先使用 Async Clipboard API 读取验证；失焦时降级为「尽力清除」策略）。
 - 复制用户名时自动取消密码清除定时器，避免误清除用户名。
-- 配置入口位于密码管理页「数据管理」下拉菜单 →「剪贴板设置」。
+- 配置入口位于密码管理页「安全设置」下拉菜单 →「剪贴板设置」。
 
 ### 15. 两步验证（TOTP）
 
@@ -389,7 +389,7 @@ graph TB
 
 ### 20. 修改主密码
 
-- 入口：密码管理页「设置」下拉菜单 →「修改主密码」（见 [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)）。
+- 入口：密码管理页「安全设置」下拉菜单 →「修改主密码」（见 [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)）。
 - 流程：验证当前主密码 → 旧密钥解密全部数据（密码列表 + 回收站 + 修改历史）→ 新密钥重新加密 → 单次 `chrome.storage.local.set()` **原子写入**密文与新会话密钥（见 [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)）。
 - 安全保证：写入前任意步骤失败直接中断，数据保持旧密文无损；不存在「新密文 + 旧会话密钥」的中间态。
 - 会话自愈：其他已打开的扩展页面（侧边栏/Popup 等）监听到密钥更换后自动采纳新会话密钥，无需重新登录，列表不会被清空（见 [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts) 的 `adoptRekeyedSession`）。

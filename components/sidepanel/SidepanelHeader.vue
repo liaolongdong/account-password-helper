@@ -18,7 +18,7 @@ interface Emits {
   openGithub: [];
   /** 打开帮助弹窗 */
   openHelp: [];
-  /** 打开设置弹窗 */
+  /** 打开偏好设置弹窗 */
   openSettings: [];
 }
 
@@ -81,7 +81,7 @@ const { t } = useI18n();
         <button
           type="button"
           class="pill-btn"
-          :title="t('common.settings')"
+          :title="t('common.preferences')"
           @click="$emit('openSettings')"
         >
           <el-icon><Setting /></el-icon>

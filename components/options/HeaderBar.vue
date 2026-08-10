@@ -51,18 +51,19 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item
-                command="downloadTemplate"
-                :icon="Download"
-              >
-                {{ t('options.header.downloadTemplate') }}
-              </el-dropdown-item>
-              <el-dropdown-item
                 command="import"
                 :icon="Upload"
               >
                 {{ t('options.header.importData') }}
               </el-dropdown-item>
               <el-dropdown-item
+                command="downloadTemplate"
+                :icon="Document"
+              >
+                {{ t('options.header.downloadTemplate') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                divided
                 command="export"
                 :icon="Download"
               >
@@ -87,6 +88,13 @@
                 {{ t('options.header.backupImport') }}
               </el-dropdown-item>
               <el-dropdown-item
+                command="backup"
+                :icon="Message"
+              >
+                {{ t('options.header.emailBackup') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                divided
                 command="removeDuplicates"
                 :icon="Delete"
               >
@@ -98,13 +106,6 @@
               >
                 {{ t('options.header.trash') }}
               </el-dropdown-item>
-              <el-dropdown-item
-                divided
-                command="backup"
-                :icon="Message"
-              >
-                {{ t('options.header.emailBackup') }}
-              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -113,7 +114,7 @@
           @command="(cmd: string) => $emit('settingsCommand', cmd)"
         >
           <el-button :icon="Setting">
-            {{ t('common.settings') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            {{ t('options.header.securitySettings') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
@@ -131,22 +132,17 @@
                 {{ t('options.header.validity') }}
               </el-dropdown-item>
               <el-dropdown-item
-                command="autoSave"
-                :icon="FolderChecked"
-              >
-                {{ t('options.header.autoSave') }}
-              </el-dropdown-item>
-              <el-dropdown-item
                 command="idleLock"
                 :icon="Clock"
               >
                 {{ t('options.header.idleLock') }}
               </el-dropdown-item>
               <el-dropdown-item
-                command="favoriteLimit"
-                :icon="Star"
+                divided
+                command="autoSave"
+                :icon="FolderChecked"
               >
-                {{ t('options.header.favoriteLimit') }}
+                {{ t('options.header.autoSave') }}
               </el-dropdown-item>
               <el-dropdown-item
                 command="clipboard"
@@ -154,12 +150,18 @@
               >
                 {{ t('options.header.clipboard') }}
               </el-dropdown-item>
+              <el-dropdown-item
+                command="favoriteLimit"
+                :icon="Star"
+              >
+                {{ t('options.header.favoriteLimit') }}
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
       </div>
       <el-button
-        :icon="Setting"
+        :icon="Brush"
         @click="$emit('openPersonalization')"
       >
         {{ t('options.header.personalization') }}
@@ -188,6 +190,8 @@ import {
   Star,
   Aim,
   Key,
+  Document,
+  Brush,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -196,7 +200,8 @@ import { useI18n } from '@/utils/i18n';
 /**
  * Options 页面头部组件
  *
- * 包含标题、版本号、安全体检入口、数据管理/设置下拉菜单以及偏好设置按钮。
+ * 包含标题、版本号、安全体检入口、数据管理/安全设置下拉菜单以及偏好设置按钮。
+ * 「安全设置」聚焦主密码与会话安全行为，「偏好设置」聚焦外观与填充交互，两者图标区分避免混淆。
  * 语言切换已迁移至「偏好设置」面板（与主题风格同组，三入口可达）。
  */
 const props = defineProps<{
@@ -215,7 +220,7 @@ defineEmits<{
   openHealth: [];
   /** 数据管理菜单项点击 */
   dataCommand: [command: string];
-  /** 设置菜单项点击 */
+  /** 安全设置菜单项点击 */
   settingsCommand: [command: string];
   /** 打开偏好设置弹窗 */
   openPersonalization: [];

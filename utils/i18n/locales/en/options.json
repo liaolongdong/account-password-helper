@@ -18,6 +18,7 @@
   "options.header.idleLock": "Auto-Lock Settings",
   "options.header.favoriteLimit": "Favorite Limit",
   "options.header.clipboard": "Clipboard Settings",
+  "options.header.securitySettings": "Security Settings",
   "options.header.personalization": "Preferences",
   "options.totalPasswords": "Total",
   "options.totalUnit": "entries",
