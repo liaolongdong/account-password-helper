@@ -23,6 +23,7 @@ import {
   applyMetadataOnlyUpdate,
   consumeMetadataFlushMarker,
   isMetadataOnlyChange,
+  clearAllPendingTotp,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
 
@@ -529,6 +530,8 @@ export async function handleBrowserStartupRelock(): Promise<void> {
     // 但此处不依赖该异步事件时序，直接调用以确保浏览器启动重锁即时生效（防御性冗余）。
     await StorageUtils.clearSession();
     invalidatePasswordCache();
+    // 会话清除属安全边界：同步清除全部两步接力标记（不随缓存失效连带清除）
+    void clearAllPendingTotp();
     // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
     await syncSwKeepaliveAlarm();
     logger.info('Background: 已按设置在浏览器启动时清除会话，需重新输入主密码');
@@ -567,6 +570,8 @@ export async function handleIdleStateChange(newState: string): Promise<void> {
     logger.info(`Background: ${newState === 'locked' ? '系统锁定' : `闲置超过 ${minutes} 分钟`}，已清除主密码会话`);
 
     invalidatePasswordCache();
+    // 闲置/系统锁定属安全边界：同步清除全部两步接力标记
+    void clearAllPendingTotp();
     // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
     await syncSwKeepaliveAlarm();
 
@@ -730,6 +735,9 @@ export function setupBackgroundServices(): void {
         if (sessionRemoved) {
           // 会话被清除：清除 BG 的会话验证缓存，防止 isSessionValid() 返回过期的 true
           invalidateSessionCache();
+          // 会话清除安全网：一次性收口所有锁定入口（弹窗手动锁定/倒计时到期/锁定按钮），
+          // 同步清除全部两步接力标记
+          void clearAllPendingTotp();
 
           // 通知所有打开的 UI 上下文切换到未验证状态
           const port = getSidePanelPort();
@@ -811,6 +819,8 @@ export function setupBackgroundServices(): void {
           const expiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined;
           if (expiry && Date.now() >= expiry) {
             invalidatePasswordCache();
+            // 会话到期锁定属安全边界：同步清除全部两步接力标记
+            void clearAllPendingTotp();
             // 使用 markSessionInvalid() 而非 invalidateSessionCache()：
             // 时间过期场景下 storage 中的会话键仍然存在，invalidateSessionCache() 设为 null
             // 会导致 isSessionValid() 回退到 storage 检查并误判为有效；

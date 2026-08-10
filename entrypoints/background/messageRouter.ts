@@ -16,6 +16,10 @@ import {
   getOrWarmCache,
   getMatchingAccounts,
   getDecryptedEntryById,
+  getInlineTotpCode,
+  recordPendingTotpIfEligible,
+  consumePendingTotp,
+  clearPendingTotp,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { handleQuickFill } from './quickFillHandler';
@@ -153,7 +157,118 @@ async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: 
     })
     .catch(error => logger.error('Background: FILL_BY_ID 更新最近使用时间失败:', error));
 
+  // 两步接力：填充成功且条目开启了两步验证时记录待接力标记，
+  // 供同域名验证码页（GitHub 式二步登录第二页）自动呈活码胶囊；
+  // 记录失败不阻断填充结果，仅降级为不接力
+  if (result?.success && entry.totp && entry.totp.trim()) {
+    void recordPendingTotpIfEligible(tabId, entry.id);
+  }
+
   return result;
+}
+
+/**
+ * 处理 GET_INLINE_TOTP：按条目 ID 在 SW 本地计算当前 TOTP 动态码并返回给发起 frame
+ *
+ * 安全：与 FILL_BY_ID 同一道防线——isFrameFillable 门控 + 仅返回一次性动态码，
+ * TOTP 密钥不下发；跨域 iframe 无法骗取顶层站点条目的动态码。
+ *
+ * @param data GET_INLINE_TOTP 载荷（条目 ID）
+ * @param tabId 发起请求的标签页 ID
+ * @param frameId 发起请求的 frame ID
+ * @returns 动态码与到期信息，或失败信息
+ */
+async function handleGetInlineTotp(data: { id: string }, tabId: number, frameId: number | undefined) {
+  if (!(await isFrameFillable(tabId, frameId))) {
+    return { success: false, message: '当前 frame 无权获取验证码' };
+  }
+
+  const totp = await getInlineTotpCode(data.id);
+  if (!totp) {
+    return { success: false, message: '会话已锁定、账号不存在或未配置两步验证' };
+  }
+
+  return { success: true, data: totp };
+}
+
+/**
+ * 处理 FILL_TOTP_BY_ID：按条目 ID 在 SW 本地计算动态码，复用 FILL_TOTP 回填发起 frame
+ *
+ * 与侧边栏 fillTotp 的差异：动态码由 SW 计算（内容脚本拿不到密钥），
+ * 填充链路完全复用 FormDetector 既有的 FILL_TOTP 处理器（含验证码输入框重检测）。
+ *
+ * @param data FILL_TOTP_BY_ID 载荷（条目 ID）
+ * @param tabId 发起请求的标签页 ID
+ * @param frameId 发起请求的 frame ID（精确回填含验证码输入框的 frame）
+ * @returns 填充结果或失败信息
+ */
+async function handleFillTotpById(data: { id: string }, tabId: number, frameId: number | undefined) {
+  if (!(await isFrameFillable(tabId, frameId))) {
+    return { success: false, message: '当前 frame 无权填充验证码' };
+  }
+
+  const totp = await getInlineTotpCode(data.id);
+  if (!totp) {
+    return { success: false, message: '会话已锁定、账号不存在或未配置两步验证' };
+  }
+
+  // 显式定向发起 frame（与 FILL_BY_ID 一致，frameId 缺失时回退顶层）
+  return chrome.tabs.sendMessage(
+    tabId,
+    { type: MessageType.FILL_TOTP, data: { code: totp.code } },
+    { frameId: frameId ?? 0 },
+  );
+}
+
+/**
+ * 处理 GET_PENDING_TOTP：查询待接力的两步验证条目 ID
+ *
+ * 安全：以发起标签页自身 URL 的 hostname 与待接力标记精确比对（不信任内容脚本自报域名），
+ * 仅返回条目 ID；动态码仍由 GET_INLINE_TOTP / FILL_TOTP_BY_ID 的既有门控下发。
+ *
+ * @param tabId 发起查询的标签页 ID
+ * @returns 待接力条目 ID（无/失配/过期时 data 为空对象）
+ */
+async function handleGetPendingTotp(tabId: number) {
+  let hostname: string;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    hostname = tab.url ? new URL(tab.url).hostname : '';
+  } catch {
+    return { success: true, data: {} };
+  }
+  if (!hostname) return { success: true, data: {} };
+
+  const entryId = await consumePendingTotp(tabId, hostname);
+  return { success: true, data: entryId ? { entryId } : {} };
+}
+
+/**
+ * 处理 SET_PENDING_TOTP：侧边栏填充成功后记录待接力标记
+ *
+ * 侧边栏填充（FILL_PASSWORD）不经 SW 路由，故由侧边栏显式上报；
+ * SW 侧复核条目确已配置 TOTP，避免调用方误报产生无效标记。
+ *
+ * @param data 请求数据（tabId + entryId）
+ */
+async function handleSetPendingTotp(data?: { tabId?: number; entryId?: string }) {
+  const tabId = data?.tabId;
+  const entryId = data?.entryId;
+  if (!tabId || !entryId) return { success: false, message: '缺少参数' };
+  const entry = await getDecryptedEntryById(entryId);
+  if (entry?.totp && entry.totp.trim()) {
+    await recordPendingTotpIfEligible(tabId, entryId);
+  }
+  return { success: true };
+}
+
+/**
+ * 处理 CLEAR_PENDING_TOTP：清除待接力标记（验证码填充成功或用户关闭接力胶囊）
+ * @param tabId 标签页 ID
+ */
+async function handleClearPendingTotp(tabId: number) {
+  await clearPendingTotp(tabId);
+  return { success: true };
 }
 
 /**
@@ -454,6 +569,81 @@ export function setupMessageRouter(): void {
           .catch(error => {
             logger.error('Background: FILL_BY_ID 处理失败:', error);
             sendResponse({ success: false, message: '填充失败' });
+          });
+        return true;
+      }
+
+      case MessageType.GET_INLINE_TOTP: {
+        const tabId = sender.tab?.id;
+        if (!tabId) {
+          sendResponse({ success: false, message: '无法获取标签ID' });
+          break;
+        }
+        handleGetInlineTotp(message.data, tabId, sender.frameId)
+          .then(sendResponse)
+          .catch(error => {
+            logger.error('Background: GET_INLINE_TOTP 处理失败:', error);
+            sendResponse({ success: false, message: '获取验证码失败' });
+          });
+        return true;
+      }
+
+      case MessageType.FILL_TOTP_BY_ID: {
+        const tabId = sender.tab?.id;
+        if (!tabId) {
+          sendResponse({ success: false, message: '无法获取标签ID' });
+          break;
+        }
+        handleFillTotpById(message.data, tabId, sender.frameId)
+          .then(sendResponse)
+          .catch(error => {
+            logger.error('Background: FILL_TOTP_BY_ID 处理失败:', error);
+            sendResponse({ success: false, message: '填充验证码失败' });
+          });
+        return true;
+      }
+
+      case MessageType.GET_PENDING_TOTP: {
+        const tabId = sender.tab?.id;
+        if (!tabId) {
+          sendResponse({ success: false, message: '无法获取标签ID' });
+          break;
+        }
+        handleGetPendingTotp(tabId)
+          .then(sendResponse)
+          .catch(error => {
+            logger.error('Background: GET_PENDING_TOTP 处理失败:', error);
+            sendResponse({ success: true, data: {} });
+          });
+        return true;
+      }
+
+      case MessageType.CLEAR_PENDING_TOTP: {
+        const tabId = sender.tab?.id;
+        if (!tabId) {
+          sendResponse({ success: false, message: '无法获取标签ID' });
+          break;
+        }
+        handleClearPendingTotp(tabId)
+          .then(sendResponse)
+          .catch(error => {
+            logger.error('Background: CLEAR_PENDING_TOTP 处理失败:', error);
+            sendResponse({ success: true });
+          });
+        return true;
+      }
+
+      case MessageType.SET_PENDING_TOTP: {
+        // 仅允许扩展内部页面（sidepanel）：防止内容脚本伪造接力标记
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, message: '未授权的请求来源' });
+          break;
+        }
+        handleSetPendingTotp(message.data)
+          .then(sendResponse)
+          .catch(error => {
+            logger.error('Background: SET_PENDING_TOTP 处理失败:', error);
+            sendResponse({ success: true });
           });
         return true;
       }

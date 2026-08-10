@@ -5,6 +5,7 @@ import {
   FillPasswordData,
   FillResult,
   PingResponse,
+  PendingTotpData,
 } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
@@ -31,6 +32,10 @@ import {
   getInlineFillDropdown,
   destroyInlineFillDropdown,
 } from '@/entrypoints/content/inlineDropdown/InlineFillDropdown';
+import {
+  getTotpHandoffCapsule,
+  destroyTotpHandoffCapsule,
+} from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
 
 /**
  * 表单检测器
@@ -116,6 +121,8 @@ export class FormDetector {
       this.floatingButtonConfig = await StorageUtils.getFloatingButtonConfig();
       // 预置内联下拉主题（缓存于其实例），避免其在每次获焦时读取 storage
       this.inlineDropdown.setTheme(this.floatingButtonConfig.theme);
+      // 预置两步接力胶囊主题（实例创建无 DOM 副作用，Shadow 惰性构建）
+      getTotpHandoffCapsule().setTheme(this.floatingButtonConfig.theme);
     } catch (error) {
       logger.error('FormDetector: 加载配置失败:', error);
     }
@@ -158,6 +165,8 @@ export class FormDetector {
           this.passwordVisibilityToggle.setTheme(newConfig.theme);
           // 同步内联下拉主题，实现图标/面板实时换肤
           this.inlineDropdown.setTheme(newConfig.theme);
+          // 同步两步接力胶囊主题
+          getTotpHandoffCapsule().setTheme(newConfig.theme);
         }
       }
     };
@@ -353,6 +362,54 @@ export class FormDetector {
         input.offsetParent !== null
       );
     });
+
+    // 两步接力：纯验证码页查询待接力标记并锚定活码胶囊
+    this.maybeTriggerTotpHandoff();
+  }
+
+  /**
+   * 两步接力触发：纯验证码页（仅有验证码输入框、无账号/密码/手机号字段）
+   * 查询 SW 中的待接力标记，命中则锚定活码胶囊。
+   * 覆盖 GitHub 式「账密页 → 跳转 → 验证码页」两阶段登录场景。
+   */
+  private async maybeTriggerTotpHandoff(): Promise<void> {
+    if (this.verifyCodeFields.length === 0) {
+      return;
+    }
+    // 页面同时存在账号/密码/手机号字段时由既有内联面板接管，避免重复打扰；
+    // 仅统计在视口内的可见字段：视口外残留字段（如隐藏的自动填充蜜罐）
+    // 不应阻断接力（GitHub /session 等验证码页可能存在不可见的残留输入框）
+    const blockingField = [this.usernameFields, this.passwordFields, this.mobileFields]
+      .flat()
+      .find(f => f.isConnected && isElementVisible(f) && this.isInViewport(f));
+    if (blockingField) {
+      return;
+    }
+    const field = this.verifyCodeFields.find(f => f.isConnected && isElementVisible(f) && this.isInViewport(f));
+    if (!field) {
+      return;
+    }
+    try {
+      const res = await chrome.runtime.sendMessage({ type: MessageType.GET_PENDING_TOTP });
+      const entryId = (res?.data as PendingTotpData | undefined)?.entryId;
+      if (!entryId) {
+        logger.debug('两步接力：验证码页未命中待接力标记（未记录/已过期/域名失配）');
+        return;
+      }
+      getTotpHandoffCapsule().show(field, entryId);
+    } catch (error) {
+      logger.debug('FormDetector: 两步接力查询待接力标记失败（扩展上下文可能失效）:', error);
+    }
+  }
+
+  /**
+   * 判定元素是否位于当前视口内（有尺寸且与视口相交）
+   * @param el 目标元素
+   * @returns 是否在视口内
+   */
+  private isInViewport(el: HTMLElement): boolean {
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && rect.height > 0 && rect.bottom >= 0 && rect.top <= window.innerHeight;
   }
 
   /**
@@ -1268,5 +1325,6 @@ export class FormDetector {
     }
     this.passwordVisibilityToggle.destroy();
     destroyInlineFillDropdown();
+    destroyTotpHandoffCapsule();
   }
 }

@@ -23,7 +23,7 @@ import { tl } from '@/utils/i18n-lite';
 import { MessageType } from '@/utils/types';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
-import { getCachedPasswords, getOrWarmCache, sortMatchesForDomain } from './passwordCache';
+import { getCachedPasswords, getOrWarmCache, sortMatchesForDomain, recordPendingTotpIfEligible } from './passwordCache';
 
 /** 通知 ID 前缀 */
 const NOTIFICATION_ID = 'quick-fill';
@@ -220,6 +220,11 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
     }
 
     void showBadgeFeedback(true);
+    // 两步接力：条目开启了两步验证时记录待接力标记，
+    // 供同域名验证码页（GitHub 式二步登录第二页）自动呈活码胶囊；失败仅降级为不接力
+    if (entry.totp && entry.totp.trim()) {
+      void recordPendingTotpIfEligible(tabId, entry.id);
+    }
     // 多条匹配时明确告知填充了哪条、共几条匹配，可打开侧边栏切换
     if (matched.length > 1) {
       await showNotification(tl('bg.quickFill.multiMatch', { title: deriveEntryTitle(entry), count: matched.length }));

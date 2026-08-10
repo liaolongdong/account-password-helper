@@ -194,6 +194,32 @@ export enum MessageType {
    */
   FILL_BY_ID = 'FILL_BY_ID',
   /**
+   * 内联下拉：按条目 ID 获取当前 TOTP 动态码（background 本地计算，仅返回
+   * 30 秒自失效的一次性动态码与到期时间，绝不下发 TOTP 密钥本身）
+   */
+  GET_INLINE_TOTP = 'GET_INLINE_TOTP',
+  /**
+   * 内联下拉：按条目 ID 填充 TOTP 动态码（background 本地计算后经 FILL_TOTP 回填发起 frame）
+   */
+  FILL_TOTP_BY_ID = 'FILL_TOTP_BY_ID',
+  /**
+   * 两步接力：内容脚本查询待接力的两步验证条目 ID（账密填充成功后跨页面衔接验证码场景）
+   *
+   * background 校验发起标签页域名与待接力域名一致后，仅返回条目 ID，不含任何敏感信息。
+   */
+  GET_PENDING_TOTP = 'GET_PENDING_TOTP',
+  /**
+   * 两步接力：清除待接力标记（验证码填充成功或用户关闭接力胶囊时调用）
+   */
+  CLEAR_PENDING_TOTP = 'CLEAR_PENDING_TOTP',
+  /**
+   * 两步接力：侧边栏填充成功后通知 background 记录待接力标记
+   *
+   * 侧边栏填充（FILL_PASSWORD）不经 SW 路由，故由侧边栏显式上报；
+   * hostname 仍由 SW 侧 chrome.tabs.get 获取，不信任调用方自报。
+   */
+  SET_PENDING_TOTP = 'SET_PENDING_TOTP',
+  /**
    * 自动保存预检查：查询当前域名+账号的凭证状态，决定是否/如何弹出保存确认弹窗
    */
   CHECK_CREDENTIAL_STATUS = 'CHECK_CREDENTIAL_STATUS',
@@ -243,6 +269,11 @@ export type RuntimeMessage =
   | { type: MessageType.SIDEPANEL_PRELOAD }
   | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string } }
   | { type: MessageType.FILL_BY_ID; data: FillByIdData }
+  | { type: MessageType.GET_INLINE_TOTP; data: InlineTotpByIdData }
+  | { type: MessageType.FILL_TOTP_BY_ID; data: InlineTotpByIdData }
+  | { type: MessageType.GET_PENDING_TOTP }
+  | { type: MessageType.CLEAR_PENDING_TOTP }
+  | { type: MessageType.SET_PENDING_TOTP; data: SetPendingTotpData }
   | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData }
   | { type: MessageType.QUICK_FILL }
   | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean } }
@@ -401,6 +432,47 @@ export interface FillByIdData {
   id: string;
   /** 是否填充后自动触发登录 */
   autoLogin?: boolean;
+}
+
+/**
+ * 内联下拉：GET_INLINE_TOTP / FILL_TOTP_BY_ID 的请求数据
+ */
+export interface InlineTotpByIdData {
+  /** 目标条目 ID */
+  id: string;
+}
+
+/**
+ * 两步接力：GET_PENDING_TOTP 的响应数据
+ */
+export interface PendingTotpData {
+  /** 待接力条目 ID；无待接力标记、域名不匹配或已过期时为空 */
+  entryId?: string;
+}
+
+/**
+ * 两步接力：SET_PENDING_TOTP 的请求数据（侧边栏填充成功后上报）
+ */
+export interface SetPendingTotpData {
+  /** 填充目标标签页 ID（侧边栏消息无 sender.tab，须显式携带） */
+  tabId: number;
+  /** 刚填充成功的条目 ID */
+  entryId: string;
+}
+
+/**
+ * 内联下拉：GET_INLINE_TOTP 的响应数据
+ *
+ * 安全约定：仅包含一次性动态码（period 秒自失效）与到期时间戳，
+ * 绝不包含 TOTP 密钥，内容脚本据此做本地倒计时展示与复制。
+ */
+export interface InlineTotpCodeData {
+  /** 当前 TOTP 动态码（左补零到指定位数） */
+  code: string;
+  /** 动态码到期时间戳（毫秒，epoch） */
+  expiresAt: number;
+  /** 时间步长（秒，供倒计时进度计算） */
+  period: number;
 }
 
 /**

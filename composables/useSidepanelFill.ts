@@ -354,6 +354,13 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
             },
           })
           .catch(error => logger.error('更新使用时间戳失败:', error));
+        // 两步接力：条目开启了两步验证时通知 background 记录待接力标记，
+        // 后续跳转同域名纯验证码页（GitHub 式二步登录）自动锚定活码胶囊；失败仅降级为不接力
+        if (password.totp && password.totp.trim()) {
+          chrome.runtime
+            .sendMessage({ type: MessageType.SET_PENDING_TOTP, data: { tabId, entryId: password.id } })
+            .catch(error => logger.error('记录两步接力标记失败:', error));
+        }
         // 隐藏侧边栏（必须携带 tabId，因为 sidepanel 发出的消息 sender.tab 为 undefined）
         await chrome.runtime.sendMessage({
           type: MessageType.HIDE_SIDEPANEL,
