@@ -150,7 +150,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 
 ### 8. Auto Idle Lock & Lock on Browser Restart
 
-- Configure the idle period (5/10/30/60 minutes or off) under "Auto lock settings"; exceeding it clears the master password session and locks the manager (see [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)).
+- Configure the idle period (5/10/30/60 minutes or off) under "Auto lock settings"; continuous inactivity beyond it clears the master password session and locks the manager, and the system locking or screensaver activating also locks it immediately (see [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)). Idle detection is based on the chrome.idle API, counting from the last system-level user input.
 - Unlocking requires the master password again — consistent with manual lock and session expiry.
 - **Lock on browser restart**: when enabled, fully closing and reopening the browser requires the master password again (more secure); when off, you stay signed in within the validity period.
 - The popup also provides a one-click "Lock" button to clear the current session.

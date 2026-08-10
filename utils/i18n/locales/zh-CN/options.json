@@ -75,7 +75,7 @@
   "options.idleLock.min10": "10 分钟",
   "options.idleLock.min30": "30 分钟",
   "options.idleLock.min60": "60 分钟",
-  "options.idleLock.idleTip": "系统闲置超过设定时间后，将自动清除主密码会话并锁定密码管理",
+  "options.idleLock.idleTip": "连续闲置超过设定时间后，自动清除主密码会话并锁定；系统锁屏或屏保激活时也会立即锁定",
   "options.idleLock.restartLock": "浏览器重启锁定",
   "options.idleLock.restartTip": "开启后，完全关闭并重新打开浏览器时需重新输入主密码（更安全）；关闭则在有效期内自动保持登录，无需重复输入。",
   "options.idleLock.saved": "自动锁定设置已保存",

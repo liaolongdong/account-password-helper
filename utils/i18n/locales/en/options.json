@@ -75,7 +75,7 @@
   "options.idleLock.min10": "10 minutes",
   "options.idleLock.min30": "30 minutes",
   "options.idleLock.min60": "60 minutes",
-  "options.idleLock.idleTip": "After the system is idle beyond the set time, the session is cleared and the password manager is locked automatically",
+  "options.idleLock.idleTip": "After continuous inactivity beyond the set time, the session is cleared and the password manager locks automatically; the system locking or screensaver activating also locks it immediately",
   "options.idleLock.restartLock": "Lock on browser restart",
   "options.idleLock.restartTip": "When enabled, the master password is required again after fully closing and reopening the browser (more secure); when disabled, you stay signed in within the validity period.",
   "options.idleLock.saved": "Auto-lock settings saved",
