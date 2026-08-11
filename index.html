@@ -1520,7 +1520,8 @@
             <h3 data-i18n="features.f4.title">TOTP 两步验证</h3>
             <p data-i18n="features.f4.desc">
               扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC
-              6238，零联网），列表与侧边栏实时展示环形倒计时，支持一键填充 / 复制验证码。
+              6238，零联网），列表、侧边栏与内联面板实时展示活码与倒计时，支持一键填充 / 复制验证码；GitHub
+              式两步登录跳转验证码页后自动衔接活码胶囊。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-2">
@@ -1614,8 +1615,8 @@
             </div>
             <h3 data-i18n="features.f11.title">标签、收藏与智能搜索</h3>
             <p data-i18n="features.f11.desc">
-              标签多选（颜色稳定一致）、收藏置顶（上限可配 + LRU
-              淘汰）、多字段模糊搜索与排序、一键去重、批量删除，长列表管理井井有条。
+              标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 +
+              命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目，长列表管理井井有条。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-2">
@@ -2142,8 +2143,8 @@
         },
         'features.f4.title': { zh: 'TOTP 两步验证', en: 'TOTP Two-Factor Codes' },
         'features.f4.desc': {
-          zh: '扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC 6238，零联网），列表与侧边栏实时展示环形倒计时，支持一键填充 / 复制验证码。',
-          en: 'Add a secret by scanning an on-page QR code or uploading an image; codes are generated locally (RFC 6238, zero network) with a live ring countdown in the list and side panel, plus one-click fill / copy.',
+          zh: '扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC 6238，零联网），列表、侧边栏与内联面板实时展示活码与倒计时，支持一键填充 / 复制验证码；GitHub 式两步登录跳转验证码页后自动衔接活码胶囊。',
+          en: 'Add a secret by scanning an on-page QR code or uploading an image; codes are generated locally (RFC 6238, zero network) with live codes and countdowns in the list, side panel and inline panel, plus one-click fill / copy — split two-step logins auto-hand off a live-code capsule on the code page.',
         },
         'features.f5.title': { zh: '安全体检仪表盘', en: 'Security Health Dashboard' },
         'features.f5.desc': {
@@ -2162,8 +2163,8 @@
         },
         'features.f11.title': { zh: '标签、收藏与智能搜索', en: 'Tags, Favorites & Smart Search' },
         'features.f11.desc': {
-          zh: '标签多选（颜色稳定一致）、收藏置顶（上限可配 + LRU 淘汰）、多字段模糊搜索与排序、一键去重、批量删除，长列表管理井井有条。',
-          en: 'Multi-select tags with stable colors, pinned favorites (configurable limit + LRU eviction), multi-field fuzzy search and sorting, one-click dedup, and batch delete — long lists stay organized.',
+          zh: '标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 + 命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目，长列表管理井井有条。',
+          en: 'Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — long lists stay organized.',
         },
         'features.f8.title': { zh: '密码生成器双模式', en: 'Dual-Mode Password Generator' },
         'features.f8.desc': {
@@ -2254,8 +2255,8 @@
           tag: 'STEP 02',
           title: { zh: '密码列表与管理', en: 'Password list & management' },
           desc: {
-            zh: '集中查看、搜索、编辑全部账号；多字段模糊搜索 + 标签分类，效率拉满。',
-            en: 'View, search, and edit all accounts in one place; multi-field fuzzy search plus tags for maximum efficiency.',
+            zh: '集中查看、搜索、编辑全部账号；拼音智能搜索 + 命中高亮 + 标签分类，效率拉满。',
+            en: 'View, search, and edit all accounts in one place; pinyin smart search with match highlighting plus tags for maximum efficiency.',
           },
         },
         {
@@ -2290,8 +2291,8 @@
           tag: 'STEP 06',
           title: { zh: '侧边栏一键填充', en: 'One-click side panel fill' },
           desc: {
-            zh: '打开登录页，侧边栏按当前域名优先展示，点击账号即可自动填充表单。支持自动保存账号密码',
-            en: 'On login pages the side panel prioritizes the current domain; click an account to auto-fill. Auto-save supported.',
+            zh: '打开登录页，侧边栏按当前域名优先展示，点击账号即可自动填充表单；本站无账号或搜索无结果时，可一键「添加本站账号」并自动预填域名。支持自动保存账号密码',
+            en: 'On login pages the side panel prioritizes the current domain; click an account to auto-fill. No accounts for this site or no search results? One-click "Add account for this site" with the domain pre-filled. Auto-save supported.',
           },
         },
         {
@@ -2308,8 +2309,8 @@
           tag: 'STEP 08',
           title: { zh: '灵活的会话有效期', en: 'Flexible session validity' },
           desc: {
-            zh: '从 1 小时到 7 天任你选；会话过期所有敏感字段自动加密回密文，安全无忧。',
-            en: 'From 1 hour to 7 days; when the session expires, all sensitive fields are automatically re-encrypted.',
+            zh: '从 1 小时到 7 天任你选；会话剩余时间在管理页头部、侧边栏与 Popup 常驻展示，剩余 10 分钟内转警示橙、最后 1 分钟转危急红，点击即可直达续期；过期后所有敏感字段自动加密回密文，安全无忧。',
+            en: 'From 1 hour to 7 days; the remaining session time stays visible in the manager header, sidebar and popup — warning amber within the last 10 minutes and critical red within the final minute, with a click to extend. When it expires, all sensitive fields are automatically re-encrypted.',
           },
         },
         {
@@ -2375,8 +2376,8 @@
         {
           q: { zh: '如何修改主密码？', en: 'How do I change the master password?' },
           a: {
-            zh: '在密码管理页「设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据（密码列表、回收站、修改历史）会用新密钥重新加密并原子写入，中途失败不会损坏数据；已打开的页面自动采纳新会话密钥，无需重新登录。已导出的加密备份（.aph）不受影响。',
-            en: 'Click "Change master password" in the "Settings" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written atomically — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Exported encrypted backups (.aph) are unaffected.',
+            zh: '在密码管理页「安全设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据（密码列表、回收站、修改历史）会用新密钥重新加密并原子写入，中途失败不会损坏数据；已打开的页面自动采纳新会话密钥，无需重新登录。已导出的加密备份（.aph）不受影响。',
+            en: 'Click "Change master password" in the "Security Settings" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written atomically — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Exported encrypted backups (.aph) are unaffected.',
           },
         },
         {
@@ -2389,8 +2390,8 @@
         {
           q: { zh: '什么是自动闲置锁定？', en: 'What is auto idle lock?' },
           a: {
-            zh: '在密码管理页「自动锁定设置」中可配置闲置时间（5/10/30/60 分钟或不锁定）。系统检测到用户在设定时间内无操作时，自动清除会话并锁定密码管理，需重新验证主密码才能恢复访问，有效防止离开电脑时密码列表被他人查看。',
-            en: 'In "Auto lock settings" on the management page, set an idle period (5/10/30/60 minutes or off). When no activity is detected within that period, the session is cleared and the manager locks, requiring the master password again — protecting your list while you are away.',
+            zh: '在密码管理页「自动锁定设置」中可配置闲置时间（5/10/30/60 分钟或不锁定）。连续闲置超过设定时间后，自动清除会话并锁定密码管理；系统锁屏或屏保激活时也会立即锁定。需重新验证主密码才能恢复访问，有效防止离开电脑时密码列表被他人查看。',
+            en: 'In "Auto lock settings" on the management page, set an idle period (5/10/30/60 minutes or off). After continuous inactivity beyond that period, the session is cleared and the manager locks; the system locking or screensaver activating also locks it immediately. Unlocking requires the master password again — protecting your list while you are away.',
           },
         },
         {
@@ -2586,8 +2587,8 @@
         {
           q: { zh: '如何设置收藏上限？', en: 'How do I set the favorites limit?' },
           a: {
-            zh: '在密码管理页点击「设置」→「收藏上限设置」，可调整收藏条目上限（1~50 条，默认 10 条）。达到上限时新收藏自动淘汰最近最少使用（LRU）的条目，确保常用账号置顶。被淘汰的条目仅取消收藏标记，密码数据不受影响。',
-            en: 'Go to "Settings" → "Favorites Limit" on the management page (1–50, default 10). When the limit is reached, the least recently used favorite is evicted so frequent accounts stay pinned. Evicted entries only lose the star — password data is untouched.',
+            zh: '在密码管理页点击「安全设置」→「收藏上限设置」，可调整收藏条目上限（1~50 条，默认 10 条）。达到上限时新收藏自动淘汰最近最少使用（LRU）的条目，确保常用账号置顶。被淘汰的条目仅取消收藏标记，密码数据不受影响。',
+            en: 'Go to "Security Settings" → "Favorites Limit" on the management page (1–50, default 10). When the limit is reached, the least recently used favorite is evicted so frequent accounts stay pinned. Evicted entries only lose the star — password data is untouched.',
           },
         },
         {
@@ -2616,8 +2617,8 @@
             en: 'No show/hide button on password fields?',
           },
           a: {
-            zh: '悬浮按钮「设置」中默认关闭「密码可见性切换」，需手动开启。开启后插件对所有密码输入框统一注入切换按钮，输入有值时按钮自动可见。',
-            en: '"Password visibility toggle" is off by default in the floating button settings. Once enabled, a toggle is injected into every password field and becomes visible when the field has a value.',
+            zh: '悬浮按钮「偏好设置」中默认关闭「密码可见性切换」，需手动开启。开启后插件对所有密码输入框统一注入切换按钮，输入有值时按钮自动可见。',
+            en: '"Password visibility toggle" is off by default in the floating button preferences. Once enabled, a toggle is injected into every password field and becomes visible when the field has a value.',
           },
         },
         {
@@ -2626,8 +2627,8 @@
             en: 'Is the clipboard cleared after copying a password?',
           },
           a: {
-            zh: '会。复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被替换；若已失焦无法验证，则采用「尽力清除」策略。复制用户名时会自动取消清除定时器。建议在密码管理页「数据管理」→「剪贴板设置」中确认开关已启用。',
-            en: 'Yes. Per "Clipboard Settings", the clipboard is cleared after a delay (default 30s; options 10/15/30/60/120s). Before clearing, the extension verifies the content has not been replaced; if unfocused, it falls back to best-effort clearing. Copying a username cancels the timer. Confirm the switch is on under "Data Management" → "Clipboard Settings".',
+            zh: '会。复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被替换；若已失焦无法验证，则采用「尽力清除」策略。复制用户名时会自动取消清除定时器。建议在密码管理页「安全设置」→「剪贴板设置」中确认开关已启用。',
+            en: 'Yes. Per "Clipboard Settings", the clipboard is cleared after a delay (default 30s; options 10/15/30/60/120s). Before clearing, the extension verifies the content has not been replaced; if unfocused, it falls back to best-effort clearing. Copying a username cancels the timer. Confirm the switch is on under "Security Settings" → "Clipboard Settings".',
           },
         },
         {

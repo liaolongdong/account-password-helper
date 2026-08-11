@@ -38,8 +38,9 @@
         :current-version="currentVersion"
         :health-score="passwords.length ? healthReport.score : undefined"
         :health-grade="passwords.length ? healthReport.grade : undefined"
-        @add-password="openPasswordDialog"
+        @add-password="openAddDialogWithActiveTab"
         @open-health="showHealthDialog = true"
+        @open-validity="openValiditySetting"
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
         @open-personalization="openPersonalizationDialog"
@@ -50,8 +51,12 @@
         v-if="passwords.length > 0 || tableLoading"
         v-model:search-keyword="searchKeyword"
         v-model:favorite-only="favoriteOnly"
+        v-model:filter-tags="filterTags"
         :selected-count="selectedIds.length"
+        :available-tags="availableTags"
         @batch-delete="batchDelete"
+        @batch-edit-tags="showBatchTagDialog = true"
+        @batch-export-selected="batchExportSelected"
       />
 
       <!-- 展示密码列表总数和搜索结果总数 -->
@@ -76,7 +81,7 @@
       <!-- 空数据状态引导 -->
       <EmptyGuide
         v-if="passwords.length === 0 && !tableLoading"
-        @add="openPasswordDialog"
+        @add="openAddDialogWithActiveTab"
         @import="showImportDialog = true"
         @restore="showBackupImportDialog = true"
       />
@@ -87,6 +92,7 @@
         ref="passwordTableRef"
         :data="filteredPasswords"
         :loading="tableLoading"
+        :search-keyword="searchKeyword"
         :row-class-name="handleRowClassName"
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
@@ -192,6 +198,13 @@
       v-model="showChangeMasterPasswordDialog"
       @success="loadPasswords"
     />
+
+    <!-- 批量编辑标签弹窗 -->
+    <BatchTagDialog
+      v-model="showBatchTagDialog"
+      :available-tags="availableTags"
+      @save="handleBatchTagSave"
+    />
   </div>
 </template>
 
@@ -223,6 +236,7 @@ const TrashDialog = defineAsyncComponent(() => import('@/components/options/Tras
 const ChangeMasterPasswordDialog = defineAsyncComponent(
   () => import('@/components/options/ChangeMasterPasswordDialog.vue'),
 );
+const BatchTagDialog = defineAsyncComponent(() => import('@/components/options/BatchTagDialog.vue'));
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -241,6 +255,7 @@ import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
+import { normalizeToHostname } from '@/utils/domain';
 import { isDev } from '@/utils/env';
 
 /** 密码表单弹窗组件引用（用于获取内部 form ref） */
@@ -457,6 +472,7 @@ const {
   passwordFormLoading,
   tableLoading,
   favoriteOnly,
+  filterTags,
   filteredPasswords,
   currentSort,
   availableTags,
@@ -474,6 +490,8 @@ const {
   copyPassword,
   deletePassword,
   batchDelete,
+  batchEditTags,
+  batchExportSelected,
   handlePasswordsImported,
   exportPasswords,
   exportPasswordsJson,
@@ -486,6 +504,44 @@ const {
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
+
+/** 批量编辑标签弹窗可见性 */
+const showBatchTagDialog = ref(false);
+
+/**
+ * 批量编辑标签保存：委托 composable 追加/移除落盘后关闭弹窗
+ * @param tags 规整后的标签列表
+ * @param mode 'append' 追加 / 'remove' 移除
+ */
+const handleBatchTagSave = async (tags: string[], mode: 'append' | 'remove') => {
+  await batchEditTags(tags, mode);
+  showBatchTagDialog.value = false;
+};
+
+/**
+ * 打开新增弹窗并自动带入当前活动标签页的域名（P1-6）
+ *
+ * 当前活动标签页为扩展自身页面或浏览器内部页（chrome://）时无法作为站点域名，
+ * 回退选取最近访问的普通网页标签页；仍无可用标签页时以空 URL 打开（行为与旧版一致）。
+ */
+const openAddDialogWithActiveTab = async () => {
+  let prefillUrl = '';
+  try {
+    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    let candidateUrl = activeTab?.url ?? '';
+    if (!candidateUrl || candidateUrl.startsWith('chrome-extension://') || candidateUrl.startsWith('chrome://')) {
+      const tabs = await chrome.tabs.query({});
+      const webTab = tabs
+        .filter(tab => tab.url && /^https?:/.test(tab.url))
+        .sort((a, b) => ((b as any).lastAccessed ?? b.id ?? 0) - ((a as any).lastAccessed ?? a.id ?? 0))[0];
+      candidateUrl = webTab?.url ?? '';
+    }
+    prefillUrl = normalizeToHostname(candidateUrl);
+  } catch (error) {
+    logger.error('Options: 获取活动标签页域名失败:', error);
+  }
+  openPasswordDialog(prefillUrl);
+};
 
 /**
  * 密码健康报告（异步计算，含字典校验，随密码列表变化自动更新）
@@ -602,6 +658,7 @@ useRuntimeMessageHandler({
   handleSessionExpired,
   editPassword,
   openPasswordDialog,
+  openValiditySetting,
 });
 
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */

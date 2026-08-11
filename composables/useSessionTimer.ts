@@ -6,6 +6,7 @@ import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
+import { formatSessionRemaining } from '@/composables/useSessionCountdown';
 
 /**
  * 会话定时器 Composable
@@ -64,30 +65,9 @@ export function useSessionTimer(options: {
     }
   };
 
-  // 更新剩余时间显示
+  // 更新剩余时间显示（格式化逻辑复用 formatSessionRemaining，与一级界面倒计时保持一致）
   const updateRemainingTime = (expiryTime: number) => {
-    const now = Date.now();
-    const remaining = expiryTime - now;
-
-    if (remaining <= 0) {
-      sessionInfo.value.remainingTime = t('session.expired');
-      return;
-    }
-
-    const days = Math.floor(remaining / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((remaining % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((remaining % (1000 * 60)) / 1000);
-
-    if (days > 0) {
-      sessionInfo.value.remainingTime = t('session.dayHour', { days, hours });
-    } else if (hours > 0) {
-      sessionInfo.value.remainingTime = t('session.hourMinute', { hours, minutes });
-    } else if (minutes > 0) {
-      sessionInfo.value.remainingTime = t('session.minuteSecond', { minutes, seconds });
-    } else {
-      sessionInfo.value.remainingTime = t('session.second', { seconds });
-    }
+    sessionInfo.value.remainingTime = formatSessionRemaining(expiryTime);
   };
 
   // 启动会话定时器

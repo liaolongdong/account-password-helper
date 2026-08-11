@@ -210,6 +210,46 @@ export async function updatePassword(
 }
 
 /**
+ * 批量更新密码条目的非敏感元数据（单次 read-modify-write）
+ *
+ * 面向批量标签编辑等元数据批量操作：相比逐条调用 updatePassword，
+ * 仅一次全量读 + 一次全量写，避免 N 次全量读写与 N 次 onChanged 广播，
+ * 且写入原子（要么全部落盘要么全部不落盘，无中途失败的内存/磁盘分叉）。
+ * 仅支持非敏感字段（在密文条目上就地更新，无需加解密与会话密钥），
+ * 传入敏感字段立即抛错；与 updatePassword 一致，updateTime 尊重显式传入值（传原值即保持不变）。
+ *
+ * @param updates 条目 ID 与更新字段的列表；不存在的 ID 静默跳过
+ */
+export async function batchUpdatePasswordMetadata(
+  updates: Array<{ id: string; updates: Partial<PasswordEntry> }>,
+): Promise<void> {
+  if (updates.length === 0) return;
+  try {
+    for (const { updates: fields } of updates) {
+      if (updatesTouchSensitiveFields(fields)) {
+        throw new Error('batchUpdatePasswordMetadata 仅支持非敏感元数据字段');
+      }
+    }
+    const passwords = await getAllPasswordsRaw();
+    const updateMap = new Map(updates.map(item => [item.id, item.updates]));
+    let changed = false;
+    const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = passwords.map(current => {
+      const fields = updateMap.get(current.id);
+      if (!fields) return current;
+      changed = true;
+      return { ...current, ...fields, updateTime: fields.updateTime ?? Date.now() } as
+        | PasswordEntry
+        | EncryptedPasswordEntry;
+    });
+    if (!changed) return;
+    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: entriesToSave });
+  } catch (error) {
+    logger.error('批量更新密码元数据失败:', error);
+    throw error;
+  }
+}
+
+/**
  * 会话期内可更新的非敏感元数据字段（与 SENSITIVE_FIELDS 互补）——单一事实源
  *
  * 路由白名单（messageRouter ALLOWED_METADATA_FIELDS）、缓存修补字段集

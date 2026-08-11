@@ -4,13 +4,6 @@
       <BrandLogo class="logo" />
       <div class="header-title-group">
         <h3>{{ t('popup.title') }}</h3>
-        <el-tag
-          size="small"
-          type="info"
-          class="version-tag"
-        >
-          v{{ currentVersion }}
-        </el-tag>
       </div>
       <el-button
         v-if="isSessionValid"
@@ -50,6 +43,21 @@
       >
         · {{ t('popup.domainMatch', { count: domainMatchCount }) }}
       </el-text>
+      <!-- 会话剩余时间：可点击倒计时胶囊（右对齐），点击直达有效期设置续期；紧迫态转警示橙，危急态转警示红 -->
+      <button
+        v-if="sessionRemainingText"
+        type="button"
+        class="session-remaining-chip"
+        :class="{
+          'session-remaining-chip--urgent': sessionIsUrgent,
+          'session-remaining-chip--critical': sessionIsCritical,
+        }"
+        :title="t('popup.sessionRemainingTitle')"
+        @click="openValiditySetting"
+      >
+        <el-icon><Timer /></el-icon>
+        {{ sessionRemainingText }}
+      </button>
     </div>
     <div
       v-else
@@ -240,7 +248,7 @@
       </div>
     </div>
 
-    <!-- 联系方式 -->
+    <!-- 联系方式：版本号从头部标题行下沉至此，弱化右对齐展示 -->
     <div class="contact-info">
       <el-text
         type="info"
@@ -255,21 +263,31 @@
           {{ CONTACT_EMAIL }}
         </a>
       </el-text>
+      <a
+        class="popup-version"
+        :href="GITHUB_RELEASES_PAGE_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        :title="t('popup.versionLinkTitle')"
+        >v{{ currentVersion }}</a
+      >
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
-import { Lock, CircleCheckFilled, WarningFilled, UploadFilled, Position } from '@element-plus/icons-vue';
+import { computed, onMounted, watch } from 'vue';
+import { Lock, CircleCheckFilled, WarningFilled, UploadFilled, Position, Timer } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import InlineKeyIcon from '@/components/InlineKeyIcon.vue';
 import { MessageType } from '@/utils/types';
+import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 import { logger } from '@/utils/logger';
 import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
 import { usePopupInit } from '@/composables/usePopupInit';
 import { useIdleLockSettings } from '@/composables/useIdleLockSettings';
+import { useSessionCountdown } from '@/composables/useSessionCountdown';
 import { useI18n } from '@/utils/i18n';
 
 /** 联系邮箱（常量，无需响应式） */
@@ -289,7 +307,7 @@ const {
   openUpdatePage,
 } = usePopupInit();
 
-// ==================== i18n（语言切换入口已移至密码管理页「设置」菜单） ====================
+// ==================== i18n（语言切换入口已移至密码管理页「偏好设置」面板） ====================
 const { t } = useI18n();
 
 // ==================== 锁按钮动态提示（闲置锁定时长） ====================
@@ -307,6 +325,33 @@ const lockBtnTitle = computed(() =>
 onMounted(() => {
   loadIdleLockSettings();
 });
+
+// ==================== 会话剩余时间（仅会话有效时展示；popup 生命周期短，无需手动停止） ====================
+const {
+  remainingText: sessionRemainingText,
+  isUrgent: sessionIsUrgent,
+  isCritical: sessionIsCritical,
+  start: startSessionCountdown,
+} = useSessionCountdown();
+watch(
+  isSessionValid,
+  valid => {
+    if (valid) startSessionCountdown();
+  },
+  { immediate: true },
+);
+
+/**
+ * 点击倒计时胶囊：打开密码管理页并直达「有效期设置」对话框
+ * 与 options 头部徽标「点时间 = 续期」的交互心智保持一致
+ */
+const openValiditySetting = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_VALIDITY });
+  } catch (error) {
+    logger.error('打开有效期设置失败:', error);
+  }
+};
 
 // ==================== 导航操作（与 UI 交互紧密，保留在组件内） ====================
 
@@ -468,16 +513,6 @@ const handleEmailClick = (event: Event) => {
   flex-shrink: 0;
 }
 
-.version-tag {
-  flex-shrink: 0;
-  padding: 0 6px;
-  font-size: 11px;
-  line-height: 18px;
-  color: #909399;
-  cursor: default;
-  user-select: none;
-}
-
 .update-arrow {
   font-size: 12px;
   color: #909399;
@@ -489,6 +524,61 @@ const handleEmailClick = (event: Event) => {
   gap: 4px 8px;
   align-items: center;
   margin-bottom: 12px;
+}
+
+/* 会话剩余时间倒计时胶囊：右对齐的行尾仪表，换行时自然独占一行；
+   等宽数字避免逐秒跳动引起宽度抖动；点击直达有效期设置续期 */
+.session-remaining-chip {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 1px 8px;
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  color: #606266;
+  white-space: nowrap;
+  cursor: pointer;
+  background: #f4f4f5;
+  border: none;
+  border-radius: 999px;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.session-remaining-chip:hover {
+  background: #ebeef5;
+}
+
+.session-remaining-chip:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline-offset: 1px;
+}
+
+.session-remaining-chip .el-icon {
+  font-size: 12px;
+}
+
+.session-remaining-chip--urgent {
+  color: #b88230;
+  background: #fdf6ec;
+}
+
+.session-remaining-chip--urgent:hover {
+  background: #faecd8;
+}
+
+/* 危急态（≤1 分钟）：警示红，信号强度高于紧迫态 */
+.session-remaining-chip--critical {
+  color: #c45656;
+  background: #fef0f0;
+}
+
+.session-remaining-chip--critical:hover {
+  background: #fde2e2;
 }
 
 .action-list {
@@ -691,8 +781,27 @@ const handleEmailClick = (event: Event) => {
 }
 
 .contact-info {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
   padding-top: 12px;
   border-top: 1px solid #f0f0f0;
+}
+
+/* 版本号弱化展示：静态信息不争夺注意力；点击可跳转 GitHub Releases 查看最新版本与下载 */
+.popup-version {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #909399;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.popup-version:hover {
+  color: var(--aph-primary);
+  text-decoration: underline;
 }
 
 .email-link {

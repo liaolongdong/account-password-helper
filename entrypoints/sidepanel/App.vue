@@ -7,11 +7,15 @@
     <!-- 头部卡片 -->
     <div class="header-card">
       <SidepanelHeader
-        :current-version="currentVersion"
         :current-domain="currentDomain"
+        :is-authenticated="isAuthenticated"
+        :show-match-info="isAuthenticated && !!currentDomain && !isLocalDevDomain(currentDomain)"
+        :match-count="domainFilteredPasswords.length"
         @open-github="openGithub"
         @open-help="showHelpDialog = true"
         @open-settings="handleOpenSettings"
+        @open-validity="openValiditySetting"
+        @add-site-password="openOptionsAndAdd"
       />
     </div>
 
@@ -43,15 +47,18 @@
       v-else
       v-model:search-keyword="searchKeyword"
       v-model:favorite-only="favoriteOnly"
+      v-model:filter-tags="filterTags"
       :loading="loading"
       :filtered-passwords="filteredPasswords"
       :total-count="passwords.length"
       :active-index="activeIndex"
       :auto-trigger-login="autoTriggerLogin"
       :sort-prop="sidepanelSortProp"
+      :available-tags="availableTags"
       @sort-change="handleSortChange"
       @search="handleSearch"
       @add-password="openOptionsAndAdd"
+      @add-site-password="openOptionsAndAdd"
       @activate="index => (activeIndex = index)"
       @rendered="handleAuthViewRendered"
       @fill="fillPassword"
@@ -64,7 +71,7 @@
       @copy-totp="copyTotp"
     />
 
-    <!-- 底部操作 -->
+    <!-- 底部操作：匹配信息带已上移至头部域名行（信息就近原则），底部只保留主操作，为密码列表释放垂直空间 -->
     <div class="footer-card">
       <el-button
         :icon="BrandLogo"
@@ -110,6 +117,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import { parseTags } from '@/utils/tagUtils';
 import {
   markPerf,
   measurePerf,
@@ -120,6 +128,7 @@ import {
 import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
+import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
 
 /**
  * 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载）
@@ -228,20 +237,21 @@ const handleOpenSettings = async () => {
 const searchKeyword = ref('');
 /** 是否仅显示收藏条目 */
 const favoriteOnly = ref(false);
+/** 标签筛选选中集（命中任一即保留，与搜索/收藏过滤为叠加关系） */
+const filterTags = ref<string[]>([]);
 const activeIndex = ref(0);
-
-/** 当前插件版本号，直接读取 manifest 避免加载 useVersionUpdate 的 192K JS + 56K CSS 依赖 */
-const currentVersion = chrome.runtime.getManifest().version;
 
 /** 操作指引弹窗可见性 */
 const showHelpDialog = ref(false);
 
 // ==================== 排序与过滤 ====================
 
-/** 搜索 + 域名过滤 + 收藏过滤 + 排序的派生计算属性 */
-const filteredPasswords = computed(() => {
+/**
+ * 域名过滤后的条目（当前域名精确匹配 + 空 URL 始终展示）
+ * 抽离为独立 computed：标签筛选候选集与最终列表共用同一过滤结果，避免重复计算
+ */
+const domainFilteredPasswords = computed(() => {
   let result = [...passwords.value];
-
   // 域名过滤：只显示与当前域名精确匹配（完整 hostname）的条目 + URL 为空的条目
   // 复用 isExactHostMatch，与 getPasswordsByUrl / 后台 getMatchingAccounts 匹配逻辑保持一致
   // 不做子域名/主域名模糊匹配，确保 fat/uat 等多测试环境账号严格隔离
@@ -253,16 +263,33 @@ const filteredPasswords = computed(() => {
       return isExactHostMatch(domain, p.url);
     });
   }
+  return result;
+});
+
+/** 可选标签集：取自域名过滤后的条目（侧边栏只展示当前域名 + 空域名条目，标签候选同域收敛） */
+const availableTags = computed(() => {
+  const set = new Set<string>();
+  for (const p of domainFilteredPasswords.value) {
+    for (const tag of parseTags(p.tag)) {
+      set.add(tag);
+    }
+  }
+  return [...set].sort((a, b) => a.localeCompare(b));
+});
+
+/** 搜索 + 域名过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */
+const filteredPasswords = computed(() => {
+  let result = domainFilteredPasswords.value;
 
   if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase();
-    result = result.filter(
-      p =>
-        p.username.toLowerCase().includes(keyword) ||
-        p.tag.toLowerCase().includes(keyword) ||
-        p.remark.toLowerCase().includes(keyword) ||
-        p.url.toLowerCase().includes(keyword),
-    );
+    const keyword = searchKeyword.value;
+    // 智能匹配：子串（大小写不敏感）优先，拼音模块预热后自动补齐全拼/首字母命中
+    // （matchesKeyword 内部读取 pinyinMatcherReady，预热完成会触发本 computed 重算）
+    result = result.filter(p => matchesKeyword([p.username, p.tag, p.remark, p.url], keyword));
+  }
+
+  if (filterTags.value.length > 0) {
+    result = result.filter(p => parseTags(p.tag).some(tag => filterTags.value.includes(tag)));
   }
 
   if (favoriteOnly.value) {
@@ -278,9 +305,16 @@ const filteredPasswords = computed(() => {
   return result;
 });
 
-/** 收藏过滤变化时重置选中索引 */
-watch(favoriteOnly, () => {
+/** 收藏/标签过滤变化时重置选中索引（过滤条件变化后旧索引可能越界或指向其它条目） */
+watch([favoriteOnly, filterTags], () => {
   activeIndex.value = 0;
+});
+
+/** 域名切换导致候选标签集变化时，剔除已不存在的筛选标签，避免隐形空过滤 */
+watch(availableTags, tags => {
+  if (filterTags.value.some(selected => !tags.includes(selected))) {
+    filterTags.value = filterTags.value.filter(selected => tags.includes(selected));
+  }
 });
 
 // ==================== 排序切换 ====================
@@ -434,6 +468,18 @@ const openGithub = () => {
 };
 
 /**
+ * 点击会话倒计时胶囊：打开密码管理页并直达「有效期设置」对话框
+ * 与 Popup / options 头部徽标「点时间 = 续期」的交互心智保持一致
+ */
+const openValiditySetting = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_VALIDITY });
+  } catch (error) {
+    logger.error('打开有效期设置失败:', error);
+  }
+};
+
+/**
  * 打开选项页面
  * 统一由 background 的 OPEN_OPTIONS_PAGE 处理
  */
@@ -445,10 +491,15 @@ const openOptions = async () => {
   }
 };
 
-/** 跳转到密码管理页并自动打开添加密码弹窗 */
+/**
+ * 跳转到密码管理页并自动打开添加密码弹窗
+ * data 可选携带当前域名（P1-6）：新增表单 URL 字段自动预填本站域名，
+ * 无域名场景（本地开发域名跳过过滤时仍可能有值，空则不预填）行为与旧版一致
+ */
 const openOptionsAndAdd = async () => {
   try {
-    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_ADD });
+    const data = currentDomain.value ? { url: currentDomain.value } : undefined;
+    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_ADD, data });
   } catch (error) {
     logger.error('SidePanel: 打开添加密码页面失败:', error);
   }
@@ -599,6 +650,8 @@ onMounted(async () => {
       void import('@/components/sidepanel/SidepanelAuthView.vue').catch(() => {});
       void import('@/components/sidepanel/HelpDialog.vue').catch(() => {});
       void import('@/components/TotpCode.vue').catch(() => {});
+      // 预热拼音匹配模块（独立 chunk，不进首屏关键路径）：就绪后过滤 computed 自动重算补齐拼音命中
+      void warmPinyinMatcher();
     };
     if (typeof requestIdleCallback !== 'undefined') {
       requestIdleCallback(preloadIdleModules);
@@ -637,8 +690,10 @@ onMounted(async () => {
       if (!knownInvalid || _opened) return;
       _quickKnownInvalid = true;
       logger.debug(`SidePanel: 锁屏快速路径命中，${(performance.now() - _perfMountStart).toFixed(1)}ms 淡出骨架屏`);
-      // 窗口被遮挡/不可见时 Chrome 会冻结 rAF，加 500ms 定时兜底（finishOpen 幂等，先到者生效）
-      setTimeout(finishOpen, 500);
+      // 窗口被遮挡/不可见时 Chrome 会冻结 rAF，加 100ms 定时兜底（finishOpen 幂等，先到者生效）；
+      // 活跃视窗下 rAF 一帧内（~16ms）必触发，兜底仅在 rAF 冻结时生效，
+      // 此前取 500ms 过于保守——锁屏卡片为内联模板挂载即就绪，无需多留骨架屏
+      setTimeout(finishOpen, 100);
       nextTick(() => requestAnimationFrame(finishOpen));
     })
     .catch(() => {});

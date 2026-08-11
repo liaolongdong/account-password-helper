@@ -1,5 +1,5 @@
 /**
- * 设置面板 - 悬浮按钮设置界面（薄层 wrapper）
+ * 偏好设置面板 - 悬浮按钮偏好设置界面（薄层 wrapper）
  *
  * 真正的 HTML 模板、样式、事件绑定逻辑在 settingsPanelView.ts 中，
  * 本类仅负责：
@@ -35,7 +35,7 @@ export class SettingsPanel {
   }
 
   /**
-   * 创建设置面板元素
+   * 创建偏好设置面板元素
    */
   private createElements(config: FloatingButtonConfig): void {
     // 创建遮罩

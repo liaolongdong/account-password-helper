@@ -25,7 +25,7 @@ This document targets developers and contributors, covering the architecture des
 | **Content Script** | Injected into all pages; initializes form detection and the floating button                                                                                                                                                                  |
 | **Popup**          | Extension icon popup with "Manage Passwords" and "Quick Fill" entries                                                                                                                                                                        |
 | **Options**        | Main manager page: full CRUD, import/export, session/validity management                                                                                                                                                                     |
-| **SidePanel**      | Quick fill panel with search, sorting, domain matching, cache acceleration                                                                                                                                                                   |
+| **SidePanel**      | Quick fill panel with pinyin smart search and match highlighting, sorting, domain matching, cache acceleration                                                                                                                               |
 
 ### Messaging & Data Flow
 
@@ -109,7 +109,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - JSON import/export: export password data as JSON (master password required), filename `passwords_YYYYMMDD_HHmmss.json`; JSON import is also supported.
 - Tag multi-select with custom tags (up to 3 per entry, max 30 chars each); identical tags keep stable, consistent colors (see [utils/tagUtils.ts](../utils/tagUtils.ts)).
 - Password list sorts by update time (desc) by default; the side panel sorts by recent usage. Sortable by username, URL, tag, remark, and create/update time.
-- Multi-field fuzzy search across username, tag, remark, and URL.
+- Multi-field smart search across username, tag, remark, and URL: case-insensitive substring first, falling back to pinyin matching (full pinyin / initial abbreviations / mixed CN-EN; pinyin-match is split into a separate chunk via dynamic import so it never hits the first-paint path, pre-warmed when idle after first frame); matched ranges are highlighted via the SearchHighlight component (see [utils/searchMatch.ts](../utils/searchMatch.ts)).
 - Batch selection and batch deletion of entries; deleted entries go to the trash for 30 days and can be restored anytime.
 - Favorites: star frequent entries and filter with "favorites only"; configurable limit (1–50) with LRU eviction when exceeded; filling from the side panel refreshes the usage timestamp for accurate LRU.
 - One-click dedup: detects duplicates (same username + same URL) and cleans them up after confirmation.
@@ -150,7 +150,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 
 ### 8. Auto Idle Lock & Lock on Browser Restart
 
-- Configure the idle period (5/10/30/60 minutes or off) under "Auto lock settings"; exceeding it clears the master password session and locks the manager (see [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)).
+- Configure the idle period (5/10/30/60 minutes or off) under "Auto lock settings"; continuous inactivity beyond it clears the master password session and locks the manager, and the system locking or screensaver activating also locks it immediately (see [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)). Idle detection is based on the chrome.idle API, counting from the last system-level user input.
 - Unlocking requires the master password again — consistent with manual lock and session expiry.
 - **Lock on browser restart**: when enabled, fully closing and reopening the browser requires the master password again (more secure); when off, you stay signed in within the validity period.
 - The popup also provides a one-click "Lock" button to clear the current session.
@@ -208,7 +208,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - Delay options: 10/15/30/60/120 seconds, default 30 (see [ClipboardSettingDialog.vue](../components/options/ClipboardSettingDialog.vue)).
 - Before clearing, the clipboard content is verified as unchanged (Async Clipboard API preferred; best-effort clearing when unfocused).
 - Copying a username cancels the password-clear timer to avoid wiping the username.
-- Configured under "Data Management" → "Clipboard Settings" on the management page.
+- Configured under "Security Settings" → "Clipboard Settings" on the management page.
 
 ### 15. Two-Factor Authentication (TOTP)
 
@@ -261,7 +261,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 
 ### 20. Master Password Change
 
-- Entry point: "Settings" menu → "Change master password" on the manager page (see [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)).
+- Entry point: "Security Settings" menu → "Change master password" on the manager page (see [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)).
 - Flow: verify the current master password → decrypt all data (passwords + trash + history) with the old key → re-encrypt with the new key → a single **atomic** `chrome.storage.local.set()` writes ciphertext and the new session key (see [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)).
 - Safety: any failure before the write aborts with data untouched — there is no "new ciphertext + old session key" intermediate state.
 - Session self-healing: other open extension pages (side panel/popup) detect the rekey and adopt the new session key automatically — no re-login, no cleared lists (see `adoptRekeyedSession` in [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts)).

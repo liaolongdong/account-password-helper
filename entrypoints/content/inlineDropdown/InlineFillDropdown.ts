@@ -14,12 +14,13 @@
  */
 
 import { MessageType } from '@/utils/types';
-import type { MatchingAccountMeta, MatchingAccountsResponse } from '@/utils/types';
+import type { InlineTotpCodeData, MatchingAccountMeta, MatchingAccountsResponse } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
 import { tl } from '@/utils/i18n-lite';
+import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
 
 /** 钥匙图标（与 components/InlineKeyIcon.vue 保持一致，修改请同步） */
 const KEY_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="m16 7 3 3"/></svg>`;
@@ -32,6 +33,9 @@ const LOCK_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" s
 
 /** 星形图标（收藏标记） */
 const STAR_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" stroke="none"><path d="M12 2l2.9 6.3 6.9.7-5.1 4.6 1.4 6.8L12 17.3 5.9 20.4l1.4-6.8L2.2 9l6.9-.7z"/></svg>`;
+
+/** 填入图标（TOTP 活码胶囊内的填充动作） */
+const TOTP_FILL_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="m7 8 5 5 5-5"/><path d="M5 21h14"/></svg>`;
 
 /** 图标与面板样式（使用主题令牌 var(--aph-*)，由宿主内联提供取值） */
 const inlineStyles = `
@@ -254,6 +258,18 @@ const inlineStyles = `
   border-radius: 4px;
 }
 
+/* 搜索命中高亮：重置 mark 默认黄底，主题色加重；标签内沿用标签自身配色仅加粗，与侧边栏高亮策略一致 */
+.aph-hit {
+  padding: 0;
+  font-weight: 700;
+  color: var(--aph-primary);
+  background: transparent;
+}
+
+.aph-tag .aph-hit {
+  color: inherit;
+}
+
 /* 补充信息槽位（备注优先、URL 兜底，二者互斥展示）的弱化样式 */
 .aph-url,
 .aph-remark {
@@ -264,13 +280,69 @@ const inlineStyles = `
   white-space: nowrap;
 }
 
+/* 2FA 徽标（button 触发器）：点击后经 background 拉取一次性动态码，原位展开活码胶囊 */
 .aph-badge {
   flex-shrink: 0;
   padding: 1px 6px;
+  font-family: inherit;
   font-size: 10px;
+  line-height: 16px;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.aph-badge:hover {
+  color: #fff;
+  background: var(--aph-primary);
+}
+
+/* TOTP 活码胶囊：点击胶囊复制动态码，右侧按钮触发页面填充 */
+.aph-totp {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  line-height: 16px;
   color: var(--aph-primary);
   background: var(--aph-primary-bg);
   border-radius: 4px;
+  cursor: pointer;
+}
+
+.aph-totp-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+
+.aph-totp-countdown {
+  min-width: 16px;
+  font-size: 10px;
+  color: #9aa3af;
+  text-align: right;
+}
+
+.aph-totp-fill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 2px;
+  padding: 0;
+  color: var(--aph-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+}
+
+.aph-totp-fill:hover {
+  opacity: 1;
 }
 
 .aph-empty {
@@ -404,6 +476,13 @@ export class InlineFillDropdown {
   /** 当前主题（由 FormDetector 依据配置推送，避免每次获焦读取 storage） */
   private currentTheme: ThemeName = DEFAULT_THEME;
 
+  /** TOTP 活码状态（key: 账号 ID；仅面板打开期间保留，关闭即清空） */
+  private totpStates = new Map<string, InlineTotpCodeData>();
+  /** TOTP 拉取/刷新中的账号 ID 集合（防抖并发点击与到期重复刷新） */
+  private totpPending = new Set<string>();
+  /** TOTP 倒计时刷新定时器（有活码展示时运行，每秒一次） */
+  private totpTimer: ReturnType<typeof setInterval> | null = null;
+
   /**
    * 为登录字段展示触发图标（获焦触发，不拉取数据）
    * @param input 目标输入框
@@ -492,6 +571,7 @@ export class InlineFillDropdown {
       clearTimeout(this.hintTimer);
       this.hintTimer = null;
     }
+    this.clearTotpStates();
     this.hintEl = null;
     this.shadowHost?.remove();
     this.shadowHost = null;
@@ -742,6 +822,7 @@ export class InlineFillDropdown {
     this.panelEl?.classList.remove('visible');
     this.detachPanelInteractions();
     this.activeIndex = -1;
+    this.clearTotpStates();
   }
 
   /**
@@ -826,16 +907,19 @@ export class InlineFillDropdown {
       return;
     }
 
+    // 高亮关键字与 applyFilter 的过滤口径一致（trim 后不区分大小写）
+    const highlightKw = this.searchKeyword.trim();
+
     listEl.innerHTML = this.filtered
       .map((acc, index) => {
         const star = acc.favorite ? `<span class="aph-star">${STAR_ICON}</span>` : '';
-        const badge = acc.hasTotp ? `<span class="aph-badge">2FA</span>` : '';
-        const account = escapeHtml(acc.username || tl('cs.inline.noUsername'));
+        const badge = acc.hasTotp ? this.renderTotpCell(acc.id, index) : '';
+        const account = highlightHtml(acc.username || tl('cs.inline.noUsername'), highlightKw);
         // 标签与侧边栏保持一致：按分隔符拆分为多枚，并按标签内容生成稳定的哈希配色
         const tagsHtml = parseTags(acc.tag)
           .map(t => {
             const c = getTagColor(t);
-            return `<span class="aph-tag" style="color:${c.text};background:${c.background};border-color:${c.border}" title="${escapeHtml(t)}">${escapeHtml(t)}</span>`;
+            return `<span class="aph-tag" style="color:${c.text};background:${c.background};border-color:${c.border}" title="${escapeHtml(t)}">${highlightHtml(t, highlightKw)}</span>`;
           })
           .join('');
         // 补充信息槽位：备注优先、URL 兜底，二者互斥——列表已按域名过滤，
@@ -844,7 +928,7 @@ export class InlineFillDropdown {
         const supplementText = acc.remark || acc.url || '';
         const supplementClass = acc.remark ? 'aph-remark' : 'aph-url';
         const supplement = supplementText
-          ? `<span class="${supplementClass}">${escapeHtml(supplementText)}</span>`
+          ? `<span class="${supplementClass}">${highlightHtml(supplementText, highlightKw)}</span>`
           : '';
         const sub = tagsHtml || supplement ? `<div class="aph-row-sub">${tagsHtml}${supplement}</div>` : '';
         const titleAttr = acc.remark
@@ -892,10 +976,26 @@ export class InlineFillDropdown {
   };
 
   /**
-   * 列表点击（委托）：选择账号填充
+   * 列表点击（委托）：TOTP 填充/展开复制优先判定，其次选择账号填充
    */
   private handleListClick = (e: Event): void => {
-    const row = (e.target as HTMLElement).closest('.aph-row') as HTMLElement | null;
+    const target = e.target as HTMLElement;
+
+    const fillBtn = target.closest('[data-action="totp-fill"]') as HTMLElement | null;
+    if (fillBtn) {
+      const index = Number(fillBtn.getAttribute('data-index'));
+      if (!Number.isNaN(index)) void this.handleTotpFill(index, fillBtn);
+      return;
+    }
+
+    const totpEl = target.closest('[data-action="totp"]') as HTMLElement | null;
+    if (totpEl) {
+      const index = Number(totpEl.getAttribute('data-index'));
+      if (!Number.isNaN(index)) void this.handleTotpToggle(index, totpEl);
+      return;
+    }
+
+    const row = target.closest('.aph-row') as HTMLElement | null;
     if (!row) return;
     const index = Number(row.getAttribute('data-index'));
     if (!Number.isNaN(index)) this.select(index);
@@ -945,6 +1045,252 @@ export class InlineFillDropdown {
     chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_PAGE }).catch(() => {
       // 无接收者时忽略
     });
+  }
+
+  // ==================== TOTP 活码（2FA） ====================
+
+  /**
+   * 渲染条目行末的 TOTP 单元格：已拉取且未过期时展示活码胶囊，否则展示 2FA 徽标触发器
+   * @param id 账号条目 ID
+   * @param index 过滤后列表中的索引
+   * @returns 单元格 HTML 字符串
+   */
+  private renderTotpCell(id: string, index: number): string {
+    const state = this.totpStates.get(id);
+    if (state && state.expiresAt > Date.now()) {
+      return this.buildTotpCapsule(id, index, state).outerHTML;
+    }
+    if (state) this.totpStates.delete(id);
+    return this.buildTotpBadge(id, index).outerHTML;
+  }
+
+  /**
+   * 构建 2FA 徽标触发器元素（点击后经 background 拉取动态码）
+   * @param id 账号条目 ID
+   * @param index 过滤后列表中的索引
+   * @returns 徽标元素
+   */
+  private buildTotpBadge(id: string, index: number): HTMLElement {
+    const el = document.createElement('button');
+    el.className = 'aph-badge';
+    el.type = 'button';
+    el.setAttribute('data-action', 'totp');
+    el.setAttribute('data-index', String(index));
+    el.setAttribute('data-totp-id', id);
+    el.setAttribute('title', tl('cs.inline.totpShow'));
+    el.textContent = '2FA';
+    return el;
+  }
+
+  /**
+   * 构建 TOTP 活码胶囊元素（点击胶囊复制动态码，内置「填入」按钮触发页面填充）
+   * @param id 账号条目 ID
+   * @param index 过滤后列表中的索引
+   * @param state 活码状态（动态码 + 到期时间）
+   * @returns 胶囊元素
+   */
+  private buildTotpCapsule(id: string, index: number, state: InlineTotpCodeData): HTMLElement {
+    const remaining = Math.max(1, Math.ceil((state.expiresAt - Date.now()) / 1000));
+    const el = document.createElement('span');
+    el.className = 'aph-totp';
+    el.setAttribute('data-action', 'totp');
+    el.setAttribute('data-index', String(index));
+    el.setAttribute('data-totp-id', id);
+    el.setAttribute('title', tl('cs.inline.totpCopyTitle'));
+    el.innerHTML = `
+      <span class="aph-totp-code">${escapeHtml(state.code)}</span>
+      <span class="aph-totp-countdown">${remaining}s</span>
+      <button class="aph-totp-fill" type="button" data-action="totp-fill" data-index="${index}" title="${tl('cs.inline.totpFill')}">${TOTP_FILL_ICON}</button>
+    `;
+    return el;
+  }
+
+  /**
+   * TOTP 徽标/胶囊点击：未展开时经 background 拉取活码；已展开时复制当前动态码
+   *
+   * 安全：TOTP 密钥始终驻留 background，内容脚本仅接收 30 秒自失效的一次性动态码。
+   * @param index 过滤后列表中的索引
+   * @param triggerEl 被点击的徽标或胶囊元素
+   */
+  private async handleTotpToggle(index: number, triggerEl: HTMLElement): Promise<void> {
+    const account = this.filtered[index];
+    if (!account) return;
+    const id = account.id;
+
+    const state = this.totpStates.get(id);
+    if (state && state.expiresAt > Date.now()) {
+      await this.copyTotp(state.code, triggerEl);
+      return;
+    }
+    if (this.totpPending.has(id)) return;
+    this.totpPending.add(id);
+
+    // 加载态：徽标原位文案提示（过期胶囊场景无文案槽位，静默等待即可）
+    const badge = triggerEl.classList.contains('aph-badge') ? triggerEl : null;
+    if (badge) badge.textContent = tl('cs.inline.totpLoading');
+
+    const data = await this.fetchTotpCode(id);
+    this.totpPending.delete(id);
+    if (!this.panelOpen || !triggerEl.isConnected) return;
+
+    if (!data) {
+      logger.warn('内联面板：两步验证码获取失败（会话可能已锁定）');
+      if (badge) {
+        badge.textContent = tl('cs.inline.totpFailed');
+        window.setTimeout(() => {
+          if (badge.isConnected) badge.textContent = '2FA';
+        }, 1400);
+      }
+      return;
+    }
+
+    this.totpStates.set(id, data);
+    triggerEl.replaceWith(this.buildTotpCapsule(id, index, data));
+    this.syncTotpTimer();
+  }
+
+  /**
+   * TOTP「填入」按钮点击：委托 background 现算动态码并经 FILL_TOTP 回填发起 frame
+   *
+   * 不先隐藏面板：填充失败（如无验证码输入框）时保留面板并给出反馈，
+   * 成功由 FormDetector 的填充链路完成后主动 hide。
+   * @param index 过滤后列表中的索引
+   * @param fillEl 填入按钮元素
+   */
+  private async handleTotpFill(index: number, fillEl: HTMLElement): Promise<void> {
+    const account = this.filtered[index];
+    if (!account) return;
+
+    // 失败时优先展示 FormDetector 透传的本地化原因（如「未找到验证码输入框」）
+    let message = '';
+    try {
+      const res = await chrome.runtime.sendMessage({ type: MessageType.FILL_TOTP_BY_ID, data: { id: account.id } });
+      if (res && res.success) {
+        this.hide();
+        return;
+      }
+      message = res?.message || '';
+      logger.warn('内联面板：验证码填充未成功:', message);
+    } catch (error) {
+      logger.error('内联面板：验证码填充请求失败:', error);
+    }
+    if (fillEl.isConnected)
+      this.flashCapsuleMessage(fillEl.closest('.aph-totp'), message || tl('cs.inline.totpFailed'));
+  }
+
+  /**
+   * 复制 TOTP 动态码并在胶囊上给出短暂反馈（动态码 30 秒自失效，无需剪贴板定时清除）
+   * @param code 当前动态码
+   * @param capsuleEl 活码胶囊元素
+   */
+  private async copyTotp(code: string, capsuleEl: HTMLElement): Promise<void> {
+    const ok = await copyTextToClipboard(code);
+    if (!this.panelOpen || !capsuleEl.isConnected) return;
+    this.flashCapsuleMessage(capsuleEl, ok ? tl('cs.inline.totpCopied') : tl('cs.inline.totpFailed'));
+  }
+
+  /**
+   * 在胶囊动态码槽位短暂展示反馈文案，随后还原动态码
+   * @param capsuleEl 活码胶囊元素（可能为 null）
+   * @param message 反馈文案
+   */
+  private flashCapsuleMessage(capsuleEl: Element | null | undefined, message: string): void {
+    const codeEl = capsuleEl?.querySelector('.aph-totp-code');
+    if (!codeEl) return;
+    const id = capsuleEl?.getAttribute('data-totp-id') ?? '';
+    const prev = codeEl.textContent;
+    codeEl.textContent = message;
+    window.setTimeout(() => {
+      // 取实时活码还原，避免闪光窗口跨越周期边界时写回旧码
+      if (codeEl.isConnected) codeEl.textContent = this.totpStates.get(id)?.code ?? prev;
+    }, 1400);
+  }
+
+  /**
+   * 经 background 获取当前 TOTP 动态码（仅返回一次性动态码，绝不含密钥）
+   * @param id 账号条目 ID
+   * @returns 活码数据，失败/未配置时返回 null
+   */
+  private async fetchTotpCode(id: string): Promise<InlineTotpCodeData | null> {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: MessageType.GET_INLINE_TOTP, data: { id } });
+      if (res && res.success && res.data) return res.data as InlineTotpCodeData;
+      return null;
+    } catch (error) {
+      logger.debug('内联面板：请求两步验证码失败（扩展上下文可能失效）:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 按需启停 TOTP 倒计时定时器（面板打开且有展示中的活码才运行）
+   */
+  private syncTotpTimer(): void {
+    if (this.totpStates.size > 0 && this.panelOpen) {
+      if (!this.totpTimer) this.totpTimer = setInterval(this.tickTotp, 1000);
+    } else if (this.totpTimer) {
+      clearInterval(this.totpTimer);
+      this.totpTimer = null;
+    }
+  }
+
+  /**
+   * TOTP 每秒心跳：刷新各胶囊倒计时；到期后向 background 请求下一周期动态码，
+   * 不在列表中的过期状态直接清除
+   */
+  private tickTotp = (): void => {
+    if (!this.panelOpen || this.totpStates.size === 0) {
+      this.syncTotpTimer();
+      return;
+    }
+    const now = Date.now();
+    for (const [id, state] of this.totpStates) {
+      const remaining = Math.ceil((state.expiresAt - now) / 1000);
+      const cell = this.panelEl?.querySelector(`.aph-totp[data-totp-id="${id}"]`);
+      if (remaining <= 0) {
+        if (cell) void this.refreshTotpCode(id);
+        else this.totpStates.delete(id);
+        continue;
+      }
+      const countdown = cell?.querySelector('.aph-totp-countdown');
+      if (countdown) countdown.textContent = `${remaining}s`;
+    }
+  };
+
+  /**
+   * 刷新某条目下一周期的 TOTP 动态码：成功原位替换胶囊；
+   * 失败（会话锁定/配置失效）降级回 2FA 徽标
+   * @param id 账号条目 ID
+   */
+  private async refreshTotpCode(id: string): Promise<void> {
+    if (this.totpPending.has(id)) return;
+    this.totpPending.add(id);
+    const data = await this.fetchTotpCode(id);
+    this.totpPending.delete(id);
+    if (!this.panelOpen) return;
+
+    const cell = this.panelEl?.querySelector(`.aph-totp[data-totp-id="${id}"]`);
+    const index = cell ? Number(cell.getAttribute('data-index')) : -1;
+    if (!data) {
+      this.totpStates.delete(id);
+      if (cell && index >= 0) cell.replaceWith(this.buildTotpBadge(id, index));
+      this.syncTotpTimer();
+      return;
+    }
+    this.totpStates.set(id, data);
+    if (cell && index >= 0) cell.replaceWith(this.buildTotpCapsule(id, index, data));
+  }
+
+  /**
+   * 清空 TOTP 活码状态并停止倒计时（面板关闭/销毁时调用）
+   */
+  private clearTotpStates(): void {
+    this.totpStates.clear();
+    this.totpPending.clear();
+    if (this.totpTimer) {
+      clearInterval(this.totpTimer);
+      this.totpTimer = null;
+    }
   }
 
   /**
@@ -1079,6 +1425,29 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * 搜索命中高亮（XSS 安全）：先在原文上按关键字不区分大小写切分，
+ * 逐段转义后再包裹命中片段，避免先转义再匹配导致实体串被误命中
+ * @param text 原始文本
+ * @param keyword 搜索关键字（空串时仅转义）
+ * @returns 可安全注入 innerHTML 的片段
+ */
+function highlightHtml(text: string, keyword: string): string {
+  if (!keyword) return escapeHtml(text);
+  const lowerText = text.toLowerCase();
+  const lowerKw = keyword.toLowerCase();
+  let html = '';
+  let cursor = 0;
+  let idx = lowerText.indexOf(lowerKw);
+  while (idx !== -1) {
+    html += escapeHtml(text.slice(cursor, idx));
+    html += `<mark class="aph-hit">${escapeHtml(text.slice(idx, idx + keyword.length))}</mark>`;
+    cursor = idx + keyword.length;
+    idx = lowerText.indexOf(lowerKw, cursor);
+  }
+  return html + escapeHtml(text.slice(cursor));
 }
 
 // ==================== 单例（每个 frame 一个） ====================

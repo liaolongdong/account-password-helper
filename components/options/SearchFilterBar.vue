@@ -7,6 +7,24 @@
       clearable
       @update:model-value="$emit('update:searchKeyword', $event)"
     />
+    <el-select
+      v-if="availableTags.length > 0"
+      :model-value="filterTags"
+      multiple
+      collapse-tags
+      collapse-tags-tooltip
+      clearable
+      class="tag-filter"
+      :placeholder="t('options.filter.tagPlaceholder')"
+      @update:model-value="$emit('update:filterTags', $event)"
+    >
+      <el-option
+        v-for="tag in availableTags"
+        :key="tag"
+        :label="tag"
+        :value="tag"
+      />
+    </el-select>
     <el-tooltip
       :content="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
       placement="top"
@@ -22,6 +40,20 @@
     </el-tooltip>
     <el-button
       v-if="selectedCount > 0"
+      :icon="PriceTag"
+      @click="$emit('batchEditTags')"
+    >
+      {{ t('options.filter.batchEditTags', { count: selectedCount }) }}
+    </el-button>
+    <el-button
+      v-if="selectedCount > 0"
+      :icon="Download"
+      @click="$emit('batchExportSelected')"
+    >
+      {{ t('options.filter.batchExportSelected', { count: selectedCount }) }}
+    </el-button>
+    <el-button
+      v-if="selectedCount > 0"
       :icon="Delete"
       type="danger"
       @click="$emit('batchDelete')"
@@ -32,14 +64,14 @@
 </template>
 
 <script setup lang="ts">
-import { Search, Delete, Star, StarFilled } from '@element-plus/icons-vue';
+import { Search, Delete, Star, StarFilled, PriceTag, Download } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
 
 /**
  * 搜索与筛选栏组件
  *
- * 包含关键词搜索框、收藏过滤按钮和批量删除按钮，
- * 支持 v-model 双向绑定搜索关键词和收藏过滤状态。
+ * 包含关键词搜索框、标签筛选、收藏过滤按钮和批量操作按钮（编辑标签/导出/删除），
+ * 支持 v-model 双向绑定搜索关键词、收藏过滤状态与标签筛选集。
  */
 defineProps<{
   /** 搜索关键词 */
@@ -48,12 +80,19 @@ defineProps<{
   favoriteOnly: boolean;
   /** 已选中条目数量 */
   selectedCount: number;
+  /** 可选标签集（为空时隐藏标签筛选下拉） */
+  availableTags: string[];
+  /** 标签筛选选中集（命中任一即保留） */
+  filterTags: string[];
 }>();
 
 defineEmits<{
   'update:searchKeyword': [value: string];
   'update:favoriteOnly': [value: boolean];
+  'update:filterTags': [value: string[]];
   batchDelete: [];
+  batchEditTags: [];
+  batchExportSelected: [];
 }>();
 
 const { t } = useI18n();
@@ -75,6 +114,12 @@ const { t } = useI18n();
 /* 搜索框占据剩余空间 */
 .filters > :deep(.el-input) {
   flex: 1;
+}
+
+/* 标签筛选：固定宽度，避免多标签撑开挤压搜索框 */
+.filters .tag-filter {
+  flex-shrink: 0;
+  width: 200px;
 }
 
 /* 响应式 */

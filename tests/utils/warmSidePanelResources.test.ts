@@ -205,6 +205,55 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('非 Windows + allowNonWindowsLightweight 时轻量预热：仅第一/二层，跳过动态 chunk 递归层', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'mac' });
+
+    const htmlWithEntry = '<script type="module" src="/chunks/sidepanel-ABC.js"></script>';
+    const entryHref = new URL('/chunks/sidepanel-ABC.js', SIDEPANEL_HTML_URL).href;
+    const entryJsText = 'const a = () => import("./sessionManager-storage-XYZ.js");';
+    fetchMock.mockImplementation((input: string) => {
+      if (input === SIDEPANEL_HTML_URL) {
+        return Promise.resolve({ text: () => Promise.resolve(htmlWithEntry), ok: true } as Response);
+      }
+      if (input === entryHref) {
+        return Promise.resolve({ text: () => Promise.resolve(entryJsText), ok: true } as Response);
+      }
+      return Promise.resolve({ text: () => Promise.resolve(''), ok: true } as Response);
+    });
+    const { maybeWarmSidePanelResources } = await loadModule();
+
+    await maybeWarmSidePanelResources({ allowNonWindowsLightweight: true });
+
+    // 仅 HTML + 入口 JS 两次 fetch，入口 JS 中的动态 import chunk 不被预热
+    expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
+    expect(fetchMock).toHaveBeenCalledWith(entryHref);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('Windows + allowNonWindowsLightweight 时不受影响，仍执行全量预热（含动态 chunk）', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'win' });
+
+    const htmlWithEntry = '<script type="module" src="/chunks/sidepanel-ABC.js"></script>';
+    const entryHref = new URL('/chunks/sidepanel-ABC.js', SIDEPANEL_HTML_URL).href;
+    const entryJsText = 'const a = () => import("./sessionManager-storage-XYZ.js");';
+    fetchMock.mockImplementation((input: string) => {
+      if (input === SIDEPANEL_HTML_URL) {
+        return Promise.resolve({ text: () => Promise.resolve(htmlWithEntry), ok: true } as Response);
+      }
+      if (input === entryHref) {
+        return Promise.resolve({ text: () => Promise.resolve(entryJsText), ok: true } as Response);
+      }
+      return Promise.resolve({ text: () => Promise.resolve(''), ok: true } as Response);
+    });
+    const { maybeWarmSidePanelResources } = await loadModule();
+
+    await maybeWarmSidePanelResources({ allowNonWindowsLightweight: true });
+
+    // HTML + 入口 JS + 动态 chunk = 3 次 fetch（全量预热不降级）
+    expect(fetchMock).toHaveBeenCalledWith(new URL('./sessionManager-storage-XYZ.js', entryHref).href);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
   it('Windows 会话有效时仍预热（磁盘缓存逐出与会话状态无关）', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'win' });
     await chrome.storage.local.set({ session_password_expiry: Date.now() + 3_600_000 });

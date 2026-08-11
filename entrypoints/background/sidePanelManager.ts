@@ -185,9 +185,13 @@ export function setupSidePanelListeners(): void {
       // 打开完成后延时空闲预热渲染资源（替代原 SIDEPANEL_PRELOAD 时机的预热——
       // 后者在用户点击瞬间触发全量 fetch，与渲染进程首屏加载争抢磁盘 IO）。
       // 侧边栏打开期间 port 心跳保持 SW 活跃，定时器可靠触发；
-      // 函数内自带平台/会话门控与持久化节流，非 Windows / 会话有效 / 窗口内重复调用直接跳过
+      // 函数内自带平台门控与持久化节流：Windows 全量预热，非 Windows 经
+      // allowNonWindowsLightweight 轻量预热首屏关键资源（为下次打开温热，
+      // 缓解 Mac 间隔一段时间后首开冷读白屏），窗口内重复调用直接跳过
       setTimeout(() => {
-        void import('@/utils/warmSidePanelResources').then(m => m.maybeWarmSidePanelResources()).catch(() => {});
+        void import('@/utils/warmSidePanelResources')
+          .then(m => m.maybeWarmSidePanelResources({ allowNonWindowsLightweight: true }))
+          .catch(() => {});
       }, WARM_AFTER_OPEN_DELAY_MS);
 
       port.onMessage.addListener((message: any) => {
