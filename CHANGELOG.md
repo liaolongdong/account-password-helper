@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.1.0](https://github.com/liaolongdong/account-password-helper/compare/v3.0.2...v3.1.0) (2026-08-11)
+
+
+### Features
+
+* **auth:** 实现 TOTP 两步登录活码胶囊与接力机制 ([fd1b8a6](https://github.com/liaolongdong/account-password-helper/commit/fd1b8a6df560221a3becd60311ad363e8ec9406d))
+* **background:** 优化并实现系统闲置锁定功能 ([a7c02b5](https://github.com/liaolongdong/account-password-helper/commit/a7c02b5d9d6f7ccd152540b75586f90567e76cfd))
+* **options:** 新增标签筛选与批量标签编辑功能 ([d15b62a](https://github.com/liaolongdong/account-password-helper/commit/d15b62a64e4909c0dacbb3151189292b36eb70dd))
+* **sidepanel:** 优化侧边栏资源预热策略，支持跨平台轻量预热 ([f8be9c7](https://github.com/liaolongdong/account-password-helper/commit/f8be9c7d27104704c8541624a57ded37d8313023))
+* **sidepanel:** 支持拼音智能搜索与命中高亮功能 ([6173205](https://github.com/liaolongdong/account-password-helper/commit/61732052c1a1801f1f571e1b967cd7ce36747911))
+
 ## [3.0.2](https://github.com/liaolongdong/account-password-helper/compare/v3.0.1...v3.0.2) (2026-08-06)
 
 
