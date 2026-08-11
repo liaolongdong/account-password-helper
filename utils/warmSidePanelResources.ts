@@ -13,10 +13,13 @@
  * 属尽力而为的缓解：可缩短冷文件读取/扫描耗时，但无法温热「渲染进程创建」本身。
  *
  * 免新权限：扩展在自身上下文 `fetch` 自身打包资源无需 web_accessible_resources 或额外权限。
- * 常规调用仅在 Windows 按 5 分钟节流执行，不区分会话状态——OS 磁盘缓存逐出
+ * 常规调用在 Windows 按 5 分钟节流全量预热，不区分会话状态——OS 磁盘缓存逐出
  * （杀软扫描 / 内存压力）与会话有效性无关，会话有效期内同样会命中冷读白屏；
+ * 非 Windows 常规调用默认跳过，但可经 allowNonWindowsLightweight 降级为轻量预热
+ * （仅第一/二层，~8 个小文件）——Mac 长时间未操作后 OS 同样会逐出扩展文件，
+ * 首开命中文件全冷读即“间隔一段时间偶现白屏”；
  * 浏览器首启（ignorePlatformGate）场景 OS 磁盘缓存全冷，Mac 重启后首开同样白屏，
- * 故该场景跨平台执行。
+ * 故该场景跨平台全量执行。
  */
 import { logger } from '@/utils/logger';
 import { isWindowsPlatform } from '@/utils/platform';
@@ -199,9 +202,22 @@ export interface WarmSidePanelOptions {
    *
    * 浏览器刚启动（chrome.runtime.onStartup）时 OS 磁盘缓存全冷、渲染进程冷、
    * V8 无 code cache，Mac 重启后首开同样出现长白屏，
-   * 故置 true 时跨平台强制执行一次资源预热。
+   * 故置 true 时跨平台强制执行一次全量资源预热。
    */
   ignorePlatformGate?: boolean;
+
+  /**
+   * 非 Windows 平台降级为轻量预热（仅第一/二层：HTML + module 脚本 +
+   * modulepreload 依赖 + 样式表，~8 个小文件），而非直接跳过
+   *
+   * Mac/Linux 长时间未操作后 OS 同样会逐出扩展文件磁盘缓存，首开命中全冷读
+   * 即「间隔一段时间偶现白屏几秒」的直接根因。轻量层覆盖首屏关键路径资源，
+   * 跳过动态 chunk 递归层（非 Windows 磁盘 IO 快、无杀软扫描放大，按需 chunk
+   * 冷读代价低），在收益与常态 IO 开销间取平衡。Windows 不受本选项影响，
+   * 仍执行全量四层预热。调用时机：窗口聚焦恢复 / 侧边栏打开后延时预热 /
+   * SW 保活 tick（均共用 5 分钟节流，不增加高频 IO）。
+   */
+  allowNonWindowsLightweight?: boolean;
 }
 
 /**
@@ -243,10 +259,16 @@ export function maybeWarmSidePanelResources(options: WarmSidePanelOptions = {}):
 /** 预热执行体（由 maybeWarmSidePanelResources 经 in-flight 互斥调度） */
 async function doWarmSidePanelResources(options: WarmSidePanelOptions): Promise<void> {
   try {
-    // 平台门控：常规调用（保活 tick / 打开完成后空闲预热）仅 Windows 执行；
-    // 浏览器首启（ignorePlatformGate）跨平台执行——重启后 OS 磁盘缓存全冷、
-    // V8 无 code cache，Mac 首次打开侧边栏同样出现长白屏
-    if (!options.ignorePlatformGate && !(await isWindowsPlatform())) return;
+    // 平台门控与预热模式判定：
+    // - Windows / 浏览器首启（ignorePlatformGate）→ 全量四层预热；
+    // - 非 Windows 常规调用：允许轻量模式（allowNonWindowsLightweight）时
+    //   仅预热第一/二层（Mac 长时间未操作后磁盘缓存逐出的首开白屏缓解），
+    //   否则保持既往行为直接跳过
+    let lightweight = false;
+    if (!options.ignorePlatformGate && !(await isWindowsPlatform())) {
+      if (!options.allowNonWindowsLightweight) return;
+      lightweight = true;
+    }
 
     // 节流判定：内存镜像快路径命中直接跳过；未命中时读取 storage.session
     // 持久化时间戳复核（SW 冷启后内存镜像归零，避免误判为「从未预热」）
@@ -273,6 +295,12 @@ async function doWarmSidePanelResources(options: WarmSidePanelOptions): Promise<
 
     // 第二层：并行预热 HTML 引用的静态资源（module 脚本 + modulepreload + CSS）
     const fetchResults = await Promise.allSettled(assetUrls.map(url => fetch(new URL(url, baseUrl).href)));
+
+    // 轻量模式（非 Windows）：首屏关键路径资源已温热，跳过动态 chunk 递归层
+    if (lightweight) {
+      logger.debug(`SidePanel: 资源轻量预热完成（非 Windows），资源数 ${assetUrls.length}`);
+      return;
+    }
 
     // 第三层：从入口 JS chunk 中提取动态 import 的 chunk URL 并预热
     // 找到入口 module 脚本的 fetch 结果（assetUrls 中第一个，即 <script type="module" src>）

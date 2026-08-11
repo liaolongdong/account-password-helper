@@ -690,8 +690,10 @@ onMounted(async () => {
       if (!knownInvalid || _opened) return;
       _quickKnownInvalid = true;
       logger.debug(`SidePanel: 锁屏快速路径命中，${(performance.now() - _perfMountStart).toFixed(1)}ms 淡出骨架屏`);
-      // 窗口被遮挡/不可见时 Chrome 会冻结 rAF，加 500ms 定时兜底（finishOpen 幂等，先到者生效）
-      setTimeout(finishOpen, 500);
+      // 窗口被遮挡/不可见时 Chrome 会冻结 rAF，加 100ms 定时兜底（finishOpen 幂等，先到者生效）；
+      // 活跃视窗下 rAF 一帧内（~16ms）必触发，兜底仅在 rAF 冻结时生效，
+      // 此前取 500ms 过于保守——锁屏卡片为内联模板挂载即就绪，无需多留骨架屏
+      setTimeout(finishOpen, 100);
       nextTick(() => requestAnimationFrame(finishOpen));
     })
     .catch(() => {});
