@@ -7,6 +7,27 @@
     class="help-dialog"
     @update:model-value="$emit('update:modelValue', $event)"
   >
+    <!-- 标题行：版本号与标题并排（「关于」模式），点击跳转 GitHub Releases 查看最新版本与下载；
+         title prop 保留仅供对话框 aria-label 语义，视觉呈现由 #header 插槽接管 -->
+    <template #header>
+      <div class="help-header">
+        <span
+          class="help-header__title"
+          role="heading"
+          aria-level="2"
+          >{{ t('help.title') }}</span
+        >
+        <a
+          class="help-header__version"
+          :href="GITHUB_RELEASES_PAGE_URL"
+          target="_blank"
+          rel="noopener noreferrer"
+          :title="t('help.versionLinkTitle')"
+        >
+          {{ t('help.versionLabel', { version }) }}
+        </a>
+      </div>
+    </template>
     <div class="help-content">
       <!-- ====== 完整使用说明入口 ====== -->
       <section class="help-section help-link-section">
@@ -279,6 +300,7 @@
         </ul>
       </section>
     </div>
+    <!-- 页脚纯动作化：版本信息已上移至标题行 -->
     <template #footer>
       <el-button @click="$emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
       <el-button
@@ -294,6 +316,7 @@
 <script setup lang="ts">
 import { Document } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
+import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 // help 命名空间语言包随本组件懒加载 chunk 按需注册，不占用侧边栏首屏体积
 import '@/utils/i18n/bundles/help';
 
@@ -307,6 +330,9 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/** 当前插件版本号，直接读取 manifest，零依赖 */
+const version = chrome.runtime.getManifest().version;
 
 /**
  * 按前缀批量取帮助条目文案（key 形如 `${prefix}.1` ~ `${prefix}.${count}`）
@@ -429,6 +455,39 @@ const handleGoToOptions = () => {
 .help-link:hover {
   color: #1d4ed8;
   text-decoration: underline;
+}
+
+/* 标题行：版本号弱化链接随标题并排展示，点击跳转最新版本下载页 */
+.help-header {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.help-header__title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  color: #1f2937;
+}
+
+.help-header__version {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #9aa3af;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.help-header__version:hover {
+  color: var(--aph-primary);
+  text-decoration: underline;
+}
+
+.help-header__version:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline-offset: 1px;
+  border-radius: 3px;
 }
 </style>
 

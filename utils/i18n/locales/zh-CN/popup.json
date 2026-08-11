@@ -20,6 +20,7 @@
   "popup.lock": "锁定（清除会话）",
   "popup.lockWithIdle": "立即锁定（闲置 {minutes} 分钟后也会自动锁定）",
   "popup.contact": "如有任何问题或者建议，请联系",
+  "popup.versionLinkTitle": "查看最新版本与下载",
   "popup.feedbackSubject": "账号密码管理助手反馈",
   "popup.openSidepanelFailed": "自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏"
 }

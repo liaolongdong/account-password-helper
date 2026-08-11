@@ -26,7 +26,10 @@
         show-overflow-tooltip
       >
         <template #default="{ row }">
-          {{ row.username }}
+          <SearchHighlight
+            :text="row.username"
+            :keyword="searchKeyword ?? ''"
+          />
         </template>
       </el-table-column>
       <el-table-column
@@ -89,7 +92,12 @@
               >
                 <el-icon class="url-link__icon"><Link /></el-icon>
               </SiteFavicon>
-              <span class="url-link__text">{{ row.url }}</span>
+              <span class="url-link__text">
+                <SearchHighlight
+                  :text="row.url"
+                  :keyword="searchKeyword ?? ''"
+                />
+              </span>
             </a>
           </template>
           <span v-else>-</span>
@@ -119,7 +127,10 @@
                 class="tag-item"
                 @mouseenter="(e: MouseEvent) => checkTagOverflow(e, tagName)"
               >
-                {{ tagName }}
+                <SearchHighlight
+                  :text="tagName"
+                  :keyword="searchKeyword ?? ''"
+                />
               </el-tag>
             </el-tooltip>
           </template>
@@ -138,7 +149,16 @@
         show-overflow-tooltip
       >
         <template #default="{ row }">
-          {{ row.remark || '-' }}
+          <SearchHighlight
+            v-if="row.remark"
+            :text="row.remark"
+            :keyword="searchKeyword ?? ''"
+          />
+          <span
+            v-else
+            class="no-tag"
+            >-</span
+          >
         </template>
       </el-table-column>
       <el-table-column
@@ -247,6 +267,7 @@ import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 import { useTagOverflow } from '@/composables/useTagOverflow';
 import TotpCode from '@/components/TotpCode.vue';
 import SiteFavicon from '@/components/SiteFavicon.vue';
+import SearchHighlight from '@/components/SearchHighlight.vue';
 import { useI18n } from '@/utils/i18n';
 
 /**
@@ -262,6 +283,8 @@ defineProps<{
   loading: boolean;
   /** 行类名函数 */
   rowClassName?: (data: { row: PasswordEntry; rowIndex: number }) => string;
+  /** 当前搜索关键词（用于命中高亮，空串时不高亮） */
+  searchKeyword?: string;
 }>();
 
 defineEmits<{
@@ -429,6 +452,12 @@ defineExpose({ tableRef: localTableRef });
 
 .tag-item + .tag-item {
   margin-left: 4px;
+}
+
+/* 标签内高亮：沿用标签自身配色，仅加粗强调，避免主题色与标签底色冲突 */
+.tag-item :deep(.search-hit) {
+  font-weight: 700;
+  color: inherit;
 }
 
 .no-tag {

@@ -258,6 +258,18 @@ const inlineStyles = `
   border-radius: 4px;
 }
 
+/* 搜索命中高亮：重置 mark 默认黄底，主题色加重；标签内沿用标签自身配色仅加粗，与侧边栏高亮策略一致 */
+.aph-hit {
+  padding: 0;
+  font-weight: 700;
+  color: var(--aph-primary);
+  background: transparent;
+}
+
+.aph-tag .aph-hit {
+  color: inherit;
+}
+
 /* 补充信息槽位（备注优先、URL 兜底，二者互斥展示）的弱化样式 */
 .aph-url,
 .aph-remark {
@@ -895,16 +907,19 @@ export class InlineFillDropdown {
       return;
     }
 
+    // 高亮关键字与 applyFilter 的过滤口径一致（trim 后不区分大小写）
+    const highlightKw = this.searchKeyword.trim();
+
     listEl.innerHTML = this.filtered
       .map((acc, index) => {
         const star = acc.favorite ? `<span class="aph-star">${STAR_ICON}</span>` : '';
         const badge = acc.hasTotp ? this.renderTotpCell(acc.id, index) : '';
-        const account = escapeHtml(acc.username || tl('cs.inline.noUsername'));
+        const account = highlightHtml(acc.username || tl('cs.inline.noUsername'), highlightKw);
         // 标签与侧边栏保持一致：按分隔符拆分为多枚，并按标签内容生成稳定的哈希配色
         const tagsHtml = parseTags(acc.tag)
           .map(t => {
             const c = getTagColor(t);
-            return `<span class="aph-tag" style="color:${c.text};background:${c.background};border-color:${c.border}" title="${escapeHtml(t)}">${escapeHtml(t)}</span>`;
+            return `<span class="aph-tag" style="color:${c.text};background:${c.background};border-color:${c.border}" title="${escapeHtml(t)}">${highlightHtml(t, highlightKw)}</span>`;
           })
           .join('');
         // 补充信息槽位：备注优先、URL 兜底，二者互斥——列表已按域名过滤，
@@ -913,7 +928,7 @@ export class InlineFillDropdown {
         const supplementText = acc.remark || acc.url || '';
         const supplementClass = acc.remark ? 'aph-remark' : 'aph-url';
         const supplement = supplementText
-          ? `<span class="${supplementClass}">${escapeHtml(supplementText)}</span>`
+          ? `<span class="${supplementClass}">${highlightHtml(supplementText, highlightKw)}</span>`
           : '';
         const sub = tagsHtml || supplement ? `<div class="aph-row-sub">${tagsHtml}${supplement}</div>` : '';
         const titleAttr = acc.remark
@@ -1410,6 +1425,29 @@ function escapeHtml(value: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+/**
+ * 搜索命中高亮（XSS 安全）：先在原文上按关键字不区分大小写切分，
+ * 逐段转义后再包裹命中片段，避免先转义再匹配导致实体串被误命中
+ * @param text 原始文本
+ * @param keyword 搜索关键字（空串时仅转义）
+ * @returns 可安全注入 innerHTML 的片段
+ */
+function highlightHtml(text: string, keyword: string): string {
+  if (!keyword) return escapeHtml(text);
+  const lowerText = text.toLowerCase();
+  const lowerKw = keyword.toLowerCase();
+  let html = '';
+  let cursor = 0;
+  let idx = lowerText.indexOf(lowerKw);
+  while (idx !== -1) {
+    html += escapeHtml(text.slice(cursor, idx));
+    html += `<mark class="aph-hit">${escapeHtml(text.slice(idx, idx + keyword.length))}</mark>`;
+    cursor = idx + keyword.length;
+    idx = lowerText.indexOf(lowerKw, cursor);
+  }
+  return html + escapeHtml(text.slice(cursor));
 }
 
 // ==================== 单例（每个 frame 一个） ====================

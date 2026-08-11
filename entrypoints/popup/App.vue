@@ -4,13 +4,6 @@
       <BrandLogo class="logo" />
       <div class="header-title-group">
         <h3>{{ t('popup.title') }}</h3>
-        <el-tag
-          size="small"
-          type="info"
-          class="version-tag"
-        >
-          v{{ currentVersion }}
-        </el-tag>
       </div>
       <el-button
         v-if="isSessionValid"
@@ -255,7 +248,7 @@
       </div>
     </div>
 
-    <!-- 联系方式 -->
+    <!-- 联系方式：版本号从头部标题行下沉至此，弱化右对齐展示 -->
     <div class="contact-info">
       <el-text
         type="info"
@@ -270,6 +263,14 @@
           {{ CONTACT_EMAIL }}
         </a>
       </el-text>
+      <a
+        class="popup-version"
+        :href="GITHUB_RELEASES_PAGE_URL"
+        target="_blank"
+        rel="noopener noreferrer"
+        :title="t('popup.versionLinkTitle')"
+        >v{{ currentVersion }}</a
+      >
     </div>
   </div>
 </template>
@@ -281,6 +282,7 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import InlineKeyIcon from '@/components/InlineKeyIcon.vue';
 import { MessageType } from '@/utils/types';
+import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 import { logger } from '@/utils/logger';
 import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
 import { usePopupInit } from '@/composables/usePopupInit';
@@ -509,16 +511,6 @@ const handleEmailClick = (event: Event) => {
 
 .lock-btn {
   flex-shrink: 0;
-}
-
-.version-tag {
-  flex-shrink: 0;
-  padding: 0 6px;
-  font-size: 11px;
-  line-height: 18px;
-  color: #909399;
-  cursor: default;
-  user-select: none;
 }
 
 .update-arrow {
@@ -789,8 +781,27 @@ const handleEmailClick = (event: Event) => {
 }
 
 .contact-info {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
   padding-top: 12px;
   border-top: 1px solid #f0f0f0;
+}
+
+/* 版本号弱化展示：静态信息不争夺注意力；点击可跳转 GitHub Releases 查看最新版本与下载 */
+.popup-version {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #909399;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.popup-version:hover {
+  color: var(--aph-primary);
+  text-decoration: underline;
 }
 
 .email-link {

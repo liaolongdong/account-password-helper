@@ -92,6 +92,7 @@
         ref="passwordTableRef"
         :data="filteredPasswords"
         :loading="tableLoading"
+        :search-keyword="searchKeyword"
         :row-class-name="handleRowClassName"
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"

@@ -12,6 +12,7 @@ import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
 import { isValidTotpInput } from '@/utils/totp';
+import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
@@ -81,6 +82,10 @@ const totpValidator = (_rule: any, value: string, callback: any) => {
 export function usePasswordManagement(options: { validityForm: Ref<{ validityHours: number }> }) {
   const { validityForm } = options;
 
+  // 预热拼音匹配模块（幂等，独立 chunk 不进首屏关键包）：
+  // 就绪后过滤 computed 依赖的 pinyinMatcherReady 置 true 自动重算，拼音命中即时补齐
+  void warmPinyinMatcher();
+
   // 状态
   const passwords = ref<PasswordEntry[]>([]);
   /** 当前排序状态（由 el-table @sort-change 驱动更新） */
@@ -131,14 +136,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     let result: PasswordEntry[] = passwords.value;
 
     if (debouncedSearchKeyword.value) {
-      const keyword = debouncedSearchKeyword.value.toLowerCase();
-      result = result.filter(
-        p =>
-          p.username.toLowerCase().includes(keyword) ||
-          p.tag.toLowerCase().includes(keyword) ||
-          p.remark.toLowerCase().includes(keyword) ||
-          p.url.toLowerCase().includes(keyword),
-      );
+      const keyword = debouncedSearchKeyword.value;
+      // 智能匹配：子串（大小写不敏感）优先，拼音模块预热后自动补齐全拼/首字母命中
+      result = result.filter(p => matchesKeyword([p.username, p.tag, p.remark, p.url], keyword));
     }
 
     if (favoriteOnly.value) {

@@ -6,13 +6,22 @@
         <h1>
           <BrandLogo class="logo" />
           {{ t('appName') }}
-          <el-tag
-            size="small"
-            type="info"
-            class="version-tag"
+          <!-- 版本号可点击：与 Popup / 帮助弹窗的版本链接心智一致，跳转 GitHub Releases 查看最新版本与下载 -->
+          <a
+            class="version-tag-link"
+            :href="GITHUB_RELEASES_PAGE_URL"
+            target="_blank"
+            rel="noopener noreferrer"
+            :title="t('options.header.versionLinkTitle')"
           >
-            v{{ currentVersion }}
-          </el-tag>
+            <el-tag
+              size="small"
+              type="info"
+              class="version-tag"
+            >
+              v{{ currentVersion }}
+            </el-tag>
+          </a>
         </h1>
       </div>
       <!-- 会话剩余时间徽标：一级界面常驻可见，紧迫态（≤10 分钟）转警示橙、危急态（≤1 分钟）转警示红，点击直达有效期设置 -->
@@ -211,6 +220,7 @@ import {
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
+import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 import { useI18n } from '@/utils/i18n';
 import { useSessionCountdown } from '@/composables/useSessionCountdown';
 
@@ -303,17 +313,38 @@ const healthDotColor = computed(() => {
   color: #fff;
 }
 
+/* 版本号链接：弱化的可点击徽标，hover 提亮反馈，不争夺标题注意力 */
+.header-title .version-tag-link {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-left: 10px;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.header-title .version-tag-link:hover .version-tag {
+  color: #fff;
+  background: rgb(255 255 255 / 28%);
+}
+
+.header-title .version-tag-link:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 80%);
+  outline-offset: 1px;
+}
+
 .header-title .version-tag {
   flex-shrink: 0;
   padding: 0 6px;
-  margin-left: 10px;
   font-size: 11px;
   line-height: 18px;
   color: rgb(255 255 255 / 70%);
-  cursor: default;
+  cursor: pointer;
   user-select: none;
   background: rgb(255 255 255 / 15%);
   border-color: rgb(255 255 255 / 20%);
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
 }
 
 .header-actions-row {

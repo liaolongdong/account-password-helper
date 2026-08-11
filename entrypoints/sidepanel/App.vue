@@ -7,13 +7,15 @@
     <!-- 头部卡片 -->
     <div class="header-card">
       <SidepanelHeader
-        :current-version="currentVersion"
         :current-domain="currentDomain"
         :is-authenticated="isAuthenticated"
+        :show-match-info="isAuthenticated && !!currentDomain && !isLocalDevDomain(currentDomain)"
+        :match-count="domainFilteredPasswords.length"
         @open-github="openGithub"
         @open-help="showHelpDialog = true"
         @open-settings="handleOpenSettings"
         @open-validity="openValiditySetting"
+        @add-site-password="openOptionsAndAdd"
       />
     </div>
 
@@ -69,7 +71,7 @@
       @copy-totp="copyTotp"
     />
 
-    <!-- 底部操作 -->
+    <!-- 底部操作：匹配信息带已上移至头部域名行（信息就近原则），底部只保留主操作，为密码列表释放垂直空间 -->
     <div class="footer-card">
       <el-button
         :icon="BrandLogo"
@@ -126,6 +128,7 @@ import {
 import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
+import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
 
 /**
  * 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载）
@@ -238,9 +241,6 @@ const favoriteOnly = ref(false);
 const filterTags = ref<string[]>([]);
 const activeIndex = ref(0);
 
-/** 当前插件版本号，直接读取 manifest 避免加载 useVersionUpdate 的 192K JS + 56K CSS 依赖 */
-const currentVersion = chrome.runtime.getManifest().version;
-
 /** 操作指引弹窗可见性 */
 const showHelpDialog = ref(false);
 
@@ -282,14 +282,10 @@ const filteredPasswords = computed(() => {
   let result = domainFilteredPasswords.value;
 
   if (searchKeyword.value) {
-    const keyword = searchKeyword.value.toLowerCase();
-    result = result.filter(
-      p =>
-        p.username.toLowerCase().includes(keyword) ||
-        p.tag.toLowerCase().includes(keyword) ||
-        p.remark.toLowerCase().includes(keyword) ||
-        p.url.toLowerCase().includes(keyword),
-    );
+    const keyword = searchKeyword.value;
+    // 智能匹配：子串（大小写不敏感）优先，拼音模块预热后自动补齐全拼/首字母命中
+    // （matchesKeyword 内部读取 pinyinMatcherReady，预热完成会触发本 computed 重算）
+    result = result.filter(p => matchesKeyword([p.username, p.tag, p.remark, p.url], keyword));
   }
 
   if (filterTags.value.length > 0) {
@@ -654,6 +650,8 @@ onMounted(async () => {
       void import('@/components/sidepanel/SidepanelAuthView.vue').catch(() => {});
       void import('@/components/sidepanel/HelpDialog.vue').catch(() => {});
       void import('@/components/TotpCode.vue').catch(() => {});
+      // 预热拼音匹配模块（独立 chunk，不进首屏关键路径）：就绪后过滤 computed 自动重算补齐拼音命中
+      void warmPinyinMatcher();
     };
     if (typeof requestIdleCallback !== 'undefined') {
       requestIdleCallback(preloadIdleModules);

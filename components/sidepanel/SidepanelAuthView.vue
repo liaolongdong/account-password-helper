@@ -27,6 +27,7 @@ import {
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
 import { getTagColor } from '@/utils/tagUtils';
+import { pinyinMatcherReady } from '@/utils/searchMatch';
 import { t } from '@/utils/i18n';
 
 interface Props {
@@ -377,10 +378,18 @@ onUnmounted(() => {
         <PasswordListItem
           v-for="(password, index) in visiblePasswords"
           :key="password.id"
-          v-memo="[activeIndex === index, password.favorite, password.updateTime, autoTriggerLogin]"
+          v-memo="[
+            activeIndex === index,
+            password.favorite,
+            password.updateTime,
+            autoTriggerLogin,
+            searchKeyword,
+            pinyinMatcherReady,
+          ]"
           :password="password"
           :is-active="activeIndex === index"
           :auto-login-enabled="autoTriggerLogin"
+          :search-keyword="searchKeyword"
           @fill="p => emit('fill', p)"
           @fill-and-login="p => emit('fillAndLogin', p)"
           @edit="p => emit('edit', p)"

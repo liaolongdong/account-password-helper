@@ -1,5 +1,6 @@
 {
   "options.header.addPassword": "Add Password",
+  "options.header.versionLinkTitle": "View latest release and download",
   "options.header.healthCheck": "Health Check",
   "options.header.healthScore": "Security score: {score}",
   "options.header.data": "Data Management",
@@ -25,7 +26,7 @@
   "options.totalUnit": "entries",
   "options.filtered": "· filtered to",
   "options.filteredUnit": "entries",
-  "options.filter.searchPlaceholder": "Search username, tag, note or URL",
+  "options.filter.searchPlaceholder": "Search username, tag, note or URL (pinyin supported)",
   "options.filter.batchDelete": "Delete selected ({count})",
   "options.filter.tagPlaceholder": "Filter by tag",
   "options.filter.batchEditTags": "Edit tags ({count})",

@@ -53,7 +53,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 
 - **Import/export**: CSV / JSON formats with auto-detection of Chrome, LastPass, Bitwarden, and 1Password exports; Chinese/English column mapping
 - **Backup**: encrypted backup (.aph, AES-GCM) export/import with decrypt-preview; email backup (plain or encrypted) + scheduled backup reminders
-- **Organization**: multi-select tags (stable colors), tag filtering (manager + sidebar), favorites with configurable limit + LRU eviction, multi-field search and sorting, one-click dedup, batch delete / batch tag editing (add/remove) / export selected entries
+- **Organization**: multi-select tags (stable colors), tag filtering (manager + sidebar), favorites with configurable limit + LRU eviction, multi-field smart search (pinyin / initial abbreviations, matched keywords highlighted) and sorting, one-click dedup, batch delete / batch tag editing (add/remove) / export selected entries
 - **Smart entry**: the add form pre-fills the URL with the active tab's domain; when the sidebar finds no match, one-click "Add account for this site" pre-fills the current site's domain
 - **Mistake-proofing**: 30-day trash bin (soft delete), password change history (5 encrypted snapshots per entry), atomic master password change without data loss
 
@@ -133,7 +133,7 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 ## User Guide
 
 1. **Initial setup**: click the extension icon to open the manager, set a master password, and choose a session validity (default 24 hours); "Preferences" configures themes, language, floating button, fill mode, and more
-2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field search/sort, tags and favorites
+2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field smart search (pinyin/initials + match highlighting) and sorting, tags and favorites
 3. **Quick fill**: inline fill by default — a key icon appears in a focused login field; click it to pick an account and fill instantly. Switch to "Sidebar" (auto-opens on focus) or "Manual" in Preferences, or use the shortcuts
 4. **Shortcuts**: `Ctrl+Shift+P` (open manager), `Ctrl+Shift+L` (toggle side panel), `Ctrl+Shift+F` (quick fill), `Ctrl+Shift+K` (open the inline dropdown, same as clicking the key icon); all customizable at `chrome://extensions/shortcuts` (`Cmd` on Mac)
 
@@ -155,13 +155,13 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 
 ## Architecture Overview
 
-| Entrypoint         | Responsibility                                                               |
-| ------------------ | ---------------------------------------------------------------------------- |
-| **Background**     | Service worker: message routing, password cache, side panel state, shortcuts |
-| **Content Script** | Injected into all pages; initializes form detection and the floating button  |
-| **Popup**          | Extension icon popup with "Manage Passwords" and "Quick Fill" entries        |
-| **Options**        | Main manager page: full CRUD, import/export, session/validity management     |
-| **SidePanel**      | Quick fill panel with search, sorting, domain matching, cache acceleration   |
+| Entrypoint         | Responsibility                                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------------------------------- |
+| **Background**     | Service worker: message routing, password cache, side panel state, shortcuts                                   |
+| **Content Script** | Injected into all pages; initializes form detection and the floating button                                    |
+| **Popup**          | Extension icon popup with "Manage Passwords" and "Quick Fill" entries                                          |
+| **Options**        | Main manager page: full CRUD, import/export, session/validity management                                       |
+| **SidePanel**      | Quick fill panel with pinyin smart search and match highlighting, sorting, domain matching, cache acceleration |
 
 ```mermaid
 graph LR

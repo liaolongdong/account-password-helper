@@ -1,5 +1,6 @@
 {
   "options.header.addPassword": "添加密码",
+  "options.header.versionLinkTitle": "查看最新版本与下载",
   "options.header.healthCheck": "安全体检",
   "options.header.healthScore": "安全评分 {score} 分",
   "options.header.data": "数据管理",
@@ -25,7 +26,7 @@
   "options.totalUnit": "条账号密码",
   "options.filtered": "，过滤筛选出",
   "options.filteredUnit": "条",
-  "options.filter.searchPlaceholder": "搜索用户名、标签、备注或网址",
+  "options.filter.searchPlaceholder": "搜索用户名、标签、备注或网址（支持拼音/首字母）",
   "options.filter.batchDelete": "批量删除 ({count})",
   "options.filter.tagPlaceholder": "按标签筛选",
   "options.filter.batchEditTags": "编辑标签 ({count})",

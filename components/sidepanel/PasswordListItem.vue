@@ -14,6 +14,7 @@ import {
 import type { PasswordEntry } from '@/utils/types';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 import SiteFavicon from '@/components/SiteFavicon.vue';
+import SearchHighlight from '@/components/SearchHighlight.vue';
 import { useI18n } from '@/utils/i18n';
 
 /**
@@ -32,6 +33,8 @@ interface Props {
   isActive: boolean;
   /** 全局「自动触发登录」是否开启（开启时点条目即等于填充并登录，隐藏每条冗余的「填充并登录」按钮） */
   autoLoginEnabled: boolean;
+  /** 当前搜索关键词（用于命中高亮，空串时不高亮） */
+  searchKeyword?: string;
 }
 
 interface Emits {
@@ -75,7 +78,10 @@ const { t } = useI18n();
         >
           <el-icon><User /></el-icon>
         </SiteFavicon>
-        {{ password.username }}
+        <SearchHighlight
+          :text="password.username"
+          :keyword="searchKeyword ?? ''"
+        />
         <span
           class="copy-icon-wrapper"
           :title="t('sidepanel.item.copyUsername')"
@@ -106,14 +112,20 @@ const { t } = useI18n();
           size="small"
           class="tag-item"
         >
-          {{ tagName }}
+          <SearchHighlight
+            :text="tagName"
+            :keyword="searchKeyword ?? ''"
+          />
         </el-tag>
         <el-text
           v-if="password.url"
           type="info"
           size="small"
         >
-          {{ password.url }}
+          <SearchHighlight
+            :text="password.url"
+            :keyword="searchKeyword ?? ''"
+          />
         </el-text>
       </div>
       <div
@@ -124,7 +136,10 @@ const { t } = useI18n();
           type="info"
           size="small"
         >
-          {{ password.remark }}
+          <SearchHighlight
+            :text="password.remark"
+            :keyword="searchKeyword ?? ''"
+          />
         </el-text>
       </div>
       <div
@@ -245,8 +260,8 @@ const { t } = useI18n();
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px;
-  margin-left: 4px;
+  padding: 6px;
+  margin-left: 2px;
   cursor: pointer;
   border-radius: 4px;
   transition:
@@ -351,7 +366,15 @@ const { t } = useI18n();
 }
 
 .action-icon {
+  position: relative;
   font-size: 16px;
+}
+
+/* 触控热区扩展：视觉尺寸不变，点击区域扩至约 28px，降低误触/点空概率 */
+.action-icon::after {
+  position: absolute;
+  inset: -6px;
+  content: '';
 }
 
 .favorite-icon {
@@ -401,5 +424,11 @@ const { t } = useI18n();
 
 .edit-icon:hover {
   color: var(--aph-primary);
+}
+
+/* 标签内高亮：沿用标签自身配色，仅加粗强调，避免主题色与标签底色冲突 */
+.tag-item :deep(.search-hit) {
+  font-weight: 700;
+  color: inherit;
 }
 </style>

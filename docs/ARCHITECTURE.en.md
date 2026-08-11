@@ -25,7 +25,7 @@ This document targets developers and contributors, covering the architecture des
 | **Content Script** | Injected into all pages; initializes form detection and the floating button                                                                                                                                                                  |
 | **Popup**          | Extension icon popup with "Manage Passwords" and "Quick Fill" entries                                                                                                                                                                        |
 | **Options**        | Main manager page: full CRUD, import/export, session/validity management                                                                                                                                                                     |
-| **SidePanel**      | Quick fill panel with search, sorting, domain matching, cache acceleration                                                                                                                                                                   |
+| **SidePanel**      | Quick fill panel with pinyin smart search and match highlighting, sorting, domain matching, cache acceleration                                                                                                                               |
 
 ### Messaging & Data Flow
 
@@ -109,7 +109,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - JSON import/export: export password data as JSON (master password required), filename `passwords_YYYYMMDD_HHmmss.json`; JSON import is also supported.
 - Tag multi-select with custom tags (up to 3 per entry, max 30 chars each); identical tags keep stable, consistent colors (see [utils/tagUtils.ts](../utils/tagUtils.ts)).
 - Password list sorts by update time (desc) by default; the side panel sorts by recent usage. Sortable by username, URL, tag, remark, and create/update time.
-- Multi-field fuzzy search across username, tag, remark, and URL.
+- Multi-field smart search across username, tag, remark, and URL: case-insensitive substring first, falling back to pinyin matching (full pinyin / initial abbreviations / mixed CN-EN; pinyin-match is split into a separate chunk via dynamic import so it never hits the first-paint path, pre-warmed when idle after first frame); matched ranges are highlighted via the SearchHighlight component (see [utils/searchMatch.ts](../utils/searchMatch.ts)).
 - Batch selection and batch deletion of entries; deleted entries go to the trash for 30 days and can be restored anytime.
 - Favorites: star frequent entries and filter with "favorites only"; configurable limit (1–50) with LRU eviction when exceeded; filling from the side panel refreshes the usage timestamp for accurate LRU.
 - One-click dedup: detects duplicates (same username + same URL) and cleans them up after confirmation.
