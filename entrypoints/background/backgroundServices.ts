@@ -23,6 +23,7 @@ import {
   applyMetadataOnlyUpdate,
   consumeMetadataFlushMarker,
   isMetadataOnlyChange,
+  clearAllPendingTotp,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
 
@@ -133,6 +134,10 @@ async function clearUpdateBadge(): Promise<void> {
 
 /**
  * 设置闲置锁定检测
+ *
+ * 将用户配置的闲置分钟数写入 chrome.idle 检测阈值（仅影响 'idle' 状态判定）。
+ * 阈值存于浏览器进程内存，浏览器重启后回落默认 60s，故除 onInstalled / 配置变更外，
+ * SW 每次启动也须重新应用（见 setupBackgroundServices）。
  */
 async function setupIdleLock() {
   try {
@@ -525,11 +530,67 @@ export async function handleBrowserStartupRelock(): Promise<void> {
     // 但此处不依赖该异步事件时序，直接调用以确保浏览器启动重锁即时生效（防御性冗余）。
     await StorageUtils.clearSession();
     invalidatePasswordCache();
+    // 会话清除属安全边界：同步清除全部两步接力标记（不随缓存失效连带清除）
+    void clearAllPendingTotp();
     // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
     await syncSwKeepaliveAlarm();
     logger.info('Background: 已按设置在浏览器启动时清除会话，需重新输入主密码');
   } catch (error) {
     logger.error('Background: 浏览器启动重锁处理失败:', error);
+  }
+}
+
+/**
+ * 读取闲置锁定配置（分钟数；未配置或「不锁定」时为 0）
+ */
+async function getIdleLockMinutes(): Promise<number> {
+  const result = await chrome.storage.local.get(STORAGE_KEYS.IDLE_LOCK_CONFIG);
+  const config = result[STORAGE_KEYS.IDLE_LOCK_CONFIG] as { idleLockMinutes: number } | undefined;
+  return config?.idleLockMinutes ?? 0;
+}
+
+/**
+ * 处理 chrome.idle 状态变化（闲置锁定核心逻辑）
+ *
+ * 触发锁定的两条线（均在闲置锁定启用即 minutes > 0 时生效）：
+ * - 'locked'：系统锁屏/屏保激活，即时触发，与设定时间无关（OS 事件）；
+ * - 'idle'：系统未锁且连续无用户输入达到 setDetectionInterval 设定的阈值，
+ *   即用户配置的闲置分钟数，计时从最后一次 OS 级用户输入起算。
+ * 'active' 等其他状态不处理。锁定动作复用与系统锁屏相同的清会话 + 广播路径。
+ */
+export async function handleIdleStateChange(newState: string): Promise<void> {
+  if (newState !== 'locked' && newState !== 'idle') return;
+
+  try {
+    const minutes = await getIdleLockMinutes();
+    if (minutes <= 0) return;
+
+    const StorageUtils = await _getStorageUtils();
+    await StorageUtils.clearSession();
+    logger.info(`Background: ${newState === 'locked' ? '系统锁定' : `闲置超过 ${minutes} 分钟`}，已清除主密码会话`);
+
+    invalidatePasswordCache();
+    // 闲置/系统锁定属安全边界：同步清除全部两步接力标记
+    void clearAllPendingTotp();
+    // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
+    await syncSwKeepaliveAlarm();
+
+    const port = getSidePanelPort();
+    if (port) {
+      try {
+        port.postMessage({ type: MessageType.SESSION_EXPIRED });
+      } catch {
+        // port 可能已断开
+      }
+    }
+
+    try {
+      await chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
+    } catch {
+      // 无监听者时 sendMessage 会抛错，忽略
+    }
+  } catch (error) {
+    logger.error('Background: 闲置锁定处理失败:', error);
   }
 }
 
@@ -553,48 +614,17 @@ export function setupBackgroundServices(): void {
   // SW 启动时同步保活闹钟状态：会话有效则启用，无效则停止
   syncSwKeepaliveAlarm();
 
+  // SW 每次启动重新应用闲置检测阈值：setDetectionInterval 存于浏览器进程内存，
+  // 浏览器重启后回落默认 60s，不重设会导致「闲置 1 分钟即锁定」的回归
+  void setupIdleLock();
+
   // 延迟预热密码缓存：SW 启动后 500ms 异步执行，不阻塞其他初始化
   // 当会话有效时从 storage 加载密码列表到内存缓存，
   // 使首次 sidepanel 打开时 GET_INITIAL_DATA 可直接命中缓存（~1ms）
   setTimeout(() => warmPasswordCache(), 500);
 
-  // 监听闲置状态变化
-  chrome.idle.onStateChanged.addListener(async newState => {
-    if (newState === 'locked') {
-      try {
-        const result = await chrome.storage.local.get(STORAGE_KEYS.IDLE_LOCK_CONFIG);
-        const config = result[STORAGE_KEYS.IDLE_LOCK_CONFIG] as { idleLockMinutes: number } | undefined;
-        const minutes = config?.idleLockMinutes ?? 0;
-
-        if (minutes > 0) {
-          const StorageUtils = await _getStorageUtils();
-          await StorageUtils.clearSession();
-          logger.info('Background: 系统锁定，已清除主密码会话');
-
-          invalidatePasswordCache();
-          // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
-          await syncSwKeepaliveAlarm();
-
-          const port = getSidePanelPort();
-          if (port) {
-            try {
-              port.postMessage({ type: MessageType.SESSION_EXPIRED });
-            } catch {
-              // port 可能已断开
-            }
-          }
-
-          try {
-            await chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-          } catch {
-            // 无监听者时 sendMessage 会抛错，忽略
-          }
-        }
-      } catch (error) {
-        logger.error('Background: 闲置锁定处理失败:', error);
-      }
-    }
-  });
+  // 监听闲置状态变化（'locked' 系统锁屏 / 'idle' 闲置达阈值，均触发锁定）
+  chrome.idle.onStateChanged.addListener(newState => void handleIdleStateChange(newState));
 
   // 启动时检查缓存的更新信息，恢复徽标状态
   getCachedUpdateInfo().then(info => {
@@ -705,6 +735,9 @@ export function setupBackgroundServices(): void {
         if (sessionRemoved) {
           // 会话被清除：清除 BG 的会话验证缓存，防止 isSessionValid() 返回过期的 true
           invalidateSessionCache();
+          // 会话清除安全网：一次性收口所有锁定入口（弹窗手动锁定/倒计时到期/锁定按钮），
+          // 同步清除全部两步接力标记
+          void clearAllPendingTotp();
 
           // 通知所有打开的 UI 上下文切换到未验证状态
           const port = getSidePanelPort();
@@ -764,11 +797,16 @@ export function setupBackgroundServices(): void {
       performReminderCheck();
     } else if (alarm.name === SW_KEEPALIVE_ALARM_NAME) {
       // 复活闹钟触发（SW 被强杀后的唤醒入口；心跳存活期间本 tick 仅是例行唤醒）：
-      // Windows 借本次保活唤醒顺带预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，
-      // 缓解冷启动白屏）。懒 import 延迟模块初始化（SW 产物已内联）；函数内自带平台
-      // 门控与 5min 持久化节流（storage.session，SW 重启不归零），非 Windows 直接跳过，
-      // Windows 不区分会话状态（磁盘缓存逐出与会话有效性无关）。
-      void import('@/utils/warmSidePanelResources').then(m => m.maybeWarmSidePanelResources()).catch(() => {});
+      // 借本次保活唤醒顺带预热侧边栏渲染资源（温热磁盘/JS chunk 缓存，
+      // 缓解冷启动白屏）。懒 import 延迟模块初始化（SW 产物已内联）；函数内自带
+      // 平台门控与 5min 持久化节流（storage.session，SW 重启不归零）：
+      // Windows 全量预热且不区分会话状态（磁盘缓存逐出与会话有效性无关）；
+      // 非 Windows 经 allowNonWindowsLightweight 轻量预热首屏关键资源
+      // （保活存续期内——会话有效/启动引导期——持续温热，覆盖 Chrome 长时间
+      // 聚焦无窗口切换事件的场景，缓解 Mac 间隔偶现冷读白屏）
+      void import('@/utils/warmSidePanelResources')
+        .then(m => m.maybeWarmSidePanelResources({ allowNonWindowsLightweight: true }))
+        .catch(() => {});
 
       // 定期重同步保活门控（幂等、开销为 1-2 次 storage 读）：
       // 启动引导期窗口截止后，非 Windows 会话失效场景经此收敛停活
@@ -786,6 +824,8 @@ export function setupBackgroundServices(): void {
           const expiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined;
           if (expiry && Date.now() >= expiry) {
             invalidatePasswordCache();
+            // 会话到期锁定属安全边界：同步清除全部两步接力标记
+            void clearAllPendingTotp();
             // 使用 markSessionInvalid() 而非 invalidateSessionCache()：
             // 时间过期场景下 storage 中的会话键仍然存在，invalidateSessionCache() 设为 null
             // 会导致 isSessionValid() 回退到 storage 检查并误判为有效；

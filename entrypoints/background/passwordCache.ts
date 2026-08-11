@@ -1,4 +1,9 @@
-import { type PasswordCache, type PasswordEntry, type MatchingAccountsResponse } from '@/utils/types';
+import {
+  type PasswordCache,
+  type PasswordEntry,
+  type MatchingAccountsResponse,
+  type InlineTotpCodeData,
+} from '@/utils/types';
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { isSessionValid, isSessionActiveSync, getSessionDataKey } from '@/utils/sessionManager-storage';
@@ -11,6 +16,7 @@ import {
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { fetchFaviconDataUrl } from '@/utils/favicon';
+import { generateTOTP, parseOtpAuth, getTotpRemaining } from '@/utils/totp';
 import { tl } from '@/utils/i18n-lite';
 
 // 兼容既有导入路径：backgroundServices 等从本模块导入 isMetadataOnlyChange，
@@ -290,6 +296,9 @@ export function invalidatePasswordCache(keepSnapshotForRebuild = false): void {
     // 同步清除 storage.session 加密快照（fire-and-forget）
     clearCacheSnapshot();
   }
+  // 注意：两步接力标记（pendingTotp）不随缓存失效清除——数据变更（元数据落盘/
+  // 自动保存）不应中断跨页接力；锁定/登出场景由 clearAllPendingTotp 显式清除，
+  // 消费时的会话校验 + 3 分钟 TTL + 域名精确匹配构成其余安全边界
   logger.debug('Background: 密码缓存已失效');
 }
 
@@ -478,4 +487,196 @@ export async function getDecryptedEntryById(id: string): Promise<PasswordEntry |
   }
   const cache = await ensureAuthenticatedCache();
   return cache?.passwords.find(p => p.id === id) ?? null;
+}
+
+/**
+ * 按条目 ID 在 SW 本地计算当前 TOTP 动态码（供内联下拉 GET_INLINE_TOTP / FILL_TOTP_BY_ID 使用）
+ *
+ * 安全：与 GET_MATCHING_ACCOUNTS 的元数据最小暴露原则一致——仅返回 period 秒
+ * 自失效的一次性动态码与到期时间戳，TOTP 密钥始终驻留在 SW 上下文，
+ * 绝不下发到内容脚本（密钥可无限生成动态码，暴露面大于单次动态码）。
+ *
+ * @param id 目标条目 ID
+ * @returns 动态码与到期信息；会话锁定、条目不存在或未配置/无法解析 TOTP 时返回 null
+ */
+export async function getInlineTotpCode(id: string): Promise<InlineTotpCodeData | null> {
+  const entry = await getDecryptedEntryById(id);
+  if (!entry || !entry.totp || !entry.totp.trim()) return null;
+
+  const params = parseOtpAuth(entry.totp);
+  if (!params) return null;
+
+  // 统一取时：避免三处独立 Date.now() 恰好跨周期边界时，码与到期时间分属两个周期
+  const now = Date.now();
+  const code = await generateTOTP(entry.totp, now);
+  const remaining = getTotpRemaining(params.period, now);
+  return { code, expiresAt: now + remaining * 1000, period: params.period };
+}
+
+// ==================== 两步接力：待接力的两步验证标记 ====================
+
+/** 待接力状态（存于 chrome.storage.session，不落盘、不含任何密钥，浏览器关闭自动清除） */
+interface PendingTotpState {
+  /** 刚完成账密填充且开启了两步验证的条目 ID */
+  entryId: string;
+  /** 填充发生时的标签页 hostname（消费时须精确匹配） */
+  hostname: string;
+  /** 标记时间戳（毫秒，epoch） */
+  ts: number;
+}
+
+/** 待接力标记 TTL（毫秒）：覆盖账密提交 → 服务端校验 → 验证码页渲染的典型耗时 */
+const PENDING_TOTP_TTL_MS = 3 * 60 * 1000;
+
+/** 存储键（chrome.storage.session 区，仅扩展可见） */
+const PENDING_TOTP_STORAGE_KEY = 'pending_totp_tabs';
+
+/**
+ * 待接力标记（key: tabId）
+ *
+ * GitHub 式两阶段登录中账密页与验证码页不在同一页面：账密填充成功后记录意图，
+ * 同域名验证码页检测到验证码输入框时据此自动呈活码胶囊。单槽位，
+ * 同标签页新的账密填充覆盖旧标记。
+ *
+ * 存于 chrome.storage.session 而非模块内存：MV3 Service Worker 重启后仍可恢复，
+ * 且 backgroundServices 的 storage.onChanged 仅监听 local 区，写入不会触发缓存失效回环。
+ */
+
+/**
+ * 读取全部待接力标记
+ * @returns 以 tabId 字符串为键的标记映射；读取失败时返回空对象（降级为不接力）
+ */
+async function readPendingMap(): Promise<Record<string, PendingTotpState>> {
+  try {
+    const data = await chrome.storage.session.get(PENDING_TOTP_STORAGE_KEY);
+    return (data[PENDING_TOTP_STORAGE_KEY] as Record<string, PendingTotpState> | undefined) ?? {};
+  } catch (error) {
+    logger.debug('Background: 读取待接力标记失败:', error);
+    return {};
+  }
+}
+
+/**
+ * 写回待接力标记（空映射时移除键，避免残留空对象）
+ * @param map 以 tabId 字符串为键的标记映射
+ */
+async function writePendingMap(map: Record<string, PendingTotpState>): Promise<void> {
+  try {
+    if (Object.keys(map).length === 0) {
+      await chrome.storage.session.remove(PENDING_TOTP_STORAGE_KEY);
+    } else {
+      await chrome.storage.session.set({ [PENDING_TOTP_STORAGE_KEY]: map });
+    }
+  } catch (error) {
+    logger.debug('Background: 写入待接力标记失败:', error);
+  }
+}
+
+/** 串行队列：防止多标签页并发填充时 pending 读改写交错互相覆盖写 */
+let _pendingOpQueue: Promise<void> = Promise.resolve();
+
+/**
+ * 在串行队列上执行 pending 读改写操作（后入者排队，不并发读写同一快照）
+ * @param op 待执行操作
+ * @returns 操作结果
+ */
+function withPendingLock<T>(op: () => Promise<T>): Promise<T> {
+  const run = _pendingOpQueue.then(op, op);
+  _pendingOpQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
+/**
+ * 记录待接力的两步验证标记
+ * @param tabId 发起填充的标签页 ID
+ * @param entryId 条目 ID
+ * @param hostname 发起标签页的 hostname
+ */
+export async function setPendingTotp(tabId: number, entryId: string, hostname: string): Promise<void> {
+  await withPendingLock(async () => {
+    const map = await readPendingMap();
+    map[String(tabId)] = { entryId, hostname, ts: Date.now() };
+    await writePendingMap(map);
+  });
+}
+
+/**
+ * 消费待接力标记：会话有效、未超 TTL、发起标签页域名精确匹配时返回条目 ID，
+ * 否则返回 null（过期/失配的标记顺手清除）
+ *
+ * @param tabId 发起查询的标签页 ID
+ * @param hostname 发起标签页当前 hostname
+ * @returns 待接力条目 ID 或 null
+ */
+export async function consumePendingTotp(tabId: number, hostname: string): Promise<string | null> {
+  return withPendingLock(async () => {
+    const map = await readPendingMap();
+    const key = String(tabId);
+    const pending = map[key];
+    if (!pending) return null;
+    if (Date.now() - pending.ts > PENDING_TOTP_TTL_MS || pending.hostname !== hostname) {
+      delete map[key];
+      await writePendingMap(map);
+      return null;
+    }
+    if (!isSessionActiveSync()) {
+      const valid = await isSessionValid();
+      if (!valid) {
+        delete map[key];
+        await writePendingMap(map);
+        return null;
+      }
+    }
+    return pending.entryId;
+  });
+}
+
+/**
+ * 清除待接力标记（验证码填充成功或用户关闭接力胶囊时调用）
+ * @param tabId 标签页 ID
+ */
+export async function clearPendingTotp(tabId: number): Promise<void> {
+  await withPendingLock(async () => {
+    const map = await readPendingMap();
+    const key = String(tabId);
+    if (!(key in map)) return;
+    delete map[key];
+    await writePendingMap(map);
+  });
+}
+
+/**
+ * 清除全部待接力标记（会话锁定/登出等安全边界场景调用）
+ */
+export async function clearAllPendingTotp(): Promise<void> {
+  await withPendingLock(async () => {
+    try {
+      await chrome.storage.session.remove(PENDING_TOTP_STORAGE_KEY);
+    } catch (error) {
+      logger.debug('Background: 清除全部待接力标记失败:', error);
+    }
+  });
+}
+
+/**
+ * 账密填充成功且条目开启 TOTP 后记录接力意图的统一入口。
+ *
+ * 内联面板（FILL_BY_ID）、侧边栏（SET_PENDING_TOTP）、一键填充（quickFillHandler）
+ * 三条填充链路复用；hostname 始终由 SW 侧 chrome.tabs.get 获取（不信任调用方自报域名），
+ * 获取失败仅降级为不接力，不影响填充结果。
+ *
+ * @param tabId 发起填充的标签页 ID
+ * @param entryId 条目 ID
+ */
+export async function recordPendingTotpIfEligible(tabId: number, entryId: string): Promise<void> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    const hostname = tab.url ? new URL(tab.url).hostname : '';
+    if (hostname) await setPendingTotp(tabId, entryId, hostname);
+  } catch {
+    // 标签页已关闭等边界，降级为不接力
+  }
 }

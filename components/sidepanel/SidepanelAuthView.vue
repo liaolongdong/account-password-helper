@@ -26,6 +26,8 @@ import {
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
+import { getTagColor } from '@/utils/tagUtils';
+import { pinyinMatcherReady } from '@/utils/searchMatch';
 import { t } from '@/utils/i18n';
 
 interface Props {
@@ -41,6 +43,8 @@ interface Props {
   autoTriggerLogin: boolean;
   /** 当前排序字段（用于下拉菜单高亮选中项） */
   sortProp: string;
+  /** 可选标签集（取自域名过滤后的条目；为空时隐藏标签筛选行） */
+  availableTags: string[];
 }
 
 interface Emits {
@@ -50,6 +54,8 @@ interface Emits {
   search: [];
   /** 空状态「去添加密码」 */
   addPassword: [];
+  /** 无结果态「添加本站账号」（携带当前域名预填） */
+  addSitePassword: [];
   /** 鼠标悬停激活条目 */
   activate: [index: number];
   /** 认证视图首帧渲染完成（DOM flush + 首帧绘制，回传实际首帧渲染条目数，供性能埋点与骨架屏收尾） */
@@ -73,6 +79,28 @@ const searchKeyword = defineModel<string>('searchKeyword', { required: true });
 
 /** 是否仅显示收藏条目（双向绑定至父级） */
 const favoriteOnly = defineModel<boolean>('favoriteOnly', { required: true });
+
+/** 标签筛选选中集（双向绑定至父级，命中任一即保留） */
+const filterTags = defineModel<string[]>('filterTags', { required: true });
+
+/**
+ * 切换单个筛选标签的选中态（点击即切，无需下拉选择）
+ * @param tag 目标标签
+ */
+const toggleFilterTag = (tag: string) => {
+  const current = filterTags.value;
+  filterTags.value = current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag];
+};
+
+/**
+ * 筛选 chip 的主题色 CSS 变量（与列表条目标签同源 HSL 配色）
+ * @param tag 标签文本
+ * @returns 供样式消费的 --tag-* 变量集
+ */
+const tagChipVars = (tag: string): Record<string, string> => {
+  const { background, text, border } = getTagColor(tag);
+  return { '--tag-bg': background, '--tag-text': text, '--tag-border': border };
+};
 
 const searchInputRef = ref();
 
@@ -272,6 +300,25 @@ onUnmounted(() => {
         </el-dropdown>
       </el-tooltip>
     </div>
+    <!-- 标签筛选：仅在域名过滤后的条目存在标签时显示，不占用无标签用户的空间；
+         直接点选的主题色 chip（与列表条目标签同源配色），替代下拉选择更直观 -->
+    <div
+      v-if="availableTags.length > 0"
+      class="tag-filter-section"
+    >
+      <button
+        v-for="tag in availableTags"
+        :key="tag"
+        type="button"
+        class="tag-chip"
+        :class="{ 'tag-chip--active': filterTags.includes(tag) }"
+        :style="tagChipVars(tag)"
+        :title="tag"
+        @click="toggleFilterTag(tag)"
+      >
+        <span class="tag-chip__label">{{ tag }}</span>
+      </button>
+    </div>
   </div>
 
   <!-- 密码列表卡片 -->
@@ -305,13 +352,22 @@ onUnmounted(() => {
             {{ t('sidepanel.addPassword') }}
           </el-button>
         </template>
-        <!-- 搜索/过滤无结果 -->
+        <!-- 搜索/过滤无结果：提供行动出口，空屏即邀请 -->
         <template v-else>
           <div class="empty-icon-circle empty-icon-circle--muted">
             <el-icon class="empty-icon empty-icon--muted"><Search /></el-icon>
           </div>
           <h3 class="empty-title">{{ t('sidepanel.noMatch') }}</h3>
           <p class="empty-desc">{{ t('sidepanel.noMatchDesc') }}</p>
+          <el-button
+            type="primary"
+            plain
+            :icon="Plus"
+            class="empty-add-site-btn"
+            @click="emit('addSitePassword')"
+          >
+            {{ t('sidepanel.addSiteAccount') }}
+          </el-button>
         </template>
       </div>
 
@@ -322,10 +378,18 @@ onUnmounted(() => {
         <PasswordListItem
           v-for="(password, index) in visiblePasswords"
           :key="password.id"
-          v-memo="[activeIndex === index, password.favorite, password.updateTime, autoTriggerLogin]"
+          v-memo="[
+            activeIndex === index,
+            password.favorite,
+            password.updateTime,
+            autoTriggerLogin,
+            searchKeyword,
+            pinyinMatcherReady,
+          ]"
           :password="password"
           :is-active="activeIndex === index"
           :auto-login-enabled="autoTriggerLogin"
+          :search-keyword="searchKeyword"
           @fill="p => emit('fill', p)"
           @fill-and-login="p => emit('fillAndLogin', p)"
           @edit="p => emit('edit', p)"
@@ -374,6 +438,67 @@ onUnmounted(() => {
 
 .search-section :deep(.el-input) {
   flex: 1;
+}
+
+/* 标签筛选 chip 行：仅在有标签时渲染，与搜索行同宽内边距保持卡片节奏一致 */
+.tag-filter-section {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 16px 12px;
+}
+
+/* 未选中：中性描边；选中：切换为标签自身主题色（--tag-* 变量由组件注入）；
+   截断省略号作用于内层 span（button 匿名盒上 text-overflow 不可靠） */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 140px;
+  padding: 2px 10px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #64748b;
+  cursor: pointer;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.tag-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tag-chip:hover {
+  color: var(--tag-text);
+  border-color: var(--tag-border);
+}
+
+.tag-chip--active {
+  color: var(--tag-text);
+  background: var(--tag-bg);
+  border-color: color-mix(in srgb, var(--tag-text) 45%, transparent);
+}
+
+.tag-chip:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline-offset: 1px;
+}
+
+/* 无结果态「添加本站账号」：轻量描边样式，与全空态主按钮区分层级 */
+:deep(.empty-add-site-btn) {
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 18px;
+  transition: all 0.25s ease;
+}
+
+:deep(.empty-add-site-btn:hover) {
+  box-shadow: 0 2px 10px rgb(var(--aph-primary-rgb) / 25%);
+  transform: translateY(-1px);
 }
 
 .password-list {

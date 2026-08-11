@@ -23,7 +23,7 @@
   "common.failed": "Failed",
   "common.favorite": "Favorite (pinned to top)",
   "common.unfavorite": "Unfavorite",
-  "common.settings": "Settings",
+  "common.preferences": "Preferences",
   "common.validityRequired": "Please select a validity period",
   "common.pwdMismatch": "The two passwords do not match",
   "common.quickFill": "Quick Fill",

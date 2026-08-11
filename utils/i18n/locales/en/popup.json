@@ -5,6 +5,7 @@
   "popup.verifyFirst": "Please verify your master password first",
   "popup.passwordCount": "{count} passwords in total",
   "popup.domainMatch": "{count} matches for this page",
+  "popup.sessionRemainingTitle": "Session time remaining — click to adjust validity",
   "popup.passwordManagement": "Password Manager",
   "popup.passwordManagementDesc": "Manage all saved accounts and passwords",
   "popup.quickFillDesc": "Quickly fill credentials on the current page",
@@ -19,6 +20,7 @@
   "popup.lock": "Lock (clear session)",
   "popup.lockWithIdle": "Lock now (also auto-locks after {minutes} min of inactivity)",
   "popup.contact": "For questions or suggestions, contact",
+  "popup.versionLinkTitle": "View latest release and download",
   "popup.feedbackSubject": "Account Password Helper feedback",
   "popup.openSidepanelFailed": "Failed to open the sidebar automatically. Please click the extension icon next to the address bar to open it manually"
 }

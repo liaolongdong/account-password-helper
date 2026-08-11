@@ -25,7 +25,7 @@
 | **Content Script** | 注入所有页面，初始化表单检测与悬浮按钮                                                                                                                                                       |
 | **Popup**          | 扩展图标弹窗，提供「管理密码」和「快速填充」快捷入口                                                                                                                                         |
 | **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理                                                                                                                                         |
-| **SidePanel**      | 侧边栏快速填充，支持搜索、排序、域名匹配、缓存加速                                                                                                                                           |
+| **SidePanel**      | 侧边栏快速填充，支持拼音智能搜索与命中高亮、排序、域名匹配、缓存加速                                                                                                                         |
 
 ### 消息与数据流
 
@@ -237,7 +237,7 @@ graph TB
 - JSON 导入导出：支持密码数据的 JSON 格式导出（需验证主密码），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；也支持从 JSON 文件导入。
 - 标签下拉多选 + 自定义新增（每条最多 3 个，单个最长 30 字符）；相同标签颜色稳定一致（见 [utils/tagUtils.ts](../utils/tagUtils.ts)）。
 - 密码列表默认按更新时间倒序；侧边栏默认按最近使用倒序。支持按用户名、URL、标签、备注、创建/更新时间切换排序。
-- 支持用户名、标签、备注、URL 的多字段模糊搜索。
+- 支持用户名、标签、备注、URL 的多字段智能搜索：大小写不敏感子串优先，未命中降级拼音匹配（全拼 / 首字母缩写 / 中英混合，pinyin-match 经动态 import 拆分为独立 chunk 不占首屏，首帧后空闲预热），命中区间经 SearchHighlight 组件高亮（见 [utils/searchMatch.ts](../utils/searchMatch.ts)）。
 - 批量选择与批量删除密码条目；删除的条目进入回收站保留 30 天，可随时恢复。
 - 收藏标记：点击星标收藏常用条目，支持「只看收藏」过滤；收藏上限默认可配置（1~50 条），超限时 LRU 自动淘汰最早使用的收藏条目；侧边栏填充时自动更新收藏使用时间戳确保 LRU 准确。
 - 一键去重：智能检测重复条目（相同用户名 + 相同 URL）并提供一键清理。
@@ -278,7 +278,7 @@ graph TB
 
 ### 8. 自动闲置锁定与浏览器重启锁定
 
-- 在密码管理页「自动锁定设置」中配置闲置时间（5/10/30/60 分钟或不锁定），系统闲置超过设定时间后自动清除主密码会话并锁定密码管理（见 [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)）。
+- 在密码管理页「自动锁定设置」中配置闲置时间（5/10/30/60 分钟或不锁定），连续闲置超过设定时间后自动清除主密码会话并锁定密码管理；系统锁屏或屏保激活时也会立即锁定（见 [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)）。闲置判定基于 chrome.idle API，计时从最后一次系统级用户输入起算。
 - 锁定后需重新验证主密码才能恢复访问，与手动锁定和会话过期行为一致。
 - **浏览器重启锁定**：在「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，完全关闭并重新打开浏览器时需重新输入主密码（更安全）；关闭则在有效期内自动保持登录，无需重复输入。
 - Popup 弹窗也提供一键「锁定」按钮，可快速清除当前会话。
@@ -336,7 +336,7 @@ graph TB
 - 清除延时可配置为 10/15/30/60/120 秒，默认 30 秒（见 [ClipboardSettingDialog.vue](../components/options/ClipboardSettingDialog.vue)）。
 - 清除前验证剪贴板内容未被用户替换（优先使用 Async Clipboard API 读取验证；失焦时降级为「尽力清除」策略）。
 - 复制用户名时自动取消密码清除定时器，避免误清除用户名。
-- 配置入口位于密码管理页「数据管理」下拉菜单 →「剪贴板设置」。
+- 配置入口位于密码管理页「安全设置」下拉菜单 →「剪贴板设置」。
 
 ### 15. 两步验证（TOTP）
 
@@ -389,7 +389,7 @@ graph TB
 
 ### 20. 修改主密码
 
-- 入口：密码管理页「设置」下拉菜单 →「修改主密码」（见 [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)）。
+- 入口：密码管理页「安全设置」下拉菜单 →「修改主密码」（见 [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)）。
 - 流程：验证当前主密码 → 旧密钥解密全部数据（密码列表 + 回收站 + 修改历史）→ 新密钥重新加密 → 单次 `chrome.storage.local.set()` **原子写入**密文与新会话密钥（见 [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)）。
 - 安全保证：写入前任意步骤失败直接中断，数据保持旧密文无损；不存在「新密文 + 旧会话密钥」的中间态。
 - 会话自愈：其他已打开的扩展页面（侧边栏/Popup 等）监听到密钥更换后自动采纳新会话密钥，无需重新登录，列表不会被清空（见 [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts) 的 `adoptRekeyedSession`）。

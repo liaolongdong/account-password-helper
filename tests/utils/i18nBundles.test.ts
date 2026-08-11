@@ -19,7 +19,7 @@ const LOCALES = ['zh-CN', 'en'] as const;
 
 /** 各入口 bundle 注册的命名空间（必须与 utils/i18n/bundles/*.ts 保持一致） */
 const BUNDLE_NAMESPACES = {
-  sidepanel: ['common', 'message', 'sidepanel', 'fill', 'totp'],
+  sidepanel: ['common', 'message', 'sidepanel', 'fill', 'totp', 'session'],
   help: ['help'],
   popup: ['common', 'message', 'popup', 'auth', 'session', 'verify'],
 } as const;
@@ -34,6 +34,7 @@ const SIDEPANEL_GRAPH_FILES = [
   'entrypoints/sidepanel/icons.ts',
   'components/sidepanel/PasswordListItem.vue',
   'components/sidepanel/SidepanelHeader.vue',
+  'components/sidepanel/SidepanelAuthView.vue',
   'components/TotpCode.vue',
   'components/BrandLogo.vue',
   'composables/useSidepanelData.ts',
@@ -42,6 +43,7 @@ const SIDEPANEL_GRAPH_FILES = [
   'composables/useChromeListeners.ts',
   'composables/useTagOverflow.ts',
   'composables/useTotp.ts',
+  'composables/useSessionCountdown.ts',
 ];
 
 /** HelpDialog 懒加载 chunk 源文件（可用命名空间 = sidepanel bundle + help） */

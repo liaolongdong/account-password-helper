@@ -5,6 +5,7 @@
   "popup.verifyFirst": "请先验证主密码",
   "popup.passwordCount": "共 {count} 条密码",
   "popup.domainMatch": "当前页面匹配 {count} 条",
+  "popup.sessionRemainingTitle": "会话剩余时间，点击调整有效期",
   "popup.passwordManagement": "密码管理",
   "popup.passwordManagementDesc": "管理所有已保存的账号密码",
   "popup.quickFillDesc": "在当前页面快速填充账号密码",
@@ -19,6 +20,7 @@
   "popup.lock": "锁定（清除会话）",
   "popup.lockWithIdle": "立即锁定（闲置 {minutes} 分钟后也会自动锁定）",
   "popup.contact": "如有任何问题或者建议，请联系",
+  "popup.versionLinkTitle": "查看最新版本与下载",
   "popup.feedbackSubject": "账号密码管理助手反馈",
   "popup.openSidepanelFailed": "自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏"
 }
