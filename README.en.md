@@ -38,7 +38,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 ### 🔐 Security
 
 - **Strong encryption**: PBKDF2 (600,000 iterations) derives a 256-bit key + AES-256-GCM with random IV; sensitive fields (username/password/URL/remark/TOTP) stored as ciphertext; built on the native Web Crypto API with zero network transfer
-- **Session control**: validity from 1 hour to 7 days; auto idle lock (5–60 minutes), lock on browser restart, one-click lock in the popup; sensitive fields re-encrypt automatically on expiry
+- **Session control**: validity from 1 hour to 7 days; auto idle lock (5–60 minutes), lock on browser restart, one-click lock in the popup; sensitive fields re-encrypt automatically on expiry; the remaining session time stays visible in the manager header, sidebar header and popup (warning amber within the last 10 minutes, critical red within the final minute; click the badge or popup capsule to open the validity settings)
 - **Health check**: one-click scan producing a 0–100 score; detects weak, reused, commonly leaked (offline dictionary), long-unchanged passwords and missing 2FA; expiry reminders supported
 - **Safety details**: clipboard auto-clear (10–120s), password strength visualization, local TOTP code generation (RFC 6238, fully offline) with live codes and countdowns in the list / side panel and 2FA live codes in the inline panel (click the 2FA badge to copy or fill); add a TOTP secret in one click by scanning the QR code on a webpage or uploading a QR image (local jsQR decoding, no network); two-step login handoff: for GitHub-style split logins (password page → code page), a successful credentials fill auto-anchors a live-code capsule on the code-only page for one-click fill / copy (valid 3 minutes, cleared on session lock)
 
@@ -53,7 +53,8 @@ A powerful Chrome extension for secure, convenient password management and auto-
 
 - **Import/export**: CSV / JSON formats with auto-detection of Chrome, LastPass, Bitwarden, and 1Password exports; Chinese/English column mapping
 - **Backup**: encrypted backup (.aph, AES-GCM) export/import with decrypt-preview; email backup (plain or encrypted) + scheduled backup reminders
-- **Organization**: multi-select tags (stable colors), favorites with configurable limit + LRU eviction, multi-field search and sorting, one-click dedup, batch delete
+- **Organization**: multi-select tags (stable colors), tag filtering (manager + sidebar), favorites with configurable limit + LRU eviction, multi-field search and sorting, one-click dedup, batch delete / batch tag editing (add/remove) / export selected entries
+- **Smart entry**: the add form pre-fills the URL with the active tab's domain; when the sidebar finds no match, one-click "Add account for this site" pre-fills the current site's domain
 - **Mistake-proofing**: 30-day trash bin (soft delete), password change history (5 encrypted snapshots per entry), atomic master password change without data loss
 
 ### 🎨 Experience

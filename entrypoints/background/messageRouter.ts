@@ -390,7 +390,13 @@ export function setupMessageRouter(): void {
         return true;
 
       case MessageType.OPEN_OPTIONS_AND_ADD:
-        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_ADD).then(sendResponse);
+        // data 可选携带 url（侧边栏「添加本站账号」预填域名），无载荷时行为与旧版一致
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_ADD, message.data).then(sendResponse);
+        return true;
+
+      case MessageType.OPEN_OPTIONS_AND_VALIDITY:
+        // 无载荷：打开密码管理页并自动弹出有效期设置对话框（Popup 倒计时胶囊点击续期）
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY).then(sendResponse);
         return true;
 
       case MessageType.UPDATE_PASSWORD_CACHE: {

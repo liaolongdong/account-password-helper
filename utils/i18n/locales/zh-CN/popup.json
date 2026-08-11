@@ -5,6 +5,7 @@
   "popup.verifyFirst": "请先验证主密码",
   "popup.passwordCount": "共 {count} 条密码",
   "popup.domainMatch": "当前页面匹配 {count} 条",
+  "popup.sessionRemainingTitle": "会话剩余时间，点击调整有效期",
   "popup.passwordManagement": "密码管理",
   "popup.passwordManagementDesc": "管理所有已保存的账号密码",
   "popup.quickFillDesc": "在当前页面快速填充账号密码",

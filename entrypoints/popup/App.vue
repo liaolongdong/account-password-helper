@@ -50,6 +50,21 @@
       >
         · {{ t('popup.domainMatch', { count: domainMatchCount }) }}
       </el-text>
+      <!-- 会话剩余时间：可点击倒计时胶囊（右对齐），点击直达有效期设置续期；紧迫态转警示橙，危急态转警示红 -->
+      <button
+        v-if="sessionRemainingText"
+        type="button"
+        class="session-remaining-chip"
+        :class="{
+          'session-remaining-chip--urgent': sessionIsUrgent,
+          'session-remaining-chip--critical': sessionIsCritical,
+        }"
+        :title="t('popup.sessionRemainingTitle')"
+        @click="openValiditySetting"
+      >
+        <el-icon><Timer /></el-icon>
+        {{ sessionRemainingText }}
+      </button>
     </div>
     <div
       v-else
@@ -260,8 +275,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
-import { Lock, CircleCheckFilled, WarningFilled, UploadFilled, Position } from '@element-plus/icons-vue';
+import { computed, onMounted, watch } from 'vue';
+import { Lock, CircleCheckFilled, WarningFilled, UploadFilled, Position, Timer } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import InlineKeyIcon from '@/components/InlineKeyIcon.vue';
@@ -270,6 +285,7 @@ import { logger } from '@/utils/logger';
 import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
 import { usePopupInit } from '@/composables/usePopupInit';
 import { useIdleLockSettings } from '@/composables/useIdleLockSettings';
+import { useSessionCountdown } from '@/composables/useSessionCountdown';
 import { useI18n } from '@/utils/i18n';
 
 /** 联系邮箱（常量，无需响应式） */
@@ -307,6 +323,33 @@ const lockBtnTitle = computed(() =>
 onMounted(() => {
   loadIdleLockSettings();
 });
+
+// ==================== 会话剩余时间（仅会话有效时展示；popup 生命周期短，无需手动停止） ====================
+const {
+  remainingText: sessionRemainingText,
+  isUrgent: sessionIsUrgent,
+  isCritical: sessionIsCritical,
+  start: startSessionCountdown,
+} = useSessionCountdown();
+watch(
+  isSessionValid,
+  valid => {
+    if (valid) startSessionCountdown();
+  },
+  { immediate: true },
+);
+
+/**
+ * 点击倒计时胶囊：打开密码管理页并直达「有效期设置」对话框
+ * 与 options 头部徽标「点时间 = 续期」的交互心智保持一致
+ */
+const openValiditySetting = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_VALIDITY });
+  } catch (error) {
+    logger.error('打开有效期设置失败:', error);
+  }
+};
 
 // ==================== 导航操作（与 UI 交互紧密，保留在组件内） ====================
 
@@ -489,6 +532,61 @@ const handleEmailClick = (event: Event) => {
   gap: 4px 8px;
   align-items: center;
   margin-bottom: 12px;
+}
+
+/* 会话剩余时间倒计时胶囊：右对齐的行尾仪表，换行时自然独占一行；
+   等宽数字避免逐秒跳动引起宽度抖动；点击直达有效期设置续期 */
+.session-remaining-chip {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  padding: 1px 8px;
+  margin-left: auto;
+  font-family: inherit;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  color: #606266;
+  white-space: nowrap;
+  cursor: pointer;
+  background: #f4f4f5;
+  border: none;
+  border-radius: 999px;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.session-remaining-chip:hover {
+  background: #ebeef5;
+}
+
+.session-remaining-chip:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline-offset: 1px;
+}
+
+.session-remaining-chip .el-icon {
+  font-size: 12px;
+}
+
+.session-remaining-chip--urgent {
+  color: #b88230;
+  background: #fdf6ec;
+}
+
+.session-remaining-chip--urgent:hover {
+  background: #faecd8;
+}
+
+/* 危急态（≤1 分钟）：警示红，信号强度高于紧迫态 */
+.session-remaining-chip--critical {
+  color: #c45656;
+  background: #fef0f0;
+}
+
+.session-remaining-chip--critical:hover {
+  background: #fde2e2;
 }
 
 .action-list {

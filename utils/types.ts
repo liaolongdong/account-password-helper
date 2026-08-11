@@ -170,6 +170,10 @@ export enum MessageType {
    */
   OPEN_OPTIONS_AND_ADD = 'OPEN_OPTIONS_AND_ADD',
   /**
+   * 跳转到密码管理页并自动打开有效期设置弹窗（Popup 倒计时胶囊点击续期）
+   */
+  OPEN_OPTIONS_AND_VALIDITY = 'OPEN_OPTIONS_AND_VALIDITY',
+  /**
    * 主动触发版本更新检测
    */
   CHECK_UPDATE = 'CHECK_UPDATE',
@@ -259,7 +263,8 @@ export type RuntimeMessage =
   | { type: MessageType.URL_CHANGED; data: { url: string } }
   | { type: MessageType.OPEN_OPTIONS_PAGE }
   | { type: MessageType.OPEN_OPTIONS_AND_EDIT; data: { editId: string } }
-  | { type: MessageType.OPEN_OPTIONS_AND_ADD }
+  | { type: MessageType.OPEN_OPTIONS_AND_ADD; data?: OpenOptionsAndAddData }
+  | { type: MessageType.OPEN_OPTIONS_AND_VALIDITY }
   | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
@@ -496,6 +501,14 @@ export interface UpdatePasswordMetadataData {
   updates: {
     [K in 'favorite' | 'favoriteUsedAt' | 'lastUsedAt' | 'updateTime' | 'tag' | 'order']?: PasswordEntry[K] | null;
   };
+}
+
+/**
+ * 「跳转管理页并新增密码」消息数据
+ */
+export interface OpenOptionsAndAddData {
+  /** 预填到新增表单 URL 字段的当前站点域名（侧边栏「添加本站账号」携带，可选） */
+  url?: string;
 }
 
 /**

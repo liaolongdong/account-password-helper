@@ -7,7 +7,7 @@ import { t } from '@/utils/i18n';
  * Runtime 消息监听 Composable
  *
  * 封装 chrome.runtime.onMessage 监听逻辑，
- * 处理来自 background/sidepanel 的锁定广播、编辑指令和添加指令。
+ * 处理来自 background/sidepanel 的锁定广播、编辑指令、添加指令和有效期设置指令。
  */
 export function useRuntimeMessageHandler(options: {
   /** 密码列表数据 */
@@ -18,10 +18,13 @@ export function useRuntimeMessageHandler(options: {
   handleSessionExpired: () => void;
   /** 编辑密码 */
   editPassword: (entry: PasswordEntry) => void;
-  /** 打开添加密码弹窗 */
-  openPasswordDialog: () => void;
+  /** 打开添加密码弹窗（可选携带预填 URL，来自侧边栏「添加本站账号」） */
+  openPasswordDialog: (prefillUrl?: string) => void;
+  /** 打开有效期设置弹窗（来自 Popup 倒计时胶囊点击续期，可选） */
+  openValiditySetting?: () => void;
 }) {
-  const { passwords, isAuthenticated, handleSessionExpired, editPassword, openPasswordDialog } = options;
+  const { passwords, isAuthenticated, handleSessionExpired, editPassword, openPasswordDialog, openValiditySetting } =
+    options;
 
   /**
    * 等待密码列表加载完成
@@ -54,11 +57,20 @@ export function useRuntimeMessageHandler(options: {
         }
       });
     } else if (message.type === MessageType.OPEN_OPTIONS_AND_ADD) {
-      logger.debug('RuntimeMsg: 收到侧边栏添加密码指令');
+      const prefillUrl = message.data?.url;
+      logger.debug('RuntimeMsg: 收到侧边栏添加密码指令' + (prefillUrl ? `，预填 URL=${prefillUrl}` : ''));
       waitForPasswords().then(() => {
         // 密码列表有数据时才自动弹窗，空数据时不弹，让用户看到空状态引导
         if (passwords.value.length > 0) {
-          openPasswordDialog();
+          openPasswordDialog(prefillUrl);
+        }
+      });
+    } else if (message.type === MessageType.OPEN_OPTIONS_AND_VALIDITY) {
+      logger.debug('RuntimeMsg: 收到打开有效期设置指令');
+      // 指令仅在存在会话时由 Popup 倒计时胶囊发出；认证未完成时弹窗内会话信息无意义，故加门禁
+      waitForPasswords().then(() => {
+        if (isAuthenticated.value) {
+          openValiditySetting?.();
         }
       });
     }

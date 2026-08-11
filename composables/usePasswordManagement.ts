@@ -93,6 +93,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const debouncedSearchKeyword = ref('');
   /** 是否仅显示收藏条目 */
   const favoriteOnly = ref(false);
+  /** 标签筛选：选中标签集合（命中任一即保留，与搜索/收藏过滤为叠加关系） */
+  const filterTags = ref<string[]>([]);
   const selectedIds = ref<string[]>([]);
   const isEditingPassword = ref(false);
   const editingPasswordId = ref<string>('');
@@ -141,6 +143,10 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
     if (favoriteOnly.value) {
       result = result.filter(p => p.favorite);
+    }
+
+    if (filterTags.value.length > 0) {
+      result = result.filter(p => parseTags(p.tag).some(tag => filterTags.value.includes(tag)));
     }
 
     // 始终按当前排序状态排序（替代 el-table 客户端排序）
@@ -192,11 +198,24 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     selectedIds.value = [];
   });
 
+  /** 标签筛选变化同样视为过滤条件变化，清空选中（与收藏过滤策略一致） */
+  watch(filterTags, () => {
+    selectedIds.value = [];
+  });
+
   /**
    * 下拉候选标签列表
    * 从所有密码条目中聚合去重，供表单中的标签下拉选项使用。
    */
   const availableTags = computed<string[]>(() => collectAllTags(passwords.value));
+
+  // 批量移除标签等操作后候选集可能不再包含已选筛选标签：
+  // 及时剔除失效项，避免筛选下拉隐藏后残留过滤条件造成「隐形空过滤」
+  watch(availableTags, tags => {
+    if (filterTags.value.some(selected => !tags.includes(selected))) {
+      filterTags.value = filterTags.value.filter(selected => tags.includes(selected));
+    }
+  });
 
   /**
    * 表单标签的数组视图
@@ -358,10 +377,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   // 打开密码弹窗（新增）
-  const openPasswordDialog = () => {
+  // prefillUrl：来自侧边栏「添加本站账号」的预填域名；未携带时由调用方（options 页）
+  // 另行尝试带入当前活动标签页 URL，编辑流程不受影响
+  const openPasswordDialog = (prefillUrl = '') => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
-    passwordForm.value = { ...EMPTY_PASSWORD_FORM };
+    passwordForm.value = { ...EMPTY_PASSWORD_FORM, url: prefillUrl };
     showPasswordDialog.value = true;
   };
 
@@ -582,29 +603,116 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     await loadPasswords();
   };
 
+  // 导出密码（公共实现：主密码校验 + 带日期后缀文件名，全量/选中复用）
+  const exportEntriesToCSV = async (entries: PasswordEntry[]) => {
+    if (entries.length === 0) {
+      ElMessage.warning(t('form.noDataToExport'));
+      return;
+    }
+
+    const masterPassword = await promptAndVerifyMasterPassword(t('session.verifyTitle'), t('form.exportVerifyPrompt'));
+    if (!masterPassword) return;
+
+    // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.csv
+    const filename = `passwords_${formatTimestampCompact()}.csv`;
+    ExcelUtils.exportToCSV(entries, filename);
+    ElMessage.success(t('form.exportSuccess'));
+  };
+
   // 导出密码
   const exportPasswords = async () => {
     try {
-      if (passwords.value.length === 0) {
-        ElMessage.warning(t('form.noDataToExport'));
-        return;
-      }
-
-      const masterPassword = await promptAndVerifyMasterPassword(
-        t('session.verifyTitle'),
-        t('form.exportVerifyPrompt'),
-      );
-      if (!masterPassword) return;
-
-      // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.csv
-      const filename = `passwords_${formatTimestampCompact()}.csv`;
-      ExcelUtils.exportToCSV(passwords.value, filename);
-      ElMessage.success(t('form.exportSuccess'));
+      await exportEntriesToCSV(passwords.value);
     } catch (error) {
       if (error !== 'cancel') {
         logger.error('导出失败:', error);
         ElMessage.error(t('form.exportFailed'));
       }
+    }
+  };
+
+  /**
+   * 批量导出选中条目（CSV）
+   * 与全量导出同一路径：主密码校验 + 带日期后缀文件名，仅导出范围限选中集
+   */
+  const batchExportSelected = async () => {
+    const entries = passwords.value.filter(p => selectedIds.value.includes(p.id));
+    if (entries.length === 0) {
+      ElMessage.warning(t('form.noDataToExport'));
+      return;
+    }
+    try {
+      await exportEntriesToCSV(entries);
+    } catch (error) {
+      if (error !== 'cancel') {
+        logger.error('批量导出失败:', error);
+        ElMessage.error(t('form.exportFailed'));
+      }
+    }
+  };
+
+  /**
+   * 批量编辑标签
+   *
+   * 追加模式：选中标签并入每条选中条目（去重）；移除模式：从每条中剔除选中标签。
+   * 追加后超出 MAX_TAG_COUNT 的条目跳过不写，结束后统一提示跳过数量；
+   * 保留原 updateTime（标签为元数据编辑，不改变「最近更新」排序）。
+   * @param tags 待追加/移除的标签列表
+   * @param mode 'append' 追加 / 'remove' 移除
+   */
+  const batchEditTags = async (tags: string[], mode: 'append' | 'remove') => {
+    const normalized = stringifyTags(tags).split(',').filter(Boolean);
+    if (normalized.length === 0 || selectedIds.value.length === 0) return;
+
+    const targets = passwords.value.filter(p => selectedIds.value.includes(p.id));
+    let skippedCount = 0;
+    const updates: Array<{ id: string; tag: string }> = [];
+
+    for (const entry of targets) {
+      const existing = parseTags(entry.tag);
+      const nextTags =
+        mode === 'append'
+          ? [...existing, ...normalized.filter(tag => !existing.includes(tag))]
+          : existing.filter(tag => !normalized.includes(tag));
+      if (nextTags.length > MAX_TAG_COUNT) {
+        skippedCount++;
+        continue;
+      }
+      const nextTag = stringifyTags(nextTags);
+      if (nextTag === entry.tag) continue;
+      updates.push({ id: entry.id, tag: nextTag });
+    }
+
+    if (updates.length === 0) {
+      ElMessage.info(
+        skippedCount > 0 ? t('form.batchTagAllSkipped', { max: MAX_TAG_COUNT }) : t('form.batchTagNoChange'),
+      );
+      return;
+    }
+
+    try {
+      await runLocalOperation(async () => {
+        // 单次 read-modify-write 批量落盘（避免逐条全量读写，且写入原子）；
+        // updateTime 保持原值：仅标签元数据变更，不干扰排序
+        await StorageUtils.batchUpdatePasswordMetadata(
+          updates.map(({ id, tag }) => {
+            const entry = passwords.value.find(p => p.id === id);
+            return { id, updates: { tag, updateTime: entry?.updateTime } };
+          }),
+        );
+      });
+      // 就地更新：与 filteredPasswords computed 联动，避免全量重载
+      for (const { id, tag } of updates) {
+        const entry = passwords.value.find(p => p.id === id);
+        if (entry) entry.tag = tag;
+      }
+      ElMessage.success(t('form.batchTagDone', { count: updates.length }));
+      if (skippedCount > 0) {
+        ElMessage.warning(t('form.batchTagSkipped', { count: skippedCount, max: MAX_TAG_COUNT }));
+      }
+    } catch (error) {
+      logger.error('批量编辑标签失败:', error);
+      ElMessage.error(t('message.operationFailed'));
     }
   };
 
@@ -772,6 +880,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     passwordFormLoading,
     tableLoading,
     favoriteOnly,
+    filterTags,
     filteredPasswords,
     currentSort,
     availableTags,
@@ -790,6 +899,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     copyPassword,
     deletePassword,
     batchDelete,
+    batchEditTags,
+    batchExportSelected,
     handlePasswordsImported,
     exportPasswords,
     exportPasswordsJson,
