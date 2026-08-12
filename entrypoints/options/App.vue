@@ -54,6 +54,7 @@
         v-model:filter-tags="filterTags"
         :selected-count="selectedIds.length"
         :available-tags="availableTags"
+        @tag-filter-visible-change="handleTagFilterVisibleChange"
         @batch-delete="batchDelete"
         @batch-edit-tags="showBatchTagDialog = true"
         @batch-export-selected="batchExportSelected"
@@ -483,6 +484,7 @@ const {
   togglePasswordVisibility,
   handleRowClassName,
   handleSelectionChange,
+  handleTagFilterVisibleChange,
   openPasswordDialog,
   editPassword,
   resetPasswordForm,
