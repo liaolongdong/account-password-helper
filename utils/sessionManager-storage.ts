@@ -91,9 +91,19 @@ export function invalidateSessionCache(): void {
  *
  * 在 INVALIDATE_PASSWORD_CACHE 消息处理器中调用，用于消除 async clearSession() 与
  * 并发 GET_INITIAL_DATA 之间的竞态窗口（~100-200ms）。
+ *
+ * 同时 fire-and-forget 更新 storage.session 锁定状态镜像，使侧边栏的
+ * isSessionQuicklyKnownInvalid() 可通过纯内存 IPC 立即感知锁定，
+ * 无需等待慢速 storage.local 磁盘读取（Windows 内网冷盘场景优化）。
  */
 export function markSessionInvalid(): void {
   _sessionValidCache = { valid: false, timestamp: Date.now() };
+  // 更新 storage.session 锁定镜像（fire-and-forget，不阻塞锁定流程）
+  try {
+    void chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: true } }).catch(() => {});
+  } catch {
+    // storage.session 不可用时静默忽略
+  }
 }
 
 /**
@@ -309,6 +319,14 @@ async function _migrateLegacySession(expiry: number, validityHours: number): Pro
   }
   sessionWrappedDataKey = await persistWrappedDataKey(dataKey);
   await chrome.storage.local.remove(SESSION_STORAGE_KEYS.MASTER_PASSWORD);
+  // 迁移成功后同步更新锁定状态镜像，与 createSession 路径语义保持一致
+  try {
+    void chrome.storage.session
+      .set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: expiry } })
+      .catch(() => {});
+  } catch {
+    // storage.session 不可用时忽略
+  }
   logger.debug('已将旧版会话迁移为包裹数据密钥格式（主密码不再落盘）');
   return true;
 }
@@ -470,6 +488,18 @@ export async function createSession(masterPassword: string, validityHours: numbe
     // getSessionDataKey() 命中内存缓存复用同一密钥，避免二次 PBKDF2。
     _encryptAtRestDone = false;
     await ensurePasswordsEncryptedAtRest();
+    // 写入 storage.session 锁定状态镜像（{ locked: false, expiresAt }），
+    // 使侧边栏 isSessionQuicklyKnownInvalid() 可通过纯内存 IPC 快速判定会话有效性，
+    // 消除 Windows 慢盘场景下 storage.local 磁盘读取延迟（200-500ms）导致的骨架屏延伸白屏
+    try {
+      void chrome.storage.session
+        .set({
+          [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: sessionPasswordExpiry },
+        })
+        .catch(() => {});
+    } catch {
+      // storage.session 不可用时静默忽略（isSessionQuicklyKnownInvalid 会降级到 storage.local）
+    }
   } catch (error) {
     logger.error('创建会话缓存失败:', error);
     throw error;
@@ -503,7 +533,11 @@ export async function prepareSessionRekey(dataKey: string, validityHours: number
 
   // 先更新 storage.session：保证其它上下文失效旧密钥后回退读取时拿到的已是新密钥
   try {
-    await chrome.storage.session.set({ [SESSION_MEMORY_KEYS.DATA_KEY]: dataKey });
+    await chrome.storage.session.set({
+      [SESSION_MEMORY_KEYS.DATA_KEY]: dataKey,
+      // rekey 后同步更新锁定状态镜像，sidepanel 下次打开时无需等待 storage.local 读取
+      [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: sessionPasswordExpiry },
+    });
   } catch (sessionSetError) {
     logger.warn('写入 storage.session 数据密钥失败（将回退到按需重新解包）:', sessionSetError);
   }
@@ -606,7 +640,10 @@ async function _doClearSession(): Promise<void> {
     _encryptAtRestDone = false;
 
     try {
+      // 同时更新锁定状态镜像：侧边栏 isSessionQuicklyKnownInvalid() 下次打开时
+      // 可通过纯内存 IPC 立即感知锁定，无需等待 storage.local 磁盘读取
       await chrome.storage.session.remove(SESSION_MEMORY_KEYS.DATA_KEY);
+      void chrome.storage.session.set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: true } }).catch(() => {});
     } catch {
       // storage.session 不可用时忽略
     }
