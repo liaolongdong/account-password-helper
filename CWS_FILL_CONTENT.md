@@ -11,10 +11,12 @@
 在 Dashboard 点击「新建商品」(New Item)，上传以下文件：
 
 ```
-.output/account-password-helper-2.11.0-chrome.zip
+.output/account-password-helper-3.2.0-chrome.zip
 ```
 
-文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-2.11.0-chrome.zip`
+文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-3.2.0-chrome.zip`
+
+> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。
 
 ---
 
@@ -29,8 +31,10 @@ Account Password Helper
 ### 摘要 (Summary) — 最多 132 字符
 
 ```
-本地密码管理工具，AES-256-GCM 加密、零网络传输。智能识别登录表单、一键填充自动登录、自动保存、导入导出、加密备份、TOTP 两步验证、安全体检、到期提醒、弱口令检测、回收站、密码历史、修改主密码、中英双语，开源免费。
+本地密码管理工具，AES-256-GCM 加密、零网络传输。智能识别登录表单、一键填充自动登录、自动保存、导入导出、加密备份、TOTP 两步验证、安全体检、到期提醒、弱口令检测、拼音搜索、回收站、密码历史、修改主密码、中英双语，开源免费。
 ```
+
+> ⚠️ 摘要必须与 `public/_locales/zh_CN/messages.json` 的 `extensionDescription` 保持完全一致（manifest 描述受 132 字符硬限制）。
 
 ### 说明 (Description) — 最多 16,000 字符
 
@@ -131,7 +135,22 @@ public/icon/128.png
 
 ### 屏幕截图 (Screenshots) — 至少 1 张，1280×800 或 640×400
 
-使用 `assets/screenshots/` 目录中的截图文件。
+使用 `assets/screenshots/` 目录中的截图文件（共 12 张，按功能编号命名）：
+
+```
+01-master-password.png    # 设置主密码
+02-password-list.png      # 密码列表与管理
+03-excel-import.png       # CSV 批量导入
+04-excel-export.png       # 数据批量导出
+05-add-account.png        # 添加新账号
+06-sidepanel-fill.png     # 侧边栏一键填充
+07-floating-button.png    # 悬浮按钮快捷入口
+08-session-validity.png   # 灵活的会话有效期
+09-totp-code.png          # TOTP 两步验证
+10-health-check.png       # 安全体检仪表盘
+11-inline-fill.png        # 内联填充迷你面板
+12-theme-skin.png         # 主题换肤与双语界面
+```
 
 ### 小幅推广图片 (Small Promo Tile) — 440×280（可选）
 

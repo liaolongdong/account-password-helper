@@ -22,6 +22,10 @@
 | `06-sidepanel-fill.png`   | 侧边栏一键填充   | 登录页 + 侧边栏匹配账号的截图          |
 | `07-floating-button.png`  | 悬浮按钮快捷入口 | 悬浮按钮在登录页上的展示效果           |
 | `08-session-validity.png` | 灵活的会话有效期 | 会话有效期设置对话框                   |
+| `09-totp-code.png`        | TOTP 两步验证    | 列表/侧边栏的动态码与环形倒计时        |
+| `10-health-check.png`     | 安全体检仪表盘   | 安全评分与五维检测结果面板             |
+| `11-inline-fill.png`      | 内联填充迷你面板 | 登录框内钥匙图标展开的迷你面板         |
+| `12-theme-skin.png`       | 主题换肤与双语   | 主题切换或中英文界面对比               |
 
 ## 建议
 
