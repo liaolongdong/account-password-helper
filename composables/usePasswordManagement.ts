@@ -198,10 +198,35 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     selectedIds.value = [];
   });
 
-  /** 标签筛选变化同样视为过滤条件变化，清空选中（与收藏过滤策略一致） */
+  /**
+   * 标签筛选变化同样视为过滤条件变化，需清空选中（与收藏过滤策略一致）。
+   * 但多选下拉展开期间每次勾选项都会触发变化：若此时立即清空选中，
+   * 批量按钮会在交互中途消失引起布局跳动。因此展开期间仅记录待清空标记，
+   * 待下拉收起时（见 handleTagFilterVisibleChange）统一清空。
+   */
+  let tagFilterDropdownVisible = false;
+  let pendingSelectionClear = false;
   watch(filterTags, () => {
-    selectedIds.value = [];
+    if (tagFilterDropdownVisible) {
+      pendingSelectionClear = true;
+    } else {
+      selectedIds.value = [];
+    }
   });
+
+  /**
+   * 标签筛选下拉展开/收起回调
+   * 收起时若交互期间发生过筛选变化，则补执行选中清空，
+   * 此时下拉面板已关闭，按钮显隐引起的布局变化不再被用户感知。
+   * @param visible 下拉面板是否展开
+   */
+  const handleTagFilterVisibleChange = (visible: boolean) => {
+    tagFilterDropdownVisible = visible;
+    if (!visible && pendingSelectionClear) {
+      pendingSelectionClear = false;
+      selectedIds.value = [];
+    }
+  };
 
   /**
    * 下拉候选标签列表
@@ -892,6 +917,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     togglePasswordVisibility,
     handleRowClassName,
     handleSelectionChange,
+    handleTagFilterVisibleChange,
     openPasswordDialog,
     editPassword,
     resetPasswordForm,
