@@ -66,4 +66,17 @@ export const SESSION_MEMORY_KEYS = {
    * 避免使用痕迹落盘击穿侧边栏快照直读快路径。短 TTL 消费后即移除。
    */
   METADATA_FLUSH_AT: 'metadata_flush_at',
+  /**
+   * 会话锁定状态快速镜像（纯内存，不落盘，浏览器重启自动清除）
+   *
+   * 格式：{ locked: boolean; expiresAt?: number }
+   * - createSession() 写入 { locked: false, expiresAt }
+   * - clearSession() / markSessionInvalid() 写入 { locked: true }
+   *
+   * 侧边栏 isSessionQuicklyKnownInvalid() 优先读取本键（storage.session IPC 为纯内存操作，
+   * 不受磁盘 IO /杀毒扫描影响），消除 Windows 内网慢磁盘场景下 storage.local 读取
+   * 延迟（200-500ms）导致 _quickKnownInvalid 迟迟不就绪、骨架屏延伸至 2.5-5s 的白屏问题。
+   * 浏览器重启后 storage.session 清空，自动降级到 storage.local 兜底（语义不变）。
+   */
+  SESSION_LOCK_STATE: 'session_lock_state',
 };

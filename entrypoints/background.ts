@@ -74,6 +74,17 @@ export default defineBackground(() => {
     triggerWarmSidePanelResources({ allowNonWindowsLightweight: true });
   });
 
+  // 标签页激活时轻量预热（补全 onFocusChanged 的覆盖盲区）：
+  // Chrome 已聚焦时切换 Tab → onFocusChanged 不触发，但 onActivated 必触发。
+  // 典型场景：用户在 Chrome 内切 Tab 后立即打开侧边栏，若磁盘缓存已逐出会命中冷读白屏。
+  // onActivated 触发预热后，文件进入 OS/V8 缓存，侧边栏打开时（通常在 Tab 切换后
+  // 数百毫秒内）已可命中缓存。与 onFocusChanged 共用同一 5 分钟节流窗口，
+  // 高频切 Tab 只执行一轮预热，无多余 IO；节流窗口内从 _lastWarmAt 内存镜像快路径
+  // 返回（几乎零开销），不影响浏览体验。
+  chrome.tabs.onActivated.addListener(() => {
+    triggerWarmSidePanelResources({ allowNonWindowsLightweight: true });
+  });
+
   // 注册事件监听器（Service Worker 启动时立即执行）
   setupSidePanelListeners();
   setupMessageRouter();
