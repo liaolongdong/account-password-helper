@@ -83,17 +83,38 @@ const SESSION_EXPIRY_KEY = 'session_password_expiry';
 /**
  * 轻量会话失效快速判定（锁屏快速路径专用）
  *
- * 仅读取会话过期时间戳做时间比较（单次 storage.local IPC，毫秒级），
- * 不加载 sessionManager-storage chunk、不触发密钥派生/解密。
+ * 优先读取 storage.session（纯内存 IPC，不受磁盘 IO / 杀毒扫描影响）中的
+ * SESSION_LOCK_STATE 镜像：SW 侧 createSession 写入 { locked: false, expiresAt }，
+ * clearSession / markSessionInvalid 写入 { locked: true }。命中时立即返回判定结果，
+ * 消除 Windows 内网慢磁盘场景下 storage.local IPC 延迟（200-500ms）导致
+ * _quickKnownInvalid 迟迟不就绪、骨架屏续期延伸至 2.5-5s 的白屏问题。
  *
- * 返回 true 表示会话已确定失效（无会话键或已过期），调用方可立即淡出骨架屏
- * 展示锁屏 UI，无需等待完整竞速（Windows 会话失效冷环境下竞速瀑布最坏
- * bg 800ms 超时 + 本地 3000ms 兜底 ≈ 3.8s，是白屏的主要来源）；
- * 返回 false（可能有效 / 读取失败）时不走快速路径，交由 initSidepanelData
- * 完整竞速判定——判定方向仅可能「提前展示锁屏」，不存在误判解锁风险（fail-locked）。
+ * 浏览器重启后 storage.session 自动清零（无 SESSION_LOCK_STATE）→ 降级读取
+ * storage.local 中的会话过期时间戳（兜底路径，与旧版行为完全一致）。
+ *
+ * 返回 true 表示会话已确定失效，调用方可立即淡出骨架屏展示锁屏 UI；
+ * 返回 false 时交由 initSidepanelData 完整竞速判定（fail-locked，无误判解锁风险）。
  */
 export async function isSessionQuicklyKnownInvalid(): Promise<boolean> {
+  // SESSION_LOCK_STATE 键名字面量：避免静态 import SESSION_MEMORY_KEYS（破坏懒加载分包）
+  const SESSION_LOCK_STATE_KEY = 'session_lock_state';
   try {
+    // 快速路径：优先从纯内存的 storage.session 读取锁定状态镜像
+    const sessionResult = await chrome.storage.session.get(SESSION_LOCK_STATE_KEY);
+    const lockState = sessionResult[SESSION_LOCK_STATE_KEY] as { locked: boolean; expiresAt?: number } | undefined;
+
+    if (lockState !== undefined) {
+      // locked: true → 已被 clearSession / markSessionInvalid 明确标记为锁定
+      if (lockState.locked) return true;
+      // locked: false 且 expiresAt 有效 → 会话确定有效（不走锁屏快速路径）
+      if (lockState.expiresAt) {
+        return Date.now() >= lockState.expiresAt;
+      }
+      // locked: false 但无 expiresAt（边缘：createSession 写入时 session.set 失败过）
+      // → 降级到 storage.local 兜底，不武断返回 false
+    }
+
+    // 兜底路径：storage.session 无镜像（浏览器重启后首次打开）→ 读 storage.local
     const result = await chrome.storage.local.get(SESSION_EXPIRY_KEY);
     const expiry = result[SESSION_EXPIRY_KEY] as number | undefined;
     return !expiry || Date.now() >= expiry;
