@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.2.0](https://github.com/liaolongdong/account-password-helper/compare/v3.1.0...v3.2.0) (2026-08-12)
+
+
+### Features
+
+* **searchFilterBar:** 优化批量操作按钮和标签筛选交互布局 ([7940429](https://github.com/liaolongdong/account-password-helper/commit/7940429844ff3b1054a64acc4bfc6182409ed3bc))
+
+
+### Performance Improvements
+
+* **session:** 优化会话锁定状态快速判定及预热机制 ([348992a](https://github.com/liaolongdong/account-password-helper/commit/348992a64c265966b5325b8f6f3bc3ccd85bb55e))
+
 ## [3.1.0](https://github.com/liaolongdong/account-password-helper/compare/v3.0.2...v3.1.0) (2026-08-11)
 
 
