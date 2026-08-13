@@ -417,6 +417,44 @@ graph TB
 
 ### 性能设计
 
-- Service Worker 在会话有效期内通过保活闹钟（每 1 分钟唤醒）持续运行，确保密码缓存始终在内存中可用，侧边栏打开时可直接从缓存加载数据（约 20-50ms），避免冷启动延迟。
+- Service Worker 保活采用「心跳 + 复活闹钟」双层架构：20s 心跳调用轻量扩展 API 重置 30s 空闲计时器保证连续保活，0.5 分钟复活闹钟在 SW 被强杀后唤醒重建（见 [backgroundServices.ts](../entrypoints/background/backgroundServices.ts)）。
+- 保活的业务价值：会话有效期内保持密码缓存（内存）常驻，侧边栏打开时走缓存竞速快速通道（约 20-50ms 获得数据），避免冷启动延迟。
 - Service Worker 启动后延迟 500ms 预热密码缓存，进一步提升首次打开侧边栏的响应速度。
-- 保活仅在会话有效期内启用，会话过期后自动停止，不影响电池续航。
+- 保活门控按平台差异化：Windows 常驻保活（含会话失效期，避免冷启动数秒白屏）；非 Windows 仅会话有效期内保活，过期即停，不增加常态电量开销。详见下方「侧边栏秒开跨平台策略」。
+
+### 侧边栏秒开跨平台策略
+
+性能目标：侧边栏在 Windows 与 Mac 平台的**所有场景**（会话有效 / 会话失效 / 浏览器冷启动 / 快速重启）均需秒开（<1s、无白屏卡顿）。打开路径本身跨平台完全一致，平台差异仅存在于 SW 后台韧性层，属针对不同平台物理特性的刻意设计。
+
+**打开路径（跨平台一致）**
+
+| 入口                                  | 路径                                                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 悬浮按钮点击                          | `TOGGLE_SIDEPANEL` 消息 → `openSidePanelAndRespond`                                                     |
+| Content 消息                          | `SHOW_SIDEPANEL` 消息 → 同上（透传点击时刻 clickTs）                                                    |
+| Popup 按钮                            | 用户手势内直接 `chrome.sidePanel.open`，失败回退 `SHOW_SIDEPANEL` 消息（携带 clickTs 保证埋点起点一致） |
+| 快捷键 `Ctrl+Shift+L` / `Cmd+Shift+L` | `toggle_sidepanel` 命令 → 已打开则关闭，否则直接打开                                                    |
+
+共同约束：
+
+- `sidePanel.open()` 之前禁止 `await`（保持用户手势链完整），tabId 经 `getTabIdSync` 同步获取（见 [messageRouter.ts](../entrypoints/background/messageRouter.ts)）。
+- 打开前同步触发性能埋点 `markSidepanelOpenRequested`（见 [perfMetrics.ts](../utils/perfMetrics.ts)），用于度量「点击 → 渲染进程创建」段耗时。
+- `preWarmServiceWorker`（8s 节流）在表单聚焦 / 页面可见性恢复 / 页面加载 / Popup 打开 / 悬浮按钮点击等时机预唤醒 SW，消除后续 open 的冷启动等待（见 [preWarmSw.ts](../utils/preWarmSw.ts)）。
+- 关闭采用三层兜底：`chrome.sidePanel.close` API → `setOptions` 禁用后恢复 → 经 Port 通知侧边栏 `window.close()`（见 [sidePanelManager.ts](../entrypoints/background/sidePanelManager.ts)）。
+
+**平台行为矩阵（SW 后台韧性层）**
+
+| 机制                                          | Windows                                                                                          | Mac/Linux                                                             | 跨平台例外                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| SW 保活（`syncSwKeepaliveAlarm`）             | 常驻保活：20s 心跳 + 0.5min 复活闹钟，**会话失效后也不停**                                       | 仅会话有效期内保活，过期即停                                          | 浏览器首启 10 分钟引导期窗口强制保活；平台判定不可得（null）时 fail-safe 维持现状 |
+| 渲染资源预热（`maybeWarmSidePanelResources`） | 全量四层预热（HTML → 静态资源 → 动态 chunk → 二级依赖，约 25 文件）/ 5min 节流                   | 轻量两层预热（HTML + module/modulepreload/CSS，约 8 文件）/ 5min 节流 | 浏览器首启与扩展安装/更新时经 `ignorePlatformGate` 跨平台全量预热                 |
+| 预热触发时机                                  | 窗口聚焦 / Tab 激活 / 保活闹钟 tick / 侧边栏打开后延时 5s，共用 5min 持久化节流 + in-flight 互斥 | 同左                                                                  | —                                                                                 |
+| 会话到期主动上锁                              | alarm tick 检测过期后在 SW 内一次性完成「加密全部密码 + 删会话键」，避免打开时才全量重加密       | 行为一致（性能收益主要体现在 Windows，Web Crypto 较慢）               | —                                                                                 |
+
+**差异化设计依据**
+
+- Windows 痛点是杀软扫描 + 冷盘导致 SW 冷启动与 chunk 冷读可达数秒（会话失效态白屏主因），故需常驻保活 + 全量预热；
+- Mac SSD 快、无杀软扫描放大，冷启动本就快，痛点仅为「长时间闲置后 OS 磁盘缓存逐出」（轻量预热覆盖）与「重启后三冷叠加」（引导期窗口覆盖），常驻保活只会徒增常态电量开销；
+- 平台判定经 [platform.ts](../utils/platform.ts) 三态检测（true/false/null）+ storage.local 持久化兜底 + 失败不缓存：保活闹钟清除等关键决策感知三态做 fail-safe，预热等轻微影响场景经两态包装简化调用。
+
+相关代码：[backgroundServices.ts](../entrypoints/background/backgroundServices.ts)（保活与过期上锁）、[warmSidePanelResources.ts](../utils/warmSidePanelResources.ts)（资源预热）、[platform.ts](../utils/platform.ts)（平台判定）、[sidePanelManager.ts](../entrypoints/background/sidePanelManager.ts)（打开/关闭与 Port 追踪）。

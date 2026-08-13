@@ -289,6 +289,44 @@ The repo includes [test-page.html](../test-page.html) for regression testing of 
 
 ### Performance Design
 
-- During a valid session, the service worker stays alive via a 1-minute keep-alive alarm so the password cache is always in memory — the side panel loads from cache in ~20–50ms with no cold-start delay.
+- Service worker keep-alive uses a two-tier "heartbeat + revival alarm" architecture: a 20s heartbeat calls a lightweight extension API to reset the 30s idle timer for continuous keep-alive, and a 0.5-minute revival alarm wakes the SW to rebuild after it is force-killed (see [backgroundServices.ts](../entrypoints/background/backgroundServices.ts)).
+- Business value of keep-alive: during a valid session the password cache stays in memory, so the side panel's first screen takes the cache-race fast path (~20–50ms to data) with no cold-start delay.
 - The worker pre-warms the password cache 500ms after startup, further improving the first side panel open.
-- Keep-alive runs only during valid sessions and stops after expiry, so battery impact is minimal.
+- Keep-alive gating is platform-differentiated: Windows keeps the SW resident (including after session expiry, to avoid seconds-long white screens from cold starts); non-Windows keeps alive only during valid sessions and stops after expiry, with no steady-state battery cost. See "Side Panel Instant-Open: Cross-Platform Strategy" below.
+
+### Side Panel Instant-Open: Cross-Platform Strategy
+
+Performance goal: the side panel must open instantly (<1s, no white screen) on **both Windows and Mac in all scenarios** — valid session, expired session, browser cold start, and quick restart. The open path itself is identical cross-platform; platform differences exist only in the SW background resilience layer and are deliberate design.
+
+**Open paths (identical cross-platform)**
+
+| Entry                                   | Path                                                                                                                                                                          |
+| --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Floating button click                   | `TOGGLE_SIDEPANEL` message → `openSidePanelAndRespond`                                                                                                                        |
+| Content message                         | `SHOW_SIDEPANEL` message → same (click timestamp `clickTs` passed through)                                                                                                    |
+| Popup button                            | Direct `chrome.sidePanel.open` within the user gesture, falling back to a `SHOW_SIDEPANEL` message on failure (carrying `clickTs` so the metric start point stays consistent) |
+| Shortcut `Ctrl+Shift+L` / `Cmd+Shift+L` | `toggle_sidepanel` command → close if open, otherwise open directly                                                                                                           |
+
+Shared constraints:
+
+- No `await` before `sidePanel.open()` (preserves the user-gesture chain); the tabId is obtained synchronously via `getTabIdSync` (see [messageRouter.ts](../entrypoints/background/messageRouter.ts)).
+- The `markSidepanelOpenRequested` metric fires synchronously before opening (see [perfMetrics.ts](../utils/perfMetrics.ts)), measuring the "click → render process creation" segment.
+- `preWarmServiceWorker` (8s throttle) wakes the SW ahead of time on form focus / page visibility restore / page load / popup open / floating button click, removing cold-start latency from subsequent opens (see [preWarmSw.ts](../utils/preWarmSw.ts)).
+- Closing uses a three-layer fallback: `chrome.sidePanel.close` API → `setOptions` disable then restore → port message telling the side panel to `window.close()` (see [sidePanelManager.ts](../entrypoints/background/sidePanelManager.ts)).
+
+**Platform behavior matrix (SW background resilience layer)**
+
+| Mechanism                                               | Windows                                                                                                                                     | Mac/Linux                                                                               | Cross-platform exceptions                                                                                                                         |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SW keep-alive (`syncSwKeepaliveAlarm`)                  | Resident: 20s heartbeat + 0.5min revival alarm, **kept running even after session expiry**                                                  | Only during valid sessions; stops after expiry                                          | A 10-minute boot window after browser launch forces keep-alive; when platform detection is unavailable (null), fail-safe preserves the status quo |
+| Render resource warming (`maybeWarmSidePanelResources`) | Full four-layer warm (HTML → static assets → dynamic chunks → secondary deps, ~25 files) / 5min throttle                                    | Lightweight two-layer warm (HTML + module/modulepreload/CSS, ~8 files) / 5min throttle  | Browser launch and extension install/update run a full cross-platform warm via `ignorePlatformGate`                                               |
+| Warm trigger points                                     | Window focus / tab activation / keep-alive alarm tick / 5s after side panel open — sharing a 5min persisted throttle + in-flight mutex      | Same                                                                                    | —                                                                                                                                                 |
+| Proactive lock on session expiry                        | The alarm tick performs "encrypt all passwords + delete session keys" in one shot inside the SW, avoiding a full re-encryption at open time | Same behavior (the performance payoff is mostly on Windows, where Web Crypto is slower) | —                                                                                                                                                 |
+
+**Rationale for the differentiation**
+
+- Windows' pain point is antivirus scanning + cold disk making SW cold starts and chunk cold reads take seconds (the main cause of white screens in expired-session state) — hence resident keep-alive + full warming;
+- Mac's SSD is fast with no antivirus amplification, so cold starts are already quick; its only pain points are "OS disk cache eviction after long idle" (covered by lightweight warming) and "triple-cold stack after restart" (covered by the boot window) — resident keep-alive would only add steady-state battery cost;
+- Platform detection uses the tri-state API in [platform.ts](../utils/platform.ts) (true/false/null) with a storage.local persistence fallback and no caching of failures: critical decisions like clearing the keep-alive alarm consume the tri-state for fail-safe behavior, while low-impact scenarios like warming use the two-state wrapper for simpler calls.
+
+Related code: [backgroundServices.ts](../entrypoints/background/backgroundServices.ts) (keep-alive & expiry locking), [warmSidePanelResources.ts](../utils/warmSidePanelResources.ts) (resource warming), [platform.ts](../utils/platform.ts) (platform detection), [sidePanelManager.ts](../entrypoints/background/sidePanelManager.ts) (open/close & port tracking).
