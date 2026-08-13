@@ -9,6 +9,7 @@ import {
   initBackgroundConfig,
   handleBrowserStartupRelock,
   markBrowserBootKeepaliveWindow,
+  handleUserActivityGraceRefresh,
 } from './background/backgroundServices';
 import type { WarmSidePanelOptions } from '@/utils/warmSidePanelResources';
 
@@ -65,13 +66,17 @@ export default defineBackground(() => {
   // 用户切换到其他应用再回到 Chrome 时，OS 磁盘缓存中的扩展文件可能已被逐出
   // （Windows 内存压力 / 杀毒扫描；Mac 长时间未操作后同样逐出）。
   // Windows 全量预热；非 Windows 经 allowNonWindowsLightweight 轻量预热首屏
-  // 关键资源（Mac「间隔一段时间偶现白屏」的直接缓解）；本事件同时会唤醒
+  // 关键资源 + 认证视图关键 chunk（含 Element Plus CSS 运行时，Mac「间隔一段时间
+  // 偶现白屏」的直接缓解）；本事件同时会唤醒
   // 休眠的 SW（事件驱动），为接下来可能的侧边栏打开顺带消除 SW 冷启动；
   // 预热函数内建 5 分钟节流，频繁切换不会重复 fetch
   chrome.windows.onFocusChanged.addListener(windowId => {
     // WINDOW_ID_NONE（-1）表示所有窗口失焦，仅在窗口获得焦点时触发
     if (windowId === chrome.windows.WINDOW_ID_NONE) return;
     triggerWarmSidePanelResources({ allowNonWindowsLightweight: true });
+    // 用户活动信号：宽限标记存在时滑动续期会话失效宽限期保活并恢复 SW 热态
+    // （覆盖 Mac「间隔任意时长回到 Chrome 再打开侧边栏」场景，见 backgroundServices）
+    void handleUserActivityGraceRefresh();
   });
 
   // 标签页激活时轻量预热（补全 onFocusChanged 的覆盖盲区）：
@@ -83,6 +88,8 @@ export default defineBackground(() => {
   // 返回（几乎零开销），不影响浏览体验。
   chrome.tabs.onActivated.addListener(() => {
     triggerWarmSidePanelResources({ allowNonWindowsLightweight: true });
+    // 用户活动信号：同 onFocusChanged，60 秒节流，高频切 Tab 不放大 IPC 开销
+    void handleUserActivityGraceRefresh();
   });
 
   // 注册事件监听器（Service Worker 启动时立即执行）

@@ -12,7 +12,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * - maybeWarmSidePanelResources：常规调用仅在 Windows 按 5min 节流预热（不区分会话状态），
  *   ignorePlatformGate（浏览器首启）跨平台预热，共用同一 5min 节流
  *   （时间戳持久化于 storage.session，SW 重启不归零），
- *   预热范围覆盖 HTML 静态资源 + 动态 import chunk + 动态 chunk 的二级静态依赖。
+ *   预热范围覆盖 HTML 静态资源 + 动态 import chunk + 动态 chunk 的二级静态依赖；
+ *   非 Windows 轻量预热（allowNonWindowsLightweight）预热第一/二层 + 白名单
+ *   认证视图关键 chunk 及其二级依赖，其余按需动态 chunk 仍跳过。
  *
  * 说明：
  * - 环境为 node，全局 chrome 由 WxtVitest 的 fakeBrowser 注入；
@@ -205,7 +207,48 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('非 Windows + allowNonWindowsLightweight 时轻量预热：仅第一/二层，跳过动态 chunk 递归层', async () => {
+  it('非 Windows + allowNonWindowsLightweight 时轻量预热：第一/二层 + 白名单认证关键 chunk 及其二级依赖', async () => {
+    getPlatformInfoMock.mockResolvedValue({ os: 'mac' });
+
+    const htmlWithEntry = '<script type="module" src="/chunks/sidepanel-ABC.js"></script>';
+    const entryHref = new URL('/chunks/sidepanel-ABC.js', SIDEPANEL_HTML_URL).href;
+    const authViewHref = new URL('./SidepanelAuthView-QRS.js', entryHref).href;
+    const cssChunkHref = new URL('./css-Dp9q5L7q.js', entryHref).href;
+    const sessionChunkHref = new URL('./sessionManager-storage-XYZ.js', entryHref).href;
+    // 入口同时动态 import 白名单内的认证视图 chunk 与白名单外的按需 chunk
+    const entryJsText =
+      'const a = () => import("./SidepanelAuthView-QRS.js"); const b = () => import("./sessionManager-storage-XYZ.js");';
+    // 认证视图 chunk 静态引入 Element Plus CSS 运行时 chunk（二级依赖应被递归预热）
+    const authViewJsText = 'import{E}from"./css-Dp9q5L7q.js";';
+    fetchMock.mockImplementation((input: string) => {
+      if (input === SIDEPANEL_HTML_URL) {
+        return Promise.resolve({ text: () => Promise.resolve(htmlWithEntry), ok: true } as Response);
+      }
+      if (input === entryHref) {
+        return Promise.resolve({ text: () => Promise.resolve(entryJsText), ok: true } as Response);
+      }
+      if (input === authViewHref) {
+        return Promise.resolve({ text: () => Promise.resolve(authViewJsText), ok: true } as Response);
+      }
+      return Promise.resolve({ text: () => Promise.resolve(''), ok: true } as Response);
+    });
+    const { maybeWarmSidePanelResources } = await loadModule();
+
+    await maybeWarmSidePanelResources({ allowNonWindowsLightweight: true });
+
+    // 第一/二层：HTML + 入口 JS
+    expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
+    expect(fetchMock).toHaveBeenCalledWith(entryHref);
+    // 白名单命中：认证视图 chunk + 其二级静态依赖（Element Plus CSS 运行时）
+    expect(fetchMock).toHaveBeenCalledWith(authViewHref);
+    expect(fetchMock).toHaveBeenCalledWith(cssChunkHref);
+    // 白名单外的按需 chunk 仍跳过
+    expect(fetchMock).not.toHaveBeenCalledWith(sessionChunkHref);
+    // HTML + 入口 JS + 认证视图 chunk + 二级依赖 = 4 次 fetch
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+  });
+
+  it('非 Windows 轻量预热：入口无白名单 chunk 的动态 import 时仍仅预热第一/二层', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'mac' });
 
     const htmlWithEntry = '<script type="module" src="/chunks/sidepanel-ABC.js"></script>';
@@ -224,7 +267,7 @@ describe('maybeWarmSidePanelResources', () => {
 
     await maybeWarmSidePanelResources({ allowNonWindowsLightweight: true });
 
-    // 仅 HTML + 入口 JS 两次 fetch，入口 JS 中的动态 import chunk 不被预热
+    // 仅 HTML + 入口 JS 两次 fetch，白名单外的动态 import chunk 不被预热
     expect(fetchMock).toHaveBeenCalledWith(SIDEPANEL_HTML_URL);
     expect(fetchMock).toHaveBeenCalledWith(entryHref);
     expect(fetchMock).toHaveBeenCalledTimes(2);

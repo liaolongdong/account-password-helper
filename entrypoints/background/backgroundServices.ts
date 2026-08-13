@@ -61,7 +61,8 @@ const TRASH_CLEANUP_INTERVAL_MINUTES = 24 * 60;
 /**
  * Service Worker 保活闹钟名称（复活入口）
  *
- * 保活机制分两层协作（启停门控一致：Windows 常驻 / 非 Windows 仅会话有效期）：
+ * 保活机制分两层协作（启停门控一致：Windows 常驻 / 非 Windows 会话有效期内 +
+ * 失效后 30 分钟宽限期）：
  * - 心跳层（连续保活）：SW 存活期间以 setInterval 每 20s 调用一次轻量扩展 API，
  *   Chrome ≥110 任何扩展 API 调用都会重置 SW 的 30s 空闲计时器，实现确定性连续保活；
  * - 闹钟层（复活入口）：SW 一旦被强杀（浏览器内存压力/崩溃恢复等），心跳随之消失，
@@ -94,6 +95,20 @@ let _swHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
  * （Windows 常驻 / 非 Windows 仅会话有效期），不增加 Mac 的常态电量开销。
  */
 const BOOT_KEEPALIVE_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * 会话失效宽限期保活时长（毫秒）
+ *
+ * 非 Windows（Mac）会话过期/清除后不立即停活，而是进入本宽限期：
+ * 心跳 + 复活闹钟继续运行，保活 tick 内的轻量预热持续温热首屏关键文件，
+ * 宽限期内打开侧边栏命中「热 SW + 温热文件」链路实现秒开（Mac 会话失效态
+ * 4 秒白屏的根治手段——此前会话失效即停活，SW 30 秒后死亡、预热停止、
+ * 文件被 OS 磁盘缓存逐出，下次打开撞「SW 冷启 + 渲染进程冷创建 + 文件冷读」三冷叠加）。
+ * 宽限期结束由保活 tick 内的重同步自动收敛停活，Mac 常态零电量增量；
+ * 用户活动信号（窗口聚焦 / Tab 激活 / 预唤醒消息）在标记存在时滑动续期，
+ * 覆盖「间隔任意时长后回到 Chrome 再打开侧边栏」的场景。
+ */
+const SESSION_EXPIRED_GRACE_KEEPALIVE_MS = 30 * 60 * 1000;
 
 /**
  * SW 复活闹钟间隔（分钟）
@@ -370,7 +385,8 @@ async function performAutoBackup() {
  * 防止因 30 秒空闲超时被 Chrome 终止。SW 存活意味着 passwordCache（内存缓存）
  * 持续可用，使侧边栏首屏加载能通过缓存竞速快速通道在 20-50ms 内获得数据。
  *
- * 启用时机见 syncSwKeepaliveAlarm：非 Windows 仅会话有效期内启用（过期即停止以省资源）；
+ * 启用时机见 syncSwKeepaliveAlarm：非 Windows 会话有效期内启用，失效/清除后进入
+ * 30 分钟宽限期保活（见 SESSION_EXPIRED_GRACE_KEEPALIVE_MS），宽限期结束即停止以省资源；
  * Windows 始终启用（含会话失效后），以消除侧边栏打开时的冷启动白屏。
  */
 async function setupSwKeepaliveAlarm(): Promise<void> {
@@ -405,7 +421,7 @@ async function setupSwKeepaliveAlarm(): Promise<void> {
 /**
  * 停止 Service Worker 保活（心跳定时器 + 复活闹钟一并停止）
  *
- * 非 Windows 在会话过期或清除时调用，避免无会话时的无效唤醒；
+ * 非 Windows 在会话过期/清除且宽限期结束后调用，避免无会话时的无效唤醒；
  * Windows 上因需常驻保活，各上锁路径改调 syncSwKeepaliveAlarm，不会走到此处停止。
  */
 async function clearSwKeepaliveAlarm(): Promise<void> {
@@ -453,13 +469,70 @@ async function isWithinBootKeepaliveWindow(): Promise<boolean> {
 }
 
 /**
+ * 标记会话失效宽限期保活窗口（写截止时间戳到 storage.session）
+ *
+ * 在会话过期/清除的安全边界处调用：宽限期内非 Windows 继续 SW 保活与资源预热，
+ * 消除「会话失效 → SW 死亡 → 文件逐出 → 下次打开三冷白屏」链路。
+ * 幂等（重复写入仅刷新截止时间）；写入失败静默忽略——保活决策在读取侧
+ * 失败时按「不在宽限期内」处理，仅退化到停活，无安全风险。
+ */
+export async function markSwGraceKeepaliveWindow(): Promise<void> {
+  try {
+    await chrome.storage.session.set({
+      [SESSION_MEMORY_KEYS.SW_GRACE_KEEPALIVE_UNTIL]: Date.now() + SESSION_EXPIRED_GRACE_KEEPALIVE_MS,
+    });
+  } catch (error) {
+    logger.error('Background: 标记会话失效宽限期保活窗口失败:', error);
+  }
+}
+
+/**
+ * 滑动续期宽限期保活窗口（标记存在时刷新截止时间，不存在则 no-op）
+ *
+ * 用户活动信号（窗口聚焦 / Tab 激活 / 预唤醒消息）到达时调用：
+ * 仅当本浏览器会话中曾存在过会话且已失效（标记存在）时才续期——
+ * 保持「无会话历史无保活」的 Mac 常态零电量语义；
+ * 宽限期已完全过期但标记残留时同样续期，使「回到 Chrome 再打开侧边栏」
+ * 重新获得 30 分钟保活 + 预热窗口。写入失败静默忽略（退化无副作用）。
+ */
+export async function refreshSwGraceKeepaliveWindow(): Promise<void> {
+  try {
+    const result = await chrome.storage.session.get(SESSION_MEMORY_KEYS.SW_GRACE_KEEPALIVE_UNTIL);
+    if (result[SESSION_MEMORY_KEYS.SW_GRACE_KEEPALIVE_UNTIL] === undefined) return;
+    await chrome.storage.session.set({
+      [SESSION_MEMORY_KEYS.SW_GRACE_KEEPALIVE_UNTIL]: Date.now() + SESSION_EXPIRED_GRACE_KEEPALIVE_MS,
+    });
+  } catch (error) {
+    logger.error('Background: 续期会话失效宽限期保活窗口失败:', error);
+  }
+}
+
+/**
+ * 判断当前是否处于会话失效宽限期保活窗口内（读取失败按不在窗口内处理）
+ *
+ * 读取失败/标记缺失按 false 处理（倾向停活）：最坏退化到现行行为
+ * （会话失效后 SW 死亡），不引入任何安全或电量方面的反向风险。
+ */
+async function isWithinSwGraceKeepaliveWindow(): Promise<boolean> {
+  try {
+    const result = await chrome.storage.session.get(SESSION_MEMORY_KEYS.SW_GRACE_KEEPALIVE_UNTIL);
+    const until = result[SESSION_MEMORY_KEYS.SW_GRACE_KEEPALIVE_UNTIL] as number | undefined;
+    return !!until && Date.now() < until;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 根据平台与会话状态同步 SW 保活闹钟
  *
  * - Windows（差异化策略）：始终启用保活闹钟，无论会话是否有效。使侧边栏任何打开路径
  *   （悬浮按钮消息 / 快捷键命令）都命中热 SW，从根上消除会话失效后 Chrome 冷启动
  *   （Windows 300-800ms 起，极端可达数秒）导致的白屏卡顿。
- * - 非 Windows：仅在会话有效期内启用，会话过期/清除后停止，避免无谓的 CPU 和电池消耗
- *   （Mac 冷启动足够快，本就秒开，无需常驻）。
+ * - 非 Windows：会话有效期内启用；会话失效/清除后进入宽限期保活（30 分钟，见
+ *   SESSION_EXPIRED_GRACE_KEEPALIVE_MS）——宽限期内保持热 SW 与预热 tick，覆盖
+ *   Mac「间隔一段时间后打开侧边栏 4 秒白屏」（失效即停活 → SW 死亡 → 文件逐出 →
+ *   三冷叠加）的退化链路；宽限期结束后停止，保留 Mac 常态零电量开销语义。
  *
  * 在 SW 启动、会话创建/清除、上锁等时机调用，作为「是否保活」的集中决策点。
  */
@@ -489,20 +562,30 @@ export async function syncSwKeepaliveAlarm(): Promise<void> {
       return;
     }
 
-    // 非 Windows：仅会话有效期内保活
+    // 非 Windows：会话有效期内保活；会话失效后进入宽限期保活（Mac 白屏根治）
     const result = await chrome.storage.local.get([
       SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
       SESSION_STORAGE_KEYS.MASTER_PASSWORD,
       SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
     ]);
 
-    const hasSession = !!(
-      (result[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] || result[SESSION_STORAGE_KEYS.MASTER_PASSWORD]) &&
-      result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] &&
-      Date.now() < (result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number)
-    );
+    const hasKeys = !!(result[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] || result[SESSION_STORAGE_KEYS.MASTER_PASSWORD]);
+    const expiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined;
+    const hasSession = hasKeys && !!expiry && Date.now() < expiry;
 
     if (hasSession) {
+      await setupSwKeepaliveAlarm();
+      return;
+    }
+
+    // 会话已过期但键仍残留（SW 在过期时刻死亡、错过保活 tick 的清除时机）：
+    // 打宽限期标记后继续保活，清除动作交由保活 tick 的过期锁定分支完成；
+    // 宽限期内 SW 保持热态，避免该窗口内打开侧边栏命中冷启动白屏
+    if (hasKeys) {
+      await markSwGraceKeepaliveWindow();
+    }
+
+    if (await isWithinSwGraceKeepaliveWindow()) {
       await setupSwKeepaliveAlarm();
     } else {
       await clearSwKeepaliveAlarm();
@@ -510,6 +593,34 @@ export async function syncSwKeepaliveAlarm(): Promise<void> {
   } catch (error) {
     logger.error('Background: 同步 SW 保活闹钟状态失败:', error);
   }
+}
+
+/** 用户活动信号宽限续期的节流间隔（毫秒）：焦点/Tab 事件高频，续期粒度无需更细 */
+const USER_ACTIVITY_GRACE_REFRESH_MS = 60 * 1000;
+
+/** 上次活动续期时间戳（模块级，SW 生命周期内有效） */
+let _lastActivityGraceRefreshAt = 0;
+
+/**
+ * 处理用户活动信号（窗口聚焦 / Tab 激活 / 预唤醒消息）的宽限续期
+ *
+ * 宽限标记存在（本浏览器会话中曾存在会话且已失效）时滑动续期 30 分钟并同步
+ * 保活状态：覆盖「间隔任意时长后回到 Chrome 再打开侧边栏」——用户回 Chrome
+ * 必经焦点/Tab/预唤醒事件，事件唤醒 SW → 续期 → 恢复保活与预热 tick →
+ * 随后打开侧边栏命中温热链路。标记不存在时 refresh 内部 no-op，不新建保活
+ * （保持「无会话历史无保活」的 Mac 常态零电量语义）；Windows 上 syncSwKeepaliveAlarm
+ * 收敛为幂等常驻保活，无行为变化。
+ *
+ * 60 秒节流：活动事件高频触发（切 Tab/切窗口），续期窗口为 30 分钟，
+ * 分钟级粒度足以保持滑动语义，同时把常态化 IPC 开销压到最低。
+ */
+export async function handleUserActivityGraceRefresh(): Promise<void> {
+  const now = Date.now();
+  if (now - _lastActivityGraceRefreshAt < USER_ACTIVITY_GRACE_REFRESH_MS) return;
+  _lastActivityGraceRefreshAt = now;
+
+  await refreshSwGraceKeepaliveWindow();
+  await syncSwKeepaliveAlarm();
 }
 
 /**
@@ -532,7 +643,10 @@ export async function handleBrowserStartupRelock(): Promise<void> {
     invalidatePasswordCache();
     // 会话清除属安全边界：同步清除全部两步接力标记（不随缓存失效连带清除）
     void clearAllPendingTotp();
-    // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
+    // 安全边界先打宽限期标记再同步保活：非 Windows 重锁后进入 30 分钟宽限期保活，
+    // 覆盖「重启后一段时间内首开侧边栏」的白屏场景；不依赖 onChanged 异步时序
+    await markSwGraceKeepaliveWindow();
+    // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→宽限期内保活；Windows→保持常驻热 SW。
     await syncSwKeepaliveAlarm();
     logger.info('Background: 已按设置在浏览器启动时清除会话，需重新输入主密码');
   } catch (error) {
@@ -572,7 +686,10 @@ export async function handleIdleStateChange(newState: string): Promise<void> {
     invalidatePasswordCache();
     // 闲置/系统锁定属安全边界：同步清除全部两步接力标记
     void clearAllPendingTotp();
-    // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
+    // 安全边界先打宽限期标记再同步保活：非 Windows 锁定后进入 30 分钟宽限期保活，
+    // 覆盖「间隔一段时间回到电脑后打开侧边栏」的白屏场景；不依赖 onChanged 异步时序
+    await markSwGraceKeepaliveWindow();
+    // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→宽限期内保活；Windows→保持常驻热 SW。
     await syncSwKeepaliveAlarm();
 
     const port = getSidePanelPort();
@@ -755,7 +872,22 @@ export function setupBackgroundServices(): void {
           }
 
           logger.debug('Background: 检测到会话清除，已通知所有上下文');
+
+          // 宽限期标记先行再同步保活（await 保证标记落盘先于保活判定）：
+          // 非 Windows 会话清除后进入 30 分钟宽限期保活（Mac 白屏根治），
+          // 覆盖手动清除/自动过期/闲置锁定等所有经 storage 变化到达的清除路径
+          void (async () => {
+            await markSwGraceKeepaliveWindow();
+            await syncSwKeepaliveAlarm();
+          })();
         } else {
+          // 会话创建/rekey：宽限期标记已无意义，清除保持状态卫生（fire-and-forget）
+          try {
+            void chrome.storage.session.remove(SESSION_MEMORY_KEYS.SW_GRACE_KEEPALIVE_UNTIL).catch(() => {});
+          } catch {
+            // storage.session 不可用时忽略
+          }
+
           // rekey 自愈：包裹数据密钥被更新（修改主密码/重新登录）时，先失效 SW 内存中的
           // 旧数据密钥热缓存，确保下方 warmPasswordCache 用新密钥解密预热，
           // 避免旧密钥解密失败产出「已认证的空缓存」毒化 GET_INITIAL_DATA 热路径
@@ -767,9 +899,10 @@ export function setupBackgroundServices(): void {
               changes[SESSION_STORAGE_KEYS.VALIDITY_HOURS]?.newValue as number | undefined,
             );
           }
+
+          syncSwKeepaliveAlarm();
         }
 
-        syncSwKeepaliveAlarm();
         // 会话创建后主动预热缓存，确保首次 sidepanel 打开时数据就绪
         warmPasswordCache();
       }
@@ -801,9 +934,10 @@ export function setupBackgroundServices(): void {
       // 缓解冷启动白屏）。懒 import 延迟模块初始化（SW 产物已内联）；函数内自带
       // 平台门控与 5min 持久化节流（storage.session，SW 重启不归零）：
       // Windows 全量预热且不区分会话状态（磁盘缓存逐出与会话有效性无关）；
-      // 非 Windows 经 allowNonWindowsLightweight 轻量预热首屏关键资源
-      // （保活存续期内——会话有效/启动引导期——持续温热，覆盖 Chrome 长时间
-      // 聚焦无窗口切换事件的场景，缓解 Mac 间隔偶现冷读白屏）
+      // 非 Windows 经 allowNonWindowsLightweight 轻量预热首屏关键资源 + 认证视图
+      // 关键 chunk（含 Element Plus CSS 运行时，覆盖 macOS 磁盘缓存逐出后的
+      // 认证态冷读白屏；保活存续期内——会话有效/失效宽限期/启动引导期——
+      // 持续温热，覆盖 Chrome 长时间聚焦无窗口切换事件的场景）
       void import('@/utils/warmSidePanelResources')
         .then(m => m.maybeWarmSidePanelResources({ allowNonWindowsLightweight: true }))
         .catch(() => {});
@@ -840,7 +974,12 @@ export function setupBackgroundServices(): void {
               logger.error('Background: SW 保活闹钟过期锁定失败:', e);
             });
 
-            // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止闹钟以省资源；
+            // 安全边界打宽限期标记（await 保证标记先于保活判定落盘；storage.onChanged
+            // 清除路径同样会标记，此处为防御性冗余）：非 Windows 过期锁定后进入
+            // 30 分钟宽限期保活，覆盖「过期后一段时间内打开侧边栏」的白屏场景
+            await markSwGraceKeepaliveWindow();
+
+            // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→宽限期内保活；
             // Windows→保持常驻，使会话失效后打开侧边栏仍走热 SW，消除白屏。
             await syncSwKeepaliveAlarm();
 
