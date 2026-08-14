@@ -16,8 +16,11 @@
  * 常规调用在 Windows 按 5 分钟节流全量预热，不区分会话状态——OS 磁盘缓存逐出
  * （杀软扫描 / 内存压力）与会话有效性无关，会话有效期内同样会命中冷读白屏；
  * 非 Windows 常规调用默认跳过，但可经 allowNonWindowsLightweight 降级为轻量预热
- * （仅第一/二层，~8 个小文件）——Mac 长时间未操作后 OS 同样会逐出扩展文件，
- * 首开命中文件全冷读即“间隔一段时间偶现白屏”；
+ * （第一/二层 + 认证视图与本地数据直读关键动态 chunk 及其二级依赖，~15 个小文件）——
+ * Mac 长时间未操作后 OS 同样会逐出扩展文件，首开命中文件全冷读即
+ * “间隔一段时间偶现白屏”（认证视图的 Element Plus CSS 运行时 chunk 是最大冷读单体，
+ * 本地数据直读 chunk 是浏览器重启快照失效后的冷读单体，故白名单保留这两组 chunk，
+ * 其余按需 chunk 仍跳过）；
  * 浏览器首启（ignorePlatformGate）场景 OS 磁盘缓存全冷，Mac 重启后首开同样白屏，
  * 故该场景跨平台全量执行。
  */
@@ -27,6 +30,26 @@ import { SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 
 /** 侧边栏入口 HTML（相对扩展根路径），经 chrome.runtime.getURL 解析为绝对 URL */
 const SIDEPANEL_HTML = 'sidepanel.html';
+
+/**
+ * 轻量预热（非 Windows）动态 chunk 白名单（按 Vite 产物相对路径前缀匹配，hash 可变）
+ *
+ * 覆盖 Mac 首屏冷读的两类关键 chunk：
+ * - 认证视图 chunk（自身 ~11KB + 静态引入的 Element Plus CSS 运行时 chunk ~80KB）：
+ *   认证态首屏必需的最大冷读单体——macOS 长时间空闲后 UBC 逐出这组文件，
+ *   下次认证态打开全冷读即数秒白屏；
+ * - 本地数据直读 chunk（sessionManager-storage / passwordCrud / encryption）：
+ *   浏览器重启后 storage.session 快照清零，侧边栏数据竞速回退本地直读路径时
+ *   动态 import 这三个 chunk——若已被 macOS UBC 逐出则冷读放大白屏。
+ * 白名单外其余按需 chunk（HelpDialog 等交互时才用）仍跳过以控制常态 IO；
+ * 白名单 chunk 的二级静态依赖由递归收集自动带入。
+ */
+const LIGHTWEIGHT_DYNAMIC_CHUNK_ALLOWLIST: RegExp[] = [
+  /^\.\/SidepanelAuthView-/,
+  /^\.\/sessionManager-storage-/,
+  /^\.\/passwordCrud-/,
+  /^\.\/encryption-/,
+];
 
 /**
  * 预热节流窗口（毫秒）
@@ -207,15 +230,18 @@ export interface WarmSidePanelOptions {
   ignorePlatformGate?: boolean;
 
   /**
-   * 非 Windows 平台降级为轻量预热（仅第一/二层：HTML + module 脚本 +
-   * modulepreload 依赖 + 样式表，~8 个小文件），而非直接跳过
+   * 非 Windows 平台降级为轻量预热（第一/二层：HTML + module 脚本 +
+   * modulepreload 依赖 + 样式表，另按白名单附加认证视图与本地数据直读关键
+   * 动态 chunk 及其二级静态依赖，共 ~15 个小文件），而非直接跳过
    *
    * Mac/Linux 长时间未操作后 OS 同样会逐出扩展文件磁盘缓存，首开命中全冷读
-   * 即「间隔一段时间偶现白屏几秒」的直接根因。轻量层覆盖首屏关键路径资源，
-   * 跳过动态 chunk 递归层（非 Windows 磁盘 IO 快、无杀软扫描放大，按需 chunk
-   * 冷读代价低），在收益与常态 IO 开销间取平衡。Windows 不受本选项影响，
-   * 仍执行全量四层预热。调用时机：窗口聚焦恢复 / 侧边栏打开后延时预热 /
-   * SW 保活 tick（均共用 5 分钟节流，不增加高频 IO）。
+   * 即「间隔一段时间偶现白屏几秒」的直接根因。轻量层覆盖首屏关键路径资源
+   * 与认证态关键 chunk（认证视图 + Element Plus CSS 运行时，Mac 白屏最大冷读
+   * 单体）及本地数据直读 chunk（浏览器重启快照失效后数据竞速回退本地路径的
+   * 冷读单体），跳过其余按需动态 chunk 递归层（非 Windows 磁盘 IO 快、无杀软
+   * 扫描放大，按需 chunk 冷读代价低），在收益与常态 IO 开销间取平衡。Windows
+   * 不受本选项影响，仍执行全量四层预热。调用时机：窗口聚焦恢复 / 侧边栏
+   * 打开后延时预热 / SW 保活 tick（均共用 5 分钟节流，不增加高频 IO）。
    */
   allowNonWindowsLightweight?: boolean;
 }
@@ -233,13 +259,14 @@ export interface WarmSidePanelOptions {
  * 会话有效期内扩展文件同样可能被逐出导致骨架屏前白屏，Windows 常规调用
  * 无论会话状态均按节流预热（每 5 分钟最多一轮 ~25 个小文件 fetch，开销可忽略）。
  *
- * 预热范围（四层递进）：
+ * 预热范围（四层递进，轻量模式仅收窄第三层范围）：
  * - 第一层：sidepanel.html 本身（温热入口 HTML）
  * - 第二层：HTML 中引用的 module 脚本 + modulepreload 依赖 + 样式表
- * - 第三层：入口 JS 中的动态 import chunk（sessionManager-storage / passwordCrud /
- *   HelpDialog / autoSaveManager / useSidepanelSettings 等按需模块）
+ * - 第三层：入口 JS 中的动态 import chunk——全量模式覆盖全部按需模块
+ *   （sessionManager-storage / passwordCrud / HelpDialog / autoSaveManager /
+ *   useSidepanelSettings 等）；轻量模式按白名单仅覆盖认证视图 chunk
  * - 第四层：动态 chunk 静态引入的二级依赖 chunk（如认证视图的 Element Plus
- *   重组件 chunk，认证态首屏最大的冷读单体）
+ *   CSS 运行时 chunk，认证态首屏最大的冷读单体）
  *
  * 全程 fire-and-forget：任何异常均静默吞掉，绝不影响调用方（保活 / 预唤醒 / 启动路径）。
  *
@@ -256,14 +283,75 @@ export function maybeWarmSidePanelResources(options: WarmSidePanelOptions = {}):
   return _warmInFlight;
 }
 
+/**
+ * 预热第三/四层：动态 import chunk 及其静态引入的二级依赖（全量/轻量共用流程）
+ *
+ * 从入口 JS chunk 文本中提取动态 import URL，可选按白名单过滤（轻量模式仅保留
+ * 认证视图关键 chunk，见 LIGHTWEIGHT_DYNAMIC_CHUNK_ALLOWLIST），随后预热过滤后的
+ * 动态 chunk 并递归一层收集其静态引入的二级依赖（认证视图的 Element Plus CSS
+ * 运行时 chunk 经静态 import 引入，仅靠动态 import 正则会漏网）。任何环节失败
+ * 静默跳过，不影响已完成的第一/二层预热。
+ *
+ * @param fetchResults 第二层资源的 fetch settled 结果列表（与 assetUrls 同序，用于复用入口 JS 响应体）
+ * @param assetUrls 第二层资源 URL 列表（保持原始出现顺序，第一个 .js 即入口 module 脚本）
+ * @param baseUrl 侧边栏入口 HTML 的绝对 URL（相对路径解析基准）
+ * @param dynamicChunkFilter 动态 chunk 相对路径白名单（缺省 = 不过滤，全量预热）
+ */
+async function warmDynamicChunks(
+  fetchResults: PromiseSettledResult<Response>[],
+  assetUrls: string[],
+  baseUrl: string,
+  dynamicChunkFilter?: RegExp[],
+): Promise<void> {
+  // 找到入口 module 脚本的 fetch 结果（assetUrls 中第一个 .js，即 <script type="module" src>）
+  const entryJsUrl = assetUrls.find(url => url.includes('.js'));
+  if (!entryJsUrl) return;
+  const entryResult = fetchResults[assetUrls.indexOf(entryJsUrl)];
+  if (entryResult?.status !== 'fulfilled' || !entryResult.value.ok) return;
+
+  try {
+    const entryJsText = await entryResult.value.text();
+    let dynamicUrls = extractDynamicImportUrls(entryJsText);
+    // 轻量模式：按白名单收窄至认证关键 chunk（白名单按产物相对路径前缀匹配）
+    if (dynamicChunkFilter) {
+      dynamicUrls = dynamicUrls.filter(relUrl => dynamicChunkFilter.some(pattern => pattern.test(relUrl)));
+    }
+    if (dynamicUrls.length === 0) return;
+
+    // 动态 import chunk 相对于入口 JS 所在目录（通常为 /chunks/）
+    const entryBase = new URL(entryJsUrl, baseUrl).href;
+    // 已预热资源的绝对 URL 集合，供第三/四层跨层去重（避免重复 fetch 同一 chunk）
+    const warmedHrefs = new Set(assetUrls.map(url => new URL(url, baseUrl).href));
+    const dynamicHrefs = dynamicUrls
+      .map(relUrl => new URL(relUrl, entryBase).href)
+      .filter(href => !warmedHrefs.has(href));
+    dynamicHrefs.forEach(href => warmedHrefs.add(href));
+    const dynamicResults = await Promise.allSettled(dynamicHrefs.map(href => fetch(href)));
+
+    // 第四层：递归一层，预热动态 chunk 静态引入的二级依赖 chunk
+    //（认证视图依赖的 Element Plus CSS 运行时 chunk 经静态 import 引入，
+    //  仅靠动态 import 正则会漏网，需从动态 chunk 文本中二次提取）
+    const secondaryHrefs = await collectStaticDepHrefs(dynamicResults, dynamicHrefs, warmedHrefs);
+    if (secondaryHrefs.length > 0) {
+      await Promise.allSettled(secondaryHrefs.map(href => fetch(href)));
+    }
+
+    logger.debug(
+      `SidePanel: 动态 chunk 预热完成，动态 chunk ${dynamicHrefs.length} + 二级依赖 ${secondaryHrefs.length}${dynamicChunkFilter ? '（轻量白名单）' : ''}`,
+    );
+  } catch {
+    // 入口 JS 文本读取/解析失败，不影响已完成的静态资源预热
+  }
+}
+
 /** 预热执行体（由 maybeWarmSidePanelResources 经 in-flight 互斥调度） */
 async function doWarmSidePanelResources(options: WarmSidePanelOptions): Promise<void> {
   try {
     // 平台门控与预热模式判定：
     // - Windows / 浏览器首启（ignorePlatformGate）→ 全量四层预热；
     // - 非 Windows 常规调用：允许轻量模式（allowNonWindowsLightweight）时
-    //   仅预热第一/二层（Mac 长时间未操作后磁盘缓存逐出的首开白屏缓解），
-    //   否则保持既往行为直接跳过
+    //   预热第一/二层 + 白名单动态 chunk（Mac 长时间未操作后磁盘缓存逐出的
+    //   首开白屏缓解），否则保持既往行为直接跳过
     let lightweight = false;
     if (!options.ignorePlatformGate && !(await isWindowsPlatform())) {
       if (!options.allowNonWindowsLightweight) return;
@@ -296,53 +384,20 @@ async function doWarmSidePanelResources(options: WarmSidePanelOptions): Promise<
     // 第二层：并行预热 HTML 引用的静态资源（module 脚本 + modulepreload + CSS）
     const fetchResults = await Promise.allSettled(assetUrls.map(url => fetch(new URL(url, baseUrl).href)));
 
-    // 轻量模式（非 Windows）：首屏关键路径资源已温热，跳过动态 chunk 递归层
+    // 轻量模式（非 Windows）：第一/二层 + 白名单关键 chunk（认证视图 +
+    // 本地数据直读路径，含二级依赖），跳过其余按需动态 chunk——认证视图的
+    // Element Plus CSS 运行时 chunk 是 macOS 磁盘缓存逐出后认证态打开的
+    // 最大冷读单体，本地数据直读 chunk 是浏览器重启快照失效后的冷读单体，
+    // 均必须随轻量预热温热
     if (lightweight) {
-      logger.debug(`SidePanel: 资源轻量预热完成（非 Windows），资源数 ${assetUrls.length}`);
+      await warmDynamicChunks(fetchResults, assetUrls, baseUrl, LIGHTWEIGHT_DYNAMIC_CHUNK_ALLOWLIST);
+      logger.debug(`SidePanel: 资源轻量预热完成（非 Windows），静态资源 ${assetUrls.length} + 认证关键 chunk`);
       return;
     }
 
-    // 第三层：从入口 JS chunk 中提取动态 import 的 chunk URL 并预热
-    // 找到入口 module 脚本的 fetch 结果（assetUrls 中第一个，即 <script type="module" src>）
-    const entryJsUrl = assetUrls.find(url => url.includes('.js'));
-    if (entryJsUrl) {
-      const entryIdx = assetUrls.indexOf(entryJsUrl);
-      const entryResult = fetchResults[entryIdx];
-      if (entryResult?.status === 'fulfilled' && entryResult.value.ok) {
-        try {
-          const entryJsText = await entryResult.value.text();
-          const dynamicUrls = extractDynamicImportUrls(entryJsText);
-          if (dynamicUrls.length > 0) {
-            // 动态 import chunk 相对于入口 JS 所在目录（通常为 /chunks/）
-            const entryBase = new URL(entryJsUrl, baseUrl).href;
-            // 已预热资源的绝对 URL 集合，供第三/四层跨层去重（避免重复 fetch 同一 chunk）
-            const warmedHrefs = new Set(assetUrls.map(url => new URL(url, baseUrl).href));
-            const dynamicHrefs = dynamicUrls
-              .map(relUrl => new URL(relUrl, entryBase).href)
-              .filter(href => !warmedHrefs.has(href));
-            dynamicHrefs.forEach(href => warmedHrefs.add(href));
-            const dynamicResults = await Promise.allSettled(dynamicHrefs.map(href => fetch(href)));
-
-            // 第四层：递归一层，预热动态 chunk 静态引入的二级依赖 chunk
-            //（认证视图依赖的 Element Plus 重组件 chunk 经静态 import 引入，
-            //  仅靠动态 import 正则会漏网，需从动态 chunk 文本中二次提取）
-            const secondaryHrefs = await collectStaticDepHrefs(dynamicResults, dynamicHrefs, warmedHrefs);
-            if (secondaryHrefs.length > 0) {
-              await Promise.allSettled(secondaryHrefs.map(href => fetch(href)));
-            }
-
-            logger.debug(
-              `SidePanel: 资源预热完成，静态资源 ${assetUrls.length} + 动态 chunk ${dynamicHrefs.length} + 二级依赖 ${secondaryHrefs.length}`,
-            );
-            return;
-          }
-        } catch {
-          // 入口 JS 文本读取/解析失败，不影响已完成的静态资源预热
-        }
-      }
-    }
-
-    logger.debug(`SidePanel: 资源预热完成，资源数 ${assetUrls.length}`);
+    // 全量模式（Windows / 浏览器首启）：第三/四层覆盖全部动态 chunk
+    await warmDynamicChunks(fetchResults, assetUrls, baseUrl);
+    logger.debug(`SidePanel: 资源预热完成，静态资源 ${assetUrls.length}`);
   } catch (error) {
     // 预热为尽力而为的优化，任何异常静默吞掉，绝不影响调用方
     logger.debug('SidePanel: 资源预热跳过/失败', error);
