@@ -8,7 +8,6 @@ import {
   setupBackgroundServices,
   initBackgroundConfig,
   handleBrowserStartupRelock,
-  markBrowserBootKeepaliveWindow,
 } from './background/backgroundServices';
 import type { WarmSidePanelOptions } from '@/utils/warmSidePanelResources';
 
@@ -48,10 +47,6 @@ export default defineBackground(() => {
   // 浏览器/配置文件启动时，按「浏览器重启后重新锁定」设置执行安全重锁（默认关闭时无副作用）
   chrome.runtime.onStartup.addListener(() => {
     void handleBrowserStartupRelock();
-    // 启动引导期保活窗口（跨平台，10 分钟）：重启后全冷阶段强制 SW 保活，
-    // 把 SW 冷启动从首开链路摘除（Mac 重启后前几次打开的长白屏主因之一）；
-    // 窗口截止后由保活 tick 内的重同步自动收敛回常规平台/会话门控
-    void markBrowserBootKeepaliveWindow();
     // 启动预热（跨平台，立即执行）：浏览器刚启动时 OS 磁盘缓存全冷、V8 无 code cache，
     // 无论会话是否有效，首次打开侧边栏都会命中「进程冷 + 资源冷 + SW 冷」
     // 三冷叠加白屏（Mac 重启后首开同样受影响）。
@@ -65,7 +60,8 @@ export default defineBackground(() => {
   // 用户切换到其他应用再回到 Chrome 时，OS 磁盘缓存中的扩展文件可能已被逐出
   // （Windows 内存压力 / 杀毒扫描；Mac 长时间未操作后同样逐出）。
   // Windows 全量预热；非 Windows 经 allowNonWindowsLightweight 轻量预热首屏
-  // 关键资源（Mac「间隔一段时间偶现白屏」的直接缓解）；本事件同时会唤醒
+  // 关键资源 + 认证视图关键 chunk（含 Element Plus CSS 运行时，Mac「间隔一段时间
+  // 偶现白屏」的直接缓解）；本事件同时会唤醒
   // 休眠的 SW（事件驱动），为接下来可能的侧边栏打开顺带消除 SW 冷启动；
   // 预热函数内建 5 分钟节流，频繁切换不会重复 fetch
   chrome.windows.onFocusChanged.addListener(windowId => {

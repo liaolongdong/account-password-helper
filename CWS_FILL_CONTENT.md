@@ -227,7 +227,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **alarms**
 
 ```
-定时执行版本更新检查（每 6 小时）、自动备份提醒和 Service Worker 保活（会话期间每 1 分钟），通过 chrome.alarms API 实现。
+定时执行版本更新检查（每 6 小时）、自动备份提醒和 Service Worker 保活（全平台常驻，后台约每 30 秒唤醒一次以保证侧边栏秒开），通过 chrome.alarms API 实现。
 ```
 
 **notifications**

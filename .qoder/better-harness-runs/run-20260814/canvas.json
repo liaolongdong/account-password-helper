@@ -1,0 +1,820 @@
+{
+  "schemaVersion": 1,
+  "summaryFactsSchemaVersion": 1,
+  "summary": {
+    "evidenceMode": "session-rich",
+    "evidenceBoundary": {
+      "manifest": {
+        "schemaVersion": 2,
+        "sourceFingerprint": "10369ea19cf15fdf",
+        "adapterVersion": "qoder-task-loop-source-v2",
+        "platform": "qoder",
+        "selection": {
+          "strategy": "stratified",
+          "eligibleCount": 337,
+          "analyzedCount": 40,
+          "confidence": "Medium"
+        }
+      },
+      "episodeCoverage": {
+        "episodeCount": 287,
+        "editedEpisodeCount": 287,
+        "closedEpisodeCount": 0,
+        "recoveredEpisodeCount": 0
+      },
+      "deliveryEvidenceLevels": [],
+      "sourceGaps": []
+    },
+    "semanticFacets": {
+      "schemaVersion": 1,
+      "status": "supplementary",
+      "entries": [
+        {
+          "id": "session-insight:source-coverage",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "source-coverage",
+            "Medium"
+          ],
+          "summary": "Analyzed 40 of 337 sessions; 4/6 enabled source roots exist. Treat conclusions as sampled and increase the limit or time scope before making broad claims.",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:validation-behavior",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "validation-behavior",
+            "Low"
+          ],
+          "summary": "No validation command category was observed in the analyzed session sample. Inspect more sessions or add explicit validation guidance before claiming validation-after-edit behavior.",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:post-edit-validation",
+          "kind": "rework-correction",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "post-edit-validation",
+            "Medium"
+          ],
+          "summary": "Observed 327 edit event(s), but no later validation command in the analyzed sample. Route this lead to Harness session-evidence review to inspect the affected Task Episodes and later relevant validation before any finding.",
+          "evidenceRefs": [
+            {
+              "kind": "execution-transcript",
+              "id": "session-insight-3-1",
+              "type": "assistant",
+              "line": 165
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:execution-friction",
+          "kind": "friction-taxonomy",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "execution-friction",
+            "Low"
+          ],
+          "summary": "No strong execution friction signal in the analyzed sample. Keep friction claims narrow unless additional failed commands, rejected actions, or warnings are inspected.",
+          "evidenceRefs": [],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:tool-mix",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "tool-mix",
+            "Medium"
+          ],
+          "summary": "Most observed tool: Read (449). Use this as workflow evidence, then inspect bounded sessions before claiming user intent.",
+          "evidenceRefs": [
+            {
+              "kind": "execution-transcript",
+              "id": "session-insight-5-1",
+              "type": "assistant",
+              "line": 7
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:observed-hooks",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "observed-hooks",
+            "Medium"
+          ],
+          "summary": "Most observed hook: SessionStart (1). Separate configured hooks from observed hook enforcement, and state when the script target is unavailable.",
+          "evidenceRefs": [
+            {
+              "kind": "logs-session",
+              "id": "session-insight-6-1",
+              "type": "hook.finished",
+              "line": 6
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:planning-workflow",
+          "kind": "goal-workflow",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "planning-workflow",
+            "High"
+          ],
+          "summary": "Observed qoder plan-command: /ultraplan (1, user-global). Treat this as user/global planning capability, then look for project-bound spec or plan evidence before claiming local governance.",
+          "evidenceRefs": [
+            {
+              "kind": "global-project-jsonl",
+              "id": "session-insight-7-1",
+              "type": "user",
+              "line": 5
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:session-complexity",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "session-complexity",
+            "Medium"
+          ],
+          "summary": "Observed 4 active long session(s); longest active estimate: 1h 42m. Review task family, outcome, and friction before deciding whether this duration reflects a problem or any decomposition, tool, delegation, or model change is needed.",
+          "evidenceRefs": [
+            {
+              "kind": "execution-transcript",
+              "id": "session-insight-8-1",
+              "type": "progress",
+              "line": 1
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        },
+        {
+          "id": "session-insight:session-usage-efficiency",
+          "kind": "redacted-summary",
+          "episodeRef": null,
+          "status": "candidate",
+          "labels": [
+            "session-usage-efficiency",
+            "Medium"
+          ],
+          "summary": "本次分析覆盖 337 个会话，其中 32 个达到活跃长会话阈值，最长约 192 分钟；另有 11 个长跨度主要来自暂停或恢复。 这些活动证据只描述投入；当前 token 或 credit 证据不足，不能据此推断模型偏好、质量或节省。",
+          "evidenceRefs": [
+            {
+              "kind": "execution-transcript",
+              "id": "session-insight-9-1",
+              "type": "progress",
+              "line": 1
+            }
+          ],
+          "modelVersion": "session-insights-v1"
+        }
+      ]
+    },
+    "learningCapture": {
+      "schemaVersion": 1,
+      "state": "N/A",
+      "summary": "暂不适用——需要两个可比的观察窗口和一次改进对比。",
+      "interventions": []
+    },
+    "aiAgentPractice": {
+      "inspectedSurfaces": [],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": [
+            "Project"
+          ],
+          "count": 1,
+          "paths": [
+            ".qoder/rules/wxt-rules.md"
+          ]
+        },
+        {
+          "surface": "Skills",
+          "scopes": [
+            "Project",
+            "Global",
+            "Plugin"
+          ],
+          "count": 45,
+          "paths": [
+            ".qoder/skills/wxt-framework/SKILL.md",
+            "~/.qoder/skills/agents-sdk/SKILL.md",
+            "~/.agents/skills/baoyu-article-illustrator/SKILL.md",
+            "~/.agents/skills/baoyu-comic/SKILL.md",
+            "~/.agents/skills/baoyu-compress-image/SKILL.md",
+            "~/.agents/skills/baoyu-cover-image/SKILL.md",
+            "~/.agents/skills/baoyu-danger-gemini-web/SKILL.md",
+            "~/.agents/skills/baoyu-danger-x-to-markdown/SKILL.md",
+            "~/.agents/skills/baoyu-diagram/SKILL.md",
+            "~/.agents/skills/baoyu-electron-extract/SKILL.md",
+            "~/.agents/skills/baoyu-format-markdown/SKILL.md",
+            "~/.agents/skills/baoyu-image-gen/SKILL.md"
+          ]
+        },
+        {
+          "surface": "Hooks",
+          "scopes": [
+            "Plugin"
+          ],
+          "count": 2,
+          "paths": [
+            "~/.qoder/plugins/cache/qoder-bundler/security-scan/.qoder-plugin/qoder-hooks.json"
+          ]
+        },
+        {
+          "surface": "MCP",
+          "scopes": [
+            "Global"
+          ],
+          "count": 4,
+          "paths": [
+            "~/Library/Application Support/Qoder/SharedClientCache/mcp.json"
+          ]
+        },
+        {
+          "surface": "Workflows",
+          "scopes": [
+            "Project"
+          ],
+          "count": 2,
+          "paths": [
+            ".github/workflows/release-please.yml",
+            ".github/workflows/static.yml"
+          ]
+        },
+        {
+          "surface": "Plugins",
+          "scopes": [
+            "Plugin"
+          ],
+          "count": 3,
+          "paths": [
+            "~/.qoder/plugins/cache/qoder-bundler/better-harness/.qoder-plugin/plugin.json",
+            "~/.qoder/plugins/cache/qoder-bundler/qoder-create-plugin",
+            "~/.qoder/plugins/cache/qoder-bundler/security-scan/.qoder-plugin/plugin.json"
+          ]
+        },
+        {
+          "surface": "Memories",
+          "scopes": [
+            "Project",
+            "Global"
+          ],
+          "count": 520
+        },
+        {
+          "surface": "Commands",
+          "scopes": [
+            "Project"
+          ],
+          "count": 0
+        },
+        {
+          "surface": "Custom Agents",
+          "scopes": [
+            "Project"
+          ],
+          "count": 0
+        }
+      ],
+      "repositorySourceRows": [],
+      "memoryDetails": {
+        "contentPolicy": "metadata-only",
+        "scanState": "scanned-present",
+        "scopeCounts": [
+          {
+            "scope": "Project",
+            "count": 517
+          },
+          {
+            "scope": "Global",
+            "count": 3
+          }
+        ],
+        "integrity": {
+          "status": "reviewed",
+          "titleCount": 520,
+          "reviewedTitleCount": 520,
+          "truncated": false,
+          "exactCollisionGroups": 3,
+          "similarityCandidates": 13
+        }
+      }
+    },
+    "usageActivity": {
+      "schemaVersion": 2,
+      "dateBasis": "UTC",
+      "measurementBasis": "session-starts-active-estimate-model-active-session-days-skill-invocations-and-loads",
+      "truncated": false,
+      "dates": [
+        "2026-07-20",
+        "2026-07-21",
+        "2026-07-22",
+        "2026-07-23",
+        "2026-07-24",
+        "2026-07-25",
+        "2026-07-26",
+        "2026-07-27",
+        "2026-07-28",
+        "2026-07-29",
+        "2026-07-30",
+        "2026-07-31",
+        "2026-08-01",
+        "2026-08-02",
+        "2026-08-03",
+        "2026-08-04",
+        "2026-08-05",
+        "2026-08-06",
+        "2026-08-07",
+        "2026-08-08",
+        "2026-08-09",
+        "2026-08-10",
+        "2026-08-11",
+        "2026-08-12",
+        "2026-08-13"
+      ],
+      "sessions": {
+        "total": 337,
+        "starts": [
+          1,
+          5,
+          5,
+          6,
+          4,
+          22,
+          21,
+          12,
+          28,
+          58,
+          45,
+          54,
+          0,
+          0,
+          17,
+          4,
+          6,
+          3,
+          0,
+          0,
+          0,
+          13,
+          12,
+          6,
+          15
+        ],
+        "activeMinutes": [
+          0,
+          213,
+          284.9,
+          77,
+          108.2,
+          426,
+          365.5,
+          203.6,
+          560.2,
+          318.2,
+          486.8,
+          345.4,
+          0,
+          0,
+          258.4,
+          42.2,
+          65.9,
+          19.1,
+          0,
+          0,
+          0,
+          341.3,
+          220,
+          88,
+          206.4
+        ]
+      },
+      "models": [
+        {
+          "name": "auto",
+          "total": 7,
+          "daily": [
+            0,
+            0,
+            0,
+            0,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            4,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0
+          ]
+        }
+      ],
+      "skills": [
+        {
+          "name": "ui-ux-pro-max",
+          "total": 10,
+          "daily": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            1,
+            4,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "chrome-extensions",
+          "total": 7,
+          "daily": [
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            2,
+            1,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            1
+          ]
+        },
+        {
+          "name": "frontend-design",
+          "total": 7,
+          "daily": [
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            1,
+            2,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "name": "better-harness",
+          "total": 2,
+          "daily": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "canvas",
+          "total": 2,
+          "daily": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "security-scan",
+          "total": 2,
+          "daily": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "web-perf",
+          "total": 2,
+          "daily": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1
+          ]
+        },
+        {
+          "name": "grill-me",
+          "total": 1,
+          "daily": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        {
+          "name": "Other",
+          "total": 2,
+          "daily": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0
+          ]
+        }
+      ]
+    },
+    "usageEfficiency": {
+      "schemaVersion": 2,
+      "selection": {
+        "strategy": "all-eligible",
+        "eligibleSessionCount": 337,
+        "analyzedSessionCount": 337,
+        "complete": true
+      },
+      "roles": {
+        "userThreadCandidateCount": 337,
+        "childAgentCandidateCount": 0
+      },
+      "longSessions": {
+        "activeCount": 32,
+        "wallOnlyCount": 11,
+        "longestActiveMinutes": 191.8,
+        "activeRatio": 0.095,
+        "estimate": {
+          "method": "capped-event-gap",
+          "activeThresholdMinutes": 45,
+          "gapCapMinutes": 5,
+          "idleGapMinutes": 30
+        },
+        "samples": [
+          {
+            "alias": "S1",
+            "role": "user-thread-candidate",
+            "activeMinutes": 191.8,
+            "failureCount": 0
+          },
+          {
+            "alias": "S2",
+            "role": "user-thread-candidate",
+            "activeMinutes": 177.1,
+            "failureCount": 0
+          },
+          {
+            "alias": "S3",
+            "role": "user-thread-candidate",
+            "activeMinutes": 122.6,
+            "failureCount": 0
+          },
+          {
+            "alias": "S4",
+            "role": "user-thread-candidate",
+            "activeMinutes": 106.8,
+            "failureCount": 0
+          }
+        ]
+      },
+      "accounting": {
+        "mode": "effort-proxy",
+        "responseCount": 11,
+        "modelAttributedResponseCount": 11,
+        "unattributedResponseCount": 0,
+        "usageFieldObservedCount": 11,
+        "nonZeroUsageCount": 0,
+        "exactCreditsAvailable": false,
+        "pricingVersion": null
+      },
+      "modelUsage": [
+        {
+          "model": "auto",
+          "responseCount": 11,
+          "usageFieldObservedCount": 11,
+          "nonZeroUsageCount": 0
+        }
+      ],
+      "outcomeReview": {
+        "status": "required",
+        "reviewedCandidateCount": 0,
+        "reviewedActiveLongCount": 0,
+        "comparableModelOutcomeEvidence": false,
+        "recommendation": "controlled-a-b-required"
+      },
+      "reviewLead": {
+        "id": "session-usage-outcome-review-gap",
+        "title": "32 个长会话候选仍待结果复核",
+        "reason": "337 个已分析会话中有 32 个（9.5%）超过估算活跃时长阈值，最长估算为 191.8 分钟，其中 0 个已有结果复核；另有 11 个长跨度可能来自空闲或恢复。这只是调查线索，尚未确认存在效率、任务拆分、工具链或模型问题。",
+        "expectedOutcome": "每个展示候选都完成任务族、结果和摩擦分类，让报告能够判断是否真的需要改进。",
+        "aiFixPrompt": "/better-harness 复核这些会话\n\n32 个长会话候选仍待结果复核\n\n## 先核对的会话\n\n- S1：用户会话候选，估算活跃约 191.8 分钟，失败事件 0 次\n- S2：用户会话候选，估算活跃约 177.1 分钟，失败事件 0 次\n- S3：用户会话候选，估算活跃约 122.6 分钟，失败事件 0 次\n- S4：用户会话候选，估算活跃约 106.8 分钟，失败事件 0 次\n- 当前展示 32 个未复核活跃长会话中的 4 个；其余 28 个继续通过同一个有界 review packet 复核。\n\n## 先做什么\n\n在操作系统临时目录创建 <run>，从项目根运行：\n\n```bash\nnode scripts/session-analysis.mjs insights --platform qoder --workspace . --selection all-eligible --limit 1000 --format json --output <run>/insights.json\nnode scripts/session-analysis/usage-review-packet.mjs --source <run>/insights.json --workspace . --limit 8 --output <run>/.review-packet.json\n```\n\n私有 review packet 会在本地解析候选；只为 S1, S2, S3, S4 写入 taskFamily、outcome、friction、confidence 和 evidenceReason。先完成复核，不改业务代码，也不创建 Memory、Skill 或 Hook。\n\n## 我们看到了什么\n\n337 个已分析会话中有 32 个（9.5%）超过估算活跃时长阈值，最长估算为 191.8 分钟，其中 0 个已有结果复核；另有 11 个长跨度可能来自空闲或恢复。这只是调查线索，尚未确认存在效率、任务拆分、工具链或模型问题。\n\n## 为什么值得复核\n\n未复核前无法区分复杂任务、工具链摩擦、暂停恢复噪音或正常的长任务。\n\n## 预期结果\n\n每个展示候选都完成任务族、结果和摩擦分类，让报告能够判断是否真的需要改进。\n\n## 范围\n\n只生成隐私安全的会话效率复核和 reader report，不改业务代码，不把墙钟跨度当作活跃成本。持久报告只保留匿名别名；私有 review packet 不得复制进报告。这是 4/32 的有界视图（4/N）；只对展示样本下结论，其余候选保持未复核。\n\n## 怎样算完成\n\n<run>/.review.json 对 S1, S2, S3, S4 各有一条有效复核；语义复核生成 <run>/insights.reviewed.json；<run>/report.md 以 reviewed source 校验通过。复核未确认问题时，不创建优化项。\n\n## 验证\n\n- 运行 `node scripts/session-analysis/usage-semantic-review.mjs --source <run>/insights.json --packet <run>/.review-packet.json --review <run>/.review.json --output <run>/insights.reviewed.json`\n- 运行 `node scripts/session-analysis/validate-usage-report.mjs --source <run>/insights.reviewed.json --report <run>/report.md`，必须返回 `ok: true`\n- 确认 reviewed source 的 `outcomeReview.reviewedActiveLongCount` 等于已复核的展示别名数；通过后删除两个私有临时 review 文件",
+        "sampleCoverage": {
+          "shown": 4,
+          "total": 32,
+          "complete": false
+        }
+      }
+    }
+  },
+  "dimensions": [],
+  "findings": []
+}

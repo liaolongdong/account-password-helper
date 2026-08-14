@@ -48,8 +48,6 @@ export const SESSION_MEMORY_KEYS = {
   SIDEPANEL_OPEN_REQUESTED_AT: 'sidepanel_open_requested_at',
   /** 侧边栏资源预热上次执行时间戳（epoch 毫秒），跨 SW 生命周期保持节流窗口有效 */
   SIDEPANEL_WARM_AT: 'sidepanel_warm_at',
-  /** 浏览器启动引导期保活截止时间戳（epoch 毫秒）：窗口内跨平台强制 SW 保活，覆盖重启后全冷首开 */
-  SW_BOOT_KEEPALIVE_UNTIL: 'sw_boot_keepalive_until',
   /**
    * 密码缓存加密快照（{ passwords, sortConfig, timestamp } JSON 经 AES-GCM 加密，Base64 编码）
    *

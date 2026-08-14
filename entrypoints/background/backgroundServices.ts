@@ -1,6 +1,6 @@
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import {
   SESSION_STORAGE_KEYS,
   invalidateSessionCache,
@@ -15,7 +15,6 @@ import {
   UPDATE_CHECK_ALARM_NAME,
   UPDATE_CHECK_INTERVAL_MINUTES,
 } from '@/utils/updateChecker';
-import { detectWindowsPlatform } from '@/utils/platform';
 import { getSidePanelPort } from './sidePanelManager';
 import {
   invalidatePasswordCache,
@@ -61,7 +60,7 @@ const TRASH_CLEANUP_INTERVAL_MINUTES = 24 * 60;
 /**
  * Service Worker 保活闹钟名称（复活入口）
  *
- * 保活机制分两层协作（启停门控一致：Windows 常驻 / 非 Windows 仅会话有效期）：
+ * 保活机制分两层协作（所有平台统一常驻，不区分会话状态）：
  * - 心跳层（连续保活）：SW 存活期间以 setInterval 每 20s 调用一次轻量扩展 API，
  *   Chrome ≥110 任何扩展 API 调用都会重置 SW 的 30s 空闲计时器，实现确定性连续保活；
  * - 闹钟层（复活入口）：SW 一旦被强杀（浏览器内存压力/崩溃恢复等），心跳随之消失，
@@ -70,10 +69,11 @@ const TRASH_CLEANUP_INTERVAL_MINUTES = 24 * 60;
  * 注意：chrome.alarms 轮询粒度 ≥30s（多闹钟错相会被合并到同一轮询，无法收窄间隔），
  * 故闹钟只承担「死亡后复活」职责，「存活期不死亡」由心跳层保证。
  *
- * 保活的业务价值：
- * - 会话有效期内（全平台）：保持 passwordCache（内存缓存）常驻，使侧边栏首屏走缓存竞速快速通道。
- * - Windows 会话失效后（差异化策略）：保持热 SW，使侧边栏任何打开路径（悬浮按钮消息 /
- *   快捷键命令）都无需等待 SW 全量冷启动（Windows 冷盘+杀软场景可达数秒，白屏主因）。
+ * 保活的业务价值（全平台、全会话状态）：
+ * - 会话有效期内：保持 passwordCache（内存缓存）常驻，使侧边栏首屏走缓存竞速快速通道。
+ * - 会话失效后：保持热 SW，使侧边栏任何打开路径（悬浮按钮消息 / 快捷键命令）都无需
+ *   等待 SW 全量冷启动；保活 tick 内的资源预热持续温热侧边栏文件，避免磁盘缓存
+ *   逐出后的冷读白屏（Mac 间隔一段时间后打开 4 秒白屏的根治手段）。
  */
 const SW_KEEPALIVE_ALARM_NAME = 'sw-keepalive';
 
@@ -82,18 +82,6 @@ const SW_HEARTBEAT_INTERVAL_MS = 20000;
 
 /** SW 心跳定时器（模块级，SW 生命周期内有效；SW 重启后由 syncSwKeepaliveAlarm 重建） */
 let _swHeartbeatTimer: ReturnType<typeof setInterval> | null = null;
-
-/**
- * 浏览器启动引导期保活窗口时长（毫秒）
- *
- * 浏览器刚启动后 OS 磁盘缓存全冷、V8 无 code cache、SW 空闲即死，
- * 首次打开侧边栏命中「SW 冷启 + 渲染进程冷创建 + chunk 冷读编译」三冷叠加白屏
- * （Mac 重启后前几次打开的长白屏即此场景，多开几次后各级缓存变热才恢复秒开）。
- * 窗口内跨平台强制 SW 保活（无视平台/会话门控），把 SW 冷启动从首开链路中摘除；
- * 窗口截止后由保活 tick 内的重同步自动收敛回常规门控
- * （Windows 常驻 / 非 Windows 仅会话有效期），不增加 Mac 的常态电量开销。
- */
-const BOOT_KEEPALIVE_WINDOW_MS = 10 * 60 * 1000;
 
 /**
  * SW 复活闹钟间隔（分钟）
@@ -370,8 +358,8 @@ async function performAutoBackup() {
  * 防止因 30 秒空闲超时被 Chrome 终止。SW 存活意味着 passwordCache（内存缓存）
  * 持续可用，使侧边栏首屏加载能通过缓存竞速快速通道在 20-50ms 内获得数据。
  *
- * 启用时机见 syncSwKeepaliveAlarm：非 Windows 仅会话有效期内启用（过期即停止以省资源）；
- * Windows 始终启用（含会话失效后），以消除侧边栏打开时的冷启动白屏。
+ * 所有平台统一常驻启用（含会话失效后，见 syncSwKeepaliveAlarm），
+ * 以消除侧边栏打开时的冷启动白屏；不存在按平台/会话状态停活的路径。
  */
 async function setupSwKeepaliveAlarm(): Promise<void> {
   try {
@@ -403,110 +391,22 @@ async function setupSwKeepaliveAlarm(): Promise<void> {
 }
 
 /**
- * 停止 Service Worker 保活（心跳定时器 + 复活闹钟一并停止）
+ * 同步 SW 保活闹钟（所有平台统一常驻保活）
  *
- * 非 Windows 在会话过期或清除时调用，避免无会话时的无效唤醒；
- * Windows 上因需常驻保活，各上锁路径改调 syncSwKeepaliveAlarm，不会走到此处停止。
- */
-async function clearSwKeepaliveAlarm(): Promise<void> {
-  try {
-    if (_swHeartbeatTimer) {
-      clearInterval(_swHeartbeatTimer);
-      _swHeartbeatTimer = null;
-    }
-    await chrome.alarms.clear(SW_KEEPALIVE_ALARM_NAME);
-    logger.debug('Background: SW 保活已停止');
-  } catch (error) {
-    logger.error('Background: 停止 SW 保活失败:', error);
-  }
-}
-
-/**
- * 标记浏览器启动引导期保活窗口并立即同步保活状态
+ * 保活策略统一为常驻、不再区分平台与会话状态（历史演进见 git 日志：
+ * Windows 差异化保活 → 双层保活 + 引导期 → 会话失效宽限期保活 → 统一常驻）。
+ * 原因：会话失效后停活 → SW 空闲 30s 死亡 → 资源预热 tick（挂在保活闹钟上）
+ * 停止 → OS 磁盘缓存逐出扩展文件 → 下次打开侧边栏命中「SW 冷启 + 渲染进程
+ * 冷创建 + 文件冷读 + storage.session 快照失效」四冷叠加白屏（Mac 间隔一段时间
+ * 后打开 4 秒白屏的直接根因）。常驻保活使侧边栏任何打开路径（悬浮按钮消息 /
+ * 快捷键命令）都命中热 SW 与温热文件，与 Windows 秒开体验对齐。
  *
- * 在 chrome.runtime.onStartup 时调用。窗口截止时间戳写入 storage.session：
- * 仅内存不落盘、浏览器重启自动清零——与「引导期」语义天然一致；
- * SW 空闲重启不清零，窗口内 SW 复活后仍能恢复强制保活。
- */
-export async function markBrowserBootKeepaliveWindow(): Promise<void> {
-  try {
-    await chrome.storage.session.set({
-      [SESSION_MEMORY_KEYS.SW_BOOT_KEEPALIVE_UNTIL]: Date.now() + BOOT_KEEPALIVE_WINDOW_MS,
-    });
-  } catch (error) {
-    logger.error('Background: 标记启动引导期保活窗口失败:', error);
-  }
-  await syncSwKeepaliveAlarm();
-}
-
-/**
- * 判断当前是否处于浏览器启动引导期保活窗口内（读取失败按不在窗口内处理）
- */
-async function isWithinBootKeepaliveWindow(): Promise<boolean> {
-  try {
-    const result = await chrome.storage.session.get(SESSION_MEMORY_KEYS.SW_BOOT_KEEPALIVE_UNTIL);
-    const until = result[SESSION_MEMORY_KEYS.SW_BOOT_KEEPALIVE_UNTIL] as number | undefined;
-    return !!until && Date.now() < until;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * 根据平台与会话状态同步 SW 保活闹钟
- *
- * - Windows（差异化策略）：始终启用保活闹钟，无论会话是否有效。使侧边栏任何打开路径
- *   （悬浮按钮消息 / 快捷键命令）都命中热 SW，从根上消除会话失效后 Chrome 冷启动
- *   （Windows 300-800ms 起，极端可达数秒）导致的白屏卡顿。
- * - 非 Windows：仅在会话有效期内启用，会话过期/清除后停止，避免无谓的 CPU 和电池消耗
- *   （Mac 冷启动足够快，本就秒开，无需常驻）。
- *
- * 在 SW 启动、会话创建/清除、上锁等时机调用，作为「是否保活」的集中决策点。
+ * 在 SW 启动、会话创建/清除、上锁等时机调用，作为「确保保活」的集中决策点
+ * （幂等：心跳定时器与复活闹钟已存在时不重复创建）。
  */
 export async function syncSwKeepaliveAlarm(): Promise<void> {
   try {
-    // 启动引导期窗口（跨平台，先于平台/会话门控判定）：浏览器重启后全冷阶段
-    // 强制保活，覆盖 Mac 重启后前几次打开的三冷叠加白屏；
-    // 顺带覆盖引导期内平台判定异常的场景（此时更不能让 SW 死亡）
-    if (await isWithinBootKeepaliveWindow()) {
-      await setupSwKeepaliveAlarm();
-      return;
-    }
-
-    // 三态平台判定：null = 判定不可得（getPlatformInfo 异常且无持久化兜底）。
-    // fail-safe：判定不可得时维持现有闹钟状态不动——宁可多保活一轮，
-    // 也不可把 Windows 的常驻保活误清（误清 → 失效期 SW 死亡 → 点击打开
-    // 撞全量冷启动 → 数秒白屏），下次同步时机自然重试
-    const isWin = await detectWindowsPlatform();
-    if (isWin === null) {
-      logger.warn('Background: 平台判定不可得，保活闹钟维持现状（fail-safe）');
-      return;
-    }
-
-    // Windows：始终常驻保活，短路返回，不依赖会话状态
-    if (isWin) {
-      await setupSwKeepaliveAlarm();
-      return;
-    }
-
-    // 非 Windows：仅会话有效期内保活
-    const result = await chrome.storage.local.get([
-      SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
-      SESSION_STORAGE_KEYS.MASTER_PASSWORD,
-      SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
-    ]);
-
-    const hasSession = !!(
-      (result[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY] || result[SESSION_STORAGE_KEYS.MASTER_PASSWORD]) &&
-      result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] &&
-      Date.now() < (result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number)
-    );
-
-    if (hasSession) {
-      await setupSwKeepaliveAlarm();
-    } else {
-      await clearSwKeepaliveAlarm();
-    }
+    await setupSwKeepaliveAlarm();
   } catch (error) {
     logger.error('Background: 同步 SW 保活闹钟状态失败:', error);
   }
@@ -532,7 +432,7 @@ export async function handleBrowserStartupRelock(): Promise<void> {
     invalidatePasswordCache();
     // 会话清除属安全边界：同步清除全部两步接力标记（不随缓存失效连带清除）
     void clearAllPendingTotp();
-    // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
+    // 经 syncSwKeepaliveAlarm 统一决策保活：全平台常驻，重启重锁后 SW 保持热态
     await syncSwKeepaliveAlarm();
     logger.info('Background: 已按设置在浏览器启动时清除会话，需重新输入主密码');
   } catch (error) {
@@ -572,7 +472,7 @@ export async function handleIdleStateChange(newState: string): Promise<void> {
     invalidatePasswordCache();
     // 闲置/系统锁定属安全边界：同步清除全部两步接力标记
     void clearAllPendingTotp();
-    // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止；Windows→保持常驻热 SW。
+    // 经 syncSwKeepaliveAlarm 统一决策保活：全平台常驻，锁定后 SW 保持热态
     await syncSwKeepaliveAlarm();
 
     const port = getSidePanelPort();
@@ -611,7 +511,7 @@ export function initBackgroundConfig(): void {
  * 在 Service Worker 启动时调用一次，注册所有持久监听器
  */
 export function setupBackgroundServices(): void {
-  // SW 启动时同步保活闹钟状态：会话有效则启用，无效则停止
+  // SW 启动时同步保活闹钟状态（全平台统一常驻，幂等）
   syncSwKeepaliveAlarm();
 
   // SW 每次启动重新应用闲置检测阈值：setDetectionInterval 存于浏览器进程内存，
@@ -723,7 +623,7 @@ export function setupBackgroundServices(): void {
         }
       }
 
-      // 会话状态变化时同步 SW 保活闹钟（会话创建 → 启用，会话清除 → 停止）
+      // 会话状态变化时同步 SW 保活闹钟（统一常驻，幂等；会话创建/清除均收敛到保活）
       const sessionKeys = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY];
       const sessionKeyChanges = Object.entries(changes).filter(([key]) => sessionKeys.includes(key));
 
@@ -755,6 +655,10 @@ export function setupBackgroundServices(): void {
           }
 
           logger.debug('Background: 检测到会话清除，已通知所有上下文');
+
+          // 会话清除后经 syncSwKeepaliveAlarm 统一决策保活：全平台常驻，
+          // 覆盖手动清除/自动过期/闲置锁定等所有经 storage 变化到达的清除路径
+          void syncSwKeepaliveAlarm();
         } else {
           // rekey 自愈：包裹数据密钥被更新（修改主密码/重新登录）时，先失效 SW 内存中的
           // 旧数据密钥热缓存，确保下方 warmPasswordCache 用新密钥解密预热，
@@ -767,9 +671,10 @@ export function setupBackgroundServices(): void {
               changes[SESSION_STORAGE_KEYS.VALIDITY_HOURS]?.newValue as number | undefined,
             );
           }
+
+          syncSwKeepaliveAlarm();
         }
 
-        syncSwKeepaliveAlarm();
         // 会话创建后主动预热缓存，确保首次 sidepanel 打开时数据就绪
         warmPasswordCache();
       }
@@ -801,22 +706,21 @@ export function setupBackgroundServices(): void {
       // 缓解冷启动白屏）。懒 import 延迟模块初始化（SW 产物已内联）；函数内自带
       // 平台门控与 5min 持久化节流（storage.session，SW 重启不归零）：
       // Windows 全量预热且不区分会话状态（磁盘缓存逐出与会话有效性无关）；
-      // 非 Windows 经 allowNonWindowsLightweight 轻量预热首屏关键资源
-      // （保活存续期内——会话有效/启动引导期——持续温热，覆盖 Chrome 长时间
-      // 聚焦无窗口切换事件的场景，缓解 Mac 间隔偶现冷读白屏）
+      // 非 Windows 经 allowNonWindowsLightweight 轻量预热首屏关键资源 + 认证视图
+      // 与本地数据直读关键 chunk（覆盖 macOS 磁盘缓存逐出后的认证态冷读白屏与
+      // 浏览器重启快照失效后的本地路径冷读；保活常驻——持续温热，覆盖
+      // Chrome 长时间聚焦无窗口切换事件的场景）
       void import('@/utils/warmSidePanelResources')
         .then(m => m.maybeWarmSidePanelResources({ allowNonWindowsLightweight: true }))
         .catch(() => {});
 
-      // 定期重同步保活门控（幂等、开销为 1-2 次 storage 读）：
-      // 启动引导期窗口截止后，非 Windows 会话失效场景经此收敛停活
-      // （无此重同步，引导期启用的保活会因无其他同步时机而永久存续）
+      // 定期重同步保活（幂等）：SW 被强杀复活后经此重建心跳定时器
       void syncSwKeepaliveAlarm();
 
       // SW 保活：alarm 触发本身即已唤醒 SW，重置 30 秒空闲计时器。
       // 仅当「会话键存在且已过期」时执行一次性上锁；expiry 为空（无会话，含已上锁）
       // 或未来（会话有效）时不做任何处理，仅借本次唤醒保持 SW 热。
-      // 该条件天然防止 Windows 常驻场景下每 30 秒重复上锁 / 重复广播 SESSION_EXPIRED：
+      // 该条件天然防止常驻场景下每 30 秒重复上锁 / 重复广播 SESSION_EXPIRED：
       // clearSession 会删除 PASSWORD_EXPIRY，后续 alarm 读到 expiry 为空即跳过。
       chrome.storage.local
         .get([SESSION_STORAGE_KEYS.PASSWORD_EXPIRY])
@@ -840,8 +744,8 @@ export function setupBackgroundServices(): void {
               logger.error('Background: SW 保活闹钟过期锁定失败:', e);
             });
 
-            // 经 syncSwKeepaliveAlarm 统一决策保活：非 Windows 会话已清除→停止闹钟以省资源；
-            // Windows→保持常驻，使会话失效后打开侧边栏仍走热 SW，消除白屏。
+            // 经 syncSwKeepaliveAlarm 统一决策保活：全平台常驻，
+            // 使会话失效后打开侧边栏仍走热 SW，消除白屏
             await syncSwKeepaliveAlarm();
 
             // 通知打开的侧边栏切换到未验证状态
@@ -859,7 +763,7 @@ export function setupBackgroundServices(): void {
               // 无监听者时忽略
             }
 
-            logger.debug('Background: 会话已过期，已锁定并加密，缓存已清除，保活闹钟状态已按平台同步');
+            logger.debug('Background: 会话已过期，已锁定并加密，缓存已清除，保活闹钟状态已同步');
           }
         })
         .catch(() => {

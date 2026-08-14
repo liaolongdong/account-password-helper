@@ -470,7 +470,7 @@ export function setupMessageRouter(): void {
             logger.error('Background: INVALIDATE_PASSWORD_CACHE 清除会话失败:', e);
           });
 
-          // 会话已清除，停止 SW 保活闹钟
+          // 会话已清除：经 syncSwKeepaliveAlarm 统一决策保活（全平台常驻）
           syncSwKeepaliveAlarm();
         })();
 
