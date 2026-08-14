@@ -1,5 +1,17 @@
 # Changelog
 
+## [3.3.0](https://github.com/liaolongdong/account-password-helper/compare/v3.2.0...v3.3.0) (2026-08-14)
+
+
+### Features
+
+* **background:** 实现非 Windows 会话失效后的宽限期保活机制 ([8381e48](https://github.com/liaolongdong/account-password-helper/commit/8381e4812d6006a04bf89d73948f76ef918a01b4))
+
+
+### Performance Improvements
+
+* **core:** 优化 Service Worker 全平台常驻保活体验 ([c47c7f0](https://github.com/liaolongdong/account-password-helper/commit/c47c7f036fb3a2193ba6c8c48956ed4d30cd8a4a))
+
 ## [3.2.0](https://github.com/liaolongdong/account-password-helper/compare/v3.1.0...v3.2.0) (2026-08-12)
 
 
