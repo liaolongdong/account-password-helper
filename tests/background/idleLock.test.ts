@@ -13,7 +13,6 @@ import { MessageType } from '@/utils/types';
  *
  * 重依赖均经 mock 从接缝注入：
  * - @/utils/storage（动态导入的 StorageUtils.clearSession）；
- * - @/utils/platform（平台判定固定为非 Windows，使保活同步走确定性分支）；
  * - sidePanelManager.getSidePanelPort（控制 port 有无）。
  */
 
@@ -22,10 +21,6 @@ vi.mock('@/utils/storage', () => ({
   StorageUtils: {
     clearSession: () => clearSessionMock(),
   },
-}));
-
-vi.mock('@/utils/platform', () => ({
-  detectWindowsPlatform: vi.fn(async () => false),
 }));
 
 const postMessageMock = vi.fn();

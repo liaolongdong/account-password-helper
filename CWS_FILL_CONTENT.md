@@ -39,7 +39,11 @@ Account Password Helper
 ### 说明 (Description) — 最多 16,000 字符
 
 ```
+
 一款专为开发、测试、产品以及普通用户设计的本地账号密码管理工具，让多账号、多系统登录更安全、更高效、更便捷。
+
+插件操作指引和演示地址：https://liaolongdong.github.io/account-password-helper/
+完全开源，代码可审计，github地址：https://github.com/liaolongdong/account-password-helper
 
 🔒 安全特性
 • AES-256-GCM 军事级加密
@@ -107,9 +111,6 @@ Account Password Helper
 • 自动保存行为可开关
 • 排序方式自定义
 • Windows 冷启动优化引导（可选排除杀软扫描，侧边栏秒开）
-
-插件操作指引和演示地址：https://liaolongdong.github.io/account-password-helper/
-完全开源，代码可审计，github地址：https://github.com/liaolongdong/account-password-helper
 
 ```
 
@@ -227,7 +228,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **alarms**
 
 ```
-定时执行版本更新检查（每 6 小时）、自动备份提醒和 Service Worker 保活（会话期间每 1 分钟），通过 chrome.alarms API 实现。
+定时执行版本更新检查（每 6 小时）、自动备份提醒和 Service Worker 保活（全平台常驻，后台约每 30 秒唤醒一次以保证侧边栏秒开），通过 chrome.alarms API 实现。
 ```
 
 **notifications**

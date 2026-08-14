@@ -1,0 +1,112 @@
+{
+  "summary": {
+    "projectName": "account-password-helper",
+    "locale": "zh-CN",
+    "modelId": "agent-work-loop-v4",
+    "reportContractVersion": 26,
+    "overview": "项目拥有完整的前端验证与交付路由（vitest/eslint/stylelint/husky 预提交门禁），本次侧边栏统一常驻保活改动已通过全量单测（297 用例）与独立代码评审；合并路径尚未进入，交付接受不可观察；Memory 资产存在 3 组精确标题碰撞待治理，属唯一低风险发现。",
+    "dimensions": [
+      {
+        "id": "task-understanding",
+        "label": "任务理解",
+        "score": 78,
+        "summary": "项目规则（wxt-rules）与架构文档（ARCHITECTURE 中英双语）明确约束侧边栏秒开目标与平台实现差异，评审任务目标清晰且已形成交付边界。"
+      },
+      {
+        "id": "controlled-execution",
+        "label": "可控执行",
+        "score": 78,
+        "summary": "dev/build/test/lint/format 等运行路由齐备，vitest 全量测试在本窗口内被实际执行且通过，权限与沙箱边界未观察到违规。"
+      },
+      {
+        "id": "change-validation",
+        "label": "改动验证",
+        "score": 84,
+        "summary": "297 个单测用例针对最终改动全部通过，独立代码评审复核了预热白名单与保活决策链，验证覆盖与改动集合相关。"
+      },
+      {
+        "id": "reliable-delivery",
+        "label": "可靠交付",
+        "score": 52,
+        "summary": "改动仍停留在本地暂存区，尚未进入提交、PR、合并或发布边界，交付接受证据不可观察。"
+      },
+      {
+        "id": "learning-capture",
+        "label": "经验沉淀",
+        "score": 45,
+        "summary": "侧边栏秒开的重复需求已有 chrome-extensions/web-perf 等技能覆盖且被任务链接使用；Memory 标题精确碰撞尚未治理，资产健康保持待办。"
+      }
+    ],
+    "aiAgentPractice": {
+      "inspectedSurfaces": ["Rules", "Skills"],
+      "coverageRows": [
+        {
+          "surface": "Rules",
+          "scopes": ["Project"],
+          "count": 1,
+          "paths": [".qoder/rules/wxt-rules.md"]
+        },
+        {
+          "surface": "Skills",
+          "scopes": ["Project", "Global"],
+          "count": 45,
+          "paths": [
+            ".qoder/skills/wxt-framework/SKILL.md",
+            "~/.qoder/skills/agents-sdk/SKILL.md",
+            "~/.agents/skills/baoyu-article-illustrator/SKILL.md",
+            "~/.agents/skills/baoyu-comic/SKILL.md",
+            "~/.agents/skills/baoyu-compress-image/SKILL.md"
+          ]
+        },
+        {
+          "surface": "MCP",
+          "scopes": ["Global"],
+          "count": 4,
+          "paths": ["~/Library/Application Support/Qoder/SharedClientCache/mcp.json"]
+        },
+        {
+          "surface": "Hooks",
+          "scopes": ["Plugin"],
+          "count": 2,
+          "paths": ["~/.qoder/plugins/cache/qoder-bundler/security-scan/.qoder-plugin/qoder-hooks.json"]
+        },
+        {
+          "surface": "Workflows",
+          "scopes": ["Project"],
+          "count": 2,
+          "paths": [".github/workflows/release-please.yml", ".github/workflows/static.yml"]
+        },
+        {
+          "surface": "Plugins",
+          "scopes": ["Plugin"],
+          "count": 3,
+          "paths": [
+            "~/.qoder/plugins/cache/qoder-bundler/better-harness/.qoder-plugin/plugin.json",
+            "~/.qoder/plugins/cache/qoder-bundler/qoder-create-plugin",
+            "~/.qoder/plugins/cache/qoder-bundler/security-scan/.qoder-plugin/plugin.json"
+          ]
+        },
+        {
+          "surface": "Memories",
+          "scopes": ["Project", "Global"],
+          "count": 520
+        }
+      ]
+    }
+  },
+  "findings": [
+    {
+      "id": "memory-title-collision-governance",
+      "title": "多组 Memory 标题精确碰撞未治理，按标题检索与更新的路由存在歧义风险",
+      "severity": "Low",
+      "reason": "资产完整性检查在 Memory 标题元数据中发现 3 组精确标题碰撞（每组合并前 2 条同名标题），其中一组与当前侧边栏秒开任务域直接相关。标题碰撞不证明正文重复，但会让 SearchMemory/UpdateMemory 按标题定位时产生歧义。需按有限批次逐组核对并合并或删除重复项；13 条近标题相似候选仅作人工复核线索，不晋升为发现。",
+      "dimensionRefs": ["learning-capture"],
+      "subdimensionRefs": ["loop-engineering"],
+      "aiFixPrompt": "/better-harness fix this issue\n\n通过 SearchMemory 检索 3 组精确碰撞标题对应的记忆，逐组核对内容后经 UpdateMemory 合并或删除重复项，保留信息更完整的一条；仅做标题元数据级核对，正文冲突需单独授权。\n\n## Validation\n\n- 重新运行资产完整性检查，确认精确碰撞组数为 0\n- 确认合并后的记忆可被 SearchMemory 正常检索",
+      "expectedArtifact": "Runbook",
+      "expectedOutput": [
+        "每组合并或删除后仅保留一条唯一标题记忆，且完整性复查无精确碰撞。"
+      ]
+    }
+  ]
+}

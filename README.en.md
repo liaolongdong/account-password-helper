@@ -63,7 +63,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 - **Site favicons**: password list, side panel and inline dropdown entries show the matching website icon (read from Chrome's local favicon cache, zero external network requests); falls back to the default icon when unavailable
 - **Password generator**: random mode (length/charset/ambiguous-character exclusion) and passphrase mode (EFF Diceware, 2048-word list)
 - **Style isolation**: floating button and inline panel use closed Shadow DOM, fully isolated from page styles
-- **Instant open**: service worker keep-alive during valid sessions + pre-warmed in-memory password cache lets the side panel load in about 20–50ms; keep-alive stops automatically after session expiry to preserve battery
+- **Instant open**: always-on service worker keep-alive (all platforms) + pre-warmed in-memory password cache + side panel render-resource pre-warming lets the side panel load in about 20–50ms, instantly even after session expiry (keep-alive wakes the extension roughly every 30 seconds in the background — a deliberate trade-off to eliminate cold-start white screens)
 - **Update detection**: checks GitHub Releases every 6 hours and shows an update notice in the popup
 
 > 📖 Per-feature implementation details (source paths, strategies, constraints) live in [docs/ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details).
