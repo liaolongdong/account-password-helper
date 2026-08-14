@@ -8,8 +8,6 @@ import {
   setupBackgroundServices,
   initBackgroundConfig,
   handleBrowserStartupRelock,
-  markBrowserBootKeepaliveWindow,
-  handleUserActivityGraceRefresh,
 } from './background/backgroundServices';
 import type { WarmSidePanelOptions } from '@/utils/warmSidePanelResources';
 
@@ -49,10 +47,6 @@ export default defineBackground(() => {
   // 浏览器/配置文件启动时，按「浏览器重启后重新锁定」设置执行安全重锁（默认关闭时无副作用）
   chrome.runtime.onStartup.addListener(() => {
     void handleBrowserStartupRelock();
-    // 启动引导期保活窗口（跨平台，10 分钟）：重启后全冷阶段强制 SW 保活，
-    // 把 SW 冷启动从首开链路摘除（Mac 重启后前几次打开的长白屏主因之一）；
-    // 窗口截止后由保活 tick 内的重同步自动收敛回常规平台/会话门控
-    void markBrowserBootKeepaliveWindow();
     // 启动预热（跨平台，立即执行）：浏览器刚启动时 OS 磁盘缓存全冷、V8 无 code cache，
     // 无论会话是否有效，首次打开侧边栏都会命中「进程冷 + 资源冷 + SW 冷」
     // 三冷叠加白屏（Mac 重启后首开同样受影响）。
@@ -74,9 +68,6 @@ export default defineBackground(() => {
     // WINDOW_ID_NONE（-1）表示所有窗口失焦，仅在窗口获得焦点时触发
     if (windowId === chrome.windows.WINDOW_ID_NONE) return;
     triggerWarmSidePanelResources({ allowNonWindowsLightweight: true });
-    // 用户活动信号：宽限标记存在时滑动续期会话失效宽限期保活并恢复 SW 热态
-    // （覆盖 Mac「间隔任意时长回到 Chrome 再打开侧边栏」场景，见 backgroundServices）
-    void handleUserActivityGraceRefresh();
   });
 
   // 标签页激活时轻量预热（补全 onFocusChanged 的覆盖盲区）：
@@ -88,8 +79,6 @@ export default defineBackground(() => {
   // 返回（几乎零开销），不影响浏览体验。
   chrome.tabs.onActivated.addListener(() => {
     triggerWarmSidePanelResources({ allowNonWindowsLightweight: true });
-    // 用户活动信号：同 onFocusChanged，60 秒节流，高频切 Tab 不放大 IPC 开销
-    void handleUserActivityGraceRefresh();
   });
 
   // 注册事件监听器（Service Worker 启动时立即执行）

@@ -24,7 +24,7 @@ import {
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { handleQuickFill } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
-import { performUpdateCheck, syncSwKeepaliveAlarm, handleUserActivityGraceRefresh } from './backgroundServices';
+import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { isFrameFillable } from '@/utils/frameFill';
 
@@ -304,10 +304,6 @@ export function setupMessageRouter(): void {
         // （Windows 会话失效态白屏的主要放大器）。资源预热改由「侧边栏打开完成后
         // 延时空闲执行」（见 sidePanelManager port 连接）与 SW 保活 tick 承担。
         warmPasswordCache();
-        // 用户活动信号（内容脚本 8 秒节流，是「即将打开侧边栏」最直接的信号）：
-        // 宽限标记存在时滑动续期会话失效宽限期保活并恢复 SW 热态，使随后打开
-        // 侧边栏命中热 SW + 温热文件链路（Mac 会话失效态白屏根治）
-        void handleUserActivityGraceRefresh();
         sendResponse({ success: true });
         return;
       }
@@ -474,8 +470,7 @@ export function setupMessageRouter(): void {
             logger.error('Background: INVALIDATE_PASSWORD_CACHE 清除会话失败:', e);
           });
 
-          // 会话已清除：经 syncSwKeepaliveAlarm 统一决策保活
-          // （非 Windows 进入宽限期保活 / Windows 保持常驻热 SW）
+          // 会话已清除：经 syncSwKeepaliveAlarm 统一决策保活（全平台常驻）
           syncSwKeepaliveAlarm();
         })();
 

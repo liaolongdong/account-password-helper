@@ -16,10 +16,11 @@
  * 常规调用在 Windows 按 5 分钟节流全量预热，不区分会话状态——OS 磁盘缓存逐出
  * （杀软扫描 / 内存压力）与会话有效性无关，会话有效期内同样会命中冷读白屏；
  * 非 Windows 常规调用默认跳过，但可经 allowNonWindowsLightweight 降级为轻量预热
- * （第一/二层 + 认证视图关键动态 chunk 及其二级依赖，~12 个小文件）——
+ * （第一/二层 + 认证视图与本地数据直读关键动态 chunk 及其二级依赖，~15 个小文件）——
  * Mac 长时间未操作后 OS 同样会逐出扩展文件，首开命中文件全冷读即
  * “间隔一段时间偶现白屏”（认证视图的 Element Plus CSS 运行时 chunk 是最大冷读单体，
- * 故白名单保留该 chunk，其余按需 chunk 仍跳过）；
+ * 本地数据直读 chunk 是浏览器重启快照失效后的冷读单体，故白名单保留这两组 chunk，
+ * 其余按需 chunk 仍跳过）；
  * 浏览器首启（ignorePlatformGate）场景 OS 磁盘缓存全冷，Mac 重启后首开同样白屏，
  * 故该场景跨平台全量执行。
  */
@@ -33,13 +34,22 @@ const SIDEPANEL_HTML = 'sidepanel.html';
 /**
  * 轻量预热（非 Windows）动态 chunk 白名单（按 Vite 产物相对路径前缀匹配，hash 可变）
  *
- * 认证视图 chunk 是认证态首屏必需的最大冷读单体（自身 ~11KB + 静态引入的
- * Element Plus CSS 运行时 chunk ~80KB）：macOS 长时间空闲后 UBC 逐出这组文件，
- * 下次认证态打开全冷读即数秒白屏——这正是 Mac「间隔一段时间后打开侧边栏白屏」
- * 的主导根因。轻量预热按白名单保留该 chunk（二级静态依赖由递归收集自动带入），
- * 其余按需 chunk（HelpDialog / passwordCrud 等交互时才用）仍跳过以控制常态 IO。
+ * 覆盖 Mac 首屏冷读的两类关键 chunk：
+ * - 认证视图 chunk（自身 ~11KB + 静态引入的 Element Plus CSS 运行时 chunk ~80KB）：
+ *   认证态首屏必需的最大冷读单体——macOS 长时间空闲后 UBC 逐出这组文件，
+ *   下次认证态打开全冷读即数秒白屏；
+ * - 本地数据直读 chunk（sessionManager-storage / passwordCrud / encryption）：
+ *   浏览器重启后 storage.session 快照清零，侧边栏数据竞速回退本地直读路径时
+ *   动态 import 这三个 chunk——若已被 macOS UBC 逐出则冷读放大白屏。
+ * 白名单外其余按需 chunk（HelpDialog 等交互时才用）仍跳过以控制常态 IO；
+ * 白名单 chunk 的二级静态依赖由递归收集自动带入。
  */
-const LIGHTWEIGHT_DYNAMIC_CHUNK_ALLOWLIST: RegExp[] = [/^\.\/SidepanelAuthView-/];
+const LIGHTWEIGHT_DYNAMIC_CHUNK_ALLOWLIST: RegExp[] = [
+  /^\.\/SidepanelAuthView-/,
+  /^\.\/sessionManager-storage-/,
+  /^\.\/passwordCrud-/,
+  /^\.\/encryption-/,
+];
 
 /**
  * 预热节流窗口（毫秒）
@@ -221,16 +231,17 @@ export interface WarmSidePanelOptions {
 
   /**
    * 非 Windows 平台降级为轻量预热（第一/二层：HTML + module 脚本 +
-   * modulepreload 依赖 + 样式表，另按白名单附加认证视图关键动态 chunk
-   * 及其二级静态依赖，共 ~12 个小文件），而非直接跳过
+   * modulepreload 依赖 + 样式表，另按白名单附加认证视图与本地数据直读关键
+   * 动态 chunk 及其二级静态依赖，共 ~15 个小文件），而非直接跳过
    *
    * Mac/Linux 长时间未操作后 OS 同样会逐出扩展文件磁盘缓存，首开命中全冷读
    * 即「间隔一段时间偶现白屏几秒」的直接根因。轻量层覆盖首屏关键路径资源
    * 与认证态关键 chunk（认证视图 + Element Plus CSS 运行时，Mac 白屏最大冷读
-   * 单体），跳过其余按需动态 chunk 递归层（非 Windows 磁盘 IO 快、无杀软扫描
-   * 放大，按需 chunk 冷读代价低），在收益与常态 IO 开销间取平衡。Windows 不受
-   * 本选项影响，仍执行全量四层预热。调用时机：窗口聚焦恢复 / 侧边栏打开后
-   * 延时预热 / SW 保活 tick（均共用 5 分钟节流，不增加高频 IO）。
+   * 单体）及本地数据直读 chunk（浏览器重启快照失效后数据竞速回退本地路径的
+   * 冷读单体），跳过其余按需动态 chunk 递归层（非 Windows 磁盘 IO 快、无杀软
+   * 扫描放大，按需 chunk 冷读代价低），在收益与常态 IO 开销间取平衡。Windows
+   * 不受本选项影响，仍执行全量四层预热。调用时机：窗口聚焦恢复 / 侧边栏
+   * 打开后延时预热 / SW 保活 tick（均共用 5 分钟节流，不增加高频 IO）。
    */
   allowNonWindowsLightweight?: boolean;
 }
@@ -373,9 +384,11 @@ async function doWarmSidePanelResources(options: WarmSidePanelOptions): Promise<
     // 第二层：并行预热 HTML 引用的静态资源（module 脚本 + modulepreload + CSS）
     const fetchResults = await Promise.allSettled(assetUrls.map(url => fetch(new URL(url, baseUrl).href)));
 
-    // 轻量模式（非 Windows）：第一/二层 + 白名单认证关键 chunk（含二级依赖），
-    // 跳过其余按需动态 chunk——认证视图的 Element Plus CSS 运行时 chunk 是
-    // macOS 磁盘缓存逐出后认证态打开的最大冷读单体，必须随轻量预热温热
+    // 轻量模式（非 Windows）：第一/二层 + 白名单关键 chunk（认证视图 +
+    // 本地数据直读路径，含二级依赖），跳过其余按需动态 chunk——认证视图的
+    // Element Plus CSS 运行时 chunk 是 macOS 磁盘缓存逐出后认证态打开的
+    // 最大冷读单体，本地数据直读 chunk 是浏览器重启快照失效后的冷读单体，
+    // 均必须随轻量预热温热
     if (lightweight) {
       await warmDynamicChunks(fetchResults, assetUrls, baseUrl, LIGHTWEIGHT_DYNAMIC_CHUNK_ALLOWLIST);
       logger.debug(`SidePanel: 资源轻量预热完成（非 Windows），静态资源 ${assetUrls.length} + 认证关键 chunk`);

@@ -48,17 +48,6 @@ export const SESSION_MEMORY_KEYS = {
   SIDEPANEL_OPEN_REQUESTED_AT: 'sidepanel_open_requested_at',
   /** 侧边栏资源预热上次执行时间戳（epoch 毫秒），跨 SW 生命周期保持节流窗口有效 */
   SIDEPANEL_WARM_AT: 'sidepanel_warm_at',
-  /** 浏览器启动引导期保活截止时间戳（epoch 毫秒）：窗口内跨平台强制 SW 保活，覆盖重启后全冷首开 */
-  SW_BOOT_KEEPALIVE_UNTIL: 'sw_boot_keepalive_until',
-  /**
-   * 会话失效宽限期保活截止时间戳（epoch 毫秒）
-   *
-   * 非 Windows 会话过期/清除后不立即停活，宽限期内继续保持 SW 保活与资源预热，
-   * 使间隔一段时间后打开侧边栏仍命中热 SW + 温热文件（Mac 白屏根治）；
-   * 宽限期结束由保活 tick 重同步自动收敛停活。用户活动信号（窗口聚焦 / Tab 激活 /
-   * 预唤醒消息）在标记存在时滑动续期。仅内存、浏览器重启即清，与引导期键同模式。
-   */
-  SW_GRACE_KEEPALIVE_UNTIL: 'sw_grace_keepalive_until',
   /**
    * 密码缓存加密快照（{ passwords, sortConfig, timestamp } JSON 经 AES-GCM 加密，Base64 编码）
    *

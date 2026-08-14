@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *   （时间戳持久化于 storage.session，SW 重启不归零），
  *   预热范围覆盖 HTML 静态资源 + 动态 import chunk + 动态 chunk 的二级静态依赖；
  *   非 Windows 轻量预热（allowNonWindowsLightweight）预热第一/二层 + 白名单
- *   认证视图关键 chunk 及其二级依赖，其余按需动态 chunk 仍跳过。
+ *   认证视图与本地数据直读关键 chunk 及其二级依赖，其余按需动态 chunk 仍跳过。
  *
  * 说明：
  * - 环境为 node，全局 chrome 由 WxtVitest 的 fakeBrowser 注入；
@@ -207,7 +207,7 @@ describe('maybeWarmSidePanelResources', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('非 Windows + allowNonWindowsLightweight 时轻量预热：第一/二层 + 白名单认证关键 chunk 及其二级依赖', async () => {
+  it('非 Windows + allowNonWindowsLightweight 时轻量预热：第一/二层 + 白名单认证与本地数据直读关键 chunk 及其二级依赖', async () => {
     getPlatformInfoMock.mockResolvedValue({ os: 'mac' });
 
     const htmlWithEntry = '<script type="module" src="/chunks/sidepanel-ABC.js"></script>';
@@ -215,7 +215,7 @@ describe('maybeWarmSidePanelResources', () => {
     const authViewHref = new URL('./SidepanelAuthView-QRS.js', entryHref).href;
     const cssChunkHref = new URL('./css-Dp9q5L7q.js', entryHref).href;
     const sessionChunkHref = new URL('./sessionManager-storage-XYZ.js', entryHref).href;
-    // 入口同时动态 import 白名单内的认证视图 chunk 与白名单外的按需 chunk
+    // 入口同时动态 import 白名单内的认证视图 chunk 与本地数据直读 chunk
     const entryJsText =
       'const a = () => import("./SidepanelAuthView-QRS.js"); const b = () => import("./sessionManager-storage-XYZ.js");';
     // 认证视图 chunk 静态引入 Element Plus CSS 运行时 chunk（二级依赖应被递归预热）
@@ -242,10 +242,10 @@ describe('maybeWarmSidePanelResources', () => {
     // 白名单命中：认证视图 chunk + 其二级静态依赖（Element Plus CSS 运行时）
     expect(fetchMock).toHaveBeenCalledWith(authViewHref);
     expect(fetchMock).toHaveBeenCalledWith(cssChunkHref);
-    // 白名单外的按需 chunk 仍跳过
-    expect(fetchMock).not.toHaveBeenCalledWith(sessionChunkHref);
-    // HTML + 入口 JS + 认证视图 chunk + 二级依赖 = 4 次 fetch
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    // 白名单命中：本地数据直读 chunk（sessionManager-storage）同样被预热
+    expect(fetchMock).toHaveBeenCalledWith(sessionChunkHref);
+    // HTML + 入口 JS + 认证视图 chunk + 二级依赖 + 本地数据 chunk = 5 次 fetch
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it('非 Windows 轻量预热：入口无白名单 chunk 的动态 import 时仍仅预热第一/二层', async () => {
@@ -253,7 +253,7 @@ describe('maybeWarmSidePanelResources', () => {
 
     const htmlWithEntry = '<script type="module" src="/chunks/sidepanel-ABC.js"></script>';
     const entryHref = new URL('/chunks/sidepanel-ABC.js', SIDEPANEL_HTML_URL).href;
-    const entryJsText = 'const a = () => import("./sessionManager-storage-XYZ.js");';
+    const entryJsText = 'const a = () => import("./HelpDialog-DEF.js");';
     fetchMock.mockImplementation((input: string) => {
       if (input === SIDEPANEL_HTML_URL) {
         return Promise.resolve({ text: () => Promise.resolve(htmlWithEntry), ok: true } as Response);
