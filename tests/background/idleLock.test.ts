@@ -13,7 +13,8 @@ import { MessageType } from '@/utils/types';
  *
  * 重依赖均经 mock 从接缝注入：
  * - @/utils/storage（动态导入的 StorageUtils.clearSession）；
- * - sidePanelManager.getSidePanelPort（控制 port 有无）。
+ * - sidePanelManager.getSidePanelPort（控制 port 有无）；
+ * - chrome.runtime.sendMessage（spy 断言 SESSION_EXPIRED 广播，屏蔽 fakeBrowser 无监听者 reject）。
  */
 
 const clearSessionMock = vi.fn(async () => {});
@@ -28,6 +29,9 @@ const getSidePanelPortMock = vi.fn(() => null as { postMessage: typeof postMessa
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
   getSidePanelPort: () => getSidePanelPortMock(),
 }));
+
+/** runtime 广播 spy：断言 SESSION_EXPIRED 广播发出（返回 resolved promise，避免 fakeBrowser 无监听者 reject） */
+const sendMessageSpy = vi.spyOn(chrome.runtime, 'sendMessage').mockImplementation(async () => ({}));
 
 import { handleIdleStateChange } from '@/entrypoints/background/backgroundServices';
 
@@ -82,6 +86,7 @@ describe('handleIdleStateChange', () => {
     await handleIdleStateChange('idle');
 
     expect(postMessageMock).toHaveBeenCalledWith({ type: MessageType.SESSION_EXPIRED });
+    expect(sendMessageSpy).toHaveBeenCalledWith({ type: MessageType.SESSION_EXPIRED });
     expect(clearSessionMock).toHaveBeenCalledTimes(1);
   });
 
