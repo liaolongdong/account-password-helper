@@ -483,11 +483,9 @@ export function setupMessageRouter(): void {
           }
         }
 
-        try {
-          chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-        } catch {
-          // 无监听者时忽略
-        }
+        chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
+          // 无监听者时忽略（sendMessage 无接收者会异步 reject，同步 try/catch 无法捕获）
+        });
 
         sendResponse({ success: true });
         break;
@@ -573,7 +571,13 @@ export function setupMessageRouter(): void {
         handleFillById(message.data, tabId, sender.frameId)
           .then(sendResponse)
           .catch(error => {
-            logger.error('Background: FILL_BY_ID 处理失败:', error);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // 页面导航/刷新竞态下接收端 content script 已销毁，属预期场景，降级 debug 避免 error 级噪音
+            if (errorMsg.includes('Receiving end does not exist')) {
+              logger.debug('Background: FILL_BY_ID 接收端已不存在（页面导航/刷新竞态）');
+            } else {
+              logger.error('Background: FILL_BY_ID 处理失败:', error);
+            }
             sendResponse({ success: false, message: '填充失败' });
           });
         return true;
@@ -603,7 +607,13 @@ export function setupMessageRouter(): void {
         handleFillTotpById(message.data, tabId, sender.frameId)
           .then(sendResponse)
           .catch(error => {
-            logger.error('Background: FILL_TOTP_BY_ID 处理失败:', error);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // 页面导航/刷新竞态下接收端 content script 已销毁，属预期场景，降级 debug 避免 error 级噪音
+            if (errorMsg.includes('Receiving end does not exist')) {
+              logger.debug('Background: FILL_TOTP_BY_ID 接收端已不存在（页面导航/刷新竞态）');
+            } else {
+              logger.error('Background: FILL_TOTP_BY_ID 处理失败:', error);
+            }
             sendResponse({ success: false, message: '填充验证码失败' });
           });
         return true;

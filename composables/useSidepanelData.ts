@@ -764,9 +764,14 @@ export function useSidepanelData() {
       /** bg 原始响应 Promise（独立持有，不随 800ms 竞速门丢弃）：
        *  冷 SW 在 800ms 后才完成启动时，其真实响应仍可在回退阶段与本地路径继续竞速被采纳，
        *  消除「迟到数据被丢弃 → 空等本地路径 + 3s 兜底超时」的最坏瀑布（Windows 冷 SW 主卡点） */
-      const bgRawPromise = chrome.runtime.sendMessage({
-        type: MessageType.GET_INITIAL_DATA,
-      });
+      const bgRawPromise = chrome.runtime
+        .sendMessage({
+          type: MessageType.GET_INITIAL_DATA,
+        })
+        // 发送失败（扩展上下文失效/SW 不可达）归一化为 null：
+        // 与 800ms 竞速门超时同语义，统一进入「bg 响应异常 → 回退本地路径」降级分支，
+        // 避免 reject 提前终止竞速导致整体初始化失败
+        .catch(() => null);
       const bgPromise = Promise.race([
         bgRawPromise,
         new Promise<null>(resolve => setTimeout(() => resolve(null), 800)),

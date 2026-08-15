@@ -484,11 +484,11 @@ export async function handleIdleStateChange(newState: string): Promise<void> {
       }
     }
 
-    try {
-      await chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-    } catch {
-      // 无监听者时 sendMessage 会抛错，忽略
-    }
+    // 广播会话过期：无监听者时异步 reject，统一用 .catch 兑底（与其余广播点写法一致；
+    // 广播为本函数末尾 fire-and-forget，无下游依赖，不 await 亦无时序风险）
+    chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
+      // 无监听者时忽略
+    });
   } catch (error) {
     logger.error('Background: 闲置锁定处理失败:', error);
   }
@@ -648,11 +648,9 @@ export function setupBackgroundServices(): void {
               // port 可能已断开
             }
           }
-          try {
-            chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-          } catch {
-            // 无监听者时忽略
-          }
+          chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
+            // 无监听者时忽略（sendMessage 无接收者会异步 reject，同步 try/catch 无法捕获）
+          });
 
           logger.debug('Background: 检测到会话清除，已通知所有上下文');
 
@@ -757,11 +755,9 @@ export function setupBackgroundServices(): void {
                 // port 可能已断开
               }
             }
-            try {
-              chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-            } catch {
-              // 无监听者时忽略
-            }
+            chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
+              // 无监听者时忽略（sendMessage 无接收者会异步 reject，同步 try/catch 无法捕获）
+            });
 
             logger.debug('Background: 会话已过期，已锁定并加密，缓存已清除，保活闹钟状态已同步');
           }
