@@ -137,6 +137,8 @@ export enum MessageType {
    * 关闭侧边栏消息类型（发送给sidepanel，让它自己关闭）
    */
   CLOSE_SIDEPANEL = 'CLOSE_SIDEPANEL',
+  /** Side Panel Port 完成 window/tab 身份确认的内部握手消息。 */
+  SIDEPANEL_READY = 'SIDEPANEL_READY',
   /**
    * URL变化消息类型
    */

@@ -208,8 +208,6 @@ export function useAuthFlow(options: {
       const isValid = await StorageUtils.verifyMasterPassword(verifyForm.value.password.trim());
 
       if (isValid) {
-        ElMessage.success(t('auth.verifySuccess'));
-
         sessionExpiredByBroadcast.value = false;
         isAuthenticating = true;
         await StorageUtils.setMasterPasswordValidityHours(verifyForm.value.validityHours);
@@ -221,7 +219,7 @@ export function useAuthFlow(options: {
 
         await loadPasswords();
         isAuthenticated.value = true;
-        isAuthenticating = false;
+        ElMessage.success(t('auth.verifySuccess'));
       } else {
         verifyError.value = t('auth.wrongPassword');
         verifyForm.value.password = '';
@@ -247,6 +245,7 @@ export function useAuthFlow(options: {
       }, SHAKE_DURATION_MS);
     } finally {
       verifyLoading.value = false;
+      isAuthenticating = false;
     }
   };
 

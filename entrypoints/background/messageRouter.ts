@@ -5,7 +5,7 @@ import {
   openSidePanelAndRespond,
   closeSidePanelWithResponse,
   isSidePanelOpen,
-  getSidePanelPort,
+  getSidePanelPorts,
 } from './sidePanelManager';
 import { openOptionsPage, openOptionsAndSendMessage } from './optionsPageManager';
 import {
@@ -20,11 +20,12 @@ import {
   recordPendingTotpIfEligible,
   consumePendingTotp,
   clearPendingTotp,
+  grantCredentialAccessAfterStartupRelock,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { handleQuickFill } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
-import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
+import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { isFrameFillable } from '@/utils/frameFill';
 
@@ -89,6 +90,13 @@ async function handleGetInitialData(_domain?: string) {
     cacheHit,
     swUptimeMs: Date.now() - _swLoadedAt,
   });
+
+  // 浏览器启动重锁尚未完成或失败时保持锁定，绝不读取旧持久会话/密码缓存。
+  if (!(await waitForBrowserStartupRelock())) {
+    return { sessionValid: false, passwords: [], sortConfig: null, perf: _buildPerf(false) };
+  }
+  // 已等待同一 SW 内存屏障；复用该结论，避免缓存热路径再做 storage.session IPC。
+  grantCredentialAccessAfterStartupRelock();
 
   const { isSessionValid } = await _getSessionModule();
   const sessionValid = await isSessionValid();
@@ -356,9 +364,10 @@ export function setupMessageRouter(): void {
           break;
         }
 
-        logger.debug('Background: 切换侧边栏, tabId:' + tabId + ', port状态:' + isSidePanelOpen());
+        const sidePanelOpen = isSidePanelOpen(sender.tab?.windowId, tabId);
+        logger.debug('Background: 切换侧边栏, tabId:' + tabId + ', port状态:' + sidePanelOpen);
 
-        if (isSidePanelOpen()) {
+        if (sidePanelOpen) {
           closeSidePanelWithResponse(tabId, sendResponse);
         } else {
           openSidePanelAndRespond(tabId, sendResponse, { clickTs: message.data?.clickTs, trigger: 'float' });
@@ -474,8 +483,7 @@ export function setupMessageRouter(): void {
           syncSwKeepaliveAlarm();
         })();
 
-        const port = getSidePanelPort();
-        if (port) {
+        for (const port of getSidePanelPorts()) {
           try {
             port.postMessage({ type: MessageType.SESSION_EXPIRED });
           } catch {

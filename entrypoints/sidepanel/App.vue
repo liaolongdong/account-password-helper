@@ -150,6 +150,21 @@ const AuthViewLoading = () =>
     h('span', t('sidepanel.loading')),
   ]);
 
+/** 认证视图分包持续加载失败时的轻量可恢复兜底，避免骨架移除后留下空白区域。 */
+const AuthViewError = () =>
+  h('div', { class: 'sp-auth-view-error', role: 'alert' }, [
+    h('span', t('sidepanel.viewLoadFailed')),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'sp-auth-view-error__retry',
+        onClick: () => window.location.reload(),
+      },
+      t('sidepanel.retry'),
+    ),
+  ]);
+
 /**
  * 认证态视图（搜索卡片 + 密码列表卡片）——异步加载
  *
@@ -162,6 +177,8 @@ const AuthViewLoading = () =>
 const SidepanelAuthView = defineAsyncComponent({
   loader: () => import('@/components/sidepanel/SidepanelAuthView.vue'),
   loadingComponent: AuthViewLoading,
+  errorComponent: AuthViewError,
+  timeout: 8000,
   onError(error, retry, fail, attempts) {
     if (attempts <= 2) {
       logger.warn(`SidePanel: 认证视图 chunk 加载失败，重试第 ${attempts} 次:`, error);
@@ -877,6 +894,37 @@ body {
   box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
 }
 
+.sp-auth-view-error {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 8px 0;
+  color: #6b7280;
+  background: #fff;
+  border-radius: 12px;
+}
+
+.sp-auth-view-error__retry {
+  padding: 8px 18px;
+  color: #fff;
+  cursor: pointer;
+  background: var(--aph-primary);
+  border: 0;
+  border-radius: 8px;
+}
+
+.sp-auth-view-error__retry:focus-visible {
+  outline: 2px solid var(--aph-primary);
+  outline-offset: 2px;
+}
+
+.sp-auth-view-error__retry:hover {
+  background: var(--aph-primary-hover);
+}
+
 .sp-auth-view-loading__spinner {
   width: 22px;
   height: 22px;
@@ -889,6 +937,12 @@ body {
 @keyframes sp-auth-loading-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-auth-view-loading__spinner {
+    animation: none;
   }
 }
 </style>

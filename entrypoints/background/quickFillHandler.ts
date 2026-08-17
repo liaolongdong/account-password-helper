@@ -23,7 +23,13 @@ import { tl } from '@/utils/i18n-lite';
 import { MessageType } from '@/utils/types';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
-import { getCachedPasswords, getOrWarmCache, sortMatchesForDomain, recordPendingTotpIfEligible } from './passwordCache';
+import {
+  ensureCredentialAccessAfterStartupRelock,
+  getCachedPasswords,
+  getOrWarmCache,
+  sortMatchesForDomain,
+  recordPendingTotpIfEligible,
+} from './passwordCache';
 
 /** 通知 ID 前缀 */
 const NOTIFICATION_ID = 'quick-fill';
@@ -142,6 +148,13 @@ function deriveEntryTitle(entry: { tag?: string; url?: string; username?: string
  * @param commandTab 快捷键命令回调提供的标签页（可选，popup 消息路径无此参数）
  */
 export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<void> {
+  // 快捷键与 popup 都可能在 onStartup clearSession 完成前触发；必须在恢复旧持久
+  // 会话或读取 SW 明文缓存之前经过同一启动安全门。
+  if (!(await ensureCredentialAccessAfterStartupRelock())) {
+    await notifyFailure(tl('bg.quickFill.sessionExpired'));
+    return;
+  }
+
   // 优先复用 onCommand 回调提供的 tab，避免冗余查询与窗口焦点竞态
   const tab = commandTab?.id ? commandTab : await getActiveTab();
   if (!tab?.id) {

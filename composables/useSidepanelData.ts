@@ -9,6 +9,11 @@ import { t } from '@/utils/i18n';
 import { isExactHostMatch } from '@/utils/domain';
 import { lazyImport } from '@/utils/lazyImport';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
+import {
+  waitForBrowserStartupRelockMarker,
+  waitForBrowserStartupRelockStatus,
+  type BrowserStartupRelockWaitStatus,
+} from '@/utils/browserStartupRelock';
 
 // ==================== 延迟加载模块（避免初始加载拉入 encryption.ts 加密链） ====================
 
@@ -64,10 +69,9 @@ const getPasswordCrudModule = lazyImport(() => import('@/utils/storage/passwordC
 /**
  * 本地竞速路径超时（毫秒）
  *
- * bg 路径自带 800ms 超时，但其超时/响应异常后会回退等待本地路径，
- * 而本地路径（chunk 冷读 + storage IO + 全量解密）在冷盘极端场景下可能
- * 长尾阻塞，导致骨架屏无限等待。超时后先渲染锁定态降级 UI（确定性兜底），
- * 本地路径迟到完成后再采纳真实结果。
+ * 快照、Background 与本地路径同时启动；本地路径（chunk 冷读 + storage IO +
+ * 全量解密）在冷盘极端场景下仍可能长尾阻塞。统一超时后先渲染锁定态降级 UI，
+ * 任一路迟到完成后仅在会话代际和权威校验均通过时恢复真实结果。
  */
 const LOCAL_PATH_TIMEOUT_MS = 3000;
 
@@ -148,6 +152,23 @@ interface SnapshotReadResult {
   sortConfig: { prop: string; order: string } | null;
 }
 
+interface InitialDataResult {
+  sessionValid: boolean;
+  passwords: PasswordEntry[];
+  sortConfig: { prop: string; order: string } | null;
+  perf?: { swProcessMs: number; cacheHit: boolean; swUptimeMs: number };
+}
+
+interface BgInitialDataResponse {
+  success?: boolean;
+  data?: InitialDataResult;
+}
+
+type InitialDataCandidate =
+  | { source: 'snapshot'; data: SnapshotReadResult }
+  | { source: 'bg'; data: InitialDataResult }
+  | { source: 'local'; data: InitialDataResult };
+
 /**
  * storage.session 加密快照直读（最快数据路径）
  *
@@ -162,8 +183,16 @@ interface SnapshotReadResult {
  *
  * @returns 解密后的密码数据，快照不存在/过期/解密失败时返回 null（静默降级到 bg/local 竞速）
  */
-async function readSessionSnapshot(): Promise<SnapshotReadResult | null> {
+async function readSessionSnapshot(
+  startupRelockStatus?: Promise<BrowserStartupRelockWaitStatus>,
+): Promise<SnapshotReadResult | null> {
   try {
+    const status = startupRelockStatus
+      ? await startupRelockStatus
+      : (await waitForBrowserStartupRelockMarker())
+        ? 'ready'
+        : 'blocked';
+    if (status !== 'ready') return null;
     // 并行读取：storage.session（快照 + 数据密钥）与 storage.local（会话过期时间戳 + 有效期配置），
     // 两次 IPC 重叠执行，总延迟约等于单次 IPC（~2-5ms）；
     // MASTER_PASSWORD_VALIDITY 与 SESSION_EXPIRY_KEY 合并到同一次 get，零额外 IPC
@@ -248,6 +277,26 @@ export function useSidepanelData() {
   let _sessionKnownExpired = false;
 
   /**
+   * 当前 Side Panel 上下文的会话代际。
+   *
+   * 初始化期间只要发生锁定、解锁、续期或 rekey，storage/message 监听都会同步递增。
+   * 所有异步数据源提交前必须仍处于启动时捕获的同一代际，避免旧快照或旧 SW 响应
+   * 在会话状态变化后把明文列表重新写回界面。
+   */
+  let _sessionGeneration = 0;
+
+  /** 同一会话代际内的密码列表加载序号，保证只允许最后一次请求提交。 */
+  let _passwordLoadSequence = 0;
+
+  /** 异步权威会话检查序号；锁定/rekey/并发新检查会使旧结果失效。 */
+  let _sessionCheckSequence = 0;
+
+  const advanceSessionGeneration = (): void => {
+    _sessionGeneration += 1;
+    _sessionCheckSequence += 1;
+  };
+
+  /**
    * 本地操作进行中标志
    *
    * 当侧边栏自身发起 storage 写入（收藏/填充更新 lastUsedAt）时设为 true，
@@ -317,15 +366,17 @@ export function useSidepanelData() {
   /**
    * 加载当前标签页信息（获取域名）
    */
-  const loadCurrentTab = async () => {
+  const loadCurrentTab = async (): Promise<chrome.tabs.Tab | undefined> => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab.url) {
         const url = new URL(tab.url);
         currentDomain.value = url.hostname;
       }
+      return tab;
     } catch (error) {
       logger.error('获取当前标签页失败:', error);
+      return undefined;
     }
   };
 
@@ -342,6 +393,11 @@ export function useSidepanelData() {
    *   lastUsedAt 元数据）触发全量重载时列表被骨架屏/spinner 整体替换造成闪烁
    */
   const loadPasswords = async (skipSessionCheck = false, silent = false) => {
+    const loadGeneration = _sessionGeneration;
+    const loadSequence = ++_passwordLoadSequence;
+    const canCommitLoad = (): boolean =>
+      loadGeneration === _sessionGeneration && loadSequence === _passwordLoadSequence;
+
     try {
       if (!silent) loading.value = true;
 
@@ -350,6 +406,7 @@ export function useSidepanelData() {
         const isSessionValidFn = await getIsSessionValid();
         const sessionValid = await isSessionValidFn();
         if (!sessionValid) {
+          if (!canCommitLoad()) return;
           _sessionKnownExpired = true;
           isAuthenticated.value = false;
           passwords.value = [];
@@ -371,7 +428,7 @@ export function useSidepanelData() {
 
       // 二次检查：异步操作期间会话可能已过期（storage change 并行触发），
       // 防止将加密数据设置到 UI 上导致闪烁
-      if (!isAuthenticated.value) {
+      if (!canCommitLoad() || !isAuthenticated.value) {
         return;
       }
 
@@ -382,13 +439,14 @@ export function useSidepanelData() {
       // 后台静默触发缓存刷新（不阻塞 UI 渲染）
       void triggerBackgroundCacheRefresh();
     } catch (error) {
+      if (!canCommitLoad()) return;
       logger.error('加载密码列表失败:', error);
       // 静默刷新本意为「无感」：失败时仅记日志不弹 toast，避免与并发的
       // 非静默加载重叠时误报「加载失败」（列表随后会正常加载出来）
       if (!silent) ElMessage.error(t('message.loadListFailed'));
     } finally {
       // 兜底确保 loading 状态清除（异常路径安全网）
-      loading.value = false;
+      if (canCommitLoad()) loading.value = false;
     }
   };
 
@@ -402,6 +460,11 @@ export function useSidepanelData() {
    * 返回过期 true 值，导致错误地将 isAuthenticated 重新设为 true 并加载加密数据。
    */
   const handleSessionChange = async () => {
+    const checkGeneration = _sessionGeneration;
+    const checkSequence = ++_sessionCheckSequence;
+    const canCommitCheck = (): boolean =>
+      checkGeneration === _sessionGeneration && checkSequence === _sessionCheckSequence;
+
     try {
       // 同步守卫：已知会话过期时，避免 isSessionValid() 缓存返回过期 true
       // 导致错误地将 isAuthenticated 重新设为 true 并加载加密数据
@@ -413,20 +476,37 @@ export function useSidepanelData() {
         return;
       }
 
+      // onStartup 重锁 pending/failed 时不能恢复旧持久会话；超时/读取失败同样保持锁定。
+      if ((await waitForBrowserStartupRelockStatus()) !== 'ready') {
+        if (!canCommitCheck()) return;
+        _sessionKnownExpired = true;
+        isAuthenticated.value = false;
+        passwords.value = [];
+        return;
+      }
+
       const isSessionValidFn = await getIsSessionValid();
       const sessionActive = await isSessionValidFn();
+      if (!canCommitCheck()) return;
       if (sessionActive && !isAuthenticated.value) {
+        advanceSessionGeneration();
         _sessionKnownExpired = false;
-        isAuthenticated.value = true;
+        const authenticatedGeneration = _sessionGeneration;
+        const authenticatedCheckSequence = _sessionCheckSequence;
         await loadCurrentTab();
-        await loadPasswords();
+        if (authenticatedGeneration !== _sessionGeneration || authenticatedCheckSequence !== _sessionCheckSequence) {
+          return;
+        }
+        isAuthenticated.value = true;
+        await loadPasswords(true);
       } else if (!sessionActive && isAuthenticated.value) {
+        advanceSessionGeneration();
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
         passwords.value = [];
       }
     } catch (error) {
-      logger.error('SidePanel: 检查会话状态失败:', error);
+      if (canCommitCheck()) logger.error('SidePanel: 检查会话状态失败:', error);
     }
   };
 
@@ -440,10 +520,18 @@ export function useSidepanelData() {
    * 的 5s TTL 缓存可能仍返回 true，导致加密数据被加载到 UI 上闪烁。
    */
   const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
-    const sessionKeys = ['session_wrapped_data_key', 'session_password_expiry', 'session_validity_hours'];
+    const sessionKeys = [
+      'session_wrapped_data_key',
+      'session_password_expiry',
+      'session_validity_hours',
+      SESSION_MEMORY_KEYS.BROWSER_STARTUP_RELOCK_STATE,
+      SESSION_MEMORY_KEYS.BROWSER_STARTUP_RELOCK_RECOVERY,
+    ];
     const hasSessionChange = Object.keys(changes).some(key => sessionKeys.includes(key));
 
     if (hasSessionChange) {
+      // 同步失效所有正在等待的快照/BG/local 初始化结果；必须早于任何 await。
+      advanceSessionGeneration();
       // 检测 session key 是被创建还是被移除：
       // - 移除（newValue 为 undefined）：同步标记会话过期，阻止紧随的 account_passwords
       //   变更触发 loadPasswords，消除 clearSession 两步存储操作的竞态窗口
@@ -595,6 +683,7 @@ export function useSidepanelData() {
         return true;
       case MessageType.SESSION_EXPIRED:
         logger.debug('SidePanel: 收到锁定广播消息，立即切换到未验证状态');
+        advanceSessionGeneration();
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
         passwords.value = [];
@@ -655,12 +744,10 @@ export function useSidepanelData() {
    * 建立 port 连接、注册 Chrome 事件监听器、加载初始数据
    *
    * 性能优化（Phase 3）：「真并行竞速」模式
-   * - Background GET_INITIAL_DATA 与本地 storage 直读路径同时启动，取先到者
+   * - 加密快照、Background GET_INITIAL_DATA 与本地 storage 直读同时启动，取首个可用结果
    * - 热 SW 场景：Background 路径 ~20ms 胜出，本地路径静默完成
    * - 冷 SW 场景：本地路径 ~200-400ms 先完成，Background 迟到结果用于缓存更新
-   * - Background 分支设 800ms 兜底上限（见下方 setTimeout）：超时仅代表「切换等待对象」，
-   *   冷 SW 的真实响应（bgRawPromise）在回退阶段继续与本地路径竞速，先到即采纳，
-   *   不会因超时门被丢弃（否则 Windows 冷 SW 0.9~3s 完成时 UI 只能空等本地长尾）
+   * - 任一路拒绝/格式异常只淘汰自身，统一 3s 上限后安全显示锁定态；迟到结果仍可在代际复核后采纳
    * - loadCurrentTab 与 GET_INITIAL_DATA 并行执行，节约 ~5ms 串行延迟
    *
    * @returns 初始化元信息（竞速胜出路径 + 会话状态），供性能埋点记录维度使用
@@ -679,6 +766,7 @@ export function useSidepanelData() {
           }
         } else if (message.type === MessageType.SESSION_EXPIRED) {
           logger.debug('SidePanel: 收到锁定消息（port），立即切换到未验证状态');
+          advanceSessionGeneration();
           _sessionKnownExpired = true;
           isAuthenticated.value = false;
           passwords.value = [];
@@ -722,74 +810,59 @@ export function useSidepanelData() {
     try {
       // ---- 并行竞速模式 ----
       const _perfRaceStart = performance.now();
+      const initGeneration = _sessionGeneration;
+      const startupRelockStatusPromise = waitForBrowserStartupRelockStatus();
+
+      const isCurrentGeneration = (): boolean => initGeneration === _sessionGeneration;
+
+      // 当前标签页、快照、Background 与本地路径必须在同一时刻启动，避免快照未命中/损坏时
+      // 才串行唤醒 SW 和冷读本地 chunk。标签页结果同时用于 Side Panel 多窗口 READY 握手。
+      const tabPromise = loadCurrentTab();
+      void tabPromise.then(tab => {
+        if (!bgPort || tab?.id === undefined || tab.windowId === undefined) return;
+        try {
+          bgPort.postMessage({ type: MessageType.SIDEPANEL_READY, tabId: tab.id, windowId: tab.windowId });
+        } catch {
+          // port 已断开时由 onDisconnect 统一清理
+        }
+      });
 
       // 路径 0: storage.session 加密快照直读（最快路径，纯内存 IPC + 单次 AES-GCM）
       // SW 侧 warmPasswordCache 成功后写入加密快照，侧边栏冷启动时直读解密，
       // 跳过 SW 唤醒 + storage.local 磁盘 IO + 逐条解密（200-3000ms → <50ms）；
       // 快照不存在/过期/解密失败时静默降级到 bg/local 竞速
       const _perfSnapshotStart = performance.now();
-      const snapshotResult = await readSessionSnapshot();
-      if (snapshotResult) {
-        const snapshotMs = performance.now() - _perfSnapshotStart;
-        logger.debug(`SidePanel: 快照路径竞速胜出 (${snapshotMs.toFixed(1)}ms)`);
-        _sessionKnownExpired = false;
-        isAuthenticated.value = true;
-        passwords.value = snapshotResult.passwords;
-        sortConfig.value = snapshotResult.sortConfig;
-        loading.value = false;
-        // 与 bg/local 路径一致：并行加载当前标签页域名（域名过滤/优先级排序依赖）
-        void loadCurrentTab();
-        // 轻量触发 SW 侧去重预热作为兜底（缓存存在时 no-op）
-        void triggerBackgroundCacheRefresh();
-        return {
-          raceWinner: 'snapshot' as const,
-          sessionValid: true,
-          bgPathMs: null,
-          localPathMs: null,
-          bgSwProcessMs: null,
-          bgCacheHit: null,
-          bgSwUptimeMs: null,
-        };
-      }
+      const snapshotPromise = readSessionSnapshot(startupRelockStatusPromise).then(result => {
+        if (!result) return null;
+        logger.debug(`SidePanel: 快照路径完成 (${(performance.now() - _perfSnapshotStart).toFixed(1)}ms)`);
+        return { source: 'snapshot' as const, data: result };
+      });
 
-      // 快照未命中，进入 bg/local 双路竞速
+      // 快照与 bg/local 三路竞速
       // 竞速标记：null = 未决出胜负，'bg' = Background 路径胜出，'local' = 本地路径胜出
       let raceWinner: 'bg' | 'local' | null = null;
-      // 性能埋点：两条路径各自耗时（写入环形日志，生产环境可定位 Windows 慢点归属）
+      // 性能埋点：Background/本地路径各自耗时（写入环形日志，生产环境可定位慢点归属）
       let bgPathMs: number | null = null;
       let localPathMs: number | null = null;
-      /** Background GET_INITIAL_DATA 响应结构（bgPromise 竞速与回退阶段迟到采纳共用） */
-      type BgInitialDataResponse = {
-        success?: boolean;
-        data?: {
-          sessionValid: boolean;
-          passwords: PasswordEntry[];
-          sortConfig: { prop: string; order: string } | null;
-          perf?: { swProcessMs: number; cacheHit: boolean; swUptimeMs: number };
-        };
-      };
       /** Background 路径迟到结果（本地路径先胜出时保存，用于静默更新缓存） */
       let bgLateResult: BgInitialDataResponse | null = null;
 
-      // 路径 A: loadCurrentTab（并行，不阻塞 GET_INITIAL_DATA）
-      const tabPromise = loadCurrentTab();
-
-      // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道，800ms 超时）
+      // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道）
       const _perfBgStart = performance.now();
-      /** bg 原始响应 Promise（独立持有，不随 800ms 竞速门丢弃）：
-       *  冷 SW 在 800ms 后才完成启动时，其真实响应仍可在回退阶段与本地路径继续竞速被采纳，
-       *  消除「迟到数据被丢弃 → 空等本地路径 + 3s 兜底超时」的最坏瀑布（Windows 冷 SW 主卡点） */
-      const bgRawPromise = chrome.runtime.sendMessage({
-        type: MessageType.GET_INITIAL_DATA,
-      });
-      const bgPromise = Promise.race([
-        bgRawPromise,
-        new Promise<null>(resolve => setTimeout(() => resolve(null), 800)),
-      ]).then(result => {
+      // runtime.sendMessage 在 SW 唤醒/扩展更新窗口可能拒绝；拒绝只淘汰 Background
+      // 这一路，不能让 Promise.race 提前 reject 并丢弃仍可用的本地数据。
+      const bgRawPromise = chrome.runtime
+        .sendMessage({ type: MessageType.GET_INITIAL_DATA })
+        .then(result => result as BgInitialDataResponse | null)
+        .catch(error => {
+          logger.warn('SidePanel: Background 初始化消息失败，继续本地回退:', error);
+          return null;
+        });
+      const bgPromise = bgRawPromise.then(result => {
         bgPathMs = performance.now() - _perfBgStart;
+        if (!result?.success || !result.data) return null;
         if (raceWinner) {
-          // 本地路径已胜出，保存 bg 结果用于静默更新缓存
-          bgLateResult = result as typeof bgLateResult;
+          bgLateResult = result;
           logger.debug(`SidePanel: bg 路径迟到 (${bgPathMs.toFixed(1)}ms)，静默更新缓存`);
           return null;
         }
@@ -801,15 +874,12 @@ export function useSidepanelData() {
       // 路径 C: 本地 storage 直读（冷 SW 回退通道）
       // 加载时序：轻量过期预判先行 → 条件预拉 crud chunk → 与 session 模块加载/会话判定重叠
       const _perfLocalStart = performance.now();
-      /** 本地路径原始结果（无论竞速胜负均保存）：bg 响应格式异常回退时，
-       *  若本地路径已在 bg 胜出期间完成（.then 返回了 null），可直接复用此结果，
-       *  避免被误判为会话无效（极低概率边缘竞态加固） */
-      let localRawResult: {
-        sessionValid: boolean;
-        passwords: PasswordEntry[];
-        sortConfig: { prop: string; order: string } | null;
-      } | null = null;
       const localPromise = (async () => {
+        const startupRelockStatus = await startupRelockStatusPromise;
+        if (startupRelockStatus === 'unavailable') return null;
+        if (startupRelockStatus === 'blocked') {
+          return { sessionValid: false, passwords: [] as PasswordEntry[], sortConfig: null };
+        }
         // 锁屏态优先 + 有效态并行：session 模块加载先行发起保持在途；
         // 轻量过期预判（单次 storage IPC，毫秒级）返回后，未确认失效即刻预拉
         // passwordCrud chunk——与 session chunk 加载、isSessionValid 判定真正重叠，
@@ -836,27 +906,47 @@ export function useSidepanelData() {
           crud.getAllPasswords(),
         ]);
         return { sessionValid: true, passwords: loadedPasswords as PasswordEntry[], sortConfig: sortConfigResult };
-      })().then(result => {
-        localPathMs = performance.now() - _perfLocalStart;
-        localRawResult = result;
-        if (raceWinner) {
-          // Background 路径已胜出，本地结果静默丢弃
+      })()
+        .then(result => {
+          localPathMs = performance.now() - _perfLocalStart;
+          if (!result) return null;
+          if (raceWinner) {
+            // 其他路径已胜出，本地结果静默丢弃
+            return null;
+          }
+          raceWinner = 'local';
+          logger.debug(`SidePanel: 本地路径竞速胜出 (${localPathMs.toFixed(1)}ms)`);
+          return { source: 'local' as const, data: result };
+        })
+        .catch(error => {
+          localPathMs = performance.now() - _perfLocalStart;
+          logger.warn('SidePanel: 本地初始化路径失败，继续等待其他数据源:', error);
           return null;
-        }
-        raceWinner = 'local';
-        logger.debug(`SidePanel: 本地路径竞速胜出 (${localPathMs.toFixed(1)}ms)`);
-        return { source: 'local' as const, data: result };
-      });
+        });
 
-      // 等待两条路径之一完成（取先到者）
-      const winner = await Promise.race([bgPromise, localPromise]);
+      // 只让“可用结果”决出胜负：任一路 null/reject 都不会提前结束其他路径。
+      const firstUsableCandidate = new Promise<InitialDataCandidate>(resolve => {
+        void snapshotPromise.then(result => {
+          if (result) resolve(result);
+        });
+        void bgPromise.then(result => {
+          if (result?.data.data) resolve({ source: 'bg', data: result.data.data });
+        });
+        void localPromise.then(result => {
+          if (result) resolve(result);
+        });
+      });
+      const winner = await Promise.race([
+        firstUsableCandidate,
+        new Promise<null>(resolve => setTimeout(() => resolve(null), LOCAL_PATH_TIMEOUT_MS)),
+      ]);
       logger.debug(
         `SidePanel: 竞速完成，胜出路径=${raceWinner}，总耗时 ${(performance.now() - _perfRaceStart).toFixed(1)}ms`,
       );
 
       /** 组装初始化元信息（含竞速内部耗时与 SW 侧分解，供性能环形日志归因 Windows 慢点） */
       const buildMeta = (
-        winnerPath: 'bg' | 'local' | null,
+        winnerPath: 'bg' | 'local' | 'snapshot' | null,
         sessionValid: boolean,
         bgPerf?: { swProcessMs: number; cacheHit: boolean; swUptimeMs: number },
         bgLateAdopted = false,
@@ -871,176 +961,72 @@ export function useSidepanelData() {
         bgSwUptimeMs: bgPerf?.swUptimeMs ?? null,
       });
 
-      // 确保 currentDomain 已就绪（loadCurrentTab 应在 winner 返回时已完成，此处防御性等待）
-      await tabPromise;
-
       if (!winner) {
-        // 两条路径都未返回有效结果（极端异常），降级为错误处理
-        throw new Error('SidePanel: 所有初始化路径均失败');
+        logger.warn(`SidePanel: 所有初始化路径在 ${LOCAL_PATH_TIMEOUT_MS}ms 内均未返回可用结果，安全降级锁定态`);
+        if (isCurrentGeneration()) {
+          _sessionKnownExpired = true;
+          isAuthenticated.value = false;
+          passwords.value = [];
+          loading.value = false;
+        }
+
+        // 慢盘/冷 SW 迟到时仍可恢复，但提交前必须复核权威会话且代际未变化。
+        void firstUsableCandidate.then(async late => {
+          if (!late.data.sessionValid || !isCurrentGeneration() || isAuthenticated.value) return;
+          const isSessionValidFn = await getIsSessionValid();
+          if (!(await isSessionValidFn()) || !isCurrentGeneration() || isAuthenticated.value) return;
+          logger.debug(`SidePanel: ${late.source} 迟到结果通过会话代际复核，恢复认证列表`);
+          _sessionKnownExpired = false;
+          isAuthenticated.value = true;
+          passwords.value = late.data.passwords;
+          sortConfig.value = late.data.sortConfig;
+          loading.value = false;
+          void triggerBackgroundCacheRefresh();
+        });
+        return buildMeta(null, false);
+      }
+
+      if (!isCurrentGeneration()) {
+        logger.debug('SidePanel: 初始化期间会话代际已变化，丢弃旧数据源结果');
+        return buildMeta(winner.source, isAuthenticated.value, winner.source === 'bg' ? winner.data.perf : undefined);
+      }
+
+      if (winner.source === 'snapshot') {
+        _sessionKnownExpired = false;
+        isAuthenticated.value = true;
+        passwords.value = winner.data.passwords;
+        sortConfig.value = winner.data.sortConfig;
+        loading.value = false;
+        void triggerBackgroundCacheRefresh();
+        return buildMeta('snapshot', true);
+      }
+
+      // Background/本地列表在首次绘制前保持原有域名过滤时序；快照路径无需等待该 IPC。
+      await tabPromise;
+      if (!isCurrentGeneration()) {
+        logger.debug('SidePanel: 等待当前标签页期间会话代际已变化，丢弃旧数据源结果');
+        return buildMeta(winner.source, isAuthenticated.value, winner.source === 'bg' ? winner.data.perf : undefined);
       }
 
       if (winner.source === 'bg') {
-        const response = winner.data;
-        if (response?.success && response.data) {
-          const data = response.data;
-
-          if (data.sessionValid) {
-            // Background 验证通过，直接展示数据
-            _sessionKnownExpired = false;
-            isAuthenticated.value = true;
-            passwords.value = data.passwords;
-            sortConfig.value = data.sortConfig;
-            loading.value = false;
-
-            logger.debug('SidePanel: Background 初始化数据加载完成（竞速胜出），条目数:' + data.passwords.length);
-
-            // 胜出数据来自 bg 自身（命中缓存或冷路径已经 getOrWarmCache 回填），无需回传；
-            // 轻量触发一次去重预热作为防御性兜底（缓存存在时 no-op）
-            void triggerBackgroundCacheRefresh();
-
-            // 本地路径可能仍在执行（dynamic import），让其静默完成
-            localPromise.catch(() => {});
-            return buildMeta('bg', true, data.perf);
-          }
-
-          // 会话无效
-          logger.debug('SidePanel: 会话无效（Background 验证），显示未验证状态');
-          _sessionKnownExpired = true;
-          isAuthenticated.value = false;
-          loading.value = false;
-
-          localPromise.catch(() => {});
-          return buildMeta('bg', false, data.perf);
-        }
-
-        // Background 返回了响应但格式异常（含 800ms 超时的 null），回退到本地路径
-        logger.debug('SidePanel: Background 响应异常，等待本地路径');
-        raceWinner = null;
-        // 冷 SW 真实响应继续参战：SW 在 800ms 门限后才完成冷启动时（Windows 常见
-        // 0.9~3s），其响应依然是最快的可用数据源，不应被超时门丢弃后空等本地长尾。
-        // 仅在响应格式可用时 resolve；异常/拒绝保持 pending，由本地路径与兜底超时接管
-        const lateBgUsable = new Promise<{ source: 'bg'; data: BgInitialDataResponse }>(resolve => {
-          bgRawPromise
-            .then(result => {
-              const response = result as BgInitialDataResponse | null;
-              if (response?.success && response.data) resolve({ source: 'bg', data: response });
-            })
-            .catch(() => {});
-        });
-        // 冷盘 IO 长尾兜底：本地路径附加超时，避免极端慢盘场景骨架屏无限等待
-        const localWinner = await Promise.race([
-          localPromise,
-          lateBgUsable,
-          new Promise<null>(resolve => setTimeout(() => resolve(null), LOCAL_PATH_TIMEOUT_MS)),
-        ]);
-
-        if (localWinner?.source === 'bg') {
-          // 迟到的 bg 真实响应先到：守卫通过后采纳（语义与竞速胜出的 bg 分支一致）
-          const data = localWinner.data.data!;
-          bgPathMs = performance.now() - _perfBgStart;
-          raceWinner = 'bg';
-          localPromise.catch(() => {});
-
-          if (data.sessionValid) {
-            // 外部锁定守卫：采纳窗口（800ms~3s）内可能已收到 SESSION_EXPIRED 广播 /
-            // 会话键移除（同步置位 _sessionKnownExpired），bg 响应是锁定前的陈旧快照，
-            // 不得反向覆盖锁定态导致解密数据重新展示；锁定路径均已失效 TTL 缓存，
-            // 补一次实时会话复核兜底（与本地迟到采纳的守卫逻辑一致）
-            const isSessionValidFn = await getIsSessionValid();
-            if (_sessionKnownExpired || !(await isSessionValidFn())) {
-              logger.debug('SidePanel: 迟到 bg 响应与外部锁定冲突，放弃采纳并维持锁定态');
-              _sessionKnownExpired = true;
-              isAuthenticated.value = false;
-              loading.value = false;
-              return buildMeta('bg', false, data.perf, true);
-            }
-            logger.debug(`SidePanel: Background 冷启动迟到响应采纳（回退阶段，${bgPathMs.toFixed(1)}ms）`);
-            _sessionKnownExpired = false;
-            isAuthenticated.value = true;
-            passwords.value = data.passwords;
-            sortConfig.value = data.sortConfig;
-            loading.value = false;
-            void triggerBackgroundCacheRefresh();
-            return buildMeta('bg', true, data.perf, true);
-          }
-
-          // 陈旧的锁定快照不得覆盖等待窗口内的手动解锁（isAuthenticated 已为 true 时跳过降级）
-          if (isAuthenticated.value) {
-            return buildMeta('bg', true, data.perf, true);
-          }
-          _sessionKnownExpired = true;
-          isAuthenticated.value = false;
-          loading.value = false;
-          return buildMeta('bg', false, data.perf, true);
-        }
-
-        // 边缘竞态加固：若本地路径已在 bg 胜出期间完成（localWinner 为 null），
-        // 复用已保存的原始结果，避免会话有效场景被误置为锁定态
-        const localData2 = localWinner?.data ?? localRawResult;
-
-        if (!localData2) {
-          // 本地路径超时：先渲染锁定态降级 UI（用户可立即交互/重试解锁），
-          // 迟到结果到达后静默采纳：会话有效则切回列表态，无效则维持锁定态不变
-          logger.warn(`SidePanel: 本地路径超时（${LOCAL_PATH_TIMEOUT_MS}ms），降级渲染锁定态兜底 UI`);
-          _sessionKnownExpired = true;
-          isAuthenticated.value = false;
-          loading.value = false;
-          // bg 真实响应迟于兜底超时到达时同样静默采纳（守卫逻辑与本地迟到采纳一致）
-          void lateBgUsable.then(async late => {
-            const lateData = late.data.data;
-            if (!lateData?.sessionValid) return;
-            if (isAuthenticated.value) return;
-            const isSessionValidFn = await getIsSessionValid();
-            if (!(await isSessionValidFn())) return;
-            // await 间隙后复检：另一迟到采纳路径 / 用户手动解锁可能已生效，勿用更陈旧快照覆盖
-            if (isAuthenticated.value) return;
-            logger.debug('SidePanel: Background 迟到结果会话有效（兜底超时后），采纳并切回列表态');
-            _sessionKnownExpired = false;
-            isAuthenticated.value = true;
-            passwords.value = lateData.passwords;
-            sortConfig.value = lateData.sortConfig;
-            void triggerBackgroundCacheRefresh();
-          });
-          localPromise
-            .then(async () => {
-              if (!localRawResult?.sessionValid) return;
-              // 竞态防护：用户已在等待窗口内手动解锁时，勿用陈旧快照覆盖更新的状态
-              if (isAuthenticated.value) return;
-              // 采纳前复核实时会话状态：sessionValid 是本地路径起点快照，
-              // 若等待窗口内发生外部锁定（SESSION_EXPIRED 广播/会话键移除，
-              // 锁定路径均已失效 TTL 缓存），此处实时检查会返回 false，
-              // 放弃采纳，避免反向覆盖锁定状态导致解密数据重新展示
-              const isSessionValidFn = await getIsSessionValid();
-              if (!(await isSessionValidFn())) return;
-              // await 间隙后复检：bg 迟到采纳路径 / 用户手动解锁可能已生效，勿用更陈旧快照覆盖
-              if (isAuthenticated.value) return;
-              logger.debug('SidePanel: 本地路径迟到结果会话有效，采纳并切回列表态');
-              _sessionKnownExpired = false;
-              isAuthenticated.value = true;
-              passwords.value = localRawResult.passwords;
-              sortConfig.value = localRawResult.sortConfig;
-              void triggerBackgroundCacheRefresh();
-            })
-            .catch(() => {});
-          return buildMeta(null, false);
-        }
-
-        if (localData2.sessionValid) {
+        const data = winner.data;
+        if (data.sessionValid) {
           _sessionKnownExpired = false;
           isAuthenticated.value = true;
-          passwords.value = localData2.passwords;
-          sortConfig.value = localData2.sortConfig;
+          passwords.value = data.passwords;
+          sortConfig.value = data.sortConfig;
           loading.value = false;
-
-          logger.debug('SidePanel: 本地初始化数据加载完成（bg 异常回退），条目数:' + localData2.passwords.length);
+          logger.debug('SidePanel: Background 初始化数据加载完成（竞速胜出），条目数:' + data.passwords.length);
           void triggerBackgroundCacheRefresh();
-          return buildMeta('local', true);
+          return buildMeta('bg', true, data.perf);
         }
 
+        logger.debug('SidePanel: 会话无效（Background 验证），显示未验证状态');
         _sessionKnownExpired = true;
         isAuthenticated.value = false;
+        passwords.value = [];
         loading.value = false;
-        return buildMeta('local', false);
+        return buildMeta('bg', false, data.perf);
       }
 
       // 本地路径竞速胜出

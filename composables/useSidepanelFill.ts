@@ -5,6 +5,7 @@ import { t } from '@/utils/i18n';
 import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
 import { getClipboardConfig } from '@/utils/storage/configManager';
 import { lazyImport } from '@/utils/lazyImport';
+import { ensureContentScriptReady, type ContentScriptProbeResult } from '@/utils/contentScriptReadiness';
 import type { Ref } from 'vue';
 
 /** 剪贴板自动清除定时器（模块级变量，确保同一时刻只有一个定时器） */
@@ -157,17 +158,19 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
    * @param frameIds 所有 frame ID 列表
    * @returns 聚合后的 PingResponse 或 null
    */
-  const pingAllFrames = async (tabId: number, frameIds: number[]): Promise<PingResponse | null> => {
+  const pingAllFrames = async (tabId: number, frameIds: number[]): Promise<ContentScriptProbeResult> => {
     let aggregatedResponse: PingResponse | null = null;
+    const responsiveFrameIds: number[] = [];
 
     const results = await Promise.allSettled(
       frameIds.map(frameId => chrome.tabs.sendMessage(tabId, { type: MessageType.PING }, { frameId })),
     );
 
-    for (const result of results) {
+    results.forEach((result, index) => {
       if (result.status === 'fulfilled') {
         const response = result.value;
         if (response && response.success) {
+          responsiveFrameIds.push(frameIds[index]);
           const pingRes = response as PingResponse;
           if (!aggregatedResponse) {
             aggregatedResponse = { ...pingRes, fieldsDetected: { ...pingRes.fieldsDetected } };
@@ -184,9 +187,9 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
         }
       }
       // rejected 的 frame 没有 content script，跳过
-    }
+    });
 
-    return aggregatedResponse;
+    return { response: aggregatedResponse, responsiveFrameIds };
   };
 
   /**
@@ -207,7 +210,9 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
     const useMultiFrame = frameIds && frameIds.length > 0;
 
     for (let i = 0; i < maxRetries; i++) {
-      const pingResponse = useMultiFrame ? await pingAllFrames(tabId, frameIds) : await pingContentScript(tabId, 1);
+      const pingResponse = useMultiFrame
+        ? (await pingAllFrames(tabId, frameIds)).response
+        : await pingContentScript(tabId, 1);
 
       if (pingResponse && pingResponse.fieldsDetected) {
         const { username, password, mobile } = pingResponse.fieldsDetected;
@@ -278,30 +283,17 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
       // 既命中同站 iframe 内嵌登录表单，又避免向跨域第三方 iframe 广播明文凭证
       const frameIds = await getFillableFrameIds(tabId);
 
-      // 步骤1: 先检查各 frame 中 content script 是否已就绪（通过 PING）
-      let pingResponse = await pingAllFrames(tabId, frameIds);
-
-      // 步骤2: 只有在所有 frame 都 PING 失败时才尝试注入 content script
-      // 注入顶层 frame 即可（allFrames: true 配置会使其在所有 frame 中运行）
+      // 步骤1-2: 检查 content script；必要时按安全 frame 集合注入并短退避确认就绪
+      const ready = await ensureContentScriptReady(tabId, frameIds, pingAllFrames);
+      const pingResponse = ready.response;
+      if (ready.injectionError) {
+        logger.error('Content script 注入失败:', ready.injectionError);
+        ElMessage.error(t('fill.injectFailed'));
+        return;
+      }
       if (!pingResponse) {
-        logger.debug('Content script 未就绪，尝试注入...');
-        try {
-          await chrome.scripting.executeScript({
-            target: { tabId },
-            files: ['content-scripts/content.js'],
-          });
-          await new Promise(resolve => setTimeout(resolve, 800));
-        } catch (injectError) {
-          logger.error('Content script 注入失败:', injectError);
-          ElMessage.error(t('fill.injectFailed'));
-          return;
-        }
-
-        pingResponse = await pingAllFrames(tabId, frameIds);
-        if (!pingResponse) {
-          ElMessage.error(t('fill.scriptNotReady'));
-          return;
-        }
+        ElMessage.error(t('fill.scriptNotReady'));
+        return;
       }
 
       // 步骤3: 检查各 frame 中是否已检测到字段，如果没有则等待
@@ -423,24 +415,15 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
       const frameIds = await getFillableFrameIds(tabId);
 
       // 确保 content script 就绪（必要时注入）
-      let pingResponse = await pingAllFrames(tabId, frameIds);
-      if (!pingResponse) {
-        try {
-          await chrome.scripting.executeScript({
-            target: { tabId },
-            files: ['content-scripts/content.js'],
-          });
-          await new Promise(resolve => setTimeout(resolve, 800));
-        } catch (injectError) {
-          logger.error('Content script 注入失败:', injectError);
-          ElMessage.error(t('fill.injectFailed'));
-          return;
-        }
-        pingResponse = await pingAllFrames(tabId, frameIds);
-        if (!pingResponse) {
-          ElMessage.error(t('fill.scriptNotReady'));
-          return;
-        }
+      const ready = await ensureContentScriptReady(tabId, frameIds, pingAllFrames);
+      if (ready.injectionError) {
+        logger.error('Content script 注入失败:', ready.injectionError);
+        ElMessage.error(t('fill.injectFailed'));
+        return;
+      }
+      if (!ready.response) {
+        ElMessage.error(t('fill.scriptNotReady'));
+        return;
       }
 
       const response = await fillTotpInAllFrames(tabId, frameIds, code);

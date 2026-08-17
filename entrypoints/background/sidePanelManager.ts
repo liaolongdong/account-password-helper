@@ -5,8 +5,18 @@ import { openOptionsPage } from './optionsPageManager';
 import { handleQuickFill } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 
-/** 模块级 port 状态（Service Worker 生命周期内有效） */
-let sidePanelPort: chrome.runtime.Port | null = null;
+interface SidePanelContext {
+  windowId: number;
+  tabId: number;
+}
+
+/** 按窗口/实例跟踪 Side Panel；刷新重叠时同一窗口可短暂存在多个 Port。 */
+const sidePanelContextByPort = new Map<chrome.runtime.Port, SidePanelContext>();
+const sidePanelPortsByWindow = new Map<number, Set<chrome.runtime.Port>>();
+const pendingSidePanelPorts = new Set<chrome.runtime.Port>();
+const openingTabIds = new Set<number>();
+const openingWindowByTabId = new Map<number, number>();
+const openingTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
 
 /**
  * 侧边栏打开完成后的资源预热延时（毫秒）
@@ -17,14 +27,93 @@ let sidePanelPort: chrome.runtime.Port | null = null;
  */
 const WARM_AFTER_OPEN_DELAY_MS = 5000;
 
-/** 获取 sidePanelPort（供其他模块读取） */
-export function getSidePanelPort(): chrome.runtime.Port | null {
-  return sidePanelPort;
+/** 获取全部已完成 READY 握手的 Side Panel Port，用于广播。 */
+export function getSidePanelPorts(): chrome.runtime.Port[] {
+  return [...sidePanelContextByPort.keys()];
 }
 
-/** 侧边栏是否已打开 */
-export function isSidePanelOpen(): boolean {
-  return sidePanelPort !== null;
+/** 判断目标窗口/标签页是否已打开或正在打开 Side Panel。 */
+export function isSidePanelOpen(windowId?: number, tabId?: number): boolean {
+  if (tabId !== undefined && openingTabIds.has(tabId)) return true;
+  if (windowId !== undefined) {
+    if ((sidePanelPortsByWindow.get(windowId)?.size ?? 0) > 0) return true;
+    for (const openingWindowId of openingWindowByTabId.values()) {
+      if (openingWindowId === windowId) return true;
+    }
+    return false;
+  }
+  if (tabId !== undefined) {
+    for (const context of sidePanelContextByPort.values()) {
+      if (context.tabId === tabId) return true;
+    }
+    return false;
+  }
+  return sidePanelContextByPort.size > 0 || openingTabIds.size > 0;
+}
+
+function markSidePanelOpening(tabId: number, windowId?: number): void {
+  openingTabIds.add(tabId);
+  if (windowId !== undefined) {
+    openingWindowByTabId.set(tabId, windowId);
+  } else {
+    void chrome.tabs
+      .get(tabId)
+      .then(tab => {
+        if (openingTabIds.has(tabId)) openingWindowByTabId.set(tabId, tab.windowId);
+      })
+      .catch(() => {});
+  }
+  const existing = openingTimeouts.get(tabId);
+  if (existing) clearTimeout(existing);
+  openingTimeouts.set(
+    tabId,
+    setTimeout(() => {
+      openingTabIds.delete(tabId);
+      openingWindowByTabId.delete(tabId);
+      openingTimeouts.delete(tabId);
+    }, 5000),
+  );
+}
+
+function clearSidePanelOpening(tabId: number): void {
+  openingTabIds.delete(tabId);
+  openingWindowByTabId.delete(tabId);
+  const timeout = openingTimeouts.get(tabId);
+  if (timeout) clearTimeout(timeout);
+  openingTimeouts.delete(tabId);
+}
+
+function unregisterSidePanelPort(port: chrome.runtime.Port): void {
+  pendingSidePanelPorts.delete(port);
+  const context = sidePanelContextByPort.get(port);
+  if (!context) return;
+  sidePanelContextByPort.delete(port);
+  const ports = sidePanelPortsByWindow.get(context.windowId);
+  ports?.delete(port);
+  if (ports?.size === 0) sidePanelPortsByWindow.delete(context.windowId);
+}
+
+async function registerReadySidePanelPort(
+  port: chrome.runtime.Port,
+  message: { windowId?: unknown; tabId?: unknown },
+): Promise<void> {
+  if (!pendingSidePanelPorts.has(port)) return;
+  if (!Number.isInteger(message.windowId) || !Number.isInteger(message.tabId)) return;
+  const windowId = message.windowId as number;
+  const tabId = message.tabId as number;
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (!pendingSidePanelPorts.has(port) || tab.windowId !== windowId) return;
+    unregisterSidePanelPort(port);
+    sidePanelContextByPort.set(port, { windowId, tabId });
+    const ports = sidePanelPortsByWindow.get(windowId) ?? new Set<chrome.runtime.Port>();
+    ports.add(port);
+    sidePanelPortsByWindow.set(windowId, ports);
+    clearSidePanelOpening(tabId);
+    logger.debug(`SidePanel READY 握手完成, windowId:${windowId}, tabId:${tabId}`);
+  } catch (error) {
+    logger.warn('SidePanel READY 握手校验失败:', error);
+  }
 }
 
 /**
@@ -60,6 +149,7 @@ export function openSidePanelAndRespond(
 ): void {
   // 性能埋点：记录打开请求时间戳与触发源（同步发起不 await，不打断用户手势链）
   markSidepanelOpenRequested(openMeta);
+  markSidePanelOpening(tabId);
   chrome.sidePanel
     .open({ tabId })
     .then(() => {
@@ -67,6 +157,7 @@ export function openSidePanelAndRespond(
       sendResponse({ success: true, result: '侧边栏已打开' });
     })
     .catch(error => {
+      clearSidePanelOpening(tabId);
       logger.error('Background: 打开侧边栏失败:', error);
       sendResponse({ success: false, error: error.message });
     });
@@ -104,8 +195,15 @@ export function closeSidePanelWithResponse(tabId: number, sendResponse: (respons
  *    随后恢复 enabled=true 保证下次能打开
  * 3. 同时通过 port 通知 sidepanel 执行 window.close() 作为 UI 层兜底
  */
-function forceCloseSidePanel(tabId: number): Promise<void> {
-  trySendCloseViaPort();
+async function forceCloseSidePanel(tabId: number): Promise<void> {
+  clearSidePanelOpening(tabId);
+  let windowId: number | undefined;
+  try {
+    windowId = (await chrome.tabs.get(tabId)).windowId;
+  } catch {
+    // tab 已关闭时交由 close API 的预期错误分支处理
+  }
+  trySendCloseViaPort(windowId);
 
   if (typeof chrome.sidePanel.close === 'function') {
     return chrome.sidePanel
@@ -116,7 +214,6 @@ function forceCloseSidePanel(tabId: number): Promise<void> {
       .catch(error => {
         if (isExpectedCloseError(error)) {
           logger.debug('Background: 侧边栏已不存在，视为关闭成功');
-          sidePanelPort = null;
           return;
         }
         logger.warn('Background: close API 失败，尝试 setOptions 兜底:', error);
@@ -147,7 +244,6 @@ function disableThenEnableSidePanel(tabId: number): Promise<void> {
     .catch(error => {
       if (isExpectedCloseError(error)) {
         logger.debug('Background: 侧边栏已不存在，视为关闭成功');
-        sidePanelPort = null;
         return;
       }
       logger.error('Background: setOptions 兜底失败:', error);
@@ -158,14 +254,15 @@ function disableThenEnableSidePanel(tabId: number): Promise<void> {
 /**
  * 通过 port 发送关闭消息（降级方案）
  */
-function trySendCloseViaPort(): void {
-  if (sidePanelPort) {
+function trySendCloseViaPort(windowId?: number): void {
+  const ports = windowId === undefined ? [] : [...(sidePanelPortsByWindow.get(windowId) ?? [])];
+  for (const port of ports) {
     try {
-      sidePanelPort.postMessage({ type: MessageType.CLOSE_SIDEPANEL });
+      port.postMessage({ type: MessageType.CLOSE_SIDEPANEL });
       logger.debug('Background: 侧边栏关闭消息已发送 (port)');
     } catch (err) {
       logger.error('Background: 通过 port 发送关闭消息失败:', err);
-      sidePanelPort = null;
+      unregisterSidePanelPort(port);
     }
   }
 }
@@ -179,8 +276,8 @@ export function setupSidePanelListeners(): void {
   // 监听 sidepanel 的 port 连接
   chrome.runtime.onConnect.addListener(port => {
     if (port.name === 'sidepanel') {
-      logger.debug('SidePanel 已连接');
-      sidePanelPort = port;
+      logger.debug('SidePanel 已连接，等待 READY 握手');
+      pendingSidePanelPorts.add(port);
 
       // 打开完成后延时空闲预热渲染资源（替代原 SIDEPANEL_PRELOAD 时机的预热——
       // 后者在用户点击瞬间触发全量 fetch，与渲染进程首屏加载争抢磁盘 IO）。
@@ -195,6 +292,10 @@ export function setupSidePanelListeners(): void {
       }, WARM_AFTER_OPEN_DELAY_MS);
 
       port.onMessage.addListener((message: any) => {
+        if (message.type === MessageType.SIDEPANEL_READY) {
+          void registerReadySidePanelPort(port, message);
+          return;
+        }
         if (message.type === 'HEARTBEAT') {
           // 心跳消息到达即保持 SW 活跃（重置 30s 空闲计时器），无需额外处理
           return;
@@ -203,7 +304,7 @@ export function setupSidePanelListeners(): void {
 
       port.onDisconnect.addListener(() => {
         logger.debug('SidePanel 已断开连接');
-        sidePanelPort = null;
+        unregisterSidePanelPort(port);
       });
     }
   });
@@ -224,7 +325,7 @@ export function setupSidePanelListeners(): void {
         return;
       }
 
-      if (sidePanelPort) {
+      if (isSidePanelOpen(tab?.windowId, tab?.id)) {
         const tabId = tab?.id;
         if (tabId) {
           closeSidePanel(tabId);
@@ -249,10 +350,14 @@ export function setupSidePanelListeners(): void {
         }
         // 性能埋点：记录打开请求时间戳与触发源（同步发起，不打断用户手势链）
         markSidepanelOpenRequested({ trigger: 'shortcut' });
+        markSidePanelOpening(tabId, tab.windowId);
         chrome.sidePanel
           .open({ tabId })
           .then(() => logger.debug('Background: 侧边栏已打开 (快捷键)'))
-          .catch(error => logger.error('Background: 快捷键打开侧边栏失败:', error));
+          .catch(error => {
+            clearSidePanelOpening(tabId);
+            logger.error('Background: 快捷键打开侧边栏失败:', error);
+          });
       }
     }
   });
