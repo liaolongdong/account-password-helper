@@ -125,6 +125,21 @@ export async function isSessionQuicklyKnownInvalid(): Promise<boolean> {
 }
 
 /**
+ * 解析侧边栏启动阶段的轻量会话失效提示。
+ *
+ * 调用方可传入已经发起的判定 Promise，避免快照未命中后本地回退路径再次读取
+ * storage.session/storage.local。该值只决定是否提前预拉 passwordCrud chunk，
+ * 最终认证状态仍由完整 isSessionValid 判定，因而不会改变会话安全语义。
+ */
+export async function resolveQuickSessionInvalidHint(prefetched?: Promise<boolean>): Promise<boolean> {
+  try {
+    return await (prefetched ?? isSessionQuicklyKnownInvalid());
+  } catch {
+    return false;
+  }
+}
+
+/**
  * storage.session 加密快照直读结果
  */
 interface SnapshotReadResult {
@@ -650,7 +665,7 @@ export function useSidepanelData() {
    *
    * @returns 初始化元信息（竞速胜出路径 + 会话状态），供性能埋点记录维度使用
    */
-  const initSidepanelData = async (): Promise<SidepanelInitMeta> => {
+  const initSidepanelData = async (quickInvalidHintPromise?: Promise<boolean>): Promise<SidepanelInitMeta> => {
     // 建立与 background 的 port 连接，用于状态追踪和接收关闭消息
     try {
       bgPort = chrome.runtime.connect({ name: 'sidepanel' });
@@ -802,7 +817,7 @@ export function useSidepanelData() {
         // （Windows 冷盘每段 50~300ms 叠加）；
         // 已确认失效时维持「完全跳过 crud chunk」的锁屏优化（减少一次文件冷读）
         const isSessionValidFnPromise = getIsSessionValid();
-        const quickInvalid = await isSessionQuicklyKnownInvalid();
+        const quickInvalid = await resolveQuickSessionInvalidHint(quickInvalidHintPromise);
         let crudPromise: ReturnType<typeof getPasswordCrudModule> | null = null;
         if (!quickInvalid) {
           crudPromise = getPasswordCrudModule();

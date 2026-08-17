@@ -698,7 +698,9 @@ onMounted(async () => {
     })
     .catch(() => {});
 
-  const initMeta = await initSidepanelData();
+  // 将已在 onMounted 起点发起的轻量判定复用给本地回退路径；仅作为 chunk
+  // 预拉提示，完整会话验证仍由 useSidepanelData 内部执行。
+  const initMeta = await initSidepanelData(quickInvalidPromise);
 
   // 性能埋点：首屏数据就绪（User Timing API 不受生产构建 drop console 影响）
   markPerf(SP_PERF_MARKS.DATA_READY);

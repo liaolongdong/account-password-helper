@@ -27,7 +27,7 @@ import {
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
 import { getTagColor } from '@/utils/tagUtils';
-import { pinyinMatcherReady } from '@/utils/searchMatch';
+import { getPinyinRenderMemoDependency } from '@/utils/searchMatch';
 import { t } from '@/utils/i18n';
 
 interface Props {
@@ -82,6 +82,11 @@ const favoriteOnly = defineModel<boolean>('favoriteOnly', { required: true });
 
 /** 标签筛选选中集（双向绑定至父级，命中任一即保留） */
 const filterTags = defineModel<string[]>('filterTags', { required: true });
+
+/**
+ * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
+ */
+const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(searchKeyword.value));
 
 /**
  * 切换单个筛选标签的选中态（点击即切，无需下拉选择）
@@ -384,7 +389,7 @@ onUnmounted(() => {
             password.updateTime,
             autoTriggerLogin,
             searchKeyword,
-            pinyinMatcherReady,
+            pinyinRenderMemoDependency,
           ]"
           :password="password"
           :is-active="activeIndex === index"

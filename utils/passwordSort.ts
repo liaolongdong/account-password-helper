@@ -92,7 +92,42 @@ export function sortPasswordEntries(
   sort: SortState = DEFAULT_SORT,
   priorityFn?: (entry: PasswordEntry) => number,
 ): PasswordEntry[] {
-  return list.sort((a, b) => comparePasswordEntries(a, b, sort, priorityFn));
+  if (!priorityFn || list.length < 2) {
+    return list.sort((a, b) => comparePasswordEntries(a, b, sort));
+  }
+
+  // 域名优先级可能包含 URL 解析/主机匹配。若放在 O(N log N) 比较器内，
+  // 同一条目会被重复计算数十次；排序前按条目引用预计算一次，比较阶段仅查表。
+  // priorityFn 在项目内均为同步纯函数，预计算不会改变优先级链或排序结果。
+  const firstPriority = priorityFn(list[0]);
+  // 非有限值相减可能得到 NaN；旧比较器会直接返回 NaN（由 Array.sort 视为相等），
+  // 因此只对有限且完全相同的优先级启用「跳过优先级比较」快路。
+  let priorityByEntry: Map<PasswordEntry, number> | null = Number.isFinite(firstPriority)
+    ? null
+    : new Map([[list[0], firstPriority]]);
+  for (let index = 1; index < list.length; index += 1) {
+    const entry = list[index];
+    const priority = priorityFn(entry);
+    if (!priorityByEntry && priority !== firstPriority) {
+      // 前面的条目优先级均与 firstPriority 相同；仅在发现差异后才创建 Map，
+      // 避免当前域名尚未就绪（全 0）时给比较器增加无收益的查表开销。
+      priorityByEntry = new Map<PasswordEntry, number>();
+      for (let previous = 0; previous < index; previous += 1) {
+        priorityByEntry.set(list[previous], firstPriority);
+      }
+    }
+    priorityByEntry?.set(entry, priority);
+  }
+
+  if (!priorityByEntry) {
+    return list.sort((a, b) => comparePasswordEntries(a, b, sort));
+  }
+
+  return list.sort((a, b) => {
+    const priorityDiff = priorityByEntry.get(a)! - priorityByEntry.get(b)!;
+    if (priorityDiff !== 0) return priorityDiff;
+    return comparePasswordEntries(a, b, sort);
+  });
 }
 
 /**
