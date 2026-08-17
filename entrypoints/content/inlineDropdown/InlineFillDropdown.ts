@@ -75,6 +75,15 @@ const inlineStyles = `
   box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 30%);
 }
 
+/* 透明点击热区扩展（44×44，满足 Apple HIG / Material 最小触控目标） */
+.aph-trigger-hitarea {
+  position: absolute;
+  inset: -11px;
+  z-index: -1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
 /* 首次引导气泡（终生仅展示一次，锚定钥匙图标上方，避开下方的 Chrome 原生密码下拉） */
 .aph-hint {
   position: fixed;
@@ -603,6 +612,10 @@ export class InlineFillDropdown {
     this.triggerEl.className = 'aph-trigger';
     this.triggerEl.setAttribute('title', tl('cs.inline.trigger'));
     this.triggerEl.innerHTML = KEY_ICON;
+    // 透明点击热区：绝对定位扩展至 44×44px，事件冒泡至 trigger 按钮
+    const hitArea = document.createElement('div');
+    hitArea.className = 'aph-trigger-hitarea';
+    this.triggerEl.appendChild(hitArea);
     // mousedown 阻止默认，避免点击图标令登录框失焦（保持后续 blur 时序可控）
     this.triggerEl.addEventListener('mousedown', e => e.preventDefault());
     this.triggerEl.addEventListener('click', this.handleTriggerClick);
