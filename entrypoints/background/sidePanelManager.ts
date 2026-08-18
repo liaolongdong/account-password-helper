@@ -1,6 +1,7 @@
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { markSidepanelOpenRequested, type SidepanelOpenTrigger } from '@/utils/perfMetrics';
+import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { openOptionsPage } from './optionsPageManager';
 import { handleQuickFill } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
@@ -324,6 +325,9 @@ export function setupSidePanelListeners(): void {
         logger.error('Background: 当前Chrome版本不支持sidePanel API');
         return;
       }
+      // 同步预热：覆盖快捷键路径在 SW 被强杀复活窗口内无 hover 触发预热的场景，
+      // 尽早唤醒可能已冷却的 SW 内存密码缓存；preWarmServiceWorker 内部有 8s 节流，正常态 no-op
+      preWarmServiceWorker();
 
       if (isSidePanelOpen(tab?.windowId, tab?.id)) {
         const tabId = tab?.id;

@@ -36,6 +36,7 @@ import {
   getTotpHandoffCapsule,
   destroyTotpHandoffCapsule,
 } from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
+import { preWarmServiceWorker } from '@/utils/preWarmSw';
 
 /**
  * 表单检测器
@@ -736,6 +737,9 @@ export class FormDetector {
         return;
       }
 
+      // 点击即预热：与悬浮按钮/popup/快捷键保持一致，
+      // 确保 SW 密码缓存在发送 SHOW_SIDEPANEL 前被唤醒
+      preWarmServiceWorker();
       // clickTs=发起时刻，覆盖「点击 → SW 唤醒」埋点盲区
       await chrome.runtime.sendMessage({
         type: MessageType.SHOW_SIDEPANEL,
