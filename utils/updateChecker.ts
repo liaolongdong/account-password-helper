@@ -78,16 +78,18 @@ export async function canAccessChromeWebStore(): Promise<boolean> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), CWS_CHECK_TIMEOUT_MS);
 
-    const response = await fetch(CHROME_WEB_STORE_CHECK_URL, {
+    // 使用 no-cors 模式避免 chromewebstore.google.com 不返回 CORS 头导致控制台报错。
+    // 此模式仅探测网络可达性：请求成功（opaque response）表示可达，网络错误/超时/被墙则 reject。
+    await fetch(CHROME_WEB_STORE_CHECK_URL, {
       method: 'HEAD',
+      mode: 'no-cors',
       signal: controller.signal,
     });
     clearTimeout(timeoutId);
 
-    const accessible = response.ok;
-    _cwsAccessibleCache = { accessible, checkedAt: Date.now() };
-    logger.info(`UpdateChecker: CWS 可访问性检测结果 ${accessible ? '可访问' : '不可访问'}`);
-    return accessible;
+    _cwsAccessibleCache = { accessible: true, checkedAt: Date.now() };
+    logger.info('UpdateChecker: CWS 可访问性检测结果 可访问');
+    return true;
   } catch (_error) {
     _cwsAccessibleCache = { accessible: false, checkedAt: Date.now() };
     logger.info('UpdateChecker: CWS 不可访问（网络错误/超时/被墙）');

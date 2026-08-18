@@ -491,11 +491,10 @@ export function setupMessageRouter(): void {
           }
         }
 
-        try {
-          chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-        } catch {
+        // 无 await：fire-and-forget 广播，无监听者时 .catch() 静默吞掉 "Could not establish connection"
+        chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
           // 无监听者时忽略
-        }
+        });
 
         sendResponse({ success: true });
         break;
