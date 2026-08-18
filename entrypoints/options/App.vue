@@ -194,6 +194,9 @@
       @restored="loadPasswords"
     />
 
+    <!-- 密码历史设置弹窗 -->
+    <PasswordHistorySettingDialog v-model="showPasswordHistoryDialog" />
+
     <!-- 修改主密码弹窗 -->
     <ChangeMasterPasswordDialog
       v-model="showChangeMasterPasswordDialog"
@@ -206,6 +209,9 @@
       :available-tags="availableTags"
       @save="handleBatchTagSave"
     />
+
+    <!-- 主密码验证弹窗（导出/备份/有效期修改等操作前校验） -->
+    <MasterPasswordVerifyDialog />
   </div>
 </template>
 
@@ -234,10 +240,16 @@ const FavoriteLimitSetting = defineAsyncComponent(() => import('@/components/opt
 const ClipboardSettingDialog = defineAsyncComponent(() => import('@/components/options/ClipboardSettingDialog.vue'));
 const PasswordHealthDialog = defineAsyncComponent(() => import('@/components/options/PasswordHealthDialog.vue'));
 const TrashDialog = defineAsyncComponent(() => import('@/components/options/TrashDialog.vue'));
+const PasswordHistorySettingDialog = defineAsyncComponent(
+  () => import('@/components/options/PasswordHistorySettingDialog.vue'),
+);
 const ChangeMasterPasswordDialog = defineAsyncComponent(
   () => import('@/components/options/ChangeMasterPasswordDialog.vue'),
 );
 const BatchTagDialog = defineAsyncComponent(() => import('@/components/options/BatchTagDialog.vue'));
+const MasterPasswordVerifyDialog = defineAsyncComponent(
+  () => import('@/components/options/MasterPasswordVerifyDialog.vue'),
+);
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -303,6 +315,9 @@ const showHealthDialog = ref(false);
 
 /** 回收站弹窗可见性 */
 const showTrashDialog = ref(false);
+
+/** 密码历史设置弹窗可见性 */
+const showPasswordHistoryDialog = ref(false);
 
 /** 修改主密码弹窗可见性 */
 const showChangeMasterPasswordDialog = ref(false);
@@ -396,6 +411,18 @@ const handleEncryptedBackupExport = async () => {
 };
 
 /**
+ * 打开回收站前先验证主密码，验证通过才弹窗
+ */
+const openTrashWithVerify = async (): Promise<void> => {
+  const masterPassword = await promptAndVerifyMasterPassword(
+    t('options.trash.verifyTitle'),
+    t('options.trash.verifyPrompt'),
+  );
+  if (!masterPassword) return;
+  showTrashDialog.value = true;
+};
+
+/**
  * 数据管理下拉菜单命令处理
  * @param command 菜单项命令标识
  */
@@ -426,7 +453,7 @@ const handleDataCommand = (command: string) => {
       removeDuplicates();
       break;
     case 'trash':
-      showTrashDialog.value = true;
+      openTrashWithVerify();
       break;
   }
 };
@@ -454,6 +481,9 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'clipboard':
       showClipboardDialog.value = true;
+      break;
+    case 'passwordHistory':
+      showPasswordHistoryDialog.value = true;
       break;
   }
 };

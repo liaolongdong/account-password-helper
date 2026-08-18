@@ -5,8 +5,8 @@ import {
   MessageType,
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { getSidePanelPort } from './sidePanelManager';
-import { invalidatePasswordCache } from './passwordCache';
+import { getSidePanelPorts } from './sidePanelManager';
+import { ensureCredentialAccessAfterStartupRelock, invalidatePasswordCache } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
 
 /**
@@ -19,6 +19,9 @@ export async function handleAutoSavePassword(
   data: AutoSavePasswordData,
 ): Promise<{ success: boolean; message: string }> {
   try {
+    if (!(await ensureCredentialAccessAfterStartupRelock())) {
+      return { success: false, message: tl('bg.autoSave.failedGeneric') };
+    }
     // 动态导入 StorageUtils，将 storage 层（masterPassword/autoSaveManager 等）的
     // 模块初始化延迟到自动保存消息到达时（SW 产物被 WXT 内联为单文件，
     // 此懒加载不减少冷启动解析/编译量）。
@@ -29,8 +32,7 @@ export async function handleAutoSavePassword(
       invalidatePasswordCache();
 
       // 主动通知 sidepanel 刷新数据（如果打开的话）
-      const port = getSidePanelPort();
-      if (port) {
+      for (const port of getSidePanelPorts()) {
         try {
           port.postMessage({ type: MessageType.URL_CHANGED });
         } catch {
@@ -68,6 +70,7 @@ export async function handleAutoSavePassword(
  */
 export async function handleCheckCredentialStatus(data: CheckCredentialStatusData): Promise<CredentialStatusResponse> {
   try {
+    if (!(await ensureCredentialAccessAfterStartupRelock())) return { status: 'locked' };
     const { StorageUtils } = await import('@/utils/storage');
     return await StorageUtils.checkCredentialStatus(data);
   } catch (error) {

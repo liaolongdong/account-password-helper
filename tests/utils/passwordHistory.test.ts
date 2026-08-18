@@ -16,7 +16,13 @@ beforeEach(() => {
   vi.stubGlobal('chrome', {
     storage: {
       local: {
-        get: vi.fn(async (key: string) => ({ [key]: storageData[key] })),
+        get: vi.fn(async (key: string) => {
+          // 密码历史配置：返回默认值（启用，3条）
+          if (key === 'password_history_config') {
+            return { [key]: storageData[key] ?? { enabled: true, maxCount: 3 } };
+          }
+          return { [key]: storageData[key] };
+        }),
         set: vi.fn(async (data: Record<string, any>) => {
           Object.assign(storageData, data);
         }),
@@ -43,24 +49,36 @@ describe('passwordHistory', () => {
     expect(history[0].changedAt).toBeGreaterThan(0);
   });
 
-  it('snapshotPasswordHistory 超过5条时截断最旧的', async () => {
+  it('snapshotPasswordHistory 超过默认3条时截断最旧的', async () => {
     const { snapshotPasswordHistory, getPasswordHistory } = await import('@/utils/storage/passwordHistory');
 
-    // 预置 5 条历史
+    // 预置 3 条历史
     const existing: PasswordHistoryRecord[] = [];
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= 3; i++) {
       existing.push({ entryId: 'entry-1', password: `pw-${i}`, changedAt: i * 1000 });
     }
     storageData['password_change_history'] = existing;
 
-    // 追加第 6 条
-    await snapshotPasswordHistory('entry-1', 'pw-6');
+    // 追加第 4 条
+    await snapshotPasswordHistory('entry-1', 'pw-4');
 
     const history = await getPasswordHistory('entry-1');
-    expect(history).toHaveLength(5);
-    // 最旧的 pw-1 应被截断，最新的 pw-6 应在前面
-    expect(history[0].password).toBe('pw-6');
+    expect(history).toHaveLength(3);
+    // 最旧的 pw-1 应被截断，最新的 pw-4 应在前面
+    expect(history[0].password).toBe('pw-4');
     expect(history.find(r => r.password === 'pw-1')).toBeUndefined();
+  });
+
+  it('snapshotPasswordHistory 配置禁用时跳过快照', async () => {
+    // 覆盖配置为禁用
+    storageData['password_history_config'] = { enabled: false, maxCount: 3 };
+    const { snapshotPasswordHistory, getPasswordHistory } = await import('@/utils/storage/passwordHistory');
+
+    await snapshotPasswordHistory('entry-1', 'encrypted-old-pw');
+    const history = await getPasswordHistory('entry-1');
+
+    // 禁用时不应追加任何记录
+    expect(history).toHaveLength(0);
   });
 
   it('getPasswordHistory 按时间倒序返回', async () => {

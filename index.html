@@ -1660,8 +1660,8 @@
             </div>
             <h3 data-i18n="features.f9.title">回收站与修改历史</h3>
             <p data-i18n="features.f9.desc">
-              删除条目进回收站保留 30 天可随时恢复；每条密码保留 5
-              份加密快照，改错一键回滚；修改主密码原子换钥不丢数据。
+              删除条目进回收站保留 30 天可随时恢复；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 5
+              份），改错一键回滚；修改主密码原子换钥不丢数据。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-1">
@@ -2173,8 +2173,8 @@
         },
         'features.f9.title': { zh: '回收站与修改历史', en: 'Trash & Password History' },
         'features.f9.desc': {
-          zh: '删除条目进回收站保留 30 天可随时恢复；每条密码保留 5 份加密快照，改错一键回滚；修改主密码原子换钥不丢数据。',
-          en: 'Deleted entries stay in the trash for 30 days and can be restored anytime; each password keeps 5 encrypted snapshots for one-click rollback; changing the master password re-keys atomically without data loss.',
+          zh: '删除条目进回收站保留 30 天可随时恢复；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 5 份），改错一键回滚；修改主密码原子换钥不丢数据。',
+          en: 'Deleted entries stay in the trash for 30 days and can be restored anytime; password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 5) for one-click rollback; changing the master password re-keys atomically without data loss.',
         },
         'features.f10.title': { zh: '主题换肤与双语界面', en: 'Themes & Bilingual UI' },
         'features.f10.desc': {
@@ -2534,8 +2534,8 @@
         {
           q: { zh: '改错密码了能恢复旧密码吗？', en: 'Can I restore an old password after a change?' },
           a: {
-            zh: '能。每次修改密码时，插件会自动将旧密码加密快照入历史（每个条目保留最近 5 条）。在编辑该条目的弹窗底部可看到「密码修改历史」区块，点击「复制」可复制旧密码，点击「恢复」即将旧密码回填到密码框。历史以加密态存储，查看需会话有效。',
-            en: 'Yes. Every password change snapshots the old password (encrypted, last 5 per entry). The edit dialog shows a "Password history" section — "Copy" copies the old password, "Restore" fills it back into the password field. History is stored encrypted and requires a valid session to view.',
+            zh: '能。每次修改密码时，插件会自动将旧密码加密快照入历史（可在「安全设置」→「密码历史设置」中配置启用/关闭及保留条数，默认 5 条）。在编辑该条目的弹窗底部可看到「密码修改历史」区块，点击「复制」可复制旧密码，点击「恢复」即将旧密码回填到密码框。历史以加密态存储，查看需会话有效。',
+            en: 'Yes. Every password change snapshots the old password (configurable in "Security Settings" → "Password History Settings" — enable/disable and set max records, default 5). The edit dialog shows a "Password history" section — "Copy" copies the old password, "Restore" fills it back into the password field. History is stored encrypted and requires a valid session to view.',
           },
         },
         {

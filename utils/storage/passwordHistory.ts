@@ -1,9 +1,10 @@
 import type { PasswordHistoryRecord } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { getPasswordHistoryConfig } from '@/utils/storage/configManager';
 
-/** 每条密码条目最多保留的历史记录数 */
-const MAX_HISTORY_PER_ENTRY = 5;
+/** 每条密码条目最多保留的历史记录数（默认值，实际从用户配置动态读取） */
+const DEFAULT_MAX_HISTORY_PER_ENTRY = 3;
 
 // ==================== 内部工具 ====================
 
@@ -33,13 +34,19 @@ async function writeAllHistory(records: PasswordHistoryRecord[]): Promise<void> 
  * 快照密码修改历史
  *
  * 在密码字段变更时调用，将旧密文追加到历史记录。
- * 超过 MAX_HISTORY_PER_ENTRY 时截断最旧的记录。
+ * 超过用户配置的最大保留数时截断最旧的记录。
+ * 配置为禁用时跳过快照。
  *
  * @param entryId 密码条目 ID
  * @param encryptedOldPassword 旧密码密文（直接从 storage 读取的加密态值）
  */
 export async function snapshotPasswordHistory(entryId: string, encryptedOldPassword: string): Promise<void> {
   try {
+    // 读取用户配置：禁用时跳过快照
+    const config = await getPasswordHistoryConfig();
+    if (!config.enabled) return;
+
+    const maxHistory = config.maxCount || DEFAULT_MAX_HISTORY_PER_ENTRY;
     const allHistory = await readAllHistory();
 
     // 追加新记录
@@ -52,10 +59,10 @@ export async function snapshotPasswordHistory(entryId: string, encryptedOldPassw
 
     // 截断该条目超出上限的旧记录（按时间升序，移除最旧的）
     const entryRecords = allHistory.filter(r => r.entryId === entryId);
-    if (entryRecords.length > MAX_HISTORY_PER_ENTRY) {
+    if (entryRecords.length > maxHistory) {
       // 按 changedAt 升序排列，移除最旧的
       entryRecords.sort((a, b) => a.changedAt - b.changedAt);
-      const toRemoveCount = entryRecords.length - MAX_HISTORY_PER_ENTRY;
+      const toRemoveCount = entryRecords.length - maxHistory;
       const toRemoveSet = new Set(entryRecords.slice(0, toRemoveCount));
       const trimmed = allHistory.filter(r => !toRemoveSet.has(r));
       await writeAllHistory(trimmed);

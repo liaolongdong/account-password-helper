@@ -127,7 +127,7 @@ import {
 } from '@/utils/perfMetrics';
 import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
+import { isExactHostMatch, isLocalDevDomain, matchesPortForLocalDev } from '@/utils/domain';
 import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
 
 /**
@@ -150,6 +150,21 @@ const AuthViewLoading = () =>
     h('span', t('sidepanel.loading')),
   ]);
 
+/** 认证视图分包持续加载失败时的轻量可恢复兜底，避免骨架移除后留下空白区域。 */
+const AuthViewError = () =>
+  h('div', { class: 'sp-auth-view-error', role: 'alert' }, [
+    h('span', t('sidepanel.viewLoadFailed')),
+    h(
+      'button',
+      {
+        type: 'button',
+        class: 'sp-auth-view-error__retry',
+        onClick: () => window.location.reload(),
+      },
+      t('sidepanel.retry'),
+    ),
+  ]);
+
 /**
  * 认证态视图（搜索卡片 + 密码列表卡片）——异步加载
  *
@@ -162,6 +177,8 @@ const AuthViewLoading = () =>
 const SidepanelAuthView = defineAsyncComponent({
   loader: () => import('@/components/sidepanel/SidepanelAuthView.vue'),
   loadingComponent: AuthViewLoading,
+  errorComponent: AuthViewError,
+  timeout: 8000,
   onError(error, retry, fail, attempts) {
     if (attempts <= 2) {
       logger.warn(`SidePanel: 认证视图 chunk 加载失败，重试第 ${attempts} 次:`, error);
@@ -192,6 +209,7 @@ const {
   loading,
   isAuthenticated,
   currentDomain,
+  currentPort,
   showSidepanel,
   sortConfig,
   initSidepanelData,
@@ -252,16 +270,18 @@ const showHelpDialog = ref(false);
  */
 const domainFilteredPasswords = computed(() => {
   let result = [...passwords.value];
-  // 域名过滤：只显示与当前域名精确匹配（完整 hostname）的条目 + URL 为空的条目
-  // 复用 isExactHostMatch，与 getPasswordsByUrl / 后台 getMatchingAccounts 匹配逻辑保持一致
-  // 不做子域名/主域名模糊匹配，确保 fat/uat 等多测试环境账号严格隔离
-  // 本地开发域名（localhost / 127.0.0.1）跳过过滤，显示全部
-  if (currentDomain.value && !isLocalDevDomain(currentDomain.value)) {
+  if (currentDomain.value) {
     const domain = currentDomain.value;
-    result = result.filter(p => {
-      if (!p.url || p.url.trim() === '') return true;
-      return isExactHostMatch(domain, p.url);
-    });
+    if (isLocalDevDomain(domain)) {
+      // 本地开发域名：有端口时按端口过滤，无端口时保持原有行为（展示全部）
+      result = result.filter(p => matchesPortForLocalDev(p.url, currentPort.value));
+    } else {
+      // 非本地开发域名：精确主机匹配
+      result = result.filter(p => {
+        if (!p.url || p.url.trim() === '') return true;
+        return isExactHostMatch(domain, p.url);
+      });
+    }
   }
   return result;
 });
@@ -690,6 +710,12 @@ onMounted(async () => {
       if (!knownInvalid || _opened) return;
       _quickKnownInvalid = true;
       logger.debug(`SidePanel: 锁屏快速路径命中，${(performance.now() - _perfMountStart).toFixed(1)}ms 淡出骨架屏`);
+      // 锁屏态立即预取 HelpDialog chunk（fire-and-forget）：
+      // 锁屏快速路径命中后主线程快速释放，但 requestIdleCallback 仍可能延迟 1-3 秒
+      // （数据竞速瀑布阻塞 storage.local 冷读），用户点击帮助时 chunk 尚未加载。
+      // 直接 import 使 chunk 加载与骨架屏淡出并行，用户点击时 chunk 已温热；
+      // 与 defineAsyncComponent / preloadIdleModules 使用同一 specifier，Vite 复用同一 chunk
+      void import('@/components/sidepanel/HelpDialog.vue').catch(() => {});
       // 窗口被遮挡/不可见时 Chrome 会冻结 rAF，加 100ms 定时兜底（finishOpen 幂等，先到者生效）；
       // 活跃视窗下 rAF 一帧内（~16ms）必触发，兜底仅在 rAF 冻结时生效，
       // 此前取 500ms 过于保守——锁屏卡片为内联模板挂载即就绪，无需多留骨架屏
@@ -698,7 +724,9 @@ onMounted(async () => {
     })
     .catch(() => {});
 
-  const initMeta = await initSidepanelData();
+  // 将已在 onMounted 起点发起的轻量判定复用给本地回退路径；仅作为 chunk
+  // 预拉提示，完整会话验证仍由 useSidepanelData 内部执行。
+  const initMeta = await initSidepanelData(quickInvalidPromise);
 
   // 性能埋点：首屏数据就绪（User Timing API 不受生产构建 drop console 影响）
   markPerf(SP_PERF_MARKS.DATA_READY);
@@ -875,6 +903,37 @@ body {
   box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
 }
 
+.sp-auth-view-error {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin: 8px 8px 0;
+  color: #6b7280;
+  background: #fff;
+  border-radius: 12px;
+}
+
+.sp-auth-view-error__retry {
+  padding: 8px 18px;
+  color: #fff;
+  cursor: pointer;
+  background: var(--aph-primary);
+  border: 0;
+  border-radius: 8px;
+}
+
+.sp-auth-view-error__retry:focus-visible {
+  outline: 2px solid var(--aph-primary);
+  outline-offset: 2px;
+}
+
+.sp-auth-view-error__retry:hover {
+  background: var(--aph-primary-hover);
+}
+
 .sp-auth-view-loading__spinner {
   width: 22px;
   height: 22px;
@@ -887,6 +946,12 @@ body {
 @keyframes sp-auth-loading-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-auth-view-loading__spinner {
+    animation: none;
   }
 }
 </style>

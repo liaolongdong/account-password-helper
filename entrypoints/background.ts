@@ -7,7 +7,8 @@ import { setupMessageRouter } from './background/messageRouter';
 import {
   setupBackgroundServices,
   initBackgroundConfig,
-  handleBrowserStartupRelock,
+  beginBrowserStartupRelock,
+  markInstalledBrowserSessionReady,
 } from './background/backgroundServices';
 import type { WarmSidePanelOptions } from '@/utils/warmSidePanelResources';
 
@@ -32,6 +33,9 @@ export default defineBackground(() => {
   // 插件安装/更新时的初始化
   chrome.runtime.onInstalled.addListener(details => {
     logger.info('账号密码管理助手插件已安装');
+    // 安装/升级发生在当前浏览器会话内，不属于 onStartup 重锁；仅写独立 recovery 标记，
+    // 且 onStartup 屏障已建立时拒绝写入，不能覆盖 pending/failed。
+    void markInstalledBrowserSessionReady();
     // 升级场景：冻结存量用户的历史填充默认值（新默认 'inline' 仅对新安装生效）；
     // 内部已捕获异常并记录日志，失败不阻断其余初始化
     if (details.reason === 'update') {
@@ -46,7 +50,7 @@ export default defineBackground(() => {
 
   // 浏览器/配置文件启动时，按「浏览器重启后重新锁定」设置执行安全重锁（默认关闭时无副作用）
   chrome.runtime.onStartup.addListener(() => {
-    void handleBrowserStartupRelock();
+    beginBrowserStartupRelock();
     // 启动预热（跨平台，立即执行）：浏览器刚启动时 OS 磁盘缓存全冷、V8 无 code cache，
     // 无论会话是否有效，首次打开侧边栏都会命中「进程冷 + 资源冷 + SW 冷」
     // 三冷叠加白屏（Mac 重启后首开同样受影响）。

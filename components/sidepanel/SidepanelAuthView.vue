@@ -23,11 +23,12 @@ import {
   User,
   Link,
   Clock,
+  FolderOpened,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
 import { getTagColor } from '@/utils/tagUtils';
-import { pinyinMatcherReady } from '@/utils/searchMatch';
+import { getPinyinRenderMemoDependency } from '@/utils/searchMatch';
 import { t } from '@/utils/i18n';
 
 interface Props {
@@ -82,6 +83,11 @@ const favoriteOnly = defineModel<boolean>('favoriteOnly', { required: true });
 
 /** 标签筛选选中集（双向绑定至父级，命中任一即保留） */
 const filterTags = defineModel<string[]>('filterTags', { required: true });
+
+/**
+ * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
+ */
+const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(searchKeyword.value));
 
 /**
  * 切换单个筛选标签的选中态（点击即切，无需下拉选择）
@@ -339,7 +345,7 @@ onUnmounted(() => {
         <!-- 全部无数据：显示引导添加 -->
         <template v-if="totalCount === 0">
           <div class="empty-icon-circle">
-            <el-icon class="empty-icon"><Plus /></el-icon>
+            <el-icon class="empty-icon"><FolderOpened /></el-icon>
           </div>
           <h3 class="empty-title">{{ t('sidepanel.noPasswords') }}</h3>
           <p class="empty-desc">{{ t('sidepanel.noPasswordsDesc') }}</p>
@@ -384,7 +390,7 @@ onUnmounted(() => {
             password.updateTime,
             autoTriggerLogin,
             searchKeyword,
-            pinyinMatcherReady,
+            pinyinRenderMemoDependency,
           ]"
           :password="password"
           :is-active="activeIndex === index"
@@ -542,7 +548,7 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   margin-bottom: 16px;
-  background: #f0fdf4;
+  background: #f5f5f5;
   border-radius: 50%;
 }
 
@@ -552,7 +558,7 @@ onUnmounted(() => {
 
 .empty-icon {
   font-size: 24px;
-  color: #22c55e;
+  color: #909399;
 }
 
 .empty-icon--muted {

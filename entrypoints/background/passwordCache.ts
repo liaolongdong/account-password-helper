@@ -18,6 +18,8 @@ import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState }
 import { fetchFaviconDataUrl } from '@/utils/favicon';
 import { generateTOTP, parseOtpAuth, getTotpRemaining } from '@/utils/totp';
 import { tl } from '@/utils/i18n-lite';
+import { waitForBrowserStartupRelockMarker } from '@/utils/browserStartupRelock';
+import { hasMasterPassword } from '@/utils/storage/masterPassword';
 
 // 兼容既有导入路径：backgroundServices 等从本模块导入 isMetadataOnlyChange，
 // 实现已下沉至 passwordCrud（单一事实源，面板侧可复用同一判定做就地修补）
@@ -39,6 +41,51 @@ let _cachedSortConfig: { prop: string; order: string } | null | undefined = unde
  * 共享同一预热 Promise 可避免重复的全量 AES-GCM 解密（Windows 上开销明显）。
  */
 let _warmInFlight: Promise<PasswordCache | null> | null = null;
+
+/** 当前 SW 生命周期内已通过浏览器启动重锁屏障；仅缓存成功结果。 */
+let _credentialAccessGranted = false;
+let _credentialAccessCheck: Promise<boolean> | null = null;
+let _credentialAccessEpoch = 0;
+
+/**
+ * 所有会恢复会话、读取明文缓存或解密条目的后台入口共用的启动安全门。
+ * 成功结果在本 SW 生命周期内缓存，避免热路径反复 storage IPC；失败/超时不缓存，
+ * 使显式重新认证写入 recovery 标记后下一次请求可以立即恢复。
+ */
+export async function ensureCredentialAccessAfterStartupRelock(): Promise<boolean> {
+  if (_credentialAccessGranted) return true;
+  if (!_credentialAccessCheck) {
+    const accessEpoch = _credentialAccessEpoch;
+    _credentialAccessCheck = waitForBrowserStartupRelockMarker().then(allowed => {
+      if (allowed && accessEpoch === _credentialAccessEpoch) {
+        _credentialAccessGranted = true;
+        return true;
+      }
+      return false;
+    });
+  }
+  const currentCheck = _credentialAccessCheck;
+  try {
+    return await currentCheck;
+  } finally {
+    if (!_credentialAccessGranted && _credentialAccessCheck === currentCheck) {
+      _credentialAccessCheck = null;
+    }
+  }
+}
+
+/** onStartup 入口同步调用，废弃当前 SW 内此前缓存的“已放行”结果。 */
+export function resetCredentialAccessBarrierForStartup(): void {
+  _credentialAccessEpoch += 1;
+  _credentialAccessGranted = false;
+  _credentialAccessCheck = null;
+}
+
+/** GET_INITIAL_DATA 已等待同一内存屏障后复用，避免热路径再做一次 storage IPC。 */
+export function grantCredentialAccessAfterStartupRelock(): void {
+  _credentialAccessGranted = true;
+  _credentialAccessCheck = null;
+}
 
 /**
  * 缓存代次计数器（epoch）
@@ -73,6 +120,7 @@ async function persistCacheSnapshot(
 ): Promise<void> {
   const epoch = _cacheEpoch;
   try {
+    if (!(await ensureCredentialAccessAfterStartupRelock())) return;
     const dataKey = await getSessionDataKey();
     if (!dataKey) return;
     const { encryptData } = await import('@/utils/encryption');
@@ -143,6 +191,7 @@ async function rebuildSnapshotFromCaptured(oldCache: PasswordCache | null): Prom
  *   调用方需回退到常规失效回温路径
  */
 export async function applyMetadataOnlyUpdate(changedEntries: unknown): Promise<boolean> {
+  if (!(await ensureCredentialAccessAfterStartupRelock())) return false;
   if (!passwordCache || !passwordCache.isAuthenticated || !Array.isArray(changedEntries)) {
     return false;
   }
@@ -232,6 +281,7 @@ async function getCacheValidityMs(): Promise<number> {
  * （filteredPasswords computed），因此无域名参数。
  */
 export async function getCachedPasswords(): Promise<PasswordCache | null> {
+  if (!(await ensureCredentialAccessAfterStartupRelock())) return null;
   if (!passwordCache) {
     return null;
   }
@@ -316,6 +366,7 @@ export function invalidatePasswordCache(keepSnapshotForRebuild = false): void {
  * @returns 预热后的密码缓存
  */
 export async function getOrWarmCache(): Promise<PasswordCache | null> {
+  if (!(await ensureCredentialAccessAfterStartupRelock())) return null;
   // 已有缓存直接复用，避免无谓解密
   if (passwordCache) return passwordCache;
 
@@ -358,6 +409,7 @@ export async function getOrWarmCache(): Promise<PasswordCache | null> {
  */
 export async function warmPasswordCache(): Promise<void> {
   try {
+    if (!(await ensureCredentialAccessAfterStartupRelock())) return;
     // 缓存已存在时直接返回
     if (passwordCache) return;
 
@@ -404,14 +456,19 @@ export async function getCachedSortConfig(): Promise<{ prop: string; order: stri
  *
  * @param passwords 全量密码条目
  * @param domain 当前页面域名（hostname）
+ * @param port 当前页面端口号（仅 localhost 场景使用，空串表示无端口）
  * @returns 过滤并排序后的新数组（首条即侧边栏展示第一条）
  */
-export async function sortMatchesForDomain(passwords: PasswordEntry[], domain: string): Promise<PasswordEntry[]> {
+export async function sortMatchesForDomain(
+  passwords: PasswordEntry[],
+  domain: string,
+  port?: string,
+): Promise<PasswordEntry[]> {
   const sortConfig = await getCachedSortConfig();
   const sortState: SortState = sortConfig
     ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
     : DEFAULT_SIDEPANEL_SORT;
-  return filterAndSortEntriesForDomain(passwords, domain, sortState);
+  return filterAndSortEntriesForDomain(passwords, domain, sortState, port);
 }
 
 /**
@@ -437,9 +494,18 @@ async function ensureAuthenticatedCache(): Promise<PasswordCache | null> {
  * 排序：复用 sortPasswordEntries + 侧边栏排序配置 + 域名优先级 + 收藏置顶。
  *
  * @param domain 当前页面顶层域名（hostname）
+ * @param port 当前页面端口号（仅 localhost 场景使用，空串表示无端口）
  * @returns 锁定标记与匹配账号元数据列表
  */
-export async function getMatchingAccounts(domain: string): Promise<MatchingAccountsResponse> {
+export async function getMatchingAccounts(domain: string, port?: string): Promise<MatchingAccountsResponse> {
+  if (!(await ensureCredentialAccessAfterStartupRelock())) return { locked: true, accounts: [] };
+
+  // 主密码存在性检查：未设置主密码时引导用户先设置，而非返回空列表
+  const hasMP = await hasMasterPassword();
+  if (!hasMP) {
+    return { locked: true, noMasterPassword: true, accounts: [] };
+  }
+
   // 会话状态门禁：优先同步判断，未命中再异步校验
   if (!isSessionActiveSync()) {
     const valid = await isSessionValid();
@@ -452,7 +518,7 @@ export async function getMatchingAccounts(domain: string): Promise<MatchingAccou
   // 过滤 + 排序：与侧边栏 filteredPasswords 一致（含无 URL 条目），
   // 仅精确匹配完整 hostname，确保 fat/uat 等多测试环境账号严格隔离；
   // 复用 sortMatchesForDomain（侧边栏排序配置 + 域名优先 + 收藏置顶）
-  const matched = await sortMatchesForDomain(cache.passwords, domain);
+  const matched = await sortMatchesForDomain(cache.passwords, domain, port);
 
   // 并行附带网站图标 dataURL（本地 _favicon/ 端点 + 内存缓存，失败降级空串），
   // 避免将 _favicon/* 暴露为 web_accessible_resources 供网页直接加载
@@ -481,6 +547,7 @@ export async function getMatchingAccounts(domain: string): Promise<MatchingAccou
  * @returns 解密后的密码条目，或 null
  */
 export async function getDecryptedEntryById(id: string): Promise<PasswordEntry | null> {
+  if (!(await ensureCredentialAccessAfterStartupRelock())) return null;
   if (!isSessionActiveSync()) {
     const valid = await isSessionValid();
     if (!valid) return null;
@@ -612,6 +679,7 @@ export async function setPendingTotp(tabId: number, entryId: string, hostname: s
  * @returns 待接力条目 ID 或 null
  */
 export async function consumePendingTotp(tabId: number, hostname: string): Promise<string | null> {
+  if (!(await ensureCredentialAccessAfterStartupRelock())) return null;
   return withPendingLock(async () => {
     const map = await readPendingMap();
     const key = String(tabId);

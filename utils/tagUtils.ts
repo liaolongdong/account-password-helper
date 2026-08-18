@@ -123,3 +123,12 @@ export const getTagFullStyle = (tag: string): Record<string, string> => {
   const { background, text, border } = getTagColor(tag);
   return { background, color: text, borderColor: border };
 };
+
+/**
+ * 构建列表渲染所需的标签名称与完整样式记录。
+ *
+ * 调用方可在以原始 tag 字符串为依赖的 computed 中缓存返回值，避免同一列表行
+ * 因激活态、搜索词等无关更新而重复拆分标签和计算颜色。
+ */
+export const buildTagPresentationRecords = (tag: string | undefined | null) =>
+  parseTags(tag).map(name => ({ name, style: getTagFullStyle(name) }));

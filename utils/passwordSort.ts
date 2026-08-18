@@ -1,5 +1,5 @@
 import type { PasswordEntry } from '@/utils/types';
-import { isExactHostMatch, isLocalDevDomain } from '@/utils/domain';
+import { isExactHostMatch, isLocalDevDomain, matchesPortForLocalDev } from '@/utils/domain';
 
 /**
  * 密码列表排序状态接口
@@ -92,14 +92,49 @@ export function sortPasswordEntries(
   sort: SortState = DEFAULT_SORT,
   priorityFn?: (entry: PasswordEntry) => number,
 ): PasswordEntry[] {
-  return list.sort((a, b) => comparePasswordEntries(a, b, sort, priorityFn));
+  if (!priorityFn || list.length < 2) {
+    return list.sort((a, b) => comparePasswordEntries(a, b, sort));
+  }
+
+  // 域名优先级可能包含 URL 解析/主机匹配。若放在 O(N log N) 比较器内，
+  // 同一条目会被重复计算数十次；排序前按条目引用预计算一次，比较阶段仅查表。
+  // priorityFn 在项目内均为同步纯函数，预计算不会改变优先级链或排序结果。
+  const firstPriority = priorityFn(list[0]);
+  // 非有限值相减可能得到 NaN；旧比较器会直接返回 NaN（由 Array.sort 视为相等），
+  // 因此只对有限且完全相同的优先级启用「跳过优先级比较」快路。
+  let priorityByEntry: Map<PasswordEntry, number> | null = Number.isFinite(firstPriority)
+    ? null
+    : new Map([[list[0], firstPriority]]);
+  for (let index = 1; index < list.length; index += 1) {
+    const entry = list[index];
+    const priority = priorityFn(entry);
+    if (!priorityByEntry && priority !== firstPriority) {
+      // 前面的条目优先级均与 firstPriority 相同；仅在发现差异后才创建 Map，
+      // 避免当前域名尚未就绪（全 0）时给比较器增加无收益的查表开销。
+      priorityByEntry = new Map<PasswordEntry, number>();
+      for (let previous = 0; previous < index; previous += 1) {
+        priorityByEntry.set(list[previous], firstPriority);
+      }
+    }
+    priorityByEntry?.set(entry, priority);
+  }
+
+  if (!priorityByEntry) {
+    return list.sort((a, b) => comparePasswordEntries(a, b, sort));
+  }
+
+  return list.sort((a, b) => {
+    const priorityDiff = priorityByEntry.get(a)! - priorityByEntry.get(b)!;
+    if (priorityDiff !== 0) return priorityDiff;
+    return comparePasswordEntries(a, b, sort);
+  });
 }
 
 /**
  * 按域名过滤并按侧边栏展示顺序排序密码条目（纯函数）
  *
  * 过滤规则（与侧边栏 filteredPasswords / 内联下拉 getMatchingAccounts 一致）：
- * - 本地开发域名（localhost 等）放行全部条目
+ * - 本地开发域名（localhost 等）：有端口时按端口过滤，无端口时放行全部
  * - URL 为空的条目始终纳入
  * - 其余仅纳入与当前域名精确主机匹配的条目
  *
@@ -110,15 +145,20 @@ export function sortPasswordEntries(
  * @param passwords 全量密码条目
  * @param domain 当前页面域名（hostname）
  * @param sort 排序状态，默认侧边栏排序
+ * @param port 当前页面端口号（仅 localhost 场景使用，空串表示无端口）
  * @returns 过滤并排序后的新数组（不修改入参数组）
  */
 export function filterAndSortEntriesForDomain(
   passwords: PasswordEntry[],
   domain: string,
   sort: SortState = DEFAULT_SIDEPANEL_SORT,
+  port?: string,
 ): PasswordEntry[] {
   const matched = passwords.filter(p => {
-    if (isLocalDevDomain(domain)) return true;
+    if (isLocalDevDomain(domain)) {
+      // 本地开发域名：有端口时按端口过滤，无端口时保持原有行为（放行全部）
+      return matchesPortForLocalDev(p.url, port ?? '');
+    }
     if (!p.url || p.url.trim() === '') return true;
     return isExactHostMatch(domain, p.url);
   });

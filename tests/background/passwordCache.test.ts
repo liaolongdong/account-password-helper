@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
+import { SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 
 /**
  * passwordCache.applyMetadataOnlyUpdate 单元测试
@@ -15,10 +16,16 @@ import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
  * 避免测试触碰真实加密链路。
  */
 
-vi.mock('@/utils/sessionManager-storage', () => ({
+const sessionMocks = vi.hoisted(() => ({
   isSessionValid: vi.fn(async () => true),
   isSessionActiveSync: vi.fn(() => true),
   getSessionDataKey: vi.fn(() => null),
+}));
+
+vi.mock('@/utils/sessionManager-storage', () => ({
+  isSessionValid: sessionMocks.isSessionValid,
+  isSessionActiveSync: sessionMocks.isSessionActiveSync,
+  getSessionDataKey: sessionMocks.getSessionDataKey,
 }));
 
 vi.mock('@/utils/storage/configManager', () => ({
@@ -27,14 +34,30 @@ vi.mock('@/utils/storage/configManager', () => ({
 
 import {
   applyMetadataOnlyUpdate,
+  consumePendingTotp,
+  getDecryptedEntryById,
   getCachedPasswords,
+  getInlineTotpCode,
+  getMatchingAccounts,
   invalidatePasswordCache,
+  resetCredentialAccessBarrierForStartup,
   updatePasswordCache,
 } from '@/entrypoints/background/passwordCache';
+import { handleQuickFill } from '@/entrypoints/background/quickFillHandler';
 
-beforeEach(() => {
+beforeEach(async () => {
   // 重置模块级缓存状态，保证用例 hermetic
+  vi.clearAllMocks();
+  await chrome.storage.local.clear();
+  await chrome.storage.session.clear();
   invalidatePasswordCache();
+  resetCredentialAccessBarrierForStartup();
+});
+
+afterEach(() => {
+  vi.clearAllTimers();
+  vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('applyMetadataOnlyUpdate', () => {
@@ -86,5 +109,42 @@ describe('applyMetadataOnlyUpdate', () => {
     const cached = await getCachedPasswords();
     expect(cached?.passwords[0].password).toBe('plain-secret');
     expect(cached?.passwords[0].lastUsedAt).toBe(100);
+  });
+});
+
+describe('浏览器启动重锁凭据边界', () => {
+  it('pending 期间快捷填充与内联凭据入口都不恢复旧会话或下发数据', async () => {
+    vi.useFakeTimers();
+    await chrome.storage.local.set({ idle_lock_config: { relockOnBrowserRestart: true } });
+    await chrome.storage.session.set({
+      [SESSION_MEMORY_KEYS.BROWSER_STARTUP_RELOCK_STATE]: { status: 'pending', updatedAt: Date.now() },
+    });
+    updatePasswordCache(
+      [makePasswordEntry({ id: 'secret', password: 'plain-secret', totp: 'JBSWY3DPEHPK3PXP' })],
+      '*',
+      true,
+    );
+    resetCredentialAccessBarrierForStartup();
+
+    const sendMessage = vi.spyOn(chrome.tabs, 'sendMessage');
+    const checks = Promise.all([
+      getCachedPasswords(),
+      getMatchingAccounts('example.com'),
+      getDecryptedEntryById('secret'),
+      getInlineTotpCode('secret'),
+      consumePendingTotp(1, 'example.com'),
+      handleQuickFill({ id: 1, url: 'https://example.com', windowId: 1 } as chrome.tabs.Tab),
+    ]);
+
+    await vi.advanceTimersByTimeAsync(1500);
+    const [cached, matching, entry, totp, pending] = await checks;
+
+    expect(cached).toBeNull();
+    expect(matching).toEqual({ locked: true, accounts: [] });
+    expect(entry).toBeNull();
+    expect(totp).toBeNull();
+    expect(pending).toBeNull();
+    expect(sessionMocks.isSessionValid).not.toHaveBeenCalled();
+    expect(sendMessage).not.toHaveBeenCalled();
   });
 });

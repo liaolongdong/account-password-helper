@@ -4,6 +4,7 @@ import type {
   ClipboardConfig,
   IdleLockConfig,
   PasswordEntry,
+  PasswordHistoryConfig,
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
@@ -335,4 +336,38 @@ export async function setFavoriteLimit(limit: number): Promise<void> {
     logger.error('设置收藏上限失败:', error);
     throw error;
   }
+}
+
+// ==================== 密码历史记录配置 ====================
+
+/** 密码历史记录默认配置 */
+export const DEFAULT_PASSWORD_HISTORY_CONFIG: PasswordHistoryConfig = {
+  enabled: true,
+  maxCount: 3,
+};
+
+const passwordHistoryStore = createConfigStore<PasswordHistoryConfig>(
+  STORAGE_KEYS.PASSWORD_HISTORY_CONFIG,
+  DEFAULT_PASSWORD_HISTORY_CONFIG,
+  '密码历史记录配置',
+);
+
+/**
+ * 获取密码历史记录配置
+ */
+export async function getPasswordHistoryConfig(): Promise<PasswordHistoryConfig> {
+  return passwordHistoryStore.get();
+}
+
+/**
+ * 保存密码历史记录配置
+ */
+export async function savePasswordHistoryConfig(config: Partial<PasswordHistoryConfig>): Promise<void> {
+  // maxCount 范围校验
+  if (config.maxCount !== undefined) {
+    if (config.maxCount < 1 || config.maxCount > 10) {
+      throw new Error('历史记录保留条数必须在 1 到 10 之间');
+    }
+  }
+  return passwordHistoryStore.save(config);
 }

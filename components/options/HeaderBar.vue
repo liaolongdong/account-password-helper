@@ -181,6 +181,13 @@
               >
                 {{ t('options.header.favoriteLimit') }}
               </el-dropdown-item>
+              <el-dropdown-item
+                divided
+                command="passwordHistory"
+                :icon="Document"
+              >
+                {{ t('options.historySetting.title') }}
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>

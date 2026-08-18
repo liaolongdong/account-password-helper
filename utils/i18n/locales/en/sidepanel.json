@@ -13,6 +13,8 @@
   "sidepanel.url": "URL",
   "sidepanel.createTime": "Created",
   "sidepanel.loading": "Loading...",
+  "sidepanel.viewLoadFailed": "Failed to load the list. Please retry.",
+  "sidepanel.retry": "Retry",
   "sidepanel.noPasswords": "No saved passwords yet",
   "sidepanel.noPasswordsDesc": "Import or add passwords in Password Manager",
   "sidepanel.addPassword": "Add a password",

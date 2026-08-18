@@ -25,6 +25,17 @@ type PinyinMatchModule = typeof import('pinyin-match');
  */
 export const pinyinMatcherReady = shallowRef(false);
 
+/**
+ * 生成列表行 v-memo 使用的拼音就绪依赖。
+ *
+ * 空白搜索时不读取 pinyinMatcherReady，使拼音模块空闲预热完成不会令整张列表
+ * 无效重渲染；存在有效关键词时继续依赖就绪状态，预热完成后仍会即时补齐拼音命中。
+ */
+export function getPinyinRenderMemoDependency(keyword: string): boolean {
+  if (!keyword.trim()) return false;
+  return pinyinMatcherReady.value;
+}
+
 /** 已加载的拼音匹配模块实例（同步缓存，供过滤/高亮纯函数同步读取） */
 let _pinyinModule: PinyinMatchModule | null = null;
 

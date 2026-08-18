@@ -1,4 +1,5 @@
 {
   "verify.passwordEmpty": "Master password cannot be empty",
-  "verify.wrongPassword": "Incorrect master password"
+  "verify.wrongPassword": "Incorrect master password",
+  "verify.forgotHint": "Forgot password? Click \"Forgot Password\" on the main page to reset"
 }

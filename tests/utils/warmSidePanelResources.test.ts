@@ -253,7 +253,8 @@ describe('maybeWarmSidePanelResources', () => {
 
     const htmlWithEntry = '<script type="module" src="/chunks/sidepanel-ABC.js"></script>';
     const entryHref = new URL('/chunks/sidepanel-ABC.js', SIDEPANEL_HTML_URL).href;
-    const entryJsText = 'const a = () => import("./HelpDialog-DEF.js");';
+    // 使用不在白名单中的 chunk 名称（autoSaveManager 不在 LIGHTWEIGHT_DYNAMIC_CHUNK_ALLOWLIST）
+    const entryJsText = 'const a = () => import("./autoSaveManager-DEF.js");';
     fetchMock.mockImplementation((input: string) => {
       if (input === SIDEPANEL_HTML_URL) {
         return Promise.resolve({ text: () => Promise.resolve(htmlWithEntry), ok: true } as Response);

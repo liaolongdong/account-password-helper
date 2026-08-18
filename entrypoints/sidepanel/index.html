@@ -18,6 +18,10 @@
         overflow: hidden;
       }
 
+      body {
+        background: #f0f2f5;
+      }
+
       /* ===== 骨架屏覆盖层 ===== */
       #app-loading {
         position: fixed;
@@ -52,6 +56,16 @@
         }
         50% {
           opacity: 0.4;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        #app-loading {
+          transition: none;
+        }
+
+        .sk-block {
+          animation: none;
         }
       }
 

@@ -75,6 +75,15 @@ const inlineStyles = `
   box-shadow: 0 2px 8px rgb(var(--aph-primary-rgb) / 30%);
 }
 
+/* 透明点击热区扩展（44×44，满足 Apple HIG / Material 最小触控目标） */
+.aph-trigger-hitarea {
+  position: absolute;
+  inset: -11px;
+  z-index: -1;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
 /* 首次引导气泡（终生仅展示一次，锚定钥匙图标上方，避开下方的 Chrome 原生密码下拉） */
 .aph-hint {
   position: fixed;
@@ -418,6 +427,63 @@ const inlineStyles = `
   font-size: 12px;
   color: #6b7280;
 }
+
+.aph-no-master {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px;
+  cursor: pointer;
+}
+
+.aph-no-master:hover {
+  background: var(--aph-primary-bg);
+}
+
+.aph-no-master-icon {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+  border-radius: 50%;
+}
+
+.aph-no-master-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.aph-no-master-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.aph-no-master-desc {
+  margin-top: 1px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.aph-no-master-btn {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--aph-primary);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.aph-no-master-btn:hover {
+  opacity: 0.9;
+}
 `;
 
 /** 首次引导气泡自动消失延迟（毫秒） */
@@ -456,6 +522,7 @@ export class InlineFillDropdown {
   private activeIndex = -1;
   /** 会话是否锁定 */
   private locked = false;
+  private noMasterPassword = false;
 
   /** 图标是否可见 */
   private iconVisible = false;
@@ -603,6 +670,10 @@ export class InlineFillDropdown {
     this.triggerEl.className = 'aph-trigger';
     this.triggerEl.setAttribute('title', tl('cs.inline.trigger'));
     this.triggerEl.innerHTML = KEY_ICON;
+    // 透明点击热区：绝对定位扩展至 44×44px，事件冒泡至 trigger 按钮
+    const hitArea = document.createElement('div');
+    hitArea.className = 'aph-trigger-hitarea';
+    this.triggerEl.appendChild(hitArea);
     // mousedown 阻止默认，避免点击图标令登录框失焦（保持后续 blur 时序可控）
     this.triggerEl.addEventListener('mousedown', e => e.preventDefault());
     this.triggerEl.addEventListener('click', this.handleTriggerClick);
@@ -802,6 +873,7 @@ export class InlineFillDropdown {
     }
 
     this.locked = response.data.locked;
+    this.noMasterPassword = !!response.data.noMasterPassword;
     this.accounts = response.data.accounts || [];
     this.searchKeyword = '';
     this.activeIndex = -1;
@@ -840,6 +912,23 @@ export class InlineFillDropdown {
     this.panelEl.addEventListener('click', this.handlePanelClick);
 
     if (this.locked) {
+      if (this.noMasterPassword) {
+        // 未设置主密码：引导用户前往设置
+        this.panelEl.innerHTML = `
+          <div class="aph-no-master" data-action="setup-master">
+            <div class="aph-no-master-icon">${LOCK_ICON}</div>
+            <div class="aph-no-master-content">
+              <div class="aph-no-master-title">${tl('cs.inline.noMasterTitle')}</div>
+              <div class="aph-no-master-desc">${tl('cs.inline.noMasterDesc')}</div>
+            </div>
+            <button class="aph-no-master-btn" type="button">${tl('cs.inline.noMasterAction')}</button>
+          </div>
+        `;
+        const setupBtn = this.panelEl.querySelector('[data-action="setup-master"]');
+        setupBtn?.addEventListener('click', () => this.openOptions());
+        return;
+      }
+
       this.panelEl.innerHTML = `
         <div class="aph-locked" data-action="unlock">
           <div class="aph-locked-icon">${LOCK_ICON}</div>

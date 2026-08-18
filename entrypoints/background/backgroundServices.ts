@@ -1,6 +1,6 @@
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
 import {
   SESSION_STORAGE_KEYS,
   invalidateSessionCache,
@@ -15,7 +15,7 @@ import {
   UPDATE_CHECK_ALARM_NAME,
   UPDATE_CHECK_INTERVAL_MINUTES,
 } from '@/utils/updateChecker';
-import { getSidePanelPort } from './sidePanelManager';
+import { getSidePanelPorts } from './sidePanelManager';
 import {
   invalidatePasswordCache,
   warmPasswordCache,
@@ -23,8 +23,14 @@ import {
   consumeMetadataFlushMarker,
   isMetadataOnlyChange,
   clearAllPendingTotp,
+  resetCredentialAccessBarrierForStartup,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
+import {
+  markBrowserStartupRelockCurrentSessionReady,
+  setBrowserStartupRelockState,
+  waitForBrowserStartupRelockMarker,
+} from '@/utils/browserStartupRelock';
 
 /**
  * 惰性加载 StorageUtils
@@ -420,11 +426,11 @@ export async function syncSwKeepaliveAlarm(): Promise<void> {
  * onStartup 仅在浏览器/配置文件启动时触发，Service Worker 空闲重启不会触发，
  * 因此不影响会话跨 SW 重启存活；默认关闭时行为完全不变。
  */
-export async function handleBrowserStartupRelock(): Promise<void> {
+export async function handleBrowserStartupRelock(): Promise<boolean> {
   try {
     const StorageUtils = await _getStorageUtils();
     const config = await StorageUtils.getIdleLockConfig();
-    if (!config.relockOnBrowserRestart) return;
+    if (!config.relockOnBrowserRestart) return true;
 
     // 显式、同步地完成清理：clearSession 触发的 storage.onChanged 虽也会失效缓存 / 同步保活闹钟，
     // 但此处不依赖该异步事件时序，直接调用以确保浏览器启动重锁即时生效（防御性冗余）。
@@ -435,9 +441,71 @@ export async function handleBrowserStartupRelock(): Promise<void> {
     // 经 syncSwKeepaliveAlarm 统一决策保活：全平台常驻，重启重锁后 SW 保持热态
     await syncSwKeepaliveAlarm();
     logger.info('Background: 已按设置在浏览器启动时清除会话，需重新输入主密码');
+    return true;
   } catch (error) {
     logger.error('Background: 浏览器启动重锁处理失败:', error);
+    return false;
   }
+}
+
+/** 当前 SW 生命周期内的浏览器启动重锁 Promise；消息路由可直接等待，消除异步清理竞态。 */
+let _browserStartupRelockBarrier: Promise<boolean> | null = null;
+let _browserStartupRelockRunning = false;
+
+/**
+ * 在 chrome.runtime.onStartup 回调入口同步创建屏障，并先写 storage.session pending 标记。
+ * 监听器仍保持同步注册；真正的配置读取和会话清理在 Promise 内执行。
+ */
+export function beginBrowserStartupRelock(): void {
+  if (_browserStartupRelockBarrier) return;
+  // 必须在首个 await 前同步废弃本 SW 先前缓存的凭据放行结果。
+  resetCredentialAccessBarrierForStartup();
+  _browserStartupRelockRunning = true;
+  _browserStartupRelockBarrier = (async () => {
+    try {
+      await setBrowserStartupRelockState('pending');
+      const success = await handleBrowserStartupRelock();
+      await setBrowserStartupRelockState(success ? 'complete' : 'failed');
+      return success;
+    } catch (error) {
+      logger.error('Background: 建立浏览器启动重锁屏障失败:', error);
+      try {
+        await setBrowserStartupRelockState('failed');
+      } catch {
+        // storage.session 不可用时仍由内存 Promise 返回 false，保持 fail-closed
+      }
+      return false;
+    } finally {
+      _browserStartupRelockRunning = false;
+    }
+  })();
+}
+
+/**
+ * onInstalled 的当前会话初始化：启动重锁正在执行时不写 recovery，且永不改写
+ * startup state。调用方无需等待；失败仅意味着凭据入口继续 fail-closed。
+ */
+export async function markInstalledBrowserSessionReady(): Promise<boolean> {
+  if (_browserStartupRelockRunning) return false;
+  // storage.session 在完整浏览器重启时清空；只有已有锁定状态镜像才证明这是当前
+  // 浏览器会话内的扩展安装/升级，而不是与 onStartup 交错的冷启动事件。
+  const currentSession: Record<string, unknown> = await chrome.storage.session
+    .get(SESSION_MEMORY_KEYS.SESSION_LOCK_STATE)
+    .catch(() => ({}));
+  if (_browserStartupRelockRunning || currentSession[SESSION_MEMORY_KEYS.SESSION_LOCK_STATE] === undefined) {
+    return false;
+  }
+  return markBrowserStartupRelockCurrentSessionReady();
+}
+
+/**
+ * GET_INITIAL_DATA 的安全门：同一 SW 内优先等待内存 Promise，SW 被回收后则读取
+ * storage.session 标记恢复状态。failed/读取失败一律拒绝返回会话期明文数据。
+ */
+export async function waitForBrowserStartupRelock(): Promise<boolean> {
+  if (_browserStartupRelockRunning && _browserStartupRelockBarrier) return _browserStartupRelockBarrier;
+  // 已结束的 failed 可能被随后显式认证的 recovery 精确恢复，必须重新读取持久标记。
+  return waitForBrowserStartupRelockMarker();
 }
 
 /**
@@ -475,8 +543,7 @@ export async function handleIdleStateChange(newState: string): Promise<void> {
     // 经 syncSwKeepaliveAlarm 统一决策保活：全平台常驻，锁定后 SW 保持热态
     await syncSwKeepaliveAlarm();
 
-    const port = getSidePanelPort();
-    if (port) {
+    for (const port of getSidePanelPorts()) {
       try {
         port.postMessage({ type: MessageType.SESSION_EXPIRED });
       } catch {
@@ -484,11 +551,11 @@ export async function handleIdleStateChange(newState: string): Promise<void> {
       }
     }
 
-    try {
-      await chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-    } catch {
-      // 无监听者时 sendMessage 会抛错，忽略
-    }
+    // 广播会话过期：无监听者时异步 reject，统一用 .catch 兑底（与其余广播点写法一致；
+    // 广播为本函数末尾 fire-and-forget，无下游依赖，不 await 亦无时序风险）
+    chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
+      // 无监听者时忽略
+    });
   } catch (error) {
     logger.error('Background: 闲置锁定处理失败:', error);
   }
@@ -551,6 +618,11 @@ export function setupBackgroundServices(): void {
     if (areaName === 'local') {
       if (STORAGE_KEYS.IDLE_LOCK_CONFIG in changes) {
         setupIdleLock();
+        // 用户在当前浏览器会话内修改配置不等同于浏览器重启；明确标记本会话已完成，
+        // 避免“刚开启下次重启锁定”被缺失 marker 误判为当前会话需要立即锁定。
+        void markBrowserStartupRelockCurrentSessionReady().catch(error => {
+          logger.warn('Background: 更新启动重锁屏障状态失败:', error);
+        });
       }
 
       const relevantKeys = [
@@ -640,19 +712,16 @@ export function setupBackgroundServices(): void {
           void clearAllPendingTotp();
 
           // 通知所有打开的 UI 上下文切换到未验证状态
-          const port = getSidePanelPort();
-          if (port) {
+          for (const port of getSidePanelPorts()) {
             try {
               port.postMessage({ type: MessageType.SESSION_EXPIRED });
             } catch {
               // port 可能已断开
             }
           }
-          try {
-            chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-          } catch {
-            // 无监听者时忽略
-          }
+          chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
+            // 无监听者时忽略（sendMessage 无接收者会异步 reject，同步 try/catch 无法捕获）
+          });
 
           logger.debug('Background: 检测到会话清除，已通知所有上下文');
 
@@ -749,19 +818,16 @@ export function setupBackgroundServices(): void {
             await syncSwKeepaliveAlarm();
 
             // 通知打开的侧边栏切换到未验证状态
-            const port = getSidePanelPort();
-            if (port) {
+            for (const port of getSidePanelPorts()) {
               try {
                 port.postMessage({ type: MessageType.SESSION_EXPIRED });
               } catch {
                 // port 可能已断开
               }
             }
-            try {
-              chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-            } catch {
-              // 无监听者时忽略
-            }
+            chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
+              // 无监听者时忽略（sendMessage 无接收者会异步 reject，同步 try/catch 无法捕获）
+            });
 
             logger.debug('Background: 会话已过期，已锁定并加密，缓存已清除，保活闹钟状态已同步');
           }

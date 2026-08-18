@@ -11,7 +11,7 @@ import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
  *
  * 重依赖经 mock 从接缝注入：
  * - @/utils/storage（动态导入的 StorageUtils，本测试不触及但隔离真实存储模块）；
- * - sidePanelManager.getSidePanelPort（隔离 port 通知路径）。
+ * - sidePanelManager.getSidePanelPorts（隔离 port 通知路径）。
  *
  * 定时器隔离：setupSwKeepaliveAlarm 的 20s 心跳是模块级 setInterval，
  * beforeEach 启用假定时器使心跳不产生真实句柄，afterEach 恢复真实定时器并清闹钟。
@@ -24,7 +24,7 @@ vi.mock('@/utils/storage', () => ({
 }));
 
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
-  getSidePanelPort: vi.fn(() => null),
+  getSidePanelPorts: vi.fn(() => []),
 }));
 
 import { syncSwKeepaliveAlarm } from '@/entrypoints/background/backgroundServices';

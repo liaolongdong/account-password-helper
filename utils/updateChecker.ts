@@ -1,7 +1,7 @@
 import type { UpdateInfo } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { GITHUB_RELEASES_API_URL, GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
+import { GITHUB_RELEASES_API_URL, GITHUB_RELEASES_PAGE_URL, CHROME_WEB_STORE_CHECK_URL } from '@/utils/urls';
 
 /**
  * 版本更新检测闹钟名称
@@ -14,6 +14,20 @@ export const UPDATE_CHECK_ALARM_NAME = 'check-extension-update';
  * GitHub API 未认证时限速 60 次/小时，此间隔远低于限速阈值
  */
 export const UPDATE_CHECK_INTERVAL_MINUTES = 360;
+
+/**
+ * CWS 可访问性缓存结果
+ *
+ * 首次检测后缓存 24 小时，避免每次更新检测都发起额外请求。
+ * null 表示尚未检测或缓存已过期。
+ */
+let _cwsAccessibleCache: { accessible: boolean; checkedAt: number } | null = null;
+
+/** CWS 可访问性缓存有效期（24 小时） */
+const CWS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** CWS 探测请求超时时间（3 秒） */
+const CWS_CHECK_TIMEOUT_MS = 3000;
 
 /**
  * 比较两个语义化版本号
@@ -43,6 +57,51 @@ export function isNewerVersion(current: string, latest: string): boolean {
   }
 
   return false;
+}
+
+/**
+ * 检测是否能访问 Chrome 应用商店（CWS）
+ *
+ * 通过发起轻量 HEAD 请求判断用户网络是否可达 CWS。
+ * 中国大陆等被墙地区将无法访问，此时应通过 GitHub API 通知更新；
+ * 可访问 CWS 的用户可直接在商店更新，无需 GitHub 通知打扰。
+ *
+ * @returns 可访问返回 true，网络错误/超时/被墙返回 false
+ */
+export async function canAccessChromeWebStore(): Promise<boolean> {
+  // 检查缓存
+  if (_cwsAccessibleCache && Date.now() - _cwsAccessibleCache.checkedAt < CWS_CACHE_TTL_MS) {
+    return _cwsAccessibleCache.accessible;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), CWS_CHECK_TIMEOUT_MS);
+
+    // 使用 no-cors 模式避免 chromewebstore.google.com 不返回 CORS 头导致控制台报错。
+    // 此模式仅探测网络可达性：请求成功（opaque response）表示可达，网络错误/超时/被墙则 reject。
+    await fetch(CHROME_WEB_STORE_CHECK_URL, {
+      method: 'HEAD',
+      mode: 'no-cors',
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+
+    _cwsAccessibleCache = { accessible: true, checkedAt: Date.now() };
+    logger.info('UpdateChecker: CWS 可访问性检测结果 可访问');
+    return true;
+  } catch (_error) {
+    _cwsAccessibleCache = { accessible: false, checkedAt: Date.now() };
+    logger.info('UpdateChecker: CWS 不可访问（网络错误/超时/被墙）');
+    return false;
+  }
+}
+
+/**
+ * 重置 CWS 可访问性缓存（供测试或手动重新检测使用）
+ */
+export function resetCwsAccessCache(): void {
+  _cwsAccessibleCache = null;
 }
 
 /**
@@ -90,12 +149,26 @@ async function fetchLatestRelease(): Promise<UpdateInfo | null> {
 
 /**
  * 执行版本更新检测
- * 1. 请求 GitHub Releases API 获取最新版本
- * 2. 与当前插件版本比较
- * 3. 将检测结果缓存到 chrome.storage.local
- * 4. 发现新版本时返回 UpdateInfo，否则返回 null
+ *
+ * 检测策略：
+ * 1. 先检测 CWS 可访问性（可访问则用户可在商店直接更新，跳过 GitHub 检测）
+ * 2. CWS 不可访问时，请求 GitHub Releases API 获取最新版本
+ * 3. 与当前插件版本比较
+ * 4. 将检测结果缓存到 chrome.storage.local
+ * 5. 发现新版本时返回 UpdateInfo，否则返回 null
+ *
+ * @param skipIfCwsAccessible 当 CWS 可访问时是否跳过检测（默认 true）
  */
-export async function checkForUpdate(): Promise<UpdateInfo | null> {
+export async function checkForUpdate(skipIfCwsAccessible = true): Promise<UpdateInfo | null> {
+  // CWS 可访问性检测：可访问则用户可直接在商店更新，无需 GitHub 通知
+  const cwsAccessible = await canAccessChromeWebStore();
+  if (skipIfCwsAccessible && cwsAccessible) {
+    logger.info('UpdateChecker: CWS 可访问，用户可在商店直接更新，跳过 GitHub 检测');
+    // 清除旧的更新提示（若存在）
+    await chrome.storage.local.remove(STORAGE_KEYS.UPDATE_INFO);
+    return null;
+  }
+
   const currentVersion = chrome.runtime.getManifest().version;
   logger.info(`UpdateChecker: 开始检测更新，当前版本 ${currentVersion}`);
 

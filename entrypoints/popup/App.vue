@@ -285,6 +285,7 @@ import { MessageType } from '@/utils/types';
 import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 import { logger } from '@/utils/logger';
 import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
+import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { usePopupInit } from '@/composables/usePopupInit';
 import { useIdleLockSettings } from '@/composables/useIdleLockSettings';
 import { useSessionCountdown } from '@/composables/useSessionCountdown';
@@ -395,6 +396,9 @@ const openSidePanel = async () => {
     if (tab.id) {
       // 点击时刻：直接打开与回退路径共用，保证 clickToDocMs 起点一致
       const clickTs = Date.now();
+      // 点击即预热：与悬浮按钮 handleSidepanelClick 保持一致，
+      // 尽早唤醒可能已休眠的 SW，缩短后续 sidePanel.open() 的冷启动等待
+      preWarmServiceWorker();
       try {
         // 性能埋点：记录打开请求时间戳与触发源（同步发起不 await，不打断用户手势链）
         markSidepanelOpenRequested({ clickTs, trigger: 'popup' });

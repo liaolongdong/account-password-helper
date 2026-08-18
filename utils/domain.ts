@@ -190,6 +190,61 @@ export function isSameMainDomain(originA: string, originB: string): boolean {
 // ── 密码条目域名匹配 ──
 
 /**
+ * 从 URL 或域名字符串中提取端口号
+ *
+ * 兼容多种格式：完整 URL（https://localhost:3000/path）、
+ * 带端口域名（localhost:3000）、纯域名（example.com，无端口返回空串）。
+ *
+ * @param value - 原始 URL 或域名:端口字符串
+ * @returns 端口号字符串；无端口或解析失败返回空串
+ *
+ * @example
+ * extractPort('https://localhost:3000/path')  // → '3000'
+ * extractPort('localhost:8080')               // → '8080'
+ * extractPort('example.com')                 // → ''
+ * extractPort('https://example.com/login')   // → ''
+ */
+export function extractPort(value: string): string {
+  const s = value.trim();
+  if (!s) return '';
+  try {
+    return new URL(s.includes('://') ? s : `https://${s}`).port;
+  } catch {
+    // 回退：手动解析 host:port 格式
+    const host = s.split('/')[0].split('?')[0].split('#')[0];
+    const colonIdx = host.lastIndexOf(':');
+    if (colonIdx > 0) {
+      const portPart = host.substring(colonIdx + 1);
+      if (/^\d+$/.test(portPart)) return portPart;
+    }
+    return '';
+  }
+}
+
+/**
+ * 本地开发场景下判断密码条目的 URL 是否与当前页面端口匹配
+ *
+ * 匹配规则（仅适用于 isLocalDevDomain 为 true 的域名）：
+ * - 当前页面无端口（如纯 localhost）→ 始终匹配（保持原有行为，展示全部）
+ * - 条目 URL 为空 → 始终匹配（无 URL 条目始终展示）
+ * - 条目 URL 无端口 → 匹配（通用条目不限端口）
+ * - 条目 URL 有端口 → 仅当端口与当前页面端口一致时匹配
+ *
+ * @param storedUrl 密码条目中存储的 URL（可能为空、纯域名或完整 URL）
+ * @param currentPort 当前页面的端口号（空串表示无端口）
+ * @returns 是否匹配
+ */
+export function matchesPortForLocalDev(storedUrl: string | undefined | null, currentPort: string): boolean {
+  // 当前页面无端口 → 展示全部（保持原有行为）
+  if (!currentPort) return true;
+  // 条目 URL 为空 → 始终展示
+  if (!storedUrl || storedUrl.trim() === '') return true;
+  const storedPort = extractPort(storedUrl);
+  // 存储的 URL 无端口（通用条目）或端口匹配当前页面端口
+  return !storedPort || storedPort === currentPort;
+}
+
+/**
  * 将 URL 或域名规范化为 hostname
  *
  * 兼容存储中可能出现的多种格式：完整 URL（https://example.com/login）、

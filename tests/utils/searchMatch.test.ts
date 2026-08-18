@@ -1,3 +1,4 @@
+import { computed, nextTick, shallowRef, watchEffect } from 'vue';
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
   findMatchRange,
@@ -5,6 +6,7 @@ import {
   highlightSegments,
   warmPinyinMatcher,
   pinyinMatcherReady,
+  getPinyinRenderMemoDependency,
 } from '@/utils/searchMatch';
 
 describe('searchMatch', () => {
@@ -22,6 +24,35 @@ describe('searchMatch', () => {
       expect(findMatchRange('', 'abc')).toBeNull();
       expect(findMatchRange('abc', '')).toBeNull();
       expect(findMatchRange('abc', '   ')).toBeNull();
+    });
+  });
+
+  describe('拼音就绪渲染依赖', () => {
+    it('空白搜索不订阅就绪状态，非空搜索仍随就绪状态更新', async () => {
+      pinyinMatcherReady.value = false;
+      const keyword = shallowRef('   ');
+      const dependency = computed(() => getPinyinRenderMemoDependency(keyword.value));
+      const observedValues: boolean[] = [];
+      const stop = watchEffect(() => {
+        observedValues.push(dependency.value);
+      });
+
+      pinyinMatcherReady.value = true;
+      await nextTick();
+      expect(observedValues).toEqual([false]);
+      expect(dependency.value).toBe(false);
+
+      keyword.value = 'zhang';
+      await nextTick();
+      expect(observedValues).toEqual([false, true]);
+      expect(dependency.value).toBe(true);
+
+      pinyinMatcherReady.value = false;
+      await nextTick();
+      expect(observedValues).toEqual([false, true, false]);
+      expect(dependency.value).toBe(false);
+
+      stop();
     });
   });
 

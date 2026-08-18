@@ -5,6 +5,7 @@ import {
   isLocalDevDomain,
   normalizeToHostname,
   isExactHostMatch,
+  matchesPortForLocalDev,
 } from '@/utils/domain';
 
 /**
@@ -127,5 +128,36 @@ describe('isExactHostMatch', () => {
   it('任一侧为空返回 false', () => {
     expect(isExactHostMatch('', 'example.com')).toBe(false);
     expect(isExactHostMatch('example.com', '')).toBe(false);
+  });
+});
+
+describe('matchesPortForLocalDev', () => {
+  it('当前页面无端口时始终匹配（展示全部）', () => {
+    expect(matchesPortForLocalDev('http://localhost:3000', '')).toBe(true);
+    expect(matchesPortForLocalDev('http://localhost:8080', '')).toBe(true);
+    expect(matchesPortForLocalDev('', '')).toBe(true);
+    expect(matchesPortForLocalDev(undefined, '')).toBe(true);
+  });
+
+  it('条目 URL 为空时始终匹配（无 URL 条目始终展示）', () => {
+    expect(matchesPortForLocalDev('', '3000')).toBe(true);
+    expect(matchesPortForLocalDev('  ', '3000')).toBe(true);
+    expect(matchesPortForLocalDev(undefined, '3000')).toBe(true);
+    expect(matchesPortForLocalDev(null, '3000')).toBe(true);
+  });
+
+  it('条目 URL 无端口时匹配（通用条目不限端口）', () => {
+    expect(matchesPortForLocalDev('http://localhost', '3000')).toBe(true);
+    expect(matchesPortForLocalDev('localhost', '8080')).toBe(true);
+  });
+
+  it('条目 URL 有端口且与当前页面端口一致时匹配', () => {
+    expect(matchesPortForLocalDev('http://localhost:3000', '3000')).toBe(true);
+    expect(matchesPortForLocalDev('http://127.0.0.1:8080', '8080')).toBe(true);
+  });
+
+  it('条目 URL 有端口但与当前页面端口不一致时不匹配', () => {
+    expect(matchesPortForLocalDev('http://localhost:3000', '8080')).toBe(false);
+    expect(matchesPortForLocalDev('http://127.0.0.1:5173', '3000')).toBe(false);
   });
 });

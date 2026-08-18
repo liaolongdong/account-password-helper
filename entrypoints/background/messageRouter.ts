@@ -5,7 +5,7 @@ import {
   openSidePanelAndRespond,
   closeSidePanelWithResponse,
   isSidePanelOpen,
-  getSidePanelPort,
+  getSidePanelPorts,
 } from './sidePanelManager';
 import { openOptionsPage, openOptionsAndSendMessage } from './optionsPageManager';
 import {
@@ -20,11 +20,12 @@ import {
   recordPendingTotpIfEligible,
   consumePendingTotp,
   clearPendingTotp,
+  grantCredentialAccessAfterStartupRelock,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { handleQuickFill } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
-import { performUpdateCheck, syncSwKeepaliveAlarm } from './backgroundServices';
+import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { isFrameFillable } from '@/utils/frameFill';
 
@@ -89,6 +90,13 @@ async function handleGetInitialData(_domain?: string) {
     cacheHit,
     swUptimeMs: Date.now() - _swLoadedAt,
   });
+
+  // 浏览器启动重锁尚未完成或失败时保持锁定，绝不读取旧持久会话/密码缓存。
+  if (!(await waitForBrowserStartupRelock())) {
+    return { sessionValid: false, passwords: [], sortConfig: null, perf: _buildPerf(false) };
+  }
+  // 已等待同一 SW 内存屏障；复用该结论，避免缓存热路径再做 storage.session IPC。
+  grantCredentialAccessAfterStartupRelock();
 
   const { isSessionValid } = await _getSessionModule();
   const sessionValid = await isSessionValid();
@@ -356,9 +364,10 @@ export function setupMessageRouter(): void {
           break;
         }
 
-        logger.debug('Background: 切换侧边栏, tabId:' + tabId + ', port状态:' + isSidePanelOpen());
+        const sidePanelOpen = isSidePanelOpen(sender.tab?.windowId, tabId);
+        logger.debug('Background: 切换侧边栏, tabId:' + tabId + ', port状态:' + sidePanelOpen);
 
-        if (isSidePanelOpen()) {
+        if (sidePanelOpen) {
           closeSidePanelWithResponse(tabId, sendResponse);
         } else {
           openSidePanelAndRespond(tabId, sendResponse, { clickTs: message.data?.clickTs, trigger: 'float' });
@@ -474,8 +483,7 @@ export function setupMessageRouter(): void {
           syncSwKeepaliveAlarm();
         })();
 
-        const port = getSidePanelPort();
-        if (port) {
+        for (const port of getSidePanelPorts()) {
           try {
             port.postMessage({ type: MessageType.SESSION_EXPIRED });
           } catch {
@@ -483,11 +491,9 @@ export function setupMessageRouter(): void {
           }
         }
 
-        try {
-          chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED });
-        } catch {
-          // 无监听者时忽略
-        }
+        chrome.runtime.sendMessage({ type: MessageType.SESSION_EXPIRED }).catch(() => {
+          // 无监听者时忽略（sendMessage 无接收者会异步 reject，同步 try/catch 无法捕获）
+        });
 
         sendResponse({ success: true });
         break;
@@ -539,9 +545,12 @@ export function setupMessageRouter(): void {
         const gmaFrameId = sender.frameId;
         const rawUrl = sender.tab?.url;
         let domain = message.data?.domain ?? '';
+        let port = '';
         if (rawUrl) {
           try {
-            domain = new URL(rawUrl).hostname;
+            const parsedUrl = new URL(rawUrl);
+            domain = parsedUrl.hostname;
+            port = parsedUrl.port;
           } catch {
             // 解析失败时保底使用 message.data.domain
           }
@@ -554,7 +563,7 @@ export function setupMessageRouter(): void {
               sendResponse({ success: true, data: { locked: false, accounts: [] } });
               return;
             }
-            const data = await getMatchingAccounts(domain);
+            const data = await getMatchingAccounts(domain, port);
             sendResponse({ success: true, data });
           } catch (error) {
             logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);
@@ -573,7 +582,13 @@ export function setupMessageRouter(): void {
         handleFillById(message.data, tabId, sender.frameId)
           .then(sendResponse)
           .catch(error => {
-            logger.error('Background: FILL_BY_ID 处理失败:', error);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // 页面导航/刷新竞态下接收端 content script 已销毁，属预期场景，降级 debug 避免 error 级噪音
+            if (errorMsg.includes('Receiving end does not exist')) {
+              logger.debug('Background: FILL_BY_ID 接收端已不存在（页面导航/刷新竞态）');
+            } else {
+              logger.error('Background: FILL_BY_ID 处理失败:', error);
+            }
             sendResponse({ success: false, message: '填充失败' });
           });
         return true;
@@ -603,7 +618,13 @@ export function setupMessageRouter(): void {
         handleFillTotpById(message.data, tabId, sender.frameId)
           .then(sendResponse)
           .catch(error => {
-            logger.error('Background: FILL_TOTP_BY_ID 处理失败:', error);
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            // 页面导航/刷新竞态下接收端 content script 已销毁，属预期场景，降级 debug 避免 error 级噪音
+            if (errorMsg.includes('Receiving end does not exist')) {
+              logger.debug('Background: FILL_TOTP_BY_ID 接收端已不存在（页面导航/刷新竞态）');
+            } else {
+              logger.error('Background: FILL_TOTP_BY_ID 处理失败:', error);
+            }
             sendResponse({ success: false, message: '填充验证码失败' });
           });
         return true;
