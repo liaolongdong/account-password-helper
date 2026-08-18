@@ -25,8 +25,13 @@ const openingTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
  * port 连接建立即侧边栏渲染进程已启动，此时首屏关键资源正在加载，
  * 延时至首屏收尾（骨架屏淡出 + 数据竞速）完成后再从 SW 侧预热剩余
  * 按需 chunk，避免与渲染进程争抢磁盘 IO / 杀软扫描带宽。
+ *
+ * 取值 2000ms：覆盖锁屏快速路径（~100ms）与认证态首帧渲染（~500ms-1s）
+ * 的收尾窗口，使用户首次交互（点击帮助/设置等按需 chunk）能命中 SW 预热；
+ * 此前 5000ms 导致 Windows 会话失效态用户首次点击帮助时 SW 预热尚未执行，
+ * HelpDialog chunk 冷加载叠加 V8 编译延迟达 4+ 秒。
  */
-const WARM_AFTER_OPEN_DELAY_MS = 5000;
+const WARM_AFTER_OPEN_DELAY_MS = 2000;
 
 /** 获取全部已完成 READY 握手的 Side Panel Port，用于广播。 */
 export function getSidePanelPorts(): chrome.runtime.Port[] {

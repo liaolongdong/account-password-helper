@@ -710,6 +710,12 @@ onMounted(async () => {
       if (!knownInvalid || _opened) return;
       _quickKnownInvalid = true;
       logger.debug(`SidePanel: 锁屏快速路径命中，${(performance.now() - _perfMountStart).toFixed(1)}ms 淡出骨架屏`);
+      // 锁屏态立即预取 HelpDialog chunk（fire-and-forget）：
+      // 锁屏快速路径命中后主线程快速释放，但 requestIdleCallback 仍可能延迟 1-3 秒
+      // （数据竞速瀑布阻塞 storage.local 冷读），用户点击帮助时 chunk 尚未加载。
+      // 直接 import 使 chunk 加载与骨架屏淡出并行，用户点击时 chunk 已温热；
+      // 与 defineAsyncComponent / preloadIdleModules 使用同一 specifier，Vite 复用同一 chunk
+      void import('@/components/sidepanel/HelpDialog.vue').catch(() => {});
       // 窗口被遮挡/不可见时 Chrome 会冻结 rAF，加 100ms 定时兜底（finishOpen 幂等，先到者生效）；
       // 活跃视窗下 rAF 一帧内（~16ms）必触发，兜底仅在 rAF 冻结时生效，
       // 此前取 500ms 过于保守——锁屏卡片为内联模板挂载即就绪，无需多留骨架屏
