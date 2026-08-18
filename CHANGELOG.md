@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.4.0](https://github.com/liaolongdong/account-password-helper/compare/v3.3.0...v3.4.0) (2026-08-18)
+
+
+### Features
+
+* **auth:** 添加主密码验证弹窗组件及相关控制器 ([3ba1f0e](https://github.com/liaolongdong/account-password-helper/commit/3ba1f0ef612e7435a05689a64f6affcd91ff4c8e))
+* **core:** 支持端口匹配与主密码设置指引优化 ([9aa60b2](https://github.com/liaolongdong/account-password-helper/commit/9aa60b269c47623e8ee06be87e4e2d251933f1e7))
+* **inlineDropdown:** 增加透明点击热区扩展 ([6606015](https://github.com/liaolongdong/account-password-helper/commit/6606015a2ed04b9913319e5e8aaa2d7f7c2e1618))
+* **sidePanel:** 增加 Service Worker 预热以优化唤醒性能 ([a5efcfc](https://github.com/liaolongdong/account-password-helper/commit/a5efcfc40d7072b27f23824c026f074357cf5caf))
+
+
+### Bug Fixes
+
+* **background:** 优化广播异常处理及错误日志降噪 ([f96efaa](https://github.com/liaolongdong/account-password-helper/commit/f96efaa427dbb05b66064cb13c0222f74903646a))
+* **background:** 修复广播消息无监听者时报错的问题 ([18f28d9](https://github.com/liaolongdong/account-password-helper/commit/18f28d935deadabcfe5fef714ab41ef943df9314))
+
+
+### Performance Improvements
+
+* **sidepanel:** 优化密码条目排序和标签渲染性能 ([e19c435](https://github.com/liaolongdong/account-password-helper/commit/e19c4354923054adef4e0e9191416bfd33184979))
+* **sidepanel:** 优化帮助弹窗动态chunk预热策略 ([44f9bc5](https://github.com/liaolongdong/account-password-helper/commit/44f9bc52533631351c78fe047c0d4438b24c9171))
+
 ## [3.3.0](https://github.com/liaolongdong/account-password-helper/compare/v3.2.0...v3.3.0) (2026-08-14)
 
 
