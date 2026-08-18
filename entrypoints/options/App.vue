@@ -209,6 +209,9 @@
       :available-tags="availableTags"
       @save="handleBatchTagSave"
     />
+
+    <!-- 主密码验证弹窗（导出/备份/有效期修改等操作前校验） -->
+    <MasterPasswordVerifyDialog />
   </div>
 </template>
 
@@ -244,6 +247,9 @@ const ChangeMasterPasswordDialog = defineAsyncComponent(
   () => import('@/components/options/ChangeMasterPasswordDialog.vue'),
 );
 const BatchTagDialog = defineAsyncComponent(() => import('@/components/options/BatchTagDialog.vue'));
+const MasterPasswordVerifyDialog = defineAsyncComponent(
+  () => import('@/components/options/MasterPasswordVerifyDialog.vue'),
+);
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
