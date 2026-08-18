@@ -21,8 +21,10 @@ export const STORAGE_KEYS = {
   UPDATE_INFO: 'extension_update_info',
   /** 回收站条目（软删除，30 天 TTL 自动清理） */
   TRASH: 'account_passwords_trash',
-  /** 密码修改历史记录（每条最多 5 条快照） */
+  /** 密码修改历史记录（每条最多 N 条快照） */
   PASSWORD_HISTORY: 'password_change_history',
+  /** 密码历史记录配置（启用/禁用 + 最大保留条数） */
+  PASSWORD_HISTORY_CONFIG: 'password_history_config',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
   /** 用户语言偏好（'zh-CN' | 'en'） */

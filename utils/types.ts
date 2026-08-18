@@ -429,6 +429,8 @@ export interface MatchingAccountsResponse {
   locked: boolean;
   /** 匹配当前域名的账号元数据列表 */
   accounts: MatchingAccountMeta[];
+  /** 是否未设置主密码（true 时引导用户先设置主密码） */
+  noMasterPassword?: boolean;
 }
 
 /**
@@ -689,6 +691,18 @@ export interface PasswordHistoryRecord {
   password: string;
   /** 密码变更时间戳（毫秒） */
   changedAt: number;
+}
+
+/**
+ * 密码历史记录配置
+ *
+ * 控制历史记录功能的启用状态和每条条目最多保留的历史记录数。
+ */
+export interface PasswordHistoryConfig {
+  /** 是否启用密码修改历史记录 */
+  enabled: boolean;
+  /** 每条密码条目最多保留的历史记录数（1-10） */
+  maxCount: number;
 }
 
 /**

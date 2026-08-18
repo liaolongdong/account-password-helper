@@ -251,6 +251,7 @@ export function useSidepanelData() {
   const loading = ref(true);
   const isAuthenticated = ref(false);
   const currentDomain = ref('');
+  const currentPort = ref('');
   const showSidepanel = ref(true);
   const sortConfig = ref<{ prop: string; order: string } | null>(null);
 
@@ -364,7 +365,7 @@ export function useSidepanelData() {
   // ==================== 数据加载 ====================
 
   /**
-   * 加载当前标签页信息（获取域名）
+   * 加载当前标签页信息（获取域名和端口）
    */
   const loadCurrentTab = async (): Promise<chrome.tabs.Tab | undefined> => {
     try {
@@ -372,6 +373,7 @@ export function useSidepanelData() {
       if (tab.url) {
         const url = new URL(tab.url);
         currentDomain.value = url.hostname;
+        currentPort.value = url.port;
       }
       return tab;
     } catch (error) {
@@ -654,9 +656,11 @@ export function useSidepanelData() {
       if (tab && tab.url) {
         const url = new URL(tab.url);
         const newDomain = url.hostname;
+        const newPort = url.port;
 
-        if (currentDomain.value !== newDomain) {
+        if (currentDomain.value !== newDomain || currentPort.value !== newPort) {
           currentDomain.value = newDomain;
+          currentPort.value = newPort;
 
           if (isAuthenticated.value) {
             await loadPasswords();
@@ -1092,6 +1096,7 @@ export function useSidepanelData() {
     loading,
     isAuthenticated,
     currentDomain,
+    currentPort,
     showSidepanel,
     sortConfig,
     // 方法

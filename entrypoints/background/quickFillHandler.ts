@@ -124,6 +124,16 @@ function extractHostname(url: string | undefined): string {
   }
 }
 
+/** 从 URL 提取端口号（仅 localhost 场景使用） */
+function extractPortFromUrl(url: string | undefined): string {
+  if (!url) return '';
+  try {
+    return new URL(url).port;
+  } catch {
+    return '';
+  }
+}
+
 /**
  * 派生条目展示标题（与内联下拉 getMatchingAccounts 的标题规则一致）
  * @param entry 密码条目
@@ -168,6 +178,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
     await notifyFailure(tl('bg.quickFill.noUrl'));
     return;
   }
+  const port = extractPortFromUrl(tab.url);
 
   // 检查会话有效性：优先同步快路径，SW 冷启动后模块状态为空时
   // 才回退到异步 isSessionValid() 从 storage 恢复会话
@@ -200,7 +211,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
 
   // 按域名过滤并按侧边栏展示顺序排序（域名匹配优先 + 收藏置顶 + 排序配置），
   // 首条即侧边栏列表第一条
-  const matched = await sortMatchesForDomain(passwords, hostname);
+  const matched = await sortMatchesForDomain(passwords, hostname, port);
 
   if (matched.length === 0) {
     await notifyFailure(tl('bg.quickFill.noMatch'));

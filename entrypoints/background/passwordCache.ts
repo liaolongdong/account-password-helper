@@ -19,6 +19,7 @@ import { fetchFaviconDataUrl } from '@/utils/favicon';
 import { generateTOTP, parseOtpAuth, getTotpRemaining } from '@/utils/totp';
 import { tl } from '@/utils/i18n-lite';
 import { waitForBrowserStartupRelockMarker } from '@/utils/browserStartupRelock';
+import { hasMasterPassword } from '@/utils/storage/masterPassword';
 
 // 兼容既有导入路径：backgroundServices 等从本模块导入 isMetadataOnlyChange，
 // 实现已下沉至 passwordCrud（单一事实源，面板侧可复用同一判定做就地修补）
@@ -455,14 +456,19 @@ export async function getCachedSortConfig(): Promise<{ prop: string; order: stri
  *
  * @param passwords 全量密码条目
  * @param domain 当前页面域名（hostname）
+ * @param port 当前页面端口号（仅 localhost 场景使用，空串表示无端口）
  * @returns 过滤并排序后的新数组（首条即侧边栏展示第一条）
  */
-export async function sortMatchesForDomain(passwords: PasswordEntry[], domain: string): Promise<PasswordEntry[]> {
+export async function sortMatchesForDomain(
+  passwords: PasswordEntry[],
+  domain: string,
+  port?: string,
+): Promise<PasswordEntry[]> {
   const sortConfig = await getCachedSortConfig();
   const sortState: SortState = sortConfig
     ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
     : DEFAULT_SIDEPANEL_SORT;
-  return filterAndSortEntriesForDomain(passwords, domain, sortState);
+  return filterAndSortEntriesForDomain(passwords, domain, sortState, port);
 }
 
 /**
@@ -488,10 +494,18 @@ async function ensureAuthenticatedCache(): Promise<PasswordCache | null> {
  * 排序：复用 sortPasswordEntries + 侧边栏排序配置 + 域名优先级 + 收藏置顶。
  *
  * @param domain 当前页面顶层域名（hostname）
+ * @param port 当前页面端口号（仅 localhost 场景使用，空串表示无端口）
  * @returns 锁定标记与匹配账号元数据列表
  */
-export async function getMatchingAccounts(domain: string): Promise<MatchingAccountsResponse> {
+export async function getMatchingAccounts(domain: string, port?: string): Promise<MatchingAccountsResponse> {
   if (!(await ensureCredentialAccessAfterStartupRelock())) return { locked: true, accounts: [] };
+
+  // 主密码存在性检查：未设置主密码时引导用户先设置，而非返回空列表
+  const hasMP = await hasMasterPassword();
+  if (!hasMP) {
+    return { locked: true, noMasterPassword: true, accounts: [] };
+  }
+
   // 会话状态门禁：优先同步判断，未命中再异步校验
   if (!isSessionActiveSync()) {
     const valid = await isSessionValid();
@@ -504,7 +518,7 @@ export async function getMatchingAccounts(domain: string): Promise<MatchingAccou
   // 过滤 + 排序：与侧边栏 filteredPasswords 一致（含无 URL 条目），
   // 仅精确匹配完整 hostname，确保 fat/uat 等多测试环境账号严格隔离；
   // 复用 sortMatchesForDomain（侧边栏排序配置 + 域名优先 + 收藏置顶）
-  const matched = await sortMatchesForDomain(cache.passwords, domain);
+  const matched = await sortMatchesForDomain(cache.passwords, domain, port);
 
   // 并行附带网站图标 dataURL（本地 _favicon/ 端点 + 内存缓存，失败降级空串），
   // 避免将 _favicon/* 暴露为 web_accessible_resources 供网页直接加载

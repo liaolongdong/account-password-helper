@@ -547,9 +547,12 @@ export function setupMessageRouter(): void {
         const gmaFrameId = sender.frameId;
         const rawUrl = sender.tab?.url;
         let domain = message.data?.domain ?? '';
+        let port = '';
         if (rawUrl) {
           try {
-            domain = new URL(rawUrl).hostname;
+            const parsedUrl = new URL(rawUrl);
+            domain = parsedUrl.hostname;
+            port = parsedUrl.port;
           } catch {
             // 解析失败时保底使用 message.data.domain
           }
@@ -562,7 +565,7 @@ export function setupMessageRouter(): void {
               sendResponse({ success: true, data: { locked: false, accounts: [] } });
               return;
             }
-            const data = await getMatchingAccounts(domain);
+            const data = await getMatchingAccounts(domain, port);
             sendResponse({ success: true, data });
           } catch (error) {
             logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);
