@@ -13,6 +13,8 @@
   "sidepanel.url": "网址",
   "sidepanel.createTime": "创建时间",
   "sidepanel.loading": "加载中...",
+  "sidepanel.viewLoadFailed": "列表加载失败，请重试",
+  "sidepanel.retry": "重试",
   "sidepanel.noPasswords": "还没有保存的密码",
   "sidepanel.noPasswordsDesc": "在密码管理中导入或添加密码",
   "sidepanel.addPassword": "去添加密码",

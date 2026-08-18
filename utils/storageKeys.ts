@@ -21,8 +21,10 @@ export const STORAGE_KEYS = {
   UPDATE_INFO: 'extension_update_info',
   /** 回收站条目（软删除，30 天 TTL 自动清理） */
   TRASH: 'account_passwords_trash',
-  /** 密码修改历史记录（每条最多 5 条快照） */
+  /** 密码修改历史记录（每条最多 N 条快照） */
   PASSWORD_HISTORY: 'password_change_history',
+  /** 密码历史记录配置（启用/禁用 + 最大保留条数） */
+  PASSWORD_HISTORY_CONFIG: 'password_history_config',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
   /** 用户语言偏好（'zh-CN' | 'en'） */
@@ -77,4 +79,20 @@ export const SESSION_MEMORY_KEYS = {
    * 浏览器重启后 storage.session 清空，自动降级到 storage.local 兜底（语义不变）。
    */
   SESSION_LOCK_STATE: 'session_lock_state',
+  /**
+   * 浏览器启动重锁屏障状态（{ status: 'pending' | 'complete' | 'failed' }）。
+   *
+   * onStartup 在读取配置/清理会话前先写 pending；GET_INITIAL_DATA 与 Side Panel
+   * 本地回退路径在 pending 期间等待，失败时保持锁定，避免重启后立即打开面板时
+   * 旧持久会话在异步 clearSession 完成前短暂恢复。
+   */
+  BROWSER_STARTUP_RELOCK_STATE: 'browser_startup_relock_state',
+  /**
+   * 当前浏览器会话已通过显式认证/安全初始化恢复启动重锁屏障。
+   *
+   * 与 BROWSER_STARTUP_RELOCK_STATE 分键存储，避免 onInstalled、配置变更或
+   * createSession 的异步 complete 写入覆盖仍在执行的 pending 启动重锁。
+   * failed 状态仅在本标记明确引用同一次失败后才允许恢复。
+   */
+  BROWSER_STARTUP_RELOCK_RECOVERY: 'browser_startup_relock_recovery',
 };

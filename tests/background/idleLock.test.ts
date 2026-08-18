@@ -25,9 +25,9 @@ vi.mock('@/utils/storage', () => ({
 }));
 
 const postMessageMock = vi.fn();
-const getSidePanelPortMock = vi.fn(() => null as { postMessage: typeof postMessageMock } | null);
+const getSidePanelPortsMock = vi.fn(() => [] as { postMessage: typeof postMessageMock }[]);
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
-  getSidePanelPort: () => getSidePanelPortMock(),
+  getSidePanelPorts: () => getSidePanelPortsMock(),
 }));
 
 /** runtime 广播 spy：断言 SESSION_EXPIRED 广播发出（返回 resolved promise，避免 fakeBrowser 无监听者 reject） */
@@ -44,7 +44,7 @@ async function setIdleLockMinutes(minutes: number): Promise<void> {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  getSidePanelPortMock.mockReturnValue(null);
+  getSidePanelPortsMock.mockReturnValue([]);
   await chrome.storage.local.clear();
   await chrome.storage.session.clear();
 });
@@ -80,7 +80,7 @@ describe('handleIdleStateChange', () => {
   });
 
   it('锁定时通知侧边栏 port 并广播 SESSION_EXPIRED', async () => {
-    getSidePanelPortMock.mockReturnValue({ postMessage: postMessageMock });
+    getSidePanelPortsMock.mockReturnValue([{ postMessage: postMessageMock }]);
     await setIdleLockMinutes(10);
 
     await handleIdleStateChange('idle');
@@ -91,7 +91,7 @@ describe('handleIdleStateChange', () => {
   });
 
   it('侧边栏 port 不存在时锁定流程正常完成（无 port 通知）', async () => {
-    getSidePanelPortMock.mockReturnValue(null);
+    getSidePanelPortsMock.mockReturnValue([]);
     await setIdleLockMinutes(5);
 
     await handleIdleStateChange('idle');

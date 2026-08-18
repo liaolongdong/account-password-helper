@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { defineAsyncComponent } from 'vue';
+import { computed, defineAsyncComponent } from 'vue';
 import {
   User,
   CopyDocument,
@@ -12,7 +12,7 @@ import {
   DocumentCopy,
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
-import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
+import { buildTagPresentationRecords } from '@/utils/tagUtils';
 import SiteFavicon from '@/components/SiteFavicon.vue';
 import SearchHighlight from '@/components/SearchHighlight.vue';
 import { useI18n } from '@/utils/i18n';
@@ -56,10 +56,13 @@ interface Emits {
   copyTotp: [password: PasswordEntry];
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 defineEmits<Emits>();
 
 const { t } = useI18n();
+
+/** 标签字符串未变化时复用解析结果与样式对象，避免列表行更新时重复创建。 */
+const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.password.tag));
 </script>
 
 <template>
@@ -105,15 +108,15 @@ const { t } = useI18n();
       </div>
       <div class="details">
         <el-tag
-          v-for="tagName in parseTags(password.tag)"
-          :key="tagName"
-          :title="tagName"
-          :style="getTagFullStyle(tagName)"
+          v-for="tagRecord in tagPresentationRecords"
+          :key="tagRecord.name"
+          :title="tagRecord.name"
+          :style="tagRecord.style"
           size="small"
           class="tag-item"
         >
           <SearchHighlight
-            :text="tagName"
+            :text="tagRecord.name"
             :keyword="searchKeyword ?? ''"
           />
         </el-tag>
