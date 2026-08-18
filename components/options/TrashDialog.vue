@@ -165,6 +165,7 @@ const RETENTION_DAYS = 30;
  * 加载回收站条目（解密敏感字段用于展示）
  *
  * 使用会话数据密钥解密 username/url/tag，会话无效时显示占位符。
+ * 主密码验证由调用方（App.vue 菜单命令处理）在弹窗打开前完成。
  */
 const loadTrash = async () => {
   loading.value = true;

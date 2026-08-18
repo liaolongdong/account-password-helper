@@ -436,6 +436,9 @@ const handleQrFileSelected = async (event: Event) => {
 
 const { historyList, loadHistory, decryptHistoryPassword } = usePasswordHistory();
 
+/** 密码历史配置（控制是否展示历史区块） */
+const historyConfig = ref<{ enabled: boolean; maxCount: number }>({ enabled: true, maxCount: 3 });
+
 /** 格式化历史时间 */
 const formatHistoryTime = (timestamp: number): string => formatDateTime(timestamp);
 
@@ -471,12 +474,17 @@ const handleRestoreHistory = async (item: { password: string; loading: boolean }
   }
 };
 
-/** 弹窗打开时，编辑模式下加载历史 */
+/** 弹窗打开时，编辑模式下加载历史（需配置启用） */
 watch(
   () => props.modelValue,
-  visible => {
+  async visible => {
     if (visible && props.isEditing && props.editingId) {
-      loadHistory(props.editingId);
+      // 读取密码历史配置：禁用时不加载历史记录
+      const { getPasswordHistoryConfig } = await import('@/utils/storage/configManager');
+      historyConfig.value = await getPasswordHistoryConfig();
+      if (historyConfig.value.enabled) {
+        loadHistory(props.editingId);
+      }
     } else if (!visible) {
       historyList.value = [];
     }

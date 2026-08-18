@@ -92,7 +92,7 @@ export interface SidepanelOpenMetrics {
 export interface SidepanelInitMeta {
   /** 竞速胜出路径（bg=Background 缓存，local=本地直读，snapshot=storage.session 加密快照直读） */
   raceWinner: 'bg' | 'local' | 'snapshot' | null;
-  /** bg 结果是否为回退阶段迟到采纳（区分「800ms 内热胜出」与「冷 SW 迟到采纳」两类样本） */
+  /** bg 结果是否在统一初始化上限后迟到采纳（区分正常竞速与冷 SW 长尾样本） */
   bgLateAdopted?: boolean;
   /** 初始化完成时会话是否有效 */
   sessionValid: boolean;

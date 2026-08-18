@@ -13,7 +13,8 @@ import { MessageType } from '@/utils/types';
  *
  * 重依赖均经 mock 从接缝注入：
  * - @/utils/storage（动态导入的 StorageUtils.clearSession）；
- * - sidePanelManager.getSidePanelPort（控制 port 有无）。
+ * - sidePanelManager.getSidePanelPort（控制 port 有无）；
+ * - chrome.runtime.sendMessage（spy 断言 SESSION_EXPIRED 广播，屏蔽 fakeBrowser 无监听者 reject）。
  */
 
 const clearSessionMock = vi.fn(async () => {});
@@ -24,10 +25,13 @@ vi.mock('@/utils/storage', () => ({
 }));
 
 const postMessageMock = vi.fn();
-const getSidePanelPortMock = vi.fn(() => null as { postMessage: typeof postMessageMock } | null);
+const getSidePanelPortsMock = vi.fn(() => [] as { postMessage: typeof postMessageMock }[]);
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
-  getSidePanelPort: () => getSidePanelPortMock(),
+  getSidePanelPorts: () => getSidePanelPortsMock(),
 }));
+
+/** runtime 广播 spy：断言 SESSION_EXPIRED 广播发出（返回 resolved promise，避免 fakeBrowser 无监听者 reject） */
+const sendMessageSpy = vi.spyOn(chrome.runtime, 'sendMessage').mockImplementation(async () => ({}));
 
 import { handleIdleStateChange } from '@/entrypoints/background/backgroundServices';
 
@@ -40,7 +44,7 @@ async function setIdleLockMinutes(minutes: number): Promise<void> {
 
 beforeEach(async () => {
   vi.clearAllMocks();
-  getSidePanelPortMock.mockReturnValue(null);
+  getSidePanelPortsMock.mockReturnValue([]);
   await chrome.storage.local.clear();
   await chrome.storage.session.clear();
 });
@@ -76,17 +80,18 @@ describe('handleIdleStateChange', () => {
   });
 
   it('锁定时通知侧边栏 port 并广播 SESSION_EXPIRED', async () => {
-    getSidePanelPortMock.mockReturnValue({ postMessage: postMessageMock });
+    getSidePanelPortsMock.mockReturnValue([{ postMessage: postMessageMock }]);
     await setIdleLockMinutes(10);
 
     await handleIdleStateChange('idle');
 
     expect(postMessageMock).toHaveBeenCalledWith({ type: MessageType.SESSION_EXPIRED });
+    expect(sendMessageSpy).toHaveBeenCalledWith({ type: MessageType.SESSION_EXPIRED });
     expect(clearSessionMock).toHaveBeenCalledTimes(1);
   });
 
   it('侧边栏 port 不存在时锁定流程正常完成（无 port 通知）', async () => {
-    getSidePanelPortMock.mockReturnValue(null);
+    getSidePanelPortsMock.mockReturnValue([]);
     await setIdleLockMinutes(5);
 
     await handleIdleStateChange('idle');

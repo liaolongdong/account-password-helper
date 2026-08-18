@@ -23,7 +23,13 @@ import { tl } from '@/utils/i18n-lite';
 import { MessageType } from '@/utils/types';
 import { isSessionValid, isSessionActiveSync } from '@/utils/sessionManager-storage';
 import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
-import { getCachedPasswords, getOrWarmCache, sortMatchesForDomain, recordPendingTotpIfEligible } from './passwordCache';
+import {
+  ensureCredentialAccessAfterStartupRelock,
+  getCachedPasswords,
+  getOrWarmCache,
+  sortMatchesForDomain,
+  recordPendingTotpIfEligible,
+} from './passwordCache';
 
 /** 通知 ID 前缀 */
 const NOTIFICATION_ID = 'quick-fill';
@@ -118,6 +124,16 @@ function extractHostname(url: string | undefined): string {
   }
 }
 
+/** 从 URL 提取端口号（仅 localhost 场景使用） */
+function extractPortFromUrl(url: string | undefined): string {
+  if (!url) return '';
+  try {
+    return new URL(url).port;
+  } catch {
+    return '';
+  }
+}
+
 /**
  * 派生条目展示标题（与内联下拉 getMatchingAccounts 的标题规则一致）
  * @param entry 密码条目
@@ -142,6 +158,13 @@ function deriveEntryTitle(entry: { tag?: string; url?: string; username?: string
  * @param commandTab 快捷键命令回调提供的标签页（可选，popup 消息路径无此参数）
  */
 export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<void> {
+  // 快捷键与 popup 都可能在 onStartup clearSession 完成前触发；必须在恢复旧持久
+  // 会话或读取 SW 明文缓存之前经过同一启动安全门。
+  if (!(await ensureCredentialAccessAfterStartupRelock())) {
+    await notifyFailure(tl('bg.quickFill.sessionExpired'));
+    return;
+  }
+
   // 优先复用 onCommand 回调提供的 tab，避免冗余查询与窗口焦点竞态
   const tab = commandTab?.id ? commandTab : await getActiveTab();
   if (!tab?.id) {
@@ -155,6 +178,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
     await notifyFailure(tl('bg.quickFill.noUrl'));
     return;
   }
+  const port = extractPortFromUrl(tab.url);
 
   // 检查会话有效性：优先同步快路径，SW 冷启动后模块状态为空时
   // 才回退到异步 isSessionValid() 从 storage 恢复会话
@@ -187,7 +211,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
 
   // 按域名过滤并按侧边栏展示顺序排序（域名匹配优先 + 收藏置顶 + 排序配置），
   // 首条即侧边栏列表第一条
-  const matched = await sortMatchesForDomain(passwords, hostname);
+  const matched = await sortMatchesForDomain(passwords, hostname, port);
 
   if (matched.length === 0) {
     await notifyFailure(tl('bg.quickFill.noMatch'));

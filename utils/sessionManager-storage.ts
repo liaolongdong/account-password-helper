@@ -3,6 +3,10 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { lazyImport } from '@/utils/lazyImport';
 import { bytesToHex } from '@/utils/crypto-light';
+import {
+  recoverBrowserStartupRelockAfterAuthentication,
+  waitForBrowserStartupRelockBeforeAuthentication,
+} from '@/utils/browserStartupRelock';
 
 /**
  * 延迟加载加密模块
@@ -458,6 +462,9 @@ export async function getSessionMasterPasswordDecrypted(): Promise<string | null
  */
 export async function createSession(masterPassword: string, validityHours: number): Promise<void> {
   try {
+    if (!(await waitForBrowserStartupRelockBeforeAuthentication())) {
+      throw new Error('浏览器启动安全检查尚未完成，请稍后重试');
+    }
     invalidateSessionCache();
     const enc = await _getEncryption();
 
@@ -492,13 +499,23 @@ export async function createSession(masterPassword: string, validityHours: numbe
     // 使侧边栏 isSessionQuicklyKnownInvalid() 可通过纯内存 IPC 快速判定会话有效性，
     // 消除 Windows 慢盘场景下 storage.local 磁盘读取延迟（200-500ms）导致的骨架屏延伸白屏
     try {
-      void chrome.storage.session
-        .set({
-          [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: sessionPasswordExpiry },
-        })
-        .catch(() => {});
+      await chrome.storage.session.set({
+        [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: sessionPasswordExpiry },
+      });
     } catch {
       // storage.session 不可用时静默忽略（isSessionQuicklyKnownInvalid 会降级到 storage.local）
+    }
+
+    // 仅在新会话完整创建后恢复 failed/缺失的启动重锁屏障；独立 recovery 键不会覆盖 pending。
+    if (!(await recoverBrowserStartupRelockAfterAuthentication())) {
+      // 不能向调用方报告“登录成功但所有凭据入口仍锁定”。回滚刚写入的会话，
+      // 让 UI 维持一致的未认证状态并允许用户重试。
+      try {
+        await clearSession();
+      } catch (rollbackError) {
+        logger.error('恢复浏览器启动安全屏障失败，且新会话回滚失败:', rollbackError);
+      }
+      throw new Error('恢复浏览器启动安全状态失败，请重试');
     }
   } catch (error) {
     logger.error('创建会话缓存失败:', error);

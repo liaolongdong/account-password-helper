@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   comparePasswordEntries,
   DEFAULT_SIDEPANEL_SORT,
@@ -94,6 +94,37 @@ describe('sortPasswordEntries', () => {
     const result = sortPasswordEntries(list);
     expect(result.map(e => e.id)).toEqual(['fav', 'new', 'old']);
   });
+
+  it('每条记录仅计算一次优先级，且保持原优先级链排序结果', () => {
+    const list = Array.from({ length: 2000 }, (_, index) =>
+      entry({
+        id: String(index),
+        favorite: index % 11 === 0,
+        updateTime: 2000 - index,
+      }),
+    );
+    const priorityFn = vi.fn((item: PasswordEntry) => Number(item.id) % 3);
+    const expected = [...list].sort((a, b) => comparePasswordEntries(a, b, DEFAULT_SORT, item => Number(item.id) % 3));
+
+    const result = sortPasswordEntries([...list], DEFAULT_SORT, priorityFn);
+
+    expect(priorityFn).toHaveBeenCalledTimes(list.length);
+    expect(result.map(item => item.id)).toEqual(expected.map(item => item.id));
+  });
+
+  it.each([Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.NaN])(
+    '非有限统一优先级 %s 保持旧比较器的相等语义',
+    priority => {
+      const list = [
+        entry({ id: 'normal', favorite: false, updateTime: 1 }),
+        entry({ id: 'favorite', favorite: true, updateTime: 999 }),
+      ];
+
+      const result = sortPasswordEntries([...list], DEFAULT_SORT, () => priority);
+
+      expect(result.map(item => item.id)).toEqual(['normal', 'favorite']);
+    },
+  );
 });
 
 describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', () => {
@@ -117,6 +148,26 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
     expect(result).toHaveLength(2);
     // localhost 下两条均不精确匹配（优先级相同），按侧边栏默认 lastUsedAt 降序
     expect(result.map(e => e.id)).toEqual(['b', 'a']);
+  });
+
+  it('本地域名仍保持精确匹配优先级，且优先级高于远程收藏和空 URL', () => {
+    const list = [
+      entry({ id: 'remoteFav', url: 'https://remote.example.com', favorite: true, lastUsedAt: 999 }),
+      entry({ id: 'empty', url: '', lastUsedAt: 1000 }),
+      entry({ id: 'local', url: 'http://localhost:3000/login', lastUsedAt: 1 }),
+    ];
+
+    expect(filterAndSortEntriesForDomain(list, 'localhost').map(item => item.id)).toEqual([
+      'local',
+      'remoteFav',
+      'empty',
+    ]);
+  });
+
+  it('重复 id 不会共享优先级缓存，排序按条目对象语义执行', () => {
+    const list = [entry({ id: 'same', url: '', favorite: true }), entry({ id: 'same', url: 'https://x.com' })];
+
+    expect(filterAndSortEntriesForDomain(list, 'x.com').map(item => item.url)).toEqual(['https://x.com', '']);
   });
 
   it('同为域名匹配时收藏置顶，首条即侧边栏展示第一条', () => {

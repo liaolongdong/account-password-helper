@@ -55,7 +55,7 @@ A powerful Chrome extension for secure, convenient password management and auto-
 - **Backup**: encrypted backup (.aph, AES-GCM) export/import with decrypt-preview; email backup (plain or encrypted) + scheduled backup reminders
 - **Organization**: multi-select tags (stable colors), tag filtering (manager + sidebar), favorites with configurable limit + LRU eviction, multi-field smart search (pinyin / initial abbreviations, matched keywords highlighted) and sorting, one-click dedup, batch delete / batch tag editing (add/remove) / export selected entries
 - **Smart entry**: the add form pre-fills the URL with the active tab's domain; when the sidebar finds no match, one-click "Add account for this site" pre-fills the current site's domain
-- **Mistake-proofing**: 30-day trash bin (soft delete), password change history (5 encrypted snapshots per entry), atomic master password change without data loss
+- **Mistake-proofing**: 30-day trash bin (soft delete), configurable password change history (enable/disable, 1–10 encrypted snapshots per entry, default 5, restorable), atomic master password change without data loss
 
 ### 🎨 Experience
 
@@ -270,7 +270,7 @@ A: Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Pas
 
 **Q: Can I recover deleted passwords?**
 
-A: Yes. Deleted passwords move to the trash for 30 days — restore or permanently delete them under "Data Management" → "Trash". Mistaken password edits can be reverted via the entry's "Password history" (last 5 encrypted snapshots).
+A: Yes. Deleted passwords move to the trash for 30 days — restore or permanently delete them under "Data Management" → "Trash". Mistaken password edits can be reverted via the entry's "Password history" (configurable in "Security Settings" → "Password History Settings" — enable/disable and set max records, default 5 encrypted snapshots).
 
 **Q: How do I enable auto-save?**
 

@@ -22,11 +22,12 @@ export function usePasswordHistory() {
    *
    * @param entryId 密码条目 ID
    */
-  const loadHistory = async (entryId: string) => {
+  const loadHistory = async (entryId: string): Promise<void> => {
     if (!entryId) {
       historyList.value = [];
       return;
     }
+
     historyLoading.value = true;
     try {
       const records = await getPasswordHistory(entryId);
