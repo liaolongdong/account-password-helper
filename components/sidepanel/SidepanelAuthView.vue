@@ -96,6 +96,7 @@ const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(
 const toggleFilterTag = (tag: string) => {
   const current = filterTags.value;
   filterTags.value = current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag];
+  scrollActiveTagIntoView(tag);
 };
 
 /**
@@ -109,6 +110,52 @@ const tagChipVars = (tag: string): Record<string, string> => {
 };
 
 const searchInputRef = ref();
+
+/** 标签筛选横向滚动容器引用 */
+const tagStripRef = ref<HTMLDivElement>();
+
+/** 标签条是否可向左/右滚动（控制渐隐指示器显隐） */
+const canScrollLeft = ref(false);
+const canScrollRight = ref(false);
+
+/**
+ * 更新标签滚动条两侧渐隐指示器状态
+ * 在 scroll 事件与标签集变化时调用
+ */
+const updateTagScrollState = () => {
+  const el = tagStripRef.value;
+  if (!el) return;
+  canScrollLeft.value = el.scrollLeft > 1;
+  canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
+};
+
+/**
+ * 标签筛选区滚动处理：被动监听，更新渐隐指示器
+ */
+const handleTagScroll = () => {
+  updateTagScrollState();
+};
+
+/**
+ * 将当前选中的标签滚动到可视区域内
+ * 切换筛选态后调用，保证用户始终能看到选中状态的变化
+ * @param tag 被切换的标签文本
+ */
+const scrollActiveTagIntoView = (tag: string) => {
+  if (!filterTags.value.includes(tag)) return;
+  const strip = tagStripRef.value;
+  if (!strip) return;
+  const chip = strip.querySelector<HTMLElement>(`.tag-chip--active[data-tag="${CSS.escape(tag)}"]`);
+  if (!chip) return;
+  const chipLeft = chip.offsetLeft - strip.offsetLeft;
+  const chipRight = chipLeft + chip.offsetWidth;
+  const viewLeft = strip.scrollLeft;
+  const viewRight = viewLeft + strip.clientWidth;
+  if (chipLeft < viewLeft || chipRight > viewRight) {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    strip.scrollTo({ left: chipLeft - strip.clientWidth / 2, behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+};
 
 // ==================== 大列表分片渲染 ====================
 
@@ -191,7 +238,22 @@ onMounted(() => {
   nextTick(() => {
     requestAnimationFrame(() => emit('rendered', visiblePasswords.value.length));
   });
+
+  // 标签筛选条初始渲染后检测是否可滚动，决定渐隐指示器初始状态
+  nextTick(updateTagScrollState);
 });
+
+/** 标签集变化时（域名切换/数据刷新）重新检测滚动状态 */
+watch(
+  () => props.availableTags,
+  () => {
+    nextTick(() => {
+      const el = tagStripRef.value;
+      if (el) el.scrollLeft = 0;
+      updateTagScrollState();
+    });
+  },
+);
 
 onUnmounted(() => {
   if (_expandRafId) cancelAnimationFrame(_expandRafId);
@@ -306,24 +368,37 @@ onUnmounted(() => {
         </el-dropdown>
       </el-tooltip>
     </div>
-    <!-- 标签筛选：仅在域名过滤后的条目存在标签时显示，不占用无标签用户的空间；
-         直接点选的主题色 chip（与列表条目标签同源配色），替代下拉选择更直观 -->
+    <!-- 标签筛选：单行横向滚动，标签过多时不再换行挤压密码列表；
+         两侧渐隐指示器提示可滚动方向，点击选中后自动滚入可视区 -->
     <div
       v-if="availableTags.length > 0"
-      class="tag-filter-section"
+      class="tag-filter-wrap"
+      role="group"
+      :aria-label="t('sidepanel.tagFilterLabel')"
     >
-      <button
-        v-for="tag in availableTags"
-        :key="tag"
-        type="button"
-        class="tag-chip"
-        :class="{ 'tag-chip--active': filterTags.includes(tag) }"
-        :style="tagChipVars(tag)"
-        :title="tag"
-        @click="toggleFilterTag(tag)"
+      <div
+        ref="tagStripRef"
+        class="tag-filter-strip"
+        :class="{
+          'tag-filter-strip--can-left': canScrollLeft,
+          'tag-filter-strip--can-right': canScrollRight,
+        }"
+        @scroll.passive="handleTagScroll"
       >
-        <span class="tag-chip__label">{{ tag }}</span>
-      </button>
+        <button
+          v-for="tag in availableTags"
+          :key="tag"
+          :data-tag="tag"
+          type="button"
+          class="tag-chip"
+          :class="{ 'tag-chip--active': filterTags.includes(tag) }"
+          :style="tagChipVars(tag)"
+          :title="tag"
+          @click="toggleFilterTag(tag)"
+        >
+          <span class="tag-chip__label">{{ tag }}</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -446,24 +521,77 @@ onUnmounted(() => {
   flex: 1;
 }
 
-/* 标签筛选 chip 行：仅在有标签时渲染，与搜索行同宽内边距保持卡片节奏一致 */
-.tag-filter-section {
+/* 标签筛选外层：固定单行高度，标签再多也不挤压密码列表垂直空间 */
+.tag-filter-wrap {
+  padding: 0 16px 10px;
+}
+
+/* 标签横向滚动条：单行排列，超出容器宽度时横向滚动；
+   两侧 ::before/::after 渐隐指示器提示可滚动方向（由 --can-left/right 类控制显隐） */
+.tag-filter-strip {
+  position: relative;
   display: flex;
-  flex-wrap: wrap;
   gap: 6px;
-  padding: 0 16px 12px;
+  align-items: center;
+  overflow: auto hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tag-filter-strip {
+    scroll-behavior: auto;
+  }
+}
+
+.tag-filter-strip::-webkit-scrollbar {
+  display: none;
+}
+
+/* 左侧渐隐指示器：滚动离开左边缘后显示，提示用户左侧还有标签 */
+.tag-filter-strip::before,
+.tag-filter-strip::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 24px;
+  pointer-events: none;
+  content: '';
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.tag-filter-strip::before {
+  left: 0;
+  background: linear-gradient(to right, #fff 10%, transparent);
+}
+
+.tag-filter-strip::after {
+  right: 0;
+  background: linear-gradient(to left, #fff 10%, transparent);
+}
+
+.tag-filter-strip--can-left::before {
+  opacity: 1;
+}
+
+.tag-filter-strip--can-right::after {
+  opacity: 1;
 }
 
 /* 未选中：中性描边；选中：切换为标签自身主题色（--tag-* 变量由组件注入）；
    截断省略号作用于内层 span（button 匿名盒上 text-overflow 不可靠） */
 .tag-chip {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   max-width: 140px;
   padding: 2px 10px;
   font-size: 12px;
   line-height: 18px;
   color: #64748b;
+  white-space: nowrap;
   cursor: pointer;
   background: #f8fafc;
   border: 1px solid #e2e8f0;

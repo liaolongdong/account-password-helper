@@ -36,5 +36,8 @@
   "sidepanel.item.copyPassword": "Copy password",
   "sidepanel.item.fillTotp": "Fill 2FA code",
   "sidepanel.item.copyTotp": "Copy 2FA code",
-  "sidepanel.item.fillAndLogin": "Fill and sign in"
+  "sidepanel.item.fillAndLogin": "Fill and sign in",
+  "sidepanel.tagFilterLabel": "Filter by tags",
+  "sidepanel.tagScrollLeft": "Scroll tags left",
+  "sidepanel.tagScrollRight": "Scroll tags right"
 }
