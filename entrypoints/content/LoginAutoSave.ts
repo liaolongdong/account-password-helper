@@ -159,9 +159,13 @@ export class LoginAutoSave {
     // 监听键盘 Enter 键，处理在密码框按回车提交的场景
     document.addEventListener('keydown', this.handleKeyDown, { capture: true });
     // 监听 storage 变化，同步更新启用状态
-    chrome.storage.onChanged.addListener(this.handleStorageChange);
+    if (chrome?.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(this.handleStorageChange);
+    }
     // 监听 runtime 消息，感知会话过期广播（闲时锁定、手动清除等场景）
-    chrome.runtime.onMessage.addListener(this.handleRuntimeMessage);
+    if (chrome?.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(this.handleRuntimeMessage);
+    }
 
     // 标记页面上所有密码字段，确保 type 被切换为 text 后仍能通过组合选择器定位
     this.markExistingPasswordFields();

@@ -171,7 +171,9 @@ export class FormDetector {
         }
       }
     };
-    chrome.storage.onChanged.addListener(this.storageListener);
+    if (chrome?.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(this.storageListener);
+    }
   }
 
   /**
@@ -192,7 +194,9 @@ export class FormDetector {
       // 仅对已处理的消息保持通道开放，未处理的消息传递给 background
       return this.handleMessage(message, sender, sendResponse);
     };
-    chrome.runtime.onMessage.addListener(this.messageListener);
+    if (chrome?.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(this.messageListener);
+    }
   }
 
   /**

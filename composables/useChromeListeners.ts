@@ -26,9 +26,16 @@ export function useChromeListeners() {
    * 监听 Chrome Storage 变化
    */
   const onStorageChange = (handler: StorageChangeHandler) => {
+    if (!chrome?.storage?.onChanged) return;
     chrome.storage.onChanged.addListener(handler);
     listeners.push({
-      remove: () => chrome.storage.onChanged.removeListener(handler),
+      remove: () => {
+        try {
+          chrome.storage.onChanged.removeListener(handler);
+        } catch {
+          // 上下文失效时监听器已被 Chrome 自动清理，忽略
+        }
+      },
     });
   };
 
@@ -36,9 +43,16 @@ export function useChromeListeners() {
    * 监听 Chrome Runtime 消息
    */
   const onMessage = (handler: MessageHandler) => {
+    if (!chrome?.runtime?.onMessage) return;
     chrome.runtime.onMessage.addListener(handler);
     listeners.push({
-      remove: () => chrome.runtime.onMessage.removeListener(handler),
+      remove: () => {
+        try {
+          chrome.runtime.onMessage.removeListener(handler);
+        } catch {
+          // 上下文失效时监听器已被 Chrome 自动清理，忽略
+        }
+      },
     });
   };
 
@@ -46,9 +60,16 @@ export function useChromeListeners() {
    * 监听标签页更新
    */
   const onTabUpdated = (handler: TabUpdateHandler) => {
+    if (!chrome?.tabs?.onUpdated) return;
     chrome.tabs.onUpdated.addListener(handler);
     listeners.push({
-      remove: () => chrome.tabs.onUpdated.removeListener(handler),
+      remove: () => {
+        try {
+          chrome.tabs.onUpdated.removeListener(handler);
+        } catch {
+          // 上下文失效时监听器已被 Chrome 自动清理，忽略
+        }
+      },
     });
   };
 
@@ -56,9 +77,16 @@ export function useChromeListeners() {
    * 监听标签页激活
    */
   const onTabActivated = (handler: TabActivatedHandler) => {
+    if (!chrome?.tabs?.onActivated) return;
     chrome.tabs.onActivated.addListener(handler);
     listeners.push({
-      remove: () => chrome.tabs.onActivated.removeListener(handler),
+      remove: () => {
+        try {
+          chrome.tabs.onActivated.removeListener(handler);
+        } catch {
+          // 上下文失效时监听器已被 Chrome 自动清理，忽略
+        }
+      },
     });
   };
 
