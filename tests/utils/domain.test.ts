@@ -4,6 +4,7 @@ import {
   isSameMainDomain,
   isLocalDevDomain,
   normalizeToHostname,
+  normalizeToHostAndPort,
   isExactHostMatch,
   matchesPortForLocalDev,
 } from '@/utils/domain';
@@ -111,6 +112,37 @@ describe('normalizeToHostname', () => {
 
   it('空输入返回空串', () => {
     expect(normalizeToHostname('')).toBe('');
+  });
+});
+
+describe('normalizeToHostAndPort', () => {
+  it('完整 URL 带端口保留 host:port', () => {
+    expect(normalizeToHostAndPort('https://localhost:3000/path')).toBe('localhost:3000');
+    expect(normalizeToHostAndPort('https://example.com:8080/login')).toBe('example.com:8080');
+  });
+
+  it('纯域名带端口保留端口', () => {
+    expect(normalizeToHostAndPort('example.com:8080')).toBe('example.com:8080');
+    expect(normalizeToHostAndPort('localhost:3000')).toBe('localhost:3000');
+  });
+
+  it('无端口时仅返回 hostname', () => {
+    expect(normalizeToHostAndPort('example.com')).toBe('example.com');
+    expect(normalizeToHostAndPort('https://example.com/login')).toBe('example.com');
+    expect(normalizeToHostAndPort('localhost')).toBe('localhost');
+  });
+
+  it('IP 地址带端口', () => {
+    expect(normalizeToHostAndPort('192.168.1.1:9090')).toBe('192.168.1.1:9090');
+    expect(normalizeToHostAndPort('http://10.0.0.1:8080/api')).toBe('10.0.0.1:8080');
+  });
+
+  it('IP 地址无端口', () => {
+    expect(normalizeToHostAndPort('192.168.1.1')).toBe('192.168.1.1');
+  });
+
+  it('空输入返回空串', () => {
+    expect(normalizeToHostAndPort('')).toBe('');
   });
 });
 

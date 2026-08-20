@@ -32,7 +32,8 @@ vi.mock('@/utils/storage/configManager', () => ({
   getFavoriteLimit: vi.fn(),
 }));
 
-import { checkCredentialStatus, findMatchingEntry } from '@/utils/storage/autoSaveManager';
+import { checkCredentialStatus, findMatchingEntry, isDomainMatchForAutoSave } from '@/utils/storage/autoSaveManager';
+import type { AutoSaveConfig } from '@/utils/types';
 
 beforeEach(() => {
   isSessionValid.mockReset();
@@ -117,5 +118,120 @@ describe('checkCredentialStatus', () => {
     getAllPasswords.mockRejectedValue(new Error('boom'));
     const res = await checkCredentialStatus({ username: 'alice', password: 'p', url: 'github.com' });
     expect(res.status).toBe('new');
+  });
+});
+
+/**
+ * 创建测试用的 AutoSaveConfig
+ */
+function makeConfig(overrides: Partial<AutoSaveConfig> = {}): AutoSaveConfig {
+  return { enabled: true, domainPatterns: [], excludedDomains: [], ...overrides };
+}
+
+describe('isDomainMatchForAutoSave（端口区分匹配）', () => {
+  // ── 黑名单：无端口（保持原有行为） ──
+
+  it('黑名单无端口时匹配精确 hostname', () => {
+    const config = makeConfig({ excludedDomains: ['github.com'] });
+    expect(isDomainMatchForAutoSave('github.com', config)).toBe(false);
+  });
+
+  it('黑名单无端口时匹配子域名', () => {
+    const config = makeConfig({ excludedDomains: ['example.com'] });
+    expect(isDomainMatchForAutoSave('sub.example.com', config)).toBe(false);
+  });
+
+  it('黑名单无端口时不限当前页面端口', () => {
+    const config = makeConfig({ excludedDomains: ['localhost'] });
+    expect(isDomainMatchForAutoSave('localhost:3000', config)).toBe(false);
+  });
+
+  it('黑名单无端口时不匹配不同域名', () => {
+    const config = makeConfig({ excludedDomains: ['github.com'] });
+    expect(isDomainMatchForAutoSave('gitlab.com', config)).toBe(true);
+  });
+
+  // ── 黑名单：含端口（新增端口区分） ──
+
+  it('黑名单含端口时精确匹配 host + port', () => {
+    const config = makeConfig({ excludedDomains: ['localhost:3000'] });
+    expect(isDomainMatchForAutoSave('localhost:3000', config)).toBe(false);
+  });
+
+  it('黑名单含端口时不匹配不同端口', () => {
+    const config = makeConfig({ excludedDomains: ['localhost:3000'] });
+    expect(isDomainMatchForAutoSave('localhost:8080', config)).toBe(true);
+  });
+
+  it('黑名单含端口时不匹配无端口的同一 hostname', () => {
+    const config = makeConfig({ excludedDomains: ['localhost:3000'] });
+    expect(isDomainMatchForAutoSave('localhost', config)).toBe(true);
+  });
+
+  it('黑名单含端口时不匹配子域名', () => {
+    const config = makeConfig({ excludedDomains: ['example.com:8080'] });
+    expect(isDomainMatchForAutoSave('sub.example.com:8080', config)).toBe(true);
+  });
+
+  // ── 域名规则：无端口 ──
+
+  it('域名规则无端口时匹配 hostname 及子域名', () => {
+    const config = makeConfig({ domainPatterns: [{ id: '1', pattern: 'example.com', isRegex: false }] });
+    expect(isDomainMatchForAutoSave('example.com', config)).toBe(true);
+    expect(isDomainMatchForAutoSave('sub.example.com', config)).toBe(true);
+    expect(isDomainMatchForAutoSave('other.com', config)).toBe(false);
+  });
+
+  // ── 域名规则：含端口 ──
+
+  it('域名规则含端口时精确匹配 host + port', () => {
+    const config = makeConfig({ domainPatterns: [{ id: '1', pattern: 'localhost:3000', isRegex: false }] });
+    expect(isDomainMatchForAutoSave('localhost:3000', config)).toBe(true);
+  });
+
+  it('域名规则含端口时不匹配不同端口', () => {
+    const config = makeConfig({ domainPatterns: [{ id: '1', pattern: 'localhost:3000', isRegex: false }] });
+    expect(isDomainMatchForAutoSave('localhost:8080', config)).toBe(false);
+  });
+
+  it('域名规则含端口时不匹配无端口', () => {
+    const config = makeConfig({ domainPatterns: [{ id: '1', pattern: 'localhost:3000', isRegex: false }] });
+    expect(isDomainMatchForAutoSave('localhost', config)).toBe(false);
+  });
+
+  // ── 正则表达式：仅对 hostname 匹配 ──
+
+  it('正则表达式仅对 hostname 匹配（忽略端口）', () => {
+    const config = makeConfig({ domainPatterns: [{ id: '1', pattern: '.*\\.example\\.com', isRegex: true }] });
+    expect(isDomainMatchForAutoSave('sub.example.com', config)).toBe(true);
+    expect(isDomainMatchForAutoSave('sub.example.com:8080', config)).toBe(true);
+    expect(isDomainMatchForAutoSave('example.com', config)).toBe(false);
+  });
+
+  // ── 空规则 ──
+
+  it('规则列表为空时匹配所有非黑名单域名', () => {
+    const config = makeConfig();
+    expect(isDomainMatchForAutoSave('any-domain.com', config)).toBe(true);
+    expect(isDomainMatchForAutoSave('localhost:3000', config)).toBe(true);
+  });
+
+  // ── 黑名单优先级 ──
+
+  it('黑名单优先级高于域名规则', () => {
+    const config = makeConfig({
+      excludedDomains: ['localhost:3000'],
+      domainPatterns: [{ id: '1', pattern: 'localhost', isRegex: false }],
+    });
+    // localhost:3000 被黑名单精确屏蔽
+    expect(isDomainMatchForAutoSave('localhost:3000', config)).toBe(false);
+    // localhost:8080 不被黑名单屏蔽，且匹配域名规则
+    expect(isDomainMatchForAutoSave('localhost:8080', config)).toBe(true);
+  });
+
+  // ── 输入边界 ──
+
+  it('空输入返回 false', () => {
+    expect(isDomainMatchForAutoSave('', makeConfig())).toBe(false);
   });
 });

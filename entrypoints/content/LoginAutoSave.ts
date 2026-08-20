@@ -350,7 +350,7 @@ export class LoginAutoSave {
    * @returns 是否匹配（且未被屏蔽）
    */
   private isDomainMatch(): boolean {
-    return StorageUtils.isDomainMatchForAutoSave(location.hostname, {
+    return StorageUtils.isDomainMatchForAutoSave(location.host, {
       enabled: this.isEnabled,
       domainPatterns: this.domainPatterns,
       excludedDomains: this.excludedDomains,
@@ -407,7 +407,7 @@ export class LoginAutoSave {
     const pending: PendingCredentials = {
       username,
       password,
-      url: location.hostname,
+      url: location.host, // 使用 host（含端口号，如 localhost:3000、192.168.1.1:8080）
       tag: document.title,
       remark: tl('cs.save.autoSaveRemark'),
       tagEdited: false,

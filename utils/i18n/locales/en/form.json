@@ -6,7 +6,7 @@
   "form.tagMax": "Tag cannot exceed 50 characters",
   "form.remarkMax": "Notes cannot exceed 1000 characters",
   "form.invalidUrl": "Please enter a valid URL",
-  "form.invalidUrlExample": "Please enter a valid URL (e.g. github.com or https://github.com)",
+  "form.invalidUrlExample": "Please enter a valid URL (e.g. github.com, localhost:3000 or https://github.com)",
   "form.invalidTotp": "Please enter a valid otpauth:// URI or Base32 secret",
   "form.tagLengthLimit": "Tag length cannot exceed {max} characters",
   "form.tagCountLimit": "You can select at most {max} tags",

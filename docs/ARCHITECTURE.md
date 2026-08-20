@@ -247,13 +247,13 @@ graph TB
 
 - 启用后，网站登录时自动捕获账号密码并弹窗确认是否保存（见 [LoginAutoSave.ts](../entrypoints/content/LoginAutoSave.ts)）。
 - 三种凭证捕获场景：表单提交（capture 阶段）、登录按钮点击、密码框回车提交。
-- 域名匹配规则支持精确域名和正则表达式两种模式，规则为空时匹配所有域名（见 [AutoSaveSettingDialog.vue](../components/options/AutoSaveSettingDialog.vue)）。
+- 域名匹配规则支持精确域名和正则表达式两种模式，规则为空时匹配所有域名；含端口的规则（如 `localhost:3000`）仅精确匹配对应 host + port 组合（见 [AutoSaveSettingDialog.vue](../components/options/AutoSaveSettingDialog.vue)）。
 - sessionStorage 暂存凭证，支持传统表单提交导致的跨页面导航场景。
 - 保存成功后发送桌面通知，并使密码缓存失效以确保下次加载获取最新数据。
 - **三选项交互**：保存确认弹窗提供「保存」、「暂不保存」和「不再提示」三个操作选项。
 - **可编辑字段**：弹窗中除显示账号和密码外，还提供可编辑的**标签**（默认取页面标题）和**备注**（默认为"自动保存"）输入框，用户可在保存前自定义。
 - **智能更新策略**：同账号 + 同域名且密码有变化时，以「更新」弹窗确认后更新已有条目的密码，保留存量标签和备注（除非用户在弹窗中主动修改）；账号密码完全相同则不打扰；不同账号则新增条目。
-- **黑名单屏蔽**：保存弹窗中点击「不再提示」可将当前域名加入屏蔽列表（见 [SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts)）；该域名下所有登录均不再弹窗。可在设置对话框的「已屏蔽的域名」中删除以恢复提示。
+- **黑名单屏蔽**：保存弹窗中点击「不再提示」可将当前域名加入屏蔽列表（见 [SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts)）；无端口条目屏蔽该 hostname 及子域名所有端口的登录弹窗，含端口条目（如 `localhost:3000`）仅屏蔽对应端口的弹窗。可在设置对话框的「已屏蔽的域名」中删除以恢复提示。
 - **智能防重复**：弹窗前先向后台查询该域名 + 账号在密码库中的状态（见 [autoSaveManager.ts](../utils/storage/autoSaveManager.ts) 的 `checkCredentialStatus`），据此分流：账号密码完全相同则完全静默不弹窗（跨登录持久生效，从根本上避免同账号反复登录反复弹窗）；密码发生变化则弹出「更新」确认弹窗；新账号弹出「保存」弹窗。同时保留基于凭证指纹（用户名 + 密码长度）的同页防抖（见 [LoginAutoSave.ts](../entrypoints/content/LoginAutoSave.ts)），吸收表单提交 / 按钮点击 / 回车三连触发。
 
 ### 5. 邮箱备份
@@ -326,7 +326,7 @@ graph TB
 
 - 在添加/编辑密码表单中，密码输入框旁有一个魔棒按钮（`MagicStick` 图标），点击弹出密码生成器，顶部可在「随机密码」与「助记词组」两种模式间切换。
 - **随机密码模式**：自定义长度（6~50）、字符集开关（大写字母 / 小写字母 / 数字 / 特殊字符），可排除易混淆字符（1、l、I、0、O），避免视觉辨识困难。
-- **助记词组模式**：基于 EFF Diceware 理念，从内置 2048 个常见英文单词的词库中随机选取 3~8 个单词组合（如 `Apple-River-Cloud-Tiger42`），支持 5 种分隔符（`-`/`_`/`.`/空格/无）、首字母大写开关、末尾追加 1~4 位随机数字；4 词组合约 44 bits 熵，既安全又易于记忆（见 [utils/passphraseGenerator.ts](../utils/passphraseGenerator.ts)）。
+- **助记词组模式**：基于 EFF Diceware 理念，从内置 2048 个常见英文单词的词库中随机选取 3~~8 个单词组合（如 `Apple-River-Cloud-Tiger42`），支持 5 种分隔符（`-`/`_`/`.`/空格/无）、首字母大写开关、末尾追加 1~~4 位随机数字；4 词组合约 44 bits 熵，既安全又易于记忆（见 [utils/passphraseGenerator.ts](../utils/passphraseGenerator.ts)）。
 - 生成后实时显示密码强度进度条，点击「使用此密码」即可填入表单。
 - 基于 Web Crypto API（`crypto.getRandomValues`）保证密码学安全随机性（见 [utils/passwordGenerator.ts](../utils/passwordGenerator.ts)）。
 

@@ -44,10 +44,10 @@ const urlValidator = (_rule: any, value: string, callback: any) => {
         return;
       }
     } else {
-      // 纯域名格式：允许字母、数字、连字符、点号
-      // 支持 localhost、IP 地址、标准域名
+      // 纯域名格式：允许字母、数字、连字符、点号，可选端口号
+      // 支持 localhost、IP 地址、标准域名，均支持 :port 后缀
       const domainPattern =
-        /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})$/;
+        /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})(:\d{1,5})?$/;
       if (!domainPattern.test(trimmed)) {
         callback(new Error(t('form.invalidUrlExample')));
         return;
