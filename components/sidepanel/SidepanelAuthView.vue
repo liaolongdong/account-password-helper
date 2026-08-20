@@ -111,30 +111,8 @@ const tagChipVars = (tag: string): Record<string, string> => {
 
 const searchInputRef = ref();
 
-/** 标签筛选横向滚动容器引用 */
+/** 标签筛选滚动容器引用（用于选中标签自动滚入可视区） */
 const tagStripRef = ref<HTMLDivElement>();
-
-/** 标签条是否可向左/右滚动（控制渐隐指示器显隐） */
-const canScrollLeft = ref(false);
-const canScrollRight = ref(false);
-
-/**
- * 更新标签滚动条两侧渐隐指示器状态
- * 在 scroll 事件与标签集变化时调用
- */
-const updateTagScrollState = () => {
-  const el = tagStripRef.value;
-  if (!el) return;
-  canScrollLeft.value = el.scrollLeft > 1;
-  canScrollRight.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 1;
-};
-
-/**
- * 标签筛选区滚动处理：被动监听，更新渐隐指示器
- */
-const handleTagScroll = () => {
-  updateTagScrollState();
-};
 
 /**
  * 将当前选中的标签滚动到可视区域内
@@ -147,13 +125,13 @@ const scrollActiveTagIntoView = (tag: string) => {
   if (!strip) return;
   const chip = strip.querySelector<HTMLElement>(`.tag-chip--active[data-tag="${CSS.escape(tag)}"]`);
   if (!chip) return;
-  const chipLeft = chip.offsetLeft - strip.offsetLeft;
-  const chipRight = chipLeft + chip.offsetWidth;
-  const viewLeft = strip.scrollLeft;
-  const viewRight = viewLeft + strip.clientWidth;
-  if (chipLeft < viewLeft || chipRight > viewRight) {
+  const chipTop = chip.offsetTop - strip.offsetTop;
+  const chipBottom = chipTop + chip.offsetHeight;
+  const viewTop = strip.scrollTop;
+  const viewBottom = viewTop + strip.clientHeight;
+  if (chipTop < viewTop || chipBottom > viewBottom) {
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    strip.scrollTo({ left: chipLeft - strip.clientWidth / 2, behavior: reduceMotion ? 'auto' : 'smooth' });
+    strip.scrollTo({ top: chipTop - strip.clientHeight / 2, behavior: reduceMotion ? 'auto' : 'smooth' });
   }
 };
 
@@ -238,19 +216,15 @@ onMounted(() => {
   nextTick(() => {
     requestAnimationFrame(() => emit('rendered', visiblePasswords.value.length));
   });
-
-  // 标签筛选条初始渲染后检测是否可滚动，决定渐隐指示器初始状态
-  nextTick(updateTagScrollState);
 });
 
-/** 标签集变化时（域名切换/数据刷新）重新检测滚动状态 */
+/** 标签集变化时（域名切换/数据刷新）重置滚动位置 */
 watch(
   () => props.availableTags,
   () => {
     nextTick(() => {
       const el = tagStripRef.value;
-      if (el) el.scrollLeft = 0;
-      updateTagScrollState();
+      if (el) el.scrollTop = 0;
     });
   },
 );
@@ -368,8 +342,8 @@ onUnmounted(() => {
         </el-dropdown>
       </el-tooltip>
     </div>
-    <!-- 标签筛选：单行横向滚动，标签过多时不再换行挤压密码列表；
-         两侧渐隐指示器提示可滚动方向，点击选中后自动滚入可视区 -->
+    <!-- 标签筛选：多行 wrap 布局，max-height 限高约 2 行，超出部分纵向滚动；
+         点击选中后自动滚入可视区，滚动条自身作为"更多内容"的提示 -->
     <div
       v-if="availableTags.length > 0"
       class="tag-filter-wrap"
@@ -379,11 +353,6 @@ onUnmounted(() => {
       <div
         ref="tagStripRef"
         class="tag-filter-strip"
-        :class="{
-          'tag-filter-strip--can-left': canScrollLeft,
-          'tag-filter-strip--can-right': canScrollRight,
-        }"
-        @scroll.passive="handleTagScroll"
       >
         <button
           v-for="tag in availableTags"
@@ -521,63 +490,33 @@ onUnmounted(() => {
   flex: 1;
 }
 
-/* 标签筛选外层：固定单行高度，标签再多也不挤压密码列表垂直空间 */
+/* 标签筛选外层 */
 .tag-filter-wrap {
   padding: 0 16px 10px;
 }
 
-/* 标签横向滚动条：单行排列，超出容器宽度时横向滚动；
-   两侧 ::before/::after 渐隐指示器提示可滚动方向（由 --can-left/right 类控制显隐） */
+/* 标签多行 wrap 区：最多展示 2 行标签，超出部分纵向滚动；
+   2 行理论高度 = chip(22px) × 2 + gap(6px) = 50px，留 4px 余量防止亚像素渲染误触发滚动条 */
 .tag-filter-strip {
-  position: relative;
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  align-items: center;
-  overflow: auto hidden;
-  scroll-behavior: smooth;
-  scrollbar-width: none;
+  max-height: 54px;
+  overflow-y: auto;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .tag-filter-strip {
-    scroll-behavior: auto;
-  }
-}
-
+/* 标签区滚动条：与 HelpDialog / Options 统一风格（4px、slate 色调、无轨道背景） */
 .tag-filter-strip::-webkit-scrollbar {
-  display: none;
+  width: 4px;
 }
 
-/* 左侧渐隐指示器：滚动离开左边缘后显示，提示用户左侧还有标签 */
-.tag-filter-strip::before,
-.tag-filter-strip::after {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  z-index: 1;
-  width: 24px;
-  pointer-events: none;
-  content: '';
-  opacity: 0;
-  transition: opacity 0.2s ease;
+.tag-filter-strip::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
 }
 
-.tag-filter-strip::before {
-  left: 0;
-  background: linear-gradient(to right, #fff 10%, transparent);
-}
-
-.tag-filter-strip::after {
-  right: 0;
-  background: linear-gradient(to left, #fff 10%, transparent);
-}
-
-.tag-filter-strip--can-left::before {
-  opacity: 1;
-}
-
-.tag-filter-strip--can-right::after {
-  opacity: 1;
+.tag-filter-strip::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }
 
 /* 未选中：中性描边；选中：切换为标签自身主题色（--tag-* 变量由组件注入）；
