@@ -23,7 +23,7 @@ import {
   User,
   Link,
   Clock,
-  FolderOpened,
+  Key,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
@@ -345,7 +345,7 @@ onUnmounted(() => {
         <!-- 全部无数据：显示引导添加 -->
         <template v-if="totalCount === 0">
           <div class="empty-icon-circle">
-            <el-icon class="empty-icon"><FolderOpened /></el-icon>
+            <el-icon class="empty-icon"><Key /></el-icon>
           </div>
           <h3 class="empty-title">{{ t('sidepanel.noPasswords') }}</h3>
           <p class="empty-desc">{{ t('sidepanel.noPasswordsDesc') }}</p>
@@ -548,7 +548,7 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   margin-bottom: 16px;
-  background: #f5f5f5;
+  background: rgb(var(--aph-primary-rgb) / 8%);
   border-radius: 50%;
 }
 
@@ -558,7 +558,7 @@ onUnmounted(() => {
 
 .empty-icon {
   font-size: 24px;
-  color: #909399;
+  color: var(--aph-primary);
 }
 
 .empty-icon--muted {
