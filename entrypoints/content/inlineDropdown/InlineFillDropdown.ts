@@ -19,7 +19,7 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
-import { tl } from '@/utils/i18n-lite';
+import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
 
 /** 钥匙图标（与 components/InlineKeyIcon.vue 保持一致，修改请同步） */
@@ -578,6 +578,9 @@ export class InlineFillDropdown {
   /** TOTP 倒计时刷新定时器（有活码展示时运行，每秒一次） */
   private totpTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** 语言变更订阅取消函数（确保 destroy 时清理，防止内存泄漏） */
+  private unsubscribeLocale: (() => void) | null = null;
+
   /**
    * 为登录字段展示触发图标（获焦触发，不拉取数据）
    * @param input 目标输入框
@@ -658,6 +661,8 @@ export class InlineFillDropdown {
   destroy(): void {
     this.detachTriggerInteractions();
     this.detachPanelInteractions();
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = null;
     if (this.hideIconTimer) {
       clearTimeout(this.hideIconTimer);
       this.hideIconTimer = null;
@@ -715,6 +720,10 @@ export class InlineFillDropdown {
 
     // 应用当前缓存的主题令牌到宿主（取值由 FormDetector 依据配置推送）
     applyThemeTokensToHost(this.shadowHost, this.currentTheme);
+
+    // 语言切换时就地刷新面板文案与引导气泡（含初始化异步加载完成后的首次通知）
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = onLiteLocaleChanged(() => this.refreshPanelLocale());
   }
 
   /**
@@ -726,6 +735,28 @@ export class InlineFillDropdown {
   setTheme(theme: ThemeName): void {
     this.currentTheme = theme;
     if (this.shadowHost) applyThemeTokensToHost(this.shadowHost, theme);
+  }
+
+  /**
+   * 语言切换时就地刷新面板文案与引导气泡（由 onLiteLocaleChanged 订阅触发）
+   *
+   * 面板打开中：复用已缓存的 accounts/locked/searchKeyword 状态重建面板，
+   * 无需重新请求匹配账号数据，开销与 openPanel 的 buildPanel 调用一致。
+   * 引导气泡可见时同步更新文案。触发图标 title 一并刷新。
+   */
+  private refreshPanelLocale(): void {
+    // 触发图标 tooltip
+    if (this.triggerEl) this.triggerEl.setAttribute('title', tl('cs.inline.trigger'));
+
+    // 引导气泡
+    if (this.hintEl) this.hintEl.textContent = tl('cs.inline.firstUseHint');
+
+    // 面板打开中则重建（状态已缓存，无需重新拉取账号数据）
+    if (this.panelOpen && this.panelEl) {
+      this.detachPanelInteractions();
+      this.buildPanel();
+      this.attachPanelInteractions();
+    }
   }
 
   // ==================== 触发图标 ====================
