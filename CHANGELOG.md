@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.5.0](https://github.com/liaolongdong/account-password-helper/compare/v3.4.0...v3.5.0) (2026-08-20)
+
+
+### Features
+
+* **i18n:** 添加语言切换实时刷新支持 ([06aa87b](https://github.com/liaolongdong/account-password-helper/commit/06aa87bd28cde0e93df0edf00fddc81e82e34d08))
+* **inlineDropdown:** 添加空状态新增站点按钮及交互 ([f5148c3](https://github.com/liaolongdong/account-password-helper/commit/f5148c33b00adb85d94da5231c49a509f2930cf4))
+* **sidepanel:** 实现标签筛选横向滚动及渐隐指示器 ([374cc23](https://github.com/liaolongdong/account-password-helper/commit/374cc235cbc9d564555ed9ae25ddae9e7b7eca7e))
+
+
+### Bug Fixes
+
+* **autoSave:** 支持自动保存规则和黑名单的端口号区分匹配 ([48765a2](https://github.com/liaolongdong/account-password-helper/commit/48765a2f0f135f4c4b52e14eacafd5135aa9bb5a))
+* **chromeListeners:** 增加 Chrome API 存在性检查及异常捕获 ([f44880a](https://github.com/liaolongdong/account-password-helper/commit/f44880a5c6d5e6acda6968959c8517d15d1c508f))
+* **content:** 处理 allFrames 注入时空文档 iframe 的 DOM 观察异常 ([48a2e23](https://github.com/liaolongdong/account-password-helper/commit/48a2e234da17f8be8e75a6fb1883f8809a0a1428))
+
 ## [3.4.0](https://github.com/liaolongdong/account-password-helper/compare/v3.3.0...v3.4.0) (2026-08-18)
 
 
