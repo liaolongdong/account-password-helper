@@ -63,7 +63,27 @@ export async function saveAutoSaveConfig(config: Partial<AutoSaveConfig>): Promi
 }
 
 /**
+ * 解析 host:port 格式字符串，分离 hostname 和 port
+ *
+ * @param value - host 或 host:port 格式的字符串
+ * @returns [hostname, port] 元组；无端口时 port 为空串
+ */
+function parseHostPort(value: string): [string, string] {
+  const colonIdx = value.lastIndexOf(':');
+  if (colonIdx > 0) {
+    const port = value.substring(colonIdx + 1);
+    if (/^\d+$/.test(port)) {
+      return [value.substring(0, colonIdx), port];
+    }
+  }
+  return [value, ''];
+}
+
+/**
  * 添加域名到自动保存黑名单（去重）
+ *
+ * 支持 `host:port` 格式（如 `localhost:3000`），存储原始值以便匹配时区分端口。
+ * @param domain - 域名或 host:port 格式（如 `github.com`、`localhost:3000`）
  */
 export async function addExcludedDomain(domain: string): Promise<void> {
   const config = await getAutoSaveConfig();
@@ -88,23 +108,47 @@ export async function removeExcludedDomain(domain: string): Promise<void> {
 }
 
 /**
- * 检测域名是否匹配自动保存规则
+ * 检测域名是否匹配自动保存规则（支持端口区分）
+ *
+ * 黑名单匹配规则：
+ * - 屏蔽条目无端口（如 `example.com`）→ 匹配该 hostname 及子域名，不限端口
+ * - 屏蔽条目有端口（如 `localhost:3000`）→ 仅精确匹配该 host + port 组合
+ *
+ * 域名规则匹配规则（domainPatterns）：
+ * - 规则无端口（如 `github.com`）→ 匹配 hostname 及子域名
+ * - 规则有端口（如 `localhost:3000`）→ 仅精确匹配 host + port
+ * - 正则表达式 → 仅对 hostname（不含端口）做匹配
+ *
+ * @param host - 当前页面的 host（可含端口，如 `localhost:3000`、`github.com`）
+ * @param config - 自动保存配置
+ * @returns 是否匹配（且未被屏蔽）
  */
-export function isDomainMatchForAutoSave(hostname: string, config: AutoSaveConfig): boolean {
-  if (!hostname) return false;
+export function isDomainMatchForAutoSave(host: string, config: AutoSaveConfig): boolean {
+  if (!host) return false;
 
+  // 解析当前页面的 hostname 和端口
+  const [currentHostname, currentPort] = parseHostPort(host);
+  if (!currentHostname) return false;
+
+  // ── 黑名单检查 ──
   if (config.excludedDomains && config.excludedDomains.length > 0) {
-    const lowerHostname = hostname.toLowerCase();
+    const lowerHostname = currentHostname.toLowerCase();
     const isExcluded = config.excludedDomains.some(excluded => {
-      const lowerExcluded = excluded.toLowerCase();
-      return lowerHostname === lowerExcluded || lowerHostname.endsWith('.' + lowerExcluded);
+      const [excludedHost, excludedPort] = parseHostPort(excluded.toLowerCase());
+      if (excludedPort) {
+        // 屏蔽条目含端口：精确匹配 hostname + port
+        return lowerHostname === excludedHost && currentPort === excludedPort;
+      }
+      // 屏蔽条目无端口：匹配 hostname 及子域名（不限端口）
+      return lowerHostname === excludedHost || lowerHostname.endsWith('.' + excludedHost);
     });
     if (isExcluded) return false;
   }
 
   if (config.domainPatterns.length === 0) return true;
 
-  const lowerHostname = hostname.toLowerCase();
+  // ── 域名规则匹配 ──
+  const lowerHostname = currentHostname.toLowerCase();
   return config.domainPatterns.some(rule => {
     if (!rule.pattern) return false;
     if (rule.isRegex) {
@@ -116,8 +160,13 @@ export function isDomainMatchForAutoSave(hostname: string, config: AutoSaveConfi
         return false;
       }
     }
-    const lowerPattern = rule.pattern.toLowerCase();
-    return lowerHostname === lowerPattern || lowerHostname.endsWith('.' + lowerPattern);
+    const [patternHost, patternPort] = parseHostPort(rule.pattern.toLowerCase());
+    if (patternPort) {
+      // 规则含端口：精确匹配 hostname + port
+      return lowerHostname === patternHost && currentPort === patternPort;
+    }
+    // 规则无端口：匹配 hostname 及子域名
+    return lowerHostname === patternHost || lowerHostname.endsWith('.' + patternHost);
   });
 }
 
@@ -135,7 +184,13 @@ export function findMatchingEntry(
   passwords: PasswordEntry[],
   data: { username: string; url: string },
 ): PasswordEntry | undefined {
-  const dataHost = data.url.toLowerCase();
+  // 统一通过 URL 解析提取 hostname（剥离端口号），确保 host:port 与纯 hostname 双向匹配
+  let dataHost: string;
+  try {
+    dataHost = new URL(data.url.startsWith('http') ? data.url : `https://${data.url}`).hostname.toLowerCase();
+  } catch {
+    dataHost = data.url.toLowerCase().split(':')[0];
+  }
   return passwords.find(entry => {
     if (!entry.url || entry.username !== data.username) return false;
     const entryHost = (() => {

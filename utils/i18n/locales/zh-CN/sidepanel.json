@@ -36,5 +36,6 @@
   "sidepanel.item.copyPassword": "复制密码",
   "sidepanel.item.fillTotp": "填充验证码",
   "sidepanel.item.copyTotp": "复制验证码",
-  "sidepanel.item.fillAndLogin": "填充并登录"
+  "sidepanel.item.fillAndLogin": "填充并登录",
+  "sidepanel.tagFilterLabel": "标签筛选"
 }

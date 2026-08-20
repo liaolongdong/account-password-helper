@@ -23,7 +23,7 @@ import {
   User,
   Link,
   Clock,
-  FolderOpened,
+  Key,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
@@ -96,6 +96,7 @@ const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(
 const toggleFilterTag = (tag: string) => {
   const current = filterTags.value;
   filterTags.value = current.includes(tag) ? current.filter(item => item !== tag) : [...current, tag];
+  scrollActiveTagIntoView(tag);
 };
 
 /**
@@ -109,6 +110,30 @@ const tagChipVars = (tag: string): Record<string, string> => {
 };
 
 const searchInputRef = ref();
+
+/** 标签筛选滚动容器引用（用于选中标签自动滚入可视区） */
+const tagStripRef = ref<HTMLDivElement>();
+
+/**
+ * 将当前选中的标签滚动到可视区域内
+ * 切换筛选态后调用，保证用户始终能看到选中状态的变化
+ * @param tag 被切换的标签文本
+ */
+const scrollActiveTagIntoView = (tag: string) => {
+  if (!filterTags.value.includes(tag)) return;
+  const strip = tagStripRef.value;
+  if (!strip) return;
+  const chip = strip.querySelector<HTMLElement>(`.tag-chip--active[data-tag="${CSS.escape(tag)}"]`);
+  if (!chip) return;
+  const chipTop = chip.offsetTop - strip.offsetTop;
+  const chipBottom = chipTop + chip.offsetHeight;
+  const viewTop = strip.scrollTop;
+  const viewBottom = viewTop + strip.clientHeight;
+  if (chipTop < viewTop || chipBottom > viewBottom) {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    strip.scrollTo({ top: chipTop - strip.clientHeight / 2, behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+};
 
 // ==================== 大列表分片渲染 ====================
 
@@ -192,6 +217,17 @@ onMounted(() => {
     requestAnimationFrame(() => emit('rendered', visiblePasswords.value.length));
   });
 });
+
+/** 标签集变化时（域名切换/数据刷新）重置滚动位置 */
+watch(
+  () => props.availableTags,
+  () => {
+    nextTick(() => {
+      const el = tagStripRef.value;
+      if (el) el.scrollTop = 0;
+    });
+  },
+);
 
 onUnmounted(() => {
   if (_expandRafId) cancelAnimationFrame(_expandRafId);
@@ -306,24 +342,32 @@ onUnmounted(() => {
         </el-dropdown>
       </el-tooltip>
     </div>
-    <!-- 标签筛选：仅在域名过滤后的条目存在标签时显示，不占用无标签用户的空间；
-         直接点选的主题色 chip（与列表条目标签同源配色），替代下拉选择更直观 -->
+    <!-- 标签筛选：多行 wrap 布局，max-height 限高约 2 行，超出部分纵向滚动；
+         点击选中后自动滚入可视区，滚动条自身作为"更多内容"的提示 -->
     <div
       v-if="availableTags.length > 0"
-      class="tag-filter-section"
+      class="tag-filter-wrap"
+      role="group"
+      :aria-label="t('sidepanel.tagFilterLabel')"
     >
-      <button
-        v-for="tag in availableTags"
-        :key="tag"
-        type="button"
-        class="tag-chip"
-        :class="{ 'tag-chip--active': filterTags.includes(tag) }"
-        :style="tagChipVars(tag)"
-        :title="tag"
-        @click="toggleFilterTag(tag)"
+      <div
+        ref="tagStripRef"
+        class="tag-filter-strip"
       >
-        <span class="tag-chip__label">{{ tag }}</span>
-      </button>
+        <button
+          v-for="tag in availableTags"
+          :key="tag"
+          :data-tag="tag"
+          type="button"
+          class="tag-chip"
+          :class="{ 'tag-chip--active': filterTags.includes(tag) }"
+          :style="tagChipVars(tag)"
+          :title="tag"
+          @click="toggleFilterTag(tag)"
+        >
+          <span class="tag-chip__label">{{ tag }}</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -345,7 +389,7 @@ onUnmounted(() => {
         <!-- 全部无数据：显示引导添加 -->
         <template v-if="totalCount === 0">
           <div class="empty-icon-circle">
-            <el-icon class="empty-icon"><FolderOpened /></el-icon>
+            <el-icon class="empty-icon"><Key /></el-icon>
           </div>
           <h3 class="empty-title">{{ t('sidepanel.noPasswords') }}</h3>
           <p class="empty-desc">{{ t('sidepanel.noPasswordsDesc') }}</p>
@@ -446,24 +490,47 @@ onUnmounted(() => {
   flex: 1;
 }
 
-/* 标签筛选 chip 行：仅在有标签时渲染，与搜索行同宽内边距保持卡片节奏一致 */
-.tag-filter-section {
+/* 标签筛选外层 */
+.tag-filter-wrap {
+  padding: 0 16px 10px;
+}
+
+/* 标签多行 wrap 区：最多展示 2 行标签，超出部分纵向滚动；
+   2 行理论高度 = chip(22px) × 2 + gap(6px) = 50px，留 4px 余量防止亚像素渲染误触发滚动条 */
+.tag-filter-strip {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 0 16px 12px;
+  max-height: 54px;
+  overflow-y: auto;
+}
+
+/* 标签区滚动条：与 HelpDialog / Options 统一风格（4px、slate 色调、无轨道背景） */
+.tag-filter-strip::-webkit-scrollbar {
+  width: 4px;
+}
+
+.tag-filter-strip::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 4px;
+}
+
+.tag-filter-strip::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
 }
 
 /* 未选中：中性描边；选中：切换为标签自身主题色（--tag-* 变量由组件注入）；
    截断省略号作用于内层 span（button 匿名盒上 text-overflow 不可靠） */
 .tag-chip {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   max-width: 140px;
   padding: 2px 10px;
   font-size: 12px;
   line-height: 18px;
   color: #64748b;
+  white-space: nowrap;
   cursor: pointer;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
@@ -548,7 +615,7 @@ onUnmounted(() => {
   width: 48px;
   height: 48px;
   margin-bottom: 16px;
-  background: #f5f5f5;
+  background: rgb(var(--aph-primary-rgb) / 8%);
   border-radius: 50%;
 }
 
@@ -558,7 +625,7 @@ onUnmounted(() => {
 
 .empty-icon {
   font-size: 24px;
-  color: #909399;
+  color: var(--aph-primary);
 }
 
 .empty-icon--muted {

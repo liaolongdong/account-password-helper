@@ -414,7 +414,9 @@ export class FloatingButtonManager {
       }
     };
 
-    chrome.storage.onChanged.addListener(this.storageListener);
+    if (chrome?.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(this.storageListener);
+    }
   }
 
   /**

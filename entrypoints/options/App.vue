@@ -268,7 +268,7 @@ import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
-import { normalizeToHostname } from '@/utils/domain';
+import { normalizeToHostAndPort } from '@/utils/domain';
 import { isDev } from '@/utils/env';
 
 /** 密码表单弹窗组件引用（用于获取内部 form ref） */
@@ -568,7 +568,7 @@ const openAddDialogWithActiveTab = async () => {
         .sort((a, b) => ((b as any).lastAccessed ?? b.id ?? 0) - ((a as any).lastAccessed ?? a.id ?? 0))[0];
       candidateUrl = webTab?.url ?? '';
     }
-    prefillUrl = normalizeToHostname(candidateUrl);
+    prefillUrl = normalizeToHostAndPort(candidateUrl);
   } catch (error) {
     logger.error('Options: 获取活动标签页域名失败:', error);
   }

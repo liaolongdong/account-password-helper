@@ -19,7 +19,7 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
-import { tl } from '@/utils/i18n-lite';
+import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
 
 /** 钥匙图标（与 components/InlineKeyIcon.vue 保持一致，修改请同步） */
@@ -36,6 +36,9 @@ const STAR_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="current
 
 /** 填入图标（TOTP 活码胶囊内的填充动作） */
 const TOTP_FILL_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="m7 8 5 5 5-5"/><path d="M5 21h14"/></svg>`;
+
+/** 加号图标（空状态 CTA 按钮） */
+const PLUS_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>`;
 
 /** 图标与面板样式（使用主题令牌 var(--aph-*)，由宿主内联提供取值） */
 const inlineStyles = `
@@ -355,10 +358,35 @@ const inlineStyles = `
 }
 
 .aph-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 26px 16px;
   font-size: 13px;
   color: #9aa3af;
   text-align: center;
+}
+
+.aph-empty-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 10px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+  border: 1px solid var(--aph-primary-border);
+  border-radius: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.aph-empty-add-btn:hover {
+  color: #fff;
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
 }
 
 /* 底部管理 */
@@ -550,6 +578,9 @@ export class InlineFillDropdown {
   /** TOTP 倒计时刷新定时器（有活码展示时运行，每秒一次） */
   private totpTimer: ReturnType<typeof setInterval> | null = null;
 
+  /** 语言变更订阅取消函数（确保 destroy 时清理，防止内存泄漏） */
+  private unsubscribeLocale: (() => void) | null = null;
+
   /**
    * 为登录字段展示触发图标（获焦触发，不拉取数据）
    * @param input 目标输入框
@@ -630,6 +661,8 @@ export class InlineFillDropdown {
   destroy(): void {
     this.detachTriggerInteractions();
     this.detachPanelInteractions();
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = null;
     if (this.hideIconTimer) {
       clearTimeout(this.hideIconTimer);
       this.hideIconTimer = null;
@@ -687,6 +720,10 @@ export class InlineFillDropdown {
 
     // 应用当前缓存的主题令牌到宿主（取值由 FormDetector 依据配置推送）
     applyThemeTokensToHost(this.shadowHost, this.currentTheme);
+
+    // 语言切换时就地刷新面板文案与引导气泡（含初始化异步加载完成后的首次通知）
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = onLiteLocaleChanged(() => this.refreshPanelLocale());
   }
 
   /**
@@ -698,6 +735,28 @@ export class InlineFillDropdown {
   setTheme(theme: ThemeName): void {
     this.currentTheme = theme;
     if (this.shadowHost) applyThemeTokensToHost(this.shadowHost, theme);
+  }
+
+  /**
+   * 语言切换时就地刷新面板文案与引导气泡（由 onLiteLocaleChanged 订阅触发）
+   *
+   * 面板打开中：复用已缓存的 accounts/locked/searchKeyword 状态重建面板，
+   * 无需重新请求匹配账号数据，开销与 openPanel 的 buildPanel 调用一致。
+   * 引导气泡可见时同步更新文案。触发图标 title 一并刷新。
+   */
+  private refreshPanelLocale(): void {
+    // 触发图标 tooltip
+    if (this.triggerEl) this.triggerEl.setAttribute('title', tl('cs.inline.trigger'));
+
+    // 引导气泡
+    if (this.hintEl) this.hintEl.textContent = tl('cs.inline.firstUseHint');
+
+    // 面板打开中则重建（状态已缓存，无需重新拉取账号数据）
+    if (this.panelOpen && this.panelEl) {
+      this.detachPanelInteractions();
+      this.buildPanel();
+      this.attachPanelInteractions();
+    }
   }
 
   // ==================== 触发图标 ====================
@@ -992,7 +1051,10 @@ export class InlineFillDropdown {
     if (!listEl) return;
 
     if (this.filtered.length === 0) {
-      listEl.innerHTML = `<div class="aph-empty">${this.accounts.length === 0 ? tl('cs.inline.emptyNoAccounts') : tl('cs.inline.emptyNoMatch')}</div>`;
+      const emptyText = this.accounts.length === 0 ? tl('cs.inline.emptyNoAccounts') : tl('cs.inline.emptyNoMatch');
+      listEl.innerHTML = `<div class="aph-empty">${emptyText}<button class="aph-empty-add-btn" type="button" data-action="add-site">${PLUS_ICON}<span>${tl('cs.inline.emptyAddSite')}</span></button></div>`;
+      const addBtn = listEl.querySelector('[data-action="add-site"]');
+      addBtn?.addEventListener('click', () => this.openOptionsAndAdd());
       return;
     }
 
@@ -1134,6 +1196,22 @@ export class InlineFillDropdown {
     chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_PAGE }).catch(() => {
       // 无接收者时忽略
     });
+  }
+
+  /**
+   * 打开密码管理并自动进入添加模式，携带当前网站域名预填 URL 字段
+   */
+  private openOptionsAndAdd(): void {
+    this.hide();
+    const hostname = location.hostname;
+    chrome.runtime
+      .sendMessage({
+        type: MessageType.OPEN_OPTIONS_AND_ADD,
+        data: hostname ? { url: hostname } : undefined,
+      })
+      .catch(() => {
+        // 无接收者时忽略
+      });
   }
 
   // ==================== TOTP 活码（2FA） ====================

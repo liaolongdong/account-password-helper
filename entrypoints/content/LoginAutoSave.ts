@@ -159,9 +159,13 @@ export class LoginAutoSave {
     // 监听键盘 Enter 键，处理在密码框按回车提交的场景
     document.addEventListener('keydown', this.handleKeyDown, { capture: true });
     // 监听 storage 变化，同步更新启用状态
-    chrome.storage.onChanged.addListener(this.handleStorageChange);
+    if (chrome?.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(this.handleStorageChange);
+    }
     // 监听 runtime 消息，感知会话过期广播（闲时锁定、手动清除等场景）
-    chrome.runtime.onMessage.addListener(this.handleRuntimeMessage);
+    if (chrome?.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(this.handleRuntimeMessage);
+    }
 
     // 标记页面上所有密码字段，确保 type 被切换为 text 后仍能通过组合选择器定位
     this.markExistingPasswordFields();
@@ -350,7 +354,7 @@ export class LoginAutoSave {
    * @returns 是否匹配（且未被屏蔽）
    */
   private isDomainMatch(): boolean {
-    return StorageUtils.isDomainMatchForAutoSave(location.hostname, {
+    return StorageUtils.isDomainMatchForAutoSave(location.host, {
       enabled: this.isEnabled,
       domainPatterns: this.domainPatterns,
       excludedDomains: this.excludedDomains,
@@ -407,7 +411,7 @@ export class LoginAutoSave {
     const pending: PendingCredentials = {
       username,
       password,
-      url: location.hostname,
+      url: location.host, // 使用 host（含端口号，如 localhost:3000、192.168.1.1:8080）
       tag: document.title,
       remark: tl('cs.save.autoSaveRemark'),
       tagEdited: false,
@@ -1149,10 +1153,14 @@ export class LoginAutoSave {
         }
       }
     });
-    this.passwordFieldObserver.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
+    // allFrames 注入时部分 iframe（about:blank / srcdoc 空文档）document.body 为 null，
+    // 此时无 DOM 可观察，跳过 observe 避免抛出 TypeError
+    if (document.body) {
+      this.passwordFieldObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
   }
 
   /**

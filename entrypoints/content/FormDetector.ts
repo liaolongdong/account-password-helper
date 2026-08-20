@@ -171,7 +171,9 @@ export class FormDetector {
         }
       }
     };
-    chrome.storage.onChanged.addListener(this.storageListener);
+    if (chrome?.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(this.storageListener);
+    }
   }
 
   /**
@@ -192,7 +194,9 @@ export class FormDetector {
       // 仅对已处理的消息保持通道开放，未处理的消息传递给 background
       return this.handleMessage(message, sender, sendResponse);
     };
-    chrome.runtime.onMessage.addListener(this.messageListener);
+    if (chrome?.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(this.messageListener);
+    }
   }
 
   /**
@@ -268,12 +272,16 @@ export class FormDetector {
       }
     });
 
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ['class', 'style', 'placeholder'],
-    });
+    // allFrames 注入时部分 iframe（about:blank / srcdoc 空文档）document.body 为 null，
+    // 此时无 DOM 可观察，跳过 observe 避免抛出 TypeError
+    if (document.body) {
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['class', 'style', 'placeholder'],
+      });
+    }
 
     return observer;
   }
@@ -1049,6 +1057,9 @@ export class FormDetector {
    * @param budgetMs - 最长等待上限（毫秒），默认 300
    */
   private waitForDomStable(quietMs = 50, budgetMs = 300): Promise<void> {
+    // allFrames 注入时部分 iframe（about:blank / srcdoc 空文档）document.body 为 null，
+    // 无 DOM 可观察，视为已稳定，直接 resolve
+    if (!document.body) return Promise.resolve();
     return new Promise(resolve => {
       let quietTimer: ReturnType<typeof setTimeout> | null = null;
       const finish = (): void => {

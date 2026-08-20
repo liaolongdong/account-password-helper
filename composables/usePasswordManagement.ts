@@ -13,6 +13,7 @@ import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
 import { isValidTotpInput } from '@/utils/totp';
 import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
+import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
@@ -44,10 +45,10 @@ const urlValidator = (_rule: any, value: string, callback: any) => {
         return;
       }
     } else {
-      // 纯域名格式：允许字母、数字、连字符、点号
-      // 支持 localhost、IP 地址、标准域名
+      // 纯域名格式：允许字母、数字、连字符、点号，可选端口号
+      // 支持 localhost、IP 地址、标准域名，均支持 :port 后缀
       const domainPattern =
-        /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})$/;
+        /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})(:\d{1,5})?$/;
       if (!domainPattern.test(trimmed)) {
         callback(new Error(t('form.invalidUrlExample')));
         return;
@@ -105,8 +106,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const editingPasswordId = ref<string>('');
   const passwordFormLoading = ref(false);
   const tableLoading = ref(false);
-  /** 本地操作进行中标志，用于通知 storage watcher 跳过本轮 loadPasswords */
-  const isLocalOperation = ref(false);
+  /** 本地操作守卫：防止 storage watcher 在本地操作期间触发全量 loadPasswords */
+  const { isLocalOperation, runLocalOperation } = useLocalOperationGuard();
   const passwordForm = ref({
     username: '',
     password: '',
@@ -152,30 +153,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     // 始终按当前排序状态排序（替代 el-table 客户端排序）
     return sortPasswordEntries([...result], currentSort.value);
   });
-
-  /**
-   * 包裹本地 storage 写入操作，设置标志位防止 storage watcher 重复触发 loadPasswords
-   *
-   * 原理：本地操作（复制/编辑/收藏/删除）已在 Vue 层就地更新状态，
-   * 无需 storage watcher 再触发全量 loadPasswords。设置 isLocalOperation 标志后，
-   * useStorageWatcher 会跳过 onPasswordDataChange 回调，避免 tableLoading 闪烁和全量替换数组引用。
-   *
-   * 延迟清除标志使用 setTimeout(0) 确保覆盖 chrome.storage.onChanged 的异步派发时序。
-   *
-   * @param fn 包含 storage 写入的异步操作
-   */
-  const runLocalOperation = async (fn: () => Promise<void>) => {
-    isLocalOperation.value = true;
-    try {
-      await fn();
-    } finally {
-      // 延迟清除标志：chrome.storage.onChanged 在当前微任务之后派发，
-      // setTimeout(0) 将清除推迟到下一个宏任务，确保事件处理时标志仍为 true
-      setTimeout(() => {
-        isLocalOperation.value = false;
-      }, 0);
-    }
-  };
 
   /**
    * 搜索关键词防抖：输入框保持即时响应（v-model 仍绑定 searchKeyword），
@@ -387,7 +364,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   // 切换密码可见性
-  const togglePasswordVisibility = (row: any) => {
+  const togglePasswordVisibility = (row: PasswordEntryWithUI) => {
     row.showPassword = !row.showPassword;
   };
 
