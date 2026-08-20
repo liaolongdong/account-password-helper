@@ -206,7 +206,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   padding: 10px 16px;
   cursor: pointer;
   user-select: none;
-  border-bottom: 1px solid #f3f4f5;
+  border-bottom: 1px solid var(--aph-border-light);
   transition:
     background-color 0.2s,
     transform 0.2s ease;
@@ -218,11 +218,11 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
 }
 
 .password-item:nth-child(even) {
-  background: #f8f9fb;
+  background: var(--aph-bg-zebra);
 }
 
 .password-item:hover {
-  background: #eef1f5;
+  background: var(--aph-bg-hover);
   transform: translateX(2px);
 }
 
@@ -245,13 +245,13 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   overflow: hidden;
   font-size: 14px;
   font-weight: 500;
-  color: #1f2937;
+  color: var(--aph-text-primary);
 }
 
 .username > .el-icon {
   margin-right: 6px;
   font-size: 16px;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
 }
 
 /* 网站图标与原用户图标占位一致，布局零偏移 */
@@ -284,7 +284,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
 
 .copy-icon-wrapper .copy-icon {
   font-size: 14px;
-  color: #9ca3af;
+  color: var(--aph-icon-muted);
   pointer-events: none;
 }
 
@@ -353,7 +353,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   overflow: hidden;
   text-overflow: ellipsis;
   font-size: 12px;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
   white-space: nowrap;
 }
 
@@ -365,7 +365,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   display: flex;
   flex-shrink: 0;
   align-items: center;
-  color: #b0b7c3;
+  color: var(--aph-icon-action);
 }
 
 .action-icon {
@@ -382,7 +382,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
 
 .favorite-icon {
   margin-right: 8px;
-  color: #b0b7c3;
+  color: var(--aph-icon-action);
   cursor: pointer;
   transition: color 0.2s;
 }
@@ -397,7 +397,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
 
 .auto-login-icon {
   margin-right: 8px;
-  color: #b0b7c3;
+  color: var(--aph-icon-action);
   cursor: pointer;
   transition: color 0.2s;
 }
@@ -409,7 +409,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
 .totp-fill-icon,
 .totp-copy-icon {
   margin-right: 8px;
-  color: #b0b7c3;
+  color: var(--aph-icon-action);
   cursor: pointer;
   transition: color 0.2s;
 }
@@ -420,7 +420,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
 }
 
 .edit-icon {
-  color: #b0b7c3;
+  color: var(--aph-icon-action);
   cursor: pointer;
   transition: color 0.2s;
 }

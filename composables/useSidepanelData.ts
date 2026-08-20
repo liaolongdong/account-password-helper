@@ -4,6 +4,7 @@ import { MessageType } from '@/utils/types';
 import type { SidepanelInitMeta } from '@/utils/perfMetrics';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
 import { useChromeListeners } from '@/composables/useChromeListeners';
+import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { isExactHostMatch } from '@/utils/domain';
@@ -298,14 +299,13 @@ export function useSidepanelData() {
   };
 
   /**
-   * 本地操作进行中标志
+   * 本地操作守卫：防止 storage watcher 在本地操作期间触发全量 loadPasswords
    *
-   * 当侧边栏自身发起 storage 写入（收藏/填充更新 lastUsedAt）时设为 true，
+   * 当侧边栏自身发起 storage 写入（收藏/填充更新 lastUsedAt）时，
    * handleStorageChange 检测到此标志后跳过 loadPasswords，避免全量重载覆盖
-   * Vue 层已就地完成的状态更新。与 options 页面 usePasswordManagement 的
-   * isLocalOperation + runLocalOperation 机制完全对齐。
+   * Vue 层已就地完成的状态更新。
    */
-  let _isLocalOperation = false;
+  const { isLocalOperation: localOperationFlag, runLocalOperation } = useLocalOperationGuard();
 
   // ==================== 域名工具 ====================
 
@@ -333,32 +333,6 @@ export function useSidepanelData() {
       await chrome.runtime.sendMessage({ type: MessageType.UPDATE_PASSWORD_CACHE });
     } catch (error) {
       logger.error('SidePanel: 触发缓存刷新失败:', error);
-    }
-  };
-
-  // ==================== 本地操作守卫 ====================
-
-  /**
-   * 包裹本地 storage 写入操作，设置标志位防止 handleStorageChange 触发全量 loadPasswords
-   *
-   * 原理：本地操作（收藏/填充更新时间戳）已在 Vue 层就地更新状态，
-   * 无需 storage watcher 再触发全量 loadPasswords。设置 _isLocalOperation 标志后，
-   * handleStorageChange 会跳过 onPasswordDataChange 回调，避免 loading 闪烁和全量替换数组引用。
-   *
-   * 延迟清除标志使用 setTimeout(0) 确保覆盖 chrome.storage.onChanged 的异步派发时序。
-   *
-   * @param fn 包含 storage 写入的异步操作
-   */
-  const runLocalOperation = async (fn: () => Promise<void>) => {
-    _isLocalOperation = true;
-    try {
-      await fn();
-    } finally {
-      // 延迟清除标志：chrome.storage.onChanged 在当前微任务之后派发，
-      // setTimeout(0) 将清除推迟到下一个宏任务，确保事件处理时标志仍为 true
-      setTimeout(() => {
-        _isLocalOperation = false;
-      }, 0);
     }
   };
 
@@ -590,7 +564,7 @@ export function useSidepanelData() {
         return;
       }
       // 本地操作（收藏/填充）已在 Vue 层就地更新，storage watcher 跳过全量重载
-      if (_isLocalOperation) {
+      if (localOperationFlag.value) {
         logger.debug('SidePanel: 本地操作触发的 storage 变更，跳过重新加载');
         return;
       }

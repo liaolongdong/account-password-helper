@@ -11,10 +11,10 @@
 在 Dashboard 点击「新建商品」(New Item)，上传以下文件：
 
 ```
-.output/account-password-helper-3.2.0-chrome.zip
+.output/account-password-helper-3.4.0-chrome.zip
 ```
 
-文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-3.2.0-chrome.zip`
+文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-3.4.0-chrome.zip`
 
 > 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。
 
@@ -31,86 +31,47 @@ Account Password Helper
 ### 摘要 (Summary) — 最多 132 字符
 
 ```
-本地密码管理工具，AES-256-GCM 加密、零网络传输。智能识别登录表单、一键填充自动登录、自动保存、导入导出、加密备份、TOTP 两步验证、安全体检、到期提醒、弱口令检测、拼音搜索、回收站、密码历史、修改主密码、中英双语，开源免费。
+为开发者与测试人员而生的本地加密密码管理器：AES-256-GCM 加密，零联网，快捷键一键登录，内置 TOTP 两步验证与安全体检，支持从 Chrome/Bitwarden/1Password 一键导入，无需注册。
 ```
 
-> ⚠️ 摘要必须与 `public/_locales/zh_CN/messages.json` 的 `extensionDescription` 保持完全一致（manifest 描述受 132 字符硬限制）。
+> ⚠️ 摘要必须与 `public/_locales/zh_CN/messages.json` 的 `extensionDescription` 保持完全一致（manifest 描述受 132 字符硬限制）。英文摘要同步 `en/messages.json`：`Password manager for dev & QA: AES-256-GCM encryption, hotkey autofill, TOTP 2FA & security audit. No sign-up, zero network traffic.`
 
 ### 说明 (Description) — 最多 16,000 字符
 
 ```
 
-一款专为开发、测试、产品以及普通用户设计的本地账号密码管理工具，让多账号、多系统登录更安全、更高效、更便捷。
+一款完全免费、数据纯本地的浏览器密码管理工具，为开发者、测试人员和追求效率的你提供多环境账号管理能力。
 
-插件操作指引和演示地址：https://liaolongdong.github.io/account-password-helper/
-完全开源，代码可审计，github地址：https://github.com/liaolongdong/account-password-helper
+【为什么选择它】
+◆ 快捷键一键登录（不只是填充）：按下 Ctrl+Shift+F，自动填充账号 → 自动勾选协议 → 自动点击登录按钮——其他工具只填表单，登录按钮还得自己点
+◆ 多环境账号隔离：精确域名匹配区分 dev/test/staging/prod，同一站点的不同环境账号互不混淆，开发者刚需
+◆ 内置 TOTP + 两步登录接力：验证码和密码在一起，GitHub 式两步登录自动衔接活码胶囊，告别手机验证器，不用切 App
+◆ 纯本地 AES-256-GCM，零云端：无云端、无账号、无订阅，数据全部加密在你的浏览器里，即使服务器被攻破也拿不到你的密码
 
-🔒 安全特性
-• AES-256-GCM 军事级加密
-• PBKDF2 密钥派生（600,000 次迭代）
-• 数据全部存储在本地，零网络传输
-• 主密码加盐哈希保护
-• 支持修改主密码（全部数据原子换钥重加密，不丢数据、无需重新登录）
-• 会话超时自动锁定
-• 支持配置闲置自动锁定
-• 浏览器重启锁定（可选）
-• 跨 iframe 表单检测与填充
+【安全架构】
+· 主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，基于 Web Crypto API 原生实现
+· AES-256-GCM 认证加密，会话过期自动加密回密文
+· 多种自动锁定触发：闲置超时 / 系统锁屏 / 浏览器重启（可选）
+· 复制密码后剪贴板定时自动清除（默认 30 秒，可配置）
+· 密码安全体检全程本地计算，不联网、不上传任何数据
 
-⚡ 便捷功能
-• 智能表单检测，一键自动填充
-• 一键填充快捷键（Ctrl+Shift+F，无需打开侧边栏直接填充，通知 + 角标双通道反馈，会话未验证时就地展开内联下拉引导解锁）
-• 侧边栏快捷管理密码（毫秒级响应）
-• 拼音智能搜索（全拼 / 首字母缩写 / 中英混合，命中关键词高亮，侧边栏与管理页同步生效）
-• 侧边栏头部域名行实时展示当前站点匹配账号数，无匹配时一键「添加账号」新增本站账号
-• 会话剩余时间在管理页头部、侧边栏头部与 Popup 常驻展示（剩余 10 分钟内转警示橙、最后 1 分钟内转危急红，点击直达有效期设置续期）
-• 新增密码时 URL 自动带入当前站点域名，侧边栏无匹配结果时可一键「添加本站账号」
-• 内联填充模式（登录框内钥匙图标，点击即填充；快捷键 Ctrl+Shift+K 直接展开下拉列表）
-• 自动保存新登录凭据
-• CSV / JSON / 加密备份导入导出（表头跟随界面语言，中英文表头均可自动识别）
-• 邮箱备份（支持加密/不加密两种方式）
-• 密码生成器（随机密码 + 助记词组两种模式，助记词组既安全又易记）
-• 剪贴板自动清除
-• TOTP 两步验证码（本地 RFC 6238 动态码，零网络，侧边栏与内联面板均支持一键复制 / 填充；两步登录接力：GitHub 式账密页与验证码页分离的两阶段登录，账密填充成功后跳转验证码页自动锚定活码胶囊，一键填入 / 复制，3 分钟有效）
-• TOTP 扫码添加（扫描网页二维码 / 上传二维码图片，本地 jsQR 解码不联网）
-• 密码列表与侧边栏展示网站图标（读取浏览器本地图标缓存，零外部请求）
-• 6 款色彩主题（晴空蓝/青竹绿/桃花粉/樱粉紫/落霞橙/雾墨灰）
-• Service Worker 保活，确保持续可用
+【功能全览】
+· 三种填充方式：快捷键一键登录（Ctrl+Shift+F）/ 侧边栏 / 内联迷你面板，自动勾选"同意条款"，可自动触发登录
+· TOTP 两步验证：扫描网页二维码或上传图片一键添加密钥，验证码按 RFC 6238 本地生成，GitHub 式两步登录自动衔接活码胶囊
+· 密码安全体检：一键生成 0-100 综合评分，五维检测——弱密码 / 密码复用 / 常见泄露密码（离线字典）/ 长期未更新 / 未开两步验证，支持到期提醒
+· 自动保存凭证：登录即弹窗确认，凭证指纹智能去重，支持域名白名单/黑名单、「不再提示」一键屏蔽
+· 导入导出：CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph 加密备份、邮箱备份提醒
+· 密码生成器：随机密码 + EFF 助记词组双模式，Web Crypto 密码学安全随机
+· 回收站与修改历史：删除条目保留 30 天可恢复，每条密码保留 5 份加密快照，改错可回滚
+· 智能搜索：拼音 / 首字母缩写搜索、标签分类、收藏置顶、一键去重、批量管理
+· 6 款色彩主题（晴空蓝/青竹绿/桃花粉/樱粉紫/落霞橙/雾墨灰）、中英文双语界面即时切换
 
-🔍 安全体检
-• 一键扫描密码库健康状况（0~100 分综合评分）
-• 检测弱密码、密码复用、常见泄露密码（离线 top-1000 字典）、长时间未更新（90/180/365 天分级预警）
-• 提示未开启两步验证的账号
-• 密码到期提醒：为每条密码设置 N 天后提醒更换，到期自动桌面通知
-• 全程本地计算，不联网、不上传任何数据
+【温馨提示】
+本插件为开发、测试与日常登录场景设计，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。
 
-🌐 国际化
-• 支持中文 / English 双语界面
-• 语言入口位于「偏好设置」面板（管理页 / 悬浮按钮 / 侧边栏三入口可达）
-• 运行时切换，无需重启扩展，所有页面实时同步
-• 覆盖网页内提示（保存弹窗 / 内联填充 / 页面通知）与桌面通知
-
-🎯 适用场景
-• 开发测试多账号切换
-• 日常网站密码管理
-• 团队共享密码库（通过加密文件）
-
-📦 数据管理
-• CSV / JSON 导入导出
-• 加密备份文件（.aph 格式）
-• 邮件备份提醒（支持加密备份）
-• 密码收藏夹
-• 标签筛选（管理页 + 侧边栏）与批量操作：批量删除、批量编辑标签（追加/移除）、导出选中条目
-• 回收站：删除的密码保留 30 天，可随时恢复、彻底删除或清空，超期自动清理
-• 密码修改历史：可配置启用/关闭，自动快照旧密码（加密存储，每条保留 1~10 条，默认 5 条），编辑弹窗中可复制或恢复
-
-⚙️ 高度可定制
-• 6 款色彩主题，一键换肤
-• 可配置会话超时时间
-• 浏览器重启锁定开关
-• 浮动按钮位置、透明度可调
-• 自动保存行为可开关
-• 排序方式自定义
-• Windows 冷启动优化引导（可选排除杀软扫描，侧边栏秒开）
+反馈邮箱：924902324@qq.com
+官网与使用教程：https://liaolongdong.github.io/account-password-helper/
+开源地址：https://github.com/liaolongdong/account-password-helper
 
 ```
 
@@ -121,6 +82,46 @@ Account Password Helper
 ### 语言 (Language)
 
 选择：**Chinese (Simplified) - 中文（简体）**
+
+> 💡 建议在 Store listing → Languages 中新增 **English (United States)**，填写英文标题、摘要和详细描述（见下方英文版），以覆盖英文搜索用户。
+
+### 说明 (Description) — 英文版（English Detailed Description）
+
+```
+
+A 100% free, fully offline password manager built for developers, QA engineers and anyone who juggles multiple accounts across environments.
+
+WHY DEVELOPERS LOVE IT
+◆ One-keystroke login, not just fill: press Ctrl+Shift+F — the account is autofilled, "I agree" is ticked, and the login button is clicked. Other tools only fill the form; you still have to click login yourself.
+◆ Multi-environment isolation: exact-domain matching separates dev / test / staging / prod credentials of the same site — same site, different environments, zero mix-ups. A must-have for developers.
+◆ Built-in TOTP + 2FA handoff: verification codes live with your passwords; on GitHub-style two-step logins, the live code capsule auto-anchors beside the input — no phone authenticator app needed.
+◆ Local AES-256-GCM, zero cloud: no cloud, no account, no subscription. Everything is encrypted in your browser — even if the server were breached, your passwords stay safe.
+
+SECURITY ARCHITECTURE
+· Master password → PBKDF2 (600,000 iterations) → 256-bit key, built on the native Web Crypto API
+· AES-256-GCM authenticated encryption; sensitive fields re-encrypt automatically on session expiry
+· Multiple auto-lock triggers: idle timeout / system lock / browser restart (optional)
+· Clipboard auto-wipe after copying passwords (default 30s, configurable)
+· Security audit runs 100% offline — no data leaves your machine
+
+FULL FEATURE SET
+· 3 autofill modes: one-keystroke shortcut (Ctrl+Shift+F) / side panel / inline mini-panel; auto-ticks "I agree" checkboxes; optional auto-login trigger
+· Built-in TOTP 2FA: scan on-page QR codes or upload images to add keys; codes generated locally (RFC 6238); auto-anchors a live code capsule on GitHub-style two-step login pages
+· Security audit: 0–100 score with five checks — weak / reused / commonly leaked (offline dictionary) / stale / missing 2FA; expiry reminders included
+· Auto-capture credentials on login with smart dedup and domain allow/block lists; one-click "Never for this site"
+· Import / export: CSV & JSON; auto-detects exports from Chrome, LastPass, Bitwarden, 1Password; .aph encrypted backup + email backup reminders
+· Password generator: random & EFF diceware passphrase modes, Web Crypto CSPRNG
+· Trash bin (30 days) + 5 encrypted snapshots per entry — roll back any mistake
+· Fuzzy search with pinyin / initials, tags, favorites, one-tap dedupe, batch operations
+· 6 color themes, Chinese / English bilingual UI with instant switching
+
+A friendly note: the extension is designed for development, testing and everyday sign-in scenarios. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.
+
+Feedback: 924902324@qq.com
+Docs & demo: https://liaolongdong.github.io/account-password-helper/
+Source code: https://github.com/liaolongdong/account-password-helper
+
+```
 
 ---
 

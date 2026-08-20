@@ -6,15 +6,68 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>账号密码管理助手 · 使用说明</title>
+    <title>账号密码管理助手 Account Password Helper | 本地加密密码管理器（Chrome 扩展 · 开源免费）</title>
     <meta
       name="description"
-      content="一款现代化的 Chrome 浏览器扩展，让账号密码管理与自动填充更安全、更便捷。"
+      content="为开发者与测试人员而生的本地加密 Chrome 密码管理扩展：AES-256-GCM 加密零联网，快捷键一键登录，内置 TOTP 两步验证与安全体检，支持从 Chrome/Bitwarden/1Password 一键导入，开源免费，数据绝不出浏览器。"
+    />
+    <meta
+      name="keywords"
+      content="密码管理器,password manager,Chrome 扩展,本地加密,AES-256-GCM,自动填充,TOTP,两步验证,安全体检,开发者工具,离线密码管理器,浏览器扩展,password vault,autofill,2FA"
     />
     <meta
       name="google-site-verification"
       content="unD6BHVEHRxOhyZ353oO_77V8GXyLInc8gvbrh_ARbI"
     />
+    <!-- Open Graph / 社交分享卡片：微信/QQ/Telegram/X 等平台分享演示页链接时展示预览卡片 -->
+    <meta
+      property="og:type"
+      content="website"
+    />
+    <meta
+      property="og:title"
+      content="账号密码管理助手 Account Password Helper | 本地加密密码管理器（Chrome 扩展 · 开源免费）"
+    />
+    <meta
+      property="og:description"
+      content="为开发者与测试人员而生的本地加密 Chrome 密码管理扩展：AES-256-GCM 加密零联网，快捷键一键登录，内置 TOTP 两步验证与安全体检，支持从 Chrome/Bitwarden/1Password 一键导入，开源免费，数据绝不出浏览器。"
+    />
+    <meta
+      property="og:url"
+      content="https://liaolongdong.github.io/account-password-helper/"
+    />
+    <meta
+      property="og:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+    />
+    <meta
+      name="twitter:card"
+      content="summary_large_image"
+    />
+    <!-- SoftwareApplication 结构化数据：帮助 Google 识别为 Chrome 扩展产品页，提升富媒体搜索结果展示 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Account Password Helper · 账号密码管理助手",
+        "applicationCategory": "SecurityApplication",
+        "operatingSystem": "Chrome",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "description": "为开发者与测试人员而生的本地加密 Chrome 密码管理扩展：AES-256-GCM 加密零联网，快捷键一键登录，内置 TOTP 两步验证与安全体检，开源免费。",
+        "url": "https://liaolongdong.github.io/account-password-helper/",
+        "installUrl": "https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli",
+        "image": "https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png",
+        "license": "https://github.com/liaolongdong/account-password-helper/blob/main/LICENSE",
+        "author": {
+          "@type": "Person",
+          "name": "liaolongdong"
+        }
+      }
+    </script>
     <link
       rel="icon"
       type="image/svg+xml"
@@ -1310,7 +1363,8 @@
               />
             </svg>
             <span data-i18n="common.disclaimer"
-              >免责声明：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发、测试和普通生产环境登录使用，严禁保存办公或个人敏感密码（如银行、支付、社交核心密码），如发生密码泄露，后果自负！</span
+              >免责声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM
+              加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。</span
             >
           </div>
         </div>
@@ -1917,7 +1971,8 @@
             class="footer-disclaimer"
             data-i18n="common.disclaimer"
           >
-            免责声明：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发、测试和普通生产环境登录使用，严禁保存办公或个人敏感密码（如银行、支付、社交核心密码），如发生密码泄露，后果自负！
+            免责声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM
+            加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。
           </p>
           <div class="footer-meta">
             <span data-i18n-html="footer.email"
@@ -2107,8 +2162,8 @@
         },
         'hero.badge': { zh: 'AES-256-GCM 本地加密', en: 'AES-256-GCM local encryption' },
         'common.disclaimer': {
-          zh: '免责声明：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发、测试和普通生产环境登录使用，严禁保存办公或个人敏感密码（如银行、支付、社交核心密码），如发生密码泄露，后果自负！',
-          en: 'Disclaimer: All data is stored locally (sensitive fields encrypted). For development, testing, and ordinary production logins only. Never store work or personal sensitive passwords (banking, payment, or core social accounts). You bear full responsibility for any password leakage!',
+          zh: '免责声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。',
+          en: 'Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and never leaves your machine. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.',
         },
         'features.title': { zh: '核心特性', en: 'Core Features' },
         'features.sub': {

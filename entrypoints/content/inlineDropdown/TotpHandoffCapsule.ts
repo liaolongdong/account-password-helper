@@ -18,7 +18,7 @@ import { MessageType } from '@/utils/types';
 import type { InlineTotpCodeData } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
-import { tl } from '@/utils/i18n-lite';
+import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
 
 /** 填入图标（与内联面板活码胶囊一致） */
@@ -145,6 +145,8 @@ export class TotpHandoffCapsule {
   private currentTheme: ThemeName = DEFAULT_THEME;
   /** 本页生命周期内已被用户关闭的条目 ID（抵御在途响应/重检测导致的关而复现） */
   private dismissedIds = new Set<string>();
+  /** 语言变更订阅取消函数（确保 destroy 时清理，防止内存泄漏） */
+  private unsubscribeLocale: (() => void) | null = null;
 
   /**
    * 在验证码输入框旁展示接力胶囊并拉取首个动态码
@@ -186,10 +188,24 @@ export class TotpHandoffCapsule {
   }
 
   /**
+   * 语言切换时就地刷新胶囊 tooltip（由 onLiteLocaleChanged 订阅触发）
+   */
+  private refreshCapsuleLocale(): void {
+    if (!this.capsuleEl) return;
+    this.capsuleEl.setAttribute('title', tl('cs.handoff.capsuleTitle'));
+    const fillBtn = this.capsuleEl.querySelector('.aph-handoff-fill');
+    fillBtn?.setAttribute('title', tl('cs.handoff.fillTitle'));
+    const closeBtn = this.capsuleEl.querySelector('.aph-handoff-close');
+    closeBtn?.setAttribute('title', tl('cs.handoff.closeTitle'));
+  }
+
+  /**
    * 销毁实例，移除 DOM 与监听
    */
   destroy(): void {
     this.hide();
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = null;
     this.shadowHost?.remove();
     this.shadowHost = null;
     this.shadowRoot = null;
@@ -229,6 +245,10 @@ export class TotpHandoffCapsule {
 
     document.body.appendChild(this.shadowHost);
     applyThemeTokensToHost(this.shadowHost, this.currentTheme);
+
+    // 语言切换时就地刷新胶囊 tooltip（含初始化异步加载完成后的首次通知）
+    this.unsubscribeLocale?.();
+    this.unsubscribeLocale = onLiteLocaleChanged(() => this.refreshCapsuleLocale());
   }
 
   /**

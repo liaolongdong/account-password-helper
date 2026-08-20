@@ -56,11 +56,12 @@
   ],
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ]
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"],
+    "overrides": {
+      "shell-quote": ">=1.8.1",
+      "tmp": ">=0.2.7",
+      "uuid": ">=9.0.1"
+    }
   },
   "type": "module",
   "scripts": {
@@ -89,48 +90,41 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
-    "@element-plus/icons-vue": "^2.3.1",
-    "element-plus": "^2.13.7",
+    "@element-plus/icons-vue": "^2.3.2",
+    "element-plus": "^2.14.4",
     "jsqr": "^1.4.0",
     "pinyin-match": "^1.2.10",
-    "vue": "^3.5.33"
+    "vue": "^3.5.41"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/chrome": "^0.1.40",
-    "@typescript-eslint/parser": "^8.59.0",
-    "@vitest/coverage-v8": "^4.1.10",
-    "@vue/eslint-config-typescript": "^14.7.0",
-    "@wxt-dev/module-vue": "^1.0.1",
-    "eslint": "^10.2.1",
+    "@types/chrome": "^0.1.43",
+    "@typescript-eslint/parser": "^8.67.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "@wxt-dev/module-vue": "^1.0.3",
+    "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-vue": "^10.9.0",
+    "eslint-plugin-vue": "^10.10.0",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
     "postcss-html": "^1.8.1",
-    "prettier": "^3.8.3",
-    "rollup-plugin-visualizer": "^7.0.1",
-    "sharp": "^0.35.0",
-    "stylelint": "^17.9.0",
-    "stylelint-config-recess-order": "^7.7.0",
+    "prettier": "^3.9.6",
+    "rollup-plugin-visualizer": "^7.1.1",
+    "sharp": "^0.35.3",
+    "stylelint": "^17.14.1",
+    "stylelint-config-recess-order": "^7.8.0",
     "stylelint-config-standard": "^40.0.0",
     "stylelint-order": "^8.1.1",
     "typescript": "^6.0.3",
-    "unplugin-auto-import": "^21.0.0",
-    "unplugin-vue-components": "^32.0.0",
-    "vitest": "^4.1.10",
-    "wxt": "^0.20.25"
+    "unplugin-auto-import": "^21.1.0",
+    "unplugin-vue-components": "^32.1.0",
+    "vitest": "^4.1.11",
+    "wxt": "^0.20.27"
   }
 }

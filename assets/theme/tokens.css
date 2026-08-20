@@ -28,6 +28,20 @@
   --aph-surface-2: #f8fbff;
   --aph-surface-line: #e3f2fd;
   --aph-surface-hover: #f0f9ff;
+
+  /* 中性色：文字 */
+  --aph-text-primary: #1f2937;
+  --aph-text-secondary: #6b7280;
+  --aph-text-muted: #9ca3af;
+
+  /* 中性色：图标 */
+  --aph-icon-muted: #9ca3af;
+  --aph-icon-action: #b0b7c3;
+
+  /* 中性色：边框与背景 */
+  --aph-border-light: #f3f4f5;
+  --aph-bg-zebra: #f8f9fb;
+  --aph-bg-hover: #eef1f5;
 }
 
 /* ==================== 青竹绿 ==================== */

@@ -305,17 +305,22 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 /** 表格引用（暴露给父组件） */
 const localTableRef = ref();
 
+/** Tooltip 组件实例接口（仅声明本组件使用的最小方法集） */
+interface TooltipInstance {
+  onClose: () => void;
+}
+
 /**
  * 操作栏 Tooltip 引用集合
  * 用于在操作触发时主动关闭残留 tooltip，避免 popper 残留在视口中
  */
-const tooltipRefs = ref<any[]>([]);
+const tooltipRefs = ref<TooltipInstance[]>([]);
 
 /**
  * 收集 tooltip 组件引用（函数式 ref，每次渲染时调用）
  * @param el tooltip 组件实例
  */
-const collectTooltipRef = (el: any) => {
+const collectTooltipRef = (el: TooltipInstance | null) => {
   if (el) tooltipRefs.value.push(el);
 };
 

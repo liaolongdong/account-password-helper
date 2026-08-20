@@ -119,13 +119,13 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 
 - When enabled, credentials are captured on site login with a confirmation prompt (see [LoginAutoSave.ts](../entrypoints/content/LoginAutoSave.ts)).
 - Three capture scenarios: form submit (capture phase), login button click, and Enter key in the password field.
-- Domain rules support exact domains and regular expressions; empty rules match all domains (see [AutoSaveSettingDialog.vue](../components/options/AutoSaveSettingDialog.vue)).
+- Domain rules support exact domains and regular expressions; empty rules match all domains. Rules with a port (e.g. `localhost:3000`) only match that exact host + port combination (see [AutoSaveSettingDialog.vue](../components/options/AutoSaveSettingDialog.vue)).
 - sessionStorage staging preserves credentials across page navigation caused by traditional form submits.
 - After saving, a desktop notification is sent and the password cache is invalidated so the next load gets fresh data.
 - **Three-option interaction**: the prompt offers "Save", "Not now", and "Never".
 - **Editable fields**: besides showing the account and password, the prompt provides editable **tag** (defaults to the page title) and **remark** (defaults to "Auto-saved") inputs.
 - **Smart update strategy**: same account + same domain with a changed password triggers an "Update" confirmation that keeps existing tags and remarks (unless edited in the prompt); identical credentials are skipped; new accounts create new entries.
-- **Blocklist**: clicking "Never" adds the current domain to the block list (see [SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts)); no prompts appear for that domain until it is removed under "Blocked domains" in settings.
+- **Blocklist**: clicking "Never" adds the current domain to the block list (see [SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts)); entries without a port block all ports for that hostname and its subdomains, while entries with a port (e.g. `localhost:3000`) only block that specific port. Remove entries under "Blocked domains" in settings to restore prompts.
 - **Anti-duplicate**: before prompting, the background is queried for the domain + account status in the vault (see `checkCredentialStatus` in [autoSaveManager.ts](../utils/storage/autoSaveManager.ts)): identical credentials stay fully silent (persistently across logins); changed passwords open an "Update" prompt; new accounts open a "Save" prompt. A same-page fingerprint debounce (username + password length, see [LoginAutoSave.ts](../entrypoints/content/LoginAutoSave.ts)) absorbs the triple trigger of submit/click/Enter.
 
 ### 5. Email Backup

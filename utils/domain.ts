@@ -270,6 +270,33 @@ export function normalizeToHostname(value: string): string {
 }
 
 /**
+ * 将 URL 或域名规范化为 host:port 格式
+ *
+ * 保留端口号信息，用于存储和展示场景。
+ * 与 normalizeToHostname 的区别：本函数返回 host（含端口），后者仅返回 hostname。
+ *
+ * @param value - 原始 URL 或域名字符串
+ * @returns 规范化后的 host:port（无端口时仅 hostname）；空输入返回空串
+ *
+ * @example
+ * normalizeToHostAndPort('https://localhost:3000/path')  // → 'localhost:3000'
+ * normalizeToHostAndPort('example.com:8080')              // → 'example.com:8080'
+ * normalizeToHostAndPort('example.com')                   // → 'example.com'
+ * normalizeToHostAndPort('192.168.1.1:9090')              // → '192.168.1.1:9090'
+ */
+export function normalizeToHostAndPort(value: string): string {
+  const s = value.trim();
+  if (!s) return s;
+  try {
+    const url = new URL(s.includes('://') ? s : `https://${s}`);
+    return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+  } catch {
+    // 回退：去除路径/查询/锚点
+    return s.split('/')[0].split('?')[0].split('#')[0].toLowerCase();
+  }
+}
+
+/**
  * 判断当前页面域名是否与密码条目中存储的 URL 精确匹配（仅比较完整 hostname）
  *
  * 匹配策略：
