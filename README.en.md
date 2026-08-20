@@ -8,12 +8,16 @@
 [![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13.7-409EFF)](https://element-plus.org/)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](#license)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Published-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Chrome Web Store Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 [![GitHub Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=GitHub%20Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
 
-A powerful Chrome extension for secure, convenient password management and auto-fill. Built on a **PBKDF2 + AES-256-GCM** encryption scheme with zero network transfer — passwords never leave your browser.
+> **Local-first · Zero Network — The multi-environment credential manager built for developers & QA**
 
-> **Disclaimer**: All data is stored locally (sensitive fields encrypted). This extension is intended for development, testing, and ordinary production logins only. **Never store work or personal sensitive passwords (banking, payment, or core social accounts).** You bear full responsibility for any password leakage!
+A local-first Chrome password manager built for developers & QA: exact-domain matching for multi-environment accounts, one-keystroke login (autofill + auto-tick consent + auto-click login), built-in TOTP 2FA and security audit. **PBKDF2 + AES-256-GCM** encryption with zero network transfer — passwords never leave your browser, no account needed.
+
+> **Security notice**: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and never leaves your machine over the network. For the safety of your assets, we recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.
 >
 > 🌐 **Live demo**: https://liaolongdong.github.io/account-password-helper/
 
@@ -32,6 +36,17 @@ A powerful Chrome extension for secure, convenient password management and auto-
 <p align="center">
   <sub>Password list management · Side panel quick fill · Floating button shortcut</sub>
 </p>
+
+## ✨ Why Choose It
+
+| Feature                                   | What sets it apart                                                                                                                                                        |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ⚡ **One-keystroke login, not just fill** | hotkey `Ctrl+Shift+F` does it all: fill → tick consent → click login. Other tools only fill the form — **you still have to click login yourself**                         |
+| 🎯 **Multi-environment isolation**        | Exact-domain matching separates dev / test / staging / prod credentials — **same site, different environments, zero mix-ups**. A must-have for developers                 |
+| 🔑 **Built-in TOTP + 2FA handoff**        | Verification codes live with your passwords; on GitHub-style two-step logins, the live code capsule auto-anchors beside the input — **no phone authenticator app needed** |
+| 🔒 **Local AES-256-GCM, zero cloud**      | No cloud, no account, no subscription. Everything is encrypted in your browser — **even if the server were breached, your passwords stay safe**                           |
+| 📊 **Offline security audit**             | One-click 0–100 score: weak / reused / leaked / stale / missing-2FA checks — **all computed offline**                                                                     |
+| 📦 **One-click migration**                | Auto-detects exports from Chrome / LastPass / Bitwarden / 1Password; CSV & JSON — **move in in 30 seconds**                                                               |
 
 ## Core Features
 
@@ -213,6 +228,8 @@ Plaintext + key + random IV → AES-256-GCM → Base64(IV + ciphertext)
 | `pnpm lint:all` / `pnpm fix:all`     | Run all checks / all auto-fixes                          |
 
 > 📖 Icon workflow, test page, and performance design details live in [docs/ARCHITECTURE.en.md — Development Extras](./docs/ARCHITECTURE.en.md#development-extras); contribution workflow in [CONTRIBUTING.md](./CONTRIBUTING.md).
+>
+> 📈 Exposure growth playbook for GitHub & Chrome Web Store (positioning, store ASO copy, Featured badge nomination, content marketing, user operations): [账号密码管理助手曝光提升执行手册.md](./账号密码管理助手曝光提升执行手册.md).
 
 ### Chrome Permissions
 
@@ -232,7 +249,7 @@ Plaintext + key + random IV → AES-256-GCM → Base64(IV + ciphertext)
 
 ## Security Notes
 
-- This extension is for development, testing, and ordinary production logins only. **Never store work or personal sensitive passwords (banking, payment, or core social accounts)**;
+- Account Password Helper is built for development, testing and everyday sign-in scenarios. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension;
 - A forgotten master password **cannot be recovered** — keep it safe;
 - All data is stored locally with AES-256-GCM encryption and zero network transfer;
 - Back up regularly via encrypted backup (.aph files);

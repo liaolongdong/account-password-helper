@@ -8,12 +8,16 @@
 [![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13.7-409EFF)](https://element-plus.org/)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](#许可证)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-已上架-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Chrome Web Store Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 [![GitHub Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=GitHub%20Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
 
-一款功能强大的 Chrome 浏览器扩展，提供安全、便捷的账号密码管理与自动填充能力。采用 **PBKDF2 + AES-256-GCM** 加密体系，零网络传输，密码绝不出浏览器。
+> **本地加密 · 零网络传输 —— 为开发者与测试人员打造的多环境账号管理神器**
 
-> **免责声明**：本插件的所有数据均保存在本地（敏感信息加密保存），仅用于开发、测试和普通生产环境登录使用，**严禁保存办公或个人敏感密码（如银行、支付、社交核心密码）**，如发生密码泄露，后果自负！
+一款为开发者与测试人员打造的本地加密 Chrome 密码管理扩展：精确域名匹配区分多环境账号、快捷键一键登录（自动填充 + 自动勾选协议 + 自动点击登录）、内置 TOTP 两步验证与安全体检。采用 **PBKDF2 + AES-256-GCM** 加密体系，数据绝不出浏览器，无需注册账号。
+
+> **安全声明**：账号密码管理助手为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。
 >
 > 🌐 **在线演示**: https://liaolongdong.github.io/account-password-helper/
 
@@ -32,6 +36,17 @@
 <p align="center">
   <sub>密码列表管理 · 侧边栏快速填充 · 悬浮按钮快捷入口</sub>
 </p>
+
+## ✨ 为什么选择它
+
+| 特性                              | 与其他密码管理器的区别                                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| ⚡ **一键登录，不只是填充**       | 快捷键 `Ctrl+Shift+F` 一步完成：填充账号 → 勾选协议 → 点击登录。其他工具只填表单，**登录按钮还得自己点** |
+| 🎯 **多环境账号隔离**             | 精确域名匹配区分 dev/test/staging/prod——**同一站点的不同环境账号互不混淆**，开发者刚需                   |
+| 🔑 **内置 TOTP + 两步登录接力**   | 验证码和密码在一起；GitHub 式两步登录自动衔接活码胶囊，**告别手机验证器，不用切 App**                    |
+| 🔒 **纯本地 AES-256-GCM，零云端** | 无云端、无账号、无订阅。数据全部加密在你的浏览器里，**即使服务器被攻破也拿不到你的密码**                 |
+| 📊 **离线安全体检**               | 一键 0-100 评分：弱密码 / 复用 / 泄露 / 过期 / 未开 2FA 五维检测，**全程离线计算**                       |
+| 📦 **一键迁移，零门槛**           | 自动识别 Chrome / LastPass / Bitwarden / 1Password 导出格式，CSV/JSON 双格式，**30 秒搬家**              |
 
 ## 核心特性
 
@@ -213,6 +228,8 @@ graph LR
 | `pnpm lint:all` / `pnpm fix:all`     | 运行所有检查 / 所有自动修复                        |
 
 > 📖 图标工作流、测试页面、性能设计等开发细节见 [docs/ARCHITECTURE.md — 开发补充](./docs/ARCHITECTURE.md#开发补充)；贡献流程见 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+>
+> 📈 GitHub 与 Chrome 应用商店曝光率提升执行手册（定位策略/商店 ASO 文案/Featured 徽章提名/内容推广/用户运营/数据复盘）见 [账号密码管理助手曝光提升执行手册.md](./账号密码管理助手曝光提升执行手册.md)。
 
 ### Chrome 权限说明
 
@@ -232,7 +249,7 @@ graph LR
 
 ## 安全提醒
 
-- 本插件仅用于开发、测试和普通生产环境登录使用，**严禁保存办公或个人敏感密码（如银行、支付、社交核心密码）**；
+- 账号密码管理助手为开发、测试与日常登录场景而生，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证；
 - 主密码遗忘**无法恢复**，请务必牢记并妥善保管；
 - 所有数据本地 AES-256-GCM 加密存储，零网络传输；
 - 建议定期通过加密备份功能（.aph 文件）导出备份；
