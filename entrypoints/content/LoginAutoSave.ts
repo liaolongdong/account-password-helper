@@ -1149,10 +1149,14 @@ export class LoginAutoSave {
         }
       }
     });
-    this.passwordFieldObserver.observe(document.body, {
-      childList: true,
-      subtree: true,
-    });
+    // allFrames 注入时部分 iframe（about:blank / srcdoc 空文档）document.body 为 null，
+    // 此时无 DOM 可观察，跳过 observe 避免抛出 TypeError
+    if (document.body) {
+      this.passwordFieldObserver.observe(document.body, {
+        childList: true,
+        subtree: true,
+      });
+    }
   }
 
   /**
