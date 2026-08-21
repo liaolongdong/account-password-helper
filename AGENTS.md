@@ -148,7 +148,7 @@
   - 架构、数据流或安全设计变化：`docs/ARCHITECTURE.md` 与 `docs/ARCHITECTURE.en.md`。
   - SidePanel 帮助内容变化：`components/sidepanel/HelpDialog.vue` 及其语言包。
   - 官网展示变化：`index.html`。
-  - 商店文案、权限、隐私或发布流程变化：`CWS_FILL_CONTENT.md`、`CWS_PUBLISHING_GUIDE.md`、`privacy.html` 中受影响的部分。
+  - 商店文案、权限、隐私或发布流程变化：`docs/CWS_FILL_CONTENT.md`、`docs/CWS_PUBLISHING_GUIDE.md`、`privacy.html` 中受影响的部分。
   - manifest 描述、权限、命令或配置变化：`wxt.config.ts` 及对应 locale 文案。
 - 中英文文档应表达同一事实；不要只更新一种语言。
 
