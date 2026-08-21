@@ -11,12 +11,10 @@
 在 Dashboard 点击「新建商品」(New Item)，上传以下文件：
 
 ```
-.output/account-password-helper-3.4.0-chrome.zip
+.output/account-password-helper-3.5.0-chrome.zip
 ```
 
-文件位置：`/Users/liaolongdong/code/chrome-plugins/account-password-helper/.output/account-password-helper-3.4.0-chrome.zip`
-
-> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。
+> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。当前版本：**3.5.0**。
 
 ---
 
@@ -25,7 +23,7 @@
 ### 名称 (Name) — 最多 45 字符
 
 ```
-账号密码管理助手
+账号密码管理助手 - 本地加密密码管理器
 ```
 
 ### 摘要 (Summary) — 最多 132 字符
@@ -40,7 +38,7 @@
 
 ```
 
-一款完全免费、数据纯本地的浏览器密码管理工具，为开发者、测试人员和追求效率的你提供多环境账号管理能力。
+一款开源免费、数据纯本地的浏览器密码管理器——快捷键一键登录（自动填充 → 勾选协议 → 点击登录，不只是填表），精确域名匹配隔离 dev/test/staging/prod 多环境账号，为开发者和测试人员量身打造。无云端、无账号、无订阅，AES-256-GCM 全加密，数据只留在你的浏览器里。
 
 【为什么选择它】
 ◆ 快捷键一键登录（不只是填充）：按下 Ctrl+Shift+F，自动填充账号 → 自动勾选协议 → 自动点击登录按钮——其他工具只填表单，登录按钮还得自己点
@@ -90,7 +88,7 @@
 **Name（名称）— 最多 45 字符**
 
 ```
-Account Password Helper
+Account Password Helper – Password Manager
 ```
 
 **Summary（摘要）— 最多 132 字符**
@@ -102,46 +100,6 @@ Password manager for dev & QA: AES-256-GCM encryption, hotkey autofill, TOTP 2FA
 > ⚠️ 英文摘要必须与 `public/_locales/en/messages.json` 的 `extensionDescription` 保持完全一致。
 
 **Description（说明）— 最多 16,000 字符**
-
-```
-
-A 100% free, fully offline password manager built for developers, QA engineers and anyone who juggles multiple accounts across environments.
-
-WHY DEVELOPERS LOVE IT
-◆ One-keystroke login, not just fill: press Ctrl+Shift+F — the account is autofilled, "I agree" is ticked, and the login button is clicked. Other tools only fill the form; you still have to click login yourself.
-◆ Multi-environment isolation: exact-domain matching separates dev / test / staging / prod credentials of the same site — same site, different environments, zero mix-ups. A must-have for developers.
-◆ Built-in TOTP + 2FA handoff: verification codes live with your passwords; on GitHub-style two-step logins, the live code capsule auto-anchors beside the input — no phone authenticator app needed.
-◆ Local AES-256-GCM, zero cloud: no cloud, no account, no subscription. Everything is encrypted in your browser — even if the server were breached, your passwords stay safe.
-
-SECURITY ARCHITECTURE
-· Master password → PBKDF2 (600,000 iterations) → 256-bit key, built on the native Web Crypto API
-· AES-256-GCM authenticated encryption; sensitive fields re-encrypt automatically on session expiry
-· Multiple auto-lock triggers: idle timeout / system lock / browser restart (optional)
-· Clipboard auto-wipe after copying passwords (default 30s, configurable)
-· Security audit runs 100% offline — no data leaves your machine
-
-FULL FEATURE SET
-· 3 autofill modes: one-keystroke shortcut (Ctrl+Shift+F) / side panel / inline mini-panel; auto-ticks "I agree" checkboxes; optional auto-login trigger
-· Built-in TOTP 2FA: scan on-page QR codes or upload images to add keys; codes generated locally (RFC 6238); auto-anchors a live code capsule on GitHub-style two-step login pages
-· Security audit: 0–100 score with five checks — weak / reused / commonly leaked (offline dictionary) / stale / missing 2FA; expiry reminders included
-· Auto-capture credentials on login with smart dedup and domain allow/block lists; one-click "Never for this site"
-· Import / export: CSV & JSON; auto-detects exports from Chrome, LastPass, Bitwarden, 1Password; .aph encrypted backup + email backup reminders
-· Password generator: random & EFF diceware passphrase modes, Web Crypto CSPRNG
-· Trash bin (30 days) + 5 encrypted snapshots per entry — roll back any mistake
-· Fuzzy search with pinyin / initials, tags, favorites, one-tap dedupe, batch operations
-· 6 color themes, Chinese / English bilingual UI with instant switching
-
-A friendly note: the extension is designed for development, testing and everyday sign-in scenarios. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.
-
-Feedback: 924902324@qq.com
-Docs & demo: https://liaolongdong.github.io/account-password-helper/
-Source code: https://github.com/liaolongdong/account-password-helper
-
-```
-
-> 💡 建议在 Store listing → Languages 中新增 **English (United States)**，填写英文标题、摘要和详细描述（见下方英文版），以覆盖英文搜索用户。
-
-### 说明 (Description) — 英文版（English Detailed Description）
 
 ```
 
@@ -454,7 +412,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **What is the purpose of your extension? Describe the value it provides to Chrome users.（扩展程序的用途是什么？说明它为 Chrome 用户带来的价值。）**
 
 ```
-Account Password Helper is a free, 100% offline password manager for developers, QA engineers, and privacy-conscious users. All credentials are encrypted locally with PBKDF2 (600,000 iterations) + AES-256-GCM — no server, no account, no network transmission.
+Account Password Helper is a free, open-source, 100% offline password manager — one-keystroke login (autofill → tick "I agree" → click login, not just form fill), exact-domain matching to isolate dev/test/staging/prod accounts, built for developers and QA engineers. No cloud, no account, no subscription. AES-256-GCM encrypted, all data stays in your browser.
 
 Key differentiators:
 • One-keystroke login (Ctrl+Shift+F): autofills credentials, ticks "I agree", clicks login — complete sign-in in under 1 second
