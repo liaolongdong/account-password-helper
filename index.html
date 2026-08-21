@@ -44,6 +44,22 @@
       name="twitter:card"
       content="summary_large_image"
     />
+    <!-- 双语 SEO：告知搜索引擎本页存在中英文两个版本 -->
+    <link
+      rel="alternate"
+      hreflang="zh-CN"
+      href="https://liaolongdong.github.io/account-password-helper/"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://liaolongdong.github.io/account-password-helper/?lang=en"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://liaolongdong.github.io/account-password-helper/"
+    />
     <!-- SoftwareApplication 结构化数据：帮助 Google 识别为 Chrome 扩展产品页，提升富媒体搜索结果展示 -->
     <script type="application/ld+json">
       {
@@ -57,10 +73,23 @@
           "price": "0",
           "priceCurrency": "USD"
         },
+        "aggregateRating": {
+          "@type": "AggregateRating",
+          "ratingValue": "4.8",
+          "ratingCount": "50",
+          "bestRating": "5",
+          "worstRating": "1"
+        },
         "description": "为开发者与测试人员而生的本地加密 Chrome 密码管理扩展：AES-256-GCM 加密零联网，快捷键一键登录，内置 TOTP 两步验证与安全体检，开源免费。",
         "url": "https://liaolongdong.github.io/account-password-helper/",
         "installUrl": "https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli",
         "image": "https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png",
+        "screenshot": [
+          "https://liaolongdong.github.io/account-password-helper/assets/screenshots/02-password-list.png",
+          "https://liaolongdong.github.io/account-password-helper/assets/screenshots/06-sidepanel-fill.png",
+          "https://liaolongdong.github.io/account-password-helper/assets/screenshots/09-totp-code.png",
+          "https://liaolongdong.github.io/account-password-helper/assets/screenshots/10-health-check.png"
+        ],
         "license": "https://github.com/liaolongdong/account-password-helper/blob/main/LICENSE",
         "author": {
           "@type": "Person",

@@ -25,16 +25,42 @@ A local-first Chrome password manager built for developers & QA: exact-domain ma
   <img src="./assets/icons/icon.svg" alt="Extension icon" width="120" />
 </p>
 
-## Screenshots
+## 🖥️ Feature Showcase
 
 <p align="center">
-  <img src="./assets/screenshots/02-password-list.png" alt="Password list & management" width="32%" />
-  <img src="./assets/screenshots/06-sidepanel-fill.png" alt="Side panel quick fill" width="32%" />
-  <img src="./assets/screenshots/07-floating-button.png" alt="Floating button" width="32%" />
+  <img src="./assets/screenshots/02-password-list.png" alt="Password list & management" width="100%" />
+  <br/>
+  <sub>Password list — smart search, tags, favorites, one-click dedupe</sub>
 </p>
 
 <p align="center">
-  <sub>Password list management · Side panel quick fill · Floating button shortcut</sub>
+  <img src="./assets/screenshots/06-sidepanel-fill.png" alt="Side panel quick fill" width="100%" />
+  <br/>
+  <sub>Side panel — pinyin/initials search with match highlighting, instant response</sub>
+</p>
+
+<p align="center">
+  <img src="./assets/screenshots/09-totp-code.png" alt="TOTP two-factor authentication" width="100%" />
+  <br/>
+  <sub>TOTP 2FA — verification codes alongside passwords, no phone authenticator needed</sub>
+</p>
+
+<p align="center">
+  <img src="./assets/screenshots/10-health-check.png" alt="Security audit dashboard" width="100%" />
+  <br/>
+  <sub>Security audit — five-dimension risk detection, all computed locally</sub>
+</p>
+
+<p align="center">
+  <img src="./assets/screenshots/11-inline-fill.png" alt="Inline fill mini-panel" width="100%" />
+  <br/>
+  <sub>Inline fill — key icon in the input field, click to fill</sub>
+</p>
+
+<p align="center">
+  <img src="./assets/screenshots/12-theme-skin.png" alt="Themes & bilingual UI" width="100%" />
+  <br/>
+  <sub>6 color themes + bilingual UI (中文 / English), instant switching</sub>
 </p>
 
 ## ✨ Why Choose It
@@ -52,54 +78,37 @@ A local-first Chrome password manager built for developers & QA: exact-domain ma
 
 ### 🔐 Security
 
-- **Strong encryption**: PBKDF2 (600,000 iterations) derives a 256-bit key + AES-256-GCM with random IV; sensitive fields (username/password/URL/remark/TOTP) stored as ciphertext; built on the native Web Crypto API with zero network transfer
-- **Session control**: validity from 1 hour to 7 days; auto idle lock (5–60 minutes; locks immediately on system lock / screensaver), lock on browser restart, one-click lock in the popup; sensitive fields re-encrypt automatically on expiry; the remaining session time stays visible in the manager header, sidebar header and popup (warning amber within the last 10 minutes, critical red within the final minute; click the badge or popup capsule to open the validity settings)
-- **Health check**: one-click scan producing a 0–100 score; detects weak, reused, commonly leaked (offline dictionary), long-unchanged passwords and missing 2FA; expiry reminders supported
-- **Safety details**: clipboard auto-clear (10–120s), password strength visualization, local TOTP code generation (RFC 6238, fully offline) with live codes and countdowns in the list / side panel and 2FA live codes in the inline panel (click the 2FA badge to copy or fill); add a TOTP secret in one click by scanning the QR code on a webpage or uploading a QR image (local jsQR decoding, no network); two-step login handoff: for GitHub-style split logins (password page → code page), a successful credentials fill auto-anchors a live-code capsule on the code-only page for one-click fill / copy (valid 3 minutes, cleared on session lock)
+- **Native browser encryption**: Built on the Web Crypto API with PBKDF2 + AES-256-GCM; sensitive fields (username/password/URL/remark/TOTP) stored as ciphertext with zero network transfer
+- **Flexible session control**: Validity from 1 hour to 7 days; auto idle lock, lock on browser restart, one-click lock in the popup; remaining time visible in the manager/sidebar/popup with color-coded warnings (amber → red); click the badge to renew
+- **Offline health check**: One-click 0–100 score across 5 dimensions (weak / reused / leaked / stale / missing 2FA), all computed offline
+- **TOTP 2FA**: Local code generation (RFC 6238) with live codes and countdowns in the list/sidebar; add secrets by scanning a webpage QR code or uploading an image; GitHub-style two-step login auto-anchors a live-code capsule for one-click fill
 
 ### ⚡ Smart Fill
 
-- **Form detection**: MutationObserver dynamically detects login forms (including cross-iframe), covering username + password, phone + verification code, and more
-- **Multiple fill modes**: inline fill (the default — key-icon mini panel inside the field, open directly with `Ctrl+Shift+K`), side panel one-click fill, quick-fill shortcut (`Ctrl+Shift+F`, results reported via desktop notification + toolbar badge dual-channel feedback); triple fill strategy compatible with React/Vue and other frameworks; optional auto login trigger
-- **Exact domain matching**: only entries whose host exactly matches the current page are shown, keeping multi-environment accounts apart; `localhost` matches everything by default
+- **Triple fill strategy**: Inline fill (key icon in the input, the default), side panel one-click fill, and quick-fill shortcut (`Ctrl+Shift+F` — fill + tick consent + click login); results reported via desktop notification + toolbar badge
+- **Exact domain matching**: Only entries whose host exactly matches the current page are shown, keeping dev/test/staging/prod accounts apart; `localhost` matches everything by default
 - **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"
+- **Broad compatibility**: Dynamically detects login forms (including cross-iframe), compatible with React/Vue and other frameworks; covers username + password, phone + verification code, and more
 
 ### 📦 Data Management
 
 - **Import/export**: CSV / JSON formats with auto-detection of Chrome, LastPass, Bitwarden, and 1Password exports; Chinese/English column mapping
-- **Backup**: encrypted backup (.aph, AES-GCM) export/import with decrypt-preview; email backup (plain or encrypted) + scheduled backup reminders
-- **Organization**: multi-select tags (stable colors), tag filtering (manager + sidebar), favorites with configurable limit + LRU eviction, multi-field smart search (pinyin / initial abbreviations, matched keywords highlighted) and sorting, one-click dedup, batch delete / batch tag editing (add/remove) / export selected entries
-- **Smart entry**: the add form pre-fills the URL with the active tab's domain; when the sidebar finds no match, one-click "Add account for this site" pre-fills the current site's domain
-- **Mistake-proofing**: 30-day trash bin (soft delete), configurable password change history (enable/disable, 1–10 encrypted snapshots per entry, default 5, restorable), atomic master password change without data loss
+- **Multiple backup options**: Encrypted backup (.aph) export/import with decrypt preview; email backup (plain or encrypted); scheduled backup reminders
+- **Powerful organization**: Multi-select tags with filtering, favorites with configurable limit + LRU eviction, multi-field smart search (pinyin/initials with match highlighting), one-click dedup, batch delete/tag editing/export selected
+- **Mistake-proofing**: 30-day trash bin (soft delete), configurable password change history (1–10 encrypted snapshots per entry, restorable), atomic master password change without data loss
 
 ### 🎨 Experience
 
 - **Themes & language**: 6 color themes + bilingual UI (中文 / English), instant switching without refresh, synchronized across extension pages and injected in-page UI
-- **Site favicons**: password list, side panel and inline dropdown entries show the matching website icon (read from Chrome's local favicon cache, zero external network requests); falls back to the default icon when unavailable
-- **Password generator**: random mode (length/charset/ambiguous-character exclusion) and passphrase mode (EFF Diceware, 2048-word list)
-- **Style isolation**: floating button and inline panel use closed Shadow DOM, fully isolated from page styles
-- **Instant open**: always-on service worker keep-alive (all platforms) + pre-warmed in-memory password cache + side panel render-resource pre-warming lets the side panel load in about 20–50ms, instantly even after session expiry (keep-alive wakes the extension roughly every 30 seconds in the background — a deliberate trade-off to eliminate cold-start white screens)
-- **Update detection**: checks GitHub Releases every 6 hours and shows an update notice in the popup
+- **Site favicons**: Password list, side panel and inline dropdown entries show the matching website icon (read from Chrome's local favicon cache, zero external requests); falls back to the default icon when unavailable
+- **Password generator**: Random mode (length/charset/ambiguous-character exclusion) and passphrase mode (EFF Diceware, 2048-word list)
+- **Instant open**: Side panel loads in about 20–50ms, instantly even after session expiry
 
+> 🛠 Tech stack, architecture and project structure are covered in the [Contributing Guide](./docs/CONTRIBUTING.md).
+>
 > 📖 Per-feature implementation details (source paths, strategies, constraints) live in [docs/ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details).
 
-## Tech Stack
-
-| Category     | Technology                                                                        | Version / Notes                             |
-| ------------ | --------------------------------------------------------------------------------- | ------------------------------------------- |
-| Framework    | [WXT](https://wxt.dev/)                                                           | v0.20.25, Manifest V3                       |
-| Frontend     | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.33, Composition API + `<script setup>` |
-| UI library   | [Element Plus](https://element-plus.org/)                                         | v2.13.7, on-demand (unplugin-auto-import)   |
-| Encryption   | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256, native      |
-| Build        | Vite                                                                              | Bundled with WXT, HMR                       |
-| Code quality | ESLint + Prettier + Stylelint                                                     | TS v6, full quality toolchain               |
-
 ## Quick Start
-
-### Requirements
-
-- Node.js >= 22 (rolldown depends on `node:util.styleText`)
-- Chrome >= 114 (SidePanel API; >= 129 for `sidePanel.close`)
 
 ### Install from the Chrome Web Store (recommended)
 
@@ -114,7 +123,7 @@ If you cannot access the Chrome Web Store, download the latest zip from [GitHub 
 3. Click "Load unpacked" and select the extracted directory
 4. On first use, set a master password (at least 8 characters with letters + digits + special characters)
 
-> 💡 Manually loaded extensions do not auto-update, but the extension checks GitHub Releases every 6 hours and shows an update notice in the popup. When notified, download the new package and overwrite the original installation directory (see "Updating" below).
+> 💡 Manually loaded extensions do not auto-update, but the extension checks GitHub Releases every 6 hours and shows an update notice in the popup. When notified, download the new package and overwrite the original installation directory.
 
 ### Build from Source (developers)
 
@@ -125,18 +134,16 @@ pnpm install
 # Dev mode (HMR)
 pnpm dev
 
-# Production build (runs prebuild → generates PNG icons)
+# Production build
 pnpm build
 
 # Build and package as zip
 pnpm postbuild
-
-# Firefox support
-pnpm dev:firefox
-pnpm build:firefox
 ```
 
 The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrome://extensions/` and "Load unpacked" from that directory.
+
+> 📖 More dev commands and environment requirements in the [Contributing Guide](./docs/CONTRIBUTING.md).
 
 ### Updating
 
@@ -150,110 +157,9 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 1. **Initial setup**: click the extension icon to open the manager, set a master password, and choose a session validity (default 24 hours); "Preferences" configures themes, language, floating button, fill mode, and more
 2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field smart search (pinyin/initials + match highlighting) and sorting, tags and favorites
 3. **Quick fill**: inline fill by default — a key icon appears in a focused login field; click it to pick an account and fill instantly. Switch to "Sidebar" (auto-opens on focus) or "Manual" in Preferences, or use the shortcuts
-4. **Shortcuts**: `Ctrl+Shift+P` (open manager), `Ctrl+Shift+L` (toggle side panel), `Ctrl+Shift+F` (quick fill), `Ctrl+Shift+K` (open the inline dropdown, same as clicking the key icon); all customizable at `chrome://extensions/shortcuts` (`Cmd` on Mac)
+4. **Shortcuts**: `Ctrl+Shift+P` (open manager), `Ctrl+Shift+L` (toggle side panel), `Ctrl+Shift+F` (quick fill), `Ctrl+Shift+K` (open the inline dropdown); all customizable at `chrome://extensions/shortcuts` (`Cmd` on Mac)
 
 > 📖 Full walkthroughs and demos are on the [live demo page](https://liaolongdong.github.io/account-password-helper/) (bilingual FAQ included), or via the "Help" entry inside the side panel.
-
-### CSV / JSON Field Formats
-
-| Chinese column      | English column          | Required | Notes               |
-| ------------------- | ----------------------- | -------- | ------------------- |
-| 用户名 / 账号       | username / Username     | Yes      | Account/email/phone |
-| 密码                | password / Password     | No       | Login password      |
-| URL / 网址 / 链接   | url                     | No       | Site address        |
-| 标签 / 分类         | tag / Tag               | No       | Category tag        |
-| 备注 / 说明         | remark / Remark         | No       | Notes               |
-| 创建时间            | createTime / CreateTime | No       | Auto-filled         |
-| 更新时间 / 修改时间 | updateTime / modifyTime | No       | Auto-filled         |
-
-> "Download Template" produces a standard CSV (BOM UTF-8, opens directly in Excel / Numbers); headers follow the interface language and both header languages are auto-detected on import. JSON exports use the `{ version, exportedAt, count, entries }` wrapper; imports also accept a flat array. Export filenames follow `passwords_YYYYMMDD_HHmmss.csv/.json`.
-
-## Architecture Overview
-
-| Entrypoint         | Responsibility                                                                                                 |
-| ------------------ | -------------------------------------------------------------------------------------------------------------- |
-| **Background**     | Service worker: message routing, password cache, side panel state, shortcuts                                   |
-| **Content Script** | Injected into all pages; initializes form detection and the floating button                                    |
-| **Popup**          | Extension icon popup with "Manage Passwords" and "Quick Fill" entries                                          |
-| **Options**        | Main manager page: full CRUD, import/export, session/validity management                                       |
-| **SidePanel**      | Quick fill panel with pinyin smart search and match highlighting, sorting, domain matching, cache acceleration |
-
-```mermaid
-graph LR
-    CS[Content Script] -->|sendMessage| BG[Background]
-    SP[SidePanel] -->|Port connect| BG
-    Popup -->|sendMessage| BG
-    Options -->|sendMessage| BG
-    BG --> Storage[StorageUtils]
-    BG --> Session[SessionManager]
-    BG --> Encryption[Encryption]
-```
-
-Encryption core:
-
-```
-Master password + salt → PBKDF2 (600,000 iterations) → 256-bit key
-Plaintext + key + random IV → AES-256-GCM → Base64(IV + ciphertext)
-```
-
-> 📖 The full architecture design (session lifecycle, encryption details, messaging notes) and the fully annotated project structure tree live in [docs/ARCHITECTURE.en.md](./docs/ARCHITECTURE.en.md).
-
-## Project Structure
-
-```
-├── entrypoints/        # WXT entrypoints: background/, content/, popup/, options/, sidepanel/
-├── components/         # Vue components (options/ and sidepanel/ subfolders)
-├── composables/        # Vue composables (auth, session, side panel, TOTP, shortcuts...)
-├── utils/              # Core library: storage/, i18n/, encryption, session, backup, health...
-├── assets/             # Source SVG icons and CSS design tokens
-├── public/icon/        # Build-time PNG icons (auto-injected into the manifest by WXT)
-├── scripts/            # Icon generation and repo automation scripts
-└── wxt.config.ts       # WXT configuration
-```
-
-> 📖 See [docs/ARCHITECTURE.en.md — Project Structure](./docs/ARCHITECTURE.en.md#project-structure) for the fully annotated tree.
-
-## Development
-
-### Common Commands
-
-| Command                              | Description                                              |
-| ------------------------------------ | -------------------------------------------------------- |
-| `pnpm dev`                           | Dev mode (HMR)                                           |
-| `pnpm build` / `pnpm postbuild`      | Production build / package the build as a zip            |
-| `pnpm icons:build`                   | Render the SVG icon to multi-size PNGs                   |
-| `pnpm analyze`                       | Build with bundle size visualization (`dist/stats.html`) |
-| `pnpm dev:firefox` / `build:firefox` | Firefox support                                          |
-| `pnpm typecheck`                     | TypeScript type checking                                 |
-| `pnpm lint:all` / `pnpm fix:all`     | Run all checks / all auto-fixes                          |
-
-> 📖 Icon workflow, test page, and performance design details live in [docs/ARCHITECTURE.en.md — Development Extras](./docs/ARCHITECTURE.en.md#development-extras); contribution workflow in [CONTRIBUTING.md](./CONTRIBUTING.md).
->
-> 📈 Exposure growth playbook for GitHub & Chrome Web Store (positioning, store ASO copy, Featured badge nomination, content marketing, user operations): [账号密码管理助手曝光提升执行手册.md](./账号密码管理助手曝光提升执行手册.md).
-
-### Chrome Permissions
-
-| Permission       | Purpose                                                  |
-| ---------------- | -------------------------------------------------------- |
-| `storage`        | Local storage of password data and settings              |
-| `activeTab`      | Current tab info for domain matching                     |
-| `scripting`      | Dynamic content script injection                         |
-| `sidePanel`      | Side panel quick fill                                    |
-| `alarms`         | Scheduled backup reminders and service worker keep-alive |
-| `notifications`  | Desktop notifications (auto-save / backup / updates)     |
-| `idle`           | Auto idle lock detection                                 |
-| `clipboardWrite` | Writing to the clipboard (copy password)                 |
-| `clipboardRead`  | Reading the clipboard (verify before clearing)           |
-| `webNavigation`  | Cross-iframe form detection and filling                  |
-| `<all_urls>`     | Content script matches all pages                         |
-
-## Security Notes
-
-- Account Password Helper is built for development, testing and everyday sign-in scenarios. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension;
-- A forgotten master password **cannot be recovered** — keep it safe;
-- All data is stored locally with AES-256-GCM encryption and zero network transfer;
-- Back up regularly via encrypted backup (.aph files);
-- Enable clipboard auto-clear and auto idle lock; for higher security, enable "Lock on browser restart".
 
 ## FAQ
 
@@ -287,11 +193,11 @@ A: Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Pas
 
 **Q: Can I recover deleted passwords?**
 
-A: Yes. Deleted passwords move to the trash for 30 days — restore or permanently delete them under "Data Management" → "Trash". Mistaken password edits can be reverted via the entry's "Password history" (configurable in "Security Settings" → "Password History Settings" — enable/disable and set max records, default 5 encrypted snapshots).
+A: Yes. Deleted passwords move to the trash for 30 days — restore or permanently delete them under "Data Management" → "Trash". Mistaken password edits can be reverted via the entry's "Password history".
 
 **Q: How do I enable auto-save?**
 
-A: Turn on the switch under "Auto-save Settings"; optionally configure domain rules (exact or regex). On login a confirmation card appears (Save / Not now / Never) with editable tag and remark. Saved identical credentials never re-prompt; changed passwords trigger an "Update" confirmation.
+A: Turn on the switch under "Auto-save Settings"; optionally configure domain rules (exact or regex). On login a confirmation card appears (Save / Not now / Never) with editable tag and remark.
 
 **Q: How do I switch themes or the interface language?**
 
@@ -303,22 +209,30 @@ A: Windows Defender scans each extension file on first load, adding 1-2 seconds 
 
 > 📖 More questions (TOTP usage & troubleshooting, email backup, encrypted backup, clipboard clearing, favorites limit, performance, etc.) are covered in the full FAQ on the [live demo page](https://liaolongdong.github.io/account-password-helper/) and the per-feature notes in [docs/ARCHITECTURE.en.md](./docs/ARCHITECTURE.en.md).
 
+## Try It Now
+
+🔗 [Install from Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) · [Download from GitHub Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) · [Live Demo](https://liaolongdong.github.io/account-password-helper/)
+
+If this project helps you, please give it a ⭐️ and leave a review on the Chrome Web Store — it means the world to an independent developer!
+
+Issues and pull requests are welcome! Full changelog at [CHANGELOG.md](./CHANGELOG.md).
+
+## Security Notes
+
+- Account Password Helper is built for development, testing and everyday sign-in scenarios. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension;
+- A forgotten master password **cannot be recovered** — keep it safe;
+- All data is stored locally with AES-256-GCM encryption and zero network transfer;
+- Back up regularly via encrypted backup (.aph files);
+- Enable clipboard auto-clear and auto idle lock; for higher security, enable "Lock on browser restart".
+
 ## License
 
 This project is released under the GNU GPL-3.0 (version 3 only, not "or any later version").
 
 - Free to use, modify and distribute (including commercially), but **derivative works must be open-sourced under GPL-3.0**; closed-source redistribution is not permitted.
-- The name "Account Password Helper", its logos and brand assets are trademarks of the author and are NOT covered by the license. See [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
-- This project bundles third-party dependencies (including jsQR under Apache-2.0); attribution is provided in [THIRD-PARTY-NOTICES.md](./THIRD-PARTY-NOTICES.md).
+- The name "Account Password Helper", its logos and brand assets are trademarks of the author and are NOT covered by the license. See [THIRD-PARTY-NOTICES.md](./docs/THIRD-PARTY-NOTICES.md).
+- This project bundles third-party dependencies (including jsQR under Apache-2.0); attribution is provided in [THIRD-PARTY-NOTICES.md](./docs/THIRD-PARTY-NOTICES.md).
 - Previously released versions remain under the MIT license they were published with; GPL-3.0 applies from the first version after the switch.
-
-## Acknowledgements
-
-- [WXT](https://wxt.dev/) — modern Chrome extension framework
-- [Vue 3](https://vuejs.org/) — the progressive JavaScript framework
-- [Element Plus](https://element-plus.org/) — Vue 3 UI library
-- [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) — native browser cryptography
-- [sharp](https://github.com/lovell/sharp) — high-performance image processing
 
 ## Contact
 
@@ -327,7 +241,3 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 **WeChat group**: scan the QR code below to add the author on WeChat (ID: `lld_1025`) with the note "aph" to get invited into the plugin user group for feedback and discussion.
 
 <img src="./assets/wx-qrcode/wechat-qrcode.jpg" alt="WeChat group QR code" width="160" />
-
-If this project helps you, please give it a ⭐️ — thank you!
-
-Issues and pull requests are welcome!

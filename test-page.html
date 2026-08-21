@@ -6,195 +6,2159 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>登录表单测试页面</title>
+    <title>表单填充测试台 · Account Password Helper</title>
+    <link
+      rel="preconnect"
+      href="https://fonts.googleapis.com"
+    />
+    <link
+      rel="preconnect"
+      href="https://fonts.gstatic.com"
+      crossorigin
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
     <style>
-      body {
-        font-family: Arial, sans-serif;
-        max-width: 500px;
-        margin: 50px auto;
-        padding: 20px;
-        background-color: #f5f5f5;
+      :root {
+        --bg: #f3f4f6;
+        --surface: #fff;
+        --primary: #6366f1;
+        --primary-hover: #4f46e5;
+        --primary-bg: #eef2ff;
+        --primary-border: #c7d2fe;
+        --text: #111827;
+        --text-2: #374151;
+        --text-3: #6b7280;
+        --text-4: #9ca3af;
+        --border: #e5e7eb;
+        --border-light: #f3f4f6;
+        --green: #059669;
+        --green-bg: #ecfdf5;
+        --amber: #d97706;
+        --amber-bg: #fffbeb;
+        --red: #dc2626;
+        --red-bg: #fef2f2;
+        --blue: #2563eb;
+        --blue-bg: #eff6ff;
+        --radius: 12px;
+        --radius-sm: 8px;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.04);
       }
-      .login-form {
-        background: white;
-        padding: 30px;
-        border-radius: 8px;
-        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-      }
-      .form-group {
-        margin-bottom: 20px;
-      }
-      label {
-        display: block;
-        margin-bottom: 5px;
-        font-weight: bold;
-        color: #333;
-      }
-      input[type='text'],
-      input[type='email'],
-      input[type='password'] {
-        width: 100%;
-        padding: 12px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 16px;
+      *,
+      *::before,
+      *::after {
         box-sizing: border-box;
+        margin: 0;
       }
-      input[type='checkbox'] {
-        margin-right: 8px;
+      body {
+        font-family:
+          'Inter',
+          -apple-system,
+          BlinkMacSystemFont,
+          'Segoe UI',
+          system-ui,
+          sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
       }
-      .checkbox-group {
+      .header {
+        background: linear-gradient(135deg, #312e81 0%, #4338ca 40%, #6366f1 100%);
+        color: #fff;
+        padding: 28px 40px 22px;
+        position: relative;
+        overflow: hidden;
+      }
+      .header::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background:
+          radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.06) 0%, transparent 50%),
+          radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.04) 0%, transparent 50%);
+        pointer-events: none;
+      }
+      .header-inner {
+        max-width: 960px;
+        margin: 0 auto;
+        position: relative;
+        z-index: 1;
+      }
+      .header h1 {
+        font-size: 22px;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        margin-bottom: 4px;
+      }
+      .header p {
+        font-size: 13px;
+        opacity: 0.7;
+      }
+      .header-badge {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(8px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 20px;
+        padding: 2px 10px;
+        font-size: 10px;
+        font-family: 'JetBrains Mono', monospace;
+        margin-left: 8px;
+      }
+      .tabs-wrap {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 16px 40px 0;
+      }
+      .tab-group {
+        margin-bottom: 8px;
+      }
+      .tab-group-label {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-4);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 4px;
+        padding-left: 2px;
+      }
+      .tab-bar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .tab-btn {
+        padding: 5px 12px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--text-3);
+        font-size: 12px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.15s;
+        font-family: inherit;
+      }
+      .tab-btn:hover {
+        color: var(--primary);
+        border-color: var(--primary-border);
+        background: var(--primary-bg);
+      }
+      .tab-btn.active {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+      }
+      .display {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 16px 40px 40px;
+      }
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px;
+        box-shadow: var(--shadow);
+      }
+      .card-head {
         display: flex;
         align-items: center;
-        margin-bottom: 20px;
+        gap: 12px;
+        margin-bottom: 12px;
       }
-      .login-btn {
-        width: 100%;
-        padding: 12px;
-        background-color: #007bff;
-        color: white;
-        border: none;
+      .card-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 30px;
+        height: 30px;
+        background: var(--primary);
+        color: #fff;
+        border-radius: var(--radius-sm);
+        font-size: 11px;
+        font-weight: 700;
+        font-family: 'JetBrains Mono', monospace;
+        flex-shrink: 0;
+      }
+      .card-title {
+        font-size: 15px;
+        font-weight: 650;
+        margin: 0;
+        letter-spacing: -0.2px;
+      }
+      .card-desc {
+        font-size: 13px;
+        color: var(--text-3);
+        margin-bottom: 16px;
+        padding: 10px 14px;
+        background: var(--border-light);
+        border-radius: var(--radius-sm);
+        border-left: 3px solid var(--primary-border);
+        line-height: 1.7;
+      }
+      .card-desc code {
+        background: var(--primary-bg);
+        color: var(--primary-hover);
+        padding: 1px 5px;
         border-radius: 4px;
-        font-size: 16px;
-        cursor: pointer;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        font-weight: 500;
       }
-      .login-btn:hover {
-        background-color: #0056b3;
+      .tag {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 600;
+        font-family: 'JetBrains Mono', monospace;
+        vertical-align: middle;
       }
-      h2 {
+      .tag-ok {
+        background: var(--green-bg);
+        color: var(--green);
+      }
+      .tag-warn {
+        background: var(--amber-bg);
+        color: var(--amber);
+      }
+      .tag-info {
+        background: var(--blue-bg);
+        color: var(--blue);
+      }
+      .tag-err {
+        background: var(--red-bg);
+        color: var(--red);
+      }
+      .form-box {
+        max-width: 380px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 24px;
+        background: #fafbfc;
+        box-shadow: var(--shadow-sm);
+      }
+      .form-box h3 {
         text-align: center;
-        color: #333;
-        margin-bottom: 30px;
-      }
-      .test-info {
-        background: #e3f2fd;
-        padding: 15px;
-        border-radius: 4px;
+        font-size: 16px;
+        font-weight: 650;
         margin-bottom: 20px;
-        border-left: 4px solid #2196f3;
+        color: var(--text);
+      }
+      .fg {
+        margin-bottom: 14px;
+      }
+      .fg label {
+        display: block;
+        font-size: 13px;
+        font-weight: 550;
+        margin-bottom: 5px;
+        color: var(--text-2);
+      }
+      .fg input[type='text'],
+      .fg input[type='email'],
+      .fg input[type='password'],
+      .fg input[type='tel'],
+      .fg input[type='number'] {
+        width: 100%;
+        padding: 10px 13px;
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        font-family: inherit;
+        outline: none;
+        background: #fff;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+        color: var(--text);
+      }
+      .fg input::placeholder {
+        color: var(--text-4);
+      }
+      .fg input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      }
+      .btn {
+        width: 100%;
+        padding: 10px;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all 0.2s;
+        color: #fff;
+        background: var(--primary);
+        margin-top: 6px;
+      }
+      .btn:hover {
+        background: var(--primary-hover);
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.25);
+      }
+      .btn:active {
+        transform: translateY(0);
+      }
+      .btn-green {
+        background: var(--green);
+      }
+      .btn-green:hover {
+        background: #047857;
+      }
+      .btn-warn {
+        background: var(--amber);
+      }
+      .btn-warn:hover {
+        background: #b45309;
+      }
+      .btn-outline {
+        background: transparent;
+        color: var(--primary);
+        border: 1.5px solid var(--primary-border);
+      }
+      .btn-outline:hover {
+        background: var(--primary-bg);
+        box-shadow: none;
+        transform: none;
+      }
+      .cb-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+        font-size: 13px;
+        color: var(--text-2);
+      }
+      .cb-row input[type='checkbox'] {
+        accent-color: var(--primary);
+        width: 16px;
+        height: 16px;
+      }
+      .divider {
+        border: none;
+        border-top: 1px dashed var(--border);
+        margin: 18px 0;
+      }
+      .row {
+        display: flex;
+        gap: 10px;
+      }
+      .row > * {
+        flex: 1;
+      }
+      .log-box {
+        margin-top: 12px;
+        background: #0f172a;
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        border: 1px solid #1e293b;
+      }
+      .log-bar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        background: #1e293b;
+        border-bottom: 1px solid #334155;
+        font-size: 10px;
+        color: #64748b;
+      }
+      .log-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+      .log-dot-r {
+        background: #ef4444;
+      }
+      .log-dot-y {
+        background: #eab308;
+      }
+      .log-dot-g {
+        background: #22c55e;
+      }
+      .log-content {
+        padding: 8px 12px;
+        color: #94a3b8;
+        max-height: 80px;
+        overflow-y: auto;
+        line-height: 1.6;
+      }
+      .log-ok {
+        color: #4ade80;
+      }
+      .log-warn {
+        color: #fbbf24;
+      }
+      .log-info {
+        color: #60a5fa;
+      }
+      .iframe-wrap {
+        border: 2px dashed var(--border);
+        border-radius: var(--radius);
+        padding: 8px;
+        background: #fafbfc;
+      }
+      .iframe-wrap iframe {
+        width: 100%;
+        height: 200px;
+        border: none;
+        border-radius: var(--radius-sm);
+        background: #fff;
+      }
+      .shadow-host {
+        border: 2px dashed #c4b5fd;
+        border-radius: var(--radius);
+        padding: 16px;
+        background: #faf5ff;
+        min-height: 80px;
+      }
+      .toggle-wrap {
+        position: relative;
+        max-width: 300px;
+      }
+      .toggle-wrap input {
+        width: 100%;
+        padding-right: 40px;
+      }
+      .toggle-eye {
+        position: absolute;
+        right: 10px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: none;
+        border: none;
+        cursor: pointer;
+        font-size: 18px;
+        color: var(--text-3);
+        padding: 2px;
+      }
+      .contenteditable-field {
+        width: 100%;
+        padding: 10px 13px;
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        min-height: 38px;
+        background: #fff;
+        outline: none;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+      }
+      .contenteditable-field:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      }
+      .float-group {
+        position: relative;
+        margin-bottom: 16px;
+      }
+      .float-group input {
+        width: 100%;
+        padding: 16px 13px 8px;
+        border: 1.5px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        outline: none;
+        background: #fff;
+        font-family: inherit;
+        color: var(--text);
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+      }
+      .float-group input:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      }
+      .float-group label {
+        position: absolute;
+        left: 13px;
+        top: 13px;
+        font-size: 14px;
+        color: var(--text-4);
+        pointer-events: none;
+        transition: all 0.2s ease;
+        font-weight: 400;
+      }
+      .float-group input:focus + label,
+      .float-group input:not(:placeholder-shown) + label {
+        top: 3px;
+        font-size: 10px;
+        color: var(--primary);
+        font-weight: 600;
+      }
+      .nav-row {
+        display: flex;
+        justify-content: space-between;
+        margin-top: 16px;
+      }
+      .nav-btn {
+        padding: 6px 16px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        background: var(--surface);
+        color: var(--text-3);
+        font-size: 12px;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.15s;
+      }
+      .nav-btn:hover {
+        color: var(--primary);
+        border-color: var(--primary-border);
+      }
+      .nav-btn:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+      @media (max-width: 860px) {
+        .tabs-wrap,
+        .display {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+        .header {
+          padding: 20px 16px;
+        }
       }
     </style>
   </head>
   <body>
-    <div class="test-info">
-      <h3>测试说明</h3>
-      <p>这是一个登录表单测试页面，用于验证Chrome插件的自动填充功能：</p>
-      <ul>
-        <li>点击用户名或密码输入框时，应该会自动显示侧边栏</li>
-        <li>在侧边栏中点击密码条目，应该会自动填充到表单中</li>
-        <li>填充后会自动勾选"记住我"复选框</li>
-        <li>在下方「两步验证」表单，侧边栏条目点击「填充验证码」应自动填入 TOTP 动态码</li>
-      </ul>
+    <header class="header">
+      <div class="header-inner">
+        <h1>表单填充测试台<span class="header-badge">v3.0</span></h1>
+        <p>Tab 切换模式 · 每次仅渲染一个场景，表单互不干扰 · 覆盖 20 种场景验证 Account Password Helper 核心能力</p>
+      </div>
+    </header>
+    <div
+      class="tabs-wrap"
+      id="tabsWrap"
+    ></div>
+    <div
+      class="display"
+      id="display"
+    ></div>
+    <div
+      class="nav-row"
+      style="max-width: 960px; margin: 0 auto; padding: 0 40px 32px"
+    >
+      <button
+        class="nav-btn"
+        id="prevBtn"
+      >
+        ← 上一个
+      </button>
+      <button
+        class="nav-btn"
+        id="nextBtn"
+      >
+        下一个 →
+      </button>
     </div>
 
-    <div class="login-form">
-      <h2>用户登录</h2>
-      <form id="loginForm">
-        <div class="form-group">
-          <label for="username">用户名/邮箱：</label>
-          <input
-            type="email"
-            id="username"
+    <!-- ═══════ Scenario Templates (content in DocumentFragment, invisible to extension) ═══════ -->
+    <template id="tpl-s1"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">A1</span>
+          <h3 class="card-title">标准登录表单 <span class="tag tag-ok">email + password</span></h3>
+        </div>
+        <div class="card-desc">
+          最经典的登录表单：<code>type="email"</code> + <code>type="password"</code>，带
+          <code>autocomplete</code> 属性和「记住我」复选框。
+        </div>
+        <div class="form-box">
+          <h3>用户登录</h3>
+          <form
+            id="formA1"
+            autocomplete="on"
+          >
+            <div class="fg">
+              <label for="a1-user">用户名 / 邮箱</label
+              ><input
+                type="email"
+                id="a1-user"
+                name="username"
+                autocomplete="username"
+                placeholder="请输入用户名或邮箱"
+              />
+            </div>
+            <div class="fg">
+              <label for="a1-pass">密码</label
+              ><input
+                type="password"
+                id="a1-pass"
+                name="password"
+                autocomplete="current-password"
+                placeholder="请输入密码"
+              />
+            </div>
+            <div class="cb-row">
+              <input
+                type="checkbox"
+                id="a1-remember"
+                name="remember"
+              /><label for="a1-remember">记住我</label>
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formA1"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s2"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">A2</span>
+          <h3 class="card-title">注册表单 <span class="tag tag-info">new-password</span></h3>
+        </div>
+        <div class="card-desc">
+          包含密码确认字段，使用 <code>autocomplete="new-password"</code>。验证插件是否正确识别注册场景。
+        </div>
+        <div class="form-box">
+          <h3>创建账号</h3>
+          <form id="formA2">
+            <div class="fg">
+              <label for="a2-email">邮箱</label
+              ><input
+                type="email"
+                id="a2-email"
+                name="email"
+                autocomplete="email"
+                placeholder="请输入邮箱"
+              />
+            </div>
+            <div class="fg">
+              <label for="a2-user">用户名</label
+              ><input
+                type="text"
+                id="a2-user"
+                name="username"
+                autocomplete="username"
+                placeholder="请输入用户名"
+              />
+            </div>
+            <div class="fg">
+              <label for="a2-pass">密码</label
+              ><input
+                type="password"
+                id="a2-pass"
+                name="password"
+                autocomplete="new-password"
+                placeholder="至少 8 位"
+              />
+            </div>
+            <div class="fg">
+              <label for="a2-pass2">确认密码</label
+              ><input
+                type="password"
+                id="a2-pass2"
+                name="confirmPassword"
+                autocomplete="new-password"
+                placeholder="再次输入密码"
+              />
+            </div>
+            <div class="cb-row">
+              <input
+                type="checkbox"
+                id="a2-agree"
+                name="agree"
+              /><label for="a2-agree">我已阅读并同意服务条款</label>
+            </div>
+            <button
+              type="submit"
+              class="btn btn-green"
+            >
+              注册
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formA2"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s3"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">A3</span>
+          <h3 class="card-title">修改密码表单 <span class="tag tag-warn">3 个密码字段</span></h3>
+        </div>
+        <div class="card-desc">
+          包含旧密码 + 新密码 + 确认新密码三个密码字段。验证插件能否正确识别「修改密码」场景。
+        </div>
+        <div class="form-box">
+          <h3>修改密码</h3>
+          <form id="formA3">
+            <div class="fg">
+              <label for="a3-old">当前密码</label
+              ><input
+                type="password"
+                id="a3-old"
+                name="oldPassword"
+                autocomplete="current-password"
+                placeholder="请输入当前密码"
+              />
+            </div>
+            <div class="fg">
+              <label for="a3-new">新密码</label
+              ><input
+                type="password"
+                id="a3-new"
+                name="newPassword"
+                autocomplete="new-password"
+                placeholder="请输入新密码"
+              />
+            </div>
+            <div class="fg">
+              <label for="a3-confirm">确认新密码</label
+              ><input
+                type="password"
+                id="a3-confirm"
+                name="confirmPassword"
+                autocomplete="new-password"
+                placeholder="再次输入新密码"
+              />
+            </div>
+            <button
+              type="submit"
+              class="btn btn-warn"
+            >
+              更新密码
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formA3"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s4"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">A4</span>
+          <h3 class="card-title">两步验证 TOTP <span class="tag tag-info">one-time-code</span></h3>
+        </div>
+        <div class="card-desc">
+          TOTP
+          动态验证码输入：<code>autocomplete="one-time-code"</code>，<code>inputmode="numeric"</code>。验证「填充验证码」功能。
+        </div>
+        <div class="form-box">
+          <h3>身份验证</h3>
+          <form id="formA4">
+            <div class="fg">
+              <label for="a4-otp">动态验证码</label
+              ><input
+                type="text"
+                id="a4-otp"
+                name="otp"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                placeholder="请输入 6 位验证码"
+                maxlength="6"
+              />
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              验证
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formA4"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s5"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">A5</span>
+          <h3 class="card-title">手机号 + 短信验证码 <span class="tag tag-info">tel + smsCode</span></h3>
+        </div>
+        <div class="card-desc">
+          手机号 <code>type="tel"</code> + 短信验证码组合。验证手机号字段检测及「发送验证码」按钮交互。
+        </div>
+        <div class="form-box">
+          <h3>手机号登录</h3>
+          <form id="formA5">
+            <div class="fg">
+              <label for="a5-phone">手机号</label
+              ><input
+                type="tel"
+                id="a5-phone"
+                name="phone"
+                autocomplete="tel"
+                placeholder="请输入手机号"
+              />
+            </div>
+            <div class="fg">
+              <label for="a5-code">短信验证码</label>
+              <div class="row">
+                <input
+                  type="text"
+                  id="a5-code"
+                  name="smsCode"
+                  autocomplete="one-time-code"
+                  placeholder="请输入验证码"
+                  maxlength="6"
+                /><button
+                  type="button"
+                  class="btn btn-outline"
+                  id="a5-sendBtn"
+                  style="white-space: nowrap; width: auto; padding: 10px 16px"
+                >
+                  发送验证码
+                </button>
+              </div>
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formA5"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s6"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">B1</span>
+          <h3 class="card-title">无 Label 表单 <span class="tag tag-warn">placeholder only</span></h3>
+        </div>
+        <div class="card-desc">
+          输入框没有 <code>&lt;label&gt;</code> 关联，仅依赖 <code>placeholder</code> 和
+          <code>aria-label</code>。验证插件能否通过关键词识别字段。
+        </div>
+        <div class="form-box">
+          <h3>快速登录</h3>
+          <form id="formB1">
+            <div class="fg">
+              <input
+                type="text"
+                name="loginName"
+                placeholder="请输入用户名"
+                aria-label="用户名"
+              />
+            </div>
+            <div class="fg">
+              <input
+                type="password"
+                name="pass"
+                placeholder="请输入密码"
+                aria-label="密码"
+              />
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formB1"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s7"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">B2</span>
+          <h3 class="card-title">动态加载表单 <span class="tag tag-info">SPA 模拟</span></h3>
+        </div>
+        <div class="card-desc">
+          模拟 SPA 延迟渲染：点击按钮后 1.5 秒动态插入登录表单。验证 MutationObserver 能否检测到新节点。
+        </div>
+        <div style="text-align: center; padding: 12px 0">
+          <button
+            class="btn"
+            id="b2-trigger"
+            style="width: auto; padding: 10px 28px"
+          >
+            加载登录表单
+          </button>
+        </div>
+        <div id="b2-container"></div></div
+    ></template>
+
+    <template id="tpl-s8"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">B3</span>
+          <h3 class="card-title">iframe 嵌入表单 <span class="tag tag-info">allFrames: true</span></h3>
+        </div>
+        <div class="card-desc">
+          登录表单嵌入在同源 iframe 中。验证 content script <code>allFrames: true</code> 注入后 iframe
+          内表单也能被检测和填充。
+        </div>
+        <div class="iframe-wrap"><iframe id="b3-iframe"></iframe></div></div
+    ></template>
+
+    <template id="tpl-s9"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">B4</span>
+          <h3 class="card-title">Shadow DOM 内表单 <span class="tag tag-warn">closed shadow</span></h3>
+        </div>
+        <div class="card-desc">
+          表单渲染在 Closed Shadow DOM 内部。验证插件对 Shadow DOM 隔离场景的兼容性（content script 通常无法穿透 closed
+          shadow root）。
+        </div>
+        <div
+          class="shadow-host"
+          id="b4-shadow-host"
+        >
+          <em style="color: var(--text-3); font-size: 13px">Shadow DOM 内容将由 JS 注入…</em>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s10"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">B5</span>
+          <h3 class="card-title">页面多表单共存 <span class="tag tag-info">2 forms</span></h3>
+        </div>
+        <div class="card-desc">同一页面存在多个登录表单。验证插件能否正确定位当前可见的表单字段。</div>
+        <div style="display: flex; gap: 14px; flex-wrap: wrap">
+          <div
+            class="form-box"
+            style="flex: 1; min-width: 260px"
+          >
+            <h3>账号密码登录</h3>
+            <form id="formB5a">
+              <div class="fg">
+                <label for="b5a-user">账号</label
+                ><input
+                  type="text"
+                  id="b5a-user"
+                  name="username"
+                  autocomplete="username"
+                  placeholder="用户名"
+                />
+              </div>
+              <div class="fg">
+                <label for="b5a-pass">密码</label
+                ><input
+                  type="password"
+                  id="b5a-pass"
+                  name="password"
+                  autocomplete="current-password"
+                  placeholder="密码"
+                />
+              </div>
+              <button
+                type="submit"
+                class="btn"
+              >
+                登录
+              </button>
+            </form>
+          </div>
+          <div
+            class="form-box"
+            style="flex: 1; min-width: 260px"
+          >
+            <h3>手机号登录</h3>
+            <form id="formB5b">
+              <div class="fg">
+                <label for="b5b-phone">手机号</label
+                ><input
+                  type="tel"
+                  id="b5b-phone"
+                  name="mobile"
+                  autocomplete="tel"
+                  placeholder="手机号"
+                />
+              </div>
+              <div class="fg">
+                <label for="b5b-code">验证码</label
+                ><input
+                  type="text"
+                  id="b5b-code"
+                  name="verifyCode"
+                  autocomplete="one-time-code"
+                  placeholder="验证码"
+                  maxlength="6"
+                />
+              </div>
+              <button
+                type="submit"
+                class="btn"
+              >
+                登录
+              </button>
+            </form>
+          </div>
+        </div>
+        <div
+          class="log-box"
+          style="margin-top: 12px"
+        >
+          <div class="log-bar">
+            <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+            ><span class="log-dot log-dot-g"></span>事件日志
+          </div>
+          <div
+            class="log-content"
+            data-log="formB5"
+          >
+            等待操作…
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s11"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">C1</span>
+          <h3 class="card-title">不同命名约定 <span class="tag tag-info">snake_case / camelCase</span></h3>
+        </div>
+        <div class="card-desc">
+          测试 <code>user_name</code>、<code>emailAddress</code> 等命名风格。验证插件的扩展选择器覆盖度。
+        </div>
+        <div style="display: flex; gap: 14px; flex-wrap: wrap">
+          <div
+            class="form-box"
+            style="flex: 1; min-width: 260px"
+          >
+            <h3>snake_case</h3>
+            <form id="formC1a">
+              <div class="fg">
+                <label for="c1a-user">user_name</label
+                ><input
+                  type="text"
+                  id="c1a-user"
+                  name="user_name"
+                  placeholder="user_name"
+                />
+              </div>
+              <div class="fg">
+                <label for="c1a-pass">password</label
+                ><input
+                  type="password"
+                  id="c1a-pass"
+                  name="password"
+                  placeholder="password"
+                />
+              </div>
+              <button
+                type="submit"
+                class="btn"
+              >
+                登录
+              </button>
+            </form>
+          </div>
+          <div
+            class="form-box"
+            style="flex: 1; min-width: 260px"
+          >
+            <h3>camelCase</h3>
+            <form id="formC1b">
+              <div class="fg">
+                <label for="c1b-email">emailAddress</label
+                ><input
+                  type="text"
+                  id="c1b-email"
+                  name="emailAddress"
+                  placeholder="emailAddress"
+                />
+              </div>
+              <div class="fg">
+                <label for="c1b-pass">passWord</label
+                ><input
+                  type="password"
+                  id="c1b-pass"
+                  name="passWord"
+                  placeholder="passWord"
+                />
+              </div>
+              <button
+                type="submit"
+                class="btn"
+              >
+                登录
+              </button>
+            </form>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s12"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">C2</span>
+          <h3 class="card-title">
+            autocomplete 属性变体 <span class="tag tag-ok">标准</span> <span class="tag tag-warn">off</span>
+          </h3>
+        </div>
+        <div class="card-desc">测试各种 autocomplete 值及 <code>autocomplete="off"</code> 反模式。</div>
+        <div class="form-box">
+          <h3>autocomplete 测试</h3>
+          <form id="formC2">
+            <div class="fg">
+              <label for="c2-user">autocomplete="username"</label
+              ><input
+                type="text"
+                id="c2-user"
+                name="account"
+                autocomplete="username"
+                placeholder="username"
+              />
+            </div>
+            <div class="fg">
+              <label for="c2-email">autocomplete="email"</label
+              ><input
+                type="email"
+                id="c2-email"
+                name="mail"
+                autocomplete="email"
+                placeholder="email"
+              />
+            </div>
+            <div class="fg">
+              <label for="c2-pass">autocomplete="current-password"</label
+              ><input
+                type="password"
+                id="c2-pass"
+                name="pwd"
+                autocomplete="current-password"
+                placeholder="current-password"
+              />
+            </div>
+            <hr class="divider" />
+            <div class="fg">
+              <label for="c2-off-user">autocomplete="off"</label
+              ><input
+                type="text"
+                id="c2-off-user"
+                name="user"
+                autocomplete="off"
+                placeholder="off + user"
+              />
+            </div>
+            <div class="fg">
+              <label for="c2-off-pass">autocomplete="off" + password</label
+              ><input
+                type="password"
+                id="c2-off-pass"
+                name="pwd2"
+                autocomplete="off"
+                placeholder="off + password"
+              />
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formC2"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s13"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">C3</span>
+          <h3 class="card-title">密码可见性切换 <span class="tag tag-info">type toggle</span></h3>
+        </div>
+        <div class="card-desc">
+          密码框带有显示/隐藏切换。验证切换 <code>type="text"↔"password"</code> 后插件仍能正确识别。
+        </div>
+        <div class="form-box">
+          <h3>带切换密码</h3>
+          <form id="formC3">
+            <div class="fg">
+              <label for="c3-user">用户名</label
+              ><input
+                type="text"
+                id="c3-user"
+                name="username"
+                autocomplete="username"
+                placeholder="用户名"
+              />
+            </div>
+            <div class="fg">
+              <label for="c3-pass">密码</label>
+              <div class="toggle-wrap">
+                <input
+                  type="password"
+                  id="c3-pass"
+                  name="password"
+                  autocomplete="current-password"
+                  placeholder="密码"
+                /><button
+                  type="button"
+                  class="toggle-eye"
+                  id="c3-eye"
+                  aria-label="切换密码可见性"
+                >
+                  👁
+                </button>
+              </div>
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formC3"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s14"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">C4</span>
+          <h3 class="card-title">隐藏→显示表单 <span class="tag tag-warn">display:none</span></h3>
+        </div>
+        <div class="card-desc">
+          表单初始 <code>display: none</code>，点击按钮后显示。验证插件能否在表单从隐藏变为可见后正确检测。
+        </div>
+        <div style="text-align: center; padding: 12px 0">
+          <button
+            class="btn"
+            id="c4-trigger"
+            style="width: auto; padding: 10px 28px"
+          >
+            显示登录表单
+          </button>
+        </div>
+        <div
+          class="form-box"
+          id="c4-form-wrap"
+          style="display: none"
+        >
+          <h3>隐藏表单</h3>
+          <form id="formC4">
+            <div class="fg">
+              <label for="c4-user">用户名</label
+              ><input
+                type="text"
+                id="c4-user"
+                name="username"
+                autocomplete="username"
+                placeholder="用户名"
+              />
+            </div>
+            <div class="fg">
+              <label for="c4-pass">密码</label
+              ><input
+                type="password"
+                id="c4-pass"
+                name="password"
+                autocomplete="current-password"
+                placeholder="密码"
+              />
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formC4"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s15"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">C5</span>
+          <h3 class="card-title">自动提交表单 <span class="tag tag-err">auto-submit</span></h3>
+        </div>
+        <div class="card-desc">当用户名和密码都被填充后，2 秒自动触发提交。验证插件能否在提交前正确捕获凭证。</div>
+        <div class="form-box">
+          <h3>自动提交</h3>
+          <form id="formC5">
+            <div class="fg">
+              <label for="c5-user">用户名</label
+              ><input
+                type="text"
+                id="c5-user"
+                name="username"
+                autocomplete="username"
+                placeholder="用户名"
+              />
+            </div>
+            <div class="fg">
+              <label for="c5-pass">密码</label
+              ><input
+                type="password"
+                id="c5-pass"
+                name="password"
+                autocomplete="current-password"
+                placeholder="密码"
+              />
+            </div>
+            <div
+              id="c5-status"
+              style="font-size: 12px; color: var(--text-3); text-align: center; padding: 8px 0"
+            >
+              等待填充…
+            </div>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formC5"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s16"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">D1</span>
+          <h3 class="card-title">预填充用户名 <span class="tag tag-ok">value 已有值</span></h3>
+        </div>
+        <div class="card-desc">用户名已有预填值，只需填充密码。验证插件是否正确跳过已有值字段或仅填充密码。</div>
+        <div class="form-box">
+          <h3>欢迎回来</h3>
+          <form id="formD1">
+            <div class="fg">
+              <label for="d1-user">用户名</label
+              ><input
+                type="text"
+                id="d1-user"
+                name="username"
+                autocomplete="username"
+                value="testuser@example.com"
+                placeholder="用户名"
+              />
+            </div>
+            <div class="fg">
+              <label for="d1-pass">密码</label
+              ><input
+                type="password"
+                id="d1-pass"
+                name="password"
+                autocomplete="current-password"
+                placeholder="请输入密码"
+              />
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formD1"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s17"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">D2</span>
+          <h3 class="card-title">图形验证码 + 密码 <span class="tag tag-warn">captcha</span></h3>
+        </div>
+        <div class="card-desc">包含图形验证码字段。验证插件不会误将验证码字段当作密码或用户名填充。</div>
+        <div class="form-box">
+          <h3>安全登录</h3>
+          <form id="formD2">
+            <div class="fg">
+              <label for="d2-user">用户名</label
+              ><input
+                type="text"
+                id="d2-user"
+                name="username"
+                autocomplete="username"
+                placeholder="用户名"
+              />
+            </div>
+            <div class="fg">
+              <label for="d2-pass">密码</label
+              ><input
+                type="password"
+                id="d2-pass"
+                name="password"
+                autocomplete="current-password"
+                placeholder="密码"
+              />
+            </div>
+            <div class="fg">
+              <label for="d2-captcha">图形验证码</label>
+              <div class="row">
+                <input
+                  type="text"
+                  id="d2-captcha"
+                  name="captcha"
+                  placeholder="请输入验证码"
+                  maxlength="4"
+                />
+                <div
+                  style="
+                    width: 90px;
+                    height: 38px;
+                    background: linear-gradient(135deg, #e2e8f0, #cbd5e1);
+                    border-radius: 6px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-family: 'JetBrains Mono', monospace;
+                    font-size: 18px;
+                    font-weight: 700;
+                    color: #475569;
+                    letter-spacing: 4px;
+                    flex-shrink: 0;
+                    user-select: none;
+                  "
+                >
+                  A7x2
+                </div>
+              </div>
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formD2"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s18"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">D3</span>
+          <h3 class="card-title">contentEditable 字段 <span class="tag tag-err">非 input</span></h3>
+        </div>
+        <div class="card-desc">
+          使用 <code>contentEditable</code> 替代 input 的非常规实现。预期：插件不检测为可填充字段。
+        </div>
+        <div class="form-box">
+          <h3>自定义输入</h3>
+          <form id="formD3">
+            <div class="fg">
+              <label>用户名（contentEditable）</label>
+              <div
+                class="contenteditable-field"
+                contenteditable="true"
+                data-field="username"
+                role="textbox"
+                aria-label="用户名"
+              ></div>
+            </div>
+            <div class="fg">
+              <label>密码（contentEditable）</label>
+              <div
+                class="contenteditable-field"
+                contenteditable="true"
+                data-field="password"
+                role="textbox"
+                aria-label="密码"
+              ></div>
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formD3"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s19"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">D4</span>
+          <h3 class="card-title">多步骤表单 <span class="tag tag-info">step wizard</span></h3>
+        </div>
+        <div class="card-desc">
+          模拟分步登录：第一步输入用户名 → 第二步输入密码（类似 Google 登录）。验证每一步都能正确识别。
+        </div>
+        <div class="form-box">
+          <h3 id="d4-title">第 1 步：输入账号</h3>
+          <div id="d4-step1">
+            <form id="formD4a">
+              <div class="fg">
+                <label for="d4-email">邮箱或手机号</label
+                ><input
+                  type="text"
+                  id="d4-email"
+                  name="email"
+                  autocomplete="username"
+                  placeholder="邮箱或手机号"
+                />
+              </div>
+              <button
+                type="button"
+                class="btn"
+                id="d4-next"
+              >
+                下一步
+              </button>
+            </form>
+          </div>
+          <div
+            id="d4-step2"
+            style="display: none"
+          >
+            <form id="formD4b">
+              <div class="fg">
+                <label for="d4-pass">密码</label
+                ><input
+                  type="password"
+                  id="d4-pass"
+                  name="password"
+                  autocomplete="current-password"
+                  placeholder="请输入密码"
+                />
+              </div>
+              <button
+                type="submit"
+                class="btn"
+              >
+                登录
+              </button>
+            </form>
+          </div>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formD4"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <template id="tpl-s20"
+      ><div class="card">
+        <div class="card-head">
+          <span class="card-num">D5</span>
+          <h3 class="card-title">浮动标签表单 <span class="tag tag-info">Material Design</span></h3>
+        </div>
+        <div class="card-desc">
+          Material Design 浮动标签：输入框获焦或有值时 label 上浮。验证插件在 label 位移后仍能正确关联字段。
+        </div>
+        <div class="form-box">
+          <h3>Material 登录</h3>
+          <form id="formD5">
+            <div class="float-group">
+              <input
+                type="text"
+                id="d5-user"
+                name="username"
+                autocomplete="username"
+                placeholder=" "
+              /><label for="d5-user">用户名</label>
+            </div>
+            <div class="float-group">
+              <input
+                type="password"
+                id="d5-pass"
+                name="password"
+                autocomplete="current-password"
+                placeholder=" "
+              /><label for="d5-pass">密码</label>
+            </div>
+            <button
+              type="submit"
+              class="btn"
+            >
+              登录
+            </button>
+          </form>
+          <div class="log-box">
+            <div class="log-bar">
+              <span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span
+              ><span class="log-dot log-dot-g"></span>事件日志
+            </div>
+            <div
+              class="log-content"
+              data-log="formD5"
+            >
+              等待操作…
+            </div>
+          </div>
+        </div>
+      </div></template
+    >
+
+    <!-- B3 iframe content template (stored in <template>, injected via JS) -->
+    <template id="tpl-b3-srcdoc"
+      ><!doctype html>
+      <html>
+        <head>
+          <style>
+            body {
+              font-family: 'Inter', system-ui, sans-serif;
+              margin: 0;
+              padding: 16px;
+              background: #fafbfc;
+            }
+            .fg {
+              margin-bottom: 10px;
+            }
+            label {
+              display: block;
+              font-size: 13px;
+              font-weight: 550;
+              margin-bottom: 4px;
+              color: #374151;
+            }
+            input {
+              width: 100%;
+              padding: 9px 12px;
+              border: 1.5px solid #e5e7eb;
+              border-radius: 8px;
+              font-size: 14px;
+              box-sizing: border-box;
+              font-family: inherit;
+            }
+            button {
+              width: 100%;
+              padding: 9px;
+              border: none;
+              border-radius: 8px;
+              background: #6366f1;
+              color: #fff;
+              font-size: 14px;
+              font-weight: 600;
+              cursor: pointer;
+              margin-top: 4px;
+            }
+            h4 {
+              text-align: center;
+              margin: 0 0 14px;
+              font-size: 15px;
+              color: #111827;
+            }
+          </style>
+        </head>
+        <body>
+          <h4>iframe 内登录表单</h4>
+          <form
+            onsubmit="
+              event.preventDefault();
+              alert('iframe 表单提交（仅测试）');
+            "
+          >
+            <div class="fg">
+              <label>用户名</label
+              ><input
+                type="text"
+                name="username"
+                autocomplete="username"
+                placeholder="用户名"
+              />
+            </div>
+            <div class="fg">
+              <label>密码</label
+              ><input
+                type="password"
+                name="password"
+                autocomplete="current-password"
+                placeholder="密码"
+              />
+            </div>
+            <button type="submit">登录</button>
+          </form>
+        </body>
+      </html></template
+    >
+
+    <!-- B4 shadow DOM content template -->
+    <template id="tpl-b4-shadow"
+      ><style>
+        .fg {
+          margin-bottom: 10px;
+        }
+        label {
+          display: block;
+          font-size: 13px;
+          font-weight: 550;
+          margin-bottom: 4px;
+          color: #374151;
+        }
+        input {
+          width: 100%;
+          padding: 9px 12px;
+          border: 1.5px solid #e5e7eb;
+          border-radius: 8px;
+          font-size: 14px;
+          box-sizing: border-box;
+          font-family: inherit;
+        }
+        button {
+          width: 100%;
+          padding: 9px;
+          border: none;
+          border-radius: 8px;
+          background: #7c3aed;
+          color: #fff;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          margin-top: 4px;
+        }
+        h4 {
+          margin: 0 0 14px;
+          font-size: 15px;
+          color: #111827;
+        }
+      </style>
+      <h4>Shadow DOM 内表单（Closed）</h4>
+      <form>
+        <div class="fg">
+          <label>用户名</label
+          ><input
+            type="text"
             name="username"
-            placeholder="请输入用户名或邮箱"
+            placeholder="用户名"
           />
         </div>
-
-        <div class="form-group">
-          <label for="password">密码：</label>
-          <input
+        <div class="fg">
+          <label>密码</label
+          ><input
             type="password"
-            id="password"
             name="password"
-            placeholder="请输入密码"
+            placeholder="密码"
           />
         </div>
-
-        <div class="checkbox-group">
-          <input
-            type="checkbox"
-            id="remember"
-            name="remember"
-          />
-          <label for="remember">记住我</label>
-        </div>
-
         <button
-          type="submit"
-          class="login-btn"
+          type="button"
+          onclick="alert('Shadow DOM 表单提交（仅测试）')"
         >
           登录
         </button>
-      </form>
-    </div>
-
-    <div
-      class="login-form"
-      style="margin-top: 24px"
+      </form></template
     >
-      <h2>两步验证（2FA）</h2>
-      <form id="totpForm">
-        <div class="form-group">
-          <label for="otp">动态验证码：</label>
-          <input
-            type="text"
-            id="otp"
-            name="otp"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            placeholder="请输入 6 位验证码"
-          />
-        </div>
-        <button
-          type="submit"
-          class="login-btn"
-        >
-          验证
-        </button>
-      </form>
-    </div>
 
     <script>
-      // 表单提交处理
-      document.getElementById('loginForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        const username = document.getElementById('username').value;
-        const password = document.getElementById('password').value;
-        const remember = document.getElementById('remember').checked;
+      /* ── Scenario definitions ── */
+      const SCENARIOS = [
+        { id: 's1', tab: 'A1 标准登录', tpl: 'tpl-s1', forms: ['formA1'] },
+        { id: 's2', tab: 'A2 注册表单', tpl: 'tpl-s2', forms: ['formA2'] },
+        { id: 's3', tab: 'A3 修改密码', tpl: 'tpl-s3', forms: ['formA3'] },
+        { id: 's4', tab: 'A4 TOTP', tpl: 'tpl-s4', forms: ['formA4'] },
+        { id: 's5', tab: 'A5 手机登录', tpl: 'tpl-s5', forms: ['formA5'] },
+        { id: 's6', tab: 'B1 无Label', tpl: 'tpl-s6', forms: ['formB1'] },
+        { id: 's7', tab: 'B2 动态加载', tpl: 'tpl-s7', forms: [] },
+        { id: 's8', tab: 'B3 iframe', tpl: 'tpl-s8', forms: [] },
+        { id: 's9', tab: 'B4 Shadow', tpl: 'tpl-s9', forms: [] },
+        { id: 's10', tab: 'B5 多表单', tpl: 'tpl-s10', forms: ['formB5a', 'formB5b'] },
+        { id: 's11', tab: 'C1 命名变体', tpl: 'tpl-s11', forms: ['formC1a', 'formC1b'] },
+        { id: 's12', tab: 'C2 autocomplete', tpl: 'tpl-s12', forms: ['formC2'] },
+        { id: 's13', tab: 'C3 密码切换', tpl: 'tpl-s13', forms: ['formC3'] },
+        { id: 's14', tab: 'C4 隐藏→显示', tpl: 'tpl-s14', forms: ['formC4'] },
+        { id: 's15', tab: 'C5 自动提交', tpl: 'tpl-s15', forms: ['formC5'] },
+        { id: 's16', tab: 'D1 预填充', tpl: 'tpl-s16', forms: ['formD1'] },
+        { id: 's17', tab: 'D2 验证码', tpl: 'tpl-s17', forms: ['formD2'] },
+        { id: 's18', tab: 'D3 contentEditable', tpl: 'tpl-s18', forms: ['formD3'] },
+        { id: 's19', tab: 'D4 多步骤', tpl: 'tpl-s19', forms: ['formD4a', 'formD4b'] },
+        { id: 's20', tab: 'D5 浮动标签', tpl: 'tpl-s20', forms: ['formD5'] },
+      ];
+      const GROUPS = [
+        { label: 'A · 标准表单', indices: [0, 1, 2, 3, 4] },
+        { label: 'B · 边缘场景', indices: [5, 6, 7, 8, 9] },
+        { label: 'C · 技术变体', indices: [10, 11, 12, 13, 14] },
+        { label: 'D · 交互场景', indices: [15, 16, 17, 18, 19] },
+      ];
 
-        console.log('表单提交数据:', {
-          username: username,
-          password: password ? '*'.repeat(password.length) : '',
-          remember: remember,
+      let activeIdx = 0;
+      const $tabs = document.getElementById('tabsWrap');
+      const $display = document.getElementById('display');
+
+      /* ── Build tab bar ── */
+      function buildTabs() {
+        $tabs.innerHTML = '';
+        GROUPS.forEach(g => {
+          const groupDiv = document.createElement('div');
+          groupDiv.className = 'tab-group';
+          groupDiv.innerHTML = `<div class="tab-group-label">${g.label}</div>`;
+          const bar = document.createElement('div');
+          bar.className = 'tab-bar';
+          g.indices.forEach(i => {
+            const btn = document.createElement('button');
+            btn.className = 'tab-btn' + (i === activeIdx ? ' active' : '');
+            btn.textContent = SCENARIOS[i].tab;
+            btn.dataset.idx = i;
+            btn.addEventListener('click', () => switchScenario(i));
+            bar.appendChild(btn);
+          });
+          groupDiv.appendChild(bar);
+          $tabs.appendChild(groupDiv);
+        });
+      }
+
+      /* ── Switch scenario ── */
+      function switchScenario(idx) {
+        if (idx < 0 || idx >= SCENARIOS.length) return;
+        activeIdx = idx;
+        const sc = SCENARIOS[idx];
+        // Clone template content into display area
+        const tpl = document.getElementById(sc.tpl);
+        $display.innerHTML = '';
+        $display.appendChild(tpl.content.cloneNode(true));
+        // Update tab active state
+        $tabs.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', +b.dataset.idx === idx));
+        // Update nav buttons
+        document.getElementById('prevBtn').disabled = idx === 0;
+        document.getElementById('nextBtn').disabled = idx === SCENARIOS.length - 1;
+        // Bind scenario-specific logic
+        bindScenarioLogic(sc);
+      }
+
+      /* ── Log helper ── */
+      function appendLog(formId, msg, cls) {
+        const el = document.querySelector('[data-log="' + formId + '"]');
+        if (!el) return;
+        const t = new Date().toLocaleTimeString('en', { hour12: false });
+        el.innerHTML += '<div><span class="' + (cls || 'log-info') + '">[' + t + ']</span> ' + msg + '</div>';
+        el.scrollTop = el.scrollHeight;
+      }
+
+      /* ── Bind form events ── */
+      function bindForm(formId, logKey) {
+        const form = document.getElementById(formId);
+        if (!form) return;
+        const key = logKey || formId;
+        form.addEventListener('submit', e => {
+          e.preventDefault();
+          const d = {};
+          new FormData(form).forEach((v, k) => {
+            d[k] = form.querySelector('[name="' + k + '"]')?.type === 'password' ? '•••' : v;
+          });
+          appendLog(key, '提交: ' + JSON.stringify(d), 'log-ok');
+        });
+        form.querySelectorAll('input').forEach(input => {
+          input.addEventListener('focus', () =>
+            appendLog(key, '聚焦: ' + (input.name || input.id) + ' (type=' + input.type + ')', 'log-info'),
+          );
+          input.addEventListener('input', () => {
+            const v = input.type === 'password' ? '•'.repeat(input.value.length) : input.value;
+            appendLog(key, '输入: ' + (input.name || input.id) + ' = "' + v + '"', 'log-info');
+          });
+        });
+      }
+
+      /* ── Scenario-specific logic ── */
+      function bindScenarioLogic(sc) {
+        // Bind all forms for this scenario
+        sc.forms.forEach(id => {
+          const logKey =
+            id === 'formB5a' || id === 'formB5b' ? 'formB5' : id === 'formD4a' || id === 'formD4b' ? 'formD4' : null;
+          bindForm(id, logKey);
         });
 
-        alert('登录功能仅用于测试，实际不会提交到服务器');
-      });
+        // B2: Dynamic form
+        const b2t = document.getElementById('b2-trigger');
+        if (b2t)
+          b2t.addEventListener('click', function () {
+            this.disabled = true;
+            this.textContent = '加载中…';
+            setTimeout(() => {
+              document.getElementById('b2-container').innerHTML =
+                '<div class="form-box" style="margin-top:14px"><h3>动态加载的登录表单</h3><form id="formB2"><div class="fg"><label for="b2-user">用户名</label><input type="text" id="b2-user" name="username" autocomplete="username" placeholder="用户名" /></div><div class="fg"><label for="b2-pass">密码</label><input type="password" id="b2-pass" name="password" autocomplete="current-password" placeholder="密码" /></div><button type="submit" class="btn">登录</button></form><div class="log-box"><div class="log-bar"><span class="log-dot log-dot-r"></span><span class="log-dot log-dot-y"></span><span class="log-dot log-dot-g"></span>事件日志</div><div class="log-content" data-log="formB2">等待操作…</div></div></div>';
+              bindForm('formB2');
+              appendLog('formB2', '表单已动态插入', 'log-ok');
+              this.textContent = '已加载';
+            }, 1500);
+          });
 
-      // 添加输入事件监听
-      document.getElementById('username').addEventListener('focus', function () {
-        console.log('用户名输入框获得焦点');
-      });
+        // B3: iframe - inject from template
+        const iframe = document.getElementById('b3-iframe');
+        if (iframe) {
+          const tpl = document.getElementById('tpl-b3-srcdoc');
+          iframe.srcdoc = tpl.innerHTML;
+        }
 
-      document.getElementById('password').addEventListener('focus', function () {
-        console.log('密码输入框获得焦点');
-      });
+        // B4: Shadow DOM - inject from template
+        const shadowHost = document.getElementById('b4-shadow-host');
+        if (shadowHost) {
+          const tpl = document.getElementById('tpl-b4-shadow');
+          const sr = shadowHost.attachShadow({ mode: 'closed' });
+          sr.innerHTML = tpl.innerHTML;
+        }
 
-      document.getElementById('username').addEventListener('input', function () {
-        console.log('用户名输入框内容变化:', this.value);
-      });
+        // C3: Password toggle
+        const eye = document.getElementById('c3-eye');
+        if (eye)
+          eye.addEventListener('click', function () {
+            const inp = document.getElementById('c3-pass');
+            const show = inp.type === 'password';
+            inp.type = show ? 'text' : 'password';
+            this.textContent = show ? '👁‍🗨' : '👁';
+            appendLog('formC3', '密码切换为 ' + (show ? 'text（可见）' : 'password（隐藏）'), 'log-warn');
+          });
 
-      document.getElementById('password').addEventListener('input', function () {
-        console.log('密码输入框内容变化:', this.value ? '*'.repeat(this.value.length) : '');
-      });
+        // C4: Hidden → Show
+        const c4t = document.getElementById('c4-trigger');
+        if (c4t)
+          c4t.addEventListener('click', function () {
+            document.getElementById('c4-form-wrap').style.display = 'block';
+            this.textContent = '已显示';
+            this.disabled = true;
+            appendLog('formC4', '表单从隐藏变为可见', 'log-ok');
+          });
 
-      // 两步验证表单提交处理
-      document.getElementById('totpForm').addEventListener('submit', function (e) {
-        e.preventDefault();
-        const otp = document.getElementById('otp').value;
-        console.log('两步验证码提交:', otp);
-        alert('验证功能仅用于测试，实际不会提交到服务器');
-      });
+        // C5: Auto-submit
+        const c5U = document.getElementById('c5-user'),
+          c5P = document.getElementById('c5-pass'),
+          c5S = document.getElementById('c5-status');
+        if (c5U && c5P) {
+          let c5Timer = null;
+          function c5Check() {
+            if (c5U.value && c5P.value) {
+              c5S.textContent = '检测到填充完成，2 秒后自动提交…';
+              c5S.style.color = '#d97706';
+              appendLog('formC5', '检测到双字段已填充，2s 后自动提交', 'log-warn');
+              c5Timer = setTimeout(() => {
+                appendLog('formC5', '自动提交: user="' + c5U.value + '", pass="•••"', 'log-ok');
+                c5S.textContent = '已自动提交（仅测试，不实际提交）';
+                c5S.style.color = '#059669';
+                document.getElementById('formC5').dispatchEvent(new Event('submit', { cancelable: true }));
+              }, 2000);
+            }
+          }
+          c5U.addEventListener('input', () => {
+            clearTimeout(c5Timer);
+            c5Check();
+          });
+          c5P.addEventListener('input', () => {
+            clearTimeout(c5Timer);
+            c5Check();
+          });
+          document.getElementById('formC5').addEventListener('submit', e => e.preventDefault());
+        }
+
+        // D4: Multi-step
+        const d4n = document.getElementById('d4-next');
+        if (d4n)
+          d4n.addEventListener('click', function () {
+            const email = document.getElementById('d4-email').value;
+            if (!email) {
+              appendLog('formD4', '请先输入邮箱或手机号', 'log-warn');
+              return;
+            }
+            document.getElementById('d4-step1').style.display = 'none';
+            document.getElementById('d4-step2').style.display = 'block';
+            document.getElementById('d4-title').textContent = '第 2 步：输入密码';
+            appendLog('formD4', '步骤 1 完成: email="' + email + '"，进入步骤 2', 'log-ok');
+          });
+
+        // A5: SMS countdown
+        const a5s = document.getElementById('a5-sendBtn');
+        if (a5s)
+          a5s.addEventListener('click', function () {
+            const phone = document.getElementById('a5-phone').value;
+            if (!phone) {
+              appendLog('formA5', '请先输入手机号', 'log-warn');
+              return;
+            }
+            appendLog('formA5', '验证码已发送至 ' + phone, 'log-ok');
+            let s = 60;
+            this.disabled = true;
+            this.textContent = s + 's';
+            const t = setInterval(() => {
+              s--;
+              this.textContent = s + 's';
+              if (s <= 0) {
+                clearInterval(t);
+                this.disabled = false;
+                this.textContent = '发送验证码';
+              }
+            }, 1000);
+          });
+      }
+
+      /* ── Nav buttons ── */
+      document.getElementById('prevBtn').addEventListener('click', () => switchScenario(activeIdx - 1));
+      document.getElementById('nextBtn').addEventListener('click', () => switchScenario(activeIdx + 1));
+
+      /* ── Init ── */
+      buildTabs();
+      switchScenario(0);
     </script>
   </body>
 </html>
