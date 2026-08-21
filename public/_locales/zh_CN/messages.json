@@ -1,6 +1,6 @@
 {
   "extensionName": {
-    "message": "账号密码管理助手",
+    "message": "账号密码管理助手 - 本地加密密码管理器",
     "description": "扩展名称，显示在 Chrome 应用商店和浏览器 UI 中"
   },
   "extensionDescription": {
