@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.0](https://github.com/liaolongdong/account-password-helper/compare/v3.5.0...v3.6.0) (2026-08-23)
+
+
+### Features
+
+* **ui:** 添加密码可见性切换功能 ([a2d9e32](https://github.com/liaolongdong/account-password-helper/commit/a2d9e328ea34607db27a52f2527d8a23dd16ae46))
+
 ## [3.5.0](https://github.com/liaolongdong/account-password-helper/compare/v3.4.0...v3.5.0) (2026-08-20)
 
 
