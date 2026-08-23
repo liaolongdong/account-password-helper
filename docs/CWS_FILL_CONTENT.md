@@ -45,6 +45,7 @@
 ◆ 多环境账号隔离：精确域名匹配区分 dev/test/staging/prod，同一站点的不同环境账号互不混淆，开发者刚需
 ◆ 内置 TOTP + 两步登录接力：验证码和密码在一起，GitHub 式两步登录自动衔接活码胶囊，告别手机验证器，不用切 App
 ◆ 纯本地 AES-256-GCM，零云端：无云端、无账号、无订阅，数据全部加密在你的浏览器里，即使服务器被攻破也拿不到你的密码
+◆ 密码可见性切换：为页面密码框注入显隐切换按钮（偏好设置中开启），填充后一键确认输入内容，无需另装独立扩展
 
 【安全架构】
 · 主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，基于 Web Crypto API 原生实现
@@ -55,6 +56,7 @@
 
 【功能全览】
 · 三种填充方式：快捷键一键登录（Ctrl+Shift+F）/ 侧边栏 / 内联迷你面板，自动勾选"同意条款"，可自动触发登录
+· 密码可见性切换：为页面密码框注入显隐切换按钮（偏好设置中开启），填充后一键确认输入内容，无需另装扩展
 · TOTP 两步验证：扫描网页二维码或上传图片一键添加密钥，验证码按 RFC 6238 本地生成，GitHub 式两步登录自动衔接活码胶囊
 · 密码安全体检：一键生成 0-100 综合评分，五维检测——弱密码 / 密码复用 / 常见泄露密码（离线字典）/ 长期未更新 / 未开两步验证，支持到期提醒
 · 自动保存凭证：登录即弹窗确认，凭证指纹智能去重，支持域名白名单/黑名单、「不再提示」一键屏蔽
@@ -110,6 +112,7 @@ WHY DEVELOPERS LOVE IT
 ◆ Multi-environment isolation: exact-domain matching separates dev / test / staging / prod credentials of the same site — same site, different environments, zero mix-ups. A must-have for developers.
 ◆ Built-in TOTP + 2FA handoff: verification codes live with your passwords; on GitHub-style two-step logins, the live code capsule auto-anchors beside the input — no phone authenticator app needed.
 ◆ Local AES-256-GCM, zero cloud: no cloud, no account, no subscription. Everything is encrypted in your browser — even if the server were breached, your passwords stay safe.
+◆ Password visibility toggle: injects a show/hide button into page password fields (enable in preferences) — verify filled content with one click, no separate extension needed.
 
 SECURITY ARCHITECTURE
 · Master password → PBKDF2 (600,000 iterations) → 256-bit key, built on the native Web Crypto API
@@ -120,6 +123,7 @@ SECURITY ARCHITECTURE
 
 FULL FEATURE SET
 · 3 autofill modes: one-keystroke shortcut (Ctrl+Shift+F) / side panel / inline mini-panel; auto-ticks "I agree" checkboxes; optional auto-login trigger
+· Password visibility toggle: injects a show/hide button into page password fields (enable in preferences) — verify filled content with one click, no separate extension needed
 · Built-in TOTP 2FA: scan on-page QR codes or upload images to add keys; codes generated locally (RFC 6238); auto-anchors a live code capsule on GitHub-style two-step login pages
 · Security audit: 0–100 score with five checks — weak / reused / commonly leaked (offline dictionary) / stale / missing 2FA; expiry reminders included
 · Auto-capture credentials on login with smart dedup and domain allow/block lists; one-click "Never for this site"

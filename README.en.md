@@ -25,6 +25,12 @@ A local-first Chrome password manager built for developers & QA: exact-domain ma
   <img src="./assets/icons/icon.svg" alt="Extension icon" width="120" />
 </p>
 
+<p align="center">
+  <img src="./docs/demo-login.webp" alt="One-keystroke login demo" width="100%" />
+  <br/>
+  <sub>Ctrl+Shift+F → autofill → tick consent → click login → 2FA verification → enter code → login success, done in 1 second</sub>
+</p>
+
 ## 🖥️ Feature Showcase
 
 <p align="center">
@@ -89,6 +95,7 @@ A local-first Chrome password manager built for developers & QA: exact-domain ma
 - **Exact domain matching**: Only entries whose host exactly matches the current page are shown, keeping dev/test/staging/prod accounts apart; `localhost` matches everything by default
 - **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"
 - **Broad compatibility**: Dynamically detects login forms (including cross-iframe), compatible with React/Vue and other frameworks; covers username + password, phone + verification code, and more
+- **Password visibility toggle**: Injects a show/hide button into page password fields (enable in floating button preferences) — verify filled content with one click, no separate extension needed
 
 ### 📦 Data Management
 
