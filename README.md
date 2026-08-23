@@ -25,6 +25,12 @@
   <img src="./assets/icons/icon.svg" alt="插件图标" width="120" />
 </p>
 
+<p align="center">
+  <img src="./docs/demo-login.webp" alt="一键登录演示" width="100%" />
+  <br/>
+  <sub>Ctrl+Shift+F → 自动填充 → 勾选协议 → 点击登录 → 2FA 两步验证 → 验证口令 → 登录成功，1 秒完成</sub>
+</p>
+
 ## 🖥️ 功能展示
 
 <p align="center">

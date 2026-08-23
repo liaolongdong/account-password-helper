@@ -25,6 +25,12 @@ A local-first Chrome password manager built for developers & QA: exact-domain ma
   <img src="./assets/icons/icon.svg" alt="Extension icon" width="120" />
 </p>
 
+<p align="center">
+  <img src="./docs/demo-login.webp" alt="One-keystroke login demo" width="100%" />
+  <br/>
+  <sub>Ctrl+Shift+F → autofill → tick consent → click login → 2FA verification → enter code → login success, done in 1 second</sub>
+</p>
+
 ## 🖥️ Feature Showcase
 
 <p align="center">
