@@ -1,0 +1,109 @@
+# Account Password Helper
+
+> Free, open-source, 100% offline password manager Chrome extension for developers & QA engineers. AES-256-GCM local encryption, zero network transfer, no account registration, no subscription. One-click login (autofill + tick consent + click login button), multi-environment account isolation, built-in TOTP 2FA authenticator.
+
+## Quick Facts
+
+- **Price**: Completely free, open-source (GPL-3.0)
+- **Data storage**: 100% local browser storage, zero cloud
+- **Encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API
+- **Performance**: Side panel loads in 20-50ms on the warm cache path; opens instantly (<1s) even after session expiry
+- **Languages**: Chinese + English bilingual UI, instant switching
+- **Themes**: 6 color themes (Sky Blue, Bamboo Green, Peach Pink, Sakura Purple, Sunset Orange, Mist Gray)
+- **Browser support**: Chrome 114+, Manifest V3
+- **Account required**: No
+- **Subscription**: No
+- **Last updated**: 2026-08 (v3.6.0)
+- **Quality**: 364 automated test cases across 33 test files
+
+## Key Features
+
+- **One-click login** (Ctrl+Shift+F): autofill credentials → tick "I agree" → click login button — complete sign-in in under 1 second, not just form fill
+- **Multi-environment isolation**: exact-domain matching separates dev / test / staging / prod accounts for the same site — zero mix-ups
+- **Built-in TOTP 2FA authenticator**: RFC 6238 codes generated locally, GitHub-style two-step login auto-anchors a live code capsule — no phone authenticator app needed
+- **AES-256-GCM local encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API; all sensitive fields encrypted, zero network transfer
+- **Offline security audit**: one-click 0–100 score across 5 dimensions (weak / reused / commonly leaked / stale / missing 2FA), all computed on-device
+- **Password generator**: random mode (configurable length/charset) + EFF Diceware passphrase mode, Web Crypto CSPRNG
+- **Triple fill strategy**: inline fill (key icon in input), side panel one-click fill, shortcut quick-fill
+- **Auto-save credentials**: Chrome-style login capture with smart dedup, domain allow/block lists
+- **Import / export**: CSV & JSON; auto-detects Chrome, LastPass, Bitwarden, 1Password exports
+- **6 color themes + bilingual UI** (中文 / English), instant switching without refresh
+- **Password visibility toggle**: injects show/hide button into page password fields, verify filled content with one click
+- **Trash bin & password history**: 30-day soft delete, 1-10 encrypted snapshots per entry, one-click rollback
+- **Smart search**: pinyin/initials search with match highlighting, tags, favorites with LRU eviction
+- **Flexible session control**: 1 hour to 7 days validity, auto idle lock, lock on browser restart
+
+## Who It's For
+
+- **Developers**: manage dev / staging / prod accounts for the same site with exact-domain isolation
+- **QA engineers**: quickly switch test accounts, one-click login across environments
+- **Privacy-conscious users**: pure local encryption, zero network transfer, no account registration
+- **Everyday users**: stop memorizing passwords, built-in TOTP two-factor authentication
+- **Migrating users**: one-click import from Chrome, LastPass, Bitwarden, 1Password — CSV & JSON, done in 30 seconds
+
+## FAQ
+
+**Will my passwords be uploaded to the cloud?**
+No. All data stays in your browser's local storage. Sensitive fields (username, password, URL, remark, TOTP) are encrypted with AES-256-GCM and never travel over the network. There is no server, no account, and no sync.
+
+**What happens if I forget the master password?**
+It cannot be recovered — the encryption key is derived from it (PBKDF2, 600,000 iterations). Use "Reset" to wipe the vault and start over. Back up regularly via encrypted .aph export to avoid data loss.
+
+**What happens when the session expires?**
+All sensitive fields are automatically re-encrypted into ciphertext. Verify the master password again to restore access — no data is lost.
+
+**Can I import from other password managers?**
+Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password export formats, with Chinese/English column-name mapping. Typical migration takes about 30 seconds.
+
+## How It Compares
+
+| Feature | Account Password Helper | Bitwarden | 1Password | Chrome Built-in |
+|---------|:---:|:---:|:---:|:---:|
+| Price | Completely free | Free / Paid | $2.99/mo | Free |
+| Data storage | Pure local | Cloud | Cloud | Local |
+| Account required | No | Yes | Yes | No |
+| One-click login (fill + tick + click) | Yes | Fill only | Fill only | Fill only |
+| Multi-environment isolation | Yes | No | No | No |
+| Built-in TOTP authenticator | Yes | Paid tier | Paid tier | No |
+| Offline security audit | Yes | No | No | No |
+| Open source (GPL-3.0) | Yes | Yes | No | No |
+
+## Security Architecture
+
+- Master password → PBKDF2 (600,000 iterations) → 256-bit key
+- Plaintext + key + random IV → AES-256-GCM → Base64(IV + ciphertext)
+- Sensitive fields encrypted: username, password, URL, remark, TOTP
+- Master password in memory: HKDF + SHA-256 derived session key, AES-256-GCM encrypted before storing in chrome.storage.local
+- Session expiry: all sensitive fields automatically re-encrypted to ciphertext
+- Auto-lock triggers: idle timeout, system lock, browser restart (optional)
+- Clipboard auto-wipe after copying passwords (default 30s, configurable)
+- All computed locally, zero network transfer
+
+## Technical Stack
+
+- **Framework**: WXT + Vue 3 + TypeScript
+- **UI**: Element Plus (on-demand import)
+- **Build**: Vite
+- **Crypto**: Web Crypto API (native browser implementation)
+- **Manifest**: V3 (latest Chrome extension standard)
+- **Testing**: Vitest
+
+## Installation
+
+- **Chrome Web Store**: https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli
+- **GitHub Releases** (offline install): https://github.com/liaolongdong/account-password-helper/releases/latest
+- **From source**: `pnpm install && pnpm build` → load `.output/chrome-mv3/` as unpacked extension
+
+## Links
+
+- [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+- [GitHub Repository](https://github.com/liaolongdong/account-password-helper)
+- [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
+- [Pricing](https://github.com/liaolongdong/account-password-helper/blob/main/pricing.md) — 100% free, no paid tier, no subscription
+- [Architecture & Implementation Details](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.md)
+- [Contributing Guide](https://github.com/liaolongdong/account-password-helper/blob/main/docs/CONTRIBUTING.md)
+- [Changelog](https://github.com/liaolongdong/account-password-helper/blob/main/CHANGELOG.md)
+
+## License
+
+GPL-3.0-only. Free to use, modify and distribute (including commercially). Derivative works must be open-sourced under GPL-3.0.

@@ -2,24 +2,28 @@
 
 [中文](./README.md) | **English**
 
-[![WXT](https://img.shields.io/badge/WXT-v0.20.25-4E88FF)](https://wxt.dev/)
-[![Vue](https://img.shields.io/badge/Vue-v3.5.33-42b883)](https://vuejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-v6.0-3178c6)](https://www.typescriptlang.org/)
-[![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13.7-409EFF)](https://element-plus.org/)
+[![Star on GitHub](https://img.shields.io/badge/%E2%AD%90_Star_on_GitHub-24292f?logo=github&logoColor=white)](https://github.com/liaolongdong/account-password-helper/stargazers)
+[![WXT](https://img.shields.io/badge/WXT-v0.20.27-4E88FF)](https://wxt.dev/)
+[![Vue](https://img.shields.io/badge/Vue-v3.5.41-42b883)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-v6.0.3-3178c6)](https://www.typescriptlang.org/)
+[![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.14.4-409EFF)](https://element-plus.org/)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](#license)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 [![Chrome Web Store Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
-[![GitHub Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=GitHub%20Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
+[![Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
+[![Last Commit](https://img.shields.io/github/last-commit/liaolongdong/account-password-helper?logo=github&logoColor=white&label=Last%20Commit)](https://github.com/liaolongdong/account-password-helper/commits/main)
 
-> **Local-first · Zero Network — The multi-environment credential manager built for developers & QA**
+> **Free local-first password manager** · One-click login (fill + tick + click) · AES-256-GCM zero cloud · TOTP 2FA · Security audit · Multi-environment isolation · One-click migration from Chrome / Bitwarden / 1Password · Built for developers & QA
 
-A local-first Chrome password manager built for developers & QA: exact-domain matching for multi-environment accounts, one-keystroke login (autofill + auto-tick consent + auto-click login), built-in TOTP 2FA and security audit. **PBKDF2 + AES-256-GCM** encryption with zero network transfer — passwords never leave your browser, no account needed.
+A **free, open-source**, local-first Chrome password manager built for developers & QA: **one-click login** (autofill + tick consent + click login — not just form fill), exact-domain matching to isolate dev/test/staging/prod accounts, built-in **TOTP 2FA**, **security audit** & **password generator**. **PBKDF2 (600,000 iterations) + AES-256-GCM** encryption with an instantly-opening side panel (**20–50ms** warm path), zero network transfer — passwords never leave your browser, no account needed.
 
 > **Security notice**: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and never leaves your machine over the network. For the safety of your assets, we recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.
 >
 > 🌐 **Live demo**: https://liaolongdong.github.io/account-password-helper/
+>
+> 📊 **Technical highlights**: PBKDF2 600K iterations · AES-256-GCM authenticated encryption · Instant side panel (20–50ms warm path) · 6 themes · Bilingual UI · Fully offline · 364 automated tests
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Extension icon" width="120" />
@@ -80,6 +84,26 @@ A local-first Chrome password manager built for developers & QA: exact-domain ma
 | 📊 **Offline security audit**             | One-click 0–100 score: weak / reused / leaked / stale / missing-2FA checks — **all computed offline**                                                                     |
 | 📦 **One-click migration**                | Auto-detects exports from Chrome / LastPass / Bitwarden / 1Password; CSV & JSON — **move in in 30 seconds**                                                               |
 
+## Who It's For
+
+- **Developers** — exact-domain matching isolates dev / test / staging / prod accounts for the same site, zero mix-ups
+- **QA engineers** — quickly switch test accounts, `Ctrl+Shift+F` one-keystroke login, cross-environment efficiency
+- **Privacy-conscious users** — pure local AES-256-GCM encryption, zero network transfer, no account registration, no cloud sync
+- **Everyday users** — stop memorizing passwords, built-in TOTP 2FA, password generator for strong credentials
+
+## How It Compares
+
+| Feature                                   | Account Password Helper |   Bitwarden   | 1Password | Chrome Built-in |
+| ----------------------------------------- | :---------------------: | :-----------: | :-------: | :-------------: |
+| Price                                     |     Completely free     | Free / $10/yr | $2.99/mo  |      Free       |
+| Data storage                              |       Pure local        |     Cloud     |   Cloud   |      Local      |
+| Account required                          |           No            |      Yes      |    Yes    |       No        |
+| One-keystroke login (fill + tick + click) |           Yes           |   Fill only   | Fill only |    Fill only    |
+| Multi-environment isolation               |           Yes           |      No       |    No     |       No        |
+| Built-in TOTP authenticator               |           Yes           | Paid ($10/yr) | Paid tier |       No        |
+| Offline security audit                    |           Yes           |      No       |    No     |       No        |
+| Open source (GPL-3.0)                     |           Yes           |      Yes      |    No     |       No        |
+
 ## Core Features
 
 ### 🔐 Security
@@ -109,7 +133,7 @@ A local-first Chrome password manager built for developers & QA: exact-domain ma
 - **Themes & language**: 6 color themes + bilingual UI (中文 / English), instant switching without refresh, synchronized across extension pages and injected in-page UI
 - **Site favicons**: Password list, side panel and inline dropdown entries show the matching website icon (read from Chrome's local favicon cache, zero external requests); falls back to the default icon when unavailable
 - **Password generator**: Random mode (length/charset/ambiguous-character exclusion) and passphrase mode (EFF Diceware, 2048-word list)
-- **Instant open**: Side panel loads in about 20–50ms, instantly even after session expiry
+- **Instant open**: Side panel loads in about 20–50ms on the warm cache path, instantly even after session expiry
 
 > 🛠 Tech stack, architecture and project structure are covered in the [Contributing Guide](./docs/CONTRIBUTING.md).
 >
@@ -164,7 +188,18 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 1. **Initial setup**: click the extension icon to open the manager, set a master password, and choose a session validity (default 24 hours); "Preferences" configures themes, language, floating button, fill mode, and more
 2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field smart search (pinyin/initials + match highlighting) and sorting, tags and favorites
 3. **Quick fill**: inline fill by default — a key icon appears in a focused login field; click it to pick an account and fill instantly. Switch to "Sidebar" (auto-opens on focus) or "Manual" in Preferences, or use the shortcuts
-4. **Shortcuts**: `Ctrl+Shift+P` (open manager), `Ctrl+Shift+L` (toggle side panel), `Ctrl+Shift+F` (quick fill), `Ctrl+Shift+K` (open the inline dropdown); all customizable at `chrome://extensions/shortcuts` (`Cmd` on Mac)
+4. **Shortcuts**: every high-frequency action has one (`Cmd` on Mac) — see the cheat sheet below
+
+### Shortcut Cheat Sheet
+
+| Action                                    | Windows / Linux | macOS         |
+| ----------------------------------------- | --------------- | ------------- |
+| Open the password manager                 | `Ctrl+Shift+P`  | `Cmd+Shift+P` |
+| Toggle the side panel                     | `Ctrl+Shift+L`  | `Cmd+Shift+L` |
+| One-keystroke login (fill + tick + click) | `Ctrl+Shift+F`  | `Cmd+Shift+F` |
+| Open the inline fill dropdown             | `Ctrl+Shift+K`  | `Cmd+Shift+K` |
+
+> All shortcuts are customizable at `chrome://extensions/shortcuts`.
 
 > 📖 Full walkthroughs and demos are on the [live demo page](https://liaolongdong.github.io/account-password-helper/) (bilingual FAQ included), or via the "Help" entry inside the side panel.
 
@@ -222,6 +257,8 @@ A: Windows Defender scans each extension file on first load, adding 1-2 seconds 
 
 If this project helps you, please give it a ⭐️ and leave a review on the Chrome Web Store — it means the world to an independent developer!
 
+🔥 **Get started now**: [Install from Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) (one-click install, auto-updates) · [Download from GitHub Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) (if Google is unreachable)
+
 Issues and pull requests are welcome! Full changelog at [CHANGELOG.md](./CHANGELOG.md).
 
 ## Security Notes
@@ -248,3 +285,7 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 **WeChat group**: scan the QR code below to add the author on WeChat (ID: `lld_1025`) with the note "aph" to get invited into the plugin user group for feedback and discussion.
 
 <img src="./assets/wx-qrcode/wechat-qrcode.jpg" alt="WeChat group QR code" width="160" />
+
+---
+
+> 📅 Last updated: Aug 2026 · [v3.6.0](https://github.com/liaolongdong/account-password-helper/releases/latest)
