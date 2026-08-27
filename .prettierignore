@@ -19,6 +19,9 @@ pnpm-lock.yaml
 
 # Generated files
 *.d.ts
+en.html
+pricing.en.html
+privacy.en.html
 
 # Chrome extension files
 *.crx

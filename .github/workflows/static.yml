@@ -33,6 +33,11 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Generate static English pages
+        run: |
+          node scripts/build-en-page.mjs
+          node scripts/build-pricing-en-page.mjs
+          node scripts/build-privacy-en-page.mjs
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

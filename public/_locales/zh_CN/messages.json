@@ -4,7 +4,7 @@
     "description": "扩展名称，显示在 Chrome 应用商店和浏览器 UI 中"
   },
   "extensionDescription": {
-    "message": "为开发者与测试人员而生的本地加密密码管理器：AES-256-GCM 加密，零联网，快捷键一键登录，内置 TOTP 两步验证与安全体检，支持从 Chrome/Bitwarden/1Password 一键导入，无需注册。",
+    "message": "开源免费的本地加密密码管理器：AES-256-GCM 零联网，一键登录（填充+勾选+点击），TOTP 两步验证与安全体检，支持从 Chrome/Bitwarden/1Password 导入，内置密码生成器，无需注册。",
     "description": "扩展描述，用于 Chrome 应用商店（不能超过 132 个字符，超出会导致 zip 包上传失败）"
   },
   "commandOpenOptions": {

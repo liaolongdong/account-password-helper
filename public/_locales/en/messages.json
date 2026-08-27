@@ -4,7 +4,7 @@
     "description": "Extension name displayed in Chrome Web Store and browser UI"
   },
   "extensionDescription": {
-    "message": "Password manager for dev & QA: AES-256-GCM encryption, hotkey autofill, TOTP 2FA & security audit. No sign-up, zero network traffic.",
+    "message": "Open-source password manager: one-click login, AES-256-GCM, TOTP 2FA, security audit & password generator. 100% offline, no sign-up.",
     "description": "Extension description for Chrome Web Store (max 132 chars, longer breaks zip upload)"
   },
   "commandOpenOptions": {
