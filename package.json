@@ -5,7 +5,7 @@
     "email": "924902324@qq.com",
     "url": "https://github.com/liaolongdong"
   },
-  "version": "3.6.0",
+  "version": "3.7.0",
   "license": "GPL-3.0-only",
   "description": "🔐 Free open-source password manager Chrome extension (Manifest V3): local-first AES-256-GCM encrypted vault, one-click autofill & auto-login, TOTP 2FA authenticator, password generator & health check, side panel quick fill, CSV/JSON import/export. Built with WXT + Vue 3 + TypeScript. 免费开源的浏览器账号密码管理器插件：本地加密存储、自动填充、一键登录、两步验证码、密码生成器与安全体检、侧边栏快速填充、导入导出。",
   "homepage": "https://liaolongdong.github.io/account-password-helper/",
@@ -67,7 +67,11 @@
   ],
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"],
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "spawn-sync"
+    ],
     "overrides": {
       "shell-quote": ">=1.8.1",
       "tmp": ">=0.2.7",
@@ -104,9 +108,16 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
-    "*.{css,scss,vue}": ["stylelint --fix"],
-    "*.{json,md}": ["prettier --write"]
+    "*.{ts,vue,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{css,scss,vue}": [
+      "stylelint --fix"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

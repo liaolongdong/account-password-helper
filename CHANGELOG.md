@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.7.0](https://github.com/liaolongdong/account-password-helper/compare/v3.6.0...v3.7.0) (2026-08-27)
+
+
+### Features
+
+* **web:** 添加完整英文主页及相关样式和SEO配置 ([4c8ace8](https://github.com/liaolongdong/account-password-helper/commit/4c8ace829997dc1b0762a3e87cf75d927cf78f9b))
+
 ## [3.6.0](https://github.com/liaolongdong/account-password-helper/compare/v3.5.0...v3.6.0) (2026-08-23)
 
 
