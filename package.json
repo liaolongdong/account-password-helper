@@ -52,15 +52,22 @@
     "一键登录",
     "两步验证",
     "浏览器插件",
-    "密码保险箱"
+    "密码保险箱",
+    "password-manager-for-developers",
+    "offline-password-manager",
+    "multi-environment",
+    "import-from-bitwarden",
+    "import-from-1password",
+    "free-password-manager",
+    "chrome-password-vault",
+    "privacy-password-manager",
+    "本地密码管理器",
+    "开发者工具",
+    "安全体检"
   ],
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ],
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"],
     "overrides": {
       "shell-quote": ">=1.8.1",
       "tmp": ">=0.2.7",
@@ -94,16 +101,9 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",

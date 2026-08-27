@@ -11,10 +11,10 @@
 在 Dashboard 点击「新建商品」(New Item)，上传以下文件：
 
 ```
-.output/account-password-helper-3.5.0-chrome.zip
+.output/account-password-helper-3.6.0-chrome.zip
 ```
 
-> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。当前版本：**3.5.0**。
+> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。当前版本：**3.6.0**。
 
 ---
 
@@ -29,16 +29,16 @@
 ### 摘要 (Summary) — 最多 132 字符
 
 ```
-为开发者与测试人员而生的本地加密密码管理器：AES-256-GCM 加密，零联网，快捷键一键登录，内置 TOTP 两步验证与安全体检，支持从 Chrome/Bitwarden/1Password 一键导入，无需注册。
+开源免费的本地加密密码管理器：AES-256-GCM 零联网，一键登录（填充+勾选+点击），TOTP 两步验证与安全体检，支持从 Chrome/Bitwarden/1Password 导入，内置密码生成器，无需注册。
 ```
 
-> ⚠️ 摘要必须与 `public/_locales/zh_CN/messages.json` 的 `extensionDescription` 保持完全一致（manifest 描述受 132 字符硬限制）。英文摘要同步 `en/messages.json`：`Password manager for dev & QA: AES-256-GCM encryption, hotkey autofill, TOTP 2FA & security audit. No sign-up, zero network traffic.`
+> ⚠️ 摘要必须与 `public/_locales/zh_CN/messages.json` 的 `extensionDescription` 保持完全一致（manifest 描述受 132 字符硬限制）。英文摘要同步 `en/messages.json`：`Open-source password manager: one-click login, AES-256-GCM, TOTP 2FA, security audit & password generator. 100% offline, no sign-up.`
 
 ### 说明 (Description) — 最多 16,000 字符
 
 ```
 
-一款开源免费、数据纯本地的浏览器密码管理器——快捷键一键登录（自动填充 → 勾选协议 → 点击登录，不只是填表），精确域名匹配隔离 dev/test/staging/prod 多环境账号，为开发者和测试人员量身打造。无云端、无账号、无订阅，AES-256-GCM 全加密，数据只留在你的浏览器里。
+一款开源免费、数据纯本地的浏览器密码管理器——快捷键一键登录（自动填充 → 勾选协议 → 点击登录，不只是填表），精确域名匹配隔离 dev/test/staging/prod 多环境账号，为开发者和测试人员量身打造。无云端、无账号、无订阅，PBKDF2（600,000 次迭代）+ AES-256-GCM 全加密，侧边栏秒开（缓存快路径 20-50ms），数据只留在你的浏览器里。
 
 【为什么选择它】
 ◆ 快捷键一键登录（不只是填充）：按下 Ctrl+Shift+F，自动填充账号 → 自动勾选协议 → 自动点击登录按钮——其他工具只填表单，登录按钮还得自己点
@@ -46,6 +46,13 @@
 ◆ 内置 TOTP + 两步登录接力：验证码和密码在一起，GitHub 式两步登录自动衔接活码胶囊，告别手机验证器，不用切 App
 ◆ 纯本地 AES-256-GCM，零云端：无云端、无账号、无订阅，数据全部加密在你的浏览器里，即使服务器被攻破也拿不到你的密码
 ◆ 密码可见性切换：为页面密码框注入显隐切换按钮（偏好设置中开启），填充后一键确认输入内容，无需另装独立扩展
+
+【适合谁】
+· 开发者：精确域名匹配隔离 dev/test/staging/prod 多环境账号，同一站点不同环境凭证互不混淆
+· 测试工程师：快速切换测试账号，快捷键一键登录，跨环境效率翻倍
+· 隐私敏感用户：纯本地 AES-256-GCM 加密，零网络传输，无需注册账号，无需云端同步
+· 日常用户：告别记忆密码，内置 TOTP 两步验证，密码生成器一键创建强密码
+· 从其他密码管理器迁移：支持从 Chrome、LastPass、Bitwarden、1Password 一键导入，CSV/JSON 双格式，30 秒完成搬家
 
 【安全架构】
 · 主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，基于 Web Crypto API 原生实现
@@ -62,7 +69,7 @@
 · 自动保存凭证：登录即弹窗确认，凭证指纹智能去重，支持域名白名单/黑名单、「不再提示」一键屏蔽
 · 导入导出：CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph 加密备份、邮箱备份提醒
 · 密码生成器：随机密码 + EFF 助记词组双模式，Web Crypto 密码学安全随机
-· 回收站与修改历史：删除条目保留 30 天可恢复，每条密码保留 5 份加密快照，改错可回滚
+· 回收站与修改历史：删除条目保留 30 天可恢复，每条密码可配置保留 1~10 份加密快照（默认 3 份），改错可回滚
 · 智能搜索：拼音 / 首字母缩写搜索、标签分类、收藏置顶、一键去重、批量管理
 · 6 款色彩主题（晴空蓝/青竹绿/桃花粉/樱粉紫/落霞橙/雾墨灰）、中英文双语界面即时切换
 
@@ -96,7 +103,7 @@ Account Password Helper – Password Manager
 **Summary（摘要）— 最多 132 字符**
 
 ```
-Password manager for dev & QA: AES-256-GCM encryption, hotkey autofill, TOTP 2FA & security audit. No sign-up, zero network traffic.
+Open-source password manager: one-click login, AES-256-GCM, TOTP 2FA, security audit & password generator. 100% offline, no sign-up.
 ```
 
 > ⚠️ 英文摘要必须与 `public/_locales/en/messages.json` 的 `extensionDescription` 保持完全一致。
@@ -105,7 +112,7 @@ Password manager for dev & QA: AES-256-GCM encryption, hotkey autofill, TOTP 2FA
 
 ```
 
-A 100% free, fully offline password manager built for developers, QA engineers and anyone who juggles multiple accounts across environments.
+A 100% free, fully offline password manager built for developers, QA engineers and anyone who juggles multiple accounts across environments. Account Password Helper is a local-first password vault with PBKDF2 (600,000 iterations) + AES-256-GCM encryption — your passwords never leave your browser, no account registration, no cloud, no subscription. Side panel opens instantly (20–50ms warm path).
 
 WHY DEVELOPERS LOVE IT
 ◆ One-keystroke login, not just fill: press Ctrl+Shift+F — the account is autofilled, "I agree" is ticked, and the login button is clicked. Other tools only fill the form; you still have to click login yourself.
@@ -113,6 +120,13 @@ WHY DEVELOPERS LOVE IT
 ◆ Built-in TOTP + 2FA handoff: verification codes live with your passwords; on GitHub-style two-step logins, the live code capsule auto-anchors beside the input — no phone authenticator app needed.
 ◆ Local AES-256-GCM, zero cloud: no cloud, no account, no subscription. Everything is encrypted in your browser — even if the server were breached, your passwords stay safe.
 ◆ Password visibility toggle: injects a show/hide button into page password fields (enable in preferences) — verify filled content with one click, no separate extension needed.
+
+WHO IT'S FOR
+· Developers: exact-domain matching isolates dev / test / staging / prod accounts for the same site — zero mix-ups
+· QA engineers: quickly switch test accounts, one-keystroke login across environments
+· Privacy-conscious users: pure local AES-256-GCM encryption, zero network transfer, no account, no cloud sync
+· Everyday users: stop memorizing passwords, built-in TOTP 2FA, password generator for strong credentials
+· Migrating from another password manager: one-click import from Chrome, LastPass, Bitwarden, 1Password — CSV & JSON, done in 30 seconds
 
 SECURITY ARCHITECTURE
 · Master password → PBKDF2 (600,000 iterations) → 256-bit key, built on the native Web Crypto API
@@ -129,7 +143,7 @@ FULL FEATURE SET
 · Auto-capture credentials on login with smart dedup and domain allow/block lists; one-click "Never for this site"
 · Import / export: CSV & JSON; auto-detects exports from Chrome, LastPass, Bitwarden, 1Password; .aph encrypted backup + email backup reminders
 · Password generator: random & EFF diceware passphrase modes, Web Crypto CSPRNG
-· Trash bin (30 days) + 5 encrypted snapshots per entry — roll back any mistake
+· Trash bin (30 days) + 1-10 encrypted snapshots per entry (default 3) — roll back any mistake
 · Fuzzy search with pinyin / initials, tags, favorites, one-tap dedupe, batch operations
 · 6 color themes, Chinese / English bilingual UI with instant switching
 
@@ -408,7 +422,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 | 6   | 单一用途         | 用途清晰单一                        | ✅ 已满足（密码管理）                              |
 | 7   | 核心功能无付费墙 | 核心功能免费                        | ✅ 已满足（完全免费）                              |
 | 8   | 无未解决违规     | 无政策违规记录                      | ✅ 已满足                                          |
-| 9   | 性能             | 高效运行、不滥用资源                | ✅ 已满足（侧边栏 20-50ms）                        |
+| 9   | 性能             | 高效运行、不滥用资源                | ✅ 已满足（侧边栏秒开，缓存快路径 20-50ms）        |
 | 10  | 商店列表质量     | 标题/描述/截图完整高质量            | ✅ 按第二步~第六步完成                             |
 
 ### 7.2 提名表单文案 — 英文（直接粘贴）

@@ -2,24 +2,28 @@
 
 **中文** | [English](./README.en.md)
 
-[![WXT](https://img.shields.io/badge/WXT-v0.20.25-4E88FF)](https://wxt.dev/)
-[![Vue](https://img.shields.io/badge/Vue-v3.5.33-42b883)](https://vuejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-v6.0-3178c6)](https://www.typescriptlang.org/)
-[![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.13.7-409EFF)](https://element-plus.org/)
+[![Star on GitHub](https://img.shields.io/badge/%E2%AD%90_Star_on_GitHub-24292f?logo=github&logoColor=white)](https://github.com/liaolongdong/account-password-helper/stargazers)
+[![WXT](https://img.shields.io/badge/WXT-v0.20.27-4E88FF)](https://wxt.dev/)
+[![Vue](https://img.shields.io/badge/Vue-v3.5.41-42b883)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-v6.0.3-3178c6)](https://www.typescriptlang.org/)
+[![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.14.4-409EFF)](https://element-plus.org/)
 [![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
 [![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](#许可证)
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 [![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 [![Chrome Web Store Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
-[![GitHub Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=GitHub%20Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
+[![Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
+[![Last Commit](https://img.shields.io/github/last-commit/liaolongdong/account-password-helper?logo=github&logoColor=white&label=Last%20Commit)](https://github.com/liaolongdong/account-password-helper/commits/main)
 
-> **本地加密 · 零网络传输 —— 为开发者与测试人员打造的多环境账号管理神器**
+> **开源免费的本地密码管理器** · 一键登录（填充+勾选+点击） · AES-256-GCM 零云端 · TOTP 两步验证 · 安全体检 · 多环境账号隔离 · 从 Chrome / Bitwarden / 1Password 一键迁移 · 为开发者与测试人员量身打造
 
-一款为开发者与测试人员打造的本地加密 Chrome 密码管理扩展：精确域名匹配区分多环境账号、快捷键一键登录（自动填充 + 自动勾选协议 + 自动点击登录）、内置 TOTP 两步验证与安全体检。采用 **PBKDF2 + AES-256-GCM** 加密体系，数据绝不出浏览器，无需注册账号。
+一款**开源免费**的本地加密 Chrome 密码管理扩展，为开发者与测试人员量身打造：**一键登录**（自动填充 + 勾选协议 + 点击登录，不只是填表）、精确域名匹配隔离 dev/test/staging/prod 多环境账号、内置 **TOTP 两步验证**、安全体检与**密码生成器**。采用 **PBKDF2（600,000 次迭代）+ AES-256-GCM** 加密体系，侧边栏秒开（缓存快路径 **20-50ms**），数据绝不出浏览器，无需注册账号。
 
 > **安全声明**：账号密码管理助手为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。
 >
 > 🌐 **在线演示**: https://liaolongdong.github.io/account-password-helper/
+>
+> 📊 **技术亮点**: PBKDF2 600K 迭代 · AES-256-GCM 认证加密 · 侧边栏秒开（缓存快路径 20-50ms）· 6 款主题 · 中英文双语 · 完全离线可用 · 364 项自动化测试
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="插件图标" width="120" />
@@ -80,6 +84,26 @@
 | 📊 **离线安全体检**               | 一键 0-100 评分：弱密码 / 复用 / 泄露 / 过期 / 未开 2FA 五维检测，**全程离线计算**                       |
 | 📦 **一键迁移，零门槛**           | 自动识别 Chrome / LastPass / Bitwarden / 1Password 导出格式，CSV/JSON 双格式，**30 秒搬家**              |
 
+## 适合谁
+
+- **开发者** — 精确域名匹配隔离 dev / test / staging / prod 多环境账号，同一站点不同环境凭证互不混淆
+- **测试工程师** — 快速切换测试账号，`Ctrl+Shift+F` 一键登录，跨环境效率翻倍
+- **隐私敏感用户** — 纯本地 AES-256-GCM 加密，零网络传输，无需注册账号，无需云端同步
+- **日常用户** — 告别记忆密码，内置 TOTP 两步验证，密码生成器一键创建强密码
+
+## 与其他密码管理器的对比
+
+| 功能                           | Account Password Helper |    Bitwarden    | 1Password | Chrome 自带 |
+| ------------------------------ | :---------------------: | :-------------: | :-------: | :---------: |
+| 价格                           |        完全免费         | 免费 / $10/年起 | $2.99/月  |    免费     |
+| 数据存储                       |         纯本地          |      云端       |   云端    |    本地     |
+| 需要注册账号                   |           否            |       是        |    是     |     否      |
+| 一键登录（填充 + 勾选 + 点击） |           是            |     仅填充      |  仅填充   |   仅填充    |
+| 多环境账号隔离                 |           是            |       否        |    否     |     否      |
+| 内置 TOTP 验证器               |           是            |  付费版 $10/年  |  付费版   |     否      |
+| 离线安全体检                   |           是            |       否        |    否     |     否      |
+| 开源（GPL-3.0）                |           是            |       是        |    否     |     否      |
+
 ## 核心特性
 
 ### 🔐 安全防护
@@ -109,7 +133,7 @@
 - **主题与语言**：6 款色彩主题 + 中英文双语界面，即时切换无需刷新，扩展页与页面内注入 UI 同步生效
 - **网站图标展示**：密码列表、侧边栏与内联下拉面板展示对应网站图标（读取 Chrome 本地图标缓存，零外部请求），长列表辨识更高效
 - **密码生成器**：随机密码（长度/字符集/排除易混淆字符可配）与助记词组（EFF Diceware 2048 词库）双模式
-- **秒开体验**：侧边栏打开约 20-50ms 加载完成，会话失效后同样秒开
+- **秒开体验**：缓存快路径下侧边栏约 20-50ms 加载完成，会话失效后同样秒开
 
 > 🛠 技术栈、架构设计与项目结构见 [贡献指南](./docs/CONTRIBUTING.md)。
 >
@@ -164,7 +188,18 @@ pnpm postbuild
 1. **初始设置**：安装后点击扩展图标进入密码管理页面，设置主密码并选择会话有效期（默认 24 小时）；「偏好设置」中可配置主题、语言、悬浮按钮、填充方式等
 2. **密码管理**：选项页提供完整 CRUD、批量导入导出（导出需验证主密码）、多字段智能搜索（拼音/首字母 + 命中高亮）与排序、标签与收藏
 3. **快速填充**：默认内联填充——登录框获焦后显示钥匙图标，点击选择账号即填；可在「偏好设置」切换为「侧边栏」（获焦自动弹出）或「仅手动」，也可使用快捷键
-4. **快捷键**：`Ctrl+Shift+P`（打开管理页）、`Ctrl+Shift+L`（切换侧边栏）、`Ctrl+Shift+F`（一键填充）、`Ctrl+Shift+K`（展开内联下拉列表），均支持在 `chrome://extensions/shortcuts` 中自定义（Mac 为 `Cmd`）
+4. **快捷键**：所有高频操作均有快捷键（Mac 为 `Cmd`），详见下方速查表
+
+### 快捷键速查
+
+| 功能                       | Windows / Linux | macOS         |
+| -------------------------- | --------------- | ------------- |
+| 打开密码管理页             | `Ctrl+Shift+P`  | `Cmd+Shift+P` |
+| 开关侧边栏                 | `Ctrl+Shift+L`  | `Cmd+Shift+L` |
+| 一键登录（填充+勾选+点击） | `Ctrl+Shift+F`  | `Cmd+Shift+F` |
+| 展开内联填充下拉列表       | `Ctrl+Shift+K`  | `Cmd+Shift+K` |
+
+> 所有快捷键均可在 `chrome://extensions/shortcuts` 中自定义。
 
 > 📖 完整的操作指引与功能演示见[在线演示页面](https://liaolongdong.github.io/account-password-helper/)（含双语 FAQ），或侧边栏内的「帮助」入口。
 
@@ -222,6 +257,8 @@ A：Windows Defender 会在扩展文件首次加载时逐文件扫描，导致�
 
 如果本项目对您有帮助，请帮忙点个 ⭐️、写个商店评价——这是对开源贡献者最大的支持！
 
+🔥 **立即开始**：[Chrome 应用商店安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)（一键安装，自动更新） · [GitHub Releases 下载](https://github.com/liaolongdong/account-password-helper/releases/latest)（无法访问 Google 的用户）
+
 欢迎提交 Issue 和 Pull Request！完整变更记录见 [CHANGELOG.md](./CHANGELOG.md)。
 
 ## 安全提醒
@@ -248,3 +285,7 @@ A：Windows Defender 会在扩展文件首次加载时逐文件扫描，导致�
 **微信交流群**：扫描下方二维码添加作者微信（微信号：`lld_1025`），备注「aph」邀你加入插件交流群，反馈问题、交流使用心得。
 
 <img src="./assets/wx-qrcode/wechat-qrcode.jpg" alt="微信群二维码" width="160" />
+
+---
+
+> 📅 文档最后更新：2026-08 · 对应版本 [v3.6.0](https://github.com/liaolongdong/account-password-helper/releases/latest)

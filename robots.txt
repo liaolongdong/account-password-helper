@@ -1,0 +1,48 @@
+# robots.txt — Account Password Helper
+# Site: https://liaolongdong.github.io/account-password-helper/
+# Policy: all crawlers welcome, including AI search & answer engines.
+#
+# Note: this site is served from a sub-path (GitHub Pages project site), so
+# crawlers that only read robots.txt from the domain root may not fetch this
+# file. It documents the crawl policy and takes full effect if the site moves
+# to a domain root.
+
+User-agent: *
+Allow: /
+
+# AI search & answer engines — explicitly allowed so this extension
+# can be cited in AI-generated answers (ChatGPT, Perplexity, Claude, Gemini, Copilot)
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: anthropic-ai
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+Sitemap: https://liaolongdong.github.io/account-password-helper/sitemap.xml
