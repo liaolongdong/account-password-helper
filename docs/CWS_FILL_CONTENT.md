@@ -73,6 +73,12 @@
 · 智能搜索：拼音 / 首字母缩写搜索、标签分类、收藏置顶、一键去重、批量管理
 · 6 款色彩主题（晴空蓝/青竹绿/桃花粉/樱粉紫/落霞橙/雾墨灰）、中英文双语界面即时切换
 
+【常见问题】
+· 密码会被上传到云端吗？不会。所有数据保存在浏览器本地，经 AES-256-GCM 加密，零网络传输。
+· 真的完全免费吗？是。开源（GPL-3.0），无订阅、无高级版、无需注册账号。
+· 能从其他密码管理器导入吗？能。自动识别 Chrome / LastPass / Bitwarden / 1Password 导出格式，CSV/JSON 双格式，30 秒完成搬家。
+· 忘记主密码怎么办？无法找回。建议定期使用加密备份（.aph）功能导出备份，避免数据丢失。
+
 【温馨提示】
 本插件为开发、测试与日常登录场景设计，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。
 
@@ -146,6 +152,12 @@ FULL FEATURE SET
 · Trash bin (30 days) + 1-10 encrypted snapshots per entry (default 3) — roll back any mistake
 · Fuzzy search with pinyin / initials, tags, favorites, one-tap dedupe, batch operations
 · 6 color themes, Chinese / English bilingual UI with instant switching
+
+FAQ
+· Are my passwords uploaded to the cloud? No. All data stays in your browser, encrypted with AES-256-GCM — zero network transfer.
+· Is it really free? Yes. Open source (GPL-3.0), no subscription, no premium tier, no account required.
+· Can I import from other password managers? Yes. Exports from Chrome, LastPass, Bitwarden and 1Password are auto-detected — CSV & JSON, done in 30 seconds.
+· What if I forget my master password? It cannot be recovered. Back up regularly with the encrypted .aph export to avoid data loss.
 
 A friendly note: the extension is designed for development, testing and everyday sign-in scenarios. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.
 
