@@ -99,7 +99,7 @@ Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password ex
 - [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
 - [GitHub Repository](https://github.com/liaolongdong/account-password-helper)
 - [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
-- [Pricing](https://github.com/liaolongdong/account-password-helper/blob/main/pricing.md) — 100% free, no paid tier, no subscription
+- [Pricing](https://github.com/liaolongdong/account-password-helper/blob/main/) — 100% free, no paid tier, no subscription
 - [Architecture & Implementation Details](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.md)
 - [Contributing Guide](https://github.com/liaolongdong/account-password-helper/blob/main/docs/CONTRIBUTING.md)
 - [Changelog](https://github.com/liaolongdong/account-password-helper/blob/main/CHANGELOG.md)
