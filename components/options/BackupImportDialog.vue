@@ -78,11 +78,11 @@
             :disabled="decrypting"
             @keyup.enter="handleDecrypt"
           >
-            <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
+            <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
             <template #password-icon="{ visible }">
               <el-icon>
-                <View v-if="visible" />
-                <Hide v-else />
+                <Hide v-if="visible" />
+                <View v-else />
               </el-icon>
             </template>
           </el-input>
@@ -169,18 +169,18 @@
               type="primary"
               @click="showPreviewPassword = !showPreviewPassword"
             >
-              <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
+              <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
               <el-icon
                 v-if="showPreviewPassword"
                 style="margin-right: 4px"
               >
-                <View />
+                <Hide />
               </el-icon>
               <el-icon
                 v-else
                 style="margin-right: 4px"
               >
-                <Hide />
+                <View />
               </el-icon>
               {{ showPreviewPassword ? t('options.import.hidePassword') : t('options.import.showPassword') }}
             </el-button>

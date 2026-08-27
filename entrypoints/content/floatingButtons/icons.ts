@@ -84,7 +84,7 @@ export const linkIcon = `
 `;
 
 /**
- * 睁眼图标 - 密码可见状态（状态语义：密码明文显示中）
+ * 睁眼图标 - 动作语义：密码密文显示时使用，表示"点击显示密码"
  */
 export const eyeOpenIcon = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -94,7 +94,7 @@ export const eyeOpenIcon = `
 `;
 
 /**
- * 闭眼图标 - 密码不可见状态（状态语义：密码密文显示中）
+ * 划线眼图标 - 动作语义：密码明文显示时使用，表示"点击隐藏密码"
  */
 export const eyeClosedIcon = `
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
