@@ -25,10 +25,11 @@
       @keyup.enter="handleConfirm"
       @input="clearError"
     >
+      <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
       <template #password-icon="{ visible }">
         <el-icon>
-          <View v-if="visible" />
-          <Hide v-else />
+          <Hide v-if="visible" />
+          <View v-else />
         </el-icon>
       </template>
     </el-input>

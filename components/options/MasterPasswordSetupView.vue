@@ -50,11 +50,11 @@
                   @focus="passwordInputFocused = true"
                   @blur="passwordInputFocused = false"
                 >
-                  <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
+                  <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
                   <template #password-icon="{ visible }">
                     <el-icon>
-                      <View v-if="visible" />
-                      <Hide v-else />
+                      <Hide v-if="visible" />
+                      <View v-else />
                     </el-icon>
                   </template>
                 </el-input>
@@ -75,10 +75,11 @@
                 autocomplete="new-password"
                 @keyup.enter="handleSubmit"
               >
+                <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
                 <template #password-icon="{ visible }">
                   <el-icon>
-                    <View v-if="visible" />
-                    <Hide v-else />
+                    <Hide v-if="visible" />
+                    <View v-else />
                   </el-icon>
                 </template>
               </el-input>

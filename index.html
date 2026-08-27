@@ -52,8 +52,37 @@
       content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
     />
     <meta
+      property="og:site_name"
+      content="账号密码管理助手 Account Password Helper"
+    />
+    <meta
+      property="og:locale"
+      content="zh_CN"
+    />
+    <meta
+      property="og:locale:alternate"
+      content="en_US"
+    />
+    <meta
       name="twitter:card"
       content="summary_large_image"
+    />
+    <meta
+      name="twitter:title"
+      content="账号密码管理助手 Account Password Helper | 开源免费本地密码管理器 · 一键登录 · TOTP · 安全体检"
+    />
+    <meta
+      name="twitter:description"
+      content="开源免费的本地密码管理器：一键登录（填充+勾选+点击），AES-256-GCM 加密零联网，内置 TOTP 两步验证、安全体检与密码生成器。支持从 Chrome/Bitwarden/1Password 一键导入，多环境账号隔离，数据绝不出浏览器。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+    />
+    <!-- Canonical：声明本页唯一规范 URL，避免带参数 URL 被判定为重复内容 -->
+    <link
+      rel="canonical"
+      href="https://liaolongdong.github.io/account-password-helper/"
     />
     <!-- 双语 SEO：告知搜索引擎本页存在中英文两个版本 -->
     <link
@@ -64,7 +93,7 @@
     <link
       rel="alternate"
       hreflang="en"
-      href="https://liaolongdong.github.io/account-password-helper/?lang=en"
+      href="https://liaolongdong.github.io/account-password-helper/en.html"
     />
     <link
       rel="alternate"
@@ -86,6 +115,7 @@
         "applicationCategory": "SecurityApplication",
         "operatingSystem": "Chrome",
         "softwareVersion": "3.6.0",
+        "dateModified": "2026-08-27",
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -2585,8 +2615,10 @@
       // =================== 国际化 ===================
       const LANG_KEY = 'aph_guide_lang';
 
-      /** 当前语言：localStorage 持久化，缺省跟随浏览器语言 */
+      /** 当前语言：URL ?lang 参数优先 > localStorage 持久化 > 缺省跟随浏览器语言 */
       let lang = (() => {
+        const param = new URLSearchParams(location.search).get('lang');
+        if (param === 'zh' || param === 'en') return param;
         try {
           const saved = localStorage.getItem(LANG_KEY);
           if (saved === 'zh' || saved === 'en') return saved;

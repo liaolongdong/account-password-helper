@@ -34,7 +34,15 @@
           :placeholder="t('options.changePwd.oldPasswordPlaceholder')"
           show-password
           @keyup.enter="handleSubmit"
-        />
+        >
+          <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
+          <template #password-icon="{ visible }">
+            <el-icon>
+              <Hide v-if="visible" />
+              <View v-else />
+            </el-icon>
+          </template>
+        </el-input>
       </el-form-item>
 
       <el-form-item
@@ -57,7 +65,15 @@
             @focus="newPasswordFocused = true"
             @blur="newPasswordFocused = false"
             @keyup.enter="handleSubmit"
-          />
+          >
+            <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
+            <template #password-icon="{ visible }">
+              <el-icon>
+                <Hide v-if="visible" />
+                <View v-else />
+              </el-icon>
+            </template>
+          </el-input>
         </PasswordStrengthPopover>
       </el-form-item>
 
@@ -71,7 +87,15 @@
           :placeholder="t('options.changePwd.confirmPasswordPlaceholder')"
           show-password
           @keyup.enter="handleSubmit"
-        />
+        >
+          <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
+          <template #password-icon="{ visible }">
+            <el-icon>
+              <Hide v-if="visible" />
+              <View v-else />
+            </el-icon>
+          </template>
+        </el-input>
       </el-form-item>
     </el-form>
 
@@ -96,6 +120,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
+import { View, Hide } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { changeMasterPassword } from '@/utils/storage/changeMasterPassword';

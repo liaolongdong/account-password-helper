@@ -42,9 +42,9 @@
           <div class="password-cell">
             <span v-if="!row.showPassword">{{ '*'.repeat(8) }}</span>
             <span v-else>{{ row.password }}</span>
-            <!-- 状态语义：明文显示睁眼，密文显示闭眼 -->
+            <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
             <el-button
-              :icon="row.showPassword ? View : Hide"
+              :icon="row.showPassword ? Hide : View"
               :aria-label="row.showPassword ? t('common.hidePassword') : t('common.showPassword')"
               link
               @click="$emit('togglePassword', row)"
