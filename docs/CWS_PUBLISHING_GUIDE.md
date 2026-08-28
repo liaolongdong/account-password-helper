@@ -155,17 +155,18 @@
 
 ### 核心事实清单（单一事实来源）
 
-| 事实项          | 权威口径                                                                                                                                        | 出现位置                                                                                            |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| 开源协议        | GPL-3.0-only                                                                                                                                    | README、index.html（hero 徽章）、llms.txt、CWS_FILL_CONTENT.md                                      |
-| PBKDF2 迭代次数 | 600,000 次（短标签可用 600K，禁止无千分位的 600000）                                                                                            | README、index.html、llms.txt、CWS_FILL_CONTENT.md、CONTRIBUTING.md                                  |
-| 加密算法        | AES-256-GCM（Web Crypto API 原生实现）                                                                                                          | 全部表面                                                                                            |
-| 侧边栏性能      | 秒开（SLA <1s）；缓存快路径 20-50ms。禁止无限定词的裸「20-50ms 秒开」；英文正文用 en-dash（20–50ms），机器可读文件 llms.txt 用连字符（20-50ms） | README、README.en.md、index.html、llms.txt、CWS_FILL_CONTENT.md、docs/reddit-post.md                |
-| 版本号          | 与 package.json 的 version 一致                                                                                                                 | index.html（footer.updated 中英两处 + JSON-LD softwareVersion）、llms.txt（Last updated）、CWS 后台 |
-| 测试数量        | tests/ 实际用例数（见下方校验命令）                                                                                                             | README、README.en.md、llms.txt                                                                      |
-| 免费口径        | 完全免费、无订阅、无账号、无云端                                                                                                                | 全部表面 + pricing.md                                                                               |
-| 隐私承诺        | 零网络传输、数据不出浏览器、不收集数据                                                                                                          | 全部表面 + privacy.html（须与商店 Privacy 标签页一致）                                              |
-| 联系方式        | 邮箱 924902324@qq.com / 微信 lld_1025                                                                                                           | README、index.html、CWS_FILL_CONTENT.md                                                             |
+| 事实项          | 权威口径                                                                                                                                        | 出现位置                                                                                                                       |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 开源协议        | GPL-3.0-only                                                                                                                                    | README、index.html（hero 徽章）、llms.txt、CWS_FILL_CONTENT.md                                                                 |
+| PBKDF2 迭代次数 | 600,000 次（短标签可用 600K，禁止无千分位的 600000）                                                                                            | README、index.html、llms.txt、CWS_FILL_CONTENT.md、CONTRIBUTING.md                                                             |
+| 加密算法        | AES-256-GCM（Web Crypto API 原生实现）                                                                                                          | 全部表面                                                                                                                       |
+| 侧边栏性能      | 秒开（SLA <1s）；缓存快路径 20-50ms。禁止无限定词的裸「20-50ms 秒开」；英文正文用 en-dash（20–50ms），机器可读文件 llms.txt 用连字符（20-50ms） | README、README.en.md、index.html、llms.txt、CWS_FILL_CONTENT.md、docs/reddit-post.md                                           |
+| 版本号          | 与 package.json 的 version 一致                                                                                                                 | index.html（footer.updated 中英两处 + JSON-LD softwareVersion）、llms.txt（Last updated）、CWS 后台                            |
+| 测试数量        | tests/ 实际用例数（见下方校验命令）                                                                                                             | README、README.en.md、llms.txt                                                                                                 |
+| 免费口径        | 完全免费、无订阅、无账号、无云端                                                                                                                | 全部表面 + pricing.md                                                                                                          |
+| 隐私承诺        | 零网络传输、数据不出浏览器、不收集数据                                                                                                          | 全部表面 + privacy.html（须与商店 Privacy 标签页一致）                                                                         |
+| 联系方式        | 邮箱 924902324@qq.com / 微信 lld_1025                                                                                                           | README、index.html、CWS_FILL_CONTENT.md                                                                                        |
+| 文档更新时间    | 与发版月份一致（格式 `YYYY-MM`），版本号同步更新。隐私页使用精确日期（仅隐私政策实际变更时更新）                                                | README.md、README.en.md（末尾行）、index.html（footer.updated 中英）、en.html（footer.updated 中英）、llms.txt（Last updated） |
 
 ### 快速校验命令
 
@@ -179,11 +180,16 @@ rg -n "600000" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.
 # 版本号：三处应与 package.json 的 version 一致
 rg -n "softwareVersion|footer.updated" index.html
 
+# 文档更新时间：5 处年月应一致且与发版月份匹配
+rg -n "最后更新\|Last updated\|文档最后更新" README.md README.en.md index.html en.html llms.txt
+
 # 测试数量：与 README「364 项自动化测试」、llms.txt「364 automated test cases」比对
 rg -cE "^\s*(it|test)\(" tests -g "*.ts" | awk -F: '{s+=$2} END {print s}'
 ```
 
 ### 其他同步约定
+
+- **文档更新时间**：每次发版或重大文档变更时，须同步更新以下 7 处的「最后更新」时间戳——README.md 末尾行、README.en.md 末尾行、index.html `footer.updated` 中英两处、en.html `footer.updated` 中英两处、llms.txt `Last updated` 行；隐私页（privacy.html / privacy.en.html）仅在隐私政策实际变更时更新精确日期，不随版本号联动
 
 - **FAQ 权威版本**为 index.html 可见文案（i18n 字典）；README 与 llms.txt 的 FAQ 发版时对照校对，避免多副本漂移
 - **商店摘要（132 字符硬限制）**：修改后须同步 `public/_locales/zh_CN/messages.json` 与 `en/messages.json` 的 `extensionDescription` 并重新构建，且与 CWS_FILL_CONTENT.md 的「摘要」保持一致
