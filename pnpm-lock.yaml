@@ -62,6 +62,9 @@ importers:
       lint-staged:
         specifier: ^16.4.0
         version: 16.4.0
+      marked:
+        specifier: ^18.0.11
+        version: 18.0.11
       postcss-html:
         specifier: ^1.8.1
         version: 1.8.1
@@ -2119,6 +2122,11 @@ packages:
   many-keys-map@3.0.3:
     resolution: {integrity: sha512-1DiZmDHPXMBgMRjeUtHy1q1VYmeJscHxhIAexX9z/zjRMP80+0ETuPfssi8z+kMY4DwUgsKuHqpjxgmeA9gBNA==}
     engines: {node: '>=18'}
+
+  marked@18.0.11:
+    resolution: {integrity: sha512-HnslJfsZkRPBDJRHvVtAaWlZHEpSu7u8LgQuJCELjRKuWR+hpq4A7sLq3p8HaI9ypVoXDXxV34CsQJEe1+J5Aw==}
+    engines: {node: '>= 20'}
+    hasBin: true
 
   marky@1.3.0:
     resolution: {integrity: sha512-ocnPZQLNpvbedwTy9kNrQEsknEfgvcLMvOtz3sFeWApDq1MXH1TqkCIx58xlpESsfwQOnuBO9beyQuNGzVvuhQ==}
@@ -4923,6 +4931,8 @@ snapshots:
   make-error@1.3.6: {}
 
   many-keys-map@3.0.3: {}
+
+  marked@18.0.11: {}
 
   marky@1.3.0: {}
 

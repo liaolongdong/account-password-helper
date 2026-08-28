@@ -37,9 +37,51 @@
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://liaolongdong.github.io/account-password-helper/llms.txt</loc>
-    <lastmod>2026-08-27</lastmod>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/index.en.html</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html</loc>
+    <lastmod>2026-08-28</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.5</priority>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html</loc>
+    <lastmod>2026-08-28</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
   </url>
 </urlset>

@@ -288,4 +288,4 @@ A：Windows Defender 会在扩展文件首次加载时逐文件扫描，导致�
 
 ---
 
-> 📅 文档最后更新：2026-08 · 对应版本 [v3.6.0](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 文档最后更新：2026-08 · 对应版本 [v3.7.0](https://github.com/liaolongdong/account-password-helper/releases/latest)

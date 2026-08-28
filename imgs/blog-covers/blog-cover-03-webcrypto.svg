@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0E1A33"/>
+      <stop offset="1" stop-color="#1A3161"/>
+    </linearGradient>
+    <linearGradient id="lock" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5D97FF"/>
+      <stop offset="1" stop-color="#2F5FD0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <!-- faint circuit traces -->
+  <g stroke="#4E88FF" stroke-width="2" fill="none" opacity="0.25">
+    <path d="M0 180 H360 L420 240 H620"/>
+    <path d="M1600 210 H1240 L1180 270 H1020"/>
+    <path d="M0 740 H300 L360 680 H560"/>
+    <path d="M1600 700 H1300 L1240 760 H1040"/>
+  </g>
+  <g fill="#4E88FF" opacity="0.4">
+    <circle cx="620" cy="240" r="6"/>
+    <circle cx="1020" cy="270" r="6"/>
+    <circle cx="560" cy="680" r="6"/>
+    <circle cx="1040" cy="760" r="6"/>
+  </g>
+
+  <!-- PBKDF2 iteration dots flowing into the lock -->
+  <g fill="#8FB4FF">
+    <circle cx="240" cy="380" r="7" opacity="0.35"/>
+    <circle cx="300" cy="400" r="8" opacity="0.45"/>
+    <circle cx="362" cy="422" r="9" opacity="0.55"/>
+    <circle cx="426" cy="446" r="10" opacity="0.7"/>
+    <circle cx="492" cy="468" r="11" opacity="0.85"/>
+    <circle cx="560" cy="486" r="12"/>
+    <circle cx="240" cy="500" r="7" opacity="0.3"/>
+    <circle cx="304" cy="512" r="8" opacity="0.4"/>
+    <circle cx="370" cy="524" r="9" opacity="0.55"/>
+    <circle cx="438" cy="536" r="10" opacity="0.7"/>
+    <circle cx="506" cy="546" r="11" opacity="0.85"/>
+  </g>
+
+  <!-- padlock -->
+  <g>
+    <path d="M700 420 v-96 a100 100 0 0 1 200 0 v96" stroke="#8FB4FF" stroke-width="36" fill="none" stroke-linecap="round"/>
+    <rect x="620" y="420" width="360" height="270" rx="34" fill="url(#lock)"/>
+    <circle cx="800" cy="530" r="46" fill="#FFFFFF"/>
+    <path d="M784 560 L776 620 H824 L816 560 Z" fill="#FFFFFF"/>
+    <circle cx="800" cy="530" r="18" fill="#2F5FD0"/>
+  </g>
+
+  <!-- ciphertext blocks flowing out -->
+  <g>
+    <rect x="1060" y="420" width="90" height="56" rx="10" fill="#2C4B8F" stroke="#4E88FF" stroke-width="2"/>
+    <rect x="1170" y="452" width="90" height="56" rx="10" fill="#2C4B8F" stroke="#4E88FF" stroke-width="2"/>
+    <rect x="1280" y="420" width="90" height="56" rx="10" fill="#2C4B8F" stroke="#4E88FF" stroke-width="2"/>
+    <g fill="#8FB4FF">
+      <circle cx="1082" cy="448" r="5"/>
+      <circle cx="1105" cy="448" r="5"/>
+      <circle cx="1128" cy="448" r="5"/>
+      <circle cx="1192" cy="480" r="5"/>
+      <circle cx="1215" cy="480" r="5"/>
+      <circle cx="1238" cy="480" r="5"/>
+      <circle cx="1302" cy="448" r="5"/>
+      <circle cx="1325" cy="448" r="5"/>
+      <circle cx="1348" cy="448" r="5"/>
+    </g>
+  </g>
+
+  <!-- shield with check: authenticated encryption -->
+  <g transform="translate(1210,650)">
+    <path d="M0 -46 L40 -30 V6 C40 34 22 50 0 60 C-22 50 -40 34 -40 6 V-30 Z" fill="#4E88FF"/>
+    <path d="M-16 2 L-4 16 L20 -12" stroke="#FFFFFF" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- key derivation arrow -->
+  <g stroke="#8FB4FF" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.9">
+    <line x1="990" y1="470" x2="1044" y2="470"/>
+    <path d="M1030 452 L1052 470 L1030 488"/>
+  </g>
+</svg>

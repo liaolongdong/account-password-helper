@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F2F7FF"/>
+      <stop offset="1" stop-color="#D9E7FF"/>
+    </linearGradient>
+    <linearGradient id="vault" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5D97FF"/>
+      <stop offset="1" stop-color="#3C6FE0"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1420" cy="120" r="190" fill="#FFFFFF" opacity="0.4"/>
+  <circle cx="150" cy="800" r="150" fill="#FFFFFF" opacity="0.4"/>
+
+  <!-- crossed-out cloud: zero cloud -->
+  <g opacity="0.9">
+    <circle cx="300" cy="196" r="34" fill="#C3D6F2"/>
+    <circle cx="348" cy="178" r="46" fill="#C3D6F2"/>
+    <circle cx="400" cy="200" r="30" fill="#C3D6F2"/>
+    <rect x="268" y="196" width="162" height="34" rx="17" fill="#C3D6F2"/>
+    <line x1="240" y1="252" x2="452" y2="146" stroke="#8FB0DC" stroke-width="10" stroke-linecap="round"/>
+  </g>
+
+  <!-- browser window -->
+  <g>
+    <rect x="500" y="170" width="620" height="450" rx="24" fill="#FFFFFF" stroke="#C7D8F5" stroke-width="3"/>
+    <rect x="500" y="170" width="620" height="62" rx="24" fill="#EAF1FE"/>
+    <rect x="500" y="204" width="620" height="28" fill="#EAF1FE"/>
+    <circle cx="540" cy="201" r="9" fill="#FF9B9B"/>
+    <circle cx="570" cy="201" r="9" fill="#FFD591"/>
+    <circle cx="600" cy="201" r="9" fill="#A2E0AE"/>
+    <!-- vault inside the browser -->
+    <rect x="670" y="292" width="280" height="250" rx="22" fill="url(#vault)"/>
+    <circle cx="810" cy="417" r="72" fill="#FFFFFF" opacity="0.94"/>
+    <circle cx="810" cy="417" r="47" fill="none" stroke="#3C6FE0" stroke-width="10"/>
+    <rect x="802" y="352" width="16" height="34" rx="8" fill="#3C6FE0"/>
+    <circle cx="810" cy="417" r="12" fill="#3C6FE0"/>
+  </g>
+
+  <!-- dotted link down to laptop: data stays local -->
+  <line x1="810" y1="552" x2="810" y2="622" stroke="#4E88FF" stroke-width="7" stroke-dasharray="1 16" stroke-linecap="round"/>
+
+  <!-- laptop -->
+  <g>
+    <rect x="690" y="628" width="240" height="146" rx="12" fill="#FFFFFF" stroke="#C7D8F5" stroke-width="3"/>
+    <rect x="712" y="650" width="196" height="102" rx="6" fill="#EAF1FE"/>
+    <rect x="650" y="776" width="320" height="22" rx="11" fill="#C7D8F5"/>
+  </g>
+
+  <!-- floating key -->
+  <g transform="translate(1216,392) rotate(38)" stroke="#4E88FF" stroke-width="15" fill="none" stroke-linecap="round">
+    <circle cx="0" cy="0" r="36"/>
+    <line x1="32" y1="32" x2="118" y2="118"/>
+    <line x1="92" y1="92" x2="120" y2="64"/>
+    <line x1="66" y1="66" x2="94" y2="38"/>
+  </g>
+
+  <!-- shield with check -->
+  <g transform="translate(330,470)">
+    <path d="M0 -50 L44 -32 V8 C44 38 24 56 0 66 C-24 56 -44 38 -44 8 V-32 Z" fill="#4E88FF"/>
+    <path d="M-18 4 L-5 20 L22 -14" stroke="#FFFFFF" stroke-width="11" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- code brackets -->
+  <g stroke="#1F3B73" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.75">
+    <path d="M1268 636 l-30 34 l30 34"/>
+    <path d="M1332 636 l30 34 l-30 34"/>
+  </g>
+</svg>

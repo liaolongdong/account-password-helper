@@ -13,7 +13,7 @@
 - **Browser support**: Chrome 114+, Manifest V3
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-08 (v3.6.0)
+- **Last updated**: 2026-08 (v3.7.0)
 - **Quality**: 364 automated test cases across 33 test files
 
 ## Key Features
@@ -100,7 +100,10 @@ Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password ex
 - [GitHub Repository](https://github.com/liaolongdong/account-password-helper)
 - [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
 - [English Version](https://liaolongdong.github.io/account-password-helper/en.html)
+- [Tech Blog (中文)](https://liaolongdong.github.io/account-password-helper/blog/) — local-first product story, MV3 sub-second side panel engineering, Web Crypto encryption in practice
+- [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html)
 - [Pricing](https://liaolongdong.github.io/account-password-helper/pricing.html) — 100% free, no paid tier, no subscription
+- [Pricing (machine-readable)](https://liaolongdong.github.io/account-password-helper/pricing.md)
 - [Architecture & Implementation Details](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.md)
 - [Contributing Guide](https://github.com/liaolongdong/account-password-helper/blob/main/docs/CONTRIBUTING.md)
 - [Changelog](https://github.com/liaolongdong/account-password-helper/blob/main/CHANGELOG.md)

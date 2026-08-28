@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#DCE9FF"/>
+    </linearGradient>
+    <linearGradient id="bolt" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFD45E"/>
+      <stop offset="1" stop-color="#FFB330"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="120" cy="120" r="170" fill="#EAF1FE" opacity="0.8"/>
+  <circle cx="1500" cy="820" r="150" fill="#EAF1FE" opacity="0.8"/>
+
+  <!-- stopwatch -->
+  <g transform="translate(420,470)">
+    <rect x="-42" y="-292" width="84" height="20" rx="10" fill="#1F3B73"/>
+    <rect x="-24" y="-272" width="48" height="34" rx="10" fill="#4E88FF"/>
+    <circle r="215" fill="#FFFFFF" stroke="#C7D8F5" stroke-width="6"/>
+    <circle r="172" fill="#F4F8FF"/>
+    <g stroke="#9DB6DE" stroke-width="8" stroke-linecap="round">
+      <line x1="0" y1="-152" x2="0" y2="-126"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(30)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(60)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(90)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(120)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(150)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(180)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(210)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(240)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(270)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(300)"/>
+      <line x1="0" y1="-152" x2="0" y2="-126" transform="rotate(330)"/>
+    </g>
+    <line x1="0" y1="0" x2="96" y2="-96" stroke="#4E88FF" stroke-width="16" stroke-linecap="round"/>
+    <circle r="18" fill="#1F3B73"/>
+  </g>
+
+  <!-- motion arcs -->
+  <g stroke="#4E88FF" fill="none" stroke-linecap="round" opacity="0.55">
+    <path d="M120 350 a260 260 0 0 1 60 -120" stroke-width="10"/>
+    <path d="M86 470 a330 330 0 0 1 30 -140" stroke-width="8"/>
+    <path d="M96 600 a300 300 0 0 1 -14 -110" stroke-width="6"/>
+  </g>
+
+  <!-- lightning bolt -->
+  <path d="M856 250 L744 480 H836 L780 660 L964 428 H862 L936 250 Z" fill="url(#bolt)"/>
+
+  <!-- browser with glowing side panel -->
+  <g>
+    <rect x="1030" y="220" width="470" height="460" rx="22" fill="#FFFFFF" stroke="#C7D8F5" stroke-width="3"/>
+    <rect x="1030" y="220" width="470" height="58" rx="22" fill="#EAF1FE"/>
+    <rect x="1030" y="250" width="470" height="28" fill="#EAF1FE"/>
+    <circle cx="1068" cy="249" r="9" fill="#FF9B9B"/>
+    <circle cx="1098" cy="249" r="9" fill="#FFD591"/>
+    <circle cx="1128" cy="249" r="9" fill="#A2E0AE"/>
+    <!-- main content skeleton -->
+    <g fill="#DCE6F6">
+      <rect x="1062" y="312" width="200" height="22" rx="11"/>
+      <rect x="1062" y="352" width="164" height="16" rx="8"/>
+      <rect x="1062" y="380" width="186" height="16" rx="8"/>
+      <rect x="1062" y="430" width="120" height="34" rx="17" fill="#4E88FF" opacity="0.85"/>
+    </g>
+    <!-- side panel -->
+    <rect x="1290" y="278" width="210" height="402" fill="#4E88FF" opacity="0.12"/>
+    <rect x="1286" y="278" width="6" height="402" fill="#4E88FF"/>
+    <g fill="#FFFFFF" stroke="#C7D8F5" stroke-width="2">
+      <rect x="1312" y="308" width="166" height="74" rx="12"/>
+      <rect x="1312" y="398" width="166" height="74" rx="12"/>
+      <rect x="1312" y="488" width="166" height="74" rx="12"/>
+    </g>
+    <g fill="#4E88FF" opacity="0.8">
+      <circle cx="1338" cy="345" r="12"/>
+      <circle cx="1338" cy="435" r="12"/>
+      <circle cx="1338" cy="525" r="12"/>
+    </g>
+  </g>
+
+  <!-- speed dashes between bolt and panel -->
+  <g stroke="#4E88FF" stroke-width="8" stroke-linecap="round" opacity="0.7">
+    <line x1="986" y1="330" x2="1022" y2="330"/>
+    <line x1="968" y1="368" x2="1022" y2="368"/>
+    <line x1="986" y1="406" x2="1022" y2="406"/>
+  </g>
+</svg>

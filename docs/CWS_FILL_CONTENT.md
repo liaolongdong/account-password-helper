@@ -11,10 +11,10 @@
 在 Dashboard 点击「新建商品」(New Item)，上传以下文件：
 
 ```
-.output/account-password-helper-3.6.0-chrome.zip
+.output/account-password-helper-3.7.0-chrome.zip
 ```
 
-> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。当前版本：**3.6.0**。
+> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。当前版本：**3.7.0**。
 
 ---
 

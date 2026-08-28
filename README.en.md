@@ -288,4 +288,4 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 
 ---
 
-> 📅 Last updated: Aug 2026 · [v3.6.0](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 Last updated: Aug 2026 · [v3.7.0](https://github.com/liaolongdong/account-password-helper/releases/latest)
