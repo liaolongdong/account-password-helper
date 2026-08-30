@@ -15,7 +15,7 @@
         @open-help="showHelpDialog = true"
         @open-settings="handleOpenSettings"
         @open-validity="openValiditySetting"
-        @add-site-password="openOptionsAndAdd"
+        @add-site-password="showQuickAddDialog = true"
       />
     </div>
 
@@ -57,8 +57,8 @@
       :available-tags="availableTags"
       @sort-change="handleSortChange"
       @search="handleSearch"
-      @add-password="openOptionsAndAdd"
-      @add-site-password="openOptionsAndAdd"
+      @add-password="showQuickAddDialog = true"
+      @add-site-password="showQuickAddDialog = true"
       @activate="index => (activeIndex = index)"
       @rendered="handleAuthViewRendered"
       @fill="fillPassword"
@@ -86,6 +86,13 @@
     <HelpDialog
       v-model="showHelpDialog"
       @go-to-options="openOptions"
+    />
+
+    <!-- 快速添加条目弹窗（委托 background 加密落盘，完整字段经底部入口跳转密码管理页） -->
+    <QuickAddDialog
+      v-model="showQuickAddDialog"
+      :default-url="currentDomain"
+      @open-options-add="openOptionsAndAdd"
     />
 
     <!-- 悬浮按钮设置弹窗（与悬浮按钮共用同一套 HTML/CSS/事件） -->
@@ -138,6 +145,14 @@ import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
  * 使 Windows 会话失效冷环境下首次点击「?」时 chunk 已温热、即时打开。
  */
 const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
+
+/**
+ * 快速添加条目弹窗——懒加载（仅在用户点击「添加」时加载）
+ *
+ * 与 HelpDialog 同为独立 chunk，不打进初始关键包；
+ * 首帧后由 preloadIdleModules 空闲预取，首次点击即时打开。
+ */
+const QuickAddDialog = defineAsyncComponent(() => import('@/components/sidepanel/QuickAddDialog.vue'));
 
 /**
  * 认证视图 chunk 加载占位（函数式组件，经 defineAsyncComponent 默认 200ms delay 后显示）：
@@ -261,6 +276,9 @@ const activeIndex = ref(0);
 
 /** 操作指引弹窗可见性 */
 const showHelpDialog = ref(false);
+
+/** 快速添加条目弹窗可见性 */
+const showQuickAddDialog = ref(false);
 
 // ==================== 排序与过滤 ====================
 
@@ -669,6 +687,7 @@ onMounted(async () => {
       // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk
       void import('@/components/sidepanel/SidepanelAuthView.vue').catch(() => {});
       void import('@/components/sidepanel/HelpDialog.vue').catch(() => {});
+      void import('@/components/sidepanel/QuickAddDialog.vue').catch(() => {});
       void import('@/components/TotpCode.vue').catch(() => {});
       // 预热拼音匹配模块（独立 chunk，不进首屏关键路径）：就绪后过滤 computed 自动重算补齐拼音命中
       void warmPinyinMatcher();

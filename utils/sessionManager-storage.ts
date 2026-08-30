@@ -182,10 +182,11 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
 
     const now = Date.now();
     if (sessionPasswordExpiry !== null && now >= sessionPasswordExpiry) {
-      // 先写缓存并立即返回 false，将 clearSession() 改为 fire-and-forget 后台执行，
-      // 避免阻塞侧边栏首屏渲染与 SW 消息处理。
+      // 先写缓存并立即返回 false，清理走带过期复核的异步守卫：
+      // 过期判定与真正清除之间存在时间窗，若期间用户已显式认证创建了新会话
+      // （持久化 expiry 已变化），跳过清除，避免把刚创建的新会话误删。
       _sessionValidCache = { valid: false, timestamp: Date.now() };
-      void clearSession();
+      void clearSessionIfStillExpired(sessionPasswordExpiry);
       return false;
     }
 
@@ -193,10 +194,35 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
     return true;
   } catch (error) {
     logger.error('会话验证失败:', error);
-    // 异常路径同样不阻塞：先写缓存返回 false，清理异步执行
+    // 瞬时存储读取异常不代表会话失效：仅返回 false（按未认证处理），
+    // 绝不清除会话——否则一次瞬时错误会永久销毁仍有效的会话密钥材料，
+    // 强制用户重新登录。下次校验会重新读取存储自然恢复。
     _sessionValidCache = { valid: false, timestamp: Date.now() };
-    void clearSession();
     return false;
+  }
+}
+
+/**
+ * 过期复核守卫：仅当持久化的过期时间仍为判定过期时观察到的值才清除会话。
+ *
+ * 供 isSessionValid 过期分支 fire-and-forget 调用。清除前重新读取
+ * PASSWORD_EXPIRY：缺失（其他上下文已完成清除）或已变化（过期窗口内
+ * 用户显式认证创建了新会话）时跳过，避免异步清除误删新会话；
+ * 复核读取本身失败同样跳过（宁可残留已判定无效的过期会话键，
+ * 也不能冒清除新会话的风险）。
+ */
+async function clearSessionIfStillExpired(observedExpiry: number): Promise<void> {
+  try {
+    const result = await chrome.storage.local.get(SESSION_STORAGE_KEYS.PASSWORD_EXPIRY);
+    const currentExpiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number | undefined;
+    if (currentExpiry === undefined) return;
+    if (currentExpiry !== observedExpiry || currentExpiry > Date.now()) {
+      logger.debug('会话过期清理已跳过：过期时间已变化（可能已创建新会话）');
+      return;
+    }
+    await clearSession();
+  } catch (error) {
+    logger.warn('会话过期清理复核失败，跳过清除:', error);
   }
 }
 
@@ -356,8 +382,7 @@ async function ensurePasswordsEncryptedAtRest(masterPassword?: string): Promise<
 
     const snapshot: (PasswordEntry | EncryptedPasswordEntry)[] =
       ((await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS))[STORAGE_KEYS.PASSWORDS] as
-        | (PasswordEntry | EncryptedPasswordEntry)[]
-        | undefined) || [];
+        (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
     if (snapshot.length === 0) {
       _encryptAtRestDone = true;
       return;
@@ -390,8 +415,7 @@ async function ensurePasswordsEncryptedAtRest(masterPassword?: string): Promise<
     // 并发新增/修改/删除的条目原样保留，彻底避免与并发写入互相覆盖导致数据丢失。
     const latest: (PasswordEntry | EncryptedPasswordEntry)[] =
       ((await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS))[STORAGE_KEYS.PASSWORDS] as
-        | (PasswordEntry | EncryptedPasswordEntry)[]
-        | undefined) || [];
+        (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
     let changed = false;
     const out = latest.map(e => {
       if (isEncrypted(e)) return e;

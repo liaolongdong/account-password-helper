@@ -13,6 +13,7 @@ import {
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { buildTagPresentationRecords } from '@/utils/tagUtils';
+import { activateOnKeydown } from '@/utils/a11y';
 import SiteFavicon from '@/components/SiteFavicon.vue';
 import SearchHighlight from '@/components/SearchHighlight.vue';
 import { useI18n } from '@/utils/i18n';
@@ -69,8 +70,12 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   <div
     class="password-item"
     :class="{ active: isActive }"
+    role="button"
+    tabindex="0"
     :title="t('sidepanel.item.fillTitle')"
+    :aria-label="t('sidepanel.item.fillTitle')"
     @click="$emit('fill', password)"
+    @keydown="activateOnKeydown($event, () => $emit('fill', password))"
   >
     <div class="password-info">
       <div class="username">
@@ -87,8 +92,12 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         />
         <span
           class="copy-icon-wrapper"
+          role="button"
+          tabindex="0"
           :title="t('sidepanel.item.copyUsername')"
+          :aria-label="t('sidepanel.item.copyUsername')"
           @click.stop.prevent="$emit('copyUsername', password.username)"
+          @keydown.stop="activateOnKeydown($event, () => $emit('copyUsername', password.username))"
           @mousedown.stop
         >
           <el-icon class="copy-icon">
@@ -97,8 +106,12 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         </span>
         <span
           class="copy-icon-wrapper copy-password"
+          role="button"
+          tabindex="0"
           :title="t('sidepanel.item.copyPassword')"
+          :aria-label="t('sidepanel.item.copyPassword')"
           @click.stop.prevent="$emit('copyPassword', password.password)"
+          @keydown.stop="activateOnKeydown($event, () => $emit('copyPassword', password.password))"
           @mousedown.stop
         >
           <el-icon class="copy-icon">
@@ -158,24 +171,36 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
       <el-icon
         v-if="password.totp"
         class="action-icon totp-fill-icon"
+        role="button"
+        tabindex="0"
         :title="t('sidepanel.item.fillTotp')"
+        :aria-label="t('sidepanel.item.fillTotp')"
         @click.stop="$emit('fillTotp', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('fillTotp', password))"
       >
         <Timer />
       </el-icon>
       <el-icon
         v-if="password.totp"
         class="action-icon totp-copy-icon"
+        role="button"
+        tabindex="0"
         :title="t('sidepanel.item.copyTotp')"
+        :aria-label="t('sidepanel.item.copyTotp')"
         @click.stop="$emit('copyTotp', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('copyTotp', password))"
       >
         <DocumentCopy />
       </el-icon>
       <el-icon
         class="action-icon favorite-icon"
         :class="{ 'is-favorite': password.favorite }"
+        role="button"
+        tabindex="0"
         :title="password.favorite ? t('common.unfavorite') : t('common.favorite')"
+        :aria-label="password.favorite ? t('common.unfavorite') : t('common.favorite')"
         @click.stop="$emit('toggleFavorite', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('toggleFavorite', password))"
       >
         <StarFilled v-if="password.favorite" />
         <Star v-else />
@@ -183,15 +208,23 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
       <el-icon
         v-if="!autoLoginEnabled"
         class="action-icon auto-login-icon"
+        role="button"
+        tabindex="0"
         :title="t('sidepanel.item.fillAndLogin')"
+        :aria-label="t('sidepanel.item.fillAndLogin')"
         @click.stop="$emit('fillAndLogin', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('fillAndLogin', password))"
       >
         <Promotion />
       </el-icon>
       <el-icon
         class="action-icon edit-icon"
+        role="button"
+        tabindex="0"
         :title="t('common.edit')"
+        :aria-label="t('common.edit')"
         @click.stop="$emit('edit', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('edit', password))"
       >
         <EditPen />
       </el-icon>
@@ -378,6 +411,19 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   position: absolute;
   inset: -6px;
   content: '';
+}
+
+/* 键盘可达性：行与图标按钮获得焦点时展示可见焦点环 */
+.password-item:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 60%);
+  outline-offset: -2px;
+}
+
+.copy-icon-wrapper:focus-visible,
+.action-icon:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 60%);
+  outline-offset: 1px;
+  border-radius: 4px;
 }
 
 .favorite-icon {

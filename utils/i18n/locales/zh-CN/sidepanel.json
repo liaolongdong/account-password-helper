@@ -37,5 +37,12 @@
   "sidepanel.item.fillTotp": "填充验证码",
   "sidepanel.item.copyTotp": "复制验证码",
   "sidepanel.item.fillAndLogin": "填充并登录",
-  "sidepanel.tagFilterLabel": "标签筛选"
+  "sidepanel.tagFilterLabel": "标签筛选",
+  "sidepanel.quickAdd.title": "快速添加条目",
+  "sidepanel.quickAdd.usernamePlaceholder": "账号 / 邮箱 / 手机号",
+  "sidepanel.quickAdd.passwordPlaceholder": "选填，密码信息",
+  "sidepanel.quickAdd.urlPlaceholder": "选填，如 example.com",
+  "sidepanel.quickAdd.tagPlaceholder": "选填，标签",
+  "sidepanel.quickAdd.remarkPlaceholder": "选填，备注信息",
+  "sidepanel.quickAdd.advancedAdd": "到密码管理中完整添加"
 }

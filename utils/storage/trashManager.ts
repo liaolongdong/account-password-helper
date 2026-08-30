@@ -14,6 +14,10 @@ const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 /**
  * 读取回收站全量数据
+ *
+ * 读取失败时向上抛出：所有变更类调用方均为读-改-写路径，
+ * 静默降级 [] 会把真实回收站整体覆盖清空（数据丢失）。
+ * 纯展示调用方（计数/列表）自行包一层容错降级。
  */
 async function readTrash(): Promise<TrashedPasswordEntry[]> {
   try {
@@ -21,7 +25,7 @@ async function readTrash(): Promise<TrashedPasswordEntry[]> {
     return (result[STORAGE_KEYS.TRASH] as TrashedPasswordEntry[] | undefined) || [];
   } catch (error) {
     logger.error('读取回收站失败:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -34,6 +38,9 @@ async function writeTrash(entries: TrashedPasswordEntry[]): Promise<void> {
 
 /**
  * 读取密码列表全量原始数据
+ *
+ * 读取失败时向上抛出：移入回收站/恢复等调用方会基于读取结果
+ * 整体覆写主列表，静默降级 [] 会把真实密码列表清空（数据丢失）。
  */
 async function readPasswords(): Promise<(PasswordEntry | EncryptedPasswordEntry)[]> {
   try {
@@ -41,7 +48,7 @@ async function readPasswords(): Promise<(PasswordEntry | EncryptedPasswordEntry)
     return (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
   } catch (error) {
     logger.error('读取密码列表失败:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -225,18 +232,26 @@ export async function cleanExpiredTrash(): Promise<void> {
 }
 
 /**
- * 获取回收站条目列表
+ * 获取回收站条目列表（纯展示路径：读取失败降级为空列表，错误已在 readTrash 记录）
  */
 export async function getTrashEntries(): Promise<TrashedPasswordEntry[]> {
-  return readTrash();
+  try {
+    return await readTrash();
+  } catch {
+    return [];
+  }
 }
 
 /**
- * 获取回收站条目数量
+ * 获取回收站条目数量（纯展示路径：读取失败降级为 0）
  */
 export async function getTrashCount(): Promise<number> {
-  const trash = await readTrash();
-  return trash.length;
+  try {
+    const trash = await readTrash();
+    return trash.length;
+  } catch {
+    return 0;
+  }
 }
 
 /**

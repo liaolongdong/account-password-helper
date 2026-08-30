@@ -23,11 +23,13 @@ import {
   grantCredentialAccessAfterStartupRelock,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
+import { handleQuickAddPassword } from './quickAddHandler';
 import { handleQuickFill } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { isFrameFillable } from '@/utils/frameFill';
+import { isSameMainDomain } from '@/utils/domain';
 
 /**
  * SW 模块加载时刻（epoch 毫秒）
@@ -295,6 +297,36 @@ function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean 
 }
 
 /**
+ * 校验内容脚本自报的凭证归属 URL 是否与其实际所在页面一致
+ *
+ * AUTO_SAVE_PASSWORD / CHECK_CREDENTIAL_STATUS 的 data.url 为内容脚本自报值，
+ * 不可信：恶意页面可谎报归属域名，把捕获的凭证写入或比对到任意目标站点名下。
+ * 这里以发送方上下文推导的 `sender.tab.url`（顶层页面，浏览器权威）为准，
+ * 仅当自报 URL 的域名与之同主域名时放行（兼容顶层发送与同主域名 iframe 委托保存，
+ * 如 accounts.example.com 嵌入 example.com）；无法校验或跨主域名时返回 null（fail-closed）。
+ *
+ * @param reportedUrl 内容脚本自报的 URL（hostname / host:port / 完整 URL）
+ * @param sender 消息发送方上下文
+ * @returns 校验通过返回去空白后的自报 URL，否则返回 null
+ * @internal 导出仅为便于单元测试，不应被业务代码调用
+ */
+export function resolveTrustedContentUrl(reportedUrl: unknown, sender: chrome.runtime.MessageSender): string | null {
+  if (typeof reportedUrl !== 'string') return null;
+  const trimmed = reportedUrl.trim();
+  if (!trimmed) return null;
+  const senderUrl = sender.tab?.url;
+  if (!senderUrl) return null;
+  let reportedHost: string;
+  try {
+    reportedHost = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`).hostname;
+  } catch {
+    return null;
+  }
+  if (!reportedHost || !isSameMainDomain(senderUrl, `https://${reportedHost}`)) return null;
+  return trimmed;
+}
+
+/**
  * 设置消息路由监听器
  * 处理来自 content script 和 popup 的所有 runtime 消息
  *
@@ -378,7 +410,7 @@ export function setupMessageRouter(): void {
       case MessageType.URL_CHANGED: {
         const tabId = sender.tab?.id;
         if (tabId) {
-          sendResponse({ success: true, result: 'URL变化处理完成' });
+          sendResponse({ success: true, result: 'ok' });
         } else {
           sendResponse({ success: false, error: '无法获取标签ID' });
         }
@@ -455,6 +487,17 @@ export function setupMessageRouter(): void {
         break;
       }
 
+      case MessageType.QUICK_ADD_PASSWORD: {
+        // 仅允许扩展内部页面（sidepanel）：内容脚本不得越权直接创建条目
+        // （内容脚本的合法路径是 AUTO_SAVE_PASSWORD，其 URL 经 sender 校验）
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, message: tl('bg.quickAdd.failed') });
+          break;
+        }
+        handleQuickAddPassword(message.data).then(sendResponse);
+        return true;
+      }
+
       case MessageType.INVALIDATE_PASSWORD_CACHE: {
         // 使用 async IIFE 使动态 import + 异步 clearSession 在 switch-case 内正确执行
         void (async () => {
@@ -500,7 +543,15 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.AUTO_SAVE_PASSWORD: {
-        handleAutoSavePassword(message.data).then(result => {
+        // 安全：自报 url 必须与发送方实际所在页面同主域名，
+        // 防止内容脚本把捕获的凭证冒名保存到任意目标站点
+        const trustedSaveUrl = resolveTrustedContentUrl(message.data?.url, sender);
+        if (!trustedSaveUrl) {
+          logger.warn('Background: AUTO_SAVE_PASSWORD 因 URL 校验失败被拒绝（来源与自报域名不一致或缺失）');
+          sendResponse({ success: false, message: tl('bg.autoSave.failedGeneric') });
+          break;
+        }
+        handleAutoSavePassword({ ...message.data, url: trustedSaveUrl }).then(result => {
           sendResponse(result);
         });
         return true;
@@ -508,7 +559,13 @@ export function setupMessageRouter(): void {
 
       case MessageType.CHECK_CREDENTIAL_STATUS: {
         // 仅返回状态枚举与非密码元数据，不回传已存明文密码，内容脚本可调用
-        handleCheckCredentialStatus(message.data).then(result => {
+        // 安全：自报 url 校验失败时保底按新账号处理，不阻断后续保存流程（保存时仍会二次校验）
+        const trustedCheckUrl = resolveTrustedContentUrl(message.data?.url, sender);
+        if (!trustedCheckUrl) {
+          sendResponse({ status: 'new' });
+          break;
+        }
+        handleCheckCredentialStatus({ ...message.data, url: trustedCheckUrl }).then(result => {
           sendResponse(result);
         });
         return true;

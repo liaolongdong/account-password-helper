@@ -14,6 +14,7 @@ import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortSta
 import { isValidTotpInput } from '@/utils/totp';
 import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
 import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
+import { createPasswordFormRules } from '@/utils/formValidators';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
@@ -22,43 +23,6 @@ export const MAX_TAG_LENGTH = 30;
 
 /** 密码表单空值初始状态（避免多处重复字面量） */
 const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
-
-/**
- * URL/域名自定义校验器
- * 支持完整 URL（https://example.com）和纯域名（example.com / localhost）
- * @param _rule 校验规则（未使用）
- * @param value 用户输入的 URL 值
- * @param callback 校验回调函数
- */
-const urlValidator = (_rule: any, value: string, callback: any) => {
-  if (!value || !value.trim()) {
-    callback(); // 选填，空值通过
-    return;
-  }
-  const trimmed = value.trim();
-  try {
-    if (trimmed.includes('://')) {
-      // 完整 URL 格式
-      const url = new URL(trimmed);
-      if (!url.hostname) {
-        callback(new Error(t('form.invalidUrl')));
-        return;
-      }
-    } else {
-      // 纯域名格式：允许字母、数字、连字符、点号，可选端口号
-      // 支持 localhost、IP 地址、标准域名，均支持 :port 后缀
-      const domainPattern =
-        /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})(:\d{1,5})?$/;
-      if (!domainPattern.test(trimmed)) {
-        callback(new Error(t('form.invalidUrlExample')));
-        return;
-      }
-    }
-    callback();
-  } catch {
-    callback(new Error(t('form.invalidUrl')));
-  }
-};
 
 /**
  * TOTP 密钥自定义校验器
@@ -118,17 +82,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   });
 
   const passwordFormRules = computed<FormRules>(() => ({
-    username: [
-      { required: true, message: t('form.usernameRequired'), trigger: 'blur' },
-      { max: 50, message: t('form.usernameMax'), trigger: 'blur' },
-    ],
-    password: [{ max: 50, message: t('form.passwordMax'), trigger: 'blur' }],
-    url: [
-      { max: 100, message: t('form.urlMax'), trigger: 'blur' },
-      { validator: urlValidator, trigger: 'blur' },
-    ],
-    tag: [{ max: 50, message: t('form.tagMax'), trigger: 'blur' }],
-    remark: [{ max: 1000, message: t('form.remarkMax'), trigger: 'blur' }],
+    ...createPasswordFormRules(t),
     totp: [{ validator: totpValidator, trigger: 'blur' }],
   }));
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { watch } from 'vue';
-import { Setting, Timer } from '@element-plus/icons-vue';
+import { Plus, Setting, Timer } from '@element-plus/icons-vue';
 import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
 import { useI18n } from '@/utils/i18n';
 import { useSessionCountdown } from '@/composables/useSessionCountdown';
@@ -28,7 +28,7 @@ interface Emits {
   openSettings: [];
   /** 点击会话倒计时胶囊，跳转有效期设置续期 */
   openValidity: [];
-  /** 0 匹配时点击添加邀请，跳转密码管理页新增本站账号 */
+  /** 点击添加邀请（0 匹配）或常驻「+」（有匹配），打开快速添加弹窗（预填当前站点域名） */
   addSitePassword: [];
 }
 
@@ -76,14 +76,24 @@ watch(
           >{{ currentDomain }}</el-text
         >
         <!-- 本站匹配数：域名派生指标随域名同行展示（信息就近原则），释放底部列表垂直空间；
-             数字主题色高亮（一眼可见“本站有 N 个账号可用”），前后缀文案拆分以兼容中英文语序；0 匹配转为添加邀请 -->
-        <span
-          v-if="showMatchInfo && matchCount > 0"
-          class="match-count"
-        >
-          {{ t('sidepanel.header.matchCountBefore') }}<span class="match-count__num">{{ matchCount }}</span
-          >{{ t('sidepanel.header.matchCountAfter') }}
-        </span>
+             数字主题色高亮（一眼可见“本站有 N 个账号可用”），前后缀文案拆分以兼容中英文语序 -->
+        <template v-if="showMatchInfo && matchCount > 0">
+          <span class="match-count">
+            {{ t('sidepanel.header.matchCountBefore') }}<span class="match-count__num">{{ matchCount }}</span
+            >{{ t('sidepanel.header.matchCountAfter') }}
+          </span>
+          <!-- 常驻快速添加入口：有匹配时紧跟匹配数展示，覆盖“给本站再加一个账号”的高频场景 -->
+          <button
+            type="button"
+            class="add-site-plus"
+            :title="t('sidepanel.addSiteAccount')"
+            :aria-label="t('sidepanel.addSiteAccount')"
+            @click="$emit('addSitePassword')"
+          >
+            <el-icon><Plus /></el-icon>
+          </button>
+        </template>
+        <!-- 0 匹配添加邀请：空屏即方向，点击打开快速添加弹窗（预填当前站点域名） -->
         <button
           v-else-if="showMatchInfo"
           type="button"
@@ -193,6 +203,11 @@ watch(
   transform: scale(0.95);
 }
 
+.pill-btn:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline-offset: 1px;
+}
+
 .pill-btn .el-icon,
 .pill-btn svg,
 .pill-btn__svg {
@@ -250,7 +265,7 @@ watch(
   color: var(--aph-primary);
 }
 
-/* 0 匹配添加邀请：空屏即方向，点击跳转密码管理页新增本站账号 */
+/* 0 匹配添加邀请：空屏即方向，点击打开快速添加弹窗 */
 .add-site {
   display: inline-flex;
   flex-shrink: 0;
@@ -278,6 +293,44 @@ watch(
 .add-site__action {
   font-weight: 600;
   color: var(--aph-primary);
+}
+
+/* 常驻快速添加入口（有匹配时）：匹配数旁的主题色描边小圆钮，
+   hover 填充的交互语言与 .add-site 及内联下拉空态按钮一致 */
+.add-site-plus {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  color: var(--aph-primary);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid rgb(var(--aph-primary-rgb) / 45%);
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.add-site-plus:hover {
+  color: #fff;
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
+}
+
+.add-site-plus:active {
+  transform: scale(0.9);
+}
+
+.add-site-plus:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline-offset: 1px;
+}
+
+.add-site-plus .el-icon {
+  width: 11px;
+  height: 11px;
 }
 
 /* 会话剩余时间胶囊：标题行右对齐仪表，中性灰底，紧迫态转警示橙，危急态转警示红；点击直达有效期设置续期 */

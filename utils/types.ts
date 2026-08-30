@@ -245,6 +245,13 @@ export enum MessageType {
    * 会随页面卸载被销毁导致更新丢失，故委托长生命周期的 SW 上下文持久化。
    */
   UPDATE_PASSWORD_METADATA = 'UPDATE_PASSWORD_METADATA',
+  /**
+   * 侧边栏快速添加条目：由 SidePanel 快速添加弹窗发起，委托 background 加密落盘
+   *
+   * 与 AUTO_SAVE_PASSWORD 不同：发起方是扩展页面（无 sender.tab），
+   * URL 为用户自报的当前站点域名，仅用于条目展示，不参与安全裁决。
+   */
+  QUICK_ADD_PASSWORD = 'QUICK_ADD_PASSWORD',
 }
 
 /**
@@ -284,7 +291,8 @@ export type RuntimeMessage =
   | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData }
   | { type: MessageType.QUICK_FILL }
   | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean } }
-  | { type: MessageType.UPDATE_PASSWORD_METADATA; data: UpdatePasswordMetadataData };
+  | { type: MessageType.UPDATE_PASSWORD_METADATA; data: UpdatePasswordMetadataData }
+  | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData };
 
 /**
  * 悬浮按钮配置接口
@@ -533,6 +541,25 @@ export interface AutoSavePasswordData {
   tagEdited: boolean;
   /** 用户是否在弹窗中主动编辑了备注字段 */
   remarkEdited: boolean;
+}
+
+/**
+ * 侧边栏快速添加条目请求数据
+ *
+ * 由 SidePanel 快速添加弹窗发起，background 校验后加密落盘。
+ * URL 为侧边栏自报的当前站点域名，仅作条目展示用途。
+ */
+export interface QuickAddPasswordData {
+  /** 用户名 */
+  username: string;
+  /** 密码（允许为空，与密码管理页添加行为一致） */
+  password: string;
+  /** 网站域名（侧边栏当前站点，用户可编辑） */
+  url: string;
+  /** 标签（可选，默认空） */
+  tag?: string;
+  /** 备注（可选，默认空） */
+  remark?: string;
 }
 
 /**

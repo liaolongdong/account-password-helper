@@ -37,5 +37,12 @@
   "sidepanel.item.fillTotp": "Fill 2FA code",
   "sidepanel.item.copyTotp": "Copy 2FA code",
   "sidepanel.item.fillAndLogin": "Fill and sign in",
-  "sidepanel.tagFilterLabel": "Filter by tags"
+  "sidepanel.tagFilterLabel": "Filter by tags",
+  "sidepanel.quickAdd.title": "Add credentials",
+  "sidepanel.quickAdd.usernamePlaceholder": "Account / email / phone",
+  "sidepanel.quickAdd.passwordPlaceholder": "Optional password",
+  "sidepanel.quickAdd.urlPlaceholder": "Optional, e.g. example.com",
+  "sidepanel.quickAdd.tagPlaceholder": "Optional tag",
+  "sidepanel.quickAdd.remarkPlaceholder": "Optional note",
+  "sidepanel.quickAdd.advancedAdd": "Open Password Manager for all fields"
 }

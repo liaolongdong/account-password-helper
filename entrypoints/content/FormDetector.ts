@@ -24,7 +24,6 @@ import { InputFiller } from '@/entrypoints/content/InputFiller';
 import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
 import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
 import type { FormFieldSets } from '@/entrypoints/content/types';
-import { showNoLoginFormMessage } from '@/entrypoints/content/NativeNotification';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
 import { isElementVisible } from './domUtils';
 import { tl } from '@/utils/i18n-lite';
@@ -939,19 +938,12 @@ export class FormDetector {
           sendResponse(result);
         });
         return true;
-      case MessageType.SHOW_SIDEPANEL:
-        if (!this.hasLoginFormFields()) {
-          showNoLoginFormMessage();
-          sendResponse({ success: false, message: tl('cs.notify.noLoginForm'), reason: 'no_form' });
-        } else {
-          this.showSidePanel();
-          sendResponse({ success: true, message: tl('cs.fd.sidepanelShown') });
-        }
-        return true;
-      case MessageType.HIDE_SIDEPANEL:
-        this.hideSidePanel();
-        sendResponse({ success: true, message: tl('cs.fd.sidepanelHidden') });
-        return true;
+      // 注意：SHOW_SIDEPANEL / HIDE_SIDEPANEL 是发往 Background 的侧边栏开关指令。
+      // chrome.runtime.sendMessage 会广播到所有标签页的 content script，若在此响应：
+      // 1) 会把同一消息再次广播（showSidePanel/hideSidePanel），多标签页间形成无限回显循环；
+      // 2) content script 的同步响应会抢先于 Background 的异步权威响应，
+      //    导致 popup 等发起方收到错误结果（如误报打开失败）。
+      // 因此不处理、不响应，交由 Background 消息路由统一处理。
       case MessageType.OPEN_INLINE_DROPDOWN: {
         const handled = this.openInlineDropdown(message.data?.focusedOnly === true);
         sendResponse({ success: handled, handled });

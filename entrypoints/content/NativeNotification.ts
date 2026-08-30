@@ -1,5 +1,4 @@
 import type { NotificationType, NotificationColors } from '@/entrypoints/content/types';
-import { tl } from '@/utils/i18n-lite';
 
 /** 通知类型到颜色的映射 */
 const NOTIFICATION_COLOR_MAP: Record<NotificationType, NotificationColors> = {
@@ -16,13 +15,6 @@ const NOTIFICATION_ICON_MAP: Record<NotificationType, string> = {
   info: 'ℹ',
   error: '✗',
 };
-
-/**
- * 显示"未匹配到登录表单"的提示通知
- */
-export function showNoLoginFormMessage(): void {
-  showNativeNotification(tl('cs.notify.noLoginForm'), 'warning');
-}
 
 /**
  * 显示原生通知（模拟 Element Plus ElMessage 样式）

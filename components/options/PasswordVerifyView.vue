@@ -33,6 +33,9 @@
                 :style="{ '--shake-duration': SHAKE_DURATION_MS + 'ms' }"
                 autocomplete="current-password"
                 @keyup.enter="handleSubmit"
+                @keydown="handleCapsKeyEvent"
+                @keyup="handleCapsKeyEvent"
+                @blur="resetCapsLockState"
                 @input="$emit('clearError')"
               >
                 <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
@@ -43,6 +46,7 @@
                   </el-icon>
                 </template>
               </el-input>
+              <CapsLockHint v-if="capsLockOn" />
               <div
                 v-if="verifyError"
                 class="verify-error-inline"
@@ -114,7 +118,9 @@ import { View, Hide } from '@element-plus/icons-vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import DisclaimerInfo from '@/components/options/DisclaimerInfo.vue';
 import ValidityHoursSelect from '@/components/options/ValidityHoursSelect.vue';
+import CapsLockHint from '@/components/CapsLockHint.vue';
 import { SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
+import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useI18n } from '@/utils/i18n';
 
 /**
@@ -147,6 +153,9 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/** 主密码输入框大写锁定检测（误开大写锁定时即时提示） */
+const { capsLockOn, handleCapsKeyEvent, resetCapsLockState } = useCapsLockDetection();
 
 /** 提交前本地表单校验，通过后通知父组件 */
 const handleSubmit = async () => {
