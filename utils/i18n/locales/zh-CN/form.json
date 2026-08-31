@@ -6,7 +6,7 @@
   "form.tagMax": "标签不能超过50个字符",
   "form.remarkMax": "备注不能超过1000个字符",
   "form.invalidUrl": "请输入有效的网址",
-  "form.invalidUrlExample": "请输入有效的网址（如 github.com、localhost:3000 或 https://github.com）",
+  "form.invalidUrlExample": "请输入有效网址或域名，如 github.com",
   "form.invalidTotp": "请输入有效的 otpauth:// 链接或 Base32 密钥",
   "form.tagLengthLimit": "标签长度不能超过 {max} 个字符",
   "form.tagCountLimit": "最多只能选择 {max} 个标签",
