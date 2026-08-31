@@ -24,7 +24,7 @@
 - **AES-256-GCM local encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API; all sensitive fields encrypted, zero network transfer
 - **Offline security audit**: one-click 0–100 score across 5 dimensions (weak / reused / commonly leaked / stale / missing 2FA), all computed on-device
 - **Password generator**: random mode (configurable length/charset) + EFF Diceware passphrase mode, Web Crypto CSPRNG
-- **Triple fill strategy**: inline fill (key icon in input), side panel one-click fill, shortcut quick-fill
+- **Quadruple fill strategy**: inline fill (key icon in input), side panel one-click fill, right-click context menu fill, shortcut quick-fill
 - **Auto-save credentials**: Chrome-style login capture with smart dedup, domain allow/block lists
 - **Import / export**: CSV & JSON; auto-detects Chrome, LastPass, Bitwarden, 1Password exports
 - **6 color themes + bilingual UI** (中文 / English), instant switching without refresh

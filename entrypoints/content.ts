@@ -5,6 +5,7 @@ import { getFloatingButtonManager, destroyFloatingButtonManager } from '@/entryp
 import { showSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
 import type { SavePromptData, SavePromptEditedData, NotificationType } from '@/entrypoints/content/types';
 import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
+import { rememberContextMenuTarget } from '@/entrypoints/content/contextMenuTarget';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import { logger } from '@/utils/logger';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
@@ -56,6 +57,19 @@ export default defineContentScript({
         ) {
           preWarmServiceWorker();
         }
+      },
+      { capture: true },
+    );
+
+    // 右键菜单填充目标记忆：记录被右键的可编辑输入框（每个 frame 独立记录）。
+    // background 的 contextMenus.onClicked 只能拿到 frameId、拿不到具体元素，
+    // 由本监听补齐「填到哪个框」的信息；捕获阶段监听，避免页面脚本
+    // stopPropagation 导致漏记。非可编辑目标（右键空白处等）会清空记忆。
+    ctx.addEventListener(
+      document,
+      'contextmenu',
+      e => {
+        rememberContextMenuTarget(e.target);
       },
       { capture: true },
     );

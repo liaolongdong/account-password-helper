@@ -26,6 +26,7 @@ import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
 import type { FormFieldSets } from '@/entrypoints/content/types';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
 import { isElementVisible } from './domUtils';
+import { fillContextMenuTarget } from './contextMenuTarget';
 import { tl } from '@/utils/i18n-lite';
 import {
   getInlineFillDropdown,
@@ -935,6 +936,13 @@ export class FormDetector {
         return true;
       case MessageType.FILL_TOTP:
         this.fillTotpCode(message.data.code).then(result => {
+          sendResponse(result);
+        });
+        return true;
+      case MessageType.CONTEXT_MENU_FILL:
+        // 右键菜单填充：目标为被右键的输入框（由 contextMenuTarget 记忆），
+        // 消息由 background 经 tabs.sendMessage({ frameId }) 定向本 frame
+        fillContextMenuTarget(message.data).then(result => {
           sendResponse(result);
         });
         return true;

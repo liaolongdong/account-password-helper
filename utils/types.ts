@@ -252,6 +252,14 @@ export enum MessageType {
    * URL 为用户自报的当前站点域名，仅用于条目展示，不参与安全裁决。
    */
   QUICK_ADD_PASSWORD = 'QUICK_ADD_PASSWORD',
+  /**
+   * 右键菜单填充：由 background 下发到用户右键点击所在 frame，
+   * 将解析好的明文值（用户名/密码/TOTP 动态码/生成的强密码）填入被右键的输入框
+   *
+   * 与 FILL_PASSWORD 暴露面一致：仅经 tabs.sendMessage 定向单一 frame，
+   * 下发前经 isFrameFillable 门控，跨域 iframe 会被拒绝。
+   */
+  CONTEXT_MENU_FILL = 'CONTEXT_MENU_FILL',
 }
 
 /**
@@ -292,7 +300,8 @@ export type RuntimeMessage =
   | { type: MessageType.QUICK_FILL }
   | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean } }
   | { type: MessageType.UPDATE_PASSWORD_METADATA; data: UpdatePasswordMetadataData }
-  | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData };
+  | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData }
+  | { type: MessageType.CONTEXT_MENU_FILL; data: ContextMenuFillData };
 
 /**
  * 悬浮按钮配置接口
@@ -439,6 +448,27 @@ export interface MatchingAccountsResponse {
   accounts: MatchingAccountMeta[];
   /** 是否未设置主密码（true 时引导用户先设置主密码） */
   noMasterPassword?: boolean;
+}
+
+/**
+ * 右键菜单填充动作类型
+ *
+ * - username/password/totp：background 按当前域名解析最优匹配条目后下发对应值
+ * - generate：background 现场生成强密码下发，不依赖任何条目
+ */
+export type ContextMenuFillAction = 'username' | 'password' | 'totp' | 'generate';
+
+/**
+ * 右键菜单填充：CONTEXT_MENU_FILL 的请求数据
+ *
+ * 明文值由 background 解析（条目查询/动态码计算/密码生成），
+ * content script 只负责填入被右键的输入框，不参与条目选择。
+ */
+export interface ContextMenuFillData {
+  /** 填充动作类型（区分反馈与日志） */
+  action: ContextMenuFillAction;
+  /** 待填充的明文值 */
+  value: string;
 }
 
 /**

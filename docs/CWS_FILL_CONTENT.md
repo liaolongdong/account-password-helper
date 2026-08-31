@@ -345,6 +345,12 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 监听页面导航事件（页面加载完成），优化表单检测时机，确保在页面渲染完成后及时检测登录表单。
 ```
 
+**contextMenus**
+
+```
+在网页右键菜单中提供填充入口：在输入框上右键可填充当前站点匹配的用户名/密码/两步验证码或生成并填充强密码，在页面空白处右键可打开侧边栏或密码管理页。菜单仅在用户主动右键时展示，不读取页面内容。
+```
+
 **favicon**
 
 ```
@@ -472,7 +478,7 @@ SETUP (one-time): Install → set master password → add accounts manually or b
 
 6) Auto-save: New login detected → prompt to save. Smart dedup + domain allow/block lists.
 
-Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (login) / K (inline). All customizable.
+Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (login) / K (inline). All customizable. Right-click an input to fill username/password/2FA code or generate a strong password.
 ```
 
 **Indicate any other products, platforms, or restricted websites (e.g., Netflix account, Adobe Creative Suite account, banking, intranet domains, etc.) that your extension requires access to in order to fulfill its purpose.（指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。）**
@@ -529,7 +535,7 @@ No specific website accounts are required. The extension treats all websites uni
 
 6) 自动保存：检测到新登录 → 弹窗确认保存，智能去重 + 域名白名单/黑名单。
 
-快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（登录）/ K（内联），均可自定义。
+快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（登录）/ K（内联），均可自定义。输入框上右键可直接填充用户名/密码/两步验证码或生成强密码。
 ```
 
 **指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。**

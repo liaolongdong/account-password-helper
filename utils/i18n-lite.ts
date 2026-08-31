@@ -3,7 +3,7 @@
  *
  * 供 content script 与 background Service Worker 等无 Vue 环境使用：
  * - 不依赖 Vue 响应式与 utils/i18n 的全量语言包，避免打包体积膨胀
- * - 内联双语消息表（cs.* 为 content script 文案，bg.* 为 background 通知文案）
+ * - 内联双语消息表（cs.* 为 content script 文案，bg.* / cm.* 为 background 文案）
  * - 语言检测优先级与 utils/i18n 的 initI18n 保持一致：storage 持久化 > 浏览器 UI 语言
  * - initLiteI18n() 注册 storage.onChanged 监听，语言切换时实时生效并通知订阅者
  *
@@ -93,6 +93,9 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.fd.totpFillError': '填充验证码时发生错误',
     'cs.fd.sidepanelShown': '侧边栏显示请求已处理',
     'cs.fd.sidepanelHidden': '侧边栏隐藏请求已处理',
+    'cs.cm.noTarget': '右键点击的输入框已不可用，请重新右键输入框后再填充',
+    'cs.cm.fillFailed': '填充失败，请重试',
+    'cs.cm.notEditable': '该输入区域暂不支持右键填充（仅支持普通输入框）',
     'bg.reminder.title': '密码更换提醒',
     'bg.reminder.message': '「{username}」的密码已到您设置的提醒时间，建议立即更换。',
     'bg.update.title': '插件有新版本可用',
@@ -126,6 +129,16 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.inline.noLoginField': '当前页面未检测到登录输入框',
     'bg.common.unknownError': '未知错误',
     'bg.cache.untitled': '未命名',
+    'cm.title': '右键填充',
+    'cm.fillUsername': '填充用户名',
+    'cm.fillPassword': '填充密码',
+    'cm.fillTotp': '填充两步验证码',
+    'cm.generatePassword': '生成并填充强密码',
+    'cm.openSidepanel': '打开侧边栏',
+    'cm.openOptions': '打开密码管理页',
+    'cm.noTotpEntry': '当前页面没有配置两步验证的匹配账号',
+    'cm.frameNotFillable': '当前框架不允许接收凭证填充',
+    'cm.openSidepanelFailed': '打开侧边栏失败，请重试',
   },
   en: {
     'cs.save.titleUpdate': 'Password change detected. Update it?',
@@ -192,6 +205,9 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.fd.totpFillError': 'An error occurred while filling the 2FA code',
     'cs.fd.sidepanelShown': 'Sidepanel show request processed',
     'cs.fd.sidepanelHidden': 'Sidepanel hide request processed',
+    'cs.cm.noTarget': 'The right-clicked input is no longer available. Right-click the input again to fill.',
+    'cs.cm.fillFailed': 'Fill failed. Please try again.',
+    'cs.cm.notEditable': 'Right-click fill is not supported for this field (standard input fields only).',
     'bg.reminder.title': 'Password change reminder',
     'bg.reminder.message': 'The reminder for "{username}" is due. Consider changing its password now.',
     'bg.update.title': 'New extension version available',
@@ -225,6 +241,16 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.inline.noLoginField': 'No login field detected on this page',
     'bg.common.unknownError': 'Unknown error',
     'bg.cache.untitled': 'Untitled',
+    'cm.title': 'Context Menu Fill',
+    'cm.fillUsername': 'Fill Username',
+    'cm.fillPassword': 'Fill Password',
+    'cm.fillTotp': 'Fill 2FA Code',
+    'cm.generatePassword': 'Generate & Fill Strong Password',
+    'cm.openSidepanel': 'Open Side Panel',
+    'cm.openOptions': 'Open Password Manager',
+    'cm.noTotpEntry': 'No matching account with 2FA configured for this page',
+    'cm.frameNotFillable': 'This frame is not allowed to receive credentials',
+    'cm.openSidepanelFailed': 'Failed to open the side panel. Please try again.',
   },
 };
 

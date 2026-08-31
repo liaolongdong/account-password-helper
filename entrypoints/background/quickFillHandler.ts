@@ -67,7 +67,7 @@ async function showNotification(message: string, title?: string): Promise<void> 
  *
  * @param success 是否成功（✓ 绿色 / ! 红色）
  */
-async function showBadgeFeedback(success: boolean): Promise<void> {
+export async function showBadgeFeedback(success: boolean): Promise<void> {
   try {
     const prevText = await chrome.action.getBadgeText({}).catch(() => '');
     await chrome.action.setBadgeBackgroundColor({ color: success ? '#67c23a' : '#f56c6c' }).catch(() => {});
@@ -112,10 +112,12 @@ export async function getActiveTab(): Promise<chrome.tabs.Tab | null> {
 
 /**
  * 从标签页 URL 中提取 hostname
+ *
+ * 导出供右键菜单填充（contextMenuManager）复用。
  * @param url 标签页 URL
  * @returns hostname 或空字符串
  */
-function extractHostname(url: string | undefined): string {
+export function extractHostname(url: string | undefined): string {
   if (!url) return '';
   try {
     return new URL(url).hostname;
@@ -124,8 +126,8 @@ function extractHostname(url: string | undefined): string {
   }
 }
 
-/** 从 URL 提取端口号（仅 localhost 场景使用） */
-function extractPortFromUrl(url: string | undefined): string {
+/** 从 URL 提取端口号（仅 localhost 场景使用），导出供右键菜单填充复用 */
+export function extractPortFromUrl(url: string | undefined): string {
   if (!url) return '';
   try {
     return new URL(url).port;

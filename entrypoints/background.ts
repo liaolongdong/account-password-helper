@@ -4,6 +4,7 @@ import { initLiteI18n } from '@/utils/i18n-lite';
 import { freezeLegacyFillDefaults } from '@/utils/storage/configManager';
 import { setupSidePanelListeners } from './background/sidePanelManager';
 import { setupMessageRouter } from './background/messageRouter';
+import { setupContextMenu } from './background/contextMenuManager';
 import {
   setupBackgroundServices,
   initBackgroundConfig,
@@ -88,5 +89,6 @@ export default defineBackground(() => {
   // 注册事件监听器（Service Worker 启动时立即执行）
   setupSidePanelListeners();
   setupMessageRouter();
+  setupContextMenu();
   setupBackgroundServices();
 });

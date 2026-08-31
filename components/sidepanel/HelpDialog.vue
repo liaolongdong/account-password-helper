@@ -97,7 +97,7 @@
         <ol>
           <!-- eslint-disable vue/no-v-html -->
           <li
-            v-for="(item, idx) in helpItems('help.gb', 8)"
+            v-for="(item, idx) in helpItems('help.gb', 9)"
             :key="idx"
             v-html="item"
           ></li>

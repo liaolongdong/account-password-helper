@@ -12,7 +12,7 @@
   - AES-256-GCM local encryption (PBKDF2, 600,000 iterations)
   - Offline security audit (5-dimension health check)
   - Password generator (random + EFF Diceware passphrase)
-  - Triple fill strategy (inline / side panel / shortcut)
+  - Quadruple fill strategy (inline / side panel / right-click menu / shortcut)
   - Auto-save credentials with smart dedup
   - Import / export (CSV & JSON, Chrome / LastPass / Bitwarden / 1Password)
   - Encrypted backup (.aph) + email backup

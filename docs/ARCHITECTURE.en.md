@@ -275,6 +275,15 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - Dual-channel feedback: desktop notification + toolbar icon badge (green check on success / red exclamation on failure, auto-cleared after 3 seconds) — covering cases where system notifications are disabled.
 - Successful fills silently refresh the entry's last-used time, keeping the side panel's recency sort accurate.
 
+### 22. Right-Click Context Menu Fill
+
+- Right-clicking an input offers "Fill Username / Fill Password / Fill 2FA Code / Generate & Fill Strong Password"; right-clicking empty page space offers "Open Side Panel / Open Password Manager" (see [contextMenuManager.ts](../entrypoints/background/contextMenuManager.ts)).
+- Menu items are registered by Background via `chrome.contextMenus` (requires the `contextMenus` permission); titles render in the user's language and the whole menu is rebuilt on language switch. Menu item registrations persist in the browser (the code still defensively rebuilds them on each SW startup to sync the language), while the `onClicked` listener does not persist and is re-registered synchronously on every SW startup, as MV3 event registration requires. Environments without the `sidePanel` API (e.g. Firefox) omit the "Open Side Panel" item.
+- Target-element memory: `contextMenus.onClicked` only provides the `frameId`, not the clicked element — so the content script records the input where the right-click happened during the `contextmenu` capture phase (see [contextMenuTarget.ts](../entrypoints/content/contextMenuTarget.ts)), and Background delivers a frame-targeted `CONTEXT_MENU_FILL` message back to that frame.
+- Entry selection semantics match the side panel: entries for the current tab's domain are sorted via `sortMatchesForDomain` and the first one is used; the TOTP action picks the first match with 2FA configured and computes the dynamic code inside the SW (the secret is never sent out).
+- Security gates share the same line of defense as quick fill: the startup-relock barrier, session validation, and `isFrameFillable` cross-origin frame rejection (plaintext is only sent to the top frame or same-main-domain frames).
+- Feedback policy: a successful fill shows only the toolbar badge (the fill result is visible in the input, avoiding notification noise); fill failures and "Open Side Panel" failures both use the dual "notification + badge" channel — user actions are never swallowed silently.
+
 ## Development Extras
 
 ### Icon Workflow

@@ -115,7 +115,7 @@ A **free, open-source**, local-first Chrome password manager built for developer
 
 ### ⚡ Smart Fill
 
-- **Triple fill strategy**: Inline fill (key icon in the input, the default), side panel one-click fill, and quick-fill shortcut (`Ctrl+Shift+F` — fill + tick consent + click login); results reported via desktop notification + toolbar badge
+- **Quadruple fill strategy**: Inline fill (key icon in the input, the default), side panel one-click fill, right-click fill (right-click an input to fill username/password/2FA code, or generate & fill a strong password), and quick-fill shortcut (`Ctrl+Shift+F` — fill + tick consent + click login); results reported via desktop notification + toolbar badge
 - **Exact domain matching**: Only entries whose host exactly matches the current page are shown, keeping dev/test/staging/prod accounts apart; `localhost` matches everything by default
 - **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"
 - **Side panel quick add**: Click "+" in the side panel header to save credentials in place (an add invitation also appears when the current site has none); the site field is prefilled from the current domain, with "Open Password Manager for all fields" for full fields like TOTP
@@ -189,7 +189,7 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 
 1. **Initial setup**: click the extension icon to open the manager, set a master password, and choose a session validity (default 24 hours); "Preferences" configures themes, language, floating button, fill mode, and more
 2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field smart search (pinyin/initials + match highlighting) and sorting, tags and favorites
-3. **Quick fill**: inline fill by default — a key icon appears in a focused login field; click it to pick an account and fill instantly. Switch to "Sidebar" (auto-opens on focus) or "Manual" in Preferences, or use the shortcuts
+3. **Quick fill**: inline fill by default — a key icon appears in a focused login field; click it to pick an account and fill instantly. Switch to "Sidebar" (auto-opens on focus) or "Manual" in Preferences, use the shortcuts, or right-click an input to fill
 4. **Shortcuts**: every high-frequency action has one (`Cmd` on Mac) — see the cheat sheet below
 
 ### Shortcut Cheat Sheet
