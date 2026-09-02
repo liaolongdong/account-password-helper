@@ -201,7 +201,7 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 | One-keystroke login (fill + tick + click) | `Ctrl+Shift+F`  | `Cmd+Shift+F` |
 | Open the inline fill dropdown             | `Ctrl+Shift+K`  | `Cmd+Shift+K` |
 
-> All shortcuts are customizable at `chrome://extensions/shortcuts`.
+> All shortcuts are customizable at `chrome://extensions/shortcuts`. You can also check the live status of all four bindings under "Security Settings → Keyboard Shortcuts" on the manager page (unbound or taken keys are explicitly flagged as "Not active"), or jump straight to the manager from the "Keyboard Shortcuts" group in the side panel's Help dialog.
 
 > 📖 Full walkthroughs and demos are on the [live demo page](https://liaolongdong.github.io/account-password-helper/) (bilingual FAQ included), or via the "Help" entry inside the side panel.
 
@@ -229,7 +229,7 @@ A: Wait for the page to fully load and retry; the filler tries three strategies 
 
 **Q: How do I customize shortcuts?**
 
-A: Go to `chrome://extensions/shortcuts`, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The popup display syncs automatically.
+A: Go to `chrome://extensions/shortcuts`, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The popup display syncs automatically. You can also open the read-only overview under "Security Settings → Keyboard Shortcuts" on the manager page — its "Edit Shortcuts" button links straight there, and it flags which keys are currently inactive (usually taken by the OS or another extension, or a command added by an update that Chrome never auto-bound). The side panel's Help dialog offers the same overview and entry point.
 
 **Q: Can I import from other password managers?**
 

@@ -478,7 +478,7 @@ SETUP (one-time): Install → set master password → add accounts manually or b
 
 6) Auto-save: New login detected → prompt to save. Smart dedup + domain allow/block lists.
 
-Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (login) / K (inline). All customizable. Right-click an input to fill username/password/2FA code or generate a strong password.
+Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (login) / K (inline). All customizable at chrome://extensions/shortcuts — the manager page ("Security Settings → Keyboard Shortcuts") and the side panel Help dialog both list all four bindings with their live status, flag any key that is currently inactive, and link straight to that page. Right-click an input to fill username/password/2FA code or generate a strong password.
 ```
 
 **Indicate any other products, platforms, or restricted websites (e.g., Netflix account, Adobe Creative Suite account, banking, intranet domains, etc.) that your extension requires access to in order to fulfill its purpose.（指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。）**
@@ -535,7 +535,7 @@ No specific website accounts are required. The extension treats all websites uni
 
 6) 自动保存：检测到新登录 → 弹窗确认保存，智能去重 + 域名白名单/黑名单。
 
-快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（登录）/ K（内联），均可自定义。输入框上右键可直接填充用户名/密码/两步验证码或生成强密码。
+快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（登录）/ K（内联），均可在 chrome://extensions/shortcuts 自定义——密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗均列出四组按键及其当前生效状态，会标注未生效的按键并可一键直达该页。输入框上右键可直接填充用户名/密码/两步验证码或生成强密码。
 ```
 
 **指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。**

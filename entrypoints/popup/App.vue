@@ -282,7 +282,7 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import QuickFillIcon from '@/components/QuickFillIcon.vue';
 import InlineKeyIcon from '@/components/InlineKeyIcon.vue';
 import { MessageType } from '@/utils/types';
-import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
+import { GITHUB_RELEASES_PAGE_URL, CHROME_SHORTCUTS_PAGE_URL } from '@/utils/urls';
 import { logger } from '@/utils/logger';
 import { markSidepanelOpenRequested } from '@/utils/perfMetrics';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
@@ -377,7 +377,7 @@ const openOptions = async () => {
  */
 const openShortcutsPage = async () => {
   try {
-    await chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+    await chrome.tabs.create({ url: CHROME_SHORTCUTS_PAGE_URL });
   } catch (error) {
     logger.error('打开快捷键设置页失败:', error);
   } finally {

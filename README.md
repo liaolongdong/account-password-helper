@@ -201,7 +201,7 @@ pnpm postbuild
 | 一键登录（填充+勾选+点击） | `Ctrl+Shift+F`  | `Cmd+Shift+F` |
 | 展开内联填充下拉列表       | `Ctrl+Shift+K`  | `Cmd+Shift+K` |
 
-> 所有快捷键均可在 `chrome://extensions/shortcuts` 中自定义。
+> 所有快捷键均可在 `chrome://extensions/shortcuts` 中自定义。也可在密码管理页「安全设置 → 快捷键」查看四组按键的当前生效状态（未绑定或被占用的按键会明确标注「未生效」），或从侧边栏「帮助」弹窗的「快捷键」分组一键直达管理页。
 
 > 📖 完整的操作指引与功能演示见[在线演示页面](https://liaolongdong.github.io/account-password-helper/)（含双语 FAQ），或侧边栏内的「帮助」入口。
 
@@ -229,7 +229,7 @@ A：等待页面完全加载后重试，填充器会依次尝试三种策略（N
 
 **Q：如何自定义快捷键？**
 
-A：在地址栏输入 `chrome://extensions/shortcuts`，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可修改。
+A：在地址栏输入 `chrome://extensions/shortcuts`，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可修改。也可以从密码管理页「安全设置 → 快捷键」打开一览弹窗，其中「前往修改」按钮直达该页面；弹窗会同时标注哪些按键当前未生效（多因被系统或其他扩展占用，或更新后新增的命令未自动绑定），侧边栏「帮助」弹窗同样提供该一览与入口。
 
 **Q：支持从其他密码管理器导入吗？**
 

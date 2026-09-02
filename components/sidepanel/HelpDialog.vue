@@ -45,6 +45,48 @@
         </div>
       </section>
 
+      <!-- ====== 快捷键 ====== -->
+      <!-- 置于操作指引之前以保证可发现性；数据在弹窗打开时才加载，不侵入侧边栏首屏 -->
+      <section class="help-section">
+        <h4>{{ t('help.shortcutTitle') }}</h4>
+        <ul class="help-shortcut-list">
+          <li
+            v-for="entry in entries"
+            :key="entry.id"
+          >
+            <div class="help-shortcut-row">
+              <span class="help-shortcut-name">{{ t(SHORTCUT_LABEL_KEYS[entry.id]) }}</span>
+              <ShortcutKeyCap
+                :text="entry.shortcut"
+                :muted="!entry.assigned"
+                :label="keycapLabel(entry)"
+              />
+            </div>
+            <p
+              v-if="!entry.assigned"
+              class="help-shortcut-warn"
+            >
+              {{ t('help.shortcutUnassigned') }}
+            </p>
+          </li>
+        </ul>
+        <!-- Firefox 无 chrome://extensions/shortcuts 页面，改键入口降级为纯文案指引 -->
+        <p class="help-shortcut-edit">
+          <template v-if="isFirefox">{{ t('help.shortcutFirefoxHint') }}</template>
+          <template v-else>
+            {{ t('help.shortcutEditHint') }}
+            <el-button
+              link
+              type="primary"
+              class="help-shortcut-edit-btn"
+              @click="handleEditShortcuts"
+            >
+              {{ t('help.shortcutEditAction') }}
+            </el-button>
+          </template>
+        </p>
+      </section>
+
       <!-- ====== 操作指引 ====== -->
       <section class="help-section">
         <h4>{{ t('help.guideTitle') }}</h4>
@@ -314,13 +356,17 @@
 </template>
 
 <script setup lang="ts">
+import { watch } from 'vue';
 import { Document } from '@element-plus/icons-vue';
+import ShortcutKeyCap from '@/components/ShortcutKeyCap.vue';
+import { useShortcuts, type ShortcutEntry } from '@/composables/useShortcuts';
+import { isFirefox } from '@/utils/env';
 import { useI18n } from '@/utils/i18n';
 import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 // help 命名空间语言包随本组件懒加载 chunk 按需注册，不占用侧边栏首屏体积
 import '@/utils/i18n/bundles/help';
 
-defineProps<{
+const props = defineProps<{
   modelValue: boolean;
 }>();
 
@@ -333,6 +379,44 @@ const { t } = useI18n();
 
 /** 当前插件版本号，直接读取 manifest，零依赖 */
 const version = chrome.runtime.getManifest().version;
+
+/** 快捷键绑定状态（useShortcuts 随本组件懒加载 chunk 落地，不进入侧边栏首屏包） */
+const { entries, loadShortcuts, openShortcutsPage } = useShortcuts();
+
+/**
+ * 命令标识到 help 命名空间 key 的映射
+ *
+ * 采用具名 key 而非帮助文案那套 `.1`~`.N` 数字序号，
+ * 避免语言包与 SHORTCUT_COMMANDS 数组顺序产生隐式耦合。
+ */
+const SHORTCUT_LABEL_KEYS = {
+  open_options: 'help.sc.openOptions',
+  toggle_sidepanel: 'help.sc.toggleSidepanel',
+  quick_fill: 'help.sc.quickFill',
+  open_inline_dropdown: 'help.sc.openInlineDropdown',
+} as const satisfies Record<ShortcutEntry['id'], string>;
+
+/** 键帽的无障碍名：命令名 + 按键；未生效语义由列表内可见警示文本承载 */
+const keycapLabel = (entry: ShortcutEntry): string => `${t(SHORTCUT_LABEL_KEYS[entry.id])} ${entry.shortcut}`;
+
+/**
+ * 仅在弹窗真正打开时才读取 chrome.commands.getAll()
+ *
+ * 本组件在侧边栏中是无条件渲染的 defineAsyncComponent，setup 会随侧边栏挂载执行，
+ * 若把加载放在 onMounted 或 setup 顶层会把浏览器 API 调用推入首屏关键路径，
+ * 违反侧边栏秒开约束。
+ */
+watch(
+  () => props.modelValue,
+  visible => {
+    if (visible) void loadShortcuts();
+  },
+);
+
+/** 跳转浏览器内置的快捷键管理页 */
+const handleEditShortcuts = (): void => {
+  void openShortcutsPage();
+};
 
 /**
  * 按前缀批量取帮助条目文案（key 形如 `${prefix}.1` ~ `${prefix}.${count}`）
@@ -455,6 +539,46 @@ const handleGoToOptions = () => {
 .help-link:hover {
   color: #1d4ed8;
   text-decoration: underline;
+}
+
+/* 快捷键分组：命令名与键帽两端对齐，未生效项追加灰色警示文案 */
+.help-shortcut-list {
+  padding-left: 0;
+  list-style: none;
+}
+
+.help-shortcut-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.help-shortcut-name {
+  min-width: 0;
+  color: #1f2937;
+}
+
+.help-shortcut-warn {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--aph-text-muted);
+}
+
+.help-shortcut-edit {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6b7280;
+}
+
+/* el-button link 默认带高度与内边距，此处归零以随行文本基线排版 */
+.help-shortcut-edit-btn {
+  height: auto;
+  padding: 0;
+  font-size: 12px;
+  vertical-align: baseline;
 }
 
 /* 标题行：版本号弱化链接随标题并排展示，点击跳转最新版本下载页 */

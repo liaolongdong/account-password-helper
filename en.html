@@ -195,7 +195,7 @@
             "name": "How do I customize the keyboard shortcuts?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Open chrome://extensions/shortcuts, find Account Password Helper, click the shortcut field next to a command and press a new combination."
+              "text": "Open chrome://extensions/shortcuts, find Account Password Helper, click the shortcut field next to a command and press a new combination. You can also open the read-only overview under Security Settings → Keyboard Shortcuts on the manager page, which flags the live status of every binding and links straight to that page."
             }
           },
           {
@@ -2822,8 +2822,8 @@
           tag: 'STEP 06',
           title: { zh: '侧边栏一键填充', en: 'One-click side panel fill' },
           desc: {
-            zh: '打开登录页，侧边栏按当前域名优先展示，点击账号即可自动填充表单；本站无账号或搜索无结果时，可一键「添加本站账号」并自动预填域名。支持自动保存账号密码',
-            en: 'On login pages the side panel prioritizes the current domain; click an account to auto-fill. No accounts for this site or no search results? One-click "Add account for this site" with the domain pre-filled. Auto-save supported.',
+            zh: '打开登录页，侧边栏按当前域名优先展示，点击账号即可自动填充表单；顶栏常驻「+」可就地快速添加本站账号（自动预填域名），本站无账号或搜索无结果时也可一键「添加本站账号」。支持自动保存账号密码',
+            en: 'On login pages the side panel prioritizes the current domain; click an account to auto-fill. A persistent "+" in the header quickly adds an account for this site with the domain pre-filled — so does the one-click "Add account for this site" when the site has none or a search returns nothing. Auto-save supported.',
           },
         },
         {
@@ -2967,8 +2967,8 @@
         {
           q: { zh: '如何自定义快捷键？', en: 'How do I customize shortcuts?' },
           a: {
-            zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。',
-            en: 'Chrome supports this natively. Go to chrome://extensions/shortcuts, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically.',
+            zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「安全设置 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。',
+            en: 'Chrome supports this natively. Go to chrome://extensions/shortcuts, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically. You can also open the read-only overview under "Security Settings → Keyboard Shortcuts" on the manager page to see the live status of all four bindings — its "Edit Shortcuts" button links straight there; the "Keyboard Shortcuts" group in the side panel Help dialog offers the same overview and entry point.',
           },
         },
         {
@@ -2987,8 +2987,8 @@
             en: "Why aren't shortcuts bound by default?",
           },
           a: {
-            zh: 'Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts。',
-            en: 'For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see "Not set" — bind it once as above and it sticks. Unbound entries in the popup show a "Set shortcut" button linking to chrome://extensions/shortcuts.',
+            zh: 'Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts；密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗的快捷键分组会直接标注哪些按键当前未生效，避免「按了没反应」时无从排查。',
+            en: 'For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see "Not set" — bind it once as above and it sticks. Unbound entries in the popup show a "Set shortcut" button linking to chrome://extensions/shortcuts; the "Security Settings → Keyboard Shortcuts" overview on the manager page and the shortcut group in the side panel Help dialog flag exactly which keys are currently inactive, so a dead keystroke is never a mystery.',
           },
         },
         {

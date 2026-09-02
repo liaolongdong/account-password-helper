@@ -20,6 +20,7 @@
   "options.header.idleLock": "自动锁定设置",
   "options.header.favoriteLimit": "收藏上限设置",
   "options.header.clipboard": "剪贴板设置",
+  "options.header.shortcuts": "快捷键",
   "options.header.securitySettings": "安全设置",
   "options.header.personalization": "偏好设置",
   "options.totalPasswords": "总共",
@@ -244,5 +245,16 @@
   "options.backup.exportTitle": "加密备份导出",
   "options.backup.exportPrompt": "加密备份需要验证主密码，请输入主密码：",
   "options.backup.exportSuccess": "加密备份导出成功",
-  "options.backup.exportFailed": "加密备份导出失败"
+  "options.backup.exportFailed": "加密备份导出失败",
+  "options.shortcuts.title": "快捷键一览",
+  "options.shortcuts.intro": "出于安全限制，浏览器不允许扩展自行修改快捷键。如需改键，请点击下方「前往修改」打开浏览器内置的快捷键管理页；修改后重新打开本弹窗即可看到最新状态。",
+  "options.shortcuts.statusActive": "已生效",
+  "options.shortcuts.statusInactive": "未生效",
+  "options.shortcuts.inactiveHint": "该按键当前未生效，可能被系统或其他扩展占用，也可能在浏览器更新后需要重新绑定。",
+  "options.shortcuts.editAction": "前往修改",
+  "options.shortcuts.firefoxHint": "Firefox 请在 about:addons → 齿轮图标 →「管理扩展快捷键」中修改。",
+  "options.shortcuts.label.openOptions": "打开账号密码管理选项页面",
+  "options.shortcuts.label.toggleSidepanel": "打开/关闭密码快速填充侧边栏",
+  "options.shortcuts.label.quickFill": "一键填充当前页面账号密码",
+  "options.shortcuts.label.openInlineDropdown": "展开内联填充下拉列表"
 }

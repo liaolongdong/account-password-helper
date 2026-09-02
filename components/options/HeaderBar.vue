@@ -188,6 +188,13 @@
               >
                 {{ t('options.historySetting.title') }}
               </el-dropdown-item>
+              <el-dropdown-item
+                divided
+                command="shortcuts"
+                :icon="Operation"
+              >
+                {{ t('options.header.shortcuts') }}
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -224,6 +231,7 @@ import {
   Key,
   Document,
   Brush,
+  Operation,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -235,7 +243,7 @@ import { useSessionCountdown } from '@/composables/useSessionCountdown';
  * Options 页面头部组件
  *
  * 包含标题、版本号、会话剩余时间徽标、安全体检入口、数据管理/安全设置下拉菜单以及偏好设置按钮。
- * 「安全设置」聚焦主密码与会话安全行为，「偏好设置」聚焦外观与填充交互，两者图标区分避免混淆。
+ * 「安全设置」聚焦主密码、会话安全行为与快捷键一览，「偏好设置」聚焦外观与填充交互，两者图标区分避免混淆。
  * 语言切换已迁移至「偏好设置」面板（与主题风格同组，三入口可达）。
  */
 const props = defineProps<{

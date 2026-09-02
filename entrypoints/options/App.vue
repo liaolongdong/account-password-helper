@@ -197,6 +197,9 @@
     <!-- 密码历史设置弹窗 -->
     <PasswordHistorySettingDialog v-model="showPasswordHistoryDialog" />
 
+    <!-- 快捷键一览弹窗（只读，改键引导至浏览器内置管理页） -->
+    <ShortcutSettingDialog v-model="showShortcutDialog" />
+
     <!-- 修改主密码弹窗 -->
     <ChangeMasterPasswordDialog
       v-model="showChangeMasterPasswordDialog"
@@ -243,6 +246,7 @@ const TrashDialog = defineAsyncComponent(() => import('@/components/options/Tras
 const PasswordHistorySettingDialog = defineAsyncComponent(
   () => import('@/components/options/PasswordHistorySettingDialog.vue'),
 );
+const ShortcutSettingDialog = defineAsyncComponent(() => import('@/components/options/ShortcutSettingDialog.vue'));
 const ChangeMasterPasswordDialog = defineAsyncComponent(
   () => import('@/components/options/ChangeMasterPasswordDialog.vue'),
 );
@@ -318,6 +322,9 @@ const showTrashDialog = ref(false);
 
 /** 密码历史设置弹窗可见性 */
 const showPasswordHistoryDialog = ref(false);
+
+/** 快捷键一览弹窗可见性 */
+const showShortcutDialog = ref(false);
 
 /** 修改主密码弹窗可见性 */
 const showChangeMasterPasswordDialog = ref(false);
@@ -484,6 +491,9 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'passwordHistory':
       showPasswordHistoryDialog.value = true;
+      break;
+    case 'shortcuts':
+      showShortcutDialog.value = true;
       break;
   }
 };

@@ -88,7 +88,7 @@ const EN_FAQPAGE_JSONLD = `<!-- FAQPage structured data: English version, mirror
             "name": "How do I customize the keyboard shortcuts?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Open chrome://extensions/shortcuts, find Account Password Helper, click the shortcut field next to a command and press a new combination."
+              "text": "Open chrome://extensions/shortcuts, find Account Password Helper, click the shortcut field next to a command and press a new combination. You can also open the read-only overview under Security Settings → Keyboard Shortcuts on the manager page, which flags the live status of every binding and links straight to that page."
             }
           },
           {

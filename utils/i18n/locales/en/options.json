@@ -20,6 +20,7 @@
   "options.header.idleLock": "Auto-Lock Settings",
   "options.header.favoriteLimit": "Favorite Limit",
   "options.header.clipboard": "Clipboard Settings",
+  "options.header.shortcuts": "Keyboard Shortcuts",
   "options.header.securitySettings": "Security Settings",
   "options.header.personalization": "Preferences",
   "options.totalPasswords": "Total",
@@ -244,5 +245,16 @@
   "options.backup.exportTitle": "Export Encrypted Backup",
   "options.backup.exportPrompt": "Encrypted backup requires master password verification. Enter your master password:",
   "options.backup.exportSuccess": "Encrypted backup exported",
-  "options.backup.exportFailed": "Failed to export the encrypted backup"
+  "options.backup.exportFailed": "Failed to export the encrypted backup",
+  "options.shortcuts.title": "Keyboard Shortcuts",
+  "options.shortcuts.intro": "For security reasons, browsers do not let extensions change their own shortcuts. To rebind a key, click \"Edit Shortcuts\" below to open the browser's built-in shortcut manager; reopen this dialog afterwards to see the updated status.",
+  "options.shortcuts.statusActive": "Active",
+  "options.shortcuts.statusInactive": "Not active",
+  "options.shortcuts.inactiveHint": "This key is not active right now — it may be taken by the system or another extension, or may need rebinding after a browser update.",
+  "options.shortcuts.editAction": "Edit Shortcuts",
+  "options.shortcuts.firefoxHint": "On Firefox, change shortcuts via about:addons → the gear icon → \"Manage Extension Shortcuts\".",
+  "options.shortcuts.label.openOptions": "Open password management page",
+  "options.shortcuts.label.toggleSidepanel": "Open/close quick-fill side panel",
+  "options.shortcuts.label.quickFill": "Quick fill credentials on current page",
+  "options.shortcuts.label.openInlineDropdown": "Open the inline fill dropdown"
 }

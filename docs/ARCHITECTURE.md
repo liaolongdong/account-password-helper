@@ -108,6 +108,7 @@ graph TB
 │   ├── QuickFillIcon.vue           # 快速填充图标
 │   ├── TotpCode.vue                # TOTP 动态码展示（环形倒计时）
 │   ├── SiteFavicon.vue             # 网站图标组件（本地 _favicon 缓存，失败降级默认图标）
+│   ├── ShortcutKeyCap.vue          # 快捷键键帽展示（主题令牌 + 未生效弱化态，不含 i18n）
 │   ├── options/                    # Options 页面组件
 │   │   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
 │   │   ├── BackupImportDialog.vue      # 加密备份导入对话框
@@ -128,6 +129,7 @@ graph TB
 │   │   ├── PasswordTable.vue           # 密码列表表格
 │   │   ├── PasswordVerifyView.vue      # 主密码验证视图
 │   │   ├── SearchFilterBar.vue         # 搜索过滤栏
+│   │   ├── ShortcutSettingDialog.vue   # 快捷键一览对话框（只读 + 未生效预警 + 跳转管理页）
 │   │   ├── TrashDialog.vue             # 回收站对话框（恢复/彻底删除/清空）
 │   │   ├── ValidityHoursSelect.vue     # 有效期选择器
 │   │   └── ValiditySettingDialog.vue   # 有效期设置对话框
@@ -145,7 +147,7 @@ graph TB
 │   ├── useRuntimeMessageHandler.ts # 运行时消息处理
 │   ├── useSessionLock.ts           # 会话锁定
 │   ├── useSessionTimer.ts          # 会话定时器
-│   ├── useShortcuts.ts             # 快捷键管理
+│   ├── useShortcuts.ts             # 快捷键管理（真实绑定状态 + 未生效判定）
 │   ├── useSidepanelData.ts         # 侧边栏数据管理
 │   ├── useSidepanelFill.ts         # 侧边栏填充逻辑（含 TOTP 填充）
 │   ├── useSidepanelSettings.ts     # 侧边栏设置
@@ -188,11 +190,12 @@ graph TB
 │   ├── passphraseGenerator.ts      # 助记词组生成器（EFF Diceware，2048 词库）
 │   ├── passwordSort.ts             # 密码排序工具
 │   ├── logger.ts                   # 环境感知日志
-│   ├── env.ts                      # isDev 常量
+│   ├── env.ts                      # isDev / isFirefox 常量
 │   ├── createVueApp.ts             # Vue 应用工厂
 │   ├── dateFormat.ts               # 日期格式化工具
 │   ├── domain.ts                   # 域名提取与匹配工具（isDomainMatch）
 │   ├── formatShortcut.ts           # 快捷键格式化工具
+│   ├── shortcutCommands.ts         # 快捷键命令清单（与 manifest.commands 对齐）与打开管理页动作
 │   ├── generateId.ts               # ID 生成工具
 │   ├── lazyImport.ts               # 泛型懒加载工具
 │   ├── masterPasswordVerify.ts     # 主密码验证工具
@@ -313,6 +316,7 @@ graph TB
   - `Ctrl+Shift+L` / `Cmd+Shift+L`：显示/隐藏侧边栏
   - `Ctrl+Shift+F` / `Cmd+Shift+F`：一键填充当前页面账号密码（无需打开侧边栏，直接填充与侧边栏列表首条一致的条目；多条匹配时通知告知填充了哪条，填充结果通过桌面通知 + 工具栏角标双通道反馈，见 [quickFillHandler.ts](../entrypoints/background/quickFillHandler.ts)）
   - 快捷键支持自定义，详见 [README - 常见问题](../README.md#常见问题)
+  - **统一一览与未生效预警**：Chrome `commands` API 仅提供 `getAll()` / `onCommand`，扩展无法自行改键（`commands.update()` 属 Firefox）。因此 Popup、密码管理页「安全设置 → 快捷键」（见 [ShortcutSettingDialog.vue](../components/options/ShortcutSettingDialog.vue)）与侧边栏帮助弹窗（见 [HelpDialog.vue](../components/sidepanel/HelpDialog.vue)）三处均展示只读一览，并对 `getAll()` 返回空 `shortcut` 的命令明确标注「未生效」（多因被系统或其他扩展占用，或更新后新增命令未自动绑定），解决「按了没反应」无从排查的痛点；命令清单单一事实来源为 [shortcutCommands.ts](../utils/shortcutCommands.ts)，与 manifest 的一致性由 [shortcutCommands.test.ts](../tests/utils/shortcutCommands.test.ts) 静态校验
 - Background 维护密码缓存，侧边栏优先读取缓存，后台异步验证。
 
 ### 12. 版本更新检测
@@ -469,5 +473,6 @@ graph TB
 - 保活策略全平台统一为常驻（不区分会话状态）：Windows 痛点是杀软扫描 + 冷盘导致 SW 冷启动与 chunk 冷读可达数秒（会话失效态白屏主因）；Mac 虽 SSD 快、无杀软扫描放大，但历史条件保活/宽限期保活策略下，会话失效后停活 → SW 死亡 → 预热 tick 停止 → 文件被 macOS UBC 逐出（长时间闲置/系统休眠后尤甚）→ 下次打开撞「SW 冷启 + 渲染进程冷创建 + 文件冷读 + 快照失效」四冷叠加白屏，且条件保活/宽限期保活均无法覆盖「宽限期结束后的任意间隔」，故统一为常驻保活；
 - 预热范围按平台差异化：Windows 全量四层预热（~25 文件），Mac 轻量预热按白名单保留认证视图 chunk（含 Element Plus CSS 运行时，认证态最大冷读单体）与本地数据直读 chunk（sessionManager-storage / passwordCrud / encryption，浏览器重启快照失效后数据竞速回退本地路径的冷读单体），根治 macOS 磁盘缓存逐出后的冷读白屏；
 - 平台判定经 [platform.ts](../utils/platform.ts) 三态检测（true/false/null）+ storage.local 持久化兜底 + 失败不缓存：预热等轻微影响场景经两态包装（isWindowsPlatform）简化调用。
+- 同一文件另有**同步**嗅探 API `isMacPlatform()`（优先读 `navigator.userAgentData.platform`，回退已废弃的 `navigator.platform`），专供无法 await 的路径（模块级常量、composable 同步初始化）使用；目前唯一调用方是快捷键未绑定时的兜底按键——按平台取 manifest `suggested_key` 的 `default` / `mac` 分支（见 [shortcutCommands.ts](../utils/shortcutCommands.ts)）。它**不参与**保活/预热决策：判错只影响修饰键展示风格（⌘ vs Ctrl），而保活/预热判错代价重大，必须继续使用感知三态的异步判定。
 
 相关代码：[backgroundServices.ts](../entrypoints/background/backgroundServices.ts)（保活与过期上锁）、[warmSidePanelResources.ts](../utils/warmSidePanelResources.ts)（资源预热）、[platform.ts](../utils/platform.ts)（平台判定）、[sidePanelManager.ts](../entrypoints/background/sidePanelManager.ts)（打开/关闭与 Port 追踪）。

@@ -46,8 +46,13 @@ const SIDEPANEL_GRAPH_FILES = [
   'composables/useSessionCountdown.ts',
 ];
 
-/** HelpDialog 懒加载 chunk 源文件（可用命名空间 = sidepanel bundle + help） */
-const HELP_DIALOG_FILES = ['components/sidepanel/HelpDialog.vue'];
+/**
+ * HelpDialog 懒加载 chunk 源文件（可用命名空间 = sidepanel bundle + help）
+ *
+ * ShortcutKeyCap 是 HelpDialog 的子组件，随同一 chunk 落地。它当前不调用 t()
+ * （文案一律由调用方翻译后经 props 传入），纳入扫描是为了防止后续回归。
+ */
+const HELP_DIALOG_FILES = ['components/sidepanel/HelpDialog.vue', 'components/ShortcutKeyCap.vue'];
 
 /** Popup 依赖图源文件 */
 const POPUP_GRAPH_FILES = [
