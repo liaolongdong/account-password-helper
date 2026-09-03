@@ -48,6 +48,7 @@
       v-model:search-keyword="searchKeyword"
       v-model:favorite-only="favoriteOnly"
       v-model:filter-tags="filterTags"
+      v-model:search-scope="searchScope"
       :loading="loading"
       :filtered-passwords="filteredPasswords"
       :total-count="passwords.length"
@@ -55,6 +56,8 @@
       :auto-trigger-login="autoTriggerLogin"
       :sort-prop="sidepanelSortProp"
       :available-tags="availableTags"
+      :global-match-count="globalMatchCount"
+      :off-site-ids="offSiteIds"
       @sort-change="handleSortChange"
       @search="handleSearch"
       @add-password="showQuickAddDialog = true"
@@ -63,6 +66,7 @@
       @rendered="handleAuthViewRendered"
       @fill="fillPassword"
       @fill-and-login="handleFillAndLogin"
+      @open-site="handleOpenSite"
       @edit="handleEditPassword"
       @toggle-favorite="toggleFavorite"
       @copy-username="copyUsername"
@@ -124,6 +128,14 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import {
+  applyListFilters,
+  filterEntriesByScope,
+  matchesSiteScope,
+  type ListFilterOptions,
+  type ScopeContext,
+  type SearchScope,
+} from '@/utils/passwordFilter';
 import { parseTags } from '@/utils/tagUtils';
 import {
   markPerf,
@@ -134,8 +146,8 @@ import {
 } from '@/utils/perfMetrics';
 import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { isExactHostMatch, isLocalDevDomain, matchesPortForLocalDev } from '@/utils/domain';
-import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
+import { isLocalDevDomain, toNavigableUrl } from '@/utils/domain';
+import { warmPinyinMatcher } from '@/utils/searchMatch';
 
 /**
  * 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载）
@@ -272,7 +284,18 @@ const searchKeyword = ref('');
 const favoriteOnly = ref(false);
 /** 标签筛选选中集（命中任一即保留，与搜索/收藏过滤为叠加关系） */
 const filterTags = ref<string[]>([]);
+/**
+ * 搜索范围（会话内状态，不持久化）
+ *
+ * 默认 `site`：侧边栏主用法是「当前站点快速填充」。切到 `all` 后列表放开为全库，
+ * 外站条目降级为「打开站点 + 复制类操作」（见 offSiteIds / handleOpenSite）。
+ * 每次打开侧边栏回到默认值，避免上一次的全站上下文被误当作当前站点工具。
+ */
+const searchScope = ref<SearchScope>('site');
 const activeIndex = ref(0);
+
+/** 本站模式下复用的空 ID 集（引用恒定，避免子组件 v-memo 因新对象失效） */
+const EMPTY_ID_SET: ReadonlySet<string> = new Set<string>();
 
 /** 操作指引弹窗可见性 */
 const showHelpDialog = ref(false);
@@ -282,32 +305,40 @@ const showQuickAddDialog = ref(false);
 
 // ==================== 排序与过滤 ====================
 
-/**
- * 域名过滤后的条目（当前域名精确匹配 + 空 URL 始终展示）
- * 抽离为独立 computed：标签筛选候选集与最终列表共用同一过滤结果，避免重复计算
- */
-const domainFilteredPasswords = computed(() => {
-  let result = [...passwords.value];
-  if (currentDomain.value) {
-    const domain = currentDomain.value;
-    if (isLocalDevDomain(domain)) {
-      // 本地开发域名：有端口时按端口过滤，无端口时保持原有行为（展示全部）
-      result = result.filter(p => matchesPortForLocalDev(p.url, currentPort.value));
-    } else {
-      // 非本地开发域名：精确主机匹配
-      result = result.filter(p => {
-        if (!p.url || p.url.trim() === '') return true;
-        return isExactHostMatch(domain, p.url);
-      });
-    }
-  }
-  return result;
-});
+/** 当前活动标签页的域名匹配上下文（供范围过滤与「能否填充当前页」判定共用） */
+const scopeContext = computed<ScopeContext>(() => ({
+  domain: currentDomain.value,
+  port: currentPort.value,
+}));
 
-/** 可选标签集：取自域名过滤后的条目（侧边栏只展示当前域名 + 空域名条目，标签候选同域收敛） */
+/**
+ * 本站范围条目（当前域名精确匹配 + 空 URL 通用条目）
+ * 抽离为独立 computed：头部匹配数、标签候选集与全站命中数共用同一过滤结果，避免重复计算
+ */
+const domainFilteredPasswords = computed(() => filterEntriesByScope(passwords.value, 'site', scopeContext.value));
+
+/**
+ * 当前搜索范围内的候选集
+ *
+ * 本站模式直接复用 domainFilteredPasswords 缓存（默认路径零额外计算，守住首屏 SLA）；
+ * 全站模式仅做一次浅拷贝——sortPasswordEntries 为就地排序，必须与 passwords 解耦，
+ * 否则会打乱全量列表这一事实来源的顺序。
+ */
+const scopeFilteredPasswords = computed(() =>
+  searchScope.value === 'all' ? [...passwords.value] : domainFilteredPasswords.value,
+);
+
+/** 列表级过滤条件（搜索词 / 标签 / 只看收藏），供列表与全站命中数共用同一份判定 */
+const listFilterOptions = computed<ListFilterOptions>(() => ({
+  keyword: searchKeyword.value,
+  tags: filterTags.value,
+  favoriteOnly: favoriteOnly.value,
+}));
+
+/** 可选标签集：取自当前搜索范围内的条目（标签候选随范围收敛，避免选出必然空结果的标签） */
 const availableTags = computed(() => {
   const set = new Set<string>();
-  for (const p of domainFilteredPasswords.value) {
+  for (const p of scopeFilteredPasswords.value) {
     for (const tag of parseTags(p.tag)) {
       set.add(tag);
     }
@@ -315,24 +346,9 @@ const availableTags = computed(() => {
   return [...set].sort((a, b) => a.localeCompare(b));
 });
 
-/** 搜索 + 域名过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */
+/** 搜索 + 范围过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */
 const filteredPasswords = computed(() => {
-  let result = domainFilteredPasswords.value;
-
-  if (searchKeyword.value) {
-    const keyword = searchKeyword.value;
-    // 智能匹配：子串（大小写不敏感）优先，拼音模块预热后自动补齐全拼/首字母命中
-    // （matchesKeyword 内部读取 pinyinMatcherReady，预热完成会触发本 computed 重算）
-    result = result.filter(p => matchesKeyword([p.username, p.tag, p.remark, p.url], keyword));
-  }
-
-  if (filterTags.value.length > 0) {
-    result = result.filter(p => parseTags(p.tag).some(tag => filterTags.value.includes(tag)));
-  }
-
-  if (favoriteOnly.value) {
-    result = result.filter(p => p.favorite);
-  }
+  const result = applyListFilters(scopeFilteredPasswords.value, listFilterOptions.value);
 
   // 应用排序：域名优先级 + 收藏置顶 + 字段排序（复用公共比较器）
   const sortState: SortState = sortConfig.value
@@ -343,9 +359,46 @@ const filteredPasswords = computed(() => {
   return result;
 });
 
-/** 收藏/标签过滤变化时重置选中索引（过滤条件变化后旧索引可能越界或指向其它条目） */
-watch([favoriteOnly, filterTags], () => {
+/**
+ * 全库命中数（仅用于本站无结果时的空态引导）
+ *
+ * 惰性求值：computed 仅在空态分支实际读取时才遍历全量列表，本站有结果时短路返回 0，
+ * 不给默认路径增加任何开销。
+ */
+const globalMatchCount = computed(() => {
+  if (searchScope.value === 'all' || filteredPasswords.value.length > 0) return 0;
+  return applyListFilters(passwords.value, listFilterOptions.value).length;
+});
+
+/**
+ * 全站模式下不可填充当前页的外站条目 ID 集
+ *
+ * 本站模式恒为空集（引用恒定），零额外计算；仅全站模式遍历当前可见列表（非全量）。
+ * 子组件据此隐藏面向当前页的动作（填充并登录 / 填充验证码）并把整行点击改为打开站点。
+ */
+const offSiteIds = computed<ReadonlySet<string>>(() => {
+  if (searchScope.value !== 'all') return EMPTY_ID_SET;
+  const ctx = scopeContext.value;
+  const ids = new Set<string>();
+  for (const entry of filteredPasswords.value) {
+    if (!matchesSiteScope(entry, ctx)) ids.add(entry.id);
+  }
+  return ids;
+});
+
+/** 收藏/标签/搜索范围变化时重置选中索引（过滤条件变化后旧索引可能越界或指向其它条目） */
+watch([favoriteOnly, filterTags, searchScope], () => {
   activeIndex.value = 0;
+});
+
+/**
+ * 切换活动标签页后回到本站范围
+ *
+ * 新页面上下文下继续全站搜索会让「打开站点」与当前页填充语义混淆，
+ * 且用户切站后的心智模型已回到「填这个站」。
+ */
+watch(currentDomain, () => {
+  searchScope.value = 'site';
 });
 
 /** 域名切换导致候选标签集变化时，剔除已不存在的筛选标签，避免隐形空过滤 */
@@ -394,12 +447,18 @@ const handleKeydown = (e: KeyboardEvent) => {
       activeIndex.value = Math.max(activeIndex.value - 1, 0);
       scrollToActiveItem();
       break;
-    case 'Enter':
+    case 'Enter': {
       e.preventDefault();
-      if (activeIndex.value >= 0 && activeIndex.value < list.length) {
-        fillPassword(list[activeIndex.value]);
+      const entry = list[activeIndex.value];
+      if (!entry) break;
+      // 与整行点击保持一致：本站条目填充当前页，全站模式下的外站条目打开其站点
+      if (matchesSiteScope(entry, scopeContext.value)) {
+        fillPassword(entry);
+      } else {
+        handleOpenSite(entry);
       }
       break;
+    }
     case 'Escape':
       e.preventDefault();
       window.close();
@@ -503,6 +562,36 @@ const toggleFavorite = async (password: PasswordEntry) => {
 /** 打开 GitHub 仓库 */
 const openGithub = () => {
   chrome.tabs.create({ url: 'https://github.com/liaolongdong/account-password-helper' });
+};
+
+/**
+ * 打开条目所属站点（全站搜索模式下外站条目的整行动作）
+ *
+ * 外站条目无法填充到当前页（页面上没有对应输入框），改为新标签页打开其站点，
+ * 用户到达后可在新页面上重新用侧边栏/悬浮按钮填充（此时该条目已变为本站范围）。
+ *
+ * 安全边界：URL 先经 toNavigableUrl 白名单校验（仅放行 http/https），
+ * 杜绝条目中可能存在的 javascript: / chrome: 等协议被浏览器执行。
+ * 未发生填充，故不写 lastUsedAt（「最近使用」仍严格表达填充行为）。
+ */
+const handleOpenSite = (password: PasswordEntry) => {
+  const url = toNavigableUrl(password.url);
+  if (!url) {
+    ElMessage.warning(t('sidepanel.openSiteInvalidUrl'));
+    return;
+  }
+
+  /** 同步抛出与 Promise reject 两条失败路径共用同一反馈（不静默吞掉用户可见错误） */
+  const reportFailure = (error: unknown) => {
+    logger.error('SidePanel: 打开条目站点失败:', error);
+    ElMessage.error(t('sidepanel.openSiteFailed'));
+  };
+
+  try {
+    void chrome.tabs.create({ url }).catch(reportFailure);
+  } catch (error) {
+    reportFailure(error);
+  }
 };
 
 /**

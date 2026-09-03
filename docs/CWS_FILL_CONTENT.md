@@ -71,7 +71,7 @@
 · 导入导出：CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph 加密备份、邮箱备份提醒
 · 密码生成器：随机密码 + EFF 助记词组双模式，Web Crypto 密码学安全随机
 · 回收站与修改历史：删除条目保留 30 天可恢复，每条密码可配置保留 1~10 份加密快照（默认 3 份），改错可回滚
-· 智能搜索：拼音 / 首字母缩写搜索、标签分类、收藏置顶、一键去重、批量管理
+· 智能搜索：拼音 / 首字母缩写搜索、侧边栏「本站 / 全站」搜索范围切换（全站命中的外站条目可复制或直接打开站点）、标签分类、收藏置顶、一键去重、批量管理
 · 6 款色彩主题（晴空蓝/青竹绿/桃花粉/樱粉紫/落霞橙/雾墨灰）、中英文双语界面即时切换
 
 【常见问题】
@@ -151,7 +151,7 @@ FULL FEATURE SET
 · Import / export: CSV & JSON; auto-detects exports from Chrome, LastPass, Bitwarden, 1Password; .aph encrypted backup + email backup reminders
 · Password generator: random & EFF diceware passphrase modes, Web Crypto CSPRNG
 · Trash bin (30 days) + 1-10 encrypted snapshots per entry (default 3) — roll back any mistake
-· Fuzzy search with pinyin / initials, tags, favorites, one-tap dedupe, batch operations
+· Fuzzy search with pinyin / initials, side panel "This site / All entries" search scope (off-site hits can be copied or opened in a new tab), tags, favorites, one-tap dedupe, batch operations
 · 6 color themes, Chinese / English bilingual UI with instant switching
 
 FAQ
@@ -306,7 +306,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **sidePanel**
 
 ```
-提供浏览器侧边栏面板，用于集中管理、搜索、编辑所有已保存的密码条目。
+提供浏览器侧边栏面板，用于集中管理、搜索（支持「本站 / 全站」范围切换）、编辑所有已保存的密码条目。
 ```
 
 **alarms**

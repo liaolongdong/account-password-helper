@@ -14,7 +14,7 @@
 - **Account required**: No
 - **Subscription**: No
 - **Last updated**: 2026-08 (v3.7.0)
-- **Quality**: 364 automated test cases across 33 test files
+- **Quality**: 495 automated test cases across 42 test files
 
 ## Key Features
 

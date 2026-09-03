@@ -10,6 +10,7 @@ import {
   EditPen,
   Timer,
   DocumentCopy,
+  Link,
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { buildTagPresentationRecords } from '@/utils/tagUtils';
@@ -34,8 +35,16 @@ interface Props {
   isActive: boolean;
   /** 全局「自动触发登录」是否开启（开启时点条目即等于填充并登录，隐藏每条冗余的「填充并登录」按钮） */
   autoLoginEnabled: boolean;
-  /** 当前搜索关键词（用于命中高亮，空串时不高亮） */
+  /** 当前搜索关键词（用于命中高亮，默认空串即不高亮） */
   searchKeyword?: string;
+  /**
+   * 能否填充到当前页（默认 true）
+   *
+   * 全站搜索命中的外站条目为 false：当前页没有对应输入框，填充必然失败，
+   * 故整行点击改为打开该站点，并隐藏面向当前页的动作（填充并登录 / 填充验证码）；
+   * 复制账号 / 复制密码 / 复制验证码 / 收藏 / 编辑不依赖当前页，全部保留。
+   */
+  canFill?: boolean;
 }
 
 interface Emits {
@@ -43,6 +52,8 @@ interface Emits {
   fill: [password: PasswordEntry];
   /** 填充并自动登录 */
   fillAndLogin: [password: PasswordEntry];
+  /** 打开条目所属站点（不可填充的外站条目整行动作） */
+  openSite: [password: PasswordEntry];
   /** 跳转到编辑页面 */
   edit: [password: PasswordEntry];
   /** 切换收藏状态 */
@@ -57,13 +68,25 @@ interface Emits {
   copyTotp: [password: PasswordEntry];
 }
 
-const props = defineProps<Props>();
-defineEmits<Emits>();
+const props = withDefaults(defineProps<Props>(), { searchKeyword: '', canFill: true });
+const emit = defineEmits<Emits>();
 
 const { t } = useI18n();
 
 /** 标签字符串未变化时复用解析结果与样式对象，避免列表行更新时重复创建。 */
 const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.password.tag));
+
+/** 整行动作的无障碍文案：本站条目为填充，外站条目为打开其站点 */
+const actionTitle = computed(() => (props.canFill ? t('sidepanel.item.fillTitle') : t('sidepanel.item.openSiteTitle')));
+
+/** 整行点击 / 键盘激活：按能否填充分派，与 title / aria-label 保持同一语义 */
+const activate = () => {
+  if (props.canFill) {
+    emit('fill', props.password);
+  } else {
+    emit('openSite', props.password);
+  }
+};
 </script>
 
 <template>
@@ -72,10 +95,10 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
     :class="{ active: isActive }"
     role="button"
     tabindex="0"
-    :title="t('sidepanel.item.fillTitle')"
-    :aria-label="t('sidepanel.item.fillTitle')"
-    @click="$emit('fill', password)"
-    @keydown="activateOnKeydown($event, () => $emit('fill', password))"
+    :title="actionTitle"
+    :aria-label="actionTitle"
+    @click="activate"
+    @keydown="activateOnKeydown($event, activate)"
   >
     <div class="password-info">
       <div class="username">
@@ -88,7 +111,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         </SiteFavicon>
         <SearchHighlight
           :text="password.username"
-          :keyword="searchKeyword ?? ''"
+          :keyword="searchKeyword"
         />
         <span
           class="copy-icon-wrapper"
@@ -130,9 +153,16 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         >
           <SearchHighlight
             :text="tagRecord.name"
-            :keyword="searchKeyword ?? ''"
+            :keyword="searchKeyword"
           />
         </el-tag>
+        <!-- 外站标识：全站搜索下的非本站条目在 URL 前加链接图标，不仅靠颜色传达状态 -->
+        <el-icon
+          v-if="password.url && !canFill"
+          class="off-site-icon"
+        >
+          <Link />
+        </el-icon>
         <el-text
           v-if="password.url"
           type="info"
@@ -140,7 +170,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         >
           <SearchHighlight
             :text="password.url"
-            :keyword="searchKeyword ?? ''"
+            :keyword="searchKeyword"
           />
         </el-text>
       </div>
@@ -154,7 +184,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         >
           <SearchHighlight
             :text="password.remark"
-            :keyword="searchKeyword ?? ''"
+            :keyword="searchKeyword"
           />
         </el-text>
       </div>
@@ -169,7 +199,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
     </div>
     <div class="password-actions">
       <el-icon
-        v-if="password.totp"
+        v-if="password.totp && canFill"
         class="action-icon totp-fill-icon"
         role="button"
         tabindex="0"
@@ -206,7 +236,7 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         <Star v-else />
       </el-icon>
       <el-icon
-        v-if="!autoLoginEnabled"
+        v-if="!autoLoginEnabled && canFill"
         class="action-icon auto-login-icon"
         role="button"
         tabindex="0"
@@ -216,6 +246,19 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         @keydown.stop="activateOnKeydown($event, () => $emit('fillAndLogin', password))"
       >
         <Promotion />
+      </el-icon>
+      <!-- 外站条目：以「打开站点」取代面向当前页的「填充并登录」，保持图标位数量与行高节奏不变 -->
+      <el-icon
+        v-if="!canFill"
+        class="action-icon open-site-icon"
+        role="button"
+        tabindex="0"
+        :title="t('sidepanel.item.openSite')"
+        :aria-label="t('sidepanel.item.openSite')"
+        @click.stop="$emit('openSite', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('openSite', password))"
+      >
+        <Link />
       </el-icon>
       <el-icon
         class="action-icon edit-icon"
@@ -382,6 +425,13 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   white-space: nowrap;
 }
 
+/* 外站标识图标：与 URL 文本同行，不参与截断 */
+.off-site-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--aph-icon-muted);
+}
+
 .remark {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -450,6 +500,18 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
 
 .auto-login-icon:hover {
   color: #67c23a;
+}
+
+/* 打开站点图标（外站条目专用，位置与「填充并登录」对称） */
+.open-site-icon {
+  margin-right: 8px;
+  color: var(--aph-icon-action);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.open-site-icon:hover {
+  color: var(--aph-primary);
 }
 
 .totp-fill-icon,

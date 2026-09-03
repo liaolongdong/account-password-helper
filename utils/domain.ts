@@ -326,3 +326,78 @@ export function isExactHostMatch(currentDomain: string, storedUrl: string): bool
 
   return a === b;
 }
+
+// ── 可导航 URL ──
+
+/** 允许导航的协议白名单：仅 http/https，杜绝 javascript: / chrome: / file: / data: 等注入 */
+const NAVIGABLE_PROTOCOLS = new Set(['http:', 'https:']);
+
+/** 带层级路径的 scheme（如 https://、chrome://），命中时按原样解析后走白名单校验 */
+const HIERARCHICAL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+/** host:port 形式（端口为纯数字），需与 `javascript:` 等非层级 scheme 区分，避免误判为已带协议 */
+const HOST_PORT_RE = /^[^:/?#]+:\d+/;
+
+/** 非层级 scheme（如 javascript:、data:、mailto:），一律拒绝导航 */
+const OPAQUE_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+
+/** IPv4 字面量：本地/内网服务通常无 TLS 证书，补协议时走 http */
+const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/**
+ * 推断补全协议时应使用的 scheme
+ *
+ * 本地开发域名（localhost / 127.0.0.1）与 IP 字面量走 http（通常无证书），
+ * 其余走 https。
+ *
+ * @param value - 不含协议的原始 URL 或域名字符串
+ * @returns 'http' 或 'https'
+ */
+function inferDefaultScheme(value: string): 'http' | 'https' {
+  const host = normalizeToHostname(value);
+  return isLocalDevDomain(host) || IPV4_RE.test(host) ? 'http' : 'https';
+}
+
+/**
+ * 将密码条目中存储的 URL 转为可安全导航的 http(s) URL
+ *
+ * 条目 URL 属用户可控输入，直接交给 `chrome.tabs.create` / `window.open` 存在协议注入风险，
+ * 故本函数作为导航前的唯一安全边界：
+ * - 无协议时按 {@link inferDefaultScheme} 补全（`example.com/login` → `https://example.com/login`）；
+ * - 已带协议时按原样解析，仅放行 http/https；
+ * - `javascript:` / `data:` / `mailto:` 等非层级 scheme 显式拒绝，不进入补协议分支
+ *   （否则可能被拼接成形似合法的 https URL）；
+ * - 解析失败、无 hostname 时同样拒绝。
+ *
+ * @param storedUrl - 密码条目中存储的 URL/域名（可能为空、纯域名或完整 URL）
+ * @returns 可导航的完整 URL；输入为空、协议不允许或解析失败时返回 null
+ *
+ * @example
+ * toNavigableUrl('https://example.com/login')  // → 'https://example.com/login'
+ * toNavigableUrl('example.com')                // → 'https://example.com/'
+ * toNavigableUrl('localhost:3000/admin')       // → 'http://localhost:3000/admin'
+ * toNavigableUrl('javascript:alert(1)')        // → null（协议拒绝）
+ * toNavigableUrl('')                           // → null
+ */
+export function toNavigableUrl(storedUrl: string | undefined | null): string | null {
+  const raw = storedUrl?.trim();
+  if (!raw) return null;
+
+  let candidate: string;
+  if (HIERARCHICAL_SCHEME_RE.test(raw)) {
+    candidate = raw;
+  } else if (HOST_PORT_RE.test(raw) || !OPAQUE_SCHEME_RE.test(raw)) {
+    candidate = `${inferDefaultScheme(raw)}://${raw}`;
+  } else {
+    // 非层级 scheme（javascript: / data: / mailto: 等）：显式拒绝，不做补协议兜底
+    return null;
+  }
+
+  try {
+    const url = new URL(candidate);
+    if (!NAVIGABLE_PROTOCOLS.has(url.protocol) || !url.hostname) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}

@@ -24,9 +24,12 @@ import {
   Link,
   Clock,
   Key,
+  Aim,
+  Grid,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
+import type { SearchScope } from '@/utils/passwordFilter';
 import { getTagColor } from '@/utils/tagUtils';
 import { getPinyinRenderMemoDependency } from '@/utils/searchMatch';
 import { t } from '@/utils/i18n';
@@ -44,8 +47,12 @@ interface Props {
   autoTriggerLogin: boolean;
   /** 当前排序字段（用于下拉菜单高亮选中项） */
   sortProp: string;
-  /** 可选标签集（取自域名过滤后的条目；为空时隐藏标签筛选行） */
+  /** 可选标签集（取自当前搜索范围内的条目；为空时隐藏标签筛选行） */
   availableTags: string[];
+  /** 全库命中数（仅本站无结果时 > 0，用作空态的「搜索全部条目」引导） */
+  globalMatchCount: number;
+  /** 全站模式下无法填充当前页的外站条目 ID 集（本站模式为空集） */
+  offSiteIds: ReadonlySet<string>;
 }
 
 interface Emits {
@@ -64,6 +71,8 @@ interface Emits {
   /** 以下为 PasswordListItem 事件透传 */
   fill: [password: PasswordEntry];
   fillAndLogin: [password: PasswordEntry];
+  /** 打开外站条目所属站点（全站模式下不可填充条目的整行动作） */
+  openSite: [password: PasswordEntry];
   edit: [password: PasswordEntry];
   toggleFavorite: [password: PasswordEntry];
   copyUsername: [username: string];
@@ -83,6 +92,27 @@ const favoriteOnly = defineModel<boolean>('favoriteOnly', { required: true });
 
 /** 标签筛选选中集（双向绑定至父级，命中任一即保留） */
 const filterTags = defineModel<string[]>('filterTags', { required: true });
+
+/** 搜索范围（双向绑定至父级：site = 本站，all = 全库） */
+const searchScope = defineModel<SearchScope>('searchScope', { required: true });
+
+/** 范围切换按钮提示：与「只看收藏」一致，图标表当前状态、提示表即将执行的动作 */
+const scopeTooltip = computed(() =>
+  searchScope.value === 'all' ? t('sidepanel.scope.toSite') : t('sidepanel.scope.toAll'),
+);
+
+/** 切换搜索范围（本站 ⇄ 全站） */
+const toggleScope = () => {
+  searchScope.value = searchScope.value === 'all' ? 'site' : 'all';
+};
+
+/**
+ * 条目能否填充到当前页
+ *
+ * 以布尔值（而非 offSiteIds 集合引用）参与 v-memo：仅当该行的能力真正变化时重渲染，
+ * 避免全站模式下每次过滤重算产生新 Set 导致整张列表无效重渲染。
+ */
+const canFill = (entry: PasswordEntry): boolean => !props.offSiteIds.has(entry.id);
 
 /**
  * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
@@ -248,6 +278,22 @@ onUnmounted(() => {
         @input="emit('search')"
       />
       <el-tooltip
+        :content="scopeTooltip"
+        placement="top"
+        :show-after="400"
+      >
+        <el-button
+          :icon="searchScope === 'all' ? Grid : Aim"
+          circle
+          size="small"
+          :type="searchScope === 'all' ? 'primary' : 'default'"
+          :aria-label="scopeTooltip"
+          :aria-pressed="searchScope === 'all'"
+          class="scope-toggle-btn"
+          @click="toggleScope"
+        />
+      </el-tooltip>
+      <el-tooltip
         :content="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
         placement="top"
         :show-after="400"
@@ -342,6 +388,23 @@ onUnmounted(() => {
         </el-dropdown>
       </el-tooltip>
     </div>
+    <!-- 全站搜索状态条：显式告知当前范围并常驻「回到本站」出口，
+         避免用户把外站条目误当作可直接填充当前页的账号（图标 + 文案 + 按钮三重表达，不仅靠颜色） -->
+    <div
+      v-if="searchScope === 'all'"
+      class="scope-bar"
+      role="status"
+    >
+      <el-icon class="scope-bar__icon"><Grid /></el-icon>
+      <span class="scope-bar__text">{{ t('sidepanel.scope.barText') }}</span>
+      <button
+        type="button"
+        class="scope-bar__back"
+        @click="searchScope = 'site'"
+      >
+        {{ t('sidepanel.scope.backToSite') }}
+      </button>
+    </div>
     <!-- 标签筛选：多行 wrap 布局，max-height 限高约 2 行，超出部分纵向滚动；
          点击选中后自动滚入可视区，滚动条自身作为"更多内容"的提示 -->
     <div
@@ -409,6 +472,16 @@ onUnmounted(() => {
           </div>
           <h3 class="empty-title">{{ t('sidepanel.noMatch') }}</h3>
           <p class="empty-desc">{{ t('sidepanel.noMatchDesc') }}</p>
+          <!-- 本站无结果但全库有命中：给出行动出口，不让搜索停在死胡同（空屏即邀请） -->
+          <el-button
+            v-if="searchScope === 'site' && globalMatchCount > 0"
+            type="primary"
+            :icon="Grid"
+            class="empty-search-all-btn"
+            @click="searchScope = 'all'"
+          >
+            {{ t('sidepanel.scope.searchAllCta', { count: globalMatchCount }) }}
+          </el-button>
           <el-button
             type="primary"
             plain
@@ -435,13 +508,16 @@ onUnmounted(() => {
             autoTriggerLogin,
             searchKeyword,
             pinyinRenderMemoDependency,
+            canFill(password),
           ]"
           :password="password"
           :is-active="activeIndex === index"
           :auto-login-enabled="autoTriggerLogin"
           :search-keyword="searchKeyword"
+          :can-fill="canFill(password)"
           @fill="p => emit('fill', p)"
           @fill-and-login="p => emit('fillAndLogin', p)"
+          @open-site="p => emit('openSite', p)"
           @edit="p => emit('edit', p)"
           @toggle-favorite="p => emit('toggleFavorite', p)"
           @copy-username="u => emit('copyUsername', u)"
@@ -488,6 +564,61 @@ onUnmounted(() => {
 
 .search-section :deep(.el-input) {
   flex: 1;
+}
+
+/* 范围切换按钮：全站激活态走主题色，与「只看收藏」的 warning 激活态同一交互语言 */
+.scope-toggle-btn {
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* 全站搜索状态条：主题色浅底条带随 search-card 圆角裁切，图标 + 文案 + 出口按钮三重表达 */
+.scope-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 16px 8px;
+  font-size: 12px;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+}
+
+.scope-bar__icon {
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.scope-bar__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scope-bar__back {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--aph-primary);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--aph-primary-border);
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.scope-bar__back:hover {
+  color: #fff;
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
+}
+
+.scope-bar__back:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline-offset: 1px;
 }
 
 /* 标签筛选外层 */
@@ -558,6 +689,22 @@ onUnmounted(() => {
 .tag-chip:focus-visible {
   outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
   outline-offset: 1px;
+}
+
+/* 无结果态「在全部条目中查找」：主题色实心作为空态首选出口，与下方轻量描边的「添加本站账号」区分层级 */
+:deep(.empty-search-all-btn) {
+  padding: 8px 20px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 18px;
+  box-shadow: 0 2px 10px rgb(var(--aph-primary-rgb) / 25%);
+  transition: all 0.25s ease;
+}
+
+:deep(.empty-search-all-btn:hover) {
+  box-shadow: 0 4px 14px rgb(var(--aph-primary-rgb) / 40%);
+  transform: translateY(-1px);
 }
 
 /* 无结果态「添加本站账号」：轻量描边样式，与全空态主按钮区分层级 */
