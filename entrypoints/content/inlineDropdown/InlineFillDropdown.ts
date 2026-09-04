@@ -520,6 +520,15 @@ const HINT_AUTO_HIDE_MS = 5000;
 /** 首次引导气泡淡出过渡时长（毫秒，与 .aph-hint 的 CSS transition 保持一致） */
 const HINT_FADE_MS = 200;
 
+/** 面板与输入框/视口边缘的间距（px） */
+const PANEL_GAP = 4;
+
+/** 面板水平方向的最小视口边距（px） */
+const PANEL_MARGIN = 8;
+
+/** 窄视口（如嵌套 iframe 登录框）下面板高度的压缩下限（px），保证搜索行 + 至少一条账号可用 */
+const PANEL_MIN_HEIGHT = 120;
+
 /** showTriggerFor 选项 */
 interface TriggerOptions {
   /** 该字段是否已存在密码显隐眼睛图标（用于图标避让） */
@@ -938,8 +947,13 @@ export class InlineFillDropdown {
     this.activeIndex = -1;
 
     this.buildPanel();
-    this.positionPanel();
+    // 先置可见再定位：.aph-panel 默认 display:none，不可见时 offsetHeight 恒为 0，
+    // 会导致首开时上下空间判断失效（嵌套 iframe 等窄视口下面板被裁切）。
+    // 定位与置可见在同一同步任务内完成，不会闪现错误位置。
     this.panelEl?.classList.add('visible');
+    this.positionPanel();
+    // positionPanel 可能因输入框滚出视口而关闭面板，此时不再继续绑定与聚焦
+    if (!this.panelOpen) return;
     this.attachPanelInteractions();
     if (!this.locked) this.focusSearch();
   }
@@ -1462,6 +1476,10 @@ export class InlineFillDropdown {
 
   /**
    * 计算并应用面板位置（锚定输入框下方，空间不足时上翻）
+   *
+   * 窄视口（嵌套 iframe 登录框等）下上下两侧都放不下自然高度时，
+   * 按空间较大一侧压缩面板高度（列表内部滚动），极端情况降级为视口内贴合，
+   * 避免面板超出 iframe 边界被裁切。调用方须保证面板已处于可见态以便测量。
    */
   private positionPanel(): void {
     if (!this.panelEl || !this.currentInput) return;
@@ -1473,15 +1491,34 @@ export class InlineFillDropdown {
 
     const width = Math.min(380, Math.max(300, rect.width));
     let left = rect.left;
-    if (left + width > window.innerWidth - 8) {
-      left = Math.max(8, window.innerWidth - 8 - width);
+    if (left + width > window.innerWidth - PANEL_MARGIN) {
+      left = Math.max(PANEL_MARGIN, window.innerWidth - PANEL_MARGIN - width);
     }
 
-    const gap = 4;
-    const panelHeight = this.panelEl.offsetHeight || 0;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const placeAbove = spaceBelow < panelHeight + gap && rect.top > spaceBelow;
-    const top = placeAbove ? Math.max(8, rect.top - panelHeight - gap) : rect.bottom + gap;
+    // 先解除上一次的高度压缩再测量自然高度（受 CSS max-height 上限约束）
+    this.panelEl.style.maxHeight = '';
+    const naturalHeight = this.panelEl.offsetHeight || 0;
+    const spaceBelow = window.innerHeight - rect.bottom - PANEL_GAP;
+    const spaceAbove = rect.top - PANEL_GAP;
+    const placeAbove = spaceBelow < naturalHeight && spaceAbove > spaceBelow;
+    const available = placeAbove ? spaceAbove : spaceBelow;
+    const height = Math.min(naturalHeight, Math.max(PANEL_MIN_HEIGHT, available));
+    if (height < naturalHeight) {
+      this.panelEl.style.maxHeight = `${Math.round(height)}px`;
+    }
+
+    let top: number;
+    if (height < naturalHeight) {
+      // 压缩态：锚定侧可能仍放不下（视口低于下限），降级为视口内贴合（宁可遮挡输入框也不裁切列表）
+      const anchorTop = placeAbove ? rect.top - PANEL_GAP - height : rect.bottom + PANEL_GAP;
+      top = Math.min(
+        Math.max(PANEL_MARGIN, anchorTop),
+        Math.max(PANEL_MARGIN, window.innerHeight - height - PANEL_MARGIN),
+      );
+    } else {
+      // 自然高度可完整放入锚定侧，仅上翻时保留顶部最小边距（与既有行为一致）
+      top = placeAbove ? Math.max(PANEL_MARGIN, rect.top - PANEL_GAP - height) : rect.bottom + PANEL_GAP;
+    }
 
     this.panelEl.style.left = `${Math.round(left)}px`;
     this.panelEl.style.top = `${Math.round(top)}px`;

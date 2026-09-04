@@ -107,6 +107,16 @@ const toggleScope = () => {
 };
 
 /**
+ * 空态提示文案
+ *
+ * 有搜索词时补充拼音首字母线索：搜不到结果正是用户需要这条提示的时机；
+ * 仅有筛选条件而无搜索词时保持通用文案，不推送无关信息。
+ */
+const emptyHint = computed(() =>
+  searchKeyword.value.trim() ? t('sidepanel.noMatchDescSearch') : t('sidepanel.noMatchDesc'),
+);
+
+/**
  * 条目能否填充到当前页
  *
  * 以布尔值（而非 offSiteIds 集合引用）参与 v-memo：仅当该行的能力真正变化时重渲染，
@@ -269,10 +279,17 @@ onUnmounted(() => {
   <!-- 搜索卡片 -->
   <div class="search-card">
     <div class="search-section">
+      <!--
+        placeholder 只承载「搜什么」的短清单：窄面板下会被硬裁切、且输入后即消失，
+        因此完整字段范围与拼音能力固定在 aria-label（读屏可完整播报，输入后不丢字段名）
+        与 title（悬停补充）上，拼音技巧本身则下放到「搜不到」的空态文案
+      -->
       <el-input
         ref="searchInputRef"
         v-model="searchKeyword"
         :placeholder="t('sidepanel.searchPlaceholder')"
+        :aria-label="t('sidepanel.searchAriaLabel')"
+        :title="t('sidepanel.searchAriaLabel')"
         :prefix-icon="Search"
         clearable
         @input="emit('search')"
@@ -471,7 +488,7 @@ onUnmounted(() => {
             <el-icon class="empty-icon empty-icon--muted"><Search /></el-icon>
           </div>
           <h3 class="empty-title">{{ t('sidepanel.noMatch') }}</h3>
-          <p class="empty-desc">{{ t('sidepanel.noMatchDesc') }}</p>
+          <p class="empty-desc">{{ emptyHint }}</p>
           <!-- 本站无结果但全库有命中：给出行动出口，不让搜索停在死胡同（空屏即邀请） -->
           <el-button
             v-if="searchScope === 'site' && globalMatchCount > 0"
