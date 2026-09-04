@@ -1,7 +1,5 @@
 import type { QuickAddPasswordData } from '@/utils/types';
-import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { getSidePanelPorts } from './sidePanelManager';
 import { ensureCredentialAccessAfterStartupRelock, invalidatePasswordCache } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
 
@@ -19,7 +17,8 @@ const FIELD_LIMITS = {
  *
  * 由 SidePanel 快速添加弹窗发起（发起方为扩展页面，无 sender.tab，
  * URL 为用户自报域名仅作展示）。执行会话校验、字段校验后加密落盘，
- * 成功时失效密码缓存并通知已打开的侧边栏刷新。
+ * 成功时失效 background 密码缓存；侧边栏列表刷新由 storage watcher 承担
+ * （原因见落盘处注释），此处不额外发送 port 通知。
  * @param data 快速添加数据（消息载荷为不可信输入，需边界校验）
  * @returns 保存结果（供侧边栏直接展示提示文案）
  */
@@ -69,14 +68,11 @@ export async function handleQuickAddPassword(
     // 保存成功后使密码缓存失效，确保下次加载时获取最新数据
     invalidatePasswordCache();
 
-    // 主动通知 sidepanel 刷新数据（兜底：列表通常经 storage watcher 自动刷新）
-    for (const port of getSidePanelPorts()) {
-      try {
-        port.postMessage({ type: MessageType.URL_CHANGED });
-      } catch {
-        // port 可能已断开但尚未触发 disconnect 事件，忽略
-      }
-    }
+    // 刻意不向 sidepanel port 发送刷新通知：savePassword 的 storage 写入已触发侧边栏
+    // storage watcher 静默重载，且该路径独有 isMetadataOnlyChange 零解密快路径、
+    // _sessionKnownExpired 与本地操作守卫。额外的 port 通知会让同一次保存跑两遍
+    // 全量 AES-GCM 解密（_passwordLoadSequence 只保证最后一次提交，不去重开销），
+    // 属重复刷新而非兜底。回归守卫见 tests/background/quickAddHandler.test.ts。
 
     return { success: true, message: tl('bg.quickAdd.success') };
   } catch (error) {

@@ -452,7 +452,7 @@ const handleGoToOptions = () => {
   margin: 0 0 8px;
   font-size: 14px;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--aph-text-primary);
 }
 
 .help-section ol,
@@ -556,7 +556,7 @@ const handleGoToOptions = () => {
 
 .help-shortcut-name {
   min-width: 0;
-  color: #1f2937;
+  color: var(--aph-text-primary);
 }
 
 .help-shortcut-warn {
@@ -570,7 +570,7 @@ const handleGoToOptions = () => {
   margin: 10px 0 0;
   font-size: 12px;
   line-height: 1.6;
-  color: #6b7280;
+  color: var(--aph-text-secondary);
 }
 
 /* el-button link 默认带高度与内边距，此处归零以随行文本基线排版 */
@@ -592,7 +592,7 @@ const handleGoToOptions = () => {
   font-size: 16px;
   font-weight: 600;
   line-height: 24px;
-  color: #1f2937;
+  color: var(--aph-text-primary);
 }
 
 .help-header__version {

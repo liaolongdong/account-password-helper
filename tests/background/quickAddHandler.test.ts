@@ -2,11 +2,13 @@
  * 侧边栏快速添加条目（QUICK_ADD_PASSWORD）回归测试
  *
  * 覆盖：字段边界校验（空/超长/非法类型）、会话锁定降级、加密落盘委托、
- * 缓存失效与 sidepanel port 通知（含 port 异常容错）。
+ * 缓存失效，以及「不通过 port 通知侧边栏」的回归守卫。
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { handleQuickAddPassword } from '@/entrypoints/background/quickAddHandler';
 
+// 保留 sidePanelManager 桩：handler 已不再向其发送刷新通知，
+// 该桩用于断言「不通过 port 通知」的回归守卫（见下方成功路径用例）
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
   getSidePanelPorts: vi.fn(() => []),
 }));
@@ -32,7 +34,6 @@ import {
   invalidatePasswordCache,
 } from '@/entrypoints/background/passwordCache';
 import { StorageUtils } from '@/utils/storage';
-import { MessageType } from '@/utils/types';
 
 const mockedPorts = vi.mocked(getSidePanelPorts);
 const mockedEnsure = vi.mocked(ensureCredentialAccessAfterStartupRelock);
@@ -83,27 +84,31 @@ describe('handleQuickAddPassword 成功路径', () => {
     expect(entry.url).toBe('');
   });
 
-  it('成功后失效密码缓存并通过 port 通知侧边栏刷新', async () => {
-    const postMessage = vi.fn();
-    mockedPorts.mockReturnValue([{ postMessage } as unknown as chrome.runtime.Port]);
-
+  it('成功后失效密码缓存', async () => {
     await handleQuickAddPassword(validData);
 
     expect(mockedInvalidate).toHaveBeenCalledTimes(1);
-    expect(postMessage).toHaveBeenCalledWith({ type: MessageType.URL_CHANGED });
   });
 
-  it('port 断开（postMessage 抛错）不影响保存结果', async () => {
-    mockedPorts.mockReturnValue([
-      {
-        postMessage: vi.fn(() => {
-          throw new Error('port disconnected');
-        }),
-      } as unknown as chrome.runtime.Port,
-    ]);
+  /**
+   * 回归守卫：保存成功后不得向 sidepanel port 发送刷新通知
+   *
+   * 侧边栏列表刷新的唯一路径是 storage watcher——它独有 isMetadataOnlyChange 零解密
+   * 快路径与 _sessionKnownExpired / 本地操作守卫。此前这里会额外 postMessage 一条
+   * 不带 data 的 URL_CHANGED（违反 utils/types.ts 判别联合契约），而 useSidepanelData
+   * 的 bgPort.onMessage 只处理 CLOSE_SIDEPANEL 与 SESSION_EXPIRED，该通知从未被消费；
+   * 若将来接上，同一次保存会跑两遍全量 AES-GCM 解密。
+   * URL_CHANGED 的合法生产者是 content script 导航检测（携带真实 data.url）。
+   */
+  it('不通过 port 通知侧边栏（避免与 storage watcher 重复全量解密）', async () => {
+    const postMessage = vi.fn();
+    mockedPorts.mockReturnValue([{ postMessage } as unknown as chrome.runtime.Port]);
 
     const result = await handleQuickAddPassword(validData);
+
     expect(result.success).toBe(true);
+    expect(mockedPorts).not.toHaveBeenCalled();
+    expect(postMessage).not.toHaveBeenCalled();
   });
 });
 

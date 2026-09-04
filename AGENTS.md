@@ -119,7 +119,8 @@
 
 ## Vue 3 与界面规范
 
-- 新增 Vue 代码默认使用 Composition API 和 `<script setup lang="ts">`；SFC 顺序保持 `<script>`、`<template>`、`<style>`。
+- 新增 Vue 代码默认使用 Composition API 和 `<script setup lang="ts">`。SFC 顶层块顺序遵循 Vue 官方风格指南 Priority C「Single-file component top-level element order」：`<style>` 必须在最后，而 `<script>` 与 `<template>` 的先后**两种都被官方认可**（指南的 Good 示例同时给出两种写法），规则本意是全仓保持一致，而非固定某一种顺序。硬性部分已由 `vue/block-order` 强制：`flat/recommended` 采用插件默认 `[["script", "template"], "style"]`（嵌套数组内顺序任意），配合 `pnpm lint` 的 `--max-warnings 0`，违规即失败。
+- 新增 `.vue` 文件跟随所在目录的既有惯例：`components/options/` 一律 `<template>` 在前，`components/sidepanel/` 与 `components/` 根下的小组件以 `<script>` 在前为主。修改存量文件时不得为「符合规范」重排块顺序——两种顺序都合规，重排只产生零行为收益的大 diff；若确需全仓统一，属独立任务，须先确认影响面再一次性处理。
 - 保持单一事实来源：源状态尽量少，派生值使用纯 `computed`，watcher 只承担副作用并正确清理异步任务。
 - Props 只读、事件向上。组件边界使用类型化的 `defineProps`、`defineEmits`；只有真正的双向组件契约才使用 `defineModel`。
 - 根入口组件保持为组合与装配层。组件同时承担多块 UI、状态编排和副作用时，按职责拆为子组件与 composable；小而单一的实现不为“复用”强行拆分。

@@ -15,7 +15,7 @@
         @open-help="showHelpDialog = true"
         @open-settings="handleOpenSettings"
         @open-validity="openValiditySetting"
-        @add-site-password="showQuickAddDialog = true"
+        @add-site-password="openQuickAddDialog"
       />
     </div>
 
@@ -60,8 +60,8 @@
       :off-site-ids="offSiteIds"
       @sort-change="handleSortChange"
       @search="handleSearch"
-      @add-password="showQuickAddDialog = true"
-      @add-site-password="showQuickAddDialog = true"
+      @add-password="openQuickAddDialog"
+      @add-site-password="openQuickAddDialog"
       @activate="index => (activeIndex = index)"
       @rendered="handleAuthViewRendered"
       @fill="fillPassword"
@@ -92,8 +92,12 @@
       @go-to-options="openOptions"
     />
 
-    <!-- 快速添加条目弹窗（委托 background 加密落盘，完整字段经底部入口跳转密码管理页） -->
+    <!-- 快速添加条目弹窗（委托 background 加密落盘，完整字段经底部入口跳转密码管理页）
+         v-if 门控挂载：defineAsyncComponent 的 loader 在组件「渲染」时即触发，无条件渲染会让
+         弹窗 chunk 落入锁屏态首帧窗口，与认证视图 / 资源预热争抢冷盘 IO。
+         门控必须用独立的粘性标志而非 showQuickAddDialog（原因见 quickAddMounted 注释） -->
     <QuickAddDialog
+      v-if="quickAddMounted"
       v-model="showQuickAddDialog"
       :default-url="currentDomain"
       @open-options-add="openOptionsAndAdd"
@@ -159,10 +163,12 @@ import { warmPinyinMatcher } from '@/utils/searchMatch';
 const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
 
 /**
- * 快速添加条目弹窗——懒加载（仅在用户点击「添加」时加载）
+ * 快速添加条目弹窗——懒加载（模板处以粘性标志 quickAddMounted 做 v-if 门控，首次打开才触发 chunk loader）
  *
- * 与 HelpDialog 同为独立 chunk，不打进初始关键包；
- * 首帧后由 preloadIdleModules 空闲预取，首次点击即时打开。
+ * 与 HelpDialog 同为独立 chunk，不打进初始关键包。注意 defineAsyncComponent 的 loader
+ * 在组件「渲染」时即触发，故必须配合模板 v-if 才能真正排除在首帧之外——否则锁屏态
+ * （会话失效冷启动，首屏 JS 本应收敛至按钮 + 图标级依赖）也会在首帧拉取弹窗 chunk。
+ * 首帧后由 preloadIdleModules 空闲预取该 chunk，使用户首次点击即时打开。
  */
 const QuickAddDialog = defineAsyncComponent(() => import('@/components/sidepanel/QuickAddDialog.vue'));
 
@@ -303,6 +309,27 @@ const showHelpDialog = ref(false);
 /** 快速添加条目弹窗可见性 */
 const showQuickAddDialog = ref(false);
 
+/**
+ * 快速添加弹窗是否已挂载（首次打开置 true 后不再回落）
+ *
+ * 与 showQuickAddDialog 分离是必需的：
+ * - 性能侧——弹窗 chunk 必须被 v-if 门控在首帧之外，否则锁屏态冷启动会与认证视图、
+ *   资源预热争抢磁盘 IO；
+ * - 行为侧——若直接拿 showQuickAddDialog 做 v-if，关闭瞬间组件连同 el-dialog 内部的
+ *   Transition 一并被卸载，dialog-fade 退场动画不会播放（弹窗「闪没」），
+ *   与 Options 页各弹窗的关闭观感不一致。
+ *
+ * 粘性标志同时满足两者：首帧不加载 chunk，首次打开后组件常驻，
+ * 退场动画与关闭时的表单明文清理（见 QuickAddDialog 内 watch）均保持原有语义。
+ */
+const quickAddMounted = ref(false);
+
+/** 打开快速添加弹窗：同步置挂载标志与可见性，使弹窗以 modelValue=true 完成首次挂载 */
+const openQuickAddDialog = (): void => {
+  quickAddMounted.value = true;
+  showQuickAddDialog.value = true;
+};
+
 // ==================== 排序与过滤 ====================
 
 /** 当前活动标签页的域名匹配上下文（供范围过滤与「能否填充当前页」判定共用） */
@@ -396,8 +423,11 @@ watch([favoriteOnly, filterTags, searchScope], () => {
  *
  * 新页面上下文下继续全站搜索会让「打开站点」与当前页填充语义混淆，
  * 且用户切站后的心智模型已回到「填这个站」。
+ *
+ * 必须同时监听端口：本地开发域名切换端口（localhost:3000 → localhost:5173）时
+ * currentDomain 不变而 matchesSiteScope 的判定已变，只监听域名会漏掉本次重置。
  */
-watch(currentDomain, () => {
+watch([currentDomain, currentPort], () => {
   searchScope.value = 'site';
 });
 
@@ -767,7 +797,7 @@ onMounted(async () => {
       setTimeout(() => skeletonEl.remove(), 250);
     }
 
-    // 空闲预取：设置弹窗模块 + HelpDialog + TotpCode + 认证视图 chunk（不阻塞首屏渲染），
+    // 空闲预取：设置弹窗模块 + HelpDialog + QuickAddDialog + TotpCode + 认证视图 chunk（不阻塞首屏渲染），
     // 冷环境（Windows 会话失效期 / 浏览器重启引导期）下用户首次交互时 chunk 已温热、即时打开；
     // 认证视图 chunk 在锁屏态被跳过立即预取（见 onMounted 前段），此处补齐使解锁切换零等待；
     // 未取完前触发则退化为按需加载，无回退风险；预取失败静默吞掉（交互时按需加载兜底）

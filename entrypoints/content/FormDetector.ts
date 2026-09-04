@@ -786,17 +786,6 @@ export class FormDetector {
   }
 
   /**
-   * 判断是否检测到登录表单字段
-   * @returns 是否存在用户名+密码或手机号+验证码组合
-   */
-  public hasLoginFormFields(): boolean {
-    return (
-      (this.usernameFields.length > 0 && this.passwordFields.length > 0) ||
-      (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0)
-    );
-  }
-
-  /**
    * 检测页面中的登录按钮
    */
   private detectLoginButtons(): void {

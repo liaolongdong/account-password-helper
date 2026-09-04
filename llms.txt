@@ -30,7 +30,7 @@
 - **6 color themes + bilingual UI** (中文 / English), instant switching without refresh
 - **Password visibility toggle**: injects show/hide button into page password fields, verify filled content with one click
 - **Trash bin & password history**: 30-day soft delete, 1-10 encrypted snapshots per entry, one-click rollback
-- **Smart search**: pinyin/initials search with match highlighting, tags, favorites with LRU eviction
+- **Smart search**: pinyin/initials search with match highlighting, side panel "This site / All entries" scope toggle (off-site hits stay copyable and open in a new tab), tags, favorites with LRU eviction
 - **Flexible session control**: 1 hour to 7 days validity, auto idle lock, lock on browser restart
 
 ## Who It's For

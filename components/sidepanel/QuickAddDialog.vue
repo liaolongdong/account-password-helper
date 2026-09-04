@@ -51,7 +51,14 @@ const form = reactive({
 /** 表单校验规则（与密码管理页添加表单共用同一工厂，保证字段校验规则完全一致） */
 const rules = computed<FormRules>(() => createPasswordFormRules(t));
 
-/** 打开时预填网址并聚焦首字段；关闭时清空表单（安全考虑：清除内存中的明文密码） */
+/**
+ * 打开时预填网址并聚焦首字段；关闭时清空表单（安全考虑：清除内存中的明文密码）
+ *
+ * immediate 为必需项：父组件用粘性标志 v-if 门控挂载本弹窗（把懒加载 chunk 拦在侧边栏首帧之外），
+ * 首次打开时「挂载」与「modelValue 已为 true」发生在同一次渲染，
+ * 非 immediate 的 watch 不会为初始值触发，将静默丢失网址预填与首字段聚焦。
+ * 后续开关走同一条 watch 分支（组件首次打开后常驻，不随关闭卸载）。
+ */
 watch(
   () => props.modelValue,
   visible => {
@@ -67,6 +74,7 @@ watch(
       formRef.value?.clearValidate();
     }
   },
+  { immediate: true },
 );
 
 /** 提交快速添加：委托 background 校验会话并加密落盘 */
