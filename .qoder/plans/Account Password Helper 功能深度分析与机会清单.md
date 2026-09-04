@@ -43,10 +43,9 @@
 - **已实现**：`utils/shortcutCommands.ts`（命令清单单一事实来源 + `openShortcutsPage()`）、`components/ShortcutKeyCap.vue`（键帽，外层 `span[role=img][aria-label]` 包内层 `kbd[aria-hidden]`）、`components/options/ShortcutSettingDialog.vue`、`components/sidepanel/HelpDialog.vue` 快捷键分组、`composables/useShortcuts.ts`（`entries` 派生真实绑定态）。兜底按键按平台取 manifest `suggested_key` 的 `default` / `mac` 分支（`utils/platform.ts` 的 `isMacPlatform()`），避免 macOS 上未绑定行显示与 manifest 声明不符的 `Ctrl⇧`。侧边栏的 `loadShortcuts()` 挂在 `watch(modelValue)` 而非 setup，不侵入首屏关键路径（实测挂载期 `getAll()` 调用 0 次）。
 - **成本**：低，零权限变更（不改 `wxt.config.ts` 的 `commands` / `permissions`，不新增消息类型）。**价值**：不调整默认键位，但直接消除「按键未生效却无从得知」的投诉，并提升功能可发现性。
 
-#### 3. 侧边栏全局搜索模式 ⭐ 推荐首批
-- **现状缺口**：侧边栏搜索只作用于"当前域名 + 空 URL 条目"（`entrypoints/sidepanel/App.vue:319-327` 中 `filteredPasswords` 基于 `domainFilteredPasswords`）。想找其它站点的账号必须打开 options 页。
-- **方案**：搜索框旁增加「全站」切换（或检测到当前域名无结果时自动提示"搜索全部条目"），命中条目支持复制/编辑/跳转。
-- **实施要点**：数据已在 `useSidepanelData` 缓存中，仅放宽过滤范围 + 空态引导，改动收敛在 `App.vue`。
+#### 3. 侧边栏全局搜索模式 ✅ 已落地
+- **实施前缺口**：侧边栏搜索只作用于"当前域名 + 空 URL 条目"（`entrypoints/sidepanel/App.vue:319-327` 中 `filteredPasswords` 基于 `domainFilteredPasswords`）。想找其它站点的账号必须打开 options 页。
+- **已实现**：搜索框右侧图标切换「本站 / 全站」范围（`SearchScope = 'site' | 'all'` 与 `filterEntriesByScope`，见 `utils/passwordFilter.ts`）；每次打开侧边栏、以及切换活动标签页（同时监听域名与端口）均重置回 `site`；全站命中的外站条目禁用「填充当前页」但保留复制/收藏/编辑，点击整行在新标签页打开该站点；本站无结果而全库有命中时，空态给出「在全部条目中查找（N 条）」入口（`sidepanel.scope.searchAllCta`）。
 - **成本**：低。**价值**：侧边栏从"当前站工具"升级为"全库入口"，使用频率显著提升。
 
 #### 4. 生物识别 / PIN 快捷解锁
@@ -66,9 +65,19 @@
 - 现状：自动保存黑名单是全局域名级；无法按站点指定填充模式、禁用悬浮按钮、调整匹配策略。
 - 方案：设置中增加「站点规则」列表（域名 → 行为开关），复用现有黑名单数据结构扩展。
 
-#### 7. 保存时弱密码 / 重复内联预警
-- 现状：`SavePasswordPrompt` 捕获时不提示质量；安全体检只在 options 主动打开。
-- 方案：捕获弹窗内复用 `utils/passwordHealth.ts` 评分，对弱密码/与已有条目重复给出内联警示（可忽略），把体检能力前置到行为发生点。成本低-中。
+#### 7. 保存时弱密码 / 重复内联预警 ✅ 已落地
+- **实施前缺口**：`SavePasswordPrompt` 捕获时不提示质量；安全体检只在 options 主动打开，能力未前置到行为发生点。
+- **已实现**（非拦截式内联警示，与原方案一致：可忽略、不加二次确认）：
+  - **判定核心下沉**：新建 `utils/passwordStrengthCore.ts`（纯函数、零 i18n、零 Vue 依赖）持有规则正则、长度阈值、等级映射与色值契约；`composables/usePasswordStrength.ts` 退化为贴附 Vue i18n 文案的薄层，对外导出签名与五个返回字段逐字段不变。这使 background / content script / Vue UI 三方共用同一口径而不把 Vue i18n 拖进 SW 包（已构建验证：`background.js` 无任何 `strength.*` 语言包条目，该条目仅出现于 `options-*.js` 与 `verify-*.js` chunk）。
+  - **零成本扩展点**：`checkCredentialStatus`（`utils/storage/autoSaveManager.ts`）本就已 `getAllPasswords()` 完成全量解密，新增私有 `buildSaveRiskHint()` 就地计算，不新增 MessageType、不多读存储、不多解密；`CredentialStatusResponse.risk` 仅在会弹窗的 `new` / `password_changed` 两分支携带，`locked`、`identical` 与异常兜底不携带。
+  - **复用计数语义**：无需减去条目自身——`password_changed` 分支已排除密码相同的条目（那种情况走 `identical`），`new` 分支不存在匹配条目，故命中数天然就是「其它账号」数量（已用测试固化）。有意不做泄露字典校验：字典需异步懒加载，会给保存热路径引入延迟，且该维度已由安全体检覆盖。
+  - **传递与信任边界**：`risk` 随 `SavePromptData` 经 iframe 委托的 `postMessage` 自动跨帧透传（`entrypoints/content.ts` 接收方直接透传 `data`，无需改动）；属派生结论，**不写入 pending 也不进 sessionStorage**，避免改密码后留下陈旧计数。接收方 `sanitizeRiskHint` 逐字段收窄：`weak` 仅接受严格布尔 `true`，`reusedCount` 须为 `1..9999` 整数，非法值一律丢弃。
+  - **派生状态失效边界**：`resolveRiskHints` 区分两类维度——弱密码是纯函数可就地重算，密码一改即刷新；复用计数依赖 background 全量库、本地无法重算，密码一旦偏离后台评估时的值即撤下该行。
+  - **UI 与可访问性**：警示条插在密码行之后、标签行之前（贴近它所警示的字段），`updatePassword` 回调内随输入重绘；`role="status"` 使其成为 polite live region，屏幕阅读器会主动播报；文案全部经 `textContent` 写入，不用 `innerHTML`。正文色取 `#8a5a12` 而非 `#e6a23c`：12px 正文在 `#fdf6ec` 浅黄底上需满足 WCAG AA 的 4.5:1，`#e6a23c` 仅约 2:1。
+  - **i18n**：`utils/i18n-lite.ts` 新增 `cs.save.riskWeak` / `cs.save.riskReused`（`{count}` 插值）中英各 2 条。
+- **文档已同步**：README / README.en（功能条 + FAQ）、`docs/ARCHITECTURE.md` / `.en.md`（第 4 节两条 + 第 9 节分层下沉 + 文件树）、`docs/CWS_FILL_CONTENT.md`（中英商店说明 + Featured 提名文案中英各 1 处）、`index.html` 的 `features.f6.desc`（中英字典 + 静态节点，已跑 `pnpm gen:en` 重生成 `en.html`）。HelpDialog 与 `wxt.config.ts` 描述不涉及（警示在 content script 弹窗而非侧边栏；manifest 描述未枚举自动保存细节）。
+- **验证**：新增 `tests/utils/passwordStrengthCore.test.ts`（17 例）与 `tests/composables/usePasswordStrength.test.ts`（14 例，逐字段锁定重构前契约），扩展 `tests/utils/autoSaveManager.test.ts`（+9 例覆盖 risk 附带边界）。全量 44 文件 / 540 测试通过（基线 42 / 495），`typecheck` / `lint --max-warnings 0` / `lint:style` / `build` 均 EXIT=0。
+- **成本**：低（实际落在原估「低-中」的下沿，得益于 `checkCredentialStatus` 的零成本扩展点）。
 
 #### 8. 跟随系统主题自动切换
 - 现状：6 套手动主题，全工程无 `prefers-color-scheme` 用法（已复核）。锁屏视图 `components/sidepanel/SidepanelAuthView.vue:133` 用的是 `prefers-reduced-motion`（动效降级），与配色无关——初版此处将两者记混，已修正。
@@ -90,18 +99,21 @@
 | # | 优化点 | 说明 | 成本 |
 |---|---|---|---|
 | 1 | 快捷键一览可发现性 | ✅ 已随 P0-2 落地（popup / 密码管理页 / 侧边栏帮助三处入口） | 低 |
-| 2 | 清理遗留调试代码 | `components/options/ValidityHoursSelect.vue:36-38` 有 `/** todo 测试过期时间 别删除 start */` 与 `end */` 包裹的注释掉的 6 分钟选项，确认无用后清理 | 极低 |
+| 2 | 清理遗留调试代码 | ⚠️ 定调为**不清理**：`components/options/ValidityHoursSelect.vue:36-38` 的 `/** todo 测试过期时间 别删除 start */` 为作者显式标记保留的调试入口，不得以「符合规范」为由删除 | — |
 | 3 | 条目拖拽排序 | 数据已有 `order` 字段但无拖拽 UI；需求强度待确认，可用排序兜底 | 中 |
 | 4 | Options 条目详情抽屉 | 当前只有表格 + 编辑弹窗，缺少"只读预览"，查看备注/历史需进入编辑态 | 中 |
 | 5 | 侧边栏搜索历史/最近使用 | 与 P0-3 全局搜索配套，显示最近使用条目 | 低 |
 | 6 | 新手引导增强 | `EmptyGuide` 已有；可考虑首次安装后的 3 步交互引导（导入/添加/填充） | 中 |
 | 7 | 填充失败反馈闭环核查 | 确认所有填充失败路径都有 `NativeNotification` 反馈、无静默失败 | 低 |
+| 8 | 侧边栏搜索框内 Ctrl+C 被容器级快捷键劫持 | ✅ **缺陷已修复**。原现象：焦点在搜索框时选中搜索词按 Ctrl+C，得到的却是高亮条目的用户名。根因：`App.vue` 的 `handleKeydown` 挂在容器上，会收到自子孙输入框冒泡而来的事件，`case 'c'` 分支无条件 `preventDefault()` 吃掉了浏览器原生复制。修复：新增 `utils/a11y.ts` 的 `isEditableEventTarget()`（input / textarea / contenteditable 宿主），仅在 `case 'c'` 分支开头让路；↑ ↓ Enter Escape 四个分支**未动**（搜索框内 ↑↓ 移动高亮、Enter 填充首条是通行交互）。实现采用鸭子类型而非 `instanceof HTMLInputElement`：vitest 固定 `environment: 'node'` 且未引入 jsdom，DOM 构造器全局在测试环境不存在。测试：`tests/utils/a11y.test.ts` +5 例（共 7 例） | 极低 |
 
 ---
 
 ## 四、建议实施批次
 
-**第一批（低风险高频速赢）**：~~P0-1 右键菜单~~ ✅ 已落地（`4ac3467`）、~~P0-2 快捷键统一一览与未生效预警~~ ✅ 已落地、**P0-3 侧边栏全局搜索（待实施）** + 优化清单 #2（调试代码清理，待实施）。四者互不耦合，可分独立提交，各自带测试与文档更新。
+**第一批（低风险高频速赢）**：~~P0-1 右键菜单~~ ✅ 已落地（`4ac3467`）、~~P0-2 快捷键统一一览与未生效预警~~ ✅ 已落地、~~P0-3 侧边栏全局搜索~~ ✅ 已落地。本批已清空（优化清单 #2 经核定为作者显式保留，不再归入待办）。
+
+**已完成的缺陷修复与前置能力**：~~P1-7 保存时弱密码 / 重复内联预警~~ ✅ 已落地（非拦截式，详见 P1-7）、~~优化清单 #8 侧边栏搜索框 Ctrl+C 劫持~~ ✅ 已修复。两项同属「保存/搜索行为发生点的安全与可用性打磨」，零权限变更、零新增消息类型、不影响侧边栏秒开 SLA。
 
 **第二批（确认后启动）**：P0-4 生物识别解锁 —— 先产出安全设计方案供确认。
 

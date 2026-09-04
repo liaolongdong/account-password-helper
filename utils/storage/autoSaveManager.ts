@@ -4,9 +4,11 @@ import type {
   CheckCredentialStatusData,
   CredentialStatusResponse,
   PasswordEntry,
+  SaveRiskHint,
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { isWeakPassword } from '@/utils/passwordStrengthCore';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
 import { getFavoriteLimit } from './configManager';
@@ -269,14 +271,49 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
 }
 
 /**
+ * 构造保存前风险提示（background 侧，无 Vue i18n 依赖）
+ *
+ * 弱密码判定复用 `utils/passwordStrengthCore.ts`，与表单实时校验、设置页安全体检
+ * 完全同口径，避免各处自写阈值导致提示不一致。
+ *
+ * 调用方在弹窗前已经 `getAllPasswords()` 完成全量解密，因此本函数不产生额外的
+ * 存储读取或解密开销，属于零成本扩展点。
+ *
+ * 复用计数无需减去条目自身：`password_changed` 分支已排除密码相同的条目（那种情况
+ * 走 `identical`），`new` 分支则不存在匹配条目，所以命中数天然就是「其它账号」数量。
+ *
+ * 有意不做常见泄露密码字典校验：字典需异步懒加载，会给保存热路径引入延迟，
+ * 且该维度已由设置页安全体检覆盖。
+ *
+ * @param password 待保存的密码明文（仅在内存中参与比对，绝不写入日志）
+ * @param entries 已解密的全量密码条目
+ * @returns 风险提示；两个维度均未命中时返回 undefined，避免弹窗渲染空警示条
+ */
+function buildSaveRiskHint(password: string, entries: PasswordEntry[]): SaveRiskHint | undefined {
+  const hint: SaveRiskHint = {};
+
+  if (isWeakPassword(password)) {
+    hint.weak = true;
+  }
+
+  const reusedCount = entries.filter(entry => entry.password === password).length;
+  if (reusedCount > 0) {
+    hint.reusedCount = reusedCount;
+  }
+
+  return hint.weak || hint.reusedCount ? hint : undefined;
+}
+
+/**
  * 保存前预检查：查询当前域名+账号在密码库中的凭证状态
  *
  * 会话无效返回 `locked`；否则用 findMatchingEntry 定位条目：无 → `new`，
  * 有且密码相同 → `identical`，密码不同 → `password_changed`（附标签/备注）。
+ * `new` 与 `password_changed` 额外附带风险提示（弱密码/复用计数），供弹窗内联警示。
  * 仅返回状态枚举与非密码元数据，绝不回传已存明文密码。
  *
  * @param data 待检查的账号、密码与域名
- * @returns 凭证状态与（password_changed 时）已存条目的标签/备注
+ * @returns 凭证状态、（password_changed 时）已存条目的标签/备注、（需弹窗时）风险提示
  */
 export async function checkCredentialStatus(data: CheckCredentialStatusData): Promise<CredentialStatusResponse> {
   try {
@@ -294,7 +331,7 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
     const existingEntry = findMatchingEntry(passwords, data);
 
     if (!existingEntry) {
-      return { status: 'new' };
+      return { status: 'new', risk: buildSaveRiskHint(data.password, passwords) };
     }
 
     if (existingEntry.password === data.password) {
@@ -304,6 +341,7 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
     return {
       status: 'password_changed',
       existing: { tag: existingEntry.tag || '', remark: existingEntry.remark || '' },
+      risk: buildSaveRiskHint(data.password, passwords),
     };
   } catch (error) {
     logger.error('自动保存预检查失败:', error);

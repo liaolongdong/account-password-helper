@@ -66,7 +66,7 @@
 · 密码可见性切换：为页面密码框注入显隐切换按钮（偏好设置中开启），填充后一键确认输入内容，无需另装扩展
 · TOTP 两步验证：扫描网页二维码或上传图片一键添加密钥，验证码按 RFC 6238 本地生成，GitHub 式两步登录自动衔接活码胶囊
 · 密码安全体检：一键生成 0-100 综合评分，五维检测——弱密码 / 密码复用 / 常见泄露密码（离线字典）/ 长期未更新 / 未开两步验证，支持到期提醒
-· 自动保存凭证：登录即弹窗确认，凭证指纹智能去重，支持域名白名单/黑名单、「不再提示」一键屏蔽
+· 自动保存凭证：登录即弹窗确认，凭证指纹智能去重，支持域名白名单/黑名单、「不再提示」一键屏蔽；弹窗内联预警弱密码与密码复用（只提醒不拦截保存）
 · 侧边栏快速添加：侧边栏顶栏「+」就地添加账号，网址自动预填当前域名；主密码输入实时提示大写锁定状态
 · 导入导出：CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph 加密备份、邮箱备份提醒
 · 密码生成器：随机密码 + EFF 助记词组双模式，Web Crypto 密码学安全随机
@@ -147,7 +147,7 @@ FULL FEATURE SET
 · Password visibility toggle: injects a show/hide button into page password fields (enable in preferences) — verify filled content with one click, no separate extension needed
 · Built-in TOTP 2FA: scan on-page QR codes or upload images to add keys; codes generated locally (RFC 6238); auto-anchors a live code capsule on GitHub-style two-step login pages
 · Security audit: 0–100 score with five checks — weak / reused / commonly leaked (offline dictionary) / stale / missing 2FA; expiry reminders included
-· Auto-capture credentials on login with smart dedup and domain allow/block lists; one-click "Never for this site"
+· Auto-capture credentials on login with smart dedup and domain allow/block lists; one-click "Never for this site"; the save prompt flags weak and reused passwords inline (a heads-up only — it never blocks saving)
 · Import / export: CSV & JSON; auto-detects exports from Chrome, LastPass, Bitwarden, 1Password; .aph encrypted backup + email backup reminders
 · Password generator: random & EFF diceware passphrase modes, Web Crypto CSPRNG
 · Trash bin (30 days) + 1-10 encrypted snapshots per entry (default 3) — roll back any mistake
@@ -476,7 +476,7 @@ SETUP (one-time): Install → set master password → add accounts manually or b
 
 5) Offline security audit: Monthly scan generates a 0–100 score (weak/reused/leaked/stale/missing 2FA). All computed locally.
 
-6) Auto-save: New login detected → prompt to save. Smart dedup + domain allow/block lists.
+6) Auto-save: New login detected → prompt to save. Smart dedup + domain allow/block lists, plus a non-blocking inline warning when the password is weak or shared with other accounts.
 
 Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (login) / K (inline). All customizable at chrome://extensions/shortcuts — the manager page ("Security Settings → Keyboard Shortcuts") and the side panel Help dialog both list all four bindings with their live status, flag any key that is currently inactive, and link straight to that page. Right-click an input to fill username/password/2FA code or generate a strong password.
 ```
@@ -533,7 +533,7 @@ No specific website accounts are required. The extension treats all websites uni
 
 5) 离线安全体检：每月扫描生成 0–100 评分（弱密码/复用/泄露/过期/未开 2FA），全程本地计算。
 
-6) 自动保存：检测到新登录 → 弹窗确认保存，智能去重 + 域名白名单/黑名单。
+6) 自动保存：检测到新登录 → 弹窗确认保存，智能去重 + 域名白名单/黑名单；密码较弱或与其它账号共用时弹窗内联预警，只提醒不拦截。
 
 快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（登录）/ K（内联），均可在 chrome://extensions/shortcuts 自定义——密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗均列出四组按键及其当前生效状态，会标注未生效的按键并可一键直达该页。输入框上右键可直接填充用户名/密码/两步验证码或生成强密码。
 ```

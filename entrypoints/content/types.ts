@@ -3,7 +3,7 @@
  * 集中管理表单检测、通知弹窗、密码可见性切换等模块的 TypeScript 类型
  */
 
-import type { FillStrategy } from '@/utils/types';
+import type { FillStrategy, SaveRiskHint } from '@/utils/types';
 
 // ── InputFiller 相关 ──
 
@@ -82,6 +82,13 @@ export interface SavePromptData {
   remark: string;
   /** 展示模式（save/update），缺省为 save */
   mode?: SavePromptMode;
+  /**
+   * 保存前风险提示（弱密码/复用计数），缺省表示无风险
+   *
+   * 由 background 预检查计算，随本结构经 iframe 委托的 postMessage 自动跨帧透传，
+   * 无需新增消息类型。仅用于内联警示展示，不阻断保存。
+   */
+  risk?: SaveRiskHint;
 }
 
 /**

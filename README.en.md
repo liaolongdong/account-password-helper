@@ -117,7 +117,7 @@ A **free, open-source**, local-first Chrome password manager built for developer
 
 - **Quadruple fill strategy**: Inline fill (key icon in the input, the default), side panel one-click fill, right-click fill (right-click an input to fill username/password/2FA code, or generate & fill a strong password), and quick-fill shortcut (`Ctrl+Shift+F` — fill + tick consent + click login); results reported via desktop notification + toolbar badge
 - **Exact domain matching**: Only entries whose host exactly matches the current page are shown, keeping dev/test/staging/prod accounts apart; `localhost` matches everything by default
-- **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"
+- **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"; the save prompt also flags weak and reused passwords inline (a heads-up only — it never blocks saving)
 - **Side panel quick add**: Click "+" in the side panel header to save credentials in place (an add invitation also appears when the current site has none); the site field is prefilled from the current domain, with "Open Password Manager for all fields" for full fields like TOTP
 - **Side panel search scope**: The icon beside the search box toggles between "This site" and "All entries" — by default only entries matching the current domain are listed, while all-entry mode opens up the whole vault (switching tabs resets it back to this site). Off-site hits keep copy username/password/2FA code, favorite and edit, and clicking the row opens that site in a new tab. When this site has no match but the vault does, the empty state offers a "Search all entries (N found)" shortcut
 - **Broad compatibility**: Dynamically detects login forms (including cross-iframe), compatible with React/Vue and other frameworks; covers username + password, phone + verification code, and more
@@ -242,7 +242,7 @@ A: Yes. Deleted passwords move to the trash for 30 days — restore or permanent
 
 **Q: How do I enable auto-save?**
 
-A: Turn on the switch under "Auto-save Settings"; optionally configure domain rules (exact or regex). On login a confirmation card appears (Save / Not now / Never) with editable tag and remark.
+A: Turn on the switch under "Auto-save Settings"; optionally configure domain rules (exact or regex). On login a confirmation card appears (Save / Not now / Never) with editable tag and remark. If the password about to be saved is weak, or is already shared by other accounts, the card shows an inline risk hint beneath the password row; the hint only informs — it never blocks the save and requires no extra confirmation.
 
 **Q: How do I switch themes or the interface language?**
 

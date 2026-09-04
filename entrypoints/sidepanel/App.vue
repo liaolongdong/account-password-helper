@@ -151,6 +151,7 @@ import {
 import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
 import { isLocalDevDomain, toNavigableUrl } from '@/utils/domain';
+import { isEditableEventTarget } from '@/utils/a11y';
 import { warmPinyinMatcher } from '@/utils/searchMatch';
 
 /**
@@ -498,6 +499,9 @@ const handleKeydown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey) {
         // Ctrl+Shift+C: 复制密码 暂不需要（注释，别删除）
       } else if (e.ctrlKey) {
+        // 焦点在搜索框等可编辑元素内时让路：否则 preventDefault 会吃掉浏览器原生复制，
+        // 用户选中搜索词按 Ctrl+C 得到的却是高亮条目的用户名
+        if (isEditableEventTarget(e.target)) break;
         // Ctrl+C: 复制用户名
         e.preventDefault();
         if (activeIndex.value >= 0 && activeIndex.value < list.length) {

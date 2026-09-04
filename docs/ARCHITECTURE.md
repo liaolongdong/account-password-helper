@@ -173,6 +173,7 @@ graph TB
 │   ├── i18n-lite.ts                # content/background 轻量国际化（tl()）
 │   ├── data/top1000.json           # 离线弱口令字典（top-1000，懒加载）
 │   ├── weakPasswordDict.ts         # 弱口令字典懒加载与 O(1) 命中检测
+│   ├── passwordStrengthCore.ts     # 密码强度规则核心（纯函数、零 i18n/零 Vue 依赖，三方共用判定源）
 │   ├── encryption.ts               # PBKDF2 + AES-256-GCM
 │   ├── crypto-light.ts             # 轻量加密工具
 │   ├── sessionManager.ts           # 全局会话检查单例
@@ -258,6 +259,8 @@ graph TB
 - **智能更新策略**：同账号 + 同域名且密码有变化时，以「更新」弹窗确认后更新已有条目的密码，保留存量标签和备注（除非用户在弹窗中主动修改）；账号密码完全相同则不打扰；不同账号则新增条目。
 - **黑名单屏蔽**：保存弹窗中点击「不再提示」可将当前域名加入屏蔽列表（见 [SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts)）；无端口条目屏蔽该 hostname 及子域名所有端口的登录弹窗，含端口条目（如 `localhost:3000`）仅屏蔽对应端口的弹窗。可在设置对话框的「已屏蔽的域名」中删除以恢复提示。
 - **智能防重复**：弹窗前先向后台查询该域名 + 账号在密码库中的状态（见 [autoSaveManager.ts](../utils/storage/autoSaveManager.ts) 的 `checkCredentialStatus`），据此分流：账号密码完全相同则完全静默不弹窗（跨登录持久生效，从根本上避免同账号反复登录反复弹窗）；密码发生变化则弹出「更新」确认弹窗；新账号弹出「保存」弹窗。同时保留基于凭证指纹（用户名 + 密码长度）的同页防抖（见 [LoginAutoSave.ts](../entrypoints/content/LoginAutoSave.ts)），吸收表单提交 / 按钮点击 / 回车三连触发。
+- **保存前风险内联预警（非阻断）**：`checkCredentialStatus` 在**已解密的全量条目**上就地计算风险提示并随凭证状态一并返回（`risk` 字段），因此不产生额外的存储读取或解密开销；仅在实际会弹窗的 `new` / `password_changed` 两个分支携带，`locked`、`identical` 与异常兜底分支不携带。弹窗在密码行下方以琥珀色警示条展示两类风险：弱密码（与表单校验、安全体检同口径，复用 [passwordStrengthCore.ts](../utils/passwordStrengthCore.ts) 的 `isWeakPassword`）与密码复用（该密码被其它 N 个账号共用）。警示条**只提醒不拦截**：不加二次确认、不改变保存按钮流程与任何回调签名，与 Chrome 原生保存弹窗的克制风格一致。
+- **风险数据的信任边界**：`risk` 属派生结论，**不写入 pending 也不进 sessionStorage**，避免用户改密码后留下陈旧计数；跳页恢复路径会重新进入预检查拿新鲜值。iframe 委托场景下该数据经 `postMessage` 跨帧传入，属不可信输入，接收方（[SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts) 的 `sanitizeRiskHint`）逐字段收窄：`weak` 仅接受严格布尔 `true`，`reusedCount` 须为 `1..9999` 的整数，非法值一律丢弃。密码字段一旦偏离后台评估时的值，本地可重算的弱密码标志就地重算，依赖全量库的复用计数则直接撤下。
 
 ### 5. 邮箱备份
 
@@ -291,6 +294,7 @@ graph TB
 - 在主密码设置和密码表单中，密码输入时通过气泡弹窗实时展示强度等级（弱/中/强）和进度条（见 [PasswordStrengthPopover.vue](../components/options/PasswordStrengthPopover.vue)）。
 - 逐条校验密码规则：至少 8 字符、包含字母、包含数字、包含特殊字符，通过/未通过状态一目了然。
 - 基于 [usePasswordStrength](../composables/usePasswordStrength.ts) Composable 实现，可在多处复用。
+- **判定核心的分层下沉**：规则正则、长度阈值、等级映射与色值契约住在无 i18n、无 Vue 依赖的 [passwordStrengthCore.ts](../utils/passwordStrengthCore.ts)；composable 退化为在其上贴附 Vue i18n 文案的薄层。这一分层使 background Service Worker 与 content script 能复用**完全同一套判定口径**（保存前风险预警、安全体检、表单实时校验三方一致），而不会把 Vue i18n 拖进 SW 与内容脚本包（已构建验证：`background.js` 不包含任何 `strength.*` 语言包条目）。
 
 ### 10. 安全体检仪表盘
 

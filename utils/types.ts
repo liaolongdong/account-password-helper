@@ -617,6 +617,20 @@ export interface CheckCredentialStatusData {
 export type CredentialStatus = 'new' | 'identical' | 'password_changed' | 'locked';
 
 /**
+ * 保存前风险提示（非阻断）
+ *
+ * 由 background 预检查在**已解密的全量条目**上就地计算，随凭证状态一并返回，
+ * 供 content script 的保存弹窗以内联警示形式呈现：只提醒不阻断，不引入二次确认。
+ * 两个维度均可缺省，缺省即表示未命中。
+ */
+export interface SaveRiskHint {
+  /** 密码强度较弱（与设置页安全体检同口径） */
+  weak?: boolean;
+  /** 与该密码相同的**其它**已存账号数量（不含本次要保存/更新的条目自身） */
+  reusedCount?: number;
+}
+
+/**
  * 自动保存预检查响应数据
  *
  * 仅返回状态枚举与非密码元数据，绝不回传已存明文密码。
@@ -626,6 +640,13 @@ export interface CredentialStatusResponse {
   status: CredentialStatus;
   /** 已存条目的标签/备注（仅 password_changed 时返回，用于弹窗预填，非密码） */
   existing?: { tag: string; remark: string };
+  /**
+   * 风险提示（仅 `new` 与 `password_changed` 返回，即实际需要弹窗的两个分支）
+   *
+   * `locked`（会话失效不弹窗）、`identical`（静默跳过）与异常兜底分支均不携带，
+   * 避免在不会展示的路径上做无用计算。
+   */
+  risk?: SaveRiskHint;
 }
 
 /**
