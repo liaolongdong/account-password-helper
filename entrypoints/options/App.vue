@@ -98,6 +98,7 @@
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
         @toggle-password="togglePasswordVisibility"
+        @view-detail="onViewDetail"
         @copy="copyPassword"
         @edit="editPassword"
         @toggle-favorite="toggleFavorite"
@@ -149,6 +150,13 @@
       @closed="handleResetPasswordForm"
       @update:form="Object.assign(passwordForm, $event)"
       @update:tag-array="tagArray = $event"
+    />
+
+    <!-- 条目只读详情抽屉 -->
+    <PasswordDetailDrawer
+      v-model="showDetailDrawer"
+      :entry="detailEntry"
+      @edit="onDetailEdit"
     />
 
     <!-- 有效期设置弹窗 -->
@@ -220,7 +228,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue';
-import type { FloatingButtonConfig } from '@/utils/types';
+import type { FloatingButtonConfig, PasswordEntry } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { initSessionManager } from '@/utils/sessionManager';
 import { StorageUtils } from '@/utils/storage';
@@ -254,6 +262,7 @@ const BatchTagDialog = defineAsyncComponent(() => import('@/components/options/B
 const MasterPasswordVerifyDialog = defineAsyncComponent(
   () => import('@/components/options/MasterPasswordVerifyDialog.vue'),
 );
+const PasswordDetailDrawer = defineAsyncComponent(() => import('@/components/options/PasswordDetailDrawer.vue'));
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -620,6 +629,30 @@ const onHealthEdit = (id: string) => {
   if (entry) {
     editPassword(entry);
   }
+};
+
+/** 条目详情抽屉可见性 */
+const showDetailDrawer = ref(false);
+
+/** 当前查看详情的条目（已解密，直接引用列表项） */
+const detailEntry = ref<PasswordEntry | null>(null);
+
+/**
+ * 打开条目只读详情抽屉
+ * @param entry 目标条目
+ */
+const onViewDetail = (entry: PasswordEntry) => {
+  detailEntry.value = entry;
+  showDetailDrawer.value = true;
+};
+
+/**
+ * 从详情抽屉进入编辑：关闭抽屉并复用既有编辑弹窗流程
+ * @param entry 目标条目
+ */
+const onDetailEdit = (entry: PasswordEntry) => {
+  showDetailDrawer.value = false;
+  editPassword(entry);
 };
 
 /** 认证流程状态与操作方法 */

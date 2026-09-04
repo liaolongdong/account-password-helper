@@ -100,6 +100,8 @@ export async function handleOpenInlineDropdown(commandTab?: chrome.tabs.Tab): Pr
   const tab = commandTab?.id ? commandTab : await getActiveTab();
   if (!tab?.id) {
     logger.warn('Background: 内联下拉 - 无法获取当前标签页');
+    // 无活跃标签页时同样经「通知 + 角标」反馈，避免用户按下快捷键后零感知（与其它早退分支一致）
+    await notifyFailure(tl('bg.quickFill.noUrl'), tl('bg.inline.title'));
     return;
   }
 

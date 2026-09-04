@@ -566,6 +566,13 @@ onUnmounted(() => {
   flex: 1;
 }
 
+/* 行内间距统一由 gap 提供：抵消 Element Plus 相邻按钮默认的 12px 外边距。
+   el-tooltip 不产生包裹元素，故「全站」与「收藏」在 DOM 中相邻，
+   否则二者间距为 8 + 12 = 20px，与其余控件的 8px 不一致 */
+.search-section :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 /* 范围切换按钮：全站激活态走主题色，与「只看收藏」的 warning 激活态同一交互语言 */
 .scope-toggle-btn {
   transition:

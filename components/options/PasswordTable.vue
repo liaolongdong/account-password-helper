@@ -185,7 +185,7 @@
       <el-table-column
         :label="t('common.actions')"
         header-align="center"
-        width="180"
+        width="210"
         fixed="right"
       >
         <template #default="{ row }">
@@ -193,6 +193,20 @@
             class="operation-buttons"
             @click="closeAllTooltips"
           >
+            <el-tooltip
+              :ref="(el: any) => collectTooltipRef(el)"
+              :content="t('options.detail.viewDetail')"
+              placement="top"
+              :show-after="400"
+            >
+              <el-button
+                :icon="View"
+                :aria-label="t('options.detail.viewDetail')"
+                circle
+                size="small"
+                @click="$emit('viewDetail', row)"
+              />
+            </el-tooltip>
             <el-tooltip
               :ref="(el: any) => collectTooltipRef(el)"
               :content="t('options.table.copyEntry')"
@@ -274,7 +288,7 @@ import { useI18n } from '@/utils/i18n';
  * 密码列表表格组件
  *
  * 展示密码数据的完整表格，包含搜索排序、标签渲染、
- * 密码显隐切换和操作按钮（复制/编辑/收藏/删除）。
+ * 密码显隐切换和操作按钮（查看详情/复制/编辑/收藏/删除）。
  */
 defineProps<{
   /** 表格数据 */
@@ -291,6 +305,7 @@ defineEmits<{
   selectionChange: [selection: PasswordEntry[]];
   sortChange: [state: { prop: string; order: string }];
   togglePassword: [row: PasswordEntry];
+  viewDetail: [row: PasswordEntry];
   copy: [row: PasswordEntry];
   edit: [row: PasswordEntry];
   toggleFavorite: [id: string];

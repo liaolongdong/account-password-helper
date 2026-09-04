@@ -189,7 +189,7 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 ## User Guide
 
 1. **Initial setup**: click the extension icon to open the manager, set a master password, and choose a session validity (default 24 hours); "Preferences" configures themes, language, floating button, fill mode, and more
-2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field smart search (pinyin/initials + match highlighting) and sorting, tags and favorites
+2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field smart search (pinyin/initials + match highlighting) and sorting, tags and favorites; click an entry's "View details" for a read-only, single-screen view of every field including full notes and password history (password masked by default; copied passwords are auto-cleared per clipboard settings) — no need to enter edit mode
 3. **Quick fill**: inline fill by default — a key icon appears in a focused login field; click it to pick an account and fill instantly. Switch to "Sidebar" (auto-opens on focus) or "Manual" in Preferences, use the shortcuts, or right-click an input to fill
 4. **Shortcuts**: every high-frequency action has one (`Cmd` on Mac) — see the cheat sheet below
 

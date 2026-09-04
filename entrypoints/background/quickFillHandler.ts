@@ -171,6 +171,8 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
   const tab = commandTab?.id ? commandTab : await getActiveTab();
   if (!tab?.id) {
     logger.warn('Background: 一键填充 - 无法获取当前标签页');
+    // 无活跃标签页时同样经「通知 + 角标」反馈，避免用户按下快捷键后零感知（与其它早退分支一致）
+    await notifyFailure(tl('bg.quickFill.noUrl'));
     return;
   }
   const tabId = tab.id;
