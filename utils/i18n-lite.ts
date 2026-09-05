@@ -27,8 +27,13 @@ export function isLiteLocale(value: unknown): value is LiteLocale {
   return value === 'zh-CN' || value === 'en';
 }
 
-/** 内联双语消息表（体积敏感，仅收录 content/background 实际使用的 key） */
-const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
+/**
+ * 内联双语消息表（体积敏感，仅收录 content/background 实际使用的 key）
+ *
+ * 导出仅供中英文 key 集对齐测试使用（Vue 侧语言包的对齐由 tests/utils/i18nBundles.test.ts 守，
+ * 本表此前无守卫）；运行时代码一律经 `tl()` 取值，不得直接引用或修改该表。
+ */
+export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
   'zh-CN': {
     'cs.save.titleUpdate': '检测到密码有更新，是否更新？',
     'cs.save.titleSave': '自动保存账号密码到密码列表？',
@@ -118,7 +123,8 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.quickAdd.success': '已保存新账号密码',
     'bg.quickAdd.failed': '保存失败，请重试',
     'bg.quickFill.title': '一键填充',
-    'bg.quickFill.sessionExpired': '会话未验证，请先验证主密码',
+    // 可点击通知专用文案：告知下一步动作（点击通知直达主密码验证页）
+    'bg.quickFill.sessionExpiredUnlock': '会话未验证，点击此通知验证主密码解锁',
     'bg.quickFill.noUrl': '无法获取当前页面地址',
     'bg.quickFill.noMatch': '当前页面没有匹配的账号密码',
     'bg.quickFill.fillSuccess': '填充成功',
@@ -130,6 +136,9 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.common.unknownError': '未知错误',
     'bg.cache.untitled': '未命名',
     'cm.title': '右键填充',
+    // 显式单父项标题：避开 Chrome 按扩展全名（含商店副标题）自动折叠出的超长父级菜单
+    'cm.parentFill': '填充账号密码',
+    'cm.parentPage': '账号密码管理助手',
     'cm.fillUsername': '填充用户名',
     'cm.fillPassword': '填充密码',
     'cm.fillTotp': '填充两步验证码',
@@ -230,7 +239,9 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.quickAdd.success': 'New credentials saved',
     'bg.quickAdd.failed': 'Save failed. Please try again.',
     'bg.quickFill.title': 'Quick Fill',
-    'bg.quickFill.sessionExpired': 'Session not verified. Please verify your master password first.',
+    // 可点击通知专用文案：告知下一步动作（点击通知直达主密码验证页）
+    'bg.quickFill.sessionExpiredUnlock':
+      'Session not verified. Click this notification to verify your master password.',
     'bg.quickFill.noUrl': 'Unable to get the current page URL',
     'bg.quickFill.noMatch': 'No matching credentials found for this page',
     'bg.quickFill.fillSuccess': 'Credentials filled successfully',
@@ -242,6 +253,9 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.common.unknownError': 'Unknown error',
     'bg.cache.untitled': 'Untitled',
     'cm.title': 'Context Menu Fill',
+    // 显式单父项标题：避开 Chrome 按扩展全名（含商店副标题）自动折叠出的超长父级菜单
+    'cm.parentFill': 'Fill Credentials',
+    'cm.parentPage': 'Account Password Helper',
     'cm.fillUsername': 'Fill Username',
     'cm.fillPassword': 'Fill Password',
     'cm.fillTotp': 'Fill 2FA Code',

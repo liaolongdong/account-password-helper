@@ -626,14 +626,17 @@ export class InlineFillDropdown {
   }
 
   /**
-   * 直接为指定输入框展开面板（快捷键 / Popup 触发，行为与点击钥匙图标一致）
+   * 直接为指定输入框展开面板（快捷键 / Popup / 右键菜单引导触发）
    *
    * 跳过图标展示阶段，复用 openPanel 的完整链路（失焦登录框 → 拉取匹配账号 → 渲染定位）。
+   * 回传「面板是否真的可见」而非「是否发起了打开」：调用方（background 的会话失效引导）
+   * 据此决定要不要回退到通知/提示条反馈，否则取数失败时会出现「点了什么都没发生」的静默窗口。
    * @param input 目标输入框（面板锚定其下方）
+   * @returns 面板最终是否处于打开状态
    */
-  openPanelFor(input: HTMLInputElement): void {
+  openPanelFor(input: HTMLInputElement): Promise<boolean> {
     // 面板已针对同一输入框打开时，无需重复处理
-    if (this.panelOpen && this.currentInput === input) return;
+    if (this.panelOpen && this.currentInput === input) return Promise.resolve(true);
 
     // 清除上一字段遗留的隐藏计时器，避免其在面板打开后误触发图标态清理
     if (this.hideIconTimer) {
@@ -647,7 +650,7 @@ export class InlineFillDropdown {
 
     this.currentInput = input;
     this.ensureShadow();
-    void this.openPanel();
+    return this.openPanel();
   }
 
   /**
@@ -962,9 +965,11 @@ export class InlineFillDropdown {
 
   /**
    * 打开面板：失焦登录框（关闭 Chrome 原生下拉）→ 拉取匹配账号 → 渲染
+   *
+   * @returns 面板是否真的进入可见状态（取数失败、被新请求取代、锚点滚出视口均为 false）
    */
-  private async openPanel(): Promise<void> {
-    if (!this.currentInput) return;
+  private async openPanel(): Promise<boolean> {
+    if (!this.currentInput) return false;
     const input = this.currentInput;
 
     this.panelOpen = true;
@@ -983,12 +988,12 @@ export class InlineFillDropdown {
     } catch (error) {
       logger.debug('内联面板：获取匹配账号失败（扩展上下文可能失效）:', error);
       this.panelOpen = false;
-      return;
+      return false;
     }
-    if (seq !== this.requestSeq || !this.panelOpen) return;
+    if (seq !== this.requestSeq || !this.panelOpen) return false;
     if (!response || !response.success || !response.data) {
       this.panelOpen = false;
-      return;
+      return false;
     }
 
     this.locked = response.data.locked;
@@ -1004,10 +1009,11 @@ export class InlineFillDropdown {
     this.panelEl?.classList.add('visible');
     this.positionPanel();
     // positionPanel 可能因输入框滚出视口而关闭面板，此时不再继续绑定与聚焦
-    if (!this.panelOpen) return;
+    if (!this.panelOpen) return false;
     this.syncFollow();
     this.attachPanelInteractions();
     if (!this.locked) this.focusSearch();
+    return true;
   }
 
   /**

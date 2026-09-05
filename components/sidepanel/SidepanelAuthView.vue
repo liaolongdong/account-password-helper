@@ -282,7 +282,24 @@ onUnmounted(() => {
       <!--
         placeholder 只承载「搜什么」的短清单：窄面板下会被硬裁切、且输入后即消失，
         因此完整字段范围与拼音能力固定在 aria-label（读屏可完整播报，输入后不丢字段名）
-        与 title（悬停补充）上，拼音技巧本身则下放到「搜不到」的空态文案
+        与 title（悬停补充）上，拼音技巧本身则下放到「搜不到」的空态文案。
+        aria-label / title 保留全角 `、`：它们不受宽度约束，且读屏需要自然停顿，
+        所以同一控件的可见清单与朗读清单分隔符不同，属有意为之
+
+        四项是搜索范围的闭合清单（见 passwordFilter.applyListFilters）：一项都不能省，
+        也不用「…」暗示还有更多 —— 对密码工具，「还有更多」最容易被读成「密码也能搜」
+
+        不裁切条件实测为「面板宽 ≥ 文案宽 + 188px」（188 = 卡片外边距、内边距、行内
+        三个控件与 gap、wrapper 内边距、前缀图标之和），宽度按 PingFang SC /
+        Helvetica Neue 实测，逐语言各取最省写法：
+        - 中文以半角 `/` 替全角 `、`：154 → 133px（`、` 占满 1em，是中文独有的负担）
+        - 英文保留 `,` 并把复数收为单数：178.7 → 150.7px。拉丁文里 `, ` 本就接近半角，
+          换斜杠只省 9.4px、带空格反而更宽；而单数才是字段名形态，与排序菜单
+          「Username」「URL」、quickAdd 的 "Optional tag" / "Optional note" 同调
+        - 首词取 Account 而非 User（英文界面从未出现该词，且它指「人」不指「标识符」）
+          或 Username（虽与本 input 的 aria-label 同词，但 162.9px 刚好卡在阈值上，
+          省不出余量）；Account 与中文「账号」同指，保住中英配对
+        ::placeholder 再收 1px 字号（见样式区），两语不裁切阈值降到 312 / 328px
       -->
       <el-input
         ref="searchInputRef"
@@ -580,7 +597,22 @@ onUnmounted(() => {
 }
 
 .search-section :deep(.el-input) {
+  /* 提示文字专用：替换 EP 默认 #a8abb2（白底仅 2.3:1，不过 WCAG 1.4.3）。
+     --aph-text-secondary = #6b7280（4.83:1），与 PasswordListItem 的次要文字同色，
+     面板内的「提示文字灰」只有一种。tokens.css 由 main.ts 静态引入，与组件 CSS 在同一次
+     media=print → all 切换中生效，不存在令牌未就位、颜色回退的窗口。
+     框内图标（前缀放大镜 / clear）走另一个 --el-input-icon-color，此处不动：单独改深会
+     与 hover 反向（EP 的 clear hover 用 #909399，比 #6b7280 更浅），属图标对比度的独立议题 */
+  --el-input-placeholder-color: var(--aph-text-secondary);
+
   flex: 1;
+}
+
+/* 提示比正文低一级：输入值保持 14px，仅 ::placeholder 收为 13px。
+   两行永不同时存在（一输入 placeholder 即消失），不构成同屏跳字体；
+   宽度上的额外收益见上方模板注释（13px 使中英两语的不裁切阈值再降 9~11px） */
+.search-section :deep(.el-input__inner::placeholder) {
+  font-size: 13px;
 }
 
 /* 行内间距统一由 gap 提供：抵消 Element Plus 相邻按钮默认的 12px 外边距。

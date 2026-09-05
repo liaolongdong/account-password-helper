@@ -407,18 +407,20 @@ graph TB
 
 - 按下 `Ctrl+Shift+F` / `Cmd+Shift+F`，无需打开侧边栏直接填充当前页面的账号密码（见 [quickFillHandler.ts](../entrypoints/background/quickFillHandler.ts)）。
 - 填充目标与侧边栏列表首条一致（域名匹配优先 + 收藏置顶 + 排序配置）；多条匹配时通知中明确告知填充了哪条、共几条匹配，可打开侧边栏切换。
-- 未验证主密码 → 通知提示先验证；当前域名无匹配 → 通知无匹配账号；页面未就绪（扩展更新后的旧标签页）→ 引导刷新。
-- 双通道反馈：桌面通知 + 工具栏图标角标（成功绿色对勾 / 失败红色感叹号，3 秒后自动清除），规避系统通知被关闭时无感知。
+- 未验证主密码 → 优先就地展开内联下拉锁定卡片（自带「解锁后填充」引导，点击才直达主密码验证页）；页面不可达 / 无登录字段时回退为可点击的「需解锁」通知；当前域名无匹配 → 通知无匹配账号；页面未就绪（扩展更新后的旧标签页）→ 引导刷新。
+- 双通道反馈：桌面通知 + 工具栏图标角标（成功绿色对勾 / 失败红色感叹号，3 秒后自动清除），规避系统通知被关闭时无感知；「需解锁」通知使用专用 ID（`unlock-required`），点击直达主密码验证页（见 [backgroundServices.ts](../entrypoints/background/backgroundServices.ts) 的 `notifications.onClicked`）。
 - 填充成功后静默更新条目最近使用时间，保持侧边栏「最近使用」排序准确。
 
 ### 22. 右键上下文菜单填充
 
-- 在输入框上右键提供「填充用户名 / 填充密码 / 填充两步验证码 / 生成并填充强密码」，页面空白处右键提供「打开侧边栏 / 打开密码管理页」（见 [contextMenuManager.ts](../entrypoints/background/contextMenuManager.ts)）。
-- 菜单项由 Background 经 `chrome.contextMenus` 注册（需 `contextMenus` 权限），标题按用户语言渲染，语言切换时整体重建。菜单项注册由浏览器持久化（代码每次 SW 启动仍防御性重建以同步语言）；`onClicked` 点击监听器不持久化，按 MV3 事件注册要求随每次 SW 启动在入口同步重注册。无 `sidePanel` API 的环境（如 Firefox）不展示「打开侧边栏」项。
-- 目标元素记忆：`contextMenus.onClicked` 只能拿到 `frameId` 而无法拿到被点击元素，因此 Content Script 在 `contextmenu` 事件捕获阶段记录右键发生的输入框（见 [contextMenuTarget.ts](../entrypoints/content/contextMenuTarget.ts)），Background 再经 `CONTEXT_MENU_FILL` 消息定向下发到该 frame。
+- 菜单采用**显式单父项**结构（见 [contextMenuManager.ts](../entrypoints/background/contextMenuManager.ts)）：输入框上右键 → 父项「填充账号密码」→ 填充用户名 / 填充密码 / 填充两步验证码 / 生成并填充强密码；页面空白处右键 → 父项「账号密码管理助手」→ 打开侧边栏 / 打开密码管理页。
+  自建父项的原因：同一上下文只有一个可见顶级项时 Chrome 不再按扩展全名折叠，否则父级标题会带上商店副标题（「… - 本地加密密码管理器」）而过长、把二级菜单挤到屏幕外；层级深度与折叠方案一致（仍是二级）。
+- 菜单项由 Background 经 `chrome.contextMenus` 注册（需 `contextMenus` 权限），标题按用户语言渲染，语言切换时整体重建（父项先于子项创建，Chrome 要求 `parentId` 指向的项已存在）。菜单项注册由浏览器持久化（代码每次 SW 启动仍防御性重建以同步语言）；`onClicked` 点击监听器不持久化，按 MV3 事件注册要求随每次 SW 启动在入口同步重注册。无 `sidePanel` API 的环境（如 Firefox）不展示「打开侧边栏」子项。
+- 目标元素记忆：`contextMenus.onClicked` 只能拿到 `frameId` 而无法拿到被点击元素，因此 Content Script 在 `contextmenu` 事件捕获阶段记录右键发生的输入框（见 [contextMenuTarget.ts](../entrypoints/content/contextMenuTarget.ts)），Background 再经 `CONTEXT_MENU_FILL` 消息定向下发到该 frame；同一份记忆还被 `resolveContextMenuInputTarget()` 复用于会话失效时的解锁面板锚定。
 - 条目选择语义与侧边栏一致：按当前标签页域名经 `sortMatchesForDomain` 排序后取首条；TOTP 动作取首条配置了两步验证的条目并在 SW 内计算动态码（不下发密钥）。
-- 安全门控与一键填充共用同一道防线：启动重锁屏障、会话校验、`isFrameFillable` 跨域 frame 拒绝（明文只发给顶层或同主域名帧）。
-- 反馈策略：填充成功仅显示工具栏角标（填充结果在输入框内可见，避免通知打扰）；填充失败与「打开侧边栏」失败均经「通知 + 角标」双通道反馈，不静默吞掉用户操作。
+- 安全门控与一键填充共用同一道防线：启动重锁屏障、会话校验、`isFrameFillable` 跨域 frame 拒绝（明文只发给顶层或同主域名帧）。**例外**：「生成并填充强密码」豁免会话门控——它只用 Web Crypto 现场生成随机密码，不读取任何密文/明文条目，而注册新账号（最高频的生成场景）往往正是会话已锁状态；`isFrameFillable` 与定向下发门控照常保留。
+- 会话失效时与一键填充同一策略：就地展开内联下拉锁定卡片，并优先锚定被右键的那个输入框（`OPEN_INLINE_DROPDOWN` 的 `useContextMenuTarget` 轮次，仅限 `getFillableFrameIds` 集合内的 frame）；面板展开不了才回退反馈通道。
+- 反馈策略：填充成功仅显示工具栏角标（填充结果在输入框内可见，避免通知打扰）；失败走**三层反馈**——页面内提示条（`SHOW_PAGE_NOTICE` 定向顶层 frame，不依赖操作系统通知权限）+ 桌面通知 + 失败角标，会话失效类通知使用可点击的 `unlock-required` ID；「打开侧边栏」失败同样不静默吞掉。
 
 ## 开发补充
 

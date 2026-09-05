@@ -4,26 +4,21 @@ import { LoginAutoSave } from '@/entrypoints/content/LoginAutoSave';
 import { getFloatingButtonManager, destroyFloatingButtonManager } from '@/entrypoints/content/floatingButtons';
 import { showSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
 import type { SavePromptData, SavePromptEditedData, NotificationType } from '@/entrypoints/content/types';
-import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
+import {
+  isNotificationType,
+  NOTICE_MAX_LENGTH,
+  showNativeNotification,
+} from '@/entrypoints/content/NativeNotification';
 import { rememberContextMenuTarget } from '@/entrypoints/content/contextMenuTarget';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import { logger } from '@/utils/logger';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { initLiteI18n } from '@/utils/i18n-lite';
 
-/** 委托通知最大文案长度（防止恶意 iframe 注入超长内容干扰/刷屏） */
-const MAX_DELEGATED_NOTIFICATION_LENGTH = 200;
 /** 委托通知频率限制：滑动窗口时长（毫秒） */
 const DELEGATED_NOTIFICATION_WINDOW_MS = 10_000;
 /** 委托通知频率限制：窗口内最大次数 */
 const DELEGATED_NOTIFICATION_MAX = 5;
-
-/** 合法通知类型集合，用于校验来自 iframe 的委托通知类型 */
-const VALID_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set(['success', 'warning', 'info', 'error']);
-
-/** 类型守卫：判断值是否为合法通知类型 */
-const isNotificationType = (value: unknown): value is NotificationType =>
-  typeof value === 'string' && VALID_NOTIFICATION_TYPES.has(value as NotificationType);
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -123,7 +118,7 @@ export default defineContentScript({
           const rawMessage = typeof payload?.message === 'string' ? payload.message.trim() : '';
           if (!rawMessage || !canShowDelegatedNotification()) return;
           const type: NotificationType = isNotificationType(payload?.type) ? payload.type : 'info';
-          showNativeNotification(rawMessage.slice(0, MAX_DELEGATED_NOTIFICATION_LENGTH), type);
+          showNativeNotification(rawMessage.slice(0, NOTICE_MAX_LENGTH), type);
           return;
         }
 

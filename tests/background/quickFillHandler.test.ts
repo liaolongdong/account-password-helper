@@ -1,16 +1,28 @@
 /**
- * 快捷键填充入口「无活跃标签页」失败反馈回归测试
+ * 填充入口失败反馈通道回归测试（quickFillHandler）
  *
  * 背景：`handleQuickFill` 与 `handleOpenInlineDropdown` 在拿不到活跃标签页时
  * 曾只 `logger.warn` 后静默返回，用户按下快捷键却零感知；而它们的其它所有失败
  * 分支都经 `notifyFailure`（桌面通知 + 工具栏角标）双通道反馈。
  *
- * 本测试锁定修复后行为：no-tab 早退分支同样触发 notifyFailure。
- * 反向验证——移除修复（notifyFailure 调用）后这两个断言必然失败。
+ * 本测试锁定：
+ * 1. no-tab 早退分支同样触发 notifyFailure（修复前静默返回）；
+ * 2. `showPageNotice` 只下发到顶层 frame，且 content script 不可达时不抛异常
+ *    （页面内提示条是不依赖系统通知权限的兜底通道）；
+ * 3. 通知 ID 按语义拆分：普通失败走通用 ID，「需解锁」走专用 ID，
+ *    使 `notifications.onClicked` 能区分并直达主密码验证页。
+ *
+ * 反向验证——移除上述任一实现后，对应断言必然失败。
  */
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
-import { handleQuickFill } from '@/entrypoints/background/quickFillHandler';
+import {
+  handleQuickFill,
+  notifyFailure,
+  showPageNotice,
+  UNLOCK_NOTIFICATION_ID,
+} from '@/entrypoints/background/quickFillHandler';
 import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
+import { MessageType } from '@/utils/types';
 
 vi.mock('@/utils/i18n-lite', () => ({
   tl: vi.fn((key: string) => key),
@@ -88,5 +100,49 @@ describe('handleOpenInlineDropdown — 无活跃标签页', () => {
     const options = notifyCreateSpy.mock.calls[0][1] as chrome.notifications.NotificationOptions;
     expect(options.message).toBe('bg.quickFill.noUrl');
     expect(options.title).toBe('bg.inline.title');
+  });
+});
+
+describe('showPageNotice — 页面内提示条兜底通道', () => {
+  /** 提示条只走 tabs.sendMessage，局部 spy 以免干扰其它用例的默认桩 */
+  let sendSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    sendSpy = vi.spyOn(chrome.tabs, 'sendMessage').mockResolvedValue(undefined as never);
+  });
+  afterEach(() => {
+    sendSpy.mockRestore();
+  });
+
+  it('定向下发到顶层 frame（提示条不依赖系统通知权限）', async () => {
+    await showPageNotice(7, '会话未验证');
+
+    expect(sendSpy).toHaveBeenCalledWith(
+      7,
+      { type: MessageType.SHOW_PAGE_NOTICE, data: { message: '会话未验证', type: 'warning' } },
+      { frameId: 0 },
+    );
+  });
+
+  it('content script 未注入时静默降级，不抛异常影响后续通知与角标', async () => {
+    sendSpy.mockRejectedValue(new Error('Could not establish connection.'));
+
+    await expect(showPageNotice(7, '会话未验证')).resolves.toBeUndefined();
+  });
+});
+
+describe('notifyFailure — 通知 ID 按语义拆分', () => {
+  it('默认走「一键填充」通知 ID', async () => {
+    await notifyFailure('bg.quickFill.noMatch');
+
+    expect(notifyCreateSpy.mock.calls[0][0]).toBe('quick-fill');
+  });
+
+  it('需解锁反馈走专用 ID，供 notifications.onClicked 直达主密码验证页', async () => {
+    await notifyFailure('bg.quickFill.sessionExpiredUnlock', 'cm.title', UNLOCK_NOTIFICATION_ID);
+
+    expect(notifyCreateSpy.mock.calls[0][0]).toBe('unlock-required');
+    const options = notifyCreateSpy.mock.calls[0][1] as chrome.notifications.NotificationOptions;
+    expect(options.title).toBe('cm.title');
   });
 });

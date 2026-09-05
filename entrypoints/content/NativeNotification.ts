@@ -1,5 +1,28 @@
 import type { NotificationType, NotificationColors } from '@/entrypoints/content/types';
 
+/**
+ * 提示条文案的最大长度（超出部分截断）
+ *
+ * 提示条可能由不可信来源（页面脚本经 postMessage 委托、外部下发的消息）驱动，
+ * 限长避免超长文本撑碎页面布局。
+ */
+export const NOTICE_MAX_LENGTH = 200;
+
+/** 合法提示类型集合（与 NOTIFICATION_COLOR_MAP 的键一致） */
+const VALID_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set(['success', 'warning', 'info', 'error']);
+
+/**
+ * 类型守卫：判断值是否为合法提示类型
+ *
+ * 下游渲染直接以该值查颜色表并解构，非法值会因 undefined 抛 TypeError，
+ * 必须在边界处收窄。
+ *
+ * @param value 待校验的值
+ * @returns 是否为合法提示类型
+ */
+export const isNotificationType = (value: unknown): value is NotificationType =>
+  typeof value === 'string' && VALID_NOTIFICATION_TYPES.has(value as NotificationType);
+
 /** 通知类型到颜色的映射 */
 const NOTIFICATION_COLOR_MAP: Record<NotificationType, NotificationColors> = {
   success: { bgColor: '#f0f9ec', borderColor: '#b2d3a3', textColor: '#67c23a' },

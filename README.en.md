@@ -115,7 +115,7 @@ A **free, open-source**, local-first Chrome password manager built for developer
 
 ### ⚡ Smart Fill
 
-- **Quadruple fill strategy**: Inline fill (key icon in the input, the default), side panel one-click fill, right-click fill (right-click an input to fill username/password/2FA code, or generate & fill a strong password), and quick-fill shortcut (`Ctrl+Shift+F` — fill + tick consent + click login); results reported via desktop notification + toolbar badge
+- **Quadruple fill strategy**: Inline fill (key icon in the input, the default), side panel one-click fill, right-click fill (right-click an input → "Fill Credentials" to fill username/password/2FA code, or generate & fill a strong password), and quick-fill shortcut (`Ctrl+Shift+F` — fill + tick consent + click login); failures are reported through an in-page notice + desktop notification + toolbar badge, and a locked session opens an unlock prompt right on the page
 - **Exact domain matching**: Only entries whose host exactly matches the current page are shown, keeping dev/test/staging/prod accounts apart; `localhost` matches everything by default
 - **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"; the save prompt also flags weak and reused passwords inline (a heads-up only — it never blocks saving)
 - **Side panel quick add**: Click "+" in the side panel header to save credentials in place (an add invitation also appears when the current site has none); the site field is prefilled from the current domain, with "Open Password Manager for all fields" for full fields like TOTP

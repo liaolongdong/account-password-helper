@@ -2,7 +2,7 @@
   "sidepanel.sessionExpired": "会话已失效",
   "sidepanel.sessionExpiredDesc": "请在选项中验证主密码以解锁快速填充功能",
   "sidepanel.verifyPassword": "去验证主密码",
-  "sidepanel.searchPlaceholder": "账号、标签、备注、网址",
+  "sidepanel.searchPlaceholder": "账号/标签/备注/网址",
   "sidepanel.searchAriaLabel": "搜索用户名、标签、备注、网址，支持拼音全拼与首字母缩写",
   "sidepanel.showAll": "显示全部",
   "sidepanel.favoritesOnly": "只看收藏",

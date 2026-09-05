@@ -26,7 +26,8 @@ import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
 import type { FormFieldSets } from '@/entrypoints/content/types';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
 import { isDetectableCheckbox, isElementVisible } from './domUtils';
-import { fillContextMenuTarget } from './contextMenuTarget';
+import { fillContextMenuTarget, resolveContextMenuInputTarget } from './contextMenuTarget';
+import { isNotificationType, NOTICE_MAX_LENGTH, showNativeNotification } from './NativeNotification';
 import { tl } from '@/utils/i18n-lite';
 import {
   getInlineFillDropdown,
@@ -966,8 +967,22 @@ export class FormDetector {
       //    导致 popup 等发起方收到错误结果（如误报打开失败）。
       // 因此不处理、不响应，交由 Background 消息路由统一处理。
       case MessageType.OPEN_INLINE_DROPDOWN: {
-        const handled = this.openInlineDropdown(message.data?.focusedOnly === true);
-        sendResponse({ success: handled, handled });
+        // 面板渲染需等 GET_MATCHING_ACCOUNTS 回包，因此异步回传「是否真的展开」，
+        // 让 background 的会话失效引导能在面板未出现时回退到通知/提示条
+        this.openInlineDropdown(message.data?.focusedOnly === true, message.data?.useContextMenuTarget === true).then(
+          handled => sendResponse({ success: handled, handled }),
+        );
+        return true;
+      }
+      case MessageType.SHOW_PAGE_NOTICE: {
+        // 页面内提示条：载荷视为不可信输入，文案限长且只走 textContent 渲染（不接受 HTML），
+        // type 不在白名单内时降为 warning（避免下游解构 undefined 抛错），非法文案静默丢弃
+        const noticeText = typeof message.data?.message === 'string' ? message.data.message.trim() : '';
+        if (noticeText && document.body) {
+          const type = isNotificationType(message.data.type) ? message.data.type : 'warning';
+          showNativeNotification(noticeText.slice(0, NOTICE_MAX_LENGTH), type);
+        }
+        sendResponse({ success: true });
         return true;
       }
       default:
@@ -976,20 +991,27 @@ export class FormDetector {
   }
 
   /**
-   * 快捷键 / Popup 触发：定位登录字段并直接展开内联下拉面板（与点击钥匙图标一致）
+   * 快捷键 / Popup / 右键菜单引导触发：定位输入框并直接展开内联下拉面板（与点击钥匙图标一致）
    *
    * 目标字段选取：优先当前聚焦的登录字段；focusedOnly 为 false 时回退到页面已检测的
    * 首个可见登录字段（用户名 → 手机号 → 密码），复用 shouldShowSidePanel 的同一套
    * 字段组合判定，保证快捷键触发范围与钥匙图标展示范围一致。
    *
+   * useContextMenuTarget 为 true 时（仅右键菜单会话失效引导）优先锁定到被右键的那个框：
+   * 用户当时的注意力就在那里，且该轮只呈现锁定态「解锁后填充」卡片（不列账号），
+   * 故有意不要求它命中登录字段判定；目标失效时自动回落到上述常规选取。
+   *
    * @param focusedOnly 是否仅允许锚定当前聚焦的登录字段（background 两轮委派的第一轮）
-   * @returns 本 frame 是否已定位到登录字段并展开面板
+   * @param useContextMenuTarget 是否优先锚定「用户右键的那个输入框」
+   * @returns 本 frame 是否已定位到目标并真正展开面板
    */
-  private openInlineDropdown(focusedOnly: boolean): boolean {
-    const target = this.resolveInlineDropdownTarget(focusedOnly);
+  private async openInlineDropdown(focusedOnly: boolean, useContextMenuTarget = false): Promise<boolean> {
+    // 右键菜单优先锚定被右键的框；目标已失效（移除 / 只读 / textarea）时回落到常规选取
+    const target = useContextMenuTarget
+      ? (resolveContextMenuInputTarget() ?? this.resolveInlineDropdownTarget(focusedOnly))
+      : this.resolveInlineDropdownTarget(focusedOnly);
     if (!target) return false;
-    this.inlineDropdown.openPanelFor(target);
-    return true;
+    return this.inlineDropdown.openPanelFor(target);
   }
 
   /**

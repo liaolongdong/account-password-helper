@@ -260,6 +260,14 @@ export enum MessageType {
    * 下发前经 isFrameFillable 门控，跨域 iframe 会被拒绝。
    */
   CONTEXT_MENU_FILL = 'CONTEXT_MENU_FILL',
+  /**
+   * 页面内提示条：由 background 定向下发到顶层 frame，在页面内显示一条短时提示
+   *
+   * 存在的意义：桌面通知依赖操作系统设置（macOS 专注模式、通知权限关闭时）会整通道失效，
+   * 工具栏角标在扩展未固定到工具栏时不可见。本消息只携带已本地化的提示文案，
+   * 不含任何凭证数据，故不受 `isFrameFillable` 门控约束，但仅发往顶层 frame。
+   */
+  SHOW_PAGE_NOTICE = 'SHOW_PAGE_NOTICE',
 }
 
 /**
@@ -298,10 +306,11 @@ export type RuntimeMessage =
   | { type: MessageType.SET_PENDING_TOTP; data: SetPendingTotpData }
   | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData }
   | { type: MessageType.QUICK_FILL }
-  | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean } }
+  | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean; useContextMenuTarget?: boolean } }
   | { type: MessageType.UPDATE_PASSWORD_METADATA; data: UpdatePasswordMetadataData }
   | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData }
-  | { type: MessageType.CONTEXT_MENU_FILL; data: ContextMenuFillData };
+  | { type: MessageType.CONTEXT_MENU_FILL; data: ContextMenuFillData }
+  | { type: MessageType.SHOW_PAGE_NOTICE; data: PageNoticeData };
 
 /**
  * 悬浮按钮配置接口
@@ -469,6 +478,19 @@ export interface ContextMenuFillData {
   action: ContextMenuFillAction;
   /** 待填充的明文值 */
   value: string;
+}
+
+/**
+ * 页面内提示条：SHOW_PAGE_NOTICE 的请求数据
+ *
+ * `message` 由发送方（background）按用户语言完成本地化，content 侧只做纯文本渲染，
+ * 不接受 HTML；接收方对长度与类型做边界校验后降级渲染。
+ */
+export interface PageNoticeData {
+  /** 提示文案（已本地化） */
+  message: string;
+  /** 提示类型，缺省按 warning 渲染 */
+  type?: 'success' | 'warning' | 'error' | 'info';
 }
 
 /**

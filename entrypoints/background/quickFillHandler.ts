@@ -34,6 +34,17 @@ import {
 /** 通知 ID 前缀 */
 const NOTIFICATION_ID = 'quick-fill';
 
+/**
+ * 「需要解锁」专用通知 ID
+ *
+ * 与通用通知分开的原因：
+ * - 点击行为不同：`backgroundServices` 的 `notifications.onClicked` 据此直达主密码验证页，
+ *   普通失败通知（无匹配/填充失败）点击后无既定目的地；
+ * - 语义可合并：多条「需解锁」通知共用同一 ID 时 Chrome 会就地更新而非堆叠，
+ *   避免用户连点多次填充后在通知中心里堆积同一提示。
+ */
+export const UNLOCK_NOTIFICATION_ID = 'unlock-required';
+
 /** badge 角标自动清除延时（毫秒） */
 const BADGE_CLEAR_DELAY_MS = 3000;
 
@@ -41,10 +52,11 @@ const BADGE_CLEAR_DELAY_MS = 3000;
  * 显示桌面通知
  * @param message 通知内容
  * @param title 通知标题（默认「一键填充」，供内联下拉等复用方覆盖）
+ * @param notificationId 通知 ID（默认「一键填充」，需点击直达解锁页时传 UNLOCK_NOTIFICATION_ID）
  */
-async function showNotification(message: string, title?: string): Promise<void> {
+async function showNotification(message: string, title?: string, notificationId?: string): Promise<void> {
   try {
-    await chrome.notifications.create(NOTIFICATION_ID, {
+    await chrome.notifications.create(notificationId ?? NOTIFICATION_ID, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icon/128.png'),
       title: title ?? tl('bg.quickFill.title'),
@@ -52,6 +64,37 @@ async function showNotification(message: string, title?: string): Promise<void> 
     });
   } catch (error) {
     logger.error('Background: 一键填充通知创建失败:', error);
+  }
+}
+
+/**
+ * 在页面内显示一条提示条（不依赖操作系统通知权限的兜底反馈通道）
+ *
+ * 桌面通知在 macOS 专注模式 / 通知权限关闭下会整通道失效，工具栏角标在扩展
+ * 未固定到工具栏时不可见；页面内提示条是三者中唯一不受系统与浏览器 UI 状态影响的通道。
+ * 仅下发到顶层 frame（提示条需要用户可见的完整视口，且载荷不含任何凭证数据），
+ * content script 未注入时静默降级为「通知 + 角标」双通道。
+ *
+ * @param tabId 目标标签页
+ * @param message 已本地化的提示文案
+ * @param type 提示类型（默认 warning）
+ */
+export async function showPageNotice(
+  tabId: number,
+  message: string,
+  type: 'success' | 'warning' | 'error' | 'info' = 'warning',
+): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(
+      tabId,
+      { type: MessageType.SHOW_PAGE_NOTICE, data: { message, type } },
+      {
+        frameId: 0,
+      },
+    );
+  } catch (error) {
+    // 顶层 frame 未注入 content script（扩展更新后的旧标签页等），降级为通知 + 角标
+    logger.debug('Background: 页面内提示条下发失败，仅用通知与角标反馈:', error);
   }
 }
 
@@ -85,13 +128,14 @@ export async function showBadgeFeedback(success: boolean): Promise<void> {
 /**
  * 统一的失败反馈：桌面通知 + 失败角标
  *
- * 导出供内联下拉快捷键处理（inlineDropdownHandler）复用同一反馈通道。
+ * 导出供内联下拉快捷键处理（inlineDropdownHandler）与右键菜单（contextMenuManager）复用同一反馈通道。
  * @param message 通知内容
  * @param title 通知标题（默认「一键填充」）
+ * @param notificationId 通知 ID（需点击直达解锁页时传 UNLOCK_NOTIFICATION_ID）
  */
-export async function notifyFailure(message: string, title?: string): Promise<void> {
+export async function notifyFailure(message: string, title?: string, notificationId?: string): Promise<void> {
   void showBadgeFeedback(false);
-  await showNotification(message, title);
+  await showNotification(message, title, notificationId);
 }
 
 /**
@@ -163,7 +207,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
   // 快捷键与 popup 都可能在 onStartup clearSession 完成前触发；必须在恢复旧持久
   // 会话或读取 SW 明文缓存之前经过同一启动安全门。
   if (!(await ensureCredentialAccessAfterStartupRelock())) {
-    await notifyFailure(tl('bg.quickFill.sessionExpired'));
+    await notifyFailure(tl('bg.quickFill.sessionExpiredUnlock'), undefined, UNLOCK_NOTIFICATION_ID);
     return;
   }
 
@@ -196,8 +240,8 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
       const { tryOpenInlineDropdown } = await import('./inlineDropdownHandler');
       const opened = await tryOpenInlineDropdown(tabId);
       if (opened !== 'opened') {
-        // 页面不可达 / 无登录字段时回退原通知链路，确保用户有感知
-        await notifyFailure(tl('bg.quickFill.sessionExpired'));
+        // 页面不可达 / 无登录字段时回退通知链路（可点击直达验证页），确保用户有感知
+        await notifyFailure(tl('bg.quickFill.sessionExpiredUnlock'), undefined, UNLOCK_NOTIFICATION_ID);
       }
       return;
     }

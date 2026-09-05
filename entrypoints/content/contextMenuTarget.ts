@@ -68,6 +68,21 @@ function resolveContextMenuTarget(): FillableFormControl | null {
 const inputFiller = new InputFiller();
 
 /**
+ * 解析当前仍有效的右键目标输入框（供内联下拉锚定使用）
+ *
+ * 与填充路径共用同一套有效性校验（连接性 / 可见性 / 可编辑），额外收窄到
+ * HTMLInputElement：内联面板的锚定 API 只接受 input（textarea 无钥匙图标先例）。
+ * 会话失效时把解锁面板锚定到用户右键的那个框，比回退到「首个检测到的登录字段」
+ * 更贴合用户当时的注意力落点。
+ *
+ * @returns 可锚定的输入框，无有效右键目标时为 null
+ */
+export function resolveContextMenuInputTarget(): HTMLInputElement | null {
+  const target = resolveContextMenuTarget();
+  return target instanceof HTMLInputElement ? target : null;
+}
+
+/**
  * 执行右键菜单填充：把 background 解析好的值填入被右键的输入框
  *
  * @param data 填充载荷（动作类型 + 明文值）

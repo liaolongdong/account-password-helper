@@ -2,7 +2,7 @@
   "sidepanel.sessionExpired": "Session expired",
   "sidepanel.sessionExpiredDesc": "Verify your master password in Options to unlock quick fill",
   "sidepanel.verifyPassword": "Verify master password",
-  "sidepanel.searchPlaceholder": "Accounts, tags, notes, URLs",
+  "sidepanel.searchPlaceholder": "Account, tag, note, URL",
   "sidepanel.searchAriaLabel": "Search username, tag, note or URL; full pinyin and initial abbreviations supported",
   "sidepanel.showAll": "Show all",
   "sidepanel.favoritesOnly": "Favorites only",

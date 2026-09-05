@@ -1,9 +1,10 @@
 /**
  * 右键上下文菜单（contextMenuManager）回归测试
  *
- * 覆盖：纯函数条目解析（生成强密码/用户名/密码/无匹配/空值）、
- * 点击分发（会话锁定降级、跨域 frame 门控、content script 未注入降级、
- * TOTP 动态码填充、打开侧边栏/管理页）、成功路径的角标反馈与元数据更新。
+ * 覆盖：纯函数条目解析（用户名/密码/无匹配/空值）、菜单结构契约（显式单父项）、
+ * 点击分发（会话失效就地引导、生成强密码豁免会话门控、跨域 frame 门控、
+ * content script 未注入降级、TOTP 动态码填充、打开侧边栏/管理页）、
+ * 成功路径的角标反馈与元数据更新、失败路径的三层反馈与可点击解锁通知。
  */
 import { describe, expect, it, vi, beforeEach, afterEach, beforeAll } from 'vitest';
 import { resolveContextMenuFill, setupContextMenu } from '@/entrypoints/background/contextMenuManager';
@@ -16,6 +17,8 @@ vi.mock('@/utils/i18n-lite', () => ({
 vi.mock('@/entrypoints/background/quickFillHandler', () => ({
   notifyFailure: vi.fn(async () => {}),
   showBadgeFeedback: vi.fn(),
+  showPageNotice: vi.fn(async () => {}),
+  UNLOCK_NOTIFICATION_ID: 'unlock-required',
   extractHostname: vi.fn((url: string) => {
     try {
       return new URL(url).hostname;
@@ -24,6 +27,10 @@ vi.mock('@/entrypoints/background/quickFillHandler', () => ({
     }
   }),
   extractPortFromUrl: vi.fn(() => undefined),
+}));
+
+vi.mock('@/entrypoints/background/inlineDropdownHandler', () => ({
+  tryOpenInlineDropdown: vi.fn(async () => 'opened'),
 }));
 
 vi.mock('@/entrypoints/background/optionsPageManager', () => ({
@@ -60,7 +67,8 @@ vi.mock('@/utils/storage/passwordCrud', () => ({
   updatePasswordInSession: vi.fn(async () => {}),
 }));
 
-import { notifyFailure, showBadgeFeedback } from '@/entrypoints/background/quickFillHandler';
+import { notifyFailure, showBadgeFeedback, showPageNotice } from '@/entrypoints/background/quickFillHandler';
+import { tryOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
 import { openOptionsPage } from '@/entrypoints/background/optionsPageManager';
 import { openSidePanelAndRespond } from '@/entrypoints/background/sidePanelManager';
 import {
@@ -71,11 +79,16 @@ import {
   recordPendingTotpIfEligible,
 } from '@/entrypoints/background/passwordCache';
 import { isFrameFillable } from '@/utils/frameFill';
+import { isSessionActiveSync, isSessionValid } from '@/utils/sessionManager-storage';
 import { updatePasswordInSession } from '@/utils/storage/passwordCrud';
 import { MessageType, type PasswordEntry } from '@/utils/types';
 
 const mockedNotifyFailure = vi.mocked(notifyFailure);
 const mockedBadge = vi.mocked(showBadgeFeedback);
+const mockedPageNotice = vi.mocked(showPageNotice);
+const mockedOpenInline = vi.mocked(tryOpenInlineDropdown);
+const mockedSessionActive = vi.mocked(isSessionActiveSync);
+const mockedSessionValid = vi.mocked(isSessionValid);
 const mockedEnsure = vi.mocked(ensureCredentialAccessAfterStartupRelock);
 const mockedCached = vi.mocked(getCachedPasswords);
 const mockedSort = vi.mocked(sortMatchesForDomain);
@@ -150,6 +163,9 @@ const armHappyPath = (entries: PasswordEntry[]) => {
   mockedCached.mockResolvedValue({ isAuthenticated: true, passwords: entries } as never);
   mockedSort.mockImplementation(async passwords => passwords as PasswordEntry[]);
   mockedFrameFillable.mockResolvedValue(true);
+  mockedSessionActive.mockReturnValue(true);
+  mockedSessionValid.mockResolvedValue(true);
+  mockedOpenInline.mockResolvedValue('opened');
   sendMessageSpy.mockResolvedValue({ success: true } as never);
 };
 
@@ -167,31 +183,38 @@ afterEach(() => {
 });
 
 describe('菜单注册（结构契约）', () => {
-  it('注册 4 个输入框填充项与 2 个页面入口项，上下文分组正确', async () => {
+  it('两个显式父项 + 4 个输入框填充项 + 2 个页面入口项，子项挂在父项下', async () => {
     ensureClickListener();
-    await vi.waitFor(() => expect(createdMenuItems.length).toBe(6));
+    await vi.waitFor(() => expect(createdMenuItems.length).toBe(8));
     const editable = createdMenuItems.filter(item => item.contexts?.includes('editable'));
     const page = createdMenuItems.filter(item => item.contexts?.includes('page'));
     expect(editable.map(item => item.id)).toEqual([
+      'aph-cm-parent-fill',
       'aph-cm-fill-username',
       'aph-cm-fill-password',
       'aph-cm-fill-totp',
       'aph-cm-generate-password',
     ]);
-    expect(page.map(item => item.id)).toEqual(['aph-cm-open-sidepanel', 'aph-cm-open-options']);
+    expect(page.map(item => item.id)).toEqual(['aph-cm-parent-page', 'aph-cm-open-sidepanel', 'aph-cm-open-options']);
     expect(createdMenuItems.every(item => typeof item.title === 'string' && item.title.length > 0)).toBe(true);
+  });
+
+  it('每个上下文只有一个顶级项（避开 Chrome 按扩展全名折叠），且父项先于子项创建', async () => {
+    // 直接重建而非复用 ensureClickListener（监听器已存在时它会短路，断言的将是上一个用例的残留菜单）
+    setupContextMenu();
+    await vi.waitFor(() => expect(createdMenuItems.length).toBe(8));
+    const topLevel = createdMenuItems.filter(item => item.parentId === undefined);
+    expect(topLevel.map(item => item.id)).toEqual(['aph-cm-parent-fill', 'aph-cm-parent-page']);
+    for (const item of createdMenuItems) {
+      if (!item.parentId) continue;
+      const parentIndex = createdMenuItems.findIndex(menu => menu.id === item.parentId);
+      expect(parentIndex).toBeGreaterThanOrEqual(0);
+      expect(parentIndex).toBeLessThan(createdMenuItems.indexOf(item));
+    }
   });
 });
 
-describe('resolveContextMenuFill（条目与明文解析）', () => {
-  it('generate 不依赖条目，现场生成强密码', () => {
-    expect(resolveContextMenuFill([], 'generate')).toEqual({
-      ok: true,
-      entry: null,
-      value: 'Gen@rated123',
-    });
-  });
-
+describe('resolveContextMenuFill（已存条目与明文解析）', () => {
   it('username/password 取排序后首条（侧边栏展示顺序 = 最优匹配）', () => {
     const matched = [entryA, entryTotp];
     expect(resolveContextMenuFill(matched, 'username')).toEqual({ ok: true, entry: entryA, value: 'user-a' });
@@ -240,13 +263,82 @@ describe('填充类菜单点击分发', () => {
     );
   });
 
-  it('启动重锁未通过时提示会话未验证，不下发明文', async () => {
+  it('启动重锁未通过：就地展开内联下拉锁定卡片，不下发明文也不弹通知', async () => {
     mockedEnsure.mockResolvedValue(false);
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-fill-username', frameId: 2 } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedOpenInline).toHaveBeenCalledWith(1, { useContextMenuTarget: true, frameId: 2 }),
+    );
+    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedNotifyFailure).not.toHaveBeenCalled();
+  });
+
+  it('会话失效（异步校验也不通过）同样走就地引导，锚定参数携带右键 frame', async () => {
+    mockedSessionActive.mockReturnValue(false);
+    mockedSessionValid.mockResolvedValue(false);
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-fill-password' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedOpenInline).toHaveBeenCalledWith(1, { useContextMenuTarget: true, frameId: undefined }),
+    );
+    expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+    expect(mockedNotifyFailure).not.toHaveBeenCalled();
+  });
+
+  it('面板无法展开（无登录字段）时回退三层反馈：页面提示条 + 可点击解锁通知 + 失败角标', async () => {
+    mockedSessionActive.mockReturnValue(false);
+    mockedSessionValid.mockResolvedValue(false);
+    mockedOpenInline.mockResolvedValue('noLoginField');
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username' } as chrome.contextMenus.OnClickData, tab);
 
-    await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('bg.quickFill.sessionExpired', 'cm.title'));
+    await vi.waitFor(() => expect(mockedPageNotice).toHaveBeenCalledWith(1, 'bg.quickFill.sessionExpiredUnlock'));
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith(
+        'bg.quickFill.sessionExpiredUnlock',
+        'cm.title',
+        'unlock-required',
+      ),
+    );
     expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('旧标签页未注入 content script 时按「刷新页面」指引反馈，不误导用户去验证主密码', async () => {
+    mockedSessionActive.mockReturnValue(false);
+    mockedSessionValid.mockResolvedValue(false);
+    mockedOpenInline.mockResolvedValue('pageNotReady');
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-fill-username' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('bg.quickFill.pageNotReady', 'cm.title', undefined),
+    );
+    expect(mockedPageNotice).toHaveBeenCalledWith(1, 'bg.quickFill.pageNotReady');
+  });
+
+  it('生成强密码豁免会话门控：锁定态下仍下发随机密码，不读缓存也不展开解锁面板', async () => {
+    mockedEnsure.mockResolvedValue(false);
+    mockedSessionActive.mockReturnValue(false);
+    mockedSessionValid.mockResolvedValue(false);
+    const listener = ensureClickListener();
+    listener({ menuItemId: 'aph-cm-generate-password' } as chrome.contextMenus.OnClickData, tab);
+
+    await vi.waitFor(() =>
+      expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(
+        1,
+        { type: MessageType.CONTEXT_MENU_FILL, data: { action: 'generate', value: 'Gen@rated123' } },
+        { frameId: 0 },
+      ),
+    );
+    expect(mockedCached).not.toHaveBeenCalled();
+    expect(mockedOpenInline).not.toHaveBeenCalled();
+    expect(mockedNotifyFailure).not.toHaveBeenCalled();
+    // 生成值不属于任何条目：不记录接力标记、不更新最近使用时间
+    expect(mockedPending).not.toHaveBeenCalled();
+    expect(mockedUpdate).not.toHaveBeenCalled();
   });
 
   it('跨域 frame 门控拒绝时提示且不下发明文', async () => {
@@ -254,16 +346,21 @@ describe('填充类菜单点击分发', () => {
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username', frameId: 3 } as chrome.contextMenus.OnClickData, tab);
 
-    await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.frameNotFillable', 'cm.title'));
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.frameNotFillable', 'cm.title', undefined),
+    );
     expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
   });
 
-  it('无匹配条目时提示 noMatch', async () => {
+  it('无匹配条目时提示 noMatch，并同时走页面内提示条兜底', async () => {
     armHappyPath([]);
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-password' } as chrome.contextMenus.OnClickData, tab);
 
-    await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('bg.quickFill.noMatch', 'cm.title'));
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('bg.quickFill.noMatch', 'cm.title', undefined),
+    );
+    expect(mockedPageNotice).toHaveBeenCalledWith(1, 'bg.quickFill.noMatch');
     expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
   });
 
@@ -272,7 +369,9 @@ describe('填充类菜单点击分发', () => {
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username' } as chrome.contextMenus.OnClickData, tab);
 
-    await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('bg.quickFill.pageNotReady', 'cm.title'));
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('bg.quickFill.pageNotReady', 'cm.title', undefined),
+    );
   });
 
   it('content 端返回失败时透传其失败原因', async () => {
@@ -280,7 +379,7 @@ describe('填充类菜单点击分发', () => {
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-username' } as chrome.contextMenus.OnClickData, tab);
 
-    await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('cs.cm.noTarget', 'cm.title'));
+    await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('cs.cm.noTarget', 'cm.title', undefined));
   });
 
   it('TOTP 填充：取首个配置两步验证的条目并下发动态码，不记录接力标记', async () => {
@@ -304,7 +403,7 @@ describe('填充类菜单点击分发', () => {
     const listener = ensureClickListener();
     listener({ menuItemId: 'aph-cm-fill-totp' } as chrome.contextMenus.OnClickData, tab);
 
-    await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.noTotpEntry', 'cm.title'));
+    await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.noTotpEntry', 'cm.title', undefined));
     expect(chrome.tabs.sendMessage).not.toHaveBeenCalled();
   });
 
@@ -346,7 +445,9 @@ describe('页面类菜单点击分发', () => {
     const sendResponse = mockedOpenSidePanel.mock.calls[0][1];
     sendResponse({ success: false, error: 'User gesture is required to show side panel' });
 
-    await vi.waitFor(() => expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.openSidepanelFailed', 'cm.title'));
+    await vi.waitFor(() =>
+      expect(mockedNotifyFailure).toHaveBeenCalledWith('cm.openSidepanelFailed', 'cm.title', undefined),
+    );
   });
 
   it('打开侧边栏成功时不触发失败通知', async () => {
@@ -360,19 +461,20 @@ describe('页面类菜单点击分发', () => {
     expect(mockedNotifyFailure).not.toHaveBeenCalled();
   });
 
-  it('无 sidePanel API 的环境（如 Firefox）不注册「打开侧边栏」项', async () => {
+  it('无 sidePanel API 的环境（如 Firefox）不注册「打开侧边栏」子项（父页项仍保留）', async () => {
     ensureClickListener();
     Object.defineProperty(chrome, 'sidePanel', { value: undefined, configurable: true });
     try {
       setupContextMenu();
-      await vi.waitFor(() => expect(createdMenuItems.length).toBe(5));
+      await vi.waitFor(() => expect(createdMenuItems.length).toBe(7));
       expect(createdMenuItems.some(item => item.id === 'aph-cm-open-sidepanel')).toBe(false);
       expect(createdMenuItems.some(item => item.id === 'aph-cm-open-options')).toBe(true);
+      expect(createdMenuItems.some(item => item.id === 'aph-cm-parent-page')).toBe(true);
     } finally {
-      // 恢复 sidePanel 桩与 6 项菜单，避免影响后续用例
+      // 恢复 sidePanel 桩与 8 项菜单，避免影响后续用例
       Object.defineProperty(chrome, 'sidePanel', { value: {}, configurable: true });
       setupContextMenu();
-      await vi.waitFor(() => expect(createdMenuItems.length).toBe(6));
+      await vi.waitFor(() => expect(createdMenuItems.length).toBe(8));
     }
   });
 });

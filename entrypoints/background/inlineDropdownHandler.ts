@@ -30,18 +30,35 @@ interface OpenInlineDropdownResponse {
 /** tryOpenInlineDropdown 的展开结果 */
 export type InlineDropdownOpenResult = 'opened' | 'pageNotReady' | 'noLoginField';
 
+/** tryOpenInlineDropdown 的可选锚定参数 */
+export interface InlineDropdownOpenOptions {
+  /**
+   * 是否优先锚定「用户右键点击的那个输入框」（仅右键菜单场景传 true）
+   *
+   * 右键菜单的注意力落点就是被右键的框，锚定它比回退到首个检测到的登录字段更贴合预期；
+   * 目标失效（已移除 / 不可编辑 / 非 input）时自动回落到常规轮次。
+   */
+  useContextMenuTarget?: boolean;
+  /** 优先锚定的 frame（右键菜单传右键发生的 frameId） */
+  frameId?: number;
+}
+
 /**
  * 向单个 frame 下发展开指令
  * @param tabId 标签页 ID
  * @param frameId 目标 frame ID
- * @param focusedOnly 是否仅允许锚定当前聚焦的登录字段
+ * @param data 锚定策略（聚焦字段优先 / 使用右键目标）
  * @returns 该 frame 是否已处理（不可达或未处理均视为 false）
  */
-async function dispatchToFrame(tabId: number, frameId: number, focusedOnly: boolean): Promise<boolean> {
+async function dispatchToFrame(
+  tabId: number,
+  frameId: number,
+  data: { focusedOnly?: boolean; useContextMenuTarget?: boolean },
+): Promise<boolean> {
   try {
     const res: OpenInlineDropdownResponse | undefined = await chrome.tabs.sendMessage(
       tabId,
-      { type: MessageType.OPEN_INLINE_DROPDOWN, data: { focusedOnly } },
+      { type: MessageType.OPEN_INLINE_DROPDOWN, data },
       { frameId },
     );
     return res?.handled === true;
@@ -60,9 +77,13 @@ async function dispatchToFrame(tabId: number, frameId: number, focusedOnly: bool
  * 失败反馈由各调用方按自身语境处理。
  *
  * @param tabId 目标标签页 ID
+ * @param options 锚定参数（右键菜单传 `useContextMenuTarget` + 右键发生的 frameId）
  * @returns 展开结果：'opened' 已展开 / 'pageNotReady' content script 不可达 / 'noLoginField' 无登录字段
  */
-export async function tryOpenInlineDropdown(tabId: number): Promise<InlineDropdownOpenResult> {
+export async function tryOpenInlineDropdown(
+  tabId: number,
+  options: InlineDropdownOpenOptions = {},
+): Promise<InlineDropdownOpenResult> {
   // 可达性探测：content script 未注入（扩展更新/重载后的旧标签页）时
   // sendMessage 抛 "Could not establish connection"，引导用户刷新页面
   try {
@@ -73,10 +94,22 @@ export async function tryOpenInlineDropdown(tabId: number): Promise<InlineDropdo
 
   const frameIds = await getFillableFrameIds(tabId);
 
+  // 右键菜单优先轮：锁定在用户右键的那个输入框上（仅限安全 frame 集合内的 frame，
+  // 与常规轮次同一道跨域防线）；目标失效时继续回落到下方两轮
+  if (options.useContextMenuTarget) {
+    const originFrameId = options.frameId ?? 0;
+    if (
+      frameIds.includes(originFrameId) &&
+      (await dispatchToFrame(tabId, originFrameId, { useContextMenuTarget: true }))
+    ) {
+      return 'opened';
+    }
+  }
+
   // 两轮委派：第一轮聚焦字段优先（跨域 iframe 登录场景不被顶层抢占），第二轮回退检测字段
   for (const focusedOnly of [true, false]) {
     for (const frameId of frameIds) {
-      if (await dispatchToFrame(tabId, frameId, focusedOnly)) {
+      if (await dispatchToFrame(tabId, frameId, { focusedOnly })) {
         return 'opened';
       }
     }
