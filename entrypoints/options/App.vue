@@ -148,7 +148,7 @@
       :password-rules="formPasswordRules"
       @save="handleSavePasswordWithValidation"
       @closed="handleResetPasswordForm"
-      @update:form="Object.assign(passwordForm, $event)"
+      @update:form="applyPasswordFormPatch"
       @update:tag-array="tagArray = $event"
     />
 
@@ -537,6 +537,7 @@ const {
   openPasswordDialog,
   editPassword,
   resetPasswordForm,
+  applyPasswordFormPatch,
   handlePasswordFormSave,
   copyPassword,
   deletePassword,

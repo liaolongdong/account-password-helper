@@ -593,6 +593,36 @@ export interface QuickAddPasswordData {
 }
 
 /**
+ * 密码表单字段模型
+ *
+ * 密码管理页 `passwordForm` 的形状，由 `usePasswordManagement` 持有，
+ * 经 props 下发给添加/编辑弹窗渲染。
+ */
+export interface PasswordFormModel {
+  /** 用户名 */
+  username: string;
+  /** 密码 */
+  password: string;
+  /** 网站域名 */
+  url: string;
+  /** 标签（英文逗号拼接字符串，写入前经归一化） */
+  tag: string;
+  /** 备注 */
+  remark: string;
+  /** TOTP 密钥 */
+  totp: string;
+}
+
+/**
+ * 密码表单弹窗可回写的字段补丁
+ *
+ * `tag` 不在此列：它由 `usePasswordManagement` 的 `tagArray` computed setter 独占写入
+ * （含去重、长度与数量归一化及超限提示），弹窗内的本地副本不得回传，
+ * 否则会用陈旧值覆盖用户刚选择的标签。
+ */
+export type PasswordFormPatch = Omit<PasswordFormModel, 'tag'>;
+
+/**
  * 自动保存预检查请求数据
  *
  * 由 content script 在捕获登录凭证后、弹窗前发送，供 background 比对已保存密码库。

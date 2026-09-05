@@ -25,7 +25,7 @@ import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
 import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
 import type { FormFieldSets } from '@/entrypoints/content/types';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
-import { isElementVisible } from './domUtils';
+import { isDetectableCheckbox, isElementVisible } from './domUtils';
 import { fillContextMenuTarget } from './contextMenuTarget';
 import { tl } from '@/utils/i18n-lite';
 import {
@@ -360,20 +360,33 @@ export class FormDetector {
       this.detectUsernameByProximity();
     }
 
-    // 检测复选框
+    // 检测复选框（含原生 input 被隐藏但存在可见关联 label 的自定义样式复选框）
     const checkboxInputs = document.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-    this.checkboxFields = Array.from(checkboxInputs).filter(input => {
-      const style = window.getComputedStyle(input);
-      return (
-        input.disabled === false &&
-        style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        input.offsetParent !== null
-      );
-    });
+    this.checkboxFields = Array.from(checkboxInputs).filter(input => isDetectableCheckbox(input));
+
+    // 内联触发图标补偿：弥补检测完成前获焦导致委托错过展示的缺口
+    this.syncInlineTriggerWithActiveElement();
 
     // 两步接力：纯验证码页查询待接力标记并锚定活码胶囊
     this.maybeTriggerTotpHandoff();
+  }
+
+  /**
+   * 检测完成后为当前聚焦的登录字段补偿内联触发图标
+   *
+   * tab 切换/异步渲染场景下，输入框可能在本轮检测完成前获焦（含切换即自动聚焦）：
+   * 彼时字段尚未归类，focusin/click 委托判定为非登录字段而错过展示；
+   * 检测完成后又不再有新的聚焦事件，旧逻辑需用户失焦再聚焦才能看到图标。
+   * 此处若焦点仍停留在登录字段则补偿一次展示（showTriggerFor 对同一字段幂等）。
+   */
+  private syncInlineTriggerWithActiveElement(): void {
+    if (this.floatingButtonConfig.fillMode !== 'inline') return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement)) return;
+    if (!this.shouldShowSidePanel(active)) return;
+    this.inlineDropdown.showTriggerFor(active, {
+      hasEyeToggle: this.isEyeToggleAtInputRight(active),
+    });
   }
 
   /**
@@ -526,6 +539,17 @@ export class FormDetector {
   }
 
   /**
+   * 密码可见性按钮是否锚定在 input 右内缘（钥匙图标需为其预留避让偏移）
+   *
+   * 按钮锚定父元素（可视字段盒）右缘时与 input 右缘不再相邻，钥匙图标无需预留偏移。
+   * @param input 当前获焦/点击的输入框
+   */
+  private isEyeToggleAtInputRight(input: HTMLInputElement): boolean {
+    if (input.type !== 'password' || !this.floatingButtonConfig.passwordVisibilityToggle) return false;
+    return this.passwordVisibilityToggle.anchorsToInputRight(input);
+  }
+
+  /**
    * 处理委托的聚焦事件：内联模式下为登录字段显示钥匙触发图标
    */
   private handleDelegatedFocusIn = (event: FocusEvent): void => {
@@ -536,7 +560,7 @@ export class FormDetector {
     if (!input) return;
     if (this.shouldShowSidePanel(input)) {
       this.inlineDropdown.showTriggerFor(input, {
-        hasEyeToggle: input.type === 'password' && this.floatingButtonConfig.passwordVisibilityToggle,
+        hasEyeToggle: this.isEyeToggleAtInputRight(input),
       });
     }
   };
@@ -559,7 +583,7 @@ export class FormDetector {
       // 内联模式：不自动打开侧边栏，改为显示钥匙触发图标（点击图标展开面板）
       if (this.floatingButtonConfig.fillMode === 'inline') {
         this.inlineDropdown.showTriggerFor(input, {
-          hasEyeToggle: input.type === 'password' && this.floatingButtonConfig.passwordVisibilityToggle,
+          hasEyeToggle: this.isEyeToggleAtInputRight(input),
         });
         return;
       }

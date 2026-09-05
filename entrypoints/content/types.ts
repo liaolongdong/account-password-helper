@@ -153,7 +153,10 @@ export interface PendingCredentials {
  * 以创建定位上下文（无视觉影响）。
  *
  * 垂直居中由 CSS（top: 50%; transform: translateY(-50%)）处理，
- * 水平位置由 JS 计算，无需 ResizeObserver 或 scroll 追踪。
+ * 水平位置由 JS 计算，并经布局跟随（rAF 逐帧比对矩形指纹，仅在按钮可见期间运行）自动修正。
+ *
+ * 宿主父元素的 position 改写不在本结构里记账：同父元素可有多个密码框共享同一份 relative，
+ * 因此改写归属（原值 + 引用计数）按父元素记在管理器的 parentPositionOverrides 上。
  */
 export interface ToggleEntry {
   /** 原始密码输入框 */
@@ -166,6 +169,8 @@ export interface ToggleEntry {
   onInput: () => void;
   /** click 事件监听器引用（用于解绑） */
   onClick: () => void;
-  /** 父元素原始的 style.position 值（用于 cleanup 恢复） */
-  originalParentPosition: string;
+  /** 布局跟随上一帧的 input/parent 矩形指纹（变化时才重定位；跟随冷启动时被清空） */
+  lastRectKey: string;
+  /** 最近一次定位是否锚定 input 右缘（供钥匙图标避让偏移判定） */
+  anchorAtInputRight: boolean;
 }

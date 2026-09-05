@@ -567,8 +567,10 @@ export class InlineFillDropdown {
   private panelOpen = false;
   /** 请求序号，用于丢弃过期响应 */
   private requestSeq = 0;
-  /** 重定位 rAF 句柄 */
-  private repositionRaf: number | null = null;
+  /** 布局跟随 rAF 句柄（图标/面板可见期间逐帧跟踪输入框 rect） */
+  private followRaf: number | null = null;
+  /** 布局跟随上一帧的输入框 rect 指纹 */
+  private followLastRectKey = '';
   /** 图标失焦隐藏计时器 */
   private hideIconTimer: ReturnType<typeof setTimeout> | null = null;
   /** 首次引导气泡元素（终生仅展示一次） */
@@ -617,6 +619,8 @@ export class InlineFillDropdown {
     this.positionTrigger();
     this.triggerEl?.classList.add('visible');
     this.attachTriggerInteractions();
+    // 逐帧跟踪入场动画/iframe 二次布局期间的 rect 变化，避免图标停留在瞬态坐标
+    this.syncFollow();
     // 首次使用引导：内联为默认填充方式后，用一次性气泡补偿钥匙图标的可发现性
     void this.maybeShowFirstUseHint();
   }
@@ -651,6 +655,7 @@ export class InlineFillDropdown {
    */
   private hideIcon(): void {
     this.iconVisible = false;
+    this.syncFollow();
     this.triggerEl?.classList.remove('visible');
     this.detachTriggerInteractions();
     this.hideHint();
@@ -670,6 +675,11 @@ export class InlineFillDropdown {
   destroy(): void {
     this.detachTriggerInteractions();
     this.detachPanelInteractions();
+    if (this.followRaf !== null) {
+      cancelAnimationFrame(this.followRaf);
+      this.followRaf = null;
+    }
+    this.followLastRectKey = '';
     this.unsubscribeLocale?.();
     this.unsubscribeLocale = null;
     if (this.hideIconTimer) {
@@ -796,6 +806,51 @@ export class InlineFillDropdown {
     this.positionHint();
   }
 
+  /**
+   * 开启布局跟随：图标或面板可见期间逐帧跟踪输入框 rect，变化即重定位
+   *
+   * iframe 二次布局、入场动画、异步样式加载等场景下，输入框 rect 可能在短暂稳定后
+   * 再次漂移，且全程不产生 window scroll/resize 事件；短时观察窗口（稳定即结束）
+   * 覆盖不到，图标/面板会停留在瞬态坐标（部分 iframe 登录页图标偏移的根因）。
+   * 跟随仅在 rect 变化时重定位，稳定帧只读一次 rect、不写样式；UI 隐藏后自动停止。
+   */
+  private syncFollow(): void {
+    if (!this.iconVisible && !this.panelOpen) {
+      if (this.followRaf !== null) {
+        cancelAnimationFrame(this.followRaf);
+        this.followRaf = null;
+      }
+      this.followLastRectKey = '';
+      return;
+    }
+    if (this.followRaf !== null) return;
+    this.followLastRectKey = '';
+    this.followRaf = requestAnimationFrame(this.followTick);
+  }
+
+  /**
+   * 布局跟随每帧：rect 变化时重定位图标/面板；UI 均隐藏时停止跟随
+   */
+  private followTick = (): void => {
+    this.followRaf = null;
+    if (!this.iconVisible && !this.panelOpen) return;
+    if (this.currentInput) {
+      const rect = this.currentInput.getBoundingClientRect();
+      const key = `${Math.round(rect.left)},${Math.round(rect.top)},${Math.round(rect.width)},${Math.round(rect.height)}`;
+      if (key !== this.followLastRectKey) {
+        this.followLastRectKey = key;
+        if (this.panelOpen) this.positionPanel();
+        else this.positionTrigger();
+      }
+    }
+    // positionTrigger/positionPanel 可能因输入框滚出视口隐藏 UI，此时停止跟随
+    if (!this.iconVisible && !this.panelOpen) {
+      this.followLastRectKey = '';
+      return;
+    }
+    this.followRaf = requestAnimationFrame(this.followTick);
+  };
+
   // ==================== 首次引导气泡 ====================
 
   /**
@@ -877,12 +932,12 @@ export class InlineFillDropdown {
   }
 
   /**
-   * 绑定图标阶段监听（失焦隐藏、滚动/缩放重定位）
+   * 绑定图标阶段监听（失焦隐藏）
+   *
+   * 滚动/缩放重定位由布局跟随（syncFollow）逐帧覆盖，无需额外监听
    */
   private attachTriggerInteractions(): void {
     this.currentInput?.addEventListener('blur', this.handleFieldBlur);
-    window.addEventListener('scroll', this.handleReposition, true);
-    window.addEventListener('resize', this.handleReposition);
   }
 
   /**
@@ -890,10 +945,6 @@ export class InlineFillDropdown {
    */
   private detachTriggerInteractions(): void {
     this.currentInput?.removeEventListener('blur', this.handleFieldBlur);
-    if (!this.panelOpen) {
-      window.removeEventListener('scroll', this.handleReposition, true);
-      window.removeEventListener('resize', this.handleReposition);
-    }
   }
 
   /**
@@ -954,6 +1005,7 @@ export class InlineFillDropdown {
     this.positionPanel();
     // positionPanel 可能因输入框滚出视口而关闭面板，此时不再继续绑定与聚焦
     if (!this.panelOpen) return;
+    this.syncFollow();
     this.attachPanelInteractions();
     if (!this.locked) this.focusSearch();
   }
@@ -966,6 +1018,7 @@ export class InlineFillDropdown {
     this.panelOpen = false;
     this.panelEl?.classList.remove('visible');
     this.detachPanelInteractions();
+    this.syncFollow();
     this.activeIndex = -1;
     this.clearTotpStates();
   }
@@ -1538,13 +1591,13 @@ export class InlineFillDropdown {
   }
 
   /**
-   * 绑定面板阶段监听（外部点击、键盘、滚动/缩放）
+   * 绑定面板阶段监听（外部点击、键盘）
+   *
+   * 滚动/缩放重定位由布局跟随（syncFollow）逐帧覆盖，无需额外监听
    */
   private attachPanelInteractions(): void {
     document.addEventListener('mousedown', this.handleOutsideMouseDown, true);
     document.addEventListener('keydown', this.handlePanelKeydown, true);
-    window.addEventListener('scroll', this.handleReposition, true);
-    window.addEventListener('resize', this.handleReposition);
   }
 
   /**
@@ -1553,12 +1606,6 @@ export class InlineFillDropdown {
   private detachPanelInteractions(): void {
     document.removeEventListener('mousedown', this.handleOutsideMouseDown, true);
     document.removeEventListener('keydown', this.handlePanelKeydown, true);
-    window.removeEventListener('scroll', this.handleReposition, true);
-    window.removeEventListener('resize', this.handleReposition);
-    if (this.repositionRaf !== null) {
-      cancelAnimationFrame(this.repositionRaf);
-      this.repositionRaf = null;
-    }
   }
 
   /**
@@ -1592,18 +1639,6 @@ export class InlineFillDropdown {
         }
         break;
     }
-  };
-
-  /**
-   * 滚动/缩放重定位（rAF 节流），面板打开时定位面板，否则定位图标
-   */
-  private handleReposition = (): void => {
-    if (this.repositionRaf !== null) return;
-    this.repositionRaf = requestAnimationFrame(() => {
-      this.repositionRaf = null;
-      if (this.panelOpen) this.positionPanel();
-      else if (this.iconVisible) this.positionTrigger();
-    });
   };
 
   /**

@@ -149,6 +149,7 @@ const handleOpenOptionsAdd = () => {
             ref="usernameInputRef"
             v-model="form.username"
             :placeholder="t('sidepanel.quickAdd.usernamePlaceholder')"
+            clearable
             maxlength="50"
             @keyup.enter="handleSubmit"
           />
@@ -183,6 +184,7 @@ const handleOpenOptionsAdd = () => {
           <el-input
             v-model="form.url"
             :placeholder="t('sidepanel.quickAdd.urlPlaceholder')"
+            clearable
             maxlength="100"
             @keyup.enter="handleSubmit"
           />
@@ -195,6 +197,7 @@ const handleOpenOptionsAdd = () => {
           <el-input
             v-model="form.tag"
             :placeholder="t('sidepanel.quickAdd.tagPlaceholder')"
+            clearable
             maxlength="50"
             @keyup.enter="handleSubmit"
           />
@@ -207,6 +210,7 @@ const handleOpenOptionsAdd = () => {
           <el-input
             v-model="form.remark"
             :placeholder="t('sidepanel.quickAdd.remarkPlaceholder')"
+            clearable
             maxlength="1000"
             @keyup.enter="handleSubmit"
           />

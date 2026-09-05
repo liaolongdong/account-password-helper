@@ -3,7 +3,6 @@
   "form.usernameMax": "Username cannot exceed 50 characters",
   "form.passwordMax": "Password cannot exceed 50 characters",
   "form.urlMax": "URL cannot exceed 100 characters",
-  "form.tagMax": "Tag cannot exceed 50 characters",
   "form.remarkMax": "Notes cannot exceed 1000 characters",
   "form.invalidUrl": "Please enter a valid URL",
   "form.invalidUrlExample": "Enter a valid URL or domain, e.g. github.com",
