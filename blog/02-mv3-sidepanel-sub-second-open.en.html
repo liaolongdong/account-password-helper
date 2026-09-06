@@ -64,6 +64,10 @@
       content="2026-08-28"
     />
     <meta
+      property="article:modified_time"
+      content="2026-09-05"
+    />
+    <meta
       name="twitter:card"
       content="summary_large_image"
     />
@@ -88,7 +92,7 @@
   "inLanguage": "en",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-08-28",
+  "dateModified": "2026-09-05",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -238,7 +242,7 @@
     </nav>
     <article>
       <h1>'Opening the Chrome Side Panel in Under One Second: MV3 Service Worker Keep-Alive and Pre-Warming in Practice'</h1>
-      <p class="meta">2026-08-28 · liaolongdong</p>
+      <p class="meta">2026-08-28 · Updated 2026-09-05 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png" alt="'Opening the Chrome Side Panel in Under One Second: MV3 Service Worker Keep-Alive and Pre-Warming in Practice'" />
       <h1>Opening the Chrome Side Panel in Under One Second: MV3 Service Worker Keep-Alive and Pre-Warming in Practice</h1>
 <p>If you&#39;ve shipped a Manifest V3 extension, you&#39;ve probably been bitten by the same bug: <strong>the side panel cold-start white screen</strong>.</p>
@@ -301,7 +305,7 @@
 <li><code>passwordCache</code> / <code>startupRelock</code> / <code>idleLock</code>: cache re-warm and every lock path;</li>
 <li><code>sidePanelManager</code>: open sequencing.</li>
 </ul>
-<p>The repo now has 364 automated tests. Performance outcome: <strong>20–50ms on the cached fast path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
+<p>The repo now has 632 automated tests across 53 test files. Performance outcome: <strong>20–50ms on the cached fast path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
 <h2>Retrospective: Three Lessons</h2>
 <ol>
 <li><strong>Don&#39;t fight MV3&#39;s lifecycle; design around it.</strong> The SW <em>will</em> be terminated. Assume it&#39;s never there: put state in <code>chrome.storage</code>, delegate wake-ups to alarms, and push costs forward into pre-warming.</li>

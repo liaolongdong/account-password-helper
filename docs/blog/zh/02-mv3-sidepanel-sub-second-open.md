@@ -3,6 +3,7 @@ title: 让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热�
 description: Manifest V3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文完整复盘 Account Password Helper 的秒开方案：双层保活、四层资源预热、三路数据竞速与非阻塞 CSS。
 tags: Chrome扩展,Manifest V3,Service Worker,性能优化,前端工程化
 date: 2026-08-28
+modified: 2026-09-05
 author: liaolongdong
 image: imgs/blog-cover-02-sub-second-sidepanel.png
 ---
@@ -92,7 +93,7 @@ SW 常驻之后，下一步是把"用户即将用到的文件"提前读进系统
 - `passwordCache` / `startupRelock` / `idleLock`：缓存回温与各类锁定路径；
 - `sidePanelManager`：打开时序。
 
-目前全仓库 364 项自动化测试。性能结论：**缓存快路径 20–50ms**；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。
+目前全仓库 632 项自动化测试（分布在 53 个测试文件）。性能结论：**缓存快路径 20–50ms**；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。
 
 ## 复盘：三条经验
 

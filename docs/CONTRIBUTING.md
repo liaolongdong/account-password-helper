@@ -243,6 +243,9 @@ graph LR
   ```
 
 - 不得为通过测试而弱化断言、删除测试或跳过测试。
+- 需要 DOM 的用例（如注入式叠加 UI 的布局跟随 / 位置还原生命周期）不改全局环境，在文件首行加 `/** @vitest-environment jsdom */` 逐文件启用；`vitest.config.ts` 的默认环境始终是 `node`，以免拖慢常态纯逻辑用例。
+- jsdom 不提供真实布局（`getBoundingClientRect()` 恒为 0、`offsetWidth/offsetHeight` 恒为 0、`getComputedStyle()` 对未声明属性返回空串），此类量测由 `tests/helpers/domLayout.ts` 的 `installDomLayout()` 装置接管，并提供可手动推进的 rAF 队列与跨读写有序日志（可断言「是否排帧」与「先全读后全写」）；装置自带自检用例，新增量测必须回带校验字段，防止样式未命中时产出看似合理实则全错的数字。
+- `.vue` 组件渲染测试暂不支持（未引入 `@vitejs/plugin-vue` 与 `@vue/test-utils`），Vue 侧交互链路覆盖到状态所有者（composable / 纯函数）为止。
 
 ### 快捷键
 

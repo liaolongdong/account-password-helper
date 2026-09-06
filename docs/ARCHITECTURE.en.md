@@ -19,13 +19,13 @@ This document targets developers and contributors, covering the architecture des
 
 ### Entrypoints
 
-| Entrypoint         | Responsibility                                                                                                                                                                                                                               |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Background**     | Service worker: message routing (discriminated unions), password cache (domain-agnostic), side panel state (port tracking), shortcuts; 6 submodules: router / cache / side panel / options page / auto-save / services (keep-alive + alarms) |
-| **Content Script** | Injected into all pages; initializes form detection and the floating button                                                                                                                                                                  |
-| **Popup**          | Extension icon popup with "Manage Passwords" and "Quick Fill" entries                                                                                                                                                                        |
-| **Options**        | Main manager page: full CRUD, import/export, session/validity management                                                                                                                                                                     |
-| **SidePanel**      | Quick fill panel with pinyin smart search and match highlighting, sorting, domain matching, cache acceleration                                                                                                                               |
+| Entrypoint         | Responsibility                                                                                                                                                                                                                                                                                                  |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Background**     | Service worker: message routing (discriminated unions), password cache (domain-agnostic), side panel state (port tracking), shortcuts; background submodules: router / cache / side panel / options page / auto-save / quick fill / context menu / inline dropdown / quick add / services (keep-alive + alarms) |
+| **Content Script** | Injected into all pages; initializes form detection and the floating button                                                                                                                                                                                                                                     |
+| **Popup**          | Extension icon popup with "Manage Passwords" and "Quick Fill" entries                                                                                                                                                                                                                                           |
+| **Options**        | Main manager page: full CRUD, import/export, session/validity management                                                                                                                                                                                                                                        |
+| **SidePanel**      | Quick fill panel with pinyin smart search and match highlighting, sorting, domain matching (This-site / All-entries scope), cache acceleration, in-place quick add                                                                                                                                              |
 
 ### Messaging & Data Flow
 
@@ -95,6 +95,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - After a session is created, passwords are decrypted into an in-memory cache; they re-encrypt automatically when the session expires.
 - Inconsistent encryption states are detected and repaired automatically after session recovery.
 - SessionManager checks session validity every minute and on page visibility changes.
+- **Live Caps Lock warning**: every master-password field (first-time setup, the unlock verification view, the verification dialog, master password change, encrypted-backup import) reads the modifier state via `KeyboardEvent.getModifierState('CapsLock')` on keydown/keyup (see [useCapsLockDetection.ts](../composables/useCapsLockDetection.ts)) and shows an amber warning line below the input (see [CapsLockHint.vue](../components/CapsLockHint.vue)), so a stray Caps Lock is never mistaken for a "wrong password". The hint uses `role="status"` for non-interruptive screen-reader announcements and resets on blur, leaving no stale warning behind.
 
 ### 2. Form Detection & Filling
 
@@ -113,6 +114,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - Batch selection and batch deletion of entries; deleted entries go to the trash for 30 days and can be restored anytime.
 - Favorites: star frequent entries and filter with "favorites only"; configurable limit (1–50) with LRU eviction when exceeded; filling from the side panel refreshes the usage timestamp for accurate LRU.
 - One-click dedup: detects duplicates (same username + same URL) and cleans them up after confirmation.
+- Read-only detail view: each row's "View details" opens a drawer with every field of the entry (full notes and password history included) — no need to enter edit mode (see section 23).
 - Multi-format CSV import: auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats (see [utils/excel.ts](../utils/excel.ts)).
 
 ### 4. Auto-Save Login Credentials
@@ -181,6 +183,9 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - **Exact domain matching**: only entries whose host exactly matches the current page are shown (no subdomain/parent-domain fuzzy matching), keeping multi-environment accounts apart (e.g. `fat.example.com` vs `uat.example.com`); entries without a URL always show.
 - **Local dev friendly**: on `localhost` or `127.0.0.1`, all passwords match by default (see [sidepanel/App.vue](../entrypoints/sidepanel/App.vue)).
 - **Site favicons**: list and side panel entries show the matching website icon, read from Chrome's local favicon cache via the `_favicon/` endpoint — zero external network requests (see [SiteFavicon.vue](../components/SiteFavicon.vue)); falls back to the default icon with zero layout shift when unavailable.
+- **Side panel quick add**: the "+" in the header opens the quick-add dialog in place (see [QuickAddDialog.vue](../components/sidepanel/QuickAddDialog.vue)) with the URL prefilled from the current domain; when the site has no account or the search returns nothing, the empty state offers the same "Add this site's account" entry. The dialog keeps only the five frequent fields (account / password / URL / tag / remark) — full fields such as TOTP go through "Open Password Manager for all fields".
+- **Search scope toggle (This site / All entries)**: the icon right of the search box switches between `site` (default: current-domain matches plus URL-less generic entries) and `all` (the whole vault). Both the predicate and the filtering live in the Vue-free pure functions of [passwordFilter.ts](../utils/passwordFilter.ts) (`matchesSiteScope` / `filterEntriesByScope`), shared with "can this entry fill the current page" so the two semantics cannot drift apart; the scope resets to `site` whenever the current domain or port changes (switching to another tab on the same site keeps all-entries). In all-entry mode an off-site hit has a falsy `canFill`, so the row degrades to "open the site in a new tab" (via `toNavigableUrl` in [domain.ts](../utils/domain.ts), which adds the default protocol and rejects non-navigational schemes such as `javascript:`) while copying username / password / 2FA code, favoriting and editing stay available. When this site has no match but the vault does, the empty state renders a one-click "Search all entries (N found)".
+- **Search placeholder and empty state**: the placeholder reads "username / tag / remark / URL", with `aria-label` and `title` on the search area documenting pinyin support; the empty state switches wording depending on whether a keyword is typed — an add-guidance hint before typing, and pinyin-initial tips after a keyword returns nothing (e.g. `zf` matching 「支付」).
 - Click an entry to fill and auto-close the side panel; if no login form is present, a "no login form detected" notice appears.
 - Side panel entries can jump to the manager to edit that entry or add a new one.
 - Shortcuts:
@@ -249,6 +254,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - The key icon in front of each entry prefers the matching website favicon: the background reads it from the local `_favicon/` endpoint and ships it as a dataURL with the metadata (in-memory cache + fallback to the key icon, see `fetchFaviconDataUrl` in [utils/favicon.ts](../utils/favicon.ts)); `_favicon/*` is never exposed as a web-accessible resource, avoiding history-probing privacy risks — zero external network requests.
 - When the session is locked, the panel shows an "unlock to fill" guide linking to the manager for master password verification.
 - Closed Shadow DOM (`all: initial`) fully isolates page styles; theme tokens are written inline on the host element and follow the global theme.
+- **Viewport-aware positioning**: the panel is made visible before it is positioned (an invisible panel reports `offsetHeight` 0, which breaks the above/below space decision on first open), then anchored below the input by default, flipping above only when the space below can't fit the panel and the space above is larger. When the chosen side is short, the panel height is compressed (the list scrolls internally, floored at 120px so the search row plus at least one entry stay usable); if the viewport is even smaller it snaps inside the viewport, and 8px horizontal margins are kept — so narrow viewports such as nested-iframe login boxes no longer clip the panel (see `InlineFillDropdown.positionPanel()`). Visibility and positioning happen in one synchronous task, so no wrong-position flash; if the panel ends up closed during positioning, the remaining interaction binding and focus are aborted.
 
 ### 18. Trash Bin
 
@@ -259,8 +265,8 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 
 ### 19. Password Change History
 
-- When a password field changes on edit, the old ciphertext is snapshotted into history (see [utils/storage/passwordHistory.ts](../utils/storage/passwordHistory.ts)); each entry keeps the latest **5** records, oldest evicted automatically.
-- The edit dialog shows a "Password history" section (edit mode with history only): each record shows the change time and a mask, with "Copy" and "Restore" buttons — restore fills the old password back into the form.
+- When a password field changes on edit, the old ciphertext is snapshotted into history (see [utils/storage/passwordHistory.ts](../utils/storage/passwordHistory.ts)); each entry keeps the latest **3** records by default (configurable to 1–10 in "Password History Settings"), oldest evicted automatically.
+- The edit dialog shows a "Password history" section (edit mode with history only): each record shows the change time and a mask, with "Copy" and "Restore" buttons — restore fills the old password back into the form; the read-only detail drawer offers the same history as a read + copy view (see section 23).
 - History is stored encrypted, never in plaintext; viewing/restoring requires a valid session; history is purged with permanent deletion and re-encrypted on master password change.
 
 ### 20. Master Password Change
@@ -289,6 +295,14 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - Security gates share the same line of defense as quick fill: the startup-relock barrier, session validation, and `isFrameFillable` cross-origin frame rejection (plaintext is only sent to the top frame or same-main-domain frames). **Exception**: "Generate & Fill Strong Password" is exempt from the session gates — it only generates a random password with Web Crypto and reads no encrypted or decrypted entry, while signing up for a new account (its most frequent scenario) is exactly when the session is usually locked; the `isFrameFillable` gate and frame-targeted delivery remain in place.
 - When the session is invalid it follows the same policy as quick fill: the inline dropdown's locked card opens in place, anchored preferentially to the right-clicked input (the `useContextMenuTarget` round of `OPEN_INLINE_DROPDOWN`, limited to frames in `getFillableFrameIds`); the feedback channels are only used when the panel cannot open.
 - Feedback policy: a successful fill shows only the toolbar badge (the fill result is visible in the input, avoiding notification noise); failures use **three layers** — an in-page notice (`SHOW_PAGE_NOTICE` sent to the top frame, independent of OS notification permissions) + desktop notification + failure badge, with session-related notifications using the clickable `unlock-required` ID. "Open Side Panel" failures are never swallowed silently either.
+
+### 23. Read-only Entry Detail Drawer
+
+- Each row's "View details" on the manager page opens a read-only drawer with the full record of one entry (see [PasswordDetailDrawer.vue](../components/options/PasswordDetailDrawer.vue)): site icon, username, URL, password, live 2FA code, tags, the complete remark, password change history, and create / update / last-used timestamps — the notes truncated in the list and the history that has no list slot are both fully readable here, without entering edit mode.
+- **Presentation only**: it never writes storage and never touches encryption or the session; "Edit" just emits the entry upward so the parent closes the drawer and reuses the existing edit dialog, keeping a single write path.
+- The password stays masked until the eye button is clicked; visibility is local state that resets — together with the loaded history list — when the closing animation ends, so no plaintext reference lingers. The URL is normalized through `toNavigableUrl` before being used as a link.
+- Copying username / URL uses `copyTextToClipboard` from [clipboard.ts](../utils/clipboard.ts); copying the password and any historical password uses `copySecretToClipboard`, which auto-clears after the configured clipboard delay and reports success/failure through a callback (the same mechanism the side panel uses, with wording injected by the caller).
+- Password history is loaded lazily — and only when "Password History Settings" is enabled — via a dynamic import of the config, so opening the drawer never triggers pointless decryption.
 
 ## Development Extras
 

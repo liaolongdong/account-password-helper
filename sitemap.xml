@@ -2,13 +2,13 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/en.html</loc>
-    <lastmod>2026-08-27</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.9</priority>
   </url>
@@ -38,49 +38,61 @@
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/index.en.html</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html</loc>
-    <lastmod>2026-08-28</lastmod>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html</loc>
+    <lastmod>2026-09-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html</loc>
+    <lastmod>2026-09-05</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>

@@ -64,6 +64,10 @@
       content="2026-08-28"
     />
     <meta
+      property="article:modified_time"
+      content="2026-09-05"
+    />
+    <meta
       name="twitter:card"
       content="summary_large_image"
     />
@@ -88,7 +92,7 @@
   "inLanguage": "en",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-08-28",
+  "dateModified": "2026-09-05",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -238,7 +242,7 @@
     </nav>
     <article>
       <h1>'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice'</h1>
-      <p class="meta">2026-08-28 · liaolongdong</p>
+      <p class="meta">2026-08-28 · Updated 2026-09-05 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png" alt="'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice'" />
       <h1>Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice</h1>
 <p><img src="https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.png" alt="From master password to ciphertext: the full encryption pipeline"></p>
@@ -280,6 +284,7 @@
 <p>The implementation decrypts and verifies first, derives the new key with a fresh salt, re-encrypts the entire vault, and only then commits atomically. Any step failing rolls back the whole operation, leaving old data intact. The one unforgivable sin of a password manager — &quot;you changed the password and now nothing decrypts&quot; — is structurally impossible. Tests cover success, mid-flight failure, and legacy-format compatibility.</p>
 <h2>Treat Every Input as Hostile</h2>
 <p>Extensions run in hostile environments. Page DOM, imported CSV files, runtime messages, legacy data in storage — all treated as untrusted input, validated at the boundary for type, length, and shape, failing safe. The rendering layer never passes external or user-derived strings through <code>v-html</code>/<code>innerHTML</code>. None of this produces features. It&#39;s the muscle memory a password manager is supposed to have.</p>
+<p>Two recent cases make that concrete. The first is the weak / reused password hint in the auto-save prompt: it&#39;s a derived conclusion computed over the already-decrypted vault, so it is deliberately kept out of both the pending record and sessionStorage (otherwise a user changing the password would leave a stale reuse count behind), and the cross-navigation recovery path recomputes a fresh one. When the prompt is delegated into an iframe, the hint crosses the frame boundary via <code>postMessage</code> and is narrowed field by field on arrival — <code>weak</code> only accepts the strict boolean <code>true</code>, <code>reusedCount</code> only accepts an integer in <code>1..9999</code>, anything else is dropped. The second is the URL field in the read-only detail drawer: a stored URL is user-editable, hence untrusted, so it goes through <code>toNavigableUrl</code> first (adds the default protocol, uses http for local dev domains, explicitly rejects non-navigational schemes like <code>javascript:</code> / <code>data:</code>) before it may appear in an <code>href</code> — a <code>null</code> result simply renders no link.</p>
 <h2>Why We Moved from MIT to GPL-3.0</h2>
 <p>At v3.0 the project switched licenses from MIT to GPL-3.0 — deliberately. A password manager&#39;s value is &quot;auditable + trustworthy,&quot; and GPL ensures that anyone building derivatives must release them under equally open terms. The supply chain of a security tool should have no closed-source forks. Previously published versions remain under MIT; GPL applies from the switch forward.</p>
 <h2>An Honest Disclaimer</h2>
@@ -291,7 +296,7 @@
 </ul>
 <p>Source and discussion: <a href="https://github.com/liaolongdong/account-password-helper">the GitHub repository</a>. If you&#39;re building local-first security tools too, share the traps you&#39;ve hit in the comments.</p>
 <hr>
-<p><em>Key files referenced: <code>utils/encryption.ts</code> (crypto core), <code>utils/sessionManager.ts</code> (session management), <code>tests/</code> (364 automated tests, including encryption and re-key paths).</em></p>
+<p><em>Key files referenced: <code>utils/encryption.ts</code> (crypto core), <code>utils/sessionManager.ts</code> (session management), <code>tests/</code> (632 automated tests, including encryption and re-key paths).</em></p>
 
     </article>
     <footer class="footer">Account Password Helper · <a href="https://liaolongdong.github.io/account-password-helper/en.html">Website</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a></footer>

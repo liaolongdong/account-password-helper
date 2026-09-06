@@ -148,6 +148,7 @@
   - 用户功能、安装或用法变化：`README.md` 与 `README.en.md`。
   - 架构、数据流或安全设计变化：`docs/ARCHITECTURE.md` 与 `docs/ARCHITECTURE.en.md`。
   - SidePanel 帮助内容变化：`components/sidepanel/HelpDialog.vue` 及其语言包。
+  - 新增用户可见功能：除上述对外文档外，同步 `docs/ARCHITECTURE.md`（及 `.en.md`）「功能实现详解」、侧边栏 `utils/i18n/locales/{zh-CN,en}/help.json` 词条（`HelpDialog.vue` 为数字序号驱动，新增条目需同步提升 `helpItems('help.gx', N)` 的 N，由 `tests/utils/i18nBundles.test.ts` 守卫）、以及 content/background 侧的 `utils/i18n-lite.ts`；博客修订时一并回改测试数量与修订日期并重跑 `pnpm gen:blog`；完整口径见 `docs/CWS_PUBLISHING_GUIDE.md`「其他同步约定」。
   - 官网展示变化：`index.html`。
   - 商店文案、权限、隐私或发布流程变化：`docs/CWS_FILL_CONTENT.md`、`docs/CWS_PUBLISHING_GUIDE.md`、`privacy.html` 中受影响的部分。
   - manifest 描述、权限、命令或配置变化：`wxt.config.ts` 及对应 locale 文案。

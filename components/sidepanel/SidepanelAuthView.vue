@@ -299,7 +299,8 @@ onUnmounted(() => {
         - 首词取 Account 而非 User（英文界面从未出现该词，且它指「人」不指「标识符」）
           或 Username（虽与本 input 的 aria-label 同词，但 162.9px 刚好卡在阈值上，
           省不出余量）；Account 与中文「账号」同指，保住中英配对
-        ::placeholder 再收 1px 字号（见样式区），两语不裁切阈值降到 312 / 328px
+        ::placeholder 再收 1px 字号（覆写在 assets/theme/tokens.css，扩展页输入框统一），
+        两语不裁切阈值降到 312 / 328px
       -->
       <el-input
         ref="searchInputRef"
@@ -597,22 +598,9 @@ onUnmounted(() => {
 }
 
 .search-section :deep(.el-input) {
-  /* 提示文字专用：替换 EP 默认 #a8abb2（白底仅 2.3:1，不过 WCAG 1.4.3）。
-     --aph-text-secondary = #6b7280（4.83:1），与 PasswordListItem 的次要文字同色，
-     面板内的「提示文字灰」只有一种。tokens.css 由 main.ts 静态引入，与组件 CSS 在同一次
-     media=print → all 切换中生效，不存在令牌未就位、颜色回退的窗口。
-     框内图标（前缀放大镜 / clear）走另一个 --el-input-icon-color，此处不动：单独改深会
-     与 hover 反向（EP 的 clear hover 用 #909399，比 #6b7280 更浅），属图标对比度的独立议题 */
-  --el-input-placeholder-color: var(--aph-text-secondary);
-
+  /* 提示文字的对比度与字号已上收到 assets/theme/tokens.css 的「Element Plus 覆写」段，
+     扩展页输入框共用一套（本搜索框为默认档，calc(1em - 1px) 即 13px），不再局部重复声明 */
   flex: 1;
-}
-
-/* 提示比正文低一级：输入值保持 14px，仅 ::placeholder 收为 13px。
-   两行永不同时存在（一输入 placeholder 即消失），不构成同屏跳字体；
-   宽度上的额外收益见上方模板注释（13px 使中英两语的不裁切阈值再降 9~11px） */
-.search-section :deep(.el-input__inner::placeholder) {
-  font-size: 13px;
 }
 
 /* 行内间距统一由 gap 提供：抵消 Element Plus 相邻按钮默认的 12px 外边距。

@@ -64,6 +64,10 @@
       content="2026-08-28"
     />
     <meta
+      property="article:modified_time"
+      content="2026-09-05"
+    />
+    <meta
       name="twitter:card"
       content="summary_large_image"
     />
@@ -88,7 +92,7 @@
   "inLanguage": "zh-CN",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-08-28",
+  "dateModified": "2026-09-05",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -238,7 +242,7 @@
     </nav>
     <article>
       <h1>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</h1>
-      <p class="meta">2026-08-28 · liaolongdong</p>
+      <p class="meta">2026-08-28 · 更新于 2026-09-05 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png" alt="让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战" />
       <h1>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</h1>
 <p>做过 Manifest V3 扩展的人，大概率都被同一个问题咬过：<strong>侧边栏（Side Panel）冷启动白屏</strong>。</p>
@@ -301,7 +305,7 @@
 <li><code>passwordCache</code> / <code>startupRelock</code> / <code>idleLock</code>：缓存回温与各类锁定路径；</li>
 <li><code>sidePanelManager</code>：打开时序。</li>
 </ul>
-<p>目前全仓库 364 项自动化测试。性能结论：<strong>缓存快路径 20–50ms</strong>；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。</p>
+<p>目前全仓库 632 项自动化测试（分布在 53 个测试文件）。性能结论：<strong>缓存快路径 20–50ms</strong>；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。</p>
 <h2>复盘：三条经验</h2>
 <ol>
 <li><strong>别和 MV3 的生命周期对抗，要顺着它设计。</strong> SW 一定会被回收，那就假设它随时不在，把状态放进 <code>chrome.storage</code>，把唤醒交给闹钟，把成本提前到预热阶段。</li>

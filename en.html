@@ -113,7 +113,7 @@
         "applicationCategory": "SecurityApplication",
         "operatingSystem": "Chrome",
         "softwareVersion": "3.7.0",
-        "dateModified": "2026-08-28",
+        "dateModified": "2026-09-05",
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -1756,7 +1756,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f1.title">Local Encryption — Passwords Never Leave the Browser</h3>
-            <p data-i18n="features.f1.desc">The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded.</p>
+            <p data-i18n="features.f1.desc">The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.</p>
             <div class="feature-chips">
               <span
                 class="feature-chip"
@@ -1957,7 +1957,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f11.title">Tags, Favorites &amp; Smart Search</h3>
-            <p data-i18n="features.f11.desc">Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — long lists stay organized.</p>
+            <p data-i18n="features.f11.desc">Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — plus a read-only "View details" drawer for the full remark and password history, no edit mode needed. Long lists stay organized.</p>
           </article>
           <article class="feature-card reveal reveal-delay-2">
             <div class="feature-icon">
@@ -2427,7 +2427,7 @@
                 <span data-i18n="footer.repo">GitHub Repo</span>
               </a>
             </span>
-            <span data-i18n="footer.updated">Updated: Aug 2026 · v3.7.0</span>
+            <span data-i18n="footer.updated">Updated: Sep 2026 · v3.7.0</span>
           </div>
         </div>
         <div class="footer-wechat">
@@ -2613,8 +2613,8 @@
           en: 'Local Encryption — Passwords Never Leave the Browser',
         },
         'features.f1.desc': {
-          zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 全部密文存储；会话过期自动加密回密文，永远不上传任何服务器。',
-          en: 'The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded.',
+          zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 全部密文存储；会话过期自动加密回密文，永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。',
+          en: 'The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.',
         },
         'features.f1.c1': { zh: 'PBKDF2 · 600K 迭代', en: 'PBKDF2 · 600K iterations' },
         'features.f1.c2': { zh: 'AES-256-GCM', en: 'AES-256-GCM' },
@@ -2658,8 +2658,8 @@
         },
         'features.f11.title': { zh: '标签、收藏与智能搜索', en: 'Tags, Favorites & Smart Search' },
         'features.f11.desc': {
-          zh: '标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 + 命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目，长列表管理井井有条。',
-          en: 'Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — long lists stay organized.',
+          zh: '标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 + 命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目；条目「查看详情」可只读浏览备注全文与密码修改历史，无需进入编辑态——长列表管理井井有条。',
+          en: 'Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — plus a read-only "View details" drawer for the full remark and password history, no edit mode needed. Long lists stay organized.',
         },
         'features.f8.title': { zh: '密码生成器双模式', en: 'Dual-Mode Password Generator' },
         'features.f8.desc': {
@@ -2752,7 +2752,7 @@
           en: 'Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a>',
         },
         'footer.repo': { zh: 'GitHub 仓库', en: 'GitHub Repo' },
-        'footer.updated': { zh: '最后更新：2026-08 · v3.7.0', en: 'Updated: Aug 2026 · v3.7.0' },
+        'footer.updated': { zh: '最后更新：2026-09 · v3.7.0', en: 'Updated: Sep 2026 · v3.7.0' },
         'wechat.title': { zh: '微信交流群', en: 'WeChat Group' },
         'wechat.desc': {
           zh: '扫码添加作者微信，备注「aph」邀你加入插件交流群',

@@ -112,7 +112,7 @@
           <!-- 帮助文案为语言包内置静态内容，v-html 仅渲染内置 code/b 标记 -->
           <!-- eslint-disable vue/no-v-html -->
           <li
-            v-for="(item, idx) in helpItems('help.gs', 10)"
+            v-for="(item, idx) in helpItems('help.gs', 11)"
             :key="idx"
             v-html="item"
           ></li>
@@ -173,7 +173,7 @@
         <ol>
           <!-- eslint-disable vue/no-v-html -->
           <li
-            v-for="(item, idx) in helpItems('help.gd', 7)"
+            v-for="(item, idx) in helpItems('help.gd', 8)"
             :key="idx"
             v-html="item"
           ></li>

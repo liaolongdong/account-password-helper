@@ -64,6 +64,10 @@
       content="2026-08-28"
     />
     <meta
+      property="article:modified_time"
+      content="2026-09-05"
+    />
+    <meta
       name="twitter:card"
       content="summary_large_image"
     />
@@ -88,7 +92,7 @@
   "inLanguage": "zh-CN",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-08-28",
+  "dateModified": "2026-09-05",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -238,7 +242,7 @@
     </nav>
     <article>
       <h1>用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战</h1>
-      <p class="meta">2026-08-28 · liaolongdong</p>
+      <p class="meta">2026-08-28 · 更新于 2026-09-05 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png" alt="用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战" />
       <h1>用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战</h1>
 <p><img src="https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.png" alt="从主密码到密文：加密管线全流程"></p>
@@ -280,6 +284,7 @@
 <p>实现上是先解密校验、再以新盐 + 新迭代派生新密钥、全量重加密成功后才原子提交写入，任何一步失败整体回滚，旧数据保持可用。不会出现&quot;主密码改了，数据解不开了&quot;这种密码管理器的死罪。对应的测试覆盖了成功、中途失败、旧格式兼容三类路径。</p>
 <h2>把一切输入当敌人</h2>
 <p>扩展运行在不可信环境里：网页 DOM、导入的 CSV、runtime 消息、storage 里的旧数据，全部按不可信输入处理——边界处校验类型、长度、格式，失败安全降级。渲染层禁止 <code>v-html</code>/<code>innerHTML</code> 处理任何来自外部或用户数据的字符串。这些不产生&quot;功能&quot;，但它们是密码管理器该有的肌肉记忆。</p>
+<p>两个新近的例子可以具象化这条原则。一个是自动保存弹窗的弱密码/复用风险提示：它是在已解密的全量条目上算出来的派生结论，所以既不进 pending 也不进 sessionStorage（否则用户改了密码会留下陈旧的复用计数），跳页恢复路径负责重算新鲜值；iframe 委托场景下它经 <code>postMessage</code> 跳帧传入，接收方逐字段收窄——<code>weak</code> 只接受严格布尔 <code>true</code>，<code>reusedCount</code> 只接受 <code>1..9999</code> 的整数，非法值直接丢弃。另一个是条目只读详情抽屉里的网址字段：库里存的 URL 对用户可编辑，属于不可信输入，因此它先经 <code>toNavigableUrl</code> 归一化（补默认协议、本地开发域名走 http、显式拒绝 <code>javascript:</code> / <code>data:</code> 等非导航协议）才允许出现在 <code>href</code> 上，返回 <code>null</code> 就不渲染链接。</p>
 <h2>为什么从 MIT 换到 GPL-3.0</h2>
 <p>项目在 3.0 版本把协议从 MIT 换成了 GPL-3.0，这是一个有意的决定：密码管理器的价值在于&quot;可审计 + 可信任&quot;，GPL 保证任何人拿了这份代码做衍生产品，也必须以同等开源的方式发布——安全工具的供应链不该有黑箱分支。已发布的历史版本仍按 MIT 存续，GPL 自切换后的新版本生效。</p>
 <h2>最后的诚实声明</h2>
@@ -291,7 +296,7 @@
 </ul>
 <p>源码与讨论：<a href="https://github.com/liaolongdong/account-password-helper">GitHub 仓库</a>。如果你也在做本地优先的安全工具，评论区聊聊你踩过的坑。</p>
 <hr>
-<p><em>本文涉及的关键文件：<code>utils/encryption.ts</code>（加密核心）、<code>utils/sessionManager.ts</code>（会话管理）、<code>tests/</code>（364 项自动化测试，含加密与换钥路径）。</em></p>
+<p><em>本文涉及的关键文件：<code>utils/encryption.ts</code>（加密核心）、<code>utils/sessionManager.ts</code>（会话管理）、<code>tests/</code>（632 项自动化测试，含加密与换钥路径）。</em></p>
 
     </article>
     <footer class="footer">Account Password Helper · <a href="https://liaolongdong.github.io/account-password-helper/">官网</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a></footer>

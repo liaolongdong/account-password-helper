@@ -12,7 +12,10 @@
  *   同名英文文件 docs/blog/en/01-foo.md 生成 blog/01-foo.en.html；
  * - 文章内引用站点图片统一写 `imgs/xxx.png`（相对站点根），
  *   渲染时重写为绝对 URL，保证任意页面下路径正确；
- * - frontmatter 支持 title / description / tags / date / author / image。
+ * - frontmatter 支持 title / description / tags / date / modified / author / image；
+ *   `modified` 为可选的修订日期，仅当文章在发布后被回改时填写，用于填充
+ *   `BlogPosting.dateModified`、`article:modified_time` 与页面上的「更新于」；
+ *   `sitemap.xml` 不由本脚本产出，其 `lastmod` 需手工同步到同一日期。
  *
  * 修改文章后运行 `pnpm gen:blog` 重新生成（CI 部署前自动执行）。
  *
@@ -60,8 +63,12 @@ function readArticles(dir) {
         slug: file.replace(/\.md$/, ''),
         title: meta.title,
         description: meta.description,
-        tags: (meta.tags || '').split(',').map(t => t.trim()).filter(Boolean),
+        tags: (meta.tags || '')
+          .split(',')
+          .map(t => t.trim())
+          .filter(Boolean),
         date: meta.date,
+        modified: meta.modified || '',
         author: meta.author || 'liaolongdong',
         image: meta.image || '',
         body,
@@ -86,7 +93,7 @@ function blogPostingJsonLd(article, url, lang) {
       inLanguage: lang,
       image: article.image ? `${SITE}/${article.image}` : undefined,
       datePublished: article.date,
-      dateModified: article.date,
+      dateModified: article.modified || article.date,
       author: { '@type': 'Person', name: article.author },
       keywords: article.tags.join(','),
       mainEntityOfPage: { '@type': 'WebPage', '@id': url },
@@ -163,6 +170,14 @@ function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, swit
       property="article:published_time"
       content="${article.date}"
     />
+    ${
+      article.modified
+        ? `<meta
+      property="article:modified_time"
+      content="${article.modified}"
+    />`
+        : ''
+    }
     <meta
       name="twitter:card"
       content="summary_large_image"
@@ -320,7 +335,7 @@ ${blogPostingJsonLd(article, selfUrl, lang)}
     </nav>
     <article>
       <h1>${escapeHtml(article.title)}</h1>
-      <p class="meta">${article.date} · ${escapeHtml(article.author)}</p>
+      <p class="meta">${article.date}${article.modified ? ` · ${lang === 'zh-CN' ? '更新于' : 'Updated'} ${article.modified}` : ''} · ${escapeHtml(article.author)}</p>
       ${article.image ? `<img class="cover" src="${SITE}/${article.image}" alt="${escapeAttr(article.title)}" />` : ''}
       ${renderMarkdown(article.body)}
     </article>
@@ -330,7 +345,18 @@ ${blogPostingJsonLd(article, selfUrl, lang)}
 `;
 }
 
-function indexPage({ lang, title, subtitle, selfUrl, altUrl, articles, readLabel, backLabel, switchLabel, footerNote }) {
+function indexPage({
+  lang,
+  title,
+  subtitle,
+  selfUrl,
+  altUrl,
+  articles,
+  readLabel,
+  backLabel,
+  switchLabel,
+  footerNote,
+}) {
   const cards = articles
     .map(a => {
       const href = lang === 'zh-CN' ? `${a.slug}.html` : `${a.slug}.en.html`;
@@ -595,7 +621,8 @@ writeFileSync(
   indexPage({
     lang: 'en',
     title: 'Engineering Blog',
-    subtitle: 'Product thinking and engineering deep-dives from Account Password Helper: local-first security, MV3 performance in practice, and Web Crypto internals.',
+    subtitle:
+      'Product thinking and engineering deep-dives from Account Password Helper: local-first security, MV3 performance in practice, and Web Crypto internals.',
     selfUrl: `${SITE}/blog/index.en.html`,
     altUrl: `${SITE}/blog/`,
     articles: enArticles,

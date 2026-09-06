@@ -3,6 +3,7 @@ title: 'Zero Cloud, Open Source, Built for Developers: Why I Built Another Brows
 description: Why does the world need another password manager? The case for a local-first, open-source tool built around multi-environment logins, one-click sign-in, and zero network trust.
 tags: password manager,browser extension,open source,chrome extension,local-first
 date: 2026-08-28
+modified: 2026-09-05
 author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---
@@ -29,11 +30,11 @@ Before writing a line of code, I spent weeks with every mainstream option. Three
 
 ## A Tour of the Core Features
 
-### One-Click Login and Three Filling Strategies
+### One-Click Login and Four Ways to Fill
 
-Filling sounds trivial until modern frameworks get involved: React controlled components ignore direct `value` assignment, custom input widgets swallow standard events. The filler tries three strategies in order — native value setter plus `input` event, `execCommand`, and synthesized keyboard events — degrading step by step until something sticks.
+Filling sounds trivial until modern frameworks get involved: React controlled components ignore direct `value` assignment, custom input widgets swallow standard events. The filler tries three degradation steps in order — native value setter plus `input` event, `execCommand`, and synthesized keyboard events — stepping down until something sticks.
 
-There are three entry points: **inline fill** (default — a key icon appears when the input is focused, one click opens an account dropdown), **side panel fill**, and **one-click login via shortcut**. Desktop notifications plus a toolbar badge give dual-channel feedback; failures are never silent.
+There are four entry points: **inline fill** (default — a key icon appears when the input is focused, one click opens an account dropdown), **side panel fill**, **right-click fill in an input** (fill username / password / 2FA code, or generate & fill a strong password when signing up — the latter never requires unlocking the session first), and **one-click login via shortcut**. When the session is locked, an "unlock to fill" card opens right on the page instead of a distant system notification; if a fill genuinely fails, an in-page notice + desktop notification + toolbar badge back each other up. Nothing is ever silently lost.
 
 ### Exact Domain Matching for Environment Isolation
 
@@ -55,6 +56,8 @@ Import auto-detects export formats from Chrome, LastPass, Bitwarden, and 1Passwo
 
 Six color themes, instant Chinese/English switching (extension pages and injected UI switch together), site favicons read from Chrome's local icon cache (zero external requests), and a dual-mode password generator (random characters + EFF Diceware passphrases from a 2048-word list).
 
+Then there is a layer of small everyday details: the "+" in the side panel header adds an account for the current site in place, with the URL prefilled from the domain; one icon beside the search box switches between "This site" and "All entries", and in all-entries mode an off-site account opens in a new tab instead of being pushed into the current page's form; each row's "View details" shows the full remark and the password change history in a read-only drawer, so a quick look no longer means entering edit mode; master password fields detect Caps Lock live, so a case typo stops masquerading as a "wrong password"; and the auto-save prompt flags weak or reused passwords inline — a heads-up that never blocks saving.
+
 ## The Security Model: Trust Requires Auditability
 
 A password manager earns trust through verifiable design, not slogans. The hard boundaries here:
@@ -63,7 +66,7 @@ A password manager earns trust through verifiable design, not slogans. The hard 
 2. **Field-level encryption.** Username, password, URL, notes, and TOTP secret are each encrypted individually. The storage layer sees only ciphertext.
 3. **Standard algorithms, no invention.** PBKDF2-SHA256 (600,000 iterations) for key derivation, AES-256-GCM authenticated encryption, all via the browser-native Web Crypto API. A follow-up post covers the implementation in depth.
 4. **Sessions have lifecycles.** 24 hours by default (1 hour to 7 days configurable), idle auto-lock tied to system lock, relock on browser restart, one-click manual lock. Key handles in memory are wiped at lock time.
-5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every (nonexistent) network call — you can read it all yourself. 364 automated tests run in CI.
+5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every (nonexistent) network call — you can read it all yourself. 632 automated tests run in CI.
 
 An honest disclaimer too: **this tool is positioned for development, testing, and everyday logins. I don't recommend storing banking or payment credentials in any browser extension.** And the master password cannot be recovered if forgotten — use the encrypted backup feature. Stating boundaries plainly is what security products should do.
 

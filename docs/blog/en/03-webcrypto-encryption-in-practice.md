@@ -3,6 +3,7 @@ title: 'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Ite
 description: No crypto libraries, just the browser-native Web Crypto API. How Account Password Helper implements an auditable encryption system — key derivation, field-level encryption, session lifecycle, and atomic re-keying.
 tags: web crypto,encryption,password manager,security,chrome extension
 date: 2026-08-28
+modified: 2026-09-05
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
@@ -68,6 +69,8 @@ The implementation decrypts and verifies first, derives the new key with a fresh
 
 Extensions run in hostile environments. Page DOM, imported CSV files, runtime messages, legacy data in storage — all treated as untrusted input, validated at the boundary for type, length, and shape, failing safe. The rendering layer never passes external or user-derived strings through `v-html`/`innerHTML`. None of this produces features. It's the muscle memory a password manager is supposed to have.
 
+Two recent cases make that concrete. The first is the weak / reused password hint in the auto-save prompt: it's a derived conclusion computed over the already-decrypted vault, so it is deliberately kept out of both the pending record and sessionStorage (otherwise a user changing the password would leave a stale reuse count behind), and the cross-navigation recovery path recomputes a fresh one. When the prompt is delegated into an iframe, the hint crosses the frame boundary via `postMessage` and is narrowed field by field on arrival — `weak` only accepts the strict boolean `true`, `reusedCount` only accepts an integer in `1..9999`, anything else is dropped. The second is the URL field in the read-only detail drawer: a stored URL is user-editable, hence untrusted, so it goes through `toNavigableUrl` first (adds the default protocol, uses http for local dev domains, explicitly rejects non-navigational schemes like `javascript:` / `data:`) before it may appear in an `href` — a `null` result simply renders no link.
+
 ## Why We Moved from MIT to GPL-3.0
 
 At v3.0 the project switched licenses from MIT to GPL-3.0 — deliberately. A password manager's value is "auditable + trustworthy," and GPL ensures that anyone building derivatives must release them under equally open terms. The supply chain of a security tool should have no closed-source forks. Previously published versions remain under MIT; GPL applies from the switch forward.
@@ -84,4 +87,4 @@ Source and discussion: [the GitHub repository](https://github.com/liaolongdong/a
 
 ---
 
-_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (364 automated tests, including encryption and re-key paths)._
+_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (632 automated tests, including encryption and re-key paths)._

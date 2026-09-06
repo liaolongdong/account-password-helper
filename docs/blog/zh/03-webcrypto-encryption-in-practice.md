@@ -3,6 +3,7 @@ title: 用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + 
 description: 不引任何加密库，只用浏览器原生 Web Crypto API，如何构建一个可审计的密码管理器加密体系？本文拆解密钥派生、字段级加密、会话生命周期与换钥的完整实现。
 tags: Web Crypto,加密,密码管理器,安全,Chrome扩展
 date: 2026-08-28
+modified: 2026-09-05
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
@@ -68,6 +69,8 @@ image: imgs/blog-cover-03-webcrypto.png
 
 扩展运行在不可信环境里：网页 DOM、导入的 CSV、runtime 消息、storage 里的旧数据，全部按不可信输入处理——边界处校验类型、长度、格式，失败安全降级。渲染层禁止 `v-html`/`innerHTML` 处理任何来自外部或用户数据的字符串。这些不产生"功能"，但它们是密码管理器该有的肌肉记忆。
 
+两个新近的例子可以具象化这条原则。一个是自动保存弹窗的弱密码/复用风险提示：它是在已解密的全量条目上算出来的派生结论，所以既不进 pending 也不进 sessionStorage（否则用户改了密码会留下陈旧的复用计数），跳页恢复路径负责重算新鲜值；iframe 委托场景下它经 `postMessage` 跳帧传入，接收方逐字段收窄——`weak` 只接受严格布尔 `true`，`reusedCount` 只接受 `1..9999` 的整数，非法值直接丢弃。另一个是条目只读详情抽屉里的网址字段：库里存的 URL 对用户可编辑，属于不可信输入，因此它先经 `toNavigableUrl` 归一化（补默认协议、本地开发域名走 http、显式拒绝 `javascript:` / `data:` 等非导航协议）才允许出现在 `href` 上，返回 `null` 就不渲染链接。
+
 ## 为什么从 MIT 换到 GPL-3.0
 
 项目在 3.0 版本把协议从 MIT 换成了 GPL-3.0，这是一个有意的决定：密码管理器的价值在于"可审计 + 可信任"，GPL 保证任何人拿了这份代码做衍生产品，也必须以同等开源的方式发布——安全工具的供应链不该有黑箱分支。已发布的历史版本仍按 MIT 存续，GPL 自切换后的新版本生效。
@@ -84,4 +87,4 @@ image: imgs/blog-cover-03-webcrypto.png
 
 ---
 
-_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（364 项自动化测试，含加密与换钥路径）。_
+_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（632 项自动化测试，含加密与换钥路径）。_

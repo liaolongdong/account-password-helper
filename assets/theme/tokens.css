@@ -158,3 +158,40 @@
   --el-color-primary-light-9: #f2f4f8;
   --el-color-primary-dark-2: #667590;
 }
+
+/* ===== Element Plus 覆写：占位符的对比度与层级 =====
+ * EP 的 --el-text-color-placeholder（#a8abb2，白底仅 2.3:1）不能改根变量：
+ * 它同时被 disabled 文字（--el-disabled-text-color）、日历非本月日期、树展开箭头、
+ * 分页与链接禁用态等多处消费，改根变量会把「禁用」与「提示」两种语义抹平。
+ * 故定点覆写三类占位符，选择器用后代组合抬特异性，避免与 EP 同权重而依赖样式顺序。
+ *
+ * 覆盖面：扩展页（options / popup / sidepanel）内的 el-input、el-input-number、
+ * el-textarea、el-select，含 teleport 到 body 的弹窗；不含 Shadow DOM 内的注入式 UI
+ * （内联下拉搜索框自带 #b6bcc6 占位色，约 1.9:1，属 theme.ts 的 shadow 令牌体系），
+ * 也不含本仓未使用的 date-range / select-v2 / input-tag 占位符。
+ *
+ * 未纳入的：框内图标（前缀 / 清除 / 密码眼睛走 --el-input-icon-color，下拉箭头走
+ * --el-select-input-color，仍为 #a8abb2）——它们的 hover 态用更浅的
+ * --el-text-color-secondary（#909399），只加深基色会造成「悬停反而变淡」，
+ * 必须连 hover 一起重排，属图标对比度的独立议题。 */
+
+/* select 必须排除 is-disabled：EP 的禁用色只声明在 wrapper 上（靠继承），会被本条
+   直接命中的声明压过，不排除会让禁用态看起来像可用。
+   el-input / el-textarea 无此问题：EP 有 (0,3,1) 的 .is-disabled ::placeholder 规则，
+   恒压过本条，禁用态仍走 EP 的浅灰 */
+.el-input .el-input__inner::placeholder,
+.el-textarea .el-textarea__inner::placeholder,
+.el-select .el-select__wrapper:not(.is-disabled) .el-select__placeholder.is-transparent {
+  /* 4.83:1，与次要文字令牌同色，过 WCAG 1.4.3 */
+  color: var(--aph-text-secondary);
+}
+
+/* 提示比正文低一级，且只给原生 ::placeholder：
+   - el-select 不给字号：它的占位符与已选值共用同一节点（select2.mjs:237-241，
+     is-transparent 在「下拉展开且未输入」时对已选值同样为真），改字号会让已选值
+     在展开 / 收起瞬间跳变
+   - textarea 不给字号：多行字段的提示与内容共用首行基线，会在视线落点处跳变
+   - 用相对单位跟随 EP 尺寸档（.el-input--small 为 12px），避免提示反而大于正文 */
+.el-input .el-input__inner::placeholder {
+  font-size: calc(1em - 1px);
+}

@@ -19,13 +19,13 @@
 
 ### 扩展入口点
 
-| 入口点             | 职责                                                                                                                                                                                         |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Background**     | Service Worker，消息路由（判别联合类型）、密码缓存（域名无关）、侧边栏状态（Port 连接追踪）、快捷键处理；6 子模块：消息路由/缓存管理/侧边栏管理/选项页管理/自动保存/后台服务（SW 保活+闹钟） |
-| **Content Script** | 注入所有页面，初始化表单检测与悬浮按钮                                                                                                                                                       |
-| **Popup**          | 扩展图标弹窗，提供「管理密码」和「快速填充」快捷入口                                                                                                                                         |
-| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理                                                                                                                                         |
-| **SidePanel**      | 侧边栏快速填充，支持拼音智能搜索与命中高亮、排序、域名匹配、缓存加速                                                                                                                         |
+| 入口点             | 职责                                                                                                                                                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Background**     | Service Worker，消息路由（判别联合类型）、密码缓存（域名无关）、侧边栏状态（Port 连接追踪）、快捷键处理；后台子模块：消息路由/缓存管理/侧边栏管理/选项页管理/自动保存/一键填充/右键菜单/内联下拉/侧边栏快速添加/后台服务（SW 保活+闹钟） |
+| **Content Script** | 注入所有页面，初始化表单检测与悬浮按钮                                                                                                                                                                                                   |
+| **Popup**          | 扩展图标弹窗，提供「管理密码」和「快速填充」快捷入口                                                                                                                                                                                     |
+| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理                                                                                                                                                                                     |
+| **SidePanel**      | 侧边栏快速填充，支持拼音智能搜索与命中高亮、排序、域名匹配（本站 / 全站范围切换）、缓存加速、就地快速添加                                                                                                                                |
 
 ### 消息与数据流
 
@@ -83,6 +83,10 @@ graph TB
 │   │   ├── sidePanelManager.ts     # 侧边栏生命周期管理（Port 连接追踪）
 │   │   ├── passwordCache.ts        # 密码缓存（域名无关/SW 内存）
 │   │   ├── optionsPageManager.ts   # 选项页管理（复用/创建/激活）
+│   │   ├── quickFillHandler.ts     # 一键填充快捷键处理（域名匹配 + 多层反馈）
+│   │   ├── contextMenuManager.ts   # 右键上下文菜单（注册/语言重建/填充动作分发）
+│   │   ├── quickAddHandler.ts      # 侧边栏快速添加落库处理
+│   │   ├── inlineDropdownHandler.ts # 内联填充下拉面板的展开与数据下发处理
 │   │   └── autoSaveHandler.ts      # 自动保存凭证处理
 │   ├── content.ts                  # Content Script 入口
 │   ├── content/                    # Content Script 模块
@@ -94,6 +98,7 @@ graph TB
 │   │   ├── PasswordVisibilityToggle.ts # 密码显示/隐藏切换
 │   │   ├── CheckboxHandler.ts      # 复选框自动勾选
 │   │   ├── NativeNotification.ts   # 原生浏览器通知
+│   │   ├── contextMenuTarget.ts    # 右键目标输入框记忆（供 Background 定向下发）
 │   │   ├── formSelectors.ts        # 选择器与关键词常量
 │   │   ├── domUtils.ts             # DOM 元素可见性检测工具
 │   │   ├── types.ts                # Content Script 类型定义
@@ -109,6 +114,7 @@ graph TB
 │   ├── TotpCode.vue                # TOTP 动态码展示（环形倒计时）
 │   ├── SiteFavicon.vue             # 网站图标组件（本地 _favicon 缓存，失败降级默认图标）
 │   ├── ShortcutKeyCap.vue          # 快捷键键帽展示（主题令牌 + 未生效弱化态，不含 i18n）
+│   ├── CapsLockHint.vue            # 大写锁定警示行（role=status，配合 useCapsLockDetection）
 │   ├── options/                    # Options 页面组件
 │   │   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
 │   │   ├── BackupImportDialog.vue      # 加密备份导入对话框
@@ -122,6 +128,8 @@ graph TB
 │   │   ├── IdleLockSetting.vue         # 自动闲置锁定设置
 │   │   ├── ImportDialog.vue            # CSV/JSON 导入对话框
 │   │   ├── MasterPasswordSetupView.vue # 主密码设置视图
+│   │   ├── MasterPasswordVerifyDialog.vue # 主密码验证弹窗（会话解锁/导出前验证）
+│   │   ├── PasswordDetailDrawer.vue    # 条目只读详情抽屉（备注全文/密码历史/限时复制清除）
 │   │   ├── PasswordFormDialog.vue      # 密码表单对话框（含 TOTP 字段与密码修改历史）
 │   │   ├── PasswordGeneratorPopover.vue # 密码生成器弹窗（随机密码/助记词组）
 │   │   ├── PasswordHealthDialog.vue    # 安全体检仪表盘弹窗
@@ -135,10 +143,13 @@ graph TB
 │   │   └── ValiditySettingDialog.vue   # 有效期设置对话框
 │   └── sidepanel/                  # SidePanel 侧边栏组件
 │       ├── HelpDialog.vue          # 操作指引与常见问题
-│       ├── PasswordListItem.vue    # 密码列表条目（含 TOTP 动态码）
+│       ├── PasswordListItem.vue    # 密码列表条目（含 TOTP 动态码与全站模式降级操作）
+│       ├── QuickAddDialog.vue      # 侧边栏快速添加弹窗（预填当前域名）
+│       ├── SidepanelAuthView.vue   # 侧边栏列表主体（搜索/范围切换/空态引导）
 │       └── SidepanelHeader.vue     # 侧边栏头部
 ├── composables/                    # Vue 组合函数
 │   ├── useAuthFlow.ts              # 认证流程
+│   ├── useCapsLockDetection.ts     # 主密码输入框大写锁定检测（getModifierState）
 │   ├── useChromeListeners.ts       # Chrome API 监听器自动清理
 │   ├── usePasswordManagement.ts    # 密码 CRUD + 搜索排序 + 收藏
 │   ├── usePasswordHistory.ts       # 密码修改历史加载与解密
@@ -164,7 +175,7 @@ graph TB
 │   │   ├── facades.ts              # 存储门面聚合
 │   │   ├── masterPassword.ts       # 主密码存储与验证
 │   │   ├── passwordCrud.ts         # 密码 CRUD 操作
-│   │   ├── passwordHistory.ts      # 密码修改历史（旧密文快照，每条目保留 5 条）
+│   │   ├── passwordHistory.ts      # 密码修改历史（旧密文快照，默认每条 3 份，可配 1~10）
 │   │   ├── reminderManager.ts      # 密码到期提醒存储与 CRUD
 │   │   └── trashManager.ts         # 回收站（软删除/恢复/30 天自动清理）
 │   ├── i18n/                       # Vue 侧国际化（响应式语言包）
@@ -190,11 +201,13 @@ graph TB
 │   ├── passwordGenerator.ts        # 随机密码生成器
 │   ├── passphraseGenerator.ts      # 助记词组生成器（EFF Diceware，2048 词库）
 │   ├── passwordSort.ts             # 密码排序工具
+│   ├── passwordFilter.ts           # 侧边栏列表过滤纯函数（本站/全站范围判定、能否填充单一事实来源）
+│   ├── clipboard.ts                # 剪贴板复制与限时自动清除（UI 无关，options/sidepanel 共用）
 │   ├── logger.ts                   # 环境感知日志
 │   ├── env.ts                      # isDev / isFirefox 常量
 │   ├── createVueApp.ts             # Vue 应用工厂
 │   ├── dateFormat.ts               # 日期格式化工具
-│   ├── domain.ts                   # 域名提取与匹配工具（isDomainMatch）
+│   ├── domain.ts                   # 域名提取与匹配工具（isDomainMatch / toNavigableUrl 安全导航）
 │   ├── formatShortcut.ts           # 快捷键格式化工具
 │   ├── shortcutCommands.ts         # 快捷键命令清单（与 manifest.commands 对齐）与打开管理页动作
 │   ├── generateId.ts               # ID 生成工具
@@ -227,6 +240,7 @@ graph TB
 - 会话创建后，密码从密文解密为明文缓存；会话失效时自动加密回密文。
 - 会话恢复后自动检测并修复加密状态不一致的数据。
 - SessionManager 每分钟检查会话有效性，页面可见性变化时也会触发检查。
+- **大写锁定实时提示**：主密码相关输入框（首次设置、解锁验证视图、验证弹窗、修改主密码、加密备份导入）通过 `KeyboardEvent.getModifierState('CapsLock')` 在 keydown/keyup 实时判定大写锁定状态（见 [useCapsLockDetection.ts](../composables/useCapsLockDetection.ts)），开启时在输入框下方展示琥珀色警示行（见 [CapsLockHint.vue](../components/CapsLockHint.vue)），避免大小写误输入被当成「密码错误」；提示行用 `role="status"` 让屏幕阅读器非打断播报，失焦即复位，不留残留提示。
 
 ### 2. 表单识别与填充
 
@@ -245,6 +259,7 @@ graph TB
 - 批量选择与批量删除密码条目；删除的条目进入回收站保留 30 天，可随时恢复。
 - 收藏标记：点击星标收藏常用条目，支持「只看收藏」过滤；收藏上限默认可配置（1~50 条），超限时 LRU 自动淘汰最早使用的收藏条目；侧边栏填充时自动更新收藏使用时间戳确保 LRU 准确。
 - 一键去重：智能检测重复条目（相同用户名 + 相同 URL）并提供一键清理。
+- 只读查看详情：列表每行的「查看详情」以抽屉形式展示该条目的全部字段（含备注全文与密码历史），无需进入编辑态（见第 23 节）。
 - 多格式 CSV 导入：自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式（见 [utils/excel.ts](../utils/excel.ts)）。
 
 ### 4. 自动保存登录凭证
@@ -313,6 +328,9 @@ graph TB
 - **精确域名匹配**：仅展示与当前页面 host 完全一致的条目（不做子域名/主域名模糊匹配），方便区分多测试环境账号（如 `fat.example.com` 与 `uat.example.com` 互不干扰）；未填写域名的条目始终展示。
 - **本地开发友好**：当域名为 `localhost` 或 `127.0.0.1` 时，默认匹配所有密码（见 [sidepanel/App.vue](../entrypoints/sidepanel/App.vue)）。
 - **网站图标展示**：密码列表与侧边栏条目展示对应网站的图标，经 Chrome 本地 `_favicon/` 端点读取浏览器图标缓存，零外部网络请求（见 [SiteFavicon.vue](../components/SiteFavicon.vue)）；无缓存图标或不支持的环境自动降级为默认图标，布局零偏移。
+- **侧边栏快速添加**：顶栏「+」就地打开快速添加弹窗（见 [QuickAddDialog.vue](../components/sidepanel/QuickAddDialog.vue)），网址自动预填当前域名；本站无账号或搜索无结果时，空态同样提供「添加本站账号」入口。弹窗只收账号 / 密码 / 网址 / 标签 / 备注五个高频字段，TOTP 等完整字段经「到密码管理中完整添加」跳到选项页录入。
+- **搜索范围切换（本站 / 全站）**：搜索框右侧图标在 `site`（默认，仅当前域名匹配 + 空 URL 通用条目）与 `all`（全库条目）之间切换，判定与过滤集中在无 Vue 依赖的纯函数 [passwordFilter.ts](../utils/passwordFilter.ts)（`matchesSiteScope` / `filterEntriesByScope`），与「能否填充当前页」共用同一判据，避免两处语义分叉；域名或端口变化时自动回到 `site`（切到同域名的其它标签页仍保留全站态）。全站模式下命中的外站条目 `canFill` 为假，整行降级为「在新标签页打开该站点」（经 [domain.ts](../utils/domain.ts) 的 `toNavigableUrl` 补默认协议并拒绝 `javascript:` 等非导航协议），但复制账号 / 密码 / 验证码、收藏、编辑仍然可用；本站无命中而全库有命中时，空态给出「在全部条目中查找（N 条）」一键切换。
+- **搜索占位与空态文案**：占位符为「账号/标签/备注/网址」，搜索区 `aria-label` 与 `title` 标注支持拼音搜索；空态按是否已输入关键词给不同文案，未输入时提示添加引导，已输入无结果时附拼音首字母搜索技巧说明（如 `zf` 匹配「支付」）。
 - 点击条目一键填充并自动关闭侧边栏；若无登录表单，给出「当前页面未检测到登录表单」提示。
 - 侧边栏条目支持右键或操作按钮跳转到密码管理页，直接编辑该条目或添加新条目。
 - 快捷键：
@@ -381,6 +399,7 @@ graph TB
 - 条目前的钥匙图标优先展示对应网站图标：由 Background 经本地 `_favicon/` 端点读取并转为 dataURL 随元数据下发（内存缓存 + 失败降级钥匙图标，见 [utils/favicon.ts](../utils/favicon.ts) 的 `fetchFaviconDataUrl`）；不将 `_favicon/*` 暴露为 web_accessible_resources，避免网页借端点探测浏览历史的隐私风险，全程零外部网络请求。
 - 会话锁定态下，面板显示「解锁后填充」引导，点击跳转密码管理页验证主密码。
 - 使用 Closed Shadow DOM（`all: initial`）完全隔离页面样式，主题令牌内联写入宿主元素，跟随整体主题换肤。
+- **视口自适应定位**：面板先置可见再定位（不可见时 `offsetHeight` 恒为 0，首开上下空间判断会失效），随后默认锚定输入框下方，仅当下方放不下且上方更宽时才上翻；所选一侧空间不足时压缩面板高度（列表内部滚动，压缩下限 120px 保证搜索行 + 至少一条可用），视口过小时降级为视口内贴合，水平方向保留 8px 视口边距——嵌套 iframe 登录框等窄视口下面板不再被裁切（见 `InlineFillDropdown.positionPanel()`）。定位与置可见在同一同步任务内完成，不闪现错误位置；若定位过程中面板已被关闭，则中止后续交互绑定与聚焦。
 
 ### 18. 回收站
 
@@ -391,8 +410,8 @@ graph TB
 
 ### 19. 密码修改历史
 
-- 编辑密码时若密码字段发生变化，自动将旧密码密文快照入历史（见 [utils/storage/passwordHistory.ts](../utils/storage/passwordHistory.ts)），每个条目保留最近 **5** 条，超出自动淘汰最旧记录。
-- 在编辑弹窗底部展示「密码修改历史」区块（仅编辑模式且有历史时显示），每条显示修改时间与掩码，提供「复制」与「恢复」按钮，恢复即将旧密码回填到表单密码框。
+- 编辑密码时若密码字段发生变化，自动将旧密码密文快照入历史（见 [utils/storage/passwordHistory.ts](../utils/storage/passwordHistory.ts)），每条默认保留最近 **3** 条（可在「密码历史设置」配 1~10 条），超出自动淘汰最旧记录。
+- 在编辑弹窗底部展示「密码修改历史」区块（仅编辑模式且有历史时显示），每条显示修改时间与掩码，提供「复制」与「恢复」按钮，恢复即将旧密码回填到表单密码框；只读详情抽屉则提供同一份历史的「只读 + 复制」视图（见第 23 节）。
 - 历史以加密态存储，不落明文；查看/恢复需会话有效；条目被彻底删除时历史一并清理，修改主密码时历史随全库重新加密。
 
 ### 20. 修改主密码
@@ -421,6 +440,14 @@ graph TB
 - 安全门控与一键填充共用同一道防线：启动重锁屏障、会话校验、`isFrameFillable` 跨域 frame 拒绝（明文只发给顶层或同主域名帧）。**例外**：「生成并填充强密码」豁免会话门控——它只用 Web Crypto 现场生成随机密码，不读取任何密文/明文条目，而注册新账号（最高频的生成场景）往往正是会话已锁状态；`isFrameFillable` 与定向下发门控照常保留。
 - 会话失效时与一键填充同一策略：就地展开内联下拉锁定卡片，并优先锚定被右键的那个输入框（`OPEN_INLINE_DROPDOWN` 的 `useContextMenuTarget` 轮次，仅限 `getFillableFrameIds` 集合内的 frame）；面板展开不了才回退反馈通道。
 - 反馈策略：填充成功仅显示工具栏角标（填充结果在输入框内可见，避免通知打扰）；失败走**三层反馈**——页面内提示条（`SHOW_PAGE_NOTICE` 定向顶层 frame，不依赖操作系统通知权限）+ 桌面通知 + 失败角标，会话失效类通知使用可点击的 `unlock-required` ID；「打开侧边栏」失败同样不静默吞掉。
+
+### 23. 条目只读详情抽屉
+
+- 密码列表每行的「查看详情」以只读抽屉展示单条账号的完整信息（见 [PasswordDetailDrawer.vue](../components/options/PasswordDetailDrawer.vue)）：站点图标、用户名、网址、密码、两步验证活码、标签、备注全文、密码修改历史、创建/更新/最后使用时间——列表中被截断的备注与看不到的历史在这里完整可读，不必进入编辑态。
+- **纯展示组件**：不写存储、不碰加密与会话；「编辑」仅向上抛出条目，由父级关闭抽屉并复用既有编辑弹窗流程，写入路径保持单一事实来源。
+- 密码默认掩码，点击眼睛才切换为明文；可见性是本地态，抽屉关闭动画结束即复位并清空历史列表，不留残余明文引用。网址经 `toNavigableUrl` 归一化后才作为链接使用。
+- 复制用户名 / 网址走 [clipboard.ts](../utils/clipboard.ts) 的 `copyTextToClipboard`，复制密码与历史密码走 `copySecretToClipboard`——按「剪贴板设置」的延时自动清除，清除成功/失败经回调提示（与侧边栏复制共用同一套机制，文案由调用方注入）。
+- 密码历史仅在「密码历史设置」启用时才动态导入配置并按需加载，避免打开抽屉即触发无谓解密。
 
 ## 开发补充
 
