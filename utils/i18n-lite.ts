@@ -3,7 +3,7 @@
  *
  * 供 content script 与 background Service Worker 等无 Vue 环境使用：
  * - 不依赖 Vue 响应式与 utils/i18n 的全量语言包，避免打包体积膨胀
- * - 内联双语消息表（cs.* 为 content script 文案，bg.* 为 background 通知文案）
+ * - 内联双语消息表（cs.* 为 content script 文案，bg.* / cm.* 为 background 文案）
  * - 语言检测优先级与 utils/i18n 的 initI18n 保持一致：storage 持久化 > 浏览器 UI 语言
  * - initLiteI18n() 注册 storage.onChanged 监听，语言切换时实时生效并通知订阅者
  *
@@ -27,8 +27,13 @@ export function isLiteLocale(value: unknown): value is LiteLocale {
   return value === 'zh-CN' || value === 'en';
 }
 
-/** 内联双语消息表（体积敏感，仅收录 content/background 实际使用的 key） */
-const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
+/**
+ * 内联双语消息表（体积敏感，仅收录 content/background 实际使用的 key）
+ *
+ * 导出仅供中英文 key 集对齐测试使用（Vue 侧语言包的对齐由 tests/utils/i18nBundles.test.ts 守，
+ * 本表此前无守卫）；运行时代码一律经 `tl()` 取值，不得直接引用或修改该表。
+ */
+export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
   'zh-CN': {
     'cs.save.titleUpdate': '检测到密码有更新，是否更新？',
     'cs.save.titleSave': '自动保存账号密码到密码列表？',
@@ -43,6 +48,8 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.save.update': '更新',
     'cs.save.save': '保存',
     'cs.save.autoSaveRemark': '自动保存',
+    'cs.save.riskWeak': '密码强度较弱，建议增加长度并混合字母、数字与特殊字符',
+    'cs.save.riskReused': '该密码已被其它 {count} 个账号共用，一处泄露将波及全部',
     'cs.inline.trigger': '快速填充',
     'cs.inline.lockedTitle': '解锁后填充',
     'cs.inline.lockedDesc': '点击验证主密码以使用快速填充',
@@ -71,7 +78,6 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.fab.settings': '偏好设置',
     'cs.pv.show': '显示密码',
     'cs.pv.hide': '隐藏密码',
-    'cs.notify.noLoginForm': '当前页面未匹配到登录表单',
     'cs.notify.promptFailed': '发现账号密码，但弹窗显示失败，请手动在密码管理页添加',
     'cs.notify.foundManualAdd': '发现 {url} 的账号密码，请在密码管理页手动添加',
     'cs.notify.saved': '账号密码已保存',
@@ -92,8 +98,9 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.fd.totpFillSuccess': '验证码填充成功',
     'cs.fd.totpFillManual': '验证码填充失败，请手动输入',
     'cs.fd.totpFillError': '填充验证码时发生错误',
-    'cs.fd.sidepanelShown': '侧边栏显示请求已处理',
-    'cs.fd.sidepanelHidden': '侧边栏隐藏请求已处理',
+    'cs.cm.noTarget': '右键点击的输入框已不可用，请重新右键输入框后再填充',
+    'cs.cm.fillFailed': '填充失败，请重试',
+    'cs.cm.notEditable': '该输入区域暂不支持右键填充（仅支持普通输入框）',
     'bg.reminder.title': '密码更换提醒',
     'bg.reminder.message': '「{username}」的密码已到您设置的提醒时间，建议立即更换。',
     'bg.update.title': '插件有新版本可用',
@@ -110,8 +117,14 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.autoSave.savedNew': '已自动保存新账号密码',
     'bg.autoSave.failed': '自动保存失败: {message}',
     'bg.autoSave.failedGeneric': '自动保存处理失败',
+    'bg.quickAdd.invalidFields': '账号不能为空',
+    'bg.quickAdd.tooLong': '账号或密码过长，请精简后重试',
+    'bg.quickAdd.locked': '会话已过期，请先验证主密码',
+    'bg.quickAdd.success': '已保存新账号密码',
+    'bg.quickAdd.failed': '保存失败，请重试',
     'bg.quickFill.title': '一键填充',
-    'bg.quickFill.sessionExpired': '会话未验证，请先验证主密码',
+    // 可点击通知专用文案：告知下一步动作（点击通知直达主密码验证页）
+    'bg.quickFill.sessionExpiredUnlock': '会话未验证，点击此通知验证主密码解锁',
     'bg.quickFill.noUrl': '无法获取当前页面地址',
     'bg.quickFill.noMatch': '当前页面没有匹配的账号密码',
     'bg.quickFill.fillSuccess': '填充成功',
@@ -122,6 +135,19 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.inline.noLoginField': '当前页面未检测到登录输入框',
     'bg.common.unknownError': '未知错误',
     'bg.cache.untitled': '未命名',
+    'cm.title': '右键填充',
+    // 显式单父项标题：避开 Chrome 按扩展全名（含商店副标题）自动折叠出的超长父级菜单
+    'cm.parentFill': '填充账号密码',
+    'cm.parentPage': '账号密码管理助手',
+    'cm.fillUsername': '填充用户名',
+    'cm.fillPassword': '填充密码',
+    'cm.fillTotp': '填充两步验证码',
+    'cm.generatePassword': '生成并填充强密码',
+    'cm.openSidepanel': '打开侧边栏',
+    'cm.openOptions': '打开密码管理页',
+    'cm.noTotpEntry': '当前页面没有配置两步验证的匹配账号',
+    'cm.frameNotFillable': '当前框架不允许接收凭证填充',
+    'cm.openSidepanelFailed': '打开侧边栏失败，请重试',
   },
   en: {
     'cs.save.titleUpdate': 'Password change detected. Update it?',
@@ -137,6 +163,8 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.save.update': 'Update',
     'cs.save.save': 'Save',
     'cs.save.autoSaveRemark': 'Auto-saved',
+    'cs.save.riskWeak': 'Weak password — add length and mix letters, numbers and symbols',
+    'cs.save.riskReused': 'Shared with {count} other account(s) — one leak exposes them all',
     'cs.inline.trigger': 'Quick fill',
     'cs.inline.lockedTitle': 'Unlock to fill',
     'cs.inline.lockedDesc': 'Click to verify the master password and use quick fill',
@@ -165,7 +193,6 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.fab.settings': 'Preferences',
     'cs.pv.show': 'Show password',
     'cs.pv.hide': 'Hide password',
-    'cs.notify.noLoginForm': 'No login form detected on this page',
     'cs.notify.promptFailed':
       'Credentials detected but the prompt failed to show; please add them manually in Password Manager',
     'cs.notify.foundManualAdd': 'Credentials detected for {url}; please add them manually in Password Manager',
@@ -187,8 +214,9 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.fd.totpFillSuccess': '2FA code filled',
     'cs.fd.totpFillManual': 'Failed to fill the 2FA code, please enter it manually',
     'cs.fd.totpFillError': 'An error occurred while filling the 2FA code',
-    'cs.fd.sidepanelShown': 'Sidepanel show request processed',
-    'cs.fd.sidepanelHidden': 'Sidepanel hide request processed',
+    'cs.cm.noTarget': 'The right-clicked input is no longer available. Right-click the input again to fill.',
+    'cs.cm.fillFailed': 'Fill failed. Please try again.',
+    'cs.cm.notEditable': 'Right-click fill is not supported for this field (standard input fields only).',
     'bg.reminder.title': 'Password change reminder',
     'bg.reminder.message': 'The reminder for "{username}" is due. Consider changing its password now.',
     'bg.update.title': 'New extension version available',
@@ -205,8 +233,15 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.autoSave.savedNew': 'New credentials auto-saved',
     'bg.autoSave.failed': 'Auto-save failed: {message}',
     'bg.autoSave.failedGeneric': 'Auto-save processing failed',
+    'bg.quickAdd.invalidFields': 'Username cannot be empty',
+    'bg.quickAdd.tooLong': 'Username or password is too long. Please shorten it and retry.',
+    'bg.quickAdd.locked': 'Session expired. Please verify your master password first.',
+    'bg.quickAdd.success': 'New credentials saved',
+    'bg.quickAdd.failed': 'Save failed. Please try again.',
     'bg.quickFill.title': 'Quick Fill',
-    'bg.quickFill.sessionExpired': 'Session not verified. Please verify your master password first.',
+    // 可点击通知专用文案：告知下一步动作（点击通知直达主密码验证页）
+    'bg.quickFill.sessionExpiredUnlock':
+      'Session not verified. Click this notification to verify your master password.',
     'bg.quickFill.noUrl': 'Unable to get the current page URL',
     'bg.quickFill.noMatch': 'No matching credentials found for this page',
     'bg.quickFill.fillSuccess': 'Credentials filled successfully',
@@ -217,6 +252,19 @@ const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.inline.noLoginField': 'No login field detected on this page',
     'bg.common.unknownError': 'Unknown error',
     'bg.cache.untitled': 'Untitled',
+    'cm.title': 'Context Menu Fill',
+    // 显式单父项标题：避开 Chrome 按扩展全名（含商店副标题）自动折叠出的超长父级菜单
+    'cm.parentFill': 'Fill Credentials',
+    'cm.parentPage': 'Account Password Helper',
+    'cm.fillUsername': 'Fill Username',
+    'cm.fillPassword': 'Fill Password',
+    'cm.fillTotp': 'Fill 2FA Code',
+    'cm.generatePassword': 'Generate & Fill Strong Password',
+    'cm.openSidepanel': 'Open Side Panel',
+    'cm.openOptions': 'Open Password Manager',
+    'cm.noTotpEntry': 'No matching account with 2FA configured for this page',
+    'cm.frameNotFillable': 'This frame is not allowed to receive credentials',
+    'cm.openSidepanelFailed': 'Failed to open the side panel. Please try again.',
   },
 };
 

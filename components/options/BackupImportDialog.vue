@@ -76,6 +76,9 @@
             :placeholder="t('options.backupImport.passwordPlaceholder')"
             show-password
             :disabled="decrypting"
+            @keydown="handleCapsKeyEvent"
+            @keyup="handleCapsKeyEvent"
+            @blur="resetCapsLockState"
             @keyup.enter="handleDecrypt"
           >
             <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
@@ -86,6 +89,8 @@
               </el-icon>
             </template>
           </el-input>
+          <!-- 误开大写锁定是「解密失败」的高频原因，与其他主密码输入口保持一致提示 -->
+          <CapsLockHint v-if="capsLockOn" />
           <el-button
             type="primary"
             :loading="decrypting"
@@ -217,6 +222,8 @@ import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
+import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
+import CapsLockHint from '@/components/CapsLockHint.vue';
 
 interface Props {
   modelValue: boolean;
@@ -231,6 +238,9 @@ const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 
 const { t } = useI18n();
+
+/** 主密码输入框大写锁定检测（弹窗每次打开时重置，避免残留） */
+const { capsLockOn, handleCapsKeyEvent, resetCapsLockState } = useCapsLockDetection();
 
 const dialogVisible = computed({
   get: () => props.modelValue,
@@ -270,6 +280,8 @@ const handleFileChange = async (file: UploadFile) => {
   selectedFile.value = file.raw;
   previewData.value = [];
   masterPassword.value = '';
+  // 密码输入区经 v-if 卸载时不会触发 blur，需显式清除大写锁定提示，避免下次显示时残留
+  resetCapsLockState();
   // 文件选择后，密码输入区出现，等 DOM 渲染完毕后滚动弹窗内容区到底部
   await nextTick();
   setTimeout(() => {
@@ -285,6 +297,7 @@ const handleFileRemove = () => {
   previewData.value = [];
   selectedFile.value = undefined;
   masterPassword.value = '';
+  resetCapsLockState();
   if (uploadRef.value) {
     uploadRef.value.clearFiles();
   }
@@ -347,6 +360,7 @@ const handleClose = () => {
   selectedFile.value = undefined;
   masterPassword.value = '';
   showPreviewPassword.value = false;
+  resetCapsLockState();
   if (uploadRef.value) {
     uploadRef.value.clearFiles();
   }

@@ -28,6 +28,138 @@ const EN_KEYWORDS =
 const EN_JSONLD_DESCRIPTION =
   'Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + AES-256-GCM encryption with zero network transfer, built-in TOTP 2FA, security audit and password generator, instant side panel (20-50ms warm path).';
 
+// 英文版 FAQPage / HowTo 结构化数据（与 index.html 中文块逐条对应）
+const EN_FAQPAGE_JSONLD = `<!-- FAQPage structured data: English version, mirrored from the Chinese FAQPage block in index.html -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Are my passwords uploaded to the cloud?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. The extension is fully local: all data stays in your browser's local storage, sensitive fields are encrypted with AES-256-GCM, and nothing ever travels over the network."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What if I forget my master password?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "It cannot be recovered; you can only use Reset to wipe the vault and start over. Back up regularly via data export or the encrypted .aph backup to avoid data loss."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What happens when my session expires?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "All sensitive fields are automatically re-encrypted into ciphertext. Verify the master password again to restore access — no data is lost."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the security audit and what does it check?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "A one-click password health scan showing a 0–100 overall score across five checks: weak passwords, password reuse, commonly leaked passwords (offline dictionary), stale passwords, and missing two-factor authentication. Everything is computed locally — no network, no uploads. Expiry reminders help you catch risks early."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I import from other password managers?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Upload a CSV file in the import dialog; the extension auto-detects Chrome, LastPass, Bitwarden and 1Password export formats and maps the fields."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Autofill doesn't work — what should I do?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Wait for the page to fully load and retry; the filler tries three strategies in order (native setter, execCommand, simulated keyboard events). If it still fails, refresh the page."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I customize the keyboard shortcuts?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Open chrome://extensions/shortcuts, find Account Password Helper, click the shortcut field next to a command and press a new combination. You can also open the read-only overview under Security Settings → Keyboard Shortcuts on the manager page, which flags the live status of every binding and links straight to that page."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is one-click login and how is it different from other password managers?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "One-click login is the core differentiator: press Ctrl+Shift+F and it not only autofills credentials but also ticks the 'I agree' checkbox and clicks the login button — sign-in completes in about one second. Other managers only fill the form; you still click login yourself. Exact-domain matching also isolates dev/test/staging/prod accounts, which no other manager offers."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does Account Password Helper compare with Bitwarden and 1Password?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "It is completely free, open source and stores data purely locally — no account, no cloud sync. Key differences: 1) one-click login (fill + tick + click) where others only fill; 2) multi-environment account isolation (dev/test/staging/prod); 3) built-in TOTP 2FA (paid tier in Bitwarden/1Password); 4) offline security audit (0–100 score, five checks). Bitwarden and 1Password are cloud-based, require accounts, and lock advanced features behind subscriptions."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How is side panel performance? Any lag?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "The side panel is heavily optimized: it loads in about 20–50ms while the session is valid, thanks to Service Worker keep-alive and a resident password cache. It opens instantly even after the session expires. On Windows, a first cold start can take 1–2 extra seconds due to antivirus scanning; adding the Chrome extensions directory to the exclusion list brings it under one second."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I migrate to Account Password Helper from another password manager?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Upload a CSV file in the import dialog; the extension auto-detects Chrome, LastPass, Bitwarden and 1Password export formats with Chinese/English column-name mapping — migration takes about 30 seconds. JSON import and .aph encrypted backup import are also supported."
+            }
+          }
+        ]
+      }
+    </script>
+`;
+const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored from the Chinese HowTo block in index.html -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "How to install the Account Password Helper Chrome extension",
+        "description": "Install Account Password Helper from the Chrome Web Store in one click, or download from GitHub Releases for manual installation.",
+        "step": [
+          {
+            "@type": "HowToStep",
+            "name": "Install the extension",
+            "text": "Visit the Chrome Web Store page and click 'Add to Chrome'; or download the zip from GitHub Releases and load it via developer mode in chrome://extensions/."
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Set your master password",
+            "text": "On first launch, click the extension icon to open the management page, set a master password (at least 8 characters with letters, numbers and a special character) and choose the session validity period."
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Import or add accounts",
+            "text": "Add accounts manually, or import CSV/JSON files from Chrome, LastPass, Bitwarden or 1Password in one click."
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Start using it",
+            "text": "Visit a login page and use inline fill, the side panel, or Ctrl+Shift+F for one-click login."
+          }
+        ]
+      }
+    </script>
+`;
+
 let html = readFileSync(srcPath, 'utf8');
 
 // ---------- 1. 提取 I18N 字典（纯对象字面量区域） ----------
@@ -108,9 +240,9 @@ replaceOnce(
   /"description": "开源免费的本地密码管理器：一键登录（填充\+勾选\+点击），PBKDF2 600K 迭代 \+ AES-256-GCM 加密零联网，TOTP 两步验证、安全体检与密码生成器，侧边栏秒开（缓存快路径 20-50ms），数据绝不出浏览器。",/,
   `"description": "${EN_JSONLD_DESCRIPTION}",`,
 );
-// 英文版移除中文 FAQPage / HowTo 结构化数据块，避免语言错配
-replaceOnce(/[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/, '');
-replaceOnce(/[ \t]*<!-- HowTo 结构化数据[\s\S]*?<\/script>\n/, '');
+// 英文版：中文 FAQPage / HowTo 结构化数据块替换为逐条对应的英文版，避免语言错配
+replaceOnce(/[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/, () => EN_FAQPAGE_JSONLD);
+replaceOnce(/[ \t]*<!-- HowTo 结构化数据[\s\S]*?<\/script>\n/, () => EN_HOWTO_JSONLD);
 // 静态英文页缺省语言固定为 en（仍尊重 ?lang 参数与 localStorage 显式选择）
 replaceOnce("return (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';", "return 'en';");
 

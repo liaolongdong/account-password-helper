@@ -34,6 +34,16 @@ const KEY = '00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff';
 /** 与 KEY 等长但取值不同的错误密钥 */
 const WRONG_KEY = 'ff'.repeat(32);
 
+/**
+ * 600k 迭代 KDF 用例的超时上限（ms）
+ *
+ * 这类用例各自跑两遍 PBKDF2-SHA256/600k：被测实现走 Web Crypto，期望值走 Node
+ * `pbkdf2Sync` 做独立交叉校验，实测 3.3–4.9s，紧贴 Vitest 默认 5s 上限，
+ * 机器负载抖动即会超时（断言本身从未失败）。放宽耗时上限不弱化任何断言：
+ * 迭代次数、salt 域分离前缀与交叉校验期望值均保持原样。
+ */
+const KDF_TIMEOUT_MS = 20000;
+
 beforeEach(() => {
   fakeBrowser.reset();
   // 加解密路径含 debug/warn/error 日志，静默 console 以保持测试输出整洁
@@ -62,21 +72,29 @@ describe('密钥派生（与独立实现交叉校验，锁定 KDF 参数）', ()
     expect(await deriveSessionKey('s2')).not.toBe(a);
   });
 
-  it('deriveVerifierHash：PBKDF2-SHA256/600k，salt 域分离前缀 aph-verify|', async () => {
-    const expected = pbkdf2Sync('pw', 'aph-verify|the-salt', 600000, 32, 'sha256').toString('hex');
-    expect(await deriveVerifierHash('pw', 'the-salt')).toBe(expected);
-  });
+  it(
+    'deriveVerifierHash：PBKDF2-SHA256/600k，salt 域分离前缀 aph-verify|',
+    async () => {
+      const expected = pbkdf2Sync('pw', 'aph-verify|the-salt', 600000, 32, 'sha256').toString('hex');
+      expect(await deriveVerifierHash('pw', 'the-salt')).toBe(expected);
+    },
+    KDF_TIMEOUT_MS,
+  );
 });
 
 describe('deriveEncryptionKey（读取 chrome.storage 主密码配置）', () => {
-  it('以存储中的 salt 做 PBKDF2-SHA256/600k，与独立实现一致', async () => {
-    const salt = 'stored-salt';
-    await fakeBrowser.storage.local.set({
-      [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'x', salt },
-    });
-    const expected = pbkdf2Sync('mymaster', salt, 600000, 32, 'sha256').toString('hex');
-    expect(await deriveEncryptionKey('mymaster')).toBe(expected);
-  });
+  it(
+    '以存储中的 salt 做 PBKDF2-SHA256/600k，与独立实现一致',
+    async () => {
+      const salt = 'stored-salt';
+      await fakeBrowser.storage.local.set({
+        [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'x', salt },
+      });
+      const expected = pbkdf2Sync('mymaster', salt, 600000, 32, 'sha256').toString('hex');
+      expect(await deriveEncryptionKey('mymaster')).toBe(expected);
+    },
+    KDF_TIMEOUT_MS,
+  );
 
   it('缺少主密码配置时抛出「无法获取主密码配置」', async () => {
     await expect(deriveEncryptionKey('mymaster')).rejects.toThrow('无法获取主密码配置');

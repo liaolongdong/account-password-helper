@@ -657,7 +657,7 @@ export function useSidepanelData() {
     switch (message.type) {
       case MessageType.URL_CHANGED:
         updateCurrentDomainAndLoadPasswords();
-        sendResponse({ success: true, message: 'URL变化处理完成' });
+        sendResponse({ success: true });
         return true;
       case MessageType.SESSION_EXPIRED:
         logger.debug('SidePanel: 收到锁定广播消息，立即切换到未验证状态');
@@ -827,6 +827,8 @@ export function useSidepanelData() {
 
       // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道）
       const _perfBgStart = performance.now();
+      /** 800ms 竞速门与迟到原始响应共用的采纳标记：同一响应只被处理一次 */
+      let bgAdopted = false;
       /** bg 原始响应 Promise（独立持有，不随 800ms 竞速门丢弃）：
        *  冷 SW 在 800ms 后才完成启动时，其真实响应仍可在回退阶段与本地路径继续竞速被采纳，
        *  消除「迟到数据被丢弃 → 空等本地路径 + 3s 兜底超时」的最坏瀑布（Windows 冷 SW 主卡点） */
@@ -843,14 +845,34 @@ export function useSidepanelData() {
         new Promise<null>(resolve => setTimeout(() => resolve(null), 800)),
       ]).then(result => {
         bgPathMs = performance.now() - _perfBgStart;
+        if (bgAdopted) return null;
         if (!result?.success || !result.data) return null;
         if (raceWinner) {
+          bgAdopted = true;
           bgLateResult = result;
           logger.debug(`SidePanel: bg 路径迟到 (${bgPathMs.toFixed(1)}ms)，静默更新缓存`);
           return null;
         }
+        bgAdopted = true;
         raceWinner = 'bg';
         logger.debug(`SidePanel: bg 路径竞速胜出 (${bgPathMs.toFixed(1)}ms)`);
+        return { source: 'bg' as const, data: result };
+      });
+      /** 800ms 竞速门超时后才到达的原始 bg 响应，仍可作为可用结果参与竞速：
+       *  启动屏障 pending 导致本地路径弃赛、快照缺失时，这是唯一可恢复的数据源，
+       *  否则面板将空等到 3s 兜底超时并提交假锁定态（迟到有效结果无法再胜出） */
+      const bgLateCandidate = bgRawPromise.then(result => {
+        if (bgAdopted) return null;
+        if (!result?.success || !result.data) return null;
+        if (raceWinner) {
+          bgAdopted = true;
+          bgLateResult = result;
+          logger.debug('SidePanel: bg 原始响应迟到，已有路径胜出，转入静默更新缓存');
+          return null;
+        }
+        bgAdopted = true;
+        raceWinner = 'bg';
+        logger.debug('SidePanel: bg 原始响应迟到（竞速门超时后），作为可用结果胜出');
         return { source: 'bg' as const, data: result };
       });
 
@@ -913,6 +935,9 @@ export function useSidepanelData() {
           if (result) resolve(result);
         });
         void bgPromise.then(result => {
+          if (result?.data.data) resolve({ source: 'bg', data: result.data.data });
+        });
+        void bgLateCandidate.then(result => {
           if (result?.data.data) resolve({ source: 'bg', data: result.data.data });
         });
         void localPromise.then(result => {

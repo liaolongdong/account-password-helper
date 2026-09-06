@@ -245,6 +245,29 @@ export enum MessageType {
    * 会随页面卸载被销毁导致更新丢失，故委托长生命周期的 SW 上下文持久化。
    */
   UPDATE_PASSWORD_METADATA = 'UPDATE_PASSWORD_METADATA',
+  /**
+   * 侧边栏快速添加条目：由 SidePanel 快速添加弹窗发起，委托 background 加密落盘
+   *
+   * 与 AUTO_SAVE_PASSWORD 不同：发起方是扩展页面（无 sender.tab），
+   * URL 为用户自报的当前站点域名，仅用于条目展示，不参与安全裁决。
+   */
+  QUICK_ADD_PASSWORD = 'QUICK_ADD_PASSWORD',
+  /**
+   * 右键菜单填充：由 background 下发到用户右键点击所在 frame，
+   * 将解析好的明文值（用户名/密码/TOTP 动态码/生成的强密码）填入被右键的输入框
+   *
+   * 与 FILL_PASSWORD 暴露面一致：仅经 tabs.sendMessage 定向单一 frame，
+   * 下发前经 isFrameFillable 门控，跨域 iframe 会被拒绝。
+   */
+  CONTEXT_MENU_FILL = 'CONTEXT_MENU_FILL',
+  /**
+   * 页面内提示条：由 background 定向下发到顶层 frame，在页面内显示一条短时提示
+   *
+   * 存在的意义：桌面通知依赖操作系统设置（macOS 专注模式、通知权限关闭时）会整通道失效，
+   * 工具栏角标在扩展未固定到工具栏时不可见。本消息只携带已本地化的提示文案，
+   * 不含任何凭证数据，故不受 `isFrameFillable` 门控约束，但仅发往顶层 frame。
+   */
+  SHOW_PAGE_NOTICE = 'SHOW_PAGE_NOTICE',
 }
 
 /**
@@ -283,8 +306,11 @@ export type RuntimeMessage =
   | { type: MessageType.SET_PENDING_TOTP; data: SetPendingTotpData }
   | { type: MessageType.CHECK_CREDENTIAL_STATUS; data: CheckCredentialStatusData }
   | { type: MessageType.QUICK_FILL }
-  | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean } }
-  | { type: MessageType.UPDATE_PASSWORD_METADATA; data: UpdatePasswordMetadataData };
+  | { type: MessageType.OPEN_INLINE_DROPDOWN; data?: { focusedOnly?: boolean; useContextMenuTarget?: boolean } }
+  | { type: MessageType.UPDATE_PASSWORD_METADATA; data: UpdatePasswordMetadataData }
+  | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData }
+  | { type: MessageType.CONTEXT_MENU_FILL; data: ContextMenuFillData }
+  | { type: MessageType.SHOW_PAGE_NOTICE; data: PageNoticeData };
 
 /**
  * 悬浮按钮配置接口
@@ -434,6 +460,40 @@ export interface MatchingAccountsResponse {
 }
 
 /**
+ * 右键菜单填充动作类型
+ *
+ * - username/password/totp：background 按当前域名解析最优匹配条目后下发对应值
+ * - generate：background 现场生成强密码下发，不依赖任何条目
+ */
+export type ContextMenuFillAction = 'username' | 'password' | 'totp' | 'generate';
+
+/**
+ * 右键菜单填充：CONTEXT_MENU_FILL 的请求数据
+ *
+ * 明文值由 background 解析（条目查询/动态码计算/密码生成），
+ * content script 只负责填入被右键的输入框，不参与条目选择。
+ */
+export interface ContextMenuFillData {
+  /** 填充动作类型（区分反馈与日志） */
+  action: ContextMenuFillAction;
+  /** 待填充的明文值 */
+  value: string;
+}
+
+/**
+ * 页面内提示条：SHOW_PAGE_NOTICE 的请求数据
+ *
+ * `message` 由发送方（background）按用户语言完成本地化，content 侧只做纯文本渲染，
+ * 不接受 HTML；接收方对长度与类型做边界校验后降级渲染。
+ */
+export interface PageNoticeData {
+  /** 提示文案（已本地化） */
+  message: string;
+  /** 提示类型，缺省按 warning 渲染 */
+  type?: 'success' | 'warning' | 'error' | 'info';
+}
+
+/**
  * 内联下拉：FILL_BY_ID 的请求数据
  */
 export interface FillByIdData {
@@ -536,6 +596,55 @@ export interface AutoSavePasswordData {
 }
 
 /**
+ * 侧边栏快速添加条目请求数据
+ *
+ * 由 SidePanel 快速添加弹窗发起，background 校验后加密落盘。
+ * URL 为侧边栏自报的当前站点域名，仅作条目展示用途。
+ */
+export interface QuickAddPasswordData {
+  /** 用户名 */
+  username: string;
+  /** 密码（允许为空，与密码管理页添加行为一致） */
+  password: string;
+  /** 网站域名（侧边栏当前站点，用户可编辑） */
+  url: string;
+  /** 标签（可选，默认空） */
+  tag?: string;
+  /** 备注（可选，默认空） */
+  remark?: string;
+}
+
+/**
+ * 密码表单字段模型
+ *
+ * 密码管理页 `passwordForm` 的形状，由 `usePasswordManagement` 持有，
+ * 经 props 下发给添加/编辑弹窗渲染。
+ */
+export interface PasswordFormModel {
+  /** 用户名 */
+  username: string;
+  /** 密码 */
+  password: string;
+  /** 网站域名 */
+  url: string;
+  /** 标签（英文逗号拼接字符串，写入前经归一化） */
+  tag: string;
+  /** 备注 */
+  remark: string;
+  /** TOTP 密钥 */
+  totp: string;
+}
+
+/**
+ * 密码表单弹窗可回写的字段补丁
+ *
+ * `tag` 不在此列：它由 `usePasswordManagement` 的 `tagArray` computed setter 独占写入
+ * （含去重、长度与数量归一化及超限提示），弹窗内的本地副本不得回传，
+ * 否则会用陈旧值覆盖用户刚选择的标签。
+ */
+export type PasswordFormPatch = Omit<PasswordFormModel, 'tag'>;
+
+/**
  * 自动保存预检查请求数据
  *
  * 由 content script 在捕获登录凭证后、弹窗前发送，供 background 比对已保存密码库。
@@ -560,6 +669,20 @@ export interface CheckCredentialStatusData {
 export type CredentialStatus = 'new' | 'identical' | 'password_changed' | 'locked';
 
 /**
+ * 保存前风险提示（非阻断）
+ *
+ * 由 background 预检查在**已解密的全量条目**上就地计算，随凭证状态一并返回，
+ * 供 content script 的保存弹窗以内联警示形式呈现：只提醒不阻断，不引入二次确认。
+ * 两个维度均可缺省，缺省即表示未命中。
+ */
+export interface SaveRiskHint {
+  /** 密码强度较弱（与设置页安全体检同口径） */
+  weak?: boolean;
+  /** 与该密码相同的**其它**已存账号数量（不含本次要保存/更新的条目自身） */
+  reusedCount?: number;
+}
+
+/**
  * 自动保存预检查响应数据
  *
  * 仅返回状态枚举与非密码元数据，绝不回传已存明文密码。
@@ -569,6 +692,13 @@ export interface CredentialStatusResponse {
   status: CredentialStatus;
   /** 已存条目的标签/备注（仅 password_changed 时返回，用于弹窗预填，非密码） */
   existing?: { tag: string; remark: string };
+  /**
+   * 风险提示（仅 `new` 与 `password_changed` 返回，即实际需要弹窗的两个分支）
+   *
+   * `locked`（会话失效不弹窗）、`identical`（静默跳过）与异常兜底分支均不携带，
+   * 避免在不会展示的路径上做无用计算。
+   */
+  risk?: SaveRiskHint;
 }
 
 /**

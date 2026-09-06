@@ -11,10 +11,10 @@
 在 Dashboard 点击「新建商品」(New Item)，上传以下文件：
 
 ```
-.output/account-password-helper-3.6.0-chrome.zip
+.output/account-password-helper-3.7.0-chrome.zip
 ```
 
-> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。当前版本：**3.6.0**。
+> 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。当前版本：**3.7.0**。
 
 ---
 
@@ -38,10 +38,10 @@
 
 ```
 
-一款开源免费、数据纯本地的浏览器密码管理器——快捷键一键登录（自动填充 → 勾选协议 → 点击登录，不只是填表），精确域名匹配隔离 dev/test/staging/prod 多环境账号，为开发者和测试人员量身打造。无云端、无账号、无订阅，PBKDF2（600,000 次迭代）+ AES-256-GCM 全加密，侧边栏秒开（缓存快路径 20-50ms），数据只留在你的浏览器里。
+一款开源免费、数据纯本地的浏览器密码管理器——快捷键一键登录（自动填充 → 勾选协议 → 点击登录，不只是填充），精确域名匹配隔离 dev/test/staging/prod 多环境账号，为开发者和测试人员量身打造。无云端、无账号、无订阅，PBKDF2（600,000 次迭代）+ AES-256-GCM 全加密，侧边栏秒开（缓存快路径 20-50ms），数据只留在你的浏览器里。
 
 【为什么选择它】
-◆ 快捷键一键登录（不只是填充）：按下 Ctrl+Shift+F，自动填充账号 → 自动勾选协议 → 自动点击登录按钮——其他工具只填表单，登录按钮还得自己点
+◆ 快捷键一键登录（不只是填充）：按下 Ctrl+Shift+F，自动填充账号 → 自动勾选协议 → 自动点击登录按钮——其他工具只填充，登录按钮还得自己点
 ◆ 多环境账号隔离：精确域名匹配区分 dev/test/staging/prod，同一站点的不同环境账号互不混淆，开发者刚需
 ◆ 内置 TOTP + 两步登录接力：验证码和密码在一起，GitHub 式两步登录自动衔接活码胶囊，告别手机验证器，不用切 App
 ◆ 纯本地 AES-256-GCM，零云端：无云端、无账号、无订阅，数据全部加密在你的浏览器里，即使服务器被攻破也拿不到你的密码
@@ -62,15 +62,17 @@
 · 密码安全体检全程本地计算，不联网、不上传任何数据
 
 【功能全览】
-· 三种填充方式：快捷键一键登录（Ctrl+Shift+F）/ 侧边栏 / 内联迷你面板，自动勾选"同意条款"，可自动触发登录
+· 四种填充方式：快捷键一键登录（Ctrl+Shift+F）/ 侧边栏 / 内联迷你面板 / 输入框右键菜单（填充用户名、密码、两步验证码或生成并填充强密码），自动勾选"同意条款"，可自动触发登录
 · 密码可见性切换：为页面密码框注入显隐切换按钮（偏好设置中开启），填充后一键确认输入内容，无需另装扩展
 · TOTP 两步验证：扫描网页二维码或上传图片一键添加密钥，验证码按 RFC 6238 本地生成，GitHub 式两步登录自动衔接活码胶囊
 · 密码安全体检：一键生成 0-100 综合评分，五维检测——弱密码 / 密码复用 / 常见泄露密码（离线字典）/ 长期未更新 / 未开两步验证，支持到期提醒
-· 自动保存凭证：登录即弹窗确认，凭证指纹智能去重，支持域名白名单/黑名单、「不再提示」一键屏蔽
+· 自动保存凭证：登录即弹窗确认，凭证指纹智能去重，支持域名白名单/黑名单、「不再提示」一键屏蔽；弹窗内联预警弱密码与密码复用（只提醒不拦截保存）
+· 侧边栏快速添加：侧边栏顶栏「+」就地添加账号，网址自动预填当前域名；主密码输入实时提示大写锁定状态
+· 条目只读详情：密码列表每行「查看详情」以抽屉展示完整备注、两步验证活码与密码修改历史，无需进入编辑态；密码默认掩码，复制后按设置自动清除
 · 导入导出：CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式；.aph 加密备份、邮箱备份提醒
 · 密码生成器：随机密码 + EFF 助记词组双模式，Web Crypto 密码学安全随机
 · 回收站与修改历史：删除条目保留 30 天可恢复，每条密码可配置保留 1~10 份加密快照（默认 3 份），改错可回滚
-· 智能搜索：拼音 / 首字母缩写搜索、标签分类、收藏置顶、一键去重、批量管理
+· 智能搜索：拼音 / 首字母缩写搜索、侧边栏「本站 / 全站」搜索范围切换（全站命中的外站条目可复制或直接打开站点）、标签分类、收藏置顶、一键去重、批量管理
 · 6 款色彩主题（晴空蓝/青竹绿/桃花粉/樱粉紫/落霞橙/雾墨灰）、中英文双语界面即时切换
 
 【常见问题】
@@ -142,15 +144,17 @@ SECURITY ARCHITECTURE
 · Security audit runs 100% offline — no data leaves your machine
 
 FULL FEATURE SET
-· 3 autofill modes: one-keystroke shortcut (Ctrl+Shift+F) / side panel / inline mini-panel; auto-ticks "I agree" checkboxes; optional auto-login trigger
+· 4 autofill modes: one-keystroke shortcut (Ctrl+Shift+F) / side panel / inline mini-panel / right-click menu on any input (fill username, password or 2FA code, or generate & fill a strong password); auto-ticks "I agree" checkboxes; optional auto-login trigger
 · Password visibility toggle: injects a show/hide button into page password fields (enable in preferences) — verify filled content with one click, no separate extension needed
 · Built-in TOTP 2FA: scan on-page QR codes or upload images to add keys; codes generated locally (RFC 6238); auto-anchors a live code capsule on GitHub-style two-step login pages
 · Security audit: 0–100 score with five checks — weak / reused / commonly leaked (offline dictionary) / stale / missing 2FA; expiry reminders included
-· Auto-capture credentials on login with smart dedup and domain allow/block lists; one-click "Never for this site"
+· Auto-capture credentials on login with smart dedup and domain allow/block lists; one-click "Never for this site"; the save prompt flags weak and reused passwords inline (a heads-up only — it never blocks saving)
+· Side panel quick add: the "+" in the panel header saves an account for the current site in place with its domain pre-filled; master password fields warn live when Caps Lock is on
+· Read-only entry details: a per-row "View details" drawer shows the full remark, the live 2FA code and the password change history without entering edit mode; passwords stay masked by default and copies auto-clear per your clipboard setting
 · Import / export: CSV & JSON; auto-detects exports from Chrome, LastPass, Bitwarden, 1Password; .aph encrypted backup + email backup reminders
 · Password generator: random & EFF diceware passphrase modes, Web Crypto CSPRNG
 · Trash bin (30 days) + 1-10 encrypted snapshots per entry (default 3) — roll back any mistake
-· Fuzzy search with pinyin / initials, tags, favorites, one-tap dedupe, batch operations
+· Fuzzy search with pinyin / initials, side panel "This site / All entries" search scope (off-site hits can be copied or opened in a new tab), tags, favorites, one-tap dedupe, batch operations
 · 6 color themes, Chinese / English bilingual UI with instant switching
 
 FAQ
@@ -305,7 +309,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **sidePanel**
 
 ```
-提供浏览器侧边栏面板，用于集中管理、搜索、编辑所有已保存的密码条目。
+提供浏览器侧边栏面板，用于集中管理、搜索（支持「本站 / 全站」范围切换）、编辑所有已保存的密码条目。
 ```
 
 **alarms**
@@ -342,6 +346,12 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 
 ```
 监听页面导航事件（页面加载完成），优化表单检测时机，确保在页面渲染完成后及时检测登录表单。
+```
+
+**contextMenus**
+
+```
+在网页右键菜单中提供填充入口：在输入框上右键可填充当前站点匹配的用户名/密码/两步验证码或生成并填充强密码，在页面空白处右键可打开侧边栏或密码管理页。菜单仅在用户主动右键时展示，不读取页面内容。
 ```
 
 **favicon**
@@ -469,9 +479,9 @@ SETUP (one-time): Install → set master password → add accounts manually or b
 
 5) Offline security audit: Monthly scan generates a 0–100 score (weak/reused/leaked/stale/missing 2FA). All computed locally.
 
-6) Auto-save: New login detected → prompt to save. Smart dedup + domain allow/block lists.
+6) Auto-save: New login detected → prompt to save. Smart dedup + domain allow/block lists, plus a non-blocking inline warning when the password is weak or shared with other accounts.
 
-Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (login) / K (inline). All customizable.
+Shortcuts: Ctrl+Shift+P (manage) / L (panel) / F (login) / K (inline). All customizable at chrome://extensions/shortcuts — the manager page ("Security Settings → Keyboard Shortcuts") and the side panel Help dialog both list all four bindings with their live status, flag any key that is currently inactive, and link straight to that page. Right-click an input to fill username/password/2FA code or generate a strong password.
 ```
 
 **Indicate any other products, platforms, or restricted websites (e.g., Netflix account, Adobe Creative Suite account, banking, intranet domains, etc.) that your extension requires access to in order to fulfill its purpose.（指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。）**
@@ -526,9 +536,9 @@ No specific website accounts are required. The extension treats all websites uni
 
 5) 离线安全体检：每月扫描生成 0–100 评分（弱密码/复用/泄露/过期/未开 2FA），全程本地计算。
 
-6) 自动保存：检测到新登录 → 弹窗确认保存，智能去重 + 域名白名单/黑名单。
+6) 自动保存：检测到新登录 → 弹窗确认保存，智能去重 + 域名白名单/黑名单；密码较弱或与其它账号共用时弹窗内联预警，只提醒不拦截。
 
-快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（登录）/ K（内联），均可自定义。
+快捷键：Ctrl+Shift+P（管理）/ L（侧边栏）/ F（登录）/ K（内联），均可在 chrome://extensions/shortcuts 自定义——密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗均列出四组按键及其当前生效状态，会标注未生效的按键并可一键直达该页。输入框上右键可直接填充用户名/密码/两步验证码或生成强密码。
 ```
 
 **指明您的扩展程序为实现其用途而需要访问的其他产品、平台或受限网站。**

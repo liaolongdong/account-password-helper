@@ -101,6 +101,8 @@ export default defineConfig({
       'clipboardWrite',
       'clipboardRead',
       'webNavigation',
+      // 右键上下文菜单：在输入框上右键填充用户名/密码/两步验证码、生成强密码
+      'contextMenus',
       // 读取 Chrome 本地缓存的网站图标（_favicon/ 端点），零外部网络请求
       'favicon',
     ],

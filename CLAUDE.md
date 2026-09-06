@@ -119,7 +119,8 @@
 
 ## Vue 3 与界面规范
 
-- 新增 Vue 代码默认使用 Composition API 和 `<script setup lang="ts">`；SFC 顺序保持 `<script>`、`<template>`、`<style>`。
+- 新增 Vue 代码默认使用 Composition API 和 `<script setup lang="ts">`。SFC 顶层块顺序遵循 Vue 官方风格指南 Priority C「Single-file component top-level element order」：`<style>` 必须在最后，而 `<script>` 与 `<template>` 的先后**两种都被官方认可**（指南的 Good 示例同时给出两种写法），规则本意是全仓保持一致，而非固定某一种顺序。硬性部分已由 `vue/block-order` 强制：`flat/recommended` 采用插件默认 `[["script", "template"], "style"]`（嵌套数组内顺序任意），配合 `pnpm lint` 的 `--max-warnings 0`，违规即失败。
+- 新增 `.vue` 文件跟随所在目录的既有惯例：`components/options/` 一律 `<template>` 在前，`components/sidepanel/` 与 `components/` 根下的小组件以 `<script>` 在前为主。修改存量文件时不得为「符合规范」重排块顺序——两种顺序都合规，重排只产生零行为收益的大 diff；若确需全仓统一，属独立任务，须先确认影响面再一次性处理。
 - 保持单一事实来源：源状态尽量少，派生值使用纯 `computed`，watcher 只承担副作用并正确清理异步任务。
 - Props 只读、事件向上。组件边界使用类型化的 `defineProps`、`defineEmits`；只有真正的双向组件契约才使用 `defineModel`。
 - 根入口组件保持为组合与装配层。组件同时承担多块 UI、状态编排和副作用时，按职责拆为子组件与 composable；小而单一的实现不为“复用”强行拆分。
@@ -147,6 +148,7 @@
   - 用户功能、安装或用法变化：`README.md` 与 `README.en.md`。
   - 架构、数据流或安全设计变化：`docs/ARCHITECTURE.md` 与 `docs/ARCHITECTURE.en.md`。
   - SidePanel 帮助内容变化：`components/sidepanel/HelpDialog.vue` 及其语言包。
+  - 新增用户可见功能：除上述对外文档外，同步 `docs/ARCHITECTURE.md`（及 `.en.md`）「功能实现详解」、侧边栏 `utils/i18n/locales/{zh-CN,en}/help.json` 词条（`HelpDialog.vue` 为数字序号驱动，新增条目需同步提升 `helpItems('help.gx', N)` 的 N，由 `tests/utils/i18nBundles.test.ts` 守卫）、以及 content/background 侧的 `utils/i18n-lite.ts`；博客修订时一并回改测试数量与修订日期并重跑 `pnpm gen:blog`；完整口径见 `docs/CWS_PUBLISHING_GUIDE.md`「其他同步约定」。
   - 官网展示变化：`index.html`。
   - 商店文案、权限、隐私或发布流程变化：`docs/CWS_FILL_CONTENT.md`、`docs/CWS_PUBLISHING_GUIDE.md`、`privacy.html` 中受影响的部分。
   - manifest 描述、权限、命令或配置变化：`wxt.config.ts` 及对应 locale 文案。

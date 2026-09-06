@@ -124,9 +124,13 @@ async function registerReadySidePanelPort(
 
 /**
  * 同步获取 tabId（不使用 async/await，避免打断用户手势链）
+ *
+ * 优先使用浏览器权威的 `sender.tab.id`（内容脚本发送时恒有值），
+ * 自报 `tabIdFromData` 仅作为扩展内部页面（popup/侧边栏，`sender.tab` 为 undefined）的兜底，
+ * 防止内容脚本伪造其他标签页的侧边栏打开/关闭目标。
  */
 export function getTabIdSync(sender: chrome.runtime.MessageSender, tabIdFromData?: number): number | undefined {
-  return tabIdFromData ?? sender.tab?.id;
+  return sender.tab?.id ?? tabIdFromData;
 }
 
 /**

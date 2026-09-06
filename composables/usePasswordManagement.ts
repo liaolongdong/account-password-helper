@@ -1,6 +1,6 @@
 import { ref, computed, watch, onScopeDispose, type Ref } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
-import type { PasswordEntry, PasswordEntryWithUI } from '@/utils/types';
+import type { PasswordEntry, PasswordEntryWithUI, PasswordFormModel } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { ExcelUtils } from '@/utils/excel';
 import { EmailBackupUtils } from '@/utils/emailBackup';
@@ -14,6 +14,7 @@ import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortSta
 import { isValidTotpInput } from '@/utils/totp';
 import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
 import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
+import { createPasswordFormRules } from '@/utils/formValidators';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
@@ -22,43 +23,6 @@ export const MAX_TAG_LENGTH = 30;
 
 /** 密码表单空值初始状态（避免多处重复字面量） */
 const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
-
-/**
- * URL/域名自定义校验器
- * 支持完整 URL（https://example.com）和纯域名（example.com / localhost）
- * @param _rule 校验规则（未使用）
- * @param value 用户输入的 URL 值
- * @param callback 校验回调函数
- */
-const urlValidator = (_rule: any, value: string, callback: any) => {
-  if (!value || !value.trim()) {
-    callback(); // 选填，空值通过
-    return;
-  }
-  const trimmed = value.trim();
-  try {
-    if (trimmed.includes('://')) {
-      // 完整 URL 格式
-      const url = new URL(trimmed);
-      if (!url.hostname) {
-        callback(new Error(t('form.invalidUrl')));
-        return;
-      }
-    } else {
-      // 纯域名格式：允许字母、数字、连字符、点号，可选端口号
-      // 支持 localhost、IP 地址、标准域名，均支持 :port 后缀
-      const domainPattern =
-        /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})(:\d{1,5})?$/;
-      if (!domainPattern.test(trimmed)) {
-        callback(new Error(t('form.invalidUrlExample')));
-        return;
-      }
-    }
-    callback();
-  } catch {
-    callback(new Error(t('form.invalidUrl')));
-  }
-};
 
 /**
  * TOTP 密钥自定义校验器
@@ -108,7 +72,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const tableLoading = ref(false);
   /** 本地操作守卫：防止 storage watcher 在本地操作期间触发全量 loadPasswords */
   const { isLocalOperation, runLocalOperation } = useLocalOperationGuard();
-  const passwordForm = ref({
+  const passwordForm = ref<PasswordFormModel>({
     username: '',
     password: '',
     url: '',
@@ -118,17 +82,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   });
 
   const passwordFormRules = computed<FormRules>(() => ({
-    username: [
-      { required: true, message: t('form.usernameRequired'), trigger: 'blur' },
-      { max: 50, message: t('form.usernameMax'), trigger: 'blur' },
-    ],
-    password: [{ max: 50, message: t('form.passwordMax'), trigger: 'blur' }],
-    url: [
-      { max: 100, message: t('form.urlMax'), trigger: 'blur' },
-      { validator: urlValidator, trigger: 'blur' },
-    ],
-    tag: [{ max: 50, message: t('form.tagMax'), trigger: 'blur' }],
-    remark: [{ max: 1000, message: t('form.remarkMax'), trigger: 'blur' }],
+    ...createPasswordFormRules(t),
     totp: [{ validator: totpValidator, trigger: 'blur' }],
   }));
 
@@ -253,6 +207,27 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       passwordForm.value.tag = stringifyTags(finalTags);
     },
   });
+
+  /**
+   * 接收密码表单弹窗回写的字段补丁
+   *
+   * `tag` 只允许经 `tagArray` 通道写入，此处显式丢弃补丁携带的 tag 作为兜底：弹窗侧已不再
+   * 持有 tag 副本（见 PasswordFormDialog 的 localForm），但本函数签名接受
+   * `Partial<PasswordFormModel>`（含 tag），而 `PasswordFormPatch` 的类型约束只由 IDE 的
+   * Volar 强制——仓库的 `pnpm typecheck` 是纯 `tsc`，不解析 `.vue`，拦不住弹窗侧误传。
+   *
+   * 历史缺陷：弹窗把整份本地镜像（含陈旧 tag）回传，父级用内联 `Object.assign` 直接覆盖，
+   * 导致「选完标签再输入备注 → 标签被清空」（新增态）与「标签被静默回滚」（编辑态）。
+   *
+   * 采用解构剔除而非字段白名单：将来表单新增字段时本侧自动透传，不会静默丢字段；
+   * 但弹窗侧的 emit 载荷是显式字段列表，新增字段仍需同步修改那里。
+   *
+   * @param patch 弹窗回传的字段补丁（可能携带陈旧 `tag`）
+   */
+  const applyPasswordFormPatch = (patch: Partial<PasswordFormModel>) => {
+    const { tag: _staleTag, ...ownedFields } = patch;
+    Object.assign(passwordForm.value, ownedFields);
+  };
 
   /**
    * 切换收藏状态
@@ -898,6 +873,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     openPasswordDialog,
     editPassword,
     resetPasswordForm,
+    applyPasswordFormPatch,
     handlePasswordFormSave,
     copyPassword,
     deletePassword,

@@ -26,6 +26,7 @@ import {
   resetCredentialAccessBarrierForStartup,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
+import { UNLOCK_NOTIFICATION_ID } from './quickFillHandler';
 import {
   markBrowserStartupRelockCurrentSessionReady,
   setBrowserStartupRelockState,
@@ -606,6 +607,11 @@ export function setupBackgroundServices(): void {
       chrome.tabs.create({ url: getReleasesPageUrl() });
       chrome.notifications.clear('extension-update-available');
       clearUpdateBadge();
+    } else if (notificationId === UNLOCK_NOTIFICATION_ID) {
+      // 「需解锁」通知：点击直达主密码验证页（options 页会话失效时自动展示验证表单）
+      // 并收起通知，避免已跳转后通知仍挂在通知中心
+      chrome.runtime.openOptionsPage();
+      chrome.notifications.clear(UNLOCK_NOTIFICATION_ID);
     } else if (notificationId.startsWith('password-reminder-')) {
       // 密码提醒通知点击：打开选项页面
       chrome.runtime.openOptionsPage();

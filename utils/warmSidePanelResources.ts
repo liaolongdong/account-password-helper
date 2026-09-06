@@ -41,7 +41,7 @@ const SIDEPANEL_HTML = 'sidepanel.html';
  * - 本地数据直读 chunk（sessionManager-storage / passwordCrud / encryption）：
  *   浏览器重启后 storage.session 快照清零，侧边栏数据竞速回退本地直读路径时
  *   动态 import 这三个 chunk——若已被 macOS UBC 逐出则冷读放大白屏；
- * - 帮助弹窗 chunk（HelpDialog，含 el-dialog + help i18n 72 key）：
+ * - 帮助弹窗 chunk（HelpDialog，含 el-dialog + 体量最大的 help 命名空间）：
  *   Mac 长时间空闲后首次点击帮助时冷加载延迟，随轻量预热一并温热。
  * 白名单外其余按需 chunk（autoSaveManager / useSidepanelSettings 等）仍跳过以控制常态 IO；
  * 白名单 chunk 的二级静态依赖由递归收集自动带入。

@@ -1,17 +1,12 @@
-import {
-  type AutoSavePasswordData,
-  type CheckCredentialStatusData,
-  type CredentialStatusResponse,
-  MessageType,
-} from '@/utils/types';
+import type { AutoSavePasswordData, CheckCredentialStatusData, CredentialStatusResponse } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { getSidePanelPorts } from './sidePanelManager';
 import { ensureCredentialAccessAfterStartupRelock, invalidatePasswordCache } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
 
 /**
  * 处理保存密码请求
- * 由 content script 在用户确认后触发，执行会话校验、域名匹配、去重更新和存储
+ * 由 content script 在用户确认后触发，执行会话校验、域名匹配、去重更新和存储；
+ * 侧边栏列表刷新由 storage watcher 承担（原因见下方成功分支注释）
  * @param data 自动保存密码数据
  * @returns 保存结果
  */
@@ -31,14 +26,10 @@ export async function handleAutoSavePassword(
       // 保存成功后使密码缓存失效，确保下次加载时获取最新数据
       invalidatePasswordCache();
 
-      // 主动通知 sidepanel 刷新数据（如果打开的话）
-      for (const port of getSidePanelPorts()) {
-        try {
-          port.postMessage({ type: MessageType.URL_CHANGED });
-        } catch {
-          // port 可能已断开但尚未触发 disconnect 事件，忽略
-        }
-      }
+      // 刻意不向 sidepanel port 发送刷新通知：autoSavePassword 的 storage 写入已触发
+      // 侧边栏 storage watcher 静默重载（含 isMetadataOnlyChange 零解密快路径）。
+      // 额外的 port 通知会让同一次保存跑两遍全量 AES-GCM 解密，属重复刷新而非兜底。
+      // 详见 quickAddHandler.ts 同名注释。
 
       // 发送桌面通知提示用户已自动保存
       try {

@@ -33,11 +33,14 @@ jobs:
         uses: actions/checkout@v4
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Install blog build dependency
+        run: npm install --no-save --no-package-lock marked@18.0.11
       - name: Generate static English pages
         run: |
           node scripts/build-en-page.mjs
           node scripts/build-pricing-en-page.mjs
           node scripts/build-privacy-en-page.mjs
+          node scripts/build-blog-pages.mjs
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

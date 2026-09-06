@@ -7,6 +7,7 @@ import {
   normalizeToHostAndPort,
   isExactHostMatch,
   matchesPortForLocalDev,
+  toNavigableUrl,
 } from '@/utils/domain';
 
 /**
@@ -191,5 +192,63 @@ describe('matchesPortForLocalDev', () => {
   it('条目 URL 有端口但与当前页面端口不一致时不匹配', () => {
     expect(matchesPortForLocalDev('http://localhost:3000', '8080')).toBe(false);
     expect(matchesPortForLocalDev('http://127.0.0.1:5173', '3000')).toBe(false);
+  });
+});
+
+describe('toNavigableUrl 协议补全', () => {
+  it('已带 http/https 时原样解析为规范化 URL', () => {
+    expect(toNavigableUrl('https://example.com/login')).toBe('https://example.com/login');
+    expect(toNavigableUrl('https://example.com/login?next=1#top')).toBe('https://example.com/login?next=1#top');
+    expect(toNavigableUrl('http://example.com')).toBe('http://example.com/');
+  });
+
+  it('无协议时补 https', () => {
+    expect(toNavigableUrl('example.com')).toBe('https://example.com/');
+    expect(toNavigableUrl('example.com/login?a=1')).toBe('https://example.com/login?a=1');
+    expect(toNavigableUrl('sub.example.com')).toBe('https://sub.example.com/');
+    // host:port 形式不应被误判为「已带协议」
+    expect(toNavigableUrl('example.com:8080')).toBe('https://example.com:8080/');
+  });
+
+  it('本地开发域名与 IP 字面量补 http', () => {
+    expect(toNavigableUrl('localhost')).toBe('http://localhost/');
+    expect(toNavigableUrl('localhost:3000/admin')).toBe('http://localhost:3000/admin');
+    expect(toNavigableUrl('127.0.0.1:8080')).toBe('http://127.0.0.1:8080/');
+    expect(toNavigableUrl('192.168.1.10:9090/x')).toBe('http://192.168.1.10:9090/x');
+  });
+
+  it('首尾空白被裁剪，大小写协议不影响判定', () => {
+    expect(toNavigableUrl('  example.com  ')).toBe('https://example.com/');
+    expect(toNavigableUrl('HTTPS://Example.COM/Path')).toBe('https://example.com/Path');
+  });
+
+  it('协议相对写法（//host）按 https 解析，不保留为不合法 URL', () => {
+    expect(toNavigableUrl('//example.com')).toBe('https://example.com/');
+  });
+});
+
+describe('toNavigableUrl 协议白名单（安全边界）', () => {
+  it('拒绝 javascript: / data: / mailto: 等非层级 scheme', () => {
+    expect(toNavigableUrl('javascript:alert(1)')).toBeNull();
+    expect(toNavigableUrl('JaVaScRiPt:alert(document.domain)')).toBeNull();
+    expect(toNavigableUrl('data:text/html,<script>alert(1)</script>')).toBeNull();
+    expect(toNavigableUrl('mailto:someone@example.com')).toBeNull();
+    expect(toNavigableUrl('about:blank')).toBeNull();
+    expect(toNavigableUrl('vbscript:msgbox(1)')).toBeNull();
+  });
+
+  it('拒绝 chrome: / file: 等浏览器内部协议', () => {
+    expect(toNavigableUrl('chrome://extensions')).toBeNull();
+    expect(toNavigableUrl('chrome-extension://abcdefg/page.html')).toBeNull();
+    expect(toNavigableUrl('file:///etc/passwd')).toBeNull();
+    expect(toNavigableUrl('devtools://devtools/bundled/inspector.html')).toBeNull();
+  });
+
+  it('空值与畸形输入返回 null', () => {
+    expect(toNavigableUrl('')).toBeNull();
+    expect(toNavigableUrl('   ')).toBeNull();
+    expect(toNavigableUrl(undefined)).toBeNull();
+    expect(toNavigableUrl(null)).toBeNull();
+    expect(toNavigableUrl('https://')).toBeNull();
   });
 });

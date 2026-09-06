@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1B34"/>
+      <stop offset="1" stop-color="#17305C"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#409EFF"/>
+      <stop offset="1" stop-color="#337ECC"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <!-- 电路走线 -->
+  <g stroke="#409EFF" stroke-width="2" fill="none" opacity="0.22">
+    <path d="M1600 170 H1280 L1220 230 H1060"/>
+    <path d="M1600 780 H1420 L1370 830 H1180"/>
+    <path d="M880 140 H1000 L1050 190"/>
+  </g>
+  <g fill="#409EFF" opacity="0.45">
+    <circle cx="1060" cy="230" r="6"/>
+    <circle cx="1180" cy="830" r="6"/>
+    <circle cx="1050" cy="190" r="5"/>
+  </g>
+
+  <!-- 品牌角标 -->
+  <g>
+    <rect x="96" y="68" width="52" height="52" rx="13" fill="#409EFF"/>
+    <g transform="translate(96,68) scale(0.40625)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+    <text x="164" y="104" font-size="27" font-weight="600" fill="#FFFFFF">Account Password Helper</text>
+    <text x="1504" y="104" font-size="24" fill="#A9BFE0" text-anchor="end">技术博客 03 / 04</text>
+  </g>
+
+  <!-- 文字层 -->
+  <g>
+    <text x="96" y="250" font-size="84" font-weight="700" fill="#FFFFFF">Web Crypto</text>
+    <text x="96" y="348" font-size="84" font-weight="700" fill="#FFFFFF">加密实战全拆解</text>
+    <text x="96" y="418" font-size="38" font-weight="600" fill="#66B3FF">PBKDF2-SHA256 · 600,000 次迭代</text>
+    <text x="96" y="474" font-size="28" fill="#A9BFE0">密钥派生 → 字段级加密 → 会话生命周期</text>
+  </g>
+  <g font-size="27" font-weight="500">
+    <rect x="96" y="512" width="239" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="550" fill="#CFE3FF">AES-256-GCM</text>
+    <rect x="351" y="512" width="187" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="377" y="550" fill="#CFE3FF">字段级加密</text>
+    <rect x="96" y="588" width="211" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="626" fill="#CFE3FF">12B 随机 IV</text>
+    <rect x="323" y="588" width="239" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="349" y="626" fill="#CFE3FF">0 第三方加密库</text>
+  </g>
+
+  <!-- 关键源码位置 -->
+  <g>
+    <line x1="96" y1="762" x2="640" y2="762" stroke="#23406E" stroke-width="3"/>
+    <text x="96" y="812" font-size="26" fill="#A9BFE0">utils/encryption.ts</text>
+  </g>
+
+  <!-- 迭代点阵：口令派生密钥的计算成本 -->
+  <text x="900" y="336" font-size="30" font-weight="600" fill="#66B3FF">600,000×</text>
+  <g fill="#8FB4FF">
+    <circle cx="908" cy="386" r="7" opacity="0.35"/>
+    <circle cx="962" cy="404" r="8" opacity="0.45"/>
+    <circle cx="1016" cy="424" r="9" opacity="0.6"/>
+    <circle cx="1064" cy="446" r="10" opacity="0.8"/>
+    <circle cx="908" cy="492" r="7" opacity="0.3"/>
+    <circle cx="962" cy="506" r="8" opacity="0.42"/>
+    <circle cx="1016" cy="520" r="9" opacity="0.58"/>
+    <circle cx="1064" cy="534" r="10" opacity="0.8"/>
+  </g>
+
+  <!-- 挂锁：AES-256-GCM -->
+  <g>
+    <path d="M1160 396 v-64 a60 60 0 0 1 160 0 v64" stroke="#8FB4FF" stroke-width="28" fill="none" stroke-linecap="round"/>
+    <rect x="1100" y="396" width="280" height="220" rx="30" fill="url(#primary)"/>
+    <circle cx="1240" cy="480" r="38" fill="#FFFFFF"/>
+    <path d="M1226 508 L1220 566 H1260 L1254 508 Z" fill="#FFFFFF"/>
+  </g>
+
+  <!-- 密文块流出 -->
+  <g stroke="#409EFF" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="1392" y1="500" x2="1424" y2="500"/>
+    <path d="M1410 484 L1428 500 L1410 516"/>
+  </g>
+  <g fill="#1E3A6B" stroke="#409EFF" stroke-width="2">
+    <rect x="1436" y="430" width="68" height="42" rx="9"/>
+    <rect x="1440" y="479" width="64" height="42" rx="9"/>
+    <rect x="1436" y="528" width="68" height="42" rx="9"/>
+  </g>
+  <g fill="#8FB4FF">
+    <circle cx="1456" cy="451" r="4"/>
+    <circle cx="1470" cy="451" r="4"/>
+    <circle cx="1484" cy="451" r="4"/>
+    <circle cx="1460" cy="500" r="4"/>
+    <circle cx="1474" cy="500" r="4"/>
+    <circle cx="1456" cy="549" r="4"/>
+    <circle cx="1470" cy="549" r="4"/>
+    <circle cx="1484" cy="549" r="4"/>
+  </g>
+
+  <!-- 认证加密：篡改即失败（挂锁角标） -->
+  <g transform="translate(1372,600) scale(0.7)">
+    <path d="M0 -46 L40 -30 V6 C40 34 22 50 0 60 C-22 50 -40 34 -40 6 V-30 Z" fill="#409EFF" stroke="#0D1B34" stroke-width="6"/>
+    <path d="M-16 2 L-4 16 L20 -12" stroke="#FFFFFF" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- 管线注脚 -->
+  <text x="1240" y="700" font-size="28" fill="#A9BFE0" text-anchor="middle">主密码 → 派生密钥 → 字段级密文</text>
+</svg>

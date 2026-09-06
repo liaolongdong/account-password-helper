@@ -114,8 +114,8 @@
         "name": "Account Password Helper · 账号密码管理助手",
         "applicationCategory": "SecurityApplication",
         "operatingSystem": "Chrome",
-        "softwareVersion": "3.6.0",
-        "dateModified": "2026-08-27",
+        "softwareVersion": "3.7.0",
+        "dateModified": "2026-09-05",
         "offers": {
           "@type": "Offer",
           "price": "0",
@@ -197,7 +197,7 @@
             "name": "如何自定义快捷键？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可修改。"
+              "text": "在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可修改。也可在插件的密码管理页「安全设置 → 快捷键」打开一览弹窗，其中会标注每组按键的生效状态，并提供「前往修改」按钮直达该页面。"
             }
           },
           {
@@ -457,7 +457,7 @@
       /* ============ Hero ============ */
       .hero {
         position: relative;
-        padding: 80px 0 64px;
+        padding: 60px 0 60px;
         background:
           radial-gradient(circle at 20% 0%, rgba(78, 136, 255, 0.16), transparent 55%),
           radial-gradient(circle at 90% 30%, rgba(66, 184, 131, 0.1), transparent 50%),
@@ -626,7 +626,7 @@
       }
 
       .disclaimer-banner {
-        margin-top: 44px;
+        margin-top: 30px;
         padding: 14px 18px;
         background: #fff8e1;
         border: 1px solid #ffecb3;
@@ -1773,7 +1773,7 @@
             <h3 data-i18n="features.f1.title">端到端本地加密，密码绝不出浏览器</h3>
             <p data-i18n="features.f1.desc">
               主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP
-              全部密文存储；会话过期自动加密回密文，永远不上传任何服务器。
+              全部密文存储；会话过期自动加密回密文，永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。
             </p>
             <div class="feature-chips">
               <span
@@ -1813,10 +1813,11 @@
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
             </div>
-            <h3 data-i18n="features.f2.title">三种方式，一键安全填充</h3>
+            <h3 data-i18n="features.f2.title">四种方式，一键安全填充</h3>
             <p data-i18n="features.f2.desc">
-              输入框内联迷你面板（默认）、侧边栏、一键填充快捷键任你选；三重填充策略兼容 React / Vue
-              等现代框架与传统页面，精确域名匹配区分多测试环境，可选填充后自动登录。
+              输入框内联迷你面板（默认）、侧边栏、右键菜单、一键填充快捷键任你选；四重填充策略兼容 React / Vue
+              等现代框架与传统页面，精确域名匹配区分多测试环境，侧边栏可一键切换「本站 /
+              全站」搜索范围，可选填充后自动登录。
             </p>
             <div class="feature-chips">
               <span
@@ -1837,11 +1838,16 @@
               <span
                 class="feature-chip"
                 data-i18n="features.f2.c4"
-                >自动触发登录</span
+                >右键填充</span
               >
               <span
                 class="feature-chip"
                 data-i18n="features.f2.c5"
+                >自动触发登录</span
+              >
+              <span
+                class="feature-chip"
+                data-i18n="features.f2.c6"
                 >密码可见性切换</span
               >
             </div>
@@ -1939,7 +1945,7 @@
             <h3 data-i18n="features.f6.title">自动保存登录凭证</h3>
             <p data-i18n="features.f6.desc">
               Chrome
-              式凭证捕获，登录时弹窗确认；弹窗中可编辑标签和备注；支持白名单/黑名单匹配、凭证指纹智能去重、「不再提示」一键屏蔽域名。
+              式凭证捕获，登录时弹窗确认；弹窗中可编辑标签和备注；支持白名单/黑名单匹配、凭证指纹智能去重、「不再提示」一键屏蔽域名；弱密码与密码复用会在弹窗内联预警（只提醒，不拦截保存）。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-1">
@@ -1990,7 +1996,7 @@
             <h3 data-i18n="features.f11.title">标签、收藏与智能搜索</h3>
             <p data-i18n="features.f11.desc">
               标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 +
-              命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目，长列表管理井井有条。
+              命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目；条目「查看详情」可只读浏览备注全文与密码修改历史，无需进入编辑态——长列表管理井井有条。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-2">
@@ -2474,6 +2480,8 @@
             <span data-i18n="footer.tagline">本地加密 · 零网络传输</span>
             <span><a href="./privacy.html">隐私政策 / Privacy Policy</a></span>
             <span><a href="./pricing.html">永久免费 / Pricing</a></span>
+            <span><a href="./compare.html">替代方案对比 / Alternatives</a></span>
+            <span><a href="./blog/">技术博客 / Tech Blog</a></span>
             <span>
               <a
                 href="https://github.com/liaolongdong/account-password-helper"
@@ -2494,7 +2502,7 @@
                 <span data-i18n="footer.repo">GitHub 仓库</span>
               </a>
             </span>
-            <span data-i18n="footer.updated">最后更新：2026-08 · v3.6.0</span>
+            <span data-i18n="footer.updated">最后更新：2026-09 · v3.7.0</span>
           </div>
         </div>
         <div class="footer-wechat">
@@ -2682,23 +2690,24 @@
           en: 'Local Encryption — Passwords Never Leave the Browser',
         },
         'features.f1.desc': {
-          zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 全部密文存储；会话过期自动加密回密文，永远不上传任何服务器。',
-          en: 'The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded.',
+          zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 全部密文存储；会话过期自动加密回密文，永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。',
+          en: 'The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.',
         },
         'features.f1.c1': { zh: 'PBKDF2 · 600K 迭代', en: 'PBKDF2 · 600K iterations' },
         'features.f1.c2': { zh: 'AES-256-GCM', en: 'AES-256-GCM' },
         'features.f1.c3': { zh: '零网络传输', en: 'Zero network transfer' },
         'features.f1.c4': { zh: '闲置 / 重启自动锁定', en: 'Idle / restart auto-lock' },
-        'features.f2.title': { zh: '三种方式，一键安全填充', en: 'Three Ways to Fill — One Click' },
+        'features.f2.title': { zh: '四种方式，一键安全填充', en: 'Four Ways to Fill — One Click' },
         'features.f2.desc': {
-          zh: '输入框内联迷你面板（默认）、侧边栏、一键填充快捷键任你选；三重填充策略兼容 React / Vue 等现代框架与传统页面，精确域名匹配区分多测试环境，可选填充后自动登录。',
-          en: 'Pick your style: the in-field inline mini panel (default), the side panel, or the quick-fill shortcut. Triple fill strategies work on React / Vue and classic pages alike; exact domain matching separates test environments; optional auto-login after filling.',
+          zh: '输入框内联迷你面板（默认）、侧边栏、右键菜单、一键填充快捷键任你选；四重填充策略兼容 React / Vue 等现代框架与传统页面，精确域名匹配区分多测试环境，侧边栏可一键切换「本站 / 全站」搜索范围，可选填充后自动登录。',
+          en: 'Pick your style: the in-field inline mini panel (default), the side panel, the right-click menu, or the quick-fill shortcut. Quadruple fill strategies work on React / Vue and classic pages alike; exact domain matching separates test environments, the side panel toggles between this-site and all-entry search, and auto-login after filling is optional.',
         },
         'features.f2.c1': { zh: '侧边栏 Ctrl+Shift+L', en: 'Side panel Ctrl+Shift+L' },
         'features.f2.c2': { zh: '内联面板 Ctrl+Shift+K', en: 'Inline panel Ctrl+Shift+K' },
         'features.f2.c3': { zh: '一键填充 Ctrl+Shift+F', en: 'Quick fill Ctrl+Shift+F' },
-        'features.f2.c4': { zh: '自动触发登录', en: 'Auto login trigger' },
-        'features.f2.c5': { zh: '密码可见性切换', en: 'Password visibility toggle' },
+        'features.f2.c4': { zh: '右键填充', en: 'Right-click fill' },
+        'features.f2.c5': { zh: '自动触发登录', en: 'Auto login trigger' },
+        'features.f2.c6': { zh: '密码可见性切换', en: 'Password visibility toggle' },
         'features.f3.title': { zh: '智能识别登录表单', en: 'Smart Login Form Detection' },
         'features.f3.desc': {
           zh: '自动识别用户名、密码、手机号、验证码字段（含跨 iframe），并能自动勾选「记住密码」「同意条款」等选项。',
@@ -2716,8 +2725,8 @@
         },
         'features.f6.title': { zh: '自动保存登录凭证', en: 'Auto-Save Login Credentials' },
         'features.f6.desc': {
-          zh: 'Chrome 式凭证捕获，登录时弹窗确认；弹窗中可编辑标签和备注；支持白名单/黑名单匹配、凭证指纹智能去重、「不再提示」一键屏蔽域名。',
-          en: 'Chrome-style credential capture with a confirmation prompt on login; edit tag and remark in the prompt; allowlist/blocklist matching, fingerprint-based dedup, and one-click "Never for this site".',
+          zh: 'Chrome 式凭证捕获，登录时弹窗确认；弹窗中可编辑标签和备注；支持白名单/黑名单匹配、凭证指纹智能去重、「不再提示」一键屏蔽域名；弱密码与密码复用会在弹窗内联预警（只提醒，不拦截保存）。',
+          en: 'Chrome-style credential capture with a confirmation prompt on login; edit tag and remark in the prompt; allowlist/blocklist matching, fingerprint-based dedup, and one-click "Never for this site"; weak and reused passwords are flagged inline in the prompt (a heads-up only — saving is never blocked).',
         },
         'features.f7.title': { zh: '导入导出与加密备份', en: 'Import, Export & Encrypted Backup' },
         'features.f7.desc': {
@@ -2726,8 +2735,8 @@
         },
         'features.f11.title': { zh: '标签、收藏与智能搜索', en: 'Tags, Favorites & Smart Search' },
         'features.f11.desc': {
-          zh: '标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 + 命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目，长列表管理井井有条。',
-          en: 'Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — long lists stay organized.',
+          zh: '标签多选（颜色稳定一致）、标签筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写 + 命中高亮）与排序、一键去重、批量删除/批量编辑标签/导出选中条目；条目「查看详情」可只读浏览备注全文与密码修改历史，无需进入编辑态——长列表管理井井有条。',
+          en: 'Multi-select tags with stable colors, tag filtering, pinned favorites (configurable limit + LRU eviction), multi-field smart search (pinyin / initials + match highlighting) and sorting, one-click dedup, and batch delete / tag editing / export of selected entries — plus a read-only "View details" drawer for the full remark and password history, no edit mode needed. Long lists stay organized.',
         },
         'features.f8.title': { zh: '密码生成器双模式', en: 'Dual-Mode Password Generator' },
         'features.f8.desc': {
@@ -2820,7 +2829,7 @@
           en: 'Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a>',
         },
         'footer.repo': { zh: 'GitHub 仓库', en: 'GitHub Repo' },
-        'footer.updated': { zh: '最后更新：2026-08 · v3.6.0', en: 'Updated: Aug 2026 · v3.6.0' },
+        'footer.updated': { zh: '最后更新：2026-09 · v3.7.0', en: 'Updated: Sep 2026 · v3.7.0' },
         'wechat.title': { zh: '微信交流群', en: 'WeChat Group' },
         'wechat.desc': {
           zh: '扫码添加作者微信，备注「aph」邀你加入插件交流群',
@@ -2890,8 +2899,8 @@
           tag: 'STEP 06',
           title: { zh: '侧边栏一键填充', en: 'One-click side panel fill' },
           desc: {
-            zh: '打开登录页，侧边栏按当前域名优先展示，点击账号即可自动填充表单；本站无账号或搜索无结果时，可一键「添加本站账号」并自动预填域名。支持自动保存账号密码',
-            en: 'On login pages the side panel prioritizes the current domain; click an account to auto-fill. No accounts for this site or no search results? One-click "Add account for this site" with the domain pre-filled. Auto-save supported.',
+            zh: '打开登录页，侧边栏按当前域名优先展示，点击账号即可自动填充表单；搜索框右侧图标可切换「本站 / 全站」搜索范围，全站命中的外站账号仍可复制或直接打开站点；顶栏常驻「+」可就地快速添加本站账号（自动预填域名），本站无账号或搜索无结果时也可一键「添加本站账号」。支持自动保存账号密码',
+            en: 'On login pages the side panel prioritizes the current domain; click an account to auto-fill. The icon beside the search box toggles between this-site and all-entry search — off-site hits can still be copied or opened directly in a new tab. A persistent "+" in the header quickly adds an account for this site with the domain pre-filled — so does the one-click "Add account for this site" when the site has none or a search returns nothing. Auto-save supported.',
           },
         },
         {
@@ -3035,8 +3044,8 @@
         {
           q: { zh: '如何自定义快捷键？', en: 'How do I customize shortcuts?' },
           a: {
-            zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。',
-            en: 'Chrome supports this natively. Go to chrome://extensions/shortcuts, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically.',
+            zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「安全设置 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。',
+            en: 'Chrome supports this natively. Go to chrome://extensions/shortcuts, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically. You can also open the read-only overview under "Security Settings → Keyboard Shortcuts" on the manager page to see the live status of all four bindings — its "Edit Shortcuts" button links straight there; the "Keyboard Shortcuts" group in the side panel Help dialog offers the same overview and entry point.',
           },
         },
         {
@@ -3055,8 +3064,8 @@
             en: "Why aren't shortcuts bound by default?",
           },
           a: {
-            zh: 'Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts。',
-            en: 'For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see "Not set" — bind it once as above and it sticks. Unbound entries in the popup show a "Set shortcut" button linking to chrome://extensions/shortcuts.',
+            zh: 'Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts；密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗的快捷键分组会直接标注哪些按键当前未生效，避免「按了没反应」时无从排查。',
+            en: 'For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see "Not set" — bind it once as above and it sticks. Unbound entries in the popup show a "Set shortcut" button linking to chrome://extensions/shortcuts; the "Security Settings → Keyboard Shortcuts" overview on the manager page and the shortcut group in the side panel Help dialog flag exactly which keys are currently inactive, so a dead keystroke is never a mystery.',
           },
         },
         {

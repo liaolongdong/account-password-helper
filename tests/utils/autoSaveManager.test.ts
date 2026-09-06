@@ -7,7 +7,8 @@ import type { PasswordEntry } from '@/utils/types';
  *
  * 覆盖：
  * - findMatchingEntry：账号 + 域名匹配（精确、存储为完整 URL、子域名双向包含、无 URL、域名不同）；
- * - checkCredentialStatus：会话失效 / 空值 / 新账号 / 相同 / 密码变化 各分支，及读取异常保底行为。
+ * - checkCredentialStatus：会话失效 / 空值 / 新账号 / 相同 / 密码变化 各分支，及读取异常保底行为；
+ * - checkCredentialStatus 风险提示：弱密码/复用计数的附带边界（仅弹窗分支携带）。
  *
  * 会话与密码读取通过模块 mock 从接缝注入，保持测试 hermetic。
  */
@@ -118,6 +119,100 @@ describe('checkCredentialStatus', () => {
     getAllPasswords.mockRejectedValue(new Error('boom'));
     const res = await checkCredentialStatus({ username: 'alice', password: 'p', url: 'github.com' });
     expect(res.status).toBe('new');
+  });
+});
+
+/**
+ * 风险提示（risk）附带边界
+ *
+ * risk 基于预检查已解密的全量条目就地计算，不产生额外存储读取；
+ * 仅在实际会弹窗的 `new` / `password_changed` 两个分支携带。
+ */
+describe('checkCredentialStatus 风险提示', () => {
+  /** 四项规则全通过的强密码（长度/字母/数字/特殊字符） */
+  const STRONG = 'Str0ng!Pass';
+
+  beforeEach(() => {
+    isSessionValid.mockResolvedValue(true);
+  });
+
+  it('新账号且密码较弱时返回 weak', async () => {
+    getAllPasswords.mockResolvedValue([makePasswordEntry({ username: 'bob', url: 'github.com', password: STRONG })]);
+    const res = await checkCredentialStatus({ username: 'alice', password: 'abc', url: 'example.com' });
+    expect(res.status).toBe('new');
+    expect(res.risk).toEqual({ weak: true });
+  });
+
+  it('新账号且密码被其它账号复用时返回 reusedCount', async () => {
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ username: 'bob', url: 'github.com', password: STRONG }),
+      makePasswordEntry({ username: 'carol', url: 'gitlab.com', password: STRONG }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'alice', password: STRONG, url: 'example.com' });
+    expect(res.status).toBe('new');
+    expect(res.risk).toEqual({ reusedCount: 2 });
+  });
+
+  it('弱密码与复用同时命中时两个维度都返回', async () => {
+    getAllPasswords.mockResolvedValue([makePasswordEntry({ username: 'bob', url: 'github.com', password: 'abc' })]);
+    const res = await checkCredentialStatus({ username: 'alice', password: 'abc', url: 'example.com' });
+    expect(res.risk).toEqual({ weak: true, reusedCount: 1 });
+  });
+
+  it('密码足够强且未被复用时不返回 risk（避免渲染空警示条）', async () => {
+    getAllPasswords.mockResolvedValue([makePasswordEntry({ username: 'bob', url: 'github.com', password: 'other' })]);
+    const res = await checkCredentialStatus({ username: 'alice', password: STRONG, url: 'example.com' });
+    expect(res.status).toBe('new');
+    expect(res.risk).toBeUndefined();
+  });
+
+  it('password_changed 时复用计数按新密码统计，不含自身与旧密码同用者', async () => {
+    getAllPasswords.mockResolvedValue([
+      // 即将被更新的条目自身：持旧密码，不应因「同账号」而被计入
+      makePasswordEntry({ username: 'alice', url: 'github.com', password: 'OldPass1!' }),
+      // 与旧密码相同的其它账号：更新后已不再与它共用，不应计入（否则结果为 2）
+      makePasswordEntry({ username: 'dave', url: 'gitee.com', password: 'OldPass1!' }),
+      // 唯一与新密码相同的其它账号
+      makePasswordEntry({ username: 'carol', url: 'gitlab.com', password: 'NewPass1!' }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'alice', password: 'NewPass1!', url: 'github.com' });
+    expect(res.status).toBe('password_changed');
+    expect(res.risk).toEqual({ reusedCount: 1 });
+  });
+
+  it('password_changed 且新密码较弱时同时返回 weak', async () => {
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ username: 'alice', url: 'github.com', password: 'OldPass1!' }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'alice', password: 'abc', url: 'github.com' });
+    expect(res.status).toBe('password_changed');
+    expect(res.risk).toEqual({ weak: true });
+  });
+
+  it('locked 不携带 risk，也不读取密码库', async () => {
+    isSessionValid.mockResolvedValue(false);
+    const res = await checkCredentialStatus({ username: 'alice', password: 'abc', url: 'example.com' });
+    expect(res.status).toBe('locked');
+    expect(res.risk).toBeUndefined();
+    expect(getAllPasswords).not.toHaveBeenCalled();
+  });
+
+  it('identical（静默跳过）不携带 risk', async () => {
+    getAllPasswords.mockResolvedValue([makePasswordEntry({ username: 'alice', url: 'github.com', password: 'abc' })]);
+    const res = await checkCredentialStatus({ username: 'alice', password: 'abc', url: 'github.com' });
+    expect(res.status).toBe('identical');
+    expect(res.risk).toBeUndefined();
+  });
+
+  it('空凭证与读取异常两种保底分支均不携带 risk', async () => {
+    const empty = await checkCredentialStatus({ username: '', password: '', url: 'example.com' });
+    expect(empty.status).toBe('new');
+    expect(empty.risk).toBeUndefined();
+
+    getAllPasswords.mockRejectedValueOnce(new Error('boom'));
+    const failed = await checkCredentialStatus({ username: 'alice', password: 'abc', url: 'example.com' });
+    expect(failed.status).toBe('new');
+    expect(failed.risk).toBeUndefined();
   });
 });
 

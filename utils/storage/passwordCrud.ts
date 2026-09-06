@@ -45,6 +45,10 @@ async function resolveDataKey(masterPassword?: string): Promise<string | null> {
 
 /**
  * 获取所有密码条目（原始数据，不进行解密）
+ *
+ * 读取失败时向上抛出而非降级为空数组：所有调用方均为读-改-写路径
+ * （保存/批量保存/更新/rekey），静默返回 [] 会导致真实列表被
+ * 「仅含新条目」的数组整体覆盖，造成不可逆数据丢失。
  */
 export async function getAllPasswordsRaw(): Promise<(PasswordEntry | EncryptedPasswordEntry)[]> {
   try {
@@ -52,7 +56,7 @@ export async function getAllPasswordsRaw(): Promise<(PasswordEntry | EncryptedPa
     return (result[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
   } catch (error) {
     logger.error('获取原始密码列表失败:', error);
-    return [];
+    throw error;
   }
 }
 
@@ -177,8 +181,7 @@ export async function updatePassword(
       // updateTime 优先尊重调用方显式传入：收藏/取消收藏传入原值即保持不变
       // （只改收藏时间 favoriteUsedAt，不推高 updateTime），未传时默认 Date.now()
       entriesToSave[index] = { ...current, ...updates, updateTime: updates.updateTime ?? Date.now() } as
-        | PasswordEntry
-        | EncryptedPasswordEntry;
+        PasswordEntry | EncryptedPasswordEntry;
       await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: entriesToSave });
       return;
     }
@@ -238,8 +241,7 @@ export async function batchUpdatePasswordMetadata(
       if (!fields) return current;
       changed = true;
       return { ...current, ...fields, updateTime: fields.updateTime ?? Date.now() } as
-        | PasswordEntry
-        | EncryptedPasswordEntry;
+        PasswordEntry | EncryptedPasswordEntry;
     });
     if (!changed) return;
     await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: entriesToSave });
@@ -341,8 +343,7 @@ async function flushMetadataUpdates(): Promise<void> {
       // updateTime 优先尊重调用方显式传入：收藏/取消收藏传入原值即保持不变，
       // 填充类更新（lastUsedAt）未传时默认 Date.now()
       passwords[index] = { ...passwords[index], ...updates, updateTime: updates.updateTime ?? Date.now() } as
-        | PasswordEntry
-        | EncryptedPasswordEntry;
+        PasswordEntry | EncryptedPasswordEntry;
       modified = true;
     }
 

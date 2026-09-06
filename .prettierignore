@@ -22,6 +22,8 @@ pnpm-lock.yaml
 en.html
 pricing.en.html
 privacy.en.html
+# 博客静态页：`pnpm gen:blog` 的产物，手工格式化会被下次生成覆盖，与上方 *.en.html 同类
+blog/
 
 # Chrome extension files
 *.crx

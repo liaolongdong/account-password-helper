@@ -1,10 +1,14 @@
 /**
  * 平台检测工具
  *
- * 提供跨上下文（Service Worker / 扩展页面）复用的操作系统平台判断。
- * 结果在模块生命周期内缓存，避免重复的 chrome.runtime.getPlatformInfo() 异步调用；
- * 成功判定同时持久化到 storage.local，供 SW 冷启动早期 API 异常时兜底
- * （Windows 保活闹钟决策依赖本判定，误判为非 Windows 会导致保活被误清）。
+ * 提供跨上下文（Service Worker / 扩展页面）复用的操作系统平台判断，含两类 API：
+ *
+ * - 异步三态判定（`detectWindowsPlatform` / `isWindowsPlatform`）：基于
+ *   `chrome.runtime.getPlatformInfo()`，结果在模块生命周期内缓存，避免重复异步调用；
+ *   成功判定同时持久化到 storage.local，供 SW 冷启动早期 API 异常时兜底
+ *   （Windows 保活闹钟决策依赖本判定，误判为非 Windows 会导致保活被误清）。
+ * - 同步嗅探（`isMacPlatform`）：供模块级常量与 composable 同步初始化等
+ *   无法 await 的路径使用，仅服务于误判影响轻微的展示层场景。
  */
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
@@ -76,4 +80,28 @@ export function detectWindowsPlatform(): Promise<boolean | null> {
  */
 export async function isWindowsPlatform(): Promise<boolean> {
   return (await detectWindowsPlatform()) ?? false;
+}
+
+/**
+ * 同步判断当前平台是否为 Apple 系（macOS / iOS / iPadOS）
+ *
+ * 与 `detectWindowsPlatform` 的异步三态判定不同，本函数只做同步 UA 嗅探，供模块级
+ * 常量与 composable 同步初始化等无法 await 的路径使用（如快捷键未绑定时的兜底按键选择）。
+ *
+ * 仅适用于误判影响轻微的展示层场景：Apple 平台展示 `⌘`、其它平台展示 `Ctrl`，
+ * 判错也只是修饰键风格不符预期，不影响功能正确性。涉及保活、预热等失败影响重大的
+ * 决策仍应使用 `detectWindowsPlatform` 感知三态。
+ *
+ * 优先读 `navigator.userAgentData.platform`（Chromium 101+ 提供的结构化 UA），
+ * 回退到已废弃但仍被普遍实现的 `navigator.platform`；两者皆不可得时（如 Node 测试
+ * 环境无 DOM navigator）返回 false，按非 Apple 平台处理。
+ *
+ * @returns 当前平台为 Apple 系时为 true，否则 false
+ */
+export function isMacPlatform(): boolean {
+  if (typeof navigator === 'undefined') return false;
+
+  const uaData = (navigator as Navigator & { userAgentData?: { platform?: string } }).userAgentData;
+  const platform = uaData?.platform || navigator.platform || '';
+  return /mac|iphone|ipad|ipod/i.test(platform);
 }

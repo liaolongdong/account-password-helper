@@ -13,8 +13,8 @@
 - **Browser support**: Chrome 114+, Manifest V3
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-08 (v3.6.0)
-- **Quality**: 364 automated test cases across 33 test files
+- **Last updated**: 2026-09 (v3.7.0, latest release)
+- **Quality**: 632 automated test cases across 53 test files
 
 ## Key Features
 
@@ -24,13 +24,16 @@
 - **AES-256-GCM local encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API; all sensitive fields encrypted, zero network transfer
 - **Offline security audit**: one-click 0–100 score across 5 dimensions (weak / reused / commonly leaked / stale / missing 2FA), all computed on-device
 - **Password generator**: random mode (configurable length/charset) + EFF Diceware passphrase mode, Web Crypto CSPRNG
-- **Triple fill strategy**: inline fill (key icon in input), side panel one-click fill, shortcut quick-fill
-- **Auto-save credentials**: Chrome-style login capture with smart dedup, domain allow/block lists
+- **Quadruple fill strategy**: inline fill (key icon in input), side panel one-click fill, right-click context menu fill, shortcut quick-fill
+- **Auto-save credentials**: Chrome-style login capture with smart dedup, domain allow/block lists; the save prompt flags weak and reused passwords inline (a heads-up only — it never blocks saving)
 - **Import / export**: CSV & JSON; auto-detects Chrome, LastPass, Bitwarden, 1Password exports
 - **6 color themes + bilingual UI** (中文 / English), instant switching without refresh
 - **Password visibility toggle**: injects show/hide button into page password fields, verify filled content with one click
 - **Trash bin & password history**: 30-day soft delete, 1-10 encrypted snapshots per entry, one-click rollback
-- **Smart search**: pinyin/initials search with match highlighting, tags, favorites with LRU eviction
+- **Smart search**: pinyin/initials search with match highlighting, side panel "This site / All entries" scope toggle (off-site hits stay copyable and open in a new tab), tags, favorites with LRU eviction
+- **Side panel quick add**: the "+" in the panel header saves an account in place with the current domain prefilled; the empty state offers the same shortcut when the site has no saved account
+- **Read-only entry details**: a per-row drawer shows the full remark, 2FA code, password history and timestamps without entering edit mode; copied passwords auto-clear per the clipboard setting
+- **Caps Lock warning**: live uppercase-lock detection on every master password field, so a typo is never mistaken for a wrong password
 - **Flexible session control**: 1 hour to 7 days validity, auto idle lock, lock on browser restart
 
 ## Who It's For
@@ -100,7 +103,12 @@ Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password ex
 - [GitHub Repository](https://github.com/liaolongdong/account-password-helper)
 - [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
 - [English Version](https://liaolongdong.github.io/account-password-helper/en.html)
+- [Tech Blog (中文)](https://liaolongdong.github.io/account-password-helper/blog/) — local-first product story, MV3 sub-second side panel engineering, Web Crypto encryption in practice, and implementation notes on the latest fill/search/detail features
+- [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html)
 - [Pricing](https://liaolongdong.github.io/account-password-helper/pricing.html) — 100% free, no paid tier, no subscription
+- [Pricing (machine-readable)](https://liaolongdong.github.io/account-password-helper/pricing.md)
+- [Alternatives Comparison (中文)](https://liaolongdong.github.io/account-password-helper/compare.html) — Bitwarden / 1Password / Chrome 自带替代方案八维度事实对比
+- [Alternatives Comparison (English)](https://liaolongdong.github.io/account-password-helper/compare.en.html) — Bitwarden alternative, 1Password alternative and Chrome built-in compared across 8 dimensions
 - [Architecture & Implementation Details](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.md)
 - [Contributing Guide](https://github.com/liaolongdong/account-password-helper/blob/main/docs/CONTRIBUTING.md)
 - [Changelog](https://github.com/liaolongdong/account-password-helper/blob/main/CHANGELOG.md)

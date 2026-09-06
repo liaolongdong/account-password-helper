@@ -2,11 +2,13 @@ import { bench, describe } from 'vitest';
 import type { PasswordEntry } from '@/utils/types';
 import { comparePasswordEntries, DEFAULT_SIDEPANEL_SORT, sortPasswordEntries } from '@/utils/passwordSort';
 import { isExactHostMatch } from '@/utils/domain';
+import { applyListFilters, filterEntriesByScope, matchesSiteScope, type ScopeContext } from '@/utils/passwordFilter';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 
 /** 运行：pnpm exec vitest bench benchmarks/sidepanel-p0.bench.ts --run */
 const CURRENT_DOMAIN = 'accounts.example.com';
 const DATASET_SIZES = [100, 500, 2000] as const;
+const SCOPE_CONTEXT: ScopeContext = { domain: CURRENT_DOMAIN, port: '' };
 
 let _benchmarkSink = 0;
 
@@ -114,3 +116,62 @@ describe('sidepanel row tag presentation (2000 entries)', () => {
     { time: 1000, warmupTime: 200 },
   );
 });
+
+/**
+ * 搜索范围（本站 / 全站）过滤 + 排序成本
+ *
+ * 两条路径用同一份数据集与同一套「范围过滤 → 列表过滤 → 就地排序」取数方式，
+ * 直接对比全站模式相对本站默认路径的额外开销；并单独度量全站模式下
+ * `offSiteIds`（逐条 `matchesSiteScope` 扫描）的成本，确认默认路径短路后无回归。
+ */
+for (const size of DATASET_SIZES) {
+  const source = createDataset(size);
+
+  describe(`sidepanel search scope filter + sort (${size} entries)`, () => {
+    bench(
+      'site scope (default path)',
+      () => {
+        const scoped = filterEntriesByScope(source, 'site', SCOPE_CONTEXT);
+        const result = applyListFilters(scoped, {});
+        sortPasswordEntries(result, DEFAULT_SIDEPANEL_SORT, getDomainPriority);
+        _benchmarkSink += result[0]?.id.length ?? 0;
+      },
+      { time: 1000, warmupTime: 200 },
+    );
+
+    bench(
+      'all scope (full vault)',
+      () => {
+        const scoped = filterEntriesByScope(source, 'all', SCOPE_CONTEXT);
+        const result = applyListFilters(scoped, {});
+        sortPasswordEntries(result, DEFAULT_SIDEPANEL_SORT, getDomainPriority);
+        _benchmarkSink += result[0]?.id.length ?? 0;
+      },
+      { time: 1000, warmupTime: 200 },
+    );
+
+    bench(
+      'all scope + keyword match',
+      () => {
+        const scoped = filterEntriesByScope(source, 'all', SCOPE_CONTEXT);
+        const result = applyListFilters(scoped, { keyword: 'user-0100' });
+        sortPasswordEntries(result, DEFAULT_SIDEPANEL_SORT, getDomainPriority);
+        _benchmarkSink += result.length;
+      },
+      { time: 1000, warmupTime: 200 },
+    );
+
+    bench(
+      'offSiteIds scan over all-scope result',
+      () => {
+        const scoped = filterEntriesByScope(source, 'all', SCOPE_CONTEXT);
+        const offSite = new Set<string>();
+        for (const entry of scoped) {
+          if (!matchesSiteScope(entry, SCOPE_CONTEXT)) offSite.add(entry.id);
+        }
+        _benchmarkSink += offSite.size;
+      },
+      { time: 1000, warmupTime: 200 },
+    );
+  });
+}

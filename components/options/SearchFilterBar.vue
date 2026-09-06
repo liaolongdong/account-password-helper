@@ -126,6 +126,13 @@ const { t } = useI18n();
   flex: 1;
 }
 
+/* 行内间距统一由 gap 提供：抵消 Element Plus 相邻按钮默认的 12px 外边距。
+   否则批量按钮之间为 12 + 12 = 24px（其余控件 12px），
+   窄屏纵向排列时该外边距还会使批量按钮偏离居中对齐 */
+.filters :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 /* 标签筛选：固定宽度，避免多标签撑开挤压搜索框 */
 .filters .tag-filter {
   flex-shrink: 0;

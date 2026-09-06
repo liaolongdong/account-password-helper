@@ -24,9 +24,10 @@ import { InputFiller } from '@/entrypoints/content/InputFiller';
 import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
 import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
 import type { FormFieldSets } from '@/entrypoints/content/types';
-import { showNoLoginFormMessage } from '@/entrypoints/content/NativeNotification';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
-import { isElementVisible } from './domUtils';
+import { isDetectableCheckbox, isElementVisible } from './domUtils';
+import { fillContextMenuTarget, resolveContextMenuInputTarget } from './contextMenuTarget';
+import { isNotificationType, NOTICE_MAX_LENGTH, showNativeNotification } from './NativeNotification';
 import { tl } from '@/utils/i18n-lite';
 import {
   getInlineFillDropdown,
@@ -360,20 +361,33 @@ export class FormDetector {
       this.detectUsernameByProximity();
     }
 
-    // 检测复选框
+    // 检测复选框（含原生 input 被隐藏但存在可见关联 label 的自定义样式复选框）
     const checkboxInputs = document.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-    this.checkboxFields = Array.from(checkboxInputs).filter(input => {
-      const style = window.getComputedStyle(input);
-      return (
-        input.disabled === false &&
-        style.display !== 'none' &&
-        style.visibility !== 'hidden' &&
-        input.offsetParent !== null
-      );
-    });
+    this.checkboxFields = Array.from(checkboxInputs).filter(input => isDetectableCheckbox(input));
+
+    // 内联触发图标补偿：弥补检测完成前获焦导致委托错过展示的缺口
+    this.syncInlineTriggerWithActiveElement();
 
     // 两步接力：纯验证码页查询待接力标记并锚定活码胶囊
     this.maybeTriggerTotpHandoff();
+  }
+
+  /**
+   * 检测完成后为当前聚焦的登录字段补偿内联触发图标
+   *
+   * tab 切换/异步渲染场景下，输入框可能在本轮检测完成前获焦（含切换即自动聚焦）：
+   * 彼时字段尚未归类，focusin/click 委托判定为非登录字段而错过展示；
+   * 检测完成后又不再有新的聚焦事件，旧逻辑需用户失焦再聚焦才能看到图标。
+   * 此处若焦点仍停留在登录字段则补偿一次展示（showTriggerFor 对同一字段幂等）。
+   */
+  private syncInlineTriggerWithActiveElement(): void {
+    if (this.floatingButtonConfig.fillMode !== 'inline') return;
+    const active = document.activeElement;
+    if (!(active instanceof HTMLInputElement)) return;
+    if (!this.shouldShowSidePanel(active)) return;
+    this.inlineDropdown.showTriggerFor(active, {
+      hasEyeToggle: this.isEyeToggleAtInputRight(active),
+    });
   }
 
   /**
@@ -526,6 +540,17 @@ export class FormDetector {
   }
 
   /**
+   * 密码可见性按钮是否锚定在 input 右内缘（钥匙图标需为其预留避让偏移）
+   *
+   * 按钮锚定父元素（可视字段盒）右缘时与 input 右缘不再相邻，钥匙图标无需预留偏移。
+   * @param input 当前获焦/点击的输入框
+   */
+  private isEyeToggleAtInputRight(input: HTMLInputElement): boolean {
+    if (input.type !== 'password' || !this.floatingButtonConfig.passwordVisibilityToggle) return false;
+    return this.passwordVisibilityToggle.anchorsToInputRight(input);
+  }
+
+  /**
    * 处理委托的聚焦事件：内联模式下为登录字段显示钥匙触发图标
    */
   private handleDelegatedFocusIn = (event: FocusEvent): void => {
@@ -536,7 +561,7 @@ export class FormDetector {
     if (!input) return;
     if (this.shouldShowSidePanel(input)) {
       this.inlineDropdown.showTriggerFor(input, {
-        hasEyeToggle: input.type === 'password' && this.floatingButtonConfig.passwordVisibilityToggle,
+        hasEyeToggle: this.isEyeToggleAtInputRight(input),
       });
     }
   };
@@ -559,7 +584,7 @@ export class FormDetector {
       // 内联模式：不自动打开侧边栏，改为显示钥匙触发图标（点击图标展开面板）
       if (this.floatingButtonConfig.fillMode === 'inline') {
         this.inlineDropdown.showTriggerFor(input, {
-          hasEyeToggle: input.type === 'password' && this.floatingButtonConfig.passwordVisibilityToggle,
+          hasEyeToggle: this.isEyeToggleAtInputRight(input),
         });
         return;
       }
@@ -786,17 +811,6 @@ export class FormDetector {
   }
 
   /**
-   * 判断是否检测到登录表单字段
-   * @returns 是否存在用户名+密码或手机号+验证码组合
-   */
-  public hasLoginFormFields(): boolean {
-    return (
-      (this.usernameFields.length > 0 && this.passwordFields.length > 0) ||
-      (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0)
-    );
-  }
-
-  /**
    * 检测页面中的登录按钮
    */
   private detectLoginButtons(): void {
@@ -939,22 +953,36 @@ export class FormDetector {
           sendResponse(result);
         });
         return true;
-      case MessageType.SHOW_SIDEPANEL:
-        if (!this.hasLoginFormFields()) {
-          showNoLoginFormMessage();
-          sendResponse({ success: false, message: tl('cs.notify.noLoginForm'), reason: 'no_form' });
-        } else {
-          this.showSidePanel();
-          sendResponse({ success: true, message: tl('cs.fd.sidepanelShown') });
-        }
+      case MessageType.CONTEXT_MENU_FILL:
+        // 右键菜单填充：目标为被右键的输入框（由 contextMenuTarget 记忆），
+        // 消息由 background 经 tabs.sendMessage({ frameId }) 定向本 frame
+        fillContextMenuTarget(message.data).then(result => {
+          sendResponse(result);
+        });
         return true;
-      case MessageType.HIDE_SIDEPANEL:
-        this.hideSidePanel();
-        sendResponse({ success: true, message: tl('cs.fd.sidepanelHidden') });
-        return true;
+      // 注意：SHOW_SIDEPANEL / HIDE_SIDEPANEL 是发往 Background 的侧边栏开关指令。
+      // chrome.runtime.sendMessage 会广播到所有标签页的 content script，若在此响应：
+      // 1) 会把同一消息再次广播（showSidePanel/hideSidePanel），多标签页间形成无限回显循环；
+      // 2) content script 的同步响应会抢先于 Background 的异步权威响应，
+      //    导致 popup 等发起方收到错误结果（如误报打开失败）。
+      // 因此不处理、不响应，交由 Background 消息路由统一处理。
       case MessageType.OPEN_INLINE_DROPDOWN: {
-        const handled = this.openInlineDropdown(message.data?.focusedOnly === true);
-        sendResponse({ success: handled, handled });
+        // 面板渲染需等 GET_MATCHING_ACCOUNTS 回包，因此异步回传「是否真的展开」，
+        // 让 background 的会话失效引导能在面板未出现时回退到通知/提示条
+        this.openInlineDropdown(message.data?.focusedOnly === true, message.data?.useContextMenuTarget === true).then(
+          handled => sendResponse({ success: handled, handled }),
+        );
+        return true;
+      }
+      case MessageType.SHOW_PAGE_NOTICE: {
+        // 页面内提示条：载荷视为不可信输入，文案限长且只走 textContent 渲染（不接受 HTML），
+        // type 不在白名单内时降为 warning（避免下游解构 undefined 抛错），非法文案静默丢弃
+        const noticeText = typeof message.data?.message === 'string' ? message.data.message.trim() : '';
+        if (noticeText && document.body) {
+          const type = isNotificationType(message.data.type) ? message.data.type : 'warning';
+          showNativeNotification(noticeText.slice(0, NOTICE_MAX_LENGTH), type);
+        }
+        sendResponse({ success: true });
         return true;
       }
       default:
@@ -963,20 +991,27 @@ export class FormDetector {
   }
 
   /**
-   * 快捷键 / Popup 触发：定位登录字段并直接展开内联下拉面板（与点击钥匙图标一致）
+   * 快捷键 / Popup / 右键菜单引导触发：定位输入框并直接展开内联下拉面板（与点击钥匙图标一致）
    *
    * 目标字段选取：优先当前聚焦的登录字段；focusedOnly 为 false 时回退到页面已检测的
    * 首个可见登录字段（用户名 → 手机号 → 密码），复用 shouldShowSidePanel 的同一套
    * 字段组合判定，保证快捷键触发范围与钥匙图标展示范围一致。
    *
+   * useContextMenuTarget 为 true 时（仅右键菜单会话失效引导）优先锁定到被右键的那个框：
+   * 用户当时的注意力就在那里，且该轮只呈现锁定态「解锁后填充」卡片（不列账号），
+   * 故有意不要求它命中登录字段判定；目标失效时自动回落到上述常规选取。
+   *
    * @param focusedOnly 是否仅允许锚定当前聚焦的登录字段（background 两轮委派的第一轮）
-   * @returns 本 frame 是否已定位到登录字段并展开面板
+   * @param useContextMenuTarget 是否优先锚定「用户右键的那个输入框」
+   * @returns 本 frame 是否已定位到目标并真正展开面板
    */
-  private openInlineDropdown(focusedOnly: boolean): boolean {
-    const target = this.resolveInlineDropdownTarget(focusedOnly);
+  private async openInlineDropdown(focusedOnly: boolean, useContextMenuTarget = false): Promise<boolean> {
+    // 右键菜单优先锚定被右键的框；目标已失效（移除 / 只读 / textarea）时回落到常规选取
+    const target = useContextMenuTarget
+      ? (resolveContextMenuInputTarget() ?? this.resolveInlineDropdownTarget(focusedOnly))
+      : this.resolveInlineDropdownTarget(focusedOnly);
     if (!target) return false;
-    this.inlineDropdown.openPanelFor(target);
-    return true;
+    return this.inlineDropdown.openPanelFor(target);
   }
 
   /**

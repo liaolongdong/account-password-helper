@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   getSidePanelPorts,
+  getTabIdSync,
   isSidePanelOpen,
   openSidePanelAndRespond,
   setupSidePanelListeners,
@@ -108,5 +109,19 @@ describe('Side Panel 多窗口 Port 跟踪', () => {
 
     windowTwo.disconnect();
     expect(getSidePanelPorts()).toEqual([]);
+  });
+});
+
+describe('getTabIdSync tabId 来源优先级', () => {
+  it('内容脚本发送时优先浏览器权威的 sender.tab.id，忽略自报值', () => {
+    const sender = { id: chrome.runtime.id, tab: { id: 7 } } as chrome.runtime.MessageSender;
+    expect(getTabIdSync(sender, 999)).toBe(7);
+    expect(getTabIdSync(sender)).toBe(7);
+  });
+
+  it('扩展内部页面（无 sender.tab）回退自报 tabId', () => {
+    const sender = { id: chrome.runtime.id } as chrome.runtime.MessageSender;
+    expect(getTabIdSync(sender, 42)).toBe(42);
+    expect(getTabIdSync(sender)).toBeUndefined();
   });
 });

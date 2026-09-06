@@ -4,25 +4,21 @@ import { LoginAutoSave } from '@/entrypoints/content/LoginAutoSave';
 import { getFloatingButtonManager, destroyFloatingButtonManager } from '@/entrypoints/content/floatingButtons';
 import { showSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
 import type { SavePromptData, SavePromptEditedData, NotificationType } from '@/entrypoints/content/types';
-import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
+import {
+  isNotificationType,
+  NOTICE_MAX_LENGTH,
+  showNativeNotification,
+} from '@/entrypoints/content/NativeNotification';
+import { rememberContextMenuTarget } from '@/entrypoints/content/contextMenuTarget';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import { logger } from '@/utils/logger';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { initLiteI18n } from '@/utils/i18n-lite';
 
-/** 委托通知最大文案长度（防止恶意 iframe 注入超长内容干扰/刷屏） */
-const MAX_DELEGATED_NOTIFICATION_LENGTH = 200;
 /** 委托通知频率限制：滑动窗口时长（毫秒） */
 const DELEGATED_NOTIFICATION_WINDOW_MS = 10_000;
 /** 委托通知频率限制：窗口内最大次数 */
 const DELEGATED_NOTIFICATION_MAX = 5;
-
-/** 合法通知类型集合，用于校验来自 iframe 的委托通知类型 */
-const VALID_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set(['success', 'warning', 'info', 'error']);
-
-/** 类型守卫：判断值是否为合法通知类型 */
-const isNotificationType = (value: unknown): value is NotificationType =>
-  typeof value === 'string' && VALID_NOTIFICATION_TYPES.has(value as NotificationType);
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -56,6 +52,19 @@ export default defineContentScript({
         ) {
           preWarmServiceWorker();
         }
+      },
+      { capture: true },
+    );
+
+    // 右键菜单填充目标记忆：记录被右键的可编辑输入框（每个 frame 独立记录）。
+    // background 的 contextMenus.onClicked 只能拿到 frameId、拿不到具体元素，
+    // 由本监听补齐「填到哪个框」的信息；捕获阶段监听，避免页面脚本
+    // stopPropagation 导致漏记。非可编辑目标（右键空白处等）会清空记忆。
+    ctx.addEventListener(
+      document,
+      'contextmenu',
+      e => {
+        rememberContextMenuTarget(e.target);
       },
       { capture: true },
     );
@@ -109,7 +118,7 @@ export default defineContentScript({
           const rawMessage = typeof payload?.message === 'string' ? payload.message.trim() : '';
           if (!rawMessage || !canShowDelegatedNotification()) return;
           const type: NotificationType = isNotificationType(payload?.type) ? payload.type : 'info';
-          showNativeNotification(rawMessage.slice(0, MAX_DELEGATED_NOTIFICATION_LENGTH), type);
+          showNativeNotification(rawMessage.slice(0, NOTICE_MAX_LENGTH), type);
           return;
         }
 

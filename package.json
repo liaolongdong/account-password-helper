@@ -67,11 +67,7 @@
   ],
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ],
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"],
     "overrides": {
       "shell-quote": ">=1.8.1",
       "tmp": ">=0.2.7",
@@ -88,9 +84,11 @@
     "analyze": "ANALYZE=true wxt build",
     "analyze:firefox": "ANALYZE=true wxt build -b firefox",
     "icons:build": "node scripts/generate-icons.mjs",
+    "covers:render": "node scripts/render-blog-covers.mjs",
     "gen:en": "node scripts/build-en-page.mjs",
     "gen:pricing-en": "node scripts/build-pricing-en-page.mjs",
     "gen:privacy-en": "node scripts/build-privacy-en-page.mjs",
+    "gen:blog": "node scripts/build-blog-pages.mjs",
     "prebuild": "pnpm run icons:build",
     "postbuild": "wxt zip",
     "typecheck": "tsc --noEmit",
@@ -108,16 +106,9 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
@@ -137,7 +128,9 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-vue": "^10.10.0",
     "husky": "^9.1.7",
+    "jsdom": "^30.0.1",
     "lint-staged": "^16.4.0",
+    "marked": "^18.0.11",
     "postcss-html": "^1.8.1",
     "prettier": "^3.9.6",
     "rollup-plugin-visualizer": "^7.1.1",

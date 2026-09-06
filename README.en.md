@@ -23,7 +23,7 @@ A **free, open-source**, local-first Chrome password manager built for developer
 >
 > 🌐 **Live demo**: https://liaolongdong.github.io/account-password-helper/
 >
-> 📊 **Technical highlights**: PBKDF2 600K iterations · AES-256-GCM authenticated encryption · Instant side panel (20–50ms warm path) · 6 themes · Bilingual UI · Fully offline · 364 automated tests
+> 📊 **Technical highlights**: PBKDF2 600K iterations · AES-256-GCM authenticated encryption · Instant side panel (20–50ms warm path) · 6 themes · Bilingual UI · Fully offline · 632 automated tests
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Extension icon" width="120" />
@@ -115,9 +115,11 @@ A **free, open-source**, local-first Chrome password manager built for developer
 
 ### ⚡ Smart Fill
 
-- **Triple fill strategy**: Inline fill (key icon in the input, the default), side panel one-click fill, and quick-fill shortcut (`Ctrl+Shift+F` — fill + tick consent + click login); results reported via desktop notification + toolbar badge
+- **Quadruple fill strategy**: Inline fill (key icon in the input, the default), side panel one-click fill, right-click fill (right-click an input → "Fill Credentials" to fill username/password/2FA code, or generate & fill a strong password), and quick-fill shortcut (`Ctrl+Shift+F` — fill + tick consent + click login); failures are reported through an in-page notice + desktop notification + toolbar badge, and a locked session opens an unlock prompt right on the page
 - **Exact domain matching**: Only entries whose host exactly matches the current page are shown, keeping dev/test/staging/prod accounts apart; `localhost` matches everything by default
-- **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"
+- **Auto-save credentials**: Chrome-style capture with save confirmation, smart dedup (identical credentials never re-prompt, changed passwords trigger an "Update" confirmation), domain allow/block lists, one-click "Never for this site"; the save prompt also flags weak and reused passwords inline (a heads-up only — it never blocks saving)
+- **Side panel quick add**: Click "+" in the side panel header to save credentials in place (an add invitation also appears when the current site has none); the site field is prefilled from the current domain, with "Open Password Manager for all fields" for full fields like TOTP
+- **Side panel search scope**: The icon beside the search box toggles between "This site" and "All entries" — by default only entries matching the current domain are listed, while all-entry mode opens up the whole vault (switching to a tab on a different site resets it back to this site). Off-site hits keep copy username/password/2FA code, favorite and edit, and clicking the row opens that site in a new tab. When this site has no match but the vault does, the empty state offers a "Search all entries (N found)" shortcut
 - **Broad compatibility**: Dynamically detects login forms (including cross-iframe), compatible with React/Vue and other frameworks; covers username + password, phone + verification code, and more
 - **Password visibility toggle**: Injects a show/hide button into page password fields (enable in floating button preferences) — verify filled content with one click, no separate extension needed
 
@@ -125,7 +127,7 @@ A **free, open-source**, local-first Chrome password manager built for developer
 
 - **Import/export**: CSV / JSON formats with auto-detection of Chrome, LastPass, Bitwarden, and 1Password exports; Chinese/English column mapping
 - **Multiple backup options**: Encrypted backup (.aph) export/import with decrypt preview; email backup (plain or encrypted); scheduled backup reminders
-- **Powerful organization**: Multi-select tags with filtering, favorites with configurable limit + LRU eviction, multi-field smart search (pinyin/initials with match highlighting), one-click dedup, batch delete/tag editing/export selected
+- **Powerful organization**: Multi-select tags with filtering, favorites with configurable limit + LRU eviction, multi-field smart search (pinyin/initials with match highlighting), one-click dedup, batch delete/tag editing/export selected; each entry also opens a read-only "View details" drawer with the full remark and password history — no need to enter edit mode
 - **Mistake-proofing**: 30-day trash bin (soft delete), configurable password change history (1–10 encrypted snapshots per entry, restorable), atomic master password change without data loss
 
 ### 🎨 Experience
@@ -133,11 +135,14 @@ A **free, open-source**, local-first Chrome password manager built for developer
 - **Themes & language**: 6 color themes + bilingual UI (中文 / English), instant switching without refresh, synchronized across extension pages and injected in-page UI
 - **Site favicons**: Password list, side panel and inline dropdown entries show the matching website icon (read from Chrome's local favicon cache, zero external requests); falls back to the default icon when unavailable
 - **Password generator**: Random mode (length/charset/ambiguous-character exclusion) and passphrase mode (EFF Diceware, 2048-word list)
+- **Caps Lock warning**: Master password fields (setup, unlock, verification dialog, change, backup import) detect Caps Lock state in real time and show a warning, so a case-sensitivity typo is never mistaken for a "wrong password"
 - **Instant open**: Side panel loads in about 20–50ms on the warm cache path, instantly even after session expiry
 
 > 🛠 Tech stack, architecture and project structure are covered in the [Contributing Guide](./docs/CONTRIBUTING.md).
 >
 > 📖 Per-feature implementation details (source paths, strategies, constraints) live in [docs/ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details).
+>
+> 📝 Engineering write-ups — the local-first product story, the sub-second side panel, Web Crypto in practice, and login-flow feature notes — are on the [Tech Blog](https://liaolongdong.github.io/account-password-helper/blog/) (Chinese & English).
 
 ## Quick Start
 
@@ -186,8 +191,8 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 ## User Guide
 
 1. **Initial setup**: click the extension icon to open the manager, set a master password, and choose a session validity (default 24 hours); "Preferences" configures themes, language, floating button, fill mode, and more
-2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field smart search (pinyin/initials + match highlighting) and sorting, tags and favorites
-3. **Quick fill**: inline fill by default — a key icon appears in a focused login field; click it to pick an account and fill instantly. Switch to "Sidebar" (auto-opens on focus) or "Manual" in Preferences, or use the shortcuts
+2. **Password management**: full CRUD on the options page, bulk import/export (exports require master password verification), multi-field smart search (pinyin/initials + match highlighting) and sorting, tags and favorites; click an entry's "View details" for a read-only, single-screen view of every field including full notes and password history (password masked by default; copied passwords are auto-cleared per clipboard settings) — no need to enter edit mode
+3. **Quick fill**: inline fill by default — a key icon appears in a focused login field; click it to pick an account and fill instantly. Switch to "Sidebar" (auto-opens on focus) or "Manual" in Preferences, use the shortcuts, or right-click an input to fill
 4. **Shortcuts**: every high-frequency action has one (`Cmd` on Mac) — see the cheat sheet below
 
 ### Shortcut Cheat Sheet
@@ -199,7 +204,7 @@ The build outputs to `.output/chrome-mv3/` — enable "Developer mode" at `chrom
 | One-keystroke login (fill + tick + click) | `Ctrl+Shift+F`  | `Cmd+Shift+F` |
 | Open the inline fill dropdown             | `Ctrl+Shift+K`  | `Cmd+Shift+K` |
 
-> All shortcuts are customizable at `chrome://extensions/shortcuts`.
+> All shortcuts are customizable at `chrome://extensions/shortcuts`. You can also check the live status of all four bindings under "Security Settings → Keyboard Shortcuts" on the manager page (unbound or taken keys are explicitly flagged as "Not active"), or jump straight to the manager from the "Keyboard Shortcuts" group in the side panel's Help dialog.
 
 > 📖 Full walkthroughs and demos are on the [live demo page](https://liaolongdong.github.io/account-password-helper/) (bilingual FAQ included), or via the "Help" entry inside the side panel.
 
@@ -227,7 +232,7 @@ A: Wait for the page to fully load and retry; the filler tries three strategies 
 
 **Q: How do I customize shortcuts?**
 
-A: Go to `chrome://extensions/shortcuts`, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The popup display syncs automatically.
+A: Go to `chrome://extensions/shortcuts`, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The popup display syncs automatically. You can also open the read-only overview under "Security Settings → Keyboard Shortcuts" on the manager page — its "Edit Shortcuts" button links straight there, and it flags which keys are currently inactive (usually taken by the OS or another extension, or a command added by an update that Chrome never auto-bound). The side panel's Help dialog offers the same overview and entry point.
 
 **Q: Can I import from other password managers?**
 
@@ -239,7 +244,7 @@ A: Yes. Deleted passwords move to the trash for 30 days — restore or permanent
 
 **Q: How do I enable auto-save?**
 
-A: Turn on the switch under "Auto-save Settings"; optionally configure domain rules (exact or regex). On login a confirmation card appears (Save / Not now / Never) with editable tag and remark.
+A: Turn on the switch under "Auto-save Settings"; optionally configure domain rules (exact or regex). On login a confirmation card appears (Save / Not now / Never) with editable tag and remark. If the password about to be saved is weak, or is already shared by other accounts, the card shows an inline risk hint beneath the password row; the hint only informs — it never blocks the save and requires no extra confirmation.
 
 **Q: How do I switch themes or the interface language?**
 
@@ -288,4 +293,4 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 
 ---
 
-> 📅 Last updated: Aug 2026 · [v3.6.0](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 Last updated: Sep 2026 · [v3.7.0](https://github.com/liaolongdong/account-password-helper/releases/latest) (latest released version)

@@ -10,6 +10,10 @@ const DEFAULT_MAX_HISTORY_PER_ENTRY = 3;
 
 /**
  * 读取全量历史记录原始数据
+ *
+ * 读取失败时向上抛出：历史快照与 rekey 均为读-改-写路径，
+ * 静默降级 [] 会导致写回时把全部历史记录清空（数据丢失）。
+ * 展示/删除类调用方已各自持有容错降级。
  */
 async function readAllHistory(): Promise<PasswordHistoryRecord[]> {
   try {
@@ -17,7 +21,7 @@ async function readAllHistory(): Promise<PasswordHistoryRecord[]> {
     return (result[STORAGE_KEYS.PASSWORD_HISTORY] as PasswordHistoryRecord[] | undefined) || [];
   } catch (error) {
     logger.error('读取密码历史记录失败:', error);
-    return [];
+    throw error;
   }
 }
 
