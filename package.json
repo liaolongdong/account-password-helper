@@ -84,6 +84,7 @@
     "analyze": "ANALYZE=true wxt build",
     "analyze:firefox": "ANALYZE=true wxt build -b firefox",
     "icons:build": "node scripts/generate-icons.mjs",
+    "covers:render": "node scripts/render-blog-covers.mjs",
     "gen:en": "node scripts/build-en-page.mjs",
     "gen:pricing-en": "node scripts/build-pricing-en-page.mjs",
     "gen:privacy-en": "node scripts/build-privacy-en-page.mjs",

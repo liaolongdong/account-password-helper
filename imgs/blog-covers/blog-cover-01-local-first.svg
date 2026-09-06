@@ -1,71 +1,102 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Arial,sans-serif">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#F2F7FF"/>
-      <stop offset="1" stop-color="#D9E7FF"/>
+      <stop offset="0" stop-color="#F8FBFF"/>
+      <stop offset="1" stop-color="#ECF5FF"/>
     </linearGradient>
-    <linearGradient id="vault" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5D97FF"/>
-      <stop offset="1" stop-color="#3C6FE0"/>
+    <linearGradient id="primary" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#409EFF"/>
+      <stop offset="1" stop-color="#337ECC"/>
     </linearGradient>
   </defs>
 
   <rect width="1600" height="900" fill="url(#bg)"/>
-  <circle cx="1420" cy="120" r="190" fill="#FFFFFF" opacity="0.4"/>
-  <circle cx="150" cy="800" r="150" fill="#FFFFFF" opacity="0.4"/>
+  <circle cx="1470" cy="110" r="170" fill="#D9ECFF" opacity="0.5"/>
+  <circle cx="120" cy="860" r="150" fill="#D9ECFF" opacity="0.45"/>
 
-  <!-- crossed-out cloud: zero cloud -->
-  <g opacity="0.9">
-    <circle cx="300" cy="196" r="34" fill="#C3D6F2"/>
-    <circle cx="348" cy="178" r="46" fill="#C3D6F2"/>
-    <circle cx="400" cy="200" r="30" fill="#C3D6F2"/>
-    <rect x="268" y="196" width="162" height="34" rx="17" fill="#C3D6F2"/>
-    <line x1="240" y1="252" x2="452" y2="146" stroke="#8FB0DC" stroke-width="10" stroke-linecap="round"/>
-  </g>
-
-  <!-- browser window -->
+  <!-- 品牌角标：主蓝圆角块 + 白色钥匙记号（与 assets/icons/icon.svg 同骨架） -->
   <g>
-    <rect x="500" y="170" width="620" height="450" rx="24" fill="#FFFFFF" stroke="#C7D8F5" stroke-width="3"/>
-    <rect x="500" y="170" width="620" height="62" rx="24" fill="#EAF1FE"/>
-    <rect x="500" y="204" width="620" height="28" fill="#EAF1FE"/>
-    <circle cx="540" cy="201" r="9" fill="#FF9B9B"/>
-    <circle cx="570" cy="201" r="9" fill="#FFD591"/>
-    <circle cx="600" cy="201" r="9" fill="#A2E0AE"/>
-    <!-- vault inside the browser -->
-    <rect x="670" y="292" width="280" height="250" rx="22" fill="url(#vault)"/>
-    <circle cx="810" cy="417" r="72" fill="#FFFFFF" opacity="0.94"/>
-    <circle cx="810" cy="417" r="47" fill="none" stroke="#3C6FE0" stroke-width="10"/>
-    <rect x="802" y="352" width="16" height="34" rx="8" fill="#3C6FE0"/>
-    <circle cx="810" cy="417" r="12" fill="#3C6FE0"/>
+    <rect x="96" y="68" width="52" height="52" rx="13" fill="#409EFF"/>
+    <g transform="translate(96,68) scale(0.40625)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+    <text x="164" y="104" font-size="27" font-weight="600" fill="#1F2937">Account Password Helper</text>
+    <text x="1504" y="104" font-size="24" fill="#9CA3AF" text-anchor="end">技术博客 01 / 04</text>
   </g>
 
-  <!-- dotted link down to laptop: data stays local -->
-  <line x1="810" y1="552" x2="810" y2="622" stroke="#4E88FF" stroke-width="7" stroke-dasharray="1 16" stroke-linecap="round"/>
-
-  <!-- laptop -->
+  <!-- 文字层：中文主标 + 语言中立技术关键字 -->
   <g>
-    <rect x="690" y="628" width="240" height="146" rx="12" fill="#FFFFFF" stroke="#C7D8F5" stroke-width="3"/>
-    <rect x="712" y="650" width="196" height="102" rx="6" fill="#EAF1FE"/>
-    <rect x="650" y="776" width="320" height="22" rx="11" fill="#C7D8F5"/>
+    <text x="96" y="282" font-size="84" font-weight="700" fill="#1F2937">零云端 · 本地加密</text>
+    <text x="96" y="352" font-size="38" font-weight="600" fill="#409EFF">AES-256-GCM · PBKDF2 600,000×</text>
+    <text x="96" y="414" font-size="28" fill="#6B7280">数据不出浏览器，多环境账号不串号</text>
+  </g>
+  <g font-size="27" font-weight="500">
+    <rect x="96" y="452" width="214" height="56" rx="28" fill="#ECF5FF" stroke="#D9ECFF" stroke-width="2"/>
+    <text x="122" y="490" fill="#337ECC">精确域名匹配</text>
+    <rect x="326" y="452" width="160" height="56" rx="28" fill="#ECF5FF" stroke="#D9ECFF" stroke-width="2"/>
+    <text x="352" y="490" fill="#337ECC">一键登录</text>
+    <rect x="96" y="528" width="182" height="56" rx="28" fill="#ECF5FF" stroke="#D9ECFF" stroke-width="2"/>
+    <text x="122" y="566" fill="#337ECC">内置 TOTP</text>
+    <rect x="294" y="528" width="233" height="56" rx="28" fill="#ECF5FF" stroke="#D9ECFF" stroke-width="2"/>
+    <text x="320" y="566" fill="#337ECC">GPL-3.0 开源</text>
   </g>
 
-  <!-- floating key -->
-  <g transform="translate(1216,392) rotate(38)" stroke="#4E88FF" stroke-width="15" fill="none" stroke-linecap="round">
-    <circle cx="0" cy="0" r="36"/>
-    <line x1="32" y1="32" x2="118" y2="118"/>
-    <line x1="92" y1="92" x2="120" y2="64"/>
-    <line x1="66" y1="66" x2="94" y2="38"/>
+  <!-- 划掉的云：零云端 -->
+  <g>
+    <g fill="#D9ECFF">
+      <circle cx="972" cy="172" r="26"/>
+      <circle cx="1012" cy="158" r="34"/>
+      <circle cx="1050" cy="174" r="22"/>
+      <rect x="948" y="172" width="104" height="26" rx="13"/>
+    </g>
+    <line x1="928" y1="208" x2="1078" y2="132" stroke="#66B3FF" stroke-width="9" stroke-linecap="round"/>
   </g>
 
-  <!-- shield with check -->
-  <g transform="translate(330,470)">
-    <path d="M0 -50 L44 -32 V8 C44 38 24 56 0 66 C-24 56 -44 38 -44 8 V-32 Z" fill="#4E88FF"/>
+  <!-- 浏览器窗口内的品牌钥匙保险块 -->
+  <g>
+    <rect x="920" y="230" width="560" height="400" rx="24" fill="#FFFFFF" stroke="#D9ECFF" stroke-width="3"/>
+    <rect x="920" y="230" width="560" height="62" rx="24" fill="#ECF5FF"/>
+    <rect x="920" y="266" width="560" height="26" fill="#ECF5FF"/>
+    <circle cx="962" cy="261" r="9" fill="#F56C6C"/>
+    <circle cx="992" cy="261" r="9" fill="#E6A23C"/>
+    <circle cx="1022" cy="261" r="9" fill="#67C23A"/>
+    <rect x="1100" y="361" width="200" height="200" rx="20" fill="url(#primary)"/>
+    <g transform="translate(1100,361) scale(1.5625)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#3B86E8"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+  </g>
+
+  <!-- 虚线落到笔记本：数据只在本机 -->
+  <line x1="1200" y1="630" x2="1200" y2="694" stroke="#409EFF" stroke-width="7" stroke-dasharray="1 16" stroke-linecap="round"/>
+  <g>
+    <rect x="1090" y="700" width="220" height="132" rx="12" fill="#FFFFFF" stroke="#D9ECFF" stroke-width="3"/>
+    <rect x="1108" y="718" width="184" height="96" rx="6" fill="#ECF5FF"/>
+    <rect x="1052" y="834" width="296" height="20" rx="10" fill="#D9ECFF"/>
+  </g>
+
+  <!-- 安全体检 -->
+  <g transform="translate(960,762)">
+    <path d="M0 -50 L44 -32 V8 C44 38 24 56 0 66 C-24 56 -44 38 -44 8 V-32 Z" fill="#409EFF"/>
     <path d="M-18 4 L-5 20 L22 -14" stroke="#FFFFFF" stroke-width="11" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
 
-  <!-- code brackets -->
-  <g stroke="#1F3B73" stroke-width="10" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.75">
-    <path d="M1268 636 l-30 34 l30 34"/>
-    <path d="M1332 636 l30 34 l-30 34"/>
+  <!-- 为开发者而生 -->
+  <g stroke="#337ECC" stroke-width="9" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity="0.8">
+    <path d="M1408 726 l-30 34 l30 34"/>
+    <path d="M1440 726 l30 34 l-30 34"/>
+  </g>
+
+  <!-- 开源仓库 -->
+  <g>
+    <line x1="96" y1="762" x2="640" y2="762" stroke="#D9ECFF" stroke-width="3"/>
+    <text x="96" y="812" font-size="26" fill="#6B7280">github.com/liaolongdong/account-password-helper</text>
   </g>
 </svg>

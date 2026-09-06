@@ -1,151 +1,157 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Arial,sans-serif">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0E1A33"/>
-      <stop offset="1" stop-color="#1A3161"/>
+      <stop offset="0" stop-color="#0D1B34"/>
+      <stop offset="1" stop-color="#17305C"/>
     </linearGradient>
     <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#1E3564"/>
       <stop offset="1" stop-color="#16264B"/>
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5D97FF"/>
-      <stop offset="1" stop-color="#2F5FD0"/>
+    <linearGradient id="primary" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#409EFF"/>
+      <stop offset="1" stop-color="#337ECC"/>
     </linearGradient>
   </defs>
 
   <rect width="1600" height="900" fill="url(#bg)"/>
 
-  <!-- faint circuit traces -->
-  <g stroke="#4E88FF" stroke-width="2" fill="none" opacity="0.22">
-    <path d="M0 150 H300 L360 210 H560"/>
-    <path d="M1600 180 H1280 L1220 240 H1040"/>
-    <path d="M0 760 H260 L320 700 H520"/>
-    <path d="M1600 730 H1320 L1260 790 H1060"/>
+  <!-- 电路走线（避开标题与卡片标签） -->
+  <g stroke="#409EFF" stroke-width="2" fill="none" opacity="0.2">
+    <path d="M1600 150 H1380 L1320 210 H1200"/>
+    <path d="M1000 870 H1200 L1260 830 H1420"/>
   </g>
-  <g fill="#4E88FF" opacity="0.4">
-    <circle cx="560" cy="210" r="6"/>
-    <circle cx="1040" cy="240" r="6"/>
-    <circle cx="520" cy="700" r="6"/>
-    <circle cx="1060" cy="790" r="6"/>
+  <g fill="#409EFF" opacity="0.4">
+    <circle cx="1200" cy="210" r="6"/>
+    <circle cx="1420" cy="830" r="6"/>
   </g>
 
-  <!-- spine linking the four feature cards -->
-  <g stroke="#8FB4FF" stroke-width="3" stroke-dasharray="14 14" opacity="0.5">
-    <line x1="250" y1="450" x2="1350" y2="450"/>
+  <!-- 品牌角标 -->
+  <g>
+    <rect x="96" y="68" width="52" height="52" rx="13" fill="#409EFF"/>
+    <g transform="translate(96,68) scale(0.40625)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+    <text x="164" y="104" font-size="27" font-weight="600" fill="#FFFFFF">Account Password Helper</text>
+    <text x="1504" y="104" font-size="24" fill="#A9BFE0" text-anchor="end">技术博客 04 / 04</text>
   </g>
 
-  <!-- card 1: right-click context menu -->
-  <g transform="translate(180,320)">
-    <rect width="240" height="260" rx="22" fill="url(#card)" stroke="#3A63B0" stroke-width="2"/>
-    <g transform="translate(38,40)">
-      <rect width="164" height="30" rx="8" fill="url(#accent)"/>
-      <rect y="42" width="164" height="20" rx="6" fill="#2C4B8F"/>
-      <rect y="70" width="164" height="20" rx="6" fill="#2C4B8F"/>
-      <rect y="98" width="120" height="20" rx="6" fill="#2C4B8F"/>
-      <g fill="#8FB4FF">
-        <circle cx="16" cy="15" r="5"/>
-        <circle cx="16" cy="52" r="4"/>
-        <circle cx="16" cy="80" r="4"/>
-        <circle cx="16" cy="108" r="4"/>
-      </g>
-      <!-- mouse cursor pointing at the menu -->
-      <path d="M136 118 L166 148 H146 L152 166 L142 170 L136 152 L126 162 Z" fill="#FFFFFF" stroke="#16264B" stroke-width="2"/>
+  <!-- 文字层（横排标题带） -->
+  <g>
+    <text x="96" y="240" font-size="80" font-weight="700" fill="#FFFFFF">四个新功能 · 四段实现笔记</text>
+    <text x="96" y="316" font-size="38" font-weight="600" fill="#66B3FF">0 新增设置开关 · 仅 +1 权限 · 632 项自动化测试</text>
+    <text x="96" y="376" font-size="28" fill="#A9BFE0">每个功能都撞上一个 Chrome 扩展特有的坑</text>
+  </g>
+
+  <!-- 串联四张卡片的虚线脊柱 -->
+  <line x1="120" y1="610" x2="1440" y2="610" stroke="#8FB4FF" stroke-width="3" stroke-dasharray="14 14" opacity="0.4"/>
+
+  <g>
+    <rect x="96" y="460" width="320" height="300" rx="22" fill="url(#card)" stroke="#2A4A80" stroke-width="2"/>
+    <rect x="444" y="460" width="320" height="300" rx="22" fill="url(#card)" stroke="#2A4A80" stroke-width="2"/>
+    <rect x="792" y="460" width="320" height="300" rx="22" fill="url(#card)" stroke="#2A4A80" stroke-width="2"/>
+    <rect x="1140" y="460" width="320" height="300" rx="22" fill="url(#card)" stroke="#2A4A80" stroke-width="2"/>
+  </g>
+  <g font-size="22" font-weight="600" fill="#66B3FF" opacity="0.8">
+    <text x="118" y="498">01</text>
+    <text x="466" y="498">02</text>
+    <text x="814" y="498">03</text>
+    <text x="1162" y="498">04</text>
+  </g>
+
+  <!-- 01 右键填充：菜单 + 光标 -->
+  <g transform="translate(132,516)">
+    <rect width="248" height="42" rx="10" fill="url(#primary)"/>
+    <g fill="#1E3A6B">
+      <rect y="54" width="248" height="26" rx="8"/>
+      <rect y="90" width="248" height="26" rx="8"/>
+      <rect y="126" width="170" height="26" rx="8" opacity="0.6"/>
+    </g>
+    <g fill="#8FB4FF">
+      <circle cx="18" cy="21" r="5" fill="#FFFFFF"/>
+      <circle cx="18" cy="67" r="4"/>
+      <circle cx="18" cy="103" r="4"/>
+      <circle cx="18" cy="139" r="4"/>
+    </g>
+    <path d="M196 148 L228 180 H208 L214 198 L204 202 L198 184 L188 194 Z" fill="#FFFFFF" stroke="#16264B" stroke-width="2"/>
+  </g>
+
+  <!-- 02 内联面板：先置可见再定位，空间不足时上翻 -->
+  <g transform="translate(480,624)">
+    <rect x="0" y="-104" width="248" height="88" rx="12" fill="url(#primary)"/>
+    <g fill="#FFFFFF">
+      <rect x="14" y="-88" width="190" height="12" rx="6" opacity="0.9"/>
+      <rect x="14" y="-66" width="150" height="12" rx="6" opacity="0.75"/>
+      <rect x="14" y="-44" width="170" height="12" rx="6" opacity="0.55"/>
+    </g>
+    <g stroke="#66B3FF" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="124" y1="0" x2="124" y2="-8"/>
+      <path d="M112 -14 L124 -28 L136 -14"/>
+    </g>
+    <rect x="0" y="0" width="248" height="44" rx="10" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <rect x="20" y="14" width="4" height="16" rx="2" fill="#8FB4FF"/>
+    <g stroke="#8FB4FF" stroke-width="3" fill="none" stroke-linecap="round">
+      <circle cx="216" cy="18" r="7"/>
+      <line x1="216" y1="25" x2="216" y2="34"/>
+      <line x1="216" y1="30" x2="223" y2="30"/>
     </g>
   </g>
 
-  <!-- card 2: inline panel anchored to an input, flipping upward -->
-  <g transform="translate(480,320)">
-    <rect width="240" height="260" rx="22" fill="url(#card)" stroke="#3A63B0" stroke-width="2"/>
-    <g transform="translate(36,46)">
-      <!-- login input with key icon -->
-      <rect width="168" height="30" rx="8" fill="#0F1E3D" stroke="#3A63B0" stroke-width="2"/>
-      <circle cx="150" cy="12" r="7" fill="none" stroke="#8FB4FF" stroke-width="3"/>
-      <path d="M150 19 V34 M150 28 H157 M150 33 H155" stroke="#8FB4FF" stroke-width="3" stroke-linecap="round" fill="none"/>
-      <!-- mini panel above (space-aware flip) -->
-      <rect x="0" y="-38" width="168" height="30" rx="8" fill="url(#accent)" opacity="0.9"/>
-      <g fill="#8FB4FF">
-        <rect x="64" y="46" width="40" height="4" rx="2"/>
-      </g>
-      <path d="M84 96 V56" stroke="#5D97FF" stroke-width="4" stroke-linecap="round"/>
-      <path d="M70 72 L84 54 L98 72" stroke="#5D97FF" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
-      <!-- list rows with a clipped bottom row: height compression -->
-      <g transform="translate(0,104)">
-        <rect width="168" height="20" rx="6" fill="#2C4B8F"/>
-        <rect y="28" width="168" height="20" rx="6" fill="#2C4B8F"/>
-        <rect y="56" width="168" height="20" rx="6" fill="#2C4B8F" opacity="0.55"/>
-      </g>
+  <!-- 03 全站搜索：本站 / 全站 分段控件 + 放大镜 -->
+  <g transform="translate(828,548)">
+    <rect width="248" height="56" rx="28" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <rect x="126" width="122" height="56" rx="28" fill="url(#primary)"/>
+    <circle cx="62" cy="28" r="7" fill="#8FB4FF"/>
+    <g fill="#FFFFFF">
+      <circle cx="152" cy="28" r="7"/>
+      <circle cx="178" cy="28" r="7"/>
+      <circle cx="204" cy="28" r="7"/>
+    </g>
+    <g transform="translate(72,56)">
+      <circle cx="40" cy="54" r="36" fill="none" stroke="#8FB4FF" stroke-width="8"/>
+      <line x1="66" y1="80" x2="94" y2="108" stroke="#8FB4FF" stroke-width="12" stroke-linecap="round"/>
+      <path d="M22 54 A18 18 0 0 1 58 54" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity="0.8"/>
     </g>
   </g>
 
-  <!-- card 3: site-wide search (magnifier over a segmented scope pill) -->
-  <g transform="translate(780,320)">
-    <rect width="240" height="260" rx="22" fill="url(#card)" stroke="#3A63B0" stroke-width="2"/>
-    <g transform="translate(36,78)">
-      <!-- scope segmented control: this site (dim) / all entries (active) -->
-      <rect width="168" height="44" rx="22" fill="#0F1E3D" stroke="#3A63B0" stroke-width="2"/>
-      <rect x="86" width="82" height="44" rx="22" fill="url(#accent)"/>
-      <g fill="#8FB4FF">
-        <circle cx="42" cy="22" r="6"/>
-      </g>
+  <!-- 04 只读详情：列表 + 抽屉（纯展示，写入路径单一） -->
+  <g transform="translate(1184,528)">
+    <rect width="132" height="176" rx="10" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <g fill="#1E3A6B">
+      <rect x="12" y="18" width="108" height="16" rx="5"/>
+      <rect x="12" y="46" width="108" height="16" rx="5"/>
+      <rect x="12" y="74" width="108" height="16" rx="5"/>
+      <rect x="12" y="102" width="72" height="16" rx="5"/>
+    </g>
+    <g transform="translate(120,0)">
+      <rect width="96" height="176" rx="10" fill="url(#primary)"/>
       <g fill="#FFFFFF">
-        <circle cx="116" cy="22" r="6"/>
-        <circle cx="136" cy="22" r="6"/>
-        <circle cx="152" cy="22" r="6"/>
+        <rect x="12" y="20" width="44" height="8" rx="4"/>
+        <circle cx="18" cy="46" r="5"/>
+        <circle cx="34" cy="46" r="5"/>
+        <circle cx="50" cy="46" r="5"/>
+        <circle cx="66" cy="46" r="5"/>
+        <rect x="12" y="66" width="52" height="8" rx="4"/>
+        <rect x="12" y="86" width="68" height="8" rx="4"/>
+        <rect x="12" y="106" width="40" height="8" rx="4"/>
+        <rect x="12" y="134" width="60" height="12" rx="6" opacity="0.6"/>
       </g>
-      <!-- magnifier scanning the whole vault -->
-      <g transform="translate(52,44)">
-        <circle cx="40" cy="56" r="34" fill="none" stroke="#8FB4FF" stroke-width="8"/>
-        <line x1="64" y1="80" x2="92" y2="108" stroke="#8FB4FF" stroke-width="12" stroke-linecap="round"/>
-        <path d="M22 56 A18 18 0 0 1 58 56" fill="none" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" opacity="0.8"/>
-      </g>
+    </g>
+    <g transform="translate(196,26)">
+      <path d="M-16 0 Q0 -13 16 0 Q0 13 -16 0 Z" fill="none" stroke="#FFFFFF" stroke-width="3"/>
+      <circle r="5" fill="#16264B"/>
     </g>
   </g>
 
-  <!-- card 4: read-only detail drawer -->
-  <g transform="translate(1080,320)">
-    <rect width="240" height="260" rx="22" fill="url(#card)" stroke="#3A63B0" stroke-width="2"/>
-    <g transform="translate(30,52)">
-      <!-- manager list -->
-      <rect width="112" height="156" rx="10" fill="#0F1E3D" stroke="#3A63B0" stroke-width="2"/>
-      <g fill="#2C4B8F">
-        <rect x="12" y="16" width="88" height="16" rx="5"/>
-        <rect x="12" y="44" width="88" height="16" rx="5"/>
-        <rect x="12" y="72" width="88" height="16" rx="5"/>
-        <rect x="12" y="100" width="60" height="16" rx="5"/>
-      </g>
-      <!-- drawer sliding out on the right -->
-      <g transform="translate(102,0)">
-        <rect width="82" height="156" rx="10" fill="url(#accent)"/>
-        <g fill="#FFFFFF" opacity="0.9">
-          <rect x="12" y="18" width="58" height="8" rx="4"/>
-          <!-- masked password -->
-          <g transform="translate(12,40)">
-            <circle cx="5" cy="4" r="4"/>
-            <circle cx="19" cy="4" r="4"/>
-            <circle cx="33" cy="4" r="4"/>
-            <circle cx="47" cy="4" r="4"/>
-          </g>
-          <rect x="12" y="60" width="44" height="8" rx="4"/>
-          <rect x="12" y="80" width="58" height="8" rx="4"/>
-          <rect x="12" y="100" width="36" height="8" rx="4"/>
-          <rect x="12" y="124" width="52" height="10" rx="5" opacity="0.6"/>
-        </g>
-      </g>
-      <!-- open eye: read-only, no edit -->
-      <g transform="translate(124,26)">
-        <path d="M-16 0 Q0 -13 16 0 Q0 13 -16 0 Z" fill="none" stroke="#FFFFFF" stroke-width="3"/>
-        <circle r="5" fill="#16264B"/>
-      </g>
-    </g>
-  </g>
-
-  <!-- small "+" quick add badge floating above card 3 -->
-  <g transform="translate(900,272)">
-    <circle r="22" fill="url(#accent)"/>
-    <g stroke="#FFFFFF" stroke-width="6" stroke-linecap="round">
-      <line x1="-11" y1="0" x2="11" y2="0"/>
-      <line x1="0" y1="-11" x2="0" y2="11"/>
-    </g>
+  <!-- 卡片标签 -->
+  <g font-size="28" font-weight="600" fill="#CFE3FF" text-anchor="middle">
+    <text x="256" y="806">右键填充</text>
+    <text x="604" y="806">内联面板</text>
+    <text x="952" y="806">全站搜索</text>
+    <text x="1300" y="806">只读详情</text>
   </g>
 </svg>

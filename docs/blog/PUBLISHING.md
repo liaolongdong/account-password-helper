@@ -5,6 +5,8 @@
 - 仓库内 Markdown → CI 生成 GitHub Pages 博客页（`scripts/build-blog-pages.mjs`）
 - 各平台投稿时附 **原文链接（canonical）**，把权重导回官网域名
 - 每次修改文章后运行 `pnpm gen:blog` 重新生成静态页
+- 封面图以 `imgs/blog-covers/*.svg` 为矢量源，改完运行 `pnpm covers:render` 栅格化为 `imgs/blog-cover-*.png`（1600×900）；
+  文件名不变，因此无需重跑 `pnpm gen:blog`。四张封面的共用令牌、版式与文案口径见 `imgs/blog-covers/outline.md`。
 
 ## 文章与资源速查
 
