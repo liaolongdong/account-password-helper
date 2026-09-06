@@ -1,0 +1,744 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>Bitwarden / 1Password / Chrome 自带密码管理器替代方案对比 · 开源免费本地密码管理器 | 账号密码管理助手</title>
+    <meta
+      name="description"
+      content="2026 年寻找 Bitwarden 替代、1Password 替代或更好的 Chrome 自带密码管理器？本对比页从价格、数据存储、注册要求、一键登录、多环境隔离、TOTP、离线安全体检、开源八个维度，横向对比开源免费的本地密码管理器「账号密码管理助手」与 Bitwarden、1Password、Chrome 自带，并诚实说明各自适合谁。纯本地 AES-256-GCM 加密、零联网、免注册。"
+    />
+    <meta
+      name="keywords"
+      content="Bitwarden 替代,1Password 替代,Chrome 密码管理器 替代,LastPass 替代,最佳本地密码管理器,离线密码管理器,开源密码管理器,免注册密码管理器,多环境账号管理,一键登录密码管理器,password manager 对比"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
+    />
+    <meta
+      property="og:type"
+      content="article"
+    />
+    <meta
+      property="og:title"
+      content="Bitwarden / 1Password / Chrome 自带替代方案对比 · 账号密码管理助手"
+    />
+    <meta
+      property="og:description"
+      content="八维度横向对比开源免费的本地密码管理器与 Bitwarden、1Password、Chrome 自带：价格、存储、注册、一键登录、多环境隔离、TOTP、离线体检、开源，并诚实说明各自适合谁。"
+    />
+    <meta
+      property="og:url"
+      content="https://liaolongdong.github.io/account-password-helper/compare.html"
+    />
+    <meta
+      property="og:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+    />
+    <meta
+      property="og:site_name"
+      content="账号密码管理助手 Account Password Helper"
+    />
+    <meta
+      property="og:locale"
+      content="zh_CN"
+    />
+    <meta
+      name="twitter:card"
+      content="summary_large_image"
+    />
+    <meta
+      name="twitter:title"
+      content="Bitwarden / 1Password / Chrome 自带替代方案对比 · 账号密码管理助手"
+    />
+    <meta
+      name="twitter:description"
+      content="八维度横向对比开源免费的本地密码管理器与 Bitwarden、1Password、Chrome 自带，并诚实说明各自适合谁。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+    />
+    <link
+      rel="canonical"
+      href="https://liaolongdong.github.io/account-password-helper/compare.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="zh-CN"
+      href="https://liaolongdong.github.io/account-password-helper/compare.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://liaolongdong.github.io/account-password-helper/compare.en.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://liaolongdong.github.io/account-password-helper/compare.html"
+    />
+    <link
+      rel="sitemap"
+      type="application/xml"
+      href="./sitemap.xml"
+    />
+    <!-- BreadcrumbList 结构化数据：官网 → 对比页 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "账号密码管理助手",
+            "item": "https://liaolongdong.github.io/account-password-helper/"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "替代方案对比",
+            "item": "https://liaolongdong.github.io/account-password-helper/compare.html"
+          }
+        ]
+      }
+    </script>
+    <!-- ItemList 结构化数据：声明本页对比的产品清单，帮助 AI 引擎理解对比范围 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "本地优先密码管理器替代方案对比",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "item": {
+              "@type": "SoftwareApplication",
+              "name": "账号密码管理助手 Account Password Helper",
+              "applicationCategory": "SecurityApplication",
+              "operatingSystem": "Chrome",
+              "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+              "url": "https://liaolongdong.github.io/account-password-helper/"
+            }
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "item": { "@type": "SoftwareApplication", "name": "Bitwarden" }
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "item": { "@type": "SoftwareApplication", "name": "1Password" }
+          },
+          {
+            "@type": "ListItem",
+            "position": 4,
+            "item": { "@type": "SoftwareApplication", "name": "Chrome 内置密码管理器" }
+          }
+        ]
+      }
+    </script>
+    <!-- FAQPage 结构化数据：对比类高频问题，利于 AI 答案直接引用 -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "有没有比 Bitwarden 更好的免费密码管理器？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "如果你重视「零云端、免注册、纯本地」，账号密码管理助手是 Bitwarden 的替代选择：完全免费开源（GPL-3.0），无需注册账号、无云端同步，所有数据以 PBKDF2 + AES-256-GCM 加密保存在浏览器本地。若你需要跨设备云端同步与移动端 App，Bitwarden 仍更合适。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "有没有 1Password 的免费替代方案？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "账号密码管理助手可作为 1Password 的免费替代：无需 $2.99/月订阅、无需账号，本地加密、一键登录（填充+勾选+点击）、内置 TOTP 与安全体检均免费。1Password 的优势在于成熟的跨平台体验、家庭/团队协作与厂商支持，面向团队与企业场景更完整。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Chrome 自带密码管理器和密码管理器扩展有什么区别？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Chrome 自带密码管理器免费、免安装，但只做表单填充、不提供精确域名多环境隔离、内置 TOTP 生成、离线安全体检与加密备份。账号密码管理助手在这些方向补齐，并支持一键登录（自动填充 + 勾选协议 + 点击登录）。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "本地密码管理器安全吗？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "账号密码管理助手采用浏览器原生 Web Crypto API，主密码经 PBKDF2（600,000 次迭代）派生密钥，敏感字段以 AES-256-GCM 认证加密，全程零网络传输。忘记主密码无法找回，建议定期用加密备份导出。与任何浏览器扩展一样，不建议存放银行、支付等高敏感凭证。"
+            }
+          }
+        ]
+      }
+    </script>
+    <style>
+      :root {
+        --primary: #4e88ff;
+        --primary-dark: #3a6cd9;
+        --primary-soft: #eaf1ff;
+        --accent: #42b883;
+        --text: #0f172a;
+        --text-muted: #64748b;
+        --bg-soft: #f8fafc;
+        --border: #e2e8f0;
+        --warn: #ff9f43;
+        --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--text);
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
+        line-height: 1.7;
+        background: #fff;
+      }
+
+      a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .wrap {
+        max-width: 960px;
+        padding: 0 20px;
+        margin: 0 auto;
+      }
+
+      .topbar {
+        padding: 14px 0;
+        background: linear-gradient(135deg, #1e293b, #0f172a);
+      }
+
+      .topbar .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .brand {
+        color: #fff;
+        font-weight: 700;
+      }
+
+      .topbar a {
+        color: #cbd5e1;
+        font-size: 14px;
+      }
+
+      .hero {
+        padding: 56px 0 32px;
+        background: linear-gradient(180deg, #f8fafc, #fff);
+        text-align: center;
+      }
+
+      .hero h1 {
+        margin: 0 0 12px;
+        font-size: 34px;
+        line-height: 1.3;
+      }
+
+      .hero p {
+        margin: 0 auto;
+        max-width: 720px;
+        color: var(--text-muted);
+        font-size: 17px;
+      }
+
+      .cta {
+        display: inline-flex;
+        gap: 12px;
+        margin-top: 24px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .btn {
+        display: inline-block;
+        padding: 12px 22px;
+        font-weight: 600;
+        color: #fff;
+        background: var(--primary);
+        border-radius: 10px;
+      }
+
+      .btn:hover {
+        background: var(--primary-dark);
+        text-decoration: none;
+      }
+
+      .btn.ghost {
+        color: var(--primary);
+        background: var(--primary-soft);
+      }
+
+      section {
+        padding: 40px 0;
+        border-top: 1px solid var(--border);
+      }
+
+      h2 {
+        margin: 0 0 6px;
+        font-size: 24px;
+      }
+
+      h3 {
+        margin: 28px 0 6px;
+        font-size: 19px;
+      }
+
+      .lead {
+        margin: 0 0 20px;
+        color: var(--text-muted);
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow-sm);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 15px;
+        min-width: 640px;
+      }
+
+      th,
+      td {
+        padding: 12px 16px;
+        text-align: center;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+
+      thead th {
+        background: var(--bg-soft);
+        font-weight: 700;
+      }
+
+      thead th.us {
+        color: var(--primary-dark);
+        background: var(--primary-soft);
+      }
+
+      td.us {
+        background: rgba(78, 136, 255, 0.05);
+        font-weight: 600;
+      }
+
+      .yes {
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      .no {
+        color: #cbd5e1;
+      }
+
+      .partial {
+        color: var(--warn);
+      }
+
+      .card {
+        padding: 20px 22px;
+        margin-top: 18px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--bg-soft);
+      }
+
+      .card h3 {
+        margin-top: 0;
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 12px;
+      }
+
+      .two-col ul {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+
+      .two-col li {
+        margin: 4px 0;
+      }
+
+      .choose {
+        padding: 14px 16px;
+        margin-top: 16px;
+        border-left: 4px solid var(--primary);
+        background: var(--primary-soft);
+        border-radius: 0 8px 8px 0;
+      }
+
+      .faq-item {
+        margin-bottom: 20px;
+      }
+
+      .faq-item h3 {
+        margin: 0 0 4px;
+        font-size: 17px;
+      }
+
+      .faq-item p {
+        margin: 0;
+        color: var(--text-muted);
+      }
+
+      .note {
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+
+      footer {
+        padding: 32px 0 48px;
+        color: var(--text-muted);
+        font-size: 14px;
+        text-align: center;
+        background: var(--bg-soft);
+      }
+
+      @media (max-width: 640px) {
+        .hero h1 {
+          font-size: 26px;
+        }
+
+        .two-col {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="wrap">
+        <span class="brand">账号密码管理助手</span>
+        <nav>
+          <a href="./index.html">官网首页</a>
+          ·
+          <a href="./compare.en.html">English</a>
+        </nav>
+      </div>
+    </div>
+
+    <header class="hero">
+      <div class="wrap">
+        <h1>Bitwarden / 1Password / Chrome 自带——替代方案对比</h1>
+        <p>
+          想找一款<b>免注册、纯本地、零联网</b>的免费密码管理器？本页用八个维度，把开源的「账号密码管理助手」与
+          Bitwarden、1Password、Chrome 内置密码管理器做事实型对比，并诚实说明<b>各自更适合谁</b>。
+        </p>
+        <div class="cta">
+          <a
+            class="btn"
+            href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+            >免费安装（Chrome 应用商店）</a
+          >
+          <a
+            class="btn ghost"
+            href="./index.html"
+            >查看功能演示</a
+          >
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="overview">
+        <div class="wrap">
+          <h2>一句话结论</h2>
+          <p class="lead">
+            需要跨设备云同步、移动端 App、团队协作——选 Bitwarden 或
+            1Password。<b>只想要免注册、数据绝不出浏览器、又能一键完成登录</b>的开发者 /
+            测试人员与隐私敏感用户——选账号密码管理助手。
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>维度</th>
+                  <th class="us">账号密码管理助手</th>
+                  <th>Bitwarden</th>
+                  <th>1Password</th>
+                  <th>Chrome 自带</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>价格</td>
+                  <td class="us">完全免费</td>
+                  <td>免费 / 付费版约 $10 起</td>
+                  <td class="partial">订阅 $2.99/月</td>
+                  <td>免费</td>
+                </tr>
+                <tr>
+                  <td>数据存储</td>
+                  <td class="us">纯本地</td>
+                  <td>云端</td>
+                  <td>云端</td>
+                  <td>本地 / 云同步</td>
+                </tr>
+                <tr>
+                  <td>需要注册账号</td>
+                  <td class="us"><span class="yes">否</span></td>
+                  <td><span class="no">是</span></td>
+                  <td><span class="no">是</span></td>
+                  <td><span class="yes">否</span></td>
+                </tr>
+                <tr>
+                  <td>一键登录（填充 + 勾选 + 点击）</td>
+                  <td class="us"><span class="yes">是</span></td>
+                  <td>仅填充</td>
+                  <td>仅填充</td>
+                  <td>仅填充</td>
+                </tr>
+                <tr>
+                  <td>多环境账号隔离（精确域名）</td>
+                  <td class="us"><span class="yes">是</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                </tr>
+                <tr>
+                  <td>内置 TOTP 验证器</td>
+                  <td class="us"><span class="yes">是</span></td>
+                  <td class="partial">付费版</td>
+                  <td class="partial">付费版</td>
+                  <td><span class="no">否</span></td>
+                </tr>
+                <tr>
+                  <td>离线安全体检（0–100 评分）</td>
+                  <td class="us"><span class="yes">是</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                </tr>
+                <tr>
+                  <td>开源</td>
+                  <td class="us">是（GPL-3.0）</td>
+                  <td>是</td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                </tr>
+                <tr>
+                  <td>跨设备云同步 / 移动端 App</td>
+                  <td class="us"><span class="no">否（本地优先取舍）</span></td>
+                  <td><span class="yes">是</span></td>
+                  <td><span class="yes">是</span></td>
+                  <td><span class="yes">是</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            以上为公开可查的功能口径对比（价格以官网公布为准，可能随时调整），用于帮助用户按需选择，而非贬低任何产品。竞品商标归其各自所有者所有。
+          </p>
+        </div>
+      </section>
+
+      <section id="vs-bitwarden">
+        <div class="wrap">
+          <h2>账号密码管理助手 vs Bitwarden</h2>
+          <div class="two-col">
+            <div>
+              <h3>Bitwarden 擅长</h3>
+              <ul>
+                <li>跨平台云同步（桌面 / 移动 / 浏览器）</li>
+                <li>开源、可自建服务器，社区庞大</li>
+                <li>成熟的自动填充与密码保险库生态</li>
+              </ul>
+            </div>
+            <div>
+              <h3>账号密码管理助手 的差异</h3>
+              <ul>
+                <li><b>免注册、零云端</b>：数据绝不出浏览器，无需任何账号</li>
+                <li><b>一键登录</b>：填充 + 勾协议 + 点登录，而非只填表</li>
+                <li><b>精确域名多环境隔离</b>：dev / test / staging / prod 不混淆</li>
+                <li>内置 TOTP 与离线安全体检，全部免费</li>
+              </ul>
+            </div>
+          </div>
+          <div class="choose">
+            <b>怎么选：</b>需要多设备同步与移动端 → Bitwarden；只在浏览器内工作、看重"数据不出本机 + 免注册 + 一键登录"
+            → 账号密码管理助手。
+          </div>
+        </div>
+      </section>
+
+      <section id="vs-1password">
+        <div class="wrap">
+          <h2>账号密码管理助手 vs 1Password</h2>
+          <div class="two-col">
+            <div>
+              <h3>1Password 擅长</h3>
+              <ul>
+                <li>精致的跨平台体验与成熟的团队 / 家庭方案</li>
+                <li>厂商支持、安全审计与合规背书</li>
+                <li>Watchdog 等托管式安全能力</li>
+              </ul>
+            </div>
+            <div>
+              <h3>账号密码管理助手 的差异</h3>
+              <ul>
+                <li><b>完全免费、无订阅</b>：核心功能不收费</li>
+                <li><b>无需注册账号</b>，无需信任任何云端</li>
+                <li>本地 AES-256-GCM 加密，零网络传输</li>
+                <li>面向开发者 / 测试的一键登录与多环境隔离</li>
+              </ul>
+            </div>
+          </div>
+          <div class="choose">
+            <b>怎么选：</b>团队协作、企业合规、跨设备托管 → 1Password；个人 / 开发测试、坚持本地优先与零订阅 →
+            账号密码管理助手。
+          </div>
+        </div>
+      </section>
+
+      <section id="vs-chrome">
+        <div class="wrap">
+          <h2>账号密码管理助手 vs Chrome 自带密码管理器</h2>
+          <div class="two-col">
+            <div>
+              <h3>Chrome 自带擅长</h3>
+              <ul>
+                <li>零安装、开箱即用</li>
+                <li>与 Google 账号无缝同步</li>
+              </ul>
+            </div>
+            <div>
+              <h3>账号密码管理助手 补齐</h3>
+              <ul>
+                <li>一键登录（勾选协议 + 点击登录，不只填表）</li>
+                <li>精确域名多环境隔离</li>
+                <li>内置 TOTP 生成与离线安全体检</li>
+                <li>加密备份（.aph）、回收站与密码修改历史</li>
+                <li>6 款主题 + 中英文双语界面</li>
+              </ul>
+            </div>
+          </div>
+          <div class="choose">
+            <b>怎么选：</b>只想要最省事的填充且接受云同步 → Chrome 自带；需要多环境管理、TOTP、体检与本地加密 →
+            账号密码管理助手，且可从 Chrome 一键导入。
+          </div>
+        </div>
+      </section>
+
+      <section id="migration">
+        <div class="wrap">
+          <h2>迁移成本：从这些工具一键搬家</h2>
+          <p class="lead">
+            支持 CSV / JSON 导入，自动识别
+            <b>Chrome、LastPass、Bitwarden、1Password</b>
+            的导出格式并映射中英文列名，通常约 30 秒完成迁移；导出方向同样支持，随时可带走你的数据。
+          </p>
+        </div>
+      </section>
+
+      <section id="faq">
+        <div class="wrap">
+          <h2>常见问题</h2>
+          <div class="faq-item">
+            <h3>有没有比 Bitwarden 更好的免费密码管理器？</h3>
+            <p>
+              若你重视"零云端、免注册、纯本地"，账号密码管理助手是 Bitwarden
+              的替代选择：完全免费开源（GPL-3.0），无需注册、无云同步，数据以 PBKDF2 + AES-256-GCM
+              本地加密。若你需要跨设备同步与移动端，Bitwarden 仍更合适。
+            </p>
+          </div>
+          <div class="faq-item">
+            <h3>有没有 1Password 的免费替代方案？</h3>
+            <p>
+              可以。账号密码管理助手免订阅、免账号，本地加密、一键登录、内置 TOTP 与安全体检均免费。1Password
+              的强项是跨平台体验与团队 / 企业协作。
+            </p>
+          </div>
+          <div class="faq-item">
+            <h3>Chrome 自带与密码管理扩展有何区别？</h3>
+            <p>
+              Chrome 自带免费、免安装，但只做表单填充，不提供多环境隔离、TOTP
+              生成、离线体检与加密备份。本插件在这些方向补齐并支持一键登录。
+            </p>
+          </div>
+          <div class="faq-item">
+            <h3>本地密码管理器安全吗？</h3>
+            <p>
+              使用浏览器原生 Web Crypto API，主密码经 PBKDF2（600,000 次迭代）派生密钥，敏感字段 AES-256-GCM
+              认证加密，零网络传输。忘记主密码无法找回，建议定期加密备份；与任何扩展一样，不建议存放银行 /
+              支付等高敏感凭证。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div
+          class="wrap"
+          style="text-align: center"
+        >
+          <h2>免费试用，30 秒搬家</h2>
+          <p class="lead">开源免费、无需注册、数据绝不出浏览器。</p>
+          <div class="cta">
+            <a
+              class="btn"
+              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+              >从 Chrome 应用商店安装</a
+            >
+            <a
+              class="btn ghost"
+              href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+              >GitHub Releases 下载</a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>
+          账号密码管理助手 · 开源免费本地密码管理器 ·
+          <a href="./index.html">官网</a> · <a href="./pricing.html">定价</a> · <a href="./privacy.html">隐私政策</a> ·
+          <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a>
+        </p>
+        <p class="note">
+          本页对比信息最后更新：2026-09。Bitwarden、1Password、LastPass、Chrome
+          均为其各自所有者的商标，仅作功能性事实对比。
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

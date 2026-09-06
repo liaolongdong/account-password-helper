@@ -37,6 +37,18 @@
     <priority>0.3</priority>
   </url>
   <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/compare.html</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://liaolongdong.github.io/account-password-helper/compare.en.html</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://liaolongdong.github.io/account-password-helper/blog/</loc>
     <lastmod>2026-09-05</lastmod>
     <changefreq>weekly</changefreq>

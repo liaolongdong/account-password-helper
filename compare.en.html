@@ -1,0 +1,735 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>
+      Bitwarden vs 1Password vs Chrome Alternatives · Free Open-Source Local Password Manager | Account Password Helper
+    </title>
+    <meta
+      name="description"
+      content="Looking for a Bitwarden alternative, a 1Password alternative, or a better Chrome password manager in 2026? This page compares the free, open-source local password manager Account Password Helper with Bitwarden, 1Password and Chrome's built-in manager across eight dimensions — price, storage, sign-up, one-keystroke login, multi-environment isolation, TOTP, offline security audit and open source — and honestly explains who each is best for."
+    />
+    <meta
+      name="keywords"
+      content="Bitwarden alternative,1Password alternative,Chrome password manager alternative,LastPass alternative,best local password manager,offline password manager,open source password manager,no sign-up password manager,multi-environment accounts,one-keystroke login,password manager comparison"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
+    />
+    <meta
+      property="og:type"
+      content="article"
+    />
+    <meta
+      property="og:title"
+      content="Bitwarden / 1Password / Chrome Alternatives Compared · Account Password Helper"
+    />
+    <meta
+      property="og:description"
+      content="Eight-dimension comparison of the free, open-source local password manager vs Bitwarden, 1Password and Chrome built-in — and an honest take on who each suits."
+    />
+    <meta
+      property="og:url"
+      content="https://liaolongdong.github.io/account-password-helper/compare.en.html"
+    />
+    <meta
+      property="og:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+    />
+    <meta
+      property="og:site_name"
+      content="Account Password Helper"
+    />
+    <meta
+      property="og:locale"
+      content="en_US"
+    />
+    <meta
+      name="twitter:card"
+      content="summary_large_image"
+    />
+    <meta
+      name="twitter:title"
+      content="Bitwarden / 1Password / Chrome Alternatives Compared · Account Password Helper"
+    />
+    <meta
+      name="twitter:description"
+      content="Eight-dimension comparison of the free, open-source local password manager vs Bitwarden, 1Password and Chrome built-in — and an honest take on who each suits."
+    />
+    <meta
+      name="twitter:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+    />
+    <link
+      rel="canonical"
+      href="https://liaolongdong.github.io/account-password-helper/compare.en.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://liaolongdong.github.io/account-password-helper/compare.en.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="zh-CN"
+      href="https://liaolongdong.github.io/account-password-helper/compare.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://liaolongdong.github.io/account-password-helper/compare.en.html"
+    />
+    <link
+      rel="sitemap"
+      type="application/xml"
+      href="./sitemap.xml"
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Account Password Helper",
+            "item": "https://liaolongdong.github.io/account-password-helper/en.html"
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Alternatives Comparison",
+            "item": "https://liaolongdong.github.io/account-password-helper/compare.en.html"
+          }
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "ItemList",
+        "name": "Local-first password manager alternatives comparison",
+        "itemListElement": [
+          {
+            "@type": "ListItem",
+            "position": 1,
+            "item": {
+              "@type": "SoftwareApplication",
+              "name": "Account Password Helper",
+              "applicationCategory": "SecurityApplication",
+              "operatingSystem": "Chrome",
+              "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+              "url": "https://liaolongdong.github.io/account-password-helper/en.html"
+            }
+          },
+          {
+            "@type": "ListItem",
+            "position": 2,
+            "item": { "@type": "SoftwareApplication", "name": "Bitwarden" }
+          },
+          {
+            "@type": "ListItem",
+            "position": 3,
+            "item": { "@type": "SoftwareApplication", "name": "1Password" }
+          },
+          {
+            "@type": "ListItem",
+            "position": 4,
+            "item": { "@type": "SoftwareApplication", "name": "Chrome built-in password manager" }
+          }
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Is there a free password manager better than Bitwarden?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "If you value zero-cloud, no sign-up and fully local storage, Account Password Helper is a Bitwarden alternative: completely free and open source (GPL-3.0), no account, no cloud sync, with data encrypted locally by PBKDF2 + AES-256-GCM. If you need cross-device sync and mobile apps, Bitwarden remains the better fit."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is there a free alternative to 1Password?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Account Password Helper works as a free 1Password alternative: no $2.99/mo subscription, no account, with local encryption, one-keystroke login (fill + tick + click), built-in TOTP and a security audit all free. 1Password is stronger for cross-platform polish and family/team collaboration."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is the difference between Chrome's built-in manager and a password manager extension?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Chrome's built-in manager is free and requires no install, but only fills forms — it has no exact-domain multi-environment isolation, no built-in TOTP generation, no offline security audit and no encrypted backup. Account Password Helper adds these and supports one-keystroke login."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is a local password manager safe?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Account Password Helper uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations) and sensitive fields are authenticated-encrypted with AES-256-GCM, with zero network transfer. A forgotten master password cannot be recovered, so export regular encrypted backups. As with any extension, avoid storing banking or payment credentials."
+            }
+          }
+        ]
+      }
+    </script>
+    <style>
+      :root {
+        --primary: #4e88ff;
+        --primary-dark: #3a6cd9;
+        --primary-soft: #eaf1ff;
+        --accent: #42b883;
+        --text: #0f172a;
+        --text-muted: #64748b;
+        --bg-soft: #f8fafc;
+        --border: #e2e8f0;
+        --warn: #ff9f43;
+        --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.7;
+        background: #fff;
+      }
+
+      a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+
+      a:hover {
+        text-decoration: underline;
+      }
+
+      .wrap {
+        max-width: 960px;
+        padding: 0 20px;
+        margin: 0 auto;
+      }
+
+      .topbar {
+        padding: 14px 0;
+        background: linear-gradient(135deg, #1e293b, #0f172a);
+      }
+
+      .topbar .wrap {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .brand {
+        color: #fff;
+        font-weight: 700;
+      }
+
+      .topbar a {
+        color: #cbd5e1;
+        font-size: 14px;
+      }
+
+      .hero {
+        padding: 56px 0 32px;
+        background: linear-gradient(180deg, #f8fafc, #fff);
+        text-align: center;
+      }
+
+      .hero h1 {
+        margin: 0 0 12px;
+        font-size: 34px;
+        line-height: 1.3;
+      }
+
+      .hero p {
+        margin: 0 auto;
+        max-width: 720px;
+        color: var(--text-muted);
+        font-size: 17px;
+      }
+
+      .cta {
+        display: inline-flex;
+        gap: 12px;
+        margin-top: 24px;
+        flex-wrap: wrap;
+        justify-content: center;
+      }
+
+      .btn {
+        display: inline-block;
+        padding: 12px 22px;
+        font-weight: 600;
+        color: #fff;
+        background: var(--primary);
+        border-radius: 10px;
+      }
+
+      .btn:hover {
+        background: var(--primary-dark);
+        text-decoration: none;
+      }
+
+      .btn.ghost {
+        color: var(--primary);
+        background: var(--primary-soft);
+      }
+
+      section {
+        padding: 40px 0;
+        border-top: 1px solid var(--border);
+      }
+
+      h2 {
+        margin: 0 0 6px;
+        font-size: 24px;
+      }
+
+      h3 {
+        margin: 28px 0 6px;
+        font-size: 19px;
+      }
+
+      .lead {
+        margin: 0 0 20px;
+        color: var(--text-muted);
+      }
+
+      .table-wrap {
+        overflow-x: auto;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: var(--shadow-sm);
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 15px;
+        min-width: 640px;
+      }
+
+      th,
+      td {
+        padding: 12px 16px;
+        text-align: center;
+        border-bottom: 1px solid var(--border);
+      }
+
+      th:first-child,
+      td:first-child {
+        text-align: left;
+      }
+
+      thead th {
+        background: var(--bg-soft);
+        font-weight: 700;
+      }
+
+      thead th.us {
+        color: var(--primary-dark);
+        background: var(--primary-soft);
+      }
+
+      td.us {
+        background: rgba(78, 136, 255, 0.05);
+        font-weight: 600;
+      }
+
+      .yes {
+        color: var(--accent);
+        font-weight: 700;
+      }
+
+      .no {
+        color: #cbd5e1;
+      }
+
+      .partial {
+        color: var(--warn);
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        margin-top: 12px;
+      }
+
+      .two-col ul {
+        margin: 6px 0 0;
+        padding-left: 20px;
+      }
+
+      .two-col li {
+        margin: 4px 0;
+      }
+
+      .choose {
+        padding: 14px 16px;
+        margin-top: 16px;
+        border-left: 4px solid var(--primary);
+        background: var(--primary-soft);
+        border-radius: 0 8px 8px 0;
+      }
+
+      .faq-item {
+        margin-bottom: 20px;
+      }
+
+      .faq-item h3 {
+        margin: 0 0 4px;
+        font-size: 17px;
+      }
+
+      .faq-item p {
+        margin: 0;
+        color: var(--text-muted);
+      }
+
+      .note {
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+
+      footer {
+        padding: 32px 0 48px;
+        color: var(--text-muted);
+        font-size: 14px;
+        text-align: center;
+        background: var(--bg-soft);
+      }
+
+      @media (max-width: 640px) {
+        .hero h1 {
+          font-size: 26px;
+        }
+
+        .two-col {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="topbar">
+      <div class="wrap">
+        <span class="brand">Account Password Helper</span>
+        <nav>
+          <a href="./en.html">Home</a>
+          ·
+          <a href="./compare.html">中文</a>
+        </nav>
+      </div>
+    </div>
+
+    <header class="hero">
+      <div class="wrap">
+        <h1>Account Password Helper vs Bitwarden, 1Password &amp; Chrome</h1>
+        <p>
+          Want a <b>no sign-up, fully local, zero-network</b> free password manager? This page compares the open-source
+          Account Password Helper with Bitwarden, 1Password and Chrome's built-in manager across eight dimensions — and
+          honestly explains <b>who each is best for</b>.
+        </p>
+        <div class="cta">
+          <a
+            class="btn"
+            href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+            >Install free (Chrome Web Store)</a
+          >
+          <a
+            class="btn ghost"
+            href="./en.html"
+            >See the demo</a
+          >
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section id="overview">
+        <div class="wrap">
+          <h2>The short version</h2>
+          <p class="lead">
+            Need cross-device cloud sync, mobile apps or team sharing — pick Bitwarden or 1Password. Want
+            <b>no sign-up, data that never leaves your browser, and one-keystroke login</b> as a developer / QA or
+            privacy-conscious user — pick Account Password Helper.
+          </p>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Dimension</th>
+                  <th class="us">Account Password Helper</th>
+                  <th>Bitwarden</th>
+                  <th>1Password</th>
+                  <th>Chrome built-in</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Price</td>
+                  <td class="us">Completely free</td>
+                  <td>Free / paid from ~$10</td>
+                  <td class="partial">$2.99/mo subscription</td>
+                  <td>Free</td>
+                </tr>
+                <tr>
+                  <td>Data storage</td>
+                  <td class="us">Fully local</td>
+                  <td>Cloud</td>
+                  <td>Cloud</td>
+                  <td>Local / cloud sync</td>
+                </tr>
+                <tr>
+                  <td>Account required</td>
+                  <td class="us"><span class="yes">No</span></td>
+                  <td><span class="no">Yes</span></td>
+                  <td><span class="no">Yes</span></td>
+                  <td><span class="yes">No</span></td>
+                </tr>
+                <tr>
+                  <td>One-keystroke login (fill + tick + click)</td>
+                  <td class="us"><span class="yes">Yes</span></td>
+                  <td>Fill only</td>
+                  <td>Fill only</td>
+                  <td>Fill only</td>
+                </tr>
+                <tr>
+                  <td>Multi-environment isolation (exact domain)</td>
+                  <td class="us"><span class="yes">Yes</span></td>
+                  <td><span class="no">No</span></td>
+                  <td><span class="no">No</span></td>
+                  <td><span class="no">No</span></td>
+                </tr>
+                <tr>
+                  <td>Built-in TOTP authenticator</td>
+                  <td class="us"><span class="yes">Yes</span></td>
+                  <td class="partial">Paid tier</td>
+                  <td class="partial">Paid tier</td>
+                  <td><span class="no">No</span></td>
+                </tr>
+                <tr>
+                  <td>Offline security audit (0–100 score)</td>
+                  <td class="us"><span class="yes">Yes</span></td>
+                  <td><span class="no">No</span></td>
+                  <td><span class="no">No</span></td>
+                  <td><span class="no">No</span></td>
+                </tr>
+                <tr>
+                  <td>Open source</td>
+                  <td class="us">Yes (GPL-3.0)</td>
+                  <td>Yes</td>
+                  <td><span class="no">No</span></td>
+                  <td><span class="no">No</span></td>
+                </tr>
+                <tr>
+                  <td>Cross-device sync / mobile apps</td>
+                  <td class="us"><span class="no">No (local-first trade-off)</span></td>
+                  <td><span class="yes">Yes</span></td>
+                  <td><span class="yes">Yes</span></td>
+                  <td><span class="yes">Yes</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="note">
+            Feature comparison based on publicly available information (pricing subject to change by each vendor),
+            intended to help users choose — not to disparage any product. Competitor trademarks belong to their owners.
+          </p>
+        </div>
+      </section>
+
+      <section id="vs-bitwarden">
+        <div class="wrap">
+          <h2>vs Bitwarden</h2>
+          <div class="two-col">
+            <div>
+              <h3>Bitwarden is strong at</h3>
+              <ul>
+                <li>Cross-platform cloud sync (desktop / mobile / browser)</li>
+                <li>Open source with self-hosting and a huge community</li>
+                <li>Mature autofill and vault ecosystem</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Where Account Password Helper differs</h3>
+              <ul>
+                <li><b>No sign-up, zero cloud</b>: data never leaves your browser</li>
+                <li><b>One-keystroke login</b>: fill + tick consent + click login, not just fill</li>
+                <li><b>Exact-domain multi-environment isolation</b>: dev / test / staging / prod</li>
+                <li>Built-in TOTP and offline security audit, all free</li>
+              </ul>
+            </div>
+          </div>
+          <div class="choose">
+            <b>How to choose:</b> multi-device sync and mobile → Bitwarden; browser-only, "data stays local + no sign-up
+            + one-keystroke login" → Account Password Helper.
+          </div>
+        </div>
+      </section>
+
+      <section id="vs-1password">
+        <div class="wrap">
+          <h2>vs 1Password</h2>
+          <div class="two-col">
+            <div>
+              <h3>1Password is strong at</h3>
+              <ul>
+                <li>Polished cross-platform experience and mature family / team plans</li>
+                <li>Vendor support, audits and compliance backing</li>
+                <li>Managed security features like Watchdog</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Where Account Password Helper differs</h3>
+              <ul>
+                <li><b>Completely free, no subscription</b></li>
+                <li><b>No account</b>, no need to trust any cloud</li>
+                <li>Local AES-256-GCM encryption, zero network transfer</li>
+                <li>One-keystroke login and multi-environment isolation for devs / QA</li>
+              </ul>
+            </div>
+          </div>
+          <div class="choose">
+            <b>How to choose:</b> team collaboration, enterprise compliance, cross-device → 1Password; individual /
+            dev-test, local-first and zero subscription → Account Password Helper.
+          </div>
+        </div>
+      </section>
+
+      <section id="vs-chrome">
+        <div class="wrap">
+          <h2>vs Chrome's built-in password manager</h2>
+          <div class="two-col">
+            <div>
+              <h3>Chrome built-in is strong at</h3>
+              <ul>
+                <li>Zero install, works out of the box</li>
+                <li>Seamless sync with your Google account</li>
+              </ul>
+            </div>
+            <div>
+              <h3>Where Account Password Helper adds</h3>
+              <ul>
+                <li>One-keystroke login (tick consent + click login, not just fill)</li>
+                <li>Exact-domain multi-environment isolation</li>
+                <li>Built-in TOTP generation and offline security audit</li>
+                <li>Encrypted backup (.aph), trash bin and password history</li>
+                <li>6 themes + bilingual (中文 / English) UI</li>
+              </ul>
+            </div>
+          </div>
+          <div class="choose">
+            <b>How to choose:</b> simplest possible fill and fine with cloud sync → Chrome; multi-environment
+            management, TOTP, audit and local encryption → Account Password Helper, with one-click import from Chrome.
+          </div>
+        </div>
+      </section>
+
+      <section id="migration">
+        <div class="wrap">
+          <h2>Migration: move in from these tools</h2>
+          <p class="lead">
+            CSV / JSON import auto-detects exports from <b>Chrome, LastPass, Bitwarden and 1Password</b> and maps column
+            names, typically finishing in about 30 seconds. Export works the same way — your data is never locked in.
+          </p>
+        </div>
+      </section>
+
+      <section id="faq">
+        <div class="wrap">
+          <h2>Frequently asked questions</h2>
+          <div class="faq-item">
+            <h3>Is there a free password manager better than Bitwarden?</h3>
+            <p>
+              If you value zero-cloud, no sign-up and fully local storage, Account Password Helper is a Bitwarden
+              alternative: free and open source (GPL-3.0), no account, no sync, data encrypted locally by PBKDF2 +
+              AES-256-GCM. For cross-device sync and mobile, Bitwarden is still the better fit.
+            </p>
+          </div>
+          <div class="faq-item">
+            <h3>Is there a free alternative to 1Password?</h3>
+            <p>
+              Yes. Account Password Helper is subscription-free and account-free, with local encryption, one-keystroke
+              login, built-in TOTP and a security audit all free. 1Password's strengths are cross-platform polish and
+              team / family collaboration.
+            </p>
+          </div>
+          <div class="faq-item">
+            <h3>Difference between Chrome's built-in manager and an extension?</h3>
+            <p>
+              Chrome's built-in manager is free and needs no install, but only fills forms — no multi-environment
+              isolation, no TOTP generation, no offline audit, no encrypted backup. This extension adds those and
+              supports one-keystroke login.
+            </p>
+          </div>
+          <div class="faq-item">
+            <h3>Is a local password manager safe?</h3>
+            <p>
+              It uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations)
+              and fields are authenticated-encrypted with AES-256-GCM, with zero network transfer. A forgotten master
+              password can't be recovered, so keep encrypted backups; as with any extension, avoid banking / payment
+              credentials.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div
+          class="wrap"
+          style="text-align: center"
+        >
+          <h2>Try it free, migrate in 30 seconds</h2>
+          <p class="lead">Open source, no sign-up, data never leaves your browser.</p>
+          <div class="cta">
+            <a
+              class="btn"
+              href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+              >Install from Chrome Web Store</a
+            >
+            <a
+              class="btn ghost"
+              href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+              >Download from GitHub Releases</a
+            >
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">
+        <p>
+          Account Password Helper · free open-source local password manager ·
+          <a href="./en.html">Home</a> · <a href="./pricing.en.html">Pricing</a> ·
+          <a href="./privacy.en.html">Privacy</a> ·
+          <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a>
+        </p>
+        <p class="note">
+          Comparison info last updated: 2026-09. Bitwarden, 1Password, LastPass and Chrome are trademarks of their
+          respective owners; shown for factual, functional comparison only.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
