@@ -1,5 +1,27 @@
 # Changelog
 
+## [3.8.0](https://github.com/liaolongdong/account-password-helper/compare/v3.7.0...v3.8.0) (2026-09-06)
+
+
+### Features
+
+* **blog:** 发布技术博客并更新至v3.7.0版本 ([3622eb1](https://github.com/liaolongdong/account-password-helper/commit/3622eb1e03ef71e141f3d67ac81ebfe35f049529))
+* **blog:** 添加博客封面渲染脚本并更新封面设计 ([c852b1e](https://github.com/liaolongdong/account-password-helper/commit/c852b1e142ac89dc743798247b3a996e6a95b1e0))
+* **context-menu:** 右键菜单填充功能与代码评审修复 ([4ac3467](https://github.com/liaolongdong/account-password-helper/commit/4ac3467d4e9baaa87144fcd346f79990362aaa3f))
+* **features:** 更新自动保存登录凭证功能描述 ([698f2f5](https://github.com/liaolongdong/account-password-helper/commit/698f2f51fcfe5c3e8e00ddc3a48ad8d44f7a91f7))
+* **options:** 添加 jsdom 依赖并优化密码表单对话框 ([0678653](https://github.com/liaolongdong/account-password-helper/commit/0678653ccbf0c911a1d9ca409a63f7a92910c038))
+* **options:** 添加密码条目只读详情抽屉功能 ([1a21287](https://github.com/liaolongdong/account-password-helper/commit/1a21287f1021b79ce09e842a8c7286e95253c7a2))
+* **sidepanel:** 优化搜索体验和面板定位 ([234e8b9](https://github.com/liaolongdong/account-password-helper/commit/234e8b9e134074ff4738b68d0310e8ff1196d46f))
+* **sidepanel:** 快速添加条目、Caps Lock 提示、安全加固与无障碍增强 ([3aa71eb](https://github.com/liaolongdong/account-password-helper/commit/3aa71eb3cf7981978881cc80521517e75aae88e3))
+* **sidepanel:** 添加侧边栏搜索范围切换功能 ([2b8b02d](https://github.com/liaolongdong/account-password-helper/commit/2b8b02de7170b24e839fa703d4e9c9f3b3bd2131))
+* **ui:** 优化 Vue 组件规范与侧边栏功能 ([f0336fa](https://github.com/liaolongdong/account-password-helper/commit/f0336faa358ea58a29388ef0c51cd77f05fdd363))
+
+
+### Bug Fixes
+
+* **fill:** 优化右键菜单填充与解锁体验 ([edd84e4](https://github.com/liaolongdong/account-password-helper/commit/edd84e4192a99932aa1e214bb2ed93496bba2d7f))
+* **i18n:** 精简网址校验提示文案，避免侧边栏快速添加弹窗内文字重叠 ([fe744e3](https://github.com/liaolongdong/account-password-helper/commit/fe744e3f69d49dd91389a6da3878f97816e27361))
+
 ## [3.7.0](https://github.com/liaolongdong/account-password-helper/compare/v3.6.0...v3.7.0) (2026-08-27)
 
 
