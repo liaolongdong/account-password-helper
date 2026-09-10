@@ -6,13 +6,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>
-      账号密码管理助手 Account Password Helper | 开源免费本地密码管理器 · AES-256-GCM 零联网 · 一键登录 · TOTP 两步验证
-      · 安全体检 · Chrome 扩展
-    </title>
+    <title>账号密码管理助手 Account Password Helper · 开源免费本地密码管理器 | 一键登录 · TOTP · 安全体检</title>
     <meta
       name="description"
-      content="开源免费的本地密码管理器：一键登录（填充+勾选+点击），AES-256-GCM 加密零联网，内置 TOTP 两步验证、安全体检与密码生成器。支持从 Chrome/Bitwarden/1Password 一键导入，多环境账号隔离，侧边栏秒开（缓存快路径 20-50ms），数据绝不出浏览器。为开发者与测试人员量身打造。"
+      content="开源免费的本地密码管理器：一键登录（填充+勾选+点击），敏感字段逐字段 AES-256-GCM 本地加密，TOTP 两步验证、安全体检与密码生成器，支持 Chrome/Bitwarden/1Password 一键导入与多环境账号隔离，侧边栏秒开（缓存快路径 20-50ms），数据不上传服务器。"
     />
     <meta
       name="keywords"
@@ -37,11 +34,11 @@
     />
     <meta
       property="og:title"
-      content="账号密码管理助手 Account Password Helper | 开源免费本地密码管理器 · 一键登录 · TOTP · 安全体检"
+      content="账号密码管理助手 Account Password Helper · 开源免费本地密码管理器 | 一键登录 · TOTP · 安全体检"
     />
     <meta
       property="og:description"
-      content="开源免费的本地密码管理器：一键登录（填充+勾选+点击），AES-256-GCM 加密零联网，内置 TOTP 两步验证、安全体检与密码生成器。支持从 Chrome/Bitwarden/1Password 一键导入，多环境账号隔离，数据绝不出浏览器。"
+      content="开源免费的本地密码管理器：一键登录（填充+勾选+点击），敏感字段逐字段 AES-256-GCM 本地加密，TOTP 两步验证、安全体检与密码生成器，支持 Chrome/Bitwarden/1Password 一键导入与多环境账号隔离，侧边栏秒开（缓存快路径 20-50ms），数据不上传服务器。"
     />
     <meta
       property="og:url"
@@ -69,11 +66,11 @@
     />
     <meta
       name="twitter:title"
-      content="账号密码管理助手 Account Password Helper | 开源免费本地密码管理器 · 一键登录 · TOTP · 安全体检"
+      content="账号密码管理助手 Account Password Helper · 开源免费本地密码管理器 | 一键登录 · TOTP · 安全体检"
     />
     <meta
       name="twitter:description"
-      content="开源免费的本地密码管理器：一键登录（填充+勾选+点击），AES-256-GCM 加密零联网，内置 TOTP 两步验证、安全体检与密码生成器。支持从 Chrome/Bitwarden/1Password 一键导入，多环境账号隔离，数据绝不出浏览器。"
+      content="开源免费的本地密码管理器：一键登录（填充+勾选+点击），敏感字段逐字段 AES-256-GCM 本地加密，TOTP 两步验证、安全体检与密码生成器，支持 Chrome/Bitwarden/1Password 一键导入与多环境账号隔离，侧边栏秒开（缓存快路径 20-50ms），数据不上传服务器。"
     />
     <meta
       name="twitter:image"
@@ -115,13 +112,13 @@
         "applicationCategory": "SecurityApplication",
         "operatingSystem": "Chrome",
         "softwareVersion": "3.7.0",
-        "dateModified": "2026-09-05",
+        "dateModified": "2026-09-09",
         "offers": {
           "@type": "Offer",
           "price": "0",
           "priceCurrency": "USD"
         },
-        "description": "开源免费的本地密码管理器：一键登录（填充+勾选+点击），PBKDF2 600K 迭代 + AES-256-GCM 加密零联网，TOTP 两步验证、安全体检与密码生成器，侧边栏秒开（缓存快路径 20-50ms），数据绝不出浏览器。",
+        "description": "开源免费的本地密码管理器：一键登录（填充+勾选+点击），PBKDF2 600K 迭代 + 敏感字段逐字段 AES-256-GCM 本地加密，TOTP 两步验证、安全体检与密码生成器，侧边栏秒开（缓存快路径 20-50ms），数据不上传服务器。",
         "url": "https://liaolongdong.github.io/account-password-helper/",
         "installUrl": "https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli",
         "image": "https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png",
@@ -149,7 +146,7 @@
             "name": "我的密码会被上传到云端吗？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM 加密保存，永远不经过任何网络传输。"
+              "text": "不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段逐字段经 AES-256-GCM 加密后落盘，账号、密码与验证码从不上传到任何服务器。唯一的外联是每 6 小时一次的匿名版本检查，请求中不携带密码库内容或可识别个人的标识。"
             }
           },
           {
@@ -165,7 +162,7 @@
             "name": "会话有效期到了会发生什么？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "会话过期后，所有敏感字段会自动重新加密为密文；下次使用时只需重新验证主密码即可恢复访问，账号数据不会丢失。"
+              "text": "会话过期只会清除内存与 storage.session 中的会话密钥材料——密码数据本就始终以密文形式存本地，无需重新加密；下次使用时只需重新验证主密码即可恢复访问，账号数据不会丢失。"
             }
           },
           {
@@ -173,7 +170,7 @@
             "name": "什么是安全体检？检测哪些维度？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "安全体检是一键密码健康扫描功能，展示综合安全评分（0~100 分）和五维检测结果：弱密码、密码复用、常见泄露密码（离线字典）、长时间未更新、未开启两步验证。全程本地计算，不联网、不上传任何数据。支持到期提醒，帮助你及时发现和修复安全风险。"
+              "text": "安全体检是一键密码健康扫描功能，展示综合安全评分（0~100 分）。评分由四个计分维度按权重合计：密码复用（35）、弱密码（25）、常见泄露密码（20，近千条离线字典）、长时间未更新（20，90/180/365 天分级预警）；「未开启两步验证」单独列示但不计入评分。体检全程在本机完成，不发起网络请求、不上传任何数据。支持到期提醒，帮助你及时发现和修复安全风险。"
             }
           },
           {
@@ -205,7 +202,7 @@
             "name": "什么是一键登录？和其他密码管理器有什么区别？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "一键登录是本插件的核心差异化功能：按下 Ctrl+Shift+F，不仅自动填充账号密码，还会自动勾选「同意条款」复选框并点击登录按钮，1 秒完成登录。其他密码管理器只能填充表单，登录按钮还得自己点。此外，本插件支持精确域名匹配隔离 dev/test/staging/prod 多环境账号，这是其他密码管理器没有的功能。"
+              "text": "一键登录是本插件的核心差异化功能：在侧边栏点击某条账号的「填充并登录」，插件会填充账号密码、自动勾选「同意条款」复选框并点击登录按钮，1 秒完成登录；也可在偏好设置中开启「自动触发登录」（默认关闭），此后点击条目即直接登录。注意一键填充快捷键 Ctrl+Shift+F 只负责填充、不会自动提交。此外，本插件用精确域名匹配把 dev/test/staging/prod 多环境账号隔离开，同一套系统各环境的凭据互不串味。"
             }
           },
           {
@@ -213,7 +210,7 @@
             "name": "Account Password Helper 和 Bitwarden、1Password 有什么区别？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Account Password Helper 是完全免费、纯本地存储的开源密码管理器，无需注册账号、无需云端同步。核心差异：1) 一键登录（填充+勾选+点击），其他工具只能填充；2) 多环境账号隔离（dev/test/staging/prod），开发者刚需；3) 内置 TOTP 两步验证（Bitwarden/1Password 需付费版）；4) 离线安全体检（0-100 分五维检测）。Bitwarden 和 1Password 是云端存储，需要注册账号，且 TOTP 等高级功能需付费。"
+              "text": "Account Password Helper 是完全免费、纯本地存储的开源密码管理器，无需注册账号、无需云端同步。核心差异：1) 一键登录（填充 + 勾选协议 + 点击登录，一次快捷键完成）；2) 多环境账号隔离（按精确域名区分 dev/test/staging/prod），贴合开发者与测试场景；3) 内置 TOTP 两步验证（Bitwarden 需 Premium、1Password 需订阅，本插件免费内置）；4) 离线安全体检（0-100 分，四个计分维度）。Bitwarden 和 1Password 以云端存储为主，需要注册账号。"
             }
           },
           {
@@ -261,7 +258,7 @@
           {
             "@type": "HowToStep",
             "name": "开始使用",
-            "text": "访问登录页面，使用内联填充、侧边栏或快捷键 Ctrl+Shift+F 一键登录。"
+            "text": "访问登录页面，使用内联填充、侧边栏或快捷键 Ctrl+Shift+F 填入账号密码；需要自动登录时点击「填充并登录」，或在偏好设置中开启「自动触发登录」。"
           }
         ]
       }
@@ -1502,6 +1499,7 @@
           EN
         </button>
         <a
+          id="navGithub"
           class="nav-github"
           href="https://github.com/liaolongdong/account-password-helper"
           target="_blank"
@@ -1566,16 +1564,16 @@
       <div class="container hero-inner">
         <div>
           <span class="hero-eyebrow"
-            ><span class="dot"></span><span data-i18n="hero.eyebrow">开源 GPL-3.0 · 本地加密 · 零网络传输</span></span
+            ><span class="dot"></span><span data-i18n="hero.eyebrow">开源 GPL-3.0 · 本地加密 · 密码不上传</span></span
           >
           <h1 data-i18n-html="hero.title">一键登录 + 本地加密<br />密码管理，从未如此省心高效</h1>
           <p
             class="lead"
             data-i18n="hero.lead"
           >
-            一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：按下 Ctrl+Shift+F
-            一键登录（填充+勾选+点击），精确域名匹配隔离 dev/test/staging/prod 多环境账号；内置 TOTP
-            两步验证、安全体检与密码生成器，所有数据本地 AES-256-GCM 加密，永远不离开你的电脑。
+            一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 +
+            点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号；内置 TOTP
+            两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。
           </p>
           <div class="hero-cta">
             <a
@@ -1679,7 +1677,7 @@
             </svg>
             <span data-i18n="common.disclaimer"
               >安全声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM
-              加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。</span
+              加密，密码内容不经网络上传。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。</span
             >
           </div>
         </div>
@@ -1770,10 +1768,10 @@
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
-            <h3 data-i18n="features.f1.title">端到端本地加密，密码绝不出浏览器</h3>
+            <h3 data-i18n="features.f1.title">纯本地加密，密码绝不出浏览器</h3>
             <p data-i18n="features.f1.desc">
               主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP
-              全部密文存储；会话过期自动加密回密文，永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。
+              逐字段密文存储；锁定与会话过期只销毁会话密钥材料（数据本就密文落盘），密码内容永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。
             </p>
             <div class="feature-chips">
               <span
@@ -1789,7 +1787,7 @@
               <span
                 class="feature-chip"
                 data-i18n="features.f1.c3"
-                >零网络传输</span
+                >密码不上传</span
               >
               <span
                 class="feature-chip"
@@ -1900,7 +1898,7 @@
             <h3 data-i18n="features.f4.title">TOTP 两步验证</h3>
             <p data-i18n="features.f4.desc">
               扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC
-              6238，零联网），列表、侧边栏与内联面板实时展示活码与倒计时，支持一键填充 / 复制验证码；GitHub
+              6238，本地生成），列表、侧边栏与内联面板实时展示活码与倒计时，支持一键填充 / 复制验证码；GitHub
               式两步登录跳转验证码页后自动衔接活码胶囊。
             </p>
           </article>
@@ -1921,8 +1919,8 @@
             </div>
             <h3 data-i18n="features.f5.title">安全体检仪表盘</h3>
             <p data-i18n="features.f5.desc">
-              一键生成 0~100
-              综合评分，五维检测弱密码、密码复用、常见泄露密码（离线字典）、长期未更新与未开两步验证，支持到期提醒，全程本地计算。
+              一键生成 0~100 综合评分，四个计分维度加权（密码复用 35、弱密码 25、常见泄露 20、长期未更新
+              20），「未开两步验证」单独提示不计分；支持到期提醒，全程本地计算。
             </p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
@@ -2017,7 +2015,7 @@
             </div>
             <h3 data-i18n="features.f8.title">密码生成器双模式</h3>
             <p data-i18n="features.f8.desc">
-              随机密码（长度 / 字符集 / 排除易混淆字符可配）与助记词组（EFF Diceware 2048 词库）双模式，基于 Web Crypto
+              随机密码（长度 / 字符集 / 排除易混淆字符可配）与助记词组（本地 3080 词词库）双模式，基于 Web Crypto
               密码学安全随机，实时展示强度。
             </p>
           </article>
@@ -2040,7 +2038,7 @@
             </div>
             <h3 data-i18n="features.f9.title">回收站与修改历史</h3>
             <p data-i18n="features.f9.desc">
-              删除条目进回收站保留 30 天可随时恢复；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 5
+              删除条目进回收站保留 30 天可随时恢复；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 3
               份），改错一键回滚；修改主密码原子换钥不丢数据。
             </p>
           </article>
@@ -2083,7 +2081,7 @@
             </div>
             <h3 data-i18n="features.f10.title">主题换肤与双语界面</h3>
             <p data-i18n="features.f10.desc">
-              6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，零联网），长列表辨识更快。
+              6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，不发网络请求），长列表辨识更快。
             </p>
           </article>
         </div>
@@ -2314,7 +2312,13 @@
                     >免费+付费</span
                   >
                 </td>
-                <td><span class="compare-price paid">$2.99/月</span></td>
+                <td>
+                  <span
+                    class="compare-price paid"
+                    data-i18n="compare.val.priced"
+                    >$2.99/月</span
+                  >
+                </td>
               </tr>
               <tr>
                 <td data-i18n="compare.row.storage">数据存储</td>
@@ -2471,17 +2475,41 @@
             data-i18n="common.disclaimer"
           >
             安全声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM
-            加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。
+            加密，密码内容不经网络上传。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。
           </p>
           <div class="footer-meta">
             <span data-i18n-html="footer.email"
               >邮箱：<a href="mailto:924902324@qq.com?subject=账号密码管理助手反馈">924902324@qq.com</a></span
             >
-            <span data-i18n="footer.tagline">本地加密 · 零网络传输</span>
-            <span><a href="./privacy.html">隐私政策 / Privacy Policy</a></span>
-            <span><a href="./pricing.html">永久免费 / Pricing</a></span>
-            <span><a href="./compare.html">替代方案对比 / Alternatives</a></span>
-            <span><a href="./blog/">技术博客 / Tech Blog</a></span>
+            <span data-i18n="footer.tagline">本地加密 · 密码不上传</span>
+            <span
+              ><a
+                href="./privacy.html"
+                data-i18n="footer.privacy"
+                >隐私政策</a
+              ></span
+            >
+            <span
+              ><a
+                href="./pricing.html"
+                data-i18n="footer.pricing"
+                >永久免费</a
+              ></span
+            >
+            <span
+              ><a
+                href="./compare.html"
+                data-i18n="footer.compare"
+                >替代方案对比</a
+              ></span
+            >
+            <span
+              ><a
+                href="./blog/"
+                data-i18n="footer.blog"
+                >技术博客</a
+              ></span
+            >
             <span>
               <a
                 href="https://github.com/liaolongdong/account-password-helper"
@@ -2639,12 +2667,12 @@
       /** 静态文案字典：与 data-i18n / data-i18n-html 属性一一对应 */
       const I18N = {
         'meta.title': {
-          zh: '账号密码管理助手 · 开源免费本地密码管理器 | 一键登录 · TOTP · 安全体检',
+          zh: '账号密码管理助手 Account Password Helper · 开源免费本地密码管理器 | 一键登录 · TOTP · 安全体检',
           en: 'Account Password Helper · Free Local Password Manager | One-Click Login · TOTP · Security Audit',
         },
         'meta.description': {
-          zh: '开源免费的本地密码管理器：一键登录（填充+勾选+点击），AES-256-GCM 加密零联网，内置 TOTP 两步验证、安全体检与密码生成器。支持从 Chrome/Bitwarden/1Password 一键导入，多环境账号隔离，侧边栏秒开（缓存快路径 20-50ms），数据绝不出浏览器。为开发者与测试人员量身打造。',
-          en: 'Free, open-source local password manager: one-click login (fill + tick + click), AES-256-GCM encryption with zero network transfer, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel instant open (20–50ms warm path). Built for developers & QA.',
+          zh: '开源免费的本地密码管理器：一键登录（填充+勾选+点击），敏感字段逐字段 AES-256-GCM 本地加密，TOTP 两步验证、安全体检与密码生成器，支持 Chrome/Bitwarden/1Password 一键导入与多环境账号隔离，侧边栏秒开（缓存快路径 20-50ms），数据不上传服务器。',
+          en: 'Free, open-source local password manager: one-click login (fill + tick + click), per-field AES-256-GCM local encryption, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel opens in ~20–50ms from cache. Password data is never uploaded.',
         },
         'nav.brand': { zh: '账号密码管理助手', en: 'Account Password Helper' },
         'nav.features': { zh: '特性', en: 'Features' },
@@ -2655,17 +2683,21 @@
         'nav.cws': { zh: 'Chrome 应用商店下载', en: 'Chrome Web Store' },
         'nav.github': { zh: 'GitHub 下载', en: 'GitHub Download' },
         'hero.eyebrow': {
-          zh: '开源 GPL-3.0 · 本地加密 · 零网络传输',
-          en: 'Open source (GPL-3.0) · Local encryption · Zero network transfer',
+          zh: '开源 GPL-3.0 · 本地加密 · 密码不上传',
+          en: 'Open source (GPL-3.0) · Local encryption · No password uploads',
         },
-        'footer.tagline': { zh: '本地加密 · 零网络传输', en: 'Local encryption · Zero network transfer' },
+        'footer.tagline': { zh: '本地加密 · 密码不上传', en: 'Local encryption · Passwords never uploaded' },
+        'footer.privacy': { zh: '隐私政策', en: 'Privacy Policy' },
+        'footer.pricing': { zh: '永久免费', en: 'Pricing' },
+        'footer.compare': { zh: '替代方案对比', en: 'Alternatives' },
+        'footer.blog': { zh: '技术博客', en: 'Tech Blog' },
         'hero.title': {
           zh: '一键登录 + 本地加密<br />密码管理，从未如此省心高效',
           en: 'One-click login + local encryption<br />Password management, never this effortless & efficient',
         },
         'hero.lead': {
-          zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：按下 Ctrl+Shift+F 一键登录（填充+勾选+点击），精确域名匹配隔离 dev/test/staging/prod 多环境账号；内置 TOTP 两步验证、安全体检与密码生成器，所有数据本地 AES-256-GCM 加密，永远不离开你的电脑。',
-          en: 'A Chrome password manager built for developers & QA: press Ctrl+Shift+F for one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts; built-in TOTP 2FA, security audit & password generator. All data is AES-256-GCM encrypted locally and never leaves your computer.',
+          zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 + 点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号；内置 TOTP 两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。',
+          en: 'A Chrome password manager built for developers & QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.',
         },
         'hero.download': { zh: '下载插件', en: 'Install Extension' },
         'hero.githubDownload': { zh: 'GitHub 下载', en: 'GitHub Download' },
@@ -2677,8 +2709,8 @@
         },
         'hero.badge': { zh: 'AES-256-GCM 本地加密', en: 'AES-256-GCM local encryption' },
         'common.disclaimer': {
-          zh: '安全声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。',
-          en: 'Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and never leaves your machine. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.',
+          zh: '安全声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，密码内容不经网络上传。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。',
+          en: 'Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and is never uploaded. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.',
         },
         'features.title': { zh: '核心特性', en: 'Core Features' },
         'features.sub': {
@@ -2686,16 +2718,16 @@
           en: 'From encrypted storage to smart filling, from 2FA to health checks — the full lifecycle of your credentials in one place',
         },
         'features.f1.title': {
-          zh: '端到端本地加密，密码绝不出浏览器',
+          zh: '纯本地加密，密码绝不出浏览器',
           en: 'Local Encryption — Passwords Never Leave the Browser',
         },
         'features.f1.desc': {
-          zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 全部密文存储；会话过期自动加密回密文，永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。',
-          en: 'The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.',
+          zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 逐字段密文存储；锁定与会话过期只销毁会话密钥材料（数据本就密文落盘），密码内容永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。',
+          en: 'The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark and TOTP are each stored as ciphertext. Locking and session expiry destroy only the session key material — the vault is already ciphertext at rest, and no password content is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.',
         },
         'features.f1.c1': { zh: 'PBKDF2 · 600K 迭代', en: 'PBKDF2 · 600K iterations' },
         'features.f1.c2': { zh: 'AES-256-GCM', en: 'AES-256-GCM' },
-        'features.f1.c3': { zh: '零网络传输', en: 'Zero network transfer' },
+        'features.f1.c3': { zh: '密码不上传', en: 'No password uploads' },
         'features.f1.c4': { zh: '闲置 / 重启自动锁定', en: 'Idle / restart auto-lock' },
         'features.f2.title': { zh: '四种方式，一键安全填充', en: 'Four Ways to Fill — One Click' },
         'features.f2.desc': {
@@ -2715,13 +2747,13 @@
         },
         'features.f4.title': { zh: 'TOTP 两步验证', en: 'TOTP Two-Factor Codes' },
         'features.f4.desc': {
-          zh: '扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC 6238，零联网），列表、侧边栏与内联面板实时展示活码与倒计时，支持一键填充 / 复制验证码；GitHub 式两步登录跳转验证码页后自动衔接活码胶囊。',
+          zh: '扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC 6238，本地生成），列表、侧边栏与内联面板实时展示活码与倒计时，支持一键填充 / 复制验证码；GitHub 式两步登录跳转验证码页后自动衔接活码胶囊。',
           en: 'Add a secret by scanning an on-page QR code or uploading an image; codes are generated locally (RFC 6238, zero network) with live codes and countdowns in the list, side panel and inline panel, plus one-click fill / copy — split two-step logins auto-hand off a live-code capsule on the code page.',
         },
         'features.f5.title': { zh: '安全体检仪表盘', en: 'Security Health Dashboard' },
         'features.f5.desc': {
-          zh: '一键生成 0~100 综合评分，五维检测弱密码、密码复用、常见泄露密码（离线字典）、长期未更新与未开两步验证，支持到期提醒，全程本地计算。',
-          en: 'One click yields a 0–100 score across five checks: weak, reused, and commonly leaked passwords (offline dictionary), long-unchanged entries, and missing 2FA — with expiry reminders, all computed locally.',
+          zh: '一键生成 0~100 综合评分，四个计分维度加权（密码复用 35、弱密码 25、常见泄露 20、长期未更新 20），「未开两步验证」单独提示不计分；支持到期提醒，全程本地计算。',
+          en: 'One click yields a 0–100 score from four weighted dimensions: reuse (35), weak (25), commonly leaked (20, offline dictionary) and stale (20); missing 2FA is flagged but unscored — with expiry reminders, all computed locally.',
         },
         'features.f6.title': { zh: '自动保存登录凭证', en: 'Auto-Save Login Credentials' },
         'features.f6.desc': {
@@ -2740,17 +2772,17 @@
         },
         'features.f8.title': { zh: '密码生成器双模式', en: 'Dual-Mode Password Generator' },
         'features.f8.desc': {
-          zh: '随机密码（长度 / 字符集 / 排除易混淆字符可配）与助记词组（EFF Diceware 2048 词库）双模式，基于 Web Crypto 密码学安全随机，实时展示强度。',
-          en: 'Random passwords (length, character sets, ambiguous-character exclusion) and passphrases (EFF Diceware, 2048-word list) — cryptographically secure via Web Crypto, with a live strength bar.',
+          zh: '随机密码（长度 / 字符集 / 排除易混淆字符可配）与助记词组（本地 3080 词词库）双模式，基于 Web Crypto 密码学安全随机，实时展示强度。',
+          en: 'Random passwords (length, character sets, ambiguous-character exclusion) and passphrases (a bundled 3,080-word list) — cryptographically secure via Web Crypto, with a live strength bar.',
         },
         'features.f9.title': { zh: '回收站与修改历史', en: 'Trash & Password History' },
         'features.f9.desc': {
-          zh: '删除条目进回收站保留 30 天可随时恢复；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 5 份），改错一键回滚；修改主密码原子换钥不丢数据。',
-          en: 'Deleted entries stay in the trash for 30 days and can be restored anytime; password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 5) for one-click rollback; changing the master password re-keys atomically without data loss.',
+          zh: '删除条目进回收站保留 30 天可随时恢复；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 3 份），改错一键回滚；修改主密码原子换钥不丢数据。',
+          en: 'Deleted entries stay in the trash for 30 days and can be restored anytime; password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 3) for one-click rollback; changing the master password re-keys atomically without data loss.',
         },
         'features.f10.title': { zh: '主题换肤与双语界面', en: 'Themes & Bilingual UI' },
         'features.f10.desc': {
-          zh: '6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，零联网），长列表辨识更快。',
+          zh: '6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，不发网络请求），长列表辨识更快。',
           en: "6 color themes and instant Chinese/English switching; entries show site favicons (read from the browser's local cache, zero network) for faster recognition in long lists.",
         },
         'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
@@ -2796,6 +2828,7 @@
         'compare.val.free': { zh: '完全免费', en: 'Free Forever' },
         'compare.val.free2': { zh: '免费', en: 'Free' },
         'compare.val.freemium': { zh: '免费+付费', en: 'Freemium' },
+        'compare.val.priced': { zh: '$2.99/月', en: '$2.99/mo' },
         'compare.row.storage': { zh: '数据存储', en: 'Data Storage' },
         'compare.val.local': { zh: '纯本地', en: '100% Local' },
         'compare.val.local2': { zh: '本地', en: 'Local' },
@@ -2839,6 +2872,7 @@
         'wechat.copied': { zh: '已复制 ✓', en: 'Copied ✓' },
         'wechat.qrAlt': { zh: '微信群二维码', en: 'WeChat group QR code' },
         'aria.menu': { zh: '菜单', en: 'Menu' },
+        'aria.github': { zh: '在 GitHub 查看源码', en: 'View source on GitHub' },
         'aria.prev': { zh: '上一张', en: 'Previous slide' },
         'aria.next': { zh: '下一张', en: 'Next slide' },
         'aria.goto': { zh: '跳转到第 {n} 张', en: 'Go to slide {n}' },
@@ -2935,7 +2969,7 @@
           tag: 'STEP 10',
           title: { zh: '安全体检仪表盘', en: 'Security health dashboard' },
           desc: {
-            zh: '一键体检生成 0~100 综合评分，五维检测密码风险并支持到期提醒，全程本地计算不联网。',
+            zh: '一键体检生成 0~100 综合评分，四个计分维度加权评估密码风险并支持到期提醒，全程本地计算。',
             en: 'One-click scan yields a 0–100 score across five risk checks, with expiry reminders — computed fully locally.',
           },
         },
@@ -2970,8 +3004,8 @@
         {
           q: { zh: '我的密码会被上传到云端吗？', en: 'Will my passwords be uploaded to the cloud?' },
           a: {
-            zh: '不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM 加密保存，永远不经过任何网络传输。',
-            en: 'No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM and never travel over the network.',
+            zh: '不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段逐字段经 AES-256-GCM 加密后落盘，账号、密码与验证码从不上传到任何服务器；唯一的外联是每 6 小时一次的匿名版本检查。',
+            en: 'No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM and are never uploaded to any server.',
           },
         },
         {
@@ -3012,8 +3046,8 @@
         {
           q: { zh: '什么是安全体检？', en: 'What is Health Check?' },
           a: {
-            zh: '安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分）和五维检测结果：弱密码、密码复用（多账号共用同一密码）、常见泄露密码（离线 top-1000 弱口令字典命中）、长时间未更新（90/180/365 天分级预警）、未开启两步验证。长时间未更新的条目还可设置密码到期提醒（7/30/90 天后桌面通知提醒更换）。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。',
-            en: 'A one-click password health scan in the top toolbar of the management page. Click "Health Check" (with a traffic-light dot showing the grade) to see an overall score (0–100) and five checks: weak passwords, reused passwords, commonly leaked passwords (offline top-1000 dictionary), long-unchanged passwords (90/180/365-day tiers), and accounts without 2FA. Stale entries can get expiry reminders (desktop notification after 7/30/90 days). Each issue has a "Fix" button that jumps straight to editing. Everything is computed locally — no network, no data upload.',
+            zh: '安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分），由四个计分维度加权得出：密码复用（35）、弱密码（25）、常见泄露密码（20，近千条离线弱口令字典命中）、长时间未更新（20，90/180/365 天分级预警）；未开启两步验证单独列示、不计入评分。长时间未更新的条目还可设置密码到期提醒（7/30/90 天后桌面通知提醒更换）。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。',
+            en: 'A one-click password health scan in the top toolbar of the management page. Click "Health Check" (with a traffic-light dot showing the grade) to see an overall score (0–100) weighted across four scored dimensions: password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed but unscored. Stale entries can get expiry reminders (desktop notification after 7/30/90 days). Each issue has a "Fix" button that jumps straight to editing. Everything is computed locally — no network, no data upload.',
           },
         },
 
@@ -3142,8 +3176,8 @@
         {
           q: { zh: '改错密码了能恢复旧密码吗？', en: 'Can I restore an old password after a change?' },
           a: {
-            zh: '能。每次修改密码时，插件会自动将旧密码加密快照入历史（可在「安全设置」→「密码历史设置」中配置启用/关闭及保留条数，默认 5 条）。在编辑该条目的弹窗底部可看到「密码修改历史」区块，点击「复制」可复制旧密码，点击「恢复」即将旧密码回填到密码框。历史以加密态存储，查看需会话有效。',
-            en: 'Yes. Every password change snapshots the old password (configurable in "Security Settings" → "Password History Settings" — enable/disable and set max records, default 5). The edit dialog shows a "Password history" section — "Copy" copies the old password, "Restore" fills it back into the password field. History is stored encrypted and requires a valid session to view.',
+            zh: '能。每次修改密码时，插件会自动将旧密码加密快照入历史（可在「安全设置」→「密码历史设置」中配置启用/关闭及保留条数，默认 3 条）。在编辑该条目的弹窗底部可看到「密码修改历史」区块，点击「复制」可复制旧密码，点击「恢复」即将旧密码回填到密码框。历史以加密态存储，查看需会话有效。',
+            en: 'Yes. Every password change snapshots the old password (configurable in "Security Settings" → "Password History Settings" — enable/disable and set max records, default 3). The edit dialog shows a "Password history" section — "Copy" copies the old password, "Restore" fills it back into the password field. History is stored encrypted and requires a valid session to view.',
           },
         },
         {
@@ -3242,8 +3276,8 @@
         {
           q: { zh: '如何生成随机密码？', en: 'How do I generate a random password?' },
           a: {
-            zh: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器，顶部可切换「随机密码」与「助记词组」模式。随机密码可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）；助记词组从 2048 词库随机选取 3~8 个单词组合，支持分隔符、首字母大写、末尾追加数字，既安全又易记。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
-            en: 'In the add/edit form, click the magic-wand icon next to the password field, then toggle between "Random" and "Passphrase" modes. Random: customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). Passphrase: 3–8 random words from a 2048-word list with separator, capitalization, and trailing-digit options — secure yet memorable. A strength bar shows in real time; click "Use this password" to fill it in. Backed by the Web Crypto API for cryptographic randomness.',
+            zh: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器，顶部可切换「随机密码」与「助记词组」模式。随机密码可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）；助记词组从本地 3080 词词库随机选取 3~8 个单词组合，支持分隔符、首字母大写、末尾追加数字，既安全又易记。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
+            en: 'In the add/edit form, click the magic-wand icon next to the password field, then toggle between "Random" and "Passphrase" modes. Random: customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). Passphrase: 3–8 random words from a bundled 3,080-word list with separator, capitalization, and trailing-digit options — secure yet memorable. A strength bar shows in real time; click "Use this password" to fill it in. Backed by the Web Crypto API for cryptographic randomness.',
           },
         },
         {
@@ -3256,7 +3290,7 @@
         {
           q: { zh: '如何使用两步验证（TOTP）？', en: 'How do I use two-factor codes (TOTP)?' },
           a: {
-            zh: '在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 otpauth:// 链接或 Base32 密钥即可；也可以点击「扫描网页二维码」自动截取最近浏览的网页并识别其中的二维码，或「上传二维码图片」识别截图（全程本地 jsQR 解码，不联网）。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮；GitHub 式账密页与验证码页分离的两步登录，账密填充成功后跳转纯验证码页会自动在输入框旁锚定活码胶囊，支持一键填入或复制（3 分钟有效）。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，零网络传输。注意：本机时钟必须准确（误差 < 30 秒），否则动态码验证会失败。',
+            zh: '在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 otpauth:// 链接或 Base32 密钥即可；也可以点击「扫描网页二维码」自动截取最近浏览的网页并识别其中的二维码，或「上传二维码图片」识别截图（全程本地 jsQR 解码，不联网）。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮；GitHub 式账密页与验证码页分离的两步登录，账密填充成功后跳转纯验证码页会自动在输入框旁锚定活码胶囊，支持一键填入或复制（3 分钟有效）。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，该过程不发起网络请求。注意：本机时钟必须准确（误差 < 30 秒），否则动态码验证会失败。',
             en: 'In the add/edit form\'s "2FA" field, paste the site\'s otpauth:// link or Base32 secret — or click "Scan QR on webpage" to capture the most recently viewed page and detect its QR code, or "Upload QR image" to decode a screenshot (fully local jsQR decoding, no network). Afterwards, the list and side panel show a live 6-digit code with a ring countdown (color shift in the last 5 seconds). Side panel entries offer "Fill code" and "Copy code" buttons; for GitHub-style split logins, a successful credentials fill auto-anchors a live-code capsule next to the code field on the code-only page for one-click fill or copy (valid 3 minutes). Codes are computed locally per RFC 6238 with Web Crypto HMAC — zero network. Note: your clock must be accurate (within ~30 seconds) or verification will fail.',
           },
         },
@@ -3572,6 +3606,8 @@
         });
 
         navToggle.setAttribute('aria-label', I18N['aria.menu'][lang]);
+        document.getElementById('navGithub').setAttribute('aria-label', I18N['aria.github'][lang]);
+        document.getElementById('navGithub').setAttribute('title', I18N['aria.github'][lang]);
         document.getElementById('prevBtn').setAttribute('aria-label', I18N['aria.prev'][lang]);
         document.getElementById('nextBtn').setAttribute('aria-label', I18N['aria.next'][lang]);
         document.getElementById('wechatQr').alt = I18N['wechat.qrAlt'][lang];
@@ -3656,11 +3692,11 @@
           <h4>我的密码会被上传到云端吗？ / Will my passwords be uploaded to the cloud?</h4>
           <p>
             不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM
-            加密保存，永远不经过任何网络传输。
+            加密后落盘，密码内容从不上传到任何服务器。
           </p>
           <p>
             No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM
-            and never travel over the network.
+            and are never uploaded to any server.
           </p>
 
           <h4>忘记主密码了怎么办？ / What if I forget the master password?</h4>
@@ -3685,13 +3721,14 @@
           <h4>什么是安全体检？ / What is Health Check?</h4>
           <p>
             安全体检是一键密码健康扫描功能，展示综合安全评分（0~100
-            分）和五维检测结果：弱密码、密码复用、常见泄露密码（离线 top-1000 弱口令字典）、长时间未更新（90/180/365
+            分），由四个计分维度加权得出：密码复用（35）、弱密码（25）、常见泄露密码（20，近千条离线弱口令字典）、长时间未更新（20，90/180/365
             天分级预警）、未开启两步验证。全程本地计算，不联网。
           </p>
           <p>
-            A one-click password health scan showing an overall score (0–100) and five checks: weak passwords, reused
-            passwords, commonly leaked passwords (offline top-1000 dictionary), long-unchanged passwords (90/180/365-day
-            tiers), and accounts without 2FA. Everything is computed locally.
+            A one-click password health scan showing an overall score (0–100) weighted across four scored dimensions:
+            password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline
+            dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed, unscored.
+            Everything is computed locally.
           </p>
 
           <h3>基础使用 / Basics</h3>

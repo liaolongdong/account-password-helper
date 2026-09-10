@@ -12,7 +12,7 @@
     <title>永久免费 · 定价 — 账号密码管理助手 | 开源本地密码管理器，无订阅无高级版</title>
     <meta
       name="description"
-      content="账号密码管理助手 100% 免费、开源（GPL-3.0）：无订阅、无高级版、无需注册账号，全部功能对所有用户开放。AES-256-GCM 纯本地加密，零网络传输，内置 TOTP 两步验证、离线安全体检与弱密码字典。"
+      content="账号密码管理助手 100% 免费、开源（GPL-3.0）：无订阅、无高级版、无需注册账号，全部功能对所有用户开放。敏感字段逐字段 AES-256-GCM 本地加密、密码数据不上传服务器，内置 TOTP 两步验证、离线安全体检与弱密码字典。"
     />
     <link
       rel="icon"
@@ -38,17 +38,32 @@
       rel="canonical"
       href="https://liaolongdong.github.io/account-password-helper/pricing.html"
     />
+    <link
+      rel="alternate"
+      hreflang="zh-CN"
+      href="https://liaolongdong.github.io/account-password-helper/pricing.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://liaolongdong.github.io/account-password-helper/pricing.en.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://liaolongdong.github.io/account-password-helper/pricing.html"
+    />
     <meta
       property="og:type"
       content="website"
     />
     <meta
       property="og:title"
-      content="永久免费 · 定价 — 账号密码管理助手"
+      content="永久免费 · 定价 — 账号密码管理助手 | 开源本地密码管理器，无订阅无高级版"
     />
     <meta
       property="og:description"
-      content="100% 免费、开源（GPL-3.0）的本地密码管理器浏览器扩展：无订阅、无高级版、无需注册账号，全部功能对所有用户开放。"
+      content="账号密码管理助手 100% 免费、开源（GPL-3.0）：无订阅、无高级版、无需注册账号，全部功能对所有用户开放。敏感字段逐字段 AES-256-GCM 本地加密、密码数据不上传服务器，内置 TOTP 两步验证、离线安全体检与弱密码字典。"
     />
     <meta
       property="og:image"
@@ -1312,7 +1327,7 @@
                   <span
                     class="feature-text"
                     data-i18n="feat.audit"
-                    >离线安全体检 — 0~100 评分，弱密码/复用/泄露/过期/未开 2FA 五维检测</span
+                    >离线安全体检 — 0~100 评分，弱密码/复用/泄露/过期四维加权，未开 2FA 单列</span
                   >
                 </li>
                 <li class="feature-item">
@@ -1348,7 +1363,7 @@
                   <span
                     class="feature-text"
                     data-i18n="feat.generator"
-                    >密码生成器 — 随机密码 + EFF Diceware 助记词组，实时强度评估</span
+                    >密码生成器 — 随机密码 + 本地 3080 词库助记词组，实时强度评估</span
                   >
                 </li>
                 <li class="feature-item">
@@ -1418,7 +1433,7 @@
                   <span
                     class="feature-text"
                     data-i18n-html="feat.autofill"
-                    >一键登录 <code>Ctrl+Shift+F</code> — 自动填充 + 勾选协议 + 点击登录</span
+                    >一键填充 <code>Ctrl+Shift+F</code> — 只填账号密码；配合「填充并登录」可自动勾选协议并点击登录</span
                   >
                 </li>
                 <li class="feature-item">
@@ -2115,7 +2130,7 @@
                 class="info-value"
                 data-i18n-html="info.cloud.value"
               >
-                无 — <span class="highlight">100% 本地</span>，零网络传输
+                无 — <span class="highlight">100% 本地</span>，密码不上传
               </div>
             </div>
             <div class="info-item">
@@ -2247,7 +2262,7 @@
     <footer class="footer">
       <div class="container footer-inner">
         <p class="footer-text">
-          <span data-i18n="footer.license">基于 GPL-3.0 协议发布 · 本地加密 · 零网络传输</span>
+          <span data-i18n="footer.license">基于 GPL-3.0 协议发布 · 本地加密 · 密码不上传</span>
         </p>
         <div class="footer-links">
           <a
@@ -2275,6 +2290,14 @@
          i18n 字典（与 index.html 相同的按 key 组织方式）
          ═══════════════════════════════════════════ */
       const i18n = {
+        'meta.title': {
+          zh: '永久免费 · 定价 — 账号密码管理助手 | 开源本地密码管理器，无订阅无高级版',
+          en: 'Free Forever · Pricing — Account Password Helper | Open Source Local Password Manager, No Subscription',
+        },
+        'meta.description': {
+          zh: '账号密码管理助手 100% 免费、开源（GPL-3.0）：无订阅、无高级版、无需注册账号，全部功能对所有用户开放。敏感字段逐字段 AES-256-GCM 本地加密、密码数据不上传服务器，内置 TOTP 两步验证、离线安全体检与弱密码字典。',
+          en: 'Account Password Helper is 100% free and open source (GPL-3.0): no subscription, no premium tier, no account required. All features are free for everyone. Per-field AES-256-GCM local encryption, no password uploads, built-in TOTP 2FA, offline security audit and a weak-password dictionary.',
+        },
         'nav.name': { zh: '账号密码管理助手', en: 'Account Password Helper' },
         'hero.eyebrow': { zh: '开源免费 · GPL-3.0 · 无需注册账号', en: 'Open Source · GPL-3.0 · No Account' },
         'hero.price': { zh: '¥0', en: '$0' },
@@ -2318,24 +2341,24 @@
           en: 'Persistent session countdown with click-to-renew badge',
         },
         'feat.audit': {
-          zh: '离线安全体检 — 0~100 评分，弱密码/复用/泄露/过期/未开 2FA 五维检测',
-          en: 'Offline security audit — 0-100 score across 5 dimensions (weak / reused / leaked / expired / no 2FA)',
+          zh: '离线安全体检 — 0~100 评分，弱密码/复用/泄露/过期四维加权，未开 2FA 单列',
+          en: 'Offline security audit — 0-100 score weighted across 4 dimensions (weak / reused / leaked / expired), no-2FA listed separately',
         },
         'feat.totp': {
           zh: '内置 <strong>TOTP 两步验证</strong>（RFC 6238），实时活码 + 二维码导入',
           en: 'Built-in <strong>TOTP 2FA</strong> (RFC 6238) with live codes and QR import',
         },
         'feat.generator': {
-          zh: '密码生成器 — 随机密码 + EFF Diceware 助记词组，实时强度评估',
-          en: 'Password generator — random + EFF Diceware passphrase with live strength meter',
+          zh: '密码生成器 — 随机密码 + 本地 3080 词库助记词组，实时强度评估',
+          en: 'Password generator — random passwords + passphrases from a bundled 3,080-word list, live strength meter',
         },
         'feat.clipboard': {
           zh: '剪贴板自动清除 — 复制密码后限时清空，秒数可配',
           en: 'Clipboard auto-clear — copied passwords expire on a configurable timer',
         },
         'feat.autofill': {
-          zh: '一键登录 <code>Ctrl+Shift+F</code> — 自动填充 + 勾选协议 + 点击登录',
-          en: 'One-click login <code>Ctrl+Shift+F</code> — autofill + tick consent + click login',
+          zh: '一键填充 <code>Ctrl+Shift+F</code> — 只填账号密码；配合「填充并登录」可自动勾选协议并点击登录',
+          en: 'Quick fill <code>Ctrl+Shift+F</code> — only fills credentials; pair it with "Fill and sign in" to tick consent and submit',
         },
         'feat.fill': {
           zh: '四重填充策略 — 内联图标 / 侧边栏 / 右键菜单 / 全局快捷键',
@@ -2459,8 +2482,8 @@
         },
         'info.cloud.label': { zh: '云端', en: 'Cloud' },
         'info.cloud.value': {
-          zh: '无 — <span class="highlight">100% 本地</span>，零网络传输',
-          en: 'None — <span class="highlight">100% local</span>, zero network transfer',
+          zh: '无 — <span class="highlight">100% 本地</span>，密码不上传',
+          en: 'None — <span class="highlight">100% local</span>, no password uploads',
         },
         'info.sub.label': { zh: '订阅', en: 'Subscription' },
         'info.sub.value': {
@@ -2481,8 +2504,8 @@
         'cta.install': { zh: '添加至 Chrome（免费）', en: 'Add to Chrome (Free)' },
         'cta.btn': { zh: '在 GitHub 上查看', en: 'View on GitHub' },
         'footer.license': {
-          zh: '基于 GPL-3.0 协议发布 · 本地加密 · 零网络传输',
-          en: 'Released under GPL-3.0 · Local encryption · Zero network transfer',
+          zh: '基于 GPL-3.0 协议发布 · 本地加密 · 密码不上传',
+          en: 'Released under GPL-3.0 · Local encryption · Passwords never uploaded',
         },
         'footer.home': { zh: '产品官网', en: 'Homepage' },
         'footer.privacy': { zh: '隐私政策', en: 'Privacy Policy' },
@@ -2526,12 +2549,8 @@
         toggle.textContent = lang === 'zh' ? 'EN' : '中文';
         toggle.setAttribute('aria-label', lang === 'zh' ? 'Switch to English' : '切换为中文');
 
-        const title = {
-          zh: '永久免费 · 定价 — 账号密码管理助手 | 开源本地密码管理器，无订阅无高级版',
-          en: 'Free Forever — Pricing | Account Password Helper, Open-Source Local Password Manager',
-        }[lang];
-        document.title = title;
-        document.querySelector('meta[name="description"]').setAttribute('content', title);
+        document.title = i18n['meta.title'][lang];
+        document.querySelector('meta[name="description"]').setAttribute('content', i18n['meta.description'][lang]);
       }
 
       document.getElementById('langToggle').addEventListener('click', () => {

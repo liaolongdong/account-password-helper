@@ -399,6 +399,11 @@ function indexPage({
       hreflang="en"
       href="${lang === 'en' ? selfUrl : altUrl}"
     />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="${lang === 'zh-CN' ? selfUrl : altUrl}"
+    />
     <meta
       property="og:type"
       content="website"

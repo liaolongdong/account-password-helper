@@ -3,7 +3,7 @@ title: 'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Ite
 description: No crypto libraries, just the browser-native Web Crypto API. How Account Password Helper implements an auditable encryption system — key derivation, field-level encryption, session lifecycle, and atomic re-keying.
 tags: web crypto,encryption,password manager,security,chrome extension
 date: 2026-08-28
-modified: 2026-09-05
+modified: 2026-09-09
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
@@ -32,7 +32,7 @@ The user's master password can't be used directly as an encryption key: it lacks
 
 Two design points:
 
-**Random salt, bound to storage.** Each installation generates its own random salt, stored alongside the ciphertext. The salt isn't secret — its job is to ensure "the same master password derives different keys on different installations," defeating precomputed attacks.
+**Random salt, stored in plaintext alongside the data.** Each installation generates its own 16-byte random salt (32 hex characters), kept in plaintext in the master-password config — same storage area as the ciphertext, different key. The salt isn't secret — its job is to ensure "the same master password derives different keys on different installations," defeating precomputed attacks.
 
 **Domain separation for the verification hash.** To check "is this master password correct," we don't attempt a trial decryption of real data (decryption failures are ambiguous — wrong password vs. corrupted data). Instead, the master password goes through a prefixed verification hash. The prefix `aph-verify|` provides **domain separation**: the input spaces for verification and encryption never overlap, ruling out cross-purpose abuse like feeding a verification value off as ciphertext or grinding captured ciphertext against the verifier.
 
@@ -43,18 +43,18 @@ Rather than encrypting the vault as one blob, we encrypt **per field**: each ent
 The algorithm is **AES-256-GCM**:
 
 - GCM is an authenticated mode — tampered ciphertext fails decryption outright, so integrity checking is built in, no separate HMAC layer needed;
-- Every encryption uses a **fresh random 12-byte IV**, stored as `Base64(IV || ciphertext)`. IV and ciphertext travel together; there is no path to IV reuse;
+- Every encryption uses a **fresh random 12-byte IV**, stored as `Base64(IV || ciphertext || authTag)` — the 16-byte GCM authentication tag is written out with the ciphertext. IV and ciphertext travel together; there is no path to IV reuse;
 - IVs come from `crypto.getRandomValues` — never counters or predictable sources. Under GCM, IV reuse is catastrophic, and this point admits no compromise.
 
-Key handles (`CryptoKey`) are cached with a small capacity (4 slots, LRU semantics) to avoid re-derivation inside batch operations; **locking the session clears the handles immediately** — no key material left in memory to be recovered by anything other than GC.
+`CryptoKey` handles are cached under a tiny map (keyed by "usage + hex key", capacity 4, **FIFO eviction**), which takes the `O(entries × fields)` `importKey` calls in batch encryption down to O(1) — note it caches imported handles only; the PBKDF2 derivation itself is never cached. Handles are imported with `extractable: false`, so raw key bytes can't be exported, and **locking the session clears the cache immediately** — no key material left in memory to be recovered by anything other than GC.
 
 ## Sessions: How Long Does a Key Live in Memory?
 
 Get the encryption right but fumble key management, and you've accomplished nothing. The session layer:
 
-- **Configurable lifetime:** 24 hours by default, selectable from 1 hour to 7 days. On expiry, sensitive fields revert to ciphertext; the next use re-verifies the master password.
-- **Idle lock:** via `chrome.idle` — system screen lock triggers an immediate lock; idle beyond the threshold locks too.
-- **Relock on browser restart:** optional, enforced at `onStartup` for shared-device scenarios.
+- **Configurable lifetime:** 24 hours by default, selectable from 1 hour to 7 days. Expiry rewrites no ciphertext — data on disk was always ciphertext anyway. What expires is the session data key and the decrypted snapshot, after which nothing can be decrypted until the master password is verified again.
+- **Idle lock:** opt-in and off by default; once enabled, `chrome.idle` triggers an immediate lock on system screen lock, and locks when idle passes the threshold.
+- **Relock on browser restart:** also opt-in and off by default; once enabled, enforced at `onStartup` for shared-device scenarios.
 - **Manual lock:** one click in the popup; locking synchronously wipes in-memory key handles and decrypted snapshots.
 
 Every lock path must funnel through the same cleanup function. This is the line code review watches hardest, because a single missed path turns "lock" into theater.
@@ -63,7 +63,7 @@ Every lock path must funnel through the same cleanup function. This is the line 
 
 "Change master password" is the feature encryption systems most often get wrong: everything must be re-encrypted with the new key — what happens if it fails halfway?
 
-The implementation decrypts and verifies first, derives the new key with a fresh salt, re-encrypts the entire vault, and only then commits atomically. Any step failing rolls back the whole operation, leaving old data intact. The one unforgivable sin of a password manager — "you changed the password and now nothing decrypts" — is structurally impossible. Tests cover success, mid-flight failure, and legacy-format compatibility.
+The implementation decrypts and verifies everything first — entries, recycle bin, password history — then derives the new data key keeping **the same salt and the same iteration count** (`deriveEncryptionKey` reads that salt back out of storage; swapping it would derive a different key on every later decrypt and make the vault permanently undecryptable, while changing the password already supplies the security a new salt would add). Only after re-encrypting all three data sets does it commit, writing the new ciphertexts, the new verification hash and the new session key material in a single `chrome.storage.local.set()`. Any step failing rolls the whole operation back, leaving old data intact. The one unforgivable sin of a password manager — "you changed the password and now nothing decrypts" — is structurally impossible. Tests cover success, mid-flight failure, and legacy-format compatibility.
 
 ## Treat Every Input as Hostile
 

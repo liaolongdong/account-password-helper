@@ -811,7 +811,8 @@ export interface TrashedPasswordEntry extends EncryptedPasswordEntry {
 /**
  * 密码修改历史记录
  *
- * 密码字段变更时快照旧密文，每条条目最多保留 5 条历史记录。
+ * 密码字段变更时快照旧密文，每条条目保留的历史数量由用户配置动态决定
+ * （默认 3 条，可配置 1-10 条）。
  * 历史密码以密文存储（同主密码体系加密），与数据库整体 rekey 联动。
  */
 export interface PasswordHistoryRecord {

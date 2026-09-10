@@ -811,9 +811,10 @@ export function setupBackgroundServices(): void {
             // markSessionInvalid() 直接标记 {valid: false}，5s TTL 内立即返回 false
             markSessionInvalid();
 
-            // 主动锁定：会话仍存活的 SW 中一次性完成「加密全部密码 + 删除会话键」，
+            // 主动锁定：在会话仍存活的 SW 中一次性销毁会话密钥材料与解密快照
+            // （storage.local 本就是密文，无需整库重加密），
             // 使用户之后打开侧边栏走 isSessionValid 的「无会话键 → 立即 false」快路径，
-            // 从根上避免打开侧边栏时才触发全量重加密（Windows Web Crypto 慢导致数秒卡顿）。
+            // 从根上把锁定开销留在后台，避免拖到打开侧边栏时才执行（Windows 慢磁盘下可达数秒）。
             const StorageUtils = await _getStorageUtils();
             await StorageUtils.clearSession().catch(e => {
               logger.error('Background: SW 保活闹钟过期锁定失败:', e);

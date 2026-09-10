@@ -759,7 +759,8 @@ export function useSidepanelData() {
       });
 
       // 启动心跳：每 25 秒发送轻量消息，保持 SW 在 sidepanel 打开期间持续活跃
-      // Chrome MV3 idle timeout = 30s，alarm 最小间隔 = 60s（不够），port 连接本身可保活但需消息触发
+      // Chrome MV3 idle timeout = 30s，chrome.alarms 最小间隔 0.5min（30s）刚好贴着阈值无余量，
+      // 且 port 连接本身可保活但需消息触发 —— 故侧边栏打开期间由本 25s 心跳补足余量
       heartbeatTimer = setInterval(() => {
         if (bgPort) {
           try {

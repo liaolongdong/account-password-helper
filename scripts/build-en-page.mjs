@@ -17,6 +17,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { applyI18n, assertI18nCoverage } from './lib/apply-i18n.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'index.html');
@@ -26,7 +27,7 @@ const SITE = 'https://liaolongdong.github.io/account-password-helper';
 const EN_KEYWORDS =
   'password manager,Chrome extension,local password manager,offline password manager,AES-256-GCM,autofill,auto login,TOTP,2FA,authenticator,password generator,security audit,developer tools,credential manager,local-first,password vault,open source password manager,password manager for developers';
 const EN_JSONLD_DESCRIPTION =
-  'Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + AES-256-GCM encryption with zero network transfer, built-in TOTP 2FA, security audit and password generator, instant side panel (20-50ms warm path).';
+  'Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.';
 
 // 英文版 FAQPage / HowTo 结构化数据（与 index.html 中文块逐条对应）
 const EN_FAQPAGE_JSONLD = `<!-- FAQPage structured data: English version, mirrored from the Chinese FAQPage block in index.html -->
@@ -40,7 +41,7 @@ const EN_FAQPAGE_JSONLD = `<!-- FAQPage structured data: English version, mirror
             "name": "Are my passwords uploaded to the cloud?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "No. The extension is fully local: all data stays in your browser's local storage, sensitive fields are encrypted with AES-256-GCM, and nothing ever travels over the network."
+              "text": "No. The extension is fully local: all data stays in your browser's local storage and sensitive fields are encrypted per field with AES-256-GCM, so no credential is ever uploaded. The only outbound request is an anonymous version check every 6 hours, which carries no vault data or personal identifier."
             }
           },
           {
@@ -56,7 +57,7 @@ const EN_FAQPAGE_JSONLD = `<!-- FAQPage structured data: English version, mirror
             "name": "What happens when my session expires?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "All sensitive fields are automatically re-encrypted into ciphertext. Verify the master password again to restore access — no data is lost."
+              "text": "Expiry destroys only the session key material held in memory and chrome.storage.session — the vault is already ciphertext at rest, so nothing needs re-encrypting. Verify the master password again to restore access; no data is lost."
             }
           },
           {
@@ -64,7 +65,7 @@ const EN_FAQPAGE_JSONLD = `<!-- FAQPage structured data: English version, mirror
             "name": "What is the security audit and what does it check?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "A one-click password health scan showing a 0–100 overall score across five checks: weak passwords, password reuse, commonly leaked passwords (offline dictionary), stale passwords, and missing two-factor authentication. Everything is computed locally — no network, no uploads. Expiry reminders help you catch risks early."
+              "text": "A one-click password health scan showing a 0–100 overall score weighted across four dimensions: password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline dictionary) and stale passwords (20, 90/180/365-day tiers); missing two-factor authentication is listed but unscored. Everything is computed locally with no network request. Expiry reminders help you catch risks early."
             }
           },
           {
@@ -96,7 +97,7 @@ const EN_FAQPAGE_JSONLD = `<!-- FAQPage structured data: English version, mirror
             "name": "What is one-click login and how is it different from other password managers?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "One-click login is the core differentiator: press Ctrl+Shift+F and it not only autofills credentials but also ticks the 'I agree' checkbox and clicks the login button — sign-in completes in about one second. Other managers only fill the form; you still click login yourself. Exact-domain matching also isolates dev/test/staging/prod accounts, which no other manager offers."
+              "text": "One-click login is the core differentiator: from the side panel, 'Fill and sign in' autofills the credentials, ticks the 'I agree' checkbox and clicks the login button, completing sign-in in about one second; you can also turn on the global 'Auto login trigger' preference (off by default). Note that the Ctrl+Shift+F quick-fill shortcut only fills — it never submits. Exact-domain matching also isolates dev/test/staging/prod accounts for the same site."
             }
           },
           {
@@ -104,7 +105,7 @@ const EN_FAQPAGE_JSONLD = `<!-- FAQPage structured data: English version, mirror
             "name": "How does Account Password Helper compare with Bitwarden and 1Password?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "It is completely free, open source and stores data purely locally — no account, no cloud sync. Key differences: 1) one-click login (fill + tick + click) where others only fill; 2) multi-environment account isolation (dev/test/staging/prod); 3) built-in TOTP 2FA (paid tier in Bitwarden/1Password); 4) offline security audit (0–100 score, five checks). Bitwarden and 1Password are cloud-based, require accounts, and lock advanced features behind subscriptions."
+              "text": "It is completely free, open source and stores data purely locally — no account, no cloud sync. Key differences: 1) one-click login (fill + tick + click) in a single action; 2) multi-environment account isolation by exact hostname (dev/test/staging/prod); 3) built-in TOTP 2FA (Bitwarden requires Premium and 1Password requires a subscription — here it is free); 4) offline security audit (0–100 score across four weighted dimensions). Bitwarden and 1Password are cloud-based and require accounts."
             }
           },
           {
@@ -153,7 +154,7 @@ const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored f
           {
             "@type": "HowToStep",
             "name": "Start using it",
-            "text": "Visit a login page and use inline fill, the side panel, or Ctrl+Shift+F for one-click login."
+            "text": "Visit a login page and fill your credentials via inline fill, the side panel, or the Ctrl+Shift+F shortcut; for auto sign-in, click 'Fill and sign in' or turn on the 'Auto login trigger' preference."
           }
         ]
       }
@@ -171,35 +172,10 @@ if (dictEnd === -1) throw new Error('未找到 I18N 字典终点');
 const I18N = vm.runInNewContext(`(${html.slice(bodyStart, dictEnd + 1)})`);
 
 // ---------- 2. 替换静态 i18n 节点 ----------
-const escapeHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const missing = [];
-let replacedText = 0;
-let replacedHtml = 0;
-
-const totalText = (html.match(/\bdata-i18n="/g) || []).length;
-const totalHtml = (html.match(/\bdata-i18n-html="/g) || []).length;
-
-html = html.replace(/(<[a-zA-Z][^>]*\bdata-i18n="([^"]+)"[^>]*>)([\s\S]*?)(?=<\/)/g, (m, open, key) => {
-  const entry = I18N[key];
-  if (typeof entry?.en !== 'string') {
-    missing.push(key);
-    return m;
-  }
-  replacedText += 1;
-  return open + escapeHtml(entry.en);
-});
-html = html.replace(/(<[a-zA-Z][^>]*\bdata-i18n-html="([^"]+)"[^>]*>)([\s\S]*?)(?=<\/)/g, (m, open, key) => {
-  const entry = I18N[key];
-  if (typeof entry?.en !== 'string') {
-    missing.push(key);
-    return m;
-  }
-  replacedHtml += 1;
-  return open + entry.en;
-});
-if (missing.length > 0) throw new Error(`I18N 字典缺少英文条目: ${missing.join(', ')}`);
-if (replacedText !== totalText) throw new Error(`data-i18n 覆盖率不一致: ${replacedText}/${totalText}`);
-if (replacedHtml !== totalHtml) throw new Error(`data-i18n-html 覆盖率不一致: ${replacedHtml}/${totalHtml}`);
+const result = applyI18n(html, I18N);
+assertI18nCoverage(result, 'I18N');
+const { replacedText, textTotal, replacedHtml, htmlTotal } = result;
+html = result.html;
 
 // ---------- 3. head 元信息与结构化数据 ----------
 const replaceOnce = (pattern, replacement) => {
@@ -236,10 +212,17 @@ replaceOnce(
   `name="twitter:description"\n      content="${I18N['meta.description'].en}"`,
 );
 replaceOnce(/rel="canonical"\s+href="[^"]*"/, `rel="canonical"\n      href="${SITE}/en.html"`);
-replaceOnce(
-  /"description": "开源免费的本地密码管理器：一键登录（填充\+勾选\+点击），PBKDF2 600K 迭代 \+ AES-256-GCM 加密零联网，TOTP 两步验证、安全体检与密码生成器，侧边栏秒开（缓存快路径 20-50ms），数据绝不出浏览器。",/,
-  `"description": "${EN_JSONLD_DESCRIPTION}",`,
-);
+
+// 页内跳转改为英文兄弟页面，避免英文页链向中文页
+const replaceEvery = (from, to) => {
+  if (!html.includes(from)) throw new Error(`未匹配到替换目标: ${from}`);
+  html = html.replaceAll(from, to);
+};
+replaceEvery('href="./privacy.html"', 'href="./privacy.en.html"');
+replaceEvery('href="./pricing.html"', 'href="./pricing.en.html"');
+replaceEvery('href="./compare.html"', 'href="./compare.en.html"');
+replaceEvery('href="./blog/"', 'href="./blog/index.en.html"');
+replaceOnce(/"description": "开源免费的本地密码管理器[^\n]*",/, `"description": "${EN_JSONLD_DESCRIPTION}",`);
 // 英文版：中文 FAQPage / HowTo 结构化数据块替换为逐条对应的英文版，避免语言错配
 replaceOnce(/[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/, () => EN_FAQPAGE_JSONLD);
 replaceOnce(/[ \t]*<!-- HowTo 结构化数据[\s\S]*?<\/script>\n/, () => EN_HOWTO_JSONLD);
@@ -252,4 +235,4 @@ html = html.replace(
 );
 
 writeFileSync(outPath, html);
-console.log(`en.html generated: data-i18n ${replacedText}/${totalText}, data-i18n-html ${replacedHtml}/${totalHtml}`);
+console.log(`en.html generated: data-i18n ${replacedText}/${textTotal}, data-i18n-html ${replacedHtml}/${htmlTotal}`);

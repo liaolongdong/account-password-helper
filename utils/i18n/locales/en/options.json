@@ -81,7 +81,7 @@
   "options.emptyGuide.restoreTitle": "Restore backup",
   "options.emptyGuide.restoreDesc": "Restore from a backup file or email",
   "options.disclaimer.title": "Security Notice",
-  "options.disclaimer.desc": "Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and never leaves your machine over the network. For the safety of your assets, we recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.",
+  "options.disclaimer.desc": "Account Password Helper is built for development, testing and everyday sign-in scenarios. All password data stays in your browser, encrypted field by field with AES-256-GCM, and is never uploaded to any server. For the safety of your assets, we recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.",
   "options.validity.title": "Session Validity Settings",
   "options.validity.alertTitle": "Validity settings",
   "options.validity.alertDesc": "Set how long the session stays cached after master password verification; no re-entry needed within the validity period",

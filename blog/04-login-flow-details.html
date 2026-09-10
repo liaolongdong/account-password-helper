@@ -263,7 +263,7 @@
 <p>侧边栏顶栏的「+」打开一个只收五个字段的弹窗（账号 / 密码 / 网址 / 标签 / 备注），网址预填当前域名；本站没有账号时头部显示邀请，搜索无结果时空态也给入口——三处打开的是同一个弹窗。需要 TOTP 之类的完整字段时，弹窗底部把用户送去选项页。轻路径负责高频，重路径负责完整，别把弹窗做成选项页的复刻。</p>
 <p>条目只读详情抽屉（<code>components/options/PasswordDetailDrawer.vue</code>）解决的是另一个高频动作：只想看完整备注、看密码历史，却必须进编辑弹窗。它的约束是<strong>纯展示</strong>——不写存储、不碰加密与会话，「编辑」只是把条目向上抛给父级去复用既有编辑流程，写入路径保持单一。密码默认掩码，明文可见性只是组件本地态，抽屉关闭动画结束时连同已加载的历史列表一起复位，不留残余引用。复制密码不是简单 <code>writeText</code>：它走 <code>utils/clipboard.ts</code> 里那层与 UI 无关的机制（写入、按配置定时清除、清除前校验内容未被用户替换、失焦时降级 <code>execCommand</code> 尽力清除），清除成功与否通过回调交回调用方，各入口用自己的文案提示。这段机制原本长在侧边栏里，抽出来之后详情抽屉与侧边栏共用同一份实现——两个入口的&quot;复制后会自动清除&quot;承诺不会各自演化。</p>
 <h2>这批功能的共同点</h2>
-<p>回头看，四条链路都遵守同一套约束：<strong>不加开关、除 <code>contextMenus</code> 外不加权限、不改存储结构与加密格式、不动既有条目的语义</strong>；新增的用户可见文案全部中英双语成对提交；每个功能都带回归测试，全仓库 632 项自动化测试（分布在 53 个测试文件）与 <code>pnpm build</code> 双端构建作为验收线。</p>
+<p>回头看，四条链路都遵守同一套约束：<strong>不加开关、除 <code>contextMenus</code> 外不加权限、不改存储结构与加密格式、不动既有条目的语义</strong>；新增的用户可见文案全部中英双语成对提交；每个功能都带回归测试，全仓库 632 项自动化测试（分布在 53 个测试文件）与 <code>pnpm build</code>（Chromium）+ <code>pnpm build:firefox</code>（Firefox）双端构建作为验收线。</p>
 <p>密码管理器的功能增量本来就不该是&quot;多几个按钮&quot;。它更像是把同一条登录链路磨得再顺一点：少一次切 App、少一次点错输入框、少一次为了看一眼备注而误改数据。</p>
 <p>源码与讨论：<a href="https://github.com/liaolongdong/account-password-helper">GitHub 仓库</a>。已上架 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a>，完全免费，GPL-3.0 开源。</p>
 <hr>

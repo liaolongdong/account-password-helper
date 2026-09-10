@@ -9,6 +9,7 @@ This document targets developers and contributors, covering the architecture des
 - [Architecture](#architecture)
   - [Entrypoints](#entrypoints)
   - [Messaging & Data Flow](#messaging--data-flow)
+  - [Content Script Runtime Constraints](#content-script-runtime-constraints)
   - [Session Lifecycle](#session-lifecycle)
   - [Encryption Scheme](#encryption-scheme)
 - [Project Structure](#project-structure)
@@ -33,6 +34,7 @@ This document targets developers and contributors, covering the architecture des
 graph LR
     CS[Content Script] -->|sendMessage| BG[Background]
     SP[SidePanel] -->|Port connect| BG
+    SP -->|sendMessage| BG
     Popup -->|sendMessage| BG
     Options -->|sendMessage| BG
     BG --> Storage[StorageUtils]
@@ -43,34 +45,55 @@ graph LR
     CS --> FB[FloatingButtons]
 ```
 
-- Background is the message routing hub for cross-component communication
-- SidePanel connects via `chrome.runtime.connect()` ports for reliable state tracking
-- Content scripts use `chrome.runtime.sendMessage()`
+- Background is the message routing hub for cross-component communication; message types are discriminated unions (`MessageType` in `utils/types.ts`)
+- SidePanel opens a port via `chrome.runtime.connect({ name: 'sidepanel' })`, used for the open/ready handshake, the lock broadcast, and liveness tracking through a 25-second heartbeat
+- SidePanel request/response operations (filling, cache updates, quick add, opening the options page) still go through `chrome.runtime.sendMessage()`
+- Content scripts, Popup and Options communicate via `chrome.runtime.sendMessage()`
+
+### Content Script Runtime Constraints
+
+- **Injection scope**: [entrypoints/content.ts](../entrypoints/content.ts) declares `matches: ['<all_urls>']` with `allFrames: true`. Form detection and the auto-save listener initialize in **every frame** (login forms inside iframes must still be detected and captured), while the floating button, the save prompt, and delegated notifications render only in the **top frame** — otherwise every iframe would inject a duplicate, with broken positioning.
+- **Style isolation**: the floating button, the inline fill panel, and the password visibility toggle all use **closed Shadow DOM**, reset with `all: initial` and themed by **inline** `--aph-*` tokens (never by external stylesheet classes), stacked at `z-index 2147483647`. Shadow root references must not leak to the host page, and content scripts must not depend on page globals.
+- **Plaintext boundary across frames**: credentials captured inside an iframe are delegated to the top frame for rendering through `window.top.postMessage`; the result is sent back with `targetOrigin` pinned to the sender's origin. Save-prompt delegation must first pass `isSameMainDomain(event.origin, location.origin)`, so a cross-origin iframe can never leak a plaintext password to a third-party page. Notification delegation is allowed cross-origin (that case genuinely exists) but is treated as untrusted input: type and length are strictly validated and it is rate-limited (at most 5 per 10-second sliding window). The same rule applies in reverse — plaintext credentials are only delivered to the top frame or same-main-domain frames (`isFrameFillable`).
+- **Listener lifecycle**: every DOM listener is registered through WXT's `ctx.addEventListener` (removed automatically when the extension context invalidates), and `ctx.onInvalidated` plus `beforeunload` run a shared `cleanup()` that tears down the listeners, MutationObservers, and injected UI of FormDetector / LoginAutoSave / the floating button manager. This is the root-cause fix for stale scripts calling chrome APIs after a reload and throwing `Extension context invalidated`; new listeners must not bypass it.
+- **Detection cadence**: the first scan runs 3 seconds after `DOMContentLoaded` (500ms when the document is already loaded), and the MutationObserver debounces re-scans at 500ms over `document.body` with `childList + subtree + attributes(class/style/placeholder)`. SPA route changes are folded into the same observer instead of a second one, and `popstate` only covers back/forward. Before filling, `waitForFieldsDetected()` retries up to 10 times with a 100ms start, 1.5× backoff, capped at 2000ms; moments that can trigger a re-render, such as `blur`, use the event-driven `waitForDomStable(quietMs=50, budgetMs=300)` to wait for DOM quiet instead of a fixed sleep.
+- **Pre-warming**: `preWarmServiceWorker()` fires from three places — `focusin` on form inputs, `visibilitychange` in the top frame, and 100ms after initialization — waking the SW in parallel with the user's action so the subsequent `sidePanel.open()` pays no cold start (see "Side Panel Instant-Open: Cross-Platform Strategy").
 
 ### Session Lifecycle
 
 ```mermaid
 graph TB
-    A[Set/verify master password] --> B[Create session]
-    B --> C[Bulk-decrypt passwords to plaintext]
-    C --> D[SessionManager checks every minute]
-    D -->|Valid| D
-    D -->|Expired| E[Fire sessionExpired event]
-    E --> F[Bulk re-encrypt passwords]
-    F --> G[Clear cache / close side panel]
-    G --> A
+    A[Set / verify master password] --> B[PBKDF2 derives a 256-bit data key]
+    B --> C[Data key persisted as ciphertext + mirrored into storage.session]
+    C --> D[Disk stays ciphertext; entries decrypt one by one on demand]
+    D --> E[Options page SessionManager polls every 60s]
+    E -->|Still valid| E
+    E -->|Expired| F[clearSession removes key material and decrypted snapshot]
+    F --> G[sessionExpired dispatched; SESSION_EXPIRED broadcast over the port]
+    G --> H[Each UI switches to its locked view; the side panel stays open on its unlock view]
+    H --> A
 ```
+
+- The session checker in `sessionManager.ts` starts only on the Options page via `initSessionManager()` (`window.setInterval`, 60 seconds, firing an expiry event only on a valid→invalid transition so opening the page with no session never raises a false alarm). SidePanel and Popup do not wait for that poll: they react immediately to the port's `SESSION_EXPIRED` broadcast, `chrome.storage.onChanged`, and `visibilitychange`.
+- `isSessionValid()` results are cached with a 5-second TTL (`sessionManager-storage.ts`), and lock/rekey/clear-session points invalidate that cache proactively, so hot paths don't hit storage repeatedly.
+- Session validity defaults to **24 hours**, selectable across 1/2/4/8/12/24 hours and 3/5/7 days (see [ValidityHoursSelect.vue](../components/options/ValidityHoursSelect.vue)).
+- Expiry, idle lock, and manual lock all funnel through the same `clearSession()`: it removes key material, the decrypted snapshot, and the CryptoKey handle cache from memory and `storage.session`. Entries on disk are already ciphertext — **there is no "bulk decrypt to plaintext" step and no "bulk re-encrypt on expiry" step**.
+- The idle lock (`chrome.idle`) and the browser-restart lock are **two opt-in switches that default to off** (`idleLockMinutes: 0`, `relockOnBrowserRestart: false`).
 
 ### Encryption Scheme
 
 ```
-Master password + salt → PBKDF2 (600,000 iterations) → 256-bit key
-Plaintext + key + random IV → AES-256-GCM → Base64(IV + ciphertext)
+Salt: 16 random bytes → 32 hex chars, stored in plaintext under master_password_config
+Master password + salt → PBKDF2-SHA256, 600,000 iterations → 256-bit data key
+Plaintext + data key + a fresh random 12-byte IV per call → AES-256-GCM → Base64(IV[12B] ‖ ciphertext ‖ auth tag[16B])
 ```
 
-- Encrypted sensitive fields: `username`, `password`, `url`, `remark`, `totp`
-- Empty fields skip encryption (stored as empty strings); Base64 decode failures degrade safely to the original data; GCM decryption failures throw for the caller to handle
-- The in-memory master password copy is re-encrypted with an HKDF + SHA-256 derived session key via AES-256-GCM before persisting to chrome.storage.local
+- Encrypted sensitive fields: `username`, `password`, `url`, `remark`, `totp`. Metadata such as `id`, `tag`, `createTime`, `updateTime`, `order`, `favorite`, and `lastUsedAt` stays in plaintext so sorting and filtering work without decryption.
+- Empty fields are not encrypted (written as empty strings). A Base64 parse failure degrades safely by returning the original data; a GCM decryption failure throws and lets the caller decide — the auth tag makes tampering detectable, with no silent fallback.
+- **The master password is never persisted.** On disk there is only a verifier hash: `deriveVerifierHash` uses the same PBKDF2-SHA256 / 600,000 iterations but domain-separates the salt with the `aph-verify|` prefix, so the verifier and the decryption key are cryptographically independent and the stored verifier cannot be turned back into a key. Comparison runs in constant time. Legacy single-round SHA-256 verifiers are upgraded transparently on successful verification.
+- **Session key**: the derived data key is wrapped with a freshly generated random wrap key (`session_wrap_key`) using the same AES-256-GCM and stored as `session_wrapped_data_key`. Both must land in one atomic `chrome.storage.local.set()`, otherwise concurrent writes from multiple contexts can pair "A's wrap key with B's ciphertext". The plaintext data key is additionally mirrored in `storage.session` (memory only, cleared when the browser closes).
+- **HKDF exists only on the legacy migration path**: `deriveSessionKey(salt)` (HKDF-SHA256, salt `aph-session-salt`, info `session-encryption-v2`) is used solely to unwrap the historical `session_master_password` blob. Its input is a publicly readable salt, so it provides no confidentiality against disk access and plays no part in the current session flow.
+- `ensurePasswordsEncryptedAtRest` maintains the "ciphertext at rest" invariant idempotently within each SW lifetime, with a storage watcher as a backstop that flags plaintext anomalies.
 
 ## Project Structure
 
@@ -92,27 +115,28 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 ### 1. Security
 
 - Master password requires at least 8 characters including letters, digits, and special characters.
-- After a session is created, passwords are decrypted into an in-memory cache; they re-encrypt automatically when the session expires.
+- After unlocking, entries decrypt one by one into memory (the SW password cache / the encrypted `storage.session` snapshot) while `storage.local` stays ciphertext throughout; session expiry only clears the key material and the decrypted snapshot — no bulk re-encryption ever happens.
 - Inconsistent encryption states are detected and repaired automatically after session recovery.
 - SessionManager checks session validity every minute and on page visibility changes.
 - **Live Caps Lock warning**: every master-password field (first-time setup, the unlock verification view, the verification dialog, master password change, encrypted-backup import) reads the modifier state via `KeyboardEvent.getModifierState('CapsLock')` on keydown/keyup (see [useCapsLockDetection.ts](../composables/useCapsLockDetection.ts)) and shows an amber warning line below the input (see [CapsLockHint.vue](../components/CapsLockHint.vue)), so a stray Caps Lock is never mistaken for a "wrong password". The hint uses `role="status"` for non-interruptive screen-reader announcements and resets on blur, leaving no stale warning behind.
 
 ### 2. Form Detection & Filling
 
-- Detects username, password, phone, and verification-code fields; auto-checks "Remember me" and "Agree to terms" checkboxes.
+- Detects username, password, phone, and verification-code fields. After filling it checks **the single best-scoring checkbox**, where the score combines distance to the reference field, label keywords, position, form ownership, and DOM hierarchy: labels matching `CHECKBOX_POSITIVE_KEYWORDS` (记住 / remember / 同意 / agree / 自动登录 / auto / 服务条款 / terms / privacy…) score up, while `CHECKBOX_NEGATIVE_KEYWORDS` (发送 / subscribe / newsletter / notification / 广告 / marketing / ads…) score down, so marketing opt-ins are never ticked by accident (see [CheckboxHandler.ts](../entrypoints/content/CheckboxHandler.ts) / [formSelectors.ts](../entrypoints/content/formSelectors.ts)).
 - WeakMap / WeakSet caches field classification results to avoid memory leaks.
-- Fill strategy degrades automatically: **Native Setter → execCommand → simulated keyboard events**.
-- The floating button offers an "Auto login trigger" switch: after filling, the login button inside the form is clicked automatically (see [SettingsPanel.ts](../entrypoints/content/floatingButtons/SettingsPanel.ts) / [FormDetector.ts](../entrypoints/content/FormDetector.ts)).
+- Fill strategy degrades automatically: **Native Setter → execCommand → simulated keyboard events**, and each level reads the field value back ~50ms later to confirm the fill actually landed before moving on.
+- The end of the chain — clicking login — is decided by the **"Auto-submit login" switch in the preferences panel (off by default)**; when on, it submits via a two-step "click the login button → `form.requestSubmit()`" strategy (see [SettingsPanel.ts](../entrypoints/content/floatingButtons/SettingsPanel.ts) / [FormDetector.ts](../entrypoints/content/FormDetector.ts)). If you don't want it always on, every side panel row has an explicit "Fill and login" action that applies to that one fill only.
 
 ### 3. Data Management
 
-- CSV import/export (.csv) with a standard template download.
+- CSV import/export (.csv) with a standard template download; exported files carry a UTF-8 BOM and `\r\n` line endings, so Excel opens them with correct Chinese and no repair prompt.
 - JSON import/export: export password data as JSON (master password required), filename `passwords_YYYYMMDD_HHmmss.json`; JSON import is also supported.
+- Import accepts **only `.csv` and `.json`** — there is no xlsx parser, so save a spreadsheet as CSV first (see [ImportDialog.vue](../components/options/ImportDialog.vue)).
 - Tag multi-select with custom tags (up to 3 per entry, max 30 chars each); identical tags keep stable, consistent colors (see [utils/tagUtils.ts](../utils/tagUtils.ts)).
 - Password list sorts by update time (desc) by default; the side panel sorts by recent usage. Sortable by username, URL, tag, remark, and create/update time.
 - Multi-field smart search across username, tag, remark, and URL: case-insensitive substring first, falling back to pinyin matching (full pinyin / initial abbreviations / mixed CN-EN; pinyin-match is split into a separate chunk via dynamic import so it never hits the first-paint path, pre-warmed when idle after first frame); matched ranges are highlighted via the SearchHighlight component (see [utils/searchMatch.ts](../utils/searchMatch.ts)).
-- Batch selection and batch deletion of entries; deleted entries go to the trash for 30 days and can be restored anytime.
-- Favorites: star frequent entries and filter with "favorites only"; configurable limit (1–50) with LRU eviction when exceeded; filling from the side panel refreshes the usage timestamp for accurate LRU.
+- Batch selection supports batch tag editing (append / remove), exporting only the selected rows, and batch deletion; deleted entries go to the trash for 30 days and can be restored anytime.
+- Favorites: star frequent entries and filter with "favorites only"; the limit defaults to **10** (configurable 1–50) with LRU eviction of the least recently used favorite when exceeded; filling from the side panel refreshes the usage timestamp for accurate LRU.
 - One-click dedup: detects duplicates (same username + same URL) and cleans them up after confirmation.
 - Read-only detail view: each row's "View details" opens a drawer with every field of the entry (full notes and password history included) — no need to enter edit mode (see section 23).
 - Multi-format CSV import: auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats (see [utils/excel.ts](../utils/excel.ts)).
@@ -147,34 +171,34 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 
 ### 7. Password Visibility Toggle
 
-- Injects a show/hide toggle into page password fields (see [PasswordVisibilityToggle.ts](../entrypoints/content/PasswordVisibilityToggle.ts)); off by default, enable it in the floating button settings panel.
-- Toggles are injected uniformly into all password fields, styled in Element Plus theme blue, visible when the field has a value.
+- Injects a show/hide toggle into page password fields (see [PasswordVisibilityToggle.ts](../entrypoints/content/PasswordVisibilityToggle.ts)); off by default, enabled in the preferences panel.
+- The toggle is injected uniformly into every password field, coloured with the `--aph-primary` token family so it follows all six themes, and becomes visible once the field holds a value. The preferences panel warns that the button may overlap a site's own eye icon.
 - MutationObserver watches for dynamically added password fields and injects automatically.
-- Can be switched on/off in the floating button settings panel.
 
 ### 8. Auto Idle Lock & Lock on Browser Restart
 
-- Configure the idle period (5/10/30/60 minutes or off) under "Auto lock settings"; continuous inactivity beyond it clears the master password session and locks the manager, and the system locking or screensaver activating also locks it immediately (see [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)). Idle detection is based on the chrome.idle API, counting from the last system-level user input.
+- Configure the idle period under "Auto lock settings" — options are **don't lock / 5 / 10 / 30 / 60 minutes**; continuous inactivity beyond it clears the master password session and locks the manager, and the system locking or screensaver activating also locks it immediately (see [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)). Idle detection is based on the chrome.idle API, counting from the last system-level user input. **The default is "don't lock" (`idleLockMinutes: 0`)** — the user has to opt in.
 - Unlocking requires the master password again — consistent with manual lock and session expiry.
-- **Lock on browser restart**: when enabled, fully closing and reopening the browser requires the master password again (more secure); when off, you stay signed in within the validity period.
+- **Lock on browser restart**: available as a "Lock on browser restart" switch in the same "Auto lock settings" dialog. **This switch defaults to off**: while off, fully closing and reopening the browser keeps you signed in within the validity period; when on, a restart requires the master password again (more secure), and the barrier is fail-closed — if the restore state cannot be determined it locks (see [utils/browserStartupRelock.ts](../utils/browserStartupRelock.ts)).
 - The popup also provides a one-click "Lock" button to clear the current session.
 
 ### 9. Password Strength Visualization
 
-- While setting the master password or editing entries, a popover shows the strength level (weak/medium/strong) and a progress bar in real time (see [PasswordStrengthPopover.vue](../components/options/PasswordStrengthPopover.vue)).
-- Rule-by-rule validation: at least 8 characters, letters, digits, special characters — pass/fail at a glance.
+- While setting the master password or editing entries, a popover shows the strength level in real time across **four levels (none / weak / medium / strong)** plus a progress bar (see [PasswordStrengthPopover.vue](../components/options/PasswordStrengthPopover.vue)).
+- The popover lists **five rows**: the four character rules (≥8 characters, has letters, has digits, has special characters) plus an asynchronous "not in the common leaked-password dictionary" check. Pass/fail is visible at a glance. The level mapping uses only the four character rules — all four pass = strong, ≥2 pass = medium, anything else = weak, empty input = none — and a dictionary hit then rewrites the level to weak on top.
+- A hit in the near-1,000-entry offline dictionary (see [utils/weakPasswordDict.ts](../utils/weakPasswordDict.ts)) forces the level down to "weak" and caps the progress bar at 25%, so a password that satisfies all four rules but is trivially guessable is never shown as strong.
 - Built on the reusable [usePasswordStrength](../composables/usePasswordStrength.ts) composable.
-- **Layering of the decision core**: the rule regexes, the length threshold, the level mapping and the colour contract live in [passwordStrengthCore.ts](../utils/passwordStrengthCore.ts), which has no i18n and no Vue dependency; the composable is reduced to a thin layer that attaches Vue i18n labels on top. This layering lets the background service worker and the content script reuse **exactly the same yardstick** (pre-save risk warning, security audit and live form validation all agree) without dragging Vue i18n into the SW or content-script bundles (verified by build: `background.js` contains no `strength.*` locale entries).
+- **Layering of the decision core**: the rule regexes, the length threshold, the level mapping and the colour contract live in [passwordStrengthCore.ts](../utils/passwordStrengthCore.ts), which has no i18n and no Vue dependency; the composable is reduced to a thin layer that attaches Vue i18n labels on top. This layering lets the background service worker and the content script reuse **exactly the same character-rule yardstick** (the pre-save risk warning, the health dashboard's "weak" indicator, and live form validation all agree) without dragging Vue i18n into the SW or content-script bundles (verified by build: `background.js` contains no `strength.*` locale entries). The dictionary check stays out of that core — lazy loading would add latency to hot paths — and is layered on as a separate async dimension: the form folds it into the displayed level, while the health dashboard scores it as its own indicator alongside "weak".
 
 ### 10. Security Health Dashboard
 
 - Click "Health Check" in the top toolbar (with a health signal dot) to open the dashboard dialog (see [PasswordHealthDialog.vue](../components/options/PasswordHealthDialog.vue)).
-- Overall score (0–100) + grade (excellent/good/fair/poor) with an animated ring (see [utils/passwordHealth.ts](../utils/passwordHealth.ts)).
-- Five checks: weak passwords, reused passwords (grouped display), commonly leaked passwords (offline top-1000 dictionary, see [utils/weakPasswordDict.ts](../utils/weakPasswordDict.ts)), long-unchanged passwords (90/180/365-day tiers), and entries without 2FA (informational only, not scored).
-- Score weights: reuse 35% + weak 25% + leaked 20% + stale 20%, deducted linearly by affected ratio.
-- Set expiry reminders for stale entries (7/30/90 days etc.); background alarms send desktop notifications that link back to the manager (see [utils/storage/reminderManager.ts](../utils/storage/reminderManager.ts)).
+- Overall score (0–100) + grade (≥90 excellent / 70–89 good / 40–69 fair / <40 poor) with an animated ring (see [utils/passwordHealth.ts](../utils/passwordHealth.ts)).
+- There are five indicators and **four of them are scored**: password reuse (weight 35%), weak passwords (25%), hits in the near-1,000-entry offline leaked-password dictionary (20%, see [utils/weakPasswordDict.ts](../utils/weakPasswordDict.ts)), and long-unchanged passwords (20%). Each deducts linearly by the share of affected entries — `100 − 35×reuse ratio − 25×weak ratio − 20×breached ratio − 20×stale ratio`. "2FA not enabled" is informational only and **never scored**.
+- "Long-unchanged" is graded across 90/180/365-day tiers to show how stale an entry is; it does not imply the password itself has expired.
+- Set expiry reminders for stale entries (a reminder N days later, e.g. 7/30/90); a background alarm checks due reminders and sends a desktop notification that links straight back to the manager (see [utils/storage/reminderManager.ts](../utils/storage/reminderManager.ts)).
 - Detail sections expand/collapse; each issue has a "Fix" button jumping straight into editing that entry.
-- Fully local computation (offline dictionary lazily loaded); online breach checks (e.g. HIBP) are deliberately excluded; no plaintext passwords returned; zero network transfer.
+- Fully local computation (the offline dictionary ships with the extension and loads lazily); online breach checks (e.g. HIBP) are deliberately excluded; no plaintext passwords are returned; the audit itself issues no network requests.
 - The signal dot next to the entry button changes color with the health grade (green/blue/orange/red).
 
 ### 11. Quick Fill
@@ -186,44 +210,49 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - **Side panel quick add**: the "+" in the header opens the quick-add dialog in place (see [QuickAddDialog.vue](../components/sidepanel/QuickAddDialog.vue)) with the URL prefilled from the current domain; when the site has no account or the search returns nothing, the empty state offers the same "Add this site's account" entry. The dialog keeps only the five frequent fields (account / password / URL / tag / remark) — full fields such as TOTP go through "Open Password Manager for all fields".
 - **Search scope toggle (This site / All entries)**: the icon right of the search box switches between `site` (default: current-domain matches plus URL-less generic entries) and `all` (the whole vault). Both the predicate and the filtering live in the Vue-free pure functions of [passwordFilter.ts](../utils/passwordFilter.ts) (`matchesSiteScope` / `filterEntriesByScope`), shared with "can this entry fill the current page" so the two semantics cannot drift apart; the scope resets to `site` whenever the current domain or port changes (switching to another tab on the same site keeps all-entries). In all-entry mode an off-site hit has a falsy `canFill`, so the row degrades to "open the site in a new tab" (via `toNavigableUrl` in [domain.ts](../utils/domain.ts), which adds the default protocol and rejects non-navigational schemes such as `javascript:`) while copying username / password / 2FA code, favoriting and editing stay available. When this site has no match but the vault does, the empty state renders a one-click "Search all entries (N found)".
 - **Search placeholder and empty state**: the placeholder reads "username / tag / remark / URL", with `aria-label` and `title` on the search area documenting pinyin support; the empty state switches wording depending on whether a keyword is typed — an add-guidance hint before typing, and pinyin-initial tips after a keyword returns nothing (e.g. `zf` matching 「支付」).
+- **In-panel keyboard navigation**: `↑` / `↓` move through the result list, `Enter` fills the highlighted entry (in all-entries mode an off-site entry opens its site instead), `Esc` closes the side panel, and `Ctrl+C` copies the highlighted entry's username. When focus sits in an editable element such as the search box, the handler defers to the browser's native copy so it never swallows selected text. `Ctrl+Shift+C` is deliberately left unbound (the source comment records "copy password — not needed for now") so it doesn't fight the DevTools shortcut (see [sidepanel/App.vue](../entrypoints/sidepanel/App.vue)).
+- **Chunked rendering**: the first frame renders only the first 30 entries to keep the paint cost bounded for large vaults, then each subsequent animation frame releases 60 more until the full list is covered (see `INITIAL_RENDER_COUNT` / `RENDER_BATCH_SIZE` in [SidepanelAuthView.vue](../components/sidepanel/SidepanelAuthView.vue)); when the filtered list is already within the limit the original array reference is reused, so nothing is copied.
+- The search scope (this site / all entries) lives only in the current side panel session and is **never written to storage**: reopening the panel returns to the default "this site".
 - Click an entry to fill and auto-close the side panel; if no login form is present, a "no login form detected" notice appears.
 - Side panel entries can jump to the manager to edit that entry or add a new one.
 - Shortcuts:
   - `Ctrl+Shift+P` / `Cmd+Shift+P`: open the password manager
   - `Ctrl+Shift+L` / `Cmd+Shift+L`: toggle the side panel
-  - `Ctrl+Shift+F` / `Cmd+Shift+F`: quick-fill credentials on the current page (fills the same entry as the top of the side panel list, no panel needed; feedback via desktop notification + toolbar badge, see [quickFillHandler.ts](../entrypoints/background/quickFillHandler.ts))
-  - Shortcuts are customizable — see [README — FAQ](../README.en.md#faq)
+  - `Ctrl+Shift+F` / `Cmd+Shift+F`: quick-fill credentials on the current page (fills the same entry as the top of the side panel list, no panel needed; when several entries match, the notification states which one was filled and how many matched; feedback via desktop notification + toolbar badge, see [quickFillHandler.ts](../entrypoints/background/quickFillHandler.ts))
+  - `Ctrl+Shift+K` / `Cmd+Shift+K`: open the inline fill dropdown in the current page's password field (equivalent to clicking the key icon inside it — see section 17)
+  - Keys **cannot be rebound inside the extension** (Chrome has no `commands.update()`) — change them at `chrome://extensions/shortcuts`, see [README — FAQ](../README.en.md#faq)
   - **Unified overview with an inactive-key warning**: Chrome's `commands` API only exposes `getAll()` / `onCommand`, so an extension cannot rebind its own keys (`commands.update()` is Firefox-only). The popup, the manager page's "Security Settings → Keyboard Shortcuts" dialog ([ShortcutSettingDialog.vue](../components/options/ShortcutSettingDialog.vue)) and the side panel Help dialog ([HelpDialog.vue](../components/sidepanel/HelpDialog.vue)) therefore all render a read-only overview and explicitly flag any command whose `getAll()` result has an empty `shortcut` as "Not active" (usually taken by the OS or another extension, or a command added by an update that Chrome never auto-bound) — this addresses the "I pressed it and nothing happened" dead end. The single source of truth for the command list is [shortcutCommands.ts](../utils/shortcutCommands.ts), kept aligned with the manifest by the static check in [shortcutCommands.test.ts](../tests/utils/shortcutCommands.test.ts)
 - Background maintains a password cache; the side panel reads the cache first and validates asynchronously.
+- **Favorite / last-used metadata writes are delegated and merged**: clicking a star or filling an entry only updates that entry in memory (`favorite` / `favoriteUsedAt` / `lastUsedAt`) and repaints the UI immediately, then asks Background to persist it through `UPDATE_PASSWORD_METADATA`. Background coalesces those writes with a 1500ms debounce so rapid clicks never saturate disk IO. The `storage.onChanged` echo produced by that write is recognized through a `metadata_flush_at` marker in `storage.session` (TTL 3000ms) and skips cache invalidation, preventing "my own write knocking out my own cache" churn (see [utils/storage/passwordCrud.ts](../utils/storage/passwordCrud.ts) and [passwordCache.ts](../entrypoints/background/passwordCache.ts)).
 
 ### 12. Update Detection
 
-- Periodically checks the latest version via the GitHub Releases API (see [utils/updateChecker.ts](../utils/updateChecker.ts)).
-- Checks every 6 hours; when a new version is found, the popup shows an update notice with version and changelog.
-- Clicking the notice opens the GitHub Releases page.
+- Detection is driven by a background alarm that runs every 6 hours (360 minutes) (see [utils/updateChecker.ts](../utils/updateChecker.ts)).
+- **Step 1 — store reachability probe.** A lightweight `mode: 'no-cors'` HEAD request to chromewebstore.google.com (the result is cached for 24 hours). When it succeeds, the user can already update from the store with one click, so any stale update notice is cleared and the GitHub request is **skipped** outright.
+- **Step 2 — GitHub Releases, only when the store is unreachable.** The latest release tag is fetched and compared with `chrome.runtime.getManifest().version`; if it is newer, the result is cached and the popup shows the version and release notes, and clicking it opens the Releases page to download.
 - Results are cached for 24 hours to avoid excessive requests; the cache refreshes automatically after expiry.
+- Neither request carries account data or anything identifiable, and this is the extension's **only** outbound traffic: apart from these two requests nothing reaches the network at runtime, and password data never leaves the device.
 
 ### 13. Password Generator (Random / Passphrase)
 
 - In the add/edit form, a magic-wand button (`MagicStick` icon) next to the password field opens the generator, with a toggle between **Random** and **Passphrase** modes.
-- **Random mode**: custom length (6–50) and character set switches (upper / lower / digits / specials); optionally exclude ambiguous characters (1, l, I, 0, O).
-- **Passphrase mode**: built on the EFF Diceware idea — 3–8 random words from a built-in 2048-word English list (e.g. `Apple-River-Cloud-Tiger42`), with 5 separator options (`-`/`_`/`.`/space/none), capitalization switch, and 1–4 trailing random digits; a 4-word phrase carries ≈44 bits of entropy — secure yet memorable (see [utils/passphraseGenerator.ts](../utils/passphraseGenerator.ts)).
+- **Random mode**: length defaults to **16** (adjustable 6–50) with character-class switches for uppercase / lowercase / digits / symbols (all four on by default), plus an optional ambiguous-character exclusion (`1 l I 0 O`, off by default); the symbol set is `!@#$%^&*()_+-=[]{}|;:,.<>?`. It first guarantees one character from each enabled class, then Fisher-Yates shuffles the result, and throws if all four classes are disabled. Randomness comes from `crypto.getRandomValues`.
+- **Passphrase mode**: follows the Diceware idea, drawing 3–8 equally likely words from a built-in list of **3080 common English words** (see [utils/data/passphrase-words.json](../utils/data/passphrase-words.json)), default 4 words (e.g. `Apple-River-Cloud-Tiger42`), with 5 separator options (`-` / `_` / `.` / space / none, default `-`), a capitalize-each-word switch (on by default), and 1–4 trailing random digits (on by default, 2 digits). Because the list holds 3080 words, a 4-word phrase carries roughly 4 × log2(3080) ≈ 46 bits of entropy — secure yet memorable (see [utils/passphraseGenerator.ts](../utils/passphraseGenerator.ts)).
 - Live strength bar after generation; click "Use this password" to fill the form.
 - Backed by the Web Crypto API (`crypto.getRandomValues`) for cryptographic randomness (see [utils/passwordGenerator.ts](../utils/passwordGenerator.ts)).
 
 ### 14. Clipboard Auto-Clear
 
-- After copying a password from the side panel, a timer clears the clipboard after the configured delay.
-- Delay options: 10/15/30/60/120 seconds, default 30 (see [ClipboardSettingDialog.vue](../components/options/ClipboardSettingDialog.vue)).
-- Before clearing, the clipboard content is verified as unchanged (Async Clipboard API preferred; best-effort clearing when unfocused).
-- Copying a username cancels the password-clear timer to avoid wiping the username.
-- Configured under "Security Settings" → "Clipboard Settings" on the management page.
+- The mechanism lives in the UI-free [utils/clipboard.ts](../utils/clipboard.ts): `copySecretToClipboard()` writes a sensitive value and schedules the clear afterwards. The side panel and the manager's detail drawer share this one implementation and inject their own wording.
+- **Enabled by default** (`autoClear: true`, `clearAfterSeconds: 30`), with delays of 10 / 15 / 30 / 60 / 120 seconds (see [ClipboardSettingDialog.vue](../components/options/ClipboardSettingDialog.vue)); the entry point is the manager page's "Security Settings" menu → "Clipboard Settings".
+- Before clearing, it verifies the clipboard still holds the value that was copied (reading and comparing through the Async Clipboard API) and skips the clear if the user has copied something else. When the document is unfocused the content can't be read, so it degrades to best-effort clearing — `navigator.clipboard.writeText('')` also fails there, so it writes a zero-width space through a hidden `textarea` + `document.execCommand('copy')` instead (an empty selection makes `execCommand` a no-op, so non-empty content is required to actually overwrite).
+- **The timer covers password copies only**: copying a password or a historical password is what gets auto-cleared. Copying a username or URL goes through `copyTextToClipboard()`, which also cancels any pending clear so it never wipes the plain text just copied. 2FA codes bypass the timer entirely — `copyTotp` writes them straight to the clipboard (with the same `execCommand` fallback), and the rolling code expires on its own after 30 seconds.
 
 ### 15. Two-Factor Authentication (TOTP)
 
 - Paste an `otpauth://` link or Base32 secret into the "2FA" field of the add/edit form (see [PasswordFormDialog.vue](../components/options/PasswordFormDialog.vue)).
 - **QR scanning**: two entries below the secret input — "Scan QR on webpage" and "Upload QR image" (see [utils/qrScanner.ts](../utils/qrScanner.ts)). The former locates the most recently viewed web tab, briefly switches to it for a `captureVisibleTab` screenshot and switches right back; the latter reads an uploaded screenshot. Both decode locally with jsQR (dynamically imported, kept out of the first-screen chunk) with no network requests; results are validated by `isValidTotpInput` before filling the secret field.
-- Codes are computed locally per RFC 6238 using [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) HMAC — **no network requests**, consistent with the extension's zero-network stance (see [utils/totp.ts](../utils/totp.ts)).
+- Codes are computed locally per RFC 6238 using [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) HMAC — **no network request is needed** — which matches the extension's stance that password data never leaves the machine (see [utils/totp.ts](../utils/totp.ts)).
 - The list and side panel show live codes with a ring countdown (color shift in the last 5 seconds, see [TotpCode.vue](../components/TotpCode.vue)).
 - Side panel entries offer "Fill code" and "Copy code": filling writes into detected verification-code inputs (reusing selectors like `autocomplete="one-time-code"`), triggered only on explicit click.
 - TOTP secrets are sensitive fields encrypted under the master password scheme (AES-256-GCM) and travel with CSV / JSON / encrypted (.aph) import/export; `totp` columns from LastPass exports migrate directly.
@@ -238,7 +267,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 
 ### 16. Themes
 
-- 6 color themes: Sky Blue (default), Bamboo Green, Peach Pink, Sakura Purple, Sunset Orange, Mist Gray (see [utils/theme.ts](../utils/theme.ts)).
+- 6 color themes, listed in UI order: Sky Blue (default), Bamboo Green, Peach Pink, Blossom Mauve, Sunset Orange, Misty Slate (see [utils/theme.ts](../utils/theme.ts)).
 - Theme preference is stored with the floating button preferences; three entries into settings: ① "Preferences" button on the management page; ② floating button gear icon; ③ side panel gear icon.
 - Extension pages (manager, side panel, popup) theme consistently via the `data-theme` attribute + CSS design tokens ([tokens.css](../assets/theme/tokens.css)).
 - Content-script Shadow DOM components (floating button, inline fill panel, visibility toggle) receive inline theme tokens, synchronized with extension pages.
@@ -272,8 +301,9 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 ### 20. Master Password Change
 
 - Entry point: "Security Settings" menu → "Change master password" on the manager page (see [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)).
-- Flow: verify the current master password → decrypt all data (passwords + trash + history) with the old key → re-encrypt with the new key → a single **atomic** `chrome.storage.local.set()` writes ciphertext and the new session key (see [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)).
-- Safety: any failure before the write aborts with data untouched — there is no "new ciphertext + old session key" intermediate state.
+- Flow: verify the current master password → decrypt all data (password list + trash + history) with the old key → re-encrypt with the new key → a single **atomic** `chrome.storage.local.set()` writes the new ciphertext, the new verifier hash, and the new session key material together (see [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)).
+- **The salt and the iteration count are deliberately left untouched**: `deriveEncryptionKey` derives the data key from "master password + the salt in storage", so replacing the salt would derive a different key and make existing ciphertext permanently undecryptable. The salt's role is rainbow-table resistance, and the password change itself already provides ample strength. Only the master password plaintext, the derived data key, the verifier hash, and the one-time wrap key change; PBKDF2 stays at 600,000 iterations.
+- Safety: any failure during re-encryption or derivation aborts with the disk data still in its old ciphertext — there is no "new ciphertext + old session key" intermediate state. If that final atomic write itself fails, `clearSession()` runs to drop the already-updated key material (fail-closed), because a "new key + old ciphertext" mismatch would otherwise leave the vault unusable and the user has to unlock again.
 - Session self-healing: other open extension pages (side panel/popup) detect the rekey and adopt the new session key automatically — no re-login, no cleared lists (see `adoptRekeyedSession` in [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts)).
 - Encrypted backups (.aph) are unaffected: imports decrypt with the password used at export time.
 
@@ -303,6 +333,31 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - The password stays masked until the eye button is clicked; visibility is local state that resets — together with the loaded history list — when the closing animation ends, so no plaintext reference lingers. The URL is normalized through `toNavigableUrl` before being used as a link.
 - Copying username / URL uses `copyTextToClipboard` from [clipboard.ts](../utils/clipboard.ts); copying the password and any historical password uses `copySecretToClipboard`, which auto-clears after the configured clipboard delay and reports success/failure through a callback (the same mechanism the side panel uses, with wording injected by the caller).
 - Password history is loaded lazily — and only when "Password History Settings" is enabled — via a dynamic import of the config, so opening the drawer never triggers pointless decryption.
+
+### 24. Two-Step Verification Code Handoff
+
+- Scenario: GitHub-style logins put the credentials form and the verification-code form on different pages. Once a credential fill succeeds, the plugin attaches a "live code capsule" to the right inner edge of the verification-code input on the same host, so the user never has to go back to the side panel for the code (see [TotpHandoffCapsule.ts](../entrypoints/content/inlineDropdown/TotpHandoffCapsule.ts)).
+- **The relay marker records intent only**: the three fill paths — side panel, inline panel pick, and quick fill — report `SET_PENDING_TOTP` after a successful fill, and Background writes `pending_totp_tabs` in `chrome.storage.session` keyed by `tabId`, with a value of just `{ entryId, hostname, ts }` — no secret, no dynamic code, no entry content. It lives in `storage.session` rather than module memory so it survives an SW restart; one slot per tab, so a newer fill in the same tab overwrites the older marker.
+- **Validation & expiry**: `consumePendingTotp` requires the marker to be within a **3-minute** TTL, the hostname to match **exactly** (`pending.hostname !== hostname` discards it — no eTLD+1 relaxation), and the session to still be valid; any failure returns null and clears the marker on the spot. Every read-modify-write goes through the `withPendingLock` serial queue, so concurrent fills in multiple tabs cannot clobber each other. Session clearing, idle lock, and browser-startup relock all call `clearAllPendingTotp()` to close the door in one shot (a cache invalidation caused by an ordinary data change does **not** clear relay markers).
+- **When it renders**: the content script only queries the marker when the viewport contains a visible verification-code input and the viewport contains **no** visible username / password / phone field — avoiding duplicate nagging next to the existing inline panel, while the "visible in viewport" filter also skips hidden autofill honeypot inputs.
+- **How codes are obtained**: the capsule holds no secret. Each tick it asks Background for a fresh one-time code over `GET_INLINE_TOTP` (the key always stays in the SW), displays it, and refreshes on a 1-second beat; clicking the capsule copies the code, clicking "Fill" delegates to `FILL_TOTP_BY_ID` so Background computes a fresh code and writes it back into the frame that started the fill, and closing it suppresses the hint for that entry for the rest of the session (`dismissedIds` remembers entry IDs). If the code request fails (e.g. the session got locked) the capsule collapses immediately rather than showing a stale code.
+- Its styling speaks the same language as the inline panel's capsule: Closed Shadow DOM + `:host { all: initial }` + inline `--aph-*` tokens, `z-index 2147483647`.
+
+### 25. Quick-Fill Modes & the Preferences Panel
+
+- The preferences panel is the single configuration entry point for injected UI, reachable from three places: ① the floating button's gear icon; ② "Personalization" on the manager page; ③ the side panel's top-right gear (see [settingsPanelView.ts](../entrypoints/content/floatingButtons/settingsPanelView.ts)). It holds themes (6), UI language, button visibility, quick-fill mode, auto-submit login, and the password visibility toggle plus opacity.
+- **Quick-fill mode is a three-way segmented control**: side panel (focus a login field and it opens automatically) / inline on page (a key icon inside the input) / manual only (nothing opens automatically — click the floating button or the toolbar icon first). Storage actually keeps two fields, `fillMode` + `autoShowSidepanel`, and every UI choice writes both, so stored state is always canonical and never left in a self-contradictory combination like "inline on + side panel auto"; the derivation rule is that `fillMode === 'inline'` wins as inline (and `autoShowSidepanel` has no effect then).
+- **New and existing users get different defaults**: a fresh install defaults to inline with no auto-open (`fillMode: 'inline'` + `autoShowSidepanel: false`). Older versions had neither field, and applying the new default to them would silently change their behavior — so `freezeLegacyFillDefaults()` in [configManager.ts](../utils/storage/configManager.ts) pins existing users to `sidepanel` + `true` (i.e. exactly what they already had) whenever it detects the fields are missing.
+- The selected option carries a `✓` prefix as a second signal, so it is distinguishable by more than color (which is hard to read in the light themes).
+
+### 26. Bilingual UI & the Two i18n Systems
+
+- Only Simplified Chinese and English are supported (`Locale = 'zh-CN' | 'en'`). The switch lives in the preferences panel, takes effect instantly with no reload, and stays synchronized between extension pages and injected UI.
+- **Vue side** ([utils/i18n/](../utils/i18n)): reactive `t()`, with language packs split into 17 namespaces under `locales/{locale}/{namespace}.json`; each entry statically registers only the subset it needs through `bundles/` (options takes everything, sidepanel/popup/help each take a trimmed set), avoiding the first-screen dead weight of "the whole language pack in every entry". `t()` returns the key itself for unregistered keys, so coverage can grow incrementally.
+- **Content / Background side** ([utils/i18n-lite.ts](../utils/i18n-lite.ts)): an inline bilingual message table with no Vue dependency (`cs.*` for content scripts, `bg.*` / `cm.*` for background), exposing `tl()`, so the Vue runtime and the full language pack never get pulled into the content script or SW bundles.
+- **Language resolution priority**: the Vue side is `localStorage` synchronous mirror > `storage.local` persisted value > `chrome.i18n.getUILanguage()`; the lite side is storage > `getUILanguage()`, and any read failure falls back to `zh-CN`. The `localStorage` mirror exists so `initI18n` can return synchronously on a hit, eliminating the one serial storage IPC before Vue mounts (~40-80ms on cold Windows environments).
+- **Live switching path**: both systems listen for `app_locale` changes on `storage.onChanged` and notify subscribers; context menu titles render in the user's language and the whole menu is rebuilt on a switch.
+- **Consistency guards**: `tests/utils/i18nBundles.test.ts` checks that the zh/en key sets match and that bundles are registered, and `tests/utils/i18nLiteParity.test.ts` checks the lite i18n parity — adding, removing, or renaming a key in one language without the other fails the tests. Manifest copy goes through a third path entirely: `public/_locales/{zh_CN,en}/messages.json`.
 
 ## Development Extras
 
@@ -349,12 +404,12 @@ Shared constraints:
 
 **Platform behavior matrix (SW background resilience layer)**
 
-| Mechanism                                               | Windows                                                                                                                                     | Mac/Linux                                                                                                                                                                                                          | Cross-platform exceptions                                                                           |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
-| SW keep-alive (`syncSwKeepaliveAlarm`)                  | Unified resident: 20s heartbeat + 0.5min revival alarm, **kept running even after session expiry**                                          | Same: unified resident keep-alive, no longer session-state-dependent (historical conditional/grace-period keep-alive policies were consolidated into resident after the Mac 4s-white-screen regression after idle) | —                                                                                                   |
-| Render resource warming (`maybeWarmSidePanelResources`) | Full four-layer warm (HTML → static assets → dynamic chunks → secondary deps, ~25 files) / 5min throttle                                    | Lightweight warm (HTML + module/modulepreload/CSS + whitelisted auth-view and local-data-read critical chunks and their secondary deps, ~15 files) / 5min throttle                                                 | Browser launch and extension install/update run a full cross-platform warm via `ignorePlatformGate` |
-| Warm trigger points                                     | Window focus / tab activation / keep-alive alarm tick / 2s after side panel open — sharing a 5min persisted throttle + in-flight mutex      | Same                                                                                                                                                                                                               | —                                                                                                   |
-| Proactive lock on session expiry                        | The alarm tick performs "encrypt all passwords + delete session keys" in one shot inside the SW, avoiding a full re-encryption at open time | Same behavior (the performance payoff is mostly on Windows, where Web Crypto is slower)                                                                                                                            | —                                                                                                   |
+| Mechanism                                               | Windows                                                                                                                                                                                                                                                                                               | Mac/Linux                                                                                                                                                                                                                 | Cross-platform exceptions                                                                           |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| SW keep-alive (`syncSwKeepaliveAlarm`)                  | Unified resident: 20s heartbeat + 0.5min revival alarm, **kept running even after session expiry**                                                                                                                                                                                                    | Same: unified resident keep-alive, no longer session-state-dependent (historical conditional/grace-period keep-alive policies were consolidated into resident after the Mac 4s-white-screen regression after idle)        | —                                                                                                   |
+| Render resource warming (`maybeWarmSidePanelResources`) | Full four-layer warm (HTML → static assets → dynamic chunks → secondary deps, ~25 files) / 5min throttle                                                                                                                                                                                              | Lightweight warm (HTML + module/modulepreload/CSS + whitelisted auth-view and local-data-read critical chunks and their secondary deps, ~15 files) / 5min throttle                                                        | Browser launch and extension install/update run a full cross-platform warm via `ignorePlatformGate` |
+| Warm trigger points                                     | Window focus / tab activation / keep-alive alarm tick / 2s after side panel open — sharing a 5min persisted throttle + in-flight mutex                                                                                                                                                                | Same                                                                                                                                                                                                                      | —                                                                                                   |
+| Proactive lock on session expiry                        | The keep-alive alarm tick detects an elapsed `PASSWORD_EXPIRY` and completes "`markSessionInvalid()` + `clearSession()` + drop the password cache and the pending-TOTP relay markers" in one shot inside the SW, so the next side panel open takes the "no session key → immediately false" fast path | Same behavior (entries on disk were always ciphertext — locking only removes key material and the decrypted snapshot, so **there is no bulk re-encryption** on any platform; the performance payoff is mostly on Windows) | —                                                                                                   |
 
 **Rationale**
 

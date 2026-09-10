@@ -81,7 +81,7 @@
   "options.emptyGuide.restoreTitle": "恢复备份",
   "options.emptyGuide.restoreDesc": "从备份文件或邮箱恢复",
   "options.disclaimer.title": "安全声明",
-  "options.disclaimer.desc": "账号密码管理助手为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。",
+  "options.disclaimer.desc": "账号密码管理助手为开发、测试与日常登录场景而生：所有密码数据仅保存在浏览器本地，以 AES-256-GCM 逐字段加密，不会上传到任何服务器。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。",
   "options.validity.title": "验证有效期设置",
   "options.validity.alertTitle": "有效期设置",
   "options.validity.alertDesc": "设置主密码验证后的会话缓存时间，在有效期内无需重新输入主密码",

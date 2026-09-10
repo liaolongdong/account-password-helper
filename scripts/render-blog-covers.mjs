@@ -14,7 +14,7 @@
  *
  * 使用方式：
  *   pnpm covers:render            # 渲染全部封面
- *   pnpm covers:render -- 01 03   # 只渲染文件名包含 01 / 03 的封面
+ *   pnpm covers:render 01 03      # 只渲染文件名包含 01 / 03 的封面（不要加 `--`，它会被原样传进 argv）
  */
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve, basename } from 'node:path';
