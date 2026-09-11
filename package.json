@@ -87,6 +87,7 @@
     "covers:render": "node scripts/render-blog-covers.mjs",
     "store-creatives:render": "node scripts/render-store-creatives.mjs",
     "gen:en": "node scripts/build-en-page.mjs",
+    "gen:faq": "node scripts/build-faq-jsonld.mjs",
     "gen:pricing-en": "node scripts/build-pricing-en-page.mjs",
     "gen:privacy-en": "node scripts/build-privacy-en-page.mjs",
     "gen:blog": "node scripts/build-blog-pages.mjs",

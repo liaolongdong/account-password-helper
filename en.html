@@ -111,17 +111,34 @@
         "@type": "SoftwareApplication",
         "name": "Account Password Helper · 账号密码管理助手",
         "applicationCategory": "SecurityApplication",
+        "applicationSubCategory": "Password Manager",
         "operatingSystem": "Chrome",
+        "browserRequirements": "需要 Chrome 114 或更高版本以使用 Side Panel API（未声明 minimum_chrome_version，旧版本仅侧边栏功能不可用）；兼容 Edge、Brave 等 Chromium 内核浏览器",
         "softwareVersion": "3.7.0",
-        "dateModified": "2026-09-09",
+        "dateModified": "2026-09-11",
+        "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
           "price": "0",
           "priceCurrency": "USD"
         },
+        "featureList": [
+          "一键登录：自动填充 + 勾选「记住我 / 同意条款」+ 点击登录",
+          "精确域名匹配隔离 dev/test/staging/prod 多环境账号",
+          "内置 TOTP 两步验证（RFC 6238），支持扫码或图片添加密钥",
+          "逐字段 AES-256-GCM 本地加密（PBKDF2 600,000 次迭代）",
+          "离线安全体检：0-100 四维加权评分，全程不联网",
+          "密码生成器：随机密码与助记词组双模式",
+          "四重填充策略：内联填充 / 侧边栏 / 右键菜单 / 快捷键",
+          "CSV / JSON 导入导出，自动识别 Chrome、LastPass、Bitwarden、1Password 格式",
+          "加密备份（.aph）与邮箱备份",
+          "侧边栏全场景秒开（缓存快路径 20-50ms 拿到数据）",
+          "6 款色彩主题 + 中英文双语界面"
+        ],
         "description": "Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.",
         "url": "https://liaolongdong.github.io/account-password-helper/",
         "installUrl": "https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli",
+        "downloadUrl": "https://github.com/liaolongdong/account-password-helper/releases/latest",
         "image": "https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png",
         "screenshot": [
           "https://liaolongdong.github.io/account-password-helper/assets/screenshots/02-password-list.png",
@@ -136,7 +153,7 @@
         }
       }
     </script>
-<!-- FAQPage structured data: English version, mirrored from the Chinese FAQPage block in index.html -->
+    <!-- FAQPage structured data: generated from the visible FAQS array by scripts/lib/faq-schema.mjs — do not edit copy by hand -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -144,34 +161,82 @@
         "mainEntity": [
           {
             "@type": "Question",
-            "name": "Are my passwords uploaded to the cloud?",
+            "name": "Will my passwords be uploaded to the cloud?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "No. The extension is fully local: all data stays in your browser's local storage and sensitive fields are encrypted per field with AES-256-GCM, so no credential is ever uploaded. The only outbound request is an anonymous version check every 6 hours, which carries no vault data or personal identifier."
+              "text": "No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM and are never uploaded to any server."
             }
           },
           {
             "@type": "Question",
-            "name": "What if I forget my master password?",
+            "name": "What if I forget the master password?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "It cannot be recovered; you can only use Reset to wipe the vault and start over. Back up regularly via data export or the encrypted .aph backup to avoid data loss."
+              "text": "The master password cannot be recovered. You can only use \"Reset\" to wipe the data and start over. Back up regularly via data export or encrypted backup (.aph) to avoid data loss."
             }
           },
           {
             "@type": "Question",
-            "name": "What happens when my session expires?",
+            "name": "How do I change the master password?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Expiry destroys only the session key material held in memory and chrome.storage.session — the vault is already ciphertext at rest, so nothing needs re-encrypting. Verify the master password again to restore access; no data is lost."
+              "text": "Click \"Change master password\" in the \"Security Settings\" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written atomically — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Exported encrypted backups (.aph) are unaffected."
             }
           },
           {
             "@type": "Question",
-            "name": "What is the security audit and what does it check?",
+            "name": "What happens when the session expires?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "A one-click password health scan showing a 0–100 overall score weighted across four dimensions: password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline dictionary) and stale passwords (20, 90/180/365-day tiers); missing two-factor authentication is listed but unscored. Everything is computed locally with no network request. Expiry reminders help you catch risks early."
+              "text": "Expiry only clears the session key material and the decrypted cache from memory and storage.session — sensitive fields on disk are already ciphertext, so there is no \"bulk re-encrypt on expiry\" step. Verify the master password again to restore access; no data is lost."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is auto idle lock?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "In \"Auto lock settings\" on the management page, set an idle period (5/10/30/60 minutes or off). After continuous inactivity beyond that period, the session is cleared and the manager locks; the system locking or screensaver activating also locks it immediately. Unlocking requires the master password again — protecting your list while you are away."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is Health Check?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "A one-click password health scan in the top toolbar of the management page. Click \"Health Check\" (with a traffic-light dot showing the grade) to see an overall score (0–100) weighted across four scored dimensions: password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed but unscored. Stale entries can get expiry reminders (desktop notification after 7/30/90 days). Each issue has a \"Fix\" button that jumps straight to editing. Everything is computed locally — no network, no data upload."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I customize shortcuts?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Chrome supports this natively. Go to chrome://extensions/shortcuts, find \"Account Password Helper\", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically. You can also open the read-only overview under \"Security Settings → Keyboard Shortcuts\" on the manager page to see the live status of all four bindings — its \"Edit Shortcuts\" button links straight there; the \"Keyboard Shortcuts\" group in the side panel Help dialog offers the same overview and entry point."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does the quick-fill shortcut (Ctrl+Shift+F) work?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Pressing Ctrl+Shift+F / Cmd+Shift+F fills the same entry as the top of the side panel list (domain match first + favorites pinned) without opening the panel. With multiple matches, the notification states which entry was filled and how many matched; if the session is not verified, the inline dropdown opens in place so you can click through to unlock; no matching account triggers a desktop notification, and results also show as a toolbar badge (green check / red exclamation)."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does the extension check for updates?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Chrome Web Store installs update automatically. The extension also checks GitHub Releases every 6 hours and shows an update notice in the popup; click it to open the download page. You can also trigger a check manually in the popup."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is inline fill?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "An alternative to the side panel. In \"Inline\" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Supports keyboard navigation (↑↓ browse, Enter fill, Esc close) and uses a closed Shadow DOM for full style isolation."
             }
           },
           {
@@ -179,55 +244,47 @@
             "name": "Can I import from other password managers?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. Upload a CSV file in the import dialog; the extension auto-detects Chrome, LastPass, Bitwarden and 1Password export formats and maps the fields."
+              "text": "Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected and mapped. Just export a CSV from the source manager and select it."
             }
           },
           {
             "@type": "Question",
-            "name": "Autofill doesn't work — what should I do?",
+            "name": "How do encrypted backups work?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Wait for the page to fully load and retry; the filler tries three strategies in order (native setter, execCommand, simulated keyboard events). If it still fails, refresh the page."
+              "text": "Under \"Data Management\", \"Encrypted Backup Export\" encrypts all data with your master password into an .aph file. \"Encrypted Backup Import\" decrypts an uploaded .aph with the original master password, previews the first 5 entries, then imports on confirmation. The scheme is PBKDF2 + AES-256-GCM."
             }
           },
           {
             "@type": "Question",
-            "name": "How do I customize the keyboard shortcuts?",
+            "name": "How do I enable auto-save?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Open chrome://extensions/shortcuts, find Account Password Helper, click the shortcut field next to a command and press a new combination. You can also open the read-only overview under Security Settings → Keyboard Shortcuts on the manager page, which flags the live status of every binding and links straight to that page."
+              "text": "Click \"Auto-save Settings\" on the management page and turn on \"Enable auto-save\". Optionally configure domain rules (exact domains or regex; empty matches all). On login a confirmation card appears with \"Save\", \"Not now\", and \"Never\" options, plus editable tag (defaults to page title) and remark (defaults to \"Auto-saved\"). \"Never\" adds the domain to the block list, removable later in settings. Before prompting, the extension compares against your vault: identical credentials are skipped silently, and changed passwords trigger an \"Update\" prompt."
             }
           },
           {
             "@type": "Question",
-            "name": "What is one-click login and how is it different from other password managers?",
+            "name": "Side panel vs inline fill?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "One-click login is the core differentiator: from the side panel, 'Fill and sign in' autofills the credentials, ticks the 'I agree' checkbox and clicks the login button, completing sign-in in about one second; you can also turn on the global 'Auto login trigger' preference (off by default). Note that the Ctrl+Shift+F quick-fill shortcut only fills — it never submits. Exact-domain matching also isolates dev/test/staging/prod accounts for the same site."
+              "text": "Both fill passwords and complement each other. The side panel is a full browser panel, great for searching all passwords and managing favorites; inline fill is an in-page mini panel — focus a login field, click the key icon, pick an account. Choose the mode in preferences: \"Side panel\" for panel lovers, \"Inline\" for the fastest fill."
             }
           },
           {
             "@type": "Question",
-            "name": "How does Account Password Helper compare with Bitwarden and 1Password?",
+            "name": "How do I use two-factor codes (TOTP)?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "It is completely free, open source and stores data purely locally — no account, no cloud sync. Key differences: 1) one-click login (fill + tick + click) in a single action; 2) multi-environment account isolation by exact hostname (dev/test/staging/prod); 3) built-in TOTP 2FA (Bitwarden requires Premium and 1Password requires a subscription — here it is free); 4) offline security audit (0–100 score across four weighted dimensions). Bitwarden and 1Password are cloud-based and require accounts."
+              "text": "In the add/edit form's \"2FA\" field, paste the site's otpauth:// link or Base32 secret — or click \"Scan QR on webpage\" to capture the most recently viewed page and detect its QR code, or \"Upload QR image\" to decode a screenshot (fully local jsQR decoding, no network). Afterwards, the list and side panel show a live 6-digit code with a ring countdown (color shift in the last 5 seconds). Side panel entries offer \"Fill code\" and \"Copy code\" buttons; for GitHub-style split logins, a successful credentials fill auto-anchors a live-code capsule next to the code field on the code-only page for one-click fill or copy (valid 3 minutes). Codes are computed locally per RFC 6238 with Web Crypto HMAC — zero network. Note: your clock must be accurate (within ~30 seconds) or verification will fail."
             }
           },
           {
             "@type": "Question",
-            "name": "How is side panel performance? Any lag?",
+            "name": "How is the performance?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "The side panel is heavily optimized: it loads in about 20–50ms while the session is valid, thanks to Service Worker keep-alive and a resident password cache. It opens instantly even after the session expires. On Windows, a first cold start can take 1–2 extra seconds due to antivirus scanning; adding the Chrome extensions directory to the exclusion list brings it under one second."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How do I migrate to Account Password Helper from another password manager?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Upload a CSV file in the import dialog; the extension auto-detects Chrome, LastPass, Bitwarden and 1Password export formats with Chinese/English column-name mapping — migration takes about 30 seconds. JSON import and .aph encrypted backup import are also supported."
+              "text": "Heavily optimized. The service worker stays resident on all platforms via a two-tier keep-alive (20s heartbeat + 30s revival alarm) so the password cache is always in memory — the side panel loads from cache in about 20–50ms with no cold-start delay, instantly even after session expiry. The worker also pre-warms the cache 500ms after startup and warms side panel render resources on demand. Keep-alive wakes the extension roughly every 30 seconds in the background — a deliberate trade-off to eliminate cold-start white screens."
             }
           }
         ]
@@ -2859,8 +2916,8 @@
           tag: 'STEP 08',
           title: { zh: '灵活的会话有效期', en: 'Flexible session validity' },
           desc: {
-            zh: '从 1 小时到 7 天任你选；会话剩余时间在管理页头部、侧边栏与 Popup 常驻展示，剩余 10 分钟内转警示橙、最后 1 分钟转危急红，点击即可直达续期；过期后所有敏感字段自动加密回密文，安全无忧。',
-            en: 'From 1 hour to 7 days; the remaining session time stays visible in the manager header, sidebar and popup — warning amber within the last 10 minutes and critical red within the final minute, with a click to extend. When it expires, all sensitive fields are automatically re-encrypted.',
+            zh: '从 1 小时到 7 天任你选；会话剩余时间在管理页头部、侧边栏与 Popup 常驻展示，剩余 10 分钟内转警示橙、最后 1 分钟转危急红，点击即可直达续期；过期后仅清除内存中的会话密钥与解密缓存，磁盘数据始终是密文，安全无忧。',
+            en: 'From 1 hour to 7 days; the remaining session time stays visible in the manager header, sidebar and popup — warning amber within the last 10 minutes and critical red within the final minute, with a click to extend. On expiry the session key material and decrypted cache are cleared; data on disk is ciphertext throughout.',
           },
         },
         {
@@ -2933,8 +2990,8 @@
         {
           q: { zh: '会话有效期到了会发生什么？', en: 'What happens when the session expires?' },
           a: {
-            zh: '会话过期后，所有敏感字段会自动重新加密为密文；下次使用时只需重新验证主密码即可恢复访问，账号数据不会丢失。',
-            en: 'All sensitive fields are automatically re-encrypted. Verify the master password again to restore access — no data is lost.',
+            zh: '会话过期只会清除内存与 storage.session 中的会话密钥材料与解密缓存——磁盘上的敏感字段本来就是密文，不存在「过期时批量重新加密」这一步；下次使用时重新验证主密码即可恢复访问，账号数据不会丢失。',
+            en: 'Expiry only clears the session key material and the decrypted cache from memory and storage.session — sensitive fields on disk are already ciphertext, so there is no "bulk re-encrypt on expiry" step. Verify the master password again to restore access; no data is lost.',
           },
         },
         {

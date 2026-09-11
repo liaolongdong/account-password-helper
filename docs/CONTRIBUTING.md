@@ -151,21 +151,21 @@ graph LR
 
 ## Chrome 权限说明
 
-| 权限             | 用途                                                                                                                                |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `storage`        | 本地存储密码数据和配置                                                                                                              |
-| `activeTab`      | 获取当前标签页信息用于域名匹配                                                                                                      |
-| `scripting`      | 更新后 Content Script 缺失时动态补注入                                                                                              |
-| `sidePanel`      | 侧边栏快速填充功能                                                                                                                  |
-| `alarms`         | 5 类定时任务：SW 保活复活（0.5min）、版本检查（360min）、密码到期提醒检查（12h）、回收站清理（24h）、自动备份提醒（按用户设定天数） |
-| `notifications`  | 桌面通知：自动保存、自动备份提醒、版本更新、密码到期提醒、快速填充结果反馈、「需要解锁」（点击直达主密码验证页）                    |
-| `idle`           | 自动闲置锁定检测（OS 锁屏 / 屏保 / 空闲）                                                                                           |
-| `clipboardWrite` | 写入剪贴板（复制密码 / TOTP）                                                                                                       |
-| `clipboardRead`  | 读取剪贴板（清除前比对内容，避免误清用户新复制的内容）                                                                              |
-| `webNavigation`  | 通过 `chrome.webNavigation.getAllFrames` 枚举框架，实现跨 iframe 填充（仅查询，不监听导航事件）                                     |
-| `contextMenus`   | 右键菜单：可编辑字段的「填充用户名 / 填充密码 / 填充两步验证码 / 生成并填充强密码」与页面级「打开侧边栏 / 打开密码管理页」          |
-| `favicon`        | 读取 Chrome 本地缓存的网站图标，零外部网络请求                                                                                      |
-| `<all_urls>`     | Content Script 匹配所有页面（host_permission）                                                                                      |
+| 权限             | 用途                                                                                                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storage`        | 保存密文条目、配置与会话密钥材料。仅使用 `chrome.storage.local`（持久密文）与 `chrome.storage.session`（内存态密钥 / 快照），不使用 `storage.sync` 或 `storage.managed` |
+| `activeTab`      | 用户主动触发（快捷键、扩展图标、右键菜单、悬浮按钮）时取得当前标签页地址与句柄，用于定位要填充的登录表单                                                                |
+| `scripting`      | 内容脚本未就绪时按 frame 补注入（`utils/contentScriptReadiness.ts` 的 `chrome.scripting.executeScript`）                                                                |
+| `sidePanel`      | 侧边栏快速填充功能                                                                                                                                                      |
+| `alarms`         | 5 类定时任务：SW 保活复活（0.5min）、版本检查（360min）、密码到期提醒检查（12h）、回收站清理（24h）、自动备份提醒（按用户设定天数）                                     |
+| `notifications`  | 桌面通知：自动保存、自动备份提醒、版本更新、密码到期提醒、快速填充结果反馈、「需要解锁」（点击直达主密码验证页）                                                        |
+| `idle`           | 主动闲置锁定检测（OS 锁屏 / 屏保 / 空闲）；该功能默认关闭，开启后生效                                                                                                   |
+| `clipboardWrite` | 写入剪贴板（复制密码 / TOTP）                                                                                                                                           |
+| `clipboardRead`  | 读取剪贴板（清除前比对内容，避免误清用户新复制的内容）                                                                                                                  |
+| `webNavigation`  | 通过 `chrome.webNavigation.getAllFrames` 枚举框架，实现跨 iframe 填充（仅查询，不监听导航事件）                                                                         |
+| `contextMenus`   | 右键菜单：可编辑字段的「填充用户名 / 填充密码 / 填充两步验证码 / 生成并填充强密码」与页面级「打开侧边栏 / 打开密码管理页」                                              |
+| `favicon`        | 读取 Chrome 本地缓存的网站图标，零外部网络请求                                                                                                                          |
+| `<all_urls>`     | Content Script 匹配所有页面（host_permission）                                                                                                                          |
 
 ## CSV / JSON 字段格式
 
@@ -506,21 +506,21 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 
 ## Chrome Permissions
 
-| Permission       | Purpose                                                                                                                                                                            |
-| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `storage`        | Local storage of password data and settings                                                                                                                                        |
-| `activeTab`      | Current tab info for domain matching                                                                                                                                               |
-| `scripting`      | Re-inject the content script when it is missing after an update                                                                                                                    |
-| `sidePanel`      | Side panel quick fill                                                                                                                                                              |
-| `alarms`         | Five scheduled jobs: SW keep-alive revival (0.5min), update check (360min), password expiry reminder check (12h), trash cleanup (24h), auto-backup reminder (user-configured days) |
-| `notifications`  | Desktop notifications: auto-save, backup reminder, version update, password expiry, quick-fill feedback, and a clickable "unlock required" notice                                  |
-| `idle`           | Auto idle lock detection (OS lock / screensaver / idle)                                                                                                                            |
-| `clipboardWrite` | Writing to the clipboard (copy password / TOTP)                                                                                                                                    |
-| `clipboardRead`  | Reading the clipboard (compare before clearing so fresh user copies are never destroyed)                                                                                           |
-| `webNavigation`  | Enumerate frames via `chrome.webNavigation.getAllFrames` for cross-iframe filling (query only — no navigation listeners)                                                           |
-| `contextMenus`   | Right-click menu: in editable fields "Fill username / Fill password / Fill 2FA code / Generate & fill a strong password"; on pages "Open side panel / Open password manager"       |
-| `favicon`        | Read Chrome's locally cached website favicons, zero external requests                                                                                                              |
-| `<all_urls>`     | Content script matches all pages (host_permission)                                                                                                                                 |
+| Permission       | Purpose                                                                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storage`        | Stores ciphertext entries, settings and session key material. Only `chrome.storage.local` (persistent ciphertext) and `chrome.storage.session` (in-memory key / snapshot) — never `storage.sync` or `storage.managed` |
+| `activeTab`      | Reads the current tab's URL and handle — only when you act (shortcut, toolbar icon, right-click menu, floating button) — so the right login form is targeted                                                          |
+| `scripting`      | Re-injects the content script per frame when it is missing (`chrome.scripting.executeScript` in `utils/contentScriptReadiness.ts`)                                                                                    |
+| `sidePanel`      | Side panel quick fill                                                                                                                                                                                                 |
+| `alarms`         | Five scheduled jobs: SW keep-alive revival (0.5min), update check (360min), password expiry reminder check (12h), trash cleanup (24h), auto-backup reminder (user-configured days)                                    |
+| `notifications`  | Desktop notifications: auto-save, backup reminder, version update, password expiry, quick-fill feedback, and a clickable "unlock required" notice                                                                     |
+| `idle`           | Auto idle lock detection (OS lock / screensaver / idle); the feature is off by default and only active once enabled                                                                                                   |
+| `clipboardWrite` | Writing to the clipboard (copy password / TOTP)                                                                                                                                                                       |
+| `clipboardRead`  | Reading the clipboard (compare before clearing so fresh user copies are never destroyed)                                                                                                                              |
+| `webNavigation`  | Enumerate frames via `chrome.webNavigation.getAllFrames` for cross-iframe filling (query only — no navigation listeners)                                                                                              |
+| `contextMenus`   | Right-click menu: in editable fields "Fill username / Fill password / Fill 2FA code / Generate & fill a strong password"; on pages "Open side panel / Open password manager"                                          |
+| `favicon`        | Read Chrome's locally cached website favicons, zero external requests                                                                                                                                                 |
+| `<all_urls>`     | Content script matches all pages (host_permission)                                                                                                                                                                    |
 
 ## CSV / JSON Field Formats
 

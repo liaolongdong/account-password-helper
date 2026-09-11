@@ -42,7 +42,7 @@
    - **摘要**（132字符硬限制，中英各一条）：
      - 权威来源是 `public/_locales/zh_CN/messages.json` 与 `en/messages.json` 的 `extensionDescription`（manifest 通过 `__MSG_extensionDescription__` 引用）。商店列表必须粘贴**同一句话**——两份副本逐字一致，否则审核会判定描述与 manifest 不符。可直接粘贴的当前文案见 `CWS_FILL_CONTENT.md`「第二步 → 摘要」。
      - ✅ 口径已订正：旧文案中的「零联网」/「100% offline」并不成立（扩展每 6 小时发起一次不携带用户数据的匿名版本检查），两份 `_locales` 的 `extensionDescription` 已改为限定口径。
-     - 🚫 **2026-09-09 关键字堆砌驳回后的现行口径（2026-09-10 二 / 三 / 四次修订）**：中文 **131 字符** / 英文 **130 字符**（上限 132，不留白）——句式必须是**读得通的完整句子**，功能项挂在谓语（中文「含……」/ 英文 `with …`）下面，而不是逗号裸串；品类词「密码管理器 / password manager」只出现一次，**不含任何竞品品牌名（Chrome / LastPass / Bitwarden / 1Password）**。`AES-256-GCM` 按用户要求写回摘要（准确的算法名，此前正文里不完整的「AES-256」已一并更正），`PBKDF2` 迭代次数这类参数仍只放在详细说明的【安全架构】。摘要按用户要求覆盖两步验证（TOTP/2FA）/ 密码强度检测 / 迁移导入，英文额度更紧，「密码可见性切换」只写在说明的 FEATURE SET。详细描述同日四次修订后为中文 **2380** / 英文 **6961** 字符（上限 16,000）：评审回填了「选中导出」「两步验证（TOTP）独立条目」「真的完全免费吗 / 能从其他密码管理器导入吗」三条，回填方式是**机制归【功能全览】、价值归【为什么选择它】、问答只讲本节独有事实**，跨节不留重复句。3.8.0 草稿正是被 `Chrome, LastPass, Bitwarden, and 1Password (CSV/JSON formats` 判为 keyword stuffing，旧草稿已关闭，须在**已有商品**里上传新包生成新草稿重新提交（不要点「新建商品」）。
+     - 🚫 **2026-09-09 关键字堆砌驳回后的现行口径（2026-09-10 二 / 三 / 四次修订，2026-09-11 五次修订）**：中文 **131 字符** / 英文 **130 字符**（上限 132，不留白）——句式必须是**读得通的完整句子**，功能项挂在谓语（中文「含……」/ 英文 `with …`）下面，而不是逗号裸串；品类词「密码管理器 / password manager」只出现一次，**不含任何竞品品牌名（Chrome / LastPass / Bitwarden / 1Password）**。`AES-256-GCM` 按用户要求写回摘要（准确的算法名，此前正文里不完整的「AES-256」已一并更正），`PBKDF2` 迭代次数这类参数仍只放在详细说明的【安全架构】。摘要按用户要求覆盖两步验证（TOTP/2FA）/ 密码强度检测 / 迁移导入，英文额度更紧，「密码可见性切换」只写在说明的 FEATURE SET。详细描述四次修订后为中文 **2380** / 英文 **6961** 字符，2026-09-11 五次修订（SEO/ASO 复核）再回填六处已验证事实（密文只写入 local 与 session、改主密码原子重加密、生成器可排除易混淆字符、TOTP 可自定义算法与位数、主密码框大写锁定提示、换设备用 .aph 备份还原）、把「多环境账号隔离」「保存密码」写回正文，并驳回三处与实现不符的候选表述（快捷键自动登录 / EFF 助记词 / 五维检测），现为中文 **2634** / 英文 **7743** 字符（上限 16,000）：回填方式是**机制归【功能全览】、价值归【为什么选择它】、问答只讲本节独有事实**，跨节不留重复句。3.8.0 草稿正是被 `Chrome, LastPass, Bitwarden, and 1Password (CSV/JSON formats` 判为 keyword stuffing，旧草稿已关闭，须在**已有商品**里上传新包生成新草稿重新提交（不要点「新建商品」）。
      - **剩余动作**：`pnpm build` 后重新上传商店包，线上摘要才会与新文案一致。
    - **详细描述**：参见下方"商店描述模板"
    - **分类**：Productivity
@@ -241,7 +241,7 @@ PY
 - **文档更新时间**：每次发版或重大文档变更时，须同步更新以下 7 处的「最后更新」时间戳——README.md 末尾行、README.en.md 末尾行、index.html `footer.updated` 中英两处、en.html `footer.updated` 中英两处、llms.txt `Last updated` 行；隐私页（privacy.html / privacy.en.html）仅在隐私政策实际变更时更新精确日期，不随版本号联动
 
 - **FAQ 权威版本**为 index.html 可见文案（i18n 字典）；README 与 llms.txt 的 FAQ 发版时对照校对，避免多副本漂移
-- **测试数量**：以 `pnpm test:run` 输出的 `Test Files` / `Tests` 汇总行为唯一事实来源，新增或删除用例后须同步 README.md 与 README.en.md 的「技术亮点 / Technical highlights」行、llms.txt 的 `Quality` 行（该行同时声明测试文件数），以及 `docs/blog/**` 正文与页脚提到的测试数量（改完跑 `pnpm gen:blog` 重生 `blog/*.html`）。旧的「博客数字锁定为发文快照」口径已于 2026-09 废止：博客修订时数字一并回改，避免与 README / llms.txt 长期背离
+- **测试数量**：以 `pnpm test:run` 输出的 `Test Files` / `Tests` 汇总行为唯一事实来源，新增或删除用例后须同步 README.md 与 README.en.md「核心特性」末尾的技术指针行（原「技术亮点 / Technical highlights」行已于 2026-09-11 的 README 重构中合并至此）、llms.txt 的 `Quality` 行（该行同时声明测试文件数），以及 `docs/blog/**` 正文与页脚提到的测试数量（改完跑 `pnpm gen:blog` 重生 `blog/*.html`）。旧的「博客数字锁定为发文快照」口径已于 2026-09 废止：博客修订时数字一并回改，避免与 README / llms.txt 长期背离
 - **功能口径**：新增用户可见功能时，实际需要同步的是 **6 处表面 + 架构文档**，`.qoder/rules/wxt-rules.md` 第 10 条只列了 4 处（README / index.html / HelpDialog / CWS），按它执行会漏项。完整清单：
 
   1. `README.md`（功能速览按编号顺延，中英文各一节）

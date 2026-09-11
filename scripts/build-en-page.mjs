@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { applyI18n, assertI18nCoverage } from './lib/apply-i18n.mjs';
+import { buildFaqPageJsonLd, parseFaqEntries, selectFaqEntries } from './lib/faq-schema.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'index.html');
@@ -29,105 +30,6 @@ const EN_KEYWORDS =
 const EN_JSONLD_DESCRIPTION =
   'Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.';
 
-// 英文版 FAQPage / HowTo 结构化数据（与 index.html 中文块逐条对应）
-const EN_FAQPAGE_JSONLD = `<!-- FAQPage structured data: English version, mirrored from the Chinese FAQPage block in index.html -->
-    <script type="application/ld+json">
-      {
-        "@context": "https://schema.org",
-        "@type": "FAQPage",
-        "mainEntity": [
-          {
-            "@type": "Question",
-            "name": "Are my passwords uploaded to the cloud?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "No. The extension is fully local: all data stays in your browser's local storage and sensitive fields are encrypted per field with AES-256-GCM, so no credential is ever uploaded. The only outbound request is an anonymous version check every 6 hours, which carries no vault data or personal identifier."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "What if I forget my master password?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "It cannot be recovered; you can only use Reset to wipe the vault and start over. Back up regularly via data export or the encrypted .aph backup to avoid data loss."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "What happens when my session expires?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Expiry destroys only the session key material held in memory and chrome.storage.session — the vault is already ciphertext at rest, so nothing needs re-encrypting. Verify the master password again to restore access; no data is lost."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "What is the security audit and what does it check?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "A one-click password health scan showing a 0–100 overall score weighted across four dimensions: password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline dictionary) and stale passwords (20, 90/180/365-day tiers); missing two-factor authentication is listed but unscored. Everything is computed locally with no network request. Expiry reminders help you catch risks early."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Can I import from other password managers?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Yes. Upload a CSV file in the import dialog; the extension auto-detects Chrome, LastPass, Bitwarden and 1Password export formats and maps the fields."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "Autofill doesn't work — what should I do?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Wait for the page to fully load and retry; the filler tries three strategies in order (native setter, execCommand, simulated keyboard events). If it still fails, refresh the page."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How do I customize the keyboard shortcuts?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Open chrome://extensions/shortcuts, find Account Password Helper, click the shortcut field next to a command and press a new combination. You can also open the read-only overview under Security Settings → Keyboard Shortcuts on the manager page, which flags the live status of every binding and links straight to that page."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "What is one-click login and how is it different from other password managers?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "One-click login is the core differentiator: from the side panel, 'Fill and sign in' autofills the credentials, ticks the 'I agree' checkbox and clicks the login button, completing sign-in in about one second; you can also turn on the global 'Auto login trigger' preference (off by default). Note that the Ctrl+Shift+F quick-fill shortcut only fills — it never submits. Exact-domain matching also isolates dev/test/staging/prod accounts for the same site."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How does Account Password Helper compare with Bitwarden and 1Password?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "It is completely free, open source and stores data purely locally — no account, no cloud sync. Key differences: 1) one-click login (fill + tick + click) in a single action; 2) multi-environment account isolation by exact hostname (dev/test/staging/prod); 3) built-in TOTP 2FA (Bitwarden requires Premium and 1Password requires a subscription — here it is free); 4) offline security audit (0–100 score across four weighted dimensions). Bitwarden and 1Password are cloud-based and require accounts."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How is side panel performance? Any lag?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "The side panel is heavily optimized: it loads in about 20–50ms while the session is valid, thanks to Service Worker keep-alive and a resident password cache. It opens instantly even after the session expires. On Windows, a first cold start can take 1–2 extra seconds due to antivirus scanning; adding the Chrome extensions directory to the exclusion list brings it under one second."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How do I migrate to Account Password Helper from another password manager?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Upload a CSV file in the import dialog; the extension auto-detects Chrome, LastPass, Bitwarden and 1Password export formats with Chinese/English column-name mapping — migration takes about 30 seconds. JSON import and .aph encrypted backup import are also supported."
-            }
-          }
-        ]
-      }
-    </script>
-`;
 const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored from the Chinese HowTo block in index.html -->
     <script type="application/ld+json">
       {
@@ -162,6 +64,8 @@ const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored f
 `;
 
 let html = readFileSync(srcPath, 'utf8');
+// 结构化数据与可见 FAQ 共用同一份条目，避免两处文案漂移
+const faqEntries = selectFaqEntries(parseFaqEntries(html));
 
 // ---------- 1. 提取 I18N 字典（纯对象字面量区域） ----------
 const dictStart = html.indexOf('const I18N = {');
@@ -223,8 +127,9 @@ replaceEvery('href="./pricing.html"', 'href="./pricing.en.html"');
 replaceEvery('href="./compare.html"', 'href="./compare.en.html"');
 replaceEvery('href="./blog/"', 'href="./blog/index.en.html"');
 replaceOnce(/"description": "开源免费的本地密码管理器[^\n]*",/, `"description": "${EN_JSONLD_DESCRIPTION}",`);
-// 英文版：中文 FAQPage / HowTo 结构化数据块替换为逐条对应的英文版，避免语言错配
-replaceOnce(/[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/, () => EN_FAQPAGE_JSONLD);
+// 英文版：中文 FAQPage / HowTo 结构化数据块替换为英文版，避免语言错配
+// FAQPage 与可见 FAQ 同源（faqEntries 取自 FAQS 数组），文案不再单独维护
+replaceOnce(/[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/, () => buildFaqPageJsonLd(faqEntries, 'en'));
 replaceOnce(/[ \t]*<!-- HowTo 结构化数据[\s\S]*?<\/script>\n/, () => EN_HOWTO_JSONLD);
 // 静态英文页缺省语言固定为 en（仍尊重 ?lang 参数与 localStorage 显式选择）
 replaceOnce("return (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';", "return 'en';");

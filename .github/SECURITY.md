@@ -24,7 +24,7 @@ Account Password Helper is a **local-first, zero network transfer** password man
 
 - All data is stored in `chrome.storage.local`, encrypted at rest
 - No data is ever sent over the network — no telemetry, no analytics, no cloud sync
-- Sensitive fields are automatically re-encrypted when the session expires
+- Session expiry or locking discards the session key material and the decrypted in-memory cache; data on disk is ciphertext at rest throughout, so no bulk re-encryption ever occurs
 
 ### Session Management
 
