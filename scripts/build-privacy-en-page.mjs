@@ -13,17 +13,25 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'privacy.html');
 const outPath = path.join(root, 'privacy.en.html');
 const SITE = 'https://liaolongdong.github.io/account-password-helper';
 
-const EN_TITLE = 'Privacy Policy - Account Password Helper';
-const EN_DESCRIPTION =
-  'Account Password Helper Privacy Policy — 100% local, zero data collection, AES-256-GCM encryption, no cloud, no account, no network transfer.';
-
 let html = readFileSync(srcPath, 'utf8');
+
+// ---------- 提取页面内的 META 字典（title / description 的单一事实来源） ----------
+const metaStart = html.indexOf('const META = {');
+if (metaStart === -1) throw new Error('未找到 META 字典起点');
+const metaBodyStart = html.indexOf('{', metaStart);
+const metaEnd = html.indexOf('};', metaBodyStart);
+if (metaEnd === -1) throw new Error('未找到 META 字典终点');
+const META = vm.runInNewContext(`(${html.slice(metaBodyStart, metaEnd + 1)})`);
+
+const EN_TITLE = META.title.en;
+const EN_DESCRIPTION = META.description.en;
 
 // ---------- head 元信息 ----------
 const replaceOnce = (pattern, replacement) => {
@@ -32,6 +40,7 @@ const replaceOnce = (pattern, replacement) => {
   html = next;
 };
 
+replaceOnce('<html lang="zh-CN">', '<html lang="en">');
 replaceOnce(/<title>[\s\S]*?<\/title>/, `<title>${EN_TITLE}</title>`);
 replaceOnce(/name="description"\s+content="[^"]*"/, `name="description"\n      content="${EN_DESCRIPTION}"`);
 replaceOnce(/property="og:title"\s+content="[^"]*"/, `property="og:title"\n      content="${EN_TITLE}"`);
@@ -41,24 +50,7 @@ replaceOnce(
 );
 replaceOnce(/rel="canonical"\s+href="[^"]*"/, `rel="canonical"\n      href="${SITE}/privacy.en.html"`);
 
-// 添加 hreflang
-const hreflangBlock = `
-    <link
-      rel="alternate"
-      hreflang="zh-CN"
-      href="${SITE}/privacy.html"
-    />
-    <link
-      rel="alternate"
-      hreflang="en"
-      href="${SITE}/privacy.en.html"
-    />
-    <link
-      rel="alternate"
-      hreflang="x-default"
-      href="${SITE}/privacy.html"
-    />`;
-html = html.replace(/(<link\s+rel="canonical"[\s\S]*?\/>)/, `$1${hreflangBlock}`);
+// hreflang 三条交替声明随 privacy.html 一并继承（双语互指内容相同，无需按语言改写）
 
 // 默认显示英文
 replaceOnce("switchLang('zh');", "switchLang('en');");

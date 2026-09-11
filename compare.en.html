@@ -179,7 +179,7 @@
             "name": "Is a local password manager safe?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Account Password Helper uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations) and sensitive fields are authenticated-encrypted with AES-256-GCM, with zero network transfer. A forgotten master password cannot be recovered, so export regular encrypted backups. As with any extension, avoid storing banking or payment credentials."
+              "text": "Account Password Helper uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations) and sensitive fields are authenticated-encrypted with AES-256-GCM, while credentials are never uploaded to any server. A forgotten master password cannot be recovered, so export regular encrypted backups. As with any extension, avoid storing banking or payment credentials."
             }
           }
         ]
@@ -445,9 +445,9 @@
       <div class="wrap">
         <h1>Account Password Helper vs Bitwarden, 1Password &amp; Chrome</h1>
         <p>
-          Want a <b>no sign-up, fully local, zero-network</b> free password manager? This page compares the open-source
-          Account Password Helper with Bitwarden, 1Password and Chrome's built-in manager across eight dimensions — and
-          honestly explains <b>who each is best for</b>.
+          Want a <b>no sign-up, fully local</b> free password manager that never uploads your passwords? This page
+          compares the open-source Account Password Helper with Bitwarden, 1Password and Chrome's built-in manager
+          across eight dimensions — and honestly explains <b>who each is best for</b>.
         </p>
         <div class="cta">
           <a
@@ -470,8 +470,8 @@
           <h2>The short version</h2>
           <p class="lead">
             Need cross-device cloud sync, mobile apps or team sharing — pick Bitwarden or 1Password. Want
-            <b>no sign-up, data that never leaves your browser, and one-keystroke login</b> as a developer / QA or
-            privacy-conscious user — pick Account Password Helper.
+            <b>no sign-up, password data that never leaves your browser, and one-keystroke login</b> as a developer / QA
+            or privacy-conscious user — pick Account Password Helper.
           </p>
           <div class="table-wrap">
             <table>
@@ -573,7 +573,7 @@
             <div>
               <h3>Where Account Password Helper differs</h3>
               <ul>
-                <li><b>No sign-up, zero cloud</b>: data never leaves your browser</li>
+                <li><b>No sign-up, no cloud storage</b>: password data never leaves your browser</li>
                 <li><b>One-keystroke login</b>: fill + tick consent + click login, not just fill</li>
                 <li><b>Exact-domain multi-environment isolation</b>: dev / test / staging / prod</li>
                 <li>Built-in TOTP and offline security audit, all free</li>
@@ -604,7 +604,7 @@
               <ul>
                 <li><b>Completely free, no subscription</b></li>
                 <li><b>No account</b>, no need to trust any cloud</li>
-                <li>Local AES-256-GCM encryption, zero network transfer</li>
+                <li>Per-field AES-256-GCM local encryption, no password uploads</li>
                 <li>One-keystroke login and multi-environment isolation for devs / QA</li>
               </ul>
             </div>
@@ -686,9 +686,9 @@
             <h3>Is a local password manager safe?</h3>
             <p>
               It uses the browser-native Web Crypto API: the master password is derived via PBKDF2 (600,000 iterations)
-              and fields are authenticated-encrypted with AES-256-GCM, with zero network transfer. A forgotten master
-              password can't be recovered, so keep encrypted backups; as with any extension, avoid banking / payment
-              credentials.
+              and fields are authenticated-encrypted with AES-256-GCM, while credentials are never uploaded to any
+              server. A forgotten master password can't be recovered, so keep encrypted backups; as with any extension,
+              avoid banking / payment credentials.
             </p>
           </div>
         </div>
@@ -700,7 +700,7 @@
           style="text-align: center"
         >
           <h2>Try it free, migrate in 30 seconds</h2>
-          <p class="lead">Open source, no sign-up, data never leaves your browser.</p>
+          <p class="lead">Open source, no sign-up, password data that stays in your browser.</p>
           <div class="cta">
             <a
               class="btn"

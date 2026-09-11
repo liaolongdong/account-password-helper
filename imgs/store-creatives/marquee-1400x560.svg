@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="560" viewBox="0 0 1400 560" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A1A38"/>
+      <stop offset="1" stop-color="#123E77"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#409EFF"/>
+      <stop offset="1" stop-color="#337ECC"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="560" fill="url(#bg)"/>
+  <circle cx="1330" cy="40" r="150" fill="#1E5FA8" opacity="0.28"/>
+  <circle cx="330" cy="540" r="120" fill="#1E5FA8" opacity="0.22"/>
+
+  <!-- 品牌区：主蓝圆角块 + 白色钥匙记号（与 assets/icons/icon.svg 同骨架） -->
+  <g>
+    <rect x="64" y="56" width="76" height="76" rx="19" fill="url(#primary)"/>
+    <g transform="translate(64,56) scale(0.59375)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+    <text x="64" y="196" font-size="34" font-weight="700" fill="#FFFFFF">账号密码管理助手</text>
+    <text x="64" y="228" font-size="19" font-weight="600" fill="#7FB6FF">Account Password Helper</text>
+    <text x="64" y="276" font-size="21" font-weight="600" fill="#6EE7B7">本地加密 · 密码不上传</text>
+    <text x="64" y="308" font-size="16" fill="#B8C7DE">为开发者与测试人员的多环境账号而生</text>
+  </g>
+
+  <g>
+    <rect x="64" y="452" width="266" height="46" rx="23" fill="#FFFFFF" opacity="0.08"/>
+    <rect x="64" y="452" width="266" height="46" rx="23" fill="none" stroke="#2E6BB0" stroke-width="1.5"/>
+    <text x="92" y="482" font-size="16" fill="#DCE9FA">开源免费 · GPL-3.0 协议</text>
+  </g>
+
+  <!-- 卖点卡片：一个卖点只讲一次，不写竞品名与技术参数 -->
+  <g>
+    <g>
+      <rect x="396" y="48" width="424" height="104" rx="16" fill="#FFFFFF" opacity="0.06"/>
+      <rect x="396" y="48" width="424" height="104" rx="16" fill="none" stroke="#2E6BB0" stroke-width="1.5"/>
+      <circle cx="438" cy="100" r="21" fill="#1E4F8F"/>
+      <path d="M438 88 l11 4 v9 c0 7 -5 12 -11 15 c-6 -3 -11 -8 -11 -15 v-9 z" fill="#6EE7B7"/>
+      <text x="476" y="94" font-size="21" font-weight="600" fill="#FFFFFF">逐字段本地加密</text>
+      <text x="476" y="124" font-size="14.5" fill="#A9BEDD">账号、密码、验证码分别加密后写入浏览器</text>
+    </g>
+    <g>
+      <rect x="396" y="168" width="424" height="104" rx="16" fill="#FFFFFF" opacity="0.06"/>
+      <rect x="396" y="168" width="424" height="104" rx="16" fill="none" stroke="#2E6BB0" stroke-width="1.5"/>
+      <circle cx="438" cy="220" r="21" fill="#1E4F8F"/>
+      <path d="M440 208 l-10 15 h8 l-3 13 l13 -18 h-9 z" fill="#FBBF24"/>
+      <text x="476" y="214" font-size="21" font-weight="600" fill="#FFFFFF">一键填充并登录</text>
+      <text x="476" y="244" font-size="14.5" fill="#A9BEDD">自动识别表单，勾选协议并按你的设置点击登录</text>
+    </g>
+    <g>
+      <rect x="396" y="288" width="424" height="104" rx="16" fill="#FFFFFF" opacity="0.06"/>
+      <rect x="396" y="288" width="424" height="104" rx="16" fill="none" stroke="#2E6BB0" stroke-width="1.5"/>
+      <circle cx="438" cy="340" r="21" fill="#1E4F8F"/>
+      <circle cx="438" cy="341" r="10.5" fill="none" stroke="#7FB6FF" stroke-width="3"/>
+      <path d="M438 336 v6 l4.5 3" fill="none" stroke="#7FB6FF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="434" y1="326.5" x2="442" y2="326.5" stroke="#7FB6FF" stroke-width="3" stroke-linecap="round"/>
+      <text x="476" y="334" font-size="21" font-weight="600" fill="#FFFFFF">两步验证码 + 安全体检</text>
+      <text x="476" y="364" font-size="14.5" fill="#A9BEDD">验证码本地生成，四个维度给出 0–100 分</text>
+    </g>
+    <g>
+      <rect x="396" y="408" width="424" height="104" rx="16" fill="#FFFFFF" opacity="0.06"/>
+      <rect x="396" y="408" width="424" height="104" rx="16" fill="none" stroke="#2E6BB0" stroke-width="1.5"/>
+      <circle cx="438" cy="460" r="21" fill="#1E4F8F"/>
+      <path d="M431 450 l-7 10 l7 10" fill="none" stroke="#6EE7B7" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M445 450 l7 10 l-7 10" fill="none" stroke="#6EE7B7" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="441" y1="448" x2="435" y2="472" stroke="#6EE7B7" stroke-width="3.2" stroke-linecap="round"/>
+      <text x="476" y="454" font-size="21" font-weight="600" fill="#FFFFFF">免费开源 · 无订阅</text>
+      <text x="476" y="484" font-size="14.5" fill="#A9BEDD">源码公开可审计，没有付费墙与账号体系</text>
+    </g>
+  </g>
+
+  <!-- 侧边栏界面示意（示例数据，非真实账号） -->
+  <g>
+    <rect x="856" y="48" width="480" height="464" rx="18" fill="url(#primary)"/>
+    <text x="880" y="86" font-size="19" font-weight="600" fill="#FFFFFF">账号密码管理助手</text>
+    <rect x="860" y="104" width="472" height="404" rx="14" fill="#F5F8FD"/>
+
+    <rect x="880" y="122" width="432" height="40" rx="20" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+    <circle cx="906" cy="142" r="7" fill="none" stroke="#9AA7B8" stroke-width="2"/>
+    <text x="924" y="147" font-size="14" fill="#9AA7B8">搜索用户名、标签、备注、网址…</text>
+
+    <g>
+      <rect x="880" y="178" width="432" height="64" rx="12" fill="#FFFFFF" stroke="#EEF2F7" stroke-width="1.5"/>
+      <circle cx="914" cy="210" r="16" fill="#E8F1FF"/>
+      <circle cx="914" cy="205" r="5" fill="#409EFF"/>
+      <path d="M905 219 a9 9 0 0 1 18 0" fill="#409EFF"/>
+      <text x="944" y="205" font-size="15" font-weight="600" fill="#1F2937">dev-admin</text>
+      <text x="944" y="226" font-size="12.5" fill="#98A2B3">demo.example.com</text>
+      <rect x="1228" y="198" width="66" height="24" rx="12" fill="#ECF5FF"/>
+      <text x="1261" y="215" font-size="12" fill="#337ECC" text-anchor="middle">开发</text>
+    </g>
+    <g>
+      <rect x="880" y="254" width="432" height="64" rx="12" fill="#FFFFFF" stroke="#EEF2F7" stroke-width="1.5"/>
+      <circle cx="914" cy="286" r="16" fill="#E8F1FF"/>
+      <circle cx="914" cy="281" r="5" fill="#409EFF"/>
+      <path d="M905 295 a9 9 0 0 1 18 0" fill="#409EFF"/>
+      <text x="944" y="281" font-size="15" font-weight="600" fill="#1F2937">qa-bot</text>
+      <text x="944" y="302" font-size="12.5" fill="#98A2B3">demo.example.com</text>
+      <rect x="1228" y="274" width="66" height="24" rx="12" fill="#ECF5FF"/>
+      <text x="1261" y="291" font-size="12" fill="#337ECC" text-anchor="middle">测试</text>
+    </g>
+    <g>
+      <rect x="880" y="330" width="432" height="64" rx="12" fill="#FFFFFF" stroke="#EEF2F7" stroke-width="1.5"/>
+      <circle cx="914" cy="362" r="16" fill="#E8F1FF"/>
+      <circle cx="914" cy="357" r="5" fill="#409EFF"/>
+      <path d="M905 371 a9 9 0 0 1 18 0" fill="#409EFF"/>
+      <text x="944" y="357" font-size="15" font-weight="600" fill="#1F2937">ops</text>
+      <text x="944" y="378" font-size="12.5" fill="#98A2B3">app.example.com</text>
+      <rect x="1228" y="350" width="66" height="24" rx="12" fill="#ECF5FF"/>
+      <text x="1261" y="367" font-size="12" fill="#337ECC" text-anchor="middle">生产</text>
+    </g>
+    <g>
+      <rect x="880" y="406" width="432" height="64" rx="12" fill="#FFFFFF" stroke="#EEF2F7" stroke-width="1.5"/>
+      <circle cx="914" cy="438" r="16" fill="#E8F1FF"/>
+      <circle cx="914" cy="433" r="5" fill="#409EFF"/>
+      <path d="M905 447 a9 9 0 0 1 18 0" fill="#409EFF"/>
+      <text x="944" y="433" font-size="15" font-weight="600" fill="#1F2937">个人账号</text>
+      <text x="944" y="454" font-size="12.5" fill="#98A2B3">example.com</text>
+      <rect x="1228" y="426" width="66" height="24" rx="12" fill="#ECF5FF"/>
+      <text x="1261" y="443" font-size="12" fill="#337ECC" text-anchor="middle">个人</text>
+    </g>
+  </g>
+</svg>

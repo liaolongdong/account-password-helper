@@ -67,7 +67,7 @@
 
 | 渠道                        | 语言 | 说明                                                                                                                                                                                               |
 | --------------------------- | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Hacker News（Show HN）      | 英文 | 选周二至周四太平洋时间上午 8-10 点，标题用 `Show HN: Account Password Helper – a local-first, open-source password manager Chrome extension`，正文首条评论自述动机；三篇英文博客可作为评论佐证链接 |
+| Hacker News（Show HN）      | 英文 | 选周二至周四太平洋时间上午 8-10 点，标题用 `Show HN: Account Password Helper – a local-first, open-source password manager Chrome extension`，正文首条评论自述动机；四篇英文博客可作为评论佐证链接 |
 | r/SideProject、r/opensource | 英文 | 允许自荐，配封面图 + GitHub 链接                                                                                                                                                                   |
 | 微信公众号                  | 中文 | 通过 `baoyu-post-to-wechat` 技能或公众号后台排版发布（代码块需转截图或用 mdnice 排版）                                                                                                             |
 | 少数派                      | 中文 | 适合 01 产品故事篇，投稿矩阵/邮件                                                                                                                                                                  |

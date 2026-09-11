@@ -32,7 +32,7 @@
   <g>
     <text x="96" y="282" font-size="84" font-weight="700" fill="#1F2937">零云端 · 本地加密</text>
     <text x="96" y="352" font-size="38" font-weight="600" fill="#409EFF">AES-256-GCM · PBKDF2 600,000×</text>
-    <text x="96" y="414" font-size="28" fill="#6B7280">数据不出浏览器，多环境账号不串号</text>
+    <text x="96" y="414" font-size="28" fill="#6B7280">密码数据不出浏览器，多环境账号不串号</text>
   </g>
   <g font-size="27" font-weight="500">
     <rect x="96" y="452" width="214" height="56" rx="28" fill="#ECF5FF" stroke="#D9ECFF" stroke-width="2"/>

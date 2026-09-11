@@ -65,7 +65,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-09-05"
+      content="2026-09-09"
     />
     <meta
       name="twitter:card"
@@ -92,7 +92,7 @@
   "inLanguage": "en",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-09-05",
+  "dateModified": "2026-09-09",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -242,12 +242,12 @@
     </nav>
     <article>
       <h1>'Opening the Chrome Side Panel in Under One Second: MV3 Service Worker Keep-Alive and Pre-Warming in Practice'</h1>
-      <p class="meta">2026-08-28 · Updated 2026-09-05 · liaolongdong</p>
+      <p class="meta">2026-08-28 · Updated 2026-09-09 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png" alt="'Opening the Chrome Side Panel in Under One Second: MV3 Service Worker Keep-Alive and Pre-Warming in Practice'" />
       <h1>Opening the Chrome Side Panel in Under One Second: MV3 Service Worker Keep-Alive and Pre-Warming in Practice</h1>
 <p>If you&#39;ve shipped a Manifest V3 extension, you&#39;ve probably been bitten by the same bug: <strong>the side panel cold-start white screen</strong>.</p>
 <p>The user clicks your icon. The side panel frame appears, the content area stays white, and two seconds later it finally renders. In desktop software terms, that&#39;s broken. Worse, MV3 replaced persistent background pages with service workers — short-lived processes the browser can terminate at any moment. Your carefully maintained in-memory cache and connection state? Gone without notice.</p>
-<p><a href="https://github.com/liaolongdong/account-password-helper">Account Password Helper</a> is a local-first password manager extension whose side panel is its highest-frequency surface — unlock, search, and fill all happen there. We set a hard SLA: <strong>the side panel must open in under one second with no white screen, in every scenario</strong> (valid or expired session, browser cold start, quick restart). End result: about 20–50ms on the cached fast path.</p>
+<p><a href="https://github.com/liaolongdong/account-password-helper">Account Password Helper</a> is a local-first password manager extension whose side panel is its highest-frequency surface — unlock, search, and fill all happen there. We set a hard SLA: <strong>the side panel must open in under one second with no white screen, in every scenario</strong> (valid or expired session, browser cold start, quick restart). End result: 20–50ms to data on the cached warm path.</p>
 <p>This post publishes the entire playbook, with source paths. Steal it.</p>
 <h2>First: Where Does the White Screen Come From?</h2>
 <p>Break the side panel launch into segments, and each one can cost you visible latency:</p>
@@ -268,7 +268,7 @@
 <p>Each layer covers the other&#39;s failure mode: the heartbeat maintains steady-state residency; the alarm guarantees resurrection. The strategy runs unconditionally on all platforms — even when the session is locked. Because what keep-alive buys is not &quot;the password stays in memory&quot;; it&#39;s <strong>&quot;the next side panel open never pays cold-start costs.&quot;</strong></p>
 <p>Two limits you must know:</p>
 <ul>
-<li><code>chrome.alarms</code> enforces a <strong>one-minute minimum period</strong> for packed extensions — don&#39;t expect second-level precision; sub-minute continuity is the heartbeat layer&#39;s job, while the alarm layer only guarantees resurrection;</li>
+<li><code>chrome.alarms</code> is throttled to <strong>at most one firing every 30 seconds</strong> (the limit is lifted when you load the extension unpacked for debugging), so 0.5 minutes is already the smallest period a packed extension can request — don&#39;t expect second-level precision; sub-minute continuity is the heartbeat layer&#39;s job, while the alarm layer only guarantees resurrection;</li>
 <li>The keep-alive alarm also carries session-expiry checks — expiry locks the vault immediately, independent of any page being open.</li>
 </ul>
 <h2>Countermeasure 2: Four-Layer Resource Pre-Warming</h2>
@@ -280,15 +280,15 @@
 <li>Static dependencies referenced by those secondary chunks.</li>
 </ol>
 <p>Two engineering constraints keep it from being a naive firehose:</p>
-<p><strong>Platform differentiation.</strong> Windows&#39; main bottleneck is Defender scanning extension files one by one — the more files you touch, the longer it scans. So Windows gets the full treatment (~25 files), amortizing scan cost upfront. macOS doesn&#39;t have this problem, so it pre-warms only a whitelist of ~15 core files. <strong>Trigger points:</strong> extension install/update, browser startup, window focus, tab activation, keep-alive alarm ticks, and 5 seconds after the side panel opens — all leading indicators that the user may open the panel soon.</p>
+<p><strong>Platform differentiation.</strong> Windows&#39; main bottleneck is Defender scanning extension files one by one — the more files you touch, the longer it scans. So Windows gets the full treatment (~25 files), amortizing scan cost upfront. macOS doesn&#39;t have this problem, so it pre-warms only a whitelist of ~15 core files. <strong>Trigger points:</strong> extension install/update, browser startup, window focus, tab activation, keep-alive alarm ticks, and 2 seconds after the side panel opens — all leading indicators that the user may open the panel soon.</p>
 <p><strong>Throttling and dedup.</strong> A persisted 5-minute throttle window plus an in-flight mutex prevents multiple triggers from hammering the disk simultaneously.</p>
 <p>There&#39;s also an SW pre-wake layer (<code>utils/preWarmSw.ts</code>, 8-second throttle): any user interaction in the popup pokes the background, guaranteeing the SW is alive by the time &quot;open side panel&quot; is clicked.</p>
 <h2>Countermeasure 3: Three-Way Data Racing</h2>
 <p>The vault has three viable routes (<code>composables/useSidepanelData.ts</code>):</p>
 <ol>
 <li><strong>Direct read of the encrypted <code>storage.session</code> snapshot.</strong> While the session is valid, the background keeps a decrypted snapshot in AES-256-GCM encrypted form in <code>storage.session</code>; the side panel reads it directly, no message channel involved.</li>
-<li><strong>Background <code>GET_INITIAL_DATA</code> memory cache.</strong> The background re-warms its password cache ~500ms after SW startup; fetch it over the message channel.</li>
-<li><strong>Direct local-storage fallback.</strong> If both routes fail, the side panel reads <code>storage.local</code> and decrypts itself, with a 3000ms timeout.</li>
+<li><strong>Background <code>GET_INITIAL_DATA</code> memory cache.</strong> The background re-warms its password cache ~500ms after SW startup; fetch it over the message channel. This route sits behind an <strong>800ms race gate</strong>: return inside the gate and it&#39;s used directly; if a cold SW answers later than that, the local route is already running in parallel and the late response is not thrown away — it keeps racing, with a shared &quot;adopted&quot; flag ensuring one response is processed at most once.</li>
+<li><strong>Direct local-storage read.</strong> Fired at the same instant as the other two, the side panel reads <code>storage.local</code> and decrypts itself under a 3000ms timeout. That timeout is the outermost safety net: better to show the locked view than to leave the user staring at an empty panel.</li>
 </ol>
 <p>All three race concurrently: <strong>whichever returns first renders first; one route failing never affects the others.</strong> Every async commit carries a session generation and request sequence guard — if the user locks or re-keys mid-flight, stale results can never write back into the UI.</p>
 <p>The core idea: <strong>treat &quot;where the data lives&quot; as a runtime decision, not an architectural assumption.</strong> SW alive? Fast path. SW dead? Fallback. The user notices nothing.</p>
@@ -298,14 +298,14 @@
 <h2>One Iron Rule: Never <code>await</code> Before a User Gesture</h2>
 <p><code>chrome.sidePanel.open()</code> must be triggered by a user gesture, and <strong>no <code>await</code> is allowed before the call</strong> — any async wait in between invalidates the gesture context and the panel simply won&#39;t open. So the open call is always fired synchronously, with the tabId fetched via a synchronous API. All &quot;pre-open preparation&quot; is moved upstream into keep-alive and pre-warming phases, rather than scrambling after the click.</p>
 <h2>Verification: Sub-Second Is Measured, Not Felt</h2>
-<p>Alongside the implementation, tests went into CI (vitest):</p>
+<p>Alongside the implementation, the test suite grew to cover every layer (vitest — it runs locally and from the pre-commit hook; the repository&#39;s GitHub Actions currently only build and deploy):</p>
 <ul>
 <li><code>swKeepalive</code>: heartbeat/alarm registration, revival, cleanup;</li>
 <li><code>warmSidePanelResources</code>: throttle windows, platform branches, file lists;</li>
 <li><code>passwordCache</code> / <code>startupRelock</code> / <code>idleLock</code>: cache re-warm and every lock path;</li>
 <li><code>sidePanelManager</code>: open sequencing.</li>
 </ul>
-<p>The repo now has 632 automated tests across 53 test files. Performance outcome: <strong>20–50ms on the cached fast path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
+<p>The repo now has 632 automated tests across 53 test files. Performance outcome: <strong>20–50ms to data on the cached warm path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
 <h2>Retrospective: Three Lessons</h2>
 <ol>
 <li><strong>Don&#39;t fight MV3&#39;s lifecycle; design around it.</strong> The SW <em>will</em> be terminated. Assume it&#39;s never there: put state in <code>chrome.storage</code>, delegate wake-ups to alarms, and push costs forward into pre-warming.</li>

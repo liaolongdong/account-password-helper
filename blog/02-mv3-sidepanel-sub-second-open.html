@@ -65,7 +65,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-09-05"
+      content="2026-09-09"
     />
     <meta
       name="twitter:card"
@@ -92,7 +92,7 @@
   "inLanguage": "zh-CN",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-09-05",
+  "dateModified": "2026-09-09",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -242,12 +242,12 @@
     </nav>
     <article>
       <h1>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</h1>
-      <p class="meta">2026-08-28 · 更新于 2026-09-05 · liaolongdong</p>
+      <p class="meta">2026-08-28 · 更新于 2026-09-09 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png" alt="让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战" />
       <h1>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</h1>
 <p>做过 Manifest V3 扩展的人，大概率都被同一个问题咬过：<strong>侧边栏（Side Panel）冷启动白屏</strong>。</p>
 <p>用户点击图标，侧边栏框架是出来了，内容区白一片，两秒后才慢慢渲染。在桌面软件里，这叫不可用。更糟的是，MV3 把后台换成了 Service Worker——一个随时可能被浏览器回收的短命进程，你精心维护的内存缓存、连接状态，说没就没。</p>
-<p><a href="https://github.com/liaolongdong/account-password-helper">Account Password Helper</a> 是一款本地密码管理器扩展，侧边栏是它的最高频入口（解锁、搜索、填充都在这）。我们给它定了一个硬性 SLA：<strong>所有场景（会话有效/失效、浏览器冷启动、快速重启）侧边栏必须 1 秒内打开、无白屏</strong>。最终结果：缓存快路径下加载耗时约 20–50ms。</p>
+<p><a href="https://github.com/liaolongdong/account-password-helper">Account Password Helper</a> 是一款本地密码管理器扩展，侧边栏是它的最高频入口（解锁、搜索、填充都在这）。我们给它定了一个硬性 SLA：<strong>所有场景（会话有效/失效、浏览器冷启动、快速重启）侧边栏必须 1 秒内打开、无白屏</strong>。最终结果：缓存快路径 20-50ms 拿到数据。</p>
 <p>这篇文章把整套方案的实现和踩坑完整公开，源码路径都会给出，可以直接抄。</p>
 <h2>先搞清楚白屏从哪来</h2>
 <p>侧边栏打开的链路拆开看，每一段都可能贡献白屏时间：</p>
@@ -268,7 +268,7 @@
 <p>两层互为兜底：心跳保证常态常驻，闹钟保证&quot;死而复生&quot;。这个策略是全平台无条件开启的——哪怕会话已锁定。因为保活买的不是&quot;密码在内存里&quot;，而是<strong>下一次打开侧边栏时不用付冷启动成本</strong>。</p>
 <p>顺带两个必须知道的限制：</p>
 <ul>
-<li><code>chrome.alarms</code> 对打包扩展的最小周期限制为 <strong>1 分钟</strong>，别指望秒级精度——秒级的连续性由 20 秒心跳层负责，闹钟层只兜&quot;起死回生&quot;；</li>
+<li><code>chrome.alarms</code> 的官方限制是<strong>最快每 30 秒触发一次</strong>（以未打包方式加载做调试时不限频率），所以 0.5 分钟已经是打包扩展能写到的最小周期，别指望秒级精度——秒级的连续性由 20 秒心跳层负责，闹钟层只兜&quot;起死回生&quot;；</li>
 <li>保活闹钟里还挂了会话到期检查——到期立即锁定，不依赖页面存活。</li>
 </ul>
 <h2>对策二：四层资源预热，消灭冷读盘</h2>
@@ -280,15 +280,15 @@
 <li>二级 chunk 再引用的静态依赖。</li>
 </ol>
 <p>预热不是无脑全量，有两个工程约束：</p>
-<p><strong>平台差异化。</strong> Windows 的主要瓶颈是 Defender 对扩展目录的逐文件扫描，文件读得越多、扫得越久，所以 Windows 走全量预热（约 25 个文件），把扫描成本提前摊掉；Mac 等 Unix 平台没有这个问题，只预热白名单里的约 15 个核心文件。<strong>触发时机</strong>：扩展安装/更新、浏览器启动、窗口聚焦、Tab 激活、保活闹钟 tick、侧边栏打开 5 秒后——都是&quot;用户可能要打开侧边栏&quot;的前置信号。</p>
+<p><strong>平台差异化。</strong> Windows 的主要瓶颈是 Defender 对扩展目录的逐文件扫描，文件读得越多、扫得越久，所以 Windows 走全量预热（约 25 个文件），把扫描成本提前摊掉；Mac 等 Unix 平台没有这个问题，只预热白名单里的约 15 个核心文件。<strong>触发时机</strong>：扩展安装/更新、浏览器启动、窗口聚焦、Tab 激活、保活闹钟 tick、侧边栏打开 2 秒后——都是&quot;用户可能要打开侧边栏&quot;的前置信号。</p>
 <p><strong>节流与去重。</strong> 持久化 5 分钟节流窗口 + in-flight 互斥锁，防止多个触发点同时触发时把磁盘打满。</p>
 <p>另外还有一层 SW 预唤醒（<code>utils/preWarmSw.ts</code>，8 秒节流）：用户在 Popup 上的任何交互都顺手戳一下后台，保证点&quot;打开侧边栏&quot;时 SW 一定是在线的。</p>
 <h2>对策三：三路数据竞速，谁快用谁</h2>
 <p>密码数据有三条可走的路（<code>composables/useSidepanelData.ts</code>）：</p>
 <ol>
 <li><strong><code>storage.session</code> 加密快照直读</strong>：会话有效期内，后台把解密后的快照以 AES-256-GCM 加密形态放在 <code>storage.session</code>，侧边栏直接读，不经过消息通道；</li>
-<li><strong>后台 <code>GET_INITIAL_DATA</code> 内存缓存</strong>：后台在 SW 启动 500ms 后就把密码缓存回温，走消息通道拿；</li>
-<li><strong>本地 storage 直读兜底</strong>：前两条都不可用时，侧边栏自己读 <code>storage.local</code> 解密，设 3000ms 超时。</li>
+<li><strong>后台 <code>GET_INITIAL_DATA</code> 内存缓存</strong>：后台在 SW 启动 500ms 后就把密码缓存回温，走消息通道拿。这条路径上有一个 <strong>800ms 竞速门</strong>：门内返回就直接用；冷 SW 超过 800ms 才回话时，本地兜底路径已经并行跑起来了，迟到的那份原始响应不会被丢弃，它继续和本地路径竞速，由一个共用的&quot;已采纳&quot;标记保证同一响应只被处理一次；</li>
+<li><strong>本地 storage 直读</strong>：与上面两条同一时刻并行发起，侧边栏自己读 <code>storage.local</code> 解密，设 3000ms 超时——这条超时是最后的安全网，宁可先给出锁屏界面，也不让用户对着空面板干等。</li>
 </ol>
 <p>三路并发出发，<strong>任一路先返回就先渲染，任一路失败不影响其他路径</strong>。所有异步提交都带会话代际和请求序号保护——万一用户中途锁定或换钥，过期结果不会写回 UI。</p>
 <p>这个设计的核心思想是：<strong>把&quot;数据在哪&quot;变成运行时决策，而不是架构假设</strong>。SW 活着走快路径，SW 死了走兜底，用户无感。</p>
@@ -298,14 +298,14 @@
 <h2>还有一条铁律：手势链不能被 await 打断</h2>
 <p><code>chrome.sidePanel.open()</code> 必须由用户手势触发，且<strong>调用前禁止 <code>await</code></strong>——一旦中间插入任何异步等待，手势上下文就失效，侧边栏直接打不开。所以打开动作本身永远是同步发出的，tabId 也用同步接口获取。所有&quot;打开前的准备工作&quot;全部前置到保活和预热阶段完成，而不是在点击之后临时抱佛脚。</p>
 <h2>验证：秒开不是感觉，是测出来的</h2>
-<p>方案落地的同时，配套测试也进了 CI（vitest）：</p>
+<p>方案落地的同时，配套测试也补齐了（vitest，跑在本地与提交前钩子里；仓库的 GitHub Actions 目前只做构建与页面部署）：</p>
 <ul>
 <li><code>swKeepalive</code>：心跳与闹钟的注册、续命、清理；</li>
 <li><code>warmSidePanelResources</code>：节流窗口、平台分支、文件清单；</li>
 <li><code>passwordCache</code> / <code>startupRelock</code> / <code>idleLock</code>：缓存回温与各类锁定路径；</li>
 <li><code>sidePanelManager</code>：打开时序。</li>
 </ul>
-<p>目前全仓库 632 项自动化测试（分布在 53 个测试文件）。性能结论：<strong>缓存快路径 20–50ms</strong>；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。</p>
+<p>目前全仓库 632 项自动化测试（分布在 53 个测试文件）。性能结论：<strong>缓存快路径 20-50ms 拿到数据</strong>；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。</p>
 <h2>复盘：三条经验</h2>
 <ol>
 <li><strong>别和 MV3 的生命周期对抗，要顺着它设计。</strong> SW 一定会被回收，那就假设它随时不在，把状态放进 <code>chrome.storage</code>，把唤醒交给闹钟，把成本提前到预热阶段。</li>

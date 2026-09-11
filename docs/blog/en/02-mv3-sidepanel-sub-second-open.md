@@ -3,7 +3,7 @@ title: 'Opening the Chrome Side Panel in Under One Second: MV3 Service Worker Ke
 description: Manifest V3 service workers can be terminated at any time, and side panel cold-start white screens are the #1 pain in extension UX. A complete breakdown of Account Password Helper's sub-second strategy — dual-layer keep-alive, four-layer resource pre-warming, three-way data racing, and non-blocking CSS.
 tags: chrome extension,manifest v3,service worker,performance,frontend engineering
 date: 2026-08-28
-modified: 2026-09-05
+modified: 2026-09-09
 author: liaolongdong
 image: imgs/blog-cover-02-sub-second-sidepanel.png
 ---
@@ -14,7 +14,7 @@ If you've shipped a Manifest V3 extension, you've probably been bitten by the sa
 
 The user clicks your icon. The side panel frame appears, the content area stays white, and two seconds later it finally renders. In desktop software terms, that's broken. Worse, MV3 replaced persistent background pages with service workers — short-lived processes the browser can terminate at any moment. Your carefully maintained in-memory cache and connection state? Gone without notice.
 
-[Account Password Helper](https://github.com/liaolongdong/account-password-helper) is a local-first password manager extension whose side panel is its highest-frequency surface — unlock, search, and fill all happen there. We set a hard SLA: **the side panel must open in under one second with no white screen, in every scenario** (valid or expired session, browser cold start, quick restart). End result: about 20–50ms on the cached fast path.
+[Account Password Helper](https://github.com/liaolongdong/account-password-helper) is a local-first password manager extension whose side panel is its highest-frequency surface — unlock, search, and fill all happen there. We set a hard SLA: **the side panel must open in under one second with no white screen, in every scenario** (valid or expired session, browser cold start, quick restart). End result: 20–50ms to data on the cached warm path.
 
 This post publishes the entire playbook, with source paths. Steal it.
 
@@ -42,7 +42,7 @@ Each layer covers the other's failure mode: the heartbeat maintains steady-state
 
 Two limits you must know:
 
-- `chrome.alarms` enforces a **one-minute minimum period** for packed extensions — don't expect second-level precision; sub-minute continuity is the heartbeat layer's job, while the alarm layer only guarantees resurrection;
+- `chrome.alarms` is throttled to **at most one firing every 30 seconds** (the limit is lifted when you load the extension unpacked for debugging), so 0.5 minutes is already the smallest period a packed extension can request — don't expect second-level precision; sub-minute continuity is the heartbeat layer's job, while the alarm layer only guarantees resurrection;
 - The keep-alive alarm also carries session-expiry checks — expiry locks the vault immediately, independent of any page being open.
 
 ## Countermeasure 2: Four-Layer Resource Pre-Warming
@@ -56,7 +56,7 @@ Once the SW is resident, the next step is getting "the files the user is about t
 
 Two engineering constraints keep it from being a naive firehose:
 
-**Platform differentiation.** Windows' main bottleneck is Defender scanning extension files one by one — the more files you touch, the longer it scans. So Windows gets the full treatment (~25 files), amortizing scan cost upfront. macOS doesn't have this problem, so it pre-warms only a whitelist of ~15 core files. **Trigger points:** extension install/update, browser startup, window focus, tab activation, keep-alive alarm ticks, and 5 seconds after the side panel opens — all leading indicators that the user may open the panel soon.
+**Platform differentiation.** Windows' main bottleneck is Defender scanning extension files one by one — the more files you touch, the longer it scans. So Windows gets the full treatment (~25 files), amortizing scan cost upfront. macOS doesn't have this problem, so it pre-warms only a whitelist of ~15 core files. **Trigger points:** extension install/update, browser startup, window focus, tab activation, keep-alive alarm ticks, and 2 seconds after the side panel opens — all leading indicators that the user may open the panel soon.
 
 **Throttling and dedup.** A persisted 5-minute throttle window plus an in-flight mutex prevents multiple triggers from hammering the disk simultaneously.
 
@@ -67,8 +67,8 @@ There's also an SW pre-wake layer (`utils/preWarmSw.ts`, 8-second throttle): any
 The vault has three viable routes (`composables/useSidepanelData.ts`):
 
 1. **Direct read of the encrypted `storage.session` snapshot.** While the session is valid, the background keeps a decrypted snapshot in AES-256-GCM encrypted form in `storage.session`; the side panel reads it directly, no message channel involved.
-2. **Background `GET_INITIAL_DATA` memory cache.** The background re-warms its password cache ~500ms after SW startup; fetch it over the message channel.
-3. **Direct local-storage fallback.** If both routes fail, the side panel reads `storage.local` and decrypts itself, with a 3000ms timeout.
+2. **Background `GET_INITIAL_DATA` memory cache.** The background re-warms its password cache ~500ms after SW startup; fetch it over the message channel. This route sits behind an **800ms race gate**: return inside the gate and it's used directly; if a cold SW answers later than that, the local route is already running in parallel and the late response is not thrown away — it keeps racing, with a shared "adopted" flag ensuring one response is processed at most once.
+3. **Direct local-storage read.** Fired at the same instant as the other two, the side panel reads `storage.local` and decrypts itself under a 3000ms timeout. That timeout is the outermost safety net: better to show the locked view than to leave the user staring at an empty panel.
 
 All three race concurrently: **whichever returns first renders first; one route failing never affects the others.** Every async commit carries a session generation and request sequence guard — if the user locks or re-keys mid-flight, stale results can never write back into the UI.
 
@@ -86,14 +86,14 @@ Result: the HTML parses and paints a skeleton immediately; styles arrive asynchr
 
 ## Verification: Sub-Second Is Measured, Not Felt
 
-Alongside the implementation, tests went into CI (vitest):
+Alongside the implementation, the test suite grew to cover every layer (vitest — it runs locally and from the pre-commit hook; the repository's GitHub Actions currently only build and deploy):
 
 - `swKeepalive`: heartbeat/alarm registration, revival, cleanup;
 - `warmSidePanelResources`: throttle windows, platform branches, file lists;
 - `passwordCache` / `startupRelock` / `idleLock`: cache re-warm and every lock path;
 - `sidePanelManager`: open sequencing.
 
-The repo now has 632 automated tests across 53 test files. Performance outcome: **20–50ms on the cached fast path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
+The repo now has 632 automated tests across 53 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
 
 ## Retrospective: Three Lessons
 

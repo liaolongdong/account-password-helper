@@ -10,7 +10,7 @@
     <title>Account Password Helper · Free Local Password Manager | One-Click Login · TOTP · Security Audit</title>
     <meta
       name="description"
-      content="Free, open-source local password manager: one-click login (fill + tick + click), AES-256-GCM encryption with zero network transfer, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel instant open (20–50ms warm path). Built for developers & QA."
+      content="Free, open-source local password manager: one-click login (fill + tick + click), per-field AES-256-GCM local encryption, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel opens in ~20–50ms from cache. Password data is never uploaded."
     />
     <meta
       name="keywords"
@@ -39,7 +39,7 @@
     />
     <meta
       property="og:description"
-      content="Free, open-source local password manager: one-click login (fill + tick + click), AES-256-GCM encryption with zero network transfer, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel instant open (20–50ms warm path). Built for developers & QA."
+      content="Free, open-source local password manager: one-click login (fill + tick + click), per-field AES-256-GCM local encryption, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel opens in ~20–50ms from cache. Password data is never uploaded."
     />
     <meta
       property="og:url"
@@ -71,7 +71,7 @@
     />
     <meta
       name="twitter:description"
-      content="Free, open-source local password manager: one-click login (fill + tick + click), AES-256-GCM encryption with zero network transfer, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel instant open (20–50ms warm path). Built for developers & QA."
+      content="Free, open-source local password manager: one-click login (fill + tick + click), per-field AES-256-GCM local encryption, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel opens in ~20–50ms from cache. Password data is never uploaded."
     />
     <meta
       name="twitter:image"
@@ -111,17 +111,34 @@
         "@type": "SoftwareApplication",
         "name": "Account Password Helper · 账号密码管理助手",
         "applicationCategory": "SecurityApplication",
+        "applicationSubCategory": "Password Manager",
         "operatingSystem": "Chrome",
+        "browserRequirements": "需要 Chrome 114 或更高版本以使用 Side Panel API（未声明 minimum_chrome_version，旧版本仅侧边栏功能不可用）；兼容 Edge、Brave 等 Chromium 内核浏览器",
         "softwareVersion": "3.7.0",
-        "dateModified": "2026-09-05",
+        "dateModified": "2026-09-11",
+        "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
           "price": "0",
           "priceCurrency": "USD"
         },
-        "description": "Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + AES-256-GCM encryption with zero network transfer, built-in TOTP 2FA, security audit and password generator, instant side panel (20-50ms warm path).",
+        "featureList": [
+          "一键登录：自动填充 + 勾选「记住我 / 同意条款」+ 点击登录",
+          "精确域名匹配隔离 dev/test/staging/prod 多环境账号",
+          "内置 TOTP 两步验证（RFC 6238），支持扫码或图片添加密钥",
+          "逐字段 AES-256-GCM 本地加密（PBKDF2 600,000 次迭代）",
+          "离线安全体检：0-100 四维加权评分，全程不联网",
+          "密码生成器：随机密码与助记词组双模式",
+          "四重填充策略：内联填充 / 侧边栏 / 右键菜单 / 快捷键",
+          "CSV / JSON 导入导出，自动识别 Chrome、LastPass、Bitwarden、1Password 格式",
+          "加密备份（.aph）与邮箱备份",
+          "侧边栏全场景秒开（缓存快路径 20-50ms 拿到数据）",
+          "6 款色彩主题 + 中英文双语界面"
+        ],
+        "description": "Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.",
         "url": "https://liaolongdong.github.io/account-password-helper/",
         "installUrl": "https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli",
+        "downloadUrl": "https://github.com/liaolongdong/account-password-helper/releases/latest",
         "image": "https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png",
         "screenshot": [
           "https://liaolongdong.github.io/account-password-helper/assets/screenshots/02-password-list.png",
@@ -136,7 +153,7 @@
         }
       }
     </script>
-<!-- FAQPage structured data: English version, mirrored from the Chinese FAQPage block in index.html -->
+    <!-- FAQPage structured data: generated from the visible FAQS array by scripts/lib/faq-schema.mjs — do not edit copy by hand -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -144,34 +161,82 @@
         "mainEntity": [
           {
             "@type": "Question",
-            "name": "Are my passwords uploaded to the cloud?",
+            "name": "Will my passwords be uploaded to the cloud?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "No. The extension is fully local: all data stays in your browser's local storage, sensitive fields are encrypted with AES-256-GCM, and nothing ever travels over the network."
+              "text": "No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM and are never uploaded to any server."
             }
           },
           {
             "@type": "Question",
-            "name": "What if I forget my master password?",
+            "name": "What if I forget the master password?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "It cannot be recovered; you can only use Reset to wipe the vault and start over. Back up regularly via data export or the encrypted .aph backup to avoid data loss."
+              "text": "The master password cannot be recovered. You can only use \"Reset\" to wipe the data and start over. Back up regularly via data export or encrypted backup (.aph) to avoid data loss."
             }
           },
           {
             "@type": "Question",
-            "name": "What happens when my session expires?",
+            "name": "How do I change the master password?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "All sensitive fields are automatically re-encrypted into ciphertext. Verify the master password again to restore access — no data is lost."
+              "text": "Click \"Change master password\" in the \"Security Settings\" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written atomically — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Exported encrypted backups (.aph) are unaffected."
             }
           },
           {
             "@type": "Question",
-            "name": "What is the security audit and what does it check?",
+            "name": "What happens when the session expires?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "A one-click password health scan showing a 0–100 overall score across five checks: weak passwords, password reuse, commonly leaked passwords (offline dictionary), stale passwords, and missing two-factor authentication. Everything is computed locally — no network, no uploads. Expiry reminders help you catch risks early."
+              "text": "Expiry only clears the session key material and the decrypted cache from memory and storage.session — sensitive fields on disk are already ciphertext, so there is no \"bulk re-encrypt on expiry\" step. Verify the master password again to restore access; no data is lost."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is auto idle lock?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "In \"Auto lock settings\" on the management page, set an idle period (5/10/30/60 minutes or off). After continuous inactivity beyond that period, the session is cleared and the manager locks; the system locking or screensaver activating also locks it immediately. Unlocking requires the master password again — protecting your list while you are away."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is Health Check?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "A one-click password health scan in the top toolbar of the management page. Click \"Health Check\" (with a traffic-light dot showing the grade) to see an overall score (0–100) weighted across four scored dimensions: password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed but unscored. Stale entries can get expiry reminders (desktop notification after 7/30/90 days). Each issue has a \"Fix\" button that jumps straight to editing. Everything is computed locally — no network, no data upload."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I customize shortcuts?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Chrome supports this natively. Go to chrome://extensions/shortcuts, find \"Account Password Helper\", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically. You can also open the read-only overview under \"Security Settings → Keyboard Shortcuts\" on the manager page to see the live status of all four bindings — its \"Edit Shortcuts\" button links straight there; the \"Keyboard Shortcuts\" group in the side panel Help dialog offers the same overview and entry point."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does the quick-fill shortcut (Ctrl+Shift+F) work?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Pressing Ctrl+Shift+F / Cmd+Shift+F fills the same entry as the top of the side panel list (domain match first + favorites pinned) without opening the panel. With multiple matches, the notification states which entry was filled and how many matched; if the session is not verified, the inline dropdown opens in place so you can click through to unlock; no matching account triggers a desktop notification, and results also show as a toolbar badge (green check / red exclamation)."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does the extension check for updates?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Chrome Web Store installs update automatically. The extension also checks GitHub Releases every 6 hours and shows an update notice in the popup; click it to open the download page. You can also trigger a check manually in the popup."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What is inline fill?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "An alternative to the side panel. In \"Inline\" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Supports keyboard navigation (↑↓ browse, Enter fill, Esc close) and uses a closed Shadow DOM for full style isolation."
             }
           },
           {
@@ -179,55 +244,47 @@
             "name": "Can I import from other password managers?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes. Upload a CSV file in the import dialog; the extension auto-detects Chrome, LastPass, Bitwarden and 1Password export formats and maps the fields."
+              "text": "Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected and mapped. Just export a CSV from the source manager and select it."
             }
           },
           {
             "@type": "Question",
-            "name": "Autofill doesn't work — what should I do?",
+            "name": "How do encrypted backups work?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Wait for the page to fully load and retry; the filler tries three strategies in order (native setter, execCommand, simulated keyboard events). If it still fails, refresh the page."
+              "text": "Under \"Data Management\", \"Encrypted Backup Export\" encrypts all data with your master password into an .aph file. \"Encrypted Backup Import\" decrypts an uploaded .aph with the original master password, previews the first 5 entries, then imports on confirmation. The scheme is PBKDF2 + AES-256-GCM."
             }
           },
           {
             "@type": "Question",
-            "name": "How do I customize the keyboard shortcuts?",
+            "name": "How do I enable auto-save?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Open chrome://extensions/shortcuts, find Account Password Helper, click the shortcut field next to a command and press a new combination. You can also open the read-only overview under Security Settings → Keyboard Shortcuts on the manager page, which flags the live status of every binding and links straight to that page."
+              "text": "Click \"Auto-save Settings\" on the management page and turn on \"Enable auto-save\". Optionally configure domain rules (exact domains or regex; empty matches all). On login a confirmation card appears with \"Save\", \"Not now\", and \"Never\" options, plus editable tag (defaults to page title) and remark (defaults to \"Auto-saved\"). \"Never\" adds the domain to the block list, removable later in settings. Before prompting, the extension compares against your vault: identical credentials are skipped silently, and changed passwords trigger an \"Update\" prompt."
             }
           },
           {
             "@type": "Question",
-            "name": "What is one-click login and how is it different from other password managers?",
+            "name": "Side panel vs inline fill?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "One-click login is the core differentiator: press Ctrl+Shift+F and it not only autofills credentials but also ticks the 'I agree' checkbox and clicks the login button — sign-in completes in about one second. Other managers only fill the form; you still click login yourself. Exact-domain matching also isolates dev/test/staging/prod accounts, which no other manager offers."
+              "text": "Both fill passwords and complement each other. The side panel is a full browser panel, great for searching all passwords and managing favorites; inline fill is an in-page mini panel — focus a login field, click the key icon, pick an account. Choose the mode in preferences: \"Side panel\" for panel lovers, \"Inline\" for the fastest fill."
             }
           },
           {
             "@type": "Question",
-            "name": "How does Account Password Helper compare with Bitwarden and 1Password?",
+            "name": "How do I use two-factor codes (TOTP)?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "It is completely free, open source and stores data purely locally — no account, no cloud sync. Key differences: 1) one-click login (fill + tick + click) where others only fill; 2) multi-environment account isolation (dev/test/staging/prod); 3) built-in TOTP 2FA (paid tier in Bitwarden/1Password); 4) offline security audit (0–100 score, five checks). Bitwarden and 1Password are cloud-based, require accounts, and lock advanced features behind subscriptions."
+              "text": "In the add/edit form's \"2FA\" field, paste the site's otpauth:// link or Base32 secret — or click \"Scan QR on webpage\" to capture the most recently viewed page and detect its QR code, or \"Upload QR image\" to decode a screenshot (fully local jsQR decoding, no network). Afterwards, the list and side panel show a live 6-digit code with a ring countdown (color shift in the last 5 seconds). Side panel entries offer \"Fill code\" and \"Copy code\" buttons; for GitHub-style split logins, a successful credentials fill auto-anchors a live-code capsule next to the code field on the code-only page for one-click fill or copy (valid 3 minutes). Codes are computed locally per RFC 6238 with Web Crypto HMAC — zero network. Note: your clock must be accurate (within ~30 seconds) or verification will fail."
             }
           },
           {
             "@type": "Question",
-            "name": "How is side panel performance? Any lag?",
+            "name": "How is the performance?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "The side panel is heavily optimized: it loads in about 20–50ms while the session is valid, thanks to Service Worker keep-alive and a resident password cache. It opens instantly even after the session expires. On Windows, a first cold start can take 1–2 extra seconds due to antivirus scanning; adding the Chrome extensions directory to the exclusion list brings it under one second."
-            }
-          },
-          {
-            "@type": "Question",
-            "name": "How do I migrate to Account Password Helper from another password manager?",
-            "acceptedAnswer": {
-              "@type": "Answer",
-              "text": "Upload a CSV file in the import dialog; the extension auto-detects Chrome, LastPass, Bitwarden and 1Password export formats with Chinese/English column-name mapping — migration takes about 30 seconds. JSON import and .aph encrypted backup import are also supported."
+              "text": "Heavily optimized. The service worker stays resident on all platforms via a two-tier keep-alive (20s heartbeat + 30s revival alarm) so the password cache is always in memory — the side panel loads from cache in about 20–50ms with no cold-start delay, instantly even after session expiry. The worker also pre-warms the cache 500ms after startup and warms side panel render resources on demand. Keep-alive wakes the extension roughly every 30 seconds in the background — a deliberate trade-off to eliminate cold-start white screens."
             }
           }
         ]
@@ -259,7 +316,7 @@
           {
             "@type": "HowToStep",
             "name": "Start using it",
-            "text": "Visit a login page and use inline fill, the side panel, or Ctrl+Shift+F for one-click login."
+            "text": "Visit a login page and fill your credentials via inline fill, the side panel, or the Ctrl+Shift+F shortcut; for auto sign-in, click 'Fill and sign in' or turn on the 'Auto login trigger' preference."
           }
         ]
       }
@@ -1500,6 +1557,7 @@
           EN
         </button>
         <a
+          id="navGithub"
           class="nav-github"
           href="https://github.com/liaolongdong/account-password-helper"
           target="_blank"
@@ -1564,13 +1622,13 @@
       <div class="container hero-inner">
         <div>
           <span class="hero-eyebrow"
-            ><span class="dot"></span><span data-i18n="hero.eyebrow">Open source (GPL-3.0) · Local encryption · Zero network transfer</span></span
+            ><span class="dot"></span><span data-i18n="hero.eyebrow">Open source (GPL-3.0) · Local encryption · No password uploads</span></span
           >
           <h1 data-i18n-html="hero.title">One-click login + local encryption<br />Password management, never this effortless & efficient</h1>
           <p
             class="lead"
             data-i18n="hero.lead"
-          >A Chrome password manager built for developers &amp; QA: press Ctrl+Shift+F for one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts; built-in TOTP 2FA, security audit &amp; password generator. All data is AES-256-GCM encrypted locally and never leaves your computer.</p>
+          >A Chrome password manager built for developers &amp; QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.</p>
           <div class="hero-cta">
             <a
               class="btn btn-primary"
@@ -1645,10 +1703,7 @@
           <p
             class="hero-hint"
             data-i18n-html="hero.hint"
-          >Can't access Google? Download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> and install it manually</a
-            >
-            下载 zip 包手动安装
-          </p>
+          >Can't access Google? Download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> and install it manually</p>
           <div class="disclaimer-banner">
             <svg
               width="18"
@@ -1666,7 +1721,7 @@
               <path d="m9 12 2 2 4-4" />
             </svg>
             <span data-i18n="common.disclaimer"
-              >Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and never leaves your machine. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.</span
+              >Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and is never uploaded. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.</span
             >
           </div>
         </div>
@@ -1756,7 +1811,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f1.title">Local Encryption — Passwords Never Leave the Browser</h3>
-            <p data-i18n="features.f1.desc">The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.</p>
+            <p data-i18n="features.f1.desc">The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark and TOTP are each stored as ciphertext. Locking and session expiry destroy only the session key material — the vault is already ciphertext at rest, and no password content is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.</p>
             <div class="feature-chips">
               <span
                 class="feature-chip"
@@ -1771,7 +1826,7 @@
               <span
                 class="feature-chip"
                 data-i18n="features.f1.c3"
-                >Zero network transfer</span
+                >No password uploads</span
               >
               <span
                 class="feature-chip"
@@ -1892,7 +1947,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f5.title">Security Health Dashboard</h3>
-            <p data-i18n="features.f5.desc">One click yields a 0–100 score across five checks: weak, reused, and commonly leaked passwords (offline dictionary), long-unchanged entries, and missing 2FA — with expiry reminders, all computed locally.</p>
+            <p data-i18n="features.f5.desc">One click yields a 0–100 score from four weighted dimensions: reuse (35), weak (25), commonly leaked (20, offline dictionary) and stale (20); missing 2FA is flagged but unscored — with expiry reminders, all computed locally.</p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
@@ -1976,7 +2031,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f8.title">Dual-Mode Password Generator</h3>
-            <p data-i18n="features.f8.desc">Random passwords (length, character sets, ambiguous-character exclusion) and passphrases (EFF Diceware, 2048-word list) — cryptographically secure via Web Crypto, with a live strength bar.</p>
+            <p data-i18n="features.f8.desc">Random passwords (length, character sets, ambiguous-character exclusion) and passphrases (a bundled 3,080-word list) — cryptographically secure via Web Crypto, with a live strength bar.</p>
           </article>
           <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
@@ -1996,7 +2051,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f9.title">Trash &amp; Password History</h3>
-            <p data-i18n="features.f9.desc">Deleted entries stay in the trash for 30 days and can be restored anytime; password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 5) for one-click rollback; changing the master password re-keys atomically without data loss.</p>
+            <p data-i18n="features.f9.desc">Deleted entries stay in the trash for 30 days and can be restored anytime; password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 3) for one-click rollback; changing the master password re-keys atomically without data loss.</p>
           </article>
           <article class="feature-card reveal reveal-delay-1">
             <div class="feature-icon">
@@ -2127,18 +2182,7 @@
           <article class="step-card reveal reveal-delay-1">
             <div class="step-num">01</div>
             <h3 data-i18n="steps.s1.title">Install the Extension</h3>
-            <p data-i18n-html="steps.s1.desc">Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can't access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.</a
-              >
-              一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从
-              <a
-                href="https://github.com/liaolongdong/account-password-helper/releases/latest"
-                target="_blank"
-                rel="noopener noreferrer"
-                style="color: var(--primary); font-weight: 500; text-decoration: underline"
-                >GitHub Releases</a
-              >
-              下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。
-            </p>
+            <p data-i18n-html="steps.s1.desc">Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can't access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.</p>
           </article>
           <article class="step-card reveal reveal-delay-2">
             <div class="step-num">02</div>
@@ -2185,12 +2229,7 @@
             />
           </svg>
           <span data-i18n-html="steps.updateTip"
-            ><strong>Updating:</strong> simply <strong>overwrite</strong> the files in the original installation directory with the files from the new zip. <strong>Never</strong> load the extension from a different directory — Chrome would treat it as a fresh install and <strong>your existing password data would become inaccessible</strong>.<br /><br />💡 <strong>How to find the current installation directory:</strong> open <code>chrome://extensions/</code>, find this extension's card, click "Details", and look for "Source: /path/to/your/directory" near the bottom — that path is the installation directory to overwrite when updating.</strong
-            >更新时只需将压缩包内的文件<strong>直接覆盖</strong>原有安装目录下的文件即可，<strong>切勿</strong>重新选择其他目录加载扩展。更换加载目录会导致
-            Chrome 将其视为全新安装，<strong>原有的密码数据将无法访问</strong>。<br /><br />💡
-            <strong>如何查看当前安装目录：</strong>打开
-            <code>chrome://extensions/</code
-            >，找到本扩展的卡片，点击"详情"，在扩展详情页下方可以看到「来源：/path/to/your/directory」，冒号后面的路径即为当前安装目录，更新时将文件覆盖到此目录即可。</span
+            ><strong>Updating:</strong> simply <strong>overwrite</strong> the files in the original installation directory with the files from the new zip. <strong>Never</strong> load the extension from a different directory — Chrome would treat it as a fresh install and <strong>your existing password data would become inaccessible</strong>.<br /><br />💡 <strong>How to find the current installation directory:</strong> open <code>chrome://extensions/</code>, find this extension's card, click "Details", and look for "Source: /path/to/your/directory" near the bottom — that path is the installation directory to overwrite when updating.</span
           >
         </div>
       </div>
@@ -2247,7 +2286,13 @@
                     >Freemium</span
                   >
                 </td>
-                <td><span class="compare-price paid">$2.99/月</span></td>
+                <td>
+                  <span
+                    class="compare-price paid"
+                    data-i18n="compare.val.priced"
+                    >$2.99/mo</span
+                  >
+                </td>
               </tr>
               <tr>
                 <td data-i18n="compare.row.storage">Data Storage</td>
@@ -2398,16 +2443,40 @@
           <p
             class="footer-disclaimer"
             data-i18n="common.disclaimer"
-          >Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and never leaves your machine. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.</p>
+          >Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and is never uploaded. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.</p>
           <div class="footer-meta">
             <span data-i18n-html="footer.email"
-              >Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a></a></span
+              >Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a></span
             >
-            <span data-i18n="footer.tagline">Local encryption · Zero network transfer</span>
-            <span><a href="./privacy.html">隐私政策 / Privacy Policy</a></span>
-            <span><a href="./pricing.html">永久免费 / Pricing</a></span>
-            <span><a href="./compare.html">替代方案对比 / Alternatives</a></span>
-            <span><a href="./blog/">技术博客 / Tech Blog</a></span>
+            <span data-i18n="footer.tagline">Local encryption · Passwords never uploaded</span>
+            <span
+              ><a
+                href="./privacy.en.html"
+                data-i18n="footer.privacy"
+                >Privacy Policy</a
+              ></span
+            >
+            <span
+              ><a
+                href="./pricing.en.html"
+                data-i18n="footer.pricing"
+                >Pricing</a
+              ></span
+            >
+            <span
+              ><a
+                href="./compare.en.html"
+                data-i18n="footer.compare"
+                >Alternatives</a
+              ></span
+            >
+            <span
+              ><a
+                href="./blog/index.en.html"
+                data-i18n="footer.blog"
+                >Tech Blog</a
+              ></span
+            >
             <span>
               <a
                 href="https://github.com/liaolongdong/account-password-helper"
@@ -2563,12 +2632,12 @@
       /** 静态文案字典：与 data-i18n / data-i18n-html 属性一一对应 */
       const I18N = {
         'meta.title': {
-          zh: '账号密码管理助手 · 开源免费本地密码管理器 | 一键登录 · TOTP · 安全体检',
+          zh: '账号密码管理助手 Account Password Helper · 开源免费本地密码管理器 | 一键登录 · TOTP · 安全体检',
           en: 'Account Password Helper · Free Local Password Manager | One-Click Login · TOTP · Security Audit',
         },
         'meta.description': {
-          zh: '开源免费的本地密码管理器：一键登录（填充+勾选+点击），AES-256-GCM 加密零联网，内置 TOTP 两步验证、安全体检与密码生成器。支持从 Chrome/Bitwarden/1Password 一键导入，多环境账号隔离，侧边栏秒开（缓存快路径 20-50ms），数据绝不出浏览器。为开发者与测试人员量身打造。',
-          en: 'Free, open-source local password manager: one-click login (fill + tick + click), AES-256-GCM encryption with zero network transfer, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel instant open (20–50ms warm path). Built for developers & QA.',
+          zh: '开源免费的本地密码管理器：一键登录（填充+勾选+点击），敏感字段逐字段 AES-256-GCM 本地加密，TOTP 两步验证、安全体检与密码生成器，支持 Chrome/Bitwarden/1Password 一键导入与多环境账号隔离，侧边栏秒开（缓存快路径 20-50ms），数据不上传服务器。',
+          en: 'Free, open-source local password manager: one-click login (fill + tick + click), per-field AES-256-GCM local encryption, built-in TOTP 2FA, security audit & password generator. One-click import from Chrome / Bitwarden / 1Password, multi-environment isolation, side panel opens in ~20–50ms from cache. Password data is never uploaded.',
         },
         'nav.brand': { zh: '账号密码管理助手', en: 'Account Password Helper' },
         'nav.features': { zh: '特性', en: 'Features' },
@@ -2579,17 +2648,21 @@
         'nav.cws': { zh: 'Chrome 应用商店下载', en: 'Chrome Web Store' },
         'nav.github': { zh: 'GitHub 下载', en: 'GitHub Download' },
         'hero.eyebrow': {
-          zh: '开源 GPL-3.0 · 本地加密 · 零网络传输',
-          en: 'Open source (GPL-3.0) · Local encryption · Zero network transfer',
+          zh: '开源 GPL-3.0 · 本地加密 · 密码不上传',
+          en: 'Open source (GPL-3.0) · Local encryption · No password uploads',
         },
-        'footer.tagline': { zh: '本地加密 · 零网络传输', en: 'Local encryption · Zero network transfer' },
+        'footer.tagline': { zh: '本地加密 · 密码不上传', en: 'Local encryption · Passwords never uploaded' },
+        'footer.privacy': { zh: '隐私政策', en: 'Privacy Policy' },
+        'footer.pricing': { zh: '永久免费', en: 'Pricing' },
+        'footer.compare': { zh: '替代方案对比', en: 'Alternatives' },
+        'footer.blog': { zh: '技术博客', en: 'Tech Blog' },
         'hero.title': {
           zh: '一键登录 + 本地加密<br />密码管理，从未如此省心高效',
           en: 'One-click login + local encryption<br />Password management, never this effortless & efficient',
         },
         'hero.lead': {
-          zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：按下 Ctrl+Shift+F 一键登录（填充+勾选+点击），精确域名匹配隔离 dev/test/staging/prod 多环境账号；内置 TOTP 两步验证、安全体检与密码生成器，所有数据本地 AES-256-GCM 加密，永远不离开你的电脑。',
-          en: 'A Chrome password manager built for developers & QA: press Ctrl+Shift+F for one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts; built-in TOTP 2FA, security audit & password generator. All data is AES-256-GCM encrypted locally and never leaves your computer.',
+          zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 + 点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号；内置 TOTP 两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。',
+          en: 'A Chrome password manager built for developers & QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.',
         },
         'hero.download': { zh: '下载插件', en: 'Install Extension' },
         'hero.githubDownload': { zh: 'GitHub 下载', en: 'GitHub Download' },
@@ -2601,8 +2674,8 @@
         },
         'hero.badge': { zh: 'AES-256-GCM 本地加密', en: 'AES-256-GCM local encryption' },
         'common.disclaimer': {
-          zh: '安全声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。',
-          en: 'Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and never leaves your machine. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.',
+          zh: '安全声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，密码内容不经网络上传。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。',
+          en: 'Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and is never uploaded. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.',
         },
         'features.title': { zh: '核心特性', en: 'Core Features' },
         'features.sub': {
@@ -2610,16 +2683,16 @@
           en: 'From encrypted storage to smart filling, from 2FA to health checks — the full lifecycle of your credentials in one place',
         },
         'features.f1.title': {
-          zh: '端到端本地加密，密码绝不出浏览器',
+          zh: '纯本地加密，密码绝不出浏览器',
           en: 'Local Encryption — Passwords Never Leave the Browser',
         },
         'features.f1.desc': {
-          zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 全部密文存储；会话过期自动加密回密文，永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。',
-          en: 'The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark, and TOTP are all stored as ciphertext. When the session expires everything is re-encrypted — nothing is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.',
+          zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 逐字段密文存储；锁定与会话过期只销毁会话密钥材料（数据本就密文落盘），密码内容永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。',
+          en: 'The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark and TOTP are each stored as ciphertext. Locking and session expiry destroy only the session key material — the vault is already ciphertext at rest, and no password content is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.',
         },
         'features.f1.c1': { zh: 'PBKDF2 · 600K 迭代', en: 'PBKDF2 · 600K iterations' },
         'features.f1.c2': { zh: 'AES-256-GCM', en: 'AES-256-GCM' },
-        'features.f1.c3': { zh: '零网络传输', en: 'Zero network transfer' },
+        'features.f1.c3': { zh: '密码不上传', en: 'No password uploads' },
         'features.f1.c4': { zh: '闲置 / 重启自动锁定', en: 'Idle / restart auto-lock' },
         'features.f2.title': { zh: '四种方式，一键安全填充', en: 'Four Ways to Fill — One Click' },
         'features.f2.desc': {
@@ -2639,13 +2712,13 @@
         },
         'features.f4.title': { zh: 'TOTP 两步验证', en: 'TOTP Two-Factor Codes' },
         'features.f4.desc': {
-          zh: '扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC 6238，零联网），列表、侧边栏与内联面板实时展示活码与倒计时，支持一键填充 / 复制验证码；GitHub 式两步登录跳转验证码页后自动衔接活码胶囊。',
+          zh: '扫描网页二维码 / 上传图片一键添加密钥，动态验证码本地生成（RFC 6238，本地生成），列表、侧边栏与内联面板实时展示活码与倒计时，支持一键填充 / 复制验证码；GitHub 式两步登录跳转验证码页后自动衔接活码胶囊。',
           en: 'Add a secret by scanning an on-page QR code or uploading an image; codes are generated locally (RFC 6238, zero network) with live codes and countdowns in the list, side panel and inline panel, plus one-click fill / copy — split two-step logins auto-hand off a live-code capsule on the code page.',
         },
         'features.f5.title': { zh: '安全体检仪表盘', en: 'Security Health Dashboard' },
         'features.f5.desc': {
-          zh: '一键生成 0~100 综合评分，五维检测弱密码、密码复用、常见泄露密码（离线字典）、长期未更新与未开两步验证，支持到期提醒，全程本地计算。',
-          en: 'One click yields a 0–100 score across five checks: weak, reused, and commonly leaked passwords (offline dictionary), long-unchanged entries, and missing 2FA — with expiry reminders, all computed locally.',
+          zh: '一键生成 0~100 综合评分，四个计分维度加权（密码复用 35、弱密码 25、常见泄露 20、长期未更新 20），「未开两步验证」单独提示不计分；支持到期提醒，全程本地计算。',
+          en: 'One click yields a 0–100 score from four weighted dimensions: reuse (35), weak (25), commonly leaked (20, offline dictionary) and stale (20); missing 2FA is flagged but unscored — with expiry reminders, all computed locally.',
         },
         'features.f6.title': { zh: '自动保存登录凭证', en: 'Auto-Save Login Credentials' },
         'features.f6.desc': {
@@ -2664,17 +2737,17 @@
         },
         'features.f8.title': { zh: '密码生成器双模式', en: 'Dual-Mode Password Generator' },
         'features.f8.desc': {
-          zh: '随机密码（长度 / 字符集 / 排除易混淆字符可配）与助记词组（EFF Diceware 2048 词库）双模式，基于 Web Crypto 密码学安全随机，实时展示强度。',
-          en: 'Random passwords (length, character sets, ambiguous-character exclusion) and passphrases (EFF Diceware, 2048-word list) — cryptographically secure via Web Crypto, with a live strength bar.',
+          zh: '随机密码（长度 / 字符集 / 排除易混淆字符可配）与助记词组（本地 3080 词词库）双模式，基于 Web Crypto 密码学安全随机，实时展示强度。',
+          en: 'Random passwords (length, character sets, ambiguous-character exclusion) and passphrases (a bundled 3,080-word list) — cryptographically secure via Web Crypto, with a live strength bar.',
         },
         'features.f9.title': { zh: '回收站与修改历史', en: 'Trash & Password History' },
         'features.f9.desc': {
-          zh: '删除条目进回收站保留 30 天可随时恢复；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 5 份），改错一键回滚；修改主密码原子换钥不丢数据。',
-          en: 'Deleted entries stay in the trash for 30 days and can be restored anytime; password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 5) for one-click rollback; changing the master password re-keys atomically without data loss.',
+          zh: '删除条目进回收站保留 30 天可随时恢复；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 3 份），改错一键回滚；修改主密码原子换钥不丢数据。',
+          en: 'Deleted entries stay in the trash for 30 days and can be restored anytime; password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 3) for one-click rollback; changing the master password re-keys atomically without data loss.',
         },
         'features.f10.title': { zh: '主题换肤与双语界面', en: 'Themes & Bilingual UI' },
         'features.f10.desc': {
-          zh: '6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，零联网），长列表辨识更快。',
+          zh: '6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，不发网络请求），长列表辨识更快。',
           en: "6 color themes and instant Chinese/English switching; entries show site favicons (read from the browser's local cache, zero network) for faster recognition in long lists.",
         },
         'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
@@ -2720,6 +2793,7 @@
         'compare.val.free': { zh: '完全免费', en: 'Free Forever' },
         'compare.val.free2': { zh: '免费', en: 'Free' },
         'compare.val.freemium': { zh: '免费+付费', en: 'Freemium' },
+        'compare.val.priced': { zh: '$2.99/月', en: '$2.99/mo' },
         'compare.row.storage': { zh: '数据存储', en: 'Data Storage' },
         'compare.val.local': { zh: '纯本地', en: '100% Local' },
         'compare.val.local2': { zh: '本地', en: 'Local' },
@@ -2763,6 +2837,7 @@
         'wechat.copied': { zh: '已复制 ✓', en: 'Copied ✓' },
         'wechat.qrAlt': { zh: '微信群二维码', en: 'WeChat group QR code' },
         'aria.menu': { zh: '菜单', en: 'Menu' },
+        'aria.github': { zh: '在 GitHub 查看源码', en: 'View source on GitHub' },
         'aria.prev': { zh: '上一张', en: 'Previous slide' },
         'aria.next': { zh: '下一张', en: 'Next slide' },
         'aria.goto': { zh: '跳转到第 {n} 张', en: 'Go to slide {n}' },
@@ -2841,8 +2916,8 @@
           tag: 'STEP 08',
           title: { zh: '灵活的会话有效期', en: 'Flexible session validity' },
           desc: {
-            zh: '从 1 小时到 7 天任你选；会话剩余时间在管理页头部、侧边栏与 Popup 常驻展示，剩余 10 分钟内转警示橙、最后 1 分钟转危急红，点击即可直达续期；过期后所有敏感字段自动加密回密文，安全无忧。',
-            en: 'From 1 hour to 7 days; the remaining session time stays visible in the manager header, sidebar and popup — warning amber within the last 10 minutes and critical red within the final minute, with a click to extend. When it expires, all sensitive fields are automatically re-encrypted.',
+            zh: '从 1 小时到 7 天任你选；会话剩余时间在管理页头部、侧边栏与 Popup 常驻展示，剩余 10 分钟内转警示橙、最后 1 分钟转危急红，点击即可直达续期；过期后仅清除内存中的会话密钥与解密缓存，磁盘数据始终是密文，安全无忧。',
+            en: 'From 1 hour to 7 days; the remaining session time stays visible in the manager header, sidebar and popup — warning amber within the last 10 minutes and critical red within the final minute, with a click to extend. On expiry the session key material and decrypted cache are cleared; data on disk is ciphertext throughout.',
           },
         },
         {
@@ -2859,7 +2934,7 @@
           tag: 'STEP 10',
           title: { zh: '安全体检仪表盘', en: 'Security health dashboard' },
           desc: {
-            zh: '一键体检生成 0~100 综合评分，五维检测密码风险并支持到期提醒，全程本地计算不联网。',
+            zh: '一键体检生成 0~100 综合评分，四个计分维度加权评估密码风险并支持到期提醒，全程本地计算。',
             en: 'One-click scan yields a 0–100 score across five risk checks, with expiry reminders — computed fully locally.',
           },
         },
@@ -2894,8 +2969,8 @@
         {
           q: { zh: '我的密码会被上传到云端吗？', en: 'Will my passwords be uploaded to the cloud?' },
           a: {
-            zh: '不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM 加密保存，永远不经过任何网络传输。',
-            en: 'No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM and never travel over the network.',
+            zh: '不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段逐字段经 AES-256-GCM 加密后落盘，账号、密码与验证码从不上传到任何服务器；唯一的外联是每 6 小时一次的匿名版本检查。',
+            en: 'No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM and are never uploaded to any server.',
           },
         },
         {
@@ -2915,8 +2990,8 @@
         {
           q: { zh: '会话有效期到了会发生什么？', en: 'What happens when the session expires?' },
           a: {
-            zh: '会话过期后，所有敏感字段会自动重新加密为密文；下次使用时只需重新验证主密码即可恢复访问，账号数据不会丢失。',
-            en: 'All sensitive fields are automatically re-encrypted. Verify the master password again to restore access — no data is lost.',
+            zh: '会话过期只会清除内存与 storage.session 中的会话密钥材料与解密缓存——磁盘上的敏感字段本来就是密文，不存在「过期时批量重新加密」这一步；下次使用时重新验证主密码即可恢复访问，账号数据不会丢失。',
+            en: 'Expiry only clears the session key material and the decrypted cache from memory and storage.session — sensitive fields on disk are already ciphertext, so there is no "bulk re-encrypt on expiry" step. Verify the master password again to restore access; no data is lost.',
           },
         },
         {
@@ -2936,8 +3011,8 @@
         {
           q: { zh: '什么是安全体检？', en: 'What is Health Check?' },
           a: {
-            zh: '安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分）和五维检测结果：弱密码、密码复用（多账号共用同一密码）、常见泄露密码（离线 top-1000 弱口令字典命中）、长时间未更新（90/180/365 天分级预警）、未开启两步验证。长时间未更新的条目还可设置密码到期提醒（7/30/90 天后桌面通知提醒更换）。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。',
-            en: 'A one-click password health scan in the top toolbar of the management page. Click "Health Check" (with a traffic-light dot showing the grade) to see an overall score (0–100) and five checks: weak passwords, reused passwords, commonly leaked passwords (offline top-1000 dictionary), long-unchanged passwords (90/180/365-day tiers), and accounts without 2FA. Stale entries can get expiry reminders (desktop notification after 7/30/90 days). Each issue has a "Fix" button that jumps straight to editing. Everything is computed locally — no network, no data upload.',
+            zh: '安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分），由四个计分维度加权得出：密码复用（35）、弱密码（25）、常见泄露密码（20，近千条离线弱口令字典命中）、长时间未更新（20，90/180/365 天分级预警）；未开启两步验证单独列示、不计入评分。长时间未更新的条目还可设置密码到期提醒（7/30/90 天后桌面通知提醒更换）。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。',
+            en: 'A one-click password health scan in the top toolbar of the management page. Click "Health Check" (with a traffic-light dot showing the grade) to see an overall score (0–100) weighted across four scored dimensions: password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed but unscored. Stale entries can get expiry reminders (desktop notification after 7/30/90 days). Each issue has a "Fix" button that jumps straight to editing. Everything is computed locally — no network, no data upload.',
           },
         },
 
@@ -3066,8 +3141,8 @@
         {
           q: { zh: '改错密码了能恢复旧密码吗？', en: 'Can I restore an old password after a change?' },
           a: {
-            zh: '能。每次修改密码时，插件会自动将旧密码加密快照入历史（可在「安全设置」→「密码历史设置」中配置启用/关闭及保留条数，默认 5 条）。在编辑该条目的弹窗底部可看到「密码修改历史」区块，点击「复制」可复制旧密码，点击「恢复」即将旧密码回填到密码框。历史以加密态存储，查看需会话有效。',
-            en: 'Yes. Every password change snapshots the old password (configurable in "Security Settings" → "Password History Settings" — enable/disable and set max records, default 5). The edit dialog shows a "Password history" section — "Copy" copies the old password, "Restore" fills it back into the password field. History is stored encrypted and requires a valid session to view.',
+            zh: '能。每次修改密码时，插件会自动将旧密码加密快照入历史（可在「安全设置」→「密码历史设置」中配置启用/关闭及保留条数，默认 3 条）。在编辑该条目的弹窗底部可看到「密码修改历史」区块，点击「复制」可复制旧密码，点击「恢复」即将旧密码回填到密码框。历史以加密态存储，查看需会话有效。',
+            en: 'Yes. Every password change snapshots the old password (configurable in "Security Settings" → "Password History Settings" — enable/disable and set max records, default 3). The edit dialog shows a "Password history" section — "Copy" copies the old password, "Restore" fills it back into the password field. History is stored encrypted and requires a valid session to view.',
           },
         },
         {
@@ -3166,8 +3241,8 @@
         {
           q: { zh: '如何生成随机密码？', en: 'How do I generate a random password?' },
           a: {
-            zh: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器，顶部可切换「随机密码」与「助记词组」模式。随机密码可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）；助记词组从 2048 词库随机选取 3~8 个单词组合，支持分隔符、首字母大写、末尾追加数字，既安全又易记。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
-            en: 'In the add/edit form, click the magic-wand icon next to the password field, then toggle between "Random" and "Passphrase" modes. Random: customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). Passphrase: 3–8 random words from a 2048-word list with separator, capitalization, and trailing-digit options — secure yet memorable. A strength bar shows in real time; click "Use this password" to fill it in. Backed by the Web Crypto API for cryptographic randomness.',
+            zh: '在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器，顶部可切换「随机密码」与「助记词组」模式。随机密码可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）；助记词组从本地 3080 词词库随机选取 3~8 个单词组合，支持分隔符、首字母大写、末尾追加数字，既安全又易记。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。',
+            en: 'In the add/edit form, click the magic-wand icon next to the password field, then toggle between "Random" and "Passphrase" modes. Random: customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). Passphrase: 3–8 random words from a bundled 3,080-word list with separator, capitalization, and trailing-digit options — secure yet memorable. A strength bar shows in real time; click "Use this password" to fill it in. Backed by the Web Crypto API for cryptographic randomness.',
           },
         },
         {
@@ -3180,7 +3255,7 @@
         {
           q: { zh: '如何使用两步验证（TOTP）？', en: 'How do I use two-factor codes (TOTP)?' },
           a: {
-            zh: '在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 otpauth:// 链接或 Base32 密钥即可；也可以点击「扫描网页二维码」自动截取最近浏览的网页并识别其中的二维码，或「上传二维码图片」识别截图（全程本地 jsQR 解码，不联网）。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮；GitHub 式账密页与验证码页分离的两步登录，账密填充成功后跳转纯验证码页会自动在输入框旁锚定活码胶囊，支持一键填入或复制（3 分钟有效）。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，零网络传输。注意：本机时钟必须准确（误差 < 30 秒），否则动态码验证会失败。',
+            zh: '在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 otpauth:// 链接或 Base32 密钥即可；也可以点击「扫描网页二维码」自动截取最近浏览的网页并识别其中的二维码，或「上传二维码图片」识别截图（全程本地 jsQR 解码，不联网）。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮；GitHub 式账密页与验证码页分离的两步登录，账密填充成功后跳转纯验证码页会自动在输入框旁锚定活码胶囊，支持一键填入或复制（3 分钟有效）。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，该过程不发起网络请求。注意：本机时钟必须准确（误差 < 30 秒），否则动态码验证会失败。',
             en: 'In the add/edit form\'s "2FA" field, paste the site\'s otpauth:// link or Base32 secret — or click "Scan QR on webpage" to capture the most recently viewed page and detect its QR code, or "Upload QR image" to decode a screenshot (fully local jsQR decoding, no network). Afterwards, the list and side panel show a live 6-digit code with a ring countdown (color shift in the last 5 seconds). Side panel entries offer "Fill code" and "Copy code" buttons; for GitHub-style split logins, a successful credentials fill auto-anchors a live-code capsule next to the code field on the code-only page for one-click fill or copy (valid 3 minutes). Codes are computed locally per RFC 6238 with Web Crypto HMAC — zero network. Note: your clock must be accurate (within ~30 seconds) or verification will fail.',
           },
         },
@@ -3496,6 +3571,8 @@
         });
 
         navToggle.setAttribute('aria-label', I18N['aria.menu'][lang]);
+        document.getElementById('navGithub').setAttribute('aria-label', I18N['aria.github'][lang]);
+        document.getElementById('navGithub').setAttribute('title', I18N['aria.github'][lang]);
         document.getElementById('prevBtn').setAttribute('aria-label', I18N['aria.prev'][lang]);
         document.getElementById('nextBtn').setAttribute('aria-label', I18N['aria.next'][lang]);
         document.getElementById('wechatQr').alt = I18N['wechat.qrAlt'][lang];
@@ -3580,11 +3657,11 @@
           <h4>我的密码会被上传到云端吗？ / Will my passwords be uploaded to the cloud?</h4>
           <p>
             不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM
-            加密保存，永远不经过任何网络传输。
+            加密后落盘，密码内容从不上传到任何服务器。
           </p>
           <p>
             No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM
-            and never travel over the network.
+            and are never uploaded to any server.
           </p>
 
           <h4>忘记主密码了怎么办？ / What if I forget the master password?</h4>
@@ -3609,13 +3686,14 @@
           <h4>什么是安全体检？ / What is Health Check?</h4>
           <p>
             安全体检是一键密码健康扫描功能，展示综合安全评分（0~100
-            分）和五维检测结果：弱密码、密码复用、常见泄露密码（离线 top-1000 弱口令字典）、长时间未更新（90/180/365
+            分），由四个计分维度加权得出：密码复用（35）、弱密码（25）、常见泄露密码（20，近千条离线弱口令字典）、长时间未更新（20，90/180/365
             天分级预警）、未开启两步验证。全程本地计算，不联网。
           </p>
           <p>
-            A one-click password health scan showing an overall score (0–100) and five checks: weak passwords, reused
-            passwords, commonly leaked passwords (offline top-1000 dictionary), long-unchanged passwords (90/180/365-day
-            tiers), and accounts without 2FA. Everything is computed locally.
+            A one-click password health scan showing an overall score (0–100) weighted across four scored dimensions:
+            password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline
+            dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed, unscored.
+            Everything is computed locally.
           </p>
 
           <h3>基础使用 / Basics</h3>

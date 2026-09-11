@@ -1,6 +1,6 @@
 <!doctype html>
 <!-- privacy.en.html is generated from privacy.html by scripts/build-privacy-en-page.mjs — do not edit manually. -->
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta
@@ -10,7 +10,7 @@
     <title>Privacy Policy - Account Password Helper</title>
     <meta
       name="description"
-      content="Account Password Helper Privacy Policy — 100% local, zero data collection, AES-256-GCM encryption, no cloud, no account, no network transfer."
+      content="Privacy Policy: no data collection, analytics or telemetry. Passwords are encrypted per field with AES-256-GCM and never uploaded — only anonymous version checks."
     />
     <link
       rel="icon"
@@ -61,7 +61,7 @@
     />
     <meta
       property="og:description"
-      content="Account Password Helper Privacy Policy — 100% local, zero data collection, AES-256-GCM encryption, no cloud, no account, no network transfer."
+      content="Privacy Policy: no data collection, analytics or telemetry. Passwords are encrypted per field with AES-256-GCM and never uploaded — only anonymous version checks."
     />
     <style>
       :root {
@@ -322,8 +322,8 @@
           <p class="subtitle">Account Password Helper Browser Extension</p>
         </div>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年9月7日</span>
-          <span class="lang-en">Last updated: September 7, 2026</span>
+          <span class="lang-zh">最后更新：2026年9月9日</span>
+          <span class="lang-en">Last updated: September 9, 2026</span>
         </span>
       </div>
 
@@ -367,23 +367,33 @@
             所有数据仅存储在您的本地浏览器中（使用 Chrome Storage Local
             API），<strong>不会同步到云端或任何远程服务器</strong>。
           </p>
-          <p>敏感数据（用户名、密码、URL、备注）使用以下加密方式保护：</p>
+          <p>敏感数据（用户名、密码、URL、备注、两步验证码密钥）逐字段使用以下方式加密：</p>
           <ul>
             <li><strong>加密算法：</strong>AES-256-GCM（认证加密）</li>
             <li><strong>密钥派生：</strong>PBKDF2，600,000 次迭代，SHA-256</li>
             <li><strong>加密实现：</strong>浏览器原生 Web Crypto API（无第三方加密库）</li>
             <li><strong>随机数：</strong>使用密码学安全的随机数生成器（crypto.getRandomValues）</li>
           </ul>
-          <p>主密码使用 SHA-256 加盐哈希存储，不以明文形式保存。</p>
+          <p>主密码不以明文保存，磁盘上只留有加盐的 PBKDF2（SHA-256，600,000 次迭代）校验值。</p>
         </div>
 
         <div class="policy-section">
           <h2>4. 网络通信</h2>
-          <p>本扩展仅进行以下一项网络请求：</p>
+          <p>本扩展仅进行以下两类网络请求，二者均不携带任何用户数据：</p>
           <ul>
             <li>
-              <strong>版本更新检查：</strong>每 6 小时向 GitHub 公开
-              API（api.github.com）发送一次只读请求，检查是否有新版本。<strong>此请求不发送任何用户数据</strong>，仅接收版本号和更新说明。
+              <strong>Chrome 应用商店可达性探测：</strong>版本检查时先向
+              <a
+                href="https://chromewebstore.google.com/"
+                target="_blank"
+                >chromewebstore.google.com</a
+              >
+              发送一次轻量 HEAD 请求（结果本地缓存 24 小时），仅用于判断您能否直接在商店里更新。
+            </li>
+            <li>
+              <strong>版本更新检查：</strong>每 6 小时一次；当上一步探测到商店不可达（如网络受限环境）时，改向 GitHub
+              公开
+              API（api.github.com）发送一次只读请求，<strong>此请求不发送任何用户数据</strong>，仅接收版本号和更新说明。
             </li>
           </ul>
           <p>除此之外，本扩展不进行任何其他网络通信。密码的导入/导出、邮件备份提醒均为本地操作。</p>
@@ -471,7 +481,10 @@
           <h2>7. 数据导出与备份</h2>
           <p>本扩展提供多种本地数据导出方式：</p>
           <ul>
-            <li><strong>CSV/JSON 导出：</strong>生成本地文件下载，不经过任何服务器</li>
+            <li>
+              <strong>CSV/JSON 导出：</strong
+              >生成本地文件下载，不经过任何服务器；<strong>文件为明文</strong>（含账号与密码），请妥善保管，长期留存建议改用加密备份
+            </li>
             <li><strong>加密备份（.aph）：</strong>使用 AES-256-GCM 加密的本地文件</li>
             <li>
               <strong>邮件备份提醒：</strong>仅通过 mailto: 协议打开系统邮件客户端，扩展本身不发送邮件也不接触邮件服务器
@@ -548,7 +561,10 @@
             All data is stored exclusively in your local browser (via Chrome Storage Local API) and
             <strong>is never synced to the cloud or any remote server</strong>.
           </p>
-          <p>Sensitive data (usernames, passwords, URLs, remarks) is protected with the following encryption:</p>
+          <p>
+            Sensitive data (usernames, passwords, URLs, remarks, TOTP secrets) is encrypted field by field with the
+            following:
+          </p>
           <ul>
             <li><strong>Encryption:</strong> AES-256-GCM (authenticated encryption)</li>
             <li><strong>Key Derivation:</strong> PBKDF2 with 600,000 iterations, SHA-256</li>
@@ -557,17 +573,32 @@
               <strong>Randomness:</strong> Cryptographically secure random number generator (crypto.getRandomValues)
             </li>
           </ul>
-          <p>The master password is stored as a SHA-256 salted hash and is never saved in plaintext.</p>
+          <p>
+            The master password is never stored in plaintext — only a salted PBKDF2 (SHA-256, 600,000 iterations)
+            verifier is kept.
+          </p>
         </div>
 
         <div class="policy-section">
           <h2>4. Network Communication</h2>
-          <p>The Extension makes only one type of network request:</p>
+          <p>The Extension makes only the two requests below, and neither one carries any user data:</p>
           <ul>
             <li>
-              <strong>Version Update Check:</strong> A read-only request to GitHub's public API (api.github.com) every 6
-              hours to check for new releases. <strong>No user data is sent</strong> — only version numbers and release
-              notes are received.
+              <strong>Chrome Web Store reachability probe:</strong> when checking for updates, one lightweight HEAD
+              request goes to
+              <a
+                href="https://chromewebstore.google.com/"
+                target="_blank"
+                >chromewebstore.google.com</a
+              >
+              (the result is cached locally for 24 hours) purely to work out whether you can update right inside the
+              store.
+            </li>
+            <li>
+              <strong>Version update check:</strong> every 6 hours; only when the probe above reports the store as
+              unreachable (e.g. restricted networks) is a read-only request sent to GitHub's public API
+              (api.github.com). <strong>No user data is sent</strong> — only version numbers and release notes are
+              received.
             </li>
           </ul>
           <p>
@@ -665,7 +696,11 @@
           <h2>7. Data Export &amp; Backup</h2>
           <p>The Extension provides several local data export options:</p>
           <ul>
-            <li><strong>CSV/JSON Export:</strong> Generates local file downloads without passing through any server</li>
+            <li>
+              <strong>CSV/JSON Export:</strong> Local file downloads without passing through any server; the files are
+              <strong>plaintext</strong> (usernames and passwords included), so store them safely — prefer an encrypted
+              backup for long-term retention
+            </li>
             <li><strong>Encrypted Backup (.aph):</strong> AES-256-GCM encrypted local files</li>
             <li>
               <strong>Email Backup Reminder:</strong> Opens the system email client via the mailto: protocol only; the
@@ -733,6 +768,21 @@
     </div>
 
     <script>
+      /**
+       * 文档元信息字典（zh / en），同时被脚本头部的静态 head 生成器复用，
+       * 避免语言切换后 title / description 与实际显示语言不一致。
+       */
+      const META = {
+        title: {
+          zh: '隐私政策 / Privacy Policy - Account Password Helper',
+          en: 'Privacy Policy - Account Password Helper',
+        },
+        description: {
+          zh: 'Account Password Helper 隐私政策：不收集、不分析、不遥测；账号、密码与验证码逐字段 AES-256-GCM 本地加密且不上传，仅匿名版本检查会发起网络请求。 / Privacy Policy: no data collection or telemetry; passwords are encrypted per field locally and never uploaded.',
+          en: 'Privacy Policy: no data collection, analytics or telemetry. Passwords are encrypted per field with AES-256-GCM and never uploaded — only anonymous version checks.',
+        },
+      };
+
       function switchLang(lang) {
         document.body.className = '';
         if (lang === 'zh') {
@@ -746,6 +796,9 @@
           document.body.classList.add('show-both');
           document.documentElement.lang = 'zh-CN';
         }
+        const meta = lang === 'en' ? 'en' : 'zh';
+        document.title = META.title[meta];
+        document.querySelector('meta[name="description"]').setAttribute('content', META.description[meta]);
         // Update active button
         document.querySelectorAll('.lang-btn').forEach(function (btn) {
           btn.classList.toggle('active', btn.dataset.lang === lang);

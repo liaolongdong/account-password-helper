@@ -65,7 +65,7 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 
 **Position**: `docs/blog/{zh,en}/01-local-first-password-manager.md` 封面 + og:image
 **Purpose**: 传达「零云端 / 本地加密 / 为开发者而生」的立项动机
-**Text**: H1 `零云端 · 本地加密`；关键字 `AES-256-GCM · PBKDF2 600,000×`；说明 `数据不出浏览器，多环境账号不串号`；胶囊 `精确域名匹配` `一键登录` `内置 TOTP` `GPL-3.0 开源`；证据行 `github.com/liaolongdong/account-password-helper`
+**Text**: H1 `零云端 · 本地加密`；关键字 `AES-256-GCM · PBKDF2 600,000×`；说明 `密码数据不出浏览器，多环境账号不串号`；胶囊 `精确域名匹配` `一键登录` `内置 TOTP` `GPL-3.0 开源`；证据行 `github.com/liaolongdong/account-password-helper`
 **Visual Content**: 划掉的云（零云端）→ 浏览器窗口内品牌钥匙保险块（复用 `assets/icons/icon.svg` 骨架）→ 虚线落到笔记本（数据只在本机）→ 盾牌对勾（安全体检）与 `</>`（为开发者而生）
 **Filename**: blog-cover-01-local-first.svg → ../blog-cover-01-local-first.png
 

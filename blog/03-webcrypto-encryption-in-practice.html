@@ -65,7 +65,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-09-05"
+      content="2026-09-09"
     />
     <meta
       name="twitter:card"
@@ -92,7 +92,7 @@
   "inLanguage": "zh-CN",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-09-05",
+  "dateModified": "2026-09-09",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -242,7 +242,7 @@
     </nav>
     <article>
       <h1>用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战</h1>
-      <p class="meta">2026-08-28 · 更新于 2026-09-05 · liaolongdong</p>
+      <p class="meta">2026-08-28 · 更新于 2026-09-09 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png" alt="用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战" />
       <h1>用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战</h1>
 <p><img src="https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.png" alt="从主密码到密文：加密管线全流程"></p>
@@ -259,29 +259,29 @@
 <h2>密钥派生：PBKDF2-SHA256，600,000 次迭代</h2>
 <p>用户的主密码不能直接当加密密钥：它的熵不够，而且需要加盐防彩虹表。标准做法是密钥派生函数，我们选 PBKDF2-SHA256，<strong>600,000 次迭代</strong>——这是 OWASP 密码存储备忘录自 2023 年起对 PBKDF2-SHA256 的推荐值，目标是让暴力破解的单次尝试成本足够高。</p>
 <p>两个关键设计：</p>
-<p><strong>盐值随机且绑定存储。</strong> 每个实例独立随机盐，与密文一起保存。盐不保密，它的作用是确保&quot;同一个主密码在不同安装上派生出不同密钥&quot;，让预计算攻击失效。</p>
+<p><strong>盐值随机且明文伴随存储。</strong> 每个实例独立随机生成 16 字节盐（32 位 hex），以明文存放在主密码配置中，与密文同库不同键。盐不保密，它的作用是确保&quot;同一个主密码在不同安装上派生出不同密钥&quot;，让预计算攻击失效。</p>
 <p><strong>验证哈希做域分离。</strong> 校验&quot;主密码是否正确&quot;时，不直接尝试解密数据（解密失败的原因很多，难以区分&quot;密码错&quot;和&quot;数据损坏&quot;），而是对主密码做一次带前缀的哈希校验，前缀 <code>aph-verify|</code> 实现了<strong>域分离（domain separation）</strong>：验证用途和加密用途的输入空间互不重叠，杜绝把验证值当作密文、或把密文拿去撞验证的跨域利用。</p>
 <h2>数据加密：字段级 + AES-256-GCM</h2>
 <p>加密粒度上，我们没做整库一锅端，而是<strong>字段级加密</strong>：每条记录的用户名、密码、URL、备注、TOTP 密钥分别加密。好处很实际——列表页展示标题、图标、标签时不需要解密敏感字段，侧边栏的搜索与渲染可以只碰元数据。</p>
 <p>算法选 <strong>AES-256-GCM</strong>：</p>
 <ul>
 <li>GCM 是认证加密模式，密文被篡改时解密会直接失败（完整性校验内置），不需要再叠一层 HMAC；</li>
-<li>每次加密使用 <strong>12 字节随机 IV</strong>，存储格式为 <code>Base64(IV || 密文)</code>，IV 与密文绑定，不存在复用风险；</li>
+<li>每次加密使用 <strong>12 字节随机 IV</strong>，存储格式为 <code>Base64(IV || 密文 || authTag)</code>（GCM 的 16 字节认证标签随密文一并落盘），IV 与密文绑定，不存在复用风险；</li>
 <li>IV 随机生成由 <code>crypto.getRandomValues</code> 保证，坚决不用计数器或可预测来源——GCM 下 IV 复用等于灾难，这条没有妥协空间。</li>
 </ul>
-<p>密钥句柄（<code>CryptoKey</code>）做了小容量缓存（上限 4 个，LRU 语义），避免同一次批量操作里反复派生；<strong>锁定会话时句柄立即清除</strong>——内存里不留可以被 GC 之外手段捞出来的密钥材料。</p>
+<p><code>CryptoKey</code> 句柄做了小容量缓存（key 为「用途 + 密钥」，上限 4 个，<strong>FIFO 淘汰</strong>），把批量加解密里 <code>O(条目 × 字段)</code> 次的 <code>importKey</code> 降为 O(1)——注意它缓存的是导入后的句柄，PBKDF2 派生本身不在缓存范围内；句柄以 <code>extractable: false</code> 导入，不可导出原始密钥字节，且<strong>锁定会话时立即清空</strong>——内存里不留可以被 GC 之外手段捞出来的密钥材料。</p>
 <h2>会话：密钥在内存里活多久</h2>
 <p>加密做对了，密钥管理做歪了，一样白搭。会话层的设计：</p>
 <ul>
-<li><strong>有效期可配</strong>：默认 24 小时，1 小时到 7 天可选。到期后敏感字段回归密文状态，下次使用重新验证主密码；</li>
-<li><strong>闲置锁定</strong>：通过 <code>chrome.idle</code> 监听，系统锁屏即时锁定，闲置超阈值锁定；</li>
-<li><strong>浏览器重启锁定</strong>：可选项，<code>onStartup</code> 时强制重锁，防共享设备场景；</li>
+<li><strong>有效期可配</strong>：默认 24 小时，1 小时到 7 天可选。到期不动任何密文——落盘数据本来就一直是密文，过期做的只是丢会话数据密钥、清解密快照，之后再也解不开，下次使用重新验证主密码；</li>
+<li><strong>闲置锁定</strong>：可选项且默认关闭，开启后通过 <code>chrome.idle</code> 监听，系统锁屏即时锁定，闲置超阈值锁定；</li>
+<li><strong>浏览器重启锁定</strong>：同为可选项、默认关闭，开启后 <code>onStartup</code> 时强制重锁，防共享设备场景；</li>
 <li><strong>手动锁定</strong>：Popup 一键，锁定时同步清掉内存中的密钥句柄与解密快照。</li>
 </ul>
 <p>所有锁定路径都必须走到同一个清理函数——这是代码评审时盯得最紧的一条，因为漏掉任何一条路径，&quot;锁定&quot;就成了摆设。</p>
 <h2>换钥：修改主密码的原子性</h2>
 <p>&quot;修改主密码&quot;是加密系统里最容易写崩的功能：要用新密钥重加密全部数据，中途失败怎么办？</p>
-<p>实现上是先解密校验、再以新盐 + 新迭代派生新密钥、全量重加密成功后才原子提交写入，任何一步失败整体回滚，旧数据保持可用。不会出现&quot;主密码改了，数据解不开了&quot;这种密码管理器的死罪。对应的测试覆盖了成功、中途失败、旧格式兼容三类路径。</p>
+<p>实现上是先用旧密码把条目、回收站、密码历史全量解密校验一遍，再派生新数据密钥——<strong>盐值原样保留、迭代次数原样保留</strong>（<code>deriveEncryptionKey</code> 从存储里读那把盐，换盐会让后续解密派生出另一把密钥，数据就永久解不开了；换密码本身已提供足够安全性），最后用新密钥重加密全部三类数据，连同新校验哈希和新会话密钥材料一次 <code>chrome.storage.local.set()</code> 原子落盘，任何一步失败整体回滚，旧数据保持可用。不会出现&quot;主密码改了，数据解不开了&quot;这种密码管理器的死罪。对应的测试覆盖了成功、中途失败、旧格式兼容三类路径。</p>
 <h2>把一切输入当敌人</h2>
 <p>扩展运行在不可信环境里：网页 DOM、导入的 CSV、runtime 消息、storage 里的旧数据，全部按不可信输入处理——边界处校验类型、长度、格式，失败安全降级。渲染层禁止 <code>v-html</code>/<code>innerHTML</code> 处理任何来自外部或用户数据的字符串。这些不产生&quot;功能&quot;，但它们是密码管理器该有的肌肉记忆。</p>
 <p>两个新近的例子可以具象化这条原则。一个是自动保存弹窗的弱密码/复用风险提示：它是在已解密的全量条目上算出来的派生结论，所以既不进 pending 也不进 sessionStorage（否则用户改了密码会留下陈旧的复用计数），跳页恢复路径负责重算新鲜值；iframe 委托场景下它经 <code>postMessage</code> 跳帧传入，接收方逐字段收窄——<code>weak</code> 只接受严格布尔 <code>true</code>，<code>reusedCount</code> 只接受 <code>1..9999</code> 的整数，非法值直接丢弃。另一个是条目只读详情抽屉里的网址字段：库里存的 URL 对用户可编辑，属于不可信输入，因此它先经 <code>toNavigableUrl</code> 归一化（补默认协议、本地开发域名走 http、显式拒绝 <code>javascript:</code> / <code>data:</code> 等非导航协议）才允许出现在 <code>href</code> 上，返回 <code>null</code> 就不渲染链接。</p>
