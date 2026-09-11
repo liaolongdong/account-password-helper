@@ -221,28 +221,54 @@ public/icon/128.png
 
 ### 屏幕截图 (Screenshots) — 至少 1 张，官方规格 1280×800 或 640×400
 
-使用 `assets/screenshots/` 目录中的截图文件（共 12 张，按功能编号命名）：
-
-```
-01-master-password.png    # 设置主密码
-02-password-list.png      # 密码列表与管理
-03-excel-import.png       # CSV 批量导入
-04-excel-export.png       # 数据批量导出
-05-add-account.png        # 添加新账号
-06-sidepanel-fill.png     # 侧边栏一键填充
-07-floating-button.png    # 悬浮按钮快捷入口
-08-session-validity.png   # 灵活的会话有效期
-09-totp-code.png          # TOTP 两步验证
-10-health-check.png       # 安全体检仪表盘
-11-inline-fill.png        # 内联填充迷你面板
-12-theme-skin.png         # 主题换肤与双语界面
-```
-
-> 📐 **实测尺寸**：`assets/screenshots/` 中 12 张图实际为 **2880×1598~1610**（约 16:9），并非官方示例的 1280×800（16:10）。商店若接受则无需处理；一旦被判定尺寸不符，用 `sips -z 800 1280 --out out/01-master-password.png assets/screenshots/01-master-password.png`（macOS）等比缩放后再上传。
+> ✅ **2026-09-10 重制（推荐上传这一组）**：`assets/cws-store/screen-*.png`，**中英各 6 张**，**2560×1600（即 1280×800 @2x，正好是官方规格的 2 倍）**。每张顶部为品牌渐变标题带（`#0A1A38 → #123E77`，与 Marquee / 小推广图同源；左侧一条品牌色竖条做视觉锚点），下方为界面演示，全部使用占位演示数据（`example.com` / `*.example.com`，**不含任何真实账号、真实邮箱或第三方品牌**）。
 >
-> ⚠️ `assets/cws-store/` 目前只放了前 **8** 张截图（01~08）+ `store-icon-128x128.png` + 四张推广图（`marquee-1400x560.png` / `marquee-en-1400x560.png` / `small-promo-440x280.png` / `small-promo-en-440x280.png`）；`09-totp-code` ~ `12-theme-skin` 只在 `assets/screenshots/` 中，上传时别漏拷。
+> 🌐 **两套都要传**：Dashboard 上中文页与 English (United States) 页的截图槽位互相独立、不会继承。**英文版文件名带 `-en` 后缀**，而且不只是标题带翻译——界面本身也切到英文（含标签 `Dev/Staging/Prod/QA/Ops/Design/Docs/Sandbox` 与英文备注），所以英文跑批必须用全新 profile 重新 seed。
 >
-> 🔁 **截图已过期（2026-09-10 核对）**：12 张截图全部拍摄于 2026-07-29 的 **v2.12.0**，页面里的版本徽章仍是 `v2.12.0`，且 `01-master-password.png` 底部烧着已被删除的旧安全声明（「严禁保存……后果自负」）。**截图里的文字同属商店元数据**，与名称、摘要、说明受同一条政策约束：下次上传前须用当前构建重新截图（替换 `assets/screenshots/` 与 `assets/cws-store/` 两处同名文件），至少必须换掉带旧声明的 `01-master-password.png`。
+> 生成方式：脚本化截取（本地起 Chrome 加载 `.output/chrome-mv3` 构建 + 演示数据 + 演示登录页），不是人工截图。演示数据与复现步骤见下方「生成方式」。
+>
+> | 序号 | 文件（英文加 `-en`）            | 卖点           | 标题带文案                                               |
+> | ---- | ------------------------------- | -------------- | -------------------------------------------------------- |
+> | 1    | `screen-1-one-click-login.png`  | 一键登录       | 一键登录：填充 → 勾选「记住我」→ 自动点击登录            |
+> | 2    | `screen-2-totp.png`             | TOTP 两步验证  | TOTP 两步验证：验证码和密码住在一起，不用摸手机          |
+> | 3    | `screen-3-multi-env.png`        | 多环境账号管理 | 多环境账号管理：同一站点，开发 / 测试 / 生产分得清清楚楚 |
+> | 4    | `screen-4-security-audit.png`   | 离线安全体检   | 离线安全体检：0-100 分给密码健康打分，全程本机计算       |
+> | 5    | `screen-5-preferences.png`      | 主题与双语     | 6 款主题 + 中英文双语界面，即时切换无需刷新              |
+> | 6    | `screen-6-local-encryption.png` | 本地加密       | 本地加密：密码只存在你的浏览器里，加密后落盘             |
+>
+> ⚠️ **每个语言页的截图上限是 5 张**，上表有 6 张候选，上传时按需取舍：**若要砍一张，先砍第 6 张**（本地加密画面最朴素，且该主张在摘要与说明里已有文字承载）。
+>
+> ⚠️ **标题带文案的合规约束与商店文案完全一致**：零竞品品牌名、零绝对化表述（不写「零联网 / 100% offline / 数据不出浏览器」——扩展每 6 小时有一次不携带用户数据的匿名版本检查）。改文案后必须重新跑一遍本节「生成方式」的脚本。
+>
+> 🚫 **旧的 `01-*.png` ~ `12-*.png` 不要再上传商店**：那 12 张拍摄于 2026-07-29 的 **v2.12.0**，界面版本徽章过期，其中 `01-master-password.png` 还带着已删除的「严禁……后果自负」旧声明，且含真实账号邮箱。它们若仍出现在 README 等位置，需另行重截（见 `docs/exposure-status.md` 残留待办）。
+
+### 生成方式（可复现）
+
+截图由脚本生成，**改完商店文案或功能后重跑即可**，不要手改 PNG：
+
+```bash
+# 1) 构建（截图里的版本徽章取自 manifest.version）
+pnpm build
+
+# 2) 起本地静态服务托管演示登录页，并带 host 映射启动 Chrome
+#    （把 admin.example.com / console.example.com 指到 127.0.0.1，让侧边栏能命中演示账号）
+
+# 3) 按语言各跑一批：seed（设主密码 + 导入占位账号）→ seeded → prefs
+#    再换全新 profile 跑 firstrun（本地加密需要「还没设主密码」的首启状态）
+node scripts/store-shots/seed.mjs    "$PWD/.output/chrome-mv3" zh
+node scripts/store-shots/capture.mjs "$PWD/.output/chrome-mv3" seeded zh
+node scripts/store-shots/capture.mjs "$PWD/.output/chrome-mv3" prefs  zh
+node scripts/store-shots/capture.mjs "$PWD/.output/chrome-mv3" firstrun zh
+# 英文同上，第二个参数换成 en（演示标签也是英文，必须换全新 profile 重新 seed）
+```
+
+> 演示账号（8 条占位）内联在 `scripts/store-shots/seed.mjs` 的 `DEMO_CSV_ZH` / `DEMO_CSV_EN`；演示登录页 / 2FA 页为同目录的 `demo-login.html`、`demo-2fa.html`；截图与合成脚本也在该目录，完整用法（含 Chrome 启动参数）见其 `README.md`。
+>
+> 💡 版本徽章：脚本读取构建产物里的 `manifest.version`，所以**务必先让分支版本与即将提交的包一致**（当前应为 3.8.0）再截，否则又会出现「截图版本与商店版本不符」。
+
+> 📐 **尺寸对照**：新一组是官方规格的精确 2 倍（1280×800 @2x = 2560×1600），不会触发尺寸校验。`assets/screenshots/` 里的旧 12 张是 2880×1598~1610（约 16:9），既非官方比例、版本也已过期。
+>
+> ⚠️ `assets/cws-store/` 除新的 12 张（6 中文 + 6 英文）外，仍有旧素材：`01-*.png` ~ `08-*.png`（v2.12.0，**含真实账号邮箱，勿再上传**）、`store-icon-128x128.png`、四张推广图（`marquee-1400x560.png` / `marquee-en-1400x560.png` / `small-promo-440x280.png` / `small-promo-en-440x280.png`）。上传截图时只取 `screen-*.png`。
 
 ### 小幅推广图片 (Small Promo Tile) — 440×280
 
@@ -661,7 +687,7 @@ No specific website accounts are required. The extension treats all websites uni
 - [ ] 商店 Name 与 `public/_locales/*/messages.json` 的 `extensionName` 逐字一致（中英文均是）
 - [ ] 分类选择 Productivity
 - [ ] 商店图标已上传（128×128）
-- [ ] 至少 1 张截图已上传（建议 5 张以上精选截图）
+- [ ] 截图已上传（**中文页与 English (United States) 页各 5 张**，取自 `assets/cws-store/screen-*.png` 与其 `-en` 版；**不要再用旧的 `01-*.png` ~ `12-*.png`**）
 - [ ] Marquee 宣传图（1400×560）已上传
 - [ ] Small Promo Tile（440×280）已上传
 - [ ] 隐私政策 URL 已填写
