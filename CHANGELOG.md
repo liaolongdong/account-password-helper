@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.0](https://github.com/liaolongdong/account-password-helper/compare/v3.8.0...v3.9.0) (2026-09-11)
+
+
+### Features
+
+* **docs:** 更新商店截图并添加脚本化生成工具 ([1f55d57](https://github.com/liaolongdong/account-password-helper/commit/1f55d576102d0a9a80f84a38cea4f712d1471e2b))
+
 ## [3.8.0](https://github.com/liaolongdong/account-password-helper/compare/v3.7.0...v3.8.0) (2026-09-06)
 
 
