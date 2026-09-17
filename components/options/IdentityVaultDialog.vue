@@ -47,7 +47,24 @@
         class="identity-reminder"
       />
 
-      <!-- 选择栏：全选 + 已选/总数摘要（驱动导出作用域） -->
+      <!-- 状态栏：搜索命中计数（左，仅过滤时） + 条数上限指示（右） -->
+      <div
+        v-if="rows.length > 0"
+        class="identity-meta"
+      >
+        <span v-if="filterActive">
+          {{ t('identity.matchCount', { count: filteredRows.length }) }}
+        </span>
+        <span :class="['identity-meta__count', { 'is-limit': atLimit }]">
+          {{
+            atLimit
+              ? t('identity.countAtLimit', { max: MAX_IDENTITIES })
+              : t('identity.countIndicator', { count: rows.length, max: MAX_IDENTITIES })
+          }}
+        </span>
+      </div>
+
+      <!-- 选择栏：全选 + 已选/总数摘要（驱动导出作用域） + 展开/收起全部机密 -->
       <div
         v-if="rows.length > 0"
         class="identity-selectbar"
@@ -62,6 +79,15 @@
         <span class="identity-selectbar__summary">
           {{ t('identity.selection.summary', { selected: selectedCount, total: rows.length }) }}
         </span>
+        <el-button
+          v-if="canRevealAll"
+          link
+          size="small"
+          class="identity-selectbar__reveal"
+          @click="toggleRevealAll"
+        >
+          {{ allVisibleRevealed ? t('identity.hideAll') : t('identity.revealAll') }}
+        </el-button>
       </div>
 
       <!-- 空态：未保存任何条目 -->
@@ -77,7 +103,14 @@
         v-else-if="!loading && filteredRows.length === 0"
         class="identity-empty"
       >
-        <el-empty :description="t('identity.noMatch')" />
+        <el-empty :description="t('identity.noMatch')">
+          <el-button
+            v-if="filterActive"
+            @click="clearFilters"
+          >
+            {{ t('identity.clearFilters') }}
+          </el-button>
+        </el-empty>
       </div>
 
       <!-- 条目卡片列表 -->
@@ -118,6 +151,12 @@
                 :aria-label="isRevealed(entry.id) ? t('identity.hide') : t('identity.show')"
                 link
                 @click="toggleReveal(entry.id)"
+              />
+              <el-button
+                :icon="DocumentCopy"
+                :aria-label="t('identity.copyCard')"
+                link
+                @click="handleCopyCard(entry)"
               />
               <el-button
                 :icon="Edit"
@@ -215,6 +254,7 @@ import { computed, ref, watch } from 'vue';
 import {
   CopyDocument,
   Delete,
+  DocumentCopy,
   Download,
   Edit,
   Hide,
@@ -226,6 +266,7 @@ import {
 } from '@element-plus/icons-vue';
 import type { IdentityEntry } from '@/utils/identity/types';
 import { MAX_IDENTITIES } from '@/utils/identity/constants';
+import { buildIdentityFieldRows, formatIdentityCardText, hasSecretFields } from '@/utils/identity/fields';
 import {
   exportIdentityBackup,
   exportIdentityPlaintext,
@@ -246,7 +287,8 @@ import type { IdentityVault } from '@/composables/useIdentityVault';
 /**
  * 身份信息库列表弹窗
  *
- * 展示解密后的身份条目（类别过滤 + 搜索 + 卡级机密显隐 + 逐字段复制 + 勾选 + 删除）。
+ * 展示解密后的身份条目（类别过滤 + 搜索 + 卡级机密显隐 / 批量展开收起 + 整卡/逐字段复制 +
+ * 勾选 + 删除；顶部状态栏显示搜索命中数与「已用 n/30」条数上限，无匹配时空态提供「清除筛选」）。
  * 眼睛按「卡片」为粒度切换该卡全部机密字段（设计如此，非 bug）；每卡复选框 + 工具栏
  * 全选驱动导出作用域——未勾选=导出全部，勾选=仅导出所选子集。footer 常驻备份导入/导出：
  * 加密 `.aphid` 走主密码解密；「导出明文（不推荐）」与导入均接受明文 `.json`，明文读写都设
@@ -284,16 +326,20 @@ const {
   selectedCount,
   allVisibleSelected,
   selectionIndeterminate,
+  allVisibleRevealed,
 } = props.vault;
 const {
   displayTitle,
   isRevealed,
   toggleReveal,
+  toggleRevealAll,
   isSelected,
   toggleSelect,
   selectAllVisible,
   clearSelection,
+  clearFilters,
   copyField,
+  copyCard,
   remove,
   resetViewState,
   load,
@@ -302,53 +348,29 @@ const {
 /** 统一掩码（'*' × 8，对标 PasswordTable / PasswordDetailDrawer） */
 const MASK = '*'.repeat(8);
 
-/** 内置字段展示定义（顺序即展示顺序；secret 决定掩码与复制通道） */
-const FIELD_DEFS = [
-  { key: 'name', secret: false },
-  { key: 'idNumber', secret: true },
-  { key: 'phone', secret: false },
-  { key: 'email', secret: false },
-  { key: 'address', secret: false },
-  { key: 'cardNo', secret: true },
-  { key: 'cardBank', secret: false },
-  { key: 'cardHolder', secret: false },
-  { key: 'cardExpiry', secret: false },
-  { key: 'cardCvv', secret: true },
-  { key: 'remark', secret: false },
-] as const;
+/** 字段行：复用 utils/identity/fields 展示模型，传入本组件 t 取标签（单一事实来源） */
+const buildFieldRows = (entry: IdentityEntry) => buildIdentityFieldRows(entry, t);
 
-/** 单条字段行（用于只读展示） */
-interface IdentityFieldRow {
-  key: string;
-  label: string;
-  value: string;
-  secret: boolean;
-}
+/** 该卡片是否含机密字段（决定卡级显/隐眼睛是否出现；与批量展开/收起作用范围同源） */
+const cardHasSecret = (entry: IdentityEntry) => hasSecretFields(entry.payload);
 
-/** 把条目展开为字段行（仅非空字段；自定义字段附加其后） */
-function buildFieldRows(entry: IdentityEntry): IdentityFieldRow[] {
-  const fieldRows: IdentityFieldRow[] = [];
-  for (const def of FIELD_DEFS) {
-    const value = entry.payload[def.key];
-    if (typeof value === 'string' && value) {
-      fieldRows.push({ key: def.key, label: t(`identity.field.${def.key}`), value, secret: def.secret });
-    }
-  }
-  for (const field of entry.payload.customFields ?? []) {
-    if (field.value) {
-      fieldRows.push({
-        key: 'custom:' + field.id,
-        label: field.label || '—',
-        value: field.value,
-        secret: field.secret,
-      });
-    }
-  }
-  return fieldRows;
-}
+/** 是否已达条目上限（驱动条数指示切换为告警文案） */
+const atLimit = computed(() => rows.value.length >= MAX_IDENTITIES);
 
-/** 该卡片是否含机密字段（决定卡级显/隐眼睛是否出现） */
-const cardHasSecret = (entry: IdentityEntry): boolean => buildFieldRows(entry).some(field => field.secret);
+/** 是否有过滤条件生效（搜索词或非「全部」类别，驱动命中计数与「清除筛选」） */
+const filterActive = computed(() => keyword.value.trim() !== '' || categoryFilter.value !== 'all');
+
+/** 可见卡片中是否存在含机密字段的卡（决定「展开 / 收起全部机密」是否出现） */
+const canRevealAll = computed(() => filteredRows.value.some(cardHasSecret));
+
+/**
+ * 复制整条身份信息：拼成「标签: 值」多行文本一次性写入剪贴板
+ *
+ * 与逐字段复制一致——复制的是明文值本身，掩码仅为展示态，故未显隐的机密字段照样复制。
+ * 整卡恒含 PII，一律走限时自动清除通道（见 copyCard）。
+ */
+const handleCopyCard = (entry: IdentityEntry): Promise<void> =>
+  copyCard(formatIdentityCardText(buildIdentityFieldRows(entry, t)));
 
 /** 当前导出作用域：未勾选→全部；已勾选→所选子集 */
 const exportTargets = computed(() => resolveExportEntries(rows.value, selectedIds.value));
@@ -576,6 +598,23 @@ const handleFileChange = async (event: Event): Promise<void> => {
   margin-bottom: 12px;
 }
 
+.identity-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.identity-meta__count {
+  margin-left: auto;
+}
+
+.identity-meta__count.is-limit {
+  color: var(--el-color-warning);
+}
+
 .identity-selectbar {
   display: flex;
   gap: 12px;
@@ -586,6 +625,10 @@ const handleFileChange = async (event: Event): Promise<void> => {
 .identity-selectbar__summary {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.identity-selectbar__reveal {
+  margin-left: auto;
 }
 
 .identity-empty {

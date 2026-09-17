@@ -6,7 +6,8 @@
  * - 状态：rows（解密后条目）/ loading / revealedIds（掩码显隐）/ selectedIds（导出勾选）/ keyword / categoryFilter；
  * - 派生：filteredRows（类别过滤 + 搜索 + updateTime 倒序）；
  * - 生命周期：load() / teardown() / resetViewState()；
- * - 领域：displayTitle（列表标题回退链）/ copyField（机密走自动清除通道）。
+ * - 视图态：卡级显隐 toggleReveal / 批量 toggleRevealAll（仅作用可见含机密卡）/ 勾选选择态 / 过滤清除 clearFilters；
+ * - 领域：displayTitle（列表标题回退链）/ copyField（逐字段复制）/ copyCard（整卡复制，恒走限时自动清除通道）。
  *
  * 搜索刻意**不加防抖**：既有 200ms 防抖是为上百条密码设计，身份库 ≤30 条，
  * 即时过滤更简单（有意偏离，见方案 §4.1）。
@@ -14,6 +15,7 @@
 import { computed, ref, shallowRef } from 'vue';
 import type { IdentityCategory, IdentityEntry, IdentityPayload } from '@/utils/identity/types';
 import { deleteIdentities, getAllIdentity, saveIdentity, updateIdentity } from '@/utils/storage/identityCrud';
+import { hasSecretFields } from '@/utils/identity/fields';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { copySecretToClipboard, copyTextToClipboard } from '@/utils/clipboard';
 import { logger } from '@/utils/logger';
@@ -130,6 +132,33 @@ export function useIdentityVault() {
     return revealedIds.value.has(id);
   }
 
+  /** 当前可见且含机密字段的条目（批量展开/收起的唯一作用范围；无机密字段的卡无法经卡级眼睛展开） */
+  const revealableRows = computed(() => filteredRows.value.filter(r => hasSecretFields(r.payload)));
+
+  /** 可见的含机密条目是否已全部展开明文（驱动「展开 / 收起全部机密」按钮文案与态） */
+  const allVisibleRevealed = computed(
+    () => revealableRows.value.length > 0 && revealableRows.value.every(r => revealedIds.value.has(r.id)),
+  );
+
+  /**
+   * 一键展开 / 收起当前可见的含机密条目
+   *
+   * 只增删「可见且含机密」的 id，不动被过滤掉的既有展开项（与 `selectAllVisible` 口径一致），
+   * 也不把无机密字段的卡塞进 `revealedIds`，使其恒等于「当前明文中」。
+   */
+  function toggleRevealAll(): void {
+    const next = new Set(revealedIds.value);
+    const reveal = !allVisibleRevealed.value;
+    for (const r of revealableRows.value) {
+      if (reveal) {
+        next.add(r.id);
+      } else {
+        next.delete(r.id);
+      }
+    }
+    revealedIds.value = next;
+  }
+
   /** 切换某条目的勾选态 */
   function toggleSelect(id: string): void {
     const next = new Set(selectedIds.value);
@@ -177,6 +206,12 @@ export function useIdentityVault() {
     selectedIds.value = new Set();
   }
 
+  /** 仅清除过滤条件（搜索 + 类别），保留显隐与勾选态（空态「清除筛选」使用） */
+  function clearFilters(): void {
+    keyword.value = '';
+    categoryFilter.value = 'all';
+  }
+
   /** 复位弹窗视图状态（搜索/过滤/显隐/勾选），不含 rows（@closed 时调用） */
   function resetViewState(): void {
     revealedIds.value = new Set();
@@ -207,19 +242,35 @@ export function useIdentityVault() {
   }
 
   /**
-   * 复制单字段到剪贴板
+   * 复制到剪贴板的共享通道
    *
-   * 机密字段走 `copySecretToClipboard`（限时自动清除），非机密走
-   * `copyTextToClipboard`（取消待清除定时器）。空值静默跳过。
+   * 机密走 `copySecretToClipboard`（限时自动清除），非机密走 `copyTextToClipboard`
+   * （取消待清除定时器）。空值静默跳过；成功提示文案由 `successKey` 决定。
    */
-  async function copyField(value: string, secret: boolean): Promise<void> {
+  async function copyViaClipboard(value: string, secret: boolean, successKey: string): Promise<void> {
     if (!value) return;
     const ok = secret ? await copySecretToClipboard(value, notifyClipboardCleared) : await copyTextToClipboard(value);
     if (ok) {
-      ElMessage.success(t('options.detail.copied'));
+      ElMessage.success(t(successKey));
     } else {
       ElMessage.error(t('message.copyFailed'));
     }
+  }
+
+  /** 复制单字段到剪贴板（机密字段走限时自动清除通道） */
+  async function copyField(value: string, secret: boolean): Promise<void> {
+    await copyViaClipboard(value, secret, 'options.detail.copied');
+  }
+
+  /**
+   * 复制整条身份信息（已拼好的多行文本）
+   *
+   * 整卡载荷恒含姓名 / 手机号 / 住址等 PII，故一律走 `copySecretToClipboard`（限时自动清除），
+   * 不再按「是否含机密字段」分支：既消除「传错布尔就把 PII 常留剪贴板」的隐患，也避免纯地址卡
+   * 经普通复制通道取消上一条机密待清除定时器、间接延长明文存活时间。
+   */
+  async function copyCard(text: string): Promise<void> {
+    await copyViaClipboard(text, true, 'identity.copyCard.success');
   }
 
   return {
@@ -233,20 +284,24 @@ export function useIdentityVault() {
     selectedCount,
     allVisibleSelected,
     selectionIndeterminate,
+    allVisibleRevealed,
     load,
     create,
     update,
     remove,
     toggleReveal,
+    toggleRevealAll,
     isRevealed,
     toggleSelect,
     isSelected,
     selectAllVisible,
     clearSelection,
+    clearFilters,
     resetViewState,
     teardown,
     displayTitle,
     copyField,
+    copyCard,
   };
 }
 

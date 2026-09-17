@@ -298,6 +298,7 @@ import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useIdentityVault } from '@/composables/useIdentityVault';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
+import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
@@ -749,6 +750,27 @@ const openIdentityForm = (entry: IdentityEntry | null): void => {
  * 分流到专属文案；无 code 的其余错误走通用失败提示。
  */
 const handleIdentityFormSave = async (payload: IdentityPayload): Promise<void> => {
+  // 保存前疑似重复检测（非阻断）：证件号 / 卡号命中既有条目时二次确认，取消则回到表单不落盘
+  const dup = findDuplicateIdentity(identityVault.rows.value, payload, editingIdentity.value?.id);
+  if (dup) {
+    const dupEntry = identityVault.rows.value.find(row => row.id === dup.id);
+    try {
+      await ElMessageBox.confirm(
+        t('identity.form.duplicateWarning', {
+          field: t(`identity.field.${dup.field}`),
+          title: dupEntry ? identityVault.displayTitle(dupEntry) : '',
+        }),
+        t('identity.form.duplicateTitle'),
+        {
+          confirmButtonText: t('common.save'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning',
+        },
+      );
+    } catch {
+      return;
+    }
+  }
   identityFormLoading.value = true;
   try {
     if (editingIdentity.value) {
