@@ -97,6 +97,10 @@
 >
 > ✅ **自检结果（本轮）**：`paste blocks: 6 | banned hits: none`；中英说明**跨小节近似重复句为零**（difflib 阈值 0.72 全对扫描）；四个 `_locales` 值与粘贴块逐字一致。说明长度中文 **3293 → 4638** / 英文 **9504 → 13870** 字符（上限 16,000；**英文侧余量已收窄到约 2,100 字符**，后续再回填须优先动中文或先删已有内容）。**注意**：中文说明里 3,080 词、GBK 回落等新增事实目前只在商店文案，若要让 README / 官网与之一致，另按 `docs/CWS_PUBLISHING_GUIDE.md`「其他同步约定」评估范围。
 
+> 🪪 **八次修订（2026-09-16，身份信息库上线）**：新增「身份信息库」功能后，在【安全架构】【功能全览】【常见问题】与「storage」权限说明各补一句**事实描述**（整块 AES-256-GCM 加密、默认掩码、主密码复验、.aphid 加密备份、不随浏览器账号同步），中英文同步——**只陈述事实，不新增任何营销卖点**，身份库也不改变「本地优先 / 不收集用户数据」的既有口径。名称与摘要**未动**（新能力不进 45 字符名称与 132 字符摘要，避免又踩 keyword stuffing）。说明长度中文 **4638 → 4895** / 英文 **13870 → 14636** 字符（上限 16,000，英文侧余量约 1,400 字符）。
+
+> 🪪 **九次修订（2026-09-17，身份库导出增强）**：身份库新增「勾选导出子集」与「可选明文 .json 导出/导入（未加密、读写均需主密码复验 + 风险二次确认；导入按 `id` 合并、与加密备份复用同一份结构校验）」。仅改写【功能全览】的身份库一行（中英同步），如实标注明文文件为未加密、可再导入，加密备份（.aphid）仍为长期留存的首选路径。**不新增营销卖点**；明文导出/导入与已获批的密码明文 CSV/JSON 导出同类（均为本地读写、不上传），**Data Safety 口径不变**（仍无任何用户数据传输，FAQ「不离开设备 / 不上传」表述依旧成立）。名称与摘要**未动**。说明长度 中文 **4895 → 4951** / 英文 **14636 → 14830** 字符（英文侧余量约 1,170 字符，后续回填须优先动中文）。
+
 ### 说明 (Description) — 最多 16,000 字符
 
 ```
@@ -104,7 +108,7 @@
 账号密码管理助手是一款本地优先的密码管理器：账号、密码和两步验证码加密保存在你自己的浏览器里，不需要注册账号，也没有云端同步。打开登录页时，它可以自动填充账号和密码、勾选「记住我」，并按你的设置自动点击登录按钮。
 
 【为什么选择它】
-◆ 不只填表，还替你完成登录：在侧边栏选中条目点「填充并登录」即可一步走完填充、勾选与提交；快捷键 Ctrl+Shift+F 默认只做填充与勾选，只有你在偏好设置中开启「自动触发登录」后它才代为提交表单，不会背着你按下登录
+◆ 不只填充，还替你完成登录：在侧边栏选中条目点「填充并登录」即可一步走完填充、勾选与提交；快捷键 Ctrl+Shift+F 默认只做填充与勾选，只有你在偏好设置中开启「自动触发登录」后它才代为提交表单，不会背着你按下登录
 ◆ 多环境账号隔离：条目按精确域名匹配，开发、测试、预发、生产各留各的凭证——同时跑多环境的人最需要这条
 ◆ 验证码和密码存在同一处：不用在登录途中去摸手机、切换验证器应用——一个条目里既有密码也有动态码
 ◆ 免费、开源、无订阅：GPL-3.0 协议，源码可审计，全部功能不设付费墙
@@ -129,6 +133,7 @@
 · 密文只写入浏览器本地存储（持久化的 local 与仅内存的 session），不使用会随浏览器账号同步的 sync 存储，数据不会因为你登录了浏览器账号而离开这台设备
 · 更改主密码时对全部条目原子重加密：要么整体完成，要么保持原状，不会留下半加密的数据
 · 加密备份文件（.aph）每次导出都换用新的随机盐与新的初始化向量，两个备份之间不共用密钥材料
+· 身份信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM 认证加密后写入本地存储，默认掩码显示，查看与复制都需再次验证主密码
 · 登录第二步的动态码接力只把当次验证码和它的有效期交给页面，生成验证码所需的密钥始终留在扩展自己的后台上下文中；这份接力标记只对同一站点有效，三分钟后自动失效
 · 闲置达到设定时长（5 / 10 / 30 / 60 分钟四档）时自动锁定，系统锁屏走同一条闲置检测路径；浏览器重启后锁定是另一个独立开关。两者默认都不启用，需要你主动打开——锁定后要重新输入主密码，而主密码本身不会被保存，遗忘后无法找回
 · 复制密码后按设定的秒数自动清理剪贴板（默认 30 秒，另有 10 / 15 / 60 / 120 秒可选），清理前会先比对内容，不会误清你随后复制的内容；万一页面失去焦点读不到剪贴板，就直接覆写——宁可误清一次，也不把密码留在剪贴板上
@@ -151,11 +156,13 @@
 · 键盘完成全流程：侧边栏内上下键选条目、回车填充、Ctrl+C 复制账号、Esc 收起，手不离键盘也能登录
 · 工具栏 Popup 操作中枢：管理页、侧边栏、直接填充、锁定会话都在同一屏，剩余有效时间常驻显示并在临近过期时变色提醒
 · 智能搜索与整理：模糊搜索同时匹配用户名、标签、备注和网址，认拼音全拼与首字母，命中片段高亮显示；另有侧边栏「本站 / 全站」范围切换、每条最多 3 个标签的分类与筛选、收藏置顶（上限默认 10 个、可调 1~50，超出时按最少使用自动让位）、一键去重、批量管理
+· 身份信息库：独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段，默认掩码、查看需主密码复验；支持加密备份（.aphid）导出导入与勾选导出子集，并可按需导出/导入未加密的明文 .json（需主密码复验与风险确认，导入按 id 合并）；不参与自动备份，请定期手动导出加密备份
 · 界面与快捷键：6 款色彩主题、中英文界面即时切换；四个默认按键为 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作
 
 【常见问题】
 · 真的完全免费吗？是。没有高级版、没有内购，也不会有劝你升级的弹窗
 · 密码会被上传到云端吗？不会。扩展没有自己的服务器。唯一主动发起的联网是每 6 小时一次的更新检查：先向商店探测一次网络可达性（结果在本机缓存 24 小时），探测不到时才去公开的发布接口读取最新版本号与不超过 200 字的更新说明；这两类请求都不携带任何账号、标识符或库内数据，断网时检查静默失败，其余功能照常可用
+· 身份信息（证件号、银行卡号等）会被上传或同步吗？不会。它们和密码一样只加密保存在本机，不随浏览器账号同步，也不会离开这台设备
 · 忘记主密码怎么办？找不回来，也没有任何人能替你把它还原成可读的形式。应用内确实有一个「重置」入口，但它做的是清空全部数据、把扩展恢复到刚装好的样子，旧密码不会因此出现。请定期用加密备份导出，别让一次遗忘赔上整个库
 · 能从其他密码管理器导入吗？可以：在原来用的应用里导出 CSV 或 JSON，再到扩展的导入页上传即可
 · 更新到新版本会改掉我调好的设置吗？不会。新版本调整过的默认值只作用在新安装上，已经在用的安装会冻结住它当前的填充方式，不会被静默改动
@@ -238,6 +245,7 @@ SECURITY ARCHITECTURE
 · Ciphertext goes only into the browser's local stores (persistent local and in-memory session). The account-syncing sync store is never used, so signing into a browser account does not carry your vault off this machine.
 · Changing the master password re-encrypts every entry atomically: it either completes as a whole or leaves the previous state untouched, never a half-encrypted vault.
 · Every .aph backup file is exported with its own random salt and its own initialization vector, so two backups never share key material.
+· The identity vault (name, ID number, phone, email, address, bank card details and custom fields) is a separate store: it reaches local storage only as one AES-256-GCM encrypted blob, is masked by default, and viewing or copying it asks for the master password again.
 · Mid two-step sign-in, the page is handed only the current code and when it expires; the key that generates it stays inside the extension's own background context, and the handoff marker is valid for one site only and dies after three minutes.
 · The vault locks once you have been idle for the length you pick (5, 10, 30 or 60 minutes), with a system lock handled through that same idle path; locking after a browser restart is a second, independent switch. Both are off until you turn them on. Once locked it asks for the master password again — and that password is never stored, so it cannot be recovered if forgotten.
 · After you copy a password, the clipboard is cleared on a timer (30 seconds by default; 10, 15, 60 or 120 also available) and is read back and compared first, so your most recent copy is never destroyed. If the page has lost focus and the clipboard cannot be read, it is overwritten anyway — better one mistaken clear than a password left behind.
@@ -260,11 +268,13 @@ FEATURE SET
 · Keyboard all the way: in the side panel, arrow keys move between accounts, Enter fills, Ctrl+C copies the username and Esc closes the panel.
 · Toolbar popup as the hub: management, side panel, direct fill and locking sit on one screen, with the remaining session time always visible and turning colour as expiry approaches.
 · Search and tidy-up: the fuzzy search looks across username, tags, notes and web address at once, understands pinyin written out and by its initials, and highlights what matched; then there is "this site / all entries" scoping in the side panel, up to 3 tags per entry, favorites pinned to the top (10 by default, adjustable 1-50, with the least used making way), one-tap duplicate cleanup and batch actions.
+· Identity vault: a separate locker for personal details — name, ID number, phone, email, address, bank card info and custom fields — masked by default and gated by a master-password re-check. It supports encrypted .aphid export/import and exporting only the entries you tick, plus an optional unencrypted plaintext .json export/import (master-password re-check and risk confirmation; import merges by id); it is not covered by automatic backups, so export an encrypted backup regularly.
 · Interface: 6 color themes and an instant Chinese/English switch. The four default shortcuts are Ctrl+Shift+P for management, L for the side panel, F for quick fill and K for the inline dropdown — to rebind them, use the browser's own extensions-shortcuts page.
 
 QUESTIONS
 · Is it really free? Yes — no premium tier, no in-app purchase, and no upgrade prompt.
 · Are my passwords uploaded anywhere? No — the extension runs no server of its own. The one thing it reaches out for is an update check every 6 hours: it first probes whether the store is reachable (the answer is cached on your machine for 24 hours), and only when that fails does it read the public releases endpoint for the newest version number and up to 200 characters of release notes. Neither request carries an account, an identifier, or anything from your vault; with the network off the check simply fails quietly and everything else keeps working.
+· Are my personal details (ID numbers, bank cards) uploaded or synced? No — like passwords, they stay encrypted on this machine, are never synced with your browser account, and never leave the device.
 · What if I forget the master password? Nothing can recover it, and nobody can hand you back something readable. There is a reset action in the app, but what it does is erase all data and return the extension to its just-installed state — your old password does not come back from that. Export an encrypted backup regularly, so a forgotten password never costs you the vault.
 · Can I import from another password manager? Yes — export a CSV or JSON from the app you use now, then upload it on the import page.
 · Will an update change settings I have already tuned? No. Defaults that a new version brings in apply to fresh installs only; an install you have been using keeps the fill behaviour it already had.
@@ -503,7 +513,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **storage**
 
 ```
-用于在浏览器本地存储加密后的密码数据和用户偏好设置，所有敏感数据使用 AES-256-GCM 加密。
+用于在浏览器本地存储加密后的密码数据、身份信息（证件号、银行卡号等）和用户偏好设置，所有敏感数据使用 AES-256-GCM 加密。
 ```
 
 **activeTab**

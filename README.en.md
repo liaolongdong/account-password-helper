@@ -15,7 +15,7 @@
 
 > **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart, plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
 
-> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 642 automated tests
+> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 795 automated tests
 
 **Contents**: [Core Advantages](#-core-advantages) · [Feature Tour](#-feature-tour) · [How It Compares](#-how-it-compares) · [Feature Overview](#-feature-overview) · [Security & Privacy](#-security--privacy) · [Install & Get Started](#-install--get-started) · [FAQ](#-faq) · [Contributing](#-contributing) · [License](#-license)
 
@@ -140,6 +140,7 @@
 - 🔐 **Several backups**: encrypted (.aph) export/import with a decrypt preview; email backup that assembles everything locally and hands it to your own mail client over `mailto:`; scheduled reminders that only notify you — nothing is ever sent automatically
 - 🏷️ **Organization that scales**: tag filtering, favorites pinned to the top (cap defaults to 10, configurable 1–50, evicted LRU), multi-field smart search with pinyin/initials and highlighting, one-click dedup, batch delete / retag / export selected to CSV, and a read-only detail drawer with the full remark and password history
 - ♻️ **Mistake-proofing**: 30-day trash bin (soft delete), password change history keeping 3 encrypted snapshots per entry by default (configurable 1–10, restorable), and an atomic master password change that never loses data
+- 🪪 **Identity vault**: a separate locker for personal details — name, ID number, phone, email, address, bank card info and custom fields — masked by default and gated by a master-password re-check when you open it; supports encrypted (.aphid) export/import, exporting a selected subset, and an optional plaintext .json export/import (master-password re-check + risk confirmation; import merges by id); it is not covered by automatic backups, so export an encrypted backup regularly
 
 ### 🎨 Experience
 

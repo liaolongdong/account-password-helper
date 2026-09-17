@@ -202,6 +202,22 @@
       @restored="loadPasswords"
     />
 
+    <!-- 身份信息库列表弹窗（共享实例注入） -->
+    <IdentityVaultDialog
+      v-model="showIdentityVaultDialog"
+      :vault="identityVault"
+      @add="openIdentityForm(null)"
+      @edit="openIdentityForm"
+    />
+
+    <!-- 身份信息新增/编辑表单弹窗 -->
+    <IdentityFormDialog
+      v-model="showIdentityFormDialog"
+      :entry="editingIdentity"
+      :loading="identityFormLoading"
+      @save="handleIdentityFormSave"
+    />
+
     <!-- 密码历史设置弹窗 -->
     <PasswordHistorySettingDialog v-model="showPasswordHistoryDialog" />
 
@@ -263,6 +279,8 @@ const MasterPasswordVerifyDialog = defineAsyncComponent(
   () => import('@/components/options/MasterPasswordVerifyDialog.vue'),
 );
 const PasswordDetailDrawer = defineAsyncComponent(() => import('@/components/options/PasswordDetailDrawer.vue'));
+const IdentityVaultDialog = defineAsyncComponent(() => import('@/components/options/IdentityVaultDialog.vue'));
+const IdentityFormDialog = defineAsyncComponent(() => import('@/components/options/IdentityFormDialog.vue'));
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -278,6 +296,9 @@ import { usePasswordManagement } from '@/composables/usePasswordManagement';
 import { useStorageWatcher } from '@/composables/useStorageWatcher';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
+import { useIdentityVault } from '@/composables/useIdentityVault';
+import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
+import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
@@ -328,6 +349,18 @@ const showHealthDialog = ref(false);
 
 /** 回收站弹窗可见性 */
 const showTrashDialog = ref(false);
+
+/** 身份信息库列表弹窗可见性 */
+const showIdentityVaultDialog = ref(false);
+
+/** 身份信息表单弹窗可见性 */
+const showIdentityFormDialog = ref(false);
+
+/** 正在编辑的身份条目（null = 新增） */
+const editingIdentity = ref<IdentityEntry | null>(null);
+
+/** 身份表单持久化进行中 */
+const identityFormLoading = ref(false);
 
 /** 密码历史设置弹窗可见性 */
 const showPasswordHistoryDialog = ref(false);
@@ -439,6 +472,18 @@ const openTrashWithVerify = async (): Promise<void> => {
 };
 
 /**
+ * 打开身份信息库前先验证主密码（纯门槛，刻意不使用返回的密码）
+ *
+ * 身份库含证件号/卡号等高敏 PII，复验门槛防「会话已解锁但用户离开座位」时
+ * 旁人一次性看到全部身份信息；取消则弹窗不得打开。镜像 openTrashWithVerify。
+ */
+const openIdentityVaultWithVerify = async (): Promise<void> => {
+  const masterPassword = await promptAndVerifyMasterPassword(t('identity.verifyTitle'), t('identity.verifyPrompt'));
+  if (!masterPassword) return;
+  showIdentityVaultDialog.value = true;
+};
+
+/**
  * 数据管理下拉菜单命令处理
  * @param command 菜单项命令标识
  */
@@ -470,6 +515,9 @@ const handleDataCommand = (command: string) => {
       break;
     case 'trash':
       openTrashWithVerify();
+      break;
+    case 'identityVault':
+      openIdentityVaultWithVerify();
       break;
   }
 };
@@ -680,6 +728,61 @@ const {
   onSessionExpired: () => {
     passwords.value = [];
   },
+});
+
+/** 身份信息库状态与操作（单一实例注入列表弹窗，会话失效由下方 watch teardown） */
+const identityVault = useIdentityVault();
+
+/**
+ * 打开身份表单弹窗（新增/编辑共用）
+ * @param entry 编辑目标条目，null 表示新增
+ */
+const openIdentityForm = (entry: IdentityEntry | null): void => {
+  editingIdentity.value = entry;
+  showIdentityFormDialog.value = true;
+};
+
+/**
+ * 身份表单保存：新增走 create，编辑走 update（携带并发令牌）
+ *
+ * 错误映射依赖 identityCrud 抛出的机器可读 `code`（getIdentityCrudErrorCode），
+ * 分流到专属文案；无 code 的其余错误走通用失败提示。
+ */
+const handleIdentityFormSave = async (payload: IdentityPayload): Promise<void> => {
+  identityFormLoading.value = true;
+  try {
+    if (editingIdentity.value) {
+      await identityVault.update(editingIdentity.value.id, payload, editingIdentity.value.updateTime);
+    } else {
+      await identityVault.create(payload);
+    }
+    ElMessage.success(t('identity.form.saveSuccess'));
+    showIdentityFormDialog.value = false;
+  } catch (error) {
+    const code = getIdentityCrudErrorCode(error);
+    if (code === 'LIMIT_REACHED') {
+      ElMessage.error(t('identity.form.limitReached'));
+    } else if (code === 'UPDATE_CONFLICT') {
+      ElMessage.error(t('identity.form.updateConflict'));
+    } else if (code === 'NOT_FOUND') {
+      ElMessage.error(t('identity.form.deletedConflict'));
+    } else {
+      logger.error('保存身份信息失败:', error);
+      ElMessage.error(t('message.saveFailed'));
+    }
+  } finally {
+    identityFormLoading.value = false;
+  }
+};
+
+/** 会话失效时清空身份库内存明文并关闭两个弹窗，防止 PII 残留 */
+watch(isAuthenticated, authenticated => {
+  if (!authenticated) {
+    identityVault.teardown();
+    showIdentityVaultDialog.value = false;
+    showIdentityFormDialog.value = false;
+    editingIdentity.value = null;
+  }
 });
 
 /**

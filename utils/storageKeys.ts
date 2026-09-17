@@ -25,6 +25,8 @@ export const STORAGE_KEYS = {
   PASSWORD_HISTORY: 'password_change_history',
   /** 密码历史记录配置（启用/禁用 + 最大保留条数） */
   PASSWORD_HISTORY_CONFIG: 'password_history_config',
+  /** 身份信息库条目（个人信息收藏夹，整块加密存储） */
+  IDENTITY: 'personal_identity_infos',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
   /** 用户语言偏好（'zh-CN' | 'en'） */

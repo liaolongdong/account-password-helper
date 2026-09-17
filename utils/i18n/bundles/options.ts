@@ -16,6 +16,7 @@ import zhFill from '@/utils/i18n/locales/zh-CN/fill.json';
 import zhForm from '@/utils/i18n/locales/zh-CN/form.json';
 import zhHealth from '@/utils/i18n/locales/zh-CN/health.json';
 import zhHelp from '@/utils/i18n/locales/zh-CN/help.json';
+import zhIdentity from '@/utils/i18n/locales/zh-CN/identity.json';
 import zhMessage from '@/utils/i18n/locales/zh-CN/message.json';
 import zhOptions from '@/utils/i18n/locales/zh-CN/options.json';
 import zhPopup from '@/utils/i18n/locales/zh-CN/popup.json';
@@ -33,6 +34,7 @@ import enFill from '@/utils/i18n/locales/en/fill.json';
 import enForm from '@/utils/i18n/locales/en/form.json';
 import enHealth from '@/utils/i18n/locales/en/health.json';
 import enHelp from '@/utils/i18n/locales/en/help.json';
+import enIdentity from '@/utils/i18n/locales/en/identity.json';
 import enMessage from '@/utils/i18n/locales/en/message.json';
 import enOptions from '@/utils/i18n/locales/en/options.json';
 import enPopup from '@/utils/i18n/locales/en/popup.json';
@@ -53,6 +55,7 @@ registerMessages(
   zhForm,
   zhHealth,
   zhHelp,
+  zhIdentity,
   zhMessage,
   zhOptions,
   zhPopup,
@@ -73,6 +76,7 @@ registerMessages(
   enForm,
   enHealth,
   enHelp,
+  enIdentity,
   enMessage,
   enOptions,
   enPopup,

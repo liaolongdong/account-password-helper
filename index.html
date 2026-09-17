@@ -137,7 +137,8 @@
           "CSV / JSON 导入导出，自动识别 Chrome、LastPass、Bitwarden、1Password 格式",
           "加密备份（.aph）与邮箱备份",
           "侧边栏全场景秒开（缓存快路径 20-50ms 拿到数据）",
-          "6 款色彩主题 + 中英文双语界面"
+          "6 款色彩主题 + 中英文双语界面",
+          "身份信息库：证件、银行卡等个人信息独立加密存放"
         ],
         "description": "开源免费的本地密码管理器：一键登录（填充+勾选+点击），PBKDF2 600K 迭代 + 敏感字段逐字段 AES-256-GCM 本地加密，TOTP 两步验证、安全体检与密码生成器，侧边栏秒开（缓存快路径 20-50ms），数据不上传服务器。",
         "url": "https://liaolongdong.github.io/account-password-helper/",
@@ -834,6 +835,10 @@
       .feature-card:nth-child(11) .feature-icon {
         background: rgba(14, 165, 233, 0.12);
         color: #0ea5e9;
+      }
+      .feature-card:nth-child(12) .feature-icon {
+        background: rgba(132, 204, 22, 0.12);
+        color: #84cc16;
       }
       .feature-card h3 {
         margin: 0 0 8px;
@@ -2187,6 +2192,51 @@
               6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，不发网络请求），长列表辨识更快。
             </p>
           </article>
+          <article class="feature-card reveal reveal-delay-2">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect
+                  x="2"
+                  y="4"
+                  width="20"
+                  height="16"
+                  rx="2"
+                />
+                <circle
+                  cx="9"
+                  cy="10"
+                  r="2"
+                />
+                <path d="M5 16c0-2 1.8-3.2 4-3.2s4 1.2 4 3.2" />
+                <line
+                  x1="14"
+                  y1="10"
+                  x2="18"
+                  y2="10"
+                />
+                <line
+                  x1="14"
+                  y1="13"
+                  x2="18"
+                  y2="13"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f12.title">身份信息库</h3>
+            <p data-i18n="features.f12.desc">
+              独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段；整块 AES-256-GCM
+              加密、默认掩码显示，查看需主密码复验；支持加密备份（.aphid）导出导入，不参与自动备份。
+            </p>
+          </article>
         </div>
       </div>
     </section>
@@ -2888,6 +2938,11 @@
         'features.f10.desc': {
           zh: '6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，不发网络请求），长列表辨识更快。',
           en: "6 color themes and instant Chinese/English switching; entries show site favicons (read from the browser's local cache, zero network) for faster recognition in long lists.",
+        },
+        'features.f12.title': { zh: '身份信息库', en: 'Identity Vault' },
+        'features.f12.desc': {
+          zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段；整块 AES-256-GCM 加密、默认掩码显示，查看需主密码复验；支持加密备份（.aphid）导出导入，不参与自动备份。',
+          en: 'A separate locker for personal details — name, ID number, phone, email, address, bank card info and custom fields — AES-256-GCM encrypted as one blob, masked by default and gated by a master-password re-check, with encrypted .aphid export/import; it is not covered by automatic backups.',
         },
         'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
         'showcase.sub': {

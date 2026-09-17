@@ -25,6 +25,27 @@ const BUNDLE_NAMESPACES = {
   sidepanel: ['common', 'message', 'sidepanel', 'fill', 'totp', 'session'],
   help: ['help'],
   popup: ['common', 'message', 'popup', 'auth', 'session', 'verify'],
+  // options 页面覆盖全部功能域，bundle 静态内置全部命名空间（含 identity）
+  options: [
+    'auth',
+    'backup',
+    'common',
+    'excel',
+    'fill',
+    'form',
+    'health',
+    'help',
+    'identity',
+    'message',
+    'options',
+    'popup',
+    'session',
+    'sidepanel',
+    'strength',
+    'totp',
+    'validity',
+    'verify',
+  ],
 } as const;
 
 /**
@@ -65,6 +86,20 @@ const POPUP_GRAPH_FILES = [
   'composables/useShortcuts.ts',
   'composables/useVersionUpdate.ts',
   'composables/useSessionLock.ts',
+];
+
+/**
+ * 身份信息库（Identity Vault）依赖图源文件
+ *
+ * 两弹窗 + composable 使用 t() 的 key 均需落在 options bundle（全命名空间）内；
+ * 动态 key（如 `t(\`identity.category.${x}\`)`）由「整命名空间注册」策略覆盖，无需提取。
+ */
+const IDENTITY_GRAPH_FILES = [
+  'components/options/IdentityVaultDialog.vue',
+  'components/options/IdentityFormDialog.vue',
+  'components/options/HeaderBar.vue',
+  'composables/useIdentityVault.ts',
+  'entrypoints/options/App.vue',
 ];
 
 /** 读取指定语言的某命名空间语言包 */
@@ -166,6 +201,15 @@ describe('入口 bundle key 覆盖率（静态扫描源码）', () => {
     for (const file of POPUP_GRAPH_FILES) {
       for (const key of extractI18nKeys(file)) {
         expect(bundleKeys.has(key), `${file} 使用的 key「${key}」未被 popup bundle 覆盖`).toBe(true);
+      }
+    }
+  });
+
+  it('身份信息库依赖图使用的 key 全部在 options bundle 内', () => {
+    const bundleKeys = collectBundleKeys(BUNDLE_NAMESPACES.options);
+    for (const file of IDENTITY_GRAPH_FILES) {
+      for (const key of extractI18nKeys(file)) {
+        expect(bundleKeys.has(key), `${file} 使用的 key「${key}」未被 options bundle 覆盖`).toBe(true);
       }
     }
   });

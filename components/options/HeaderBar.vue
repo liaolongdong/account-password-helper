@@ -131,6 +131,13 @@
               >
                 {{ t('options.header.trash') }}
               </el-dropdown-item>
+              <el-dropdown-item
+                divided
+                command="identityVault"
+                :icon="Postcard"
+              >
+                {{ t('identity.title') }}
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -232,6 +239,7 @@ import {
   Document,
   Brush,
   Operation,
+  Postcard,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';

@@ -361,15 +361,15 @@
           <p class="subtitle">Account Password Helper Browser Extension</p>
         </div>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年9月9日</span>
-          <span class="lang-en">Last updated: September 9, 2026</span>
+          <span class="lang-zh">最后更新：2026年9月16日</span>
+          <span class="lang-en">Last updated: September 16, 2026</span>
         </span>
       </div>
 
       <!-- ==================== 中文部分 ==================== -->
       <div class="lang-zh">
         <div class="highlight-box">
-          <p>核心承诺：本扩展不会将您的任何数据发送到外部服务器。所有密码数据均加密存储在您的本地浏览器中。</p>
+          <p>核心承诺：本扩展不会将您的任何数据发送到外部服务器。所有密码与身份信息均加密存储在您的本地浏览器中。</p>
         </div>
 
         <div class="policy-section">
@@ -414,6 +414,10 @@
             <li><strong>随机数：</strong>使用密码学安全的随机数生成器（crypto.getRandomValues）</li>
           </ul>
           <p>主密码不以明文保存，磁盘上只留有加盐的 PBKDF2（SHA-256，600,000 次迭代）校验值。</p>
+          <p>
+            身份信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
+            认证加密后写入本地存储，默认掩码显示，查看或复制均需再次验证主密码。
+          </p>
         </div>
 
         <div class="policy-section">
@@ -451,7 +455,7 @@
             <tbody>
               <tr>
                 <td>storage</td>
-                <td>在本地浏览器中存储加密后的密码数据和用户设置</td>
+                <td>在本地浏览器中存储加密后的密码数据、身份信息和用户设置</td>
               </tr>
               <tr>
                 <td>activeTab</td>
@@ -526,6 +530,16 @@
             </li>
             <li><strong>加密备份（.aph）：</strong>使用 AES-256-GCM 加密的本地文件</li>
             <li>
+              <strong>身份信息加密备份（.aphid）：</strong>使用 AES-256-GCM
+              加密的本地文件，仅本地导出导入；身份信息不参与自动备份，请定期手动导出
+            </li>
+            <li>
+              <strong>身份信息明文导出 / 导入（.json，可选）：</strong
+              >供迁移到其他工具查看的<strong>未加密</strong>导出，需验证主密码并经风险二次确认后方可进行；文件为明文（含姓名、证件号、银行卡号、CVV
+              等），任何能访问该文件的人均可直接读取。该明文 .json 也可经「导入」按 id
+              合并重新导入（同样需验证主密码并确认风险），请谨慎使用并妥善保管
+            </li>
+            <li>
               <strong>邮件备份提醒：</strong>仅通过 mailto: 协议打开系统邮件客户端，扩展本身不发送邮件也不接触邮件服务器
             </li>
           </ul>
@@ -561,8 +575,8 @@
       <div class="lang-en">
         <div class="highlight-box">
           <p>
-            Core Commitment: This extension does not send any of your data to external servers. All password data is
-            encrypted and stored locally in your browser.
+            Core Commitment: This extension does not send any of your data to external servers. All password and
+            identity data is encrypted and stored locally in your browser.
           </p>
         </div>
 
@@ -616,6 +630,11 @@
             The master password is never stored in plaintext — only a salted PBKDF2 (SHA-256, 600,000 iterations)
             verifier is kept.
           </p>
+          <p>
+            Identity information (name, ID number, phone, email, address, bank card details and custom fields) is kept
+            in a separate vault, stored locally only as one AES-256-GCM authenticated-encrypted blob; it is masked by
+            default, and viewing or copying it requires verifying the master password again.
+          </p>
         </div>
 
         <div class="policy-section">
@@ -659,7 +678,7 @@
             <tbody>
               <tr>
                 <td>storage</td>
-                <td>Store encrypted password data and user settings locally</td>
+                <td>Store encrypted password data, identity information and user settings locally</td>
               </tr>
               <tr>
                 <td>activeTab</td>
@@ -741,6 +760,17 @@
               backup for long-term retention
             </li>
             <li><strong>Encrypted Backup (.aph):</strong> AES-256-GCM encrypted local files</li>
+            <li>
+              <strong>Identity Encrypted Backup (.aphid):</strong> AES-256-GCM encrypted local files, exported and
+              imported locally only; identity information is not covered by automatic backups, so export it regularly
+            </li>
+            <li>
+              <strong>Identity Plaintext Export / Import (.json, optional):</strong> an <strong>unencrypted</strong>
+              export for migrating to other tools, allowed only after verifying the master password and confirming the
+              risk; the file is plaintext (name, ID number, card number, CVV, etc.) readable by anyone who can access
+              it. The same plaintext .json can also be re-imported through the identity import entry and merged by id,
+              likewise requiring master-password verification and risk confirmation — use with care and store securely
+            </li>
             <li>
               <strong>Email Backup Reminder:</strong> Opens the system email client via the mailto: protocol only; the
               Extension does not send emails or contact any mail server

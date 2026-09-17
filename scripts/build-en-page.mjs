@@ -48,6 +48,7 @@ const EN_FEATURE_LIST = [
   'Encrypted .aph backup and restore, plus email backup composed locally via mailto',
   'Side panel opens instantly in every state (~20-50ms to data on the cached warm path)',
   'Six color themes and a bilingual 中文 / English interface',
+  'Identity vault: ID, bank card and other personal details in a separate encrypted store',
 ];
 
 const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored from the Chinese HowTo block in index.html -->

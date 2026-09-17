@@ -6,6 +6,7 @@ import { verifyMasterPassword } from './masterPassword';
 import { getAllPasswordsRaw } from './passwordCrud';
 import { getAllTrashRaw } from './trashManager';
 import { getAllHistoryRaw } from './passwordHistory';
+import { getAllIdentityRaw, reencryptAll } from './identityCrud';
 import { lazyImport } from '@/utils/lazyImport';
 import type { MasterPasswordConfig } from '@/utils/types';
 
@@ -55,10 +56,12 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   // 2. 派生旧数据密钥
   const oldKey = await enc.deriveEncryptionKey(oldPw);
 
-  // 3. 读取三块密文数据
+  // 3. 读取三块密文数据（身份库为第 4 个加密域，读取置于任何写入之前，
+  //    故读取失败会在任何写入发生前中止整次 rekey）
   const rawPasswords = await getAllPasswordsRaw();
   const rawTrash = await getAllTrashRaw();
   const rawHistory = await getAllHistoryRaw();
+  const identityRaw = await getAllIdentityRaw();
 
   // 4. 用旧密钥解密 passwords
   const decryptedPasswords: PasswordEntry[] = [];
@@ -117,6 +120,8 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
     reEncryptedHistory.push({ ...record, password: encryptedPassword });
   }
 
+  const reEncryptedIdentity = await reencryptAll(identityRaw, oldKey, newKey);
+
   // 9. 生成新的校验哈希（保留原 salt！）
   // 注意：deriveEncryptionKey 内部从 storage 读取 salt 来派生数据密钥，
   // 若此处替换为新 salt，则后续解密时会派生出不同的密钥，导致数据永久不可解密。
@@ -142,6 +147,7 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
       [STORAGE_KEYS.PASSWORDS]: reEncryptedPasswords,
       [STORAGE_KEYS.TRASH]: reEncryptedTrash,
       [STORAGE_KEYS.PASSWORD_HISTORY]: reEncryptedHistory,
+      [STORAGE_KEYS.IDENTITY]: reEncryptedIdentity,
       [STORAGE_KEYS.MASTER_PASSWORD]: {
         hashedPassword: newVerifierHash,
         salt: existingSalt,

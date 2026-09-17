@@ -520,11 +520,21 @@ graph TB
 ### 26. 双语界面与两套 i18n
 
 - 只支持简体中文与 English 两种语言（`Locale = 'zh-CN' | 'en'`），语言切换入口在偏好设置面板，即时生效、无需刷新，并在扩展页面与注入式 UI 间同步。
-- **Vue 侧**（[utils/i18n/](../utils/i18n)）：响应式 `t()`，语言包按 17 个命名空间拆分在 `locales/{locale}/{namespace}.json`，各入口经 `bundles/` 静态注册自身所需子集（options 全量，sidepanel/popup/help 各自裁剪），避免「全量语言包打进每个入口」的首屏死重；`t()` 对未注册 key 返回 key 本身，支持渐进覆盖。
+- **Vue 侧**（[utils/i18n/](../utils/i18n)）：响应式 `t()`，语言包按 18 个命名空间拆分在 `locales/{locale}/{namespace}.json`，各入口经 `bundles/` 静态注册自身所需子集（options 全量，sidepanel/popup/help 各自裁剪），避免「全量语言包打进每个入口」的首屏死重；`t()` 对未注册 key 返回 key 本身，支持渐进覆盖。
 - **Content / Background 侧**（[utils/i18n-lite.ts](../utils/i18n-lite.ts)）：无 Vue 依赖的内联双语消息表（`cs.*` 内容脚本、`bg.*` / `cm.*` 后台），提供 `tl()`，避免把 Vue 运行时与全量语言包拖进内容脚本与 SW 包体。
 - **语言解析优先级**：Vue 侧为 `localStorage` 同步镜像 > `storage.local` 持久化 > `chrome.i18n.getUILanguage()`；轻量侧为 storage > `getUILanguage()`，读取失败一律回退 `zh-CN`。`localStorage` 镜像的作用是让 `initI18n` 命中时同步返回，消除 Vue 挂载前唯一的串行 storage IPC（Windows 冷环境约 40-80ms）。
 - **实时切换链路**：两套体系都监听 `storage.onChanged` 的 `app_locale` 变更并通知订阅者；右键菜单标题按用户语言渲染，语言切换时整体重建。
 - **一致性守卫**：`tests/utils/i18nBundles.test.ts` 校验中英文 key 集一致与 bundle 注册，`tests/utils/i18nLiteParity.test.ts` 校验轻量 i18n 中英对齐；新增/删除/重命名 key 必须两套语言同步，否则测试失败。manifest 文案另走 `public/_locales/{zh_CN,en}/messages.json`。
+
+### 27. 身份信息库
+
+- **定位与独立性**：独立的「个人信息收藏夹」，与密码库完全解耦——存放姓名、证件号、手机号、邮箱、住址、银行卡信息（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段，解决证件号、银行卡号等非登录凭据无处安放的问题。入口在管理页「数据管理 → 身份信息库」，打开前需主密码复验（纯门槛，刻意不使用返回的密码，防「会话已解锁但离座」时旁人一次性看到全部身份信息）。不改 `utils/types.ts` / `passwordCrud.ts` / sidepanel / popup / content 任何既有路径，唯一跨域触点是换主密码。
+- **第 4 个加密域**：[identityCrud.ts](../utils/storage/identityCrud.ts) 与密码库平行，整块加密（一个 `encryptedPayload` blob，PBKDF2-SHA256/600k + AES-256-GCM），落盘形状仅 `id / encryptedPayload / createTime / updateTime` 四个不可识别明文键，其余字段（含类别）一律进密文，避免泄露「用户存了一张银行卡」这类事实。存储键 `personal_identity_infos`，无新权限；`updateTime` 兼作并发令牌。
+- **两级校验**：[validators.ts](../utils/identity/validators.ts) 零 i18n、纯函数，输出「级别 + 文案 key」。格式类（长度/字符集）→ `error` 阻止保存；18 位大陆身份证 GB11643 mod 11 校验位（连同地区码、出生日期合法性）与大陆手机号形态校验 → `error` 阻止保存（该数字形态几乎只对应大陆居民身份证，校验位不符基本可判定为录入笔误）；银行卡 Luhn、有效期已过期 → `warning` 仅提示允许保存——护照号/港澳台通行证（非 18 位纯数字形态，不进入校验位分支）、社保卡/门禁卡（不过 Luhn）等合法数据不被误杀。[formRules.ts](../utils/identity/formRules.ts) 贴附 i18n 产出 Element Plus 规则，warning 由表单常驻 `el-alert` 呈现。
+- **并发与上限**：条数上限 30（写入前校验）；`updateIdentity` 以读取时的 `updateTime` 拒绝过期写（多 Options 标签页并存是真实场景，提示刷新后重试）；更新走 `{ ...existing, ...patch, pv: 1 }` 前向合并，未来版本新增键经旧版本编辑后仍存活。
+- **会话安全**：[useIdentityVault.ts](../composables/useIdentityVault.ts) 由 `App.vue` 单一实例化并注入列表弹窗，`watch(isAuthenticated)` 在会话失效时清空内存明文并关闭两个弹窗，防 PII 残留。机密字段（证件号/卡号/CVV）默认掩码、以「卡片」为粒度显隐（单只眼睛切换该卡全部机密字段，不落盘）、复制走 `copySecretToClipboard` 限时自动清除；列表搜索复用 `searchMatch` 的拼音匹配，机密字段参与匹配但不高亮。
+- **备份**：[backup.ts](../utils/identity/backup.ts) 输出 `.aphid` 容器（`salt‖iv‖ciphertext`），以 `kind` 标记与 `.aph` 密码备份互斥（导错文件有明确提示）；导入按 `id` 合并（同 id 取较新 `updateTime`）并显式报告「新增/更新/跳过」计数。导出支持**勾选子集**（`resolveExportEntries`：未勾选=全部，勾选=所选，成功后清空勾选复位默认）。另提供**可选的明文 `.json` 导出/导入**（`buildIdentityPlaintextJson` / `exportIdentityPlaintext` / `parseIdentityPlaintextJson`）：明文非加密、复用 `.aphid` 数据结构（导入走同一份 `parseIdentityBackupData` 校验并按 `id` 合并），读写均须主密码复验 + 风险二次确认，属隐私边界的例外通道（长期留存仍以加密 `.aphid` 为首选）。身份库**不参与**既有自动备份与邮箱备份（独立性边界），弹窗内常驻 `el-alert` 提示定期手动导出加密备份（根治列 Phase 2）。
+- **换主密码**：身份数据并入 [changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts) 同一次原子 `set`（读取置于任何写入之前），`reencryptAll` 解密失败的单条原样保留不丢弃，与既有三域口径一致。
 
 ## 开发补充
 
