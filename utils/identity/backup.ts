@@ -27,6 +27,7 @@ import {
   CATEGORY_ORDER,
   MAX_CUSTOM_FIELDS,
   MAX_FIELD_VALUE_LEN,
+  MAX_ID_LEN,
   MAX_IDENTITIES,
   MAX_LABEL_LEN,
   MAX_REMARK_LEN,
@@ -182,6 +183,8 @@ function isIdentityBackupRecord(value: unknown): value is IdentityBackupRecord {
   const payload = r.payload as Record<string, unknown> | null | undefined;
   if (
     typeof r.id !== 'string' ||
+    r.id.length === 0 ||
+    r.id.length > MAX_ID_LEN ||
     typeof r.createTime !== 'number' ||
     typeof r.updateTime !== 'number' ||
     typeof payload !== 'object' ||
@@ -213,15 +216,26 @@ function isIdentityBackupRecord(value: unknown): value is IdentityBackupRecord {
  *
  * - `kind` 缺失或非 `'aphid'`（如把 .aph 密码备份喂进来）→ NOT_APHID；
  * - `version` 不等于当前 `APHID_VERSION`（缺失、非数字、或更高版本的前向不兼容文件）
- *   或 `records` 非数组 / **条数超过 `MAX_IDENTITIES`** / 记录形状非法（含 category 非已知枚举）
- *   → INVALID_STRUCTURE。
+ *   或 `exportedAt` 非有限数字、`count` 非数字或与 `records.length` 不一致、
+ *   `records` 非数组 / **条数超过 `MAX_IDENTITIES`** / 记录形状非法（含 category 非已知枚举、
+ *   id 空或超长）→ INVALID_STRUCTURE。
  *
- * 条数上限在逐记录形状校验之前拦截：导入文件为不可信输入，若先把 `records.every` 跑完
- * 再交给 UI 判上限，恶意/损坏的超大数组会触发一次无界的同步校验与内存分配。合法备份
+ * `exportedAt` / `count` 交叉校验：合法备份由 buildIdentityBackupData 生成，恒有
+ * `count === records.length` 且 `exportedAt` 为有限时间戳；导入文件为不可信输入，
+ * 缺失/自相矛盾即判结构损坏，避免「报 count 与实际条数不符」的静默不一致被合入。
+ *
+ * 条数上限在逐记录形状校验之前拦截：若先把 `records.every` 跑完再交给 UI 判上限，
+ * 恶意/损坏的超大数组会触发一次无界的同步校验与内存分配。合法备份
  * （单次导出不超过全库 30 条上限）恒不触发此分支。
  */
 export function parseIdentityBackupData(json: unknown): IdentityBackupData {
-  const data = json as { kind?: unknown; version?: unknown; records?: unknown } | null;
+  const data = json as {
+    kind?: unknown;
+    version?: unknown;
+    exportedAt?: unknown;
+    count?: unknown;
+    records?: unknown;
+  } | null;
   if (typeof data !== 'object' || data === null || data.kind !== APHID_KIND) {
     throw backupError('NOT_APHID');
   }
@@ -229,6 +243,10 @@ export function parseIdentityBackupData(json: unknown): IdentityBackupData {
     data.version !== APHID_VERSION ||
     !Array.isArray(data.records) ||
     data.records.length > MAX_IDENTITIES ||
+    typeof data.exportedAt !== 'number' ||
+    !Number.isFinite(data.exportedAt) ||
+    typeof data.count !== 'number' ||
+    data.count !== data.records.length ||
     !data.records.every(isIdentityBackupRecord)
   ) {
     throw backupError('INVALID_STRUCTURE');

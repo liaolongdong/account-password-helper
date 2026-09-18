@@ -493,6 +493,11 @@ const handleImport = (): void => {
  * @throws 用户在确认弹窗取消时抛出 'cancel'，由调用方 catch 静默处理
  */
 const applyImportedData = async (data: IdentityBackupData, plaintext: boolean): Promise<void> => {
+  // B14：空备份（0 条记录）不再走确认流程并误报「成功导入 0 条」，直接提示无可导入条目
+  if (data.records.length === 0) {
+    ElMessage.warning(t('identity.import.empty'));
+    return;
+  }
   // 预览计数基于当前内存快照（advisory，仅用于确认弹窗展示）
   const preview = mergeIdentityRecords(rows.value, data.records);
   if (preview.records.length > MAX_IDENTITIES) {

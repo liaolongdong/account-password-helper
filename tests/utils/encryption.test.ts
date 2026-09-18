@@ -10,6 +10,7 @@ import {
   deriveVerifierHash,
   encryptData,
   encryptPasswordEntry,
+  getDecryptErrorCode,
 } from '@/utils/encryption';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import type { EncryptedPasswordEntry } from '@/utils/types';
@@ -121,13 +122,19 @@ describe('encryptData / decryptData', () => {
     await expect(decryptData('nonempty', '')).rejects.toThrow('解密密钥不能为空');
   });
 
-  it('非 Base64 数据原样返回（视为非加密数据）', async () => {
-    expect(await decryptData('!!!not base64!!!', KEY)).toBe('!!!not base64!!!');
+  it('非 Base64 数据抛出 DECRYPT_FAILED（不再把密文当明文原样返回）', async () => {
+    await expect(decryptData('!!!not base64!!!', KEY)).rejects.toThrow('解密失败');
+    await decryptData('!!!not base64!!!', KEY).catch((error: unknown) => {
+      expect(getDecryptErrorCode(error)).toBe('DECRYPT_FAILED');
+    });
   });
 
-  it('过短的密文（<=12 字节）原样返回', async () => {
-    const short = btoa('ab'); // 仅 2 字节
-    expect(await decryptData(short, KEY)).toBe(short);
+  it('过短的密文（<=12 字节）抛出 DECRYPT_FAILED', async () => {
+    const short = btoa('ab'); // 仅 2 字节，连 IV 都不完整
+    await expect(decryptData(short, KEY)).rejects.toThrow('解密失败');
+    await decryptData(short, KEY).catch((error: unknown) => {
+      expect(getDecryptErrorCode(error)).toBe('DECRYPT_FAILED');
+    });
   });
 
   it('错误密钥导致 GCM 认证失败并抛出', async () => {
@@ -205,5 +212,16 @@ describe('encryptPasswordEntry / decryptPasswordEntry', () => {
     const out = await decryptPasswordEntry(notEncrypted, '', KEY);
     expect(out.username).toBe('plainuser');
     expect('encrypted' in out).toBe(false);
+  });
+
+  it('单字段密文损坏时 decryptPasswordEntry 抛出 DECRYPT_FAILED（不把密文当明文返回）', async () => {
+    const original = makePasswordEntry({ username: 'alice', password: 'secret' });
+    const enc = await encryptPasswordEntry(original, '', KEY);
+    // 模拟存储位翻转/截断：password 字段不再是合法密文
+    const corrupted: EncryptedPasswordEntry = { ...enc, password: '###not-ciphertext###' };
+    await expect(decryptPasswordEntry(corrupted, '', KEY)).rejects.toBeTruthy();
+    await decryptPasswordEntry(corrupted, '', KEY).catch((error: unknown) => {
+      expect(getDecryptErrorCode(error)).toBe('DECRYPT_FAILED');
+    });
   });
 });

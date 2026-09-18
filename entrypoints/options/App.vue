@@ -239,6 +239,15 @@
 
     <!-- 主密码验证弹窗（导出/备份/有效期修改等操作前校验） -->
     <MasterPasswordVerifyDialog />
+
+    <!-- 命令面板（Ctrl/Cmd+K）：全局快捷键由 useCommandPalette 挂载，仅在认证态可唤起 -->
+    <CommandPalette
+      v-model="paletteVisible"
+      v-model:keyword="paletteKeyword"
+      v-model:active-index="paletteActiveIndex"
+      :filtered="paletteFiltered"
+      @run="paletteRunAt"
+    />
   </div>
 </template>
 
@@ -281,6 +290,7 @@ const MasterPasswordVerifyDialog = defineAsyncComponent(
 const PasswordDetailDrawer = defineAsyncComponent(() => import('@/components/options/PasswordDetailDrawer.vue'));
 const IdentityVaultDialog = defineAsyncComponent(() => import('@/components/options/IdentityVaultDialog.vue'));
 const IdentityFormDialog = defineAsyncComponent(() => import('@/components/options/IdentityFormDialog.vue'));
+const CommandPalette = defineAsyncComponent(() => import('@/components/options/CommandPalette.vue'));
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -297,6 +307,7 @@ import { useStorageWatcher } from '@/composables/useStorageWatcher';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useIdentityVault } from '@/composables/useIdentityVault';
+import { useCommandPalette } from '@/composables/useCommandPalette';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
 import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
@@ -843,6 +854,175 @@ const {
       // 无监听者时忽略
     });
   },
+});
+
+/**
+ * 命令面板动作清单（Ctrl/Cmd+K）
+ *
+ * 每项 `run` 复用 HeaderBar 菜单/按钮已有的处理函数，走完全相同的落码路径，不新增业务行为；
+ * `label` 复用既有菜单文案，`keywords` 仅为检索别名（不渲染，故不受 i18n 约束）。
+ * 每次面板打开时按当前语言重新求值标签，语言切换后重开即生效。
+ */
+const buildPaletteActions = () => [
+  {
+    id: 'add',
+    group: 'entry',
+    label: t('options.header.addPassword'),
+    keywords: ['add', 'new', 'create'],
+    run: openAddDialogWithActiveTab,
+  },
+  {
+    id: 'health',
+    group: 'entry',
+    label: t('options.header.healthCheck'),
+    keywords: ['health', 'audit', 'score'],
+    run: () => (showHealthDialog.value = true),
+  },
+  {
+    id: 'downloadTemplate',
+    group: 'data',
+    label: t('options.header.downloadTemplate'),
+    keywords: ['template', 'csv', 'excel'],
+    run: downloadTemplate,
+  },
+  {
+    id: 'import',
+    group: 'data',
+    label: t('options.header.importData'),
+    keywords: ['import', 'csv', 'json', 'excel'],
+    run: () => (showImportDialog.value = true),
+  },
+  {
+    id: 'export',
+    group: 'data',
+    label: t('options.header.exportData'),
+    keywords: ['export', 'csv'],
+    run: exportPasswords,
+  },
+  {
+    id: 'exportJson',
+    group: 'data',
+    label: t('options.header.exportJson'),
+    keywords: ['export', 'json'],
+    run: exportPasswordsJson,
+  },
+  {
+    id: 'backupExport',
+    group: 'data',
+    label: t('options.header.backupExport'),
+    keywords: ['backup', 'export', 'aph'],
+    run: handleEncryptedBackupExport,
+  },
+  {
+    id: 'backupImport',
+    group: 'data',
+    label: t('options.header.backupImport'),
+    keywords: ['backup', 'import', 'restore', 'aph'],
+    run: () => (showBackupImportDialog.value = true),
+  },
+  {
+    id: 'emailBackup',
+    group: 'data',
+    label: t('options.header.emailBackup'),
+    keywords: ['email', 'mail', 'backup'],
+    run: openEmailBackupDialog,
+  },
+  {
+    id: 'removeDuplicates',
+    group: 'data',
+    label: t('options.header.removeDuplicates'),
+    keywords: ['dedup', 'duplicate'],
+    run: removeDuplicates,
+  },
+  {
+    id: 'trash',
+    group: 'data',
+    label: t('options.header.trash'),
+    keywords: ['trash', 'deleted'],
+    run: openTrashWithVerify,
+  },
+  {
+    id: 'identityVault',
+    group: 'data',
+    label: t('identity.title'),
+    keywords: ['identity', 'vault', 'pii'],
+    run: openIdentityVaultWithVerify,
+  },
+  {
+    id: 'changeMasterPassword',
+    group: 'security',
+    label: t('options.header.changeMasterPassword'),
+    keywords: ['master', 'password', 'change'],
+    run: () => (showChangeMasterPasswordDialog.value = true),
+  },
+  {
+    id: 'validity',
+    group: 'security',
+    label: t('options.header.validity'),
+    keywords: ['validity', 'session', 'expire'],
+    run: openValiditySetting,
+  },
+  {
+    id: 'idleLock',
+    group: 'security',
+    label: t('options.header.idleLock'),
+    keywords: ['idle', 'lock', 'auto'],
+    run: () => (showIdleLockDialog.value = true),
+  },
+  {
+    id: 'autoSave',
+    group: 'security',
+    label: t('options.header.autoSave'),
+    keywords: ['autosave', 'auto', 'save'],
+    run: () => (showAutoSaveDialog.value = true),
+  },
+  {
+    id: 'clipboard',
+    group: 'security',
+    label: t('options.header.clipboard'),
+    keywords: ['clipboard', 'copy'],
+    run: () => (showClipboardDialog.value = true),
+  },
+  {
+    id: 'favoriteLimit',
+    group: 'security',
+    label: t('options.header.favoriteLimit'),
+    keywords: ['favorite', 'limit', 'star'],
+    run: () => (showFavoriteLimitDialog.value = true),
+  },
+  {
+    id: 'passwordHistory',
+    group: 'security',
+    label: t('options.historySetting.title'),
+    keywords: ['history'],
+    run: () => (showPasswordHistoryDialog.value = true),
+  },
+  {
+    id: 'shortcuts',
+    group: 'security',
+    label: t('options.header.shortcuts'),
+    keywords: ['shortcut', 'hotkey', 'key'],
+    run: () => (showShortcutDialog.value = true),
+  },
+  {
+    id: 'personalization',
+    group: 'preferences',
+    label: t('options.header.personalization'),
+    keywords: ['preference', 'theme', 'language'],
+    run: openPersonalizationDialog,
+  },
+];
+
+/** 命令面板控制器：仅认证态可唤起，动作复用既有 handler */
+const {
+  visible: paletteVisible,
+  keyword: paletteKeyword,
+  activeIndex: paletteActiveIndex,
+  filtered: paletteFiltered,
+  runAt: paletteRunAt,
+} = useCommandPalette({
+  getActions: buildPaletteActions,
+  canOpen: () => isAuthenticated.value,
 });
 
 /** Storage 与可见性变化监听 */

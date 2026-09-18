@@ -6,9 +6,12 @@
  * messageRouter 必须以发送方上下文推导的 sender.tab.url 为准，
  * 仅当自报 URL 与之同主域名时放行，否则 fail-closed。
  */
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveTrustedContentUrl, setupMessageRouter } from '@/entrypoints/background/messageRouter';
 import { handleQuickAddPassword } from '@/entrypoints/background/quickAddHandler';
+import { handleQuickFill } from '@/entrypoints/background/quickFillHandler';
+import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
+import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
 import { MessageType } from '@/utils/types';
 
 // 仅测试纯校验函数，将 router 的重依赖全部 mock 为轻量 stub，保证测试密闭
@@ -92,6 +95,13 @@ const setupAndCaptureListener = () => {
   addListenerSpy.mockRestore();
   return listener;
 };
+
+// 路由分发级用例依赖 handler mock 的调用记录做断言；vitest 未全局清 mock，
+// 逐个用例前清空调用历史（clearAllMocks 只清 calls/结果，保留工厂里的 stub 实现），
+// 保证「内容脚本被拒 → handler 未被调用」这类断言不受相邻用例污染。
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('resolveTrustedContentUrl（自报 URL 可信性校验）', () => {
   describe('合法场景（放行）', () => {
@@ -239,5 +249,152 @@ describe('GET_PENDING_CIPHER_KEY 路由分发（凭据密钥签发）', () => {
     );
 
     await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ key: null }));
+  });
+});
+
+describe('B2 改状态消息的 sender 收口（分发级）', () => {
+  /** 扩展内部页发送方：sender.tab 恒为 undefined，url 与扩展同源 */
+  const internalSender = { id: chrome.runtime.id } as chrome.runtime.MessageSender;
+
+  describe('UPDATE_PASSWORD_CACHE（预热会驻留明文缓存）', () => {
+    it('内容脚本发送方被拒，不触发预热', () => {
+      const listener = setupAndCaptureListener();
+      const sendResponse = vi.fn();
+
+      const result = listener(
+        { type: MessageType.UPDATE_PASSWORD_CACHE },
+        contentSender('https://evil.com/'),
+        sendResponse,
+      );
+
+      expect(warmPasswordCache).not.toHaveBeenCalled();
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+      expect(result).not.toBe(true);
+    });
+
+    it('扩展内部页放行，同步预热并回 success', () => {
+      const listener = setupAndCaptureListener();
+      const sendResponse = vi.fn();
+
+      const result = listener({ type: MessageType.UPDATE_PASSWORD_CACHE }, internalSender, sendResponse);
+
+      expect(warmPasswordCache).toHaveBeenCalledTimes(1);
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      expect(result).not.toBe(true);
+    });
+  });
+
+  describe('INVALIDATE_PASSWORD_CACHE（远程清会话 + 锁定，破坏性）', () => {
+    it('内容脚本发送方被拒，不同步下发 SESSION_EXPIRED', () => {
+      const listener = setupAndCaptureListener();
+      const sendResponse = vi.fn();
+
+      const result = listener(
+        { type: MessageType.INVALIDATE_PASSWORD_CACHE },
+        contentSender('https://evil.com/'),
+        sendResponse,
+      );
+
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+      expect(result).not.toBe(true);
+    });
+  });
+
+  describe('QUICK_FILL（向活跃标签页注入凭据）', () => {
+    it('内容脚本发送方被拒，不调用 handleQuickFill', () => {
+      const listener = setupAndCaptureListener();
+      const sendResponse = vi.fn();
+
+      const result = listener({ type: MessageType.QUICK_FILL }, contentSender('https://evil.com/'), sendResponse);
+
+      expect(handleQuickFill).not.toHaveBeenCalled();
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+      expect(result).not.toBe(true);
+    });
+
+    it('扩展内部页放行，异步结果经 sendResponse 回传', async () => {
+      vi.mocked(handleQuickFill).mockResolvedValue(undefined);
+      const listener = setupAndCaptureListener();
+      const sendResponse = vi.fn();
+
+      const result = listener({ type: MessageType.QUICK_FILL }, internalSender, sendResponse);
+
+      expect(result).toBe(true);
+      expect(handleQuickFill).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ success: true }));
+    });
+  });
+
+  describe('OPEN_INLINE_DROPDOWN（展开内联填充面板）', () => {
+    it('内容脚本发送方被拒，不调用 handleOpenInlineDropdown', () => {
+      const listener = setupAndCaptureListener();
+      const sendResponse = vi.fn();
+
+      const result = listener(
+        { type: MessageType.OPEN_INLINE_DROPDOWN },
+        contentSender('https://evil.com/'),
+        sendResponse,
+      );
+
+      expect(handleOpenInlineDropdown).not.toHaveBeenCalled();
+      expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+      expect(result).not.toBe(true);
+    });
+
+    it('扩展内部页放行，异步结果经 sendResponse 回传', async () => {
+      vi.mocked(handleOpenInlineDropdown).mockResolvedValue(undefined);
+      const listener = setupAndCaptureListener();
+      const sendResponse = vi.fn();
+
+      const result = listener({ type: MessageType.OPEN_INLINE_DROPDOWN }, internalSender, sendResponse);
+
+      expect(result).toBe(true);
+      expect(handleOpenInlineDropdown).toHaveBeenCalledTimes(1);
+      await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ success: true }));
+    });
+  });
+});
+
+describe('B12 消息形状守卫（listener 入口）', () => {
+  const sender = contentSender('https://evil.com/');
+
+  it('null 载荷同步回 success:false，且不因 message.type 抛错', () => {
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener(null, sender, sendResponse);
+
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+    expect(result).not.toBe(true);
+  });
+
+  it('非对象载荷（字符串）被拒', () => {
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener('not-a-message', sender, sendResponse);
+
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+    expect(result).not.toBe(true);
+  });
+
+  it('缺少 type 字段的对象被拒', () => {
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener({ data: { foo: 'bar' } }, sender, sendResponse);
+
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+    expect(result).not.toBe(true);
+  });
+
+  it('type 非字符串被拒', () => {
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener({ type: 123 }, sender, sendResponse);
+
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+    expect(result).not.toBe(true);
   });
 });

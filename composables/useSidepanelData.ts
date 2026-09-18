@@ -10,6 +10,7 @@ import { t } from '@/utils/i18n';
 import { isExactHostMatch } from '@/utils/domain';
 import { lazyImport } from '@/utils/lazyImport';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
+import type { GetAllPasswordsResult } from '@/utils/storage/passwordCrud';
 import {
   waitForBrowserStartupRelockMarker,
   waitForBrowserStartupRelockStatus,
@@ -256,6 +257,22 @@ export function useSidepanelData() {
   const showSidepanel = ref(true);
   const sortConfig = ref<{ prop: string; order: string } | null>(null);
 
+  /**
+   * 最近一次权威列表加载（loadPasswords）是否失败。
+   *
+   * 仅在 loadPasswords 的异常路径置 true，成功 / 会话失效 / 静默刷新失败均置 false。
+   * 供认证视图区分「加载失败·重试」与「真·空库·去新增」，避免读取失败伪装成空（B8）。
+   */
+  const loadFailed = ref(false);
+
+  /**
+   * 会话有效但部分条目解密失败（密钥不符 / 密文损坏）的数量。
+   *
+   * 由 loadPasswords 经 getAllPasswordsDetailed 回填；成功路径恒为 0。
+   * 认证视图在列表非空但存在不可解条目时给出「N 条无法解密」提示，而非静默变短（B8）。
+   */
+  const undecryptableCount = ref(0);
+
   // ==================== Chrome 事件监听 ====================
 
   const { onStorageChange, onMessage, onTabUpdated, onTabActivated, onDocumentEvent, onWindowEvent } =
@@ -386,18 +403,20 @@ export function useSidepanelData() {
           _sessionKnownExpired = true;
           isAuthenticated.value = false;
           passwords.value = [];
+          loadFailed.value = false;
+          undecryptableCount.value = 0;
           return;
         }
       }
 
       // 始终加载全量密码列表，域名过滤统一由 filteredPasswords computed 处理
       // 避免 GET_INITIAL_DATA（全量）与 loadPasswords（过滤子集）两条路径数据不一致
-      const fetchPasswords = async (): Promise<PasswordEntry[]> => {
+      const fetchPasswords = async (): Promise<GetAllPasswordsResult> => {
         const crud = await getPasswordCrudModule();
-        return crud.getAllPasswords();
+        return crud.getAllPasswordsDetailed();
       };
 
-      const [sortConfigResult, loadedPasswords] = await Promise.all([
+      const [sortConfigResult, loaded] = await Promise.all([
         getSidepanelSortConfig().catch(() => null),
         fetchPasswords(),
       ]);
@@ -409,7 +428,9 @@ export function useSidepanelData() {
       }
 
       sortConfig.value = sortConfigResult;
-      passwords.value = loadedPasswords;
+      passwords.value = loaded.entries;
+      undecryptableCount.value = loaded.undecryptableCount;
+      loadFailed.value = false;
       loading.value = false;
 
       // 后台静默触发缓存刷新（不阻塞 UI 渲染）
@@ -417,9 +438,14 @@ export function useSidepanelData() {
     } catch (error) {
       if (!canCommitLoad()) return;
       logger.error('加载密码列表失败:', error);
-      // 静默刷新本意为「无感」：失败时仅记日志不弹 toast，避免与并发的
+      // 静默刷新本意为「无感」：失败时仅记日志不置失败态、不弹 toast，避免与并发的
       // 非静默加载重叠时误报「加载失败」（列表随后会正常加载出来）
-      if (!silent) ElMessage.error(t('message.loadListFailed'));
+      if (!silent) {
+        // 非静默加载失败：标记失败态，认证视图据此展示「重试」而非「无账号·去新增」（B8）。
+        // 先置状态再弹 toast，避免通知组件异常影响失败态标记。
+        loadFailed.value = true;
+        ElMessage.error(t('message.loadListFailed'));
+      }
     } finally {
       // 兜底确保 loading 状态清除（异常路径安全网）
       if (canCommitLoad()) loading.value = false;
@@ -1104,6 +1130,8 @@ export function useSidepanelData() {
     currentPort,
     showSidepanel,
     sortConfig,
+    loadFailed,
+    undecryptableCount,
     // 方法
     loadPasswords,
     loadCurrentTab,

@@ -295,7 +295,9 @@ export function setupSidePanelListeners(): void {
       // 函数内自带平台门控与持久化节流：Windows 全量预热，非 Windows 经
       // allowNonWindowsLightweight 轻量预热首屏关键资源（为下次打开温热，
       // 缓解 Mac 间隔一段时间后首开冷读白屏），窗口内重复调用直接跳过
-      setTimeout(() => {
+      // 句柄登记到本 port 闭包，onDisconnect 时取消——面板在延时到达前关闭则
+      // 预热已无意义（且会在下次打开/保活 tick 重新排程），避免残留定时器。
+      const warmTimer = setTimeout(() => {
         void import('@/utils/warmSidePanelResources')
           .then(m => m.maybeWarmSidePanelResources({ allowNonWindowsLightweight: true }))
           .catch(() => {});
@@ -313,6 +315,7 @@ export function setupSidePanelListeners(): void {
       });
 
       port.onDisconnect.addListener(() => {
+        clearTimeout(warmTimer);
         logger.debug('SidePanel 已断开连接');
         unregisterSidePanelPort(port);
       });

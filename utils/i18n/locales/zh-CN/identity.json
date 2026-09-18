@@ -99,6 +99,7 @@
   "identity.import.previewDesc": "将新增 {added} 条、更新 {updated} 条、跳过 {skipped} 条（较旧）。导入后共 {total} 条。",
   "identity.import.confirmImport": "确认导入",
   "identity.import.importSuccess": "成功导入 {count} 条身份信息",
+  "identity.import.empty": "该备份文件中没有可导入的身份信息条目",
   "identity.import.importFailed": "导入失败，请重试",
   "identity.import.limitReached": "导入后条目数将超过上限（30 条），请先删除部分条目"
 }

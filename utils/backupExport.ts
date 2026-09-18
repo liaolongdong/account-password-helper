@@ -2,6 +2,7 @@ import type { PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { formatTimestampCompact } from '@/utils/dateFormat';
+import { parseBackupContainer, PasswordBackupError } from '@/utils/backup/parseBackupEntries';
 
 /** 备份文件版本标识 */
 const BACKUP_VERSION = 1;
@@ -131,13 +132,21 @@ export async function importEncryptedBackup(
 
     const decoder = new TextDecoder();
     const jsonStr = decoder.decode(decrypted);
-    const backupData: BackupData = JSON.parse(jsonStr);
+    const backupData: unknown = JSON.parse(jsonStr);
 
-    if (!backupData.version || !Array.isArray(backupData.entries)) {
-      throw new Error(t('backup.invalidStructure'));
+    // B4：与 CSV/JSON 导入共用同一份边界口径——校验 version 上界、count↔entries
+    // 交叉一致、字段白名单、逐字段类型/长度上限与条数上界，替代此前仅判 version 真值
+    // + Array.isArray 的零逐条校验。解析成功即返回可信条目。
+    try {
+      return parseBackupContainer(backupData, true);
+    } catch (err) {
+      if (err instanceof PasswordBackupError) {
+        const wrapped = new Error(t('backup.invalidStructure'));
+        (wrapped as any).cause = err;
+        throw wrapped;
+      }
+      throw err;
     }
-
-    return backupData.entries;
   } catch (error: any) {
     if (error.message?.includes('decrypt') || error.name === 'OperationError') {
       const err = new Error(t('backup.wrongPasswordOrCorrupted'));

@@ -99,6 +99,7 @@
   "identity.import.previewDesc": "Will add {added}, update {updated} and skip {skipped} (older) record(s). {total} record(s) total after import.",
   "identity.import.confirmImport": "Confirm import",
   "identity.import.importSuccess": "Imported {count} identity record(s)",
+  "identity.import.empty": "This backup file contains no identity records to import.",
   "identity.import.importFailed": "Import failed. Please try again.",
   "identity.import.limitReached": "Import would exceed the limit (30 records). Delete some records first."
 }

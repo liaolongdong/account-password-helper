@@ -336,6 +336,12 @@ export function resolveTrustedContentUrl(reportedUrl: unknown, sender: chrome.ru
  */
 export function setupMessageRouter(): void {
   chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+    // B12：消息形状守卫——外部/异常上下文可能投递 null / 非对象 / 无 type 的载荷，
+    // 直接 `message.type` 会在同步路径抛错并使该消息得不到任何响应（default 分支也救不回）。
+    if (!message || typeof message.type !== 'string') {
+      sendResponse({ success: false, error: '无效的消息格式' });
+      return;
+    }
     switch (message.type) {
       case MessageType.SIDEPANEL_PRELOAD: {
         // 预唤醒消息：主动预热密码缓存（轻量、缓存已存在时 no-op）。
@@ -442,6 +448,11 @@ export function setupMessageRouter(): void {
         return true;
 
       case MessageType.UPDATE_PASSWORD_CACHE: {
+        // B2：预热会让 SW 驻留明文密码缓存，属改状态操作，仅接受扩展内部页触发
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         // 轻量触发（无载荷）：由 background 自行经 warmPasswordCache 去重预热缓存，
         // 避免 sidepanel 回传全量明文列表的序列化开销（数百条目时主线程 5-30ms）；
         // 缓存已存在时 no-op，会话无效时内部门控自动跳过
@@ -500,6 +511,12 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.INVALIDATE_PASSWORD_CACHE: {
+        // B2：远程清会话 + 锁定属破坏性状态变更（可被任意页用作 DoS / 打断秒开），
+        // 仅接受扩展内部页（useSessionLock / useSessionTimer）触发
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         // 使用 async IIFE 使动态 import + 异步 clearSession 在 switch-case 内正确执行
         void (async () => {
           const {
@@ -744,6 +761,12 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.QUICK_FILL: {
+        // B2：向活跃标签页注入凭据的触发入口，仅接受 popup/options/sidepanel 内部页发起
+        //（快捷键命令经 chrome.commands 直接调用 handleQuickFill，不走本路由分支）
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         handleQuickFill()
           .then(() => sendResponse({ success: true }))
           .catch(error => {
@@ -754,6 +777,11 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.OPEN_INLINE_DROPDOWN: {
+        // B2：展开内联填充面板的触发入口，仅接受内部页发起（快捷键命令路径同上不走本分支）
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         // popup 入口：在当前活跃标签页展开内联下拉（与快捷键 open_inline_dropdown 同一处理器）
         handleOpenInlineDropdown()
           .then(() => sendResponse({ success: true }))

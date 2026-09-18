@@ -86,6 +86,14 @@ export class FormDetector {
   private lastUrl: string = location.href;
   /** DOM 变化检测的 debounce 计时器（可取消） */
   private detectionTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * 实例是否已销毁（B11 门）
+   *
+   * destroy() 由扩展上下文失效 / beforeunload 触发。置真后，detectForms 及
+   * 填充流程中的 await 续体据此提前退出，避免导航后向已卸载文档写值或调用
+   * 已失效的 chrome API。
+   */
+  private disposed = false;
 
   /**
    * 页面导航与可见性回调
@@ -311,6 +319,9 @@ export class FormDetector {
    * 检测页面中的所有表单字段（密码、用户名、手机号、验证码、复选框、登录按钮）
    */
   private detectForms(): void {
+    // B11：destroy 后仍可能有未纳入生命周期的定时器（如 DOMContentLoaded 延时）
+    // 触发重检测，此时文档可能已卸载，直接跳过。
+    if (this.disposed) return;
     // 清空之前的检测结果
     this.passwordFields = [];
     this.usernameFields = [];
@@ -1162,6 +1173,8 @@ export class FormDetector {
       if (this.blurActiveInput()) {
         await this.waitForDomStable();
       }
+      // B11：等待期间若实例已销毁（导航/上下文失效），提前退出，不再重检测或写入
+      if (this.disposed) return result;
 
       // 同步重检测（与 resolveInlineDropdownTarget 一致）：输入框获焦可能触发 SPA
       // 重渲染（浮动标签/受控组件重建），使缓存字段引用脱离文档，直接填充旧节点
@@ -1170,6 +1183,7 @@ export class FormDetector {
 
       if (this.usernameFields.length === 0 && this.passwordFields.length === 0) {
         const detected = await this.waitForFieldsDetected();
+        if (this.disposed) return result;
         if (!detected) {
           result.message = tl('cs.fd.noFormFields');
           result.reason = 'no_form';
@@ -1359,6 +1373,7 @@ export class FormDetector {
    * 销毁实例，清理所有监听器
    */
   public destroy(): void {
+    this.disposed = true;
     if (this.observer) {
       this.observer.disconnect();
     }

@@ -425,12 +425,28 @@ export async function deletePasswords(ids: string[]): Promise<void> {
 }
 
 /**
- * 获取所有密码条目（自动解密）
+ * `getAllPasswordsDetailed` 的返回值：解密成功的条目 + 解密失败（不可解）条目数。
+ *
+ * 会话有效但部分条目因密钥不符 / 密文损坏而无法解密时，`entries` 只含成功解密的条目，
+ * `undecryptableCount` 记录被跳过的数量，供调用方（侧边栏）区分「真的无数据」与
+ * 「有数据但不可解密」，避免把读取失败伪装成空列表（B8）。成功路径恒为 0。
+ */
+export interface GetAllPasswordsResult {
+  entries: PasswordEntry[];
+  undecryptableCount: number;
+}
+
+/**
+ * 获取所有密码条目（自动解密），并附带「不可解密条目数」信号。
  *
  * storage.local 始终为密文（at-rest 不变量）：会话期用缓存数据密钥解密（无 PBKDF2），
  * 锁定态需显式传入 masterPassword。
+ *
+ * 抛出（而非返回空数组）的情形：storage 读取失败、需要主密码却未提供、
+ * 或解密前置步骤异常——调用方据此展示「加载失败 / 重试」。
+ * 单条目解密失败不抛错：跳过该条目并累加 `undecryptableCount`。
  */
-export async function getAllPasswords(masterPassword?: string): Promise<PasswordEntry[]> {
+export async function getAllPasswordsDetailed(masterPassword?: string): Promise<GetAllPasswordsResult> {
   try {
     const result = await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS);
     const entries: (PasswordEntry | EncryptedPasswordEntry)[] =
@@ -439,7 +455,7 @@ export async function getAllPasswords(masterPassword?: string): Promise<Password
     const hasEncryptedEntries = entries.some(entry => 'encrypted' in entry && entry.encrypted === true);
     if (!hasEncryptedEntries) {
       // 全明文（空库或迁移前的边界态）：直接返回
-      return entries as PasswordEntry[];
+      return { entries: entries as PasswordEntry[], undecryptableCount: 0 };
     }
 
     // 解析数据密钥：会话期用缓存密钥（无 PBKDF2），锁定态需显式 masterPassword
@@ -460,16 +476,18 @@ export async function getAllPasswords(masterPassword?: string): Promise<Password
     );
 
     const decryptedEntries: PasswordEntry[] = [];
+    let undecryptableCount = 0;
     for (let i = 0; i < decryptResults.length; i++) {
       const result = decryptResults[i];
       if (result.status === 'fulfilled') {
         decryptedEntries.push(result.value);
       } else {
+        undecryptableCount += 1;
         logger.warn('跳过无法解密的条目: ' + entries[i].id);
       }
     }
 
-    return decryptedEntries;
+    return { entries: decryptedEntries, undecryptableCount };
   } catch (error) {
     logger.error('获取密码列表失败:', error);
     const err = new Error('加载密码列表失败: ' + (error instanceof Error ? error.message : '未知错误'));
@@ -479,21 +497,29 @@ export async function getAllPasswords(masterPassword?: string): Promise<Password
 }
 
 /**
+ * 获取所有密码条目（自动解密）
+ *
+ * `getAllPasswordsDetailed` 的便捷包装，仅返回解密成功的条目；
+ * 需要区分「读取失败」与「不可解密」的调用方应直接使用详细版本。
+ */
+export async function getAllPasswords(masterPassword?: string): Promise<PasswordEntry[]> {
+  return (await getAllPasswordsDetailed(masterPassword)).entries;
+}
+
+/**
  * 根据URL搜索密码
+ *
+ * 不吞错：读取失败 / 需要主密码等异常向上抛出，由调用方区分「加载失败」与「确无匹配」，
+ * 不再把失败伪装成空列表（B8）。
  */
 export async function getPasswordsByUrl(url: string, masterPassword?: string): Promise<PasswordEntry[]> {
-  try {
-    const allPasswords = await getAllPasswords(masterPassword);
+  const allPasswords = await getAllPasswords(masterPassword);
 
-    const filteredPasswords = allPasswords.filter(p => {
-      if (!p.url || p.url.trim() === '') return true;
-      return isExactHostMatch(url, p.url);
-    });
+  const filteredPasswords = allPasswords.filter(p => {
+    if (!p.url || p.url.trim() === '') return true;
+    return isExactHostMatch(url, p.url);
+  });
 
-    await applySavedSortConfig(filteredPasswords, url);
-    return filteredPasswords;
-  } catch (error) {
-    logger.error('根据URL搜索密码失败:', error);
-    return [];
-  }
+  await applySavedSortConfig(filteredPasswords, url);
+  return filteredPasswords;
 }

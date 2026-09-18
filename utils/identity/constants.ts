@@ -21,6 +21,10 @@ export const MAX_FIELD_VALUE_LEN = 200;
 /** 备注长度上限（字符），与 PasswordEntry.remark 同口径 */
 export const MAX_REMARK_LEN = 1000;
 
+/** 记录 id 长度上限（字符）：合法 id 由 generateId() 产出（`uuid-<36>`，约 41 字符），
+ *  此处给足余量，仅用于约束不可信导入输入、防止无界字符串 */
+export const MAX_ID_LEN = 64;
+
 /** 类别展示顺序（数组顺序即 UI 顺序） */
 export const CATEGORY_ORDER = [
   'person',

@@ -12,7 +12,7 @@ import {
   resolveExportEntries,
   type IdentityBackupRecord,
 } from '@/utils/identity/backup';
-import { MAX_IDENTITIES } from '@/utils/identity/constants';
+import { MAX_IDENTITIES, MAX_ID_LEN } from '@/utils/identity/constants';
 
 /**
  * 身份信息备份（.aphid）单元测试
@@ -260,6 +260,8 @@ describe('parseIdentityBackupData（不可信输入边界校验）', () => {
     const json = {
       kind: 'aphid',
       version: 1,
+      exportedAt: 0,
+      count: 1,
       records: [
         {
           id: 'a',
@@ -269,6 +271,54 @@ describe('parseIdentityBackupData（不可信输入边界校验）', () => {
         },
       ],
     };
+    expect(parseIdentityBackupData(json).records).toHaveLength(1);
+  });
+
+  // ===== B14：count / exportedAt / id 交叉与格式校验 =====
+  it('count 缺失 → INVALID_STRUCTURE', () => {
+    const json = { kind: 'aphid', version: 1, exportedAt: 0, records: [record('a', 1)] };
+    expect(getIdentityBackupErrorCode(captureParseError(json))).toBe('INVALID_STRUCTURE');
+  });
+
+  it('count 与 records.length 不符 → INVALID_STRUCTURE（报数与实际条数不一致判损坏）', () => {
+    const json = { kind: 'aphid', version: 1, exportedAt: 0, count: 2, records: [record('a', 1)] };
+    expect(getIdentityBackupErrorCode(captureParseError(json))).toBe('INVALID_STRUCTURE');
+  });
+
+  it('exportedAt 缺失 → INVALID_STRUCTURE', () => {
+    const json = { kind: 'aphid', version: 1, count: 1, records: [record('a', 1)] };
+    expect(getIdentityBackupErrorCode(captureParseError(json))).toBe('INVALID_STRUCTURE');
+  });
+
+  it('exportedAt 非有限数字 → INVALID_STRUCTURE', () => {
+    const json = { kind: 'aphid', version: 1, exportedAt: Number.NaN, count: 1, records: [record('a', 1)] };
+    expect(getIdentityBackupErrorCode(captureParseError(json))).toBe('INVALID_STRUCTURE');
+  });
+
+  it('id 为空字符串 → INVALID_STRUCTURE（id 是合并身份键，不得为空）', () => {
+    const json = {
+      kind: 'aphid',
+      version: 1,
+      exportedAt: 0,
+      count: 1,
+      records: [{ id: '', createTime: 1, updateTime: 1, payload: payload() }],
+    };
+    expect(getIdentityBackupErrorCode(captureParseError(json))).toBe('INVALID_STRUCTURE');
+  });
+
+  it('id 超长（> MAX_ID_LEN）→ INVALID_STRUCTURE（约束不可信输入的无界字符串）', () => {
+    const json = {
+      kind: 'aphid',
+      version: 1,
+      exportedAt: 0,
+      count: 1,
+      records: [{ id: 'x'.repeat(MAX_ID_LEN + 1), createTime: 1, updateTime: 1, payload: payload() }],
+    };
+    expect(getIdentityBackupErrorCode(captureParseError(json))).toBe('INVALID_STRUCTURE');
+  });
+
+  it('count 与 records.length 一致且 exportedAt 有限 → 合法', () => {
+    const json = { kind: 'aphid', version: 1, exportedAt: 1_700_000_000_000, count: 1, records: [record('a', 1)] };
     expect(parseIdentityBackupData(json).records).toHaveLength(1);
   });
 });

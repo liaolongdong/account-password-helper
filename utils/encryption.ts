@@ -161,8 +161,33 @@ export async function encryptData(data: string, hexKey: string): Promise<string>
   }
 }
 
+/** 解密失败错误码：控制流绑定稳定 code，面向用户的文案由调用方按 code 映射 */
+export type DecryptErrorCode = 'DECRYPT_FAILED';
+
+/** 构造带 code 的解密错误：保留可读 message，供日志与通用兜底展示 */
+function decryptFailure(message: string): Error & { code: DecryptErrorCode } {
+  const err = new Error(message) as Error & { code: DecryptErrorCode };
+  err.code = 'DECRYPT_FAILED';
+  return err;
+}
+
+/** 读取解密错误的错误码（非解密错误一律返回 undefined） */
+export function getDecryptErrorCode(error: unknown): DecryptErrorCode | undefined {
+  if (typeof error === 'object' && error !== null && 'code' in error) {
+    const code = (error as { code?: unknown }).code;
+    if (code === 'DECRYPT_FAILED') return code;
+  }
+  return undefined;
+}
+
 /**
  * AES-256-GCM 解密（Web Crypto 原生，认证加密）
+ *
+ * fail-closed：入参若非合法密文（Base64 解析失败 / 长度不足以容纳 IV+authTag）
+ * 即抛出 `DECRYPT_FAILED`，绝不把密文原样当明文返回——否则损坏的密文会被当作
+ * 明文展示，用户在其上编辑并保存后即永久写坏该字段。调用方以显式 `encrypted`
+ * 标志判定是否需要解密，故合法密文（encryptData 输出恒为 ≥28 字节的有效 Base64）
+ * 不会命中这些分支。
  */
 export async function decryptData(encryptedData: string, hexKey: string): Promise<string> {
   if (!encryptedData) return '';
@@ -171,10 +196,13 @@ export async function decryptData(encryptedData: string, hexKey: string): Promis
   try {
     combined = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
   } catch {
-    logger.warn('Base64解析失败，可能不是加密数据');
-    return encryptedData;
+    logger.warn('Base64解析失败，密文损坏或非加密数据');
+    throw decryptFailure('解密失败：数据损坏或非密文');
   }
-  if (combined.length <= 12) return encryptedData;
+  // IV(12) + authTag(≥16) 之外的最小合法密文长度为 28 字节；<=12 连 IV 都不完整
+  if (combined.length <= 12) {
+    throw decryptFailure('解密失败：数据损坏或非密文');
+  }
   const key = await getAesCryptoKey(hexKey, 'decrypt');
   try {
     const plaintext = await crypto.subtle.decrypt(

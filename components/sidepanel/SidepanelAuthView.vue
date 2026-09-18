@@ -26,6 +26,7 @@ import {
   Key,
   Aim,
   Grid,
+  Warning,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
@@ -41,6 +42,10 @@ interface Props {
   filteredPasswords: PasswordEntry[];
   /** 全量密码条目数（区分「无数据引导」与「搜索无结果」空状态） */
   totalCount: number;
+  /** 最近一次权威加载是否失败（失败时展示「重试」而非「无账号·去新增」，B8） */
+  loadFailed: boolean;
+  /** 会话有效但无法解密的条目数（列表被静默变短时的可见化提示，B8） */
+  undecryptableCount: number;
   /** 当前键盘导航选中索引 */
   activeIndex: number;
   /** 全局「自动触发登录」是否开启（开启时隐藏每条冗余的「填充并登录」按钮） */
@@ -64,6 +69,8 @@ interface Emits {
   addPassword: [];
   /** 无结果态「添加本站账号」（携带当前域名预填） */
   addSitePassword: [];
+  /** 加载失败态「重试」 */
+  retry: [];
   /** 鼠标悬停激活条目 */
   activate: [index: number];
   /** 认证视图首帧渲染完成（DOM flush + 首帧绘制，回传实际首帧渲染条目数，供性能埋点与骨架屏收尾） */
@@ -486,8 +493,32 @@ onUnmounted(() => {
         v-else-if="filteredPasswords.length === 0"
         class="empty-state"
       >
+        <!-- 最近一次加载失败：给「重试」而非误报「无账号·去新增」（B8） -->
+        <template v-if="loadFailed">
+          <div class="empty-icon-circle empty-icon-circle--muted">
+            <el-icon class="empty-icon empty-icon--muted"><Refresh /></el-icon>
+          </div>
+          <h3 class="empty-title">{{ t('sidepanel.loadFailed') }}</h3>
+          <p class="empty-desc">{{ t('sidepanel.loadFailedDesc') }}</p>
+          <el-button
+            type="primary"
+            :icon="Refresh"
+            class="empty-add-btn"
+            @click="emit('retry')"
+          >
+            {{ t('sidepanel.retry') }}
+          </el-button>
+        </template>
+        <!-- 全部条目无法解密（密钥不符 / 密文损坏）：并非「没有数据」，引导恢复而非新增（B8） -->
+        <template v-else-if="totalCount === 0 && undecryptableCount > 0">
+          <div class="empty-icon-circle empty-icon-circle--muted">
+            <el-icon class="empty-icon empty-icon--muted"><Warning /></el-icon>
+          </div>
+          <h3 class="empty-title">{{ t('sidepanel.undecryptableTitle') }}</h3>
+          <p class="empty-desc">{{ t('sidepanel.undecryptableDesc', { count: undecryptableCount }) }}</p>
+        </template>
         <!-- 全部无数据：显示引导添加 -->
-        <template v-if="totalCount === 0">
+        <template v-else-if="totalCount === 0">
           <div class="empty-icon-circle">
             <el-icon class="empty-icon"><Key /></el-icon>
           </div>
@@ -535,6 +566,14 @@ onUnmounted(() => {
         v-else
         class="password-items"
       >
+        <!-- 部分条目无法解密：列表已展示但被静默丢弃的条目需可见，避免误判「丢失」（B8） -->
+        <p
+          v-if="undecryptableCount > 0"
+          class="undecryptable-notice"
+          role="status"
+        >
+          {{ t('sidepanel.undecryptableNotice', { count: undecryptableCount }) }}
+        </p>
         <PasswordListItem
           v-for="(password, index) in visiblePasswords"
           :key="password.id"
@@ -837,6 +876,17 @@ onUnmounted(() => {
   margin: 0 0 20px;
   font-size: 13px;
   color: #6b7280;
+}
+
+/* 部分条目无法解密提示（B8）：列表顶部浅色横幅，不替换列表、不阻断操作 */
+.undecryptable-notice {
+  padding: 8px 12px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--aph-text-secondary);
+  background: var(--aph-surface-2);
+  border: 1px solid var(--aph-surface-line);
+  border-radius: 8px;
 }
 
 /* 去添加密码按钮：圆角 + hover 上浮动效 */

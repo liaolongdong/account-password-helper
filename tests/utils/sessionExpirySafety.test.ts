@@ -154,3 +154,55 @@ describe('校验异常路径', () => {
     await expect(isSessionValid()).resolves.toBe(true);
   });
 });
+
+describe('会话代际保护（B6）', () => {
+  /** 可控挂起的 Promise，用于把解包路径冻结在最终 await 边界 */
+  const deferred = () => {
+    let resolve!: (v: string) => void;
+    const promise = new Promise<string>(r => {
+      resolve = r;
+    });
+    return { promise, resolve };
+  };
+
+  /** 准备可被冷解包命中的新格式会话键（storage.session 空 → 触发解包） */
+  const seedWrappedSession = async (SESSION_STORAGE_KEYS: Record<string, string>) => {
+    await chrome.storage.local.set({
+      [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY]: 'wrapped-key-material',
+      [SESSION_STORAGE_KEYS.WRAP_KEY]: 'wrap-key',
+    });
+  };
+
+  it('解包回填途中被锁定：陈旧数据密钥不回写内存/ storage.session', async () => {
+    const { getSessionDataKey, markSessionInvalid, SESSION_STORAGE_KEYS } = await loadModule();
+    const enc = await import('@/utils/encryption');
+    await seedWrappedSession(SESSION_STORAGE_KEYS);
+
+    const d = deferred();
+    vi.mocked(enc.decryptData).mockReturnValueOnce(d.promise);
+
+    // 冷解包：会挂起在 decryptData 这一最终异步边界
+    const inflight = getSessionDataKey();
+    await flush(); // 让各 await 推进至 decryptData 挂起处
+
+    // 解包期间用户锁定：推进代际
+    markSessionInvalid();
+
+    // 解密此时才完成——结果属于已被作废的旧代际
+    d.resolve('stale-data-key');
+    await expect(inflight).resolves.toBeNull();
+
+    // 陈旧密钥绝不能重新驻留 storage.session（否则复活已销毁的密钥）
+    const sessionSnap = await chrome.storage.session.get(SESSION_MEMORY_KEYS.DATA_KEY);
+    expect(sessionSnap[SESSION_MEMORY_KEYS.DATA_KEY]).toBeUndefined();
+  });
+
+  it('对照：解包期间未锁定则正常回填密钥与 storage.session', async () => {
+    const { getSessionDataKey, SESSION_STORAGE_KEYS } = await loadModule();
+    await seedWrappedSession(SESSION_STORAGE_KEYS);
+
+    await expect(getSessionDataKey()).resolves.toBe('plain');
+    const sessionSnap = await chrome.storage.session.get(SESSION_MEMORY_KEYS.DATA_KEY);
+    expect(sessionSnap[SESSION_MEMORY_KEYS.DATA_KEY]).toBe('plain');
+  });
+});

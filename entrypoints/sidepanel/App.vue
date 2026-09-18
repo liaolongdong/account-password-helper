@@ -52,6 +52,8 @@
       :loading="loading"
       :filtered-passwords="filteredPasswords"
       :total-count="passwords.length"
+      :load-failed="loadFailed"
+      :undecryptable-count="undecryptableCount"
       :active-index="activeIndex"
       :auto-trigger-login="autoTriggerLogin"
       :sort-prop="sidepanelSortProp"
@@ -62,6 +64,7 @@
       @search="handleSearch"
       @add-password="openQuickAddDialog"
       @add-site-password="openQuickAddDialog"
+      @retry="handleRetryLoad"
       @activate="index => (activeIndex = index)"
       @rendered="handleAuthViewRendered"
       @fill="fillPassword"
@@ -247,6 +250,9 @@ const {
   currentPort,
   showSidepanel,
   sortConfig,
+  loadFailed,
+  undecryptableCount,
+  loadPasswords,
   initSidepanelData,
   getDomainPriority,
   runLocalOperation,
@@ -262,6 +268,14 @@ const {
   copyPassword,
   copyShareCard,
 } = useSidepanelFill(passwords);
+
+/**
+ * 重试加载密码列表（B8）：认证视图「加载失败·重试」按钮的出口。
+ * 非静默全量重载，成功回填列表、失败再次落回失败态；与首次加载走同一 loadPasswords 链路。
+ */
+const handleRetryLoad = () => {
+  void loadPasswords();
+};
 
 /** 设置弹窗 DOM 引用（本地声明以确保 vue-tsc 可追踪模板引用） */
 const settingsPanelEl = ref<HTMLElement | null>(null);
