@@ -297,10 +297,16 @@ export function setupSidePanelListeners(): void {
       // 缓解 Mac 间隔一段时间后首开冷读白屏），窗口内重复调用直接跳过
       // 句柄登记到本 port 闭包，onDisconnect 时取消——面板在延时到达前关闭则
       // 预热已无意义（且会在下次打开/保活 tick 重新排程），避免残留定时器。
-      const warmTimer = setTimeout(() => {
-        void import('@/utils/warmSidePanelResources')
-          .then(m => m.maybeWarmSidePanelResources({ allowNonWindowsLightweight: true }))
-          .catch(() => {});
+      const warmTimer = setTimeout(async () => {
+        try {
+          const m = await import('@/utils/warmSidePanelResources');
+          await m.maybeWarmSidePanelResources({ allowNonWindowsLightweight: true });
+        } catch {
+          // 静默失败（模块加载失败不影响功能）
+        } finally {
+          // 确保 timer 被清理（即使 import 失败也执行）
+          if (warmTimer) clearTimeout(warmTimer);
+        }
       }, WARM_AFTER_OPEN_DELAY_MS);
 
       port.onMessage.addListener((message: any) => {

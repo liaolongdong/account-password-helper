@@ -76,6 +76,13 @@
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item
+                disabled
+                :icon="Clock"
+              >
+                {{ backupStatusText }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                divided
                 command="import"
                 :icon="Upload"
               >
@@ -212,6 +219,13 @@
       >
         {{ t('options.header.personalization') }}
       </el-button>
+
+      <el-button
+        :icon="Setting"
+        @click="$emit('openSiteRules')"
+      >
+        {{ t('options.header.siteRules') }}
+      </el-button>
     </div>
   </div>
 </template>
@@ -261,6 +275,8 @@ const props = defineProps<{
   healthScore?: number;
   /** 健康等级，空库时不传（决定是否显示体检小圆点） */
   healthGrade?: HealthGrade;
+  /** 最近一次通过完整性自检的加密备份导出时间戳（epoch 毫秒），null 表示尚无已验证备份 */
+  lastVerifiedBackupAt?: number | null;
 }>();
 
 defineEmits<{
@@ -274,6 +290,8 @@ defineEmits<{
   settingsCommand: [command: string];
   /** 打开偏好设置弹窗 */
   openPersonalization: [];
+  /** 打开站点规则管理弹窗 */
+  openSiteRules: [];
   /** 点击会话徽标，打开有效期设置弹窗 */
   openValidity: [];
 }>();
@@ -299,6 +317,21 @@ const healthDotColor = computed(() => {
     default:
       return '#67c23a';
   }
+});
+
+/**
+ * 「数据管理」下拉顶部的只读备份健康提示
+ *
+ * 口径：最近一次「通过完整性自检」的加密 .aph 导出。无时间戳 → 尚无已验证备份；
+ * 不足一天 → 今日已完成；1 天 / N 天分别取对应文案（自定义 i18n 无复数引擎，故分档）。
+ */
+const backupStatusText = computed(() => {
+  const at = props.lastVerifiedBackupAt;
+  if (typeof at !== 'number' || !Number.isFinite(at)) return t('options.header.backupStatusNone');
+  const days = Math.floor((Date.now() - at) / 86_400_000);
+  if (days <= 0) return t('options.header.backupStatusToday');
+  if (days === 1) return t('options.header.backupStatusOne');
+  return t('options.header.backupStatusDays', { days });
 });
 </script>
 

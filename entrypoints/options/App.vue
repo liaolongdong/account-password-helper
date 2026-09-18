@@ -38,12 +38,14 @@
         :current-version="currentVersion"
         :health-score="passwords.length ? healthReport.score : undefined"
         :health-grade="passwords.length ? healthReport.grade : undefined"
+        :last-verified-backup-at="lastVerifiedBackupAt"
         @add-password="openAddDialogWithActiveTab"
         @open-health="showHealthDialog = true"
         @open-validity="openValiditySetting"
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
         @open-personalization="openPersonalizationDialog"
+        @open-site-rules="showSiteRulesDialog = true"
       />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
@@ -211,6 +213,9 @@
     />
 
     <!-- 身份信息新增/编辑表单弹窗 -->
+
+    <!-- 站点规则管理弹窗 -->
+    <SiteRulesDialog v-model="showSiteRulesDialog" />
     <IdentityFormDialog
       v-model="showIdentityFormDialog"
       :entry="editingIdentity"
@@ -290,6 +295,7 @@ const MasterPasswordVerifyDialog = defineAsyncComponent(
 const PasswordDetailDrawer = defineAsyncComponent(() => import('@/components/options/PasswordDetailDrawer.vue'));
 const IdentityVaultDialog = defineAsyncComponent(() => import('@/components/options/IdentityVaultDialog.vue'));
 const IdentityFormDialog = defineAsyncComponent(() => import('@/components/options/IdentityFormDialog.vue'));
+const SiteRulesDialog = defineAsyncComponent(() => import('@/components/options/SiteRulesDialog.vue'));
 const CommandPalette = defineAsyncComponent(() => import('@/components/options/CommandPalette.vue'));
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
@@ -367,6 +373,9 @@ const showIdentityVaultDialog = ref(false);
 
 /** 身份信息表单弹窗可见性 */
 const showIdentityFormDialog = ref(false);
+
+/** 站点规则管理弹窗可见性 */
+const showSiteRulesDialog = ref(false);
 
 /** 正在编辑的身份条目（null = 新增） */
 const editingIdentity = ref<IdentityEntry | null>(null);
@@ -451,6 +460,9 @@ const { currentVersion } = useVersionUpdate();
 /** 加密备份导入弹窗可见性 */
 const showBackupImportDialog = ref(false);
 
+/** 最近一次通过完整性自检的加密备份导出时间戳（epoch 毫秒），null 表示尚无已验证备份 */
+const lastVerifiedBackupAt = ref<number | null>(null);
+
 /** 加密备份导出 */
 const handleEncryptedBackupExport = async () => {
   if (passwords.value.length === 0) {
@@ -465,9 +477,15 @@ const handleEncryptedBackupExport = async () => {
   try {
     await exportEncryptedBackup(passwords.value, masterPassword);
     ElMessage.success(t('options.backup.exportSuccess'));
+    // 导出内部已在自检通过后落库，回读以反映真实持久态（而非乐观当前时间）
+    lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
   } catch (error) {
     logger.error('加密备份导出失败:', error);
-    ElMessage.error(t('options.backup.exportFailed'));
+    if ((error as { name?: string })?.name === 'BackupVerifyError') {
+      ElMessage.error(t('backup.exportVerifyFailed'));
+    } else {
+      ElMessage.error(t('options.backup.exportFailed'));
+    }
   }
 };
 
@@ -1048,6 +1066,8 @@ onMounted(async () => {
   initSessionManager();
   window.addEventListener('sessionExpired', handleSessionExpired);
   await checkAuth();
+  // 读取「最近一次已验证备份」时间戳，供 HeaderBar 展示备份健康提示（时间戳非敏感，读取无需会话态）
+  lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
   // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载
   await nextTick();
   // 恢复表格排序配置

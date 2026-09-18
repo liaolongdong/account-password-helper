@@ -767,6 +767,9 @@ onMounted(async () => {
 
   // 获取骨架屏元素（兄弟节点模式，Vue 挂载不会替换它）
   const skeletonEl = document.getElementById('app-loading');
+  if (!skeletonEl) {
+    logger.warn('SidePanel: 骨架屏元素不存在，跳过淡出逻辑');
+  }
 
   // 读取全局「自动触发登录」以决定每条「填充并登录」按钮显隐，并监听后续变更；均不阻塞首屏
   if (chrome?.storage?.onChanged) {

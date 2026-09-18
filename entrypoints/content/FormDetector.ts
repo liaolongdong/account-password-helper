@@ -72,8 +72,12 @@ export class FormDetector {
   private verifyCodeFieldsSet = new WeakSet<HTMLInputElement>();
   /** 悬浮按钮配置 */
   private floatingButtonConfig: FloatingButtonConfig;
+  /** 当前页面域名（用于站点规则匹配） */
+  private domain = '';
   /** 存储变化监听器 */
   private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
+  /** 填充失败提示是否已显示（单页签仅展示一次） */
+  private fillFailurePromptShown = false;
   /** runtime 消息监听器引用（保存以便 destroy 时精确移除，避免上下文失效后残留触发 chrome API） */
   private messageListener:
     | ((
@@ -117,20 +121,38 @@ export class FormDetector {
     this.notifyUrlChange();
   };
 
-  /** 输入填充器 */
-  private inputFiller = new InputFiller();
-  /** 复选框处理器 */
-  private checkboxHandler = new CheckboxHandler();
-  /** 登录表单分析器 */
-  private loginFormAnalyzer = new LoginFormAnalyzer();
+  /** 输入填充器（依赖注入，便于测试） */
+  private inputFiller: InputFiller;
+  /** 复选框处理器（依赖注入，便于测试） */
+  private checkboxHandler: CheckboxHandler;
+  /** 登录表单分析器（依赖注入，便于测试） */
+  private loginFormAnalyzer: LoginFormAnalyzer;
   /** 密码显示/隐藏切换管理器 */
   private passwordVisibilityToggle = new PasswordVisibilityToggle();
   /** 内联填充下拉（fillMode==='inline' 时使用） */
   private inlineDropdown = getInlineFillDropdown();
 
-  constructor() {
+  /**
+   * FormDetector 构造函数
+   *
+   * @param inputFiller 输入填充器实例（依赖注入，便于测试）
+   * @param checkboxHandler 复选框处理器实例（依赖注入，便于测试）
+   * @param loginFormAnalyzer 登录表单分析器实例（依赖注入，便于测试）
+   * @param configOverride 配置覆盖（测试用，生产环境自动从 storage 读取）
+   */
+  constructor(
+    inputFiller?: InputFiller,
+    checkboxHandler?: CheckboxHandler,
+    loginFormAnalyzer?: LoginFormAnalyzer,
+    configOverride?: FloatingButtonConfig,
+  ) {
+    // 依赖注入：测试提供实例则使用，否则创建新实例
+    this.inputFiller = inputFiller ?? new InputFiller();
+    this.checkboxHandler = checkboxHandler ?? new CheckboxHandler();
+    this.loginFormAnalyzer = loginFormAnalyzer ?? new LoginFormAnalyzer();
+
     // 初始化默认配置
-    this.floatingButtonConfig = StorageUtils.getDefaultFloatingButtonConfig();
+    this.floatingButtonConfig = configOverride ?? StorageUtils.getDefaultFloatingButtonConfig();
     // 加载配置并初始化
     this.loadConfig();
     this.init();
@@ -211,6 +233,9 @@ export class FormDetector {
    * 初始化表单检测和消息监听
    */
   private init(): void {
+    // 设置当前域名（从 document.domain 或 location.hostname 获取）
+    this.domain = document.domain || window.location.hostname || '';
+
     // 页面加载完成后检测表单
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', this.handleDomReady);
@@ -396,6 +421,17 @@ export class FormDetector {
     const checkboxInputs = document.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
     this.checkboxFields = Array.from(checkboxInputs).filter(input => isDetectableCheckbox(input));
 
+    // F1-A: 递归遍历 open shadow DOM 收集字段（性能预算内）
+    const idleStart = performance.now();
+    if (this.floatingButtonConfig.penetrateShadow !== false) {
+      const hasTimeBudget = () => performance.now() - idleStart < 300;
+      if (hasTimeBudget()) {
+        this.collectFieldsFromShadowRoots();
+      } else {
+        logger.debug(tl('cs.fd.shadowScanTimeout'));
+      }
+    }
+
     // 内联触发图标补偿：弥补检测完成前获焦导致委托错过展示的缺口
     this.syncInlineTriggerWithActiveElement();
 
@@ -464,6 +500,106 @@ export class FormDetector {
   private isInViewport(el: HTMLElement): boolean {
     const rect = el.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0 && rect.bottom >= 0 && rect.top <= window.innerHeight;
+  }
+
+  /**
+   * F1-A: 递归遍历 open shadow DOM 收集登录字段
+   *
+   * 从 document.body 开始 BFS，对每个节点检查：
+   * - node.shadowRoot?.mode === 'open' → 递归遍历其 children
+   * - 若为 input[type=password/email/tel/number/text] 且可见 → 按既有优先级归类
+   * 使用 WeakSet 去重 visited nodes，避免循环引用或重复处理。
+   * 性能预算：300ms，超时则跳过（已在调用处控制）。
+   */
+  private collectFieldsFromShadowRoots(): void {
+    const visited = new WeakSet<Node>();
+    const queue: Node[] = [document.body];
+
+    while (queue.length > 0) {
+      const node = queue.shift()!;
+      if (visited.has(node)) continue;
+      visited.add(node);
+
+      // 检查 open shadowRoot
+      if (node instanceof Element) {
+        const shadowRoot = node.shadowRoot;
+        if (shadowRoot?.mode === 'open') {
+          for (const child of Array.from(shadowRoot.children)) {
+            if (child instanceof Node && !visited.has(child)) {
+              // 先处理子节点本身（可能是 input）
+              this.processNodeFromShadow(child, visited);
+              // 再将子节点加入 queue 以继续遍历其 shadowRoot
+              queue.push(child);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * 处理来自 shadow DOM 的单个节点，按类型归类到结果集
+   */
+  private processNodeFromShadow(node: Node, visited: WeakSet<Node>): void {
+    if (!(node instanceof Element)) return;
+    if (visited.has(node)) return;
+
+    const el = node as HTMLElement;
+
+    // 只处理 input 类型
+    if (el.tagName !== 'INPUT') return;
+    const input = el as HTMLInputElement;
+
+    // 跳过已访问节点
+    if (visited.has(input)) return;
+
+    // 可见性检查
+    if (!isElementVisible(input)) return;
+
+    const type = input.type.toLowerCase();
+
+    // 密码字段
+    if (type === 'password') {
+      if (!this.passwordFieldsSet.has(input)) {
+        this.passwordFields.push(input);
+        this.passwordFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'password');
+      }
+      return;
+    }
+
+    // 用户名字段（email / text）
+    if (type === 'email' || type === 'text') {
+      if (!this.usernameFieldsSet.has(input)) {
+        this.usernameFields.push(input);
+        this.usernameFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'username');
+      }
+      return;
+    }
+
+    // 手机号字段
+    if (type === 'tel' || type === 'number') {
+      if (!this.mobileFieldsSet.has(input) && !this.usernameFieldsSet.has(input)) {
+        this.mobileFields.push(input);
+        this.mobileFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'mobile');
+      }
+      return;
+    }
+
+    // 验证码字段
+    if (input.pattern && input.pattern.includes('code')) {
+      if (
+        !this.verifyCodeFieldsSet.has(input) &&
+        !this.usernameFieldsSet.has(input) &&
+        !this.mobileFieldsSet.has(input)
+      ) {
+        this.verifyCodeFields.push(input);
+        this.verifyCodeFieldsSet.add(input);
+        this.fieldTypeCache.set(input, 'verifyCode');
+      }
+    }
   }
 
   /**
@@ -1187,6 +1323,26 @@ export class FormDetector {
         if (!detected) {
           result.message = tl('cs.fd.noFormFields');
           result.reason = 'no_form';
+
+          // F1-C: 显示填充失败就地诊断提示（仅首次）
+          if (this.floatingButtonConfig.penetrateShadow !== false && !this.fillFailurePromptShown) {
+            this.fillFailurePromptShown = true;
+            // 延迟渲染，避免阻塞主线程
+            setTimeout(() => {
+              try {
+                import('./FillFailurePrompt')
+                  .then(module => {
+                    module.showFillFailurePrompt(this.passwordFields[0] || this.usernameFields[0], this.domain);
+                  })
+                  .catch(err => {
+                    logger.debug('加载 FillFailurePrompt 失败:', err);
+                  });
+              } catch (err) {
+                logger.debug('显示填充失败提示失败:', err);
+              }
+            }, 0);
+          }
+
           return result;
         }
       }

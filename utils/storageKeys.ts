@@ -13,6 +13,8 @@ export const STORAGE_KEYS = {
   FLOATING_BUTTON_CONFIG: 'floating_button_config',
   EMAIL_BACKUP_CONFIG: 'email_backup_config',
   LAST_AUTO_BACKUP_TIME: 'last_auto_backup_time',
+  /** 最近一次「通过完整性自检」的加密 .aph 导出时间戳（epoch 毫秒），用于「距上次成功备份 N 天」提醒 */
+  LAST_VERIFIED_BACKUP_AT: 'last_verified_backup_at',
   AUTO_SAVE_CONFIG: 'auto_save_config',
   IDLE_LOCK_CONFIG: 'idle_lock_config',
   CLIPBOARD_CONFIG: 'clipboard_config',
@@ -31,6 +33,8 @@ export const STORAGE_KEYS = {
   PASSWORD_REMINDERS: 'password_reminders',
   /** 用户语言偏好（'zh-CN' | 'en'） */
   LOCALE: 'app_locale',
+  /** 站点级填充规则（域名 → 自定义选择器/穿透开关） */
+  SITE_RULES: 'site_rules',
   /** 侧边栏打开性能埋点环形日志（最近 20 次，用于生产环境量化白屏/卡顿） */
   SIDEPANEL_PERF_LOG: 'sidepanel_perf_log',
   /** 平台检测结果持久化（是否 Windows），供 SW 冷启动早期 getPlatformInfo 异常时兜底 */

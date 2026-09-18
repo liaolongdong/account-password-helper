@@ -361,6 +361,11 @@ export interface FloatingButtonConfig {
    * 界面主题名，默认 'sky'（晴空蓝，等同历史配色）
    */
   theme: ThemeName;
+  /**
+   * 检测登录表单时是否递归遍历 open shadow DOM（Web Components 站点如 Ionic/Lightning/Shopify 需要）
+   * 默认 true，关闭后仅扫描主 document 树
+   */
+  penetrateShadow?: boolean;
 }
 
 /**

@@ -178,6 +178,7 @@ const floatingButtonStore = createConfigStore<FloatingButtonConfig>(
     passwordVisibilityToggle: false,
     fillMode: 'inline',
     theme: DEFAULT_THEME,
+    penetrateShadow: true,
   }),
   '悬浮按钮配置',
 );
@@ -260,6 +261,38 @@ export async function setLastAutoBackupTime(timestamp: number = Date.now()): Pro
     logger.error('记录自动备份时间失败:', error);
     throw error;
   }
+}
+
+// ==================== 成功备份时间戳 ====================
+
+/**
+ * 读取最近一次「通过完整性自检」的加密 .aph 导出时间戳
+ *
+ * 与 `getLastAutoBackupTime`（邮箱自动备份落点）区分：本键仅在导出后 round-trip
+ * 解密校验通过时写入，代表「这份备份确实可被解回」，供 Options「距上次成功备份 N 天」展示。
+ * 读取失败或从未成功导出时返回 null（降级，不抛）。
+ */
+export async function getLastVerifiedBackupAt(): Promise<number | null> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.LAST_VERIFIED_BACKUP_AT);
+    const value = result[STORAGE_KEYS.LAST_VERIFIED_BACKUP_AT];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  } catch (error) {
+    logger.error('获取最后成功备份时间失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 记录一次通过完整性自检的加密备份导出时间
+ *
+ * 由 `exportEncryptedBackup` 在自检通过、文件已下载后调用。写入失败会抛出，
+ * 调用方需自行按「非致命」处理（备份文件本身已产出，仅提醒时间戳缺失）。
+ */
+export async function markVerifiedBackupAt(timestamp: number = Date.now()): Promise<void> {
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.LAST_VERIFIED_BACKUP_AT]: timestamp,
+  });
 }
 
 // ==================== 剪贴板配置 ====================

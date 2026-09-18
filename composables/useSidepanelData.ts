@@ -34,14 +34,10 @@ const getIsSessionValid = async () => {
   return () => sessionModule.isSessionValid({ skipConsistencyCheck: true });
 };
 
-/**
- * 延迟调用 invalidateSessionCache（fire-and-forget）
- * 在 clearSession 路径中异步失效 session 缓存，防止并发 isSessionValid()
- * 从 5s TTL 缓存中返回过期 true 值。首次调用时触发 dynamic import。
- */
-const invalidateSessionCacheAsync = async () => {
-  const sessionModule = await getSessionModule();
-  sessionModule.invalidateSessionCache();
+/** 延迟清空加密模块的 CryptoKey 句柄缓存（fire-and-forget） */
+const clearCryptoKeyCacheAsync = async () => {
+  const enc = await getEncryptionModule();
+  enc.clearCryptoKeyCache();
 };
 
 /**
@@ -50,16 +46,13 @@ const invalidateSessionCacheAsync = async () => {
 const getEncryptionModule = lazyImport(() => import('@/utils/encryption'));
 
 /**
- * 延迟清空加密模块的 CryptoKey 句柄缓存（fire-and-forget）
- *
- * 句柄缓存为每 JS 上下文独立，background 发起的锁定（空闲锁/系统锁）无法
- * 清理本页面因本地路径解密而填充的句柄，需在 sidepanel 自身的锁定感知点
- * （SESSION_EXPIRED 广播 / 会话键移除）补充清理；加密模块尚未加载时
- * 缓存必为空，dynamic import 仅命中构建产物缓存，开销可忽略
+ * 延迟调用 invalidateSessionCache（同步调用，消除竞态窗口）
+ * 在 handleStorageChange 中用于同步失效 session 缓存，防止并发 isSessionValid()
+ * 从 5s TTL 缓存中返回过期 true 值。首次调用时触发 dynamic import。
  */
-const clearCryptoKeyCacheAsync = async () => {
-  const enc = await getEncryptionModule();
-  enc.clearCryptoKeyCache();
+const invalidateSessionCacheSync = async () => {
+  const sessionModule = await getSessionModule();
+  sessionModule.invalidateSessionCache();
 };
 
 /**
@@ -521,7 +514,7 @@ export function useSidepanelData() {
    * handleSessionChange 异步完成前触发 loadPasswords，此时 isSessionValid()
    * 的 5s TTL 缓存可能仍返回 true，导致加密数据被加载到 UI 上闪烁。
    */
-  const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+  const handleStorageChange = async (changes: { [key: string]: chrome.storage.StorageChange }) => {
     const sessionKeys = [
       'session_wrapped_data_key',
       'session_password_expiry',
@@ -544,11 +537,11 @@ export function useSidepanelData() {
       );
       if (isSessionRemoved) {
         _sessionKnownExpired = true;
-        // 异步失效 session 缓存（fire-and-forget），确保并发 isSessionValid()
-        // 调用不会从 5s TTL 缓存中返回过期 true 值
-        void invalidateSessionCacheAsync();
-        // 清理本上下文的 CryptoKey 句柄缓存（background 发起的锁定无法跨上下文清理）
+        // 同步失效 session 缓存（消除竞态窗口：防止 invalidateSessionCacheAsync 异步执行期间，
+        // account_passwords 变更触发 loadPasswords 时 isSessionValid() 的 5s TTL 缓存仍返回 true）
+        await invalidateSessionCacheSync();
         void clearCryptoKeyCacheAsync().catch(() => {});
+        return;
       } else {
         _sessionKnownExpired = false;
 
