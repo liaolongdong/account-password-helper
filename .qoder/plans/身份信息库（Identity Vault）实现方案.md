@@ -1,8 +1,10 @@
-# 身份信息库（Identity Vault）实现方案 v3
+# 身份信息库（Identity Vault）实现方案 v4
 
 > v2 说明：v2 基于对仓库的逐条核实重写了 v1。v1 有 16 处代码假设与现状不符（详见附录 A），v2 起所有 `file:line` 均已核实为当前真实引用。架构主干（平行数据域 + 整块加密 + 共用数据密钥 + Options-only）经核实后保留，因为替代方案更差（附录 B）。
 >
-> v3 说明（第二轮深度分析，7 处实质改动）：① **校验从一级硬阻止改为两级**——校验位类（mod 11 / Luhn）降为非阻塞警告，否则护照号、港澳台通行证、社保卡、门禁卡这些合法数据根本存不进去（§五）；② `MAX_FIELD_VALUE_LEN` 500 → 200，最坏单条从 ~20KB 压到 ~15KB（§二改动 4）；③ **`.aphid` 必须保留 `id`**——`.aph` 主动剥掉 id，身份库照抄会让重复导入同一份备份变成 60 条无法肉眼去重的 PII；导入还须显式报告「新增/更新/跳过」（§4.6）；④ 备份模块移到 `utils/identity/backup.ts`（它不碰 storage），重复行核实为 **25 行**而非 35 行（决策 6）；⑤ `category` 从「字段笼子」改为「默认字段集 + 更多字段折叠区」，切换类别不清空已填值（§6.5）；⑥ **独立性从「评审逐行看 diff」升级为 CI 可执行**——新增 `tests/build/sidepanelClosure.test.ts` 断言 sidepanel 首屏 `modulepreload` 闭包不含 identity chunk（§九-5 产物层）；⑦ R8（纯身份用户永不被提醒备份）确认为**独立性约束造成的唯一真实用户损害**，与回收站并列 Phase 2 首项（§七）。附录 B 新增 4 个否决方案：IndexedDB（致命，`clearAllData()` 清不掉）/ 逐条 storage key + 索引 / 按需解密 / 合并 `.aph`+`.aphid`。
+> v3 说明（第二轮深度分析，7 处实质改动）：① **校验从一级硬阻止改为两级**——校验位类（mod 11 / Luhn）降为非阻塞警告，否则护照号、港澳台通行证、社保卡、门禁卡这些合法数据根本存不进去（§五；此项在落地时按「误杀代价」再收窄：18 位大陆身份证校验位回归 `error` 阻止，仅卡号 Luhn / 有效期过期保留 `warning`，护照、通行证等跳过校验位，最终口径见 §5.1）；② `MAX_FIELD_VALUE_LEN` 500 → 200，最坏单条从 ~20KB 压到 ~15KB（§二改动 4）；③ **`.aphid` 必须保留 `id`**——`.aph` 主动剥掉 id，身份库照抄会让重复导入同一份备份变成 60 条无法肉眼去重的 PII；导入还须显式报告「新增/更新/跳过」（§4.6）；④ 备份模块移到 `utils/identity/backup.ts`（它不碰 storage），重复行核实为 **25 行**而非 35 行（决策 6）；⑤ `category` 从「字段笼子」改为「默认字段集 + 更多字段折叠区」，切换类别不清空已填值（§6.5）；⑥ **独立性从「评审逐行看 diff」升级为 CI 可执行**——新增 `tests/build/sidepanelClosure.test.ts` 断言 sidepanel 首屏 `modulepreload` 闭包不含 identity chunk（§九-5 产物层）；⑦ R8（纯身份用户永不被提醒备份）确认为**独立性约束造成的唯一真实用户损害**，与回收站并列 Phase 2 首项（§七）。附录 B 新增 4 个否决方案：IndexedDB（致命，`clearAllData()` 清不掉）/ 逐条 storage key + 索引 / 按需解密 / 合并 `.aph`+`.aphid`。
+>
+> v4 说明（落地后打磨波次，2026-09-18）：一期上线后按用户反馈补齐 8 项体验功能，**§4.5 / §七 / R12 中列为「一期不做 / Phase 2」的「复制整条」「去重」「明文导出」三项已落地**；其余 Phase 2 项（回收站与软删除、自动备份纳入身份库、批量标签、拖拽排序、侧边栏入口）不变。已落地清单：① **整卡复制**（`copyCard`，把一卡非空字段拼成「标签: 值」多行一次性写入；整卡恒含 PII 故**恒走 `copySecretToClipboard` 限时自动清除通道**，以「整卡一律按机密处理」规避 `copyTextToClipboard` 的 `cancelPendingClipboardClear()` 顺序陷阱，不依赖「先非机密后机密」的写顺序规则）；② **批量展开 / 收起全部机密**（`toggleRevealAll`，仅作用于「当前可见且含机密字段」的卡片，切换筛选时保留屏外既有展开项）；③ **条数上限指示**「已用 n/30」（达上限转告警色）；④ **保存前非阻断查重**（`utils/identity/dedup.ts`：卡号相同直接命中；证件号相同须再配相同姓名或相同卡号才命中，避免同一身份证的社保卡 / 银行卡误报，命中弹可「仍要保存」的二次确认）；⑤ **搜索命中计数 + 无匹配空态「清除筛选」**；⑥ **明文 `.json` 导出 / 可回导导入**（复用 `.aphid` 数据结构，读写均设主密码复验 + 风险确认双门槛，属刻意的隐私边界例外通道）；⑦ **批量折叠 / 展开全部卡片**（`toggleCollapseAll`，只增删「当前可见」卡片的折叠态、不动屏外既有折叠，折叠后仅保留标题行，与 `toggleRevealAll` 同口径且相互正交——折叠只影响展示密度、不改变机密掩码）；⑧ **逐卡勾选 + 工具栏全选 + 按勾选导出子集**（`selectedIds` / `selectAllVisible` / `resolveExportEntries`；未勾选=导出全库，勾选=仅导出所选子集，加密与明文导出共用同一解析口径）。字段展示模型（`IDENTITY_FIELD_DEFS` / `hasSecretFields` / `buildIdentityFieldRows` / `formatIdentityCardText`）下沉到 `utils/identity/fields.ts`，供 composable 与列表弹窗共用单一事实来源；composable 的搜索字段集亦改为遍历 `IDENTITY_FIELD_DEFS` 派生，不再手工重列。深度评审后追加两项安全加固：**导入侧在 `parseIdentityBackupData` 内先判 `records.length > MAX_IDENTITIES` 再做逐记录校验**，杜绝不可信超大数组触发无界校验 / 内存分配；**表单弹窗关闭（取消 / 关闭 / 会话失效经 `@closed`）时清空 `localForm` 中已输入的明文 PII**（弹窗常驻挂载，避免 typed-then-cancelled 的 CVV / 卡号 / 证件号长期驻留内存）。
 
 ## Context
 
@@ -266,7 +268,7 @@ N ≤ 30 且一次 AES/条，冷路径成本可忽略。**禁止**把身份库�
 
 - 机密字段（`idNumber`/`cardNo`/`cardCvv`/`secret` 自定义字段）→ **必须** `utils/clipboard.ts:122-133` 的 `copySecretToClipboard(text, onCleared)`。自动清除时长是**用户可配**的（`getClipboardConfig()` `:96-113`，默认 30s，配置入口 `ClipboardSettingDialog.vue:95`），不要写死 30s。清除前校验在 `clearClipboard:37-50`（内容被替换则跳过，失焦时尽力而为）。
 - 非机密字段（`name`/`email`/`address`）→ `copyTextToClipboard:143-153`。
-- **一期不提供「复制整条」**。因为 `copyTextToClipboard:147` 会调 `cancelPendingClipboardClear()`，混合复制机密+非机密字段时顺序错了就会削弱机密清除（v1 已识别此陷阱）。逐字段复制不存在该问题，直接砍掉整块复制比写顺序规则更安全。列为 Phase 2（R12）。
+- **整卡复制（v4 已落地）**：`copyCard` 把一卡非空字段拼成「标签: 值」多行文本一次性写入。整卡恒含 PII，故**一律走 `copySecretToClipboard`（限时自动清除）**，以「整卡按机密处理」这一策略规避 v1 识别的 `copyTextToClipboard:147` `cancelPendingClipboardClear()` 顺序陷阱——无需「先非机密后机密」的写顺序规则。逐字段复制仍按上表按机密 / 非机密分流。
 - 反馈复用既有 key，不新增文案：成功 `ElMessage.success(t('options.detail.copied'))`（`options.json:46`）、失败 `ElMessage.error(t('message.copyFailed'))`、自动清除回调 `ElMessage.info(t('fill.clipboardCleared'))` / `ElMessage.warning(t('fill.clipboardClearFailed'))`——完全照 `PasswordDetailDrawer.vue:303-338`。
 - **不发桌面通知**（`chrome.notifications` 文本会滞留系统通知中心）。既有复制反馈也一律用 `ElMessage`，无图标替换、无行内文案。
 
@@ -285,30 +287,32 @@ N ≤ 30 且一次 AES/条，冷路径成本可忽略。**禁止**把身份库�
 
 ## 五、校验规则（`utils/identity/validators.ts`，纯函数 + 单测）
 
-### 5.1 两级严格度（v2 原为一级硬阻止，是设计缺陷，本版修正）
+### 5.1 两级严格度（落地后按「误杀代价」再收窄，口径以 `validators.ts` 为准）
 
-校验分两类，**不可混为一谈**：
+校验分 `error`（阻止保存）与 `warning`（允许保存、仅提示）两级，且**按字段/形态归类**——同样是「校验位」，误杀代价不同，不能笼统合并：
 
-- **格式类**（长度/字符集明显非法）→ **阻止保存**
-- **校验位类**（mod 11、Luhn）→ **非阻塞警告，允许保存**
+- **格式类**（长度 / 字符集 / 明显非法）→ `error`，阻止保存。
+- **18 位大陆居民身份证**（`^\d{17}[\dXx]$`）的 GB11643 mod 11 校验位、出生段合法日期、地区码段非全零 → `error`，阻止保存。理由：18 位纯数字形态几乎只对应大陆居民身份证，校验位不符基本可判定为录入笔误，拦下让用户改正比放过一个坏号更有价值。
+- **银行卡号 Luhn**（位长对但校验不过）、**有效期已过期** → `warning`，允许保存。真实用户会存社保卡、公交卡、门禁卡（不过 Luhn），硬阻止等于这些人根本存不进去。
+- **护照、港澳台通行证、外籍证件号等含字母的证件号**：不进入 18 位分支，**跳过校验位**（连 warning 都不给，避免噪声），只做格式类字符集 / 长度校验。
 
-理由：真实用户会存**护照号、港澳台通行证、外籍证件号**（没有 GB11643 校验位），以及**社保卡、公交卡、门禁卡**（不过 Luhn）。硬阻止等于这些人根本存不进去。**误杀合法数据的代价 > 放过一个用户自己看得见的错字**，而校验位提示仍保留防错价值。
+核心取舍：**误杀合法数据的代价 > 放过一个用户自己看得见的错字**。因此只有「形态几乎唯一」的 18 位身份证才升级为 error，其余无法靠校验位可靠区分的一律降级为警告或直接跳过。
 
-警告用表单内联 warning 文案或 `el-alert`，**不弹模态确认**（全仓无此先例，且每次保存都弹摩擦过高）。
+警告用表单内联 error + 常驻 `el-alert`（warning 汇总），**不弹模态确认**（全仓无此先例，且每次保存都弹摩擦过高）。
 
 ### 5.2 规则表
 
 | 字段 | 规则 | 级别 | 失败处理 |
 | --- | --- | --- | --- |
-| 证件号码 | `^\d{17}[\dXx]$` → 权重 `[7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2]` 加权和 mod 11 → 校验码表 `"10X98765432"`；出生段须为合法日期；地区码段非 `0000` | **校验位类** | **警告**，允许保存 |
-| 证件号码 | 长度/字符集明显不符（如含字母于非末位） | 格式类 | 阻止保存 |
-| 银行卡号 | 13–19 位数字 + Luhn（右起偶位翻倍、>9 减 9） | **校验位类** | **警告**，允许保存；不做 IIN/BIN 前缀归属校验（易误报） |
-| 有效期 | `^(0[1-9]|1[0-2])\/\d{2}$` | 格式类 | 格式错阻止；已过期只**告警**不阻止 |
-| 手机号 | 宽松 `^\+?[\d\s-]{6,20}$` | 格式类 | 阻止保存 |
-| 邮箱 | `^[^\s@]+@[^\s@]+\.[^\s@]+$` | 格式类 | 阻止保存 |
-| CVV | 3–4 位数字 | 格式类 | 阻止保存 |
+| 证件号码 | 长度 / 字符集非 `^[A-Za-z0-9]{5,30}$` | 格式类 | `error`，阻止保存 |
+| 证件号码 | 命中 `^\d{17}[\dXx]$` 时：权重 `[7,9,10,5,8,4,2,1,6,3,7,9,10,5,8,4,2]` 加权和 mod 11 → 校验码表 `"10X98765432"`；出生段须为合法日期；地区码段非全零 | 校验位类（**仅** 18 位大陆身份证） | `error`，阻止保存；**非 18 位形态（护照 / 通行证等含字母）跳过校验位，不误杀** |
+| 银行卡号 | 非 13–19 位纯数字（格式类）；位长对但 Luhn 不过（校验位类） | 两级 | 格式 `error` 阻止；Luhn **`warning`** 允许保存；不做 IIN/BIN 前缀归属校验（易误报） |
+| 有效期 | 非 `^(0[1-9]|1[0-2])\/\d{2}$`（格式类）；格式对但早于当前年月（校验位类） | 两级 | 格式 `error` 阻止；**已过期 `warning` 不阻止** |
+| 手机号 | 宽松 `^\+?[\d\s-]{6,20}$`；命中大陆形态 `^1\d{10}$` 但第二位不在 3–9 | 格式类 | 两种均 `error`，阻止保存 |
+| 邮箱 | `^[^\s@]+@[^\s@]+\.[^\s@]+$` | 格式类 | `error`，阻止保存 |
+| CVV | 3–4 位数字 | 格式类 | `error`，阻止保存 |
 
-**字段标签用「证件号码」，不用「身份证号」**：`category: 'id_card'` 的语义本就是「证件」，标签写死「身份证号」会把非中国身份证用户挡在门外。helper text：「中国大陆居民身份证会做校验位检查；护照、通行证等可忽略警告」。
+**字段标签用「证件号码」，不用「身份证号」**：`category: 'id_card'` 的语义本就是「证件」，标签写死「身份证号」会把非中国身份证用户挡在门外。helper text（与 `identity.form.idNumberHelper` 一致）：「校验位检查仅对 18 位大陆居民身份证生效；护照、通行证等其它证件不做校验」。
 
 ### 5.3 实现约束
 
@@ -443,7 +447,9 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
 
 ## 七、一期明确不做（Phase 2 候选）
 
-页面对接（自动填充/字段识别）、侧边栏/popup/右键/快捷键入口、变更历史、安全体检纳入、去重/批量标签/拖拽排序（`order` 字段）、复制整条、CSV/JSON 明文导出、独立恢复码、`PASSWORD_CACHE_SNAPSHOT`（**永不做**——那会把 PII 明文放进 SW 热路径的会话快照）。
+> v4 更新：下列原「一期不做」中的 **复制整条、去重（保存前非阻断查重）、明文 JSON 导出 / 可回导** 三项已在落地后打磨波次实现（见顶部 v4 说明、§4.5、R12）；批量标签、拖拽排序仍不做。
+
+页面对接（自动填充/字段识别）、侧边栏/popup/右键/快捷键入口、变更历史、安全体检纳入、批量标签/拖拽排序（`order` 字段）、独立恢复码、`PASSWORD_CACHE_SNAPSHOT`（**永不做**——那会把 PII 明文放进 SW 热路径的会话快照）。
 
 **Phase 2 并列首项（两项）**：
 
@@ -467,7 +473,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
 | R9 | 无明文残留扫描网覆盖 `IDENTITY` | 已核实 `sessionManager-storage.ts:376-443` 只覆盖 `PASSWORDS`（连 TRASH/HISTORY 都不覆盖），本仓真实不变量是「写路径保证恒加密」。身份库沿用并加强：写路径无密钥抛错、读路径遇非字符串 `encryptedPayload` 跳过 + `logger.warn` |
 | R10 | manifest 描述已写满，无法宣告新能力 | zh **131/132** 码点、en **130/132**（文案在 `public/_locales/*/messages.json`，`wxt.config.ts:88` 只是 `__MSG_extensionDescription__`，`:87` 有 132 上限注释）。叠加 CWS keyword-stuffing 驳回史，**不动 manifest 描述**。新能力只落 README / ARCHITECTURE / CWS 长文说明（余量充足）/ privacy.html |
 | R11 | 统一掩码（决策 8）导致两张无姓名的银行卡在列表里无法区分 | `displayTitle` 回退链：`name ?? cardHolder ?? email ?? phone ?? t('identity.category.'+category)`；表单 `name` 字段加 helper text「用作列表标题」。若后续需要，可加**仅显示态**的后 4 位（不落盘、不参与搜索高亮），属独立决策 |
-| R12 | 砍掉「复制整条」损失便利 | 规避 `copyTextToClipboard:147` 的 `cancelPendingClipboardClear()` 顺序陷阱，比写顺序规则更安全。Phase 2 若要恢复，必须先复制非机密再复制机密 |
+| ~~R12~~ | ~~砍掉「复制整条」损失便利~~ | **v4 已落地**：`copyCard` 整卡复制，恒走 `copySecretToClipboard` 限时清除通道，以「整卡一律按机密处理」规避 `copyTextToClipboard:147` 的 `cancelPendingClipboardClear()` 顺序陷阱（无需写顺序规则）|
 | R13 | CVV 落盘扩大单点泄露后果 | 表单常驻 `el-alert` 警示；`secret` 语义使其默认掩码且走 `copySecretToClipboard`。是否保留该字段见开放问题 Q1 |
 
 ---
@@ -480,8 +486,8 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>();
    - 成功路径；失败路径（`getAllIdentityRaw` 抛错则放弃写、无密钥拒绝保存）
    - 旧数据兼容（无 `IDENTITY` 键 → 空列表；`pv` 未知键经编辑后保留）
    - 读路径不变量（`encryptedPayload` 非字符串 → 跳过 + 不回写）
-   - 边界（条数上限、字段长度上限 `MAX_FIELD_VALUE_LEN=200`、最坏情况总体积 < 1MB、有效期过期只告警）
-   - **两级校验**：校验位类失败只返回 `level:'warning'` 且**仍能保存**——必须有用例覆盖「护照号/港澳台通行证（无 GB11643 校验位）」与「社保卡/门禁卡（不过 Luhn）」两类合法数据；格式类失败返回 `level:'error'` 并阻止保存
+   - 边界（条数上限：`saveIdentity` 写入前 + **导入在 `parseIdentityBackupData` 内先判 `records.length > MAX_IDENTITIES` 再做逐记录校验**，避免对超大不可信数组做无界校验；字段长度：导入侧逐字段限长 `MAX_FIELD_VALUE_LEN=200` / `MAX_REMARK_LEN=1000`，保存侧由表单 `maxlength` 在同一上限内约束；有效期过期只告警）
+   - **两级校验**：18 位大陆居民身份证的 mod 11 校验位 / 出生段 / 地区码返回 `level:'error'` 并**阻止保存**；护照、港澳台通行证等含字母证件号**跳过校验位**（不误杀）；社保卡、门禁卡（不过 Luhn）与已过期有效期返回 `level:'warning'` 且**仍能保存**；格式类（字符集 / 长度 / 大陆手机号形态）失败返回 `level:'error'` 并阻止保存
    - `.aphid` 往返 + 拒绝 `.aph`；`.aph` 导入遇 `.aphid` 走既有兜底不崩
    - **`id` 稳定性**：同一份 `.aphid` 连续导入两次 → 条数不变（不产生 60 条重复 PII）；导入结果计数 `{ added, updated, skipped }` 正确
    - rekey 全链路（含 R1 的四条断言）

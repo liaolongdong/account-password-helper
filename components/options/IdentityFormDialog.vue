@@ -6,7 +6,7 @@
     align-center
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
-    @closed="$emit('closed')"
+    @closed="handleClosed"
   >
     <div class="dialog-body-scroll">
       <el-form
@@ -310,9 +310,8 @@ const collapseFieldKeys = computed<IdentityFieldKey[]>(() =>
 /** 字段长度上限查询（模板用） */
 const fieldMaxlength = (key: IdentityFieldKey): number => FIELD_MAXLENGTH[key];
 
-/** 重置表单（编辑态带入条目 payload，新增态清空） */
-function resetForm(): void {
-  const src = props.entry?.payload;
+/** 按给定负载重置表单：传入 payload（编辑/新增带入）逐字段填充；缺省则清空（关闭时抹除已输入的明文 PII） */
+function applyPayload(src?: IdentityPayload): void {
   localForm.category = src?.category ?? 'person';
   localForm.name = src?.name ?? '';
   localForm.idNumber = src?.idNumber ?? '';
@@ -390,15 +389,21 @@ async function handleSave(): Promise<void> {
   emit('save', payload);
 }
 
-/** 弹窗打开时按目标条目重置表单 */
+/** 弹窗打开时按目标条目填充表单 */
 watch(
   () => props.modelValue,
   visible => {
     if (visible) {
-      resetForm();
+      applyPayload(props.entry?.payload);
     }
   },
 );
+
+/** 关闭动画结束：本弹窗常驻挂载，取消 / 关闭 / 会话失效均经此清空已输入的明文 PII，再向上抛出 closed */
+function handleClosed(): void {
+  applyPayload();
+  emit('closed');
+}
 </script>
 
 <style scoped>

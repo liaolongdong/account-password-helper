@@ -417,6 +417,8 @@
         --radius: 16px;
         --radius-sm: 10px;
         --container: 1200px;
+        /* 与 .reveal 同款强出缓动，动效层统一引用，避免各处重复字面量 */
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
       }
 
       .container {
@@ -1499,6 +1501,191 @@
         transition-delay: 0.4s;
       }
 
+      /* ============ Motion layer ============ */
+      /* 落地页品牌动效：只改 transform / opacity，不触碰布局属性；
+         全部动效在文末 prefers-reduced-motion 区块统一降级，降级后仅保留透明度变化。 */
+      @keyframes aph-fade {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes aph-rise {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      /* 钥匙卡常驻 rotate(-6deg)，浮动必须把旋转一起写进关键帧，否则入场后姿态被重置 */
+      @keyframes aph-float {
+        from {
+          transform: rotate(-6deg) translateY(0);
+        }
+        to {
+          transform: rotate(-6deg) translateY(-10px);
+        }
+      }
+      @keyframes aph-bob {
+        from {
+          transform: translateY(0);
+        }
+        to {
+          transform: translateY(6px);
+        }
+      }
+      @keyframes aph-sheen {
+        0%,
+        62% {
+          transform: translateX(-70%);
+        }
+        82%,
+        100% {
+          transform: translateX(70%);
+        }
+      }
+      @keyframes aph-shackle {
+        from {
+          opacity: 0.4;
+          transform: translateY(-4px) scaleY(1.2);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* Hero：文案自上而下分层入场，右侧视觉块随后落位 */
+      .hero-eyebrow,
+      .hero h1,
+      .hero p.lead,
+      .hero-cta,
+      .hero-hint,
+      .disclaimer-banner,
+      .hero-visual {
+        animation: aph-rise 0.6s var(--ease-out) both;
+      }
+      .hero h1 {
+        animation-delay: 0.06s;
+      }
+      .hero p.lead {
+        animation-delay: 0.14s;
+      }
+      .hero-cta {
+        animation-delay: 0.22s;
+      }
+      .hero-hint {
+        animation-delay: 0.28s;
+      }
+      .disclaimer-banner {
+        animation-delay: 0.34s;
+      }
+      .hero-visual {
+        animation-delay: 0.1s;
+        animation-duration: 0.7s;
+      }
+
+      .hero-visual .key-card {
+        overflow: hidden;
+        will-change: transform;
+        animation: aph-float 6s ease-in-out 0.9s infinite alternate;
+      }
+      /* 周期性掠光：伪元素整块位移，由 .key-card 的 overflow 裁出圆角边界 */
+      .hero-visual .key-card::after {
+        content: '';
+        position: absolute;
+        top: -40%;
+        right: -60%;
+        bottom: -40%;
+        left: -60%;
+        background: linear-gradient(100deg, transparent 42%, rgba(255, 255, 255, 0.42) 50%, transparent 58%);
+        transform: translateX(-70%);
+        animation: aph-sheen 7s ease-in-out 1.8s infinite;
+        pointer-events: none;
+      }
+      /* 角标与卡片反向浮动，拉开层次；锁扣入场闭合一次，呼应「本地加密」 */
+      .hero-badge {
+        will-change: transform;
+        animation: aph-bob 6s ease-in-out 0.9s infinite alternate;
+      }
+      .hero-badge .lock svg path {
+        transform-box: fill-box;
+        transform-origin: 50% 100%;
+        animation: aph-shackle 0.5s var(--ease-out) 1.15s both;
+      }
+
+      /* 步骤数字与 FAQ 答案：复用既有 .reveal / .open 状态，不新增脚本 */
+      .step-num {
+        opacity: 0.5;
+        transform: translateY(8px);
+        transition:
+          opacity 0.5s var(--ease-out) 0.12s,
+          transform 0.5s var(--ease-out) 0.12s;
+      }
+      .step-card.visible .step-num {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .faq-a-inner {
+        opacity: 0;
+        transform: translateY(-6px);
+        transition:
+          opacity 0.3s ease 0.05s,
+          transform 0.3s var(--ease-out) 0.05s;
+      }
+      .faq-item.open .faq-a-inner {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* 悬停微交互：只在真正有指针的设备上启用，避免触屏点击后状态粘滞 */
+      @media (hover: hover) and (pointer: fine) {
+        .feature-icon {
+          transition: transform 0.25s var(--ease-out);
+        }
+        .feature-card:hover .feature-icon {
+          transform: translateY(-2px) scale(1.06);
+        }
+        .nav-links a::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 2px;
+          background: var(--primary);
+          border-radius: 2px;
+          transform: scaleX(0);
+          transform-origin: left center;
+          transition: transform 0.22s var(--ease-out);
+        }
+        .nav-links a:hover::after,
+        .nav-links a.active::after {
+          transform: scaleX(1);
+        }
+        /* 作者互链卡箭头：用 border 画而非文字，中英一致且不被朗读 */
+        .more-links a::after {
+          content: '';
+          display: inline-block;
+          width: 5px;
+          height: 5px;
+          margin-left: 6px;
+          border-top: 1.5px solid currentColor;
+          border-right: 1.5px solid currentColor;
+          vertical-align: middle;
+          transform: translateX(0) rotate(45deg);
+          transition: transform 0.2s var(--ease-out);
+        }
+        .more-links a:hover::after {
+          transform: translateX(3px) rotate(45deg);
+        }
+      }
+
       /* ============ Responsive ============ */
       @media (max-width: 1024px) {
         .feature-grid {
@@ -1591,6 +1778,53 @@
         }
         .slide-info h3 {
           font-size: 18px;
+        }
+      }
+
+      /* ============ Reduced motion（动效降级） ============ */
+      /* 降级不等于没有动效：去掉位移、缩放与循环运动，保留淡入淡出，
+         这样用户依然能读进出场层级与展开关系。放在末尾以覆盖前面的基准规则。 */
+      @media (prefers-reduced-motion: reduce) {
+        .hero-eyebrow,
+        .hero h1,
+        .hero p.lead,
+        .hero-cta,
+        .hero-hint,
+        .disclaimer-banner,
+        .hero-visual {
+          animation-name: aph-fade;
+          animation-duration: 0.2s;
+          animation-timing-function: ease-out;
+        }
+        .hero-visual .key-card,
+        .hero-badge,
+        .hero-badge .lock svg path {
+          animation: none;
+        }
+        .hero-visual .key-card::after {
+          display: none;
+        }
+        .reveal,
+        .reveal.visible,
+        .step-num,
+        .step-card.visible .step-num,
+        .faq-a-inner,
+        .faq-item.open .faq-a-inner {
+          transform: none;
+        }
+        .nav-links a::after,
+        .more-links a::after {
+          transition: none;
+        }
+        .nav-links a:hover::after,
+        .nav-links a.active::after {
+          transform: scaleX(1);
+        }
+        .more-links a:hover::after {
+          transform: rotate(45deg);
+        }
+        .feature-card:hover .feature-icon {
+          transform: none;
         }
       }
     </style>
@@ -2294,7 +2528,7 @@
             <p data-i18n="features.f12.desc">
               独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 /
               CVV）与自定义字段；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验；支持逐字段或整卡一键复制
-              （复制内容按时限自动清除剪贴板）、批量展开 / 收起机密、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复
+              （复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、折叠 / 展开全部卡片、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复
               提醒与 30 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 /
               回导；不参与自动备份，建议定期手动导出加密备份。
             </p>
@@ -2717,7 +2951,7 @@
               >
             </p>
           </article>
-          <article class="more-card reveal">
+          <article class="more-card reveal reveal-delay-1">
             <h3>
               <a
                 href="https://liaolongdong.github.io/cross-origin-proxy/"
@@ -3086,8 +3320,8 @@
         },
         'features.f12.title': { zh: '身份信息库', en: 'Identity Vault' },
         'features.f12.desc': {
-          zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验；支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）、批量展开 / 收起机密、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 30 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 / 回导；不参与自动备份，建议定期手动导出加密备份。',
-          en: 'A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open. Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-reveal / hide secrets, search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; it is not covered by automatic backups, so export an encrypted backup regularly.',
+          zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验；支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、折叠 / 展开全部卡片、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 30 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 / 回导；不参与自动备份，建议定期手动导出加密备份。',
+          en: 'A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open. Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets and collapse or expand all cards, search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; it is not covered by automatic backups, so export an encrypted backup regularly.',
         },
         'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
         'showcase.sub': {

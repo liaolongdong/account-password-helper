@@ -12,6 +12,7 @@ import {
   resolveExportEntries,
   type IdentityBackupRecord,
 } from '@/utils/identity/backup';
+import { MAX_IDENTITIES } from '@/utils/identity/constants';
 
 /**
  * 身份信息备份（.aphid）单元测试
@@ -160,6 +161,18 @@ describe('parseIdentityBackupData（不可信输入边界校验）', () => {
   it('records 非数组 → INVALID_STRUCTURE', () => {
     const json = { kind: 'aphid', version: 1, records: 'nope' };
     expect(getIdentityBackupErrorCode(captureParseError(json))).toBe('INVALID_STRUCTURE');
+  });
+
+  it('records 条数超过上限（合法形状）→ INVALID_STRUCTURE（先于逐记录校验拦截无界数组）', () => {
+    const records = Array.from({ length: MAX_IDENTITIES + 1 }, (_, i) => record(`r${i}`, 1));
+    const json = { kind: 'aphid', version: 1, exportedAt: 0, count: records.length, records };
+    expect(getIdentityBackupErrorCode(captureParseError(json))).toBe('INVALID_STRUCTURE');
+  });
+
+  it('records 恰为上限条数 → 合法', () => {
+    const records = Array.from({ length: MAX_IDENTITIES }, (_, i) => record(`r${i}`, 1));
+    const json = { kind: 'aphid', version: 1, exportedAt: 0, count: records.length, records };
+    expect(parseIdentityBackupData(json).records).toHaveLength(MAX_IDENTITIES);
   });
 
   it('记录形状非法 → INVALID_STRUCTURE', () => {

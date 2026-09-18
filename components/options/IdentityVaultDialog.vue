@@ -64,7 +64,7 @@
         </span>
       </div>
 
-      <!-- 选择栏：全选 + 已选/总数摘要（驱动导出作用域） + 展开/收起全部机密 -->
+      <!-- 选择栏：全选 + 已选/总数摘要（驱动导出作用域） + 右侧批量动作（显示/隐藏全部机密、折叠/展开全部） -->
       <div
         v-if="rows.length > 0"
         class="identity-selectbar"
@@ -79,15 +79,23 @@
         <span class="identity-selectbar__summary">
           {{ t('identity.selection.summary', { selected: selectedCount, total: rows.length }) }}
         </span>
-        <el-button
-          v-if="canRevealAll"
-          link
-          size="small"
-          class="identity-selectbar__reveal"
-          @click="toggleRevealAll"
-        >
-          {{ allVisibleRevealed ? t('identity.hideAll') : t('identity.revealAll') }}
-        </el-button>
+        <div class="identity-selectbar__actions">
+          <el-button
+            v-if="canRevealAll"
+            link
+            size="small"
+            @click="toggleRevealAll"
+          >
+            {{ allVisibleRevealed ? t('identity.hideAll') : t('identity.revealAll') }}
+          </el-button>
+          <el-button
+            link
+            size="small"
+            @click="toggleCollapseAll"
+          >
+            {{ allVisibleCollapsed ? t('identity.expandAll') : t('identity.collapseAll') }}
+          </el-button>
+        </div>
       </div>
 
       <!-- 空态：未保存任何条目 -->
@@ -122,7 +130,7 @@
         <div
           v-for="entry in filteredRows"
           :key="entry.id"
-          class="identity-card"
+          :class="['identity-card', { 'is-collapsed': isCollapsed(entry.id) }]"
         >
           <div class="identity-card__header">
             <el-checkbox
@@ -146,7 +154,7 @@
             </div>
             <div class="identity-card__actions">
               <el-button
-                v-if="cardHasSecret(entry)"
+                v-if="cardHasSecret(entry) && !isCollapsed(entry.id)"
                 :icon="isRevealed(entry.id) ? Hide : View"
                 :aria-label="isRevealed(entry.id) ? t('identity.hide') : t('identity.show')"
                 link
@@ -174,6 +182,7 @@
           </div>
 
           <el-descriptions
+            v-if="!isCollapsed(entry.id)"
             :column="1"
             border
             class="identity-card__fields"
@@ -287,8 +296,8 @@ import type { IdentityVault } from '@/composables/useIdentityVault';
 /**
  * 身份信息库列表弹窗
  *
- * 展示解密后的身份条目（类别过滤 + 搜索 + 卡级机密显隐 / 批量展开收起 + 整卡/逐字段复制 +
- * 勾选 + 删除；顶部状态栏显示搜索命中数与「已用 n/30」条数上限，无匹配时空态提供「清除筛选」）。
+ * 展示解密后的身份条目（类别过滤 + 搜索 + 卡级机密显隐 / 批量展开收起 + 批量折叠 / 展开全部 +
+ * 整卡/逐字段复制 + 勾选 + 删除；顶部状态栏显示搜索命中数与「已用 n/30」条数上限，无匹配时空态提供「清除筛选」）。
  * 眼睛按「卡片」为粒度切换该卡全部机密字段（设计如此，非 bug）；每卡复选框 + 工具栏
  * 全选驱动导出作用域——未勾选=导出全部，勾选=仅导出所选子集。footer 常驻备份导入/导出：
  * 加密 `.aphid` 走主密码解密；「导出明文（不推荐）」与导入均接受明文 `.json`，明文读写都设
@@ -327,12 +336,15 @@ const {
   allVisibleSelected,
   selectionIndeterminate,
   allVisibleRevealed,
+  allVisibleCollapsed,
 } = props.vault;
 const {
   displayTitle,
   isRevealed,
   toggleReveal,
   toggleRevealAll,
+  isCollapsed,
+  toggleCollapseAll,
   isSelected,
   toggleSelect,
   selectAllVisible,
@@ -627,7 +639,9 @@ const handleFileChange = async (event: Event): Promise<void> => {
   color: var(--el-text-color-secondary);
 }
 
-.identity-selectbar__reveal {
+.identity-selectbar__actions {
+  display: flex;
+  gap: 12px;
   margin-left: auto;
 }
 
@@ -643,7 +657,7 @@ const handleFileChange = async (event: Event): Promise<void> => {
   flex-direction: column;
   gap: 12px;
   max-height: 55vh;
-  padding-right: 4px;
+  padding: 6px 4px;
   overflow-y: auto;
 }
 
@@ -667,6 +681,10 @@ const handleFileChange = async (event: Event): Promise<void> => {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
+}
+
+.identity-card.is-collapsed .identity-card__header {
+  margin-bottom: 0;
 }
 
 .identity-card__check {
