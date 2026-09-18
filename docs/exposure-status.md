@@ -132,15 +132,23 @@
 - 拆 3-5 个 `good first issue`（新手主题色/翻译/文档校对/兼容性反馈），配 Issue 模板。
 - 商店评论 & GitHub Issue 48h 内回复；双周小版本维持"最近更新"活跃信号。
 - 外部链接统一带 UTM（`?utm_source=xxx` / `?ref=xxx`），在 CWS Analytics 与 GitHub Insights 归因。
-- **GitHub About（仓库描述）待替换**：线上现值 346 字符，开头第二段写着 `zero cloud - passwords never leave your browser`，与本轮在商店文案 / `llms.txt` 里统一收口的口径冲突——扩展每 6 小时会发一次不携带用户数据的匿名版本检查（`utils/updateChecker.ts:71-98`），"never leave" 属无法自证的绝对化表述。替换为 305 字符、事实逐条可核对、且把差异化卖点放进 Google 摘要可见的前 160 字符：
+- **GitHub About（仓库描述）待替换**：线上现值 346 字符，开头第二段写着 `zero cloud - passwords never leave your browser`，与本轮在商店文案 / `llms.txt` 里统一收口的口径冲突——扩展每 6 小时会发一次不携带用户数据的匿名版本检查（`utils/updateChecker.ts:71-98`），"never leave" 属无法自证的绝对化表述。替换为下面两版之一（均 ≤ 350、事实逐条可核对、差异化卖点落在 Google 摘要可见的前 160 字符）：
+
+  **选项 A — 不含身份库（343 字符）**：
 
   ```text
   🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that also ticks consent and clicks sign in, exact-domain isolation for dev/test/staging/prod, built-in TOTP codes, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地加密密码管理器，一键填充并登录
   ```
 
-  逐句对代码核验：`one-click autofill that also ticks consent and clicks sign in` = `entrypoints/content/CheckboxHandler.ts` + `FormDetector.ts` 的 `autoLogin` 路径；`exact-domain isolation` = `utils/domain.ts` 的 `isExactHostMatch`；`per-field AES-256-GCM in chrome.storage.local` = `utils/encryption.ts:149-157` 与存储层（从不用 `storage.sync`）；`no account, no sync server` 替代原来的绝对化说法；`GPL-3.0` 与 `package.json` 的 `license` 一致。
+  **选项 B — 补入「身份信息库」（341 字符，与 `llms.txt` / 官网描述口径一致）**：
 
-  执行（`gh` 未安装，用 curl；把 `$GITHUB_TOKEN` 换成你的 PAT，需 `repo` 或 `Administration` 权限）：
+  ```text
+  🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, exact-domain isolation, built-in TOTP, encrypted identity vault, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地密码管理器 · 一键填充登录 · 身份信息库
+  ```
+
+  逐句对代码核验：`one-click autofill that ... clicks sign in` = `entrypoints/content/CheckboxHandler.ts` + `FormDetector.ts` 的 `autoLogin` 路径；`exact-domain isolation` = `utils/domain.ts` 的 `isExactHostMatch`；`per-field AES-256-GCM in chrome.storage.local` = `utils/encryption.ts:149-157` 与存储层（从不用 `storage.sync`）；`no account, no sync server` 替代原来的绝对化说法；`GPL-3.0` 与 `package.json` 的 `license` 一致。**选项 B 额外**：`encrypted identity vault` = Options 页身份信息库（`utils/identity/` + `components/options/IdentityVaultDialog.vue`，整库独立加密、仅 Options 可达、不进侧边栏），与 A 的其余事实不冲突（B 为压进 350 上限去掉了 `for dev/test/staging/prod` 限定，改由 `exact-domain isolation` 概括）。
+
+  执行（`gh` 未安装，用 curl；把 `$GITHUB_TOKEN` 换成你的 PAT，需 `repo` 或 `Administration` 权限；`--data` 里的 description 换成上面选定的那一版，下例为 A）：
 
   ```bash
   curl -sS -X PATCH \

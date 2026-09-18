@@ -13,8 +13,8 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-09-12 · **Latest release**: v3.9.0 (2026-09-11)
-- **Quality**: 795 automated test cases across 66 test files
+- **Last updated**: 2026-09-18 · **Latest release**: v3.9.0 (2026-09-11)
+- **Quality**: 830 automated test cases across 69 test files
 
 ## Key Features
 
@@ -22,6 +22,7 @@
 - **Multi-environment isolation**: entries surface only when the normalized hostname matches the current page exactly, so dev / test / staging / prod accounts for the same site stay separated (on `localhost` and `127.0.0.1` the port is matched as well, so two local projects on `:3000` and `:5173` stay apart)
 - **Built-in TOTP 2FA authenticator**: RFC 6238 codes generated locally, GitHub-style two-step login auto-anchors a live code capsule — no phone authenticator app needed
 - **Per-field AES-256-GCM encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API; username, password, URL, remark and TOTP secret are encrypted field by field before touching disk, and password data is never uploaded
+- **Identity vault**: a separate, independently encrypted store for personal identity data (ID numbers, bank cards, passports, custom fields) with two-level format validation (checksum errors block, everything else warns), whole-card copy, save-time duplicate detection, encrypted `.aphid` backup and optional re-importable plaintext `.json` export — reachable only from the Options page and never surfaced in the side panel
 - **Offline security audit**: one-click 0–100 score weighted across four dimensions (reused 35 / weak 25 / commonly leaked 20 / stale 20), with missing-2FA reported separately but unscored — all computed on-device
 - **Password generator**: random mode (configurable length/charset/ambiguous-character exclusion) + passphrase mode drawing from a bundled 3,080-word list, Web Crypto CSPRNG
 - **Quadruple fill strategy**: inline fill (key icon in input), side panel one-click fill, right-click context menu fill, shortcut quick-fill
