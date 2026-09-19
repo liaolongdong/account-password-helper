@@ -82,6 +82,8 @@
         >
           <div class="empty-tip">{{ t('options.siteRules.emptyTip') }}</div>
         </el-empty>
+
+        <div class="transfer-tip">{{ t('options.siteRules.transferHint') }}</div>
       </div>
 
       <!-- 表单视图（新增 / 编辑） -->
@@ -160,7 +162,7 @@
     </div>
 
     <template #footer>
-      <!-- 表单态：提交/取消；列表态：唯一的「添加规则」入口（空态亦复用此处，避免与空状态内按钮重复） -->
+      <!-- 表单态：提交/取消；列表态：导入/导出 + 「添加规则」（空态亦复用此处，避免与空状态内按钮重复） -->
       <template v-if="showForm">
         <el-button @click="cancelForm">
           {{ t('common.cancel') }}
@@ -173,14 +175,38 @@
           {{ t('common.save') }}
         </el-button>
       </template>
-      <el-button
-        v-else
-        type="primary"
-        :icon="Plus"
-        @click="handleAdd"
-      >
-        {{ t('options.siteRules.addButton') }}
-      </el-button>
+      <template v-else>
+        <el-button
+          :icon="Upload"
+          :loading="importing"
+          @click="pickImportFile"
+        >
+          {{ t('options.siteRules.importButton') }}
+        </el-button>
+        <el-button
+          :icon="Download"
+          :loading="exporting"
+          :disabled="!rulesList.length"
+          @click="handleExport"
+        >
+          {{ t('options.siteRules.exportButton') }}
+        </el-button>
+        <el-button
+          type="primary"
+          :icon="Plus"
+          @click="handleAdd"
+        >
+          {{ t('options.siteRules.addButton') }}
+        </el-button>
+        <!-- 原生 file input 只做取文件，校验与合并全在 utils/siteRulesTransfer -->
+        <input
+          ref="fileInputRef"
+          type="file"
+          accept="application/json,.json"
+          class="import-file-input"
+          @change="handleImportFile"
+        />
+      </template>
     </template>
   </el-dialog>
 </template>
@@ -188,7 +214,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus';
-import { Plus, Lock } from '@element-plus/icons-vue';
+import { Plus, Lock, Download, Upload } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
 import { logger } from '@/utils/logger';
 import {
@@ -199,6 +225,14 @@ import {
   normalizeSiteRuleDomain,
   type SiteRule,
 } from '@/utils/storage/siteRules';
+import {
+  exportSiteRulesToFile,
+  getSiteRulesImportErrorCode,
+  importSiteRulesFromText,
+  SITE_RULES_IMPORT_MAX_INPUT_BYTES,
+  SITE_RULES_IMPORT_MAX_RULES,
+  type SiteRulesImportErrorCode,
+} from '@/utils/siteRulesTransfer';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -218,10 +252,22 @@ const visible = computed({
 });
 
 const formRef = ref<InstanceType<typeof ElForm>>();
+const fileInputRef = ref<HTMLInputElement>();
 const rulesList = ref<SiteRule[]>([]);
 const showForm = ref(false);
 const editingRule = ref<SiteRule | null>(null);
 const saving = ref(false);
+const exporting = ref(false);
+const importing = ref(false);
+
+/** 导入错误码 → 可读文案；原始异常只进日志，不直接抛给用户 */
+const IMPORT_ERROR_KEYS: Record<SiteRulesImportErrorCode, string> = {
+  FILE_TOO_LARGE: 'options.siteRules.importErrorFileTooLarge',
+  INVALID_JSON: 'options.siteRules.importErrorInvalidJson',
+  UNSUPPORTED_FILE: 'options.siteRules.importErrorUnsupportedFile',
+  TOO_MANY_RULES: 'options.siteRules.importErrorTooManyRules',
+  NO_VALID_RULES: 'options.siteRules.importErrorNoValidRules',
+};
 
 /** 编辑态：域名是规则主键，创建后不可改 */
 const isEditing = computed(() => !!editingRule.value);
@@ -384,6 +430,66 @@ const handleDelete = async (rule: SiteRule) => {
   }
 };
 
+/**
+ * 导出当前全部规则为明文 JSON 文件
+ *
+ * 模块内已带 cause 记录日志，这里只补用户可读的失败反馈，避免同一异常刷两遍。
+ */
+const handleExport = async () => {
+  exporting.value = true;
+  try {
+    const count = await exportSiteRulesToFile();
+    ElMessage.success(t('options.siteRules.exportSuccess', { count }));
+  } catch {
+    ElMessage.error(t('options.siteRules.exportError'));
+  } finally {
+    exporting.value = false;
+  }
+};
+
+/** 转发到隐藏的 file input，避免为取一个文件再引入上传组件 */
+const pickImportFile = () => fileInputRef.value?.click();
+
+/**
+ * 读取并导入所选文件
+ *
+ * `input.value` 必须在取文件后立即清空：改完规则后重导同一份文件是最常见的操作序列，
+ * 不清空则同一个 `File` 不会再触发 change。
+ */
+const handleImportFile = async (event: Event) => {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (file.size > SITE_RULES_IMPORT_MAX_INPUT_BYTES) {
+    ElMessage.error(t('options.siteRules.importErrorFileTooLarge'));
+    return;
+  }
+
+  importing.value = true;
+  try {
+    const { added, updated, dropped } = await importSiteRulesFromText(await file.text());
+    await loadRules();
+    // 被剔除的条数必须一起报：只报成功数会让「10 条只进了 3 条」看起来像全部导入
+    const summary = t('options.siteRules.importSuccess', { added, updated });
+    ElMessage.success(dropped ? `${summary}${t('options.siteRules.importSkipped', { dropped })}` : summary);
+  } catch (error) {
+    const code = getSiteRulesImportErrorCode(error);
+    if (!code) {
+      logger.error('导入站点规则失败:', error);
+      ElMessage.error(t('options.siteRules.importError'));
+      return;
+    }
+    ElMessage.error(
+      code === 'TOO_MANY_RULES'
+        ? t(IMPORT_ERROR_KEYS[code], { max: SITE_RULES_IMPORT_MAX_RULES })
+        : t(IMPORT_ERROR_KEYS[code]),
+    );
+  } finally {
+    importing.value = false;
+  }
+};
+
 /** 弹窗关闭动画结束后复位到列表视图 */
 const handleClosed = () => {
   showForm.value = false;
@@ -465,6 +571,18 @@ function openPrefilledRule(rawDomain: string): void {
   font-size: 13px;
   line-height: 1.5;
   color: #909399;
+}
+
+/* 导入/导出口径说明：合并语义与「文件不含凭据」要在点按钮之前就看到，而不是事后补救 */
+.transfer-tip {
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #909399;
+}
+
+.import-file-input {
+  display: none;
 }
 
 .form-hint {
