@@ -90,16 +90,63 @@ export async function getSiteRule(domain: string): Promise<SiteRule | undefined>
 }
 
 /**
- * 验证选择器字符串（基础校验）
- *
- * - 非空字符串
- * - 不包含危险字符（防御性检查）
+ * 站点规则域名最大长度（DNS 完整主机名上限），同时作为写入 storage 前的边界裁剪
  */
-export function isValidSelector(selector: unknown): boolean {
-  if (typeof selector !== 'string' || selector.trim().length === 0) return false;
-  // 简单防御：不允许包含 eval、javascript:、表达式等
-  const dangerousPatterns = [/eval\s*\(/, /javascript:/, /\{.*\}/, /`.*/];
-  return !dangerousPatterns.some(pattern => pattern.test(selector));
+export const SITE_RULE_DOMAIN_MAX_LENGTH = 253;
+
+/**
+ * 单条 CSS 选择器最大长度，防止超长选择器在每次字段检测时拖慢页面主线程
+ */
+export const SITE_RULE_SELECTOR_MAX_LENGTH = 1024;
+
+/**
+ * 校验 CSS 选择器语法是否合法
+ *
+ * 借用浏览器自身的 CSS 解析器判定：`querySelector` 对非法选择器抛错，且不会执行任何
+ * 匹配以外的副作用。写入端（Options 表单）与消费端（内容脚本检测）共用同一判定，
+ * 避免表单里写得通、页面上却静默匹配不到字段。
+ *
+ * 依赖 DOM，仅可在有 DOM 的上下文（Options / 内容脚本）调用。
+ *
+ * @param selector 待校验的选择器（按不可信输入处理）
+ * @returns 语法合法且长度在预算内时为 true
+ */
+export function isValidCssSelector(selector: unknown): boolean {
+  if (typeof selector !== 'string') return false;
+  const trimmed = selector.trim();
+  if (!trimmed || trimmed.length > SITE_RULE_SELECTOR_MAX_LENGTH) return false;
+  try {
+    document.createDocumentFragment().querySelector(trimmed);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 规范化并校验站点规则域名
+ *
+ * 域名是规则的匹配主键，且读取端用 `location.hostname`（天然小写、无尾点）做精确匹配，
+ * 因此写入端必须归一化为同一形态，否则规则会静默失效。按 DNS 标签逐段校验，拒绝
+ * 通配符、空标签与连续点。
+ *
+ * @param value 待规范化的域名（按不可信输入处理，可含 `host:port`）
+ * @returns 规范化后的域名；非法或超长时返回 null
+ */
+export function normalizeSiteRuleDomain(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const domain = value.trim().toLowerCase();
+  if (!domain || domain.length > SITE_RULE_DOMAIN_MAX_LENGTH) return null;
+
+  const withPort = /^(.*):(\d{1,5})$/.exec(domain);
+  const host = withPort ? withPort[1] : domain;
+  if (!host) return null;
+
+  const labels = host.split('.');
+  const isWellFormedHost = labels.every(label => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
+  if (!isWellFormedHost) return null;
+
+  return domain;
 }
 
 /**

@@ -176,6 +176,10 @@ export enum MessageType {
    */
   OPEN_OPTIONS_AND_VALIDITY = 'OPEN_OPTIONS_AND_VALIDITY',
   /**
+   * 跳转到密码管理页并自动打开站点规则弹窗（内容脚本填充失败时就地引导，携带当前域名预填）
+   */
+  OPEN_OPTIONS_AND_SITE_RULES = 'OPEN_OPTIONS_AND_SITE_RULES',
+  /**
    * 主动触发版本更新检测
    */
   CHECK_UPDATE = 'CHECK_UPDATE',
@@ -297,6 +301,7 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_AND_EDIT; data: { editId: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_ADD; data?: OpenOptionsAndAddData }
   | { type: MessageType.OPEN_OPTIONS_AND_VALIDITY }
+  | { type: MessageType.OPEN_OPTIONS_AND_SITE_RULES; data?: { domain: string } }
   | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }

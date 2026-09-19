@@ -29,6 +29,7 @@ import { handleQuickFill } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
+import { normalizeSiteRuleDomain } from '@/utils/storage/siteRules';
 import { isFrameFillable } from '@/utils/frameFill';
 import { isSameMainDomain } from '@/utils/domain';
 
@@ -446,6 +447,20 @@ export function setupMessageRouter(): void {
         // 无载荷：打开密码管理页并自动弹出有效期设置对话框（Popup 倒计时胶囊点击续期）
         openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY).then(sendResponse);
         return true;
+
+      case MessageType.OPEN_OPTIONS_AND_SITE_RULES: {
+        // data.domain 由内容脚本自报，属不可信输入：只接受合法主机名形态，非法时降级为「无预填」打开，
+        // 避免任意字符串经选项页写入站点规则主键。域名非凭据信息，但不回显原值以防噪声。
+        const reported = (message.data as { domain?: unknown } | undefined)?.domain;
+        const domain = normalizeSiteRuleDomain(reported);
+        if (reported !== undefined && !domain) {
+          logger.warn('Background: 站点规则引导的域名不合法，已忽略预填');
+        }
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_SITE_RULES, domain ? { domain } : undefined).then(
+          sendResponse,
+        );
+        return true;
+      }
 
       case MessageType.UPDATE_PASSWORD_CACHE: {
         // B2：预热会让 SW 驻留明文密码缓存，属改状态操作，仅接受扩展内部页触发

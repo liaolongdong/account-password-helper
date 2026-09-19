@@ -536,6 +536,18 @@ graph TB
 - **备份**：[backup.ts](../utils/identity/backup.ts) 输出 `.aphid` 容器（`salt‖iv‖ciphertext`），以 `kind` 标记与 `.aph` 密码备份互斥（导错文件有明确提示）；导入按 `id` 合并（同 id 取较新 `updateTime`）并显式报告「新增/更新/跳过」计数。导出支持**勾选子集**（`resolveExportEntries`：未勾选=全部，勾选=所选，成功后清空勾选复位默认）。另提供**可选的明文 `.json` 导出/导入**（`buildIdentityPlaintextJson` / `exportIdentityPlaintext` / `parseIdentityPlaintextJson`）：明文非加密、复用 `.aphid` 数据结构（导入走同一份 `parseIdentityBackupData` 校验并按 `id` 合并），读写均须主密码复验 + 风险二次确认，属隐私边界的例外通道（长期留存仍以加密 `.aphid` 为首选）。身份库**不参与**既有自动备份与邮箱备份（独立性边界），弹窗内常驻 `el-alert` 提示定期手动导出加密备份（根治列 Phase 2）。
 - **换主密码**：身份数据并入 [changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts) 同一次原子 `set`（读取置于任何写入之前），`reencryptAll` 解密失败的单条原样保留不丢弃，与既有三域口径一致。
 
+### 28. 站点级填充规则
+
+- **定位**：面向自动检测失败的站点（Web Components、非常规 name/placeholder 的登录页）提供人工兜底——为单个域名指定账号 / 密码字段的 CSS 选择器，并按站点控制影子 DOM 穿透。数据落 [siteRules.ts](../utils/storage/siteRules.ts) 的 `site_rules` 键，形状为 `Record<domain, SiteRule>`，是**明文非敏感元数据**（域名 + 选择器 + 布尔开关），因此不进加密域、不参与 `.aph` 备份与邮箱备份，内容脚本也能直读。
+- **三个入口**：Options「安全设置 → 站点规则」、命令面板（`siteRules`）、以及内容脚本填充失败气泡（`reason='no_form'` 时由 [FillFailurePrompt.ts](../entrypoints/content/FillFailurePrompt.ts) 就地引导）。后一条经 `OPEN_OPTIONS_AND_SITE_RULES` → [messageRouter.ts](../entrypoints/background/messageRouter.ts) → `openOptionsAndSendMessage` 回到选项页；气泡里的 Closed Shadow DOM 宿主挂在 `documentElement` 上、主题令牌由 `applyThemeTokensToHost` 内联写入，与 `SavePasswordPrompt` 同一隔离约定。
+- **未解锁不丢动作**：该指令在选项页会话尚未就绪时到达会被 `waitForPasswords()` 延后判定；仍处于锁定态时不把规则弹窗压在主密码验证屏上，而是记下域名 + `ElMessage.info` 提示，`watch(isAuthenticated)` 在解锁瞬间自动续上这次引导。
+- **消费端时序**：[FormDetector.ts](../entrypoints/content/FormDetector.ts) 的 `init()` 读取本站规则，且**首轮检测排在 `siteRuleReady` 之后**（storage 监听只在值变化时触发，抢跑会导致规则本次页面生命周期内再无生效机会）；`setupSiteRuleListener` 让编辑规则后无需刷新即重检测，`destroy()` 精确解绑。
+- **穿透优先级**：`penetrateShadowEnabled` 取 `全局开关 !== false && 站点规则 !== false`——全局开关是总闸，站点规则只能在其开启时针对单站点进一步关闭，不能反向打开（否则新增规则会静默推翻用户的整体偏好）。填充失败气泡与扫描共用该判定。
+- **权威覆盖**：`applySiteRuleSelectors` 命中即替换 `usernameFields` / `passwordFields`，并同步把被替换字段的 `fieldTypeCache` 降级为 `null`（`getFieldType` 优先读缓存，只换数组会让侧边栏 / 内联图标继续在被弃用的元素上弹出）；未配置的一侧保留启发式结果，不被顺手清空。
+- **校验单一来源**：`normalizeSiteRuleDomain` 与 `isValidCssSelector` 由写入端（表单）与消费端（内容脚本）共用。域名是匹配主键，读取端形态来自 `document.domain || location.hostname`（小写、无尾点），故写入端必须按 DNS 标签逐段规范化校验，否则规则静默失效；编辑态写回**原存储 key**，避免历史大小写条目被拆成两条。选择器按不可信输入处理：语法非法或超出长度预算时安全跳过，绝不打断本轮检测。
+- **成本边界**：跨 shadow 边界的查询根由 `collectShadowQueryRoots` 每轮检测只 BFS 一次（`SHADOW_ROOT_SCAN_BUDGET` 节点预算，超限时输出可辨识日志），账号 / 密码两条选择器复用同一组根。
+- **回归口径**：[siteRulesValidation.test.ts](../tests/utils/siteRulesValidation.test.ts) 钉规范化与选择器边界，[formDetector.siteRule.test.ts](../tests/content/formDetector.siteRule.test.ts) 钉权威覆盖 / 缓存降级 / 穿透三态 / 首轮竞态 / 监听与清理，[senderValidation.test.ts](../tests/background/senderValidation.test.ts) 与 [useRuntimeMessageHandler.siteRules.test.ts](../tests/composables/useRuntimeMessageHandler.siteRules.test.ts) 钉消息链路的域名收口与分发契约。
+
 ## 开发补充
 
 ### 图标工作流

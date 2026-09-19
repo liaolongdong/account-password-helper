@@ -45,7 +45,6 @@
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
         @open-personalization="openPersonalizationDialog"
-        @open-site-rules="showSiteRulesDialog = true"
       />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
@@ -215,7 +214,10 @@
     <!-- 身份信息新增/编辑表单弹窗 -->
 
     <!-- 站点规则管理弹窗 -->
-    <SiteRulesDialog v-model="showSiteRulesDialog" />
+    <SiteRulesDialog
+      v-model="showSiteRulesDialog"
+      :initial-domain="siteRulePrefillDomain"
+    />
     <IdentityFormDialog
       v-model="showIdentityFormDialog"
       :entry="editingIdentity"
@@ -376,6 +378,28 @@ const showIdentityFormDialog = ref(false);
 
 /** 站点规则管理弹窗可见性 */
 const showSiteRulesDialog = ref(false);
+
+/** 站点规则弹窗预填域名（来自内容脚本填充失败就地引导，编辑已有规则时不使用） */
+const siteRulePrefillDomain = ref<string | undefined>(undefined);
+
+/** 未解锁时收到的站点规则引导域名，解锁后自动续上，避免这次点击被丢弃 */
+const pendingSiteRuleDomain = ref<string | null>(null);
+
+/**
+ * 打开站点规则弹窗（可选预填域名）
+ * 供「安全设置」菜单项与命令面板（无参）、内容脚本填充失败引导（携带当前域名）共用
+ */
+const openSiteRules = (domain?: string): void => {
+  // 站点规则是明文元数据、不需要会话即可读写，但把规则弹窗压在主密码验证屏上既突兀又难以为继；
+  // 未解锁时记下域名并给出可读反馈，解锁那一刻自动续上这次引导。
+  if (domain && !isAuthenticated.value) {
+    pendingSiteRuleDomain.value = domain;
+    ElMessage.info(t('message.siteRulesNeedUnlock'));
+    return;
+  }
+  siteRulePrefillDomain.value = domain?.trim() || undefined;
+  showSiteRulesDialog.value = true;
+};
 
 /** 正在编辑的身份条目（null = 新增） */
 const editingIdentity = ref<IdentityEntry | null>(null);
@@ -566,6 +590,9 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'autoSave':
       showAutoSaveDialog.value = true;
+      break;
+    case 'siteRules':
+      openSiteRules();
       break;
     case 'idleLock':
       showIdleLockDialog.value = true;
@@ -826,13 +853,19 @@ const handleIdentityFormSave = async (payload: IdentityPayload): Promise<void> =
   }
 };
 
-/** 会话失效时清空身份库内存明文并关闭两个弹窗，防止 PII 残留 */
+/** 会话状态切换时清理身份库明文/弹窗，并续上未解锁期间收到的站点规则引导 */
 watch(isAuthenticated, authenticated => {
   if (!authenticated) {
     identityVault.teardown();
     showIdentityVaultDialog.value = false;
     showIdentityFormDialog.value = false;
     editingIdentity.value = null;
+    return;
+  }
+  const pending = pendingSiteRuleDomain.value;
+  if (pending) {
+    pendingSiteRuleDomain.value = null;
+    openSiteRules(pending);
   }
 });
 
@@ -995,6 +1028,13 @@ const buildPaletteActions = () => [
     run: () => (showAutoSaveDialog.value = true),
   },
   {
+    id: 'siteRules',
+    group: 'security',
+    label: t('options.header.siteRules'),
+    keywords: ['site', 'rule', 'selector', 'shadow'],
+    run: () => openSiteRules(),
+  },
+  {
     id: 'clipboard',
     group: 'security',
     label: t('options.header.clipboard'),
@@ -1058,6 +1098,7 @@ useRuntimeMessageHandler({
   editPassword,
   openPasswordDialog,
   openValiditySetting,
+  openSiteRules,
 });
 
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */

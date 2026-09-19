@@ -38,6 +38,11 @@ import {
   destroyTotpHandoffCapsule,
 } from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
+import { getSiteRule, isValidCssSelector, type SiteRule } from '@/utils/storage/siteRules';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
+
+/** 收集 open shadow DOM 查询根时的节点预算，防止极端页面把主线程吃满 */
+const SHADOW_ROOT_SCAN_BUDGET = 6000;
 
 /**
  * 表单检测器
@@ -78,6 +83,13 @@ export class FormDetector {
   private storageListener: ((changes: { [key: string]: chrome.storage.StorageChange }) => void) | null = null;
   /** 填充失败提示是否已显示（单页签仅展示一次） */
   private fillFailurePromptShown = false;
+  /** 当前站点的填充规则（自定义选择器 / 影子穿透覆盖），null 表示未配置 */
+  private siteRule: SiteRule | null = null;
+  /** 站点规则读取Promise（首轮检测依赖，避免规则尚未读到就检测导致选择器被静默跳过） */
+  private siteRuleReady: Promise<void> = Promise.resolve();
+  /** 站点规则存储监听器（destroy 时移除） */
+  private siteRuleListener:
+    ((changes: { [key: string]: chrome.storage.StorageChange }, area: chrome.storage.AreaName) => void) | null = null;
   /** runtime 消息监听器引用（保存以便 destroy 时精确移除，避免上下文失效后残留触发 chrome API） */
   private messageListener:
     | ((
@@ -107,7 +119,7 @@ export class FormDetector {
    * 触发 "Extension context invalidated"（与 content.ts 的清理目标相悖）。
    */
   private handleDomReady = (): void => {
-    setTimeout(() => this.detectForms(), this.longDelayTime);
+    setTimeout(() => this.detectFormsAfterSiteRule(), this.longDelayTime);
   };
   private handleVisibilityChange = (): void => {
     if (document.hidden) {
@@ -236,11 +248,15 @@ export class FormDetector {
     // 设置当前域名（从 document.domain 或 location.hostname 获取）
     this.domain = document.domain || window.location.hostname || '';
 
-    // 页面加载完成后检测表单
+    // F1: 读取当前站点规则并监听其变化（编辑规则后无需刷新即生效）
+    this.siteRuleReady = this.loadSiteRule();
+    this.setupSiteRuleListener();
+
+    // 页面加载完成后检测表单（延时不变，仅把首轮检测排在站点规则读取之后）
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', this.handleDomReady);
     } else {
-      setTimeout(() => this.detectForms(), this.shortDelayTime);
+      setTimeout(() => this.detectFormsAfterSiteRule(), this.shortDelayTime);
     }
 
     // 监听消息（保存监听器引用，destroy 时移除，避免上下文失效后监听器残留触发 chrome API）
@@ -341,6 +357,18 @@ export class FormDetector {
   }
 
   /**
+   * F1: 首轮表单检测——等站点规则读取完成后再执行
+   *
+   * 规则读取是异步的：若在它落地前跑完首轮 detectForms，自定义选择器与穿透覆盖会被静默跳过，
+   * 而 storage 监听只在「值发生变化」时触发，本次页面生命周期内再无补救机会。
+   * 其余检测入口（消息、观察器、规则变更）无需等待，仍直接调用 detectForms。
+   * loadSiteRule 自身已消化异常，这里不会引入未处理拒绝。
+   */
+  private detectFormsAfterSiteRule(): void {
+    void this.siteRuleReady.then(() => this.detectForms());
+  }
+
+  /**
    * 检测页面中的所有表单字段（密码、用户名、手机号、验证码、复选框、登录按钮）
    */
   private detectForms(): void {
@@ -421,16 +449,15 @@ export class FormDetector {
     const checkboxInputs = document.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
     this.checkboxFields = Array.from(checkboxInputs).filter(input => isDetectableCheckbox(input));
 
-    // F1-A: 递归遍历 open shadow DOM 收集字段（性能预算内）
-    const idleStart = performance.now();
-    if (this.floatingButtonConfig.penetrateShadow !== false) {
-      const hasTimeBudget = () => performance.now() - idleStart < 300;
-      if (hasTimeBudget()) {
-        this.collectFieldsFromShadowRoots();
-      } else {
-        logger.debug(tl('cs.fd.shadowScanTimeout'));
-      }
+    // F1: 递归遍历 open shadow DOM 收集字段（全局开关为总闸，站点规则只可在其开启时进一步关闭）
+    // 时间预算判定已移除：`idleStart` 与判定在同一语句序列里取值，条件恒真、从未生效。
+    // 实际成本上限由遍历范围本身与 collectShadowQueryRoots 的节点预算承担。
+    if (this.penetrateShadowEnabled) {
+      this.collectFieldsFromShadowRoots();
     }
+
+    // F1: 站点规则自定义选择器——命中则作为权威字段覆盖启发式结果（确定性控制）
+    this.applySiteRuleSelectors();
 
     // 内联触发图标补偿：弥补检测完成前获焦导致委托错过展示的缺口
     this.syncInlineTriggerWithActiveElement();
@@ -599,6 +626,155 @@ export class FormDetector {
         this.verifyCodeFieldsSet.add(input);
         this.fieldTypeCache.set(input, 'verifyCode');
       }
+    }
+  }
+
+  /**
+   * F1: 影子 DOM 穿透是否启用
+   *
+   * 全局开关是总闸（用户可整体关闭扫描以换取性能与隐私边界），站点规则只能在其开启时
+   * 针对单个站点进一步关闭，不能反向打开——否则新增一条规则会静默推翻用户的全局偏好。
+   */
+  private get penetrateShadowEnabled(): boolean {
+    return this.floatingButtonConfig.penetrateShadow !== false && this.siteRule?.penetrateShadow !== false;
+  }
+
+  /**
+   * F1: 读取当前域名的站点填充规则
+   *
+   * 内容脚本可读 chrome.storage.local（SiteRule 为明文非敏感元数据）。读取失败降级为无规则，
+   * 不影响默认检测路径。
+   */
+  private async loadSiteRule(): Promise<void> {
+    if (!this.domain) return;
+    try {
+      this.siteRule = (await getSiteRule(this.domain)) ?? null;
+    } catch (error) {
+      logger.debug('FormDetector: 读取站点规则失败:', error);
+      this.siteRule = null;
+    }
+  }
+
+  /**
+   * F1: 监听站点规则变化，编辑后无需刷新页面即重检测生效
+   */
+  private setupSiteRuleListener(): void {
+    this.siteRuleListener = (changes, area) => {
+      if (area !== 'local' || !changes[STORAGE_KEYS.SITE_RULES]) return;
+      void this.loadSiteRule().then(() => {
+        if (!this.disposed) this.detectForms();
+      });
+    };
+    if (chrome?.storage?.onChanged) {
+      chrome.storage.onChanged.addListener(this.siteRuleListener);
+    }
+  }
+
+  /**
+   * F1: 收集跨 shadow 边界的选择器查询根（document 主树 + 所有 open shadowRoot）
+   *
+   * document.querySelectorAll 不跨越 shadow 边界，故先 BFS 收集 open shadowRoot 作为额外查询根。
+   * 一次遍历供账号/密码两条选择器复用，避免整树 BFS 在每轮检测里重复执行。
+   * BFS 设节点预算防极端页面；超预算时留下可辨识日志，否则用户只会看到「规则莫名不生效」。
+   */
+  private collectShadowQueryRoots(): ParentNode[] {
+    const roots: ParentNode[] = [document];
+    const visited = new WeakSet<Node>();
+    const queue: Node[] = [document.documentElement];
+    let budget = SHADOW_ROOT_SCAN_BUDGET;
+    let truncated = false;
+
+    while (queue.length > 0) {
+      if (budget-- <= 0) {
+        truncated = true;
+        break;
+      }
+      const node = queue.shift()!;
+      if (visited.has(node)) continue;
+      visited.add(node);
+      if (!(node instanceof Element)) continue;
+
+      const sr = node.shadowRoot;
+      if (sr?.mode === 'open') {
+        roots.push(sr);
+        for (const child of Array.from(sr.children)) queue.push(child);
+      }
+      for (const child of Array.from(node.children)) queue.push(child);
+    }
+
+    if (truncated) {
+      logger.debug(`FormDetector: shadow 根遍历超出 ${SHADOW_ROOT_SCAN_BUDGET} 节点预算，深层字段可能被漏匹配`);
+    }
+    return roots;
+  }
+
+  /**
+   * F1: 在给定查询根上执行选择器查询并去重
+   *
+   * 选择器来自 storage，按不可信输入处理：语法非法或超出长度预算时安全返回空数组，
+   * 绝不抛异常打断本轮检测。
+   */
+  private queryInRoots<T extends Element>(roots: ParentNode[], selector: unknown): T[] {
+    if (!isValidCssSelector(selector)) {
+      if (typeof selector === 'string' && selector.trim()) {
+        logger.debug('FormDetector: 站点规则选择器非法或超出长度预算，已跳过');
+      }
+      return [];
+    }
+    const trimmed = (selector as string).trim();
+
+    const results: T[] = [];
+    const seen = new WeakSet<Element>();
+    for (const root of roots) {
+      let matched: NodeListOf<T>;
+      try {
+        matched = root.querySelectorAll<T>(trimmed);
+      } catch {
+        continue;
+      }
+      for (const el of Array.from(matched)) {
+        if (!seen.has(el)) {
+          seen.add(el);
+          results.push(el);
+        }
+      }
+    }
+    return results;
+  }
+
+  /**
+   * F1: 应用站点规则的自定义选择器
+   *
+   * 命中即作为权威账号/密码字段覆盖启发式结果（确定性控制），未命中的字段保留启发式结果。
+   * 被替换掉的启发式字段必须同步降级类型缓存：`getFieldType` 优先读缓存，只换数组不换缓存
+   * 会让侧边栏/内联图标继续在被判定为「非登录框」的元素上弹出，覆盖只生效一半。
+   */
+  private applySiteRuleSelectors(): void {
+    const sel = this.siteRule?.customSelectors;
+    if (!sel) return;
+
+    const roots = this.collectShadowQueryRoots();
+    const username = this.queryInRoots<HTMLInputElement>(roots, sel.username).find(el => isElementVisible(el));
+    const password = this.queryInRoots<HTMLInputElement>(roots, sel.password).find(el => isElementVisible(el));
+    if (!username && !password) return;
+
+    // 只降级「本轮被替换掉的那一类」字段：未配置的选择器保留启发式结果，
+    // 但被对侧选中的元素不能误伤（它仍是权威字段）。
+    if (username) {
+      for (const el of this.usernameFields) {
+        if (el !== username && el !== password) this.fieldTypeCache.set(el, null);
+      }
+      this.usernameFields = [username];
+      this.usernameFieldsSet = new WeakSet([username]);
+      this.fieldTypeCache.set(username, 'username');
+    }
+    if (password) {
+      for (const el of this.passwordFields) {
+        if (el !== password && el !== username) this.fieldTypeCache.set(el, null);
+      }
+      this.passwordFields = [password];
+      this.passwordFieldsSet = new WeakSet([password]);
+      this.fieldTypeCache.set(password, 'password');
     }
   }
 
@@ -1324,15 +1500,15 @@ export class FormDetector {
           result.message = tl('cs.fd.noFormFields');
           result.reason = 'no_form';
 
-          // F1-C: 显示填充失败就地诊断提示（仅首次）
-          if (this.floatingButtonConfig.penetrateShadow !== false && !this.fillFailurePromptShown) {
+          // F1-C: 显示填充失败就地引导（仅首次，且与影子扫描共用同一穿透判定）
+          if (this.penetrateShadowEnabled && !this.fillFailurePromptShown) {
             this.fillFailurePromptShown = true;
             // 延迟渲染，避免阻塞主线程
             setTimeout(() => {
               try {
                 import('./FillFailurePrompt')
                   .then(module => {
-                    module.showFillFailurePrompt(this.passwordFields[0] || this.usernameFields[0], this.domain);
+                    module.showFillFailurePrompt(this.domain);
                   })
                   .catch(err => {
                     logger.debug('加载 FillFailurePrompt 失败:', err);
@@ -1550,6 +1726,14 @@ export class FormDetector {
         // 上下文失效时 removeListener 可能抛错，监听器已被 Chrome 自动清理，忽略
       }
       this.storageListener = null;
+    }
+    if (this.siteRuleListener) {
+      try {
+        chrome.storage.onChanged.removeListener(this.siteRuleListener);
+      } catch {
+        // 同上，忽略上下文失效导致的移除异常
+      }
+      this.siteRuleListener = null;
     }
     if (this.messageListener) {
       try {

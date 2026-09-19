@@ -12,5 +12,6 @@
   "message.noDataToBackup": "没有密码数据可备份",
   "message.unknownError": "未知错误",
   "message.locked": "已锁定",
-  "message.entryNotFound": "未找到对应的密码条目，可能已被删除"
+  "message.entryNotFound": "未找到对应的密码条目，可能已被删除",
+  "message.siteRulesNeedUnlock": "已打开密码管理页，解锁后即可为该站点配置填充规则"
 }

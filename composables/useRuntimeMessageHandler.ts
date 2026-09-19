@@ -22,9 +22,18 @@ export function useRuntimeMessageHandler(options: {
   openPasswordDialog: (prefillUrl?: string) => void;
   /** 打开有效期设置弹窗（来自 Popup 倒计时胶囊点击续期，可选） */
   openValiditySetting?: () => void;
+  /** 打开站点规则弹窗（可选携带预填域名，来自内容脚本填充失败就地引导） */
+  openSiteRules?: (domain?: string) => void;
 }) {
-  const { passwords, isAuthenticated, handleSessionExpired, editPassword, openPasswordDialog, openValiditySetting } =
-    options;
+  const {
+    passwords,
+    isAuthenticated,
+    handleSessionExpired,
+    editPassword,
+    openPasswordDialog,
+    openValiditySetting,
+    openSiteRules,
+  } = options;
 
   /**
    * 等待密码列表加载完成
@@ -73,6 +82,11 @@ export function useRuntimeMessageHandler(options: {
           openValiditySetting?.();
         }
       });
+    } else if (message.type === MessageType.OPEN_OPTIONS_AND_SITE_RULES) {
+      const domain = message.data?.domain;
+      logger.debug('RuntimeMsg: 收到打开站点规则指令' + (domain ? `，预填域名=${domain}` : ''));
+      // 冷启动时会话校验尚未完成，直接判定会把「已解锁」误判成未解锁；等状态落地后再交给调用方决策。
+      waitForPasswords().then(() => openSiteRules?.(domain));
     }
   };
 

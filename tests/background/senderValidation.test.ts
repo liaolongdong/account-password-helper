@@ -1,14 +1,18 @@
 /**
- * 内容脚本自报 URL 可信性校验回归测试
+ * 内容脚本自报 URL / 域名可信性校验回归测试
  *
  * 背景：AUTO_SAVE_PASSWORD / CHECK_CREDENTIAL_STATUS 的 data.url 为内容脚本自报值，
  * 恶意页面可谎报归属域名，把捕获的凭证写入或比对到任意目标站点名下。
  * messageRouter 必须以发送方上下文推导的 sender.tab.url 为准，
  * 仅当自报 URL 与之同主域名时放行，否则 fail-closed。
+ *
+ * 同理，OPEN_OPTIONS_AND_SITE_RULES 的 data.domain 也是内容脚本自报值，会被选项页
+ * 直接写成站点规则主键，路由层必须先规范化/校验再转发。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveTrustedContentUrl, setupMessageRouter } from '@/entrypoints/background/messageRouter';
 import { handleQuickAddPassword } from '@/entrypoints/background/quickAddHandler';
+import { openOptionsAndSendMessage } from '@/entrypoints/background/optionsPageManager';
 import { handleQuickFill } from '@/entrypoints/background/quickFillHandler';
 import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
 import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
@@ -396,5 +400,55 @@ describe('B12 消息形状守卫（listener 入口）', () => {
 
     expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
     expect(result).not.toBe(true);
+  });
+});
+
+describe('OPEN_OPTIONS_AND_SITE_RULES 域名预填收口（分发级）', () => {
+  beforeEach(() => {
+    vi.mocked(openOptionsAndSendMessage).mockResolvedValue({ success: true });
+  });
+
+  /** 取回路由转发给选项页的载荷 */
+  const forwardedData = () => {
+    const calls = vi.mocked(openOptionsAndSendMessage).mock.calls;
+    return calls[calls.length - 1]?.[1];
+  };
+
+  it('自报域名先规范化再转发，与内容脚本读取形态一致', async () => {
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener(
+      { type: MessageType.OPEN_OPTIONS_AND_SITE_RULES, data: { domain: ' Example.COM ' } },
+      contentSender('https://example.com/login'),
+      sendResponse,
+    );
+
+    expect(result).toBe(true);
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_SITE_RULES, {
+      domain: 'example.com',
+    });
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ success: true }));
+  });
+
+  it('URL 形态 / 通配符等非法域名降级为「无预填」，不原样透传', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const bad of ['https://example.com', '*.example.com', 'a..b.com', '例え.com', 'x'.repeat(300), 12345, {}]) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_SITE_RULES, data: { domain: bad } },
+        contentSender('https://a.com/'),
+        vi.fn(),
+      );
+      expect(forwardedData()).toBeUndefined();
+    }
+  });
+
+  it('无载荷时行为与旧版一致（打开但不预填）', () => {
+    const listener = setupAndCaptureListener();
+
+    listener({ type: MessageType.OPEN_OPTIONS_AND_SITE_RULES }, contentSender('https://a.com/'), vi.fn());
+
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_SITE_RULES, undefined);
   });
 });

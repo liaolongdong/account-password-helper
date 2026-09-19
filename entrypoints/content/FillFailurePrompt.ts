@@ -1,236 +1,171 @@
 /**
- * 填充失败就地诊断提示组件
+ * 填充失败就地引导（F1-C）
  *
- * 当 fillPasswordWithResult 返回 reason='no_form' 时，在页面内显示一个轻量气泡，
- * 引导用户指定选择器或启用穿透。点击后打开短文本框，输入 CSS 选择器后写入 SiteRule。
+ * 当 fillPasswordWithResult 因未检测到任何登录字段而失败（reason='no_form'）时，
+ * 在页面右下角弹出一个轻量气泡，引导用户「为此站点指定选择器」——点击后经 Background
+ * 打开密码管理页的站点规则弹窗并预填当前域名，复用已可用的 Options 规则编辑器，
+ * 避免在宿主页面内重建一套选择器表单。
  *
- * 技术实现：复用 FloatingButtonManager 的 closed shadow DOM 注入模式，避免污染宿主样式。
+ * 隔离约束（对齐内容脚本规范）：
+ * - 使用独立的 closed shadow DOM 宿主（追加到 documentElement），不污染宿主页面样式/DOM；
+ * - 不依赖 ElMessage 等 Vue/Element Plus 运行时（内容脚本无该上下文）；
+ * - 单例：同一页面仅存在一个气泡，动作完成或关闭即销毁。
  */
+import { MessageType } from '@/utils/types';
+import { logger } from '@/utils/logger';
 import { tl } from '@/utils/i18n-lite';
-import { setSiteRule, getSiteRule } from '@/utils/storage/siteRules';
+import { applyThemeTokensToHost, DEFAULT_THEME, getStoredTheme } from '@/utils/theme';
 
-/** FillFailurePrompt 配置选项 */
-interface FillFailurePromptOptions {
-  /** 触发填充失败的密码字段元素 */
-  passwordField: HTMLInputElement;
-  /** 当前域名 */
-  domain: string;
+let hostEl: HTMLElement | null = null;
+let shadowRoot: ShadowRoot | null = null;
+
+const STYLE = `
+  :host { all: initial; }
+  * { box-sizing: border-box; }
+  .aph-ffp {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 2147483647;
+    max-width: 320px;
+    padding: 14px 16px;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #303133;
+    background: #fff;
+    border: 1px solid #ebeef5;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 15%);
+  }
+  .aph-ffp__title {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-weight: 600;
+  }
+  .aph-ffp__desc {
+    margin: 0 0 12px;
+    color: #606266;
+  }
+  .aph-ffp__actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .aph-ffp__btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid transparent;
+    border-radius: 6px;
+  }
+  .aph-ffp__btn--primary {
+    color: #fff;
+    background: var(--aph-primary, #409eff);
+  }
+  .aph-ffp__btn--primary:hover { background: var(--aph-primary-hover, #66b3ff); }
+  .aph-ffp__btn--ghost {
+    color: #606266;
+    background: #fff;
+    border-color: #dcdfe6;
+  }
+  .aph-ffp__btn--ghost:hover {
+    color: var(--aph-primary, #409eff);
+    border-color: var(--aph-primary-border, #d9ecff);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aph-ffp { transition: none; }
+  }
+`;
+
+/** 确保 shadow 宿主已就绪 */
+function ensureHost(): void {
+  if (hostEl && shadowRoot) return;
+  hostEl = document.createElement('div');
+  hostEl.setAttribute('data-aph', 'fill-failure-prompt');
+  // 主题令牌内联写入宿主：自定义属性可穿透 shadow 边界，供内部 var(--aph-*) 解析。
+  // 先落默认主题保证首帧无闪烁，再异步读取用户主题覆盖（与 SavePasswordPrompt 一致）。
+  applyThemeTokensToHost(hostEl, DEFAULT_THEME);
+  shadowRoot = hostEl.attachShadow({ mode: 'closed' });
+
+  const style = document.createElement('style');
+  style.textContent = STYLE;
+  shadowRoot.appendChild(style);
+
+  const wrap = document.createElement('div');
+  wrap.id = 'aph-ffp-root';
+  shadowRoot.appendChild(wrap);
+
+  document.documentElement.appendChild(hostEl);
+
+  void getStoredTheme().then(theme => {
+    if (hostEl) applyThemeTokensToHost(hostEl, theme);
+  });
 }
 
-/** FillFailurePrompt 实例 */
-class FillFailurePrompt {
-  private shadowHost: HTMLElement;
-  private shadowRoot: ShadowRoot;
-  private domain: string;
-  private isVisible = false;
-
-  constructor(options: FillFailurePromptOptions) {
-    this.shadowHost = options.passwordField.closest('form') ?? document.body;
-    this.domain = options.domain;
-
-    // 创建 closed shadow root
-    if (!this.shadowHost.shadowRoot) {
-      this.shadowHost.attachShadow({ mode: 'closed' });
-    }
-    this.shadowRoot = this.shadowHost.shadowRoot!;
-
-    // 初始化样式
-    this.initStyles();
-  }
-
-  /** 初始化阴影 DOM 样式 */
-  private initStyles(): void {
-    const style = document.createElement('style');
-    style.textContent = `
-      :host {
-        display: inline-block;
-        font-family: var(--aph-font-family, system-ui, -apple-system, sans-serif);
-        font-size: 13px;
-        line-height: 1.5;
-        color: var(--aph-text-primary, #fff);
-      }
-      .prompt-container {
-        background: var(--aph-primary, #409eff);
-        padding: 12px 16px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
-        cursor: pointer;
-        transition: transform 0.2s ease;
-      }
-      .prompt-container:hover {
-        transform: translateY(-2px);
-      }
-      .prompt-text {
-        margin: 0 0 8px 0;
-        font-weight: 500;
-      }
-      .prompt-actions {
-        display: flex;
-        gap: 8px;
-        justify-content: flex-end;
-      }
-      .btn {
-        padding: 4px 12px;
-        border-radius: 4px;
-        border: none;
-        cursor: pointer;
-        font-size: 12px;
-        font-weight: 500;
-        transition: opacity 0.2s ease;
-      }
-      .btn:hover {
-        opacity: 0.9;
-      }
-      .btn-primary {
-        background: #fff;
-        color: var(--aph-primary, #409eff);
-      }
-      .btn-secondary {
-        background: rgba(255 255 255 / 20%);
-        color: #fff;
-      }
-    `;
-    this.shadowRoot.appendChild(style);
-  }
-
-  /** 渲染提示气泡 */
-  public render(): void {
-    if (this.isVisible) return;
-
-    const container = document.createElement('div');
-    container.className = 'prompt-container';
-    container.innerHTML = `
-      <p class="prompt-text">${tl('cs.fd.failurePromptText')}</p>
-      <div class="prompt-actions">
-        <button class="btn btn-secondary">${tl('cs.fd.failurePromptLater')}</button>
-        <button class="btn btn-primary">${tl('cs.fd.failurePromptSpecify')}</button>
-      </div>
-    `;
-
-    // 绑定事件
-    const primaryBtn = container.querySelector('.btn-primary') as HTMLButtonElement;
-    const secondaryBtn = container.querySelector('.btn-secondary') as HTMLButtonElement;
-
-    primaryBtn?.addEventListener('click', () => this.handleSpecify());
-    secondaryBtn?.addEventListener('click', () => this.hide());
-
-    this.shadowRoot.innerHTML = '';
-    this.shadowRoot.appendChild(container);
-    this.isVisible = true;
-  }
-
-  /** 隐藏提示 */
-  public hide(): void {
-    if (!this.isVisible) return;
-    this.shadowRoot.innerHTML = '';
-    this.isVisible = false;
-  }
-
-  /** 处理"手动指定选择器"点击 */
-  private async handleSpecify(): Promise<void> {
-    this.hide();
-
-    // 创建选择器输入对话框
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: #fff;
-      padding: 20px;
-      border-radius: 8px;
-      box-shadow: 0 8px 24px rgb(0 0 0 / 20%);
-      z-index: 9999;
-      font-family: system-ui, -apple-system, sans-serif;
-    `;
-    dialog.innerHTML = `
-      <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #333;">${tl('cs.fd.failurePromptDialogTitle')}</h3>
-      <p style="margin: 0 0 12px 0; font-size: 13px; color: #666;">${tl('cs.fd.failurePromptDialogHint')}</p>
-      <input type="text" id="aph-selector-input" placeholder="input[type=password]" 
-        style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; margin-bottom: 12px;" />
-      <div style="display: flex; gap: 8px; justify-content: flex-end;">
-        <button id="aph-cancel" style="padding: 6px 12px; border: 1px solid #ddd; border-radius: 4px; cursor: pointer;">取消</button>
-        <button id="aph-confirm" style="padding: 6px 12px; background: #409eff; color: #fff; border: none; border-radius: 4px; cursor: pointer;">确定</button>
-      </div>
-    `;
-
-    document.body.appendChild(dialog);
-
-    const input = dialog.querySelector('#aph-selector-input') as HTMLInputElement;
-    const confirmBtn = dialog.querySelector('#aph-confirm') as HTMLButtonElement;
-    const cancelBtn = dialog.querySelector('#aph-cancel') as HTMLButtonElement;
-
-    const closeDialog = () => dialog.remove();
-
-    cancelBtn?.addEventListener('click', closeDialog);
-
-    confirmBtn?.addEventListener('click', async () => {
-      const selector = input.value.trim();
-      if (!selector) {
-        alert(tl('cs.fd.failurePromptValidateSelector'));
-        return;
-      }
-
-      try {
-        // 读取现有规则
-        const existingRule = await getSiteRule(this.domain);
-
-        // 更新规则
-        await setSiteRule(this.domain, {
-          customSelectors: {
-            username: existingRule?.customSelectors?.username ?? 'input[type=text], input[type=email]',
-            password: selector,
-          },
-          penetrateShadow: existingRule?.penetrateShadow ?? true,
-        });
-
-        ElMessage.success(tl('cs.fd.failurePromptSaveSuccess'));
-        closeDialog();
-      } catch (error) {
-        console.error('保存站点规则失败:', error);
-        ElMessage.error(tl('cs.fd.failurePromptSaveError'));
-        closeDialog();
-      }
-    });
-
-    // ESC 关闭
-    const escHandler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        closeDialog();
-        document.removeEventListener('keydown', escHandler);
-      }
-    };
-    document.addEventListener('keydown', escHandler);
-  }
-}
-
-// 全局唯一的 FillFailurePrompt 实例（单例模式）
-let instance: FillFailurePrompt | null = null;
-
-/**
- * 显示填充失败提示
- *
- * @param passwordField 密码字段元素
- * @param domain 当前域名
- */
-export function showFillFailurePrompt(passwordField: HTMLInputElement, domain: string): void {
-  if (instance) return; // 避免重复创建
-
-  instance = new FillFailurePrompt({ passwordField, domain });
-  instance.render();
-}
-
-/**
- * 隐藏填充失败提示
- */
+/** 隐藏并清空气泡内容（保留宿主以便复用） */
 export function hideFillFailurePrompt(): void {
-  instance?.hide();
-  instance = null;
+  if (shadowRoot) {
+    const root = shadowRoot.getElementById('aph-ffp-root');
+    if (root) root.replaceChildren();
+  }
 }
 
-// 临时引入 ElMessage（实际应通过 WXT auto-import）
-declare const ElMessage: {
-  success: (msg: string) => void;
-  error: (msg: string) => void;
-};
+/**
+ * 显示填充失败引导气泡
+ * @param domain 当前站点域名，用于跳转 Options 站点规则弹窗时预填
+ */
+export function showFillFailurePrompt(domain: string): void {
+  if (typeof document === 'undefined') return;
+  ensureHost();
+  const root = shadowRoot?.getElementById('aph-ffp-root');
+  if (!root) return;
+  root.replaceChildren();
+
+  const bubble = document.createElement('div');
+  bubble.className = 'aph-ffp';
+  bubble.setAttribute('role', 'status');
+
+  const title = document.createElement('div');
+  title.className = 'aph-ffp__title';
+  title.textContent = tl('cs.fd.failurePromptText');
+
+  const desc = document.createElement('p');
+  desc.className = 'aph-ffp__desc';
+  desc.textContent = tl('cs.fd.failurePromptGuide');
+
+  const actions = document.createElement('div');
+  actions.className = 'aph-ffp__actions';
+
+  const laterBtn = document.createElement('button');
+  laterBtn.type = 'button';
+  laterBtn.className = 'aph-ffp__btn aph-ffp__btn--ghost';
+  laterBtn.textContent = tl('cs.fd.failurePromptLater');
+  laterBtn.addEventListener('click', hideFillFailurePrompt);
+
+  const specifyBtn = document.createElement('button');
+  specifyBtn.type = 'button';
+  specifyBtn.className = 'aph-ffp__btn aph-ffp__btn--primary';
+  specifyBtn.textContent = tl('cs.fd.failurePromptSpecify');
+  specifyBtn.addEventListener('click', () => {
+    try {
+      void chrome.runtime
+        .sendMessage({ type: MessageType.OPEN_OPTIONS_AND_SITE_RULES, data: { domain } })
+        .catch(err => logger.debug('FillFailurePrompt: 打开站点规则指令发送失败:', err));
+    } catch (err) {
+      // 扩展上下文可能失效（页面残留旧 content script），静默降级不打扰用户
+      logger.debug('FillFailurePrompt: 扩展上下文不可用:', err);
+    }
+    hideFillFailurePrompt();
+  });
+
+  actions.appendChild(laterBtn);
+  actions.appendChild(specifyBtn);
+  bubble.appendChild(title);
+  bubble.appendChild(desc);
+  bubble.appendChild(actions);
+  root.appendChild(bubble);
+}

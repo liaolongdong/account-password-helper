@@ -1,134 +1,182 @@
 <template>
   <el-dialog
     v-model="visible"
-    :title="t('options.siteRules.title')"
-    width="700px"
+    :title="dialogTitle"
+    width="640px"
+    align-center
     class="site-rules-dialog"
-    @close="handleClose"
+    @closed="handleClosed"
   >
-    <!-- 规则列表 -->
-    <div class="rules-list">
-      <el-empty
-        v-if="rulesList.length === 0"
-        :description="t('options.siteRules.empty')"
-      />
-
-      <el-table
-        v-else
-        :data="rulesList"
-        stripe
-        max-height="400"
+    <div class="dialog-body-scroll">
+      <!-- 列表视图 -->
+      <div
+        v-if="!showForm"
+        class="rules-view"
       >
-        <el-table-column
-          prop="domain"
-          :label="t('options.siteRules.columnDomain')"
-          min-width="200"
+        <el-table
+          v-if="rulesList.length"
+          :data="rulesList"
+          border
+          max-height="360"
+        >
+          <el-table-column
+            prop="domain"
+            :label="t('options.siteRules.columnDomain')"
+            min-width="160"
+            show-overflow-tooltip
+          />
+          <el-table-column
+            :label="t('options.siteRules.columnSelectors')"
+            min-width="260"
+          >
+            <template #default="{ row }">
+              <div
+                v-if="row.customSelectors"
+                class="selector-cell"
+              >
+                <div class="selector-line">
+                  <span class="selector-tag">{{ t('options.siteRules.labelUsername') }}</span>
+                  <code :title="row.customSelectors.username">{{ row.customSelectors.username }}</code>
+                </div>
+                <div class="selector-line">
+                  <span class="selector-tag">{{ t('options.siteRules.labelPassword') }}</span>
+                  <code :title="row.customSelectors.password">{{ row.customSelectors.password }}</code>
+                </div>
+              </div>
+              <span
+                v-else
+                class="text-gray"
+              >
+                {{ t('options.siteRules.noSelectors') }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            :label="t('options.siteRules.columnActions')"
+            width="130"
+            align="center"
+          >
+            <template #default="{ row }">
+              <el-button
+                link
+                type="primary"
+                @click="handleEdit(row)"
+              >
+                {{ t('options.siteRules.edit') }}
+              </el-button>
+              <el-button
+                link
+                type="danger"
+                @click="handleDelete(row)"
+              >
+                {{ t('options.siteRules.delete') }}
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <el-empty
+          v-else
+          :image-size="80"
+          :description="t('options.siteRules.empty')"
+        >
+          <div class="empty-tip">{{ t('options.siteRules.emptyTip') }}</div>
+        </el-empty>
+      </div>
+
+      <!-- 表单视图（新增 / 编辑） -->
+      <el-form
+        v-else
+        ref="formRef"
+        :model="formData"
+        :rules="formRules"
+        label-position="top"
+        class="site-rules-form"
+      >
+        <el-alert
+          :title="t('options.siteRules.formHint')"
+          type="info"
+          :closable="false"
+          show-icon
+          class="form-hint"
         />
-        <el-table-column
-          :label="t('options.siteRules.columnSelectors')"
-          min-width="300"
+
+        <el-form-item
+          :label="t('options.siteRules.formDomain')"
+          :required="!isEditing"
+          prop="domain"
         >
-          <template #default="{ row }">
-            <span v-if="row.customSelectors">
-              {{ row.customSelectors.username }}<br />
-              {{ row.customSelectors.password }}
-            </span>
-            <span
-              v-else
-              class="text-gray"
+          <!-- 域名即规则主键，编辑态不可改。用 readonly 而非 disabled（disabled 会把域名
+               文字压到 2.3:1 且无法选中复制），锁定外观由下方 .domain-input--locked 负责 -->
+          <el-input
+            v-model="formData.domain"
+            :readonly="isEditing"
+            :class="{ 'domain-input--locked': isEditing }"
+            :placeholder="t('options.siteRules.formDomainPlaceholder')"
+            :clearable="!isEditing"
+          >
+            <template
+              v-if="isEditing"
+              #suffix
             >
-              {{ t('options.siteRules.noSelectors') }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column
-          :label="t('options.siteRules.columnActions')"
-          align="right"
-          width="120"
+              <el-icon class="domain-lock"><Lock /></el-icon>
+            </template>
+          </el-input>
+          <div class="field-tip">
+            {{ isEditing ? t('options.siteRules.domainReadonlyHint') : t('options.siteRules.formDomainHint') }}
+          </div>
+        </el-form-item>
+
+        <el-form-item
+          :label="t('options.siteRules.formUsernameSelector')"
+          prop="usernameSelector"
         >
-          <template #default="{ row }">
-            <el-button
-              size="small"
-              @click="handleEdit(row)"
-            >
-              {{ t('options.siteRules.edit') }}
-            </el-button>
-            <el-button
-              size="small"
-              type="danger"
-              @click="handleDelete(row)"
-            >
-              {{ t('options.siteRules.delete') }}
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+          <el-input
+            v-model="formData.usernameSelector"
+            :placeholder="t('options.siteRules.formUsernamePlaceholder')"
+            clearable
+          />
+        </el-form-item>
+
+        <el-form-item
+          :label="t('options.siteRules.formPasswordSelector')"
+          prop="passwordSelector"
+        >
+          <el-input
+            v-model="formData.passwordSelector"
+            :placeholder="t('options.siteRules.formPasswordPlaceholder')"
+            clearable
+          />
+        </el-form-item>
+
+        <el-form-item
+          :label="t('options.siteRules.formPenetrateShadow')"
+          label-position="left"
+        >
+          <el-switch v-model="formData.penetrateShadow" />
+          <div class="field-tip">{{ t('options.siteRules.penetrateShadowHint') }}</div>
+        </el-form-item>
+      </el-form>
     </div>
 
-    <!-- 添加/编辑表单 -->
-    <el-form
-      v-if="showForm"
-      ref="formRef"
-      :model="formData"
-      :rules="formRules"
-      label-width="120px"
-      style="margin-top: 20px"
-    >
-      <el-form-item
-        :label="t('options.siteRules.formDomain')"
-        prop="domain"
-      >
-        <el-input
-          v-model="formData.domain"
-          :placeholder="t('options.siteRules.formDomainPlaceholder')"
-          disabled
-        />
-      </el-form-item>
-
-      <el-form-item
-        :label="t('options.siteRules.formUsernameSelector')"
-        prop="usernameSelector"
-      >
-        <el-input
-          v-model="formData.usernameSelector"
-          :placeholder="t('options.siteRules.formSelectorPlaceholder')"
-        />
-      </el-form-item>
-
-      <el-form-item
-        :label="t('options.siteRules.formPasswordSelector')"
-        prop="passwordSelector"
-      >
-        <el-input
-          v-model="formData.passwordSelector"
-          :placeholder="t('options.siteRules.formSelectorPlaceholder')"
-        />
-      </el-form-item>
-
-      <el-form-item>
-        <el-checkbox v-model="formData.penetrateShadow">
-          {{ t('options.siteRules.formPenetrateShadow') }}
-        </el-checkbox>
-      </el-form-item>
-
-      <el-form-item>
-        <el-button @click="showForm = false">
+    <template #footer>
+      <!-- 表单态：提交/取消；列表态：唯一的「添加规则」入口（空态亦复用此处，避免与空状态内按钮重复） -->
+      <template v-if="showForm">
+        <el-button @click="cancelForm">
           {{ t('common.cancel') }}
         </el-button>
         <el-button
           type="primary"
+          :loading="saving"
           @click="handleSubmit"
         >
           {{ t('common.save') }}
         </el-button>
-      </el-form-item>
-    </el-form>
-
-    <!-- 底部操作栏 -->
-    <template #footer>
+      </template>
       <el-button
-        v-if="!showForm"
+        v-else
         type="primary"
+        :icon="Plus"
         @click="handleAdd"
       >
         {{ t('options.siteRules.addButton') }}
@@ -138,13 +186,24 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { ElMessage, ElForm } from 'element-plus';
+import { computed, reactive, ref, watch } from 'vue';
+import { ElMessage, ElMessageBox, ElForm } from 'element-plus';
+import { Plus, Lock } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
-import { getSiteRules, setSiteRule, removeSiteRule } from '@/utils/storage/siteRules';
+import { logger } from '@/utils/logger';
+import {
+  getSiteRules,
+  setSiteRule,
+  removeSiteRule,
+  isValidCssSelector,
+  normalizeSiteRuleDomain,
+  type SiteRule,
+} from '@/utils/storage/siteRules';
 
 const props = defineProps<{
   modelValue: boolean;
+  /** 打开时预填的域名（来自内容脚本填充失败引导）；该域名已有规则时直接进入编辑表单 */
+  initialDomain?: string;
 }>();
 
 const emit = defineEmits<{
@@ -159,9 +218,19 @@ const visible = computed({
 });
 
 const formRef = ref<InstanceType<typeof ElForm>>();
-const rulesList = ref<any[]>([]);
+const rulesList = ref<SiteRule[]>([]);
 const showForm = ref(false);
 const editingRule = ref<SiteRule | null>(null);
+const saving = ref(false);
+
+/** 编辑态：域名是规则主键，创建后不可改 */
+const isEditing = computed(() => !!editingRule.value);
+
+/** 弹窗标题随视图切换 */
+const dialogTitle = computed(() => {
+  if (!showForm.value) return t('options.siteRules.title');
+  return isEditing.value ? t('options.siteRules.editTitle') : t('options.siteRules.addTitle');
+});
 
 interface FormData {
   domain: string;
@@ -177,10 +246,49 @@ const formData = reactive<FormData>({
   penetrateShadow: true,
 });
 
+/** 选择器规则：必填 + 语法合法（与内容脚本消费端共用同一判定） */
+const selectorRules = computed(() => [
+  { required: true, message: t('options.siteRules.validateSelector'), trigger: 'blur' },
+  {
+    validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+      const selector = (value ?? '').trim();
+      if (selector && !isValidCssSelector(selector)) {
+        return callback(new Error(t('options.siteRules.validateSelectorFormat')));
+      }
+      callback();
+    },
+    trigger: 'blur',
+  },
+]);
+
+/** 按域名查找已有规则：忽略大小写与空白，避免历史混存 key 造成同一站点两条规则 */
+const findRuleByDomain = (domain: string): SiteRule | undefined => {
+  const normalized = normalizeSiteRuleDomain(domain);
+  if (!normalized) return undefined;
+  return rulesList.value.find(rule => normalizeSiteRuleDomain(rule.domain) === normalized);
+};
+
 const formRules = computed(() => ({
-  domain: [{ required: true, message: t('options.siteRules.validateDomain'), trigger: 'blur' }],
-  usernameSelector: [{ required: true, message: t('options.siteRules.validateSelector'), trigger: 'blur' }],
-  passwordSelector: [{ required: true, message: t('options.siteRules.validateSelector'), trigger: 'blur' }],
+  domain: [
+    { required: true, message: t('options.siteRules.validateDomain'), trigger: 'blur' },
+    {
+      validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
+        // 编辑态域名只读且来自存储，无需再校验格式与占用
+        if (isEditing.value) return callback();
+        const raw = (value ?? '').trim();
+        if (!raw) return callback();
+        const domain = normalizeSiteRuleDomain(raw);
+        if (!domain) return callback(new Error(t('options.siteRules.validateDomainFormat')));
+        if (findRuleByDomain(domain)) {
+          return callback(new Error(t('options.siteRules.validateDomainDuplicate')));
+        }
+        callback();
+      },
+      trigger: 'blur',
+    },
+  ],
+  usernameSelector: selectorRules.value,
+  passwordSelector: selectorRules.value,
 }));
 
 /** 加载规则列表 */
@@ -189,13 +297,19 @@ const loadRules = async () => {
   rulesList.value = Object.values(rules);
 };
 
-/** 打开添加模式 */
-const handleAdd = () => {
-  editingRule.value = null;
+/** 重置表单字段 */
+const resetForm = () => {
   formData.domain = '';
   formData.usernameSelector = '';
   formData.passwordSelector = '';
   formData.penetrateShadow = true;
+  formRef.value?.clearValidate();
+};
+
+/** 打开添加模式 */
+const handleAdd = () => {
+  editingRule.value = null;
+  resetForm();
   showForm.value = true;
 };
 
@@ -206,61 +320,109 @@ const handleEdit = (rule: SiteRule) => {
   formData.usernameSelector = rule.customSelectors?.username ?? '';
   formData.passwordSelector = rule.customSelectors?.password ?? '';
   formData.penetrateShadow = rule.penetrateShadow ?? true;
+  formRef.value?.clearValidate();
   showForm.value = true;
+};
+
+/** 取消编辑，回到列表 */
+const cancelForm = () => {
+  showForm.value = false;
+  editingRule.value = null;
+  resetForm();
 };
 
 /** 提交表单 */
 const handleSubmit = async () => {
   if (!formRef.value) return;
-
   try {
     await formRef.value.validate();
+  } catch {
+    return; // 校验失败由表单内联提示，无需额外弹 toast
+  }
 
-    const rule: Omit<SiteRule, 'domain'> = {
+  // 编辑态必须写回原 key（历史数据可能带大小写差异），否则同一条规则会被拆成两条、
+  // 旧条目再也匹配不到；新增态用规范化后的域名，与内容脚本的精确匹配形态保持一致。
+  const domain = editingRule.value?.domain ?? normalizeSiteRuleDomain(formData.domain) ?? formData.domain.trim();
+  saving.value = true;
+  try {
+    await setSiteRule(domain, {
       customSelectors: {
         username: formData.usernameSelector.trim(),
         password: formData.passwordSelector.trim(),
       },
       penetrateShadow: formData.penetrateShadow,
-    };
-
-    await setSiteRule(formData.domain, rule);
+    });
     await loadRules();
-    showForm.value = false;
+    cancelForm();
     ElMessage.success(t('options.siteRules.saveSuccess'));
-  } catch (_error) {
-    // 验证失败会触发 ElMessage（Element Plus 内置）
+  } catch (error) {
+    logger.error('保存站点规则失败:', error);
+    ElMessage.error(t('options.siteRules.saveError'));
+  } finally {
+    saving.value = false;
   }
 };
 
-/** 删除规则 */
+/** 删除规则（二次确认） */
 const handleDelete = async (rule: SiteRule) => {
+  try {
+    await ElMessageBox.confirm(t('options.siteRules.deleteConfirm', { domain: rule.domain }), {
+      type: 'warning',
+      confirmButtonText: t('common.confirm'),
+      cancelButtonText: t('common.cancel'),
+    });
+  } catch {
+    return;
+  }
   try {
     await removeSiteRule(rule.domain);
     await loadRules();
     ElMessage.success(t('options.siteRules.deleteSuccess'));
-  } catch (_error) {
+  } catch (error) {
+    logger.error('删除站点规则失败:', error);
     ElMessage.error(t('options.siteRules.deleteError'));
   }
 };
 
-/** 关闭对话框 */
-const handleClose = () => {
+/** 弹窗关闭动画结束后复位到列表视图 */
+const handleClosed = () => {
   showForm.value = false;
   editingRule.value = null;
-  loadRules();
+  resetForm();
 };
 
-onMounted(() => {
-  if (visible.value) {
-    loadRules();
-  }
+// 打开时刷新列表；携带预填域名（内容脚本失败引导）则直接进入该域名的新增/编辑表单。
+// 同时监听 initialDomain，保证弹窗已开着时再次收到引导也能响应。
+watch([() => props.modelValue, () => props.initialDomain], async ([open, domain]) => {
+  if (!open) return;
+  await loadRules();
+  if (domain) openPrefilledRule(domain);
 });
+
+/**
+ * 进入预填流程：已有规则则直接编辑，否则以该域名新增
+ *
+ * 「填充失败 → 就地引导」最常见的场景恰恰是规则已存在但字段选错了；若一味进新增态，
+ * 会被重复域名校验挡死，用户既存不下也回不到列表。
+ */
+function openPrefilledRule(rawDomain: string): void {
+  const domain = normalizeSiteRuleDomain(rawDomain);
+  if (!domain) return;
+  const existing = findRuleByDomain(domain);
+  if (existing) {
+    handleEdit(existing);
+    return;
+  }
+  editingRule.value = null;
+  resetForm();
+  formData.domain = domain;
+  showForm.value = true;
+}
 </script>
 
 <style scoped>
-.rules-list {
-  margin-bottom: 16px;
+.rules-view {
+  min-height: 120px;
 }
 
 .text-gray {
@@ -268,13 +430,86 @@ onMounted(() => {
   color: #999;
 }
 
-:deep(.el-dialog__header) {
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--el-border-color-light);
+.selector-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-:deep(.el-dialog__footer) {
+.selector-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.selector-tag {
+  flex-shrink: 0;
+  padding: 0 6px;
+  font-size: 12px;
+  color: var(--aph-primary, #409eff);
+  background: rgb(64 158 255 / 10%);
+  border-radius: 3px;
+}
+
+.selector-line code {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: var(--aph-font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  color: #606266;
+  white-space: nowrap;
+}
+
+.empty-tip {
+  margin-top: -4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #909399;
+}
+
+.form-hint {
+  margin-bottom: 18px;
+}
+
+.field-tip {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: #909399;
+}
+
+/* 编辑态域名锁定字段。options 全局样式（entrypoints/options/styles.css）把所有输入框
+   刷成主色边框 + 主色聚焦环，readonly 与可编辑态因此看不出任何区别；这里压成中性灰底灰边，
+   聚焦只加深边框、不亮主色，域名本身仍是正常对比度、可选中复制。
+   多带一层 .site-rules-form 是为压过全局那条 [data-v] .el-input .el-input__wrapper.is-focus */
+.site-rules-form :deep(.domain-input--locked .el-input__wrapper),
+.site-rules-form :deep(.domain-input--locked .el-input__wrapper:hover) {
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-border-color);
+  box-shadow: none;
+}
+
+.site-rules-form :deep(.domain-input--locked .el-input__wrapper.is-focus) {
+  background-color: var(--el-fill-color-light);
+  border-color: var(--el-text-color-secondary);
+  box-shadow: none;
+}
+
+/* 编辑态域名只读锁标：提示「不可改」而非「输入框失效」 */
+.domain-lock {
+  color: var(--el-text-color-secondary);
+}
+
+/* 操作列 link 按钮：抵消 options 全局 .el-button--primary 的实心背景/边框，
+   否则主色文字压在同色背景上不可见（danger 型已由全局样式覆盖） */
+:deep(.el-button--primary.is-link),
+:deep(.el-button--primary.is-link:hover) {
+  background-color: transparent;
+  border-color: transparent;
+}
+
+:deep(.el-dialog__body) {
   padding-top: 12px;
-  border-top: 1px solid var(--el-border-color-light);
 }
 </style>
