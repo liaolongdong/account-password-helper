@@ -126,3 +126,8 @@ coverage/
 # local symlinks for WeChat publishing image resolution
 docs/blog/zh/imgs
 docs/blog/en/imgs
+
+# Playwright E2E 产物与本地会话快照（storageState 可能带入扩展 origin 数据，禁止入库）
+test-results/
+playwright-report/
+e2e/.auth/
