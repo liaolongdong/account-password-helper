@@ -211,7 +211,11 @@ export async function isSessionValid(options?: { skipConsistencyCheck?: boolean 
         // 旧版会话：透明迁移为新格式（主密码不再落盘），不强制用户重新登录
         const expiry = result[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY] as number;
         const validityHours = (result[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
-        const migrated = await _migrateLegacySession(expiry, validityHours);
+        // 代际必须在此处捕获并传入：迁移路径内含 storage 读取 + PBKDF2 两个长异步边界，
+        // 缺省 epoch 会让 _migrateLegacySession 的守卫整体失效——期间完成的锁定会被陈旧密钥
+        // 材料（WRAP_KEY / WRAPPED_DATA_KEY / storage.session 数据密钥 / 锁定状态镜像）覆盖，
+        // 等于把刚清除的会话重新建立起来。
+        const migrated = await _migrateLegacySession(expiry, validityHours, sessionEpoch);
         if (!migrated) {
           _sessionValidCache = { valid: false, timestamp: Date.now() };
           return false;
@@ -386,12 +390,13 @@ async function persistWrappedDataKey(dataKey: string, extra?: Record<string, unk
  * 包裹密钥对经 persistWrappedDataKey 原子性同写，最终状态始终一致。
  *
  * @param validityHours 会话有效期（小时）
- * @param epoch 可选的会话代际令牌：由 getSessionDataKey 解包路径传入，迁移期间（含 PBKDF2
- *   这一长异步边界）若发生锁定/清除则代际不符，放弃写回陈旧密钥并返回 false（B6）。
- *   isSessionValid 直接调用时省略，保持既有迁移语义。
+ * @param epoch 会话代际令牌：由调用方在进入迁移前捕获。迁移期间（含 PBKDF2 这一长异步
+ *   边界）若发生锁定/清除则代际不符，放弃写回陈旧密钥并返回 false（B6）。
+ *   两个调用方（getSessionDataKey 解包路径、isSessionValid 旧版分支）均必须传入，
+ *   省略即整体关闭本守卫，故类型为必填而非可选。
  * @returns 迁移成功返回 true；无法解出旧版主密码或代际已失效时返回 false
  */
-async function _migrateLegacySession(expiry: number, validityHours: number, epoch?: number): Promise<boolean> {
+async function _migrateLegacySession(expiry: number, validityHours: number, epoch: number): Promise<boolean> {
   const masterPassword = await getSessionMasterPasswordDecrypted();
   if (!masterPassword) return false;
 
@@ -399,7 +404,7 @@ async function _migrateLegacySession(expiry: number, validityHours: number, epoc
   const dataKey = await enc.deriveEncryptionKey(masterPassword);
 
   // PBKDF2 为长异步边界：期间若发生锁定/清除（代际变化），不得把陈旧密钥写回镜像/存储
-  if (epoch !== undefined && sessionEpoch !== epoch) return false;
+  if (sessionEpoch !== epoch) return false;
 
   sessionDataKey = dataKey;
   sessionPasswordExpiry = expiry;
@@ -412,7 +417,7 @@ async function _migrateLegacySession(expiry: number, validityHours: number, epoc
   sessionWrappedDataKey = await persistWrappedDataKey(dataKey);
   await chrome.storage.local.remove(SESSION_STORAGE_KEYS.MASTER_PASSWORD);
   // 迁移成功后同步更新锁定状态镜像，与 createSession 路径语义保持一致
-  if (epoch === undefined || sessionEpoch === epoch) {
+  if (sessionEpoch === epoch) {
     try {
       void chrome.storage.session
         .set({ [SESSION_MEMORY_KEYS.SESSION_LOCK_STATE]: { locked: false, expiresAt: expiry } })
@@ -713,8 +718,10 @@ export function adoptRekeyedSession(wrappedKey: string, expiry?: number, validit
  * 从 storage 恢复会话状态到内存镜像（不触发过期检查）
  *
  * 优先恢复新格式（WRAPPED_DATA_KEY）；若仅存在旧版 blob 则透明迁移。
+ *
+ * @param epoch 调用方捕获的会话代际，透传给迁移守卫
  */
-async function restoreSessionFromStorage(epoch?: number): Promise<void> {
+async function restoreSessionFromStorage(epoch: number): Promise<void> {
   const result = await chrome.storage.local.get([
     SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY,
     SESSION_STORAGE_KEYS.PASSWORD_EXPIRY,
