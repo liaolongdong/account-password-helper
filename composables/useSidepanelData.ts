@@ -154,11 +154,6 @@ interface InitialDataResult {
   perf?: { swProcessMs: number; cacheHit: boolean; swUptimeMs: number };
 }
 
-interface BgInitialDataResponse {
-  success?: boolean;
-  data?: InitialDataResult;
-}
-
 type InitialDataCandidate =
   | { source: 'snapshot'; data: SnapshotReadResult }
   | { source: 'bg'; data: InitialDataResult }
@@ -641,9 +636,15 @@ export function useSidepanelData() {
   };
 
   /**
-   * 更新当前域名并加载密码
+   * 更新当前域名与端口（切标签页 / URL 变化时）
+   *
+   * 仅更新过滤条件，不触发全量重载：列表本就是全量数据，域名过滤由
+   * `filteredPasswords` computed 承担，改域名即可时更新生效；且列表新鲜度
+   * 已由 `handleStorageChange`（account_passwords 变更）覆盖。此前在此追加
+   * `loadPasswords()` 会在每次换域名时把已渲染的列表整体替换为 loading 态
+   * 再重新解密一遍相同数据（Windows 慢盘下数百毫秒无谓开销 + 可见闪烁）。
    */
-  const updateCurrentDomainAndLoadPasswords = async () => {
+  const updateCurrentDomain = async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab && tab.url) {
@@ -654,10 +655,6 @@ export function useSidepanelData() {
         if (currentDomain.value !== newDomain || currentPort.value !== newPort) {
           currentDomain.value = newDomain;
           currentPort.value = newPort;
-
-          if (isAuthenticated.value) {
-            await loadPasswords();
-          }
         }
       }
     } catch (error) {
@@ -675,7 +672,7 @@ export function useSidepanelData() {
   ) => {
     switch (message.type) {
       case MessageType.URL_CHANGED:
-        updateCurrentDomainAndLoadPasswords();
+        updateCurrentDomain();
         sendResponse({ success: true });
         return true;
       case MessageType.SESSION_EXPIRED:
@@ -723,7 +720,7 @@ export function useSidepanelData() {
    */
   const handleTabUpdated = async (_tabId: number, changeInfo: any, tab: any) => {
     if (changeInfo.status === 'complete' && tab.url) {
-      await updateCurrentDomainAndLoadPasswords();
+      await updateCurrentDomain();
     }
   };
 
@@ -731,7 +728,7 @@ export function useSidepanelData() {
    * 监听标签页激活
    */
   const handleTabActivated = async (_activeInfo: any) => {
-    await updateCurrentDomainAndLoadPasswords();
+    await updateCurrentDomain();
   };
 
   // ==================== 初始化 ====================
@@ -825,6 +822,16 @@ export function useSidepanelData() {
         }
       });
 
+      // 快照与 bg/local 三路竞速
+      // 竞速标记：null = 未决出胜负；先返回「可用结果」的路径置位并成为唯一胜者，
+      // 后到的路径一律转入静默兜底（不重复决出胜负、不重复提交 UI）
+      let raceWinner: 'snapshot' | 'bg' | 'local' | null = null;
+      // 性能埋点：Background/本地路径各自耗时（写入环形日志，生产环境可定位慢点归属）
+      let bgPathMs: number | null = null;
+      let localPathMs: number | null = null;
+      /** Background 路径迟到且未被采纳时，其响应是否可用于兜底预热（仅记布尔，不持有解密数据） */
+      let bgLateUsable = false;
+
       // 路径 0: storage.session 加密快照直读（最快路径，纯内存 IPC + 单次 AES-GCM）
       // SW 侧 warmPasswordCache 成功后写入加密快照，侧边栏冷启动时直读解密，
       // 跳过 SW 唤醒 + storage.local 磁盘 IO + 逐条解密（200-3000ms → <50ms）；
@@ -832,18 +839,10 @@ export function useSidepanelData() {
       const _perfSnapshotStart = performance.now();
       const snapshotPromise = readSessionSnapshot(startupRelockStatusPromise).then(result => {
         if (!result) return null;
+        if (!raceWinner) raceWinner = 'snapshot';
         logger.debug(`SidePanel: 快照路径完成 (${(performance.now() - _perfSnapshotStart).toFixed(1)}ms)`);
         return { source: 'snapshot' as const, data: result };
       });
-
-      // 快照与 bg/local 三路竞速
-      // 竞速标记：null = 未决出胜负，'bg' = Background 路径胜出，'local' = 本地路径胜出
-      let raceWinner: 'bg' | 'local' | null = null;
-      // 性能埋点：Background/本地路径各自耗时（写入环形日志，生产环境可定位慢点归属）
-      let bgPathMs: number | null = null;
-      let localPathMs: number | null = null;
-      /** Background 路径迟到结果（本地路径先胜出时保存，用于静默更新缓存） */
-      let bgLateResult: BgInitialDataResponse | null = null;
 
       // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道）
       const _perfBgStart = performance.now();
@@ -869,7 +868,7 @@ export function useSidepanelData() {
         if (!result?.success || !result.data) return null;
         if (raceWinner) {
           bgAdopted = true;
-          bgLateResult = result;
+          bgLateUsable = Boolean(result.data.sessionValid);
           logger.debug(`SidePanel: bg 路径迟到 (${bgPathMs.toFixed(1)}ms)，静默更新缓存`);
           return null;
         }
@@ -886,7 +885,7 @@ export function useSidepanelData() {
         if (!result?.success || !result.data) return null;
         if (raceWinner) {
           bgAdopted = true;
-          bgLateResult = result;
+          bgLateUsable = Boolean(result.data.sessionValid);
           logger.debug('SidePanel: bg 原始响应迟到，已有路径胜出，转入静默更新缓存');
           return null;
         }
@@ -924,6 +923,12 @@ export function useSidepanelData() {
         const sessionValid = await isSessionValidFn();
         if (!sessionValid) {
           return { sessionValid: false, passwords: [] as PasswordEntry[], sortConfig: null };
+        }
+        // 弃赛点：已有路径（多为快照）胜出并完成首屏提交，本条最重的全量解密
+        // 结果不会再被消费，直接放弃，避免与首屏渲染/交互抢 CPU 与磁盘 IPC
+        if (raceWinner) {
+          logger.debug(`SidePanel: 本地路径弃赛（${raceWinner} 已胜出），跳过全量解密`);
+          return null;
         }
         const crud = await (crudPromise ?? getPasswordCrudModule());
         const [sortConfigResult, loadedPasswords] = await Promise.all([
@@ -1085,7 +1090,7 @@ export function useSidepanelData() {
       // 自行回填缓存，无需回传全量明文；迟到后轻量触发一次去重预热作为兜底
       bgPromise
         .then(() => {
-          if (bgLateResult?.success && bgLateResult.data?.sessionValid) {
+          if (bgLateUsable) {
             logger.debug('SidePanel: Background 迟到结果到达，触发缓存预热兜底');
             void triggerBackgroundCacheRefresh();
           }
