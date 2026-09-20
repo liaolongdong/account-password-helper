@@ -53,8 +53,8 @@ graph LR
 ### Content Script 运行时约束
 
 - **注入范围**：[entrypoints/content.ts](../entrypoints/content.ts) 以 `matches: ['<all_urls>']` + `allFrames: true` 注入所有 frame。表单检测与自动保存监听在**所有 frame** 初始化（iframe 内的登录表单同样需要被检测和捕获），而悬浮按钮、保存弹窗、委托通知只在**顶层 frame** 渲染，避免每个 iframe 重复注入造成重叠与定位错乱。
-- **样式隔离**：分两档，按实现如实区分。①**Closed Shadow DOM**（`all: initial` 重置 + 内联写入 `--aph-*` 主题令牌，`z-index 2147483647`，宿主引用不外泄）：悬浮按钮、内联填充面板、活码胶囊、填充失败引导气泡。②**light DOM**（节点直接挂在页面 `body` 上，作用域靠扩展自有类名收敛，主题令牌内联写到自身元素）：密码可见性切换按钮（按 id 向 `document.head` 一次性注入样式表）、保存密码提示（由模块内标志去重，向 `document.head` 注入一段 keyframes）、原生通知条（不注入任何样式表，全部 `cssText` 内联，**配色固定、不随主题变化**）。两类都不得依赖页面全局函数/变量，也不得以 `innerHTML`/`v-html` 渲染来自 DOM 或消息的不可信文本。
-- **跨 frame 明文边界**：iframe 内的凭证通过 `window.top.postMessage` 委托顶层 frame 渲染保存弹窗，回传结果时 `targetOrigin` 固定为来源 origin；保存类委托必须先经 `isSameMainDomain(event.origin, location.origin)` 校验，防止跨域 iframe 把明文密码泄露给第三方页面。通知委托因跨域场景也需要放行，但按不可信输入处理：严格校验类型与长度并限流（10 秒滑动窗口内最多 5 次）。反向同理，明文凭证只下发到顶层或同主域名 frame（`isFrameFillable`）。
+- **样式隔离**：分两档，按实现如实区分。①**Closed Shadow DOM**（`all: initial` 重置 + 内联写入 `--aph-*` 主题令牌，`z-index 2147483647`，宿主引用不外泄）：悬浮按钮、内联填充面板、活码胶囊、填充失败引导气泡、保存密码提示（宿主挂在 `documentElement`，`data-aph="save-password-prompt"` 是影子树外定位它的唯一凭据，keyframes 随影子树作用域生效，不向 `document.head` 注入任何样式）。②**light DOM**（节点直接挂在页面 `body` 上，作用域靠扩展自有类名收敛，主题令牌内联写到自身元素）：密码可见性切换按钮（按 id 向 `document.head` 一次性注入样式表）、原生通知条（不注入任何样式表，全部 `cssText` 内联，**配色固定、不随主题变化**）。两类都不得依赖页面全局函数/变量，也不得以 `innerHTML`/`v-html` 渲染来自 DOM 或消息的不可信文本。
+- **跨 frame 明文边界**：iframe 内的凭证通过 `window.top.postMessage` 委托顶层 frame 渲染保存弹窗，回传结果时 `targetOrigin` 固定为来源 origin；保存类委托必须先经 `isSameMainDomain(event.origin, location.origin)` 校验，防止跨域 iframe 把明文密码泄露给第三方页面。通知委托因跨域场景也需要放行，但按不可信输入处理：发送侧 `targetOrigin` 锁定为 `location.ancestorOrigins` 末位解析出的顶层 origin（解析不出就不跨帧投递，直接在当前 frame 渲染），接收侧严格校验类型与长度并限流（10 秒滑动窗口内最多 5 次）。反向同理，明文凭证只下发到顶层或同主域名 frame（`isFrameFillable`）。
 - **监听器生命周期**：所有 DOM 监听统一经 WXT 的 `ctx.addEventListener` 注册（扩展上下文失效时自动移除），`ctx.onInvalidated` 与 `beforeunload` 触发集中 `cleanup()`，销毁 FormDetector / LoginAutoSave / 悬浮按钮管理器注册的监听器、MutationObserver 与注入 UI。这是消除重载后旧脚本残留调用 chrome API 抛 `Extension context invalidated` 的根因修复，新增监听时不得绕过。
 - **检测节奏**：首次扫描在 `DOMContentLoaded` 后延时 3 秒（文档已就绪时 500 毫秒），MutationObserver 以 500 毫秒去抖触发重扫，观察范围为 `document.body` 的 `childList + subtree + attributes(class/style/placeholder)`；SPA 路由变化合并进同一观察器（不额外建 Observer），`popstate` 仅覆盖前进/后退。填充前若字段尚未命中，`waitForFieldsDetected()` 以 100ms 起始、1.5 倍退避、上限 2000ms 重试至多 10 次；`blur` 等易触发重渲染的时机改用事件驱动的 `waitForDomStable(quietMs=50, budgetMs=300)` 等待 DOM 静默，而非固定 sleep。
 - **预唤醒**：表单输入框 `focusin`、顶层 frame `visibilitychange`、初始化后 100ms 三处调用 `preWarmServiceWorker()`，与用户操作并行拉起 SW，为后续 `sidePanel.open()` 消除冷启动等待（见「侧边栏秒开跨平台策略」）。
@@ -294,6 +294,7 @@ graph TB
 ### 3. 数据管理
 
 - CSV 导入导出（.csv），提供标准模板下载；导出带 BOM + CRLF，Excel 可直接打开。
+- **已知限制：导出的 CSV 不做公式转义**。每个字段只按 CSV 语法加引号（`"` → `""`），以 `=`、`+`、`-`、`@` 开头的值不会额外加 `'` 或 TAB 前缀（见 [excelExport.ts](../utils/excelExport.ts) 的 `serializeCsvRows`）。刻意如此：① 前缀会改写字段内容，而密码是逐字符取用的凭证，随机密码生成器的符号集本就含 `+ - = @`，一条以这些符号开头的密码被前缀化后，无论是从表格复制使用还是再导回来都是错的；② 转义后的表格与本扩展的 CSV 解析器（[excelCsv.ts](../utils/excelCsv.ts)）不再互为可逆，破坏「导出 → 导入」往返一致性。代价是：用 Excel / Numbers 打开导出文件时，恰好以这些符号开头的单元格会被当作公式求值。缓解：只在自己本机、来源可信的表格里打开导出文件，跨机迁移优先用加密备份（.aph）。
 - JSON 导入导出：支持密码数据的 JSON 格式导出（需验证主密码），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；也支持从 JSON 文件导入。
 - 导入仅接受 `.csv` 与 `.json` 两类文件（无 xlsx 解析器）：Excel 表格请先「另存为 CSV」再导入（见 [ImportDialog.vue](../components/options/ImportDialog.vue)）。
 - 标签下拉多选 + 自定义新增（每条最多 3 个，单个最长 30 字符）；相同标签颜色稳定一致（见 [utils/tagUtils.ts](../utils/tagUtils.ts)）。
@@ -436,7 +437,7 @@ graph TB
 - 提供 6 款色彩主题：晴空蓝（默认）、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰（见 [utils/theme.ts](../utils/theme.ts)）。
 - 主题配置保存在悬浮按钮偏好中，有三种方式进入设置：①密码管理页「偏好设置」按钮；②悬浮按钮齿轮图标；③侧边栏右上角齿轮图标。
 - 扩展页面（密码管理页、侧边栏、Popup）通过 `data-theme` 属性 + CSS Design Tokens（[tokens.css](../assets/theme/tokens.css)）实现一致性换肤。
-- 内容脚本注入式 UI 的换肤程度按实现如实区分：Closed Shadow DOM 一档（悬浮按钮、内联填充面板、活码胶囊、填充失败气泡）把 `--aph-*` 令牌内联写入宿主，与扩展页面同步生效；light DOM 一档里密码可见性切换按钮与保存密码提示把主题令牌内联写到自身元素（跟随换肤），原生通知条配色固定、不随换肤变化。
+- 内容脚本注入式 UI 的换肤程度按实现如实区分：Closed Shadow DOM 一档（悬浮按钮、内联填充面板、活码胶囊、填充失败气泡、保存密码提示）把 `--aph-*` 令牌内联写入宿主，与扩展页面同步生效；light DOM 一档里密码可见性切换按钮把主题令牌内联写到自身元素（跟随换肤），原生通知条配色固定、不随换肤变化。
 - 切换主题即时生效，无需刷新页面。
 
 ### 17. 内联填充
@@ -539,7 +540,7 @@ graph TB
 ### 28. 站点级填充规则
 
 - **定位**：面向自动检测失败的站点（Web Components、非常规 name/placeholder 的登录页）提供人工兜底——为单个域名指定账号 / 密码字段的 CSS 选择器，并按站点控制影子 DOM 穿透。数据落 [siteRules.ts](../utils/storage/siteRules.ts) 的 `site_rules` 键，形状为 `Record<domain, SiteRule>`，是**明文非敏感元数据**（域名 + 选择器 + 布尔开关），因此不进加密域、不参与 `.aph` 备份与邮箱备份，内容脚本也能直读；跨机迁移走下文的明文 JSON 通道。
-- **三个入口**：Options「安全设置 → 站点规则」、命令面板（`siteRules`）、以及内容脚本填充失败气泡（`reason='no_form'` 时由 [FillFailurePrompt.ts](../entrypoints/content/FillFailurePrompt.ts) 就地引导）。后一条经 `OPEN_OPTIONS_AND_SITE_RULES` → [messageRouter.ts](../entrypoints/background/messageRouter.ts) → `openOptionsAndSendMessage` 回到选项页；气泡自带一个 Closed Shadow DOM 宿主挂在 `documentElement` 上、主题令牌由 `applyThemeTokensToHost` 内联写入（注意：`SavePasswordPrompt` 与原生通知条属于 light DOM 一档，不是同一隔离约定，见「Content Script 运行时约束」的样式隔离）。
+- **三个入口**：Options「安全设置 → 站点规则」、命令面板（`siteRules`）、以及内容脚本填充失败气泡（`reason='no_form'` 时由 [FillFailurePrompt.ts](../entrypoints/content/FillFailurePrompt.ts) 就地引导）。后一条经 `OPEN_OPTIONS_AND_SITE_RULES` → [messageRouter.ts](../entrypoints/background/messageRouter.ts) → `openOptionsAndSendMessage` 回到选项页；气泡自带一个 Closed Shadow DOM 宿主挂在 `documentElement` 上、主题令牌由 `applyThemeTokensToHost` 内联写入（同一约定也适用于 `SavePasswordPrompt`；原生通知条与密码可见性切换按钮属于 light DOM 一档，不是同一隔离约定，见「Content Script 运行时约束」的样式隔离）。
 - **未解锁不丢动作**：该指令在选项页会话尚未就绪时到达会被 `waitForPasswords()` 延后判定；仍处于锁定态时不把规则弹窗压在主密码验证屏上，而是记下域名 + `ElMessage.info` 提示，`watch(isAuthenticated)` 在解锁瞬间自动续上这次引导。
 - **消费端时序**：[FormDetector.ts](../entrypoints/content/FormDetector.ts) 的 `init()` 读取本站规则，且**首轮检测排在 `siteRuleReady` 之后**（storage 监听只在值变化时触发，抢跑会导致规则本次页面生命周期内再无生效机会）；`setupSiteRuleListener` 让编辑规则后无需刷新即重检测，`destroy()` 精确解绑。
 - **穿透优先级**：`penetrateShadowEnabled` 取 `全局开关 !== false && 站点规则 !== false`——全局开关是总闸，站点规则只能在其开启时针对单站点进一步关闭，不能反向打开（否则新增规则会静默推翻用户的整体偏好）。该判定统一门控两处能力，语义一致：`collectShadowQueryRoots` 在关闭时只返回 `document`（站点规则选择器因此只在文档主树上生效，仍可用，只是不再跨边界），填充失败引导气泡在关闭时不再弹出（跨边界的补救手段本就不可用，留着气泡只会误导）。此前两者分叉——选择器无条件跨边界、气泡却受开关约束，用户看到的是「关掉穿透后规则仍悄悄生效，引导却消失了」，与开关标签相反；现已收口为「标签说什么就是什么」，对应提示文案与类型注释同步更新。

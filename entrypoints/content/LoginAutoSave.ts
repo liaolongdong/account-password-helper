@@ -668,14 +668,14 @@ export class LoginAutoSave {
     const ancestorOrigins = location.ancestorOrigins;
     const topOrigin = ancestorOrigins[ancestorOrigins.length - 1];
     if (!topOrigin) {
-      // sandbox iframe 等极端情况禁止 ancestorOrigins 时回退
+      // sandbox iframe 等极端情况禁止 ancestorOrigins 时回退（此时无法确定投递目标，只在当前 frame 渲染）
       this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
       return;
     }
 
     if (!isSameMainDomain(topOrigin, location.origin)) {
-      // 不同主域名的 iframe（如 attacker.com 嵌入 bank.com），不委托
-      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
+      // 不同主域名的 iframe（如 attacker.com 嵌入 bank.com），不委托弹窗，只把提示交给顶层 frame
+      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning', topOrigin);
       return;
     }
 
@@ -754,12 +754,22 @@ export class LoginAutoSave {
    * 优先通过 postMessage 委托顶层 frame 渲染通知，确保通知出现在整个页面右上角。
    * postMessage 失败时回退到 iframe 内渲染。
    *
+   * 投递目标锁定为顶层文档 origin：`'*'` 会在顶层文档已导航走（TOCTOU）时把
+   * 「未能自动保存，请手动添加」连同当前页面 URL 发给此刻占据顶层的任意文档。
+   * origin 不可解析（sandbox iframe 禁用了 `ancestorOrigins`）时不做跨帧投递，
+   * 直接在当前 frame 渲染——宁可位置降级，不向未知目标广播。
+   *
    * @param message - 通知消息内容
    * @param type - 通知类型
+   * @param topOrigin - 顶层文档 origin，缺省表示无法解析，此时只在当前 frame 渲染
    */
-  private delegateNotificationToTopFrame(message: string, type: NotificationType): void {
+  private delegateNotificationToTopFrame(message: string, type: NotificationType, topOrigin?: string): void {
+    if (!topOrigin) {
+      showNativeNotification(message, type);
+      return;
+    }
     try {
-      window.top!.postMessage({ type: PostMessageType.SHOW_NOTIFICATION, data: { message, type } }, '*');
+      window.top!.postMessage({ type: PostMessageType.SHOW_NOTIFICATION, data: { message, type } }, topOrigin);
     } catch {
       // postMessage 失败时回退到 iframe 内渲染
       showNativeNotification(message, type);

@@ -2,19 +2,39 @@
  * Chrome 风格的保存密码确认弹窗
  *
  * 在页面右上角显示一个卡片式弹窗，让用户确认是否保存账号密码。
- * 纯 DOM 操作，无需 Shadow DOM，复用 NativeNotification 的视觉风格。
+ * 纯 DOM 操作，复用 NativeNotification 的视觉风格；
+ * 卡片渲染在 Closed Shadow DOM 宿主内（与悬浮按钮 / 内联填充面板 / 填充失败气泡同一档），
+ * 宿主页样式既不会污染弹窗，弹窗也不向 `document.head` 写入全局样式表。
  */
 
 import { lockIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { SavePromptData, SavePromptControls, SavePromptEditedData } from '@/entrypoints/content/types';
-import { getStoredTheme, THEME_SHADOW_TOKENS, DEFAULT_THEME } from '@/utils/theme';
+import { applyThemeTokensToHost, getStoredTheme, DEFAULT_THEME } from '@/utils/theme';
 import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { tl } from '@/utils/i18n-lite';
 import { isWeakPassword } from '@/utils/passwordStrengthCore';
 import type { SaveRiskHint } from '@/utils/types';
 
-/** 弹窗 DOM 容器 class 名 */
-const PROMPT_CLASS = 'aph-save-password-prompt';
+/** 弹窗宿主属性名与属性值（closed 影子树外部定位节点的唯一凭据，取值口径同 FillFailurePrompt） */
+const HOST_ATTRIBUTE = 'data-aph';
+const HOST_ATTRIBUTE_VALUE = 'save-password-prompt';
+
+/**
+ * 影子树基础样式
+ *
+ * `:host { all: initial }` 切断宿主页面向弹窗的继承链（字体、字重、字距、颜色等），
+ * 弹窗的其余样式继续逐条写在元素自身的 `cssText` 上，与迁入 Shadow DOM 之前完全一致，
+ * 因此这里只需承载「重置 + 动画关键帧」两件事。关键帧定义在影子树内即天然局部化，
+ * 不再向 `document.head` 注入全局样式表。
+ */
+const SHADOW_STYLE = `
+  :host { all: initial; }
+  *, *::before, *::after { box-sizing: border-box; }
+  @keyframes aphSlideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+`;
 
 /**
  * 弹窗字体栈
@@ -30,8 +50,8 @@ const LABEL_MIN_WIDTH = 40;
 /**
  * 主色（主题令牌 + 晴空蓝回退）
  *
- * 本弹窗直接挂到页面 body（非 Shadow DOM），无法继承扩展页 :root 上的令牌，
- * 因此在 overlay 元素上内联写入 --aph-primary（后代继承），并异步解析当前主题。
+ * 自定义属性可穿透 shadow 边界，故令牌内联写在宿主元素上、由影子树内的后代继承；
+ * 先落默认主题保证首帧无闪烁，随后异步读取用户主题覆盖。
  */
 const THEME_BLUE = 'var(--aph-primary, #409eff)';
 
@@ -86,8 +106,23 @@ export function showSavePasswordPrompt(
   // 展示模式：update 时用于区分「更新已有密码」与「保存新密码」的标题与按钮文案
   const isUpdate = data.mode === 'update';
 
+  // 宿主先入文档：卡片仍按「组装完毕一次性挂载」的既有时序在最后一步进入影子树，
+  // 但影子树必须先处于渲染树中，量具才能在与弹窗完全相同的环境下量出标签宽度
+  const host = document.createElement('div');
+  host.setAttribute(HOST_ATTRIBUTE, HOST_ATTRIBUTE_VALUE);
+  // 主题令牌写在宿主（自定义属性可穿透 shadow 边界）：先落默认晴空蓝，
+  // 后异步读取当前主题覆盖，供子元素 var(--aph-primary) 继承
+  applyThemeTokensToHost(host, DEFAULT_THEME);
+  const shadow = host.attachShadow({ mode: 'closed' });
+  const shadowStyle = document.createElement('style');
+  shadowStyle.textContent = SHADOW_STYLE;
+  shadow.appendChild(shadowStyle);
+  document.documentElement.appendChild(host);
+  void getStoredTheme().then(theme => {
+    applyThemeTokensToHost(host, theme);
+  });
+
   const overlay = document.createElement('div');
-  overlay.className = PROMPT_CLASS;
   overlay.style.cssText = `
     position: fixed;
     top: 16px;
@@ -101,16 +136,6 @@ export function showSavePasswordPrompt(
     overflow: hidden;
     animation: aphSlideIn 0.25s ease-out;
   `;
-
-  // 写入主题令牌（必须在 cssText 之后，否则会被整体覆盖）：先默认晴空蓝，
-  // 后异步读取当前主题覆盖，供子元素 var(--aph-primary) 继承
-  overlay.style.setProperty('--aph-primary', THEME_SHADOW_TOKENS[DEFAULT_THEME]['--aph-primary']);
-  void getStoredTheme().then(theme => {
-    overlay.style.setProperty('--aph-primary', THEME_SHADOW_TOKENS[theme]['--aph-primary']);
-  });
-
-  // 注入动画样式（仅一次）
-  injectAnimationStyle();
 
   // ── 头部 ──
   const header = document.createElement('div');
@@ -155,7 +180,7 @@ export function showSavePasswordPrompt(
   body.style.cssText = 'padding: 12px 16px;';
 
   // 四行标签共用同一个列宽：按当前语言里最长的那个标签量，避免英文单词被断词换行
-  const labelWidth = measureLabelWidth([
+  const labelWidth = measureLabelWidth(shadow, [
     tl('cs.save.username'),
     tl('cs.save.password'),
     tl('cs.save.tag'),
@@ -287,7 +312,7 @@ export function showSavePasswordPrompt(
   overlay.appendChild(body);
   overlay.appendChild(footer);
 
-  document.body.appendChild(overlay);
+  shadow.appendChild(overlay);
 
   return {
     updateUsername: (username: string) => {
@@ -303,11 +328,14 @@ export function showSavePasswordPrompt(
 
 /**
  * 关闭并移除保存确认弹窗
+ *
+ * 只移除宿主：closed 影子树无外部引用（宿主 `shadowRoot` 恒为 null），
+ * 摘掉宿主后整棵子树随 GC 一并回收，事件监听亦随之失效。
  */
 export function dismissSavePasswordPrompt(): void {
-  const existing = document.querySelector('.' + PROMPT_CLASS) as HTMLElement | null;
-  if (existing) {
-    existing.remove();
+  const hosts = document.querySelectorAll(`[${HOST_ATTRIBUTE}="${HOST_ATTRIBUTE_VALUE}"]`);
+  for (const host of hosts) {
+    host.remove();
   }
 }
 
@@ -487,13 +515,15 @@ function createRiskLine(text: string): HTMLElement {
  * 真实宽度，四行共用同一个值：既不断词、又保持左侧标签列对齐。
  * 中文标签量出来不足 {@link LABEL_MIN_WIDTH}，仍取下限，既有版式不变。
  *
- * 量具挂到 `document.body` 而不是弹窗上：弹窗此刻还没入文档，脱离文档的元素
- * `offsetWidth` 恒为 0；同时显式指定字体，避免继承宿主页面的字号。
+ * 量具挂进弹窗自己的影子树：脱离渲染树的元素 `offsetWidth` 恒为 0，而挂到
+ * `document.body` 会连带继承宿主页面的字重/字距（Shadow DOM 隔离后弹窗本身
+ * 已不再继承），量出来的宽度便与真实渲染不一致。同时显式指定字体与字号。
  *
+ * @param shadow 弹窗所在的影子根，量具与弹窗共用同一渲染环境
  * @param labels 需要参与比较的全部标签文本
  * @returns 标签列宽度（px）
  */
-function measureLabelWidth(labels: string[]): number {
+function measureLabelWidth(shadow: ShadowRoot, labels: string[]): number {
   const ruler = document.createElement('span');
   ruler.setAttribute('aria-hidden', 'true');
   ruler.style.cssText = `
@@ -505,7 +535,7 @@ function measureLabelWidth(labels: string[]): number {
     font-size: 13px;
     font-family: ${PROMPT_FONT};
   `;
-  document.body.appendChild(ruler);
+  shadow.appendChild(ruler);
   let widest = 0;
   for (const label of labels) {
     ruler.textContent = label;
@@ -662,24 +692,4 @@ function createButton(text: string, bgColor: string, textColor: string, borderCo
     btn.style.opacity = '1';
   });
   return btn;
-}
-
-/** 动画样式是否已注入 */
-let animationStyleInjected = false;
-
-/**
- * 注入弹窗滑入动画样式（仅注入一次）
- */
-function injectAnimationStyle(): void {
-  if (animationStyleInjected) return;
-  animationStyleInjected = true;
-
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes aphSlideIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  `;
-  document.head.appendChild(style);
 }

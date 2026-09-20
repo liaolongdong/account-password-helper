@@ -209,6 +209,10 @@ A: Expiry clears key material and the in-memory cache only — the sensitive fie
 
 A: Yes. Upload a CSV or JSON file in the import dialog; Chrome, LastPass, Bitwarden and 1Password formats are auto-detected and mapped, which takes about 30 seconds. Excel files must be re-saved as CSV (.xlsx is not parsed).
 
+**Q: When I open the exported CSV in Excel, some passwords or notes turn into error values?**
+
+A: If a field's value itself starts with `=`, `+`, `-` or `@` (all four are in the password generator's symbol set), Excel evaluates that cell as a formula. The export deliberately does not formula-escape: prefixing rewrites the field, and a password is consumed character by character, so a prefixed value would be wrong both when copied out of the sheet and when re-imported — and the export → import round trip would stop being reversible. Treat export files as data you produced on your own machine, and prefer the encrypted backup (.aph) when moving between machines.
+
 **Q: Can I recover deleted passwords?**
 
 A: Yes. Deleted entries move to the trash for 30 days — restore or permanently delete them under "Data Management → Trash". Mistaken password edits can be reverted from the entry's "Password history".
