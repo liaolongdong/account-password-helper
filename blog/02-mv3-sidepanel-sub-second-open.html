@@ -305,7 +305,7 @@
 <li><code>passwordCache</code> / <code>startupRelock</code> / <code>idleLock</code>：缓存回温与各类锁定路径；</li>
 <li><code>sidePanelManager</code>：打开时序。</li>
 </ul>
-<p>目前全仓库 1105 项自动化测试（分布在 97 个测试文件）。性能结论：<strong>缓存快路径 20-50ms 拿到数据</strong>；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。</p>
+<p>目前全仓库 1116 项自动化测试（分布在 99 个测试文件）。性能结论：<strong>缓存快路径 20-50ms 拿到数据</strong>；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。</p>
 <h2>复盘：三条经验</h2>
 <ol>
 <li><strong>别和 MV3 的生命周期对抗，要顺着它设计。</strong> SW 一定会被回收，那就假设它随时不在，把状态放进 <code>chrome.storage</code>，把唤醒交给闹钟，把成本提前到预热阶段。</li>
