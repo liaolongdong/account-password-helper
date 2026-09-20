@@ -302,10 +302,12 @@ export class CheckboxHandler {
         if (!checkbox.checked) {
           checkbox.checked = true;
 
+          // 刻意不派发合成 click：click 的默认动作就是再切一次 checked，站点监听器读到
+          // true 之后浏览器立刻翻回 false，兜底反而取消了上一步的强制勾选。真实 click
+          // 已在第一层 `checkbox.click()` 给过，这里只补齐 change/input 通知。
           const events = [
             new Event('change', { bubbles: true, cancelable: true }),
             new Event('input', { bubbles: true, cancelable: true }),
-            new MouseEvent('click', { bubbles: true, cancelable: true }),
             new Event('focus', { bubbles: true }),
             new Event('blur', { bubbles: true }),
           ];
@@ -371,6 +373,9 @@ export class CheckboxHandler {
 
   /**
    * 模拟用户鼠标交互来勾选复选框（最后手段）
+   *
+   * 只派发 mousedown/mouseup 与 change/input，不派发 click：理由同 `checkCheckbox`，
+   * click 的默认动作会把刚强制置位的 checked 再翻回去。
    * @param checkbox - 复选框元素
    */
   private simulateUserInteraction(checkbox: HTMLInputElement): void {
@@ -382,7 +387,6 @@ export class CheckboxHandler {
       const mouseEvents = [
         new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: centerX, clientY: centerY, button: 0 }),
         new MouseEvent('mouseup', { bubbles: true, cancelable: true, clientX: centerX, clientY: centerY, button: 0 }),
-        new MouseEvent('click', { bubbles: true, cancelable: true, clientX: centerX, clientY: centerY, button: 0 }),
       ];
 
       const originalValue = checkbox.checked;

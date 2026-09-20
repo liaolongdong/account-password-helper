@@ -665,6 +665,36 @@ export class InlineFillDropdown {
   }
 
   /**
+   * 取数失败时把 UI 回滚到「图标可见」态
+   *
+   * `openPanel` 一进入就 `hideIcon()`，成功路径由面板接管可见 UI；失败早退若不回滚，
+   * 图标消失且 blur 监听已解绑，用户必须失焦再获焦才能重新唤起面板，表现为
+   * 「点了图标什么都没发生」。回滚复用与 `showTriggerFor` 相同的展示序列。
+   * 仅在结果仍归属本次请求（seq 未被取代、期间无人打开面板）时执行，避免覆盖并发链路的终态。
+   * @param seq 本次 openPanel 的请求序号
+   * @param hadIcon 进入 openPanel 前图标是否可见——快捷键 / Popup 引导路径本就没有图标，
+   *   失败时不该凭空造一个出来，因此只在点击图标展开的场景回滚
+   */
+  private restoreIconAfterFailedOpen(seq: number, hadIcon: boolean): void {
+    if (!hadIcon) return;
+    if (seq !== this.requestSeq || this.panelOpen) return;
+    if (!this.currentInput || !this.triggerEl) return;
+    // 期间遗留的失焦计时器会在 150ms 后再次隐藏图标，先取消
+    if (this.hideIconTimer) {
+      clearTimeout(this.hideIconTimer);
+      this.hideIconTimer = null;
+    }
+
+    this.iconVisible = true;
+    this.positionTrigger();
+    // positionTrigger 判定输入框已滚出视口时会自行 hideIcon，此时不再强显
+    if (!this.iconVisible) return;
+    this.triggerEl.classList.add('visible');
+    this.attachTriggerInteractions();
+    this.syncFollow();
+  }
+
+  /**
    * 关闭面板并隐藏图标（回到无 UI 状态）
    */
   hide(): void {
@@ -973,6 +1003,7 @@ export class InlineFillDropdown {
     const input = this.currentInput;
 
     this.panelOpen = true;
+    const hadIcon = this.iconVisible;
     this.hideIcon();
     // 立即失焦登录框，令 Chrome 原生密码下拉关闭，避免与本面板重叠
     try {
@@ -987,12 +1018,18 @@ export class InlineFillDropdown {
       response = await chrome.runtime.sendMessage({ type: MessageType.GET_MATCHING_ACCOUNTS });
     } catch (error) {
       logger.debug('内联面板：获取匹配账号失败（扩展上下文可能失效）:', error);
-      this.panelOpen = false;
+      // 只有结果仍归属本次请求才收尾：旧请求的失败不能把 `panelOpen` 置回 false，
+      // 否则同期在途的新请求即便取数成功，也会在下面的守卫处被判定为「已被关闭」而丢弃
+      if (seq === this.requestSeq) {
+        this.panelOpen = false;
+        this.restoreIconAfterFailedOpen(seq, hadIcon);
+      }
       return false;
     }
     if (seq !== this.requestSeq || !this.panelOpen) return false;
     if (!response || !response.success || !response.data) {
       this.panelOpen = false;
+      this.restoreIconAfterFailedOpen(seq, hadIcon);
       return false;
     }
 
