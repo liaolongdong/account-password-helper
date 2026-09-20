@@ -145,7 +145,7 @@ graph LR
 | `pnpm auto-merge`                                   | 将 `main` 的改动自动合并回当前分支（脚本 `scripts/auto-merge-main.js`）                                           |
 | `pnpm prepare`                                      | 安装 husky Git hooks（`pnpm install` 时由 npm 自动触发）                                                          |
 
-> ⚠️ 跑单个测试文件要用 `pnpm exec vitest run <file>`。`pnpm test:run -- <file>` 里的 `-- <file>` **不会**被转发给 vitest CLI（实测仍跑全部 93 个文件），因为它不是 `vitest run <file>` 那种位置参数形式。
+> ⚠️ 跑单个测试文件要用 `pnpm exec vitest run <file>`。`pnpm test:run -- <file>` 里的 `-- <file>` **不会**被转发给 vitest CLI（实测仍跑全部 94 个文件），因为它不是 `vitest run <file>` 那种位置参数形式。
 
 > ⚠️ `blog/*.html`、`en.html`、`privacy.en.html`、`pricing.en.html`、封面图与 `public/icon/*.png` 都是**生成产物**，禁止手改；请修改其 Markdown / SVG 源文件后执行对应 `gen:*` / `icons:build` / `covers:render` 重新生成。
 
@@ -502,7 +502,7 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 | `pnpm auto-merge`                                   | Merge `main` back into the current branch (`scripts/auto-merge-main.js`)                                                                        |
 | `pnpm prepare`                                      | Install the husky Git hooks (triggered automatically by `pnpm install`)                                                                         |
 
-> ⚠️ To run one test file use `pnpm exec vitest run <file>`. The `-- <file>` in `pnpm test:run -- <file>` is **not** forwarded to the vitest CLI (measured: it still runs all 93 files), because it never becomes a positional `vitest run <file>` argument.
+> ⚠️ To run one test file use `pnpm exec vitest run <file>`. The `-- <file>` in `pnpm test:run -- <file>` is **not** forwarded to the vitest CLI (measured: it still runs all 94 files), because it never becomes a positional `vitest run <file>` argument.
 
 > ⚠️ `blog/*.html`, `en.html`, `privacy.en.html`, `pricing.en.html`, the cover images and `public/icon/*.png` are **generated artifacts** and must never be hand-edited. Change their Markdown / SVG sources, then re-run the matching `gen:*` / `icons:build` / `covers:render` script.
 
