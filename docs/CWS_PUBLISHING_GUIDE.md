@@ -197,7 +197,8 @@
 rg -n "20-50|20–50" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/reddit-post.md
 
 # PBKDF2 千分位：不应出现无千分位的 600000
-rg -n "600000" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/CONTRIBUTING.md
+# （源码里的 `iterations: 600000` 是合法字面量，不在本命令的扫描面内）
+rg -n "600000" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/CONTRIBUTING.md docs/ARCHITECTURE.md docs/ARCHITECTURE.en.md
 
 # 版本号：三处应与 package.json 的 version 一致
 rg -n "softwareVersion|footer.updated" index.html
