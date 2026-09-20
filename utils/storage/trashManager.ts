@@ -102,6 +102,8 @@ export async function moveToTrash(ids: string[]): Promise<void> {
 /**
  * 从回收站恢复条目到密码列表
  *
+ * 恢复后的条目追加到主列表末尾；主列表已存在同 id 条目时仅消费回收站副本，不产生重复条目。
+ *
  * @param ids 要恢复的条目 ID 列表
  */
 export async function restoreFromTrash(ids: string[]): Promise<void> {
@@ -111,20 +113,31 @@ export async function restoreFromTrash(ids: string[]): Promise<void> {
     const trash = await readTrash();
     const passwords = await readPasswords();
 
+    // 主列表已有同 id 条目时不再追加：本函数是「读回收站 → 读主列表 → 整体覆写」，
+    // 两次并发恢复在同 id 上交错（后一次的主列表读取命中前一次的写入结果）时，
+    // 无条件追加会在主列表落出两条同 id 条目，后续按 id 定位的更新/删除只会命中其一，
+    // 另一条成为无法单独清理的幽灵数据。正常路径下主列表与回收站按 id 互斥，此判断恒为空操作。
+    const existingIds = new Set(passwords.map(entry => entry.id));
     const restoredEntries: (PasswordEntry | EncryptedPasswordEntry)[] = [];
     const remainingTrash: TrashedPasswordEntry[] = [];
+    let skippedExisting = 0;
 
     for (const entry of trash) {
       if (idSet.has(entry.id)) {
         // 移除 deletedAt 字段后恢复
         const { deletedAt: _, ...restored } = entry;
-        restoredEntries.push(restored as PasswordEntry | EncryptedPasswordEntry);
+        if (existingIds.has(entry.id)) {
+          skippedExisting += 1;
+          logger.warn(`恢复跳过主列表已存在的同 id 条目: entryId=${entry.id}`);
+        } else {
+          restoredEntries.push(restored as PasswordEntry | EncryptedPasswordEntry);
+        }
       } else {
         remainingTrash.push(entry);
       }
     }
 
-    if (restoredEntries.length === 0) return;
+    if (restoredEntries.length === 0 && skippedExisting === 0) return;
 
     // 原子写入：同时更新 passwords 和 trash
     await chrome.storage.local.set({
