@@ -10,10 +10,12 @@
  *    导致界面渲染原始 key」的回归）；
  * 4. 校验 HelpDialog 以 helpItems(prefix, N) 序号驱动渲染的分组，其
  *    1..N 条目在中英文语言包中齐全且无多余（防「改了 N 忘了补文案」
- *    或「补了文案忘了抬 N」两类单边漂移）。
+ *    或「补了文案忘了抬 N」两类单边漂移）；
+ * 5. 校验侧边栏专属目录下的源文件都被扫描清单认领、且清单不指向已不存在的
+ *    文件（防「清单漏登记 → 该文件的 key 永不校验」这种静默失效）。
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync } from 'fs';
+import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -49,8 +51,16 @@ const BUNDLE_NAMESPACES = {
 } as const;
 
 /**
- * 侧边栏首屏依赖图源文件（不含懒加载的 HelpDialog）
- * 新增侧边栏组件/composable 使用 t() 时需同步补充到此列表
+ * 侧边栏首屏依赖图源文件
+ *
+ * 新增侧边栏组件/composable 使用 t() 时需同步补充到此列表，且这一要求由
+ * 「侧边栏清单认领完整性」用例强制：漏补会让新文件里的 key 完全不进扫描，
+ * 界面渲染出裸 key 而测试仍全绿——`QuickAddDialog.vue` 就是这样漏掉过的。
+ *
+ * 懒加载 chunk 不在此列的只有 HelpDialog：它注册的命名空间与首屏不同（见
+ * `HELP_DIALOG_FILES`）。`QuickAddDialog.vue` 虽然也是 `defineAsyncComponent`
+ * 懒加载，但它复用侧边栏同一个 i18n 实例、可用命名空间与首屏完全一致，
+ * 因此归入本清单。
  */
 const SIDEPANEL_GRAPH_FILES = [
   'entrypoints/sidepanel/App.vue',
@@ -59,6 +69,7 @@ const SIDEPANEL_GRAPH_FILES = [
   'components/sidepanel/PasswordListItem.vue',
   'components/sidepanel/SidepanelHeader.vue',
   'components/sidepanel/SidepanelAuthView.vue',
+  'components/sidepanel/QuickAddDialog.vue',
   'components/TotpCode.vue',
   'components/BrandLogo.vue',
   'composables/useSidepanelData.ts',
@@ -212,6 +223,46 @@ describe('入口 bundle key 覆盖率（静态扫描源码）', () => {
         expect(bundleKeys.has(key), `${file} 使用的 key「${key}」未被 options bundle 覆盖`).toBe(true);
       }
     }
+  });
+});
+
+/**
+ * 侧边栏专属目录
+ *
+ * 这两处下的源文件只可能属于侧边栏首屏或侧边栏懒加载 chunk，因此「是否被清单认领」
+ * 可以机械判定；跨入口复用的 composables / components 根目录组件不在此列，
+ * 仍需人工登记（清单漂移的残余风险，见 `SIDEPANEL_GRAPH_FILES` 注释）。
+ */
+const SIDEPANEL_OWNED_DIRS = ['entrypoints/sidepanel', 'components/sidepanel'];
+
+/** 递归列出目录下全部 `.ts` / `.vue` 源文件（相对 ROOT） */
+function listSources(dir: string): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(path.join(ROOT, dir), { withFileTypes: true })) {
+    const rel = `${dir}/${entry.name}`;
+    if (entry.isDirectory()) {
+      out.push(...listSources(rel));
+    } else if (/\.(ts|vue)$/.test(entry.name)) {
+      out.push(rel);
+    }
+  }
+  return out;
+}
+
+describe('侧边栏扫描清单认领完整性', () => {
+  it('侧边栏目录下每个源文件都被某个扫描清单认领', () => {
+    const claimed = new Set([...SIDEPANEL_GRAPH_FILES, ...HELP_DIALOG_FILES]);
+    const unclaimed = SIDEPANEL_OWNED_DIRS.flatMap(listSources).filter(file => !claimed.has(file));
+    expect(
+      unclaimed,
+      `以下侧边栏源文件未登记进扫描清单，其 t() key 不会被任何 bundle 覆盖校验: ${unclaimed.join(', ')}`,
+    ).toEqual([]);
+  });
+
+  it('四份清单里的每个文件都真实存在', () => {
+    const listed = [...SIDEPANEL_GRAPH_FILES, ...HELP_DIALOG_FILES, ...POPUP_GRAPH_FILES, ...IDENTITY_GRAPH_FILES];
+    const missing = listed.filter(file => !existsSync(path.join(ROOT, file)));
+    expect(missing, `扫描清单指向不存在的文件（重命名或删除后未同步）: ${missing.join(', ')}`).toEqual([]);
   });
 });
 
