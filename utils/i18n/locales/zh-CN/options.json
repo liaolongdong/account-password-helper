@@ -221,6 +221,7 @@
   "options.import.dragText": "将文件拖拽到此处，或",
   "options.import.clickText": "点击选择文件",
   "options.import.acceptHint": "支持 .csv、.json 格式",
+  "options.import.limitOneFile": "一次仅支持导入一个文件，如需更换请先移除当前文件",
   "options.import.previewTitle": "预览数据（前5条）",
   "options.import.previewTotal": "共 {count} 条有效数据",
   "options.import.hidePassword": "隐藏密码",

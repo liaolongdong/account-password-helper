@@ -33,6 +33,7 @@
             :limit="1"
             accept=".aph"
             @change="handleFileChange"
+            @exceed="handleExceed"
           >
             <div class="upload-dragger-content">
               <el-icon class="upload-icon"><Upload /></el-icon>
@@ -264,6 +265,16 @@ const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+};
+
+/**
+ * 超出数量上限的兜底提示
+ *
+ * `el-upload` 的 `on-exceed` 默认为空实现，命中 `limit` 时文件被静默丢弃：既不提示，
+ * 也不换选，用户以为已经选好备份文件。
+ */
+const handleExceed = () => {
+  ElMessage.warning(t('options.import.limitOneFile'));
 };
 
 /** 处理文件选择 */

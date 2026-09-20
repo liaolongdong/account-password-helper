@@ -7,7 +7,7 @@ import { EmailBackupUtils } from '@/utils/emailBackup';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
-import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
+import { parseTags, stringifyTags, collectAllTags, normalizeTagInput } from '@/utils/tagUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
@@ -205,20 +205,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const tagArray = computed<string[]>({
     get: () => parseTags(passwordForm.value.tag),
     set: (value: string[]) => {
-      const trimmed = value.map(v => String(v ?? '').trim()).filter(Boolean);
-      const valid: string[] = [];
-      let hasTooLong = false;
-      for (const t of trimmed) {
-        if (t.length > MAX_TAG_LENGTH) {
-          hasTooLong = true;
-          continue;
-        }
-        valid.push(t);
-      }
-      if (hasTooLong) {
+      const { accepted, rejectedTooLong } = normalizeTagInput(value, MAX_TAG_LENGTH);
+      if (rejectedTooLong.length > 0) {
         ElMessage.warning(t('form.tagLengthLimit', { max: MAX_TAG_LENGTH }));
       }
-      let finalTags = valid;
+      let finalTags = accepted;
       if (finalTags.length > MAX_TAG_COUNT) {
         finalTags = finalTags.slice(0, MAX_TAG_COUNT);
         ElMessage.warning(t('form.tagCountLimit', { max: MAX_TAG_COUNT }));
@@ -432,10 +423,17 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   // 处理密码表单保存
   const handlePasswordFormSave = async (formRef?: FormInstance) => {
-    try {
-      if (formRef) {
+    if (formRef) {
+      // 校验失败由 el-form 的字段内联提示承载，不能按「保存失败」上报：那会把用户的输入错误
+      // 说成系统故障，还把 EP 的字段错误对象写进 error 日志（与 SiteRulesDialog 同一口径）
+      try {
         await formRef.validate();
+      } catch {
+        return;
       }
+    }
+
+    try {
       passwordFormLoading.value = true;
 
       // 对标签做归一化：拆分 → 去空/去重 → 英文逗号拼接

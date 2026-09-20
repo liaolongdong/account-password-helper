@@ -68,6 +68,7 @@
             :limit="1"
             accept=".csv,.json"
             @change="handleFileChange"
+            @exceed="handleExceed"
           >
             <div class="upload-dragger-content">
               <el-icon class="upload-icon"><Upload /></el-icon>
@@ -256,6 +257,16 @@ const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+};
+
+/**
+ * 超出数量上限的兜底提示
+ *
+ * `el-upload` 的 `on-exceed` 默认是空实现：命中 `limit` 时新文件既不入列表也不触发 `change`，
+ * 一次选多个文件或换选都表现为「点了没反应」，文件信息区还停在上一次的文件。
+ */
+const handleExceed = () => {
+  ElMessage.warning(t('options.import.limitOneFile'));
 };
 
 // 处理文件选择

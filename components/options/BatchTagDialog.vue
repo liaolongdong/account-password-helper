@@ -64,7 +64,7 @@
         <el-button
           type="primary"
           size="large"
-          :disabled="tags.length === 0"
+          :disabled="confirmDisabled"
           @click="handleSave"
         >
           {{ t('common.confirm') }}
@@ -75,8 +75,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { useI18n } from '@/utils/i18n';
+import { normalizeTagInput } from '@/utils/tagUtils';
 import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/composables/usePasswordManagement';
 
 /** 批量编辑标签模式：追加并入 / 移除剔除 */
@@ -111,20 +112,30 @@ const mode = ref<BatchTagMode>('append');
 /** 选中的标签列表 */
 const tags = ref<string[]>([]);
 
+/** 待上抛标签与超长丢弃项：确定键与提示都以它为准，避免「能点但什么都不发生」 */
+const tagNormalization = computed(() => normalizeTagInput(tags.value, MAX_TAG_LENGTH));
+
 /**
- * 确认保存：规整标签（trim / 剔除空值与超长项 / 去重）后上抛
+ * 确定键禁用条件：只有「什么都没选（或只选了空白标签）」才禁用。
+ * 只选了超长标签时保持可点——点击必须给出超长提示，灰掉按钮等于又一次无反馈的死路。
+ */
+const confirmDisabled = computed(
+  () => tagNormalization.value.accepted.length === 0 && tagNormalization.value.rejectedTooLong.length === 0,
+);
+
+/**
+ * 确认保存：按新增表单同口径规整（trim / 去空 / 去重 / 剔除超长）后上抛
+ *
+ * 超长项必须显式提示：`allow-create` 允许输入任意长度的标签，静默丢弃会让用户以为
+ * 已经改完，与新增表单的 `form.tagLengthLimit` 提示口径不一致。
  */
 const handleSave = () => {
-  const seen = new Set<string>();
-  const normalized: string[] = [];
-  for (const raw of tags.value) {
-    const tag = raw.trim();
-    if (!tag || tag.length > MAX_TAG_LENGTH || seen.has(tag)) continue;
-    seen.add(tag);
-    normalized.push(tag);
+  const { accepted, rejectedTooLong } = tagNormalization.value;
+  if (rejectedTooLong.length > 0) {
+    ElMessage.warning(t('form.tagLengthLimit', { max: MAX_TAG_LENGTH }));
   }
-  if (normalized.length === 0) return;
-  emit('save', normalized, mode.value);
+  if (accepted.length === 0) return;
+  emit('save', accepted, mode.value);
 };
 
 /** 弹窗每次打开时重置表单，避免上次选择残留 */

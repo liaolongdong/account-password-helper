@@ -49,6 +49,44 @@ export const stringifyTags = (tags: string[] | undefined | null): string => {
 };
 
 /**
+ * 标签输入规整结果
+ */
+export interface NormalizedTagInput {
+  /** 可写入的标签（已去空白、去空项、去重、剔除超长项，顺序与用户选择一致） */
+  accepted: string[];
+  /** 因超出单标签长度上限被丢弃的标签（调用方据此给出可读提示） */
+  rejectedTooLong: string[];
+}
+
+/**
+ * 规整用户选择的标签列表
+ *
+ * 与 `stringifyTags` 同口径（trim / 过滤空项 / 去重），额外把超长项分离出来而不是静默丢弃，
+ * 供新增表单与批量编辑弹窗共用同一套「超长按上限丢弃并提示」判定。
+ * 数量上限由调用方决定（表单侧截断并提示，批量弹窗侧由 `multiple-limit` 直接拦下）。
+ *
+ * @param tags 原始标签数组（可能含空白项、重复项与超限项）
+ * @param maxLength 单个标签允许的最大字符数
+ * @returns accepted / rejectedTooLong 两组标签
+ */
+export const normalizeTagInput = (tags: string[] | undefined | null, maxLength: number): NormalizedTagInput => {
+  const accepted: string[] = [];
+  const rejectedTooLong: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of tags ?? []) {
+    const tag = String(raw ?? '').trim();
+    if (!tag || seen.has(tag)) continue;
+    seen.add(tag);
+    if (tag.length > maxLength) {
+      rejectedTooLong.push(tag);
+      continue;
+    }
+    accepted.push(tag);
+  }
+  return { accepted, rejectedTooLong };
+};
+
+/**
  * 聚合所有密码条目中的标签，返回去重后的候选项
  * 用于标签下拉框的候选列表。
  *

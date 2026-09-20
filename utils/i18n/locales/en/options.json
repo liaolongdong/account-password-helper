@@ -221,6 +221,7 @@
   "options.import.dragText": "Drag a file here, or",
   "options.import.clickText": "click to choose a file",
   "options.import.acceptHint": ".csv and .json formats supported",
+  "options.import.limitOneFile": "Only one file can be imported at a time. Remove the current file first to choose another.",
   "options.import.previewTitle": "Preview (first 5 rows)",
   "options.import.previewTotal": "{count} valid entries in total",
   "options.import.hidePassword": "Hide passwords",
