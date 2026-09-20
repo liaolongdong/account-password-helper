@@ -3,7 +3,7 @@ title: Four New Features, Four Implementation Notes: Right-Click Fill, Site-Wide
 description: None of these updates added a settings toggle. This post walks through the implementation trade-offs and security boundaries behind right-click fill, inline panel positioning, side panel site-wide search, and the read-only entry drawer.
 tags: chrome extension, browser extension, password manager, frontend, interaction design
 date: 2026-09-05
-modified: 2026-09-20
+modified: 2026-09-21
 author: liaolongdong
 image: imgs/blog-cover-04-login-flow-details.png
 ---
@@ -52,7 +52,7 @@ The read-only detail drawer (`components/options/PasswordDetailDrawer.vue`) serv
 
 ## What the four have in common
 
-Looking back, all four chains obey the same constraints: **no new toggles, no new permissions beyond `contextMenus`, no change to storage layout or encryption format, no redefinition of existing entries**; every new user-visible string ships in Chinese and English as a pair; every feature came with regression tests, with 1084 automated tests across 94 test files plus `pnpm build` and `pnpm build:firefox` (Chromium and Firefox targets) as the acceptance bar.
+Looking back, all four chains obey the same constraints: **no new toggles, no new permissions beyond `contextMenus`, no change to storage layout or encryption format, no redefinition of existing entries**; every new user-visible string ships in Chinese and English as a pair; every feature came with regression tests, with 1093 automated tests across 94 test files plus `pnpm build` and `pnpm build:firefox` (Chromium and Firefox targets) as the acceptance bar.
 
 Feature increments in a password manager shouldn't be "a few more buttons". They should polish the same login chain until it's a little smoother: one less app switch, one less wrong input box, one less accidental edit made just to read a note.
 

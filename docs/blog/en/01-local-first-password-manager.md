@@ -3,7 +3,7 @@ title: 'Zero Cloud, Open Source, Built for Developers: Why I Built Another Brows
 description: Why does the world need another password manager? The case for a local-first, open-source tool built around multi-environment logins, one-click sign-in, and zero network trust.
 tags: password manager,browser extension,open source,chrome extension,local-first
 date: 2026-08-28
-modified: 2026-09-20
+modified: 2026-09-21
 author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---
@@ -66,7 +66,7 @@ A password manager earns trust through verifiable design, not slogans. The hard 
 2. **Field-level encryption.** Username, password, URL, notes, and TOTP secret are each encrypted individually. The storage layer sees only ciphertext.
 3. **Standard algorithms, no invention.** PBKDF2-SHA256 (600,000 iterations) for key derivation, AES-256-GCM authenticated encryption, all via the browser-native Web Crypto API. A follow-up post covers the implementation in depth.
 4. **Sessions have lifecycles.** 24 hours by default (1 hour to 7 days configurable). Idle auto-lock tied to system screen lock, and relock on browser restart, are both opt-in and off by default; one-click manual lock is always available. On any lock path, in-memory key handles and decrypted snapshots are wiped.
-5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 1084 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
+5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 1093 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
 
 An honest disclaimer too: **this tool is positioned for development, testing, and everyday logins. I don't recommend storing banking or payment credentials in any browser extension.** And the master password cannot be recovered if forgotten — use the encrypted backup feature. Stating boundaries plainly is what security products should do.
 
