@@ -27,6 +27,7 @@ const _getSessionManager = lazyImport(() => import('@/utils/sessionManager-stora
  *
  * 安全保证：
  * - 步骤 1-9 任意失败直接抛出，storage 未被写入，数据安全无损
+ * - 旧钥解不开的单条历史记录原样保留（仍为旧钥密文），rekey 不删除任何用户数据
  * - 步骤 11 使用单次 `chrome.storage.local.set()` 将数据密文与新会话密钥原子写入，
  *   不存在「新密文 + 旧会话密钥」的中间状态
  * - 加密备份文件（.aph）不受影响：导入时使用导出时的密码解密，与当前主密码无关
@@ -86,14 +87,18 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   }
 
   // 6. 用旧密钥解密 history 中的密码字段
+  // 解不开的记录原样保留（仍为旧钥密文），不参与重加密：rekey 不得顺带删除用户数据，
+  // 与 identityCrud.reencryptAll「失败者原样携带」及 getAllHistory「跳过但不回写」同口径。
+  // 消费侧（详情抽屉 / 编辑弹窗）本就以「解密失败」提示处理这类记录。
   const decryptedHistory: PasswordHistoryRecord[] = [];
+  const unrecoverableHistory: PasswordHistoryRecord[] = [];
   for (const record of rawHistory) {
     try {
       const plainPassword = await enc.decryptData(record.password, oldKey);
       decryptedHistory.push({ ...record, password: plainPassword });
     } catch {
-      // 无法解密的历史记录跳过（可能是损坏数据）
-      logger.warn(`跳过无法解密的历史记录: entryId=${record.entryId}`);
+      unrecoverableHistory.push(record);
+      logger.warn(`历史记录无法用旧密钥解密，已原样保留（不参与 rekey）: entryId=${record.entryId}`);
     }
   }
 
@@ -119,6 +124,9 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
     const encryptedPassword = await enc.encryptData(record.password, newKey);
     reEncryptedHistory.push({ ...record, password: encryptedPassword });
   }
+  // 不可解记录置于末尾原样落盘（数组顺序对消费侧无意义：读取按 changedAt 排序，
+  // 截断亦按 changedAt 计算），保证 rekey 前后记录条数严格不变
+  reEncryptedHistory.push(...unrecoverableHistory);
 
   const reEncryptedIdentity = await reencryptAll(identityRaw, oldKey, newKey);
 
