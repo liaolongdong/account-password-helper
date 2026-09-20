@@ -16,6 +16,7 @@ import {
   UPDATE_CHECK_INTERVAL_MINUTES,
 } from '@/utils/updateChecker';
 import { getSidePanelPorts } from './sidePanelManager';
+import { openOptionsPage } from './optionsPageManager';
 import {
   invalidatePasswordCache,
   warmPasswordCache,
@@ -189,6 +190,8 @@ async function setupPasswordReminderAlarm() {
  * 执行密码到期提醒检查
  *
  * 检查所有已到期且未通知的提醒，逐条发送桌面通知。
+ * 每条提醒独立捕获异常：系统通知配额耗尽、通知服务不可用等单条失败，
+ * 只跳过该条（下一周期 12 小时后仍会重试），不能连带丢掉后续所有到期提醒。
  */
 async function performReminderCheck() {
   try {
@@ -198,16 +201,20 @@ async function performReminderCheck() {
     if (dueReminders.length === 0) return;
 
     for (const reminder of dueReminders) {
-      const notificationId = `password-reminder-${reminder.entryId}`;
-      await chrome.notifications.create(notificationId, {
-        type: 'basic',
-        iconUrl: chrome.runtime.getURL('icon/128.png'),
-        title: tl('bg.reminder.title'),
-        message: tl('bg.reminder.message', { username: reminder.username }),
-      });
-      await markNotified(reminder.entryId);
       // 只记 entryId：账号名属敏感标识，不入日志（与 reminderManager 的日志口径一致）
-      logger.info(`Background: 密码提醒已发送 [${reminder.entryId}]`);
+      try {
+        const notificationId = `password-reminder-${reminder.entryId}`;
+        await chrome.notifications.create(notificationId, {
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icon/128.png'),
+          title: tl('bg.reminder.title'),
+          message: tl('bg.reminder.message', { username: reminder.username }),
+        });
+        await markNotified(reminder.entryId);
+        logger.info(`Background: 密码提醒已发送 [${reminder.entryId}]`);
+      } catch (error) {
+        logger.error(`Background: 单条密码提醒发送失败，跳过 [${reminder.entryId}]:`, error);
+      }
     }
   } catch (error) {
     logger.error('Background: 密码提醒检查失败:', error);
@@ -611,11 +618,11 @@ export function setupBackgroundServices(): void {
     } else if (notificationId === UNLOCK_NOTIFICATION_ID) {
       // 「需解锁」通知：点击直达主密码验证页（options 页会话失效时自动展示验证表单）
       // 并收起通知，避免已跳转后通知仍挂在通知中心
-      chrome.runtime.openOptionsPage();
+      openOptionsPage();
       chrome.notifications.clear(UNLOCK_NOTIFICATION_ID);
     } else if (notificationId.startsWith('password-reminder-')) {
       // 密码提醒通知点击：打开选项页面
-      chrome.runtime.openOptionsPage();
+      openOptionsPage();
       chrome.notifications.clear(notificationId);
     }
   });
