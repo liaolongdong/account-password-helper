@@ -305,7 +305,7 @@
 <li><code>passwordCache</code> / <code>startupRelock</code> / <code>idleLock</code>: cache re-warm and every lock path;</li>
 <li><code>sidePanelManager</code>: open sequencing.</li>
 </ul>
-<p>The repo now has 1116 automated tests across 99 test files. Performance outcome: <strong>20–50ms to data on the cached warm path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
+<p>The repo now has 1126 automated tests across 101 test files. Performance outcome: <strong>20–50ms to data on the cached warm path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
 <h2>Retrospective: Three Lessons</h2>
 <ol>
 <li><strong>Don&#39;t fight MV3&#39;s lifecycle; design around it.</strong> The SW <em>will</em> be terminated. Assume it&#39;s never there: put state in <code>chrome.storage</code>, delegate wake-ups to alarms, and push costs forward into pre-warming.</li>

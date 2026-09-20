@@ -87,4 +87,4 @@ image: imgs/blog-cover-03-webcrypto.png
 
 ---
 
-_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（1116 项自动化测试，含加密与换钥路径）。_
+_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（1126 项自动化测试，含加密与换钥路径）。_

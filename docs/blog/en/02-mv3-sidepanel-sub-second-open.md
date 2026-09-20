@@ -93,7 +93,7 @@ Alongside the implementation, the test suite grew to cover every layer (vitest �
 - `passwordCache` / `startupRelock` / `idleLock`: cache re-warm and every lock path;
 - `sidePanelManager`: open sequencing.
 
-The repo now has 1116 automated tests across 99 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
+The repo now has 1126 automated tests across 101 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
 
 ## Retrospective: Three Lessons
 
