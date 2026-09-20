@@ -62,4 +62,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
+      # 产物级守卫必须对新鲜构建产物跑：`tests/architecture/sidepanelClosure.test.ts`
+      # 在 `.output/chrome-mv3` 缺失时整文件跳过，而 `test` 任务不产出该目录——放在那里
+      # 等于长期空跑。这里紧随 Chrome 构建执行，覆盖「身份库泄入 sidepanel / popup 首屏」
+      # 这类只在产物层才看得见的回归；放在 build:firefox 之前，失败信号更早且不受 Firefox 产物影响。
+      - run: pnpm exec vitest run tests/architecture
       - run: pnpm build:firefox
