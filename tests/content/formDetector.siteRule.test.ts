@@ -199,39 +199,52 @@ describe('FormDetector 站点规则消费', () => {
     });
   });
 
-  describe('影子 DOM 穿透优先级', () => {
-    const scanCallCount = async (config: Record<string, unknown>, rule: Partial<SiteRule> | null): Promise<number> => {
+  describe('影子 DOM 穿透开关的判定与适用边界', () => {
+    /** 按给定全局配置与站点规则创建实例，读出穿透判定后销毁 */
+    const resolvePenetration = async (
+      config: Record<string, unknown>,
+      rule: Partial<SiteRule> | null,
+    ): Promise<boolean> => {
       buildLoginDom();
-      installChromeMock(config, rule && DOMAIN ? { [DOMAIN]: { domain: DOMAIN, ...rule } } : {});
+      installChromeMock(config, rule ? { [DOMAIN]: { domain: DOMAIN, ...rule } } : {});
       const instance = await createDetector();
-      const spy = vi.spyOn(instance as any, 'collectFieldsFromShadowRoots');
-
-      (instance as any).detectForms();
+      const enabled = (instance as any).penetrateShadowEnabled as boolean;
       instance.destroy();
-      return spy.mock.calls.length;
+      return enabled;
     };
 
     it('全局关闭穿透时，站点规则不得把它重新打开', async () => {
-      expect(await scanCallCount(makeConfig({ penetrateShadow: false }), { penetrateShadow: true })).toBe(0);
+      expect(await resolvePenetration(makeConfig({ penetrateShadow: false }), { penetrateShadow: true })).toBe(false);
     });
 
     it('全局开启时，站点规则可针对单站点关闭', async () => {
-      expect(await scanCallCount(makeConfig({ penetrateShadow: true }), { penetrateShadow: false })).toBe(0);
+      expect(await resolvePenetration(makeConfig({ penetrateShadow: true }), { penetrateShadow: false })).toBe(false);
     });
 
-    it('全局开启且无规则/规则未声明该项时保持扫描（与改动前一致）', async () => {
-      expect(await scanCallCount(makeConfig({ penetrateShadow: true }), null)).toBe(1);
-      expect(await scanCallCount(makeConfig({ penetrateShadow: true }), {})).toBe(1);
+    it('全局开启且无规则/规则未声明该项时保持开启（与改动前一致）', async () => {
+      expect(await resolvePenetration(makeConfig({ penetrateShadow: true }), null)).toBe(true);
+      expect(await resolvePenetration(makeConfig({ penetrateShadow: true }), {})).toBe(true);
     });
 
-    it('失败引导气泡与扫描共用同一判定', async () => {
-      buildLoginDom();
+    it('关闭穿透时，规则选择器在主树内依然生效', async () => {
+      const fields = buildLoginDom();
       installChromeMock(makeConfig({ penetrateShadow: false }), {
-        [DOMAIN]: { domain: DOMAIN, penetrateShadow: true },
+        [DOMAIN]: {
+          domain: DOMAIN,
+          penetrateShadow: false,
+          customSelectors: { username: '#a-user', password: '#a-pwd' },
+        },
       });
       detector = await createDetector();
-
       expect((detector as any).penetrateShadowEnabled).toBe(false);
+
+      (detector as any).detectForms();
+
+      // 选择器是用户逐站点显式写下的确定性指令，本用例只证明它在主树内不被穿透开关作废；
+      // 跨 shadow 边界的查询根行为由 formDetector.shadow.test.ts 覆盖，二者不重复断言。
+      // 关掉开关会让「去指定字段」的失败引导气泡一并消失（该耦合是否合理已在 JSDoc 标为待评审）
+      expect((detector as any).usernameFields).toEqual([fields.aUser]);
+      expect((detector as any).passwordFields).toEqual([fields.aPwd]);
     });
   });
 

@@ -412,11 +412,15 @@ const handleSubmit = async () => {
 /** 删除规则（二次确认） */
 const handleDelete = async (rule: SiteRule) => {
   try {
-    await ElMessageBox.confirm(t('options.siteRules.deleteConfirm', { domain: rule.domain }), {
-      type: 'warning',
-      confirmButtonText: t('common.confirm'),
-      cancelButtonText: t('common.cancel'),
-    });
+    await ElMessageBox.confirm(
+      t('options.siteRules.deleteConfirm', { domain: rule.domain }),
+      t('options.siteRules.deleteConfirmTitle'),
+      {
+        type: 'warning',
+        confirmButtonText: t('common.confirm'),
+        cancelButtonText: t('common.cancel'),
+      },
+    );
   } catch {
     return;
   }

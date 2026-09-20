@@ -29,5 +29,7 @@
   "common.pwdMismatch": "The two passwords do not match",
   "common.quickFill": "Quick Fill",
   "common.showPassword": "Show password",
-  "common.hidePassword": "Hide password"
+  "common.hidePassword": "Hide password",
+  "common.noData": "No data",
+  "common.noMatch": "No match"
 }

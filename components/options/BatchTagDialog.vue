@@ -30,6 +30,8 @@
             default-first-option
             clearable
             :multiple-limit="MAX_TAG_COUNT"
+            :no-data-text="t('common.noData')"
+            :no-match-text="t('common.noMatch')"
             :placeholder="t('options.form.tagPlaceholder', { max: MAX_TAG_COUNT })"
             style="width: 100%"
           >

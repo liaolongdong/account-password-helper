@@ -22,6 +22,15 @@ import { MAX_IDENTITIES, MAX_ID_LEN } from '@/utils/identity/constants';
  * encryption.test.ts 等并行用例抢 CPU 时误判超时。
  */
 
+/**
+ * KDF 用例超时上限（ms），口径与 `tests/utils/encryption.test.ts` 同一常量
+ *
+ * 两个用例各跑两遍 600k 迭代派生：单跑约 1.5–4s，但 `pnpm test:run` 全量并行时实测被
+ * 挤到 20s 以上（断言本身从未失败）。用例级 timeout 优先级高于 CLI 的 `--testTimeout`，
+ * 所以必须在参数位上放宽；放宽耗时不弱化任何断言。
+ */
+const KDF_TIMEOUT_MS = 90_000;
+
 const payload = (overrides: Partial<IdentityPayload> = {}): IdentityPayload => ({
   pv: 1,
   category: 'person',
@@ -339,24 +348,32 @@ describe('decryptIdentityBackup', () => {
     expect(code).toBe('INVALID_FILE');
   });
 
-  it('往返：加密后解密回原文，records 与 id 逐条一致', async () => {
-    const data = buildIdentityBackupData([entry('a', 1, { name: '张三' }), entry('b', 2, { category: 'bank_card' })]);
-    const bytes = await encryptIdentityBackup(data, 'master-pw');
-    const decrypted = await decryptIdentityBackup(bytes, 'master-pw');
+  it(
+    '往返：加密后解密回原文，records 与 id 逐条一致',
+    async () => {
+      const data = buildIdentityBackupData([entry('a', 1, { name: '张三' }), entry('b', 2, { category: 'bank_card' })]);
+      const bytes = await encryptIdentityBackup(data, 'master-pw');
+      const decrypted = await decryptIdentityBackup(bytes, 'master-pw');
 
-    expect(decrypted.kind).toBe('aphid');
-    expect(decrypted.records).toHaveLength(2);
-    expect(decrypted.records.map(r => r.id)).toEqual(['a', 'b']);
-    expect(decrypted.records[0].payload.name).toBe('张三');
-    expect(decrypted.records[1].payload.category).toBe('bank_card');
-  }, 20_000);
+      expect(decrypted.kind).toBe('aphid');
+      expect(decrypted.records).toHaveLength(2);
+      expect(decrypted.records.map(r => r.id)).toEqual(['a', 'b']);
+      expect(decrypted.records[0].payload.name).toBe('张三');
+      expect(decrypted.records[1].payload.category).toBe('bank_card');
+    },
+    KDF_TIMEOUT_MS,
+  );
 
-  it('错误密码 → WRONG_PASSWORD', async () => {
-    const data = buildIdentityBackupData([entry('a', 1)]);
-    const bytes = await encryptIdentityBackup(data, 'correct-pw');
-    const err = await decryptIdentityBackup(bytes, 'wrong-pw').catch(e => e);
-    expect(getIdentityBackupErrorCode(err)).toBe('WRONG_PASSWORD');
-  }, 20_000);
+  it(
+    '错误密码 → WRONG_PASSWORD',
+    async () => {
+      const data = buildIdentityBackupData([entry('a', 1)]);
+      const bytes = await encryptIdentityBackup(data, 'correct-pw');
+      const err = await decryptIdentityBackup(bytes, 'wrong-pw').catch(e => e);
+      expect(getIdentityBackupErrorCode(err)).toBe('WRONG_PASSWORD');
+    },
+    KDF_TIMEOUT_MS,
+  );
 });
 
 describe('mergeIdentityRecords（按 id 合并 + 计数）', () => {

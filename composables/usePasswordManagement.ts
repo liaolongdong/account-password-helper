@@ -21,6 +21,14 @@ export const MAX_TAG_COUNT = 3;
 /** 单个标签最大字符长度 */
 export const MAX_TAG_LENGTH = 30;
 
+/**
+ * 删除动画时长：行淡出后再落盘（沿用原实现的 1s 节奏，不改变观感）
+ *
+ * 导出供回归测试复用：测试里写死同一个数字，实现调整节奏后只会「多推进」而不会失败，
+ * 动画与落盘的时序契约就静默失守了。
+ */
+export const DELETE_ANIMATION_MS = 1000;
+
 /** 密码表单空值初始状态（避免多处重复字面量） */
 const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
 
@@ -507,6 +515,50 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
   };
 
+  /**
+   * 删除落盘收尾：成功刷新列表并提示，失败给出可读错误并刷新回真实数据
+   *
+   * 原实现把真实写入直接放在 setTimeout 回调里，外层 try/catch 捕获不到任何异常——
+   * 失败时行已从表格消失但存储未删，刷新后条目「复活」，用户得不到任何反馈。
+   *
+   * @returns 是否真正删除成功（失败时由调用方把动画期间摘掉的行插回原位）
+   */
+  const commitDelete = async (runDelete: () => Promise<void>, failureMessage: string): Promise<boolean> => {
+    try {
+      await runLocalOperation(runDelete);
+      await loadPasswords();
+      ElMessage.success(t('form.movedToTrash'));
+      return true;
+    } catch (error) {
+      logger.error('移入回收站失败:', error);
+      await loadPasswords();
+      ElMessage.error(failureMessage);
+      return false;
+    }
+  };
+
+  /** 按条目 ID 定位表格行（CSS.escape 兜住非常规 id，避免选择器本身抛错） */
+  const findPasswordRow = (id: string): HTMLElement | null => document.querySelector<HTMLElement>(`.${CSS.escape(id)}`);
+
+  /**
+   * 摘掉淡出结束的表格行，并返回「插回原位」的复原函数
+   *
+   * 动画结束时物理移除节点是既有观感（行随之收拢）；但 `el-table` 设了 `row-key="id"`，
+   * 条目仍在库里时，失败分支的 `loadPasswords()` 只会让 Vue 按 key 复用那个已脱离文档的
+   * 节点、不会重新插入——行永久看不见，直到用户翻页或重排序。因此必须记住原位自己插回。
+   * 插回时顺带摘掉 `del-item`：重新入文档会让 CSS 动画从 0% 重播，否则失败行会再淡出一次。
+   */
+  const detachRow = (row: HTMLElement): (() => void) => {
+    const parent = row.parentNode;
+    const next = row.nextElementSibling;
+    row.remove();
+    return () => {
+      row.classList.remove('del-item');
+      if (!parent) return;
+      parent.insertBefore(row, parent.contains(next) ? next : null);
+    };
+  };
+
   // 删除密码
   const deletePassword = async (id: string) => {
     try {
@@ -515,24 +567,31 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         cancelButtonText: t('common.cancel'),
         type: 'warning',
       });
-
-      const delItem = document.querySelector(`.${id}`) as HTMLElement | undefined;
-      if (delItem) {
-        delItem.classList.add('del-item');
-        setTimeout(async () => {
-          delItem.remove();
-          await runLocalOperation(async () => {
-            await StorageUtils.deletePassword(id);
-          });
-          await loadPasswords();
-          ElMessage.success(t('form.movedToTrash'));
-        }, 1000);
-      }
     } catch (error) {
+      // 取消（EP 以字符串 'cancel' reject）保持静默，其余异常照旧提示：
+      // 一概 return 会把「点了没反应」带回来，非 cancel 的 reject 属于真实故障
       if (error !== 'cancel') {
+        logger.error('删除确认弹窗异常:', error);
         ElMessage.error(t('message.deleteFailed'));
       }
+      return;
     }
+
+    const delItem = findPasswordRow(id);
+    // 行未渲染（被当前筛选/搜索条件排除等）时同样要执行删除：原实现只在命中 DOM 行的
+    // 分支里落盘，用户确认后既无提示也无删除，表现为「点了没反应」
+    if (!delItem) {
+      await commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed'));
+      return;
+    }
+
+    delItem.classList.add('del-item');
+    setTimeout(() => {
+      const restoreRow = detachRow(delItem);
+      void commitDelete(() => StorageUtils.deletePassword(id), t('message.deleteFailed')).then(deleted => {
+        if (!deleted) restoreRow();
+      });
+    }, DELETE_ANIMATION_MS);
   };
 
   // 批量删除
@@ -547,32 +606,38 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           type: 'warning',
         },
       );
-
-      const patchDelItems: HTMLElement[] = [];
-      selectedIds.value.forEach((id: string) => {
-        const delItem = document.querySelector(`.${id}`) as HTMLElement | undefined;
-        if (delItem) {
-          delItem.classList.add('del-item');
-          patchDelItems.push(delItem);
-        }
-      });
-      setTimeout(async () => {
-        patchDelItems.forEach(delItem => {
-          delItem.remove();
-        });
-
-        await runLocalOperation(async () => {
-          await StorageUtils.deletePasswords(selectedIds.value);
-        });
-        await loadPasswords();
-        selectedIds.value = [];
-        ElMessage.success(t('form.movedToTrash'));
-      }, 1000);
     } catch (error) {
       if (error !== 'cancel') {
+        logger.error('批量删除确认弹窗异常:', error);
         ElMessage.error(t('form.batchDeleteFailed'));
       }
+      return;
     }
+
+    // 确认瞬间一次性快照选择集：淡出动画（DELETE_ANIMATION_MS）期间用户仍可勾选/取消，
+    // 到点时才读 selectedIds 会让「动画里的行」与「真正被删的 id」分叉，误删新选中项
+    const idsToDelete = [...selectedIds.value];
+    const patchDelItems: HTMLElement[] = [];
+    idsToDelete.forEach((id: string) => {
+      const delItem = findPasswordRow(id);
+      if (delItem) {
+        delItem.classList.add('del-item');
+        patchDelItems.push(delItem);
+      }
+    });
+    setTimeout(() => {
+      const restoreRows = patchDelItems.map(delItem => detachRow(delItem));
+      void commitDelete(() => StorageUtils.deletePasswords(idsToDelete), t('form.batchDeleteFailed')).then(deleted => {
+        if (deleted) {
+          // 只摘掉本次真正删除的 id，保留动画期间新勾选的项
+          const deletedSet = new Set(idsToDelete);
+          selectedIds.value = selectedIds.value.filter(id => !deletedSet.has(id));
+          return;
+        }
+        // 逆序插回：相邻的被删行互为参照节点，后摘的先回去，先摘的才找得到插入位置
+        for (let index = restoreRows.length - 1; index >= 0; index--) restoreRows[index]();
+      });
+    }, DELETE_ANIMATION_MS);
   };
 
   // 密码导入处理

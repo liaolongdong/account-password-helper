@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PasswordEntry } from '@/utils/types';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
-import { SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
+import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
 
 /**
  * passwordCache.applyMetadataOnlyUpdate 单元测试
@@ -146,5 +147,25 @@ describe('浏览器启动重锁凭据边界', () => {
     expect(pending).toBeNull();
     expect(sessionMocks.isSessionValid).not.toHaveBeenCalled();
     expect(sendMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe('getMatchingAccounts 下发给内容脚本的字段口径', () => {
+  it('缺失的展示字段一律以空串下发，内容脚本可直接按 string 筛选', async () => {
+    await chrome.storage.local.set({
+      [STORAGE_KEYS.MASTER_PASSWORD]: { hashedPassword: 'h', salt: 's' },
+    });
+    // 复刻历史/手工存储数据：username 键整个缺失（类型上必填，运行时不可信）。
+    // 内容脚本内联下拉的筛选对四个字段一律 toLowerCase()，undefined 会让面板停在半渲染态
+    const legacy = { ...makePasswordEntry({ id: 'legacy', url: '' }), username: undefined } as unknown as PasswordEntry;
+    updatePasswordCache([legacy], '*', true);
+
+    const { accounts } = await getMatchingAccounts('example.com');
+
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]!.username).toBe('');
+    expect(accounts[0]!.tag).toBe('');
+    expect(accounts[0]!.remark).toBe('');
+    expect(accounts[0]!.url).toBe('');
   });
 });

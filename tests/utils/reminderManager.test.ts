@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 
 // Mock chrome.storage.local
 const mockStorage: Record<string, unknown> = {};
@@ -84,6 +85,23 @@ describe('reminderManager', () => {
       // 第二次设置应覆盖第一次
       const expectedDelta = 90 * 24 * 60 * 60 * 1000;
       expect(stored['entry-1'].remindAt).toBeGreaterThan(Date.now() + expectedDelta - 1000);
+    });
+
+    it('超长账号名按条目账号容量截断后再冗余落盘', async () => {
+      await setReminder('entry-1', 'u'.repeat(PASSWORD_FIELD_LIMITS.username + 40), 30);
+
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { username: string }>;
+      expect(stored['entry-1'].username).toHaveLength(PASSWORD_FIELD_LIMITS.username);
+    });
+
+    it('截断点落在代理对中间时整对丢弃，不留下孤立代理字符', async () => {
+      // 容量 50 是码点口径：前 49 个单元 + 一个 emoji（2 单元）若按单元数硬切，
+      // 第 50 个单元会是 emoji 的高代理，通知正文渲染成替换符。
+      const username = `${'u'.repeat(PASSWORD_FIELD_LIMITS.username - 1)}🙂tail`;
+      await setReminder('entry-1', username, 30);
+
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { username: string }>;
+      expect(stored['entry-1'].username).toBe(`${'u'.repeat(PASSWORD_FIELD_LIMITS.username - 1)}🙂`);
     });
   });
 

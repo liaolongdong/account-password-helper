@@ -325,6 +325,14 @@ import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealt
 import { normalizeToHostAndPort } from '@/utils/domain';
 import { isDev } from '@/utils/env';
 
+/**
+ * 标签页标题跟随语言
+ *
+ * `index.html` 的 `<title>` 是静态中文默认值，options 是三个入口里唯一把标题展示给用户
+ * 的（浏览器标签页），英文环境下会残留中文标题。i18n 初始化早于挂载，故 immediate 即生效。
+ */
+watch(currentLocale, () => (document.title = t('options.documentTitle')), { immediate: true });
+
 /** 密码表单弹窗组件引用（用于获取内部 form ref） */
 const passwordFormDialogRef = ref();
 

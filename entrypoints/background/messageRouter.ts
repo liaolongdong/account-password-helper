@@ -427,7 +427,15 @@ export function setupMessageRouter(): void {
 
       case MessageType.OPEN_OPTIONS_PAGE:
         openOptionsPage()
-          .then(() => sendResponse({ success: true }))
+          .then(tabId => {
+            // doOpenOptionsPage 内部吞异常并返回 undefined，故这里按真实结果应答，
+            // 否则失败时上游（popup 的「打开密码管理页」）拿到的仍是 success:true。
+            if (tabId === undefined) {
+              sendResponse({ success: false, error: 'Failed to open options page' });
+              return;
+            }
+            sendResponse({ success: true });
+          })
           .catch(error => {
             logger.error('处理OPEN_OPTIONS_PAGE失败:', error);
             sendResponse({ success: false, error: error.message });
@@ -505,6 +513,12 @@ export function setupMessageRouter(): void {
         for (const [key, value] of Object.entries(metaUpdates)) {
           normalizedUpdates[key] = value === null ? undefined : value;
         }
+        // 响应口径是「已接收并入队」，不是「已落盘」：updatePasswordInSession 走
+        // 1.5s 防抖合并写入，且 flush 失败按其设计只记日志不抛（下次写入自然带上），
+        // 其 Promise 恒 resolve。此处刻意不等待，避免为无人消费的字段把消息通道
+        // 占住 1.5s+（发送方两侧均为 fire-and-forget，且 await 会落在收藏的
+        // runLocalOperation 链内，与代际/序号守卫抢时序）。失败排查看
+        // passwordCrud 的「批量更新元数据失败」日志。
         void _getCrudModule()
           .then(({ updatePasswordInSession }) =>
             updatePasswordInSession(metaId, normalizedUpdates as Parameters<typeof updatePasswordInSession>[1]),

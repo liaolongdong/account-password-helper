@@ -367,8 +367,9 @@ export interface FloatingButtonConfig {
    */
   theme: ThemeName;
   /**
-   * 检测登录表单时是否递归遍历 open shadow DOM（Web Components 站点如 Ionic/Lightning/Shopify 需要）
-   * 默认 true，关闭后仅扫描主 document 树
+   * 影子 DOM 穿透总闸：开启时站点规则的自定义选择器可跨 open shadowRoot 查询（Web Components
+   * 站点如 Ionic/Lightning/Shopify 需要），关闭时查询根收回到文档主树，填充失败的就地引导气泡
+   * 也一并隐藏。默认 true；与站点规则同名开关取「任一为 false 即关闭」。
    */
   penetrateShadow?: boolean;
 }

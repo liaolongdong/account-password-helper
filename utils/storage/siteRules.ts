@@ -25,7 +25,12 @@ export interface SiteRule {
   domain: string;
   /** 自定义选择器（可选） */
   customSelectors?: CustomSelectors;
-  /** 是否启用影子 DOM 穿透（可选，默认 true） */
+  /**
+   * 是否启用影子 DOM 穿透（可选，默认 true）
+   *
+   * 关闭后该站点的自定义选择器只在文档主树内匹配，不再跨进 open Shadow DOM，
+   * 填充失败的就地引导气泡也一并隐藏；受全局配置同名开关总闸约束（任一为 false 即关闭）。
+   */
   penetrateShadow?: boolean;
 }
 

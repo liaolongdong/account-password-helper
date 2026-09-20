@@ -4,17 +4,7 @@
  * 提供可复用的校验器工厂函数与表单规则工厂，供多个表单组件共享校验逻辑。
  */
 import type { FormRules } from 'element-plus';
-import { MAX_PASSWORD_LENGTH } from '@/utils/passwordGenerator';
-import { MAX_PASSPHRASE_LENGTH } from '@/utils/passphraseGenerator';
-
-/**
- * 密码字段的长度容量（单一事实来源）
- *
- * 取两个口令生成器可能输出的最长值，供三处共用：输入框 `maxlength`、
- * 本文件的校验规则、`background/quickAddHandler` 的落盘兜底。任一处单独
- * 收窄都会把合法生成的口令静默截断或在编辑态误拒，用户无从察觉。
- */
-export const PASSWORD_FIELD_MAX_LENGTH = Math.max(MAX_PASSWORD_LENGTH, MAX_PASSPHRASE_LENGTH);
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 
 /**
  * 创建 URL/域名格式校验器
@@ -64,8 +54,8 @@ export function createUrlValidator(t: (key: string) => string) {
  * 刻意不包含 `tag` 规则：该字段的约束不归校验层，而归各自的写入通道——
  * Options 侧由 `usePasswordManagement` 的 `tagArray` computed setter 独占归一化
  * （`MAX_TAG_COUNT` 个 x `MAX_TAG_LENGTH` 字符，超限即时提示），序列化后的标签串
- * 最长可达 92 字符；SidePanel 侧由输入框 `maxlength="50"` 与 background
- * `FIELD_LIMITS.tag` 双层兜底。若在此按序列化串长度另设上限，会与实际容量口径
+ * 最长可达 92 字符；SidePanel 侧由输入框 `PASSWORD_FIELD_LIMITS.tag` 与 background
+ * 落盘兜底双层约束。若在此按序列化串长度另设上限，会与实际容量口径
  * 冲突并误拦合法组合（历史缺陷：`max: 50` 使含 2 个 25 字符标签的条目在编辑态
  * 被 `validate()` 拒绝，用户无法保存任何改动）。
  *
@@ -79,19 +69,19 @@ export function createPasswordFormRules(
   return {
     username: [
       { required: true, message: t('form.usernameRequired'), trigger: 'blur' },
-      { max: 50, message: t('form.usernameMax'), trigger: 'blur' },
+      { max: PASSWORD_FIELD_LIMITS.username, message: t('form.usernameMax'), trigger: 'blur' },
     ],
     password: [
       {
-        max: PASSWORD_FIELD_MAX_LENGTH,
-        message: t('form.passwordMax', { max: PASSWORD_FIELD_MAX_LENGTH }),
+        max: PASSWORD_FIELD_LIMITS.password,
+        message: t('form.passwordMax', { max: PASSWORD_FIELD_LIMITS.password }),
         trigger: 'blur',
       },
     ],
     url: [
-      { max: 100, message: t('form.urlMax'), trigger: 'blur' },
+      { max: PASSWORD_FIELD_LIMITS.url, message: t('form.urlMax'), trigger: 'blur' },
       { validator: urlValidator, trigger: 'blur' },
     ],
-    remark: [{ max: 1000, message: t('form.remarkMax'), trigger: 'blur' }],
+    remark: [{ max: PASSWORD_FIELD_LIMITS.remark, message: t('form.remarkMax'), trigger: 'blur' }],
   };
 }

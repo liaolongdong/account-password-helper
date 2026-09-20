@@ -287,6 +287,9 @@ export class FormDetector {
       mutations.forEach(mutation => {
         if (mutation.type === 'attributes') {
           const element = mutation.target as HTMLElement;
+          // `innerText` 只作兜底：它会对整棵子树强制布局，因此排在 `textContent` 之后短路，
+          // 实际只有「文本全靠 CSS 生成内容（::before content）呈现」的元素会走到这一步——
+          // 这类 SPA 标签页在主树里确实取不到任何文本，去掉兜底会丢掉重检测触发。
           const textContent = element.textContent || element.innerText || '';
           if (textContent.includes('密码登录') || textContent.includes('验证码登录') || textContent.includes('密码')) {
             shouldRedetect = true;
@@ -449,13 +452,6 @@ export class FormDetector {
     const checkboxInputs = document.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
     this.checkboxFields = Array.from(checkboxInputs).filter(input => isDetectableCheckbox(input));
 
-    // F1: 递归遍历 open shadow DOM 收集字段（全局开关为总闸，站点规则只可在其开启时进一步关闭）
-    // 时间预算判定已移除：`idleStart` 与判定在同一语句序列里取值，条件恒真、从未生效。
-    // 实际成本上限由遍历范围本身与 collectShadowQueryRoots 的节点预算承担。
-    if (this.penetrateShadowEnabled) {
-      this.collectFieldsFromShadowRoots();
-    }
-
     // F1: 站点规则自定义选择器——命中则作为权威字段覆盖启发式结果（确定性控制）
     this.applySiteRuleSelectors();
 
@@ -530,110 +526,13 @@ export class FormDetector {
   }
 
   /**
-   * F1-A: 递归遍历 open shadow DOM 收集登录字段
-   *
-   * 从 document.body 开始 BFS，对每个节点检查：
-   * - node.shadowRoot?.mode === 'open' → 递归遍历其 children
-   * - 若为 input[type=password/email/tel/number/text] 且可见 → 按既有优先级归类
-   * 使用 WeakSet 去重 visited nodes，避免循环引用或重复处理。
-   * 性能预算：300ms，超时则跳过（已在调用处控制）。
-   */
-  private collectFieldsFromShadowRoots(): void {
-    const visited = new WeakSet<Node>();
-    const queue: Node[] = [document.body];
-
-    while (queue.length > 0) {
-      const node = queue.shift()!;
-      if (visited.has(node)) continue;
-      visited.add(node);
-
-      // 检查 open shadowRoot
-      if (node instanceof Element) {
-        const shadowRoot = node.shadowRoot;
-        if (shadowRoot?.mode === 'open') {
-          for (const child of Array.from(shadowRoot.children)) {
-            if (child instanceof Node && !visited.has(child)) {
-              // 先处理子节点本身（可能是 input）
-              this.processNodeFromShadow(child, visited);
-              // 再将子节点加入 queue 以继续遍历其 shadowRoot
-              queue.push(child);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * 处理来自 shadow DOM 的单个节点，按类型归类到结果集
-   */
-  private processNodeFromShadow(node: Node, visited: WeakSet<Node>): void {
-    if (!(node instanceof Element)) return;
-    if (visited.has(node)) return;
-
-    const el = node as HTMLElement;
-
-    // 只处理 input 类型
-    if (el.tagName !== 'INPUT') return;
-    const input = el as HTMLInputElement;
-
-    // 跳过已访问节点
-    if (visited.has(input)) return;
-
-    // 可见性检查
-    if (!isElementVisible(input)) return;
-
-    const type = input.type.toLowerCase();
-
-    // 密码字段
-    if (type === 'password') {
-      if (!this.passwordFieldsSet.has(input)) {
-        this.passwordFields.push(input);
-        this.passwordFieldsSet.add(input);
-        this.fieldTypeCache.set(input, 'password');
-      }
-      return;
-    }
-
-    // 用户名字段（email / text）
-    if (type === 'email' || type === 'text') {
-      if (!this.usernameFieldsSet.has(input)) {
-        this.usernameFields.push(input);
-        this.usernameFieldsSet.add(input);
-        this.fieldTypeCache.set(input, 'username');
-      }
-      return;
-    }
-
-    // 手机号字段
-    if (type === 'tel' || type === 'number') {
-      if (!this.mobileFieldsSet.has(input) && !this.usernameFieldsSet.has(input)) {
-        this.mobileFields.push(input);
-        this.mobileFieldsSet.add(input);
-        this.fieldTypeCache.set(input, 'mobile');
-      }
-      return;
-    }
-
-    // 验证码字段
-    if (input.pattern && input.pattern.includes('code')) {
-      if (
-        !this.verifyCodeFieldsSet.has(input) &&
-        !this.usernameFieldsSet.has(input) &&
-        !this.mobileFieldsSet.has(input)
-      ) {
-        this.verifyCodeFields.push(input);
-        this.verifyCodeFieldsSet.add(input);
-        this.fieldTypeCache.set(input, 'verifyCode');
-      }
-    }
-  }
-
-  /**
-   * F1: 影子 DOM 穿透是否启用
+   * F1: 影子 DOM 穿透开关是否启用
    *
    * 全局开关是总闸（用户可整体关闭扫描以换取性能与隐私边界），站点规则只能在其开启时
    * 针对单个站点进一步关闭，不能反向打开——否则新增一条规则会静默推翻用户的全局偏好。
+   *
+   * 两个消费方，语义一致：关闭时 `collectShadowQueryRoots` 只在文档主树上跑站点规则选择器，
+   * 填充失败引导气泡也不再出现（此时跨边界的补救手段本就不可用，留着气泡只会误导）。
    */
   private get penetrateShadowEnabled(): boolean {
     return this.floatingButtonConfig.penetrateShadow !== false && this.siteRule?.penetrateShadow !== false;
@@ -676,8 +575,13 @@ export class FormDetector {
    * document.querySelectorAll 不跨越 shadow 边界，故先 BFS 收集 open shadowRoot 作为额外查询根。
    * 一次遍历供账号/密码两条选择器复用，避免整树 BFS 在每轮检测里重复执行。
    * BFS 设节点预算防极端页面；超预算时留下可辨识日志，否则用户只会看到「规则莫名不生效」。
+   *
+   * 关闭穿透时只返回文档主树：开关的语义就是「别替我伸进 Shadow DOM」，站点规则选择器
+   * 也遵守它（仍在 light DOM 上生效），否则标签承诺与实现不符。
    */
   private collectShadowQueryRoots(): ParentNode[] {
+    if (!this.penetrateShadowEnabled) return [document];
+
     const roots: ParentNode[] = [document];
     const visited = new WeakSet<Node>();
     const queue: Node[] = [document.documentElement];
@@ -1500,7 +1404,7 @@ export class FormDetector {
           result.message = tl('cs.fd.noFormFields');
           result.reason = 'no_form';
 
-          // F1-C: 显示填充失败就地引导（仅首次，且与影子扫描共用同一穿透判定）
+          // F1-C: 显示填充失败就地引导（仅首次，且受影子 DOM 穿透开关门控）
           if (this.penetrateShadowEnabled && !this.fillFailurePromptShown) {
             this.fillFailurePromptShown = true;
             // 延迟渲染，避免阻塞主线程

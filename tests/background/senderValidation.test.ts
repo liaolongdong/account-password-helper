@@ -12,7 +12,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveTrustedContentUrl, setupMessageRouter } from '@/entrypoints/background/messageRouter';
 import { handleQuickAddPassword } from '@/entrypoints/background/quickAddHandler';
-import { openOptionsAndSendMessage } from '@/entrypoints/background/optionsPageManager';
+import { openOptionsAndSendMessage, openOptionsPage } from '@/entrypoints/background/optionsPageManager';
 import { handleQuickFill } from '@/entrypoints/background/quickFillHandler';
 import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
 import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
@@ -356,6 +356,47 @@ describe('B2 改状态消息的 sender 收口（分发级）', () => {
       expect(handleOpenInlineDropdown).toHaveBeenCalledTimes(1);
       await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ success: true }));
     });
+  });
+});
+
+describe('OPEN_OPTIONS_PAGE 应答真实性（分发级）', () => {
+  /** 扩展内部页发送方：popup 的「密码管理」入口 */
+  const internalSender = { id: chrome.runtime.id } as chrome.runtime.MessageSender;
+
+  it('选项页打开成功时回 success:true', async () => {
+    vi.mocked(openOptionsPage).mockResolvedValue(7);
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener({ type: MessageType.OPEN_OPTIONS_PAGE }, internalSender, sendResponse);
+
+    expect(result).toBe(true);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ success: true }));
+  });
+
+  it('openOptionsPage 吞掉异常返回 undefined 时如实回 success:false', async () => {
+    // 旧实现无条件 `then(() => success:true)`：`chrome.tabs.create` 被拒时 popup 仍以为成功，
+    // 于是关掉窗口、用户只看到「点了没反应」，后台日志里也没有任何失败痕迹
+    vi.mocked(openOptionsPage).mockResolvedValue(undefined);
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener({ type: MessageType.OPEN_OPTIONS_PAGE }, internalSender, sendResponse);
+
+    expect(result).toBe(true);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ success: false, error: expect.any(String) }));
+  });
+
+  it('openOptionsPage 抛异常时回 success:false 且带上异常原因', async () => {
+    vi.mocked(openOptionsPage).mockRejectedValue(new Error('tabs permission denied'));
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    listener({ type: MessageType.OPEN_OPTIONS_PAGE }, internalSender, sendResponse);
+
+    await vi.waitFor(() =>
+      expect(sendResponse).toHaveBeenCalledWith({ success: false, error: 'tabs permission denied' }),
+    );
   });
 });
 

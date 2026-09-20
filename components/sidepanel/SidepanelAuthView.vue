@@ -574,12 +574,16 @@ onUnmounted(() => {
         >
           {{ t('sidepanel.undecryptableNotice', { count: undecryptableCount }) }}
         </p>
+        <!-- v-memo 依赖需覆盖「updateTime 不变但会被改写」的字段：条目编辑一律 bump updateTime，
+             唯独标签是元数据编辑（usePasswordManagement 刻意保留原 updateTime 以免干扰「最近更新」排序），
+             故 tag 必须显式入依赖，否则改标签后复用旧 vnode、行内容停留在旧标签 -->
         <PasswordListItem
           v-for="(password, index) in visiblePasswords"
           :key="password.id"
           v-memo="[
             activeIndex === index,
             password.favorite,
+            password.tag,
             password.updateTime,
             autoTriggerLogin,
             searchKeyword,

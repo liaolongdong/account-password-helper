@@ -227,6 +227,20 @@ export class CheckboxHandler {
   }
 
   /**
+   * 按 `for` 属性查找复选框关联的 label
+   *
+   * id 来自宿主页面、属不可信输入：裸插值遇到含引号/反斜杠的 id 会抛 DOMException
+   * （调用点多在检测路径上，异常会被上层吞掉，表现为「记住我」判定莫名失效），
+   * 故统一走 CSS.escape 后再拼选择器。
+   * @param checkbox - 复选框元素
+   * @returns 命中的 label 元素，未命中或 id 为空时返回 null
+   */
+  private queryLabelByFor(checkbox: HTMLInputElement): HTMLElement | null {
+    if (!checkbox.id) return null;
+    return document.querySelector<HTMLElement>(`label[for=${CSS.escape(checkbox.id)}]`);
+  }
+
+  /**
    * 获取复选框关联的文本标签
    * 依次尝试：for 属性关联的 label、父级 label、前后兄弟元素、父元素文本
    * @param checkbox - 复选框元素
@@ -234,7 +248,7 @@ export class CheckboxHandler {
    */
   private getCheckboxLabel(checkbox: HTMLInputElement): string {
     if (checkbox.id) {
-      const label = document.querySelector(`label[for="${checkbox.id}"]`);
+      const label = this.queryLabelByFor(checkbox);
       if (label) {
         return label.textContent?.trim() || '';
       }
@@ -333,9 +347,9 @@ export class CheckboxHandler {
    */
   private findCheckboxLabel(checkbox: HTMLInputElement): HTMLElement | null {
     if (checkbox.id) {
-      const label = document.querySelector(`label[for="${checkbox.id}"]`);
+      const label = this.queryLabelByFor(checkbox);
       if (label) {
-        return label as HTMLElement;
+        return label;
       }
     }
 

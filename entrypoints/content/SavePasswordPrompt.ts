@@ -8,6 +8,7 @@
 import { lockIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { SavePromptData, SavePromptControls, SavePromptEditedData } from '@/entrypoints/content/types';
 import { getStoredTheme, THEME_SHADOW_TOKENS, DEFAULT_THEME } from '@/utils/theme';
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { tl } from '@/utils/i18n-lite';
 import { isWeakPassword } from '@/utils/passwordStrengthCore';
 import type { SaveRiskHint } from '@/utils/types';
@@ -185,7 +186,9 @@ export function showSavePasswordPrompt(
   const baselineRisk = sanitizeRiskHint(data.risk);
   renderRiskHints(riskBar, baselineRisk);
 
-  // 可编辑字段：标签
+  // 可编辑字段：标签（「密码已变更」时预填的是条目已有标签串，其口径由 Options 标签编辑器
+  // 决定、可长于快速添加通道的 50，故这里既不截断显示值也不设 maxlength——两者都会把用户
+  // 自己写的合法标签静默改短，且 maxlength 会让人无法把被裁掉的部分补回来）
   const { row: tagRow, input: tagInput } = createEditableRow(
     tl('cs.save.tag'),
     data.tag,
@@ -195,7 +198,7 @@ export function showSavePasswordPrompt(
   );
   body.appendChild(tagRow);
 
-  // 可编辑字段：备注
+  // 可编辑字段：备注（超长会被 background 整次拒收，故在输入处就限死）
   const { row: remarkRow, input: remarkInput } = createEditableRow(
     tl('cs.save.remark'),
     data.remark,
@@ -203,6 +206,7 @@ export function showSavePasswordPrompt(
     true,
     labelWidth,
   );
+  remarkInput.maxLength = PASSWORD_FIELD_LIMITS.remark;
   body.appendChild(remarkRow);
 
   // 追踪用户是否主动编辑过标签和备注输入框

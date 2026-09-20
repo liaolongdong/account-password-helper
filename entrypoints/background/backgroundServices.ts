@@ -206,7 +206,8 @@ async function performReminderCheck() {
         message: tl('bg.reminder.message', { username: reminder.username }),
       });
       await markNotified(reminder.entryId);
-      logger.info(`Background: 密码提醒已发送 [${reminder.username}]`);
+      // 只记 entryId：账号名属敏感标识，不入日志（与 reminderManager 的日志口径一致）
+      logger.info(`Background: 密码提醒已发送 [${reminder.entryId}]`);
     }
   } catch (error) {
     logger.error('Background: 密码提醒检查失败:', error);

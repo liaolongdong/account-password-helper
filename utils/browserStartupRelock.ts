@@ -15,6 +15,17 @@ interface BrowserStartupRelockRecovery {
   failedUpdatedAt: number | null;
 }
 
+/**
+ * 屏障等待节奏：25ms 轮询、最长 1.5s
+ *
+ * 与「侧边栏秒开」预算的关系（评审时评估过、结论是保留现状）：
+ * - 常态成本只有 1～2 次 storage 读取——`complete` 命中第一次 `storage.session.get` 即放行；
+ *   标记缺失（浏览器刚启动且未开启重启锁定）再补一次 `storage.local` 读配置。
+ * - 1.5s 只在 `pending` 未结束时才会吃满，即「用户开启了浏览器重启锁定 + 浏览器冷启动」这一
+ *   窗口；此时侧边栏本来就要重新输入主密码，屏障不是用户感知的瓶颈。
+ * - 缩短超时或改成只读内存 Promise，会把「启动清理 `clearSession` 晚于新会话创建」的竞态
+ *   重新暴露成明文泄露——那是 fail-closed 语义的立足点，性能收益远小于代价，故不动。
+ */
 const BARRIER_POLL_INTERVAL_MS = 25;
 const BARRIER_WAIT_TIMEOUT_MS = 1500;
 
@@ -26,8 +37,7 @@ export async function setBrowserStartupRelockState(status: BrowserStartupRelockS
 
 function parseBrowserStartupRelockState(result: Record<string, unknown>): BrowserStartupRelockState | null {
   const value = result[SESSION_MEMORY_KEYS.BROWSER_STARTUP_RELOCK_STATE] as
-    | Partial<BrowserStartupRelockState>
-    | undefined;
+    Partial<BrowserStartupRelockState> | undefined;
   if (
     !value ||
     (value.status !== 'pending' && value.status !== 'complete' && value.status !== 'failed') ||
@@ -40,8 +50,7 @@ function parseBrowserStartupRelockState(result: Record<string, unknown>): Browse
 
 function parseBrowserStartupRelockRecovery(result: Record<string, unknown>): BrowserStartupRelockRecovery | null {
   const value = result[SESSION_MEMORY_KEYS.BROWSER_STARTUP_RELOCK_RECOVERY] as
-    | Partial<BrowserStartupRelockRecovery>
-    | undefined;
+    Partial<BrowserStartupRelockRecovery> | undefined;
   if (!value || typeof value.recoveredAt !== 'number') return null;
   if (value.failedUpdatedAt !== null && typeof value.failedUpdatedAt !== 'number') return null;
   return value as BrowserStartupRelockRecovery;

@@ -13,7 +13,8 @@
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FormItemRule, FormRules } from 'element-plus';
-import { createPasswordFormRules, createUrlValidator, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/formValidators';
+import { createPasswordFormRules, createUrlValidator } from '@/utils/formValidators';
+import { PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
 import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/composables/usePasswordManagement';
 import { MAX_PASSPHRASE_LENGTH } from '@/utils/passphraseGenerator';
 import { stringifyTags } from '@/utils/tagUtils';

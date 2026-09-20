@@ -1,17 +1,8 @@
 import type { QuickAddPasswordData } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { PASSWORD_FIELD_MAX_LENGTH } from '@/utils/formValidators';
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { ensureCredentialAccessAfterStartupRelock, invalidatePasswordCache } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
-
-/** 各字段长度上限（password 与前端 maxlength / 校验规则同源，其余为纵深防御） */
-const FIELD_LIMITS = {
-  username: 50,
-  password: PASSWORD_FIELD_MAX_LENGTH,
-  url: 100,
-  tag: 50,
-  remark: 1000,
-} as const;
 
 /**
  * 处理侧边栏快速添加条目请求
@@ -39,11 +30,11 @@ export async function handleQuickAddPassword(
       return { success: false, message: tl('bg.quickAdd.invalidFields') };
     }
     if (
-      username.length > FIELD_LIMITS.username ||
-      password.length > FIELD_LIMITS.password ||
-      url.length > FIELD_LIMITS.url ||
-      tag.length > FIELD_LIMITS.tag ||
-      remark.length > FIELD_LIMITS.remark
+      username.length > PASSWORD_FIELD_LIMITS.username ||
+      password.length > PASSWORD_FIELD_LIMITS.password ||
+      url.length > PASSWORD_FIELD_LIMITS.url ||
+      tag.length > PASSWORD_FIELD_LIMITS.tag ||
+      remark.length > PASSWORD_FIELD_LIMITS.remark
     ) {
       logger.warn('Background: 快速添加条目字段校验失败（字段超长）');
       return { success: false, message: tl('bg.quickAdd.tooLong') };

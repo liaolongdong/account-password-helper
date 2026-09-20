@@ -526,7 +526,7 @@ export async function getMatchingAccounts(domain: string, port?: string): Promis
     matched.map(async p => ({
       id: p.id,
       title: (p.tag && p.tag.trim()) || (p.url && p.url.trim()) || p.username || tl('bg.cache.untitled'),
-      username: p.username,
+      username: p.username || '',
       tag: p.tag || '',
       remark: p.remark || '',
       url: p.url || '',

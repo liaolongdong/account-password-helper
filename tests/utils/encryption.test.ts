@@ -39,11 +39,14 @@ const WRONG_KEY = 'ff'.repeat(32);
  * 600k 迭代 KDF 用例的超时上限（ms）
  *
  * 这类用例各自跑两遍 PBKDF2-SHA256/600k：被测实现走 Web Crypto，期望值走 Node
- * `pbkdf2Sync` 做独立交叉校验，实测 3.3–4.9s，紧贴 Vitest 默认 5s 上限，
- * 机器负载抖动即会超时（断言本身从未失败）。放宽耗时上限不弱化任何断言：
+ * `pbkdf2Sync` 做独立交叉校验，实测 3.3–4.9s，紧贴 `WxtVitest()` 设定的 20s 上限，
+ * 机器负载抖动（多个套件并行）即会超时（断言本身从未失败）。
+ *
+ * 必须写在这个「每个用例」的参数位上：用例级 timeout 优先级高于 CLI 的 `--testTimeout`，
+ * 所以只在命令行放宽是无效的（实测被这里的旧值 20000 盖回）。放宽耗时不弱化任何断言：
  * 迭代次数、salt 域分离前缀与交叉校验期望值均保持原样。
  */
-const KDF_TIMEOUT_MS = 20000;
+const KDF_TIMEOUT_MS = 90000;
 
 beforeEach(() => {
   fakeBrowser.reset();

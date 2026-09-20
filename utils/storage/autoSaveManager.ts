@@ -260,6 +260,7 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
 
     // 匹配需基于明文 username/url，而 storage.local 中为密文（at-rest 不变量），
     // 故这里用 getAllPasswords()（会话期用缓存数据密钥解密，无 PBKDF2）而非原始密文。
+    // 载荷容量边界由调用方（background/autoSaveHandler）在本函数之前收口。
     const passwords = await getAllPasswords();
 
     const existingEntry = findMatchingEntry(passwords, data);

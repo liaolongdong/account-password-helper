@@ -30,6 +30,7 @@
         stripe
         size="small"
         max-height="400"
+        :empty-text="t('common.noData')"
         class="trash-table"
       >
         <el-table-column

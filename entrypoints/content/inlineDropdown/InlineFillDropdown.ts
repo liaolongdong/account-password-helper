@@ -1103,14 +1103,20 @@ export class InlineFillDropdown {
    */
   private applyFilter(): void {
     const kw = this.searchKeyword.trim().toLowerCase();
+    // 四个字段一律走 asText：条目来自 background 下发的匹配结果，历史/异常数据里
+    // 任一字段都可能缺失，裸 `.toLowerCase()` 会在关键字非空时抛错。抛点在
+    // buildPanel 末尾的 applyFilter，此时 panelOpen 已置 true：面板停在半渲染状态，
+    // 且后续对同一输入框的 openPanelFor 会因「已打开」短路返回 true，表现为永久打不开
+    // （refreshPanelLocale 复用旧关键字重建面板同样会走到这里）。renderList 侧对
+    // username 已有兜底，此处把筛选口径补齐。
     this.filtered = !kw
       ? this.accounts
       : this.accounts.filter(
           a =>
-            a.username.toLowerCase().includes(kw) ||
-            a.tag.toLowerCase().includes(kw) ||
-            a.remark.toLowerCase().includes(kw) ||
-            a.url.toLowerCase().includes(kw),
+            asText(a.username).toLowerCase().includes(kw) ||
+            asText(a.tag).toLowerCase().includes(kw) ||
+            asText(a.remark).toLowerCase().includes(kw) ||
+            asText(a.url).toLowerCase().includes(kw),
         );
     this.activeIndex = -1;
     this.renderList();
@@ -1486,7 +1492,7 @@ export class InlineFillDropdown {
     const now = Date.now();
     for (const [id, state] of this.totpStates) {
       const remaining = Math.ceil((state.expiresAt - now) / 1000);
-      const cell = this.panelEl?.querySelector(`.aph-totp[data-totp-id="${id}"]`);
+      const cell = this.panelEl?.querySelector(`.aph-totp[data-totp-id=${CSS.escape(id)}]`);
       if (remaining <= 0) {
         if (cell) void this.refreshTotpCode(id);
         else this.totpStates.delete(id);
@@ -1509,7 +1515,7 @@ export class InlineFillDropdown {
     this.totpPending.delete(id);
     if (!this.panelOpen) return;
 
-    const cell = this.panelEl?.querySelector(`.aph-totp[data-totp-id="${id}"]`);
+    const cell = this.panelEl?.querySelector(`.aph-totp[data-totp-id=${CSS.escape(id)}]`);
     const index = cell ? Number(cell.getAttribute('data-index')) : -1;
     if (!data) {
       this.totpStates.delete(id);
@@ -1656,6 +1662,18 @@ export class InlineFillDropdown {
     if (this.shadowHost && (target === this.shadowHost || this.shadowHost.contains(target))) return;
     this.hide();
   };
+}
+
+/**
+ * 把来自 background 下发的展示字段收成字符串
+ *
+ * 类型上这些字段是必填 `string`，但条目可能来自历史数据或手工改过的存储；
+ * 面板渲染/筛选路径上任何一处抛错都会让 `panelOpen` 停在 true，之后永久打不开。
+ * @param value 原始值（不可信）
+ * @returns 字符串值本身，非字符串一律按空串处理
+ */
+function asText(value: unknown): string {
+  return typeof value === 'string' ? value : '';
 }
 
 /**

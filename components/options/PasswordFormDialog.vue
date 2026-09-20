@@ -25,7 +25,7 @@
             :placeholder="t('options.form.usernamePlaceholder')"
             :disabled="loading"
             clearable
-            maxlength="50"
+            :maxlength="PASSWORD_FIELD_LIMITS.username"
             show-word-limit
           />
         </el-form-item>
@@ -76,7 +76,7 @@
             :placeholder="t('options.form.urlPlaceholder')"
             :disabled="loading"
             clearable
-            maxlength="100"
+            :maxlength="PASSWORD_FIELD_LIMITS.url"
             show-word-limit
           />
         </el-form-item>
@@ -94,6 +94,8 @@
             clearable
             :disabled="loading"
             :multiple-limit="MAX_TAG_COUNT"
+            :no-data-text="t('common.noData')"
+            :no-match-text="t('common.noMatch')"
             :placeholder="t('options.form.tagPlaceholder', { max: MAX_TAG_COUNT })"
             style="width: 100%"
             @update:model-value="$emit('update:tagArray', $event)"
@@ -117,7 +119,7 @@
             :rows="3"
             :placeholder="t('options.form.remarkPlaceholder')"
             :disabled="loading"
-            maxlength="1000"
+            :maxlength="PASSWORD_FIELD_LIMITS.remark"
             show-word-limit
           />
         </el-form-item>
@@ -248,7 +250,7 @@ import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopove
 import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopover.vue';
 import TotpCode from '@/components/TotpCode.vue';
 import { isValidTotpInput } from '@/utils/totp';
-import { PASSWORD_FIELD_MAX_LENGTH } from '@/utils/formValidators';
+import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
 import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';

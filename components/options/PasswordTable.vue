@@ -4,6 +4,7 @@
       ref="localTableRef"
       v-loading="loading"
       :element-loading-text="t('options.table.loading')"
+      :empty-text="t('common.noData')"
       :data="data"
       style="width: 100%"
       stripe
