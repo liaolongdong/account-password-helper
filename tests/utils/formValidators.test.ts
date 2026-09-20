@@ -10,11 +10,15 @@
  * `form.validate()` 走 `validateField(undefined)`，其 `getFilteredRule` 在 trigger 为空时
  * 放行全部规则（`if (!rule.trigger || !trigger) return true`），因此含 2 个 25 字符标签
  * （序列化后 51 字符）的条目在编辑态会被 `validate()` 直接拒绝——用户改任何字段都存不下。
+ *
+ * 同一缺陷类还出现在「导入上界宽于表单容量」的历史条目上，由 `initialLengths` 参数处理，
+ * 见 `createPasswordFormRules 的 initialLengths` 一节。
  */
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FormItemRule, FormRules } from 'element-plus';
 import { createPasswordFormRules, createUrlValidator } from '@/utils/formValidators';
-import { PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
+import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
+import { MAX_PASSWORD_LEN, MAX_REMARK_LEN, MAX_URL_LEN, MAX_USERNAME_LEN } from '@/utils/backup/constants';
 import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/composables/usePasswordManagement';
 import { MAX_PASSPHRASE_LENGTH } from '@/utils/passphraseGenerator';
 import { stringifyTags } from '@/utils/tagUtils';
@@ -117,6 +121,77 @@ describe('createPasswordFormRules', () => {
     // 92 字符远超修复前规则的 max: 50，正是当时误拦合法组合的根因
     expect(longestLegalTag.length).toBeGreaterThan(50);
     expect(createPasswordFormRules(t)).not.toHaveProperty('tag');
+  });
+});
+
+/**
+ * 编辑态容量放宽（`initialLengths`）
+ *
+ * 回归背景：导入闸门（`utils/backup/constants.ts`）刻意比表单容量宽——为保证任何自导出
+ * 文件都能回灌，超容量字段既不拒收也不截断。库里因此可能存在 remark 长 1200 之类的条目，
+ * 而 `form.validate()` 不看 trigger 会放行全部规则，按原容量硬拒会让用户改任何字段都存不下
+ * （与 `tag`、`password` 同一缺陷类）。放宽不影响容量本身：四个输入框的 `maxlength` 仍是
+ * 标准容量，超限值只拦增不拦存，所以 `max(容量, 原长)` 不给用户任何变长的能力。
+ */
+describe('createPasswordFormRules 的 initialLengths', () => {
+  beforeEach(() => {
+    requestedKeys.length = 0;
+  });
+
+  /** 取出某字段 max 规则的上限 */
+  const maxOf = (rules: FormRules, field: string): number =>
+    rulesOf(rules, field).find(r => r.max !== undefined)!.max as number;
+
+  it('缺省与空对象产出同一套标准容量规则（放宽是显式 opt-in）', () => {
+    // JSON 会丢弃 validator 函数（每次调用新建闭包、引用不等），其余字段按值比较
+    const toComparable = (rules: FormRules) => JSON.parse(JSON.stringify(rules));
+
+    expect(toComparable(createPasswordFormRules(t, {}))).toEqual(toComparable(createPasswordFormRules(t)));
+    expect(maxOf(createPasswordFormRules(t, {}), 'username')).toBe(PASSWORD_FIELD_LIMITS.username);
+    expect(maxOf(createPasswordFormRules(t, {}), 'remark')).toBe(PASSWORD_FIELD_LIMITS.remark);
+  });
+
+  it('超容量原长只抬高对应字段，其余字段口径分毫不动', () => {
+    const rules = createPasswordFormRules(t, { remark: 1200 });
+
+    expect(maxOf(rules, 'remark')).toBe(1200);
+    expect(maxOf(rules, 'username')).toBe(PASSWORD_FIELD_LIMITS.username);
+    expect(maxOf(rules, 'password')).toBe(PASSWORD_FIELD_MAX_LENGTH);
+    expect(maxOf(rules, 'url')).toBe(PASSWORD_FIELD_LIMITS.url);
+  });
+
+  it('容量恒为下限：短于容量的原长不会收紧上限，负数原长回落标准口径', () => {
+    expect(maxOf(createPasswordFormRules(t, { remark: 10 }), 'remark')).toBe(PASSWORD_FIELD_LIMITS.remark);
+    expect(maxOf(createPasswordFormRules(t, { username: -1 }), 'username')).toBe(PASSWORD_FIELD_LIMITS.username);
+  });
+
+  it('四个受约束字段都支持放宽', () => {
+    const rules = createPasswordFormRules(t, { username: 80, password: 400, url: 150, remark: 1200 });
+
+    expect(maxOf(rules, 'username')).toBe(80);
+    expect(maxOf(rules, 'password')).toBe(400);
+    expect(maxOf(rules, 'url')).toBe(150);
+    expect(maxOf(rules, 'remark')).toBe(1200);
+  });
+
+  it('password 文案里的 {max} 跟随放宽后的上限，不报出与实际判定不符的数字', () => {
+    const seen: Array<[string, Record<string, string | number> | undefined]> = [];
+    const spyT = (key: string, named?: Record<string, string | number>) => {
+      seen.push([key, named]);
+      return key;
+    };
+
+    createPasswordFormRules(spyT, { password: 400 });
+
+    expect(seen.find(([key]) => key === 'form.passwordMax')?.[1]).toEqual({ max: 400 });
+  });
+
+  it('放宽所针对的超容量场景真实存在：导入上界高于表单容量', () => {
+    // 若有人把导入上界收到与容量齐平，本参数的存在意义即消失，此断言会提醒重新评估
+    expect(MAX_REMARK_LEN).toBeGreaterThan(PASSWORD_FIELD_LIMITS.remark);
+    expect(MAX_USERNAME_LEN).toBeGreaterThan(PASSWORD_FIELD_LIMITS.username);
+    expect(MAX_URL_LEN).toBeGreaterThan(PASSWORD_FIELD_LIMITS.url);
+    expect(MAX_PASSWORD_LEN).toBeGreaterThan(PASSWORD_FIELD_MAX_LENGTH);
   });
 });
 

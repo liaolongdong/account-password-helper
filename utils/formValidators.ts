@@ -44,6 +44,16 @@ export function createUrlValidator(t: (key: string) => string) {
   };
 }
 
+/** 可按下放宽容量的字段（`tag` 无规则、TOTP 由调用方单独定义，均不在其列） */
+export type BoundedPasswordField = 'username' | 'password' | 'url' | 'remark';
+
+/**
+ * 编辑态的「条目原有长度」，单位：字符
+ *
+ * 只用于把某字段的校验上限放宽到不小于原值，缺省（或传 undefined）即按标准容量校验。
+ */
+export type InitialFieldLengths = Partial<Record<BoundedPasswordField, number>>;
+
 /**
  * 创建密码表单通用校验规则（用户名 / 密码 / 网址 / 备注）
  *
@@ -60,28 +70,38 @@ export function createUrlValidator(t: (key: string) => string) {
  * 被 `validate()` 拒绝，用户无法保存任何改动）。
  *
  * @param t 国际化翻译函数
+ * @param initialLengths 编辑态条目的原字段长度；提供时该字段上限取 `max(容量, 原长)`。
+ *   导入闸门刻意比表单容量宽（`utils/backup/constants.ts`：为保证任何自导出文件都能回灌，
+ *   超容量字段既不拒收也不截断），于是库里可能存在超出容量的条目。这些字段在输入框里
+ *   带 `maxlength=容量`，浏览器对超限值只拦增不拦存，按原容量硬拒会让用户改任何字段都
+ *   存不下（与 `tag` 同一缺陷类）。放宽只覆盖「不变得更长」这一区间，容量本身未被削弱。
  * @returns Element Plus FormRules（不含 tag 与 TOTP 等扩展字段）
  */
 export function createPasswordFormRules(
   t: (key: string, named?: Record<string, string | number>) => string,
+  initialLengths: InitialFieldLengths = {},
 ): FormRules {
   const urlValidator = createUrlValidator(t);
+  /** 字段校验上限：标准容量恒为下限，编辑态按条目原长度放宽（负数等非法原长回落到容量） */
+  const capacityOf = (field: BoundedPasswordField): number =>
+    Math.max(PASSWORD_FIELD_LIMITS[field], initialLengths[field] ?? 0);
+
   return {
     username: [
       { required: true, message: t('form.usernameRequired'), trigger: 'blur' },
-      { max: PASSWORD_FIELD_LIMITS.username, message: t('form.usernameMax'), trigger: 'blur' },
+      { max: capacityOf('username'), message: t('form.usernameMax'), trigger: 'blur' },
     ],
     password: [
       {
-        max: PASSWORD_FIELD_LIMITS.password,
-        message: t('form.passwordMax', { max: PASSWORD_FIELD_LIMITS.password }),
+        max: capacityOf('password'),
+        message: t('form.passwordMax', { max: capacityOf('password') }),
         trigger: 'blur',
       },
     ],
     url: [
-      { max: PASSWORD_FIELD_LIMITS.url, message: t('form.urlMax'), trigger: 'blur' },
+      { max: capacityOf('url'), message: t('form.urlMax'), trigger: 'blur' },
       { validator: urlValidator, trigger: 'blur' },
     ],
-    remark: [{ max: PASSWORD_FIELD_LIMITS.remark, message: t('form.remarkMax'), trigger: 'blur' }],
+    remark: [{ max: capacityOf('remark'), message: t('form.remarkMax'), trigger: 'blur' }],
   };
 }

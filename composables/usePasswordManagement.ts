@@ -14,7 +14,7 @@ import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortSta
 import { isValidTotpInput } from '@/utils/totp';
 import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
 import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
-import { createPasswordFormRules } from '@/utils/formValidators';
+import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
@@ -89,8 +89,19 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     totp: '',
   });
 
+  /**
+   * 编辑态条目的原始字段长度，用于放宽校验上限
+   *
+   * 导入闸门刻意比表单容量宽（超容量字段既不拒收也不截断，保证任何自导出文件都能回灌），
+   * 库里因此可能存在「比容量更长」的历史/外部条目。四个输入框都带 `maxlength=容量`，
+   * 用户无法把它改得更长，但按原容量硬拒会让这些条目改任何字段都存不下。
+   * 在弹窗装载条目那一刻取快照（而非按 id 回查列表），编辑期间不随列表重载而漂移；
+   * 新建态与 SidePanel 快速添加恒为空对象，容量口径分毫不动。
+   */
+  const editingFieldLengths = ref<InitialFieldLengths>({});
+
   const passwordFormRules = computed<FormRules>(() => ({
-    ...createPasswordFormRules(t),
+    ...createPasswordFormRules(t, editingFieldLengths.value),
     totp: [{ validator: totpValidator, trigger: 'blur' }],
   }));
 
@@ -367,6 +378,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const openPasswordDialog = (prefillUrl = '') => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
+    editingFieldLengths.value = {};
     passwordForm.value = { ...EMPTY_PASSWORD_FORM, url: prefillUrl };
     showPasswordDialog.value = true;
   };
@@ -375,6 +387,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const editPassword = (password: PasswordEntry) => {
     isEditingPassword.value = true;
     editingPasswordId.value = password.id;
+    editingFieldLengths.value = {
+      username: password.username.length,
+      password: password.password.length,
+      url: password.url.length,
+      remark: password.remark.length,
+    };
     passwordForm.value = {
       username: password.username,
       password: password.password,
@@ -390,6 +408,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const resetPasswordForm = () => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
+    editingFieldLengths.value = {};
     passwordForm.value = { ...EMPTY_PASSWORD_FORM };
   };
 
