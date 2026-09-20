@@ -1,0 +1,63 @@
+name: E2E (Chrome extension)
+
+# 只手动触发，不进 push / PR 门禁。
+# 原因见 e2e/README.md「现状」：这套夹具经过 `playwright test --list`、typecheck、lint 校验，
+# 但从未有过一次真实的绿色运行（开发机是 macOS 13，Playwright 1.63 拒绝为其安装 chromium，
+# 而品牌版 Google Chrome ≥135 忽略 `--load-extension`）。把未验证的套件挂到 push 上，
+# 等于凭空制造红灯来源——与 ci.yml「刻意不跑 format:check」用的是同一个取舍。
+# 本工作流的用途就是给出第一次绿色信号；连续绿之后再讨论是否改成 push 触发。
+on:
+  workflow_dispatch:
+
+# 只读代码，不写任何权限
+permissions:
+  contents: read
+
+# 扩展 E2E 会启动真实浏览器且强制 workers=1，同一时刻只跑一次、旧的排队即取消
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright extension E2E
+    runs-on: ubuntu-latest
+    # 每次运行都会先 `pnpm build`（globalSetup 保证产物新鲜），再逐条用例起独立 profile
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # harness 未指定 E2E_EXECUTABLE_PATH 时退回 channel: 'chrome'，即 runner 预装的品牌版
+      # Google Chrome —— 它正是会忽略 `--load-extension` 的那个，因此这里显式指向
+      # Playwright 自己下载的 Chromium 构建。
+      - name: Install Chromium build
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Resolve Chromium executable
+        id: chromium
+        run: echo "path=$(node -e "process.stdout.write(require('playwright').chromium.executablePath())")" >> "$GITHUB_OUTPUT"
+
+      - name: Run extension E2E
+        env:
+          E2E_EXECUTABLE_PATH: ${{ steps.chromium.outputs.path }}
+          # 保持默认无头：新无头模式支持加载扩展，不需要 xvfb
+        run: pnpm test:e2e
+
+      # CI 下 reporter 为 list、trace 为 on-first-retry，失败时产物落在 test-results/；
+      # playwright-report/ 只在非 CI 配置下生成，允许缺失。
+      - name: Upload test artifacts
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

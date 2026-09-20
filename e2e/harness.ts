@@ -17,7 +17,12 @@ import path from 'node:path';
 import { EXTENSION_PATH } from './global-setup';
 import { textOf } from './i18n';
 
-/** 主密码只在测试 profile 内使用，不对应任何真实凭据 */
+/**
+ * 主密码只在测试 profile 内使用，不对应任何真实凭据
+ *
+ * 必须是这种「一次性合成品」：`fill()` 的入参会进 Playwright trace，CI 失败时
+ * `test-results/` 作为产物上传（见 `.github/workflows/e2e.yml`），换成真实口令就等于把它发布出去。
+ */
 export const MASTER_PASSWORD = 'E2eOnly!Passw0rd';
 
 /** 内容脚本测试用的保留域名页面：请求被 route 直接 fulfill，不出网、不依赖 DNS */

@@ -4,13 +4,13 @@
 
 ## 现状（请先读这段）
 
-| 项                                                                           | 状态                                                                      |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| 夹具（加载扩展、取扩展 ID、解锁管理页、读写 `storage.local`、PING 内容脚本） | 已写好：`e2e/harness.ts` + `e2e/global-setup.ts`                          |
-| 已真实覆盖的用例                                                             | `e2e/site-rules.spec.ts` 6 条：站点规则表单/存储 4 条 + 内容脚本消费 2 条 |
-| 其余 6 个 `*.spec.ts`                                                        | 原有实现整体作废，文件内只保留 TODO 清单并显式 `test.skip`                |
-| CI                                                                           | **未接入**，`pnpm test:e2e` 不在 `lint` / `test` / `build` 任何门禁里     |
-| 本机（macOS 13）能否跑通                                                     | **不能**，原因见下                                                        |
+| 项                                                                           | 状态                                                                                                                              |
+| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| 夹具（加载扩展、取扩展 ID、解锁管理页、读写 `storage.local`、PING 内容脚本） | 已写好：`e2e/harness.ts` + `e2e/global-setup.ts`                                                                                  |
+| 已真实覆盖的用例                                                             | `e2e/site-rules.spec.ts` 6 条：站点规则表单/存储 4 条 + 内容脚本消费 2 条                                                         |
+| 其余 6 个 `*.spec.ts`                                                        | 原有实现整体作废，文件内只保留 TODO 清单并显式 `test.skip`                                                                        |
+| CI                                                                           | **仅手动触发**：`.github/workflows/e2e.yml` 只有 `workflow_dispatch`，不在 `lint` / `test` / `build` 任何门禁里，也不响应 push/PR |
+| 本机（macOS 13）能否跑通                                                     | **不能**，原因见下                                                                                                                |
 
 ### 为什么本机跑不了
 
@@ -76,5 +76,27 @@ pnpm exec playwright test --trace on             # 需要时开启 trace
 pnpm exec playwright show-trace trace.zip
 ```
 
-接入 CI 前需先确认两件事：扩展 E2E 会明显拉长流水线，且需要 `xvfb`（或有头 Chromium）；
-`test:e2e` 目前刻意不进 `pnpm build`/`lint` 门禁，避免把未验证的套件变成红灯来源。
+## 在 CI 上跑
+
+`.github/workflows/e2e.yml` 是一个**只有 `workflow_dispatch`** 的工作流：Actions 页面手动 Run workflow，
+它装 Playwright Chromium、把 `E2E_EXECUTABLE_PATH` 指向该构建、跑 `pnpm test:e2e`，失败时上传
+`test-results/`（含首次重试的 trace）。
+
+它**不响应 push / PR**，因此永远不会把未验证的套件变成门禁红灯。连续手动跑绿之后，再决定是否补
+`push:` / `pull_request:` 触发；扩展 E2E 会明显拉长流水线（每次都要先 `pnpm build`），这是接入前必须
+先量过的成本。
+
+### 为什么 `playwright` 与 `@playwright/test` 都要留着
+
+`pnpm why playwright` 显示它同时是直接 devDependency 和 `@playwright/test` 的传递依赖，看起来冗余——
+但删掉直接声明会让 CI 的工作流当场失败：
+
+- pnpm 默认的隔离布局只把**直接**依赖链接到 `node_modules/` 根（`ls -l` 可见
+  `playwright -> .pnpm/playwright@1.63.0/node_modules/playwright`），传递依赖只落在 `.pnpm/node_modules/`
+  这一隐藏目录里，而它只在 `.pnpm` **内部**发起的 require 的解析路径上；
+- `e2e.yml` 里解析 Chromium 可执行文件用的是从仓库根执行的 `node -e "require('playwright')…"`，
+  因此只可能命中根链接。直接依赖一删，这一步变成 `MODULE_NOT_FOUND`。
+
+两个包都声明了同名 `playwright` bin，所以 `.bin/playwright` 不是保留它的理由，别拿这条当依据。
+若要减掉这份重复，可行的替代方案是把那行改成 `require('@playwright/test').chromium.executablePath()`
+再删直接依赖——但那会把「解析浏览器路径」这件事绑到测试运行器包上，收益只有一个依赖条目，不值得。
