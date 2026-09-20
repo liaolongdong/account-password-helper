@@ -3,10 +3,10 @@ import { logger } from '@/utils/logger';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
 import {
   SESSION_STORAGE_KEYS,
-  invalidateSessionCache,
   markSessionInvalid,
   requestReEncryptAtRest,
   adoptRekeyedSession,
+  resetSessionMemoryState,
 } from '@/utils/sessionManager-storage';
 import {
   checkForUpdate,
@@ -694,11 +694,13 @@ export function setupBackgroundServices(): void {
 
       // at-rest 安全网：旧版升级期并发 CRUD 写入可能把尚未迁移的明文重新写回，
       // 检测到明文残留时请求后台重跑一次密文化，尽快自愈明文再落盘窗口。
+      // 回收站同等纳入：moveToTrash 原样搬移磁盘条目，明文窗口内的删除会把它带进回收站。
       // 稳态全密文时 some() 快速返回、无副作用；迁移写回全密文后不再触发，无循环。
-      if (passwordsChange) {
-        const newPasswords = passwordsChange.newValue as { encrypted?: boolean }[] | undefined;
-        if (Array.isArray(newPasswords) && newPasswords.some(e => e.encrypted !== true)) {
+      for (const atRestChange of [passwordsChange, changes[STORAGE_KEYS.TRASH]]) {
+        const newValue = atRestChange?.newValue as { encrypted?: boolean }[] | undefined;
+        if (Array.isArray(newValue) && newValue.some(e => e.encrypted !== true)) {
           requestReEncryptAtRest();
+          break;
         }
       }
 
@@ -712,8 +714,14 @@ export function setupBackgroundServices(): void {
         const sessionRemoved = sessionKeyChanges.some(([, change]) => change.newValue === undefined);
 
         if (sessionRemoved) {
-          // 会话被清除：清除 BG 的会话验证缓存，防止 isSessionValid() 返回过期的 true
-          invalidateSessionCache();
+          // 会话被清除：重置 BG 的会话内存镜像与验证缓存，防止 isSessionValid() 依据
+          // 陈旧镜像（另一上下文执行的 clearSession 不会清空本上下文的镜像）跳过回读
+          // storage 而继续返回过期的 true
+          resetSessionMemoryState();
+          // 明文缓存必须显式失效：上方 hasRelevantChange 块在「元数据 flush + 会话清除」
+          // 被 Chrome 合并进同一个 onChanged 事件时会走原地修补分支并保留缓存，
+          // 那样锁定后 SW 仍持有整库明文。锁定语义优先于修补带来的快路径收益。
+          invalidatePasswordCache();
           // 会话清除安全网：一次性收口所有锁定入口（弹窗手动锁定/倒计时到期/锁定按钮），
           // 同步清除全部两步接力标记
           void clearAllPendingTotp();
@@ -749,10 +757,12 @@ export function setupBackgroundServices(): void {
           }
 
           syncSwKeepaliveAlarm();
-        }
 
-        // 会话创建后主动预热缓存，确保首次 sidepanel 打开时数据就绪
-        warmPasswordCache();
+          // 会话创建/rekey 后主动预热缓存，确保首次 sidepanel 打开时数据就绪。
+          // 只放在本分支：锁定/清除路径不得重新预热——那会带着（可能仍陈旧的）会话密钥
+          // 重建 SW 明文库与 storage.session 快照，把上锁刚销毁的密钥材料又放回去。
+          void warmPasswordCache();
+        }
       }
 
       if (STORAGE_KEYS.EMAIL_BACKUP_CONFIG in changes) {

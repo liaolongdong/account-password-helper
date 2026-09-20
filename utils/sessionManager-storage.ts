@@ -1,4 +1,4 @@
-import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from '@/utils/types';
+import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry, TrashedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { lazyImport } from '@/utils/lazyImport';
@@ -93,6 +93,40 @@ const SESSION_VALID_CACHE_TTL = 5000;
  */
 export function invalidateSessionCache(): void {
   _sessionValidCache = null;
+}
+
+/**
+ * 重置本上下文的会话内存镜像与会话验证缓存
+ *
+ * 供后台 storage 监听在「检测到会话键被删除」时调用。内存镜像只在执行
+ * `_doClearSession()` 的那个上下文里被清空，而清除会话常发生在其他上下文
+ * （选项页改密后登出、侧边栏/弹窗的过期自检、广播失败的锁屏），
+ * 此时 SW 仍持有上一次的 `sessionWrappedDataKey` / `sessionPasswordExpiry`。
+ * 仅调 `invalidateSessionCache()` 不足以纠正：`isSessionValid()` 只在镜像为空时
+ * 才回读 storage，陈旧镜像会让它跳过读取并用未到期旧 expiry 判为有效，
+ * 后台因此仍能解密并预热缓存、重建快照，等于锁定失效。
+ *
+ * 同时推进代际，令本上下文中在途的异步数据密钥回填在 `await` 后放弃写回，
+ * 并清空本上下文的 CryptoKey 句柄缓存，使锁定后内存中不残留可用的解密句柄
+ * （幂等，重复调用无副作用）。
+ *
+ * 与 `_doClearSession()` 的共享部分仅此二者：句柄缓存与内存镜像是每上下文私有的，
+ * 而 storage 清除（local 会话键、session 数据密钥镜像、锁定状态镜像）已由执行
+ * `_doClearSession()` 的那个上下文完成，本函数刻意不做任何 storage 写入——
+ * 在 storage 监听里回写会误伤「清除后又立刻重建」的新会话密钥镜像。
+ */
+export function resetSessionMemoryState(): void {
+  sessionEpoch++;
+  sessionWrappedDataKey = null;
+  sessionPasswordExpiry = null;
+  sessionValidityHours = null;
+  sessionDataKey = null;
+  _sessionValidCache = null;
+  // fire-and-forget：不阻塞 storage 监听；加密模块尚未加载时缓存必为空，
+  // 动态 import 仅命中构建产物缓存，开销可忽略
+  void _getEncryption()
+    .then(m => m.clearCryptoKeyCache())
+    .catch(() => {});
 }
 
 /**
@@ -398,6 +432,9 @@ async function _migrateLegacySession(expiry: number, validityHours: number, epoc
  * - 旧版本升级：升级前会话活跃时磁盘残留明文，需一次性加密。
  * - 新条目落盘前的兜底。
  *
+ * 扫描范围含回收站（TRASH）：条目由 `moveToTrash` 原样搬入，迁移窗口内的明文
+ * 会随之落到回收站，若只扫主列表则该明文永不被密文化（30 天 TTL 内一直驻留）。
+ *
  * 幂等且 SW 生命周期内仅有效执行一次（_encryptAtRestDone）；逐条失败不丢弃，
  * 无法获取密钥时不置完成标志，留待下次重试。
  *
@@ -409,15 +446,25 @@ async function ensurePasswordsEncryptedAtRest(masterPassword?: string): Promise<
   try {
     const isEncrypted = (e: PasswordEntry | EncryptedPasswordEntry): boolean =>
       'encrypted' in e && (e as EncryptedPasswordEntry).encrypted === true;
+    const hasPlaintext = (list: (PasswordEntry | EncryptedPasswordEntry)[]): boolean => list.some(e => !isEncrypted(e));
 
-    const snapshot: (PasswordEntry | EncryptedPasswordEntry)[] =
-      ((await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS))[STORAGE_KEYS.PASSWORDS] as
-        (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
-    if (snapshot.length === 0) {
+    const readAtRest = async (): Promise<{
+      passwords: (PasswordEntry | EncryptedPasswordEntry)[];
+      trash: TrashedPasswordEntry[];
+    }> => {
+      const r = await chrome.storage.local.get([STORAGE_KEYS.PASSWORDS, STORAGE_KEYS.TRASH]);
+      return {
+        passwords: (r[STORAGE_KEYS.PASSWORDS] as (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [],
+        trash: (r[STORAGE_KEYS.TRASH] as TrashedPasswordEntry[] | undefined) || [],
+      };
+    };
+
+    const snapshot = await readAtRest();
+    if (snapshot.passwords.length === 0 && snapshot.trash.length === 0) {
       _encryptAtRestDone = true;
       return;
     }
-    if (!snapshot.some(e => !isEncrypted(e))) {
+    if (!hasPlaintext(snapshot.passwords) && !hasPlaintext(snapshot.trash)) {
       _encryptAtRestDone = true;
       return;
     }
@@ -429,9 +476,10 @@ async function ensurePasswordsEncryptedAtRest(masterPassword?: string): Promise<
       return;
     }
 
-    // 预先加密快照中的明文条目，并记录其 updateTime 以便检测并发修改
+    // 预先加密两份快照中的明文条目，并记录其 updateTime 以便检测并发修改。
+    // 主列表与回收站共用同一 id 空间（条目在两处之间移动），故合并为一张表。
     const encById = new Map<string, { enc: EncryptedPasswordEntry; updateTime?: number }>();
-    for (const e of snapshot) {
+    for (const e of [...snapshot.passwords, ...snapshot.trash]) {
       if (!isEncrypted(e)) {
         const plain = e as PasswordEntry;
         encById.set(plain.id, {
@@ -443,27 +491,41 @@ async function ensurePasswordsEncryptedAtRest(masterPassword?: string): Promise<
 
     // 重新读取最新快照，仅替换「仍为明文且自快照以来未被并发修改」的条目，
     // 并发新增/修改/删除的条目原样保留，彻底避免与并发写入互相覆盖导致数据丢失。
-    const latest: (PasswordEntry | EncryptedPasswordEntry)[] =
-      ((await chrome.storage.local.get(STORAGE_KEYS.PASSWORDS))[STORAGE_KEYS.PASSWORDS] as
-        (PasswordEntry | EncryptedPasswordEntry)[] | undefined) || [];
-    let changed = false;
-    const out = latest.map(e => {
+    const latest = await readAtRest();
+    let passwordsChanged = false;
+    const outPasswords = latest.passwords.map(e => {
       if (isEncrypted(e)) return e;
       const m = encById.get(e.id);
       if (m && (e as PasswordEntry).updateTime === m.updateTime) {
-        changed = true;
+        passwordsChanged = true;
         return m.enc;
       }
       return e; // 并发新增/修改的明文条目：保留，交由下一轮迁移处理
     });
 
-    if (changed) {
-      await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: out });
+    let trashChanged = false;
+    const outTrash = latest.trash.map(e => {
+      if (isEncrypted(e)) return e;
+      const m = encById.get(e.id);
+      if (m && e.updateTime === m.updateTime) {
+        trashChanged = true;
+        // encryptPasswordEntry 以展开方式保留 deletedAt，此处按最新值显式补齐类型与字段
+        return { ...m.enc, deletedAt: e.deletedAt };
+      }
+      return e;
+    });
+
+    // 仅写回本次确实发生变化的列表：未变化的列表不参与 set，避免覆盖并发写入
+    const payload: Record<string, unknown> = {};
+    if (passwordsChanged) payload[STORAGE_KEYS.PASSWORDS] = outPasswords;
+    if (trashChanged) payload[STORAGE_KEYS.TRASH] = outTrash;
+    if (Object.keys(payload).length > 0) {
+      await chrome.storage.local.set(payload);
     }
-    // 仅当最新快照中已无明文时才标记完成，否则留待下次触发继续迁移
-    if (!out.some(e => !isEncrypted(e))) {
+    // 仅当最新快照（主列表 + 回收站）中已无明文时才标记完成，否则留待下次触发继续迁移
+    if (!hasPlaintext(outPasswords) && !hasPlaintext(outTrash)) {
       _encryptAtRestDone = true;
-      logger.debug('at-rest 不变量已满足：storage.local 中所有密码条目均为密文');
+      logger.debug('at-rest 不变量已满足：storage.local 中所有密码条目（含回收站）均为密文');
     }
   } catch (error) {
     logger.error('确保密码密文落盘失败:', error);
