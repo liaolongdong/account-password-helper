@@ -53,7 +53,7 @@ graph LR
 ### Content Script 运行时约束
 
 - **注入范围**：[entrypoints/content.ts](../entrypoints/content.ts) 以 `matches: ['<all_urls>']` + `allFrames: true` 注入所有 frame。表单检测与自动保存监听在**所有 frame** 初始化（iframe 内的登录表单同样需要被检测和捕获），而悬浮按钮、保存弹窗、委托通知只在**顶层 frame** 渲染，避免每个 iframe 重复注入造成重叠与定位错乱。
-- **样式隔离**：悬浮按钮、内联填充面板、密码可见性切换按钮均使用 **Closed Shadow DOM**，内部以 `all: initial` 重置并**内联写入** `--aph-*` 主题令牌（不依赖外部样式类），`z-index 2147483647` 置顶。不得把 Shadow DOM 引用暴露给宿主页面，也不得在内容脚本中依赖页面全局函数/变量。
+- **样式隔离**：分两档，按实现如实区分。①**Closed Shadow DOM**（`all: initial` 重置 + 内联写入 `--aph-*` 主题令牌，`z-index 2147483647`，宿主引用不外泄）：悬浮按钮、内联填充面板、活码胶囊、填充失败引导气泡。②**light DOM**（节点直接挂在页面 `body` 上，作用域靠扩展自有类名收敛，主题令牌内联写到自身元素）：密码可见性切换按钮（按 id 向 `document.head` 一次性注入样式表）、保存密码提示（由模块内标志去重，向 `document.head` 注入一段 keyframes）、原生通知条（不注入任何样式表，全部 `cssText` 内联，**配色固定、不随主题变化**）。两类都不得依赖页面全局函数/变量，也不得以 `innerHTML`/`v-html` 渲染来自 DOM 或消息的不可信文本。
 - **跨 frame 明文边界**：iframe 内的凭证通过 `window.top.postMessage` 委托顶层 frame 渲染保存弹窗，回传结果时 `targetOrigin` 固定为来源 origin；保存类委托必须先经 `isSameMainDomain(event.origin, location.origin)` 校验，防止跨域 iframe 把明文密码泄露给第三方页面。通知委托因跨域场景也需要放行，但按不可信输入处理：严格校验类型与长度并限流（10 秒滑动窗口内最多 5 次）。反向同理，明文凭证只下发到顶层或同主域名 frame（`isFrameFillable`）。
 - **监听器生命周期**：所有 DOM 监听统一经 WXT 的 `ctx.addEventListener` 注册（扩展上下文失效时自动移除），`ctx.onInvalidated` 与 `beforeunload` 触发集中 `cleanup()`，销毁 FormDetector / LoginAutoSave / 悬浮按钮管理器注册的监听器、MutationObserver 与注入 UI。这是消除重载后旧脚本残留调用 chrome API 抛 `Extension context invalidated` 的根因修复，新增监听时不得绕过。
 - **检测节奏**：首次扫描在 `DOMContentLoaded` 后延时 3 秒（文档已就绪时 500 毫秒），MutationObserver 以 500 毫秒去抖触发重扫，观察范围为 `document.body` 的 `childList + subtree + attributes(class/style/placeholder)`；SPA 路由变化合并进同一观察器（不额外建 Observer），`popstate` 仅覆盖前进/后退。填充前若字段尚未命中，`waitForFieldsDetected()` 以 100ms 起始、1.5 倍退避、上限 2000ms 重试至多 10 次；`blur` 等易触发重渲染的时机改用事件驱动的 `waitForDomStable(quietMs=50, budgetMs=300)` 等待 DOM 静默，而非固定 sleep。
@@ -258,7 +258,7 @@ graph TB
 │   ├── warmSidePanelResources.ts   # 侧边栏渲染资源预热（SW 侧，抗 Windows 白屏）
 │   ├── theme.ts                    # 主题工具（主题名类型、令牌映射、应用/同步）
 │   ├── storageKeys.ts              # Storage Key 常量
-│   ├── constants.ts                # 历史常量入口（URL 已迁至 urls.ts，仅保留迁移说明）
+│   ├── constants.ts                # 跨领域共享常量（密码条目字段长度容量 `PASSWORD_FIELD_LIMITS`；URL 常量在 urls.ts）
 │   ├── urls.ts                     # URL 常量
 │   └── types.ts                    # 公共类型定义
 ├── assets/icons/                   # 源 SVG 图标
@@ -436,7 +436,7 @@ graph TB
 - 提供 6 款色彩主题：晴空蓝（默认）、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰（见 [utils/theme.ts](../utils/theme.ts)）。
 - 主题配置保存在悬浮按钮偏好中，有三种方式进入设置：①密码管理页「偏好设置」按钮；②悬浮按钮齿轮图标；③侧边栏右上角齿轮图标。
 - 扩展页面（密码管理页、侧边栏、Popup）通过 `data-theme` 属性 + CSS Design Tokens（[tokens.css](../assets/theme/tokens.css)）实现一致性换肤。
-- 内容脚本的 Shadow DOM 组件（悬浮按钮、内联填充面板、密码可见性切换按钮）以内联方式写入主题令牌，与扩展页面同步生效。
+- 内容脚本注入式 UI 的换肤程度按实现如实区分：Closed Shadow DOM 一档（悬浮按钮、内联填充面板、活码胶囊、填充失败气泡）把 `--aph-*` 令牌内联写入宿主，与扩展页面同步生效；light DOM 一档里密码可见性切换按钮与保存密码提示把主题令牌内联写到自身元素（跟随换肤），原生通知条配色固定、不随换肤变化。
 - 切换主题即时生效，无需刷新页面。
 
 ### 17. 内联填充
@@ -539,15 +539,16 @@ graph TB
 ### 28. 站点级填充规则
 
 - **定位**：面向自动检测失败的站点（Web Components、非常规 name/placeholder 的登录页）提供人工兜底——为单个域名指定账号 / 密码字段的 CSS 选择器，并按站点控制影子 DOM 穿透。数据落 [siteRules.ts](../utils/storage/siteRules.ts) 的 `site_rules` 键，形状为 `Record<domain, SiteRule>`，是**明文非敏感元数据**（域名 + 选择器 + 布尔开关），因此不进加密域、不参与 `.aph` 备份与邮箱备份，内容脚本也能直读；跨机迁移走下文的明文 JSON 通道。
-- **三个入口**：Options「安全设置 → 站点规则」、命令面板（`siteRules`）、以及内容脚本填充失败气泡（`reason='no_form'` 时由 [FillFailurePrompt.ts](../entrypoints/content/FillFailurePrompt.ts) 就地引导）。后一条经 `OPEN_OPTIONS_AND_SITE_RULES` → [messageRouter.ts](../entrypoints/background/messageRouter.ts) → `openOptionsAndSendMessage` 回到选项页；气泡里的 Closed Shadow DOM 宿主挂在 `documentElement` 上、主题令牌由 `applyThemeTokensToHost` 内联写入，与 `SavePasswordPrompt` 同一隔离约定。
+- **三个入口**：Options「安全设置 → 站点规则」、命令面板（`siteRules`）、以及内容脚本填充失败气泡（`reason='no_form'` 时由 [FillFailurePrompt.ts](../entrypoints/content/FillFailurePrompt.ts) 就地引导）。后一条经 `OPEN_OPTIONS_AND_SITE_RULES` → [messageRouter.ts](../entrypoints/background/messageRouter.ts) → `openOptionsAndSendMessage` 回到选项页；气泡自带一个 Closed Shadow DOM 宿主挂在 `documentElement` 上、主题令牌由 `applyThemeTokensToHost` 内联写入（注意：`SavePasswordPrompt` 与原生通知条属于 light DOM 一档，不是同一隔离约定，见「Content Script 运行时约束」的样式隔离）。
 - **未解锁不丢动作**：该指令在选项页会话尚未就绪时到达会被 `waitForPasswords()` 延后判定；仍处于锁定态时不把规则弹窗压在主密码验证屏上，而是记下域名 + `ElMessage.info` 提示，`watch(isAuthenticated)` 在解锁瞬间自动续上这次引导。
 - **消费端时序**：[FormDetector.ts](../entrypoints/content/FormDetector.ts) 的 `init()` 读取本站规则，且**首轮检测排在 `siteRuleReady` 之后**（storage 监听只在值变化时触发，抢跑会导致规则本次页面生命周期内再无生效机会）；`setupSiteRuleListener` 让编辑规则后无需刷新即重检测，`destroy()` 精确解绑。
-- **穿透优先级**：`penetrateShadowEnabled` 取 `全局开关 !== false && 站点规则 !== false`——全局开关是总闸，站点规则只能在其开启时针对单站点进一步关闭，不能反向打开（否则新增规则会静默推翻用户的整体偏好）。填充失败气泡与扫描共用该判定。
+- **穿透优先级**：`penetrateShadowEnabled` 取 `全局开关 !== false && 站点规则 !== false`——全局开关是总闸，站点规则只能在其开启时针对单站点进一步关闭，不能反向打开（否则新增规则会静默推翻用户的整体偏好）。该判定统一门控两处能力，语义一致：`collectShadowQueryRoots` 在关闭时只返回 `document`（站点规则选择器因此只在文档主树上生效，仍可用，只是不再跨边界），填充失败引导气泡在关闭时不再弹出（跨边界的补救手段本就不可用，留着气泡只会误导）。此前两者分叉——选择器无条件跨边界、气泡却受开关约束，用户看到的是「关掉穿透后规则仍悄悄生效，引导却消失了」，与开关标签相反；现已收口为「标签说什么就是什么」，对应提示文案与类型注释同步更新。
+- **检测范围口径**：启发式检测走 `document.querySelectorAll`，范围仅文档主树，open / closed 影子树内的登录框都不会被自动识别；跨 shadow 边界的唯一通道是上一节的自定义选择器，且它本身也受穿透开关约束（closed 根连选择器也拿不到，`el.shadowRoot` 为 `null`）。曾经存在的「递归遍历 open shadow DOM 收集字段」启发式因 BFS 只以 `document.body` 为种子、从不入队 light DOM 子节点而几乎收不到字段：宿主嵌在主树内（真实页面的普遍形态）时命中数为 0，只有影子树直挂 `document.body`、输入框恰好是其直接子节点时才可达（两种摆放均已实测）。该路径已随回归测试一并删除，跨边界能力统一由自定义选择器承担——它在上述极端形态下同样能命中。
 - **权威覆盖**：`applySiteRuleSelectors` 命中即替换 `usernameFields` / `passwordFields`，并同步把被替换字段的 `fieldTypeCache` 降级为 `null`（`getFieldType` 优先读缓存，只换数组会让侧边栏 / 内联图标继续在被弃用的元素上弹出）；未配置的一侧保留启发式结果，不被顺手清空。
 - **校验单一来源**：`normalizeSiteRuleDomain` 与 `isValidCssSelector` 由写入端（表单）与消费端（内容脚本）共用。域名是匹配主键，读取端形态来自 `document.domain || location.hostname`（小写、无尾点），故写入端必须按 DNS 标签逐段规范化校验，否则规则静默失效；编辑态写回**原存储 key**，避免历史大小写条目被拆成两条。选择器按不可信输入处理：语法非法或超出长度预算时安全跳过，绝不打断本轮检测。
 - **明文 JSON 迁移通道**：规则弹窗列表底部提供导出 / 导入，实现落在 [siteRulesTransfer.ts](../utils/siteRulesTransfer.ts)。导出信封为 `{ kind: 'aphsr', version, exportedAt, count, rules }`（规则按域名升序，两份导出可直接 diff）；导入同时接受该信封与裸的 `Record<domain, SiteRule>`（即 storage 原样形态，便于手工编辑后回导）。整条通道**有意不加密**：文件里只有域名与选择器，不含任何凭据字段，但域名清单会随文件离开扩展，这是该通道已知的取舍。导入侧把文件当不可信输入——体积、条数、结构 / 版本 / `count` 一致性逐项判定，条目级再复用 `normalizeSiteRuleDomain` + `isValidCssSelector` 逐条剔除，全部不合法时报错且不触碰存储；合并语义为**按域名覆盖、其余保留**，并显式报告「新增 N / 更新 M / 忽略 K」（K 为被剔除的条目数，防止「10 条只进了 3 条」看起来像全部成功），历史大小写 key 一律收敛为规范化单条（本机已同时存着变体时，保留内容脚本命得到的那条）。
-- **成本边界**：跨 shadow 边界的查询根由 `collectShadowQueryRoots` 每轮检测只 BFS 一次（`SHADOW_ROOT_SCAN_BUDGET` 节点预算，超限时输出可辨识日志），账号 / 密码两条选择器复用同一组根。
-- **回归口径**：[siteRulesValidation.test.ts](../tests/utils/siteRulesValidation.test.ts) 钉规范化与选择器边界，[formDetector.siteRule.test.ts](../tests/content/formDetector.siteRule.test.ts) 钉权威覆盖 / 缓存降级 / 穿透三态 / 首轮竞态 / 监听与清理，[senderValidation.test.ts](../tests/background/senderValidation.test.ts) 与 [useRuntimeMessageHandler.siteRules.test.ts](../tests/composables/useRuntimeMessageHandler.siteRules.test.ts) 钉消息链路的域名收口与分发契约，[siteRulesTransfer.test.ts](../tests/utils/siteRulesTransfer.test.ts) 钉信封与裸形态两种入口、逐条剔除、体积与条数上限、错误码分流、合并计数与失败不落盘。
+- **成本边界**：跨 shadow 边界的查询根由 `collectShadowQueryRoots` 每轮检测只 BFS 一次（`SHADOW_ROOT_SCAN_BUDGET` 节点预算，超限时输出可辨识日志），账号 / 密码两条选择器复用同一组根；穿透关闭时该函数直接短路返回 `[document]`，连这次 BFS 都不发生。
+- **回归口径**：[siteRulesValidation.test.ts](../tests/utils/siteRulesValidation.test.ts) 钉规范化与选择器边界，[formDetector.siteRule.test.ts](../tests/content/formDetector.siteRule.test.ts) 钉权威覆盖 / 缓存降级 / 穿透判定的三态与适用边界 / 首轮竞态 / 监听与清理，[formDetector.shadow.test.ts](../tests/content/formDetector.shadow.test.ts) 钉「启发式不跨边界、选择器可跨 open 根、closed 根不可见、穿透开关关掉后选择器只在主树生效」这条范围口径，[senderValidation.test.ts](../tests/background/senderValidation.test.ts) 与 [useRuntimeMessageHandler.siteRules.test.ts](../tests/composables/useRuntimeMessageHandler.siteRules.test.ts) 钉消息链路的域名收口与分发契约，[siteRulesTransfer.test.ts](../tests/utils/siteRulesTransfer.test.ts) 钉信封与裸形态两种入口、逐条剔除、体积与条数上限、错误码分流、合并计数与失败不落盘。
 
 ## 开发补充
 

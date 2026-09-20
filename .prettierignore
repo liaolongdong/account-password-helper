@@ -24,6 +24,9 @@ pricing.en.html
 privacy.en.html
 # 博客静态页：`pnpm gen:blog` 的产物，手工格式化会被下次生成覆盖，与上方 *.en.html 同类
 blog/
+# CHANGELOG.md 由 release-please 在发版时按其自有样式重写（`*` 列表 + 空行），
+# 纳入格式门禁会让下一次发版直接把它变成红灯；这里只做过一次归位，之后不再检查。
+CHANGELOG.md
 
 # Chrome extension files
 *.crx
