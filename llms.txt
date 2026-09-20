@@ -1,6 +1,6 @@
 # Account Password Helper
 
-> Free, open-source password manager Chrome extension for developers & QA engineers. Per-field AES-256-GCM local encryption, no account registration, no subscription, and password data never leaves the browser. One-click login (fill + tick consent + click login), multi-environment account isolation, built-in TOTP 2FA authenticator.
+> Free, open-source password manager Chrome extension for developers & QA engineers. Per-field AES-256-GCM local encryption, no account registration, no subscription, and password data stored only on your machine — the single outbound request is an anonymous version check that carries no user data. One-click login (fill + tick consent + click login), multi-environment account isolation, built-in TOTP 2FA authenticator.
 
 ## Quick Facts
 
@@ -13,8 +13,8 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-09-20 · **Latest release**: v3.9.0 (2026-09-11)
-- **Quality**: 1075 automated test cases across 93 test files
+- **Last updated**: 2026-09-21 · **Latest release**: v3.9.0 (2026-09-11)
+- **Quality**: 1105 automated test cases across 97 test files
 
 ## Key Features
 
