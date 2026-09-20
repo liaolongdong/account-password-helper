@@ -86,14 +86,14 @@ Result: the HTML parses and paints a skeleton immediately; styles arrive asynchr
 
 ## Verification: Sub-Second Is Measured, Not Felt
 
-Alongside the implementation, the test suite grew to cover every layer (vitest — it runs locally and from the pre-commit hook; the repository's GitHub Actions currently only build and deploy):
+Alongside the implementation, the test suite grew to cover every layer (vitest — it runs locally, from the pre-commit hook, and on every push and pull request through the repository's GitHub Actions):
 
 - `swKeepalive`: heartbeat/alarm registration, revival, cleanup;
 - `warmSidePanelResources`: throttle windows, platform branches, file lists;
 - `passwordCache` / `startupRelock` / `idleLock`: cache re-warm and every lock path;
 - `sidePanelManager`: open sequencing.
 
-The repo now has 642 automated tests across 55 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
+The repo now has 1075 automated tests across 93 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
 
 ## Retrospective: Three Lessons
 

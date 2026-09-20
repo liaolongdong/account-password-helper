@@ -298,14 +298,14 @@
 <h2>One Iron Rule: Never <code>await</code> Before a User Gesture</h2>
 <p><code>chrome.sidePanel.open()</code> must be triggered by a user gesture, and <strong>no <code>await</code> is allowed before the call</strong> — any async wait in between invalidates the gesture context and the panel simply won&#39;t open. So the open call is always fired synchronously, with the tabId fetched via a synchronous API. All &quot;pre-open preparation&quot; is moved upstream into keep-alive and pre-warming phases, rather than scrambling after the click.</p>
 <h2>Verification: Sub-Second Is Measured, Not Felt</h2>
-<p>Alongside the implementation, the test suite grew to cover every layer (vitest — it runs locally and from the pre-commit hook; the repository&#39;s GitHub Actions currently only build and deploy):</p>
+<p>Alongside the implementation, the test suite grew to cover every layer (vitest — it runs locally, from the pre-commit hook, and on every push and pull request through the repository&#39;s GitHub Actions):</p>
 <ul>
 <li><code>swKeepalive</code>: heartbeat/alarm registration, revival, cleanup;</li>
 <li><code>warmSidePanelResources</code>: throttle windows, platform branches, file lists;</li>
 <li><code>passwordCache</code> / <code>startupRelock</code> / <code>idleLock</code>: cache re-warm and every lock path;</li>
 <li><code>sidePanelManager</code>: open sequencing.</li>
 </ul>
-<p>The repo now has 640 automated tests across 54 test files. Performance outcome: <strong>20–50ms to data on the cached warm path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
+<p>The repo now has 1075 automated tests across 93 test files. Performance outcome: <strong>20–50ms to data on the cached warm path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
 <h2>Retrospective: Three Lessons</h2>
 <ol>
 <li><strong>Don&#39;t fight MV3&#39;s lifecycle; design around it.</strong> The SW <em>will</em> be terminated. Assume it&#39;s never there: put state in <code>chrome.storage</code>, delegate wake-ups to alarms, and push costs forward into pre-warming.</li>
