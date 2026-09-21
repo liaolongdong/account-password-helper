@@ -55,6 +55,61 @@ export function textOf(key: string): RegExp {
   return new RegExp(alternatives.join('|'));
 }
 
+/**
+ * 全词锚定的中英并集正则
+ *
+ * `textOf` 是非锚定子串匹配，遇到「互为子串」的文案会同时命中两项：
+ * 「加密备份」是「不加密备份」的子串，"Encrypted backup" 同样是 "Unencrypted backup"
+ * 的子串，用它定位单选按钮会直接触发 strict mode 冲突。需要整串相等时用本函数。
+ */
+export function anchoredTextOf(key: string): RegExp {
+  const alternatives = lookup(key)
+    .map(value => value.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .filter(Boolean);
+  return new RegExp(`^(?:${alternatives.join('|')})$`);
+}
+
+/**
+ * 数字模板正则：把 `{count}` 一类占位要求成一段数字，多个 key 取并集
+ *
+ * `textOf` 为了做名字匹配会把模板砍到第一个占位之前，但那正好丢掉了倒计时、
+ * 条数这类展示真正有价值的部分（`23小时59分钟` 的档位本身就是被测行为）。
+ * 这类断言改用它，仍然只依赖产品文案，不硬编码中英任一侧。
+ */
+export function numericTemplateOf(...keys: string[]): RegExp {
+  const alternatives = keys.flatMap(key =>
+    lookup(key).map(template =>
+      template
+        .split(/\{[a-zA-Z0-9_]+\}/)
+        .map(literal => literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('\\d+'),
+    ),
+  );
+  return new RegExp(alternatives.join('|'));
+}
+
+/**
+ * 具体参数代入后的中英并集正则
+ *
+ * 「15 秒」「20 条」这类按数值区分的选项，`textOf` 会砍成空前缀（模板以占位符开头），
+ * `numericTemplateOf` 又无法把「15 秒」和「30 秒」区分开。需要选中某一个具体选项时用它，
+ * 未提供的占位仍降级为数字通配，不会因为漏传参数而匹配到整个下拉面板。
+ */
+export function templatedOf(key: string, params: Record<string, string | number>): RegExp {
+  const alternatives = lookup(key).map(template =>
+    template
+      .split(/(\{[a-zA-Z0-9_]+\})/)
+      .map(part => {
+        const match = /^\{([a-zA-Z0-9_]+)\}$/.exec(part);
+        if (!match) return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const value = params[match[1]];
+        return value === undefined ? '\\d+' : String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      })
+      .join(''),
+  );
+  return new RegExp(alternatives.join('|'));
+}
+
 /** 供输入框 placeholder 定位使用：同样返回中英并集正则 */
 export function placeholderOf(key: string): RegExp {
   return textOf(key);

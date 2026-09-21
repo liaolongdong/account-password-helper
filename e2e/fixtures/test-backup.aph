@@ -1,6 +1,0 @@
-This is a placeholder file for backup testing. In real E2E tests, you would:
-1. First run the export test to create a real .aph file
-2. Use that file for import testing
-
-For now, this file demonstrates the expected format.
-Actual backup files are encrypted and binary.
