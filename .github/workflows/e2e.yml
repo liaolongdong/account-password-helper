@@ -1,13 +1,54 @@
 name: E2E (Chrome extension)
 
-# 只手动触发，不进 push / PR 门禁。
-# 原因见 e2e/README.md「现状」：这套夹具经过 `playwright test --list`、typecheck、lint 校验，
-# 但从未有过一次真实的绿色运行（开发机是 macOS 13，Playwright 1.63 拒绝为其安装 chromium，
-# 而品牌版 Google Chrome ≥135 忽略 `--load-extension`）。把未验证的套件挂到 push 上，
-# 等于凭空制造红灯来源——与 ci.yml「刻意不跑 format:check」用的是同一个取舍。
-# 本工作流的用途就是给出第一次绿色信号；连续绿之后再讨论是否改成 push 触发。
+# 与 ci.yml 同一套触发口径：push 到 main + 所有 PR，外加手动触发用于随时复跑。
+# 2026-09-22 起接入：此前只有 `workflow_dispatch`，理由是「从未有一次真实的绿色运行」；
+# 该前提已在真机上被推翻——7 个 spec / 41 条用例在 Chrome for Testing 上跑过一次全绿
+# （40 passed / 1 skipped，口径见 e2e/README.md「现状」）。
+#
+# 但「一次全绿」不等于「稳定」：helper 竞态修好之后的那次全量复跑红了 11 条，
+# 且**全部是等待超时、没有一条是断言不符**。事后定位为环境——上一轮 e2e 调用遗留的
+# 4 个 runner shell 在持续抢 CPU（load 228 / 5.2GB swap）。清掉之后同一份代码全量复跑
+# **40 passed / 1 skipped（20.4 分钟）**，断言与超时一个字没改；侧边栏单文件另跑过 6/6。
+# 也就是说本地已经攒到两次全量绿灯，缺的是 runner 那一格：CI 用 ubuntu 上的
+# Playwright Chromium，本地是 macOS x64 的 Chrome for Testing，同一内核不同构建，没法预跑。
+# 所以本 job 先以 `continue-on-error` 的观察身份接进 push/PR：跑红只出警告，不挡合并。
+# 转正条件：在 ubuntu runner 上连跑两次全绿，届时删掉那一行即可，无需再改触发口径。
+#
+# 三点仍未消除的偏差，首次 push/PR 运行才是它的实测：
+# 1. 本地验证用的是 Chrome for Testing（macOS x64），CI 用的是 Playwright 分发的 Chromium
+#    （ubuntu）——同一内核不同构建与平台，本工作流无法在本机预跑；
+# 2. 接进 PR 门禁≠成为必过检查，是否 required 由分支保护规则决定，那一步不在本文件里；
+# 3. 观察期内 `continue-on-error` 让它连「红」都算不上，真正的门禁化要等上面那次转正。
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      # 文档、博客与图片改动不会改变扩展行为，不为此起一个 30 分钟的浏览器任务。
+      # 用 paths-ignore 而非 paths 白名单：被测面就是整个扩展源码，白名单会写成
+      # 「除文档外的一切」，既长又会在新增源码目录时静默漏跑。
+      - '**.md'
+      - 'docs/**'
+      - 'blog/**'
+      - 'imgs/**'
+      - 'assets/screenshots/**'
+      - 'assets/cws-store/**'
+      - 'assets/illustrations/**'
+      - 'assets/wx-qrcode/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/release-please.yml'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'blog/**'
+      - 'imgs/**'
+      - 'assets/screenshots/**'
+      - 'assets/cws-store/**'
+      - 'assets/illustrations/**'
+      - 'assets/wx-qrcode/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/release-please.yml'
 
 # 只读代码，不写任何权限
 permissions:
@@ -22,6 +63,8 @@ jobs:
   e2e:
     name: Playwright extension E2E
     runs-on: ubuntu-latest
+    # 观察期：见文件头「转正条件」。runner 上的首次全绿之前，红灯只出警告不挡合并。
+    continue-on-error: true
     # 每次运行都会先 `pnpm build`（globalSetup 保证产物新鲜），再逐条用例起独立 profile
     timeout-minutes: 30
     steps:
