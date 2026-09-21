@@ -1,5 +1,13 @@
 import type { BrowserContext, Page } from '@playwright/test';
-import { E2E_PAGE_ORIGIN, expect, pingDetectedFields, readSiteRules, seedSiteRule, test } from './harness';
+import {
+  E2E_PAGE_ORIGIN,
+  expect,
+  expectSuccessToast,
+  pingDetectedFields,
+  readSiteRules,
+  seedSiteRule,
+  test,
+} from './harness';
 import { textOf } from './i18n';
 
 /**
@@ -35,7 +43,7 @@ test.describe('站点规则表单与存储', () => {
     await passwordInput(page).fill('input[type="password"]');
     await saveButton(page).click();
 
-    await expect(page.locator('.el-message--success')).toBeVisible();
+    await expectSuccessToast(page, 'options.siteRules.saveSuccess');
     const rules = await readSiteRules(page);
     expect(Object.keys(rules)).toEqual([RULE_DOMAIN]);
     expect(rules[RULE_DOMAIN]).toMatchObject({
@@ -74,7 +82,7 @@ test.describe('站点规则表单与存储', () => {
 
     await usernameInput(page).fill('#new');
     await saveButton(page).click();
-    await expect(page.locator('.el-message--success')).toBeVisible();
+    await expectSuccessToast(page, 'options.siteRules.saveSuccess');
 
     const rules = await readSiteRules(page);
     expect(Object.keys(rules)).toEqual([RULE_DOMAIN]);
@@ -102,7 +110,7 @@ test.describe('站点规则表单与存储', () => {
       .locator('.el-message-box')
       .getByRole('button', { name: textOf('common.confirm') })
       .click();
-    await expect(page.locator('.el-message--success')).toBeVisible();
+    await expectSuccessToast(page, 'options.siteRules.deleteSuccess');
     expect(await readSiteRules(page)).toEqual({});
   });
 });

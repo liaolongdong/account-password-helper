@@ -4,29 +4,40 @@
 
 ## 现状（请先读这段）
 
-| 项                                                                           | 状态                                                                                                                              |
-| ---------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| 夹具（加载扩展、取扩展 ID、解锁管理页、读写 `storage.local`、PING 内容脚本） | 已写好：`e2e/harness.ts` + `e2e/global-setup.ts`                                                                                  |
-| 已编写且未被 skip 的用例                                                     | `e2e/site-rules.spec.ts` 6 条：站点规则表单/存储 4 条 + 内容脚本消费 2 条                                                         |
-| 其余 6 个 `*.spec.ts`                                                        | 原有实现整体作废，文件内只保留 TODO 清单并显式 `test.skip`                                                                        |
-| CI                                                                           | **仅手动触发**：`.github/workflows/e2e.yml` 只有 `workflow_dispatch`，不在 `lint` / `test` / `build` 任何门禁里，也不响应 push/PR |
-| 本机（macOS 13）能否跑通                                                     | **不能**，原因见下                                                                                                                |
+| 项                                                                           | 状态                                                                                                                                |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| 夹具（加载扩展、取扩展 ID、解锁管理页、读写 `storage.local`、PING 内容脚本） | 已写好：`e2e/harness.ts` + `e2e/global-setup.ts`                                                                                    |
+| 已编写且未被 skip 的用例                                                     | `e2e/site-rules.spec.ts` 6 条：站点规则表单/存储 4 条 + 内容脚本消费 2 条                                                           |
+| 其余 6 个 `*.spec.ts`                                                        | 原有实现整体作废，文件内只保留 TODO 清单并显式 `test.skip`                                                                          |
+| CI                                                                           | **仅手动触发**：`.github/workflows/e2e.yml` 只有 `workflow_dispatch`，不在 `lint` / `test` / `build` 任何门禁里，也不响应 push/PR   |
+| 本机（macOS 13）能否跑通                                                     | **能**，但要自备 Chromium 系构建：Playwright 1.63 拒绝在 macOS 13 装 chromium，改下载 Chrome for Testing 并设 `E2E_EXECUTABLE_PATH` |
+| 首次真实绿色运行                                                             | 2026-09-21：`e2e/site-rules.spec.ts` 6/6 通过（Chrome for Testing 153.0.8010.52，macOS 13 x64）                                     |
 
-### 为什么本机跑不了
+### 为什么不能用系统 Chrome
 
-`--load-extension` 只对 Chromium 系构建有效。本机实测（Google Chrome 152.0.7977.83）：
+`--load-extension` 只对 Chromium 系构建有效。本机实测（品牌版 Google Chrome 152/153）：
 
 - `context.serviceWorkers()` 为空；`Target.getTargets` 里没有任何 `chrome-extension://` 目标；
   临时 profile 的 `Default/Secure Preferences` 中扩展条目数为 **0**；
-- 再加 `--enable-unsafe-extension-debugging` 结果不变；
-- 而 `pnpm exec playwright install chromium` 被 Playwright 1.63 直接拒绝：
-  `Playwright does not support chromium on mac13`。
+- 再加 `--enable-unsafe-extension-debugging` 结果不变。
 
 品牌版 Google Chrome 自 135 起忽略 `--load-extension`，所以「拿系统 Chrome 跑扩展测试」这条路
 并不存在。夹具因此优先读 `E2E_EXECUTABLE_PATH`，退路才是 `E2E_CHANNEL`。
 
-> 结论：这套夹具**只经过 `playwright test --list` 与 lint/typecheck 校验，没有一次真实的绿色运行**。
-> 首次在有 Chromium 的机器上跑，请预留调时间。
+macOS 13 剩下的唯一障碍是 Playwright 自己的分发矩阵（`pnpm exec playwright install chromium`
+报 `Playwright does not support chromium on mac13`），而不是测试本身。绕开办法是手动取
+Chrome for Testing——它是 Chromium 系构建，`--load-extension` 照常生效：
+
+```bash
+V=153.0.8010.52   # 与 https://googlechromelabs.github.io/chrome-for-testing/ 对齐
+curl -o chrome-mac-x64.zip \
+  "https://cdn.npmmirror.com/binaries/chrome-for-testing/$V/mac-x64/chrome-mac-x64.zip"
+unzip -q chrome-mac-x64.zip   # 直连 storage.googleapis.com 也可，只是慢一个量级
+export E2E_EXECUTABLE_PATH="$PWD/chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
+```
+
+> 结论：夹具已被真实浏览器验证过一轮（含扩展加载、Options 解锁、内容脚本 PING、storage 落盘）。
+> 但只有 `site-rules` 一个 spec 未被 skip，覆盖面仍是「F1 站点规则链路」，不代表全产品。
 
 ## 怎么跑
 
@@ -55,6 +66,10 @@ pnpm exec playwright test site-rules -g "落盘"    # 只跑单条
   把会话快照写到磁盘是不必要的风险面；`e2e/.auth/` 也已进 `.gitignore`。
 - **文案定位统一走 `e2e/i18n.ts`**：从 `utils/i18n/locales/{zh-CN,en}` 读真实文案，编译成中英并集
   正则。切换语言不会让测试失效；产品改名时测试与 UI 一起暴露，而不是静默失配。
+- **成功提示按文案而不是类名断言**：`ElMessage` 会把相邻动作的提示叠放在屏（解锁主密码的 3s 提示
+  经常还活着），`locator('.el-message--success')` 一次命中两个节点，撞 strict mode 造成假红灯——
+  首轮真机运行 3 条红灯全是这个原因，而被测功能其实是对的。统一走 `expectSuccessToast(page, key)`，
+  顺带把断言从「有个绿条」收紧成「绿条说的是这件事」。
 - **测试页面固定在 `*.e2e.test`** 并由 `page.route` 直接 fulfill：内容脚本会注入，但不需出网、
   不依赖 DNS。
 - **可观测性靠内容脚本自带的 `PING`**：它回 `fieldsDetected`，是断言「规则是否真被消费」的稳定

@@ -74,8 +74,8 @@ async function resolveExtensionId(context: BrowserContext): Promise<string> {
       '扩展 Service Worker 未注册 = Chrome 根本没有加载 .output/chrome-mv3。' +
         '排查顺序：① 不能用品牌版 Google Chrome（≥135 忽略 --load-extension），' +
         '设 E2E_EXECUTABLE_PATH 指向 Playwright Chromium 或 Chrome for Testing；' +
-        '② macOS 13 不在 Playwright 的 chromium 分发矩阵内，需在 macOS 14+ 或 CI 上 ' +
-        '`pnpm exec playwright install chromium`；③ 用 E2E_HEADLESS=0 观察窗口里的实际报错。',
+        '② macOS 13 不在 Playwright 的 chromium 分发矩阵内，可手动取 Chrome for Testing ' +
+        '并把 E2E_EXECUTABLE_PATH 指向它（命令见 e2e/README.md）；③ 用 E2E_HEADLESS=0 观察窗口里的实际报错。',
     );
   }
 }
@@ -134,6 +134,18 @@ export async function onboardAndUnlock(page: Page): Promise<void> {
     await verifySubmit.click();
     await expect(page.locator('.header-title h1')).toBeVisible({ timeout: 30_000 });
   }
+}
+
+/**
+ * 断言「某个具体动作」的成功提示出现了
+ *
+ * 不能写成 `locator('.el-message--success')`：`ElMessage` 会把相邻动作的提示叠放，
+ * 解锁主密码的 3s 提示经常还活着，类名选择器一次命中两个节点，直接撞 Playwright
+ * strict mode 而误判失败（实测 3 个用例全栽在这里，而被测功能其实是对的）。
+ * 按文案过滤同时把断言从「有个绿条」收紧成「绿条说的是这件事」。
+ */
+export async function expectSuccessToast(page: Page, key: string): Promise<void> {
+  await expect(page.getByRole('alert').filter({ hasText: textOf(key) })).toBeVisible();
 }
 
 /** 从扩展页面上下文直读 storage.local（站点规则是明文元数据，无需解密） */
