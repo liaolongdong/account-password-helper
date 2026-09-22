@@ -9,7 +9,7 @@ import type {
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { normalizeToHostname, resolveMatchTier } from '@/utils/domain';
+import { isCrossSubdomainTier, normalizeToHostname, resolveMatchTier } from '@/utils/domain';
 import { isWeakPassword } from '@/utils/passwordStrengthCore';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
@@ -363,7 +363,7 @@ function findCrossSubdomainTwin(
   for (const entry of passwords) {
     if (entry.username !== data.username) continue;
     const tier = resolveMatchTier(host, entry.url, 'sameMainDomain');
-    if (tier >= 1 && tier <= 3) return entry;
+    if (isCrossSubdomainTier(tier)) return entry;
   }
   return undefined;
 }

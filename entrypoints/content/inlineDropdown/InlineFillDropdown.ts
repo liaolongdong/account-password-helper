@@ -19,6 +19,7 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
+import { isCrossSubdomainTier } from '@/utils/domain';
 import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
 
@@ -1238,10 +1239,9 @@ export class InlineFillDropdown {
         // 必须行内可见；截断后的全文由行级 title 兜底展示。
         // 跨子域命中时（tier 1~3）URL 槽位本身已带出「这不是本站条目」的信息，但那一层判断
         // 留给 background：tier 由后端按档位下发，这里只翻成一枚来源 chip，回答「这条为什么在这里」。
-        const scopeChip =
-          acc.tier >= 1 && acc.tier <= 3
-            ? `<span class="aph-scope-chip">${tl('cs.inline.scopeCrossSubdomain')}</span>`
-            : '';
+        const scopeChip = isCrossSubdomainTier(acc.tier)
+          ? `<span class="aph-scope-chip">${tl('cs.inline.scopeCrossSubdomain')}</span>`
+          : '';
         const supplementText = acc.remark || acc.url || '';
         const supplementClass = acc.remark ? 'aph-remark' : 'aph-url';
         const supplement = supplementText

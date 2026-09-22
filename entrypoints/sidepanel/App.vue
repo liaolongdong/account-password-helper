@@ -167,6 +167,7 @@ import {
   isLocalDevDomain,
   toNavigableUrl,
   resolveMatchTier,
+  isCrossSubdomainTier,
   isDomainMatchMode,
   countSameMainDomainCandidates,
   type DomainMatchMode,
@@ -503,7 +504,7 @@ const crossDomainIds = computed<ReadonlySet<string>>(() => {
   for (const entry of scopeFilteredPasswords.value) {
     const tier = resolveMatchTier(domain, entry.url, mode);
     // tier 4（空 URL 通用条目）不带徽章：它今天本来就出现在任何站点，不是跨子域放宽带来的
-    if (tier >= 1 && tier <= 3) ids.add(entry.id);
+    if (isCrossSubdomainTier(tier)) ids.add(entry.id);
   }
   return ids;
 });

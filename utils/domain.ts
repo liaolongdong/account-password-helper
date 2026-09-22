@@ -244,6 +244,21 @@ export function matchesPortForLocalDev(storedUrl: string | undefined | null, cur
   return !storedPort || storedPort === currentPort;
 }
 
+/** 通配条目前缀（写在 `PasswordEntry.url` 里，形如 `*.qq.com`） */
+const WILDCARD_PREFIX = '*.';
+
+/**
+ * 还原 URL 解析器编码掉的通配标记
+ *
+ * `*` 不是合法的 host 码点，各解析器处理方式不一致：Chrome 把
+ * `new URL('https://*.qq.com').hostname` 给出 `%2A.qq.com`（且不会把 `%2A` 解回 `*`），
+ * Node 则原样保留 `*`。通配条目的档位判定必须在两端都成立，所以统一把开头的
+ * `%2A.` 还原为 `*.`——否则 `wildcard` 档在真机上永远匹配不到任何条目。
+ */
+function restoreWildcardMarker(host: string): string {
+  return host.slice(0, 4).toLowerCase() === '%2a.' ? `${WILDCARD_PREFIX}${host.slice(4)}` : host;
+}
+
 /**
  * 将 URL 或域名规范化为 hostname
  *
@@ -258,14 +273,15 @@ export function matchesPortForLocalDev(storedUrl: string | undefined | null, cur
  * normalizeToHostname('https://example.com/login') // → 'example.com'
  * normalizeToHostname('example.com')               // → 'example.com'
  * normalizeToHostname('localhost:3000')            // → 'localhost'
+ * normalizeToHostname('*.qq.com')                  // → '*.qq.com'（通配标记不被解析器改写）
  */
 export function normalizeToHostname(value: string): string {
   const s = value.toLowerCase().trim();
   if (!s) return s;
   try {
-    return new URL(s.includes('://') ? s : `https://${s}`).hostname;
+    return restoreWildcardMarker(new URL(s.includes('://') ? s : `https://${s}`).hostname);
   } catch {
-    return s.split('/')[0].split('?')[0].split('#')[0];
+    return restoreWildcardMarker(s.split('/')[0].split('?')[0].split('#')[0]);
   }
 }
 
@@ -289,10 +305,11 @@ export function normalizeToHostAndPort(value: string): string {
   if (!s) return s;
   try {
     const url = new URL(s.includes('://') ? s : `https://${s}`);
-    return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+    const host = restoreWildcardMarker(url.hostname);
+    return url.port ? `${host}:${url.port}` : host;
   } catch {
     // 回退：去除路径/查询/锚点
-    return s.split('/')[0].split('?')[0].split('#')[0].toLowerCase();
+    return restoreWildcardMarker(s.split('/')[0].split('?')[0].split('#')[0].toLowerCase());
   }
 }
 
@@ -358,9 +375,6 @@ export function isDomainMatchMode(value: unknown): value is DomainMatchMode {
  * `off` 档下只可能返回 0、4 或 -1，与迁移前的二值优先级（0/1）等价。
  */
 export type MatchTier = 0 | 1 | 2 | 3 | 4;
-
-/** 通配条目前缀（写在 `PasswordEntry.url` 里，形如 `*.qq.com`） */
-const WILDCARD_PREFIX = '*.';
 
 /** 主域名记忆化容量上限（键为 hostname，超出即整体清空，避免无界增长） */
 const MAIN_DOMAIN_CACHE_MAX = 2000;
@@ -437,6 +451,24 @@ export function resolveMatchTier(
 }
 
 /**
+ * 判定匹配层级是否属于「跨子域命中」
+ *
+ * 通配（1）/ 同主域 apex（2）/ 同主域其他子域（3）共同回答「这条为什么出现在别的子域」，
+ * 侧边栏徽章、内联下拉来源 chip、空态引导计数与自动保存去向提示四处必须同口径，
+ * 否则会呈现「侧边栏带徽章、内联下拉不带 chip」这类自相矛盾。空态计数读的是同一区间的
+ * 另一侧：落在区间内即「只有放宽才会被带出」，因此两端天然共用这一个判据。
+ *
+ * 0（精确）与 4（无网址通用条目）不属于：前者就是本站；后者在任何档位下都可见，
+ * 不是放宽带出来的，给它标来源等于报错。
+ *
+ * @param tier - `resolveMatchTier` 的返回值（含未匹配的 -1）
+ * @returns 是否为跨子域层级
+ */
+export function isCrossSubdomainTier(tier: MatchTier | -1): boolean {
+  return tier >= 1 && tier <= 3;
+}
+
+/**
  * 统计「放宽到同主域名档」后可额外带出的条目数（跨子域匹配的空态引导计数）
  *
  * 只数真正会被档位改变的条目：当前档位下不匹配、但在 `sameMainDomain` 档下命中
@@ -459,7 +491,7 @@ export function countSameMainDomainCandidates(
   let count = 0;
   for (const entry of entries) {
     const widened = resolveMatchTier(currentHost, entry.url, 'sameMainDomain');
-    if (widened < 1 || widened > 3) continue;
+    if (!isCrossSubdomainTier(widened)) continue;
     if (resolveMatchTier(currentHost, entry.url, mode) === -1) count += 1;
   }
   return count;

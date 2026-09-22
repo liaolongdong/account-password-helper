@@ -11,7 +11,7 @@
  * 让「切档后侧边栏仍秒开」这条 SLA 失效（历史缺陷类别，见 AGENTS.md 性能约束）。
  */
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'fs';
+import { readdirSync, readFileSync } from 'fs';
 import path from 'path';
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -73,5 +73,78 @@ describe('跨子域档位接线', () => {
     expect(relevantKeys, '档位进入缓存失效键会触发全量解密回温，破坏侧边栏秒开 SLA').not.toContain(
       'DOMAIN_MATCH_CONFIG',
     );
+  });
+});
+
+/**
+ * 「跨子域命中」区间的单点定义守卫
+ *
+ * 侧边栏徽章、内联下拉来源 chip、空态引导计数与自动保存去向提示四处共用 tier 1~3 这一区间，
+ * 各处手写 `tier >= 1 && tier <= 3` 时，只要有一处漏改就会出现「同一条目一边标来源、一边不标」
+ * 的自相矛盾呈现——而这种分叉在单档测试里看不出来。区间判定已收进 `isCrossSubdomainTier`，
+ * 此处机械禁止运行时代码再手写区间，把「四处同口径」从人的自觉变成门禁。
+ */
+describe('跨子域层级区间的单点定义', () => {
+  /**
+   * `benchmarks` 也在扫描范围内：那里的徽章扫描逐字复刻侧边栏那段循环，
+   * 手写区间同样会与运行时口径分叉（本波评审期间就真的出现过一次）。
+   */
+  const RUNTIME_DIRS = ['utils', 'entrypoints', 'composables', 'components', 'benchmarks'];
+
+  const collectSourceFiles = (dir: string): string[] =>
+    readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap(entry => {
+      const relative = path.join(dir, entry.name);
+      if (entry.isDirectory()) return collectSourceFiles(relative);
+      return /\.(ts|vue)$/.test(entry.name) ? [relative] : [];
+    });
+
+  /** 形如 `tier >= 1` / `widened > 3` 的手写区间判定（含 `acc.tier >= 1` 这类属性写法） */
+  const HANDWRITTEN_RANGE = /\b(?:tier|widened)\s*(?:>=?|<=?)\s*[13]\b/g;
+
+  /** 剥掉 `isCrossSubdomainTier` 函数体：它是区间的唯一定义处，不参与违规统计 */
+  const stripCanonicalDefinition = (src: string): string =>
+    src.replace(/export function isCrossSubdomainTier[\s\S]*?\n}/, '');
+
+  const DOMAIN_SRC = readFileSync(path.join(ROOT, 'utils/domain.ts'), 'utf8');
+  const scannedFiles = RUNTIME_DIRS.flatMap(collectSourceFiles);
+  const offenders: string[] = [];
+  for (const file of scannedFiles) {
+    const hits = stripCanonicalDefinition(readFileSync(path.join(ROOT, file), 'utf8')).match(HANDWRITTEN_RANGE);
+    if (hits) offenders.push(`${file}: ${hits.join(', ')}`);
+  }
+
+  it('扫描确有覆盖到运行时代码（防止目录清单失效导致守卫空跑）', () => {
+    expect(scannedFiles.length).toBeGreaterThan(150);
+  });
+
+  it('守卫确有抽到区间定义（防止抽取正则失配导致空跑）', () => {
+    // 区间在 `isCrossSubdomainTier` 体内出现两次，剥掉后应当一处不剩——
+    // 抽取正则一旦失配，下面的违规扫描就会变成永真断言
+    expect(DOMAIN_SRC.match(HANDWRITTEN_RANGE)).toHaveLength(2);
+    expect(stripCanonicalDefinition(DOMAIN_SRC).match(HANDWRITTEN_RANGE)).toBeNull();
+  });
+
+  it('除 isCrossSubdomainTier 内部，运行时代码不手写跨子域层级区间', () => {
+    expect(offenders, `以下位置手写了 tier 区间，会与其余三处呈现口径分叉：\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  /**
+   * 反向接线：四个呈现面确实调用了单点判据
+   *
+   * 只禁手写区间是不够的——改成 `tier === 1`、`tier > 0 && tier < 4` 这类形态同样能绕过扫描，
+   * 却让「四处同口径」的前提失效。故再钉一层：这四处源码都必须出现 `isCrossSubdomainTier(`。
+   */
+  it('侧边栏徽章、内联下拉 chip、去向提示与空态计数四处都经单点判据', () => {
+    const consumers = {
+      'entrypoints/sidepanel/App.vue': '侧边栏来源徽章',
+      'entrypoints/content/inlineDropdown/InlineFillDropdown.ts': '内联下拉来源 chip',
+      'utils/storage/autoSaveManager.ts': '自动保存去向提示',
+      'utils/domain.ts': '空态引导计数',
+    };
+    const missing = Object.entries(consumers)
+      .filter(([file]) => !readFileSync(path.join(ROOT, file), 'utf8').includes('isCrossSubdomainTier('))
+      .map(([file, role]) => `${role}（${file}）`);
+
+    expect(missing, `以下呈现面不再调用 isCrossSubdomainTier，呈现口径会分叉：\n${missing.join('\n')}`).toEqual([]);
   });
 });

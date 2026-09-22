@@ -12,6 +12,7 @@ import {
   stripWildcardPrefix,
   splitWildcardHost,
   isDomainMatchMode,
+  isCrossSubdomainTier,
   countSameMainDomainCandidates,
 } from '@/utils/domain';
 
@@ -119,6 +120,17 @@ describe('normalizeToHostname', () => {
   it('空输入返回空串', () => {
     expect(normalizeToHostname('')).toBe('');
   });
+
+  /**
+   * Chrome 的 URL 解析会把主机名里的 `*` 百分号编码成 `%2A`，Node 的解析器不会。
+   * 本函数是档位判定的唯一入口，不还原就会让 `*.qq.com` 在真机上永远进不了通配分支
+   * ——单测跑在 Node 里，绿着也测不到这件事（e2e/cross-subdomain.spec.ts 首次真机跑就是这样抓到的）。
+   */
+  it('还原浏览器解析器编码掉的通配标记', () => {
+    expect(normalizeToHostname('https://%2A.qq.com/login')).toBe('*.qq.com');
+    expect(normalizeToHostname('%2A.qq.com')).toBe('*.qq.com');
+    expect(normalizeToHostname('*.qq.com')).toBe('*.qq.com');
+  });
 });
 
 describe('normalizeToHostAndPort', () => {
@@ -149,6 +161,12 @@ describe('normalizeToHostAndPort', () => {
 
   it('空输入返回空串', () => {
     expect(normalizeToHostAndPort('')).toBe('');
+  });
+
+  /** 端口分支同样要过还原：它是 Options 预填网址的归一入口，与 hostname 版必须同口径 */
+  it('带端口时先还原通配标记再拼端口', () => {
+    expect(normalizeToHostAndPort('https://%2A.qq.com:8443/login')).toBe('*.qq.com:8443');
+    expect(normalizeToHostAndPort('%2A.qq.com:8443')).toBe('*.qq.com:8443');
   });
 });
 
@@ -319,6 +337,17 @@ describe('resolveMatchTier：跨子域分层匹配', () => {
     expect(resolveMatchTier(CUR, 'music.qq.com', 'wildcard')).toBe(-1);
   });
 
+  /**
+   * `%2A.` 是 Chrome 的 URL 解析器交给通配条目网址的实际形态（Node 不会编码 `*`），
+   * 档位判定必须与解析器无关：否则 `wildcard` 档在真机上等于没做。
+   */
+  it('通配条目被解析器编码成 %2A 前缀时仍按通配层级判定', () => {
+    expect(resolveMatchTier(CUR, '%2A.qq.com', 'wildcard')).toBe(1);
+    expect(resolveMatchTier(CUR, 'https://%2A.qq.com/login', 'wildcard')).toBe(1);
+    expect(resolveMatchTier(CUR, '%2A.qq.com', 'sameMainDomain')).toBe(1);
+    expect(resolveMatchTier(CUR, '%2A.qq.com', 'off')).toBe(-1);
+  });
+
   it('sameMainDomain 档：通配 1 → apex 2 → 兄弟子域 3', () => {
     expect(resolveMatchTier(CUR, '*.qq.com', 'sameMainDomain')).toBe(1);
     expect(resolveMatchTier(CUR, 'qq.com', 'sameMainDomain')).toBe(2);
@@ -361,6 +390,36 @@ describe('resolveMatchTier：跨子域分层匹配', () => {
   it('当前页无域名时除通用条目外不匹配（特殊路径由调用方短路）', () => {
     expect(resolveMatchTier('', 'anything.com', 'sameMainDomain')).toBe(-1);
     expect(resolveMatchTier('', '', 'sameMainDomain')).toBe(4);
+  });
+});
+
+/**
+ * 「跨子域命中」区间的唯一判据
+ *
+ * 徽章（侧边栏）、来源 chip（内联下拉）、空态计数与保存去向提示四处都读它，
+ * 区间一旦漂移就会出现「同一条目一边标来源、一边不标」的自相矛盾呈现。
+ */
+describe('isCrossSubdomainTier', () => {
+  it('通配 / apex / 兄弟子域三档算跨子域命中', () => {
+    expect(isCrossSubdomainTier(1)).toBe(true);
+    expect(isCrossSubdomainTier(2)).toBe(true);
+    expect(isCrossSubdomainTier(3)).toBe(true);
+  });
+
+  it('精确 host 与通用条目不标来源，未匹配同样不算', () => {
+    expect(isCrossSubdomainTier(0)).toBe(false);
+    expect(isCrossSubdomainTier(4)).toBe(false);
+    expect(isCrossSubdomainTier(-1)).toBe(false);
+  });
+
+  it('与 resolveMatchTier 串起来即「该档位下是否应提示来源」', () => {
+    const cur = 'mail.qq.com';
+    for (const url of ['*.qq.com', 'qq.com', 'music.qq.com']) {
+      expect(isCrossSubdomainTier(resolveMatchTier(cur, url, 'sameMainDomain'))).toBe(true);
+    }
+    for (const url of ['mail.qq.com', '', 'uat.example.com']) {
+      expect(isCrossSubdomainTier(resolveMatchTier(cur, url, 'sameMainDomain'))).toBe(false);
+    }
   });
 });
 
