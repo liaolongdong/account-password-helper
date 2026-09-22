@@ -43,13 +43,31 @@ const ALWAYS_RETIMED_FIELDS = [
   'lastUsedAt',
 ];
 
-/** 取出列表行 `v-memo` 依赖数组里引用的条目字段 */
-const memoFields = (viewSrc: string): string[] => {
+/** 取出列表行 `v-memo` 依赖数组的原文（供字段与谓词两种抽取共用） */
+const memoDependencySource = (viewSrc: string): string => {
   const rowBlock = viewSrc.match(/<PasswordListItem[\s\S]*?\/>/);
   expect(rowBlock, '未找到列表行的 v-for 块（模板结构变化需同步更新本守卫）').toBeTruthy();
   const memo = rowBlock![0].match(/v-memo="\[([\s\S]*?)\]"/);
   expect(memo, '列表行已不再使用 v-memo（若为有意移除，请同步移除本守卫）').toBeTruthy();
-  return [...memo![1].matchAll(/password\.([A-Za-z]\w*)/g)].map(m => m[1]);
+  return memo![1];
+};
+
+/** 取出列表行 `v-memo` 依赖数组里引用的条目字段 */
+const memoFields = (viewSrc: string): string[] =>
+  [...memoDependencySource(viewSrc).matchAll(/password\.([A-Za-z]\w*)/g)].map(m => m[1]);
+
+/**
+ * 取出「以条目为入参的派生谓词」prop（如 `:can-fill="canFill(password)"`）
+ *
+ * 这类 prop 不读 `password.X` 的新字段，因而躲过上一条检查，但它同样会在
+ * `password.updateTime` 不变时改变行内容（跨子域档位切换、外站判定即为此类），
+ * 不进依赖数组就是一次静默的界面不更新缺陷。
+ */
+const derivedPredicateProps = (viewSrc: string): string[] => {
+  const rowBlock = viewSrc.match(/<PasswordListItem[\s\S]*?\/>/);
+  expect(rowBlock, '未找到列表行的 v-for 块（模板结构变化需同步更新本守卫）').toBeTruthy();
+  const props = [...rowBlock![0].matchAll(/:[a-z][a-z0-9-]*="([A-Za-z]\w*)\(password\)"/g)].map(m => m[1]);
+  return [...new Set(props)];
 };
 
 /** 行组件读取的条目字段（模板与脚本一并扫描：脚本里的 computed 同样决定渲染结果） */
@@ -59,10 +77,12 @@ const renderedFields = (rowSrc: string): Set<string> =>
 describe('侧边栏列表行 v-memo 依赖', () => {
   const deps = memoFields(VIEW_SRC);
   const readFields = renderedFields(ROW_SRC);
+  const predicateSource = memoDependencySource(VIEW_SRC);
 
   it('抽取到非空的依赖数组与字段读取集（防止守卫空跑）', () => {
     expect(deps.length).toBeGreaterThanOrEqual(3);
     expect(readFields.size).toBeGreaterThanOrEqual(5);
+    expect(derivedPredicateProps(VIEW_SRC).length).toBeGreaterThanOrEqual(2);
   });
 
   it('每个被读取的字段要么写入必推高 updateTime，要么已进依赖数组', () => {
@@ -74,5 +94,9 @@ describe('侧边栏列表行 v-memo 依赖', () => {
     // 这两处是「保留 updateTime」的刻意写入，历史上标签漏依赖导致列表停在旧标签
     expect(deps).toContain('tag');
     expect(deps).toContain('favorite');
+  });
+
+  it.each(derivedPredicateProps(VIEW_SRC))('派生谓词 prop %s(password) 已进依赖数组', predicate => {
+    expect(predicateSource).toContain(`${predicate}(password)`);
   });
 });

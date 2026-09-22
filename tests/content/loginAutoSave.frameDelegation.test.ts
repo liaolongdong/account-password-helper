@@ -60,7 +60,7 @@ vi.mock('@/utils/storage', async importOriginal => {
 
 /** 被测模块的白盒视图 */
 interface DelegationInternals {
-  delegatePromptToTopFrame(pending: PendingCredentials, risk?: undefined): void;
+  delegatePromptToTopFrame(pending: PendingCredentials, precheck?: undefined): void;
   delegateNotificationToTopFrame(message: string, type: NotificationType, topOrigin?: string): void;
 }
 

@@ -22,10 +22,16 @@ const ROOT = path.resolve(__dirname, '../..');
 const LOCALES_DIR = path.join(ROOT, 'utils/i18n/locales');
 const LOCALES = ['zh-CN', 'en'] as const;
 
-/** 各入口 bundle 注册的命名空间（必须与 utils/i18n/bundles/*.ts 保持一致） */
+/**
+ * 各入口 bundle 注册的命名空间（必须与 utils/i18n/bundles/*.ts 保持一致）
+ *
+ * `help` 与 `form` 不是入口 bundle：它们由侧边栏的懒加载 chunk 在自身文件内
+ * `registerMessages` 补注册，扫描口径按「所属 chunk 的可用命名空间」单独成组。
+ */
 const BUNDLE_NAMESPACES = {
   sidepanel: ['common', 'message', 'sidepanel', 'fill', 'totp', 'session'],
   help: ['help'],
+  form: ['form'],
   popup: ['common', 'message', 'popup', 'auth', 'session', 'verify'],
   // options 页面覆盖全部功能域，bundle 静态内置全部命名空间（含 identity）
   options: [
@@ -57,10 +63,9 @@ const BUNDLE_NAMESPACES = {
  * 「侧边栏清单认领完整性」用例强制：漏补会让新文件里的 key 完全不进扫描，
  * 界面渲染出裸 key 而测试仍全绿——`QuickAddDialog.vue` 就是这样漏掉过的。
  *
- * 懒加载 chunk 不在此列的只有 HelpDialog：它注册的命名空间与首屏不同（见
- * `HELP_DIALOG_FILES`）。`QuickAddDialog.vue` 虽然也是 `defineAsyncComponent`
- * 懒加载，但它复用侧边栏同一个 i18n 实例、可用命名空间与首屏完全一致，
- * 因此归入本清单。
+ * 懒加载 chunk 不在本列的还有 HelpDialog 与 QuickAddDialog：两者都在自身 chunk 内
+ * `registerMessages` 补注册了首屏没有的命名空间（见 `HELP_DIALOG_FILES` /
+ * `QUICK_ADD_DIALOG_FILES`），可用命名空间与首屏不同，扫描口径也必须分开。
  */
 const SIDEPANEL_GRAPH_FILES = [
   'entrypoints/sidepanel/App.vue',
@@ -69,7 +74,6 @@ const SIDEPANEL_GRAPH_FILES = [
   'components/sidepanel/PasswordListItem.vue',
   'components/sidepanel/SidepanelHeader.vue',
   'components/sidepanel/SidepanelAuthView.vue',
-  'components/sidepanel/QuickAddDialog.vue',
   'components/TotpCode.vue',
   'components/BrandLogo.vue',
   'composables/useSidepanelData.ts',
@@ -88,6 +92,14 @@ const SIDEPANEL_GRAPH_FILES = [
  * （文案一律由调用方翻译后经 props 传入），纳入扫描是为了防止后续回归。
  */
 const HELP_DIALOG_FILES = ['components/sidepanel/HelpDialog.vue', 'components/ShortcutKeyCap.vue'];
+
+/**
+ * QuickAdd 懒加载 chunk 源文件（可用命名空间 = sidepanel + form）
+ *
+ * 表单校验规则复用 Options 页的 `form.*` 文案，故该 chunk 在自身文件内补注册
+ * form 命名空间（不占侧边栏首屏体积）；这里的 key 若只有首屏 bundle 覆盖会渲染裸 key。
+ */
+const QUICK_ADD_DIALOG_FILES = ['components/sidepanel/QuickAddDialog.vue'];
 
 /** Popup 依赖图源文件 */
 const POPUP_GRAPH_FILES = [
@@ -207,6 +219,15 @@ describe('入口 bundle key 覆盖率（静态扫描源码）', () => {
     }
   });
 
+  it('QuickAddDialog 使用的 key 全部在 sidepanel + form bundle 内', () => {
+    const bundleKeys = collectBundleKeys([...BUNDLE_NAMESPACES.sidepanel, ...BUNDLE_NAMESPACES.form]);
+    for (const file of QUICK_ADD_DIALOG_FILES) {
+      for (const key of extractI18nKeys(file)) {
+        expect(bundleKeys.has(key), `${file} 使用的 key「${key}」未被 sidepanel+form bundle 覆盖`).toBe(true);
+      }
+    }
+  });
+
   it('popup 依赖图使用的 key 全部在 popup bundle 内', () => {
     const bundleKeys = collectBundleKeys(BUNDLE_NAMESPACES.popup);
     for (const file of POPUP_GRAPH_FILES) {
@@ -251,7 +272,7 @@ function listSources(dir: string): string[] {
 
 describe('侧边栏扫描清单认领完整性', () => {
   it('侧边栏目录下每个源文件都被某个扫描清单认领', () => {
-    const claimed = new Set([...SIDEPANEL_GRAPH_FILES, ...HELP_DIALOG_FILES]);
+    const claimed = new Set([...SIDEPANEL_GRAPH_FILES, ...HELP_DIALOG_FILES, ...QUICK_ADD_DIALOG_FILES]);
     const unclaimed = SIDEPANEL_OWNED_DIRS.flatMap(listSources).filter(file => !claimed.has(file));
     expect(
       unclaimed,
@@ -259,8 +280,14 @@ describe('侧边栏扫描清单认领完整性', () => {
     ).toEqual([]);
   });
 
-  it('四份清单里的每个文件都真实存在', () => {
-    const listed = [...SIDEPANEL_GRAPH_FILES, ...HELP_DIALOG_FILES, ...POPUP_GRAPH_FILES, ...IDENTITY_GRAPH_FILES];
+  it('五份清单里的每个文件都真实存在', () => {
+    const listed = [
+      ...SIDEPANEL_GRAPH_FILES,
+      ...HELP_DIALOG_FILES,
+      ...QUICK_ADD_DIALOG_FILES,
+      ...POPUP_GRAPH_FILES,
+      ...IDENTITY_GRAPH_FILES,
+    ];
     const missing = listed.filter(file => !existsSync(path.join(ROOT, file)));
     expect(missing, `扫描清单指向不存在的文件（重命名或删除后未同步）: ${missing.join(', ')}`).toEqual([]);
   });

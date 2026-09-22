@@ -233,3 +233,32 @@ describe('createUrlValidator', () => {
     expect(validateUrl('https://exa mple.com')).toBe('form.invalidUrl');
   });
 });
+
+/**
+ * 最左通配条目（`*.qq.com`）
+ *
+ * 通配段是跨子域匹配的「适用范围」声明，只在用户显式写成该形态时生效，
+ * 因此录入侧必须只接受这一种最左写法：`*.` 之后要跟一个合法主机，
+ * 中间段/末段出现 `*`、或整体只剩 `*.` 都要拒（这类值存进去在匹配侧是死条目，
+ * 但会让用户以为已经开启了跨子域）。
+ *
+ * 实现口径是「剥掉最左 `*.` 后仍用原来那条正则判定」，不新增第二套域名口径，
+ * 所以 `*.evil`（无点裸主机）与 `example` 一样被拒，`*.example.com.cn` 与
+ * `example.com.cn` 一样被放行。
+ */
+describe('createUrlValidator 的最左通配条目', () => {
+  it.each(['*.qq.com', '*.example.com.cn', '*.localhost:3000', 'https://*.qq.com/login'])('%s 通过', value => {
+    expect(validateUrl(value)).toBeUndefined();
+  });
+
+  it.each(['*.', '*.*.qq.com', 'mail.*.qq.com', '*.evil', 'qq.*.com', '**.qq.com', 'https://*.'])('%s 拒绝', value => {
+    expect(validateUrl(value)).toBeDefined();
+  });
+
+  it('通配段不改变其余判定口径：与非通配输入同规则', () => {
+    // 端口、ccTLD 跟随原正则；原正则不收路径，带通配段后同样不收
+    expect(validateUrl('*.sub.example.co.uk')).toBeUndefined();
+    expect(validateUrl('*.example.com:8080')).toBeUndefined();
+    expect(validateUrl('*.example.com/path')).toBe('form.invalidUrlExample');
+  });
+});

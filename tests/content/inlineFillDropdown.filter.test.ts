@@ -32,6 +32,7 @@ const healthy = (overrides: Partial<MatchingAccountMeta> = {}): MatchingAccountM
   favorite: false,
   hasTotp: false,
   favicon: '',
+  tier: 0,
   ...overrides,
 });
 

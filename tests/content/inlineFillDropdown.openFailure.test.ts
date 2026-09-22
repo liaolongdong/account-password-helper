@@ -58,6 +58,7 @@ const account = (): MatchingAccountMeta => ({
   favorite: false,
   hasTotp: false,
   favicon: '',
+  tier: 0,
 });
 
 /** 可控结算的 sendMessage 应答 */

@@ -8,10 +8,13 @@
  *
  * 现在断言：超容量在写入前拒收并回可读文案（存储层完全不被触达）；字段类型异常同样拒收，
  * 但走通用失败文案而非「过长」；`tag` 不设长度上界，原样透传（原因见 `validateAutoSavePayload`）。
+ * 另覆盖 `handleCheckCredentialStatus` 的透传契约：预检响应（含保存去向提示）原样回给内容脚本，
+ * 存储层抛错时保底回 `new`，不阻断弹窗流程。
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { handleAutoSavePassword } from '@/entrypoints/background/autoSaveHandler';
+import { handleAutoSavePassword, handleCheckCredentialStatus } from '@/entrypoints/background/autoSaveHandler';
 import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
+import type { CredentialStatusResponse } from '@/utils/types';
 
 vi.mock('@/entrypoints/background/passwordCache', () => ({
   ensureCredentialAccessAfterStartupRelock: vi.fn(async () => true),
@@ -21,6 +24,7 @@ vi.mock('@/entrypoints/background/passwordCache', () => ({
 vi.mock('@/utils/storage', () => ({
   StorageUtils: {
     autoSavePassword: vi.fn(async () => ({ success: true, message: 'bg.autoSave.savedNew' })),
+    checkCredentialStatus: vi.fn(),
   },
 }));
 
@@ -33,6 +37,7 @@ import { StorageUtils } from '@/utils/storage';
 
 const mockedEnsure = vi.mocked(ensureCredentialAccessAfterStartupRelock);
 const mockedAutoSave = vi.mocked(StorageUtils.autoSavePassword);
+const mockedCheck = vi.mocked(StorageUtils.checkCredentialStatus);
 
 /** 页面 DOM 采集出的典型载荷（url 已由 messageRouter 的 sender 校验放行） */
 const makePayload = (overrides: Partial<Parameters<typeof handleAutoSavePassword>[0]> = {}) => ({
@@ -111,5 +116,41 @@ describe('handleAutoSavePassword 字段容量边界', () => {
 
     expect(result).toEqual({ success: false, message: 'bg.autoSave.failedGeneric' });
     expect(mockedAutoSave).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 预检响应的透传契约
+ *
+ * 内容脚本按 `status` 决定是否弹窗、按 `risk` / `targetNote` 渲染内联提示，
+ * 后台这一层只做会话闸门与保底，不裁剪、不改写响应字段。
+ */
+describe('handleCheckCredentialStatus 透传与保底', () => {
+  const request = { username: 'alice', password: 'p@ssw0rd', url: 'mail.qq.com' };
+
+  it('预检响应原样回给内容脚本，去向提示不被裁剪或改写', async () => {
+    const response: CredentialStatusResponse = {
+      status: 'password_changed',
+      existing: { tag: 'work', remark: 'note' },
+      risk: { reusedCount: 1 },
+      targetNote: { kind: 'updateOtherHost', url: 'qq.com' },
+    };
+    mockedCheck.mockResolvedValue(response);
+
+    expect(await handleCheckCredentialStatus(request)).toBe(response);
+    expect(mockedCheck).toHaveBeenCalledWith(request);
+  });
+
+  it('会话锁定直接回 locked，不触达存储层', async () => {
+    mockedEnsure.mockResolvedValue(false);
+
+    expect(await handleCheckCredentialStatus(request)).toEqual({ status: 'locked' });
+    expect(mockedCheck).not.toHaveBeenCalled();
+  });
+
+  it('存储层抛错时保底回 new（不带任何提示字段），不阻断弹窗流程', async () => {
+    mockedCheck.mockRejectedValue(new Error('boom'));
+
+    expect(await handleCheckCredentialStatus(request)).toEqual({ status: 'new' });
   });
 });

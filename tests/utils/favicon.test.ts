@@ -29,6 +29,12 @@ describe('normalizeUrlForFavicon', () => {
   it('首尾空白被裁剪', () => {
     expect(normalizeUrlForFavicon('  github.com  ')).toBe('https://github.com');
   });
+
+  it('通配条目还原为可取图标的主机（`*` 不是合法主机名）', () => {
+    expect(normalizeUrlForFavicon('*.qq.com')).toBe('https://qq.com');
+    expect(normalizeUrlForFavicon('https://*.qq.com/login')).toBe('https://qq.com/login');
+    expect(normalizeUrlForFavicon('*.')).toBe('');
+  });
 });
 
 describe('getFaviconUrl', () => {

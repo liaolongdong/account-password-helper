@@ -8,6 +8,11 @@ import {
   isExactHostMatch,
   matchesPortForLocalDev,
   toNavigableUrl,
+  resolveMatchTier,
+  stripWildcardPrefix,
+  splitWildcardHost,
+  isDomainMatchMode,
+  countSameMainDomainCandidates,
 } from '@/utils/domain';
 
 /**
@@ -250,5 +255,158 @@ describe('toNavigableUrl 协议白名单（安全边界）', () => {
     expect(toNavigableUrl(undefined)).toBeNull();
     expect(toNavigableUrl(null)).toBeNull();
     expect(toNavigableUrl('https://')).toBeNull();
+  });
+});
+
+/**
+ * 通配条目的派生路径
+ *
+ * `*.qq.com` 存的是适用范围，不是可导航主机：直接补协议会得到 `https://*.qq.com/`
+ * 这种必然解析失败（或解析到字面量 `*` 主机）的地址。导航、图标两条派生路径
+ * 都必须先还原为可访问主机，且不得因此放宽协议白名单。
+ */
+describe('通配条目的可导航主机还原', () => {
+  it('无协议通配条目剥掉最左通配段后按常规补协议', () => {
+    expect(toNavigableUrl('*.qq.com')).toBe('https://qq.com/');
+    expect(toNavigableUrl('  *.qq.com  ')).toBe('https://qq.com/');
+    expect(toNavigableUrl('*.localhost:3000')).toBe('http://localhost:3000/');
+  });
+
+  it('带协议通配条目保留路径与查询，只剥主机通配段', () => {
+    expect(toNavigableUrl('https://*.qq.com/login?a=1')).toBe('https://qq.com/login?a=1');
+  });
+
+  it('剥通配段仍在协议白名单之内', () => {
+    expect(toNavigableUrl('javascript:*.qq.com')).toBeNull();
+    expect(toNavigableUrl('chrome://*.qq.com')).toBeNull();
+  });
+
+  it('只剩通配段的条目无可导航主机', () => {
+    expect(toNavigableUrl('*.')).toBeNull();
+    expect(toNavigableUrl('https://*.')).toBeNull();
+  });
+
+  it('splitWildcardHost 只在最左段判定', () => {
+    expect(splitWildcardHost('*.qq.com')).toEqual({ wildcard: true, rest: 'qq.com' });
+    expect(splitWildcardHost('qq.com')).toEqual({ wildcard: false, rest: 'qq.com' });
+    expect(splitWildcardHost('*.*.qq.com')).toEqual({ wildcard: true, rest: '*.qq.com' });
+    expect(splitWildcardHost('mail.*.qq.com')).toEqual({ wildcard: false, rest: 'mail.*.qq.com' });
+    expect(splitWildcardHost('*.')).toEqual({ wildcard: true, rest: '' });
+  });
+});
+
+describe('resolveMatchTier：跨子域分层匹配', () => {
+  const CUR = 'mail.qq.com';
+
+  it('off 档与迁移前精确口径一致（只有精确 host 与空 URL 命中）', () => {
+    expect(resolveMatchTier(CUR, 'mail.qq.com', 'off')).toBe(0);
+    expect(resolveMatchTier(CUR, 'https://mail.qq.com/login', 'off')).toBe(0);
+    expect(resolveMatchTier(CUR, '', 'off')).toBe(4);
+    expect(resolveMatchTier(CUR, '   ', 'off')).toBe(4);
+    expect(resolveMatchTier(CUR, undefined, 'off')).toBe(4);
+    expect(resolveMatchTier(CUR, '*.qq.com', 'off')).toBe(-1);
+    expect(resolveMatchTier(CUR, 'qq.com', 'off')).toBe(-1);
+    expect(resolveMatchTier(CUR, 'music.qq.com', 'off')).toBe(-1);
+    expect(resolveMatchTier(CUR, 'uat.example.com', 'off')).toBe(-1);
+    // 缺省参数即 off
+    expect(resolveMatchTier(CUR, 'qq.com')).toBe(-1);
+  });
+
+  it('wildcard 档只额外放行通配条目', () => {
+    expect(resolveMatchTier(CUR, '*.qq.com', 'wildcard')).toBe(1);
+    expect(resolveMatchTier(CUR, 'https://*.qq.com/login', 'wildcard')).toBe(1);
+    expect(resolveMatchTier(CUR, 'qq.com', 'wildcard')).toBe(-1);
+    expect(resolveMatchTier(CUR, 'music.qq.com', 'wildcard')).toBe(-1);
+  });
+
+  it('sameMainDomain 档：通配 1 → apex 2 → 兄弟子域 3', () => {
+    expect(resolveMatchTier(CUR, '*.qq.com', 'sameMainDomain')).toBe(1);
+    expect(resolveMatchTier(CUR, 'qq.com', 'sameMainDomain')).toBe(2);
+    expect(resolveMatchTier(CUR, 'music.qq.com', 'sameMainDomain')).toBe(3);
+    expect(resolveMatchTier(CUR, 'a.b.qq.com', 'sameMainDomain')).toBe(3);
+  });
+
+  it('通配命中走「主域名相等」边界，不被前缀碰撞绕过', () => {
+    for (const mode of ['wildcard', 'sameMainDomain'] as const) {
+      expect(resolveMatchTier('evil-qq.com', '*.qq.com', mode)).toBe(-1);
+      expect(resolveMatchTier('notqq.com', '*.qq.com', mode)).toBe(-1);
+      expect(resolveMatchTier('mail.qq.com.evil.io', '*.qq.com', mode)).toBe(-1);
+      expect(resolveMatchTier('qq.com.evil.io', '*.qq.com', mode)).toBe(-1);
+    }
+  });
+
+  it('两段式 ccTLD 口径与 getMainDomain 一致', () => {
+    expect(resolveMatchTier('a.example.com.cn', '*.example.com.cn', 'sameMainDomain')).toBe(1);
+    expect(resolveMatchTier('a.example.com.cn', 'example.com.cn', 'sameMainDomain')).toBe(2);
+    expect(resolveMatchTier('a.example.com.cn', 'other.com.cn', 'sameMainDomain')).toBe(-1);
+    expect(resolveMatchTier('shop.example.com.br', 'example.com.br', 'sameMainDomain')).toBe(2);
+    // 未收录的 `*.co.uk` 形态：base 自身只有两段，主域名口径不会误放宽
+    expect(resolveMatchTier('x.co.uk', '*.co.uk', 'sameMainDomain')).toBe(-1);
+  });
+
+  it('apex 页面自身：通配与其他子域都算同主域，精确仍为 0', () => {
+    expect(resolveMatchTier('qq.com', 'qq.com', 'sameMainDomain')).toBe(0);
+    expect(resolveMatchTier('qq.com', '*.qq.com', 'sameMainDomain')).toBe(1);
+    expect(resolveMatchTier('qq.com', 'mail.qq.com', 'sameMainDomain')).toBe(3);
+  });
+
+  it('IP 与非法输入安全降级为不匹配', () => {
+    expect(resolveMatchTier('192.168.1.10', '192.168.1.10', 'off')).toBe(0);
+    expect(resolveMatchTier('192.168.1.10', '192.168.1.20', 'sameMainDomain')).toBe(-1);
+    expect(resolveMatchTier('192.168.1.10', '*.168.1.10', 'sameMainDomain')).toBe(-1);
+    expect(resolveMatchTier(CUR, '*.', 'sameMainDomain')).toBe(-1);
+    expect(resolveMatchTier(CUR, '   ', 'sameMainDomain')).toBe(4);
+  });
+
+  it('当前页无域名时除通用条目外不匹配（特殊路径由调用方短路）', () => {
+    expect(resolveMatchTier('', 'anything.com', 'sameMainDomain')).toBe(-1);
+    expect(resolveMatchTier('', '', 'sameMainDomain')).toBe(4);
+  });
+});
+
+describe('stripWildcardPrefix / isDomainMatchMode', () => {
+  it('只剥最左侧一个通配段', () => {
+    expect(stripWildcardPrefix('*.qq.com')).toBe('qq.com');
+    expect(stripWildcardPrefix('https://*.qq.com/login')).toBe('https://qq.com/login');
+    expect(stripWildcardPrefix('  *.qq.com  ')).toBe('qq.com');
+    expect(stripWildcardPrefix('mail.qq.com')).toBe('mail.qq.com');
+    expect(stripWildcardPrefix('*.mail.*.qq.com')).toBe('mail.*.qq.com');
+    expect(stripWildcardPrefix('')).toBe('');
+    expect(stripWildcardPrefix(undefined)).toBe('');
+    expect(stripWildcardPrefix(null)).toBe('');
+  });
+
+  it('档位判定只认三个合法枚举', () => {
+    for (const bad of [undefined, null, '', 'OFF', 'yolo', {}, 1]) {
+      expect(isDomainMatchMode(bad)).toBe(false);
+    }
+    for (const ok of ['off', 'wildcard', 'sameMainDomain']) {
+      expect(isDomainMatchMode(ok)).toBe(true);
+    }
+  });
+});
+
+describe('countSameMainDomainCandidates：空态引导计数', () => {
+  const CUR = 'mail.qq.com';
+  const ENTRIES = [
+    { url: 'mail.qq.com' }, // 精确：当前档位已放行
+    { url: '*.qq.com' }, // 通配
+    { url: 'qq.com' }, // 主域
+    { url: 'music.qq.com' }, // 兄弟子域
+    { url: 'a.b.qq.com' }, // 更深层的同主域子域（同样落 tier 3）
+    { url: '' }, // 通用条目：任何档位都可见，不计
+    { url: 'evil-qq.com' }, // 前缀碰撞：放宽后也不匹配
+  ];
+
+  it('off 档计入通配 / 主域 / 兄弟子域；wildcard 档只数尚未放行的', () => {
+    expect(countSameMainDomainCandidates(ENTRIES, CUR, 'off')).toBe(4);
+    expect(countSameMainDomainCandidates(ENTRIES, CUR, 'wildcard')).toBe(3);
+  });
+
+  it('已处于最宽松档、无域名或本地开发域名时为 0（没有可放宽的空间）', () => {
+    expect(countSameMainDomainCandidates(ENTRIES, CUR, 'sameMainDomain')).toBe(0);
+    expect(countSameMainDomainCandidates(ENTRIES, '', 'off')).toBe(0);
+    expect(countSameMainDomainCandidates(ENTRIES, 'localhost', 'off')).toBe(0);
+    expect(countSameMainDomainCandidates([], CUR, 'off')).toBe(0);
   });
 });

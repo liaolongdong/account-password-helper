@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { applyListFilters, filterEntriesByScope, matchesSiteScope, type ScopeContext } from '@/utils/passwordFilter';
 import { sortPasswordEntries } from '@/utils/passwordSort';
+import { isExactHostMatch } from '@/utils/domain';
 import type { PasswordEntry } from '@/utils/types';
 import { makePasswordEntry as entry } from '@/tests/helpers/passwordEntry';
 
@@ -9,7 +10,8 @@ import { makePasswordEntry as entry } from '@/tests/helpers/passwordEntry';
  *
  * 锁定两类不变量：
  * 1. 「本站范围」判定必须与侧边栏既有的当前域名过滤语义完全一致
- *    （无域名放行全部、本地开发按端口、空 URL 通用条目放行、其余精确 host 匹配），
+ *    （无域名放行全部、本地开发按端口、空 URL 通用条目放行、其余按 `resolveMatchTier`
+ *    档位判定，缺省 `off` 即精确 host 匹配），
  *    该判定同时决定条目能否填充当前页，误判即导致填充必然失败或外站条目被误当作本站。
  * 2. 所有过滤函数必须返回新数组——`sortPasswordEntries` 为就地排序，
  *    若把上游全量列表引用透出，排序会污染事实来源的顺序。
@@ -50,6 +52,59 @@ describe('matchesSiteScope 域名匹配语义', () => {
     expect(matchesSiteScope(entry({ url: '' }), ctx('localhost', '3000'))).toBe(true);
     expect(matchesSiteScope(entry({ url: 'http://localhost:8080' }), ctx('localhost', '3000'))).toBe(false);
     expect(matchesSiteScope(entry({ url: 'http://127.0.0.1:5173' }), ctx('127.0.0.1', '3000'))).toBe(false);
+  });
+});
+
+describe('matchesSiteScope 跨子域档位', () => {
+  /** 覆盖精确 / 通配 / apex / 兄弟子域 / 通用 / 其他环境 / 前缀碰撞 */
+  const URLS = ['mail.qq.com', '*.qq.com', 'qq.com', 'music.qq.com', '', 'uat.example.com', 'evil-qq.com'];
+
+  it('off 档与迁移前口径逐条一致（空 URL 或精确 host）', () => {
+    const current = ctx('mail.qq.com');
+    for (const url of URLS) {
+      const legacy = url.trim() === '' || isExactHostMatch(current.domain, url);
+      expect(matchesSiteScope(entry({ url }), current)).toBe(legacy);
+    }
+  });
+
+  it('wildcard 档只额外放行通配条目', () => {
+    const current = ctx('mail.qq.com');
+    expect(matchesSiteScope(entry({ url: '*.qq.com' }), current, 'wildcard')).toBe(true);
+    expect(matchesSiteScope(entry({ url: 'https://*.qq.com/login' }), current, 'wildcard')).toBe(true);
+    for (const url of ['qq.com', 'music.qq.com', 'uat.example.com', 'evil-qq.com']) {
+      expect(matchesSiteScope(entry({ url }), current, 'wildcard')).toBe(false);
+    }
+  });
+
+  it('sameMainDomain 档放行通配 / apex / 兄弟子域，拦住前缀碰撞与外域', () => {
+    const current = ctx('mail.qq.com');
+    for (const url of ['*.qq.com', 'qq.com', 'music.qq.com']) {
+      expect(matchesSiteScope(entry({ url }), current, 'sameMainDomain')).toBe(true);
+    }
+    for (const url of ['evil-qq.com', 'uat.example.com', 'https://mail.qq.com.evil.io']) {
+      expect(matchesSiteScope(entry({ url }), current, 'sameMainDomain')).toBe(false);
+    }
+  });
+
+  it('本地开发域名按端口过滤，三档结果与档位无关', () => {
+    for (const url of ['http://localhost:8080', '*.qq.com', 'qq.com', '']) {
+      const expected = matchesSiteScope(entry({ url }), ctx('localhost', '3000'), 'off');
+      expect(matchesSiteScope(entry({ url }), ctx('localhost', '3000'), 'wildcard')).toBe(expected);
+      expect(matchesSiteScope(entry({ url }), ctx('localhost', '3000'), 'sameMainDomain')).toBe(expected);
+    }
+    expect(matchesSiteScope(entry({ url: 'http://localhost:8080' }), ctx('localhost', '3000'), 'sameMainDomain')).toBe(
+      false,
+    );
+  });
+
+  it('filterEntriesByScope 把档位透传给本站范围判定', () => {
+    const source = [
+      entry({ id: 'site', url: 'mail.qq.com' }),
+      entry({ id: 'apex', url: 'qq.com' }),
+      entry({ id: 'offsite', url: 'other.com' }),
+    ];
+    expect(ids(filterEntriesByScope(source, 'site', ctx('mail.qq.com')))).toEqual(['site']);
+    expect(ids(filterEntriesByScope(source, 'site', ctx('mail.qq.com'), 'sameMainDomain'))).toEqual(['site', 'apex']);
   });
 });
 
