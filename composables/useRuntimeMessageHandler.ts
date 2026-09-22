@@ -24,6 +24,8 @@ export function useRuntimeMessageHandler(options: {
   openValiditySetting?: () => void;
   /** 打开站点规则弹窗（可选携带预填域名，来自内容脚本填充失败就地引导） */
   openSiteRules?: (domain?: string) => void;
+  /** 打开跨子域匹配设置弹窗（来自侧边栏/内联下拉的档位引导，无预填参数） */
+  openDomainMatchSetting?: () => void;
 }) {
   const {
     passwords,
@@ -33,6 +35,7 @@ export function useRuntimeMessageHandler(options: {
     openPasswordDialog,
     openValiditySetting,
     openSiteRules,
+    openDomainMatchSetting,
   } = options;
 
   /**
@@ -87,6 +90,10 @@ export function useRuntimeMessageHandler(options: {
       logger.debug('RuntimeMsg: 收到打开站点规则指令' + (domain ? `，预填域名=${domain}` : ''));
       // 冷启动时会话校验尚未完成，直接判定会把「已解锁」误判成未解锁；等状态落地后再交给调用方决策。
       waitForPasswords().then(() => openSiteRules?.(domain));
+    } else if (message.type === MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH) {
+      logger.debug('RuntimeMsg: 收到打开跨子域匹配设置指令');
+      // 与站点规则同一时序口径：设置对话框需等密码列表/会话状态就绪后再开
+      waitForPasswords().then(() => openDomainMatchSetting?.());
     }
   };
 

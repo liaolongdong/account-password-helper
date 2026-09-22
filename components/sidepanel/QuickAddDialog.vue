@@ -189,6 +189,9 @@ const handleOpenOptionsAdd = () => {
             :maxlength="PASSWORD_FIELD_LIMITS.url"
             @keyup.enter="handleSubmit"
           />
+          <div class="form-tip">
+            {{ t('form.urlWildcardHint') }}
+          </div>
         </el-form-item>
 
         <el-form-item
@@ -281,6 +284,15 @@ const handleOpenOptionsAdd = () => {
   display: flex;
   flex-shrink: 0;
   gap: 8px;
+}
+
+/* 网址字段的通配条目引导：el-form-item__content 是 flex，需独占一行 */
+.form-tip {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--aph-text-muted);
 }
 </style>
 

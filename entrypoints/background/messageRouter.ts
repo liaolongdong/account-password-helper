@@ -470,6 +470,11 @@ export function setupMessageRouter(): void {
         return true;
       }
 
+      case MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH:
+        // 无载荷：打开密码管理页并自动弹出「跨子域匹配」设置对话框（侧边栏/内联下拉就地引导开档）
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH).then(sendResponse);
+        return true;
+
       case MessageType.UPDATE_PASSWORD_CACHE: {
         // B2：预热会让 SW 驻留明文密码缓存，属改状态操作，仅接受扩展内部页触发
         if (!isTrustedInternalSender(sender)) {

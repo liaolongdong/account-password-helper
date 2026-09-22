@@ -196,6 +196,12 @@
                 {{ t('options.header.siteRules') }}
               </el-dropdown-item>
               <el-dropdown-item
+                command="domainMatch"
+                :icon="Connection"
+              >
+                {{ t('options.header.domainMatch') }}
+              </el-dropdown-item>
+              <el-dropdown-item
                 command="clipboard"
                 :icon="DocumentCopy"
               >
@@ -262,6 +268,7 @@ import {
   Brush,
   Operation,
   Link,
+  Connection,
   Postcard,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';

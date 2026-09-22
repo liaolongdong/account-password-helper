@@ -35,6 +35,8 @@ export const STORAGE_KEYS = {
   LOCALE: 'app_locale',
   /** 站点级填充规则（域名 → 自定义选择器/穿透开关） */
   SITE_RULES: 'site_rules',
+  /** 跨子域匹配档位（仅存枚举值，不含任何域名/账号信息） */
+  DOMAIN_MATCH_CONFIG: 'domain_match_config',
   /** 侧边栏打开性能埋点环形日志（最近 20 次，用于生产环境量化白屏/卡顿） */
   SIDEPANEL_PERF_LOG: 'sidepanel_perf_log',
   /** 平台检测结果持久化（是否 Windows），供 SW 冷启动早期 getPlatformInfo 异常时兜底 */

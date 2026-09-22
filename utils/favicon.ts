@@ -10,17 +10,20 @@
  * @module utils/favicon
  */
 
+import { stripWildcardPrefix } from '@/utils/domain';
+
 /**
  * 将 URL 文本归一化为带协议的完整链接
  *
  * 密码条目的 url 字段允许不带协议（如 `github.com`），
  * `_favicon/` 端点要求完整 URL 才能命中缓存。
+ * 通配条目（`*.qq.com`）先还原为 apex 主机，否则取不到任何图标。
  *
  * @param url 原始 URL 文本
  * @returns 带协议的完整 URL；空输入返回空字符串
  */
 export function normalizeUrlForFavicon(url: string): string {
-  const trimmed = (url || '').trim();
+  const trimmed = stripWildcardPrefix(url);
   if (!trimmed) return '';
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;

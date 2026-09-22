@@ -316,6 +316,10 @@ export function useSidepanelData() {
 
   /**
    * 域名匹配优先级：0=匹配, 1=不匹配
+   *
+   * 刻意保持二值口径：本 composable 不感知跨子域档位，`off` 语义路径（含本地开发域名
+   * 的端口口径、无域名场景）都以此为准。放宽档下的分层优先级在 `App.vue` 按
+   * `resolveMatchTier` 计算，避免这里成为第二个匹配真源。
    */
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!currentDomain.value) return 0;

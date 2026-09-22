@@ -58,6 +58,10 @@ interface Props {
   globalMatchCount: number;
   /** 全站模式下无法填充当前页的外站条目 ID 集（本站模式为空集） */
   offSiteIds: ReadonlySet<string>;
+  /** 跨子域命中（非精确层级）的条目 ID 集（`off` 档为空集，徽章据此查表） */
+  crossDomainIds: ReadonlySet<string>;
+  /** 放宽到「同主域名」档可额外带出的条目数（仅空态引导使用） */
+  crossDomainHintCount: number;
 }
 
 interface Emits {
@@ -69,6 +73,8 @@ interface Emits {
   addPassword: [];
   /** 无结果态「添加本站账号」（携带当前域名预填） */
   addSitePassword: [];
+  /** 空态深链：打开 Options 的跨子域匹配设置对话框 */
+  openDomainMatchSetting: [];
   /** 加载失败态「重试」 */
   retry: [];
   /** 鼠标悬停激活条目 */
@@ -132,6 +138,14 @@ const emptyHint = computed(() =>
  * 避免全站模式下每次过滤重算产生新 Set 导致整张列表无效重渲染。
  */
 const canFill = (entry: PasswordEntry): boolean => !props.offSiteIds.has(entry.id);
+
+/**
+ * 条目是否由跨子域放宽带出（徽章依据）
+ *
+ * 与 `canFill` 同样以布尔值参与 v-memo：档位/域名变化会生成新 Set，
+ * 但只有该行自身的归属变化才触发重渲染。
+ */
+const isCrossDomain = (entry: PasswordEntry): boolean => props.crossDomainIds.has(entry.id);
 
 /**
  * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
@@ -559,6 +573,15 @@ onUnmounted(() => {
           >
             {{ t('sidepanel.addSiteAccount') }}
           </el-button>
+          <!-- 同主域还有账号但当前档位不放行：把跨子域匹配能力递到用户眼前（只读提示，不改可见集） -->
+          <button
+            v-if="crossDomainHintCount > 0"
+            type="button"
+            class="cross-domain-hint"
+            @click="emit('openDomainMatchSetting')"
+          >
+            {{ t('sidepanel.scope.crossSubdomainHint', { count: crossDomainHintCount }) }}
+          </button>
         </template>
       </div>
 
@@ -589,12 +612,14 @@ onUnmounted(() => {
             searchKeyword,
             pinyinRenderMemoDependency,
             canFill(password),
+            isCrossDomain(password),
           ]"
           :password="password"
           :is-active="activeIndex === index"
           :auto-login-enabled="autoTriggerLogin"
           :search-keyword="searchKeyword"
           :can-fill="canFill(password)"
+          :cross-domain="isCrossDomain(password)"
           @fill="p => emit('fill', p)"
           @fill-and-login="p => emit('fillAndLogin', p)"
           @open-site="p => emit('openSite', p)"
@@ -809,6 +834,28 @@ onUnmounted(() => {
 :deep(.empty-add-site-btn:hover) {
   box-shadow: 0 2px 10px rgb(var(--aph-primary-rgb) / 25%);
   transform: translateY(-1px);
+}
+
+/* 跨子域匹配深链：文字级按钮，与主操作按钮区分层级，避免空态出现三个同权重按钮 */
+.cross-domain-hint {
+  padding: 4px 8px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--aph-primary);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.cross-domain-hint:hover {
+  text-decoration: underline;
+}
+
+.cross-domain-hint:focus-visible {
+  outline: 2px solid var(--aph-primary);
+  outline-offset: 2px;
 }
 
 .password-list {

@@ -2,6 +2,7 @@ import type {
   FloatingButtonConfig,
   EmailBackupConfig,
   ClipboardConfig,
+  DomainMatchConfig,
   IdleLockConfig,
   PasswordEntry,
   PasswordHistoryConfig,
@@ -10,7 +11,7 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { DEFAULT_THEME } from '@/utils/theme';
 import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
-import { isExactHostMatch } from '@/utils/domain';
+import { isExactHostMatch, isDomainMatchMode, type DomainMatchMode } from '@/utils/domain';
 
 /** 默认收藏上限 */
 export const DEFAULT_FAVORITE_LIMIT = 10;
@@ -93,6 +94,10 @@ function createConfigStore<T extends object>(
 
 /**
  * 应用保存的排序配置
+ *
+ * 刻意不接入跨子域档位：唯一调用方 getPasswordsByUrl 无生产使用者，
+ * 这里保持迁移前的精确 host 二值优先级，避免后来者误以为「存储层排序也会跨子域」。
+ * 跨子域优先级在侧边栏与内联下拉的匹配真源（utils/passwordSort.ts）内按 tier 计算。
  */
 export async function applySavedSortConfig(passwords: PasswordEntry[], domain?: string): Promise<void> {
   const getDomainPriority = (entry: PasswordEntry): number => {
@@ -403,4 +408,39 @@ export async function savePasswordHistoryConfig(config: Partial<PasswordHistoryC
     }
   }
   return passwordHistoryStore.save(config);
+}
+
+// ==================== 跨子域匹配档位 ====================
+
+/** 默认档位：仅精确 host 匹配，与引入跨子域之前的行为逐条一致 */
+export const DEFAULT_DOMAIN_MATCH_MODE: DomainMatchMode = 'off';
+
+const domainMatchStore = createConfigStore<DomainMatchConfig>(
+  STORAGE_KEYS.DOMAIN_MATCH_CONFIG,
+  { mode: DEFAULT_DOMAIN_MATCH_MODE },
+  '跨子域匹配档位',
+);
+
+/**
+ * 获取跨子域匹配档位
+ *
+ * 存储值非法（未知枚举、被外部改写成非对象）时回落 `off`：宁可少显示条目，也不静默放宽匹配。
+ * 返回固定形状，避免存储里的多余键位透出到调用方。
+ */
+export async function getDomainMatchConfig(): Promise<DomainMatchConfig> {
+  const config = await domainMatchStore.get();
+  return { mode: isDomainMatchMode(config?.mode) ? config.mode : DEFAULT_DOMAIN_MATCH_MODE };
+}
+
+/**
+ * 保存跨子域匹配档位（增量合并）
+ *
+ * 非法档位值直接忽略写入并告警，避免把异常状态落盘后长期影响匹配口径。
+ */
+export async function saveDomainMatchConfig(config: Partial<DomainMatchConfig>): Promise<void> {
+  if (config.mode !== undefined && !isDomainMatchMode(config.mode)) {
+    logger.warn('忽略非法的跨子域匹配档位写入');
+    return;
+  }
+  await domainMatchStore.save(config);
 }

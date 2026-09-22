@@ -270,6 +270,18 @@ const inlineStyles = `
   border-radius: 4px;
 }
 
+/* 跨子域来源标识：档位放宽后带出的非精确条目，回答「这条为什么出现在这里」 */
+.aph-scope-chip {
+  flex-shrink: 0;
+  padding: 0 5px;
+  font-size: 10px;
+  line-height: 16px;
+  color: var(--aph-text-muted, #94a3b8);
+  background: var(--aph-surface-2, rgba(148, 163, 184, 0.12));
+  border: 1px solid var(--aph-border-light, rgba(148, 163, 184, 0.35));
+  border-radius: 4px;
+}
+
 /* 搜索命中高亮：重置 mark 默认黄底，主题色加重；标签内沿用标签自身配色仅加粗，与侧边栏高亮策略一致 */
 .aph-hit {
   padding: 0;
@@ -387,6 +399,23 @@ const inlineStyles = `
   color: #fff;
   background: var(--aph-primary);
   border-color: var(--aph-primary);
+}
+
+/* 跨子域匹配深链：文字级按钮，与「添加此网站账号」拉开一层权重 */
+.aph-empty-domain-btn {
+  margin-top: 8px;
+  padding: 2px 6px;
+  font-size: 11px;
+  color: var(--aph-primary);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.aph-empty-domain-btn:hover {
+  text-decoration: underline;
 }
 
 /* 底部管理 */
@@ -551,6 +580,12 @@ export class InlineFillDropdown {
 
   /** 全量匹配账号（打开面板时拉取） */
   private accounts: MatchingAccountMeta[] = [];
+  /**
+   * 放宽档位后可额外带出的同主域条目数（空态引导用，由 background 按档位算好）
+   *
+   * 内容脚本不自行解析域名：档位语义只有一个真源，这里只消费结论。
+   */
+  private crossDomainCount = 0;
   /** 搜索过滤后的账号 */
   private filtered: MatchingAccountMeta[] = [];
   /** 搜索关键字 */
@@ -1036,6 +1071,7 @@ export class InlineFillDropdown {
     this.locked = response.data.locked;
     this.noMasterPassword = !!response.data.noMasterPassword;
     this.accounts = response.data.accounts || [];
+    this.crossDomainCount = response.data.crossDomainCount ?? 0;
     this.searchKeyword = '';
     this.activeIndex = -1;
 
@@ -1168,9 +1204,18 @@ export class InlineFillDropdown {
 
     if (this.filtered.length === 0) {
       const emptyText = this.accounts.length === 0 ? tl('cs.inline.emptyNoAccounts') : tl('cs.inline.emptyNoMatch');
-      listEl.innerHTML = `<div class="aph-empty">${emptyText}<button class="aph-empty-add-btn" type="button" data-action="add-site">${PLUS_ICON}<span>${tl('cs.inline.emptyAddSite')}</span></button></div>`;
+      // 本站无账号、但同主域还有条目：把「跨子域匹配」这项能力递到用户眼前（只读引导，不改可见集）
+      const domainMatchHint =
+        this.accounts.length === 0 && this.crossDomainCount > 0
+          ? `<button class="aph-empty-domain-btn" type="button" data-action="domain-match">${escapeHtml(
+              tl('cs.inline.crossSubdomainHint', { count: this.crossDomainCount }),
+            )}</button>`
+          : '';
+      listEl.innerHTML = `<div class="aph-empty">${emptyText}<button class="aph-empty-add-btn" type="button" data-action="add-site">${PLUS_ICON}<span>${tl('cs.inline.emptyAddSite')}</span></button>${domainMatchHint}</div>`;
       const addBtn = listEl.querySelector('[data-action="add-site"]');
       addBtn?.addEventListener('click', () => this.openOptionsAndAdd());
+      const domainMatchBtn = listEl.querySelector('[data-action="domain-match"]');
+      domainMatchBtn?.addEventListener('click', () => this.openDomainMatchSetting());
       return;
     }
 
@@ -1189,15 +1234,23 @@ export class InlineFillDropdown {
             return `<span class="aph-tag" style="color:${c.text};background:${c.background};border-color:${c.border}" title="${escapeHtml(t)}">${highlightHtml(t, highlightKw)}</span>`;
           })
           .join('');
-        // 补充信息槽位：备注优先、URL 兜底，二者互斥——列表已按域名过滤，
-        // URL 区分度趋近于零；备注是事实上的账号标签且参与搜索过滤，
-        // 必须行内可见；截断后的全文由行级 title 兜底展示
+        // 补充信息槽位：备注优先、URL 兜底，二者互斥——备注是事实上的账号标签且参与搜索过滤，
+        // 必须行内可见；截断后的全文由行级 title 兜底展示。
+        // 跨子域命中时（tier 1~3）URL 槽位本身已带出「这不是本站条目」的信息，但那一层判断
+        // 留给 background：tier 由后端按档位下发，这里只翻成一枚来源 chip，回答「这条为什么在这里」。
+        const scopeChip =
+          acc.tier >= 1 && acc.tier <= 3
+            ? `<span class="aph-scope-chip">${tl('cs.inline.scopeCrossSubdomain')}</span>`
+            : '';
         const supplementText = acc.remark || acc.url || '';
         const supplementClass = acc.remark ? 'aph-remark' : 'aph-url';
         const supplement = supplementText
           ? `<span class="${supplementClass}">${highlightHtml(supplementText, highlightKw)}</span>`
           : '';
-        const sub = tagsHtml || supplement ? `<div class="aph-row-sub">${tagsHtml}${supplement}</div>` : '';
+        const sub =
+          tagsHtml || supplement || scopeChip
+            ? `<div class="aph-row-sub">${scopeChip}${tagsHtml}${supplement}</div>`
+            : '';
         const titleAttr = acc.remark
           ? ` title="${tl('cs.inline.remarkTitle', { remark: escapeHtml(acc.remark) })}"`
           : '';
@@ -1328,6 +1381,18 @@ export class InlineFillDropdown {
       .catch(() => {
         // 无接收者时忽略
       });
+  }
+
+  /**
+   * 打开 Options 的「跨子域匹配」设置对话框（空态深链）
+   *
+   * 不携带域名等自报参数：档位是全局设置，收口在 Options 侧，避免 background 新增 sender 校验分支。
+   */
+  private openDomainMatchSetting(): void {
+    this.hide();
+    chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH }).catch(() => {
+      // 无接收者时忽略
+    });
   }
 
   // ==================== TOTP 活码（2FA） ====================

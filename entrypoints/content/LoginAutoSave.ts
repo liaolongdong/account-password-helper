@@ -5,13 +5,13 @@ import {
   type DomainPattern,
   type PendingCipherKeyResponse,
   type RuntimeMessage,
-  type SaveRiskHint,
 } from '@/utils/types';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import type {
   PendingCredentials,
   SavePromptControls,
   SavePromptData,
+  SavePromptPrecheckInfo,
   NotificationType,
 } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
@@ -486,15 +486,18 @@ export class LoginAutoSave {
    * - password_changed：以「更新」模式展示（用户未编辑时用已存标签/备注预填）
    * - new：以「保存」模式展示
    *
-   * 预检查一并返回的风险提示（弱密码/复用计数）作为独立参数向下传递，
-   * **不写入 pending 也不进 sessionStorage**：它是基于当次密码的派生结论，
+   * 预检查一并返回的风险提示与去向提示作为独立参数向下传递，
+   * **不写入 pending 也不进 sessionStorage**：它们都是基于当次密码的派生结论，
    * 一旦持久化就可能在用户改密码后变成陈旧数据；跳页恢复路径也会重新
    * 进入本方法拿到新鲜值。
    *
    * @param pending 待确认的凭证数据
    */
   private async evaluateAndPrompt(pending: PendingCredentials): Promise<void> {
-    const { status, existing, risk } = await this.resolveCredentialStatus(pending.username, pending.password);
+    const { status, existing, risk, targetNote } = await this.resolveCredentialStatus(
+      pending.username,
+      pending.password,
+    );
 
     // await 期间可能收到 SESSION_EXPIRED 广播，二次确认避免过期后仍弹窗
     if (this.sessionExpired) {
@@ -525,7 +528,7 @@ export class LoginAutoSave {
 
     // 回写带最终 mode/预填的 pending，确保传统导航后新页面恢复一致
     void this.persistPending(pending);
-    this.showPrompt(pending, risk);
+    this.showPrompt(pending, { risk, targetNote });
   }
 
   /**
@@ -605,13 +608,13 @@ export class LoginAutoSave {
   /**
    * 显示保存确认弹窗
    * @param pending 待确认的凭证数据（含标签和备注默认值）
-   * @param risk 预检查得出的风险提示，缺省表示无风险，仅用于弹窗内联警示展示
+   * @param precheck 预检查得出的展示信息（风险提示、保存去向提示），仅用于弹窗内联展示
    */
-  private showPrompt(pending: PendingCredentials, risk?: SaveRiskHint): void {
+  private showPrompt(pending: PendingCredentials, precheck: SavePromptPrecheckInfo = {}): void {
     // 如果在 iframe 中运行，委托给顶层 frame 渲染弹窗，
     // 避免弹窗被限制在 iframe 的小视口内（而非整个页面右上角）
     if (window !== window.top) {
-      this.delegatePromptToTopFrame(pending, risk);
+      this.delegatePromptToTopFrame(pending, precheck);
       return;
     }
 
@@ -627,7 +630,8 @@ export class LoginAutoSave {
           tag: pending.tag,
           remark: pending.remark,
           mode: pending.mode ?? 'save',
-          risk,
+          risk: precheck.risk,
+          targetNote: precheck.targetNote,
         },
         editedData =>
           this.handleSave({
@@ -658,9 +662,9 @@ export class LoginAutoSave {
    * 用户操作结果通过 postMessage 回传，由当前实例执行保存/忽略/不再提示。
    *
    * @param pending 待确认的凭证数据
-   * @param risk 预检查得出的风险提示，随 promptData 一同跨帧透传（接收方会再次校验）
+   * @param precheck 预检查得出的展示信息，随 promptData 一同跨帧透传（接收方会再次校验）
    */
-  private delegatePromptToTopFrame(pending: PendingCredentials, risk?: SaveRiskHint): void {
+  private delegatePromptToTopFrame(pending: PendingCredentials, precheck: SavePromptPrecheckInfo = {}): void {
     // 安全校验：仅在顶层 frame 与当前 frame 同主域名时才委托，
     // 防止跨域 iframe 场景下明文密码通过 postMessage 泄露给第三方页面
     // 使用 location.ancestorOrigins（Chrome 专有 API）获取顶层 origin，
@@ -688,7 +692,8 @@ export class LoginAutoSave {
       tag: pending.tag,
       remark: pending.remark,
       mode: pending.mode ?? 'save',
-      risk,
+      risk: precheck.risk,
+      targetNote: precheck.targetNote,
     };
 
     /** 超时定时器 ID，用于 30s 后自动清理监听器 */

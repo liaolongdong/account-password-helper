@@ -13,8 +13,9 @@ import {
   METADATA_FIELDS,
   isMetadataOnlyChange,
 } from '@/utils/storage/passwordCrud';
-import { getSidepanelSortConfig } from '@/utils/storage/configManager';
+import { getSidepanelSortConfig, getDomainMatchConfig, DEFAULT_DOMAIN_MATCH_MODE } from '@/utils/storage/configManager';
 import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import { resolveMatchTier, countSameMainDomainCandidates, type DomainMatchMode, type MatchTier } from '@/utils/domain';
 import { fetchFaviconDataUrl } from '@/utils/favicon';
 import { generateTOTP, parseOtpAuth, getTotpRemaining } from '@/utils/totp';
 import { tl } from '@/utils/i18n-lite';
@@ -33,6 +34,14 @@ let _cachedValidityMs: number | null = null;
 
 /** 缓存的 sidepanel 排序配置（避免 GET_INITIAL_DATA 每次读取 storage） */
 let _cachedSortConfig: { prop: string; order: string } | null | undefined = undefined;
+
+/**
+ * 缓存的跨子域匹配档位（避免每次匹配查询都读 storage）
+ *
+ * 与 _cachedSortConfig 同构：档位只影响过滤结果，不影响缓存内的明文，
+ * 因此变更时仅需复位本镜像，绝不触发解密重算。
+ */
+let _cachedDomainMatchMode: DomainMatchMode | undefined = undefined;
 
 /**
  * 缓存预热的 in-flight Promise（并发去重）
@@ -321,7 +330,7 @@ export function updatePasswordCache(passwords: PasswordEntry[], domain: string, 
 
 /**
  * 使密码缓存失效
- * 同时重置 _cachedValidityMs 和排序配置缓存，确保配置变更后下次重新读取。
+ * 同时重置 _cachedValidityMs、排序配置缓存与跨子域档位镜像，确保配置变更后下次重新读取。
  *
  * 快照处理策略（keepSnapshotForRebuild）：
  * - false（默认，锁定/会话清除等安全路径）：立即删除快照，fail-locked；
@@ -338,6 +347,7 @@ export function invalidatePasswordCache(keepSnapshotForRebuild = false): void {
   _cacheEpoch++;
   _cachedValidityMs = null;
   _cachedSortConfig = undefined;
+  _cachedDomainMatchMode = undefined;
   if (keepSnapshotForRebuild) {
     // 覆盖式重建（尽力而为，仅适用于密码数据未变的路径如排序配置变更）：
     // 新快照就绪前旧快照仍可安全服务；重建失败/无明文时降级为删除，由 TTL 兜底防陈旧
@@ -445,14 +455,38 @@ export async function getCachedSortConfig(): Promise<{ prop: string; order: stri
   return config;
 }
 
+/**
+ * 获取缓存的跨子域匹配档位（SW 内存镜像）
+ *
+ * 读取失败时回落 `off`（精确匹配）：与配置存储层口径一致，宁可少显示条目，也不静默放宽匹配。
+ */
+export async function getCachedDomainMatchMode(): Promise<DomainMatchMode> {
+  if (_cachedDomainMatchMode !== undefined) return _cachedDomainMatchMode;
+
+  const config = await getDomainMatchConfig().catch(() => null);
+  _cachedDomainMatchMode = config?.mode ?? DEFAULT_DOMAIN_MATCH_MODE;
+  return _cachedDomainMatchMode;
+}
+
+/**
+ * 复位跨子域档位镜像
+ *
+ * 供 storage.onChanged 在档位键变更时调用：档位不影响缓存明文与快照内容，
+ * 因此只复位这一份镜像——绝不可借道 invalidatePasswordCache（那会删除快照并触发全量解密回温，
+ * 让「切档后侧边栏仍秒开」这一约束失效）。
+ */
+export function resetDomainMatchModeMirror(): void {
+  _cachedDomainMatchMode = undefined;
+}
+
 // ==================== 内联下拉/一键填充：域名匹配与条目查询 ====================
 
 /**
- * 按域名过滤并按侧边栏展示顺序排序（带缓存排序配置读取）
+ * 按域名过滤并按侧边栏展示顺序排序（带缓存排序配置与档位读取）
  *
- * 在纯函数 filterAndSortEntriesForDomain 基础上叠加侧边栏排序配置的
- * 缓存读取，供 getMatchingAccounts（内联下拉）与 handleQuickFill（一键填充
- * 取首条）共用，保证两处的列表顺序与侧边栏完全一致。
+ * 在纯函数 filterAndSortEntriesForDomain 基础上叠加侧边栏排序配置与跨子域匹配档位的
+ * 缓存读取，供 getMatchingAccounts（内联下拉）、handleQuickFill（一键填充取首条）
+ * 与右键菜单填充共用，保证三处的列表顺序与侧边栏完全一致。
  *
  * @param passwords 全量密码条目
  * @param domain 当前页面域名（hostname）
@@ -464,11 +498,11 @@ export async function sortMatchesForDomain(
   domain: string,
   port?: string,
 ): Promise<PasswordEntry[]> {
-  const sortConfig = await getCachedSortConfig();
+  const [sortConfig, mode] = await Promise.all([getCachedSortConfig(), getCachedDomainMatchMode()]);
   const sortState: SortState = sortConfig
     ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
     : DEFAULT_SIDEPANEL_SORT;
-  return filterAndSortEntriesForDomain(passwords, domain, sortState, port);
+  return filterAndSortEntriesForDomain(passwords, domain, sortState, port, mode);
 }
 
 /**
@@ -490,8 +524,9 @@ async function ensureAuthenticatedCache(): Promise<PasswordCache | null> {
  * 获取匹配当前域名的账号元数据（供内联下拉使用，绝不返回密码）
  *
  * 安全：会话锁定时返回 `{ locked: true, accounts: [] }`，不触碰任何凭证；
- * 匹配规则与侧边栏 filteredPasswords 一致：仅精确 host 匹配，本地开发域名按端口过滤，「URL 为空」的通用条目始终纳入。
- * 排序：复用 sortPasswordEntries + 侧边栏排序配置 + 域名优先级 + 收藏置顶。
+ * 匹配与排序和侧边栏同源（均经 `resolveMatchTier`）：档位取用户所选（缺省 `off` 时仅精确 host
+ * 匹配 + 空 URL 通用条目），本地开发域名按端口过滤、档位不参与。
+ * 排序：复用 sortPasswordEntries + 侧边栏排序配置 + 匹配层级 + 收藏置顶。
  *
  * @param domain 当前页面顶层域名（hostname）
  * @param port 当前页面端口号（仅 localhost 场景使用，空串表示无端口）
@@ -515,10 +550,24 @@ export async function getMatchingAccounts(domain: string, port?: string): Promis
   const cache = await ensureAuthenticatedCache();
   if (!cache) return { locked: true, accounts: [] };
 
-  // 过滤 + 排序：与侧边栏 filteredPasswords 一致（含无 URL 条目），
-  // 仅精确匹配完整 hostname，确保 fat/uat 等多测试环境账号严格隔离；
-  // 复用 sortMatchesForDomain（侧边栏排序配置 + 域名优先 + 收藏置顶）
-  const matched = await sortMatchesForDomain(cache.passwords, domain, port);
+  // 过滤 + 排序：与侧边栏 filteredPasswords 同口径（含无 URL 条目），
+  // 放宽程度由用户在 Options 里选择的档位决定，`off` 档下仍严格隔离 fat/uat 等多测试环境；
+  // 复用 sortMatchesForDomain（侧边栏排序配置 + 匹配层级 + 收藏置顶）
+  const [matched, mode] = await Promise.all([
+    sortMatchesForDomain(cache.passwords, domain, port),
+    getCachedDomainMatchMode(),
+  ]);
+
+  /**
+   * 条目匹配层级（供内容脚本呈现来源标识）
+   *
+   * 本地开发域名下「无端口时放行全部」会带出与当前 host 不同的条目，该路径不参与档位语义，
+   * 按 0（无来源标识）返回，避免把 -1 透出成第三种状态。
+   */
+  const tierOf = (url: string): MatchTier => {
+    const tier = resolveMatchTier(domain, url, mode);
+    return tier === -1 ? 0 : tier;
+  };
 
   // 并行附带网站图标 dataURL（本地 _favicon/ 端点 + 内存缓存，失败降级空串），
   // 避免将 _favicon/* 暴露为 web_accessible_resources 供网页直接加载
@@ -533,10 +582,14 @@ export async function getMatchingAccounts(domain: string, port?: string): Promis
       favorite: !!p.favorite,
       hasTotp: !!(p.totp && p.totp.trim()),
       favicon: p.url ? await fetchFaviconDataUrl(p.url, 32) : '',
+      tier: tierOf(p.url || ''),
     })),
   );
 
-  return { locked: false, accounts };
+  // 计数只服务空态那一行提示：面板有结果时提示不渲染，不遍历全库
+  const crossDomainCount = accounts.length ? 0 : countSameMainDomainCandidates(cache.passwords, domain, mode);
+
+  return { locked: false, accounts, crossDomainCount };
 }
 
 /**

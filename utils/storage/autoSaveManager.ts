@@ -5,13 +5,15 @@ import type {
   CredentialStatusResponse,
   PasswordEntry,
   SaveRiskHint,
+  SaveTargetNote,
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { normalizeToHostname, resolveMatchTier } from '@/utils/domain';
 import { isWeakPassword } from '@/utils/passwordStrengthCore';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
-import { getFavoriteLimit } from './configManager';
+import { getDomainMatchConfig, getFavoriteLimit } from './configManager';
 import { tl } from '@/utils/i18n-lite';
 
 // ==================== 自动保存配置 ====================
@@ -336,15 +338,85 @@ function buildSaveRiskHint(password: string, entries: PasswordEntry[]): SaveRisk
 }
 
 /**
+ * 查找「同名但判重未命中」的跨子域候选条目
+ *
+ * 档位固定按最宽的 `sameMainDomain` 求解，调用方只在 `off` 档丢弃提示，不再按实际档位二次筛：
+ * 这条文案陈述的是「库里有没有同名账号」这一客观事实，与当前档位能否看见它无关——
+ * 通配档下看不见 `music.qq.com`，但它确实是一条同名近重复，判重不认正是需要提醒的时刻。
+ * tier 取 1~3：
+ * - 1（通配条目）与 3（兄弟子域）都是跨子域档位才在填充路径露出的条目；
+ * - 2（同主域 apex）按 `hostMatchScore` 的父子域规则本应已被 `findMatchingEntry` 命中、
+ *   走不到这一步，保留在区间内是为了不把结论押在那条规则上；
+ * - 4（无网址条目）不限站点、无处可指，文案会指向空串，故排除。
+ *
+ * @param passwords 已解密的全量条目
+ * @param data 待保存的账号与网址
+ * @returns 首个同名跨子域候选；无候选返回 undefined
+ */
+function findCrossSubdomainTwin(
+  passwords: PasswordEntry[],
+  data: CheckCredentialStatusData,
+): PasswordEntry | undefined {
+  const host = normalizeToHostname(data.url);
+  if (!host) return undefined;
+
+  for (const entry of passwords) {
+    if (entry.username !== data.username) continue;
+    const tier = resolveMatchTier(host, entry.url, 'sameMainDomain');
+    if (tier >= 1 && tier <= 3) return entry;
+  }
+  return undefined;
+}
+
+/**
+ * 生成「本次将新增一条」提示
+ *
+ * 只在确实存在同名跨子域候选时才读档位配置：普通新账号保存因此不产生额外存储读取。
+ * `off` 档下这些条目既不出现在填充列表，也与本次保存无关，提示反而误导，故按档位丢弃。
+ *
+ * @param passwords 已解密的全量条目
+ * @param data 待保存的账号与网址
+ * @returns 去向提示；不适用时返回 undefined
+ */
+async function buildWillCreateNote(
+  passwords: PasswordEntry[],
+  data: CheckCredentialStatusData,
+): Promise<SaveTargetNote | undefined> {
+  const twin = findCrossSubdomainTwin(passwords, data);
+  if (!twin?.url) return undefined;
+
+  const { mode } = await getDomainMatchConfig();
+  return mode === 'off' ? undefined : { kind: 'willCreate', url: twin.url };
+}
+
+/**
+ * 生成「将更新另一站的同名账号」提示
+ *
+ * 父子域判重（`hostMatchScore` 的 1 分）在 `off` 档同样成立，静默改写另一站条目是既有行为，
+ * 本提示只是把它说出来，因此无档位门禁。两侧 host 经 `normalizeToHostname` 归一后比较：
+ * 条目常存成完整 URL，而内容脚本上报的是 `location.hostname`，直接比字符串会误报。
+ *
+ * @param currentUrl 当前页网址（内容脚本上报值）
+ * @param matched 判重命中的已存条目
+ * @returns 去向提示；同 host 命中（去向不言自明）时返回 undefined
+ */
+function buildUpdateOtherHostNote(currentUrl: string, matched: PasswordEntry): SaveTargetNote | undefined {
+  const currentHost = normalizeToHostname(currentUrl);
+  const matchedHost = normalizeToHostname(matched.url);
+  return matchedHost && matchedHost !== currentHost ? { kind: 'updateOtherHost', url: matched.url } : undefined;
+}
+
+/**
  * 保存前预检查：查询当前域名+账号在密码库中的凭证状态
  *
  * 会话无效返回 `locked`；否则用 findMatchingEntry 定位条目：无 → `new`，
  * 有且密码相同 → `identical`，密码不同 → `password_changed`（附标签/备注）。
  * `new` 与 `password_changed` 额外附带风险提示（弱密码/复用计数），供弹窗内联警示。
+ * 两个弹窗分支再各带一条去向提示（`targetNote`），说明本次保存落在哪一条上。
  * 仅返回状态枚举与非密码元数据，绝不回传已存明文密码。
  *
  * @param data 待检查的账号、密码与域名
- * @returns 凭证状态、（password_changed 时）已存条目的标签/备注、（需弹窗时）风险提示
+ * @returns 凭证状态、（password_changed 时）已存条目的标签/备注、（需弹窗时）风险提示与去向提示
  */
 export async function checkCredentialStatus(data: CheckCredentialStatusData): Promise<CredentialStatusResponse> {
   try {
@@ -362,7 +434,11 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
     const existingEntry = findMatchingEntry(passwords, data);
 
     if (!existingEntry) {
-      return { status: 'new', risk: buildSaveRiskHint(data.password, passwords) };
+      return {
+        status: 'new',
+        risk: buildSaveRiskHint(data.password, passwords),
+        targetNote: await buildWillCreateNote(passwords, data),
+      };
     }
 
     if (existingEntry.password === data.password) {
@@ -373,6 +449,7 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
       status: 'password_changed',
       existing: { tag: existingEntry.tag || '', remark: existingEntry.remark || '' },
       risk: buildSaveRiskHint(data.password, passwords),
+      targetNote: buildUpdateOtherHostNote(data.url, existingEntry),
     };
   } catch (error) {
     logger.error('自动保存预检查失败:', error);

@@ -11,6 +11,8 @@
   "sidepanel.scope.barText": "Searching all entries",
   "sidepanel.scope.backToSite": "Back to this site",
   "sidepanel.scope.searchAllCta": "Search all entries ({count} found)",
+  "sidepanel.scope.crossSubdomain": "Cross-subdomain",
+  "sidepanel.scope.crossSubdomainHint": "{count} more accounts on the same root domain — enable cross-subdomain matching",
   "sidepanel.sessionRemainingTitle": "Session time remaining — click to adjust validity",
   "sidepanel.sortBy": "Sort by",
   "sidepanel.recentlyUsed": "Recently used",
@@ -59,7 +61,7 @@
   "sidepanel.quickAdd.title": "Add credentials",
   "sidepanel.quickAdd.usernamePlaceholder": "Account / email / phone",
   "sidepanel.quickAdd.passwordPlaceholder": "Optional password",
-  "sidepanel.quickAdd.urlPlaceholder": "Optional, e.g. example.com",
+  "sidepanel.quickAdd.urlPlaceholder": "Optional, e.g. example.com or *.qq.com",
   "sidepanel.quickAdd.tagPlaceholder": "Optional tag",
   "sidepanel.quickAdd.remarkPlaceholder": "Optional note",
   "sidepanel.quickAdd.advancedAdd": "Open Password Manager for all fields"

@@ -218,6 +218,8 @@
       v-model="showSiteRulesDialog"
       :initial-domain="siteRulePrefillDomain"
     />
+    <!-- 跨子域匹配档位弹窗 -->
+    <DomainMatchSettingDialog v-model="showDomainMatchDialog" />
     <IdentityFormDialog
       v-model="showIdentityFormDialog"
       :entry="editingIdentity"
@@ -298,6 +300,9 @@ const PasswordDetailDrawer = defineAsyncComponent(() => import('@/components/opt
 const IdentityVaultDialog = defineAsyncComponent(() => import('@/components/options/IdentityVaultDialog.vue'));
 const IdentityFormDialog = defineAsyncComponent(() => import('@/components/options/IdentityFormDialog.vue'));
 const SiteRulesDialog = defineAsyncComponent(() => import('@/components/options/SiteRulesDialog.vue'));
+const DomainMatchSettingDialog = defineAsyncComponent(
+  () => import('@/components/options/DomainMatchSettingDialog.vue'),
+);
 const CommandPalette = defineAsyncComponent(() => import('@/components/options/CommandPalette.vue'));
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
@@ -387,6 +392,9 @@ const showIdentityFormDialog = ref(false);
 /** 站点规则管理弹窗可见性 */
 const showSiteRulesDialog = ref(false);
 
+/** 跨子域匹配档位弹窗可见性 */
+const showDomainMatchDialog = ref(false);
+
 /** 站点规则弹窗预填域名（来自内容脚本填充失败就地引导，编辑已有规则时不使用） */
 const siteRulePrefillDomain = ref<string | undefined>(undefined);
 
@@ -407,6 +415,14 @@ const openSiteRules = (domain?: string): void => {
   }
   siteRulePrefillDomain.value = domain?.trim() || undefined;
   showSiteRulesDialog.value = true;
+};
+
+/**
+ * 打开跨子域匹配档位弹窗
+ * 供「安全设置」菜单项、命令面板与侧边栏/内联下拉的档位引导（runtime message）共用
+ */
+const openDomainMatchSetting = (): void => {
+  showDomainMatchDialog.value = true;
 };
 
 /** 正在编辑的身份条目（null = 新增） */
@@ -601,6 +617,9 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'siteRules':
       openSiteRules();
+      break;
+    case 'domainMatch':
+      openDomainMatchSetting();
       break;
     case 'idleLock':
       showIdleLockDialog.value = true;
@@ -1043,6 +1062,13 @@ const buildPaletteActions = () => [
     run: () => openSiteRules(),
   },
   {
+    id: 'domainMatch',
+    group: 'security',
+    label: t('options.header.domainMatch'),
+    keywords: ['domain', 'subdomain', 'wildcard', 'match'],
+    run: () => openDomainMatchSetting(),
+  },
+  {
     id: 'clipboard',
     group: 'security',
     label: t('options.header.clipboard'),
@@ -1107,6 +1133,7 @@ useRuntimeMessageHandler({
   openPasswordDialog,
   openValiditySetting,
   openSiteRules,
+  openDomainMatchSetting,
 });
 
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */

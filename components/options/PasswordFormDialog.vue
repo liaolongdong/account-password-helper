@@ -79,6 +79,9 @@
             :maxlength="PASSWORD_FIELD_LIMITS.url"
             show-word-limit
           />
+          <div class="form-tip">
+            {{ t('form.urlWildcardHint') }}
+          </div>
         </el-form-item>
 
         <el-form-item
@@ -557,6 +560,15 @@ defineExpose({ formRef: localFormRef });
   font-size: 12px;
   line-height: 1.5;
   color: #909399;
+}
+
+/* 网址字段的通配条目引导：el-form-item__content 是 flex，需独占一行 */
+.form-tip {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--aph-text-muted);
 }
 
 .password-history-section {

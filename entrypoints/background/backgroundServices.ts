@@ -25,6 +25,7 @@ import {
   isMetadataOnlyChange,
   clearAllPendingTotp,
   resetCredentialAccessBarrierForStartup,
+  resetDomainMatchModeMirror,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
 import { UNLOCK_NOTIFICATION_ID } from './quickFillHandler';
@@ -637,6 +638,13 @@ export function setupBackgroundServices(): void {
         void markBrowserStartupRelockCurrentSessionReady().catch(error => {
           logger.warn('Background: 更新启动重锁屏障状态失败:', error);
         });
+      }
+
+      // 跨子域档位变更：仅复位 SW 内存里的档位镜像。档位只影响过滤结果，
+      // 不影响缓存明文与快照内容，因此刻意不走 invalidatePasswordCache——
+      // 那会删除 storage.session 快照并触发全量解密回温，让「切档后侧边栏仍秒开」失效。
+      if (STORAGE_KEYS.DOMAIN_MATCH_CONFIG in changes) {
+        resetDomainMatchModeMirror();
       }
 
       const relevantKeys = [

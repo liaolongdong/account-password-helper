@@ -13,7 +13,7 @@ import { applyThemeTokensToHost, getStoredTheme, DEFAULT_THEME } from '@/utils/t
 import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { tl } from '@/utils/i18n-lite';
 import { isWeakPassword } from '@/utils/passwordStrengthCore';
-import type { SaveRiskHint } from '@/utils/types';
+import type { SaveRiskHint, SaveTargetNote } from '@/utils/types';
 
 /** 弹窗宿主属性名与属性值（closed 影子树外部定位节点的唯一凭据，取值口径同 FillFailurePrompt） */
 const HOST_ATTRIBUTE = 'data-aph';
@@ -89,7 +89,10 @@ const MAX_TRUSTED_REUSED_COUNT = 9999;
  * 警示是**非阻断**的：不加二次确认、不改变保存按钮流程与任何回调签名，
  * 与 Chrome 原生保存弹窗的克制风格保持一致。
  *
- * @param data - 待保存的账号密码数据（含标签、备注默认值与可选风险提示）
+ * 若 `data.targetNote` 存在，则在备注行下方补一行灰字，说明本次保存落在哪一条上
+ * （父子域判重会静默改写另一站条目，跨子域档位下同名条目则确实会新增为第二条）。
+ *
+ * @param data - 待保存的账号密码数据（含标签、备注默认值、可选风险提示与保存去向提示）
  * @param onSave - 用户点击「保存」时的回调，接收用户编辑后的标签和备注
  * @param onDismiss - 用户点击「暂不保存」时的回调
  * @param onNeverAsk - 用户点击「不再提示」时的回调（将域名加入屏蔽列表）
@@ -234,6 +237,26 @@ export function showSavePasswordPrompt(
   remarkInput.maxLength = PASSWORD_FIELD_LIMITS.remark;
   body.appendChild(remarkRow);
 
+  // 保存去向提示：只读一行灰字，说明本次保存落在哪一条上。刻意不带任何按钮——
+  // 提供「改为新增 / 改为更新」的入口等于从后门调整判重口径。
+  const targetNote = sanitizeTargetNote(data.targetNote);
+  if (targetNote) {
+    const noteEl = document.createElement('div');
+    noteEl.textContent = tl(
+      targetNote.kind === 'updateOtherHost' ? 'cs.save.noteUpdateOtherHost' : 'cs.save.noteWillCreate',
+      { url: targetNote.url },
+    );
+    // 网址可达 100 字符且常无空格，不强制断词会撑破卡片宽度
+    noteEl.style.cssText = `
+      margin-top: 6px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #999;
+      overflow-wrap: break-word;
+    `;
+    body.appendChild(noteEl);
+  }
+
   // 追踪用户是否主动编辑过标签和备注输入框
   let tagEdited = false;
   let remarkEdited = false;
@@ -373,6 +396,27 @@ function sanitizeRiskHint(raw: unknown): SaveRiskHint | undefined {
   }
 
   return hint.weak || hint.reusedCount ? hint : undefined;
+}
+
+/**
+ * 校验并归一化 background 返回的保存去向提示（边界校验）
+ *
+ * iframe 委托场景下该数据经 `postMessage` 跨帧传入，属不可信输入：`kind` 只接受两个已知
+ * 形态（否则会渲染出语义相反或空白的一行），`url` 只接受非空字符串并按条目容量截断
+ * （它随后被塞进文案做 `{url}` 替换）。校验不通过即整条丢弃，弹窗退回「无提示」的既有形态。
+ *
+ * @param raw 未经校验的原始值
+ * @returns 归一化后的去向提示；无效时返回 undefined
+ */
+function sanitizeTargetNote(raw: unknown): SaveTargetNote | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+
+  const { kind, url } = raw as Record<string, unknown>;
+  if (kind !== 'updateOtherHost' && kind !== 'willCreate') return undefined;
+  if (typeof url !== 'string') return undefined;
+
+  const trimmedUrl = url.trim().slice(0, PASSWORD_FIELD_LIMITS.url);
+  return trimmedUrl ? { kind, url: trimmedUrl } : undefined;
 }
 
 /**

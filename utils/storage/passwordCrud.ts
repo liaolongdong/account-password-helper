@@ -511,6 +511,9 @@ export async function getAllPasswords(masterPassword?: string): Promise<Password
  *
  * 不吞错：读取失败 / 需要主密码等异常向上抛出，由调用方区分「加载失败」与「确无匹配」，
  * 不再把失败伪装成空列表（B8）。
+ *
+ * 刻意不接入跨子域档位：本函数无生产调用方（热路径由 background 的 filterAndSortEntriesForDomain
+ * 承担），保持迁移前的精确 host 语义，防止存储层查询被误当作「也会跨子域」。
  */
 export async function getPasswordsByUrl(url: string, masterPassword?: string): Promise<PasswordEntry[]> {
   const allPasswords = await getAllPasswords(masterPassword);

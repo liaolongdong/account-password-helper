@@ -5,11 +5,13 @@
  */
 import type { FormRules } from 'element-plus';
 import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
+import { splitWildcardHost } from '@/utils/domain';
 
 /**
  * 创建 URL/域名格式校验器
  *
  * 支持完整 URL（https://example.com）和纯域名（example.com / localhost）格式。
+ * 纯域名形态额外接受最左通配条目（`*.qq.com`），用于跨子域匹配的适用范围声明。
  * 空值通过校验（选填字段）。
  *
  * @param t 国际化翻译函数
@@ -25,14 +27,19 @@ export function createUrlValidator(t: (key: string) => string) {
     try {
       if (trimmed.includes('://')) {
         const url = new URL(trimmed);
-        if (!url.hostname) {
+        // 剥掉最左通配段后仍为空（`https://*.`）即无有效主机；非通配输入 rest 恒等于 hostname
+        if (!splitWildcardHost(url.hostname).rest) {
           callback(new Error(t('form.invalidUrl')));
           return;
         }
       } else {
+        // 非通配输入 rest 即原值，通配输入只剩 `*.` 之后的主机：两者共用下面这条既有正则。
+        // `*.`、`*.*.x`、`a.*.x` 之类非法形态被同一个正则拒掉，
+        // 不为通配条目另立第二套域名口径
+        const { rest } = splitWildcardHost(trimmed);
         const domainPattern =
           /^(localhost|(\d{1,3}\.){3}\d{1,3}|([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,})(:\d{1,5})?$/;
-        if (!domainPattern.test(trimmed)) {
+        if (!domainPattern.test(rest)) {
           callback(new Error(t('form.invalidUrlExample')));
           return;
         }
