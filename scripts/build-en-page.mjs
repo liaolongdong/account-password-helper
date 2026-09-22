@@ -39,6 +39,7 @@ const EN_BROWSER_REQUIREMENTS =
 const EN_FEATURE_LIST = [
   'One-click login: autofill + tick "remember me / I agree" + click sign in',
   'Exact-host matching keeps dev / test / staging / prod accounts apart',
+  'Three cross-subdomain tiers: exact only, exact + wildcard entries (*.qq.com), or same root domain',
   'Built-in TOTP 2FA (RFC 6238); add secrets by QR scan or image upload',
   'Per-field AES-256-GCM encryption at rest, keyed by PBKDF2-SHA256 with 600,000 iterations',
   'Offline security audit: a 0-100 score weighted across four dimensions, computed on your machine',

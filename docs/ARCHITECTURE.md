@@ -145,10 +145,11 @@ graph TB
 │   │   ├── ChangeMasterPasswordDialog.vue # 修改主密码对话框（原子换钥）
 │   │   ├── ClipboardSettingDialog.vue  # 剪贴板设置对话框
 │   │   ├── DisclaimerInfo.vue          # 免责声明
+│   │   ├── DomainMatchSettingDialog.vue # 跨子域名匹配档位对话框（三档单选）
 │   │   ├── EmailBackupDialog.vue       # 邮箱备份对话框
 │   │   ├── EmptyGuide.vue              # 空数据引导卡片
 │   │   ├── FavoriteLimitSetting.vue     # 收藏上限设置对话框
-│   │   ├── HeaderBar.vue               # 顶部操作栏（含安全体检入口）
+│   │   ├── HeaderBar.vue               # 顶部操作栏（含安全体检与跨子域名匹配入口）
 │   │   ├── IdleLockSetting.vue         # 自动闲置锁定设置
 │   │   ├── ImportDialog.vue            # CSV/JSON 导入对话框
 │   │   ├── MasterPasswordSetupView.vue # 主密码设置视图
@@ -246,7 +247,7 @@ graph TB
 │   ├── masterPasswordVerifyController.ts # 主密码验证弹窗单例控制器（命令式调用）
 │   ├── createVueApp.ts             # Vue 应用工厂
 │   ├── dateFormat.ts               # 日期格式化工具
-│   ├── domain.ts                   # 域名工具（getMainDomain / isExactHostMatch 精确主机匹配 / toNavigableUrl 安全导航）
+│   ├── domain.ts                   # 域名工具（getMainDomain / isExactHostMatch 精确主机匹配 / resolveMatchTier 跨子域分层匹配真源 / toNavigableUrl 安全导航）
 │   ├── formatShortcut.ts           # 快捷键格式化工具
 │   ├── shortcutCommands.ts         # 快捷键命令清单（与 manifest.commands 对齐）与打开管理页动作
 │   ├── generateId.ts               # ID 生成工具（crypto 随机，独立模块避免页面 chunk 拉入 PBKDF2）
@@ -320,6 +321,7 @@ graph TB
 - **智能防重复**：弹窗前先向后台查询该域名 + 账号在密码库中的状态（见 [autoSaveManager.ts](../utils/storage/autoSaveManager.ts) 的 `checkCredentialStatus`），据此分流：账号密码完全相同则完全静默不弹窗（跨登录持久生效，从根本上避免同账号反复登录反复弹窗）；密码发生变化则弹出「更新」确认弹窗；新账号弹出「保存」弹窗。同时保留基于凭证指纹（用户名 + 密码长度）的同页防抖（见 [LoginAutoSave.ts](../entrypoints/content/LoginAutoSave.ts)），吸收表单提交 / 按钮点击 / 回车三连触发。
 - **保存前风险内联预警（非阻断）**：`checkCredentialStatus` 在**已解密的全量条目**上就地计算风险提示并随凭证状态一并返回（`risk` 字段），因此不产生额外的存储读取或解密开销；仅在实际会弹窗的 `new` / `password_changed` 两个分支携带，`locked`、`identical` 与异常兜底分支不携带。弹窗在密码行下方以琥珀色警示条展示两类风险：弱密码（与表单校验、安全体检同口径，复用 [passwordStrengthCore.ts](../utils/passwordStrengthCore.ts) 的 `isWeakPassword`）与密码复用（该密码被其它 N 个账号共用）。警示条**只提醒不拦截**：不加二次确认、不改变保存按钮流程与任何回调签名，与 Chrome 原生保存弹窗的克制风格一致。
 - **风险数据的信任边界**：`risk` 属派生结论，**不写入 pending 也不进 sessionStorage**，避免用户改密码后留下陈旧计数；跳页恢复路径会重新进入预检查拿新鲜值。iframe 委托场景下该数据经 `postMessage` 跨帧传入，属不可信输入，接收方（[SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts) 的 `sanitizeRiskHint`）逐字段收窄：`weak` 仅接受严格布尔 `true`，`reusedCount` 须为 `1..9999` 的整数，非法值一律丢弃。密码字段一旦偏离后台评估时的值，本地可重算的弱密码标志就地重算，依赖全量库的复用计数则直接撤下。
+- **保存去向提示（判重口径不变）**：`checkCredentialStatus` 另返回 `targetNote`，只在实际弹窗的 `new` / `password_changed` 两个分支携带，内容为「相关条目的网址原样串 + 二选一的形态」：`updateOtherHost` 表示判重命中的条目属于别的 host（本次更新的是那一条），`willCreate` 表示库里已有同用户名的跨子域条目但判重不认（本次新增一条）。弹窗在备注下方以一行灰字展示，与 `risk` 同样经 `sanitizeTargetNote` 收窄（`kind` 仅两个枚举值、`url` 仅非空字符串并按 `PASSWORD_FIELD_LIMITS.url` 截断，非法整条丢弃），不进 pending 也不进 sessionStorage。**判重真源 `findMatchingEntry` 与 `hostMatchScore` 完全不受跨子域档位影响**——仍是「同用户名 + host 相等（2 分）/ 父子域包含（1 分）」，通配条目恒 0 分，因此放宽档位只会多提示，绝不会把两个环境的账号合并成同一条。
 
 ### 5. 邮箱备份
 
@@ -369,7 +371,7 @@ graph TB
 ### 11. 快速填充
 
 - 侧边栏自动将与当前域名匹配的密码排在前面。
-- **精确域名匹配**：仅展示与当前页面 host 完全一致的条目（不做子域名/主域名模糊匹配），方便区分多测试环境账号（如 `fat.example.com` 与 `uat.example.com` 互不干扰）；未填写域名的条目始终展示。
+- **精确域名匹配（缺省口径）**：仅展示与当前页面 host 完全一致的条目（不做子域名/主域名模糊匹配），方便区分多测试环境账号（如 `fat.example.com` 与 `uat.example.com` 互不干扰）；未填写域名的条目始终展示。该口径是「跨子域名匹配」三档中的 `off` 档，用户显式放宽后改由 [domain.ts](../utils/domain.ts) 的 `resolveMatchTier` 分层判定（见「跨子域名匹配档位」）。
 - **本地开发友好**：当域名为 `localhost` 或 `127.0.0.1` 时按**端口**过滤——当前页面不带端口（纯 `localhost`）时展示全部条目，带端口（如 `localhost:3000`）时只展示端口一致或本身不带端口的条目，避免 `:3000` 与 `:5173` 两个本地项目的账号混在一起（见 [domain.ts](../utils/domain.ts) 的 `matchesPortForLocalDev` / [passwordFilter.ts](../utils/passwordFilter.ts)）。
 - **网站图标展示**：密码列表与侧边栏条目展示对应网站的图标，经 Chrome 本地 `_favicon/` 端点读取浏览器图标缓存，零外部网络请求（见 [SiteFavicon.vue](../components/SiteFavicon.vue)）；无缓存图标或不支持的环境自动降级为默认图标，布局零偏移。
 - **侧边栏快速添加**：顶栏「+」就地打开快速添加弹窗（见 [QuickAddDialog.vue](../components/sidepanel/QuickAddDialog.vue)），网址自动预填当前域名；本站无账号或搜索无结果时，空态同样提供「添加本站账号」入口。弹窗只收账号 / 密码 / 网址 / 标签 / 备注五个高频字段，TOTP 等完整字段经「到密码管理中完整添加」跳到选项页录入。
@@ -550,6 +552,18 @@ graph TB
 - **明文 JSON 迁移通道**：规则弹窗列表底部提供导出 / 导入，实现落在 [siteRulesTransfer.ts](../utils/siteRulesTransfer.ts)。导出信封为 `{ kind: 'aphsr', version, exportedAt, count, rules }`（规则按域名升序，两份导出可直接 diff）；导入同时接受该信封与裸的 `Record<domain, SiteRule>`（即 storage 原样形态，便于手工编辑后回导）。整条通道**有意不加密**：文件里只有域名与选择器，不含任何凭据字段，但域名清单会随文件离开扩展，这是该通道已知的取舍。导入侧把文件当不可信输入——体积、条数、结构 / 版本 / `count` 一致性逐项判定，条目级再复用 `normalizeSiteRuleDomain` + `isValidCssSelector` 逐条剔除，全部不合法时报错且不触碰存储；合并语义为**按域名覆盖、其余保留**，并显式报告「新增 N / 更新 M / 忽略 K」（K 为被剔除的条目数，防止「10 条只进了 3 条」看起来像全部成功），历史大小写 key 一律收敛为规范化单条（本机已同时存着变体时，保留内容脚本命得到的那条）。
 - **成本边界**：跨 shadow 边界的查询根由 `collectShadowQueryRoots` 每轮检测只 BFS 一次（`SHADOW_ROOT_SCAN_BUDGET` 节点预算，超限时输出可辨识日志），账号 / 密码两条选择器复用同一组根；穿透关闭时该函数直接短路返回 `[document]`，连这次 BFS 都不发生。
 - **回归口径**：[siteRulesValidation.test.ts](../tests/utils/siteRulesValidation.test.ts) 钉规范化与选择器边界，[formDetector.siteRule.test.ts](../tests/content/formDetector.siteRule.test.ts) 钉权威覆盖 / 缓存降级 / 穿透判定的三态与适用边界 / 首轮竞态 / 监听与清理，[formDetector.shadow.test.ts](../tests/content/formDetector.shadow.test.ts) 钉「启发式不跨边界、选择器可跨 open 根、closed 根不可见、穿透开关关掉后选择器只在主树生效」这条范围口径，[senderValidation.test.ts](../tests/background/senderValidation.test.ts) 与 [useRuntimeMessageHandler.siteRules.test.ts](../tests/composables/useRuntimeMessageHandler.siteRules.test.ts) 钉消息链路的域名收口与分发契约，[siteRulesTransfer.test.ts](../tests/utils/siteRulesTransfer.test.ts) 钉信封与裸形态两种入口、逐条剔除、体积与条数上限、错误码分流、合并计数与失败不落盘。
+
+### 29. 跨子域名匹配档位
+
+- **定位与默认**：解决「同一根域名下的账号在子域名处处可用」（`qq.com` 的账号在 `mail.qq.com` / `music.qq.com` 也能填），同时不推翻 2026-07 为多测试环境隔离引入的精确 host 口径。三档为**包含关系**且缺省最严格：`off`（仅精确匹配，迁移前行为）⊂ `wildcard`（追加用户显式写成 `*.qq.com` 的通配条目）⊂ `sameMainDomain`（再追加主域名 apex 与同主域其他子域）。放宽只能由用户在 Options 显式选择，默认值与旧版本逐条一致。
+- **匹配单一真源**：[domain.ts](../utils/domain.ts) 的 `resolveMatchTier(currentHost, storedUrl, mode)` 返回 `MatchTier`（0 精确 / 1 通配 / 2 主域名 / 3 其他子域 / 4 空 URL）或 `-1`，数字同时就是排序权重。侧边栏本站范围（[passwordFilter.ts](../utils/passwordFilter.ts) 的 `matchesSiteScope` / `filterEntriesByScope`，也是「能否填充当前页」的判据）与内联下拉、一键填充（[passwordSort.ts](../utils/passwordSort.ts) 的 `filterAndSortEntriesForDomain`）都经它，杜绝「下拉里有、侧边栏没有」或两处排序分叉；`off` 档下集合与顺序与跨子域功能引入前逐条一致。
+- **通配条目的匹配口径**：通配写在 `PasswordEntry.url` 里（形如 `*.qq.com`），录入侧由 [formValidators.ts](../utils/formValidators.ts) 剥掉最左 `*.` 后复用既有域名正则校验（非法形态如 `*.`、`*.*.x`、`a.*.x` 天然被拒，不为通配另立第二套口径）。命中判定刻意不用 `endsWith('.qq.com')`（会被 `evil-qq.com` 这类前缀碰撞绕过），而是复用跨域 iframe 委托同一可信边界「主域名相等」，因此自动继承 `getMainDomain` 的两段式 ccTLD 全部规则。导航与图标两条派生路径先经 `stripWildcardPrefix` 还原为可访问主机（`*.qq.com` 表达的是适用范围，不是一个能打开的地址）。
+- **配置读写与分发**：落 `STORAGE_KEYS.DOMAIN_MATCH_CONFIG` 的 `{ mode }`，回读时经 `isDomainMatchMode` 收窄、非法值一律回落 `off`（宁可少显示条目，也不静默放宽）。入口是密码管理页头部「跨子域名匹配」与命令面板项，弹窗为 [DomainMatchSettingDialog.vue](../components/options/DomainMatchSettingDialog.vue)——档位是**非敏感元数据**（不暴露任何凭据），因此与主题、语言同类设置一样不需要主密码复验。Vue 侧（Options / SidePanel / Popup）直读 storage 并监听 `onChanged`；**内容脚本不感知档位**：后台 [passwordCache.ts](../entrypoints/background/passwordCache.ts) 的 `getCachedDomainMatchMode()` 在 `getMatchingAccounts` 里按条附带 `tier`，内联下拉只据其渲染来源标识。
+- **切档不伤秒开**：档位只影响过滤结果，不影响缓存明文与 `storage.session` 快照内容，因此 `backgroundServices` 的 `onChanged` 只调 `resetDomainMatchModeMirror()` 复位这一份内存镜像，刻意不借道 `invalidatePasswordCache`（那会删除快照并触发全量解密回温，让「切档后侧边栏仍秒开」失效）。
+- **来源标识与空态引导**：放宽档带出的非精确条目在侧边栏行内加「跨子域」徽章（`sidepanel.scope.crossSubdomain`，与标签同处弹性行、不与长 URL 争抢收缩空间），内联下拉按同一 `tier` 呈现，回答「这条为什么出现在这里」，不只靠颜色或顺序传达。本站无账号但同主域还有条目时，侧边栏空态与内联面板给出「同主域还有 N 条账号」的一键引导（计数统一来自 `countSameMainDomainCandidates`，已处于最宽松档、本地开发域名与无域名场景恒为 0），点击经 `OPEN_OPTIONS_AND_DOMAIN_MATCH` 直达该弹窗。
+- **不受档位影响的两条既有口径**：`localhost` / `127.0.0.1` 始终走 `matchesPortForLocalDev` 的端口过滤（`:3000` 与 `:5173` 不因放宽而混合）；「能否填充当前页」与「站点可见」仍共用同一判据，全站搜索下的外站降级行为不变。
+- **判重口径显式不变**：`findMatchingEntry` / `hostMatchScore` / `autoSavePassword` 完全不感知档位——沿用既有规则（同用户名 + host 相等**或父子域**算同一条，通配条目恒 0 分）。放宽档位只增加「可见性」，不会把两个环境的账号合并成一条，也不会让保存写到意料之外的条目；跨子域带来的歧义由弹窗的保存去向提示（见「自动保存登录凭证」的 `targetNote`）承担说明责任。
+- **回归口径**：[domain.test.ts](../tests/utils/domain.test.ts) 钉三档下的层级判定、通配前缀碰撞与 ccTLD，[passwordFilter.test.ts](../tests/utils/passwordFilter.test.ts) 与 [passwordSort.test.ts](../tests/utils/passwordSort.test.ts) 钉「`off` 档行为等价迁移前」与档位化排序，[configManager.domainMatch.test.ts](../tests/utils/configManager.domainMatch.test.ts) 钉非法值回落，[useRuntimeMessageHandler.domainMatch.test.ts](../tests/composables/useRuntimeMessageHandler.domainMatch.test.ts) 钉直达消息契约，[inlineFillDropdown.crossDomain.test.ts](../tests/content/inlineFillDropdown.crossDomain.test.ts) 钉内联面板的 `tier` 呈现与空态引导，[autoSaveManager.test.ts](../tests/utils/autoSaveManager.test.ts) 钉「判重不受档位影响」与 `targetNote` 的分支边界，[crossSubdomainTierWiring.test.ts](../tests/architecture/crossSubdomainTierWiring.test.ts) 以源码守卫钉「每处站点范围判定都显式传档位」与「档位变更不进缓存失效键」。
 
 ## 开发补充
 

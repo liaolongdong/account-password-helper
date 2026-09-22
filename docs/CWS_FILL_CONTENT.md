@@ -109,12 +109,12 @@
 
 【为什么选择它】
 ◆ 不只填充，还替你完成登录：在侧边栏选中条目点「填充并登录」即可一步走完填充、勾选与提交；快捷键 Ctrl+Shift+F 默认只做填充与勾选，只有你在偏好设置中开启「自动触发登录」后它才代为提交表单，不会背着你按下登录
-◆ 多环境账号隔离：条目按精确域名匹配，开发、测试、预发、生产各留各的凭证——同时跑多环境的人最需要这条
+◆ 多环境账号隔离：条目默认按精确域名匹配，开发、测试、预发、生产各留各的凭证（也可在设置里放宽为跨子域）——同时跑多环境的人最需要这条
 ◆ 验证码和密码存在同一处：不用在登录途中去摸手机、切换验证器应用——一个条目里既有密码也有动态码
 ◆ 免费、开源、无订阅：GPL-3.0 协议，源码可审计，全部功能不设付费墙
 
 【适合谁】
-· 开发者：本地、测试、预发、生产域名分开管理，凭据按站点精确命中，不用再靠备注区分环境
+· 开发者：本地、测试、预发、生产域名分开管理，凭据默认按站点精确命中，不用再靠备注区分环境
 · 测试工程师：批量导入用例账号，跨环境切换时一键完成登录，误删可回收，改错的密码能回滚
 · 隐私敏感用户：会话有效期从 1 小时到 7 天共 9 档，按你愿意多久重输一次主密码来定
 · 日常登录用户：登录时自动保存新账号，需要新密码时一键生成，不必再为每个站点想一套还记得住的记法
@@ -693,7 +693,7 @@ SETUP (one-time): Install → set master password → add accounts manually or b
 
 1) One-click login: A QA engineer opens the side panel on a staging login page and taps "Fill and sign in" — account autofilled, consent ticked, login clicked — under 1 second. With "Auto-submit login" enabled in preferences the same result follows a single keystroke.
 
-2) Multi-environment management: A developer manages dev/staging/prod accounts for the same site. Exact-domain matching keeps credentials separated.
+2) Multi-environment management: A developer manages dev/staging/prod accounts for the same site. Exact-domain matching (the default tier) keeps credentials separated.
 
 3) TOTP handoff: User signs into GitHub. After password autofill, a live TOTP capsule auto-anchors beside the 2FA input — one-click entry, no phone needed.
 
@@ -740,7 +740,7 @@ No specific website accounts are required. The extension treats all websites uni
 
 核心差异化价值：
 • 一键登录：侧边栏「填充并登录」把填充、勾选「记住我 / 同意条款」、点击登录按钮连成一步；`Ctrl+Shift+F` 默认只做填充与勾选，只有在偏好设置中开启「自动触发登录」后才会代为提交表单
-• 多环境账号隔离：精确域名匹配区分同一站点的 dev/test/staging/prod 账号
+• 多环境账号隔离：默认的精确域名匹配区分同一站点的 dev/test/staging/prod 账号
 • 内置 TOTP 验证器：RFC 6238 验证码本地生成，GitHub 式两步登录自动锚定活码胶囊
 • 离线安全体检：0–100 评分，四个计分维度按权重合计（复用 35 / 弱密码 25 / 常见泄露 20 / 长期未更新 20），「未开启两步验证」仅列示不计分，全程本地计算
 • 零成本迁移：支持 CSV / JSON 导入，自动识别常见密码管理器的导出格式
@@ -755,7 +755,7 @@ No specific website accounts are required. The extension treats all websites uni
 
 1) 一键登录：测试工程师在 staging 登录页打开侧边栏，点选条目的「填充并登录」——账号自动填充、协议自动勾选、登录按钮自动点击，1 秒内完成；在偏好设置中开启「自动触发登录」后，一次按键即可得到同样结果。
 
-2) 多环境凭证管理：开发者管理同一应用 dev/staging/prod 的账号，精确域名匹配确保各环境凭证互不混淆。
+2) 多环境凭证管理：开发者管理同一应用 dev/staging/prod 的账号，默认的精确域名匹配确保各环境凭证互不混淆（需要跨子域时在设置里显式放宽）。
 
 3) TOTP 两步验证接力：登录 GitHub，密码填充后下一页要求验证码，扩展自动锚定活码胶囊，一键填入，无需手机验证器。
 
