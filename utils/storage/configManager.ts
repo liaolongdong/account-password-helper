@@ -9,7 +9,7 @@ import type {
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { DEFAULT_THEME } from '@/utils/theme';
-import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
+import { sortPasswordEntries, DEFAULT_SORT, type SortCriterion } from '@/utils/passwordSort';
 import { isExactHostMatch } from '@/utils/domain';
 
 /** 默认收藏上限 */
@@ -141,6 +141,67 @@ export async function getSortConfig(): Promise<{ prop: string; order: string } |
   }
 }
 
+// ==================== Options 多列排序链配置 ====================
+
+/**
+ * 校验并归一化排序链（防御不可信存储数据）
+ *
+ * 逐项要求 prop 为非空字符串、order 为明确方向；丢弃非法项。
+ * 全部非法时返回空数组（等价于默认排序）。
+ */
+function normalizeSortChain(raw: unknown): SortCriterion[] {
+  if (!Array.isArray(raw)) return [];
+  const result: SortCriterion[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue;
+    const { prop, order } = item as { prop?: unknown; order?: unknown };
+    if (typeof prop !== 'string' || prop === '') continue;
+    if (order !== 'ascending' && order !== 'descending') continue;
+    result.push({ prop, order });
+  }
+  return result;
+}
+
+/**
+ * 获取 Options 列表多列排序链
+ *
+ * 优先读取新键 `options_sort_chain`；若不存在则尝试从旧单列键 `password_sort_config`
+ * 迁移（长度为 1 的数组，order 为 null 时视为空链）。均无或异常时返回空数组（默认排序）。
+ * 排序链属展示偏好，任何异常都不应阻断列表加载。
+ */
+export async function getOptionsSortChain(): Promise<SortCriterion[]> {
+  try {
+    const result = await chrome.storage.local.get([STORAGE_KEYS.OPTIONS_SORT_CHAIN, STORAGE_KEYS.SORT_CONFIG]);
+    const stored = result[STORAGE_KEYS.OPTIONS_SORT_CHAIN];
+    if (stored !== undefined) return normalizeSortChain(stored);
+
+    // 旧格式迁移：单列 { prop, order } → 排序链（order 为 null 表示无排序 → 空链）
+    const legacy = result[STORAGE_KEYS.SORT_CONFIG] as { prop?: unknown; order?: unknown } | undefined;
+    if (legacy && typeof legacy.prop === 'string' && legacy.prop !== '') {
+      if (legacy.order === 'ascending' || legacy.order === 'descending') {
+        return [{ prop: legacy.prop, order: legacy.order }];
+      }
+      return [];
+    }
+    return [];
+  } catch (error) {
+    logger.error('获取多列排序链失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 保存 Options 列表多列排序链（空数组表示清除排序、回退默认）
+ */
+export async function saveOptionsSortChain(chain: readonly SortCriterion[]): Promise<void> {
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.OPTIONS_SORT_CHAIN]: normalizeSortChain(chain) });
+  } catch (error) {
+    logger.error('保存多列排序链失败:', error);
+    throw error;
+  }
+}
+
 // ==================== 侧边栏专属排序配置 ====================
 
 export async function getSidepanelSortConfig(): Promise<{ prop: string; order: string } | null> {
@@ -176,6 +237,8 @@ const floatingButtonStore = createConfigStore<FloatingButtonConfig>(
     autoShowSidepanel: false,
     autoTriggerLogin: false,
     passwordVisibilityToggle: false,
+    crossSubdomainMatch: true,
+    autoFillTotp: false,
     fillMode: 'inline',
     theme: DEFAULT_THEME,
   }),
@@ -334,6 +397,47 @@ export async function setFavoriteLimit(limit: number): Promise<void> {
     });
   } catch (error) {
     logger.error('设置收藏上限失败:', error);
+    throw error;
+  }
+}
+
+// ==================== Options 列表分页配置 ====================
+
+/** Options 密码列表默认每页条数：平衡渲染成本（每行约 12 个 tooltip 实例）与翻页频率 */
+export const DEFAULT_OPTIONS_PAGE_SIZE = 50;
+
+/** 可选每页条数白名单（持久化值不在白名单内时回退默认，防 storage 数据被篡改导致异常分页） */
+export const OPTIONS_PAGE_SIZE_OPTIONS = [20, 50, 100, 200] as const;
+
+/**
+ * 获取 Options 列表每页条数
+ * 读取失败或值不在白名单内时降级为默认值（分页大小属展示偏好，异常不应阻断列表加载）
+ */
+export async function getOptionsPageSize(): Promise<number> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.OPTIONS_PAGE_SIZE);
+    const size = result[STORAGE_KEYS.OPTIONS_PAGE_SIZE] as number | undefined;
+    if (typeof size === 'number' && (OPTIONS_PAGE_SIZE_OPTIONS as readonly number[]).includes(size)) {
+      return size;
+    }
+    return DEFAULT_OPTIONS_PAGE_SIZE;
+  } catch (error) {
+    logger.error('获取每页条数配置失败:', error);
+    return DEFAULT_OPTIONS_PAGE_SIZE;
+  }
+}
+
+/**
+ * 保存 Options 列表每页条数（仅接受白名单值）
+ */
+export async function setOptionsPageSize(size: number): Promise<void> {
+  if (!(OPTIONS_PAGE_SIZE_OPTIONS as readonly number[]).includes(size)) {
+    throw new Error('无效的每页条数');
+  }
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.OPTIONS_PAGE_SIZE]: size });
+  } catch (error) {
+    logger.error('保存每页条数配置失败:', error);
     throw error;
   }
 }

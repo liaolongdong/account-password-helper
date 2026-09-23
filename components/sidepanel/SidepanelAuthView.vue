@@ -53,6 +53,12 @@ interface Props {
   globalMatchCount: number;
   /** 全站模式下无法填充当前页的外站条目 ID 集（本站模式为空集） */
   offSiteIds: ReadonlySet<string>;
+  /**
+   * 条目 ID → 站点匹配级别（跨子域名分级匹配开启时由父级注入）
+   *
+   * 0=精确（无徽标），1~5=降级命中（渲染来源徽标）；空 map 表示分级未生效。
+   */
+  siteLevelMap: ReadonlyMap<string, number>;
 }
 
 interface Emits {
@@ -125,6 +131,9 @@ const emptyHint = computed(() =>
  * 避免全站模式下每次过滤重算产生新 Set 导致整张列表无效重渲染。
  */
 const canFill = (entry: PasswordEntry): boolean => !props.offSiteIds.has(entry.id);
+
+/** 条目的站点匹配级别（未注入时为 0=精确，不渲染徽标） */
+const siteLevelOf = (entry: PasswordEntry): number => props.siteLevelMap.get(entry.id) ?? 0;
 
 /**
  * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
@@ -546,12 +555,14 @@ onUnmounted(() => {
             searchKeyword,
             pinyinRenderMemoDependency,
             canFill(password),
+            siteLevelOf(password),
           ]"
           :password="password"
           :is-active="activeIndex === index"
           :auto-login-enabled="autoTriggerLogin"
           :search-keyword="searchKeyword"
           :can-fill="canFill(password)"
+          :match-level="siteLevelOf(password)"
           @fill="p => emit('fill', p)"
           @fill-and-login="p => emit('fillAndLogin', p)"
           @open-site="p => emit('openSite', p)"

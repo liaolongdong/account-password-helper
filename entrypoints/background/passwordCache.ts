@@ -13,8 +13,15 @@ import {
   METADATA_FIELDS,
   isMetadataOnlyChange,
 } from '@/utils/storage/passwordCrud';
-import { getSidepanelSortConfig } from '@/utils/storage/configManager';
-import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import { getSidepanelSortConfig, getFloatingButtonConfig } from '@/utils/storage/configManager';
+import {
+  filterAndSortEntriesForDomain,
+  sortPasswordEntries,
+  DEFAULT_SIDEPANEL_SORT,
+  type SortState,
+} from '@/utils/passwordSort';
+import { filterEntriesBySiteLevel } from '@/utils/passwordFilter';
+import { isLocalDevDomain } from '@/utils/domain';
 import { fetchFaviconDataUrl } from '@/utils/favicon';
 import { generateTOTP, parseOtpAuth, getTotpRemaining } from '@/utils/totp';
 import { tl } from '@/utils/i18n-lite';
@@ -515,10 +522,37 @@ export async function getMatchingAccounts(domain: string, port?: string): Promis
   const cache = await ensureAuthenticatedCache();
   if (!cache) return { locked: true, accounts: [] };
 
-  // 过滤 + 排序：与侧边栏 filteredPasswords 一致（含无 URL 条目），
-  // 仅精确匹配完整 hostname，确保 fat/uat 等多测试环境账号严格隔离；
-  // 复用 sortMatchesForDomain（侧边栏排序配置 + 域名优先 + 收藏置顶）
-  const matched = await sortMatchesForDomain(cache.passwords, domain, port);
+  // 跨子域名分级匹配（仅放宽「展示」）：本站无精确账号时纳入主域名/同主域
+  // 子域条目并附 matchLevel 供内容脚本渲染徽标。一键填充（handleQuickFill）
+  // 仍走 sortMatchesForDomain 精确匹配，不自动填降级来的凭据。
+  const crossSubdomain = await getFloatingButtonConfig()
+    .then(cfg => cfg.crossSubdomainMatch)
+    .catch(() => true);
+
+  let matched: PasswordEntry[];
+  let levelById: Map<string, number> | undefined;
+  if (crossSubdomain && domain && !isLocalDevDomain(domain)) {
+    const leveled = filterEntriesBySiteLevel(cache.passwords, { domain, port: port ?? '', crossSubdomain: true });
+    levelById = new Map(leveled.map(({ entry, level }) => [entry.id, level]));
+    const sortConfig = await getCachedSortConfig();
+    const sortState: SortState = sortConfig
+      ? { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] }
+      : DEFAULT_SIDEPANEL_SORT;
+    // 级别为最高优先级（与侧边栏 sitePriorityFn 一致），组内收藏置顶 + 排序配置
+    matched = sortPasswordEntries(
+      leveled.map(({ entry }) => entry),
+      sortState,
+      entry => {
+        const level = levelById!.get(entry.id);
+        return level === undefined ? Number.MAX_SAFE_INTEGER : level;
+      },
+    );
+  } else {
+    // 过滤 + 排序：与侧边栏 filteredPasswords 一致（含无 URL 条目），
+    // 仅精确匹配完整 hostname，确保 fat/uat 等多测试环境账号严格隔离；
+    // 复用 sortMatchesForDomain（侧边栏排序配置 + 域名优先 + 收藏置顶）
+    matched = await sortMatchesForDomain(cache.passwords, domain, port);
+  }
 
   // 并行附带网站图标 dataURL（本地 _favicon/ 端点 + 内存缓存，失败降级空串），
   // 避免将 _favicon/* 暴露为 web_accessible_resources 供网页直接加载
@@ -533,6 +567,7 @@ export async function getMatchingAccounts(domain: string, port?: string): Promis
       favorite: !!p.favorite,
       hasTotp: !!(p.totp && p.totp.trim()),
       favicon: p.url ? await fetchFaviconDataUrl(p.url, 32) : '',
+      ...(levelById ? { matchLevel: levelById.get(p.id) ?? 0 } : {}),
     })),
   );
 

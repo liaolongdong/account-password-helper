@@ -58,6 +58,7 @@
       :available-tags="availableTags"
       :global-match-count="globalMatchCount"
       :off-site-ids="offSiteIds"
+      :site-level-map="siteLevelByIdForBadge"
       @sort-change="handleSortChange"
       @search="handleSearch"
       @add-password="openQuickAddDialog"
@@ -136,6 +137,7 @@ import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/u
 import {
   applyListFilters,
   filterEntriesByScope,
+  filterEntriesBySiteLevel,
   matchesSiteScope,
   type ListFilterOptions,
   type ScopeContext,
@@ -151,7 +153,7 @@ import {
 } from '@/utils/perfMetrics';
 import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { isLocalDevDomain, toNavigableUrl } from '@/utils/domain';
+import { isLocalDevDomain, toNavigableUrl, SiteMatchLevel } from '@/utils/domain';
 import { isEditableEventTarget } from '@/utils/a11y';
 import { warmPinyinMatcher } from '@/utils/searchMatch';
 
@@ -342,17 +344,80 @@ const openQuickAddDialog = (): void => {
 
 // ==================== 排序与过滤 ====================
 
+/**
+ * 全局「跨子域名匹配」开关（默认开启）：本站无精确账号时展示主域名/同主域子域条目（带徽标）
+ *
+ * 必须声明在 scopeContext / siteLevelActive 等派生 computed 之前：
+ * 下方 watch(availableTags) 在 setup 阶段会同步求值一次源，经
+ * availableTags → scopeFilteredPasswords → domainFilteredPasswords → siteLevelActive
+ * 间接触达本 ref；若声明在后会触发 TDZ（Cannot access before initialization），
+ * 导致侧边栏挂载失败白屏。
+ */
+const crossSubdomainMatch = ref(true);
+
 /** 当前活动标签页的域名匹配上下文（供范围过滤与「能否填充当前页」判定共用） */
 const scopeContext = computed<ScopeContext>(() => ({
   domain: currentDomain.value,
   port: currentPort.value,
+  crossSubdomain: crossSubdomainMatch.value,
 }));
 
+/** 分级匹配是否对当前场景生效：开关开启 + 有域名 + 非本地开发域名（本地走端口过滤旧逻辑，不参与分级） */
+const siteLevelActive = computed(
+  () => crossSubdomainMatch.value && !!currentDomain.value && !isLocalDevDomain(currentDomain.value),
+);
+
 /**
- * 本站范围条目（当前域名精确匹配 + 空 URL 通用条目）
+ * 本站分级匹配结果（条目 + 匹配级别，已按级别升序）
+ *
+ * 仅在分级生效场景计算；未开启/本地域名/无域名时返回空数组，
+ * 消费方（levelMap / priorityFn）据此回退历史行为，零回归。
+ */
+const siteLevelMatched = computed(() =>
+  siteLevelActive.value ? filterEntriesBySiteLevel(passwords.value, scopeContext.value) : [],
+);
+
+/** 空 map 常量：分级未生效时复用同一引用，避免下游 computed 无谓失效 */
+const EMPTY_LEVEL_MAP: ReadonlyMap<string, number> = new Map();
+
+/** 条目 ID → 匹配级别（0=精确无徽标，1~5=降级带徽标，6=空 URL 通用）；分级未生效时为空 map */
+const siteLevelById = computed<ReadonlyMap<string, number>>(() => {
+  if (!siteLevelActive.value) return EMPTY_LEVEL_MAP;
+  return new Map(siteLevelMatched.value.map(({ entry, level }) => [entry.id, level]));
+});
+
+/**
+ * 列表排序的域名优先级：分级生效时按匹配级别（精确 0 → 降级 1~5 → 空 URL 最后），
+ * 未生效时回退 useSidepanelData 的历史 0/1 判定，行为零变化。
+ */
+const sitePriorityFn = (entry: PasswordEntry): number => {
+  if (!siteLevelActive.value) return getDomainPriority(entry);
+  const level = siteLevelById.value.get(entry.id);
+  if (level === undefined) return Number.MAX_SAFE_INTEGER;
+  return level === SiteMatchLevel.EmptyUrl ? Number.MAX_SAFE_INTEGER : level;
+};
+
+/**
+ * 条目能否填充当前页
+ *
+ * 本站模式下候选集本身即分级命中结果（含降级条目），用户确认降级条目可手动填充；
+ * 全站模式下仍要求精确匹配，外站条目降级为「打开站点」。
+ */
+const canFillEntry = (entry: PasswordEntry): boolean =>
+  searchScope.value !== 'all' || matchesSiteScope(entry, scopeContext.value);
+
+/** 条目 ID → 匹配级别（徽标渲染用，透传给认证视图） */
+const siteLevelByIdForBadge = computed<ReadonlyMap<string, number>>(() => siteLevelById.value);
+
+/**
+ * 本站范围条目（当前域名精确匹配 + 空 URL 通用条目；分级开启时纳入主域名/同主域子域条目）
  * 抽离为独立 computed：头部匹配数、标签候选集与全站命中数共用同一过滤结果，避免重复计算
  */
-const domainFilteredPasswords = computed(() => filterEntriesByScope(passwords.value, 'site', scopeContext.value));
+const domainFilteredPasswords = computed(() =>
+  siteLevelActive.value
+    ? siteLevelMatched.value.map(({ entry }) => entry)
+    : filterEntriesByScope(passwords.value, 'site', scopeContext.value),
+);
 
 /**
  * 当前搜索范围内的候选集
@@ -387,11 +452,11 @@ const availableTags = computed(() => {
 const filteredPasswords = computed(() => {
   const result = applyListFilters(scopeFilteredPasswords.value, listFilterOptions.value);
 
-  // 应用排序：域名优先级 + 收藏置顶 + 字段排序（复用公共比较器）
+  // 应用排序：站点匹配级别优先级 + 收藏置顶 + 字段排序（复用公共比较器）
   const sortState: SortState = sortConfig.value
     ? { prop: sortConfig.value.prop, order: (sortConfig.value.order || null) as SortState['order'] }
     : DEFAULT_SIDEPANEL_SORT;
-  sortPasswordEntries(result, sortState, getDomainPriority);
+  sortPasswordEntries(result, sortState, sitePriorityFn);
 
   return result;
 });
@@ -415,10 +480,16 @@ const globalMatchCount = computed(() => {
  */
 const offSiteIds = computed<ReadonlySet<string>>(() => {
   if (searchScope.value !== 'all') return EMPTY_ID_SET;
-  const ctx = scopeContext.value;
   const ids = new Set<string>();
   for (const entry of filteredPasswords.value) {
-    if (!matchesSiteScope(entry, ctx)) ids.add(entry.id);
+    // 分级生效时以级别判定（0=精确可填，1~5=降级可填，6=空 URL 可填，未命中=外站）；
+    // 未生效时回退历史精确判定
+    if (siteLevelActive.value) {
+      const level = siteLevelById.value.get(entry.id);
+      if (level === undefined) ids.add(entry.id);
+    } else if (!matchesSiteScope(entry, scopeContext.value)) {
+      ids.add(entry.id);
+    }
   }
   return ids;
 });
@@ -491,8 +562,8 @@ const handleKeydown = (e: KeyboardEvent) => {
       e.preventDefault();
       const entry = list[activeIndex.value];
       if (!entry) break;
-      // 与整行点击保持一致：本站条目填充当前页，全站模式下的外站条目打开其站点
-      if (matchesSiteScope(entry, scopeContext.value)) {
+      // 与整行点击保持一致：本站条目（含分级降级命中）填充当前页，全站模式下的外站条目打开其站点
+      if (canFillEntry(entry)) {
         fillPassword(entry);
       } else {
         handleOpenSite(entry);
@@ -689,8 +760,10 @@ const handleFloatingConfigChange = (
   areaName: chrome.storage.AreaName,
 ) => {
   if (areaName !== 'local' || !(STORAGE_KEYS.FLOATING_BUTTON_CONFIG in changes)) return;
-  const next = changes[STORAGE_KEYS.FLOATING_BUTTON_CONFIG].newValue as { autoTriggerLogin?: boolean } | undefined;
+  const next = changes[STORAGE_KEYS.FLOATING_BUTTON_CONFIG].newValue as
+    { autoTriggerLogin?: boolean; crossSubdomainMatch?: boolean } | undefined;
   autoTriggerLogin.value = next?.autoTriggerLogin ?? false;
+  crossSubdomainMatch.value = next?.crossSubdomainMatch ?? true;
 };
 
 // ==================== 初始化 ====================
@@ -761,8 +834,9 @@ onMounted(async () => {
   void getFloatingButtonConfig()
     .then(cfg => {
       autoTriggerLogin.value = cfg.autoTriggerLogin;
+      crossSubdomainMatch.value = cfg.crossSubdomainMatch;
     })
-    .catch(error => logger.error('SidePanel: 读取自动触发登录配置失败:', error));
+    .catch(error => logger.error('SidePanel: 读取悬浮按钮配置失败:', error));
 
   // ==================== 首屏收尾编排（先于数据竞速定义，快速路径/兜底可提前触发） ====================
   // 1. 打 sp-list-rendered 埋点，数据就绪后写入性能环形日志（含列表渲染段分解）

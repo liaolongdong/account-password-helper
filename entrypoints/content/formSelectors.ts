@@ -206,6 +206,28 @@ export const VERIFY_CODE_SELECTORS = [
   'input[placeholder*="authentication code"]',
   'input[placeholder*="身份验证器"]',
   'input[placeholder*="动态口令"]',
+  // 内部系统常用称呼（如「请输入【昆仑生产安全令】」），无 name/id 时仅凭 placeholder 识别
+  'input[placeholder*="安全令"]',
+  'input[placeholder*="安全令牌"]',
+  'input[placeholder*="动态令牌"]',
+  // 堡垒机 / 运维平台常见动态口令措辞（仅收录语义明确指向 TOTP 的词，
+  // 不含「验证码」「认证」等过泛词，避免误命中图形/短信验证码字段）
+  'input[placeholder*="动态密码"]',
+  'input[placeholder*="手机令牌"]',
+  'input[placeholder*="身份验证码"]',
+  'input[placeholder*="二次验证"]',
+  'input[placeholder*="认证码"]',
+  'input[placeholder*="RSA令牌"]',
+  'input[placeholder*="RSA动态口令"]',
+  'input[placeholder*="6位动态码"]',
+  // name/id 类：RSA SecurID 令牌与通用验证器（国际平台常见，当前缺失）
+  'input[name*="securid"]',
+  'input[id*="securid"]',
+  'input[autocomplete="one-time-password"]',
+  'input[name*="authenticator"]',
+  'input[id*="authenticator"]',
+  'input[name*="googleauth"]',
+  'input[id*="googleauth"]',
 ] as const;
 
 /** 登录按钮关键词 */

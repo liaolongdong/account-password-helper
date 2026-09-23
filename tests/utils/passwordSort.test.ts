@@ -5,7 +5,10 @@ import {
   DEFAULT_SORT,
   sortPasswordEntries,
   filterAndSortEntriesForDomain,
+  compareBySortChain,
+  sortByChain,
   type SortState,
+  type SortCriterion,
 } from '@/utils/passwordSort';
 import type { PasswordEntry } from '@/utils/types';
 import { makePasswordEntry as entry } from '@/tests/helpers/passwordEntry';
@@ -195,5 +198,87 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
     const result = filterAndSortEntriesForDomain(list, 'no-match.example.org');
     expect(result).toEqual([]);
     expect(list.map(e => e.id)).toEqual(snapshot);
+  });
+});
+
+describe('compareBySortChain 多列排序链', () => {
+  it('空链等价于默认排序：收藏置顶 + updateTime 降序', () => {
+    const a = entry({ id: 'a', updateTime: 100 });
+    const b = entry({ id: 'b', updateTime: 200 });
+    const fav = entry({ id: 'fav', favorite: true, updateTime: 1 });
+    // 无收藏时按 updateTime 降序：b 前
+    expect(compareBySortChain(a, b, [])).toBeGreaterThan(0);
+    // 收藏仍置顶
+    expect(compareBySortChain(fav, b, [])).toBeLessThan(0);
+  });
+
+  it('单条件链与单列排序方向语义一致', () => {
+    const apple = entry({ username: 'apple' });
+    const banana = entry({ username: 'banana' });
+    const asc: SortCriterion[] = [{ prop: 'username', order: 'ascending' }];
+    const desc: SortCriterion[] = [{ prop: 'username', order: 'descending' }];
+    expect(compareBySortChain(apple, banana, asc)).toBeLessThan(0);
+    expect(compareBySortChain(apple, banana, desc)).toBeGreaterThan(0);
+  });
+
+  it('多条件链：前序相等才比较后序（先标签升序，再创建时间降序）', () => {
+    const chain: SortCriterion[] = [
+      { prop: 'tag', order: 'ascending' },
+      { prop: 'createTime', order: 'descending' },
+    ];
+    // tag 相同（'x'），按 createTime 降序：新在前
+    const a = entry({ id: 'a', tag: 'x', createTime: 100 });
+    const b = entry({ id: 'b', tag: 'x', createTime: 200 });
+    expect(compareBySortChain(a, b, chain)).toBeGreaterThan(0);
+    // tag 不同：优先按 tag 升序，createTime 不参与
+    const c = entry({ id: 'c', tag: 'a', createTime: 999 });
+    expect(compareBySortChain(c, a, chain)).toBeLessThan(0);
+  });
+
+  it('收藏置顶优先级高于整条排序链', () => {
+    const chain: SortCriterion[] = [{ prop: 'username', order: 'ascending' }];
+    const fav = entry({ id: 'fav', username: 'zoe', favorite: true });
+    const normal = entry({ id: 'normal', username: 'amy', favorite: false });
+    // 用户名升序本应 amy 前，但收藏置顶压过排序链
+    expect(compareBySortChain(fav, normal, chain)).toBeLessThan(0);
+  });
+
+  it('priorityFn 优先级最高，压过收藏与排序链', () => {
+    const chain: SortCriterion[] = [{ prop: 'username', order: 'ascending' }];
+    const fav = entry({ id: 'fav', username: 'amy', favorite: true });
+    const normal = entry({ id: 'normal', username: 'zoe', favorite: false });
+    const priorityFn = (e: PasswordEntry) => (e.id === 'normal' ? 0 : 1);
+    expect(compareBySortChain(fav, normal, chain, priorityFn)).toBeGreaterThan(0);
+  });
+
+  it('所有链条件相等时回退 updateTime 降序', () => {
+    const chain: SortCriterion[] = [{ prop: 'tag', order: 'ascending' }];
+    const a = entry({ id: 'a', tag: 'same', updateTime: 100 });
+    const b = entry({ id: 'b', tag: 'same', updateTime: 200 });
+    expect(compareBySortChain(a, b, chain)).toBeGreaterThan(0);
+  });
+});
+
+describe('sortByChain', () => {
+  it('就地排序并返回同一数组引用', () => {
+    const list = [entry({ id: 'x', order: 3 }), entry({ id: 'y', order: 1 })];
+    const result = sortByChain(list, [{ prop: 'order', order: 'ascending' }]);
+    expect(result).toBe(list);
+    expect(result.map(e => e.id)).toEqual(['y', 'x']);
+  });
+
+  it('多列排序结果：先主键后次键', () => {
+    const chain: SortCriterion[] = [
+      { prop: 'tag', order: 'ascending' },
+      { prop: 'username', order: 'ascending' },
+    ];
+    const list = [
+      entry({ id: '1', tag: 'b', username: 'x' }),
+      entry({ id: '2', tag: 'a', username: 'z' }),
+      entry({ id: '3', tag: 'a', username: 'y' }),
+    ];
+    const result = sortByChain([...list], chain);
+    // tag 升序：a 组（2,3）在前，组内 username 升序：y(3) 先于 z(2)
+    expect(result.map(e => e.id)).toEqual(['3', '2', '1']);
   });
 });

@@ -283,6 +283,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
       username: entry.username,
       password: entry.password,
       autoLogin: false,
+      entryId: entry.id,
     });
 
     if (!result?.success) {

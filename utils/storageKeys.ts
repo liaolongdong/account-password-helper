@@ -35,6 +35,10 @@ export const STORAGE_KEYS = {
   PLATFORM_IS_WINDOWS: 'platform_is_windows',
   /** 内联填充首次引导气泡已展示标记（终生仅展示一次） */
   INLINE_FILL_HINT_SHOWN: 'inline_fill_hint_shown',
+  /** Options 密码列表每页条数（用户自定义分页大小） */
+  OPTIONS_PAGE_SIZE: 'options_page_size',
+  /** Options 密码列表多列排序链（数组顺序即优先级；空数组表示默认排序） */
+  OPTIONS_SORT_CHAIN: 'options_sort_chain',
 };
 
 /**

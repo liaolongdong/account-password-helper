@@ -1,7 +1,8 @@
-import { ref, computed, watch, onScopeDispose, type Ref } from 'vue';
+import { ref, computed, watch, nextTick, onScopeDispose, type Ref } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
 import type { PasswordEntry, PasswordEntryWithUI, PasswordFormModel } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
+import { DEFAULT_OPTIONS_PAGE_SIZE, OPTIONS_PAGE_SIZE_OPTIONS } from '@/utils/storage/configManager';
 import { ExcelUtils } from '@/utils/excel';
 import { EmailBackupUtils } from '@/utils/emailBackup';
 import { exportEncryptedBackup } from '@/utils/backupExport';
@@ -10,9 +11,10 @@ import { t } from '@/utils/i18n';
 import { parseTags, stringifyTags, collectAllTags } from '@/utils/tagUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
-import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
+import { DEFAULT_SORT, comparePasswordEntries, sortByChain, type SortCriterion } from '@/utils/passwordSort';
 import { isValidTotpInput } from '@/utils/totp';
 import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
+import { normalizeToHostname } from '@/utils/domain';
 import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
 import { createPasswordFormRules } from '@/utils/formValidators';
 
@@ -20,6 +22,8 @@ import { createPasswordFormRules } from '@/utils/formValidators';
 export const MAX_TAG_COUNT = 3;
 /** 单个标签最大字符长度 */
 export const MAX_TAG_LENGTH = 30;
+/** 每页条数可选档位（供 UI 渲染下拉；与 configManager 白名单同源，防漂移） */
+export const PAGE_SIZE_OPTIONS = OPTIONS_PAGE_SIZE_OPTIONS;
 
 /** 密码表单空值初始状态（避免多处重复字面量） */
 const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
@@ -53,8 +57,18 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   // 状态
   const passwords = ref<PasswordEntry[]>([]);
-  /** 当前排序状态（由 el-table @sort-change 驱动更新） */
-  const currentSort = ref<SortState>({ ...DEFAULT_SORT });
+  /**
+   * 当前多列排序链（数组顺序即优先级，先点击者为主排序）
+   *
+   * 空链表示默认排序（收藏置顶 + updateTime 降序）。初值为空，创建时异步读取
+   * 用户偏好覆盖；读取失败保持空（默认）。列点击按 升 → 降 → 移除 循环更新。
+   */
+  const sortChain = ref<SortCriterion[]>([]);
+
+  /** 读取持久化的排序链（fire-and-forget，失败保持默认空链不阻断列表） */
+  void StorageUtils.getOptionsSortChain().then(chain => {
+    sortChain.value = chain;
+  });
   const showImportDialog = ref(false);
   const showPasswordDialog = ref(false);
   const showEmailBackupDialog = ref(false);
@@ -65,6 +79,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const favoriteOnly = ref(false);
   /** 标签筛选：选中标签集合（命中任一即保留，与搜索/收藏过滤为叠加关系） */
   const filterTags = ref<string[]>([]);
+  /** 网址筛选：选中域名集合（命中任一即保留，与标签/收藏/搜索为叠加关系） */
+  const filterUrls = ref<string[]>([]);
   const selectedIds = ref<string[]>([]);
   const isEditingPassword = ref(false);
   const editingPasswordId = ref<string>('');
@@ -87,7 +103,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   }));
 
   // 计算属性（过滤 + 排序，替代 el-table 客户端排序）
-  const filteredPasswords = computed(() => {
+
+  /**
+   * 命中关键词搜索与收藏过滤的条目（筛选下拉候选的基准集）
+   *
+   * 不含标签/网址筛选自身：下拉候选应反映「当前搜索语境下可选项」，
+   * 若叠加筛选自身会导致选中一个选项后其余候选被互相挤掉。
+   */
+  const searchFilteredPasswords = computed(() => {
     let result: PasswordEntry[] = passwords.value;
 
     if (debouncedSearchKeyword.value) {
@@ -100,12 +123,106 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       result = result.filter(p => p.favorite);
     }
 
+    return result;
+  });
+
+  const filteredPasswords = computed(() => {
+    let result: PasswordEntry[] = searchFilteredPasswords.value;
+
     if (filterTags.value.length > 0) {
       result = result.filter(p => parseTags(p.tag).some(tag => filterTags.value.includes(tag)));
     }
 
-    // 始终按当前排序状态排序（替代 el-table 客户端排序）
-    return sortPasswordEntries([...result], currentSort.value);
+    if (filterUrls.value.length > 0) {
+      result = result.filter(p => filterUrls.value.includes(normalizeToHostname(p.url || '')));
+    }
+
+    // 始终按当前排序链排序（替代 el-table 客户端排序）
+    return sortByChain([...result], sortChain.value);
+  });
+
+  /**
+   * 当前页码（1 起）
+   *
+   * 大列表（数百条以上）全量渲染 el-table 时每行约 12 个 tooltip 组件实例，
+   * 新增/收藏/排序等任意变更都触发整表重建导致卡顿。分页后表格只渲染当前页，
+   * 把每次更新的成本从 O(全部条目) 降到 O(pageSize)。
+   */
+  const currentPage = ref(1);
+
+  /**
+   * 每页条数（用户可自定义，持久化到 storage.local）
+   *
+   * 初值为默认档位，创建时异步读取用户偏好覆盖；读取失败保持默认。
+   * 仅接受白名单档位（见 PAGE_SIZE_OPTIONS），由 UI 下拉约束 + 存储层校验双重保证。
+   */
+  const pageSize = ref<number>(DEFAULT_OPTIONS_PAGE_SIZE);
+
+  /** 读取持久化的每页条数（fire-and-forget，失败保持默认值不阻断列表） */
+  void StorageUtils.getOptionsPageSize().then(size => {
+    pageSize.value = size;
+  });
+
+  /** 当前页条目（表格实际渲染的数据源）；页码越界时按最后一页取值，避免空白页 */
+  const pagedPasswords = computed(() => {
+    const all = filteredPasswords.value;
+    const maxPage = Math.max(1, Math.ceil(all.length / pageSize.value));
+    const page = Math.min(currentPage.value, maxPage);
+    const start = (page - 1) * pageSize.value;
+    return all.slice(start, start + pageSize.value);
+  });
+
+  /** 结果集变短或页大小变化导致当前页越界时，收敛到最后一页（计算属性保持纯派生，状态在此修正） */
+  watch(
+    () => [filteredPasswords.value.length, pageSize.value] as const,
+    ([total, size]) => {
+      const maxPage = Math.max(1, Math.ceil(total / size));
+      if (currentPage.value > maxPage) currentPage.value = maxPage;
+    },
+  );
+
+  /**
+   * 过滤条件或排序变化时回到第一页
+   *
+   * 与既有「筛选变化清空选中」策略一致：结果集语义已变，停留在原页码
+   * 会让用户看不到命中结果的第一条。
+   */
+  watch([debouncedSearchKeyword, favoriteOnly, filterTags, filterUrls, sortChain], () => {
+    currentPage.value = 1;
+  });
+
+  /**
+   * 切换每页条数
+   *
+   * 保持视口位置：以当前页首条在全量结果中的索引换算到新页大小下的页码，
+   * 避免用户从第 N 页切换档位后被弹回顶部或落到不相干的条目。
+   * 异步持久化用户偏好（失败仅记录日志，不阻断 UI 切换）。
+   * @param size 新的每页条数（白名单档位）
+   */
+  const handlePageSizeChange = (size: number) => {
+    const firstIndex = (currentPage.value - 1) * pageSize.value;
+    pageSize.value = size;
+    const maxPage = Math.max(1, Math.ceil(filteredPasswords.value.length / size));
+    currentPage.value = Math.min(Math.floor(firstIndex / size) + 1, maxPage);
+    void StorageUtils.setOptionsPageSize(size).catch(error => {
+      logger.error('保存每页条数失败:', error);
+    });
+  };
+
+  /**
+   * 选中集与当前页联动清理
+   *
+   * el-table 的 selection 由组件内部维护，翻页后旧行的选中态随 DOM 销毁而消失，
+   * 但 selectedIds 仍保留旧页条目，导致「批量删除」误删不可见条目。
+   * 这里只剔除已不在当前页的 id，保留同页内用户已勾选的条目。
+   */
+  watch(pagedPasswords, pageRows => {
+    if (selectedIds.value.length === 0) return;
+    const visibleIds = new Set(pageRows.map(row => row.id));
+    const kept = selectedIds.value.filter(id => visibleIds.has(id));
+    if (kept.length !== selectedIds.value.length) {
+      selectedIds.value = kept;
+    }
   });
 
   /**
@@ -130,20 +247,29 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   });
 
   /**
-   * 标签筛选变化同样视为过滤条件变化，需清空选中（与收藏过滤策略一致）。
+   * 标签/网址筛选变化同样视为过滤条件变化，需清空选中（与收藏过滤策略一致）。
    * 但多选下拉展开期间每次勾选项都会触发变化：若此时立即清空选中，
    * 批量按钮会在交互中途消失引起布局跳动。因此展开期间仅记录待清空标记，
-   * 待下拉收起时（见 handleTagFilterVisibleChange）统一清空。
+   * 待下拉收起时（见 handleTagFilterVisibleChange / handleUrlFilterVisibleChange）统一清空。
    */
   let tagFilterDropdownVisible = false;
+  let urlFilterDropdownVisible = false;
   let pendingSelectionClear = false;
-  watch(filterTags, () => {
-    if (tagFilterDropdownVisible) {
+  watch([filterTags, filterUrls], () => {
+    if (tagFilterDropdownVisible || urlFilterDropdownVisible) {
       pendingSelectionClear = true;
     } else {
       selectedIds.value = [];
     }
   });
+
+  /** 两个筛选下拉均已收起时，补执行交互期间挂起的选中清空 */
+  const flushPendingSelectionClear = () => {
+    if (!tagFilterDropdownVisible && !urlFilterDropdownVisible && pendingSelectionClear) {
+      pendingSelectionClear = false;
+      selectedIds.value = [];
+    }
+  };
 
   /**
    * 标签筛选下拉展开/收起回调
@@ -153,10 +279,13 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    */
   const handleTagFilterVisibleChange = (visible: boolean) => {
     tagFilterDropdownVisible = visible;
-    if (!visible && pendingSelectionClear) {
-      pendingSelectionClear = false;
-      selectedIds.value = [];
-    }
+    flushPendingSelectionClear();
+  };
+
+  /** 网址筛选下拉展开/收起回调（语义与标签筛选一致） */
+  const handleUrlFilterVisibleChange = (visible: boolean) => {
+    urlFilterDropdownVisible = visible;
+    flushPendingSelectionClear();
   };
 
   /**
@@ -165,11 +294,65 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    */
   const availableTags = computed<string[]>(() => collectAllTags(passwords.value));
 
+  /**
+   * 标签筛选下拉的候选集（搜索语境）
+   *
+   * 随关键词搜索/收藏过滤动态收窄：搜索结果里没有的标签不再出现在下拉中，
+   * 避免用户选中一个必然零结果的选项。已选中的标签并入候选（保持可取消勾选），
+   * 即使它不在当前搜索结果里，chip 也不会丢失。
+   * 注意与 availableTags 区分：表单/批量编辑的候选始终来自全量条目。
+   */
+  const filterTagOptions = computed<string[]>(() => {
+    const options = collectAllTags(searchFilteredPasswords.value);
+    const known = new Set(options);
+    return [...options, ...filterTags.value.filter(tag => !known.has(tag))];
+  });
+
+  /**
+   * 网址筛选下拉的候选集（搜索语境）
+   *
+   * 与 filterTagOptions 同理：基于当前搜索/收藏过滤的结果集聚合去重 hostname，
+   * 并并入已选中项保证可取消。
+   */
+  const filterUrlOptions = computed<string[]>(() => {
+    const hosts = new Set<string>();
+    for (const p of searchFilteredPasswords.value) {
+      const host = normalizeToHostname(p.url || '');
+      if (host) hosts.add(host);
+    }
+    const options = [...hosts].sort();
+    const known = new Set(options);
+    return [...options, ...filterUrls.value.filter(url => !known.has(url))];
+  });
+
   // 批量移除标签等操作后候选集可能不再包含已选筛选标签：
-  // 及时剔除失效项，避免筛选下拉隐藏后残留过滤条件造成「隐形空过滤」
+  // 及时剔除失效项，避免筛选下拉隐藏后残留过滤条件造成「隐形空过滤」。
+  // 注意以全量候选（availableTags）为准而非搜索语境候选：搜索只是临时视图收窄，
+  // 不应据此清掉用户的筛选选择。
   watch(availableTags, tags => {
     if (filterTags.value.some(selected => !tags.includes(selected))) {
       filterTags.value = filterTags.value.filter(selected => tags.includes(selected));
+    }
+  });
+
+  /**
+   * 下拉候选网址列表
+   * 从所有密码条目聚合去重的 hostname（规范化：忽略协议/路径/大小写），
+   * 空 URL 条目不产生候选。按字典序排列保证选项稳定。
+   */
+  const availableUrls = computed<string[]>(() => {
+    const hosts = new Set<string>();
+    for (const p of passwords.value) {
+      const host = normalizeToHostname(p.url || '');
+      if (host) hosts.add(host);
+    }
+    return [...hosts].sort();
+  });
+
+  // 与标签筛选同理：删除条目导致候选网址失效时剔除已选筛选项，避免隐形空过滤
+  watch(availableUrls, urls => {
+    if (filterUrls.value.some(selected => !urls.includes(selected))) {
+      filterUrls.value = filterUrls.value.filter(selected => urls.includes(selected));
     }
   });
 
@@ -268,14 +451,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       });
 
       // 等待 el-table 完成虚拟 DOM 更新后滚动到目标行并高亮（复用 new-item 样式）
-      setTimeout(() => {
-        const row = document.querySelector(`.${id}`);
-        if (row) {
-          row.classList.add('new-item');
-          row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setTimeout(() => row.classList.remove('new-item'), 6000);
-        }
-      }, 100);
+      // scrollToPassword 分页感知：收藏后条目位次可能变化并落到其他页，需先切页再定位
+      scrollToPassword(id);
     } catch (error) {
       logger.error('切换收藏失败:', error);
       ElMessage.error(t('message.operationFailed'));
@@ -313,29 +490,67 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
   };
 
-  // 处理排序变化（同步更新 currentSort 并持久化）
-  const handleSortChange = async ({ prop, order }: { prop: string; order: string }) => {
-    currentSort.value = { prop, order: (order || null) as SortState['order'] };
-    try {
-      await StorageUtils.saveSortConfig({ prop, order });
-    } catch (error) {
-      logger.error('保存排序配置失败:', error);
-    }
+  /** 持久化排序链（失败仅记录日志，不阻断 UI 更新） */
+  const persistSortChain = () => {
+    void StorageUtils.saveOptionsSortChain(sortChain.value).catch(error => {
+      logger.error('保存排序链失败:', error);
+    });
   };
 
   /**
-   * 从存储恢复排序状态到 currentSort
-   * 需在 onMounted 中、loadPasswords 之后调用，确保首次渲染使用正确的排序
+   * 处理列头点击（多列排序链）
+   *
+   * 循环语义：不在链中 → 追加为升序；升序 → 转降序；降序 → 从链中移除。
+   * 点击已在链中的列只改变该列方向/存在性，不改变其优先级位置；
+   * 点击新列则追加到链尾（最低优先级），实现「按点击顺序叠加」。
+   * @param prop 被点击的列字段名
    */
-  const restoreSortConfig = async () => {
-    try {
-      const sortConfig = await StorageUtils.getSortConfig();
-      if (sortConfig) {
-        currentSort.value = { prop: sortConfig.prop, order: (sortConfig.order || null) as SortState['order'] };
-      }
-    } catch (error) {
-      logger.debug('恢复排序配置失败:', error);
+  const handleColumnSort = (prop: string) => {
+    const index = sortChain.value.findIndex(item => item.prop === prop);
+    if (index === -1) {
+      sortChain.value = [...sortChain.value, { prop, order: 'ascending' }];
+    } else if (sortChain.value[index].order === 'ascending') {
+      const next = [...sortChain.value];
+      next[index] = { prop, order: 'descending' };
+      sortChain.value = next;
+    } else {
+      sortChain.value = sortChain.value.filter(item => item.prop !== prop);
     }
+    persistSortChain();
+  };
+
+  /**
+   * 从排序链移除指定列（信息栏 chip 的 × 操作）
+   * @param prop 目标列字段名
+   */
+  const removeSortCriterion = (prop: string) => {
+    sortChain.value = sortChain.value.filter(item => item.prop !== prop);
+    persistSortChain();
+  };
+
+  /** 清除全部排序，回到默认（收藏置顶 + 更新时间降序） */
+  const clearSortChain = () => {
+    sortChain.value = [];
+    persistSortChain();
+  };
+
+  /**
+   * 拖拽调整排序链优先级（信息栏 chip 拖动重排）
+   *
+   * 将 fromIndex 处的条件移动到 toIndex（数组下标，0 起）。越界或同位时忽略。
+   * @param fromIndex 被拖拽项原下标
+   * @param toIndex   目标下标
+   */
+  const moveSortCriterion = (fromIndex: number, toIndex: number) => {
+    const chain = sortChain.value;
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= chain.length || toIndex >= chain.length) {
+      return;
+    }
+    const next = [...chain];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    sortChain.value = next;
+    persistSortChain();
   };
 
   // 切换密码可见性
@@ -386,21 +601,33 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   // 滚动到密码项
+  // 分页后目标条目可能不在当前页：先按其在全量结果中的位置切到对应页，
+  // 等 DOM 更新后再定位高亮，避免新增/编辑后看不到反馈
   const scrollToPassword = (id: string) => {
-    setTimeout(() => {
-      const passwordElement = document.querySelector(`.${id}`);
-      if (passwordElement) {
-        passwordElement.classList.add('new-item');
-        setTimeout(() => {
-          passwordElement.classList.remove('new-item');
-        }, 6000);
-
-        passwordElement.scrollIntoView({
-          behavior: 'smooth',
-          block: 'center',
-        });
+    const index = filteredPasswords.value.findIndex(p => p.id === id);
+    if (index >= 0) {
+      const targetPage = Math.floor(index / pageSize.value) + 1;
+      if (targetPage !== currentPage.value) {
+        currentPage.value = targetPage;
       }
-    }, 100);
+    }
+    // 页码切换后需等一次 DOM 更新，再查询目标行；原 100ms 延时保留过渡动画窗口
+    void nextTick(() => {
+      setTimeout(() => {
+        const passwordElement = document.querySelector(`.${id}`);
+        if (passwordElement) {
+          passwordElement.classList.add('new-item');
+          setTimeout(() => {
+            passwordElement.classList.remove('new-item');
+          }, 6000);
+
+          passwordElement.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center',
+          });
+        }
+      }, 100);
+    });
   };
 
   // 处理密码表单保存
@@ -489,16 +716,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       (newEntry! as PasswordEntryWithUI).showPassword = false;
       passwords.value.push(newEntry!);
 
-      setTimeout(() => {
-        const copyAddedItem = document.querySelector(`.${newEntry!.id}`);
-        if (copyAddedItem) {
-          copyAddedItem.classList.add('new-item');
-          copyAddedItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          setTimeout(() => {
-            copyAddedItem.classList.remove('new-item');
-          }, 6000);
-        }
-      }, 100);
+      // 分页感知定位：副本按排序规则可能落到其他页，需先切页再高亮
+      scrollToPassword(newEntry!.id);
 
       ElMessage.success(t('form.copySuccess'));
     } catch (error: any) {
@@ -858,18 +1077,29 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     tableLoading,
     favoriteOnly,
     filterTags,
+    filterUrls,
     filteredPasswords,
-    currentSort,
+    currentPage,
+    pageSize,
+    pagedPasswords,
+    handlePageSizeChange,
+    sortChain,
     availableTags,
+    availableUrls,
+    filterTagOptions,
+    filterUrlOptions,
     tagArray,
     // 方法
     loadPasswords,
-    handleSortChange,
-    restoreSortConfig,
+    handleColumnSort,
+    removeSortCriterion,
+    clearSortChain,
+    moveSortCriterion,
     togglePasswordVisibility,
     handleRowClassName,
     handleSelectionChange,
     handleTagFilterVisibleChange,
+    handleUrlFilterVisibleChange,
     openPasswordDialog,
     editPassword,
     resetPasswordForm,

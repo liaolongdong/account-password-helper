@@ -151,7 +151,8 @@ async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: 
 
   const fillMessage = {
     type: MessageType.FILL_PASSWORD,
-    data: { username: entry.username, password: entry.password, autoLogin: data.autoLogin },
+    // entryId 供内容脚本在「自动填入两步验证码」开关开启时经 background 现算动态码
+    data: { username: entry.username, password: entry.password, autoLogin: data.autoLogin, entryId: entry.id },
   };
   // 显式定向发起 frame：frameId 缺失时回退顶层（0）而非广播全帧，
   // 与上方 isFrameFillable「仅顶层或同主域名 frame 可接收」的门控语义保持一致

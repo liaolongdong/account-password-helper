@@ -8,7 +8,14 @@
  * 域名匹配语义完全复用 `utils/domain.ts`，与既有的当前域名过滤行为保持一致。
  */
 import type { PasswordEntry } from '@/utils/types';
-import { isExactHostMatch, isLocalDevDomain, matchesPortForLocalDev } from '@/utils/domain';
+import {
+  isExactHostMatch,
+  isLocalDevDomain,
+  matchesPortForLocalDev,
+  classifySiteMatch,
+  SiteMatchLevel,
+  type SiteMatchLevelValue,
+} from '@/utils/domain';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { parseTags } from '@/utils/tagUtils';
 
@@ -26,6 +33,13 @@ export interface ScopeContext {
   domain: string;
   /** 当前标签页端口，仅本地开发域名参与过滤 */
   port: string;
+  /**
+   * 是否启用跨子域名分级匹配（展示放宽），默认 false
+   *
+   * 开启后本站列表 / 内联下拉在精确匹配之外，按 {@link SiteMatchLevel}
+   * 纳入主域名与同主域其他子域条目（带徽标）；关闭时行为与历史完全一致。
+   */
+  crossSubdomain?: boolean;
 }
 
 /** 列表级过滤条件（三者为叠加关系） */
@@ -61,6 +75,57 @@ export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext): boole
   }
   if (!entry.url || entry.url.trim() === '') return true;
   return isExactHostMatch(ctx.domain, entry.url);
+}
+
+/** 带站点匹配级别的条目（供列表排序与徽标渲染） */
+export interface SiteMatchedEntry {
+  /** 密码条目 */
+  entry: PasswordEntry;
+  /** 匹配级别（SiteMatchLevel 值；0 为精确，越大越近似） */
+  level: SiteMatchLevelValue;
+}
+
+/**
+ * 按站点匹配级别筛选条目（侧边栏本站列表 / 内联下拉共用）
+ *
+ * - 无域名（新标签页）→ 放行全部，级别记 ExactHost（不显示徽标）
+ * - 本地开发域名 → 走端口过滤旧逻辑，不参与分级
+ * - crossSubdomain 关闭 → 仅精确匹配 + 空 URL（与历史行为一致）
+ * - crossSubdomain 开启 → 按 {@link classifySiteMatch} 六级纳入，
+ *   返回结果按级别升序稳定排序（组内保持入参顺序，调用方可再叠加业务排序）
+ *
+ * @param entries - 候选条目
+ * @param ctx - 当前标签页域名上下文
+ * @returns 匹配条目及其级别（已按级别升序）
+ */
+export function filterEntriesBySiteLevel(entries: readonly PasswordEntry[], ctx: ScopeContext): SiteMatchedEntry[] {
+  if (!ctx.domain) return entries.map(entry => ({ entry, level: SiteMatchLevel.ExactHost }));
+
+  if (isLocalDevDomain(ctx.domain)) {
+    return entries
+      .filter(entry => matchesPortForLocalDev(entry.url, ctx.port))
+      .map(entry => ({ entry, level: SiteMatchLevel.ExactHost }));
+  }
+
+  const matched: SiteMatchedEntry[] = [];
+  for (const entry of entries) {
+    if (!entry.url || entry.url.trim() === '') {
+      matched.push({ entry, level: SiteMatchLevel.EmptyUrl });
+      continue;
+    }
+    const level = classifySiteMatch(ctx.domain, ctx.port, entry.url);
+    if (level === SiteMatchLevel.NoMatch) continue;
+    if (!ctx.crossSubdomain && level !== SiteMatchLevel.ExactHost) continue;
+    matched.push({ entry, level });
+  }
+
+  // 稳定排序：级别升序；空 URL 通用条目（EmptyUrl）排在所有分级条目之后
+  matched.sort((a, b) => {
+    const keyA = a.level === SiteMatchLevel.EmptyUrl ? Number.MAX_SAFE_INTEGER : a.level;
+    const keyB = b.level === SiteMatchLevel.EmptyUrl ? Number.MAX_SAFE_INTEGER : b.level;
+    return keyA - keyB;
+  });
+  return matched;
 }
 
 /**

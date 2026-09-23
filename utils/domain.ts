@@ -327,6 +327,89 @@ export function isExactHostMatch(currentDomain: string, storedUrl: string): bool
   return a === b;
 }
 
+// ── 跨子域名分级匹配（侧边栏列表 / 内联下拉展示专用） ──
+
+/**
+ * 站点匹配级别（数值即排序优先级，越小越靠前）
+ *
+ * 仅用于「展示范围放宽」：侧边栏本站列表与内联下拉在精确匹配无结果时，
+ * 按级别依次纳入主域名与同主域其他子域条目，并以徽标向用户标明来源。
+ * 一键填充、自动保存、右键菜单等自动路径不使用本分级，保持精确匹配。
+ */
+export const SiteMatchLevel = {
+  /** 同子域 + 端口一致（条目无端口视为一致） */
+  ExactHost: 0,
+  /** 同子域 + 端口不同 */
+  SameHostDiffPort: 1,
+  /** 同主域其他子域 + 端口显式一致 */
+  SubDomainMatchPort: 2,
+  /** 主域名条目（端口一致或无端口） */
+  MainDomain: 3,
+  /** 同主域其他子域 + 无端口（通用） */
+  SubDomainNoPort: 4,
+  /** 兜底：同主域（其他子域或主域名）+ 端口不一致 */
+  SameMainDiffPort: 5,
+  /** 空 URL 通用条目：始终纳入，排在所有分级条目之后 */
+  EmptyUrl: 6,
+  /** 不匹配（主域名不同） */
+  NoMatch: -1,
+} as const;
+
+export type SiteMatchLevelValue = (typeof SiteMatchLevel)[keyof typeof SiteMatchLevel];
+
+/** 视为「未指定端口」的默认端口（https 443 / http 80） */
+const DEFAULT_PORTS = new Set(['', '443', '80']);
+
+/**
+ * 判定密码条目与当前页面的站点匹配级别
+ *
+ * 端口语义：条目端口为空/443/80 视为「无端口（通用）」；页面端口由调用方
+ * 从 URL 提取（浏览器对默认端口返回空串）。显式端口比较要求完全一致。
+ *
+ * 本地开发域名（localhost / IP）不参与分级：由调用方先行短路走端口过滤旧逻辑。
+ *
+ * @param currentHost 当前页面 hostname（小写）
+ * @param currentPort 当前页面端口（空串 = 默认端口）
+ * @param storedUrl 条目存储的 URL/域名
+ * @returns 匹配级别；NoMatch 表示主域名不同不纳入
+ *
+ * @example 当前页 fat.example.com:8443
+ * classifySiteMatch('fat.example.com', '8443', 'fat.example.com:8443') // → ExactHost
+ * classifySiteMatch('fat.example.com', '8443', 'fat.example.com:9090') // → SameHostDiffPort
+ * classifySiteMatch('fat.example.com', '8443', 'uat.example.com:8443') // → SubDomainMatchPort
+ * classifySiteMatch('fat.example.com', '8443', 'example.com')          // → MainDomain
+ * classifySiteMatch('fat.example.com', '8443', 'dev.example.com')      // → SubDomainNoPort
+ * classifySiteMatch('fat.example.com', '8443', 'other.org')            // → NoMatch
+ */
+export function classifySiteMatch(currentHost: string, currentPort: string, storedUrl: string): SiteMatchLevelValue {
+  if (!currentHost) return SiteMatchLevel.NoMatch;
+  const entryHost = normalizeToHostname(storedUrl || '');
+  if (!entryHost) return SiteMatchLevel.EmptyUrl;
+
+  // 端口语义（非对称）：条目无端口（含 :443/:80）= 通用不限端口，视为端口兼容；
+  // 条目带显式端口时要求与页面端口完全一致（页面默认端口浏览器返回空串）
+  const entryPort = extractPort(storedUrl);
+  const portSame = DEFAULT_PORTS.has(entryPort) || entryPort === currentPort;
+
+  if (entryHost === currentHost) {
+    return portSame ? SiteMatchLevel.ExactHost : SiteMatchLevel.SameHostDiffPort;
+  }
+
+  const entryMain = getMainDomain(entryHost);
+  const curMain = getMainDomain(currentHost);
+  if (entryMain !== curMain) return SiteMatchLevel.NoMatch;
+
+  if (entryHost === curMain) {
+    // 主域名条目：端口一致或无端口 → MainDomain；显式端口不同 → 兜底
+    return portSame ? SiteMatchLevel.MainDomain : SiteMatchLevel.SameMainDiffPort;
+  }
+
+  // 同主域其他子域：显式端口一致 → SubDomainMatchPort；无端口（通用）→ SubDomainNoPort；端口不同 → 兜底
+  if (DEFAULT_PORTS.has(entryPort)) return SiteMatchLevel.SubDomainNoPort;
+  if (entryPort === currentPort) return SiteMatchLevel.SubDomainMatchPort;
+  return SiteMatchLevel.SameMainDiffPort;
+}
+
 // ── 可导航 URL ──
 
 /** 允许导航的协议白名单：仅 http/https，杜绝 javascript: / chrome: / file: / data: 等注入 */

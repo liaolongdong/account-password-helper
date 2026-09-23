@@ -19,6 +19,7 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
+import { normalizeToHostname } from '@/utils/domain';
 import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
 
@@ -267,6 +268,22 @@ const inlineStyles = `
   text-overflow: ellipsis;
   white-space: nowrap;
   border: 1px solid transparent;
+  border-radius: 4px;
+}
+
+/* 跨子域名匹配徽标：琥珀色描边小标签，与用户数据标签区分（与侧边栏 match-badge 同语义） */
+.aph-match-badge {
+  flex-shrink: 0;
+  max-width: 160px;
+  padding: 0 6px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 16px;
+  color: #b45309;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
   border-radius: 4px;
 }
 
@@ -1154,7 +1171,12 @@ export class InlineFillDropdown {
         const supplement = supplementText
           ? `<span class="${supplementClass}">${highlightHtml(supplementText, highlightKw)}</span>`
           : '';
-        const sub = tagsHtml || supplement ? `<div class="aph-row-sub">${tagsHtml}${supplement}</div>` : '';
+        // 跨子域名匹配徽标：标明该条目非本站精确命中，附实际域名供核对
+        const matchBadge = this.renderMatchBadge(acc);
+        const sub =
+          matchBadge || tagsHtml || supplement
+            ? `<div class="aph-row-sub">${matchBadge}${tagsHtml}${supplement}</div>`
+            : '';
         const titleAttr = acc.remark
           ? ` title="${tl('cs.inline.remarkTitle', { remark: escapeHtml(acc.remark) })}"`
           : '';
@@ -1302,6 +1324,31 @@ export class InlineFillDropdown {
     }
     if (state) this.totpStates.delete(id);
     return this.buildTotpBadge(id, index).outerHTML;
+  }
+
+  /**
+   * 渲染跨子域名匹配徽标（matchLevel 0/缺失时返回空串）
+   *
+   * 文案经 tl() 取轻量 i18n 双语；域名部分为 background 下发的条目 URL
+   * 规范化 hostname，经 escapeHtml 转义后拼入，防属性注入。
+   * @param acc 账号元数据
+   * @returns 徽标 HTML 或空串
+   */
+  private renderMatchBadge(acc: MatchingAccountMeta): string {
+    const level = acc.matchLevel ?? 0;
+    if (level <= 0 || level >= 6) return '';
+    const label =
+      level === 1
+        ? tl('cs.inline.matchPortDiff')
+        : level === 2 || level === 4
+          ? tl('cs.inline.matchSubDomain')
+          : level === 3
+            ? tl('cs.inline.matchMainDomain')
+            : tl('cs.inline.matchApprox');
+    const domain = normalizeToHostname(acc.url || '');
+    const text = domain ? `${label} · ${escapeHtml(domain)}` : label;
+    const title = escapeHtml(acc.url || '');
+    return `<span class="aph-match-badge" title="${title}">${text}</span>`;
   }
 
   /**

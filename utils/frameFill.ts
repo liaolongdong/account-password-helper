@@ -108,13 +108,13 @@ export const isFrameFillable = async (tabId: number, frameId: number | undefined
  *
  * @param tabId 标签页ID
  * @param frameIds 所有 frame ID 列表
- * @param fillData 填充数据（用户名、密码、autoLogin）
+ * @param fillData 填充数据（用户名、密码、autoLogin、可选条目 ID）
  * @returns FillResult 或 null
  */
 export const fillPasswordInFrames = async (
   tabId: number,
   frameIds: number[],
-  fillData: { username: string; password: string; autoLogin: boolean },
+  fillData: { username: string; password: string; autoLogin: boolean; entryId?: string },
 ): Promise<FillResult | null> => {
   // 并行向所有 frame 发送填充消息，避免顶层 frame 的慢响应（~9s 重试）阻塞 iframe 的快速填充（~0.2s）
   const results = await Promise.allSettled(

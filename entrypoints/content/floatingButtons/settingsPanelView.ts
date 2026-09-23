@@ -43,6 +43,10 @@ type PanelMessageKey =
   | 'autoTriggerTip'
   | 'passwordVisibility'
   | 'passwordVisibilityTip'
+  | 'crossSubdomainMatch'
+  | 'crossSubdomainTip'
+  | 'autoFillTotp'
+  | 'autoFillTotpTip'
   | 'opacity';
 
 /** 面板内建双语文案（tip 类文案含 highlight-tip 高亮标记，需以 innerHTML 渲染） */
@@ -62,6 +66,12 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     passwordVisibility: '密码显示切换',
     passwordVisibilityTip:
       '开启后，密码输入框内将显示眼睛图标按钮，点击可切换密码明文/密文<span class="highlight-tip">（注：页面如有自带的眼睛图标会重叠显示）</span>',
+    crossSubdomainMatch: '跨子域名匹配',
+    crossSubdomainTip:
+      '开启后，本站无精确账号时侧边栏与内联列表会展示主域名及同主域其他子域的账号<span class="highlight-tip">（带徽标提示；一键填充等自动路径仍要求精确匹配）</span>',
+    autoFillTotp: '自动填入安全令',
+    autoFillTotpTip:
+      '开启后，点击条目填充账号密码成功时自动把当前两步验证码填入验证码字段<span class="highlight-tip">（仅单页登录场景；动态码仍在本地计算，密钥不下发）</span>',
     opacity: '按钮透明度',
   },
   en: {
@@ -79,6 +89,12 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     passwordVisibility: 'Password visibility toggle',
     passwordVisibilityTip:
       'When enabled, an eye icon appears inside password fields to toggle between plain and masked text<span class="highlight-tip"> (note: it may overlap the site&#39;s own eye icon)</span>',
+    crossSubdomainMatch: 'Cross-subdomain matching',
+    crossSubdomainTip:
+      'When enabled, the sidebar and inline lists also show main-domain and sibling-subdomain accounts if the exact site has none<span class="highlight-tip"> (badged; automatic paths like quick fill still require an exact match)</span>',
+    autoFillTotp: 'Auto-fill security code',
+    autoFillTotpTip:
+      'When enabled, the current 2FA code is filled into the verification field right after the username/password filled successfully<span class="highlight-tip"> (single-page login only; the code is still computed locally, the secret never leaves the extension)</span>',
     opacity: 'Button opacity',
   },
 };
@@ -574,6 +590,22 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig, locale: Panel
       <div class="setting-tip" data-i18n="passwordVisibilityTip">${msg.passwordVisibilityTip}</div>
 
       <div class="setting-item">
+        <span class="setting-label" data-i18n="crossSubdomainMatch">${msg.crossSubdomainMatch}</span>
+        <div class="switch ${config.crossSubdomainMatch ? 'active' : ''}" data-setting="crossSubdomainMatch">
+          <div class="switch-handle"></div>
+        </div>
+      </div>
+      <div class="setting-tip" data-i18n="crossSubdomainTip">${msg.crossSubdomainTip}</div>
+
+      <div class="setting-item">
+        <span class="setting-label" data-i18n="autoFillTotp">${msg.autoFillTotp}</span>
+        <div class="switch ${config.autoFillTotp ? 'active' : ''}" data-setting="autoFillTotp">
+          <div class="switch-handle"></div>
+        </div>
+      </div>
+      <div class="setting-tip" data-i18n="autoFillTotpTip">${msg.autoFillTotpTip}</div>
+
+      <div class="setting-item">
         <span class="setting-label" data-i18n="opacity">${msg.opacity}</span>
         <div class="slider-container">
           <div class="slider" data-setting="opacity">
@@ -664,11 +696,9 @@ export function bindSettingsPanelView(
   cleanups.push(() => panelRoot.removeEventListener('click', onPanelClick));
 
   // 布尔 switch
-  const switchKeys: Array<'visible' | 'autoTriggerLogin' | 'passwordVisibilityToggle'> = [
-    'visible',
-    'autoTriggerLogin',
-    'passwordVisibilityToggle',
-  ];
+  const switchKeys: Array<
+    'visible' | 'autoTriggerLogin' | 'passwordVisibilityToggle' | 'crossSubdomainMatch' | 'autoFillTotp'
+  > = ['visible', 'autoTriggerLogin', 'passwordVisibilityToggle', 'crossSubdomainMatch', 'autoFillTotp'];
   switchKeys.forEach(key => {
     const el = panelRoot.querySelector(`[data-setting="${key}"]`) as HTMLElement | null;
     if (!el) return;

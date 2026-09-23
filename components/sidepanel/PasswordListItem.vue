@@ -16,6 +16,7 @@ import {
 import type { PasswordEntry } from '@/utils/types';
 import { buildTagPresentationRecords } from '@/utils/tagUtils';
 import { hasShareCardPassword } from '@/utils/shareCard';
+import { normalizeToHostname } from '@/utils/domain';
 import { activateOnKeydown } from '@/utils/a11y';
 import SiteFavicon from '@/components/SiteFavicon.vue';
 import SearchHighlight from '@/components/SearchHighlight.vue';
@@ -47,6 +48,11 @@ interface Props {
    * 复制账号 / 复制密码 / 复制验证码 / 收藏 / 编辑不依赖当前页，全部保留。
    */
   canFill?: boolean;
+  /**
+   * 站点匹配级别（跨子域名分级匹配）：0=精确（无徽标），
+   * 1=同子域端口不同，2=其他子域端口一致，3=主域名，4=其他子域通用，5=近似兜底
+   */
+  matchLevel?: number;
 }
 
 interface Emits {
@@ -72,10 +78,30 @@ interface Emits {
   shareCard: [password: PasswordEntry];
 }
 
-const props = withDefaults(defineProps<Props>(), { searchKeyword: '', canFill: true });
+const props = withDefaults(defineProps<Props>(), { searchKeyword: '', canFill: true, matchLevel: 0 });
 const emit = defineEmits<Emits>();
 
 const { t } = useI18n();
+
+/** 分级匹配徽标文案（0/6 不显示徽标） */
+const matchBadgeText = computed(() => {
+  switch (props.matchLevel) {
+    case 1:
+      return t('sidepanel.match.portDiff');
+    case 2:
+    case 4:
+      return t('sidepanel.match.subDomain');
+    case 3:
+      return t('sidepanel.match.mainDomain');
+    case 5:
+      return t('sidepanel.match.approx');
+    default:
+      return '';
+  }
+});
+
+/** 徽标上展示的条目实际域名（规范化 hostname，超长由 CSS 截断） */
+const badgeDomain = computed(() => normalizeToHostname(props.password.url || ''));
 
 /** 标签字符串未变化时复用解析结果与样式对象，避免列表行更新时重复创建。 */
 const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.password.tag));
@@ -159,6 +185,13 @@ const activate = () => {
         </span>
       </div>
       <div class="details">
+        <!-- 跨子域名匹配徽标：标明该条目非本站精确命中，附实际域名供用户核对 -->
+        <span
+          v-if="matchBadgeText"
+          class="match-badge"
+          :title="password.url"
+          >{{ matchBadgeText }}<template v-if="password.url"> · {{ badgeDomain }}</template></span
+        >
         <el-tag
           v-for="tagRecord in tagPresentationRecords"
           :key="tagRecord.name"
@@ -466,6 +499,22 @@ const activate = () => {
   flex-shrink: 0;
   font-size: 12px;
   color: var(--aph-icon-muted);
+}
+
+/* 跨子域名匹配徽标：琥珀色描边小标签，与标签 chip 区分（非用户数据） */
+.match-badge {
+  flex-shrink: 0;
+  max-width: 160px;
+  padding: 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 11px;
+  line-height: 18px;
+  color: #b45309;
+  white-space: nowrap;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 4px;
 }
 
 .remark {

@@ -126,3 +126,4 @@ coverage/
 # local symlinks for WeChat publishing image resolution
 docs/blog/zh/imgs
 docs/blog/en/imgs
+.idea/

@@ -52,9 +52,12 @@
         v-model:search-keyword="searchKeyword"
         v-model:favorite-only="favoriteOnly"
         v-model:filter-tags="filterTags"
+        v-model:filter-urls="filterUrls"
         :selected-count="selectedIds.length"
-        :available-tags="availableTags"
+        :tag-options="filterTagOptions"
+        :url-options="filterUrlOptions"
         @tag-filter-visible-change="handleTagFilterVisibleChange"
+        @url-filter-visible-change="handleUrlFilterVisibleChange"
         @batch-delete="batchDelete"
         @batch-edit-tags="showBatchTagDialog = true"
         @batch-export-selected="batchExportSelected"
@@ -77,6 +80,40 @@
           <el-text type="success">{{ filteredPasswords.length }}</el-text>
           {{ t('options.filteredUnit') }}
         </span>
+        <!-- 多列排序链：chip 可拖拽改优先级、可单独移除，末尾一键清除回退默认排序 -->
+        <span
+          v-if="sortChain.length > 0"
+          class="sort-chain"
+        >
+          <span class="sort-chain__title">{{ t('options.sort.sortedBy') }}</span>
+          <el-tag
+            v-for="(criterion, index) in sortChain"
+            :key="criterion.prop"
+            class="sort-chain__chip"
+            :class="{ 'is-dragging': dragIndex === index, 'is-drop-target': isDropTarget(index) }"
+            size="small"
+            type="primary"
+            effect="light"
+            draggable="true"
+            closable
+            @dragstart="onSortDragStart(index)"
+            @dragover.prevent="onSortDragOver(index)"
+            @drop.prevent="onSortDrop"
+            @dragend="onSortDragEnd"
+            @close="removeSortCriterion(criterion.prop)"
+          >
+            <span class="sort-chain__seq">{{ index + 1 }}</span>
+            {{ sortLabel(criterion.prop) }}
+            <span class="sort-chain__dir">{{ criterion.order === 'ascending' ? '↑' : '↓' }}</span>
+          </el-tag>
+          <button
+            type="button"
+            class="sort-chain__clear"
+            @click="clearSortChain"
+          >
+            {{ t('options.sort.clear') }}
+          </button>
+        </span>
       </div>
 
       <!-- 空数据状态引导 -->
@@ -90,13 +127,13 @@
       <!-- 密码列表 -->
       <PasswordTable
         v-else
-        ref="passwordTableRef"
-        :data="filteredPasswords"
+        :data="pagedPasswords"
         :loading="tableLoading"
         :search-keyword="searchKeyword"
         :row-class-name="handleRowClassName"
+        :sort-chain="sortChain"
         @selection-change="handleSelectionChange"
-        @sort-change="handleSortChange"
+        @column-sort="handleColumnSort"
         @toggle-password="togglePasswordVisibility"
         @view-detail="onViewDetail"
         @copy="copyPassword"
@@ -104,6 +141,40 @@
         @toggle-favorite="toggleFavorite"
         @delete-password="deletePassword"
       />
+
+      <!--
+        分页栏：每页条数选择 + 翻页器。
+        - el-pagination 的 layout 只用 prev/pager/next（纯箭头+页码，无文案），规避 Element Plus
+          未配置 locale 时 total/sizes/jump 渲染英文硬编码的问题；「每页条数」用自绘 el-select，
+          选项文案走 i18n；总数展示复用上方 password-list-info 信息栏。
+        - 条数超过最小档位即显示（即使当前档位下只有一页，也保留档位选择入口）。
+        - el-select 用单向绑定 + @change：页码换算需要旧 pageSize，v-model 会先行改写导致算错。
+      -->
+      <div
+        v-if="filteredPasswords.length > PAGE_SIZE_OPTIONS[0]"
+        class="pagination-bar"
+      >
+        <el-select
+          :model-value="pageSize"
+          class="page-size-select"
+          @change="handlePageSizeChange"
+        >
+          <el-option
+            v-for="size in PAGE_SIZE_OPTIONS"
+            :key="size"
+            :label="`${size} ${t('options.pagination.perPage')}`"
+            :value="size"
+          />
+        </el-select>
+        <el-pagination
+          v-model:current-page="currentPage"
+          :page-size="pageSize"
+          :total="filteredPasswords.length"
+          layout="prev, pager, next"
+          background
+          hide-on-single-page
+        />
+      </div>
     </div>
 
     <!-- 偏好设置弹窗（复用悬浮按钮设置面板） -->
@@ -274,7 +345,7 @@ import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
-import { usePasswordManagement } from '@/composables/usePasswordManagement';
+import { usePasswordManagement, PAGE_SIZE_OPTIONS } from '@/composables/usePasswordManagement';
 import { useStorageWatcher } from '@/composables/useStorageWatcher';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
@@ -284,11 +355,49 @@ import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealt
 import { normalizeToHostAndPort } from '@/utils/domain';
 import { isDev } from '@/utils/env';
 
+/** 可排序列字段 → i18n 标签 key（与 PasswordTable 列标签保持一致） */
+const SORT_LABEL_KEYS: Record<string, string> = {
+  username: 'common.username',
+  url: 'common.url',
+  tag: 'common.tag',
+  remark: 'common.remark',
+  createTime: 'sidepanel.createTime',
+  updateTime: 'options.table.updateTime',
+};
+
+/**
+ * 取列字段的已翻译标签（用于信息栏排序链 chip）
+ * @param prop 列字段名
+ */
+const sortLabel = (prop: string): string => t(SORT_LABEL_KEYS[prop] ?? prop);
+
+/** 当前被拖拽的排序 chip 下标（null 表示未在拖拽） */
+const dragIndex = ref<number | null>(null);
+/** 拖拽悬停的目标下标（用于高亮落点） */
+const dragOverIndex = ref<number | null>(null);
+
+const onSortDragStart = (index: number) => {
+  dragIndex.value = index;
+};
+const onSortDragOver = (index: number) => {
+  dragOverIndex.value = index;
+};
+const onSortDrop = () => {
+  if (dragIndex.value !== null && dragOverIndex.value !== null) {
+    moveSortCriterion(dragIndex.value, dragOverIndex.value);
+  }
+  onSortDragEnd();
+};
+const onSortDragEnd = () => {
+  dragIndex.value = null;
+  dragOverIndex.value = null;
+};
+/** 目标落点高亮：悬停且非自身 */
+const isDropTarget = (index: number): boolean =>
+  dragIndex.value !== null && dragOverIndex.value === index && dragIndex.value !== index;
+
 /** 密码表单弹窗组件引用（用于获取内部 form ref） */
 const passwordFormDialogRef = ref();
-
-/** 密码列表表格组件引用（用于恢复排序配置） */
-const passwordTableRef = ref();
 
 /**
  * 带表单校验的密码保存处理
@@ -523,17 +632,27 @@ const {
   tableLoading,
   favoriteOnly,
   filterTags,
+  filterUrls,
   filteredPasswords,
-  currentSort,
+  currentPage,
+  pageSize,
+  pagedPasswords,
+  handlePageSizeChange,
+  sortChain,
   availableTags,
+  filterTagOptions,
+  filterUrlOptions,
   tagArray,
   loadPasswords,
-  handleSortChange,
-  restoreSortConfig: initSortConfig,
+  handleColumnSort,
+  removeSortCriterion,
+  clearSortChain,
+  moveSortCriterion,
   togglePasswordVisibility,
   handleRowClassName,
   handleSelectionChange,
   handleTagFilterVisibleChange,
+  handleUrlFilterVisibleChange,
   openPasswordDialog,
   editPassword,
   resetPasswordForm,
@@ -745,21 +864,7 @@ onMounted(async () => {
   await checkAuth();
   // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载
   await nextTick();
-  // 恢复表格排序配置
-  restoreSortConfig();
 });
-
-/**
- * 从存储恢复表格排序状态
- * 先同步 currentSort（驱动 filteredPasswords computed），再调用 el-table.sort() 恢复视觉排序指示器
- */
-const restoreSortConfig = async () => {
-  await initSortConfig();
-  const sortConfig = currentSort.value;
-  if (sortConfig.prop && sortConfig.order && passwordTableRef.value?.tableRef) {
-    passwordTableRef.value.tableRef.sort(sortConfig.prop, sortConfig.order);
-  }
-};
 
 onUnmounted(() => {
   personalizationViewHandle?.destroy();
@@ -769,6 +874,75 @@ onUnmounted(() => {
 
 <style scoped>
 @import url('./styles.css');
+
+/* 分页栏：与表格左右边距对齐（表格 margin 0 32px），居中展示 */
+.pagination-bar {
+  display: flex;
+  justify-content: center;
+  margin: -16px 32px 32px;
+}
+
+/* 排序链：信息栏内联展示，chip 紧凑排列 */
+.sort-chain {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: 8px;
+}
+
+.sort-chain__title {
+  color: var(--el-text-color-secondary);
+}
+
+/* chip 可拖拽改优先级：抓取光标 + 拖拽/落点态 */
+.sort-chain__chip {
+  cursor: grab;
+}
+
+.sort-chain__chip:active {
+  cursor: grabbing;
+}
+
+.sort-chain__chip.is-dragging {
+  opacity: 0.5;
+}
+
+.sort-chain__chip.is-drop-target {
+  outline: 1px dashed var(--el-color-primary);
+  outline-offset: 1px;
+}
+
+.sort-chain__seq {
+  margin-right: 2px;
+  font-weight: 600;
+  color: var(--el-color-primary);
+}
+
+.sort-chain__dir {
+  margin-left: 2px;
+}
+
+/* 清除排序：与 chip 同高的文字按钮，避免 el-button link 过大、基线不齐 */
+.sort-chain__clear {
+  padding: 0 2px;
+  font-size: 12px;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  background: none;
+  border: none;
+  transition: color 0.2s ease;
+}
+
+.sort-chain__clear:hover {
+  color: var(--el-color-primary-light-3);
+  text-decoration: underline;
+}
+
+.sort-chain__clear:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 60%);
+  outline-offset: 1px;
+  border-radius: 2px;
+}
 </style>
 
 <style>

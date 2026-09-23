@@ -353,6 +353,28 @@ export interface FloatingButtonConfig {
    */
   passwordVisibilityToggle: boolean;
   /**
+   * 是否启用跨子域名匹配（侧边栏本站列表与内联下拉的展示放宽），默认 true
+   *
+   * 开启后：当前站点无精确匹配账号时，按「同子域端口不同 → 同主域其他子域
+   * （端口一致）→ 主域名 → 同主域其他子域（无端口）→ 端口不一致兜底」逐级
+   * 纳入条目并显示来源徽标。关闭后回到仅精确匹配 + 空 URL 通用条目的历史行为。
+   *
+   * 安全边界：仅放宽「展示」，一键填充 / 自动保存 / 右键菜单等自动路径
+   * 仍要求精确 hostname 匹配，不会把降级来的凭据自动填入当前页。
+   */
+  crossSubdomainMatch: boolean;
+  /**
+   * 填充账号密码后是否自动填入两步验证码（安全令/TOTP），默认 false
+   *
+   * 开启后：点击条目填充账号密码成功时，若该条目配置了两步验证，则自动把
+   * 当前动态码写入页面验证码字段（单页登录场景免去再点一次）。
+   *
+   * 安全边界：动态码仍由 background 现算后下发，内容脚本始终不持有 TOTP 密钥；
+   * 且仅在账号密码填充成功的同一次操作内触发，不改变既有的两步接力（跨页）逻辑。
+   * 默认关闭以保持历史交互不变。
+   */
+  autoFillTotp: boolean;
+  /**
    * 页面填充模式（侧边栏 / 页面内联下拉），默认 'inline'（仅新安装生效；
    * 存量用户由升级钩子 freezeLegacyFillDefaults 冻结为历史的 'sidepanel' 行为）
    */
@@ -407,6 +429,13 @@ export interface FillPasswordData {
   username: string;
   password: string;
   autoLogin?: boolean;
+  /**
+   * 目标条目 ID（可选）
+   *
+   * 仅用于「自动填入两步验证码」开关开启时，内容脚本据此经 background 现算动态码；
+   * 未透传（或开关关闭）时跳过自动填码，行为与历史完全一致。
+   */
+  entryId?: string;
 }
 
 /**
@@ -453,6 +482,13 @@ export interface MatchingAccountMeta {
    * 隐私风险；无图标/获取失败时为空字符串，内容脚本降级渲染钥匙图标。
    */
   favicon: string;
+  /**
+   * 站点匹配级别（跨子域名分级匹配开启时由 background 注入）
+   *
+   * 0=精确（无徽标），1~5=降级命中（内联下拉渲染来源徽标）。
+   * 缺失视为 0，旧版本内容脚本可安全忽略。
+   */
+  matchLevel?: number;
 }
 
 /**

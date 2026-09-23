@@ -4,6 +4,7 @@ import {
   FloatingButtonConfig,
   FillPasswordData,
   FillResult,
+  InlineTotpCodeData,
   PingResponse,
   PendingTotpData,
 } from '@/utils/types';
@@ -1218,6 +1219,12 @@ export class FormDetector {
         result.message = tl('cs.fd.fillIncomplete');
       }
 
+      // 自动填入两步验证码：开关开启且本次携带条目 ID 时，
+      // 必须先于「自动触发登录」完成——否则登录会在动态码写入前提交。
+      if (result.success && this.floatingButtonConfig.autoFillTotp && data.entryId) {
+        await this.autoFillTotpIfEnabled(data.entryId);
+      }
+
       // 按配置自动触发登录（仅账号密码场景，且密码字段已实际填充）
       // 当 autoLogin 为 true 时强制触发登录
       if (result.success && result.details.passwordField.filled) {
@@ -1240,6 +1247,35 @@ export class FormDetector {
     }
 
     return result;
+  }
+
+  /**
+   * 自动填入两步验证码（「自动填入安全令」开关开启时由账密填充链路调用）
+   *
+   * 动态码经 background 现算后经 FILL_TOTP 回填本 frame，内容脚本始终不持有 TOTP 密钥
+   * （与内联面板「填入」按钮同一条安全边界）。页面无验证码字段时静默跳过：
+   * 两步接力（跨页登录）场景由既有的待接力胶囊机制接管，此处不打扰。
+   *
+   * @param entryId 目标条目 ID
+   */
+  private async autoFillTotpIfEnabled(entryId: string): Promise<void> {
+    try {
+      // 验证码字段可能在账密填充触发的重渲染后才出现，未检测到时重检测一次
+      if (this.verifyCodeFields.length === 0) {
+        this.detectForms();
+      }
+      const field = this.verifyCodeFields.find(f => f.isConnected && isElementVisible(f));
+      if (!field) return;
+
+      const res = await chrome.runtime.sendMessage({ type: MessageType.GET_INLINE_TOTP, data: { id: entryId } });
+      const code = (res?.data as InlineTotpCodeData | undefined)?.code;
+      if (!code) return;
+
+      await this.inputFiller.setInputValueWithStrategies(field, code);
+    } catch (error) {
+      // 自动填码失败不阻断账密填充结果，仅记录日志
+      logger.debug('FormDetector: 自动填入两步验证码失败（会话可能已锁定或字段不可填）:', error);
+    }
   }
 
   /**

@@ -9,9 +9,7 @@
       stripe
       row-key="id"
       :row-class-name="rowClassName"
-      :default-sort="{ prop: 'updateTime', order: 'descending' }"
       @selection-change="(selection: PasswordEntry[]) => $emit('selectionChange', selection)"
-      @sort-change="(state: any) => $emit('sortChange', state)"
     >
       <el-table-column
         type="selection"
@@ -20,16 +18,26 @@
       />
       <el-table-column
         prop="username"
-        :label="t('common.username')"
         min-width="150"
-        sortable="custom"
         show-overflow-tooltip
       >
-        <template #default="{ row }">
-          <SearchHighlight
-            :text="row.username"
-            :keyword="searchKeyword ?? ''"
+        <template #header>
+          <SortHeaderCell
+            :label="t('common.username')"
+            prop="username"
+            :chain="sortChain"
+            @sort="prop => $emit('columnSort', prop)"
           />
+        </template>
+        <template #default="{ row }">
+          <!-- 关键词为空时 SearchHighlight 与纯文本渲染等价，直接输出文本，
+               避免大列表下每行创建无收益的组件实例（行为不变） -->
+          <SearchHighlight
+            v-if="searchKeyword"
+            :text="row.username"
+            :keyword="searchKeyword"
+          />
+          <template v-else>{{ row.username }}</template>
         </template>
       </el-table-column>
       <el-table-column
@@ -71,11 +79,17 @@
       </el-table-column>
       <el-table-column
         prop="url"
-        :label="t('common.url')"
         min-width="200"
-        sortable="custom"
         show-overflow-tooltip
       >
+        <template #header>
+          <SortHeaderCell
+            :label="t('common.url')"
+            prop="url"
+            :chain="sortChain"
+            @sort="prop => $emit('columnSort', prop)"
+          />
+        </template>
         <template #default="{ row }">
           <template v-if="row.url">
             <a
@@ -94,9 +108,11 @@
               </SiteFavicon>
               <span class="url-link__text">
                 <SearchHighlight
+                  v-if="searchKeyword"
                   :text="row.url"
-                  :keyword="searchKeyword ?? ''"
+                  :keyword="searchKeyword"
                 />
+                <template v-else>{{ row.url }}</template>
               </span>
             </a>
           </template>
@@ -105,11 +121,17 @@
       </el-table-column>
       <el-table-column
         prop="tag"
-        :label="t('common.tag')"
         min-width="100"
         class-name="tag-col"
-        sortable="custom"
       >
+        <template #header>
+          <SortHeaderCell
+            :label="t('common.tag')"
+            prop="tag"
+            :chain="sortChain"
+            @sort="prop => $emit('columnSort', prop)"
+          />
+        </template>
         <template #default="{ row }">
           <template v-if="parseTags(row.tag).length">
             <el-tooltip
@@ -128,9 +150,11 @@
                 @mouseenter="(e: MouseEvent) => checkTagOverflow(e, tagName)"
               >
                 <SearchHighlight
+                  v-if="searchKeyword"
                   :text="tagName"
-                  :keyword="searchKeyword ?? ''"
+                  :keyword="searchKeyword"
                 />
+                <template v-else>{{ tagName }}</template>
               </el-tag>
             </el-tooltip>
           </template>
@@ -143,17 +167,26 @@
       </el-table-column>
       <el-table-column
         prop="remark"
-        :label="t('common.remark')"
         min-width="150"
-        sortable="custom"
         show-overflow-tooltip
       >
-        <template #default="{ row }">
-          <SearchHighlight
-            v-if="row.remark"
-            :text="row.remark"
-            :keyword="searchKeyword ?? ''"
+        <template #header>
+          <SortHeaderCell
+            :label="t('common.remark')"
+            prop="remark"
+            :chain="sortChain"
+            @sort="prop => $emit('columnSort', prop)"
           />
+        </template>
+        <template #default="{ row }">
+          <template v-if="row.remark">
+            <SearchHighlight
+              v-if="searchKeyword"
+              :text="row.remark"
+              :keyword="searchKeyword"
+            />
+            <template v-else>{{ row.remark }}</template>
+          </template>
           <span
             v-else
             class="no-tag"
@@ -163,21 +196,32 @@
       </el-table-column>
       <el-table-column
         prop="createTime"
-        :label="t('sidepanel.createTime')"
         min-width="100"
-        sortable="custom"
       >
+        <template #header>
+          <SortHeaderCell
+            :label="t('sidepanel.createTime')"
+            prop="createTime"
+            :chain="sortChain"
+            @sort="prop => $emit('columnSort', prop)"
+          />
+        </template>
         <template #default="{ row }">
           {{ formatDate(row.createTime) }}
         </template>
       </el-table-column>
       <el-table-column
         prop="updateTime"
-        :label="t('options.table.updateTime')"
         min-width="100"
-        sortable="custom"
-        :sort-orders="['descending', 'ascending', null]"
       >
+        <template #header>
+          <SortHeaderCell
+            :label="t('options.table.updateTime')"
+            prop="updateTime"
+            :chain="sortChain"
+            @sort="prop => $emit('columnSort', prop)"
+          />
+        </template>
         <template #default="{ row }">
           {{ formatDate(row.updateTime) }}
         </template>
@@ -276,12 +320,14 @@
 import { ref, onBeforeUpdate } from 'vue';
 import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
+import type { SortCriterion } from '@/utils/passwordSort';
 import { formatDate } from '@/utils/dateFormat';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 import { useTagOverflow } from '@/composables/useTagOverflow';
 import TotpCode from '@/components/TotpCode.vue';
 import SiteFavicon from '@/components/SiteFavicon.vue';
 import SearchHighlight from '@/components/SearchHighlight.vue';
+import SortHeaderCell from '@/components/options/SortHeaderCell.vue';
 import { useI18n } from '@/utils/i18n';
 
 /**
@@ -299,11 +345,13 @@ defineProps<{
   rowClassName?: (data: { row: PasswordEntry; rowIndex: number }) => string;
   /** 当前搜索关键词（用于命中高亮，空串时不高亮） */
   searchKeyword?: string;
+  /** 当前多列排序链（驱动表头方向/优先级指示） */
+  sortChain: readonly SortCriterion[];
 }>();
 
 defineEmits<{
   selectionChange: [selection: PasswordEntry[]];
-  sortChange: [state: { prop: string; order: string }];
+  columnSort: [prop: string];
   togglePassword: [row: PasswordEntry];
   viewDetail: [row: PasswordEntry];
   copy: [row: PasswordEntry];
@@ -328,15 +376,19 @@ interface TooltipInstance {
 /**
  * 操作栏 Tooltip 引用集合
  * 用于在操作触发时主动关闭残留 tooltip，避免 popper 残留在视口中
+ *
+ * 刻意使用普通数组而非 ref：本集合从不被模板读取，响应式没有收益；
+ * 而大列表下每次渲染都会 push「行数 × 5」个引用（700 条即 3500 次），
+ * 若为响应式数组则每次 push 都走代理与依赖追踪，纯属浪费。
  */
-const tooltipRefs = ref<TooltipInstance[]>([]);
+let tooltipInstances: TooltipInstance[] = [];
 
 /**
  * 收集 tooltip 组件引用（函数式 ref，每次渲染时调用）
  * @param el tooltip 组件实例
  */
 const collectTooltipRef = (el: TooltipInstance | null) => {
-  if (el) tooltipRefs.value.push(el);
+  if (el) tooltipInstances.push(el);
 };
 
 /**
@@ -344,15 +396,15 @@ const collectTooltipRef = (el: TooltipInstance | null) => {
  * 用于操作按钮点击时兜底关闭，避免弹窗/重渲染导致的 tooltip 残留
  */
 const closeAllTooltips = () => {
-  for (const t of tooltipRefs.value) {
+  for (const t of tooltipInstances) {
     t?.onClose?.();
   }
 };
 
-/** 每次重新渲染前先关闭已打开 tooltip 再清空引用，避免旧 tooltip 实例因引用丢失而残留 */
+/** 每次重新渲染前先关闭已打开 tooltip 再重置引用，避免旧 tooltip 实例因引用丢失而残留 */
 onBeforeUpdate(() => {
   closeAllTooltips();
-  tooltipRefs.value = [];
+  tooltipInstances = [];
 });
 
 /**

@@ -34,23 +34,53 @@
     >
       {{ t('options.filter.batchDelete', { count: selectedCount }) }}
     </el-button>
+    <!--
+      标签筛选：filterable 让输入框可实时过滤选项（多选 + 输入搜索的组合框形态）。
+      collapse-tags + max-collapse-tags=1 使触发框内恒为单行（首个 chip + 「+N」计数），
+      避免多选项换行撑高筛选栏；hover「+N」展开的 tooltip 中每个折叠项仍是可关闭的
+      chip，可单独点 x 移除（首个 chip 亦可直接移除）。
+    -->
     <el-select
-      v-if="availableTags.length > 0"
+      v-if="tagOptions.length > 0"
       :model-value="filterTags"
       multiple
+      filterable
+      clearable
       collapse-tags
       collapse-tags-tooltip
-      clearable
+      :max-collapse-tags="1"
       class="tag-filter"
       :placeholder="t('options.filter.tagPlaceholder')"
       @update:model-value="$emit('update:filterTags', $event)"
       @visible-change="$emit('tagFilterVisibleChange', $event)"
     >
       <el-option
-        v-for="tag in availableTags"
+        v-for="tag in tagOptions"
         :key="tag"
         :label="tag"
         :value="tag"
+      />
+    </el-select>
+    <!-- 网址筛选：与标签筛选同形态，选项为去重后的条目域名 -->
+    <el-select
+      v-if="urlOptions.length > 0"
+      :model-value="filterUrls"
+      multiple
+      filterable
+      clearable
+      collapse-tags
+      collapse-tags-tooltip
+      :max-collapse-tags="1"
+      class="url-filter"
+      :placeholder="t('options.filter.urlPlaceholder')"
+      @update:model-value="$emit('update:filterUrls', $event)"
+      @visible-change="$emit('urlFilterVisibleChange', $event)"
+    >
+      <el-option
+        v-for="url in urlOptions"
+        :key="url"
+        :label="url"
+        :value="url"
       />
     </el-select>
     <el-tooltip
@@ -76,10 +106,13 @@ import { useI18n } from '@/utils/i18n';
 /**
  * 搜索与筛选栏组件
  *
- * 包含关键词搜索框、批量操作按钮（编辑标签/导出/删除）、标签筛选与收藏过滤按钮，
- * 支持 v-model 双向绑定搜索关键词、收藏过滤状态与标签筛选集。
+ * 包含关键词搜索框、批量操作按钮（编辑标签/导出/删除）、标签筛选、网址筛选与收藏过滤按钮，
+ * 支持 v-model 双向绑定搜索关键词、收藏过滤状态、标签筛选集与网址筛选集。
+ * 标签/网址筛选均为「可输入过滤的多选组合框」：输入框实时过滤选项，
+ * 已选项折叠为「首个 chip + +N」且 hover 可逐个移除；候选集随搜索/收藏过滤
+ * 动态收窄（已选项并入候选保证可取消）。
  * 布局上筛选控件锚定右侧、批量按钮随选中态显隐并由搜索框吸收宽度变化，
- * 保证标签筛选下拉触发器位置稳定。
+ * 保证筛选下拉触发器位置稳定。
  */
 defineProps<{
   /** 搜索关键词 */
@@ -88,18 +121,25 @@ defineProps<{
   favoriteOnly: boolean;
   /** 已选中条目数量 */
   selectedCount: number;
-  /** 可选标签集（为空时隐藏标签筛选下拉） */
-  availableTags: string[];
+  /** 标签筛选候选集（搜索语境，为空时隐藏标签筛选下拉） */
+  tagOptions: string[];
   /** 标签筛选选中集（命中任一即保留） */
   filterTags: string[];
+  /** 网址筛选候选集（搜索语境，为空时隐藏网址筛选下拉） */
+  urlOptions: string[];
+  /** 网址筛选选中集（命中任一即保留） */
+  filterUrls: string[];
 }>();
 
 defineEmits<{
   'update:searchKeyword': [value: string];
   'update:favoriteOnly': [value: boolean];
   'update:filterTags': [value: string[]];
+  'update:filterUrls': [value: string[]];
   /** 标签筛选下拉展开/收起（供父级延迟清空选中，避免交互中途布局跳动） */
   tagFilterVisibleChange: [visible: boolean];
+  /** 网址筛选下拉展开/收起（同上） */
+  urlFilterVisibleChange: [visible: boolean];
   batchDelete: [];
   batchEditTags: [];
   batchExportSelected: [];
@@ -133,8 +173,9 @@ const { t } = useI18n();
   margin-left: 0;
 }
 
-/* 标签筛选：固定宽度，避免多标签撑开挤压搜索框 */
-.filters .tag-filter {
+/* 标签/网址筛选：固定宽度，避免多选项撑开挤压搜索框 */
+.filters .tag-filter,
+.filters .url-filter {
   flex-shrink: 0;
   width: 200px;
 }

@@ -316,10 +316,12 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
       }
 
       // 步骤4: 向可填充 frame 集合发送填充消息，取第一个成功的响应
+      // entryId 供「自动填入两步验证码」开关（autoFillTotp）开启时内容脚本自动填码
       const fillData = {
         username: password.username,
         password: password.password,
         autoLogin,
+        entryId: password.id,
       };
       const response = await fillPasswordInFrames(tabId, frameIds, fillData);
 

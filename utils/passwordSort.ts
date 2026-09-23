@@ -20,6 +20,112 @@ export const DEFAULT_SORT: SortState = { prop: 'updateTime', order: 'descending'
 export const DEFAULT_SIDEPANEL_SORT: SortState = { prop: 'lastUsedAt', order: 'descending' };
 
 /**
+ * 多列排序的单个排序条件
+ *
+ * 与 {@link SortState} 结构一致，但语义为「排序链」中的一环：数组顺序即优先级，
+ * 靠前者优先级更高，前序条件相等时才比较后序条件。order 恒为明确方向
+ * （Options 列点击循环为 升 → 降 → 移除，不产生 null）。
+ */
+export interface SortCriterion {
+  /** 排序字段名，对应 PasswordEntry 的属性 */
+  prop: string;
+  /** 排序方向：'ascending' 升序、'descending' 降序 */
+  order: 'ascending' | 'descending';
+}
+
+/**
+ * 按单个字段比较两条目（不含收藏置顶与优先级，仅字段本身）
+ *
+ * 从 {@link comparePasswordEntries} 的字段比较分支抽出，供单列与多列排序共用，
+ * 保证两条路径对「有值/无值混合」「字符串 localeCompare」「数值相减」的语义完全一致。
+ * 字段类型不支持或值缺失时返回 0（交由上层继续比较或回退）。
+ *
+ * @param a 第一个密码条目
+ * @param b 第二个密码条目
+ * @param prop 排序字段名
+ * @param order 排序方向
+ * @returns 负数 a 前、正数 b 前、0 相等或不适用
+ */
+function compareByField(a: PasswordEntry, b: PasswordEntry, prop: string, order: 'ascending' | 'descending'): number {
+  const aVal: unknown = (a as any)[prop];
+  const bVal: unknown = (b as any)[prop];
+
+  const aDefined = aVal !== undefined && aVal !== null;
+  const bDefined = bVal !== undefined && bVal !== null;
+  if (aDefined !== bDefined) {
+    return order === 'ascending' ? (aDefined ? 1 : -1) : aDefined ? -1 : 1;
+  }
+  if (!aDefined && !bDefined) return 0;
+
+  if (typeof aVal === 'string' && typeof bVal === 'string') {
+    const cmp = aVal.localeCompare(bVal);
+    return order === 'ascending' ? cmp : -cmp;
+  }
+  if (typeof aVal === 'number' && typeof bVal === 'number') {
+    const cmp = aVal - bVal;
+    return order === 'ascending' ? cmp : -cmp;
+  }
+  return 0;
+}
+
+/**
+ * 多列排序比较器（Options 管理页专用）
+ *
+ * 优先级链（从高到低）：
+ * 1. 可选的优先级函数（如域名匹配，Options 通常不传）
+ * 2. 收藏置顶（固定规则，与单列排序一致，不受排序链影响）
+ * 3. 按排序链顺序逐条比较：前一条相等才比较下一条
+ * 4. 排序链为空、或所有条件均相等时，回退到 updateTime 降序
+ *
+ * 空链（`[]`）等价于「清除排序」后的默认态：收藏置顶 + updateTime 降序，
+ * 与单列 {@link comparePasswordEntries} 在 order=null 时的回退语义一致。
+ *
+ * @param a 第一个密码条目
+ * @param b 第二个密码条目
+ * @param chain 排序链（数组顺序即优先级，可为空）
+ * @param priorityFn 可选优先级函数，返回数值越小优先级越高
+ * @returns 负数 a 前、正数 b 前、0 相等
+ */
+export function compareBySortChain(
+  a: PasswordEntry,
+  b: PasswordEntry,
+  chain: readonly SortCriterion[],
+  priorityFn?: (entry: PasswordEntry) => number,
+): number {
+  if (priorityFn) {
+    const dp = priorityFn(a) - priorityFn(b);
+    if (dp !== 0) return dp;
+  }
+
+  const favA = a.favorite ? 1 : 0;
+  const favB = b.favorite ? 1 : 0;
+  if (favA !== favB) return favB - favA;
+
+  for (const criterion of chain) {
+    const cmp = compareByField(a, b, criterion.prop, criterion.order);
+    if (cmp !== 0) return cmp;
+  }
+
+  return b.updateTime - a.updateTime;
+}
+
+/**
+ * 按排序链对密码条目数组排序（就地排序，返回同一数组引用）
+ *
+ * @param list 待排序的密码条目数组
+ * @param chain 排序链（数组顺序即优先级，可为空表示默认排序）
+ * @param priorityFn 可选优先级函数
+ * @returns 排序后的数组（同一引用）
+ */
+export function sortByChain(
+  list: PasswordEntry[],
+  chain: readonly SortCriterion[],
+  priorityFn?: (entry: PasswordEntry) => number,
+): PasswordEntry[] {
+  return list.sort((a, b) => compareBySortChain(a, b, chain, priorityFn));
+}
+
+/**
  * 通用密码条目比较器
  *
  * 排序优先级（从高到低）：
