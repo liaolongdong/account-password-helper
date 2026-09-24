@@ -6,6 +6,12 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
+    <script>
+      // 渐进增强门控：动效的「隐形初始态」只在 JS 可用时生效（选择器统一挂 html.js）。
+      // 必须放在 <head> 内联于首屏样式之前，否则正文先全显再隐藏会闪一下。
+      // 禁用 JS / 无头爬虫 / AI 抓取拿到的永远是完整可读的页面。
+      document.documentElement.classList.add('js');
+    </script>
     <title>开源免费本地密码管理器 · 一键登录 + TOTP | 账号密码管理助手</title>
     <meta
       name="description"
@@ -976,9 +982,14 @@
         top: 0;
         left: 0;
         height: 3px;
+        width: 100%;
         background: var(--primary);
-        width: 0%;
-        transition: width 0.15s linear;
+        /* 进度条只动 transform：原实现动画 width，每帧触发布局；scaleX 走合成层，
+           终点视觉宽度与 100% 等价，起点由 JS 复位为 scaleX(0)。 */
+        transform: scaleX(0);
+        transform-origin: left center;
+        transition: transform 0.15s linear;
+        will-change: transform;
         z-index: 3;
       }
 
@@ -1475,14 +1486,17 @@
       }
 
       /* ============ Scroll Reveal ============ */
-      .reveal {
+      /* 隐形初始态挂在 html.js 下：JS 缺席（禁用 JS、无头抓取、AI 爬虫）时内容直接全显。
+         基准态与终态必须带同一层前缀——html.js .reveal 是 (0,2,1)，
+         若终态只写 .reveal.visible (0,2,0) 会被自己的基准规则压住，永远不显形。 */
+      html.js .reveal {
         opacity: 0;
         transform: translateY(24px);
         transition:
           opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
           transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
       }
-      .reveal.visible {
+      html.js .reveal.visible {
         opacity: 1;
         transform: translateY(0);
       }
@@ -1520,6 +1534,15 @@
         }
         to {
           opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      /* 同一条上升曲线，但不碰透明度：给首屏 LCP 候选用 */
+      @keyframes aph-rise-only {
+        from {
+          transform: translateY(18px);
+        }
+        to {
           transform: translateY(0);
         }
       }
@@ -1561,7 +1584,10 @@
         }
       }
 
-      /* Hero：文案自上而下分层入场，右侧视觉块随后落位 */
+      /* Hero：文案自上而下分层入场，右侧视觉块随后落位。
+         h1 走「只位移不淡入」的 aph-rise-only 且延迟为 0——带 opacity:0 起手的
+         animation-delay + both 会把首屏最大内容候选一直按在不可绘制的状态里，
+         位移仍保留，观感上还是同一条上升曲线。错峰整体收进 160ms 内。 */
       .hero-eyebrow,
       .hero h1,
       .hero p.lead,
@@ -1572,22 +1598,23 @@
         animation: aph-rise 0.6s var(--ease-out) both;
       }
       .hero h1 {
-        animation-delay: 0.06s;
+        animation-name: aph-rise-only;
+        animation-delay: 0s;
       }
       .hero p.lead {
-        animation-delay: 0.14s;
+        animation-delay: 0.06s;
       }
       .hero-cta {
-        animation-delay: 0.22s;
+        animation-delay: 0.1s;
       }
       .hero-hint {
-        animation-delay: 0.28s;
+        animation-delay: 0.13s;
       }
       .disclaimer-banner {
-        animation-delay: 0.34s;
+        animation-delay: 0.16s;
       }
       .hero-visual {
-        animation-delay: 0.1s;
+        animation-delay: 0.04s;
         animation-duration: 0.7s;
       }
 
@@ -1614,32 +1641,40 @@
         will-change: transform;
         animation: aph-bob 6s ease-in-out 0.9s infinite alternate;
       }
+      /* 循环动效统一门控：视口外或后台标签页暂停，不在白板上空耗电。
+         类由文末脚本切换；JS 缺席时不添加，行为与门控前完全一致。 */
+      html.motion-idle .hero-visual .key-card,
+      html.motion-idle .hero-visual .key-card::after,
+      html.motion-idle .hero-badge {
+        animation-play-state: paused;
+      }
       .hero-badge .lock svg path {
         transform-box: fill-box;
         transform-origin: 50% 100%;
         animation: aph-shackle 0.5s var(--ease-out) 1.15s both;
       }
 
-      /* 步骤数字与 FAQ 答案：复用既有 .reveal / .open 状态，不新增脚本 */
-      .step-num {
+      /* 步骤数字与 FAQ 答案：复用既有 .reveal / .open 状态，不新增脚本；
+         同样只在 html.js 下起手，JS 缺席时序号直接是全显态。 */
+      html.js .step-num {
         opacity: 0.5;
         transform: translateY(8px);
         transition:
           opacity 0.5s var(--ease-out) 0.12s,
           transform 0.5s var(--ease-out) 0.12s;
       }
-      .step-card.visible .step-num {
+      html.js .step-card.visible .step-num {
         opacity: 1;
         transform: translateY(0);
       }
-      .faq-a-inner {
+      html.js .faq-a-inner {
         opacity: 0;
         transform: translateY(-6px);
         transition:
           opacity 0.3s ease 0.05s,
           transform 0.3s var(--ease-out) 0.05s;
       }
-      .faq-item.open .faq-a-inner {
+      html.js .faq-item.open .faq-a-inner {
         opacity: 1;
         transform: translateY(0);
       }
@@ -1796,6 +1831,8 @@
           animation-name: aph-fade;
           animation-duration: 0.2s;
           animation-timing-function: ease-out;
+          /* 归零延迟：both + delay 会把元素按在 opacity:0 上，降级下不该再等 */
+          animation-delay: 0s;
         }
         .hero-visual .key-card,
         .hero-badge,
@@ -1805,12 +1842,19 @@
         .hero-visual .key-card::after {
           display: none;
         }
-        .reveal,
-        .reveal.visible,
-        .step-num,
-        .step-card.visible .step-num,
-        .faq-a-inner,
-        .faq-item.open .faq-a-inner {
+        /* 轮播：切换改为瞬时（translateX 仍在位），进度条与自动轮播由脚本一并停掉 */
+        .carousel-track {
+          transition: none;
+        }
+        .carousel-progress {
+          display: none;
+        }
+        html.js .reveal,
+        html.js .reveal.visible,
+        html.js .step-num,
+        html.js .step-card.visible .step-num,
+        html.js .faq-a-inner,
+        html.js .faq-item.open .faq-a-inner {
           transform: none;
         }
         .nav-links a::after,
@@ -3957,6 +4001,10 @@
       let current = 0;
       let timer = null;
       const INTERVAL = 5000;
+      /* 轮播门控状态：视口内才推进；减弱动效下完全交给手动操作。
+         carouselInView 先按「可见」起算，真正的观察器在下方事件绑定处安装。 */
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let carouselInView = true;
 
       /** 截图分中英两套（英文版文件名带 -en 后缀），按当前语言取对应一套 */
       const shotFile = f => (lang === 'en' ? f.replace(/\.png$/, '-en.png') : f);
@@ -4020,20 +4068,29 @@
         stop();
         start();
       }
+      /** 自动轮播是否应当推进：减弱动效下交给用户手动操作，视口外与后台标签页不空转 */
+      function autoPlayAllowed() {
+        return carouselInView && !document.hidden && !reduceMotion.matches;
+      }
       function start() {
-        // 进度条
+        if (!autoPlayAllowed()) return;
+        // 幂等：任何一次 start() 都先作废上一枚 timer，避免门控与 hover 交错时留下孤儿
+        clearTimeout(timer);
+        // 进度条：只动 transform（原实现动 width，每帧触发布局）
         progress.style.transition = 'none';
-        progress.style.width = '0%';
+        progress.style.transform = 'scaleX(0)';
         // 强制 reflow 让 transition 生效
         void progress.offsetWidth;
-        progress.style.transition = `width ${INTERVAL}ms linear`;
-        progress.style.width = '100%';
+        progress.style.transition = `transform ${INTERVAL}ms linear`;
+        progress.style.transform = 'scaleX(1)';
         timer = setTimeout(next, INTERVAL);
       }
       function stop() {
         clearTimeout(timer);
+        timer = null;
         progress.style.transition = 'none';
-        progress.style.width = getComputedStyle(progress).width; // 暂停在当前位置
+        // 暂停在当前位置：读到的插值矩阵直接回写，等价于原来的 width 冻结
+        progress.style.transform = getComputedStyle(progress).transform;
       }
 
       document.getElementById('prevBtn').addEventListener('click', prev);
@@ -4042,6 +4099,23 @@
       const carousel = document.getElementById('carousel');
       carousel.addEventListener('mouseenter', stop);
       carousel.addEventListener('mouseleave', start);
+
+      // 轮播门控：滚出视口、切到后台标签页、或用户中途开启系统减弱动效，都立即停掉自动推进
+      if ('IntersectionObserver' in window) {
+        new IntersectionObserver(
+          entries => {
+            carouselInView = entries[0].isIntersecting;
+            restart();
+          },
+          { threshold: 0 },
+        ).observe(carousel);
+      }
+      document.addEventListener('visibilitychange', restart);
+      if (typeof reduceMotion.addEventListener === 'function') {
+        reduceMotion.addEventListener('change', restart);
+      } else {
+        reduceMotion.addListener(restart); // Safari 14 及更早的旧接口
+      }
 
       // 键盘左右
       document.addEventListener('keydown', e => {
@@ -4248,19 +4322,44 @@
         }, 1500);
       });
 
+      // =================== 循环动效视口门控 ===================
+      /* hero 的卡片浮动 / 掠光 / 角标是常驻循环：滚出视口或标签页切后台时挂 html.motion-idle
+         由 CSS 暂停它们，避免在看不见的地方空转。JS 缺席时这个类永不出现，行为与门控前一致。 */
+      let heroInView = true;
+      const syncMotionIdle = () => {
+        document.documentElement.classList.toggle('motion-idle', !heroInView || document.hidden);
+      };
+      const hero = document.querySelector('.hero');
+      if (hero && 'IntersectionObserver' in window) {
+        new IntersectionObserver(
+          entries => {
+            heroInView = entries[0].isIntersecting;
+            syncMotionIdle();
+          },
+          { threshold: 0 },
+        ).observe(hero);
+      }
+      document.addEventListener('visibilitychange', syncMotionIdle);
+      syncMotionIdle();
+
       // =================== Scroll Reveal ===================
-      const revealObserver = new IntersectionObserver(
-        entries => {
-          entries.forEach(entry => {
-            if (entry.isIntersecting) {
-              entry.target.classList.add('visible');
-              revealObserver.unobserve(entry.target);
-            }
-          });
-        },
-        { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
-      );
-      document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+      if ('IntersectionObserver' in window) {
+        const revealObserver = new IntersectionObserver(
+          entries => {
+            entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                revealObserver.unobserve(entry.target);
+              }
+            });
+          },
+          { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+        );
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+      } else {
+        // 老浏览器没有 IntersectionObserver：直接落到终态，绝不让内容卡在隐形初始态
+        document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+      }
     </script>
 
     <!-- ======= FAQ noscript 回退：供 AI 爬虫 / 搜索引擎静态抓取 ======= -->
