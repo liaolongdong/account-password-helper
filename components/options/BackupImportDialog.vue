@@ -112,6 +112,13 @@
             <h4>{{ t('options.import.previewTitle') }}</h4>
             <span class="preview-total">{{ t('options.import.previewTotal', { count: previewData.length }) }}</span>
           </div>
+          <!-- 额度告警：备份文件往往一次带回上千条，超限必须在这里摊开给用户看 -->
+          <CapacityAlert
+            :current-count="currentCount"
+            :incoming="previewData.length"
+            :remaining="remaining"
+            :skipped="skipped"
+          />
           <el-table
             :data="previewData.slice(0, 5)"
             style="width: 100%"
@@ -200,12 +207,14 @@
         <el-button @click="handleClose">{{ t('common.cancel') }}</el-button>
         <el-button
           type="success"
-          :disabled="previewData.length === 0"
+          :disabled="previewData.length === 0 || capacityExhausted"
           :loading="importing"
           @click="handleImport"
         >
           {{
-            importing ? t('options.import.importing') : t('options.import.confirmImport', { count: previewData.length })
+            importing
+              ? t('options.import.importing')
+              : t('options.import.confirmImport', { count: importableEntries.length })
           }}
         </el-button>
       </div>
@@ -224,7 +233,9 @@ import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
+import { importFailureMessage, importSuccessMessage, useImportCapacity } from '@/composables/useImportCapacity';
 import CapsLockHint from '@/components/CapsLockHint.vue';
+import CapacityAlert from '@/components/options/CapacityAlert.vue';
 
 interface Props {
   modelValue: boolean;
@@ -255,6 +266,10 @@ const previewData = ref<Omit<PasswordEntry, 'id' | 'order'>[]>([]);
 const selectedFile = ref<File | undefined>(undefined);
 const masterPassword = ref('');
 const showPreviewPassword = ref(false);
+
+/** 条目总量额度：预览页的超限告警、导入前的二次确认与本批可导入切片 */
+const { currentCount, remaining, skipped, capacityExhausted, importableEntries, takeImportableEntries } =
+  useImportCapacity(previewData);
 
 /**
  * 格式化文件大小为可读字符串
@@ -349,16 +364,20 @@ const handleDecrypt = async () => {
 /** 确认导入 */
 const handleImport = async () => {
   if (previewData.value.length === 0) return;
+  // 超限时先按剩余额度切片，再让用户确认「只导入前 N 条」；取消即一条都不写。
+  const entries = await takeImportableEntries();
+  if (!entries) return;
 
   try {
     importing.value = true;
-    await StorageUtils.batchSavePasswords(previewData.value);
-    ElMessage.success(t('options.import.importSuccess', { count: previewData.value.length }));
+    await StorageUtils.batchSavePasswords(entries);
+    ElMessage.success(importSuccessMessage(entries.length, skipped.value));
     emit('imported');
     handleClose();
   } catch (error) {
     logger.error('导入失败:', error);
-    ElMessage.error(t('options.import.importFailed'));
+    // 兜底：解密预览到写入之间条目数可能已被其它入口填满，此时要说清是「上限」而非「导入失败」
+    ElMessage.error(importFailureMessage(error));
   } finally {
     importing.value = false;
   }

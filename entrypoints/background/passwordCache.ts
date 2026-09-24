@@ -16,9 +16,10 @@ import {
 import { getSidepanelSortConfig, getDomainMatchConfig, DEFAULT_DOMAIN_MATCH_MODE } from '@/utils/storage/configManager';
 import { filterAndSortEntriesForDomain, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
 import { resolveMatchTier, countSameMainDomainCandidates, type DomainMatchMode, type MatchTier } from '@/utils/domain';
+import { filterByKeyword } from '@/utils/keywordMatch';
+import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch/core';
 import { fetchFaviconDataUrl } from '@/utils/favicon';
 import { generateTOTP, parseOtpAuth, getTotpRemaining } from '@/utils/totp';
-import { tl } from '@/utils/i18n-lite';
 import { waitForBrowserStartupRelockMarker } from '@/utils/browserStartupRelock';
 import { hasMasterPassword } from '@/utils/storage/masterPassword';
 
@@ -521,6 +522,56 @@ async function ensureAuthenticatedCache(): Promise<PasswordCache | null> {
 }
 
 /**
+ * 按关键词保序过滤匹配结果（拼音 / 首字母缩写，与侧边栏同一匹配内核）
+ *
+ * 内联下拉运行在内容脚本世界，那里无法加载 `pinyin-match` chunk（扩展未声明
+ * web_accessible_resources），故由 SW 代跑这一层：内容脚本先以子串乐观渲染，
+ * 本次结果到达后替换为其超集（拼音命中）。
+ *
+ * 安全：入参是页面侧可伪造的文本，长度已由消息边界（`normalizeSearchKeyword`）截断；
+ * 只读取 username/tag/remark/url 四个展示字段，绝不触碰 password/totp；
+ * 关键词本身不落日志。
+ *
+ * @param entries 已完成域名匹配与排序的条目
+ * @param keyword 已归一的检索关键词（非空）
+ * @returns 命中条目，顺序与入参一致
+ */
+async function filterMatchedByKeyword(entries: PasswordEntry[], keyword: string): Promise<PasswordEntry[]> {
+  // 幂等预热：首次会加载拼音 chunk，之后同步短路；加载失败时内核自动降级为子串匹配
+  await warmPinyinMatcher();
+  return filterByKeyword(entries, keyword, matchesKeyword);
+}
+
+/**
+ * 内联下拉一次下发的条目上界
+ *
+ * 本站匹配集在放宽档位下可以覆盖整库（2000 条上限），而内联面板是贴在登录框上的下拉层：
+ * 超出上界的部分既进不了用户视野，又要付出「消息体逐条携带 favicon dataURL + 页面侧
+ * 一次性 innerHTML 铺开上千行」的成本。截断只影响一次能给多少条，排序仍与侧边栏同源，
+ * 因此前 N 条就是最优候选；剩下的量由 `totalMatched` 报给面板尾部读数，
+ * 用户要么继续输入关键词收窄，要么走「到管理页查看全部」的去向。
+ */
+export const INLINE_MAX_RESULT_ROWS = 100;
+
+/**
+ * 组装锁定响应，并区分「已锁定」与「从未设置主密码」
+ *
+ * 两者的判据是一次 `storage.local` 读，因此只在真的要返回锁定态时才付出这次读取：
+ * 放在 `getMatchingAccounts` 入口会让内联下拉的**每一次防抖检索**多一趟存储往返
+ * （Windows 慢盘 / 杀软扫描下是可感知的延迟）。
+ *
+ * 依据：会话有效即意味着主密码配置存在——「重置全部数据」先 `lockSession()` 再
+ * `clearAllData()`（`useAuthFlow.resetMasterPassword`），不存在「有会话但无主密码配置」的产品路径。
+ *
+ * @returns 带 `locked` 的响应，未设置主密码时额外带 `noMasterPassword`
+ */
+async function buildLockedResponse(): Promise<MatchingAccountsResponse> {
+  return (await hasMasterPassword())
+    ? { locked: true, accounts: [] }
+    : { locked: true, noMasterPassword: true, accounts: [] };
+}
+
+/**
  * 获取匹配当前域名的账号元数据（供内联下拉使用，绝不返回密码）
  *
  * 安全：会话锁定时返回 `{ locked: true, accounts: [] }`，不触碰任何凭证；
@@ -530,25 +581,25 @@ async function ensureAuthenticatedCache(): Promise<PasswordCache | null> {
  *
  * @param domain 当前页面顶层域名（hostname）
  * @param port 当前页面端口号（仅 localhost 场景使用，空串表示无端口）
- * @returns 锁定标记与匹配账号元数据列表
+ * @param keyword 检索关键词（可选，拼音/首字母缩写，保序过滤，空串等价不过滤）
+ * @returns 锁定标记、匹配账号元数据列表（最多 `INLINE_MAX_RESULT_ROWS` 条）与命中总数
  */
-export async function getMatchingAccounts(domain: string, port?: string): Promise<MatchingAccountsResponse> {
+export async function getMatchingAccounts(
+  domain: string,
+  port?: string,
+  keyword?: string,
+): Promise<MatchingAccountsResponse> {
+  // 启动重锁窗口：只报「锁定」，不据此推断主密码是否存在（此刻会话状态本就不可信）
   if (!(await ensureCredentialAccessAfterStartupRelock())) return { locked: true, accounts: [] };
-
-  // 主密码存在性检查：未设置主密码时引导用户先设置，而非返回空列表
-  const hasMP = await hasMasterPassword();
-  if (!hasMP) {
-    return { locked: true, noMasterPassword: true, accounts: [] };
-  }
 
   // 会话状态门禁：优先同步判断，未命中再异步校验
   if (!isSessionActiveSync()) {
     const valid = await isSessionValid();
-    if (!valid) return { locked: true, accounts: [] };
+    if (!valid) return await buildLockedResponse();
   }
 
   const cache = await ensureAuthenticatedCache();
-  if (!cache) return { locked: true, accounts: [] };
+  if (!cache) return await buildLockedResponse();
 
   // 过滤 + 排序：与侧边栏 filteredPasswords 同口径（含无 URL 条目），
   // 放宽程度由用户在 Options 里选择的档位决定，`off` 档下仍严格隔离 fat/uat 等多测试环境；
@@ -569,12 +620,17 @@ export async function getMatchingAccounts(domain: string, port?: string): Promis
     return tier === -1 ? 0 : tier;
   };
 
-  // 并行附带网站图标 dataURL（本地 _favicon/ 端点 + 内存缓存，失败降级空串），
-  // 避免将 _favicon/* 暴露为 web_accessible_resources 供网页直接加载
+  // 关键词检索排在排序之后：过滤只做减法、不重排，保证「内联首条」与「侧边栏首条」同源
+  const searched = keyword ? await filterMatchedByKeyword(matched, keyword) : matched;
+  const totalMatched = searched.length;
+  const visible = totalMatched > INLINE_MAX_RESULT_ROWS ? searched.slice(0, INLINE_MAX_RESULT_ROWS) : searched;
+
+  // 并行附带网站图标 dataURL（本地 _favicon/ 端点 + 内存缓存，避免把 _favicon/* 暴露为
+  // web_accessible_resources 供网页直接加载）：只为真正要展示的条目取图，
+  // 被上界截掉的条目不再产生 dataURL（一条就是 KB 级的消息体）。
   const accounts = await Promise.all(
-    matched.map(async p => ({
+    visible.map(async p => ({
       id: p.id,
-      title: (p.tag && p.tag.trim()) || (p.url && p.url.trim()) || p.username || tl('bg.cache.untitled'),
       username: p.username || '',
       tag: p.tag || '',
       remark: p.remark || '',
@@ -586,10 +642,11 @@ export async function getMatchingAccounts(domain: string, port?: string): Promis
     })),
   );
 
-  // 计数只服务空态那一行提示：面板有结果时提示不渲染，不遍历全库
-  const crossDomainCount = accounts.length ? 0 : countSameMainDomainCandidates(cache.passwords, domain, mode);
+  // 计数只服务空态那一行提示（「本站无账号、同主域还有 N 条」），描述的是本站而非关键词：
+  // 因此按过滤前的 matched 判定，避免带关键词的检索把提示计数改口径。
+  const crossDomainCount = matched.length ? 0 : countSameMainDomainCandidates(cache.passwords, domain, mode);
 
-  return { locked: false, accounts, crossDomainCount };
+  return { locked: false, accounts, crossDomainCount, totalMatched };
 }
 
 /**

@@ -5,7 +5,14 @@ import type { CommandAction } from '@/utils/commandPalette';
 
 /** 事件工厂：构造 handleKeydown 所需的最小鸭子类型事件 */
 function keyEvent(
-  init: Partial<{ key: string; metaKey: boolean; ctrlKey: boolean; shiftKey: boolean; altKey: boolean }>,
+  init: Partial<{
+    key: string;
+    metaKey: boolean;
+    ctrlKey: boolean;
+    shiftKey: boolean;
+    altKey: boolean;
+    isComposing: boolean;
+  }>,
 ) {
   const preventDefault = vi.fn();
   return {
@@ -14,6 +21,7 @@ function keyEvent(
     ctrlKey: init.ctrlKey ?? false,
     shiftKey: init.shiftKey ?? false,
     altKey: init.altKey ?? false,
+    isComposing: init.isComposing ?? false,
     preventDefault,
   };
 }

@@ -362,8 +362,8 @@
           <p class="subtitle">Account Password Helper Browser Extension</p>
         </div>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年9月16日</span>
-          <span class="lang-en">Last updated: September 16, 2026</span>
+          <span class="lang-zh">最后更新：2026年9月22日</span>
+          <span class="lang-en">Last updated: September 22, 2026</span>
         </span>
       </div>
 
@@ -473,7 +473,7 @@
               <tr>
                 <td>alarms</td>
                 <td>
-                  定时检查版本更新、自动备份提醒和 Service Worker 常驻保活（后台约每 30 秒唤醒一次，用于保证侧边栏秒开）
+                  定时检查版本更新、自动备份提醒和 Service Worker 常驻保活（后台约每 20 秒唤醒一次，用于保证侧边栏秒开）
                 </td>
               </tr>
               <tr>
@@ -535,7 +535,17 @@
               加密的本地文件，仅本地导出导入；身份信息不参与自动备份，请定期手动导出
             </li>
             <li>
+              <strong>身份信息明文导出 / 导入（.json，可选）：</strong
+              >供迁移到其他工具查看的<strong>未加密</strong>导出，需验证主密码并经风险二次确认后方可进行；文件为明文（含姓名、证件号、银行卡号、CVV
+              等），任何能访问该文件的人均可直接读取。该明文 .json 也可经「导入」按 id
+              合并重新导入（同样需验证主密码并确认风险），请谨慎使用并妥善保管
+            </li>
+            <li>
               <strong>邮件备份提醒：</strong>仅通过 mailto: 协议打开系统邮件客户端，扩展本身不发送邮件也不接触邮件服务器
+            </li>
+            <li>
+              <strong>站点规则导出（JSON）：</strong>仅为该域名的填充选择器配置（域名 + CSS
+              选择器），<strong>不含账号、密码等任何凭据</strong>；文件为明文本地下载，不经过任何服务器，用于备份或团队共享
             </li>
           </ul>
         </div>
@@ -691,7 +701,7 @@
                 <td>alarms</td>
                 <td>
                   Schedule version update checks, auto-backup reminders, and always-on Service Worker keepalive
-                  (background wakeup roughly every 30 seconds to keep the side panel instantly available)
+                  (background wakeup roughly every 20 seconds to keep the side panel instantly available)
                 </td>
               </tr>
               <tr>
@@ -760,8 +770,20 @@
               imported locally only; identity information is not covered by automatic backups, so export it regularly
             </li>
             <li>
+              <strong>Identity Plaintext Export / Import (.json, optional):</strong> an <strong>unencrypted</strong>
+              export for migrating to other tools, allowed only after verifying the master password and confirming the
+              risk; the file is plaintext (name, ID number, card number, CVV, etc.) readable by anyone who can access
+              it. The same plaintext .json can also be re-imported through the identity import entry and merged by id,
+              likewise requiring master-password verification and risk confirmation — use with care and store securely
+            </li>
+            <li>
               <strong>Email Backup Reminder:</strong> Opens the system email client via the mailto: protocol only; the
               Extension does not send emails or contact any mail server
+            </li>
+            <li>
+              <strong>Site Rule Export (JSON):</strong> fill-selector configuration only (domains plus CSS selectors),
+              <strong>no usernames, passwords or any other credentials</strong>; the file is plaintext downloaded
+              locally without passing through any server, intended for backup or team sharing
             </li>
           </ul>
         </div>

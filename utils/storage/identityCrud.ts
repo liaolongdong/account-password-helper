@@ -18,6 +18,7 @@ import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { generateId } from '@/utils/generateId';
+import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
 
@@ -269,21 +270,21 @@ export async function deleteIdentities(ids: string[]): Promise<void> {
  */
 export async function reencryptAll(raw: IdentityRecord[], oldKey: string, newKey: string): Promise<IdentityRecord[]> {
   const enc = await _getEncryption();
-  const reencrypted: IdentityRecord[] = [];
-  for (const record of raw) {
+  // 条目级并行（与 changeMasterPassword 的密码/回收站/历史三段同口径）：
+  // 顺序与入参一致，单条失败仍「原样携带」，只是串行 await 的 ~2× 固定开销被批内并发摊掉。
+  return mapWithConcurrency(raw, async record => {
     try {
       const json = await enc.decryptData(record.encryptedPayload, oldKey);
       const payload = JSON.parse(json) as IdentityPayload;
-      reencrypted.push({
+      return {
         ...record,
         encryptedPayload: await enc.encryptData(JSON.stringify(payload), newKey),
-      });
+      };
     } catch {
       logger.warn('跳过无法重加密的身份条目（原样保留）: ' + record.id);
-      reencrypted.push(record);
+      return record;
     }
-  }
-  return reencrypted;
+  });
 }
 
 /**

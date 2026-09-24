@@ -13,11 +13,11 @@
 [![Last Commit](https://img.shields.io/github/last-commit/liaolongdong/account-password-helper?style=for-the-badge&label=Last%20Commit&logo=github&logoColor=white)](https://github.com/liaolongdong/account-password-helper/commits/main)
 [![CI](https://img.shields.io/github/actions/workflow/status/liaolongdong/account-password-helper/ci.yml?style=for-the-badge&label=CI&logo=github&logoColor=white)](https://github.com/liaolongdong/account-password-helper/actions/workflows/ci.yml)
 
-> **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart, plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
+> **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart — with three cross-subdomain tiers when one account legitimately serves a whole domain family — plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
 
-> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 1134 automated tests
+> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 1337 automated tests
 
-**Contents**: [Core Advantages](#-core-advantages) · [Feature Tour](#-feature-tour) · [How It Compares](#-how-it-compares) · [Feature Overview](#-feature-overview) · [Security & Privacy](#-security--privacy) · [Install & Get Started](#-install--get-started) · [FAQ](#-faq) · [Contributing](#-contributing) · [License](#-license)
+**Contents**: [Core Advantages](#-core-advantages) · [Feature Tour](#-feature-tour) · [How It Compares](#-how-it-compares) · [Feature Overview](#-feature-overview) · [Security & Privacy](#-security--privacy) · [Install & Get Started](#-install--get-started) · [FAQ](#-faq) · [More by the author](#-more-by-the-author) · [Contributing](#-contributing) · [License](#-license)
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
@@ -29,14 +29,15 @@
 
 ## ✨ Core Advantages
 
-| Advantage                                 | What sets it apart                                                                                                                                                                                 |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ⚡ **One-keystroke login, not just fill** | `Ctrl+Shift+F` runs fill → tick "remember me / I agree" in one press; turn on "Auto-submit login" (or use the side panel's "Fill and sign in") and it clicks the login button too                  |
-| 🎯 **Multi-environment isolation**        | Exact-domain matching separates dev / test / staging / prod credentials — **same site, different environments, zero mix-ups**. A must-have for developers and QA                                   |
-| 🔑 **Built-in TOTP + 2FA handoff**        | Verification codes live with your passwords; on GitHub-style two-step logins the live code capsule auto-anchors beside the input — **no phone authenticator app needed**                           |
-| 🔒 **Local AES-256-GCM, zero cloud**      | No cloud, no account, no subscription — **so there is no server for anyone to breach**. Five sensitive fields are encrypted field by field and password data never leaves the machine as plaintext |
-| 📊 **Offline security audit**             | One-click 0–100 score weighted across four dimensions, **computed entirely on your machine**                                                                                                       |
-| 📦 **One-click migration**                | Auto-detects exports from Chrome / LastPass / Bitwarden / 1Password; CSV & JSON — **move in in 30 seconds**                                                                                        |
+| Advantage                                       | What sets it apart                                                                                                                                                                                                                                                         |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ⚡ **One-keystroke login, not just fill**       | `Ctrl+Shift+F` runs fill → tick "remember me / I agree" in one press; turn on "Auto-submit login" (or use the side panel's "Fill and sign in") and it clicks the login button too                                                                                          |
+| 🎯 **Multi-environment isolation**              | Exact-domain matching separates dev / test / staging / prod credentials — **same site, different environments, zero mix-ups**. A must-have for developers and QA, with two opt-in tiers (wildcard entries, same main domain) when one account serves a whole domain family |
+| 🔑 **Built-in TOTP + 2FA handoff**              | Verification codes live with your passwords; on GitHub-style two-step logins the live code capsule auto-anchors beside the input — **no phone authenticator app needed**                                                                                                   |
+| 🧲 **A fallback for pages that refuse to fill** | Where field detection is wrong — typically Web Components login pages — you pin custom CSS selectors for the username and password fields of that domain and reach into shadow DOM, then share the rules as JSON across machines and teammates                             |
+| 🔒 **Local AES-256-GCM, zero cloud**            | No cloud, no account, no subscription — **so there is no server for anyone to breach**. Five sensitive fields are encrypted field by field and password data never leaves the machine as plaintext                                                                         |
+| 📊 **Offline security audit**                   | One-click 0–100 score weighted across four dimensions, **computed entirely on your machine**                                                                                                                                                                               |
+| 📦 **One-click migration**                      | Auto-detects exports from Chrome / LastPass / Bitwarden / 1Password; CSV & JSON — **move in in 30 seconds**                                                                                                                                                                |
 
 **Who it's for**
 
@@ -101,16 +102,17 @@
 
 ## 🆚 How It Compares
 
-| Feature                                   | ⭐ **Account Password Helper** |        Bitwarden        |         1Password         |           Chrome Built-in            |
-| ----------------------------------------- | :----------------------------: | :---------------------: | :-----------------------: | :----------------------------------: |
-| Price                                     |     **✅ Completely free**     | Free / Premium ≈ $10/yr |   $2.99/mo (see vendor)   |                 Free                 |
-| Data storage                              |    **✅ Local, zero cloud**    |          Cloud          |           Cloud           | Local + optional Google account sync |
-| Account required                          |       **✅ No sign-up**        |           Yes           |            Yes            |                  No                  |
-| One-keystroke login (fill + tick + click) |      **✅ Yes, no setup**      |    Needs extra setup    |     Needs extra setup     |              Fill only               |
-| Multi-environment isolation               |           **✅ Yes**           |           No            |            No             |                  No                  |
-| TOTP authenticator                        |   **✅ Built in (same ext)**   |    Separate free app    | In all subscription tiers |                  No                  |
-| Offline security audit (0–100 score)      |           **✅ Yes**           |           No            |     Hosted Watchtower     | Compromised-password check, no score |
-| Open source (GPL-3.0)                     |           **✅ Yes**           |           Yes           |            No             |                  No                  |
+| Feature                                      | ⭐ **Account Password Helper** |        Bitwarden        |         1Password         |           Chrome Built-in            |
+| -------------------------------------------- | :----------------------------: | :---------------------: | :-----------------------: | :----------------------------------: |
+| Price                                        |     **✅ Completely free**     | Free / Premium ≈ $10/yr |   $2.99/mo (see vendor)   |                 Free                 |
+| Data storage                                 |    **✅ Local, zero cloud**    |          Cloud          |           Cloud           | Local + optional Google account sync |
+| Account required                             |       **✅ No sign-up**        |           Yes           |            Yes            |                  No                  |
+| One-keystroke login (fill + tick + click)    |      **✅ Yes, no setup**      |    Needs extra setup    |     Needs extra setup     |              Fill only               |
+| Multi-environment isolation                  |           **✅ Yes**           |           No            |            No             |                  No                  |
+| Site rules: custom fill selectors per domain |           **✅ Yes**           |           No            |            No             |                  No                  |
+| TOTP authenticator                           |   **✅ Built in (same ext)**   |    Separate free app    | In all subscription tiers |                  No                  |
+| Offline security audit (0–100 score)         |           **✅ Yes**           |           No            |     Hosted Watchtower     | Compromised-password check, no score |
+| Open source (GPL-3.0)                        |           **✅ Yes**           |           Yes           |            No             |                  No                  |
 
 > ⭐ marks this project's column; ✅ means it works out of the box with no extra setup. Competitor pricing and feature boundaries are as of Sep 2026 and change often — check each vendor's site. Full comparison on the [alternatives page](https://liaolongdong.github.io/account-password-helper/compare.en.html).
 
@@ -129,6 +131,8 @@
 
 - ⚡ **One-keystroke login**: fills the credentials and ticks consent boxes such as "remember me / I have read and agree / accept terms"; with "Auto-submit login" on (or the side panel's "Fill and sign in") it clicks the login button too
 - 🧩 **Four fill entry points**: in-page panel (the default), side panel one-click fill, right-click on an input, and the shortcut; login forms are detected dynamically (including cross-iframe) and it works with React / Vue as well as phone + SMS-code sign-ins
+- ⌨️ **The in-page panel fills in two keystrokes**: the mini panel follows the exact same ordering and search semantics as the side panel (username / tag / remark / URL, matching full pinyin and initialisms), the first row is selected on open and after every filtering pass so Enter fills it right away, and ↑↓ / Enter / Esc are left alone while an IME composition is still pending — no accidental fill before your sentence is finished. When the site has no matching account, one click takes you to the manager page with the keyword already applied to search the whole vault
+- 🧲 **Site rules as a fallback**: on login pages the detector gets wrong — typically Web Components sites — the manager page's "Site rules" lets you pin custom CSS selectors for that domain's username and password fields, with shadow DOM penetration on by default for each rule. Rules export as plain-text JSON (domains and selectors only, never credentials) and merge-import by domain with an added / updated / skipped report, so a second machine or a teammate does not rebuild them one by one
 - 💾 **Auto-save credentials**: Chrome-style capture with a save confirmation, smart dedup (identical credentials never re-prompt, a changed password triggers an "Update" confirmation); domain allow/block lists and "Never for this site", and the prompt flags weak or reused passwords inline
 - 🎯 **Exact domain matching**: by default every fill entry point and list shows only entries whose host exactly matches the current page, keeping dev / test / staging / prod apart
 - 🌐 **Cross-subdomain matching (off by default)**: the manager page header exposes three tiers — "Exact + wildcard entries" lets accounts saved as `*.qq.com` span subdomains; "Same root domain" falls back to `qq.com` and then `music.qq.com` when the current domain has no accounts, labelling those rows "Cross-subdomain". The sidebar and the inline dropdown share one ordering and quick fill takes the first row, while `localhost` stays separated by port; duplicate detection for auto-save is never loosened, and the prompt tells you which entry the save touches
@@ -140,6 +144,7 @@
 - 📥 **Import / export**: CSV / JSON, with auto-detection of Chrome, LastPass, Bitwarden and 1Password exports and bilingual column mapping (re-save Excel sheets as CSV)
 - 🔐 **Several backups**: encrypted (.aph) export/import with a decrypt preview; email backup that assembles everything locally and hands it to your own mail client over `mailto:`; scheduled reminders that only notify you — nothing is ever sent automatically
 - 🏷️ **Organization that scales**: tag filtering, favorites pinned to the top (cap defaults to 10, configurable 1–50, evicted LRU), multi-field smart search with pinyin/initials and highlighting, one-click dedup, batch delete / retag / export selected to CSV, and a read-only detail drawer with the full remark and password history
+- 📄 **Paginated list**: the password list renders one page at a time (100 rows by default, switchable to 50 / 100 / 200), so opening the manager page near the 2,000-entry cap no longer means waiting for the whole table to paint. Selections survive page flips — batch delete / retag / export-selected still act on every checked entry (the pager tells you how many of them are off-page), while the header checkbox follows the usual table convention of selecting the current page only. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it; a search or sort change takes you back to page 1
 - ♻️ **Mistake-proofing**: 30-day trash bin (soft delete), password change history keeping 3 encrypted snapshots per entry by default (configurable 1–10, restorable), and an atomic master password change that never loses data
 - 🪪 **Identity vault**: a separate locker for personal details — name, ID number, phone, email, address, bank card info and custom fields — masked by default and gated by a master-password re-check when you open it; supports encrypted (.aphid) export/import, exporting a selected subset, and an optional plaintext .json export/import (master-password re-check + risk confirmation; import merges by id); it is not covered by automatic backups, so export an encrypted backup regularly
 
@@ -149,6 +154,7 @@
 - 🚀 **Instant open**: the side panel opens with no blank frame in every state; with a live session it takes the cached warm path and returns data in 20–50ms
 - 🛠️ **Password generator**: random mode (default 16 characters, configurable 6–50, with charset and ambiguous-character exclusion) and passphrase mode (built-in 3,080-word English list, 3–8 words with optional digits)
 - 🔍 **Small touches**: a live strength bar with a per-rule checklist while you type a password, an instant Caps Lock warning on every master password field, a show/hide toggle injected into page password fields (off by default, enabled in Preferences), and site favicons read from Chrome's local cache with zero external requests
+- ⌨️ **Command palette**: press `Ctrl/Cmd + K` on the manager page and filter its 23 commands by Chinese, pinyin or initials — add entry, health check, import / export, encrypted backup, dedup, trash, identity vault, site rules, cross-subdomain matching, change master password, preferences — then press Enter to open. The key does nothing while the vault is locked, and destructive commands keep the confirmations they already had
 
 > 🛠 The tech stack, architecture and project structure are covered in the [Contributing Guide](./docs/CONTRIBUTING.md); per-feature implementation details (source paths, strategies, constraints) live in [ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details); the engineering write-ups are on the [Tech Blog](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) (Chinese & English).
 
@@ -183,12 +189,13 @@
 
 ### Shortcut Cheat Sheet
 
-| Action                    | Windows / Linux | macOS         | Default behaviour                                                                                            |
-| ------------------------- | --------------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
-| Open the password manager | `Ctrl+Shift+P`  | `Cmd+Shift+P` | Opens the options page                                                                                       |
-| Toggle the side panel     | `Ctrl+Shift+L`  | `Cmd+Shift+L` | Opens / closes the side panel                                                                                |
-| Quick fill                | `Ctrl+Shift+F`  | `Cmd+Shift+F` | Fills the best-matching account + ticks consent; with "Auto-submit login" on, it clicks the login button too |
-| Open inline dropdown      | `Ctrl+Shift+K`  | `Cmd+Shift+K` | Expands the account dropdown on the focused input                                                            |
+| Action                    | Windows / Linux | macOS         | Default behaviour                                                                                                                             |
+| ------------------------- | --------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Open the password manager | `Ctrl+Shift+P`  | `Cmd+Shift+P` | Opens the options page                                                                                                                        |
+| Toggle the side panel     | `Ctrl+Shift+L`  | `Cmd+Shift+L` | Opens / closes the side panel                                                                                                                 |
+| Quick fill                | `Ctrl+Shift+F`  | `Cmd+Shift+F` | Fills the best-matching account + ticks consent; with "Auto-submit login" on, it clicks the login button too                                  |
+| Open inline dropdown      | `Ctrl+Shift+K`  | `Cmd+Shift+K` | Expands the account dropdown on the focused input                                                                                             |
+| Command palette           | `Ctrl+K`        | `Cmd+K`       | Manager page only — filters and opens any of its 23 commands; not an extension shortcut, so it is absent from `chrome://extensions/shortcuts` |
 
 > Keys cannot be rebound inside the extension (Chrome exposes no `commands.update()`) — change them at `chrome://extensions/shortcuts`. The read-only overviews on the manager page ("Security Settings → Keyboard Shortcuts") and in the side panel's Help dialog flag any key that is currently not active. Command IDs and constraints are in the [Contributing Guide — Keyboard Shortcuts](./docs/CONTRIBUTING.md#keyboard-shortcuts).
 
@@ -210,6 +217,14 @@ A: Expiry clears key material and the in-memory cache only — the sensitive fie
 
 A: Yes. Upload a CSV or JSON file in the import dialog; Chrome, LastPass, Bitwarden and 1Password formats are auto-detected and mapped, which takes about 30 seconds. Excel files must be re-saved as CSV (.xlsx is not parsed).
 
+**Q: Can one account cover every subdomain of a site?**
+
+A: The manager page header carries a "Cross-subdomain matching" control with three tiers, and the default is "Exact match only". "Exact + wildcard entries" makes an account saved as `*.qq.com` surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (`qq.com`) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, so a wider tier never changes which entry a save overwrites; `localhost` / `127.0.0.1` always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.
+
+**Q: What if the login fields are not detected, or nothing fills?**
+
+A: When the form lives inside custom components (typically Web Components pages), open "Site rules" on the manager page and pin the CSS selectors for that domain's username and password fields — the domain must match the login page exactly, wildcards are not supported. Each rule ships with "Shadow DOM penetration" switched on and it can be turned off to match the main document only; note that no extension can read a closed shadow root (`mode: 'closed'`), only open ones. Finished rules export as JSON (plain text — domains and selectors, never credentials) for backup or team sharing, and importing merges by domain with an added / updated / skipped report.
+
 **Q: When I open the exported CSV in Excel, some passwords or notes turn into error values?**
 
 A: If a field's value itself starts with `=`, `+`, `-` or `@` (all four are in the password generator's symbol set), Excel evaluates that cell as a formula. The export deliberately does not formula-escape: prefixing rewrites the field, and a password is consumed character by character, so a prefixed value would be wrong both when copied out of the sheet and when re-imported — and the export → import round trip would stop being reversible. Treat export files as data you produced on your own machine, and prefer the encrypted backup (.aph) when moving between machines.
@@ -217,6 +232,14 @@ A: If a field's value itself starts with `=`, `+`, `-` or `@` (all four are in t
 **Q: Can I recover deleted passwords?**
 
 A: Yes. Deleted entries move to the trash for 30 days — restore or permanently delete them under "Data Management → Trash". Mistaken password edits can be reverted from the entry's "Password history".
+
+**Q: Is there a limit on how many entries I can store?**
+
+A: Yes. The password list holds up to 2,000 entries, counted on the list itself — entries sitting in the trash do not take a slot. Once it is full, adding, importing, page auto-save and restoring from the trash are all refused with an explicit message; nothing you already stored is silently overwritten or dropped. When an import exceeds the remaining slots, the preview shows how many entries still fit and how many will be ignored, and you choose to import just those or cancel. To make room, delete entries you no longer need from the password list — an entry releases its slot the moment it moves to the trash, so emptying the trash is not required — or keep a full copy via "Export Data" / "Export JSON" / "Export Encrypted Backup" and then trim the list.
+
+**Q: Does the manager page get sluggish near the entry limit?**
+
+A: Not as a function of how many entries you have. The list paints one page at a time (100 rows by default, 50 / 100 / 200 on demand), so searching, filtering as you type, flipping pages and hovering all land in the same range at 600 entries as at the 2000 entry cap — measured on the same machine with the same harness. Opening the page still reads and decrypts the whole vault once, and that step does track vault size; the promise here is "cost does not grow row by row", not "constant time". Pagination only changes how many rows are drawn: search, sorting, export and the "total / filtered" readout still cover the entire matching set, and checked entries are kept across pages (the pager tells you how many of them are off-page). One thing to know: the header checkbox selects the current page only, as in any table — switch to 200 rows per page, or tick page by page, when you need a large batch.
 
 **Q: The side panel doesn't show, or is slow the first time?**
 
@@ -229,6 +252,13 @@ A: The side panel relies on Chrome's Side Panel API (Chromium 114 or newer); you
 🔗 [Install from Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) (one-click install, auto-updates) · [Download from GitHub Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) (if Google is unreachable) · [Live Demo](https://liaolongdong.github.io/account-password-helper/en.html)
 
 If this project helps you, please give it a ⭐️ and leave a review on the Chrome Web Store — it means the world to an independent developer! Issues and pull requests are welcome; the full changelog is in [CHANGELOG.md](./CHANGELOG.md).
+
+## 🧩 More by the author
+
+Same author, same rules: open source, offline, data stays on your machine.
+
+- [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — an offline converter that turns 14 formats into each other inside the browser without uploading a byte. Markdown, Word, PDF, Excel, CSV, JSON, HTML and images convert on your own machine, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/)
+- [Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy) — proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket, all configured in the browser with data stored only on your computer. This extension answers "who am I in this environment", that one answers "where do this environment's requests go" — the two are handy together when you debug across environments. [Product page](https://liaolongdong.github.io/cross-origin-proxy/en.html) · [Chrome Web Store](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
 
 ## 🤝 Contributing
 
@@ -260,4 +290,4 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 
 ---
 
-> 📅 Last updated: Sep 2026 · Features described match the latest published release — see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 Last updated: 2026-09-22 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)

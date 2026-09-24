@@ -145,7 +145,7 @@ graph LR
 | `pnpm auto-merge`                                   | 将 `main` 的改动自动合并回当前分支（脚本 `scripts/auto-merge-main.js`）                                           |
 | `pnpm prepare`                                      | 安装 husky Git hooks（`pnpm install` 时由 npm 自动触发）                                                          |
 
-> ⚠️ 跑单个测试文件要用 `pnpm exec vitest run <file>`。`pnpm test:run -- <file>` 里的 `-- <file>` **不会**被转发给 vitest CLI（实测仍跑全部 102 个文件），因为它不是 `vitest run <file>` 那种位置参数形式。
+> ⚠️ 跑单个测试文件要用 `pnpm exec vitest run <file>`。`pnpm test:run -- <file>` 里的 `-- <file>` **不会**被转发给 vitest CLI（实测仍会跑完整套测试），因为它不是 `vitest run <file>` 那种位置参数形式。
 
 > ⚠️ `blog/*.html`、`en.html`、`privacy.en.html`、`pricing.en.html`、封面图与 `public/icon/*.png` 都是**生成产物**，禁止手改；请修改其 Markdown / SVG 源文件后执行对应 `gen:*` / `icons:build` / `covers:render` 重新生成。
 
@@ -272,6 +272,7 @@ graph LR
 
 > `quick_fill` 在 `quickFillHandler.ts` 中硬编码 `autoLogin: false`，因此 `Ctrl+Shift+F` 只做「填充 + 勾选」，不会点击登录按钮；点击登录仅来自侧边栏「填充并登录」或可选的「自动触发登录」偏好（默认关闭）。
 > Chrome 未提供 `chrome.commands.update()`，且 4 个命令槽位已用满配额，因此应用内的快捷键列表为**只读**，仅提供跳转 `chrome://extensions/shortcuts` 的入口；新增快捷键需要先腾出命令槽，不能指望应用内改键。
+> 上表只列扩展级快捷键。管理页另有一层**页面内**命令面板（`Ctrl/Cmd + K`，见 [useCommandPalette.ts](../composables/useCommandPalette.ts) 与 [options/App.vue](../entrypoints/options/App.vue) 中的命令清单），它不占用 `chrome.commands` 槽位，因此既不出现在上表、也不在 `chrome://extensions/shortcuts` 中，且未解锁主密码时不响应按键。
 
 ### 安全与隐私
 

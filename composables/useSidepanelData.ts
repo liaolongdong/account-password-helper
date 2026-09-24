@@ -310,7 +310,11 @@ export function useSidepanelData() {
    * handleStorageChange 检测到此标志后跳过 loadPasswords，避免全量重载覆盖
    * Vue 层已就地完成的状态更新。
    */
-  const { isLocalOperation: localOperationFlag, runLocalOperation } = useLocalOperationGuard();
+  const {
+    isLocalOperation: localOperationFlag,
+    runLocalOperation,
+    consumeLocalOperation: consumeLocalFlag,
+  } = useLocalOperationGuard();
 
   // ==================== 域名工具 ====================
 
@@ -540,6 +544,8 @@ export function useSidepanelData() {
         // account_passwords 变更触发 loadPasswords 时 isSessionValid() 的 5s TTL 缓存仍返回 true）
         await invalidateSessionCacheSync();
         void clearCryptoKeyCacheAsync().catch(() => {});
+        // 同批丢弃本上下文以明文为键的派生记忆缓存（键取自条目字段，不随列表清空而消失）
+        clearPlaintextKeyedCaches();
         return;
       } else {
         _sessionKnownExpired = false;
@@ -581,9 +587,12 @@ export function useSidepanelData() {
         logger.debug('SidePanel: 检测到密码数据变动但会话已知过期，跳过重新加载');
         return;
       }
-      // 本地操作（收藏/填充）已在 Vue 层就地更新，storage watcher 跳过全量重载
+      // 本地操作（收藏/填充）已在 Vue 层就地更新，storage watcher 跳过全量重载。
+      // 在此解除标志而非按固定时长解除：本次事件就是本地写入的事件，而它可能在
+      // 大列表重渲染之后才派发，提前清除标志会让一次收藏仍触发整表全量重载。
       if (localOperationFlag.value) {
         logger.debug('SidePanel: 本地操作触发的 storage 变更，跳过重新加载');
+        consumeLocalFlag();
         return;
       }
       logger.debug('SidePanel: 检测到密码数据变动，重新加载');
@@ -687,6 +696,8 @@ export function useSidepanelData() {
         passwords.value = [];
         // 清理本上下文的 CryptoKey 句柄缓存（锁定后不残留可用解密句柄）
         void clearCryptoKeyCacheAsync().catch(() => {});
+        // 同批丢弃本上下文以明文为键的派生记忆缓存（键取自条目字段，不随列表清空而消失）
+        clearPlaintextKeyedCaches();
         sendResponse({ success: true });
         return true;
       default:

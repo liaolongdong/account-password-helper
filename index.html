@@ -125,7 +125,7 @@
         "operatingSystem": "Chrome",
         "browserRequirements": "需要 Chrome 114 或更高版本以使用 Side Panel API（未声明 minimum_chrome_version，旧版本仅侧边栏功能不可用）；兼容 Edge、Brave 等 Chromium 内核浏览器",
         "softwareVersion": "3.9.0",
-        "dateModified": "2026-09-12",
+        "dateModified": "2026-09-22",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -141,6 +141,7 @@
           "离线安全体检：0-100 四维加权评分，全程不联网",
           "密码生成器：随机密码与助记词组双模式",
           "四重填充策略：内联填充 / 侧边栏 / 右键菜单 / 快捷键",
+          "站点规则：为域名自定义填充选择器，兜底识别不到的登录表单",
           "CSV / JSON 导入导出，自动识别 Chrome、LastPass、Bitwarden、1Password 格式",
           "加密备份（.aph）与邮箱备份",
           "侧边栏全场景秒开（缓存快路径 20-50ms 拿到数据）",
@@ -284,7 +285,15 @@
             "name": "什么是内联填充？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充；也可按快捷键 Ctrl+Shift+K / Cmd+Shift+K 直接展开（任意填充模式下均可用）。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），使用 Closed Shadow DOM 完全隔离页面样式。"
+              "text": "内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充；也可按快捷键 Ctrl+Shift+K / Cmd+Shift+K 直接展开（任意填充模式下均可用）。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），面板打开与每次筛选后默认选中首条，回车即填当前站点最匹配的账号；搜索与侧边栏共用同一套口径，账号 / 标签 / 备注 / 网址多字段命中，认拼音全拼与首字母缩写；中文／日文输入法候选未上屏时不接管 ↑↓ / Enter / Esc，避免误填。当前站点无匹配账号时，空态提供「到全部账号中搜索」，带着关键词直达管理页做全库检索。使用 Closed Shadow DOM 完全隔离页面样式。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "登录页的输入框识别不到、填充没反应，怎么办？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "先等页面完全加载或刷新后重试。如果表单渲染在自定义组件（Web Components）里，启发式识别可能取不到输入框——这时打开密码管理页的「站点规则」，为该域名手写用户名框与密码框的 CSS 选择器即可（规则域名需与登录页域名完全一致，不支持通配）。每条规则自带「Shadow DOM 穿透」开关，默认开启，只作用于开放影子根（closed 模式的影子根任何扩展都读不到）。规则可导出为纯文本 JSON（只含域名与选择器，不含任何凭据）并按域名合并导入，导入结果报「新增 / 更新 / 忽略」，上限 500 条规则、单文件 2 MiB。"
             }
           },
           {
@@ -309,6 +318,14 @@
             "acceptedAnswer": {
               "@type": "Answer",
               "text": "在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认取页面标题）和备注（默认为\"自动保存\"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。"
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "同一站点的多个子域名能共用一个账号吗？",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "可以，但默认不共用。密码管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成 *.qq.com 的账号会在该站点任意子域名出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域 qq.com 与兄弟子域的条目，并在列表里标注「跨子域」。放宽只改变哪些账号被展示与可填充：自动保存的判重口径不随档位改变，localhost / 127.0.0.1 始终按端口区分，侧边栏与内联下拉共用同一套排序、一键填充取首条。"
             }
           },
           {
@@ -1641,13 +1658,6 @@
         will-change: transform;
         animation: aph-bob 6s ease-in-out 0.9s infinite alternate;
       }
-      /* 循环动效统一门控：视口外或后台标签页暂停，不在白板上空耗电。
-         类由文末脚本切换；JS 缺席时不添加，行为与门控前完全一致。 */
-      html.motion-idle .hero-visual .key-card,
-      html.motion-idle .hero-visual .key-card::after,
-      html.motion-idle .hero-badge {
-        animation-play-state: paused;
-      }
       .hero-badge .lock svg path {
         transform-box: fill-box;
         transform-origin: 50% 100%;
@@ -1677,6 +1687,380 @@
       html.js .faq-item.open .faq-a-inner {
         opacity: 1;
         transform: translateY(0);
+      }
+
+      /* ---------- 功能自证动效（A1 / A2 / A4 / A5） ---------- */
+      /* 四条共同约定：
+         1. 只动 transform / opacity（stroke-dashoffset 与描边颜色属绘制阶段，不触发布局）；
+         2. 基准态一律等于「动完的终态」，因此 prefers-reduced-motion 下只需 animation: none
+            就能停在有意义的一帧，不必为降级再写一套值；
+         3. 循环全部挂在 html.js 下：JS 缺席时既没有门控也没有动画，页面停在终态；
+         4. 常驻循环由 .idle（滚出视口或标签页后台）与 html.motion-idle（后台）暂停，见文末脚本。 */
+
+      /* A1 填充流水线：数据包沿 4 个输入框跑一趟，被跑到的框逐个填满（对应 f2「四种方式，逐个填入」） */
+      @keyframes aph-travel {
+        0% {
+          opacity: 0;
+          transform: translateX(-100%);
+        }
+        6%,
+        94% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+          transform: translateX(0);
+        }
+      }
+      @keyframes aph-fill {
+        0% {
+          transform: scaleX(0);
+        }
+        14%,
+        86% {
+          transform: scaleX(1);
+        }
+        100% {
+          transform: scaleX(0);
+        }
+      }
+      .flow {
+        position: relative;
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .flow-step {
+        flex: 1;
+        height: 34px;
+        overflow: hidden;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .flow-step i {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: var(--primary-soft);
+        transform: scaleX(1);
+        transform-origin: left center;
+      }
+      /* 数据包用「满宽容器 + 右端子点」的写法，位移量只有 -100% → 0，不碰 left / width */
+      .flow-packet {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+      .flow-packet::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 100%;
+        width: 8px;
+        height: 8px;
+        margin: -4px 0 0 -4px;
+        background: var(--primary);
+        border-radius: 50%;
+        box-shadow: 0 0 0 3px rgba(78, 136, 255, 0.18);
+      }
+      html.js .flow-packet {
+        animation: aph-travel 4.8s linear infinite;
+      }
+      html.js .flow-step i {
+        animation: aph-fill 4.8s var(--ease-out) infinite;
+      }
+      /* 点亮时刻对准数据包跑到该框中心的时间：4.8s 跑 4 格，分别约 0.6 / 1.8 / 3.0 / 4.2s */
+      html.js .flow-step:nth-child(1) i {
+        animation-delay: 0.6s;
+      }
+      html.js .flow-step:nth-child(2) i {
+        animation-delay: 1.8s;
+      }
+      html.js .flow-step:nth-child(3) i {
+        animation-delay: 3s;
+      }
+      html.js .flow-step:nth-child(4) i {
+        animation-delay: 4.2s;
+      }
+
+      /* A2 TOTP 活码环：30s 走完一圈，末段转红，与侧边栏 TotpCode 同一套节奏 */
+      @keyframes aph-totp {
+        from {
+          stroke-dashoffset: 0;
+        }
+        to {
+          stroke-dashoffset: 56.55;
+        }
+      }
+      /* r=9 的圆周长 2πr ≈ 56.55，dasharray 取同值，offset 走满即为空环 */
+      @keyframes aph-totp-warn {
+        0%,
+        83% {
+          stroke: var(--primary);
+        }
+        84%,
+        100% {
+          stroke: #f43f5e;
+        }
+      }
+      @keyframes aph-totp-fade {
+        0%,
+        1% {
+          opacity: 0.2;
+        }
+        8%,
+        100% {
+          opacity: 1;
+        }
+      }
+      .totp {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-top: 16px;
+      }
+      .totp-ring {
+        flex: none;
+        width: 34px;
+        height: 34px;
+        /* 让环从 12 点起走，而不是默认的 3 点 */
+        transform: rotate(-90deg);
+      }
+      .totp-track {
+        fill: none;
+        stroke: var(--border);
+        stroke-width: 3;
+      }
+      .totp-arc {
+        fill: none;
+        stroke: var(--primary);
+        stroke-width: 3;
+        stroke-linecap: round;
+        stroke-dasharray: 56.55;
+        stroke-dashoffset: 0;
+      }
+      .totp-code {
+        color: var(--text);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 20px;
+        font-weight: 600;
+        letter-spacing: 2px;
+        font-variant-numeric: tabular-nums;
+      }
+      html.js .totp-arc {
+        animation:
+          aph-totp 30s linear infinite,
+          aph-totp-warn 30s steps(1, end) infinite;
+      }
+      /* 换码瞬间的淡入：把变化压进周期开头 1%，其余时间是静止的 */
+      html.js .totp-code {
+        animation: aph-totp-fade 30s linear infinite;
+      }
+
+      /* A4 安全体检：0 → 82 计数 + 四条维度条按 35/25/20/20 权重拉开 */
+      /* --aph-score 必须注册为 <integer> 才能过渡；inherits 必须为 true，
+         否则 .audit-score::after 这个伪元素拿不到宿主上的值（非继承属性在伪元素上取初始值）。 */
+      @property --aph-score {
+        syntax: '<integer>';
+        inherits: true;
+        initial-value: 0;
+      }
+      @keyframes aph-grow {
+        from {
+          transform: scaleX(0);
+        }
+        to {
+          transform: scaleX(var(--w, 1));
+        }
+      }
+      .audit {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        margin-top: 16px;
+      }
+      .audit-score {
+        position: relative;
+        flex: none;
+        width: 42px;
+        color: var(--accent);
+        font-size: 26px;
+        font-weight: 800;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .audit-bars {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .audit-bar i {
+        display: block;
+        width: 100%;
+        height: 6px;
+        background: var(--primary);
+        border-radius: 999px;
+        transform: scaleX(var(--w, 1));
+        transform-origin: left center;
+      }
+      /* 归一化到最大权重 35，条宽即权重比 */
+      .audit-bar:nth-child(1) i {
+        --w: 1;
+      }
+      .audit-bar:nth-child(2) i {
+        --w: 0.714;
+      }
+      .audit-bar:nth-child(3) i {
+        --w: 0.571;
+      }
+      .audit-bar:nth-child(4) i {
+        --w: 0.571;
+      }
+      /* 计数只在浏览器支持 @property 时启用（文末脚本探测后挂 html.audit-count），
+         不支持就直接显示静态终值 82，任何情况下都不会显示 0。 */
+      html.audit-count .audit-score {
+        --aph-score: 0;
+        transition: --aph-score 1.1s var(--ease-out) 0.1s;
+      }
+      html.audit-count .audit-num {
+        visibility: hidden;
+      }
+      html.audit-count .audit-score::after {
+        position: absolute;
+        inset: 0;
+        counter-reset: aph-score var(--aph-score);
+        content: counter(aph-score);
+        text-align: center;
+      }
+      html.js.audit-count .feature-card.visible .audit-score {
+        --aph-score: 82;
+      }
+      html.js .feature-card.visible .audit-bar i {
+        animation: aph-grow 0.8s var(--ease-out) both;
+      }
+      html.js .feature-card.visible .audit-bar:nth-child(2) i {
+        animation-delay: 0.12s;
+      }
+      html.js .feature-card.visible .audit-bar:nth-child(3) i {
+        animation-delay: 0.2s;
+      }
+      html.js .feature-card.visible .audit-bar:nth-child(4) i {
+        animation-delay: 0.28s;
+      }
+
+      /* A5 逐字段密文：明文与密文样本交叉淡入 + 一次掠光（对应 f1「逐字段 AES-256-GCM」） */
+      @keyframes aph-cipher-in {
+        0%,
+        22% {
+          opacity: 1;
+        }
+        40%,
+        84% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+      @keyframes aph-cipher-out {
+        0%,
+        22% {
+          opacity: 0;
+        }
+        40%,
+        84% {
+          opacity: 1;
+        }
+        100% {
+          opacity: 0;
+        }
+      }
+      @keyframes aph-sweep {
+        0%,
+        30% {
+          transform: translateX(-100%);
+        }
+        58%,
+        100% {
+          transform: translateX(100%);
+        }
+      }
+      .cipher {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 18px;
+      }
+      .cipher-row {
+        position: relative;
+        height: 26px;
+        overflow: hidden;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .cipher-in,
+      .cipher-out {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+      }
+      /* 终态 = 密文在场，明文退到 0：停掉动画就是「已加密」这一帧 */
+      .cipher-in {
+        color: var(--text-muted);
+        opacity: 0;
+      }
+      .cipher-out {
+        color: var(--text);
+        font-weight: 600;
+        letter-spacing: 1px;
+        opacity: 1;
+      }
+      .cipher-row::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(100deg, transparent 40%, rgba(78, 136, 255, 0.16) 50%, transparent 60%);
+        transform: translateX(-100%);
+        pointer-events: none;
+      }
+      html.js .cipher-in {
+        animation: aph-cipher-in 6s ease-in-out infinite;
+      }
+      html.js .cipher-out {
+        animation: aph-cipher-out 6s ease-in-out infinite;
+      }
+      html.js .cipher-row::after {
+        animation: aph-sweep 6s ease-in-out infinite;
+      }
+      /* 第二行错开 0.7s，两行不同时翻脸 */
+      html.js .cipher-row:nth-child(2) :is(.cipher-in, .cipher-out),
+      html.js .cipher-row:nth-child(2)::after {
+        animation-delay: 0.7s;
+      }
+
+      /* 循环动效统一门控：模块滚出视口给自身挂 .idle，标签页切后台再挂 html.motion-idle。
+         两个类都由文末脚本添加，JS 缺席时不添加，行为与门控前完全一致。 */
+      .idle :is(.key-card, .hero-badge, .flow-packet, .flow-step i, .totp-arc, .totp-code, .cipher-in, .cipher-out),
+      html.motion-idle
+        :is(.key-card, .hero-badge, .flow-packet, .flow-step i, .totp-arc, .totp-code, .cipher-in, .cipher-out) {
+        animation-play-state: paused;
+      }
+      /* 伪元素不能进 :is()，掠光单独列一遍 */
+      .idle .hero-visual .key-card::after,
+      .idle .cipher-row::after,
+      html.motion-idle .hero-visual .key-card::after,
+      html.motion-idle .cipher-row::after {
+        animation-play-state: paused;
       }
 
       /* 悬停微交互：只在真正有指针的设备上启用，避免触屏点击后状态粘滞 */
@@ -1857,6 +2241,31 @@
         html.js .faq-item.open .faq-a-inner {
           transform: none;
         }
+        /* 功能自证四块：停掉动画即停在各自终态（框已填满 / 环满格 / 条按权重 / 密文在场），
+           选择器必须带上 html.js 前缀压过基准规则的权重。 */
+        html.js .flow-step i,
+        html.js .totp-arc,
+        html.js .totp-code,
+        html.js .cipher-in,
+        html.js .cipher-out,
+        html.js .feature-card.visible .audit-bar i {
+          animation: none;
+        }
+        /* 数据包与掠光是「运动本身」，降级后没有承载信息，直接撤掉 */
+        html.js .flow-packet,
+        html.js .cipher-row::after {
+          display: none;
+        }
+        /* 计数降级为静态终值：撤掉伪元素计数、把真实文本 82 放回来 */
+        html.audit-count .audit-score {
+          transition: none;
+        }
+        html.audit-count .audit-num {
+          visibility: visible;
+        }
+        html.audit-count .audit-score::after {
+          display: none;
+        }
         .nav-links a::after,
         .more-links a::after {
           transition: none;
@@ -2013,7 +2422,7 @@
             data-i18n="hero.lead"
           >
             一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 +
-            点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号；内置 TOTP
+            点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号，需要时可按三档放宽跨子域匹配；内置 TOTP
             两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。
           </p>
           <div class="hero-cta">
@@ -2236,6 +2645,19 @@
                 >闲置 / 重启自动锁定</span
               >
             </div>
+            <!-- 逐字段密文：可读明文与密文样本交叉淡入 + 一次掠光，对应「逐字段 AES-256-GCM 存储」。
+                 样本是 ASCII 假值，中英一致，也不含任何真实凭据。 -->
+            <div
+              class="cipher"
+              aria-hidden="true"
+            >
+              <span class="cipher-row"
+                ><span class="cipher-in">MyPass1!</span><span class="cipher-out">aX9#kLm2</span></span
+              >
+              <span class="cipher-row"
+                ><span class="cipher-in">t0tp seed</span><span class="cipher-out">9wYq*4vB</span></span
+              >
+            </div>
           </article>
           <article class="feature-card feature-card-lg reveal reveal-delay-2">
             <div class="feature-icon">
@@ -2258,6 +2680,18 @@
               等现代框架与传统页面，精确域名匹配区分多测试环境，侧边栏可一键切换「本站 /
               全站」搜索范围，可选填充后自动登录。
             </p>
+            <!-- 填充流水线：数据包沿导轨跑过 4 个输入框，逐个点亮——对应「四种方式，逐个填入」。
+                 纯装饰、无文案，因此不需要中英同步；aria-hidden 交给读屏跳过。 -->
+            <div
+              class="flow"
+              aria-hidden="true"
+            >
+              <span class="flow-step"><i></i></span>
+              <span class="flow-step"><i></i></span>
+              <span class="flow-step"><i></i></span>
+              <span class="flow-step"><i></i></span>
+              <span class="flow-packet"></span>
+            </div>
             <div class="feature-chips">
               <span
                 class="feature-chip"
@@ -2347,6 +2781,30 @@
               6238，本地生成），列表、侧边栏与内联面板实时展示活码与倒计时，支持一键填充 / 复制验证码；GitHub
               式两步登录跳转验证码页后自动衔接活码胶囊。
             </p>
+            <!-- 活码环：stroke-dashoffset 走 30s 一圈，末段转红呼吸，与侧边栏 TotpCode 同一套节奏。 -->
+            <div
+              class="totp"
+              aria-hidden="true"
+            >
+              <svg
+                class="totp-ring"
+                viewBox="0 0 24 24"
+              >
+                <circle
+                  class="totp-track"
+                  cx="12"
+                  cy="12"
+                  r="9"
+                />
+                <circle
+                  class="totp-arc"
+                  cx="12"
+                  cy="12"
+                  r="9"
+                />
+              </svg>
+              <span class="totp-code">283 914</span>
+            </div>
           </article>
           <article class="feature-card reveal reveal-delay-2">
             <div class="feature-icon">
@@ -2368,6 +2826,18 @@
               一键生成 0~100 综合评分，四个计分维度加权（密码复用 35、弱密码 25、常见泄露 20、长期未更新
               20），「未开两步验证」单独提示不计分；支持到期提醒，全程本地计算。
             </p>
+            <!-- 体检评分：0 → 82 计数 + 四条维度条按权重 35/25/20/20 拉开。
+                 计数依赖 @property，脚本探测到支持才挂 html.audit-count；否则显示静态终值 82。 -->
+            <div
+              class="audit"
+              aria-hidden="true"
+            >
+              <span class="audit-score"><span class="audit-num">82</span></span>
+              <span class="audit-bars"
+                ><span class="audit-bar"><i></i></span><span class="audit-bar"><i></i></span
+                ><span class="audit-bar"><i></i></span><span class="audit-bar"><i></i></span
+              ></span>
+            </div>
           </article>
           <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
@@ -2577,6 +3047,104 @@
               展开全部卡片、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复 提醒与 30 条上限提示；加密 .aphid
               备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 /
               回导；不参与自动备份，建议定期手动导出加密备份。
+            </p>
+          </article>
+          <article class="feature-card reveal reveal-delay-3">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                />
+                <line
+                  x1="22"
+                  y1="12"
+                  x2="18"
+                  y2="12"
+                />
+                <line
+                  x1="6"
+                  y1="12"
+                  x2="2"
+                  y2="12"
+                />
+                <line
+                  x1="12"
+                  y1="6"
+                  x2="12"
+                  y2="2"
+                />
+                <line
+                  x1="12"
+                  y1="22"
+                  x2="12"
+                  y2="18"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f13.title">站点规则兜底</h3>
+            <p data-i18n="features.f13.desc">
+              登录框藏在自定义组件里、识别不到输入框？在密码管理页「站点规则」为该域名手写用户名与密码框的 CSS
+              选择器（规则域名需与登录页域名完全一致），每条规则自带「Shadow DOM
+              穿透」开关，默认开启、只作用于开放影子根。规则可导出为纯文本
+              JSON（只含域名与选择器，不含凭据）并按域名合并导入，团队共享一套配置，不必逐台浏览器调。
+            </p>
+          </article>
+          <article class="feature-card reveal reveal-delay-1">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle
+                  cx="18"
+                  cy="5"
+                  r="3"
+                />
+                <circle
+                  cx="6"
+                  cy="12"
+                  r="3"
+                />
+                <circle
+                  cx="18"
+                  cy="19"
+                  r="3"
+                />
+                <line
+                  x1="8.59"
+                  y1="13.51"
+                  x2="15.42"
+                  y2="17.49"
+                />
+                <line
+                  x1="15.41"
+                  y1="6.51"
+                  x2="8.59"
+                  y2="10.49"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f14.title">跨子域名匹配三档</h3>
+            <p data-i18n="features.f14.desc">
+              默认只展示与当前域名完全一致的条目；「精确 + 通配条目」让网址写成 *.qq.com
+              的账号在该站任意子域出现；「同主域名」再补一层兜底——当前域名没有账号时带出主域与兄弟子域的条目并标注「跨子域」。放宽只改变展示与可填充的账号，自动保存的判重口径不随档位改变。
             </p>
           </article>
         </div>
@@ -2836,6 +3404,13 @@
               </tr>
               <tr>
                 <td data-i18n="compare.row.multienv">多环境账号隔离</td>
+                <td class="highlight"><span class="compare-check">✓</span></td>
+                <td><span class="compare-cross">✗</span></td>
+                <td><span class="compare-cross">✗</span></td>
+                <td><span class="compare-cross">✗</span></td>
+              </tr>
+              <tr>
+                <td data-i18n="compare.row.siterules">站点规则（自定义填充选择器）</td>
                 <td class="highlight"><span class="compare-check">✓</span></td>
                 <td><span class="compare-cross">✗</span></td>
                 <td><span class="compare-cross">✗</span></td>
@@ -3279,8 +3854,8 @@
           en: 'One-click login + local encryption<br />Password management, never this effortless & efficient',
         },
         'hero.lead': {
-          zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 + 点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号；内置 TOTP 两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。',
-          en: 'A Chrome password manager built for developers & QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.',
+          zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 + 点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号，需要时可按三档放宽跨子域匹配；内置 TOTP 两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。',
+          en: 'A Chrome password manager built for developers & QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts, with three tiers to widen matching across subdomains when one account serves a whole site; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.',
         },
         'hero.download': { zh: '下载插件', en: 'Install Extension' },
         'hero.githubDownload': { zh: 'GitHub 下载', en: 'GitHub Download' },
@@ -3374,6 +3949,16 @@
           zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验；支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、折叠 / 展开全部卡片、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 30 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 / 回导；不参与自动备份，建议定期手动导出加密备份。',
           en: 'A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open. Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets and collapse or expand all cards, search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; it is not covered by automatic backups, so export an encrypted backup regularly.',
         },
+        'features.f13.title': { zh: '站点规则兜底', en: 'Site Rules Fallback' },
+        'features.f13.desc': {
+          zh: '登录框藏在自定义组件里、识别不到输入框？在密码管理页「站点规则」为该域名手写用户名与密码框的 CSS 选择器（规则域名需与登录页域名完全一致），每条规则自带「Shadow DOM 穿透」开关，默认开启、只作用于开放影子根。规则可导出为纯文本 JSON（只含域名与选择器，不含凭据）并按域名合并导入，团队共享一套配置，不必逐台浏览器调。',
+          en: 'Login fields hidden inside custom components? Under "Site rules" on the manager page, pin the CSS selectors for that domain\'s username and password inputs (the rule domain must equal the login page domain exactly). Every rule carries a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain, so a team can share one working set instead of configuring browser by browser.',
+        },
+        'features.f14.title': { zh: '跨子域名匹配三档', en: 'Three Cross-Subdomain Tiers' },
+        'features.f14.desc': {
+          zh: '默认只展示与当前域名完全一致的条目；「精确 + 通配条目」让网址写成 *.qq.com 的账号在该站任意子域出现；「同主域名」再补一层兜底——当前域名没有账号时带出主域与兄弟子域的条目并标注「跨子域」。放宽只改变展示与可填充的账号，自动保存的判重口径不随档位改变。',
+          en: 'By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.',
+        },
         'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
         'showcase.sub': {
           zh: '从初次设置到日常使用，一图看懂每一项功能',
@@ -3425,6 +4010,10 @@
         'compare.val.cloud2': { zh: '云端', en: 'Cloud' },
         'compare.row.oneclick': { zh: '一键登录（填充+勾选+点击）', en: 'One-Click Login (Fill + Tick + Click)' },
         'compare.row.multienv': { zh: '多环境账号隔离', en: 'Multi-Environment Isolation' },
+        'compare.row.siterules': {
+          zh: '站点规则（自定义填充选择器）',
+          en: 'Site Rules (Custom Fill Selectors)',
+        },
         'compare.row.totp': { zh: '内置 TOTP 两步验证', en: 'Built-in TOTP 2FA' },
         'compare.val.paidonly': { zh: '付费版', en: 'Paid Only' },
         'compare.row.security': { zh: '安全体检', en: 'Security Audit' },
@@ -3702,6 +4291,16 @@
           },
         },
         {
+          q: {
+            zh: '登录页的输入框识别不到、填充没反应，怎么办？',
+            en: 'What if the login fields are not detected and nothing fills?',
+          },
+          a: {
+            zh: '先等页面完全加载或刷新后重试。如果表单渲染在自定义组件（Web Components）里，启发式识别可能取不到输入框——这时打开密码管理页的「站点规则」，为该域名手写用户名框与密码框的 CSS 选择器即可（规则域名需与登录页域名完全一致，不支持通配）。每条规则自带「Shadow DOM 穿透」开关，默认开启，只作用于开放影子根（closed 模式的影子根任何扩展都读不到）。规则可导出为纯文本 JSON（只含域名与选择器，不含任何凭据）并按域名合并导入，导入结果报「新增 / 更新 / 忽略」，上限 500 条规则、单文件 2 MiB。',
+            en: 'Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selectors for that domain\'s username and password fields (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.',
+          },
+        },
+        {
           q: { zh: '如何自定义快捷键？', en: 'How do I customize shortcuts?' },
           a: {
             zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「安全设置 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。',
@@ -3752,8 +4351,8 @@
         {
           q: { zh: '什么是内联填充？', en: 'What is inline fill?' },
           a: {
-            zh: '内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充；也可按快捷键 Ctrl+Shift+K / Cmd+Shift+K 直接展开（任意填充模式下均可用）。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），使用 Closed Shadow DOM 完全隔离页面样式。',
-            en: 'An alternative to the side panel. In "Inline" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Supports keyboard navigation (↑↓ browse, Enter fill, Esc close) and uses a closed Shadow DOM for full style isolation.',
+            zh: '内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充；也可按快捷键 Ctrl+Shift+K / Cmd+Shift+K 直接展开（任意填充模式下均可用）。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），面板打开与每次筛选后默认选中首条，回车即填当前站点最匹配的账号；搜索与侧边栏共用同一套口径，账号 / 标签 / 备注 / 网址多字段命中，认拼音全拼与首字母缩写；中文／日文输入法候选未上屏时不接管 ↑↓ / Enter / Esc，避免误填。当前站点无匹配账号时，空态提供「到全部账号中搜索」，带着关键词直达管理页做全库检索。使用 Closed Shadow DOM 完全隔离页面样式。',
+            en: 'An alternative to the side panel. In "Inline" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Keyboard navigation is supported (↑↓ browse, Enter fill, Esc close), and the first row stays selected on open and after every filtering pass, so Enter fills the best match for the site. Search shares one rule set with the sidebar — username, tag, remark and URL all match, including full pinyin and initialisms — and ↑↓ / Enter / Esc are left alone while an IME candidate is still pending, so nothing fills by accident. When the site has no matching account, the empty state offers "Search all accounts", opening the manager page with the keyword already applied. Uses a closed Shadow DOM for full style isolation.',
           },
         },
 
@@ -3821,6 +4420,22 @@
           },
         },
 
+        {
+          q: { zh: '条目数量有上限吗？', en: 'Is there a limit on how many entries I can store?' },
+          a: {
+            zh: '有。密码列表的条目总量上限为 2000 条，按列表条目数计数，回收站中的条目不占额度。达到上限后新增、导入、网页自动保存与回收站恢复都会明确提示被拒绝，不会静默覆盖或删除已保存的数据；导入超出剩余额度时，预览页会显示还能导入多少条、将被忽略多少条，由你选择只导入前若干条或取消。需要腾出额度时，在密码列表中删除不再使用的条目即可——条目移进回收站的那一刻就释放额度，无需再清空回收站；也可以先用「导出数据」「导出JSON」「加密备份导出」留存全量数据再清理列表。',
+            en: 'Yes — the password list holds up to 2,000 entries, counted on the list itself; entries in the Trash do not take a slot. Once it is full, adding, importing, page auto-save and restoring from Trash are refused with an explicit message, and stored data is never silently overwritten or dropped. If an import exceeds the remaining slots, the preview tells you how many entries still fit and how many will be ignored, and you choose to import those or cancel. To make room, delete entries you no longer need from the password list — an entry releases its slot the moment it moves to the Trash, so emptying the Trash is not required — or keep a full copy via "Export Data" / "Export JSON" / "Export Encrypted Backup" and then trim the list.',
+          },
+        },
+
+        {
+          q: { zh: '条目接近上限时管理页会卡吗？', en: 'Does the manager page get sluggish near the entry limit?' },
+          a: {
+            zh: '不会按条目总数卡。列表按页呈现（默认每页 100 条，可切 50 / 100 / 200），一次只渲染当前这一页，所以搜索、输入过滤、翻页、悬停这类交互的耗时基本不再随条目数增长——本机同法实测，600 条与近上限 2000 条两档的读数落在同一量级。打开管理页还包含一次「读整库并解密」，这一步的开销与条目总数相关、不由分页决定，所以这里的口径是「成本不随行数逐条放大」，不是「恒定耗时」。分页只改变「一次画多少行」：搜索、排序、导出与「总计 / 筛选后」读数作用的仍是全部命中条目，跨页勾选也会保留（分页条会写明有几条不在当前页）；表头「全选」按表格惯例只勾当前页，需要大批量操作时先切到每页 200 条，或逐页勾选。新增、编辑、收藏、创建副本后会自动跳到该条所在页并高亮 6 秒。',
+            en: 'Not as a function of how many entries you have. The list paints one page at a time (100 rows by default, 50 / 100 / 200 on demand), so searching, filtering as you type, flipping pages and hovering land in the same range at 600 entries as at the 2000-entry cap — measured on one machine with the same harness. Opening the page still reads and decrypts the whole vault once, and that step does track vault size; the promise is “cost does not grow row by row”, not “constant time”. Pagination only changes how many rows are drawn: search, sorting, export and the "total / filtered" readout still cover the entire matching set, and checked entries are kept across pages — the pager tells you how many of them are off-page. The header checkbox selects the current page only, as in any table, so switch to 200 rows per page or tick page by page when you need a large batch. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it for 6 seconds.',
+          },
+        },
+
         // ===== 高级配置 =====
         {
           category: { zh: '高级配置', en: 'Advanced' },
@@ -3850,6 +4465,16 @@
           a: {
             zh: '当同一网站（同域名）相同账号但密码发生变化时，插件会弹出「更新」确认，确认后更新该条目的密码，并保留原有的标签和备注（除非在弹窗中手动修改）；账号密码完全相同则不打扰；不同账号则新增条目，不会影响已有数据。',
             en: 'When the same account on the same site has a changed password, an "Update" prompt appears; on confirmation the password is updated while existing tags and remarks are kept (unless you edit them in the prompt). Identical credentials are skipped; different accounts create new entries without touching existing data.',
+          },
+        },
+        {
+          q: {
+            zh: '同一站点的多个子域名能共用一个账号吗？',
+            en: 'Can one account cover every subdomain of a site?',
+          },
+          a: {
+            zh: '可以，但默认不共用。密码管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成 *.qq.com 的账号会在该站点任意子域名出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域 qq.com 与兄弟子域的条目，并在列表里标注「跨子域」。放宽只改变哪些账号被展示与可填充：自动保存的判重口径不随档位改变，localhost / 127.0.0.1 始终按端口区分，侧边栏与内联下拉共用同一套排序、一键填充取首条。',
+            en: 'Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.',
           },
         },
         {
@@ -4322,25 +4947,39 @@
         }, 1500);
       });
 
-      // =================== 循环动效视口门控 ===================
-      /* hero 的卡片浮动 / 掠光 / 角标是常驻循环：滚出视口或标签页切后台时挂 html.motion-idle
-         由 CSS 暂停它们，避免在看不见的地方空转。JS 缺席时这个类永不出现，行为与门控前一致。 */
-      let heroInView = true;
-      const syncMotionIdle = () => {
-        document.documentElement.classList.toggle('motion-idle', !heroInView || document.hidden);
+      // =================== 循环动效门控 ===================
+      /* 四处常驻循环（hero 浮动与掠光、填充流水线、活码环、字段密文）在看不见的地方不该空转：
+         模块自身滚出视口 → 给它挂 .idle；标签页切后台 → 再挂 html.motion-idle，由 CSS 暂停动画。
+         两个类只由这段脚本添加，JS 缺席时永不出现，行为与门控前完全一致。 */
+      const loopEls = Array.prototype.slice.call(document.querySelectorAll('.hero, .flow, .totp, .cipher'));
+      const loopVisible = new Map(loopEls.map(el => [el, true]));
+      const syncIdle = () => {
+        loopEls.forEach(el => el.classList.toggle('idle', !loopVisible.get(el) || document.hidden));
+        document.documentElement.classList.toggle('motion-idle', document.hidden);
       };
-      const hero = document.querySelector('.hero');
-      if (hero && 'IntersectionObserver' in window) {
-        new IntersectionObserver(
+      if ('IntersectionObserver' in window) {
+        const loopObserver = new IntersectionObserver(
           entries => {
-            heroInView = entries[0].isIntersecting;
-            syncMotionIdle();
+            entries.forEach(entry => loopVisible.set(entry.target, entry.isIntersecting));
+            syncIdle();
           },
           { threshold: 0 },
-        ).observe(hero);
+        );
+        loopEls.forEach(el => loopObserver.observe(el));
       }
-      document.addEventListener('visibilitychange', syncMotionIdle);
-      syncMotionIdle();
+      document.addEventListener('visibilitychange', syncIdle);
+      syncIdle();
+
+      // =================== 体检计数的能力探测 ===================
+      /* 0 → 82 的数字滚动依赖 @property 把 --aph-score 注册成 <integer> 才可过渡。
+         探测不通过就不挂 html.audit-count，评分显示源码里的静态终值 82——任何情况下都不会显示 0。 */
+      try {
+        if (typeof CSS !== 'undefined' && typeof CSS.registerProperty === 'function') {
+          document.documentElement.classList.add('audit-count');
+        }
+      } catch (err) {
+        // 探测本身出问题时按「不支持」处理，同样落到静态终值
+      }
 
       // =================== Scroll Reveal ===================
       if ('IntersectionObserver' in window) {
@@ -4429,12 +5068,17 @@
 
           <h4>什么是内联填充？ / What is inline fill?</h4>
           <p>
-            内联填充是侧边栏之外的另一种快捷填充方式。登录输入框获焦后会在右侧内缘显示钥匙图标，点击展开迷你面板选择账号即可填充。使用
+            内联填充是侧边栏之外的另一种快捷填充方式。登录输入框获焦后会在右侧内缘显示钥匙图标，点击展开迷你面板选择账号即可填充。搜索与侧边栏同一套口径（账号
+            / 标签 / 备注 /
+            网址，认拼音全拼与首字母），打开即默认选中首条、回车即填；当前站点无匹配账号时可带着关键词直达管理页做全库检索。使用
             Closed Shadow DOM 完全隔离页面样式。
           </p>
           <p>
             An alternative to the side panel. A key icon appears inside the focused login field; click it to open a mini
-            panel and pick an account to fill. Uses a closed Shadow DOM for full style isolation.
+            panel and pick an account to fill. Search follows the same rules as the sidebar (username, tag, remark and
+            URL, including full pinyin and initialisms), the first row is selected as soon as the panel opens so Enter
+            fills it, and the empty state can hand your keyword to the manager page to search the whole vault. Uses a
+            closed Shadow DOM for full style isolation.
           </p>
 
           <h3>数据管理 / Data Management</h3>

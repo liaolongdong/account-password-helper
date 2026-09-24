@@ -80,22 +80,39 @@ export async function setReminder(entryId: string, username: string, daysFromNow
   };
 
   await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
-  // 只记 entryId：账号名属敏感标识，不入日志（removeReminder 亦以 entryId 定位）
+  // 只记 entryId：账号名属敏感标识，不入日志（removeReminders 亦以 entryId 定位）
   logger.debug(`ReminderManager: 已设置提醒 [${entryId}] ${daysFromNow} 天后`);
 }
 
 /**
- * 移除某条目的提醒
+ * 批量移除若干条目的提醒
  *
- * @param entryId PasswordEntry ID
+ * 一次读 → 内存过滤 → 最多一次写，与 `cleanOrphanReminders` 同形态。
+ * 调用方（回收站批删/清空/过期清理）原本按 id 循环调用「读整包 + 命中才写」，
+ * 删 100 条即 100 次串行 storage 往返；这里收敛为 1 次读 + 至多 1 次写。
+ *
+ * 行为等价性：原逐个版本是「该 id 命中则写」，本版本是「集合中任一 id 命中则写一次」，
+ * 落盘结果（最终提醒表内容）完全一致，只有往返次数不同。
+ *
+ * @param entryIds 需要清理提醒的条目 ID 集合（接受任意可迭代对象）
  */
-export async function removeReminder(entryId: string): Promise<void> {
-  const reminders = await getReminders();
-  if (!(entryId in reminders)) return;
+export async function removeReminders(entryIds: Iterable<string>): Promise<void> {
+  const ids = entryIds instanceof Set ? entryIds : new Set(entryIds);
+  if (ids.size === 0) return;
 
-  delete reminders[entryId];
+  const reminders = await getReminders();
+  let removed = 0;
+  for (const id of ids) {
+    if (id in reminders) {
+      delete reminders[id];
+      removed += 1;
+    }
+  }
+  if (removed === 0) return;
+
   await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORD_REMINDERS]: reminders });
-  logger.debug(`ReminderManager: 已移除提醒 [${entryId}]`);
+  // 只记数量：entryId 虽不敏感，但批量场景逐个列出会显著放大日志体积
+  logger.debug(`ReminderManager: 已移除 ${removed} 条提醒`);
 }
 
 /**

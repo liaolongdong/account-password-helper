@@ -45,6 +45,7 @@ const EN_FEATURE_LIST = [
   'Offline security audit: a 0-100 score weighted across four dimensions, computed on your machine',
   'Password generator: random passwords and a passphrase mode',
   'Four fill paths: inline panel, side panel, context menu, keyboard shortcut',
+  'Site rules: per-domain custom selectors for login forms heuristic detection misses',
   'CSV / JSON import and export with field auto-detection for common password-manager exports',
   'Encrypted .aph backup and restore, plus email backup composed locally via mailto',
   'Side panel opens instantly in every state (~20-50ms to data on the cached warm path)',

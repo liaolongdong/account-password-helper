@@ -14,6 +14,7 @@ import { isWeakPassword } from '@/utils/passwordStrengthCore';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
 import { getDomainMatchConfig, getFavoriteLimit } from './configManager';
+import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from './vaultCapacity';
 import { tl } from '@/utils/i18n-lite';
 
 // ==================== 自动保存配置 ====================
@@ -294,6 +295,11 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
     }
   } catch (error) {
     logger.error('自动保存密码失败:', error);
+    // 上限拒绝要单独成文并在页面提示里说明「未保存」：走通用失败分支的话，
+    // 用户看到的是一个含糊的错误，会反复重试同一次登录，而真实需要先清理条目。
+    if (isVaultCapacityError(error)) {
+      return { success: false, message: tl('bg.autoSave.capacityReached', { max: MAX_PASSWORD_ENTRIES }) };
+    }
     return {
       success: false,
       message: tl('bg.autoSave.failed', {

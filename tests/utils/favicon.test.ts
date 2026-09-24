@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { getFaviconUrl, normalizeUrlForFavicon } from '@/utils/favicon';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { fetchFaviconDataUrl, getFaviconUrl, normalizeUrlForFavicon } from '@/utils/favicon';
+import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 
 /**
  * favicon.ts 契约测试
@@ -58,5 +59,46 @@ describe('getFaviconUrl', () => {
     expect(url).toContain(encodeURIComponent('https://example.com/a?b=1&c=2'));
     // 原始 & 不应裸露在查询参数中破坏 URL 结构
     expect(url.split('?')[1]).not.toContain('c=2&');
+  });
+});
+
+describe('fetchFaviconDataUrl 的缓存随会话边界销毁', () => {
+  /** 本地端点响应桩：只统计被真正读取了几次（缓存命中即不再发请求） */
+  let reads: number;
+  const originalFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    reads = 0;
+    globalThis.fetch = vi.fn(async () => {
+      reads++;
+      return {
+        ok: true,
+        arrayBuffer: async () => new Uint8Array([0x89, 0x50, 0x4e, 0x47]).buffer,
+        headers: { get: () => 'image/png' },
+      };
+    }) as unknown as typeof fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it('同一 URL 命中缓存不重复读取，但清理器跑过之后必须重新读取', async () => {
+    await expect(fetchFaviconDataUrl('github.com', 32)).resolves.toContain('data:image/png;base64,');
+    expect(reads).toBe(1);
+
+    await fetchFaviconDataUrl('github.com', 32);
+    expect(reads, '同域名图标在缓存存活期内应只读取一次').toBe(1);
+
+    // 键取自条目 url 字段的明文派生值，锁定/过期时必须整把丢弃
+    clearPlaintextKeyedCaches();
+    await fetchFaviconDataUrl('github.com', 32);
+    expect(reads, 'clearPlaintextKeyedCaches() 未清掉 favicon 缓存：站点清单在保活的 SW 里无限期驻留').toBe(2);
+  });
+
+  it('不同尺寸各自占一个键', async () => {
+    await fetchFaviconDataUrl('example.com', 16);
+    await fetchFaviconDataUrl('example.com', 32);
+    expect(reads).toBe(2);
   });
 });

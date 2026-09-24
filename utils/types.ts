@@ -188,6 +188,14 @@ export enum MessageType {
    */
   OPEN_OPTIONS_AND_DOMAIN_MATCH = 'OPEN_OPTIONS_AND_DOMAIN_MATCH',
   /**
+   * 跳转到密码管理页并带上关键词做全库检索（内联下拉空态的「到全库找」出口）
+   *
+   * 关键词由内容脚本自报、属不可信输入，且在后台边界统一 trim + 截断
+   * （`normalizeSearchKeyword`）；选项页收到后同时清掉标签/收藏筛选，
+   * 否则残留筛选会让这个「找我库里到底有没有」的入口显示成空表。
+   */
+  OPEN_OPTIONS_AND_SEARCH = 'OPEN_OPTIONS_AND_SEARCH',
+  /**
    * 主动触发版本更新检测
    */
   CHECK_UPDATE = 'CHECK_UPDATE',
@@ -311,6 +319,7 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_AND_VALIDITY }
   | { type: MessageType.OPEN_OPTIONS_AND_SITE_RULES; data?: { domain: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH }
+  | { type: MessageType.OPEN_OPTIONS_AND_SEARCH; data?: { keyword: string } }
   | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
@@ -318,7 +327,7 @@ export type RuntimeMessage =
   | { type: MessageType.CHECK_UPDATE }
   | { type: MessageType.GET_INITIAL_DATA; data?: { domain?: string } }
   | { type: MessageType.SIDEPANEL_PRELOAD }
-  | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string } }
+  | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string; keyword?: string } }
   | { type: MessageType.FILL_BY_ID; data: FillByIdData }
   | { type: MessageType.GET_INLINE_TOTP; data: InlineTotpByIdData }
   | { type: MessageType.FILL_TOTP_BY_ID; data: InlineTotpByIdData }
@@ -451,8 +460,6 @@ export interface FillTotpData {
 export interface MatchingAccountMeta {
   /** 条目 ID */
   id: string;
-  /** 展示标题（标签 / 网址 / 用户名，择优） */
-  title: string;
   /** 用户名（展示用） */
   username: string;
   /** 标签 */
@@ -498,6 +505,13 @@ export interface MatchingAccountsResponse {
    * 纯计数、不含任何凭据字段；仅在列表为空且当前档位不是最宽松档时计算，其余场景缺省。
    */
   crossDomainCount?: number;
+  /**
+   * 本站匹配集的实际命中条数（`accounts` 被上界截断时 > `accounts.length`）
+   *
+   * 纯计数、不含任何凭据字段。内联下拉据此在列表尾部给出「还有 N 条」的读数与
+   * 「到管理页查看全部」的去向，避免用户把截断后的列表当成完整结果。
+   */
+  totalMatched?: number;
 }
 
 /**

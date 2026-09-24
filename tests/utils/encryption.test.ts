@@ -154,6 +154,49 @@ describe('encryptData / decryptData', () => {
   });
 });
 
+describe('decryptData 的 Base64 解码与 IV/密文切分（P0 逐字节等价守卫）', () => {
+  /** 旧实现口径的解码（`Uint8Array.from(atob(s), c => c.charCodeAt(0))`），仅用于交叉校验 */
+  const legacyDecode = (b64: string): Uint8Array<ArrayBuffer> => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  /** 测试密钥 hex → 字节（`encryption.ts` 未导出 hex 解码助手，此处只做本组用例需要的最小份） */
+  const hexToBytes = (hex: string): Uint8Array<ArrayBuffer> =>
+    Uint8Array.from({ length: hex.length / 2 }, (_, i) => Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16));
+
+  it('与旧式解码逐字节等价（长度跨 3 的倍数边界，含 = 填充）', async () => {
+    for (let len = 1; len <= 12; len++) {
+      const enc = await encryptData('u'.repeat(len), KEY);
+      const bytes = legacyDecode(enc);
+      // Base64 的补位规则未被改动：解码长度只取决于密文，不取决于明文是否为 3 的倍数
+      expect(bytes.length).toBeGreaterThan(12);
+      expect(await decryptData(enc, KEY)).toBe('u'.repeat(len));
+    }
+  });
+
+  it('新切分（subarray 视图）与旧切分（slice 拷贝）解出同一明文', async () => {
+    const plaintext = '中文密码🔒-with-多字节-utf8';
+    const enc = await encryptData(plaintext, KEY);
+    const bytes = legacyDecode(enc);
+    const key = await crypto.subtle.importKey('raw', hexToBytes(KEY), 'AES-GCM', false, ['decrypt']);
+    // 按旧口径显式 slice 后手工解密：若新实现的 IV/密文边界发生任何串位，这条即失败
+    const manual = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: bytes.slice(0, 12) }, key, bytes.slice(12));
+    expect(new TextDecoder().decode(manual)).toBe(plaintext);
+    expect(await decryptData(enc, KEY)).toBe(plaintext);
+  });
+
+  it('大载荷（1 MB 多字节文本）解码与往返不丢字符', async () => {
+    const big = '密a🔒'.repeat(90000); // 3 字节 + 1 字节 + 4 字节混合，非整块长度
+    const enc = await encryptData(big, KEY);
+    const dec = await decryptData(enc, KEY);
+    expect(dec.length).toBe(big.length);
+    expect(dec).toBe(big);
+  });
+
+  it('编码侧输出形状未变：4/3 向上取整的 Base64 且可被旧式解码', async () => {
+    const enc = await encryptData('shape-check', KEY);
+    expect(enc).toMatch(/^[A-Za-z0-9+/]+={0,2}$/);
+    expect(legacyDecode(enc).length).toBe(12 + 'shape-check'.length + 16); // IV + 密文 + authTag
+  });
+});
+
 describe('decryptFieldSafely', () => {
   it('空字段返回空串', async () => {
     expect(await decryptFieldSafely('', KEY, 'password')).toBe('');

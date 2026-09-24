@@ -1,5 +1,18 @@
+/**
+ * 侧边栏 / 管理页的 JS 计算层基准（过滤、排序、行呈现，不含 DOM）
+ *
+ * 运行：`pnpm exec vitest bench benchmarks/sidepanel-p0.bench.ts --run`
+ *
+ * **本文件禁止触碰拼音匹配器的就绪位**（不调 `warmPinyinMatcher()`，也不引任何会引到它的模块）。
+ * 一个 bench 文件在同一 worker 里跑，而 `warmPinyinMatcher()` 翻的是模块级标志、在收集阶段就完成——
+ * 同文件内不存在「只影响后半段」的写法。一次预热会把 `all scope + keyword match` 从
+ * 「纯子串」变成「每个字段都问一遍拼音」，而 `docs/PERF_LARGE_VAULT_EVALUATION.md` §3.1 / §9.10
+ * 记录的基线是前者，前后数字就此不可比。拼音成本用例因此住在
+ * `benchmarks/pinyin-keyword.bench.ts`（自带预热、独立 worker）。
+ */
 import { bench, describe } from 'vitest';
 import type { PasswordEntry } from '@/utils/types';
+import { BENCHMARK_DOMAIN, createBenchmarkDataset } from '@/benchmarks/fixtures/vaultDataset';
 import {
   comparePasswordEntries,
   DEFAULT_SIDEPANEL_SORT,
@@ -16,38 +29,15 @@ import {
 import { applyListFilters, filterEntriesByScope, matchesSiteScope, type ScopeContext } from '@/utils/passwordFilter';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 
-/** 运行：pnpm exec vitest bench benchmarks/sidepanel-p0.bench.ts --run */
-const CURRENT_DOMAIN = 'accounts.example.com';
 const DATASET_SIZES = [100, 500, 2000] as const;
-const SCOPE_CONTEXT: ScopeContext = { domain: CURRENT_DOMAIN, port: '' };
+const SCOPE_CONTEXT: ScopeContext = { domain: BENCHMARK_DOMAIN, port: '' };
 /** 与 `entrypoints/sidepanel/App.vue` 的 `NOT_ON_SITE_PRIORITY` 同值 */
 const NOT_ON_SITE_PRIORITY = 5;
 
 let _benchmarkSink = 0;
 
-function createDataset(size: number): PasswordEntry[] {
-  return Array.from({ length: size }, (_, index) => ({
-    id: `entry-${index}`,
-    username: `user-${String(size - index).padStart(4, '0')}`,
-    password: `password-${index}`,
-    url:
-      index % 5 === 0
-        ? `https://${CURRENT_DOMAIN}/login/${index}`
-        : index % 7 === 0
-          ? ''
-          : `https://service-${index % 41}.example.net/login`,
-    tag: `group-${index % 8},team-${index % 5},region-${index % 3}`,
-    remark: `benchmark entry ${index}`,
-    favorite: index % 11 === 0,
-    lastUsedAt: index % 13 === 0 ? undefined : size - index,
-    createTime: index,
-    updateTime: size - index,
-    order: index,
-  }));
-}
-
 function getDomainPriority(entry: PasswordEntry): number {
-  if (entry.url && entry.url.trim() !== '' && isExactHostMatch(CURRENT_DOMAIN, entry.url)) return 0;
+  if (entry.url && entry.url.trim() !== '' && isExactHostMatch(BENCHMARK_DOMAIN, entry.url)) return 0;
   return 1;
 }
 
@@ -57,7 +47,7 @@ function legacySortPasswordEntries(list: PasswordEntry[]): PasswordEntry[] {
 }
 
 for (const size of DATASET_SIZES) {
-  const source = createDataset(size);
+  const source = createBenchmarkDataset(size);
 
   describe(`sidepanel domain-priority sort (${size} entries)`, () => {
     bench(
@@ -81,7 +71,7 @@ for (const size of DATASET_SIZES) {
 }
 
 describe('sidepanel sort before current-domain discovery (2000 entries)', () => {
-  const source = createDataset(2000);
+  const source = createBenchmarkDataset(2000);
   const neutralPriority = () => 0;
 
   bench(
@@ -104,7 +94,7 @@ describe('sidepanel sort before current-domain discovery (2000 entries)', () => 
 });
 
 describe('sidepanel row tag presentation (2000 entries)', () => {
-  const source = createDataset(2000);
+  const source = createBenchmarkDataset(2000);
   const cachedRecords = source.map(entry => parseTags(entry.tag).map(name => ({ name, style: getTagFullStyle(name) })));
 
   bench(
@@ -138,7 +128,7 @@ describe('sidepanel row tag presentation (2000 entries)', () => {
  * `offSiteIds`（逐条 `matchesSiteScope` 扫描）的成本，确认默认路径短路后无回归。
  */
 for (const size of DATASET_SIZES) {
-  const source = createDataset(size);
+  const source = createBenchmarkDataset(size);
 
   describe(`sidepanel search scope filter + sort (${size} entries)`, () => {
     bench(
@@ -219,7 +209,7 @@ function createCrossSubdomainDataset(size: number): PasswordEntry[] {
     const slot = index % 12;
     const url =
       slot < 4
-        ? `https://${CURRENT_DOMAIN}/login/${index}`
+        ? `https://${BENCHMARK_DOMAIN}/login/${index}`
         : slot === 4
           ? `https://example.com/console/${index}`
           : slot < 9
@@ -282,13 +272,13 @@ function createEmptyStateDataset(size: number): PasswordEntry[] {
  * 复刻 `App.vue` 的 `domainPriorityOf`：`off` 档走二值 `getDomainPriority`，放宽档返回 tier
  *
  * `off` 分支与既有基线用的是同一个 `getDomainPriority`，但**不是同一份数据**：基线夹具
- * `createDataset` 每 5 条才有 1 条精确命中当前域名，本夹具每 12 条有 5 条同主域命中，
+ * `createBenchmarkDataset` 每 5 条才有 1 条精确命中当前域名，本夹具每 12 条有 5 条同主域命中，
  * 命中分布不同，跨夹具的绝对数值不可直接比，只能在同一夹具内比档位。
  */
 function priorityOf(mode: DomainMatchMode) {
   if (mode === 'off') return getDomainPriority;
   return (entry: PasswordEntry): number => {
-    const tier = resolveMatchTier(CURRENT_DOMAIN, entry.url, mode);
+    const tier = resolveMatchTier(BENCHMARK_DOMAIN, entry.url, mode);
     return tier === -1 ? NOT_ON_SITE_PRIORITY : tier;
   };
 }
@@ -318,7 +308,7 @@ for (const size of CROSS_SUBDOMAIN_SIZES) {
           const scoped = filterEntriesByScope(source, 'site', SCOPE_CONTEXT, mode);
           const ids = new Set<string>();
           for (const entry of scoped) {
-            const tier = resolveMatchTier(CURRENT_DOMAIN, entry.url, mode);
+            const tier = resolveMatchTier(BENCHMARK_DOMAIN, entry.url, mode);
             if (isCrossSubdomainTier(tier)) ids.add(entry.id);
           }
           _benchmarkSink += ids.size;
@@ -330,7 +320,7 @@ for (const size of CROSS_SUBDOMAIN_SIZES) {
     bench(
       'inline dropdown path filterAndSortEntriesForDomain @ off',
       () => {
-        const matched = filterAndSortEntriesForDomain(source, CURRENT_DOMAIN, DEFAULT_SIDEPANEL_SORT, '', 'off');
+        const matched = filterAndSortEntriesForDomain(source, BENCHMARK_DOMAIN, DEFAULT_SIDEPANEL_SORT, '', 'off');
         _benchmarkSink += matched.length;
       },
       { time: 1000, warmupTime: 200 },
@@ -341,7 +331,7 @@ for (const size of CROSS_SUBDOMAIN_SIZES) {
       () => {
         const matched = filterAndSortEntriesForDomain(
           source,
-          CURRENT_DOMAIN,
+          BENCHMARK_DOMAIN,
           DEFAULT_SIDEPANEL_SORT,
           '',
           'sameMainDomain',
@@ -360,7 +350,7 @@ describe('sidepanel empty-state widen counter (2000 entries, zero on-site match)
     bench(
       `countSameMainDomainCandidates @ ${mode}`,
       () => {
-        _benchmarkSink += countSameMainDomainCandidates(source, CURRENT_DOMAIN, mode);
+        _benchmarkSink += countSameMainDomainCandidates(source, BENCHMARK_DOMAIN, mode);
       },
       { time: 1000, warmupTime: 200 },
     );

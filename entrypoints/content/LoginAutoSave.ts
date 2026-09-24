@@ -320,6 +320,10 @@ export class LoginAutoSave {
    * 当用户在密码输入框中按 Enter 键时，尝试捕获凭证
    */
   private handleKeyDown = (e: KeyboardEvent): void => {
+    // 输入法合成期间的 Enter 是「上屏候选词」而非提交，此刻捕获会把半截拼音当成凭证，
+    // 故整段放行给 IME（与其他键盘入口同口径，由 imeKeyGuard 守卫钉住位置）
+    if (e.isComposing) return;
+
     if (!this.isEnabled || !this.configLoaded) return;
     if (e.key !== 'Enter') return;
 

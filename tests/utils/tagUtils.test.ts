@@ -31,6 +31,32 @@ describe('buildTagPresentationRecords', () => {
     expect(records.value).not.toBe(first);
     expect(buildCount).toBe(2);
   });
+
+  it('同一 tag 字符串跨调用复用同一冻结记录，避免每行每次渲染新建样式对象', () => {
+    const a = buildTagPresentationRecords('工作,个人');
+    const b = buildTagPresentationRecords('工作,个人');
+
+    expect(b).toBe(a);
+    expect(b[0].style).toBe(a[0].style);
+    // 共享对象必须只读，否则一行改样式会串到其他行
+    expect(Object.isFrozen(a)).toBe(true);
+    expect(Object.isFrozen(a[0])).toBe(true);
+    expect(Object.isFrozen(a[0].style)).toBe(true);
+  });
+
+  it('缓存按插入顺序淘汰有界条目，长会话下不无上限增长', () => {
+    const oldest = buildTagPresentationRecords('最早-工作');
+    // 上限 500：塞入足够多的新组合把最早那条挤出后，最早那条应被重建（引用不再相同）
+    for (let i = 0; i < 502; i += 1) {
+      buildTagPresentationRecords(`填充-${i}`);
+    }
+    expect(buildTagPresentationRecords('最早-工作')).not.toBe(oldest);
+    // 内容仍等价，淘汰不影响渲染结果
+    expect(buildTagPresentationRecords('最早-工作')).toEqual(oldest);
+
+    const recent = buildTagPresentationRecords('填充-501');
+    expect(buildTagPresentationRecords('填充-501')).toBe(recent);
+  });
 });
 
 /**

@@ -2,6 +2,7 @@ import { onMounted, onUnmounted, type Ref } from 'vue';
 import { MessageType, type PasswordEntry, type RuntimeMessage } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
+import { normalizeSearchKeyword } from '@/utils/keywordMatch';
 
 /**
  * Runtime 消息监听 Composable
@@ -26,6 +27,8 @@ export function useRuntimeMessageHandler(options: {
   openSiteRules?: (domain?: string) => void;
   /** 打开跨子域匹配设置弹窗（来自侧边栏/内联下拉的档位引导，无预填参数） */
   openDomainMatchSetting?: () => void;
+  /** 应用全库检索关键词（来自内联下拉空态的「到全库找」，实现侧需一并清掉叠加筛选） */
+  applySearchKeyword?: (keyword: string) => void;
 }) {
   const {
     passwords,
@@ -36,6 +39,7 @@ export function useRuntimeMessageHandler(options: {
     openValiditySetting,
     openSiteRules,
     openDomainMatchSetting,
+    applySearchKeyword,
   } = options;
 
   /**
@@ -94,6 +98,16 @@ export function useRuntimeMessageHandler(options: {
       logger.debug('RuntimeMsg: 收到打开跨子域匹配设置指令');
       // 与站点规则同一时序口径：设置对话框需等密码列表/会话状态就绪后再开
       waitForPasswords().then(() => openDomainMatchSetting?.());
+    } else if (message.type === MessageType.OPEN_OPTIONS_AND_SEARCH) {
+      // 后台已收口一次（`normalizeSearchKeyword`），这里按「外部输入一律不可校验上游」再收一次：
+      // 同一套归一（非字符串按缺失忽略、trim、截到 `MAX_SEARCH_KEYWORD_LENGTH`）由该函数单点定义，
+      // 不在此处重写，否则两处的长度上限会各自漂移。
+      const keyword = normalizeSearchKeyword(message.data?.keyword);
+      // 关键词可能是账号名：只记指令本身，不回显取值
+      if (!keyword) return;
+      logger.debug('RuntimeMsg: 收到全库检索指令');
+      // 无需等列表就绪：写入的是筛选条件本身，锁定态下同样成立，解锁后列表自然按此过滤
+      applySearchKeyword?.(keyword);
     }
   };
 

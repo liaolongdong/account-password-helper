@@ -139,7 +139,7 @@
         <ol>
           <!-- eslint-disable vue/no-v-html -->
           <li
-            v-for="(item, idx) in helpItems('help.gb', 12)"
+            v-for="(item, idx) in helpItems('help.gb', 13)"
             :key="idx"
             v-html="item"
           ></li>
@@ -173,7 +173,7 @@
         <ol>
           <!-- eslint-disable vue/no-v-html -->
           <li
-            v-for="(item, idx) in helpItems('help.gd', 8)"
+            v-for="(item, idx) in helpItems('help.gd', 11)"
             :key="idx"
             v-html="item"
           ></li>
@@ -207,7 +207,7 @@
         <ol>
           <!-- eslint-disable vue/no-v-html -->
           <li
-            v-for="(item, idx) in helpItems('help.gc', 5)"
+            v-for="(item, idx) in helpItems('help.gc', 6)"
             :key="idx"
             v-html="item"
           ></li>
@@ -300,7 +300,7 @@
         <ul>
           <!-- eslint-disable vue/no-v-html -->
           <li
-            v-for="(item, idx) in helpItems('help.fd', 6)"
+            v-for="(item, idx) in helpItems('help.fd', 7)"
             :key="idx"
             v-html="item"
           ></li>

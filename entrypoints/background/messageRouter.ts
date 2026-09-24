@@ -32,6 +32,7 @@ import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { normalizeSiteRuleDomain } from '@/utils/storage/siteRules';
 import { isFrameFillable } from '@/utils/frameFill';
 import { isSameMainDomain } from '@/utils/domain';
+import { normalizeSearchKeyword } from '@/utils/keywordMatch';
 
 /**
  * SW 模块加载时刻（epoch 毫秒）
@@ -475,6 +476,17 @@ export function setupMessageRouter(): void {
         openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH).then(sendResponse);
         return true;
 
+      case MessageType.OPEN_OPTIONS_AND_SEARCH: {
+        // 内联下拉空态的「到全库找」：关键词由页面侧自报，属不可信输入，
+        // 与 GET_MATCHING_ACCOUNTS 走同一收口（trim + 截断），空白按「无关键词」打开。
+        // 关键词可能是账号名，故只记指令本身，不回显取值。
+        const keyword = normalizeSearchKeyword(message.data?.keyword);
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_SEARCH, keyword ? { keyword } : undefined).then(
+          sendResponse,
+        );
+        return true;
+      }
+
       case MessageType.UPDATE_PASSWORD_CACHE: {
         // B2：预热会让 SW 驻留明文密码缓存，属改状态操作，仅接受扩展内部页触发
         if (!isTrustedInternalSender(sender)) {
@@ -682,7 +694,10 @@ export function setupMessageRouter(): void {
               sendResponse({ success: true, data: { locked: false, accounts: [] } });
               return;
             }
-            const data = await getMatchingAccounts(domain, port);
+            // 关键词是页面侧可伪造的文本：类型/长度在边界处收口（空白等价于不过滤）。
+            // 该值参与拼音匹配但不进日志、不出扩展，且仅用于过滤展示元数据。
+            const keyword = normalizeSearchKeyword(message.data?.keyword);
+            const data = await getMatchingAccounts(domain, port, keyword);
             sendResponse({ success: true, data });
           } catch (error) {
             logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);

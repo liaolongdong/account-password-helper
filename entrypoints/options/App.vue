@@ -92,10 +92,16 @@
       <PasswordTable
         v-else
         ref="passwordTableRef"
-        :data="filteredPasswords"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :data="pagedEntries"
         :loading="tableLoading"
-        :search-keyword="searchKeyword"
+        :search-keyword="debouncedSearchKeyword"
         :row-class-name="handleRowClassName"
+        :page-count="pageCount"
+        :total-count="totalCount"
+        :selected-count="selectedIds.length"
+        :off-page-selected-count="offPageSelectedCount"
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
         @toggle-password="togglePasswordVisibility"
@@ -328,6 +334,7 @@ import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
 import { normalizeToHostAndPort } from '@/utils/domain';
+import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { isDev } from '@/utils/env';
 
 /**
@@ -646,6 +653,7 @@ const {
   showPasswordDialog,
   showEmailBackupDialog,
   searchKeyword,
+  debouncedSearchKeyword,
   selectedIds,
   isEditingPassword,
   editingPasswordId,
@@ -656,10 +664,17 @@ const {
   favoriteOnly,
   filterTags,
   filteredPasswords,
+  pagedEntries,
+  currentPage,
+  pageSize,
+  pageCount,
+  totalCount,
+  offPageSelectedCount,
   currentSort,
   availableTags,
   tagArray,
   loadPasswords,
+  patchMetadataOnlyFromStorage,
   handleSortChange,
   restoreSortConfig: initSortConfig,
   togglePasswordVisibility,
@@ -685,12 +700,27 @@ const {
   toggleFavorite,
   removeDuplicates,
   isLocalOperation,
+  consumeLocalOperation,
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
 
 /** 批量编辑标签弹窗可见性 */
 const showBatchTagDialog = ref(false);
+
+/**
+ * 命中集合一变就清空选中
+ *
+ * 分页要求选择列开 `reserve-selection`（否则换页即丢选，跨页批量处理无从谈起），
+ * 代价是 Element Plus 不再在 `data` 换引用时自动清选：`setData` 里保留选择集那条分支
+ * 会跳过 `clearSelection()` 与 `cleanSelection()`。而分页**之前**的语义恰恰就是靠这一下
+ * 隐式清空——`filteredPasswords` 任何一次重算都返回新数组，表格拿到新 `data` 就把选择归零。
+ * 这里把这一下显式补回来，让「筛选/排序/增删改 → 选择集归零」与分页前逐字一致，
+ * 顺带避免已删除条目的行对象滞留在 EP 内部（保留模式下没人回收它）。
+ */
+watch(filteredPasswords, () => {
+  passwordTableRef.value?.clearSelection();
+});
 
 /**
  * 批量编辑标签保存：委托 composable 追加/移除落盘后关闭弹窗
@@ -707,15 +737,24 @@ const handleBatchTagSave = async (tags: string[], mode: 'append' | 'remove') => 
  *
  * 当前活动标签页为扩展自身页面或浏览器内部页（chrome://）时无法作为站点域名，
  * 回退选取最近访问的普通网页标签页；仍无可用标签页时以空 URL 打开（行为与旧版一致）。
+ *
+ * 两次 `tabs.query` 并发发起：管理页自身即活动标签页，回退查询每次都会命中，
+ * 串行等待等于把两次 IPC 延迟叠加到「点新增 → 弹窗出现」这条用户可感知路径上。
+ * 决策逻辑与单次语义不变（回退结果只在需要时被取用）。
+ * 回退查询单独吞掉异常：它现在是无条件发起的，若让它 reject 整个 `try`，
+ * 一个本来可用的活动标签页 URL 会被连带降级成空预填（旧实现不会走到那一步）。
  */
 const openAddDialogWithActiveTab = async () => {
   let prefillUrl = '';
   try {
-    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const [activeTabQuery, allTabsQuery] = await Promise.all([
+      chrome.tabs.query({ active: true, lastFocusedWindow: true }),
+      chrome.tabs.query({}).catch(() => []),
+    ]);
+    const activeTab = activeTabQuery[0];
     let candidateUrl = activeTab?.url ?? '';
     if (!candidateUrl || candidateUrl.startsWith('chrome-extension://') || candidateUrl.startsWith('chrome://')) {
-      const tabs = await chrome.tabs.query({});
-      const webTab = tabs
+      const webTab = allTabsQuery
         .filter(tab => tab.url && /^https?:/.test(tab.url))
         .sort((a, b) => ((b as any).lastAccessed ?? b.id ?? 0) - ((a as any).lastAccessed ?? a.id ?? 0))[0];
       candidateUrl = webTab?.url ?? '';
@@ -879,6 +918,28 @@ const handleIdentityFormSave = async (payload: IdentityPayload): Promise<void> =
     identityFormLoading.value = false;
   }
 };
+
+/**
+ * 会话失效即销毁本上下文「以明文为键」的派生记忆缓存
+ *
+ * 挂在 `isAuthenticated` 落 false 这条**状态边界**上，而不是只挂在 `onSessionExpired`
+ * 回调里：`useAuthFlow` 有五处会把已认证态翻成未认证（广播过期、`checkAuth` 自检出会话
+ * 失效、主密码未设置、异常兜底），只补其一就会留下「列表已清空、缓存里还能按明文检索」
+ * 的缺口。管理页可整日常驻，这把缓存因此能活过无数次锁定。
+ *
+ * `flush: 'sync'` 与 `utils/plaintextCacheCleanup.ts` 的口径一致：清理同步落地，
+ * 不留「状态已切到验证页、明文键仍可寻址」的微任务窗口。与下方身份库 teardown
+ * 分开成两个 watcher，避免把既有 `identityVault.teardown()` 的调度时机一并改掉。
+ */
+watch(
+  isAuthenticated,
+  authenticated => {
+    if (!authenticated) {
+      clearPlaintextKeyedCaches();
+    }
+  },
+  { flush: 'sync' },
+);
 
 /** 会话状态切换时清理身份库明文/弹窗，并续上未解锁期间收到的站点规则引导 */
 watch(isAuthenticated, authenticated => {
@@ -1122,7 +1183,25 @@ useStorageWatcher({
   onAuthChange: () => void checkAuth(),
   onPasswordDataChange: () => void loadPasswords(),
   skipIf: isLocalOperation,
+  // 守卫由「事件确实被跳过」解除：本地写入的 onChanged 在大列表重渲染后才会到达，
+  // 固定时长清除会让一次保存/收藏仍触发整表全量重载（issue #89 的保存路径实测瓶颈之一）
+  consumeSkip: consumeLocalOperation,
+  // 外部写入（其他窗口填充、网页自动保存）只动白名单元数据时就地修补列表，
+  // 省掉一次 5N 字段解密 + 整表替换；未命中或异常由 watcher 回退整表重载
+  patchMetadataOnly: change => patchMetadataOnlyFromStorage(change),
 });
+
+/**
+ * 应用内联下拉「到全库找」带过来的关键词
+ *
+ * 一并清掉收藏与标签筛选：两者与搜索是叠加（AND）关系，残留会让「我库里到底有没有这个账号」
+ * 这个入口显示成空表。筛选条件是页面态、不入存储，因此清理只影响这次深链呈现的视图。
+ */
+const applySearchKeyword = (keyword: string): void => {
+  searchKeyword.value = keyword;
+  favoriteOnly.value = false;
+  filterTags.value = [];
+};
 
 /** Runtime 消息监听 */
 useRuntimeMessageHandler({
@@ -1134,6 +1213,7 @@ useRuntimeMessageHandler({
   openValiditySetting,
   openSiteRules,
   openDomainMatchSetting,
+  applySearchKeyword,
 });
 
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */
@@ -1157,8 +1237,8 @@ onMounted(async () => {
 const restoreSortConfig = async () => {
   await initSortConfig();
   const sortConfig = currentSort.value;
-  if (sortConfig.prop && sortConfig.order && passwordTableRef.value?.tableRef) {
-    passwordTableRef.value.tableRef.sort(sortConfig.prop, sortConfig.order);
+  if (sortConfig.prop && sortConfig.order) {
+    passwordTableRef.value?.applySort(sortConfig.prop, sortConfig.order);
   }
 };
 

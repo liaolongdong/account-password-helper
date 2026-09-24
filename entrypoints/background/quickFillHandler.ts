@@ -202,7 +202,12 @@ export function extractPortFromUrl(url: string | undefined): string {
 }
 
 /**
- * 派生条目展示标题（与内联下拉 getMatchingAccounts 的标题规则一致）
+ * 派生条目展示标题（标签 / 网址 / 用户名择优）
+ *
+ * 只服务一键填充的「命中多条、已填首条」通知：内联下拉的元数据里刻意不再携带该字段
+ * （面板按用户名成行、标签/备注/网址分列渲染，从未读取过派生标题），
+ * 避免同一语义在两处下发后各自演化。
+ *
  * @param entry 密码条目
  * @returns 展示标题
  */

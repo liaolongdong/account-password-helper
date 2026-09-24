@@ -13,6 +13,8 @@ interface PaletteKeyboardEvent {
   ctrlKey: boolean;
   shiftKey: boolean;
   altKey: boolean;
+  /** 真实 keydown 事件恒有该字段；node 测试里构造的普通对象可省略（等价于未合成） */
+  isComposing?: boolean;
   preventDefault: () => void;
 }
 
@@ -118,6 +120,10 @@ export function useCommandPalette(options: UseCommandPaletteOptions): CommandPal
   };
 
   const handleKeydown = (event: PaletteKeyboardEvent) => {
+    // 输入法合成期间（中文/日文选词）的 Enter 是「上屏」、↑↓ 是候选翻页、Esc 是取消合成，
+    // 此刻接管会演变成「字没打完就执行了高亮命令」，故整段放行给 IME。
+    if (event.isComposing) return;
+
     const isMod = event.ctrlKey || event.metaKey;
     if (isMod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'k') {
       event.preventDefault();

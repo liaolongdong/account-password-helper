@@ -17,6 +17,7 @@ import { handleQuickFill } from '@/entrypoints/background/quickFillHandler';
 import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
 import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
 import { MessageType } from '@/utils/types';
+import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
 
 // 仅测试纯校验函数，将 router 的重依赖全部 mock 为轻量 stub，保证测试密闭
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
@@ -491,5 +492,60 @@ describe('OPEN_OPTIONS_AND_SITE_RULES 域名预填收口（分发级）', () => 
     listener({ type: MessageType.OPEN_OPTIONS_AND_SITE_RULES }, contentSender('https://a.com/'), vi.fn());
 
     expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_SITE_RULES, undefined);
+  });
+});
+
+describe('OPEN_OPTIONS_AND_SEARCH 关键词收口（分发级）', () => {
+  beforeEach(() => {
+    vi.mocked(openOptionsAndSendMessage).mockResolvedValue({ success: true });
+  });
+
+  /** 取回路由转发给选项页的载荷 */
+  const forwardedData = () => {
+    const calls = vi.mocked(openOptionsAndSendMessage).mock.calls;
+    return calls[calls.length - 1]?.[1];
+  };
+
+  it('自报关键词先 trim 再转发，与检索口径一致', () => {
+    const listener = setupAndCaptureListener();
+
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_SEARCH, data: { keyword: '  张三  ' } },
+      contentSender('https://example.com/login'),
+      vi.fn(),
+    );
+
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_SEARCH, {
+      keyword: '张三',
+    });
+  });
+
+  it('超长关键词截断到上限，非字符串与空白一律按「无关键词」打开', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const bad of ['', '   ', 12345, { keyword: 'zs' }, null, undefined]) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_SEARCH, data: { keyword: bad } },
+        contentSender('https://a.com/'),
+        vi.fn(),
+      );
+      expect(forwardedData()).toBeUndefined();
+    }
+
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_SEARCH, data: { keyword: 'x'.repeat(300) } },
+      contentSender('https://a.com/'),
+      vi.fn(),
+    );
+    expect((forwardedData() as { keyword: string }).keyword).toHaveLength(MAX_SEARCH_KEYWORD_LENGTH);
+  });
+
+  it('无载荷时不阻断深链（打开但不预填）', () => {
+    const listener = setupAndCaptureListener();
+
+    const result = listener({ type: MessageType.OPEN_OPTIONS_AND_SEARCH }, contentSender('https://a.com/'), vi.fn());
+
+    expect(result).toBe(true);
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_SEARCH, undefined);
   });
 });

@@ -3,6 +3,7 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { lazyImport } from '@/utils/lazyImport';
 import { bytesToHex } from '@/utils/crypto-light';
+import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import {
   recoverBrowserStartupRelockAfterAuthentication,
   waitForBrowserStartupRelockBeforeAuthentication,
@@ -107,13 +108,14 @@ export function invalidateSessionCache(): void {
  * 后台因此仍能解密并预热缓存、重建快照，等于锁定失效。
  *
  * 同时推进代际，令本上下文中在途的异步数据密钥回填在 `await` 后放弃写回，
- * 并清空本上下文的 CryptoKey 句柄缓存，使锁定后内存中不残留可用的解密句柄
+ * 并清空本上下文的 CryptoKey 句柄缓存与以明文为键的派生记忆缓存，
+ * 使锁定后内存中不残留可用的解密句柄、也不残留可寻址的明文字段
  * （幂等，重复调用无副作用）。
  *
- * 与 `_doClearSession()` 的共享部分仅此二者：句柄缓存与内存镜像是每上下文私有的，
- * 而 storage 清除（local 会话键、session 数据密钥镜像、锁定状态镜像）已由执行
- * `_doClearSession()` 的那个上下文完成，本函数刻意不做任何 storage 写入——
- * 在 storage 监听里回写会误伤「清除后又立刻重建」的新会话密钥镜像。
+ * 与 `_doClearSession()` 的共享部分是这几项：句柄缓存、派生记忆缓存与内存镜像
+ * 都是每上下文私有的，而 storage 清除（local 会话键、session 数据密钥镜像、
+ * 锁定状态镜像）已由执行 `_doClearSession()` 的那个上下文完成，本函数刻意不做
+ * 任何 storage 写入——在 storage 监听里回写会误伤「清除后又立刻重建」的新会话密钥镜像。
  */
 export function resetSessionMemoryState(): void {
   sessionEpoch++;
@@ -127,6 +129,8 @@ export function resetSessionMemoryState(): void {
   void _getEncryption()
     .then(m => m.clearCryptoKeyCache())
     .catch(() => {});
+  // 同步丢弃本上下文以明文为键的派生记忆缓存（拼音命中区间、标签呈现记录）
+  clearPlaintextKeyedCaches();
 }
 
 /**
@@ -772,6 +776,9 @@ async function _doClearSession(): Promise<void> {
     void _getEncryption()
       .then(m => m.clearCryptoKeyCache())
       .catch(() => {});
+
+    // 同步清空本上下文以明文为键的派生记忆缓存（拼音命中区间、标签呈现记录）
+    clearPlaintextKeyedCaches();
 
     // 清除内存与 storage.session 中的会话密钥材料。
     // storage.local 中的密码数据本就是密文（at-rest 不变量），无需再做全量重加密，

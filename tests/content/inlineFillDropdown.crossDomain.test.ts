@@ -19,7 +19,6 @@ import { LITE_MESSAGES } from '@/utils/i18n-lite';
 
 const account = (overrides: Partial<MatchingAccountMeta> = {}): MatchingAccountMeta => ({
   id: 'ok-1',
-  title: 'alice',
   username: 'alice',
   tag: '',
   remark: '',

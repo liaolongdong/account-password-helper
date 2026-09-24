@@ -361,8 +361,8 @@
           <p class="subtitle">Account Password Helper Browser Extension</p>
         </div>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年9月16日</span>
-          <span class="lang-en">Last updated: September 16, 2026</span>
+          <span class="lang-zh">最后更新：2026年9月22日</span>
+          <span class="lang-en">Last updated: September 22, 2026</span>
         </span>
       </div>
 
@@ -472,7 +472,7 @@
               <tr>
                 <td>alarms</td>
                 <td>
-                  定时检查版本更新、自动备份提醒和 Service Worker 常驻保活（后台约每 30 秒唤醒一次，用于保证侧边栏秒开）
+                  定时检查版本更新、自动备份提醒和 Service Worker 常驻保活（后台约每 20 秒唤醒一次，用于保证侧边栏秒开）
                 </td>
               </tr>
               <tr>
@@ -541,6 +541,10 @@
             </li>
             <li>
               <strong>邮件备份提醒：</strong>仅通过 mailto: 协议打开系统邮件客户端，扩展本身不发送邮件也不接触邮件服务器
+            </li>
+            <li>
+              <strong>站点规则导出（JSON）：</strong>仅为该域名的填充选择器配置（域名 + CSS
+              选择器），<strong>不含账号、密码等任何凭据</strong>；文件为明文本地下载，不经过任何服务器，用于备份或团队共享
             </li>
           </ul>
         </div>
@@ -696,7 +700,7 @@
                 <td>alarms</td>
                 <td>
                   Schedule version update checks, auto-backup reminders, and always-on Service Worker keepalive
-                  (background wakeup roughly every 30 seconds to keep the side panel instantly available)
+                  (background wakeup roughly every 20 seconds to keep the side panel instantly available)
                 </td>
               </tr>
               <tr>
@@ -774,6 +778,11 @@
             <li>
               <strong>Email Backup Reminder:</strong> Opens the system email client via the mailto: protocol only; the
               Extension does not send emails or contact any mail server
+            </li>
+            <li>
+              <strong>Site Rule Export (JSON):</strong> fill-selector configuration only (domains plus CSS selectors),
+              <strong>no usernames, passwords or any other credentials</strong>; the file is plaintext downloaded
+              locally without passing through any server, intended for backup or team sharing
             </li>
           </ul>
         </div>

@@ -4,6 +4,7 @@
  */
 import type { PasswordEntry } from '@/utils/types';
 import { hashStringLight } from '@/utils/crypto-light';
+import { registerPlaintextCacheCleaner } from '@/utils/plaintextCacheCleanup';
 
 /**
  * 解析标签字符串为数组
@@ -162,11 +163,68 @@ export const getTagFullStyle = (tag: string): Record<string, string> => {
   return { background, color: text, borderColor: border };
 };
 
+/** 一条标签的呈现记录：名称与其内联样式 */
+export interface TagPresentationRecord {
+  /** 标签文本 */
+  name: string;
+  /** 可直接绑定到 :style 的样式对象（缓存内为冻结实例，禁止就地修改） */
+  style: Readonly<Record<string, string>>;
+}
+
+/**
+ * 标签呈现记录缓存上限
+ *
+ * 缓存键是条目上拼接后的原始 tag 字符串，规模上界是「库内去重后的标签组合数」，
+ * 远小于条目数；超出上限时按插入顺序淘汰最旧一项，避免长会话下无上限增长。
+ *
+ * 键为条目上的明文标签，属明文在内存中的派生残留，因此上限只兜住体积、
+ * 不兜住存活时间——存活时间由 {@link clearTagPresentationCache} 在锁定/过期时收口。
+ */
+const TAG_PRESENTATION_CACHE_MAX = 500;
+
+/** 原始 tag 字符串 → 呈现记录数组（记录与数组均冻结，供多行安全共享） */
+const tagPresentationCache = new Map<string, readonly TagPresentationRecord[]>();
+
 /**
  * 构建列表渲染所需的标签名称与完整样式记录。
  *
- * 调用方可在以原始 tag 字符串为依赖的 computed 中缓存返回值，避免同一列表行
- * 因激活态、搜索词等无关更新而重复拆分标签和计算颜色。
+ * 同一 tag 字符串的解析结果与颜色只与字符串本身有关，因此按字符串缓存并共享：
+ * 大列表每行渲染原先要重复 `parseTags` + 每个标签一次 `hashString` 与三个 `hsl()` 模板串
+ * （600 行约 1000+ 个标签），缓存后这部分降到一次 Map 命中。
+ * 返回值已冻结，调用方只可读，不可就地修改。
+ *
+ * 调用方仍应在以原始 tag 字符串为依赖的 computed 中取值（侧边栏即如此），
+ * 这样即使缓存未命中，也只在本行 tag 变化时重建。
  */
-export const buildTagPresentationRecords = (tag: string | undefined | null) =>
-  parseTags(tag).map(name => ({ name, style: getTagFullStyle(name) }));
+export const buildTagPresentationRecords = (tag: string | undefined | null): readonly TagPresentationRecord[] => {
+  const key = tag ?? '';
+  const cached = tagPresentationCache.get(key);
+  if (cached) return cached;
+
+  const records = Object.freeze(
+    parseTags(key).map(name => Object.freeze({ name, style: Object.freeze(getTagFullStyle(name)) })),
+  );
+  if (tagPresentationCache.size >= TAG_PRESENTATION_CACHE_MAX) {
+    const oldest = tagPresentationCache.keys().next();
+    if (!oldest.done) tagPresentationCache.delete(oldest.value);
+  }
+  tagPresentationCache.set(key, records);
+  return records;
+};
+
+/**
+ * 清空标签呈现记录缓存
+ *
+ * 缓存键是条目上的原始标签字符串（明文），锁定或过期后不应继续以可寻址形式
+ * 留在内存里，故与会话密钥材料同步销毁（安全基线：不延长明文的存活时间）。
+ * 由本模块在初始化时登记进 `utils/plaintextCacheCleanup.ts`，
+ * 会话边界在 clearSession 与跨上下文会话重置两处同步执行。
+ * 只丢呈现缓存，不丢数据，也不影响 `getTagColor` 的
+ * 确定性——同一标签重新计算得到同一颜色。
+ */
+export const clearTagPresentationCache = (): void => {
+  tagPresentationCache.clear();
+};
+
+// 模块级登记：只有加载了本模块的上下文才持有这把缓存，会话边界据此同步销毁明文键残留
+registerPlaintextCacheCleaner(clearTagPresentationCache);

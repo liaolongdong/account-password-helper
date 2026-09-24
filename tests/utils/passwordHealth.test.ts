@@ -7,8 +7,10 @@ import {
   computeSecurityScore,
   computeStaleEntries,
   computeWeakEntries,
+  revealReuseGroups,
   scoreToGrade,
 } from '@/utils/passwordHealth';
+import type { ReuseGroup } from '@/utils/passwordHealth';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
 
 /**
@@ -74,6 +76,75 @@ describe('computeReuseGroups', () => {
     for (const g of groups) {
       for (const e of g.entries) {
         expect('password' in e).toBe(false);
+      }
+    }
+  });
+});
+
+describe('revealReuseGroups', () => {
+  /** 造一组复用条目：只关心 id 与条数，字段形状与 `HealthEntryMeta` 一致 */
+  const groupOf = (groupId: string, size: number): ReuseGroup => ({
+    count: size,
+    entries: Array.from({ length: size }, (_, i) => ({
+      id: `${groupId}-${i}`,
+      username: `${groupId}-${i}`,
+      url: '',
+      tag: '',
+    })),
+  });
+
+  it('预算足够时原样给出全部组，且无任何截断读数', () => {
+    const groups = [groupOf('a', 3), groupOf('b', 2)];
+    const window = revealReuseGroups(groups, 10);
+    expect(window.hidden).toBe(0);
+    expect(window.groups.map(r => r.entries.map(e => e.id))).toEqual([
+      ['a-0', 'a-1', 'a-2'],
+      ['b-0', 'b-1'],
+    ]);
+    expect(window.groups.map(r => r.hidden)).toEqual([0, 0]);
+    // 原始组对象按引用透传：面板标题读的是完整 count，不是窗口内的条数
+    expect(window.groups[0].group).toBe(groups[0]);
+  });
+
+  it('预算落在组中间时只渲染前缀，其后的组整体跳过但计入总读数', () => {
+    const groups = [groupOf('a', 3), groupOf('b', 4), groupOf('c', 2)];
+    const window = revealReuseGroups(groups, 5);
+    expect(window.groups.map(r => [r.group.count, r.entries.length, r.hidden])).toEqual([
+      [3, 3, 0],
+      [4, 2, 2],
+    ]);
+    expect(window.hidden).toBe(2 + 2);
+  });
+
+  it('单组远超预算时仍受预算约束（按组数截断挡不住的情况）', () => {
+    const window = revealReuseGroups([groupOf('a', 2000)], 100);
+    expect(window.groups).toHaveLength(1);
+    expect(window.groups[0].entries).toHaveLength(100);
+    expect(window.groups[0].hidden).toBe(1900);
+    expect(window.hidden).toBe(1900);
+  });
+
+  it('预算为 0 时窗口为空，但读数是完整条目总数', () => {
+    const groups = [groupOf('a', 3), groupOf('b', 2)];
+    const window = revealReuseGroups(groups, 0);
+    expect(window.groups).toEqual([]);
+    expect(window.hidden).toBe(5);
+  });
+
+  it('渲染行数恒不超预算，且不超过输入总行数', () => {
+    const inputs: ReuseGroup[][] = [
+      [],
+      [groupOf('a', 1)],
+      [groupOf('a', 7), groupOf('b', 9)],
+      Array.from({ length: 30 }, (_, i) => groupOf(`g${i}`, 2)),
+    ];
+    for (const groups of inputs) {
+      const total = groups.reduce((sum, g) => sum + g.count, 0);
+      for (const budget of [0, 1, 5, 100]) {
+        const window = revealReuseGroups(groups, budget);
+        const rendered = window.groups.reduce((sum, r) => sum + r.entries.length, 0);
+        expect(rendered).toBeLessThanOrEqual(Math.min(budget, total));
+        expect(rendered + window.hidden).toBe(total);
       }
     }
   });

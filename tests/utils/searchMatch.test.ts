@@ -4,10 +4,10 @@ import {
   findMatchRange,
   matchesKeyword,
   highlightSegments,
-  warmPinyinMatcher,
   pinyinMatcherReady,
   getPinyinRenderMemoDependency,
 } from '@/utils/searchMatch';
+import { warmPinyinMatcher } from '@/utils/searchMatch/core';
 
 describe('searchMatch', () => {
   describe('findMatchRange（子串匹配，模块加载前即可用）', () => {

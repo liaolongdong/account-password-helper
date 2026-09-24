@@ -143,6 +143,33 @@ export async function deriveEncryptionKey(masterPassword: string): Promise<strin
 }
 
 /**
+ * Base64 → 字节（预分配缓冲 + `for` 填充）
+ *
+ * 与 `Uint8Array.from(atob(s), c => c.charCodeAt(0))` 逐字节等价，但成本差一个数量级：
+ * 前者要先经字符串迭代器产出一个 length 长的中间数组、再由 `from` 二次拷贝，
+ * 而本函数一次分配、一次写入。`decryptData` 处在每一条解密的必经路径上
+ * （N 条 × ≤5 字段），故这里的常数直接乘进全库解密耗时。
+ * 实测（同一次迭代内配对）：1 MB 解码 170～545 ms → 5～7 ms；
+ * 3 万次小字段 170～325 ms → 10～17 ms。口径见
+ * `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.4 与第九节。
+ *
+ * 非法 Base64 由 `atob` 抛 `InvalidCharacterError` 向上传播，调用方维持原有归类。
+ *
+ * 返回类型显式写 `Uint8Array<ArrayBuffer>` 而非裸 `Uint8Array`：后者在 TS 的新版
+ * TypedArray 泛型下会放宽成 `Uint8Array<ArrayBufferLike>`，而 `subarray` 的返回类型
+ * 跟随缓冲类型，宽化后不再满足 Web Crypto `BufferSource` 对 `ArrayBuffer` 的要求。
+ *
+ * @param base64 待解码的 Base64 字符串
+ * @returns 解码后的字节序列（长度等于 `atob` 结果长度）
+ */
+function base64ToBytes(base64: string): Uint8Array<ArrayBuffer> {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+/**
  * AES-256-GCM 加密（Web Crypto 原生，随机 IV，认证加密）
  * 格式：Base64(IV[12] + ciphertext)，authTag 由 Web Crypto 自动追加
  */
@@ -192,9 +219,11 @@ export function getDecryptErrorCode(error: unknown): DecryptErrorCode | undefine
 export async function decryptData(encryptedData: string, hexKey: string): Promise<string> {
   if (!encryptedData) return '';
   if (!hexKey) throw new Error('解密密钥不能为空');
-  let combined: Uint8Array;
+  // 显式 `Uint8Array<ArrayBuffer>`：裸 `Uint8Array` 会放宽为 `ArrayBufferLike`，
+  // 而下面 `subarray` 的返回类型跟随缓冲类型，宽化后无法再传给 Web Crypto。
+  let combined: Uint8Array<ArrayBuffer>;
   try {
-    combined = Uint8Array.from(atob(encryptedData), c => c.charCodeAt(0));
+    combined = base64ToBytes(encryptedData);
   } catch {
     logger.warn('Base64解析失败，密文损坏或非加密数据');
     throw decryptFailure('解密失败：数据损坏或非密文');
@@ -205,10 +234,12 @@ export async function decryptData(encryptedData: string, hexKey: string): Promis
   }
   const key = await getAesCryptoKey(hexKey, 'decrypt');
   try {
+    // `subarray` 是零拷贝视图：BufferSource 携带 byteOffset/byteLength，Web Crypto 只读不写，
+    // 且 `combined` 在此之后不再被改动，故与 `slice` 语义等价而少两次完整缓冲分配。
     const plaintext = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: combined.slice(0, 12) },
+      { name: 'AES-GCM', iv: combined.subarray(0, 12) },
       key,
-      combined.slice(12),
+      combined.subarray(12),
     );
     return new TextDecoder().decode(plaintext);
   } catch (error) {

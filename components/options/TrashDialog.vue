@@ -21,15 +21,16 @@
         v-if="trashList.length > 0"
         class="trash-stats"
       >
-        {{ t('options.trash.total', { count: trashList.length }) }}
+        {{ t('options.trash.total', { count: totalCount }) }}
       </div>
       <el-table
         v-if="trashList.length > 0 || loading"
         v-loading="loading"
-        :data="trashList"
+        :data="pagedEntries"
         stripe
         size="small"
         max-height="400"
+        row-key="id"
         :empty-text="t('common.noData')"
         class="trash-table"
       >
@@ -57,7 +58,7 @@
           align="center"
         >
           <template #default="{ row }">
-            <span class="trash-date">{{ formatDate(row.deletedAt) }}</span>
+            <span class="trash-date">{{ row.deletedDate }}</span>
           </template>
         </el-table-column>
         <el-table-column
@@ -67,11 +68,11 @@
         >
           <template #default="{ row }">
             <el-tag
-              :type="getRemainingDays(row.deletedAt) <= 7 ? 'danger' : 'info'"
+              :type="row.remainingDays <= 7 ? 'danger' : 'info'"
               size="small"
               effect="plain"
             >
-              {{ getRemainingDays(row.deletedAt) }}
+              {{ row.remainingDays }}
             </el-tag>
           </template>
         </el-table-column>
@@ -99,6 +100,16 @@
           </template>
         </el-table-column>
       </el-table>
+      <!--
+        分页条与密码表共用 `VaultPagination`：回收站没有跨页选中概念，
+        `selected-count` / `off-page-selected-count` 走组件默认值 0。
+      -->
+      <VaultPagination
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :page-count="pageCount"
+        :total-count="totalCount"
+      />
     </div>
 
     <template #footer>
@@ -119,13 +130,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
-import { getTrashEntries, restoreFromTrash, permanentDeleteFromTrash, emptyTrash } from '@/utils/storage/trashManager';
+import { computed, ref, watch } from 'vue';
+import {
+  getTrashEntries,
+  restoreFromTrash,
+  permanentDeleteFromTrash,
+  emptyTrash,
+  getTrashRemainingDays,
+} from '@/utils/storage/trashManager';
 import { getSessionDataKey } from '@/utils/storage/facades';
 import { formatDate as formatDateYmd } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import { lazyImport } from '@/utils/lazyImport';
 import { useI18n } from '@/utils/i18n';
+import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
+import { useVaultListPagination } from '@/composables/useVaultListPagination';
+import VaultPagination from '@/components/options/VaultPagination.vue';
 
 const _getEncryption = lazyImport(() => import('@/utils/encryption'));
 
@@ -135,7 +155,8 @@ const { t } = useI18n();
  * 回收站对话框
  *
  * 展示已删除的密码条目，支持恢复、彻底删除和清空回收站。
- * 条目在回收站中保留 30 天后自动清理。
+ * 条目在回收站中保留 30 天后自动清理（保留期与倒计时同读
+ * `trashManager` 的 `TRASH_RETENTION_DAYS`，避免两处各写一份 30）。
  */
 const props = defineProps<{
   modelValue: boolean;
@@ -147,20 +168,37 @@ const emit = defineEmits<{
   restored: [];
 }>();
 
-/** 解密后的回收站条目（用于 UI 展示） */
+/**
+ * 解密后的回收站条目（用于 UI 展示）
+ *
+ * `deletedDate` 与 `remainingDays` 在加载时一次算好随行携带：表格每行都要读这两个值，
+ * 放在模板里就是「每次重渲染 × 每行 × 一次 `Date.now()` + 字符串拼接」，
+ * 而回收站列表在勾选/翻页/提示刷新时会被反复重渲染。
+ */
 interface TrashDisplayEntry {
   id: string;
   username: string;
   url: string;
   tag: string;
-  deletedAt: number;
+  /** 删除日期（YYYY-MM-DD） */
+  deletedDate: string;
+  /** 剩余保留天数（以本次加载时刻为准） */
+  remainingDays: number;
 }
 
 const loading = ref(false);
 const trashList = ref<TrashDisplayEntry[]>([]);
 
-/** 回收站保留天数 */
-const RETENTION_DAYS = 30;
+/**
+ * 分页（与管理页密码表同一套口径：默认每页 100，可切 50/100/200）
+ *
+ * 复位信号取「弹窗打开」而不是列表长度：恢复/彻底删除后仍要重新 `loadTrash()`，
+ * 那属于就地编辑级别的口径，刻意不把用户送回第 1 页；越界由 `pageCount` 钳位兜住。
+ */
+const { currentPage, pageSize, totalCount, pageCount, pagedEntries } = useVaultListPagination(
+  trashList,
+  computed(() => props.modelValue),
+);
 
 /**
  * 加载回收站条目（解密敏感字段用于展示）
@@ -172,16 +210,24 @@ const loadTrash = async () => {
   loading.value = true;
   try {
     const entries = await getTrashEntries();
+    // 一次取样：同一屏的倒计时必须相对同一时刻，否则行间会出现「同一批数据两种剩余天数」
+    const now = Date.now();
     const key = await getSessionDataKey();
+
+    /** 随行携带的展示派生值（日期与剩余天数只与 `deletedAt` 和取样时刻有关） */
+    const displayOf = (entry: { id: string; deletedAt: number; tag?: string }) => ({
+      id: entry.id,
+      deletedDate: formatDateYmd(entry.deletedAt),
+      remainingDays: getTrashRemainingDays(entry.deletedAt, now),
+    });
 
     if (!key) {
       // 会话无效，无法解密，展示占位符
-      trashList.value = entries.map(e => ({
-        id: e.id,
+      trashList.value = entries.map(entry => ({
+        ...displayOf(entry),
         username: t('options.trash.lockedPlaceholder'),
         url: '•••',
-        tag: e.tag || '',
-        deletedAt: e.deletedAt,
+        tag: entry.tag || '',
       }));
       return;
     }
@@ -193,22 +239,10 @@ const loadTrash = async () => {
         const username = entry.username ? await enc.decryptData(entry.username, key) : '';
         const url = entry.url ? await enc.decryptData(entry.url, key) : '';
         const tag = entry.tag ? await enc.decryptData(entry.tag, key).catch(() => entry.tag) : '';
-        decrypted.push({
-          id: entry.id,
-          username,
-          url,
-          tag,
-          deletedAt: entry.deletedAt,
-        });
+        decrypted.push({ ...displayOf(entry), username, url, tag });
       } catch {
         // 单条解密失败时降级展示
-        decrypted.push({
-          id: entry.id,
-          username: t('message.decryptFailed'),
-          url: '',
-          tag: '',
-          deletedAt: entry.deletedAt,
-        });
+        decrypted.push({ ...displayOf(entry), username: t('message.decryptFailed'), url: '', tag: '' });
       }
     }
     trashList.value = decrypted;
@@ -220,18 +254,6 @@ const loadTrash = async () => {
   }
 };
 
-/** 格式化删除日期为 YYYY-MM-DD */
-const formatDate = (timestamp: number): string => {
-  return formatDateYmd(timestamp);
-};
-
-/** 计算剩余天数 */
-const getRemainingDays = (deletedAt: number): number => {
-  const elapsed = Date.now() - deletedAt;
-  const remaining = RETENTION_DAYS - Math.floor(elapsed / (24 * 60 * 60 * 1000));
-  return Math.max(0, remaining);
-};
-
 /** 恢复条目 */
 const handleRestore = async (id: string) => {
   try {
@@ -241,7 +263,11 @@ const handleRestore = async (id: string) => {
     emit('restored');
   } catch (error) {
     logger.error('恢复条目失败:', error);
-    ElMessage.error(t('options.trash.restoreFailed'));
+    ElMessage.error(
+      isVaultCapacityError(error)
+        ? t('options.capacity.restoreBlocked', { max: MAX_PASSWORD_ENTRIES })
+        : t('options.trash.restoreFailed'),
+    );
   }
 };
 

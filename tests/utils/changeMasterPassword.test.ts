@@ -195,4 +195,24 @@ describe('changeMasterPassword 历史记录容错', () => {
     // encryptData 回显 `enc:<key>:<plain>`，key 段即步骤 7 派生的新数据密钥
     expect(history).toContainEqual({ entryId: 'p1', password: 'enc:key:new-pw:hist-1', changedAt: 1 });
   });
+
+  it('条目级并行后每条记录仍与自己的密码配对，且顺序与入参一致', async () => {
+    // 并行回填按下标 zip（`historyOutcomes[i] ↔ rawHistory[i]`）：一旦下标错位，
+    // 记录之间会互换了密码字段而条数不变 —— 单看长度/`toContainEqual` 未必能发现，
+    // 故这里断言完整数组的逐位内容。
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+    storageData[STORAGE_KEYS.PASSWORD_HISTORY] = [
+      { entryId: 'p1', password: 'enc:h1', changedAt: 3 },
+      { entryId: 'p2', password: 'enc:h2', changedAt: 2 },
+      { entryId: 'p3', password: 'enc:h3', changedAt: 1 },
+    ];
+
+    await changeMasterPassword('old-pw', 'new-pw');
+
+    expect(storageData[STORAGE_KEYS.PASSWORD_HISTORY]).toEqual([
+      { entryId: 'p1', password: 'enc:key:new-pw:h1', changedAt: 3 },
+      { entryId: 'p2', password: 'enc:key:new-pw:h2', changedAt: 2 },
+      { entryId: 'p3', password: 'enc:key:new-pw:h3', changedAt: 1 },
+    ]);
+  });
 });

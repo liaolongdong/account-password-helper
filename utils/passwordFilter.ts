@@ -10,6 +10,7 @@
  */
 import type { PasswordEntry } from '@/utils/types';
 import { isLocalDevDomain, matchesPortForLocalDev, resolveMatchTier, type DomainMatchMode } from '@/utils/domain';
+import { filterByKeyword, type KeywordMatcher } from '@/utils/keywordMatch';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { parseTags } from '@/utils/tagUtils';
 
@@ -37,6 +38,13 @@ export interface ListFilterOptions {
   tags?: string[];
   /** 是否仅保留收藏条目 */
   favoriteOnly?: boolean;
+  /**
+   * 关键词匹配器，缺省 {@link matchesKeyword}（子串 + 拼音）
+   *
+   * 供无法引用拼音内核的调用方（如内容脚本世界）注入自己的匹配器，
+   * 从而复用同一份「检索字段清单 + 保序过滤」口径；字段清单不接受定制。
+   */
+  matcher?: KeywordMatcher;
 }
 
 /**
@@ -99,13 +107,14 @@ export function filterEntriesByScope(
  * @returns 过滤后的条目副本
  */
 export function applyListFilters(entries: readonly PasswordEntry[], options: ListFilterOptions): PasswordEntry[] {
-  const { keyword, tags, favoriteOnly } = options;
+  const { keyword, tags, favoriteOnly, matcher = matchesKeyword } = options;
 
   let result: PasswordEntry[] = [...entries];
 
   if (keyword) {
-    // 智能匹配：子串（大小写不敏感）优先，拼音模块预热后自动补齐全拼/首字母命中
-    result = result.filter(p => matchesKeyword([p.username, p.tag, p.remark, p.url], keyword));
+    // 智能匹配：子串（大小写不敏感）优先，拼音模块预热后自动补齐全拼/首字母命中；
+    // 「搜哪几个字段」与「保序」由 utils/keywordMatch 单点定义，内联下拉共用同一清单
+    result = filterByKeyword(result, keyword, matcher);
   }
 
   if (tags && tags.length > 0) {

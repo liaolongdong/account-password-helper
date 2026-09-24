@@ -20,6 +20,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { getTagColor, parseTags } from '@/utils/tagUtils';
 import { isCrossSubdomainTier } from '@/utils/domain';
+import { filterByKeyword, normalizeSearchKeyword, substringMatcher } from '@/utils/keywordMatch';
 import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
 
@@ -40,6 +41,26 @@ const TOTP_FILL_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="no
 
 /** 加号图标（空状态 CTA 按钮） */
 const PLUS_ICON = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14"/><path d="M5 12h14"/></svg>`;
+
+/**
+ * 检索请求防抖窗口（毫秒）
+ *
+ * 逐字输入只在停顿后向 SW 请求一次拼音结果：本地子串过滤即时渲染，SW 那一路是补充而非前置，
+ * 因此这个窗口只影响「拼音命中何时补齐」，不影响输入响应速度。取值权衡：
+ * 太小会在快速连打时产生多次无效请求，太大使拼音命中迟迟不出现（感知明显）。
+ */
+const SEARCH_DEBOUNCE_MS = 120;
+
+/**
+ * 列表框元素 id（搜索框 `aria-controls` 的指向）
+ *
+ * 面板宿主是 closed shadow root，id 引用只在所属 shadow tree 内解析，
+ * 因此多实例（多 iframe）共用同一常量不会互相指错。
+ */
+const LISTBOX_ID = 'aph-inline-list';
+
+/** 选项行 id 前缀：`aria-activedescendant` 逐帧指向当前高亮行 */
+const OPTION_ID_PREFIX = 'aph-inline-option-';
 
 /** 图标与面板样式（使用主题令牌 var(--aph-*)，由宿主内联提供取值） */
 const inlineStyles = `
@@ -402,8 +423,9 @@ const inlineStyles = `
   border-color: var(--aph-primary);
 }
 
-/* 跨子域匹配深链：文字级按钮，与「添加此网站账号」拉开一层权重 */
-.aph-empty-domain-btn {
+/* 文字级深链按钮（跨子域匹配 / 到全库找）：与「添加此网站账号」拉开一层权重 */
+.aph-empty-domain-btn,
+.aph-empty-searchall-btn {
   margin-top: 8px;
   padding: 2px 6px;
   font-size: 11px;
@@ -415,7 +437,26 @@ const inlineStyles = `
   transition: opacity 0.2s ease;
 }
 
-.aph-empty-domain-btn:hover {
+.aph-empty-domain-btn:hover,
+.aph-empty-searchall-btn:hover {
+  text-decoration: underline;
+}
+
+/* 列表尾部「还有 N 条」：与空态那两枚深链同级，居中贴在列表末尾 */
+.aph-more-btn {
+  display: block;
+  margin: 2px auto 0;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--aph-primary);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  transition: opacity 0.2s ease;
+}
+
+.aph-more-btn:hover {
   text-decoration: underline;
 }
 
@@ -587,11 +628,51 @@ export class InlineFillDropdown {
    * 内容脚本不自行解析域名：档位语义只有一个真源，这里只消费结论。
    */
   private crossDomainCount = 0;
+  /**
+   * 本站匹配集的命中总条数（打开面板那次请求带回，缺省按已下发条数计）
+   *
+   * 与 `accounts.length` 的差即「被 `INLINE_MAX_RESULT_ROWS` 截掉的条数」，
+   * 只用于尾部读数，不参与过滤。
+   */
+  private totalMatched = 0;
+  /**
+   * 当前列表尾部还没展示的条数（0 表示不显示尾部读数）
+   *
+   * 只在**读到的就是权威结果**时为真：无关键词时看 `totalMatched`，有关键词且 SW 拼音结果
+   * 已回包时看 `serverTotalMatched`。本地乐观子集是「截断集的子集」，两个上界叠在一起
+   * 算出的剩余是个假数，因此那一帧不给读数。
+   */
+  private hiddenRows = 0;
+  /** `serverFiltered` 对应的命中总条数（SW 侧截断前），随回包一起写 */
+  private serverTotalMatched = 0;
   /** 搜索过滤后的账号 */
   private filtered: MatchingAccountMeta[] = [];
-  /** 搜索关键字 */
+  /**
+   * 搜索关键字
+   *
+   * 唯一写入点是 `handleSearchInput`，且一律经 `normalizeSearchKeyword` 归一（trim + 64 字上限），
+   * 因此读取方无需再 trim；`renderList` 的关键词高亮与发往后台的 `keyword` 用的就是这一个串。
+   */
   private searchKeyword = '';
-  /** 键盘高亮索引（-1 未高亮） */
+  /**
+   * Background 侧的检索结果（拼音 / 首字母缩写）
+   *
+   * 内容脚本世界加载不了 `pinyin-match` chunk（扩展未声明 web_accessible_resources），
+   * 故拼音由 SW 代跑：本地子串结果先乐观渲染，本字段回包且关键词一致时替换为它的超集。
+   */
+  private serverFiltered: MatchingAccountMeta[] | null = null;
+  /** `serverFiltered` 所属的关键词（trim 后），不一致即视为过期结果丢弃 */
+  private serverKeyword = '';
+  /**
+   * 检索请求序号
+   *
+   * 与 `requestSeq` 分开：打开面板与逐字检索是两条独立链路，
+   * 在途检索响应只允许影响列表，绝不能触碰 `panelOpen`。
+   */
+  private searchSeq = 0;
+  /** 检索防抖计时器（逐字输入时只在停顿后请求一次） */
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 键盘高亮索引（-1 未高亮；有结果时由 `applyFilter` 默认为 0） */
   private activeIndex = -1;
   /** 会话是否锁定 */
   private locked = false;
@@ -760,6 +841,7 @@ export class InlineFillDropdown {
       this.hintTimer = null;
     }
     this.clearTotpStates();
+    this.clearSearchState();
     this.hintEl = null;
     this.shadowHost?.remove();
     this.shadowHost = null;
@@ -1072,8 +1154,9 @@ export class InlineFillDropdown {
     this.locked = response.data.locked;
     this.noMasterPassword = !!response.data.noMasterPassword;
     this.accounts = response.data.accounts || [];
+    this.totalMatched = response.data.totalMatched ?? this.accounts.length;
     this.crossDomainCount = response.data.crossDomainCount ?? 0;
-    this.searchKeyword = '';
+    this.clearSearchState();
     this.activeIndex = -1;
 
     this.buildPanel();
@@ -1100,7 +1183,51 @@ export class InlineFillDropdown {
     this.detachPanelInteractions();
     this.syncFollow();
     this.activeIndex = -1;
+    this.clearSearchState();
     this.clearTotpStates();
+    this.clearRenderedAccounts();
+  }
+
+  /**
+   * 关闭面板后清空已渲染的账号文本
+   *
+   * `closePanel` 只摘掉 `.visible`（隐藏而非移除节点），不清的话用户名、标签、备注全文
+   * （行级 title）与用户刚输入的关键词会以 `display:none` 的形态留在页面 DOM 里，
+   * 直到下一次打开面板才被 innerHTML 覆写。面板本来就常驻在宿主页面里，不该在收起状态下
+   * 兜着这些内容。这里只清渲染结果，不动 shadow 骨架，样式与事件绑定（挂在容器上）不受影响。
+   *
+   * 刻意不清 `this.accounts` / `this.filtered`：它们是 JS 侧既有状态，重新打开时
+   * `openPanelFor` 会重新拉取并覆写；DOM 层面的残留才是本方法要消除的对象。
+   */
+  private clearRenderedAccounts(): void {
+    const searchInput = this.panelEl?.querySelector<HTMLInputElement>('.aph-search input');
+    if (searchInput) searchInput.value = '';
+    const emptySlot = this.panelEl?.querySelector<HTMLElement>('.aph-empty-slot');
+    if (emptySlot) emptySlot.innerHTML = '';
+    // 尾部读数虽不含凭据，但它是「上一次匹配集有多大」的读数，同样随面板收起而失效
+    const moreSlot = this.panelEl?.querySelector<HTMLElement>('.aph-more-slot');
+    if (moreSlot) moreSlot.innerHTML = '';
+    const options = this.panelEl?.querySelector<HTMLElement>('.aph-options');
+    if (options) options.innerHTML = '';
+  }
+
+  /**
+   * 复位检索状态（关键词、防抖计时器、在途请求与 SW 结果）
+   *
+   * 面板关闭与重新打开都必须走这里：在途的检索响应以 `searchSeq` 作废，
+   * 否则上一次输入或上一个站点的拼音结果会串进新面板的首帧列表；
+   * 计时器若遗留，会在面板已关后继续发一次无意义的 runtime 请求。
+   */
+  private clearSearchState(): void {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = null;
+    }
+    this.searchSeq += 1;
+    this.serverFiltered = null;
+    this.serverKeyword = '';
+    this.serverTotalMatched = 0;
+    this.searchKeyword = '';
   }
 
   /**
@@ -1152,9 +1279,14 @@ export class InlineFillDropdown {
     this.panelEl.innerHTML = `
       <div class="aph-search">
         <span class="aph-search-icon">${SEARCH_ICON}</span>
-        <input type="text" placeholder="${tl('cs.inline.searchPlaceholder')}" spellcheck="false" autocomplete="off" />
+        <input type="text" value="${escapeHtml(this.searchKeyword)}" placeholder="${tl('cs.inline.searchPlaceholder')}" aria-label="${tl('cs.inline.searchPlaceholder')}" spellcheck="false" autocomplete="off"
+          role="combobox" aria-controls="${LISTBOX_ID}" aria-expanded="false" aria-autocomplete="list" />
       </div>
-      <div class="aph-list"></div>
+      <div class="aph-list">
+        <div class="aph-options" id="${LISTBOX_ID}" role="listbox" aria-label="${tl('cs.inline.listboxLabel')}"></div>
+        <div class="aph-empty-slot"></div>
+        <div class="aph-more-slot"></div>
+      </div>
       <div class="aph-footer">
         <button class="aph-manage" type="button">${KEY_ICON}<span>${tl('cs.inline.manage')}</span></button>
       </div>
@@ -1174,37 +1306,172 @@ export class InlineFillDropdown {
 
   /**
    * 应用搜索过滤并渲染列表（不重建搜索框，保持输入焦点）
+   *
+   * @param options.keepActiveId 需要保住高亮的账号 id：SW 的拼音超集是「后到的替换」，
+   *   此刻用户可能正用 ↑↓ 停在第 N 条上，归零会把「回车要填的那一条」悄悄换成首行；
+   *   该 id 已不在新列表里时照常归零。缺省即归零（输入新关键词、重建面板）。
    */
-  private applyFilter(): void {
-    const kw = this.searchKeyword.trim().toLowerCase();
-    // 四个字段一律走 asText：条目来自 background 下发的匹配结果，历史/异常数据里
-    // 任一字段都可能缺失，裸 `.toLowerCase()` 会在关键字非空时抛错。抛点在
-    // buildPanel 末尾的 applyFilter，此时 panelOpen 已置 true：面板停在半渲染状态，
-    // 且后续对同一输入框的 openPanelFor 会因「已打开」短路返回 true，表现为永久打不开
-    // （refreshPanelLocale 复用旧关键字重建面板同样会走到这里）。renderList 侧对
-    // username 已有兜底，此处把筛选口径补齐。
-    this.filtered = !kw
-      ? this.accounts
-      : this.accounts.filter(
-          a =>
-            asText(a.username).toLowerCase().includes(kw) ||
-            asText(a.tag).toLowerCase().includes(kw) ||
-            asText(a.remark).toLowerCase().includes(kw) ||
-            asText(a.url).toLowerCase().includes(kw),
-        );
-    this.activeIndex = -1;
+  private applyFilter(options: { keepActiveId?: string } = {}): void {
+    // `searchKeyword` 由 `handleSearchInput` 经 `normalizeSearchKeyword` 归一（已 trim），
+    // 这里直接取值即可，两侧（本地过滤 / 结果交换键 / 发往后台的串）因此天然是同一个串。
+    const kw = this.searchKeyword;
+    // 检索字段清单、字段归一（历史/异常数据里任一字段都可能缺失）与大小写口径
+    // 全部来自 `utils/keywordMatch`，与侧边栏共用同一份定义；内联只注入子串匹配器，
+    // 拼音命中经 `GET_MATCHING_ACCOUNTS` 的 keyword 由 background 代跑（见方案 B）。
+    // 抛点曾在 buildPanel 末尾的这里：任何一处抛错都会让 `panelOpen` 停在 true，
+    // 之后对同一输入框的 openPanelFor 因「已打开」短路返回 true，表现为永久打不开。
+    const local = !kw ? this.accounts : filterByKeyword(this.accounts, kw, substringMatcher);
+    // SW 的拼音结果是本地子串结果的超集，同一关键词下已回包即以它为准；
+    // 未回包（首帧、防抖窗口内、请求失败）保持本地结果，输入响应不受网络影响。
+    this.filtered = kw && this.serverKeyword === kw && this.serverFiltered ? this.serverFiltered : local;
+    // 尾部「还有 N 条」读数：只有当前列表就是权威结果时才给（见 `hiddenRows` 声明处）
+    const serverAuthoritative = !!kw && this.serverKeyword === kw && !!this.serverFiltered;
+    const authoritativeTotal = !kw ? this.totalMatched : serverAuthoritative ? this.serverTotalMatched : 0;
+    this.hiddenRows = Math.max(0, authoritativeTotal - this.filtered.length);
+    // 默认选中首条：列表已按「匹配层级 → 收藏 → 侧边栏排序配置」排好，首行即最优候选，
+    // 空输入直接回车可填、敲 ↓ 是「看第二名」而非「从第一名开始」。与侧边栏的
+    // `handleSearch` 归零口径一致（无结果时无高亮，回车保持空操作）。
+    const keptIndex = options.keepActiveId ? this.filtered.findIndex(entry => entry.id === options.keepActiveId) : -1;
+    this.activeIndex = keptIndex >= 0 ? keptIndex : this.filtered.length > 0 ? 0 : -1;
     this.renderList();
+    // 跟随到第 N 行时补一次滚动：列表可滚动，落在可视区之外的高亮等于「回车会填哪条」不可见
+    if (keptIndex > 0) this.updateActive();
+  }
+
+  /**
+   * 安排一次 SW 侧检索（防抖）
+   *
+   * 空关键词直接作废在途请求并回到全量列表；已有同一关键词的权威结果时不重复请求
+   * （用户删字再打回同一串的场景）。
+   */
+  private scheduleServerFilter(): void {
+    if (this.searchTimer) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = null;
+    }
+    const kw = this.searchKeyword; // 已在 `handleSearchInput` 归一
+    if (!kw) {
+      this.searchSeq += 1; // 丢弃在途响应，避免旧关键词的拼音结果覆盖已清空关键词的全量列表
+      this.serverFiltered = null;
+      this.serverKeyword = '';
+      return;
+    }
+    if (this.serverKeyword === kw) return;
+    this.searchTimer = setTimeout(() => {
+      this.searchTimer = null;
+      void this.requestServerFilter(kw);
+    }, SEARCH_DEBOUNCE_MS);
+  }
+
+  /**
+   * 向 background 请求拼音检索结果，命中即替换当前列表
+   *
+   * 三重丢弃：序号被更新（更新的请求已在途）、面板已关、关键词已变——
+   * 任何一路都只放弃本次结果，不触碰 `panelOpen`，也不抛错（本地子串结果即兜底）。
+   *
+   * @param kw 已 trim 的关键词
+   */
+  private async requestServerFilter(kw: string): Promise<void> {
+    const seq = ++this.searchSeq;
+    let response: { success?: boolean; data?: MatchingAccountsResponse } | undefined;
+    try {
+      response = await chrome.runtime.sendMessage({ type: MessageType.GET_MATCHING_ACCOUNTS, data: { keyword: kw } });
+    } catch (error) {
+      // 上下文失效等异常静默降级：本地子串过滤已覆盖大部分检索需求（logger 只记原因，不记关键词）
+      logger.debug('内联面板：检索请求失败，保持本地子串结果:', error);
+      return;
+    }
+    if (seq !== this.searchSeq || !this.panelOpen) return;
+    if (this.searchKeyword !== kw) return;
+    if (!response || response.success === false || !response.data?.accounts) return;
+
+    // 会话在检索途中失效：后台四路（启动重锁 / 未设主密码 / 会话失效 / 缓存丢失）都回
+    // `locked + 空数组`，与「本关键词无匹配」在渲染层同形。只认 success/accounts 会把锁
+    // 误渲成空态——用户对着「没有匹配」找不到解锁入口，故此处与载入路径同样切卡片。
+    if (response.data.locked || response.data.noMasterPassword) {
+      this.switchToLockedView(!!response.data.noMasterPassword);
+      return;
+    }
+
+    this.serverFiltered = response.data.accounts;
+    this.serverTotalMatched = response.data.totalMatched ?? response.data.accounts.length;
+    this.serverKeyword = kw;
+    // 与已渲染完全一致（英文账号等常见场景：子串已覆盖拼音命中）时跳过重渲染，
+    // 不打断用户此刻的 ↑↓ 导航，也不产生一次无谓的 innerHTML 重写。
+    // 尾部读数必须一并比对：同一批 id 下 SW 的命中总数仍可能大于本地子集，
+    // 只比 id 会把「还有 N 条」这一行永久留在旧读数上。
+    const nextHiddenRows = Math.max(0, this.serverTotalMatched - this.serverFiltered.length);
+    if (this.filteredIdsEqual(this.serverFiltered) && nextHiddenRows === this.hiddenRows) return;
+    this.applyFilter({ keepActiveId: this.filtered[this.activeIndex]?.id });
+  }
+
+  /**
+   * 就地切到锁定 / 未设置主密码卡片
+   *
+   * 与 `openPanel` 的成功分支写入同一组状态，避免两条路径各自维护出分歧的脏状态：
+   * 卡片不含检索框，旧关键词与其权威结果必须一并作废（否则残留的 `serverKeyword`
+   * 会让下一次同关键词短路命中，把锁定前的列表当成新结果）。
+   *
+   * @param noMasterPassword 是否未设置主密码（true 时渲染设置引导卡片而非解锁卡片）
+   */
+  private switchToLockedView(noMasterPassword: boolean): void {
+    this.locked = true;
+    this.noMasterPassword = noMasterPassword;
+    this.accounts = [];
+    this.filtered = [];
+    this.totalMatched = 0;
+    this.crossDomainCount = 0;
+    this.clearSearchState();
+    // 与 closePanel 同一步清理：卡片已经把活码胶囊从 DOM 里换掉，留着 `totpStates`
+    // 等于在「会话已锁定」的面板背后继续持有解密出来的动态码，并让 1s 倒计时白跑
+    this.clearTotpStates();
+    this.activeIndex = -1;
+    this.buildPanel();
+    // 卡片与列表高度不同，按新高度重新锚定（锚点已滚出视口时 positionPanel 自行关闭）
+    this.positionPanel();
+  }
+
+  /**
+   * 判断待渲染列表与当前列表是否为「同序同 id」
+   * @param next 待应用的账号元数据列表
+   * @returns 长度与逐项 id 全等时为 true
+   */
+  private filteredIdsEqual(next: readonly MatchingAccountMeta[]): boolean {
+    const current = this.filtered;
+    if (current.length !== next.length) return false;
+    return current.every((entry, index) => entry.id === next[index]!.id);
   }
 
   /**
    * 渲染列表区
+   *
+   * 列表区拆成「选项容器 `.aph-options` + 空态容器 `.aph-empty-slot` + 尾部读数容器
+   * `.aph-more-slot`」三个常驻子节点，
+   * `role="listbox"` 只包住真正的选项：空态文案和它的两枚按钮若塞进列表框内，
+   * 就等于在 combobox 的可选项里混入非 option 节点，读屏会把引导按钮念成「第 3 个账号」。
+   * 三个容器本身无样式，空置的一侧 innerHTML 为空、高度为 0，视觉与拆分前一致。
    */
   private renderList(): void {
-    const listEl = this.panelEl?.querySelector('.aph-list');
-    if (!listEl) return;
+    const optionsEl = this.panelEl?.querySelector<HTMLElement>('.aph-options');
+    const emptyEl = this.panelEl?.querySelector<HTMLElement>('.aph-empty-slot');
+    const moreEl = this.panelEl?.querySelector<HTMLElement>('.aph-more-slot');
+    if (!optionsEl || !emptyEl || !moreEl) return;
 
     if (this.filtered.length === 0) {
+      optionsEl.innerHTML = '';
+      moreEl.innerHTML = '';
       const emptyText = this.accounts.length === 0 ? tl('cs.inline.emptyNoAccounts') : tl('cs.inline.emptyNoMatch');
+      // 空态深链「到全库找」：内联列表只覆盖本站匹配集，"我库里明明有、但不在这台站点"
+      // 这一类没有去处。带当前关键词跳密码管理页做全库检索——不把外站条目塞进内联列表，
+      // 那会造出一条"点了填不进当前页"的死路（侧边栏为此专门设计了 offSiteIds 语义）。
+      const keyword = this.searchKeyword;
+      // 按钮上只回显截断后的关键词（面板宽度由锚点决定，长串会撑成多行），检索仍带完整值
+      const displayKeyword = keyword.length > 24 ? `${keyword.slice(0, 24)}…` : keyword;
+      const searchAllHint = keyword
+        ? `<button class="aph-empty-searchall-btn" type="button" data-action="search-all">${escapeHtml(
+            tl('cs.inline.searchAllHint', { keyword: displayKeyword }),
+          )}</button>`
+        : '';
       // 本站无账号、但同主域还有条目：把「跨子域匹配」这项能力递到用户眼前（只读引导，不改可见集）
       const domainMatchHint =
         this.accounts.length === 0 && this.crossDomainCount > 0
@@ -1212,18 +1479,22 @@ export class InlineFillDropdown {
               tl('cs.inline.crossSubdomainHint', { count: this.crossDomainCount }),
             )}</button>`
           : '';
-      listEl.innerHTML = `<div class="aph-empty">${emptyText}<button class="aph-empty-add-btn" type="button" data-action="add-site">${PLUS_ICON}<span>${tl('cs.inline.emptyAddSite')}</span></button>${domainMatchHint}</div>`;
-      const addBtn = listEl.querySelector('[data-action="add-site"]');
+      emptyEl.innerHTML = `<div class="aph-empty">${emptyText}<button class="aph-empty-add-btn" type="button" data-action="add-site">${PLUS_ICON}<span>${tl('cs.inline.emptyAddSite')}</span></button>${domainMatchHint}${searchAllHint}</div>`;
+      const addBtn = emptyEl.querySelector('[data-action="add-site"]');
       addBtn?.addEventListener('click', () => this.openOptionsAndAdd());
-      const domainMatchBtn = listEl.querySelector('[data-action="domain-match"]');
+      const domainMatchBtn = emptyEl.querySelector('[data-action="domain-match"]');
       domainMatchBtn?.addEventListener('click', () => this.openDomainMatchSetting());
+      const searchAllBtn = emptyEl.querySelector('[data-action="search-all"]');
+      searchAllBtn?.addEventListener('click', () => this.openOptionsAndSearch(keyword));
+      this.syncComboboxAria();
       return;
     }
 
+    emptyEl.innerHTML = '';
     // 高亮关键字与 applyFilter 的过滤口径一致（trim 后不区分大小写）
-    const highlightKw = this.searchKeyword.trim();
+    const highlightKw = this.searchKeyword;
 
-    listEl.innerHTML = this.filtered
+    optionsEl.innerHTML = this.filtered
       .map((acc, index) => {
         const star = acc.favorite ? `<span class="aph-star">${STAR_ICON}</span>` : '';
         const badge = acc.hasTotp ? this.renderTotpCell(acc.id, index) : '';
@@ -1259,8 +1530,10 @@ export class InlineFillDropdown {
         const rowIcon = acc.favicon?.startsWith('data:image/')
           ? `<img class="aph-row-favicon" src="${escapeHtml(acc.favicon)}" alt="" draggable="false" />`
           : KEY_ICON;
+        // 选项可访问名刻意不设 aria-label：role=option 的名字由内容计算，
+        // 读屏因此念全「用户名 + 标签 + 备注/网址」，与眼睛看到的行内容一致。
         return `
-          <div class="aph-row" data-index="${index}"${titleAttr}>
+          <div class="aph-row${index === this.activeIndex ? ' active' : ''}" id="${OPTION_ID_PREFIX}${index}" role="option" aria-selected="${index === this.activeIndex}" data-index="${index}"${titleAttr}>
             <div class="aph-row-icon">${rowIcon}</div>
             <div class="aph-row-main">
               <div class="aph-row-account">${star}<span class="aph-row-account-text">${account}</span></div>
@@ -1271,6 +1544,40 @@ export class InlineFillDropdown {
         `;
       })
       .join('');
+    // 尾部读数：本站匹配集被 `INLINE_MAX_RESULT_ROWS` 截断时说明「下面没有更多了、但库里还有」，
+    // 不给滚动加载——下拉面板里翻页式加载会把「回车填哪条」这件事变得不可预期。
+    // 按钮去向与空态的「到全库找」同一套：带关键词进管理页检索，无关键词进列表。
+    moreEl.innerHTML =
+      this.hiddenRows > 0
+        ? `<button class="aph-more-btn" type="button" data-action="more-accounts">${escapeHtml(
+            tl('cs.inline.moreRowsHint', { count: this.hiddenRows }),
+          )}</button>`
+        : '';
+    moreEl.querySelector('[data-action="more-accounts"]')?.addEventListener('click', () => {
+      if (this.searchKeyword) this.openOptionsAndSearch(this.searchKeyword);
+      else this.openOptions();
+    });
+    this.syncComboboxAria();
+  }
+
+  /**
+   * 同步搜索框上的 combobox 状态
+   *
+   * 焦点始终留在输入框（面板不使用逐行 focus），读屏靠 `aria-expanded` 判断
+   * 弹层是否有内容、靠 `aria-activedescendant` 播报当前高亮行，
+   * 因此每次列表重渲染与每次 ↑↓ 之后都要走这里。
+   */
+  private syncComboboxAria(): void {
+    const searchInput = this.panelEl?.querySelector<HTMLInputElement>('.aph-search input');
+    if (!searchInput) return;
+
+    const hasOptions = this.filtered.length > 0;
+    searchInput.setAttribute('aria-expanded', hasOptions ? 'true' : 'false');
+    if (hasOptions && this.activeIndex >= 0) {
+      searchInput.setAttribute('aria-activedescendant', `${OPTION_ID_PREFIX}${this.activeIndex}`);
+    } else {
+      searchInput.removeAttribute('aria-activedescendant');
+    }
   }
 
   /**
@@ -1291,8 +1598,12 @@ export class InlineFillDropdown {
    * 搜索输入处理
    */
   private handleSearchInput = (e: Event): void => {
-    this.searchKeyword = (e.target as HTMLInputElement).value;
+    // 与后台同一口径（trim + 长度上限）：两侧必须是同一个串，否则「拼音结果是本地子串
+    // 结果的超集」这一前提失效——本地按完整值过滤、发给 SW 的却是截断值时，
+    // 回包替换掉的可能正是用户此刻筛出来的那一条。
+    this.searchKeyword = normalizeSearchKeyword((e.target as HTMLInputElement).value);
     this.applyFilter();
+    this.scheduleServerFilter();
   };
 
   /**
@@ -1393,6 +1704,25 @@ export class InlineFillDropdown {
     chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH }).catch(() => {
       // 无接收者时忽略
     });
+  }
+
+  /**
+   * 打开密码管理页并带上当前关键词做全库检索（空态深链「到全库找」）
+   *
+   * 关键词在后台边界统一收口（`normalizeSearchKeyword`），这里只负责带过去；
+   * 取值不落日志、不出扩展。
+   * @param keyword 已 trim 的搜索关键词
+   */
+  private openOptionsAndSearch(keyword: string): void {
+    this.hide();
+    chrome.runtime
+      .sendMessage({
+        type: MessageType.OPEN_OPTIONS_AND_SEARCH,
+        data: keyword ? { keyword } : undefined,
+      })
+      .catch(() => {
+        // 无接收者时忽略
+      });
   }
 
   // ==================== TOTP 活码（2FA） ====================
@@ -1700,8 +2030,10 @@ export class InlineFillDropdown {
     rows.forEach((row, index) => {
       const isActive = index === this.activeIndex;
       row.classList.toggle('active', isActive);
+      row.setAttribute('aria-selected', String(isActive));
       if (isActive) row.scrollIntoView({ block: 'nearest' });
     });
+    this.syncComboboxAria();
   }
 
   /**
@@ -1711,7 +2043,15 @@ export class InlineFillDropdown {
    */
   private attachPanelInteractions(): void {
     document.addEventListener('mousedown', this.handleOutsideMouseDown, true);
-    document.addEventListener('keydown', this.handlePanelKeydown, true);
+    // 导航与填充绑在 shadow root 内部：本实例用的是 closed root，页面既拿不到它的引用、
+    // 也不能把事件直接派发到里面的节点（真实按键的目标只能是已聚焦的面板内元素）。
+    // 挂在 document 捕获阶段时，宿主页面一句 `dispatchEvent(new KeyboardEvent(...))`
+    // 就能被读成「用户选中了高亮那条凭据」，叠加默认高亮首条即可把密码敲进页面。
+    this.shadowRoot?.addEventListener('keydown', this.handlePanelKeydown, true);
+    // Esc 单独留一层 document 兜底：锁定卡片里没有可聚焦的检索框（`focusSearch` 也被跳过），
+    // 焦点仍在页面登录框上时按键路径不经过 shadow root，否则「Esc 关掉面板」这条会在锁定态失效。
+    // 该层只关闭、不填充，页面伪造 Esc 的最坏后果是面板收起，故不按来源收窄。
+    document.addEventListener('keydown', this.handleGlobalEscape, true);
   }
 
   /**
@@ -1719,20 +2059,41 @@ export class InlineFillDropdown {
    */
   private detachPanelInteractions(): void {
     document.removeEventListener('mousedown', this.handleOutsideMouseDown, true);
-    document.removeEventListener('keydown', this.handlePanelKeydown, true);
+    this.shadowRoot?.removeEventListener('keydown', this.handlePanelKeydown, true);
+    document.removeEventListener('keydown', this.handleGlobalEscape, true);
   }
 
   /**
-   * 面板键盘导航：↑/↓ 遍历、Enter 填充高亮项、Esc 关闭
+   * Esc 兜底关闭：焦点不在面板内（锁定卡片、焦点被页面夺回）时也能收起面板
+   *
+   * 合成期间的 Esc 语义是「取消输入法候选」，必须先让位，否则用户在选词途中面板凭空消失。
    */
-  private handlePanelKeydown = (e: KeyboardEvent): void => {
+  private handleGlobalEscape = (e: KeyboardEvent): void => {
     if (!this.panelOpen) return;
+    if (e.isComposing) return;
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    this.hide();
+  };
 
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      this.hide();
-      return;
-    }
+  /**
+   * 面板键盘导航：↑/↓ 遍历、Enter 填充高亮项
+   *
+   * 安全边界：本方法由 shadow root 内的监听调用，宿主页面无法把伪造事件派发进来；
+   * 因此「选中即填充」只可能来自用户在面板里的真实按键。真实按键里 Enter 还要再让一步：
+   * 用户用 Tab 停在面板内某个按钮上时，回车的主人是那个按钮（见 `isPanelActionTarget`）。
+   * Esc 不在此处理，见 `handleGlobalEscape`。
+   *
+   * 入参按 `Event` 承接是 DOM 类型决定的：`ShadowRoot` 的事件表只有 `slotchange`，
+   * 按键需在使用前收窄（非 KeyboardEvent 无导航语义，直接放行）。
+   */
+  private handlePanelKeydown = (e: Event): void => {
+    if (!(e instanceof KeyboardEvent)) return;
+    if (!this.panelOpen) return;
+    // 输入法合成期间的按键语义属于「选词」而非「导航/确认」：Enter 是上屏、↑↓ 是候选翻页。
+    // 此处接管会与 IME 抢按键（中文输入确认候选时直接触发填充），
+    // 故整段放行给浏览器，合成结束后再由正常按键接管面板。
+    if (e.isComposing) return;
     if (this.locked) return;
 
     switch (e.key) {
@@ -1747,6 +2108,12 @@ export class InlineFillDropdown {
         this.updateActive();
         break;
       case 'Enter':
+        // 「填充哪一条」跟随高亮，但前提是这个 Enter 本就没有别的主人：面板内的原生可聚焦动作节点
+        // （页脚「密码管理」、尾部「还有 N 条」、TOTP 填充、空态按钮）自己消化 Enter。
+        // 此处若照常填充，等于用排序首条抢走用户正指向的动作——而 `activeIndex` 默认就是 0，
+        // 于是 Tab 到「密码管理」按回车变成「把第一个账号写进页面表单」，
+        // 且 preventDefault 还会连带取消 button 的原生激活，页脚动作在键盘下彻底不可达。
+        if (isPanelActionTarget(e.target)) return;
         if (this.activeIndex >= 0) {
           e.preventDefault();
           this.select(this.activeIndex);
@@ -1767,16 +2134,17 @@ export class InlineFillDropdown {
 }
 
 /**
- * 把来自 background 下发的展示字段收成字符串
+ * Enter 的目标是否是「自己会响应 Enter 的动作节点」
  *
- * 类型上这些字段是必填 `string`，但条目可能来自历史数据或手工改过的存储；
- * 面板渲染/筛选路径上任何一处抛错都会让 `panelOpen` 停在 true，之后永久打不开。
- * @param value 原始值（不可信）
- * @returns 字符串值本身，非字符串一律按空串处理
+ * 检索框是唯一的例外：它没有原生的 Enter 语义，所以它的回车归面板导航（填充高亮条）。
+ * 列表行是 `role="option"` 的 div 且不带 tabindex，点选后焦点落回 body，不会命中这里——
+ * 因此本判据只把「用户用 Tab 明确停在某个按钮/链接上」这一种情形让出去。
  */
-function asText(value: unknown): string {
-  return typeof value === 'string' ? value : '';
-}
+const isPanelActionTarget = (target: EventTarget | null): boolean => {
+  if (!(target instanceof Element)) return false;
+  if (target.matches('.aph-search input')) return false;
+  return target.closest('button, a[href], input, select, textarea') !== null;
+};
 
 /**
  * HTML 转义，防止账号元数据破坏结构或注入属性

@@ -3,6 +3,8 @@ import { logger } from '@/utils/logger';
 import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { ensureCredentialAccessAfterStartupRelock, invalidatePasswordCache } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
+// 只引零依赖的容量模块（不引 `@/utils/storage` 门面）：保持本文件对存储图的懒加载不变。
+import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
 
 /**
  * 处理侧边栏快速添加条目请求
@@ -69,6 +71,12 @@ export async function handleQuickAddPassword(
     return { success: true, message: tl('bg.quickAdd.success') };
   } catch (error) {
     logger.error('Background: 处理快速添加条目失败:', error);
-    return { success: false, message: tl('bg.quickAdd.failed') };
+    // 上限拒绝与真正的写入失败要分文：前者需要用户先清理条目，反复点「添加」不会成功。
+    return {
+      success: false,
+      message: isVaultCapacityError(error)
+        ? tl('bg.quickAdd.capacityReached', { max: MAX_PASSWORD_ENTRIES })
+        : tl('bg.quickAdd.failed'),
+    };
   }
 }

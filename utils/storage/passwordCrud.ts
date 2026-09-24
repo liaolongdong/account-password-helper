@@ -2,12 +2,14 @@ import type { PasswordEntry, EncryptedPasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS, SESSION_MEMORY_KEYS } from '@/utils/storageKeys';
 import { generateId } from '@/utils/generateId';
+import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
 import { isExactHostMatch } from '@/utils/domain';
 import { applySavedSortConfig } from './configManager';
 import { snapshotPasswordHistory } from './passwordHistory';
 import { moveToTrash } from './trashManager';
+import { assertWithinCapacity } from './vaultCapacity';
 
 /**
  * 延迟加载加密模块（deriveEncryptionKey / encryptPasswordEntry / decryptPasswordEntry）
@@ -70,6 +72,8 @@ export async function savePassword(
 ): Promise<PasswordEntry> {
   try {
     const passwords = await getAllPasswordsRaw();
+    // 总量守卫必须先于密钥派生与加密：超限时这次保存连 PBKDF2/AES-GCM 的开销都不该付。
+    assertWithinCapacity(passwords.length, 1);
 
     const now = Date.now();
     const createTime = entry.createTime ?? now;
@@ -125,6 +129,9 @@ export async function batchSavePasswords(
     if (!entries || entries.length === 0) return [];
 
     const existingPasswords = await getAllPasswordsRaw();
+    // 整批要么全写要么全不写：按「现有 + 本批」判定，不做静默截断，
+    // 截断由调用方（导入预览页）在用户确认后显式完成。
+    assertWithinCapacity(existingPasswords.length, entries.length);
 
     const now = Date.now();
     const newEntries: PasswordEntry[] = entries.map((entry, i) => ({
@@ -141,10 +148,11 @@ export async function batchSavePasswords(
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
     const enc = await _getEncryption();
-    const encryptedNewEntries: EncryptedPasswordEntry[] = [];
-    for (const entry of newEntries) {
-      encryptedNewEntries.push(await enc.encryptPasswordEntry(entry, masterPassword ?? '', key));
-    }
+    // 条目级并行：串行 `for … await` 把每条 ~2 ms 的 5 次 AES 固定开销乘上导入条数
+    // （2000 条实测 705 ms），并行后约 1.8×；结果顺序与本批一致，失败传播口径不变。
+    const encryptedNewEntries = await mapWithConcurrency(newEntries, entry =>
+      enc.encryptPasswordEntry(entry, masterPassword ?? '', key),
+    );
     const combinedEntries: (PasswordEntry | EncryptedPasswordEntry)[] = [...existingPasswords, ...encryptedNewEntries];
 
     await chrome.storage.local.set({

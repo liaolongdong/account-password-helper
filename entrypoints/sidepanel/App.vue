@@ -173,7 +173,7 @@ import {
   type DomainMatchMode,
 } from '@/utils/domain';
 import { isEditableEventTarget } from '@/utils/a11y';
-import { warmPinyinMatcher } from '@/utils/searchMatch';
+import { warmPinyinMatcher } from '@/utils/searchMatch/core';
 
 /**
  * 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载）
@@ -577,6 +577,10 @@ const handleSearch = () => {
 
 /** 键盘导航处理 */
 const handleKeydown = (e: KeyboardEvent) => {
+  // 输入法合成期间（中文/日文选词）的 Enter 是「上屏」、↑↓ 是「候选翻页」，
+  // 容器冒泡到这里若继续接管，会在确认候选词的同时误填充密码，故整段放行给 IME。
+  if (e.isComposing) return;
+
   const list = filteredPasswords.value;
   if (!list.length) return;
 

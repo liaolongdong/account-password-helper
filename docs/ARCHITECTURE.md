@@ -77,7 +77,8 @@ graph TB
 - 会话检查器 `sessionManager.ts` 只在 Options 页通过 `initSessionManager()` 启动（`window.setInterval` 60 秒，仅在「有效 → 无效」的跳变时触发过期事件，避免无会话时打开页面就误报）；SidePanel 与 Popup 不等这个轮询，它们经 Port 的 `SESSION_EXPIRED` 广播、`chrome.storage.onChanged` 与 `visibilitychange` 即时感知锁定。
 - `isSessionValid()` 的结果带 5 秒 TTL 缓存（`sessionManager-storage.ts`），锁定、改密、清除会话等状态变更点会主动失效该缓存，避免热路径上反复读盘。
 - 会话有效期默认 24 小时，可选 1/2/4/8/12/24 小时与 3/5/7 天（见 [ValidityHoursSelect.vue](../components/options/ValidityHoursSelect.vue)）。
-- 过期 / 锁定 / 手动锁定三条路径都只走 `clearSession()`：清除内存与 `storage.session` 中的密钥材料、解密快照与 CryptoKey 句柄缓存。磁盘中的条目本来就是密文，**不存在「批量解密为明文存储」或「过期时批量加密回密文」的落盘动作**。
+- 过期 / 锁定 / 手动锁定三条路径都只走 `clearSession()`：清除内存与 `storage.session` 中的密钥材料、解密快照、CryptoKey 句柄缓存，以及两把**以条目明文为键**的派生记忆缓存（拼音命中区间、标签呈现记录）。磁盘中的条目本来就是密文，**不存在「批量解密为明文存储」或「过期时批量加密回密文」的落盘动作**。
+- 上面两把缓存是模块级 `Map`，**只在加载了该模块的上下文里存在**，因此清理按上下文各自接线（`utils/plaintextCacheCleanup.ts` 登记处 + 各上下文一个触发点）：Background 走 `clearSession()` 与 `resetSessionMemoryState()`（后者由 storage 变更监听触发）；SidePanel 走 `useSidepanelData.ts` 的锁定与过期两条路径；Options 走 `isAuthenticated` 落 false 的 `flush: 'sync'` watcher——管理页可整日常驻，而跨上下文锁定时它只会翻这个状态（`clearSession()` 早在别的上下文跑完），只补 `onSessionExpired` 回调会漏掉 `checkAuth` 自检等其余四条翻转路径。Popup 与 content script 不写这两把缓存（内联下拉只用 `getTagColor`/`parseTags` 等纯函数，拼音模块在其上下文永不预热），故无需接线。该口径由 [plaintextCacheCleanupWiring.test.ts](../tests/architecture/plaintextCacheCleanupWiring.test.ts) 以依赖闭包守卫。
 - 闲置锁定（`chrome.idle`）与浏览器重启锁定是**两个默认关闭**的可选开关（`idleLockMinutes: 0`、`relockOnBrowserRestart: false`）。
 
 ### 加密机制
@@ -213,6 +214,7 @@ graph TB
 │   ├── weakPasswordDict.ts         # 弱口令字典懒加载与 O(1) 命中检测
 │   ├── passwordStrengthCore.ts     # 密码强度规则核心（纯函数、零 i18n/零 Vue 依赖，三方共用判定源）
 │   ├── encryption.ts               # PBKDF2 + AES-256-GCM
+│   ├── concurrency.ts              # 条目级并行（mapWithConcurrency：分批并行、结果保序、抛首批最小下标错误）
 │   ├── crypto-light.ts             # 轻量加密工具
 │   ├── pendingCredentialCodec.ts   # 待确认凭据编解码器（密钥由调用方传入）
 │   ├── sessionManager.ts           # 会话轮询单例（仅 Options 页启动，60 秒一次）
@@ -234,7 +236,10 @@ graph TB
 │   ├── passphraseGenerator.ts      # 助记词组生成器（Diceware 思路，内置 3080 词库）
 │   ├── passwordSort.ts             # 密码排序工具
 │   ├── passwordFilter.ts           # 侧边栏列表过滤纯函数（本站/全站范围判定、能否填充单一事实来源）
-│   ├── searchMatch.ts              # 智能搜索匹配纯函数（子串 + 拼音/首字母缩写 + 命中区间）
+│   ├── keywordMatch.ts             # 关键词过滤内核（字段口径 + 长度收口 + 保序过滤，matcher 由调用方注入）
+│   ├── searchMatch.ts              # 智能搜索匹配的 Vue 响应式外壳（pinyinMatcherReady ref，供过滤/渲染 computed 依赖）
+│   ├── searchMatch/                # 搜索匹配领域模块（子目录不进 WXT 顶层自动导入扫描，避免与外壳同名冲突）
+│   │   └── core.ts                 # 匹配内核（子串 + 拼音/首字母缩写 + 命中区间，零 Vue，SW 与 content 可复用）
 │   ├── clipboard.ts                # 剪贴板复制与限时自动清除（UI 无关，options 详情抽屉使用）
 │   ├── shareCard.ts                # 分享卡片纯文本构造（用户名/密码/网址一段，标签由调用方注入，内容零日志）
 │   ├── logger.ts                   # 环境感知日志
@@ -301,8 +306,11 @@ graph TB
 - 标签下拉多选 + 自定义新增（每条最多 3 个，单个最长 30 字符）；相同标签颜色稳定一致（见 [utils/tagUtils.ts](../utils/tagUtils.ts)）。
 - 密码列表默认按更新时间倒序；侧边栏默认按最近使用倒序。支持按用户名、URL、标签、备注、创建/更新时间切换排序。
 - 支持用户名、标签、备注、URL 的多字段智能搜索：大小写不敏感子串优先，未命中降级拼音匹配（全拼 / 首字母缩写 / 中英混合，pinyin-match 经动态 import 拆分为独立 chunk 不占首屏，首帧后空闲预热），命中区间经 SearchHighlight 组件高亮（见 [utils/searchMatch.ts](../utils/searchMatch.ts)）。
+- **检索口径单一真源**：侧边栏、管理页与内联下拉三处共用同一套匹配规则——「比哪些字段 + 怎么收口关键词」在 [utils/keywordMatch.ts](../utils/keywordMatch.ts)（`keywordFieldsOf` 固定 username / tag / remark / url 顺序，`normalizeSearchKeyword` 对来自页面的关键词先 trim 再截到 64 字符），「怎么判定命中」在 [utils/searchMatch/core.ts](../utils/searchMatch/core.ts)（零 Vue，故 SW 与 content script 都能复用；`tests/architecture/vueFreeMatchKernel.test.ts` 机械守卫内核传递依赖不得出现 `vue` / `vue-i18n`），`passwordFilter.ts`、`usePasswordManagement` 与后台 `passwordCache.ts` 都经 `filterByKeyword(entries, keyword, matcher)` 走同一条保序过滤路径，杜绝「同一关键词三处结果不同」的口径分叉。
 - 批量选择后可批量编辑标签（追加 / 剔除）、批量导出选中项、批量删除；删除的条目进入回收站保留 30 天，可随时恢复。
 - 收藏标记：点击星标收藏常用条目，支持「只看收藏」过滤；收藏上限默认 **10** 条（可配 1~50），超限时 LRU 自动淘汰最早使用的收藏条目；侧边栏填充时自动更新收藏使用时间戳确保 LRU 准确。
+- **条目总量上限 2000 条**：唯一口径是 [vaultCapacity.ts](../utils/storage/vaultCapacity.ts) 的 `MAX_PASSWORD_ENTRIES`，按密码列表的条目数计数，回收站中的条目不占额度。三条会让列表变长的写路径在「读到现有数据之后、加密与写入之前」收口——`savePassword`（+1）、`batchSavePasswords`（整批判定，不做静默截断）、`restoreFromTrash`（按恢复条数判定）。守卫只拒绝新写入，绝不删改已有数据；计数读取原始密文数组取 `length`，不为计数触发全量解密。
+- 超限语义按入口分层：导入类弹窗（CSV/JSON 与加密备份）在预览页给出「当前条数 / 还能导入多少条 / 将被忽略多少条」（[useImportCapacity.ts](../composables/useImportCapacity.ts) + [CapacityAlert.vue](../components/options/CapacityAlert.vue)），点导入时再要求确认「只导入前 N 条」或取消；网页自动保存与侧边栏快速添加沿用原有的提示位与消息契约，只把文案换成「因达到上限而未保存」。超限错误以 `VaultCapacityError` 携带判别码 `vault-capacity-exceeded` 抛出，各入口按码映射文案、不解析 `error.message`（`tests/utils/vaultCapacity.test.ts` 守卫伪造错误码不误判、且拒绝路径上 `storage.set` 与加密函数均未被调用）。
 - 一键去重：智能检测重复条目（相同用户名 + 相同 URL）并提供一键清理。
 - 只读查看详情：列表每行的「查看详情」以抽屉形式展示该条目的全部字段（含备注全文与密码历史），无需进入编辑态（见第 23 节）。
 - 多格式 CSV 导入：自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式（见 [utils/excel.ts](../utils/excel.ts)）。
@@ -365,6 +373,7 @@ graph TB
 - 「长时间未更新」按 90/180/365 天三级预警表示陈旧程度，不代表密码过期。
 - 支持为「长时间未更新」条目设置密码到期提醒（7/30/90 天等 N 天后提醒），到期由后台闹钟检查并发送桌面通知，点击通知直达管理页（见 [utils/storage/reminderManager.ts](../utils/storage/reminderManager.ts)）。
 - 明细区支持展开/折叠，每条问题提供「去处理」按钮，点击直接跳转到对应条目的编辑流程。
+- 明细一次渲染的行数有上界（每个面板首屏 100 行，点「显示更多」按 100 递增，`DETAIL_ROW_BUDGET` / `DETAIL_ROW_STEP`）：四个面板会覆盖同一批条目（一条弱、陈旧又被复用的密码同时出现在三处），全量渲染在 2000 条上限下是最多 4 × 2000 行 DOM，而「长时间未更新」每行还各带一个 `el-dropdown`（各自一份弹层实例）。**上界只约束渲染，不减任何读数**：面板徽标仍是完整计数，截断处由 `health.showMore` / `health.hiddenInGroup` 说明还剩多少条；复用组走按行消耗的窗口（`revealReuseGroups`），因为单组就可能远超预算。
 - 全程本地计算（弱口令字典内置离线加载），不做在线泄露检测（HIBP 等需联网的能力被刻意排除），不返回任何明文密码，体检过程不发起任何网络请求。
 - 入口按钮旁的信号灯圆点颜色随健康等级变化（绿/蓝/橙/红），一眼可见密码库健康状态。
 
@@ -447,7 +456,13 @@ graph TB
 - 侧边栏之外的另一种填充方式（见 [InlineFillDropdown.ts](../entrypoints/content/inlineDropdown/InlineFillDropdown.ts)），无需打开侧边栏，直接在页面内完成填充。
 - 当填充模式为「内联」时，登录输入框获焦后右侧内缘自动显示一个钥匙图标（若密码框已有显隐眼睛图标，钥匙图标会自动避让）。
 - 点击钥匙图标后，登录框主动失焦（关闭 Chrome 原生密码下拉），展开一个迷你面板：顶部搜索栏 + 可滚动账号列表 + 底部「密码管理」入口。
-- 支持键盘导航：`↑` / `↓` 浏览列表、`Enter` 填充高亮项、`Esc` 关闭面板。
+- 支持键盘导航：`↑` / `↓` 浏览列表、`Enter` 填充高亮项、`Esc` 关闭面板；面板打开与每次筛选后**默认高亮首条**（与侧边栏「回车填充首条」同口径，无结果时无高亮、回车空操作），因此连按「打开 → 回车」即可填入当前站点最匹配的账号。例外是后台拼音超集回包替换列表的那一刻：高亮跟着用户当前选中的那条账号走（跟到第 N 行时顺带滚到可见），而不是弹回首行——否则「回车要填哪一条」会在用户无感时换掉。
+- **按键触发源收窄到面板内部**：导航与填充的 `keydown` 监听绑在 **closed** shadow root 上，宿主页面既取不到这个 root、也不能把事件派发到它里面的节点，因此页面自造的 `new KeyboardEvent('keydown', { key: 'Enter' })` 敲不进凭据（挂在 `document` 捕获阶段的旧口径下，任何页面脚本都能触发「填充当前高亮项」，叠加「打开即默认高亮首条」等于把首条凭据的密码直接写进页面输入框）。`Esc` 是唯一留在 `document` 上的兜底：锁定卡片里没有可聚焦的检索框，此时真实按键路径不经过 shadow root；该层只关闭、不填充，页面伪造 Esc 的最坏后果是面板收起，属失效安全方向。代价如实记录：面板打开后若焦点被页面脚本夺回、或用户 Shift+Tab 离开面板，↑↓/Enter 不再驱动面板，同时也不再被扩展 `preventDefault`（页面自身的按键行为回归）。
+- **输入法合成期放行**：若不在 `e.isComposing` 时早退，中文输入里 Enter（上屏候选）会被当成「填充高亮项」、↑↓ 会翻页候选、Esc 会关面板，合起来就是「字没打完密码已经填进页面」。同类入口的守卫位置（本面板的 shadow root 导航与 `document` 上的 Esc 兜底，加侧边栏容器 `@keydown`，共三处）由 `tests/architecture/imeKeyGuard.test.ts` 钉住——只允许在**任何按键分支之前**直接 `return`，不允许把 `isComposing` 混进某个分支条件。
+- **页内搜索走同一套检索口径**：关键词过滤复用 `filterByKeyword` + `substringMatcher`（见「密码管理」的检索口径单一真源），页内脚本因此不必带上 27KB 的 pinyin-match 字典；拼音与首字母缩写命中由后台 [passwordCache.ts](../entrypoints/background/passwordCache.ts) 的 `getMatchingAccounts`（`keyword` 参数，经 `normalizeSearchKeyword` 收口）算出，随 `GET_MATCHING_ACCOUNTS` 的回包下发。前端是**乐观本地优先**：击键 120ms 防抖后先渲染子串结果（零延迟反馈），回包到达才替换为完整结果；回包受三重丢弃保护（序号过期 / 面板已关 / 关键词已改），后台失败则静默保留本地结果，绝不清空列表。页内过滤与发往后台的 `keyword` 用的是同一个已归一串（`normalizeSearchKeyword`：trim + 64 字上限），两侧口径分叉会让「拼音结果是子串结果的超集」这一前提失效。回包若告知会话已锁定或未设置主密码，面板就地换成对应的引导卡片（与打开路径写入同一组状态，关键词、旧结果与在跑的活码一并作废）——后台四路都回 `locked + 空数组`，与「本关键词无匹配」在渲染层同形，误渲会让用户对着空态找不到解锁入口。
+- **一次下发的条数上界**：`getMatchingAccounts` 排完序、过滤完之后才截到 `INLINE_MAX_RESULT_ROWS`（100 条），回包同时带 `totalMatched`（截断**前**的命中条数）。上限的存在理由是载荷体积而不是渲染：每条元数据的 `favicon` 是 dataURL，本站图标可以相同但每条都单独携带一份，2000 条全下就是几 MB 的跨进程拷贝，而内联面板可视区一屏只放得下十来条。面板列表尾部因此可能少显示若干条，读数「本站匹配还有 N 条未显示，到管理页查看全部」只在**当前列表就是权威结果**时出现（无关键词看 `totalMatched`；有关键词且 SW 拼音结果已回包看 `serverTotalMatched`）——本地乐观子集是「截断集的子集」，两个上界叠着算出的剩余是个假数，那一帧宁可不显示。点读数即打开管理页（带关键词时走 `OPEN_OPTIONS_AND_SEARCH`，不带时走 `OPEN_OPTIONS_PAGE`），把"看全部"引导到唯一有分页的入口，而不是在内联里再造一套虚拟滚动。上界与读数由 `tests/background/passwordCache.test.ts`（截断位置必须与 `sortMatchesForDomain` 的共享顺序一致、favicon 只为实际下发的行取）与 `tests/content/inlineFillDropdown.serverFilter.test.ts`（读数的出现时机、取消态与点击去向）双向守卫。
+- **读屏与关闭收尾**：搜索框是 `role="combobox"` + `aria-controls` / `aria-expanded` / `aria-autocomplete="list"`，列表为 `role="listbox"`、每行 `role="option"`，高亮项经 `aria-activedescendant` 与 `aria-selected` 同步（焦点始终留在输入框，视觉布局不变）；空态文案落在 listbox 之外，避免读屏把提示当成一个候选项。关闭面板时清空已渲染的账号文本、空态与输入框值（`clearRenderedAccounts`），不让凭据元数据以可见文本长期留在页面 DOM 里。
+- **空态出口**：本站无匹配账号时，除「添加此网站账号」与跨子域引导外，还提供「到全部账号中搜索「关键词」」——经 `OPEN_OPTIONS_AND_SEARCH` → `openOptionsAndSendMessage` 打开密码管理页并带入关键词（同时清掉「只看收藏」与标签筛选，避免带出的结果被既有过滤器吃掉）。关键词是页面上可观察到的用户输入，按不可信输入处理：后台截断到 64 字符、空白即降级为不带参数的「打开管理页」，日志只记指令本身、不回显取值。
 - 面板内容仅展示账号元数据（用户名、标签、备注、网址），密码仅在用户显式选择时经 Background 瞬时下发，安全模型与侧边栏一致。
 - 条目前的钥匙图标优先展示对应网站图标：由 Background 经本地 `_favicon/` 端点读取并转为 dataURL 随元数据下发（内存缓存 + 失败降级钥匙图标，见 [utils/favicon.ts](../utils/favicon.ts) 的 `fetchFaviconDataUrl`）；不将 `_favicon/*` 暴露为 web_accessible_resources，避免网页借端点探测浏览历史的隐私风险，全程零外部网络请求。
 - 会话锁定态下，面板显示「解锁后填充」引导，点击跳转密码管理页验证主密码。
@@ -585,6 +600,36 @@ graph TB
 - Service Worker 启动后延迟 500ms 预热密码缓存，进一步提升首次打开侧边栏的响应速度。
 - 保活策略为所有平台统一常驻（含会话失效期，不区分平台与会话状态）：会话失效后停活曾是 Mac「间隔一段时间后打开侧边栏 4 秒白屏」的直接根因（历史有条件保活/宽限期保活策略均因该场景复发而收敛为统一常驻）。详见下方「侧边栏秒开跨平台策略」。
 - 统一常驻的代价：SW 约每 30 秒被唤醒一次（20s 心跳 + 0.5min 复活闹钟），带来轻量但持续的后台唤醒开销；这是消除冷启动白屏的主动设计取舍，已在 README、CWS 发布说明与隐私政策中向用户披露。
+
+### 管理页大 Vault 渲染性能
+
+背景：issue #89「约 600 条密码时点击新增异常卡顿」的根因评估与分期方案见
+[PERF_LARGE_VAULT_EVALUATION.md](PERF_LARGE_VAULT_EVALUATION.md)；此处只记录需要长期遵守的架构约束。
+
+- 成本模型：Vue 一次 flush 的回调扫描开销随「同一次 flush 内被更新的组件数」近似平方增长。管理页 600 行 × 每行约 17 个**直接**子组件（tooltip 包装、图标、标签、复选框；连 Element Plus 内部实例一起算是 45～55 个/行，静态口径见 [PERF_LARGE_VAULT_EVALUATION.md](./PERF_LARGE_VAULT_EVALUATION.md) 3.3）意味着任何让「行子组件多余更新一次」的写法都会被放大成主线程秒级阻塞，而 600 条的过滤/排序计算本身只有 1～5ms——优化面在渲染身份，不在算法。
+- 侧边栏的分片渲染**不可照搬到管理页**：`el-table` 的 `data` 每换一次引用就会重排当前已渲染的全部行（侧边栏那份 `v-for` + `v-memo` 能跳过旧条目，表格组件不能），因此"首帧只渲染一屏、逐帧补齐"在管理页上把一次整表重排变成了 15 次，600 行实测总耗时 19.9s → 39.4s、主线程阻塞 8.1s → 37.8s（数据与结论见 [PERF_LARGE_VAULT_EVALUATION.md](./PERF_LARGE_VAULT_EVALUATION.md) 9.8）。要减少首屏行数只能走分页或虚拟滚动；该取舍**已拍板为分页并落地**，见本节末「管理页分页」条。
+- 渲染身份纪律（[PasswordTable.vue](../components/options/PasswordTable.vue)）：行内呈现对象必须引用稳定——标签记录取自 [tagUtils.ts](../utils/tagUtils.ts) 的 `buildTagPresentationRecords`（按原始 tag 字符串缓存的有界冻结结果，FIFO 上限 500），tooltip 的 popper 样式用组件级冻结常量（随实例创建一次而非随渲染创建），模板内禁止 `parseTags()`、内联 `:style="{…}"` 与内联 `:class` 计算——这三类每次渲染都产出新对象/新字符串，会被判定为 prop 变化而把子组件拉进本轮 flush。该约束由 [optionsRenderIdentity.test.ts](../tests/architecture/optionsRenderIdentity.test.ts) 以源码正则守卫。
+- 首屏成本按**组件实例**计价，不按 DOM 计价（实测）：把操作列 5 个 `el-tooltip` 换成按钮上的原生 `:title`，600 行整表挂载耗时中位数 24.3/28.4 s（两批控制）→ 14.8 s、主线程阻塞 10.2 s → 8.2 s，而 DOM 探针逐字一致（38655 节点 / 3609 按钮 / 3 个 popper）。也就是说每行那串 popper 组件链本身就是成本，与画多少节点无关（数据见 [PERF_LARGE_VAULT_EVALUATION.md](./PERF_LARGE_VAULT_EVALUATION.md) 9.9）。反例同期被否：空关键词时短路 `SearchHighlight`（每行少 4～6 个纯文本实例、DOM 完全相同）实测落在噪声内，已回退——不要为了"少几个实例"这种笼统理由增加模板分叉，要看该实例是否携带真实渲染逻辑。
+- 2000 条上限是**写入面**的收口，不是渲染面的解法：同一测量口径（`--only mount`，A/B/A 夹住实验批）下，终版产物 600 行整表挂载 16.5 s、1200 行 52.5 s、2000 行 180.2 s，首屏（第 15 行）分别为 5.8 s / 13.8 s / 33.6 s，2000 行还带出一个 29.3 s 的单个长任务——耗时对行数近似平方（拟合指数 1.67～2.0，数据见 [PERF_LARGE_VAULT_EVALUATION.md](./PERF_LARGE_VAULT_EVALUATION.md) 9.10）。因此「把总量上限设为 2000」只保证列表不再无限增长，**不等于**最大条数不卡；真正把首屏成本与总条数解耦要靠分页或虚拟滚动，其中分页已落地（下条）。
+- 管理页分页（把渲染行数从「命中数」变成「页大小」，是本节所有渲染成本曲线的收口旋钮）：`el-table` 的 `data` 恒为一页，由 [useVaultListPagination.ts](../composables/useVaultListPagination.ts) 按引用切片、[VaultPagination.vue](../components/options/VaultPagination.vue) 承载页码与档位；档位常量与页码条折叠算法是零 Vue 的纯计算，住在 [vaultPagination.ts](../utils/vaultPagination.ts)（`tests/utils/vaultPagination.test.ts` 直接单测，不需要挂载组件）。密码表与回收站弹窗共用这一条页码条，因为两者的分页语义完全一致，差异只在「有没有跨页选中」。默认每页 100（可取 50/100/200，**刻意不提供「全部」**——那一档等于把分页要解决的问题原样留给用户），2000 条上限下至多 20 页。四条不变量：① 该 composable 不持有过滤与排序，与 `filteredPasswords` 完全解耦；② 「回第 1 页」只由**查看口径**变化触发（`listFilterSignature` 拼单串做值比较，避免每次勾选数组换新引用就复位页码），就地编辑与删除刻意不回页，页码越界由 `pageCount` 钳位收进合法区间、不停在空白页；换档位的落点由 `pageForSizeChange` 按「当前页首条在新档位下的位置」换算，不按旧 `pageCount` 钳位；③ 表格 `row-key="id"` + `reserve-selection`，选择集跨页保留，因此命中读数（`totalCount`）、批量删除/改标签/导出全部按**完整选中集**计算，并用 `offPageSelectedCount` 显式说明「选中但不在当前页」的差额；表头「全选」按 `el-table` 惯例只勾当前页的 `data`，跨页批量处理靠的是「换页不丢勾选」而非一次点满全库；命中集合一变就由 `App.vue` 显式调用 `PasswordTable` 暴露的 `clearSelection()` 补回被保留模式跳掉的归零（组件只对外暴露这类意图方法，不再交出 EP 表格实例）；④ 保存后要定位到新行必须先换页再滚动（`revealIndex` 换页，调用方在下一帧执行滚动），因为目标行的 DOM 只在它所在页存在。分页只解决渲染，**不减少数据层的整包读写**，后者的口径见下方「数据层大 Vault 成本与改造路线」。
+- 行内状态不得共享到整表：标签溢出提示改为在 `@mouseenter` 里从事件目标读取 `data-tag`（[useTagOverflow.ts](../composables/useTagOverflow.ts)），不再持有被 `ElTableBody` 渲染 effect 收集的共享 ref。
+- 操作列提示全表只有**一个** `el-tooltip` 实例（[PasswordTable.vue](../components/options/PasswordTable.vue)）：逐行 5 个实例在 600 行上就是 3000 个组件实例，实测占掉整表挂载耗时的四成（9.9），因此改为「按钮自带 `data-tip` + `@mouseenter` 登记 + 单个 `virtual-triggering` 实例」，提示文案与 `aria-describedby` 由 EP 自己在触发点之间迁移。四处接线是硬约束：① 打开有**两条路径且必须同值**——第一次悬停某颗按钮时 EP 还没把 `mouseenter` 绑到它身上（虚拟触发点是在 `mouseenter` **之后**才改写的，同一帧绑上的监听器不会再触发），这 400 毫秒由 [useSharedHoverTooltip.ts](../composables/useSharedHoverTooltip.ts) 持有；再次悬停同一颗按钮时 EP 那份监听器已经在了，读的是实例上的 `show-after`，所以模板保持 `:show-after="400"`、`present` 到点显式 `onOpen(event, 0)`。把实例侧写成 0 会让"划走再划回同一颗按钮"变成即时弹出、且弹的是上一次缓存的文案（真机回归已抓到过这条）；② 开与关共用 EP 实例内的**同一个计时器槽位**（`useTimeout.registerTimeout` 先取消槽位里的旧任务再登记新任务），这带来两条推论：`present` 里的 `onOpen` 必须排在 `nextTick` 之后——写 `triggerEl`/`content` 必然触发本组件重渲染，重渲染又走 `onBeforeUpdate` 的兜底关闭，同帧先开后关会把刚登记的开启动作取消掉，真机表现为提示**永远不出现**；而 `onBeforeUpdate` 那条兜底关闭**只能 `onClose()`，不得顺手 `cancel()` 挂起中的悬停**——`arm` 是同步登记的，同帧的 cancel 会把刚排定的 400 毫秒一起抹掉，表现为"划过一排按钮之后再没有提示"；③ 触发元素随所在行一起离开文档时（被过滤、被删除）再不会有 `mouseleave`，故 `onUpdated` 里判 `isConnected` 后调 EP 自己的 `hide()` 松掉对已脱离节点的引用——但 `hide()` 只跳过 `hide-after`，浮层仍要走完 300 毫秒淡出，而这条路径同帧就把文案清空了，原位于是悬着一个**空气泡**；所以该路径还要把 `:transition` 切到一个仓库里没有对应 CSS 的过渡名（`aph-tooltip-no-fade`），Vue 的 `<Transition>` 在 leave 起始取不到过渡类型即同帧摘掉浮层，才与逐行实例时代"浮层随行卸载同帧消失"的观感一致；④ 行内入口只能是 `@mouseenter="armOperationTip"` 这类稳定引用，逐行箭头函数闭包会把省下的实例成本等量换回函数与监听器成本；该包装同时负责在 `mouseenter` 这一帧把过渡名**还原**成 EP 默认值——还原不能放进 `present`（写响应式值又要撞上 ② 的同一个槽位），而值未变化时 Vue 不通知依赖，正常路径不产生额外渲染。隐藏时序（200 毫秒）与 enterable 一律留在 EP 里，不允许在 composable 内再造一套计时。①～④由 [optionsRenderIdentity.test.ts](../tests/architecture/optionsRenderIdentity.test.ts) 以源码正则守卫（含"两个延迟必须相等"的交叉比对、`present` 体内不得有响应式写入、`onBeforeUpdate` 体内不得出现 cancel、无淡出过渡名全文件只允许出现一次），交互等价性由 `e2e/operation-tooltip.spec.ts`（真机 Chrome for Testing，10 例，含二次悬停计时与被过滤行的同帧消失）守卫。
+- 搜索高亮与过滤同源：表格的 `search-keyword` 接收防抖后的 `debouncedSearchKeyword` 而非原始输入值，避免每击键重排全部 `SearchHighlight`（拼音分支另在 [searchMatch/core.ts](../utils/searchMatch/core.ts) 内做 `(text, keyword)` 有界记忆化）；代价是高亮随过滤一起延后到防抖落地时刻，两者不会再短暂不一致。
+- 本地操作守卫按事件解除：`runLocalOperation` 置位后由 [useStorageWatcher.ts](../composables/useStorageWatcher.ts) 的 `consumeSkip` 在真正消费到本次 `chrome.storage.onChanged` 时清除，另设 2s 上限兜底。原因是该事件经 IPC 派发到渲染进程、通常晚于一个宏任务——旧实现的 `setTimeout(0)` 会让守卫大概率提前失效，一次保存退化为「全量解密 + 数组换引用 + 整表重排」。侧边栏的本地操作标志位走同一 `consumeLocalOperation`（[useLocalOperationGuard.ts](../composables/useLocalOperationGuard.ts)）口径。
+
+### 数据层大 Vault 成本与改造路线
+
+背景：渲染层修复后，「大库下保存 / 过滤 / 导出仍卡」的根因在数据层。成本实测与方案对比见
+[PERF_ISSUE89_DATA_LAYER_EVALUATION.md](PERF_ISSUE89_DATA_LAYER_EVALUATION.md)，键分片改造（E1）的
+**迁移设计稿（仅有设计、无实现）**见 [PERF_E1_KEY_SHARDING_DESIGN.md](PERF_E1_KEY_SHARDING_DESIGN.md)。
+此处只记录需要长期遵守的架构约束。
+
+- 三条成本主线（2000 条实测，macOS + SSD）：① **全库解密 = 5N 次 `crypto.subtle` 调用**（每条目 5 个敏感字段各一次 importKey + decrypt，每次固定开销约 25～30 µs）→ 410.6 ms；② **整包重写**（整个数组存单个 storage 键，保存 1 条也要把 N 条序列化重写一遍）→ 读 + 改 + 写全周期 263.1 ms；③ **`chrome.storage.onChanged` 的全量载荷投递**（事件载荷就是整包 `newValue`）→ 211～245 ms。这三笔**分页一分不减**，与渲染是两条独立的账；P0 那类零格式改造只碰得到 ①。
+- 已落地的四笔（不改数据格式、不改交互、不改默认值）：base64 解码分块化 + `slice` → `subarray`（[encryption.ts](../utils/encryption.ts)）；回收站提醒表批量化 `removeReminders`（[reminderManager.ts](../utils/storage/reminderManager.ts)，原先按 id 循环「读整包 + 命中才写」，批删 100 条 = 100 次串行往返，现收敛为 1 读 + ≤1 写）；批量导入与改密 rekey 的整库重加密走条目级并行（[concurrency.ts](../utils/concurrency.ts) 的 `mapWithConcurrency`，默认每批 64，同迭代配对实测 −43～46%（约 1.8×））；管理页 watcher 的「仅元数据变更就地修补」（[usePasswordManagement.ts](../composables/usePasswordManagement.ts) 的 `patchMetadataOnlyFromStorage` + [useStorageWatcher.ts](../composables/useStorageWatcher.ts) 的 `patchMetadataOnly`），把外部写入在管理页里白付的那次 5N 解密降到 0。该快路径有一条硬前提：**一次整表加载不在飞**——修补改的是即将被整表替换的旧条目，而它返回 true 又会让 watcher 跳过本该发生的那次重载，列表便静默停在过期状态；因此 `loadPasswords` 带代际序号（只有最新一次加载有权提交列表与收尾遮罩），在飞期间快路径一律返回 false 让位于整表重载，`tests/composables/usePasswordManagement.loadRace.test.ts` 钉住这三条。
+- 并发纪律：任何「按 id 循环 `await` 整包 storage 读写」的写法按缺陷处理，必须收敛为「一次读 → 内存改 → 至多一次写」（范式见 `cleanOrphanReminders` / `batchUpdatePasswordMetadata` / `deleteHistoryByEntryIds`）。条目级并行一律走 `mapWithConcurrency`，不要在业务代码里手写 `Promise.all` 分片——保序、首批最小下标报错、不启动后续批次、不产生 unhandled rejection 这四条性质由它统一承担（`tests/utils/concurrency.test.ts`）。
+- 单一事实源：`isMetadataOnlyChange` + `METADATA_FIELDS`（[passwordCrud.ts](../utils/storage/passwordCrud.ts)）是「仅元数据变更」的唯一判据，SW 缓存/快照、侧边栏、管理页三处必须复用同一对函数与白名单，禁止各自硬编码字段列表。
+- 尚未落地：把主库摊到多个键的 **E1 分片**（单条保存可落进 0.8 ms 档，约 150×；整库重写最坏情况与今天等价）。它改的是 at-rest **存储结构**，须先过设计稿第五节的 4 项前置测量（尤其「一次 `set` 写 2000 个键的截断/部分失败语义」至今未验证），再走「双写 → 影子读对账 → 切读 → 收口」四阶段，且**不与本文件的 P0 改动混批**。C1/C2（at-rest 密文格式）与 E1 正交，也不同批。
+- 配额口径：`chrome.storage.local` 是**总量**配额（运行时读到 10,485,760 字节、未申请 `unlimitedStorage`），按 479 B/条估算约 2 万条封顶；分片**不抬高总量上限**，只降低写放大。要突破上限只有 `unlimitedStorage` 一条路，须用户单独拍板。
 
 ### 侧边栏秒开跨平台策略
 

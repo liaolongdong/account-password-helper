@@ -50,7 +50,6 @@ const offViewport = (): DOMRect =>
 
 const account = (): MatchingAccountMeta => ({
   id: 'ok-1',
-  title: 'alice',
   username: 'alice',
   tag: '工作',
   remark: '',

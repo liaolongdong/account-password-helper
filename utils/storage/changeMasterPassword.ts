@@ -1,5 +1,6 @@
 import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry, PasswordHistoryRecord } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { mapWithConcurrency } from '@/utils/concurrency';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import { verifyMasterPassword } from './masterPassword';
@@ -65,65 +66,64 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   const identityRaw = await getAllIdentityRaw();
 
   // 4. 用旧密钥解密 passwords
-  const decryptedPasswords: PasswordEntry[] = [];
-  for (const entry of rawPasswords) {
-    if ('encrypted' in entry && entry.encrypted === true) {
-      const plain = await enc.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey);
-      decryptedPasswords.push(plain);
-    } else {
-      decryptedPasswords.push(entry as PasswordEntry);
-    }
-  }
+  // 条目级并行（批内 64）：结果顺序与 rawPasswords 一致；单条解密失败仍按原样向上抛出，
+  // 由步骤 1-9「任意失败直接抛出、storage 未被写入」的安全保证兜底。
+  const decryptedPasswords = await mapWithConcurrency(rawPasswords, async entry =>
+    'encrypted' in entry && entry.encrypted === true
+      ? enc.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey)
+      : (entry as PasswordEntry),
+  );
 
   // 5. 用旧密钥解密 trash
-  const decryptedTrash: (TrashedPasswordEntry & { _plainFields?: PasswordEntry })[] = [];
-  for (const entry of rawTrash) {
-    if ('encrypted' in entry && entry.encrypted === true) {
-      const plain = await enc.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey);
-      decryptedTrash.push({ ...plain, deletedAt: entry.deletedAt } as any);
-    } else {
-      decryptedTrash.push(entry);
-    }
-  }
+  const decryptedTrash: (TrashedPasswordEntry & { _plainFields?: PasswordEntry })[] = await mapWithConcurrency(
+    rawTrash,
+    async entry => {
+      if ('encrypted' in entry && entry.encrypted === true) {
+        const plain = await enc.decryptPasswordEntry(entry as EncryptedPasswordEntry, '', oldKey);
+        return { ...plain, deletedAt: entry.deletedAt } as TrashedPasswordEntry;
+      }
+      return entry;
+    },
+  );
 
   // 6. 用旧密钥解密 history 中的密码字段
   // 解不开的记录原样保留（仍为旧钥密文），不参与重加密：rekey 不得顺带删除用户数据，
   // 与 identityCrud.reencryptAll「失败者原样携带」及 getAllHistory「跳过但不回写」同口径。
   // 消费侧（详情抽屉 / 编辑弹窗）本就以「解密失败」提示处理这类记录。
+  // 并行后仍按输入下标回填两个数组，顺序与串行版本逐字一致（可解项保持原序，不可解项整体置于末尾）。
+  const historyOutcomes = await mapWithConcurrency(rawHistory, async record => {
+    try {
+      return { plainPassword: await enc.decryptData(record.password, oldKey) };
+    } catch {
+      logger.warn(`历史记录无法用旧密钥解密，已原样保留（不参与 rekey）: entryId=${record.entryId}`);
+      return null;
+    }
+  });
   const decryptedHistory: PasswordHistoryRecord[] = [];
   const unrecoverableHistory: PasswordHistoryRecord[] = [];
-  for (const record of rawHistory) {
-    try {
-      const plainPassword = await enc.decryptData(record.password, oldKey);
-      decryptedHistory.push({ ...record, password: plainPassword });
-    } catch {
-      unrecoverableHistory.push(record);
-      logger.warn(`历史记录无法用旧密钥解密，已原样保留（不参与 rekey）: entryId=${record.entryId}`);
-    }
-  }
+  historyOutcomes.forEach((outcome, i) => {
+    if (outcome) decryptedHistory.push({ ...rawHistory[i], password: outcome.plainPassword });
+    else unrecoverableHistory.push(rawHistory[i]);
+  });
 
   // 7. 派生新数据密钥
   const newKey = await enc.deriveEncryptionKey(newPw);
 
-  // 8. 用新密钥重新加密所有数据
-  const reEncryptedPasswords: EncryptedPasswordEntry[] = [];
-  for (const entry of decryptedPasswords) {
-    const encrypted = await enc.encryptPasswordEntry(entry, '', newKey);
-    reEncryptedPasswords.push(encrypted);
-  }
+  // 8. 用新密钥重新加密所有数据（条目级并行，输出顺序与解密结果一致）
+  const reEncryptedPasswords = await mapWithConcurrency(decryptedPasswords, entry =>
+    enc.encryptPasswordEntry(entry, '', newKey),
+  );
 
-  const reEncryptedTrash: TrashedPasswordEntry[] = [];
-  for (const entry of decryptedTrash) {
+  const reEncryptedTrash = await mapWithConcurrency(decryptedTrash, async entry => {
     const { deletedAt, ...plainEntry } = entry as any;
     const encrypted = await enc.encryptPasswordEntry(plainEntry as PasswordEntry, '', newKey);
-    reEncryptedTrash.push({ ...encrypted, deletedAt } as TrashedPasswordEntry);
-  }
+    return { ...encrypted, deletedAt } as TrashedPasswordEntry;
+  });
 
-  const reEncryptedHistory: PasswordHistoryRecord[] = [];
-  for (const record of decryptedHistory) {
-    const encryptedPassword = await enc.encryptData(record.password, newKey);
-    reEncryptedHistory.push({ ...record, password: encryptedPassword });
-  }
+  const reEncryptedHistory = await mapWithConcurrency(decryptedHistory, async record => ({
+    ...record,
+    password: await enc.encryptData(record.password, newKey),
+  }));
   // 不可解记录置于末尾原样落盘（数组顺序对消费侧无意义：读取按 changedAt 排序，
   // 截断亦按 changedAt 计算），保证 rekey 前后记录条数严格不变
   reEncryptedHistory.push(...unrecoverableHistory);

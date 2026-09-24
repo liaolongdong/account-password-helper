@@ -24,7 +24,6 @@ import type { MatchingAccountMeta } from '@/utils/types';
 /** 一条字段齐整的可信条目（与 background 下发结构一致） */
 const healthy = (overrides: Partial<MatchingAccountMeta> = {}): MatchingAccountMeta => ({
   id: 'ok-1',
-  title: 'alice',
   username: 'alice',
   tag: '工作',
   remark: '',
@@ -40,7 +39,6 @@ const healthy = (overrides: Partial<MatchingAccountMeta> = {}): MatchingAccountM
 const legacy = (): MatchingAccountMeta =>
   ({
     id: 'legacy-1',
-    title: 'legacy',
   }) as unknown as MatchingAccountMeta;
 
 describe('InlineFillDropdown 搜索筛选的不可信数据兜底', () => {
