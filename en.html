@@ -5491,12 +5491,34 @@
       }
 
       // =================== Scroll Reveal ===================
+      /* 数据带的数字滚动：终值取节点自身写死的那个数，源码里的它是唯一事实来源——
+         爬虫、无 JS、脚本出错三条路径读到的都是它，脚本只在数据带进视口时把同一个
+         节点从 0 滚回去，滚完必定落回原值。900ms 不复用 --dur-slow：那条令牌管的是
+         transform / opacity 的补间，这里是逐帧文本重绘，两档节奏本就该分开。 */
+      const COUNT_MS = 900;
+
+      /** 把数据带的一个数字从 0 滚到它在 HTML 里写死的终值；非正整数（如「0」）不滚 */
+      function countUp(el) {
+        const target = Number(el.textContent.trim());
+        if (!Number.isInteger(target) || target <= 0) return;
+        const start = performance.now();
+        const step = now => {
+          const p = Math.min(1, (now - start) / COUNT_MS);
+          el.textContent = String(Math.round(target * (1 - Math.pow(1 - p, 3))));
+          if (p < 1) requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      }
+
       if ('IntersectionObserver' in window) {
         const revealObserver = new IntersectionObserver(
           entries => {
             entries.forEach(entry => {
               if (entry.isIntersecting) {
                 entry.target.classList.add('visible');
+                if (entry.target.classList.contains('metrics-inner') && !reduceMotion.matches) {
+                  entry.target.querySelectorAll('b').forEach(countUp);
+                }
                 revealObserver.unobserve(entry.target);
               }
             });
