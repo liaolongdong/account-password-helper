@@ -4,7 +4,9 @@
  * 零 Vue、无状态，因此不需要 effect scope 也不需要 `nextTick`——这正是它从
  * `composables/useVaultListPagination.ts` 拆出来的收益：换档落点与页码折叠这两套
  * 最容易在"顺手改一下页码条"时破掉的规则，可以在这里逐条钉死而不必挂载响应式系统。
- * 响应式状态与两个 watcher 的断言在 `tests/composables/useVaultListPagination.test.ts`。
+ * 响应式状态与两个 watcher 的断言在 `tests/composables/useVaultListPagination.test.ts`；
+ * 档位白名单判据随常量拆到 `utils/vaultPageSize.ts`，其断言在
+ * `tests/utils/vaultPageSize.test.ts`。
  */
 import { describe, expect, it } from 'vitest';
 import { buildPagerItems, pageForSizeChange } from '@/utils/vaultPagination';

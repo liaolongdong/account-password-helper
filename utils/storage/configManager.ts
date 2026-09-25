@@ -12,6 +12,7 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { DEFAULT_THEME } from '@/utils/theme';
 import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
 import { isExactHostMatch, isDomainMatchMode, type DomainMatchMode } from '@/utils/domain';
+import { DEFAULT_PAGE_SIZE, isVaultPageSize } from '@/utils/vaultPageSize';
 
 /** 默认收藏上限 */
 export const DEFAULT_FAVORITE_LIMIT = 10;
@@ -165,6 +166,46 @@ export async function saveSidepanelSortConfig(config: { prop: string; order: str
     });
   } catch (error) {
     logger.error('保存侧边栏排序配置失败:', error);
+    throw error;
+  }
+}
+
+// ==================== 管理页每页条数 ====================
+
+/**
+ * 读取管理页每页条数
+ *
+ * 走白名单而非范围校验：档位直接决定一次喂给 `el-table` 的行数（整表重排成本随行数近似
+ * 平方增长），存储里的非法值必须落回 `DEFAULT_PAGE_SIZE`，不能透传一个 0 让列表空白，
+ * 也不能让手改/导入的配置绕过 200 这条成本上限。读取失败同样降级，不向上抛。
+ */
+export async function getVaultPageSize(): Promise<number> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.VAULT_PAGE_SIZE);
+    const size = result[STORAGE_KEYS.VAULT_PAGE_SIZE];
+    return isVaultPageSize(size) ? size : DEFAULT_PAGE_SIZE;
+  } catch (error) {
+    logger.error('获取管理页每页条数失败:', error);
+    return DEFAULT_PAGE_SIZE;
+  }
+}
+
+/**
+ * 保存管理页每页条数
+ *
+ * 非法档位忽略写入并告警（与 `saveDomainMatchConfig` 同一取舍）：视图偏好不值得为一次
+ * 坏写入向用户报错，但把异常状态落盘会长期影响渲染成本，因此是「忽略」而不是「照写」。
+ * 写入本身失败会抛出，由调用方按非致命处理。
+ */
+export async function saveVaultPageSize(size: number): Promise<void> {
+  if (!isVaultPageSize(size)) {
+    logger.warn('忽略非法的管理页每页条数写入');
+    return;
+  }
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.VAULT_PAGE_SIZE]: size });
+  } catch (error) {
+    logger.error('保存管理页每页条数失败:', error);
     throw error;
   }
 }

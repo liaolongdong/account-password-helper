@@ -17,6 +17,7 @@ import { filterByKeyword } from '@/utils/keywordMatch';
 import { warmPinyinMatcher } from '@/utils/searchMatch/core';
 import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
 import { useVaultListPagination } from '@/composables/useVaultListPagination';
+import { useVaultPageSize } from '@/composables/useVaultPageSize';
 import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
 
@@ -174,6 +175,13 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     filteredPasswords,
     listFilterSignature,
   );
+
+  /**
+   * 档位持久化：读写规则住在 `useVaultPageSize`（与回收站弹窗共用同一份偏好），
+   * 这里只把恢复动作按管理页的要求往上抛——它必须 `await` 在首帧渲染之前，
+   * 否则换档等于把整表重排付两遍（见 `entrypoints/options/App.vue` 的 `onMounted`）。
+   */
+  const { restorePageSize: restorePageSizeConfig } = useVaultPageSize(pageSize);
 
   /** 选中集的成员判定视图：分页后选择集可到 2000 条，批量操作不再能逐项 `includes` */
   const selectedIdSet = computed(() => new Set(selectedIds.value));
@@ -1130,6 +1138,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     patchMetadataOnlyFromStorage,
     handleSortChange,
     restoreSortConfig,
+    /** 恢复每页条数（需在首次渲染前 await，见其定义处） */
+    restorePageSizeConfig,
     togglePasswordVisibility,
     handleRowClassName,
     handleSelectionChange,

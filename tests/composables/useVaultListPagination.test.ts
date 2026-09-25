@@ -16,7 +16,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { effectScope, nextTick, ref } from 'vue';
-import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/utils/vaultPagination';
+import { DEFAULT_PAGE_SIZE, PAGE_SIZE_OPTIONS } from '@/utils/vaultPageSize';
 import { useVaultListPagination } from '@/composables/useVaultListPagination';
 
 /** 造 n 条只带序号的条目，够用于纯切片断言 */

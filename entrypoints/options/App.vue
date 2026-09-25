@@ -677,6 +677,7 @@ const {
   patchMetadataOnlyFromStorage,
   handleSortChange,
   restoreSortConfig: initSortConfig,
+  restorePageSizeConfig,
   togglePasswordVisibility,
   handleRowClassName,
   handleSelectionChange,
@@ -703,6 +704,17 @@ const {
   consumeLocalOperation,
 } = usePasswordManagement({
   validityForm: initialValidityForm,
+});
+
+/**
+ * 回收站弹窗关闭后，让主表跟上弹窗里改过的档位
+ *
+ * 两处分页共用同一个存储键，但各自持有自己的响应式 `pageSize`：弹窗内的改动会立刻落盘，
+ * 主表却不会凭空知道。不补这一下就会出现「刚在回收站选了 200，回到列表还是 100，
+ * 刷新页面才一致」。恢复是同值赋值时 Vue 不触发更新，因此多数情况下这一步零成本。
+ */
+watch(showTrashDialog, (visible, wasVisible) => {
+  if (!visible && wasVisible) void restorePageSizeConfig();
 });
 
 /** 批量编辑标签弹窗可见性 */
@@ -1221,6 +1233,9 @@ onMounted(async () => {
   injectPersonalizationStyles();
   initSessionManager();
   window.addEventListener('sessionExpired', handleSessionExpired);
+  // 每页条数决定首帧喂给表格多少行：必须在 checkAuth 拉起数据与渲染之前落定，否则换档要把
+  // 整表重排付两遍（本页最贵的单项操作）。它是纯视图偏好，单键读取，不依赖会话态。
+  await restorePageSizeConfig();
   await checkAuth();
   // 读取「最近一次已验证备份」时间戳，供 HeaderBar 展示备份健康提示（时间戳非敏感，读取无需会话态）
   lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();

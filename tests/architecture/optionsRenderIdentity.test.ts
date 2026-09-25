@@ -176,7 +176,7 @@ describe('管理页分页接线', () => {
 
   it('页大小档位封顶，不给「全部」留后门', () => {
     // 「全部」这一档等于把分页要解决的问题原样留给用户，因此档位必须保持有上限。
-    const src = read('utils/vaultPagination.ts');
+    const src = read('utils/vaultPageSize.ts');
     const matched = src.match(/export const PAGE_SIZE_OPTIONS = \[([\d,\s]+)\]/);
     expect(matched, 'PAGE_SIZE_OPTIONS 写法变化需同步更新本守卫').toBeTruthy();
     const sizes = matched![1]

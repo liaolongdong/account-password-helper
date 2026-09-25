@@ -2,31 +2,14 @@
  * 管理页分页的纯计算件（零 Vue）
  *
  * 与 `composables/useVaultListPagination.ts` 的分工按 agents.md 的技术栈边界划定：
- * 这里只有「给定页码/档位/总页数算出该显示什么」的无状态算法与配置常量，可脱离组件实例直接单测；
+ * 这里只有「给定页码/档位/总页数算出该显示什么」的无状态算法，可脱离组件实例直接单测；
  * 那边只持有响应式状态（`currentPage` / `pageSize`）与其副作用（钳位、复位两个 watcher）。
  * 页码条组件 `components/options/VaultPagination.vue` 消费本文件，不因此引到 composable 的状态所有权。
- */
-
-/**
- * 可选的每页条数
  *
- * 刻意不提供「全部」：管理页的整表挂载成本随行数近似平方增长（600 行中位 16.5 秒、
- * 2000 行 180.2 秒，数据见 docs/PERF_LARGE_VAULT_EVALUATION.md 9.10），
- * 而条目总量上限就是 2000 条——「全部」这一档等于把分页要解决的问题原样留给用户。
+ * 档位常量（`PAGE_SIZE_OPTIONS` / `DEFAULT_PAGE_SIZE` / `isVaultPageSize`）住在
+ * `utils/vaultPageSize.ts`：它被存储层共享，而本文件的算法只有 Options 页消费，
+ * 同处一文件会把算法带进 sidepanel 首屏闭包（详见那个文件的文件头）。
  */
-export const PAGE_SIZE_OPTIONS = [50, 100, 200] as const;
-
-/**
- * 默认每页条数
- *
- * 取 100 的理由是实测出来的，不是外推的：同一份产物下按 `mount` 场景实测（真机数据见
- * `docs/PERF_LARGE_VAULT_EVALUATION.md` 9.11），每页 100 时 600 / 1200 / 2000 条的挂载与
- * 交互成本已不可区分（DOM 探针三档逐字一致），剩下的 2~4 秒是扩展页启动与数据层底盘，
- * 与页大小无关，属 P3 的范围。再往上的 200 档没有单独实测（按 9.10 的 rows² 曲线，
- * 一次 flush 里的行数翻倍会把这一页的重排成本推到约 3~4 倍），2000 条上限下 100 条至多 20 页，
- * 页码条仍在一行内放得下。
- */
-export const DEFAULT_PAGE_SIZE: number = 100;
 
 /**
  * 分页条需要展示的页码项

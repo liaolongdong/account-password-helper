@@ -79,7 +79,8 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue';
-import { PAGE_SIZE_OPTIONS, buildPagerItems, pageForSizeChange } from '@/utils/vaultPagination';
+import { PAGE_SIZE_OPTIONS } from '@/utils/vaultPageSize';
+import { buildPagerItems, pageForSizeChange } from '@/utils/vaultPagination';
 import { useI18n } from '@/utils/i18n';
 
 /**

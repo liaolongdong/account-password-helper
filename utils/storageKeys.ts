@@ -10,6 +10,8 @@ export const STORAGE_KEYS = {
   SETTINGS: 'app_settings',
   MASTER_PASSWORD_VALIDITY: 'master_password_validity',
   SORT_CONFIG: 'password_sort_config',
+  /** 管理页每页条数（仅存 50/100/200 之一的视图偏好，不含任何条目数据） */
+  VAULT_PAGE_SIZE: 'vault_page_size',
   FLOATING_BUTTON_CONFIG: 'floating_button_config',
   EMAIL_BACKUP_CONFIG: 'email_backup_config',
   LAST_AUTO_BACKUP_TIME: 'last_auto_backup_time',

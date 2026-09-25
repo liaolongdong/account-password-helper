@@ -1,5 +1,5 @@
 import { computed, ref, watch, type Ref } from 'vue';
-import { DEFAULT_PAGE_SIZE } from '@/utils/vaultPagination';
+import { DEFAULT_PAGE_SIZE } from '@/utils/vaultPageSize';
 
 /**
  * 管理页密码列表分页
@@ -15,7 +15,8 @@ import { DEFAULT_PAGE_SIZE } from '@/utils/vaultPagination';
  * 那由调用方通过 `resetSignal` 决定（见 `usePasswordManagement`），因为「内容变化」里
  * 只有筛选与排序口径变化需要回第一页，删除/就地编辑不需要。
  *
- * 档位常量与页码条算法（零 Vue、可独立单测）住在 `@/utils/vaultPagination`，这里只拥有状态。
+ * 档位常量住在 `@/utils/vaultPageSize`、页码条算法住在 `@/utils/vaultPagination`（零 Vue、
+ * 可独立单测），这里只拥有状态。
  *
  * @param source 已过滤并排序的完整列表（只读来源）
  * @param resetSignal 复位信号：其值变化时回到第 1 页

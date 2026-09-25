@@ -1,7 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { DEFAULT_PAGE_SIZE } from '@/utils/vaultPagination';
-import { createEntry, expect, runHeaderCommand, storedArrayCount, test } from './harness';
+import { DEFAULT_PAGE_SIZE } from '@/utils/vaultPageSize';
+import { createEntry, expect, readStoredConfig, runHeaderCommand, storedArrayCount, test } from './harness';
 import { templatedOf, textOf } from './i18n';
 
 /**
@@ -11,7 +11,8 @@ import { templatedOf, textOf } from './i18n';
  * ① `el-table` 真的只渲染一页——分页失效最常见的形态就是「算了但没接上」；
  * ② 跨页勾选在换页后仍然亮着。这条能力的全部依赖是 Element Plus 选择列的
  *    `reserve-selection`，它一旦被动过，用户读到的是「翻页把选择丢了」；
- * ③ 新增条目会把用户带到它所在的那一页（新条目按更新时间排在最前，人却可能停在末页）。
+ * ③ 新增条目会把用户带到它所在的那一页（新条目按更新时间排在最前，人却可能停在末页）；
+ * ④ 每页条数是**落盘的视图偏好**——换档后重载管理页仍是那一档，而页码刻意不回灌（它恒回第 1 页）。
  *
  * 前置数据经真实的「数据管理 → 导入数据」入口灌入：条目在库里是密文，测试进程没有解密
  * 入口，逐条表单录入 250 条会把这条用例拖成分钟级；导入本就是产品给用户的批量入口，
@@ -172,5 +173,37 @@ test.describe('管理页分页', () => {
     await expect(pagerState(page)).toContainText(pageOf(1));
     await expect(mainRowOf(page, 'e2e-pg-fresh')).toBeVisible();
     await expect(mainRowOf(page, 'e2e-pg-fresh')).toHaveClass(/new-item/);
+  });
+
+  test('档位记在本机、重载后仍是那一档；页码刻意不回灌', async ({ optionsPage: page }) => {
+    await seedVault(page);
+
+    // 选 200 而不是 50：它与默认 100 的差在 DOM 上直接数得出来，
+    // 而且这一档的行数最多，恢复若晚于首帧渲染会被后面的重排掩盖掉。
+    const size = 200;
+    const pages = Math.ceil(TOTAL / size);
+    await page.locator('.pagination__size').click();
+    await page
+      .locator('.el-select-dropdown__item')
+      .filter({ hasText: templatedOf('options.pagination.pageSizeLabel', { size }) })
+      .click();
+
+    await expect(mainRows(page)).toHaveCount(size);
+    await expect(pagerState(page)).toContainText(
+      templatedOf('options.pagination.pageOf', { current: 1, total: pages }),
+    );
+    // 落盘的只有档位这一个数字：没有整份配置对象，也没有页码
+    await expect.poll(() => readStoredConfig(page, STORAGE_KEYS.VAULT_PAGE_SIZE)).toBe(size);
+
+    // 先换到末页再重载，才能证明「重载后停在第 1 页」是页码不落盘的结果，
+    // 而不是「用户本来就没换过页」
+    await pageButton(page, pages).click();
+    await expect(mainRows(page)).toHaveCount(TOTAL - (pages - 1) * size);
+
+    await page.reload();
+    await expect(mainRows(page)).toHaveCount(size, { timeout: 30_000 });
+    await expect(pagerState(page)).toContainText(
+      templatedOf('options.pagination.pageOf', { current: 1, total: pages }),
+    );
   });
 });

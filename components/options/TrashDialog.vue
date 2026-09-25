@@ -145,6 +145,7 @@ import { lazyImport } from '@/utils/lazyImport';
 import { useI18n } from '@/utils/i18n';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
 import { useVaultListPagination } from '@/composables/useVaultListPagination';
+import { useVaultPageSize } from '@/composables/useVaultPageSize';
 import VaultPagination from '@/components/options/VaultPagination.vue';
 
 const _getEncryption = lazyImport(() => import('@/utils/encryption'));
@@ -194,11 +195,17 @@ const trashList = ref<TrashDisplayEntry[]>([]);
  *
  * 复位信号取「弹窗打开」而不是列表长度：恢复/彻底删除后仍要重新 `loadTrash()`，
  * 那属于就地编辑级别的口径，刻意不把用户送回第 1 页；越界由 `pageCount` 钳位兜住。
+ *
+ * 档位与密码表是**同一个用户偏好**（同一个存储键），但分页状态是本弹窗自己的实例，
+ * 所以每次打开先按落盘值对齐一次；这里换档位也会写回同一个键，关闭弹窗时由 `App.vue`
+ * 让主表跟上，避免「刚在回收站选了 200，回到列表还是 100」。
  */
 const { currentPage, pageSize, totalCount, pageCount, pagedEntries } = useVaultListPagination(
   trashList,
   computed(() => props.modelValue),
 );
+
+const { restorePageSize } = useVaultPageSize(pageSize);
 
 /**
  * 加载回收站条目（解密敏感字段用于展示）
@@ -309,11 +316,14 @@ const handleEmptyTrash = async () => {
   }
 };
 
-/** 弹窗打开时加载数据 */
+/** 弹窗打开时按落盘档位对齐，并加载数据 */
 watch(
   () => props.modelValue,
   visible => {
     if (visible) {
+      // 与 `loadTrash()` 同一个 watcher：档位决定这次渲染多少行，必须在数据落地前对齐，
+      // 且不给本组件新增第二个监听器。
+      void restorePageSize();
       loadTrash();
     }
   },
