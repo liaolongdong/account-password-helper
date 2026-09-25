@@ -1,4 +1,4 @@
-# Account Password Helper
+# Account Password Helper（账号密码管理助手）
 
 > Free, open-source password manager Chrome extension for developers & QA engineers. Per-field AES-256-GCM local encryption, no account registration, no subscription, and password data stored only on your machine — the single outbound request is an anonymous version check that carries no user data. One-click login (fill + tick consent + click login), multi-environment account isolation with optional cross-subdomain matching, built-in TOTP 2FA authenticator, and an independently encrypted identity vault.
 
@@ -13,8 +13,8 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-09-22 · **Latest release**: v3.11.0 (2026-09-15)
-- **Quality**: 1337 automated test cases across 119 test files
+- **Last updated**: 2026-09-25 · **Latest release**: v3.12.0 (2026-09-25)
+- **Quality**: 1563 automated test cases across 142 test files
 
 ## Key Features
 
@@ -122,11 +122,19 @@ Add a site rule for that domain: your own CSS selectors for the username and pas
 - [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) — the same five posts in English, including how the three cross-subdomain tiers decide which accounts appear
 - [Pricing](https://liaolongdong.github.io/account-password-helper/pricing.html) — 100% free, no paid tier, no subscription
 - [Pricing (machine-readable)](https://liaolongdong.github.io/account-password-helper/pricing.md)
-- [Alternatives Comparison (中文)](https://liaolongdong.github.io/account-password-helper/compare.html) — Bitwarden / 1Password / Chrome 自带替代方案八维度事实对比
-- [Alternatives Comparison (English)](https://liaolongdong.github.io/account-password-helper/compare.en.html) — Bitwarden alternative, 1Password alternative and Chrome built-in compared across 8 dimensions
+- [Alternatives Comparison (中文)](https://liaolongdong.github.io/account-password-helper/compare.html) — Bitwarden / 1Password / Chrome 自带替代方案十维度事实对比
+- [Alternatives Comparison (English)](https://liaolongdong.github.io/account-password-helper/compare.en.html) — Bitwarden alternative, 1Password alternative and Chrome built-in compared across 10 dimensions
 - [Architecture & Implementation Details](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.md)
 - [Contributing Guide](https://github.com/liaolongdong/account-password-helper/blob/main/docs/CONTRIBUTING.md)
 - [Changelog](https://github.com/liaolongdong/account-password-helper/blob/main/CHANGELOG.md)
+
+## More by this author
+
+The same author builds open-source, offline-first Chrome extensions where data stays on your machine.
+
+- [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — 14 file formats converted to each other entirely in the browser, without uploading a byte: Markdown, Word, PDF, Excel, CSV, JSON, HTML and images, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/)
+- [Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy) — proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket, all configured in the browser. This extension covers "who am I in this environment", that one covers "where this environment's requests go". [Product page](https://liaolongdong.github.io/cross-origin-proxy/en.html) · [Chrome Web Store](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
+- [Author page](https://github.com/liaolongdong)
 
 ## License
 

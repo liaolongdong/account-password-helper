@@ -15,11 +15,11 @@
     <title>开源免费本地密码管理器 · 一键登录 + TOTP | 账号密码管理助手</title>
     <meta
       name="description"
-      content="开源免费本地密码管理器：一键登录（填充+勾选+点击）、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。密码逐字段 AES-256-GCM 本机加密，不上传服务器、无需注册账号。"
+      content="开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。"
     />
     <meta
       name="keywords"
-      content="密码管理器,password manager,Chrome 扩展,本地加密,AES-256-GCM,自动填充,TOTP,两步验证,安全体检,开发者工具,离线密码管理器,浏览器扩展,password vault,autofill,2FA,开源免费,密码生成器,一键登录,多环境账号,import from Bitwarden,local-first password manager,offline password manager,password manager for developers"
+      content="密码管理器,账号密码管理助手,Account Password Helper,password manager,Chrome 扩展,本地加密,AES-256-GCM,自动填充,TOTP,两步验证,安全体检,开发者工具,离线密码管理器,浏览器扩展,password vault,autofill,2FA,开源免费,密码生成器,一键登录,多环境账号,import from Bitwarden,local-first password manager,offline password manager,password manager for developers"
     />
     <meta
       name="application-name"
@@ -49,7 +49,7 @@
     />
     <meta
       property="og:description"
-      content="开源免费本地密码管理器：一键登录（填充+勾选+点击）、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。密码逐字段 AES-256-GCM 本机加密，不上传服务器、无需注册账号。"
+      content="开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。"
     />
     <meta
       property="og:url"
@@ -81,7 +81,7 @@
     />
     <meta
       name="twitter:description"
-      content="开源免费本地密码管理器：一键登录（填充+勾选+点击）、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。密码逐字段 AES-256-GCM 本机加密，不上传服务器、无需注册账号。"
+      content="开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。"
     />
     <meta
       name="twitter:image"
@@ -119,13 +119,14 @@
       {
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
-        "name": "Account Password Helper · 账号密码管理助手",
+        "name": "账号密码管理助手",
+        "alternateName": "Account Password Helper",
         "applicationCategory": "SecurityApplication",
         "applicationSubCategory": "Password Manager",
         "operatingSystem": "Chrome",
         "browserRequirements": "需要 Chrome 114 或更高版本以使用 Side Panel API（未声明 minimum_chrome_version，旧版本仅侧边栏功能不可用）；兼容 Edge、Brave 等 Chromium 内核浏览器",
-        "softwareVersion": "3.9.0",
-        "dateModified": "2026-09-22",
+        "softwareVersion": "3.12.0",
+        "dateModified": "2026-09-25",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -195,7 +196,7 @@
             "@type": "WebSite",
             "@id": "https://liaolongdong.github.io/account-password-helper/#website",
             "url": "https://liaolongdong.github.io/account-password-helper/",
-            "name": "Account Password Helper · 账号密码管理助手",
+            "name": "账号密码管理助手 Account Password Helper",
             "inLanguage": ["zh-CN", "en"],
             "publisher": { "@id": "https://liaolongdong.github.io/account-password-helper/#org" }
           }
@@ -400,6 +401,9 @@
       }
       html {
         scroll-behavior: smooth;
+        /* 页头是 64px 的 sticky：给锚点跳转留出落位空间，否则 #how / #privacy
+           这类标题会正好藏在页头下面，:target 的回色也看不见。 */
+        scroll-padding-top: 84px;
         -webkit-text-size-adjust: 100%;
       }
       body {
@@ -443,6 +447,9 @@
         --container: 1200px;
         /* 与 .reveal 同款强出缓动，动效层统一引用，避免各处重复字面量 */
         --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+        /* 滚动揭示与进场那一档 0.6s 的单一来源（取值与收敛前逐字等价，不是新的时间承诺）。
+           hover / 按压那两档仍是各处字面量，等出现第二处需要统一引用的地方再收进来。 */
+        --dur-slow: 0.6s;
       }
 
       .container {
@@ -1157,7 +1164,8 @@
       }
       .more-links {
         display: flex;
-        gap: 18px;
+        flex-wrap: wrap;
+        gap: 8px 18px;
         margin-top: 16px;
         font-size: 14px;
         font-weight: 500;
@@ -1169,6 +1177,10 @@
       .more-links a:hover {
         color: var(--primary-dark);
         text-decoration: underline;
+      }
+      .more-author {
+        justify-content: center;
+        margin-top: 26px;
       }
 
       /* ============ Footer ============ */
@@ -1510,8 +1522,8 @@
         opacity: 0;
         transform: translateY(24px);
         transition:
-          opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-          transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+          opacity var(--dur-slow) var(--ease-out),
+          transform var(--dur-slow) var(--ease-out);
       }
       html.js .reveal.visible {
         opacity: 1;
@@ -1612,7 +1624,7 @@
       .hero-hint,
       .disclaimer-banner,
       .hero-visual {
-        animation: aph-rise 0.6s var(--ease-out) both;
+        animation: aph-rise var(--dur-slow) var(--ease-out) both;
       }
       .hero h1 {
         animation-name: aph-rise-only;
@@ -2106,8 +2118,228 @@
         }
       }
 
+      /* ============ Metrics（首屏数据带） ============ */
+      /* 六个数全部是可复算的仓库事实，口径与落点清单见 docs/CWS_PUBLISHING_GUIDE.md
+         「第五步：事实一致性校验」；这里不写任何无法自证的绝对化表述。 */
+      .metrics {
+        padding: 0;
+      }
+      .metrics-inner {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+        background: var(--bg-soft);
+        border-top: 1px solid var(--border);
+        border-bottom: 1px solid var(--border);
+      }
+      .metric {
+        padding: 22px 14px;
+        text-align: center;
+      }
+      .metric b {
+        display: block;
+        color: var(--primary);
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        font-variant-numeric: tabular-nums;
+      }
+      .metric span {
+        display: block;
+        margin-top: 2px;
+        color: var(--text-muted);
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      .metrics-note {
+        margin: 14px 0 0;
+        color: var(--text-muted);
+        font-size: 13.5px;
+        text-align: center;
+      }
+      /* 数字下方一条短划，随整条数据带进场拉开：scaleX 属 transform，不触发布局，
+         基准态即终态，因此降级只需 animation / transform 归位。
+         `.visible` 挂在带 `reveal` 的 .metrics-inner 上，不在 .metric 上，选择器必须走父子。 */
+      .metric i {
+        position: relative;
+        display: block;
+        width: 34px;
+        height: 2px;
+        margin: 10px auto 0;
+        background: var(--primary-soft);
+        border-radius: 999px;
+      }
+      .metric i::after {
+        position: absolute;
+        inset: 0;
+        background: var(--primary);
+        border-radius: inherit;
+        transform: scaleX(1);
+        transform-origin: left;
+        content: '';
+      }
+      html.js .metric i::after {
+        transform: scaleX(0);
+        transition: transform var(--dur-slow) var(--ease-out) 0.12s;
+      }
+      html.js .metrics-inner.visible .metric i::after {
+        transform: scaleX(1);
+      }
+
+      /* ============ How it works（工作原理带） ============ */
+      .hiw {
+        background: var(--bg-soft);
+      }
+      .hiw-grid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+        margin-top: 36px;
+      }
+      .hiw-step {
+        position: relative;
+        padding: 20px 18px 18px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
+      }
+      .hiw-step .n {
+        display: inline-flex;
+        width: 26px;
+        height: 26px;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        background: var(--primary);
+        border-radius: 50%;
+        font-size: 13px;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+      }
+      .hiw-step h3 {
+        margin: 12px 0 6px;
+        font-size: 16.5px;
+      }
+      .hiw-step p {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 14px;
+      }
+      /* 卡片顶边一条「连线」从左端画到右端，让四步读起来是一条路径而不是四张孤立卡。
+         只动 transform；延迟与同一张卡 .reveal-delay-N 的入场延迟取同值，
+         两条时间线对齐，不会出现「线已经画完、卡还没显形」。 */
+      .hiw-step::before {
+        position: absolute;
+        top: -1px;
+        right: -1px;
+        left: -1px;
+        height: 2px;
+        background: linear-gradient(90deg, var(--primary), var(--accent));
+        border-radius: var(--radius) var(--radius) 0 0;
+        transform: scaleX(1);
+        transform-origin: left;
+        content: '';
+      }
+      html.js .hiw-step::before {
+        transform: scaleX(0);
+        transition: transform var(--dur-slow) var(--ease-out);
+        transition-delay: 0.08s;
+      }
+      html.js .hiw-step.visible::before {
+        transform: scaleX(1);
+      }
+      html.js .hiw-step:nth-child(2)::before {
+        transition-delay: 0.16s;
+      }
+      html.js .hiw-step:nth-child(3)::before {
+        transition-delay: 0.24s;
+      }
+      html.js .hiw-step:nth-child(4)::before {
+        transition-delay: 0.32s;
+      }
+
+      /* ============ Privacy（隐私与权限带） ============ */
+      .priv {
+        background: var(--bg-soft);
+      }
+      .priv-grid {
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        gap: 28px;
+        align-items: start;
+      }
+      .priv-facts {
+        display: grid;
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .priv-facts li {
+        display: flex;
+        gap: 10px;
+        padding: 14px 16px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        font-size: 14.5px;
+      }
+      .priv-facts svg {
+        flex: none;
+        margin-top: 3px;
+        color: var(--accent);
+      }
+      .priv-perms {
+        display: grid;
+        gap: 10px;
+      }
+      .perm {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 12px;
+        align-items: baseline;
+        padding: 12px 16px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+      }
+      .perm code {
+        padding: 2px 7px;
+        color: var(--primary-dark);
+        background: var(--primary-soft);
+        border-radius: 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        white-space: nowrap;
+      }
+      .perm span {
+        color: var(--text-muted);
+        font-size: 14px;
+      }
+      .priv-more {
+        margin: 14px 0 0;
+        font-size: 13.5px;
+        text-align: right;
+      }
+      .priv-more a {
+        color: var(--primary);
+        font-weight: 600;
+      }
+      .priv-more a:hover {
+        text-decoration: underline;
+      }
+
       /* ============ Responsive ============ */
       @media (max-width: 1024px) {
+        .metrics-inner {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+        .hiw-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .priv-grid {
+          grid-template-columns: 1fr;
+        }
         .feature-grid {
           grid-template-columns: repeat(2, 1fr);
         }
@@ -2145,6 +2377,22 @@
         }
         .hero h1 {
           font-size: 34px;
+        }
+        .metrics-inner {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+        .hiw-grid {
+          grid-template-columns: 1fr;
+        }
+        .priv-grid {
+          gap: 20px;
+        }
+        .perm {
+          grid-template-columns: 1fr;
+          gap: 6px;
+        }
+        .priv-more {
+          text-align: left;
         }
         .feature-grid {
           grid-template-columns: 1fr;
@@ -2199,6 +2447,32 @@
         .slide-info h3 {
           font-size: 18px;
         }
+      }
+
+      /* ============ 对比表按列回色 ============ */
+      /* 兄弟站的按列高亮靠脚本往表格写 data-col；这里用 :has() 纯 CSS 达成同一效果，不新增 JS。
+         本插件列已有 `.highlight` 专属 class（不是靠第几列定位），鼠标落在该列任意一格即整列抬升，
+         色值沿用该列 base / 行 hover 的同一族蓝调，只把透明度再抬一档。:has() 不被支持时静默为无。 */
+      .compare-table:has(.highlight:hover) .highlight {
+        background: rgba(66, 133, 244, 0.12);
+      }
+
+      /* ============ 锚点落位反馈 ============ */
+      /* 从搜索结果、博客内链或导航跳进来时，标题闪一次，确认「你要看的就是这一节」。
+         纯 CSS、一次性、只动 opacity 与 transform。挂在 section:target 上：FAQ 条目是脚本注入且无 id，
+         给它们写 .faq-item:target 只会是一条永远匹配不到的死规则。 */
+      @keyframes aph-found {
+        from {
+          opacity: 0.35;
+          transform: translateY(-4px);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      section:target > .container > .section-head h2 {
+        animation: aph-found 1.2s var(--ease-out) both;
       }
 
       /* ============ Reduced motion（动效降级） ============ */
@@ -2280,6 +2554,20 @@
         .feature-card:hover .feature-icon {
           transform: none;
         }
+        /* 数据带短划与工作原理顶边：停在终态（画满），不靠动画也能读到 */
+        html.js .metric i::after,
+        html.js .hiw-step::before,
+        html.js .hiw-step.visible::before {
+          transform: none;
+          transition: none;
+        }
+        /* 落位反馈：撤掉位移，按本块既有约定保留纯淡入（aph-fade 只动 opacity），
+           这样减弱动效下「你落在了这一节」依然有反馈，而不是静默无提示。 */
+        section:target > .container > .section-head h2 {
+          animation-name: aph-fade;
+          animation-duration: 0.2s;
+          animation-timing-function: ease-out;
+        }
       }
     </style>
   </head>
@@ -2312,6 +2600,11 @@
             >演示</a
           >
           <a
+            href="#how"
+            data-i18n="nav.how"
+            >工作原理</a
+          >
+          <a
             href="#steps"
             data-i18n="nav.steps"
             >使用步骤</a
@@ -2320,6 +2613,11 @@
             href="#compare"
             data-i18n="nav.compare"
             >对比</a
+          >
+          <a
+            href="#privacy"
+            data-i18n="nav.privacy"
+            >隐私</a
           >
           <a
             href="#faq"
@@ -2586,6 +2884,53 @@
         </div>
       </div>
     </header>
+
+    <!-- ======= Metrics ======= -->
+    <section
+      class="metrics"
+      id="metrics"
+    >
+      <div class="container">
+        <div class="metrics-inner reveal">
+          <div class="metric">
+            <b>1563</b>
+            <span data-i18n="metrics.cases">项自动化测试用例</span>
+            <i aria-hidden="true"></i>
+          </div>
+          <div class="metric">
+            <b>5</b>
+            <span data-i18n="metrics.fields">个敏感字段逐字段加密</span>
+            <i aria-hidden="true"></i>
+          </div>
+          <div class="metric">
+            <b>3</b>
+            <span data-i18n="metrics.tiers">档跨子域名匹配</span>
+            <i aria-hidden="true"></i>
+          </div>
+          <div class="metric">
+            <b>6</b>
+            <span data-i18n="metrics.themes">款主题配色</span>
+            <i aria-hidden="true"></i>
+          </div>
+          <div class="metric">
+            <b>23</b>
+            <span data-i18n="metrics.commands">条命令面板命令</span>
+            <i aria-hidden="true"></i>
+          </div>
+          <div class="metric">
+            <b>0</b>
+            <span data-i18n="metrics.accounts">个云端账号与同步服务器</span>
+            <i aria-hidden="true"></i>
+          </div>
+        </div>
+        <p
+          class="metrics-note"
+          data-i18n="metrics.note"
+        >
+          五个敏感字段加密后只写入本机 chrome.storage.local · 唯一外联为每 6 小时一次的匿名版本检查 · GPL-3.0 源码可审计
+        </p>
+      </div>
+    </section>
 
     <!-- ======= Features ======= -->
     <section
@@ -3222,6 +3567,55 @@
       </div>
     </section>
 
+    <!-- ======= How it works ======= -->
+    <section
+      class="hiw"
+      id="how"
+    >
+      <div class="container">
+        <div class="section-head">
+          <h2 data-i18n="how.title">工作原理</h2>
+          <p
+            class="section-sub"
+            data-i18n="how.sub"
+          >
+            从打开登录页到凭证回写，一次填充在你自己的电脑上走过的四步
+          </p>
+        </div>
+        <div class="hiw-grid">
+          <article class="hiw-step reveal reveal-delay-1">
+            <span class="n">1</span>
+            <h3 data-i18n="how.s1.title">识别登录页</h3>
+            <p data-i18n="how.s1.desc">
+              内容脚本在页面里判定账号、密码与验证码输入框；扫描限流分批进行，不改动宿主页面的样式与脚本。
+            </p>
+          </article>
+          <article class="hiw-step reveal reveal-delay-2">
+            <span class="n">2</span>
+            <h3 data-i18n="how.s2.title">按域名取候选</h3>
+            <p data-i18n="how.s2.desc">
+              三档跨子域名匹配决定哪些账号出现在侧边栏与内联下拉里，默认只认精确主机名，多环境账号因此互不串号。
+            </p>
+          </article>
+          <article class="hiw-step reveal reveal-delay-3">
+            <span class="n">3</span>
+            <h3 data-i18n="how.s3.title">本机解密</h3>
+            <p data-i18n="how.s3.desc">
+              主密码经 PBKDF2
+              派生密钥；打开列表时整库解密一次，明文只存在于扩展自身上下文，磁盘上始终是密文。密钥材料与解密快照在锁定或过期时即刻销毁。
+            </p>
+          </article>
+          <article class="hiw-step reveal reveal-delay-4">
+            <span class="n">4</span>
+            <h3 data-i18n="how.s4.title">填充并登录</h3>
+            <p data-i18n="how.s4.desc">
+              逐字段写入并自动勾选「记住我 / 同意协议」，可选再替你点下登录按钮；网页上新产生的凭证回写前先经你确认。
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <!-- ======= Steps ======= -->
     <section
       class="steps"
@@ -3507,6 +3901,154 @@
       </div>
     </section>
 
+    <!-- ======= Privacy & permissions ======= -->
+    <section
+      class="priv"
+      id="privacy"
+    >
+      <div class="container">
+        <div class="section-head">
+          <h2 data-i18n="priv.title">隐私与权限</h2>
+          <p
+            class="section-sub"
+            data-i18n="priv.sub"
+          >
+            「密码数据不出本机」要能被验证，而不只是被声明——下面是它的四条依据
+          </p>
+        </div>
+        <div class="priv-grid">
+          <ul class="priv-facts">
+            <li class="reveal reveal-delay-1">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect
+                  x="3"
+                  y="11"
+                  width="18"
+                  height="11"
+                  rx="2"
+                />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span data-i18n="priv.f1">
+                五个敏感字段各自单独加密后写入
+                chrome.storage.local；锁定与会话过期只销毁密钥材料与解密快照，不做整库重新加密。
+              </span>
+            </li>
+            <li class="reveal reveal-delay-2">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                />
+                <path d="M2 12h20" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
+              <span data-i18n="priv.f2">
+                唯一的外联是每 6
+                小时一次的匿名版本检查，只读取公开渠道公布的版本号；账号、密码与两步验证码从不经这条通道。
+              </span>
+            </li>
+            <li class="reveal reveal-delay-3">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m9 11 3 3 8-8" />
+                <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
+              </svg>
+              <span data-i18n="priv.f3">
+                不申请 cookies、不申请 history；content script 只在登录表单上工作，注入的界面关在 Closed Shadow DOM
+                里，不读写宿主页面变量。
+              </span>
+            </li>
+            <li class="reveal reveal-delay-4">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line
+                  x1="12"
+                  y1="3"
+                  x2="12"
+                  y2="15"
+                />
+              </svg>
+              <span data-i18n="priv.f4">
+                随时带得走：CSV / JSON 导出与 .aph 加密备份都由你保管，换设备靠你自己的备份文件，不依赖任何同步服务。
+              </span>
+            </li>
+          </ul>
+          <div class="priv-perms">
+            <div class="perm reveal reveal-delay-1">
+              <code>&lt;all_urls&gt;</code>
+              <span data-i18n="priv.p1"
+                >在任意网站上检测登录表单并提供自动填充（host 权限，配合上面的按需工作范围）</span
+              >
+            </div>
+            <div class="perm reveal reveal-delay-2">
+              <code>activeTab</code>
+              <span data-i18n="priv.p2">在当前标签页中检测登录表单并执行自动填充</span>
+            </div>
+            <div class="perm reveal reveal-delay-3">
+              <code>clipboardRead</code>
+              <span data-i18n="priv.p3">读取剪贴板以验证自动清除前内容未被替换</span>
+            </div>
+            <div class="perm reveal reveal-delay-4">
+              <code>webNavigation</code>
+              <span data-i18n="priv.p4">监听页面导航事件以优化表单检测时机</span>
+            </div>
+            <p class="priv-more">
+              <span data-i18n="priv.more.lead">全部 13 项权限与逐项用途见</span>
+              <a
+                href="./privacy.html"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="priv.more.link"
+                >隐私政策</a
+              >
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ======= FAQ ======= -->
     <section id="faq">
       <div class="container">
@@ -3610,9 +4152,25 @@
                 data-i18n="more.repo"
                 >源码</a
               >
+              <a
+                href="https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="more.store"
+                >Chrome 应用商店</a
+              >
             </p>
           </article>
         </div>
+        <p class="more-links more-author">
+          <a
+            href="https://github.com/liaolongdong"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-i18n="more.author"
+            >作者的其余开源作品</a
+          >
+        </p>
       </div>
     </section>
 
@@ -3669,6 +4227,13 @@
                 >技术博客</a
               ></span
             >
+            <span
+              ><a
+                href="#more"
+                data-i18n="footer.more"
+                >作者的其他插件</a
+              ></span
+            >
             <span>
               <a
                 href="https://github.com/liaolongdong/account-password-helper"
@@ -3689,7 +4254,7 @@
                 <span data-i18n="footer.repo">GitHub 仓库</span>
               </a>
             </span>
-            <span data-i18n="footer.updated">最后更新：2026-09 · v3.9.0</span>
+            <span data-i18n="footer.updated">最后更新：2026-09 · v3.12.0</span>
           </div>
         </div>
         <div class="footer-wechat">
@@ -3827,11 +4392,11 @@
       const I18N = {
         'meta.title': {
           zh: '开源免费本地密码管理器 · 一键登录 + TOTP | 账号密码管理助手',
-          en: 'Free Open-Source Local Password Manager - Account Password Helper',
+          en: 'Open-Source Local Password Manager - Account Password Helper',
         },
         'meta.description': {
-          zh: '开源免费本地密码管理器：一键登录（填充+勾选+点击）、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。密码逐字段 AES-256-GCM 本机加密，不上传服务器、无需注册账号。',
-          en: 'Free open-source local password manager for Chrome: one-click login, TOTP 2FA, multi-environment isolation, offline security audit, identity vault, AES-256-GCM locally.',
+          zh: '开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。',
+          en: 'Free open-source, local-first password manager for Chrome: one-click login, TOTP 2FA, environment isolation, offline security audit. No account, no server.',
         },
         'nav.brand': { zh: '账号密码管理助手', en: 'Account Password Helper' },
         'nav.features': { zh: '特性', en: 'Features' },
@@ -3841,6 +4406,85 @@
         'nav.faq': { zh: '常见问题', en: 'FAQ' },
         'nav.cws': { zh: 'Chrome 应用商店下载', en: 'Chrome Web Store' },
         'nav.github': { zh: 'GitHub 下载', en: 'GitHub Download' },
+        'nav.how': { zh: '工作原理', en: 'How it works' },
+        'nav.privacy': { zh: '隐私', en: 'Privacy' },
+        // ---------- 首屏数据带（数字取自仓库可复算事实，口径见 docs/CWS_PUBLISHING_GUIDE.md 第五步） ----------
+        'metrics.cases': { zh: '项自动化测试用例', en: 'automated test cases' },
+        'metrics.fields': { zh: '个敏感字段逐字段加密', en: 'sensitive fields encrypted individually' },
+        'metrics.tiers': { zh: '档跨子域名匹配', en: 'cross-subdomain match tiers' },
+        'metrics.themes': { zh: '款主题配色', en: 'color themes' },
+        'metrics.commands': { zh: '条命令面板命令', en: 'command palette commands' },
+        'metrics.accounts': { zh: '个云端账号与同步服务器', en: 'cloud accounts or sync servers' },
+        'metrics.note': {
+          zh: '五个敏感字段加密后只写入本机 chrome.storage.local · 唯一外联为每 6 小时一次的匿名版本检查 · GPL-3.0 源码可审计',
+          en: 'The five encrypted fields are written only to chrome.storage.local on your own machine · the one outbound call is an anonymous version check every 6 hours · GPL-3.0, source auditable',
+        },
+        // ---------- 工作原理 ----------
+        'how.title': { zh: '工作原理', en: 'How it works' },
+        'how.sub': {
+          zh: '从打开登录页到凭证回写，一次填充在你自己的电脑上走过的四步',
+          en: 'The four steps one fill takes on your own machine, from opening a login page to saving a new credential',
+        },
+        'how.s1.title': { zh: '识别登录页', en: 'Read the login page' },
+        'how.s1.desc': {
+          zh: '内容脚本在页面里判定账号、密码与验证码输入框；扫描限流分批进行，不改动宿主页面的样式与脚本。',
+          en: 'The content script works out which fields are username, password and one-time code. Scanning is throttled and batched, and never rewrites the host page’s styles or scripts.',
+        },
+        'how.s2.title': { zh: '按域名取候选', en: 'Pick candidates by domain' },
+        'how.s2.desc': {
+          zh: '三档跨子域名匹配决定哪些账号出现在侧边栏与内联下拉里，默认只认精确主机名，多环境账号因此互不串号。',
+          en: 'Three cross-subdomain tiers decide which accounts appear in the side panel and the inline dropdown. Exact host match is the default, so dev / test / staging / prod entries never mix.',
+        },
+        'how.s3.title': { zh: '本机解密', en: 'Decrypt locally' },
+        'how.s3.desc': {
+          zh: '主密码经 PBKDF2 派生密钥；打开列表时整库解密一次，明文只存在于扩展自身上下文，磁盘上始终是密文。密钥材料与解密快照在锁定或过期时即刻销毁。',
+          en: 'The master password derives a key through PBKDF2. Opening a list decrypts the vault once, and the plaintext lives only in the extension’s own context — the disk keeps ciphertext. Key material and decrypted snapshots are destroyed on lock or expiry.',
+        },
+        'how.s4.title': { zh: '填充并登录', en: 'Fill, then sign in' },
+        'how.s4.desc': {
+          zh: '逐字段写入并自动勾选「记住我 / 同意协议」，可选再替你点下登录按钮；网页上新产生的凭证回写前先经你确认。',
+          en: 'Fields are written one by one, consent and “remember me” boxes get ticked, and the sign-in button can be clicked for you if you switch that on. A credential seen for the first time always asks before it is saved.',
+        },
+        // ---------- 隐私与权限 ----------
+        'priv.title': { zh: '隐私与权限', en: 'Privacy & permissions' },
+        'priv.sub': {
+          zh: '「密码数据不出本机」要能被验证，而不只是被声明——下面是它的四条依据',
+          en: '“Password data stays on this machine” has to be checkable, not just claimed. These are the four reasons it holds.',
+        },
+        'priv.f1': {
+          zh: '五个敏感字段各自单独加密后写入 chrome.storage.local；锁定与会话过期只销毁密钥材料与解密快照，不做整库重新加密。',
+          en: 'Each of the five sensitive fields is encrypted on its own before it reaches chrome.storage.local. Locking and session expiry only destroy key material and decrypted snapshots — the vault is never re-encrypted wholesale.',
+        },
+        'priv.f2': {
+          zh: '唯一的外联是每 6 小时一次的匿名版本检查，只读取公开渠道公布的版本号；账号、密码与两步验证码从不经这条通道。',
+          en: 'The only outbound request is an anonymous version check every 6 hours that reads nothing but a published version number. Accounts, passwords and one-time codes never travel on that channel.',
+        },
+        'priv.f3': {
+          zh: '不申请 cookies、不申请 history；content script 只在登录表单上工作，注入的界面关在 Closed Shadow DOM 里，不读写宿主页面变量。',
+          en: 'Neither cookies nor history are requested. The content script works on login forms only, and the UI it injects is sealed inside a closed Shadow DOM that neither reads nor writes page variables.',
+        },
+        'priv.f4': {
+          zh: '随时带得走：CSV / JSON 导出与 .aph 加密备份都由你保管，换设备靠你自己的备份文件，不依赖任何同步服务。',
+          en: 'Everything leaves with you: CSV / JSON exports and .aph encrypted backups stay in your hands, so a new machine needs your own backup file rather than a sync service.',
+        },
+        'priv.p1': {
+          zh: '在任意网站上检测登录表单并提供自动填充（host 权限，配合上面的按需工作范围）',
+          en: 'Detect login forms and offer autofill on any website (host permission, scoped as described above)',
+        },
+        'priv.p2': {
+          zh: '在当前标签页中检测登录表单并执行自动填充',
+          en: 'Detect login forms and perform auto-fill on the current tab',
+        },
+        'priv.p3': {
+          zh: '读取剪贴板以验证自动清除前内容未被替换',
+          en: 'Read clipboard to verify content has not been replaced before auto-clearing',
+        },
+        'priv.p4': {
+          zh: '监听页面导航事件以优化表单检测时机',
+          en: 'Monitor page navigation events to optimize form detection timing',
+        },
+        'priv.more.lead': { zh: '全部 13 项权限与逐项用途见', en: 'All 13 permissions and what each one is for:' },
+        'priv.more.link': { zh: '隐私政策', en: 'Privacy policy' },
         'hero.eyebrow': {
           zh: '开源 GPL-3.0 · 本地加密 · 密码不上传',
           en: 'Open source (GPL-3.0) · Local encryption · No password uploads',
@@ -3850,6 +4494,7 @@
         'footer.pricing': { zh: '永久免费', en: 'Pricing' },
         'footer.compare': { zh: '替代方案对比', en: 'Alternatives' },
         'footer.blog': { zh: '技术博客', en: 'Tech Blog' },
+        'footer.more': { zh: '作者的其他插件', en: 'More by the author' },
         'hero.title': {
           zh: '一键登录 + 本地加密<br />密码管理，从未如此省心高效',
           en: 'One-click login + local encryption<br />Password management, never this effortless & efficient',
@@ -4053,12 +4698,14 @@
         },
         'more.docs': { zh: '使用说明、演示与下载', en: 'Docs, demo & download' },
         'more.repo': { zh: '源码', en: 'Source code' },
+        'more.store': { zh: 'Chrome 应用商店', en: 'Chrome Web Store' },
+        'more.author': { zh: '作者的其余开源作品', en: 'More open-source work by this author' },
         'footer.email': {
           zh: '邮箱：<a href="mailto:924902324@qq.com?subject=账号密码管理助手反馈">924902324@qq.com</a>',
           en: 'Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a>',
         },
         'footer.repo': { zh: 'GitHub 仓库', en: 'GitHub Repo' },
-        'footer.updated': { zh: '最后更新：2026-09 · v3.9.0', en: 'Updated: Sep 2026 · v3.9.0' },
+        'footer.updated': { zh: '最后更新：2026-09 · v3.12.0', en: 'Updated: Sep 2026 · v3.12.0' },
         'wechat.title': { zh: '微信交流群', en: 'WeChat Group' },
         'wechat.desc': {
           zh: '扫码添加作者微信，备注「aph」邀你加入插件交流群',
@@ -4829,7 +5476,10 @@
 
       // =================== Nav 滚动高亮 ===================
       const navLinks = document.querySelectorAll('.nav-links a');
-      const sections = ['features', 'showcase', 'steps', 'faq'].map(id => document.getElementById(id)).filter(Boolean);
+      // 与导航里的锚点一一对应：少一项就会有一段时间滚动条走完、导航却没有任何高亮
+      const sections = ['features', 'showcase', 'how', 'steps', 'compare', 'privacy', 'faq']
+        .map(id => document.getElementById(id))
+        .filter(Boolean);
       const scrollRail = document.getElementById('scrollRail');
 
       function onScroll() {

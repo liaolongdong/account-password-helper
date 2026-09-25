@@ -27,6 +27,56 @@
 | 公众号 + 微博文案              | `docs/公众号-账号密码管理助手.md`、`docs/微博-账号密码管理助手.md`（含配图清单与发布节奏；**已随 PR #81 入库**，不再是未跟踪状态）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 测试基线                       | `pnpm test:run`（2026-09-22 21:35 复跑）→ **114 个测试文件 / 1292 个用例全部通过**。⚠️ 该树与并行的性能波次共用：114 个文件里有 7 个是对方**尚未提交**的测试（HEAD 只有 107 个），本轮中途 `tests/content/inlineFillDropdown.keyboard.test.ts` 曾因 jsdom 缺 `Element.scrollIntoView` 红过一次、最终一轮全绿。发布前须在干净树上按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复测再定稿各处数字                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 文档事实审计（2026-09-09）     | README / ARCHITECTURE / CONTRIBUTING / THIRD-PARTY-NOTICES / CWS 两份 / 博客 4 篇的中英文均已按源码逐项校正；残留的代码侧错误口径见本文「🟡 需你决策」末节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 测试基线（2026-09-25 复跑）    | `pnpm test:run` → **142 个测试文件 / 1563 个用例全部通过，exit 0**。上表 2026-09-22 的 114 / 1292 是当时的快照，保留作记录；对外表面（README / `llms.txt` / 博客正文 / 封面 SVG）已于 2026-09-25 统一改标 **1563 项 / 142 文件**，仍是易漂移字段，发布前按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复跑再刷新                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+
+## 🆕 2026-09-25 落地页与 README 版式对齐波次（本轮，未提交）
+
+参照同作者另两个产品页（`cross-origin-proxy` / `transfer-any-file`）的版式与动效，把本插件的产品说明页与两份 README 对齐。**只动 `index.html`（经 `pnpm gen:en` 出 `en.html`）与两份 README，运行时代码与扩展产物零改动。**
+
+### 改了什么
+
+- **W0 动效令牌与落位反馈**：新增 `--dur-slow: 0.6s` 作为「滚动揭示 + 进场」那一档的单一来源（取值与收敛前逐字等价，不是新的时间承诺），hover / 按压两档仍是各处字面量；`--dur-fast` / `--dur-mid` 全仓 0 处引用，已删。新增 `:target` 落位提示（`aph-found` 1.2s），reduce 用户改走本文件既有的 `aph-fade` 0.2s 约定而不是彻底静默。`html { scroll-behavior: smooth; scroll-padding-top: 84px; }`。
+- **W1 版式对齐**：① 数据带 `.metrics` 六卡（1563 用例 / 5 个逐字段加密字段 / 3 档跨子域名匹配 / 6 款主题 / 23 条命令面板命令 / 0 个云端账号与同步服务器，逐一可对代码复算；测试文件数 142 只出现在 README 与 `llms.txt`，落地页刻意不展示）；② 工作原理带 `.hiw` 四步，编号与 README「工作原理」四步、`docs/ARCHITECTURE.md` 功能实现详解同一口径；③ 隐私带 `.priv` 四条，措辞逐字取自 `privacy.html` 的权限表与既有隐私口径；④ 导航补 `#how` / `#privacy` 锚点并把 scroll-spy 列表扩到 7 项；⑤ 对比表「本插件列」整列 hover wash 用 `:has()` 实现（该列本来就有 `.highlight` class，不必加 `data-col` 脚本）。
+- **W2 README**：新增 `## 🧭 工作原理` 四步（目录同步加锚点）；功能演示从 8 段纵向 `<p align="center">` 改成 4 行 × 2 列 `<table>`（图片路径 / alt / 说明文字一字未改，只换排布）；快捷键速查表收进 `<details>`。中英文两份表达同一事实，非逐字互译。
+
+### 没做什么（以及为什么）
+
+- **不抄两个参考页的 `<span lang>` 双语同屏写法**：本仓 `index.html` 是 `en.html` 的唯一事实来源，`apply-i18n.mjs` 只替换 `data-i18n` 节点内容并 `escapeHtml`，`assertI18nCoverage` 缺英文即抛错——把中文写进属性或让一个节点同时挂两种语言会直接打断生成链。
+- **不写「0 网络请求」**：Transfer Any File 可以说，本扩展有每 6 小时一次的匿名版本检查（`UPDATE_CHECK_INTERVAL_MINUTES = 360`），只能用「无账号、无同步服务器」/「密码数据不出本机」。
+- **不把图标移到 H1 之上**：GitHub 移动端的 SEO 与首屏都以 H1 优先，参考页是无 H1 语义要求的纯静态页。
+- **只收纳快捷键表**：功能全览 / FAQ / 许可证是决策内容不是次要细节，保持可见。
+
+### 顺带修掉的既有缺陷
+
+- 数据带的破折号动画选择器写成 `html.js .metric.visible i::after`，而 `.reveal` 挂在 `.metrics-inner` 上——该状态永不可达，破折号在任何有 JS 的访问里都是 `scaleX(0)`（看不见）。已改为父子形式。
+- 工作原理带 4 张卡放进 3 列网格导致孤行，且注释写「六步」、留着两条永不匹配的 `nth-child(5)/(6)`；一并修正为 4 列并删死规则。
+- 我本轮先写的两条死 CSS（`section:target > .container > h2` 只有 `<noscript>` 段能命中、`.faq-item:target` 那 41 个注入项根本无 `id`）在实测后删除而不是上线。
+- 新带 CSS 原先写在 `@media` Responsive 之后，同特异性下把全仓响应式覆盖都吃掉了（390px 仍是 6 列）；整块 211 行移到 Responsive 之前，实测 390 → 2/1/1、900 → 3/2/1。
+- `en.html` 在 390px 有 42px 横向溢出，元凶是我自己新写的隐私带 `P.more-links > A`（对比表的 `overflow-x:auto` 溢出是 HEAD 就有的合法行为）；`.more-links` 改 `flex-wrap: wrap` 后溢出为 0。
+- 文案合规漂移：静态兜底文本写「数据不出本机」，词库写「密码数据不出本机」——统一为后者，并建了 zh→en→zh 回环漂移检测（156 节点，0 漂移）。
+
+## 🆕 2026-09-25 站外双名 + 同作者互推 + 新鲜度收口（未提交）
+
+用户批准口径四条：**① 同作者插件链接只进产品页与 README，商店六个粘贴块一字不动；② 插件名（manifest / 商店中英文 Name）不动，只统一站外双名口径；③ 版本口径 GitHub 写 3.12.0、商店写 3.11.0；④ GitHub 仓库元数据只更新文档候选，写操作由用户自己执行。**运行时代码与扩展产物零改动，只动官网静态页、生成脚本与文档表面。
+
+### 改了什么
+
+- **双名口径收口**：站外实体名统一为 `账号密码管理助手 Account Password Helper`。`index.html` 的 `og:site_name` / `WebSite.name` 用双名串，`SoftwareApplication` 改为 `name` = 本页语言主名 + `alternateName` = 另一语言名，`scripts/build-en-page.mjs` 里做镜像对调（英文页 `name` = Account Password Helper）。`llms.txt` H1 补中文名，`README.en.md` H1 补中文名。
+- **SERP 长度**：`meta.title.en` 65 → **60** 单位、`meta.description.en` 168 → **155**、中文描述 95 字（宽 ≈170）→ **86 字（宽 ≈154）**；中文 title 保持不动（36 字 / 宽 ≈59，再扩词会在搜索结果里被截断，这条是对上一轮建议的修正）。
+- **同作者互推**：`index.html` 的 `#more` 区块给跨域代理助手补上商店链接、网格下加「作者的其余开源作品」→ `github.com/liaolongdong`，footer 新增「作者的其他插件」锚点；`compare.html` / `compare.en.html`（手维护两份）、`pricing.html`（→ `gen:pricing-en`）、博客 12 页模板（→ `gen:blog`）、`llms.txt` 新增 `## More by this author`、两份 README 补作者主页链接。**英文面的跨域代理助手指 `/en.html`，Transfer Any File 一律指基础 URL——它的英文页实测 404**，`build-en-page.mjs` 里为此加了一条 `replaceEvery`。
+- **新鲜度**：测试数 1337 / 119 → **1563 / 142**（2026-09-25 `pnpm test:run` 实测，README ×2、`llms.txt`、博客 6 处正文、`imgs/blog-covers/` 大纲与 04 / 05 两张 SVG，并已 `pnpm covers:render 04 05` 重出 PNG）；`llms.txt` 的「八维度 / 8 dimensions」→ **十维度 / 10 dimensions**（`compare.html` 自述口径）；`index.html` JSON-LD `softwareVersion` 3.9.0 → **3.12.0**、`dateModified` → **2026-09-25**、页脚版本串同步；`sitemap.xml` 18 条 `lastmod` → 2026-09-25（`privacy.html` / `privacy.en.html` 本轮未改，保持 2026-09-22）；`docs/CWS_FILL_CONTENT.md` 第一步的 zip 版本与「商店线上 3.11.0」状态段（旧段落里的 3.7.0 / 3.9.0 已标注为驳回史快照）。
+- **GitHub 仓库元数据**：见下面「🔴 待你执行」§6 的最终候选与两条 curl——三版候选作废，改为单一 343 UTF-16 版本，并把长度口径钉死为 UTF-16 code unit。
+
+### 没做什么（以及为什么）
+
+- 商店六个粘贴块（Name / 摘要 / 中英说明 / 权限说明 / Featured）与 FAQ 文案一字未动：FAQ 与页面可见内容受 `tests/docs/faqSchemaParity.test.ts` 逐字约束，商店字段是第七次修订后的过审版本。
+- `privacy.html` 不加互推（法务页），`docs/公众号-*` / `docs/微博-*` 正文只刷新测试数、不改写卖点（这两份的「事实基线 v3.9.0」行仍标 v3.9.0：**整篇主张未逐条重审，单独把版本号抬到 3.12.0 会变成未经核验的承诺**；需要发布时先整篇过一遍再改基线）。
+- `blog/*.html`、`en.html`、`pricing.en.html` 全部走脚本重生成，未手改生成物。
+- 博客 frontmatter 的 `author: liaolongdong` 与站内署名口径（廖小新 / Better）仍不一致，留作待你拍板项。
+
+### 验证
+
+`pnpm gen:en`（data-i18n 125/125、data-i18n-html 5/5）、`pnpm gen:pricing-en`（107/107、12/12）、`pnpm gen:blog`（12 files）、`pnpm covers:render 04 05` 均成功；`pnpm exec prettier --check` 覆盖本轮改动的人类维护文件全绿（生成物与 `.txt` / `.xml` 无 parser，按既有口径排除）；`pnpm test:run` 1563 例全绿。
 
 ## 🆕 2026-09-22 文档刷新波次（本轮，未提交）
 
@@ -174,39 +224,28 @@
 - 拆 3-5 个 `good first issue`（新手主题色/翻译/文档校对/兼容性反馈），配 Issue 模板。
 - 商店评论 & GitHub Issue 48h 内回复；双周小版本维持"最近更新"活跃信号。
 - 外部链接统一带 UTM（`?utm_source=xxx` / `?ref=xxx`），在 CWS Analytics 与 GitHub Insights 归因。
-- **GitHub About（仓库描述）待替换**：2026-09-22 用 `curl https://api.github.com/repos/liaolongdong/account-password-helper` 复测，线上仍是 **346 字符**的旧版——此前拟好的替换**从未执行**，开头第二段还写着 `zero cloud - passwords never leave your browser`，与商店文案 / `llms.txt` 已收口的口径冲突（扩展每 6 小时会发一次不携带用户数据的匿名版本检查，`utils/updateChecker.ts:71-98`，"never leave" 属无法自证的绝对化表述）。⚠️ 本文此前标注的 343 / 341 是 **UTF-8 字节数**；GitHub 的 350 上限按**字符**计，实测 A = **304 字符**、B = **298 字符**。三版候选（事实逐条可核对、差异化卖点落在 Google 摘要可见的前 160 字符）：
+- **GitHub About（仓库描述）待替换**：2026-09-25 用 `curl --http1.1 https://api.github.com/repos/liaolongdong/account-password-helper` 复测，线上仍是旧版——2026-09-22 拟好的三版候选**从未执行**。旧版第二段写着 `zero cloud - passwords never leave your browser`，与商店文案 / `llms.txt` 已收口的口径冲突（扩展每 6 小时会发一次不携带用户数据的匿名版本检查，`utils/updateChecker.ts:71-98`，"never leave" 属无法自证的绝对化表述）；旧版结尾的 `本地账号密码管理助手` 也只出现中文名单独一项，与本波次收口的**站外双名口径 `账号密码管理助手 Account Password Helper`** 不一致。
+  ⚠️ **长度口径先钉死，避免再算错**：GitHub 的 350 上限按 **UTF-16 code unit** 计（`🔐` 占 2、汉字各占 1），复算命令是 `node -e 'console.log(s.length)'`；本文更早版本标注的 343 / 341 是 **UTF-8 字节数**、345 是 **Unicode 码点数**，两者都不能与 350 直接比。线上旧版实测 **346 UTF-16 / 345 码点 / 368 字节**。
 
-  **选项 A — 不含身份库（304 字符）**：
-
-  ```text
-  🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that also ticks consent and clicks sign in, exact-domain isolation for dev/test/staging/prod, built-in TOTP codes, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地加密密码管理器，一键填充并登录
-  ```
-
-  **选项 B — 补入「身份信息库」（298 字符，与 `llms.txt` / 官网描述口径一致）**：
+  **最终候选（343 UTF-16，距上限余 7）**——双名占开头 35 个 UTF-16 单位（`🔐 账号密码管理助手 Account Password Helper`），让中文检索与英文检索都命中，前 160 字符覆盖 Google 与 GitHub 搜索结果的可见摘要：
 
   ```text
-  🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, exact-domain isolation, built-in TOTP, encrypted identity vault, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地密码管理器 · 一键填充登录 · 身份信息库
+  🔐 账号密码管理助手 Account Password Helper — open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, 3 cross-subdomain matching tiers, built-in TOTP, encrypted identity vault, offline security audit, per-field AES-256-GCM in chrome.storage.local — no account, no sync server.
   ```
 
-  **选项 C — 推荐：把「跨子域名三档」写进去（325 字符）**：
+  逐句对代码核验：`one-click autofill that ... clicks sign in` = `entrypoints/content/CheckboxHandler.ts` + `FormDetector.ts` 的 `autoLogin` 路径；`3 cross-subdomain matching tiers` = `utils/domain.ts` 的 `resolveMatchTier`（默认档仍是精确匹配）；`built-in TOTP` = `utils/totp.ts`；`encrypted identity vault` = `utils/identity/` + `components/options/IdentityVaultDialog.vue`（整库独立加密、仅 Options 可达、不进侧边栏）；`offline security audit` = 体检的 0-100 四维加权评分；`per-field AES-256-GCM in chrome.storage.local` = `utils/encryption.ts` 与存储层（从不用 `storage.sync`）；`no account, no sync server` 取代原来的绝对化说法；`GPL-3.0` 与 `package.json` 的 `license` 一致。**被挤掉的两项**（站点规则自定义选择器、命令面板）由 README / 官网 / `llms.txt` 承担；此前三个候选 A / B / C 作废——A 缺身份库与体检、B 缺跨子域三档、C 缺离线体检，且三版都只把中文名放在句尾。
 
-  ```text
-  🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, per-domain isolation with 3 cross-subdomain tiers, built-in TOTP, encrypted identity vault, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地密码管理器 · 一键填充登录 · 身份信息库
-  ```
-
-  逐句对代码核验：`one-click autofill that ... clicks sign in` = `entrypoints/content/CheckboxHandler.ts` + `FormDetector.ts` 的 `autoLogin` 路径；`exact-domain isolation` = `utils/domain.ts` 的 `isExactHostMatch`；`per-field AES-256-GCM in chrome.storage.local` = `utils/encryption.ts:149-157` 与存储层（从不用 `storage.sync`）；`no account, no sync server` 替代原来的绝对化说法；`GPL-3.0` 与 `package.json` 的 `license` 一致。**B / C 额外**：`encrypted identity vault` = Options 页身份信息库（`utils/identity/` + `components/options/IdentityVaultDialog.vue`，整库独立加密、仅 Options 可达、不进侧边栏）。**C 相对 B 只替换一个短语**：`exact-domain isolation` → `per-domain isolation with 3 cross-subdomain tiers`（`utils/domain.ts` 的 `resolveMatchTier`，默认档仍是精确匹配），将用于对外回答「多个子域能共用账号吗」这一高频问题；站点规则与命令面板两项在 350 字符内放不下，由 README / 官网 / `llms.txt` 承担。
-
-  执行（`gh` 未安装，用 curl；把 `$GITHUB_TOKEN` 换成你的 PAT，需 `repo` 权限；`--data` 里的 description 换成选定那一版，下例为推荐的 C）：
+  执行（`gh` 未安装，用 curl；把 `$GITHUB_TOKEN` 换成你的 PAT，需 `repo` 写权限）：
 
   ```bash
   curl -sS -X PATCH \
     -H "Authorization: Bearer $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github+json" \
     https://api.github.com/repos/liaolongdong/account-password-helper \
-    --data '{"description":"🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, per-domain isolation with 3 cross-subdomain tiers, built-in TOTP, encrypted identity vault, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地密码管理器 · 一键填充登录 · 身份信息库"}'
+    --data '{"description":"🔐 账号密码管理助手 Account Password Helper — open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, 3 cross-subdomain matching tiers, built-in TOTP, encrypted identity vault, offline security audit, per-field AES-256-GCM in chrome.storage.local — no account, no sync server."}'
   ```
 
-  **topics：20 / 20 已满，换词必须先删一个**（2026-09-22 实测线上值：`2factor-authentication, aes-256-gcm-encryption, authenticator, auto-login, autofill-passwords, bitwarden, browser-extensions, chrome-extensions, credential-manager, developer-tools, local-first-auth, manifest-v3-chrome, multi-environment, offline, password-generator-web, password-managers, password-vault, password-visibility, privacy, totp-generator`）。建议做**四换**（四个新 slug 均已确认在 GitHub 上存在）：
+  **topics：20 / 20 已满，换词必须先删一个**（2026-09-25 复测线上值与 2026-09-22 记录逐字相同：`2factor-authentication, aes-256-gcm-encryption, authenticator, auto-login, autofill-passwords, bitwarden, browser-extensions, chrome-extensions, credential-manager, developer-tools, local-first-auth, manifest-v3-chrome, multi-environment, offline, password-generator-web, password-managers, password-vault, password-visibility, privacy, totp-generator`）。建议做**四换**（四个新 slug 均已确认在 GitHub 上存在）：
 
   | 删                       | 理由                                           | 加                   | 理由                        |
   | ------------------------ | ---------------------------------------------- | -------------------- | --------------------------- |
@@ -225,7 +264,14 @@
     --data '{"names":["2factor-authentication","aes-256-gcm-encryption","authenticator","auto-login","autofill","autofill-passwords","bitwarden","browser-extension","chrome-extensions","credential-manager","local-first-auth","manifest-v3-chrome","multi-environment","offline","open-source","password-generator","password-managers","password-vault","privacy","totp-generator"]}'
   ```
 
-  改完用 `curl -sS https://api.github.com/repos/liaolongdong/account-password-helper | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d['topics']), d['description'])"` 复核。`homepage` 已指向 GitHub Pages、Social Preview 已上传，均无需改。
+  改完复核（一行同时给出 topics 数量与描述的 UTF-16 长度，口径与上面「长度口径」段一致）：
+
+  ```bash
+  curl -sS --http1.1 https://api.github.com/repos/liaolongdong/account-password-helper \
+    | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const r=JSON.parse(s);console.log(r.topics.length+' topics · desc UTF-16 '+r.description.length);console.log(r.description);})"
+  ```
+
+  `homepage` 已指向 GitHub Pages、Social Preview 已上传，均无需改。
 
 ### 7. 🔴【隐私 · 最高优先】仓库仍在公开含真实凭据的旧截图（需你决策，我不擅自删）
 

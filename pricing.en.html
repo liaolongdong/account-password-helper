@@ -883,6 +883,19 @@
         color: var(--primary);
       }
 
+      .footer-more {
+        padding-bottom: 28px;
+      }
+
+      .footer-more a {
+        color: var(--text-muted);
+        transition: color 0.2s;
+      }
+
+      .footer-more a:hover {
+        color: var(--primary);
+      }
+
       /* ═══════════════════════════════════════════
          MOTION & RESPONSIVE
          ═══════════════════════════════════════════ */
@@ -2316,6 +2329,12 @@
           >
         </div>
       </div>
+      <div class="container">
+        <p
+          class="footer-text footer-more"
+          data-i18n-html="footer.more"
+        >More open-source extensions by the same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> · <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a> · <a href="https://github.com/liaolongdong">Author page</a></p>
+      </div>
     </footer>
 
     <script>
@@ -2566,6 +2585,10 @@
         },
         'footer.home': { zh: '产品官网', en: 'Homepage' },
         'footer.privacy': { zh: '隐私政策', en: 'Privacy Policy' },
+        'footer.more': {
+          zh: '同作者的开源插件：<a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> · <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a> · <a href="https://github.com/liaolongdong">作者主页</a>',
+          en: 'More open-source extensions by the same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> · <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a> · <a href="https://github.com/liaolongdong">Author page</a>',
+        },
       };
 
       /* ═══════════════════════════════════════════

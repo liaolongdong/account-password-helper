@@ -27,13 +27,12 @@ const outPath = path.join(root, 'en.html');
 const SITE = 'https://liaolongdong.github.io/account-password-helper';
 
 const EN_KEYWORDS =
-  'password manager,Chrome extension,local password manager,offline password manager,AES-256-GCM,autofill,auto login,TOTP,2FA,authenticator,password generator,security audit,developer tools,credential manager,local-first,password vault,open source password manager,password manager for developers';
+  'password manager,Account Password Helper,账号密码管理助手,Chrome extension,local password manager,offline password manager,AES-256-GCM,autofill,auto login,TOTP,2FA,authenticator,password generator,security audit,developer tools,credential manager,local-first,password vault,open source password manager,password manager for developers';
 const EN_JSONLD_DESCRIPTION =
   'Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.';
 
 // SoftwareApplication 的语言相关字段：逐字段替换，版本 / 截图 / URL / 作者等非语言字段仍由 index.html 单一来源提供。
 // EN_FEATURE_LIST 必须与 index.html 的 featureList 一一对应，条数不一致时生成阶段直接报错（见下方守卫）。
-const EN_APP_NAME = 'Account Password Helper — Local-First Password Manager';
 const EN_BROWSER_REQUIREMENTS =
   'Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.';
 const EN_FEATURE_LIST = [
@@ -149,6 +148,11 @@ replaceEvery('href="./privacy.html"', 'href="./privacy.en.html"');
 replaceEvery('href="./pricing.html"', 'href="./pricing.en.html"');
 replaceEvery('href="./compare.html"', 'href="./compare.en.html"');
 replaceEvery('href="./blog/"', 'href="./blog/index.en.html"');
+// 跨域代理助手有英文产品页，英文页指过去；Transfer Any File 暂无英文页（实测 404），保持基础 URL
+replaceEvery(
+  'href="https://liaolongdong.github.io/cross-origin-proxy/"',
+  'href="https://liaolongdong.github.io/cross-origin-proxy/en.html"',
+);
 // ---------- SoftwareApplication：语言相关字段换成英文 ----------
 // featureList 由本脚本单独维护一份英文，条数不一致即视为中文源已变更而英文未跟进，直接失败
 const zhFeatureList = html.match(/"featureList": \[[\s\S]*?\],/)?.[0];
@@ -159,9 +163,10 @@ if (zhFeatureCount !== EN_FEATURE_LIST.length)
     `featureList 条数不一致：index.html ${zhFeatureCount} 条 vs 本脚本 ${EN_FEATURE_LIST.length} 条，请同步英文文案`,
   );
 
+// name / alternateName 对调：英文页以英文名为主名，中文名进 alternateName，与中文页互为镜像（同一实体的双名声明）
 replaceOnce(
-  /"name": "Account Password Helper · 账号密码管理助手",\n(\s*)"applicationCategory"/,
-  `"name": "${EN_APP_NAME}",\n$1"applicationCategory"`,
+  /"name": "账号密码管理助手",\n(\s*)"alternateName": "Account Password Helper",/,
+  '"name": "Account Password Helper",\n$1"alternateName": "账号密码管理助手",',
 );
 replaceOnce(/"browserRequirements": "[^\n]*",/, `"browserRequirements": "${EN_BROWSER_REQUIREMENTS}",`);
 replaceOnce(

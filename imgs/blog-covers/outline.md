@@ -89,7 +89,7 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 
 **Position**: `04-login-flow-details.md` 封面 + og:image
 **Purpose**: 一图说清「这批更新加了什么、没加什么」
-**Text**: H1 `四个新功能 · 四段实现笔记`；关键字 `0 新增设置开关 · 仅 +1 权限 · 1337 项自动化测试`；说明 `每个功能都撞上一个 Chrome 扩展特有的坑`；卡片标签 `右键填充` `内联面板` `全站搜索` `只读详情`
+**Text**: H1 `四个新功能 · 四段实现笔记`；关键字 `0 新增设置开关 · 仅 +1 权限 · 1563 项自动化测试`；说明 `每个功能都撞上一个 Chrome 扩展特有的坑`；卡片标签 `右键填充` `内联面板` `全站搜索` `只读详情`
 **Visual Content**: 四张等宽卡片横带（带 01–04 序号），各配一个功能微缩图形（右键菜单 + 光标 / 输入框上方翻转面板 / 本站-全站分段控件 + 放大镜 / 列表 + 只读抽屉），虚线脊柱串联
 **Filename**: blog-cover-04-login-flow-details.svg → ../blog-cover-04-login-flow-details.png
 
@@ -97,6 +97,6 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 
 **Position**: `05-cross-subdomain-matching.md` 封面 + og:image
 **Purpose**: 把「同一站点的账号该出现在哪些子域」这件事画成一张可核对的层级梯
-**Text**: H1 两行 `同一站点的账号` / `该出现在哪些子域`；关键字 `off · wildcard · sameMainDomain`；说明 `三档分层判据 · 一个函数决定 · 多处消费`；胶囊 `三档分层判据` `主域名相等` `不用 endsWith` `1337 项自动化测试` `+18 B 包体积`；证据行 `utils/domain.ts · resolveMatchTier`
+**Text**: H1 两行 `同一站点的账号` / `该出现在哪些子域`；关键字 `off · wildcard · sameMainDomain`；说明 `三档分层判据 · 一个函数决定 · 多处消费`；胶囊 `三档分层判据` `主域名相等` `不用 endsWith` `1563 项自动化测试` `+18 B 包体积`；证据行 `utils/domain.ts · resolveMatchTier`
 **Visual Content**: 顶部地址栏（锁形记号 + `mail.example.com` + 「当前档：同主域名」）→ 虚线脊柱串起 tier 0–3 四行（0 精确行主蓝高亮、1 通配 `*.example.com`、2 apex `example.com`、3 兄弟子域 `uat.example.com` 用 warning 系描边），1–3 行右侧带「跨子域」徽章 → 底部虚线框 `evil-example.com` 配 EP 红叉，注脚 `主域名相等，不是 endsWith('example.com')`；域名一律用 `example.com` 家族，不出现任何真实站点或账号
 **Filename**: blog-cover-05-cross-subdomain-matching.svg → ../blog-cover-05-cross-subdomain-matching.png

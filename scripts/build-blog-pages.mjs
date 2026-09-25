@@ -588,7 +588,7 @@ for (const zh of zhArticles) {
       backHref: './index.html',
       backLabel: '← 博客首页',
       switchLabel: 'English',
-      footerNote: `Account Password Helper · <a href="${SITE}/">官网</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a>`,
+      footerNote: `Account Password Helper · <a href="${SITE}/">官网</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · 同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a>`,
     }),
   );
   writeFileSync(
@@ -600,7 +600,7 @@ for (const zh of zhArticles) {
       backHref: './index.en.html',
       backLabel: '← Blog Home',
       switchLabel: '中文',
-      footerNote: `Account Password Helper · <a href="${SITE}/en.html">Website</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a>`,
+      footerNote: `Account Password Helper · <a href="${SITE}/en.html">Website</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a>`,
     }),
   );
   written += 2;
@@ -618,7 +618,7 @@ writeFileSync(
     readLabel: '阅读全文',
     backLabel: { href: `${SITE}/`, text: '← 官网首页' },
     switchLabel: 'English',
-    footerNote: `Account Password Helper · 开源（GPL-3.0）· <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a>`,
+    footerNote: `Account Password Helper · 开源（GPL-3.0）· <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · 同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a>`,
   }),
 );
 writeFileSync(
@@ -634,7 +634,7 @@ writeFileSync(
     readLabel: 'Read article',
     backLabel: { href: `${SITE}/en.html`, text: '← Website' },
     switchLabel: '中文',
-    footerNote: `Account Password Helper · Open source (GPL-3.0) · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a>`,
+    footerNote: `Account Password Helper · Open source (GPL-3.0) · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a>`,
   }),
 );
 written += 2;

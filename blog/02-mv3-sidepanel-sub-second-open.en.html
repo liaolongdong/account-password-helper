@@ -305,7 +305,7 @@
 <li><code>passwordCache</code> / <code>startupRelock</code> / <code>idleLock</code>: cache re-warm and every lock path;</li>
 <li><code>sidePanelManager</code>: open sequencing.</li>
 </ul>
-<p>The repo now has 1337 automated tests across 119 test files. Performance outcome: <strong>20–50ms to data on the cached warm path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
+<p>The repo now has 1563 automated tests across 142 test files. Performance outcome: <strong>20–50ms to data on the cached warm path.</strong> Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.</p>
 <h2>Retrospective: Three Lessons</h2>
 <ol>
 <li><strong>Don&#39;t fight MV3&#39;s lifecycle; design around it.</strong> The SW <em>will</em> be terminated. Assume it&#39;s never there: put state in <code>chrome.storage</code>, delegate wake-ups to alarms, and push costs forward into pre-warming.</li>
@@ -317,6 +317,6 @@
 <p><em>Key files referenced: <code>entrypoints/background/backgroundServices.ts</code> (keep-alive), <code>utils/warmSidePanelResources.ts</code> (pre-warming), <code>composables/useSidepanelData.ts</code> (three-way race), <code>wxt.config.ts</code> (non-blocking CSS).</em></p>
 
     </article>
-    <footer class="footer">Account Password Helper · <a href="https://liaolongdong.github.io/account-password-helper/en.html">Website</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a></footer>
+    <footer class="footer">Account Password Helper · <a href="https://liaolongdong.github.io/account-password-helper/en.html">Website</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a></footer>
   </body>
 </html>

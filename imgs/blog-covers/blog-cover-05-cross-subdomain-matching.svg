@@ -47,7 +47,7 @@
     <rect x="529" y="512" width="240" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
     <text x="555" y="550" fill="#CFE3FF">不用 endsWith</text>
     <rect x="96" y="588" width="309" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
-    <text x="122" y="626" fill="#CFE3FF">1337 项自动化测试</text>
+    <text x="122" y="626" fill="#CFE3FF">1563 项自动化测试</text>
     <rect x="421" y="588" width="212" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
     <text x="447" y="626" fill="#CFE3FF">+18 B 包体积</text>
   </g>

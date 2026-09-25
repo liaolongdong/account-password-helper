@@ -109,7 +109,7 @@ storedHost 以 `*.` 开头 → base = 剥掉 `*.`
 
 ## 测试面与门禁
 
-今天仓库有 1337 个自动化用例、分布在 119 个测试文件。与这块直接相关的覆盖是：`resolveMatchTier` 的分层用例（`off` 档与迁移前精确口径一致、`wildcard` 只额外放行通配、`sameMainDomain` 的 1 → 2 → 3 序列、apex 页面自身、被编码成 `%2A` 的通配标记、两段式 ccTLD、IP 与非法输入降级、当前页无域名的短路），一条「前缀碰撞不被绕过」的安全回归（`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io` 对 `*.qq.com` 一律返回 -1），`filterAndSortEntriesForDomain` 在 `off` 档下「集合与顺序逐 id 一致」的等价性守卫与放宽档的优先级序列测试（通配排在 apex 之前、本地开发域名三档结果一致），内联下拉三档各带一枚来源 chip 的呈现测试，以及上面提到的那条 e2e。
+今天仓库有 1563 个自动化用例、分布在 142 个测试文件。与这块直接相关的覆盖是：`resolveMatchTier` 的分层用例（`off` 档与迁移前精确口径一致、`wildcard` 只额外放行通配、`sameMainDomain` 的 1 → 2 → 3 序列、apex 页面自身、被编码成 `%2A` 的通配标记、两段式 ccTLD、IP 与非法输入降级、当前页无域名的短路），一条「前缀碰撞不被绕过」的安全回归（`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io` 对 `*.qq.com` 一律返回 -1），`filterAndSortEntriesForDomain` 在 `off` 档下「集合与顺序逐 id 一致」的等价性守卫与放宽档的优先级序列测试（通配排在 apex 之前、本地开发域名三档结果一致），内联下拉三档各带一枚来源 chip 的呈现测试，以及上面提到的那条 e2e。
 
 比较特别的是 `tests/architecture/crossSubdomainTierWiring.test.ts`：它不测行为，扫源码。因为「四处消费方必须同口径」这种不变量，最容易的死法是某个新调用忘了传档位参数——而参数带 `off` 默认值时，类型检查和 ESLint 全程静默。真实形态就发生过一次：侧边栏整行点击走了档位感知的判定，键盘回车却吃了形参默认值，跨子域条目「点得到、回车打不开」。同一个文件还机械禁止运行时代码再手写 `tier >= 1 && tier <= 3` 这类区间比较，把区间的唯一定义处锁死在 `isCrossSubdomainTier` 里。这类「两处必须一致」的约束，靠自觉一定会漂移，靠扫描器不会。
 

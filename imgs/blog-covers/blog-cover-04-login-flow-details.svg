@@ -43,7 +43,7 @@
   <!-- 文字层（横排标题带） -->
   <g>
     <text x="96" y="240" font-size="80" font-weight="700" fill="#FFFFFF">四个新功能 · 四段实现笔记</text>
-    <text x="96" y="316" font-size="38" font-weight="600" fill="#66B3FF">0 新增设置开关 · 仅 +1 权限 · 1337 项自动化测试</text>
+    <text x="96" y="316" font-size="38" font-weight="600" fill="#66B3FF">0 新增设置开关 · 仅 +1 权限 · 1563 项自动化测试</text>
     <text x="96" y="376" font-size="28" fill="#A9BFE0">每个功能都撞上一个 Chrome 扩展特有的坑</text>
   </g>
 

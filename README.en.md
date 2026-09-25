@@ -1,4 +1,4 @@
-# Account Password Helper · Free Open-Source Local Password Manager
+# Account Password Helper · 账号密码管理助手 · Free Open-Source Local Password Manager
 
 [中文](./README.md) | **English**
 
@@ -15,9 +15,9 @@
 
 > **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart — with three cross-subdomain tiers when one account legitimately serves a whole domain family — plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
 
-> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 1337 automated tests
+> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 1563 automated tests
 
-**Contents**: [Core Advantages](#-core-advantages) · [Feature Tour](#-feature-tour) · [How It Compares](#-how-it-compares) · [Feature Overview](#-feature-overview) · [Security & Privacy](#-security--privacy) · [Install & Get Started](#-install--get-started) · [FAQ](#-faq) · [More by the author](#-more-by-the-author) · [Contributing](#-contributing) · [License](#-license)
+**Contents**: [Core Advantages](#-core-advantages) · [How It Works](#-how-it-works) · [Feature Tour](#-feature-tour) · [How It Compares](#-how-it-compares) · [Feature Overview](#-feature-overview) · [Security & Privacy](#-security--privacy) · [Install & Get Started](#-install--get-started) · [FAQ](#-faq) · [More by the author](#-more-by-the-author) · [Contributing](#-contributing) · [License](#-license)
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
@@ -46,57 +46,39 @@
 - 🔏 **Privacy-conscious users** — local encryption only, no password data leaves the machine, no account or cloud sync
 - 🙋 **Everyday users** — stop memorizing passwords with built-in TOTP and a password generator
 
+## 🧭 How It Works
+
+One fill takes four steps, all on your own machine:
+
+1. **Read the login page** — the content script works out which fields are username, password and one-time code; scanning is throttled and batched, and never rewrites the host page's styles or scripts
+2. **Pick candidates by domain** — three cross-subdomain tiers decide which accounts appear in the side panel and the inline dropdown. Exact host match is the default, so dev / test / staging / prod entries never mix
+3. **Decrypt locally** — the master password derives a key through PBKDF2; opening a list decrypts the vault once, the plaintext lives only in the extension's own context while the disk keeps ciphertext, and key material and snapshots are destroyed on lock or expiry
+4. **Fill, then sign in** — fields are written one by one and consent or "remember me" boxes get ticked, with the sign-in button clicked for you if that switch is on; a credential seen for the first time always asks before it is saved
+
+> Source paths and strategy notes for every step are in [ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details), and the same four steps as a visual band are in the [How it works section of the live demo page](https://liaolongdong.github.io/account-password-helper/en.html#how).
+
 ## 🖼️ Feature Tour
 
-> One module per shot: the bold line above is the module name, and the line below carries **only what the image cannot show** — the defaults people trip over, where to switch them, and the hidden capabilities.
+> Two columns, one module per shot: the bold line under each image is the module name, and the line below it carries **only what the image cannot show** — the defaults people trip over, where to switch them, and the hidden capabilities.
 
-<p align="center">
-  <b>⚡ One-click login</b><br/>
-  <img src="./docs/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /><br/>
-  <sub>The <b>Ctrl+Shift+F</b> shortcut stops at "filled + ticked" — it will not submit for you.</sub>
-</p>
-
-<p align="center">
-  <b>🔑 Built-in TOTP</b><br/>
-  <img src="./assets/cws-store/screen-2-totp-en.png" alt="Two-factor codes: a live 6-digit code with a countdown ring shown right in the password list" width="100%" /><br/>
-  <sub>Add a key by scanning an on-page QR code or uploading a QR image (decoded locally); the algorithm and 6 / 7 / 8 digits are configurable.</sub>
-</p>
-
-<p align="center">
-  <b>📝 In-page fill panel</b><br/>
-  <img src="./assets/cws-store/screen-9-inline-fill-en.png" alt="In-page fill panel: the key icon beside the input opens a mini panel for picking an account" width="100%" /><br/>
-  <sub>Fresh installs default to this inline fill; switch to Sidebar or Manual in Preferences.</sub>
-</p>
-
-<p align="center">
-  <b>🎯 Multi-environment isolation</b><br/>
-  <img src="./assets/cws-store/screen-3-multi-env-en.png" alt="Per-environment accounts: dev, staging and production entries for one site separated by tags" width="100%" /><br/>
-  <sub>On <b>localhost</b> / <b>127.0.0.1</b> the port is matched too.</sub>
-</p>
-
-<p align="center">
-  <b>📊 Offline security audit</b><br/>
-  <img src="./assets/cws-store/screen-4-security-audit-en.png" alt="Offline security audit: a 0 to 100 score with the four problem categories broken out" width="100%" /><br/>
-  <sub>The leaked-password dictionary is a built-in offline list of nearly a thousand entries; "2FA not enabled" is listed separately and never costs points.</sub>
-</p>
-
-<p align="center">
-  <b>🛠️ Password generator</b><br/>
-  <img src="./assets/cws-store/screen-13-generator-en.png" alt="Password generator panel offering random password and passphrase modes" width="100%" /><br/>
-  <sub>The "Generate &amp; Fill Strong Password" right-click option touches no stored credential, so it works even while the session is locked.</sub>
-</p>
-
-<p align="center">
-  <b>🔒 Local encryption</b><br/>
-  <img src="./assets/cws-store/screen-6-local-encryption-en.png" alt="Local encryption: the first-run master password screen, with data encrypted before it is written to browser storage" width="100%" /><br/>
-  <sub>The master password is the only key: if it is forgotten it <b>cannot be recovered</b> and resetting wipes the data, so take an encrypted (.aph) backup first.</sub>
-</p>
-
-<p align="center">
-  <b>🎨 Themes &amp; bilingual UI</b><br/>
-  <img src="./assets/cws-store/screen-5-preferences-en.png" alt="Preferences panel with six theme swatches and the Chinese/English language switch" width="100%" /><br/>
-  <sub>The six themes are Sky Blue, Bamboo Green, Peach Pink, Blossom Mauve, Sunset Orange and Misty Slate, and they apply instantly with no reload.</sub>
-</p>
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="./docs/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /><br /><b>⚡ One-click login</b><br /><sub>The <b>Ctrl+Shift+F</b> shortcut stops at "filled + ticked" — it will not submit for you.</sub></td>
+    <td width="50%" align="center"><img src="./assets/cws-store/screen-2-totp-en.png" alt="Two-factor codes: a live 6-digit code with a countdown ring shown right in the password list" width="100%" /><br /><b>🔑 Built-in TOTP</b><br /><sub>Add a key by scanning an on-page QR code or uploading a QR image (decoded locally); the algorithm and 6 / 7 / 8 digits are configurable.</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="./assets/cws-store/screen-9-inline-fill-en.png" alt="In-page fill panel: the key icon beside the input opens a mini panel for picking an account" width="100%" /><br /><b>📝 In-page fill panel</b><br /><sub>Fresh installs default to this inline fill; switch to Sidebar or Manual in Preferences.</sub></td>
+    <td align="center"><img src="./assets/cws-store/screen-3-multi-env-en.png" alt="Per-environment accounts: dev, staging and production entries for one site separated by tags" width="100%" /><br /><b>🎯 Multi-environment isolation</b><br /><sub>On <b>localhost</b> / <b>127.0.0.1</b> the port is matched too.</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="./assets/cws-store/screen-4-security-audit-en.png" alt="Offline security audit: a 0 to 100 score with the four problem categories broken out" width="100%" /><br /><b>📊 Offline security audit</b><br /><sub>The leaked-password dictionary is a built-in offline list of nearly a thousand entries; "2FA not enabled" is listed separately and never costs points.</sub></td>
+    <td align="center"><img src="./assets/cws-store/screen-13-generator-en.png" alt="Password generator panel offering random password and passphrase modes" width="100%" /><br /><b>🛠️ Password generator</b><br /><sub>The "Generate &amp; Fill Strong Password" right-click option touches no stored credential, so it works even while the session is locked.</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="./assets/cws-store/screen-6-local-encryption-en.png" alt="Local encryption: the first-run master password screen, with data encrypted before it is written to browser storage" width="100%" /><br /><b>🔒 Local encryption</b><br /><sub>The master password is the only key: if it is forgotten it <b>cannot be recovered</b> and resetting wipes the data, so take an encrypted (.aph) backup first.</sub></td>
+    <td align="center"><img src="./assets/cws-store/screen-5-preferences-en.png" alt="Preferences panel with six theme swatches and the Chinese/English language switch" width="100%" /><br /><b>🎨 Themes &amp; bilingual UI</b><br /><sub>The six themes are Sky Blue, Bamboo Green, Peach Pink, Blossom Mauve, Sunset Orange and Misty Slate, and they apply instantly with no reload.</sub></td>
+  </tr>
+</table>
 
 > 📸 The shots and animations come from the store asset pipeline (`scripts/store-shots/`) and use placeholder `example.com` demo data. More screens (the floating button, the auto-save prompt, import/export and encrypted backups, the trash bin and password history) are on the [live demo page](https://liaolongdong.github.io/account-password-helper/en.html).
 
@@ -189,6 +171,9 @@
 
 ### Shortcut Cheat Sheet
 
+<details>
+<summary>Expand the 5 keys, their default behaviour and the rebinding limits — the four steps above never need this table</summary>
+
 | Action                    | Windows / Linux | macOS         | Default behaviour                                                                                                                             |
 | ------------------------- | --------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Open the password manager | `Ctrl+Shift+P`  | `Cmd+Shift+P` | Opens the options page                                                                                                                        |
@@ -198,6 +183,8 @@
 | Command palette           | `Ctrl+K`        | `Cmd+K`       | Manager page only — filters and opens any of its 23 commands; not an extension shortcut, so it is absent from `chrome://extensions/shortcuts` |
 
 > Keys cannot be rebound inside the extension (Chrome exposes no `commands.update()`) — change them at `chrome://extensions/shortcuts`. The read-only overviews on the manager page ("Security Settings → Keyboard Shortcuts") and in the side panel's Help dialog flag any key that is currently not active. Command IDs and constraints are in the [Contributing Guide — Keyboard Shortcuts](./docs/CONTRIBUTING.md#keyboard-shortcuts).
+
+</details>
 
 ## ❓ FAQ
 
@@ -255,7 +242,7 @@ If this project helps you, please give it a ⭐️ and leave a review on the Chr
 
 ## 🧩 More by the author
 
-Same author, same rules: open source, offline, data stays on your machine.
+Same author, same rules: open source, offline, data stays on your machine. More of the author's open-source work: [github.com/liaolongdong](https://github.com/liaolongdong).
 
 - [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — an offline converter that turns 14 formats into each other inside the browser without uploading a byte. Markdown, Word, PDF, Excel, CSV, JSON, HTML and images convert on your own machine, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/)
 - [Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy) — proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket, all configured in the browser with data stored only on your computer. This extension answers "who am I in this environment", that one answers "where do this environment's requests go" — the two are handy together when you debug across environments. [Product page](https://liaolongdong.github.io/cross-origin-proxy/en.html) · [Chrome Web Store](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
@@ -290,4 +277,4 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 
 ---
 
-> 📅 Last updated: 2026-09-22 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 Last updated: 2026-09-25 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)

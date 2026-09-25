@@ -11,10 +11,12 @@
 在 Dashboard 打开**已有商品** → 「商品包 / Package」→ **上传新的 ZIP 生成新草稿**（被拒的旧草稿已关闭，无法在原草稿上编辑）。上传以下文件：
 
 ```
-.output/account-password-helper-3.9.0-chrome.zip
+.output/account-password-helper-3.12.0-chrome.zip
 ```
 
 > 💡 zip 文件名中的版本号跟随 `package.json`（release-please 自动维护），上传时以 `.output/` 目录中最新构建产物为准。
+>
+> 📌 **2026-09-25 实测状态**：`origin/main` 的 `package.json` 已是 **3.12.0**，GitHub latest release 为 **v3.12.0**（2026-09-25 发布）；商店线上版本读数为 **v3.11.0**（`curl --http1.1 https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli.json`，本机 curl 打不开 `chromewebstore.google.com`，以此为准）。下方 2026-09-09／09-10 两段里的 3.7.0／3.8.0／3.9.0 是**当时的快照**，只作驳回史留档，不再描述当前状态；本次要上传的包请从同步过 `origin/main` 的分支构建。
 >
 > ⚠️ **2026-09-09：3.8.0 草稿被拒**，违规类型为 [Spam 政策 - 关键字堆砌](https://developer.chrome.com/webstore/program_policies#spam)，被点名的文本是 `Chrome, LastPass, Bitwarden, and 1Password (CSV/JSON formats`。**旧草稿已关闭，只能在 Dashboard 新建草稿重新提交**，不能在原草稿上改。
 >

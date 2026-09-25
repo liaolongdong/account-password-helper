@@ -15,9 +15,9 @@
 
 > **开源免费的本地优先密码管理器**：一键登录连登录按钮一起点、精确域名匹配隔离 dev/test/staging/prod、跨子域名匹配三档按需放宽、内置 TOTP 两步验证与离线安全体检。完全免费、无订阅、无需注册账号，密码数据只存本机。
 
-> 🌐 **[在线演示](https://liaolongdong.github.io/account-password-helper/)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K 迭代 + AES-256-GCM ｜ 🎨 6 款主题 · 中英文双语 ｜ 🧪 1337 项自动化测试
+> 🌐 **[在线演示](https://liaolongdong.github.io/account-password-helper/)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K 迭代 + AES-256-GCM ｜ 🎨 6 款主题 · 中英文双语 ｜ 🧪 1563 项自动化测试
 
-**目录**：[核心优势](#-核心优势) · [功能演示](#-功能演示) · [横向对比](#-横向对比) · [功能全览](#-功能全览) · [安全与隐私](#-安全与隐私) · [安装与上手](#-安装与上手) · [常见问题](#-常见问题) · [作者的其他插件](#-作者的其他插件) · [参与贡献](#-参与贡献) · [许可证](#-许可证)
+**目录**：[核心优势](#-核心优势) · [工作原理](#-工作原理) · [功能演示](#-功能演示) · [横向对比](#-横向对比) · [功能全览](#-功能全览) · [安全与隐私](#-安全与隐私) · [安装与上手](#-安装与上手) · [常见问题](#-常见问题) · [作者的其他插件](#-作者的其他插件) · [参与贡献](#-参与贡献) · [许可证](#-许可证)
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="账号密码管理助手扩展图标" width="120" />
@@ -46,57 +46,39 @@
 - 🔏 **隐私敏感用户** — 纯本地加密、密码数据不出本机、无需注册与云端同步
 - 🙋 **日常用户** — 告别记忆密码，内置 TOTP 与密码生成器
 
+## 🧭 工作原理
+
+一次填充在你自己的电脑上走四步：
+
+1. **识别登录页** — 内容脚本在页面里判定账号、密码与验证码输入框；扫描限流分批进行，不改动宿主页面的样式与脚本
+2. **按域名取候选** — 三档跨子域名匹配决定哪些账号出现在侧边栏与内联下拉里，默认只认精确主机名，多环境账号因此互不串号
+3. **本机解密** — 主密码经 PBKDF2 派生密钥；打开列表时整库解密一次，明文只存在于扩展自身上下文，磁盘上始终是密文，锁定或过期即刻销毁密钥材料与快照
+4. **填充并登录** — 逐字段写入并自动勾选「记住我 / 同意协议」，可选再替你点下登录按钮；网页上新产生的凭证回写前先经你确认
+
+> 每一步的源码路径与策略细节见 [ARCHITECTURE.md — 功能实现详解](./docs/ARCHITECTURE.md#功能实现详解)，同一套四步的可视化说明见[在线演示页的「工作原理」一节](https://liaolongdong.github.io/account-password-helper/#how)。
+
 ## 🖼️ 功能演示
 
-> 每张图对应一个功能模块：上方是模块名称，下方一行只讲**图里看不到的信息**——容易踩空的默认值、开关位置与隐藏能力。
+> 两列排布，每张图对应一个功能模块：图下第一行是模块名称，第二行只讲**图里看不到的信息**——容易踩空的默认值、开关位置与隐藏能力。
 
-<p align="center">
-  <b>⚡ 一键登录</b><br/>
-  <img src="./docs/demo-login.webp" alt="一键登录演示：侧边栏选中条目后自动填充账号密码、勾选同意条款并点击登录" width="100%" /><br/>
-  <sub>快捷键 <b>Ctrl+Shift+F</b> 默认停在「已填充 + 已勾选」，不会替你提交。</sub>
-</p>
-
-<p align="center">
-  <b>🔑 内置 TOTP</b><br/>
-  <img src="./assets/cws-store/screen-2-totp.png" alt="两步验证：密码列表内直接展示 6 位活码与倒计时圆环" width="100%" /><br/>
-  <sub>添加密钥可直接扫描网页二维码或上传二维码图片，本地解码；算法与 6 / 7 / 8 位均可自定义。</sub>
-</p>
-
-<p align="center">
-  <b>📝 页内填充面板</b><br/>
-  <img src="./assets/cws-store/screen-9-inline-fill.png" alt="页内填充面板：输入框旁的钥匙图标展开迷你面板，就地挑选账号填充" width="100%" /><br/>
-  <sub>全新安装默认启用这种内联填充，可在偏好设置切换为侧边栏或仅手动。</sub>
-</p>
-
-<p align="center">
-  <b>🎯 多环境账号隔离</b><br/>
-  <img src="./assets/cws-store/screen-3-multi-env.png" alt="多环境账号管理：同一站点的开发、测试、生产账号用标签分开" width="100%" /><br/>
-  <sub>在 <b>localhost</b> / <b>127.0.0.1</b> 上还会进一步按端口区分。</sub>
-</p>
-
-<p align="center">
-  <b>📊 离线安全体检</b><br/>
-  <img src="./assets/cws-store/screen-4-security-audit.png" alt="离线安全体检：0 到 100 分综合评分与四类问题明细" width="100%" /><br/>
-  <sub>泄露字典为内置近千条离线词表；「未开启两步验证」单独列示、不计入扣分。</sub>
-</p>
-
-<p align="center">
-  <b>🛠️ 密码生成器</b><br/>
-  <img src="./assets/cws-store/screen-13-generator.png" alt="密码生成器：随机密码与助记词组双模式面板" width="100%" /><br/>
-  <sub>输入框右键「生成并填充强密码」不读取任何已存凭证，会话锁定时同样可用。</sub>
-</p>
-
-<p align="center">
-  <b>🔒 本地加密</b><br/>
-  <img src="./assets/cws-store/screen-6-local-encryption.png" alt="本地加密：首次使用设置主密码，数据加密后只存本机浏览器" width="100%" /><br/>
-  <sub>主密码是唯一密钥：遗忘后无法找回，只能重置清空数据，请先用加密备份（.aph）留一条退路。</sub>
-</p>
-
-<p align="center">
-  <b>🎨 主题与双语</b><br/>
-  <img src="./assets/cws-store/screen-5-preferences.png" alt="偏好设置：六款色彩主题色块与中英文语言切换" width="100%" /><br/>
-  <sub>六款主题分别为晴空蓝 / 青竹绿 / 桃花粉 / 樱粉紫 / 落霞橙 / 雾墨灰，切换即时生效无需刷新。</sub>
-</p>
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="./docs/demo-login.webp" alt="一键登录演示：侧边栏选中条目后自动填充账号密码、勾选同意条款并点击登录" width="100%" /><br /><b>⚡ 一键登录</b><br /><sub>快捷键 <b>Ctrl+Shift+F</b> 默认停在「已填充 + 已勾选」，不会替你提交。</sub></td>
+    <td width="50%" align="center"><img src="./assets/cws-store/screen-2-totp.png" alt="两步验证：密码列表内直接展示 6 位活码与倒计时圆环" width="100%" /><br /><b>🔑 内置 TOTP</b><br /><sub>添加密钥可直接扫描网页二维码或上传二维码图片，本地解码；算法与 6 / 7 / 8 位均可自定义。</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="./assets/cws-store/screen-9-inline-fill.png" alt="页内填充面板：输入框旁的钥匙图标展开迷你面板，就地挑选账号填充" width="100%" /><br /><b>📝 页内填充面板</b><br /><sub>全新安装默认启用这种内联填充，可在偏好设置切换为侧边栏或仅手动。</sub></td>
+    <td align="center"><img src="./assets/cws-store/screen-3-multi-env.png" alt="多环境账号管理：同一站点的开发、测试、生产账号用标签分开" width="100%" /><br /><b>🎯 多环境账号隔离</b><br /><sub>在 <b>localhost</b> / <b>127.0.0.1</b> 上还会进一步按端口区分。</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="./assets/cws-store/screen-4-security-audit.png" alt="离线安全体检：0 到 100 分综合评分与四类问题明细" width="100%" /><br /><b>📊 离线安全体检</b><br /><sub>泄露字典为内置近千条离线词表；「未开启两步验证」单独列示、不计入扣分。</sub></td>
+    <td align="center"><img src="./assets/cws-store/screen-13-generator.png" alt="密码生成器：随机密码与助记词组双模式面板" width="100%" /><br /><b>🛠️ 密码生成器</b><br /><sub>输入框右键「生成并填充强密码」不读取任何已存凭证，会话锁定时同样可用。</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="./assets/cws-store/screen-6-local-encryption.png" alt="本地加密：首次使用设置主密码，数据加密后只存本机浏览器" width="100%" /><br /><b>🔒 本地加密</b><br /><sub>主密码是唯一密钥：遗忘后无法找回，只能重置清空数据，请先用加密备份（.aph）留一条退路。</sub></td>
+    <td align="center"><img src="./assets/cws-store/screen-5-preferences.png" alt="偏好设置：六款色彩主题色块与中英文语言切换" width="100%" /><br /><b>🎨 主题与双语</b><br /><sub>六款主题分别为晴空蓝 / 青竹绿 / 桃花粉 / 樱粉紫 / 落霞橙 / 雾墨灰，切换即时生效无需刷新。</sub></td>
+  </tr>
+</table>
 
 > 📸 截图与动图取自商店素材流水线（`scripts/store-shots/`，全部为 `example.com` 占位演示数据）。悬浮按钮、自动保存弹窗、CSV 导入导出与加密备份、回收站与密码修改历史等更多界面见[在线演示页面](https://liaolongdong.github.io/account-password-helper/)。
 
@@ -189,6 +171,9 @@
 
 ### 快捷键速查
 
+<details>
+<summary>展开 5 组按键、默认行为与改键限制（日常四步用不到这张表）</summary>
+
 | 功能           | Windows / Linux | macOS         | 默认行为                                                                                          |
 | -------------- | --------------- | ------------- | ------------------------------------------------------------------------------------------------- |
 | 打开密码管理页 | `Ctrl+Shift+P`  | `Cmd+Shift+P` | 打开选项页                                                                                        |
@@ -198,6 +183,8 @@
 | 命令面板       | `Ctrl+K`        | `Cmd+K`       | 仅在密码管理页内生效，检索并直达 23 条命令；非扩展快捷键，不在 `chrome://extensions/shortcuts` 中 |
 
 > 扩展内不支持改键（Chrome 未提供 `commands.update()`），请到 `chrome://extensions/shortcuts` 修改；管理页「安全设置 → 快捷键」与侧边栏「帮助」提供只读一览并会标注当前未生效的按键。命令 ID 与限制说明见[贡献指南 — 快捷键](./docs/CONTRIBUTING.md#快捷键)。
+
+</details>
 
 ## ❓ 常见问题
 
@@ -255,7 +242,7 @@ A：侧边栏依赖 Chrome 的 Side Panel API（需 Chromium 114 及以上），
 
 ## 🧩 作者的其他插件
 
-同一位作者、同一套做法：开源、离线、数据只留在本机。
+同一位作者、同一套做法：开源、离线、数据只留在本机。作者的其余开源作品见 [github.com/liaolongdong](https://github.com/liaolongdong)。
 
 - [Transfer Any File](https://github.com/liaolongdong/transfer-any-file)：14 种格式在浏览器里互转、一个字节也不上传的离线文件转换器——Markdown、Word、PDF、Excel、CSV、JSON、HTML 与图片在自己电脑上完成转换，支持批量混合格式、自动多步链路、预览与内联编辑、ZIP 打包。无账号、无上传、无网络请求。[产品页](https://liaolongdong.github.io/transfer-any-file/)
 - [跨域代理助手 · Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy)：把页面发出的 API 请求代理到另一个后端环境——重写 URL、请求头与响应，条件化 Mock、注入延迟、阻断请求、失败重试、转发 WebSocket，全部在浏览器里配置，数据只存在你的电脑上。本扩展管「这个环境我是谁」，它管「这个环境请求打到哪」，多环境联调时两个一起开最顺手。[产品页](https://liaolongdong.github.io/cross-origin-proxy/) · [Chrome 应用商店](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
@@ -290,4 +277,4 @@ A：侧边栏依赖 Chrome 的 Side Panel API（需 Chromium 114 及以上），
 
 ---
 
-> 📅 文档最后更新：2026-09-22 · 功能描述以当前开发分支的最新实现为准，已发布版本请见 [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 文档最后更新：2026-09-25 · 功能描述以当前开发分支的最新实现为准，已发布版本请见 [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)

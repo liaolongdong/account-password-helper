@@ -52,7 +52,7 @@ The read-only detail drawer (`components/options/PasswordDetailDrawer.vue`) serv
 
 ## What the four have in common
 
-Looking back, all four chains obey the same constraints: **no new toggles, no new permissions beyond `contextMenus`, no change to storage layout or encryption format, no redefinition of existing entries**; every new user-visible string ships in Chinese and English as a pair; every feature came with regression tests, with 1337 automated tests across 119 test files plus `pnpm build` and `pnpm build:firefox` (Chromium and Firefox targets) as the acceptance bar.
+Looking back, all four chains obey the same constraints: **no new toggles, no new permissions beyond `contextMenus`, no change to storage layout or encryption format, no redefinition of existing entries**; every new user-visible string ships in Chinese and English as a pair; every feature came with regression tests, with 1563 automated tests across 142 test files plus `pnpm build` and `pnpm build:firefox` (Chromium and Firefox targets) as the acceptance bar.
 
 Feature increments in a password manager shouldn't be "a few more buttons". They should polish the same login chain until it's a little smoother: one less app switch, one less wrong input box, one less accidental edit made just to read a note.
 
