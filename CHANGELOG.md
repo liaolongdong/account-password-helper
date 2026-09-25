@@ -1,5 +1,46 @@
 # Changelog
 
+## [3.12.0](https://github.com/liaolongdong/account-password-helper/compare/v3.11.0...v3.12.0) (2026-09-25)
+
+
+### Features
+
+* **domain:** 跨子域名匹配三档，两条填充路径共用分层判据 ([0b13bb3](https://github.com/liaolongdong/account-password-helper/commit/0b13bb377d7433dd55fe945e5f64e2b14733e93d))
+* **formDetector:** 实现对 open shadow DOM 的递归表单字段收集能力 ([e8677e8](https://github.com/liaolongdong/account-password-helper/commit/e8677e88f81c8e939918be80db7b25af79f40f43))
+* **help:** 跨子域匹配三档帮助词条，中英同步 ([548789c](https://github.com/liaolongdong/account-password-helper/commit/548789cf114bb06c5c807677cefd14fd4e67833c))
+* **identity:** 增加身份信息库及作者其他插件展示功能 ([ccb1062](https://github.com/liaolongdong/account-password-helper/commit/ccb106297f1f419bf5deb008af847512388566f3))
+* **identity:** 新增身份信息库功能及相关文档更新 ([e13393e](https://github.com/liaolongdong/account-password-helper/commit/e13393ec5ef77477a63fa21a40d2c05c0668c1d8))
+* **identity:** 身份库批量折叠/展开 + 深度评审安全与规范修复 ([3847af0](https://github.com/liaolongdong/account-password-helper/commit/3847af0ca0dcdb1f43f18b0a1ebafa63b2194f89))
+* **options:** 回收站按最近删除排在最前，并带关键词检索 ([33ce5c1](https://github.com/liaolongdong/account-password-helper/commit/33ce5c1b23fbc0fdd99380b1cf8e832ebeb7556f))
+* **options:** 每页条数档位落盘，密码表与回收站弹窗共用同一份偏好 ([f88856b](https://github.com/liaolongdong/account-password-helper/commit/f88856b9313b825ac2fff90c1cbe7c859dc30e55))
+* **options:** 添加命令面板及全局快捷键支持 ([5305ea3](https://github.com/liaolongdong/account-password-helper/commit/5305ea3d7cd7e08df42d9163570c632d0f2ff29c))
+* **sidepanel:** 用户名/网址/备注截断时以 title 兜住全文，修正悬停区域 ([e8d3d1e](https://github.com/liaolongdong/account-password-helper/commit/e8d3d1e2b0a77d677c755aec5cb47172562131d3))
+* **siteRules:** 站点规则支持明文 JSON 导出与按域名合并导入 ([f714944](https://github.com/liaolongdong/account-password-helper/commit/f7149449baaa4c9ce95c95526445baf7410fd078))
+
+
+### Bug Fixes
+
+* **background:** 提醒逐条隔离失败，角标重叠不再误快照，通知点击走选项页单例 ([ca8e5b1](https://github.com/liaolongdong/account-password-helper/commit/ca8e5b1debab6cb290e016ea8ca3e2f7e3c1753d))
+* **content:** 保存弹窗迁入 Closed Shadow DOM，委托通知锁定顶层 origin ([b65baa2](https://github.com/liaolongdong/account-password-helper/commit/b65baa2d4a8819193cef945adb688677db97f7e6))
+* **content:** 兜底勾选不再被合成 click 翻回未选中，拖拽与内联面板的页面副作用按快照回收 ([1acfdad](https://github.com/liaolongdong/account-password-helper/commit/1acfdadbb078a89bf1c576e08501fda485f002aa))
+* **domain:** 通配标记活过 URL 解析，跨子域区间收进单点判据 ([aad474c](https://github.com/liaolongdong/account-password-helper/commit/aad474cbb85c3db3f00664846e6fd926ba6b45b4))
+* **form:** 编辑超容量条目时按原长度放宽校验上限 ([7c3da6b](https://github.com/liaolongdong/account-password-helper/commit/7c3da6ba1c3f0f66dd9b1094ff7895bc77d231fb))
+* **landing:** 动效地基三处——html.js 门控、轮播只动 transform、循环动效视口门控 ([288d4eb](https://github.com/liaolongdong/account-password-helper/commit/288d4eb816631953797e1f9a54b7225ac83c26d7))
+* **options:** 导入超限给出可读提示，批量标签与表单保存不再静默/误报 ([53021d3](https://github.com/liaolongdong/account-password-helper/commit/53021d3f81d3e9d44caee450199f2fdcfa1b3850))
+* **review:** 五轴评审四条缺陷收口——面板Enter归属/检索单一真源/加载代际/favicon明文键 ([cddbe3a](https://github.com/liaolongdong/account-password-helper/commit/cddbe3af91589db763a42fba608bc2df2d4a3c00))
+* **review:** 收口存量缺陷并回退自动保存通道的标签静默截断 ([578ae8c](https://github.com/liaolongdong/account-password-helper/commit/578ae8cff55cf39c5af89e9ea6a31345275dba18))
+* **session:** 收口锁定后的后台会话残留与回收站 at-rest 缺口 ([b1332f2](https://github.com/liaolongdong/account-password-helper/commit/b1332f25657f849191b1a454719efa8f0d967474))
+* **session:** 旧版会话透明迁移补齐代际守卫 ([d00c108](https://github.com/liaolongdong/account-password-helper/commit/d00c10853d705f7bca9bdf304295d2deb68fca6c))
+* **siteRules:** 修复站点规则链路缺陷并收口校验与回归测试 ([0470e87](https://github.com/liaolongdong/account-password-helper/commit/0470e87fe832aebad8fcfeb37906268a251c75ee))
+* **storage:** rekey 保留旧钥不可解的历史记录 ([05b04ff](https://github.com/liaolongdong/account-password-helper/commit/05b04ff4d8816b006f8675e6ac4921b8624352c7))
+* **storage:** 回收站恢复按 id 去重，避免交错产生重复条目 ([bf8b3fb](https://github.com/liaolongdong/account-password-helper/commit/bf8b3fb250b349d8ff8ff9cf192bd8211f30b789))
+
+
+### Performance Improvements
+
+* **options:** 空关键词那四处高亮改走纯文本出口，逐行文案收进一个 computed ([ea14c16](https://github.com/liaolongdong/account-password-helper/commit/ea14c16401ebedbf06d9b57c30824a3fbe4a00d5))
+* **sidepanel:** 快照计入竞速裁决，切域名只改过滤条件 ([9d0008a](https://github.com/liaolongdong/account-password-helper/commit/9d0008a7381838500328f9998887179ba94e5474))
+
 ## [3.11.0](https://github.com/liaolongdong/account-password-helper/compare/v3.10.0...v3.11.0) (2026-09-15)
 
 
