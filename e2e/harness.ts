@@ -160,7 +160,7 @@ export async function onboardAndUnlock(page: Page): Promise<void> {
  */
 export async function createEntry(
   page: Page,
-  entry: { username: string; password?: string; url?: string },
+  entry: { username: string; password?: string; url?: string; remark?: string },
 ): Promise<void> {
   await page.getByRole('button', { name: textOf('options.header.addPassword') }).click();
   const dialog = page.getByRole('dialog').filter({ hasText: textOf('options.form.addTitle') });
@@ -172,6 +172,9 @@ export async function createEntry(
   }
   if (entry.url !== undefined) {
     await dialog.getByPlaceholder(textOf('options.form.urlPlaceholder')).fill(entry.url);
+  }
+  if (entry.remark !== undefined) {
+    await dialog.getByPlaceholder(textOf('options.form.remarkPlaceholder')).fill(entry.remark);
   }
 
   await expectSuccessToastFor(page, 'form.addSuccess', () => footerPrimary(dialog).click());

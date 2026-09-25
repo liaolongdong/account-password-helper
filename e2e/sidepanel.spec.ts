@@ -23,6 +23,30 @@ const OFF_SITE_ENTRY = {
 const NO_FORM_ENTRY = { username: 'e2e-noform-user', password: 'Synthetic!NoForm1', url: 'https://no-form.e2e.test/' };
 const NO_FORM_ORIGIN = 'https://no-form.e2e.test';
 
+/**
+ * 三个字段都写到表单长度上限附近（`PASSWORD_FIELD_LIMITS`：username 50 / url 100 / remark 1000），
+ * 用于验证「被省略号截断的字段是否还能读到全文」；remark 用重复段拼到 384 字符。
+ */
+const LONG_USERNAME = 'e2e-truncation-user-0123456789@example-e2e.test';
+const LONG_URL = `${E2E_PAGE_ORIGIN}/login?redirect=/a/very/long/path/segment/for-truncation-check-e2e`;
+const LONG_REMARK = 'e2e-remark-for-truncation-check；'.repeat(12);
+const LONG_ENTRY = {
+  username: LONG_USERNAME,
+  password: 'Synthetic!Long1',
+  url: LONG_URL,
+  remark: LONG_REMARK,
+};
+/** 停靠面板的近似宽度：标签页形态下面板铺满视口，省略号根本不会出现 */
+const DOCKED_LIKE_WIDTH = 400;
+
+/** 短备注条目：文字盒明显窄于整行盒，用来验证「行尾空白不再弹备注」 */
+const SHORT_REMARK_ENTRY = {
+  username: 'e2e-short-remark-user',
+  password: 'Synthetic!Short1',
+  url: `${E2E_PAGE_ORIGIN}/login`,
+  remark: '一句短备注',
+};
+
 /** 页面里没有任何可识别的登录字段，用于验证「填不进去」有明确反馈 */
 const BLANK_PAGE_HTML =
   '<!doctype html><html><head><title>e2e blank</title></head><body><p>nothing here</p></body></html>';
@@ -159,6 +183,80 @@ test.describe('侧边栏', () => {
     await createEntry(optionsPage, GENERIC_ENTRY);
     await expect(row(panel, GENERIC_ENTRY.username)).toBeVisible();
     await expect(rows(panel)).toHaveCount(2);
+  });
+
+  test('被省略号截断的用户名 / 网址 / 备注，各自带完整原文的 title', async ({
+    extContext,
+    extensionId,
+    optionsPage,
+  }) => {
+    await createEntry(optionsPage, LONG_ENTRY);
+    const { panel } = await openSidepanelOnSite(extContext, extensionId);
+    // 标签页形态下面板是整视口宽，三字段都不会截断，title 断言会退化成一句空话；
+    // 收窄到近似停靠宽度才造得出真实的省略号场景（截断本身由下一行断言证明）
+    await panel.setViewportSize({ width: DOCKED_LIKE_WIDTH, height: 800 });
+
+    const target = row(panel, LONG_ENTRY.username);
+    // [截断探针, 挂 title 的元素, 原文]：省略号长在谁身上就探谁，title 挂在谁身上就查谁。
+    // 备注这两者不是同一个元素——省略号由整行块 `.remark` 画，title 只挂内联文本，
+    // 否则整行宽都是悬停区，鼠标停在行尾空白也会弹备注。
+    const truncatedFields: ReadonlyArray<readonly [string, string, string]> = [
+      ['.username-text', '.username-text', LONG_ENTRY.username],
+      ['.details > .el-text', '.details > .el-text', LONG_ENTRY.url],
+      ['.remark', '.remark .el-text', LONG_ENTRY.remark],
+    ];
+    for (const [probeSelector, titleSelector, original] of truncatedFields) {
+      // 先证明「看不见全文」这个前提真实成立，否则 title 有没有都无所谓
+      await expect
+        .poll(
+          () =>
+            target
+              .locator(probeSelector)
+              .evaluate(el => (el as HTMLElement).scrollWidth > (el as HTMLElement).clientWidth),
+          { message: `${probeSelector} 在该宽度下并未截断，用例数据或面板布局已漂移` },
+        )
+        .toBe(true);
+      // 再证明悬停载体给的是逐字相同的原文（表单 maxlength 若把值裁掉，这一步会红）
+      await expect(target.locator(titleSelector)).toHaveAttribute('title', original);
+    }
+  });
+
+  test('备注的 title 只跟文字本体走，行尾空白弹的是行的动作提示', async ({ extContext, extensionId, optionsPage }) => {
+    await createEntry(optionsPage, SHORT_REMARK_ENTRY);
+    const { panel } = await openSidepanelOnSite(extContext, extensionId);
+    await panel.setViewportSize({ width: DOCKED_LIKE_WIDTH, height: 800 });
+
+    // 用命中测试而不是「读属性」下结论：真实鼠标落点由 elementFromPoint 判定，
+    // closest('[title]') 给出的才是那一刻浏览器会显示的载体
+    const hit = await panel.evaluate(username => {
+      const rowEl = [...document.querySelectorAll<HTMLElement>('.password-item')].find(n =>
+        n.textContent?.includes(username),
+      );
+      const block = rowEl?.querySelector<HTMLElement>('.remark');
+      const text = block?.querySelector<HTMLElement>('.el-text');
+      if (!rowEl || !block || !text) return null;
+      block.scrollIntoView({ block: 'center' });
+      const blockBox = block.getBoundingClientRect();
+      const textBox = text.getBoundingClientRect();
+      const carrierAt = (x: number, y: number) => {
+        const owner = document.elementFromPoint(x, y)?.closest('[title]');
+        return owner?.getAttribute('title') ?? '<无悬停载体>';
+      };
+      return {
+        blockHasTitle: block.hasAttribute('title'),
+        textNarrowerThanBlock: textBox.width < blockBox.width,
+        onText: carrierAt(textBox.left + textBox.width / 2, textBox.top + textBox.height / 2),
+        onTailBlank: carrierAt(blockBox.right - 4, blockBox.top + blockBox.height / 2),
+      };
+    }, SHORT_REMARK_ENTRY.username);
+
+    expect(hit, '未找到短备注条目行').toBeTruthy();
+    // 整行块不再携带 title；短备注下文字盒确实窄于整行盒（「行尾空白」这个前提才成立）
+    expect(hit!.blockHasTitle).toBe(false);
+    expect(hit!.textNarrowerThanBlock).toBe(true);
+    // 落在文字上读到备注全文，落在行尾空白则回到行自己的动作提示
+    expect(hit!.onText).toBe(SHORT_REMARK_ENTRY.remark);
+    expect(hit!.onTailBlank).toMatch(textOf('sidepanel.item.fillTitle'));
   });
 });
 

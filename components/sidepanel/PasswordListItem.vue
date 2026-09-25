@@ -130,7 +130,12 @@ const activate = () => {
         >
           <el-icon><User /></el-icon>
         </SiteFavicon>
-        <span class="username-text">
+        <!-- 本行三处截断字段（用户名 / 网址 / 备注）统一用原生 title 兜住全文：
+             逐行 el-tooltip 的实例成本与侧边栏秒开 SLA 冲突，口径与 Options 表格的 username/url/remark 一致 -->
+        <span
+          class="username-text"
+          :title="password.username"
+        >
           <SearchHighlight
             :text="password.username"
             :keyword="searchKeyword"
@@ -200,6 +205,7 @@ const activate = () => {
           v-if="password.url"
           type="info"
           size="small"
+          :title="password.url"
         >
           <SearchHighlight
             :text="password.url"
@@ -211,9 +217,11 @@ const activate = () => {
         v-if="password.remark"
         class="remark"
       >
+        <!-- title 挂内联文本节点而非 .remark 块：块是整行宽，悬停在行尾空白也会弹出备注 -->
         <el-text
           type="info"
           size="small"
+          :title="password.remark"
         >
           <SearchHighlight
             :text="password.remark"
