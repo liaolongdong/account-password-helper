@@ -229,6 +229,8 @@ for idx, lang in ((2, 'zh'), (5, 'en')):
     ls = [l.strip() for l in blocks[idx].splitlines() if len(l.strip()) > 20]
     dup = {l: ls.count(l) for l in set(ls) if ls.count(l) > 1}
     print(f'duplicate lines in {lang} description:', dup or 'none')
+    # 历轮批注里的「说明长度」用的就是这个数（去掉首尾空行后的字符数），复述时别再换成别的口径
+    print(f'{lang} description chars (strip 后，批注记录的就是它):', len(blocks[idx].strip()))
 for path in ('public/_locales/zh_CN/messages.json', 'public/_locales/en/messages.json'):
     d = json.load(open(path, encoding='utf-8'))
     for key in ('extensionName', 'extensionDescription'):
