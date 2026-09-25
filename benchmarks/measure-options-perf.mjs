@@ -30,6 +30,13 @@
  *   渐进放开靠 requestAnimationFrame：实测无头（HeadlessChrome 153，新无头实现）同样会派发 rAF
  *   ——60 行与 600 行两次窗口化跑批都在无头下把全部行放开了。无头可作为 A/B 口径，
  *   但要复现"用户实际看到的那一屏"仍建议 E2E_HEADLESS=0 再跑一遍。
+ *
+ *   归因口径（`mount` 独有的阶段拆分）：`preRowMs`（第 15 行出现之前）＝文档解析 + chunk 下载
+ *   + JS 启动 + 数据层，与页大小无关；`rowToFullMs`（之后到当前页铺满）＝渲染层，随行数增长。
+ *   两者混在 `wallMs` 里时，「整表挂载 3~5 秒」没法回答「该砍哪一刀」，故拆成独立字段。
+ *   `firstLongMs` 是首个长任务的开始时刻——它之前主线程什么都没干（等 chunk、等 `storage.local`、
+ *   等异步链）。`preRowBusyMs` 是这段时间里被长任务占走的量（CPU），`preRowIdleMs` 是剩下的
+ *   空档（等待）。慢磁盘或整机高负载会把 `preRowIdleMs` 抬高而与产品代码无关，看这两个数就能识破。
  */
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
@@ -183,6 +190,9 @@ const LONG_TASK_INIT = () => {
   w.__long = [];
   w.__from = 0;
   w.__observer?.disconnect();
+  // 这里曾有一句 `setResourceTimingBufferSize(8192)`，用来解释「一次 mount 里 chunk 的下载记录
+  // 一条都查不到」是不是 250 条默认容量被 `_favicon` 挤掉。抬不抬它都复现过 0 与 62 两种读数，
+  // 容量假设不是那个现象的解释（详见 readBootTimeline 的注释），故删。`resTotal` 留作自检位。
   // longtask 条目是延迟上报的：只按数组清空会把上一个场景的任务算进本场景
   // （实测出现过"阻塞时长之和 > 测量窗口"的不可能值），因此连 startTime 一起存，
   // 每次测量前把 __from 推到当前时刻，结算时只取窗口内开始的任务。
@@ -348,6 +358,38 @@ async function resourceCount(page) {
 }
 
 /**
+ * 读取本文档的启动时间线（数值均为文档时间轴上的 ms，`timeOrigin` 是 Unix epoch）
+ *
+ * 为什么必须有：`mount` 的 `wallMs` 只是一个总数，而「下一步该砍哪一刀」完全取决于
+ * 它落在哪一段——第 15 行出现**之前**（文档解析 + JS 启动 + 数据层）与
+ * **之后**（当前页剩余行的渲染）是两组互不相干的改造对象。分页前的口径把两者混进
+ * 同一个数，所以「整表挂载 3~5 秒」至今无法归因到具体某一段。
+ *
+ * 时钟对齐：`performance.timeOrigin` 与 Node 的 `Date.now()` 同为 Unix epoch，因此
+ * Node 侧的检测时刻直接减去 `timeOrigin` 就落到文档时间轴上，不必在页面里逐帧数行数
+ * （那探针本身会给被测的首屏加成本）。
+ *
+ * 为什么这里没有「chunk 下载完成时刻」：这条时间线在本环境下不稳——同一条 mount
+ * 路径两次运行里，子资源条目数分别是 0 与 62（`resTotal` 就是这个自检位）。
+ * 一条会给出「一个 chunk 都没下载」这种读数的通道，不能用来给「等待 vs 编译」定价，
+ * 所以只保留自检、不派生指标。等待段改由 `firstLongMs` 界定：第一个长任务开始之前，
+ * 主线程没有任何超过 50ms 的事可做，那一段就是「解析 + 下载 + 编译 + 等数据」。
+ */
+async function readBootTimeline(page) {
+  return page.evaluate(() => {
+    const fcp = performance.getEntriesByType('paint').find(p => p.name === 'first-contentful-paint');
+    return {
+      timeOrigin: performance.timeOrigin,
+      /** 子资源条目总数（自检用：为 0 就说明本环境的资源时间线不可用，别据此下结论） */
+      resTotal: performance.getEntriesByType('resource').length,
+      scriptTags: document.scripts.length,
+      fcpMs: fcp?.startTime ?? null,
+      longs: (window.__long ?? []).map(x => [x.s, x.d]),
+    };
+  });
+}
+
+/**
  * 等到主线程静默：连续 QUIESCE_MS 没有新的长任务即结束。
  *
  * 为什么必须有这一步：长任务的 `duration` 是在它**结束上报时**才知道的，
@@ -495,6 +537,17 @@ function summarize(name, samples) {
     taskS: num('taskS'),
     layoutCount: num('layoutCount'),
     styleCount: num('styleCount'),
+    resTotal: num('resTotal'),
+    scriptTags: num('scriptTags'),
+    fcpMs: num('fcpMs'),
+    firstLongMs: num('firstLongMs'),
+    preRowMs: num('preRowMs'),
+    rowToFullMs: num('rowToFullMs'),
+    preRowBusyMs: num('preRowBusyMs'),
+    preRowIdleMs: num('preRowIdleMs'),
+    preRowLongCount: num('preRowLongCount'),
+    rowToFullBusyMs: num('rowToFullBusyMs'),
+    rowToFullLongCount: num('rowToFullLongCount'),
     nodes: num('nodes'),
     reqs: num('reqs'),
     churn: {
@@ -801,6 +854,15 @@ async function main() {
           `layout=${out[name].layoutS}s style=${out[name].styleS}s script=${out[name].scriptS}s nodes=${out[name].nodes} ` +
           `churn(-${out[name].churn.remNodes}n/+${out[name].churn.addNodes}n rowReplaced=${out[name].churn.rowReplaced})`,
       );
+      if (name === 'mount') {
+        const m = out[name];
+        log(
+          `  ${name} 阶段: 资源条目 ${m.resTotal} / script 标签 ${m.scriptTags}（两者为 0 只说明通道不可用，不是没有加载）` +
+            ` 首个长任务@${m.firstLongMs}ms fcp@${m.fcpMs}ms | 第${PAINT_ROWS}行前 ${m.preRowMs}ms` +
+            `（占用 ${m.preRowBusyMs} / 空档 ${m.preRowIdleMs}，${m.preRowLongCount ?? '?'} 个长任务）` +
+            `| 铺满当前页再 ${m.rowToFullMs}ms（占用 ${m.rowToFullBusyMs}）`,
+        );
+      }
     };
 
     /** 表驱动场景：mount 单独实现（导航口径），其余走 ACTIONS */
@@ -823,11 +885,23 @@ async function main() {
       await page.reload({ waitUntil: 'domcontentloaded', timeout: MOUNT_TIMEOUT_MS });
       await page.waitForFunction(ROW_COUNT_FN, PAINT_ROWS, { timeout: MOUNT_TIMEOUT_MS });
       const firstPaintMs = Date.now() - t0;
+      const rowEpoch = Date.now();
       await page.waitForFunction(ROW_COUNT_FN, MOUNT_ROWS, { timeout: MOUNT_TIMEOUT_MS });
       const wallMs = Date.now() - t0;
+      const fullEpoch = Date.now();
       // 长任务的 duration 要到它结束上报时才知道，留一秒钟把尾巴上的任务收进来
       await page.waitForTimeout(1000);
       const longs = await page.evaluate(() => window.__longHere());
+      const boot = await readBootTimeline(page);
+      // 把 Node 侧的两个检测时刻搬到文档时间轴，首屏就此分成两段（口径见 readBootTimeline）
+      const rowDocMs = rowEpoch - boot.timeOrigin;
+      const fullDocMs = fullEpoch - boot.timeOrigin;
+      // 长任务占用必须按窗口裁剪：跨边界的任务只算落在窗口里的那一截。
+      // 实测首屏单个任务可达 9 秒以上，按"重叠即算全时长"会把相邻两段都算满、
+      // 于是把主线程的空档读成 0（第一版就是这么误读过一次）。
+      const busyIn = (from, to) =>
+        boot.longs.reduce((a, [s, d]) => a + Math.max(0, Math.min(s + d, to) - Math.max(s, from)), 0);
+      const countIn = (from, to) => boot.longs.filter(([s, d]) => s + d > from && s < to).length;
       return {
         firstPaintMs,
         wallMs,
@@ -839,6 +913,21 @@ async function main() {
         longtasks: longs.filter(d => d > 50).length,
         // 导航窗口内的 CDP 计数器不可靠（跨文档重置），mount 只给时长与长任务三类口径；
         // 缺键由 summarize() 结算成 null，写成 0 会被读成"实测为 0 秒"
+        // —— 以下为阶段拆分：`preRowMs` 之前的成本与页大小无关，`rowToFullMs` 才随页数增长
+        resTotal: boot.resTotal,
+        scriptTags: boot.scriptTags,
+        fcpMs: round(boot.fcpMs, 1),
+        /** 首个长任务的开始时刻：它之前主线程什么都没干（等下载 / 等 storage / 等异步链） */
+        firstLongMs: boot.longs.length ? round(Math.min(...boot.longs.map(([s]) => s)), 1) : null,
+        preRowMs: round(rowDocMs, 1),
+        rowToFullMs: round(fullDocMs - rowDocMs, 1),
+        /** 第 15 行出现之前，主线程被长任务占走的时长（按窗口裁剪后的 CPU 侧） */
+        preRowBusyMs: round(busyIn(0, rowDocMs), 1),
+        /** 同一段里没被长任务占走的部分（等 IO / 等换页 / 等异步链，与 CPU 无关） */
+        preRowIdleMs: round(Math.max(0, rowDocMs - busyIn(0, rowDocMs)), 1),
+        rowToFullBusyMs: round(busyIn(rowDocMs, fullDocMs), 1),
+        preRowLongCount: countIn(0, rowDocMs),
+        rowToFullLongCount: countIn(rowDocMs, fullDocMs),
       };
     });
 

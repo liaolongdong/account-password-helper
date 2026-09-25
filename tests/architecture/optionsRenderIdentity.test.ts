@@ -14,6 +14,8 @@
  * 4. 把未防抖的搜索关键词传给表格 → 每次击键为上千个文本单元格重算分段并重排。
  * 5. 纯展示包装（tooltip）按「行 × 操作」创建 → 实例数成倍放大；实测同一份 DOM 下，
  *    仅去掉操作列那 5 个/行的实例包装就能让整表挂载耗时少四成，所以包装必须共享。
+ * 6. 逐行插槽里调用 `t()` → 消息解析与依赖登记按「行 × 处」计次（实测挂载期 i18n chunk
+ *    的自耗时占比约 13%），常量文案该在 setup 里一次算好。
  *
  * 这些都能被一次「顺手」的模板改动重新引入，故用源码级守卫钉住，而不是只靠评审。
  */
@@ -140,6 +142,71 @@ describe('管理页搜索高亮与过滤同源', () => {
     expect(binding, '未找到 PasswordTable 用法块').toBeTruthy();
     expect(binding![0]).toContain(':search-keyword="debouncedSearchKeyword"');
     expect(binding![0]).not.toContain(':search-keyword="searchKeyword"');
+  });
+});
+
+describe('管理页高亮单元件的实例成本', () => {
+  /** 模板里的全部 `<SearchHighlight ... />` 用法块 */
+  const highlightUsages = [...TABLE_TPL.matchAll(/<SearchHighlight\b[\s\S]*?\/>/g)].map(m => m[0]);
+
+  it('抽到四处高亮用法（写法漂移时让守卫变红，而不是静默空跑）', () => {
+    expect(highlightUsages.length).toBe(4);
+  });
+
+  it('关键词为空时不建组件实例，改由纯文本出口渲染', () => {
+    // 首屏成本按组件实例计价（本文件开头第 5 条），而空关键词是管理页的常态：
+    // 每页 100 行 × 用户名/URL/标签/备注四处 = 上百个实例，只为了渲染一段纯文本。
+    // 等价性由 `tests/utils/searchMatch.test.ts`「空关键词/空文本应安全降级」钉住：
+    // `highlightSegments(text, '')` 恒等于单段非高亮文本，即一个纯文本节点。
+    for (const usage of highlightUsages) {
+      expect(usage, '空关键词下这一格仍会建一个 SearchHighlight 实例').toContain('v-if="searchKeyword"');
+    }
+    const fallbacks = [...TABLE_TPL.matchAll(/<template v-else>\{\{\s*([\w.]+)\s*\}\}<\/template>/g)]
+      .map(m => m[1])
+      .sort();
+    expect(fallbacks, '每处高亮都必须配一个纯文本出口，否则空关键词时那一格变空白').toEqual([
+      'row.remark',
+      'row.url',
+      'row.username',
+      'tag.name',
+    ]);
+  });
+});
+
+describe('管理页逐行文案的解析次数', () => {
+  /** 逐行插槽里那 11 处静态文案绑定（密码列 1 + 操作列 5 按钮 × `aria-label`/`data-tip`） */
+  const perRowBindings = [...TABLE_TPL.matchAll(/:(?:aria-label|data-tip)="([^"]*)"/g)].map(m => m[1]);
+
+  it('抽到全部逐行文案绑定（写法漂移时让守卫变红，而不是静默空跑）', () => {
+    expect(perRowBindings.length).toBe(11);
+  });
+
+  it('逐行绑定不直接调用 t()，常量文案在 setup 里一次算好', () => {
+    // 列的默认插槽由每个单元格各执行一次，插槽里的 `t()` 因此按「行 × 处」计次：
+    // 一页 100 行就是 1100 次消息解析与依赖登记，而这段成本与用户是否看得见无关。
+    for (const value of perRowBindings) {
+      expect(value, '这一处会在每行每次渲染里重解一次消息').not.toMatch(/\bt\(/);
+    }
+  });
+
+  it('聚合文案的 key 集与模板取用一一对应（少一个键就有按钮变成空白）', () => {
+    const hoisted = TABLE_SRC.match(/const rowLabels = computed\(\(\) => \(\{([\s\S]*?)\}\)\)/);
+    expect(hoisted, '未找到逐行文案的 computed 聚合').toBeTruthy();
+    const keys = [...hoisted![1].matchAll(/(\w+): t\('([^']+)'\)/g)].map(m => `${m[1]}=${m[2]}`).sort();
+    expect(keys).toEqual([
+      'copyEntry=options.table.copyEntry',
+      'delete=common.delete',
+      'edit=common.edit',
+      'favorite=common.favorite',
+      'hidePassword=common.hidePassword',
+      'showPassword=common.showPassword',
+      'unfavorite=common.unfavorite',
+      'viewDetail=options.detail.viewDetail',
+    ]);
+    const used = perRowBindings.join(' ');
+    for (const key of keys.map(k => k.split('=')[0])) {
+      expect(used, `rowLabels.${key} 未被任何逐行绑定取用`).toContain(`rowLabels.${key}`);
+    }
   });
 });
 

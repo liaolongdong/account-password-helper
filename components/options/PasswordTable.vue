@@ -29,9 +29,11 @@
       >
         <template #default="{ row }">
           <SearchHighlight
+            v-if="searchKeyword"
             :text="row.username"
-            :keyword="searchKeyword ?? ''"
+            :keyword="searchKeyword"
           />
+          <template v-else>{{ row.username }}</template>
         </template>
       </el-table-column>
       <el-table-column
@@ -47,7 +49,7 @@
             <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
             <el-button
               :icon="row.showPassword ? Hide : View"
-              :aria-label="row.showPassword ? t('common.hidePassword') : t('common.showPassword')"
+              :aria-label="row.showPassword ? rowLabels.hidePassword : rowLabels.showPassword"
               link
               @click="$emit('togglePassword', row)"
             />
@@ -96,9 +98,11 @@
               </SiteFavicon>
               <span class="url-link__text">
                 <SearchHighlight
+                  v-if="searchKeyword"
                   :text="row.url"
-                  :keyword="searchKeyword ?? ''"
+                  :keyword="searchKeyword"
                 />
+                <template v-else>{{ row.url }}</template>
               </span>
             </a>
           </template>
@@ -131,9 +135,11 @@
                 @mouseenter="checkTagOverflow"
               >
                 <SearchHighlight
+                  v-if="searchKeyword"
                   :text="tag.name"
-                  :keyword="searchKeyword ?? ''"
+                  :keyword="searchKeyword"
                 />
+                <template v-else>{{ tag.name }}</template>
               </el-tag>
             </el-tooltip>
           </template>
@@ -152,11 +158,14 @@
         show-overflow-tooltip
       >
         <template #default="{ row }">
-          <SearchHighlight
-            v-if="row.remark"
-            :text="row.remark"
-            :keyword="searchKeyword ?? ''"
-          />
+          <template v-if="row.remark">
+            <SearchHighlight
+              v-if="searchKeyword"
+              :text="row.remark"
+              :keyword="searchKeyword"
+            />
+            <template v-else>{{ row.remark }}</template>
+          </template>
           <span
             v-else
             class="no-tag"
@@ -204,8 +213,8 @@
             -->
             <el-button
               :icon="View"
-              :aria-label="t('options.detail.viewDetail')"
-              :data-tip="t('options.detail.viewDetail')"
+              :aria-label="rowLabels.viewDetail"
+              :data-tip="rowLabels.viewDetail"
               circle
               size="small"
               @mouseenter="armOperationTip"
@@ -214,8 +223,8 @@
             />
             <el-button
               :icon="CopyDocument"
-              :aria-label="t('options.table.copyEntry')"
-              :data-tip="t('options.table.copyEntry')"
+              :aria-label="rowLabels.copyEntry"
+              :data-tip="rowLabels.copyEntry"
               circle
               size="small"
               @mouseenter="armOperationTip"
@@ -224,8 +233,8 @@
             />
             <el-button
               :icon="Edit"
-              :aria-label="t('common.edit')"
-              :data-tip="t('common.edit')"
+              :aria-label="rowLabels.edit"
+              :data-tip="rowLabels.edit"
               circle
               size="small"
               @mouseenter="armOperationTip"
@@ -234,8 +243,8 @@
             />
             <el-button
               :icon="row.favorite ? StarFilled : Star"
-              :aria-label="row.favorite ? t('common.unfavorite') : t('common.favorite')"
-              :data-tip="row.favorite ? t('common.unfavorite') : t('common.favorite')"
+              :aria-label="row.favorite ? rowLabels.unfavorite : rowLabels.favorite"
+              :data-tip="row.favorite ? rowLabels.unfavorite : rowLabels.favorite"
               circle
               size="small"
               :type="row.favorite ? 'warning' : 'default'"
@@ -245,8 +254,8 @@
             />
             <el-button
               :icon="Delete"
-              :aria-label="t('common.delete')"
-              :data-tip="t('common.delete')"
+              :aria-label="rowLabels.delete"
+              :data-tip="rowLabels.delete"
               circle
               size="small"
               type="danger"
@@ -298,7 +307,7 @@
 </template>
 
 <script setup lang="ts">
-import { nextTick, onBeforeUpdate, onUpdated, ref } from 'vue';
+import { computed, nextTick, onBeforeUpdate, onUpdated, ref } from 'vue';
 import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import type { SortState } from '@/utils/passwordSort';
@@ -355,6 +364,30 @@ defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/**
+ * 逐行插槽用到的常量文案
+ *
+ * 列的默认插槽由**每个单元格**各执行一次，所以写在插槽里的 `t()` 是「每行 × 每处」的量：
+ * 操作列 5 个按钮的 `aria-label` + `data-tip` 共 10 次、密码列显隐按钮 1 次，
+ * 一页 100 行就是 1100 次消息解析与依赖登记。实测挂载期的 CPU 自耗时里
+ * `chunks/i18n-*.js` 的函数合计约占 13%（口径见
+ * `docs/PERF_LARGE_VAULT_EVALUATION.md` 的首屏阶段拆分），而这段成本与行数无关、
+ * 与用户是否看得见无关，纯属重复。
+ *
+ * 收成一个 computed 后：一次整表更新只解析一次，且仍然随语言切换失效重算——
+ * `t()` 内部依赖 locale 与消息表，语言变化会让它重新求值，行内取值随之更新。
+ */
+const rowLabels = computed(() => ({
+  viewDetail: t('options.detail.viewDetail'),
+  copyEntry: t('options.table.copyEntry'),
+  edit: t('common.edit'),
+  favorite: t('common.favorite'),
+  unfavorite: t('common.unfavorite'),
+  delete: t('common.delete'),
+  showPassword: t('common.showPassword'),
+  hidePassword: t('common.hidePassword'),
+}));
 
 /** Tag 标签溢出检测 */
 const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
