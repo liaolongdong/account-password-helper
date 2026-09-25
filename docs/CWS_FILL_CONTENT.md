@@ -97,6 +97,18 @@
 >
 > ✅ **自检结果（本轮）**：`paste blocks: 6 | banned hits: none`；中英说明**跨小节近似重复句为零**（difflib 阈值 0.72 全对扫描）；四个 `_locales` 值与粘贴块逐字一致。说明长度中文 **3293 → 4638** / 英文 **9504 → 13870** 字符（上限 16,000；**英文侧余量已收窄到约 2,100 字符**，后续再回填须优先动中文或先删已有内容）。**注意**：中文说明里 3,080 词、GBK 回落等新增事实目前只在商店文案，若要让 README / 官网与之一致，另按 `docs/CWS_PUBLISHING_GUIDE.md`「其他同步约定」评估范围。
 
+> 🪪 **八次修订（2026-09-16，身份信息库上线）**：新增「身份信息库」功能后，在【安全架构】【功能全览】【常见问题】与「storage」权限说明各补一句**事实描述**（整块 AES-256-GCM 加密、默认掩码、主密码复验、.aphid 加密备份、不随浏览器账号同步），中英文同步——**只陈述事实，不新增任何营销卖点**，身份库也不改变「本地优先 / 不收集用户数据」的既有口径。名称与摘要**未动**（新能力不进 45 字符名称与 132 字符摘要，避免又踩 keyword stuffing）。说明长度中文 **4638 → 4895** / 英文 **13870 → 14636** 字符（上限 16,000，英文侧余量约 1,400 字符）。
+
+> 🪪 **九次修订（2026-09-17，身份库导出增强）**：身份库新增「勾选导出子集」与「可选明文 .json 导出/导入（未加密、读写均需主密码复验 + 风险二次确认；导入按 `id` 合并、与加密备份复用同一份结构校验）」。仅改写【功能全览】的身份库一行（中英同步），如实标注明文文件为未加密、可再导入，加密备份（.aphid）仍为长期留存的首选路径。**不新增营销卖点**；明文导出/导入与已获批的密码明文 CSV/JSON 导出同类（均为本地读写、不上传），**Data Safety 口径不变**（仍无任何用户数据传输，FAQ「不离开设备 / 不上传」表述依旧成立）。名称与摘要**未动**。说明长度 中文 **4895 → 4951** / 英文 **14636 → 14830** 字符（英文侧余量约 1,170 字符，后续回填须优先动中文）。
+
+> 🧩 **十次修订（2026-09-22，三项已上线能力回灌说明正文）**：把「跨子域名匹配三档」「站点规则（自定义填充选择器 + Shadow DOM 穿透）」写进【为什么选择它】与【功能全览】，把「管理页 `Ctrl/Cmd+K` 命令面板（23 条命令）」并入既有「界面与快捷键」一行——三处**只陈述已实现的事实**，每个卖点仍只有一个小节承载，未新增任何营销口号，也未重复【安全架构】里的既有口径。名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算，新能力一律不进）。说明长度 中文 **4951 → 5315** / 英文 **14830 → 15622** 字符（上限 16,000）。⚠️ **英文侧余量只剩约 378 字符**：英文三项新增已按「预算优先」压缩过（站点规则一条从 700 字符砍到 434、跨子域只留一句从句），下一次回填**只能动中文**，或先删英文已有内容。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零。
+
+> 🧭 **十一修订（2026-09-22，内联下拉与侧边栏口径对齐）**：把「页内迷你面板与侧边栏同一套键盘流程、打开即默认选中首条、回车即填」并入【功能全览】既有的「键盘完成全流程」一行，把「面板搜索与管理页 / 侧边栏同一口径（账号 / 标签 / 备注 / 网址，认拼音全拼与首字母）」与「本站无匹配时把关键词交给管理页做全库搜索」并入【第七步】使用情形示例第 4 条——两处都挂在已有小节的已有行上，不新增卖点、不新增条目、不与【智能搜索与整理】重复成句。输入法合成期不接管按键这一实现细节**不写进商店说明**（属防御性行为而非检索词，见 `docs/ARCHITECTURE.md` 第 17 节与侧边栏帮助词条）。名称与摘要**未动**。说明长度 中文 **5315 → 5344** / 英文 **15622 → 15739** 字符（上限 16,000）。⚠️ 承接十次修订的预算提醒：本轮英文仍不得不 +117，**英文侧余量只剩约 261 字符**，下一次回填英文前须先删英文已有内容。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零。
+
+> 🏗️ **十二修订（2026-09-24，容量上限与列表分页回灌中文说明）**：本轮**只动中文**，两处新增都挂在已有小节的已有行上，不新增小节、不加营销口号。① 【功能全览】的「智能搜索与整理」末尾并入**管理页分页**（每页 50 / 100 / 200 条、默认 100 条，一次只画当前这一页；搜索 / 排序 / 导出作用的仍是全部命中条目，跨页勾选保留）——依据 `utils/vaultPagination.ts` 的 `PAGE_SIZE_OPTIONS` / `DEFAULT_PAGE_SIZE` 与 `tests/utils/vaultPagination.test.ts`；刻意**不写**「表头全选只勾当前页」这类操作手册级细节（由 README 常见问题与侧边栏帮助词条承载），商店说明只承担「分页不会让你少处理任何一条」这个卖点。② 【常见问题】新增一条**条目总量上限 2000 条**的问答，逐项列明被拒绝的五个写入口（新增 / 创建副本 / 导入 / 网页自动保存 / 回收站恢复）与「不会静默覆盖或删除已保存数据」，并写明导入超量时预览页的「还能导入多少条 / 将被忽略多少条」口径——依据 `utils/storage/vaultCapacity.ts` 的 `MAX_PASSWORD_ENTRIES`、`assertWithinCapacity()` 在 `passwordCrud.ts` / `trashManager.ts` 写路径之前的调用、五处 `options.capacity.*Blocked` 与 `bg.autoSave.capacityReached` 文案。**回收站不占额度**按 `passwordCrud.ts` 的实际计数来源（列表长度）如实写明，这条同时是「删除即释放额度」的可执行提示。上限本身是既有事实、此前只在 README 与 `docs/ARCHITECTURE.md`，商店侧为首次披露。名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算）。说明长度 中文 **5344 → 5560** / 英文 **15739（未动）** 字符（上限 16,000）。⚠️ **英文本轮未回填**：按十一修订的记录，英文侧余量只剩约 261 字符，而这两条中文新增（+216 字符）翻成同等信息量的英文按字符密度估算约需 450~520 字符，**放不进去**；下一轮若要动英文，必须先删英文已有内容，否则就是拿中英说明口径不一致去换预算。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零；四个 `_locales` 值与粘贴块逐字一致。（长度口径＝`docs/CWS_PUBLISHING_GUIDE.md`「第五步 → 快速校验命令」那段 python 自检里的 `len(blocks[i].strip())`，即去掉粘贴块首尾空行之后的字符数，与历轮记录同一把尺子。）
+
+> 🧺 **十三修订（2026-09-25，回收站排序与检索回灌中英说明）**：本轮**中英各动一行**，两处都挂在【功能全览】已有的「回收站与修改历史」行尾，不新增小节、不加营销口号——回收站列表现在按**最近删除排在最前**，并带一个按**用户名 / 网址 / 标签**过滤的关键词检索框（实现见 [TrashDialog.vue](../components/options/TrashDialog.vue) 与 `getTrashEntries`（[trashManager.ts](../utils/storage/trashManager.ts)）；可搜范围刻意只限弹窗已解密的三项，不为检索多解一类字段，锁定态那一屏也不参与检索）。说明长度 中文 **5560 → 5597** / 英文 **15739 → 15827** 字符（上限 16,000；**英文侧余量由约 261 收窄到约 173 字符**，下一轮若要再动英文说明必须先删已有内容）。名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算）。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零。
+
 ### 说明 (Description) — 最多 16,000 字符
 
 ```
@@ -104,13 +116,13 @@
 账号密码管理助手是一款本地优先的密码管理器：账号、密码和两步验证码加密保存在你自己的浏览器里，不需要注册账号，也没有云端同步。打开登录页时，它可以自动填充账号和密码、勾选「记住我」，并按你的设置自动点击登录按钮。
 
 【为什么选择它】
-◆ 不只填表，还替你完成登录：在侧边栏选中条目点「填充并登录」即可一步走完填充、勾选与提交；快捷键 Ctrl+Shift+F 默认只做填充与勾选，只有你在偏好设置中开启「自动触发登录」后它才代为提交表单，不会背着你按下登录
-◆ 多环境账号隔离：条目按精确域名匹配，开发、测试、预发、生产各留各的凭证——同时跑多环境的人最需要这条
+◆ 不只填充，还替你完成登录：在侧边栏选中条目点「填充并登录」即可一步走完填充、勾选与提交；快捷键 Ctrl+Shift+F 默认只做填充与勾选，只有你在偏好设置中开启「自动触发登录」后它才代为提交表单，不会背着你按下登录
+◆ 多环境账号隔离：条目默认按精确域名匹配，开发、测试、预发、生产各留各的凭证——同时跑多环境的人最需要这条；一个账号确实要覆盖整站子域时，可在管理页头部切成「精确 + 通配条目」或「同主域名」两档按需放宽
 ◆ 验证码和密码存在同一处：不用在登录途中去摸手机、切换验证器应用——一个条目里既有密码也有动态码
 ◆ 免费、开源、无订阅：GPL-3.0 协议，源码可审计，全部功能不设付费墙
 
 【适合谁】
-· 开发者：本地、测试、预发、生产域名分开管理，凭据按站点精确命中，不用再靠备注区分环境
+· 开发者：本地、测试、预发、生产域名分开管理，凭据默认按站点精确命中，不用再靠备注区分环境
 · 测试工程师：批量导入用例账号，跨环境切换时一键完成登录，误删可回收，改错的密码能回滚
 · 隐私敏感用户：会话有效期从 1 小时到 7 天共 9 档，按你愿意多久重输一次主密码来定
 · 日常登录用户：登录时自动保存新账号，需要新密码时一键生成，不必再为每个站点想一套还记得住的记法
@@ -129,6 +141,7 @@
 · 密文只写入浏览器本地存储（持久化的 local 与仅内存的 session），不使用会随浏览器账号同步的 sync 存储，数据不会因为你登录了浏览器账号而离开这台设备
 · 更改主密码时对全部条目原子重加密：要么整体完成，要么保持原状，不会留下半加密的数据
 · 加密备份文件（.aph）每次导出都换用新的随机盐与新的初始化向量，两个备份之间不共用密钥材料
+· 身份信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM 认证加密后写入本地存储，默认掩码显示，查看与复制都需再次验证主密码
 · 登录第二步的动态码接力只把当次验证码和它的有效期交给页面，生成验证码所需的密钥始终留在扩展自己的后台上下文中；这份接力标记只对同一站点有效，三分钟后自动失效
 · 闲置达到设定时长（5 / 10 / 30 / 60 分钟四档）时自动锁定，系统锁屏走同一条闲置检测路径；浏览器重启后锁定是另一个独立开关。两者默认都不启用，需要你主动打开——锁定后要重新输入主密码，而主密码本身不会被保存，遗忘后无法找回
 · 复制密码后按设定的秒数自动清理剪贴板（默认 30 秒，另有 10 / 15 / 60 / 120 秒可选），清理前会先比对内容，不会误清你随后复制的内容；万一页面失去焦点读不到剪贴板，就直接覆写——宁可误清一次，也不把密码留在剪贴板上
@@ -136,6 +149,7 @@
 
 【功能全览】
 · 四种填充入口：输入框获得焦点后出现的钥匙图标、侧边栏、输入框右键菜单、快捷键；登录框位于页面框架内时同样可以填充
+· 填不进的页面有兜底：登录框渲染在自定义组件里、自动检测取不到输入框时，可在管理页「站点规则」为该域名手写账号框与密码框的 CSS 选择器（规则域名需与登录页域名完全一致，不支持通配）；每条规则自带「Shadow DOM 穿透」开关，默认开启、只作用于开放的影子根（封闭的影子根任何扩展都读不到），关掉则只在主文档内匹配。规则可导出为 JSON 文件备份或分享给团队，导入时按域名合并并回报新增、更新与忽略的条数，上限 500 条规则、单文件 2 MiB——文件里只有域名与选择器，不含账号与密码
 · 登录时自动保存密码：提交登录时弹窗确认，自动去重，可设置域名黑白名单与「不再提示」；密码偏弱或已被多个账号使用时，会在同一弹窗中提醒；同一账号再次登录而密码已经改过时，弹窗自动转为「更新」并沿用这条记录原有的标签与备注，库里本来就是同一份凭据时则完全不再打扰
 · 只勾该勾的那一个复选框：页面上往往有好几个复选框，它按标签文字和复选框到账号/密码框的距离打分，只选中得分最高的那一个，标签里带「订阅 / 推送 / 通知 / 广告 / 营销」字样的会被降权
 · 密码安全体检：给出 0 到 100 分的综合评分，四类问题按受影响条目占比扣分——密码复用 35、弱密码 25、命中内置近千条常见泄露密码 20、长期未更新 20，其中长期未更新再按 90 / 180 / 365 天分三档；未开启两步验证的条目会单独列出来，但不计入扣分
@@ -145,19 +159,22 @@
 · 两步验证（TOTP 2FA）：扫描网页二维码或上传图片即可添加密钥，动态码按 RFC 6238 在你设备上生成，不联网、不上传；标准 otpauth:// 链接里带的参数会被读出来——算法认 SHA1 / SHA256 / SHA512，位数认 6 / 7 / 8，周期认自定义秒数，链接里没写的按 6 位 / SHA1 / 30 秒处理，只支持按时间滚动的动态码（计数器型 HOTP 不在范围内）；列表与侧边栏同屏显示活码和倒计时环，登录走到第二步时活码就近出现，可一键填入
 · 密码更换提醒：单个条目可设 7 / 30 / 90 天之后提醒，后台每 12 小时核对一次到期项并发桌面通知，同一条到期只会通知一次
 · 导入与导出：支持 CSV 和 JSON，可整库导出，也可勾选条目批量导出选中项；自动识别主流密码管理器导出表格的字段（含两步验证密钥列）；CSV 按 UTF-8 读不出内容时会自动改用 GBK 再试一次，兼容中文表格软件导出的文件；另有 .aph 加密备份与邮箱备份提醒
-· 回收站与修改历史：删除的条目进回收站保留 30 天可恢复，每条密码默认留存 3 份加密历史快照（可调 1~10 份）以便回滚；在回收站里彻底删除某条时，它名下的历史快照与到期提醒会一并清掉
+· 回收站与修改历史：删除的条目进回收站保留 30 天可恢复，每条密码默认留存 3 份加密历史快照（可调 1~10 份）以便回滚；在回收站里彻底删除某条时，它名下的历史快照与到期提醒会一并清掉；回收站列表按最近删除排在最前，还能按用户名 / 网址 / 标签关键词检索
 · 侧边栏快速添加与只读详情：顶栏「+」就地添加当前站点并预填网址，主密码输入框实时提示大写锁定；每行「查看详情」以抽屉展示完整备注、活码与修改历史，无需进入编辑态
 · 页面悬浮填充按钮：出现在登录页上，可拖到任意位置并自动吸附屏幕边缘，透明度 10%~100% 可调；浮层自带设置面板，不用切回管理页就能就地调整
-· 键盘完成全流程：侧边栏内上下键选条目、回车填充、Ctrl+C 复制账号、Esc 收起，手不离键盘也能登录
+· 键盘完成全流程：侧边栏内上下键选条目、回车填充、Ctrl+C 复制账号、Esc 收起，手不离键盘也能登录；页内迷你面板同一套键盘流程，打开即默认选中首条、回车即填
 · 工具栏 Popup 操作中枢：管理页、侧边栏、直接填充、锁定会话都在同一屏，剩余有效时间常驻显示并在临近过期时变色提醒
-· 智能搜索与整理：模糊搜索同时匹配用户名、标签、备注和网址，认拼音全拼与首字母，命中片段高亮显示；另有侧边栏「本站 / 全站」范围切换、每条最多 3 个标签的分类与筛选、收藏置顶（上限默认 10 个、可调 1~50，超出时按最少使用自动让位）、一键去重、批量管理
-· 界面与快捷键：6 款色彩主题、中英文界面即时切换；四个默认按键为 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作
+· 智能搜索与整理：模糊搜索同时匹配用户名、标签、备注和网址，认拼音全拼与首字母，命中片段高亮显示；另有侧边栏「本站 / 全站」范围切换、每条最多 3 个标签的分类与筛选、收藏置顶（上限默认 10 个、可调 1~50，超出时按最少使用自动让位）、一键去重、批量管理；管理页列表按页呈现（每页 50 / 100 / 200 条、默认 100 条），搜索、排序与导出作用的仍是全部命中条目，跨页勾选也会被保留
+· 身份信息库：独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段，默认掩码、查看需主密码复验；支持加密备份（.aphid）导出导入与勾选导出子集，并可按需导出/导入未加密的明文 .json（需主密码复验与风险确认，导入按 id 合并）；不参与自动备份，请定期手动导出加密备份
+· 界面与快捷键：6 款色彩主题、中英文界面即时切换；四个默认按键为 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作；管理页另有 Ctrl/Cmd+K 唤起的命令面板，用中文、拼音或首字母检索并直达 23 条常用命令，主密码未验证时不响应按键
 
 【常见问题】
 · 真的完全免费吗？是。没有高级版、没有内购，也不会有劝你升级的弹窗
 · 密码会被上传到云端吗？不会。扩展没有自己的服务器。唯一主动发起的联网是每 6 小时一次的更新检查：先向商店探测一次网络可达性（结果在本机缓存 24 小时），探测不到时才去公开的发布接口读取最新版本号与不超过 200 字的更新说明；这两类请求都不携带任何账号、标识符或库内数据，断网时检查静默失败，其余功能照常可用
+· 身份信息（证件号、银行卡号等）会被上传或同步吗？不会。它们和密码一样只加密保存在本机，不随浏览器账号同步，也不会离开这台设备
 · 忘记主密码怎么办？找不回来，也没有任何人能替你把它还原成可读的形式。应用内确实有一个「重置」入口，但它做的是清空全部数据、把扩展恢复到刚装好的样子，旧密码不会因此出现。请定期用加密备份导出，别让一次遗忘赔上整个库
 · 能从其他密码管理器导入吗？可以：在原来用的应用里导出 CSV 或 JSON，再到扩展的导入页上传即可
+· 密码库能存多少条？上限 2000 条，按列表条目数计数，回收站里的条目不占额度。达到上限后新增、创建副本、导入、网页自动保存与回收站恢复都会明确提示被拒绝，不会静默覆盖或删除已经保存的数据；导入量超出剩余额度时，预览页会先写明还能导入多少条、将被忽略多少条，由你选择只导入前若干条或取消
 · 更新到新版本会改掉我调好的设置吗？不会。新版本调整过的默认值只作用在新安装上，已经在用的安装会冻结住它当前的填充方式，不会被静默改动
 · 会自动往我的邮箱发东西吗？不会。所谓邮箱备份只是把表格下载到你自己这台电脑，然后唤起你已装好的邮件客户端、由你决定发不发；扩展自身不发邮件，也不具备发邮件的能力。备份提醒的周期可设 1 / 3 / 7 / 14 / 30 天，到点只发一条桌面通知
 · 换电脑或重装浏览器后数据还在吗？不会自动跟过去。请在原设备用加密备份导出 .aph 文件，到新设备的导入页还原
@@ -214,7 +231,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 
 WHY YOU'LL LIKE IT
 ◆ It finishes the sign-in, not just the form: pick an entry in the side panel and tap "Fill and sign in" to run all three steps at once. Ctrl+Shift+F fills and ticks by default, and submits the form only after you turn on "Auto-submit login" in preferences — it never clicks sign-in behind your back.
-◆ Multi-environment isolation: entries match the exact host name, so development, test, staging and production credentials for the same app stay separate — the thing multi-environment work needs most.
+◆ Multi-environment isolation: entries match the exact host name, so development, test, staging and production credentials for the same app stay separate — the thing multi-environment work needs most, with two opt-in tiers to widen matching across subdomains when one account serves a whole domain family.
 ◆ Codes live with the passwords: no phone to reach for and no authenticator app to switch to mid-login — one entry holds both secrets.
 ◆ Free, open-source, no subscription: GPL-3.0, auditable source, every feature unlocked.
 
@@ -238,6 +255,7 @@ SECURITY ARCHITECTURE
 · Ciphertext goes only into the browser's local stores (persistent local and in-memory session). The account-syncing sync store is never used, so signing into a browser account does not carry your vault off this machine.
 · Changing the master password re-encrypts every entry atomically: it either completes as a whole or leaves the previous state untouched, never a half-encrypted vault.
 · Every .aph backup file is exported with its own random salt and its own initialization vector, so two backups never share key material.
+· The identity vault (name, ID number, phone, email, address, bank card details and custom fields) is a separate store: it reaches local storage only as one AES-256-GCM encrypted blob, is masked by default, and viewing or copying it asks for the master password again.
 · Mid two-step sign-in, the page is handed only the current code and when it expires; the key that generates it stays inside the extension's own background context, and the handoff marker is valid for one site only and dies after three minutes.
 · The vault locks once you have been idle for the length you pick (5, 10, 30 or 60 minutes), with a system lock handled through that same idle path; locking after a browser restart is a second, independent switch. Both are off until you turn them on. Once locked it asks for the master password again — and that password is never stored, so it cannot be recovered if forgotten.
 · After you copy a password, the clipboard is cleared on a timer (30 seconds by default; 10, 15, 60 or 120 also available) and is read back and compared first, so your most recent copy is never destroyed. If the page has lost focus and the clipboard cannot be read, it is overwritten anyway — better one mistaken clear than a password left behind.
@@ -245,6 +263,7 @@ SECURITY ARCHITECTURE
 
 FEATURE SET
 · Four ways to fill: the key icon that appears when a field takes focus, the side panel, the right-click menu on an input, and the keyboard shortcut. Forms inside page frames can be filled as well.
+· A fallback when nothing fills: when a form is rendered by custom components and detection cannot reach the inputs, pin CSS selectors for that domain's username and password fields under "Site rules" (the rule domain must equal the login page domain exactly). Each rule has a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Rules export as JSON for backup or team sharing and merge-import by domain, reporting added / updated / skipped — the file holds domains and selectors, never credentials.
 · Save passwords as you sign in: the extension asks before storing anything, de-duplicates what it catches, and lets you allow or block domains or say "never for this site". Weak or shared passwords are pointed out in the same prompt. Sign in to the same account again with a changed password and the prompt switches to update mode on its own, carrying over that entry's existing tags and note; when the vault already holds exactly that pair, you are not asked at all.
 · Only the box you meant: login pages often offer several checkboxes, so each one is scored by its label and by how far it sits from the username and password fields, and only the single best match gets ticked. Anything labelled subscribe, push, notification, advertising or marketing is scored down.
 · Password check-up: a security audit scored from 0 to 100, where each of four findings costs in proportion to how many entries it touches — reused passwords 35, weak 25, a hit in the built-in list of nearly a thousand commonly leaked ones 20, and long-unchanged 20, that last one split into 90, 180 and 365 day bands. Entries with no two-factor key set up are listed separately and cost nothing.
@@ -254,17 +273,19 @@ FEATURE SET
 · Two-factor codes (TOTP 2FA): add a key by scanning the QR code on a page or uploading an image, and the code is generated on your device per RFC 6238, with no network request and nothing uploaded. Parameters carried in a standard otpauth:// link are read out — algorithm SHA1 / SHA256 / SHA512, 6, 7 or 8 digits, a custom period — and whatever the link leaves out falls back to 6 digits, SHA1 and 30 seconds; only time-based codes are supported, so counter-based HOTP links are out of scope. The live code and its countdown ring sit in the list and the side panel, and when a login reaches its second step the code appears next to the field, ready to fill in one click.
 · Change reminders: any single entry can be set to nag you after 7, 30 or 90 days; the extension checks what is due every 12 hours and raises a desktop notification, and each reminder fires only once.
 · Import and export: CSV and JSON, either the whole vault or just the entries you tick; the columns of common password-manager exports are detected automatically, two-factor keys included; a CSV that yields nothing under UTF-8 is decoded again as GBK, which covers spreadsheets exported by Chinese office suites; plus encrypted .aph backups and email backup reminders.
-· Trash and history: deleted entries stay recoverable for 30 days, and each password keeps 3 encrypted snapshots you can roll back to (configurable between 1 and 10). Purging an entry from the trash takes its snapshots and its pending reminders with it.
+· Trash and history: deleted entries stay recoverable for 30 days, and each password keeps 3 encrypted snapshots you can roll back to (configurable between 1 and 10). Purging an entry from the trash takes its snapshots and its pending reminders with it. The newest deletion is listed first, and a keyword box filters by username, URL or tag.
 · Quick add and read-only details: the "+" in the panel header saves an account for the current site with its domain pre-filled, and a live Caps Lock hint sits under every master-password field; "View details" opens a drawer with the full note, the live code and the change history without entering edit mode.
 · Floating fill button: a draggable button on the login page that snaps to the screen edge, with opacity adjustable from 10% to 100% and its own settings panel inside the overlay, so you can adjust it without leaving the page.
-· Keyboard all the way: in the side panel, arrow keys move between accounts, Enter fills, Ctrl+C copies the username and Esc closes the panel.
+· Keyboard all the way: in the side panel, arrow keys move between accounts, Enter fills, Ctrl+C copies the username and Esc closes the panel. The in-page mini panel follows the same flow — the first account is selected as soon as it opens, so Enter fills it.
 · Toolbar popup as the hub: management, side panel, direct fill and locking sit on one screen, with the remaining session time always visible and turning colour as expiry approaches.
 · Search and tidy-up: the fuzzy search looks across username, tags, notes and web address at once, understands pinyin written out and by its initials, and highlights what matched; then there is "this site / all entries" scoping in the side panel, up to 3 tags per entry, favorites pinned to the top (10 by default, adjustable 1-50, with the least used making way), one-tap duplicate cleanup and batch actions.
-· Interface: 6 color themes and an instant Chinese/English switch. The four default shortcuts are Ctrl+Shift+P for management, L for the side panel, F for quick fill and K for the inline dropdown — to rebind them, use the browser's own extensions-shortcuts page.
+· Identity vault: a separate locker for personal details — name, ID number, phone, email, address, bank card info and custom fields — masked by default and gated by a master-password re-check. It supports encrypted .aphid export/import and exporting only the entries you tick, plus an optional unencrypted plaintext .json export/import (master-password re-check and risk confirmation; import merges by id); it is not covered by automatic backups, so export an encrypted backup regularly.
+· Interface: 6 color themes and an instant Chinese/English switch. The four default shortcuts are Ctrl+Shift+P for management, L for the side panel, F for quick fill and K for the inline dropdown — to rebind them, use the browser's own extensions-shortcuts page. The manager page also has a command palette on Ctrl/Cmd+K — search 23 commands by Chinese, pinyin or initials, inert until the master password is verified.
 
 QUESTIONS
 · Is it really free? Yes — no premium tier, no in-app purchase, and no upgrade prompt.
 · Are my passwords uploaded anywhere? No — the extension runs no server of its own. The one thing it reaches out for is an update check every 6 hours: it first probes whether the store is reachable (the answer is cached on your machine for 24 hours), and only when that fails does it read the public releases endpoint for the newest version number and up to 200 characters of release notes. Neither request carries an account, an identifier, or anything from your vault; with the network off the check simply fails quietly and everything else keeps working.
+· Are my personal details (ID numbers, bank cards) uploaded or synced? No — like passwords, they stay encrypted on this machine, are never synced with your browser account, and never leave the device.
 · What if I forget the master password? Nothing can recover it, and nobody can hand you back something readable. There is a reset action in the app, but what it does is erase all data and return the extension to its just-installed state — your old password does not come back from that. Export an encrypted backup regularly, so a forgotten password never costs you the vault.
 · Can I import from another password manager? Yes — export a CSV or JSON from the app you use now, then upload it on the import page.
 · Will an update change settings I have already tuned? No. Defaults that a new version brings in apply to fresh installs only; an install you have been using keeps the fill behaviour it already had.
@@ -503,7 +524,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **storage**
 
 ```
-用于在浏览器本地存储加密后的密码数据和用户偏好设置，所有敏感数据使用 AES-256-GCM 加密。
+用于在浏览器本地存储加密后的密码数据、身份信息（证件号、银行卡号等）和用户偏好设置，所有敏感数据使用 AES-256-GCM 加密。
 ```
 
 **activeTab**
@@ -683,11 +704,11 @@ SETUP (one-time): Install → set master password → add accounts manually or b
 
 1) One-click login: A QA engineer opens the side panel on a staging login page and taps "Fill and sign in" — account autofilled, consent ticked, login clicked — under 1 second. With "Auto-submit login" enabled in preferences the same result follows a single keystroke.
 
-2) Multi-environment management: A developer manages dev/staging/prod accounts for the same site. Exact-domain matching keeps credentials separated.
+2) Multi-environment management: A developer manages dev/staging/prod accounts for the same site. Exact-domain matching (the default tier) keeps credentials separated.
 
 3) TOTP handoff: User signs into GitHub. After password autofill, a live TOTP capsule auto-anchors beside the 2FA input — one-click entry, no phone needed.
 
-4) Inline autofill: Login form detected → key icon → compact dropdown with matching accounts → select to fill (Ctrl+Shift+K).
+4) Inline autofill: Login form detected → key icon → compact dropdown with matching accounts → select to fill (Ctrl+Shift+K). The dropdown searches by the same rules as the manager page and the side panel (username, tag, remark and URL, with full pinyin and initialisms), the first match is selected as soon as it opens so Enter fills it, and when the site has no account its empty state hands your keyword to the manager page for a whole-vault search.
 
 5) Offline security audit: Monthly scan generates a 0–100 score weighted across four dimensions (reuse 35 / weak 25 / commonly leaked 20 / stale 20; "no 2FA set up" is listed but unscored). All computed locally.
 
@@ -730,7 +751,7 @@ No specific website accounts are required. The extension treats all websites uni
 
 核心差异化价值：
 • 一键登录：侧边栏「填充并登录」把填充、勾选「记住我 / 同意条款」、点击登录按钮连成一步；`Ctrl+Shift+F` 默认只做填充与勾选，只有在偏好设置中开启「自动触发登录」后才会代为提交表单
-• 多环境账号隔离：精确域名匹配区分同一站点的 dev/test/staging/prod 账号
+• 多环境账号隔离：默认的精确域名匹配区分同一站点的 dev/test/staging/prod 账号
 • 内置 TOTP 验证器：RFC 6238 验证码本地生成，GitHub 式两步登录自动锚定活码胶囊
 • 离线安全体检：0–100 评分，四个计分维度按权重合计（复用 35 / 弱密码 25 / 常见泄露 20 / 长期未更新 20），「未开启两步验证」仅列示不计分，全程本地计算
 • 零成本迁移：支持 CSV / JSON 导入，自动识别常见密码管理器的导出格式
@@ -745,11 +766,11 @@ No specific website accounts are required. The extension treats all websites uni
 
 1) 一键登录：测试工程师在 staging 登录页打开侧边栏，点选条目的「填充并登录」——账号自动填充、协议自动勾选、登录按钮自动点击，1 秒内完成；在偏好设置中开启「自动触发登录」后，一次按键即可得到同样结果。
 
-2) 多环境凭证管理：开发者管理同一应用 dev/staging/prod 的账号，精确域名匹配确保各环境凭证互不混淆。
+2) 多环境凭证管理：开发者管理同一应用 dev/staging/prod 的账号，默认的精确域名匹配确保各环境凭证互不混淆（需要跨子域时在设置里显式放宽）。
 
 3) TOTP 两步验证接力：登录 GitHub，密码填充后下一页要求验证码，扩展自动锚定活码胶囊，一键填入，无需手机验证器。
 
-4) 内联填充：检测到登录表单 → 钥匙图标出现 → 点击展开匹配账号下拉面板 → 选择即填充（Ctrl+Shift+K）。
+4) 内联填充：检测到登录表单 → 钥匙图标出现 → 点击展开匹配账号下拉面板 → 选择即填充（Ctrl+Shift+K）。面板搜索与管理页、侧边栏同一套口径（账号 / 标签 / 备注 / 网址，认拼音全拼与首字母），打开即默认选中首条、回车即填；本站无匹配账号时可带着关键词到管理页做全库搜索。
 
 5) 离线安全体检：每月扫描生成 0–100 评分，四个计分维度按权重合计（复用 35 / 弱密码 25 / 常见泄露 20 / 长期未更新 20；「未开启两步验证」仅列示不计分），全程本地计算。
 

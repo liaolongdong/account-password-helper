@@ -6,7 +6,7 @@
  */
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { handleQuickAddPassword } from '@/entrypoints/background/quickAddHandler';
-import { PASSWORD_FIELD_MAX_LENGTH } from '@/utils/formValidators';
+import { PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
 
 // 保留 sidePanelManager 桩：handler 已不再向其发送刷新通知，
 // 该桩用于断言「不通过 port 通知」的回归守卫（见下方成功路径用例）

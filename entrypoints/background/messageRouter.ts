@@ -29,8 +29,10 @@ import { handleQuickFill } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
+import { normalizeSiteRuleDomain } from '@/utils/storage/siteRules';
 import { isFrameFillable } from '@/utils/frameFill';
 import { isSameMainDomain } from '@/utils/domain';
+import { normalizeSearchKeyword } from '@/utils/keywordMatch';
 
 /**
  * SW 模块加载时刻（epoch 毫秒）
@@ -336,6 +338,12 @@ export function resolveTrustedContentUrl(reportedUrl: unknown, sender: chrome.ru
  */
 export function setupMessageRouter(): void {
   chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+    // B12：消息形状守卫——外部/异常上下文可能投递 null / 非对象 / 无 type 的载荷，
+    // 直接 `message.type` 会在同步路径抛错并使该消息得不到任何响应（default 分支也救不回）。
+    if (!message || typeof message.type !== 'string') {
+      sendResponse({ success: false, error: '无效的消息格式' });
+      return;
+    }
     switch (message.type) {
       case MessageType.SIDEPANEL_PRELOAD: {
         // 预唤醒消息：主动预热密码缓存（轻量、缓存已存在时 no-op）。
@@ -420,7 +428,15 @@ export function setupMessageRouter(): void {
 
       case MessageType.OPEN_OPTIONS_PAGE:
         openOptionsPage()
-          .then(() => sendResponse({ success: true }))
+          .then(tabId => {
+            // doOpenOptionsPage 内部吞异常并返回 undefined，故这里按真实结果应答，
+            // 否则失败时上游（popup 的「打开密码管理页」）拿到的仍是 success:true。
+            if (tabId === undefined) {
+              sendResponse({ success: false, error: 'Failed to open options page' });
+              return;
+            }
+            sendResponse({ success: true });
+          })
           .catch(error => {
             logger.error('处理OPEN_OPTIONS_PAGE失败:', error);
             sendResponse({ success: false, error: error.message });
@@ -441,7 +457,42 @@ export function setupMessageRouter(): void {
         openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY).then(sendResponse);
         return true;
 
+      case MessageType.OPEN_OPTIONS_AND_SITE_RULES: {
+        // data.domain 由内容脚本自报，属不可信输入：只接受合法主机名形态，非法时降级为「无预填」打开，
+        // 避免任意字符串经选项页写入站点规则主键。域名非凭据信息，但不回显原值以防噪声。
+        const reported = (message.data as { domain?: unknown } | undefined)?.domain;
+        const domain = normalizeSiteRuleDomain(reported);
+        if (reported !== undefined && !domain) {
+          logger.warn('Background: 站点规则引导的域名不合法，已忽略预填');
+        }
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_SITE_RULES, domain ? { domain } : undefined).then(
+          sendResponse,
+        );
+        return true;
+      }
+
+      case MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH:
+        // 无载荷：打开密码管理页并自动弹出「跨子域匹配」设置对话框（侧边栏/内联下拉就地引导开档）
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH).then(sendResponse);
+        return true;
+
+      case MessageType.OPEN_OPTIONS_AND_SEARCH: {
+        // 内联下拉空态的「到全库找」：关键词由页面侧自报，属不可信输入，
+        // 与 GET_MATCHING_ACCOUNTS 走同一收口（trim + 截断），空白按「无关键词」打开。
+        // 关键词可能是账号名，故只记指令本身，不回显取值。
+        const keyword = normalizeSearchKeyword(message.data?.keyword);
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_SEARCH, keyword ? { keyword } : undefined).then(
+          sendResponse,
+        );
+        return true;
+      }
+
       case MessageType.UPDATE_PASSWORD_CACHE: {
+        // B2：预热会让 SW 驻留明文密码缓存，属改状态操作，仅接受扩展内部页触发
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         // 轻量触发（无载荷）：由 background 自行经 warmPasswordCache 去重预热缓存，
         // 避免 sidepanel 回传全量明文列表的序列化开销（数百条目时主线程 5-30ms）；
         // 缓存已存在时 no-op，会话无效时内部门控自动跳过
@@ -479,6 +530,12 @@ export function setupMessageRouter(): void {
         for (const [key, value] of Object.entries(metaUpdates)) {
           normalizedUpdates[key] = value === null ? undefined : value;
         }
+        // 响应口径是「已接收并入队」，不是「已落盘」：updatePasswordInSession 走
+        // 1.5s 防抖合并写入，且 flush 失败按其设计只记日志不抛（下次写入自然带上），
+        // 其 Promise 恒 resolve。此处刻意不等待，避免为无人消费的字段把消息通道
+        // 占住 1.5s+（发送方两侧均为 fire-and-forget，且 await 会落在收藏的
+        // runLocalOperation 链内，与代际/序号守卫抢时序）。失败排查看
+        // passwordCrud 的「批量更新元数据失败」日志。
         void _getCrudModule()
           .then(({ updatePasswordInSession }) =>
             updatePasswordInSession(metaId, normalizedUpdates as Parameters<typeof updatePasswordInSession>[1]),
@@ -500,6 +557,12 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.INVALIDATE_PASSWORD_CACHE: {
+        // B2：远程清会话 + 锁定属破坏性状态变更（可被任意页用作 DoS / 打断秒开），
+        // 仅接受扩展内部页（useSessionLock / useSessionTimer）触发
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         // 使用 async IIFE 使动态 import + 异步 clearSession 在 switch-case 内正确执行
         void (async () => {
           const {
@@ -631,7 +694,10 @@ export function setupMessageRouter(): void {
               sendResponse({ success: true, data: { locked: false, accounts: [] } });
               return;
             }
-            const data = await getMatchingAccounts(domain, port);
+            // 关键词是页面侧可伪造的文本：类型/长度在边界处收口（空白等价于不过滤）。
+            // 该值参与拼音匹配但不进日志、不出扩展，且仅用于过滤展示元数据。
+            const keyword = normalizeSearchKeyword(message.data?.keyword);
+            const data = await getMatchingAccounts(domain, port, keyword);
             sendResponse({ success: true, data });
           } catch (error) {
             logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);
@@ -744,6 +810,12 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.QUICK_FILL: {
+        // B2：向活跃标签页注入凭据的触发入口，仅接受 popup/options/sidepanel 内部页发起
+        //（快捷键命令经 chrome.commands 直接调用 handleQuickFill，不走本路由分支）
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         handleQuickFill()
           .then(() => sendResponse({ success: true }))
           .catch(error => {
@@ -754,6 +826,11 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.OPEN_INLINE_DROPDOWN: {
+        // B2：展开内联填充面板的触发入口，仅接受内部页发起（快捷键命令路径同上不走本分支）
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         // popup 入口：在当前活跃标签页展开内联下拉（与快捷键 open_inline_dropdown 同一处理器）
         handleOpenInlineDropdown()
           .then(() => sendResponse({ success: true }))

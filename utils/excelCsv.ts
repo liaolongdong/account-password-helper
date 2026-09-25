@@ -1,6 +1,7 @@
 import type { PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { type CsvColumnMapping, FORMAT_COLUMN_MAP, type ImportFormat } from '@/utils/excelFormatMap';
+import { validateAndBoundEntries } from '@/utils/backup/parseBackupEntries';
 
 /**
  * CSV 导入解析
@@ -44,7 +45,8 @@ export function parseCSVBuffer(
     logger.warn('CSV 解析结果为空，请检查文件编码和格式');
   }
 
-  return results;
+  // B4：与 JSON / .aph 导入共用同一份边界口径（条数上界 + 逐字段长度上限）
+  return validateAndBoundEntries(results);
 }
 
 /**

@@ -10,9 +10,13 @@ export const STORAGE_KEYS = {
   SETTINGS: 'app_settings',
   MASTER_PASSWORD_VALIDITY: 'master_password_validity',
   SORT_CONFIG: 'password_sort_config',
+  /** 管理页每页条数（仅存 50/100/200 之一的视图偏好，不含任何条目数据） */
+  VAULT_PAGE_SIZE: 'vault_page_size',
   FLOATING_BUTTON_CONFIG: 'floating_button_config',
   EMAIL_BACKUP_CONFIG: 'email_backup_config',
   LAST_AUTO_BACKUP_TIME: 'last_auto_backup_time',
+  /** 最近一次「通过完整性自检」的加密 .aph 导出时间戳（epoch 毫秒），用于「距上次成功备份 N 天」提醒 */
+  LAST_VERIFIED_BACKUP_AT: 'last_verified_backup_at',
   AUTO_SAVE_CONFIG: 'auto_save_config',
   IDLE_LOCK_CONFIG: 'idle_lock_config',
   CLIPBOARD_CONFIG: 'clipboard_config',
@@ -25,10 +29,16 @@ export const STORAGE_KEYS = {
   PASSWORD_HISTORY: 'password_change_history',
   /** 密码历史记录配置（启用/禁用 + 最大保留条数） */
   PASSWORD_HISTORY_CONFIG: 'password_history_config',
+  /** 身份信息库条目（个人信息收藏夹，整块加密存储） */
+  IDENTITY: 'personal_identity_infos',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
   /** 用户语言偏好（'zh-CN' | 'en'） */
   LOCALE: 'app_locale',
+  /** 站点级填充规则（域名 → 自定义选择器/穿透开关） */
+  SITE_RULES: 'site_rules',
+  /** 跨子域匹配档位（仅存枚举值，不含任何域名/账号信息） */
+  DOMAIN_MATCH_CONFIG: 'domain_match_config',
   /** 侧边栏打开性能埋点环形日志（最近 20 次，用于生产环境量化白屏/卡顿） */
   SIDEPANEL_PERF_LOG: 'sidepanel_perf_log',
   /** 平台检测结果持久化（是否 Windows），供 SW 冷启动早期 getPlatformInfo 异常时兜底 */

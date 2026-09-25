@@ -2,13 +2,39 @@ import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry } from
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { deleteHistoryByEntryIds } from './passwordHistory';
-import { removeReminder } from './reminderManager';
+import { removeReminders } from './reminderManager';
+import { assertWithinCapacity } from './vaultCapacity';
 
-/** 回收站条目保留天数 */
-const TRASH_RETENTION_DAYS = 30;
+/**
+ * 回收站条目保留天数
+ *
+ * 对外导出：回收站弹窗的「剩余天数」读数与这里的自动清理必须同一口径，
+ * 各自写死 30 的话，改保留期时弹窗会静默显示一个与真实清理规则不符的倒计时。
+ */
+export const TRASH_RETENTION_DAYS = 30;
+
+/** 一天的毫秒数 */
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** 毫秒数：30 天 */
-const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * MS_PER_DAY;
+
+/**
+ * 计算某条回收站条目的剩余保留天数（按「已过几个完整 24 小时」扣减，已到期为 0）
+ *
+ * 纯展示口径，与 {@link cleanExpiredTrash} 的到期判定同源（共用 `TRASH_RETENTION_DAYS`）：
+ * 阈值仍由 `now - deletedAt > TRASH_RETENTION_MS` 决定，这里只是把同一个差值换算成天数读数。
+ *
+ * 读数按**天**而不是按保留期整体换算：`30 - floor(已过天数)` 才会随时间逐格递减，
+ * 若除以 `TRASH_RETENTION_MS` 则整月都停在 30、到期当天直接跳到 0。
+ * 上限同样夹在 `TRASH_RETENTION_DAYS`：时钟回拨或 `deletedAt` 带未来时间时不给出「31 天」。
+ *
+ * @param deletedAt 删除时间戳（毫秒）
+ * @param now 基准时刻（毫秒），由调用方一次取样，避免同一屏内每行各取一次 `Date.now()`
+ * @returns 剩余天数（0 ~ `TRASH_RETENTION_DAYS`）
+ */
+export const getTrashRemainingDays = (deletedAt: number, now: number = Date.now()): number =>
+  Math.min(TRASH_RETENTION_DAYS, Math.max(0, TRASH_RETENTION_DAYS - Math.floor((now - deletedAt) / MS_PER_DAY)));
 
 // ==================== 内部工具 ====================
 
@@ -90,9 +116,8 @@ export async function moveToTrash(ids: string[]): Promise<void> {
     });
 
     // 清理已移入回收站条目的到期提醒（避免对非活跃条目发送通知）
-    for (const id of ids) {
-      await removeReminder(id).catch(() => {});
-    }
+    // 批量化：原本逐个 id 各读一次整包提醒表，批删 100 条 = 100 次串行往返
+    await removeReminders(ids).catch(() => {});
   } catch (error) {
     logger.error('移入回收站失败:', error);
     throw error;
@@ -101,6 +126,8 @@ export async function moveToTrash(ids: string[]): Promise<void> {
 
 /**
  * 从回收站恢复条目到密码列表
+ *
+ * 恢复后的条目追加到主列表末尾；主列表已存在同 id 条目时仅消费回收站副本，不产生重复条目。
  *
  * @param ids 要恢复的条目 ID 列表
  */
@@ -111,20 +138,35 @@ export async function restoreFromTrash(ids: string[]): Promise<void> {
     const trash = await readTrash();
     const passwords = await readPasswords();
 
+    // 主列表已有同 id 条目时不再追加：本函数是「读回收站 → 读主列表 → 整体覆写」，
+    // 两次并发恢复在同 id 上交错（后一次的主列表读取命中前一次的写入结果）时，
+    // 无条件追加会在主列表落出两条同 id 条目，后续按 id 定位的更新/删除只会命中其一，
+    // 另一条成为无法单独清理的幽灵数据。正常路径下主列表与回收站按 id 互斥，此判断恒为空操作。
+    const existingIds = new Set(passwords.map(entry => entry.id));
     const restoredEntries: (PasswordEntry | EncryptedPasswordEntry)[] = [];
     const remainingTrash: TrashedPasswordEntry[] = [];
+    let skippedExisting = 0;
 
     for (const entry of trash) {
       if (idSet.has(entry.id)) {
         // 移除 deletedAt 字段后恢复
         const { deletedAt: _, ...restored } = entry;
-        restoredEntries.push(restored as PasswordEntry | EncryptedPasswordEntry);
+        if (existingIds.has(entry.id)) {
+          skippedExisting += 1;
+          logger.warn(`恢复跳过主列表已存在的同 id 条目: entryId=${entry.id}`);
+        } else {
+          restoredEntries.push(restored as PasswordEntry | EncryptedPasswordEntry);
+        }
       } else {
         remainingTrash.push(entry);
       }
     }
 
-    if (restoredEntries.length === 0) return;
+    if (restoredEntries.length === 0 && skippedExisting === 0) return;
+
+    // 总量守卫：与批量导入同口径——整批要么全恢复要么一条都不动，不静默截断。
+    // 「恢复了 5 条中的 2 条」会让回收站看起来没清空，用户无法判断还剩哪些。
+    assertWithinCapacity(passwords.length, restoredEntries.length);
 
     // 原子写入：同时更新 passwords 和 trash
     await chrome.storage.local.set({
@@ -157,9 +199,7 @@ export async function permanentDeleteFromTrash(ids: string[]): Promise<void> {
     await deleteHistoryByEntryIds(ids);
 
     // 安全兜底：清理可能残留的到期提醒
-    for (const id of ids) {
-      await removeReminder(id).catch(() => {});
-    }
+    await removeReminders(ids).catch(() => {});
   } catch (error) {
     logger.error('彻底删除失败:', error);
     throw error;
@@ -181,9 +221,7 @@ export async function emptyTrash(): Promise<void> {
     await deleteHistoryByEntryIds(entryIds);
 
     // 安全兜底：清理可能残留的到期提醒
-    for (const id of entryIds) {
-      await removeReminder(id).catch(() => {});
-    }
+    await removeReminders(entryIds).catch(() => {});
   } catch (error) {
     logger.error('清空回收站失败:', error);
     throw error;
@@ -221,9 +259,7 @@ export async function cleanExpiredTrash(): Promise<void> {
     await deleteHistoryByEntryIds(expiredIds);
 
     // 安全兜底：清理过期条目可能残留的到期提醒
-    for (const id of expiredIds) {
-      await removeReminder(id).catch(() => {});
-    }
+    await removeReminders(expiredIds).catch(() => {});
 
     logger.debug(`回收站自动清理: 移除 ${expired.length} 条过期条目`);
   } catch (error) {
@@ -233,10 +269,19 @@ export async function cleanExpiredTrash(): Promise<void> {
 
 /**
  * 获取回收站条目列表（纯展示路径：读取失败降级为空列表，错误已在 readTrash 记录）
+ *
+ * 返回顺序恒为**最近删除在前**。条目是追加写入的（`moveToTrash` 落的是
+ * `[...trash, ...movedEntries]`），最早删的因此排在最前，而打开回收站的人几乎总在找
+ * 「刚误删的那一条」——分页之后它恰好落在最后一页。这里单点定序，消费方（回收站弹窗）
+ * 的关键词过滤只做减法、不重排，两条规则叠加后的顺序才是用户看到的那一列。
+ *
+ * 同一批删除共享同一个 `deletedAt`（`moveToTrash` 一次取样），批内维持原追加序，
+ * 依赖的是 `Array.prototype.sort` 的稳定性（ECMAScript 2019 起为规范要求）。
  */
 export async function getTrashEntries(): Promise<TrashedPasswordEntry[]> {
   try {
-    return await readTrash();
+    const trash = await readTrash();
+    return [...trash].sort((a, b) => b.deletedAt - a.deletedAt);
   } catch {
     return [];
   }

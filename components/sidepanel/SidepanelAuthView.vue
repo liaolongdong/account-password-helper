@@ -26,6 +26,7 @@ import {
   Key,
   Aim,
   Grid,
+  Warning,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
@@ -41,6 +42,10 @@ interface Props {
   filteredPasswords: PasswordEntry[];
   /** 全量密码条目数（区分「无数据引导」与「搜索无结果」空状态） */
   totalCount: number;
+  /** 最近一次权威加载是否失败（失败时展示「重试」而非「无账号·去新增」，B8） */
+  loadFailed: boolean;
+  /** 会话有效但无法解密的条目数（列表被静默变短时的可见化提示，B8） */
+  undecryptableCount: number;
   /** 当前键盘导航选中索引 */
   activeIndex: number;
   /** 全局「自动触发登录」是否开启（开启时隐藏每条冗余的「填充并登录」按钮） */
@@ -53,6 +58,10 @@ interface Props {
   globalMatchCount: number;
   /** 全站模式下无法填充当前页的外站条目 ID 集（本站模式为空集） */
   offSiteIds: ReadonlySet<string>;
+  /** 跨子域命中（非精确层级）的条目 ID 集（`off` 档为空集，徽章据此查表） */
+  crossDomainIds: ReadonlySet<string>;
+  /** 放宽到「同主域名」档可额外带出的条目数（仅空态引导使用） */
+  crossDomainHintCount: number;
 }
 
 interface Emits {
@@ -64,6 +73,10 @@ interface Emits {
   addPassword: [];
   /** 无结果态「添加本站账号」（携带当前域名预填） */
   addSitePassword: [];
+  /** 空态深链：打开 Options 的跨子域匹配设置对话框 */
+  openDomainMatchSetting: [];
+  /** 加载失败态「重试」 */
+  retry: [];
   /** 鼠标悬停激活条目 */
   activate: [index: number];
   /** 认证视图首帧渲染完成（DOM flush + 首帧绘制，回传实际首帧渲染条目数，供性能埋点与骨架屏收尾） */
@@ -125,6 +138,14 @@ const emptyHint = computed(() =>
  * 避免全站模式下每次过滤重算产生新 Set 导致整张列表无效重渲染。
  */
 const canFill = (entry: PasswordEntry): boolean => !props.offSiteIds.has(entry.id);
+
+/**
+ * 条目是否由跨子域放宽带出（徽章依据）
+ *
+ * 与 `canFill` 同样以布尔值参与 v-memo：档位/域名变化会生成新 Set，
+ * 但只有该行自身的归属变化才触发重渲染。
+ */
+const isCrossDomain = (entry: PasswordEntry): boolean => props.crossDomainIds.has(entry.id);
 
 /**
  * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
@@ -486,8 +507,32 @@ onUnmounted(() => {
         v-else-if="filteredPasswords.length === 0"
         class="empty-state"
       >
+        <!-- 最近一次加载失败：给「重试」而非误报「无账号·去新增」（B8） -->
+        <template v-if="loadFailed">
+          <div class="empty-icon-circle empty-icon-circle--muted">
+            <el-icon class="empty-icon empty-icon--muted"><Refresh /></el-icon>
+          </div>
+          <h3 class="empty-title">{{ t('sidepanel.loadFailed') }}</h3>
+          <p class="empty-desc">{{ t('sidepanel.loadFailedDesc') }}</p>
+          <el-button
+            type="primary"
+            :icon="Refresh"
+            class="empty-add-btn"
+            @click="emit('retry')"
+          >
+            {{ t('sidepanel.retry') }}
+          </el-button>
+        </template>
+        <!-- 全部条目无法解密（密钥不符 / 密文损坏）：并非「没有数据」，引导恢复而非新增（B8） -->
+        <template v-else-if="totalCount === 0 && undecryptableCount > 0">
+          <div class="empty-icon-circle empty-icon-circle--muted">
+            <el-icon class="empty-icon empty-icon--muted"><Warning /></el-icon>
+          </div>
+          <h3 class="empty-title">{{ t('sidepanel.undecryptableTitle') }}</h3>
+          <p class="empty-desc">{{ t('sidepanel.undecryptableDesc', { count: undecryptableCount }) }}</p>
+        </template>
         <!-- 全部无数据：显示引导添加 -->
-        <template v-if="totalCount === 0">
+        <template v-else-if="totalCount === 0">
           <div class="empty-icon-circle">
             <el-icon class="empty-icon"><Key /></el-icon>
           </div>
@@ -528,6 +573,15 @@ onUnmounted(() => {
           >
             {{ t('sidepanel.addSiteAccount') }}
           </el-button>
+          <!-- 同主域还有账号但当前档位不放行：把跨子域匹配能力递到用户眼前（只读提示，不改可见集） -->
+          <button
+            v-if="crossDomainHintCount > 0"
+            type="button"
+            class="cross-domain-hint"
+            @click="emit('openDomainMatchSetting')"
+          >
+            {{ t('sidepanel.scope.crossSubdomainHint', { count: crossDomainHintCount }) }}
+          </button>
         </template>
       </div>
 
@@ -535,23 +589,37 @@ onUnmounted(() => {
         v-else
         class="password-items"
       >
+        <!-- 部分条目无法解密：列表已展示但被静默丢弃的条目需可见，避免误判「丢失」（B8） -->
+        <p
+          v-if="undecryptableCount > 0"
+          class="undecryptable-notice"
+          role="status"
+        >
+          {{ t('sidepanel.undecryptableNotice', { count: undecryptableCount }) }}
+        </p>
+        <!-- v-memo 依赖需覆盖「updateTime 不变但会被改写」的字段：条目编辑一律 bump updateTime，
+             唯独标签是元数据编辑（usePasswordManagement 刻意保留原 updateTime 以免干扰「最近更新」排序），
+             故 tag 必须显式入依赖，否则改标签后复用旧 vnode、行内容停留在旧标签 -->
         <PasswordListItem
           v-for="(password, index) in visiblePasswords"
           :key="password.id"
           v-memo="[
             activeIndex === index,
             password.favorite,
+            password.tag,
             password.updateTime,
             autoTriggerLogin,
             searchKeyword,
             pinyinRenderMemoDependency,
             canFill(password),
+            isCrossDomain(password),
           ]"
           :password="password"
           :is-active="activeIndex === index"
           :auto-login-enabled="autoTriggerLogin"
           :search-keyword="searchKeyword"
           :can-fill="canFill(password)"
+          :cross-domain="isCrossDomain(password)"
           @fill="p => emit('fill', p)"
           @fill-and-login="p => emit('fillAndLogin', p)"
           @open-site="p => emit('openSite', p)"
@@ -768,6 +836,28 @@ onUnmounted(() => {
   transform: translateY(-1px);
 }
 
+/* 跨子域匹配深链：文字级按钮，与主操作按钮区分层级，避免空态出现三个同权重按钮 */
+.cross-domain-hint {
+  padding: 4px 8px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--aph-primary);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.cross-domain-hint:hover {
+  text-decoration: underline;
+}
+
+.cross-domain-hint:focus-visible {
+  outline: 2px solid var(--aph-primary);
+  outline-offset: 2px;
+}
+
 .password-list {
   flex: 1;
   padding: 8px 0;
@@ -837,6 +927,17 @@ onUnmounted(() => {
   margin: 0 0 20px;
   font-size: 13px;
   color: #6b7280;
+}
+
+/* 部分条目无法解密提示（B8）：列表顶部浅色横幅，不替换列表、不阻断操作 */
+.undecryptable-notice {
+  padding: 8px 12px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--aph-text-secondary);
+  background: var(--aph-surface-2);
+  border: 1px solid var(--aph-surface-line);
+  border-radius: 8px;
 }
 
 /* 去添加密码按钮：圆角 + hover 上浮动效 */

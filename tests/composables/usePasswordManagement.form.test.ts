@@ -7,6 +7,9 @@
  * 同时锁定校验层不越权约束 tag：`passwordFormRules` 不含 tag 规则（详见
  * `tests/utils/formValidators.test.ts` 的回归背景）。
  *
+ * 第二个 describe 锁定同一状态所有者对「超容量历史条目」的编辑态放宽契约，
+ * 见 `usePasswordManagement 编辑态容量放宽`。
+ *
  * 回归背景：添加/编辑弹窗内的 localForm 是 props 的镜像副本，其 tag 只在整表替换
  * （新增 / 编辑 / 重置）时同步，用户选完标签后即变为陈旧值。修复前弹窗把整份 localForm
  * （含陈旧 tag）回传，父级用内联 `Object.assign(passwordForm, $event)` 直接覆盖，
@@ -17,7 +20,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { effectScope, ref, type EffectScope } from 'vue';
+import type { FormItemRule } from 'element-plus';
 import { usePasswordManagement } from '@/composables/usePasswordManagement';
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { stringifyTags } from '@/utils/tagUtils';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
 
@@ -123,5 +128,66 @@ describe('usePasswordManagement 密码表单字段所有权', () => {
 
   it('passwordFormRules 保留其余字段规则并追加 totp', () => {
     expect(Object.keys(mgmt.passwordFormRules.value).sort()).toEqual(['password', 'remark', 'totp', 'url', 'username']);
+  });
+});
+
+/**
+ * 超容量历史条目的编辑态容量放宽（`initialLengths` 的调用侧契约）
+ *
+ * 回归背景：导入闸门刻意宽于表单容量（超容量字段既不拒收也不截断，保证任何自导出文件都能
+ * 回灌），库里可能存在 remark 长 1200 的条目。`form.validate()` 不看 trigger 会放行全部规则，
+ * 按标准容量硬拒会让用户改任何字段都存不下。这里锁定三件事：编辑态按原长度放宽、新建态
+ * 与重置态回到标准容量、容量恒为下限（短条目不因放宽而收紧）。
+ *
+ * 放宽不削弱容量：`PasswordFormDialog.vue` 四个输入框的 `maxlength` 仍取 `PASSWORD_FIELD_LIMITS`，
+ * 浏览器对超限值只拦增不拦存，用户没有把字段变更长的能力。
+ */
+describe('usePasswordManagement 编辑态容量放宽', () => {
+  let scope: EffectScope;
+  let mgmt: ReturnType<typeof usePasswordManagement>;
+
+  beforeEach(() => {
+    scope = effectScope();
+    mgmt = scope.run(() => usePasswordManagement({ validityForm: ref({ validityHours: 1 }) }))!;
+  });
+
+  afterEach(() => {
+    scope.stop();
+  });
+
+  /** 取出某字段 max 规则的上限 */
+  const maxOf = (field: 'username' | 'password' | 'url' | 'remark'): number => {
+    const rules = mgmt.passwordFormRules.value[field] as FormItemRule[];
+    return rules.find(rule => rule.max !== undefined)!.max as number;
+  };
+
+  it('新建态按标准容量校验', () => {
+    mgmt.openPasswordDialog('example.com');
+
+    expect(maxOf('remark')).toBe(PASSWORD_FIELD_LIMITS.remark);
+    expect(maxOf('url')).toBe(PASSWORD_FIELD_LIMITS.url);
+  });
+
+  it('编辑超容量条目时按原长度放宽，改完其他字段仍能存下', () => {
+    const longRemark = 'r'.repeat(PASSWORD_FIELD_LIMITS.remark + 200);
+    mgmt.editPassword(makePasswordEntry({ id: 'e3', url: 'example.com', remark: longRemark }));
+
+    expect(maxOf('remark')).toBe(longRemark.length);
+    // 未超容量的字段保持标准口径，放宽不是全局放水
+    expect(maxOf('url')).toBe(PASSWORD_FIELD_LIMITS.url);
+  });
+
+  it('编辑短条目时上限不收紧，关闭弹窗后回到标准容量', () => {
+    mgmt.editPassword(makePasswordEntry({ id: 'e4', remark: '备注' }));
+    expect(maxOf('remark')).toBe(PASSWORD_FIELD_LIMITS.remark);
+
+    mgmt.resetPasswordForm();
+    expect(maxOf('remark')).toBe(PASSWORD_FIELD_LIMITS.remark);
+
+    // 编辑过超容量条目后重置，快照必须清空，否则放宽会泄漏到新建态
+    mgmt.editPassword(makePasswordEntry({ id: 'e5', remark: 'r'.repeat(2000) }));
+    expect(maxOf('remark')).toBe(2000);
+    mgmt.openPasswordDialog();
+    expect(maxOf('remark')).toBe(PASSWORD_FIELD_LIMITS.remark);
   });
 });

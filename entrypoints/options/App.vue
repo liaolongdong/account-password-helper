@@ -38,6 +38,7 @@
         :current-version="currentVersion"
         :health-score="passwords.length ? healthReport.score : undefined"
         :health-grade="passwords.length ? healthReport.grade : undefined"
+        :last-verified-backup-at="lastVerifiedBackupAt"
         @add-password="openAddDialogWithActiveTab"
         @open-health="showHealthDialog = true"
         @open-validity="openValiditySetting"
@@ -91,10 +92,16 @@
       <PasswordTable
         v-else
         ref="passwordTableRef"
-        :data="filteredPasswords"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :data="pagedEntries"
         :loading="tableLoading"
-        :search-keyword="searchKeyword"
+        :search-keyword="debouncedSearchKeyword"
         :row-class-name="handleRowClassName"
+        :page-count="pageCount"
+        :total-count="totalCount"
+        :selected-count="selectedIds.length"
+        :off-page-selected-count="offPageSelectedCount"
         @selection-change="handleSelectionChange"
         @sort-change="handleSortChange"
         @toggle-password="togglePasswordVisibility"
@@ -202,6 +209,30 @@
       @restored="loadPasswords"
     />
 
+    <!-- 身份信息库列表弹窗（共享实例注入） -->
+    <IdentityVaultDialog
+      v-model="showIdentityVaultDialog"
+      :vault="identityVault"
+      @add="openIdentityForm(null)"
+      @edit="openIdentityForm"
+    />
+
+    <!-- 身份信息新增/编辑表单弹窗 -->
+
+    <!-- 站点规则管理弹窗 -->
+    <SiteRulesDialog
+      v-model="showSiteRulesDialog"
+      :initial-domain="siteRulePrefillDomain"
+    />
+    <!-- 跨子域匹配档位弹窗 -->
+    <DomainMatchSettingDialog v-model="showDomainMatchDialog" />
+    <IdentityFormDialog
+      v-model="showIdentityFormDialog"
+      :entry="editingIdentity"
+      :loading="identityFormLoading"
+      @save="handleIdentityFormSave"
+    />
+
     <!-- 密码历史设置弹窗 -->
     <PasswordHistorySettingDialog v-model="showPasswordHistoryDialog" />
 
@@ -223,6 +254,15 @@
 
     <!-- 主密码验证弹窗（导出/备份/有效期修改等操作前校验） -->
     <MasterPasswordVerifyDialog />
+
+    <!-- 命令面板（Ctrl/Cmd+K）：全局快捷键由 useCommandPalette 挂载，仅在认证态可唤起 -->
+    <CommandPalette
+      v-model="paletteVisible"
+      v-model:keyword="paletteKeyword"
+      v-model:active-index="paletteActiveIndex"
+      :filtered="paletteFiltered"
+      @run="paletteRunAt"
+    />
   </div>
 </template>
 
@@ -263,6 +303,13 @@ const MasterPasswordVerifyDialog = defineAsyncComponent(
   () => import('@/components/options/MasterPasswordVerifyDialog.vue'),
 );
 const PasswordDetailDrawer = defineAsyncComponent(() => import('@/components/options/PasswordDetailDrawer.vue'));
+const IdentityVaultDialog = defineAsyncComponent(() => import('@/components/options/IdentityVaultDialog.vue'));
+const IdentityFormDialog = defineAsyncComponent(() => import('@/components/options/IdentityFormDialog.vue'));
+const SiteRulesDialog = defineAsyncComponent(() => import('@/components/options/SiteRulesDialog.vue'));
+const DomainMatchSettingDialog = defineAsyncComponent(
+  () => import('@/components/options/DomainMatchSettingDialog.vue'),
+);
+const CommandPalette = defineAsyncComponent(() => import('@/components/options/CommandPalette.vue'));
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -278,11 +325,25 @@ import { usePasswordManagement } from '@/composables/usePasswordManagement';
 import { useStorageWatcher } from '@/composables/useStorageWatcher';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
+import { useIdentityVault } from '@/composables/useIdentityVault';
+import { useCommandPalette } from '@/composables/useCommandPalette';
+import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
+import { findDuplicateIdentity } from '@/utils/identity/dedup';
+import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
 import { normalizeToHostAndPort } from '@/utils/domain';
+import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { isDev } from '@/utils/env';
+
+/**
+ * 标签页标题跟随语言
+ *
+ * `index.html` 的 `<title>` 是静态中文默认值，options 是三个入口里唯一把标题展示给用户
+ * 的（浏览器标签页），英文环境下会残留中文标题。i18n 初始化早于挂载，故 immediate 即生效。
+ */
+watch(currentLocale, () => (document.title = t('options.documentTitle')), { immediate: true });
 
 /** 密码表单弹窗组件引用（用于获取内部 form ref） */
 const passwordFormDialogRef = ref();
@@ -328,6 +389,54 @@ const showHealthDialog = ref(false);
 
 /** 回收站弹窗可见性 */
 const showTrashDialog = ref(false);
+
+/** 身份信息库列表弹窗可见性 */
+const showIdentityVaultDialog = ref(false);
+
+/** 身份信息表单弹窗可见性 */
+const showIdentityFormDialog = ref(false);
+
+/** 站点规则管理弹窗可见性 */
+const showSiteRulesDialog = ref(false);
+
+/** 跨子域匹配档位弹窗可见性 */
+const showDomainMatchDialog = ref(false);
+
+/** 站点规则弹窗预填域名（来自内容脚本填充失败就地引导，编辑已有规则时不使用） */
+const siteRulePrefillDomain = ref<string | undefined>(undefined);
+
+/** 未解锁时收到的站点规则引导域名，解锁后自动续上，避免这次点击被丢弃 */
+const pendingSiteRuleDomain = ref<string | null>(null);
+
+/**
+ * 打开站点规则弹窗（可选预填域名）
+ * 供「安全设置」菜单项与命令面板（无参）、内容脚本填充失败引导（携带当前域名）共用
+ */
+const openSiteRules = (domain?: string): void => {
+  // 站点规则是明文元数据、不需要会话即可读写，但把规则弹窗压在主密码验证屏上既突兀又难以为继；
+  // 未解锁时记下域名并给出可读反馈，解锁那一刻自动续上这次引导。
+  if (domain && !isAuthenticated.value) {
+    pendingSiteRuleDomain.value = domain;
+    ElMessage.info(t('message.siteRulesNeedUnlock'));
+    return;
+  }
+  siteRulePrefillDomain.value = domain?.trim() || undefined;
+  showSiteRulesDialog.value = true;
+};
+
+/**
+ * 打开跨子域匹配档位弹窗
+ * 供「安全设置」菜单项、命令面板与侧边栏/内联下拉的档位引导（runtime message）共用
+ */
+const openDomainMatchSetting = (): void => {
+  showDomainMatchDialog.value = true;
+};
+
+/** 正在编辑的身份条目（null = 新增） */
+const editingIdentity = ref<IdentityEntry | null>(null);
+
+/** 身份表单持久化进行中 */
+const identityFormLoading = ref(false);
 
 /** 密码历史设置弹窗可见性 */
 const showPasswordHistoryDialog = ref(false);
@@ -406,6 +515,9 @@ const { currentVersion } = useVersionUpdate();
 /** 加密备份导入弹窗可见性 */
 const showBackupImportDialog = ref(false);
 
+/** 最近一次通过完整性自检的加密备份导出时间戳（epoch 毫秒），null 表示尚无已验证备份 */
+const lastVerifiedBackupAt = ref<number | null>(null);
+
 /** 加密备份导出 */
 const handleEncryptedBackupExport = async () => {
   if (passwords.value.length === 0) {
@@ -420,9 +532,15 @@ const handleEncryptedBackupExport = async () => {
   try {
     await exportEncryptedBackup(passwords.value, masterPassword);
     ElMessage.success(t('options.backup.exportSuccess'));
+    // 导出内部已在自检通过后落库，回读以反映真实持久态（而非乐观当前时间）
+    lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
   } catch (error) {
     logger.error('加密备份导出失败:', error);
-    ElMessage.error(t('options.backup.exportFailed'));
+    if ((error as { name?: string })?.name === 'BackupVerifyError') {
+      ElMessage.error(t('backup.exportVerifyFailed'));
+    } else {
+      ElMessage.error(t('options.backup.exportFailed'));
+    }
   }
 };
 
@@ -436,6 +554,18 @@ const openTrashWithVerify = async (): Promise<void> => {
   );
   if (!masterPassword) return;
   showTrashDialog.value = true;
+};
+
+/**
+ * 打开身份信息库前先验证主密码（纯门槛，刻意不使用返回的密码）
+ *
+ * 身份库含证件号/卡号等高敏 PII，复验门槛防「会话已解锁但用户离开座位」时
+ * 旁人一次性看到全部身份信息；取消则弹窗不得打开。镜像 openTrashWithVerify。
+ */
+const openIdentityVaultWithVerify = async (): Promise<void> => {
+  const masterPassword = await promptAndVerifyMasterPassword(t('identity.verifyTitle'), t('identity.verifyPrompt'));
+  if (!masterPassword) return;
+  showIdentityVaultDialog.value = true;
 };
 
 /**
@@ -471,6 +601,9 @@ const handleDataCommand = (command: string) => {
     case 'trash':
       openTrashWithVerify();
       break;
+    case 'identityVault':
+      openIdentityVaultWithVerify();
+      break;
   }
 };
 
@@ -488,6 +621,12 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'autoSave':
       showAutoSaveDialog.value = true;
+      break;
+    case 'siteRules':
+      openSiteRules();
+      break;
+    case 'domainMatch':
+      openDomainMatchSetting();
       break;
     case 'idleLock':
       showIdleLockDialog.value = true;
@@ -514,6 +653,7 @@ const {
   showPasswordDialog,
   showEmailBackupDialog,
   searchKeyword,
+  debouncedSearchKeyword,
   selectedIds,
   isEditingPassword,
   editingPasswordId,
@@ -524,12 +664,20 @@ const {
   favoriteOnly,
   filterTags,
   filteredPasswords,
+  pagedEntries,
+  currentPage,
+  pageSize,
+  pageCount,
+  totalCount,
+  offPageSelectedCount,
   currentSort,
   availableTags,
   tagArray,
   loadPasswords,
+  patchMetadataOnlyFromStorage,
   handleSortChange,
   restoreSortConfig: initSortConfig,
+  restorePageSizeConfig,
   togglePasswordVisibility,
   handleRowClassName,
   handleSelectionChange,
@@ -553,12 +701,38 @@ const {
   toggleFavorite,
   removeDuplicates,
   isLocalOperation,
+  consumeLocalOperation,
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
 
+/**
+ * 回收站弹窗关闭后，让主表跟上弹窗里改过的档位
+ *
+ * 两处分页共用同一个存储键，但各自持有自己的响应式 `pageSize`：弹窗内的改动会立刻落盘，
+ * 主表却不会凭空知道。不补这一下就会出现「刚在回收站选了 200，回到列表还是 100，
+ * 刷新页面才一致」。恢复是同值赋值时 Vue 不触发更新，因此多数情况下这一步零成本。
+ */
+watch(showTrashDialog, (visible, wasVisible) => {
+  if (!visible && wasVisible) void restorePageSizeConfig();
+});
+
 /** 批量编辑标签弹窗可见性 */
 const showBatchTagDialog = ref(false);
+
+/**
+ * 命中集合一变就清空选中
+ *
+ * 分页要求选择列开 `reserve-selection`（否则换页即丢选，跨页批量处理无从谈起），
+ * 代价是 Element Plus 不再在 `data` 换引用时自动清选：`setData` 里保留选择集那条分支
+ * 会跳过 `clearSelection()` 与 `cleanSelection()`。而分页**之前**的语义恰恰就是靠这一下
+ * 隐式清空——`filteredPasswords` 任何一次重算都返回新数组，表格拿到新 `data` 就把选择归零。
+ * 这里把这一下显式补回来，让「筛选/排序/增删改 → 选择集归零」与分页前逐字一致，
+ * 顺带避免已删除条目的行对象滞留在 EP 内部（保留模式下没人回收它）。
+ */
+watch(filteredPasswords, () => {
+  passwordTableRef.value?.clearSelection();
+});
 
 /**
  * 批量编辑标签保存：委托 composable 追加/移除落盘后关闭弹窗
@@ -575,15 +749,24 @@ const handleBatchTagSave = async (tags: string[], mode: 'append' | 'remove') => 
  *
  * 当前活动标签页为扩展自身页面或浏览器内部页（chrome://）时无法作为站点域名，
  * 回退选取最近访问的普通网页标签页；仍无可用标签页时以空 URL 打开（行为与旧版一致）。
+ *
+ * 两次 `tabs.query` 并发发起：管理页自身即活动标签页，回退查询每次都会命中，
+ * 串行等待等于把两次 IPC 延迟叠加到「点新增 → 弹窗出现」这条用户可感知路径上。
+ * 决策逻辑与单次语义不变（回退结果只在需要时被取用）。
+ * 回退查询单独吞掉异常：它现在是无条件发起的，若让它 reject 整个 `try`，
+ * 一个本来可用的活动标签页 URL 会被连带降级成空预填（旧实现不会走到那一步）。
  */
 const openAddDialogWithActiveTab = async () => {
   let prefillUrl = '';
   try {
-    const [activeTab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    const [activeTabQuery, allTabsQuery] = await Promise.all([
+      chrome.tabs.query({ active: true, lastFocusedWindow: true }),
+      chrome.tabs.query({}).catch(() => []),
+    ]);
+    const activeTab = activeTabQuery[0];
     let candidateUrl = activeTab?.url ?? '';
     if (!candidateUrl || candidateUrl.startsWith('chrome-extension://') || candidateUrl.startsWith('chrome://')) {
-      const tabs = await chrome.tabs.query({});
-      const webTab = tabs
+      const webTab = allTabsQuery
         .filter(tab => tab.url && /^https?:/.test(tab.url))
         .sort((a, b) => ((b as any).lastAccessed ?? b.id ?? 0) - ((a as any).lastAccessed ?? a.id ?? 0))[0];
       candidateUrl = webTab?.url ?? '';
@@ -682,6 +865,110 @@ const {
   },
 });
 
+/** 身份信息库状态与操作（单一实例注入列表弹窗，会话失效由下方 watch teardown） */
+const identityVault = useIdentityVault();
+
+/**
+ * 打开身份表单弹窗（新增/编辑共用）
+ * @param entry 编辑目标条目，null 表示新增
+ */
+const openIdentityForm = (entry: IdentityEntry | null): void => {
+  editingIdentity.value = entry;
+  showIdentityFormDialog.value = true;
+};
+
+/**
+ * 身份表单保存：新增走 create，编辑走 update（携带并发令牌）
+ *
+ * 错误映射依赖 identityCrud 抛出的机器可读 `code`（getIdentityCrudErrorCode），
+ * 分流到专属文案；无 code 的其余错误走通用失败提示。
+ */
+const handleIdentityFormSave = async (payload: IdentityPayload): Promise<void> => {
+  // 保存前疑似重复检测（非阻断）：证件号 / 卡号命中既有条目时二次确认，取消则回到表单不落盘
+  const dup = findDuplicateIdentity(identityVault.rows.value, payload, editingIdentity.value?.id);
+  if (dup) {
+    const dupEntry = identityVault.rows.value.find(row => row.id === dup.id);
+    try {
+      await ElMessageBox.confirm(
+        t('identity.form.duplicateWarning', {
+          field: t(`identity.field.${dup.field}`),
+          title: dupEntry ? identityVault.displayTitle(dupEntry) : '',
+        }),
+        t('identity.form.duplicateTitle'),
+        {
+          confirmButtonText: t('common.save'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning',
+        },
+      );
+    } catch {
+      return;
+    }
+  }
+  identityFormLoading.value = true;
+  try {
+    if (editingIdentity.value) {
+      await identityVault.update(editingIdentity.value.id, payload, editingIdentity.value.updateTime);
+    } else {
+      await identityVault.create(payload);
+    }
+    ElMessage.success(t('identity.form.saveSuccess'));
+    showIdentityFormDialog.value = false;
+  } catch (error) {
+    const code = getIdentityCrudErrorCode(error);
+    if (code === 'LIMIT_REACHED') {
+      ElMessage.error(t('identity.form.limitReached'));
+    } else if (code === 'UPDATE_CONFLICT') {
+      ElMessage.error(t('identity.form.updateConflict'));
+    } else if (code === 'NOT_FOUND') {
+      ElMessage.error(t('identity.form.deletedConflict'));
+    } else {
+      logger.error('保存身份信息失败:', error);
+      ElMessage.error(t('message.saveFailed'));
+    }
+  } finally {
+    identityFormLoading.value = false;
+  }
+};
+
+/**
+ * 会话失效即销毁本上下文「以明文为键」的派生记忆缓存
+ *
+ * 挂在 `isAuthenticated` 落 false 这条**状态边界**上，而不是只挂在 `onSessionExpired`
+ * 回调里：`useAuthFlow` 有五处会把已认证态翻成未认证（广播过期、`checkAuth` 自检出会话
+ * 失效、主密码未设置、异常兜底），只补其一就会留下「列表已清空、缓存里还能按明文检索」
+ * 的缺口。管理页可整日常驻，这把缓存因此能活过无数次锁定。
+ *
+ * `flush: 'sync'` 与 `utils/plaintextCacheCleanup.ts` 的口径一致：清理同步落地，
+ * 不留「状态已切到验证页、明文键仍可寻址」的微任务窗口。与下方身份库 teardown
+ * 分开成两个 watcher，避免把既有 `identityVault.teardown()` 的调度时机一并改掉。
+ */
+watch(
+  isAuthenticated,
+  authenticated => {
+    if (!authenticated) {
+      clearPlaintextKeyedCaches();
+    }
+  },
+  { flush: 'sync' },
+);
+
+/** 会话状态切换时清理身份库明文/弹窗，并续上未解锁期间收到的站点规则引导 */
+watch(isAuthenticated, authenticated => {
+  if (!authenticated) {
+    identityVault.teardown();
+    showIdentityVaultDialog.value = false;
+    showIdentityFormDialog.value = false;
+    editingIdentity.value = null;
+    return;
+  }
+  const pending = pendingSiteRuleDomain.value;
+  if (pending) {
+    pendingSiteRuleDomain.value = null;
+    openSiteRules(pending);
+  }
+});
+
 /**
  * 主密码设置页 / 密码表单弹窗强度校验
  *
@@ -720,12 +1007,213 @@ const {
   },
 });
 
+/**
+ * 命令面板动作清单（Ctrl/Cmd+K）
+ *
+ * 每项 `run` 复用 HeaderBar 菜单/按钮已有的处理函数，走完全相同的落码路径，不新增业务行为；
+ * `label` 复用既有菜单文案，`keywords` 仅为检索别名（不渲染，故不受 i18n 约束）。
+ * 每次面板打开时按当前语言重新求值标签，语言切换后重开即生效。
+ */
+const buildPaletteActions = () => [
+  {
+    id: 'add',
+    group: 'entry',
+    label: t('options.header.addPassword'),
+    keywords: ['add', 'new', 'create'],
+    run: openAddDialogWithActiveTab,
+  },
+  {
+    id: 'health',
+    group: 'entry',
+    label: t('options.header.healthCheck'),
+    keywords: ['health', 'audit', 'score'],
+    run: () => (showHealthDialog.value = true),
+  },
+  {
+    id: 'downloadTemplate',
+    group: 'data',
+    label: t('options.header.downloadTemplate'),
+    keywords: ['template', 'csv', 'excel'],
+    run: downloadTemplate,
+  },
+  {
+    id: 'import',
+    group: 'data',
+    label: t('options.header.importData'),
+    keywords: ['import', 'csv', 'json', 'excel'],
+    run: () => (showImportDialog.value = true),
+  },
+  {
+    id: 'export',
+    group: 'data',
+    label: t('options.header.exportData'),
+    keywords: ['export', 'csv'],
+    run: exportPasswords,
+  },
+  {
+    id: 'exportJson',
+    group: 'data',
+    label: t('options.header.exportJson'),
+    keywords: ['export', 'json'],
+    run: exportPasswordsJson,
+  },
+  {
+    id: 'backupExport',
+    group: 'data',
+    label: t('options.header.backupExport'),
+    keywords: ['backup', 'export', 'aph'],
+    run: handleEncryptedBackupExport,
+  },
+  {
+    id: 'backupImport',
+    group: 'data',
+    label: t('options.header.backupImport'),
+    keywords: ['backup', 'import', 'restore', 'aph'],
+    run: () => (showBackupImportDialog.value = true),
+  },
+  {
+    id: 'emailBackup',
+    group: 'data',
+    label: t('options.header.emailBackup'),
+    keywords: ['email', 'mail', 'backup'],
+    run: openEmailBackupDialog,
+  },
+  {
+    id: 'removeDuplicates',
+    group: 'data',
+    label: t('options.header.removeDuplicates'),
+    keywords: ['dedup', 'duplicate'],
+    run: removeDuplicates,
+  },
+  {
+    id: 'trash',
+    group: 'data',
+    label: t('options.header.trash'),
+    keywords: ['trash', 'deleted'],
+    run: openTrashWithVerify,
+  },
+  {
+    id: 'identityVault',
+    group: 'data',
+    label: t('identity.title'),
+    keywords: ['identity', 'vault', 'pii'],
+    run: openIdentityVaultWithVerify,
+  },
+  {
+    id: 'changeMasterPassword',
+    group: 'security',
+    label: t('options.header.changeMasterPassword'),
+    keywords: ['master', 'password', 'change'],
+    run: () => (showChangeMasterPasswordDialog.value = true),
+  },
+  {
+    id: 'validity',
+    group: 'security',
+    label: t('options.header.validity'),
+    keywords: ['validity', 'session', 'expire'],
+    run: openValiditySetting,
+  },
+  {
+    id: 'idleLock',
+    group: 'security',
+    label: t('options.header.idleLock'),
+    keywords: ['idle', 'lock', 'auto'],
+    run: () => (showIdleLockDialog.value = true),
+  },
+  {
+    id: 'autoSave',
+    group: 'security',
+    label: t('options.header.autoSave'),
+    keywords: ['autosave', 'auto', 'save'],
+    run: () => (showAutoSaveDialog.value = true),
+  },
+  {
+    id: 'siteRules',
+    group: 'security',
+    label: t('options.header.siteRules'),
+    keywords: ['site', 'rule', 'selector', 'shadow'],
+    run: () => openSiteRules(),
+  },
+  {
+    id: 'domainMatch',
+    group: 'security',
+    label: t('options.header.domainMatch'),
+    keywords: ['domain', 'subdomain', 'wildcard', 'match'],
+    run: () => openDomainMatchSetting(),
+  },
+  {
+    id: 'clipboard',
+    group: 'security',
+    label: t('options.header.clipboard'),
+    keywords: ['clipboard', 'copy'],
+    run: () => (showClipboardDialog.value = true),
+  },
+  {
+    id: 'favoriteLimit',
+    group: 'security',
+    label: t('options.header.favoriteLimit'),
+    keywords: ['favorite', 'limit', 'star'],
+    run: () => (showFavoriteLimitDialog.value = true),
+  },
+  {
+    id: 'passwordHistory',
+    group: 'security',
+    label: t('options.historySetting.title'),
+    keywords: ['history'],
+    run: () => (showPasswordHistoryDialog.value = true),
+  },
+  {
+    id: 'shortcuts',
+    group: 'security',
+    label: t('options.header.shortcuts'),
+    keywords: ['shortcut', 'hotkey', 'key'],
+    run: () => (showShortcutDialog.value = true),
+  },
+  {
+    id: 'personalization',
+    group: 'preferences',
+    label: t('options.header.personalization'),
+    keywords: ['preference', 'theme', 'language'],
+    run: openPersonalizationDialog,
+  },
+];
+
+/** 命令面板控制器：仅认证态可唤起，动作复用既有 handler */
+const {
+  visible: paletteVisible,
+  keyword: paletteKeyword,
+  activeIndex: paletteActiveIndex,
+  filtered: paletteFiltered,
+  runAt: paletteRunAt,
+} = useCommandPalette({
+  getActions: buildPaletteActions,
+  canOpen: () => isAuthenticated.value,
+});
+
 /** Storage 与可见性变化监听 */
 useStorageWatcher({
   onAuthChange: () => void checkAuth(),
   onPasswordDataChange: () => void loadPasswords(),
   skipIf: isLocalOperation,
+  // 守卫由「事件确实被跳过」解除：本地写入的 onChanged 在大列表重渲染后才会到达，
+  // 固定时长清除会让一次保存/收藏仍触发整表全量重载（issue #89 的保存路径实测瓶颈之一）
+  consumeSkip: consumeLocalOperation,
+  // 外部写入（其他窗口填充、网页自动保存）只动白名单元数据时就地修补列表，
+  // 省掉一次 5N 字段解密 + 整表替换；未命中或异常由 watcher 回退整表重载
+  patchMetadataOnly: change => patchMetadataOnlyFromStorage(change),
 });
+
+/**
+ * 应用内联下拉「到全库找」带过来的关键词
+ *
+ * 一并清掉收藏与标签筛选：两者与搜索是叠加（AND）关系，残留会让「我库里到底有没有这个账号」
+ * 这个入口显示成空表。筛选条件是页面态、不入存储，因此清理只影响这次深链呈现的视图。
+ */
+const applySearchKeyword = (keyword: string): void => {
+  searchKeyword.value = keyword;
+  favoriteOnly.value = false;
+  filterTags.value = [];
+};
 
 /** Runtime 消息监听 */
 useRuntimeMessageHandler({
@@ -735,6 +1223,9 @@ useRuntimeMessageHandler({
   editPassword,
   openPasswordDialog,
   openValiditySetting,
+  openSiteRules,
+  openDomainMatchSetting,
+  applySearchKeyword,
 });
 
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */
@@ -742,7 +1233,12 @@ onMounted(async () => {
   injectPersonalizationStyles();
   initSessionManager();
   window.addEventListener('sessionExpired', handleSessionExpired);
+  // 每页条数决定首帧喂给表格多少行：必须在 checkAuth 拉起数据与渲染之前落定，否则换档要把
+  // 整表重排付两遍（本页最贵的单项操作）。它是纯视图偏好，单键读取，不依赖会话态。
+  await restorePageSizeConfig();
   await checkAuth();
+  // 读取「最近一次已验证备份」时间戳，供 HeaderBar 展示备份健康提示（时间戳非敏感，读取无需会话态）
+  lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
   // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载
   await nextTick();
   // 恢复表格排序配置
@@ -756,8 +1252,8 @@ onMounted(async () => {
 const restoreSortConfig = async () => {
   await initSortConfig();
   const sortConfig = currentSort.value;
-  if (sortConfig.prop && sortConfig.order && passwordTableRef.value?.tableRef) {
-    passwordTableRef.value.tableRef.sort(sortConfig.prop, sortConfig.order);
+  if (sortConfig.prop && sortConfig.order) {
+    passwordTableRef.value?.applySort(sortConfig.prop, sortConfig.order);
   }
 };
 

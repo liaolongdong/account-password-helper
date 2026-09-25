@@ -6,7 +6,8 @@ import { MessageType } from '@/utils/types';
 import type { RuntimeMessage, QuickAddPasswordData } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { useI18n, registerMessages } from '@/utils/i18n';
-import { createPasswordFormRules, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/formValidators';
+import { createPasswordFormRules } from '@/utils/formValidators';
+import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
 import zhForm from '@/utils/i18n/locales/zh-CN/form.json';
 import enForm from '@/utils/i18n/locales/en/form.json';
 
@@ -150,7 +151,7 @@ const handleOpenOptionsAdd = () => {
             v-model="form.username"
             :placeholder="t('sidepanel.quickAdd.usernamePlaceholder')"
             clearable
-            maxlength="50"
+            :maxlength="PASSWORD_FIELD_LIMITS.username"
             @keyup.enter="handleSubmit"
           />
         </el-form-item>
@@ -185,9 +186,12 @@ const handleOpenOptionsAdd = () => {
             v-model="form.url"
             :placeholder="t('sidepanel.quickAdd.urlPlaceholder')"
             clearable
-            maxlength="100"
+            :maxlength="PASSWORD_FIELD_LIMITS.url"
             @keyup.enter="handleSubmit"
           />
+          <div class="form-tip">
+            {{ t('form.urlWildcardHint') }}
+          </div>
         </el-form-item>
 
         <el-form-item
@@ -198,7 +202,7 @@ const handleOpenOptionsAdd = () => {
             v-model="form.tag"
             :placeholder="t('sidepanel.quickAdd.tagPlaceholder')"
             clearable
-            maxlength="50"
+            :maxlength="PASSWORD_FIELD_LIMITS.tag"
             @keyup.enter="handleSubmit"
           />
         </el-form-item>
@@ -211,7 +215,7 @@ const handleOpenOptionsAdd = () => {
             v-model="form.remark"
             :placeholder="t('sidepanel.quickAdd.remarkPlaceholder')"
             clearable
-            maxlength="1000"
+            :maxlength="PASSWORD_FIELD_LIMITS.remark"
             @keyup.enter="handleSubmit"
           />
         </el-form-item>
@@ -280,6 +284,15 @@ const handleOpenOptionsAdd = () => {
   display: flex;
   flex-shrink: 0;
   gap: 8px;
+}
+
+/* 网址字段的通配条目引导：el-form-item__content 是 flex，需独占一行 */
+.form-tip {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--aph-text-muted);
 }
 </style>
 

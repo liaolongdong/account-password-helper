@@ -3,7 +3,7 @@ title: 'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Ite
 description: No crypto libraries, just the browser-native Web Crypto API. How Account Password Helper implements an auditable encryption system — key derivation, field-level encryption, session lifecycle, and atomic re-keying.
 tags: web crypto,encryption,password manager,security,chrome extension
 date: 2026-08-28
-modified: 2026-09-13
+modified: 2026-09-22
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
@@ -87,4 +87,4 @@ Source and discussion: [the GitHub repository](https://github.com/liaolongdong/a
 
 ---
 
-_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (642 automated tests, including encryption and re-key paths)._
+_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (1337 automated tests, including encryption and re-key paths)._

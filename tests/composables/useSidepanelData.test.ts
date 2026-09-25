@@ -7,6 +7,7 @@ const initModuleMocks = vi.hoisted(() => ({
   invalidateSessionCache: vi.fn(),
   adoptRekeyedSession: vi.fn(),
   getAllPasswords: vi.fn(),
+  getAllPasswordsDetailed: vi.fn(),
   getSidepanelSortConfig: vi.fn(),
 }));
 
@@ -30,6 +31,10 @@ vi.mock('@/utils/sessionManager-storage', () => ({
 
 vi.mock('@/utils/storage/passwordCrud', () => ({
   getAllPasswords: initModuleMocks.getAllPasswords,
+  // loadPasswords 走详细接口。默认委托给 getAllPasswords mock 并包装成
+  // { entries, undecryptableCount } 形状，令既有以 getAllPasswords 驱动的断言（含调用次数）保持不变；
+  // B8 专项用例可按需覆盖此默认以注入非零 undecryptableCount。
+  getAllPasswordsDetailed: initModuleMocks.getAllPasswordsDetailed,
 }));
 
 vi.mock('@/utils/storage/configManager', () => ({
@@ -78,6 +83,7 @@ describe('侧边栏轻量会话判定复用', () => {
     vi.restoreAllMocks();
     initModuleMocks.isSessionValid.mockReset();
     initModuleMocks.getAllPasswords.mockReset();
+    initModuleMocks.getAllPasswordsDetailed.mockReset();
     initModuleMocks.getSidepanelSortConfig.mockReset();
     listenerMocks.storageChange = null;
     listenerMocks.message = null;
@@ -95,6 +101,10 @@ describe('侧边栏轻量会话判定复用', () => {
         order: 1,
       },
     ]);
+    initModuleMocks.getAllPasswordsDetailed.mockImplementation(async () => ({
+      entries: await initModuleMocks.getAllPasswords(),
+      undecryptableCount: 0,
+    }));
     initModuleMocks.getSidepanelSortConfig.mockResolvedValue(null);
   });
 
@@ -136,6 +146,7 @@ describe('initSidepanelData 会话提示与权威校验', () => {
     listenerMocks.windowEvent = null;
     initModuleMocks.isSessionValid.mockReset();
     initModuleMocks.getAllPasswords.mockReset();
+    initModuleMocks.getAllPasswordsDetailed.mockReset();
     initModuleMocks.getSidepanelSortConfig.mockReset();
     initModuleMocks.getAllPasswords.mockResolvedValue([
       {
@@ -150,6 +161,10 @@ describe('initSidepanelData 会话提示与权威校验', () => {
         order: 1,
       },
     ]);
+    initModuleMocks.getAllPasswordsDetailed.mockImplementation(async () => ({
+      entries: await initModuleMocks.getAllPasswords(),
+      undecryptableCount: 0,
+    }));
     initModuleMocks.getSidepanelSortConfig.mockResolvedValue(null);
 
     const portEvent = { addListener: vi.fn(), removeListener: vi.fn() };
@@ -394,5 +409,62 @@ describe('initSidepanelData 会话提示与权威校验', () => {
 
     await vi.waitFor(() => expect(isAuthenticated.value).toBe(true));
     expect(passwords.value).toHaveLength(1);
+  });
+
+  // ==================== B8：错误不再伪装成空 ====================
+
+  it('B8：非静默 loadPasswords 失败置 loadFailed，随后成功复位', async () => {
+    initModuleMocks.isSessionValid.mockResolvedValue(true);
+    const { initSidepanelData, loadPasswords, loadFailed, isAuthenticated } = useSidepanelData();
+    await initSidepanelData(Promise.resolve(false));
+    expect(isAuthenticated.value).toBe(true);
+    expect(loadFailed.value).toBe(false);
+
+    initModuleMocks.getAllPasswordsDetailed.mockRejectedValueOnce(new Error('storage unavailable'));
+    // node 环境下 ElMessage.error 依赖 DOM 可能抛错；loadFailed 在 toast 之前已置位，
+    // 用 .catch 吸收该环境性异常，断言聚焦于失败态本身
+    await loadPasswords(true).catch(() => {});
+    expect(loadFailed.value).toBe(true);
+
+    // 默认委托实现恢复正常 → 失败态清除，避免卡在「加载失败」
+    await loadPasswords(true);
+    expect(loadFailed.value).toBe(false);
+  });
+
+  it('B8：静默刷新失败不置 loadFailed（避免并发无感受误报）', async () => {
+    initModuleMocks.isSessionValid.mockResolvedValue(true);
+    const { initSidepanelData, loadPasswords, loadFailed } = useSidepanelData();
+    await initSidepanelData(Promise.resolve(false));
+
+    initModuleMocks.getAllPasswordsDetailed.mockRejectedValueOnce(new Error('transient'));
+    await loadPasswords(true, true);
+    expect(loadFailed.value).toBe(false);
+  });
+
+  it('B8：loadPasswords 回填 undecryptableCount，成功路径为 0', async () => {
+    initModuleMocks.isSessionValid.mockResolvedValue(true);
+    const { initSidepanelData, loadPasswords, undecryptableCount } = useSidepanelData();
+    await initSidepanelData(Promise.resolve(false));
+    await loadPasswords(true);
+    expect(undecryptableCount.value).toBe(0);
+
+    initModuleMocks.getAllPasswordsDetailed.mockResolvedValueOnce({
+      entries: [
+        {
+          id: 'entry-1',
+          username: 'user',
+          password: 'password',
+          url: 'https://accounts.example.com',
+          tag: '',
+          remark: '',
+          createTime: 1,
+          updateTime: 1,
+          order: 1,
+        },
+      ],
+      undecryptableCount: 3,
+    });
+    await loadPasswords(true);
+    expect(undecryptableCount.value).toBe(3);
   });
 });

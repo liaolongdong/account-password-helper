@@ -5,13 +5,13 @@ import {
   type DomainPattern,
   type PendingCipherKeyResponse,
   type RuntimeMessage,
-  type SaveRiskHint,
 } from '@/utils/types';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import type {
   PendingCredentials,
   SavePromptControls,
   SavePromptData,
+  SavePromptPrecheckInfo,
   NotificationType,
 } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
@@ -320,6 +320,10 @@ export class LoginAutoSave {
    * 当用户在密码输入框中按 Enter 键时，尝试捕获凭证
    */
   private handleKeyDown = (e: KeyboardEvent): void => {
+    // 输入法合成期间的 Enter 是「上屏候选词」而非提交，此刻捕获会把半截拼音当成凭证，
+    // 故整段放行给 IME（与其他键盘入口同口径，由 imeKeyGuard 守卫钉住位置）
+    if (e.isComposing) return;
+
     if (!this.isEnabled || !this.configLoaded) return;
     if (e.key !== 'Enter') return;
 
@@ -486,15 +490,18 @@ export class LoginAutoSave {
    * - password_changed：以「更新」模式展示（用户未编辑时用已存标签/备注预填）
    * - new：以「保存」模式展示
    *
-   * 预检查一并返回的风险提示（弱密码/复用计数）作为独立参数向下传递，
-   * **不写入 pending 也不进 sessionStorage**：它是基于当次密码的派生结论，
+   * 预检查一并返回的风险提示与去向提示作为独立参数向下传递，
+   * **不写入 pending 也不进 sessionStorage**：它们都是基于当次密码的派生结论，
    * 一旦持久化就可能在用户改密码后变成陈旧数据；跳页恢复路径也会重新
    * 进入本方法拿到新鲜值。
    *
    * @param pending 待确认的凭证数据
    */
   private async evaluateAndPrompt(pending: PendingCredentials): Promise<void> {
-    const { status, existing, risk } = await this.resolveCredentialStatus(pending.username, pending.password);
+    const { status, existing, risk, targetNote } = await this.resolveCredentialStatus(
+      pending.username,
+      pending.password,
+    );
 
     // await 期间可能收到 SESSION_EXPIRED 广播，二次确认避免过期后仍弹窗
     if (this.sessionExpired) {
@@ -525,7 +532,7 @@ export class LoginAutoSave {
 
     // 回写带最终 mode/预填的 pending，确保传统导航后新页面恢复一致
     void this.persistPending(pending);
-    this.showPrompt(pending, risk);
+    this.showPrompt(pending, { risk, targetNote });
   }
 
   /**
@@ -605,13 +612,13 @@ export class LoginAutoSave {
   /**
    * 显示保存确认弹窗
    * @param pending 待确认的凭证数据（含标签和备注默认值）
-   * @param risk 预检查得出的风险提示，缺省表示无风险，仅用于弹窗内联警示展示
+   * @param precheck 预检查得出的展示信息（风险提示、保存去向提示），仅用于弹窗内联展示
    */
-  private showPrompt(pending: PendingCredentials, risk?: SaveRiskHint): void {
+  private showPrompt(pending: PendingCredentials, precheck: SavePromptPrecheckInfo = {}): void {
     // 如果在 iframe 中运行，委托给顶层 frame 渲染弹窗，
     // 避免弹窗被限制在 iframe 的小视口内（而非整个页面右上角）
     if (window !== window.top) {
-      this.delegatePromptToTopFrame(pending, risk);
+      this.delegatePromptToTopFrame(pending, precheck);
       return;
     }
 
@@ -627,7 +634,8 @@ export class LoginAutoSave {
           tag: pending.tag,
           remark: pending.remark,
           mode: pending.mode ?? 'save',
-          risk,
+          risk: precheck.risk,
+          targetNote: precheck.targetNote,
         },
         editedData =>
           this.handleSave({
@@ -658,9 +666,9 @@ export class LoginAutoSave {
    * 用户操作结果通过 postMessage 回传，由当前实例执行保存/忽略/不再提示。
    *
    * @param pending 待确认的凭证数据
-   * @param risk 预检查得出的风险提示，随 promptData 一同跨帧透传（接收方会再次校验）
+   * @param precheck 预检查得出的展示信息，随 promptData 一同跨帧透传（接收方会再次校验）
    */
-  private delegatePromptToTopFrame(pending: PendingCredentials, risk?: SaveRiskHint): void {
+  private delegatePromptToTopFrame(pending: PendingCredentials, precheck: SavePromptPrecheckInfo = {}): void {
     // 安全校验：仅在顶层 frame 与当前 frame 同主域名时才委托，
     // 防止跨域 iframe 场景下明文密码通过 postMessage 泄露给第三方页面
     // 使用 location.ancestorOrigins（Chrome 专有 API）获取顶层 origin，
@@ -668,14 +676,14 @@ export class LoginAutoSave {
     const ancestorOrigins = location.ancestorOrigins;
     const topOrigin = ancestorOrigins[ancestorOrigins.length - 1];
     if (!topOrigin) {
-      // sandbox iframe 等极端情况禁止 ancestorOrigins 时回退
+      // sandbox iframe 等极端情况禁止 ancestorOrigins 时回退（此时无法确定投递目标，只在当前 frame 渲染）
       this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
       return;
     }
 
     if (!isSameMainDomain(topOrigin, location.origin)) {
-      // 不同主域名的 iframe（如 attacker.com 嵌入 bank.com），不委托
-      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
+      // 不同主域名的 iframe（如 attacker.com 嵌入 bank.com），不委托弹窗，只把提示交给顶层 frame
+      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning', topOrigin);
       return;
     }
 
@@ -688,7 +696,8 @@ export class LoginAutoSave {
       tag: pending.tag,
       remark: pending.remark,
       mode: pending.mode ?? 'save',
-      risk,
+      risk: precheck.risk,
+      targetNote: precheck.targetNote,
     };
 
     /** 超时定时器 ID，用于 30s 后自动清理监听器 */
@@ -754,12 +763,22 @@ export class LoginAutoSave {
    * 优先通过 postMessage 委托顶层 frame 渲染通知，确保通知出现在整个页面右上角。
    * postMessage 失败时回退到 iframe 内渲染。
    *
+   * 投递目标锁定为顶层文档 origin：`'*'` 会在顶层文档已导航走（TOCTOU）时把
+   * 「未能自动保存，请手动添加」连同当前页面 URL 发给此刻占据顶层的任意文档。
+   * origin 不可解析（sandbox iframe 禁用了 `ancestorOrigins`）时不做跨帧投递，
+   * 直接在当前 frame 渲染——宁可位置降级，不向未知目标广播。
+   *
    * @param message - 通知消息内容
    * @param type - 通知类型
+   * @param topOrigin - 顶层文档 origin，缺省表示无法解析，此时只在当前 frame 渲染
    */
-  private delegateNotificationToTopFrame(message: string, type: NotificationType): void {
+  private delegateNotificationToTopFrame(message: string, type: NotificationType, topOrigin?: string): void {
+    if (!topOrigin) {
+      showNativeNotification(message, type);
+      return;
+    }
     try {
-      window.top!.postMessage({ type: PostMessageType.SHOW_NOTIFICATION, data: { message, type } }, '*');
+      window.top!.postMessage({ type: PostMessageType.SHOW_NOTIFICATION, data: { message, type } }, topOrigin);
     } catch {
       // postMessage 失败时回退到 iframe 内渲染
       showNativeNotification(message, type);

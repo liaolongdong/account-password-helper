@@ -102,6 +102,8 @@ describe('会话过期触发逻辑', () => {
     await capturedTick!();
     await flush();
 
+    // handleSessionExpired 现经 lockSession 收口：mock 的 StorageUtils.clearSession 仍被调用，
+    // 证明密钥销毁路径照常执行；后台 INVALIDATE 广播在 sessionLock.test.ts 单独断言。
     expect(events).toEqual(['clearSession', 'dispatch:sessionExpired']);
     expect(clearSession).toHaveBeenCalledTimes(1);
   });

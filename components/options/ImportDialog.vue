@@ -68,6 +68,7 @@
             :limit="1"
             accept=".csv,.json"
             @change="handleFileChange"
+            @exceed="handleExceed"
           >
             <div class="upload-dragger-content">
               <el-icon class="upload-icon"><Upload /></el-icon>
@@ -108,6 +109,13 @@
             <h4>{{ t('options.import.previewTitle') }}</h4>
             <span class="preview-total">{{ t('options.import.previewTotal', { count: previewData.length }) }}</span>
           </div>
+          <!-- 额度告警：只在预览有数据且真的撞上剩余额度时出现 -->
+          <CapacityAlert
+            :current-count="currentCount"
+            :incoming="previewData.length"
+            :remaining="remaining"
+            :skipped="skipped"
+          />
           <el-table
             :data="previewData.slice(0, 5)"
             style="width: 100%"
@@ -196,12 +204,14 @@
         <el-button @click="handleClose">{{ t('common.cancel') }}</el-button>
         <el-button
           type="success"
-          :disabled="previewData.length === 0"
+          :disabled="previewData.length === 0 || capacityExhausted"
           :loading="loading"
           @click="handleImport"
         >
           {{
-            loading ? t('options.import.importing') : t('options.import.confirmImport', { count: previewData.length })
+            loading
+              ? t('options.import.importing')
+              : t('options.import.confirmImport', { count: importableEntries.length })
           }}
         </el-button>
       </div>
@@ -216,10 +226,12 @@ import type { UploadFile } from 'element-plus';
 import { ExcelUtils } from '@/utils/excel';
 import type { ImportFormat } from '@/utils/excelFormatMap';
 import { StorageUtils } from '@/utils/storage';
+import { importFailureMessage, importSuccessMessage, useImportCapacity } from '@/composables/useImportCapacity';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
+import CapacityAlert from '@/components/options/CapacityAlert.vue';
 
 interface Props {
   modelValue: boolean;
@@ -247,6 +259,10 @@ const selectedFile = ref<File | undefined>(undefined);
 const showPreviewPassword = ref(false);
 const importFormat = ref<ImportFormat | 'native'>('auto');
 
+/** 条目总量额度：预览页的超限告警、导入前的二次确认与本批可导入切片 */
+const { currentCount, remaining, skipped, capacityExhausted, importableEntries, takeImportableEntries } =
+  useImportCapacity(previewData);
+
 /**
  * 格式化文件大小为可读字符串
  * @param bytes 文件字节数
@@ -256,6 +272,16 @@ const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+};
+
+/**
+ * 超出数量上限的兜底提示
+ *
+ * `el-upload` 的 `on-exceed` 默认是空实现：命中 `limit` 时新文件既不入列表也不触发 `change`，
+ * 一次选多个文件或换选都表现为「点了没反应」，文件信息区还停在上一次的文件。
+ */
+const handleExceed = () => {
+  ElMessage.warning(t('options.import.limitOneFile'));
 };
 
 // 处理文件选择
@@ -329,19 +355,24 @@ watch(importFormat, () => {
 // 处理导入
 const handleImport = async () => {
   if (previewData.value.length === 0 || !selectedFile.value) return;
+  // 超限时先按剩余额度切片，再让用户确认「只导入前 N 条」；取消即一条都不写。
+  const entries = await takeImportableEntries();
+  if (!entries) return;
 
   try {
     loading.value = true;
 
     // 批量保存密码（单次读写，避免逐条 savePassword 导致的 O(M×N) 数据搬运）
-    await StorageUtils.batchSavePasswords(previewData.value);
+    await StorageUtils.batchSavePasswords(entries);
 
-    ElMessage.success(t('options.import.importSuccess', { count: previewData.value.length }));
+    ElMessage.success(importSuccessMessage(entries.length, skipped.value));
     emit('imported');
     handleClose();
   } catch (error) {
     logger.error('导入失败:', error);
-    ElMessage.error(t('options.import.importFailed'));
+    // 兜底：预览到写入之间可能有别的入口把条数填满（自动保存、另一个管理页），
+    // 此时容量守卫会抛错，给用户的文案要说清是「上限」而不是「导入失败」。
+    ElMessage.error(importFailureMessage(error));
   } finally {
     loading.value = false;
   }

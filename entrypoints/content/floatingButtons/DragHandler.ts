@@ -22,6 +22,14 @@ export class DragHandler {
   /** 拖拽期间保存的 iframe 原始 pointer-events 值，用于拖拽结束后恢复 */
   private iframePointerEvents: Map<HTMLIFrameElement, string> = new Map();
 
+  /**
+   * 起拖前 `document.body` 的内联样式快照
+   *
+   * 站点自己的模态框常用 `body{overflow:hidden}` 锁滚动，写死成 `''` 会把那把锁一并解除，
+   * 拖完按钮页面就能滚了。因此覆盖前先快照，结束/销毁时按快照回写。
+   */
+  private bodyStyleSnapshot: { overflow: string; userSelect: string; cursor: string } | null = null;
+
   private state: DragState = {
     isDragging: false,
     startX: 0,
@@ -221,7 +229,12 @@ export class DragHandler {
       // 不使用 await，确保 CSS 状态立即生效
       this.animationController.setDragging(true);
 
-      // 禁用页面滚动，设置拖拽光标
+      // 禁用页面滚动，设置拖拽光标（覆盖前先快照站点自己的内联值）
+      this.bodyStyleSnapshot = {
+        overflow: document.body.style.overflow,
+        userSelect: document.body.style.userSelect,
+        cursor: document.body.style.cursor,
+      };
       document.body.style.overflow = 'hidden';
       document.body.style.userSelect = 'none';
       document.body.style.cursor = 'move';
@@ -255,9 +268,7 @@ export class DragHandler {
     this.hideSnapPreview();
 
     // 恢复页面滚动和光标
-    document.body.style.overflow = '';
-    document.body.style.userSelect = '';
-    document.body.style.cursor = '';
+    this.restoreBodyStyles();
 
     // 计算拖拽距离
     const deltaX = this.state.currentX - this.state.startX;
@@ -366,6 +377,19 @@ export class DragHandler {
   }
 
   /**
+   * 按快照恢复 `document.body` 的内联样式
+   *
+   * 未拖拽过（快照为 null）时是空操作，避免误清站点自己的内联样式。
+   */
+  private restoreBodyStyles(): void {
+    if (!this.bodyStyleSnapshot) return;
+    document.body.style.overflow = this.bodyStyleSnapshot.overflow;
+    document.body.style.userSelect = this.bodyStyleSnapshot.userSelect;
+    document.body.style.cursor = this.bodyStyleSnapshot.cursor;
+    this.bodyStyleSnapshot = null;
+  }
+
+  /**
    * 检查是否正在拖拽
    */
   isDragging(): boolean {
@@ -381,6 +405,10 @@ export class DragHandler {
 
   /**
    * 清理资源
+   *
+   * 可能在拖拽进行中被销毁（如配置变更触发的重建），因此除了解绑监听，
+   * 还必须回收拖拽期间对 body 和 iframe 的临时样式覆盖，否则页面残留不可滚动、
+   * iframe 永久忽略鼠标。
    */
   destroy(): void {
     this.dragButton.removeEventListener('mousedown', this.boundHandleMouseDown);
@@ -389,5 +417,8 @@ export class DragHandler {
     document.removeEventListener('mouseup', this.boundHandleMouseUp);
     document.removeEventListener('touchmove', this.boundHandleTouchMove);
     document.removeEventListener('touchend', this.boundHandleTouchEnd);
+
+    this.restoreBodyStyles();
+    this.restoreIframePointerEvents();
   }
 }

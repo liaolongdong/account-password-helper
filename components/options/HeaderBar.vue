@@ -75,6 +75,19 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
+              <!-- 已验证备份状态：菜单顶部的只读状态条（左标题 / 右数值）。刻意不用菜单项的
+                   14px 字号与 32px 行高，避免这行说明反过来决定整个菜单的宽度，
+                   把下方 10 个操作项挤出一列空白。disabled 不是「置灰的按钮」而是
+                   「不参与交互」：EP 的 hover / focus 高亮只作用于 :not(.is-disabled)，
+                   且它会被移出 roving focus 环，展开菜单时不再被误标成当前选中项 -->
+              <el-dropdown-item
+                class="backup-status-bar"
+                disabled
+              >
+                <span>{{ t('options.header.backupStatusLabel') }}</span>
+                <span class="backup-status-bar__value">{{ backupStatusText }}</span>
+              </el-dropdown-item>
+
               <el-dropdown-item
                 command="import"
                 :icon="Upload"
@@ -131,6 +144,13 @@
               >
                 {{ t('options.header.trash') }}
               </el-dropdown-item>
+              <el-dropdown-item
+                divided
+                command="identityVault"
+                :icon="Postcard"
+              >
+                {{ t('identity.title') }}
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -170,6 +190,18 @@
                 {{ t('options.header.autoSave') }}
               </el-dropdown-item>
               <el-dropdown-item
+                command="siteRules"
+                :icon="Link"
+              >
+                {{ t('options.header.siteRules') }}
+              </el-dropdown-item>
+              <el-dropdown-item
+                command="domainMatch"
+                :icon="Connection"
+              >
+                {{ t('options.header.domainMatch') }}
+              </el-dropdown-item>
+              <el-dropdown-item
                 command="clipboard"
                 :icon="DocumentCopy"
               >
@@ -199,12 +231,15 @@
           </template>
         </el-dropdown>
       </div>
-      <el-button
-        :icon="Brush"
-        @click="$emit('openPersonalization')"
-      >
-        {{ t('options.header.personalization') }}
-      </el-button>
+      <!-- 右侧辅助入口：空间不足时整组换行到下一行右侧，不与左组换行后的基线错位 -->
+      <div class="header-actions-right">
+        <el-button
+          :icon="Brush"
+          @click="$emit('openPersonalization')"
+        >
+          {{ t('options.header.personalization') }}
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
@@ -232,6 +267,9 @@ import {
   Document,
   Brush,
   Operation,
+  Link,
+  Connection,
+  Postcard,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -243,7 +281,7 @@ import { useSessionCountdown } from '@/composables/useSessionCountdown';
  * Options 页面头部组件
  *
  * 包含标题、版本号、会话剩余时间徽标、安全体检入口、数据管理/安全设置下拉菜单以及偏好设置按钮。
- * 「安全设置」聚焦主密码、会话安全行为与快捷键一览，「偏好设置」聚焦外观与填充交互，两者图标区分避免混淆。
+ * 「安全设置」聚焦主密码、会话安全与填充行为（含站点规则）及快捷键一览，「偏好设置」聚焦外观与填充交互，两者图标区分避免混淆。
  * 语言切换已迁移至「偏好设置」面板（与主题风格同组，三入口可达）。
  */
 const props = defineProps<{
@@ -253,6 +291,8 @@ const props = defineProps<{
   healthScore?: number;
   /** 健康等级，空库时不传（决定是否显示体检小圆点） */
   healthGrade?: HealthGrade;
+  /** 最近一次通过完整性自检的加密备份导出时间戳（epoch 毫秒），null 表示尚无已验证备份 */
+  lastVerifiedBackupAt?: number | null;
 }>();
 
 defineEmits<{
@@ -291,6 +331,22 @@ const healthDotColor = computed(() => {
     default:
       return '#67c23a';
   }
+});
+
+/**
+ * 「数据管理」顶部状态条的数值部分（标题由 backupStatusLabel 单独承载）
+ *
+ * 口径：最近一次「通过完整性自检」的加密 .aph 导出。无时间戳 → 尚无已验证备份；
+ * 不足一天 → 今日已完成；1 天 / N 天分别取对应文案（自定义 i18n 无复数引擎，故分档）。
+ * 数值刻意保持短词，避免撑宽菜单。
+ */
+const backupStatusText = computed(() => {
+  const at = props.lastVerifiedBackupAt;
+  if (typeof at !== 'number' || !Number.isFinite(at)) return t('options.header.backupStatusNone');
+  const days = Math.floor((Date.now() - at) / 86_400_000);
+  if (days <= 0) return t('options.header.backupStatusToday');
+  if (days === 1) return t('options.header.backupStatusOne');
+  return t('options.header.backupStatusDays', { days });
 });
 </script>
 
@@ -364,8 +420,9 @@ const healthDotColor = computed(() => {
 
 .header-actions-row {
   display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
   align-items: center;
-  justify-content: space-between;
   width: 100%;
 }
 
@@ -373,6 +430,15 @@ const healthDotColor = computed(() => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+/* 右侧辅助入口：贴右排布；左组换行导致整行放不下时，本组整体换到下一行右侧，
+   而非停留在行内垂直居中位置造成基线错位 */
+.header-actions-right {
+  display: flex;
+  flex-shrink: 0;
+  gap: 12px;
+  margin-left: auto;
 }
 
 /* 安全体检小圆点：一眼可见的健康信号灯 */
@@ -548,8 +614,8 @@ const healthDotColor = computed(() => {
   transform: translateY(-1px);
 }
 
-/* 偏好设置按钮：半透明蓝样式，与数据管理/设置按钮视觉一致（位于 .header-actions 外部） */
-:deep(.header-actions-row > .el-button) {
+/* 右侧按钮组（偏好设置 / 站点规则）：半透明蓝样式，与数据管理/设置按钮视觉一致 */
+:deep(.header-actions-right > .el-button) {
   font-weight: 400;
   color: white;
   background: rgb(255 255 255 / 15%);
@@ -558,11 +624,41 @@ const healthDotColor = computed(() => {
   transition: all 0.2s ease;
 }
 
-:deep(.header-actions-row > .el-button:hover) {
+:deep(.header-actions-right > .el-button:hover) {
   background: rgb(255 255 255 / 20%);
   border-color: rgb(255 255 255 / 40%);
   box-shadow: 0 4px 12px rgb(0 0 0 / 15%);
   transform: translateY(-1px);
+}
+
+/* 已验证备份状态：菜单顶部的只读状态条。左标题右数值 + 浅底色带，形态上与下方操作项分开，
+   不会被误读成可点击项；字号与行高都低于菜单项，说明文字因此不再决定整个菜单的宽度。
+   margin-top 抵掉 .el-dropdown-menu 的 5px 上内边距，让色带贴住弹层圆角。
+   必须走 :global：弹层 teleport 到 body，且 el-dropdown-item 的根 <li> 由 ElRovingFocusItem
+   渲染、拿不到本组件的 data-v 作用域属性，scoped 选择器永不命中（实测只有插槽内的 span 带属性）。
+   前缀 li 把特异性抬到 (0,2,1)，压过 EP 的 .el-dropdown-menu__item.is-disabled (0,2,0)，
+   不依赖两份样式的加载顺序 */
+:global(li.el-dropdown-menu__item.backup-status-bar) {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 6px 16px;
+  margin-top: -5px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--aph-text-secondary, #6b7280);
+  white-space: nowrap;
+  cursor: default;
+  user-select: none;
+  background: var(--el-fill-color-light);
+  border-radius: var(--el-border-radius-base) var(--el-border-radius-base) 0 0;
+}
+
+.backup-status-bar__value {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--el-text-color-primary);
 }
 
 /* 响应式 */

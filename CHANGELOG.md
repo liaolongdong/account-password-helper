@@ -26,155 +26,135 @@
 
 ## [3.9.0](https://github.com/liaolongdong/account-password-helper/compare/v3.8.0...v3.9.0) (2026-09-11)
 
-
 ### Features
 
-* **docs:** 更新商店截图并添加脚本化生成工具 ([1f55d57](https://github.com/liaolongdong/account-password-helper/commit/1f55d576102d0a9a80f84a38cea4f712d1471e2b))
+- **docs:** 更新商店截图并添加脚本化生成工具 ([1f55d57](https://github.com/liaolongdong/account-password-helper/commit/1f55d576102d0a9a80f84a38cea4f712d1471e2b))
 
 ## [3.8.0](https://github.com/liaolongdong/account-password-helper/compare/v3.7.0...v3.8.0) (2026-09-06)
 
-
 ### Features
 
-* **blog:** 发布技术博客并更新至v3.7.0版本 ([3622eb1](https://github.com/liaolongdong/account-password-helper/commit/3622eb1e03ef71e141f3d67ac81ebfe35f049529))
-* **blog:** 添加博客封面渲染脚本并更新封面设计 ([c852b1e](https://github.com/liaolongdong/account-password-helper/commit/c852b1e142ac89dc743798247b3a996e6a95b1e0))
-* **context-menu:** 右键菜单填充功能与代码评审修复 ([4ac3467](https://github.com/liaolongdong/account-password-helper/commit/4ac3467d4e9baaa87144fcd346f79990362aaa3f))
-* **features:** 更新自动保存登录凭证功能描述 ([698f2f5](https://github.com/liaolongdong/account-password-helper/commit/698f2f51fcfe5c3e8e00ddc3a48ad8d44f7a91f7))
-* **options:** 添加 jsdom 依赖并优化密码表单对话框 ([0678653](https://github.com/liaolongdong/account-password-helper/commit/0678653ccbf0c911a1d9ca409a63f7a92910c038))
-* **options:** 添加密码条目只读详情抽屉功能 ([1a21287](https://github.com/liaolongdong/account-password-helper/commit/1a21287f1021b79ce09e842a8c7286e95253c7a2))
-* **sidepanel:** 优化搜索体验和面板定位 ([234e8b9](https://github.com/liaolongdong/account-password-helper/commit/234e8b9e134074ff4738b68d0310e8ff1196d46f))
-* **sidepanel:** 快速添加条目、Caps Lock 提示、安全加固与无障碍增强 ([3aa71eb](https://github.com/liaolongdong/account-password-helper/commit/3aa71eb3cf7981978881cc80521517e75aae88e3))
-* **sidepanel:** 添加侧边栏搜索范围切换功能 ([2b8b02d](https://github.com/liaolongdong/account-password-helper/commit/2b8b02de7170b24e839fa703d4e9c9f3b3bd2131))
-* **ui:** 优化 Vue 组件规范与侧边栏功能 ([f0336fa](https://github.com/liaolongdong/account-password-helper/commit/f0336faa358ea58a29388ef0c51cd77f05fdd363))
-
+- **blog:** 发布技术博客并更新至v3.7.0版本 ([3622eb1](https://github.com/liaolongdong/account-password-helper/commit/3622eb1e03ef71e141f3d67ac81ebfe35f049529))
+- **blog:** 添加博客封面渲染脚本并更新封面设计 ([c852b1e](https://github.com/liaolongdong/account-password-helper/commit/c852b1e142ac89dc743798247b3a996e6a95b1e0))
+- **context-menu:** 右键菜单填充功能与代码评审修复 ([4ac3467](https://github.com/liaolongdong/account-password-helper/commit/4ac3467d4e9baaa87144fcd346f79990362aaa3f))
+- **features:** 更新自动保存登录凭证功能描述 ([698f2f5](https://github.com/liaolongdong/account-password-helper/commit/698f2f51fcfe5c3e8e00ddc3a48ad8d44f7a91f7))
+- **options:** 添加 jsdom 依赖并优化密码表单对话框 ([0678653](https://github.com/liaolongdong/account-password-helper/commit/0678653ccbf0c911a1d9ca409a63f7a92910c038))
+- **options:** 添加密码条目只读详情抽屉功能 ([1a21287](https://github.com/liaolongdong/account-password-helper/commit/1a21287f1021b79ce09e842a8c7286e95253c7a2))
+- **sidepanel:** 优化搜索体验和面板定位 ([234e8b9](https://github.com/liaolongdong/account-password-helper/commit/234e8b9e134074ff4738b68d0310e8ff1196d46f))
+- **sidepanel:** 快速添加条目、Caps Lock 提示、安全加固与无障碍增强 ([3aa71eb](https://github.com/liaolongdong/account-password-helper/commit/3aa71eb3cf7981978881cc80521517e75aae88e3))
+- **sidepanel:** 添加侧边栏搜索范围切换功能 ([2b8b02d](https://github.com/liaolongdong/account-password-helper/commit/2b8b02de7170b24e839fa703d4e9c9f3b3bd2131))
+- **ui:** 优化 Vue 组件规范与侧边栏功能 ([f0336fa](https://github.com/liaolongdong/account-password-helper/commit/f0336faa358ea58a29388ef0c51cd77f05fdd363))
 
 ### Bug Fixes
 
-* **fill:** 优化右键菜单填充与解锁体验 ([edd84e4](https://github.com/liaolongdong/account-password-helper/commit/edd84e4192a99932aa1e214bb2ed93496bba2d7f))
-* **i18n:** 精简网址校验提示文案，避免侧边栏快速添加弹窗内文字重叠 ([fe744e3](https://github.com/liaolongdong/account-password-helper/commit/fe744e3f69d49dd91389a6da3878f97816e27361))
+- **fill:** 优化右键菜单填充与解锁体验 ([edd84e4](https://github.com/liaolongdong/account-password-helper/commit/edd84e4192a99932aa1e214bb2ed93496bba2d7f))
+- **i18n:** 精简网址校验提示文案，避免侧边栏快速添加弹窗内文字重叠 ([fe744e3](https://github.com/liaolongdong/account-password-helper/commit/fe744e3f69d49dd91389a6da3878f97816e27361))
 
 ## [3.7.0](https://github.com/liaolongdong/account-password-helper/compare/v3.6.0...v3.7.0) (2026-08-27)
 
-
 ### Features
 
-* **web:** 添加完整英文主页及相关样式和SEO配置 ([4c8ace8](https://github.com/liaolongdong/account-password-helper/commit/4c8ace829997dc1b0762a3e87cf75d927cf78f9b))
+- **web:** 添加完整英文主页及相关样式和SEO配置 ([4c8ace8](https://github.com/liaolongdong/account-password-helper/commit/4c8ace829997dc1b0762a3e87cf75d927cf78f9b))
 
 ## [3.6.0](https://github.com/liaolongdong/account-password-helper/compare/v3.5.0...v3.6.0) (2026-08-23)
 
-
 ### Features
 
-* **ui:** 添加密码可见性切换功能 ([a2d9e32](https://github.com/liaolongdong/account-password-helper/commit/a2d9e328ea34607db27a52f2527d8a23dd16ae46))
+- **ui:** 添加密码可见性切换功能 ([a2d9e32](https://github.com/liaolongdong/account-password-helper/commit/a2d9e328ea34607db27a52f2527d8a23dd16ae46))
 
 ## [3.5.0](https://github.com/liaolongdong/account-password-helper/compare/v3.4.0...v3.5.0) (2026-08-20)
 
-
 ### Features
 
-* **i18n:** 添加语言切换实时刷新支持 ([06aa87b](https://github.com/liaolongdong/account-password-helper/commit/06aa87bd28cde0e93df0edf00fddc81e82e34d08))
-* **inlineDropdown:** 添加空状态新增站点按钮及交互 ([f5148c3](https://github.com/liaolongdong/account-password-helper/commit/f5148c33b00adb85d94da5231c49a509f2930cf4))
-* **sidepanel:** 实现标签筛选横向滚动及渐隐指示器 ([374cc23](https://github.com/liaolongdong/account-password-helper/commit/374cc235cbc9d564555ed9ae25ddae9e7b7eca7e))
-
+- **i18n:** 添加语言切换实时刷新支持 ([06aa87b](https://github.com/liaolongdong/account-password-helper/commit/06aa87bd28cde0e93df0edf00fddc81e82e34d08))
+- **inlineDropdown:** 添加空状态新增站点按钮及交互 ([f5148c3](https://github.com/liaolongdong/account-password-helper/commit/f5148c33b00adb85d94da5231c49a509f2930cf4))
+- **sidepanel:** 实现标签筛选横向滚动及渐隐指示器 ([374cc23](https://github.com/liaolongdong/account-password-helper/commit/374cc235cbc9d564555ed9ae25ddae9e7b7eca7e))
 
 ### Bug Fixes
 
-* **autoSave:** 支持自动保存规则和黑名单的端口号区分匹配 ([48765a2](https://github.com/liaolongdong/account-password-helper/commit/48765a2f0f135f4c4b52e14eacafd5135aa9bb5a))
-* **chromeListeners:** 增加 Chrome API 存在性检查及异常捕获 ([f44880a](https://github.com/liaolongdong/account-password-helper/commit/f44880a5c6d5e6acda6968959c8517d15d1c508f))
-* **content:** 处理 allFrames 注入时空文档 iframe 的 DOM 观察异常 ([48a2e23](https://github.com/liaolongdong/account-password-helper/commit/48a2e234da17f8be8e75a6fb1883f8809a0a1428))
+- **autoSave:** 支持自动保存规则和黑名单的端口号区分匹配 ([48765a2](https://github.com/liaolongdong/account-password-helper/commit/48765a2f0f135f4c4b52e14eacafd5135aa9bb5a))
+- **chromeListeners:** 增加 Chrome API 存在性检查及异常捕获 ([f44880a](https://github.com/liaolongdong/account-password-helper/commit/f44880a5c6d5e6acda6968959c8517d15d1c508f))
+- **content:** 处理 allFrames 注入时空文档 iframe 的 DOM 观察异常 ([48a2e23](https://github.com/liaolongdong/account-password-helper/commit/48a2e234da17f8be8e75a6fb1883f8809a0a1428))
 
 ## [3.4.0](https://github.com/liaolongdong/account-password-helper/compare/v3.3.0...v3.4.0) (2026-08-18)
 
-
 ### Features
 
-* **auth:** 添加主密码验证弹窗组件及相关控制器 ([3ba1f0e](https://github.com/liaolongdong/account-password-helper/commit/3ba1f0ef612e7435a05689a64f6affcd91ff4c8e))
-* **core:** 支持端口匹配与主密码设置指引优化 ([9aa60b2](https://github.com/liaolongdong/account-password-helper/commit/9aa60b269c47623e8ee06be87e4e2d251933f1e7))
-* **inlineDropdown:** 增加透明点击热区扩展 ([6606015](https://github.com/liaolongdong/account-password-helper/commit/6606015a2ed04b9913319e5e8aaa2d7f7c2e1618))
-* **sidePanel:** 增加 Service Worker 预热以优化唤醒性能 ([a5efcfc](https://github.com/liaolongdong/account-password-helper/commit/a5efcfc40d7072b27f23824c026f074357cf5caf))
-
+- **auth:** 添加主密码验证弹窗组件及相关控制器 ([3ba1f0e](https://github.com/liaolongdong/account-password-helper/commit/3ba1f0ef612e7435a05689a64f6affcd91ff4c8e))
+- **core:** 支持端口匹配与主密码设置指引优化 ([9aa60b2](https://github.com/liaolongdong/account-password-helper/commit/9aa60b269c47623e8ee06be87e4e2d251933f1e7))
+- **inlineDropdown:** 增加透明点击热区扩展 ([6606015](https://github.com/liaolongdong/account-password-helper/commit/6606015a2ed04b9913319e5e8aaa2d7f7c2e1618))
+- **sidePanel:** 增加 Service Worker 预热以优化唤醒性能 ([a5efcfc](https://github.com/liaolongdong/account-password-helper/commit/a5efcfc40d7072b27f23824c026f074357cf5caf))
 
 ### Bug Fixes
 
-* **background:** 优化广播异常处理及错误日志降噪 ([f96efaa](https://github.com/liaolongdong/account-password-helper/commit/f96efaa427dbb05b66064cb13c0222f74903646a))
-* **background:** 修复广播消息无监听者时报错的问题 ([18f28d9](https://github.com/liaolongdong/account-password-helper/commit/18f28d935deadabcfe5fef714ab41ef943df9314))
-
+- **background:** 优化广播异常处理及错误日志降噪 ([f96efaa](https://github.com/liaolongdong/account-password-helper/commit/f96efaa427dbb05b66064cb13c0222f74903646a))
+- **background:** 修复广播消息无监听者时报错的问题 ([18f28d9](https://github.com/liaolongdong/account-password-helper/commit/18f28d935deadabcfe5fef714ab41ef943df9314))
 
 ### Performance Improvements
 
-* **sidepanel:** 优化密码条目排序和标签渲染性能 ([e19c435](https://github.com/liaolongdong/account-password-helper/commit/e19c4354923054adef4e0e9191416bfd33184979))
-* **sidepanel:** 优化帮助弹窗动态chunk预热策略 ([44f9bc5](https://github.com/liaolongdong/account-password-helper/commit/44f9bc52533631351c78fe047c0d4438b24c9171))
+- **sidepanel:** 优化密码条目排序和标签渲染性能 ([e19c435](https://github.com/liaolongdong/account-password-helper/commit/e19c4354923054adef4e0e9191416bfd33184979))
+- **sidepanel:** 优化帮助弹窗动态chunk预热策略 ([44f9bc5](https://github.com/liaolongdong/account-password-helper/commit/44f9bc52533631351c78fe047c0d4438b24c9171))
 
 ## [3.3.0](https://github.com/liaolongdong/account-password-helper/compare/v3.2.0...v3.3.0) (2026-08-14)
 
-
 ### Features
 
-* **background:** 实现非 Windows 会话失效后的宽限期保活机制 ([8381e48](https://github.com/liaolongdong/account-password-helper/commit/8381e4812d6006a04bf89d73948f76ef918a01b4))
-
+- **background:** 实现非 Windows 会话失效后的宽限期保活机制 ([8381e48](https://github.com/liaolongdong/account-password-helper/commit/8381e4812d6006a04bf89d73948f76ef918a01b4))
 
 ### Performance Improvements
 
-* **core:** 优化 Service Worker 全平台常驻保活体验 ([c47c7f0](https://github.com/liaolongdong/account-password-helper/commit/c47c7f036fb3a2193ba6c8c48956ed4d30cd8a4a))
+- **core:** 优化 Service Worker 全平台常驻保活体验 ([c47c7f0](https://github.com/liaolongdong/account-password-helper/commit/c47c7f036fb3a2193ba6c8c48956ed4d30cd8a4a))
 
 ## [3.2.0](https://github.com/liaolongdong/account-password-helper/compare/v3.1.0...v3.2.0) (2026-08-12)
 
-
 ### Features
 
-* **searchFilterBar:** 优化批量操作按钮和标签筛选交互布局 ([7940429](https://github.com/liaolongdong/account-password-helper/commit/7940429844ff3b1054a64acc4bfc6182409ed3bc))
-
+- **searchFilterBar:** 优化批量操作按钮和标签筛选交互布局 ([7940429](https://github.com/liaolongdong/account-password-helper/commit/7940429844ff3b1054a64acc4bfc6182409ed3bc))
 
 ### Performance Improvements
 
-* **session:** 优化会话锁定状态快速判定及预热机制 ([348992a](https://github.com/liaolongdong/account-password-helper/commit/348992a64c265966b5325b8f6f3bc3ccd85bb55e))
+- **session:** 优化会话锁定状态快速判定及预热机制 ([348992a](https://github.com/liaolongdong/account-password-helper/commit/348992a64c265966b5325b8f6f3bc3ccd85bb55e))
 
 ## [3.1.0](https://github.com/liaolongdong/account-password-helper/compare/v3.0.2...v3.1.0) (2026-08-11)
 
-
 ### Features
 
-* **auth:** 实现 TOTP 两步登录活码胶囊与接力机制 ([fd1b8a6](https://github.com/liaolongdong/account-password-helper/commit/fd1b8a6df560221a3becd60311ad363e8ec9406d))
-* **background:** 优化并实现系统闲置锁定功能 ([a7c02b5](https://github.com/liaolongdong/account-password-helper/commit/a7c02b5d9d6f7ccd152540b75586f90567e76cfd))
-* **options:** 新增标签筛选与批量标签编辑功能 ([d15b62a](https://github.com/liaolongdong/account-password-helper/commit/d15b62a64e4909c0dacbb3151189292b36eb70dd))
-* **sidepanel:** 优化侧边栏资源预热策略，支持跨平台轻量预热 ([f8be9c7](https://github.com/liaolongdong/account-password-helper/commit/f8be9c7d27104704c8541624a57ded37d8313023))
-* **sidepanel:** 支持拼音智能搜索与命中高亮功能 ([6173205](https://github.com/liaolongdong/account-password-helper/commit/61732052c1a1801f1f571e1b967cd7ce36747911))
+- **auth:** 实现 TOTP 两步登录活码胶囊与接力机制 ([fd1b8a6](https://github.com/liaolongdong/account-password-helper/commit/fd1b8a6df560221a3becd60311ad363e8ec9406d))
+- **background:** 优化并实现系统闲置锁定功能 ([a7c02b5](https://github.com/liaolongdong/account-password-helper/commit/a7c02b5d9d6f7ccd152540b75586f90567e76cfd))
+- **options:** 新增标签筛选与批量标签编辑功能 ([d15b62a](https://github.com/liaolongdong/account-password-helper/commit/d15b62a64e4909c0dacbb3151189292b36eb70dd))
+- **sidepanel:** 优化侧边栏资源预热策略，支持跨平台轻量预热 ([f8be9c7](https://github.com/liaolongdong/account-password-helper/commit/f8be9c7d27104704c8541624a57ded37d8313023))
+- **sidepanel:** 支持拼音智能搜索与命中高亮功能 ([6173205](https://github.com/liaolongdong/account-password-helper/commit/61732052c1a1801f1f571e1b967cd7ce36747911))
 
 ## [3.0.2](https://github.com/liaolongdong/account-password-helper/compare/v3.0.1...v3.0.2) (2026-08-06)
 
-
 ### Bug Fixes
 
-* **inlineDropdown:** 修复面板事件冒泡及焦点泄漏问题 ([f9d831b](https://github.com/liaolongdong/account-password-helper/commit/f9d831b39fa329aba825f283a9c2f658185111f6))
+- **inlineDropdown:** 修复面板事件冒泡及焦点泄漏问题 ([f9d831b](https://github.com/liaolongdong/account-password-helper/commit/f9d831b39fa329aba825f283a9c2f658185111f6))
 
 ## [3.0.1](https://github.com/liaolongdong/account-password-helper/compare/v3.0.0...v3.0.1) (2026-08-05)
 
-
 ### Bug Fixes
 
-* **license:** LICENSE 还原为 GPL-3.0 官方全文以修复 GitHub 许可证识别 ([db03acd](https://github.com/liaolongdong/account-password-helper/commit/db03acd83a73e5ad3ef4f9d9855194da7a16bc07))
-* **license:** LICENSE 还原为 GPL-3.0 官方全文以修复 GitHub 许可证识别 ([190cdf9](https://github.com/liaolongdong/account-password-helper/commit/190cdf9d866ae7919c668243e6037be8d7f55d6f))
+- **license:** LICENSE 还原为 GPL-3.0 官方全文以修复 GitHub 许可证识别 ([db03acd](https://github.com/liaolongdong/account-password-helper/commit/db03acd83a73e5ad3ef4f9d9855194da7a16bc07))
+- **license:** LICENSE 还原为 GPL-3.0 官方全文以修复 GitHub 许可证识别 ([190cdf9](https://github.com/liaolongdong/account-password-helper/commit/190cdf9d866ae7919c668243e6037be8d7f55d6f))
 
 ## [3.0.0](https://github.com/liaolongdong/account-password-helper/compare/v2.18.0...v3.0.0) (2026-08-05)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **license:** 开源协议由 MIT 切换为 GPL-3.0-only
+- **license:** 开源协议由 MIT 切换为 GPL-3.0-only
 
 ### Features
 
-* **popup:** 添加闲置自动锁定时长设置及锁按钮提示文案 ([621f5b5](https://github.com/liaolongdong/account-password-helper/commit/621f5b50e502f21e3be8b6a05e2fae45e1437e56))
-
+- **popup:** 添加闲置自动锁定时长设置及锁按钮提示文案 ([621f5b5](https://github.com/liaolongdong/account-password-helper/commit/621f5b50e502f21e3be8b6a05e2fae45e1437e56))
 
 ### Bug Fixes
 
-* **FormDetector:** 改进失焦后等待 DOM 稳定机制并同步失焦处理 ([206a8e0](https://github.com/liaolongdong/account-password-helper/commit/206a8e060d05705f95118b37e72cdd2ef9809324))
-
+- **FormDetector:** 改进失焦后等待 DOM 稳定机制并同步失焦处理 ([206a8e0](https://github.com/liaolongdong/account-password-helper/commit/206a8e060d05705f95118b37e72cdd2ef9809324))
 
 ### Miscellaneous Chores
 
-* **license:** 开源协议由 MIT 切换为 GPL-3.0-only ([bedbbf2](https://github.com/liaolongdong/account-password-helper/commit/bedbbf2ffc817882654ed3ccfb1dcae57df11862))
+- **license:** 开源协议由 MIT 切换为 GPL-3.0-only ([bedbbf2](https://github.com/liaolongdong/account-password-helper/commit/bedbbf2ffc817882654ed3ccfb1dcae57df11862))
 
 ## [2.18.0](https://github.com/liaolongdong/account-password-helper/compare/v2.17.0...v2.18.0) (2026-08-03)
 

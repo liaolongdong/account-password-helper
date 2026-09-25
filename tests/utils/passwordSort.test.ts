@@ -8,6 +8,7 @@ import {
   type SortState,
 } from '@/utils/passwordSort';
 import type { PasswordEntry } from '@/utils/types';
+import { isExactHostMatch } from '@/utils/domain';
 import { makePasswordEntry as entry } from '@/tests/helpers/passwordEntry';
 
 /**
@@ -195,5 +196,76 @@ describe('filterAndSortEntriesForDomain（一键填充/内联下拉共用）', (
     const result = filterAndSortEntriesForDomain(list, 'no-match.example.org');
     expect(result).toEqual([]);
     expect(list.map(e => e.id)).toEqual(snapshot);
+  });
+});
+
+/** 跨环境夹具：精确 / apex / 兄弟子域 / 通配 / 通用 / 其他环境 / 前缀碰撞 */
+const MULTI_ENV: PasswordEntry[] = [
+  entry({ id: 'exact', url: 'mail.qq.com' }),
+  entry({ id: 'apex', url: 'qq.com' }),
+  entry({ id: 'sibling', url: 'music.qq.com' }),
+  entry({ id: 'wild', url: '*.qq.com' }),
+  entry({ id: 'generic', url: '' }),
+  entry({ id: 'uat', url: 'uat.example.com' }),
+  entry({ id: 'other', url: 'evil-qq.com' }),
+];
+
+/** 迁移前口径的参考实现：仅精确 host（含空 URL）纳入，精确优先 */
+function legacyFilter(entries: PasswordEntry[], domain: string): string[] {
+  const matched = entries.filter(p => {
+    if (!p.url || p.url.trim() === '') return true;
+    return isExactHostMatch(domain, p.url);
+  });
+  return sortPasswordEntries(matched, DEFAULT_SIDEPANEL_SORT, e => {
+    const hasUrl = !!e.url && e.url.trim() !== '';
+    return hasUrl && isExactHostMatch(domain, e.url) ? 0 : 1;
+  }).map(p => p.id);
+}
+
+describe('filterAndSortEntriesForDomain：off 档与迁移前口径等价', () => {
+  for (const domain of ['mail.qq.com', 'qq.com', 'uat.example.com', 'evil-qq.com']) {
+    it(`域名 ${domain}：集合与顺序逐 id 一致`, () => {
+      const got = filterAndSortEntriesForDomain(MULTI_ENV, domain, DEFAULT_SIDEPANEL_SORT).map(p => p.id);
+      expect(got).toEqual(legacyFilter([...MULTI_ENV], domain));
+    });
+  }
+
+  it('显式传 off 与缺省参数结果一致', () => {
+    expect(
+      filterAndSortEntriesForDomain(MULTI_ENV, 'mail.qq.com', DEFAULT_SIDEPANEL_SORT, undefined, 'off').map(p => p.id),
+    ).toEqual(filterAndSortEntriesForDomain(MULTI_ENV, 'mail.qq.com', DEFAULT_SIDEPANEL_SORT).map(p => p.id));
+  });
+});
+
+describe('filterAndSortEntriesForDomain：放宽档优先级序列', () => {
+  it('sameMainDomain 档按 tier 升序，通配条目在 apex 之前，外域与前缀碰撞仍被排除', () => {
+    const ids = filterAndSortEntriesForDomain(
+      MULTI_ENV,
+      'mail.qq.com',
+      DEFAULT_SIDEPANEL_SORT,
+      undefined,
+      'sameMainDomain',
+    ).map(p => p.id);
+    expect(ids).toEqual(['exact', 'wild', 'apex', 'sibling', 'generic']);
+  });
+
+  it('wildcard 档只额外带出通配条目', () => {
+    const ids = filterAndSortEntriesForDomain(
+      MULTI_ENV,
+      'mail.qq.com',
+      DEFAULT_SIDEPANEL_SORT,
+      undefined,
+      'wildcard',
+    ).map(p => p.id);
+    expect(ids).toEqual(['exact', 'wild', 'generic']);
+  });
+
+  it('本地开发域名仍走端口过滤，三档结果一致（档位不参与）', () => {
+    const localdev = [entry({ id: 'p3000', url: 'localhost:3000' }), entry({ id: 'p8080', url: 'localhost:8080' })];
+    for (const mode of ['off', 'wildcard', 'sameMainDomain'] as const) {
+      expect(
+        filterAndSortEntriesForDomain(localdev, 'localhost', DEFAULT_SIDEPANEL_SORT, '3000', mode).map(p => p.id),
+      ).toEqual(['p3000']);
+    }
   });
 });

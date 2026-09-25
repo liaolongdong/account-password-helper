@@ -2,6 +2,7 @@ import { onMounted, onUnmounted, type Ref } from 'vue';
 import { MessageType, type PasswordEntry, type RuntimeMessage } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
+import { normalizeSearchKeyword } from '@/utils/keywordMatch';
 
 /**
  * Runtime 消息监听 Composable
@@ -22,9 +23,24 @@ export function useRuntimeMessageHandler(options: {
   openPasswordDialog: (prefillUrl?: string) => void;
   /** 打开有效期设置弹窗（来自 Popup 倒计时胶囊点击续期，可选） */
   openValiditySetting?: () => void;
+  /** 打开站点规则弹窗（可选携带预填域名，来自内容脚本填充失败就地引导） */
+  openSiteRules?: (domain?: string) => void;
+  /** 打开跨子域匹配设置弹窗（来自侧边栏/内联下拉的档位引导，无预填参数） */
+  openDomainMatchSetting?: () => void;
+  /** 应用全库检索关键词（来自内联下拉空态的「到全库找」，实现侧需一并清掉叠加筛选） */
+  applySearchKeyword?: (keyword: string) => void;
 }) {
-  const { passwords, isAuthenticated, handleSessionExpired, editPassword, openPasswordDialog, openValiditySetting } =
-    options;
+  const {
+    passwords,
+    isAuthenticated,
+    handleSessionExpired,
+    editPassword,
+    openPasswordDialog,
+    openValiditySetting,
+    openSiteRules,
+    openDomainMatchSetting,
+    applySearchKeyword,
+  } = options;
 
   /**
    * 等待密码列表加载完成
@@ -73,6 +89,25 @@ export function useRuntimeMessageHandler(options: {
           openValiditySetting?.();
         }
       });
+    } else if (message.type === MessageType.OPEN_OPTIONS_AND_SITE_RULES) {
+      const domain = message.data?.domain;
+      logger.debug('RuntimeMsg: 收到打开站点规则指令' + (domain ? `，预填域名=${domain}` : ''));
+      // 冷启动时会话校验尚未完成，直接判定会把「已解锁」误判成未解锁；等状态落地后再交给调用方决策。
+      waitForPasswords().then(() => openSiteRules?.(domain));
+    } else if (message.type === MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH) {
+      logger.debug('RuntimeMsg: 收到打开跨子域匹配设置指令');
+      // 与站点规则同一时序口径：设置对话框需等密码列表/会话状态就绪后再开
+      waitForPasswords().then(() => openDomainMatchSetting?.());
+    } else if (message.type === MessageType.OPEN_OPTIONS_AND_SEARCH) {
+      // 后台已收口一次（`normalizeSearchKeyword`），这里按「外部输入一律不可校验上游」再收一次：
+      // 同一套归一（非字符串按缺失忽略、trim、截到 `MAX_SEARCH_KEYWORD_LENGTH`）由该函数单点定义，
+      // 不在此处重写，否则两处的长度上限会各自漂移。
+      const keyword = normalizeSearchKeyword(message.data?.keyword);
+      // 关键词可能是账号名：只记指令本身，不回显取值
+      if (!keyword) return;
+      logger.debug('RuntimeMsg: 收到全库检索指令');
+      // 无需等列表就绪：写入的是筛选条件本身，锁定态下同样成立，解锁后列表自然按此过滤
+      applySearchKeyword?.(keyword);
     }
   };
 

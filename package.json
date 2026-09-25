@@ -102,6 +102,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:e2e": "playwright test",
     "coverage": "vitest run --coverage",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",
@@ -135,6 +136,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
     "@types/chrome": "^0.1.43",
     "@typescript-eslint/parser": "^8.67.0",
     "@vitest/coverage-v8": "^4.1.11",
@@ -147,6 +149,7 @@
     "jsdom": "^30.0.1",
     "lint-staged": "^16.4.0",
     "marked": "^18.0.11",
+    "playwright": "^1.63.0",
     "postcss-html": "^1.8.1",
     "prettier": "^3.9.6",
     "rollup-plugin-visualizer": "^7.1.1",

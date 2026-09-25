@@ -15,7 +15,7 @@
  * @module utils/i18n
  */
 
-import { ref, type Ref } from 'vue';
+import { ref, watch, type Ref } from 'vue';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 
@@ -27,6 +27,18 @@ export type Messages = Record<string, string>;
 
 /** 当前激活语言（响应式，跨组件共享） */
 export const currentLocale: Ref<Locale> = ref('zh-CN');
+
+/**
+ * `<html lang>` 跟随当前语言
+ *
+ * 各入口 index.html 里的 `lang="zh-CN"` 是静态默认值，英文用户的文档语言上下文
+ * （读屏发音规则、连字符化、`:lang()` 选择器）会与实际界面语言不一致。
+ * 赋值点分散在初始化的 6 条分支里，用 watcher 统一收口而非各处重复；
+ * content script / background 与 node 测试环境无 `document`，故先做存在性判定。
+ */
+if (typeof document !== 'undefined') {
+  watch(currentLocale, locale => (document.documentElement.lang = locale), { immediate: true });
+}
 
 /** 语言包集合（由各入口的 bundle 注册模块按需填充，注册后同步就绪） */
 const messagesCache: Record<Locale, Messages> = {

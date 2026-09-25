@@ -1,5 +1,6 @@
 import type { ThemeName } from '@/utils/theme';
 import type { SidepanelOpenTrigger } from '@/utils/perfMetrics';
+import type { DomainMatchMode, MatchTier } from '@/utils/domain';
 
 /**
  * 页面填充模式
@@ -176,6 +177,25 @@ export enum MessageType {
    */
   OPEN_OPTIONS_AND_VALIDITY = 'OPEN_OPTIONS_AND_VALIDITY',
   /**
+   * 跳转到密码管理页并自动打开站点规则弹窗（内容脚本填充失败时就地引导，携带当前域名预填）
+   */
+  OPEN_OPTIONS_AND_SITE_RULES = 'OPEN_OPTIONS_AND_SITE_RULES',
+  /**
+   * 跳转到密码管理页并自动打开「跨子域匹配」设置弹窗（侧边栏/内联下拉就地引导开启档位）
+   *
+   * 刻意不携带域名等自报参数：该深链只需打开设置弹窗，无预填需求，
+   * 省掉不可信输入收口分支。
+   */
+  OPEN_OPTIONS_AND_DOMAIN_MATCH = 'OPEN_OPTIONS_AND_DOMAIN_MATCH',
+  /**
+   * 跳转到密码管理页并带上关键词做全库检索（内联下拉空态的「到全库找」出口）
+   *
+   * 关键词由内容脚本自报、属不可信输入，且在后台边界统一 trim + 截断
+   * （`normalizeSearchKeyword`）；选项页收到后同时清掉标签/收藏筛选，
+   * 否则残留筛选会让这个「找我库里到底有没有」的入口显示成空表。
+   */
+  OPEN_OPTIONS_AND_SEARCH = 'OPEN_OPTIONS_AND_SEARCH',
+  /**
    * 主动触发版本更新检测
    */
   CHECK_UPDATE = 'CHECK_UPDATE',
@@ -297,6 +317,9 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_AND_EDIT; data: { editId: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_ADD; data?: OpenOptionsAndAddData }
   | { type: MessageType.OPEN_OPTIONS_AND_VALIDITY }
+  | { type: MessageType.OPEN_OPTIONS_AND_SITE_RULES; data?: { domain: string } }
+  | { type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH }
+  | { type: MessageType.OPEN_OPTIONS_AND_SEARCH; data?: { keyword: string } }
   | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
@@ -304,7 +327,7 @@ export type RuntimeMessage =
   | { type: MessageType.CHECK_UPDATE }
   | { type: MessageType.GET_INITIAL_DATA; data?: { domain?: string } }
   | { type: MessageType.SIDEPANEL_PRELOAD }
-  | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string } }
+  | { type: MessageType.GET_MATCHING_ACCOUNTS; data?: { domain?: string; keyword?: string } }
   | { type: MessageType.FILL_BY_ID; data: FillByIdData }
   | { type: MessageType.GET_INLINE_TOTP; data: InlineTotpByIdData }
   | { type: MessageType.FILL_TOTP_BY_ID; data: InlineTotpByIdData }
@@ -361,6 +384,12 @@ export interface FloatingButtonConfig {
    * 界面主题名，默认 'sky'（晴空蓝，等同历史配色）
    */
   theme: ThemeName;
+  /**
+   * 影子 DOM 穿透总闸：开启时站点规则的自定义选择器可跨 open shadowRoot 查询（Web Components
+   * 站点如 Ionic/Lightning/Shopify 需要），关闭时查询根收回到文档主树，填充失败的就地引导气泡
+   * 也一并隐藏。默认 true；与站点规则同名开关取「任一为 false 即关闭」。
+   */
+  penetrateShadow?: boolean;
 }
 
 /**
@@ -431,8 +460,6 @@ export interface FillTotpData {
 export interface MatchingAccountMeta {
   /** 条目 ID */
   id: string;
-  /** 展示标题（标签 / 网址 / 用户名，择优） */
-  title: string;
   /** 用户名（展示用） */
   username: string;
   /** 标签 */
@@ -453,6 +480,13 @@ export interface MatchingAccountMeta {
    * 隐私风险；无图标/获取失败时为空字符串，内容脚本降级渲染钥匙图标。
    */
   favicon: string;
+  /**
+   * 匹配层级（0 精确 host → 4 URL 为空的通用条目；语义见 `utils/domain.ts` 的 `MatchTier`）
+   *
+   * 由 background 按用户所选档位单点计算后下发，内容脚本据此呈现「这条为什么出现在这里」的来源标识，
+   * 不再自行做域名判断（避免两处口径分歧）。
+   */
+  tier: MatchTier;
 }
 
 /**
@@ -465,6 +499,19 @@ export interface MatchingAccountsResponse {
   accounts: MatchingAccountMeta[];
   /** 是否未设置主密码（true 时引导用户先设置主密码） */
   noMasterPassword?: boolean;
+  /**
+   * 放宽到「同主域名」档后可额外带出的条目数（跨子域匹配发现性提示）
+   *
+   * 纯计数、不含任何凭据字段；仅在列表为空且当前档位不是最宽松档时计算，其余场景缺省。
+   */
+  crossDomainCount?: number;
+  /**
+   * 本站匹配集的实际命中条数（`accounts` 被上界截断时 > `accounts.length`）
+   *
+   * 纯计数、不含任何凭据字段。内联下拉据此在列表尾部给出「还有 N 条」的读数与
+   * 「到管理页查看全部」的去向，避免用户把截断后的列表当成完整结果。
+   */
+  totalMatched?: number;
 }
 
 /**
@@ -691,6 +738,25 @@ export interface SaveRiskHint {
 }
 
 /**
+ * 保存去向提示（只读）
+ *
+ * 自动保存的判重口径不因跨子域档位改变，用户在弹窗里看到的「更新」也可能落在另一站
+ * 的条目上。本结构只负责把这件事说清楚，不提供「改为新增 / 改为更新」的入口——那等于
+ * 从后门调整判重口径。`url` 为条目原样串，与 `existing.tag / remark` 同一暴露级别。
+ */
+export interface SaveTargetNote {
+  /**
+   * 提示形态
+   *
+   * - `updateOtherHost`：判重命中的条目属于别的 host，本次「更新」改的是那一条
+   * - `willCreate`：判重未命中，但跨子域档位下库里已有同名条目，本次会新增一条
+   */
+  kind: 'updateOtherHost' | 'willCreate';
+  /** 相关条目的网址原样串（不含账号/密码/备注） */
+  url: string;
+}
+
+/**
  * 自动保存预检查响应数据
  *
  * 仅返回状态枚举与非密码元数据，绝不回传已存明文密码。
@@ -707,6 +773,12 @@ export interface CredentialStatusResponse {
    * 避免在不会展示的路径上做无用计算。
    */
   risk?: SaveRiskHint;
+  /**
+   * 保存去向提示（仅在实际弹窗的两个分支、且命中对应形态时返回）
+   *
+   * 无提示时为缺省，弹窗不渲染该行。
+   */
+  targetNote?: SaveTargetNote;
 }
 
 /**
@@ -814,6 +886,16 @@ export interface IdleLockConfig {
   idleLockMinutes: number;
   /** 关闭浏览器后是否需要重新输入主密码（默认 false，保持在有效期内跨浏览器重启免输入） */
   relockOnBrowserRestart?: boolean;
+}
+
+/**
+ * 跨子域匹配档位配置
+ *
+ * 取值语义见 `utils/domain.ts` 的 `DomainMatchMode`。仅存枚举值，不含任何域名或账号信息。
+ */
+export interface DomainMatchConfig {
+  /** 匹配档位，默认 `off`（仅精确 host 匹配） */
+  mode: DomainMatchMode;
 }
 
 /**

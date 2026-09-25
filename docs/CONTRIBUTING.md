@@ -140,10 +140,12 @@ graph LR
 | `pnpm format:check` / `pnpm format`                 | Prettier 格式检查 / 格式化                                                                                        |
 | `pnpm lint:all` / `pnpm fix:all`                    | 运行所有检查（lint + stylelint + format） / 全部自动修复                                                          |
 | `pnpm test` / `pnpm test:run`                       | 运行测试（watch 模式） / 单次运行全部测试                                                                         |
-| `pnpm test:run -- <file>`                           | 运行单个测试文件                                                                                                  |
+| `pnpm exec vitest run <file>`                       | 运行单个测试文件                                                                                                  |
 | `pnpm coverage`                                     | 运行测试并生成覆盖率报告                                                                                          |
 | `pnpm auto-merge`                                   | 将 `main` 的改动自动合并回当前分支（脚本 `scripts/auto-merge-main.js`）                                           |
 | `pnpm prepare`                                      | 安装 husky Git hooks（`pnpm install` 时由 npm 自动触发）                                                          |
+
+> ⚠️ 跑单个测试文件要用 `pnpm exec vitest run <file>`。`pnpm test:run -- <file>` 里的 `-- <file>` **不会**被转发给 vitest CLI（实测仍会跑完整套测试），因为它不是 `vitest run <file>` 那种位置参数形式。
 
 > ⚠️ `blog/*.html`、`en.html`、`privacy.en.html`、`pricing.en.html`、封面图与 `public/icon/*.png` 都是**生成产物**，禁止手改；请修改其 Markdown / SVG 源文件后执行对应 `gen:*` / `icons:build` / `covers:render` 重新生成。
 
@@ -248,8 +250,8 @@ graph LR
 - 提交前根据改动范围运行相关测试：
 
   ```sh
-  pnpm test:run                       # 运行全部测试
-  pnpm test:run -- tests/utils/xxx.ts # 运行单个测试文件
+  pnpm test:run                              # 运行全部测试
+  pnpm exec vitest run tests/utils/xxx.ts    # 运行单个测试文件
   ```
 
 - 不得为通过测试而弱化断言、删除测试或跳过测试。
@@ -270,6 +272,7 @@ graph LR
 
 > `quick_fill` 在 `quickFillHandler.ts` 中硬编码 `autoLogin: false`，因此 `Ctrl+Shift+F` 只做「填充 + 勾选」，不会点击登录按钮；点击登录仅来自侧边栏「填充并登录」或可选的「自动触发登录」偏好（默认关闭）。
 > Chrome 未提供 `chrome.commands.update()`，且 4 个命令槽位已用满配额，因此应用内的快捷键列表为**只读**，仅提供跳转 `chrome://extensions/shortcuts` 的入口；新增快捷键需要先腾出命令槽，不能指望应用内改键。
+> 上表只列扩展级快捷键。管理页另有一层**页面内**命令面板（`Ctrl/Cmd + K`，见 [useCommandPalette.ts](../composables/useCommandPalette.ts) 与 [options/App.vue](../entrypoints/options/App.vue) 中的命令清单），它不占用 `chrome.commands` 槽位，因此既不出现在上表、也不在 `chrome://extensions/shortcuts` 中，且未解锁主密码时不响应按键。
 
 ### 安全与隐私
 
@@ -325,7 +328,7 @@ graph LR
   pnpm build              # 生产构建验证
   ```
 
-> ⚠️ **CI 现状**：`.github/workflows/ci.yml` 在 push 到 `main` 与 PR 上执行 `pnpm typecheck`、`pnpm lint`、`pnpm lint:style`、`pnpm test:run` 与 `pnpm build`（含 Firefox）；`.github/workflows/release-please.yml` 只负责发版，执行 `pnpm install` + `pnpm run build`。本地 `husky` + `lint-staged` 钩子仍对变更文件执行同样检查，是提交前的第一道关。
+> ⚠️ **CI 现状**：`.github/workflows/ci.yml` 在 push 到 `main` 与 PR 上分三个任务执行——`static`（`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`）、`test`（`pnpm test:run`）、`build`（`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`）。产物级守卫（如 sidepanel / popup 首屏闭包）只在 `build` 任务里跑，因为 `test` 任务没有 `.output/chrome-mv3`，那些用例会整文件跳过；本地跑它们前需先 `pnpm build`。`.github/workflows/release-please.yml` 只负责发版，执行 `pnpm install` + `pnpm run build`；`.github/workflows/e2e.yml`（真实浏览器扩展 E2E）自 2026-09-22 起与本文同一口径触发——push 到 `main`、PR、以及随时可手动复跑，只对文档、博客与图片类改动跳过（`paths-ignore`）。它是所有任务里最慢的一个（每次先 `pnpm build`，再以 `workers=1` 逐条用例起独立 profile），因此目前处于**观察期**：job 带 `continue-on-error`，跑红只出警告、不挡合并，等到在 ubuntu runner 上连跑两次全绿才转为真正的门禁（细节见 `e2e/README.md`「现状」）。本地 `husky` + `lint-staged` 钩子仍对变更文件执行同样检查，是提交前的第一道关。
 >
 > 版本号与 `CHANGELOG.md` 由 release-please 自动管理，PR 中请勿手改这两个文件。
 
@@ -495,10 +498,12 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 | `pnpm format:check` / `pnpm format`                 | Prettier format check / format                                                                                                                  |
 | `pnpm lint:all` / `pnpm fix:all`                    | Run all checks (lint + stylelint + format) / all auto-fixes                                                                                     |
 | `pnpm test` / `pnpm test:run`                       | Run tests (watch mode) / single run all tests                                                                                                   |
-| `pnpm test:run -- <file>`                           | Run a single test file                                                                                                                          |
+| `pnpm exec vitest run <file>`                       | Run a single test file                                                                                                                          |
 | `pnpm coverage`                                     | Run tests with coverage report                                                                                                                  |
 | `pnpm auto-merge`                                   | Merge `main` back into the current branch (`scripts/auto-merge-main.js`)                                                                        |
 | `pnpm prepare`                                      | Install the husky Git hooks (triggered automatically by `pnpm install`)                                                                         |
+
+> ⚠️ To run one test file use `pnpm exec vitest run <file>`. The `-- <file>` in `pnpm test:run -- <file>` is **not** forwarded to the vitest CLI (measured: it still runs all 94 files), because it never becomes a positional `vitest run <file>` argument.
 
 > ⚠️ `blog/*.html`, `en.html`, `privacy.en.html`, `pricing.en.html`, the cover images and `public/icon/*.png` are **generated artifacts** and must never be hand-edited. Change their Markdown / SVG sources, then re-run the matching `gen:*` / `icons:build` / `covers:render` script.
 
@@ -603,8 +608,8 @@ Please ensure all checks pass before committing.
 - Run relevant tests before submitting based on the scope of changes:
 
   ```sh
-  pnpm test:run                       # Run all tests
-  pnpm test:run -- tests/utils/xxx.ts # Run a single test file
+  pnpm test:run                              # Run all tests
+  pnpm exec vitest run tests/utils/xxx.ts    # Run a single test file
   ```
 
 - Never weaken assertions, delete tests, or skip tests to make them pass.
@@ -680,7 +685,7 @@ This is a password manager — security is the top priority. Please follow these
   pnpm build              # Production build verification
   ```
 
-> ⚠️ **What CI actually does**: `.github/workflows/ci.yml` runs `pnpm typecheck`, `pnpm lint`, `pnpm lint:style`, `pnpm test:run`, and `pnpm build` (including Firefox) on pushes to `main` and on pull requests; `.github/workflows/release-please.yml` only handles releases, running `pnpm install` + `pnpm run build`. The local `husky` + `lint-staged` hook still runs the same checks on changed files and remains the first gate before commit.
+> ⚠️ **What CI actually does**: `.github/workflows/ci.yml` runs three jobs on pushes to `main` and on pull requests — `static` (`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`), `test` (`pnpm test:run`), and `build` (`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`). Artifact-level guards (such as the sidepanel / popup first-screen closure check) run only in the `build` job, because the `test` job has no `.output/chrome-mv3` and those cases skip the whole file; run `pnpm build` locally before invoking them. `.github/workflows/release-please.yml` only handles releases, running `pnpm install` + `pnpm run build`; `.github/workflows/e2e.yml` (real-browser extension E2E) has shared the same triggers since 2026-09-22 — pushes to `main`, pull requests, plus a manual run anytime — and is skipped only for documentation, blog and image changes (`paths-ignore`). It is the slowest job of all (every run builds first, then executes one worker at a time, each case in its own fresh profile), so it is currently in a **trial period**: the job carries `continue-on-error`, meaning a red run only produces a warning and does not block merges. It becomes a real gate once it has gone green twice in a row on the ubuntu runner (see the status table at the top of `e2e/README.md`, Chinese-only, for details). The local `husky` + `lint-staged` hook still runs the same checks on changed files and remains the first gate before commit.
 >
 > Version numbers and `CHANGELOG.md` are managed automatically by release-please; do not edit those two files by hand in a PR.
 

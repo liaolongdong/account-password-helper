@@ -1,6 +1,6 @@
 # Account Password Helper
 
-> Free, open-source password manager Chrome extension for developers & QA engineers. Per-field AES-256-GCM local encryption, no account registration, no subscription, and password data never leaves the browser. One-click login (fill + tick consent + click login), multi-environment account isolation, built-in TOTP 2FA authenticator.
+> Free, open-source password manager Chrome extension for developers & QA engineers. Per-field AES-256-GCM local encryption, no account registration, no subscription, and password data stored only on your machine — the single outbound request is an anonymous version check that carries no user data. One-click login (fill + tick consent + click login), multi-environment account isolation with optional cross-subdomain matching, built-in TOTP 2FA authenticator, and an independently encrypted identity vault.
 
 ## Quick Facts
 
@@ -13,20 +13,24 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-09-12 · **Latest release**: v3.9.0 (2026-09-11)
-- **Quality**: 642 automated test cases across 55 test files
+- **Last updated**: 2026-09-22 · **Latest release**: v3.11.0 (2026-09-15)
+- **Quality**: 1337 automated test cases across 119 test files
 
 ## Key Features
 
 - **One-click login**: "Fill and sign in" in the side panel autofills credentials → ticks the consent checkbox → clicks the login button. `Ctrl+Shift+F` fills and ticks by default, and submits the form only after you turn on "Auto-submit login" in the preferences (off by default) — so it never clicks sign-in behind your back.
-- **Multi-environment isolation**: entries surface only when the normalized hostname matches the current page exactly, so dev / test / staging / prod accounts for the same site stay separated (on `localhost` and `127.0.0.1` the port is matched as well, so two local projects on `:3000` and `:5173` stay apart)
+- **Multi-environment isolation**: three cross-subdomain matching tiers, set in the header of the management page and honoured by every fill entry point. "Exact match only" (the default) surfaces an entry only when its normalized hostname equals the current page; "exact + wildcard entries" additionally admits entries saved as `*.qq.com`, which then work on every subdomain of that site; "same main domain" additionally falls back to the apex (`qq.com`) and sibling subdomains (`music.qq.com`) when the current host has no entry of its own, badging each widened row as cross-subdomain. On `localhost` and `127.0.0.1` the port is always matched as well, so two local projects on `:3000` and `:5173` stay apart regardless of tier, and the auto-save duplicate rule is deliberately tier-independent — widening never changes which entry a save overwrites
 - **Built-in TOTP 2FA authenticator**: RFC 6238 codes generated locally, GitHub-style two-step login auto-anchors a live code capsule — no phone authenticator app needed
 - **Per-field AES-256-GCM encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API; username, password, URL, remark and TOTP secret are encrypted field by field before touching disk, and password data is never uploaded
+- **Identity vault**: a separate, independently encrypted store for personal identity data (ID numbers, bank cards, passports, custom fields) with two-level format validation (checksum errors block, everything else warns), whole-card copy, save-time duplicate detection, encrypted `.aphid` backup and optional re-importable plaintext `.json` export — reachable only from the Options page and never surfaced in the side panel
 - **Offline security audit**: one-click 0–100 score weighted across four dimensions (reused 35 / weak 25 / commonly leaked 20 / stale 20), with missing-2FA reported separately but unscored — all computed on-device
 - **Password generator**: random mode (configurable length/charset/ambiguous-character exclusion) + passphrase mode drawing from a bundled 3,080-word list, Web Crypto CSPRNG
-- **Quadruple fill strategy**: inline fill (key icon in input), side panel one-click fill, right-click context menu fill, shortcut quick-fill
+- **Quadruple fill strategy**: inline fill (key icon in input, sharing the side panel's ordering and multi-field pinyin search), side panel one-click fill, right-click context menu fill, shortcut quick-fill
 - **Auto-save credentials**: Chrome-style login capture with smart dedup, domain allow/block lists; the save prompt flags weak and reused passwords inline (a heads-up only — it never blocks saving)
 - **Import / export**: CSV & JSON; auto-detects Chrome, LastPass, Bitwarden, 1Password exports
+- **Site rules for stubborn login pages**: pin custom CSS selectors for the username and password fields of a given domain, and optionally reach fields nested inside shadow DOM — for self-built login pages and component-library forms that heuristic detection gets wrong. Rules export to a plain-text JSON file (domains and selectors only, never credentials) and merge-import by domain with an added / updated / skipped report, capped at 500 rules and 2 MiB per file
+- **Command palette**: `Ctrl/Cmd + K` on the management page filters its 23 commands — add entry, health check, import / export, encrypted backup, trash, site rules, cross-subdomain matching, change master password, preferences — by Chinese, pinyin or initials; it opens only once you are unlocked, and destructive commands keep their confirmations
+- **Share card**: one click on a side panel row or in the read-only details drawer composes "username / password / URL" into a single plain-text clipboard payload, subject to the same timed clipboard wipe as every other copy
 - **6 color themes + bilingual UI** (中文 / English), instant switching without refresh
 - **Password visibility toggle**: injects show/hide button into page password fields, verify filled content with one click
 - **Trash bin & password history**: 30-day soft delete, encrypted snapshots per entry (default 3, configurable 1-10), one-click rollback
@@ -38,7 +42,7 @@
 
 ## Who It's For
 
-- **Developers**: manage dev / staging / prod accounts for the same site with exact-domain isolation
+- **Developers**: manage dev / staging / prod accounts for the same site with exact-domain isolation by default, and switch to wildcard or same-main-domain tiers when one account legitimately serves a whole subdomain family
 - **QA engineers**: quickly switch test accounts, one-click login across environments
 - **Privacy-conscious users**: per-field local encryption, passwords never uploaded, no account registration
 - **Everyday users**: stop memorizing passwords, built-in TOTP two-factor authentication
@@ -58,6 +62,12 @@ Nothing is lost and nothing needs re-encrypting — the vault is ciphertext at r
 **Can I import from other password managers?**
 Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password export formats, with Chinese/English column-name mapping. Typical migration takes about 30 seconds.
 
+**Can one account serve a whole subdomain family?**
+Yes, on request. The default tier matches hosts exactly; "exact + wildcard entries" admits entries saved as `*.qq.com` on every subdomain of that site, and "same main domain" adds the apex and sibling subdomains as a fallback, badged as cross-subdomain. Widening is display-and-fill only: the auto-save duplicate rule is deliberately tier-independent, so a wider tier never changes which entry a save overwrites, and `localhost` / `127.0.0.1` stay separated by port.
+
+**What if the login page confirms the field detection?**
+Add a site rule for that domain: your own CSS selectors for the username and password fields, plus an optional shadow DOM penetration switch for forms rendered inside custom elements. Rules travel as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, so a team can share one working set instead of configuring browser by browser.
+
 ## How It Compares
 
 | Feature | Account Password Helper | Bitwarden | 1Password | Chrome Built-in |
@@ -66,10 +76,14 @@ Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password ex
 | Data storage | Pure local | Cloud | Cloud | Local |
 | Account required | No | Yes | Yes | No |
 | One-click login (fill + tick + click) | Yes | Fill only | Fill only | Fill only |
-| Multi-environment isolation | Yes | No | No | No |
+| Multi-environment isolation | Yes (exact host by default) | No | No | No |
+| Site rules: per-domain custom CSS selectors, shadow DOM reach | Yes | No | No | No |
+| Command palette with pinyin search (`Ctrl/Cmd + K`) | Yes | No | No | No |
 | Built-in TOTP authenticator | Yes | Paid tier | Paid tier | No |
 | Offline security audit | Yes | No | No | No |
 | Open source (GPL-3.0) | Yes | Yes | No | No |
+
+> Competitor cells describe behaviour documented publicly as observed in 2026-09; vendors change features frequently, so check their sites before relying on a row.
 
 ## Security Architecture
 
@@ -104,8 +118,8 @@ Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password ex
 - [GitHub Repository](https://github.com/liaolongdong/account-password-helper)
 - [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
 - [English Version](https://liaolongdong.github.io/account-password-helper/en.html)
-- [Tech Blog (中文)](https://liaolongdong.github.io/account-password-helper/blog/) — local-first product story, MV3 sub-second side panel engineering, Web Crypto encryption in practice, and implementation notes on the latest fill/search/detail features
-- [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html)
+- [Tech Blog (中文)](https://liaolongdong.github.io/account-password-helper/blog/) — 5 篇技术文：本地优先产品故事、MV3 侧边栏秒开、Web Crypto 加密实战、四个新功能的实现笔记、跨子域名匹配三档的判据与踩坑
+- [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) — the same five posts in English, including how the three cross-subdomain tiers decide which accounts appear
 - [Pricing](https://liaolongdong.github.io/account-password-helper/pricing.html) — 100% free, no paid tier, no subscription
 - [Pricing (machine-readable)](https://liaolongdong.github.io/account-password-helper/pricing.md)
 - [Alternatives Comparison (中文)](https://liaolongdong.github.io/account-password-helper/compare.html) — Bitwarden / 1Password / Chrome 自带替代方案八维度事实对比

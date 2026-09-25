@@ -244,6 +244,21 @@ export function matchesPortForLocalDev(storedUrl: string | undefined | null, cur
   return !storedPort || storedPort === currentPort;
 }
 
+/** 通配条目前缀（写在 `PasswordEntry.url` 里，形如 `*.qq.com`） */
+const WILDCARD_PREFIX = '*.';
+
+/**
+ * 还原 URL 解析器编码掉的通配标记
+ *
+ * `*` 不是合法的 host 码点，各解析器处理方式不一致：Chrome 把
+ * `new URL('https://*.qq.com').hostname` 给出 `%2A.qq.com`（且不会把 `%2A` 解回 `*`），
+ * Node 则原样保留 `*`。通配条目的档位判定必须在两端都成立，所以统一把开头的
+ * `%2A.` 还原为 `*.`——否则 `wildcard` 档在真机上永远匹配不到任何条目。
+ */
+function restoreWildcardMarker(host: string): string {
+  return host.slice(0, 4).toLowerCase() === '%2a.' ? `${WILDCARD_PREFIX}${host.slice(4)}` : host;
+}
+
 /**
  * 将 URL 或域名规范化为 hostname
  *
@@ -258,14 +273,15 @@ export function matchesPortForLocalDev(storedUrl: string | undefined | null, cur
  * normalizeToHostname('https://example.com/login') // → 'example.com'
  * normalizeToHostname('example.com')               // → 'example.com'
  * normalizeToHostname('localhost:3000')            // → 'localhost'
+ * normalizeToHostname('*.qq.com')                  // → '*.qq.com'（通配标记不被解析器改写）
  */
 export function normalizeToHostname(value: string): string {
   const s = value.toLowerCase().trim();
   if (!s) return s;
   try {
-    return new URL(s.includes('://') ? s : `https://${s}`).hostname;
+    return restoreWildcardMarker(new URL(s.includes('://') ? s : `https://${s}`).hostname);
   } catch {
-    return s.split('/')[0].split('?')[0].split('#')[0];
+    return restoreWildcardMarker(s.split('/')[0].split('?')[0].split('#')[0]);
   }
 }
 
@@ -289,10 +305,11 @@ export function normalizeToHostAndPort(value: string): string {
   if (!s) return s;
   try {
     const url = new URL(s.includes('://') ? s : `https://${s}`);
-    return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+    const host = restoreWildcardMarker(url.hostname);
+    return url.port ? `${host}:${url.port}` : host;
   } catch {
     // 回退：去除路径/查询/锚点
-    return s.split('/')[0].split('?')[0].split('#')[0].toLowerCase();
+    return restoreWildcardMarker(s.split('/')[0].split('?')[0].split('#')[0].toLowerCase());
   }
 }
 
@@ -325,6 +342,201 @@ export function isExactHostMatch(currentDomain: string, storedUrl: string): bool
   if (!a || !b) return false;
 
   return a === b;
+}
+
+// ── 跨子域分层匹配 ──
+
+/**
+ * 跨子域匹配档位
+ *
+ * 档位是包含关系（`sameMainDomain` ⊃ `wildcard` ⊃ `off`），默认 `off`：
+ * 2026-07 为多测试环境隔离引入的精确 host 口径始终是缺省行为，放宽必须由用户显式选择。
+ *
+ * - `off`：仅精确 host 匹配（迁移前口径）
+ * - `wildcard`：额外纳入用户显式写成 `*.qq.com` 的通配条目，逐条由用户决定适用范围
+ * - `sameMainDomain`：再纳入同主域下的 apex 条目与其他子域条目，宽松度最高
+ */
+export type DomainMatchMode = 'off' | 'wildcard' | 'sameMainDomain';
+
+/** 档位合法性判定（storage 回读时收窄类型） */
+export function isDomainMatchMode(value: unknown): value is DomainMatchMode {
+  return value === 'off' || value === 'wildcard' || value === 'sameMainDomain';
+}
+
+/**
+ * 匹配层级：数字即排序权重，越小越靠前
+ *
+ * - 0 精确 host
+ * - 1 通配条目（`*.qq.com`）
+ * - 2 同主域 apex 条目（`qq.com`）
+ * - 3 同主域其他子域（`music.qq.com`）
+ * - 4 URL 为空的通用条目
+ *
+ * `off` 档下只可能返回 0、4 或 -1，与迁移前的二值优先级（0/1）等价。
+ */
+export type MatchTier = 0 | 1 | 2 | 3 | 4;
+
+/** 主域名记忆化容量上限（键为 hostname，超出即整体清空，避免无界增长） */
+const MAIN_DOMAIN_CACHE_MAX = 2000;
+
+const _mainDomainCache = new Map<string, string>();
+
+/**
+ * `getMainDomain` 的记忆化包装
+ *
+ * 分层匹配要逐条求主域名，数百条目 × 多次查询下重复解析同一 hostname 的成本可观；
+ * 结果纯函数确定性，可安全缓存。
+ */
+function memoizedMainDomain(hostname: string): string {
+  if (!hostname) return hostname;
+  const hit = _mainDomainCache.get(hostname);
+  if (hit !== undefined) return hit;
+  const main = getMainDomain(hostname);
+  if (_mainDomainCache.size >= MAIN_DOMAIN_CACHE_MAX) _mainDomainCache.clear();
+  _mainDomainCache.set(hostname, main);
+  return main;
+}
+
+/**
+ * 解析条目网址相对当前域名的匹配层级
+ *
+ * 站点可见性与填充可行性的唯一判据：侧边栏本站范围、内联下拉、一键填充、右键菜单与
+ * Popup 计数全部经它，杜绝「下拉里有、侧边栏没有」或两处排序分歧。
+ *
+ * 前置约束：`localhost` / `127.0.0.1` 的端口过滤与「当前页无域名」两条特殊路径由调用方
+ * 在调用本函数**之前**处理，本函数不参与本地开发端口语义。
+ *
+ * 通配命中刻意不使用 `endsWith('.qq.com')`（会被 `evil-qq.com` 之类前缀碰撞绕过），
+ * 而是复用既有的可信边界「主域名相等」，与跨域 iframe 委托同一口径，
+ * 并自动继承 `getMainDomain` 的两段式 ccTLD 全部规则。
+ *
+ * @param currentHost - 当前页面 hostname（空串时除通用条目外一律不匹配）
+ * @param storedUrl - 密码条目存储的 URL/域名
+ * @param mode - 匹配档位，缺省 `off`（与迁移前行为一致）
+ * @returns 匹配层级；不匹配返回 -1
+ *
+ * @example
+ * resolveMatchTier('mail.qq.com', 'mail.qq.com', 'off')     // → 0
+ * resolveMatchTier('mail.qq.com', 'qq.com', 'off')          // → -1（默认仍严格隔离）
+ * resolveMatchTier('mail.qq.com', '*.qq.com', 'wildcard')   // → 1
+ * resolveMatchTier('mail.qq.com', 'music.qq.com', 'sameMainDomain') // → 3
+ * resolveMatchTier('mail.qq.com', 'evil-qq.com', 'sameMainDomain')  // → -1
+ */
+export function resolveMatchTier(
+  currentHost: string,
+  storedUrl: string | undefined,
+  mode: DomainMatchMode = 'off',
+): MatchTier | -1 {
+  const raw = storedUrl?.trim();
+  // 空 URL 条目不限站点，始终纳入（排在所有带网址条目之后）
+  if (!raw) return 4;
+  if (!currentHost) return -1;
+
+  const storedHost = normalizeToHostname(raw);
+  if (!storedHost) return -1;
+  const host = normalizeToHostname(currentHost);
+  if (storedHost === host) return 0;
+
+  if (storedHost.startsWith(WILDCARD_PREFIX)) {
+    if (mode === 'off') return -1;
+    const base = storedHost.slice(WILDCARD_PREFIX.length);
+    if (!base) return -1;
+    return memoizedMainDomain(host) === memoizedMainDomain(base) ? 1 : -1;
+  }
+
+  if (mode !== 'sameMainDomain') return -1;
+  const currentMain = memoizedMainDomain(host);
+  if (!currentMain || currentMain !== memoizedMainDomain(storedHost)) return -1;
+  return storedHost === currentMain ? 2 : 3;
+}
+
+/**
+ * 判定匹配层级是否属于「跨子域命中」
+ *
+ * 通配（1）/ 同主域 apex（2）/ 同主域其他子域（3）共同回答「这条为什么出现在别的子域」，
+ * 侧边栏徽章、内联下拉来源 chip、空态引导计数与自动保存去向提示四处必须同口径，
+ * 否则会呈现「侧边栏带徽章、内联下拉不带 chip」这类自相矛盾。空态计数读的是同一区间的
+ * 另一侧：落在区间内即「只有放宽才会被带出」，因此两端天然共用这一个判据。
+ *
+ * 0（精确）与 4（无网址通用条目）不属于：前者就是本站；后者在任何档位下都可见，
+ * 不是放宽带出来的，给它标来源等于报错。
+ *
+ * @param tier - `resolveMatchTier` 的返回值（含未匹配的 -1）
+ * @returns 是否为跨子域层级
+ */
+export function isCrossSubdomainTier(tier: MatchTier | -1): boolean {
+  return tier >= 1 && tier <= 3;
+}
+
+/**
+ * 统计「放宽到同主域名档」后可额外带出的条目数（跨子域匹配的空态引导计数）
+ *
+ * 只数真正会被档位改变的条目：当前档位下不匹配、但在 `sameMainDomain` 档下命中
+ * 通配 / 主域 / 兄弟子域任一层级。空 URL 通用条目不计（它在任何档位下都可见）；
+ * 已处于最宽松档时没有可放宽空间，恒为 0。本地开发域名按端口口径过滤，同样恒为 0。
+ *
+ * 侧边栏与内联下拉共用本函数，避免两处各自演化出分歧的引导计数。
+ *
+ * @param entries - 仅需携带 `url` 字段的条目集合（全库，非过滤后的子集）
+ * @param currentHost - 当前页面 hostname，空串表示无域名场景
+ * @param mode - 用户当前所选档位
+ * @returns 可被放宽带出的条目数
+ */
+export function countSameMainDomainCandidates(
+  entries: readonly { url?: string }[],
+  currentHost: string,
+  mode: DomainMatchMode,
+): number {
+  if (!currentHost || mode === 'sameMainDomain' || isLocalDevDomain(currentHost)) return 0;
+  let count = 0;
+  for (const entry of entries) {
+    const widened = resolveMatchTier(currentHost, entry.url, 'sameMainDomain');
+    if (!isCrossSubdomainTier(widened)) continue;
+    if (resolveMatchTier(currentHost, entry.url, mode) === -1) count += 1;
+  }
+  return count;
+}
+
+/**
+ * 剥离网址最左侧的通配段
+ *
+ * `*.qq.com` 表达的是「适用范围」而非可导航主机：直接补协议会得到 `https://*.qq.com/`
+ * 这类必然解析失败的主机名。导航与图标两条派生路径都先经本函数还原为可访问主机。
+ *
+ * @param value - 原始 URL 或域名字符串
+ * @returns 去掉最左 `*.` 后的字符串；非通配输入原样返回（仅首尾空白被去除）
+ *
+ * @example
+ * stripWildcardPrefix('*.qq.com')                 // → 'qq.com'
+ * stripWildcardPrefix('https://*.qq.com/login')    // → 'https://qq.com/login'
+ * stripWildcardPrefix('mail.qq.com')               // → 'mail.qq.com'
+ */
+export function stripWildcardPrefix(value: string | undefined | null): string {
+  const raw = value?.trim();
+  if (!raw) return '';
+  const schemeMatch = /^([a-z][a-z0-9+.-]*:\/\/)\*\./i.exec(raw);
+  if (schemeMatch) return `${schemeMatch[1]}${raw.slice(schemeMatch[0].length)}`;
+  return splitWildcardHost(raw).rest;
+}
+
+/**
+ * 拆出最左侧的通配段，供录入校验与匹配复用同一前缀口径
+ *
+ * 刻意只提供「拆分」而不给「是否合法通配主机」的判定：录入校验只需剥掉最左 `*.`，
+ * 再拿**既有**域名正则去判剩余部分，非法形态（`*.`、`*.*.x`、`a.*.x`）天然被该正则拒掉，
+ * 避免为通配条目另立第二套域名口径。
+ *
+ * @param value - 已去除首尾空白的主机字符串
+ * @returns `wildcard` 是否以最左 `*.` 开头；`rest` 为剥掉通配段后的主机（非通配输入即原值）
+ *
+ * @example
+ * splitWildcardHost('*.qq.com')      // → { wildcard: true,  rest: 'qq.com' }
+ * splitWildcardHost('*.*.qq.com')    // → { wildcard: true,  rest: '*.qq.com' }
+ * splitWildcardHost('mail.qq.com')   // → { wildcard: false, rest: 'mail.qq.com' }
+ */
+export function splitWildcardHost(value: string): { wildcard: boolean; rest: string } {
+  if (!value.startsWith(WILDCARD_PREFIX)) return { wildcard: false, rest: value };
+  return { wildcard: true, rest: value.slice(WILDCARD_PREFIX.length) };
 }
 
 // ── 可导航 URL ──
@@ -363,6 +575,7 @@ function inferDefaultScheme(value: string): 'http' | 'https' {
  *
  * 条目 URL 属用户可控输入，直接交给 `chrome.tabs.create` / `window.open` 存在协议注入风险，
  * 故本函数作为导航前的唯一安全边界：
+ * - 最左通配段先经 {@link stripWildcardPrefix} 还原为可访问主机（适用范围不等于可打开的地址）；
  * - 无协议时按 {@link inferDefaultScheme} 补全（`example.com/login` → `https://example.com/login`）；
  * - 已带协议时按原样解析，仅放行 http/https；
  * - `javascript:` / `data:` / `mailto:` 等非层级 scheme 显式拒绝，不进入补协议分支
@@ -375,12 +588,13 @@ function inferDefaultScheme(value: string): 'http' | 'https' {
  * @example
  * toNavigableUrl('https://example.com/login')  // → 'https://example.com/login'
  * toNavigableUrl('example.com')                // → 'https://example.com/'
+ * toNavigableUrl('*.qq.com')                   // → 'https://qq.com/'（通配段还原为 apex）
  * toNavigableUrl('localhost:3000/admin')       // → 'http://localhost:3000/admin'
  * toNavigableUrl('javascript:alert(1)')        // → null（协议拒绝）
  * toNavigableUrl('')                           // → null
  */
 export function toNavigableUrl(storedUrl: string | undefined | null): string | null {
-  const raw = storedUrl?.trim();
+  const raw = stripWildcardPrefix(storedUrl);
   if (!raw) return null;
 
   let candidate: string;

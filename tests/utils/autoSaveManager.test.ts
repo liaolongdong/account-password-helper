@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
-import type { PasswordEntry } from '@/utils/types';
+import type { DomainMatchConfig, PasswordEntry } from '@/utils/types';
 
 /**
  * autoSaveManager.ts 单元测试
@@ -8,14 +8,16 @@ import type { PasswordEntry } from '@/utils/types';
  * 覆盖：
  * - findMatchingEntry：账号 + 域名匹配（精确、存储为完整 URL、子域名双向包含、无 URL、域名不同）；
  * - checkCredentialStatus：会话失效 / 空值 / 新账号 / 相同 / 密码变化 各分支，及读取异常保底行为；
- * - checkCredentialStatus 风险提示：弱密码/复用计数的附带边界（仅弹窗分支携带）。
+ * - checkCredentialStatus 风险提示：弱密码/复用计数的附带边界（仅弹窗分支携带）；
+ * - checkCredentialStatus 去向提示：两种 targetNote 的产出条件、档位门禁与「不落日志」约束。
  *
  * 会话与密码读取通过模块 mock 从接缝注入，保持测试 hermetic。
  */
 
-const { isSessionValid, getAllPasswords } = vi.hoisted(() => ({
+const { isSessionValid, getAllPasswords, getDomainMatchConfig } = vi.hoisted(() => ({
   isSessionValid: vi.fn<() => Promise<boolean>>(),
   getAllPasswords: vi.fn<() => Promise<PasswordEntry[]>>(),
+  getDomainMatchConfig: vi.fn<() => Promise<DomainMatchConfig>>(),
 }));
 
 vi.mock('@/utils/storage/facades', () => ({
@@ -28,17 +30,20 @@ vi.mock('@/utils/storage/passwordCrud', () => ({
   savePassword: vi.fn(),
 }));
 
-// configManager 仅 evictLRUFavoriteIfNeeded 使用，mock 掉避免无关的真实 storage 调用
+// configManager 仅 evictLRUFavoriteIfNeeded 与去向提示的档位门禁使用，mock 掉避免无关的真实 storage 调用
 vi.mock('@/utils/storage/configManager', () => ({
   getFavoriteLimit: vi.fn(),
+  getDomainMatchConfig,
 }));
 
 import { checkCredentialStatus, findMatchingEntry, isDomainMatchForAutoSave } from '@/utils/storage/autoSaveManager';
+import { logger } from '@/utils/logger';
 import type { AutoSaveConfig } from '@/utils/types';
 
 beforeEach(() => {
   isSessionValid.mockReset();
   getAllPasswords.mockReset();
+  getDomainMatchConfig.mockReset();
 });
 
 describe('findMatchingEntry', () => {
@@ -108,6 +113,32 @@ describe('findMatchingEntry', () => {
     expect(findMatchingEntry(list, page)?.id).toBe('first');
     // 换序后胜者随之改变，证明这里生效的是数组顺序而非某条 host 字面量
     expect(findMatchingEntry([...list].reverse(), page)?.id).toBe('second');
+  });
+});
+
+/**
+ * 判重口径与跨子域档位的关系（固定既有行为）
+ *
+ * `findMatchingEntry` 不读档位配置，也不认通配条目：本功能（D3）刻意不放宽判重，
+ * 因此同名账号在父域/兄弟子域上的归属结果必须与引入跨子域之前逐条一致。
+ */
+describe('findMatchingEntry 判重口径不受跨子域档位影响', () => {
+  const list = [
+    makePasswordEntry({ id: 'apex', username: 'u', url: 'qq.com', password: 'x' }),
+    makePasswordEntry({ id: 'sibling', username: 'u', url: 'music.qq.com', password: 'x' }),
+  ];
+
+  it('同名 + 父域包含 → 命中最精确的一条（迁移前后一致）', () => {
+    expect(findMatchingEntry(list, { username: 'u', url: 'mail.qq.com' })?.id).toBe('apex');
+  });
+
+  it('同名 + 兄弟子域 → 不命中（走新增）', () => {
+    expect(findMatchingEntry([list[1]!], { username: 'u', url: 'mail.qq.com' })).toBeUndefined();
+  });
+
+  it('同名 + 通配条目 → 不命中（判重不认 `*.qq.com`）', () => {
+    const wildcardList = [makePasswordEntry({ id: 'wild', username: 'u', url: '*.qq.com', password: 'x' })];
+    expect(findMatchingEntry(wildcardList, { username: 'u', url: 'mail.qq.com' })).toBeUndefined();
   });
 });
 
@@ -251,6 +282,161 @@ describe('checkCredentialStatus 风险提示', () => {
     const failed = await checkCredentialStatus({ username: 'alice', password: 'abc', url: 'example.com' });
     expect(failed.status).toBe('new');
     expect(failed.risk).toBeUndefined();
+  });
+});
+
+/**
+ * 保存去向提示（targetNote）附带边界
+ *
+ * 判重口径不变，提示只把「即将发生什么」说清楚，两种形态的门禁也不同：
+ * - `updateOtherHost`：父子域判重命中的条目属于别的 host。这一改写今天在 `off` 档同样发生，
+ *   所以无档位门禁；
+ * - `willCreate`：判重未命中、但同主域存在同名条目。它是库里确实存在的同名近重复，
+ *   因此仅非 `off` 档提示；探测固定按最宽档位做，不再按当前档位二次筛——
+ *   通配档下看不见兄弟子域条目，但「已有同名账号、这次会新增一条」这句仍然成立。
+ *
+ * 提示携带条目 URL 原样串，属敏感面，故同时锁定「不进日志」与「无候选不读档位」。
+ */
+describe('checkCredentialStatus 保存去向提示', () => {
+  const OLD = 'OldPass1!';
+  const NEW = 'NewPass1!';
+
+  beforeEach(() => {
+    isSessionValid.mockResolvedValue(true);
+    getDomainMatchConfig.mockResolvedValue({ mode: 'sameMainDomain' });
+  });
+
+  it('兄弟子域同名 + 非 off 档 → willCreate，url 为条目原样串', async () => {
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'sibling', username: 'u', url: 'https://music.qq.com/login', password: OLD }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('new');
+    expect(res.targetNote).toEqual({ kind: 'willCreate', url: 'https://music.qq.com/login' });
+  });
+
+  it('off 档同场景不提示（跨子域可见性并非本次保存的后果）', async () => {
+    getDomainMatchConfig.mockResolvedValue({ mode: 'off' });
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'sibling', username: 'u', url: 'music.qq.com', password: OLD }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('new');
+    expect(res.targetNote).toBeUndefined();
+  });
+
+  it('wildcard 档下同名通配条目 → willCreate（判重不认通配，确实会新增一条）', async () => {
+    getDomainMatchConfig.mockResolvedValue({ mode: 'wildcard' });
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'wild', username: 'u', url: '*.qq.com', password: OLD }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('new');
+    expect(res.targetNote).toEqual({ kind: 'willCreate', url: '*.qq.com' });
+  });
+
+  it('wildcard 档下兄弟子域同名 → 仍提示（该档看不见它，但同名事实与档位无关）', async () => {
+    getDomainMatchConfig.mockResolvedValue({ mode: 'wildcard' });
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'sibling', username: 'u', url: 'music.qq.com', password: OLD }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('new');
+    expect(res.targetNote).toEqual({ kind: 'willCreate', url: 'music.qq.com' });
+  });
+
+  it('父子域命中且 host 不同 → updateOtherHost，且 off 档同样提示、不读档位配置', async () => {
+    getDomainMatchConfig.mockResolvedValue({ mode: 'off' });
+    getAllPasswords.mockResolvedValue([makePasswordEntry({ id: 'apex', username: 'u', url: 'qq.com', password: OLD })]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('password_changed');
+    expect(res.targetNote).toEqual({ kind: 'updateOtherHost', url: 'qq.com' });
+    expect(getDomainMatchConfig).not.toHaveBeenCalled();
+  });
+
+  it('命中同 host 条目时不提示（去向就是当前站，无需解释）', async () => {
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'exact', username: 'u', url: 'https://mail.qq.com/cgi-bin/login', password: OLD }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('password_changed');
+    expect(res.targetNote).toBeUndefined();
+  });
+
+  it('同名但跨主域名时不提示（evil-qq.com / notqq.com 不算同主域）', async () => {
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'evil', username: 'u', url: 'evil-qq.com', password: OLD }),
+      makePasswordEntry({ id: 'near', username: 'u', url: 'mail.qq.com.evil.io', password: OLD }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('new');
+    expect(res.targetNote).toBeUndefined();
+  });
+
+  it('同名但无网址的条目不提示（空 URL 条目不限站点，文案里无处可指）', async () => {
+    getAllPasswords.mockResolvedValue([makePasswordEntry({ id: 'noUrl', username: 'u', url: '', password: OLD })]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('new');
+    expect(res.targetNote).toBeUndefined();
+  });
+
+  it('用户名不同的同主域条目不提示', async () => {
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'other', username: 'someone-else', url: 'music.qq.com', password: OLD }),
+    ]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('new');
+    expect(res.targetNote).toBeUndefined();
+  });
+
+  it('无同名跨主域候选时不读档位配置（不给保存热路径加存储读取）', async () => {
+    getAllPasswords.mockResolvedValue([makePasswordEntry({ username: 'bob', url: 'github.com', password: OLD })]);
+    const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    expect(res.status).toBe('new');
+    expect(getDomainMatchConfig).not.toHaveBeenCalled();
+  });
+
+  it('locked / identical / 读取异常三种保底分支均不带 targetNote', async () => {
+    isSessionValid.mockResolvedValue(false);
+    expect(
+      (await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' })).targetNote,
+    ).toBeUndefined();
+
+    isSessionValid.mockResolvedValue(true);
+    // 兄弟子域条目本身仍会构成 willCreate 场景，这里同时并入同 host 条目使状态落到 identical
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'sibling', username: 'u', url: 'music.qq.com', password: OLD }),
+      makePasswordEntry({ id: 'exact', username: 'u', url: 'mail.qq.com', password: NEW }),
+    ]);
+    expect(
+      (await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' })).targetNote,
+    ).toBeUndefined();
+
+    getAllPasswords.mockRejectedValueOnce(new Error('boom'));
+    expect(
+      (await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' })).targetNote,
+    ).toBeUndefined();
+  });
+
+  it('两种提示的全部分支都不把条目 URL 写入日志', async () => {
+    const spies = (['debug', 'info', 'warn', 'error'] as const).map(method => vi.spyOn(logger, method));
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'sibling', username: 'u', url: 'music.qq.com', password: OLD }),
+    ]);
+
+    await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+    getDomainMatchConfig.mockResolvedValue({ mode: 'off' });
+    getAllPasswords.mockResolvedValue([makePasswordEntry({ id: 'apex', username: 'u', url: 'qq.com', password: OLD })]);
+    await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
+
+    for (const spy of spies) {
+      for (const call of spy.mock.calls) {
+        expect(JSON.stringify(call)).not.toContain('music.qq.com');
+        expect(JSON.stringify(call)).not.toContain('qq.com');
+        expect(JSON.stringify(call)).not.toContain(NEW);
+        expect(JSON.stringify(call)).not.toContain(OLD);
+      }
+    }
   });
 });
 

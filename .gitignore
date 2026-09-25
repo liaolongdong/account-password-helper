@@ -126,3 +126,14 @@ coverage/
 # local symlinks for WeChat publishing image resolution
 docs/blog/zh/imgs
 docs/blog/en/imgs
+
+# Playwright E2E 产物与本地会话快照（storageState 可能带入扩展 origin 数据，禁止入库）
+test-results/
+playwright-report/
+e2e/.auth/
+
+# 性能测量脚本的私有产物：构建快照（避免并发构建移动测量基线）与原始测量结果。
+# results/ 为 19MB 量级的 JSON / .cpuprofile，且绝对值受当时整机负载影响、跨窗口不可比，
+# 结论与可比的相对数字已写入 docs/PERF_LARGE_VAULT_EVALUATION.md，原始数据不入库。
+benchmarks/.artifacts/
+benchmarks/results/

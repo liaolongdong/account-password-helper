@@ -1,5 +1,6 @@
 {
   "backup.exportError": "Failed to export the encrypted backup",
+  "backup.exportVerifyFailed": "Backup integrity self-check failed; the file was not exported. Please try again.",
   "backup.invalidFile": "Invalid backup file format",
   "backup.invalidStructure": "Invalid backup data structure",
   "backup.wrongPasswordOrCorrupted": "Wrong master password or corrupted backup file",

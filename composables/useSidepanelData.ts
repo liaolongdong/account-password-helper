@@ -10,6 +10,7 @@ import { t } from '@/utils/i18n';
 import { isExactHostMatch } from '@/utils/domain';
 import { lazyImport } from '@/utils/lazyImport';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
+import type { GetAllPasswordsResult } from '@/utils/storage/passwordCrud';
 import {
   waitForBrowserStartupRelockMarker,
   waitForBrowserStartupRelockStatus,
@@ -33,14 +34,10 @@ const getIsSessionValid = async () => {
   return () => sessionModule.isSessionValid({ skipConsistencyCheck: true });
 };
 
-/**
- * 延迟调用 invalidateSessionCache（fire-and-forget）
- * 在 clearSession 路径中异步失效 session 缓存，防止并发 isSessionValid()
- * 从 5s TTL 缓存中返回过期 true 值。首次调用时触发 dynamic import。
- */
-const invalidateSessionCacheAsync = async () => {
-  const sessionModule = await getSessionModule();
-  sessionModule.invalidateSessionCache();
+/** 延迟清空加密模块的 CryptoKey 句柄缓存（fire-and-forget） */
+const clearCryptoKeyCacheAsync = async () => {
+  const enc = await getEncryptionModule();
+  enc.clearCryptoKeyCache();
 };
 
 /**
@@ -49,16 +46,13 @@ const invalidateSessionCacheAsync = async () => {
 const getEncryptionModule = lazyImport(() => import('@/utils/encryption'));
 
 /**
- * 延迟清空加密模块的 CryptoKey 句柄缓存（fire-and-forget）
- *
- * 句柄缓存为每 JS 上下文独立，background 发起的锁定（空闲锁/系统锁）无法
- * 清理本页面因本地路径解密而填充的句柄，需在 sidepanel 自身的锁定感知点
- * （SESSION_EXPIRED 广播 / 会话键移除）补充清理；加密模块尚未加载时
- * 缓存必为空，dynamic import 仅命中构建产物缓存，开销可忽略
+ * 延迟调用 invalidateSessionCache（同步调用，消除竞态窗口）
+ * 在 handleStorageChange 中用于同步失效 session 缓存，防止并发 isSessionValid()
+ * 从 5s TTL 缓存中返回过期 true 值。首次调用时触发 dynamic import。
  */
-const clearCryptoKeyCacheAsync = async () => {
-  const enc = await getEncryptionModule();
-  enc.clearCryptoKeyCache();
+const invalidateSessionCacheSync = async () => {
+  const sessionModule = await getSessionModule();
+  sessionModule.invalidateSessionCache();
 };
 
 /**
@@ -101,12 +95,11 @@ const SESSION_EXPIRY_KEY = 'session_password_expiry';
  * 返回 false 时交由 initSidepanelData 完整竞速判定（fail-locked，无误判解锁风险）。
  */
 export async function isSessionQuicklyKnownInvalid(): Promise<boolean> {
-  // SESSION_LOCK_STATE 键名字面量：避免静态 import SESSION_MEMORY_KEYS（破坏懒加载分包）
-  const SESSION_LOCK_STATE_KEY = 'session_lock_state';
+  const lockStateKey = SESSION_MEMORY_KEYS.SESSION_LOCK_STATE;
   try {
     // 快速路径：优先从纯内存的 storage.session 读取锁定状态镜像
-    const sessionResult = await chrome.storage.session.get(SESSION_LOCK_STATE_KEY);
-    const lockState = sessionResult[SESSION_LOCK_STATE_KEY] as { locked: boolean; expiresAt?: number } | undefined;
+    const sessionResult = await chrome.storage.session.get(lockStateKey);
+    const lockState = sessionResult[lockStateKey] as { locked: boolean; expiresAt?: number } | undefined;
 
     if (lockState !== undefined) {
       // locked: true → 已被 clearSession / markSessionInvalid 明确标记为锁定
@@ -158,11 +151,6 @@ interface InitialDataResult {
   passwords: PasswordEntry[];
   sortConfig: { prop: string; order: string } | null;
   perf?: { swProcessMs: number; cacheHit: boolean; swUptimeMs: number };
-}
-
-interface BgInitialDataResponse {
-  success?: boolean;
-  data?: InitialDataResult;
 }
 
 type InitialDataCandidate =
@@ -256,6 +244,22 @@ export function useSidepanelData() {
   const showSidepanel = ref(true);
   const sortConfig = ref<{ prop: string; order: string } | null>(null);
 
+  /**
+   * 最近一次权威列表加载（loadPasswords）是否失败。
+   *
+   * 仅在 loadPasswords 的异常路径置 true，成功 / 会话失效 / 静默刷新失败均置 false。
+   * 供认证视图区分「加载失败·重试」与「真·空库·去新增」，避免读取失败伪装成空（B8）。
+   */
+  const loadFailed = ref(false);
+
+  /**
+   * 会话有效但部分条目解密失败（密钥不符 / 密文损坏）的数量。
+   *
+   * 由 loadPasswords 经 getAllPasswordsDetailed 回填；成功路径恒为 0。
+   * 认证视图在列表非空但存在不可解条目时给出「N 条无法解密」提示，而非静默变短（B8）。
+   */
+  const undecryptableCount = ref(0);
+
   // ==================== Chrome 事件监听 ====================
 
   const { onStorageChange, onMessage, onTabUpdated, onTabActivated, onDocumentEvent, onWindowEvent } =
@@ -305,12 +309,20 @@ export function useSidepanelData() {
    * handleStorageChange 检测到此标志后跳过 loadPasswords，避免全量重载覆盖
    * Vue 层已就地完成的状态更新。
    */
-  const { isLocalOperation: localOperationFlag, runLocalOperation } = useLocalOperationGuard();
+  const {
+    isLocalOperation: localOperationFlag,
+    runLocalOperation,
+    consumeLocalOperation: consumeLocalFlag,
+  } = useLocalOperationGuard();
 
   // ==================== 域名工具 ====================
 
   /**
    * 域名匹配优先级：0=匹配, 1=不匹配
+   *
+   * 刻意保持二值口径：本 composable 不感知跨子域档位，`off` 语义路径（含本地开发域名
+   * 的端口口径、无域名场景）都以此为准。放宽档下的分层优先级在 `App.vue` 按
+   * `resolveMatchTier` 计算，避免这里成为第二个匹配真源。
    */
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!currentDomain.value) return 0;
@@ -386,18 +398,20 @@ export function useSidepanelData() {
           _sessionKnownExpired = true;
           isAuthenticated.value = false;
           passwords.value = [];
+          loadFailed.value = false;
+          undecryptableCount.value = 0;
           return;
         }
       }
 
       // 始终加载全量密码列表，域名过滤统一由 filteredPasswords computed 处理
       // 避免 GET_INITIAL_DATA（全量）与 loadPasswords（过滤子集）两条路径数据不一致
-      const fetchPasswords = async (): Promise<PasswordEntry[]> => {
+      const fetchPasswords = async (): Promise<GetAllPasswordsResult> => {
         const crud = await getPasswordCrudModule();
-        return crud.getAllPasswords();
+        return crud.getAllPasswordsDetailed();
       };
 
-      const [sortConfigResult, loadedPasswords] = await Promise.all([
+      const [sortConfigResult, loaded] = await Promise.all([
         getSidepanelSortConfig().catch(() => null),
         fetchPasswords(),
       ]);
@@ -409,7 +423,9 @@ export function useSidepanelData() {
       }
 
       sortConfig.value = sortConfigResult;
-      passwords.value = loadedPasswords;
+      passwords.value = loaded.entries;
+      undecryptableCount.value = loaded.undecryptableCount;
+      loadFailed.value = false;
       loading.value = false;
 
       // 后台静默触发缓存刷新（不阻塞 UI 渲染）
@@ -417,9 +433,14 @@ export function useSidepanelData() {
     } catch (error) {
       if (!canCommitLoad()) return;
       logger.error('加载密码列表失败:', error);
-      // 静默刷新本意为「无感」：失败时仅记日志不弹 toast，避免与并发的
+      // 静默刷新本意为「无感」：失败时仅记日志不置失败态、不弹 toast，避免与并发的
       // 非静默加载重叠时误报「加载失败」（列表随后会正常加载出来）
-      if (!silent) ElMessage.error(t('message.loadListFailed'));
+      if (!silent) {
+        // 非静默加载失败：标记失败态，认证视图据此展示「重试」而非「无账号·去新增」（B8）。
+        // 先置状态再弹 toast，避免通知组件异常影响失败态标记。
+        loadFailed.value = true;
+        ElMessage.error(t('message.loadListFailed'));
+      }
     } finally {
       // 兜底确保 loading 状态清除（异常路径安全网）
       if (canCommitLoad()) loading.value = false;
@@ -495,7 +516,7 @@ export function useSidepanelData() {
    * handleSessionChange 异步完成前触发 loadPasswords，此时 isSessionValid()
    * 的 5s TTL 缓存可能仍返回 true，导致加密数据被加载到 UI 上闪烁。
    */
-  const handleStorageChange = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+  const handleStorageChange = async (changes: { [key: string]: chrome.storage.StorageChange }) => {
     const sessionKeys = [
       'session_wrapped_data_key',
       'session_password_expiry',
@@ -518,11 +539,13 @@ export function useSidepanelData() {
       );
       if (isSessionRemoved) {
         _sessionKnownExpired = true;
-        // 异步失效 session 缓存（fire-and-forget），确保并发 isSessionValid()
-        // 调用不会从 5s TTL 缓存中返回过期 true 值
-        void invalidateSessionCacheAsync();
-        // 清理本上下文的 CryptoKey 句柄缓存（background 发起的锁定无法跨上下文清理）
+        // 同步失效 session 缓存（消除竞态窗口：防止 invalidateSessionCacheAsync 异步执行期间，
+        // account_passwords 变更触发 loadPasswords 时 isSessionValid() 的 5s TTL 缓存仍返回 true）
+        await invalidateSessionCacheSync();
         void clearCryptoKeyCacheAsync().catch(() => {});
+        // 同批丢弃本上下文以明文为键的派生记忆缓存（键取自条目字段，不随列表清空而消失）
+        clearPlaintextKeyedCaches();
+        return;
       } else {
         _sessionKnownExpired = false;
 
@@ -558,14 +581,17 @@ export function useSidepanelData() {
     // 密码数据变化时，重新加载密码列表（解决自动保存后快速填充列表不刷新的问题）
     // 增加 _sessionKnownExpired 守卫：clearSession 时 password 加密写入会触发本分支，
     // 此时若 _sessionKnownExpired 已为 true（由前置 session key 移除事件设置），跳过加载
-    if (changes['account_passwords']) {
+    if (changes[STORAGE_KEYS.PASSWORDS]) {
       if (_sessionKnownExpired) {
         logger.debug('SidePanel: 检测到密码数据变动但会话已知过期，跳过重新加载');
         return;
       }
-      // 本地操作（收藏/填充）已在 Vue 层就地更新，storage watcher 跳过全量重载
+      // 本地操作（收藏/填充）已在 Vue 层就地更新，storage watcher 跳过全量重载。
+      // 在此解除标志而非按固定时长解除：本次事件就是本地写入的事件，而它可能在
+      // 大列表重渲染之后才派发，提前清除标志会让一次收藏仍触发整表全量重载。
       if (localOperationFlag.value) {
         logger.debug('SidePanel: 本地操作触发的 storage 变更，跳过重新加载');
+        consumeLocalFlag();
         return;
       }
       logger.debug('SidePanel: 检测到密码数据变动，重新加载');
@@ -573,7 +599,7 @@ export function useSidepanelData() {
         // 仅元数据变更（使用痕迹落盘等）：复用 SW 侧同一判定 + 白名单就地修补，
         // 零解密零整表替换（Windows Web Crypto 较慢，数百条全量 AES-GCM 解密
         // 开销明显）；未命中（真实增删改）或修补异常时回退静默全量重载
-        const change = changes['account_passwords'];
+        const change = changes[STORAGE_KEYS.PASSWORDS];
         void (async () => {
           try {
             const crud = await getPasswordCrudModule();
@@ -622,9 +648,15 @@ export function useSidepanelData() {
   };
 
   /**
-   * 更新当前域名并加载密码
+   * 更新当前域名与端口（切标签页 / URL 变化时）
+   *
+   * 仅更新过滤条件，不触发全量重载：列表本就是全量数据，域名过滤由
+   * `filteredPasswords` computed 承担，改域名即可时更新生效；且列表新鲜度
+   * 已由 `handleStorageChange`（account_passwords 变更）覆盖。此前在此追加
+   * `loadPasswords()` 会在每次换域名时把已渲染的列表整体替换为 loading 态
+   * 再重新解密一遍相同数据（Windows 慢盘下数百毫秒无谓开销 + 可见闪烁）。
    */
-  const updateCurrentDomainAndLoadPasswords = async () => {
+  const updateCurrentDomain = async () => {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab && tab.url) {
@@ -635,10 +667,6 @@ export function useSidepanelData() {
         if (currentDomain.value !== newDomain || currentPort.value !== newPort) {
           currentDomain.value = newDomain;
           currentPort.value = newPort;
-
-          if (isAuthenticated.value) {
-            await loadPasswords();
-          }
         }
       }
     } catch (error) {
@@ -656,7 +684,7 @@ export function useSidepanelData() {
   ) => {
     switch (message.type) {
       case MessageType.URL_CHANGED:
-        updateCurrentDomainAndLoadPasswords();
+        updateCurrentDomain();
         sendResponse({ success: true });
         return true;
       case MessageType.SESSION_EXPIRED:
@@ -667,6 +695,8 @@ export function useSidepanelData() {
         passwords.value = [];
         // 清理本上下文的 CryptoKey 句柄缓存（锁定后不残留可用解密句柄）
         void clearCryptoKeyCacheAsync().catch(() => {});
+        // 同批丢弃本上下文以明文为键的派生记忆缓存（键取自条目字段，不随列表清空而消失）
+        clearPlaintextKeyedCaches();
         sendResponse({ success: true });
         return true;
       default:
@@ -704,7 +734,7 @@ export function useSidepanelData() {
    */
   const handleTabUpdated = async (_tabId: number, changeInfo: any, tab: any) => {
     if (changeInfo.status === 'complete' && tab.url) {
-      await updateCurrentDomainAndLoadPasswords();
+      await updateCurrentDomain();
     }
   };
 
@@ -712,7 +742,7 @@ export function useSidepanelData() {
    * 监听标签页激活
    */
   const handleTabActivated = async (_activeInfo: any) => {
-    await updateCurrentDomainAndLoadPasswords();
+    await updateCurrentDomain();
   };
 
   // ==================== 初始化 ====================
@@ -806,6 +836,16 @@ export function useSidepanelData() {
         }
       });
 
+      // 快照与 bg/local 三路竞速
+      // 竞速标记：null = 未决出胜负；先返回「可用结果」的路径置位并成为唯一胜者，
+      // 后到的路径一律转入静默兜底（不重复决出胜负、不重复提交 UI）
+      let raceWinner: 'snapshot' | 'bg' | 'local' | null = null;
+      // 性能埋点：Background/本地路径各自耗时（写入环形日志，生产环境可定位慢点归属）
+      let bgPathMs: number | null = null;
+      let localPathMs: number | null = null;
+      /** Background 路径迟到且未被采纳时，其响应是否可用于兜底预热（仅记布尔，不持有解密数据） */
+      let bgLateUsable = false;
+
       // 路径 0: storage.session 加密快照直读（最快路径，纯内存 IPC + 单次 AES-GCM）
       // SW 侧 warmPasswordCache 成功后写入加密快照，侧边栏冷启动时直读解密，
       // 跳过 SW 唤醒 + storage.local 磁盘 IO + 逐条解密（200-3000ms → <50ms）；
@@ -813,18 +853,10 @@ export function useSidepanelData() {
       const _perfSnapshotStart = performance.now();
       const snapshotPromise = readSessionSnapshot(startupRelockStatusPromise).then(result => {
         if (!result) return null;
+        if (!raceWinner) raceWinner = 'snapshot';
         logger.debug(`SidePanel: 快照路径完成 (${(performance.now() - _perfSnapshotStart).toFixed(1)}ms)`);
         return { source: 'snapshot' as const, data: result };
       });
-
-      // 快照与 bg/local 三路竞速
-      // 竞速标记：null = 未决出胜负，'bg' = Background 路径胜出，'local' = 本地路径胜出
-      let raceWinner: 'bg' | 'local' | null = null;
-      // 性能埋点：Background/本地路径各自耗时（写入环形日志，生产环境可定位慢点归属）
-      let bgPathMs: number | null = null;
-      let localPathMs: number | null = null;
-      /** Background 路径迟到结果（本地路径先胜出时保存，用于静默更新缓存） */
-      let bgLateResult: BgInitialDataResponse | null = null;
 
       // 路径 B: Background GET_INITIAL_DATA（热 SW 快通道）
       const _perfBgStart = performance.now();
@@ -850,7 +882,7 @@ export function useSidepanelData() {
         if (!result?.success || !result.data) return null;
         if (raceWinner) {
           bgAdopted = true;
-          bgLateResult = result;
+          bgLateUsable = Boolean(result.data.sessionValid);
           logger.debug(`SidePanel: bg 路径迟到 (${bgPathMs.toFixed(1)}ms)，静默更新缓存`);
           return null;
         }
@@ -867,7 +899,7 @@ export function useSidepanelData() {
         if (!result?.success || !result.data) return null;
         if (raceWinner) {
           bgAdopted = true;
-          bgLateResult = result;
+          bgLateUsable = Boolean(result.data.sessionValid);
           logger.debug('SidePanel: bg 原始响应迟到，已有路径胜出，转入静默更新缓存');
           return null;
         }
@@ -905,6 +937,12 @@ export function useSidepanelData() {
         const sessionValid = await isSessionValidFn();
         if (!sessionValid) {
           return { sessionValid: false, passwords: [] as PasswordEntry[], sortConfig: null };
+        }
+        // 弃赛点：已有路径（多为快照）胜出并完成首屏提交，本条最重的全量解密
+        // 结果不会再被消费，直接放弃，避免与首屏渲染/交互抢 CPU 与磁盘 IPC
+        if (raceWinner) {
+          logger.debug(`SidePanel: 本地路径弃赛（${raceWinner} 已胜出），跳过全量解密`);
+          return null;
         }
         const crud = await (crudPromise ?? getPasswordCrudModule());
         const [sortConfigResult, loadedPasswords] = await Promise.all([
@@ -1066,7 +1104,7 @@ export function useSidepanelData() {
       // 自行回填缓存，无需回传全量明文；迟到后轻量触发一次去重预热作为兜底
       bgPromise
         .then(() => {
-          if (bgLateResult?.success && bgLateResult.data?.sessionValid) {
+          if (bgLateUsable) {
             logger.debug('SidePanel: Background 迟到结果到达，触发缓存预热兜底');
             void triggerBackgroundCacheRefresh();
           }
@@ -1104,6 +1142,8 @@ export function useSidepanelData() {
     currentPort,
     showSidepanel,
     sortConfig,
+    loadFailed,
+    undecryptableCount,
     // 方法
     loadPasswords,
     loadCurrentTab,

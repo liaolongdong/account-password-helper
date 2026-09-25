@@ -238,6 +238,21 @@ describe('parseJSON', () => {
   it('非法 JSON 抛出「JSON 文件格式不正确」', () => {
     expect(() => ExcelUtils.parseJSON('not json')).toThrow('JSON 文件格式不正确');
   });
+
+  it('B4：字段为对象时拒绝导入（不再被 String() 成 "[object Object]" 静默入库）', () => {
+    const text = JSON.stringify([{ username: { evil: true }, password: 'p' }]);
+    expect(() => ExcelUtils.parseJSON(text)).toThrow('JSON 文件格式不正确');
+  });
+
+  it('B4：容器 version 高于上界时拒绝导入', () => {
+    const text = JSON.stringify({ version: 999, entries: [{ username: 'a' }] });
+    expect(() => ExcelUtils.parseJSON(text)).toThrow('JSON 文件格式不正确');
+  });
+
+  it('B4：容器 count 与 entries 长度不符时拒绝导入', () => {
+    const text = JSON.stringify({ version: 1, count: 5, entries: [{ username: 'a' }] });
+    expect(() => ExcelUtils.parseJSON(text)).toThrow('JSON 文件格式不正确');
+  });
 });
 
 describe('导出序列化（经 Blob/document/URL 打桩捕获生成内容）', () => {

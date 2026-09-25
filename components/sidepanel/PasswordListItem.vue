@@ -47,6 +47,13 @@ interface Props {
    * 复制账号 / 复制密码 / 复制验证码 / 收藏 / 编辑不依赖当前页，全部保留。
    */
   canFill?: boolean;
+  /**
+   * 是否为跨子域命中的条目（默认 false）
+   *
+   * 由父级按档位算出的 ID 集查表得到，本组件不做域名判断。开启跨子域匹配后，
+   * 通配条目 / 主域条目 / 同主域其他子域条目带此徽章，回答「这条为什么出现在这里」。
+   */
+  crossDomain?: boolean;
 }
 
 interface Emits {
@@ -72,7 +79,7 @@ interface Emits {
   shareCard: [password: PasswordEntry];
 }
 
-const props = withDefaults(defineProps<Props>(), { searchKeyword: '', canFill: true });
+const props = withDefaults(defineProps<Props>(), { searchKeyword: '', canFill: true, crossDomain: false });
 const emit = defineEmits<Emits>();
 
 const { t } = useI18n();
@@ -123,7 +130,12 @@ const activate = () => {
         >
           <el-icon><User /></el-icon>
         </SiteFavicon>
-        <span class="username-text">
+        <!-- 本行三处截断字段（用户名 / 网址 / 备注）统一用原生 title 兜住全文：
+             逐行 el-tooltip 的实例成本与侧边栏秒开 SLA 冲突，口径与 Options 表格的 username/url/remark 一致 -->
+        <span
+          class="username-text"
+          :title="password.username"
+        >
           <SearchHighlight
             :text="password.username"
             :keyword="searchKeyword"
@@ -172,6 +184,16 @@ const activate = () => {
             :keyword="searchKeyword"
           />
         </el-tag>
+        <!-- 跨子域来源标识：放宽档位下带出非精确条目时说明它为何在此，不仅靠颜色传达状态 -->
+        <el-tag
+          v-if="crossDomain"
+          class="scope-badge"
+          size="small"
+          type="info"
+          effect="plain"
+        >
+          {{ t('sidepanel.scope.crossSubdomain') }}
+        </el-tag>
         <!-- 外站标识：全站搜索下的非本站条目在 URL 前加链接图标，不仅靠颜色传达状态 -->
         <el-icon
           v-if="password.url && !canFill"
@@ -183,6 +205,7 @@ const activate = () => {
           v-if="password.url"
           type="info"
           size="small"
+          :title="password.url"
         >
           <SearchHighlight
             :text="password.url"
@@ -194,9 +217,11 @@ const activate = () => {
         v-if="password.remark"
         class="remark"
       >
+        <!-- title 挂内联文本节点而非 .remark 块：块是整行宽，悬停在行尾空白也会弹出备注 -->
         <el-text
           type="info"
           size="small"
+          :title="password.remark"
         >
           <SearchHighlight
             :text="password.remark"
@@ -466,6 +491,13 @@ const activate = () => {
   flex-shrink: 0;
   font-size: 12px;
   color: var(--aph-icon-muted);
+}
+
+/* 跨子域来源徽章：与标签同处 .details 弹性行内，不与长 URL 争抢收缩空间 */
+.scope-badge {
+  flex-shrink: 0;
+  margin-right: 4px;
+  font-size: 11px;
 }
 
 .remark {

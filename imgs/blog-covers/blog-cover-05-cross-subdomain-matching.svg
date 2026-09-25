@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1B34"/>
+      <stop offset="1" stop-color="#17305C"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#409EFF"/>
+      <stop offset="1" stop-color="#337ECC"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <!-- 电路走线（避开标题带、证据行与右侧层级梯） -->
+  <g stroke="#409EFF" stroke-width="2" fill="none" opacity="0.22">
+    <path d="M1600 150 H1552 L1528 174"/>
+  </g>
+  <circle cx="1528" cy="174" r="5" fill="#409EFF" opacity="0.45"/>
+
+  <!-- 品牌角标 -->
+  <g>
+    <rect x="96" y="68" width="52" height="52" rx="13" fill="#409EFF"/>
+    <g transform="translate(96,68) scale(0.40625)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+    <text x="164" y="104" font-size="27" font-weight="600" fill="#FFFFFF">Account Password Helper</text>
+    <text x="1504" y="104" font-size="24" fill="#A9BFE0" text-anchor="end">技术博客 05 / 05</text>
+  </g>
+
+  <!-- 文字层 -->
+  <g>
+    <text x="96" y="250" font-size="84" font-weight="700" fill="#FFFFFF">同一站点的账号</text>
+    <text x="96" y="348" font-size="84" font-weight="700" fill="#FFFFFF">该出现在哪些子域</text>
+    <text x="96" y="418" font-size="38" font-weight="600" fill="#66B3FF">off · wildcard · sameMainDomain</text>
+    <text x="96" y="474" font-size="28" fill="#A9BFE0">三档分层判据 · 一个函数决定 · 多处消费</text>
+  </g>
+  <g font-size="27" font-weight="500">
+    <rect x="96" y="512" width="214" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="550" fill="#CFE3FF">三档分层判据</text>
+    <rect x="326" y="512" width="187" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="352" y="550" fill="#CFE3FF">主域名相等</text>
+    <rect x="529" y="512" width="240" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="555" y="550" fill="#CFE3FF">不用 endsWith</text>
+    <rect x="96" y="588" width="309" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="626" fill="#CFE3FF">1337 项自动化测试</text>
+    <rect x="421" y="588" width="212" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="447" y="626" fill="#CFE3FF">+18 B 包体积</text>
+  </g>
+
+  <!-- 关键源码位置 -->
+  <g>
+    <line x1="96" y1="762" x2="640" y2="762" stroke="#23406E" stroke-width="3"/>
+    <text x="96" y="812" font-size="26" fill="#A9BFE0">utils/domain.ts · resolveMatchTier</text>
+  </g>
+
+  <!-- 右栏：当前页地址栏 → 匹配层级梯 -->
+  <g>
+    <rect x="880" y="168" width="624" height="66" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <g transform="translate(908,188)" stroke="#8FB4FF" stroke-width="3" fill="none" stroke-linecap="round">
+      <path d="M4 12 V8 a6 6 0 0 1 12 0 v4"/>
+      <rect y="12" width="20" height="16" rx="4" fill="#8FB4FF" stroke="none"/>
+    </g>
+    <text x="946" y="211" font-size="30" fill="#CFE3FF">mail.example.com</text>
+    <text x="1480" y="211" font-size="22" fill="#A9BFE0" text-anchor="end">当前档：同主域名</text>
+  </g>
+
+  <!-- 层级脊柱（先画，被行块遮住后只在间隙露出） -->
+  <line x1="932" y1="240" x2="932" y2="640" stroke="#8FB4FF" stroke-width="3" stroke-dasharray="12 12" opacity="0.4"/>
+
+  <g>
+    <!-- tier 0：精确 host（默认档唯一会命中的行） -->
+    <rect x="900" y="272" width="584" height="76" rx="14" fill="url(#primary)"/>
+    <circle cx="932" cy="310" r="21" fill="#FFFFFF"/>
+    <text x="932" y="320" font-size="26" font-weight="600" fill="#337ECC" text-anchor="middle">0</text>
+    <text x="970" y="320" font-size="28" fill="#FFFFFF">mail.example.com</text>
+    <text x="1462" y="320" font-size="22" fill="#CFE3FF" text-anchor="end">精确</text>
+
+    <!-- tier 1：通配条目 -->
+    <rect x="900" y="364" width="584" height="76" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <circle cx="932" cy="402" r="21" fill="#1E3A6B" stroke="#8FB4FF" stroke-width="2"/>
+    <text x="932" y="412" font-size="26" font-weight="600" fill="#CFE3FF" text-anchor="middle">1</text>
+    <text x="970" y="412" font-size="28" fill="#CFE3FF">*.example.com</text>
+    <rect x="1358" y="384" width="104" height="38" rx="19" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="1410" y="411" font-size="20" fill="#CFE3FF" text-anchor="middle">跨子域</text>
+
+    <!-- tier 2：同主域 apex -->
+    <rect x="900" y="456" width="584" height="76" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <circle cx="932" cy="494" r="21" fill="#1E3A6B" stroke="#8FB4FF" stroke-width="2"/>
+    <text x="932" y="504" font-size="26" font-weight="600" fill="#CFE3FF" text-anchor="middle">2</text>
+    <text x="970" y="504" font-size="28" fill="#CFE3FF">example.com</text>
+    <rect x="1358" y="476" width="104" height="38" rx="19" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="1410" y="503" font-size="20" fill="#CFE3FF" text-anchor="middle">跨子域</text>
+
+    <!-- tier 3：兄弟子域（警示色：测试环境账号会被一并带出） -->
+    <rect x="900" y="548" width="584" height="76" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <circle cx="932" cy="586" r="21" fill="#1E3A6B" stroke="#E6A23C" stroke-width="2"/>
+    <text x="932" y="596" font-size="26" font-weight="600" fill="#FFD04B" text-anchor="middle">3</text>
+    <text x="970" y="596" font-size="28" fill="#CFE3FF">uat.example.com</text>
+    <rect x="1358" y="568" width="104" height="38" rx="19" fill="#E6A23C" fill-opacity="0.16" stroke="#E6A23C" stroke-opacity="0.5" stroke-width="2"/>
+    <text x="1410" y="595" font-size="20" fill="#FFD04B" text-anchor="middle">跨子域</text>
+  </g>
+
+  <!-- 被挡住的域名：前缀碰撞不在同主域内 -->
+  <g>
+    <rect x="900" y="664" width="584" height="72" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2" stroke-dasharray="10 8"/>
+    <text x="932" y="712" font-size="28" fill="#A9BFE0">evil-example.com</text>
+    <g stroke="#F56C6C" stroke-width="7" stroke-linecap="round">
+      <line x1="1400" y1="684" x2="1444" y2="716"/>
+      <line x1="1444" y1="684" x2="1400" y2="716"/>
+    </g>
+  </g>
+  <text x="900" y="790" font-size="24" fill="#A9BFE0">主域名相等，不是 endsWith('example.com')</text>
+</svg>
