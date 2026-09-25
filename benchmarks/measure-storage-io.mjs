@@ -9,12 +9,20 @@
  *   options 侧 600/2000/5000 条的整包读改写在 16.7/63.7/245.9 ms，一次保存的读写全貌 66.8/263.1/941.8 ms，
  *   `onChanged` 投递 43~55 / 211~245 / 538~852 ms；单条分键写 0.6/0.8/1.6 ms。
  *
+ * 审计结果（`--steps audit`，`storage-io-m6-read-b-20260925.json`，@2000 SW/options 中位数）：
+ *   单键 `get` 88 KB 索引对象 1.4/1.7 ms（稳态下区域里已有 2000 个分片键时不变；但**批量写完之后的那一次读**
+ *   首样本抬到 options@2000 的 9.9、options@5000 的 20.6、SW@5000 的 5.7）；单条条目键读 0.3/0.4 ms；
+ *   E1 冷读全貌（索引 + 按 id 批量读）39.8/43.5 ms，同窗口整包读作分母 = 29.9/31.4 ms，即 **+33%/+39%**。
+ *   归因教训三条：(a) 三段分解（分片/键名/索引）只在 SW 侧成立，四格互相矛盾，别当通用结论；
+ *      (b) options 侧样本有 3~6 倍的离群首样本，SW 侧离散度 <8% —— **归因只引 SW，报价只引 options**；
+ *      (c) 区域规模对单键 `get` 的影响要分「稳态」与「刚批量写完」两种，混在一起量会得出"不抬高"的半错结论。
+ *
  * 运行：
  *   pnpm build
  *   export E2E_EXECUTABLE_PATH="/tmp/cft/chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing"
  *   node benchmarks/measure-storage-io.mjs --sizes 600,2000,5000 --repeat 5
  *
- *   分键（E1/S1）决策性审计（M-1/M-3/M-5 + 配额常量，以及 M-2 的原始字节账）：
+ *   分键（E1/S1）决策性审计（M-1/M-3/M-5/M-6 + 配额常量，以及 M-2 的原始字节账）：
  *   node benchmarks/measure-storage-io.mjs --sizes 100,1000,2000,5000 --steps audit
  *   M-2 的磁盘字节账目（Node 侧快照 leveldb 目录，须单独一趟）：
  *   node benchmarks/measure-storage-io.mjs --sizes 100,1000,2000,5000 --steps disk
@@ -43,6 +51,13 @@
  * - **M-5 索引键写入成本**：§5.1 方案 1 让每次保存都同批重写索引键，所以热路径写成本
  *   不是 `setSmall` 那一档。id 用真实的 41 字符形态造（`generateId()` = `'uuid-' + UUID`），
  *   分别量「只写索引键」与「条目键 + 索引键一次 set」，用于预检设计稿 §6.4 闸 1（< 20 ms）。
+ * - **M-6 单键 get 成本（读侧，M-5 的另一半）**：闸 1 只量了写，「每次冷读要先 `get` 回一个
+ *   88 KB 索引对象」始终没有数字。同一批夹具下按阶段量五种读法，每种都同窗口对照：
+ *   ① 区域里只有索引键时的单键读；② 区域已含 n 个分片键时的同一读法（区域规模是否抬高
+ *   单键读——M-3 在 `onChanged` 投递侧量到了这种抬高，读侧未知）；③ 单条条目键读（E1 热读）；
+ *   ④ 整包 `get(bench_blob)`（今天的设计，作分母）与按真实键名 / 按 io 步短键名各读一遍
+ *   同一批分片（把「键名长度」从「分片形态」里剥出来）；⑤ `get(index)` + 按 id 批量读条目
+ *   = E1 冷读全貌。键名用真实的 `aph_pwd_` + 41 字符 id = 49 B，不沿用 io 步的 13 B 短序号键。
  * - **M-4（Windows 慢磁盘 / 杀软）本机测不了**：这台机器只有 macOS。分键方案的收益与
  *   风险在 Windows 上都会放大，任何 Windows 结论必须由该平台上重跑本脚本得到。
  *
@@ -54,9 +69,15 @@
  *    options 数字是用户实际付的价**。
  * 3. `setSmall`（写一个约 500B 独立键）是**按条目分键方案的单条写入成本**，`shardsAll` 是它的
  *    最坏情况（整库重写）。**实测结论与本脚本初版的预判相反**：分键并没有"收益必然薄"，
- *    单条保存 245.9 → 1.6 ms（约 150×），而整库重写 240.0 vs 整包 245.9 ms 几乎等价、不倒退，
- *    全库读只贵约 16%（13.3/66.7/202.8 vs 10.9/43.8/175.1）。真实实现还要付索引键写入与跨键一致性，
- *    那是**风险成本**而非**收益折扣**——见 `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 4.2 与第十节。
+ *    单条保存 245.9 → 1.6 ms（约 150×），而整库重写 240.0 vs 整包 245.9 ms 几乎等价、不倒退。
+ *    **但读侧的账本条初版写错了**：这里曾记「全库读只贵约 16%（13.3/66.7/202.8 vs 10.9/43.8/175.1）」，
+ *    而同一批三档的实际比值是 **+22% / +52% / +16%** —— 16% 是 @5000 那一档，挑了最有利的一个当结论。
+ *    M-6 用真实 49 B 键名在同窗口配对复测（`--steps audit`），四格总涨幅是 **+33.1% / +38.5% / +44.8% / +57.5%**
+ *    （SW/options × 2000/5000），绝对值 +9.9 / +12.1 / +34.3 / +45.4 ms。曾想把涨幅三段分解成
+ *    "分片形态 / 键名长度 / 索引键"，**这个分解已收回**：SW 侧键名步 +19.6%→+30.7%，可 options@2000 的键名步
+ *    只有 +0.2% 而分片步 +28.3%，四格互相矛盾，归因只在 SW（纯 IO、离散度 <8%）成立。见设计稿 §5.3 M-6 结论 3。
+ *    真实实现还要付索引键写入与跨键一致性，那是**风险成本**而非**收益折扣**——
+ *    见 `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 4.2 与第十节、`docs/PERF_E1_KEY_SHARDING_DESIGN.md` §5.3。
  * 4. 绝对值受磁盘状态、杀软扫描、整机负载影响（同一命令两次可差数倍）。
  *    **只在同一串行窗口内做相对比较**，跑前先确认 `top -l 2` 的 CPU idle 足够高。
  * 5. 夹具写在 `bench_blob` 而非 `account_passwords`：后者会触发扩展自身的 `onChanged` 扇出
@@ -345,24 +366,30 @@ async function runShardAudit([sizes]) {
   };
 
   /**
+   * 真实 id 形态（`generateId()` = `'uuid-' + UUID` = 41 字符），M-5 写侧与 M-6 读侧共用，
+   * 保证两批量的是同一个字节形状的索引对象；短 id 会把 88 KB 量级低估成 20 KB。
+   */
+  const fakeId = i => {
+    const hex = x => (x >>> 0).toString(16).padStart(8, '0');
+    const a = hex(i * 2654435761) + hex(i * 40503 + 7) + hex(i * 9781 + 13) + hex(i * 31337 + 29);
+    return `uuid-${a.slice(0, 8)}-${a.slice(8, 12)}-4${a.slice(13, 16)}-8${a.slice(17, 20)}-${a.slice(20, 32)}`;
+  };
+
+  /** E1 索引键载荷；`rev` 每轮必须不同，否则 Chrome 视作无变更、写入路径量不到真东西 */
+  const buildIndex = (n, rev) => ({ v: 1, ids: Array.from({ length: n }, (_, i) => fakeId(i)), count: n, rev });
+
+  /**
    * M-5：索引键与「条目键 + 索引键」同批写的成本
    *
    * §5.1 方案 1 要求每次保存都同批改索引键，因此热路径的写成本不是 `setSmall` 的 0.8 ms，
-   * 而是「条目键 + 索引键」这一批的实际开销。索引键体积按真实 id 形态造
-   * （`generateId()` 产出 `'uuid-' + UUID` = 41 字符），不用短 id —— 短 id 会把 88 KB 量级低估成 20 KB。
+   * 而是「条目键 + 索引键」这一批的实际开销。
    */
   const indexKeyCost = async (n, items, entryKey) => {
-    const fakeId = i => {
-      const hex = x => (x >>> 0).toString(16).padStart(8, '0');
-      const a = hex(i * 2654435761) + hex(i * 40503 + 7) + hex(i * 9781 + 13) + hex(i * 31337 + 29);
-      return `uuid-${a.slice(0, 8)}-${a.slice(8, 12)}-4${a.slice(13, 16)}-8${a.slice(17, 20)}-${a.slice(20, 32)}`;
-    };
-    const buildIndex = rev => ({ v: 1, ids: Array.from({ length: n }, (_, i) => fakeId(i)), count: n, rev });
     const time = async rounds => {
       const ts = [];
       for (let r = 0; r < rounds; r++) {
         const t0 = performance.now();
-        await chrome.storage.local.set({ [indexKey]: buildIndex(r) });
+        await chrome.storage.local.set({ [indexKey]: buildIndex(n, r) });
         ts.push(+(performance.now() - t0).toFixed(1));
       }
       return ts;
@@ -372,7 +399,7 @@ async function runShardAudit([sizes]) {
       for (let r = 0; r < rounds; r++) {
         const item = { ...items[r % items.length], updateTime: 1760000000000 + r };
         const t0 = performance.now();
-        await chrome.storage.local.set({ [entryKey]: item, [indexKey]: buildIndex(r) });
+        await chrome.storage.local.set({ [entryKey]: item, [indexKey]: buildIndex(n, r) });
         ts.push(+(performance.now() - t0).toFixed(1));
       }
       return ts;
@@ -381,12 +408,116 @@ async function runShardAudit([sizes]) {
     const withEntry = await timePair(5);
     return {
       idBytes: fakeId(0).length,
-      indexBytes: JSON.stringify(buildIndex(0)).length,
+      indexBytes: JSON.stringify(buildIndex(n, 0)).length,
       indexOnlySamples: indexOnly,
       indexOnlyMs: +median(indexOnly).toFixed(1),
       withEntrySamples: withEntry,
       withEntryMs: +median(withEntry).toFixed(1),
     };
+  };
+
+  /**
+   * M-6：单键 `get` 的成本（补 M-5 的另一半 —— 闸 1 只量了写侧，读回索引键从未被测过）
+   *
+   * 分四个阶段量，每段的对照对象都不同，缺一就有一条结论撑不住：
+   * - **A 只读索引键**（区域里只有它）：E1 每次冷读都要付这一笔。若 88 KB 对象的读回本身
+   *   就要几十毫秒，「分片形态的读代价可以忽略」就不成立。
+   * - **B 整包 `get(bench_blob)`**：今天的设计，同一窗口、同一批值字节，作分母。
+   * - **C 分片入库后再读索引键**（区域 n+2 个键）：与 A 对照，量**区域规模**是否抬高单键读
+   *   ——M-3 在 `onChanged` 投递侧量到了这种抬高，读侧未知。同阶段还量单条读、
+   *   按真实 49 B 键名的批量读、以及 `get(索引)` + 按 id 批量读 = **E1 冷读全貌**。
+   * - **D 同样的值换成 io 步的 13 B 短键名再读一遍**：只换键名不换值字节，把「键名长度」
+   *   从「分片形态」里剥出来 —— 少了这一段，B 与 C 的差值就没法归因。
+   *
+   * id 与键名同源，因此 `fanoutLanded` 天然自证：按索引算出的键名若与写入的键名有任何错位，
+   * 读回就会短于 n。
+   */
+  const indexKeyReadCost = async n => {
+    const items = Array.from({ length: n }, (_, i) => ({ ...buildItem(i), id: fakeId(i) }));
+    const shardKeys = items.map(item => `${prefix}${item.id}`);
+    /** 阶段 D 的对照键名（13 B，与 io 步 `getShards` 同形），提前声明以便 finally 一次清干净 */
+    const shortKeys = Array.from({ length: n }, (_, i) => `${prefix}${String(i).padStart(5, '0')}`);
+    const expected = new Set(shardKeys);
+    const sweep = [...shardKeys, ...shortKeys, indexKey, 'bench_blob'];
+    const time = async (rounds, fn) => {
+      const ts = [];
+      for (let r = 0; r < rounds; r++) {
+        const t0 = performance.now();
+        await fn(r);
+        ts.push(+(performance.now() - t0).toFixed(1));
+      }
+      return ts;
+    };
+    const ms = ts => +median(ts).toFixed(1);
+
+    try {
+      await chrome.storage.local.remove(sweep);
+
+      // ── 阶段 A：区域里只有索引键 ──
+      await chrome.storage.local.set({ [indexKey]: buildIndex(n, 0) });
+      const indexAlone = await time(5, () => chrome.storage.local.get(indexKey));
+
+      // ── 阶段 B：整包夹具入库（今天的设计），与分片形态同窗口对照 ──
+      await chrome.storage.local.set({ bench_blob: items });
+      const blob = await time(5, () => chrome.storage.local.get('bench_blob'));
+
+      // ── 阶段 C：分片入库 → 区域 n+2 个键，E1 稳态 ──
+      await chrome.storage.local.set(Object.fromEntries(items.map((item, i) => [shardKeys[i], item])));
+      const indexSharded = await time(5, () => chrome.storage.local.get(indexKey));
+      const oneEntry = await time(5, () => chrome.storage.local.get(shardKeys[0]));
+      const entriesLong = await time(5, () => chrome.storage.local.get(shardKeys));
+      const fanout = [];
+      let fanoutLanded = -1;
+      for (let r = 0; r < 5; r++) {
+        const t0 = performance.now();
+        const idx = await chrome.storage.local.get(indexKey);
+        const got = await chrome.storage.local.get((idx[indexKey]?.ids ?? []).map(id => `${prefix}${id}`));
+        fanout.push(+(performance.now() - t0).toFixed(1));
+        fanoutLanded = Object.keys(got).filter(k => expected.has(k)).length;
+      }
+
+      /**
+       * ── 阶段 D：同样的值、M-1/io 步那种 13 B 短键名 ──
+       *
+       * 早先"io 步全库读只贵 16%"用的是短键名，M-6 的批量读用的是真实 49 B 键名，
+       * 两者相差 3～5 倍就说不清是分片的代价还是键名的代价。这里只换键名、不换值字节，
+       * 把「键名长度」单独剥出来。
+       */
+      await chrome.storage.local.remove(shardKeys);
+      await chrome.storage.local.set(
+        Object.fromEntries(Array.from({ length: n }, (_, i) => [shortKeys[i], buildItem(i)])),
+      );
+      const entriesShort = await time(5, () => chrome.storage.local.get(shortKeys));
+
+      return {
+        indexBytes: JSON.stringify(buildIndex(n, 0)).length,
+        keyNameBytes: shardKeys[0].length,
+        entryBytes: JSON.stringify(items[0]).length,
+        indexAloneSamples: indexAlone,
+        indexAloneMs: ms(indexAlone),
+        indexShardedSamples: indexSharded,
+        indexShardedMs: ms(indexSharded),
+        entryGetOneSamples: oneEntry,
+        entryGetOneMs: ms(oneEntry),
+        entriesLongSamples: entriesLong,
+        entriesLongMs: ms(entriesLong),
+        /** 阶段 D 之后区域里是短键名分片，索引键仍在，读法与阶段 C 同构，只换了键名长度 */
+        entriesShortSamples: entriesShort,
+        entriesShortMs: ms(entriesShort),
+        shortKeyNameBytes: shortKeys[0].length,
+        fanoutSamples: fanout,
+        fanoutMs: ms(fanout),
+        fanoutLanded,
+        blobSamples: blob,
+        blobGetMs: ms(blob),
+      };
+    } finally {
+      try {
+        await chrome.storage.local.remove(sweep);
+      } catch {
+        /* 长键名残留会让下一档的 totalKeysInArea 虚高，但 M-1 的落库计数按期望键集合过滤，不受影响 */
+      }
+    }
   };
 
   for (const n of sizes) {
@@ -474,6 +605,9 @@ async function runShardAudit([sizes]) {
 
       // ── M-5：索引键写入与「条目键 + 索引键」同批写（§5.1 方案 1 的热路径真实成本）──
       rec.m5 = await indexKeyCost(n, items, keys[0]);
+
+      // ── M-6：单键 get 成本（索引键读回 / 区域规模的影响 / E1 冷读全貌 vs 整包）──
+      rec.m6 = await indexKeyReadCost(n);
 
       await cleanup();
     } catch (error) {
@@ -758,6 +892,15 @@ async function main() {
       log(
         `             M-5 索引键 ${m5.indexBytes}B（id ${m5.idBytes}B×${n}）单独写 中位数=${m5.indexOnlyMs} / ` +
           `与条目键同批写=${m5.withEntryMs} 原始 ${JSON.stringify(m5.indexOnlySamples ?? [])} / ${JSON.stringify(m5.withEntrySamples ?? [])}`,
+      );
+      const m6 = x.m6 ?? {};
+      log(
+        `             M-6 索引键 ${m6.indexBytes}B 单键读 中位数 独占=${m6.indexAloneMs} / 区域内含${n}分片=${m6.indexShardedMs}；` +
+          `单条读(${m6.entryBytes}B/条, 键名${m6.keyNameBytes}B)=${m6.entryGetOneMs}；` +
+          `整包读=${m6.blobGetMs} 分片批量读 长键名${m6.keyNameBytes}B=${m6.entriesLongMs} / 短键名${m6.shortKeyNameBytes}B=${m6.entriesShortMs}；` +
+          `E1 冷读全貌(索引+批量)=${m6.fanoutMs}（落库 ${m6.fanoutLanded}/${n}） ` +
+          `原始 整包=${JSON.stringify(m6.blobSamples ?? [])} 长=${JSON.stringify(m6.entriesLongSamples ?? [])} ` +
+          `短=${JSON.stringify(m6.entriesShortSamples ?? [])} 全貌=${JSON.stringify(m6.fanoutSamples ?? [])}`,
       );
     }
   }
