@@ -13,7 +13,7 @@ import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
 import { isValidTotpInput } from '@/utils/totp';
 import { matchesKeyword } from '@/utils/searchMatch';
-import { filterByKeyword } from '@/utils/keywordMatch';
+import { filterByKeyword, KEYWORD_DEBOUNCE_MS } from '@/utils/keywordMatch';
 import { warmPinyinMatcher } from '@/utils/searchMatch/core';
 import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
 import { useVaultListPagination } from '@/composables/useVaultListPagination';
@@ -199,7 +199,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
   /**
    * 搜索关键词防抖：输入框保持即时响应（v-model 仍绑定 searchKeyword），
-   * 仅将驱动过滤的 debouncedSearchKeyword 延迟 200ms 更新，
+   * 仅将驱动过滤的 debouncedSearchKeyword 延迟 `KEYWORD_DEBOUNCE_MS` 更新，
    * 降低大列表连续击键时 filter + sort 的重排开销。
    */
   let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
@@ -207,7 +207,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
       debouncedSearchKeyword.value = value;
-    }, 200);
+    }, KEYWORD_DEBOUNCE_MS);
   });
 
   // 作用域销毁时清理未触发的防抖定时器，避免向已停用作用域赋值

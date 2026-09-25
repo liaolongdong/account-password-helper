@@ -269,10 +269,19 @@ export async function cleanExpiredTrash(): Promise<void> {
 
 /**
  * 获取回收站条目列表（纯展示路径：读取失败降级为空列表，错误已在 readTrash 记录）
+ *
+ * 返回顺序恒为**最近删除在前**。条目是追加写入的（`moveToTrash` 落的是
+ * `[...trash, ...movedEntries]`），最早删的因此排在最前，而打开回收站的人几乎总在找
+ * 「刚误删的那一条」——分页之后它恰好落在最后一页。这里单点定序，消费方（回收站弹窗）
+ * 的关键词过滤只做减法、不重排，两条规则叠加后的顺序才是用户看到的那一列。
+ *
+ * 同一批删除共享同一个 `deletedAt`（`moveToTrash` 一次取样），批内维持原追加序，
+ * 依赖的是 `Array.prototype.sort` 的稳定性（ECMAScript 2019 起为规范要求）。
  */
 export async function getTrashEntries(): Promise<TrashedPasswordEntry[]> {
   try {
-    return await readTrash();
+    const trash = await readTrash();
+    return [...trash].sort((a, b) => b.deletedAt - a.deletedAt);
   } catch {
     return [];
   }

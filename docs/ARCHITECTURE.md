@@ -164,7 +164,7 @@ graph TB
 │   │   ├── PasswordVerifyView.vue      # 主密码验证视图
 │   │   ├── SearchFilterBar.vue         # 搜索过滤栏
 │   │   ├── ShortcutSettingDialog.vue   # 快捷键一览对话框（只读 + 未生效预警 + 跳转管理页）
-│   │   ├── TrashDialog.vue             # 回收站对话框（恢复/彻底删除/清空）
+│   │   ├── TrashDialog.vue             # 回收站对话框（检索/恢复/彻底删除/清空）
 │   │   ├── ValidityHoursSelect.vue     # 有效期选择器
 │   │   └── ValiditySettingDialog.vue   # 有效期设置对话框
 │   └── sidepanel/                  # SidePanel 侧边栏组件
@@ -474,6 +474,9 @@ graph TB
 - 删除密码（单条删除 / 批量删除）不再直接抹除，而是移入回收站软删除，保留 **30 天**（见 [utils/storage/trashManager.ts](../utils/storage/trashManager.ts)）。
 - 入口：密码管理页「数据管理」下拉菜单 →「回收站」，打开回收站弹窗（见 [TrashDialog.vue](../components/options/TrashDialog.vue)）。
 - 每条支持「恢复」（回到密码列表）与「彻底删除」，底部提供「清空回收站」；彻底删除时同步清理该条目的密码修改历史与到期提醒，防止残留。
+- 弹窗列表按**最近删除在前**呈现：条目是追加写入存储的（`moveToTrash` 落 `[...trash, ...movedEntries]`），最早删的因此排在最前，分页之后刚误删的那一条恰好落在最后一页；定序因此在读取侧单点收口于 `getTrashEntries`（同批删除共享同一个 `deletedAt`，靠 `Array.sort` 的稳定性维持批内追加序，且定序作用于副本，不影响恢复/彻底删除那些覆写型读-改-写路径读到的原始内容）。
+- 弹窗另带一个关键词检索框：过滤走 [keywordMatch.ts](../utils/keywordMatch.ts) 的 `filterByKeyword` 并注入密码表那一份 `matchesKeyword`（含拼音），与密码表/侧边栏同一检索口径；可搜范围就是弹窗已解密的三项（用户名 / 网址 / 标签），placeholder 因此把范围写在台面上，不为检索多解一类字段。输入 200ms 防抖（与密码表同档：整表按引用换 `data` 会重排当前页），换关键词作为查看口径变化回第 1 页（复位信号取「弹窗打开 + 生效关键词」），每次打开先清掉两个关键词副本再取数，避免残留上一次的过滤结果。
+- 回收站整库解密走 [concurrency.ts](../utils/concurrency.ts) 的 `mapWithConcurrency`（串行 `for … await` 的耗时随条目数线性累加：同口径实测 5N 串行在 2000 条时 705.0 ms、条目级并行 396.3 ms，本路径每条目 3 个字段即 3N，量级按比例缩小，见 `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.3）；单条解密失败仍在 mapper 内降级成占位文案，输出顺序由该工具保证与入参同序。检索必须覆盖全库——没解密的字段搜不到——所以这条路径不能退化成「只解当前页」。定序由 `tests/utils/trashDisplayOrder.test.ts` 守卫，检索与并发解密接线由 `tests/architecture/trashSearchWiring.test.ts` 守卫。
 - 超过 30 天的条目由后台闹钟自动清理；回收站条目始终保持密文存储，会话有效期内才解密展示用户名/网址，锁定态下显示占位符。
 
 ### 19. 密码修改历史
@@ -625,7 +628,7 @@ graph TB
 此处只记录需要长期遵守的架构约束。
 
 - 三条成本主线（2000 条实测，macOS + SSD）：① **全库解密 = 5N 次 `crypto.subtle` 调用**（每条目 5 个敏感字段各一次 importKey + decrypt，每次固定开销约 25～30 µs）→ 410.6 ms；② **整包重写**（整个数组存单个 storage 键，保存 1 条也要把 N 条序列化重写一遍）→ 读 + 改 + 写全周期 263.1 ms；③ **`chrome.storage.onChanged` 的全量载荷投递**（事件载荷就是整包 `newValue`）→ 211～245 ms。这三笔**分页一分不减**，与渲染是两条独立的账；P0 那类零格式改造只碰得到 ①。
-- 已落地的四笔（不改数据格式、不改交互、不改默认值）：base64 解码分块化 + `slice` → `subarray`（[encryption.ts](../utils/encryption.ts)）；回收站提醒表批量化 `removeReminders`（[reminderManager.ts](../utils/storage/reminderManager.ts)，原先按 id 循环「读整包 + 命中才写」，批删 100 条 = 100 次串行往返，现收敛为 1 读 + ≤1 写）；批量导入与改密 rekey 的整库重加密走条目级并行（[concurrency.ts](../utils/concurrency.ts) 的 `mapWithConcurrency`，默认每批 64，同迭代配对实测 −43～46%（约 1.8×））；管理页 watcher 的「仅元数据变更就地修补」（[usePasswordManagement.ts](../composables/usePasswordManagement.ts) 的 `patchMetadataOnlyFromStorage` + [useStorageWatcher.ts](../composables/useStorageWatcher.ts) 的 `patchMetadataOnly`），把外部写入在管理页里白付的那次 5N 解密降到 0。该快路径有一条硬前提：**一次整表加载不在飞**——修补改的是即将被整表替换的旧条目，而它返回 true 又会让 watcher 跳过本该发生的那次重载，列表便静默停在过期状态；因此 `loadPasswords` 带代际序号（只有最新一次加载有权提交列表与收尾遮罩），在飞期间快路径一律返回 false 让位于整表重载，`tests/composables/usePasswordManagement.loadRace.test.ts` 钉住这三条。
+- 已落地的五笔（不改数据格式、不改交互、不改默认值）：base64 解码分块化 + `slice` → `subarray`（[encryption.ts](../utils/encryption.ts)）；回收站提醒表批量化 `removeReminders`（[reminderManager.ts](../utils/storage/reminderManager.ts)，原先按 id 循环「读整包 + 命中才写」，批删 100 条 = 100 次串行往返，现收敛为 1 读 + ≤1 写）；批量导入与改密 rekey 的整库重加密走条目级并行（[concurrency.ts](../utils/concurrency.ts) 的 `mapWithConcurrency`，默认每批 64，同迭代配对实测 −43～46%（约 1.8×））；回收站弹窗的整库解密走同一个 `mapWithConcurrency`（[TrashDialog.vue](../components/options/TrashDialog.vue)，3N 次调用——检索必须覆盖全库，不能退化成只解当前页）；管理页 watcher 的「仅元数据变更就地修补」（[usePasswordManagement.ts](../composables/usePasswordManagement.ts) 的 `patchMetadataOnlyFromStorage` + [useStorageWatcher.ts](../composables/useStorageWatcher.ts) 的 `patchMetadataOnly`），把外部写入在管理页里白付的那次 5N 解密降到 0。该快路径有一条硬前提：**一次整表加载不在飞**——修补改的是即将被整表替换的旧条目，而它返回 true 又会让 watcher 跳过本该发生的那次重载，列表便静默停在过期状态；因此 `loadPasswords` 带代际序号（只有最新一次加载有权提交列表与收尾遮罩），在飞期间快路径一律返回 false 让位于整表重载，`tests/composables/usePasswordManagement.loadRace.test.ts` 钉住这三条。
 - 并发纪律：任何「按 id 循环 `await` 整包 storage 读写」的写法按缺陷处理，必须收敛为「一次读 → 内存改 → 至多一次写」（范式见 `cleanOrphanReminders` / `batchUpdatePasswordMetadata` / `deleteHistoryByEntryIds`）。条目级并行一律走 `mapWithConcurrency`，不要在业务代码里手写 `Promise.all` 分片——保序、首批最小下标报错、不启动后续批次、不产生 unhandled rejection 这四条性质由它统一承担（`tests/utils/concurrency.test.ts`）。
 - 单一事实源：`isMetadataOnlyChange` + `METADATA_FIELDS`（[passwordCrud.ts](../utils/storage/passwordCrud.ts)）是「仅元数据变更」的唯一判据，SW 缓存/快照、侧边栏、管理页三处必须复用同一对函数与白名单，禁止各自硬编码字段列表。
 - 尚未落地：把主库摊到多个键的 **E1 分片**（单条保存可落进 0.8 ms 档，约 150×；整库重写最坏情况与今天等价）。它改的是 at-rest **存储结构**，须先过设计稿第五节的 4 项前置测量（尤其「一次 `set` 写 2000 个键的截断/部分失败语义」至今未验证），再走「双写 → 影子读对账 → 切读 → 收口」四阶段，且**不与本文件的 P0 改动混批**。C1/C2（at-rest 密文格式）与 E1 正交，也不同批。
