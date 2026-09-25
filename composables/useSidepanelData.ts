@@ -95,12 +95,11 @@ const SESSION_EXPIRY_KEY = 'session_password_expiry';
  * 返回 false 时交由 initSidepanelData 完整竞速判定（fail-locked，无误判解锁风险）。
  */
 export async function isSessionQuicklyKnownInvalid(): Promise<boolean> {
-  // SESSION_LOCK_STATE 键名字面量：避免静态 import SESSION_MEMORY_KEYS（破坏懒加载分包）
-  const SESSION_LOCK_STATE_KEY = 'session_lock_state';
+  const lockStateKey = SESSION_MEMORY_KEYS.SESSION_LOCK_STATE;
   try {
     // 快速路径：优先从纯内存的 storage.session 读取锁定状态镜像
-    const sessionResult = await chrome.storage.session.get(SESSION_LOCK_STATE_KEY);
-    const lockState = sessionResult[SESSION_LOCK_STATE_KEY] as { locked: boolean; expiresAt?: number } | undefined;
+    const sessionResult = await chrome.storage.session.get(lockStateKey);
+    const lockState = sessionResult[lockStateKey] as { locked: boolean; expiresAt?: number } | undefined;
 
     if (lockState !== undefined) {
       // locked: true → 已被 clearSession / markSessionInvalid 明确标记为锁定
@@ -582,7 +581,7 @@ export function useSidepanelData() {
     // 密码数据变化时，重新加载密码列表（解决自动保存后快速填充列表不刷新的问题）
     // 增加 _sessionKnownExpired 守卫：clearSession 时 password 加密写入会触发本分支，
     // 此时若 _sessionKnownExpired 已为 true（由前置 session key 移除事件设置），跳过加载
-    if (changes['account_passwords']) {
+    if (changes[STORAGE_KEYS.PASSWORDS]) {
       if (_sessionKnownExpired) {
         logger.debug('SidePanel: 检测到密码数据变动但会话已知过期，跳过重新加载');
         return;
@@ -600,7 +599,7 @@ export function useSidepanelData() {
         // 仅元数据变更（使用痕迹落盘等）：复用 SW 侧同一判定 + 白名单就地修补，
         // 零解密零整表替换（Windows Web Crypto 较慢，数百条全量 AES-GCM 解密
         // 开销明显）；未命中（真实增删改）或修补异常时回退静默全量重载
-        const change = changes['account_passwords'];
+        const change = changes[STORAGE_KEYS.PASSWORDS];
         void (async () => {
           try {
             const crud = await getPasswordCrudModule();
