@@ -227,7 +227,6 @@ graph TB
 │   ├── excelJson.ts              # JSON 上传解析（数组或 { entries } 包裹）
 │   ├── excelExport.ts              # CSV/JSON 导出与模板下载
 │   ├── excelFormatMap.ts           # 导入格式与 CSV 列映射表（Chrome/LastPass/Bitwarden/1Password）
-│   ├── csvFormulaGuard.ts          # CSV 公式注入中和与还原（导出补强制文本前缀 / native 模板导入剥回）
 │   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── passwordHealth.ts           # 密码健康体检（评分/弱密码/复用/泄露/陈旧检测）
 │   ├── tagUtils.ts                 # 标签颜色生成
@@ -304,7 +303,7 @@ graph TB
 ### 3. 数据管理
 
 - CSV 导入导出（.csv），提供标准模板下载；导出带 BOM + CRLF，Excel 可直接打开。
-- **导出 CSV 的公式注入中和**：每个单元格先经 [csvFormulaGuard.ts](../utils/csvFormulaGuard.ts) 的 `neutralizeFormulaCell`——以 `=`、`+`、`-`、`@`、TAB、CR 打头的值补一个前导单引号（电子表格的「强制文本」标记），再按 CSV 语法加引号转义（见 [excelExport.ts](../utils/excelExport.ts) 的 `serializeCsvRows`），使导出文件在 Excel / WPS 里打开时不会把库内数据当公式求值；库内存储的仍是原值。自家 `native` 模板导入时按 `restoreNeutralizedCell` 剥回前缀（见 [excelCsv.ts](../utils/excelCsv.ts)），「导出 → 导入」往返不改凭据；第三方格式（Chrome / LastPass / Bitwarden / 1Password）一律不还原——那些文件不是本扩展写出的，剥掉首字符等于篡改用户凭据。两处已知边界：① 库里恰好以「单引号 + 触发字符」开头的值（如 `'=abc`）往返会丢掉前导单引号——另一套做法（给所有前导单引号加倍）会改写每一个以 `'` 开头的正常凭据，面更大，故取此取舍，并由 [csvFormulaGuard.test.ts](../tests/utils/csvFormulaGuard.test.ts) 钉为契约；② 把文件交给别的应用时，由那个应用按自己的规则处理这个标记。跨机迁移仍优先使用加密备份（.aph）。
+- **已知限制：导出的 CSV 不做公式转义**。每个字段只按 CSV 语法加引号（`"` → `""`），以 `=`、`+`、`-`、`@` 开头的值不会额外加 `'` 或 TAB 前缀（见 [excelExport.ts](../utils/excelExport.ts) 的 `serializeCsvRows`）。刻意如此：① 前缀会改写字段内容，而密码是逐字符取用的凭证，随机密码生成器的符号集本就含 `+ - = @`，一条以这些符号开头的密码被前缀化后，无论是从表格复制使用还是再导回来都是错的；② 转义后的表格与本扩展的 CSV 解析器（[excelCsv.ts](../utils/excelCsv.ts)）不再互为可逆，破坏「导出 → 导入」往返一致性。代价是：用 Excel / Numbers 打开导出文件时，恰好以这些符号开头的单元格会被当作公式求值。缓解：只在自己本机、来源可信的表格里打开导出文件，跨机迁移优先用加密备份（.aph）。
 - JSON 导入导出：支持密码数据的 JSON 格式导出（需验证主密码），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；也支持从 JSON 文件导入。
 - 导入仅接受 `.csv` 与 `.json` 两类文件（无 xlsx 解析器）：Excel 表格请先「另存为 CSV」再导入（见 [ImportDialog.vue](../components/options/ImportDialog.vue)）。
 - **导入字节闸门（先于读盘）**：条数上限与逐字段长度上限都要等整份文件解码、解密、逐条 parse 之后才生效，防不住「一次 `arrayBuffer()` 把任意大的输入拉进内存」。因此 [backup/constants.ts](../utils/backup/constants.ts) 的 `MAX_PASSWORD_IMPORT_INPUT_BYTES`（32 MiB）与 [identity/constants.ts](../utils/identity/constants.ts) 的 `MAX_IDENTITY_IMPORT_INPUT_BYTES`（4 MiB，按身份库 30 条 PII 的实际容量取值）在**选文件这一步**就拒（[ImportDialog.vue](../components/options/ImportDialog.vue) / [BackupImportDialog.vue](../components/options/BackupImportDialog.vue) / [IdentityVaultDialog.vue](../components/options/IdentityVaultDialog.vue)），`.aph` 解密入口 [backupExport.ts](../utils/backupExport.ts) 内另有同口径兜底以覆盖绕过 UI 的调用路径。拒绝文案里的上限值由 [formatFileSize.ts](../utils/formatFileSize.ts) 从常量渲染，不写死数字；取值口径见各常量文件的 JSDoc，合法自导出永不命中（`tests/architecture/importByteGateWiring.test.ts` 机械守卫「闸门必须早于取字节」这条接线，以及 `formatFileSize` 不得回到组件内的私有实现）。
