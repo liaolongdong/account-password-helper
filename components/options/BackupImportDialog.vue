@@ -226,7 +226,7 @@
 import { ref, computed } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
-import { importEncryptedBackup } from '@/utils/backupExport';
+import { BackupImportUserError, importEncryptedBackup } from '@/utils/backupExport';
 import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
@@ -342,7 +342,9 @@ const handleDecrypt = async () => {
     await scrollDialogBodyToBottom('.backup-import-dialog .dialog-body-scroll');
   } catch (error) {
     logger.error('解密备份文件失败:', error);
-    const message = error instanceof Error ? error.message : t('options.backupImport.decryptFailed');
+    // 只呈现已完成 i18n 的用户可读错误：底层 OperationError / SyntaxError 的英文原文
+    // 既看不懂也可能带出内部信息，非用户可读错误一律退到通用文案。
+    const message = error instanceof BackupImportUserError ? error.message : t('options.backupImport.decryptFailed');
     ElMessage.error(message);
     previewData.value = [];
   } finally {

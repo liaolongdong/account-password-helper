@@ -25,6 +25,21 @@ interface BackupData {
 }
 
 /**
+ * 面向用户的备份导入错误：`message` 已完成 i18n，调用方可直接呈现
+ *
+ * 与 `PasswordBackupError`（message 即机器可读 code，只供诊断）互补：前者给 UI，后者给解析层。
+ * 弹窗据此判据决定「呈现 message」还是退到通用文案，避免底层 `OperationError` /
+ * `SyntaxError` 的英文原文（可能含文件名、内部原因串）被当提示语吐给用户。
+ */
+export class BackupImportUserError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = 'BackupImportUserError';
+    if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
+  }
+}
+
+/**
  * 从主密码派生 AES-GCM 密钥
  */
 async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
@@ -148,15 +163,16 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
  * 读取 .aph 文件，用主密码解密，返回密码数据
  *
  * 字节闸门先于 `arrayBuffer()`：条数与逐字段上限要等整份密文解密并解析后才生效，
- * 挡不住「一次读取把任意大的输入拉进内存」；超限文件在此直接拒掉，
- * 错误文案由调用方（`BackupImportDialog`）原样呈现。
+ * 挡不住「一次读取把任意大的输入拉进内存」；超限文件在此直接拒掉。
+ * 失败一律抛 {@link BackupImportUserError}：message 已是面向用户的文案，调用方可直接呈现，
+ * 原始异常保留在 `cause` 上供日志与诊断。
  */
 export async function importEncryptedBackup(
   file: File,
   masterPassword: string,
 ): Promise<Omit<PasswordEntry, 'id' | 'order'>[]> {
   if (file.size > MAX_PASSWORD_IMPORT_INPUT_BYTES) {
-    throw new Error(t('backup.fileTooLarge', { max: formatFileSize(MAX_PASSWORD_IMPORT_INPUT_BYTES) }));
+    throw new BackupImportUserError(t('backup.fileTooLarge', { max: formatFileSize(MAX_PASSWORD_IMPORT_INPUT_BYTES) }));
   }
 
   try {
@@ -164,7 +180,7 @@ export async function importEncryptedBackup(
     const data = new Uint8Array(buffer);
 
     if (data.length < SALT_LENGTH + IV_LENGTH + 1) {
-      throw new Error(t('backup.invalidFile'));
+      throw new BackupImportUserError(t('backup.invalidFile'));
     }
 
     // 拆解: salt + iv + ciphertext
@@ -189,21 +205,20 @@ export async function importEncryptedBackup(
       return parseBackupContainer(backupData, true);
     } catch (err) {
       if (err instanceof PasswordBackupError) {
-        const wrapped = new Error(t('backup.invalidStructure'));
-        (wrapped as any).cause = err;
-        throw wrapped;
+        throw new BackupImportUserError(t('backup.invalidStructure'), err);
       }
       throw err;
     }
-  } catch (error: any) {
-    if (error.message?.includes('decrypt') || error.name === 'OperationError') {
-      const err = new Error(t('backup.wrongPasswordOrCorrupted'));
-      (err as any).cause = error;
-      throw err;
+  } catch (error: unknown) {
+    // 已是用户可读文案（上面的尺寸/格式/结构分支）：原样上抛，不再包一层丢 cause
+    if (error instanceof BackupImportUserError) throw error;
+    const err = error as { message?: string; name?: string };
+    if (err.message?.includes('decrypt') || err.name === 'OperationError') {
+      throw new BackupImportUserError(t('backup.wrongPasswordOrCorrupted'), error);
     }
     logger.error('导入加密备份失败:', error);
-    const err = new Error(error.message || t('backup.importError'));
-    (err as any).cause = error;
-    throw err;
+    // 其余异常（读文件失败、JSON.parse 语法错、deriveKey 异常等）的原文既看不懂也可能带出
+    // 内部信息，一律退到通用文案，原始异常经 cause 保留给日志与诊断。
+    throw new BackupImportUserError(t('backup.importError'), error);
   }
 }

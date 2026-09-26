@@ -15,7 +15,8 @@
  * 3. 最小容器长度边界：29 字节（16 salt + 12 iv + 1 密文）越过长度门后进解密并因
  *    校验和失败被拒，28 字节则直接判「格式无效」；
  * 4. 解密成功但结构非法时落 `backup.invalidStructure`，`cause` 保留机器可读 `code`；
- * 5. 三条失败文案在中英文语言包都存在（不出现英文环境下吐出中文、或退化成原始 key）。
+ * 5. 原始异常（`SyntaxError` / 读文件失败）不外泄：提示条只见 i18n 文案，原文留在 `cause`；
+ * 6. 三条失败文案在中英文语言包都存在（不出现英文环境下吐出中文、或退化成原始 key）。
  *
  * PBKDF2 迭代次数按实现写死 600k，单次约 4s。这里只把**代价值**降下来（拦截
  * `crypto.subtle.deriveKey` 改写 `iterations`，算法/salt/长度/用途全部照旧），
@@ -23,7 +24,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PasswordEntry } from '@/utils/types';
-import { exportEncryptedBackup, importEncryptedBackup } from '@/utils/backupExport';
+import { BackupImportUserError, exportEncryptedBackup, importEncryptedBackup } from '@/utils/backupExport';
 import { registerMessages, currentLocale, t, type Messages } from '@/utils/i18n';
 import zhBackup from '@/utils/i18n/locales/zh-CN/backup.json';
 import enBackup from '@/utils/i18n/locales/en/backup.json';
@@ -198,9 +199,8 @@ describe('解密成功但容器结构非法', () => {
   /**
    * 沿 `cause` 链取机器可读 code。
    *
-   * 结构类失败会被包两次（内层把 `PasswordBackupError` 映射为 i18n 文案，外层 catch 再包
-   * 一层同名 Error），code 实际落在链的第二层。这里按链搜索而不是写死层数：
-   * 「包了几层」是实现细节，「用户看到文案、诊断拿到 code」才是契约。
+   * 结构类失败会先把 `PasswordBackupError` 映射为 i18n 用户文案（原始 code 落在 `cause` 上）。
+   * 这里按链搜索而不是写死层数：「包了几层」是实现细节，「用户看到文案、诊断拿到 code」才是契约。
    */
   const codeInChain = (error: unknown): string | undefined => {
     let cursor = error as { code?: unknown; cause?: unknown } | undefined;
@@ -247,6 +247,63 @@ describe('解密成功但容器结构非法', () => {
 
     expect((err as Error).message).toBe(t('backup.invalidStructure'));
     expect(codeInChain(err)).toBe('INVALID_ENTRY');
+  });
+});
+
+describe('失败提示不外泄原始异常', () => {
+  /** 让解密直接返回给定明文（可以不是合法 JSON），其余路径沿用真实 Web Crypto */
+  const decryptToText = (plaintext: string) => {
+    vi.spyOn(crypto.subtle, 'decrypt').mockResolvedValueOnce(new TextEncoder().encode(plaintext).buffer as ArrayBuffer);
+  };
+
+  it('明文不是合法 JSON → 落通用文案，英文 SyntaxError 原文不外泄', async () => {
+    decryptToText('{ this is not json');
+
+    const err = await importEncryptedBackup(fakeFile(new Uint8Array(40)), MASTER_PASSWORD).catch(e => e);
+
+    // 修复前：外层 catch 用 `error.message || 通用文案` 重建 Error，浏览器原文因此直达提示条
+    expect((err as Error).message).toBe(t('backup.importError'));
+    expect((err as Error).message).not.toContain('JSON');
+    // 原始异常仍在 cause 上，日志与诊断拿得到
+    expect((err as { cause?: Error }).cause?.name).toBe('SyntaxError');
+  });
+
+  it('读文件失败 → 同一通用文案，底层原因只留在 cause', async () => {
+    const file = fakeFile(new Uint8Array(40));
+    vi.spyOn(file, 'arrayBuffer').mockRejectedValueOnce(new Error('user cancelled'));
+
+    const err = await importEncryptedBackup(file, MASTER_PASSWORD).catch(e => e);
+
+    expect((err as Error).message).toBe(t('backup.importError'));
+    expect((err as { cause?: Error }).cause?.message).toBe('user cancelled');
+  });
+
+  it('每条失败路径都以 BackupImportUserError 上抛（弹窗据此判据决定能否呈现 message）', async () => {
+    const bytes = await exportBytes();
+    decryptToText('{"version":1,"count":9,"entries":[]}');
+
+    const failures = [
+      await importEncryptedBackup(fakeFile(new Uint8Array(28)), MASTER_PASSWORD).catch(e => e),
+      await importEncryptedBackup(fakeFile(bytes), 'not-the-password').catch(e => e),
+      await importEncryptedBackup(fakeFile(new Uint8Array(40)), MASTER_PASSWORD).catch(e => e),
+    ];
+
+    expect(failures.length).toBe(3);
+    for (const err of failures) {
+      expect(err, '弹窗对非该类型的错误一律退到通用文案，漏挂类型会让真实原因被吞掉').toBeInstanceOf(
+        BackupImportUserError,
+      );
+      expect((err as Error).name).toBe('BackupImportUserError');
+    }
+  });
+
+  it('已是用户可读文案的错误不被外层 catch 二次包裹（cause 与文案同时保留）', async () => {
+    // 「格式无效」在 try 内抛出，必须原样上抛：若被外层重建成通用导入失败，用户会看到
+    // 与真实原因不符的提示；cause 也平白多一层。
+    const err = await importEncryptedBackup(fakeFile(new Uint8Array(28)), MASTER_PASSWORD).catch(e => e);
+
+    expect((err as Error).message).toBe(t('backup.invalidFile'));
+    expect((err as { cause?: unknown }).cause).toBeUndefined();
   });
 });
 
