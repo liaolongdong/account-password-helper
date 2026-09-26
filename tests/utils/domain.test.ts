@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   getMainDomain,
   isSameMainDomain,
@@ -467,5 +467,81 @@ describe('countSameMainDomainCandidates：空态引导计数', () => {
     expect(countSameMainDomainCandidates(ENTRIES, '', 'off')).toBe(0);
     expect(countSameMainDomainCandidates(ENTRIES, 'localhost', 'off')).toBe(0);
     expect(countSameMainDomainCandidates([], CUR, 'off')).toBe(0);
+  });
+});
+
+describe('当前主机归一的一格记忆', () => {
+  /**
+   * 统计一段代码里 `new URL()` 的构造次数
+   *
+   * 判据必须是计数而不是耗时：本机 load average 会让绝对毫秒摆动数倍，
+   * 而「同一个 currentHost 被解析了几次」是确定性的、与机器无关的规模结论。
+   * 代理只做透传，URL 的实际解析仍由真实构造器完成，因此匹配结果不受观测影响。
+   */
+  const countUrlConstructions = (run: () => void): number => {
+    let count = 0;
+    const RealURL = URL;
+    const Proxied = new Proxy(RealURL, {
+      construct: (target, args) => {
+        count += 1;
+        return Reflect.construct(target, args as [string]);
+      },
+    });
+    vi.stubGlobal('URL', Proxied);
+    try {
+      run();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    return count;
+  };
+
+  /** 2000 条各不相同的条目 URL，够还原整库一轮遍历的形状 */
+  const wholeVault = Array.from({ length: 2000 }, (_, i) => `https://shop${i}.example.com/account`);
+
+  it('整库一轮精确匹配遍历：条目侧逐条解析，当前主机只解析一次', () => {
+    const calls = countUrlConstructions(() => {
+      for (const url of wholeVault) expect(isExactHostMatch('accounts.example.com', url)).toBe(false);
+    });
+
+    // 2000 次来自条目侧（每条必然要归一一次），+1 来自当前主机首轮解析。
+    // 记忆失效时这里是 4000——即每条目都把同一个 currentHost 重新过一遍 URL 解析器。
+    expect(calls).toBe(2001);
+  });
+
+  it('放宽档整库遍历同样只解析当前主机一次', () => {
+    const calls = countUrlConstructions(() => {
+      for (const url of wholeVault) resolveMatchTier('mail.qq.com', url, 'sameMainDomain');
+    });
+
+    // 放宽档一侧是纯 hostname 运算，条目侧仍逐条解析；当前主机那一次是全轮唯一的重复项
+    expect(calls).toBeLessThanOrEqual(wholeVault.length + 1);
+    expect(calls).toBeGreaterThan(wholeVault.length - 1);
+  });
+
+  it('切换当前主机即换槽：不把上一个主机的归一结果留给下一个', () => {
+    expect(isExactHostMatch('a.example.com', 'https://a.example.com/x')).toBe(true);
+    expect(isExactHostMatch('b.example.com', 'https://a.example.com/x')).toBe(false);
+    // 换回来仍要对（一格记忆被来回覆盖是这里唯一真正的风险，故必须来回各验一次）
+    expect(isExactHostMatch('a.example.com', 'https://a.example.com/x')).toBe(true);
+  });
+
+  it('记忆不改变判定：同一主机的三种写法与不带记忆时同答案', () => {
+    const stored = 'https://Accounts.Example.com:443/login?a=1';
+    for (const current of ['accounts.example.com', 'https://accounts.example.com', 'ACCOUNTS.EXAMPLE.COM/login']) {
+      expect(isExactHostMatch(current, stored), current).toBe(true);
+    }
+    expect(isExactHostMatch('accounts.example.com:8080', 'https://accounts.example.com/login')).toBe(true);
+    expect(isExactHostMatch('evil.example.com', stored)).toBe(false);
+  });
+
+  it('三种写法各自触发一次解析，不因写法不同而漏换槽', () => {
+    const calls = countUrlConstructions(() => {
+      isExactHostMatch('accounts.example.com', 'https://other.test/login');
+      isExactHostMatch('accounts.example.com', 'https://other2.test/login');
+      isExactHostMatch('https://accounts.example.com', 'https://other3.test/login');
+    });
+    // 同字符串复用同一格（2 条条目 + 1 次主机）；写法变了就重算（再 +1）
+    expect(calls).toBe(5);
   });
 });

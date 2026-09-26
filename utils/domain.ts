@@ -313,6 +313,34 @@ export function normalizeToHostAndPort(value: string): string {
   }
 }
 
+/** 最近一次参与匹配的当前主机入参，与其归一结果（一格记忆，见 `normalizeCurrentHostCached`） */
+let _currentHostInput: string | null = null;
+let _currentHostNormalized = '';
+
+/**
+ * 「当前主机」归一结果的一格记忆
+ *
+ * 存在理由：分层匹配的每条热路径都是「同一个 currentHost × 逐条 storedUrl」的形状
+ * （本站范围过滤、排序优先级预计算、`offSiteIds`/`crossDomainIds` 徽章集、空态引导计数），
+ * 而 `normalizeToHostname` 每次调用都要 `toLowerCase` + `new URL()`。实测 2000 条一轮
+ * 就是 3670 次 URL 构造，其中约一半解析的是同一个当前域名——纯浪费。
+ * 只记最近一个入参即可让整轮循环全命中；切标签页 / 换域名时自然回落一次解析。
+ *
+ * 刻意不用 Map：调用方传入的 currentHost 始终是「当前页」这一个值，一格记忆的残留上界
+ * 是一条 hostname 字符串，不给条目明文增加新的驻留位置。
+ * 正确性依赖 `normalizeToHostname` 是纯函数（同输入必同输出，无时钟与外部状态）。
+ *
+ * @param currentHost - 当前页面 hostname 或原始 URL 串
+ * @returns 归一后的 hostname（与直接调用 `normalizeToHostname` 逐字等价）
+ */
+function normalizeCurrentHostCached(currentHost: string): string {
+  if (_currentHostInput !== currentHost) {
+    _currentHostInput = currentHost;
+    _currentHostNormalized = normalizeToHostname(currentHost);
+  }
+  return _currentHostNormalized;
+}
+
 /**
  * 判断当前页面域名是否与密码条目中存储的 URL 精确匹配（仅比较完整 hostname）
  *
@@ -337,7 +365,7 @@ export function normalizeToHostAndPort(value: string): string {
 export function isExactHostMatch(currentDomain: string, storedUrl: string): boolean {
   if (!currentDomain || !storedUrl) return false;
 
-  const a = normalizeToHostname(currentDomain);
+  const a = normalizeCurrentHostCached(currentDomain);
   const b = normalizeToHostname(storedUrl);
   if (!a || !b) return false;
 
@@ -376,8 +404,18 @@ export function isDomainMatchMode(value: unknown): value is DomainMatchMode {
  */
 export type MatchTier = 0 | 1 | 2 | 3 | 4;
 
-/** 主域名记忆化容量上限（键为 hostname，超出即整体清空，避免无界增长） */
-const MAIN_DOMAIN_CACHE_MAX = 2000;
+/**
+ * 主域名记忆化容量上限（键为 hostname，超出即整体清空，避免无界增长）
+ *
+ * 取值口径：**条目总量上限 × 2**（2000 条最多贡献 2000 个不同 stored hostname，
+ * 通配条目另需其 base 一条，再加当前域名）——旧值 2000 与整库形状正好卡在临界点上，
+ * 一轮放宽档遍历会在中途触发一次整体清空，把前半库的主域名白算一遍。
+ * 与拼音缓存同口径由 `tests/architecture/pinyinCacheCapacity.test.ts` 钉住推导。
+ * 键是 hostname 而非条目明文，值是小字符串，4000 槽位的量级对内存无感。
+ *
+ * 导出仅为让容量推导守卫引用该上界，业务代码不应依赖它。
+ */
+export const MAIN_DOMAIN_CACHE_MAX = 4000;
 
 const _mainDomainCache = new Map<string, string>();
 
@@ -434,7 +472,7 @@ export function resolveMatchTier(
 
   const storedHost = normalizeToHostname(raw);
   if (!storedHost) return -1;
-  const host = normalizeToHostname(currentHost);
+  const host = normalizeCurrentHostCached(currentHost);
   if (storedHost === host) return 0;
 
   if (storedHost.startsWith(WILDCARD_PREFIX)) {
