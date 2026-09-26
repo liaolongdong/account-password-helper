@@ -4,7 +4,7 @@
 - 评审对象：`feature-opt` @ `d596fb4`（工作树含其他并发会话未提交改动，本次全程只读，未改动任何源码）
 - 评审范围：`entrypoints/` `components/` `composables/` `utils/` 全部运行时源码（约 5.6 万行），加测试、构建配置、发布与隐私文档
 - 本次交付：仅报告，不改代码
-- **处置回写**：2026-09-27 追加 §9.1–§9.3，记录报告之后 17 个提交（`ca33c83..43f867f`）对每条问题的实际处置；§1–§8 保持评审当时的原样，不做追改
+- **处置回写**：2026-09-27 追加 §9.1–§9.4 与 §10.1，记录报告之后 17 个提交（`ca33c83..43f867f`）对每条问题的实际处置与验证状态；§1–§8、§9 的 16 条建议原文、§10 原有五条限制说明均保持评审当时的状态，不做追改
 
 ---
 
@@ -393,7 +393,7 @@ if (event.data?.type === PostMessageType.SHOW_NOTIFICATION) {
 
 ---
 
-## 9. 建议处理次序（仅方案，未动代码）
+## 9. 建议处理次序与处置回写（主文为评审当时的方案，交付时未动代码）
 
 **第一批（正确性 + 明文出口，改动面都很小）**
 
@@ -471,6 +471,10 @@ if (event.data?.type === PostMessageType.SHOW_NOTIFICATION) {
 - **`entrypoints/content/floatingButtons/styles.ts` 的动画**：该处 `@keyframes` 属注入式悬浮按钮的既有观感，`reducedMotionCoverage` 里登记为带理由的例外（"spin 是悬浮按钮唯一的加载反馈，取消动画会丢状态提示"），不是漏网也不是被 `eslint-disable` 式绕过。
 - **§6.4 的 P2 硬编码色**（`PasswordFormDialog` `:554/562/589/595/601`、`PasswordTable` `:677/704-706`、`PasswordGeneratorPopover`、`PasswordHealthDialog`、`sidepanel/App.vue`）：全部未改，逐条替换需要真机比对换肤后的视觉，本波次没有该验证条件。
 - **§3.3 / §7.2 / §7.4 / §7.5 的其余项**：`tab.id === 0`、`popup` 的 `await tabs.query` 是否丢手势，报告当时就标为"需要真机才能判"，仍未判。
+
+### 9.4 实施时追加推翻的一条
+
+- **§6.2 第二行"`PasswordFormDialog` 用非 deep watcher 镜像父端表单 ⇒ 深字段变化不被察觉、弹窗复开残留上一账号字段"——经核验不成立，未改。** 两条理由：其一，被镜像的 `username / password / url / remark / totp` 全是 `PasswordForm` 上的扁平字符串字段，本就没有"深"层可漏；其二，报告引用的父端原地改（`usePasswordManagement.ts:296` 的 `Object.assign`）是 `applyPasswordFormPatch`，即**子组件回写给自己**的那条通道，值与 `localForm` 同源；而三条整体换新路径（`:498` 带预填的新增 / `:512` 编辑 / `:528` `resetPasswordForm`）都是 `passwordForm.value = { ... }` 换新对象，前两处紧接着才置 `showPasswordDialog.value = true`，`props.form` 引用必然变化，非 deep watcher 必定触发。同仓 `PasswordVerifyView.vue` 用 `{ deep: true }` 是它镜像的对象形状不同，不构成"同一契约两处实现不一致"。
 
 ---
 
