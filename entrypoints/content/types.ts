@@ -168,9 +168,10 @@ export interface PendingCredentials {
 /**
  * 每个被托管的密码输入框的状态记录
  *
- * 采用零侵入方案：按钮作为 input 的兄弟节点插入同一父元素，
- * 不对 input 做任何 DOM 包裹或样式修改，仅将父元素设为 position: relative
- * 以创建定位上下文（无视觉影响）。
+ * 采用零侵入 + Closed Shadow DOM 方案：定位盒（无 class/id 的 span）作为 input 的兄弟节点
+ * 插入同一父元素，切换按钮在其 closed 影子树内（样式与图标都在树内，页面 CSS 无从覆写）。
+ * 不对 input 做任何 DOM 包裹或样式修改，仅将父元素设为 position: relative 以创建定位上下文
+ * （无视觉影响）。
  *
  * 垂直居中由 CSS（top: 50%; transform: translateY(-50%)）处理，
  * 水平位置由 JS 计算，并经布局跟随（rAF 逐帧比对矩形指纹，仅在按钮可见期间运行）自动修正。
@@ -181,9 +182,11 @@ export interface PendingCredentials {
 export interface ToggleEntry {
   /** 原始密码输入框 */
   input: HTMLInputElement;
-  /** input 的父元素（按钮挂载在此，设为 position: relative 作为定位上下文） */
+  /** input 的父元素（定位盒挂载在此，设为 position: relative 作为定位上下文） */
   parent: HTMLElement;
-  /** 切换按钮（position: absolute 定位在 input 右侧） */
+  /** 定位盒（影子宿主，light DOM 里唯一可见的注入节点；内联 left 与可见态写在它身上） */
+  host: HTMLElement;
+  /** 切换按钮（closed 影子树内，页面选择器不可达） */
   button: HTMLButtonElement;
   /** input 事件监听器引用（用于解绑） */
   onInput: () => void;
