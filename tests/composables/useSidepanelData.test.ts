@@ -262,6 +262,31 @@ describe('initSidepanelData 会话提示与权威校验', () => {
     expect(isAuthenticated.value).toBe(false);
   });
 
+  it('上限内无结果只降级渲染，不写入「已知会话过期」粘滞位：唤醒后权威复查可恢复列表', async () => {
+    // 三路全部悬空（快照缺失 + bg 不响应 + 会话判定不返回）＝慢盘/冷 SW 的形状，
+    // 不含任何「会话已失效」证据
+    initModuleMocks.isSessionValid.mockImplementation(() => new Promise<boolean>(() => {}));
+    const { initSidepanelData, isAuthenticated, passwords } = useSidepanelData();
+
+    const pending = initSidepanelData(Promise.resolve(false));
+    await vi.advanceTimersByTimeAsync(3000);
+    const meta = await pending;
+
+    // 无白屏：仍提交降级锁定态
+    expect(meta.raceWinner).toBeNull();
+    expect(isAuthenticated.value).toBe(false);
+    expect(passwords.value).toEqual([]);
+
+    // 唤醒事件（切回面板 / 窗口聚焦 / 广播）触发权威复查：
+    // 粘滞位若被超时置位，handleSessionChange 会同步早退，面板将一直停在「会话已失效」，
+    // 用户只能关掉重开——这正是被修复的缺陷
+    initModuleMocks.isSessionValid.mockResolvedValue(true);
+    listenerMocks.windowEvent?.({ type: 'sessionExpired' } as Event);
+
+    await vi.waitFor(() => expect(isAuthenticated.value).toBe(true));
+    expect(passwords.value).toHaveLength(1);
+  });
+
   it('初始化等待期间会话键被移除时丢弃旧本地明文结果', async () => {
     let resolvePasswords!: (value: PasswordEntry[]) => void;
     initModuleMocks.isSessionValid.mockResolvedValue(true);
