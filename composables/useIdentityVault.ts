@@ -19,6 +19,7 @@ import { IDENTITY_FIELD_DEFS, hasSecretFields } from '@/utils/identity/fields';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { copySecretToClipboard, copyTextToClipboard } from '@/utils/clipboard';
 import { logger } from '@/utils/logger';
+import { useClipboardFeedback } from '@/composables/useClipboardFeedback';
 import { useI18n } from '@/utils/i18n';
 
 const { t } = useI18n();
@@ -257,14 +258,8 @@ export function useIdentityVault() {
     return p.name || p.cardHolder || p.email || p.phone || t(`identity.category.${p.category}`);
   }
 
-  /** 自动清除完成回调（复用 fill 命名空间既有文案） */
-  function notifyClipboardCleared(ok: boolean): void {
-    if (ok) {
-      ElMessage.info(t('fill.clipboardCleared'));
-    } else {
-      ElMessage.warning(t('fill.clipboardClearFailed'));
-    }
-  }
+  /** 自动清除完成回调（与密码详情抽屉、编辑弹窗历史复制共用 useClipboardFeedback） */
+  const { notifyClipboardCleared } = useClipboardFeedback();
 
   /**
    * 复制到剪贴板的共享通道

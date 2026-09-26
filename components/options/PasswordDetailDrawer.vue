@@ -252,6 +252,7 @@ import { toNavigableUrl } from '@/utils/domain';
 import { buildShareCard, hasShareCardPassword } from '@/utils/shareCard';
 import { copySecretToClipboard, copyTextToClipboard } from '@/utils/clipboard';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';
+import { useClipboardFeedback } from '@/composables/useClipboardFeedback';
 import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
 import TotpCode from '@/components/TotpCode.vue';
@@ -298,15 +299,11 @@ const navigableUrl = computed(() => (props.entry?.url ? toNavigableUrl(props.ent
 
 /**
  * 自动清除完成回调：复用 fill 命名空间既有文案提示「已清除」或「清除失败」
- * @param ok 是否成功清除
+ *
+ * 与编辑弹窗的历史密码复制、身份库字段复制共用 `useClipboardFeedback`，
+ * 避免同一回执在三处各自漂移（文案 key、info/warning 级别）。
  */
-const notifyClipboardCleared = (ok: boolean): void => {
-  if (ok) {
-    ElMessage.info(t('fill.clipboardCleared'));
-  } else {
-    ElMessage.warning(t('fill.clipboardClearFailed'));
-  }
-};
+const { notifyClipboardCleared } = useClipboardFeedback();
 
 /**
  * 复制普通文本（用户名 / 网址）到剪贴板并反馈

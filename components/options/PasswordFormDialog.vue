@@ -256,6 +256,8 @@ import { isValidTotpInput } from '@/utils/totp';
 import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
 import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
+import { copySecretToClipboard } from '@/utils/clipboard';
+import { useClipboardFeedback } from '@/composables/useClipboardFeedback';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
@@ -465,6 +467,9 @@ const handleQrFileSelected = async (event: Event) => {
 
 const { historyList, loadHistory, decryptHistoryPassword } = usePasswordHistory();
 
+/** 剪贴板自动清除回执（与详情抽屉、身份库共用同一文案与级别） */
+const { notifyClipboardCleared } = useClipboardFeedback();
+
 /** 密码历史配置（控制是否展示历史区块） */
 const historyConfig = ref<{ enabled: boolean; maxCount: number }>({ enabled: true, maxCount: 3 });
 
@@ -476,11 +481,17 @@ const handleCopyHistory = async (item: { password: string; loading: boolean }, i
   historyList.value[index].loading = true;
   try {
     const plain = await decryptHistoryPassword(item.password);
-    if (plain) {
-      await navigator.clipboard.writeText(plain);
+    if (!plain) {
+      ElMessage.error(t('message.decryptFailed'));
+      return;
+    }
+    // 必须走 copySecretToClipboard：直接 navigator.clipboard.writeText 会绕过
+    // 「剪贴板设置」的限时自动清除，让历史明文永久留在剪贴板，与详情抽屉行为不一致
+    const ok = await copySecretToClipboard(plain, notifyClipboardCleared);
+    if (ok) {
       ElMessage.success(t('options.form.historyCopied'));
     } else {
-      ElMessage.error(t('message.decryptFailed'));
+      ElMessage.error(t('message.copyFailed'));
     }
   } finally {
     historyList.value[index].loading = false;
