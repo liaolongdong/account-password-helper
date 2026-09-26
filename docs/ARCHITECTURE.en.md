@@ -165,7 +165,8 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 ### 5. Email Backup
 
 - Exports the password list as a data file and launches the mail client (see [utils/emailBackup.ts](../utils/emailBackup.ts)).
-- Backup modes: "Plain backup" exports a standard data file; "Encrypted backup" exports an .aph file (viewable only via this extension's "Encrypted Backup Import" with the original master password).
+- Backup modes: "Encrypted backup" exports an .aph file (viewable only via this extension's "Encrypted Backup Import" with the original master password); "Plain backup" exports a standard CSV data file.
+- **The initial selection is "Encrypted backup"** (listed first, and the component's default value is `encrypted`). Picking "Plain backup" pins an `el-alert` under the options stating the file holds plaintext passwords and leaves this device into your mailbox, and clicking "Back up now" first raises an `ElMessageBox.confirm` risk acknowledgement (danger-styled button) before the existing master-password re-verification — two gates in series: the acknowledgement covers "you know it's plaintext", the re-verification covers "you are the one doing it". The choice applies to that single action only and is never written into `EmailBackupConfig`, so the new default migrates no stored data. `tests/architecture/securityDefaults.test.ts` pins the default against a silent regression to the weak mode.
 - Scheduled backup reminders via chrome.alarms desktop notifications (no decryption, no automatic downloads).
 - Intervals: daily / every 3 days / weekly / biweekly / monthly.
 
