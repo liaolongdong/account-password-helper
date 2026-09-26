@@ -62,6 +62,7 @@
       :off-site-ids="offSiteIds"
       :cross-domain-ids="crossDomainIds"
       :cross-domain-hint-count="crossDomainHintCount"
+      :active-keyword="activeSearchKeyword"
       @sort-change="handleSortChange"
       @search="handleSearch"
       @add-password="openQuickAddDialog"
@@ -163,6 +164,7 @@ import {
 } from '@/utils/perfMetrics';
 import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
+import { useKeywordDebounce } from '@/composables/useKeywordDebounce';
 import {
   isLocalDevDomain,
   toNavigableUrl,
@@ -327,6 +329,15 @@ const handleOpenSettings = async () => {
 // ==================== 本地状态（与 UI 模板紧密耦合） ====================
 
 const searchKeyword = ref('');
+/**
+ * 驱动列表过滤的关键词（`searchKeyword` 的防抖副本）
+ *
+ * 与输入框的即时回显解耦：连续击键期间只落地最后一次过滤，避免每键一次
+ * 「整表重排 + 逐格高亮」。见 `composables/useKeywordDebounce`。
+ * `flushSearchKeyword()` 是安全阀——键盘导航/回车填充前先把未落地的关键词同步进来，
+ * 杜绝「字打完了、回车填的还是上一个列表」这类快机器上偶发的错位。
+ */
+const { debounced: activeSearchKeyword, flush: flushSearchKeyword } = useKeywordDebounce(searchKeyword);
 /** 是否仅显示收藏条目 */
 const favoriteOnly = ref(false);
 /** 标签筛选选中集（命中任一即保留，与搜索/收藏过滤为叠加关系） */
@@ -419,7 +430,7 @@ const scopeFilteredPasswords = computed(() =>
 
 /** 列表级过滤条件（搜索词 / 标签 / 只看收藏），供列表与全站命中数共用同一份判定 */
 const listFilterOptions = computed<ListFilterOptions>(() => ({
-  keyword: searchKeyword.value,
+  keyword: activeSearchKeyword.value,
   tags: filterTags.value,
   favoriteOnly: favoriteOnly.value,
 }));
@@ -570,7 +581,14 @@ const handleSortChange = async (prop: string) => {
 
 // ==================== UI 交互方法 ====================
 
-/** 搜索处理 */
+/**
+ * 搜索处理：击键即把选中索引归零
+ *
+ * 归零挂在「击键」而非「防抖落地」上是有意为之：击键时索引先回 0，
+ * 之后任何一次键盘导航都会先 `flushSearchKeyword()` 再取列表，
+ * 因此落点必然属于最新列表。若改为监听防抖值落地后归零，
+ * 那次归零会在 pre-flush 队列里覆盖同一按键刚设好的新索引，把 ↓ 吃掉。
+ */
 const handleSearch = () => {
   activeIndex.value = 0;
 };
@@ -580,6 +598,11 @@ const handleKeydown = (e: KeyboardEvent) => {
   // 输入法合成期间（中文/日文选词）的 Enter 是「上屏」、↑↓ 是「候选翻页」，
   // 容器冒泡到这里若继续接管，会在确认候选词的同时误填充密码，故整段放行给 IME。
   if (e.isComposing) return;
+
+  // 关键词防抖未落地时先同步：否则本次操作以「上一个列表」为准，
+  // 会出现刚打完字就按 ↓ 却停在旧结果、按回车填了上一条的错位。
+  // 放在 `filteredPasswords` 读取之前，同一次按键内看到的即是最过滤后的列表。
+  flushSearchKeyword();
 
   const list = filteredPasswords.value;
   if (!list.length) return;

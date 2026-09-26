@@ -62,6 +62,14 @@ interface Props {
   crossDomainIds: ReadonlySet<string>;
   /** 放宽到「同主域名」档可额外带出的条目数（仅空态引导使用） */
   crossDomainHintCount: number;
+  /**
+   * 已落地（防抖后）的关键词，与输入框即时值 `searchKeyword` 分离
+   *
+   * `filteredPasswords` 由父级按这一份关键词算出，故高亮、空态文案与 `v-memo`
+   * 依赖必须同样取它：若沿用输入框的即时值，防抖窗口内会出现「列表按上一个关键词
+   * 过滤、行内按刚打的字高亮」——刚输入的前缀在该批行上无命中，整列高亮闪没。
+   */
+  activeKeyword: string;
 }
 
 interface Emits {
@@ -128,7 +136,7 @@ const toggleScope = () => {
  * 仅有筛选条件而无搜索词时保持通用文案，不推送无关信息。
  */
 const emptyHint = computed(() =>
-  searchKeyword.value.trim() ? t('sidepanel.noMatchDescSearch') : t('sidepanel.noMatchDesc'),
+  props.activeKeyword.trim() ? t('sidepanel.noMatchDescSearch') : t('sidepanel.noMatchDesc'),
 );
 
 /**
@@ -150,7 +158,7 @@ const isCrossDomain = (entry: PasswordEntry): boolean => props.crossDomainIds.ha
 /**
  * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
  */
-const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(searchKeyword.value));
+const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(props.activeKeyword));
 
 /**
  * 切换单个筛选标签的选中态（点击即切，无需下拉选择）
@@ -609,7 +617,7 @@ onUnmounted(() => {
             password.tag,
             password.updateTime,
             autoTriggerLogin,
-            searchKeyword,
+            activeKeyword,
             pinyinRenderMemoDependency,
             canFill(password),
             isCrossDomain(password),
@@ -617,7 +625,7 @@ onUnmounted(() => {
           :password="password"
           :is-active="activeIndex === index"
           :auto-login-enabled="autoTriggerLogin"
-          :search-keyword="searchKeyword"
+          :search-keyword="activeKeyword"
           :can-fill="canFill(password)"
           :cross-domain="isCrossDomain(password)"
           @fill="p => emit('fill', p)"
