@@ -274,7 +274,8 @@ import {
   WarnTriangleFilled,
 } from '@element-plus/icons-vue';
 import type { IdentityEntry } from '@/utils/identity/types';
-import { MAX_IDENTITIES } from '@/utils/identity/constants';
+import { MAX_IDENTITIES, MAX_IDENTITY_IMPORT_INPUT_BYTES } from '@/utils/identity/constants';
+import { formatFileSize } from '@/utils/formatFileSize';
 import { buildIdentityFieldRows, formatIdentityCardText, hasSecretFields } from '@/utils/identity/fields';
 import {
   exportIdentityBackup,
@@ -541,6 +542,12 @@ const handleFileChange = async (event: Event): Promise<void> => {
   const file = input.files?.[0];
   input.value = '';
   if (!file) return;
+  // 字节闸门：条数与逐字段上限要等整份文件读进内存并解析后才生效，挡不住
+  // 「一次读取把任意大的输入拉进内存」；`.aphid` 与 `.json` 两种格式共用此闸门。
+  if (file.size > MAX_IDENTITY_IMPORT_INPUT_BYTES) {
+    ElMessage.error(t('identity.import.fileTooLarge', { max: formatFileSize(MAX_IDENTITY_IMPORT_INPUT_BYTES) }));
+    return;
+  }
   const name = file.name.toLowerCase();
 
   try {

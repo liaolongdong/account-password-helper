@@ -297,9 +297,9 @@ When the form lives inside custom components (typically Web Components pages), o
 </details>
 
 <details>
-<summary><strong>When I open the exported CSV in Excel, some passwords or notes turn into error values?</strong></summary>
+<summary><strong>Why do some passwords or notes in the exported CSV start with an apostrophe?</strong></summary>
 
-If a field's value itself starts with `=`, `+`, `-` or `@` (all four are in the password generator's symbol set), Excel evaluates that cell as a formula. The export deliberately does not formula-escape: prefixing rewrites the field, and a password is consumed character by character, so a prefixed value would be wrong both when copied out of the sheet and when re-imported — and the export → import round trip would stop being reversible. Treat export files as data you produced on your own machine, and prefer the encrypted backup (.aph) when moving between machines.
+That apostrophe is the "force text" marker that blocks formula injection. A value starting with `=`, `+`, `-` or `@` (all four are in the password generator's symbol set) would be evaluated as a formula by Excel, so such cells get a leading apostrophe on export and are shown as text. The vault still holds the original value: importing your own CSV template back through this extension strips the marker again, so the export → import round trip stays lossless. One known edge — a stored value that itself starts with an apostrophe plus one of those characters (for instance `'=abc`) loses that leading apostrophe on a round trip. When moving between machines, prefer the encrypted backup (.aph) as before.
 
 </details>
 

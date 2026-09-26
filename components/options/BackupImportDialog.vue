@@ -227,8 +227,10 @@ import { ref, computed, nextTick } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
 import { importEncryptedBackup } from '@/utils/backupExport';
+import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
+import { formatFileSize } from '@/utils/formatFileSize';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
@@ -272,17 +274,6 @@ const { currentCount, remaining, skipped, capacityExhausted, importableEntries, 
   useImportCapacity(previewData);
 
 /**
- * 格式化文件大小为可读字符串
- * @param bytes 文件字节数
- * @returns 格式化后的文件大小字符串
- */
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-};
-
-/**
  * 超出数量上限的兜底提示
  *
  * `el-upload` 的 `on-exceed` 默认为空实现，命中 `limit` 时文件被静默丢弃：既不提示，
@@ -298,6 +289,15 @@ const handleFileChange = async (file: UploadFile) => {
   const fileName = file.raw.name.toLowerCase();
   if (!fileName.endsWith('.aph')) {
     ElMessage.error(t('options.backupImport.unsupportedFormat'));
+    if (uploadRef.value) {
+      uploadRef.value.clearFiles();
+    }
+    return;
+  }
+  // 字节闸门：超限文件在选文件这一步就拒掉，避免用户填完主密码才被告知文件不可用。
+  // `importEncryptedBackup` 内另有同口径闸门，兜住其余调用路径与绕过 UI 的输入。
+  if (file.raw.size > MAX_PASSWORD_IMPORT_INPUT_BYTES) {
+    ElMessage.error(t('backup.fileTooLarge', { max: formatFileSize(MAX_PASSWORD_IMPORT_INPUT_BYTES) }));
     if (uploadRef.value) {
       uploadRef.value.clearFiles();
     }

@@ -2,6 +2,8 @@ import type { PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { formatTimestampCompact } from '@/utils/dateFormat';
+import { formatFileSize } from '@/utils/formatFileSize';
+import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { parseBackupContainer, PasswordBackupError } from '@/utils/backup/parseBackupEntries';
 import { markVerifiedBackupAt } from '@/utils/storage/configManager';
 
@@ -144,11 +146,19 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
 /**
  * 导入加密备份文件
  * 读取 .aph 文件，用主密码解密，返回密码数据
+ *
+ * 字节闸门先于 `arrayBuffer()`：条数与逐字段上限要等整份密文解密并解析后才生效，
+ * 挡不住「一次读取把任意大的输入拉进内存」；超限文件在此直接拒掉，
+ * 错误文案由调用方（`BackupImportDialog`）原样呈现。
  */
 export async function importEncryptedBackup(
   file: File,
   masterPassword: string,
 ): Promise<Omit<PasswordEntry, 'id' | 'order'>[]> {
+  if (file.size > MAX_PASSWORD_IMPORT_INPUT_BYTES) {
+    throw new Error(t('backup.fileTooLarge', { max: formatFileSize(MAX_PASSWORD_IMPORT_INPUT_BYTES) }));
+  }
+
   try {
     const buffer = await file.arrayBuffer();
     const data = new Uint8Array(buffer);

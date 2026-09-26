@@ -1,6 +1,7 @@
 import type { PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { type CsvColumnMapping, FORMAT_COLUMN_MAP, type ImportFormat } from '@/utils/excelFormatMap';
+import { restoreNeutralizedCell } from '@/utils/csvFormulaGuard';
 import { validateAndBoundEntries } from '@/utils/backup/parseBackupEntries';
 
 /**
@@ -101,6 +102,10 @@ function parseCSVFromText(text: string, format: ImportFormat): Omit<PasswordEntr
 
 /**
  * 使用指定列映射解析数据行
+ *
+ * 自家模板（`native`）的单元格按 {@link restoreNeutralizedCell} 还原导出侧补上的
+ * 「强制文本」前缀，保证导出→导入往返不改数据；第三方格式一律不还原——
+ * 那些文件不是本扩展写出的，剥掉首字符就是篡改用户的真实凭据。
  */
 function parseRowsWithMapping(
   lines: string[],
@@ -109,6 +114,12 @@ function parseRowsWithMapping(
 ): Omit<PasswordEntry, 'id' | 'order'>[] {
   const now = Date.now();
   const results: Omit<PasswordEntry, 'id' | 'order'>[] = [];
+  const isNativeTemplate = mapping === FORMAT_COLUMN_MAP.native;
+  /** 取列值并按需还原公式中和前缀 */
+  const columnOf = (row: Record<string, string>, candidates: string[]): string => {
+    const raw = findColumn(row, candidates) || '';
+    return isNativeTemplate ? restoreNeutralizedCell(raw) : raw;
+  };
 
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
@@ -119,16 +130,16 @@ function parseRowsWithMapping(
       row[h] = values[idx] || '';
     });
 
-    const username = findColumn(row, mapping.username);
+    const username = columnOf(row, mapping.username);
     if (!username) continue;
 
     results.push({
       username: username.trim(),
-      password: (findColumn(row, mapping.password) || '').trim(),
-      url: (findColumn(row, mapping.url) || '').trim(),
-      tag: (findColumn(row, mapping.tag) || '').trim(),
-      remark: (findColumn(row, mapping.remark) || '').trim(),
-      totp: (findColumn(row, mapping.totp) || '').trim(),
+      password: columnOf(row, mapping.password).trim(),
+      url: columnOf(row, mapping.url).trim(),
+      tag: columnOf(row, mapping.tag).trim(),
+      remark: columnOf(row, mapping.remark).trim(),
+      totp: columnOf(row, mapping.totp).trim(),
       createTime: now,
       updateTime: now,
     });

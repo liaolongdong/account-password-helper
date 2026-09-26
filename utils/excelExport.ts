@@ -1,5 +1,6 @@
 import type { PasswordEntry } from '@/utils/types';
 import { formatDate } from '@/utils/dateFormat';
+import { neutralizeFormulaCell } from '@/utils/csvFormulaGuard';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 
@@ -33,10 +34,13 @@ function buildCsvHeaders(usernameRequired = false): string[] {
 /**
  * 将二维行数据序列化为 CSV 文本
  *
- * 每个字段用双引号包裹并转义内部双引号（`"` → `""`），行以 `\r\n` 分隔。
+ * 每个字段先按 {@link neutralizeFormulaCell} 中和公式前缀（防止导出文件在
+ * Excel / WPS 里被当作公式求值），再用双引号包裹并转义内部双引号（`"` → `""`），
+ * 行以 `\r\n` 分隔。
  */
 function serializeCsvRows(rows: unknown[][]): string {
-  return rows.map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+  const quoteCell = (v: unknown): string => `"${neutralizeFormulaCell(String(v ?? '')).replace(/"/g, '""')}"`;
+  return rows.map(row => row.map(quoteCell).join(',')).join('\r\n');
 }
 
 /**
