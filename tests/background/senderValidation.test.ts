@@ -7,21 +7,33 @@
  * 仅当自报 URL 与之同主域名时放行，否则 fail-closed。
  *
  * 同理，OPEN_OPTIONS_AND_SITE_RULES 的 data.domain 也是内容脚本自报值，会被选项页
- * 直接写成站点规则主键，路由层必须先规范化/校验再转发。
+ * 直接写成站点规则主键，路由层必须先规范化/校验再转发；OPEN_OPTIONS_AND_EDIT 的
+ * data.editId 走同一条口径（只转发合法形态的 id，非法即「打开但不预填」）。
  *
  * DELEGATE_PAGE_NOTICE 走的是另一侧：它把提示送回**发起方自己所在的标签页**，
  * 因此归属必须由浏览器盖章（sender.id 为本扩展且 sender.tab 存在），tabId 只从
  * sender 推导，绝不接受自报值——否则任一页面上下文都能让扩展在别的站点弹提示条。
+ *
+ * 还有一类「今天看起来不可能被外部触发」的窗口 / 跳转指令（SHOW/HIDE/TOGGLE_SIDEPANEL、
+ * SIDEPANEL_PRELOAD、OPEN_OPTIONS_*）：它们此前依赖的前提是「网页 JS 拿不到
+ * chrome.runtime」，这条前提只存在于打包事实里。现在由 EXTENSION_CONTEXT_COMMANDS
+ * 把它写进代码，清单里每条都要求 sender.id === chrome.runtime.id。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveTrustedContentUrl, setupMessageRouter } from '@/entrypoints/background/messageRouter';
+import {
+  resolveTrustedContentUrl,
+  setupMessageRouter,
+  EXTENSION_CONTEXT_COMMANDS,
+} from '@/entrypoints/background/messageRouter';
 import { handleQuickAddPassword } from '@/entrypoints/background/quickAddHandler';
+import { getTabIdSync } from '@/entrypoints/background/sidePanelManager';
 import { openOptionsAndSendMessage, openOptionsPage } from '@/entrypoints/background/optionsPageManager';
 import { handleQuickFill, deliverPageNotice } from '@/entrypoints/background/quickFillHandler';
 import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
 import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
 import { MessageType } from '@/utils/types';
 import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
+import { normalizeEntryId, MAX_ID_LENGTH } from '@/utils/generateId';
 
 // 仅测试纯校验函数，将 router 的重依赖全部 mock 为轻量 stub，保证测试密闭
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
@@ -632,5 +644,153 @@ describe('OPEN_OPTIONS_AND_SEARCH 关键词收口（分发级）', () => {
 
     expect(result).toBe(true);
     expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_SEARCH, undefined);
+  });
+});
+
+describe('UI 指令的 sender 归属闸门（分发级）', () => {
+  /** 外部扩展形态的发送方：sender.id 非本扩展 */
+  const foreignSender = { id: 'abcdefghijklmnopabcdefghijklmnop' } as chrome.runtime.MessageSender;
+  /** 缺 id 的畸形发送方：必须按不信任处理，而不是「没说不行就行」 */
+  const idlessSender = { tab: { id: 9 } } as chrome.runtime.MessageSender;
+  /** 扩展内部页发送方（popup / sidepanel / options） */
+  const internalSender = { id: chrome.runtime.id } as chrome.runtime.MessageSender;
+
+  it('清单覆盖评审点名的窗口与跳转类指令', () => {
+    for (const type of [
+      MessageType.SIDEPANEL_PRELOAD,
+      MessageType.SHOW_SIDEPANEL,
+      MessageType.HIDE_SIDEPANEL,
+      MessageType.TOGGLE_SIDEPANEL,
+      MessageType.OPEN_OPTIONS_PAGE,
+      MessageType.OPEN_OPTIONS_AND_EDIT,
+      MessageType.OPEN_OPTIONS_AND_ADD,
+      MessageType.OPEN_OPTIONS_AND_VALIDITY,
+      MessageType.OPEN_OPTIONS_AND_SITE_RULES,
+      MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH,
+      MessageType.OPEN_OPTIONS_AND_SEARCH,
+    ]) {
+      expect(EXTENSION_CONTEXT_COMMANDS).toContain(type);
+    }
+  });
+
+  it('清单内每条指令：非本扩展 sender 一律被拒，且不触碰任何下游', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const type of EXTENSION_CONTEXT_COMMANDS) {
+      for (const sender of [foreignSender, idlessSender]) {
+        const sendResponse = vi.fn();
+        const result = listener({ type }, sender, sendResponse);
+
+        expect(result, `${type} 被拒时不应保持消息通道`).not.toBe(true);
+        expect(sendResponse, `${type} 应给出明确失败应答`).toHaveBeenCalledWith({
+          success: false,
+          error: '未授权的请求来源',
+        });
+      }
+    }
+
+    // 闸门在 switch 之前：四条下游探针全部零调用，说明确实没走到任何分支体
+    expect(getTabIdSync).not.toHaveBeenCalled();
+    expect(warmPasswordCache).not.toHaveBeenCalled();
+    expect(openOptionsPage).not.toHaveBeenCalled();
+    expect(openOptionsAndSendMessage).not.toHaveBeenCalled();
+  });
+
+  it('内容脚本发送方照常放行（TOGGLE_SIDEPANEL 的合法路径不能被误伤）', () => {
+    vi.mocked(getTabIdSync).mockReturnValue(3);
+    const listener = setupAndCaptureListener();
+
+    listener({ type: MessageType.TOGGLE_SIDEPANEL }, contentSender('https://example.com/'), vi.fn());
+
+    expect(getTabIdSync).toHaveBeenCalled();
+  });
+
+  it('扩展内部页照常放行（OPEN_OPTIONS_PAGE / SIDEPANEL_PRELOAD）', () => {
+    vi.mocked(openOptionsPage).mockResolvedValue(7);
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    listener({ type: MessageType.OPEN_OPTIONS_PAGE }, internalSender, sendResponse);
+    listener({ type: MessageType.SIDEPANEL_PRELOAD }, internalSender, sendResponse);
+
+    expect(openOptionsPage).toHaveBeenCalledTimes(1);
+    expect(warmPasswordCache).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('normalizeEntryId（跨上下文条目 id 收口）', () => {
+  it('generateId() 的真实形态恒在长度预算内', async () => {
+    const { generateId } = await import('@/utils/generateId');
+    const id = generateId();
+
+    expect(id.length).toBeLessThanOrEqual(MAX_ID_LENGTH);
+    expect(normalizeEntryId(id)).toBe(id);
+  });
+
+  it('超长一律拒绝而不是截断（截断前缀理论上可与另一条真实 id 相等）', () => {
+    const tooLong = 'x'.repeat(MAX_ID_LENGTH + 1);
+
+    expect(normalizeEntryId(tooLong)).toBe('');
+  });
+
+  it('非字符串与空串按「无 id」处理', () => {
+    for (const bad of ['', 123, true, {}, [], ['uuid-1'], null, undefined]) {
+      expect(normalizeEntryId(bad)).toBe('');
+    }
+  });
+});
+
+describe('OPEN_OPTIONS_AND_EDIT 的 editId 收口（分发级）', () => {
+  /** 侧边栏 / popup / options 等扩展内部页 */
+  const internalSender = { id: chrome.runtime.id } as chrome.runtime.MessageSender;
+
+  beforeEach(() => {
+    vi.mocked(openOptionsAndSendMessage).mockResolvedValue({ success: true });
+  });
+
+  /** 取回路由转发给选项页的载荷 */
+  const forwardedData = () => {
+    const calls = vi.mocked(openOptionsAndSendMessage).mock.calls;
+    return calls[calls.length - 1]?.[1];
+  };
+
+  it('合法 id 重新组装后转发，夹带的多余字段不透传', () => {
+    const listener = setupAndCaptureListener();
+    const editId = 'uuid-3f2b1c9a-7d4e-4a1b-9c2f-0123456789ab';
+
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_EDIT, data: { editId, extra: 'y'.repeat(500) } },
+      internalSender,
+      vi.fn(),
+    );
+
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_EDIT, { editId });
+  });
+
+  it('非字符串与超长 id 降级为「打开但不预填」，绝不原样透传', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const bad of ['', 12345, { id: 'x' }, ['uuid-1'], 'x'.repeat(MAX_ID_LENGTH + 1)]) {
+      listener({ type: MessageType.OPEN_OPTIONS_AND_EDIT, data: { editId: bad } }, internalSender, vi.fn());
+      expect(forwardedData(), `非法 id 不应被转发: ${String(bad)}`).toBeUndefined();
+    }
+  });
+
+  it('恰好等于上限的 id 仍放行（边界不被误伤）', () => {
+    const listener = setupAndCaptureListener();
+    const editId = 'x'.repeat(MAX_ID_LENGTH);
+
+    listener({ type: MessageType.OPEN_OPTIONS_AND_EDIT, data: { editId } }, internalSender, vi.fn());
+
+    expect(forwardedData()).toEqual({ editId });
+  });
+
+  it('无载荷时行为与旧版一致（打开但不预填）', () => {
+    const listener = setupAndCaptureListener();
+
+    const result = listener({ type: MessageType.OPEN_OPTIONS_AND_EDIT }, internalSender, vi.fn());
+
+    expect(result).toBe(true);
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_EDIT, undefined);
   });
 });
