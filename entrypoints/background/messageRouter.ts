@@ -25,7 +25,7 @@ import {
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { issuePendingCipherKey } from './pendingCipherKeyStore';
 import { handleQuickAddPassword } from './quickAddHandler';
-import { handleQuickFill } from './quickFillHandler';
+import { handleQuickFill, deliverPageNotice } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
@@ -631,6 +631,30 @@ export function setupMessageRouter(): void {
         }
         handleCheckCredentialStatus({ ...message.data, url: trustedCheckUrl }).then(result => {
           sendResponse(result);
+        });
+        return true;
+      }
+
+      case MessageType.DELEGATE_PAGE_NOTICE: {
+        // 安全：委托渲染提示的通道必须验发送方归属，而不是接受 postMessage——
+        // 扩展包公开可得，`window.postMessage({type:'APH_SHOW_NOTIFICATION'})` 任何页面
+        // 脚本一行就能伪造出「以扩展口吻说话」的顶层提示条（钓鱼形状）。
+        // chrome.runtime 消息由浏览器盖章：`sender.id` 必为本扩展、`sender.tab` 只在
+        // 真实页面上下文里存在，二者同时成立才放行；投递目标只取 sender 推导出的
+        // tabId 与固定 frameId 0，不接受任何自报的 tab / frame 参数。
+        const noticeTabId = sender.tab?.id;
+        if (sender.id !== chrome.runtime.id || typeof noticeTabId !== 'number') {
+          sendResponse({ success: false, error: '未授权的提示委托来源' });
+          break;
+        }
+        const noticeText = typeof message.data?.message === 'string' ? message.data.message.trim() : '';
+        if (!noticeText) {
+          sendResponse({ success: false, error: '空的提示文案' });
+          break;
+        }
+        deliverPageNotice(noticeTabId, noticeText, message.data?.type).then(delivered => {
+          // 未送达时如实回报 false，委托方据此在本 frame 内降级渲染，绝不静默丢提示
+          sendResponse({ success: delivered });
         });
         return true;
       }

@@ -675,15 +675,12 @@ export class LoginAutoSave {
     // 不会因跨子域名（如 account.aliyun.com ⊂ bailian.console.aliyun.com）抛出 SecurityError
     const ancestorOrigins = location.ancestorOrigins;
     const topOrigin = ancestorOrigins[ancestorOrigins.length - 1];
-    if (!topOrigin) {
-      // sandbox iframe 等极端情况禁止 ancestorOrigins 时回退（此时无法确定投递目标，只在当前 frame 渲染）
-      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
-      return;
-    }
 
-    if (!isSameMainDomain(topOrigin, location.origin)) {
-      // 不同主域名的 iframe（如 attacker.com 嵌入 bank.com），不委托弹窗，只把提示交给顶层 frame
-      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning', topOrigin);
+    if (!topOrigin || !isSameMainDomain(topOrigin, location.origin)) {
+      // 顶层 origin 解析不出（sandbox iframe 禁用 ancestorOrigins），或与之不同主域名
+      // （如 attacker.com 嵌入 bank.com）：两种情况下都不能把明文凭据跨帧广播，
+      // 只把这条不含凭证的提示委托出去
+      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
       return;
     }
 
@@ -759,29 +756,33 @@ export class LoginAutoSave {
   /**
    * 将通知委托给顶层 frame 渲染
    *
-   * 当 iframe 中无法显示保存弹窗（跨域/沙箱限制）时，
-   * 优先通过 postMessage 委托顶层 frame 渲染通知，确保通知出现在整个页面右上角。
-   * postMessage 失败时回退到 iframe 内渲染。
+   * 当 iframe 中无法显示保存弹窗（跨域/沙箱限制）时，把一条不含凭证的提示委托给顶层
+   * frame 渲染，确保提示出现在整个页面右上角而非被限制在 iframe 的小视口内。
    *
-   * 投递目标锁定为顶层文档 origin：`'*'` 会在顶层文档已导航走（TOCTOU）时把
-   * 「未能自动保存，请手动添加」连同当前页面 URL 发给此刻占据顶层的任意文档。
-   * origin 不可解析（sandbox iframe 禁用了 `ancestorOrigins`）时不做跨帧投递，
-   * 直接在当前 frame 渲染——宁可位置降级，不向未知目标广播。
+   * 委托走 background，不再用 `window.top.postMessage`：postMessage 的载荷类型是包内
+   * 公开可得的字符串常量，宿主页面脚本一次 `postMessage({type:'APH_SHOW_NOTIFICATION'})`
+   * 就能冒充扩展在页面右上角说话；而 `chrome.runtime` 消息的 `sender.id` 由浏览器盖章，
+   * 页面世界无法伪造。后台据此以 `{ frameId: 0 }` 定向本标签页顶层 frame，投递目标
+   * 由浏览器而非我们解析的 origin 决定，sandbox / 跨域两种场景因此共用同一条安全路径。
+   * 后台不可达（扩展上下文失效）或未成功投递时回退到当前 frame 渲染——宁可位置降级。
    *
    * @param message - 通知消息内容
    * @param type - 通知类型
-   * @param topOrigin - 顶层文档 origin，缺省表示无法解析，此时只在当前 frame 渲染
    */
-  private delegateNotificationToTopFrame(message: string, type: NotificationType, topOrigin?: string): void {
-    if (!topOrigin) {
-      showNativeNotification(message, type);
-      return;
-    }
+  private delegateNotificationToTopFrame(message: string, type: NotificationType): void {
+    /** 降级路径：当前 frame 渲染 */
+    const renderLocally = (): void => showNativeNotification(message, type);
+
     try {
-      window.top!.postMessage({ type: PostMessageType.SHOW_NOTIFICATION, data: { message, type } }, topOrigin);
+      chrome.runtime
+        .sendMessage({ type: MessageType.DELEGATE_PAGE_NOTICE, data: { message, type } })
+        .then((response: { success?: boolean } | undefined) => {
+          if (!response?.success) renderLocally();
+        })
+        .catch(renderLocally);
     } catch {
-      // postMessage 失败时回退到 iframe 内渲染
-      showNativeNotification(message, type);
+      // 扩展上下文已失效，sendMessage 同步抛错
+      renderLocally();
     }
   }
 

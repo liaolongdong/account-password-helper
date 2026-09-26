@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   getMainDomain,
+  registrableScope,
   isSameMainDomain,
   isLocalDevDomain,
   normalizeToHostname,
@@ -543,5 +544,138 @@ describe('当前主机归一的一格记忆', () => {
     });
     // 同字符串复用同一格（2 条条目 + 1 次主机）；写法变了就重算（再 +1）
     expect(calls).toBe(5);
+  });
+});
+
+describe('registrableScope：共享托管后缀的租户边界', () => {
+  it('后缀下的一级子域就是范围本身，更深的子域塌回该租户', () => {
+    expect(registrableScope('evil.github.io')).toBe('evil.github.io');
+    expect(registrableScope('preview.deploy.evil.github.io')).toBe('evil.github.io');
+    expect(registrableScope('a.vercel.app')).toBe('a.vercel.app');
+  });
+
+  it('两个租户不再共享范围（修复前的形状是都塌成 github.io）', () => {
+    expect(registrableScope('evil.github.io')).not.toBe(registrableScope('victim.github.io'));
+    expect(registrableScope('evil.github.io')).not.toBe('github.io');
+  });
+
+  it('后缀本身无租户标签，按原样返回', () => {
+    expect(registrableScope('github.io')).toBe('github.io');
+    expect(registrableScope('vercel.app')).toBe('vercel.app');
+  });
+
+  it('三段式云存储端点把租户标签算进范围（取末四段）', () => {
+    expect(registrableScope('victim-bucket.s3.amazonaws.com')).toBe('victim-bucket.s3.amazonaws.com');
+    expect(registrableScope('evil-bucket.storage.googleapis.com')).not.toBe(
+      registrableScope('victim-bucket.storage.googleapis.com'),
+    );
+    expect(registrableScope('d-x.s3.amazonaws.com')).not.toBe(registrableScope('d-y.s3.amazonaws.com'));
+  });
+
+  it('未收录后缀退回 getMainDomain，行为与修复前逐字一致', () => {
+    expect(registrableScope('mail.qq.com')).toBe('qq.com');
+    expect(registrableScope('login.example.com.cn')).toBe('example.com.cn');
+    expect(registrableScope('shop.example.com.br')).toBe('example.com.br');
+    expect(registrableScope('localhost')).toBe('localhost');
+    expect(registrableScope('192.168.1.1')).toBe('192.168.1.1');
+    expect(registrableScope('')).toBe('');
+  });
+
+  it('前缀碰撞不得误认成共享后缀', () => {
+    // `mygithub.io` / `evil-github.io` 都不是 `github.io` 的租户，范围仍按末两段算
+    expect(registrableScope('mygithub.io')).toBe('mygithub.io');
+    expect(registrableScope('app.evil-github.io')).toBe('evil-github.io');
+    expect(registrableScope('x.nottedls.github.io')).toBe('nottedls.github.io');
+  });
+
+  it('getMainDomain 本身不被改写：两处口径的差别是刻意的', () => {
+    // `registrableScope` 是唯一的信任判据；`getMainDomain` 仍描述「注册域」，
+    // 把这条差别钉住，避免后来者以为可以互换二者。
+    expect(getMainDomain('evil.github.io')).toBe('github.io');
+    expect(registrableScope('evil.github.io')).toBe('evil.github.io');
+  });
+
+  it('收窄只朝一个方向：范围要么等于主域名、要么比它更具体', () => {
+    const samples = [
+      'example.com',
+      'a.b.example.com',
+      'login.example.com.cn',
+      'shop.example.com.br',
+      'evil.github.io',
+      'x.y.vercel.app',
+      'bucket.s3.amazonaws.com',
+      'd-123.cloudfront.net',
+      'localhost',
+      '192.168.1.1',
+      'weird..example.com',
+    ];
+    for (const host of samples) {
+      const main = getMainDomain(host);
+      const scope = registrableScope(host);
+      const moreSpecificOrEqual =
+        scope === main || (scope.endsWith(`.${main}`) && scope.split('.').length > main.split('.').length);
+      expect(moreSpecificOrEqual, `${host}: 主域名 ${main} → 范围 ${scope}`).toBe(true);
+    }
+  });
+});
+
+describe('isSameMainDomain 共享托管对抗样本（必须拒绝，防凭证跨租户下发）', () => {
+  it('同一托管商下的两个租户不同主体', () => {
+    expect(isSameMainDomain('https://evil.github.io', 'https://victim.github.io')).toBe(false);
+    expect(isSameMainDomain('https://a.vercel.app', 'https://b.vercel.app')).toBe(false);
+    expect(isSameMainDomain('https://x.ngrok-free.app', 'https://y.ngrok-free.app')).toBe(false);
+  });
+
+  it('同一租户内部的跨子域仍然互通（放宽不该被一并削掉）', () => {
+    expect(isSameMainDomain('https://preview.app.github.io', 'https://app.github.io')).toBe(true);
+    expect(isSameMainDomain('https://evil.github.io', 'https://x.evil.github.io')).toBe(true);
+  });
+
+  it('托管商自身与其租户不互认', () => {
+    expect(isSameMainDomain('https://github.io', 'https://app.github.io')).toBe(false);
+  });
+
+  it('不同托管商之间永远不同主体', () => {
+    expect(isSameMainDomain('https://app.github.io', 'https://app.gitlab.io')).toBe(false);
+  });
+
+  it('云存储桶按租户隔离', () => {
+    expect(isSameMainDomain('https://a-bucket.s3.amazonaws.com', 'https://c-bucket.s3.amazonaws.com')).toBe(false);
+    expect(isSameMainDomain('https://a-bucket.s3.amazonaws.com', 'https://x.a-bucket.s3.amazonaws.com')).toBe(true);
+  });
+
+  it('普通域名的跨子域放行不受影响', () => {
+    expect(isSameMainDomain('https://login.example.com', 'https://app.example.com')).toBe(true);
+  });
+});
+
+describe('resolveMatchTier：共享托管后缀下的档位行为', () => {
+  const TENANT_A = 'team-a.github.io';
+  const TENANT_B = 'victim.github.io';
+
+  it('放宽档下跨租户条目不再命中，同租户兄弟子域照常命中', () => {
+    expect(resolveMatchTier(TENANT_A, TENANT_B, 'sameMainDomain')).toBe(-1);
+    expect(resolveMatchTier(TENANT_A, 'other.team-a.github.io', 'sameMainDomain')).toBe(3);
+    expect(resolveMatchTier('x.team-a.github.io', TENANT_A, 'sameMainDomain')).toBe(2);
+  });
+
+  it('默认档与精确匹配不受影响', () => {
+    expect(resolveMatchTier(TENANT_A, TENANT_B, 'off')).toBe(-1);
+    expect(resolveMatchTier(TENANT_A, TENANT_A, 'off')).toBe(0);
+  });
+
+  it('通配档：普通域名的通配条目不回归，覆盖整张公共后缀的通配条目不再命中', () => {
+    expect(resolveMatchTier('mail.qq.com', '*.qq.com', 'wildcard')).toBe(1);
+    // `*.github.io` 的字面含义是「所有租户」，正是本次要关掉的口子；写自己项目用 `*.me.github.io`
+    expect(resolveMatchTier(TENANT_A, '*.github.io', 'wildcard')).toBe(-1);
+    expect(resolveMatchTier('preview.team-a.github.io', '*.team-a.github.io', 'wildcard')).toBe(1);
+  });
+
+  it('空态引导计数不把跨租户条目算成「放宽可带出」', () => {
+    // 只有同租户的兄弟子域会被「放宽」带出；跨租户（TENANT_B）与无关主域（qq.com）都不再计入
+    const entries = [{ url: TENANT_B }, { url: 'other.team-a.github.io' }, { url: 'qq.com' }];
+    expect(countSameMainDomainCandidates(entries, TENANT_A, 'off')).toBe(1);
+    // 已经处在放宽档时没有可放宽空间（与后缀无关的既有语义）
+    expect(countSameMainDomainCandidates(entries, TENANT_A, 'sameMainDomain')).toBe(0);
   });
 });

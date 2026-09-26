@@ -8,12 +8,16 @@
  *
  * 同理，OPEN_OPTIONS_AND_SITE_RULES 的 data.domain 也是内容脚本自报值，会被选项页
  * 直接写成站点规则主键，路由层必须先规范化/校验再转发。
+ *
+ * DELEGATE_PAGE_NOTICE 走的是另一侧：它把提示送回**发起方自己所在的标签页**，
+ * 因此归属必须由浏览器盖章（sender.id 为本扩展且 sender.tab 存在），tabId 只从
+ * sender 推导，绝不接受自报值——否则任一页面上下文都能让扩展在别的站点弹提示条。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveTrustedContentUrl, setupMessageRouter } from '@/entrypoints/background/messageRouter';
 import { handleQuickAddPassword } from '@/entrypoints/background/quickAddHandler';
 import { openOptionsAndSendMessage, openOptionsPage } from '@/entrypoints/background/optionsPageManager';
-import { handleQuickFill } from '@/entrypoints/background/quickFillHandler';
+import { handleQuickFill, deliverPageNotice } from '@/entrypoints/background/quickFillHandler';
 import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
 import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
 import { MessageType } from '@/utils/types';
@@ -59,6 +63,7 @@ vi.mock('@/entrypoints/background/quickAddHandler', () => ({
 
 vi.mock('@/entrypoints/background/quickFillHandler', () => ({
   handleQuickFill: vi.fn(),
+  deliverPageNotice: vi.fn(),
 }));
 
 vi.mock('@/entrypoints/background/inlineDropdownHandler', () => ({
@@ -254,6 +259,86 @@ describe('GET_PENDING_CIPHER_KEY 路由分发（凭据密钥签发）', () => {
     );
 
     await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ key: null }));
+  });
+});
+
+describe('DELEGATE_PAGE_NOTICE 路由分发（提示委托回投发起标签页）', () => {
+  /** 取本用例最后一次委托的投递参数 */
+  const lastDelivery = (): unknown[] | undefined => vi.mocked(deliverPageNotice).mock.calls.slice(-1)[0];
+
+  it('内容脚本发送方放行：tabId 取自 sender，投递结果如实回报', async () => {
+    vi.mocked(deliverPageNotice).mockResolvedValue(true);
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener(
+      { type: MessageType.DELEGATE_PAGE_NOTICE, data: { message: '请手动添加', type: 'warning' } },
+      contentSender('https://evil.example/iframe', 42),
+      sendResponse,
+    );
+
+    // 投递是异步的，处理器必须返回 true 保持通道
+    expect(result).toBe(true);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ success: true }));
+    expect(lastDelivery()).toEqual([42, '请手动添加', 'warning']);
+  });
+
+  it('顶层 frame 未接住提示时如实回 success:false，委托方据此本地降级', async () => {
+    vi.mocked(deliverPageNotice).mockResolvedValue(false);
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    listener(
+      { type: MessageType.DELEGATE_PAGE_NOTICE, data: { message: '请手动添加', type: 'info' } },
+      contentSender('https://example.com/'),
+      sendResponse,
+    );
+
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalledWith({ success: false }));
+  });
+
+  it('无 tab 上下文的发送方（扩展内部页）被拒，且不投递', () => {
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener(
+      { type: MessageType.DELEGATE_PAGE_NOTICE, data: { message: '冒充别页提示', type: 'warning' } },
+      { id: chrome.runtime.id } as chrome.runtime.MessageSender,
+      sendResponse,
+    );
+
+    expect(deliverPageNotice).not.toHaveBeenCalled();
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+    expect(result).not.toBe(true);
+  });
+
+  it('sender.id 非本扩展时被拒（外部可扩展消息不得驱动提示）', () => {
+    const listener = setupAndCaptureListener();
+    const sendResponse = vi.fn();
+
+    const result = listener(
+      { type: MessageType.DELEGATE_PAGE_NOTICE, data: { message: 'x', type: 'warning' } },
+      { id: 'abcdefghijklmnopabcdefghijklmnop', tab: { id: 7 } } as chrome.runtime.MessageSender,
+      sendResponse,
+    );
+
+    expect(deliverPageNotice).not.toHaveBeenCalled();
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+    expect(result).not.toBe(true);
+  });
+
+  it('空白与非字符串文案一律拒绝，不投递空提示', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const bad of ['', '   ', 123, { message: 'x' }, undefined]) {
+      listener(
+        { type: MessageType.DELEGATE_PAGE_NOTICE, data: { message: bad, type: 'warning' } },
+        contentSender('https://example.com/'),
+        vi.fn(),
+      );
+    }
+
+    expect(deliverPageNotice).not.toHaveBeenCalled();
   });
 });
 

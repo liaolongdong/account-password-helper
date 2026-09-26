@@ -79,19 +79,137 @@ const CCTLD_SECOND_LEVEL_LABELS = new Set([
 /** 两字母国家码（ccTLD）正则，如 cn / uk / br / in */
 const TWO_LETTER_CCTLD_RE = /^[a-z]{2}$/;
 
+// ── 共享托管后缀 ──
+
+/**
+ * 已知的「一段标签 = 一个独立主体」的共享托管后缀（末两段形式）
+ *
+ * 存在理由：这些后缀下的一级子域由**互不相关的租户**各自持有，
+ * `evil.github.io` 与 `victim.github.io` 不是同一家，就像
+ * `evil.com` 与 `victim.com` 不是同一家。而「取末两段」的主域名口径会把它们
+ * 判成同一个 `github.io`，于是三条信任边界同时被放宽：
+ * 同主域名匹配档（其他租户的账号被列进本站）、跨域 iframe 回填门控
+ * （`isFrameFillable` / `isSameMainDomain`）、自动保存归属
+ * （`resolveTrustedContentUrl`，可把凭证写进别人的条目）。
+ *
+ * 收录标准（三条同时满足才进表，避免把真实租户关系判散）：
+ * 1. 该后缀下的一级子域名可由任意用户自助注册，无需平台方审核域名归属；
+ * 2. 该子域名常用于承载完整站点（登录页、预览环境），因此会出现在密码条目的 url 里；
+ * 3. 平台本身不做「同后缀下的多租户互信」——即租户之间确实是不同主体。
+ * 覆盖开发者/PaaS 托管、静态站托管、隧道与动态 DNS、建站与内容平台四类。
+ *
+ * 这是一张**拒绝表**而非 Public Suffix List：完整 PSL 需引入外部数据（tldts 约
+ * 10 KB gzip 级别），而本模块同时位于侧边栏首屏与 content script 闭包内，
+ * 项目规则要求优先复用既有依赖、按体积取舍。因此表内只放高频、可确证的条目，
+ * 未收录的后缀退回原「末两段」口径——漏收的后果是「和修复前一样」，
+ * 而不是新的误判。新增条目的方式就是往这张表里加一行，并由测试守卫其不可逆性。
+ */
+const MULTI_TENANT_SUFFIXES = new Set([
+  // 代码托管与 Pages
+  'github.io',
+  'gitlab.io',
+  'pages.dev',
+  'workers.dev',
+  'trycloudflare.com',
+  // 前端 / 应用托管
+  'vercel.app',
+  'netlify.app',
+  'herokuapp.com',
+  'fly.dev',
+  'onrender.com',
+  'railway.app',
+  'glitch.me',
+  'replit.dev',
+  'web.app',
+  'firebaseapp.com',
+  'appspot.com',
+  'elasticbeanstalk.com',
+  'awsapprunner.com',
+  'amplifyapp.com',
+  'azurewebsites.net',
+  'cloudfunctions.net',
+  'cloudfront.net',
+  // 临时隧道与动态 DNS（每个子域就是一次独立的对外服务）
+  'ngrok.io',
+  'ngrok.app',
+  'ngrok-free.app',
+  'loca.lt',
+  'localtunnel.me',
+  'servehttp.com',
+  'hopto.org',
+  'duckdns.org',
+  'mooo.com',
+  // 建站与内容平台
+  'wixsite.com',
+  'weebly.com',
+  'blogspot.com',
+  'wordpress.com',
+  'tumblr.com',
+  'neocities.org',
+  'surge.sh',
+  'pythonanywhere.com',
+]);
+
+/**
+ * 三段形式的共享托管后缀（云存储的虚拟主机风格端点）
+ *
+ * `mybucket.s3.amazonaws.com` 与 `victimbucket.s3.amazonaws.com` 分属不同租户，
+ * 租户标签在**倒数第四段**，故这类后缀单独一张表，命中时取末四段。
+ *
+ * 只收录「末两段本身就是某个真实注册域」的形态：`s3.amazonaws.com` 挂在
+ * `amazonaws.com` 下、`storage.googleapis.com` 挂在 `googleapis.com` 下。
+ * 形如 `d-xxxx.cloudfront.net` 的云分配域名只有三段、后缀是两段，归上面主表。
+ */
+const MULTI_TENANT_SUFFIXES_3 = new Set(['s3.amazonaws.com', 'storage.googleapis.com']);
+
+/**
+ * 计算 hostname 的「注册主体范围」
+ *
+ * 命中共享托管后缀时，把租户标签一并算进范围（`a.github.io` → `a.github.io`，
+ * `x.a.github.io` → `a.github.io`），否则退回 {@link getMainDomain}。
+ * 与 `getMainDomain` 同一条注释所承诺的方向：**只会让范围更具体、只会收窄匹配，
+ * 绝不新增匹配**，因此在任何一处信任判定里替换成它都朝安全侧倒。
+ *
+ * @param hostname - 完整主机名（调用方已归一为小写 hostname）
+ * @returns 注册主体范围的 hostname 字符串
+ *
+ * @example
+ * registrableScope('evil.github.io')            // → 'evil.github.io'
+ * registrableScope('x.evil.github.io')          // → 'evil.github.io'
+ * registrableScope('github.io')                 // → 'github.io'（后缀本身，无租户标签）
+ * registrableScope('mail.qq.com')               // → 'qq.com'
+ * registrableScope('me.s3.amazonaws.com')       // → 'me.s3.amazonaws.com'
+ */
+export function registrableScope(hostname: string): string {
+  if (!hostname) return hostname;
+  const parts = hostname.split('.');
+  if (parts.length >= 3) {
+    const lastTwo = parts.slice(-2).join('.');
+    if (MULTI_TENANT_SUFFIXES.has(lastTwo)) return parts.slice(-3).join('.');
+    if (parts.length >= 4) {
+      const lastThree = parts.slice(-3).join('.');
+      if (MULTI_TENANT_SUFFIXES_3.has(lastThree)) return parts.slice(-4).join('.');
+    }
+  }
+  return getMainDomain(hostname);
+}
+
 // ── postMessage 跨 frame 通信 ──
 
 /**
  * postMessage 通信消息类型常量
  * 用于 iframe 与顶层 frame 之间的保存弹窗委托通信
+ *
+ * 这里曾有一个 `SHOW_NOTIFICATION`（委托渲染提示）：枚举值是包内公开可得的字符串，
+ * 宿主页面脚本可自造载荷冒充扩展在页面右上角说话，已改走 `chrome.runtime` 消息
+ * （`MessageType.DELEGATE_PAGE_NOTICE`）由后台盖章转发。
+ * 保留的两个类型只在同主域名 frame 之间流转，且接收侧对 `event.origin` 做了校验。
  */
 export const PostMessageType = {
   /** iframe → 顶层 frame：委托显示保存确认弹窗 */
   SHOW_SAVE_PROMPT: 'APH_SHOW_SAVE_PROMPT',
   /** 顶层 frame → iframe：回传用户操作结果 */
   SAVE_PROMPT_RESULT: 'APH_SAVE_PROMPT_RESULT',
-  /** iframe → 顶层 frame：委托显示通知（跨域回退场景） */
-  SHOW_NOTIFICATION: 'APH_SHOW_NOTIFICATION',
 } as const;
 
 // ── 主域名提取 ──
@@ -102,6 +220,11 @@ export const PostMessageType = {
  * 对普通域名取最后两段（如 sub.example.com → example.com），
  * 对两段式 ccTLD 取最后三段（如 login.example.com.cn → example.com.cn）。
  * IP 地址、localhost 等单段 hostname 直接返回原值。
+ *
+ * 注意：**信任判定请用 {@link registrableScope}**，本函数不认共享托管后缀，
+ * 会把 `evil.github.io` 与 `victim.github.io` 算成同一个 `github.io`。
+ * 本函数保留为该更窄口径的兜底分支，同时供「描述一个 hostname 的注册域」这类
+ * 非信任用途使用。
  *
  * @param hostname - 完整主机名
  * @returns 主域名字符串
@@ -167,21 +290,22 @@ export function isLocalDevDomain(domain: string): boolean {
 // ── 同主域名校验 ──
 
 /**
- * 判断两个 origin 是否属于同一主域名
+ * 判断两个 origin 是否属于同一注册主体
  *
  * 支持跨子域名的 iframe 委托场景（如 login.example.com 与 app.example.com），
- * 同时正确处理两段式 ccTLD（如 a.example.com.cn 与 b.example.com.cn）。
+ * 同时正确处理两段式 ccTLD（如 a.example.com.cn 与 b.example.com.cn）
+ * 与共享托管后缀（如 a.github.io 与 b.github.io **不同主体**，见 {@link registrableScope}）。
  * 对于 IP 地址或单段 hostname（如 localhost），直接比较完整 hostname。
  *
  * @param originA - 第一个 origin（如 https://sub.example.com）
  * @param originB - 第二个 origin（如 https://app.example.com）
- * @returns 是否属于同一主域名
+ * @returns 是否属于同一注册主体
  */
 export function isSameMainDomain(originA: string, originB: string): boolean {
   try {
     const hostA = new URL(originA).hostname;
     const hostB = new URL(originB).hostname;
-    return getMainDomain(hostA) === getMainDomain(hostB);
+    return registrableScope(hostA) === registrableScope(hostB);
   } catch {
     return false;
   }
@@ -316,7 +440,6 @@ export function normalizeToHostAndPort(value: string): string {
 /** 最近一次参与匹配的当前主机入参，与其归一结果（一格记忆，见 `normalizeCurrentHostCached`） */
 let _currentHostInput: string | null = null;
 let _currentHostNormalized = '';
-
 /**
  * 「当前主机」归一结果的一格记忆
  *
@@ -405,7 +528,7 @@ export function isDomainMatchMode(value: unknown): value is DomainMatchMode {
 export type MatchTier = 0 | 1 | 2 | 3 | 4;
 
 /**
- * 主域名记忆化容量上限（键为 hostname，超出即整体清空，避免无界增长）
+ * 注册主体范围记忆化的容量上限（键为 hostname，超出即整体清空，避免无界增长）
  *
  * 取值口径：**条目总量上限 × 2**（2000 条最多贡献 2000 个不同 stored hostname，
  * 通配条目另需其 base 一条，再加当前域名）——旧值 2000 与整库形状正好卡在临界点上，
@@ -420,19 +543,22 @@ export const MAIN_DOMAIN_CACHE_MAX = 4000;
 const _mainDomainCache = new Map<string, string>();
 
 /**
- * `getMainDomain` 的记忆化包装
+ * {@link registrableScope} 的记忆化包装
  *
- * 分层匹配要逐条求主域名，数百条目 × 多次查询下重复解析同一 hostname 的成本可观；
+ * 分层匹配要逐条求注册主体范围，数百条目 × 多次查询下重复解析同一 hostname 的成本可观；
  * 结果纯函数确定性，可安全缓存。
+ *
+ * 缓存的是「范围」而不是 `getMainDomain` 的原始结果：共享托管后缀那条规则
+ * 每次都要多做一次 Set 查表，而命中路径上两者本就同值。
  */
-function memoizedMainDomain(hostname: string): string {
+function memoizedScope(hostname: string): string {
   if (!hostname) return hostname;
   const hit = _mainDomainCache.get(hostname);
   if (hit !== undefined) return hit;
-  const main = getMainDomain(hostname);
+  const scope = registrableScope(hostname);
   if (_mainDomainCache.size >= MAIN_DOMAIN_CACHE_MAX) _mainDomainCache.clear();
-  _mainDomainCache.set(hostname, main);
-  return main;
+  _mainDomainCache.set(hostname, scope);
+  return scope;
 }
 
 /**
@@ -445,8 +571,14 @@ function memoizedMainDomain(hostname: string): string {
  * 在调用本函数**之前**处理，本函数不参与本地开发端口语义。
  *
  * 通配命中刻意不使用 `endsWith('.qq.com')`（会被 `evil-qq.com` 之类前缀碰撞绕过），
- * 而是复用既有的可信边界「主域名相等」，与跨域 iframe 委托同一口径，
- * 并自动继承 `getMainDomain` 的两段式 ccTLD 全部规则。
+ * 而是复用既有的可信边界「注册主体范围相等」（{@link registrableScope}），
+ * 与跨域 iframe 委托、自动保存归属同一口径，并自动继承 `getMainDomain` 的两段式
+ * ccTLD 全部规则与共享托管后缀表。
+ *
+ * 由此得到的一条**收窄**：共享托管后缀（`github.io` / `vercel.app` 等）下的一级子域
+ * 分属不同租户，`a.github.io` 页面因此看不到 `b.github.io` 的条目——放宽档与通配档
+ * 都一样。副作用是「`*.github.io` 这种覆盖整张公共后缀的通配条目」不再命中任何站点
+ * （它的字面含义就是「跨租户」）；要覆盖某个自己的项目，写成 `*.me.github.io`。
  *
  * @param currentHost - 当前页面 hostname（空串时除通用条目外一律不匹配）
  * @param storedUrl - 密码条目存储的 URL/域名
@@ -459,6 +591,7 @@ function memoizedMainDomain(hostname: string): string {
  * resolveMatchTier('mail.qq.com', '*.qq.com', 'wildcard')   // → 1
  * resolveMatchTier('mail.qq.com', 'music.qq.com', 'sameMainDomain') // → 3
  * resolveMatchTier('mail.qq.com', 'evil-qq.com', 'sameMainDomain')  // → -1
+ * resolveMatchTier('a.github.io', 'b.github.io', 'sameMainDomain')  // → -1（不同租户）
  */
 export function resolveMatchTier(
   currentHost: string,
@@ -479,12 +612,12 @@ export function resolveMatchTier(
     if (mode === 'off') return -1;
     const base = storedHost.slice(WILDCARD_PREFIX.length);
     if (!base) return -1;
-    return memoizedMainDomain(host) === memoizedMainDomain(base) ? 1 : -1;
+    return memoizedScope(host) === memoizedScope(base) ? 1 : -1;
   }
 
   if (mode !== 'sameMainDomain') return -1;
-  const currentMain = memoizedMainDomain(host);
-  if (!currentMain || currentMain !== memoizedMainDomain(storedHost)) return -1;
+  const currentMain = memoizedScope(host);
+  if (!currentMain || currentMain !== memoizedScope(storedHost)) return -1;
   return storedHost === currentMain ? 2 : 3;
 }
 
