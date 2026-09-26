@@ -6076,8 +6076,8 @@ pnpm lint:style  # Stylelint</code></pre>
         {
           q: { zh: '什么是浏览器重启锁定？', en: 'What is lock on browser restart?' },
           a: {
-            zh: '在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需重新输入主密码，适合对安全性要求更高的场景。关闭此选项则在有效期内自动保持登录，无需重复输入。',
-            en: 'Enable "Lock on browser restart" in "Auto lock settings". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period.',
+            zh: '在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需重新输入主密码，适合对安全性要求更高的场景。关闭此选项则在有效期内自动保持登录，无需重复输入。要注意的取舍是：保持登录期间，恢复登录所需的密钥材料会留在本机磁盘上（这正是重启免密的前提），能读取本机浏览器配置的程序在此期间足以解密数据；手动锁定或会话过期会立即销毁它，因此共用电脑建议开启此开关。',
+            en: 'Enable "Lock on browser restart" in "Auto lock settings". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period. The trade-off to know about: while you stay signed in, the key material that restores the session remains on this device's disk (that is what makes password-free restarts possible), so any program able to read this browser profile can decrypt your data until you lock or the session expires — keep the switch on for shared computers.',
           },
         },
         {

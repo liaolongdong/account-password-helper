@@ -80,6 +80,7 @@ graph TB
 - 过期 / 锁定 / 手动锁定三条路径都只走 `clearSession()`：清除内存与 `storage.session` 中的密钥材料、解密快照、CryptoKey 句柄缓存，以及两把**以条目明文为键**的派生记忆缓存（拼音命中区间、标签呈现记录）。磁盘中的条目本来就是密文，**不存在「批量解密为明文存储」或「过期时批量加密回密文」的落盘动作**。
 - 上面两把缓存是模块级 `Map`，**只在加载了该模块的上下文里存在**，因此清理按上下文各自接线（`utils/plaintextCacheCleanup.ts` 登记处 + 各上下文一个触发点）：Background 走 `clearSession()` 与 `resetSessionMemoryState()`（后者由 storage 变更监听触发）；SidePanel 走 `useSidepanelData.ts` 的锁定与过期两条路径；Options 走 `isAuthenticated` 落 false 的 `flush: 'sync'` watcher——管理页可整日常驻，而跨上下文锁定时它只会翻这个状态（`clearSession()` 早在别的上下文跑完），只补 `onSessionExpired` 回调会漏掉 `checkAuth` 自检等其余四条翻转路径。Popup 与 content script 不写这两把缓存（内联下拉只用 `getTagColor`/`parseTags` 等纯函数，拼音模块在其上下文永不预热），故无需接线。该口径由 [plaintextCacheCleanupWiring.test.ts](../tests/architecture/plaintextCacheCleanupWiring.test.ts) 以依赖闭包守卫。
 - 闲置锁定（`chrome.idle`）与浏览器重启锁定是**两个默认关闭**的可选开关（`idleLockMinutes: 0`、`relockOnBrowserRestart: false`）。
+- **"保持登录"等价于"这台设备当前可解密"**：会话有效期内，`session_wrapped_data_key` 与 `session_wrap_key` 同时落在 `storage.local`，这是重启后免密恢复登录的实现依赖（见「加密机制」的会话密钥一条）——能读到该 Profile 的进程在此期间足以把密文解开，条目字段是不是明文反而不改变这个结论。锁定 / 过期 / `clearSession()` 会删除 `WRAPPED_DATA_KEY`（`sessionManager-storage.ts:801-809`），只留一枚对什么都无意义的随机包裹密钥。因此面向共用设备的建议是开启「浏览器重启锁定」：启动屏障会 `clearSession()`，密钥材料不再跨浏览器关闭长期驻留磁盘。该口径同时写进 `privacy.html`「数据存储」、管理页「自动锁定设置」的重启开关提示与侧边栏帮助条目，避免只在一处披露。
 
 ### 加密机制
 
@@ -90,6 +91,7 @@ graph TB
 ```
 
 - 敏感字段加密：`username`、`password`、`url`、`remark`、`totp`；`id`、`tag`、`createTime`、`updateTime`、`order`、`favorite`、`lastUsedAt` 等元数据保持明文，供排序与过滤使用。
+- **一处例外的明文：到期提醒表的账号名**。`password_reminders` 表按 `entryId` 冗余保存该条的 `username`（按码点截断到 `PASSWORD_FIELD_LIMITS.username`，见 [reminderManager.ts](../utils/storage/reminderManager.ts)），因为提醒由 `chrome.alarms` 在任意时刻发出桌面通知（含锁定态），去掉它就等于让通知退化成不含账号的通用文案。它额外泄露的信息是「哪个账号将在何时到期」——按上一条「保持登录 = 磁盘可解」的同一攻击面衡量并不新增防线，但确实是一处需要单独披露的明文；移除该条提醒、删除条目或清空回收站都会连带清除。
 - 空字段不参与加密（写空字符串）；Base64 解码失败安全降级返回原始数据，GCM 解密失败抛出错误由调用方按需处理——认证标签使篡改可检测，无静默回退。
 - **主密码从不落盘**。磁盘上只有校验哈希：`deriveVerifierHash` 同样是 PBKDF2-SHA256 / 600,000 次，但对盐值做了域分离（前缀 `aph-verify|`），使校验值与解密密钥在密码学上互相独立，存储中的校验值无法反推为密钥；比对使用常量时间。旧版单轮 SHA-256 校验值在验证成功时透明升级。
 - **会话密钥**：派生出的数据密钥由一枚新生成的随机包裹密钥（`session_wrap_key`）经同一套 AES-256-GCM 加密，写入 `session_wrapped_data_key`；两者必须在同一次 `chrome.storage.local.set()` 中原子落盘，避免多上下文并发写入时「A 的包裹密钥 + B 的密文」错配。明文数据密钥另存 `storage.session`（仅内存，浏览器关闭即清）。
@@ -359,6 +361,7 @@ graph TB
 - 在密码管理页「自动锁定设置」中配置闲置时间（不锁定 / 5 / 10 / 30 / 60 分钟），连续闲置超过设定时间后自动清除主密码会话并锁定密码管理；系统锁屏或屏保激活时也会立即锁定（见 [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)）。闲置判定基于 chrome.idle API，计时从最后一次系统级用户输入起算。**默认为「不锁定」（`idleLockMinutes: 0`）**，需用户主动开启。
 - 锁定后需重新验证主密码才能恢复访问，与手动锁定和会话过期行为一致。
 - **浏览器重启锁定**：在「自动锁定设置」中可开启「浏览器重启锁定」开关。**该开关默认关闭**：关闭状态下，完全关闭并重新打开浏览器后在有效期内自动保持登录，无需重复输入；开启后重启浏览器需重新输入主密码（更安全），且该屏障为 fail-closed——恢复状态无法判定时按锁定处理（见 [utils/browserStartupRelock.ts](../utils/browserStartupRelock.ts)）。
+- 两个开关的安全价值口径不同，别把它们当同一件事：闲置锁定防的是「人离开机器后留下的可操作会话」，重启锁定防的是「密钥材料长期驻留磁盘」。关闭重启锁定期间，`session_wrap_key` + `session_wrapped_data_key` 会跨重启长期留在 `storage.local`，即「保持登录 = 这台设备当前可解密」（详见「会话生命周期」）。共用设备应开启重启锁定。
 - Popup 弹窗也提供一键「锁定」按钮，可快速清除当前会话。
 
 ### 9. 密码强度可视化

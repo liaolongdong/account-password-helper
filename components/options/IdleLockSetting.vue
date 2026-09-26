@@ -44,6 +44,10 @@
           <el-switch v-model="relockOnBrowserRestart" />
           <div class="form-tip">
             {{ t('options.idleLock.restartTip') }}
+            <!-- 与隐私政策「数据存储」同一条披露：保持登录 = 密钥材料在磁盘上，共用设备应开此开关 -->
+            <div class="form-tip__caution">
+              {{ t('options.idleLock.diskNote') }}
+            </div>
           </div>
         </el-form-item>
       </el-form>
@@ -141,6 +145,12 @@ const handleSave = async (): Promise<void> => {
   font-size: 12px;
   line-height: 1.4;
   color: #909399;
+}
+
+/* 安全披露与上面的常规提示同层级，但用警告色把它从「说明文字」里拎出来 */
+.form-tip__caution {
+  margin-top: 4px;
+  color: var(--el-color-warning);
 }
 
 .dialog-body-scroll {

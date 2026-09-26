@@ -179,6 +179,7 @@
   "options.idleLock.idleTip": "连续闲置超过设定时间后，自动清除主密码会话并锁定；系统锁屏或屏保激活时也会立即锁定",
   "options.idleLock.restartLock": "浏览器重启锁定",
   "options.idleLock.restartTip": "开启后，完全关闭并重新打开浏览器时需重新输入主密码（更安全）；关闭则在有效期内自动保持登录，无需重复输入。",
+  "options.idleLock.diskNote": "保持登录期间，恢复登录所需的密钥材料会随密文一起留在本机磁盘上（这正是重启免密的原因）：能读取本机浏览器配置的程序在此期间足以解密数据。锁定或会话过期会立即销毁这份密钥材料。共用电脑建议开启本开关。",
   "options.idleLock.saved": "自动锁定设置已保存",
   "options.favoriteLimit.label": "收藏条目上限",
   "options.favoriteLimit.tip": "收藏条目达到上限后，新收藏将自动替换最近最少使用（LRU）的收藏条目，确保常用账号始终置顶",
