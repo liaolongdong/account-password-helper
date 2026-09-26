@@ -246,7 +246,7 @@ export function useIdentityVault() {
     categoryFilter.value = 'all';
   }
 
-  /** 会话失效时清空全部内存明文（rows + 视图状态），防止 PII 残留 */
+  /** 会话失效或列表弹窗关闭时清空全部内存明文（rows + 视图状态），防止 PII 残留 */
   function teardown(): void {
     rows.value = [];
     resetViewState();

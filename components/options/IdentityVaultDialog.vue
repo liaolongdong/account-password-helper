@@ -354,7 +354,7 @@ const {
   copyField,
   copyCard,
   remove,
-  resetViewState,
+  teardown,
   load,
 } = props.vault;
 
@@ -398,9 +398,14 @@ watch(
   },
 );
 
-/** 弹窗关闭动画结束后复位显隐/搜索/过滤（不含 rows，下次打开会重新 load） */
+/**
+ * 弹窗关闭动画结束后释放解密明文并复位视图状态
+ *
+ * 列表数据不进 `passwords` 那条常驻链路，身份 PII 此前会一直留到会话失效才被清；
+ * 关闭即释放可把「没在看的敏感数据」从内存驻留集里拿掉，重开由 watch 重新 load 补齐。
+ */
 const handleClosed = (): void => {
-  resetViewState();
+  teardown();
 };
 
 /** 删除条目（二次确认 + 明说不可恢复） */

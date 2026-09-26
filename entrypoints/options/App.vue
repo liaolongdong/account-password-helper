@@ -884,6 +884,10 @@ const openIdentityForm = (entry: IdentityEntry | null): void => {
  * 分流到专属文案；无 code 的其余错误走通用失败提示。
  */
 const handleIdentityFormSave = async (payload: IdentityPayload): Promise<void> => {
+  // 列表弹窗关闭会释放解密快照（见 IdentityVaultDialog 的 @closed），此时 rows 为空
+  // 并不等于「库里没有条目」——按空集判重会让重复证件号静默通过，故先按存储真值补一次加载。
+  // 快照非空时不重载，保持既有「对着当前列表判重」的时序与交互不变。
+  if (identityVault.rows.value.length === 0) await identityVault.load();
   // 保存前疑似重复检测（非阻断）：证件号 / 卡号命中既有条目时二次确认，取消则回到表单不落盘
   const dup = findDuplicateIdentity(identityVault.rows.value, payload, editingIdentity.value?.id);
   if (dup) {

@@ -280,7 +280,7 @@ const emit = defineEmits<{
 }>();
 
 const { t, currentLocale } = useI18n();
-const { historyList, loadHistory, decryptHistoryPassword } = usePasswordHistory();
+const { historyList, loadHistory, resetHistory, decryptHistoryPassword } = usePasswordHistory();
 
 /** 密码明文可见性（本地态，关闭抽屉即复位，不持久化） */
 const passwordVisible = ref(false);
@@ -396,23 +396,33 @@ const handleEdit = (): void => {
 /** 抽屉关闭动画结束后复位敏感态（密码可见性、历史列表） */
 const handleClosed = (): void => {
   passwordVisible.value = false;
-  historyList.value = [];
+  // 用 resetHistory 而非直接清数组：还要作废仍在飞的那次读取，
+  // 否则晚到的结果会把这条目的历史填回已关闭的抽屉，下次打开先闪一下旧数据
+  resetHistory();
 };
 
 /**
  * 抽屉打开时按配置加载密码历史
  * 与编辑弹窗一致：仅在密码历史功能启用时加载，避免无谓解密与存储读取。
+ *
+ * 同样自持开关序号：await 配置期间抽屉被关闭或换看另一条目，这一次就地作废，
+ * 不给已失效的目标发起读取。
  */
+let historyOpenSeq = 0;
+
 watch(
   () => props.modelValue,
   async visible => {
+    const seq = ++historyOpenSeq;
     if (!visible || !props.entry) return;
+    const targetId = props.entry.id;
     passwordVisible.value = false;
     try {
       const { getPasswordHistoryConfig } = await import('@/utils/storage/configManager');
       const config = await getPasswordHistoryConfig();
+      if (seq !== historyOpenSeq) return;
       if (config.enabled) {
-        await loadHistory(props.entry.id);
+        await loadHistory(targetId);
       }
     } catch (error) {
       logger.error('详情抽屉：加载密码历史失败:', error);
