@@ -451,6 +451,11 @@
         /* 滚动揭示与进场那一档 0.6s 的单一来源（取值与收敛前逐字等价，不是新的时间承诺）。
            hover / 按压那两档仍是各处字面量，等出现第二处需要统一引用的地方再收进来。 */
         --dur-slow: 0.6s;
+        /* 下面两档由本轮新增的三处动效引入（卡片追光、复制回执、灯箱开合），
+           它们需要同一条时间线而不是各写各的；既有的 hover / 按压字面量不在此列，
+           收敛它们会逐条改变手感，属独立任务。 */
+        --dur-fast: 0.2s;
+        --dur-mid: 0.32s;
       }
 
       .container {
@@ -490,7 +495,10 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        height: 64px;
+        /* 用 min-height 而非 height：锚点条是 flex-wrap 的兜底布局，不同机器的字体度量
+           有差异，万一 12 项单行放不下就整项换到第二行（而不是把 "How it works" 断成三行）。
+           写死 64px 时第二行会溢出页头压到 hero 上；两行时这里长到 ~72px，一行时仍是 64px。 */
+        min-height: 64px;
       }
       .brand {
         display: flex;
@@ -498,14 +506,27 @@
         gap: 10px;
         font-weight: 600;
         font-size: 16px;
+        /* 品牌名既不换行也不被压缩：它折行只是把坏样子从标签区挪到左边，
+           而一旦它的盒子被挤窄，nowrap 的文字就会溢出盒子压到第一条锚点上。 */
+        white-space: nowrap;
+        flex-shrink: 0;
       }
       .brand img {
         width: 28px;
         height: 28px;
       }
+      /* 页头比页脚窄一档：12 项锚点在 1200px 容器里刚好差这十几像素的呼吸感。
+         只作用于 .nav，页脚复用的 .brand 维持 16px。 */
+      .nav .brand {
+        font-size: 15px;
+      }
       .nav-links {
+        /* 12 项（本轮补了痛点 / 场景 / 安装三条锚点）：28px 的间距在 1200px 容器里会溢出，
+           收到 14px 后中英两版单行都放得下。允许整项换行是兜底——不同机器的字体度量有差异，
+           万一放不下就断在两项之间，而不是把 "How it works" 断成三行。 */
         display: flex;
-        gap: 28px;
+        flex-wrap: wrap;
+        gap: 8px 12px;
       }
       .nav-links a {
         font-size: 14px;
@@ -513,6 +534,7 @@
         transition: color 0.2s;
         position: relative;
         padding: 6px 0;
+        white-space: nowrap;
       }
       .nav-links a:hover,
       .nav-links a.active {
@@ -550,6 +572,13 @@
         color: white;
         background: var(--text);
         transform: translateY(-1px);
+      }
+      /* ≤480 先撤这个源码图标，让位给品牌名与汉堡：抽屉里本来就有「GitHub 下载」出口，
+         页脚也有源码链接，撤掉不丢入口；留着它则英文页在 420px 一档就把整行占满。 */
+      @media (max-width: 480px) {
+        .nav-github {
+          display: none;
+        }
       }
 
       /* 语言切换按钮（中 / EN） */
@@ -912,7 +941,11 @@
       .slide-shot {
         width: 100%;
         max-width: 760px;
-        aspect-ratio: 16 / 9;
+        /* 与源图同比例：assets/cws-store/screen-*.png 全是 2560×1600（16:10），
+           原先写 16/9 时 object-fit:cover 会把内容放大到 760×475 再居中裁切，
+           上下各吃掉 23.75px（源图 80px）——正好切在图顶部那条深蓝标题带的下半截上，
+           副标题被削平。改成 16/10 后 cover 无溢出、零裁切，框高 427.5 → 475。 */
+        aspect-ratio: 16 / 10;
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
@@ -1274,8 +1307,8 @@
         border: 1px solid rgba(255, 255, 255, 0.16);
         border-radius: 999px;
         transition:
-          color 0.2s,
-          border-color 0.2s;
+          color var(--dur-fast) var(--ease-out),
+          border-color var(--dur-fast) var(--ease-out);
       }
       .wechat-copy-btn:hover {
         color: white;
@@ -1393,7 +1426,11 @@
         font-weight: 700;
         text-align: center;
         border-bottom: 2px solid var(--border);
-        background: var(--bg-subtle);
+        /* 这三处原本引用 :root 里从未定义的 --bg-subtle / --text-secondary，
+           自定义属性解析失败后 background 落到透明、color 继承正文黑，
+           等于表头没有底色带、行悬停完全没有反馈（实测 th background 为 rgba(0,0,0,0)）。
+           改成本页真实存在的令牌：--bg-soft 即那层 #f8fafc 弱底，--text-muted 是次级文字色。 */
+        background: var(--bg-soft);
         color: var(--text);
       }
       .compare-table thead th:first-child {
@@ -1412,7 +1449,7 @@
         padding: 14px 20px;
         text-align: center;
         border-bottom: 1px solid var(--border);
-        color: var(--text-secondary);
+        color: var(--text-muted);
       }
       .compare-table tbody td:first-child {
         text-align: left;
@@ -1427,11 +1464,17 @@
       .compare-table tbody tr:last-child td {
         border-bottom: none;
       }
-      .compare-table tbody tr:hover {
-        background: var(--bg-subtle);
-      }
-      .compare-table tbody tr:hover td.highlight {
-        background: rgba(66, 133, 244, 0.08);
+      /* 行悬停回色刚被修活（此前是死规则），所以顺手补上本页既有的 hover 介质门控：
+         触屏上 :hover 会在点按后粘住，没有门控就会留下一条擦不掉的灰带。
+         下面「按列回色」的 :has() 规则同属这一族反馈，一起收进同一个门控，
+         避免触屏上「列有色、行没色」这种半套行为。 */
+      @media (hover: hover) and (pointer: fine) {
+        .compare-table tbody tr:hover {
+          background: var(--bg-soft);
+        }
+        .compare-table tbody tr:hover td.highlight {
+          background: rgba(66, 133, 244, 0.08);
+        }
       }
       .compare-check {
         color: #42b983;
@@ -1469,6 +1512,136 @@
         .compare-table thead th,
         .compare-table tbody td {
           padding: 10px 12px;
+        }
+      }
+
+      /* ============ 痛点 / 场景 / 安装 ============ */
+      /* 对齐兄弟站补的三个板块。表格沿用「窄屏横向滚动而不是缩字号」的处理，
+         与 .compare-table-wrap 同一思路；配色只引用 :root 里已定义的令牌。 */
+      .pa-wrap {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: white;
+        box-shadow: var(--shadow-sm);
+      }
+      .pa-table {
+        width: 100%;
+        min-width: 660px;
+        border-collapse: collapse;
+        font-size: 14.5px;
+      }
+      .pa-table caption {
+        padding: 18px 26px 0;
+        font-size: 13px;
+        color: var(--text-muted);
+        text-align: left;
+      }
+      .pa-table thead th {
+        padding: 14px 26px;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-align: left;
+        letter-spacing: 0.04em;
+        border-bottom: 1px solid var(--border);
+      }
+      .pa-table thead th.after {
+        color: var(--primary);
+      }
+      .pa-table tbody th {
+        width: 15%;
+        padding: 16px 26px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--border);
+      }
+      .pa-table tbody td {
+        padding: 16px 26px;
+        line-height: 1.75;
+        color: var(--text-muted);
+        text-align: left;
+        vertical-align: top;
+        border-bottom: 1px solid var(--border);
+      }
+      .pa-table tbody td.after {
+        color: var(--text);
+        background: rgba(78, 136, 255, 0.045);
+      }
+      .pa-table tbody tr:last-child th,
+      .pa-table tbody tr:last-child td {
+        border-bottom: none;
+      }
+      .pa-table code {
+        padding: 1px 5px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 5px;
+      }
+      /* 场景表比对照表多一列「在哪操作」，列宽需要压住，否则第三列会挤掉正文 */
+      .pa-table.scene {
+        min-width: 780px;
+      }
+      .pa-table.scene tbody th {
+        width: 24%;
+      }
+      .pa-table.scene tbody td:last-child {
+        width: 26%;
+        font-size: 13px;
+      }
+      .req-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .req-card {
+        padding: 24px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: white;
+        box-shadow: var(--shadow-sm);
+      }
+      .req-card h3 {
+        margin: 0 0 10px;
+        font-size: 16px;
+      }
+      .req-card p {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.8;
+        color: var(--text-muted);
+      }
+      .req-card p + p {
+        margin-top: 10px;
+      }
+      .req-card ul {
+        margin: 0;
+        padding-left: 18px;
+        font-size: 14px;
+        line-height: 1.85;
+        color: var(--text-muted);
+      }
+      .req-card pre {
+        margin: 14px 0 0;
+        padding: 14px 16px;
+        overflow-x: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        line-height: 1.9;
+        color: var(--text);
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+      }
+      @media (max-width: 900px) {
+        .req-grid {
+          grid-template-columns: minmax(0, 1fr);
         }
       }
 
@@ -1710,16 +1883,22 @@
          3. 循环全部挂在 html.js 下：JS 缺席时既没有门控也没有动画，页面停在终态；
          4. 常驻循环由 .idle（滚出视口或标签页后台）与 html.motion-idle（后台）暂停，见文末脚本。 */
 
-      /* A1 填充流水线：数据包沿 4 个输入框跑一趟，被跑到的框逐个填满（对应 f2「四种方式，逐个填入」） */
+      /* A1 填充流水线：数据包跑过一排登录表单控件，被跑到的逐个「填好」——
+         账号条 / 密码点 / 勾选框打勾 / 登录按钮按下，对应 f2「一键安全填充」。
+         原先是四个一模一样的空框依次变蓝：既没有图例（读不出是四种入口还是四个字段），
+         点亮色 #eaf1ff 压在白底上只有 1.13:1（等于看不见），且每轮末尾四格同时倒带清空，
+         像「还在加载」。现在四格各有形状，且只占周期前 40%、后 60% 停在满态。 */
       @keyframes aph-travel {
         0% {
           opacity: 0;
           transform: translateX(-100%);
         }
-        6%,
-        94% {
+        3%,
+        37% {
           opacity: 1;
         }
+        /* 跑完就停在界外不出场，等满态展示完再重来；transform 由 0% → 40% 线性插值 */
+        40%,
         100% {
           opacity: 0;
           transform: translateX(0);
@@ -1729,12 +1908,22 @@
         0% {
           transform: scaleX(0);
         }
-        14%,
-        86% {
+        10%,
+        100% {
           transform: scaleX(1);
         }
+      }
+      /* 对勾：与所在格的填充同一条时间线，基准态 = 已勾选 */
+      @keyframes aph-tick {
+        0%,
+        2% {
+          opacity: 0;
+          transform: translateY(-50%) scale(0.5) rotate(-45deg);
+        }
+        12%,
         100% {
-          transform: scaleX(0);
+          opacity: 1;
+          transform: translateY(-50%) scale(1) rotate(-45deg);
         }
       }
       .flow {
@@ -1744,6 +1933,7 @@
         margin-top: 20px;
       }
       .flow-step {
+        position: relative;
         flex: 1;
         height: 34px;
         overflow: hidden;
@@ -1751,13 +1941,72 @@
         border: 1px solid var(--border);
         border-radius: 8px;
       }
+      /* 填充层压在字形下方（z-index 0 / 1），所以「点亮」不会盖掉内容，只把它衬出来。
+         取值 #b9d2ff 对白底 1.53:1，是原来 #eaf1ff（1.13:1）读不出来的那档以下。 */
       .flow-step i {
-        display: block;
-        width: 100%;
-        height: 100%;
-        background: var(--primary-soft);
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        background: #b9d2ff;
         transform: scaleX(1);
         transform-origin: left center;
+      }
+      /* 四格各自的形状：账号条 / 密码点阵 / 勾选框 / 登录按钮。
+         全部用 border 与渐变画，不放文字，因此语言无关、也不需要进 I18N 字典。 */
+      .flow-step::before {
+        content: '';
+        position: absolute;
+        z-index: 1;
+      }
+      .flow-step:nth-child(1)::before {
+        top: 50%;
+        left: 9px;
+        width: 52%;
+        height: 6px;
+        background: var(--text-muted);
+        border-radius: 3px;
+        transform: translateY(-50%);
+      }
+      .flow-step:nth-child(2)::before {
+        inset: 0;
+        background-image: radial-gradient(circle at 3px 3px, var(--text-muted) 2.6px, transparent 3px);
+        background-repeat: repeat-x;
+        background-position: 10px center;
+        background-size: 13px 6px;
+      }
+      .flow-step:nth-child(3)::before {
+        top: 50%;
+        left: 9px;
+        width: 15px;
+        height: 15px;
+        background: white;
+        border: 1.5px solid var(--text-muted);
+        border-radius: 4px;
+        transform: translateY(-50%);
+      }
+      .flow-step:nth-child(4)::before {
+        right: 8px;
+        bottom: 6px;
+        left: 8px;
+        top: 6px;
+        background: var(--primary);
+        border-radius: 6px;
+      }
+      .flow-step:nth-child(4) i {
+        background: rgba(78, 136, 255, 0.24);
+      }
+      /* 勾选框里的对勾：基准态 = 已勾选，降级下停在有意义的一帧 */
+      .flow-step:nth-child(3)::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 12px;
+        z-index: 2;
+        width: 9px;
+        height: 4px;
+        border-bottom: 2px solid var(--primary-dark);
+        border-left: 2px solid var(--primary-dark);
+        transform: translateY(-50%) rotate(-45deg);
       }
       /* 数据包用「满宽容器 + 右端子点」的写法，位移量只有 -100% → 0，不碰 left / width */
       .flow-packet {
@@ -1767,6 +2016,12 @@
         width: 100%;
         height: 100%;
         pointer-events: none;
+        /* 必须高于四格字形（::before 是 1、对勾 ::after 是 2）：.flow-step 是 z-index:auto，
+           不建立层叠上下文，所以这些伪元素直接参加外层卡片的层叠排序，而 auto 的定位元素
+           排在正 z 之后——数据包会被账号条、勾选框尤其是第四格那颗实心按钮吃掉。实测
+           （暂停动画后按跑程逐点取元素FromPoint）落在格内的 38 个采样点里 23 个（61%）看不见，
+           第四格整段 100px 行程全被按钮盖住，正好是「点亮」最该被看到的一刻。抬到 3 之后归零。 */
+        z-index: 3;
       }
       .flow-packet::before {
         content: '';
@@ -1778,26 +2033,39 @@
         margin: -4px 0 0 -4px;
         background: var(--primary);
         border-radius: 50%;
-        box-shadow: 0 0 0 3px rgba(78, 136, 255, 0.18);
+        /* 两圈光晕：里圈白、外圈品牌蓝的淡影。白圈在白底上看不见（等于没有），
+           但数据包最后要跑进第四格那颗实心 var(--primary) 按钮——同色同底时点会整个消失，
+           跑程最后 100px 变成「东西凭空没了」。加一圈白描边后，点在浅底与实心蓝上都读得出来。 */
+        box-shadow:
+          0 0 0 2px white,
+          0 0 0 5px rgba(78, 136, 255, 0.22);
       }
       html.js .flow-packet {
-        animation: aph-travel 4.8s linear infinite;
+        animation: aph-travel 6s linear infinite;
       }
+      /* backwards 是为了首轮：基准态 = 满态（供降级停靠），但首轮在各自的
+         animation-delay 期间不能先闪一下满态再清空，所以延迟段取 0% 关键帧的值。 */
       html.js .flow-step i {
-        animation: aph-fill 4.8s var(--ease-out) infinite;
+        animation: aph-fill 6s var(--ease-out) infinite backwards;
       }
-      /* 点亮时刻对准数据包跑到该框中心的时间：4.8s 跑 4 格，分别约 0.6 / 1.8 / 3.0 / 4.2s */
+      html.js .flow-step:nth-child(3)::after {
+        animation: aph-tick 6s var(--ease-out) infinite backwards;
+      }
+      /* 点亮时刻对准数据包跑到该框中心的时间：跑程占周期前 40%（2.4s），
+         等分四格的中心依次落在 12.5% / 37.5% / 62.5% / 87.5% 处 → 0.3 / 0.9 / 1.5 / 2.1s。
+         四格必须保持 flex:1 等宽，改成不等宽这条对应关系就会随视口漂掉。 */
       html.js .flow-step:nth-child(1) i {
-        animation-delay: 0.6s;
+        animation-delay: 0.3s;
       }
       html.js .flow-step:nth-child(2) i {
-        animation-delay: 1.8s;
+        animation-delay: 0.9s;
       }
-      html.js .flow-step:nth-child(3) i {
-        animation-delay: 3s;
+      html.js .flow-step:nth-child(3) i,
+      html.js .flow-step:nth-child(3)::after {
+        animation-delay: 1.5s;
       }
       html.js .flow-step:nth-child(4) i {
-        animation-delay: 4.2s;
+        animation-delay: 2.1s;
       }
 
       /* A2 TOTP 活码环：30s 走完一圈，末段转红，与侧边栏 TotpCode 同一套节奏 */
@@ -1966,39 +2234,41 @@
         animation-delay: 0.28s;
       }
 
-      /* A5 逐字段密文：明文与密文样本交叉淡入 + 一次掠光（对应 f1「逐字段 AES-256-GCM」） */
+      /* A5 逐字段密文：明文退场 → 掠光扫过 → 密文进场并长持，对应 f1
+         「用户名 / 密码 / 网址 / 备注 / TOTP 逐字段密文存储」。三处修正：
+         ① 原先是一条 1.08s 的交叉淡入，两串字符叠在同一位置各半透明，糊成一团；
+         现在明文在 30-33% 退干净、密文从 33% 才开始进场，两条曲线不相交，
+         中间只留一瞬空白，正好被掠光盖住，读起来是「扫过即成密文」。
+         ② 原先密文用深色加粗、明文用灰色，颜色语义反了——像「一条密码变成另一条密码」；
+         现在明文是主角，密文灰化、等宽、明显更长并被输入框裁断。
+         ③ 原先 95-100% 双向回摆，每轮末尾演一次「解密」，与卖点正好相反；
+         现在末端停在基准值，换轮是瞬时切回明文（演下一轮），不是淡回。 */
       @keyframes aph-cipher-in {
         0%,
-        22% {
+        30% {
           opacity: 1;
         }
-        40%,
-        84% {
-          opacity: 0;
-        }
+        33%,
         100% {
-          opacity: 1;
+          opacity: 0;
         }
       }
       @keyframes aph-cipher-out {
         0%,
-        22% {
+        33% {
           opacity: 0;
         }
-        40%,
-        84% {
-          opacity: 1;
-        }
+        36%,
         100% {
-          opacity: 0;
+          opacity: 1;
         }
       }
       @keyframes aph-sweep {
         0%,
-        30% {
+        28% {
           transform: translateX(-100%);
         }
-        58%,
+        38%,
         100% {
           transform: translateX(100%);
         }
@@ -2009,9 +2279,26 @@
         gap: 8px;
         margin-top: 18px;
       }
+      /* 行 = 字段名 + 输入框。字段名把「逐字段」这个卖点画出来：原先只有两行裸字符，
+         看不出是哪五个字段里的哪两个。 */
       .cipher-row {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        height: 28px;
+      }
+      .cipher-key {
+        flex: 0 0 68px;
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-align: right;
+        letter-spacing: 0.02em;
+      }
+      .cipher-field {
         position: relative;
-        height: 26px;
+        flex: 1;
+        height: 100%;
         overflow: hidden;
         background: white;
         border: 1px solid var(--border);
@@ -2029,16 +2316,16 @@
       }
       /* 终态 = 密文在场，明文退到 0：停掉动画就是「已加密」这一帧 */
       .cipher-in {
-        color: var(--text-muted);
+        color: var(--text);
+        font-weight: 600;
         opacity: 0;
       }
       .cipher-out {
-        color: var(--text);
-        font-weight: 600;
-        letter-spacing: 1px;
+        color: var(--text-muted);
+        letter-spacing: 0.5px;
         opacity: 1;
       }
-      .cipher-row::after {
+      .cipher-field::after {
         content: '';
         position: absolute;
         inset: 0;
@@ -2052,13 +2339,14 @@
       html.js .cipher-out {
         animation: aph-cipher-out 6s ease-in-out infinite;
       }
-      html.js .cipher-row::after {
+      html.js .cipher-field::after {
         animation: aph-sweep 6s ease-in-out infinite;
       }
-      /* 第二行错开 0.7s，两行不同时翻脸 */
+      /* 第二行错开 0.25s（原 0.7s 会跑到下一格才收尾，读起来是两行各自乱闪；
+         0.25s 读起来才是「从上往下逐个字段加密」） */
       html.js .cipher-row:nth-child(2) :is(.cipher-in, .cipher-out),
-      html.js .cipher-row:nth-child(2)::after {
-        animation-delay: 0.7s;
+      html.js .cipher-row:nth-child(2) .cipher-field::after {
+        animation-delay: 0.25s;
       }
 
       /* 循环动效统一门控：模块滚出视口给自身挂 .idle，标签页切后台再挂 html.motion-idle。
@@ -2068,11 +2356,13 @@
         :is(.key-card, .hero-badge, .flow-packet, .flow-step i, .totp-arc, .totp-code, .cipher-in, .cipher-out) {
         animation-play-state: paused;
       }
-      /* 伪元素不能进 :is()，掠光单独列一遍 */
+      /* 伪元素不能进 :is()，掠光与对勾单独列一遍 */
       .idle .hero-visual .key-card::after,
-      .idle .cipher-row::after,
+      .idle .cipher-field::after,
+      .idle .flow-step:nth-child(3)::after,
       html.motion-idle .hero-visual .key-card::after,
-      html.motion-idle .cipher-row::after {
+      html.motion-idle .cipher-field::after,
+      html.motion-idle .flow-step:nth-child(3)::after {
         animation-play-state: paused;
       }
 
@@ -2117,6 +2407,149 @@
         .more-links a:hover::after {
           transform: translateX(3px) rotate(45deg);
         }
+      }
+
+      /* ---------- 卡片追光 ---------- */
+      /* 一束柔光跟着指针走在卡面上，把 14 张特性卡的质感抬一档。
+         --gx / --gy 由文末脚本在 pointermove 里用 rAF 攒帧写入，CSS 只读变量，
+         事件回调里不碰样式。三条边界：
+         ① 光晕走 z-index:-1 + isolation:isolate，落在卡片自身背景之上、文字与子块之下，
+            因此不需要给任何子元素提层；
+         ② 只在有真指针的设备上显形，触屏没有 hover 态可依赖；
+         ③ 基准态 opacity:0 且挂在 html.js 下，JS 缺席时这层压根不存在，
+            降级只需 animation/opacity 归零（见文末降级块）。 */
+      .feature-card,
+      .more-card,
+      .req-card {
+        position: relative;
+        isolation: isolate;
+      }
+      html.js .feature-card::before,
+      html.js .more-card::before,
+      html.js .req-card::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        z-index: -1;
+        border-radius: inherit;
+        background: radial-gradient(
+          240px circle at var(--gx, 50%) var(--gy, 50%),
+          rgba(78, 136, 255, 0.14),
+          transparent 68%
+        );
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity var(--dur-mid) var(--ease-out);
+      }
+      @media (hover: hover) and (pointer: fine) {
+        html.js .feature-card:hover::before,
+        html.js .more-card:hover::before,
+        html.js .req-card:hover::before {
+          opacity: 1;
+        }
+      }
+
+      /* ---------- 复制回执 ---------- */
+      /* 复制成功原本只把文字换成「已复制 ✓」，在深色页脚里容易看漏。
+         这里补一次「弹一下并转绿」。动画不写 forwards，播完自己回到常态，
+         所以基准态就是常态，减弱动效下只需 animation: none——颜色那部分是信息，保留。 */
+      @keyframes aph-confirm {
+        0% {
+          transform: scale(1);
+        }
+        35% {
+          transform: scale(1.07);
+        }
+        100% {
+          transform: scale(1);
+        }
+      }
+      .wechat-copy-btn.copied {
+        color: #6ee7b7;
+        border-color: rgba(110, 231, 183, 0.45);
+      }
+      html.js .wechat-copy-btn.copied {
+        animation: aph-confirm var(--dur-mid) var(--ease-out);
+      }
+
+      /* ---------- 演示图灯箱 ---------- */
+      /* 轮播把 2560×1600 的截图压进一屏宽，细节看不清；点一下在原位放大到整屏。
+         节点由脚本创建并挂在 body 上（轮播轨道带 transform，放在里面会被它拽着走），
+         JS 缺席时压根没有这个节点，因此不需要额外的降级分支。
+         进场用「从缩略图尺寸长出来」的 scale + 淡入，制造同一张图的连续感。 */
+      @keyframes aph-lb-veil {
+        from {
+          opacity: 0;
+        }
+      }
+      @keyframes aph-lb-plate {
+        from {
+          opacity: 0;
+          transform: scale(0.94);
+        }
+      }
+      .lightbox {
+        position: fixed;
+        inset: 0;
+        z-index: 200;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        padding: 5vh 5vw;
+        /* 0.88 时白底页面上的正文会透过遮罩浮在截图上，读不清放大的那张图；抬到 0.94
+           仍能透出一丝页面轮廓，保住「这是浮层」的空间感。 */
+        background: rgba(15, 23, 42, 0.94);
+      }
+      .lightbox[hidden] {
+        display: none;
+      }
+      .lightbox img {
+        max-width: 100%;
+        max-height: calc(100vh - 130px);
+        border-radius: 12px;
+        box-shadow: var(--shadow-lg);
+        cursor: zoom-out;
+      }
+      .lightbox .lightbox-cap {
+        max-width: 900px;
+        font-size: 14px;
+        color: #cbd5e1;
+        text-align: center;
+      }
+      .lightbox-close {
+        position: absolute;
+        top: 16px;
+        right: 20px;
+        width: 38px;
+        height: 38px;
+        font-family: inherit;
+        font-size: 20px;
+        line-height: 1;
+        color: #cbd5e1;
+        cursor: pointer;
+        background: transparent;
+        border: 1px solid rgba(255, 255, 255, 0.24);
+        border-radius: 50%;
+      }
+      .lightbox-close:hover {
+        color: white;
+        border-color: rgba(255, 255, 255, 0.55);
+      }
+      .lightbox-close:focus-visible,
+      .slide-shot img:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 3px;
+      }
+      html.js .lightbox {
+        animation: aph-lb-veil var(--dur-fast) var(--ease-out);
+      }
+      html.js .lightbox img {
+        animation: aph-lb-plate var(--dur-mid) var(--ease-out);
+      }
+      .slide-shot img {
+        cursor: zoom-in;
       }
 
       /* ============ Metrics（首屏数据带） ============ */
@@ -2366,6 +2799,62 @@
           font-size: 42px;
         }
       }
+      /* 页头这一行是「品牌 + 12 项锚点 + 语言切换 + 源码图标」四段共用的不换行 flex，
+         能排的总量要看整行而不是锚点条自己：实测容器内容宽 1152px，整行英文 1107px（锚点条
+         764px）/ 中文 899px（锚点条 629px），英文一档只剩 45px 余量。再窄就非折行不可，
+         所以 1199px 以下整体收进汉堡抽屉——与兄弟站的「横排 → 汉堡」两段式一致，
+         而不是继续压字号。隐藏与汉堡按钮都挂在 html.js 上：禁用脚本时抽屉打不开，
+         此时宁可让锚点条折行，也不能让 12 个入口一起消失（这条同时补上了原先 ≤768 的同类缺口）。 */
+      @media (max-width: 1199px) {
+        html.js .nav-links {
+          display: none;
+        }
+        html.js .nav-links.open {
+          display: flex;
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          flex-direction: column;
+          gap: 0;
+          background: white;
+          padding: 8px 24px 16px;
+          border-bottom: 1px solid var(--border);
+          box-shadow: var(--shadow-md);
+          /* 12 项 × 45px 在 800px 高的窗口里会顶出视口，抽屉自身可滚。 */
+          max-height: calc(100vh - 64px);
+          overflow-y: auto;
+        }
+        html.js .nav-links.open a {
+          padding: 12px 0;
+          border-bottom: 1px solid var(--border);
+        }
+        html.js .nav-links.open a:last-child {
+          border-bottom: none;
+        }
+        html.js .nav-toggle {
+          display: flex;
+          width: 36px;
+          height: 36px;
+          align-items: center;
+          justify-content: center;
+          color: var(--text);
+        }
+      }
+      /* 769–1199 是本轮新落进抽屉的一段宽度：单列 12 项要 593px，在横屏平板上几乎占满
+         视口，所以这一段改双列（约 300px 高）。分隔线在双列里会留下悬空横线，换成列间距。 */
+      @media (min-width: 769px) and (max-width: 1199px) {
+        html.js .nav-links.open {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          column-gap: 32px;
+          padding-bottom: 12px;
+        }
+        html.js .nav-links.open a {
+          padding: 10px 0;
+          border-bottom: none;
+        }
+      }
       @media (max-width: 768px) {
         section {
           padding: 56px 0;
@@ -2378,6 +2867,18 @@
         }
         .hero h1 {
           font-size: 34px;
+        }
+        /* 英文版品牌名 222px（中文 158px），加上语言切换与汉堡后，420px 一档就把这行占满，
+           再往下挤汉堡会被推出视口、整页横向滚动。窄屏让品牌可缩、超出部分用省略号收掉，
+           行高不变（min-height:64px 仍然够）。挂 html.js 是因为这只在抽屉模式成立：
+           禁 JS 时锚点条摊在页头里，品牌名缩到 35px 反而把入口读成图标。 */
+        html.js .nav .brand {
+          min-width: 0;
+          flex-shrink: 1;
+        }
+        html.js .nav .brand span {
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
         .metrics-inner {
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2405,36 +2906,10 @@
         .step-grid {
           grid-template-columns: 1fr;
         }
-        .nav-links {
-          display: none;
-        }
-        .nav-links.open {
-          display: flex;
-          position: absolute;
-          top: 64px;
-          left: 0;
-          right: 0;
-          flex-direction: column;
-          gap: 0;
-          background: white;
-          padding: 8px 24px 16px;
-          border-bottom: 1px solid var(--border);
-          box-shadow: var(--shadow-md);
-        }
-        .nav-links.open a {
-          padding: 12px 0;
-          border-bottom: 1px solid var(--border);
-        }
-        .nav-links.open a:last-child {
-          border-bottom: none;
-        }
-        .nav-toggle {
-          display: flex;
-          width: 36px;
-          height: 36px;
-          align-items: center;
-          justify-content: center;
-          color: var(--text);
+        /* 作者的其他插件：两列在 768px 以下每格只剩约 350px，长描述挤成一窄条，
+           与 .feature-grid / .step-grid 一样收成单列。 */
+        .more-grid {
+          grid-template-columns: 1fr;
         }
         .carousel-arrow.prev {
           left: 8px;
@@ -2453,9 +2928,12 @@
       /* ============ 对比表按列回色 ============ */
       /* 兄弟站的按列高亮靠脚本往表格写 data-col；这里用 :has() 纯 CSS 达成同一效果，不新增 JS。
          本插件列已有 `.highlight` 专属 class（不是靠第几列定位），鼠标落在该列任意一格即整列抬升，
-         色值沿用该列 base / 行 hover 的同一族蓝调，只把透明度再抬一档。:has() 不被支持时静默为无。 */
-      .compare-table:has(.highlight:hover) .highlight {
-        background: rgba(66, 133, 244, 0.12);
+         色值沿用该列 base / 行 hover 的同一族蓝调，只把透明度再抬一档。:has() 不被支持时静默为无。
+         与上方行悬停共用同一道 hover 门控，触屏上两者一起不生效，行为保持一致。 */
+      @media (hover: hover) and (pointer: fine) {
+        .compare-table:has(.highlight:hover) .highlight {
+          background: rgba(66, 133, 244, 0.12);
+        }
       }
 
       /* ============ 锚点落位反馈 ============ */
@@ -2516,9 +2994,10 @@
         html.js .faq-item.open .faq-a-inner {
           transform: none;
         }
-        /* 功能自证四块：停掉动画即停在各自终态（框已填满 / 环满格 / 条按权重 / 密文在场），
+        /* 功能自证四块：停掉动画即停在各自终态（表单已填好并勾选 / 环满格 / 条按权重 / 密文在场），
            选择器必须带上 html.js 前缀压过基准规则的权重。 */
         html.js .flow-step i,
+        html.js .flow-step:nth-child(3)::after,
         html.js .totp-arc,
         html.js .totp-code,
         html.js .cipher-in,
@@ -2528,7 +3007,7 @@
         }
         /* 数据包与掠光是「运动本身」，降级后没有承载信息，直接撤掉 */
         html.js .flow-packet,
-        html.js .cipher-row::after {
+        html.js .cipher-field::after {
           display: none;
         }
         /* 计数降级为静态终值：撤掉伪元素计数、把真实文本 82 放回来 */
@@ -2555,6 +3034,18 @@
         .feature-card:hover .feature-icon {
           transform: none;
         }
+        /* 卡片追光整层撤掉：它跟着指针走，「位移」就是这条动效本身，撤了不损失信息。
+           复制回执只撤弹跳、保留转绿（颜色是回执内容）；灯箱撤进场、留瞬时显形。 */
+        html.js .feature-card:hover::before,
+        html.js .more-card:hover::before,
+        html.js .req-card:hover::before {
+          opacity: 0;
+        }
+        html.js .wechat-copy-btn.copied,
+        html.js .lightbox,
+        html.js .lightbox img {
+          animation: none;
+        }
         /* 数据带短划与工作原理顶边：停在终态（画满），不靠动画也能读到 */
         html.js .metric i::after,
         html.js .hiw-step::before,
@@ -2571,6 +3062,32 @@
         }
       }
     </style>
+    <!-- 禁 JS 兜底：抽屉打不开时 12 条锚点摊在页头里。实测 ≤520 这一段，品牌名 + 语言切换
+         把这行的剩余宽度压到 83～150px，锚点条被挤成 12 行——英文页在 320px 一档整页横向滚动
+         +69px、页头高 500px（中文同档 373px）。这里让页头允许换行、锚点词条可断行，锚点条整体
+         落到第二行：横向溢出归零，页头高度降到 203px（en 420 一档 458→203，zh 320 一档 373→203）。
+         只写在 <noscript> 里，是为了完全不碰 JS 档（JS 开启时 ≤520 的页头维持单行 64px）；
+         断点取 520 而非 768——640 以上禁 JS 也只有两行（76.8px），换行反而多占一档高度。
+         scroll-padding-top 跟着抬：基准的 84px 是按 64px 单行页头算的，页头 .nav 是 sticky，
+         折行后高 203px，不补这一段则点锚点会把小标题压在页头底下。 -->
+    <noscript>
+      <style>
+        @media (max-width: 520px) {
+          html {
+            scroll-padding-top: 212px;
+          }
+          .nav-inner {
+            flex-wrap: wrap;
+            row-gap: 6px;
+            padding-top: 8px;
+            padding-bottom: 8px;
+          }
+          .nav-links a {
+            white-space: normal;
+          }
+        }
+      </style>
+    </noscript>
   </head>
   <body>
     <!-- ======= Top Nav ======= -->
@@ -2590,6 +3107,11 @@
           class="nav-links"
           id="navLinks"
         >
+          <a
+            href="#problem"
+            data-i18n="nav.problem"
+            >Why</a
+          >
           <a
             href="#features"
             data-i18n="nav.features"
@@ -2611,9 +3133,19 @@
             >Steps</a
           >
           <a
+            href="#use-cases"
+            data-i18n="nav.useCases"
+            >Use cases</a
+          >
+          <a
             href="#compare"
             data-i18n="nav.compare"
             >Compare</a
+          >
+          <a
+            href="#install"
+            data-i18n="nav.install"
+            >Install</a
           >
           <a
             href="#privacy"
@@ -2630,14 +3162,14 @@
             target="_blank"
             rel="noopener noreferrer"
             data-i18n="nav.cws"
-            >Chrome Web Store</a
+            >Web Store</a
           >
           <a
             href="https://github.com/liaolongdong/account-password-helper/releases/latest"
             target="_blank"
             rel="noopener noreferrer"
             data-i18n="nav.github"
-            >GitHub Download</a
+            >Releases</a
           >
         </div>
         <button
@@ -2917,6 +3449,111 @@
       </div>
     </section>
 
+    <!-- ======= 痛点 ======= -->
+    <section id="problem">
+      <div class="container">
+        <div class="section-head">
+          <h2 data-i18n="problem.title">What Kind of Cost It Removes</h2>
+          <p
+            class="section-sub"
+            data-i18n="problem.sub"
+          >Every row in the right column is behaviour this extension already ships, not a roadmap promise</p>
+        </div>
+        <div class="pa-wrap reveal">
+          <table class="pa-table">
+            <caption>
+              <span data-i18n="problem.caption">Two ways to do the same thing — before installing on the left, after on the right</span>
+            </caption>
+            <thead>
+              <tr>
+                <th
+                  scope="col"
+                  data-i18n="problem.col.area"
+                >Scenario</th>
+                <th
+                  scope="col"
+                  data-i18n="problem.col.before"
+                >Without it</th>
+                <th
+                  scope="col"
+                  class="after"
+                  data-i18n="problem.col.after"
+                >With it</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="problem.r1.area"
+                >Accounts across environments</th>
+                <td data-i18n="problem.r1.before">Four accounts for dev / test / staging / prod of the same system sit side by side and overwrite each other during autofill — filling the wrong environment happens all the time.</td>
+                <td
+                  class="after"
+                  data-i18n="problem.r1.after"
+                >Matching defaults to the exact hostname, so the four environments never cross over; when one account really does serve them all, widen the tier by one.</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="problem.r2.area"
+                >Two-step verification</th>
+                <td data-i18n="problem.r2.before">The password is in the manager and the code is on your phone: mid-login you switch apps, hunt for the entry and copy six digits — and if the code expires, start over.</td>
+                <td
+                  class="after"
+                  data-i18n="problem.r2.after"
+                >The TOTP secret lives in the same entry as the password. On the code page the live-code pill anchors automatically — click Fill and the second step is done.</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="problem.r3.area"
+                >Pages that refuse to fill</th>
+                <td data-i18n="problem.r3.before">Self-built login pages, legacy systems, inputs inside a Shadow DOM — the browser cannot recognise them, so you type everything by hand.</td>
+                <td
+                  class="after"
+                  data-i18n="problem.r3.after"
+                >Point the account / password fields at your own CSS selectors for that domain, reaching into Shadow DOM; export the rules as JSON and hand them to teammates.</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="problem.r4.area"
+                >Where the passwords live</th>
+                <td data-i18n="problem.r4.before">Cloud storage means accepting "the server may be breached" as a premise, plus a subscription for multi-device sync.</td>
+                <td
+                  class="after"
+                  data-i18n-html="problem.r4.after"
+                >Five sensitive fields are encrypted individually with AES-256-GCM and written only to local <code>chrome.storage.local</code> — no cloud, no account, no subscription.</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="problem.r5.area"
+                >Moving in</th>
+                <td data-i18n="problem.r5.before">Migrating out of another password manager means retyping everything by hand, or giving up on the export format.</td>
+                <td
+                  class="after"
+                  data-i18n="problem.r5.after"
+                >Export formats from Chrome / LastPass / Bitwarden / 1Password are detected automatically, as CSV or JSON, in about 30 seconds.</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="problem.r6.area"
+                >Which passwords to change</th>
+                <td data-i18n="problem.r6.before">Reused, too weak, long since leaked — you never know unless you check each one, and by the time something breaks it is too late.</td>
+                <td
+                  class="after"
+                  data-i18n="problem.r6.after"
+                >One click gives a 0-100 offline score, weighted across reuse / weak / commonly leaked / long-unupdated — every calculation stays on your machine.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- ======= Features ======= -->
     <section
       class="features"
@@ -2970,18 +3607,35 @@
                 >Idle / restart auto-lock</span
               >
             </div>
-            <!-- 逐字段密文：可读明文与密文样本交叉淡入 + 一次掠光，对应「逐字段 AES-256-GCM 存储」。
-                 样本是 ASCII 假值，中英一致，也不含任何真实凭据。 -->
+            <!-- 逐字段密文：字段名 + 可读明文，明文被就地换成密文样本，对应「逐字段 AES-256-GCM 存储」。
+                 样本是 ASCII 假值：密文刻意做成明显更长、被框裁断的 base64 形态并灰化，
+                 与左边的可读明文形成对照，中英一致，也不含任何真实凭据。 -->
             <div
               class="cipher"
               aria-hidden="true"
             >
-              <span class="cipher-row"
-                ><span class="cipher-in">MyPass1!</span><span class="cipher-out">aX9#kLm2</span></span
-              >
-              <span class="cipher-row"
-                ><span class="cipher-in">t0tp seed</span><span class="cipher-out">9wYq*4vB</span></span
-              >
+              <span class="cipher-row">
+                <b
+                  class="cipher-key"
+                  data-i18n="features.f1.k1"
+                  >Password</b
+                >
+                <span class="cipher-field"
+                  ><span class="cipher-in">MyPass1!</span
+                  ><span class="cipher-out">7Qf2Kd9pLs4VbN0rXeGcU2Fsdg==</span></span
+                >
+              </span>
+              <span class="cipher-row">
+                <b
+                  class="cipher-key"
+                  data-i18n="features.f1.k2"
+                  >TOTP secret</b
+                >
+                <span class="cipher-field"
+                  ><span class="cipher-in">t0tp seed</span
+                  ><span class="cipher-out">mV3xR8kQ2nLp6YtHsZaEjK9dQw==</span></span
+                >
+              </span>
             </div>
           </article>
           <article class="feature-card feature-card-lg reveal reveal-delay-2">
@@ -3001,8 +3655,10 @@
             </div>
             <h3 data-i18n="features.f2.title">Four Ways to Fill — One Click</h3>
             <p data-i18n="features.f2.desc">Pick your style: the in-field inline mini panel (default), the side panel, the right-click menu, or the quick-fill shortcut. Quadruple fill strategies work on React / Vue and classic pages alike; exact domain matching separates test environments, the side panel toggles between this-site and all-entry search, and auto-login after filling is optional.</p>
-            <!-- 填充流水线：数据包沿导轨跑过 4 个输入框，逐个点亮——对应「四种方式，逐个填入」。
-                 纯装饰、无文案，因此不需要中英同步；aria-hidden 交给读屏跳过。 -->
+            <!-- 填充流水线：数据包跑过一排登录表单控件（账号 / 密码 / 记住我 / 登录按钮），
+                 逐个填好并点亮。承载的是「填充 + 勾选 + 替你点登录」这个结果，
+                 四种「入口」由下方 feature-chips 表达，两者不重复。
+                 纯装饰、图形语言无关，因此不需要中英同步；aria-hidden 交给读屏跳过。 -->
             <div
               class="flow"
               aria-hidden="true"
@@ -3607,6 +4263,132 @@
       </div>
     </section>
 
+    <!-- ======= 使用场景 ======= -->
+    <section id="use-cases">
+      <div class="container">
+        <div class="section-head">
+          <h2 data-i18n="useCases.title">Use Cases and How to Handle Them</h2>
+          <p
+            class="section-sub"
+            data-i18n="useCases.sub"
+          >The shortest path from scenario to entry point — the third column uses the exact names shown in the UI</p>
+        </div>
+        <div class="pa-wrap reveal">
+          <table class="pa-table scene">
+            <caption>
+              <span data-i18n="useCases.caption">Common scenarios, the way to handle each, and where to do it</span>
+            </caption>
+            <thead>
+              <tr>
+                <th
+                  scope="col"
+                  data-i18n="useCases.col.scene"
+                >Scenario</th>
+                <th
+                  scope="col"
+                  data-i18n="useCases.col.how"
+                >How</th>
+                <th
+                  scope="col"
+                  data-i18n="useCases.col.where"
+                >Where</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r1.scene"
+                >Developers: several environments in parallel</th>
+                <td data-i18n-html="useCases.r1.how">Keep the default tier and the accounts on <code>fat.example.com</code> and <code>uat.example.com</code> stay strictly apart.</td>
+                <td data-i18n="useCases.r1.where">"Cross-subdomain matching" in the password manager header</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r2.scene"
+                >QA: one account shared across subdomains</th>
+                <td data-i18n-html="useCases.r2.how">Widen one tier to "exact match + wildcard entries" and decide entry by entry which URLs are written as <code>*.qq.com</code>.</td>
+                <td data-i18n="useCases.r2.where">Same place; all three tiers switch anytime</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r3.scene"
+                >Needing the apex domain included too</th>
+                <td data-i18n="useCases.r3.how">Widen again to "same apex domain (loosest)": when the current hostname has no match, the apex domain and its other subdomains are offered in order.</td>
+                <td data-i18n="useCases.r3.where">Same place (localhost always stays per-port)</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r4.scene"
+                >Regression tests that log in repeatedly</th>
+                <td data-i18n="useCases.r4.how">Turn on "Auto-trigger login" and the login button gets clicked as part of filling.</td>
+                <td data-i18n="useCases.r4.where">Preferences (manager page / floating-button gear / side-panel gear)</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r5.scene"
+                >Logging in with 2FA</th>
+                <td data-i18n="useCases.r5.how">Store the code in the same entry as the password; on the code page the live pill anchors automatically and one click fills it.</td>
+                <td data-i18n="useCases.r5.where">"Fill and login" in the side-panel entry menu</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r6.scene"
+                >Legacy login pages it cannot detect</th>
+                <td data-i18n="useCases.r6.how">Add a site rule for that domain giving the CSS selectors of the account / password fields; it reaches into Shadow DOM.</td>
+                <td data-i18n="useCases.r6.where">"Site rules" on the manager page</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r7.scene"
+                >Handing rules to a teammate or another machine</th>
+                <td data-i18n="useCases.r7.how">Export the rules as JSON; import merges by domain — same-domain entries are overwritten, the rest are kept.</td>
+                <td data-i18n="useCases.r7.where">Import / export inside the "Site rules" dialog</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r8.scene"
+                >Moving in from another manager</th>
+                <td data-i18n="useCases.r8.how">CSV and JSON imports, with Chrome / LastPass / Bitwarden / 1Password export formats detected automatically.</td>
+                <td data-i18n="useCases.r8.where">"Import data" on the manager page</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r9.scene"
+                >A new machine or a reinstalled OS</th>
+                <td data-i18n-html="useCases.r9.how">Export an <code>.aph</code> encrypted backup and carry it along; on import it decrypts to a preview before you confirm.</td>
+                <td data-i18n="useCases.r9.where">"Data management" on the manager page</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r10.scene"
+                >Not inventing a password per site</th>
+                <td data-i18n="useCases.r10.how">The built-in generator outputs random passwords or passphrase sets, and the field context menu can generate and fill in place.</td>
+                <td data-i18n="useCases.r10.where">The magic-wand button beside the password field, and the page context menu</td>
+              </tr>
+              <tr>
+                <th
+                  scope="row"
+                  data-i18n="useCases.r11.scene"
+                >Checking regularly which passwords to change</th>
+                <td data-i18n="useCases.r11.how">A one-click 0-100 offline audit that lists what to fix across four weighted dimensions, all computed locally.</td>
+                <td data-i18n="useCases.r11.where">"Security audit" on the manager page</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
     <!-- ======= 对比 ======= -->
     <section
       id="compare"
@@ -3783,6 +4565,64 @@
               </tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= 安装与运行要求 ======= -->
+    <section id="install">
+      <div class="container">
+        <div class="section-head">
+          <h2 data-i18n="install.title">Installation and Requirements</h2>
+          <p
+            class="section-sub"
+            data-i18n="install.sub"
+          >One click in the store, or load the unpacked folder offline — both paths use exactly the same data format</p>
+        </div>
+        <div class="req-grid">
+          <article class="req-card reveal reveal-delay-1">
+            <h3 data-i18n="install.c1.title">Runtime</h3>
+            <p data-i18n-html="install.c1.p1">A recent desktop Google Chrome / Edge (Manifest V3). Installing from <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer">Chrome Web Store</a> is recommended, since updates arrive automatically; when Google is unreachable, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> and load it manually.</p>
+            <p data-i18n-html="install.c1.p2">The repo also ships <code>pnpm build:firefox</code> (an MV2 build), but releases and verification target Chrome. As with any extension, <code>chrome://</code> pages, Web Store pages and other extensions' pages cannot be injected.</p>
+            <p style="margin-top: 18px">
+              <a
+                class="btn btn-primary"
+                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="install.c1.store"
+                >Chrome Web Store</a
+              >
+              <a
+                class="btn btn-ghost"
+                style="margin-left: 10px"
+                href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="install.c1.gh"
+                >Download zip</a
+              >
+            </p>
+          </article>
+          <article class="req-card reveal reveal-delay-2">
+            <h3 data-i18n="install.c2.title">Loading offline (four steps)</h3>
+            <ul>
+              <li data-i18n="install.c2.li1">Download the latest zip from Releases and unpack it into a folder you will keep.</li>
+              <li data-i18n-html="install.c2.li2">Open <code>chrome://extensions/</code> and turn on Developer mode in the top-right corner.</li>
+              <li data-i18n="install.c2.li3">Click "Load unpacked extension" and pick the folder from the previous step.</li>
+              <li data-i18n="install.c2.li4">When updating, overwrite the same folder — a different path makes Chrome treat it as a brand-new install (see the update note under the four-step guide above).</li>
+            </ul>
+          </article>
+          <article class="req-card reveal reveal-delay-3">
+            <h3 data-i18n="install.c3.title">Build environment</h3>
+            <p data-i18n-html="install.c3.p1">Node.js <code>^20.19.0 || &gt;=22.12.0</code> (the floor comes from Vite; CI pins Node 22) and pnpm 10 (see <code>packageManager</code>). The stack is WXT + Vue 3 + TypeScript + Element Plus + Vite, with Element Plus imported per component to keep the bundle small, and matching plus crypto logic covered by Vitest.</p>
+            <pre><code data-i18n-html="install.c3.pre">pnpm dev         # dev server
+pnpm build       # production build
+pnpm test:run    # unit tests
+pnpm typecheck   # tsc --noEmit
+pnpm lint        # ESLint
+pnpm lint:style  # Stylelint</code></pre>
+          </article>
         </div>
       </div>
     </section>
@@ -4262,10 +5102,15 @@
         'nav.steps': { zh: '使用步骤', en: 'Steps' },
         'nav.compare': { zh: '对比', en: 'Compare' },
         'nav.faq': { zh: '常见问题', en: 'FAQ' },
-        'nav.cws': { zh: 'Chrome 应用商店下载', en: 'Chrome Web Store' },
-        'nav.github': { zh: 'GitHub 下载', en: 'GitHub Download' },
+        /* 两个下载出口在页头里只占一个短词：完整目的地由 #install 小节和首屏 CTA 承担。
+           英文若写全 "Chrome Web Store" / "GitHub Download"，12 项在 1200px 容器里放不下。 */
+        'nav.cws': { zh: '应用商店', en: 'Web Store' },
+        'nav.github': { zh: 'GitHub 下载', en: 'Releases' },
         'nav.how': { zh: '工作原理', en: 'How it works' },
         'nav.privacy': { zh: '隐私', en: 'Privacy' },
+        'nav.problem': { zh: '痛点', en: 'Why' },
+        'nav.useCases': { zh: '场景', en: 'Use cases' },
+        'nav.install': { zh: '安装', en: 'Install' },
         // ---------- 首屏数据带（数字取自仓库可复算事实，口径见 docs/CWS_PUBLISHING_GUIDE.md 第五步） ----------
         'metrics.cases': { zh: '项自动化测试用例', en: 'automated test cases' },
         'metrics.fields': { zh: '个敏感字段逐字段加密', en: 'sensitive fields encrypted individually' },
@@ -4374,6 +5219,171 @@
           zh: '安全声明：本插件为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，密码内容不经网络上传。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。',
           en: 'Security Notice: Account Password Helper is built for development, testing and everyday sign-in scenarios. All data stays in your browser, encrypted with AES-256-GCM, and is never uploaded. We recommend not storing highly sensitive credentials (banking, payment, etc.) in any browser extension.',
         },
+        'problem.title': { zh: '它消掉了哪一类成本', en: 'What Kind of Cost It Removes' },
+        'problem.sub': {
+          zh: '右列每一行都是扩展已经实现的行为，不是路线图上的承诺',
+          en: 'Every row in the right column is behaviour this extension already ships, not a roadmap promise',
+        },
+        'problem.caption': {
+          zh: '同一件事的两种做法，左边是装之前，右边是装之后',
+          en: 'Two ways to do the same thing — before installing on the left, after on the right',
+        },
+        'problem.col.area': { zh: '场景', en: 'Scenario' },
+        'problem.col.before': { zh: '没有它时', en: 'Without it' },
+        'problem.col.after': { zh: '有了它之后', en: 'With it' },
+        'problem.r1.area': { zh: '多环境账号', en: 'Accounts across environments' },
+        'problem.r1.before': {
+          zh: '同一套系统的 dev / test / staging / prod 四个账号存在一起，自动填充时互相覆盖，填错环境是常事。',
+          en: 'Four accounts for dev / test / staging / prod of the same system sit side by side and overwrite each other during autofill — filling the wrong environment happens all the time.',
+        },
+        'problem.r1.after': {
+          zh: '默认按精确主机名匹配，四个环境的账号互不串号；确实要共用一套时，再按需放宽一档。',
+          en: 'Matching defaults to the exact hostname, so the four environments never cross over; when one account really does serve them all, widen the tier by one.',
+        },
+        'problem.r2.area': { zh: '两步验证', en: 'Two-step verification' },
+        'problem.r2.before': {
+          zh: '密码在管理器、验证码在手机上：登录到一半要切 App、找条目、抄六位数字，码过期了还得重来。',
+          en: 'The password is in the manager and the code is on your phone: mid-login you switch apps, hunt for the entry and copy six digits — and if the code expires, start over.',
+        },
+        'problem.r2.after': {
+          zh: 'TOTP 密钥与密码存在同一条目里，跳到验证码页自动锚定活码胶囊，点「填入」就完成第二步。',
+          en: 'The TOTP secret lives in the same entry as the password. On the code page the live-code pill anchors automatically — click Fill and the second step is done.',
+        },
+        'problem.r3.area': { zh: '填不进去的页面', en: 'Pages that refuse to fill' },
+        'problem.r3.before': {
+          zh: '自建登录页、老系统、Shadow DOM 里的输入框，浏览器认不出来，只能手工敲。',
+          en: 'Self-built login pages, legacy systems, inputs inside a Shadow DOM — the browser cannot recognise them, so you type everything by hand.',
+        },
+        'problem.r3.after': {
+          zh: '可给该域名指定账号框 / 密码框的 CSS 选择器，并深入 Shadow DOM 取字段；规则能导出 JSON 分发给同事。',
+          en: 'Point the account / password fields at your own CSS selectors for that domain, reaching into Shadow DOM; export the rules as JSON and hand them to teammates.',
+        },
+        'problem.r4.area': { zh: '密码存在哪儿', en: 'Where the passwords live' },
+        'problem.r4.before': {
+          zh: '存进云端，就要接受「服务器可能被攻破」这个前提，还要为多端同步付订阅费。',
+          en: 'Cloud storage means accepting "the server may be breached" as a premise, plus a subscription for multi-device sync.',
+        },
+        'problem.r4.after': {
+          zh: '五个敏感字段逐个 AES-256-GCM 加密后只写本机 <code>chrome.storage.local</code>，无云端、无账号、无订阅。',
+          en: 'Five sensitive fields are encrypted individually with AES-256-GCM and written only to local <code>chrome.storage.local</code> — no cloud, no account, no subscription.',
+        },
+        'problem.r5.area': { zh: '搬家', en: 'Moving in' },
+        'problem.r5.before': {
+          zh: '从别的密码管理器迁出，要么手工重录一遍，要么被导出格式劝退。',
+          en: 'Migrating out of another password manager means retyping everything by hand, or giving up on the export format.',
+        },
+        'problem.r5.after': {
+          zh: '自动识别 Chrome / LastPass / Bitwarden / 1Password 的导出格式，CSV / JSON 双格式，30 秒搬完。',
+          en: 'Export formats from Chrome / LastPass / Bitwarden / 1Password are detected automatically, as CSV or JSON, in about 30 seconds.',
+        },
+        'problem.r6.area': { zh: '哪些密码该换', en: 'Which passwords to change' },
+        'problem.r6.before': {
+          zh: '复用、太弱、早就泄露过——不逐个查就永远不知道，等出事再换已经晚了。',
+          en: 'Reused, too weak, long since leaked — you never know unless you check each one, and by the time something breaks it is too late.',
+        },
+        'problem.r6.after': {
+          zh: '一键 0-100 离线体检，按复用 / 弱密码 / 常见泄露 / 长期未更新四维加权，全程本机计算。',
+          en: 'One click gives a 0-100 offline score, weighted across reuse / weak / commonly leaked / long-unupdated — every calculation stays on your machine.',
+        },
+        'useCases.title': { zh: '使用场景与对应的做法', en: 'Use Cases and How to Handle Them' },
+        'useCases.sub': {
+          zh: '从场景到入口的最短路径，第三列就是功能在界面上的名字',
+          en: 'The shortest path from scenario to entry point — the third column uses the exact names shown in the UI',
+        },
+        'useCases.caption': {
+          zh: '常见场景、各自的做法，以及在哪里操作',
+          en: 'Common scenarios, the way to handle each, and where to do it',
+        },
+        'useCases.col.scene': { zh: '场景', en: 'Scenario' },
+        'useCases.col.how': { zh: '做法', en: 'How' },
+        'useCases.col.where': { zh: '在哪操作', en: 'Where' },
+        'useCases.r1.scene': { zh: '开发者：多环境并行', en: 'Developers: several environments in parallel' },
+        'useCases.r1.how': {
+          zh: '保持默认档位，<code>fat.example.com</code> 与 <code>uat.example.com</code> 的账号严格隔离。',
+          en: 'Keep the default tier and the accounts on <code>fat.example.com</code> and <code>uat.example.com</code> stay strictly apart.',
+        },
+        'useCases.r1.where': {
+          zh: '密码管理页头部「跨子域名匹配」',
+          en: '"Cross-subdomain matching" in the password manager header',
+        },
+        'useCases.r2.scene': { zh: '测试：一套账号跨子域共用', en: 'QA: one account shared across subdomains' },
+        'useCases.r2.how': {
+          zh: '放宽一档到「精确匹配 + 通配条目」，由你逐条决定哪些网址写成 <code>*.qq.com</code>。',
+          en: 'Widen one tier to "exact match + wildcard entries" and decide entry by entry which URLs are written as <code>*.qq.com</code>.',
+        },
+        'useCases.r2.where': { zh: '同上，三档随时切换', en: 'Same place; all three tiers switch anytime' },
+        'useCases.r3.scene': { zh: '需要把主域一起带出', en: 'Needing the apex domain included too' },
+        'useCases.r3.how': {
+          zh: '再放宽到「同主域名（更宽松）」，当前域名没有时依次带出主域与同主域其他子域。',
+          en: 'Widen again to "same apex domain (loosest)": when the current hostname has no match, the apex domain and its other subdomains are offered in order.',
+        },
+        'useCases.r3.where': {
+          zh: '同上（localhost 始终按端口区分）',
+          en: 'Same place (localhost always stays per-port)',
+        },
+        'useCases.r4.scene': { zh: '回归测试反复登录', en: 'Regression tests that log in repeatedly' },
+        'useCases.r4.how': {
+          zh: '开启「自动触发登录」，填充完连登录按钮一起点掉。',
+          en: 'Turn on "Auto-trigger login" and the login button gets clicked as part of filling.',
+        },
+        'useCases.r4.where': {
+          zh: '偏好设置（管理页 / 悬浮按钮齿轮 / 侧边栏齿轮）',
+          en: 'Preferences (manager page / floating-button gear / side-panel gear)',
+        },
+        'useCases.r5.scene': { zh: '两步验证登录', en: 'Logging in with 2FA' },
+        'useCases.r5.how': {
+          zh: '验证码与密码存同一条目，跳到验证码页后活码胶囊自动锚定，点一下就填入。',
+          en: 'Store the code in the same entry as the password; on the code page the live pill anchors automatically and one click fills it.',
+        },
+        'useCases.r5.where': {
+          zh: '侧边栏条目菜单「填充并登录」',
+          en: '"Fill and login" in the side-panel entry menu',
+        },
+        'useCases.r6.scene': { zh: '老系统登录页识别不到', en: 'Legacy login pages it cannot detect' },
+        'useCases.r6.how': {
+          zh: '给该域名添加站点规则，指定账号框 / 密码框的 CSS 选择器，可深入 Shadow DOM 取字段。',
+          en: 'Add a site rule for that domain giving the CSS selectors of the account / password fields; it reaches into Shadow DOM.',
+        },
+        'useCases.r6.where': { zh: '管理页「站点规则」', en: '"Site rules" on the manager page' },
+        'useCases.r7.scene': {
+          zh: '把规则交给同事或另一台机器',
+          en: 'Handing rules to a teammate or another machine',
+        },
+        'useCases.r7.how': {
+          zh: '导出规则 JSON 分发；导入按域名合并，同域名条目覆盖、其余保留。',
+          en: 'Export the rules as JSON; import merges by domain — same-domain entries are overwritten, the rest are kept.',
+        },
+        'useCases.r7.where': {
+          zh: '「站点规则」弹窗内导入 / 导出',
+          en: 'Import / export inside the "Site rules" dialog',
+        },
+        'useCases.r8.scene': { zh: '从别的管理器搬家', en: 'Moving in from another manager' },
+        'useCases.r8.how': {
+          zh: 'CSV / JSON 双格式导入，自动识别 Chrome / LastPass / Bitwarden / 1Password 的导出格式。',
+          en: 'CSV and JSON imports, with Chrome / LastPass / Bitwarden / 1Password export formats detected automatically.',
+        },
+        'useCases.r8.where': { zh: '管理页「导入数据」', en: '"Import data" on the manager page' },
+        'useCases.r9.scene': { zh: '换电脑或重装系统', en: 'A new machine or a reinstalled OS' },
+        'useCases.r9.how': {
+          zh: '导出 <code>.aph</code> 加密备份随身携带，导入时先解密预览再确认。',
+          en: 'Export an <code>.aph</code> encrypted backup and carry it along; on import it decrypts to a preview before you confirm.',
+        },
+        'useCases.r9.where': { zh: '管理页「数据管理」', en: '"Data management" on the manager page' },
+        'useCases.r10.scene': { zh: '不想为每个站点想密码', en: 'Not inventing a password per site' },
+        'useCases.r10.how': {
+          zh: '内置生成器出随机密码或助记词组，也能在输入框上右键直接生成并填充。',
+          en: 'The built-in generator outputs random passwords or passphrase sets, and the field context menu can generate and fill in place.',
+        },
+        'useCases.r10.where': {
+          zh: '新增 / 编辑表单密码框旁的魔棒按钮、页面右键菜单',
+          en: 'The magic-wand button beside the password field, and the page context menu',
+        },
+        'useCases.r11.scene': { zh: '定期看看哪些密码该换', en: 'Checking regularly which passwords to change' },
+        'useCases.r11.how': {
+          zh: '一键 0-100 离线体检，四维加权给出整改清单，全程本机计算。',
+          en: 'A one-click 0-100 offline audit that lists what to fix across four weighted dimensions, all computed locally.',
+        },
+        'useCases.r11.where': { zh: '管理页「安全体检」', en: '"Security audit" on the manager page' },
         'features.title': { zh: '核心特性', en: 'Core Features' },
         'features.sub': {
           zh: '从加密存储到智能填充，从两步验证到安全体检，一站式覆盖账号密码的全生命周期',
@@ -4391,6 +5401,9 @@
         'features.f1.c2': { zh: 'AES-256-GCM', en: 'AES-256-GCM' },
         'features.f1.c3': { zh: '密码不上传', en: 'No password uploads' },
         'features.f1.c4': { zh: '闲置 / 重启自动锁定', en: 'Idle / restart auto-lock' },
+        /* 密文示意图里的字段名：装饰性文字，整块 aria-hidden，但仍需中英一致 */
+        'features.f1.k1': { zh: '密码', en: 'Password' },
+        'features.f1.k2': { zh: 'TOTP 密钥', en: 'TOTP secret' },
         'features.f2.title': { zh: '四种方式，一键安全填充', en: 'Four Ways to Fill — One Click' },
         'features.f2.desc': {
           zh: '输入框内联迷你面板（默认）、侧边栏、右键菜单、一键填充快捷键任你选；四重填充策略兼容 React / Vue 等现代框架与传统页面，精确域名匹配区分多测试环境，侧边栏可一键切换「本站 / 全站」搜索范围，可选填充后自动登录。',
@@ -4534,6 +5547,51 @@
         'compare.val.yes': { zh: '需要', en: 'Required' },
         'compare.val.yes2': { zh: '需要', en: 'Required' },
         'compare.row.open': { zh: '开源', en: 'Open Source' },
+        // ---------- 安装与运行要求 ----------
+        'install.title': { zh: '安装方式与运行要求', en: 'Installation and Requirements' },
+        'install.sub': {
+          zh: '商店点一下，或者离线加载解压目录——两条路的数据格式完全相同',
+          en: 'One click in the store, or load the unpacked folder offline — both paths use exactly the same data format',
+        },
+        'install.c1.title': { zh: '运行环境', en: 'Runtime' },
+        'install.c1.p1': {
+          zh: '较新版本的桌面版 Google Chrome / Edge（Manifest V3）。推荐从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer">Chrome Web Store</a> 安装，后续自动更新；无法访问 Google 时，从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> 下载 zip 手动加载。',
+          en: 'A recent desktop Google Chrome / Edge (Manifest V3). Installing from <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer">Chrome Web Store</a> is recommended, since updates arrive automatically; when Google is unreachable, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer">GitHub Releases</a> and load it manually.',
+        },
+        'install.c1.p2': {
+          zh: '仓库同时提供 <code>pnpm build:firefox</code>（产物为 MV2），但发布与验证以 Chrome 为准。与其他扩展一样，<code>chrome://</code> 页面、应用商店页与其他扩展页面无法注入。',
+          en: "The repo also ships <code>pnpm build:firefox</code> (an MV2 build), but releases and verification target Chrome. As with any extension, <code>chrome://</code> pages, Web Store pages and other extensions' pages cannot be injected.",
+        },
+        'install.c1.store': { zh: 'Chrome 应用商店', en: 'Chrome Web Store' },
+        'install.c1.gh': { zh: '下载 zip', en: 'Download zip' },
+        'install.c2.title': { zh: '离线加载（四步）', en: 'Loading offline (four steps)' },
+        'install.c2.li1': {
+          zh: '下载 Releases 里最新的 zip，解压到一个固定目录。',
+          en: 'Download the latest zip from Releases and unpack it into a folder you will keep.',
+        },
+        'install.c2.li2': {
+          zh: '打开 <code>chrome://extensions/</code>，在右上角开启「开发者模式」。',
+          en: 'Open <code>chrome://extensions/</code> and turn on Developer mode in the top-right corner.',
+        },
+        'install.c2.li3': {
+          zh: '点「加载已解压的扩展程序」，选中上一步的解压目录。',
+          en: 'Click "Load unpacked extension" and pick the folder from the previous step.',
+        },
+        'install.c2.li4': {
+          zh: '更新时把新文件覆盖回同一目录；换目录会被 Chrome 当成全新安装（详见上方「使用步骤」的更新提示）。',
+          en: 'When updating, overwrite the same folder — a different path makes Chrome treat it as a brand-new install (see the update note under the four-step guide above).',
+        },
+        'install.c3.title': { zh: '构建环境', en: 'Build environment' },
+        'install.c3.p1': {
+          zh: 'Node.js <code>^20.19.0 || &gt;=22.12.0</code>（下限由 Vite 决定，CI 固定 Node 22）、pnpm 10（见 <code>packageManager</code>）。技术栈为 WXT + Vue 3 + TypeScript + Element Plus + Vite，Element Plus 按组件引入以控制包体，匹配与加解密逻辑由 Vitest 覆盖。',
+          en: 'Node.js <code>^20.19.0 || &gt;=22.12.0</code> (the floor comes from Vite; CI pins Node 22) and pnpm 10 (see <code>packageManager</code>). The stack is WXT + Vue 3 + TypeScript + Element Plus + Vite, with Element Plus imported per component to keep the bundle small, and matching plus crypto logic covered by Vitest.',
+        },
+        /* 六条命令的注释按语言给两套：命令行本身中英一致，注释才是给用户读的。
+           每行控制在 32 个等宽字符内——三列卡片里代码块只有约 300px 可用宽度。 */
+        'install.c3.pre': {
+          zh: 'pnpm dev         # 开发服务（8899）\npnpm build       # 生产构建\npnpm test:run    # 单元测试\npnpm typecheck   # 类型检查\npnpm lint        # ESLint\npnpm lint:style  # Stylelint',
+          en: 'pnpm dev         # dev server\npnpm build       # production build\npnpm test:run    # unit tests\npnpm typecheck   # tsc --noEmit\npnpm lint        # ESLint\npnpm lint:style  # Stylelint',
+        },
         'faq.title': { zh: '常见问题', en: 'FAQ' },
         'faq.sub': {
           zh: '使用前后你可能会关心的问题',
@@ -4579,6 +5637,8 @@
         'aria.goto': { zh: '跳转到第 {n} 张', en: 'Go to slide {n}' },
         'aria.toTop': { zh: '回到顶部', en: 'Back to top' },
         'aria.toBottom': { zh: '滚动到底部', en: 'Scroll to bottom' },
+        'lightbox.close': { zh: '关闭预览', en: 'Close preview' },
+        'lightbox.zoom': { zh: '放大查看：{t}', en: 'Zoom in: {t}' },
         'ph.sample': { zh: '示例预览图', en: 'Sample preview' },
       };
 
@@ -5149,7 +6209,7 @@
           slide.className = 'slide';
           slide.innerHTML = `
         <div class="slide-shot">
-          <img src="./assets/cws-store/${shotFile(s.file)}" alt="${s.title[lang]}" data-title="${s.title[lang]}" loading="lazy" />
+          <img src="./assets/cws-store/${shotFile(s.file)}" alt="${s.title[lang]}" data-title="${s.title[lang]}" loading="lazy" tabindex="0" role="button" aria-label="${I18N['lightbox.zoom'][lang].replace('{t}', s.title[lang])}" />
         </div>
         <div class="slide-info">
           <span class="step-tag">${s.tag}</span>
@@ -5179,6 +6239,14 @@
         track.style.transform = `translateX(-${current * 100}%)`;
         [...dotsBox.children].forEach((d, i) => {
           d.classList.toggle('active', i === current);
+        });
+        /* 只有当前这一屏的截图能被 Tab 到：slide 只被 translate 出去，从未 display:none，
+           而 .carousel 是 overflow:hidden（程序上仍可滚动），13 张离屏图挂着 tabindex=0 等于
+           给键盘用户塞 13 个看不见的停留点，聚焦时还会把裁剪框悄悄滚走，圆点与进度条一起错位。
+           这里只改 tabindex，不动 aria-hidden——离屏那几屏的标题与说明仍要能被读屏顺序读到。 */
+        [...track.children].forEach((slide, i) => {
+          const img = slide.querySelector('.slide-shot img');
+          if (img) img.setAttribute('tabindex', i === current ? '0' : '-1');
         });
       }
 
@@ -5334,8 +6402,23 @@
 
       // =================== Nav 滚动高亮 ===================
       const navLinks = document.querySelectorAll('.nav-links a');
-      // 与导航里的锚点一一对应：少一项就会有一段时间滚动条走完、导航却没有任何高亮
-      const sections = ['features', 'showcase', 'how', 'steps', 'compare', 'privacy', 'faq']
+      /* 与 .nav-links 里的 10 条页内锚点一一对应（另两条是商店 / GitHub 外链，不参与高亮），
+         且必须按文档顺序排——onScroll 取的是「最后一个已经滚过去的 id」。
+         少一项就会出现「滚到这一节，高亮还停在上一节」：本轮补的 痛点 / 场景 / 安装 三节
+         漏在表外时，实测停在 #problem 无任何高亮、停在 #use-cases 高亮成「使用步骤」、
+         停在 #install 高亮成「对比」。 */
+      const sections = [
+        'problem',
+        'features',
+        'showcase',
+        'how',
+        'steps',
+        'use-cases',
+        'compare',
+        'install',
+        'privacy',
+        'faq',
+      ]
         .map(id => document.getElementById(id))
         .filter(Boolean);
       const scrollRail = document.getElementById('scrollRail');
@@ -5450,9 +6533,15 @@
           ta.remove();
         }
         wechatIdText.textContent = I18N['wechat.copied'][lang];
+        /* .copied 驱动「弹一下」的确认动效（CSS 里只在 html.js 下才有动画）。
+           先摘再挂并强制重排，1500ms 内连点也能重播，而不是只播第一次。 */
+        wechatCopyBtn.classList.remove('copied');
+        void wechatCopyBtn.offsetWidth;
+        wechatCopyBtn.classList.add('copied');
         clearTimeout(wechatCopyTimer);
         wechatCopyTimer = setTimeout(() => {
           wechatIdText.textContent = WECHAT_ID;
+          wechatCopyBtn.classList.remove('copied');
         }, 1500);
       });
 
@@ -5530,6 +6619,118 @@
         // 老浏览器没有 IntersectionObserver：直接落到终态，绝不让内容卡在隐形初始态
         document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
       }
+
+      // =================== 卡片追光 ===================
+      /* 指针停在卡片上时，一层径向光斑跟着指针走：CSS 侧只读 --gx / --gy 两个自定义属性
+         （缺省 50%），这里负责写。pointermove 的密度远高于帧率，所以事件里只记坐标、
+         每帧统一写一次样式，矩形测量也挪进帧回调——每次移动都读 rect 会强制同步布局。
+         触屏与减弱动效下不绑监听器，::before 的 opacity 恒为 0，等价于没有这一层。 */
+      const spotlightQuery = window.matchMedia('(hover: hover) and (pointer: fine)');
+      if (spotlightQuery.matches && !reduceMotion.matches) {
+        const spotCards = Array.prototype.slice.call(document.querySelectorAll('.feature-card, .more-card, .req-card'));
+        const spotPoints = new Map();
+        let spotFrame = 0;
+        const flushSpotlight = () => {
+          spotFrame = 0;
+          spotPoints.forEach((point, el) => {
+            const rect = el.getBoundingClientRect();
+            el.style.setProperty('--gx', (((point.x - rect.left) / rect.width) * 100).toFixed(2) + '%');
+            el.style.setProperty('--gy', (((point.y - rect.top) / rect.height) * 100).toFixed(2) + '%');
+          });
+          spotPoints.clear();
+        };
+        spotCards.forEach(el => {
+          el.addEventListener('pointermove', e => {
+            spotPoints.set(el, { x: e.clientX, y: e.clientY });
+            if (!spotFrame) spotFrame = requestAnimationFrame(flushSpotlight);
+          });
+        });
+      }
+
+      // =================== 演示图灯箱 ===================
+      /* 轮播截图在 16:9 卡片里只剩几百像素宽，界面细节看不清，灯箱负责放大。
+         节点由脚本创建并挂到 body：既躲开 .carousel 的 overflow / transform，
+         JS 缺席时它也根本不存在，不需要额外的降级分支。
+         事件全部走委托——renderCarousel() 每次切语言都会重建 slide。 */
+      const lightbox = document.createElement('div');
+      lightbox.className = 'lightbox';
+      lightbox.setAttribute('role', 'dialog');
+      lightbox.setAttribute('aria-modal', 'true');
+      lightbox.hidden = true;
+      const lbClose = document.createElement('button');
+      lbClose.type = 'button';
+      lbClose.className = 'lightbox-close';
+      lbClose.textContent = '×';
+      const lbImg = document.createElement('img');
+      const lbCaption = document.createElement('div'); // 用 div + class，不用 figcaption：它的父元素不是 <figure>，语义上不成立
+      lbCaption.className = 'lightbox-cap';
+      lightbox.append(lbClose, lbImg, lbCaption);
+      document.body.appendChild(lightbox);
+
+      /** 打开时把焦点接过来，关闭时还回去 */
+      let lbReturnFocus = null;
+
+      /* 开灯箱时锁住背景滚动：遮罩是 fixed 的，滚轮若透到身后，页面会在灯箱底下
+         悄悄移动，关掉后人就站在另一个位置。overflow 挂在 html 上才拦得住滚轮；
+         补的 padding-right 是滚动条让出来的那一条，避免锁定的瞬间整页横向跳一下
+         （实测经典滚动条下 15px）。宽度只能用 window.innerWidth 减 clientWidth：
+         html 自身的 rect 宽度已经把滚动条扣掉，两者相减恒为 0。 */
+      function setScrollLock(on) {
+        const root = document.documentElement;
+        if (!on) {
+          root.style.overflow = '';
+          document.body.style.paddingRight = '';
+          return;
+        }
+        const gap = window.innerWidth - root.clientWidth;
+        root.style.overflow = 'hidden';
+        if (gap > 0) document.body.style.paddingRight = gap + 'px';
+      }
+
+      /** 打开灯箱：src / 图注取自被点的那张图，对话框名字跟着图注走 */
+      function openLightbox(img) {
+        const src = img.getAttribute('src');
+        if (!src) return; // 图片还在懒加载 / 已被替换成占位图之前的空档
+        const caption = img.dataset.title || img.alt;
+        lbImg.src = src;
+        lbImg.alt = img.alt;
+        lbCaption.textContent = caption;
+        lightbox.setAttribute('aria-label', caption);
+        lbClose.setAttribute('aria-label', I18N['lightbox.close'][lang]);
+        lbReturnFocus = document.activeElement;
+        lightbox.hidden = false;
+        setScrollLock(true);
+        lbClose.focus();
+      }
+
+      function closeLightbox() {
+        if (lightbox.hidden) return;
+        lightbox.hidden = true;
+        setScrollLock(false);
+        lbImg.removeAttribute('src'); // 顺手释放已解码的大图
+        if (lbReturnFocus && typeof lbReturnFocus.focus === 'function') lbReturnFocus.focus();
+        lbReturnFocus = null;
+      }
+
+      carousel.addEventListener('click', e => {
+        const img = e.target.closest('.slide-shot img');
+        if (img) openLightbox(img);
+      });
+      /* 键盘可达：放大是这段内容的可读性入口，只给鼠标用户用等于把低视力键盘用户挡在外面 */
+      carousel.addEventListener('keydown', e => {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        const img = e.target.closest('.slide-shot img');
+        if (!img) return;
+        e.preventDefault();
+        openLightbox(img);
+      });
+      // 点遮罩、点叉、点图本身都收起（图上的 cursor 已写成 zoom-out，形状即提示）
+      lightbox.addEventListener('click', e => {
+        if (e.target === lightbox || e.target === lbClose || e.target === lbImg) closeLightbox();
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') closeLightbox();
+      });
     </script>
 
     <!-- ======= FAQ noscript 回退：供 AI 爬虫 / 搜索引擎静态抓取 ======= -->
