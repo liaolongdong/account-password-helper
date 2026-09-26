@@ -40,6 +40,7 @@
   "options.domainMatch.warning": "fat.example.com and uat.example.com share one root domain, so test-environment accounts will appear together. Pick the wildcard tier if you need isolation.",
   "options.domainMatch.saved": "Cross-subdomain matching settings saved",
   "options.commandPalette.title": "Command palette",
+  "options.commandPalette.listLabel": "Command list",
   "options.commandPalette.placeholder": "Type a command to search (pinyin/initials supported)",
   "options.commandPalette.empty": "No matching commands",
   "options.commandPalette.hint": "↑↓ navigate · Enter select · Esc close",

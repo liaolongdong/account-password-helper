@@ -12,6 +12,7 @@ import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
 import { isValidTotpInput } from '@/utils/totp';
+import { scrollBehavior } from '@/utils/a11y';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { filterByKeyword } from '@/utils/keywordMatch';
 import { warmPinyinMatcher } from '@/utils/searchMatch/core';
@@ -574,7 +575,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         return;
       }
       row.classList.add('new-item');
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
       clearTimeout(rowHighlights.get(id));
       rowHighlights.set(
         id,

@@ -1,10 +1,11 @@
 /**
- * 无障碍键盘工具
+ * 无障碍工具
  *
  * - {@link activateOnKeydown}：为以 `role="button"` + `tabindex="0"` 形式实现的可点击
  *   图标/元素提供与原生按钮一致的 Enter / Space 键激活行为；
  * - {@link isEditableEventTarget}：判定键盘事件目标是否为可编辑元素，供容器级
- *   快捷键处理在劫持原生行为（复制/剪切等）前让路。
+ *   快捷键处理在劫持原生行为（复制/剪切等）前让路；
+ * - {@link prefersReducedMotion} / {@link scrollBehavior}：命令式滚动的减弱动效判据。
  */
 
 /**
@@ -56,4 +57,34 @@ export function isEditableEventTarget(target: EventTarget | null): boolean {
 
   const tagName = typeof element.tagName === 'string' ? element.tagName.toUpperCase() : '';
   return tagName === 'INPUT' || tagName === 'TEXTAREA';
+}
+
+/** 减弱动效的媒体查询语句（全仓唯一书写处，CSS 侧的 `@media` 与之同义） */
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
+
+/**
+ * 当前环境是否要求减弱动效
+ *
+ * CSS 动画由各组件的 `@media (prefers-reduced-motion: reduce)` 承担，但命令式滚动
+ * （`scrollTo` / `scrollIntoView` 的 `behavior`）写在 JS 里，媒体查询管不到，
+ * 于是每个调用点都得问一次。漏问的代价不体现为报错，而是「系统已开启减弱动效，
+ * 这一处仍在平滑滚动」——所以判据收在这里，调用点只表达「要滚动」。
+ *
+ * 结果不缓存：用户可在系统设置里随时切换，缓存会让已打开的页面在会话内不再跟随。
+ * `matchMedia` 在非 DOM 上下文（本仓 vitest 固定 `environment: 'node'`）不存在，
+ * 此时按「不减弱」处理，与媒体查询在不支持环境下不生效是同一种保守方向。
+ *
+ * @returns 用户开启了「减弱动态效果」时为 true
+ */
+export function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+  return window.matchMedia(REDUCED_MOTION_QUERY).matches === true;
+}
+
+/**
+ * 供 `scrollTo` / `scrollIntoView` 直接使用的滚动行为
+ * @returns 要求减弱动效时为 `auto`（瞬时定位），否则为 `smooth`
+ */
+export function scrollBehavior(): ScrollBehavior {
+  return prefersReducedMotion() ? 'auto' : 'smooth';
 }

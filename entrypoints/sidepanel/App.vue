@@ -174,7 +174,7 @@ import {
   countSameMainDomainCandidates,
   type DomainMatchMode,
 } from '@/utils/domain';
-import { isEditableEventTarget } from '@/utils/a11y';
+import { isEditableEventTarget, scrollBehavior } from '@/utils/a11y';
 import { warmPinyinMatcher } from '@/utils/searchMatch/core';
 
 /**
@@ -658,7 +658,7 @@ const scrollToActiveItem = () => {
   nextTick(() => {
     const activeEl = document.querySelector('.password-item.active');
     if (activeEl) {
-      activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      activeEl.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
     }
   });
 };

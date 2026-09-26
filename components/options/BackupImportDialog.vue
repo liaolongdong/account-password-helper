@@ -223,7 +223,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
 import { importEncryptedBackup } from '@/utils/backupExport';
@@ -231,6 +231,7 @@ import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
 import { formatFileSize } from '@/utils/formatFileSize';
+import { scrollDialogBodyToBottom } from '@/utils/dialogScroll';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
@@ -309,13 +310,7 @@ const handleFileChange = async (file: UploadFile) => {
   // 密码输入区经 v-if 卸载时不会触发 blur，需显式清除大写锁定提示，避免下次显示时残留
   resetCapsLockState();
   // 文件选择后，密码输入区出现，等 DOM 渲染完毕后滚动弹窗内容区到底部
-  await nextTick();
-  setTimeout(() => {
-    const dialogBody = document.querySelector('.backup-import-dialog .dialog-body-scroll');
-    if (dialogBody) {
-      dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
-    }
-  }, 150);
+  await scrollDialogBodyToBottom('.backup-import-dialog .dialog-body-scroll');
 };
 
 /** 处理文件移除 */
@@ -344,13 +339,7 @@ const handleDecrypt = async () => {
 
     previewData.value = entries;
     ElMessage.success(t('options.backupImport.decryptSuccess', { count: entries.length }));
-    await nextTick();
-    setTimeout(() => {
-      const dialogBody = document.querySelector('.backup-import-dialog .dialog-body-scroll');
-      if (dialogBody) {
-        dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
-      }
-    }, 150);
+    await scrollDialogBodyToBottom('.backup-import-dialog .dialog-body-scroll');
   } catch (error) {
     logger.error('解密备份文件失败:', error);
     const message = error instanceof Error ? error.message : t('options.backupImport.decryptFailed');

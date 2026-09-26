@@ -220,7 +220,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
 import { ExcelUtils } from '@/utils/excel';
@@ -230,6 +230,7 @@ import { StorageUtils } from '@/utils/storage';
 import { importFailureMessage, importSuccessMessage, useImportCapacity } from '@/composables/useImportCapacity';
 import { formatDate } from '@/utils/dateFormat';
 import { formatFileSize } from '@/utils/formatFileSize';
+import { scrollDialogBodyToBottom } from '@/utils/dialogScroll';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
@@ -318,13 +319,7 @@ const handleFileChange = async (file: UploadFile) => {
     } else {
       ElMessage.success(t('options.import.parseSuccess', { count: data.length }));
       // 有有效数据时，等 DOM 和 el-table 完全渲染后自动滚动弹窗内容区到底部
-      await nextTick();
-      setTimeout(() => {
-        const dialogBody = document.querySelector('.import-dialog .dialog-body-scroll');
-        if (dialogBody) {
-          dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
-        }
-      }, 150);
+      await scrollDialogBodyToBottom('.import-dialog .dialog-body-scroll');
     }
   } catch (error) {
     logger.error('解析文件失败:', error);

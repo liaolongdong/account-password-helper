@@ -385,6 +385,7 @@ import {
 import type { HealthReport, HealthGrade } from '@/utils/passwordHealth';
 import { revealReuseGroups } from '@/utils/passwordHealth';
 import { setReminder, getReminders } from '@/utils/storage/reminderManager';
+import { scrollBehavior } from '@/utils/a11y';
 import { useI18n } from '@/utils/i18n';
 import HealthShowMore from '@/components/options/HealthShowMore.vue';
 
@@ -589,7 +590,7 @@ async function scrollToIssue(key: string): Promise<void> {
   }
   await nextTick();
   const el = document.querySelector(`.health-panel-${key}`);
-  el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  el?.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
 }
 
 /**

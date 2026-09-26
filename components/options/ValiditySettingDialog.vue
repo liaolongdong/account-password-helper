@@ -130,6 +130,8 @@ const props = defineProps<{
 const localValidityHours = computed({
   get: () => props.form.validityHours,
   set: (val: number) => {
+    // 表单对象由父级持有并按引用双向绑定（父级保存时读同一对象），改成 emit 需连带
+    // 调整父级的表单所有权；豁免只覆盖这一行赋值，登记见 `tests/architecture/lintBypassInventory.test.ts`。
     // eslint-disable-next-line vue/no-mutating-props
     props.form.validityHours = val;
   },

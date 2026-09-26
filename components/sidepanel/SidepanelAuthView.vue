@@ -34,6 +34,7 @@ import type { SearchScope } from '@/utils/passwordFilter';
 import { getTagColor } from '@/utils/tagUtils';
 import { getPinyinRenderMemoDependency } from '@/utils/searchMatch';
 import { t } from '@/utils/i18n';
+import { scrollBehavior } from '@/utils/a11y';
 
 interface Props {
   /** 数据加载中状态 */
@@ -201,8 +202,7 @@ const scrollActiveTagIntoView = (tag: string) => {
   const viewTop = strip.scrollTop;
   const viewBottom = viewTop + strip.clientHeight;
   if (chipTop < viewTop || chipBottom > viewBottom) {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    strip.scrollTo({ top: chipTop - strip.clientHeight / 2, behavior: reduceMotion ? 'auto' : 'smooth' });
+    strip.scrollTo({ top: chipTop - strip.clientHeight / 2, behavior: scrollBehavior() });
   }
 };
 
@@ -369,6 +369,8 @@ onUnmounted(() => {
           circle
           size="small"
           :type="favoriteOnly ? 'warning' : 'default'"
+          :aria-label="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
+          :aria-pressed="favoriteOnly"
           @click="favoriteOnly = !favoriteOnly"
         />
       </el-tooltip>
@@ -386,6 +388,7 @@ onUnmounted(() => {
             :icon="Sort"
             circle
             size="small"
+            :aria-label="t('sidepanel.sortBy')"
           />
           <template #dropdown>
             <el-dropdown-menu>
@@ -980,17 +983,20 @@ onUnmounted(() => {
 .password-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
-
-/* 排序触发按钮：当选中非默认排序时显示微妙激活态 */
-.search-section :deep(.el-dropdown) .el-button.is-active-sort {
-  color: var(--aph-primary);
-  background: var(--aph-primary-bg);
-  border-color: var(--aph-primary-border);
-}
 </style>
 
 <style>
-/* 排序下拉菜单（popper teleported 到 body，无法使用 scoped） */
+/*
+ * 排序下拉菜单（popper teleported 到 body，无法使用 scoped）
+ *
+ * 这一段必须是全局样式：`el-dropdown` 的浮层经 Teleport 挂到 `body` 下，拿不到本组件的
+ * `data-v-*` 属性，`scoped` 后选择器一条都命不中。泄漏面靠 `.sort-dropdown-popper`
+ * 这个专属 popper class 收口——所有规则都以它为前缀，不裸写 `.el-dropdown-menu__item`，
+ * 因此不会影响同页其它下拉。两处 `!important` 是用来压过 Element Plus 自身给 popper
+ * 设的圆角与阴影（同等特异性、加载顺序不可控），去掉就会退化回 EP 默认外观。
+ * 中性文字色一律走 `--aph-*` 令牌（取值与 tokens.css 的 `:root` 段一致，视觉零变化），
+ * 只在 EP 没有对应令牌的地方保留字面量。
+ */
 .sort-dropdown-popper {
   border-radius: 8px !important;
   box-shadow: 0 4px 16px rgb(0 0 0 / 10%) !important;
@@ -1017,7 +1023,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   align-items: center;
   font-size: 15px;
-  color: #9ca3af;
+  color: var(--aph-text-muted);
   transition: color 0.2s ease;
 }
 
@@ -1036,12 +1042,12 @@ onUnmounted(() => {
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item:hover {
-  color: #1f2937;
+  color: var(--aph-text-primary);
   background: #f5f7fa;
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item:hover .sort-item-icon {
-  color: #6b7280;
+  color: var(--aph-text-secondary);
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item.is-active {

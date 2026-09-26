@@ -40,6 +40,7 @@
   "options.domainMatch.warning": "fat.example.com 与 uat.example.com 属于同一主域名，开启后测试环境账号会一起出现。若需隔离请改用「通配条目」档。",
   "options.domainMatch.saved": "跨子域匹配设置已保存",
   "options.commandPalette.title": "命令面板",
+  "options.commandPalette.listLabel": "命令列表",
   "options.commandPalette.placeholder": "输入命令名称进行搜索（支持拼音/首字母）",
   "options.commandPalette.empty": "没有匹配的命令",
   "options.commandPalette.hint": "↑↓ 选择 · Enter 执行 · Esc 关闭",
