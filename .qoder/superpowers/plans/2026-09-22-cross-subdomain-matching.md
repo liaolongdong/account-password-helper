@@ -2,7 +2,7 @@
 
 # 同主域名跨子域匹配 实施计划
 
-**Spec:** `docs/superpowers/specs/2026-09-22-cross-subdomain-matching-design.md`
+**Spec:** `.qoder/superpowers/specs/2026-09-22-cross-subdomain-matching-design.md`
 
 **Goal:** 让 `qq.com` 下的账号在 `mail.qq.com` / `music.qq.com` 可见可填，同时把放宽程度交给用户选档位，默认档位与今天逐字节等价。
 
@@ -1442,7 +1442,7 @@ pnpm lint:style
 pnpm test:run
 pnpm build
 pnpm build:firefox
-pnpm exec prettier --check docs/superpowers/specs/2026-09-22-cross-subdomain-matching-design.md
+pnpm exec prettier --check .qoder/superpowers/specs/2026-09-22-cross-subdomain-matching-design.md
 ```
 
 Expected: 全绿；单测基线数只增不减（当前 1134 例 / 102 文件量级）

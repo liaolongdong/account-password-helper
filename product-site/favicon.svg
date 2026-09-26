@@ -1,0 +1,8 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="账号密码管理助手">
+  <rect width="128" height="128" rx="20" fill="#409EFF"/>
+  <circle cx="64" cy="46" r="20" fill="#FFFFFF"/>
+  <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+  <rect x="59" y="62" width="10" height="48" rx="4" fill="#FFFFFF"/>
+  <rect x="69" y="86" width="8" height="6" rx="1.5" fill="#FFFFFF"/>
+  <rect x="69" y="98" width="11" height="6" rx="1.5" fill="#FFFFFF"/>
+</svg>

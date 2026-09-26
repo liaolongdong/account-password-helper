@@ -104,25 +104,36 @@ function computeClosure(entryFiles: string[]): Set<string> {
 
 const hasOutput = existsSync(path.join(OUTPUT_DIR, 'sidepanel.html'));
 
+/**
+ * 展开一个入口 HTML 的首屏产物闭包。
+ *
+ * 只允许在 `it` 内调用：`describe.skipIf` 不会跳过收集阶段的回调，产物读取一旦写进
+ * 回调体，缺产物的环境（CI 的 Unit tests 任务不跑 `pnpm build`）就会在收集期 ENOENT，
+ * 整个文件连「跳过」都报不出来。
+ */
+function analyzeEntry(entry: string): { refs: string[]; closure: Set<string> } {
+  const refs = extractChunkRefs(readEntryHtml(entry));
+  return { refs, closure: computeClosure(refs.map(chunkFileFromHref)) };
+}
+
 describe.skipIf(!hasOutput)('身份库独立性 — 首屏产物闭包不含 identity chunk', () => {
   for (const entry of ENTRIES) {
     describe(entry, () => {
-      const html = readEntryHtml(entry);
-      const refs = extractChunkRefs(html);
-      const closure = computeClosure(refs.map(chunkFileFromHref));
-
       it('存在入口 script 且闭包非空', () => {
+        const { refs, closure } = analyzeEntry(entry);
         expect(refs.length).toBeGreaterThan(0);
         expect(closure.size).toBeGreaterThan(0);
       });
 
       it('闭包内没有任何身份域 chunk', () => {
-        const leaked = [...closure].map(file => path.basename(file)).filter(name => FORBIDDEN_CHUNK_PREFIX.test(name));
+        const leaked = [...analyzeEntry(entry).closure]
+          .map(file => path.basename(file))
+          .filter(name => FORBIDDEN_CHUNK_PREFIX.test(name));
         expect(leaked, `发现身份域 chunk 泄入首屏闭包: ${leaked.join(', ')}`).toEqual([]);
       });
 
       it('闭包源码不含 .aphid 的代码形态', () => {
-        const leaked = [...closure]
+        const leaked = [...analyzeEntry(entry).closure]
           .filter(file => FORBIDDEN_CONTENT_RE.test(readFileSync(file, 'utf8')))
           .map(file => path.basename(file));
         expect(leaked, `.aphid 备份容器代码泄入首屏闭包: ${leaked.join(', ')}`).toEqual([]);
