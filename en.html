@@ -1715,9 +1715,6 @@
       .reveal-delay-4 {
         transition-delay: 0.32s;
       }
-      .reveal-delay-5 {
-        transition-delay: 0.4s;
-      }
 
       /* ============ Motion layer ============ */
       /* 落地页品牌动效：只改 transform / opacity，不触碰布局属性；
@@ -6267,9 +6264,11 @@ pnpm lint:style  # Stylelint</code></pre>
         stop();
         start();
       }
+      /** 灯箱是否开着：开着就不该自动翻页（见文末「演示图灯箱」段的置位处） */
+      let lightboxOpen = false;
       /** 自动轮播是否应当推进：减弱动效下交给用户手动操作，视口外与后台标签页不空转 */
       function autoPlayAllowed() {
-        return carouselInView && !document.hidden && !reduceMotion.matches;
+        return carouselInView && !document.hidden && !reduceMotion.matches && !lightboxOpen;
       }
       function start() {
         if (!autoPlayAllowed()) return;
@@ -6318,6 +6317,11 @@ pnpm lint:style  # Stylelint</code></pre>
 
       // 键盘左右
       document.addEventListener('keydown', e => {
+        // 灯箱开着时方向键不属于轮播：遮罩是全片的 fixed 层，背后的 slide 一旦翻动，
+        // 关掉灯箱后人会停在另一屏，而且此刻根本没有可见反馈告诉他发生了什么。
+        // 用 lightbox.hidden 作判据而不是给灯箱加 stopPropagation——
+        // 这是唯一的轮播方向键入口，掐在这里，焦点在页面任何位置都拦得住。
+        if (!lightbox.hidden) return;
         if (e.key === 'ArrowLeft') prev();
         if (e.key === 'ArrowRight') next();
       });
@@ -6699,6 +6703,11 @@ pnpm lint:style  # Stylelint</code></pre>
         lbClose.setAttribute('aria-label', I18N['lightbox.close'][lang]);
         lbReturnFocus = document.activeElement;
         lightbox.hidden = false;
+        /* 遮罩盖住的一刻起停掉自动翻页：不停的话读完一张大图关掉，轮播已经悄悄跑到别的屏，
+           和方向键在背后翻动是同一个后果。置位 + stop() 与 hover 暂停走同一条路，
+           start() 自己会看 autoPlayAllowed()，所以关掉后该不该续播不必在这里判断。 */
+        lightboxOpen = true;
+        stop();
         setScrollLock(true);
         lbClose.focus();
       }
@@ -6706,8 +6715,10 @@ pnpm lint:style  # Stylelint</code></pre>
       function closeLightbox() {
         if (lightbox.hidden) return;
         lightbox.hidden = true;
+        lightboxOpen = false;
         setScrollLock(false);
         lbImg.removeAttribute('src'); // 顺手释放已解码的大图
+        start(); // 续播交给门控：视口外 / 后台标签页 / 减弱动效下它自己会拒绝
         if (lbReturnFocus && typeof lbReturnFocus.focus === 'function') lbReturnFocus.focus();
         lbReturnFocus = null;
       }
@@ -6727,6 +6738,15 @@ pnpm lint:style  # Stylelint</code></pre>
       // 点遮罩、点叉、点图本身都收起（图上的 cursor 已写成 zoom-out，形状即提示）
       lightbox.addEventListener('click', e => {
         if (e.target === lightbox || e.target === lbClose || e.target === lbImg) closeLightbox();
+      });
+      /* 焦点必须困在对话框里：lbClose 是唯一可聚焦控件，不拦 Tab 就会按文档顺序跑到遮罩背后
+         （body 末尾之后先出浏览器界面，绕回来就是页头品牌链），而背景此刻已被滚动锁死、
+         又整片被遮罩盖住——用户对着看不见的位置按 Tab。role=dialog + aria-modal 只是对读屏的
+         承诺，键盘焦点得自己接住。 */
+      lightbox.addEventListener('keydown', e => {
+        if (e.key !== 'Tab') return;
+        e.preventDefault();
+        lbClose.focus();
       });
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape') closeLightbox();

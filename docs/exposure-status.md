@@ -29,15 +29,37 @@
 | 文档事实审计（2026-09-09）     | README / ARCHITECTURE / CONTRIBUTING / THIRD-PARTY-NOTICES / CWS 两份 / 博客 4 篇的中英文均已按源码逐项校正；残留的代码侧错误口径见本文「🟡 需你决策」末节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 测试基线（2026-09-25 复跑）    | `pnpm test:run` → **142 个测试文件 / 1563 个用例全部通过，exit 0**。上表 2026-09-22 的 114 / 1292 是当时的快照，保留作记录；对外表面（README / `llms.txt` / 博客正文 / 封面 SVG）已于 2026-09-25 统一改标 **1563 项 / 142 文件**，仍是易漂移字段，发布前按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复跑再刷新                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
-## 🆕 2026-09-25 落地页与 README 版式对齐波次（本轮，未提交）
+## 🆕 2026-09-26 落地页缺陷修复与评审波次（本轮，已提交；推送状态以 `git log origin/feature-opt..HEAD` 为准）
+
+用户指令「从最佳的用户体验、实用性和性能考虑按最优方案执行，完成后代码评审 + 自测，无问题自动提交」，随后追加「深度代码评审与安全评审，确保存量功能可用，然后提交并推送」。**仍然只动 `index.html`（经 `pnpm gen:en` 出 `en.html`）、两份 README 与本审计文档，运行时代码与扩展产物零改动。**
+
+### 改了什么
+
+- **R2 两个反馈**：① `.more-grid`（同作者互链卡）在 `@media (max-width:768px)` 收成 `1fr`——原先漏这条，768 以下每格 176px、长描述挤成 14-24 行、卡高 590-862px，收单列后 372px / 5 行 / 203px；② README 功能演示从 4 行 × 2 列 `<table>` 改回**一行一张**（`<p align="center">` + `<a href="原图">`，8 段），并订正引言口径为「首图 1152×720 操作动图，其余七张 2560×1600 的 2 倍屏截图」——原句把两类尺寸混为一谈是假事实。代价实测：单列比两列高约 3.7×，图片载荷约 4.9 MB，用户已确认接受。
+- **R3 缺陷轮（`d596fb4`，八处）**：窄屏页头三道阀门（品牌名可缩略 / ≤480 撤源码图标 / 禁 JS ≤520 换行 + 同档补 `scroll-padding-top: 212px`）；`.slide-shot` 画幅 `16/9` → `16/10`（母版是 16:10，旧值上下各切 23.75px 自带标题带）；`.compare-table` 死令牌 `--bg-subtle` / `--text-secondary` 换回 `--bg-soft` / `--text` / `--text-muted`，行列 hover 整组收进 `@media (hover:hover) and (pointer:fine)`；**跑动数据包 `.flow-packet` 抬 `z-index: 3` 并加白描边**（`.flow-step` 是 `z-index:auto` 不建层叠上下文，数字伪元素 z1 / 对勾 z2 直接参加卡片排序，auto 定位元素排在正 z 之后）；滚动高亮 `sections` 表补齐 10 条页内锚点（原 7 条）；轮播仅当前屏截图保留 `tabindex="0"`（离屏 13 个隐形停留点归零）；灯箱说明 `figcaption` → `div.lightbox-cap`（父元素不是 `<figure>`，语义不成立）。
+- **本轮双轴评审 + 安全评审后的四处修复**：① 灯箱**焦点陷阱**——`lbClose` 是对话框内唯一可聚焦控件，不拦 Tab 就会按文档顺序跑到遮罩背后（body 末尾之后先出浏览器界面，绕回来是页头品牌链），而背景此刻滚动锁死且整片被盖；② **方向键归位**——轮播的 `document` 级 `ArrowLeft/Right` 此前无条件翻页，灯箱开着时背后照样换屏，现在开着即 `return`；③ **开着就不空转**——`autoPlayAllowed()` 增第 4 道门 `!lightboxOpen`，`openLightbox` 置位 + `stop()`、`closeLightbox` 复位 + `start()`，与 hover 暂停走同一条路（不复用 `lightbox.hidden` 作判据：`start()` 在 6611 行初始化时就会跑，而 `const lightbox` 在文末，直接引用是 TDZ 崩溃）；④ 删 `.reveal-delay-5`（全仓仅定义无消费者，同族 1-4 都有引用）。
+- **安全评审结论（无需改动项也已列明）**：`innerHTML` 只吃文件内 `SLIDES` / `FAQS` / `I18N` 常量，`lang` 经 `'zh'|'en'` 白名单收窄，URL / `localStorage` / postMessage 无可注入面，灯箱说明走 `textContent`；新增远端资源 0（无外部 `<script>` / `<link>` / 字体 / 统计），`target="_blank"` 中文页 28/28、英文页 26/26 全带 `rel="noopener noreferrer"`；轮播图统一取 `assets/cws-store/screen-*.png` 占位套件，`assets/screenshots/` 旧 PII 图仅存于注释、无引用；`PBKDF2 600000`、五字段逐字段加密、`UPDATE_CHECK_INTERVAL_MINUTES=360`、13 项权限、23 条命令面板逐项对代码复算通过。
+
+### 评审提出但刻意未做
+
+- `docs/` 与 `compare.html` 的「十个维度」是 `compare.html` 自述口径（`e8d3d1e` 即如此，正文表体实有 11 行，第 11 行「跨设备云同步 / 移动端 App」是刻意保留的短板披露行）；`llms.txt` 只是跟随该口径，不在本轮改。
+- `index.html` 的 `dateModified`、`sitemap.xml`、`llms.txt`、README 更新时间仍是 2026-09-25：`CWS_PUBLISHING_GUIDE.md` 只要求年月一致，逐个改成 09-26 会把 18 条 `lastmod` 与四处日期一并搅动，收益为零。
+- 魔法色值（`.flow-step i{background:#b9d2ff}`、`.copied{color:#6ee7b7}`、灯箱 `#cbd5e1`）与 `.compare-cross{color:#ccc}` 低对比度：存量写法，`lint:style` 的 glob 不含 `.html`，本轮不扩范围。
+- `scripts/build-en-page.mjs:152` 的 `replaceEvery` 是全文件 `replaceAll`：当前只命中 2 处且未命中即 `throw`，但若 `#more` 文案将来改成 `data-i18n-html`，字典里的 **zh** 值会被一起改写。`pricing` 生成器用「字典里同时放 zh/en 两值」规避了同一风险——两套实现并存，统一它属独立任务。
+
+### 验证
+
+真机（headless Chrome 1440×900 + 裸 CDP，中英两页各跑一遍）：`{opened, focusOnOpen:"lightbox-close", pausedWhileOpen, trapped, arrowBlockedWhileOpen, closed, focusReturned, lockReleased, resumed, arrowWorksAfterClose, tabbableCount:1, deadDelay5:false}` 全绿；其中 Tab 陷阱**另在 `index.html` 上用真实 `Input.dispatchKeyEvent` 复测过一次**（合成事件证明不了原生焦点移动；`en.html` 侧靠 JS 与中文页逐字同源 + 合成事件覆盖）。评审前既有测量：数据包落格 38 采样点遮挡 23 → 0；离屏可 Tab 13 → 0；滚动高亮 10 锚点 × 中英全对。三条降级保险复测：无 JS 320/420/768/1024/1440 五档 0 溢出、12/12 锚点可见、0 reveal 卡隐；reduce 39/39 落终态；删 `IntersectionObserver` 39/39 可见、数字带 `[1563,5,3,6,23,0]`。`pnpm gen:en` 连跑两次 md5 一致（**data-i18n 230/230、data-i18n-html 14/14**）、生成物未手改；`typecheck` / `lint` / `lint:style` / `prettier --check` 0 报错；`pnpm test:run` **142 文件 / 1563 例全绿**（`tests/docs/faqSchemaParity.test.ts` 会读 `index.html`，故落地页改动在测试覆盖内）。口径备注：这一轮串行门禁脚本里 test 那步接了 `| tee`，退出码被 `tee` 吞成 0，而进程实际在半路收到 SIGTERM（日志末尾 `exit code 143`、无 `Test Files` 汇总行）；改为无管道重跑后先遇 1 例 `savePasswordPrompt.labelWidth` 的 5 s 争用超时（单跑通过），再跑一次得到上述全绿——**认的是日志里套件自己的汇总行，不是哨兵。**
+
+## 🆕 2026-09-25 落地页与 README 版式对齐波次（已提交）
 
 参照同作者另两个产品页（`cross-origin-proxy` / `transfer-any-file`）的版式与动效，把本插件的产品说明页与两份 README 对齐。**只动 `index.html`（经 `pnpm gen:en` 出 `en.html`）与两份 README，运行时代码与扩展产物零改动。**
 
 ### 改了什么
 
-- **W0 动效令牌与落位反馈**：新增 `--dur-slow: 0.6s` 作为「滚动揭示 + 进场」那一档的单一来源（取值与收敛前逐字等价，不是新的时间承诺），hover / 按压两档仍是各处字面量；`--dur-fast` / `--dur-mid` 全仓 0 处引用，已删。新增 `:target` 落位提示（`aph-found` 1.2s），reduce 用户改走本文件既有的 `aph-fade` 0.2s 约定而不是彻底静默。`html { scroll-behavior: smooth; scroll-padding-top: 84px; }`。
-- **W1 版式对齐**：① 数据带 `.metrics` 六卡（1563 用例 / 5 个逐字段加密字段 / 3 档跨子域名匹配 / 6 款主题 / 23 条命令面板命令 / 0 个云端账号与同步服务器，逐一可对代码复算；测试文件数 142 只出现在 README 与 `llms.txt`，落地页刻意不展示）；② 工作原理带 `.hiw` 四步，编号与 README「工作原理」四步、`docs/ARCHITECTURE.md` 功能实现详解同一口径；③ 隐私带 `.priv` 四条，措辞逐字取自 `privacy.html` 的权限表与既有隐私口径；④ 导航补 `#how` / `#privacy` 锚点并把 scroll-spy 列表扩到 7 项；⑤ 对比表「本插件列」整列 hover wash 用 `:has()` 实现（该列本来就有 `.highlight` class，不必加 `data-col` 脚本）。
-- **W2 README**：新增 `## 🧭 工作原理` 四步（目录同步加锚点）；功能演示从 8 段纵向 `<p align="center">` 改成 4 行 × 2 列 `<table>`（图片路径 / alt / 说明文字一字未改，只换排布）；快捷键速查表收进 `<details>`。中英文两份表达同一事实，非逐字互译。
+- **W0 动效令牌与落位反馈**：新增 `--dur-slow: 0.6s` 作为「滚动揭示 + 进场」那一档的单一来源（取值与收敛前逐字等价，不是新的时间承诺），hover / 按压两档仍是各处字面量；`--dur-fast` / `--dur-mid` 全仓 0 处引用，已删（快照：`82dc6f3` 时确实为 0；`d596fb4` 起两令牌各 3 处引用——灯箱入场、`aph-confirm` 落位反馈、追光过渡，别再照本句判断）。新增 `:target` 落位提示（`aph-found` 1.2s），reduce 用户改走本文件既有的 `aph-fade` 0.2s 约定而不是彻底静默。`html { scroll-behavior: smooth; scroll-padding-top: 84px; }`。
+- **W1 版式对齐**：① 数据带 `.metrics` 六卡（1563 用例 / 5 个逐字段加密字段 / 3 档跨子域名匹配 / 6 款主题 / 23 条命令面板命令 / 0 个云端账号与同步服务器，逐一可对代码复算；测试文件数 142 只出现在 README 与 `llms.txt`，落地页刻意不展示）；② 工作原理带 `.hiw` 四步，编号与 README「工作原理」四步、`docs/ARCHITECTURE.md` 功能实现详解同一口径；③ 隐私带 `.priv` 四条，措辞逐字取自 `privacy.html` 的权限表与既有隐私口径；④ 导航补 `#how` / `#privacy` 锚点并把 scroll-spy 列表扩到 7 项（快照：`d596fb4` 起是 10 项——本轮新增的痛点 / 场景 / 安装三节必须一并列进表，否则滚到那一节高亮还停在上一节）；⑤ 对比表「本插件列」整列 hover wash 用 `:has()` 实现（该列本来就有 `.highlight` class，不必加 `data-col` 脚本）。
+- **W2 README**：新增 `## 🧭 工作原理` 四步（目录同步加锚点）；功能演示从 8 段纵向 `<p align="center">` 改成 4 行 × 2 列 `<table>`（图片路径 / alt / 说明文字一字未改，只换排布）（快照：该排布已被 R2 撤回，HEAD 现状是一行一张 + 点看原图，见上一节）；快捷键速查表收进 `<details>`。中英文两份表达同一事实，非逐字互译。
 
 ### 没做什么（以及为什么）
 
@@ -80,7 +102,7 @@
 
 ### 验证
 
-`pnpm gen:en`（data-i18n 125/125、data-i18n-html 5/5）、`pnpm gen:pricing-en`（107/107、12/12）、`pnpm gen:blog`（12 files）、`pnpm covers:render 04 05` 均成功；`pnpm exec prettier --check` 覆盖本轮改动的人类维护文件全绿（生成物与 `.txt` / `.xml` 无 parser，按既有口径排除）；`pnpm test:run` 1563 例全绿。
+`pnpm gen:en`（data-i18n 125/125、data-i18n-html 5/5；快照：`d596fb4` 起是 **230/230 与 14/14**，本轮新增板块带去了 105 个 `data-i18n` 节点与 9 个 `data-i18n-html` 节点）、`pnpm gen:pricing-en`（107/107、12/12）、`pnpm gen:blog`（12 files）、`pnpm covers:render 04 05` 均成功；`pnpm exec prettier --check` 覆盖本轮改动的人类维护文件全绿（生成物与 `.txt` / `.xml` 无 parser，按既有口径排除）；`pnpm test:run` 1563 例全绿。
 
 ## 🆕 2026-09-22 文档刷新波次（本轮，未提交）
 
