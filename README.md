@@ -17,7 +17,7 @@
 
 > **开源免费的本地优先密码管理器**：一键登录连登录按钮一起点、精确域名匹配隔离 dev/test/staging/prod、跨子域名匹配三档按需放宽、内置 TOTP 两步验证与离线安全体检。完全免费、无订阅、无需注册账号，密码数据只存本机。
 
-> 🌐 **[在线演示](https://liaolongdong.github.io/account-password-helper/)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K 迭代 + AES-256-GCM ｜ 🎨 6 款主题 · 中英文双语 ｜ 🧪 1563 项自动化测试
+> 🌐 **[在线演示](https://liaolongdong.github.io/account-password-helper/)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K 迭代 + AES-256-GCM ｜ 🎨 6 款主题 · 中英文双语 ｜ 🧪 1941 项自动化测试
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="账号密码管理助手扩展图标" width="120" />

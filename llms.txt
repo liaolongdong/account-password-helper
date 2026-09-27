@@ -13,8 +13,8 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-09-25 · **Latest release**: v3.12.0 (2026-09-25)
-- **Quality**: 1563 automated test cases across 142 test files
+- **Last updated**: 2026-09-27 · **Latest release**: v3.12.0 (2026-09-25)
+- **Quality**: 1941 automated test cases across 167 test files
 
 ## Key Features
 
