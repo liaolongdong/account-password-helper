@@ -344,7 +344,7 @@
 
 同一位作者、同一套做法：开源、离线、数据只留在本机。作者的其余开源作品见 [github.com/liaolongdong](https://github.com/liaolongdong)。
 
-- [Transfer Any File](https://github.com/liaolongdong/transfer-any-file)：14 种格式在浏览器里互转、一个字节也不上传的离线文件转换器——Markdown、Word、PDF、Excel、CSV、JSON、HTML 与图片在自己电脑上完成转换，支持批量混合格式、自动多步链路、预览与内联编辑、ZIP 打包。无账号、无上传、无网络请求。[产品页](https://liaolongdong.github.io/transfer-any-file/)
+- [文件格式任意转换助手](https://github.com/liaolongdong/transfer-any-file)：14 种格式在浏览器里互转、一个字节也不上传的离线文件转换器——Markdown、Word、PDF、Excel、CSV、JSON、HTML 与图片在自己电脑上完成转换，支持批量混合格式、自动多步链路、预览与内联编辑、ZIP 打包。无账号、无上传、无网络请求。[产品页](https://liaolongdong.github.io/transfer-any-file/)
 - [跨域代理助手 · Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy)：把页面发出的 API 请求代理到另一个后端环境——重写 URL、请求头与响应，条件化 Mock、注入延迟、阻断请求、失败重试、转发 WebSocket，全部在浏览器里配置，数据只存在你的电脑上。本扩展管「这个环境我是谁」，它管「这个环境请求打到哪」，多环境联调时两个一起开最顺手。[产品页](https://liaolongdong.github.io/cross-origin-proxy/) · [Chrome 应用商店](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
 
 ## 🤝 参与贡献
