@@ -242,6 +242,17 @@ graph LR
 
 请确保提交前所有检查通过。
 
+### 提交范围
+
+仓库只承载产品代码、构建配置与对外内容，下列本地产物写在 `.gitignore` 里，不要提交：
+
+- AI 会话工作稿与工具跑批产物：`.qoder/plans/`、`.qoder/superpowers/`、`.qoder/better-harness/`、`.qoder/better-harness-runs/`、`.qoder/repowiki/`。`.qoder/` 整体不忽略，`rules/`、`skills/`、`commands/` 是团队协作要用的项目配置，保持跟踪。
+- 一次性代码评审报告：`docs/code-review-*.md`。结论应回写进提交说明与对应文档，报告本身留在本地。
+- Qoder Sites 的本地描述符 `*.qoder.site`：含 siteId 与整页 base64 快照，属机器绑定状态，换台机器就该重新生成。
+- 构建产物、性能测量原始结果、E2E 报告与凭据缓存等既有规则（见 `.gitignore` 各段落注释）。
+
+反向约束：对外与 SEO 内容（`README*`、`docs/blog/**`、`docs/promo/**`、`docs/公众号-*.md`、`docs/微博-*.md`、`docs/reddit-post.md`、`docs/exposure-status.md`、`docs/账号密码管理助手曝光提升执行手册.md`），以及被源码注释按路径引用的报告（`docs/PERF_*.md`、`docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`、`docs/LANDING_MOTION_PROPOSAL.md`）必须保持跟踪——把它们「顺手」忽略会让仓库里的引用变成死链。新增这类文档前先确认它属于哪一边。
+
 ### 测试规范
 
 - 使用 Vitest 进行单元测试，测试文件放在 `tests/` 目录下，与源码目录结构对应。
@@ -600,6 +611,17 @@ The project is configured with `husky` + `lint-staged`. On every `git commit`, t
 - `prettier --write` (JSON / Markdown files)
 
 Please ensure all checks pass before committing.
+
+### What Belongs in the Repo
+
+The repository carries product code, build configuration and public-facing content only. Local artifacts below are covered by `.gitignore` and must not be committed:
+
+- AI session drafts and tool run outputs: `.qoder/plans/`, `.qoder/superpowers/`, `.qoder/better-harness/`, `.qoder/better-harness-runs/`, `.qoder/repowiki/`. `.qoder/` as a whole is not ignored — `rules/`, `skills/` and `commands/` are project configuration the team relies on and stay tracked.
+- One-off code review reports: `docs/code-review-*.md`. Findings belong in commit messages and the relevant docs; the report itself stays local.
+- Qoder Sites local descriptors `*.qoder.site`: they carry the siteId and a base64 snapshot of the whole page, i.e. machine-bound state that should be regenerated on another machine.
+- Existing rules for build output, raw performance measurements, E2E reports and credential caches (see the comments in each `.gitignore` section).
+
+The reverse constraint: public and SEO content (`README*`, `docs/blog/**`, `docs/promo/**`, `docs/公众号-*.md`, `docs/微博-*.md`, `docs/reddit-post.md`, `docs/exposure-status.md`, `docs/账号密码管理助手曝光提升执行手册.md`), plus reports cited by path from source comments (`docs/PERF_*.md`, `docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`, `docs/LANDING_MOTION_PROPOSAL.md`), must stay tracked — ignoring them "for cleanup" turns those references into dead links. Decide which side a new document belongs to before adding it.
 
 ### Testing
 

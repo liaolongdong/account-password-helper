@@ -2,9 +2,9 @@
  * 身份信息库（Identity Vault）独立性守卫 — sidepanel / popup 首屏产物闭包
  *
  * 背景：身份信息库刻意做成「只在 Options 页存在」的平行数据域，独立性是首要需求
- * （见 `.qoder/plans/身份信息库（Identity Vault）实现方案.md` 的「独立性硬约束」）。
+ * （见 `docs/ARCHITECTURE.md`「27. 身份信息库」的「定位与独立性」）。
  * 但 `utils/storageKeys.ts` 同时被 sidepanel / popup / options 依赖，往 `STORAGE_KEYS`
- * 加 `IDENTITY` 键后，该共享 chunk 的字节必然变化（风险 R6，属内容变化非行为变化）。
+ * 加 `IDENTITY` 键后，该共享 chunk 的字节必然变化（属内容变化非行为变化）。
  *
  * 这里把「身份库绝不进入 sidepanel / popup 首屏」固化为断言：递归展开两个入口
  * HTML 的 `modulepreload` 闭包（入口 script + 全部预加载 chunk + 它们静态/动态 import
