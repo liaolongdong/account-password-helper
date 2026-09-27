@@ -1710,6 +1710,92 @@
         letter-spacing: -0.01em;
       }
 
+      /* ============ FAQ 分类直达右栏 ============ */
+      /* 41 条问答收起时就有约 3700px 高（1440 宽实测 3658px），滚动时没有任何「读到哪一节」的
+         信号；而本节容器内宽 1152、问答列 820，左右各空着 166px——问答列自己已经是可读行长，
+         再拉宽只会更难读。所以把容器拆成两栏：左列维持问答（820px 那道封顶不参与，
+         两栏下它只有 792px），右栏放「分类直达」，空白变成了导航。
+         基准档仍是单列，右栏落在问答之后（锚点照旧能点、禁 JS 也一样读），≥1080px 才拆两栏。 */
+      .faq-wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        /* start 是 sticky 的前提：默认的 stretch 会把右栏拉成问答列那么高，
+           它自己就是那一格，再也没有可移动的空间。 */
+        align-items: start;
+      }
+      /* 小节标题横跨两栏。它的下边距在 .section-sub 内部，网格不改变这道 40px，
+         所以标题与问答之间的间距与拆分前逐字一致。 */
+      .faq-wrap > .section-head {
+        grid-column: 1 / -1;
+      }
+      .faq-rail {
+        /* 单列那一档右栏是通栏的：不封顶的话目录一行的标题与条数会被拉到两端，读起来像两张表；
+           顺手居中，与本节居中的标题对齐。width 必须写死：网格项两边都是 auto 边距时不再
+           stretch，只按内容收缩——实测卡片会缩成 126px 的窄条（≥1080px 那档由下面的归零覆盖）。 */
+        width: 100%;
+        max-width: 420px;
+        margin-inline: auto;
+      }
+      .faq-rail-card {
+        padding: 16px 18px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
+      }
+      .faq-rail-title {
+        margin: 0 0 8px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: var(--text-muted);
+      }
+      .faq-toc {
+        display: grid;
+        gap: 2px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      /* 一行一个分类，条数右对齐。只用颜色与底色表达悬停，不位移、不缩放，
+         因此 reduced-motion 档无需额外撤除（与 .nav-links 同一档处理）。 */
+      .faq-toc a {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 0 -8px;
+        padding: 6px 8px;
+        font-size: 14px;
+        color: var(--text-muted);
+        border-radius: var(--radius-sm);
+        transition:
+          color var(--dur-fast) ease,
+          background var(--dur-fast) ease;
+      }
+      .faq-toc a:hover {
+        color: var(--primary-dark);
+        background: var(--primary-soft);
+      }
+      .faq-toc-n {
+        font-size: 12.5px;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-muted);
+      }
+      @media (min-width: 1080px) {
+        .faq-wrap {
+          /* 1152（容器内宽）= 792 问答列 + 40 栏距 + 320 右栏，正好铺满内容区 */
+          grid-template-columns: minmax(0, 1fr) 320px;
+          column-gap: 40px;
+        }
+        .faq-rail {
+          top: 84px;
+          position: sticky;
+          max-width: none;
+          margin-inline: 0;
+        }
+      }
+
       /* ============ Scroll Reveal ============ */
       /* 隐形初始态挂在 html.js 下：JS 缺席（禁用 JS、无头抓取、AI 爬虫）时内容直接全显。
          基准态与终态必须带同一层前缀——html.js .reveal 是 (0,2,1)，
@@ -2957,8 +3043,9 @@
 
       /* ============ 锚点落位反馈 ============ */
       /* 从搜索结果、博客内链或导航跳进来时，标题闪一次，确认「你要看的就是这一节」。
-         纯 CSS、一次性、只动 opacity 与 transform。挂在 section:target 上：FAQ 条目无 id（静态 DOM 与
-         脚本重渲染都不带），给它们写 .faq-item:target 只会是一条永远匹配不到的死规则。 */
+         纯 CSS、一次性、只动 opacity 与 transform。挂在 section:target 上：问答条目（.faq-item）
+         不带 id，给它们写 .faq-item:target 只会是一条永远匹配不到的死规则；分类节点（.faq-category）
+         的 id 是右栏「分类直达」的落点，而它是 div 不是 section，也不会撞进这条规则。 */
       @keyframes aph-found {
         from {
           opacity: 0.35;
@@ -5084,7 +5171,9 @@ pnpm lint:style  # Stylelint</code></pre>
 
     <!-- ======= FAQ ======= -->
     <section id="faq">
-      <div class="container">
+      <!-- `.faq-wrap` 把本节容器变成两栏网格：左列是问答列表，右列是「分类直达」。
+           两格都由 #faqList 生成区产出，这里只提供网格本身（见 scripts/lib/faq-dom.mjs）。 -->
+      <div class="container faq-wrap">
         <div class="section-head">
           <h2 data-i18n="faq.title">常见问题</h2>
           <p
@@ -5094,10 +5183,10 @@ pnpm lint:style  # Stylelint</code></pre>
             使用前后你可能会关心的问题
           </p>
         </div>
-        <!-- BEGIN GENERATED FAQ DOM —— 由 scripts/build-faq-dom.mjs（pnpm gen:faq-dom）从页面 FAQS 数组注入，改文案只改 FAQS，勿手改这里 -->
+        <!-- BEGIN GENERATED FAQ DOM —— 由 scripts/build-faq-dom.mjs（pnpm gen:faq-dom）从页面 FAQS 数组注入，含问答列表与分类直达右栏，改文案只改 FAQS，勿手改这里 -->
         <!-- prettier-ignore -->
         <div class="faq-list" id="faqList">
-          <div class="faq-category">
+          <div class="faq-category" id="faq-cat-security">
             <span class="faq-category-icon security"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
             <span class="faq-category-title">安全与隐私</span>
           </div>
@@ -5129,7 +5218,7 @@ pnpm lint:style  # Stylelint</code></pre>
             <button class="faq-q" aria-expanded="false"><span>什么是安全体检？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
             <div class="faq-a"><div class="faq-a-inner">安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分），由四个计分维度加权得出：密码复用（35）、弱密码（25）、常见泄露密码（20，近千条离线弱口令字典命中）、长时间未更新（20，90/180/365 天分级预警）；未开启两步验证单独列示、不计入评分。长时间未更新的条目还可设置密码到期提醒（7/30/90 天后桌面通知提醒更换）。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。</div></div>
           </div>
-          <div class="faq-category">
+          <div class="faq-category" id="faq-cat-basic">
             <span class="faq-category-icon basic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
             <span class="faq-category-title">基础使用</span>
           </div>
@@ -5173,7 +5262,7 @@ pnpm lint:style  # Stylelint</code></pre>
             <button class="faq-q" aria-expanded="false"><span>什么是内联填充？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
             <div class="faq-a"><div class="faq-a-inner">内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充；也可按快捷键 Ctrl+Shift+K / Cmd+Shift+K 直接展开（任意填充模式下均可用）。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），面板打开与每次筛选后默认选中首条，回车即填当前站点最匹配的账号；搜索与侧边栏共用同一套口径，账号 / 标签 / 备注 / 网址多字段命中，认拼音全拼与首字母缩写；中文／日文输入法候选未上屏时不接管 ↑↓ / Enter / Esc，避免误填。当前站点无匹配账号时，空态提供「到全部账号中搜索」，带着关键词直达管理页做全库检索。使用 Closed Shadow DOM 完全隔离页面样式。</div></div>
           </div>
-          <div class="faq-category">
+          <div class="faq-category" id="faq-cat-data">
             <span class="faq-category-icon data"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>
             <span class="faq-category-title">数据管理</span>
           </div>
@@ -5217,7 +5306,7 @@ pnpm lint:style  # Stylelint</code></pre>
             <button class="faq-q" aria-expanded="false"><span>条目接近上限时管理页会卡吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
             <div class="faq-a"><div class="faq-a-inner">不会按条目总数卡。列表按页呈现（默认每页 100 条，可切 50 / 100 / 200，档位记在本机、下次打开管理页仍是这一档），一次只渲染当前这一页，所以搜索、输入过滤、翻页、悬停这类交互的耗时基本不再随条目数增长——本机同法实测，600 条与近上限 2000 条两档的读数落在同一量级。打开管理页还包含一次「读整库并解密」，这一步的开销与条目总数相关、不由分页决定，所以这里的口径是「成本不随行数逐条放大」，不是「恒定耗时」。分页只改变「一次画多少行」：搜索、排序、导出与「总计 / 筛选后」读数作用的仍是全部命中条目，跨页勾选也会保留（分页条会写明有几条不在当前页）；表头「全选」按表格惯例只勾当前页，需要大批量操作时先切到每页 200 条，或逐页勾选。新增、编辑、收藏、创建副本后会自动跳到该条所在页并高亮 6 秒。页码则不记忆：它随筛选与排序口径变化，是派生值而不是设置。</div></div>
           </div>
-          <div class="faq-category">
+          <div class="faq-category" id="faq-cat-config">
             <span class="faq-category-icon config"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
             <span class="faq-category-title">高级配置</span>
           </div>
@@ -5278,6 +5367,18 @@ pnpm lint:style  # Stylelint</code></pre>
             <div class="faq-a"><div class="faq-a-inner">Windows Defender 会在扩展文件首次加载时逐文件扫描，导致冷启动延迟增加 1-2 秒。建议将 Chrome 扩展目录加入 Defender 排除列表以跳过扫描：打开「Windows 安全中心」→「病毒和威胁防护」→「管理设置」→「排除项」→「添加排除项」→选择「文件夹」→粘贴路径 %LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions。加入后冷启动可从 2-3 秒降至 1 秒以内。Mac 用户无需此操作。</div></div>
           </div>
         </div>
+        <!-- prettier-ignore -->
+        <aside class="faq-rail">
+          <nav class="faq-rail-card" aria-labelledby="faqRailTitle">
+            <h3 class="faq-rail-title" id="faqRailTitle">分类直达</h3>
+            <ol class="faq-toc" id="faqToc">
+              <li><a href="#faq-cat-security"><span class="faq-toc-name">安全与隐私</span><span class="faq-toc-n">7</span></a></li>
+              <li><a href="#faq-cat-basic"><span class="faq-toc-name">基础使用</span><span class="faq-toc-n">10</span></a></li>
+              <li><a href="#faq-cat-data"><span class="faq-toc-name">数据管理</span><span class="faq-toc-n">10</span></a></li>
+              <li><a href="#faq-cat-config"><span class="faq-toc-name">高级配置</span><span class="faq-toc-n">14</span></a></li>
+            </ol>
+          </nav>
+        </aside>
         <!-- END GENERATED FAQ DOM -->
       </div>
     </section>
@@ -6878,6 +6979,20 @@ pnpm lint:style  # Stylelint</code></pre>
          改写为 en，因此英文页首屏同样不需要重建。 */
       const bakedFaqLang = document.documentElement.lang.startsWith('zh') ? 'zh' : 'en';
       let faqStaticPending = true;
+      /* 右栏「分类直达」的两个节点，与问答列表同在 #faq 的 .faq-wrap 网格里，由生成区一并产出 */
+      const faqToc = document.getElementById('faqToc');
+      const faqRailTitle = document.getElementById('faqRailTitle');
+      /* 与 scripts/lib/faq-dom.mjs 的 FAQ_RAIL_TITLE 逐字同值（测试钉住两处），改一处必须改另一处：
+         生成区里写的是构建期语言，切到非自带语种时由 renderFaqRail() 用这份常量改写标题。 */
+      const FAQ_RAIL_TITLE = {
+        zh: '分类直达',
+        en: 'Browse by category',
+      };
+
+      /** 分类锚点 id，与 faq-dom.mjs 的 faqCategoryAnchor 同式：用 iconClass 而非下标，插删分类不会让深链错位 */
+      function faqCatAnchor(iconClass) {
+        return `faq-cat-${iconClass}`;
+      }
 
       /** 给单个条目挂上「单展开」手风琴：静态 DOM 与 JS 重渲染共用同一段交互 */
       function bindFaqItem(el) {
@@ -6899,6 +7014,36 @@ pnpm lint:style  # Stylelint</code></pre>
         });
       }
 
+      /** 按当前语言重建右栏「分类直达」：标题、分组条数、锚点三样全部从 FAQS 推导，与左列同序同语言 */
+      function renderFaqRail() {
+        /** 与生成区同构的分组累加：分类开一组，其后的问答逐条计入该组 */
+        const groups = [];
+        FAQS.forEach(item => {
+          if (item.category) {
+            groups.push({ anchor: faqCatAnchor(item.iconClass), title: item.category[lang], count: 0 });
+            return;
+          }
+          groups[groups.length - 1].count += 1;
+        });
+        faqRailTitle.textContent = FAQ_RAIL_TITLE[lang];
+        faqToc.replaceChildren(
+          ...groups.map(group => {
+            const name = document.createElement('span');
+            name.className = 'faq-toc-name';
+            name.textContent = group.title;
+            const count = document.createElement('span');
+            count.className = 'faq-toc-n';
+            count.textContent = String(group.count);
+            const link = document.createElement('a');
+            link.href = `#${group.anchor}`;
+            link.append(name, count);
+            const row = document.createElement('li');
+            row.appendChild(link);
+            return row;
+          }),
+        );
+      }
+
       /** 按当前语言重建 FAQ 列表（仅当语言与页面自带语种不同，收起全部展开项是重建的附带效果） */
       function renderFaqs() {
         faqBox.innerHTML = '';
@@ -6907,6 +7052,8 @@ pnpm lint:style  # Stylelint</code></pre>
           if (item.category) {
             const catEl = document.createElement('div');
             catEl.className = 'faq-category';
+            // 语言切换会整列重建，锚点必须跟着重新写回，否则右栏的 #faq-cat-* 全部落空
+            catEl.id = faqCatAnchor(item.iconClass);
             catEl.innerHTML = `
             <span class="faq-category-icon ${item.iconClass}">${item.iconSvg}</span>
             <span class="faq-category-title">${item.category[lang]}</span>
@@ -6929,6 +7076,7 @@ pnpm lint:style  # Stylelint</code></pre>
           faqBox.appendChild(el);
           bindFaqItem(el);
         });
+        renderFaqRail();
       }
 
       /** 首屏只给静态 DOM 绑交互；语言切到非自带语种后才整列重建 */

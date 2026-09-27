@@ -1711,6 +1711,92 @@
         letter-spacing: -0.01em;
       }
 
+      /* ============ FAQ 分类直达右栏 ============ */
+      /* 41 条问答收起时就有约 3700px 高（1440 宽实测 3658px），滚动时没有任何「读到哪一节」的
+         信号；而本节容器内宽 1152、问答列 820，左右各空着 166px——问答列自己已经是可读行长，
+         再拉宽只会更难读。所以把容器拆成两栏：左列维持问答（820px 那道封顶不参与，
+         两栏下它只有 792px），右栏放「分类直达」，空白变成了导航。
+         基准档仍是单列，右栏落在问答之后（锚点照旧能点、禁 JS 也一样读），≥1080px 才拆两栏。 */
+      .faq-wrap {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        /* start 是 sticky 的前提：默认的 stretch 会把右栏拉成问答列那么高，
+           它自己就是那一格，再也没有可移动的空间。 */
+        align-items: start;
+      }
+      /* 小节标题横跨两栏。它的下边距在 .section-sub 内部，网格不改变这道 40px，
+         所以标题与问答之间的间距与拆分前逐字一致。 */
+      .faq-wrap > .section-head {
+        grid-column: 1 / -1;
+      }
+      .faq-rail {
+        /* 单列那一档右栏是通栏的：不封顶的话目录一行的标题与条数会被拉到两端，读起来像两张表；
+           顺手居中，与本节居中的标题对齐。width 必须写死：网格项两边都是 auto 边距时不再
+           stretch，只按内容收缩——实测卡片会缩成 126px 的窄条（≥1080px 那档由下面的归零覆盖）。 */
+        width: 100%;
+        max-width: 420px;
+        margin-inline: auto;
+      }
+      .faq-rail-card {
+        padding: 16px 18px;
+        background: white;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-sm);
+      }
+      .faq-rail-title {
+        margin: 0 0 8px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        color: var(--text-muted);
+      }
+      .faq-toc {
+        display: grid;
+        gap: 2px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      /* 一行一个分类，条数右对齐。只用颜色与底色表达悬停，不位移、不缩放，
+         因此 reduced-motion 档无需额外撤除（与 .nav-links 同一档处理）。 */
+      .faq-toc a {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 0 -8px;
+        padding: 6px 8px;
+        font-size: 14px;
+        color: var(--text-muted);
+        border-radius: var(--radius-sm);
+        transition:
+          color var(--dur-fast) ease,
+          background var(--dur-fast) ease;
+      }
+      .faq-toc a:hover {
+        color: var(--primary-dark);
+        background: var(--primary-soft);
+      }
+      .faq-toc-n {
+        font-size: 12.5px;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-muted);
+      }
+      @media (min-width: 1080px) {
+        .faq-wrap {
+          /* 1152（容器内宽）= 792 问答列 + 40 栏距 + 320 右栏，正好铺满内容区 */
+          grid-template-columns: minmax(0, 1fr) 320px;
+          column-gap: 40px;
+        }
+        .faq-rail {
+          top: 84px;
+          position: sticky;
+          max-width: none;
+          margin-inline: 0;
+        }
+      }
+
       /* ============ Scroll Reveal ============ */
       /* 隐形初始态挂在 html.js 下：JS 缺席（禁用 JS、无头抓取、AI 爬虫）时内容直接全显。
          基准态与终态必须带同一层前缀——html.js .reveal 是 (0,2,1)，
@@ -2958,8 +3044,9 @@
 
       /* ============ 锚点落位反馈 ============ */
       /* 从搜索结果、博客内链或导航跳进来时，标题闪一次，确认「你要看的就是这一节」。
-         纯 CSS、一次性、只动 opacity 与 transform。挂在 section:target 上：FAQ 条目无 id（静态 DOM 与
-         脚本重渲染都不带），给它们写 .faq-item:target 只会是一条永远匹配不到的死规则。 */
+         纯 CSS、一次性、只动 opacity 与 transform。挂在 section:target 上：问答条目（.faq-item）
+         不带 id，给它们写 .faq-item:target 只会是一条永远匹配不到的死规则；分类节点（.faq-category）
+         的 id 是右栏「分类直达」的落点，而它是 div 不是 section，也不会撞进这条规则。 */
       @keyframes aph-found {
         from {
           opacity: 0.35;
@@ -4840,7 +4927,9 @@ pnpm lint:style  # Stylelint</code></pre>
 
     <!-- ======= FAQ ======= -->
     <section id="faq">
-      <div class="container">
+      <!-- `.faq-wrap` 把本节容器变成两栏网格：左列是问答列表，右列是「分类直达」。
+           两格都由 #faqList 生成区产出，这里只提供网格本身（见 scripts/lib/faq-dom.mjs）。 -->
+      <div class="container faq-wrap">
         <div class="section-head">
           <h2 data-i18n="faq.title">FAQ</h2>
           <p
@@ -4848,10 +4937,10 @@ pnpm lint:style  # Stylelint</code></pre>
             data-i18n="faq.sub"
           >Questions you may have before and after using</p>
         </div>
-        <!-- BEGIN GENERATED FAQ DOM —— generated from the page FAQS array by scripts/build-faq-dom.mjs via pnpm gen:en — edit FAQS, not this block -->
+        <!-- BEGIN GENERATED FAQ DOM —— generated from the page FAQS array by scripts/build-faq-dom.mjs via pnpm gen:en — holds the Q&A list and the category rail; edit FAQS, not this block -->
         <!-- prettier-ignore -->
         <div class="faq-list" id="faqList">
-          <div class="faq-category">
+          <div class="faq-category" id="faq-cat-security">
             <span class="faq-category-icon security"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
             <span class="faq-category-title">Security &amp; Privacy</span>
           </div>
@@ -4883,7 +4972,7 @@ pnpm lint:style  # Stylelint</code></pre>
             <button class="faq-q" aria-expanded="false"><span>What is Health Check?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
             <div class="faq-a"><div class="faq-a-inner">A one-click password health scan in the top toolbar of the management page. Click "Health Check" (with a traffic-light dot showing the grade) to see an overall score (0–100) weighted across four scored dimensions: password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed but unscored. Stale entries can get expiry reminders (desktop notification after 7/30/90 days). Each issue has a "Fix" button that jumps straight to editing. Everything is computed locally — no network, no data upload.</div></div>
           </div>
-          <div class="faq-category">
+          <div class="faq-category" id="faq-cat-basic">
             <span class="faq-category-icon basic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
             <span class="faq-category-title">Basics</span>
           </div>
@@ -4927,7 +5016,7 @@ pnpm lint:style  # Stylelint</code></pre>
             <button class="faq-q" aria-expanded="false"><span>What is inline fill?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
             <div class="faq-a"><div class="faq-a-inner">An alternative to the side panel. In "Inline" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Keyboard navigation is supported (↑↓ browse, Enter fill, Esc close), and the first row stays selected on open and after every filtering pass, so Enter fills the best match for the site. Search shares one rule set with the sidebar — username, tag, remark and URL all match, including full pinyin and initialisms — and ↑↓ / Enter / Esc are left alone while an IME candidate is still pending, so nothing fills by accident. When the site has no matching account, the empty state offers "Search all accounts", opening the manager page with the keyword already applied. Uses a closed Shadow DOM for full style isolation.</div></div>
           </div>
-          <div class="faq-category">
+          <div class="faq-category" id="faq-cat-data">
             <span class="faq-category-icon data"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>
             <span class="faq-category-title">Data Management</span>
           </div>
@@ -4971,7 +5060,7 @@ pnpm lint:style  # Stylelint</code></pre>
             <button class="faq-q" aria-expanded="false"><span>Does the manager page get sluggish near the entry limit?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
             <div class="faq-a"><div class="faq-a-inner">Not as a function of how many entries you have. The list paints one page at a time (100 rows by default, 50 / 100 / 200 on demand — the size you pick is remembered on this machine for your next visit), so searching, filtering as you type, flipping pages and hovering land in the same range at 600 entries as at the 2000-entry cap — measured on one machine with the same harness. Opening the page still reads and decrypts the whole vault once, and that step does track vault size; the promise is “cost does not grow row by row”, not “constant time”. Pagination only changes how many rows are drawn: search, sorting, export and the "total / filtered" readout still cover the entire matching set, and checked entries are kept across pages — the pager tells you how many of them are off-page. The header checkbox selects the current page only, as in any table, so switch to 200 rows per page or tick page by page when you need a large batch. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it for 6 seconds. The page number is not remembered: it follows the current filters and sort, so it is a derived value rather than a setting.</div></div>
           </div>
-          <div class="faq-category">
+          <div class="faq-category" id="faq-cat-config">
             <span class="faq-category-icon config"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
             <span class="faq-category-title">Advanced</span>
           </div>
@@ -5032,6 +5121,18 @@ pnpm lint:style  # Stylelint</code></pre>
             <div class="faq-a"><div class="faq-a-inner">Windows Defender scans each extension file on first load, adding 1-2 seconds to cold starts. Add the Chrome extensions folder to Defender's exclusion list to skip scanning: open "Windows Security" → "Virus &amp; threat protection" → "Manage settings" → "Exclusions" → "Add an exclusion" → select "Folder" → paste %LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions. This cuts cold-start time from 2-3s to under 1s. Not needed on Mac.</div></div>
           </div>
         </div>
+        <!-- prettier-ignore -->
+        <aside class="faq-rail">
+          <nav class="faq-rail-card" aria-labelledby="faqRailTitle">
+            <h3 class="faq-rail-title" id="faqRailTitle">Browse by category</h3>
+            <ol class="faq-toc" id="faqToc">
+              <li><a href="#faq-cat-security"><span class="faq-toc-name">Security &amp; Privacy</span><span class="faq-toc-n">7</span></a></li>
+              <li><a href="#faq-cat-basic"><span class="faq-toc-name">Basics</span><span class="faq-toc-n">10</span></a></li>
+              <li><a href="#faq-cat-data"><span class="faq-toc-name">Data Management</span><span class="faq-toc-n">10</span></a></li>
+              <li><a href="#faq-cat-config"><span class="faq-toc-name">Advanced</span><span class="faq-toc-n">14</span></a></li>
+            </ol>
+          </nav>
+        </aside>
         <!-- END GENERATED FAQ DOM -->
       </div>
     </section>
@@ -6619,6 +6720,20 @@ pnpm lint:style  # Stylelint</code></pre>
          改写为 en，因此英文页首屏同样不需要重建。 */
       const bakedFaqLang = document.documentElement.lang.startsWith('zh') ? 'zh' : 'en';
       let faqStaticPending = true;
+      /* 右栏「分类直达」的两个节点，与问答列表同在 #faq 的 .faq-wrap 网格里，由生成区一并产出 */
+      const faqToc = document.getElementById('faqToc');
+      const faqRailTitle = document.getElementById('faqRailTitle');
+      /* 与 scripts/lib/faq-dom.mjs 的 FAQ_RAIL_TITLE 逐字同值（测试钉住两处），改一处必须改另一处：
+         生成区里写的是构建期语言，切到非自带语种时由 renderFaqRail() 用这份常量改写标题。 */
+      const FAQ_RAIL_TITLE = {
+        zh: '分类直达',
+        en: 'Browse by category',
+      };
+
+      /** 分类锚点 id，与 faq-dom.mjs 的 faqCategoryAnchor 同式：用 iconClass 而非下标，插删分类不会让深链错位 */
+      function faqCatAnchor(iconClass) {
+        return `faq-cat-${iconClass}`;
+      }
 
       /** 给单个条目挂上「单展开」手风琴：静态 DOM 与 JS 重渲染共用同一段交互 */
       function bindFaqItem(el) {
@@ -6640,6 +6755,36 @@ pnpm lint:style  # Stylelint</code></pre>
         });
       }
 
+      /** 按当前语言重建右栏「分类直达」：标题、分组条数、锚点三样全部从 FAQS 推导，与左列同序同语言 */
+      function renderFaqRail() {
+        /** 与生成区同构的分组累加：分类开一组，其后的问答逐条计入该组 */
+        const groups = [];
+        FAQS.forEach(item => {
+          if (item.category) {
+            groups.push({ anchor: faqCatAnchor(item.iconClass), title: item.category[lang], count: 0 });
+            return;
+          }
+          groups[groups.length - 1].count += 1;
+        });
+        faqRailTitle.textContent = FAQ_RAIL_TITLE[lang];
+        faqToc.replaceChildren(
+          ...groups.map(group => {
+            const name = document.createElement('span');
+            name.className = 'faq-toc-name';
+            name.textContent = group.title;
+            const count = document.createElement('span');
+            count.className = 'faq-toc-n';
+            count.textContent = String(group.count);
+            const link = document.createElement('a');
+            link.href = `#${group.anchor}`;
+            link.append(name, count);
+            const row = document.createElement('li');
+            row.appendChild(link);
+            return row;
+          }),
+        );
+      }
+
       /** 按当前语言重建 FAQ 列表（仅当语言与页面自带语种不同，收起全部展开项是重建的附带效果） */
       function renderFaqs() {
         faqBox.innerHTML = '';
@@ -6648,6 +6793,8 @@ pnpm lint:style  # Stylelint</code></pre>
           if (item.category) {
             const catEl = document.createElement('div');
             catEl.className = 'faq-category';
+            // 语言切换会整列重建，锚点必须跟着重新写回，否则右栏的 #faq-cat-* 全部落空
+            catEl.id = faqCatAnchor(item.iconClass);
             catEl.innerHTML = `
             <span class="faq-category-icon ${item.iconClass}">${item.iconSvg}</span>
             <span class="faq-category-title">${item.category[lang]}</span>
@@ -6670,6 +6817,7 @@ pnpm lint:style  # Stylelint</code></pre>
           faqBox.appendChild(el);
           bindFaqItem(el);
         });
+        renderFaqRail();
       }
 
       /** 首屏只给静态 DOM 绑交互；语言切到非自带语种后才整列重建 */
