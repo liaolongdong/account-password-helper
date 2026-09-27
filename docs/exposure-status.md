@@ -29,7 +29,23 @@
 | 文档事实审计（2026-09-09）     | README / ARCHITECTURE / CONTRIBUTING / THIRD-PARTY-NOTICES / CWS 两份 / 博客 4 篇的中英文均已按源码逐项校正；残留的代码侧错误口径见本文「🟡 需你决策」末节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 测试基线（2026-09-25 复跑）    | `pnpm test:run` → **142 个测试文件 / 1563 个用例全部通过，exit 0**。上表 2026-09-22 的 114 / 1292 是当时的快照，保留作记录；对外表面（README / `llms.txt` / 博客正文 / 封面 SVG）已于 2026-09-25 统一改标 **1563 项 / 142 文件**，仍是易漂移字段，发布前按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复跑再刷新                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
-## 🆕 2026-09-27 同作者插件中文名同步（本轮，已提交）
+## 🆕 2026-09-27 落地页阅读进度条（本轮，已提交）
+
+用户指令「参考 transfer-any-file 产品页，给本页增加页面进度条动效」。参考页的做法是一条跟随阅读进度的细线，这里把它接到**已有的 sticky 页头下边缘**，不新增 DOM 节点。仍然只动 `index.html`（经 `pnpm gen:en` 出 `en.html`），运行时代码与扩展产物零改动。
+
+- **三条路径成套**：① 主路径 `@supports (animation-timeline: scroll()) { .nav::after { … animation-timeline: scroll(root block) } }`，进度由 CSS 滚动时间线驱动，`transform: scaleX(0 → 1)`，JS 与页面主线程无关；② 兜底路径 `@supports not (...)` 消费脚本写入的 `--scroll-p`（Safari / 旧 Firefox）；③ `prefers-reduced-motion: reduce` 档整条 `content: none` 撤除——滚动时间线动画没有「时长」可塌，缩短等于没意义，只能撤，滚动位置信息仍由浏览器滚动条提供。两档 `@supports` 互斥，不会同时出现两条线。
+- **为什么挂在 `.nav::after` 而不是新开 fixed 元素**：页头是 `position: sticky`，绝对定位的伪元素天然以它为包含块；窄屏锚点条换行成两行时页头自己变高，这条线照样贴着底边（`bottom: -1px`，正好压在 `border-bottom` 那行），不需要脚本来猜页头高度。`pointer-events: none`，不挡任何点击。
+- **刻意不做 `html.js` 门控**：进度条不是「隐形初始态」，脚本解析失败与否都不该让它消失——这与 `landingScripts.test.ts` 守的那套「隐形初始态必挂兜底」是相反的情形，写在 CSS 注释里说明。
+- **顺带的一处等价重构**：`onScroll` 里原本两处各读一次 `document.documentElement.scrollHeight`（导轨触底判定 + 新增的进度），现合并成一个 `max` 变量。判据代数等价：`scrollY + innerHeight >= scrollHeight - 80` ⇔ `scrollY >= max - 80`，不改变原有隐藏「回到顶部 / 滚动到底部」的时机。
+- **新守卫** `tests/docs/landingProgressRail.test.ts`（10 例）：中英两页三件套齐备、`.nav` 仍是 sticky（否则线落到文档顶端）、中英实现逐字同源（`en.html` 是生成物，不许各写一套），外加 5 个变异自检——抽掉 `@keyframes` 名字、抽掉 reduce 档规则、把兜底档写成无门控、抽掉脚本侧判据门、抽掉主路径时间线绑定，每个都必须变红；另有一条「未变异的原文不误伤」。写这条守卫时踩到自己挖的坑：`.nav::after` 的三处规则不能一律要求 `@supports` 门控，reduce 档那处**应当**在 `@media` 里，判据已改成「门控 / 在 reduce 档 / 无归属」三分，只有第三类才算违规。
+
+### 验证
+
+- 真机（headless Chrome 1440 / 1080 / 768 + 中英两页，裸 CDP）：`.nav::after` 计算样式为 `content: ""` / `height: 2px` / `animation-timeline: scroll(root)`，`scaleX` 在 0% / 50% / 100% 三档取样实测 `0 / 0.5 / 1`，线的位置恒为 `y = 页头底边 - 1`、横向 `0 → 视口宽`。**取像素复核「真的画出来了」**（伪元素无法命中测试，只能看像素）：页面自身 `drawImage` 解截图后取样，0% 时线位两端的像素都是页头 `border-bottom` 的 `235,239,244`；50% 时左端 `61,112,223`（渐变起点 `--primary-dark`）、右端仍是 `235,239,244`；100% 时左 `60,110,220`、右 `76,134,252`（渐变终点 `--primary`）；线上下各 6px 处是纯白，说明没有溢出到 hero。
+- 两条降级路径各自单独验：`prefers-reduced-motion: reduce` 下计算样式 `content: none`（盒子不生成）；摘掉全部 `<script>` 的副本仍走主路径、三档取样与原文一致；把两档 `@supports` 判据同时改写成不可能成立的属性 + 把 `CSS.supports` 钉成 `false` 的「老引擎」副本里，线改由 `--scroll-p` 驱动，脚本写入 `0 / 0.5 / 1`、`scaleX` 同步 `0 / 0.5 / 1`。测量口径备注：页面有 `scroll-behavior: smooth`，第一版取样脚本用默认 `scrollTo` 量到的是「飞行途中」的值（bottom 档只走到 0.41），改 `behavior: 'instant'` 后才拿到底。
+- `pnpm gen:en` 连跑两次 md5 一致（`8073eb5c…`），生成物未手改；`typecheck` 通过；`tests/docs` 4 文件 / 48 例全绿；新增测试文件 `prettier --write` 后 `--check` 通过、`eslint --max-warnings 0` 0 报错。
+
+## 🆕 2026-09-27 同作者插件中文名同步（已提交）
 
 用户指令「把产品说明页和 README 的中文版，同作者插件『文件转换』的名称同步更新」，追问后选定**全站一起同步**。名称的事实来源是兄弟仓自身：`transfer-any-file` 的 `public/_locales/zh_CN/messages.json`（扩展名 `文件格式任意转换助手 — 离线转换无上传`）与 `utils/i18n/zh.ts` 的 `appName`，英文名仍是 `Transfer Any File`。此前中文面一律写英文名，与同卡片里「跨域代理助手」的中文命名口径不一致。
 

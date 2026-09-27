@@ -2973,6 +2973,56 @@
         animation: aph-found 1.2s var(--ease-out) both;
       }
 
+      /* ============ 阅读进度条 ============ */
+      /* 读到哪了，本来是浏览器自己的滚动条在说——它在页面之外、用系统的颜色。
+         这一条把它接回页面自己的主色，钉在 sticky 页头的下边缘：锚点条换行成两行时
+         页头变高，这条线照样贴着页头底边，不需要另起一个 fixed 节点去猜页头高度。
+         时钟是滚动偏移而不是定时器，所以进度不可能跑到读者前面，也不需要 JS 参与。
+         刻意不做 html.js 门控：它不是「隐形初始态」，脚本报错与否都不该让它消失。 */
+      @supports (animation-timeline: scroll()) {
+        .nav::after {
+          position: absolute;
+          right: 0;
+          bottom: -1px;
+          left: 0;
+          height: 2px;
+          content: '';
+          pointer-events: none;
+          background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+          transform: scaleX(0);
+          transform-origin: 0 50%;
+          animation-name: aph-read-progress;
+          animation-duration: auto;
+          animation-timing-function: linear;
+          animation-fill-mode: both;
+          animation-timeline: scroll(root block);
+        }
+
+        @keyframes aph-read-progress {
+          to {
+            transform: scaleX(1);
+          }
+        }
+      }
+
+      /* 没有滚动时间线的引擎（Safari 与旧 Firefox）走 JS 兜底：文末主脚本的 onScroll
+         顺手把 0-1 的进度写成 `--scroll-p`，这里只负责消费它。两档靠 @supports 互斥，
+         命中上一档时这里的变量无人读取，不会出现两条进度条。 */
+      @supports not (animation-timeline: scroll()) {
+        .nav::after {
+          position: absolute;
+          right: 0;
+          bottom: -1px;
+          left: 0;
+          height: 2px;
+          content: '';
+          pointer-events: none;
+          background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+          transform: scaleX(var(--scroll-p, 0));
+          transform-origin: 0 50%;
+        }
+      }
+
       /* ============ Reduced motion（动效降级） ============ */
       /* 降级不等于没有动效：去掉位移、缩放与循环运动，保留淡入淡出，
          这样用户依然能读进出场层级与展开关系。放在末尾以覆盖前面的基准规则。 */
@@ -3004,6 +3054,12 @@
         }
         .carousel-progress {
           display: none;
+        }
+        /* 阅读进度条没有「时长」可塌：它的时钟就是滚动偏移本身，缩短等于没意义，
+           所以 reduce 档整条撤掉（两档 @supports 共用同一条 .nav::after，一并盖住）。
+           滚动位置仍由浏览器滚动条提供，信息不丢。 */
+        .nav::after {
+          content: none;
         }
         html.js .reveal,
         html.js .reveal.visible,
@@ -6909,6 +6965,15 @@ pnpm lint:style  # Stylelint</code></pre>
         .map(id => document.getElementById(id))
         .filter(Boolean);
       const scrollRail = document.getElementById('scrollRail');
+      /* 阅读进度条：引擎支持滚动时间线时这件事由 CSS 独立完成（见「阅读进度条」区块的
+         @supports），这里只补它缺席的那一档（Safari / 旧 Firefox）。判据取一次即可——
+         同一次会话里不会中途变化；而个别老引擎上 CSS.supports 根本不是函数，
+         读不到就按「不支持」走兜底路径，宁可多写一个变量也不让进度条缺席。 */
+      const navEl = document.querySelector('.nav');
+      const scrollTimelineSupported =
+        typeof CSS !== 'undefined' &&
+        typeof CSS.supports === 'function' &&
+        CSS.supports('animation-timeline', 'scroll()');
 
       function onScroll() {
         const y = window.scrollY + 120;
@@ -6920,12 +6985,18 @@ pnpm lint:style  # Stylelint</code></pre>
           a.classList.toggle('active', a.getAttribute('href') === '#' + activeId);
         });
 
+        /* 可滚动的总距离：滚动导轨的「触底」判定与进度条的 0-1 都归它算，
+           一次读取代替两处 `scrollHeight`（两处判据等价：scrollY + innerHeight >= scrollHeight - 80
+           ⇔ scrollY >= max - 80）。 */
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+
         // 滚动导轨：顶部隐藏「回到顶部」，触底隐藏「滚动到底部」
         scrollRail.classList.toggle('at-top', window.scrollY < 200);
-        scrollRail.classList.toggle(
-          'at-bottom',
-          window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 80,
-        );
+        scrollRail.classList.toggle('at-bottom', window.scrollY >= max - 80);
+
+        if (navEl && !scrollTimelineSupported) {
+          navEl.style.setProperty('--scroll-p', max > 0 ? String(Math.min(1, window.scrollY / max)) : '0');
+        }
       }
       window.addEventListener('scroll', onScroll, { passive: true });
       window.addEventListener('resize', onScroll, { passive: true });
