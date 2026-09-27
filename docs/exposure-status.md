@@ -29,6 +29,28 @@
 | 文档事实审计（2026-09-09）     | README / ARCHITECTURE / CONTRIBUTING / THIRD-PARTY-NOTICES / CWS 两份 / 博客 4 篇的中英文均已按源码逐项校正；残留的代码侧错误口径见本文「🟡 需你决策」末节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | 测试基线（2026-09-27 复跑）    | `pnpm test:run` → **167 个测试文件 / 1941 个用例全部通过，exit 0**。本表上一行的 114 / 1292（2026-09-22）与该行原有的 142 / 1563（2026-09-25）都是当时的快照，保留作记录；对外表面已于 2026-09-27 统一改标 **1941 项 / 167 文件**（README ×2、`llms.txt`、`index.html` 数据带 + JSON-LD `dateModified`、`en.html`、`product-site/index.html`、`docs/blog/**` 10 篇与 `blog/*.html` 12 页、封面 04/05 的 SVG 与 PNG、公众号 / 微博文案），`sitemap.xml` 12 条 `lastmod` 随博客 `modified` 同步；仍是易漂移字段，发布前按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复跑再刷新                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
+## 🆕 2026-09-27 页头右侧控件成组右对齐（本轮，已提交）
+
+用户圈出产品页页头的「中/EN」与右上角 GitHub 图标问「为什么距离那么远」，要求按 UX/UI 最佳实践优化。**根因不是漏写间距，而是间距被 `space-between` 吃掉了**：`.nav-inner` 是 `display:flex; justify-content:space-between`，而语言键、GitHub 图标各自是它的**独立 flex item**，剩余空间会均分进每一道缝隙——`margin-left: 16px` 只是下限，实测语言键与图标之间 ≥1200px 档 100px、1199px 档 297px、1024px 档 239px、768px 档 154px。两枚不同族的控件被摊成页头里的两个孤点，且这个距离随视口每变一档就变一次。
+
+- **收组**：新增 `.nav-actions`（`display:flex; align-items:center; gap:12px; flex-shrink:0`）包住语言键 / GitHub 图标 / 汉堡三枚控件。`.nav-inner` 的 item 数从 4 降到 3，剩余空间只落在「品牌↔锚点条」和「锚点条↔控件组」两道缝上，组内间距从此**只由 `gap` 决定、不再随视口漂移**。
+- **统一形态**：两枚控件共用一条规则——36px 等高、`var(--radius-sm)`（10px）同圆角、`var(--bg-soft)` 同底色、`1px solid var(--border)` 同描边、同一条 `transition`。语言键此前是 28px 高的胶囊（`border-radius:999px`、`padding:5px 12px`），图标此前无描边；两者挨在一起时读作一组控件而不是两个恰好并排的部件。语言键的**触控靶从 44.2×28 抬到 44.2×36**。
+- **统一反馈**：GitHub 图标的 hover 从「反白成深色块」（`color:white; background:var(--text)`）改成与语言键同一套主色浅底（`--primary` 文字 + `--primary-soft` 底 + 主色描边 + `translateY(-1px)`）。相邻两枚控件给两种相反的悬停语言，是「不是一组」最直接的信号；`focus-visible` 也合并为同一条 2px 主色环。
+- **减弱档**：`.lang-toggle:hover, .nav-github:hover { transform: none }` 进 `prefers-reduced-motion` 块——位移本身就是这条动效，撤掉抬升但保留转色与描边，悬停仍有反馈。
+- **保留的既有阀门**：`html.js .nav-toggle` 的特指度（0,2,0）高于新的 `.nav-toggle{display:none}`，窄屏抽屉照常开启，源码顺序调整不影响；≤480 撤 GitHub 图标、≤520 禁 JS 换行两道既有保护原样保留。
+- **拍板过程中否决的三项**：① 把「中 / EN」升级成分段控件（`中|EN` 二选一胶囊）——用户选「等高同圆角」方案，不改控件形态；② 移除重复的 GitHub 出口（导航文字链 vs 右上角图标）——用户选「两者都留」，导航链服务「找下载」、图标服务「看源码」，意图不同；③ 给汉堡也加底框以凑齐三个盒子——汉堡是**不同族**的导航开关，且在 ≤480 是唯一留在原地的控件，给它加框会让窄屏页头变重，属未获授权的视觉扩张。
+
+### 验证
+
+- **间距**（裸 CDP + headless Chrome 144，`Emulation.setDeviceMetricsOverride` 逐档，改后共测 15 个宽度：320/360/375/414/420/480/600/768/900/1024/1199/1200/1280/1440/1600）：语言键↔图标在图标可见的每一档**恒为 12px**（1600/1440/1280/1200/1199/1024/900/768/600），汉堡↔前一枚同为 12px；改前同档实测为 100px（≥1200）/ 297px（1199）/ 239px（1024）/ 154px（768），图标撤除的窄屏档则是 8.9px（320）/ 28.9px（360）/ 55.9px（414）→ 统一为 12px。
+- **盒子**：`langBox {w:44.2,h:36,r:"10px"}`、`ghBox {w:36,h:36,marginLeft:"0px"}`，全档位一致；`.nav-inner` 的 `justify` 仍是 `space-between`（未改页头整体骨架）。
+- **320px 的横向溢出是既有事实、不是本轮引入**：把 `git show HEAD:index.html` 落成仓内临时副本同法测量，基线在 320 同样 `overflow:true`（且语言键只有 28px 高）；测完即删该副本，工作树只剩两份落地页。
+- **交互态**（`Input.dispatchMouseEvent` / `dispatchKeyEvent` 真事件）：两枚控件 hover 计算样式逐项相同（`rgb(78,136,255)` / `rgb(234,241,255)` / 主色描边 / `matrix(1,0,0,1,0,-1)`）；reduce 档 hover 为 `transform:none` + 主色浅底；Tab 序 14=`langToggle`、15=`navGithub`，焦点环均 `2px solid rgb(78,136,255)` / offset 2px。
+- **降级路径**：1199 抽屉展开后组内间距仍 12px；480 图标撤除后语言键↔汉堡仍 12px；禁 JS 副本 520 换行后仍 12px 且无溢出；点语言键后 `docLang` 翻到 `en`、标签转「中文」（就地切换，非跳转）。截图留在 `/tmp/aphref/shots/`（1440 中英 / 1199 / 480 / 375 / 禁 JS 520·420），按既有口径不入仓。
+- **生成链**：改完中文页再 `pnpm gen:en` → `data-i18n 230/230, data-i18n-html 14/14, FAQ DOM 41`，`en.html` 的 hunk 与 `index.html` 逐段对称；**再跑一次 `gen:en`，`en.html` md5 逐字节不变** → 英文页无手改。
+- **门禁**：`pnpm typecheck` / `pnpm lint`（`--max-warnings 0`）/ `pnpm lint:style` / `pnpm exec prettier --check index.html en.html` 全绿；`pnpm test:run` → **167 files / 1941 tests passed**，exit 0（118.06 s）；`pnpm build` exit 0，zip **708.15 kB** / Σ **2.01 MB**，与上一波同值 → 扩展运行时产物零改动（落地页不进构建闭包）。
+- **已知未改**：`en.html` 的静态字节里语言键仍写「EN」，要等主脚本把它改成「中文」——英文页首帧标签指向的是当前语言而非目标语言。这是收组前就存在的行为，用户已选择保留胶囊形态，本轮不动。
+
 ## 🆕 2026-09-27 对外测试数基线刷新到实测值（本轮，已提交）
 
 用户选中上一波收口汇报里那条「本轮范围外的漂移」（对外表面仍写 **1563 项 / 142 文件**，实测已是 **1941 / 167**）说「这个帮我更新」。本轮只改数字与日期，不改任何主张措辞、不动运行时代码与扩展产物。

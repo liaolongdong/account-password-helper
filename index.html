@@ -569,28 +569,52 @@
         background: var(--primary);
         border-radius: 2px;
       }
-      .nav-toggle {
-        display: none;
+      /* 页头右侧三枚控件（语言 / GitHub 源码 / 汉堡）收成一个组。
+         它们此前各自是 .nav-inner 的 flex item，而 .nav-inner 是 space-between，
+         剩余空间会均分进每一道缝隙——实测语言键与图标之间 ≥1200px 档 100px、
+         1199px 档 297px、1024px 档 239px、768px 档 154px，两枚不同族的控件被摊成页头里的孤点。
+         收组后这一段的间距只由下面的 gap 决定，不再随视口漂移。 */
+      .nav-actions {
+        display: flex;
+        flex-shrink: 0;
+        align-items: center;
+        gap: 12px;
       }
+      /* 同一套形态语言：36px 等高、var(--radius-sm) 同圆角、同底色同描边、同一条 hover 反馈，
+         挨在一起时读作一组控件，而不是两个恰好并排的部件。 */
+      .lang-toggle,
       .nav-github {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 36px;
         height: 36px;
-        margin-left: 16px;
-        border-radius: 10px;
         color: var(--text);
         background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
         transition:
-          background 0.2s ease,
           color 0.2s ease,
+          background 0.2s ease,
+          border-color 0.2s ease,
           transform 0.15s ease;
       }
+      .lang-toggle:hover,
       .nav-github:hover {
-        color: white;
-        background: var(--text);
+        color: var(--primary);
+        background: var(--primary-soft);
+        border-color: var(--primary);
         transform: translateY(-1px);
+      }
+      .lang-toggle:focus-visible,
+      .nav-github:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      .nav-toggle {
+        display: none;
+      }
+      .nav-github {
+        width: 36px;
       }
       /* ≤480 先撤这个源码图标，让位给品牌名与汉堡：抽屉里本来就有「GitHub 下载」出口，
          页脚也有源码链接，撤掉不丢入口；留着它则英文页在 420px 一档就把整行占满。 */
@@ -600,32 +624,13 @@
         }
       }
 
-      /* 语言切换按钮（中 / EN） */
+      /* 语言切换按钮（中 / EN）：描边与字号是它区别于图标按钮的地方，盒子规格走上面那条共用规则。 */
       .lang-toggle {
-        flex-shrink: 0;
-        padding: 5px 12px;
-        margin-left: 16px;
+        padding: 0 12px;
         font-size: 13px;
         font-weight: 600;
         color: var(--text-muted);
         letter-spacing: 0.02em;
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        transition:
-          color 0.2s,
-          border-color 0.2s,
-          background 0.2s;
-      }
-
-      .lang-toggle:hover {
-        color: var(--primary);
-        background: var(--primary-soft);
-        border-color: var(--primary);
-      }
-
-      .lang-toggle:focus-visible {
-        outline: 2px solid var(--primary);
-        outline-offset: 2px;
       }
       .footer-meta a svg {
         vertical-align: -3px;
@@ -1424,6 +1429,12 @@
         .scroll-rail button,
         .scroll-rail-divider {
           transition: none;
+        }
+        /* 页头两枚控件的 hover 抬升：位移本身就是这条动效，减弱档撤掉它、保留转色与描边，
+           悬停仍有反馈，只是不再挪位置。 */
+        .lang-toggle:hover,
+        .nav-github:hover {
+          transform: none;
         }
       }
 
@@ -3334,68 +3345,70 @@
             >GitHub 下载</a
           >
         </div>
-        <button
-          class="lang-toggle"
-          id="langToggle"
-          aria-label="Switch language / 切换语言"
-        >
-          EN
-        </button>
-        <a
-          id="navGithub"
-          class="nav-github"
-          href="https://github.com/liaolongdong/account-password-helper"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="GitHub 源码"
-          title="在 GitHub 查看源码"
-        >
-          <svg
-            width="20"
-            height="20"
-            viewBox="0 0 16 16"
-            fill="currentColor"
-            aria-hidden="true"
+        <div class="nav-actions">
+          <button
+            class="lang-toggle"
+            id="langToggle"
+            aria-label="Switch language / 切换语言"
           >
-            <path
-              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"
-            />
-          </svg>
-        </a>
-        <button
-          class="nav-toggle"
-          id="navToggle"
-          aria-label="菜单"
-        >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
+            EN
+          </button>
+          <a
+            id="navGithub"
+            class="nav-github"
+            href="https://github.com/liaolongdong/account-password-helper"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub 源码"
+            title="在 GitHub 查看源码"
           >
-            <line
-              x1="3"
-              y1="6"
-              x2="21"
-              y2="6"
-            />
-            <line
-              x1="3"
-              y1="12"
-              x2="21"
-              y2="12"
-            />
-            <line
-              x1="3"
-              y1="18"
-              x2="21"
-              y2="18"
-            />
-          </svg>
-        </button>
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 16 16"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+              />
+            </svg>
+          </a>
+          <button
+            class="nav-toggle"
+            id="navToggle"
+            aria-label="菜单"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            >
+              <line
+                x1="3"
+                y1="6"
+                x2="21"
+                y2="6"
+              />
+              <line
+                x1="3"
+                y1="12"
+                x2="21"
+                y2="12"
+              />
+              <line
+                x1="3"
+                y1="18"
+                x2="21"
+                y2="18"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
     </nav>
 
