@@ -457,6 +457,9 @@
         --accent: #42b883;
         --text: #0f172a;
         --text-muted: #64748b;
+        /* 页头锚点用的中间档：--text-muted（#64748b）在 15px 上仍读成「次要信息」，
+           而 --text（#0f172a）会和正文标题抢层级。锚点是导航主控件，取两者之间的 slate-700。 */
+        --text-strong: #334155;
         --bg-soft: #f8fafc;
         --border: #e2e8f0;
         --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
@@ -515,7 +518,7 @@
         align-items: center;
         justify-content: space-between;
         /* 用 min-height 而非 height：锚点条是 flex-wrap 的兜底布局，不同机器的字体度量
-           有差异，万一 12 项单行放不下就整项换到第二行（而不是把 "How it works" 断成三行）。
+           有差异，万一 10 项单行放不下就整项换到第二行（而不是把 "How it works" 断成三行）。
            写死 64px 时第二行会溢出页头压到 hero 上；两行时这里长到 ~72px，一行时仍是 64px。 */
         min-height: 64px;
       }
@@ -534,22 +537,25 @@
         width: 28px;
         height: 28px;
       }
-      /* 页头比页脚窄一档：12 项锚点在 1200px 容器里刚好差这十几像素的呼吸感。
+      /* 页头比页脚窄一档：锚点条涨到 15px 后，品牌名留 15px 才刚好给整行留出呼吸感。
          只作用于 .nav，页脚复用的 .brand 维持 16px。 */
       .nav .brand {
         font-size: 15px;
       }
       .nav-links {
-        /* 12 项（本轮补了痛点 / 场景 / 安装三条锚点）：28px 的间距在 1200px 容器里会溢出，
-           收到 14px 后中英两版单行都放得下。允许整项换行是兜底——不同机器的字体度量有差异，
+        /* 10 条页内锚点（原先夹在中间的「应用商店 / GitHub 下载」两枚外链已撤：与首屏 CTA
+           和 #install 完全重复，却把这一条挤成 12 项）。14px 的间距是为 12 项那一档定的，
+           撤掉两枚后松到 16px、字号同时从 14px 提到 15px，单行仍放得下（整行的实测余量见
+           .nav-inner 那条注释）；允许整项换行是兜底——不同机器的字体度量有差异，
            万一放不下就断在两项之间，而不是把 "How it works" 断成三行。 */
         display: flex;
         flex-wrap: wrap;
-        gap: 8px 12px;
+        gap: 8px 16px;
       }
       .nav-links a {
-        font-size: 14px;
-        color: var(--text-muted);
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text-strong);
         transition: color 0.2s;
         position: relative;
         padding: 6px 0;
@@ -873,6 +879,9 @@
         box-shadow: var(--shadow-lg);
       }
       .feature-icon {
+        /* 定位上下文给悬停水波纹的 ::before/::after 用：缺了它，那两圈 inset:-1px 的细环
+           会退去找最近的定位祖先（.feature-card），于是环画在整张卡片外沿而不是图标外沿。 */
+        position: relative;
         width: 48px;
         height: 48px;
         border-radius: 12px;
@@ -1203,6 +1212,35 @@
       .more-card:hover {
         transform: translateY(-4px);
         box-shadow: var(--shadow-lg);
+      }
+      /* 两张互链卡的图标 = 对方扩展的官方图标本体（assets/icons/brands/，同作者 MIT 作品，
+         出处与 md5 见该目录 README）。用真图标而不是自绘图形：这枚图形的唯一职责是品牌识别，
+         而两个产品的真实主色都是蓝（COP #409EFF、TAF 渐变 #3B82F6→#1D4ED8），此前自绘给的
+         琥珀 / 青哪个都不属于它们。包装层只剩两件事——给 <img> 定 48 见方（与特性卡图标同
+         规格，才共用得上同一套水波纹规则），以及把 --tile-radius 与 color 交给伪元素环，
+         因为 <img> 是替换元素、不生成 ::before/::after。 */
+      .more-icon {
+        position: relative;
+        display: block;
+        width: 48px;
+        height: 48px;
+        margin-bottom: 16px;
+        border-radius: var(--tile-radius, 12px);
+      }
+      .more-icon img {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+      /* 环的圆角跟各自 tile 的真实圆角：源图 rx=16 / rx=28 落在 128 viewBox 上，
+         缩到 48px 档就是 6px / 10.5px。两枚写同一个值，环会在 COP 那枚上明显外鼓。 */
+      .more-icon--taf {
+        --tile-radius: 10.5px;
+        color: #3b82f6;
+      }
+      .more-icon--cop {
+        --tile-radius: 6px;
+        color: #409eff;
       }
       .more-card h3 {
         margin: 0 0 10px;
@@ -1740,6 +1778,11 @@
         grid-column: 1 / -1;
       }
       .faq-rail {
+        /* 右栏现在是两张卡（分类直达 + 没找到答案），用网格给它们一个固定的 14px 间距：
+           比两栏之间的 40px 栏距小一档，读者才会把两张卡读成「同一侧的一组」。
+           两卡同属 sticky 的那一格，随整栏一起吸顶——拆开两张各自 sticky 会互相错位。 */
+        display: grid;
+        gap: 14px;
         /* 单列那一档右栏是通栏的：不封顶的话目录一行的标题与条数会被拉到两端，读起来像两张表；
            顺手居中，与本节居中的标题对齐。width 必须写死：网格项两边都是 auto 边距时不再
            stretch，只按内容收缩——实测卡片会缩成 126px 的窄条（≥1080px 那档由下面的归零覆盖）。 */
@@ -1792,6 +1835,44 @@
         font-size: 12.5px;
         font-variant-numeric: tabular-nums;
         color: var(--text-muted);
+      }
+      /* 「没找到答案」出口卡：读完四条分类标题仍然没找到问题的人，是最接近流失的一批读者，
+         需要一个动作而不是继续滚动。绿色在本页只承担「这条路走得通」的肯定语义
+         （与填充成功的对勾、审计满分同一色），描边与底色一起换，卡片才不成了一块灰底文字。 */
+      .faq-rail-card--key {
+        background: rgba(66, 184, 131, 0.07);
+        border-color: rgba(66, 184, 131, 0.3);
+      }
+      .faq-rail-card--key .faq-rail-title {
+        color: #27754e;
+      }
+      /* 正文由字典整段提供（两个 <p>，见 I18N 的 faqRail.help），容器只负责排版 */
+      .faq-rail-help p {
+        margin: 0;
+        font-size: 13.5px;
+        line-height: 1.65;
+        color: var(--text-muted);
+      }
+      .faq-rail-help p + p {
+        margin-top: 8px;
+      }
+      .faq-rail-card--key a {
+        color: var(--primary-dark);
+        text-decoration: none;
+        border-bottom: 1px solid rgba(78, 136, 255, 0.35);
+      }
+      .faq-rail-card--key a:hover {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+      }
+      /* 加群备注是「要抄进微信的那几个字符」，用等宽描出来，与前后中文正文一眼分开 */
+      .faq-rail-card--key code {
+        padding: 1px 5px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        color: var(--text-strong);
+        background: rgba(66, 184, 131, 0.14);
+        border-radius: 4px;
       }
       @media (min-width: 1080px) {
         .faq-wrap {
@@ -2482,13 +2563,98 @@
         animation-play-state: paused;
       }
 
+      /* ---------- 图标水波纹（悬停扩散环） ---------- */
+      /* 参考兄弟站 cross-origin-proxy 的 `.feature-icon::after` + `lp-halo`：卡片被指向时，
+         图标底色外呼出一圈同色细环并放大淡出。这里叠两层环、错开 0.14s 起跳，读起来才是
+         「水波纹」而不是一次闪烁；环色取 currentcolor，14 张特性卡各自的配色与两张互链卡的
+         品牌色都不必各写一条。三条边界：
+         ① 环是绝对定位的伪元素，不参与 .feature-icon 的 flex 排布，图标本身不位移；
+         ② 基准态 opacity:0 就等于动画终态，因此降级只需 animation: none（与本层其余动效同式）；
+         ③ 触发只写在 hover: hover 那一档，触屏没有 hover 态可依赖，不会点一下留一圈残影。 */
+      @keyframes aph-halo {
+        from {
+          opacity: 0.5;
+          transform: scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: scale(1.34);
+        }
+      }
+      .feature-icon::before,
+      .feature-icon::after,
+      .more-icon::before,
+      .more-icon::after {
+        position: absolute;
+        inset: -1px;
+        content: '';
+        pointer-events: none;
+        border: 1px solid currentcolor;
+        border-radius: inherit;
+        opacity: 0;
+      }
+
+      /* ---------- 主 CTA 的一次性注意力脉冲 ---------- */
+      /* 首屏唯一的转化动作此前只有进场，读者视线的落点没有任何提示。补两下「从按钮边缘
+         扩散出去又消失」的环：跑两遍（约 2.2s）后停在透明——不与人争夺注意力，也不像无限
+         循环那样在长读页面里持续闪烁。环色用 --primary 而不是 currentColor：按钮上的
+         currentColor 是白，白环压在白底上等于没有。挂在 html.js 下，脚本缺席时这层不存在。
+         右边那枚 .btn-dl（GitHub 下载 → releases/latest）是同一个「取最新版」动作的第二个
+         出口，因此与主按钮共用这一份 @keyframes 和时长/缓动/次数，只把起跳推迟半个周期
+         （主按钮 0.9s，这里 1.45s）：两圈环的出发时刻错开，不会同时从相邻两个按钮的边缘
+         张开，读起来是「一次召唤」而不是这一排各闪一遍；每圈仍在自己那 1.1s 里扩散，所以
+         相邻两圈有半拍重叠——刻意如此，全错开就排成 5.3s 的队了。不新增关键帧、不写
+         background 动画——脉冲的全部语义就是「从边缘扩散开一圈细环」。 */
+      @keyframes aph-cta-pulse {
+        from {
+          opacity: 0.45;
+          transform: scale(1);
+        }
+        to {
+          opacity: 0;
+          transform: scale(1.14);
+        }
+      }
+      html.js .hero-cta .btn-primary,
+      html.js .hero-cta .btn-dl {
+        position: relative;
+      }
+      html.js .hero-cta .btn-primary::after,
+      html.js .hero-cta .btn-dl::after {
+        position: absolute;
+        inset: -1px;
+        content: '';
+        pointer-events: none;
+        border: 2px solid var(--primary);
+        border-radius: inherit;
+        opacity: 0;
+        animation: aph-cta-pulse 1.1s var(--ease-out) 0.9s 2;
+      }
+      /* .btn-ghost 自带 1px 描边：环贴着画会读成「按钮边框变粗了」，而不是一圈向外扩散的
+         环，所以这一枚的基准位置再往外挪 2px。主按钮是实心无边框，不需要这层偏移。 */
+      html.js .hero-cta .btn-dl::after {
+        inset: -3px;
+        animation-delay: 1.45s;
+      }
+
       /* 悬停微交互：只在真正有指针的设备上启用，避免触屏点击后状态粘滞 */
       @media (hover: hover) and (pointer: fine) {
-        .feature-icon {
+        .feature-icon,
+        .more-icon {
           transition: transform 0.25s var(--ease-out);
         }
-        .feature-card:hover .feature-icon {
+        .feature-card:hover .feature-icon,
+        .more-card:hover .more-icon {
           transform: translateY(-2px) scale(1.06);
+        }
+        /* 两层环共用同一条时间线，第二层晚 0.14s 起跳，形成「一波未平一波又起」的波纹 */
+        .feature-card:hover .feature-icon::after,
+        .more-card:hover .more-icon::after {
+          animation: aph-halo 0.62s var(--ease-out);
+        }
+        .feature-card:hover .feature-icon::before,
+        .more-card:hover .more-icon::before {
+          animation: aph-halo 0.62s var(--ease-out) 0.14s;
         }
         .nav-links a::after {
           content: '';
@@ -2915,12 +3081,15 @@
           font-size: 42px;
         }
       }
-      /* 页头这一行是「品牌 + 12 项锚点 + 语言切换 + 源码图标」四段共用的不换行 flex，
-         能排的总量要看整行而不是锚点条自己：实测容器内容宽 1152px，整行英文 1107px（锚点条
-         764px）/ 中文 899px（锚点条 629px），英文一档只剩 45px 余量。再窄就非折行不可，
-         所以 1199px 以下整体收进汉堡抽屉——与兄弟站的「横排 → 汉堡」两段式一致，
-         而不是继续压字号。隐藏与汉堡按钮都挂在 html.js 上：禁用脚本时抽屉打不开，
-         此时宁可让锚点条折行，也不能让 12 个入口一起消失（这条同时补上了原先 ≤768 的同类缺口）。 */
+      /* 页头这一行是「品牌 + 10 项锚点 + 右侧控件组（语言切换、源码图标）」三个 flex item
+         共用的不换行行，能排的总量要看整行而不是锚点条自己：容器 max-width 1200px 减去
+         左右 24px 内边距，内容宽 1152px；实测整行英文 1018px（品牌 222 + 锚点条 696 + 右侧
+         控件 101）/ 中文 784px（158 + 534 + 92），英文一档余 134px，两版都稳定单行。
+         作为对照：撤外链之前（12 项、字号 14px、间距 12px）英文整行 1107px、只剩 45px——
+         那才是把 1199px 以下整体收进汉堡抽屉的原因，撤外链不改变这个断点，抽屉仍是窄屏
+         唯一的锚点入口，与兄弟站的「横排 → 汉堡」两段式一致，而不是继续压字号。
+         隐藏与汉堡按钮都挂在 html.js 上：禁用脚本时抽屉打不开，此时宁可让锚点条折行，
+         也不能让 10 个入口一起消失（这条同时补上了原先 ≤768 的同类缺口）。 */
       @media (max-width: 1199px) {
         html.js .nav-links {
           display: none;
@@ -2937,7 +3106,7 @@
           padding: 8px 24px 16px;
           border-bottom: 1px solid var(--border);
           box-shadow: var(--shadow-md);
-          /* 12 项 × 45px 在 800px 高的窗口里会顶出视口，抽屉自身可滚。 */
+          /* 单列 10 项实测摊到 513px（每项约 51px），在 800px 高的窗口里会顶出视口，抽屉自身可滚。 */
           max-height: calc(100vh - 64px);
           overflow-y: auto;
         }
@@ -2957,8 +3126,8 @@
           color: var(--text);
         }
       }
-      /* 769–1199 是本轮新落进抽屉的一段宽度：单列 12 项要 593px，在横屏平板上几乎占满
-         视口，所以这一段改双列（约 300px 高）。分隔线在双列里会留下悬空横线，换成列间距。 */
+      /* 769–1199 是本轮新落进抽屉的一段宽度：单列 10 项要 513px，在横屏平板上几乎占满
+         视口，所以这一段改双列（实测 5 行、共 240px）。分隔线在双列里会留下悬空横线，换成列间距。 */
       @media (min-width: 769px) and (max-width: 1199px) {
         html.js .nav-links.open {
           display: grid;
@@ -3076,17 +3245,21 @@
          这一条把它接回页面自己的主色，钉在 sticky 页头的下边缘：锚点条换行成两行时
          页头变高，这条线照样贴着页头底边，不需要另起一个 fixed 节点去猜页头高度。
          时钟是滚动偏移而不是定时器，所以进度不可能跑到读者前面，也不需要 JS 参与。
-         刻意不做 html.js 门控：它不是「隐形初始态」，脚本报错与否都不该让它消失。 */
+         刻意不做 html.js 门控：它不是「隐形初始态」，脚本报错与否都不该让它消失。
+         粗细与配色对齐兄弟站（cross-origin-proxy 的 .scroll-progress）：3px 是贴在页头下沿
+         仍读得出「一条线」的最小厚度，2px 在 1x 屏上会糊成页头描边；渐变走 primary→accent
+         两个不同色相，而不是 primary-dark→primary 的同色相邻档——后者在 3px 上肉眼就是纯色。
+         渐变随 scaleX 一起被压缩，因此任何进度下整条都是完整光谱，读作「进度条」而非「被揭示的横幅」。 */
       @supports (animation-timeline: scroll()) {
         .nav::after {
           position: absolute;
           right: 0;
           bottom: -1px;
           left: 0;
-          height: 2px;
+          height: 3px;
           content: '';
           pointer-events: none;
-          background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+          background: linear-gradient(90deg, var(--primary), var(--accent));
           transform: scaleX(0);
           transform-origin: 0 50%;
           animation-name: aph-read-progress;
@@ -3112,10 +3285,10 @@
           right: 0;
           bottom: -1px;
           left: 0;
-          height: 2px;
+          height: 3px;
           content: '';
           pointer-events: none;
-          background: linear-gradient(90deg, var(--primary-dark), var(--primary));
+          background: linear-gradient(90deg, var(--primary), var(--accent));
           transform: scaleX(var(--scroll-p, 0));
           transform-origin: 0 50%;
         }
@@ -3204,8 +3377,26 @@
         .more-links a:hover::after {
           transform: rotate(45deg);
         }
-        .feature-card:hover .feature-icon {
+        .feature-card:hover .feature-icon,
+        .more-card:hover .more-icon {
           transform: none;
+        }
+        /* 图标水波纹与首屏两枚 CTA 的一次性脉冲：「向外扩散」就是这两条动效的全部内容，
+           撤掉动画即回到各自的基准态（两层环与脉冲环都是 opacity:0，等于不可见），
+           不损失任何信息。选择器必须与基准侧一一对应——这里少列一枚，那一枚在减弱
+           动效下照样每 1.1s 扩一圈，而这一档要的恰恰是「没有循环运动」。 */
+        .feature-card:hover .feature-icon::before,
+        .feature-card:hover .feature-icon::after,
+        .more-card:hover .more-icon::before,
+        .more-card:hover .more-icon::after,
+        html.js .hero-cta .btn-primary::after,
+        html.js .hero-cta .btn-dl::after {
+          animation: none;
+        }
+        /* 首屏小圆点的呼吸此前漏在降级块之外：它动的是 transform: scale(1.4) 且 infinite，
+           正是这一档要撤掉的那一类循环运动。基准态本身就是常态，撤掉动画不会有残影。 */
+        .hero-eyebrow .dot {
+          animation: none;
         }
         /* 卡片追光整层撤掉：它跟着指针走，「位移」就是这条动效本身，撤了不损失信息。
            复制回执只撤弹跳、保留转绿（颜色是回执内容）；灯箱撤进场、留瞬时显形。 */
@@ -3235,19 +3426,22 @@
         }
       }
     </style>
-    <!-- 禁 JS 兜底：抽屉打不开时 12 条锚点摊在页头里。实测 ≤520 这一段，品牌名 + 语言切换
-         把这行的剩余宽度压到 83～150px，锚点条被挤成 12 行——英文页在 320px 一档整页横向滚动
-         +69px、页头高 500px（中文同档 373px）。这里让页头允许换行、锚点词条可断行，锚点条整体
-         落到第二行：横向溢出归零，页头高度降到 203px（en 420 一档 458→203，zh 320 一档 373→203）。
-         只写在 <noscript> 里，是为了完全不碰 JS 档（JS 开启时 ≤520 的页头维持单行 64px）；
-         断点取 520 而非 768——640 以上禁 JS 也只有两行（76.8px），换行反而多占一档高度。
-         scroll-padding-top 跟着抬：基准的 84px 是按 64px 单行页头算的，页头 .nav 是 sticky，
-         折行后高 203px，不补这一段则点锚点会把小标题压在页头底下。 -->
+    <!-- 禁 JS 兜底：抽屉打不开时 10 条锚点摊在页头里。实测（禁脚本、320 一档）品牌名 + 右侧
+         控件组把这行的剩余宽度压到放不下锚点条，若不换行页头高 449px、英文整页横向滚动 60px
+         （中文 38px）；420 一档英文 405px。这里让页头允许换行、锚点词条可断行，锚点条整体落到
+         第二行：页头自身不再贡献横向溢出（.nav-links 右边缘 296px < 320px），页头高度收到
+         217px（320 一档 3 行）/ 173px（420–520 一档 2 行）。
+         只写在 <noscript> 里，是为了完全不碰 JS 档（JS 开启时 ≤520 的页头维持单行 65px）。
+         scroll-padding-top 跟着抬：基准的 84px 是按 65px 单行页头算的，页头 .nav 是 sticky，
+         折行后高 217px，不补这一段则点锚点会把小标题压在页头底下（取 224px，留 7px 余量）。
+         两条已知遗留，都与这条规则无关、本轮不改：① 320 一档整页仍有 38px 横向滚动，来自
+         #faqList 的 334px 最小内容宽（HEAD 同值）；② 禁脚本且视口 521–767px 时页头 81–125px
+         高于 84px 基准 padding，锚点落位最多被压住 41px——这一段此前只有 ≤520 被兜住。 -->
     <noscript>
       <style>
         @media (max-width: 520px) {
           html {
-            scroll-padding-top: 212px;
+            scroll-padding-top: 224px;
           }
           .nav-inner {
             flex-wrap: wrap;
@@ -3329,20 +3523,6 @@
             href="#faq"
             data-i18n="nav.faq"
             >常见问题</a
-          >
-          <a
-            href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-i18n="nav.cws"
-            >应用商店</a
-          >
-          <a
-            href="https://github.com/liaolongdong/account-password-helper/releases/latest"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-i18n="nav.github"
-            >GitHub 下载</a
           >
         </div>
         <div class="nav-actions">
@@ -3457,10 +3637,10 @@
                   y2="3"
                 />
               </svg>
-              <span data-i18n="hero.download">下载插件</span>
+              <span data-i18n="hero.download">添加到 Chrome</span>
             </a>
             <a
-              class="btn btn-ghost"
+              class="btn btn-ghost btn-dl"
               href="https://github.com/liaolongdong/account-password-helper/releases/latest"
               target="_blank"
               rel="noopener noreferrer"
@@ -5196,7 +5376,7 @@ pnpm lint:style  # Stylelint</code></pre>
             使用前后你可能会关心的问题
           </p>
         </div>
-        <!-- BEGIN GENERATED FAQ DOM —— 由 scripts/build-faq-dom.mjs（pnpm gen:faq-dom）从页面 FAQS 数组注入，含问答列表与分类直达右栏，改文案只改 FAQS，勿手改这里 -->
+        <!-- BEGIN GENERATED FAQ DOM —— 由 scripts/build-faq-dom.mjs（pnpm gen:faq-dom）从页面 FAQS 数组注入，含问答列表、分类直达与出口卡三块，改问答只改 FAQS，改卡片文案改 I18N 字典，勿手改这里 -->
         <!-- prettier-ignore -->
         <div class="faq-list" id="faqList">
           <div class="faq-category" id="faq-cat-security">
@@ -5391,6 +5571,10 @@ pnpm lint:style  # Stylelint</code></pre>
               <li><a href="#faq-cat-config"><span class="faq-toc-name">高级配置</span><span class="faq-toc-n">14</span></a></li>
             </ol>
           </nav>
+          <div class="faq-rail-card faq-rail-card--key">
+            <h3 class="faq-rail-title" data-i18n="faqRail.helpTitle">没找到答案？</h3>
+            <div class="faq-rail-help" data-i18n-html="faqRail.help"><p>问题还卡着就直接问：页脚的<a href="#contact">微信交流群</a>（备注 <code>aph</code>），或提一条 <a href="https://github.com/liaolongdong/account-password-helper/issues" target="_blank" rel="noopener noreferrer">GitHub issue</a>。</p><p>附上插件版本与复现步骤，通常一轮就能定位。</p></div>
+          </div>
         </aside>
         <!-- END GENERATED FAQ DOM -->
       </div>
@@ -5413,6 +5597,18 @@ pnpm lint:style  # Stylelint</code></pre>
         </div>
         <div class="more-grid">
           <article class="more-card reveal">
+            <div
+              class="more-icon more-icon--taf"
+              aria-hidden="true"
+            >
+              <img
+                src="./assets/icons/brands/brand-transfer-any-file.svg"
+                alt=""
+                width="48"
+                height="48"
+                loading="lazy"
+              />
+            </div>
             <h3>
               <a
                 href="https://liaolongdong.github.io/transfer-any-file/"
@@ -5447,6 +5643,18 @@ pnpm lint:style  # Stylelint</code></pre>
             </p>
           </article>
           <article class="more-card reveal reveal-delay-1">
+            <div
+              class="more-icon more-icon--cop"
+              aria-hidden="true"
+            >
+              <img
+                src="./assets/icons/brands/brand-cross-origin-proxy.svg"
+                alt=""
+                width="48"
+                height="48"
+                loading="lazy"
+              />
+            </div>
             <h3>
               <a
                 href="https://liaolongdong.github.io/cross-origin-proxy/"
@@ -5583,7 +5791,11 @@ pnpm lint:style  # Stylelint</code></pre>
             <span data-i18n="footer.updated">最后更新：2026-09 · v3.12.0</span>
           </div>
         </div>
-        <div class="footer-wechat">
+        <!-- id 是 FAQ 右栏出口卡「微信交流群」那条内链的落点（见 I18N 的 faqRail.help） -->
+        <div
+          class="footer-wechat"
+          id="contact"
+        >
           <img
             id="wechatQr"
             src="./assets/wx-qrcode/wechat-qrcode.jpg"
@@ -5730,10 +5942,6 @@ pnpm lint:style  # Stylelint</code></pre>
         'nav.steps': { zh: '使用步骤', en: 'Steps' },
         'nav.compare': { zh: '对比', en: 'Compare' },
         'nav.faq': { zh: '常见问题', en: 'FAQ' },
-        /* 两个下载出口在页头里只占一个短词：完整目的地由 #install 小节和首屏 CTA 承担。
-           英文若写全 "Chrome Web Store" / "GitHub Download"，12 项在 1200px 容器里放不下。 */
-        'nav.cws': { zh: '应用商店', en: 'Web Store' },
-        'nav.github': { zh: 'GitHub 下载', en: 'Releases' },
         'nav.how': { zh: '工作原理', en: 'How it works' },
         'nav.privacy': { zh: '隐私', en: 'Privacy' },
         'nav.problem': { zh: '痛点', en: 'Why' },
@@ -5834,7 +6042,7 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 + 点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号，需要时可按三档放宽跨子域匹配；内置 TOTP 两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。',
           en: 'A Chrome password manager built for developers & QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts, with three tiers to widen matching across subdomains when one account serves a whole site; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.',
         },
-        'hero.download': { zh: '下载插件', en: 'Install Extension' },
+        'hero.download': { zh: '添加到 Chrome', en: 'Add to Chrome' },
         'hero.githubDownload': { zh: 'GitHub 下载', en: 'GitHub Download' },
         'hero.viewDemo': { zh: '查看功能演示', en: 'View Demo' },
         'hero.getStarted': { zh: '如何开始', en: 'Get Started' },
@@ -6224,6 +6432,14 @@ pnpm lint:style  # Stylelint</code></pre>
         'faq.sub': {
           zh: '使用前后你可能会关心的问题',
           en: 'Questions you may have before and after using',
+        },
+        /* FAQ 右栏的「没找到答案」出口卡（两条见 scripts/lib/faq-dom.mjs 的 FAQ_RAIL_HELP_KEYS）。
+           正文含内链，所以走 data-i18n-html，与页脚邮箱那一条同一形态；#contact 指向页脚
+           微信交流群那一块。撇号必须转义，否则整段主脚本解析失败（2026-09-27 的教训）。 */
+        'faqRail.helpTitle': { zh: '没找到答案？', en: "Didn't find your answer?" },
+        'faqRail.help': {
+          zh: '<p>问题还卡着就直接问：页脚的<a href="#contact">微信交流群</a>（备注 <code>aph</code>），或提一条 <a href="https://github.com/liaolongdong/account-password-helper/issues" target="_blank" rel="noopener noreferrer">GitHub issue</a>。</p><p>附上插件版本与复现步骤，通常一轮就能定位。</p>',
+          en: '<p>Still stuck? Ask directly: the <a href="#contact">WeChat group</a> in the footer (remark <code>aph</code>), or open a <a href="https://github.com/liaolongdong/account-password-helper/issues" target="_blank" rel="noopener noreferrer">GitHub issue</a>.</p><p>Add the extension version and how to reproduce it — one round is usually enough to pin it down.</p>',
         },
         'more.title': { zh: '作者的其他插件', en: 'More by the author' },
         'more.sub': {
@@ -7106,7 +7322,8 @@ pnpm lint:style  # Stylelint</code></pre>
 
       // =================== Nav 滚动高亮 ===================
       const navLinks = document.querySelectorAll('.nav-links a');
-      /* 与 .nav-links 里的 10 条页内锚点一一对应（另两条是商店 / GitHub 外链，不参与高亮），
+      /* 与 .nav-links 里的 10 条页内锚点一一对应（页头撤掉两枚外链后，这一条与锚点条
+         严格同集，外链没有可高亮的节区），
          且必须按文档顺序排——onScroll 取的是「最后一个已经滚过去的 id」。
          少一项就会出现「滚到这一节，高亮还停在上一节」：本轮补的 痛点 / 场景 / 安装 三节
          漏在表外时，实测停在 #problem 无任何高亮、停在 #use-cases 高亮成「使用步骤」、

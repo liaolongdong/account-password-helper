@@ -14,7 +14,12 @@
  *    `aria-expanded="false"`），切语言重建后视觉与交互不变；
  * 5. 手工维护的 `<noscript>` FAQ 段确实被删掉，页内只剩窄屏页头那一个 `<noscript>`；
  * 6. 右栏「分类直达」同样只从 `FAQS` 推导：标题、条数、锚点三样与左列逐字对齐，且锚点在页面里
- *    真的落得下去（`#faq-cat-*` 与分类节点成对出现、id 全页唯一、网格拆分只在 ≥1080px 生效）。
+ *    真的落得下去（`#faq-cat-*` 与分类节点成对出现、id 全页唯一、网格拆分只在 ≥1080px 生效）；
+ * 7. 右栏第二张卡「没找到答案」的真源是页面的 `I18N` 字典，不是 `FAQS`，也不是页内第二份常量：
+ *    生成区里恰好且只允许 `data-i18n="faqRail.helpTitle"` 与 `data-i18n-html="faqRail.help"`
+ *    两个标记，卡面字节必须逐字等于字典里该语言的值。这条例外之所以安全，是因为三条写入路径
+ *    （生成器 / `gen:en` 的 applyI18n / 页内 applyLang）落的是同一个字符串；除此之外生成区里
+ *    不得再出现任何 i18n 标记——问答条目由 `FAQS` 提供，挂上字典 key 只会多一个写入方。
  *
  * 生成区刻意带 `<!-- prettier-ignore -->`：prettier 会在 CJK 之间折行，折行在 HTML 里塌成一个
  * 空格，会把「本地存储方案」拆成「本地 存储方案」。它的作用域只有紧随其后的那一个节点，所以生成区
@@ -41,6 +46,20 @@ const CHEV_SVG =
  *  conscious 确认的文案变更。
  */
 const RAIL_TITLE = { zh: '分类直达', en: 'Browse by category' };
+/**
+ * 右栏出口卡的两条文案在 `I18N` 字典里的 key，与 `scripts/lib/faq-dom.mjs` 的
+ * `FAQ_RAIL_HELP_KEYS` 同值（这里刻意重抄一份，让守卫不依赖被守卫的模块）。
+ * 生成区里允许出现的 i18n 标记就只有这两个，且各一次。
+ */
+const HELP_KEYS = { title: 'faqRail.helpTitle', body: 'faqRail.help' };
+/** 出口卡正文里那条页内链的落点（页脚微信交流群块），必须与字典文案同进同退 */
+const HELP_CONTACT_ANCHOR = 'contact';
+/**
+ * 出口卡外链的落点：本仓库的 issue 列表，与页头 GitHub 图标、页脚仓库链同一个仓库。
+ * 写死整条而不是只断言「以 /issues 结尾」——文案里换成别的仓库路径（比如 discussions）
+ * 会让「有问题来这里」这句话悄悄落到一个不存在反馈入口的地方。
+ */
+const ISSUES_URL = 'https://github.com/liaolongdong/account-password-helper/issues';
 /** 分类锚点前缀：与 `faq-dom.mjs` 的 `faqCategoryAnchor` 和页内 `faqCatAnchor` 同式 */
 const ANCHOR_PREFIX = 'faq-cat-';
 /** sticky 的落位高度，与 `html { scroll-padding-top }` 同值——点锚点后分类标题不被页头压住 */
@@ -77,6 +96,20 @@ interface RailEntry {
   count: number;
 }
 
+/**
+ * 右栏出口卡：两条文案各自挂的字典 key、卡面字节、正文里所有 <a> 的 href（按出现顺序）。
+ *
+ * `title` 走 `escapeHtml`，`body` 是原样落进去的 HTML，因此两者比对方式不同——
+ * 这点差异本身就是「标题是文本、正文是标记」的契约，别在断言里把它们混成一个比较。
+ */
+interface RailHelp {
+  titleKey: string;
+  title: string;
+  bodyKey: string;
+  body: string;
+  hrefs: string[];
+}
+
 /** 反转义生成区里必转的三个字符（`escapeHtml` 的逆变换） */
 function decodeHtml(value: string): string {
   return value.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
@@ -106,6 +139,30 @@ function faqsFrom(html: string): FaqEntry[] {
   const close = html.indexOf('];', open);
   expect(close, '未找到 FAQS 数组终点').toBeGreaterThan(open);
   return vm.runInNewContext(`(${html.slice(open, close + 1)})`) as FaqEntry[];
+}
+
+/**
+ * 求值页面内嵌的 `I18N` 字典，取出一个条目的 `{ zh, en }`。
+ *
+ * 终点判据与生成脚本（字符串感知的括号配平）刻意不同：这里认「起点之后第一个 `};`」——
+ * 字典里每个条目都以 `},` 收尾，成对出现的 `};` 只有字典自身那一个。两条独立路径读出的值
+ * 必须相同，否则「出口卡文案归字典管」这条契约已经开始漏。
+ */
+function i18nEntry(html: string, key: string, file: string): { zh: string; en: string } {
+  const bodyStart = html.indexOf('{', html.indexOf('const I18N = {'));
+  expect(bodyStart, `${file} 未找到 I18N 字典起点`).toBeGreaterThan(-1);
+  const close = html.indexOf('};', bodyStart);
+  expect(close, `${file} 未找到 I18N 字典终点`).toBeGreaterThan(bodyStart);
+  const dict = vm.runInNewContext(`(${html.slice(bodyStart, close + 1)})`) as Record<
+    string,
+    { zh: string; en: string }
+  >;
+  const entry = dict[key];
+  expect(entry, `${file} 的 I18N 字典缺少 ${key}`).toBeTruthy();
+  expect(Object.keys(entry).sort(), `${file} I18N['${key}'] 必须只有 zh / en 两个字段`).toEqual(['en', 'zh']);
+  expect(entry.zh, `${file} I18N['${key}'].zh 不能为空`).toBeTruthy();
+  expect(entry.en, `${file} I18N['${key}'].en 不能为空`).toBeTruthy();
+  return entry;
 }
 
 /** 取出一个页面里 FAQ 生成区的整块文本 */
@@ -152,13 +209,14 @@ function parseFaqNodes(block: string): FaqNode[] {
 }
 
 /**
- * 解析生成区里的右栏。
+ * 解析生成区里的右栏（两卡：分类直达 + 没找到答案）。
  *
  * 与问答列同样「一节点一行」严格排版：prettier 一旦拿到这一段的排版权（漏了第二道
  * prettier-ignore）就会把它拆成多行，这里立刻解析不到；同理，右栏若被挪进 `#faqList` 内部，
  * `renderFaqs()` 的 `faqBox.innerHTML = ''` 会在切语言时把它清掉，也由这里的相邻性判据抓住。
+ * 出口卡走的是同一道判据：它是 `<aside>` 的第二格，落在 `</nav>` 之后、`</aside>` 之前。
  */
-function parseFaqRail(block: string, file: string): { title: string; entries: RailEntry[] } {
+function parseFaqRail(block: string, file: string): { title: string; entries: RailEntry[]; help: RailHelp } {
   const aside = /^ {8}<aside class="faq-rail">\n([\s\S]*?)\n {8}<\/aside>$/m.exec(block);
   expect(aside, `${file} 生成区缺少与问答列表同级的 <aside class="faq-rail">`).not.toBeNull();
   const body = aside![1];
@@ -186,7 +244,35 @@ function parseFaqRail(block: string, file: string): { title: string; entries: Ra
   }
   // 目录区除解析出的条目外不得再有 <li>：格式漂移（多一行、少一个 span）会静默漏计
   expect((tocRegion.match(/<li>/g) || []).length, `${file} 右栏存在解析不到的 <li>`).toBe(entries.length);
-  return { title: decodeHtml(title![1]), entries };
+
+  // —— 第二格：「没找到答案」出口卡 ——
+  const card = /^ {10}<div class="faq-rail-card faq-rail-card--key">\n([\s\S]*?)\n {10}<\/div>$/m.exec(body);
+  expect(card, `${file} 右栏缺少与「分类直达」同级的 faq-rail-card--key 出口卡`).not.toBeNull();
+  // 顺序即读序：先给导航，导航走完才给出口；反过来会把出口顶在目录上面
+  expect(body.indexOf('faq-rail-card--key'), `${file} 出口卡必须排在目录之后`).toBeGreaterThan(body.indexOf('</nav>'));
+  const helpTitle = /^ {12}<h3 class="faq-rail-title" data-i18n="([^"]+)">([^<]*)<\/h3>$/m.exec(card![1]);
+  expect(helpTitle, `${file} 出口卡缺少带 data-i18n 的 h3 标题`).not.toBeNull();
+  expect(helpTitle![1], `${file} 出口卡标题挂错了字典 key`).toBe(HELP_KEYS.title);
+  // 不写 `|| undefined`：`expect(undefined).not.toBeNull()` 是成立的（undefined !== null），
+  // 那样这道断言在匹配失败时静默放行，后面读 helpBody![1] 才炸出一个看不出根因的 TypeError。
+  const helpBody = /^ {12}<div class="faq-rail-help" data-i18n-html="([^"]+)">([\s\S]*?)<\/div>$/m.exec(card![1]);
+  expect(helpBody, `${file} 出口卡缺少 faq-rail-help 正文容器（排版漂移即解析不到）`).not.toBeNull();
+  expect(helpBody![1], `${file} 出口卡正文挂错了字典 key`).toBe(HELP_KEYS.body);
+  // 正文必须是「两个 <p>」这一形态：段数、顺序与卡片样式（.faq-rail-help p + p）都对得上
+  expect(helpBody![2], `${file} 出口卡正文不是两段 <p>`).toMatch(/^<p>[\s\S]*?<\/p><p>[\s\S]*?<\/p>$/);
+
+  return {
+    title: decodeHtml(title![1]),
+    entries,
+    help: {
+      titleKey: helpTitle![1],
+      title: decodeHtml(helpTitle![2]),
+      bodyKey: helpBody![1],
+      // 正文原样取出，不反转义：生成器与 applyLang 都是把它当 HTML 直接落进 innerHTML
+      body: helpBody![2],
+      hrefs: [...helpBody![2].matchAll(/<a href="([^"]+)"/g)].map(hit => hit[1]),
+    },
+  };
 }
 
 /** 独立计数：区域里 `q:` / `category:` 的字面出现次数必须等于求值出的条数 */
@@ -268,7 +354,7 @@ interface Page {
   html: string;
   block: string;
   nodes: FaqNode[];
-  rail: { title: string; entries: RailEntry[] };
+  rail: { title: string; entries: RailEntry[]; help: RailHelp };
   faqs: FaqEntry[];
   region: string;
 }
@@ -333,8 +419,18 @@ describe.each([zh, en])('$label — FAQ 生成区与 FAQS 同源', (page: Page) 
     expect(page.nodes, `${page.file} 的 FAQ 生成区滞后于 FAQS`).toEqual(expectedNodes(page));
   });
 
-  it('生成区里没有 data-i18n（否则 gen:en 的字典替换会二次改写它）', () => {
-    expect(page.block).not.toMatch(/\bdata-i18n/);
+  it('生成区里的 i18n 标记恰好是出口卡那两条，问答条目一条都不许挂', () => {
+    // 出口卡是唯一的例外（文案真源在字典，见文件头第 7 条）；问答条目由 FAQS 提供，
+    // 挂上字典 key 就多出第二个写入方，`gen:en` 的字典替换与 syncFaqDom 会互相回改。
+    expect([...page.block.matchAll(/\bdata-i18n(?:-html)?="([^"]+)"/g)].map(m => m[0])).toEqual([
+      `data-i18n="${HELP_KEYS.title}"`,
+      `data-i18n-html="${HELP_KEYS.body}"`,
+    ]);
+    // 且必须都落在出口卡里：挂在目录或问答节点上，等于把 FAQS 的条目交给字典改写
+    const card = /<div class="faq-rail-card faq-rail-card--key">[\s\S]*?<\/aside>/.exec(page.block)![0];
+    expect(card).toContain(`data-i18n="${HELP_KEYS.title}"`);
+    expect(card).toContain(`data-i18n-html="${HELP_KEYS.body}"`);
+    expect(page.block.slice(0, page.block.indexOf('faq-rail-card--key'))).not.toMatch(/\bdata-i18n/);
   });
 
   it('生成区每个顶层节点各占一道 prettier-ignore，长文案没被折行塞进空格', () => {
@@ -381,6 +477,46 @@ describe.each([zh, en])('$label — 右栏「分类直达」与问答列同源',
     page.rail.entries.forEach((entry, i) => {
       expect(entry.anchor).toBe(`${ANCHOR_PREFIX}${iconClasses[i]}`);
     });
+  });
+});
+
+describe.each([zh, en])('$label — 右栏「没找到答案」出口卡与字典同源', (page: Page) => {
+  it('标题与正文逐字等于 I18N 字典里该语言的值（改字典忘了重跑生成会在这里变红）', () => {
+    expect(page.rail.help.title).toBe(i18nEntry(page.html, HELP_KEYS.title, page.file)[page.lang]);
+    expect(page.rail.help.body).toBe(i18nEntry(page.html, HELP_KEYS.body, page.file)[page.lang]);
+  });
+
+  it('英文页的卡面不残留整段中文，中文页的卡面是中文', () => {
+    if (page.lang === 'zh') {
+      expect(page.rail.help.title, `${page.file} 中文页出口卡标题不是中文`).toMatch(CJK);
+      expect(page.rail.help.body, `${page.file} 中文页出口卡正文不是中文`).toMatch(CJK_RUN);
+      return;
+    }
+    expect(page.rail.help.title, `${page.file} 英文页出口卡标题残留中文`).not.toMatch(CJK);
+    expect(page.rail.help.body, `${page.file} 英文页出口卡正文残留整段中文`).not.toMatch(CJK_RUN);
+  });
+
+  it('正文里的页内链落到真实 id，外链指向 issue 而非随便一个仓库路径', () => {
+    const ids = [...page.html.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
+    const inPage = page.rail.help.hrefs.filter(href => href.startsWith('#'));
+    expect(inPage, `${page.file} 出口卡没有一条页内链`).toHaveLength(1);
+    expect(inPage[0]).toBe(`#${HELP_CONTACT_ANCHOR}`);
+    expect(ids, `${page.file} 出口卡的 #${HELP_CONTACT_ANCHOR} 指向不存在的 id`).toContain(HELP_CONTACT_ANCHOR);
+    const external = page.rail.help.hrefs.filter(href => href.startsWith('http'));
+    expect(external, `${page.file} 出口卡的外链应恰好一条`).toHaveLength(1);
+    expect(external[0]).toBe(ISSUES_URL);
+    // 外链一律带 noopener，否则新标签页能通过 window.opener 反向操纵本页
+    expect(page.rail.help.body).toMatch(/target="_blank" rel="noopener noreferrer"/);
+  });
+
+  it('两卡的排版都由 CSS 消费，不是只写在 DOM 里的空类名', () => {
+    const file = page.file;
+    // .faq-rail 从「一张卡」变成「两卡的网格」：没有这条 gap，两卡会直接贴在一起
+    const railBase = ruleFor(page.html, '.faq-rail', null, file).body;
+    expect(railBase).toMatch(/display:\s*grid/);
+    expect(railBase).toMatch(/gap:\s*14px/);
+    expect(cssRules(page.html, '.faq-rail-card--key').length, `${file} 出口卡没有自己的皮肤`).toBeGreaterThan(0);
+    expect(cssRules(page.html, '.faq-rail-help p').length, `${file} 出口卡正文没有排版规则`).toBeGreaterThan(0);
   });
 });
 
@@ -602,5 +738,34 @@ describe('守卫自检：生成区或右栏滞后会变红', () => {
   it('页内标题常量与生成区分道 → 同源判据变红', () => {
     const drifted = zh.html.replace("zh: '分类直达',", "zh: '按分类浏览',");
     expect(drifted).not.toContain(`zh: '${RAIL_TITLE.zh}'`);
+  });
+
+  it('手改生成区里的出口卡而没改字典（或没重跑生成）→ 与字典逐字比对不通过', () => {
+    const dictTitle = i18nEntry(zh.html, HELP_KEYS.title, 'index.html').zh;
+    const edited = zh.block.replace(`>${dictTitle}</h3>`, '>没找到答案</h3>');
+    expect(edited).not.toBe(zh.block);
+    expect(parseFaqRail(edited, '变异页').help.title).not.toBe(dictTitle);
+  });
+
+  it('出口卡的正文标记挂错 key（改成 data-i18n 会丢掉内链）→ 解析即报错', () => {
+    const demoted = zh.block.replace('class="faq-rail-help" data-i18n-html=', 'class="faq-rail-help" data-i18n=');
+    expect(demoted).not.toBe(zh.block);
+    expect(() => parseFaqRail(demoted, '变异页')).toThrowError(/缺少 faq-rail-help 正文容器/);
+  });
+
+  it('整张出口卡被删掉 → 右栏两格的判据与 i18n 白名单同时变红', () => {
+    const dropped = zh.block.replace(/\n {10}<div class="faq-rail-card faq-rail-card--key">[\s\S]*?\n {10}<\/div>/, '');
+    expect(dropped).not.toBe(zh.block);
+    expect(() => parseFaqRail(dropped, '变异页')).toThrowError(/faq-rail-card--key 出口卡/);
+    expect([...dropped.matchAll(/\bdata-i18n(?:-html)?="([^"]+)"/g)]).toHaveLength(0);
+  });
+
+  it('页脚那块改了 id（#contact 落空）→ 落点判据抓不到这条链', () => {
+    // 只替换 `id="contact"` 这一段属性，不写成整行开标签：prettier 的 singleAttributePerLine
+    // 会把多属性标签拆成一属性一行，整行字面量在格式化之后必然找不到（变异静默不生效）。
+    const renamed = zh.html.replace('id="contact"', 'id="wechat"');
+    expect(renamed).not.toBe(zh.html);
+    const ids = [...renamed.matchAll(/\sid="([^"]+)"/g)].map(m => m[1]);
+    expect(ids).not.toContain(HELP_CONTACT_ANCHOR);
   });
 });

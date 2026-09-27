@@ -9,9 +9,11 @@
  * 页面脚本只负责给静态节点绑交互（语言与页面自带语种不同时才按该语种重建）。
  *
  * 产物是 `.faq-wrap` 网格的两格：`<div class="faq-list" id="faqList">` 问答列表，
- * 与 `<aside class="faq-rail">` 分类直达右栏。右栏同样整段生成——分类标题、每组条数、
- * 锚点 id 三样都只能从 `FAQS` 算出来，手写必然与列表漂移；而它必须和列表同一语言，
- * 所以页内脚本切换语言时与列表一起重建（见 `renderFaqs()`）。
+ * 与 `<aside class="faq-rail">` 右栏。右栏整段生成，内含两卡——「分类直达」与「没找到答案」：
+ * 前者的分类标题、每组条数、锚点 id 三样都只能从 `FAQS` 算出来，手写必然与列表漂移，
+ * 而它必须和列表同一语言，所以页内脚本切换语言时与列表一起重建（见 `renderFaqs()`）；
+ * 后者是一段含内链的固定文案，真源是页面的 `I18N` 字典（见 `FAQ_RAIL_HELP_KEYS`），
+ * 生成器读字典落字节，语言切换交给页内 `applyLang()`。
  *
  * 与 `faq-schema.mjs` 的分工：那边产出 JSON-LD（爬虫读到的机器视图），这边产出可见 DOM
  * （人和不执行 JS 的爬虫读到的视图），两者都从同一个 `FAQS` 取文，禁止任何一处另写一套措辞。
@@ -35,15 +37,27 @@ const CHEV_SVG =
 /**
  * 右栏「分类直达」的栏目标题。
  *
- * 刻意不进页面的 I18N 字典：生成区整体由 `lang` 参数决定语言，挂 `data-i18n` 会让 `gen:en`
- * 的字典替换先改一遍、`syncFaqDom` 再整体覆盖一遍，两道活重叠且第二道才是权威。
- * 页内脚本另存同一份常量（切换语言时重建右栏用），两处字符串由
- * `tests/docs/landingFaqDom.test.ts` 逐字钉住，改动必须一起改。
+ * 刻意不进页面的 I18N 字典：这张卡的语言由 `lang` 参数整体决定，而页内脚本 `renderFaqRail()`
+ * 每次重建右栏都要改写这个标题——再进字典就多一个写入方，字典替换与脚本改写谁后落地谁说了算。
+ * 页内脚本因此另存同一份常量，两处字符串由 `tests/docs/landingFaqDom.test.ts` 逐字钉住，
+ * 改动必须一起改。（同侧的出口卡走的是相反取舍，见 `FAQ_RAIL_HELP_KEYS`。）
  */
 export const FAQ_RAIL_TITLE = { zh: '分类直达', en: 'Browse by category' };
 
 /** 右栏标题元素的 id（`<nav aria-labelledby>` 指向它），语言无关 */
 export const FAQ_RAIL_TITLE_ID = 'faqRailTitle';
+
+/**
+ * 右栏「没找到答案」出口卡的两条文案在页面 `I18N` 字典里的 key。
+ *
+ * 与上面 `FAQ_RAIL_TITLE` 的归属正好相反，差别在「谁在切语言」：
+ * 「分类直达」是导航标题，页内脚本 `renderFaqRail()` 每次重建右栏都要改写它，再进字典就成了
+ * 第三个写入方；而出口卡是一段含内链的正文，页内 `applyLang()` 本来就会按当前语言重写所有
+ * `data-i18n-html` 节点（`footer.email` 是同一形态）。所以这张卡的文案只归字典一处，生成器
+ * 读字典里对应语言的值原样落字节——三条写入路径（生成器 / `gen:en` 的 applyI18n / 运行时
+ * applyLang）落的是同一个字符串，不存在谁覆盖谁，页面脚本也无需再抄一份常量。
+ */
+export const FAQ_RAIL_HELP_KEYS = { title: 'faqRail.helpTitle', body: 'faqRail.help' };
 
 /**
  * 分类锚点 id：`#faq-cat-<iconClass>`。
@@ -161,6 +175,34 @@ export function extractFaqs(html) {
 }
 
 /**
+ * 从页面内嵌的 `I18N` 字典里取出一个 `{ zh, en }` 条目。
+ *
+ * 出口卡的文案归字典管（见 `FAQ_RAIL_HELP_KEYS`），生成器必须读同一处：只要在这里改抄一份，
+ * 中文页字节、`gen:en` 产物与运行时 `applyLang()` 三者就开始各说各话。取值走与 `FAQS`
+ * 同一套「字符串感知」的括号配平，因此文案里出现 `{` `}` `]` 都不会截断。
+ *
+ * @param {string} html 页面源码（含 `const I18N = {` 字典）
+ * @param {string} key  字典 key，如 `faqRail.help`
+ * @returns {{zh: string, en: string}} 中英两份文案
+ */
+export function extractI18nEntry(html, key) {
+  const dictStart = html.indexOf('const I18N = {');
+  if (dictStart === -1) throw new Error('未找到 I18N 字典起点');
+  const at = html.indexOf(`'${key}':`, dictStart);
+  if (at === -1) throw new Error(`I18N 字典缺少 ${key}，右栏出口卡无处取文案`);
+  const open = html.indexOf('{', at);
+  if (open === -1) throw new Error(`I18N['${key}'] 的值不是对象字面量`);
+  const entry = vm.runInNewContext(`(${html.slice(open, findClosingBracket(html, open) + 1)})`);
+  const fields = Object.keys(entry);
+  if (fields.length !== 2 || !fields.every(field => field === 'zh' || field === 'en')) {
+    throw new Error(`I18N['${key}'] 必须只有 zh / en 两个字段，实得 ${fields.join(', ') || '（空）'}`);
+  }
+  if (typeof entry.zh !== 'string' || !entry.zh) throw new Error(`I18N['${key}'] 缺少非空的 zh`);
+  if (typeof entry.en !== 'string' || !entry.en) throw new Error(`I18N['${key}'] 缺少非空的 en`);
+  return entry;
+}
+
+/**
  * 渲染生成区整块文本（含 BEGIN / prettier-ignore / 容器 / END）。
  *
  * `<!-- prettier-ignore -->` 是必须的：prettier 会在 CJK 之间折行，而折行在 HTML 里塌成一个
@@ -169,10 +211,12 @@ export function extractFaqs(html) {
  *
  * @param {ReturnType<typeof extractFaqs>} faqs 有序条目
  * @param {'zh' | 'en'} lang 输出语言
+ * @param {{title: {zh: string, en: string}, body: {zh: string, en: string}}} help
+ *   出口卡的两条文案，由 `extractI18nEntry` 从页面 `I18N` 字典取出（缺一份即生成失败）
  * @param {string} [indent] 生成区缩进（默认与 index.html 的 .container 子级一致）
  * @returns {string} 可直接替换 `FAQ_DOM_BLOCK_RE` 命中原区的文本
  */
-export function renderFaqDom(faqs, lang, indent = '        ') {
+export function renderFaqDom(faqs, lang, help, indent = '        ') {
   const pad = n => indent + '  '.repeat(n);
   const nodes = [];
   /** 右栏条目：与分类同序，count 数到下一个分类为止的问答条数 */
@@ -213,8 +257,8 @@ export function renderFaqDom(faqs, lang, indent = '        ') {
 
   const note =
     lang === 'zh'
-      ? '由 scripts/build-faq-dom.mjs（pnpm gen:faq-dom）从页面 FAQS 数组注入，含问答列表与分类直达右栏，改文案只改 FAQS，勿手改这里'
-      : 'generated from the page FAQS array by scripts/build-faq-dom.mjs via pnpm gen:en — holds the Q&A list and the category rail; edit FAQS, not this block';
+      ? '由 scripts/build-faq-dom.mjs（pnpm gen:faq-dom）从页面 FAQS 数组注入，含问答列表、分类直达与出口卡三块，改问答只改 FAQS，改卡片文案改 I18N 字典，勿手改这里'
+      : 'generated from the page FAQS array by scripts/build-faq-dom.mjs via pnpm gen:en — holds the Q&A list, the category rail and the help card; edit FAQS for Q&A and the I18N dict for the card, never this block';
 
   return [
     `${indent}${FAQ_DOM_BEGIN} —— ${note} -->`,
@@ -234,6 +278,14 @@ export function renderFaqDom(faqs, lang, indent = '        ') {
     ...tocItems,
     `${indent}    </ol>`,
     `${indent}  </nav>`,
+    // 出口卡是右栏的第二格：读完四条分类标题仍没找到问题的人，需要一个动作而不是继续滚动。
+    // 它带内链（页脚微信交流群锚点 + GitHub issue），所以正文原样取字典值、挂 data-i18n-html，
+    // 运行时切语言由页内 applyLang() 负责，这里不再另存一份常量。
+    `${indent}  <div class="faq-rail-card faq-rail-card--key">`,
+    `${indent}    <h3 class="faq-rail-title" data-i18n="${FAQ_RAIL_HELP_KEYS.title}">` +
+      `${escapeHtml(help.title[lang])}</h3>`,
+    `${indent}    <div class="faq-rail-help" data-i18n-html="${FAQ_RAIL_HELP_KEYS.body}">${help.body[lang]}</div>`,
+    `${indent}  </div>`,
     `${indent}</aside>`,
     `${indent}${FAQ_DOM_END}`,
   ].join('\n');
@@ -257,10 +309,17 @@ export function replaceFaqDom(html, block) {
 /**
  * 按目标语言刷新页面的 FAQ 生成区。
  *
+ * 问答部分取 `FAQS`，出口卡部分取 `I18N` 字典，两处都在同一份页面源码里，
+ * 因此 `pnpm gen:faq-dom`（中文）与 `gen:en`（英文）拿到的都是当页最新的文案。
+ *
  * @param {string} html 页面源码
  * @param {'zh' | 'en'} lang 目标语言
  * @returns {{ html: string, changed: boolean, count: number, sections: number }}
  */
 export function syncFaqDom(html, lang) {
-  return replaceFaqDom(html, renderFaqDom(extractFaqs(html), lang));
+  const help = {
+    title: extractI18nEntry(html, FAQ_RAIL_HELP_KEYS.title),
+    body: extractI18nEntry(html, FAQ_RAIL_HELP_KEYS.body),
+  };
+  return replaceFaqDom(html, renderFaqDom(extractFaqs(html), lang, help));
 }
