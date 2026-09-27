@@ -11,7 +11,27 @@
       // 渐进增强门控：动效的「隐形初始态」只在 JS 可用时生效（选择器统一挂 html.js）。
       // 必须放在 <head> 内联于首屏样式之前，否则正文先全显再隐藏会闪一下。
       // 禁用 JS / 无头爬虫 / AI 抓取拿到的永远是完整可读的页面。
-      document.documentElement.classList.add('js');
+      const jsGateRoot = document.documentElement;
+      jsGateRoot.classList.add('js');
+      jsGateRoot.dataset.jsGate = 'armed';
+      /* 「JS 可用」不等于「JS 没炸」：隐形初始态是靠文末主脚本加 .visible 才解除的，
+         那段脚本一旦解析失败或在揭示逻辑就位前抛错，门控就把空白锁死（2026-09-27 因
+         FAQS 里一个未转义撇号炸成整页 39 处隐形，控制台只剩一行 SyntaxError）。这里装一道
+         一次性保险：主脚本跑完同步初始化会把 data-js-gate 置为 ready，在那之前若本页脚本
+         抛出未捕获错误，就摘掉 js 类，退回「无动效但内容全显」的终态。
+         只认本页脚本：资源加载失败与跨域脱敏错误没有 error 对象，扩展注入脚本 filename 是
+         chrome-extension://… 都不匹配。比对 filename 时两侧都要去掉 ?query 与 #hash——实测
+         Chrome 给的 filename 带查询串但不带 hash（?lang=en 打开时若只裁一侧就永远不相等，
+         保险会静默失效）。 */
+      const stripUrlTail = url => String(url).split('#')[0].split('?')[0];
+      window.addEventListener('error', function jsGateFallback(event) {
+        if (jsGateRoot.dataset.jsGate !== 'armed') return;
+        if (!event.error) return;
+        if (event.filename && stripUrlTail(event.filename) !== stripUrlTail(location.href)) return;
+        jsGateRoot.classList.remove('js');
+        jsGateRoot.dataset.jsGate = 'fallback';
+        window.removeEventListener('error', jsGateFallback);
+      });
     </script>
     <title>Open-Source Local Password Manager - Account Password Helper</title>
     <meta
@@ -1141,7 +1161,10 @@
         background: var(--primary);
         color: white;
       }
-      .faq-a {
+      /* 折叠态只挂在 html.js 下：FAQ 答案是构建期注入的静态 DOM（见 #faqList 生成区），
+         JS 缺席或门控保险回退时这里不生效，41 条答案全部展开可读；
+         收起 / 展开的高度动画只在 JS 正常工作时存在，与 .faq-a-inner 的淡入同一档位。 */
+      html.js .faq-a {
         max-height: 0;
         overflow: hidden;
         transition: max-height 0.35s ease;
@@ -2935,8 +2958,8 @@
 
       /* ============ 锚点落位反馈 ============ */
       /* 从搜索结果、博客内链或导航跳进来时，标题闪一次，确认「你要看的就是这一节」。
-         纯 CSS、一次性、只动 opacity 与 transform。挂在 section:target 上：FAQ 条目是脚本注入且无 id，
-         给它们写 .faq-item:target 只会是一条永远匹配不到的死规则。 */
+         纯 CSS、一次性、只动 opacity 与 transform。挂在 section:target 上：FAQ 条目无 id（静态 DOM 与
+         脚本重渲染都不带），给它们写 .faq-item:target 只会是一条永远匹配不到的死规则。 */
       @keyframes aph-found {
         from {
           opacity: 0.35;
@@ -4769,12 +4792,191 @@ pnpm lint:style  # Stylelint</code></pre>
             data-i18n="faq.sub"
           >Questions you may have before and after using</p>
         </div>
-        <div
-          class="faq-list"
-          id="faqList"
-        >
-          <!-- items injected by JS -->
+        <!-- BEGIN GENERATED FAQ DOM —— generated from the page FAQS array by scripts/build-faq-dom.mjs via pnpm gen:en — edit FAQS, not this block -->
+        <!-- prettier-ignore -->
+        <div class="faq-list" id="faqList">
+          <div class="faq-category">
+            <span class="faq-category-icon security"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+            <span class="faq-category-title">Security &amp; Privacy</span>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Will my passwords be uploaded to the cloud?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM and are never uploaded to any server.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>What if I forget the master password?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">The master password cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up regularly via data export or encrypted backup (.aph) to avoid data loss.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I change the master password?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Click "Change master password" in the "Security Settings" menu on the manager page, verify the current one, and set a new one. All data (passwords, trash, history) is re-encrypted with the new key and written atomically — a mid-way failure never corrupts data; open pages adopt the new session key automatically without re-login. Exported encrypted backups (.aph) are unaffected.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>What happens when the session expires?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Expiry only clears the session key material and the decrypted cache from memory and storage.session — sensitive fields on disk are already ciphertext, so there is no "bulk re-encrypt on expiry" step. Verify the master password again to restore access; no data is lost.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>What is auto idle lock?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">In "Auto lock settings" on the management page, set an idle period (5/10/30/60 minutes or off). After continuous inactivity beyond that period, the session is cleared and the manager locks; the system locking or screensaver activating also locks it immediately. Unlocking requires the master password again — protecting your list while you are away.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>What is lock on browser restart?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Enable "Lock on browser restart" in "Auto lock settings". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period. The trade-off to know about: while you stay signed in, the key material that restores the session remains on this device's disk (that is what makes password-free restarts possible), so any program able to read this browser profile can decrypt your data until you lock or the session expires — keep the switch on for shared computers.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>What is Health Check?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">A one-click password health scan in the top toolbar of the management page. Click "Health Check" (with a traffic-light dot showing the grade) to see an overall score (0–100) weighted across four scored dimensions: password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed but unscored. Stale entries can get expiry reminders (desktop notification after 7/30/90 days). Each issue has a "Fix" button that jumps straight to editing. Everything is computed locally — no network, no data upload.</div></div>
+          </div>
+          <div class="faq-category">
+            <span class="faq-category-icon basic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+            <span class="faq-category-title">Basics</span>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Why doesn't the side panel open automatically sometimes?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Make sure Chrome is 114 or later and the page contains a login form. You can also click the extension icon (shortcut Ctrl+Shift+L / Cmd+Shift+L) or use "Quick fill" on the floating button.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Filling doesn't work on some sites?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Wait for the page to fully load and try again, or refresh the page. The extension ships three fill strategies (Native setter / execCommand / simulated typing) and switches automatically to fit different sites.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>What if the login fields are not detected and nothing fills?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selectors for that domain's username and password fields (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I customize shortcuts?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Chrome supports this natively. Go to chrome://extensions/shortcuts, find "Account Password Helper", click the shortcut box next to a command, and press a new combination. The shortcut shown in the popup syncs automatically. You can also open the read-only overview under "Security Settings → Keyboard Shortcuts" on the manager page to see the live status of all four bindings — its "Edit Shortcuts" button links straight there; the "Keyboard Shortcuts" group in the side panel Help dialog offers the same overview and entry point.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How does the quick-fill shortcut (Ctrl+Shift+F) work?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Pressing Ctrl+Shift+F / Cmd+Shift+F fills the same entry as the top of the side panel list (domain match first + favorites pinned) without opening the panel. With multiple matches, the notification states which entry was filled and how many matched; if the session is not verified, the inline dropdown opens in place so you can click through to unlock; no matching account triggers a desktop notification, and results also show as a toolbar badge (green check / red exclamation).</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Why aren't shortcuts bound by default?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see "Not set" — bind it once as above and it sticks. Unbound entries in the popup show a "Set shortcut" button linking to chrome://extensions/shortcuts; the "Security Settings → Keyboard Shortcuts" overview on the manager page and the shortcut group in the side panel Help dialog flag exactly which keys are currently inactive, so a dead keystroke is never a mystery.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Does the extension check for updates?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Chrome Web Store installs update automatically. The extension also checks GitHub Releases every 6 hours and shows an update notice in the popup; click it to open the download page. You can also trigger a check manually in the popup.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>When does a validity change take effect?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Immediately — a new session is created with the new validity right away.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I switch themes?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Open the preferences panel via ① the "Preferences" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Pick one of 6 color themes; all pages and components update instantly, no refresh needed.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>What is inline fill?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">An alternative to the side panel. In "Inline" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Keyboard navigation is supported (↑↓ browse, Enter fill, Esc close), and the first row stays selected on open and after every filtering pass, so Enter fills the best match for the site. Search shares one rule set with the sidebar — username, tag, remark and URL all match, including full pinyin and initialisms — and ↑↓ / Enter / Esc are left alone while an IME candidate is still pending, so nothing fills by accident. When the site has no matching account, the empty state offers "Search all accounts", opening the manager page with the keyword already applied. Uses a closed Shadow DOM for full style isolation.</div></div>
+          </div>
+          <div class="faq-category">
+            <span class="faq-category-icon data"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>
+            <span class="faq-category-title">Data Management</span>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I troubleshoot a failed CSV import?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Click "Download Template" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Can I import from other password managers?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Yes. Upload a CSV in the import dialog; Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected and mapped. Just export a CSV from the source manager and select it.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Is JSON import/export supported?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Yes. Choose "Export JSON" in the "Data Management" menu to export all data as JSON (master password required); the filename is passwords_YYYYMMDD_HHmmss.json. To import, select a JSON file in the import dialog — the structure matches internal storage.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How does one-click dedup work?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Click "Remove Duplicates" under "Data Management". The extension detects duplicates (same username + same URL) and shows the result for confirmation before cleanup. Favorited entries are never deleted.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Can I recover deleted passwords?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Yes. Deleted passwords move to the trash for 30 days. Open "Data Management" → "Trash" to restore, permanently delete, or empty the trash. Entries older than 30 days are cleaned automatically; trash entries stay encrypted.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Can I restore an old password after a change?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Yes. Every password change snapshots the old password (configurable in "Security Settings" → "Password History Settings" — enable/disable and set max records, default 3). The edit dialog shows a "Password history" section — "Copy" copies the old password, "Restore" fills it back into the password field. History is stored encrypted and requires a valid session to view.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I back up to email?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Click "Email Backup" on the management page, configure the target address, and choose "Plain backup" (standard data file) or "Encrypted backup" (.aph file, viewable only via this extension's encrypted import with the original master password). Enable "Auto backup reminder" for scheduled desktop notifications — daily / every 3 days / weekly / biweekly / monthly.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do encrypted backups work?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Under "Data Management", "Encrypted Backup Export" encrypts all data with your master password into an .aph file. "Encrypted Backup Import" decrypts an uploaded .aph with the original master password, previews the first 5 entries, then imports on confirmation. The scheme is PBKDF2 + AES-256-GCM.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Is there a limit on how many entries I can store?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Yes — the password list holds up to 2,000 entries, counted on the list itself; entries in the Trash do not take a slot. Once it is full, adding, importing, page auto-save and restoring from Trash are refused with an explicit message, and stored data is never silently overwritten or dropped. If an import exceeds the remaining slots, the preview tells you how many entries still fit and how many will be ignored, and you choose to import those or cancel. To make room, delete entries you no longer need from the password list — an entry releases its slot the moment it moves to the Trash, so emptying the Trash is not required — or keep a full copy via "Export Data" / "Export JSON" / "Export Encrypted Backup" and then trim the list.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Does the manager page get sluggish near the entry limit?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Not as a function of how many entries you have. The list paints one page at a time (100 rows by default, 50 / 100 / 200 on demand — the size you pick is remembered on this machine for your next visit), so searching, filtering as you type, flipping pages and hovering land in the same range at 600 entries as at the 2000-entry cap — measured on one machine with the same harness. Opening the page still reads and decrypts the whole vault once, and that step does track vault size; the promise is “cost does not grow row by row”, not “constant time”. Pagination only changes how many rows are drawn: search, sorting, export and the "total / filtered" readout still cover the entire matching set, and checked entries are kept across pages — the pager tells you how many of them are off-page. The header checkbox selects the current page only, as in any table, so switch to 200 rows per page or tick page by page when you need a large batch. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it for 6 seconds. The page number is not remembered: it follows the current filters and sort, so it is a derived value rather than a setting.</div></div>
+          </div>
+          <div class="faq-category">
+            <span class="faq-category-icon config"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+            <span class="faq-category-title">Advanced</span>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I enable auto-save?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Click "Auto-save Settings" on the management page and turn on "Enable auto-save". Optionally configure domain rules (exact domains or regex; empty matches all). On login a confirmation card appears with "Save", "Not now", and "Never" options, plus editable tag (defaults to page title) and remark (defaults to "Auto-saved"). "Never" adds the domain to the block list, removable later in settings. Before prompting, the extension compares against your vault: identical credentials are skipped silently, and changed passwords trigger an "Update" prompt.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Why is there no save prompt after login sometimes?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Possible reasons: ① the domain is on the block list (check "Blocked domains" in auto-save settings); ② the credentials are identical to what is already saved; ③ the domain does not match your allowlist rules; ④ the session is locked or expired.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Will auto-save overwrite existing passwords?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">When the same account on the same site has a changed password, an "Update" prompt appears; on confirmation the password is updated while existing tags and remarks are kept (unless you edit them in the prompt). Identical credentials are skipped; different accounts create new entries without touching existing data.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Can one account cover every subdomain of a site?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I set the favorites limit?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Go to "Security Settings" → "Favorites Limit" on the management page (1–50, default 10). When the limit is reached, the least recently used favorite is evicted so frequent accounts stay pinned. Evicted entries only lose the star — password data is untouched.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I configure floating button preferences?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Open the preferences panel via ① the "Preferences" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, auto login trigger, password visibility toggle, and opacity.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I switch the interface language?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">In the "Language" group of the preferences panel, click "中文" or "English". The change applies instantly and syncs to all open extension pages (manager / side panel / popup) — no refresh needed.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>No show/hide button on password fields?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">"Password visibility toggle" is off by default in the floating button preferences. Once enabled, a toggle is injected into every password field and becomes visible when the field has a value.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Is the clipboard cleared after copying a password?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Yes. Per "Clipboard Settings", the clipboard is cleared after a delay (default 30s; options 10/15/30/60/120s). Before clearing, the extension verifies the content has not been replaced; if unfocused, it falls back to best-effort clearing. Copying a username cancels the timer. Confirm the switch is on under "Security Settings" → "Clipboard Settings".</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I generate a random password?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">In the add/edit form, click the magic-wand icon next to the password field, then toggle between "Random" and "Passphrase" modes. Random: customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). Passphrase: 3–8 random words from a bundled 3,080-word list with separator, capitalization, and trailing-digit options — secure yet memorable. A strength bar shows in real time; click "Use this password" to fill it in. Backed by the Web Crypto API for cryptographic randomness.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Side panel vs inline fill?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Both fill passwords and complement each other. The side panel is a full browser panel, great for searching all passwords and managing favorites; inline fill is an in-page mini panel — focus a login field, click the key icon, pick an account. Choose the mode in preferences: "Side panel" for panel lovers, "Inline" for the fastest fill.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I use two-factor codes (TOTP)?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">In the add/edit form's "2FA" field, paste the site's otpauth:// link or Base32 secret — or click "Scan QR on webpage" to capture the most recently viewed page and detect its QR code, or "Upload QR image" to decode a screenshot (fully local jsQR decoding, no network). Afterwards, the list and side panel show a live 6-digit code with a ring countdown (color shift in the last 5 seconds). Side panel entries offer "Fill code" and "Copy code" buttons; for GitHub-style split logins, a successful credentials fill auto-anchors a live-code capsule next to the code field on the code-only page for one-click fill or copy (valid 3 minutes). Codes are computed locally per RFC 6238 with Web Crypto HMAC — zero network. Note: your clock must be accurate (within ~30 seconds) or verification will fail.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How is the performance?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Heavily optimized. The service worker stays resident on all platforms via a two-tier keep-alive (20s heartbeat + 30s revival alarm) so the password cache is always in memory — the side panel loads from cache in about 20–50ms with no cold-start delay, instantly even after session expiry. The worker also pre-warms the cache 500ms after startup and warms side panel render resources on demand. Keep-alive wakes the extension roughly every 30 seconds in the background — a deliberate trade-off to eliminate cold-start white screens.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Why is the first sidebar open on Windows slow?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Windows Defender scans each extension file on first load, adding 1-2 seconds to cold starts. Add the Chrome extensions folder to Defender's exclusion list to skip scanning: open "Windows Security" → "Virus &amp; threat protection" → "Manage settings" → "Exclusions" → "Add an exclusion" → select "Folder" → paste %LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions. This cuts cold-start time from 2-3s to under 1s. Not needed on Mac.</div></div>
+          </div>
         </div>
+        <!-- END GENERATED FAQ DOM -->
       </div>
     </section>
 
@@ -5818,7 +6020,7 @@ pnpm lint:style  # Stylelint</code></pre>
           q: { zh: '什么是浏览器重启锁定？', en: 'What is lock on browser restart?' },
           a: {
             zh: '在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需重新输入主密码，适合对安全性要求更高的场景。关闭此选项则在有效期内自动保持登录，无需重复输入。要注意的取舍是：保持登录期间，恢复登录所需的密钥材料会留在本机磁盘上（这正是重启免密的前提），能读取本机浏览器配置的程序在此期间足以解密数据；手动锁定或会话过期会立即销毁它，因此共用电脑建议开启此开关。',
-            en: 'Enable "Lock on browser restart" in "Auto lock settings". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period. The trade-off to know about: while you stay signed in, the key material that restores the session remains on this device's disk (that is what makes password-free restarts possible), so any program able to read this browser profile can decrypt your data until you lock or the session expires — keep the switch on for shared computers.',
+            en: 'Enable "Lock on browser restart" in "Auto lock settings". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period. The trade-off to know about: while you stay signed in, the key material that restores the session remains on this device\'s disk (that is what makes password-free restarts possible), so any program able to read this browser profile can decrypt your data until you lock or the session expires — keep the switch on for shared computers.',
           },
         },
         {
@@ -6355,8 +6557,34 @@ pnpm lint:style  # Stylelint</code></pre>
 
       // =================== FAQ ===================
       const faqBox = document.getElementById('faqList');
+      /* FAQ 条目由 scripts/build-faq-dom.mjs 在构建期从同一个 FAQS 数组写成静态 DOM（见 #faqList 生成区），
+         页面脚本只负责把交互挂上去：节点在返回的字节里就存在，JS 缺席或整段脚本报错时答案依然读得到
+         （折叠态挂在 html.js 下，那时是全展开）。页面自带语种由 <html lang> 判定——en.html 由 gen:en
+         改写为 en，因此英文页首屏同样不需要重建。 */
+      const bakedFaqLang = document.documentElement.lang.startsWith('zh') ? 'zh' : 'en';
+      let faqStaticPending = true;
 
-      /** 按当前语言（重）渲染 FAQ 列表（切换语言时收起全部展开项） */
+      /** 给单个条目挂上「单展开」手风琴：静态 DOM 与 JS 重渲染共用同一段交互 */
+      function bindFaqItem(el) {
+        const btn = el.querySelector('.faq-q');
+        const ans = el.querySelector('.faq-a');
+        btn.addEventListener('click', () => {
+          const opening = !el.classList.contains('open');
+          // 单展开
+          document.querySelectorAll('.faq-item.open').forEach(other => {
+            other.classList.remove('open');
+            other.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
+            other.querySelector('.faq-a').style.maxHeight = '0';
+          });
+          if (opening) {
+            el.classList.add('open');
+            btn.setAttribute('aria-expanded', 'true');
+            ans.style.maxHeight = ans.scrollHeight + 'px';
+          }
+        });
+      }
+
+      /** 按当前语言重建 FAQ 列表（仅当语言与页面自带语种不同，收起全部展开项是重建的附带效果） */
       function renderFaqs() {
         faqBox.innerHTML = '';
         FAQS.forEach(item => {
@@ -6384,24 +6612,20 @@ pnpm lint:style  # Stylelint</code></pre>
         <div class="faq-a"><div class="faq-a-inner">${item.a[lang]}</div></div>
       `;
           faqBox.appendChild(el);
-
-          const btn = el.querySelector('.faq-q');
-          const ans = el.querySelector('.faq-a');
-          btn.addEventListener('click', () => {
-            const opening = !el.classList.contains('open');
-            // 单展开
-            document.querySelectorAll('.faq-item.open').forEach(other => {
-              other.classList.remove('open');
-              other.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
-              other.querySelector('.faq-a').style.maxHeight = '0';
-            });
-            if (opening) {
-              el.classList.add('open');
-              btn.setAttribute('aria-expanded', 'true');
-              ans.style.maxHeight = ans.scrollHeight + 'px';
-            }
-          });
+          bindFaqItem(el);
         });
+      }
+
+      /** 首屏只给静态 DOM 绑交互；语言切到非自带语种后才整列重建 */
+      function applyFaqs() {
+        if (faqStaticPending) {
+          faqStaticPending = false;
+          if (lang === bakedFaqLang) {
+            faqBox.querySelectorAll('.faq-item').forEach(bindFaqItem);
+            return;
+          }
+        }
+        renderFaqs();
       }
 
       // =================== Nav 滚动高亮 ===================
@@ -6500,7 +6724,7 @@ pnpm lint:style  # Stylelint</code></pre>
         langToggle.textContent = lang === 'zh' ? 'EN' : '中文';
 
         renderCarousel();
-        renderFaqs();
+        applyFaqs();
       }
 
       langToggle.addEventListener('click', () => {
@@ -6751,122 +6975,11 @@ pnpm lint:style  # Stylelint</code></pre>
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape') closeLightbox();
       });
+
+      /* 同步初始化到此全部走完：.reveal 已由 IntersectionObserver 接管（或已直接落终态），
+         隐形初始态不可能再卡住内容，于是解除 <head> 里那道 js 门控保险。此后交互期偶发的
+         报错不再把整页打回无动效态。 */
+      document.documentElement.dataset.jsGate = 'ready';
     </script>
-
-    <!-- ======= FAQ noscript 回退：供 AI 爬虫 / 搜索引擎静态抓取 ======= -->
-    <noscript>
-      <section
-        id="faq-noscript"
-        style="padding: 64px 0"
-      >
-        <div class="container">
-          <h2>常见问题 / FAQ</h2>
-
-          <h3>安全与隐私 / Security &amp; Privacy</h3>
-
-          <h4>我的密码会被上传到云端吗？ / Will my passwords be uploaded to the cloud?</h4>
-          <p>
-            不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM
-            加密后落盘，密码内容从不上传到任何服务器。
-          </p>
-          <p>
-            No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM
-            and are never uploaded to any server.
-          </p>
-
-          <h4>忘记主密码了怎么办？ / What if I forget the master password?</h4>
-          <p>
-            主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph
-            文件）备份，避免数据丢失。
-          </p>
-          <p>
-            The master password cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up
-            regularly via data export or encrypted backup (.aph) to avoid data loss.
-          </p>
-
-          <h4>如何修改主密码？ / How do I change the master password?</h4>
-          <p>
-            在密码管理页「安全设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据会用新密钥重新加密并原子写入，中途失败不会损坏数据。
-          </p>
-          <p>
-            Click "Change master password" in the "Security Settings" menu, verify the current one, and set a new one.
-            All data is re-encrypted with the new key and written atomically.
-          </p>
-
-          <h4>什么是安全体检？ / What is Health Check?</h4>
-          <p>
-            安全体检是一键密码健康扫描功能，展示综合安全评分（0~100
-            分），由四个计分维度加权得出：密码复用（35）、弱密码（25）、常见泄露密码（20，近千条离线弱口令字典）、长时间未更新（20，90/180/365
-            天分级预警）、未开启两步验证。全程本地计算，不联网。
-          </p>
-          <p>
-            A one-click password health scan showing an overall score (0–100) weighted across four scored dimensions:
-            password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline
-            dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed, unscored.
-            Everything is computed locally.
-          </p>
-
-          <h3>基础使用 / Basics</h3>
-
-          <h4>一键填充快捷键（Ctrl+Shift+F）是怎么工作的？ / How does the quick-fill shortcut work?</h4>
-          <p>
-            按下 Ctrl+Shift+F 后，插件直接填充与侧边栏列表首条一致的账号密码（域名匹配优先 +
-            收藏置顶），无需打开侧边栏。
-          </p>
-          <p>
-            Pressing Ctrl+Shift+F fills the same entry as the top of the side panel list (domain match first + favorites
-            pinned) without opening the panel.
-          </p>
-
-          <h4>什么是内联填充？ / What is inline fill?</h4>
-          <p>
-            内联填充是侧边栏之外的另一种快捷填充方式。登录输入框获焦后会在右侧内缘显示钥匙图标，点击展开迷你面板选择账号即可填充。搜索与侧边栏同一套口径（账号
-            / 标签 / 备注 /
-            网址，认拼音全拼与首字母），打开即默认选中首条、回车即填；当前站点无匹配账号时可带着关键词直达管理页做全库检索。使用
-            Closed Shadow DOM 完全隔离页面样式。
-          </p>
-          <p>
-            An alternative to the side panel. A key icon appears inside the focused login field; click it to open a mini
-            panel and pick an account to fill. Search follows the same rules as the sidebar (username, tag, remark and
-            URL, including full pinyin and initialisms), the first row is selected as soon as the panel opens so Enter
-            fills it, and the empty state can hand your keyword to the manager page to search the whole vault. Uses a
-            closed Shadow DOM for full style isolation.
-          </p>
-
-          <h3>数据管理 / Data Management</h3>
-
-          <h4>支持从其他密码管理器导入吗？ / Can I import from other password managers?</h4>
-          <p>
-            支持。上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。也支持 JSON
-            格式导入导出。
-          </p>
-          <p>
-            Yes. Upload a CSV and Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected. JSON
-            import/export is also supported.
-          </p>
-
-          <h4>删除的密码能找回吗？ / Can I recover deleted passwords?</h4>
-          <p>
-            能。删除的密码会先移入回收站保留 30 天，支持单条「恢复」、「彻底删除」和「清空回收站」。超过 30
-            天的条目会自动清理。
-          </p>
-          <p>
-            Yes. Deleted passwords move to the trash for 30 days. Restore, permanently delete, or empty the trash.
-            Entries older than 30 days are cleaned automatically.
-          </p>
-
-          <h3>高级配置 / Advanced</h3>
-
-          <h4>如何开启自动保存登录密码？ / How do I enable auto-save?</h4>
-          <p>
-            在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则，登录时弹出确认卡片选择「保存」或「暂不保存」。
-          </p>
-          <p>
-            Click "Auto-save Settings" on the management page and turn on "Enable auto-save". Optionally configure
-            domain rules. A confirmation card appears on login.
-          </p>
-        </div>
-      </section>
-    </noscript>
   </body>
 </html>

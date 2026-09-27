@@ -70,7 +70,7 @@
 
 ### 口径变更：落地页允许使用 JS
 
-用户 2026-09-25 明确「只要不影响 SEO 效果的地方都可以用 JS，比如增加动效」。核验过 Google 官方 JavaScript SEO 文档：「Google 使用 Chromium 运行 JavaScript」「并非所有漫游器都能运行 JavaScript。」「依然建议您采取服务器端渲染或预渲染」——所以用 JS **不会**被扣排名，此前把「零 JS」当硬约束是过强的前提。新口径是：**动效与计数器可以用 JS**，但三条降级不许撤——隐藏初始态挂 `html.js`、可见正文留一条无 JS 可读路径（静态 HTML 或 `<noscript>`，FAQ 列表本就是 JS 注入 + `<noscript>` 兜底的混合形态）、缺 `IntersectionObserver` 落终态。唯一仍然禁止的方向是把正文从静态 HTML 挪进 JS。据此给数据带六个数字加了滚动（`countUp`，900ms cubic ease-out，由既有 reveal 观察器触发、`reduce` 下不滚、终值取节点自身写死的数，不新增第二处魔法值）。
+用户 2026-09-25 明确「只要不影响 SEO 效果的地方都可以用 JS，比如增加动效」。核验过 Google 官方 JavaScript SEO 文档：「Google 使用 Chromium 运行 JavaScript」「并非所有漫游器都能运行 JavaScript。」「依然建议您采取服务器端渲染或预渲染」——所以用 JS **不会**被扣排名，此前把「零 JS」当硬约束是过强的前提。新口径是：**动效与计数器可以用 JS**，但三条降级不许撤——隐藏初始态挂 `html.js`、可见正文留一条无 JS 可读路径（静态 HTML 或 `<noscript>`；FAQ 列表自 2026-09-27 起改为构建期从 `FAQS` 注入静态 DOM、脚本只绑交互，原先手工维护的 9 条 `<noscript>` 节选随之删除）、缺 `IntersectionObserver` 落终态。唯一仍然禁止的方向是把正文从静态 HTML 挪进 JS。据此给数据带六个数字加了滚动（`countUp`，900ms cubic ease-out，由既有 reveal 观察器触发、`reduce` 下不滚、终值取节点自身写死的数，不新增第二处魔法值）。
 
 ### 顺带修掉的既有缺陷
 

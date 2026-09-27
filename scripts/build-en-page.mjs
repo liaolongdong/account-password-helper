@@ -8,8 +8,9 @@
  * AI 引擎引用真正生效。
  *
  * 机制：提取 index.html 内嵌的 I18N 中英字典，替换所有 data-i18n /
- * data-i18n-html 静态节点与 head 元信息；单一事实来源仍为 index.html，
- * 修改文案后运行 `pnpm gen:en` 重新生成（CI 部署前自动执行）。
+ * data-i18n-html 静态节点与 head 元信息，并把 FAQ 生成区整体换成英文静态 DOM；
+ * 单一事实来源仍为 index.html，修改文案后运行 `pnpm gen:en` 重新生成并提交
+ * （Pages 由 main 分支根目录发布，CI 不参与生成）。
  *
  * @file scripts/build-en-page.mjs
  */
@@ -18,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { applyI18n, assertI18nCoverage } from './lib/apply-i18n.mjs';
+import { syncFaqDom } from './lib/faq-dom.mjs';
 import { buildFaqPageJsonLd, parseFaqEntries, selectFaqEntries } from './lib/faq-schema.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -103,6 +105,12 @@ assertI18nCoverage(result, 'I18N');
 const { replacedText, textTotal, replacedHtml, htmlTotal } = result;
 html = result.html;
 
+// ---------- 2.5 FAQ 静态 DOM：中文生成区整体换成英文 ----------
+// 生成区是纯静态字节（页内 FAQS 数组在 <script> 里，不受 applyI18n 影响），
+// 与 FAQPage JSON-LD 同样取自 FAQS，保证「可见内容 / 结构化数据」两处语言一致。
+const faqDom = syncFaqDom(html, 'en');
+html = faqDom.html;
+
 // ---------- 3. head 元信息与结构化数据 ----------
 const replaceOnce = (pattern, replacement) => {
   const next = html.replace(pattern, replacement);
@@ -187,4 +195,6 @@ html = html.replace(
 );
 
 writeFileSync(outPath, html);
-console.log(`en.html generated: data-i18n ${replacedText}/${textTotal}, data-i18n-html ${replacedHtml}/${htmlTotal}`);
+console.log(
+  `en.html generated: data-i18n ${replacedText}/${textTotal}, data-i18n-html ${replacedHtml}/${htmlTotal}, FAQ DOM ${faqDom.count}`,
+);

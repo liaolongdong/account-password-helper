@@ -132,6 +132,7 @@ graph LR
 | `pnpm analyze` / `pnpm analyze:firefox`             | 构建并可视化分析打包体积（Chrome / Firefox，输出 `dist/stats.html`）                                              |
 | `pnpm icons:build`                                  | SVG 图标渲染为多尺寸 PNG（`public/icon/`）                                                                        |
 | `pnpm gen:en` / `gen:privacy-en` / `gen:pricing-en` | 由中文源页面生成 `en.html` / `privacy.en.html` / `pricing.en.html`                                                |
+| `pnpm gen:faq` / `gen:faq-dom`                      | 由 `index.html` 的 `FAQS` 生成 FAQPage JSON-LD / 页面可见的 FAQ 静态 DOM                                          |
 | `pnpm gen:blog`                                     | 由 `docs/blog/{zh,en}/*.md` 生成 `blog/*.html`                                                                    |
 | `pnpm covers:render`                                | 渲染博客封面图                                                                                                    |
 | `pnpm typecheck`                                    | TypeScript 类型检查                                                                                               |
@@ -490,6 +491,7 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 | `pnpm analyze` / `pnpm analyze:firefox`             | Build with bundle size visualization (Chrome / Firefox, `dist/stats.html`)                                                                      |
 | `pnpm icons:build`                                  | Render the SVG icon to multi-size PNGs (`public/icon/`)                                                                                         |
 | `pnpm gen:en` / `gen:privacy-en` / `gen:pricing-en` | Generate `en.html` / `privacy.en.html` / `pricing.en.html` from the Chinese source pages                                                        |
+| `pnpm gen:faq` / `gen:faq-dom`                      | Generate the FAQPage JSON-LD / the visible FAQ static DOM from `index.html`'s `FAQS` array                                                      |
 | `pnpm gen:blog`                                     | Generate `blog/*.html` from `docs/blog/{zh,en}/*.md`                                                                                            |
 | `pnpm covers:render`                                | Render the blog cover images                                                                                                                    |
 | `pnpm typecheck`                                    | TypeScript type checking                                                                                                                        |

@@ -42,7 +42,7 @@ Closes #
 - [ ] `utils/i18n-lite.ts` 的中英文条目（Content / Background 文案，与上面是两套独立词表）
 - [ ] `public/_locales/zh_CN/messages.json` 与 `en/messages.json`（manifest 文案；摘要受 132 字符硬限制）
 - [ ] `README.md` 与 `README.en.md`
-- [ ] `index.html`（改中文源后跑 `pnpm gen:en` 重生 `en.html`）
+- [ ] `index.html`（改中文源后跑 `pnpm gen:en` 重生 `en.html`；改 `FAQS` 再按顺序跑 `pnpm gen:faq` 与 `pnpm gen:faq-dom`）
 - [ ] `components/sidepanel/HelpDialog.vue` 对应的 `help.json`（新增条目须同步提升 `helpItems('help.gx', N)` 的 N）
 - [ ] `docs/ARCHITECTURE.md` 与 `.en.md`「功能实现详解」
 - [ ] 涉及商店文案、权限或隐私时：`docs/CWS_FILL_CONTENT.md`、`docs/CWS_PUBLISHING_GUIDE.md`、`privacy.html`

@@ -10,7 +10,27 @@
       // 渐进增强门控：动效的「隐形初始态」只在 JS 可用时生效（选择器统一挂 html.js）。
       // 必须放在 <head> 内联于首屏样式之前，否则正文先全显再隐藏会闪一下。
       // 禁用 JS / 无头爬虫 / AI 抓取拿到的永远是完整可读的页面。
-      document.documentElement.classList.add('js');
+      const jsGateRoot = document.documentElement;
+      jsGateRoot.classList.add('js');
+      jsGateRoot.dataset.jsGate = 'armed';
+      /* 「JS 可用」不等于「JS 没炸」：隐形初始态是靠文末主脚本加 .visible 才解除的，
+         那段脚本一旦解析失败或在揭示逻辑就位前抛错，门控就把空白锁死（2026-09-27 因
+         FAQS 里一个未转义撇号炸成整页 39 处隐形，控制台只剩一行 SyntaxError）。这里装一道
+         一次性保险：主脚本跑完同步初始化会把 data-js-gate 置为 ready，在那之前若本页脚本
+         抛出未捕获错误，就摘掉 js 类，退回「无动效但内容全显」的终态。
+         只认本页脚本：资源加载失败与跨域脱敏错误没有 error 对象，扩展注入脚本 filename 是
+         chrome-extension://… 都不匹配。比对 filename 时两侧都要去掉 ?query 与 #hash——实测
+         Chrome 给的 filename 带查询串但不带 hash（?lang=en 打开时若只裁一侧就永远不相等，
+         保险会静默失效）。 */
+      const stripUrlTail = url => String(url).split('#')[0].split('?')[0];
+      window.addEventListener('error', function jsGateFallback(event) {
+        if (jsGateRoot.dataset.jsGate !== 'armed') return;
+        if (!event.error) return;
+        if (event.filename && stripUrlTail(event.filename) !== stripUrlTail(location.href)) return;
+        jsGateRoot.classList.remove('js');
+        jsGateRoot.dataset.jsGate = 'fallback';
+        window.removeEventListener('error', jsGateFallback);
+      });
     </script>
     <title>开源免费本地密码管理器 · 一键登录 + TOTP | 账号密码管理助手</title>
     <meta
@@ -1140,7 +1160,10 @@
         background: var(--primary);
         color: white;
       }
-      .faq-a {
+      /* 折叠态只挂在 html.js 下：FAQ 答案是构建期注入的静态 DOM（见 #faqList 生成区），
+         JS 缺席或门控保险回退时这里不生效，41 条答案全部展开可读；
+         收起 / 展开的高度动画只在 JS 正常工作时存在，与 .faq-a-inner 的淡入同一档位。 */
+      html.js .faq-a {
         max-height: 0;
         overflow: hidden;
         transition: max-height 0.35s ease;
@@ -2934,8 +2957,8 @@
 
       /* ============ 锚点落位反馈 ============ */
       /* 从搜索结果、博客内链或导航跳进来时，标题闪一次，确认「你要看的就是这一节」。
-         纯 CSS、一次性、只动 opacity 与 transform。挂在 section:target 上：FAQ 条目是脚本注入且无 id，
-         给它们写 .faq-item:target 只会是一条永远匹配不到的死规则。 */
+         纯 CSS、一次性、只动 opacity 与 transform。挂在 section:target 上：FAQ 条目无 id（静态 DOM 与
+         脚本重渲染都不带），给它们写 .faq-item:target 只会是一条永远匹配不到的死规则。 */
       @keyframes aph-found {
         from {
           opacity: 0.35;
@@ -5015,12 +5038,191 @@ pnpm lint:style  # Stylelint</code></pre>
             使用前后你可能会关心的问题
           </p>
         </div>
-        <div
-          class="faq-list"
-          id="faqList"
-        >
-          <!-- items injected by JS -->
+        <!-- BEGIN GENERATED FAQ DOM —— 由 scripts/build-faq-dom.mjs（pnpm gen:faq-dom）从页面 FAQS 数组注入，改文案只改 FAQS，勿手改这里 -->
+        <!-- prettier-ignore -->
+        <div class="faq-list" id="faqList">
+          <div class="faq-category">
+            <span class="faq-category-icon security"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+            <span class="faq-category-title">安全与隐私</span>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>我的密码会被上传到云端吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段逐字段经 AES-256-GCM 加密后落盘，账号、密码与验证码从不上传到任何服务器；唯一的外联是每 6 小时一次的匿名版本检查。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>忘记主密码了怎么办？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph 文件）功能备份，避免数据丢失。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何修改主密码？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在密码管理页「安全设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据（密码列表、回收站、修改历史）会用新密钥重新加密并原子写入，中途失败不会损坏数据；已打开的页面自动采纳新会话密钥，无需重新登录。已导出的加密备份（.aph）不受影响。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>会话有效期到了会发生什么？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">会话过期只会清除内存与 storage.session 中的会话密钥材料与解密缓存——磁盘上的敏感字段本来就是密文，不存在「过期时批量重新加密」这一步；下次使用时重新验证主密码即可恢复访问，账号数据不会丢失。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>什么是自动闲置锁定？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在密码管理页「自动锁定设置」中可配置闲置时间（5/10/30/60 分钟或不锁定）。连续闲置超过设定时间后，自动清除会话并锁定密码管理；系统锁屏或屏保激活时也会立即锁定。需重新验证主密码才能恢复访问，有效防止离开电脑时密码列表被他人查看。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>什么是浏览器重启锁定？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需重新输入主密码，适合对安全性要求更高的场景。关闭此选项则在有效期内自动保持登录，无需重复输入。要注意的取舍是：保持登录期间，恢复登录所需的密钥材料会留在本机磁盘上（这正是重启免密的前提），能读取本机浏览器配置的程序在此期间足以解密数据；手动锁定或会话过期会立即销毁它，因此共用电脑建议开启此开关。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>什么是安全体检？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">安全体检是密码管理页顶部操作栏提供的一键密码健康扫描功能。点击「安全体检」按钮（旁边有信号灯圆点指示健康等级），会展示综合安全评分（0~100 分），由四个计分维度加权得出：密码复用（35）、弱密码（25）、常见泄露密码（20，近千条离线弱口令字典命中）、长时间未更新（20，90/180/365 天分级预警）；未开启两步验证单独列示、不计入评分。长时间未更新的条目还可设置密码到期提醒（7/30/90 天后桌面通知提醒更换）。每条问题提供「去处理」按钮，可直接跳转编辑。全程本地计算，不联网、不上传任何数据。</div></div>
+          </div>
+          <div class="faq-category">
+            <span class="faq-category-icon basic"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span>
+            <span class="faq-category-title">基础使用</span>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>为什么有时候侧边栏没有自动弹出？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">请确认 Chrome 浏览器版本不低于 114；同时该页面需要包含登录表单。如果没有自动弹出，也可以点击插件图标（支持快捷键 Ctrl+Shift+L / Cmd+Shift+L），或通过悬浮按钮的「快速填充」手动打开。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>密码填充到部分网站不生效？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">请等待页面完全加载完成后再尝试填充；如果仍然不生效，可以刷新页面后重试。插件内置三套填充策略（Native Setter / execCommand / 模拟键盘事件），会自动切换以适配不同网站。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>登录页的输入框识别不到、填充没反应，怎么办？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">先等页面完全加载或刷新后重试。如果表单渲染在自定义组件（Web Components）里，启发式识别可能取不到输入框——这时打开密码管理页的「站点规则」，为该域名手写用户名框与密码框的 CSS 选择器即可（规则域名需与登录页域名完全一致，不支持通配）。每条规则自带「Shadow DOM 穿透」开关，默认开启，只作用于开放影子根（closed 模式的影子根任何扩展都读不到）。规则可导出为纯文本 JSON（只含域名与选择器，不含任何凭据）并按域名合并导入，导入结果报「新增 / 更新 / 忽略」，上限 500 条规则、单文件 2 MiB。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何自定义快捷键？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「安全设置 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>一键填充快捷键（Ctrl+Shift+F）是怎么工作的？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">按下 Ctrl+Shift+F / Cmd+Shift+F 后，插件直接填充与侧边栏列表首条一致的账号密码（域名匹配优先 + 收藏置顶），无需打开侧边栏。多条匹配时通知会告知填充了哪条、共几条匹配；未验证主密码时会就地展开内联下拉列表，点击即可前往验证解锁；无匹配账号时通过桌面通知提示，填充结果同时通过工具栏图标角标反馈（成功绿色对勾 / 失败红色感叹号）。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>为什么快捷键默认没有生效，需要手动设置？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Chrome 出于安全考虑，不会为「通过更新新增的命令」自动绑定建议快捷键（避免更新时被静默劫持）。因此在快捷键功能上线前就已安装本插件的用户，以及开发时重新加载的扩展，快捷键会显示为「未设置」，只需按上一条手动绑定一次即可长期生效。Popup 中未绑定的入口会显示「设置快捷键」按钮，点击可直达 chrome://extensions/shortcuts；密码管理页「安全设置 → 快捷键」与侧边栏「帮助」弹窗的快捷键分组会直接标注哪些按键当前未生效，避免「按了没反应」时无从排查。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>插件会自动检测更新吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">通过 Chrome 应用商店安装的用户，版本更新由商店自动推送，无需手动操作。此外，插件还通过 GitHub Releases API 每 6 小时自动检测最新版本，发现新版本时会在 Popup 弹窗中展示更新提示，点击即可跳转到下载页面。你也可以在 Popup 弹窗中手动触发检测。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>会话有效期修改何时生效？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">修改后立即创建新会话，新有效期即时生效。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何切换主题配色？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。在偏好设置面板中可以看到 6 款色彩主题选项（晴空蓝、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰），点击色块即可切换，所有页面和组件即时生效，无需刷新。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>什么是内联填充？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充；也可按快捷键 Ctrl+Shift+K / Cmd+Shift+K 直接展开（任意填充模式下均可用）。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），面板打开与每次筛选后默认选中首条，回车即填当前站点最匹配的账号；搜索与侧边栏共用同一套口径，账号 / 标签 / 备注 / 网址多字段命中，认拼音全拼与首字母缩写；中文／日文输入法候选未上屏时不接管 ↑↓ / Enter / Esc，避免误填。当前站点无匹配账号时，空态提供「到全部账号中搜索」，带着关键词直达管理页做全库检索。使用 Closed Shadow DOM 完全隔离页面样式。</div></div>
+          </div>
+          <div class="faq-category">
+            <span class="faq-category-icon data"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span>
+            <span class="faq-category-title">数据管理</span>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>CSV 导入失败要怎么排查？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">点击「下载模板」获取标准格式的 CSV 文件，确保「用户名」一列不为空。插件支持 .csv 格式，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>支持从其他密码管理器导入吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。只需从对应密码管理器导出 CSV 文件，然后在导入弹窗中选择即可。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>支持 JSON 格式导入导出吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">支持。在密码管理页「数据管理」下拉菜单中选择「导出JSON」即可将所有密码数据导出为 JSON 文件（需验证主密码），导出文件名格式为 passwords_YYYYMMDD_HHmmss.json。导入时同样在导入弹窗中选择 JSON 文件即可，字段结构与插件内部存储一致。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何一键去重？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在密码管理页「数据管理」中点击「一键去重」，插件会智能检测重复条目（相同用户名 + 相同 URL），展示去重结果供确认后清理。已收藏的条目不会被删除。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>删除的密码能找回吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">能。删除的密码会先移入回收站保留 30 天，在密码管理页「数据管理」下拉菜单 →「回收站」中可查看已删除条目，支持单条「恢复」、「彻底删除」和「清空回收站」。超过 30 天的条目会自动清理；回收站条目保持加密存储。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>改错密码了能恢复旧密码吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">能。每次修改密码时，插件会自动将旧密码加密快照入历史（可在「安全设置」→「密码历史设置」中配置启用/关闭及保留条数，默认 3 条）。在编辑该条目的弹窗底部可看到「密码修改历史」区块，点击「复制」可复制旧密码，点击「恢复」即将旧密码回填到密码框。历史以加密态存储，查看需会话有效。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何备份密码到邮箱？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在密码管理页点击「备份到邮箱」，配置目标邮箱后可选择备份方式：「不加密备份」导出标准数据文件，「加密备份」导出 .aph 加密文件（只能通过本插件「加密备份导入」功能并验证原主密码才能查看）。可开启「自动备份提醒」定时发送桌面通知，间隔可选每天/3天/每周/两周/每月。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何导出/导入加密备份？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在密码管理页「数据管理」中，「加密备份导出」会用主密码将所有密码数据加密为 .aph 文件下载。「加密备份导入」上传 .aph 文件后输入导出时使用的主密码解密，解密成功可预览数据（前 5 条）再确认导入。加密方案为 PBKDF2 + AES-256-GCM，安全性极高。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>条目数量有上限吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">有。密码列表的条目总量上限为 2000 条，按列表条目数计数，回收站中的条目不占额度。达到上限后新增、导入、网页自动保存与回收站恢复都会明确提示被拒绝，不会静默覆盖或删除已保存的数据；导入超出剩余额度时，预览页会显示还能导入多少条、将被忽略多少条，由你选择只导入前若干条或取消。需要腾出额度时，在密码列表中删除不再使用的条目即可——条目移进回收站的那一刻就释放额度，无需再清空回收站；也可以先用「导出数据」「导出JSON」「加密备份导出」留存全量数据再清理列表。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>条目接近上限时管理页会卡吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">不会按条目总数卡。列表按页呈现（默认每页 100 条，可切 50 / 100 / 200，档位记在本机、下次打开管理页仍是这一档），一次只渲染当前这一页，所以搜索、输入过滤、翻页、悬停这类交互的耗时基本不再随条目数增长——本机同法实测，600 条与近上限 2000 条两档的读数落在同一量级。打开管理页还包含一次「读整库并解密」，这一步的开销与条目总数相关、不由分页决定，所以这里的口径是「成本不随行数逐条放大」，不是「恒定耗时」。分页只改变「一次画多少行」：搜索、排序、导出与「总计 / 筛选后」读数作用的仍是全部命中条目，跨页勾选也会保留（分页条会写明有几条不在当前页）；表头「全选」按表格惯例只勾当前页，需要大批量操作时先切到每页 200 条，或逐页勾选。新增、编辑、收藏、创建副本后会自动跳到该条所在页并高亮 6 秒。页码则不记忆：它随筛选与排序口径变化，是派生值而不是设置。</div></div>
+          </div>
+          <div class="faq-category">
+            <span class="faq-category-icon config"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+            <span class="faq-category-title">高级配置</span>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何开启自动保存登录密码？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认取页面标题）和备注（默认为"自动保存"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>为什么有时登录后没有弹出保存提示？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">可能原因包括：①该域名已被加入屏蔽黑名单（检查自动保存设置中的「已屏蔽的域名」）；②该账号密码与已保存的完全相同，无需重复提示；③域名不匹配配置的白名单规则；④会话已锁定或已过期。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>自动保存会覆盖已有的密码吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">当同一网站（同域名）相同账号但密码发生变化时，插件会弹出「更新」确认，确认后更新该条目的密码，并保留原有的标签和备注（除非在弹窗中手动修改）；账号密码完全相同则不打扰；不同账号则新增条目，不会影响已有数据。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>同一站点的多个子域名能共用一个账号吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">可以，但默认不共用。密码管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成 *.qq.com 的账号会在该站点任意子域名出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域 qq.com 与兄弟子域的条目，并在列表里标注「跨子域」。放宽只改变哪些账号被展示与可填充：自动保存的判重口径不随档位改变，localhost / 127.0.0.1 始终按端口区分，侧边栏与内联下拉共用同一套排序、一键填充取首条。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何设置收藏上限？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在密码管理页点击「安全设置」→「收藏上限设置」，可调整收藏条目上限（1~50 条，默认 10 条）。达到上限时新收藏自动淘汰最近最少使用（LRU）的条目，确保常用账号置顶。被淘汰的条目仅取消收藏标记，密码数据不受影响。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何配置悬浮按钮的偏好设置？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">有三种方式进入偏好设置面板：①在密码管理页点击「偏好设置」按钮；②点击页面悬浮按钮上的齿轮图标；③在侧边栏快速填充右上角齿轮图标。可配置：主题换肤（6 款色彩主题）、界面语言（中文 / English）、悬浮按钮显示/隐藏、快速填充方式、自动触发登录、密码可见性切换以及按钮透明度。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何切换界面语言（中文 / English）？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在偏好设置面板的「语言 / Language」分组中点击「中文」或「English」即可切换，切换后即时生效并自动同步到所有已打开的插件页面（管理页 / 侧边栏 / Popup），无需刷新。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>密码框没有显示/隐藏切换按钮？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">悬浮按钮「偏好设置」中默认关闭「密码可见性切换」，需手动开启。开启后插件对所有密码输入框统一注入切换按钮，输入有值时按钮自动可见。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>复制密码后剪贴板会自动清除吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">会。复制密码后，插件会根据「剪贴板设置」中的配置，在指定延时后自动清除剪贴板内容。默认延时 30 秒，可选 10/15/30/60/120 秒。清除前会验证剪贴板内容未被替换；若已失焦无法验证，则采用「尽力清除」策略。复制用户名时会自动取消清除定时器。建议在密码管理页「安全设置」→「剪贴板设置」中确认开关已启用。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何生成随机密码？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在添加或编辑密码的表单中，密码输入框旁有魔棒图标按钮，点击打开密码生成器，顶部可切换「随机密码」与「助记词组」模式。随机密码可自定义长度（6~50）、选择字符集（大写/小写/数字/特殊字符），还可排除易混淆字符（1、l、I、0、O）；助记词组从本地 3080 词词库随机选取 3~8 个单词组合，支持分隔符、首字母大写、末尾追加数字，既安全又易记。生成后实时显示强度进度条，点击「使用此密码」填入。基于 Web Crypto API，保证密码学安全随机性。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>侧边栏和内联填充有什么区别？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">两者都是密码填充方式，功能互补。侧边栏是浏览器侧边的完整面板，适合搜索浏览全部密码、管理收藏等；内联填充是页面内的迷你面板，登录框获焦后显示钥匙图标，点击即可快速选择账号填充，无需切换到侧边栏。可在偏好设置中选择填充模式：「侧边栏」适合习惯侧边操作的用户，「内联」适合追求快速填充的用户。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>如何使用两步验证（TOTP）？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">在添加或编辑密码的表单中，找到「两步验证」字段，粘贴网站提供的 otpauth:// 链接或 Base32 密钥即可；也可以点击「扫描网页二维码」自动截取最近浏览的网页并识别其中的二维码，或「上传二维码图片」识别截图（全程本地 jsQR 解码，不联网）。保存后，密码列表和侧边栏会实时展示 6 位动态码与环形倒计时（末 5 秒变色提示即将刷新）。侧边栏条目提供「填充验证码」和「复制验证码」按钮；GitHub 式账密页与验证码页分离的两步登录，账密填充成功后跳转纯验证码页会自动在输入框旁锚定活码胶囊，支持一键填入或复制（3 分钟有效）。动态码基于 Web Crypto HMAC 在本地按 RFC 6238 计算，该过程不发起网络请求。注意：本机时钟必须准确（误差 &lt; 30 秒），否则动态码验证会失败。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>插件的性能表现如何？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">插件在性能方面做了大量优化。Service Worker 采用全平台常驻保活（20 秒心跳 + 30 秒复活闹钟）持续运行，确保密码缓存始终在内存中可用，侧边栏打开时可直接从缓存加载数据（约 20-50ms），会话失效后同样秒开，避免冷启动白屏。Service Worker 启动后还会延迟 500ms 预热密码缓存，并按需预热侧边栏渲染资源。保活会在后台约每 30 秒唤醒一次扩展，属消除冷启动白屏的主动设计取舍。</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Windows 首次打开侧边栏较慢怎么办？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">Windows Defender 会在扩展文件首次加载时逐文件扫描，导致冷启动延迟增加 1-2 秒。建议将 Chrome 扩展目录加入 Defender 排除列表以跳过扫描：打开「Windows 安全中心」→「病毒和威胁防护」→「管理设置」→「排除项」→「添加排除项」→选择「文件夹」→粘贴路径 %LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions。加入后冷启动可从 2-3 秒降至 1 秒以内。Mac 用户无需此操作。</div></div>
+          </div>
         </div>
+        <!-- END GENERATED FAQ DOM -->
       </div>
     </section>
 
@@ -6077,7 +6279,7 @@ pnpm lint:style  # Stylelint</code></pre>
           q: { zh: '什么是浏览器重启锁定？', en: 'What is lock on browser restart?' },
           a: {
             zh: '在密码管理页「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，即使会话仍在有效期内，完全关闭并重新打开浏览器时也需重新输入主密码，适合对安全性要求更高的场景。关闭此选项则在有效期内自动保持登录，无需重复输入。要注意的取舍是：保持登录期间，恢复登录所需的密钥材料会留在本机磁盘上（这正是重启免密的前提），能读取本机浏览器配置的程序在此期间足以解密数据；手动锁定或会话过期会立即销毁它，因此共用电脑建议开启此开关。',
-            en: 'Enable "Lock on browser restart" in "Auto lock settings". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period. The trade-off to know about: while you stay signed in, the key material that restores the session remains on this device's disk (that is what makes password-free restarts possible), so any program able to read this browser profile can decrypt your data until you lock or the session expires — keep the switch on for shared computers.',
+            en: 'Enable "Lock on browser restart" in "Auto lock settings". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period. The trade-off to know about: while you stay signed in, the key material that restores the session remains on this device\'s disk (that is what makes password-free restarts possible), so any program able to read this browser profile can decrypt your data until you lock or the session expires — keep the switch on for shared computers.',
           },
         },
         {
@@ -6614,8 +6816,34 @@ pnpm lint:style  # Stylelint</code></pre>
 
       // =================== FAQ ===================
       const faqBox = document.getElementById('faqList');
+      /* FAQ 条目由 scripts/build-faq-dom.mjs 在构建期从同一个 FAQS 数组写成静态 DOM（见 #faqList 生成区），
+         页面脚本只负责把交互挂上去：节点在返回的字节里就存在，JS 缺席或整段脚本报错时答案依然读得到
+         （折叠态挂在 html.js 下，那时是全展开）。页面自带语种由 <html lang> 判定——en.html 由 gen:en
+         改写为 en，因此英文页首屏同样不需要重建。 */
+      const bakedFaqLang = document.documentElement.lang.startsWith('zh') ? 'zh' : 'en';
+      let faqStaticPending = true;
 
-      /** 按当前语言（重）渲染 FAQ 列表（切换语言时收起全部展开项） */
+      /** 给单个条目挂上「单展开」手风琴：静态 DOM 与 JS 重渲染共用同一段交互 */
+      function bindFaqItem(el) {
+        const btn = el.querySelector('.faq-q');
+        const ans = el.querySelector('.faq-a');
+        btn.addEventListener('click', () => {
+          const opening = !el.classList.contains('open');
+          // 单展开
+          document.querySelectorAll('.faq-item.open').forEach(other => {
+            other.classList.remove('open');
+            other.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
+            other.querySelector('.faq-a').style.maxHeight = '0';
+          });
+          if (opening) {
+            el.classList.add('open');
+            btn.setAttribute('aria-expanded', 'true');
+            ans.style.maxHeight = ans.scrollHeight + 'px';
+          }
+        });
+      }
+
+      /** 按当前语言重建 FAQ 列表（仅当语言与页面自带语种不同，收起全部展开项是重建的附带效果） */
       function renderFaqs() {
         faqBox.innerHTML = '';
         FAQS.forEach(item => {
@@ -6643,24 +6871,20 @@ pnpm lint:style  # Stylelint</code></pre>
         <div class="faq-a"><div class="faq-a-inner">${item.a[lang]}</div></div>
       `;
           faqBox.appendChild(el);
-
-          const btn = el.querySelector('.faq-q');
-          const ans = el.querySelector('.faq-a');
-          btn.addEventListener('click', () => {
-            const opening = !el.classList.contains('open');
-            // 单展开
-            document.querySelectorAll('.faq-item.open').forEach(other => {
-              other.classList.remove('open');
-              other.querySelector('.faq-q').setAttribute('aria-expanded', 'false');
-              other.querySelector('.faq-a').style.maxHeight = '0';
-            });
-            if (opening) {
-              el.classList.add('open');
-              btn.setAttribute('aria-expanded', 'true');
-              ans.style.maxHeight = ans.scrollHeight + 'px';
-            }
-          });
+          bindFaqItem(el);
         });
+      }
+
+      /** 首屏只给静态 DOM 绑交互；语言切到非自带语种后才整列重建 */
+      function applyFaqs() {
+        if (faqStaticPending) {
+          faqStaticPending = false;
+          if (lang === bakedFaqLang) {
+            faqBox.querySelectorAll('.faq-item').forEach(bindFaqItem);
+            return;
+          }
+        }
+        renderFaqs();
       }
 
       // =================== Nav 滚动高亮 ===================
@@ -6759,7 +6983,7 @@ pnpm lint:style  # Stylelint</code></pre>
         langToggle.textContent = lang === 'zh' ? 'EN' : '中文';
 
         renderCarousel();
-        renderFaqs();
+        applyFaqs();
       }
 
       langToggle.addEventListener('click', () => {
@@ -7010,122 +7234,11 @@ pnpm lint:style  # Stylelint</code></pre>
       document.addEventListener('keydown', e => {
         if (e.key === 'Escape') closeLightbox();
       });
+
+      /* 同步初始化到此全部走完：.reveal 已由 IntersectionObserver 接管（或已直接落终态），
+         隐形初始态不可能再卡住内容，于是解除 <head> 里那道 js 门控保险。此后交互期偶发的
+         报错不再把整页打回无动效态。 */
+      document.documentElement.dataset.jsGate = 'ready';
     </script>
-
-    <!-- ======= FAQ noscript 回退：供 AI 爬虫 / 搜索引擎静态抓取 ======= -->
-    <noscript>
-      <section
-        id="faq-noscript"
-        style="padding: 64px 0"
-      >
-        <div class="container">
-          <h2>常见问题 / FAQ</h2>
-
-          <h3>安全与隐私 / Security &amp; Privacy</h3>
-
-          <h4>我的密码会被上传到云端吗？ / Will my passwords be uploaded to the cloud?</h4>
-          <p>
-            不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM
-            加密后落盘，密码内容从不上传到任何服务器。
-          </p>
-          <p>
-            No. The extension stores everything locally in your browser. Sensitive fields are encrypted with AES-256-GCM
-            and are never uploaded to any server.
-          </p>
-
-          <h4>忘记主密码了怎么办？ / What if I forget the master password?</h4>
-          <p>
-            主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph
-            文件）备份，避免数据丢失。
-          </p>
-          <p>
-            The master password cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up
-            regularly via data export or encrypted backup (.aph) to avoid data loss.
-          </p>
-
-          <h4>如何修改主密码？ / How do I change the master password?</h4>
-          <p>
-            在密码管理页「安全设置」下拉菜单中点击「修改主密码」，验证当前主密码后设置新主密码即可。所有数据会用新密钥重新加密并原子写入，中途失败不会损坏数据。
-          </p>
-          <p>
-            Click "Change master password" in the "Security Settings" menu, verify the current one, and set a new one.
-            All data is re-encrypted with the new key and written atomically.
-          </p>
-
-          <h4>什么是安全体检？ / What is Health Check?</h4>
-          <p>
-            安全体检是一键密码健康扫描功能，展示综合安全评分（0~100
-            分），由四个计分维度加权得出：密码复用（35）、弱密码（25）、常见泄露密码（20，近千条离线弱口令字典）、长时间未更新（20，90/180/365
-            天分级预警）、未开启两步验证。全程本地计算，不联网。
-          </p>
-          <p>
-            A one-click password health scan showing an overall score (0–100) weighted across four scored dimensions:
-            password reuse (35), weak passwords (25), commonly leaked passwords (20, near-1,000-entry offline
-            dictionary), long-unchanged passwords (20, 90/180/365-day tiers); accounts without 2FA are listed, unscored.
-            Everything is computed locally.
-          </p>
-
-          <h3>基础使用 / Basics</h3>
-
-          <h4>一键填充快捷键（Ctrl+Shift+F）是怎么工作的？ / How does the quick-fill shortcut work?</h4>
-          <p>
-            按下 Ctrl+Shift+F 后，插件直接填充与侧边栏列表首条一致的账号密码（域名匹配优先 +
-            收藏置顶），无需打开侧边栏。
-          </p>
-          <p>
-            Pressing Ctrl+Shift+F fills the same entry as the top of the side panel list (domain match first + favorites
-            pinned) without opening the panel.
-          </p>
-
-          <h4>什么是内联填充？ / What is inline fill?</h4>
-          <p>
-            内联填充是侧边栏之外的另一种快捷填充方式。登录输入框获焦后会在右侧内缘显示钥匙图标，点击展开迷你面板选择账号即可填充。搜索与侧边栏同一套口径（账号
-            / 标签 / 备注 /
-            网址，认拼音全拼与首字母），打开即默认选中首条、回车即填；当前站点无匹配账号时可带着关键词直达管理页做全库检索。使用
-            Closed Shadow DOM 完全隔离页面样式。
-          </p>
-          <p>
-            An alternative to the side panel. A key icon appears inside the focused login field; click it to open a mini
-            panel and pick an account to fill. Search follows the same rules as the sidebar (username, tag, remark and
-            URL, including full pinyin and initialisms), the first row is selected as soon as the panel opens so Enter
-            fills it, and the empty state can hand your keyword to the manager page to search the whole vault. Uses a
-            closed Shadow DOM for full style isolation.
-          </p>
-
-          <h3>数据管理 / Data Management</h3>
-
-          <h4>支持从其他密码管理器导入吗？ / Can I import from other password managers?</h4>
-          <p>
-            支持。上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。也支持 JSON
-            格式导入导出。
-          </p>
-          <p>
-            Yes. Upload a CSV and Chrome, LastPass, Bitwarden, and 1Password export formats are auto-detected. JSON
-            import/export is also supported.
-          </p>
-
-          <h4>删除的密码能找回吗？ / Can I recover deleted passwords?</h4>
-          <p>
-            能。删除的密码会先移入回收站保留 30 天，支持单条「恢复」、「彻底删除」和「清空回收站」。超过 30
-            天的条目会自动清理。
-          </p>
-          <p>
-            Yes. Deleted passwords move to the trash for 30 days. Restore, permanently delete, or empty the trash.
-            Entries older than 30 days are cleaned automatically.
-          </p>
-
-          <h3>高级配置 / Advanced</h3>
-
-          <h4>如何开启自动保存登录密码？ / How do I enable auto-save?</h4>
-          <p>
-            在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则，登录时弹出确认卡片选择「保存」或「暂不保存」。
-          </p>
-          <p>
-            Click "Auto-save Settings" on the management page and turn on "Enable auto-save". Optionally configure
-            domain rules. A confirmation card appears on login.
-          </p>
-        </div>
-      </section>
-    </noscript>
   </body>
 </html>

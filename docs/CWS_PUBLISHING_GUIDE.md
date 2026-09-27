@@ -243,13 +243,14 @@ PY
 
 - **文档更新时间**：每次发版或重大文档变更时，须同步更新以下 7 处的「最后更新」时间戳——README.md 末尾行、README.en.md 末尾行、index.html `footer.updated` 中英两处、en.html `footer.updated` 中英两处、llms.txt `Last updated` 行；隐私页（privacy.html / privacy.en.html）仅在隐私政策实际变更时更新精确日期，不随版本号联动
 
-- **FAQ 权威版本**为 index.html 可见文案（i18n 字典）；README 与 llms.txt 的 FAQ 发版时对照校对，避免多副本漂移
+- **FAQ 权威版本**为 index.html 的 `FAQS` 数组（可见问答与 FAQPage 结构化数据的单一真源）；README 与 llms.txt 的 FAQ 发版时对照校对，避免多副本漂移。页面里那份 FAQ 静态 DOM 是它的生成产物，见下条
+- **FAQ 生成链**：改 `FAQS` 后依次跑 `pnpm gen:faq`（中文 FAQPage JSON-LD）→ `pnpm gen:faq-dom`（`index.html` 的中文可见 FAQ 静态 DOM）→ `pnpm gen:en`（英文页静态 DOM 与英文 JSON-LD 一并产出）。三份产物任一滞后都会由 `tests/docs/faqSchemaParity.test.ts` 与 `tests/docs/landingFaqDom.test.ts` 判红
 - **测试数量**：以 `pnpm test:run` 输出的 `Test Files` / `Tests` 汇总行为唯一事实来源，新增或删除用例后须同步 README.md 与 README.en.md「核心特性」末尾的技术指针行（原「技术亮点 / Technical highlights」行已于 2026-09-11 的 README 重构中合并至此）、llms.txt 的 `Quality` 行（该行同时声明测试文件数）、`index.html` 数据带首卡的用例数（改完跑 `pnpm gen:en` 重生 `en.html`；数据带只展示用例数，不展示测试文件数），以及 `docs/blog/**` 正文与页脚提到的测试数量（改完跑 `pnpm gen:blog` 重生 `blog/*.html`）。旧的「博客数字锁定为发文快照」口径已于 2026-09 废止：博客修订时数字一并回改，避免与 README / llms.txt 长期背离
 - **功能口径**：新增用户可见功能时，实际需要同步的是 **6 处表面 + 架构文档**，`.qoder/rules/wxt-rules.md` 第 10 条只列了 4 处（README / index.html / HelpDialog / CWS），按它执行会漏项。完整清单：
 
   1. `README.md`（功能速览按编号顺延，中英文各一节）
   2. `README.en.md`（英译镜像，最易遗漏）
-  3. `index.html` 可见文案（FAQS / 功能数组，中英两处）与 `en.html` 对应内容——`en.html` 由 `scripts/build-en-page.mjs` 从中文源生成，改中文源后跑 `pnpm gen:en`
+  3. `index.html` 可见文案（FAQS / 功能数组，中英两处）与 `en.html` 对应内容——`en.html` 由 `scripts/build-en-page.mjs` 从中文源生成，改中文源后跑 `pnpm gen:en`；改的是 `FAQS` 时还要按上面的 **FAQ 生成链** 补齐 JSON-LD 与两侧的 FAQ 静态 DOM
   4. 侧边栏 `components/sidepanel/HelpDialog.vue` 对应的 `utils/i18n/locales/{zh-CN,en}/help.json` 词条（数字序号驱动，新增条目须同步提升 `helpItems('help.gx', N)` 的 N，由 `tests/utils/i18nBundles.test.ts` 守卫）
   5. `docs/CWS_FILL_CONTENT.md` 商店文案 **与** `wxt.config.ts` 的 manifest 描述（manifest 走 `__MSG_extensionDescription__`，实际文案在 `public/_locales/*/messages.json`）
   6. content / background 侧可见文案走 `utils/i18n-lite.ts` 的 `tl()`，与 Vue 的完整 i18n 是两套独立词表，必须各写一份中英文
@@ -335,3 +336,4 @@ Fully open-source, code auditable: https://github.com/liaolongdong/account-passw
 
 - 跳过条件只看 `CWS_EXTENSION_ID`：**它为空**时步骤 3 整体跳过，Release 仍会正常构建并挂到 GitHub Releases；**它有值但 OAuth 三项 Secret 缺失或过期**时，凭据预检会让作业失败（不是跳过），需按错误提示更新那一套 Secret。
 - Pages 由仓库设置里的 `Deploy from a branch`（`main` / 根目录）发布，CI 不参与生成站点——`en.html`、`pricing.en.html`、`privacy.en.html` 与 `blog/*.html` 需本地跑 `pnpm gen:en` / `gen:pricing-en` / `gen:privacy-en` / `gen:blog` 后提交；只改中文源而不重跑生成，线上英文版会滞后于中文版。站点直接服务 `main` 根目录，意味着**入库即公开**，不要把内部文档放进仓库根目录。
+- 同一条口径也适用于 `index.html` 内部的生成产物：FAQPage JSON-LD 与 FAQ 静态 DOM 由 `FAQS` 生成（`pnpm gen:faq` / `gen:faq-dom`），改 `FAQS` 后不重跑就等于线上可见 FAQ 与真源脱节，且禁用 JS 的抓取端读到的是滞后的那份。
