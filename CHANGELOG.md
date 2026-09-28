@@ -1,5 +1,42 @@
 # Changelog
 
+## [3.13.0](https://github.com/liaolongdong/account-password-helper/compare/v3.12.0...v3.13.0) (2026-09-28)
+
+
+### Features
+
+* **landing:** FAQ 拆两栏，右侧新增由 FAQS 生成的「分类直达」 ([ac47805](https://github.com/liaolongdong/account-password-helper/commit/ac47805ba79c25f218e1462d221cf5feb1116d10))
+* **landing:** FAQ 静态化与守卫测试 ([e9be846](https://github.com/liaolongdong/account-password-helper/commit/e9be846b046eed40e13d76bf7ef3b640df5ecd0b))
+* **landing:** 数据带六个数字滚动到源码写死的终值，无 JS 与 reduce 仍显示终值 ([85fd976](https://github.com/liaolongdong/account-password-helper/commit/85fd976ff6fa2abd8b36bd5c0a7c35c564d71646))
+* **landing:** 页头下沿新增阅读进度条并配三档降级 ([b62ec1b](https://github.com/liaolongdong/account-password-helper/commit/b62ec1bbc0840ce690180d95353ea3641da21871))
+* **landing:** 页头减负提可读性，图标水波纹 / CTA 脉冲与 FAQ 出口卡 ([12a0f61](https://github.com/liaolongdong/account-password-helper/commit/12a0f61c8dd7207d940fbcf4d496bcdb6e81aa41))
+* **product-site:** 新增独立产品站源码与素材，收口 CI 产物守卫与评审报告 ([ca33c83](https://github.com/liaolongdong/account-password-helper/commit/ca33c83e73c32bc79f66955c4c6f44b340c9dfde))
+* **site:** 同作者插件中文名全站同步 ([c1bb11b](https://github.com/liaolongdong/account-password-helper/commit/c1bb11bbb7736171bdc07fb67ae5e964f65d6b02))
+
+
+### Bug Fixes
+
+* **a11y:** 减弱动效收口到单一判据，命令面板补齐模态与组合框语义 ([5a41bfd](https://github.com/liaolongdong/account-password-helper/commit/5a41bfd6d013b2ae85583b2572e6ca9953a2de99))
+* **backup:** .aph 导入失败提示不再外泄原始异常文本 ([43f867f](https://github.com/liaolongdong/account-password-helper/commit/43f867f9ff6f296c3d00f9ae193d4e607a602ba0))
+* **backup:** 撤除 CSV 导出的公式中和，回到文档原有的「刻意不做」口径 ([876cf89](https://github.com/liaolongdong/account-password-helper/commit/876cf892d3db4b0efada84cf3bbe9e4d23932b54))
+* **dialogs:** 弹窗的异步结果只允许落在仍然有效的打开态上 ([f060afd](https://github.com/liaolongdong/account-password-helper/commit/f060afd891a19aec255dd4f79d8fd596286bc1ac))
+* **landing:** 修页头/轮播/流水线/对照表八处窄屏与键盘缺陷，README 演示图改单列 ([d596fb4](https://github.com/liaolongdong/account-password-helper/commit/d596fb4906531fb2a7bc65c2dd59fb345d67c4ba))
+* **landing:** 灯箱接管焦点与轮播三处，删一条无消费者的揭示延迟规则 ([e8aeff1](https://github.com/liaolongdong/account-password-helper/commit/e8aeff1fd99072b32bc49d49e7ba0cbcd71fd669))
+* **landing:** 页头右侧控件收组右对齐，语言键与源码图标等高同圆角 ([c15702b](https://github.com/liaolongdong/account-password-helper/commit/c15702b235c0a0abbd8e35d8a1b75623148b1013))
+* **options:** 历史密码复制改走限时自动清除通道，回执文案收为单一来源 ([d499257](https://github.com/liaolongdong/account-password-helper/commit/d49925750c304843367d660323ccc32e92a785de))
+* **options:** 邮箱备份默认档改「加密备份」，明文档加风险二次确认 ([56319dc](https://github.com/liaolongdong/account-password-helper/commit/56319dc899de3d50ddd93f6bf6e83527c3a29723))
+* **security:** 共享托管后缀不再互认同主域，提示委托改由后台盖章转发 ([643f9c3](https://github.com/liaolongdong/account-password-helper/commit/643f9c33d0bc763a436705f41b52703a8581869b))
+* **security:** 导出 CSV 中和公式前缀并保证往返还原，导入在读盘前施加字节上限 ([5f97a88](https://github.com/liaolongdong/account-password-helper/commit/5f97a8839d2c680d8ff1fb0a229ca15511765eba))
+* **security:** 窗口与跳转类指令补 sender 归属闸门，编辑指令在路由边界收口条目 id ([e46a03a](https://github.com/liaolongdong/account-password-helper/commit/e46a03a175828642df84fe43df11076189a2578a))
+* **sidepanel:** 3s 竞速超时不再把自己钉成「会话已失效」 ([212f21c](https://github.com/liaolongdong/account-password-helper/commit/212f21cf2833949430f67097c0dc96f017d502ee))
+* **theme:** 补上影子树里永远取不到的中性令牌，并用闭包守卫盯住这类死链 ([ed447a9](https://github.com/liaolongdong/account-password-helper/commit/ed447a9382eb85b3750398982a7a88892c2d8336))
+
+
+### Performance Improvements
+
+* **search:** 拼音区间与主域缓存按 2000 条上限定容，当前主机归一加一格记忆 ([45948e9](https://github.com/liaolongdong/account-password-helper/commit/45948e933c13fc4c27d85220f722cbac57271ef5))
+* **sidepanel:** 检索防抖收进 useKeywordDebounce 三处共用，批量改标签去掉逐条回查全库 ([43827fb](https://github.com/liaolongdong/account-password-helper/commit/43827fb44901d29defe4549ffd7b75818ef1f0f2))
+
 ## [3.12.0](https://github.com/liaolongdong/account-password-helper/compare/v3.11.0...v3.12.0) (2026-09-25)
 
 
