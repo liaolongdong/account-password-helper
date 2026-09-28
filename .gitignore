@@ -120,8 +120,10 @@ coverage/
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
 
-# baoyu-skills credentials (WeChat AppSecret etc.)
-.baoyu-skills/.env
+# 本地发布工具链配置：baoyu-skills 的 EXTEND.md 记录的是本人机器上的公众号 / 微信发布流程
+# 与配图软链，属个人工具状态而非产品内容；AppSecret 一类凭据本来就落在 .env 里。
+# 2026-09-28 起整目录不入库，此前跟踪的两个 EXTEND.md 已同步 `git rm --cached`（磁盘文件未删）。
+.baoyu-skills/
 
 # local symlinks for WeChat publishing image resolution
 docs/blog/zh/imgs
@@ -134,7 +136,7 @@ e2e/.auth/
 
 # 性能测量脚本的私有产物：构建快照（避免并发构建移动测量基线）与原始测量结果。
 # results/ 为 19MB 量级的 JSON / .cpuprofile，且绝对值受当时整机负载影响、跨窗口不可比，
-# 结论与可比的相对数字已写入 docs/PERF_LARGE_VAULT_EVALUATION.md，原始数据不入库。
+# 结论与可比的相对数字已写入 docs/reports/PERF_LARGE_VAULT_EVALUATION.md，原始数据不入库。
 benchmarks/.artifacts/
 benchmarks/results/
 
@@ -149,16 +151,26 @@ benchmarks/results/
 .qoder/repowiki/
 
 # 一次性代码评审报告：结论已回写进各提交说明与相关文档，报告本身留在本地。
-docs/code-review-*.md
+# `**` 是为 2026-09-28 文档归类准备的——评审报告今后落在 docs/ 或其任一子目录都不会漏。
+docs/**/code-review-*.md
+
+# 根目录 pricing.md 的旧副本：对外的机器可读定价表只认根目录那一份（llms.txt 与
+# CWS 发布口径都指向 https://…/account-password-helper/pricing.md）。docs/ 下的同名副本
+# 全仓零引用、内容已落后，2026-09-28 起不入库；磁盘文件保留，需要时从根目录那份改起。
+docs/pricing.md
 
 # Qoder Sites 的本地描述符：文件名含站点标题，内容带 siteId 与整页 base64 快照，
 # 属机器绑定状态，换台机器就该重新生成，入库只会互相覆盖。
 *.qoder.site
 
 # ===== 反向清单：以下文档刻意保持跟踪，勿顺手加进上面任何一节 =====
-# 对外与 SEO 内容：README*、docs/ARCHITECTURE*.md、docs/blog/**、docs/promo/**、
-# docs/{公众号,微博,reddit}*.md、docs/exposure-status.md、docs/账号密码管理助手曝光提升执行手册.md。
-# 被源码注释或对外文档按路径引用的报告：docs/PERF_*.md、
-# docs/INLINE_DROPDOWN_PARITY_EVALUATION.md、docs/LANDING_MOTION_PROPOSAL.md
-# （连同其配套实物 docs/prototypes/landing-motion-lab.html）——忽略它们会让仓库里的引用变死链。
+# 目录归类口径与「该放哪」的判定见 docs/README.md。
+# 对外与 SEO 内容：README*、docs/ARCHITECTURE*.md、docs/blog/**、
+# docs/operations/**（曝光手册、执行手册、公众号 / 微博 / reddit 文案与 promo/**）、
+# docs/store/**（CWS 上架内容与发布流程）、docs/media/**（README 与推广文档直接引用的演示动图）。
+# 被源码注释、workflow 注释或对外文档按路径引用的报告与治理文档：docs/reports/**
+# （PERF_* 三份、INLINE_DROPDOWN_PARITY_EVALUATION、LANDING_MOTION_PROPOSAL，连同其配套实物
+# docs/prototypes/landing-motion-lab.html）、docs/CONTRIBUTING.md、docs/PR_WORKFLOW_GUIDE.md、
+# docs/THIRD-PARTY-NOTICES.md、docs/fixtures/test-page.html（被 ARCHITECTURE 中英链接）——
+# 忽略它们会让仓库里的引用变死链。新增这类文档前先确认它属于哪一边。
 # 完整口径见 docs/CONTRIBUTING.md「提交范围」。

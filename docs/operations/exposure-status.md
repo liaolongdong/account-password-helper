@@ -29,7 +29,7 @@
 | 文档事实审计（2026-09-09）     | README / ARCHITECTURE / CONTRIBUTING / THIRD-PARTY-NOTICES / CWS 两份 / 博客 4 篇的中英文均已按源码逐项校正；残留的代码侧错误口径见本文「🟡 需你决策」末节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 测试基线（2026-09-28 复跑）    | `pnpm test:run` → **167 个测试文件 / 1941 个用例全部通过，exit 0**。本表上一行的 114 / 1292（2026-09-22）与该行原有的 142 / 1563（2026-09-25）都是当时的快照，保留作记录；对外表面已于 2026-09-27 统一改标 **1941 项 / 167 文件**（README ×2、`llms.txt`、`index.html` 数据带 + JSON-LD `dateModified`、`en.html`、`product-site/index.html`、`docs/blog/**` 10 篇与 `blog/*.html` 12 页、封面 04/05 的 SVG 与 PNG、公众号 / 微博文案），`sitemap.xml` 12 条 `lastmod` 随博客 `modified` 同步；仍是易漂移字段，发布前按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复跑再刷新。**同日「落地页体验波次」复跑实测 167 / 1953**（+12 全在 `tests/docs/landingFaqDom.test.ts`，50 → 62 例），对外 21 个手工维护文件已于 2026-09-28 统一刷到 1953 / 167                                                                                                                                                                                                                                                                                                                                                                       |
 
-## 🆕 2026-09-28 文档归类：`docs/` 分层 + 两类本地内容停止入库（本轮，未提交）
+## 🆕 2026-09-28 文档归类：`docs/` 分层 + 两类本地内容停止入库（已提交 `docs(structure)` + 本提交，未推送）
 
 用户口径「把不需要放到项目根目录的文档内容新加文件夹进行归类，还有一些本地以及非 SEO 运营相关的内容加入 git 忽略规则」，四问拍板后执行：**完整归类**（`docs/` 下建 `store/` `reports/` `operations/` `media/` `fixtures/` 五个目录）、内部评估报告**保持跟踪只搬位置**、忽略规则**只加两条**、**补一份文档导航**。
 
@@ -40,7 +40,8 @@
 - **忽略规则净新增两条**（按用户勾选，未扩范围）：`.baoyu-skills/` 由只忽略 `.env` 升为整目录（个人公众号 / 微信发布流程与配图软链属机器绑定状态，AppSecret 本就在 `.env`）；`docs/pricing.md`（根目录对外那份的零引用落后副本）。两者同步 `git rm --cached` 取消跟踪，**磁盘文件未删**。顺带把 `docs/code-review-*.md` 拓宽为 `docs/**/code-review-*.md`，否则归类后评审报告落进子目录就漏。
 - **`.gitignore` 补了反向清单**（第 166–175 行一段）：`docs/operations/**`、`docs/store/**`、`docs/media/**`、`docs/reports/**`、`docs/fixtures/test-page.html` 等 12 条列明「刻意保持跟踪，勿顺手忽略」——搬完之后的死链风险从「一个文件名」变成「一整个目录」，只写正向忽略不够。`docs/README.md` 是这套口径的入口：中英各一张 13 行的目录职责表 + 「新增文档该放哪」四条判定 + 反查命令。
 - **历史记述不改写**。本文 §2026-09-27 的「26 条该留的路径」仍写「根目录 `pricing.md` 与 `test-page.html`」——那是当时快照，只机械更新会被链接检查判死的路径；读到这里时 `test-page.html` 已在 `docs/fixtures/`，根目录 `pricing.md` 确实没动。
-- **刻意没做**：`docs/demo-login.mp4`（用户未勾选，保持跟踪）、`imgs/` 出图工作稿（同）、`.qoder/{rules,skills,commands}`（团队配置）、`CHANGELOG.md` 与 `docs/blog/**`（Pages 与对外口径）。**未提交、未推送、未发布**。⚠️ 共享工作树风险：本轮 22 个重命名与 3 个 `rm --cached` 已进共享索引，同机的并行会话若裸 `git commit` 会把这段暂存集一并吞掉。
+- **刻意没做**：`docs/demo-login.mp4`（用户未勾选，保持跟踪）、`imgs/` 出图工作稿（同）、`.qoder/{rules,skills,commands}`（团队配置）、`CHANGELOG.md` 与 `docs/blog/**`（Pages 与对外口径）。
+- **落点**：分两个提交——`docs(structure)`（22 个重命名 + 46 个引用改写 + 新增 `docs/README.md`）与紧随的 `chore(repo)`（`.gitignore` 全部改动 + 三处取消跟踪）。两个提交落在从 `chore-deps-adm-zip` 切出的 `docs-structure` 分支上——当时那个分支的工作树正被并行的依赖波次占用，直接切走会把 `package.json` / lockfile 退回旧版本，所以没有切回 `main`。**未推送、未发布**。
 
 ### 验证
 
