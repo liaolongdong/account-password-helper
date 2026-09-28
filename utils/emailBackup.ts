@@ -1,4 +1,4 @@
-import type { PasswordEntry } from '@/utils/types';
+import type { PasswordEntry, PasswordGroup } from '@/utils/types';
 import { ExcelUtils } from '@/utils/excel';
 import { formatDateTime, formatDate, formatTimestampCompact } from '@/utils/dateFormat';
 import { t } from '@/utils/i18n';
@@ -15,7 +15,11 @@ export class EmailBackupUtils {
    * @param passwords 待备份的密码列表
    * @param email     目标邮箱地址
    */
-  static async backupToEmail(passwords: PasswordEntry[], email: string): Promise<void> {
+  static async backupToEmail(
+    passwords: PasswordEntry[],
+    email: string,
+    groups: readonly PasswordGroup[] = [],
+  ): Promise<void> {
     if (!email || !email.trim()) {
       throw new Error('目标邮箱地址不能为空');
     }
@@ -28,7 +32,7 @@ export class EmailBackupUtils {
     const filename = `passwords_${formatTimestampCompact(now)}.csv`;
 
     // 生成并下载 CSV 文件
-    ExcelUtils.exportToCSV(passwords, filename);
+    ExcelUtils.exportToCSV(passwords, filename, groups);
 
     // 构造 mailto 链接，唤起邮件客户端
     const subject = t('form.emailSubject', { date: formatDate(now) });

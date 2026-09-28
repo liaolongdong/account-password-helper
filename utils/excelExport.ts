@@ -1,4 +1,5 @@
-import type { PasswordEntry } from '@/utils/types';
+import type { PasswordEntry, PasswordGroup } from '@/utils/types';
+import { getGroupPath } from '@/utils/groupTree';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
@@ -17,6 +18,7 @@ const CSV_HEADER_KEYS = [
   'excel.header.tag',
   'excel.header.remark',
   'excel.header.totp',
+  'excel.header.group',
   'excel.header.createTime',
   'excel.header.updateTime',
 ] as const;
@@ -37,6 +39,51 @@ function buildCsvHeaders(usernameRequired = false): string[] {
  */
 function serializeCsvRows(rows: unknown[][]): string {
   return rows.map(row => row.map(v => `"${String(v ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n');
+}
+
+/**
+ * 构造 CSV 数据行（不含表头）。
+ *
+ * @param passwords 待导出条目
+ * @param groups 分组树
+ */
+export function buildCsvRows(passwords: readonly PasswordEntry[], groups: readonly PasswordGroup[] = []): string[][] {
+  return passwords.map(p => [
+    p.username,
+    p.password,
+    p.url,
+    p.tag || '',
+    p.remark || '',
+    p.totp || '',
+    getGroupPath(p.groupId, groups),
+    formatDate(p.createTime || Date.now()),
+    formatDate(p.updateTime || Date.now()),
+  ]);
+}
+
+/**
+ * 构造 JSON 导出载荷。
+ *
+ * 与 `.aph` v2 同口径：顶层包含 groups，条目包含 groupId。
+ */
+export function buildJsonPayload(passwords: readonly PasswordEntry[], groups: readonly PasswordGroup[] = []) {
+  return {
+    version: 2,
+    exportedAt: Date.now(),
+    count: passwords.length,
+    groups: [...groups],
+    entries: passwords.map(p => ({
+      username: p.username,
+      password: p.password,
+      url: p.url,
+      tag: p.tag,
+      remark: p.remark,
+      totp: p.totp,
+      groupId: p.groupId,
+      createTime: p.createTime,
+      updateTime: p.updateTime,
+    })),
+  };
 }
 
 /**
@@ -62,19 +109,13 @@ function downloadBlob(parts: BlobPart[], type: string, filename: string, appendT
 /**
  * 导出密码数据到 CSV（带 BOM，Excel 可直接双击打开且中文不乱码）
  */
-export function exportToCSV(passwords: PasswordEntry[], filename: string = 'passwords.csv'): void {
+export function exportToCSV(
+  passwords: PasswordEntry[],
+  filename: string = 'passwords.csv',
+  groups: readonly PasswordGroup[] = [],
+): void {
   try {
-    const rows = passwords.map(p => [
-      p.username,
-      p.password,
-      p.url,
-      p.tag || '',
-      p.remark || '',
-      p.totp || '',
-      formatDate(p.createTime || Date.now()),
-      formatDate(p.updateTime || Date.now()),
-    ]);
-    const csv = serializeCsvRows([buildCsvHeaders(), ...rows]);
+    const csv = serializeCsvRows([buildCsvHeaders(), ...buildCsvRows(passwords, groups)]);
     downloadBlob(['\uFEFF' + csv], 'text/csv;charset=utf-8', filename);
   } catch (error) {
     logger.error('导出CSV失败:', error);
@@ -98,6 +139,7 @@ export function downloadTemplate(): void {
       t('excel.template.exampleTag'),
       t('excel.template.exampleRemark'),
       '',
+      t('excel.template.exampleGroup'),
       now,
       now,
     ],
@@ -112,25 +154,13 @@ export function downloadTemplate(): void {
  * @param passwords 待导出的密码列表
  * @param filename  导出文件名，默认 `passwords.json`
  */
-export function exportToJSON(passwords: PasswordEntry[], filename: string = 'passwords.json'): void {
+export function exportToJSON(
+  passwords: PasswordEntry[],
+  filename: string = 'passwords.json',
+  groups: readonly PasswordGroup[] = [],
+): void {
   try {
-    const exportData = {
-      version: 1,
-      exportedAt: Date.now(),
-      count: passwords.length,
-      entries: passwords.map(p => ({
-        username: p.username,
-        password: p.password,
-        url: p.url,
-        tag: p.tag,
-        remark: p.remark,
-        totp: p.totp,
-        createTime: p.createTime,
-        updateTime: p.updateTime,
-      })),
-    };
-
-    const jsonStr = JSON.stringify(exportData, null, 2);
+    const jsonStr = JSON.stringify(buildJsonPayload(passwords, groups), null, 2);
     downloadBlob([jsonStr], 'application/json;charset=utf-8', filename, true);
   } catch (error) {
     logger.error('导出 JSON 失败:', error);

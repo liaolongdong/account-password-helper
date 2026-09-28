@@ -218,7 +218,9 @@ import type { ImportFormat } from '@/utils/excelFormatMap';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
-import type { PasswordEntry } from '@/utils/types';
+import type { ImportedPasswordEntry } from '@/utils/groupTree';
+import { resolveImportedGroups } from '@/utils/groupTree';
+import type { PasswordGroup } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
 
 interface Props {
@@ -242,7 +244,9 @@ const dialogVisible = computed({
 
 const uploadRef = ref();
 const loading = ref(false);
-const previewData = ref<Omit<PasswordEntry, 'id' | 'order'>[]>([]);
+const previewData = ref<ImportedPasswordEntry[]>([]);
+/** 文件内自带的分组树（CSV 恒为空，JSON 可能携带）。 */
+const parsedGroups = ref<PasswordGroup[]>([]);
 const selectedFile = ref<File | undefined>(undefined);
 const showPreviewPassword = ref(false);
 const importFormat = ref<ImportFormat | 'native'>('auto');
@@ -267,17 +271,21 @@ const handleFileChange = async (file: UploadFile) => {
     const isCSV = fileName.endsWith('.csv');
     const isJSON = fileName.endsWith('.json');
 
-    let data: Omit<PasswordEntry, 'id' | 'order'>[];
+    let data: ImportedPasswordEntry[];
     if (isJSON) {
       // JSON 解析路径
       selectedFile.value = file.raw;
       const text = await file.raw.text();
-      data = ExcelUtils.parseJSON(text);
+      const parsed = ExcelUtils.parseJSON(text);
+      data = parsed.entries;
+      parsedGroups.value = parsed.groups;
     } else if (isCSV) {
       // CSV 解析路径
       selectedFile.value = file.raw;
       const buffer = await file.raw.arrayBuffer();
-      data = ExcelUtils.parseCSV(buffer, importFormat.value as ImportFormat);
+      const parsed = ExcelUtils.parseCSV(buffer, importFormat.value as ImportFormat);
+      data = parsed.entries;
+      parsedGroups.value = parsed.groups;
     } else {
       ElMessage.error(t('options.import.unsupportedFormat'));
       selectedFile.value = undefined;
@@ -305,12 +313,14 @@ const handleFileChange = async (file: UploadFile) => {
     logger.error('解析文件失败:', error);
     ElMessage.error(t('options.import.parseFailed'));
     previewData.value = [];
+    parsedGroups.value = [];
   }
 };
 
 // 处理文件移除
 const handleFileRemove = () => {
   previewData.value = [];
+  parsedGroups.value = [];
   selectedFile.value = undefined;
   if (uploadRef.value) {
     uploadRef.value.clearFiles();
@@ -333,10 +343,23 @@ const handleImport = async () => {
   try {
     loading.value = true;
 
-    // 批量保存密码（单次读写，避免逐条 savePassword 导致的 O(M×N) 数据搬运）
-    await StorageUtils.batchSavePasswords(previewData.value);
+    // 分组先落盘再存条目：条目 groupId 指向合并后的新 code，顺序颠倒会产生悬空引用
+    const existingGroups = await StorageUtils.getAllGroups();
+    const resolved = resolveImportedGroups({ entries: previewData.value, groups: parsedGroups.value }, existingGroups);
+    await StorageUtils.saveGroups(resolved.groups);
+    try {
+      // 批量保存密码（单次读写，避免逐条 savePassword 导致的 O(M×N) 数据搬运）
+      await StorageUtils.batchSavePasswords(resolved.entries);
+    } catch (error) {
+      try {
+        await StorageUtils.saveGroups(existingGroups);
+      } catch (rollbackError) {
+        logger.error('回滚导入分组失败:', rollbackError);
+      }
+      throw error;
+    }
 
-    ElMessage.success(t('options.import.importSuccess', { count: previewData.value.length }));
+    ElMessage.success(t('options.import.importSuccess', { count: resolved.entries.length }));
     emit('imported');
     handleClose();
   } catch (error) {
@@ -351,6 +374,7 @@ const handleImport = async () => {
 const handleClose = () => {
   dialogVisible.value = false;
   previewData.value = [];
+  parsedGroups.value = [];
   selectedFile.value = undefined;
   showPreviewPassword.value = false;
   importFormat.value = 'auto';

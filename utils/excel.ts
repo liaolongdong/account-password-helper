@@ -1,4 +1,5 @@
-import type { PasswordEntry } from '@/utils/types';
+import type { PasswordEntry, PasswordGroup } from '@/utils/types';
+import type { ParsedImportData } from '@/utils/groupTree';
 import type { ImportFormat } from '@/utils/excelFormatMap';
 import { parseCSVBuffer } from '@/utils/excelCsv';
 import { parsePasswordJSON } from '@/utils/excelJson';
@@ -21,8 +22,12 @@ export class ExcelUtils {
   /**
    * 导出密码数据到 CSV（带 BOM，Excel 可直接双击打开且中文不乱码）
    */
-  static exportToCSV(passwords: PasswordEntry[], filename: string = 'passwords.csv'): void {
-    exportCsv(passwords, filename);
+  static exportToCSV(
+    passwords: PasswordEntry[],
+    filename: string = 'passwords.csv',
+    groups: readonly PasswordGroup[] = [],
+  ): void {
+    exportCsv(passwords, filename, groups);
   }
 
   /**
@@ -30,7 +35,7 @@ export class ExcelUtils {
    * @param buffer CSV 文件原始字节
    * @param format 导入格式，'auto' 时自动检测
    */
-  static parseCSV(buffer: ArrayBuffer, format: ImportFormat = 'auto'): Omit<PasswordEntry, 'id' | 'order'>[] {
+  static parseCSV(buffer: ArrayBuffer, format: ImportFormat = 'auto'): ParsedImportData {
     return parseCSVBuffer(buffer, format);
   }
 
@@ -45,7 +50,7 @@ export class ExcelUtils {
    * 解析 JSON 文本为密码数据
    * 支持数组格式或 `{ entries: [...] }` 包裹格式，字段映射兼容中英文列名。
    */
-  static parseJSON(text: string): Omit<PasswordEntry, 'id' | 'order'>[] {
+  static parseJSON(text: string): ParsedImportData {
     return parsePasswordJSON(text);
   }
 
@@ -53,7 +58,11 @@ export class ExcelUtils {
    * 导出密码数据为 JSON 文件
    * 导出结构：`{ version, exportedAt, count, entries }`
    */
-  static exportToJSON(passwords: PasswordEntry[], filename: string = 'passwords.json'): void {
-    exportJson(passwords, filename);
+  static exportToJSON(
+    passwords: PasswordEntry[],
+    filename: string = 'passwords.json',
+    groups: readonly PasswordGroup[] = [],
+  ): void {
+    exportJson(passwords, filename, groups);
   }
 }

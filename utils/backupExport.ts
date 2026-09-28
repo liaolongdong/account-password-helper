@@ -1,10 +1,15 @@
-import type { PasswordEntry } from '@/utils/types';
+import type { PasswordEntry, PasswordGroup } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { formatTimestampCompact } from '@/utils/dateFormat';
 
-/** 备份文件版本标识 */
-const BACKUP_VERSION = 1;
+/**
+ * 备份文件版本标识
+ *
+ * - v1：仅条目，导入时全部归入「未分组」
+ * - v2：条目携带 groupId，顶层携带 groups 分组树
+ */
+const BACKUP_VERSION = 2;
 /** AES-GCM IV 长度 */
 const IV_LENGTH = 12;
 /** PBKDF2 迭代次数（与主加密体系一致的 600K） */
@@ -18,6 +23,21 @@ interface BackupData {
   exportedAt: number;
   count: number;
   entries: Omit<PasswordEntry, 'id' | 'order'>[];
+  /** v2 新增；v1 文件缺省时按空分组树处理 */
+  groups?: PasswordGroup[];
+}
+
+/** 校验备份中的分组项，损坏项不进入导入合并流程。 */
+function isPasswordGroup(value: unknown): value is PasswordGroup {
+  if (!value || typeof value !== 'object') return false;
+  const group = value as Partial<PasswordGroup>;
+  return (
+    typeof group.code === 'string' &&
+    typeof group.name === 'string' &&
+    typeof group.parentCode === 'string' &&
+    typeof group.order === 'number' &&
+    Number.isFinite(group.order)
+  );
 }
 
 /**
@@ -45,7 +65,11 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
  * 导出加密备份文件
  * 使用主密码通过 AES-GCM 加密密码数据，下载为 .aph 文件
  */
-export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPassword: string): Promise<void> {
+export async function exportEncryptedBackup(
+  passwords: PasswordEntry[],
+  masterPassword: string,
+  groups: readonly PasswordGroup[] = [],
+): Promise<void> {
   try {
     const backupData: BackupData = {
       version: BACKUP_VERSION,
@@ -61,7 +85,9 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
         createTime: p.createTime,
         updateTime: p.updateTime,
         favorite: p.favorite,
+        groupId: p.groupId,
       })),
+      groups: groups.map(group => ({ ...group })),
     };
 
     const encoder = new TextEncoder();
@@ -109,7 +135,7 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
 export async function importEncryptedBackup(
   file: File,
   masterPassword: string,
-): Promise<Omit<PasswordEntry, 'id' | 'order'>[]> {
+): Promise<{ entries: Omit<PasswordEntry, 'id' | 'order'>[]; groups: PasswordGroup[] }> {
   try {
     const buffer = await file.arrayBuffer();
     const data = new Uint8Array(buffer);
@@ -137,7 +163,8 @@ export async function importEncryptedBackup(
       throw new Error(t('backup.invalidStructure'));
     }
 
-    return backupData.entries;
+    const groups = Array.isArray(backupData.groups) ? backupData.groups.filter(isPasswordGroup) : [];
+    return { entries: backupData.entries, groups };
   } catch (error: any) {
     if (error.message?.includes('decrypt') || error.name === 'OperationError') {
       const err = new Error(t('backup.wrongPasswordOrCorrupted'));

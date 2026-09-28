@@ -217,10 +217,11 @@ import { ref, computed, nextTick } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
 import { importEncryptedBackup } from '@/utils/backupExport';
+import { resolveImportedGroups } from '@/utils/groupTree';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
-import type { PasswordEntry } from '@/utils/types';
+import type { PasswordEntry, PasswordGroup } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import CapsLockHint from '@/components/CapsLockHint.vue';
@@ -251,6 +252,8 @@ const uploadRef = ref();
 const decrypting = ref(false);
 const importing = ref(false);
 const previewData = ref<Omit<PasswordEntry, 'id' | 'order'>[]>([]);
+/** 备份文件内自带的分组树；v1 文件为空。 */
+const previewGroups = ref<PasswordGroup[]>([]);
 const selectedFile = ref<File | undefined>(undefined);
 const masterPassword = ref('');
 const showPreviewPassword = ref(false);
@@ -279,6 +282,7 @@ const handleFileChange = async (file: UploadFile) => {
   }
   selectedFile.value = file.raw;
   previewData.value = [];
+  previewGroups.value = [];
   masterPassword.value = '';
   // 密码输入区经 v-if 卸载时不会触发 blur，需显式清除大写锁定提示，避免下次显示时残留
   resetCapsLockState();
@@ -295,6 +299,7 @@ const handleFileChange = async (file: UploadFile) => {
 /** 处理文件移除 */
 const handleFileRemove = () => {
   previewData.value = [];
+  previewGroups.value = [];
   selectedFile.value = undefined;
   masterPassword.value = '';
   resetCapsLockState();
@@ -309,7 +314,7 @@ const handleDecrypt = async () => {
 
   try {
     decrypting.value = true;
-    const entries = await importEncryptedBackup(selectedFile.value, masterPassword.value.trim());
+    const { entries, groups } = await importEncryptedBackup(selectedFile.value, masterPassword.value.trim());
 
     if (entries.length === 0) {
       ElMessage.warning(t('options.backupImport.noValidData'));
@@ -317,6 +322,7 @@ const handleDecrypt = async () => {
     }
 
     previewData.value = entries;
+    previewGroups.value = groups;
     ElMessage.success(t('options.backupImport.decryptSuccess', { count: entries.length }));
     await nextTick();
     setTimeout(() => {
@@ -330,6 +336,7 @@ const handleDecrypt = async () => {
     const message = error instanceof Error ? error.message : t('options.backupImport.decryptFailed');
     ElMessage.error(message);
     previewData.value = [];
+    previewGroups.value = [];
   } finally {
     decrypting.value = false;
   }
@@ -341,8 +348,23 @@ const handleImport = async () => {
 
   try {
     importing.value = true;
-    await StorageUtils.batchSavePasswords(previewData.value);
-    ElMessage.success(t('options.import.importSuccess', { count: previewData.value.length }));
+    const existingGroups = await StorageUtils.getAllGroups();
+    const resolved = resolveImportedGroups({ entries: previewData.value, groups: previewGroups.value }, existingGroups);
+
+    // 分组先落盘，确保新增条目写入时 groupId 已指向有效本地分组。
+    await StorageUtils.saveGroups(resolved.groups);
+    try {
+      await StorageUtils.batchSavePasswords(resolved.entries);
+    } catch (error) {
+      try {
+        await StorageUtils.saveGroups(existingGroups);
+      } catch (rollbackError) {
+        logger.error('回滚备份导入分组失败:', rollbackError);
+      }
+      throw error;
+    }
+
+    ElMessage.success(t('options.import.importSuccess', { count: resolved.entries.length }));
     emit('imported');
     handleClose();
   } catch (error) {
@@ -357,6 +379,7 @@ const handleImport = async () => {
 const handleClose = () => {
   dialogVisible.value = false;
   previewData.value = [];
+  previewGroups.value = [];
   selectedFile.value = undefined;
   masterPassword.value = '';
   showPreviewPassword.value = false;

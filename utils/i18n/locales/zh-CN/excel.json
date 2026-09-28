@@ -6,6 +6,8 @@
   "excel.header.tag": "标签",
   "excel.header.remark": "备注",
   "excel.header.totp": "两步验证",
+  "excel.header.group": "分组",
+  "excel.template.exampleGroup": "工作/示例项目",
   "excel.header.createTime": "创建时间",
   "excel.header.updateTime": "更新时间",
   "excel.template.exampleTag": "工作",

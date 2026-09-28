@@ -9,6 +9,8 @@ export interface CsvColumnMapping {
   tag: string[];
   remark: string[];
   totp: string[];
+  /** 分组列（全路径，`/` 分隔）；导入时按路径逐级建组 */
+  group: string[];
 }
 
 /** 各格式列映射配置 */
@@ -20,6 +22,7 @@ export const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnM
     tag: ['标签', 'tag', 'Tag', '分类'],
     remark: ['备注', 'remark', 'Remark', '说明'],
     totp: ['两步验证', 'TOTP', 'totp', '密钥'],
+    group: ['分组', 'group', 'Group', '分组路径'],
   },
   chrome: {
     username: ['username', 'Username'],
@@ -28,22 +31,25 @@ export const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnM
     tag: ['name', 'Name'],
     remark: ['note', 'Note'],
     totp: ['otpauth', 'otp_auth'],
+    group: [],
   },
   lastpass: {
     username: ['username', 'Username'],
     password: ['password', 'Password'],
     url: ['url', 'URL'],
-    tag: ['grouping', 'Grouping'],
+    tag: [],
     remark: ['extra', 'Extra'],
     totp: ['totp', 'TOTP'],
+    group: ['grouping', 'Grouping'],
   },
   bitwarden: {
     username: ['login_username', 'Login Username'],
     password: ['login_password', 'Login Password'],
     url: ['login_uri', 'Login URI'],
-    tag: ['folder', 'Folder'],
+    tag: [],
     remark: ['notes', 'Notes'],
     totp: ['login_totp', 'Login TOTP'],
+    group: ['folder', 'Folder'],
   },
   '1password': {
     username: ['Username', 'username'],
@@ -52,5 +58,6 @@ export const FORMAT_COLUMN_MAP: Record<Exclude<ImportFormat, 'auto'>, CsvColumnM
     tag: ['Title', 'title'],
     remark: ['Notes', 'notes'],
     totp: ['OTPAuth', 'otpauth', 'totp'],
+    group: [],
   },
 };
