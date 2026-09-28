@@ -119,6 +119,12 @@
                 {{ t('options.header.emailBackup') }}
               </el-dropdown-item>
               <el-dropdown-item
+                command="cloudSync"
+                :icon="Cloudy"
+              >
+                {{ t('options.header.cloudSync') }}
+              </el-dropdown-item>
+              <el-dropdown-item
                 divided
                 command="removeDuplicates"
                 :icon="Delete"
@@ -198,6 +204,12 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
+        <el-button
+          :icon="Cloudy"
+          @click="$emit('openCloudSync')"
+        >
+          {{ t('options.header.cloudSync') }}
+        </el-button>
       </div>
       <el-button
         :icon="Brush"
@@ -218,6 +230,7 @@ import {
   Delete,
   Setting,
   Message,
+  Cloudy,
   FolderChecked,
   ArrowDown,
   FolderOpened,
@@ -264,6 +277,8 @@ defineEmits<{
   dataCommand: [command: string];
   /** 安全设置菜单项点击 */
   settingsCommand: [command: string];
+  /** 打开云文档同步弹窗 */
+  openCloudSync: [];
   /** 打开偏好设置弹窗 */
   openPersonalization: [];
   /** 点击会话徽标，打开有效期设置弹窗 */

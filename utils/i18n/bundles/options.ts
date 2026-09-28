@@ -10,6 +10,7 @@
 import { registerMessages, type Messages } from '@/utils/i18n';
 import zhAuth from '@/utils/i18n/locales/zh-CN/auth.json';
 import zhBackup from '@/utils/i18n/locales/zh-CN/backup.json';
+import zhCloudSync from '@/utils/i18n/locales/zh-CN/cloudSync.json';
 import zhCommon from '@/utils/i18n/locales/zh-CN/common.json';
 import zhExcel from '@/utils/i18n/locales/zh-CN/excel.json';
 import zhFill from '@/utils/i18n/locales/zh-CN/fill.json';
@@ -27,6 +28,7 @@ import zhValidity from '@/utils/i18n/locales/zh-CN/validity.json';
 import zhVerify from '@/utils/i18n/locales/zh-CN/verify.json';
 import enAuth from '@/utils/i18n/locales/en/auth.json';
 import enBackup from '@/utils/i18n/locales/en/backup.json';
+import enCloudSync from '@/utils/i18n/locales/en/cloudSync.json';
 import enCommon from '@/utils/i18n/locales/en/common.json';
 import enExcel from '@/utils/i18n/locales/en/excel.json';
 import enFill from '@/utils/i18n/locales/en/fill.json';
@@ -47,6 +49,7 @@ registerMessages(
   'zh-CN',
   zhAuth,
   zhBackup,
+  zhCloudSync,
   zhCommon,
   zhExcel,
   zhFill,
@@ -67,6 +70,7 @@ registerMessages(
   'en',
   enAuth,
   enBackup,
+  enCloudSync,
   enCommon,
   enExcel,
   enFill,
