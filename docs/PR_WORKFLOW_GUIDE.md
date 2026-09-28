@@ -194,7 +194,7 @@ git log --oneline origin/main -20
 2. 合并它 → tag 与 GitHub Release 生成。
 3. Actions 里找到该 run → **Review deployments** → **Approve and wait** → **Approve**。
 4. 等 `build-and-upload` 跑完，确认三件事：Release 页面挂上了 `account-password-helper-X.Y.Z-chrome.zip`；`Verify CWS OAuth credentials` 绿；`Publish to Chrome Web Store` 绿。
-5. 去 [Developer Dashboard](https://chrome.google.com/webstore/devconsole) 确认草稿已变成「在审核中」，并按 `docs/CWS_PUBLISHING_GUIDE.md` 第五步做事实一致性校验。
+5. 去 [Developer Dashboard](https://chrome.google.com/webstore/devconsole) 确认草稿已变成「在审核中」，并按 `docs/store/CWS_PUBLISHING_GUIDE.md` 第五步做事实一致性校验。
 
 ### 2.4 热修（线上版本有安全问题）
 
@@ -258,7 +258,7 @@ git branch -D feature-fixbug Feature-ai-tip            # 仅当上面 diff 为�
 | `.github/dependabot.yml`               | pnpm 每周限量 + `increase-if-necessary`；Actions 每月限量；`prefix: chore`                                                                  | 新增 |
 | `.github/PULL_REQUEST_TEMPLATE.md`     | 顶部说明标题即版本输入、合 PR ≠ 发布                                                                                                        | 改   |
 | `docs/CONTRIBUTING.md`                 | 中英两半新增「分支模型与发版流程」，并修正「GitHub 会自动 squash」这句与历史不符的表述                                                      | 改   |
-| `docs/CWS_PUBLISHING_GUIDE.md`         | 第三步补 `production` 审批环节与「环境没建就等于没闸门」的警告                                                                              | 改   |
+| `docs/store/CWS_PUBLISHING_GUIDE.md`   | 第三步补 `production` 审批环节与「环境没建就等于没闸门」的警告                                                                              | 改   |
 
 `pr-title.yml` 的内联校验逻辑已在本地按 GitHub Actions 相同方式（`bash -c` + env 注入）跑过 14 个用例：4 类合法标题通过；`Update readme`、中文冒号 `feat：`、`wip:`、空标题、`feat!:` 全部被拦；机器人账号放行；含 `$(reboot)` 与反引号的标题只被判格式不合法、未被执行。带 `BREAKING CHANGE` 的 PR 描述出警告不出红灯。
 

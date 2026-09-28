@@ -20,7 +20,7 @@
 >
 > ⚠️ **2026-09-09：3.8.0 草稿被拒**，违规类型为 [Spam 政策 - 关键字堆砌](https://developer.chrome.com/webstore/program_policies#spam)，被点名的文本是 `Chrome, LastPass, Bitwarden, and 1Password (CSV/JSON formats`。**旧草稿已关闭，只能在 Dashboard 新建草稿重新提交**，不能在原草稿上改。
 >
-> 🚫 修正口径：**名称、摘要、说明、权限合理性说明、宣传图与 Featured 提名文案一律不得出现竞品品牌名**（Chrome / LastPass / Bitwarden / 1Password），一律改用「常见密码管理器的导出格式」这类描述性说法。下方第二步、第七步已据此改写，并在 `docs/CWS_PUBLISHING_GUIDE.md` 的提交前扫描中加入品牌名与重复度检查。
+> 🚫 修正口径：**名称、摘要、说明、权限合理性说明、宣传图与 Featured 提名文案一律不得出现竞品品牌名**（Chrome / LastPass / Bitwarden / 1Password），一律改用「常见密码管理器的导出格式」这类描述性说法。下方第二步、第七步已据此改写，并在 `docs/store/CWS_PUBLISHING_GUIDE.md` 的提交前扫描中加入品牌名与重复度检查。
 >
 > 🔢 3.8.0 从未上架（线上仍是 3.7.0），但 `main` 已经 release-please 连续打过 v3.8.0、v3.9.0 两个标签，当前 `main` 的 `package.json` 是 **3.9.0**。要上传的包必须比线上版本号更高：把发布分支同步到 `main` 后 `pnpm build`，产物即 `account-password-helper-3.9.0-chrome.zip`。
 >
@@ -95,9 +95,9 @@
 > - **会话检查器**：`docs/ARCHITECTURE.md:281`（含 `ARCHITECTURE.en.md:120`）写「每分钟检查 + 可见性变化触发」，60 秒定时器确实存在（`utils/sessionManager.ts:37,48`），但只在 **Options 页**启动、只在「有效 → 无效」跳变时触发，可见性重检属于 `composables/useStorageWatcher.ts:76-80` 而非 SessionManager；本文「会话生命周期」:77 一直是准确的，:281 现与其一致。
 > - **匹配规则旧注释**：`entrypoints/background/passwordCache.ts:493` 仍描述 2026-07 之前的「域名与 url 双向包含」模糊匹配，与同函数 25 行下的准确注释矛盾，已改为精确 host + 本地按端口。
 > - **Chrome 版本门槛**：`entrypoints/background/optionsPageManager.ts:62` 注释称「manifest 已声明 minimum_chrome_version，Chrome < 116 理论不可达」，实际 `wxt.config.ts:92` 该行是**注释掉的**（`docs/CONTRIBUTING.md:99` 记录的是正确口径），该降级分支是可达的兜底路径。
-> - **未改动**：`docs/blog/**`、`blog/*.html`、`docs/公众号-*.md`、`docs/微博-*.md` 里同样的「localhost 放行全部」写法属**已发布内容**，改动需重发并回改 `pnpm gen:blog` 相关计数，留待单独决策，不在本轮范围内。
+> - **未改动**：`docs/blog/**`、`blog/*.html`、`docs/operations/公众号-*.md`、`docs/operations/微博-*.md` 里同样的「localhost 放行全部」写法属**已发布内容**，改动需重发并回改 `pnpm gen:blog` 相关计数，留待单独决策，不在本轮范围内。
 >
-> ✅ **自检结果（本轮）**：`paste blocks: 6 | banned hits: none`；中英说明**跨小节近似重复句为零**（difflib 阈值 0.72 全对扫描）；四个 `_locales` 值与粘贴块逐字一致。说明长度中文 **3293 → 4638** / 英文 **9504 → 13870** 字符（上限 16,000；**英文侧余量已收窄到约 2,100 字符**，后续再回填须优先动中文或先删已有内容）。**注意**：中文说明里 3,080 词、GBK 回落等新增事实目前只在商店文案，若要让 README / 官网与之一致，另按 `docs/CWS_PUBLISHING_GUIDE.md`「其他同步约定」评估范围。
+> ✅ **自检结果（本轮）**：`paste blocks: 6 | banned hits: none`；中英说明**跨小节近似重复句为零**（difflib 阈值 0.72 全对扫描）；四个 `_locales` 值与粘贴块逐字一致。说明长度中文 **3293 → 4638** / 英文 **9504 → 13870** 字符（上限 16,000；**英文侧余量已收窄到约 2,100 字符**，后续再回填须优先动中文或先删已有内容）。**注意**：中文说明里 3,080 词、GBK 回落等新增事实目前只在商店文案，若要让 README / 官网与之一致，另按 `docs/store/CWS_PUBLISHING_GUIDE.md`「其他同步约定」评估范围。
 
 > 🪪 **八次修订（2026-09-16，身份信息库上线）**：新增「身份信息库」功能后，在【安全架构】【功能全览】【常见问题】与「storage」权限说明各补一句**事实描述**（整块 AES-256-GCM 加密、默认掩码、主密码复验、.aphid 加密备份、不随浏览器账号同步），中英文同步——**只陈述事实，不新增任何营销卖点**，身份库也不改变「本地优先 / 不收集用户数据」的既有口径。名称与摘要**未动**（新能力不进 45 字符名称与 132 字符摘要，避免又踩 keyword stuffing）。说明长度中文 **4638 → 4895** / 英文 **13870 → 14636** 字符（上限 16,000，英文侧余量约 1,400 字符）。
 
@@ -107,9 +107,9 @@
 
 > 🧭 **十一修订（2026-09-22，内联下拉与侧边栏口径对齐）**：把「页内迷你面板与侧边栏同一套键盘流程、打开即默认选中首条、回车即填」并入【功能全览】既有的「键盘完成全流程」一行，把「面板搜索与管理页 / 侧边栏同一口径（账号 / 标签 / 备注 / 网址，认拼音全拼与首字母）」与「本站无匹配时把关键词交给管理页做全库搜索」并入【第七步】使用情形示例第 4 条——两处都挂在已有小节的已有行上，不新增卖点、不新增条目、不与【智能搜索与整理】重复成句。输入法合成期不接管按键这一实现细节**不写进商店说明**（属防御性行为而非检索词，见 `docs/ARCHITECTURE.md` 第 17 节与侧边栏帮助词条）。名称与摘要**未动**。说明长度 中文 **5315 → 5344** / 英文 **15622 → 15739** 字符（上限 16,000）。⚠️ 承接十次修订的预算提醒：本轮英文仍不得不 +117，**英文侧余量只剩约 261 字符**，下一次回填英文前须先删英文已有内容。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零。
 
-> 🏗️ **十二修订（2026-09-24，容量上限与列表分页回灌中文说明）**：本轮**只动中文**，两处新增都挂在已有小节的已有行上，不新增小节、不加营销口号。① 【功能全览】的「智能搜索与整理」末尾并入**管理页分页**（每页 50 / 100 / 200 条、默认 100 条，一次只画当前这一页；搜索 / 排序 / 导出作用的仍是全部命中条目，跨页勾选保留）——依据 `utils/vaultPagination.ts` 的 `PAGE_SIZE_OPTIONS` / `DEFAULT_PAGE_SIZE` 与 `tests/utils/vaultPagination.test.ts`；刻意**不写**「表头全选只勾当前页」这类操作手册级细节（由 README 常见问题与侧边栏帮助词条承载），商店说明只承担「分页不会让你少处理任何一条」这个卖点。② 【常见问题】新增一条**条目总量上限 2000 条**的问答，逐项列明被拒绝的五个写入口（新增 / 创建副本 / 导入 / 网页自动保存 / 回收站恢复）与「不会静默覆盖或删除已保存数据」，并写明导入超量时预览页的「还能导入多少条 / 将被忽略多少条」口径——依据 `utils/storage/vaultCapacity.ts` 的 `MAX_PASSWORD_ENTRIES`、`assertWithinCapacity()` 在 `passwordCrud.ts` / `trashManager.ts` 写路径之前的调用、五处 `options.capacity.*Blocked` 与 `bg.autoSave.capacityReached` 文案。**回收站不占额度**按 `passwordCrud.ts` 的实际计数来源（列表长度）如实写明，这条同时是「删除即释放额度」的可执行提示。上限本身是既有事实、此前只在 README 与 `docs/ARCHITECTURE.md`，商店侧为首次披露。名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算）。说明长度 中文 **5344 → 5560** / 英文 **15739（未动）** 字符（上限 16,000）。⚠️ **英文本轮未回填**：按十一修订的记录，英文侧余量只剩约 261 字符，而这两条中文新增（+216 字符）翻成同等信息量的英文按字符密度估算约需 450~520 字符，**放不进去**；下一轮若要动英文，必须先删英文已有内容，否则就是拿中英说明口径不一致去换预算。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零；四个 `_locales` 值与粘贴块逐字一致。（长度口径＝`docs/CWS_PUBLISHING_GUIDE.md`「第五步 → 快速校验命令」那段 python 自检里的 `len(blocks[i].strip())`，即去掉粘贴块首尾空行之后的字符数，与历轮记录同一把尺子。）
+> 🏗️ **十二修订（2026-09-24，容量上限与列表分页回灌中文说明）**：本轮**只动中文**，两处新增都挂在已有小节的已有行上，不新增小节、不加营销口号。① 【功能全览】的「智能搜索与整理」末尾并入**管理页分页**（每页 50 / 100 / 200 条、默认 100 条，一次只画当前这一页；搜索 / 排序 / 导出作用的仍是全部命中条目，跨页勾选保留）——依据 `utils/vaultPagination.ts` 的 `PAGE_SIZE_OPTIONS` / `DEFAULT_PAGE_SIZE` 与 `tests/utils/vaultPagination.test.ts`；刻意**不写**「表头全选只勾当前页」这类操作手册级细节（由 README 常见问题与侧边栏帮助词条承载），商店说明只承担「分页不会让你少处理任何一条」这个卖点。② 【常见问题】新增一条**条目总量上限 2000 条**的问答，逐项列明被拒绝的五个写入口（新增 / 创建副本 / 导入 / 网页自动保存 / 回收站恢复）与「不会静默覆盖或删除已保存数据」，并写明导入超量时预览页的「还能导入多少条 / 将被忽略多少条」口径——依据 `utils/storage/vaultCapacity.ts` 的 `MAX_PASSWORD_ENTRIES`、`assertWithinCapacity()` 在 `passwordCrud.ts` / `trashManager.ts` 写路径之前的调用、五处 `options.capacity.*Blocked` 与 `bg.autoSave.capacityReached` 文案。**回收站不占额度**按 `passwordCrud.ts` 的实际计数来源（列表长度）如实写明，这条同时是「删除即释放额度」的可执行提示。上限本身是既有事实、此前只在 README 与 `docs/ARCHITECTURE.md`，商店侧为首次披露。名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算）。说明长度 中文 **5344 → 5560** / 英文 **15739（未动）** 字符（上限 16,000）。⚠️ **英文本轮未回填**：按十一修订的记录，英文侧余量只剩约 261 字符，而这两条中文新增（+216 字符）翻成同等信息量的英文按字符密度估算约需 450~520 字符，**放不进去**；下一轮若要动英文，必须先删英文已有内容，否则就是拿中英说明口径不一致去换预算。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零；四个 `_locales` 值与粘贴块逐字一致。（长度口径＝`docs/store/CWS_PUBLISHING_GUIDE.md`「第五步 → 快速校验命令」那段 python 自检里的 `len(blocks[i].strip())`，即去掉粘贴块首尾空行之后的字符数，与历轮记录同一把尺子。）
 
-> 🧺 **十三修订（2026-09-25，回收站排序与检索回灌中英说明）**：本轮**中英各动一行**，两处都挂在【功能全览】已有的「回收站与修改历史」行尾，不新增小节、不加营销口号——回收站列表现在按**最近删除排在最前**，并带一个按**用户名 / 网址 / 标签**过滤的关键词检索框（实现见 [TrashDialog.vue](../components/options/TrashDialog.vue) 与 `getTrashEntries`（[trashManager.ts](../utils/storage/trashManager.ts)）；可搜范围刻意只限弹窗已解密的三项，不为检索多解一类字段，锁定态那一屏也不参与检索）。说明长度 中文 **5560 → 5597** / 英文 **15739 → 15827** 字符（上限 16,000；**英文侧余量由约 261 收窄到约 173 字符**，下一轮若要再动英文说明必须先删已有内容）。名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算）。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零。
+> 🧺 **十三修订（2026-09-25，回收站排序与检索回灌中英说明）**：本轮**中英各动一行**，两处都挂在【功能全览】已有的「回收站与修改历史」行尾，不新增小节、不加营销口号——回收站列表现在按**最近删除排在最前**，并带一个按**用户名 / 网址 / 标签**过滤的关键词检索框（实现见 [TrashDialog.vue](../../components/options/TrashDialog.vue) 与 `getTrashEntries`（[trashManager.ts](../../utils/storage/trashManager.ts)）；可搜范围刻意只限弹窗已解密的三项，不为检索多解一类字段，锁定态那一屏也不参与检索）。说明长度 中文 **5560 → 5597** / 英文 **15739 → 15827** 字符（上限 16,000；**英文侧余量由约 261 收窄到约 173 字符**，下一轮若要再动英文说明必须先删已有内容）。名称与摘要**未动**（45 / 132 字符额度是 3.8.0 keyword stuffing 驳回后的既定预算）。自检：`paste blocks: 6 | banned hits: none`，中英说明跨小节重复行均为零。
 
 ### 说明 (Description) — 最多 16,000 字符
 
@@ -356,7 +356,7 @@ public/icon/128.png
 >
 > ⚠️ **标题带文案的合规约束与商店文案完全一致**：零竞品品牌名、零绝对化表述（不写「零联网 / 100% offline / 数据不出浏览器」——扩展每 6 小时有一次不携带用户数据的匿名版本检查）。改文案后必须重新跑一遍本节「生成方式」的脚本。
 >
-> 🚫 **旧的 `01-*.png` ~ `12-*.png` 不要再上传商店**：那 12 张拍摄于 2026-07-29 的 **v2.12.0**，界面版本徽章过期，其中 `01-master-password.png` 还带着已删除的「严禁……后果自负」旧声明，且含真实账号邮箱。**README 与 README.en.md 已于 2026-09-11 改用新的 `assets/cws-store/screen-*.png`（中英各 14 张，英文页取 `-en` 版），不再引用这批旧图**；它们若仍出现在其他文档或页面，需另行重截（见 `docs/exposure-status.md` 残留待办）。
+> 🚫 **旧的 `01-*.png` ~ `12-*.png` 不要再上传商店**：那 12 张拍摄于 2026-07-29 的 **v2.12.0**，界面版本徽章过期，其中 `01-master-password.png` 还带着已删除的「严禁……后果自负」旧声明，且含真实账号邮箱。**README 与 README.en.md 已于 2026-09-11 改用新的 `assets/cws-store/screen-*.png`（中英各 14 张，英文页取 `-en` 版），不再引用这批旧图**；它们若仍出现在其他文档或页面，需另行重截（见 `docs/operations/exposure-status.md` 残留待办）。
 
 ### 生成方式（可复现）
 
@@ -431,13 +431,13 @@ assets/cws-store/marquee-en-1400x560.png       # English (United States) 语言�
 
 > 非必须，但官方推荐提供演示视频/GIF 展示核心功能，能显著提升审核印象。
 >
-> ⚠️ **旧素材已退役**：仓库里早期的 `docs/demo-login.*` 是真机录屏，画面含作者的真实
+> ⚠️ **旧素材已退役**：仓库里早期的 `docs/media/demo-login.*` 是真机录屏，画面含作者的真实
 > GitHub 用户名、实时 TOTP 活码和已登录的业务面板，属于凭据泄露素材。
-> **2026-09-13 已重录**：`docs/demo-login.webp` / `demo-login-en.webp` / `demo-login.gif`
+> **2026-09-13 已重录**：`docs/media/demo-login.webp` / `demo-login-en.webp` / `demo-login.gif`
 > 现由 `scripts/store-shots/record.mjs` 从占位演示页生成（`example.com` 数据），
 > README 首屏已换回动图；同一天补录了两步验证接力动图
-> `docs/demo-totp.webp` / `demo-totp-en.webp` / `demo-totp.gif`，同样全部是占位数据。
-> **唯独 `docs/demo-login.mp4` 仍是旧真机录屏，不得引用。**
+> `docs/media/demo-totp.webp` / `demo-totp-en.webp` / `demo-totp.gif`，同样全部是占位数据。
+> **唯独 `docs/media/demo-login.mp4` 仍是旧真机录屏，不得引用。**
 > **今后任何截图与录屏一律基于 `scripts/store-shots/` 的占位演示页**
 > （`demo-login.html` / `demo-2fa.html` + `example.com` 数据），不要录制真实账号画面。
 
@@ -449,7 +449,7 @@ assets/cws-store/marquee-en-1400x560.png       # English (United States) 语言�
 | 时长     | 7–15 秒（当前实现为 4 个关键帧、1.4/1.2/2/2.4 秒，一轮约 7 秒）                                                                                                                                        |
 | 宽度     | 800–1000px                                                                                                                                                                                             |
 | 文件大小 | ≤ 5MB（可用 [ezgif.com](https://ezgif.com) 或 `ffmpeg` 压缩）                                                                                                                                          |
-| 存放位置 | `docs/demo-login.gif`（900px 宽，推广文档引用）+ `docs/demo-login.webp` / `docs/demo-login-en.webp`（1152×720，README 功能演示动画位）                                                                 |
+| 存放位置 | `docs/media/demo-login.gif`（900px 宽，推广文档引用）+ `docs/media/demo-login.webp` / `docs/media/demo-login-en.webp`（1152×720，README 功能演示动画位）                                               |
 | 录制工具 | `node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" zh\|en login`——CDP 驱动本地 Chrome 走扩展真实填充链路取关键帧，再合成品牌标题带                                                         |
 | 压缩命令 | 由 `record.mjs` 内部调用 `ffmpeg` 完成（webp：`-fps_mode passthrough -c:v libwebp -quality 72`；gif：`palettegen=stats_mode=diff` + `paletteuse`）                                                     |
 
@@ -460,8 +460,8 @@ assets/cws-store/marquee-en-1400x560.png       # English (United States) 语言�
 | 内容脚本 | 登录页唤起**页内填充面板** → 方向键 + 回车选中条目（账号密码自动填充、「记住我」自动勾选）→ 点登录进入受理中 → **同一标签页**跳验证码页 → 活码胶囊自动锚定到输入框右内缘 → 点「填入页面验证码输入框」→ 动态码进框 → 点 Verify 验证成功 |
 | 时长     | 6 个关键帧、1.5/1.4/1.3/2.2/1.6/2.1 秒，一轮约 10 秒                                                                                                                                                                                   |
 | 宽度     | 800–1000px（当前产出 900px 宽 gif）                                                                                                                                                                                                    |
-| 文件大小 | ≤ 5MB（当前 `docs/demo-totp.gif` 约 160KB）                                                                                                                                                                                            |
-| 存放位置 | `docs/demo-totp.gif`（推广文章配图）+ `docs/demo-totp.webp` / `docs/demo-totp-en.webp`（1152×720，README 首屏）                                                                                                                        |
+| 文件大小 | ≤ 5MB（当前 `docs/media/demo-totp.gif` 约 160KB）                                                                                                                                                                                      |
+| 存放位置 | `docs/media/demo-totp.gif`（推广文章配图）+ `docs/media/demo-totp.webp` / `docs/media/demo-totp-en.webp`（1152×720，README 首屏）                                                                                                      |
 | 录制工具 | `node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" zh\|en totp`——与 GIF 1 同一套流水线，只是换了场景参数                                                                                                                   |
 | 画面口径 | 站点 `console.example.com`、条目 `ops@example.com`（占位 TOTP 密钥），全部 `example.com` 数据，不含真实凭据                                                                                                                            |
 
@@ -809,7 +809,7 @@ No specific website accounts are required. The extension treats all websites uni
 ### 7.4 注意事项
 
 - **竞品品牌名一律不写**：2026-09-09 的 3.8.0 草稿就是被 `Chrome, LastPass, Bitwarden, and 1Password (CSV/JSON formats` 这句判为 keyword stuffing（[spam 政策](https://developer.chrome.com/webstore/program_policies#spam)）。商店的名称、摘要、说明、宣传图与提名文案只写「常见密码管理器的导出格式」；扩展**内**的导入向导 UI 可以保留具体格式名，因为那是功能说明而非商店元数据。
-- **卖点只在一处展开，不靠删篇幅**：2026-09-10 二次修订后，中文说明恢复为【为什么选择它】【适合谁】【怎么使用】【安全架构】【功能全览】【常见问题】六个小节，去重方式是**让每个卖点只有一个归属小节**（一键登录与多环境隔离只在【为什么选择它】、会话有效期与自动锁定只在【适合谁】、算法与参数只在【安全架构】、入口与清单只在【功能全览】、联网/性能/权限口径只在【常见问题】），而不是把小节整体砍掉。提交前用 `docs/CWS_PUBLISHING_GUIDE.md` 的重复度扫描过一遍。
+- **卖点只在一处展开，不靠删篇幅**：2026-09-10 二次修订后，中文说明恢复为【为什么选择它】【适合谁】【怎么使用】【安全架构】【功能全览】【常见问题】六个小节，去重方式是**让每个卖点只有一个归属小节**（一键登录与多环境隔离只在【为什么选择它】、会话有效期与自动锁定只在【适合谁】、算法与参数只在【安全架构】、入口与清单只在【功能全览】、联网/性能/权限口径只在【常见问题】），而不是把小节整体砍掉。提交前用 `docs/store/CWS_PUBLISHING_GUIDE.md` 的重复度扫描过一遍。
 - **用户量不是门槛**：即使不到 100 个用户，只要符合质量标准也能获批。
 - **徽章可被撤销**：获批后若质量下降、出现违规或性能问题，Google 会移除徽章。
 - **不能购买**：Featured 完全基于质量评估，没有任何付费通道。
@@ -853,7 +853,7 @@ No specific website accounts are required. The extension treats all websites uni
 - [ ] 英文语言版本已添加（Languages → English）
 - [ ] Marquee 宣传图（1400×560）已在商店上传
 - [ ] Small Promo Tile（440×280）已在商店上传
-- [x] 演示 GIF 已制作（`docs/demo-login.gif` + `docs/demo-login{,-en}.webp`，以及两步验证接力 `docs/demo-totp.gif` + `docs/demo-totp{,-en}.webp`，2026-09-13 由 `record.mjs` 从占位演示页录制，不含真实凭据）
+- [x] 演示 GIF 已制作（`docs/media/demo-login.gif` + `docs/media/demo-login{,-en}.webp`，以及两步验证接力 `docs/media/demo-totp.gif` + `docs/media/demo-totp{,-en}.webp`，2026-09-13 由 `record.mjs` 从占位演示页录制，不含真实凭据）
 - [ ] 7.2 英文提名文案已逐字段粘贴到 One Stop Support 表单
 - [ ] 插件 ID（`fgimkdodpjfkddmildjieojpfakpanli`）与联系邮箱已填写
 - [ ] 提交后记录日期（6 个月内不可重复提名）

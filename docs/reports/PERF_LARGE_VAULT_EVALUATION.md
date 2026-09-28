@@ -324,13 +324,13 @@ node benchmarks/measure-options-perf.mjs --rows 600 --repeat 5 --fresh --label b
 
 ### 9.1 改动清单（逐项对应第五节）
 
-| 缺陷      | 落地内容                                                                                                                                                                                                                                                                             | 文件                                                                                                                                                                                                                                     |
-| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1（部分） | 标签监听从 `(e) => checkTagOverflow(e, tagName)` 改为直接绑 `checkTagOverflow`，标签名由触发元素自带的 `data-tag` 读回——每行每个标签不再在渲染期新建监听闭包                                                                                                                         | [useTagOverflow.ts](../composables/useTagOverflow.ts)、[PasswordTable.vue](../components/options/PasswordTable.vue)                                                                                                                      |
-| 2         | `tooltipRefs` 由响应式 `ref([])` 改为**非响应式** `Map<'rowId::action', instance>`：函数式 ref 收到实例时写入、收到 `null` 时删除（卸载也会回调 `null`，故集合自愈），`onBeforeUpdate` 只遍历 close、不再清空                                                                        | [PasswordTable.vue](../components/options/PasswordTable.vue)                                                                                                                                                                             |
-| 3         | 表格的 `search-keyword` 改接防抖后的 `debouncedSearchKeyword`；`findMatchRange` 的拼音分支加 `(text, keyword)` 记忆缓存（2000 条、按插入顺序淘汰）                                                                                                                                   | [App.vue](../entrypoints/options/App.vue)、[usePasswordManagement.ts](../composables/usePasswordManagement.ts)、[searchMatch.ts](../utils/searchMatch.ts)                                                                                |
-| 4         | 行标签呈现改走 `buildTagPresentationRecords` 的模块级缓存（键为原始 tag 字符串，500 组上限，返回冻结数组/冻结样式对象）；popper 样式提为模块级冻结常量；模板内不再出现 `parseTags()` 与内联 `:style="{…}"`；`openAddDialogWithActiveTab` 的两次 `tabs.query` 改为 `Promise.all` 并发 | [tagUtils.ts](../utils/tagUtils.ts)、[PasswordTable.vue](../components/options/PasswordTable.vue)、[App.vue](../entrypoints/options/App.vue)                                                                                             |
-| 5         | 本地操作守卫改为**事件驱动解除**：`runLocalOperation` 置位后由 watcher 在真正跳过一次密码变更时调 `consumeLocalOperation` 落回，另设 2 s 兜底上限；写入抛错（未落存储）立即解除。Options 经 `useStorageWatcher` 的新 `consumeSkip` 选项接入，SidePanel 在其自身的跳过分支内解除      | [useLocalOperationGuard.ts](../composables/useLocalOperationGuard.ts)、[useStorageWatcher.ts](../composables/useStorageWatcher.ts)、[App.vue](../entrypoints/options/App.vue)、[useSidepanelData.ts](../composables/useSidepanelData.ts) |
+| 缺陷      | 落地内容                                                                                                                                                                                                                                                                             | 文件                                                                                                                                                                                                                                                 |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1（部分） | 标签监听从 `(e) => checkTagOverflow(e, tagName)` 改为直接绑 `checkTagOverflow`，标签名由触发元素自带的 `data-tag` 读回——每行每个标签不再在渲染期新建监听闭包                                                                                                                         | [useTagOverflow.ts](../../composables/useTagOverflow.ts)、[PasswordTable.vue](../../components/options/PasswordTable.vue)                                                                                                                            |
+| 2         | `tooltipRefs` 由响应式 `ref([])` 改为**非响应式** `Map<'rowId::action', instance>`：函数式 ref 收到实例时写入、收到 `null` 时删除（卸载也会回调 `null`，故集合自愈），`onBeforeUpdate` 只遍历 close、不再清空                                                                        | [PasswordTable.vue](../../components/options/PasswordTable.vue)                                                                                                                                                                                      |
+| 3         | 表格的 `search-keyword` 改接防抖后的 `debouncedSearchKeyword`；`findMatchRange` 的拼音分支加 `(text, keyword)` 记忆缓存（2000 条、按插入顺序淘汰）                                                                                                                                   | [App.vue](../../entrypoints/options/App.vue)、[usePasswordManagement.ts](../../composables/usePasswordManagement.ts)、[searchMatch.ts](../../utils/searchMatch.ts)                                                                                   |
+| 4         | 行标签呈现改走 `buildTagPresentationRecords` 的模块级缓存（键为原始 tag 字符串，500 组上限，返回冻结数组/冻结样式对象）；popper 样式提为模块级冻结常量；模板内不再出现 `parseTags()` 与内联 `:style="{…}"`；`openAddDialogWithActiveTab` 的两次 `tabs.query` 改为 `Promise.all` 并发 | [tagUtils.ts](../../utils/tagUtils.ts)、[PasswordTable.vue](../../components/options/PasswordTable.vue)、[App.vue](../../entrypoints/options/App.vue)                                                                                                |
+| 5         | 本地操作守卫改为**事件驱动解除**：`runLocalOperation` 置位后由 watcher 在真正跳过一次密码变更时调 `consumeLocalOperation` 落回，另设 2 s 兜底上限；写入抛错（未落存储）立即解除。Options 经 `useStorageWatcher` 的新 `consumeSkip` 选项接入，SidePanel 在其自身的跳过分支内解除      | [useLocalOperationGuard.ts](../../composables/useLocalOperationGuard.ts)、[useStorageWatcher.ts](../../composables/useStorageWatcher.ts)、[App.vue](../../entrypoints/options/App.vue)、[useSidepanelData.ts](../../composables/useSidepanelData.ts) |
 
 > 第 2 行只是把登记容器换成非响应式 `Map`，属于"止血"；每行那 5 个 tooltip **实例**本身在轮四被整体消掉，见 9.10。
 
@@ -366,7 +366,7 @@ node benchmarks/measure-options-perf.mjs --rows 600 --repeat 5 --fresh --label b
 
 - 真机：`save` 场景 CDP `ScriptDuration` 中位数 **6.419 s → 0.221 s**（见 9.5），正是"一次保存变成
   全量重载"被消除的量级；`favorite` 的阻塞时长 **54.1 s → 29.0 s** 同理。
-- 单测：[useStorageWatcher.localOperation.test.ts](../tests/composables/useStorageWatcher.localOperation.test.ts)
+- 单测：[useStorageWatcher.localOperation.test.ts](../../tests/composables/useStorageWatcher.localOperation.test.ts)
   以"事件晚于宏任务到达"为前置构造 7 个用例，其中迟到事件用例在旧实现下必红（旧口径 `setTimeout(0)`
   清除已在同一测试文件下复现失败）。
 
@@ -603,10 +603,10 @@ Element Plus 的 tooltip 内部是一串 popper 组件链），或减少一次 f
 ### 9.11 分页落地后的真机前后对比：曲线被压平，剩下的余量在数据层（2026-09-23 下午）
 
 把 9.10 结尾那道二选一按第 2 条落地：管理页 `el-table` 的 `data` 恒为**一页**（默认 100，可选 50 / 100 / 200，
-**不设"全部"档**），切片由 [useVaultListPagination.ts](../composables/useVaultListPagination.ts) 承担、
-页码条由 [VaultPagination.vue](../components/options/VaultPagination.vue) 承载（档位常量与页码折叠算法
-在评审后另下沉到 [vaultPagination.ts](../utils/vaultPagination.ts)，见 9.12 第 1 条），
-接线与四条不变量记在 [ARCHITECTURE.md](./ARCHITECTURE.md)「管理页大 Vault 渲染性能」的"管理页分页"条。
+**不设"全部"档**），切片由 [useVaultListPagination.ts](../../composables/useVaultListPagination.ts) 承担、
+页码条由 [VaultPagination.vue](../../components/options/VaultPagination.vue) 承载（档位常量与页码折叠算法
+在评审后另下沉到 [vaultPagination.ts](../../utils/vaultPagination.ts)，见 9.12 第 1 条），
+接线与四条不变量记在 [ARCHITECTURE.md](../ARCHITECTURE.md)「管理页大 Vault 渲染性能」的"管理页分页"条。
 
 **测量口径的两处不得不改，先说清，否则下面的数字会被读错**
 
@@ -682,7 +682,7 @@ Element Plus 的 tooltip 内部是一串 popper 组件链），或减少一次 f
 扩展页启动 + 会话校验 + `storage.local` 整包读取与解密 + 应用骨架挂载。
 DOM 探针在同一条证据里排除了渲染因素（三档节点数逐字一致）。
 所以 P3（数据层削峰，第七节）现在的目标从"治大 Vault 卡顿"精确成"**削掉这 3～5 秒的固定底盘**"，
-而不再涉及渲染行数；配额墙与整包 IO 的口径见 [ARCHITECTURE.md](./ARCHITECTURE.md)「数据层大 Vault 成本与改造路线」。
+而不再涉及渲染行数；配额墙与整包 IO 的口径见 [ARCHITECTURE.md](../ARCHITECTURE.md)「数据层大 Vault 成本与改造路线」。
 
 ### 9.12 深度评审后的收尾五项（2026-09-24，全部不改外部行为）
 
@@ -691,7 +691,7 @@ DOM 探针在同一条证据里排除了渲染因素（三档节点数逐字一�
 
 1. **分页纯计算下沉**：`PAGE_SIZE_OPTIONS` / `DEFAULT_PAGE_SIZE` / `PaginationPagerItem` /
    `pageForSizeChange` / `buildPagerItems` 从 `composables/useVaultListPagination.ts` 移到
-   [utils/vaultPagination.ts](../utils/vaultPagination.ts)，composable 只留响应式状态与两个 watcher。
+   [utils/vaultPagination.ts](../../utils/vaultPagination.ts)，composable 只留响应式状态与两个 watcher。
    理由是 agents.md 的技术栈边界（纯函数与无状态算法放 `utils/`，composable 负责响应式与副作用），
    实际收益是页码折叠与换档落点这两套规则可以在 `tests/utils/vaultPagination.test.ts` 里
    不挂组件直接单测。**外部行为逐字不变**：函数体一行未改，只是搬位置 + 拆测试文件。
@@ -710,7 +710,7 @@ DOM 探针在同一条证据里排除了渲染因素（三档节点数逐字一�
    单点定义。回归：`tests/composables/useRuntimeMessageHandler.searchKeyword.test.ts` 的超长截断用例。
 5. **基准可比性与守卫牙齿**：`warmPinyinMatcher()` 翻的是模块级就绪标志且在收集阶段完成，
    顶层 `await` 会把同文件的侧边栏基线从"纯子串"变成"每字段问一遍拼音"——§3.1 那张表因此不可比。
-   拼音用例整体搬到 [benchmarks/pinyin-keyword.bench.ts](../benchmarks/pinyin-keyword.bench.ts)
+   拼音用例整体搬到 [benchmarks/pinyin-keyword.bench.ts](../../benchmarks/pinyin-keyword.bench.ts)
    （自带预热、独立 worker），夹具抽到 `benchmarks/fixtures/vaultDataset.ts` 让两个文件看到同一份数据；
    §3.1 与 §9.7 的口径与命令已相应更新。侧边栏首屏闭包的 `.aphid` 判据补第三判据
    （`} aphid` / `${` 相邻的模板插值形态——正是第二版漏掉的 `backup${n}.aphid${ts}`），

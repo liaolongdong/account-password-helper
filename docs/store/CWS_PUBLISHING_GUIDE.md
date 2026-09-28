@@ -186,7 +186,7 @@
 | 助记词词库      | 内置 **3080** 词词库（≈46 bit），表述为「思路参考 EFF Diceware」。禁止写「EFF 2048 词」                                                                                                                                                                                                                                                                                                                                           | CONTRIBUTING、CWS_FILL_CONTENT.md、llms.txt、help.json、passphraseGenerator.ts（均已订正为 3080 / ≈46 bit）                                                  |
 | 密码历史        | 每条可配 1~10 份加密快照，**默认 3 份**（`DEFAULT_MAX_HISTORY_PER_ENTRY = 3`）。禁止写默认 5 份                                                                                                                                                                                                                                                                                                                                   | README、ARCHITECTURE、index.html、pricing.md、llms.txt                                                                                                       |
 | 导入导出格式    | CSV / JSON 双格式，自动识别 Chrome / LastPass / Bitwarden / 1Password 导出；**不解析 .xlsx**（Excel 只体现为「导出的 CSV 可直接双击打开、中文不乱码」）。**分表面**：README / 官网 / 扩展内导入向导可列具体品牌名；**Chrome 商店的名称、摘要、说明、权限说明与 Featured 提名文案一律不写品牌名**，统一说「常见密码管理器的导出格式 / the export formats of common password managers」（2026-09-09 因品牌名被判 keyword stuffing） | README、ARCHITECTURE、index.html、pricing.md、compare.html；`CWS_FILL_CONTENT.md` 仅出现在说明性批注中，粘贴块内为零                                         |
-| 侧边栏性能      | 秒开（SLA <1s）；缓存快路径 20-50ms。禁止无限定词的裸「20-50ms 秒开」；英文正文用 en-dash（20–50ms），机器可读文件 llms.txt 用连字符（20-50ms）                                                                                                                                                                                                                                                                                   | README、README.en.md、index.html、llms.txt、CWS_FILL_CONTENT.md、docs/reddit-post.md                                                                         |
+| 侧边栏性能      | 秒开（SLA <1s）；缓存快路径 20-50ms。禁止无限定词的裸「20-50ms 秒开」；英文正文用 en-dash（20–50ms），机器可读文件 llms.txt 用连字符（20-50ms）                                                                                                                                                                                                                                                                                   | README、README.en.md、index.html、llms.txt、CWS_FILL_CONTENT.md、docs/operations/reddit-post.md                                                              |
 | 版本号          | 与 package.json 的 version 一致                                                                                                                                                                                                                                                                                                                                                                                                   | index.html（footer.updated 中英两处 + JSON-LD softwareVersion）、llms.txt（Last updated）、CWS 后台                                                          |
 | 测试数量        | tests/ 实际执行的用例数与测试文件数（见下方校验命令）                                                                                                                                                                                                                                                                                                                                                                             | README、README.en.md（用例数）、llms.txt（用例数 + 文件数）、index.html / en.html 数据带首卡（仅用例数，落地页不展示文件数）                                 |
 | 免费口径        | 完全免费、无订阅、无账号、无云端                                                                                                                                                                                                                                                                                                                                                                                                  | 全部表面 + pricing.md                                                                                                                                        |
@@ -198,11 +198,11 @@
 
 ````bash
 # 性能口径：所有命中均应带「缓存快路径 / warm path」限定词
-rg -n "20-50|20–50" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/reddit-post.md
+rg -n "20-50|20–50" README.md README.en.md index.html llms.txt docs/store/CWS_FILL_CONTENT.md docs/operations/reddit-post.md
 
 # PBKDF2 千分位：不应出现无千分位的 600000
 # （源码里的 `iterations: 600000` 是合法字面量，不在本命令的扫描面内）
-rg -n "600000" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/CONTRIBUTING.md docs/ARCHITECTURE.md docs/ARCHITECTURE.en.md
+rg -n "600000" README.md README.en.md index.html llms.txt docs/store/CWS_FILL_CONTENT.md docs/CONTRIBUTING.md docs/ARCHITECTURE.md docs/ARCHITECTURE.en.md
 
 # 版本号：三处应与 package.json 的 version 一致
 rg -n "softwareVersion|footer.updated" index.html
@@ -223,7 +223,7 @@ rg -n "零网络传输|零联网|数据不出浏览器|100% offline|军事级|20
 # 3) 跨小节重复行扫描：同一句话在小节里抄第二遍是 keyword-stuffing 判定的结构特征
 python3 - <<'PY'
 import json, re
-doc = open('docs/CWS_FILL_CONTENT.md', encoding='utf-8').read()
+doc = open('docs/store/CWS_FILL_CONTENT.md', encoding='utf-8').read()
 seg = doc.split('## 第二步')[1].split('## 第三步')[0]
 blocks = re.findall(r'```\n(.*?)```', seg, re.S)
 banned = ('LastPass', 'Bitwarden', '1Password', 'Chrome', '零联网', '零网络传输', '100% offline', '数据不出浏览器', '军事级', '五维')
@@ -256,7 +256,7 @@ PY
   2. `README.en.md`（英译镜像，最易遗漏）
   3. `index.html` 可见文案（FAQS / 功能数组，中英两处）与 `en.html` 对应内容——`en.html` 由 `scripts/build-en-page.mjs` 从中文源生成，改中文源后跑 `pnpm gen:en`；改的是 `FAQS` 时还要按上面的 **FAQ 生成链** 补齐 JSON-LD 与两侧的 FAQ 静态 DOM
   4. 侧边栏 `components/sidepanel/HelpDialog.vue` 对应的 `utils/i18n/locales/{zh-CN,en}/help.json` 词条（数字序号驱动，新增条目须同步提升 `helpItems('help.gx', N)` 的 N，由 `tests/utils/i18nBundles.test.ts` 守卫）
-  5. `docs/CWS_FILL_CONTENT.md` 商店文案 **与** `wxt.config.ts` 的 manifest 描述（manifest 走 `__MSG_extensionDescription__`，实际文案在 `public/_locales/*/messages.json`）
+  5. `docs/store/CWS_FILL_CONTENT.md` 商店文案 **与** `wxt.config.ts` 的 manifest 描述（manifest 走 `__MSG_extensionDescription__`，实际文案在 `public/_locales/*/messages.json`）
   6. content / background 侧可见文案走 `utils/i18n-lite.ts` 的 `tl()`，与 Vue 的完整 i18n 是两套独立词表，必须各写一份中英文
   7. `docs/ARCHITECTURE.md` 与 `docs/ARCHITECTURE.en.md` 的「功能实现详解」
 

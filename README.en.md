@@ -22,7 +22,7 @@
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
   <br/>
-  <img src="./docs/demo-totp-en.webp" alt="One-click login plus two-factor handoff demo: pick the account in the in-page panel and it fills and signs in, then the live code capsule anchors beside the code field on the code page" width="100%" />
+  <img src="./docs/media/demo-totp-en.webp" alt="One-click login plus two-factor handoff demo: pick the account in the in-page panel and it fills and signs in, then the live code capsule anchors beside the code field on the code page" width="100%" />
   <br/>
   <sub>Pick the account in the in-page panel → credentials filled and submitted → the live-code capsule anchors beside the code field on the same-domain page → tap Fill, no phone authenticator in sight</sub>
 </p>
@@ -61,7 +61,7 @@ One fill takes four steps, all on your own machine:
 > One module per row, one full-width shot each: the bold line under each image is the module name, and the line below it carries **only what the image cannot show** — the defaults people trip over, where to switch them, and the hidden capabilities. **Click any of them to open it at full size** (the first is a 1152×720 capture of the flow; the other seven are 2560×1600 shots taken at 2× DPR).
 
 <p align="center">
-  <a href="./docs/demo-login-en.webp"><img src="./docs/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /></a>
+  <a href="./docs/media/demo-login-en.webp"><img src="./docs/media/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /></a>
   <br />
   <b>⚡ One-click login</b>
   <br />
@@ -354,7 +354,7 @@ Issues and pull requests are welcome. This is a local-first project, and two con
 - **Open an issue**: [pick a template](https://github.com/liaolongdong/account-password-helper/issues/new/choose) (bug report and feature request, both with reproduction steps and blast radius)
 - **Report a vulnerability**: use the private channel in [.github/SECURITY.md](./.github/SECURITY.md) rather than a public issue
 - **Before attaching a screenshot or log**: replace real accounts, emails, passwords and live TOTP codes with placeholders such as `example.com` / `dummy` — published content cannot reliably be withdrawn
-- **Setup and commands**: [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | **Code of conduct**: [.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
+- **Setup and commands**: [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | **Documentation map (where a new doc goes / what stays local)**: [docs/README.md](./docs/README.md) | **Code of conduct**: [.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
 - **Quality gates**: every pull request and every commit to `main` runs [ci.yml](./.github/workflows/ci.yml) — `typecheck`, `lint`, `lint:style`, `test:run`, and `build` for both Chrome and Firefox
 - **For AI search engines**: a machine-readable project summary lives at [llms.txt](https://liaolongdong.github.io/account-password-helper/llms.txt), alongside the site's `robots.txt` and `sitemap.xml`
 

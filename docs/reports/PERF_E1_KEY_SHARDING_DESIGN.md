@@ -3,8 +3,8 @@
 > 状态：设计稿 / 待拍板，**没有对应实现**
 > 适用范围：`chrome.storage.local` 中账号密码主库（`account_passwords`）的**存储键结构**
 > 决策来源：用户于本轮选定「P0 全做 + 出 E1 设计稿」，验收口径「首屏 < 1s / 保存 < 50ms / 无可感知停顿」
-> 前置数据：`docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md`（下称**数据层报告**）第 3.2、4.2 节；
-> `docs/PERF_LARGE_VAULT_EVALUATION.md`（下称**渲染层报告**）第 9 节
+> 前置数据：`docs/reports/PERF_ISSUE89_DATA_LAYER_EVALUATION.md`（下称**数据层报告**）第 3.2、4.2 节；
+> `docs/reports/PERF_LARGE_VAULT_EVALUATION.md`（下称**渲染层报告**）第 9 节
 > 本稿所有毫秒数若无特别说明，均为上述两份报告同一次运行内的实测值（macOS + SSD，Chrome for Testing 153，Node v22 成本曲线 + 真机 IO 探针），**不是本机以外的承诺值**。
 
 ---

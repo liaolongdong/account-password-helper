@@ -22,7 +22,7 @@
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="账号密码管理助手扩展图标" width="120" />
   <br/>
-  <img src="./docs/demo-totp.webp" alt="一键登录 + 两步验证接力演示：页内面板选中账号自动填充并登录，跳到验证码页后活码胶囊自动锚定，点「填入」完成第二步" width="100%" />
+  <img src="./docs/media/demo-totp.webp" alt="一键登录 + 两步验证接力演示：页内面板选中账号自动填充并登录，跳到验证码页后活码胶囊自动锚定，点「填入」完成第二步" width="100%" />
   <br/>
   <sub>页内面板选中账号 → 自动填充并登录 → 同域名验证码页自动锚定活码胶囊 → 点「填入」，全程不用摸手机</sub>
 </p>
@@ -61,7 +61,7 @@
 > 每个模块一行一张大图：图下第一行是模块名称，第二行只讲**图里看不到的信息**——容易踩空的默认值、开关位置与隐藏能力。**点任意一张可看原尺寸**（首图是 1152×720 的操作动图，其余七张为 2560×1600 的 2 倍屏截图）。
 
 <p align="center">
-  <a href="./docs/demo-login.webp"><img src="./docs/demo-login.webp" alt="一键登录演示：侧边栏选中条目后自动填充账号密码、勾选同意条款并点击登录" width="100%" /></a>
+  <a href="./docs/media/demo-login.webp"><img src="./docs/media/demo-login.webp" alt="一键登录演示：侧边栏选中条目后自动填充账号密码、勾选同意条款并点击登录" width="100%" /></a>
   <br />
   <b>⚡ 一键登录</b>
   <br />
@@ -354,7 +354,7 @@
 - **提 Issue / 功能建议**：[选择模板](https://github.com/liaolongdong/account-password-helper/issues/new/choose)（缺陷、功能两套模板，含复现步骤与影响面）
 - **报安全问题**：请走 [.github/SECURITY.md](./.github/SECURITY.md) 的私密渠道，不要开公开 Issue
 - **贴截图或日志之前**：请把真实账号、邮箱、密码与 TOTP 活码换成 `example.com` / `dummy` 这类占位数据——公开内容无法真正撤回
-- **开发环境与命令**：[docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) ｜ **行为准则**：[.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
+- **开发环境与命令**：[docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) ｜ **文档地图（新文档放哪 / 哪些不入库）**：[docs/README.md](./docs/README.md) ｜ **行为准则**：[.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
 - **质量门禁**：每个 PR 与 `main` 的提交由 [ci.yml](./.github/workflows/ci.yml) 自动跑 `typecheck` / `lint` / `lint:style` / `test:run` / `build`（Chrome 与 Firefox 双构建）
 - **供 AI 引擎引用**：机器可读的项目摘要见 [llms.txt](https://liaolongdong.github.io/account-password-helper/llms.txt)，与站点的 `robots.txt`、`sitemap.xml` 配套，供 ChatGPT / Perplexity / Claude 等检索与引用
 

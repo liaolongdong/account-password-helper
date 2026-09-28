@@ -5,8 +5,8 @@
 `export-upload.mjs` 派生出商店截图槽实际接受的 1280×800 无 alpha 版本，输出到
 `assets/cws-store/upload/`（见下文「上传尺寸」）。
 同一套脚本还负责两个演示动图（`record.mjs` 的 `login` / `totp` 两个场景），输出到
-`docs/demo-login*.webp`、`docs/demo-login.gif` 与 `docs/demo-totp*.webp`、
-`docs/demo-totp.gif`（见下文「演示动图」）。
+`docs/media/demo-login*.webp`、`docs/media/demo-login.gif` 与 `docs/media/demo-totp*.webp`、
+`docs/media/demo-totp.gif`（见下文「演示动图」）。
 
 Dashboard 里中文页与 English (United States) 页的截图槽位**互相独立、不会继承**，
 所以两套都要上传；英文版文件名带 `-en` 后缀。
@@ -155,10 +155,10 @@ node scripts/store-shots/export-upload.mjs   # → assets/cws-store/upload/scree
 ## 演示动图
 
 ```bash
-node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" zh login  # docs/demo-login.webp + docs/demo-login.gif
-node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" zh totp   # docs/demo-totp.webp + docs/demo-totp.gif
-node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" en login  # docs/demo-login-en.webp
-node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" en totp   # docs/demo-totp-en.webp
+node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" zh login  # docs/media/demo-login.webp + docs/media/demo-login.gif
+node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" zh totp   # docs/media/demo-totp.webp + docs/media/demo-totp.gif
+node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" en login  # docs/media/demo-login-en.webp
+node scripts/store-shots/record.mjs "$PWD/.output/chrome-mv3" en totp   # docs/media/demo-totp-en.webp
 ```
 
 前置与 `capture.mjs` 相同（演示站在跑、Chrome 已启动、**同一 profile 已按同一语言
@@ -212,19 +212,19 @@ environment`）。不带参数时卡片高度不变，`screen-1`、`screen-2` �
 
 ## 文件
 
-| 文件                | 作用                                                                           |
-| ------------------- | ------------------------------------------------------------------------------ |
-| `cdp.mjs`           | 极简 Chrome DevTools Protocol 客户端（原生 WebSocket）                         |
-| `shot.mjs`          | 加载扩展、设备指标、等待动画收敛、截图、合成标题带、favicon 预热               |
-| `demo-hosts.mjs`    | 演示域名清单与页面地址构造（seed 条目网址 / 预热 / 截图共用一份）              |
-| `demo-server.mjs`   | 本地 HTTPS 演示站：托管演示页并按 Host 合成站点图标（证书落在临时目录）        |
-| `seed.mjs`          | 切语言 + 设主密码 + 导入 10 条占位账号 + 收藏 + 改密码造历史（可传自备 CSV）   |
-| `capture.mjs`       | 截图入口，`seeded` / `prefs` / `firstrun` 三种模式 × `zh` / `en`               |
-| `export-upload.mjs` | 把 `screen-*.png` 母版派生成商店收的 1280×800 无 alpha 图，输出到 `upload/`    |
-| `record.mjs`        | 演示动图入口，`login`（4 帧）/ `totp`（6 帧）两场景 → `docs/demo-*.{webp,gif}` |
-| `copy.mjs`          | 标题带文案表（中英各一份），`capture.mjs` 与 `record.mjs` 共用                 |
-| `demo-login.html`   | 演示登录页（「一键登录」的已填充 + 已勾选状态；状态条由 `?demo=status` 开启）  |
-| `demo-2fa.html`     | 演示两步验证页（`screen-2` 的活码展示；`totp` 动图的接力目标页）               |
+| 文件                | 作用                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| `cdp.mjs`           | 极简 Chrome DevTools Protocol 客户端（原生 WebSocket）                               |
+| `shot.mjs`          | 加载扩展、设备指标、等待动画收敛、截图、合成标题带、favicon 预热                     |
+| `demo-hosts.mjs`    | 演示域名清单与页面地址构造（seed 条目网址 / 预热 / 截图共用一份）                    |
+| `demo-server.mjs`   | 本地 HTTPS 演示站：托管演示页并按 Host 合成站点图标（证书落在临时目录）              |
+| `seed.mjs`          | 切语言 + 设主密码 + 导入 10 条占位账号 + 收藏 + 改密码造历史（可传自备 CSV）         |
+| `capture.mjs`       | 截图入口，`seeded` / `prefs` / `firstrun` 三种模式 × `zh` / `en`                     |
+| `export-upload.mjs` | 把 `screen-*.png` 母版派生成商店收的 1280×800 无 alpha 图，输出到 `upload/`          |
+| `record.mjs`        | 演示动图入口，`login`（4 帧）/ `totp`（6 帧）两场景 → `docs/media/demo-*.{webp,gif}` |
+| `copy.mjs`          | 标题带文案表（中英各一份），`capture.mjs` 与 `record.mjs` 共用                       |
+| `demo-login.html`   | 演示登录页（「一键登录」的已填充 + 已勾选状态；状态条由 `?demo=status` 开启）        |
+| `demo-2fa.html`     | 演示两步验证页（`screen-2` 的活码展示；`totp` 动图的接力目标页）                     |
 
 演示账号内联在 `seed.mjs` 的 `DEMO_CSV_ZH` / `DEMO_CSV_EN`，各 **10 条**、行序严格一致
 （两个商店页演示的是同一批账号）：覆盖开发 / 预发 / 生产 / 测试 / 运维 / 设计 / 文档 /

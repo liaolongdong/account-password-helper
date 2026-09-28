@@ -6,7 +6,7 @@ import { textOf } from './i18n';
  * 管理页操作列提示的交互等价性（真机）
  *
  * 性能背景：操作列原本每行创建 5 个 `el-tooltip` 实例，600 行 = 3000 个组件实例，
- * 实测占掉整表挂载耗时的四成（`docs/PERF_LARGE_VAULT_EVALUATION.md` 9.9）。
+ * 实测占掉整表挂载耗时的四成（`docs/reports/PERF_LARGE_VAULT_EVALUATION.md` 9.9）。
  * 现在全表共享一个 `virtual-triggering` 实例：显示延迟（400 毫秒）搬到
  * `useSharedHoverTooltip`，隐藏（200 毫秒）、`enterable` 与 `aria-describedby` 留给
  * Element Plus——**一条交互被拆到两处实现，正是最容易把它改坏的形状**，

@@ -244,14 +244,16 @@ graph LR
 
 ### 提交范围
 
-仓库只承载产品代码、构建配置与对外内容，下列本地产物写在 `.gitignore` 里，不要提交：
+文档目录的职责划分与「新文档放哪」的判定见 [docs/README.md](./README.md)。仓库只承载产品代码、构建配置与对外内容，下列本地产物写在 `.gitignore` 里，不要提交：
 
 - AI 会话工作稿与工具跑批产物：`.qoder/plans/`、`.qoder/superpowers/`、`.qoder/better-harness/`、`.qoder/better-harness-runs/`、`.qoder/repowiki/`。`.qoder/` 整体不忽略，`rules/`、`skills/`、`commands/` 是团队协作要用的项目配置，保持跟踪。
-- 一次性代码评审报告：`docs/code-review-*.md`。结论应回写进提交说明与对应文档，报告本身留在本地。
+- 一次性代码评审报告：`docs/**/code-review-*.md`（平铺或落在任一归类子目录都覆盖）。结论应回写进提交说明与对应文档，报告本身留在本地。
+- 本地发布工具链配置：`.baoyu-skills/`（公众号 / 微信发布的个人流程配置与配图软链，与产品内容无关）。
+- 根目录定价表的历史副本 `docs/pricing.md`：对外的机器可读定价只认根目录 `pricing.md`（`llms.txt` 指向它）。
 - Qoder Sites 的本地描述符 `*.qoder.site`：含 siteId 与整页 base64 快照，属机器绑定状态，换台机器就该重新生成。
 - 构建产物、性能测量原始结果、E2E 报告与凭据缓存等既有规则（见 `.gitignore` 各段落注释）。
 
-反向约束：对外与 SEO 内容（`README*`、`docs/blog/**`、`docs/promo/**`、`docs/公众号-*.md`、`docs/微博-*.md`、`docs/reddit-post.md`、`docs/exposure-status.md`、`docs/账号密码管理助手曝光提升执行手册.md`），以及被源码注释或 workflow 注释按路径引用的报告与治理文档（`docs/PERF_*.md`、`docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`、`docs/LANDING_MOTION_PROPOSAL.md`、`docs/PR_WORKFLOW_GUIDE.md`）必须保持跟踪——把它们「顺手」忽略会让仓库里的引用变成死链。新增这类文档前先确认它属于哪一边。
+反向约束：对外与 SEO 内容（`README*`、`docs/ARCHITECTURE*.md`、`docs/blog/**`、`docs/operations/**`（曝光手册、执行手册、公众号 / 微博 / reddit 文案与 `promo/**`）、`docs/store/**`、`docs/media/**`），以及被源码注释或 workflow 注释按路径引用的报告与治理文档（`docs/reports/**`、`docs/CONTRIBUTING.md`、`docs/PR_WORKFLOW_GUIDE.md`、`docs/THIRD-PARTY-NOTICES.md`、`docs/fixtures/test-page.html`）必须保持跟踪——把它们「顺手」忽略会让仓库里的引用变成死链。新增这类文档前先确认它属于哪一边。
 
 ### 测试规范
 
@@ -633,14 +635,16 @@ Please ensure all checks pass before committing.
 
 ### What Belongs in the Repo
 
-The repository carries product code, build configuration and public-facing content only. Local artifacts below are covered by `.gitignore` and must not be committed:
+For how the `docs/` folders are divided and where a new document goes, see [docs/README.md](./README.md). The repository carries product code, build configuration and public-facing content only. Local artifacts below are covered by `.gitignore` and must not be committed:
 
 - AI session drafts and tool run outputs: `.qoder/plans/`, `.qoder/superpowers/`, `.qoder/better-harness/`, `.qoder/better-harness-runs/`, `.qoder/repowiki/`. `.qoder/` as a whole is not ignored — `rules/`, `skills/` and `commands/` are project configuration the team relies on and stay tracked.
-- One-off code review reports: `docs/code-review-*.md`. Findings belong in commit messages and the relevant docs; the report itself stays local.
+- One-off code review reports: `docs/**/code-review-*.md` (covers this folder and any category subfolder). Findings belong in commit messages and the relevant docs; the report itself stays local.
+- Local publishing toolchain configuration: `.baoyu-skills/` (personal WeChat / Official Account flows and image symlinks, unrelated to product content).
+- `docs/pricing.md`: a historical copy of the root pricing sheet. The machine-readable pricing document is only the root `pricing.md`, which `llms.txt` points to.
 - Qoder Sites local descriptors `*.qoder.site`: they carry the siteId and a base64 snapshot of the whole page, i.e. machine-bound state that should be regenerated on another machine.
 - Existing rules for build output, raw performance measurements, E2E reports and credential caches (see the comments in each `.gitignore` section).
 
-The reverse constraint: public and SEO content (`README*`, `docs/blog/**`, `docs/promo/**`, `docs/公众号-*.md`, `docs/微博-*.md`, `docs/reddit-post.md`, `docs/exposure-status.md`, `docs/账号密码管理助手曝光提升执行手册.md`), plus reports and governance docs cited by path from source or workflow comments (`docs/PERF_*.md`, `docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`, `docs/LANDING_MOTION_PROPOSAL.md`, `docs/PR_WORKFLOW_GUIDE.md`), must stay tracked — ignoring them "for cleanup" turns those references into dead links. Decide which side a new document belongs to before adding it.
+The reverse constraint: public and SEO content (`README*`, `docs/ARCHITECTURE*.md`, `docs/blog/**`, `docs/operations/**` (exposure handbook, execution manual, WeChat / Weibo / Reddit copy and `promo/**`), `docs/store/**`, `docs/media/**`), plus reports and governance docs cited by path from source or workflow comments (`docs/reports/**`, `docs/CONTRIBUTING.md`, `docs/PR_WORKFLOW_GUIDE.md`, `docs/THIRD-PARTY-NOTICES.md`, `docs/fixtures/test-page.html`), must stay tracked — ignoring them "for cleanup" turns those references into dead links. Decide which side a new document belongs to before adding it.
 
 ### Testing
 
