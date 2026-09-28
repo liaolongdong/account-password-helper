@@ -136,11 +136,15 @@
 
 ### 3.3 验证自动化
 
-下次发布新版本时（通过 release-please 创建 Release），CI/CD 会自动：
+发版链在 2026-09-28 起分成两段，中间多了一道人工批准（`build-and-upload` job 挂 `environment: production`）：
 
-1. 构建扩展 zip 包（`pnpm build`，Node 22 + pnpm 缓存）
-2. 上传到 GitHub Releases（`.output/*-chrome.zip` 作为 Release Asset）
-3. 解析出实际 zip 路径后上传到 Chrome Web Store 并提交审核
+1. **合并 release PR** → release-please job 打 tag、建 GitHub Release。此时 Release 页面**还没有 zip 附件**，因为它在下一段。
+2. **该 run 停在 `Waiting for approval`** → 维护者在 Actions run 页面点 **Review deployments → Approve**（审批人由 `production` 环境的 Required reviewers 决定）。
+3. **批准后自动执行**：构建扩展 zip 包（`pnpm build`，Node 22 + pnpm 缓存）→ 以 `.output/*-chrome.zip` 上传为 Release Asset → 解析出实际 zip 路径 → 上传 Chrome Web Store 并提交审核。
+
+> ⚠️ 第 2 段的前置是 `production` 环境**已创建并配了 Required reviewers**。环境不存在时 GitHub 会静默自建一个无保护规则的环境，job 直接放行——也就是「以为加了闸门，其实没加」。创建步骤见 `docs/PR_WORKFLOW_GUIDE.md` 第 1 节，验证方法也在同一节。
+
+> ℹ️ 贡献者的功能 PR 合入 `main` 不会走到第 1 段：release-please 只会更新那条自动发布 PR，不打 tag、不提审。
 
 发布前还有三道预检，失败会直接终止发布并给出明确原因，而不是抛出一个不透明的 400/404：
 

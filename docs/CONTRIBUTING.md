@@ -251,7 +251,7 @@ graph LR
 - Qoder Sites 的本地描述符 `*.qoder.site`：含 siteId 与整页 base64 快照，属机器绑定状态，换台机器就该重新生成。
 - 构建产物、性能测量原始结果、E2E 报告与凭据缓存等既有规则（见 `.gitignore` 各段落注释）。
 
-反向约束：对外与 SEO 内容（`README*`、`docs/blog/**`、`docs/promo/**`、`docs/公众号-*.md`、`docs/微博-*.md`、`docs/reddit-post.md`、`docs/exposure-status.md`、`docs/账号密码管理助手曝光提升执行手册.md`），以及被源码注释按路径引用的报告（`docs/PERF_*.md`、`docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`、`docs/LANDING_MOTION_PROPOSAL.md`）必须保持跟踪——把它们「顺手」忽略会让仓库里的引用变成死链。新增这类文档前先确认它属于哪一边。
+反向约束：对外与 SEO 内容（`README*`、`docs/blog/**`、`docs/promo/**`、`docs/公众号-*.md`、`docs/微博-*.md`、`docs/reddit-post.md`、`docs/exposure-status.md`、`docs/账号密码管理助手曝光提升执行手册.md`），以及被源码注释或 workflow 注释按路径引用的报告与治理文档（`docs/PERF_*.md`、`docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`、`docs/LANDING_MOTION_PROPOSAL.md`、`docs/PR_WORKFLOW_GUIDE.md`）必须保持跟踪——把它们「顺手」忽略会让仓库里的引用变成死链。新增这类文档前先确认它属于哪一边。
 
 ### 测试规范
 
@@ -317,9 +317,9 @@ graph LR
   - 多处拼写或注释修正请合并到同一个 PR。
   - 不鼓励纯粹为了代码风格的重构提交。代码重构需有明确的性能改善或可维护性提升理由。
 
-- PR 中可以包含多个小提交，GitHub 会在合并时自动 squash。
+- PR 中可以包含多个小提交。合并方式决定 `main` 上看到什么：squash 只留一条以 PR 标题为 message 的提交；merge commit 会把 PR 分支的全部提交带上 `main`。无论哪种，**PR 标题都必须合规**（见下）。
 
-- PR 标题需遵循 [约定式提交（Conventional Commits）](https://www.conventionalcommits.org/) 规范：
+- PR 标题需遵循 [约定式提交（Conventional Commits）](https://www.conventionalcommits.org/) 规范（`.github/workflows/pr-title.yml` 会强制校验）：
 
   ```
   feat: 新增自动登录开关功能
@@ -340,9 +340,28 @@ graph LR
   pnpm build              # 生产构建验证
   ```
 
-> ⚠️ **CI 现状**：`.github/workflows/ci.yml` 在 push 到 `main` 与 PR 上分三个任务执行——`static`（`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`）、`test`（`pnpm test:run`）、`build`（`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`）。产物级守卫（如 sidepanel / popup 首屏闭包）只在 `build` 任务里跑，因为 `test` 任务没有 `.output/chrome-mv3`，那些用例会整文件跳过；本地跑它们前需先 `pnpm build`。`.github/workflows/release-please.yml` 只负责发版，执行 `pnpm install` + `pnpm run build`；`.github/workflows/e2e.yml`（真实浏览器扩展 E2E）自 2026-09-22 起与本文同一口径触发——push 到 `main`、PR、以及随时可手动复跑，只对文档、博客与图片类改动跳过（`paths-ignore`）。它是所有任务里最慢的一个（每次先 `pnpm build`，再以 `workers=1` 逐条用例起独立 profile），因此目前处于**观察期**：job 带 `continue-on-error`，跑红只出警告、不挡合并，等到在 ubuntu runner 上连跑两次全绿才转为真正的门禁（细节见 `e2e/README.md`「现状」）。本地 `husky` + `lint-staged` 钩子仍对变更文件执行同样检查，是提交前的第一道关。
+> ⚠️ **CI 现状**：`.github/workflows/ci.yml` 在 push 到 `main` 与 PR 上分三个任务执行——`static`（`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`）、`test`（`pnpm test:run`）、`build`（`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`）。产物级守卫（如 sidepanel / popup 首屏闭包）只在 `build` 任务里跑，因为 `test` 任务没有 `.output/chrome-mv3`，那些用例会整文件跳过；本地跑它们前需先 `pnpm build`。`.github/workflows/release-please.yml` 只负责发版：release-please job 打 tag、建 GitHub Release，随后「`pnpm install` + `pnpm run build` → 上传 zip → 提交 Chrome Web Store」这一段挂在 `production` 环境上，必须维护者在 Actions run 页面点 Approve 才会执行；`.github/workflows/e2e.yml`（真实浏览器扩展 E2E）自 2026-09-22 起与本文同一口径触发——push 到 `main`、PR、以及随时可手动复跑，只对文档、博客与图片类改动跳过（`paths-ignore`）。它是所有任务里最慢的一个（每次先 `pnpm build`，再以 `workers=1` 逐条用例起独立 profile），因此目前处于**观察期**：job 带 `continue-on-error`，跑红只出警告、不挡合并，等到在 ubuntu runner 上连跑两次全绿才转为真正的门禁（细节见 `e2e/README.md`「现状」）。本地 `husky` + `lint-staged` 钩子仍对变更文件执行同样检查，是提交前的第一道关。另有一条独立检查 `.github/workflows/pr-title.yml`：它只校验 PR 标题是否为约定式提交（带 `!` 的标题会被拦下，需要维护者确认），不检出、不执行 PR 分支上的任何文件。
 >
 > 版本号与 `CHANGELOG.md` 由 release-please 自动管理，PR 中请勿手改这两个文件。
+
+### 分支模型与发版流程（两道独立闸门）
+
+本项目采用 **GitHub Flow**：`main` 是唯一长期分支、随时可发布，所有改动经 PR 进入 `main`。刻意不设 `develop`，也不设「先合进一个 PR 分支、再统一进 main」的中间层——发版闸门已经由 release-please 提供，中间分支只会多一次冲突的机会，不会多一道闸门。
+
+一个改动真正上线需要两个**分开的**人工动作：
+
+| 动作                        | 后果                                                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 维护者合入功能 PR 到 `main` | release-please 只更新那条自动发布 PR（分支名 `release-please--branches--main--components--account-password-helper`）：**不打 tag、不建 Release、不提审商店** |
+| 维护者合并那条 release PR   | 打 tag + 建 GitHub Release；随后「构建 → 上传 zip → 提交 Chrome Web Store」整段挂在 `production` 环境上，需在 Actions run 页面点 Approve 才真正提审          |
+
+由此得到几条对贡献者有约束力的约定：
+
+- **PR 标题是版本决策的输入，不是文案。** `feat` 会把版本号推一位 minor，`fix` 推一位 patch，type 后带 `!` 或描述里写 `BREAKING CHANGE` 会把整个版本号推到 major（例如 3.12.0 → 4.0.0）。其余类型不会自行触发发版，只在这班车真的发版时进 `CHANGELOG.md` 的对应小节。
+- 想让改动「先落地、等下一班车」不需要任何额外操作：合进 `main` 就够了，发版节奏由维护者掌握。
+- 纯文档 / 纯测试 / 纯 CI 配置的 PR 不会推高商店版本号，可以放心独立提、独立审。
+- 触及加密、会话、存储、权限、content script、CI 与发布配置的改动，需要 `.github/CODEOWNERS` 登记的负责人审批后才能合入。
+- 仓库侧设置口径与人工操作清单见 `docs/PR_WORKFLOW_GUIDE.md`。
 
 ## Issue 指南
 
@@ -621,7 +640,7 @@ The repository carries product code, build configuration and public-facing conte
 - Qoder Sites local descriptors `*.qoder.site`: they carry the siteId and a base64 snapshot of the whole page, i.e. machine-bound state that should be regenerated on another machine.
 - Existing rules for build output, raw performance measurements, E2E reports and credential caches (see the comments in each `.gitignore` section).
 
-The reverse constraint: public and SEO content (`README*`, `docs/blog/**`, `docs/promo/**`, `docs/公众号-*.md`, `docs/微博-*.md`, `docs/reddit-post.md`, `docs/exposure-status.md`, `docs/账号密码管理助手曝光提升执行手册.md`), plus reports cited by path from source comments (`docs/PERF_*.md`, `docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`, `docs/LANDING_MOTION_PROPOSAL.md`), must stay tracked — ignoring them "for cleanup" turns those references into dead links. Decide which side a new document belongs to before adding it.
+The reverse constraint: public and SEO content (`README*`, `docs/blog/**`, `docs/promo/**`, `docs/公众号-*.md`, `docs/微博-*.md`, `docs/reddit-post.md`, `docs/exposure-status.md`, `docs/账号密码管理助手曝光提升执行手册.md`), plus reports and governance docs cited by path from source or workflow comments (`docs/PERF_*.md`, `docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`, `docs/LANDING_MOTION_PROPOSAL.md`, `docs/PR_WORKFLOW_GUIDE.md`), must stay tracked — ignoring them "for cleanup" turns those references into dead links. Decide which side a new document belongs to before adding it.
 
 ### Testing
 
@@ -686,9 +705,9 @@ This is a password manager — security is the top priority. Please follow these
   - Batch multiple spelling or comment corrections into a single PR.
   - Pure style refactoring is discouraged unless it clearly improves performance or maintainability.
 
-- PRs may contain multiple small commits; GitHub will squash them on merge.
+- A PR may contain several small commits. The merge method decides what `main` ends up seeing: squash leaves a single commit whose message is the PR title; a merge commit brings every commit from the PR branch onto `main`. Either way, **the PR title must be compliant** (see below).
 
-- PR titles should follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+- PR titles should follow the [Conventional Commits](https://www.conventionalcommits.org/) specification (enforced by `.github/workflows/pr-title.yml`):
 
   ```
   feat: add auto-login toggle
@@ -709,9 +728,28 @@ This is a password manager — security is the top priority. Please follow these
   pnpm build              # Production build verification
   ```
 
-> ⚠️ **What CI actually does**: `.github/workflows/ci.yml` runs three jobs on pushes to `main` and on pull requests — `static` (`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`), `test` (`pnpm test:run`), and `build` (`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`). Artifact-level guards (such as the sidepanel / popup first-screen closure check) run only in the `build` job, because the `test` job has no `.output/chrome-mv3` and those cases skip the whole file; run `pnpm build` locally before invoking them. `.github/workflows/release-please.yml` only handles releases, running `pnpm install` + `pnpm run build`; `.github/workflows/e2e.yml` (real-browser extension E2E) has shared the same triggers since 2026-09-22 — pushes to `main`, pull requests, plus a manual run anytime — and is skipped only for documentation, blog and image changes (`paths-ignore`). It is the slowest job of all (every run builds first, then executes one worker at a time, each case in its own fresh profile), so it is currently in a **trial period**: the job carries `continue-on-error`, meaning a red run only produces a warning and does not block merges. It becomes a real gate once it has gone green twice in a row on the ubuntu runner (see the status table at the top of `e2e/README.md`, Chinese-only, for details). The local `husky` + `lint-staged` hook still runs the same checks on changed files and remains the first gate before commit.
+> ⚠️ **What CI actually does**: `.github/workflows/ci.yml` runs three jobs on pushes to `main` and on pull requests — `static` (`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`), `test` (`pnpm test:run`), and `build` (`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`). Artifact-level guards (such as the sidepanel / popup first-screen closure check) run only in the `build` job, because the `test` job has no `.output/chrome-mv3` and those cases skip the whole file; run `pnpm build` locally before invoking them. `.github/workflows/release-please.yml` only handles releases: the release-please job cuts the tag and the GitHub Release, while the stretch after it (`pnpm install` + `pnpm run build` → upload zip → submit to the Chrome Web Store) is attached to the `production` environment and only runs once a maintainer clicks Approve on the Actions run; `.github/workflows/e2e.yml` (real-browser extension E2E) has shared the same triggers since 2026-09-22 — pushes to `main`, pull requests, plus a manual run anytime — and is skipped only for documentation, blog and image changes (`paths-ignore`). It is the slowest job of all (every run builds first, then executes one worker at a time, each case in its own fresh profile), so it is currently in a **trial period**: the job carries `continue-on-error`, meaning a red run only produces a warning and does not block merges. It becomes a real gate once it has gone green twice in a row on the ubuntu runner (see the status table at the top of `e2e/README.md`, Chinese-only, for details). The local `husky` + `lint-staged` hook still runs the same checks on changed files and remains the first gate before commit. One more check runs independently: `.github/workflows/pr-title.yml` validates only the PR title against Conventional Commits (titles with a `!` are rejected until a maintainer confirms them); it never checks out or executes anything from the PR branch.
 >
 > Version numbers and `CHANGELOG.md` are managed automatically by release-please; do not edit those two files by hand in a PR.
+
+### Branch model and release flow (two independent gates)
+
+This project uses **GitHub Flow**: `main` is the only long-lived branch, it is always releasable, and every change reaches it through a PR. There is deliberately no `develop` and no intermediate "merge into a PR branch first, then into main" layer — the release gate already exists via release-please, and an extra branch only adds one more chance to hit a conflict, not one more gate.
+
+Shipping a change takes two **separate** human actions:
+
+| Action                                     | Consequence                                                                                                                                                                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Maintainer merges a feature PR into `main` | release-please only updates its auto-generated release PR (branch `release-please--branches--main--components--account-password-helper`): **no tag, no GitHub Release, no store submission**                        |
+| Maintainer merges that release PR          | tag + GitHub Release are created; the following "build → upload zip → submit to Chrome Web Store" stretch is attached to the `production` environment and only runs after someone clicks Approve on the Actions run |
+
+Which yields the rules that actually bind contributors:
+
+- **The PR title is an input to version resolution, not copy.** `feat` bumps a minor, `fix` bumps a patch, and a `!` after the type or a `BREAKING CHANGE` in the description bumps the whole version to major (e.g. 3.12.0 → 4.0.0). Every other type never triggers a release on its own; it only lands in the matching `CHANGELOG.md` section when a release actually ships.
+- Landing a change "now, shipping later" needs no extra steps — merging into `main` is enough, and the release cadence stays with the maintainer.
+- Docs-only, test-only or CI-only PRs do not raise the store version, so they are safe to submit and review independently.
+- Changes touching crypto, session, storage, permissions, content scripts, CI or release configuration require approval from the owners registered in `.github/CODEOWNERS`.
+- Repository-side settings and the manual checklist live in `docs/PR_WORKFLOW_GUIDE.md`.
 
 ## Issue Guidelines
 

@@ -1,0 +1,108 @@
+name: PR Title
+
+# 约定式提交标题门禁。
+#
+# 为什么必须存在：PR 标题是版本号的直接来源。release-please 按 commit 类型决定跳档
+# （feat → minor、fix → patch、type 后带 ! 或描述里写 BREAKING CHANGE → major），标题
+# 不规范时整个判断退化成猜测；一个 `feat!: xxx` 会让商店版本号直接跳一个 major。
+# 完整口径见 docs/PR_WORKFLOW_GUIDE.md。
+#
+# 安全口径（刻意如此，勿"优化"）：
+# 1. 用 `pull_request` 而非 `pull_request_target`——后者会在带 secrets 的 workflow
+#    上下文里跑，配上 checkout PR 代码就是常见的凭据外泄入口。
+# 2. 不 checkout、不执行 PR 分支上的任何文件（连仓库里的校验脚本都不跑）：校验逻辑
+#    内联在本 job，贡献者无法通过改动仓库内容来让自己的标题"合法"。代价是这份逻辑
+#    只有一处、改动要走 PR 评审，对这条门禁来说是划算的取舍。
+# 3. 标题经 env 传给 node，绝不拼进 shell 命令，避免标题里的反引号、$、() 被执行。
+# 4. ubuntu-latest 自带 node，不为一次正则起 setup-node 的下载与缓存。
+
+on:
+  pull_request:
+    types:
+      - opened
+      - edited
+      - reopened
+      - synchronize
+
+# 只读，不需要任何写权限
+permissions:
+  contents: read
+
+# 同一 PR 的新提交取消旧的排队任务
+concurrency:
+  group: pr-title-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  conventional:
+    name: Conventional PR title
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Validate PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          node -e '
+          const title = process.env.PR_TITLE || "";
+          const author = process.env.PR_AUTHOR || "";
+          // 错误信息只回显截断后的标题，避免超长或含控制字符的输入污染日志。
+          const shown = title.length > 120 ? title.slice(0, 120) + "…" : title;
+          // 机器人 PR 放行：Dependabot 的标题合规性由 .github/dependabot.yml 的
+          // commit-message.prefix 负责，release-please 的自动发布 PR 由它自己生成。
+          // 这里兜一层，是为了防止前缀配置漂移时一整批依赖 PR 卡在门禁上——
+          // 而那类卡点会让维护者直接关掉检查，反而丢掉真正的约束。
+          if (/\[bot\]$/.test(author)) {
+            console.log("跳过校验：作者为机器人账号 " + author);
+            process.exit(0);
+          }
+          const types = [
+            "feat", "fix", "perf", "revert",
+            "refactor", "docs", "style", "build", "ci", "test", "chore",
+          ];
+          const re = /^([a-z]+)(\(([a-zA-Z0-9][^()]*)\))?(!)?: (.+)$/;
+          const m = re.exec(title);
+          if (!m) {
+            console.error("::error::PR 标题不符合约定式提交规范：" + JSON.stringify(shown));
+            console.error("   期望格式   <type>(<scope>)[!]: <subject>");
+            console.error("   合法示例   fix(sidepanel): 修复侧边栏关闭失败");
+            console.error("             feat(inline-dropdown): 新增关键词拼音检索");
+            console.error("             docs(readme): 补充 Firefox 安装说明");
+            console.error("   合法 type  " + types.join(", "));
+            console.error("   scope 可省略；破坏性变化在冒号前加 !，或在描述里写 BREAKING CHANGE");
+            console.error("   规范原文   https://www.conventionalcommits.org/");
+            process.exit(1);
+          }
+          const type = m[1];
+          if (!types.includes(type)) {
+            console.error("::error::PR 标题 type 非法：" + type + "（完整标题 " + JSON.stringify(shown) + "）");
+            console.error("   允许的值   " + types.join(", "));
+            console.error("   纯内部结构调整请用 refactor 或 chore，不要自造 type。");
+            process.exit(1);
+          }
+          if (m[4]) {
+            console.error("::error::PR 标题带了 !（major 级破坏性变化）。");
+            console.error("   major 会直接改变商店版本号，必须由维护者确认后手动去掉 !，");
+            console.error("   或在 PR 描述里写清楚迁移方案并开 issue 讨论。");
+            process.exit(1);
+          }
+          const bump = type === "feat" ? "minor" : type === "fix" ? "patch" : "不跳档";
+          console.log("标题合规：" + type + " → 版本影响 " + bump);
+          if (bump === "不跳档") {
+            console.log("提示：该类型本身不会触发发版，会随下一班 release 车一起出。");
+          }
+          // 描述里声明了破坏性变化 → 只警告，不拦截。理由：squash 提交的正文就是 PR
+          // 描述，release-please 会据此把本班车判为 major；这件事确实要人看，但拦住
+          // 合法贡献者的收益不如把它交给发版那一头的 production 环境审批闸门。
+          // 而 docs 类 PR 里出现这个字面串很常见（本文档本身就会写它），硬失败会误伤。
+          const body = process.env.PR_BODY || "";
+          if (/BREAKING[- ]?CHANGE/.test(body)) {
+            console.warn(
+              "::warning::PR 描述里写了 BREAKING CHANGE。若本 PR 以 squash 合入，" +
+                "该标记会进 main，release-please 把下一班车判为 major（例如 3.12.0 → 4.0.0）。" +
+                "请确认这是预期；不想跳 major 就删掉该行，改用文字描述影响面。",
+            );
+          }
+          '
