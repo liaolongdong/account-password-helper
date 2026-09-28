@@ -127,3 +127,15 @@ coverage/
 docs/blog/zh/imgs
 docs/blog/en/imgs
 .idea/
+
+# Local cloud-sync provider credentials used for manual API testing (never commit)
+b.txt
+
+# Local scratch files and session notes
+$null
+.pnpm-store/
+vl.txt
+vp.txt
+vt2.txt
+history_202609231641.md
+idea.md
