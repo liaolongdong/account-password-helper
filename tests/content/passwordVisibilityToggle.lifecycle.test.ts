@@ -2,15 +2,19 @@
 /**
  * 密码可见性注入按钮的 DOM 生命周期测试
  *
- * 覆盖 PasswordVisibilityToggle 的四类不变量，全部对应真实缺陷而非实现细节：
- * 1. 释放完整性 —— 条目注销时按钮、`input.type`、宿主 position 必须一并还原
+ * 覆盖 PasswordVisibilityToggle 的六类不变量，全部对应真实缺陷而非实现细节：
+ * 1. 释放完整性 —— 条目注销时定位盒、`input.type`、宿主 position 必须一并还原
  *    （缺陷：跟随循环发现节点脱离时只删索引，被揭示的明文密码无 UI 可收回）。
- * 2. 布局跟随的启停与省写 —— 门槛是「按钮带可见类」而非「存在条目」，且稳定帧不得写入
+ * 2. 布局跟随的启停与省写 —— 门槛是「定位盒带内联可见态」而非「存在条目」，且稳定帧不得写入
  *    （缺陷：常驻 60fps 强制布局；以及续帧误走启停控制器导致每帧清空指纹）。
  * 3. 两阶段读写分离 —— 一帧内所有测量必须先于所有写入
  *    （缺陷：跨条目读-写交错触发逐帧同步重排）。
  * 4. 宿主 position 的归属与引用计数 —— 按父元素记账，最后一个条目释放才还原
  *    （缺陷：同父元素「密码 + 确认密码」时把恢复值固化到宿主，或提前清掉兄弟条目的定位上下文）。
+ * 5. Closed Shadow DOM 隔离 —— 页面里只剩一个无 class / 无 id 的定位盒，按钮与样式穿不出去
+ *    （回归防护：本次改造前按钮直接挂在 light DOM，页面 CSS 可覆写其外观、也能按类名指纹识别）。
+ * 6. 定位盒不得自占尾随空间 —— 锚点解析必须排除自己的宿主
+ *    （缺陷：宿主算作「尾随空间已被占据」会让锚点自我坍缩回 input 右缘，宽字段盒上按钮左移）。
  *
  * 依赖 tests/helpers/domLayout.ts 提供的几何登记表与手动 rAF 队列；文件开头先做装置自检，
  * 防止补丁静默失配产出「看似合理实则全错」的结论。
@@ -19,9 +23,6 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
 import type { ToggleEntry } from '@/entrypoints/content/types';
 import { installDomLayout, opOrder, writeCount, type DomLayout } from '@/tests/helpers/domLayout';
-
-/** 可见态类名（与被测模块内的 VISIBLE_CLASS 一致） */
-const VISIBLE_CLASS = 'aph-pwd-toggle-visible';
 
 /** 测试用白盒视图：仅暴露生命周期断言所需的内部状态 */
 interface ToggleInternals {
@@ -51,6 +52,23 @@ let manager: PasswordVisibilityToggle;
 let view: ToggleInternals;
 /** beforeEach 是否跑到底；装置自检抛错时避开 afterEach 级联出一堆无关错误 */
 let ready = false;
+
+/** 取父元素直下的全部定位盒（页面里唯一可见的注入节点，按钮在其 closed 影子树内） */
+function hostsOf(parent: HTMLElement): HTMLElement[] {
+  return Array.from(parent.querySelectorAll(':scope > span')) as HTMLElement[];
+}
+
+/** 定位盒是否处于可见态（内联声明，与被测模块的写入口径一致） */
+function isVisible(host: Element): boolean {
+  return (host as HTMLElement).style.visibility === 'visible';
+}
+
+/** 取某个 input 对应的托管条目（影子树是 closed 的，按钮只能经条目引用到达） */
+function entryOf(input: HTMLInputElement): ToggleEntry {
+  const entry = [...view.liveEntries].find(candidate => candidate.input === input);
+  if (!entry) throw new Error('测试前置失败：该 input 未被托管');
+  return entry;
+}
 
 beforeEach(() => {
   document.body.innerHTML = '';
@@ -199,26 +217,26 @@ describe('两阶段读写分离', () => {
 });
 
 describe('条目释放完整性', () => {
-  it('destroy 还原按钮、input.type 与宿主 position', () => {
+  it('destroy 还原定位盒、input.type 与宿主 position', () => {
     const { parent, inputs } = mountForm(1);
     layout.setRect(parent, PARENT_RECT);
     layout.setRect(inputs[0], INPUT_RECT);
     manager.init();
 
     const input = inputs[0];
-    const button = parent.querySelector('button')!;
+    const host = hostsOf(parent)[0];
     expect(parent.style.position).toBe('relative');
 
     input.type = 'text'; // 复刻点击眼睛后的明文态
     manager.destroy();
 
-    expect(button.isConnected).toBe(false);
+    expect(host.isConnected).toBe(false);
     expect(input.type).toBe('password');
     expect(parent.style.position).toBe('');
     expect(view.liveEntries.size).toBe(0);
   });
 
-  it('回归：按钮被框架摘除而 input 保留时，明文必须被收回且监听解绑', () => {
+  it('回归：定位盒被框架摘除而 input 保留时，明文必须被收回且监听解绑', () => {
     const { parent, inputs } = mountForm(1);
     layout.setRect(parent, PARENT_RECT);
     layout.setRect(inputs[0], INPUT_RECT);
@@ -227,27 +245,28 @@ describe('条目释放完整性', () => {
     layout.raf.tick();
 
     const input = inputs[0];
-    const button = parent.querySelector('button')!;
+    const host = hostsOf(parent)[0];
     input.type = 'text'; // 已揭示明文
-    button.remove(); // 宿主框架重渲染摘走了我们的按钮
+    host.remove(); // 宿主框架重渲染摘走了我们的定位盒
 
     layout.raf.tick(); // 跟随发现脱离 → releaseEntry
 
     expect(input.type).toBe('password'); // 隐私基线：不留明文
     expect(view.liveEntries.size).toBe(0);
-    // 监听已解绑：释放后继续输入不应再改动可见类（先洗掉残留类，才能区分「未解绑」与「从未抹除」）
-    button.classList.remove(VISIBLE_CLASS);
+    // 监听已解绑：释放后继续输入不应再改动可见态（先洗掉内联声明，才能区分「未解绑」与「从未抹除」）
+    host.style.removeProperty('visibility');
+    host.style.removeProperty('opacity');
     input.value = 'again';
     input.dispatchEvent(new Event('input', { bubbles: true }));
-    expect(button.classList.contains(VISIBLE_CLASS)).toBe(false);
+    expect(isVisible(host)).toBe(false);
   });
 
-  it('setEnabled(false) 也能回收按钮已脱离的条目（不依赖 querySelectorAll）', () => {
+  it('setEnabled(false) 也能回收定位盒已脱离的条目（不依赖 querySelectorAll）', () => {
     const { parent, inputs } = mountForm(1);
     layout.setRect(parent, PARENT_RECT);
     layout.setRect(inputs[0], INPUT_RECT);
     manager.init();
-    parent.querySelector('button')!.remove(); // 按钮脱离，querySelectorAll 查不到
+    hostsOf(parent)[0].remove(); // 定位盒脱离，文档侧选择器穿不进影子树也查不到脱离节点
 
     manager.setEnabled(false);
 
@@ -261,7 +280,7 @@ describe('条目释放完整性', () => {
     manager.init();
     // 不输入任何值 → 无可见按钮 → 没有帧在跑 → 脱离检测不会发生
     inputs[0].remove();
-    parent.querySelector('button')!.remove();
+    hostsOf(parent)[0].remove();
     expect(view.liveEntries.size).toBe(1);
 
     view.scanAndInject();
@@ -330,7 +349,7 @@ describe('宿主 position 的归属与引用计数', () => {
 
     expect(view.liveEntries.size).toBe(1);
     expect(parent.style.position).toBe('relative');
-    expect(parent.querySelector('button')).not.toBeNull();
+    expect(hostsOf(parent)).toHaveLength(1);
 
     releaseAll();
     expect(parent.style.position).toBe('');
@@ -366,5 +385,66 @@ describe('锚点归属判定的实时性', () => {
 
   it('未注入按钮的 input 保守返回 true（保留避让偏移）', () => {
     expect(manager.anchorsToInputRight(document.createElement('input'))).toBe(true);
+  });
+
+  it('锚点解析排除自家定位盒：宽字段盒上不因按钮占位而自我坍缩', () => {
+    // 阿里云 havana 式布局：input 定宽、父元素是更宽的可视字段盒，尾随空间只有我们的按钮
+    const { parent, inputs } = mountForm(1);
+    layout.setRect(parent, { left: 100, top: 50, width: 300, height: 40 });
+    layout.setRect(inputs[0], { left: 100, top: 52, width: 200, height: 36 });
+    manager.init();
+
+    const host = hostsOf(parent)[0];
+    // 复刻注入后的真实布局：定位盒正落在父元素右缘内侧（400 - 28 = 372）
+    layout.setRect(host, { left: 372, top: 58, width: 24, height: 24 });
+
+    // 把宿主算进「尾随已被占据」会让锚点退回 input 右缘（left 变成 172px），按钮就此左移
+    expect(manager.anchorsToInputRight(inputs[0])).toBe(false);
+    expect(host.style.left).toBe('272px');
+  });
+});
+
+describe('Closed Shadow DOM 隔离', () => {
+  it('页面上只剩一个不带 class / id / data-* 的定位盒，按钮与样式都不在 light DOM', () => {
+    const { parent, inputs } = mountForm(1);
+    layout.setRect(parent, PARENT_RECT);
+    layout.setRect(inputs[0], INPUT_RECT);
+    manager.init();
+
+    const host = hostsOf(parent)[0];
+    expect(host.tagName).toBe('SPAN');
+    // 唯二可能的属性是 JS 写入的内联样式（left / 可见态），不留任何可扩展特征串
+    expect(host.getAttributeNames().filter(name => name !== 'style')).toEqual([]);
+    expect(document.querySelector('button')).toBeNull();
+    expect(document.querySelector('[class*="aph-pwd"]')).toBeNull();
+    expect(document.head.querySelector('style')).toBeNull();
+    // closed：页面侧拿不到影子根，但按钮确实生活在影子里并随之连接
+    expect(host.shadowRoot).toBeNull();
+    expect(entryOf(inputs[0]).button.isConnected).toBe(true);
+  });
+
+  it('释放后影子树随定位盒一并消失，页面无残留注入节点与样式', () => {
+    const { parent, inputs } = mountForm(1);
+    layout.setRect(parent, PARENT_RECT);
+    layout.setRect(inputs[0], INPUT_RECT);
+    manager.init();
+    typeInto(inputs[0]);
+    expect(hostsOf(parent)).toHaveLength(1);
+
+    manager.destroy();
+
+    expect(Array.from(parent.children)).toEqual([inputs[0]]);
+    expect(document.querySelector('span')).toBeNull();
+  });
+
+  it('实时换肤经条目到达影子树内的按钮（文档侧选择器穿不进去）', () => {
+    const { parent, inputs } = mountForm(1);
+    layout.setRect(parent, PARENT_RECT);
+    layout.setRect(inputs[0], INPUT_RECT);
+    manager.init();
+
+    manager.setTheme('green');
+
+    expect(entryOf(inputs[0]).button.style.getPropertyValue('--aph-primary')).toBe('#69b599');
   });
 });

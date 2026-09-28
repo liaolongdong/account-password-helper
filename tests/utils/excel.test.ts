@@ -293,6 +293,33 @@ describe('导出序列化（经 Blob/document/URL 打桩捕获生成内容）', 
     expect(blobContent).toContain('"p,c"');
   });
 
+  /**
+   * 「导出的 CSV 不做公式转义」是文档里写明的取舍（README / ARCHITECTURE 的「已知限制」一节），
+   * 不是漏做：给 `=` `+` `-` `@` 打头的单元格补前导单引号会改写字段，而密码是逐字符取用的凭证；
+   * 补过前缀的文件与本扩展的 CSV 解析器也不再互为可逆。
+   *
+   * 2026-09-26 的评审波次曾实现过这套中和 + 往返还原，2026-09-27 按用户决定撤除。
+   * 本例把**撤除后的契约**钉住：前缀既不在导出时补上，也不在导入时被剥掉——
+   * 以后谁把它"顺手补上"，这里必须变红，逼他先回到文档与用户决策那一条线上。
+   */
+  it('公式前缀不补也不剥：导出逐字写出、自家模板导入原样读回', () => {
+    // 不含 TAB / CR 打头的形状：导入侧对每个字段 `.trim()`，那类值本来就会被去掉首尾空白
+    const formulaLike = ['=SUM(A1)', '+8613800000000', '-1', '@cmd', "'=abc"];
+    for (const password of formulaLike) {
+      const entry = makePasswordEntry({ username: 'alice', password, url: '', tag: '', remark: '', totp: '' });
+      ExcelUtils.exportToCSV([entry], 'f.csv');
+
+      // 导出侧：单元格就是这个值本身，前后没有多余的单引号
+      expect(blobContent, `导出改写了 ${JSON.stringify(password)}`).toContain(`"${password}"`);
+      expect(blobContent, `导出给 ${JSON.stringify(password)} 补了强制文本前缀`).not.toContain(`"'${password}"`);
+
+      // 导入侧：把导出的字节喂回自家 native 模板，逐字回来（前导单引号同样不剥）
+      const parsed = ExcelUtils.parseCSV(buf(blobContent.replace(/^\uFEFF/, '')), 'native');
+      expect(parsed, `${JSON.stringify(password)} 往返后条目丢失`).toHaveLength(1);
+      expect(parsed[0].password, `${JSON.stringify(password)} 往返被改写`).toBe(password);
+    }
+  });
+
   it('exportToJSON：{ version:1, count, entries } 结构', () => {
     const entry = makePasswordEntry({ username: 'alice', password: 'secret' });
     ExcelUtils.exportToJSON([entry], 'f.json');

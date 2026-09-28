@@ -1,4 +1,6 @@
-# Account Password Helper · Free Open-Source Local Password Manager
+<div align="center">
+
+# Account Password Helper · 账号密码管理助手 · Free Open-Source Local Password Manager
 
 [中文](./README.md) | **English**
 
@@ -15,9 +17,7 @@
 
 > **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart — with three cross-subdomain tiers when one account legitimately serves a whole domain family — plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
 
-> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 1337 automated tests
-
-**Contents**: [Core Advantages](#-core-advantages) · [Feature Tour](#-feature-tour) · [How It Compares](#-how-it-compares) · [Feature Overview](#-feature-overview) · [Security & Privacy](#-security--privacy) · [Install & Get Started](#-install--get-started) · [FAQ](#-faq) · [More by the author](#-more-by-the-author) · [Contributing](#-contributing) · [License](#-license)
+> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 1953 automated tests
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
@@ -26,6 +26,12 @@
   <br/>
   <sub>Pick the account in the in-page panel → credentials filled and submitted → the live-code capsule anchors beside the code field on the same-domain page → tap Fill, no phone authenticator in sight</sub>
 </p>
+
+**[📥 Install](#-install--get-started) · [🌐 Live demo](https://liaolongdong.github.io/account-password-helper/en.html) · [❓ FAQ](#-faq) · [💬 Community](#-contact)**
+
+**Contents**: [Core Advantages](#-core-advantages) · [How It Works](#-how-it-works) · [Feature Tour](#-feature-tour) · [How It Compares](#-how-it-compares) · [Feature Overview](#-feature-overview) · [Use Cases](#-use-cases) · [Security & Privacy](#-security--privacy) · [Install & Get Started](#-install--get-started) · [FAQ](#-faq) · [More by the author](#-more-by-the-author) · [Contributing](#-contributing) · [License](#-license)
+
+</div>
 
 ## ✨ Core Advantages
 
@@ -39,62 +45,82 @@
 | 📊 **Offline security audit**                   | One-click 0–100 score weighted across four dimensions, **computed entirely on your machine**                                                                                                                                                                               |
 | 📦 **One-click migration**                      | Auto-detects exports from Chrome / LastPass / Bitwarden / 1Password; CSV & JSON — **move in in 30 seconds**                                                                                                                                                                |
 
-**Who it's for**
+## 🧭 How It Works
 
-- 💻 **Developers** — isolate multi-environment accounts for the same site, so dev / test / staging / prod never mix
-- 🧪 **QA engineers** — one-keystroke fill plus auto-submit login, doubling cross-environment throughput
-- 🔏 **Privacy-conscious users** — local encryption only, no password data leaves the machine, no account or cloud sync
-- 🙋 **Everyday users** — stop memorizing passwords with built-in TOTP and a password generator
+One fill takes four steps, all on your own machine:
+
+1. **Read the login page** — the content script works out which fields are username, password and one-time code; scanning is throttled and batched, and never rewrites the host page's styles or scripts
+2. **Pick candidates by domain** — three cross-subdomain tiers decide which accounts appear in the side panel and the inline dropdown. Exact host match is the default, so dev / test / staging / prod entries never mix
+3. **Decrypt locally** — the master password derives a key through PBKDF2; opening a list decrypts the vault once, the plaintext lives only in the extension's own context while the disk keeps ciphertext, and key material and snapshots are destroyed on lock or expiry
+4. **Fill, then sign in** — fields are written one by one and consent or "remember me" boxes get ticked, with the sign-in button clicked for you if that switch is on; a credential seen for the first time always asks before it is saved
+
+> Source paths and strategy notes for every step are in [ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details), and the same four steps as a visual band are in the [How it works section of the live demo page](https://liaolongdong.github.io/account-password-helper/en.html#how).
 
 ## 🖼️ Feature Tour
 
-> One module per shot: the bold line above is the module name, and the line below carries **only what the image cannot show** — the defaults people trip over, where to switch them, and the hidden capabilities.
+> One module per row, one full-width shot each: the bold line under each image is the module name, and the line below it carries **only what the image cannot show** — the defaults people trip over, where to switch them, and the hidden capabilities. **Click any of them to open it at full size** (the first is a 1152×720 capture of the flow; the other seven are 2560×1600 shots taken at 2× DPR).
 
 <p align="center">
-  <b>⚡ One-click login</b><br/>
-  <img src="./docs/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /><br/>
+  <a href="./docs/demo-login-en.webp"><img src="./docs/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /></a>
+  <br />
+  <b>⚡ One-click login</b>
+  <br />
   <sub>The <b>Ctrl+Shift+F</b> shortcut stops at "filled + ticked" — it will not submit for you.</sub>
 </p>
 
 <p align="center">
-  <b>🔑 Built-in TOTP</b><br/>
-  <img src="./assets/cws-store/screen-2-totp-en.png" alt="Two-factor codes: a live 6-digit code with a countdown ring shown right in the password list" width="100%" /><br/>
+  <a href="./assets/cws-store/screen-2-totp-en.png"><img src="./assets/cws-store/screen-2-totp-en.png" alt="Two-factor codes: a live 6-digit code with a countdown ring shown right in the password list" width="100%" /></a>
+  <br />
+  <b>🔑 Built-in TOTP</b>
+  <br />
   <sub>Add a key by scanning an on-page QR code or uploading a QR image (decoded locally); the algorithm and 6 / 7 / 8 digits are configurable.</sub>
 </p>
 
 <p align="center">
-  <b>📝 In-page fill panel</b><br/>
-  <img src="./assets/cws-store/screen-9-inline-fill-en.png" alt="In-page fill panel: the key icon beside the input opens a mini panel for picking an account" width="100%" /><br/>
+  <a href="./assets/cws-store/screen-9-inline-fill-en.png"><img src="./assets/cws-store/screen-9-inline-fill-en.png" alt="In-page fill panel: the key icon beside the input opens a mini panel for picking an account" width="100%" /></a>
+  <br />
+  <b>📝 In-page fill panel</b>
+  <br />
   <sub>Fresh installs default to this inline fill; switch to Sidebar or Manual in Preferences.</sub>
 </p>
 
 <p align="center">
-  <b>🎯 Multi-environment isolation</b><br/>
-  <img src="./assets/cws-store/screen-3-multi-env-en.png" alt="Per-environment accounts: dev, staging and production entries for one site separated by tags" width="100%" /><br/>
+  <a href="./assets/cws-store/screen-3-multi-env-en.png"><img src="./assets/cws-store/screen-3-multi-env-en.png" alt="Per-environment accounts: dev, staging and production entries for one site separated by tags" width="100%" /></a>
+  <br />
+  <b>🎯 Multi-environment isolation</b>
+  <br />
   <sub>On <b>localhost</b> / <b>127.0.0.1</b> the port is matched too.</sub>
 </p>
 
 <p align="center">
-  <b>📊 Offline security audit</b><br/>
-  <img src="./assets/cws-store/screen-4-security-audit-en.png" alt="Offline security audit: a 0 to 100 score with the four problem categories broken out" width="100%" /><br/>
+  <a href="./assets/cws-store/screen-4-security-audit-en.png"><img src="./assets/cws-store/screen-4-security-audit-en.png" alt="Offline security audit: a 0 to 100 score with the four problem categories broken out" width="100%" /></a>
+  <br />
+  <b>📊 Offline security audit</b>
+  <br />
   <sub>The leaked-password dictionary is a built-in offline list of nearly a thousand entries; "2FA not enabled" is listed separately and never costs points.</sub>
 </p>
 
 <p align="center">
-  <b>🛠️ Password generator</b><br/>
-  <img src="./assets/cws-store/screen-13-generator-en.png" alt="Password generator panel offering random password and passphrase modes" width="100%" /><br/>
+  <a href="./assets/cws-store/screen-13-generator-en.png"><img src="./assets/cws-store/screen-13-generator-en.png" alt="Password generator panel offering random password and passphrase modes" width="100%" /></a>
+  <br />
+  <b>🛠️ Password generator</b>
+  <br />
   <sub>The "Generate &amp; Fill Strong Password" right-click option touches no stored credential, so it works even while the session is locked.</sub>
 </p>
 
 <p align="center">
-  <b>🔒 Local encryption</b><br/>
-  <img src="./assets/cws-store/screen-6-local-encryption-en.png" alt="Local encryption: the first-run master password screen, with data encrypted before it is written to browser storage" width="100%" /><br/>
+  <a href="./assets/cws-store/screen-6-local-encryption-en.png"><img src="./assets/cws-store/screen-6-local-encryption-en.png" alt="Local encryption: the first-run master password screen, with data encrypted before it is written to browser storage" width="100%" /></a>
+  <br />
+  <b>🔒 Local encryption</b>
+  <br />
   <sub>The master password is the only key: if it is forgotten it <b>cannot be recovered</b> and resetting wipes the data, so take an encrypted (.aph) backup first.</sub>
 </p>
 
 <p align="center">
-  <b>🎨 Themes &amp; bilingual UI</b><br/>
-  <img src="./assets/cws-store/screen-5-preferences-en.png" alt="Preferences panel with six theme swatches and the Chinese/English language switch" width="100%" /><br/>
+  <a href="./assets/cws-store/screen-5-preferences-en.png"><img src="./assets/cws-store/screen-5-preferences-en.png" alt="Preferences panel with six theme swatches and the Chinese/English language switch" width="100%" /></a>
+  <br />
+  <b>🎨 Themes &amp; bilingual UI</b>
+  <br />
   <sub>The six themes are Sky Blue, Bamboo Green, Peach Pink, Blossom Mauve, Sunset Orange and Misty Slate, and they apply instantly with no reload.</sub>
 </p>
 
@@ -142,7 +168,7 @@
 ### 📦 Data Management
 
 - 📥 **Import / export**: CSV / JSON, with auto-detection of Chrome, LastPass, Bitwarden and 1Password exports and bilingual column mapping (re-save Excel sheets as CSV)
-- 🔐 **Several backups**: encrypted (.aph) export/import with a decrypt preview; email backup that assembles everything locally and hands it to your own mail client over `mailto:`; scheduled reminders that only notify you — nothing is ever sent automatically
+- 🔐 **Several backups**: encrypted (.aph) export/import with a decrypt preview; email backup that defaults to the encrypted mode, assembles everything locally and hands it to your own mail client over `mailto:` — switching to plain backup asks for a risk acknowledgement before the master-password re-verification; scheduled reminders that only notify you, nothing is ever sent automatically
 - 🏷️ **Organization that scales**: tag filtering, favorites pinned to the top (cap defaults to 10, configurable 1–50, evicted LRU), multi-field smart search with pinyin/initials and highlighting, one-click dedup, batch delete / retag / export selected to CSV, and a read-only detail drawer with the full remark and password history
 - 📄 **Paginated list**: the password list renders one page at a time (100 rows by default, switchable to 50 / 100 / 200 — the size you pick is remembered on your machine and reused next time you open the page, and the trash list paginates at that same size), so opening the manager page near the 2,000-entry cap no longer means waiting for the whole table to paint. Selections survive page flips — batch delete / retag / export-selected still act on every checked entry (the pager tells you how many of them are off-page), while the header checkbox follows the usual table convention of selecting the current page only. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it; a search or sort change takes you back to page 1. Switching the page size does not — the page number is recomputed from wherever the first row you were looking at lands in the new size, so that batch of entries stays in front of you
 - ♻️ **Mistake-proofing**: 30-day trash bin (soft delete, newest deletion first, searchable by username / URL / tag so you are not paging through to find what you just removed), password change history keeping 3 encrypted snapshots per entry by default (configurable 1–10, restorable), and an atomic master password change that never loses data
@@ -158,9 +184,32 @@
 
 > 🛠 The tech stack, architecture and project structure are covered in the [Contributing Guide](./docs/CONTRIBUTING.md); per-feature implementation details (source paths, strategies, constraints) live in [ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details); the engineering write-ups are on the [Tech Blog](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) (Chinese & English).
 
+## 🚀 Use Cases
+
+**Who it's for**
+
+- 💻 **Developers** — isolate multi-environment accounts for the same site, so dev / test / staging / prod never mix
+- 🧪 **QA engineers** — one-keystroke fill plus auto-submit login, doubling cross-environment throughput
+- 🔏 **Privacy-conscious users** — local encryption only, no password data leaves the machine, no account or cloud sync
+- 🙋 **Everyday users** — stop memorizing passwords with built-in TOTP and a password generator
+
+| Scenario                                                  | How it is done                                                                                                                                                                                 |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| dev / test / staging / prod of one site never mix         | Keep the default "Exact match only" tier — every fill entry point and list shows only entries whose host matches the current page exactly; `localhost` / `127.0.0.1` are separated by port too |
+| One account should serve a whole domain family            | Switch "Cross-subdomain matching" in the manager page header to "Exact + wildcard entries" (save the URL as `*.qq.com`), or to "Same main domain" for a fallback badged "Cross-subdomain"      |
+| Regression testing means signing in over and over         | `Ctrl+Shift+F` runs fill plus consent-ticking in one press; with "Auto-submit login" on (or the side panel's "Fill and sign in") it clicks the login button too                                |
+| GitHub-style two-step login without reaching for a phone  | The TOTP key lives in the same entry as the password; on the code page the live-code capsule anchors itself beside the input — tap Fill                                                        |
+| A self-built login page refuses to fill                   | "Site rules" on the manager page pins custom CSS selectors for that domain's username and password fields, with shadow DOM penetration on by default per rule                                  |
+| One login setup shared across a team and several machines | Site rules export as plain-text JSON (domains and selectors only, never credentials) and merge-import by domain with an added / updated / skipped report                                       |
+| Moving in from LastPass / Bitwarden / 1Password / Chrome  | Import takes CSV or JSON, auto-detects those four export formats and maps their bilingual columns — about 30 seconds                                                                           |
+| Checking password health on a schedule                    | The offline security audit gives a 0–100 score weighted across four dimensions, computed entirely on your machine; per-entry 7 / 30 / 90-day change-password reminders                         |
+| Web forms ask for name, ID number, bank card              | The identity vault stores those fields separately — masked by default, master-password re-check to open, with encrypted (.aphid) export/import                                                 |
+| Handing a set of credentials to a colleague               | The share card copies username, password and URL as one plain-text block; it carries the plaintext password, so the same timed clipboard clearing applies                                      |
+
 ## 🔒 Security & Privacy
 
-- **Data stays local**: entries are stored in `chrome.storage.local` with sensitive fields encrypted field by field before they hit disk, so they never leave the machine as plaintext; key material and decrypted snapshots live only in `chrome.storage.session`, and `storage.sync` / `storage.managed` are **never** used.
+- **Data stays local**: entries are stored in `chrome.storage.local` with sensitive fields encrypted field by field before they hit disk, so they never leave the machine as plaintext; the **plaintext form of the data key** and decrypted snapshots live only in `chrome.storage.session` (memory, cleared when the browser closes), while what persists in `storage.local` is ciphertext plus one _wrapped_ data key — the very thing that makes password-free restarts work. `storage.sync` / `storage.managed` are **never** used.
+- **Staying signed in = decryptable on this device**: for as long as a session is valid, that wrapped data key stays in `storage.local`, which is why fully closing and reopening the browser asks for no master password — and why any program able to read this browser profile can decrypt the vault in the meantime. Manual lock, the idle lock and session expiry all destroy that key material immediately. On a shared computer, turn on "Lock on browser restart".
 - **Locking and expiry destroy the key only**: sensitive fields are already ciphertext on disk (the at-rest invariant), so locking or expiring a session does not re-encrypt the vault and never stalls. Verify the master password again to restore access — no data is lost.
 - **The only outbound request**: an anonymous update check every 6 hours — store installs send an opaque HEAD request to the listing page, manual installs query the public GitHub Releases API. Neither carries any vault content, account, identifier or anything derivable from them; offline, the check fails silently and no core feature is affected. Beyond this the extension makes no external requests at all — even site icons come from Chrome's local cache.
 - **What it never does**: no `cookies`, `history`, `downloads` or any undeclared permission; no telemetry, analytics, ads or crash reporting, and no device fingerprint or usage statistics; the master password is never stored in any recoverable form — only a PBKDF2-derived verifier is kept.
@@ -189,6 +238,9 @@
 
 ### Shortcut Cheat Sheet
 
+<details>
+<summary>Expand the 5 keys, their default behaviour and the rebinding limits — the four steps above never need this table</summary>
+
 | Action                    | Windows / Linux | macOS         | Default behaviour                                                                                                                             |
 | ------------------------- | --------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | Open the password manager | `Ctrl+Shift+P`  | `Cmd+Shift+P` | Opens the options page                                                                                                                        |
@@ -199,51 +251,86 @@
 
 > Keys cannot be rebound inside the extension (Chrome exposes no `commands.update()`) — change them at `chrome://extensions/shortcuts`. The read-only overviews on the manager page ("Security Settings → Keyboard Shortcuts") and in the side panel's Help dialog flag any key that is currently not active. Command IDs and constraints are in the [Contributing Guide — Keyboard Shortcuts](./docs/CONTRIBUTING.md#keyboard-shortcuts).
 
+</details>
+
 ## ❓ FAQ
 
-**Q: Will my passwords be uploaded to the cloud?**
+<details open>
+<summary><strong>Will my passwords be uploaded to the cloud?</strong></summary>
 
-A: No. Data lives only in your browser's local storage, with sensitive fields encrypted field by field before they are written. The only outbound request is an anonymous version check every 6 hours — see [Security & Privacy](#-security--privacy).
+No. Data lives only in your browser's local storage, with sensitive fields encrypted field by field before they are written. The only outbound request is an anonymous version check every 6 hours — see [Security & Privacy](#-security--privacy).
 
-**Q: What if I forget the master password?**
+</details>
 
-A: It cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up regularly via data export or an encrypted (.aph) backup to avoid data loss.
+<details>
+<summary><strong>What if I forget the master password?</strong></summary>
 
-**Q: What happens when the session expires?**
+It cannot be recovered. You can only use "Reset" to wipe the data and start over. Back up regularly via data export or an encrypted (.aph) backup to avoid data loss.
 
-A: Expiry clears key material and the in-memory cache only — the sensitive fields on disk are already ciphertext, so there is no bulk re-encryption step and nothing stalls. Verify the master password again to restore access; no data is lost.
+</details>
 
-**Q: Can I import from other password managers?**
+<details>
+<summary><strong>What happens when the session expires?</strong></summary>
 
-A: Yes. Upload a CSV or JSON file in the import dialog; Chrome, LastPass, Bitwarden and 1Password formats are auto-detected and mapped, which takes about 30 seconds. Excel files must be re-saved as CSV (.xlsx is not parsed).
+Expiry clears key material and the in-memory cache only — the sensitive fields on disk are already ciphertext, so there is no bulk re-encryption step and nothing stalls. Verify the master password again to restore access; no data is lost.
 
-**Q: Can one account cover every subdomain of a site?**
+</details>
 
-A: The manager page header carries a "Cross-subdomain matching" control with three tiers, and the default is "Exact match only". "Exact + wildcard entries" makes an account saved as `*.qq.com` surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (`qq.com`) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, so a wider tier never changes which entry a save overwrites; `localhost` / `127.0.0.1` always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.
+<details>
+<summary><strong>Can I import from other password managers?</strong></summary>
 
-**Q: What if the login fields are not detected, or nothing fills?**
+Yes. Upload a CSV or JSON file in the import dialog; Chrome, LastPass, Bitwarden and 1Password formats are auto-detected and mapped, which takes about 30 seconds. Excel files must be re-saved as CSV (.xlsx is not parsed).
 
-A: When the form lives inside custom components (typically Web Components pages), open "Site rules" on the manager page and pin the CSS selectors for that domain's username and password fields — the domain must match the login page exactly, wildcards are not supported. Each rule ships with "Shadow DOM penetration" switched on and it can be turned off to match the main document only; note that no extension can read a closed shadow root (`mode: 'closed'`), only open ones. Finished rules export as JSON (plain text — domains and selectors, never credentials) for backup or team sharing, and importing merges by domain with an added / updated / skipped report.
+</details>
 
-**Q: When I open the exported CSV in Excel, some passwords or notes turn into error values?**
+<details>
+<summary><strong>Can one account cover every subdomain of a site?</strong></summary>
 
-A: If a field's value itself starts with `=`, `+`, `-` or `@` (all four are in the password generator's symbol set), Excel evaluates that cell as a formula. The export deliberately does not formula-escape: prefixing rewrites the field, and a password is consumed character by character, so a prefixed value would be wrong both when copied out of the sheet and when re-imported — and the export → import round trip would stop being reversible. Treat export files as data you produced on your own machine, and prefer the encrypted backup (.aph) when moving between machines.
+The manager page header carries a "Cross-subdomain matching" control with three tiers, and the default is "Exact match only". "Exact + wildcard entries" makes an account saved as `*.qq.com` surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (`qq.com`) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, so a wider tier never changes which entry a save overwrites; `localhost` / `127.0.0.1` always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.
 
-**Q: Can I recover deleted passwords?**
+</details>
 
-A: Yes. Deleted entries move to the trash for 30 days — restore or permanently delete them under "Data Management → Trash". Mistaken password edits can be reverted from the entry's "Password history".
+<details>
+<summary><strong>What if the login fields are not detected, or nothing fills?</strong></summary>
 
-**Q: Is there a limit on how many entries I can store?**
+When the form lives inside custom components (typically Web Components pages), open "Site rules" on the manager page and pin the CSS selectors for that domain's username and password fields — the domain must match the login page exactly, wildcards are not supported. Each rule ships with "Shadow DOM penetration" switched on and it can be turned off to match the main document only; note that no extension can read a closed shadow root (`mode: 'closed'`), only open ones. Finished rules export as JSON (plain text — domains and selectors, never credentials) for backup or team sharing, and importing merges by domain with an added / updated / skipped report.
 
-A: Yes. The password list holds up to 2,000 entries, counted on the list itself — entries sitting in the trash do not take a slot. Once it is full, adding, importing, page auto-save and restoring from the trash are all refused with an explicit message; nothing you already stored is silently overwritten or dropped. When an import exceeds the remaining slots, the preview shows how many entries still fit and how many will be ignored, and you choose to import just those or cancel. To make room, delete entries you no longer need from the password list — an entry releases its slot the moment it moves to the trash, so emptying the trash is not required — or keep a full copy via "Export Data" / "Export JSON" / "Export Encrypted Backup" and then trim the list.
+</details>
 
-**Q: Does the manager page get sluggish near the entry limit?**
+<details>
+<summary><strong>When I open the exported CSV in Excel, some passwords or notes turn into error values?</strong></summary>
 
-A: Not as a function of how many entries you have. The list paints one page at a time (100 rows by default, 50 / 100 / 200 on demand, and the size you pick is remembered locally for your next visit), so searching, filtering as you type, flipping pages and hovering all land in the same range at 600 entries as at the 2000 entry cap — measured on the same machine with the same harness. Opening the page still reads and decrypts the whole vault once, and that step does track vault size; the promise here is "cost does not grow row by row", not "constant time". Pagination only changes how many rows are drawn: search, sorting, export and the "total / filtered" readout still cover the entire matching set, and checked entries are kept across pages (the pager tells you how many of them are off-page). One thing to know: the header checkbox selects the current page only, as in any table — switch to 200 rows per page, or tick page by page, when you need a large batch.
+If a field's value itself starts with `=`, `+`, `-` or `@` (all four are in the password generator's symbol set), Excel evaluates that cell as a formula. The export deliberately does not formula-escape: prefixing rewrites the field, and a password is consumed character by character, so a prefixed value would be wrong both when copied out of the sheet and when re-imported — and the export → import round trip would stop being reversible. Treat export files as data you produced on your own machine, and prefer the encrypted backup (.aph) when moving between machines.
 
-**Q: The side panel doesn't show, or is slow the first time?**
+</details>
 
-A: The side panel relies on Chrome's Side Panel API (Chromium 114 or newer); you can also click the extension icon or press `Ctrl+Shift+L` / `Cmd+Shift+L`. On Windows the first cold start can take 1–2 extra seconds because Defender scans each extension file — add `%LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions` to the exclusion list to bring it under one second (not needed on Mac).
+<details>
+<summary><strong>Can I recover deleted passwords?</strong></summary>
+
+Yes. Deleted entries move to the trash for 30 days — restore or permanently delete them under "Data Management → Trash". Mistaken password edits can be reverted from the entry's "Password history".
+
+</details>
+
+<details>
+<summary><strong>Is there a limit on how many entries I can store?</strong></summary>
+
+Yes. The password list holds up to 2,000 entries, counted on the list itself — entries sitting in the trash do not take a slot. Once it is full, adding, importing, page auto-save and restoring from the trash are all refused with an explicit message; nothing you already stored is silently overwritten or dropped. When an import exceeds the remaining slots, the preview shows how many entries still fit and how many will be ignored, and you choose to import just those or cancel. To make room, delete entries you no longer need from the password list — an entry releases its slot the moment it moves to the trash, so emptying the trash is not required — or keep a full copy via "Export Data" / "Export JSON" / "Export Encrypted Backup" and then trim the list.
+
+</details>
+
+<details>
+<summary><strong>Does the manager page get sluggish near the entry limit?</strong></summary>
+
+Not as a function of how many entries you have. The list paints one page at a time (100 rows by default, 50 / 100 / 200 on demand, and the size you pick is remembered locally for your next visit), so searching, filtering as you type, flipping pages and hovering all land in the same range at 600 entries as at the 2000 entry cap — measured on the same machine with the same harness. Opening the page still reads and decrypts the whole vault once, and that step does track vault size; the promise here is "cost does not grow row by row", not "constant time". Pagination only changes how many rows are drawn: search, sorting, export and the "total / filtered" readout still cover the entire matching set, and checked entries are kept across pages (the pager tells you how many of them are off-page). One thing to know: the header checkbox selects the current page only, as in any table — switch to 200 rows per page, or tick page by page, when you need a large batch.
+
+</details>
+
+<details>
+<summary><strong>The side panel doesn't show, or is slow the first time?</strong></summary>
+
+The side panel relies on Chrome's Side Panel API (Chromium 114 or newer); you can also click the extension icon or press `Ctrl+Shift+L` / `Cmd+Shift+L`. On Windows the first cold start can take 1–2 extra seconds because Defender scans each extension file — add `%LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions` to the exclusion list to bring it under one second (not needed on Mac).
+
+</details>
 
 > 📖 More questions (TOTP usage & troubleshooting, fill troubleshooting, email backup, encrypted backup, the favorites limit, etc.) are covered in the full FAQ on the [live demo page](https://liaolongdong.github.io/account-password-helper/en.html) and the per-feature notes in [docs/ARCHITECTURE.en.md](./docs/ARCHITECTURE.en.md).
 
@@ -255,7 +342,7 @@ If this project helps you, please give it a ⭐️ and leave a review on the Chr
 
 ## 🧩 More by the author
 
-Same author, same rules: open source, offline, data stays on your machine.
+Same author, same rules: open source, offline, data stays on your machine. More of the author's open-source work: [github.com/liaolongdong](https://github.com/liaolongdong).
 
 - [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — an offline converter that turns 14 formats into each other inside the browser without uploading a byte. Markdown, Word, PDF, Excel, CSV, JSON, HTML and images convert on your own machine, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/)
 - [Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy) — proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket, all configured in the browser with data stored only on your computer. This extension answers "who am I in this environment", that one answers "where do this environment's requests go" — the two are handy together when you debug across environments. [Product page](https://liaolongdong.github.io/cross-origin-proxy/en.html) · [Chrome Web Store](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
@@ -290,4 +377,4 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 
 ---
 
-> 📅 Last updated: 2026-09-22 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 Last updated: 2026-09-25 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)

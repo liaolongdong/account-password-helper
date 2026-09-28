@@ -1,5 +1,11 @@
 <!-- 请先读一句：涉及密码、密钥、加密或数据丢失的安全问题，请走 .github/SECURITY.md 的私密渠道，不要开公开 PR / Issue。 -->
 
+<!-- 标题请按约定式提交写：<type>(<scope>): <subject>。它不是文案，而是版本决策的输入——
+     feat 推 minor、fix 推 patch、type 后带 ! 或描述里写 BREAKING CHANGE 会把版本号推到 major。
+     `Conventional PR title` 检查会校验它。合入本 PR 也≠发布：改动会进 release-please 的下一班车，
+     由维护者合并那条 release PR 并批准 `production` 环境后才提交商店审核。
+     详见 docs/CONTRIBUTING.md「分支模型与发版流程」与 docs/PR_WORKFLOW_GUIDE.md。 -->
+
 ## 这个 PR 改了什么 / What does it do
 
 <!-- 一句话说明动机和结果。行为变化请写清楚「之前 → 之后」。 -->
@@ -42,7 +48,7 @@ Closes #
 - [ ] `utils/i18n-lite.ts` 的中英文条目（Content / Background 文案，与上面是两套独立词表）
 - [ ] `public/_locales/zh_CN/messages.json` 与 `en/messages.json`（manifest 文案；摘要受 132 字符硬限制）
 - [ ] `README.md` 与 `README.en.md`
-- [ ] `index.html`（改中文源后跑 `pnpm gen:en` 重生 `en.html`）
+- [ ] `index.html`（改中文源后跑 `pnpm gen:en` 重生 `en.html`；改 `FAQS` 再按顺序跑 `pnpm gen:faq` 与 `pnpm gen:faq-dom`）
 - [ ] `components/sidepanel/HelpDialog.vue` 对应的 `help.json`（新增条目须同步提升 `helpItems('help.gx', N)` 的 N）
 - [ ] `docs/ARCHITECTURE.md` 与 `.en.md`「功能实现详解」
 - [ ] 涉及商店文案、权限或隐私时：`docs/CWS_FILL_CONTENT.md`、`docs/CWS_PUBLISHING_GUIDE.md`、`privacy.html`

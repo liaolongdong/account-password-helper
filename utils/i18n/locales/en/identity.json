@@ -95,6 +95,7 @@
   "identity.import.notAphid": "This is not an identity backup file (it may be a password vault .aph or .json backup). Use the import feature in the password vault.",
   "identity.import.invalidFile": "Invalid file format; cannot parse.",
   "identity.import.invalidStructure": "Backup file structure is corrupted; cannot parse.",
+  "identity.import.fileTooLarge": "The identity file is too large (limit: {max}). Make sure it is a complete export file.",
   "identity.import.previewTitle": "Import preview",
   "identity.import.previewDesc": "Will add {added}, update {updated} and skip {skipped} (older) record(s). {total} record(s) total after import.",
   "identity.import.confirmImport": "Confirm import",

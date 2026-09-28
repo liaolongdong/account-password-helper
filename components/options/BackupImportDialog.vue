@@ -223,12 +223,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
-import { importEncryptedBackup } from '@/utils/backupExport';
+import { BackupImportUserError, importEncryptedBackup } from '@/utils/backupExport';
+import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
+import { formatFileSize } from '@/utils/formatFileSize';
+import { scrollDialogBodyToBottom } from '@/utils/dialogScroll';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
@@ -272,17 +275,6 @@ const { currentCount, remaining, skipped, capacityExhausted, importableEntries, 
   useImportCapacity(previewData);
 
 /**
- * 格式化文件大小为可读字符串
- * @param bytes 文件字节数
- * @returns 格式化后的文件大小字符串
- */
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-};
-
-/**
  * 超出数量上限的兜底提示
  *
  * `el-upload` 的 `on-exceed` 默认为空实现，命中 `limit` 时文件被静默丢弃：既不提示，
@@ -303,19 +295,22 @@ const handleFileChange = async (file: UploadFile) => {
     }
     return;
   }
+  // 字节闸门：超限文件在选文件这一步就拒掉，避免用户填完主密码才被告知文件不可用。
+  // `importEncryptedBackup` 内另有同口径闸门，兜住其余调用路径与绕过 UI 的输入。
+  if (file.raw.size > MAX_PASSWORD_IMPORT_INPUT_BYTES) {
+    ElMessage.error(t('backup.fileTooLarge', { max: formatFileSize(MAX_PASSWORD_IMPORT_INPUT_BYTES) }));
+    if (uploadRef.value) {
+      uploadRef.value.clearFiles();
+    }
+    return;
+  }
   selectedFile.value = file.raw;
   previewData.value = [];
   masterPassword.value = '';
   // 密码输入区经 v-if 卸载时不会触发 blur，需显式清除大写锁定提示，避免下次显示时残留
   resetCapsLockState();
   // 文件选择后，密码输入区出现，等 DOM 渲染完毕后滚动弹窗内容区到底部
-  await nextTick();
-  setTimeout(() => {
-    const dialogBody = document.querySelector('.backup-import-dialog .dialog-body-scroll');
-    if (dialogBody) {
-      dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
-    }
-  }, 150);
+  await scrollDialogBodyToBottom('.backup-import-dialog .dialog-body-scroll');
 };
 
 /** 处理文件移除 */
@@ -344,16 +339,12 @@ const handleDecrypt = async () => {
 
     previewData.value = entries;
     ElMessage.success(t('options.backupImport.decryptSuccess', { count: entries.length }));
-    await nextTick();
-    setTimeout(() => {
-      const dialogBody = document.querySelector('.backup-import-dialog .dialog-body-scroll');
-      if (dialogBody) {
-        dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
-      }
-    }, 150);
+    await scrollDialogBodyToBottom('.backup-import-dialog .dialog-body-scroll');
   } catch (error) {
     logger.error('解密备份文件失败:', error);
-    const message = error instanceof Error ? error.message : t('options.backupImport.decryptFailed');
+    // 只呈现已完成 i18n 的用户可读错误：底层 OperationError / SyntaxError 的英文原文
+    // 既看不懂也可能带出内部信息，非用户可读错误一律退到通用文案。
+    const message = error instanceof BackupImportUserError ? error.message : t('options.backupImport.decryptFailed');
     ElMessage.error(message);
     previewData.value = [];
   } finally {

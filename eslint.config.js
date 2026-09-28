@@ -47,4 +47,24 @@ export default [
       'no-var': 'error',
     },
   },
+  {
+    // product-site/ 是对外产品页：手写的静态浏览器脚本，不进 WXT/Vite 打包，也不跑在扩展运行时里，
+    // 因此需要浏览器全局而不是 Node 全局。只对该目录生效，扩展源码的解析结果不受影响。
+    files: ['product-site/**/*.js'],
+    languageOptions: {
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        crypto: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        requestAnimationFrame: 'readonly',
+        matchMedia: 'readonly',
+        HTMLElement: 'readonly',
+        HTMLAnchorElement: 'readonly',
+        IntersectionObserver: 'readonly',
+      },
+    },
+  },
 ];

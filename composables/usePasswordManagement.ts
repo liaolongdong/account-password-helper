@@ -12,10 +12,12 @@ import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
 import { isValidTotpInput } from '@/utils/totp';
+import { scrollBehavior } from '@/utils/a11y';
 import { matchesKeyword } from '@/utils/searchMatch';
-import { filterByKeyword, KEYWORD_DEBOUNCE_MS } from '@/utils/keywordMatch';
+import { filterByKeyword } from '@/utils/keywordMatch';
 import { warmPinyinMatcher } from '@/utils/searchMatch/core';
 import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
+import { useKeywordDebounce } from '@/composables/useKeywordDebounce';
 import { useVaultListPagination } from '@/composables/useVaultListPagination';
 import { useVaultPageSize } from '@/composables/useVaultPageSize';
 import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
@@ -85,8 +87,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    *
    * 高亮与过滤同源，既保证「看到的行」与「行内高亮」始终一致，
    * 也避免每次击键都为上千个文本单元格重算分段（大列表下即整表重排）。
+   * 实现与回收站弹窗、侧边栏共用 `composables/useKeywordDebounce`。
    */
-  const debouncedSearchKeyword = ref('');
+  const { debounced: debouncedSearchKeyword } = useKeywordDebounce(searchKeyword);
   /** 是否仅显示收藏条目 */
   const favoriteOnly = ref(false);
   /** 标签筛选：选中标签集合（命中任一即保留，与搜索/收藏过滤为叠加关系） */
@@ -196,22 +199,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     const onPage = new Set(pagedEntries.value.map(entry => entry.id));
     return selectedIds.value.reduce((count, id) => count + (onPage.has(id) ? 0 : 1), 0);
   });
-
-  /**
-   * 搜索关键词防抖：输入框保持即时响应（v-model 仍绑定 searchKeyword），
-   * 仅将驱动过滤的 debouncedSearchKeyword 延迟 `KEYWORD_DEBOUNCE_MS` 更新，
-   * 降低大列表连续击键时 filter + sort 的重排开销。
-   */
-  let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
-  watch(searchKeyword, value => {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(() => {
-      debouncedSearchKeyword.value = value;
-    }, KEYWORD_DEBOUNCE_MS);
-  });
-
-  // 作用域销毁时清理未触发的防抖定时器，避免向已停用作用域赋值
-  onScopeDispose(() => clearTimeout(searchDebounceTimer));
 
   /** 收藏过滤变化时清空选中状态（符合交互策略：过滤条件变化清空选中） */
   watch(favoriteOnly, () => {
@@ -588,7 +575,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         return;
       }
       row.classList.add('new-item');
-      row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      row.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
       clearTimeout(rowHighlights.get(id));
       rowHighlights.set(
         id,
@@ -906,7 +893,15 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
     const targets = passwords.value.filter(p => selectedIdSet.value.has(p.id));
     let skippedCount = 0;
-    const updates: Array<{ id: string; tag: string }> = [];
+    /**
+     * 待写入集合
+     *
+     * `updateTime` 在第一条循环里就地取，而不是事后按 id 回查：全库选中时那次回查是
+     * 「选中数 × 全库数」的第二轮全表扫描（与上面 `filter` 同量级），而它要的值
+     * 就在手上这批对象上。落盘之后的回查则必须保留——`await` 期间 storage watcher
+     * 可能整组替换 `passwords`，就地更新得落在「此刻的」条目对象上，改按一次索引查表。
+     */
+    const updates: Array<{ id: string; tag: string; updateTime: number }> = [];
 
     for (const entry of targets) {
       const existing = parseTags(entry.tag);
@@ -920,7 +915,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       }
       const nextTag = stringifyTags(nextTags);
       if (nextTag === entry.tag) continue;
-      updates.push({ id: entry.id, tag: nextTag });
+      updates.push({ id: entry.id, tag: nextTag, updateTime: entry.updateTime });
     }
 
     if (updates.length === 0) {
@@ -935,15 +930,15 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         // 单次 read-modify-write 批量落盘（避免逐条全量读写，且写入原子）；
         // updateTime 保持原值：仅标签元数据变更，不干扰排序
         await StorageUtils.batchUpdatePasswordMetadata(
-          updates.map(({ id, tag }) => {
-            const entry = passwords.value.find(p => p.id === id);
-            return { id, updates: { tag, updateTime: entry?.updateTime } };
-          }),
+          updates.map(({ id, tag, updateTime }) => ({ id, updates: { tag, updateTime } })),
         );
       });
-      // 就地更新：与 filteredPasswords computed 联动，避免全量重载
+      // 就地更新：与 filteredPasswords computed 联动，避免全量重载。
+      // 按当前 passwords 建一次索引再查（写入期间 storage watcher 可能整组替换数组，
+      // 必须落在「此刻的」条目对象上），把 k 次全表扫描换成一次 O(n) 建表 + k 次查表。
+      const currentById = new Map(passwords.value.map(entry => [entry.id, entry] as const));
       for (const { id, tag } of updates) {
-        const entry = passwords.value.find(p => p.id === id);
+        const entry = currentById.get(id);
         if (entry) entry.tag = tag;
       }
       ElMessage.success(t('form.batchTagDone', { count: updates.length }));

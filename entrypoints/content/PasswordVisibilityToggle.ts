@@ -4,51 +4,63 @@ import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/t
 import { isElementVisible, resolveToggleAnchorRight, type RectMetrics } from './domUtils';
 import { tl } from '@/utils/i18n-lite';
 
-/** 注入按钮的基础类名 */
+/** 影子树内切换按钮的类名（位于 closed Shadow DOM 内部，宿主页面既选不中也无法覆写） */
 const BUTTON_CLASS = 'aph-pwd-toggle-btn';
 
-/** 注入按钮的可见态类名（input 有值时挂上；布局跟随仅在存在可见按钮期间运行） */
-const VISIBLE_CLASS = 'aph-pwd-toggle-visible';
+/**
+ * 写入每个影子根的定位盒标签
+ *
+ * 选 `span`：是允许的 shadow host 标签，且带内联样式而无 class/id，
+ * 页面里任何一处 `+ span[style]` 都是常见结构，不额外提供可指纹识别的扩展特征。
+ */
+const HOST_TAG = 'span';
 
 /**
- * 注入到页面中的 CSS 样式
+ * 影子根内的样式
  *
- * 零侵入方案：按钮作为 input 兄弟节点，position: absolute 定位。
- * 垂直居中由 CSS 处理，水平位置由 JS 计算。
+ * 零侵入 + 样式隔离方案：定位盒（`:host`）是 input 的兄弟节点，按钮在其影子树内。
+ * 垂直居中由 `:host` 的 top/transform 处理，水平位置由 JS 写内联 left。
  * 不包裹 input，不修改 input 样式，仅父元素临时设为 position: relative。
+ *
+ * `:host` 必须以 `all: initial` 起手：宿主元素本身仍在 light DOM，仍会被页面的
+ * `* { … }` / `span { … }` 一类的普通规则命中，重置后本块再逐项声明所需几何。
+ * 内联 `left`（JS 写入）优先级高于作者规则里的 `all`，因此不会被这行清掉。
  */
-const INJECTED_STYLES = `
-.${BUTTON_CLASS} {
+const SHADOW_STYLES = `
+:host {
+  all: initial;
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
+  display: block;
+  width: 24px;
+  height: 24px;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 200;
+  pointer-events: auto;
+}
+
+.${BUTTON_CLASS} {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 100%;
+  height: 100%;
   padding: 0;
   margin: 0;
   border: none;
   background: transparent;
   color: var(--aph-primary);
   cursor: pointer;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.2s ease, visibility 0.2s ease, color 0.15s ease;
-  z-index: 200;
+  transition: color 0.15s ease;
   border-radius: 4px;
   outline: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
   line-height: 0;
   font-size: 0;
-  pointer-events: auto;
-}
-
-.${BUTTON_CLASS}.${VISIBLE_CLASS} {
-  opacity: 1;
-  visibility: visible;
 }
 
 .${BUTTON_CLASS}:hover {
@@ -69,9 +81,6 @@ const INJECTED_STYLES = `
 }
 `;
 
-/** STYLE 元素 ID */
-const STYLE_ELEMENT_ID = 'aph-pwd-toggle-styles';
-
 /** 按钮左边缘距锚点右边缘的距离 = 按钮宽度(24) + 间距(4) */
 const BUTTON_LEFT_OFFSET = 28;
 
@@ -86,18 +95,40 @@ interface AnchorMeasurement {
 }
 
 /**
+ * 切换定位盒的可见态
+ *
+ * 用内联样式而非 light DOM 类名：类名得挂在影子宿主上（页面可见、可被页面 CSS 命中），
+ * 而内联声明的优先级高于页面的普通规则，且宿主上不留任何扩展特征串。
+ * 两者都不写时由影子根 `:host` 的 `opacity: 0; visibility: hidden` 兜底为隐藏态。
+ *
+ * @param host 定位盒
+ * @param visible 是否可见（跟随 input 是否有值）
+ */
+function setHostVisible(host: HTMLElement, visible: boolean): void {
+  if ((host.style.visibility === 'visible') === visible) return;
+  host.style.visibility = visible ? 'visible' : 'hidden';
+  host.style.opacity = visible ? '1' : '0';
+}
+
+/**
  * 密码输入框显示/隐藏切换管理器
  *
- * 零侵入方案：
+ * 零侵入 + Closed Shadow DOM 方案（与悬浮按钮、内联下拉、接力胶囊同一隔离口径）：
  * - 不对 input 做 DOM 包裹或样式修改
- * - 按钮作为 input 兄弟节点插入（同一父元素）
+ * - 定位盒（无 class / 无 id 的 span）作为 input 兄弟节点插入（同一父元素），其 closed
+ *   Shadow DOM 内才是真正的切换按钮；样式写在影子根里，不往 document.head 注入任何规则
  * - 父元素设为 position: relative（无偏移量，视觉零影响）
- * - 按钮 position: absolute，CSS 垂直居中 + JS 水平定位
+ * - 定位盒 position: absolute，CSS 垂直居中 + JS 水平定位
  * - 水平定位经布局跟随逐帧修正：iframe 二次布局/入场动画/异步样式导致的漂移
  *   不产生 resize 事件，一次性测量会停留在瞬态坐标
- * - 布局跟随仅在「功能启用且至少一个按钮带可见类」期间运行，空密码框页面无常驻开销
- * - 条目释放只经 releaseEntry 单一路径，保证按钮、input.type 与宿主定位一并还原；
+ * - 布局跟随仅在「功能启用且至少一个按钮可见」期间运行，空密码框页面无常驻开销
+ * - 条目释放只经 releaseEntry 单一路径，保证定位盒、input.type 与宿主定位一并还原；
  *   定位改写按父元素引用计数归还，同父元素多个密码框共享一份 relative 时不误清
+ *
+ * 隔离边界如实说明：页面的 `!important` 仍能隐藏或挪动 light DOM 里的那个 span
+ * （任何注入式 UI 都在宿主的布局树里，这一点无法规避）；影子根挡住的是一般页面 CSS
+ * 对按钮外观的覆写——那才是实际会撞到的问题（`button { display:none }`、`svg { width:100% }`
+ * 一类全局规则），并让页面无从按类名选中这枚按钮。
  */
 export class PasswordVisibilityToggle {
   /** input → 条目反查索引（条目的真实持有者是 liveEntries，故此处不构成弱引用保证） */
@@ -112,9 +143,6 @@ export class PasswordVisibilityToggle {
   /** 功能开关状态 */
   private enabled = true;
 
-  /** 样式元素引用 */
-  private styleElement: HTMLStyleElement | null = null;
-
   /** 当前主题（用于注入按钮的令牌换肤） */
   private currentTheme: ThemeName = DEFAULT_THEME;
 
@@ -125,7 +153,7 @@ export class PasswordVisibilityToggle {
    * 托管条目的唯一事实来源（强引用；WeakMap 不可迭代，跟随循环需要遍历）
    *
    * 条目生命周期等于本 Set 的成员资格，因此必须靠 releaseEntry 显式摘除：
-   * 任何只删 Set 之外索引的路径都会让条目连同 input/parent/button 引用永久残留。
+   * 任何只删 Set 之外索引的路径都会让条目连同 input/parent/host 引用永久残留。
    */
   private liveEntries = new Set<ToggleEntry>();
 
@@ -141,7 +169,6 @@ export class PasswordVisibilityToggle {
    * 初始化
    */
   init(): void {
-    this.injectStyles();
     this.scanAndInject();
     this.startObserver();
   }
@@ -154,7 +181,6 @@ export class PasswordVisibilityToggle {
     this.enabled = enabled;
 
     if (enabled) {
-      this.injectStyles();
       this.scanAndInject();
       this.startObserver();
     } else {
@@ -164,12 +190,13 @@ export class PasswordVisibilityToggle {
 
   /**
    * 更新主题：刷新当前主题并对已注入按钮重写令牌，实现实时换肤
+   *
+   * 遍历 liveEntries 而非 querySelectorAll：按钮在 closed 影子树内，文档侧选择器查不到。
    * @param theme 主题名
    */
   setTheme(theme: ThemeName): void {
     this.currentTheme = theme;
-    const buttons = document.querySelectorAll<HTMLButtonElement>(`.${BUTTON_CLASS}`);
-    buttons.forEach(button => applyThemeTokensToHost(button, theme));
+    for (const entry of this.liveEntries) applyThemeTokensToHost(entry.button, theme);
   }
 
   /**
@@ -179,20 +206,6 @@ export class PasswordVisibilityToggle {
     this.removeAll();
     this.observer?.disconnect();
     this.observer = null;
-    this.styleElement?.remove();
-    this.styleElement = null;
-  }
-
-  /**
-   * 注入全局样式（只注入一次）
-   */
-  private injectStyles(): void {
-    if (document.getElementById(STYLE_ELEMENT_ID)) return;
-    const style = document.createElement('style');
-    style.id = STYLE_ELEMENT_ID;
-    style.textContent = INJECTED_STYLES;
-    document.head.appendChild(style);
-    this.styleElement = style;
   }
 
   /**
@@ -205,7 +218,7 @@ export class PasswordVisibilityToggle {
   private scanAndInject(): void {
     if (!this.enabled) return;
     for (const entry of Array.from(this.liveEntries)) {
-      if (!entry.input.isConnected || !entry.button.isConnected) this.releaseEntry(entry);
+      if (!entry.input.isConnected || !entry.host.isConnected) this.releaseEntry(entry);
     }
     const passwordInputs = document.querySelectorAll('input[type="password"]') as NodeListOf<HTMLInputElement>;
     passwordInputs.forEach(input => this.injectToggle(input));
@@ -238,7 +251,15 @@ export class PasswordVisibilityToggle {
     }
     if (positionOverride) positionOverride.refs += 1;
 
-    // 创建按钮
+    // 定位盒：input 的兄弟节点，不带 class/id，页面无从按特征名选中它
+    const host = document.createElement(HOST_TAG);
+    const shadow = host.attachShadow({ mode: 'closed' });
+
+    const style = document.createElement('style');
+    style.textContent = SHADOW_STYLES;
+    shadow.appendChild(style);
+
+    // 创建按钮（在影子树内，样式与图标都不受页面 CSS 影响）
     const button = document.createElement('button');
     button.type = 'button';
     button.className = BUTTON_CLASS;
@@ -246,21 +267,22 @@ export class PasswordVisibilityToggle {
     button.setAttribute('aria-label', tl('cs.pv.show'));
     // 动作语义：密文状态显示睁眼图标（表示"点击显示密码"）
     button.innerHTML = eyeOpenIcon;
+    shadow.appendChild(button);
 
-    // 写入当前主题令牌到按钮元素（light DOM，仅作用于自身及其伪类，零侵入页面）
+    // 写入当前主题令牌到按钮元素（内联自定义属性，仅作用于影子树内的 var() 解析）
     applyThemeTokensToHost(button, this.currentTheme);
 
-    // 按钮作为兄弟节点插入到 input 之后
-    parent.insertBefore(button, input.nextSibling);
+    // 定位盒作为兄弟节点插入到 input 之后
+    parent.insertBefore(host, input.nextSibling);
 
     // 根据当前是否有值控制按钮可见性
     if (input.value.length > 0) {
-      button.classList.add(VISIBLE_CLASS);
+      setHostVisible(host, true);
     }
 
     // input 事件：有值时显示按钮
     const onInput = () => {
-      button.classList.toggle(VISIBLE_CLASS, input.value.length > 0);
+      setHostVisible(host, input.value.length > 0);
       // 可见性是布局跟随唯一的启停信号：按钮隐藏期间无需逐帧测量宿主几何
       this.syncFollow();
     };
@@ -279,7 +301,7 @@ export class PasswordVisibilityToggle {
       input.focus();
 
       // 切换 type 后重定位（尺寸可能有细微差异）
-      this.positionButton(input, button);
+      this.positionHost(input, host);
 
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
@@ -290,6 +312,7 @@ export class PasswordVisibilityToggle {
     const entry: ToggleEntry = {
       input,
       parent,
+      host,
       button,
       onInput,
       onClick,
@@ -301,7 +324,7 @@ export class PasswordVisibilityToggle {
 
     // 立即最佳努力定位；按钮可见期间发生的后续漂移由布局跟随逐帧修正
     // （空字段下按钮不可见，无需修正；input 首次有值时 onInput 会启动跟随并强制重定位）
-    this.positionButton(input, button);
+    this.positionHost(input, host);
     this.syncFollow();
   }
 
@@ -349,17 +372,14 @@ export class PasswordVisibilityToggle {
   /**
    * 移除所有注入的切换按钮，恢复原始 DOM 结构
    *
-   * 遍历 liveEntries 而非 querySelectorAll：后者查不到已脱离文档的按钮，
-   * 其条目会连同强引用一起永久残留，而本方法结束时 rAF 已随 enabled 关闭，再无清理路径。
+   * 遍历 liveEntries 而非 querySelectorAll：后者既查不到已脱离文档的定位盒，也根本穿不进
+   * closed 影子树，其条目会连同强引用一起永久残留，而本方法结束时 rAF 已随 enabled 关闭，
+   * 再无清理路径。
    */
   private removeAll(): void {
     for (const entry of Array.from(this.liveEntries)) {
       this.releaseEntry(entry);
     }
-
-    // 移除样式
-    this.styleElement?.remove();
-    this.styleElement = null;
 
     // 停止观察器
     this.observer?.disconnect();
@@ -370,11 +390,11 @@ export class PasswordVisibilityToggle {
   }
 
   /**
-   * 完整释放一条注入：解绑监听、还原 input 类型与宿主定位、移除按钮并注销条目
+   * 完整释放一条注入：解绑监听、还原 input 类型与宿主定位、移除定位盒并注销条目
    *
    * 所有清理路径（removeAll、布局跟随发现节点脱离）必须共用本方法：只删索引不还原 DOM
-   * 会留下「条目已注销、按钮与宿主改动仍在原地」的半清理状态——被揭示的明文密码无 UI
-   * 可收回、宿主 position 被污染。
+   * 会留下「条目已注销、定位盒与宿主改动仍在原地」的半清理状态——被揭示的明文密码无 UI
+   * 可收回、宿主 position 被污染。样式随定位盒的影子根一并消失，无需另行清理。
    *
    * position 还原按父元素引用计数归还（见 parentPositionOverrides）：先注销自身再归还，
    * 保证同父元素的兄弟条目不会提前失去定位上下文，也不会把残留的 relative 固化到宿主上。
@@ -385,7 +405,7 @@ export class PasswordVisibilityToggle {
     entry.input.removeEventListener('input', entry.onInput);
     entry.button.removeEventListener('click', entry.onClick);
     entry.input.type = 'password';
-    entry.button.remove();
+    entry.host.remove();
 
     this.entries.delete(entry.input);
     this.processedInputs.delete(entry.input);
@@ -406,7 +426,7 @@ export class PasswordVisibilityToggle {
    *
    * input 尚未布局（display:none / 入场动画初始帧）时返回 null，调用方跳过写入。
    */
-  private measureAnchor(input: HTMLInputElement, button: HTMLButtonElement): AnchorMeasurement | null {
+  private measureAnchor(input: HTMLInputElement, host: HTMLElement): AnchorMeasurement | null {
     const parent = input.parentElement;
     if (!parent) return null;
     const parentRect = parent.getBoundingClientRect();
@@ -414,9 +434,10 @@ export class PasswordVisibilityToggle {
     if (inputRect.width === 0 || inputRect.height === 0) return null;
 
     // 收集父元素内其余子元素矩形，判断 input 右侧尾随空间是否已被占据
+    // 自己的定位盒必须排除在外：它本就占据锚点处的尾随空间，算进去会让锚点自我坍缩回 input 右缘
     const siblingRects: RectMetrics[] = [];
     for (const child of Array.from(parent.children)) {
-      if (child === input || child === button) continue;
+      if (child === input || child === host) continue;
       siblingRects.push(child.getBoundingClientRect());
     }
     const anchorRight = resolveToggleAnchorRight(inputRect, parentRect, siblingRects);
@@ -424,15 +445,15 @@ export class PasswordVisibilityToggle {
   }
 
   /**
-   * 计算按钮水平位置（垂直方向由 CSS top:50% + translateY(-50%) 处理）
+   * 计算定位盒水平位置（垂直方向由影子根 CSS top:50% + translateY(-50%) 处理）
    *
    * 锚点右缘经 resolveToggleAnchorRight 解析：默认 input 右内缘；
    * 父元素为更宽的可视字段盒且尾随空间空闲时改用父元素右缘。
    */
-  private positionButton(
+  private positionHost(
     input: HTMLInputElement,
-    button: HTMLButtonElement,
-    measurement: AnchorMeasurement | null = this.measureAnchor(input, button),
+    host: HTMLElement,
+    measurement: AnchorMeasurement | null = this.measureAnchor(input, host),
   ): void {
     if (!measurement) return;
     const entry = this.entries.get(input);
@@ -440,7 +461,7 @@ export class PasswordVisibilityToggle {
 
     // 按钮定位在锚点右缘内部 28px 处（按钮宽 24 + 间距 4）
     const left = measurement.anchorRight - measurement.parentLeft - BUTTON_LEFT_OFFSET;
-    button.style.left = `${Math.round(left)}px`;
+    host.style.left = `${Math.round(left)}px`;
   }
 
   /**
@@ -458,22 +479,22 @@ export class PasswordVisibilityToggle {
   anchorsToInputRight(input: HTMLInputElement): boolean {
     const entry = this.entries.get(input);
     if (!entry) return true;
-    this.positionButton(input, entry.button);
+    this.positionHost(input, entry.host);
     return entry.anchorAtInputRight;
   }
 
   /**
    * 是否存在当前可见的切换按钮
    *
-   * 按钮默认 opacity:0 + visibility:hidden，仅 input 有值时才挂上可见类；空密码框（常态）
-   * 下没有任何需要跟随的可见 UI。只读 classList，不触发布局计算。
+   * 定位盒默认由影子根置为 opacity:0 + visibility:hidden，仅 input 有值时才写入内联可见态；
+   * 空密码框（常态）下没有任何需要跟随的可见 UI。只读内联样式，不触发布局计算。
    *
-   * 以可见类而非实时几何为准：字段有值后被 CSS 隐藏（弹窗 display:none 但未清值）时
+   * 以内联可见态而非实时几何为准：字段有值后被 CSS 隐藏（弹窗 display:none 但未清值）时
    * 仍会保持跟随，代价是那一页的跟随不会停；换成实时判定就得每帧读 rect，不划算。
    */
   private hasVisibleButton(): boolean {
     for (const entry of this.liveEntries) {
-      if (entry.button.classList.contains(VISIBLE_CLASS)) return true;
+      if (entry.host.style.visibility === 'visible') return true;
     }
     return false;
   }
@@ -516,12 +537,12 @@ export class PasswordVisibilityToggle {
     const detached: ToggleEntry[] = [];
 
     for (const entry of this.liveEntries) {
-      if (!entry.input.isConnected || !entry.button.isConnected) {
+      if (!entry.input.isConnected || !entry.host.isConnected) {
         // SPA 重渲染可能整体替换节点：收集后统一释放，不在此处做 DOM 写入
         detached.push(entry);
         continue;
       }
-      const measurement = this.measureAnchor(entry.input, entry.button);
+      const measurement = this.measureAnchor(entry.input, entry.host);
       const key = measurement
         ? `${Math.round(measurement.anchorRight)},${Math.round(measurement.parentLeft)}`
         : 'unlaid';
@@ -533,7 +554,7 @@ export class PasswordVisibilityToggle {
 
     // 阶段二：只做写入与条目释放，不再产生任何布局读取
     for (const { entry, measurement } of pending) {
-      this.positionButton(entry.input, entry.button, measurement);
+      this.positionHost(entry.input, entry.host, measurement);
     }
     for (const entry of detached) {
       this.releaseEntry(entry);

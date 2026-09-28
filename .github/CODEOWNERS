@@ -1,0 +1,62 @@
+# CODEOWNERS —— 需要维护者强制审批的路径
+#
+# 语法与生效条件：
+# 1. 本文件只在仓库开启分支保护规则并勾选「Require review from Code Owners」后才会拦截合并；
+#    没开那个开关时它只是元数据。开启步骤见 docs/PR_WORKFLOW_GUIDE.md「一、GitHub 网页端手动设置」。
+# 2. GitHub 采用「最后匹配的规则生效」，所以兜底规则必须放在最前面，专项规则放在后面。
+# 3. 未列出的路径（如组件、i18n 词条、文档）走普通 PR 规则，不额外要求 owner 审批，
+#    避免把 reviewer 负担摊给所有改动。
+#
+# 为什么这些路径必须过人：这是一个本地优先的密码管理器。下面每一组都对应一条
+# 「改错了会泄露凭据或让线上包变砖」的边界，而不是风格问题。
+
+# ── 兜底：未命中任何专项规则时，维护者仍是默认负责人 ──
+* @liaolongdong
+
+# ── 密码学核心（PBKDF2 + AES-256-GCM、轻量加密层）──────────────────────
+# 参数、IV、密文格式的任何变化都直接影响存量数据可否解密。
+/utils/encryption.ts @liaolongdong
+/utils/crypto-light.ts @liaolongdong
+
+# ── 会话与主密码生命周期 ────────────────────────────────────────────────
+# 决定「重启浏览器是否保持登录」「锁定后内存里还剩什么」。
+/utils/sessionManager.ts @liaolongdong
+/utils/sessionManager-storage.ts @liaolongdong
+
+# ── 存储边界（含 storage 门面与全部子模块）──────────────────────────────
+# 存储结构与键名是兼容性红线；`storage.session` 的 accessLevel 是隐私红线。
+/utils/storage.ts @liaolongdong
+/utils/storage/ @liaolongdong
+
+# ── 跨入口消息与公共类型契约 ────────────────────────────────────────────
+# 判别联合改窄/放宽会让某个入口在运行时收到没处理过的消息形状。
+/utils/types.ts @liaolongdong
+
+# ── 权限、manifest 与商店元数据 ─────────────────────────────────────────
+# 权限与 host_permissions 变化要重新提审；_locales 里的名称/摘要受 132 字符
+# 与 keyword-stuffing 红线约束（见 docs/CWS_PUBLISHING_GUIDE.md）。
+# manifest.json 本身是 WXT 由这两处生成的产物，不在仓库里，无需单独认领。
+/wxt.config.ts @liaolongdong
+/public/_locales/ @liaolongdong
+
+# ── 注入宿主页面与后台常驻逻辑 ──────────────────────────────────────────
+# content script 运行在用户登录页的 DOM 里；background 承载保活、消息路由与
+# 侧边栏打开路径。两者的改动面 = 用户凭据的实际暴露面。
+/entrypoints/content/ @liaolongdong
+/entrypoints/background/ @liaolongdong
+
+# ── CI、发布链路与仓库治理配置 ──────────────────────────────────────────
+# 防供应链：工作流/环境/Dependabot 配置本身若能被静默修改，闸门就形同虚设。
+/.github/ @liaolongdong
+/release-please-config.json @liaolongdong
+/.release-please-manifest.json @liaolongdong
+/CHANGELOG.md @liaolongdong
+
+# ── 依赖与锁定文件 ──────────────────────────────────────────────────────
+# 新增依赖要评估包体积、权限与隐私（agents.md「技术栈与包管理」）。
+/package.json @liaolongdong
+/pnpm-lock.yaml @liaolongdong
+
+# ── 构建脚本（会在带 secrets 的 release job 里执行）─────────────────────
+# prebuild/postbuild 钩子跑在拥有 CWS 凭据的 job 上下文中。
+/scripts/ @liaolongdong

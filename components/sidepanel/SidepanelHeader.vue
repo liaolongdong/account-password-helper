@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { watch } from 'vue';
 import { Plus, Setting, Timer } from '@element-plus/icons-vue';
-import { githubIconSvg, questionIconSvg } from '@/entrypoints/sidepanel/icons';
+import GithubIcon from '@/components/GithubIcon.vue';
+import HelpQuestionIcon from '@/components/HelpQuestionIcon.vue';
 import { useI18n } from '@/utils/i18n';
 import { useSessionCountdown } from '@/composables/useSessionCountdown';
 // 品牌 Logo 静态导入：App.vue 已静态引用同组件（已在入口 chunk 内），
@@ -114,12 +115,9 @@ watch(
           :title="t('sidepanel.header.github')"
           @click="$emit('openGithub')"
         >
-          <!-- eslint-disable vue/no-v-html -->
-          <span
-            class="pill-btn__svg"
-            v-html="githubIconSvg"
-          ></span>
-          <!-- eslint-enable vue/no-v-html -->
+          <span class="pill-btn__svg">
+            <GithubIcon />
+          </span>
         </button>
         <button
           type="button"
@@ -127,12 +125,9 @@ watch(
           :title="t('sidepanel.header.help')"
           @click="$emit('openHelp')"
         >
-          <!-- eslint-disable vue/no-v-html -->
-          <span
-            class="pill-btn__svg"
-            v-html="questionIconSvg"
-          ></span>
-          <!-- eslint-enable vue/no-v-html -->
+          <span class="pill-btn__svg">
+            <HelpQuestionIcon />
+          </span>
         </button>
         <button
           type="button"

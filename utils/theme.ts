@@ -136,6 +136,22 @@ export const THEME_SHADOW_TOKENS: Record<ThemeName, Record<string, string>> = {
 };
 
 /**
+ * Shadow DOM 中性令牌（与主题无关，取值同 `tokens.css` 的 `:root` 段）
+ *
+ * 这批变量在 `:root` 定义、六个主题块都不覆盖，所以扩展页里靠继承就能取到值；
+ * 但内容脚本的 shadow 根拿不到页面继承，只有被内联写入宿主的变量才可解析。
+ * 于是「`:root` 里有、per-theme 表里没有」的变量就成了死链：`var()` 恒走 CSS fallback，
+ * 换肤时那一处的颜色纹丝不动。此处按实际消费面补齐，缺一个补一个（不预铺全量中性色，
+ * 避免每个注入宿主都多背一串用不到的内联声明）。
+ *
+ * 新增 `var(--aph-*)` 前请先确认它在本表或 `THEME_SHADOW_TOKENS` 里有值——
+ * `tests/architecture/shadowTokenCoverage.test.ts` 会扫 `entrypoints/content/` 强制这点。
+ */
+export const SHADOW_NEUTRAL_TOKENS: Record<string, string> = {
+  '--aph-text-muted': '#9ca3af',
+};
+
+/**
  * 判断任意值是否为合法主题名
  * @param value 待校验值
  * @returns 是否为 ThemeName
@@ -159,8 +175,10 @@ export function applyThemeToRoot(theme: ThemeName, root: HTMLElement = document.
  * @param theme 主题名
  */
 export function applyThemeTokensToHost(host: HTMLElement, theme: ThemeName): void {
-  const tokens = THEME_SHADOW_TOKENS[theme] ?? THEME_SHADOW_TOKENS[DEFAULT_THEME];
-  for (const [key, value] of Object.entries(tokens)) {
+  const brand = THEME_SHADOW_TOKENS[theme] ?? THEME_SHADOW_TOKENS[DEFAULT_THEME];
+  // 品牌色跟随主题，中性色（`SHADOW_NEUTRAL_TOKENS`）与主题无关，两组一起写入，
+  // 令注入样式里出现的每个 `var(--aph-*)` 都取得到值而不是恒走 fallback。
+  for (const [key, value] of Object.entries({ ...brand, ...SHADOW_NEUTRAL_TOKENS })) {
     host.style.setProperty(key, value);
   }
 }

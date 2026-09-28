@@ -26,6 +26,7 @@ const read = (relative: string) => readFileSync(path.join(ROOT, relative), 'utf8
 
 const TRASH_SRC = read('components/options/TrashDialog.vue');
 const MANAGER_SRC = read('composables/usePasswordManagement.ts');
+const SIDE_PANEL_SRC = read('entrypoints/sidepanel/App.vue');
 
 /** 剔掉注释行，避免顺序断言读的是散文（同 vaultPageSizeWiring 的处理） */
 const stripComments = (src: string): string =>
@@ -59,29 +60,41 @@ describe('回收站关键词检索接线', () => {
     expect(paginationCall![2], '复位信号漏掉生效关键词：换词后仍停在旧页码').toContain('activeKeyword');
   });
 
-  it('输入即时回显、过滤走防抖副本，且定时器随作用域清理', () => {
+  it('输入即时回显、过滤走防抖副本，防抖实现来自共享 composable', () => {
     expect(TRASH_SRC).toMatch(/v-model="searchKeyword"/);
     expect(TRASH_SRC, '过滤直接吃原始输入值：每击键一次就重排一页').not.toMatch(
       /filterByKeyword\([\s\S]{0,60}?searchKeyword\.value/,
     );
-    expect(TRASH_SRC).toMatch(
-      /watch\(\s*searchKeyword,\s*value\s*=>\s*\{[\s\S]*?debouncedKeyword\.value = value;?\s*\},?\s*KEYWORD_DEBOUNCE_MS\s*\)/,
+    expect(TRASH_SRC, '回收站未接入共享防抖').toMatch(
+      /const \{ debounced: debouncedKeyword \} = useKeywordDebounce\(searchKeyword\)/,
     );
-    expect(TRASH_SRC).toContain('onScopeDispose(() => clearTimeout(searchDebounceTimer))');
+    expect(TRASH_SRC, '弹窗里自制计时器：三处对「跟不跟手」会给出不同答案').not.toMatch(/searchDebounceTimer/);
   });
 
-  it('防抖时长只有一处定义，两个分页视图共用同一个常量', () => {
-    // 各自抄一份 200，早晚会有一处被"手感更好"的理由改动，于是密码表与回收站对
-    // 「跟不跟手」给出两种答案——这正是当初把档位收进单一存储键要防的事。
+  it('防抖时长与计时器只有一处实现，三处列表视图共用', () => {
+    // 各自抄一份 200，早晚会有一处被"手感更好"的理由改动，于是密码表、回收站与侧边栏对
+    // 「跟不跟手」给出三种答案——这正是当初把档位收进单一存储键要防的事。
     const HOOK_SRC = read('utils/keywordMatch.ts');
+    const COMPOSABLE_SRC = read('composables/useKeywordDebounce.ts');
     expect(HOOK_SRC).toMatch(/export const KEYWORD_DEBOUNCE_MS = 200;/);
-    expect(MANAGER_SRC, '密码表的防抖不再走共享常量').toMatch(/KEYWORD_DEBOUNCE_MS/);
+    expect(COMPOSABLE_SRC, '共享防抖不再以共享常量为缺省时长').toMatch(/delayMs: number = KEYWORD_DEBOUNCE_MS/);
+    expect(COMPOSABLE_SRC, '防抖计时器已不在唯一实现里').toMatch(/setTimeout\(/);
+    expect(COMPOSABLE_SRC).toContain('onScopeDispose');
+
     for (const [file, src] of [
       ['components/options/TrashDialog.vue', TRASH_SRC],
       ['composables/usePasswordManagement.ts', MANAGER_SRC],
+      ['entrypoints/sidepanel/App.vue', SIDE_PANEL_SRC],
     ]) {
-      expect(src, `${file} 的防抖时长回退成裸字面量`).not.toMatch(/setTimeout\([\s\S]{0,120}?\},\s*200\s*\)/);
+      expect(src, `${file} 未接入共享防抖`).toMatch(/= useKeywordDebounce\(/);
+      expect(src, `${file} 的防抖时长回退成裸字面量`).not.toMatch(/setTimeout\([\s\S]{0,120}\},\s*200\s*\)/);
+      expect(src, `${file} 重新内联了一份计时器`).not.toMatch(/[Dd]ebounce\w*Timer\s*(?::|=)/);
     }
+    // 常量的引用点收敛到 composable 一处，视图层不再各自 import
+    expect(
+      [TRASH_SRC, MANAGER_SRC, SIDE_PANEL_SRC].filter(src => /KEYWORD_DEBOUNCE_MS/.test(src)),
+      '防抖常量被视图层直接引用，时长改动会散成三处',
+    ).toEqual([]);
   });
 
   it('弹窗打开时先清空两个关键词副本，再取数', () => {

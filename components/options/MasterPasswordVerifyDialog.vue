@@ -241,6 +241,13 @@ const clearError = () => {
   animation: shake var(--shake-duration, 400ms) ease-in-out;
 }
 
+/* 减弱动效：取消抖动，错误仍由内联提示与输入框错误态表达（与 PasswordVerifyView 同口径） */
+@media (prefers-reduced-motion: reduce) {
+  .shake {
+    animation: none;
+  }
+}
+
 /* 验证错误内联提示 */
 .verify-error-inline {
   margin-top: 8px;

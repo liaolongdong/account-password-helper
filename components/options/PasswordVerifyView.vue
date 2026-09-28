@@ -298,6 +298,14 @@ defineExpose({ formRef: localVerifyFormRef });
   animation: shake var(--shake-duration, 400ms) ease-in-out;
 }
 
+/* 减弱动效：取消抖动。校验失败的判据由红边、错误文案与 `aria-invalid` 表达，
+   摇晃只是冗余的注意力提示，去掉不丢任何信息（JS 侧仍按时清除 `shake` 类，状态机不变） */
+@media (prefers-reduced-motion: reduce) {
+  .shake {
+    animation: none;
+  }
+}
+
 /* 表单标签 */
 :deep(.verify-form .el-form-item) {
   margin-bottom: 18px;

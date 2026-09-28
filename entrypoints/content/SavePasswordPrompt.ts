@@ -34,6 +34,16 @@ const SHADOW_STYLE = `
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
   }
+  /*
+   * 入场动画挂在类上而不是 overlay.style.cssText：内联声明的优先级高于影子样式表，
+   * 写在 cssText 里就再也用 @media (prefers-reduced-motion) 关不掉了。
+   */
+  .aph-prompt {
+    animation: aphSlideIn 0.25s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aph-prompt { animation: none; }
+  }
 `;
 
 /**
@@ -126,6 +136,7 @@ export function showSavePasswordPrompt(
   });
 
   const overlay = document.createElement('div');
+  overlay.classList.add('aph-prompt');
   overlay.style.cssText = `
     position: fixed;
     top: 16px;
@@ -137,7 +148,6 @@ export function showSavePasswordPrompt(
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.08);
     font-family: ${PROMPT_FONT};
     overflow: hidden;
-    animation: aphSlideIn 0.25s ease-out;
   `;
 
   // ── 头部 ──

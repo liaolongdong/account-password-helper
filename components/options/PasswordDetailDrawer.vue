@@ -252,6 +252,7 @@ import { toNavigableUrl } from '@/utils/domain';
 import { buildShareCard, hasShareCardPassword } from '@/utils/shareCard';
 import { copySecretToClipboard, copyTextToClipboard } from '@/utils/clipboard';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';
+import { useClipboardFeedback } from '@/composables/useClipboardFeedback';
 import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
 import TotpCode from '@/components/TotpCode.vue';
@@ -279,7 +280,7 @@ const emit = defineEmits<{
 }>();
 
 const { t, currentLocale } = useI18n();
-const { historyList, loadHistory, decryptHistoryPassword } = usePasswordHistory();
+const { historyList, loadHistory, resetHistory, decryptHistoryPassword } = usePasswordHistory();
 
 /** 密码明文可见性（本地态，关闭抽屉即复位，不持久化） */
 const passwordVisible = ref(false);
@@ -298,15 +299,11 @@ const navigableUrl = computed(() => (props.entry?.url ? toNavigableUrl(props.ent
 
 /**
  * 自动清除完成回调：复用 fill 命名空间既有文案提示「已清除」或「清除失败」
- * @param ok 是否成功清除
+ *
+ * 与编辑弹窗的历史密码复制、身份库字段复制共用 `useClipboardFeedback`，
+ * 避免同一回执在三处各自漂移（文案 key、info/warning 级别）。
  */
-const notifyClipboardCleared = (ok: boolean): void => {
-  if (ok) {
-    ElMessage.info(t('fill.clipboardCleared'));
-  } else {
-    ElMessage.warning(t('fill.clipboardClearFailed'));
-  }
-};
+const { notifyClipboardCleared } = useClipboardFeedback();
 
 /**
  * 复制普通文本（用户名 / 网址）到剪贴板并反馈
@@ -399,23 +396,33 @@ const handleEdit = (): void => {
 /** 抽屉关闭动画结束后复位敏感态（密码可见性、历史列表） */
 const handleClosed = (): void => {
   passwordVisible.value = false;
-  historyList.value = [];
+  // 用 resetHistory 而非直接清数组：还要作废仍在飞的那次读取，
+  // 否则晚到的结果会把这条目的历史填回已关闭的抽屉，下次打开先闪一下旧数据
+  resetHistory();
 };
 
 /**
  * 抽屉打开时按配置加载密码历史
  * 与编辑弹窗一致：仅在密码历史功能启用时加载，避免无谓解密与存储读取。
+ *
+ * 同样自持开关序号：await 配置期间抽屉被关闭或换看另一条目，这一次就地作废，
+ * 不给已失效的目标发起读取。
  */
+let historyOpenSeq = 0;
+
 watch(
   () => props.modelValue,
   async visible => {
+    const seq = ++historyOpenSeq;
     if (!visible || !props.entry) return;
+    const targetId = props.entry.id;
     passwordVisible.value = false;
     try {
       const { getPasswordHistoryConfig } = await import('@/utils/storage/configManager');
       const config = await getPasswordHistoryConfig();
+      if (seq !== historyOpenSeq) return;
       if (config.enabled) {
-        await loadHistory(props.entry.id);
+        await loadHistory(targetId);
       }
     } catch (error) {
       logger.error('详情抽屉：加载密码历史失败:', error);

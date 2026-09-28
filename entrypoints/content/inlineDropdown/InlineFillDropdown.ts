@@ -298,9 +298,15 @@ const inlineStyles = `
   padding: 0 5px;
   font-size: 10px;
   line-height: 16px;
-  color: var(--aph-text-muted, #94a3b8);
+  color: var(--aph-text-muted, #9ca3af);
   background: var(--aph-surface-2, rgba(148, 163, 184, 0.12));
-  border: 1px solid var(--aph-border-light, rgba(148, 163, 184, 0.35));
+  /*
+   * 描边取自品牌边框令牌，而非 --aph-border-light：后者是近白的中性分隔色，
+   * 贴在同样近白的 --aph-surface-2 底上会几乎看不见，芯片轮廓就没了。
+   * 与 TotpHandoffCapsule 的注入胶囊同一口径（浅底 + --aph-primary-border 描边），
+   * 且三个变量都已内联写入宿主，换肤时整枚芯片一起跟随。
+   */
+  border: 1px solid var(--aph-primary-border, rgba(148, 163, 184, 0.35));
   border-radius: 4px;
 }
 

@@ -109,7 +109,11 @@
           {{ t('help.groupSecurity') }}
         </h5>
         <ol>
-          <!-- 帮助文案为语言包内置静态内容，v-html 仅渲染内置 code/b 标记 -->
+          <!--
+            帮助文案为语言包内置静态内容，v-html 仅渲染内置 code/b 标记；
+            本文件 8 组条目同此口径，豁免范围收在各自 <li> 上，登记见
+            `tests/architecture/lintBypassInventory.test.ts`。
+          -->
           <!-- eslint-disable vue/no-v-html -->
           <li
             v-for="(item, idx) in helpItems('help.gs', 11)"
