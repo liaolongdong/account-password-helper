@@ -46,6 +46,7 @@ describe('buildShareCard 排版', () => {
   it('不含表头与尾随换行（尾随换行粘贴进聊天框会触发误发送）', () => {
     const card = buildShareCard(source('alice', 'p@ss', 'https://example.com'), ZH_LABELS, 'zh-CN');
     expect(card.startsWith('用户名')).toBe(true);
+    // codeql[js/incomplete-url-substring-sanitization] -- 'https://example.com' 是写死的测试夹具常量，这里只是断言卡片以网址行结尾（尾随换行会触发聊天框误发送），不参与任何来源校验或权限判断；被测的 buildShareCard 仅做字段拼接，不承载 URL 安全语义。
     expect(card.endsWith('https://example.com')).toBe(true);
   });
 });
