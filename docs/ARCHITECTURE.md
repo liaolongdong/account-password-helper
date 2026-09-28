@@ -9,6 +9,7 @@
 - [架构设计](#架构设计)
   - [扩展入口点](#扩展入口点)
   - [消息与数据流](#消息与数据流)
+  - [Content Script 运行时约束](#content-script-运行时约束)
   - [会话生命周期](#会话生命周期)
   - [加密机制](#加密机制)
 - [项目结构](#项目结构)
@@ -19,13 +20,13 @@
 
 ### 扩展入口点
 
-| 入口点             | 职责                                                                                                                                                                                         |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Background**     | Service Worker，消息路由（判别联合类型）、密码缓存（域名无关）、侧边栏状态（Port 连接追踪）、快捷键处理；6 子模块：消息路由/缓存管理/侧边栏管理/选项页管理/自动保存/后台服务（SW 保活+闹钟） |
-| **Content Script** | 注入所有页面，初始化表单检测与悬浮按钮                                                                                                                                                       |
-| **Popup**          | 扩展图标弹窗，提供「管理密码」和「快速填充」快捷入口                                                                                                                                         |
-| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理                                                                                                                                         |
-| **SidePanel**      | 侧边栏快速填充，支持拼音智能搜索与命中高亮、排序、域名匹配、缓存加速                                                                                                                         |
+| 入口点             | 职责                                                                                                                                                                                                                                     |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Background**     | Service Worker，消息路由（判别联合类型）、密码缓存（域名无关）、侧边栏状态（Port 连接追踪）、快捷键处理；后台子模块：消息路由/缓存管理/侧边栏管理/选项页管理/自动保存/一键填充/右键菜单/内联下拉/侧边栏快速添加/后台服务（SW 保活+闹钟） |
+| **Content Script** | 注入所有页面，初始化表单检测与悬浮按钮                                                                                                                                                                                                   |
+| **Popup**          | 扩展图标弹窗，提供「管理密码」和「快速填充」快捷入口                                                                                                                                                                                     |
+| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理                                                                                                                                                                                     |
+| **SidePanel**      | 侧边栏快速填充，支持拼音智能搜索与命中高亮、排序、域名匹配（本站 / 全站范围切换）、缓存加速、就地快速添加                                                                                                                                |
 
 ### 消息与数据流
 
@@ -33,6 +34,7 @@
 graph LR
     CS[Content Script] -->|sendMessage| BG[Background]
     SP[SidePanel] -->|Port connect| BG
+    SP -->|sendMessage| BG
     Popup -->|sendMessage| BG
     Options -->|sendMessage| BG
     BG --> Storage[StorageUtils]
@@ -43,34 +45,58 @@ graph LR
     CS --> FB[FloatingButtons]
 ```
 
-- Background 作为消息路由中心，处理跨组件通信
-- SidePanel 通过 `chrome.runtime.connect()` 建立 Port，用于可靠状态追踪
-- Content Script 通过 `chrome.runtime.sendMessage()` 发送消息
+- Background 作为消息路由中心，处理跨组件通信；消息类型为判别联合（`utils/types.ts` 的 `MessageType`）
+- SidePanel 通过 `chrome.runtime.connect({ name: 'sidepanel' })` 建立 Port，用于打开/就绪握手、锁定广播与 25 秒心跳的存活追踪
+- SidePanel 的请求/响应类操作（填充、缓存更新、快速添加、打开选项页）仍走 `chrome.runtime.sendMessage()`
+- Content Script 与 Popup / Options 通过 `chrome.runtime.sendMessage()` 发送消息
+
+### Content Script 运行时约束
+
+- **注入范围**：[entrypoints/content.ts](../entrypoints/content.ts) 以 `matches: ['<all_urls>']` + `allFrames: true` 注入所有 frame。表单检测与自动保存监听在**所有 frame** 初始化（iframe 内的登录表单同样需要被检测和捕获），而悬浮按钮、保存弹窗、委托通知只在**顶层 frame** 渲染，避免每个 iframe 重复注入造成重叠与定位错乱。
+- **样式隔离**：分两档，按实现如实区分。①**Closed Shadow DOM**（`all: initial` 重置 + 内联写入 `--aph-*` 主题令牌，`z-index 2147483647`，宿主引用不外泄）：悬浮按钮、内联填充面板、活码胶囊、填充失败引导气泡、保存密码提示（宿主挂在 `documentElement`，`data-aph="save-password-prompt"` 是影子树外定位它的唯一凭据，keyframes 随影子树作用域生效，不向 `document.head` 注入任何样式）。②**light DOM**（节点直接挂在页面 `body` 上，作用域靠扩展自有类名收敛，主题令牌内联写到自身元素）：密码可见性切换按钮（按 id 向 `document.head` 一次性注入样式表）、原生通知条（不注入任何样式表，全部 `cssText` 内联，**配色固定、不随主题变化**）。两类都不得依赖页面全局函数/变量，也不得以 `innerHTML`/`v-html` 渲染来自 DOM 或消息的不可信文本。
+- **跨 frame 明文边界**：iframe 内的凭证通过 `window.top.postMessage` 委托顶层 frame 渲染保存弹窗，回传结果时 `targetOrigin` 固定为来源 origin；保存类委托必须先经 `isSameMainDomain(event.origin, location.origin)` 校验，防止跨域 iframe 把明文密码泄露给第三方页面。提示委托**不再走 postMessage**：`APH_SHOW_NOTIFICATION` 这类枚举值是公开可得的字符串，宿主页面脚本一行 `postMessage` 就能冒充扩展在整页右上角渲染任意文案（钓鱼形状），改由内容脚本发 `MessageType.DELEGATE_PAGE_NOTICE` 给 background，路由校验 `sender.id === chrome.runtime.id` 且 `sender.tab.id` 存在（归属由浏览器盖章，页面世界发不出这条消息），再以 `tabs.sendMessage({ frameId: 0 })` 回投发起标签页的顶层 frame；tabId 只从 sender 推导，不接受自报值。后台回报未送达（如顶层 frame 尚未注入内容脚本）时委托方在当前 frame 降级渲染，提示不静默丢失。反向同理，明文凭证只下发到顶层或同主域名 frame（`isFrameFillable`）。
+- **监听器生命周期**：所有 DOM 监听统一经 WXT 的 `ctx.addEventListener` 注册（扩展上下文失效时自动移除），`ctx.onInvalidated` 与 `beforeunload` 触发集中 `cleanup()`，销毁 FormDetector / LoginAutoSave / 悬浮按钮管理器注册的监听器、MutationObserver 与注入 UI。这是消除重载后旧脚本残留调用 chrome API 抛 `Extension context invalidated` 的根因修复，新增监听时不得绕过。
+- **检测节奏**：首次扫描在 `DOMContentLoaded` 后延时 3 秒（文档已就绪时 500 毫秒），MutationObserver 以 500 毫秒去抖触发重扫，观察范围为 `document.body` 的 `childList + subtree + attributes(class/style/placeholder)`；SPA 路由变化合并进同一观察器（不额外建 Observer），`popstate` 仅覆盖前进/后退。填充前若字段尚未命中，`waitForFieldsDetected()` 以 100ms 起始、1.5 倍退避、上限 2000ms 重试至多 10 次；`blur` 等易触发重渲染的时机改用事件驱动的 `waitForDomStable(quietMs=50, budgetMs=300)` 等待 DOM 静默，而非固定 sleep。
+- **预唤醒**：表单输入框 `focusin`、顶层 frame `visibilitychange`、初始化后 100ms 三处调用 `preWarmServiceWorker()`，与用户操作并行拉起 SW，为后续 `sidePanel.open()` 消除冷启动等待（见「侧边栏秒开跨平台策略」）。
 
 ### 会话生命周期
 
 ```mermaid
 graph TB
-    A[设置/验证主密码] --> B[创建会话]
-    B --> C[密码批量解密为明文存储]
-    C --> D[SessionManager 每分钟检查]
-    D -->|未过期| D
-    D -->|过期| E[触发 sessionExpired 事件]
-    E --> F[密码批量加密回密文]
-    F --> G[清空密码缓存 / UI 层关闭侧边栏]
-    G --> A
+    A[设置 / 验证主密码] --> B[PBKDF2 派生 256-bit 数据密钥]
+    B --> C[数据密钥落盘为密文 + 镜像到 storage.session 内存]
+    C --> D[磁盘始终保持密文，按需逐条解密]
+    D --> E[Options 页 SessionManager 每 60 秒轮询]
+    E -->|仍有效| E
+    E -->|已过期| F[clearSession 清除密钥材料与解密快照]
+    F --> G[派发 sessionExpired 并经 Port 广播 SESSION_EXPIRED]
+    G --> H[各 UI 切换到锁定态，侧边栏保持打开并显示解锁视图]
+    H --> A
 ```
+
+- 会话检查器 `sessionManager.ts` 只在 Options 页通过 `initSessionManager()` 启动（`window.setInterval` 60 秒，仅在「有效 → 无效」的跳变时触发过期事件，避免无会话时打开页面就误报）；SidePanel 与 Popup 不等这个轮询，它们经 Port 的 `SESSION_EXPIRED` 广播、`chrome.storage.onChanged` 与 `visibilitychange` 即时感知锁定。
+- `isSessionValid()` 的结果带 5 秒 TTL 缓存（`sessionManager-storage.ts`），锁定、改密、清除会话等状态变更点会主动失效该缓存，避免热路径上反复读盘。
+- 会话有效期默认 24 小时，可选 1/2/4/8/12/24 小时与 3/5/7 天（见 [ValidityHoursSelect.vue](../components/options/ValidityHoursSelect.vue)）。
+- 过期 / 锁定 / 手动锁定三条路径都只走 `clearSession()`：清除内存与 `storage.session` 中的密钥材料、解密快照、CryptoKey 句柄缓存，以及两把**以条目明文为键**的派生记忆缓存（拼音命中区间、标签呈现记录）。磁盘中的条目本来就是密文，**不存在「批量解密为明文存储」或「过期时批量加密回密文」的落盘动作**。
+- 上面两把缓存是模块级 `Map`，**只在加载了该模块的上下文里存在**，因此清理按上下文各自接线（`utils/plaintextCacheCleanup.ts` 登记处 + 各上下文一个触发点）：Background 走 `clearSession()` 与 `resetSessionMemoryState()`（后者由 storage 变更监听触发）；SidePanel 走 `useSidepanelData.ts` 的锁定与过期两条路径；Options 走 `isAuthenticated` 落 false 的 `flush: 'sync'` watcher——管理页可整日常驻，而跨上下文锁定时它只会翻这个状态（`clearSession()` 早在别的上下文跑完），只补 `onSessionExpired` 回调会漏掉 `checkAuth` 自检等其余四条翻转路径。Popup 与 content script 不写这两把缓存（内联下拉只用 `getTagColor`/`parseTags` 等纯函数，拼音模块在其上下文永不预热），故无需接线。该口径由 [plaintextCacheCleanupWiring.test.ts](../tests/architecture/plaintextCacheCleanupWiring.test.ts) 以依赖闭包守卫。
+- 闲置锁定（`chrome.idle`）与浏览器重启锁定是**两个默认关闭**的可选开关（`idleLockMinutes: 0`、`relockOnBrowserRestart: false`）。
+- **"保持登录"等价于"这台设备当前可解密"**：会话有效期内，`session_wrapped_data_key` 与 `session_wrap_key` 同时落在 `storage.local`，这是重启后免密恢复登录的实现依赖（见「加密机制」的会话密钥一条）——能读到该 Profile 的进程在此期间足以把密文解开，条目字段是不是明文反而不改变这个结论。锁定 / 过期 / `clearSession()` 会删除 `WRAPPED_DATA_KEY`（`sessionManager-storage.ts:801-809`），只留一枚对什么都无意义的随机包裹密钥。因此面向共用设备的建议是开启「浏览器重启锁定」：启动屏障会 `clearSession()`，密钥材料不再跨浏览器关闭长期驻留磁盘。该口径同时写进 `privacy.html`「数据存储」、管理页「自动锁定设置」的重启开关提示与侧边栏帮助条目，避免只在一处披露。
 
 ### 加密机制
 
 ```
-主密码 + 盐值 → PBKDF2 (600000次迭代) → 256-bit 密钥
-明文 + 密钥 + 随机IV → AES-256-GCM → Base64(IV + 密文)
+盐值：16 字节随机 → 32 位 hex，明文存于 master_password_config
+主密码 + 盐值 → PBKDF2-SHA256 600,000 次 → 256-bit 数据密钥
+明文 + 数据密钥 + 每次随机的 12 字节 IV → AES-256-GCM → Base64(IV[12B] ‖ 密文 ‖ 认证标签[16B])
 ```
 
-- 敏感字段加密：`username`、`password`、`url`、`remark`、`totp`
-- 空字段不参与加密（写空字符串）；Base64 解码失败安全降级返回原始数据，GCM 解密失败抛出错误由调用方按需处理
-- 内存中的主密码副本使用 HKDF + SHA-256 派生会话密钥，通过 AES-256-GCM 二次加密后再存入 chrome.storage.local
+- 敏感字段加密：`username`、`password`、`url`、`remark`、`totp`；`id`、`tag`、`createTime`、`updateTime`、`order`、`favorite`、`lastUsedAt` 等元数据保持明文，供排序与过滤使用。
+- **一处例外的明文：到期提醒表的账号名**。`password_reminders` 表按 `entryId` 冗余保存该条的 `username`（按码点截断到 `PASSWORD_FIELD_LIMITS.username`，见 [reminderManager.ts](../utils/storage/reminderManager.ts)），因为提醒由 `chrome.alarms` 在任意时刻发出桌面通知（含锁定态），去掉它就等于让通知退化成不含账号的通用文案。它额外泄露的信息是「哪个账号将在何时到期」——按上一条「保持登录 = 磁盘可解」的同一攻击面衡量并不新增防线，但确实是一处需要单独披露的明文；移除该条提醒、删除条目或清空回收站都会连带清除。
+- 空字段不参与加密（写空字符串）；Base64 解码失败安全降级返回原始数据，GCM 解密失败抛出错误由调用方按需处理——认证标签使篡改可检测，无静默回退。
+- **主密码从不落盘**。磁盘上只有校验哈希：`deriveVerifierHash` 同样是 PBKDF2-SHA256 / 600,000 次，但对盐值做了域分离（前缀 `aph-verify|`），使校验值与解密密钥在密码学上互相独立，存储中的校验值无法反推为密钥；比对使用常量时间。旧版单轮 SHA-256 校验值在验证成功时透明升级。
+- **会话密钥**：派生出的数据密钥由一枚新生成的随机包裹密钥（`session_wrap_key`）经同一套 AES-256-GCM 加密，写入 `session_wrapped_data_key`；两者必须在同一次 `chrome.storage.local.set()` 中原子落盘，避免多上下文并发写入时「A 的包裹密钥 + B 的密文」错配。明文数据密钥另存 `storage.session`（仅内存，浏览器关闭即清）。
+- **HKDF 只存在于旧版迁移路径**：`deriveSessionKey(salt)`（HKDF-SHA256，salt `aph-session-salt`、info `session-encryption-v2`）仅用于解包历史遗留的 `session_master_password` blob。它的输入是明文可读的盐值，因此不提供任何抗磁盘访问的机密性，新版会话流程不使用它。
+- `ensurePasswordsEncryptedAtRest` 在每个 SW 生命周期内幂等地维护「磁盘即密文」不变量，并由 storage 监听器兜底发现明文异常。
 
 ## 项目结构
 
@@ -83,7 +109,12 @@ graph TB
 │   │   ├── sidePanelManager.ts     # 侧边栏生命周期管理（Port 连接追踪）
 │   │   ├── passwordCache.ts        # 密码缓存（域名无关/SW 内存）
 │   │   ├── optionsPageManager.ts   # 选项页管理（复用/创建/激活）
-│   │   └── autoSaveHandler.ts      # 自动保存凭证处理
+│   │   ├── quickFillHandler.ts     # 一键填充快捷键处理（域名匹配 + 多层反馈）
+│   │   ├── contextMenuManager.ts   # 右键上下文菜单（注册/语言重建/填充动作分发）
+│   │   ├── quickAddHandler.ts      # 侧边栏快速添加落库处理
+│   │   ├── inlineDropdownHandler.ts # 内联填充下拉面板的展开与数据下发处理
+│   │   ├── autoSaveHandler.ts      # 自动保存凭证处理
+│   │   └── pendingCipherKeyStore.ts # 待保存凭据密钥仓（密钥只存 storage.session）
 │   ├── content.ts                  # Content Script 入口
 │   ├── content/                    # Content Script 模块
 │   │   ├── FormDetector.ts         # 表单检测编排器
@@ -94,6 +125,7 @@ graph TB
 │   │   ├── PasswordVisibilityToggle.ts # 密码显示/隐藏切换
 │   │   ├── CheckboxHandler.ts      # 复选框自动勾选
 │   │   ├── NativeNotification.ts   # 原生浏览器通知
+│   │   ├── contextMenuTarget.ts    # 右键目标输入框记忆（供 Background 定向下发）
 │   │   ├── formSelectors.ts        # 选择器与关键词常量
 │   │   ├── domUtils.ts             # DOM 元素可见性检测工具
 │   │   ├── types.ts                # Content Script 类型定义
@@ -108,19 +140,24 @@ graph TB
 │   ├── QuickFillIcon.vue           # 快速填充图标
 │   ├── TotpCode.vue                # TOTP 动态码展示（环形倒计时）
 │   ├── SiteFavicon.vue             # 网站图标组件（本地 _favicon 缓存，失败降级默认图标）
+│   ├── ShortcutKeyCap.vue          # 快捷键键帽展示（主题令牌 + 未生效弱化态，不含 i18n）
+│   ├── CapsLockHint.vue            # 大写锁定警示行（role=status，配合 useCapsLockDetection）
 │   ├── options/                    # Options 页面组件
 │   │   ├── AutoSaveSettingDialog.vue   # 自动保存设置对话框
 │   │   ├── BackupImportDialog.vue      # 加密备份导入对话框
 │   │   ├── ChangeMasterPasswordDialog.vue # 修改主密码对话框（原子换钥）
 │   │   ├── ClipboardSettingDialog.vue  # 剪贴板设置对话框
 │   │   ├── DisclaimerInfo.vue          # 免责声明
+│   │   ├── DomainMatchSettingDialog.vue # 跨子域名匹配档位对话框（三档单选）
 │   │   ├── EmailBackupDialog.vue       # 邮箱备份对话框
 │   │   ├── EmptyGuide.vue              # 空数据引导卡片
 │   │   ├── FavoriteLimitSetting.vue     # 收藏上限设置对话框
-│   │   ├── HeaderBar.vue               # 顶部操作栏（含安全体检入口）
+│   │   ├── HeaderBar.vue               # 顶部操作栏（含安全体检与跨子域名匹配入口）
 │   │   ├── IdleLockSetting.vue         # 自动闲置锁定设置
 │   │   ├── ImportDialog.vue            # CSV/JSON 导入对话框
 │   │   ├── MasterPasswordSetupView.vue # 主密码设置视图
+│   │   ├── MasterPasswordVerifyDialog.vue # 主密码验证弹窗（会话解锁/导出前验证）
+│   │   ├── PasswordDetailDrawer.vue    # 条目只读详情抽屉（备注全文/密码历史/限时复制清除）
 │   │   ├── PasswordFormDialog.vue      # 密码表单对话框（含 TOTP 字段与密码修改历史）
 │   │   ├── PasswordGeneratorPopover.vue # 密码生成器弹窗（随机密码/助记词组）
 │   │   ├── PasswordHealthDialog.vue    # 安全体检仪表盘弹窗
@@ -128,15 +165,19 @@ graph TB
 │   │   ├── PasswordTable.vue           # 密码列表表格
 │   │   ├── PasswordVerifyView.vue      # 主密码验证视图
 │   │   ├── SearchFilterBar.vue         # 搜索过滤栏
-│   │   ├── TrashDialog.vue             # 回收站对话框（恢复/彻底删除/清空）
+│   │   ├── ShortcutSettingDialog.vue   # 快捷键一览对话框（只读 + 未生效预警 + 跳转管理页）
+│   │   ├── TrashDialog.vue             # 回收站对话框（检索/恢复/彻底删除/清空）
 │   │   ├── ValidityHoursSelect.vue     # 有效期选择器
 │   │   └── ValiditySettingDialog.vue   # 有效期设置对话框
 │   └── sidepanel/                  # SidePanel 侧边栏组件
 │       ├── HelpDialog.vue          # 操作指引与常见问题
-│       ├── PasswordListItem.vue    # 密码列表条目（含 TOTP 动态码）
+│       ├── PasswordListItem.vue    # 密码列表条目（含 TOTP 动态码与全站模式降级操作）
+│       ├── QuickAddDialog.vue      # 侧边栏快速添加弹窗（预填当前域名）
+│       ├── SidepanelAuthView.vue   # 侧边栏列表主体（搜索/范围切换/空态引导）
 │       └── SidepanelHeader.vue     # 侧边栏头部
 ├── composables/                    # Vue 组合函数
 │   ├── useAuthFlow.ts              # 认证流程
+│   ├── useCapsLockDetection.ts     # 主密码输入框大写锁定检测（getModifierState）
 │   ├── useChromeListeners.ts       # Chrome API 监听器自动清理
 │   ├── usePasswordManagement.ts    # 密码 CRUD + 搜索排序 + 收藏
 │   ├── usePasswordHistory.ts       # 密码修改历史加载与解密
@@ -145,7 +186,7 @@ graph TB
 │   ├── useRuntimeMessageHandler.ts # 运行时消息处理
 │   ├── useSessionLock.ts           # 会话锁定
 │   ├── useSessionTimer.ts          # 会话定时器
-│   ├── useShortcuts.ts             # 快捷键管理
+│   ├── useShortcuts.ts             # 快捷键管理（真实绑定状态 + 未生效判定）
 │   ├── useSidepanelData.ts         # 侧边栏数据管理
 │   ├── useSidepanelFill.ts         # 侧边栏填充逻辑（含 TOTP 填充）
 │   ├── useSidepanelSettings.ts     # 侧边栏设置
@@ -162,44 +203,71 @@ graph TB
 │   │   ├── facades.ts              # 存储门面聚合
 │   │   ├── masterPassword.ts       # 主密码存储与验证
 │   │   ├── passwordCrud.ts         # 密码 CRUD 操作
-│   │   ├── passwordHistory.ts      # 密码修改历史（旧密文快照，每条目保留 5 条）
+│   │   ├── passwordHistory.ts      # 密码修改历史（旧密文快照，默认每条 3 份，可配 1~10）
 │   │   ├── reminderManager.ts      # 密码到期提醒存储与 CRUD
 │   │   └── trashManager.ts         # 回收站（软删除/恢复/30 天自动清理）
 │   ├── i18n/                       # Vue 侧国际化（响应式语言包）
 │   │   ├── index.ts                # t() 翻译函数与语言切换
-│   │   └── locales/                # 全量语言包（zh-CN / en）
+│   │   ├── bundles/                # 按上下文聚合的语言包（options / sidepanel / popup / help）
+│   │   └── locales/                # 全量语言包（zh-CN / en，17 个 namespace）
 │   ├── i18n-lite.ts                # content/background 轻量国际化（tl()）
-│   ├── data/top1000.json           # 离线弱口令字典（top-1000，懒加载）
+│   ├── data/top1000.json           # 离线弱口令字典（近千条，懒加载）
+│   ├── data/passphrase-words.json  # 助记词组词库（3080 个常见英文单词）
 │   ├── weakPasswordDict.ts         # 弱口令字典懒加载与 O(1) 命中检测
+│   ├── passwordStrengthCore.ts     # 密码强度规则核心（纯函数、零 i18n/零 Vue 依赖，三方共用判定源）
 │   ├── encryption.ts               # PBKDF2 + AES-256-GCM
+│   ├── concurrency.ts              # 条目级并行（mapWithConcurrency：分批并行、结果保序、抛首批最小下标错误）
 │   ├── crypto-light.ts             # 轻量加密工具
-│   ├── sessionManager.ts           # 全局会话检查单例
-│   ├── sessionManager-storage.ts   # 会话持久化与加解密转换
+│   ├── pendingCredentialCodec.ts   # 待确认凭据编解码器（密钥由调用方传入）
+│   ├── sessionManager.ts           # 会话轮询单例（仅 Options 页启动，60 秒一次）
+│   ├── sessionManager-storage.ts   # 会话密钥材料持久化（包裹数据密钥）与有效性判定
 │   ├── backupExport.ts             # 加密备份导出/导入（AES-GCM）
-│   ├── excel.ts                    # CSV/JSON 导入导出 + 多格式 CSV 解析
+│   ├── excel.ts                    # CSV/JSON 门面（保留 ExcelUtils 静态入口，转发到下列四个子模块）
+│   ├── excelCsv.ts                 # CSV 上传解析（多格式列映射）
+│   ├── excelJson.ts              # JSON 上传解析（数组或 { entries } 包裹）
+│   ├── excelExport.ts              # CSV/JSON 导出与模板下载
+│   ├── excelFormatMap.ts           # 导入格式与 CSV 列映射表（Chrome/LastPass/Bitwarden/1Password）
 │   ├── emailBackup.ts              # 邮箱备份工具
 │   ├── passwordHealth.ts           # 密码健康体检（评分/弱密码/复用/泄露/陈旧检测）
 │   ├── tagUtils.ts                 # 标签颜色生成
 │   ├── totp.ts                     # TOTP 动态码生成（RFC 6238，Web Crypto HMAC）
 │   ├── favicon.ts                  # 网站图标 URL 构造（Chrome 本地 _favicon/ 端点，零网络）
 │   ├── qrScanner.ts                # 二维码识别（截取标签页/图片 + jsQR 本地解码）
-│   ├── updateChecker.ts            # 版本更新检测（GitHub Releases API）
+│   ├── updateChecker.ts            # 版本更新检测（GitHub Releases API + CWS 可达性探测）
 │   ├── passwordGenerator.ts        # 随机密码生成器
-│   ├── passphraseGenerator.ts      # 助记词组生成器（EFF Diceware，2048 词库）
+│   ├── passphraseGenerator.ts      # 助记词组生成器（Diceware 思路，内置 3080 词库）
 │   ├── passwordSort.ts             # 密码排序工具
+│   ├── passwordFilter.ts           # 侧边栏列表过滤纯函数（本站/全站范围判定、能否填充单一事实来源）
+│   ├── keywordMatch.ts             # 关键词过滤内核（字段口径 + 长度收口 + 保序过滤，matcher 由调用方注入）
+│   ├── searchMatch.ts              # 智能搜索匹配的 Vue 响应式外壳（pinyinMatcherReady ref，供过滤/渲染 computed 依赖）
+│   ├── searchMatch/                # 搜索匹配领域模块（子目录不进 WXT 顶层自动导入扫描，避免与外壳同名冲突）
+│   │   └── core.ts                 # 匹配内核（子串 + 拼音/首字母缩写 + 命中区间，零 Vue，SW 与 content 可复用）
+│   ├── clipboard.ts                # 剪贴板复制与限时自动清除（UI 无关，options 详情抽屉使用）
+│   ├── shareCard.ts                # 分享卡片纯文本构造（用户名/密码/网址一段，标签由调用方注入，内容零日志）
 │   ├── logger.ts                   # 环境感知日志
-│   ├── env.ts                      # isDev 常量
+│   ├── env.ts                      # isDev / isFirefox 常量
+│   ├── platform.ts                 # 操作系统平台检测（Windows 判定，跨上下文复用）
+│   ├── perfMetrics.ts              # 侧边栏打开性能埋点（生产可用，落 storage.session）
+│   ├── a11y.ts                     # 无障碍键盘工具（role=button 的 Enter/Space 激活）
+│   ├── formValidators.ts           # 表单校验器工厂（长度/复杂度/URL/标签规则复用）
+│   ├── masterPasswordVerify.ts     # 主密码验证工具
+│   ├── masterPasswordVerifyController.ts # 主密码验证弹窗单例控制器（命令式调用）
 │   ├── createVueApp.ts             # Vue 应用工厂
 │   ├── dateFormat.ts               # 日期格式化工具
-│   ├── domain.ts                   # 域名提取与匹配工具（isDomainMatch）
+│   ├── domain.ts                   # 域名工具（getMainDomain / registrableScope 可注册域（认共享托管后缀）/ isExactHostMatch 精确主机匹配 / resolveMatchTier 跨子域分层匹配真源 / toNavigableUrl 安全导航）
 │   ├── formatShortcut.ts           # 快捷键格式化工具
-│   ├── generateId.ts               # ID 生成工具
-│   ├── lazyImport.ts               # 泛型懒加载工具
-│   ├── masterPasswordVerify.ts     # 主密码验证工具
+│   ├── formatFileSize.ts           # 文件字节数可读化（文件信息展示与导入闸门文案共用）
+│   ├── shortcutCommands.ts         # 快捷键命令清单（与 manifest.commands 对齐）与打开管理页动作
+│   ├── generateId.ts               # ID 生成工具（crypto 随机，独立模块避免页面 chunk 拉入 PBKDF2）
+│   ├── lazyImport.ts               # 泛型懒加载工具（并发去重的动态 import 封装）
+│   ├── contentScriptReadiness.ts   # Content Script 就绪探测（ping + 必要时重注入）
+│   ├── frameFill.ts                # 跨 frame 填充共享工具（sidepanel 与 quickFill 复用）
+│   ├── browserStartupRelock.ts     # 浏览器启动重锁屏障与等待状态机
 │   ├── preWarmSw.ts                # Service Worker 预热工具
+│   ├── warmSidePanelResources.ts   # 侧边栏渲染资源预热（SW 侧，抗 Windows 白屏）
 │   ├── theme.ts                    # 主题工具（主题名类型、令牌映射、应用/同步）
 │   ├── storageKeys.ts              # Storage Key 常量
-│   ├── constants.ts                # 全局常量
+│   ├── constants.ts                # 跨领域共享常量（密码条目字段长度容量 `PASSWORD_FIELD_LIMITS`；URL 常量在 urls.ts）
 │   ├── urls.ts                     # URL 常量
 │   └── types.ts                    # 公共类型定义
 ├── assets/icons/                   # 源 SVG 图标
@@ -210,7 +278,7 @@ graph TB
 ├── public/icon/                    # 构建期 PNG 产物（WXT 自动注入 manifest）
 ├── scripts/generate-icons.mjs      # SVG → 多尺寸 PNG 生成脚本
 ├── types/global.d.ts               # 全局类型补充
-├── .github/workflows/static.yml    # GitHub Pages 部署
+├── .github/workflows/              # ci.yml（校验）与 release-please.yml（发版）
 ├── wxt.config.ts                   # WXT 配置
 └── package.json
 ```
@@ -220,27 +288,35 @@ graph TB
 ### 1. 安全保护
 
 - 主密码至少 8 位，必须包含字母、数字和特殊字符。
-- 会话创建后，密码从密文解密为明文缓存；会话失效时自动加密回密文。
+- 会话解锁后条目按需解密到内存（SW 密码缓存 / `storage.session` 加密快照），`storage.local` 全程保持密文；会话失效只清除密钥材料与解密快照，不做批量重加密。
 - 会话恢复后自动检测并修复加密状态不一致的数据。
-- SessionManager 每分钟检查会话有效性，页面可见性变化时也会触发检查。
+- 会话检查器 `sessionManager.ts` 的 60 秒轮询**只在 Options 页**启动（`initSessionManager()`），且只在会话从「有效 → 无效」跳变时触发过期事件；SidePanel 与 Popup 不等这个轮询，由 [useStorageWatcher.ts](../composables/useStorageWatcher.ts) 的 `visibilitychange` 监听在页面重新可见时重跑认证检查。详见「会话生命周期」。
+- **大写锁定实时提示**：主密码相关输入框（首次设置、解锁验证视图、验证弹窗、修改主密码、加密备份导入）通过 `KeyboardEvent.getModifierState('CapsLock')` 在 keydown/keyup 实时判定大写锁定状态（见 [useCapsLockDetection.ts](../composables/useCapsLockDetection.ts)），开启时在输入框下方展示琥珀色警示行（见 [CapsLockHint.vue](../components/CapsLockHint.vue)），避免大小写误输入被当成「密码错误」；提示行用 `role="status"` 让屏幕阅读器非打断播报，失焦即复位，不留残留提示。
 
 ### 2. 表单识别与填充
 
-- 识别用户名、密码、手机号、验证码字段；自动勾选"记住密码"、"同意条款"等复选框。
+- 识别用户名、密码、手机号、验证码字段；填充后自动勾选**得分最高的那一个**复选框——`calculateCheckboxScore` 按与密码输入框的距离、关键词命中、DOM 位置、是否同表单、层级深度为每个候选打分后取最优，而非单纯取最近的复选框；按 `CHECKBOX_POSITIVE_KEYWORDS`（记住我 / 自动登录 / 同意 / 服务条款 / remember / agree / terms…）判定可勾，命中 `CHECKBOX_NEGATIVE_KEYWORDS`（订阅 / 通知 / 营销 / subscribe / newsletter / ads…）则跳过，避免误勾营销类选项（见 [CheckboxHandler.ts](../entrypoints/content/CheckboxHandler.ts) / [formSelectors.ts](../entrypoints/content/formSelectors.ts)）。
 - WeakMap / WeakSet 缓存字段判断结果，避免内存泄漏。
-- 填充策略自动降级：**Native Setter → execCommand → 模拟键盘事件**。
-- 悬浮按钮可配置「自动触发登录」开关：填充完成后自动点击表单内的登录按钮（见 [SettingsPanel.ts](../entrypoints/content/floatingButtons/SettingsPanel.ts) / [FormDetector.ts](../entrypoints/content/FormDetector.ts)）。
+- 填充策略自动降级：**Native Setter → execCommand → 模拟键盘事件**，每级约 50ms 后回读校验实际值。
+- 链条末端的「点击登录」由偏好设置中的**「自动触发登录」开关**决定（默认关闭），开启后按「点击登录按钮 → `form.requestSubmit()`」两级策略提交（见 [SettingsPanel.ts](../entrypoints/content/floatingButtons/SettingsPanel.ts) / [FormDetector.ts](../entrypoints/content/FormDetector.ts)）。不想常开时，侧边栏每条账号另有显式的「填充并登录」按钮，只对本次生效。
 
 ### 3. 数据管理
 
-- CSV 导入导出（.csv），提供标准模板下载。
+- CSV 导入导出（.csv），提供标准模板下载；导出带 BOM + CRLF，Excel 可直接打开。
+- **已知限制：导出的 CSV 不做公式转义**。每个字段只按 CSV 语法加引号（`"` → `""`），以 `=`、`+`、`-`、`@` 开头的值不会额外加 `'` 或 TAB 前缀（见 [excelExport.ts](../utils/excelExport.ts) 的 `serializeCsvRows`）。刻意如此：① 前缀会改写字段内容，而密码是逐字符取用的凭证，随机密码生成器的符号集本就含 `+ - = @`，一条以这些符号开头的密码被前缀化后，无论是从表格复制使用还是再导回来都是错的；② 转义后的表格与本扩展的 CSV 解析器（[excelCsv.ts](../utils/excelCsv.ts)）不再互为可逆，破坏「导出 → 导入」往返一致性。代价是：用 Excel / Numbers 打开导出文件时，恰好以这些符号开头的单元格会被当作公式求值。缓解：只在自己本机、来源可信的表格里打开导出文件，跨机迁移优先用加密备份（.aph）。
 - JSON 导入导出：支持密码数据的 JSON 格式导出（需验证主密码），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；也支持从 JSON 文件导入。
+- 导入仅接受 `.csv` 与 `.json` 两类文件（无 xlsx 解析器）：Excel 表格请先「另存为 CSV」再导入（见 [ImportDialog.vue](../components/options/ImportDialog.vue)）。
+- **导入字节闸门（先于读盘）**：条数上限与逐字段长度上限都要等整份文件解码、解密、逐条 parse 之后才生效，防不住「一次 `arrayBuffer()` 把任意大的输入拉进内存」。因此 [backup/constants.ts](../utils/backup/constants.ts) 的 `MAX_PASSWORD_IMPORT_INPUT_BYTES`（32 MiB）与 [identity/constants.ts](../utils/identity/constants.ts) 的 `MAX_IDENTITY_IMPORT_INPUT_BYTES`（4 MiB，按身份库 30 条 PII 的实际容量取值）在**选文件这一步**就拒（[ImportDialog.vue](../components/options/ImportDialog.vue) / [BackupImportDialog.vue](../components/options/BackupImportDialog.vue) / [IdentityVaultDialog.vue](../components/options/IdentityVaultDialog.vue)），`.aph` 解密入口 [backupExport.ts](../utils/backupExport.ts) 内另有同口径兜底以覆盖绕过 UI 的调用路径。拒绝文案里的上限值由 [formatFileSize.ts](../utils/formatFileSize.ts) 从常量渲染，不写死数字；取值口径见各常量文件的 JSDoc，合法自导出永不命中（`tests/architecture/importByteGateWiring.test.ts` 机械守卫「闸门必须早于取字节」这条接线，以及 `formatFileSize` 不得回到组件内的私有实现）。
 - 标签下拉多选 + 自定义新增（每条最多 3 个，单个最长 30 字符）；相同标签颜色稳定一致（见 [utils/tagUtils.ts](../utils/tagUtils.ts)）。
 - 密码列表默认按更新时间倒序；侧边栏默认按最近使用倒序。支持按用户名、URL、标签、备注、创建/更新时间切换排序。
 - 支持用户名、标签、备注、URL 的多字段智能搜索：大小写不敏感子串优先，未命中降级拼音匹配（全拼 / 首字母缩写 / 中英混合，pinyin-match 经动态 import 拆分为独立 chunk 不占首屏，首帧后空闲预热），命中区间经 SearchHighlight 组件高亮（见 [utils/searchMatch.ts](../utils/searchMatch.ts)）。
-- 批量选择与批量删除密码条目；删除的条目进入回收站保留 30 天，可随时恢复。
-- 收藏标记：点击星标收藏常用条目，支持「只看收藏」过滤；收藏上限默认可配置（1~50 条），超限时 LRU 自动淘汰最早使用的收藏条目；侧边栏填充时自动更新收藏使用时间戳确保 LRU 准确。
+- **检索口径单一真源**：侧边栏、管理页与内联下拉三处共用同一套匹配规则——「比哪些字段 + 怎么收口关键词」在 [utils/keywordMatch.ts](../utils/keywordMatch.ts)（`keywordFieldsOf` 固定 username / tag / remark / url 顺序，`normalizeSearchKeyword` 对来自页面的关键词先 trim 再截到 64 字符），「怎么判定命中」在 [utils/searchMatch/core.ts](../utils/searchMatch/core.ts)（零 Vue，故 SW 与 content script 都能复用；`tests/architecture/vueFreeMatchKernel.test.ts` 机械守卫内核传递依赖不得出现 `vue` / `vue-i18n`），`passwordFilter.ts`、`usePasswordManagement` 与后台 `passwordCache.ts` 都经 `filterByKeyword(entries, keyword, matcher)` 走同一条保序过滤路径，杜绝「同一关键词三处结果不同」的口径分叉。
+- 批量选择后可批量编辑标签（追加 / 剔除）、批量导出选中项、批量删除；删除的条目进入回收站保留 30 天，可随时恢复。
+- 收藏标记：点击星标收藏常用条目，支持「只看收藏」过滤；收藏上限默认 **10** 条（可配 1~50），超限时 LRU 自动淘汰最早使用的收藏条目；侧边栏填充时自动更新收藏使用时间戳确保 LRU 准确。
+- **条目总量上限 2000 条**：唯一口径是 [vaultCapacity.ts](../utils/storage/vaultCapacity.ts) 的 `MAX_PASSWORD_ENTRIES`，按密码列表的条目数计数，回收站中的条目不占额度。三条会让列表变长的写路径在「读到现有数据之后、加密与写入之前」收口——`savePassword`（+1）、`batchSavePasswords`（整批判定，不做静默截断）、`restoreFromTrash`（按恢复条数判定）。守卫只拒绝新写入，绝不删改已有数据；计数读取原始密文数组取 `length`，不为计数触发全量解密。
+- 超限语义按入口分层：导入类弹窗（CSV/JSON 与加密备份）在预览页给出「当前条数 / 还能导入多少条 / 将被忽略多少条」（[useImportCapacity.ts](../composables/useImportCapacity.ts) + [CapacityAlert.vue](../components/options/CapacityAlert.vue)），点导入时再要求确认「只导入前 N 条」或取消；网页自动保存与侧边栏快速添加沿用原有的提示位与消息契约，只把文案换成「因达到上限而未保存」。超限错误以 `VaultCapacityError` 携带判别码 `vault-capacity-exceeded` 抛出，各入口按码映射文案、不解析 `error.message`（`tests/utils/vaultCapacity.test.ts` 守卫伪造错误码不误判、且拒绝路径上 `storage.set` 与加密函数均未被调用）。
 - 一键去重：智能检测重复条目（相同用户名 + 相同 URL）并提供一键清理。
+- 只读查看详情：列表每行的「查看详情」以抽屉形式展示该条目的全部字段（含备注全文与密码历史），无需进入编辑态（见第 23 节）。
 - 多格式 CSV 导入：自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式（见 [utils/excel.ts](../utils/excel.ts)）。
 
 ### 4. 自动保存登录凭证
@@ -248,18 +324,22 @@ graph TB
 - 启用后，网站登录时自动捕获账号密码并弹窗确认是否保存（见 [LoginAutoSave.ts](../entrypoints/content/LoginAutoSave.ts)）。
 - 三种凭证捕获场景：表单提交（capture 阶段）、登录按钮点击、密码框回车提交。
 - 域名匹配规则支持精确域名和正则表达式两种模式，规则为空时匹配所有域名；含端口的规则（如 `localhost:3000`）仅精确匹配对应 host + port 组合（见 [AutoSaveSettingDialog.vue](../components/options/AutoSaveSettingDialog.vue)）。
-- sessionStorage 暂存凭证，支持传统表单提交导致的跨页面导航场景。
+- sessionStorage 暂存凭证，支持传统表单提交导致的跨页面导航场景。页面侧只保留**不可解的密文容器**，解密密钥由后台按 `tab + origin` 签发并只存 `chrome.storage.session`（默认 `TRUSTED_CONTEXTS`，宿主页面与内容脚本均不可读，见 [pendingCipherKeyStore.ts](../entrypoints/background/pendingCipherKeyStore.ts)）；申请不到密钥时直接放弃暂存（代价仅为跳转后不复现弹窗），绝不退回明文存储。
 - 保存成功后发送桌面通知，并使密码缓存失效以确保下次加载获取最新数据。
 - **三选项交互**：保存确认弹窗提供「保存」、「暂不保存」和「不再提示」三个操作选项。
 - **可编辑字段**：弹窗中除显示账号和密码外，还提供可编辑的**标签**（默认取页面标题）和**备注**（默认为"自动保存"）输入框，用户可在保存前自定义。
 - **智能更新策略**：同账号 + 同域名且密码有变化时，以「更新」弹窗确认后更新已有条目的密码，保留存量标签和备注（除非用户在弹窗中主动修改）；账号密码完全相同则不打扰；不同账号则新增条目。
 - **黑名单屏蔽**：保存弹窗中点击「不再提示」可将当前域名加入屏蔽列表（见 [SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts)）；无端口条目屏蔽该 hostname 及子域名所有端口的登录弹窗，含端口条目（如 `localhost:3000`）仅屏蔽对应端口的弹窗。可在设置对话框的「已屏蔽的域名」中删除以恢复提示。
 - **智能防重复**：弹窗前先向后台查询该域名 + 账号在密码库中的状态（见 [autoSaveManager.ts](../utils/storage/autoSaveManager.ts) 的 `checkCredentialStatus`），据此分流：账号密码完全相同则完全静默不弹窗（跨登录持久生效，从根本上避免同账号反复登录反复弹窗）；密码发生变化则弹出「更新」确认弹窗；新账号弹出「保存」弹窗。同时保留基于凭证指纹（用户名 + 密码长度）的同页防抖（见 [LoginAutoSave.ts](../entrypoints/content/LoginAutoSave.ts)），吸收表单提交 / 按钮点击 / 回车三连触发。
+- **保存前风险内联预警（非阻断）**：`checkCredentialStatus` 在**已解密的全量条目**上就地计算风险提示并随凭证状态一并返回（`risk` 字段），因此不产生额外的存储读取或解密开销；仅在实际会弹窗的 `new` / `password_changed` 两个分支携带，`locked`、`identical` 与异常兜底分支不携带。弹窗在密码行下方以琥珀色警示条展示两类风险：弱密码（与表单校验、安全体检同口径，复用 [passwordStrengthCore.ts](../utils/passwordStrengthCore.ts) 的 `isWeakPassword`）与密码复用（该密码被其它 N 个账号共用）。警示条**只提醒不拦截**：不加二次确认、不改变保存按钮流程与任何回调签名，与 Chrome 原生保存弹窗的克制风格一致。
+- **风险数据的信任边界**：`risk` 属派生结论，**不写入 pending 也不进 sessionStorage**，避免用户改密码后留下陈旧计数；跳页恢复路径会重新进入预检查拿新鲜值。iframe 委托场景下该数据经 `postMessage` 跨帧传入，属不可信输入，接收方（[SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts) 的 `sanitizeRiskHint`）逐字段收窄：`weak` 仅接受严格布尔 `true`，`reusedCount` 须为 `1..9999` 的整数，非法值一律丢弃。密码字段一旦偏离后台评估时的值，本地可重算的弱密码标志就地重算，依赖全量库的复用计数则直接撤下。
+- **保存去向提示（判重口径不变）**：`checkCredentialStatus` 另返回 `targetNote`，只在实际弹窗的 `new` / `password_changed` 两个分支携带，内容为「相关条目的网址原样串 + 二选一的形态」：`updateOtherHost` 表示判重命中的条目属于别的 host（本次更新的是那一条），`willCreate` 表示库里已有同用户名的跨子域条目但判重不认（本次新增一条）。弹窗在备注下方以一行灰字展示，与 `risk` 同样经 `sanitizeTargetNote` 收窄（`kind` 仅两个枚举值、`url` 仅非空字符串并按 `PASSWORD_FIELD_LIMITS.url` 截断，非法整条丢弃），不进 pending 也不进 sessionStorage。**判重真源 `findMatchingEntry` 与 `hostMatchScore` 完全不受跨子域档位影响**——仍是「同用户名 + host 相等（2 分）/ 父子域包含（1 分）」，通配条目恒 0 分，因此放宽档位只会多提示，绝不会把两个环境的账号合并成同一条。
 
 ### 5. 邮箱备份
 
 - 导出密码列表为数据文件并唤起邮件客户端（见 [utils/emailBackup.ts](../utils/emailBackup.ts)）。
-- 支持选择备份方式：「不加密备份」导出标准数据文件；「加密备份」导出 .aph 加密文件（只能通过本插件的「加密备份导入」功能 + 原主密码解密查看）。
+- 支持选择备份方式：「加密备份」导出 .aph 加密文件（只能通过本插件的「加密备份导入」功能 + 原主密码解密查看）；「不加密备份」导出标准 CSV 数据文件。
+- **默认档是「加密备份」**（单选项把加密档列在首位，初始选中值同为 `encrypted`）。选择「不加密备份」时，选项下方常驻一条 `el-alert` 说明文件含明文密码、会离开本机并留存于邮箱；点「立即备份」还会先走一次 `ElMessageBox.confirm` 风险二次确认（危险色按钮），确认后才进入原有的复验主密码环节——两闸串联：知情确认解决"知道是明文"，复验主密码解决"是本人操作"。该选择只作用于本次动作、不写入 `EmailBackupConfig`，因此改默认值不迁移任何存量配置；`tests/architecture/securityDefaults.test.ts` 钉住这条默认值，避免日后被无声改回弱档。
 - 支持配置自动备份提醒，通过 chrome.alarms 定时发送桌面通知（不解密、不自动下载文件）。
 - 备份间隔可选：每天 / 每3天 / 每周 / 每两周 / 每月。
 
@@ -267,82 +347,96 @@ graph TB
 
 - 导出：使用主密码通过 AES-GCM 加密全部密码数据，下载为 `.aph` 文件（见 [utils/backupExport.ts](../utils/backupExport.ts)），文件名格式为 `backup_YYYYMMDD_HHmmss.aph`。
 - 导入：上传 `.aph` 文件后输入导出时使用的主密码进行解密，解密后可预览数据（前 5 条）再确认导入（见 [BackupImportDialog.vue](../components/options/BackupImportDialog.vue)）。
-- 加密方案：PBKDF2（600000 次迭代）+ AES-256-GCM + 随机 Salt + 随机 IV，安全性高于常规存储。
+- 加密方案：PBKDF2（600,000 次迭代）+ AES-256-GCM + 随机 Salt + 随机 IV，安全性高于常规存储。
 
 ### 7. 密码可见性切换
 
-- 自动为页面中的密码输入框注入显示/隐藏切换按钮（见 [PasswordVisibilityToggle.ts](../entrypoints/content/PasswordVisibilityToggle.ts)），默认关闭，需在悬浮按钮设置面板中手动开启。
-- 对所有密码输入框统一注入切换按钮，使用 Element Plus 主题蓝色，输入有值时按钮自动可见。
+- 自动为页面中的密码输入框注入显示/隐藏切换按钮（见 [PasswordVisibilityToggle.ts](../entrypoints/content/PasswordVisibilityToggle.ts)），默认关闭，需在偏好设置面板中手动开启。
+- 对所有密码输入框统一注入切换按钮，颜色取 `--aph-primary` 系列主题令牌（跟随 6 款主题换肤），输入有值时按钮自动可见；开启时面板会提示该按钮可能与站点自带的显隐眼睛重叠。
 - MutationObserver 监听动态新增的密码输入框，自动注入。
-- 可在悬浮按钮设置面板中开关此功能。
 
 ### 8. 自动闲置锁定与浏览器重启锁定
 
-- 在密码管理页「自动锁定设置」中配置闲置时间（5/10/30/60 分钟或不锁定），连续闲置超过设定时间后自动清除主密码会话并锁定密码管理；系统锁屏或屏保激活时也会立即锁定（见 [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)）。闲置判定基于 chrome.idle API，计时从最后一次系统级用户输入起算。
+- 在密码管理页「自动锁定设置」中配置闲置时间（不锁定 / 5 / 10 / 30 / 60 分钟），连续闲置超过设定时间后自动清除主密码会话并锁定密码管理；系统锁屏或屏保激活时也会立即锁定（见 [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)）。闲置判定基于 chrome.idle API，计时从最后一次系统级用户输入起算。**默认为「不锁定」（`idleLockMinutes: 0`）**，需用户主动开启。
 - 锁定后需重新验证主密码才能恢复访问，与手动锁定和会话过期行为一致。
-- **浏览器重启锁定**：在「自动锁定设置」中可开启「浏览器重启锁定」开关。开启后，完全关闭并重新打开浏览器时需重新输入主密码（更安全）；关闭则在有效期内自动保持登录，无需重复输入。
+- **浏览器重启锁定**：在「自动锁定设置」中可开启「浏览器重启锁定」开关。**该开关默认关闭**：关闭状态下，完全关闭并重新打开浏览器后在有效期内自动保持登录，无需重复输入；开启后重启浏览器需重新输入主密码（更安全），且该屏障为 fail-closed——恢复状态无法判定时按锁定处理（见 [utils/browserStartupRelock.ts](../utils/browserStartupRelock.ts)）。
+- 两个开关的安全价值口径不同，别把它们当同一件事：闲置锁定防的是「人离开机器后留下的可操作会话」，重启锁定防的是「密钥材料长期驻留磁盘」。关闭重启锁定期间，`session_wrap_key` + `session_wrapped_data_key` 会跨重启长期留在 `storage.local`，即「保持登录 = 这台设备当前可解密」（详见「会话生命周期」）。共用设备应开启重启锁定。
 - Popup 弹窗也提供一键「锁定」按钮，可快速清除当前会话。
 
 ### 9. 密码强度可视化
 
-- 在主密码设置和密码表单中，密码输入时通过气泡弹窗实时展示强度等级（弱/中/强）和进度条（见 [PasswordStrengthPopover.vue](../components/options/PasswordStrengthPopover.vue)）。
-- 逐条校验密码规则：至少 8 字符、包含字母、包含数字、包含特殊字符，通过/未通过状态一目了然。
+- 在主密码设置和密码表单中，密码输入时通过气泡弹窗实时展示强度等级（空 / 弱 / 中 / 强四级）和进度条（见 [PasswordStrengthPopover.vue](../components/options/PasswordStrengthPopover.vue)）。
+- 逐条校验密码规则：清单实际渲染 5 行——至少 8 字符、包含字母、包含数字、包含特殊字符四条字符规则，外加一条异步的「不在常见泄露密码字典中」校验，通过/未通过状态一目了然；等级映射只由前四条决定（四条全过为「强」，通过 ≥2 条为「中」，其余为「弱」，空输入为「无」），字典命中再单独把等级改写为「弱」。
+- 命中近千条离线弱口令字典（见 [utils/weakPasswordDict.ts](../utils/weakPasswordDict.ts)）时强制降级为「弱」并把进度压到 25% 以下，避免「满足四条规则却极易被撞库」的常见密码被显示成强。
 - 基于 [usePasswordStrength](../composables/usePasswordStrength.ts) Composable 实现，可在多处复用。
+- **判定核心的分层下沉**：规则正则、长度阈值、等级映射与色值契约住在无 i18n、无 Vue 依赖的 [passwordStrengthCore.ts](../utils/passwordStrengthCore.ts)；composable 退化为在其上贴附 Vue i18n 文案的薄层。这一分层使 background Service Worker 与 content script 能复用**完全同一套字符规则口径**（保存前风险预警、安全体检的「弱密码」项、表单实时校验三方一致），而不会把 Vue i18n 拖进 SW 与内容脚本包（已构建验证：`background.js` 不包含任何 `strength.*` 语言包条目）。字典命中不进该核心（懒加载会给热路径引入延迟），而是作为独立的异步维度叠加：表单侧把它并进等级展示，安全体检把它单列为与「弱密码」并列的计分项。
 
 ### 10. 安全体检仪表盘
 
 - 在密码管理页顶部操作栏点击「安全体检」按钮（带健康信号灯圆点），打开安全体检仪表盘弹窗（见 [PasswordHealthDialog.vue](../components/options/PasswordHealthDialog.vue)）。
-- 综合安全评分（0~100 分）+ 等级（优秀/良好/一般/较差），环形进度动画直观展示（见 [utils/passwordHealth.ts](../utils/passwordHealth.ts)）。
-- 五维检测指标：弱密码（强度为「弱」的条目）、密码复用（多账号共用同一密码，按组展示）、常见泄露密码（离线 top-1000 弱口令字典命中，见 [utils/weakPasswordDict.ts](../utils/weakPasswordDict.ts)）、长时间未更新（90/180/365 天三级预警）、未开启两步验证（仅信息展示，不计入扣分）。
-- 评分权重：密码复用 35% + 弱密码 25% + 泄露密码 20% + 陈旧密码 20%，按受影响占比线性扣分。
+- 综合安全评分（0~100 分）+ 等级（≥90 优秀 / 70 至 89 良好 / 40 至 69 一般 / 低于 40 较差），环形进度动画直观展示（见 [utils/passwordHealth.ts](../utils/passwordHealth.ts)）。
+- 健康指标共五项，其中**四项计分**：密码复用（权重 35%）、弱密码（25%）、命中近千条离线弱口令字典（20%，见 [utils/weakPasswordDict.ts](../utils/weakPasswordDict.ts)）、长时间未更新（20%），按受影响条目占比线性扣分，即 `100 - 35×复用占比 - 25×弱口令占比 - 20×泄露占比 - 20×陈旧占比`；「未开启两步验证」只做信息展示，**不进评分**。
+- 「长时间未更新」按 90/180/365 天三级预警表示陈旧程度，不代表密码过期。
 - 支持为「长时间未更新」条目设置密码到期提醒（7/30/90 天等 N 天后提醒），到期由后台闹钟检查并发送桌面通知，点击通知直达管理页（见 [utils/storage/reminderManager.ts](../utils/storage/reminderManager.ts)）。
 - 明细区支持展开/折叠，每条问题提供「去处理」按钮，点击直接跳转到对应条目的编辑流程。
-- 全程本地计算（弱口令字典内置离线加载），不做在线泄露检测（HIBP 等需联网的能力被刻意排除），不返回任何明文密码，零网络传输。
+- 明细一次渲染的行数有上界（每个面板首屏 100 行，点「显示更多」按 100 递增，`DETAIL_ROW_BUDGET` / `DETAIL_ROW_STEP`）：四个面板会覆盖同一批条目（一条弱、陈旧又被复用的密码同时出现在三处），全量渲染在 2000 条上限下是最多 4 × 2000 行 DOM，而「长时间未更新」每行还各带一个 `el-dropdown`（各自一份弹层实例）。**上界只约束渲染，不减任何读数**：面板徽标仍是完整计数，截断处由 `health.showMore` / `health.hiddenInGroup` 说明还剩多少条；复用组走按行消耗的窗口（`revealReuseGroups`），因为单组就可能远超预算。
+- 全程本地计算（弱口令字典内置离线加载），不做在线泄露检测（HIBP 等需联网的能力被刻意排除），不返回任何明文密码，体检过程不发起任何网络请求。
 - 入口按钮旁的信号灯圆点颜色随健康等级变化（绿/蓝/橙/红），一眼可见密码库健康状态。
 
 ### 11. 快速填充
 
 - 侧边栏自动将与当前域名匹配的密码排在前面。
-- **精确域名匹配**：仅展示与当前页面 host 完全一致的条目（不做子域名/主域名模糊匹配），方便区分多测试环境账号（如 `fat.example.com` 与 `uat.example.com` 互不干扰）；未填写域名的条目始终展示。
-- **本地开发友好**：当域名为 `localhost` 或 `127.0.0.1` 时，默认匹配所有密码（见 [sidepanel/App.vue](../entrypoints/sidepanel/App.vue)）。
+- **精确域名匹配（缺省口径）**：仅展示与当前页面 host 完全一致的条目（不做子域名/主域名模糊匹配），方便区分多测试环境账号（如 `fat.example.com` 与 `uat.example.com` 互不干扰）；未填写域名的条目始终展示。该口径是「跨子域名匹配」三档中的 `off` 档，用户显式放宽后改由 [domain.ts](../utils/domain.ts) 的 `resolveMatchTier` 分层判定（见「跨子域名匹配档位」）。
+- **本地开发友好**：当域名为 `localhost` 或 `127.0.0.1` 时按**端口**过滤——当前页面不带端口（纯 `localhost`）时展示全部条目，带端口（如 `localhost:3000`）时只展示端口一致或本身不带端口的条目，避免 `:3000` 与 `:5173` 两个本地项目的账号混在一起（见 [domain.ts](../utils/domain.ts) 的 `matchesPortForLocalDev` / [passwordFilter.ts](../utils/passwordFilter.ts)）。
 - **网站图标展示**：密码列表与侧边栏条目展示对应网站的图标，经 Chrome 本地 `_favicon/` 端点读取浏览器图标缓存，零外部网络请求（见 [SiteFavicon.vue](../components/SiteFavicon.vue)）；无缓存图标或不支持的环境自动降级为默认图标，布局零偏移。
+- **侧边栏快速添加**：顶栏「+」就地打开快速添加弹窗（见 [QuickAddDialog.vue](../components/sidepanel/QuickAddDialog.vue)），网址自动预填当前域名；本站无账号或搜索无结果时，空态同样提供「添加本站账号」入口。弹窗只收账号 / 密码 / 网址 / 标签 / 备注五个高频字段，TOTP 等完整字段经「到密码管理中完整添加」跳到选项页录入。
+- **搜索范围切换（本站 / 全站）**：搜索框右侧图标在 `site`（默认，仅当前域名匹配 + 空 URL 通用条目）与 `all`（全库条目）之间切换，判定与过滤集中在无 Vue 依赖的纯函数 [passwordFilter.ts](../utils/passwordFilter.ts)（`matchesSiteScope` / `filterEntriesByScope`），与「能否填充当前页」共用同一判据，避免两处语义分叉；域名或端口变化时自动回到 `site`（切到同域名的其它标签页仍保留全站态）。全站模式下命中的外站条目 `canFill` 为假，整行降级为「在新标签页打开该站点」（经 [domain.ts](../utils/domain.ts) 的 `toNavigableUrl` 补默认协议并拒绝 `javascript:` 等非导航协议），但复制账号 / 密码 / 验证码、收藏、编辑仍然可用；本站无命中而全库有命中时，空态给出「在全部条目中查找（N 条）」一键切换。
+- **分享卡片**：条目右侧动作区新增一枚分享图标，无条件渲染且始终紧邻「编辑」左侧（全站模式下的外站条目会在它前面另出现一枚「打开站点」图标）；单击即把该条目的用户名 / 密码 / 网址合成一段纯文本写入剪贴板（网址为空时省略该行），一次粘贴即可发给同事或家人，不弹确认、不引入新对话框（见 [shareCard.ts](../utils/shareCard.ts)）；条目未填密码时卡片不含可用凭据，提示由成功改为告警（`fill.shareCardNoPassword`），避免分享者误以为凭据已完整交付；行图标 tooltip 按同一判定取词（`hasShareCardPassword`，有密码才写「含密码」），点击前后不会自相矛盾。
+- **搜索占位与空态文案**：占位符为「账号/标签/备注/网址」，搜索区 `aria-label` 与 `title` 标注支持拼音搜索；空态按是否已输入关键词给不同文案，未输入时提示添加引导，已输入无结果时附拼音首字母搜索技巧说明（如 `zf` 匹配「支付」）。
+- **面板内键盘操作**：`↑` / `↓` 在结果列表间移动，`Enter` 填充高亮条目（全站模式下的外站条目改为打开其站点），`Esc` 关闭侧边栏，`Ctrl+C` 复制高亮条目的用户名；焦点在搜索框等可编辑元素内时让路给浏览器原生复制，避免吃掉用户选中的文本。`Ctrl+Shift+C` 刻意留空（源码注释标注「复制密码 暂不需要」），不与开发者工具抢键（见 [sidepanel/App.vue](../entrypoints/sidepanel/App.vue)）。
+- **分片渲染**：首帧只渲染前 30 条以压缩大库用户的渲染耗时，其余在后续动画帧里每帧放开 60 条直至覆盖全量（见 [SidepanelAuthView.vue](../components/sidepanel/SidepanelAuthView.vue) 的 `INITIAL_RENDER_COUNT` / `RENDER_BATCH_SIZE`）；列表被过滤到上限以内时直接复用原数组引用，零拷贝。
+- 搜索范围（本站 / 全站）只活在当前侧边栏会话内，**不写入存储**：重新打开面板回到默认的「本站」。
 - 点击条目一键填充并自动关闭侧边栏；若无登录表单，给出「当前页面未检测到登录表单」提示。
 - 侧边栏条目支持右键或操作按钮跳转到密码管理页，直接编辑该条目或添加新条目。
 - 快捷键：
   - `Ctrl+Shift+P` / `Cmd+Shift+P`：打开密码管理页面
   - `Ctrl+Shift+L` / `Cmd+Shift+L`：显示/隐藏侧边栏
   - `Ctrl+Shift+F` / `Cmd+Shift+F`：一键填充当前页面账号密码（无需打开侧边栏，直接填充与侧边栏列表首条一致的条目；多条匹配时通知告知填充了哪条，填充结果通过桌面通知 + 工具栏角标双通道反馈，见 [quickFillHandler.ts](../entrypoints/background/quickFillHandler.ts)）
-  - 快捷键支持自定义，详见 [README - 常见问题](../README.md#常见问题)
+  - `Ctrl+Shift+K` / `Cmd+Shift+K`：在当前页面的密码输入框内展开内联填充下拉面板（等价于点击输入框内的钥匙图标，见第 17 节）
+  - 快捷键**不可在扩展内改键**（Chrome 无 `commands.update()`），需到 `chrome://extensions/shortcuts` 修改，详见 [README - 常见问题](../README.md#-常见问题)
+  - **统一一览与未生效预警**：Chrome `commands` API 仅提供 `getAll()` / `onCommand`，扩展无法自行改键（`commands.update()` 属 Firefox）。因此 Popup、密码管理页「安全设置 → 快捷键」（见 [ShortcutSettingDialog.vue](../components/options/ShortcutSettingDialog.vue)）与侧边栏帮助弹窗（见 [HelpDialog.vue](../components/sidepanel/HelpDialog.vue)）三处均展示只读一览，并对 `getAll()` 返回空 `shortcut` 的命令明确标注「未生效」（多因被系统或其他扩展占用，或更新后新增命令未自动绑定），解决「按了没反应」无从排查的痛点；命令清单单一事实来源为 [shortcutCommands.ts](../utils/shortcutCommands.ts)，与 manifest 的一致性由 [shortcutCommands.test.ts](../tests/utils/shortcutCommands.test.ts) 静态校验
 - Background 维护密码缓存，侧边栏优先读取缓存，后台异步验证。
+- **收藏/最近使用的元数据回写走委托 + 合并**：侧边栏点击收藏或填充后只在内存标记该条目（`favorite` / `favoriteUsedAt` / `lastUsedAt`）并立即更新 UI，再委托 Background 经 `UPDATE_PASSWORD_METADATA` 落盘；后台按 1500ms 去抖合并批量写入，避免连续操作打满磁盘 IO。落盘产生的 `storage.onChanged` 回声由 `storage.session` 中的 `metadata_flush_at` 标记（TTL 3000ms）识别并跳过缓存失效，防止「自己的写入把自己的缓存打掉」的抖动（见 [utils/storage/passwordCrud.ts](../utils/storage/passwordCrud.ts) 与 [passwordCache.ts](../entrypoints/background/passwordCache.ts)）。
 
 ### 12. 版本更新检测
 
-- 通过 GitHub Releases API 定期检测最新版本（见 [utils/updateChecker.ts](../utils/updateChecker.ts)）。
-- 每 6 小时自动检测一次，发现新版本时在 Popup 弹窗中展示更新提示，包含版本号和更新说明。
-- 点击更新提示可直接跳转到 GitHub Releases 页面下载最新版本。
+- 检测由后台闹钟驱动，每 6 小时（360 分钟）执行一次（见 [utils/updateChecker.ts](../utils/updateChecker.ts)）。
+- **第一步：商店可达性探测**。向 chromewebstore.google.com 发起 `mode: 'no-cors'` 的轻量 HEAD 请求（结果缓存 24 小时）。可达时用户本就能在商店里一键更新，因此清掉旧的更新提示并**直接跳过** GitHub 请求。
+- **第二步（仅商店不可达时）：GitHub Releases**。拉取最新 Release 版本号，与 `chrome.runtime.getManifest().version` 比较；有新版本则写入缓存并在 Popup 展示版本号和更新说明，点击直达 Releases 页面下载。
 - 检测结果缓存 24 小时，避免频繁请求；缓存过期后自动重新检测。
+- 这两次请求均不携带账号数据或可识别信息，是本扩展**唯一**的出站行为；除此之外运行期不发生任何网络请求，密码数据全程不出本机。
 
 ### 13. 密码生成器（随机密码 / 助记词组）
 
 - 在添加/编辑密码表单中，密码输入框旁有一个魔棒按钮（`MagicStick` 图标），点击弹出密码生成器，顶部可在「随机密码」与「助记词组」两种模式间切换。
-- **随机密码模式**：自定义长度（6~50）、字符集开关（大写字母 / 小写字母 / 数字 / 特殊字符），可排除易混淆字符（1、l、I、0、O），避免视觉辨识困难。
-- **助记词组模式**：基于 EFF Diceware 理念，从内置 2048 个常见英文单词的词库中随机选取 3~~8 个单词组合（如 `Apple-River-Cloud-Tiger42`），支持 5 种分隔符（`-`/`_`/`.`/空格/无）、首字母大写开关、末尾追加 1~~4 位随机数字；4 词组合约 44 bits 熵，既安全又易于记忆（见 [utils/passphraseGenerator.ts](../utils/passphraseGenerator.ts)）。
+- **随机密码模式**：默认长度 16（可调 6~50）、字符集开关（大写字母 / 小写字母 / 数字 / 特殊字符，默认四类全开），可排除易混淆字符（`1 l I 0 O`，默认关闭），符号集为 `!@#$%^&*()_+-=[]{}|;:,.<>?`。先保证每个启用的字符类各出一个，再做 Fisher-Yates 洗牌；四类全关时直接抛错，随机源为 `crypto.getRandomValues`。
+- **助记词组模式**：沿用 Diceware 思路，从内置 3080 个常见英文单词的词库（见 [utils/data/passphrase-words.json](../utils/data/passphrase-words.json)）中等概率抽取 3 至 8 个单词组合（UI 默认 4 词，如 `Apple-River-Cloud-Tiger42`），支持 5 种分隔符（`-` / `_` / `.` / 空格 / 无，默认 `-`）、首字母大写开关（默认开）、末尾追加 1 至 4 位随机数字（默认开、2 位）。词库为 3080 词，故 4 词组合约 4 × log2(3080) ≈ 46 bits 熵，兼顾安全与易记（见 [utils/passphraseGenerator.ts](../utils/passphraseGenerator.ts)）。
 - 生成后实时显示密码强度进度条，点击「使用此密码」即可填入表单。
 - 基于 Web Crypto API（`crypto.getRandomValues`）保证密码学安全随机性（见 [utils/passwordGenerator.ts](../utils/passwordGenerator.ts)）。
 
 ### 14. 剪贴板自动清除
 
-- 在侧边栏复制密码后，自动启动定时器在指定延时后清除剪贴板内容。
-- 清除延时可配置为 10/15/30/60/120 秒，默认 30 秒（见 [ClipboardSettingDialog.vue](../components/options/ClipboardSettingDialog.vue)）。
-- 清除前验证剪贴板内容未被用户替换（优先使用 Async Clipboard API 读取验证；失焦时降级为「尽力清除」策略）。
-- 复制用户名时自动取消密码清除定时器，避免误清除用户名。
-- 配置入口位于密码管理页「安全设置」下拉菜单 →「剪贴板设置」。
+- 机制层按上下文分治，是**两套互不知情的定时器**：密码管理页详情抽屉走与 UI 无关的 [utils/clipboard.ts](../utils/clipboard.ts)（`copySecretToClipboard()` 写入明文敏感值后按配置排程清除）；侧边栏走 [useSidepanelFill.ts](../composables/useSidepanelFill.ts) 自带的模块级 `clipboardClearTimer` + `copiedPasswordSnapshot`。共享的只有纯文本构造，定时器绝不跨上下文混用——同一上下文并存两个定时器时，旧定时器会误清刚复制的内容。
+- **默认开启**（`autoClear: true`、`clearAfterSeconds: 30`），延时可选 10 / 15 / 30 / 60 / 120 秒（见 [ClipboardSettingDialog.vue](../components/options/ClipboardSettingDialog.vue)），入口位于密码管理页「安全设置」下拉菜单 →「剪贴板设置」。
+- 清除前验证剪贴板内容仍为当初复制的值（优先用 Async Clipboard API 读取比对）；内容已被用户替换则跳过清除。文档失焦无法读取时降级为「尽力清除」，此时 `navigator.clipboard.writeText('')` 仍会失败，改用隐藏 `textarea` + `document.execCommand('copy')` 写入零宽空格覆写（空选择集是 no-op，必须写入非空内容才真正生效）。
+- **作用范围是「剪贴板里留下了明文密码」的复制**：复制密码、复制历史密码、复制分享卡片走限时清除；复制用户名 / 网址调用 `copyTextToClipboard()`，会顺带取消待执行的清除定时器，避免误清刚复制的普通文本。两步验证码不经该定时器——它由 `copyTotp` 直接写入剪贴板（Async Clipboard 失败时同样降级 `execCommand`），动态码本身 30 秒滚动失效。
+- **分享卡片同步构造、逐字输出**：卡片文本由 [utils/shareCard.ts](../utils/shareCard.ts) 纯函数生成，标签由调用方注入（`common.username` / `common.password` / `common.url`），冒号随语言取全角 `：` 或半角 `: `，网址为空时整行省略，值内换行折成空格以防破坏行结构。构造必须在 `writeText` 之前同步完成，一旦 `await`（例如动态导入）就会消耗掉侧边栏的瞬时用户激活，Async Clipboard API 随后可能抛错。网址按存储原值逐字写入而不走 `toNavigableUrl`：卡片是纯文本、不构成导航 sink，而该函数会补协议、改写 localhost，并对 `javascript:` 返回 `null` 导致整行静默丢失。含明文卡片的文本在任何日志中都不出现，失败分支只记录错误对象本身。条目密码为空时卡片照旧复制并照旧排程清除——不为这一边界分叉第二条路径，只在提示上分流（宁可多清一次，也不留一条未受保护的路径）。
 
 ### 15. 两步验证（TOTP）
 
 - 在添加/编辑密码表单的「两步验证」字段中，粘贴 `otpauth://` 链接或 Base32 密钥即可为账号启用 TOTP 两步验证（见 [PasswordFormDialog.vue](../components/options/PasswordFormDialog.vue)）。
 - **扫码添加**：密钥输入框下提供「扫描网页二维码」与「上传二维码图片」两个入口（见 [utils/qrScanner.ts](../utils/qrScanner.ts)）：前者自动定位用户最近浏览的网页标签页，短暂切换过去 `captureVisibleTab` 截屏后立即切回；后者读取用户上传的二维码截图。两者均由 jsQR 在本地解码（按需动态导入，不进首屏 chunk），不产生任何网络请求；识别结果经 `isValidTotpInput` 校验后才填入密钥字段。
-- 动态码基于 [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) 的 HMAC 在本地按 RFC 6238 计算，**不产生任何网络请求**，与插件零网络定位一致（见 [utils/totp.ts](../utils/totp.ts)）。
+- 动态码基于 [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) 的 HMAC 在本地按 RFC 6238 计算，**不需要任何网络请求**，与插件「密码数据不出本机」的定位一致（见 [utils/totp.ts](../utils/totp.ts)）。
 - 密码列表与侧边栏对已配置条目实时展示动态码与环形倒计时（末 5 秒变色提示即将刷新，见 [TotpCode.vue](../components/TotpCode.vue)）。
 - 侧边栏条目提供「填充验证码」与「复制验证码」：填充会写入页面检测到的验证码输入框（复用 `autocomplete="one-time-code"` 等选择器），仅在显式点击时触发，不影响账号密码自动填充流程。
 - TOTP 密钥作为敏感字段随主密码体系 AES-256-GCM 加密存储，并随 CSV / JSON / 加密备份（.aph）一同导入导出；从 LastPass 等导出的 `totp` 列可直接迁移。
@@ -360,7 +454,7 @@ graph TB
 - 提供 6 款色彩主题：晴空蓝（默认）、青竹绿、桃花粉、樱粉紫、落霞橙、雾墨灰（见 [utils/theme.ts](../utils/theme.ts)）。
 - 主题配置保存在悬浮按钮偏好中，有三种方式进入设置：①密码管理页「偏好设置」按钮；②悬浮按钮齿轮图标；③侧边栏右上角齿轮图标。
 - 扩展页面（密码管理页、侧边栏、Popup）通过 `data-theme` 属性 + CSS Design Tokens（[tokens.css](../assets/theme/tokens.css)）实现一致性换肤。
-- 内容脚本的 Shadow DOM 组件（悬浮按钮、内联填充面板、密码可见性切换按钮）以内联方式写入主题令牌，与扩展页面同步生效。
+- 内容脚本注入式 UI 的换肤程度按实现如实区分：Closed Shadow DOM 一档（悬浮按钮、内联填充面板、活码胶囊、填充失败气泡、保存密码提示）把 `--aph-*` 令牌内联写入宿主，与扩展页面同步生效；light DOM 一档里密码可见性切换按钮把主题令牌内联写到自身元素（跟随换肤），原生通知条配色固定、不随换肤变化。
 - 切换主题即时生效，无需刷新页面。
 
 ### 17. 内联填充
@@ -368,30 +462,41 @@ graph TB
 - 侧边栏之外的另一种填充方式（见 [InlineFillDropdown.ts](../entrypoints/content/inlineDropdown/InlineFillDropdown.ts)），无需打开侧边栏，直接在页面内完成填充。
 - 当填充模式为「内联」时，登录输入框获焦后右侧内缘自动显示一个钥匙图标（若密码框已有显隐眼睛图标，钥匙图标会自动避让）。
 - 点击钥匙图标后，登录框主动失焦（关闭 Chrome 原生密码下拉），展开一个迷你面板：顶部搜索栏 + 可滚动账号列表 + 底部「密码管理」入口。
-- 支持键盘导航：`↑` / `↓` 浏览列表、`Enter` 填充高亮项、`Esc` 关闭面板。
+- 支持键盘导航：`↑` / `↓` 浏览列表、`Enter` 填充高亮项、`Esc` 关闭面板；面板打开与每次筛选后**默认高亮首条**（与侧边栏「回车填充首条」同口径，无结果时无高亮、回车空操作），因此连按「打开 → 回车」即可填入当前站点最匹配的账号。例外是后台拼音超集回包替换列表的那一刻：高亮跟着用户当前选中的那条账号走（跟到第 N 行时顺带滚到可见），而不是弹回首行——否则「回车要填哪一条」会在用户无感时换掉。
+- **按键触发源收窄到面板内部**：导航与填充的 `keydown` 监听绑在 **closed** shadow root 上，宿主页面既取不到这个 root、也不能把事件派发到它里面的节点，因此页面自造的 `new KeyboardEvent('keydown', { key: 'Enter' })` 敲不进凭据（挂在 `document` 捕获阶段的旧口径下，任何页面脚本都能触发「填充当前高亮项」，叠加「打开即默认高亮首条」等于把首条凭据的密码直接写进页面输入框）。`Esc` 是唯一留在 `document` 上的兜底：锁定卡片里没有可聚焦的检索框，此时真实按键路径不经过 shadow root；该层只关闭、不填充，页面伪造 Esc 的最坏后果是面板收起，属失效安全方向。代价如实记录：面板打开后若焦点被页面脚本夺回、或用户 Shift+Tab 离开面板，↑↓/Enter 不再驱动面板，同时也不再被扩展 `preventDefault`（页面自身的按键行为回归）。
+- **输入法合成期放行**：若不在 `e.isComposing` 时早退，中文输入里 Enter（上屏候选）会被当成「填充高亮项」、↑↓ 会翻页候选、Esc 会关面板，合起来就是「字没打完密码已经填进页面」。同类入口的守卫位置（本面板的 shadow root 导航与 `document` 上的 Esc 兜底，加侧边栏容器 `@keydown`，共三处）由 `tests/architecture/imeKeyGuard.test.ts` 钉住——只允许在**任何按键分支之前**直接 `return`，不允许把 `isComposing` 混进某个分支条件。
+- **页内搜索走同一套检索口径**：关键词过滤复用 `filterByKeyword` + `substringMatcher`（见「密码管理」的检索口径单一真源），页内脚本因此不必带上 27KB 的 pinyin-match 字典；拼音与首字母缩写命中由后台 [passwordCache.ts](../entrypoints/background/passwordCache.ts) 的 `getMatchingAccounts`（`keyword` 参数，经 `normalizeSearchKeyword` 收口）算出，随 `GET_MATCHING_ACCOUNTS` 的回包下发。前端是**乐观本地优先**：击键 120ms 防抖后先渲染子串结果（零延迟反馈），回包到达才替换为完整结果；回包受三重丢弃保护（序号过期 / 面板已关 / 关键词已改），后台失败则静默保留本地结果，绝不清空列表。页内过滤与发往后台的 `keyword` 用的是同一个已归一串（`normalizeSearchKeyword`：trim + 64 字上限），两侧口径分叉会让「拼音结果是子串结果的超集」这一前提失效。回包若告知会话已锁定或未设置主密码，面板就地换成对应的引导卡片（与打开路径写入同一组状态，关键词、旧结果与在跑的活码一并作废）——后台四路都回 `locked + 空数组`，与「本关键词无匹配」在渲染层同形，误渲会让用户对着空态找不到解锁入口。
+- **一次下发的条数上界**：`getMatchingAccounts` 排完序、过滤完之后才截到 `INLINE_MAX_RESULT_ROWS`（100 条），回包同时带 `totalMatched`（截断**前**的命中条数）。上限的存在理由是载荷体积而不是渲染：每条元数据的 `favicon` 是 dataURL，本站图标可以相同但每条都单独携带一份，2000 条全下就是几 MB 的跨进程拷贝，而内联面板可视区一屏只放得下十来条。面板列表尾部因此可能少显示若干条，读数「本站匹配还有 N 条未显示，到管理页查看全部」只在**当前列表就是权威结果**时出现（无关键词看 `totalMatched`；有关键词且 SW 拼音结果已回包看 `serverTotalMatched`）——本地乐观子集是「截断集的子集」，两个上界叠着算出的剩余是个假数，那一帧宁可不显示。点读数即打开管理页（带关键词时走 `OPEN_OPTIONS_AND_SEARCH`，不带时走 `OPEN_OPTIONS_PAGE`），把"看全部"引导到唯一有分页的入口，而不是在内联里再造一套虚拟滚动。上界与读数由 `tests/background/passwordCache.test.ts`（截断位置必须与 `sortMatchesForDomain` 的共享顺序一致、favicon 只为实际下发的行取）与 `tests/content/inlineFillDropdown.serverFilter.test.ts`（读数的出现时机、取消态与点击去向）双向守卫。
+- **读屏与关闭收尾**：搜索框是 `role="combobox"` + `aria-controls` / `aria-expanded` / `aria-autocomplete="list"`，列表为 `role="listbox"`、每行 `role="option"`，高亮项经 `aria-activedescendant` 与 `aria-selected` 同步（焦点始终留在输入框，视觉布局不变）；空态文案落在 listbox 之外，避免读屏把提示当成一个候选项。关闭面板时清空已渲染的账号文本、空态与输入框值（`clearRenderedAccounts`），不让凭据元数据以可见文本长期留在页面 DOM 里。
+- **空态出口**：本站无匹配账号时，除「添加此网站账号」与跨子域引导外，还提供「到全部账号中搜索「关键词」」——经 `OPEN_OPTIONS_AND_SEARCH` → `openOptionsAndSendMessage` 打开密码管理页并带入关键词（同时清掉「只看收藏」与标签筛选，避免带出的结果被既有过滤器吃掉）。关键词是页面上可观察到的用户输入，按不可信输入处理：后台截断到 64 字符、空白即降级为不带参数的「打开管理页」，日志只记指令本身、不回显取值。
 - 面板内容仅展示账号元数据（用户名、标签、备注、网址），密码仅在用户显式选择时经 Background 瞬时下发，安全模型与侧边栏一致。
 - 条目前的钥匙图标优先展示对应网站图标：由 Background 经本地 `_favicon/` 端点读取并转为 dataURL 随元数据下发（内存缓存 + 失败降级钥匙图标，见 [utils/favicon.ts](../utils/favicon.ts) 的 `fetchFaviconDataUrl`）；不将 `_favicon/*` 暴露为 web_accessible_resources，避免网页借端点探测浏览历史的隐私风险，全程零外部网络请求。
 - 会话锁定态下，面板显示「解锁后填充」引导，点击跳转密码管理页验证主密码。
 - 使用 Closed Shadow DOM（`all: initial`）完全隔离页面样式，主题令牌内联写入宿主元素，跟随整体主题换肤。
+- **视口自适应定位**：面板先置可见再定位（不可见时 `offsetHeight` 恒为 0，首开上下空间判断会失效），随后默认锚定输入框下方，仅当下方放不下且上方更宽时才上翻；所选一侧空间不足时压缩面板高度（列表内部滚动，压缩下限 120px 保证搜索行 + 至少一条可用），视口过小时降级为视口内贴合，水平方向保留 8px 视口边距——嵌套 iframe 登录框等窄视口下面板不再被裁切（见 `InlineFillDropdown.positionPanel()`）。定位与置可见在同一同步任务内完成，不闪现错误位置；若定位过程中面板已被关闭，则中止后续交互绑定与聚焦。
 
 ### 18. 回收站
 
 - 删除密码（单条删除 / 批量删除）不再直接抹除，而是移入回收站软删除，保留 **30 天**（见 [utils/storage/trashManager.ts](../utils/storage/trashManager.ts)）。
 - 入口：密码管理页「数据管理」下拉菜单 →「回收站」，打开回收站弹窗（见 [TrashDialog.vue](../components/options/TrashDialog.vue)）。
 - 每条支持「恢复」（回到密码列表）与「彻底删除」，底部提供「清空回收站」；彻底删除时同步清理该条目的密码修改历史与到期提醒，防止残留。
+- 弹窗列表按**最近删除在前**呈现：条目是追加写入存储的（`moveToTrash` 落 `[...trash, ...movedEntries]`），最早删的因此排在最前，分页之后刚误删的那一条恰好落在最后一页；定序因此在读取侧单点收口于 `getTrashEntries`（同批删除共享同一个 `deletedAt`，靠 `Array.sort` 的稳定性维持批内追加序，且定序作用于副本，不影响恢复/彻底删除那些覆写型读-改-写路径读到的原始内容）。
+- 弹窗另带一个关键词检索框：过滤走 [keywordMatch.ts](../utils/keywordMatch.ts) 的 `filterByKeyword` 并注入密码表那一份 `matchesKeyword`（含拼音），与密码表/侧边栏同一检索口径；可搜范围就是弹窗已解密的三项（用户名 / 网址 / 标签），placeholder 因此把范围写在台面上，不为检索多解一类字段。输入 200ms 防抖（与密码表同档：整表按引用换 `data` 会重排当前页），换关键词作为查看口径变化回第 1 页（复位信号取「弹窗打开 + 生效关键词」），每次打开先清掉两个关键词副本再取数，避免残留上一次的过滤结果。
+- 回收站整库解密走 [concurrency.ts](../utils/concurrency.ts) 的 `mapWithConcurrency`（串行 `for … await` 的耗时随条目数线性累加：同口径实测 5N 串行在 2000 条时 705.0 ms、条目级并行 396.3 ms，本路径每条目 3 个字段即 3N，量级按比例缩小，见 `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.3）；单条解密失败仍在 mapper 内降级成占位文案，输出顺序由该工具保证与入参同序。检索必须覆盖全库——没解密的字段搜不到——所以这条路径不能退化成「只解当前页」。定序由 `tests/utils/trashDisplayOrder.test.ts` 守卫，检索与并发解密接线由 `tests/architecture/trashSearchWiring.test.ts` 守卫。
 - 超过 30 天的条目由后台闹钟自动清理；回收站条目始终保持密文存储，会话有效期内才解密展示用户名/网址，锁定态下显示占位符。
 
 ### 19. 密码修改历史
 
-- 编辑密码时若密码字段发生变化，自动将旧密码密文快照入历史（见 [utils/storage/passwordHistory.ts](../utils/storage/passwordHistory.ts)），每个条目保留最近 **5** 条，超出自动淘汰最旧记录。
-- 在编辑弹窗底部展示「密码修改历史」区块（仅编辑模式且有历史时显示），每条显示修改时间与掩码，提供「复制」与「恢复」按钮，恢复即将旧密码回填到表单密码框。
+- 编辑密码时若密码字段发生变化，自动将旧密码密文快照入历史（见 [utils/storage/passwordHistory.ts](../utils/storage/passwordHistory.ts)），每条默认保留最近 **3** 条（可在「密码历史设置」配 1~10 条），超出自动淘汰最旧记录。
+- 在编辑弹窗底部展示「密码修改历史」区块（仅编辑模式且有历史时显示），每条显示修改时间与掩码，提供「复制」与「恢复」按钮，恢复即将旧密码回填到表单密码框；只读详情抽屉则提供同一份历史的「只读 + 复制」视图（见第 23 节）。
 - 历史以加密态存储，不落明文；查看/恢复需会话有效；条目被彻底删除时历史一并清理，修改主密码时历史随全库重新加密。
 
 ### 20. 修改主密码
 
 - 入口：密码管理页「安全设置」下拉菜单 →「修改主密码」（见 [ChangeMasterPasswordDialog.vue](../components/options/ChangeMasterPasswordDialog.vue)）。
-- 流程：验证当前主密码 → 旧密钥解密全部数据（密码列表 + 回收站 + 修改历史）→ 新密钥重新加密 → 单次 `chrome.storage.local.set()` **原子写入**密文与新会话密钥（见 [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)）。
-- 安全保证：写入前任意步骤失败直接中断，数据保持旧密文无损；不存在「新密文 + 旧会话密钥」的中间态。
+- 流程：验证当前主密码 → 旧密钥解密全部数据（密码列表 + 回收站 + 修改历史）→ 新密钥重新加密 → 单次 `chrome.storage.local.set()` **原子写入**新密文、新校验哈希与新会话密钥材料（见 [utils/storage/changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts)）。
+- **盐值与迭代次数刻意原样保留**：数据密钥由 `deriveEncryptionKey` 从「主密码 + storage 中的 salt」派生，换盐会派生出另一把密钥、使存量密文永久无法解密；而改密本身已提供足够强度，salt 的防彩虹表作用无需刷新。因此只有密码明文、派生数据密钥、校验哈希与一次性包裹密钥发生变化，PBKDF2 迭代次数固定为 600,000。
+- 安全保证：重新加密与派生期间任意步骤失败直接中断，磁盘数据保持旧密文无损；不存在「新密文 + 旧会话密钥」的中间态。若最后那次原子写入本身失败，则主动 `clearSession()` 清除已更新的新密钥材料（fail-closed），避免「新密钥 + 旧密文」不一致，用户需重新解锁。
 - 会话自愈：其他已打开的扩展页面（侧边栏/Popup 等）监听到密钥更换后自动采纳新会话密钥，无需重新登录，列表不会被清空（见 [utils/sessionManager-storage.ts](../utils/sessionManager-storage.ts) 的 `adoptRekeyedSession`）。
 - 加密备份文件（.aph）不受影响：导入时使用导出时的密码解密，与当前主密码无关。
 
@@ -399,9 +504,92 @@ graph TB
 
 - 按下 `Ctrl+Shift+F` / `Cmd+Shift+F`，无需打开侧边栏直接填充当前页面的账号密码（见 [quickFillHandler.ts](../entrypoints/background/quickFillHandler.ts)）。
 - 填充目标与侧边栏列表首条一致（域名匹配优先 + 收藏置顶 + 排序配置）；多条匹配时通知中明确告知填充了哪条、共几条匹配，可打开侧边栏切换。
-- 未验证主密码 → 通知提示先验证；当前域名无匹配 → 通知无匹配账号；页面未就绪（扩展更新后的旧标签页）→ 引导刷新。
-- 双通道反馈：桌面通知 + 工具栏图标角标（成功绿色对勾 / 失败红色感叹号，3 秒后自动清除），规避系统通知被关闭时无感知。
+- 未验证主密码 → 优先就地展开内联下拉锁定卡片（自带「解锁后填充」引导，点击才直达主密码验证页）；页面不可达 / 无登录字段时回退为可点击的「需解锁」通知；当前域名无匹配 → 通知无匹配账号；页面未就绪（扩展更新后的旧标签页）→ 引导刷新。
+- 双通道反馈：桌面通知 + 工具栏图标角标（成功绿色对勾 / 失败红色感叹号，3 秒后自动清除），规避系统通知被关闭时无感知；「需解锁」通知使用专用 ID（`unlock-required`），点击直达主密码验证页（见 [backgroundServices.ts](../entrypoints/background/backgroundServices.ts) 的 `notifications.onClicked`）。
 - 填充成功后静默更新条目最近使用时间，保持侧边栏「最近使用」排序准确。
+
+### 22. 右键上下文菜单填充
+
+- 菜单采用**显式单父项**结构（见 [contextMenuManager.ts](../entrypoints/background/contextMenuManager.ts)）：输入框上右键 → 父项「填充账号密码」→ 填充用户名 / 填充密码 / 填充两步验证码 / 生成并填充强密码；页面空白处右键 → 父项「账号密码管理助手」→ 打开侧边栏 / 打开密码管理页。
+  自建父项的原因：同一上下文只有一个可见顶级项时 Chrome 不再按扩展全名折叠，否则父级标题会带上商店副标题（「… - 本地加密密码管理器」）而过长、把二级菜单挤到屏幕外；层级深度与折叠方案一致（仍是二级）。
+- 菜单项由 Background 经 `chrome.contextMenus` 注册（需 `contextMenus` 权限），标题按用户语言渲染，语言切换时整体重建（父项先于子项创建，Chrome 要求 `parentId` 指向的项已存在）。菜单项注册由浏览器持久化（代码每次 SW 启动仍防御性重建以同步语言）；`onClicked` 点击监听器不持久化，按 MV3 事件注册要求随每次 SW 启动在入口同步重注册。无 `sidePanel` API 的环境（如 Firefox）不展示「打开侧边栏」子项。
+- 目标元素记忆：`contextMenus.onClicked` 只能拿到 `frameId` 而无法拿到被点击元素，因此 Content Script 在 `contextmenu` 事件捕获阶段记录右键发生的输入框（见 [contextMenuTarget.ts](../entrypoints/content/contextMenuTarget.ts)），Background 再经 `CONTEXT_MENU_FILL` 消息定向下发到该 frame；同一份记忆还被 `resolveContextMenuInputTarget()` 复用于会话失效时的解锁面板锚定。
+- 条目选择语义与侧边栏一致：按当前标签页域名经 `sortMatchesForDomain` 排序后取首条；TOTP 动作取首条配置了两步验证的条目并在 SW 内计算动态码（不下发密钥）。
+- 安全门控与一键填充共用同一道防线：启动重锁屏障、会话校验、`isFrameFillable` 跨域 frame 拒绝（明文只发给顶层或同主域名帧）。**例外**：「生成并填充强密码」豁免会话门控——它只用 Web Crypto 现场生成随机密码，不读取任何密文/明文条目，而注册新账号（最高频的生成场景）往往正是会话已锁状态；`isFrameFillable` 与定向下发门控照常保留。
+- 会话失效时与一键填充同一策略：就地展开内联下拉锁定卡片，并优先锚定被右键的那个输入框（`OPEN_INLINE_DROPDOWN` 的 `useContextMenuTarget` 轮次，仅限 `getFillableFrameIds` 集合内的 frame）；面板展开不了才回退反馈通道。
+- 反馈策略：填充成功仅显示工具栏角标（填充结果在输入框内可见，避免通知打扰）；失败走**三层反馈**——页面内提示条（`SHOW_PAGE_NOTICE` 定向顶层 frame，不依赖操作系统通知权限）+ 桌面通知 + 失败角标，会话失效类通知使用可点击的 `unlock-required` ID；「打开侧边栏」失败同样不静默吞掉。
+
+### 23. 条目只读详情抽屉
+
+- 密码列表每行的「查看详情」以只读抽屉展示单条账号的完整信息（见 [PasswordDetailDrawer.vue](../components/options/PasswordDetailDrawer.vue)）：站点图标、用户名、网址、密码、两步验证活码、标签、备注全文、密码修改历史、创建/更新/最后使用时间——列表中被截断的备注与看不到的历史在这里完整可读，不必进入编辑态。
+- **纯展示组件**：不写存储、不碰加密与会话；「编辑」仅向上抛出条目，由父级关闭抽屉并复用既有编辑弹窗流程，写入路径保持单一事实来源。
+- 密码默认掩码，点击眼睛才切换为明文；可见性是本地态，抽屉关闭动画结束即复位并清空历史列表，不留残余明文引用。网址经 `toNavigableUrl` 归一化后才作为链接使用。
+- 复制用户名 / 网址走 [clipboard.ts](../utils/clipboard.ts) 的 `copyTextToClipboard`，复制密码与历史密码走 `copySecretToClipboard`——按「剪贴板设置」的延时自动清除，清除成功/失败经回调提示。侧边栏的同名能力是另一套上下文内定时器（见「14 剪贴板自动清除」），两处只共享卡片的纯文本构造，不共享定时器。
+- 底部操作栏在「关闭」与「编辑」之间提供「分享卡片」：把该条目的用户名 / 密码 / 网址合成一段纯文本一次性复制（网址为空时省略该行），省去对方分段粘贴；因为含明文密码，同样受限时自动清除约束（该开关关闭时卡片明文会留在剪贴板，直至下次复制）。密码为空的条目同样完成复制，只是提示换成告警，判空与侧边栏共用 `hasShareCardPassword`。
+- 密码历史仅在「密码历史设置」启用时才动态导入配置并按需加载，避免打开抽屉即触发无谓解密。
+
+### 24. 两步验证码接力
+
+- 场景：GitHub 式两阶段登录的账密页与验证码页不是同一个页面。账密填充成功后，插件在同域名的验证码输入框右内缘挂一枚「活码胶囊」，用户不必回到侧边栏手动取码（见 [TotpHandoffCapsule.ts](../entrypoints/content/inlineDropdown/TotpHandoffCapsule.ts)）。
+- **接力标记只记意图**：侧边栏填充、内联面板选择、一键填充三条路径在填充成功后上报 `SET_PENDING_TOTP`，Background 以 `tabId` 为键写入 `chrome.storage.session` 的 `pending_totp_tabs`，值仅 `{ entryId, hostname, ts }`——不含密钥、不含动态码、也不含条目内容。存 `storage.session` 而非模块内存，是为了 SW 重启后仍可恢复；单槽位语义，同标签页新的填充覆盖旧标记。
+- **校验与过期**：`consumePendingTotp` 要求 TTL **3 分钟**内、hostname **精确相等**（`pending.hostname !== hostname` 即丢弃，不做主域名放宽）、且会话仍有效，任一不满足即返回 null 并顺手清掉该标记。读改写全部经 `withPendingLock` 串行队列，避免多标签页并发填充互相覆盖。清除会话、闲置锁定、启动重锁等安全边界路径都会 `clearAllPendingTotp()` 一次性收口（普通数据变更导致的缓存失效**不**清除接力标记）。
+- **呈现条件**：内容脚本只在视口内存在可见验证码输入框、且视口内**没有**可见的账号/密码/手机号字段时才查询接力标记——避免与既有内联面板重复打扰，同时用「视口内可见」过滤掉隐藏的自动填充蜜罐输入框。
+- **取码路径**：胶囊本身不持有密钥，每次经 `GET_INLINE_TOTP` 向 Background 现算并取回一次性动态码（密钥始终驻留 SW），码值直接显示在胶囊上并以 1 秒节拍刷新；点击胶囊复制、点击「填入」经 `FILL_TOTP_BY_ID` 委托 background 现算后回填发起填充的那个 frame、点击关闭则本次不再对该条目提示（`dismissedIds` 按条目 ID 记忆）。取码失败（如会话已锁定）时直接收起胶囊，不留展示中的过期码。
+- 样式与内联面板的活码胶囊共用同一套语言：Closed Shadow DOM + `:host { all: initial }` + 内联 `--aph-*` 令牌，`z-index 2147483647`。
+
+### 25. 快速填充方式与偏好设置
+
+- 偏好设置面板是注入式 UI 的唯一配置入口，三处可达：①悬浮按钮齿轮；②密码管理页「个性化」；③侧边栏右上角齿轮（见 [settingsPanelView.ts](../entrypoints/content/floatingButtons/settingsPanelView.ts)）。面板内含主题（6 款）、界面语言、按钮可见性、快速填充方式、自动触发登录、密码可见性切换与不透明度。
+- **快速填充方式为三选一分段控件**：侧边栏（聚焦登录框自动弹出）/ 页面内联（输入框内钥匙图标）/ 仅手动（不自动弹出，点悬浮按钮或工具栏图标再开）。存储层实际是 `fillMode` + `autoShowSidepanel` 两个字段，UI 每次选择都同时写两者，保证存储始终是规范态、不残留「内联开启 + 侧边栏自动」这类自相矛盾组合；派生规则为 `fillMode === 'inline'` 优先判为内联（此时 `autoShowSidepanel` 不生效）。
+- **新老用户默认值不同**：新装默认内联且不自动弹出（`fillMode: 'inline'` + `autoShowSidepanel: false`）；历史版本没有这两个字段，若直接套用新默认值会静默改变存量用户的行为，因此 [configManager.ts](../utils/storage/configManager.ts) 的 `freezeLegacyFillDefaults()` 在检测到字段缺失时把老用户钉在 `sidepanel` + `true`（即其既有行为）。
+- 选中态用 `✓` 前缀作为第二信号，不只靠颜色区分（浅色主题下同样可辨识）。
+
+### 26. 双语界面与两套 i18n
+
+- 只支持简体中文与 English 两种语言（`Locale = 'zh-CN' | 'en'`），语言切换入口在偏好设置面板，即时生效、无需刷新，并在扩展页面与注入式 UI 间同步。
+- **Vue 侧**（[utils/i18n/](../utils/i18n)）：响应式 `t()`，语言包按 18 个命名空间拆分在 `locales/{locale}/{namespace}.json`，各入口经 `bundles/` 静态注册自身所需子集（options 全量，sidepanel/popup/help 各自裁剪），避免「全量语言包打进每个入口」的首屏死重；`t()` 对未注册 key 返回 key 本身，支持渐进覆盖。
+- **Content / Background 侧**（[utils/i18n-lite.ts](../utils/i18n-lite.ts)）：无 Vue 依赖的内联双语消息表（`cs.*` 内容脚本、`bg.*` / `cm.*` 后台），提供 `tl()`，避免把 Vue 运行时与全量语言包拖进内容脚本与 SW 包体。
+- **语言解析优先级**：Vue 侧为 `localStorage` 同步镜像 > `storage.local` 持久化 > `chrome.i18n.getUILanguage()`；轻量侧为 storage > `getUILanguage()`，读取失败一律回退 `zh-CN`。`localStorage` 镜像的作用是让 `initI18n` 命中时同步返回，消除 Vue 挂载前唯一的串行 storage IPC（Windows 冷环境约 40-80ms）。
+- **实时切换链路**：两套体系都监听 `storage.onChanged` 的 `app_locale` 变更并通知订阅者；右键菜单标题按用户语言渲染，语言切换时整体重建。
+- **一致性守卫**：`tests/utils/i18nBundles.test.ts` 校验中英文 key 集一致与 bundle 注册，`tests/utils/i18nLiteParity.test.ts` 校验轻量 i18n 中英对齐；新增/删除/重命名 key 必须两套语言同步，否则测试失败。manifest 文案另走 `public/_locales/{zh_CN,en}/messages.json`。
+
+### 27. 身份信息库
+
+- **定位与独立性**：独立的「个人信息收藏夹」，与密码库完全解耦——存放姓名、证件号、手机号、邮箱、住址、银行卡信息（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段，解决证件号、银行卡号等非登录凭据无处安放的问题。入口在管理页「数据管理 → 身份信息库」，打开前需主密码复验（纯门槛，刻意不使用返回的密码，防「会话已解锁但离座」时旁人一次性看到全部身份信息）。不改 `utils/types.ts` / `passwordCrud.ts` / sidepanel / popup / content 任何既有路径，唯一跨域触点是换主密码。
+- **第 4 个加密域**：[identityCrud.ts](../utils/storage/identityCrud.ts) 与密码库平行，整块加密（一个 `encryptedPayload` blob，PBKDF2-SHA256/600k + AES-256-GCM），落盘形状仅 `id / encryptedPayload / createTime / updateTime` 四个不可识别明文键，其余字段（含类别）一律进密文，避免泄露「用户存了一张银行卡」这类事实。存储键 `personal_identity_infos`，无新权限；`updateTime` 兼作并发令牌。
+- **两级校验**：[validators.ts](../utils/identity/validators.ts) 零 i18n、纯函数，输出「级别 + 文案 key」。格式类（长度/字符集）→ `error` 阻止保存；18 位大陆身份证 GB11643 mod 11 校验位（连同地区码、出生日期合法性）与大陆手机号形态校验 → `error` 阻止保存（该数字形态几乎只对应大陆居民身份证，校验位不符基本可判定为录入笔误）；银行卡 Luhn、有效期已过期 → `warning` 仅提示允许保存——护照号/港澳台通行证（非 18 位纯数字形态，不进入校验位分支）、社保卡/门禁卡（不过 Luhn）等合法数据不被误杀。[formRules.ts](../utils/identity/formRules.ts) 贴附 i18n 产出 Element Plus 规则，warning 由表单常驻 `el-alert` 呈现。
+- **并发与上限**：条数上限 30（写入前校验）；`updateIdentity` 以读取时的 `updateTime` 拒绝过期写（多 Options 标签页并存是真实场景，提示刷新后重试）；更新走 `{ ...existing, ...patch, pv: 1 }` 前向合并，未来版本新增键经旧版本编辑后仍存活。保存前经 [dedup.ts](../utils/identity/dedup.ts) 的 `findDuplicateIdentity` 做**非阻断**疑似重复检测：仅证件号 / 卡号参与（`trim` + 大写归一、排除编辑自身），命中则弹二次确认，用户仍可选择保存。
+- **会话安全**：[useIdentityVault.ts](../composables/useIdentityVault.ts) 由 `App.vue` 单一实例化并注入列表弹窗，`watch(isAuthenticated)` 在会话失效时清空内存明文并关闭两个弹窗，防 PII 残留。机密字段（证件号/卡号/CVV）默认掩码、以「卡片」为粒度显隐（单只眼睛切换该卡全部机密字段，不落盘；「是否含机密字段」的判定口径由 [fields.ts](../utils/identity/fields.ts) 的 `hasSecretFields` 统一供弹窗与批量操作共享），工具栏另提供「显示 / 隐藏全部机密」批量显隐（`toggleRevealAll`，只增删「当前可见且含机密字段」的卡片、不动被过滤掉的既有展开项）与「折叠 / 展开全部」批量折叠（`toggleCollapseAll`，折叠后卡片仅保留标题行、用于概览与减少滚动，同样只作用「当前可见」的卡片、保留被过滤掉的既有折叠态，折叠时隐藏该卡的眼睛按钮，`resetViewState` 复位为全展开）；复制分「逐字段」与「复制整卡」（`copyCard`：经 `buildIdentityFieldRows` + `formatIdentityCardText` 把该卡非空字段拼成「标签: 值」多行文本一次性写入）两种粒度，二者复制的都是明文值本身（掩码仅为展示态）——逐字段按字段机密与否分流（机密走 `copySecretToClipboard`、非机密走 `copyTextToClipboard`），而整卡载荷恒含姓名 / 手机号 / 住址等 PII，故 `copyCard` 一律走 `copySecretToClipboard` 限时自动清除、不再按是否含机密字段分支；列表搜索复用 `searchMatch` 的拼音匹配，机密字段参与匹配但不高亮。状态栏常驻「已用 n/30」条数上限提示（达上限转告警色），过滤生效时显示命中条数、无匹配空态提供「清除筛选」一键复位。
+- **备份**：[backup.ts](../utils/identity/backup.ts) 输出 `.aphid` 容器（`salt‖iv‖ciphertext`），以 `kind` 标记与 `.aph` 密码备份互斥（导错文件有明确提示）；导入按 `id` 合并（同 id 取较新 `updateTime`）并显式报告「新增/更新/跳过」计数。导出支持**勾选子集**（`resolveExportEntries`：未勾选=全部，勾选=所选，成功后清空勾选复位默认）。另提供**可选的明文 `.json` 导出/导入**（`buildIdentityPlaintextJson` / `exportIdentityPlaintext` / `parseIdentityPlaintextJson`）：明文非加密、复用 `.aphid` 数据结构（导入走同一份 `parseIdentityBackupData` 校验并按 `id` 合并），读写均须主密码复验 + 风险二次确认，属隐私边界的例外通道（长期留存仍以加密 `.aphid` 为首选）。身份库**不参与**既有自动备份与邮箱备份（独立性边界），弹窗内常驻 `el-alert` 提示定期手动导出加密备份（根治列 Phase 2）。
+- **换主密码**：身份数据并入 [changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts) 同一次原子 `set`（读取置于任何写入之前），`reencryptAll` 解密失败的单条原样保留不丢弃，与既有三域口径一致。
+
+### 28. 站点级填充规则
+
+- **定位**：面向自动检测失败的站点（Web Components、非常规 name/placeholder 的登录页）提供人工兜底——为单个域名指定账号 / 密码字段的 CSS 选择器，并按站点控制影子 DOM 穿透。数据落 [siteRules.ts](../utils/storage/siteRules.ts) 的 `site_rules` 键，形状为 `Record<domain, SiteRule>`，是**明文非敏感元数据**（域名 + 选择器 + 布尔开关），因此不进加密域、不参与 `.aph` 备份与邮箱备份，内容脚本也能直读；跨机迁移走下文的明文 JSON 通道。
+- **三个入口**：Options「安全设置 → 站点规则」、命令面板（`siteRules`）、以及内容脚本填充失败气泡（`reason='no_form'` 时由 [FillFailurePrompt.ts](../entrypoints/content/FillFailurePrompt.ts) 就地引导）。后一条经 `OPEN_OPTIONS_AND_SITE_RULES` → [messageRouter.ts](../entrypoints/background/messageRouter.ts) → `openOptionsAndSendMessage` 回到选项页；气泡自带一个 Closed Shadow DOM 宿主挂在 `documentElement` 上、主题令牌由 `applyThemeTokensToHost` 内联写入（同一约定也适用于 `SavePasswordPrompt`；原生通知条与密码可见性切换按钮属于 light DOM 一档，不是同一隔离约定，见「Content Script 运行时约束」的样式隔离）。
+- **未解锁不丢动作**：该指令在选项页会话尚未就绪时到达会被 `waitForPasswords()` 延后判定；仍处于锁定态时不把规则弹窗压在主密码验证屏上，而是记下域名 + `ElMessage.info` 提示，`watch(isAuthenticated)` 在解锁瞬间自动续上这次引导。
+- **消费端时序**：[FormDetector.ts](../entrypoints/content/FormDetector.ts) 的 `init()` 读取本站规则，且**首轮检测排在 `siteRuleReady` 之后**（storage 监听只在值变化时触发，抢跑会导致规则本次页面生命周期内再无生效机会）；`setupSiteRuleListener` 让编辑规则后无需刷新即重检测，`destroy()` 精确解绑。
+- **穿透优先级**：`penetrateShadowEnabled` 取 `全局开关 !== false && 站点规则 !== false`——全局开关是总闸，站点规则只能在其开启时针对单站点进一步关闭，不能反向打开（否则新增规则会静默推翻用户的整体偏好）。该判定统一门控两处能力，语义一致：`collectShadowQueryRoots` 在关闭时只返回 `document`（站点规则选择器因此只在文档主树上生效，仍可用，只是不再跨边界），填充失败引导气泡在关闭时不再弹出（跨边界的补救手段本就不可用，留着气泡只会误导）。此前两者分叉——选择器无条件跨边界、气泡却受开关约束，用户看到的是「关掉穿透后规则仍悄悄生效，引导却消失了」，与开关标签相反；现已收口为「标签说什么就是什么」，对应提示文案与类型注释同步更新。
+- **检测范围口径**：启发式检测走 `document.querySelectorAll`，范围仅文档主树，open / closed 影子树内的登录框都不会被自动识别；跨 shadow 边界的唯一通道是上一节的自定义选择器，且它本身也受穿透开关约束（closed 根连选择器也拿不到，`el.shadowRoot` 为 `null`）。曾经存在的「递归遍历 open shadow DOM 收集字段」启发式因 BFS 只以 `document.body` 为种子、从不入队 light DOM 子节点而几乎收不到字段：宿主嵌在主树内（真实页面的普遍形态）时命中数为 0，只有影子树直挂 `document.body`、输入框恰好是其直接子节点时才可达（两种摆放均已实测）。该路径已随回归测试一并删除，跨边界能力统一由自定义选择器承担——它在上述极端形态下同样能命中。
+- **权威覆盖**：`applySiteRuleSelectors` 命中即替换 `usernameFields` / `passwordFields`，并同步把被替换字段的 `fieldTypeCache` 降级为 `null`（`getFieldType` 优先读缓存，只换数组会让侧边栏 / 内联图标继续在被弃用的元素上弹出）；未配置的一侧保留启发式结果，不被顺手清空。
+- **校验单一来源**：`normalizeSiteRuleDomain` 与 `isValidCssSelector` 由写入端（表单）与消费端（内容脚本）共用。域名是匹配主键，读取端形态来自 `document.domain || location.hostname`（小写、无尾点），故写入端必须按 DNS 标签逐段规范化校验，否则规则静默失效；编辑态写回**原存储 key**，避免历史大小写条目被拆成两条。选择器按不可信输入处理：语法非法或超出长度预算时安全跳过，绝不打断本轮检测。
+- **明文 JSON 迁移通道**：规则弹窗列表底部提供导出 / 导入，实现落在 [siteRulesTransfer.ts](../utils/siteRulesTransfer.ts)。导出信封为 `{ kind: 'aphsr', version, exportedAt, count, rules }`（规则按域名升序，两份导出可直接 diff）；导入同时接受该信封与裸的 `Record<domain, SiteRule>`（即 storage 原样形态，便于手工编辑后回导）。整条通道**有意不加密**：文件里只有域名与选择器，不含任何凭据字段，但域名清单会随文件离开扩展，这是该通道已知的取舍。导入侧把文件当不可信输入——体积、条数、结构 / 版本 / `count` 一致性逐项判定，条目级再复用 `normalizeSiteRuleDomain` + `isValidCssSelector` 逐条剔除，全部不合法时报错且不触碰存储；合并语义为**按域名覆盖、其余保留**，并显式报告「新增 N / 更新 M / 忽略 K」（K 为被剔除的条目数，防止「10 条只进了 3 条」看起来像全部成功），历史大小写 key 一律收敛为规范化单条（本机已同时存着变体时，保留内容脚本命得到的那条）。
+- **成本边界**：跨 shadow 边界的查询根由 `collectShadowQueryRoots` 每轮检测只 BFS 一次（`SHADOW_ROOT_SCAN_BUDGET` 节点预算，超限时输出可辨识日志），账号 / 密码两条选择器复用同一组根；穿透关闭时该函数直接短路返回 `[document]`，连这次 BFS 都不发生。
+- **回归口径**：[siteRulesValidation.test.ts](../tests/utils/siteRulesValidation.test.ts) 钉规范化与选择器边界，[formDetector.siteRule.test.ts](../tests/content/formDetector.siteRule.test.ts) 钉权威覆盖 / 缓存降级 / 穿透判定的三态与适用边界 / 首轮竞态 / 监听与清理，[formDetector.shadow.test.ts](../tests/content/formDetector.shadow.test.ts) 钉「启发式不跨边界、选择器可跨 open 根、closed 根不可见、穿透开关关掉后选择器只在主树生效」这条范围口径，[senderValidation.test.ts](../tests/background/senderValidation.test.ts) 与 [useRuntimeMessageHandler.siteRules.test.ts](../tests/composables/useRuntimeMessageHandler.siteRules.test.ts) 钉消息链路的域名收口与分发契约，[siteRulesTransfer.test.ts](../tests/utils/siteRulesTransfer.test.ts) 钉信封与裸形态两种入口、逐条剔除、体积与条数上限、错误码分流、合并计数与失败不落盘。
+
+### 29. 跨子域名匹配档位
+
+- **定位与默认**：解决「同一根域名下的账号在子域名处处可用」（`qq.com` 的账号在 `mail.qq.com` / `music.qq.com` 也能填），同时不推翻 2026-07 为多测试环境隔离引入的精确 host 口径。三档为**包含关系**且缺省最严格：`off`（仅精确匹配，迁移前行为）⊂ `wildcard`（追加用户显式写成 `*.qq.com` 的通配条目）⊂ `sameMainDomain`（再追加主域名 apex 与同主域其他子域）。放宽只能由用户在 Options 显式选择，默认值与旧版本逐条一致。
+- **匹配单一真源**：[domain.ts](../utils/domain.ts) 的 `resolveMatchTier(currentHost, storedUrl, mode)` 返回 `MatchTier`（0 精确 / 1 通配 / 2 主域名 / 3 其他子域 / 4 空 URL）或 `-1`，数字同时就是排序权重。侧边栏本站范围（[passwordFilter.ts](../utils/passwordFilter.ts) 的 `matchesSiteScope` / `filterEntriesByScope`，也是「能否填充当前页」的判据）与内联下拉、一键填充（[passwordSort.ts](../utils/passwordSort.ts) 的 `filterAndSortEntriesForDomain`）都经它，杜绝「下拉里有、侧边栏没有」或两处排序分叉；`off` 档下集合与顺序与跨子域功能引入前逐条一致。
+- **通配条目的匹配口径**：通配写在 `PasswordEntry.url` 里（形如 `*.qq.com`），录入侧由 [formValidators.ts](../utils/formValidators.ts) 剥掉最左 `*.` 后复用既有域名正则校验（非法形态如 `*.`、`*.*.x`、`a.*.x` 天然被拒，不为通配另立第二套口径）。命中判定刻意不用 `endsWith('.qq.com')`（会被 `evil-qq.com` 这类前缀碰撞绕过），而是复用跨域 iframe 委托同一可信边界「可注册域相等」（`registrableScope`）：它先查一张共享托管后缀表（`github.io` / `vercel.app` / `azurewebsites.net` 等），命中就取「租户 + 后缀」三段为边界，否则退回 `getMainDomain` 的两段式 ccTLD 全部规则。因此 `evil.github.io` 与 `victim.github.io` 不再互认（代价是写在公共后缀上的 `*.github.io` 这类通配条目不再命中任意子域，需要显式写成 `*.me.github.io`）；表是刻意精选的拒绝清单而非公共后缀表，未收录的后缀行为与修复前完全一致，不会新增误判。导航与图标两条派生路径先经 `stripWildcardPrefix` 还原为可访问主机（`*.qq.com` 表达的是适用范围，不是一个能打开的地址）。
+- **信任边界的可注册域口径**：`isSameMainDomain` 是跨域 iframe 填充门控（`utils/frameFill.ts` 的 `isFrameFillable`）、保存弹窗与提示的跨帧委托（`entrypoints/content.ts` / `LoginAutoSave.ts`）、`resolveTrustedContentUrl` 的自报域名放行与档位 1~3 命中判定共用的**唯一**信任判据，因此它比对的是 `registrableScope` 而不是 `getMainDomain`——否则 `attacker.github.io` 与 `victim.github.io` 会被算成「同一家」，跨域门控与自动保存归属双双失守。`getMainDomain` 的口径刻意不被改写：它只做 `registrableScope` 未命中托管后缀时的兜底分支，并继续供「描述一个主机名的注册域」这类非信任用途。收窄方向由 [domain.test.ts](../tests/utils/domain.test.ts) 用样本循环钉死「任何输入下只会更具体、绝不新增匹配」。
+- **通配标记必须活过 URL 解析**：`*` 在两端的 host 形态不一致——Chrome 的 `new URL('https://*.qq.com').hostname` 给出 `%2A.qq.com` 且不解回，Node 原样保留 `*`（并把字面录入的 `%2A.` 解回 `*.`），所以 `normalizeToHostname` / `normalizeToHostAndPort` 统一把**开头**的 `%2A.` 还原为 `*.`，让档位判定与解析器无关；二次编码 `%252A.` 在两端都直接抛 `Invalid URL`，走回退分支且首位是 `%252`，永不误还原。还原刻意只看最左一段、不做全串解码（条目 URL 是用户可控输入，全串还原会把 `%2F`/`%23` 解进主机段，破坏「通配只看最左段」的约定）。这条差异在 Node 里跑的单测永远测不到（真机首跑曾让 `wildcard` 档一条通配条目都放不出来，`sameMainDomain` 档把它错排到兄弟子域一层），守卫是 `e2e/cross-subdomain.spec.ts`。
+- **配置读写与分发**：落 `STORAGE_KEYS.DOMAIN_MATCH_CONFIG` 的 `{ mode }`，回读时经 `isDomainMatchMode` 收窄、非法值一律回落 `off`（宁可少显示条目，也不静默放宽）。入口是密码管理页头部「跨子域名匹配」与命令面板项，弹窗为 [DomainMatchSettingDialog.vue](../components/options/DomainMatchSettingDialog.vue)——档位是**非敏感元数据**（不暴露任何凭据），因此与主题、语言同类设置一样不需要主密码复验。Vue 侧（Options / SidePanel / Popup）直读 storage 并监听 `onChanged`；**内容脚本不感知档位**：后台 [passwordCache.ts](../entrypoints/background/passwordCache.ts) 的 `getCachedDomainMatchMode()` 在 `getMatchingAccounts` 里按条附带 `tier`，内联下拉只据其渲染来源标识。
+- **切档不伤秒开**：档位只影响过滤结果，不影响缓存明文与 `storage.session` 快照内容，因此 `backgroundServices` 的 `onChanged` 只调 `resetDomainMatchModeMirror()` 复位这一份内存镜像，刻意不借道 `invalidatePasswordCache`（那会删除快照并触发全量解密回温，让「切档后侧边栏仍秒开」失效）。
+- **来源标识与空态引导**：放宽档带出的非精确条目在侧边栏行内加「跨子域」徽章（`sidepanel.scope.crossSubdomain`，与标签同处弹性行、不与长 URL 争抢收缩空间），内联下拉按同一 `tier` 呈现，回答「这条为什么出现在这里」，不只靠颜色或顺序传达。本站无账号但同主域还有条目时，侧边栏空态与内联面板给出「同主域还有 N 条账号」的一键引导（计数统一来自 `countSameMainDomainCandidates`，已处于最宽松档、本地开发域名与无域名场景恒为 0），点击经 `OPEN_OPTIONS_AND_DOMAIN_MATCH` 直达该弹窗。「跨子域命中」的层级区间（1~3）只定义在 [domain.ts](../utils/domain.ts) 的 `isCrossSubdomainTier` 一处，侧边栏徽章、内联下拉来源 chip、空态计数与自动保存去向提示四个呈现面共用它；`tests/architecture/crossSubdomainTierWiring.test.ts` 机械禁止运行时代码再手写该区间，防止某处漏改后出现「同一条目一边标来源、一边不标」的分叉。
+- **不受档位影响的两条既有口径**：`localhost` / `127.0.0.1` 始终走 `matchesPortForLocalDev` 的端口过滤（`:3000` 与 `:5173` 不因放宽而混合）；「能否填充当前页」与「站点可见」仍共用同一判据，全站搜索下的外站降级行为不变。
+- **判重口径显式不变**：`findMatchingEntry` / `hostMatchScore` / `autoSavePassword` 完全不感知档位——沿用既有规则（同用户名 + host 相等**或父子域**算同一条，通配条目恒 0 分）。放宽档位只增加「可见性」，不会把两个环境的账号合并成一条，也不会让保存写到意料之外的条目；跨子域带来的歧义由弹窗的保存去向提示（见「自动保存登录凭证」的 `targetNote`）承担说明责任。
+- **回归口径**：[domain.test.ts](../tests/utils/domain.test.ts) 钉三档下的层级判定、通配前缀碰撞、ccTLD 与共享托管后缀（跨租户不互认、未收录后缀行为逐字不变），[passwordFilter.test.ts](../tests/utils/passwordFilter.test.ts) 与 [passwordSort.test.ts](../tests/utils/passwordSort.test.ts) 钉「`off` 档行为等价迁移前」与档位化排序，[configManager.domainMatch.test.ts](../tests/utils/configManager.domainMatch.test.ts) 钉非法值回落，[useRuntimeMessageHandler.domainMatch.test.ts](../tests/composables/useRuntimeMessageHandler.domainMatch.test.ts) 钉直达消息契约，[inlineFillDropdown.crossDomain.test.ts](../tests/content/inlineFillDropdown.crossDomain.test.ts) 钉内联面板的 `tier` 呈现与空态引导，[autoSaveManager.test.ts](../tests/utils/autoSaveManager.test.ts) 钉「判重不受档位影响」与 `targetNote` 的分支边界，[crossSubdomainTierWiring.test.ts](../tests/architecture/crossSubdomainTierWiring.test.ts) 以源码守卫钉「每处站点范围判定都显式传档位」与「档位变更不进缓存失效键」。
 
 ## 开发补充
 
@@ -422,6 +610,36 @@ graph TB
 - Service Worker 启动后延迟 500ms 预热密码缓存，进一步提升首次打开侧边栏的响应速度。
 - 保活策略为所有平台统一常驻（含会话失效期，不区分平台与会话状态）：会话失效后停活曾是 Mac「间隔一段时间后打开侧边栏 4 秒白屏」的直接根因（历史有条件保活/宽限期保活策略均因该场景复发而收敛为统一常驻）。详见下方「侧边栏秒开跨平台策略」。
 - 统一常驻的代价：SW 约每 30 秒被唤醒一次（20s 心跳 + 0.5min 复活闹钟），带来轻量但持续的后台唤醒开销；这是消除冷启动白屏的主动设计取舍，已在 README、CWS 发布说明与隐私政策中向用户披露。
+
+### 管理页大 Vault 渲染性能
+
+背景：issue #89「约 600 条密码时点击新增异常卡顿」的根因评估与分期方案见
+[PERF_LARGE_VAULT_EVALUATION.md](PERF_LARGE_VAULT_EVALUATION.md)；此处只记录需要长期遵守的架构约束。
+
+- 成本模型：Vue 一次 flush 的回调扫描开销随「同一次 flush 内被更新的组件数」近似平方增长。管理页 600 行 × 每行约 17 个**直接**子组件（tooltip 包装、图标、标签、复选框；连 Element Plus 内部实例一起算是 45～55 个/行，静态口径见 [PERF_LARGE_VAULT_EVALUATION.md](./PERF_LARGE_VAULT_EVALUATION.md) 3.3）意味着任何让「行子组件多余更新一次」的写法都会被放大成主线程秒级阻塞，而 600 条的过滤/排序计算本身只有 1～5ms——优化面在渲染身份，不在算法。
+- 侧边栏的分片渲染**不可照搬到管理页**：`el-table` 的 `data` 每换一次引用就会重排当前已渲染的全部行（侧边栏那份 `v-for` + `v-memo` 能跳过旧条目，表格组件不能），因此"首帧只渲染一屏、逐帧补齐"在管理页上把一次整表重排变成了 15 次，600 行实测总耗时 19.9s → 39.4s、主线程阻塞 8.1s → 37.8s（数据与结论见 [PERF_LARGE_VAULT_EVALUATION.md](./PERF_LARGE_VAULT_EVALUATION.md) 9.8）。要减少首屏行数只能走分页或虚拟滚动；该取舍**已拍板为分页并落地**，见本节末「管理页分页」条。
+- 渲染身份纪律（[PasswordTable.vue](../components/options/PasswordTable.vue)）：行内呈现对象必须引用稳定——标签记录取自 [tagUtils.ts](../utils/tagUtils.ts) 的 `buildTagPresentationRecords`（按原始 tag 字符串缓存的有界冻结结果，FIFO 上限 500），tooltip 的 popper 样式用组件级冻结常量（随实例创建一次而非随渲染创建），模板内禁止 `parseTags()`、内联 `:style="{…}"` 与内联 `:class` 计算——这三类每次渲染都产出新对象/新字符串，会被判定为 prop 变化而把子组件拉进本轮 flush。该约束由 [optionsRenderIdentity.test.ts](../tests/architecture/optionsRenderIdentity.test.ts) 以源码正则守卫。
+- 首屏成本按**组件实例**计价，不按 DOM 计价（实测）：把操作列 5 个 `el-tooltip` 换成按钮上的原生 `:title`，600 行整表挂载耗时中位数 24.3/28.4 s（两批控制）→ 14.8 s、主线程阻塞 10.2 s → 8.2 s，而 DOM 探针逐字一致（38655 节点 / 3609 按钮 / 3 个 popper）。也就是说每行那串 popper 组件链本身就是成本，与画多少节点无关（数据见 [PERF_LARGE_VAULT_EVALUATION.md](./PERF_LARGE_VAULT_EVALUATION.md) 9.9）。反例同期被否：空关键词时短路 `SearchHighlight`（每行少 4～6 个纯文本实例、DOM 完全相同）实测落在噪声内，已回退——不要为了"少几个实例"这种笼统理由增加模板分叉，要看该实例是否携带真实渲染逻辑。
+- 2000 条上限是**写入面**的收口，不是渲染面的解法：同一测量口径（`--only mount`，A/B/A 夹住实验批）下，终版产物 600 行整表挂载 16.5 s、1200 行 52.5 s、2000 行 180.2 s，首屏（第 15 行）分别为 5.8 s / 13.8 s / 33.6 s，2000 行还带出一个 29.3 s 的单个长任务——耗时对行数近似平方（拟合指数 1.67～2.0，数据见 [PERF_LARGE_VAULT_EVALUATION.md](./PERF_LARGE_VAULT_EVALUATION.md) 9.10）。因此「把总量上限设为 2000」只保证列表不再无限增长，**不等于**最大条数不卡；真正把首屏成本与总条数解耦要靠分页或虚拟滚动，其中分页已落地（下条）。
+- 管理页分页（把渲染行数从「命中数」变成「页大小」，是本节所有渲染成本曲线的收口旋钮）：`el-table` 的 `data` 恒为一页，由 [useVaultListPagination.ts](../composables/useVaultListPagination.ts) 按引用切片、[VaultPagination.vue](../components/options/VaultPagination.vue) 承载页码与档位；页码条折叠算法是零 Vue 的纯计算，住在 [vaultPagination.ts](../utils/vaultPagination.ts)（`tests/utils/vaultPagination.test.ts` 直接单测，不需要挂载组件），而档位常量与白名单判据另住 [vaultPageSize.ts](../utils/vaultPageSize.ts)。分成两个文件是产物闭包的要求，不是风格：存储层要读档位（见下），而 `configManager` 落在 sidepanel 首屏 `modulepreload` 闭包内，档位若与只有 Options 消费的页码算法同处一文件，算法会被侧边栏一起预加载（实测同一 chunk 由 7847 字节涨到 8183 字节，故拆）。密码表与回收站弹窗共用这一条页码条，因为两者的分页语义完全一致，差异只在「有没有跨页选中」。默认每页 100（可取 50/100/200，**刻意不提供「全部」**——那一档等于把分页要解决的问题原样留给用户），2000 条上限下至多 20 页。档位是持久化的视图偏好（键 `VAULT_PAGE_SIZE`，读写走 `StorageUtils.getVaultPageSize` / `saveVaultPageSize`；存储值不在 `PAGE_SIZE_OPTIONS` 白名单内一律回落默认，非法写入忽略、不落盘），读写规则本身收在 [useVaultPageSize.ts](../composables/useVaultPageSize.ts)——**一个偏好、两个视图**：密码表与回收站弹窗各自持有一份分页状态，但读的是同一个键，所以弹窗每次打开都在它的「打开」watcher 里（与 `loadTrash()` 同一次，不新增监听器）按落盘值对齐，关闭时由 `App.vue` 让主表恢复一次跟上，否则会出现「在回收站选了 200，回到列表还是 100，刷新才一致」；恢复动作先记「已落盘档位」再改 `pageSize`，watcher 里的等值比较因此认得出这次变化来自恢复而不回写（少这一层，每次打开页面都白付一次 `storage.local` 写入）。**页码刻意不落盘**——它是命中集合的派生值，单独恢复只会把用户留在他从没见过的那一页。恢复必须排在首次渲染之前 `await` 完成（[App.vue](../entrypoints/options/App.vue) 的 `onMounted` 里落在 `checkAuth()` 之前），否则换档等于把整表重排付两遍。四条不变量：① 该 composable 不持有过滤与排序，与 `filteredPasswords` 完全解耦；② 「回第 1 页」只由**查看口径**变化触发（`listFilterSignature` 拼单串做值比较，避免每次勾选数组换新引用就复位页码），就地编辑与删除刻意不回页，页码越界由 `pageCount` 钳位收进合法区间、不停在空白页；换档位的落点由 `pageForSizeChange` 按「当前页首条在新档位下的位置」换算，不按旧 `pageCount` 钳位；③ 表格 `row-key="id"` + `reserve-selection`，选择集跨页保留，因此命中读数（`totalCount`）、批量删除/改标签/导出全部按**完整选中集**计算，并用 `offPageSelectedCount` 显式说明「选中但不在当前页」的差额；表头「全选」按 `el-table` 惯例只勾当前页的 `data`，跨页批量处理靠的是「换页不丢勾选」而非一次点满全库；命中集合一变就由 `App.vue` 显式调用 `PasswordTable` 暴露的 `clearSelection()` 补回被保留模式跳掉的归零（组件只对外暴露这类意图方法，不再交出 EP 表格实例）；④ 保存后要定位到新行必须先换页再滚动（`revealIndex` 换页，调用方在下一帧执行滚动），因为目标行的 DOM 只在它所在页存在。分页只解决渲染，**不减少数据层的整包读写**，后者的口径见下方「数据层大 Vault 成本与改造路线」。
+- 行内状态不得共享到整表：标签溢出提示改为在 `@mouseenter` 里从事件目标读取 `data-tag`（[useTagOverflow.ts](../composables/useTagOverflow.ts)），不再持有被 `ElTableBody` 渲染 effect 收集的共享 ref。
+- 操作列提示全表只有**一个** `el-tooltip` 实例（[PasswordTable.vue](../components/options/PasswordTable.vue)）：逐行 5 个实例在 600 行上就是 3000 个组件实例，实测占掉整表挂载耗时的四成（9.9），因此改为「按钮自带 `data-tip` + `@mouseenter` 登记 + 单个 `virtual-triggering` 实例」，提示文案与 `aria-describedby` 由 EP 自己在触发点之间迁移。四处接线是硬约束：① 打开有**两条路径且必须同值**——第一次悬停某颗按钮时 EP 还没把 `mouseenter` 绑到它身上（虚拟触发点是在 `mouseenter` **之后**才改写的，同一帧绑上的监听器不会再触发），这 400 毫秒由 [useSharedHoverTooltip.ts](../composables/useSharedHoverTooltip.ts) 持有；再次悬停同一颗按钮时 EP 那份监听器已经在了，读的是实例上的 `show-after`，所以模板保持 `:show-after="400"`、`present` 到点显式 `onOpen(event, 0)`。把实例侧写成 0 会让"划走再划回同一颗按钮"变成即时弹出、且弹的是上一次缓存的文案（真机回归已抓到过这条）；② 开与关共用 EP 实例内的**同一个计时器槽位**（`useTimeout.registerTimeout` 先取消槽位里的旧任务再登记新任务），这带来两条推论：`present` 里的 `onOpen` 必须排在 `nextTick` 之后——写 `triggerEl`/`content` 必然触发本组件重渲染，重渲染又走 `onBeforeUpdate` 的兜底关闭，同帧先开后关会把刚登记的开启动作取消掉，真机表现为提示**永远不出现**；而 `onBeforeUpdate` 那条兜底关闭**只能 `onClose()`，不得顺手 `cancel()` 挂起中的悬停**——`arm` 是同步登记的，同帧的 cancel 会把刚排定的 400 毫秒一起抹掉，表现为"划过一排按钮之后再没有提示"；③ 触发元素随所在行一起离开文档时（被过滤、被删除）再不会有 `mouseleave`，故 `onUpdated` 里判 `isConnected` 后调 EP 自己的 `hide()` 松掉对已脱离节点的引用——但 `hide()` 只跳过 `hide-after`，浮层仍要走完 300 毫秒淡出，而这条路径同帧就把文案清空了，原位于是悬着一个**空气泡**；所以该路径还要把 `:transition` 切到一个仓库里没有对应 CSS 的过渡名（`aph-tooltip-no-fade`），Vue 的 `<Transition>` 在 leave 起始取不到过渡类型即同帧摘掉浮层，才与逐行实例时代"浮层随行卸载同帧消失"的观感一致；④ 行内入口只能是 `@mouseenter="armOperationTip"` 这类稳定引用，逐行箭头函数闭包会把省下的实例成本等量换回函数与监听器成本；该包装同时负责在 `mouseenter` 这一帧把过渡名**还原**成 EP 默认值——还原不能放进 `present`（写响应式值又要撞上 ② 的同一个槽位），而值未变化时 Vue 不通知依赖，正常路径不产生额外渲染。隐藏时序（200 毫秒）与 enterable 一律留在 EP 里，不允许在 composable 内再造一套计时。①～④由 [optionsRenderIdentity.test.ts](../tests/architecture/optionsRenderIdentity.test.ts) 以源码正则守卫（含"两个延迟必须相等"的交叉比对、`present` 体内不得有响应式写入、`onBeforeUpdate` 体内不得出现 cancel、无淡出过渡名全文件只允许出现一次），交互等价性由 `e2e/operation-tooltip.spec.ts`（真机 Chrome for Testing，10 例，含二次悬停计时与被过滤行的同帧消失）守卫。
+- 搜索高亮与过滤同源：表格的 `search-keyword` 接收防抖后的 `debouncedSearchKeyword` 而非原始输入值，避免每击键重排全部 `SearchHighlight`（拼音分支另在 [searchMatch/core.ts](../utils/searchMatch/core.ts) 内做 `(text, keyword)` 有界记忆化）；代价是高亮随过滤一起延后到防抖落地时刻，两者不会再短暂不一致。
+- 本地操作守卫按事件解除：`runLocalOperation` 置位后由 [useStorageWatcher.ts](../composables/useStorageWatcher.ts) 的 `consumeSkip` 在真正消费到本次 `chrome.storage.onChanged` 时清除，另设 2s 上限兜底。原因是该事件经 IPC 派发到渲染进程、通常晚于一个宏任务——旧实现的 `setTimeout(0)` 会让守卫大概率提前失效，一次保存退化为「全量解密 + 数组换引用 + 整表重排」。侧边栏的本地操作标志位走同一 `consumeLocalOperation`（[useLocalOperationGuard.ts](../composables/useLocalOperationGuard.ts)）口径。
+
+### 数据层大 Vault 成本与改造路线
+
+背景：渲染层修复后，「大库下保存 / 过滤 / 导出仍卡」的根因在数据层。成本实测与方案对比见
+[PERF_ISSUE89_DATA_LAYER_EVALUATION.md](PERF_ISSUE89_DATA_LAYER_EVALUATION.md)，键分片改造（E1）的
+**迁移设计稿（仅有设计、无实现）**见 [PERF_E1_KEY_SHARDING_DESIGN.md](PERF_E1_KEY_SHARDING_DESIGN.md)。
+此处只记录需要长期遵守的架构约束。
+
+- 三条成本主线（2000 条实测，macOS + SSD）：① **全库解密 = 5N 次 `crypto.subtle` 调用**（每条目 5 个敏感字段各一次 importKey + decrypt，每次固定开销约 25～30 µs）→ 410.6 ms；② **整包重写**（整个数组存单个 storage 键，保存 1 条也要把 N 条序列化重写一遍）→ 读 + 改 + 写全周期 263.1 ms；③ **`chrome.storage.onChanged` 的全量载荷投递**（事件载荷就是整包 `newValue`）→ 211～245 ms。这三笔**分页一分不减**，与渲染是两条独立的账；P0 那类零格式改造只碰得到 ①。
+- 已落地的五笔（不改数据格式、不改交互、不改默认值）：base64 解码分块化 + `slice` → `subarray`（[encryption.ts](../utils/encryption.ts)）；回收站提醒表批量化 `removeReminders`（[reminderManager.ts](../utils/storage/reminderManager.ts)，原先按 id 循环「读整包 + 命中才写」，批删 100 条 = 100 次串行往返，现收敛为 1 读 + ≤1 写）；批量导入与改密 rekey 的整库重加密走条目级并行（[concurrency.ts](../utils/concurrency.ts) 的 `mapWithConcurrency`，默认每批 64，同迭代配对实测 −43～46%（约 1.8×））；回收站弹窗的整库解密走同一个 `mapWithConcurrency`（[TrashDialog.vue](../components/options/TrashDialog.vue)，3N 次调用——检索必须覆盖全库，不能退化成只解当前页）；管理页 watcher 的「仅元数据变更就地修补」（[usePasswordManagement.ts](../composables/usePasswordManagement.ts) 的 `patchMetadataOnlyFromStorage` + [useStorageWatcher.ts](../composables/useStorageWatcher.ts) 的 `patchMetadataOnly`），把外部写入在管理页里白付的那次 5N 解密降到 0。该快路径有一条硬前提：**一次整表加载不在飞**——修补改的是即将被整表替换的旧条目，而它返回 true 又会让 watcher 跳过本该发生的那次重载，列表便静默停在过期状态；因此 `loadPasswords` 带代际序号（只有最新一次加载有权提交列表与收尾遮罩），在飞期间快路径一律返回 false 让位于整表重载，`tests/composables/usePasswordManagement.loadRace.test.ts` 钉住这三条。
+- 并发纪律：任何「按 id 循环 `await` 整包 storage 读写」的写法按缺陷处理，必须收敛为「一次读 → 内存改 → 至多一次写」（范式见 `cleanOrphanReminders` / `batchUpdatePasswordMetadata` / `deleteHistoryByEntryIds`）。条目级并行一律走 `mapWithConcurrency`，不要在业务代码里手写 `Promise.all` 分片——保序、首批最小下标报错、不启动后续批次、不产生 unhandled rejection 这四条性质由它统一承担（`tests/utils/concurrency.test.ts`）。
+- 单一事实源：`isMetadataOnlyChange` + `METADATA_FIELDS`（[passwordCrud.ts](../utils/storage/passwordCrud.ts)）是「仅元数据变更」的唯一判据，SW 缓存/快照、侧边栏、管理页三处必须复用同一对函数与白名单，禁止各自硬编码字段列表。
+- 尚未落地：把主库摊到多个键的 **E1 分片**（单条保存可落进 0.8 ms 档，约 150×；整库重写最坏情况与今天等价）。它改的是 at-rest **存储结构**，须先过设计稿第五节的 4 项前置测量（尤其「一次 `set` 写 2000 个键的截断/部分失败语义」至今未验证），再走「双写 → 影子读对账 → 切读 → 收口」四阶段，且**不与本文件的 P0 改动混批**。C1/C2（at-rest 密文格式）与 E1 正交，也不同批。
+- 配额口径：`chrome.storage.local` 是**总量**配额（运行时读到 10,485,760 字节、未申请 `unlimitedStorage`），按 479 B/条估算约 2 万条封顶；分片**不抬高总量上限**，只降低写放大。要突破上限只有 `unlimitedStorage` 一条路，须用户单独拍板。
 
 ### 侧边栏秒开跨平台策略
 
@@ -448,17 +666,18 @@ graph TB
 
 **平台行为矩阵（SW 后台韧性层）**
 
-| 机制                                          | Windows                                                                                          | Mac/Linux                                                                                                                | 跨平台例外                                                        |
-| --------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| SW 保活（`syncSwKeepaliveAlarm`）             | 统一常驻保活：20s 心跳 + 0.5min 复活闹钟，**会话失效后也不停**                                   | 同左：统一常驻保活，不再区分会话状态（历史有条件保活/宽限期保活策略因 Mac 间隔闲置后 4 秒白屏复发而收敛为常驻）          | —                                                                 |
-| 渲染资源预热（`maybeWarmSidePanelResources`） | 全量四层预热（HTML → 静态资源 → 动态 chunk → 二级依赖，约 25 文件）/ 5min 节流                   | 轻量预热（HTML + module/modulepreload/CSS + 白名单认证视图与本地数据直读关键 chunk 及其二级依赖，约 15 文件）/ 5min 节流 | 浏览器首启与扩展安装/更新时经 `ignorePlatformGate` 跨平台全量预热 |
-| 预热触发时机                                  | 窗口聚焦 / Tab 激活 / 保活闹钟 tick / 侧边栏打开后延时 2s，共用 5min 持久化节流 + in-flight 互斥 | 同左                                                                                                                     | —                                                                 |
-| 会话到期主动上锁                              | alarm tick 检测过期后在 SW 内一次性完成「加密全部密码 + 删会话键」，避免打开时才全量重加密       | 行为一致（性能收益主要体现在 Windows，Web Crypto 较慢）                                                                  | —                                                                 |
+| 机制                                          | Windows                                                                                                                                                                                          | Mac/Linux                                                                                                                | 跨平台例外                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| SW 保活（`syncSwKeepaliveAlarm`）             | 统一常驻保活：20s 心跳 + 0.5min 复活闹钟，**会话失效后也不停**                                                                                                                                   | 同左：统一常驻保活，不再区分会话状态（历史有条件保活/宽限期保活策略因 Mac 间隔闲置后 4 秒白屏复发而收敛为常驻）          | —                                                                 |
+| 渲染资源预热（`maybeWarmSidePanelResources`） | 全量四层预热（HTML → 静态资源 → 动态 chunk → 二级依赖，约 25 文件）/ 5min 节流                                                                                                                   | 轻量预热（HTML + module/modulepreload/CSS + 白名单认证视图与本地数据直读关键 chunk 及其二级依赖，约 15 文件）/ 5min 节流 | 浏览器首启与扩展安装/更新时经 `ignorePlatformGate` 跨平台全量预热 |
+| 预热触发时机                                  | 窗口聚焦 / Tab 激活 / 保活闹钟 tick / 侧边栏打开后延时 2s，共用 5min 持久化节流 + in-flight 互斥                                                                                                 | 同左                                                                                                                     | —                                                                 |
+| 会话到期一次性上锁                            | 保活闹钟 tick 检测到 `PASSWORD_EXPIRY` 已过时，在 SW 内一次完成「`markSessionInvalid()` + `clearSession()` + 清密码缓存与两步接力标记」，用户之后打开侧边栏直接走「无会话键 → 立即 false」快路径 | 行为一致（磁盘条目本就是密文，上锁只移除密钥材料与解密快照，**不存在全量重加密**；收益主要体现在 Windows）               | —                                                                 |
 
 **差异化设计依据**
 
 - 保活策略全平台统一为常驻（不区分会话状态）：Windows 痛点是杀软扫描 + 冷盘导致 SW 冷启动与 chunk 冷读可达数秒（会话失效态白屏主因）；Mac 虽 SSD 快、无杀软扫描放大，但历史条件保活/宽限期保活策略下，会话失效后停活 → SW 死亡 → 预热 tick 停止 → 文件被 macOS UBC 逐出（长时间闲置/系统休眠后尤甚）→ 下次打开撞「SW 冷启 + 渲染进程冷创建 + 文件冷读 + 快照失效」四冷叠加白屏，且条件保活/宽限期保活均无法覆盖「宽限期结束后的任意间隔」，故统一为常驻保活；
 - 预热范围按平台差异化：Windows 全量四层预热（~25 文件），Mac 轻量预热按白名单保留认证视图 chunk（含 Element Plus CSS 运行时，认证态最大冷读单体）与本地数据直读 chunk（sessionManager-storage / passwordCrud / encryption，浏览器重启快照失效后数据竞速回退本地路径的冷读单体），根治 macOS 磁盘缓存逐出后的冷读白屏；
 - 平台判定经 [platform.ts](../utils/platform.ts) 三态检测（true/false/null）+ storage.local 持久化兜底 + 失败不缓存：预热等轻微影响场景经两态包装（isWindowsPlatform）简化调用。
+- 同一文件另有**同步**嗅探 API `isMacPlatform()`（优先读 `navigator.userAgentData.platform`，回退已废弃的 `navigator.platform`），专供无法 await 的路径（模块级常量、composable 同步初始化）使用；目前唯一调用方是快捷键未绑定时的兜底按键——按平台取 manifest `suggested_key` 的 `default` / `mac` 分支（见 [shortcutCommands.ts](../utils/shortcutCommands.ts)）。它**不参与**保活/预热决策：判错只影响修饰键展示风格（⌘ vs Ctrl），而保活/预热判错代价重大，必须继续使用感知三态的异步判定。
 
 相关代码：[backgroundServices.ts](../entrypoints/background/backgroundServices.ts)（保活与过期上锁）、[warmSidePanelResources.ts](../utils/warmSidePanelResources.ts)（资源预热）、[platform.ts](../utils/platform.ts)（平台判定）、[sidePanelManager.ts](../entrypoints/background/sidePanelManager.ts)（打开/关闭与 Port 追踪）。

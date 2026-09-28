@@ -28,6 +28,13 @@ const AUTH_RELATED_STORAGE_KEYS = new Set<string>([
  * @param options.onPasswordDataChange - 密码数据变化时的回调
  * @param options.skipIf - 当此 Ref 为 true 时，跳过 onPasswordDataChange 回调
  *   （用于本地操作标志位，避免 storage watcher 覆盖 Vue 层就地更新）
+ * @param options.consumeSkip - 跳过一次密码变更后解除 skipIf 标志的回调（可选）。
+ *   本地写入的 `onChanged` 到达时刻不可预测（大列表重渲染会把它推后数十毫秒以上），
+ *   因此守卫必须由「事件确实被跳过」来解除，而不是由固定宏任务解除。
+ * @param options.patchMetadataOnly - 外部写入的零解密快路径（可选）。收到
+ *   `account_passwords` 变更且未被本地守卫吞掉时，先交给它尝试就地修补列表：
+ *   返回 true 表示列表已与 storage 一致，本次不再请求整表重载；返回 false
+ *   或抛错一律按「未修补」处理，回退 `onPasswordDataChange`。
  */
 export function useStorageWatcher(options: {
   /** 认证相关 storage 变化时的回调 */
@@ -36,8 +43,12 @@ export function useStorageWatcher(options: {
   onPasswordDataChange: () => void;
   /** 当值为 true 时跳过 onPasswordDataChange，避免本地操作触发全量重载 */
   skipIf?: Ref<boolean>;
+  /** 消费一次跳过（解除本地操作守卫），与 skipIf 配套使用 */
+  consumeSkip?: () => void;
+  /** 仅元数据变更时就地修补列表；返回 true 表示无需整表重载 */
+  patchMetadataOnly?: (change: chrome.storage.StorageChange) => Promise<boolean> | boolean;
 }) {
-  const { onAuthChange, onPasswordDataChange, skipIf } = options;
+  const { onAuthChange, onPasswordDataChange, skipIf, consumeSkip, patchMetadataOnly } = options;
 
   /** chrome.storage 变化监听 */
   const handleStorageChanged = (
@@ -65,9 +76,29 @@ export function useStorageWatcher(options: {
     if (STORAGE_KEYS.PASSWORDS in changes) {
       if (skipIf?.value) {
         logger.debug('StorageWatcher: 本地操作进行中，跳过密码列表重载');
+        // 本次跳过即本次本地写入的变更事件：就地解除守卫，后续外部写入不再被吞掉
+        consumeSkip?.();
         return;
       }
       logger.debug('StorageWatcher: 检测到密码数据变动，重新加载密码列表');
+      if (patchMetadataOnly) {
+        // 外部写入的零解密快路径：判据与修补由列表所有者执行，命中即免掉一次
+        // 整表解密重载（issue #89 数据层报告 P0-3：N=2000 时那次重载是 5N 次 AES）。
+        // 修补本身可能是异步的，故把「是否仍需重载」的判定放进微任务，事件顺序不变。
+        const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
+        void (async () => {
+          try {
+            if (await patchMetadataOnly(passwordsChange)) {
+              logger.debug('StorageWatcher: 仅元数据变更已就地修补，跳过整表重载');
+              return;
+            }
+          } catch (error) {
+            logger.error('StorageWatcher: 元数据就地修补失败，回退整表重载:', error);
+          }
+          onPasswordDataChange();
+        })();
+        return;
+      }
       onPasswordDataChange();
     }
   };

@@ -1,0 +1,2028 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1"
+    />
+    <title>账号密码管理助手 · 本地优先的开源密码管理器（Chrome 扩展）</title>
+    <meta
+      name="description"
+      content="开源免费的本地优先密码管理器。一键登录连登录按钮一起点、精确域名匹配隔离 dev/test/staging/prod、内置 TOTP 活码与离线安全体检。密码逐字段 AES-256-GCM 加密只存本机，无云端、无账号、无订阅。"
+    />
+    <meta
+      name="theme-color"
+      content="#0a1a39"
+    />
+    <meta
+      name="author"
+      content="Better（廖小新）"
+    />
+    <meta
+      property="og:type"
+      content="website"
+    />
+    <meta
+      property="og:title"
+      content="账号密码管理助手 · 密码只留在本机，登录一次按键"
+    />
+    <meta
+      property="og:description"
+      content="一键登录、多环境账号隔离、内置 TOTP、纯本地 AES-256-GCM。完全免费、无需注册、数据不出本机。"
+    />
+    <meta
+      property="og:image"
+      content="https://account-password-helper-7dpaljso4uj.qoder.zone/assets/shots/one-click-login.webp"
+    />
+    <meta
+      property="og:image:width"
+      content="1280"
+    />
+    <meta
+      property="og:image:height"
+      content="721"
+    />
+    <meta
+      property="og:url"
+      content="https://account-password-helper-7dpaljso4uj.qoder.zone/"
+    />
+    <meta
+      property="og:locale"
+      content="zh_CN"
+    />
+    <link
+      rel="canonical"
+      href="https://account-password-helper-7dpaljso4uj.qoder.zone/"
+    />
+    <link
+      rel="icon"
+      href="./favicon.svg"
+      type="image/svg+xml"
+    />
+    <link
+      rel="apple-touch-icon"
+      href="./assets/icon-180.png"
+    />
+    <link
+      rel="stylesheet"
+      href="./assets/css/site.css"
+    />
+    <script
+      src="./assets/js/site.js"
+      defer
+    ></script>
+  </head>
+  <body>
+    <a
+      class="skip-link"
+      href="#main"
+      >跳到主要内容</a
+    >
+    <noscript>
+      <p class="noscript">
+        本页有三处交互演示（一键登录、跨子域匹配模拟器、密码生成器）需要 JavaScript 才能运行。
+        关闭脚本时它们会停在初始状态，其余文字、截图与链接照常可读——扩展本身离线可用，也不向你发任何统计请求。
+      </p>
+    </noscript>
+
+    <!-- ===================== 顶栏 ===================== -->
+    <header
+      class="topbar"
+      id="topbar"
+    >
+      <div class="wrap topbar__inner">
+        <a
+          class="brand"
+          href="#top"
+        >
+          <img
+            class="brand__mark"
+            src="./favicon.svg"
+            alt=""
+            width="30"
+            height="30"
+          />
+          <span>
+            账号密码管理助手
+            <span class="brand__sub">Account Password Helper · v3.9.0</span>
+          </span>
+        </a>
+
+        <button
+          class="nav-toggle"
+          id="navToggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="nav"
+        >
+          目录
+        </button>
+
+        <nav
+          class="nav"
+          id="nav"
+          aria-label="页面导航"
+        >
+          <a href="#advantages">核心优势</a>
+          <a href="#features">功能全览</a>
+          <a href="#matching">多环境匹配</a>
+          <a href="#security">安全</a>
+          <a href="#compare">对比</a>
+          <a href="#faq">常见问题</a>
+        </nav>
+
+        <a
+          class="btn btn--primary btn--sm topbar__cta"
+          href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+          target="_blank"
+          rel="noopener"
+          >添加到 Chrome</a
+        >
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- ===================== 英雄区 ===================== -->
+      <section
+        class="hero"
+        id="top"
+      >
+        <div class="wrap hero__grid">
+          <div>
+            <div class="hero__badges">
+              <span class="pill">🆓 完全免费 · GPL-3.0 开源</span>
+              <span class="pill">🧩 Chrome MV3</span>
+              <span class="pill">🔌 离线可用</span>
+              <span class="pill">🈶 中英双语 · 6 款主题</span>
+            </div>
+
+            <h1>
+              密码只留在本机，<br />
+              <em>登录只要一次按键</em>。
+            </h1>
+
+            <p class="hero__sub">
+              填充账号密码、勾选「记住我」、连登录按钮一起点掉——这是它和「自动填充」最实在的区别。
+              精确域名匹配把同一站点的 dev / test / staging / prod 分得清清楚楚，TOTP
+              活码和密码存在一起，全程不需要手机验证器。无云端、无账号、无订阅，也就没有可供攻破的服务器。
+            </p>
+
+            <div class="hero__actions">
+              <a
+                class="btn btn--primary"
+                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+                target="_blank"
+                rel="noopener"
+                >🛍 从 Chrome 应用商店安装</a
+              >
+              <a
+                class="btn btn--ghost"
+                href="#demo"
+                >▲ 看一键登录怎么跑</a
+              >
+              <a
+                class="btn btn--ghost"
+                href="https://github.com/liaolongdong/account-password-helper"
+                target="_blank"
+                rel="noopener"
+                >GitHub</a
+              >
+            </div>
+
+            <p class="hero__note">
+              默认快捷键 <code>Ctrl/Cmd + Shift + F</code> 停在「已填充 + 已勾选」，替你点登录按钮是
+              <strong>偏好设置里一个独立的开关</strong>，不会默认开启。
+            </p>
+          </div>
+
+          <!-- 一键登录演示台 -->
+          <div
+            class="demo reveal"
+            id="demo"
+          >
+            <div class="demo__bar">
+              <span
+                class="demo__dots"
+                aria-hidden="true"
+                ><i></i><i></i><i></i
+              ></span>
+              <span
+                class="demo__url"
+                id="demoUrl"
+                >https://admin.example.com/login</span
+              >
+              <button
+                class="demo__replay"
+                id="demoReplay"
+                type="button"
+              >
+                ↻ 重播
+              </button>
+            </div>
+
+            <div
+              class="demo__tabs"
+              role="tablist"
+              aria-label="四种填充入口"
+            >
+              <button
+                class="demo__tab"
+                role="tab"
+                id="tab-inline"
+                aria-selected="true"
+                aria-controls="demoStage"
+                data-entry="inline"
+                type="button"
+              >
+                页内面板（默认）
+              </button>
+              <button
+                class="demo__tab"
+                role="tab"
+                id="tab-side"
+                aria-selected="false"
+                aria-controls="demoStage"
+                data-entry="side"
+                type="button"
+              >
+                侧边栏
+              </button>
+              <button
+                class="demo__tab"
+                role="tab"
+                id="tab-menu"
+                aria-selected="false"
+                aria-controls="demoStage"
+                data-entry="menu"
+                type="button"
+              >
+                输入框右键
+              </button>
+              <button
+                class="demo__tab"
+                role="tab"
+                id="tab-key"
+                aria-selected="false"
+                aria-controls="demoStage"
+                data-entry="key"
+                type="button"
+              >
+                快捷键
+              </button>
+            </div>
+
+            <div
+              class="demo__stage"
+              id="demoStage"
+              role="tabpanel"
+              aria-labelledby="tab-inline"
+            >
+              <div
+                class="mock"
+                id="mock"
+              >
+                <div class="mock__logo"><i aria-hidden="true"></i> Acme Admin Console</div>
+                <h3>Sign in</h3>
+                <p class="mock__hint">Use your work account to continue.</p>
+
+                <div
+                  class="field"
+                  id="fUser"
+                >
+                  <label for="iUser">账号</label>
+                  <input
+                    id="iUser"
+                    type="text"
+                    readonly
+                    value=""
+                    placeholder=" "
+                  />
+                </div>
+                <div
+                  class="field"
+                  id="fPass"
+                >
+                  <label for="iPass">密码</label>
+                  <input
+                    id="iPass"
+                    type="password"
+                    readonly
+                    value=""
+                    placeholder=" "
+                  />
+                </div>
+
+                <div class="mock__row">
+                  <span
+                    class="check"
+                    id="cRemember"
+                    ><i aria-hidden="true"></i>记住我</span
+                  >
+                  <span class="mock__forgot">Forgot password?</span>
+                </div>
+
+                <button
+                  class="mock__submit"
+                  id="btnLogin"
+                  type="button"
+                >
+                  Sign in
+                </button>
+                <p class="mock__foot">example.com · 演示用虚构页面，非真实站点</p>
+
+                <div class="mock__done">
+                  <i aria-hidden="true">✓</i>
+                  <b>已登录</b>
+                  <span>账号 · 密码 · 勾选 · 点击，全部由扩展完成</span>
+                </div>
+              </div>
+
+              <aside
+                class="panel"
+                id="demoPanel"
+                aria-label="扩展面板（演示）"
+              >
+                <div
+                  class="panel__host"
+                  id="panelHost"
+                >
+                  登录框获焦后，钥匙图标就地展开
+                </div>
+                <div class="panel__head">
+                  <b id="panelTitle">选择账号</b>
+                  <small id="panelCount">匹配 3</small>
+                </div>
+                <div class="panel__search">账号 / 标签 / 备注 / 网址</div>
+                <div
+                  class="panel__list"
+                  id="panelList"
+                >
+                  <div
+                    class="acct"
+                    data-i="0"
+                  >
+                    <span class="acct__av">A</span>
+                    <span class="acct__b">
+                      <span class="acct__u">demo-admin@example.com</span>
+                      <span class="acct__t"><span class="t-prod">生产</span><span class="t-key">重要</span></span>
+                      <span class="acct__n">生产环境后台（演示数据）</span>
+                    </span>
+                  </div>
+                  <div
+                    class="acct"
+                    data-i="1"
+                  >
+                    <span class="acct__av">A</span>
+                    <span class="acct__b">
+                      <span class="acct__u">auditor@example.com</span>
+                      <span class="acct__t"><span class="t-prod">生产</span><span class="t-test">审计</span></span>
+                      <span class="acct__n">生产环境只读账号（演示数据）</span>
+                    </span>
+                  </div>
+                  <div
+                    class="acct"
+                    data-i="2"
+                  >
+                    <span class="acct__av">A</span>
+                    <span class="acct__b">
+                      <span class="acct__u">support@example.com</span>
+                      <span class="acct__t"><span class="t-prod">生产</span><span class="t-test">客服</span></span>
+                      <span class="acct__n">生产环境客服工单账号（演示数据）</span>
+                    </span>
+                  </div>
+                </div>
+                <div
+                  class="panel__foot"
+                  id="panelFoot"
+                >
+                  填充并登录
+                </div>
+              </aside>
+            </div>
+
+            <p class="demo__caption">
+              <b id="capStep">STEP 0</b>
+              <span id="capText">点右上角「重播」，或切换上面四种入口看看差别。</span>
+              <span
+                class="demo__steps"
+                aria-hidden="true"
+              >
+                <i data-s="1"></i><i data-s="2"></i><i data-s="3"></i><i data-s="4"></i
+              ></span>
+            </p>
+          </div>
+        </div>
+
+        <!-- 事实条 -->
+        <div class="stats">
+          <div class="stat"><b>600,000</b><span>PBKDF2-SHA256 密钥派生迭代次数</span></div>
+          <div class="stat"><b>5 字段</b><span>用户名 / 密码 / 网址 / 备注 / TOTP 逐字段密文落盘</span></div>
+          <div class="stat"><b>0 台</b><span>云端服务器、同步账号与遥测上报</span></div>
+          <div class="stat"><b>20–50 ms</b><span>会话有效时侧边栏取数的缓存快路径</span></div>
+          <div class="stat"><b>1,953 项</b><span>自动化测试，CI 每次提交全量跑</span></div>
+          <div class="stat"><b>4 种入口</b><span>页内面板 / 侧边栏 / 右键菜单 / 快捷键</span></div>
+        </div>
+      </section>
+
+      <!-- ===================== 核心优势 ===================== -->
+      <section
+        class="section section--white"
+        id="advantages"
+      >
+        <div class="wrap">
+          <div class="head head--split">
+            <div>
+              <span class="eyebrow">Why this one</span>
+              <h2 class="h2">七件事，是它和别的<br />密码管理器真正分开的地方</h2>
+            </div>
+            <p class="lead">
+              下面每一条都对应扩展里一个能点到的开关或一处能看到的界面，不是路线图。 页面里的截图全部来自
+              <code class="mono">example.com</code>
+              虚构演示站，不含任何真实凭据。
+            </p>
+          </div>
+
+          <div class="grid grid--3">
+            <article class="card advantage">
+              <div>
+                <div
+                  class="card__icon"
+                  aria-hidden="true"
+                >
+                  ⚡
+                </div>
+                <h3>一键登录，不只是填充</h3>
+                <p>
+                  <code class="mono">Ctrl/Cmd + Shift + F</code> 一次走完「填账号 → 填密码 → 勾选记住我 / 已阅读并同意 /
+                  接受条款」。再打开「自动触发登录」，或用侧边栏与内联面板里的
+                  <strong>「填充并登录」</strong>，连登录按钮一起点掉。动态检测登录表单，跨 iframe 也能命中，React / Vue
+                  自建组件与「手机号 + 验证码」场景同样适用。
+                </p>
+                <p class="card__meta">协议勾选自动识别 · 提交动作独立开关 · 默认不替你点</p>
+              </div>
+              <figure class="shot">
+                <div class="shot__chrome"><i></i><i></i><i></i><span>admin.example.com</span></div>
+                <img
+                  src="./assets/shots/one-click-login.webp"
+                  alt="侧边栏「快速填充」面板中选中生产环境账号，登录页已填好账号密码并勾选记住我"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+                <figcaption>侧边栏匹配当前站点 3 个账号，选中即填。</figcaption>
+              </figure>
+            </article>
+
+            <article class="card">
+              <div
+                class="card__icon"
+                aria-hidden="true"
+              >
+                🎯
+              </div>
+              <h3>多环境账号隔离</h3>
+              <p>
+                默认只认<strong>完全一致的主机名</strong>：
+                <code class="mono">dev-admin.example.com</code> 的账号绝不会出现在
+                <code class="mono">admin.example.com</code> 的候选里。在 <code class="mono">localhost</code> /
+                <code class="mono">127.0.0.1</code>
+                上还进一步按端口区分。开发者与测试的刚需，也是它最常被提起的一条差异。
+              </p>
+              <p class="card__meta">三档跨子域匹配可按需放宽 → 见下方模拟器</p>
+            </article>
+
+            <article class="card">
+              <div
+                class="card__icon"
+                aria-hidden="true"
+              >
+                🔑
+              </div>
+              <h3>内置 TOTP + 两步登录接力</h3>
+              <p>
+                验证码密钥和密码存在一起（RFC 6238，本地生成），列表与侧边栏直接显示 6 位活码和倒计时圆环。遇到 GitHub
+                式两步登录，跳到验证码页后活码胶囊会
+                <strong>自动锚定</strong>，点「填入」完成第二步——不用切 App、不用摸手机。
+              </p>
+              <p class="card__meta">支持扫码 / 上传图片本地解码 · 6/7/8 位与算法可自定义</p>
+            </article>
+
+            <article class="card">
+              <div
+                class="card__icon"
+                aria-hidden="true"
+              >
+                🧲
+              </div>
+              <h3>填不进的页面有兜底</h3>
+              <p>
+                自动检测拿不准的自建登录页（典型是 Web Components 站点），可在管理页「站点规则」为该域名指定账号 /
+                密码框的 CSS 选择器，每条规则默认开启
+                <strong>影子 DOM 穿透</strong>。规则还能导出成明文
+                JSON（只含域名与选择器，不含账号密码），按域名合并导入、回报新增 / 更新 /
+                忽略，换机或团队共用不必逐条手配。
+              </p>
+              <p class="card__meta">封闭 Shadow DOM（mode: closed）任何扩展都读不到，这是浏览器边界</p>
+            </article>
+
+            <article class="card">
+              <div
+                class="card__icon"
+                aria-hidden="true"
+              >
+                🔒
+              </div>
+              <h3>纯本地加密，零云端</h3>
+              <p>
+                主密码经 PBKDF2-SHA256（600,000 次迭代）派生密钥，五个敏感字段逐个用 AES-256-GCM 加密、每次新的随机
+                IV，明文只存在于扩展自身上下文。锁定或过期只销毁密钥材料与内存快照——磁盘上本来就是密文，所以
+                <strong>不会在过期瞬间批量重加密</strong>，也就没有卡顿。
+              </p>
+              <p class="card__meta">不使用 storage.sync / managed · 主密码任何形态都不落盘</p>
+            </article>
+
+            <article class="card">
+              <div
+                class="card__icon"
+                aria-hidden="true"
+              >
+                📊
+              </div>
+              <h3>离线安全体检</h3>
+              <p>
+                一键给出 0–100 分综合评分，四维加权：账号复用 35、弱密码 25、命中泄露字典 20、长期未更新
+                20；「未开启两步验证」单独列示、<strong>不计入扣分</strong>。泄露字典是内置近千条的离线词表，全程不联网、不上传任何条目。
+              </p>
+              <p class="card__meta">可按条目设 7 / 30 / 90 天改密提醒，到期发桌面通知</p>
+            </article>
+
+            <article class="card">
+              <div
+                class="card__icon"
+                aria-hidden="true"
+              >
+                📦
+              </div>
+              <h3>一键迁移，零门槛</h3>
+              <p>
+                导入时自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式，CSV / JSON
+                双格式、中英文列名自动映射，30 秒搬家。反向也有：加密备份（<code class="mono">.aph</code
+                >）导出导入支持解密预览，邮箱备份在本机组好内容后经
+                <code class="mono">mailto:</code> 交给<strong>你自己的</strong>邮件客户端发送。
+              </p>
+              <p class="card__meta">条目上限 2000，回收站不占额度 · 接近上限时列表按页渲染</p>
+            </article>
+
+            <article class="card">
+              <div
+                class="card__icon"
+                aria-hidden="true"
+              >
+                🧭
+              </div>
+              <h3>谁在用它</h3>
+              <p>
+                <strong>开发者</strong> 隔离多环境账号，同一站点的 dev / test / staging / prod 互不串号；<strong
+                  >测试工程师</strong
+                >
+                一键填充 + 自动触发登录，跨环境回归少摸十倍键盘；
+                <strong>隐私敏感用户</strong> 纯本地加密、无需注册与云端同步；<strong>日常用户</strong>
+                告别记忆密码，内置 TOTP 与密码生成器。
+              </p>
+              <p class="card__meta">多环境联调时可与同作者的「跨域代理助手」一起开</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 功能全览 ===================== -->
+      <section
+        class="section section--paper2"
+        id="features"
+      >
+        <div class="wrap">
+          <div class="head">
+            <span class="eyebrow">Feature map</span>
+            <h2 class="h2">功能全览：四大类，逐项可查</h2>
+            <p class="lead">
+              按扩展里的实际分组列出。每一项都在管理页、侧边栏或偏好设置里有对应入口，实现细节可对照
+              <a
+                href="https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.md"
+                target="_blank"
+                rel="noopener"
+                >ARCHITECTURE.md 的「功能实现详解」</a
+              >。
+            </p>
+          </div>
+
+          <div class="feature-block">
+            <div class="fb__head">
+              <span class="fb__n">01</span>
+              <h3>🔒 安全防护</h3>
+              <p>加密、会话、锁定与体检</p>
+            </div>
+            <ul class="flist">
+              <li>
+                <span
+                  ><b>本地强加密</b> · 主密码 PBKDF2-SHA256 600,000 次迭代派生密钥；用户名 / 密码 / 网址 / 备注 / TOTP
+                  密钥五个敏感字段逐字段 AES-256-GCM，每次新的随机 IV</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>会话可控</b> · 有效期 1 小时至 7 天可选（默认 24 小时），剩余时间在管理页 / 侧边栏 / Popup
+                  常驻展示，临近过期变色预警，点徽标即可续期</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>自动锁定与剪贴板</b> · 复制敏感字段后默认 30
+                  秒清除剪贴板；闲置自动锁定与「浏览器重启锁定」默认关闭，可独立开启</span
+                >
+              </li>
+              <li>
+                <span><b>离线安全体检</b> · 0–100 四维加权评分，未开启 2FA 仅列示不计分，全程不联网</span>
+              </li>
+              <li>
+                <span><b>到期提醒</b> · 在「长时间未更新」明细中按条目设 7 / 30 / 90 天改密提醒，到期发桌面通知</span>
+              </li>
+              <li>
+                <span
+                  ><b>TOTP 两步验证</b> · 本地生成（RFC 6238），列表与侧边栏实时活码与倒计时，GitHub
+                  式两步登录自动衔接活码胶囊</span
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div class="feature-block">
+            <div class="fb__head">
+              <span class="fb__n">02</span>
+              <h3>⚡ 智能填充</h3>
+              <p>入口、匹配规则与保存</p>
+            </div>
+            <ul class="flist">
+              <li>
+                <span
+                  ><b>一键登录</b> · 填充账号密码 + 自动勾选「记住我 / 已阅读并同意 /
+                  接受条款」；开启「自动触发登录」或使用「填充并登录」后连登录按钮一起点</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>四种填充入口</b> · 页内面板（默认）、侧边栏一键填充、输入框右键、快捷键；动态检测登录表单含跨
+                  iframe，兼容 React / Vue 与手机号 + 验证码场景</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>页内面板即开即填</b> · 与侧边栏同一套排序和检索口径（用户名 / 标签 / 备注 /
+                  网址多字段，认拼音全拼与首字母缩写），打开与每次筛选后默认选中首条、回车直接填充；中文输入法尚未上屏时不接管
+                  ↑↓ / Enter / Esc</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>站点规则兜底</b> · 为域名指定账号 / 密码框的自定义 CSS 选择器，默认开启影子 DOM
+                  穿透，规则可导出明文 JSON 按域名合并导入</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>自动保存凭证</b> · Chrome
+                  式登录捕获与保存确认，相同凭证不重复提示、密码变化弹「更新」确认；支持域名黑白名单与「不再提示」，弹窗内联提示弱密码与复用风险</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>精确域名匹配</b> · 所有填充入口与列表默认只展示与当前 host
+                  完全一致的条目；跨子域匹配提供三档按需放宽，localhost 始终按端口隔离</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>就地添加与全站搜索</b> · 侧边栏顶栏「+」预填当前域名快速建档；搜索一键切换「本站 /
+                  全站」范围，外站命中仍可复制账号密码验证码、收藏与编辑</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>分享卡片</b> · 一次点击把「用户名 / 密码 /
+                  网址」合成一段纯文本复制进剪贴板，同受限时自动清除约束，内容只写本机剪贴板、不发起任何网络请求</span
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div class="feature-block">
+            <div class="fb__head">
+              <span class="fb__n">03</span>
+              <h3>📦 数据管理</h3>
+              <p>迁移、组织与防误操作</p>
+            </div>
+            <ul class="flist">
+              <li>
+                <span
+                  ><b>导入导出</b> · CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password
+                  的导出格式，中英文列名自动映射（Excel 请先另存为 CSV）</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>多重备份</b> · 加密备份（.aph）导出 / 导入支持解密预览；邮箱备份本机组好内容后经 mailto:
+                  交由你的邮件客户端发送；定时备份提醒只发桌面通知，不会自动发信</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>高效组织</b> · 标签多选与筛选、收藏置顶（默认上限 10 条，可配 1–50，超出按 LRU 淘汰）、拼音 /
+                  首字母智能搜索与高亮、一键去重、批量删除 / 改标签 / 导出选中</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>列表分页</b> · 默认每页 100 条（可切 50 / 100 /
+                  200，档位记在本机），一次只渲染当前页；跨页勾选保留，新增 / 编辑 /
+                  收藏后自动跳到该条所在页并高亮</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>防误操作</b> · 回收站 30 天软删除（按最近删除排在最前，可按关键词检索）；密码修改历史默认保留 3
+                  份加密快照（可配 1–10）且可恢复；修改主密码原子换钥不丢数据</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>身份信息库</b> · 独立的个人信息收藏夹（姓名 / 证件号 / 手机号 / 邮箱 / 住址 /
+                  银行卡与自定义字段），默认掩码、打开需主密码复验，支持加密备份（.aphid）</span
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div class="feature-block">
+            <div class="fb__head">
+              <span class="fb__n">04</span>
+              <h3>🎨 体验</h3>
+              <p>速度、外观与细节</p>
+            </div>
+            <ul class="flist">
+              <li>
+                <span><b>秒开体验</b> · 所有场景侧边栏秒开无白屏；会话有效时走缓存快路径，数据在 20–50ms 内返回</span>
+              </li>
+              <li>
+                <span
+                  ><b>主题与语言</b> · 6 款色彩主题（晴空蓝 / 青竹绿 / 桃花粉 / 樱粉紫 / 落霞橙 / 雾墨灰）+
+                  中英文双语，即时切换无需刷新，扩展页与页面内注入 UI 同步生效</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>密码生成器</b> · 随机密码（默认 16 位、6–50 可选，字符集与易混淆字符可配）与助记词组（内置 3080
+                  词英文词库，3–8
+                  词可追加数字）双模式；输入框右键即可「生成并填充」，不读取任何已存凭证，会话锁定时同样可用</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>细节体验</b> · 密码输入时实时强度条与逐条规则清单、主密码开着 Caps Lock 即时警示、网站图标读取
+                  Chrome 本地缓存（零外部请求）</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>命令面板</b> · 管理页 <code class="mono">Ctrl/Cmd + K</code> 唤起 23 条命令，支持中文 / 拼音 /
+                  首字母检索，回车直达；未解锁时不响应按键，删除与覆盖类命令沿用二次确认</span
+                >
+              </li>
+              <li>
+                <span
+                  ><b>悬浮按钮</b> · 页面侧边的可拖动入口，Closed Shadow DOM + all:&nbsp;initial
+                  隔离，不污染宿主页面样式也不被其影响</span
+                >
+              </li>
+            </ul>
+          </div>
+
+          <!-- 截图画廊 -->
+          <div
+            class="gallery"
+            id="gallery"
+          >
+            <button
+              class="card gcard"
+              type="button"
+              data-full="./assets/shots/multi-env.webp"
+            >
+              <figure class="shot">
+                <img
+                  src="./assets/shots/multi-env.webp"
+                  alt="密码管理页列表：同一站点的开发、预发、生产、沙箱账号用标签区分，含两步验证活码列"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+              </figure>
+              <span class="gcard__b">
+                <h4>多环境账号管理</h4>
+                <p>
+                  开发 / 预发 / 生产 / 沙箱同屏可辨，列表里直接显示 TOTP
+                  活码与倒计时，标签与备注一眼定位「这条是给谁用的」。
+                </p>
+              </span>
+            </button>
+
+            <button
+              class="card gcard"
+              type="button"
+              data-full="./assets/shots/inline-fill.webp"
+            >
+              <figure class="shot">
+                <img
+                  src="./assets/shots/inline-fill.webp"
+                  alt="输入框旁的钥匙图标展开的迷你页内填充面板"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+              </figure>
+              <span class="gcard__b">
+                <h4>页内填充面板</h4>
+                <p>全新安装默认启用这种内联填充：登录框获焦后点钥匙图标就地选账号，可在偏好设置切回侧边栏或仅手动。</p>
+              </span>
+            </button>
+
+            <button
+              class="card gcard"
+              type="button"
+              data-full="./assets/shots/totp.webp"
+            >
+              <figure class="shot">
+                <img
+                  src="./assets/shots/totp.webp"
+                  alt="两步验证条目展示 6 位活码与倒计时圆环"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+              </figure>
+              <span class="gcard__b">
+                <h4>内置 TOTP</h4>
+                <p>添加密钥时可直接扫描网页二维码或上传二维码图片，全部本地解码；算法与 6 / 7 / 8 位均可自定义。</p>
+              </span>
+            </button>
+
+            <button
+              class="card gcard"
+              type="button"
+              data-full="./assets/shots/audit.webp"
+            >
+              <figure class="shot">
+                <img
+                  src="./assets/shots/audit.webp"
+                  alt="离线安全体检页面：0 到 100 分综合评分与四类问题明细"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+              </figure>
+              <span class="gcard__b">
+                <h4>离线安全体检</h4>
+                <p>四维加权评分 + 明细清单，泄露字典是内置近千条离线词表；「未开启两步验证」单独列示、不拉低分数。</p>
+              </span>
+            </button>
+
+            <button
+              class="card gcard"
+              type="button"
+              data-full="./assets/shots/import.webp"
+            >
+              <figure class="shot">
+                <img
+                  src="./assets/shots/import.webp"
+                  alt="数据管理页的导入与备份界面"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+              </figure>
+              <span class="gcard__b">
+                <h4>导入与备份</h4>
+                <p>
+                  自动识别四家密码管理器的导出格式，导入超上限时预览页会写明「还能导入多少 / 将被忽略多少」，由你决定。
+                </p>
+              </span>
+            </button>
+
+            <button
+              class="card gcard"
+              type="button"
+              data-full="./assets/shots/generator.webp"
+            >
+              <figure class="shot">
+                <img
+                  src="./assets/shots/generator.webp"
+                  alt="密码生成器面板：随机密码与助记词组双模式"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+              </figure>
+              <span class="gcard__b">
+                <h4>密码生成器</h4>
+                <p>随机密码与助记词组双模式，字符集、易混淆字符、长度全部可配。下面有一个可动手试的同款演示。</p>
+              </span>
+            </button>
+
+            <button
+              class="card gcard"
+              type="button"
+              data-full="./assets/shots/trash.webp"
+            >
+              <figure class="shot">
+                <img
+                  src="./assets/shots/trash.webp"
+                  alt="回收站列表：按最近删除排序，支持关键词检索与恢复"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+              </figure>
+              <span class="gcard__b">
+                <h4>回收站与修改历史</h4>
+                <p>30 天软删除、按最近删除排在最前并可按关键词检索；移进回收站那一刻就释放条目额度，无需再清空。</p>
+              </span>
+            </button>
+
+            <button
+              class="card gcard"
+              type="button"
+              data-full="./assets/shots/preferences.webp"
+            >
+              <figure class="shot">
+                <img
+                  src="./assets/shots/preferences.webp"
+                  alt="偏好设置页：六款色彩主题色块与中英文语言切换"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+              </figure>
+              <span class="gcard__b">
+                <h4>主题与语言</h4>
+                <p>六款主题分别为晴空蓝 / 青竹绿 / 桃花粉 / 樱粉紫 / 落霞橙 / 雾墨灰，切换即时生效无需刷新。</p>
+              </span>
+            </button>
+
+            <button
+              class="card gcard"
+              type="button"
+              data-full="./assets/shots/detail-drawer.webp"
+            >
+              <figure class="shot">
+                <img
+                  src="./assets/shots/detail-drawer.webp"
+                  alt="只读详情抽屉：完整备注、网址与密码修改历史"
+                  width="1280"
+                  height="721"
+                  loading="lazy"
+                />
+              </figure>
+              <span class="gcard__b">
+                <h4>只读详情抽屉</h4>
+                <p>一览被列表截断的完整备注与密码修改历史，收藏、复制账号 / 密码 / 验证码、分享卡片都在同一处。</p>
+              </span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 多环境匹配模拟器 ===================== -->
+      <section
+        class="section section--dark"
+        id="matching"
+      >
+        <div class="wrap">
+          <div class="head head--split">
+            <div>
+              <span class="eyebrow">Try it</span>
+              <h2 class="h2">三档跨子域匹配，<br />改的是「哪些账号被展示」</h2>
+              <p class="lead">
+                输入一个主机名，切换档位，看候选列表怎么变。这是扩展里真实存在的规则：默认「仅精确匹配」，
+                放宽只影响展示与可填充范围，<strong>自动保存的判重口径不随档位改变</strong>。
+              </p>
+            </div>
+            <p class="lead">
+              网址写成 <code class="mono">*.qq.com</code> 的条目属于「通配条目」；
+              切到「同主域名」后，当前域名没有账号时会依次带出主域与兄弟子域的条目，并标注「跨子域」。
+            </p>
+          </div>
+
+          <div class="sim">
+            <div>
+              <label
+                class="sim__label"
+                for="simHost"
+                >当前主机名</label
+              >
+              <input
+                id="simHost"
+                type="text"
+                value="admin.example.com"
+                spellcheck="false"
+                autocomplete="off"
+                aria-describedby="simHint"
+              />
+              <div
+                class="sim__quick"
+                id="simQuick"
+              >
+                <button
+                  type="button"
+                  data-host="admin.example.com"
+                >
+                  admin.example.com
+                </button>
+                <button
+                  type="button"
+                  data-host="dev-admin.example.com"
+                >
+                  dev-admin.example.com
+                </button>
+                <button
+                  type="button"
+                  data-host="music.qq.com"
+                >
+                  music.qq.com
+                </button>
+                <button
+                  type="button"
+                  data-host="localhost:5173"
+                >
+                  localhost:5173
+                </button>
+              </div>
+
+              <div
+                class="tiers"
+                role="radiogroup"
+                aria-label="匹配档位"
+              >
+                <label class="tier">
+                  <input
+                    type="radio"
+                    name="tier"
+                    value="exact"
+                    checked
+                  />
+                  <span class="tier__n">① 仅精确匹配（默认）</span>
+                  <span class="tier__d">只认与当前 host 完全一致的条目，多环境互不串号</span>
+                </label>
+                <label class="tier">
+                  <input
+                    type="radio"
+                    name="tier"
+                    value="wildcard"
+                  />
+                  <span class="tier__n">② 精确匹配 + 通配条目</span>
+                  <span class="tier__d">网址写成 <code class="mono">*.qq.com</code> 的账号在该站任意子域可用</span>
+                </label>
+                <label class="tier">
+                  <input
+                    type="radio"
+                    name="tier"
+                    value="apex"
+                  />
+                  <span class="tier__n">③ 同主域名</span>
+                  <span class="tier__d"> 当前域名没有账号时，依次带出主域与兄弟子域并标注「跨子域」</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="sim__out">
+              <div
+                class="sim__result"
+                aria-live="polite"
+              >
+                <div class="sim__result-head">
+                  <b id="simSummary">—</b>
+                  <em id="simRule">—</em>
+                </div>
+                <div id="simRows"></div>
+              </div>
+              <p
+                class="sim__foot"
+                id="simHint"
+              >
+                演示数据取自扩展的商店截图夹具（<code>example.com</code> / <code>qq.com</code> 虚构账号）。<code
+                  >localhost</code
+                >
+                与 <code>127.0.0.1</code> 在任何档位下都按端口隔离。
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 生成器演示 ===================== -->
+      <section
+        class="section section--white"
+        id="generator"
+      >
+        <div class="wrap">
+          <div class="head head--split">
+            <div>
+              <span class="eyebrow">Local only</span>
+              <h2 class="h2">密码生成器：这个演示就在你浏览器里跑，不发一个请求</h2>
+            </div>
+            <p class="lead">
+              下面这段逻辑与扩展内实现同源（<code class="mono">crypto.getRandomValues</code>
+              取随机源、可排除易混淆字符、助记词组走 3080 词词库）。 页面上没有任何网络调用，你可以在开发者工具的
+              Network 面板里确认。
+            </p>
+          </div>
+
+          <div class="gen">
+            <div>
+              <div
+                class="gen__modes"
+                role="group"
+                aria-label="生成模式"
+              >
+                <button
+                  class="gen__mode"
+                  type="button"
+                  data-mode="random"
+                  aria-pressed="true"
+                >
+                  随机密码
+                </button>
+                <button
+                  class="gen__mode"
+                  type="button"
+                  data-mode="passphrase"
+                  aria-pressed="false"
+                >
+                  助记词组
+                </button>
+              </div>
+
+              <div class="gen__out">
+                <code
+                  class="gen__val"
+                  id="genVal"
+                  >················</code
+                >
+                <button
+                  class="gen__copy"
+                  type="button"
+                  id="genAgain"
+                >
+                  ↻ 换一个
+                </button>
+                <button
+                  class="gen__copy"
+                  type="button"
+                  id="genCopy"
+                >
+                  复制
+                </button>
+              </div>
+
+              <div class="gen__meter">
+                <i
+                  style="--fill: 0%"
+                  id="genMeter"
+                  ><span class="sr-only">强度</span></i
+                >
+                <b id="genStrength">—</b>
+              </div>
+
+              <div class="gen__ctrls">
+                <div class="ctl">
+                  <label for="genLen">长度 / 词数</label>
+                  <input
+                    type="range"
+                    id="genLen"
+                    min="6"
+                    max="50"
+                    value="16"
+                    step="1"
+                  />
+                  <output id="genLenOut">16</output>
+                </div>
+                <div
+                  class="chips"
+                  role="group"
+                  aria-label="字符集"
+                >
+                  <label class="chip"
+                    ><input
+                      type="checkbox"
+                      id="cUpper"
+                      checked
+                    />A–Z</label
+                  >
+                  <label class="chip"
+                    ><input
+                      type="checkbox"
+                      id="cLower"
+                      checked
+                    />a–z</label
+                  >
+                  <label class="chip"
+                    ><input
+                      type="checkbox"
+                      id="cDigit"
+                      checked
+                    />0–9</label
+                  >
+                  <label class="chip"
+                    ><input
+                      type="checkbox"
+                      id="cSymbol"
+                      checked
+                    />!@#$%</label
+                  >
+                  <label class="chip"
+                    ><input
+                      type="checkbox"
+                      id="cSimilar"
+                    />排除易混淆（Il10O）</label
+                  >
+                </div>
+              </div>
+            </div>
+
+            <div class="gen__side">
+              <p class="gen__note">
+                <b>扩展里还有第三种用法：</b>在任意网页的输入框上右键「生成并填充强密码」——
+                它<strong>不读取任何已存凭证</strong>，会话锁定时同样可用，直接写进你正在填的那个框。
+              </p>
+              <div class="gen__facts">
+                <div class="gen__fact">
+                  <i>16</i>
+                  <span>默认长度，6–50 可调；字符集与易混淆字符排除项独立配置</span>
+                </div>
+                <div class="gen__fact">
+                  <i>3</i>
+                  <span>助记词组 3–8 词，内置 3080 词英文词库，可追加数字与分隔符</span>
+                </div>
+                <div class="gen__fact">
+                  <i>CSPRNG</i>
+                  <span
+                    >随机源用 Web Crypto 的 <code class="mono">getRandomValues</code>，不是
+                    <code class="mono">Math.random</code></span
+                  >
+                </div>
+                <div class="gen__fact">
+                  <i>0</i>
+                  <span>不联网、不写入存储、不进剪贴板以外的任何地方（点「复制」才会写剪贴板）</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 工作原理 ===================== -->
+      <section
+        class="section section--dark"
+        id="how"
+      >
+        <div class="wrap">
+          <div class="head">
+            <span class="eyebrow">How it works</span>
+            <h2 class="h2">一次填充，在你自己的电脑上走四步</h2>
+            <p class="lead">
+              没有服务器参与任何一步。四步全部发生在本机：内容脚本判定字段、按域名取候选、扩展上下文内解密、逐字段写入。
+            </p>
+          </div>
+
+          <div class="flow">
+            <article class="flow__step">
+              <b>STEP 1</b>
+              <h3>识别登录页</h3>
+              <p>
+                内容脚本在页面里判定账号、密码与验证码输入框；扫描限流分批进行， 注入式 UI 走 Closed Shadow
+                DOM，不改动宿主页面的样式与脚本。
+              </p>
+              <code>MutationObserver 收窄 + 分批</code>
+            </article>
+            <article class="flow__step">
+              <b>STEP 2</b>
+              <h3>按域名取候选</h3>
+              <p>三档跨子域匹配决定哪些账号出现在侧边栏与内联下拉里。默认只认精确主机名， 多环境账号因此互不串号。</p>
+              <code>resolveMatchTier(三档)</code>
+            </article>
+            <article class="flow__step">
+              <b>STEP 3</b>
+              <h3>本机解密</h3>
+              <p>
+                主密码经 PBKDF2 派生密钥，打开列表时整库解密一次。明文只存在于扩展自身上下文，
+                磁盘上始终是密文；锁定或过期即刻销毁密钥材料与快照。
+              </p>
+              <code>storage.session 存密钥</code>
+            </article>
+            <article class="flow__step">
+              <b>STEP 4</b>
+              <h3>填充并登录</h3>
+              <p>
+                逐字段写入并自动勾选「记住我 / 同意协议」，可选再替你点下登录按钮；
+                网页上新产生的凭证回写前，先经你确认。
+              </p>
+              <code>填充 → 勾选 → 点击</code>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== 横向对比 ===================== -->
+      <section
+        class="section section--paper2"
+        id="compare"
+      >
+        <div class="wrap">
+          <div class="head">
+            <span class="eyebrow">Side by side</span>
+            <h2 class="h2">和几个常见选择摆在一起看</h2>
+            <p class="lead">
+              ⭐ 列是本项目。✅ 表示<strong>开箱即用、无需额外配置</strong>。 竞品信息（价格、功能边界）截至
+              2026-09，各厂商调整频繁，请以官网为准。
+            </p>
+          </div>
+
+          <div class="table-wrap">
+            <table class="cmp">
+              <caption class="sr-only">
+                功能对比：本项目与 Bitwarden、1Password、Chrome 自带密码管理器
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">功能</th>
+                  <th
+                    scope="col"
+                    class="col-us"
+                  >
+                    ⭐ Account Password Helper
+                  </th>
+                  <th scope="col">Bitwarden</th>
+                  <th scope="col">1Password</th>
+                  <th scope="col">Chrome 自带</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">价格</th>
+                  <td class="col-us"><span class="yes">✅ 完全免费</span></td>
+                  <td>免费 / 高级版约 $10/年起</td>
+                  <td>$2.99/月起</td>
+                  <td>免费</td>
+                </tr>
+                <tr>
+                  <th scope="row">数据存储</th>
+                  <td class="col-us"><span class="yes">✅ 纯本地，零云端</span></td>
+                  <td>云端</td>
+                  <td>云端</td>
+                  <td>本地 + Google 账号同步（可选）</td>
+                </tr>
+                <tr>
+                  <th scope="row">需要注册账号</th>
+                  <td class="col-us"><span class="yes">✅ 无需注册</span></td>
+                  <td><span class="no">是</span></td>
+                  <td><span class="no">是</span></td>
+                  <td><span class="yes">否</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">一键登录（填充 + 勾选 + 点击）</th>
+                  <td class="col-us"><span class="yes">✅ 是，零配置</span></td>
+                  <td><span class="part">需额外设置 / 仅填充</span></td>
+                  <td><span class="part">需额外设置 / 仅填充</span></td>
+                  <td><span class="part">仅填充</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">多环境账号隔离</th>
+                  <td class="col-us"><span class="yes">✅ 是</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">站点规则：为域名自定义填充选择器</th>
+                  <td class="col-us"><span class="yes">✅ 是</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">TOTP 验证器</th>
+                  <td class="col-us"><span class="yes">✅ 内置（同一扩展）</span></td>
+                  <td><span class="part">独立免费 App / 高级版</span></td>
+                  <td><span class="yes">✅ 所有订阅方案均含</span></td>
+                  <td><span class="no">否</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">离线安全体检（0–100 评分）</th>
+                  <td class="col-us"><span class="yes">✅ 是</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="part">托管式 Watchtower</span></td>
+                  <td><span class="part">有泄露密码检查，无评分</span></td>
+                </tr>
+                <tr>
+                  <th scope="row">开源（GPL-3.0）</th>
+                  <td class="col-us"><span class="yes">✅ 是</span></td>
+                  <td><span class="yes">是</span></td>
+                  <td><span class="no">否</span></td>
+                  <td><span class="no">否</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p class="cmp__note">
+            ⭐ 列里的「多环境账号隔离」「站点规则自定义选择器」「一键登录」三项，是本项目相对其余三列的差异化能力。
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================== 安全与隐私 ===================== -->
+      <section
+        class="section section--white"
+        id="security"
+      >
+        <div class="wrap">
+          <div class="head">
+            <span class="eyebrow">Privacy by construction</span>
+            <h2 class="h2">「没有云端」不是一个营销词，<br />它是一串可核对的约束</h2>
+            <p class="lead">
+              下面每一条都能在源码或扩展的权限清单里对上号。这个项目的两条硬约束是
+              <strong>密码数据不出本机</strong>与<strong>权限最小化</strong>。
+            </p>
+          </div>
+
+          <div class="secgrid">
+            <article class="seccard">
+              <h3><span aria-hidden="true">🗄</span>数据在哪里</h3>
+              <ul>
+                <li>
+                  <i>·</i
+                  ><span
+                    >条目保存在
+                    <code class="mono">chrome.storage.local</code>，敏感字段逐字段加密后落盘，从不作为明文离开本机</span
+                  >
+                </li>
+                <li>
+                  <i>·</i
+                  ><span
+                    >内存态密钥与解密快照只放在 <code class="mono">chrome.storage.session</code>，<strong
+                      >不使用</strong
+                    >
+                    <code class="mono">storage.sync</code> 或 <code class="mono">storage.managed</code></span
+                  >
+                </li>
+                <li>
+                  <i>·</i
+                  ><span
+                    >主密码任何形态（原文、可逆密文）都不落盘，仅保存 PBKDF2
+                    派生的校验值；主密码遗忘<strong>无法找回</strong>，只能重置清空数据</span
+                  >
+                </li>
+                <li>
+                  <i>·</i
+                  ><span>锁定与过期只销毁密钥材料，磁盘上本来就是密文，因此不存在「过期瞬间整库重新加密」这一步</span>
+                </li>
+              </ul>
+            </article>
+
+            <article class="seccard">
+              <h3><span aria-hidden="true">📡</span>唯一的对外请求</h3>
+              <ul>
+                <li>
+                  <i>·</i
+                  ><span
+                    >每 6 小时一次的匿名版本检查：商店安装版向商店条目页发一个不透明的 HEAD 请求，手动安装版查询 GitHub
+                    Releases 的公开版本信息</span
+                  >
+                </li>
+                <li>
+                  <i>·</i
+                  ><span>两者都不携带任何密码库内容、账号、标识符或可推导信息；断网时静默失败，不影响任何核心功能</span>
+                </li>
+                <li>
+                  <i>·</i
+                  ><span>网站图标读取 Chrome 本地缓存（<code class="mono">_favicon/</code> 端点），零外部网络请求</span>
+                </li>
+                <li><i>·</i><span>除此之外不发起任何外部网络请求，离线可用</span></li>
+              </ul>
+            </article>
+
+            <article class="seccard seccard--deny">
+              <h3><span aria-hidden="true">🚫</span>明确不做</h3>
+              <ul>
+                <li><i>✕</i><span>不读取 cookies、history、downloads 等未声明权限</span></li>
+                <li><i>✕</i><span>无遥测、分析、广告与崩溃上报 SDK，不收集设备指纹或使用统计</span></li>
+                <li><i>✕</i><span>不记录、不上传主密码、账号、密码、TOTP secret 或解密后的条目</span></li>
+                <li><i>✕</i><span>不自行发明加密方案：用 Web Crypto 与既有封装，无固定 IV、无弱化迭代参数</span></li>
+              </ul>
+            </article>
+
+            <article class="seccard">
+              <h3><span aria-hidden="true">🧰</span>权限与实现基线</h3>
+              <ul>
+                <li>
+                  <i>·</i
+                  ><span
+                    >Manifest V3，CSP 显式声明为 <code class="mono">script-src 'self'; object-src 'self'</code></span
+                  >
+                </li>
+                <li>
+                  <i>·</i
+                  ><span
+                    >13 项权限逐项可查：<code class="mono"
+                      >storage · activeTab · scripting · sidePanel · alarms · notifications · idle · clipboardWrite ·
+                      clipboardRead · webNavigation · contextMenus · favicon</code
+                    >，加 <code class="mono">&lt;all_urls&gt;</code> 主机权限用于填充</span
+                  >
+                </li>
+                <li>
+                  <i>·</i
+                  ><span
+                    >注入式 UI 走 Closed Shadow DOM +
+                    <code class="mono">all: initial</code> 重置，既不污染宿主页面也不被其影响</span
+                  >
+                </li>
+                <li>
+                  <i>·</i
+                  ><span>网页 DOM、导入文件、跨入口消息都按不可信输入处理：在边界处校验类型、长度、格式与来源</span>
+                </li>
+              </ul>
+            </article>
+          </div>
+
+          <div class="cryptobar">
+            <div><b>PBKDF2-SHA256</b><span>600,000 次迭代派生主密钥</span></div>
+            <div><b>AES-256-GCM</b><span>五个敏感字段逐字段加密</span></div>
+            <div><b>随机 IV</b><span>每次加密都换新，不重用</span></div>
+            <div><b>RFC 6238</b><span>TOTP 本地生成，支持 6/7/8 位</span></div>
+          </div>
+
+          <p
+            class="lead"
+            style="margin-top: 26px"
+          >
+            <strong>使用建议：</strong>本插件面向开发、测试与日常登录场景，建议不要在任何浏览器扩展中存放银行、
+            支付等高敏感凭证；请牢记主密码，并定期导出加密备份（<code class="mono">.aph</code>）留一条退路。
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================== 上手 ===================== -->
+      <section
+        class="section section--paper2"
+        id="start"
+      >
+        <div class="wrap">
+          <div class="head">
+            <span class="eyebrow">Get started</span>
+            <h2 class="h2">四步上手，<span class="keep">日常用不到</span>一张快捷键表</h2>
+            <p class="lead">
+              安装后不需要注册、不需要登录任何账号。第一次进管理页设主密码，之后就是「看到登录框 → 选账号 → 填进去」。
+            </p>
+          </div>
+
+          <div class="steps">
+            <article class="step">
+              <span class="step__n">1</span>
+              <h3>设置主密码</h3>
+              <p>
+                首次进入管理页设置主密码（至少 8 位，含字母 + 数字 + 特殊字符）并选择会话有效期，默认
+                <code>24 小时</code>。
+              </p>
+            </article>
+            <article class="step">
+              <span class="step__n">2</span>
+              <h3>挑一种填充方式</h3>
+              <p>
+                全新安装默认<strong>内联填充</strong>——登录框获焦后点钥匙图标选账号；可在「偏好设置」切为<strong>侧边栏</strong>（获焦自动弹出）或<strong>仅手动</strong>。升级用户沿用升级前的侧边栏行为，不会被静默改为内联。
+              </p>
+            </article>
+            <article class="step">
+              <span class="step__n">3</span>
+              <h3>导入已有密码</h3>
+              <p>
+                管理页「数据管理 → 导入」上传 CSV / JSON，自动识别 Chrome、LastPass、Bitwarden、1Password
+                的导出格式并映射字段。
+              </p>
+            </article>
+            <article class="step">
+              <span class="step__n">4</span>
+              <h3>按需开启自动登录</h3>
+              <p>
+                「偏好设置 → 自动触发登录」打开后，<code>Ctrl+Shift+F</code>
+                连登录按钮一起点掉；不开就停在「已填充 + 已勾选」。
+              </p>
+            </article>
+          </div>
+
+          <div class="keys">
+            <table class="kbd">
+              <caption class="sr-only">
+                扩展快捷键一览
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">功能</th>
+                  <th scope="col">Windows / Linux</th>
+                  <th scope="col">macOS</th>
+                  <th scope="col">默认行为</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">打开密码管理页</th>
+                  <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></td>
+                  <td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></td>
+                  <td>打开管理页</td>
+                </tr>
+                <tr>
+                  <th scope="row">开关侧边栏</th>
+                  <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd></td>
+                  <td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>L</kbd></td>
+                  <td>开 / 关侧边栏</td>
+                </tr>
+                <tr>
+                  <th scope="row">快速填充</th>
+                  <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></td>
+                  <td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>F</kbd></td>
+                  <td>填充当前站点最匹配账号 + 勾选协议；开启「自动触发登录」后连登录按钮一起点</td>
+                </tr>
+                <tr>
+                  <th scope="row">展开内联下拉</th>
+                  <td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>K</kbd></td>
+                  <td><kbd>Cmd</kbd> + <kbd>Shift</kbd> + <kbd>K</kbd></td>
+                  <td>在聚焦的输入框上展开账号下拉列表</td>
+                </tr>
+                <tr>
+                  <th scope="row">命令面板</th>
+                  <td><kbd>Ctrl</kbd> + <kbd>K</kbd></td>
+                  <td><kbd>Cmd</kbd> + <kbd>K</kbd></td>
+                  <td>
+                    仅在管理页内生效，检索并直达 23 条命令；非扩展快捷键，不在
+                    <code class="mono">chrome://extensions/shortcuts</code> 中
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p
+            class="lead"
+            style="margin-top: 18px"
+          >
+            扩展内不支持改键（Chrome 未提供
+            <code class="mono">commands.update()</code>），请到
+            <code class="mono">chrome://extensions/shortcuts</code>
+            修改；管理页「安全设置 → 快捷键」与侧边栏「帮助」提供只读一览，并会标注当前未生效的按键。
+          </p>
+        </div>
+      </section>
+
+      <!-- ===================== FAQ ===================== -->
+      <section
+        class="section section--white"
+        id="faq"
+      >
+        <div class="wrap">
+          <div class="head">
+            <span class="eyebrow">FAQ</span>
+            <h2 class="h2">最常被问到的九件事</h2>
+          </div>
+
+          <div class="faq">
+            <details>
+              <summary>我的密码会被上传到云端吗？</summary>
+              <div class="faq__b">
+                <p>
+                  不会。数据只保存在浏览器本地空间，敏感字段逐字段加密后落盘。唯一的外联是每 6
+                  小时一次的匿名版本检查，不携带任何可推导信息。除此之外不发起任何外部网络请求，网站图标也来自 Chrome
+                  本地缓存。
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>忘记主密码怎么办？</summary>
+              <div class="faq__b">
+                <p>
+                  主密码<strong>无法找回</strong>，只能通过「重置」清空数据后重新设置。
+                  这不是产品缺陷，而是「没有服务器可以帮你重置」的直接代价——同一个设计保证了别人也无法替你重置。
+                  请务必定期用数据导出或加密备份（<code>.aph</code> 文件）留退路。
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>会话有效期到了会发生什么？</summary>
+              <div class="faq__b">
+                <p>
+                  会话过期只清除密钥材料与内存缓存。磁盘上的敏感字段本来就是密文，不存在「过期瞬间批量重新加密」这一步，因此不会卡顿。
+                  下次使用时重新验证主密码即可恢复访问，账号数据不会丢失。
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>支持从其他密码管理器导入吗？</summary>
+              <div class="faq__b">
+                <p>
+                  支持。在导入弹窗上传 CSV 或 JSON 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password
+                  的导出格式并映射字段，30 秒完成搬家。Excel 需先另存为 CSV（不解析 <code>.xlsx</code>）。
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>同一套账号要覆盖整个站点的子域名，怎么办？</summary>
+              <div class="faq__b">
+                <p>
+                  管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成
+                  <code>*.qq.com</code>
+                  的账号会在该站任意子域出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域与兄弟子域的条目，并在列表里标注「跨子域」。
+                </p>
+                <p>
+                  放宽只改变<strong>哪些账号被展示与可填充</strong>：自动保存的判重口径不随档位改变，<code
+                    >localhost</code
+                  >
+                  /
+                  <code>127.0.0.1</code>
+                  始终按端口区分，侧边栏与内联下拉共用同一套排序、一键填充取首条。上面那个模拟器就是在跑这套规则。
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>登录框识别不到，或者填不进去怎么办？</summary>
+              <div class="faq__b">
+                <p>
+                  表单藏在自建组件里时（典型是 Web Components
+                  页面），在管理页「站点规则」为该域名手动指定账号与密码输入框的 CSS
+                  选择器即可——域名需与登录页完全一致，不支持通配。每条规则默认开启「影子 DOM
+                  穿透」，可关闭以只在主文档内匹配。
+                </p>
+                <p>
+                  需要说明的边界：任何扩展都读不到 <code>mode: 'closed'</code>
+                  的封闭 Shadow DOM，只能进入开放的 Shadow DOM——这是浏览器给的限制，不是实现问题。
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>导出的 CSV 用 Excel 打开，个别密码或备注变成了报错内容？</summary>
+              <div class="faq__b">
+                <p>
+                  当某个字段的值本身以 <code>=</code>、<code>+</code>、<code>-</code>、<code>@</code>
+                  开头（随机密码生成器的符号集就含这几个字符）时，Excel
+                  会把该单元格当作公式求值。导出<strong>刻意不做公式转义</strong>：加前缀会改写字段内容，而密码是逐字符取用的，被改写后无论是从表格复制使用还是再导回来都是错的，同时也会破坏「导出
+                  → 导入」的可逆性。
+                </p>
+                <p>请把导出文件视为你自己本机产出的数据，跨机迁移优先使用加密备份（<code>.aph</code>）。</p>
+              </div>
+            </details>
+
+            <details>
+              <summary>条目数量有上限吗？接近上限时管理页会卡吗？</summary>
+              <div class="faq__b">
+                <p>
+                  有。密码列表条目总量上限为 2000
+                  条，按列表条目数计数，<strong>回收站里的条目不占额度</strong>。达到上限后新增、导入、网页自动保存与回收站恢复都会明确提示被拒绝，不会静默覆盖或删除已保存的数据。
+                </p>
+                <p>
+                  列表按页呈现（默认每页 100 条，可切 50 / 100 /
+                  200），一次只渲染当前这一页，所以搜索、输入过滤、翻页、悬停这类交互的耗时基本不再随条目数增长。打开管理页还包含一次「读整库并解密」，这一步的开销与条目总数相关、不由分页决定——这里的口径是「成本不随行数逐条放大」，不是「恒定耗时」。
+                </p>
+              </div>
+            </details>
+
+            <details>
+              <summary>侧边栏不显示，或首次打开较慢？</summary>
+              <div class="faq__b">
+                <p>
+                  侧边栏依赖 Chrome 的 Side Panel API（需 Chromium 114 及以上），也可点击插件图标或按
+                  <code>Ctrl+Shift+L</code> 打开。Windows 上首次冷启动可能因 Defender 逐文件扫描延迟 1–2
+                  秒，把扩展目录加入排除列表即可降到 1 秒以内（Mac 无需操作）。
+                </p>
+                <p>会话有效期内保持常驻，侧边栏走缓存快路径，数据在 20–50ms 内返回。</p>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===================== CTA ===================== -->
+      <section
+        class="section section--dark"
+        id="install"
+      >
+        <div class="wrap">
+          <div class="cta reveal">
+            <h2>把密码留在本机，把登录做成一次按键</h2>
+            <p>
+              完全免费、无订阅、无需注册账号。源码公开（GPL-3.0），两条硬约束写在项目规则里：密码数据不出本机、权限最小化。
+            </p>
+            <div class="cta__actions">
+              <a
+                class="btn btn--primary"
+                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+                target="_blank"
+                rel="noopener"
+                >🛍 Chrome 应用商店安装</a
+              >
+              <a
+                class="btn btn--ghost"
+                href="https://github.com/liaolongdong/account-password-helper/releases/latest"
+                target="_blank"
+                rel="noopener"
+                >📦 GitHub Releases 下载</a
+              >
+              <a
+                class="btn btn--ghost"
+                href="https://github.com/liaolongdong/account-password-helper"
+                target="_blank"
+                rel="noopener"
+                >⭐ Star 一下</a
+              >
+            </div>
+            <ul class="cta__list">
+              <li><i>·</i><span>商店安装一键更新；无法访问 Google 时改用 Releases 的 zip 手动加载</span></li>
+              <li>
+                <i>·</i
+                ><span
+                  >手动加载请解压到<strong>固定目录</strong>，更新时直接覆盖原目录——换目录会被 Chrome
+                  视为全新安装，原有密码数据将无法访问</span
+                >
+              </li>
+              <li>
+                <i>·</i
+                ><span
+                  >源码构建：<code class="mono">pnpm install &amp;&amp; pnpm build</code>，产物在
+                  <code class="mono">.output/chrome-mv3/</code></span
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- ===================== 页脚 ===================== -->
+    <footer class="foot">
+      <div class="wrap">
+        <div class="foot__grid">
+          <div>
+            <div class="foot__brand">
+              <img
+                src="./favicon.svg"
+                alt=""
+                width="28"
+                height="28"
+              />
+              账号密码管理助手
+            </div>
+            <p>
+              开源免费的本地优先密码管理器。WXT + Manifest V3 + Vue 3 + TypeScript + Element Plus，Chrome 与 Firefox
+              双构建。
+            </p>
+            <p style="margin-top: 10px; color: var(--text-3)">
+              本页面为纯静态产品页，不加载任何第三方脚本、字体或统计代码。
+            </p>
+          </div>
+
+          <div>
+            <h4>产品</h4>
+            <ul>
+              <li><a href="#advantages">核心优势</a></li>
+              <li><a href="#features">功能全览</a></li>
+              <li><a href="#matching">多环境匹配模拟器</a></li>
+              <li><a href="#generator">密码生成器演示</a></li>
+              <li><a href="#compare">横向对比</a></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4>资源</h4>
+            <ul>
+              <li>
+                <a
+                  href="https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.md"
+                  target="_blank"
+                  rel="noopener"
+                  >架构与功能实现详解</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/liaolongdong/account-password-helper/blob/main/docs/CONTRIBUTING.md"
+                  target="_blank"
+                  rel="noopener"
+                  >贡献指南与权限说明</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/liaolongdong/account-password-helper/blob/main/CHANGELOG.md"
+                  target="_blank"
+                  rel="noopener"
+                  >更新日志</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://liaolongdong.github.io/account-password-helper/"
+                  target="_blank"
+                  rel="noopener"
+                  >在线演示（GitHub Pages）</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://liaolongdong.github.io/account-password-helper/compare.html"
+                  target="_blank"
+                  rel="noopener"
+                  >完整替代方案对比</a
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <h4>社区与同作者作品</h4>
+            <ul>
+              <li>
+                <a
+                  href="https://github.com/liaolongdong/account-password-helper/issues/new/choose"
+                  target="_blank"
+                  rel="noopener"
+                  >提交 Issue / 功能建议</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/liaolongdong/account-password-helper/blob/main/.github/SECURITY.md"
+                  target="_blank"
+                  rel="noopener"
+                  >安全问题的私密渠道</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/liaolongdong/transfer-any-file"
+                  target="_blank"
+                  rel="noopener"
+                  >文件格式任意转换助手 · 离线文件转换</a
+                >
+              </li>
+              <li>
+                <a
+                  href="https://github.com/liaolongdong/cross-origin-proxy"
+                  target="_blank"
+                  rel="noopener"
+                  >跨域代理助手 · 多环境联调</a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="foot__bottom">
+          <span>© 2026 Better（廖小新） · 代码 GPL-3.0，名称与 logo 不在协议授权范围内</span>
+          <span class="mono">PBKDF2-SHA256 600,000 · AES-256-GCM · RFC 6238 · 1,953 tests · v3.9.0</span>
+        </div>
+      </div>
+    </footer>
+
+    <!-- lightbox -->
+    <div
+      class="lb"
+      id="lb"
+      role="dialog"
+      aria-modal="true"
+      aria-label="截图预览"
+      hidden
+    >
+      <button
+        class="lb__close"
+        type="button"
+        id="lbClose"
+      >
+        关闭 ✕
+      </button>
+      <img
+        alt=""
+        id="lbImg"
+      />
+      <p id="lbCap"></p>
+    </div>
+  </body>
+</html>

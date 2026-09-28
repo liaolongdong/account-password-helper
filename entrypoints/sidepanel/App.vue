@@ -15,7 +15,7 @@
         @open-help="showHelpDialog = true"
         @open-settings="handleOpenSettings"
         @open-validity="openValiditySetting"
-        @add-site-password="openOptionsAndAdd"
+        @add-site-password="openQuickAddDialog"
       />
     </div>
 
@@ -48,27 +48,39 @@
       v-model:search-keyword="searchKeyword"
       v-model:favorite-only="favoriteOnly"
       v-model:filter-tags="filterTags"
+      v-model:search-scope="searchScope"
       :loading="loading"
       :filtered-passwords="filteredPasswords"
       :total-count="passwords.length"
+      :load-failed="loadFailed"
+      :undecryptable-count="undecryptableCount"
       :active-index="activeIndex"
       :auto-trigger-login="autoTriggerLogin"
       :sort-prop="sidepanelSortProp"
       :available-tags="availableTags"
+      :global-match-count="globalMatchCount"
+      :off-site-ids="offSiteIds"
+      :cross-domain-ids="crossDomainIds"
+      :cross-domain-hint-count="crossDomainHintCount"
+      :active-keyword="activeSearchKeyword"
       @sort-change="handleSortChange"
       @search="handleSearch"
-      @add-password="openOptionsAndAdd"
-      @add-site-password="openOptionsAndAdd"
+      @add-password="openQuickAddDialog"
+      @add-site-password="openQuickAddDialog"
+      @open-domain-match-setting="openDomainMatchSetting"
+      @retry="handleRetryLoad"
       @activate="index => (activeIndex = index)"
       @rendered="handleAuthViewRendered"
       @fill="fillPassword"
       @fill-and-login="handleFillAndLogin"
+      @open-site="handleOpenSite"
       @edit="handleEditPassword"
       @toggle-favorite="toggleFavorite"
       @copy-username="copyUsername"
       @copy-password="copyPassword"
       @fill-totp="fillTotp"
       @copy-totp="copyTotp"
+      @share-card="copyShareCard"
     />
 
     <!-- 底部操作：匹配信息带已上移至头部域名行（信息就近原则），底部只保留主操作，为密码列表释放垂直空间 -->
@@ -86,6 +98,17 @@
     <HelpDialog
       v-model="showHelpDialog"
       @go-to-options="openOptions"
+    />
+
+    <!-- 快速添加条目弹窗（委托 background 加密落盘，完整字段经底部入口跳转密码管理页）
+         v-if 门控挂载：defineAsyncComponent 的 loader 在组件「渲染」时即触发，无条件渲染会让
+         弹窗 chunk 落入锁屏态首帧窗口，与认证视图 / 资源预热争抢冷盘 IO。
+         门控必须用独立的粘性标志而非 showQuickAddDialog（原因见 quickAddMounted 注释） -->
+    <QuickAddDialog
+      v-if="quickAddMounted"
+      v-model="showQuickAddDialog"
+      :default-url="currentDomain"
+      @open-options-add="openOptionsAndAdd"
     />
 
     <!-- 悬浮按钮设置弹窗（与悬浮按钮共用同一套 HTML/CSS/事件） -->
@@ -112,11 +135,25 @@ import SidepanelHeader from '@/components/sidepanel/SidepanelHeader.vue';
 import BrandLogo from '@/components/BrandLogo.vue';
 import type { PasswordEntry, RuntimeMessage, UpdatePasswordMetadataData } from '@/utils/types';
 import { MessageType } from '@/utils/types';
-import { saveSidepanelSortConfig, getFavoriteLimit, getFloatingButtonConfig } from '@/utils/storage/configManager';
+import {
+  saveSidepanelSortConfig,
+  getFavoriteLimit,
+  getFloatingButtonConfig,
+  getDomainMatchConfig,
+  DEFAULT_DOMAIN_MATCH_MODE,
+} from '@/utils/storage/configManager';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { sortPasswordEntries, DEFAULT_SIDEPANEL_SORT, type SortState } from '@/utils/passwordSort';
+import {
+  applyListFilters,
+  filterEntriesByScope,
+  matchesSiteScope,
+  type ListFilterOptions,
+  type ScopeContext,
+  type SearchScope,
+} from '@/utils/passwordFilter';
 import { parseTags } from '@/utils/tagUtils';
 import {
   markPerf,
@@ -127,8 +164,18 @@ import {
 } from '@/utils/perfMetrics';
 import { useSidepanelData, isSessionQuicklyKnownInvalid } from '@/composables/useSidepanelData';
 import { useSidepanelFill } from '@/composables/useSidepanelFill';
-import { isExactHostMatch, isLocalDevDomain, matchesPortForLocalDev } from '@/utils/domain';
-import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
+import { useKeywordDebounce } from '@/composables/useKeywordDebounce';
+import {
+  isLocalDevDomain,
+  toNavigableUrl,
+  resolveMatchTier,
+  isCrossSubdomainTier,
+  isDomainMatchMode,
+  countSameMainDomainCandidates,
+  type DomainMatchMode,
+} from '@/utils/domain';
+import { isEditableEventTarget, scrollBehavior } from '@/utils/a11y';
+import { warmPinyinMatcher } from '@/utils/searchMatch/core';
 
 /**
  * 操作指引弹窗——懒加载（仅在用户点击「帮助」时加载）
@@ -138,6 +185,16 @@ import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
  * 使 Windows 会话失效冷环境下首次点击「?」时 chunk 已温热、即时打开。
  */
 const HelpDialog = defineAsyncComponent(() => import('@/components/sidepanel/HelpDialog.vue'));
+
+/**
+ * 快速添加条目弹窗——懒加载（模板处以粘性标志 quickAddMounted 做 v-if 门控，首次打开才触发 chunk loader）
+ *
+ * 与 HelpDialog 同为独立 chunk，不打进初始关键包。注意 defineAsyncComponent 的 loader
+ * 在组件「渲染」时即触发，故必须配合模板 v-if 才能真正排除在首帧之外——否则锁屏态
+ * （会话失效冷启动，首屏 JS 本应收敛至按钮 + 图标级依赖）也会在首帧拉取弹窗 chunk。
+ * 首帧后由 preloadIdleModules 空闲预取该 chunk，使用户首次点击即时打开。
+ */
+const QuickAddDialog = defineAsyncComponent(() => import('@/components/sidepanel/QuickAddDialog.vue'));
 
 /**
  * 认证视图 chunk 加载占位（函数式组件，经 defineAsyncComponent 默认 200ms delay 后显示）：
@@ -212,13 +269,32 @@ const {
   currentPort,
   showSidepanel,
   sortConfig,
+  loadFailed,
+  undecryptableCount,
+  loadPasswords,
   initSidepanelData,
   getDomainPriority,
   runLocalOperation,
 } = useSidepanelData();
 
-const { fillPassword, handleFillAndLogin, fillTotp, copyTotp, handleEditPassword, copyUsername, copyPassword } =
-  useSidepanelFill(passwords);
+const {
+  fillPassword,
+  handleFillAndLogin,
+  fillTotp,
+  copyTotp,
+  handleEditPassword,
+  copyUsername,
+  copyPassword,
+  copyShareCard,
+} = useSidepanelFill(passwords);
+
+/**
+ * 重试加载密码列表（B8）：认证视图「加载失败·重试」按钮的出口。
+ * 非静默全量重载，成功回填列表、失败再次落回失败态；与首次加载走同一 loadPasswords 链路。
+ */
+const handleRetryLoad = () => {
+  void loadPasswords();
+};
 
 /** 设置弹窗 DOM 引用（本地声明以确保 vue-tsc 可追踪模板引用） */
 const settingsPanelEl = ref<HTMLElement | null>(null);
@@ -253,43 +329,116 @@ const handleOpenSettings = async () => {
 // ==================== 本地状态（与 UI 模板紧密耦合） ====================
 
 const searchKeyword = ref('');
+/**
+ * 驱动列表过滤的关键词（`searchKeyword` 的防抖副本）
+ *
+ * 与输入框的即时回显解耦：连续击键期间只落地最后一次过滤，避免每键一次
+ * 「整表重排 + 逐格高亮」。见 `composables/useKeywordDebounce`。
+ * `flushSearchKeyword()` 是安全阀——键盘导航/回车填充前先把未落地的关键词同步进来，
+ * 杜绝「字打完了、回车填的还是上一个列表」这类快机器上偶发的错位。
+ */
+const { debounced: activeSearchKeyword, flush: flushSearchKeyword } = useKeywordDebounce(searchKeyword);
 /** 是否仅显示收藏条目 */
 const favoriteOnly = ref(false);
 /** 标签筛选选中集（命中任一即保留，与搜索/收藏过滤为叠加关系） */
 const filterTags = ref<string[]>([]);
+/**
+ * 搜索范围（会话内状态，不持久化）
+ *
+ * 默认 `site`：侧边栏主用法是「当前站点快速填充」。切到 `all` 后列表放开为全库，
+ * 外站条目降级为「打开站点 + 复制类操作」（见 offSiteIds / handleOpenSite）。
+ * 每次打开侧边栏回到默认值，避免上一次的全站上下文被误当作当前站点工具。
+ */
+const searchScope = ref<SearchScope>('site');
 const activeIndex = ref(0);
+
+/** 本站模式下复用的空 ID 集（引用恒定，避免子组件 v-memo 因新对象失效） */
+const EMPTY_ID_SET: ReadonlySet<string> = new Set<string>();
 
 /** 操作指引弹窗可见性 */
 const showHelpDialog = ref(false);
 
+/** 快速添加条目弹窗可见性 */
+const showQuickAddDialog = ref(false);
+
+/**
+ * 快速添加弹窗是否已挂载（首次打开置 true 后不再回落）
+ *
+ * 与 showQuickAddDialog 分离是必需的：
+ * - 性能侧——弹窗 chunk 必须被 v-if 门控在首帧之外，否则锁屏态冷启动会与认证视图、
+ *   资源预热争抢磁盘 IO；
+ * - 行为侧——若直接拿 showQuickAddDialog 做 v-if，关闭瞬间组件连同 el-dialog 内部的
+ *   Transition 一并被卸载，dialog-fade 退场动画不会播放（弹窗「闪没」），
+ *   与 Options 页各弹窗的关闭观感不一致。
+ *
+ * 粘性标志同时满足两者：首帧不加载 chunk，首次打开后组件常驻，
+ * 退场动画与关闭时的表单明文清理（见 QuickAddDialog 内 watch）均保持原有语义。
+ */
+const quickAddMounted = ref(false);
+
+/** 打开快速添加弹窗：同步置挂载标志与可见性，使弹窗以 modelValue=true 完成首次挂载 */
+const openQuickAddDialog = (): void => {
+  quickAddMounted.value = true;
+  showQuickAddDialog.value = true;
+};
+
 // ==================== 排序与过滤 ====================
 
 /**
- * 域名过滤后的条目（当前域名精确匹配 + 空 URL 始终展示）
- * 抽离为独立 computed：标签筛选候选集与最终列表共用同一过滤结果，避免重复计算
+ * 跨子域匹配档位
+ *
+ * 打开时读一次并随 storage.onChanged 更新；缺省 `off` 与引入跨子域之前的行为逐条一致。
+ * 只作为筛选/排序的入参，不进入任何缓存键，切档因此不触发解密重算。
  */
-const domainFilteredPasswords = computed(() => {
-  let result = [...passwords.value];
-  if (currentDomain.value) {
-    const domain = currentDomain.value;
-    if (isLocalDevDomain(domain)) {
-      // 本地开发域名：有端口时按端口过滤，无端口时保持原有行为（展示全部）
-      result = result.filter(p => matchesPortForLocalDev(p.url, currentPort.value));
-    } else {
-      // 非本地开发域名：精确主机匹配
-      result = result.filter(p => {
-        if (!p.url || p.url.trim() === '') return true;
-        return isExactHostMatch(domain, p.url);
-      });
-    }
-  }
-  return result;
-});
+const domainMatchMode = ref<DomainMatchMode>(DEFAULT_DOMAIN_MATCH_MODE);
 
-/** 可选标签集：取自域名过滤后的条目（侧边栏只展示当前域名 + 空域名条目，标签候选同域收敛） */
+/** 读取档位；失败回落 `off`，宁可少显示条目也不放宽匹配边界 */
+const loadDomainMatchMode = async (): Promise<void> => {
+  try {
+    const config = await getDomainMatchConfig();
+    domainMatchMode.value = config.mode;
+  } catch (error) {
+    logger.warn('SidePanel: 读取跨子域匹配档位失败，回落精确匹配', error);
+    domainMatchMode.value = DEFAULT_DOMAIN_MATCH_MODE;
+  }
+};
+
+/** 当前活动标签页的域名匹配上下文（供范围过滤与「能否填充当前页」判定共用） */
+const scopeContext = computed<ScopeContext>(() => ({
+  domain: currentDomain.value,
+  port: currentPort.value,
+}));
+
+/**
+ * 本站范围条目（按档位分层的本站条目 + 空 URL 通用条目）
+ * 抽离为独立 computed：头部匹配数、标签候选集与全站命中数共用同一过滤结果，避免重复计算
+ */
+const domainFilteredPasswords = computed(() =>
+  filterEntriesByScope(passwords.value, 'site', scopeContext.value, domainMatchMode.value),
+);
+
+/**
+ * 当前搜索范围内的候选集
+ *
+ * 本站模式直接复用 domainFilteredPasswords 缓存（默认路径零额外计算，守住首屏 SLA）；
+ * 全站模式仅做一次浅拷贝——sortPasswordEntries 为就地排序，必须与 passwords 解耦，
+ * 否则会打乱全量列表这一事实来源的顺序。
+ */
+const scopeFilteredPasswords = computed(() =>
+  searchScope.value === 'all' ? [...passwords.value] : domainFilteredPasswords.value,
+);
+
+/** 列表级过滤条件（搜索词 / 标签 / 只看收藏），供列表与全站命中数共用同一份判定 */
+const listFilterOptions = computed<ListFilterOptions>(() => ({
+  keyword: activeSearchKeyword.value,
+  tags: filterTags.value,
+  favoriteOnly: favoriteOnly.value,
+}));
+
+/** 可选标签集：取自当前搜索范围内的条目（标签候选随范围收敛，避免选出必然空结果的标签） */
 const availableTags = computed(() => {
   const set = new Set<string>();
-  for (const p of domainFilteredPasswords.value) {
+  for (const p of scopeFilteredPasswords.value) {
     for (const tag of parseTags(p.tag)) {
       set.add(tag);
     }
@@ -297,37 +446,114 @@ const availableTags = computed(() => {
   return [...set].sort((a, b) => a.localeCompare(b));
 });
 
-/** 搜索 + 域名过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */
+/** 全站范围下「与当前域名无关」条目的优先级，排在所有档位之后 */
+const NOT_ON_SITE_PRIORITY = 5;
+
+/**
+ * 列表排序的域名优先级
+ *
+ * `off` 档沿用既有的二值口径（命中 0 / 其余 1），保证与引入跨子域之前的顺序逐条一致；
+ * 放宽后才返回 tier，使「精确 → 通配 → 主域 → 兄弟子域 → 通用」在「全站」范围下依次靠前。
+ * 本地开发域名按端口口径过滤、当前页无域名时不筛站点，两者档位不参与，故仍走二值分支。
+ */
+const domainPriorityOf = (entry: PasswordEntry): number => {
+  if (!currentDomain.value || isLocalDevDomain(currentDomain.value)) return getDomainPriority(entry);
+  if (domainMatchMode.value === DEFAULT_DOMAIN_MATCH_MODE) return getDomainPriority(entry);
+  const tier = resolveMatchTier(currentDomain.value, entry.url, domainMatchMode.value);
+  return tier === -1 ? NOT_ON_SITE_PRIORITY : tier;
+};
+
+/** 搜索 + 范围过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */
 const filteredPasswords = computed(() => {
-  let result = domainFilteredPasswords.value;
-
-  if (searchKeyword.value) {
-    const keyword = searchKeyword.value;
-    // 智能匹配：子串（大小写不敏感）优先，拼音模块预热后自动补齐全拼/首字母命中
-    // （matchesKeyword 内部读取 pinyinMatcherReady，预热完成会触发本 computed 重算）
-    result = result.filter(p => matchesKeyword([p.username, p.tag, p.remark, p.url], keyword));
-  }
-
-  if (filterTags.value.length > 0) {
-    result = result.filter(p => parseTags(p.tag).some(tag => filterTags.value.includes(tag)));
-  }
-
-  if (favoriteOnly.value) {
-    result = result.filter(p => p.favorite);
-  }
+  const result = applyListFilters(scopeFilteredPasswords.value, listFilterOptions.value);
 
   // 应用排序：域名优先级 + 收藏置顶 + 字段排序（复用公共比较器）
   const sortState: SortState = sortConfig.value
     ? { prop: sortConfig.value.prop, order: (sortConfig.value.order || null) as SortState['order'] }
     : DEFAULT_SIDEPANEL_SORT;
-  sortPasswordEntries(result, sortState, getDomainPriority);
+  sortPasswordEntries(result, sortState, domainPriorityOf);
 
   return result;
 });
 
-/** 收藏/标签过滤变化时重置选中索引（过滤条件变化后旧索引可能越界或指向其它条目） */
-watch([favoriteOnly, filterTags], () => {
+/**
+ * 全库命中数（仅用于本站无结果时的空态引导）
+ *
+ * 惰性求值：computed 仅在空态分支实际读取时才遍历全量列表，本站有结果时短路返回 0，
+ * 不给默认路径增加任何开销。
+ */
+const globalMatchCount = computed(() => {
+  if (searchScope.value === 'all' || filteredPasswords.value.length > 0) return 0;
+  return applyListFilters(passwords.value, listFilterOptions.value).length;
+});
+
+/**
+ * 空态引导用：放宽到「同主域名」后可额外带出的同主域条目数
+ *
+ * 与 `globalMatchCount` 同样惰性求值，只在「本站无结果但全站有命中」的空态分支被读取，
+ * 不给默认路径增加遍历开销；计数口径与内联下拉共用 `countSameMainDomainCandidates`。
+ */
+const crossDomainHintCount = computed(() => {
+  if (searchScope.value === 'all' || globalMatchCount.value === 0) return 0;
+  return countSameMainDomainCandidates(passwords.value, currentDomain.value, domainMatchMode.value);
+});
+
+/**
+ * 当前可见列表中「非精确层级」（通配条目 / 主域条目 / 同主域其他子域）的条目 ID 集
+ *
+ * 行内「跨子域」来源徽章的唯一事实来源：档位判定只在 App.vue 做一次，
+ * 子组件按 ID 查表，避免每行重复解析域名。`off` 档下本站可见集里不存在非精确条目，
+ * 直接返回共享空集（引用恒定），默认路径零额外遍历。
+ */
+const crossDomainIds = computed<ReadonlySet<string>>(() => {
+  const domain = currentDomain.value;
+  if (domainMatchMode.value === DEFAULT_DOMAIN_MATCH_MODE) return EMPTY_ID_SET;
+  if (!domain || isLocalDevDomain(domain)) return EMPTY_ID_SET;
+
+  const mode = domainMatchMode.value;
+  const ids = new Set<string>();
+  for (const entry of scopeFilteredPasswords.value) {
+    const tier = resolveMatchTier(domain, entry.url, mode);
+    // tier 4（空 URL 通用条目）不带徽章：它今天本来就出现在任何站点，不是跨子域放宽带来的
+    if (isCrossSubdomainTier(tier)) ids.add(entry.id);
+  }
+  return ids;
+});
+
+/**
+ * 全站模式下不可填充当前页的外站条目 ID 集
+ *
+ * 本站模式恒为空集（引用恒定），零额外计算；仅全站模式遍历当前可见列表（非全量）。
+ * 子组件据此隐藏面向当前页的动作（填充并登录 / 填充验证码）并把整行点击改为打开站点。
+ */
+const offSiteIds = computed<ReadonlySet<string>>(() => {
+  if (searchScope.value !== 'all') return EMPTY_ID_SET;
+  const ctx = scopeContext.value;
+  const mode = domainMatchMode.value;
+  const ids = new Set<string>();
+  for (const entry of filteredPasswords.value) {
+    if (!matchesSiteScope(entry, ctx, mode)) ids.add(entry.id);
+  }
+  return ids;
+});
+
+/** 收藏/标签/搜索范围变化时重置选中索引（过滤条件变化后旧索引可能越界或指向其它条目） */
+watch([favoriteOnly, filterTags, searchScope], () => {
   activeIndex.value = 0;
+});
+
+/**
+ * 切换活动标签页后回到本站范围
+ *
+ * 新页面上下文下继续全站搜索会让「打开站点」与当前页填充语义混淆，
+ * 且用户切站后的心智模型已回到「填这个站」。
+ *
+ * 必须同时监听端口：本地开发域名切换端口（localhost:3000 → localhost:5173）时
+ * currentDomain 不变而 matchesSiteScope 的判定已变，只监听域名会漏掉本次重置。
+ * 档位同理：切档后本站范围会扩容，继续停留在全站搜索会让「本站」按钮语义悬空。
+ */
+watch([currentDomain, currentPort, domainMatchMode], () => {
+  searchScope.value = 'site';
 });
 
 /** 域名切换导致候选标签集变化时，剔除已不存在的筛选标签，避免隐形空过滤 */
@@ -355,13 +581,29 @@ const handleSortChange = async (prop: string) => {
 
 // ==================== UI 交互方法 ====================
 
-/** 搜索处理 */
+/**
+ * 搜索处理：击键即把选中索引归零
+ *
+ * 归零挂在「击键」而非「防抖落地」上是有意为之：击键时索引先回 0，
+ * 之后任何一次键盘导航都会先 `flushSearchKeyword()` 再取列表，
+ * 因此落点必然属于最新列表。若改为监听防抖值落地后归零，
+ * 那次归零会在 pre-flush 队列里覆盖同一按键刚设好的新索引，把 ↓ 吃掉。
+ */
 const handleSearch = () => {
   activeIndex.value = 0;
 };
 
 /** 键盘导航处理 */
 const handleKeydown = (e: KeyboardEvent) => {
+  // 输入法合成期间（中文/日文选词）的 Enter 是「上屏」、↑↓ 是「候选翻页」，
+  // 容器冒泡到这里若继续接管，会在确认候选词的同时误填充密码，故整段放行给 IME。
+  if (e.isComposing) return;
+
+  // 关键词防抖未落地时先同步：否则本次操作以「上一个列表」为准，
+  // 会出现刚打完字就按 ↓ 却停在旧结果、按回车填了上一条的错位。
+  // 放在 `filteredPasswords` 读取之前，同一次按键内看到的即是最过滤后的列表。
+  flushSearchKeyword();
+
   const list = filteredPasswords.value;
   if (!list.length) return;
 
@@ -376,12 +618,19 @@ const handleKeydown = (e: KeyboardEvent) => {
       activeIndex.value = Math.max(activeIndex.value - 1, 0);
       scrollToActiveItem();
       break;
-    case 'Enter':
+    case 'Enter': {
       e.preventDefault();
-      if (activeIndex.value >= 0 && activeIndex.value < list.length) {
-        fillPassword(list[activeIndex.value]);
+      const entry = list[activeIndex.value];
+      if (!entry) break;
+      // 与整行点击保持一致：本站条目填充当前页，全站模式下的外站条目打开其站点
+      // 档位必须显式传入，否则跨子域条目「点得开、回车打不开」
+      if (matchesSiteScope(entry, scopeContext.value, domainMatchMode.value)) {
+        fillPassword(entry);
+      } else {
+        handleOpenSite(entry);
       }
       break;
+    }
     case 'Escape':
       e.preventDefault();
       window.close();
@@ -391,6 +640,9 @@ const handleKeydown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey) {
         // Ctrl+Shift+C: 复制密码 暂不需要（注释，别删除）
       } else if (e.ctrlKey) {
+        // 焦点在搜索框等可编辑元素内时让路：否则 preventDefault 会吃掉浏览器原生复制，
+        // 用户选中搜索词按 Ctrl+C 得到的却是高亮条目的用户名
+        if (isEditableEventTarget(e.target)) break;
         // Ctrl+C: 复制用户名
         e.preventDefault();
         if (activeIndex.value >= 0 && activeIndex.value < list.length) {
@@ -406,7 +658,7 @@ const scrollToActiveItem = () => {
   nextTick(() => {
     const activeEl = document.querySelector('.password-item.active');
     if (activeEl) {
-      activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      activeEl.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
     }
   });
 };
@@ -488,6 +740,36 @@ const openGithub = () => {
 };
 
 /**
+ * 打开条目所属站点（全站搜索模式下外站条目的整行动作）
+ *
+ * 外站条目无法填充到当前页（页面上没有对应输入框），改为新标签页打开其站点，
+ * 用户到达后可在新页面上重新用侧边栏/悬浮按钮填充（此时该条目已变为本站范围）。
+ *
+ * 安全边界：URL 先经 toNavigableUrl 白名单校验（仅放行 http/https），
+ * 杜绝条目中可能存在的 javascript: / chrome: 等协议被浏览器执行。
+ * 未发生填充，故不写 lastUsedAt（「最近使用」仍严格表达填充行为）。
+ */
+const handleOpenSite = (password: PasswordEntry) => {
+  const url = toNavigableUrl(password.url);
+  if (!url) {
+    ElMessage.warning(t('sidepanel.openSiteInvalidUrl'));
+    return;
+  }
+
+  /** 同步抛出与 Promise reject 两条失败路径共用同一反馈（不静默吞掉用户可见错误） */
+  const reportFailure = (error: unknown) => {
+    logger.error('SidePanel: 打开条目站点失败:', error);
+    ElMessage.error(t('sidepanel.openSiteFailed'));
+  };
+
+  try {
+    void chrome.tabs.create({ url }).catch(reportFailure);
+  } catch (error) {
+    reportFailure(error);
+  }
+};
+
+/**
  * 点击会话倒计时胶囊：打开密码管理页并直达「有效期设置」对话框
  * 与 Popup / options 头部徽标「点时间 = 续期」的交互心智保持一致
  */
@@ -496,6 +778,19 @@ const openValiditySetting = async () => {
     await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_VALIDITY });
   } catch (error) {
     logger.error('打开有效期设置失败:', error);
+  }
+};
+
+/**
+ * 空态深链：打开密码管理页并直达「跨子域匹配」设置对话框
+ *
+ * 与「点时间 = 续期」同样的直达心智；不携带域名等自报参数，收口在 Options 侧按当前标签页取值。
+ */
+const openDomainMatchSetting = async () => {
+  try {
+    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH });
+  } catch (error) {
+    logger.error('SidePanel: 打开跨子域匹配设置失败:', error);
   }
 };
 
@@ -525,22 +820,31 @@ const openOptionsAndAdd = async () => {
   }
 };
 
-// ==================== 全局「自动触发登录」同步 ====================
+// ==================== 全局配置变更同步 ====================
 
 /** 全局「自动触发登录」开关：开启时侧边栏点条目即等于「填充并登录」，隐藏每条冗余的「填充并登录」按钮 */
 const autoTriggerLogin = ref(false);
 
 /**
- * chrome.storage 变化监听：在悬浮按钮/侧边栏设置弹窗内切换「自动触发登录」时实时同步，
- * 使列表项「填充并登录」按钮显隐即时生效，无需重开侧边栏。
+ * chrome.storage.local 变更监听：把「在别处改了、侧边栏需即时生效」的配置收敛到一处处理，
+ * 避免为每个键各挂一个 listener——悬浮按钮/侧边栏设置弹窗内切换「自动触发登录」，
+ * 以及 Options 页切换跨子域匹配档位，都不需要重开侧边栏。
  */
-const handleFloatingConfigChange = (
+const handleLocalConfigChange = (
   changes: Record<string, chrome.storage.StorageChange>,
   areaName: chrome.storage.AreaName,
 ) => {
-  if (areaName !== 'local' || !(STORAGE_KEYS.FLOATING_BUTTON_CONFIG in changes)) return;
-  const next = changes[STORAGE_KEYS.FLOATING_BUTTON_CONFIG].newValue as { autoTriggerLogin?: boolean } | undefined;
-  autoTriggerLogin.value = next?.autoTriggerLogin ?? false;
+  if (areaName !== 'local') return;
+
+  if (STORAGE_KEYS.FLOATING_BUTTON_CONFIG in changes) {
+    const next = changes[STORAGE_KEYS.FLOATING_BUTTON_CONFIG].newValue as { autoTriggerLogin?: boolean } | undefined;
+    autoTriggerLogin.value = next?.autoTriggerLogin ?? false;
+  }
+
+  if (STORAGE_KEYS.DOMAIN_MATCH_CONFIG in changes) {
+    const next = changes[STORAGE_KEYS.DOMAIN_MATCH_CONFIG].newValue as { mode?: unknown } | undefined;
+    domainMatchMode.value = isDomainMatchMode(next?.mode) ? next.mode : DEFAULT_DOMAIN_MATCH_MODE;
+  }
 };
 
 // ==================== 初始化 ====================
@@ -603,16 +907,20 @@ onMounted(async () => {
 
   // 获取骨架屏元素（兄弟节点模式，Vue 挂载不会替换它）
   const skeletonEl = document.getElementById('app-loading');
+  if (!skeletonEl) {
+    logger.warn('SidePanel: 骨架屏元素不存在，跳过淡出逻辑');
+  }
 
-  // 读取全局「自动触发登录」以决定每条「填充并登录」按钮显隐，并监听后续变更；均不阻塞首屏
+  // 读取全局「自动触发登录」与跨子域匹配档位，并监听后续变更；均不阻塞首屏
   if (chrome?.storage?.onChanged) {
-    chrome.storage.onChanged.addListener(handleFloatingConfigChange);
+    chrome.storage.onChanged.addListener(handleLocalConfigChange);
   }
   void getFloatingButtonConfig()
     .then(cfg => {
       autoTriggerLogin.value = cfg.autoTriggerLogin;
     })
     .catch(error => logger.error('SidePanel: 读取自动触发登录配置失败:', error));
+  void loadDomainMatchMode();
 
   // ==================== 首屏收尾编排（先于数据竞速定义，快速路径/兜底可提前触发） ====================
   // 1. 打 sp-list-rendered 埋点，数据就绪后写入性能环形日志（含列表渲染段分解）
@@ -660,7 +968,7 @@ onMounted(async () => {
       setTimeout(() => skeletonEl.remove(), 250);
     }
 
-    // 空闲预取：设置弹窗模块 + HelpDialog + TotpCode + 认证视图 chunk（不阻塞首屏渲染），
+    // 空闲预取：设置弹窗模块 + HelpDialog + QuickAddDialog + TotpCode + 认证视图 chunk（不阻塞首屏渲染），
     // 冷环境（Windows 会话失效期 / 浏览器重启引导期）下用户首次交互时 chunk 已温热、即时打开；
     // 认证视图 chunk 在锁屏态被跳过立即预取（见 onMounted 前段），此处补齐使解锁切换零等待；
     // 未取完前触发则退化为按需加载，无回退风险；预取失败静默吞掉（交互时按需加载兜底）
@@ -669,6 +977,7 @@ onMounted(async () => {
       // 与 defineAsyncComponent 使用同一 import specifier，Vite 复用同一 chunk
       void import('@/components/sidepanel/SidepanelAuthView.vue').catch(() => {});
       void import('@/components/sidepanel/HelpDialog.vue').catch(() => {});
+      void import('@/components/sidepanel/QuickAddDialog.vue').catch(() => {});
       void import('@/components/TotpCode.vue').catch(() => {});
       // 预热拼音匹配模块（独立 chunk，不进首屏关键路径）：就绪后过滤 computed 自动重算补齐拼音命中
       void warmPinyinMatcher();
@@ -751,7 +1060,7 @@ onMounted(async () => {
 
 onUnmounted(() => {
   if (chrome?.storage?.onChanged) {
-    chrome.storage.onChanged.removeListener(handleFloatingConfigChange);
+    chrome.storage.onChanged.removeListener(handleLocalConfigChange);
   }
 });
 </script>

@@ -2,6 +2,10 @@ import type { PasswordEntry } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { formatTimestampCompact } from '@/utils/dateFormat';
+import { formatFileSize } from '@/utils/formatFileSize';
+import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
+import { parseBackupContainer, PasswordBackupError } from '@/utils/backup/parseBackupEntries';
+import { markVerifiedBackupAt } from '@/utils/storage/configManager';
 
 /** 备份文件版本标识 */
 const BACKUP_VERSION = 1;
@@ -18,6 +22,21 @@ interface BackupData {
   exportedAt: number;
   count: number;
   entries: Omit<PasswordEntry, 'id' | 'order'>[];
+}
+
+/**
+ * 面向用户的备份导入错误：`message` 已完成 i18n，调用方可直接呈现
+ *
+ * 与 `PasswordBackupError`（message 即机器可读 code，只供诊断）互补：前者给 UI，后者给解析层。
+ * 弹窗据此判据决定「呈现 message」还是退到通用文案，避免底层 `OperationError` /
+ * `SyntaxError` 的英文原文（可能含文件名、内部原因串）被当提示语吐给用户。
+ */
+export class BackupImportUserError extends Error {
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = 'BackupImportUserError';
+    if (cause !== undefined) (this as { cause?: unknown }).cause = cause;
+  }
 }
 
 /**
@@ -43,7 +62,11 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
 
 /**
  * 导出加密备份文件
- * 使用主密码通过 AES-GCM 加密密码数据，下载为 .aph 文件
+ *
+ * 使用主密码通过 AES-256-GCM 加密密码数据，下载为 .aph 文件。
+ * 下载前先做一次 round-trip 自检（用同一 salt 重新派生密钥、解密、解析并核对
+ * version/count/entries 长度），确认这份文件确实能被本扩展解回，校验通过才落盘、
+ * 并在成功后记录「最近成功备份」时间戳。字节格式（salt‖iv‖ciphertext）保持不变。
  */
 export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPassword: string): Promise<void> {
   try {
@@ -83,6 +106,28 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
     output.set(iv, salt.length);
     output.set(new Uint8Array(ciphertext), salt.length + iv.length);
 
+    // 下载前完整性自检：把刚产出的容器原样解回，验证 GCM 校验和可过、结构与源数据一致。
+    // 单独 try：解密/解析/比对任一失败都归为「自检未通过」，与通用加密失败区分文案。
+    try {
+      const verifyKey = await deriveKey(masterPassword, salt);
+      const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, verifyKey, ciphertext);
+      const parsed = JSON.parse(new TextDecoder().decode(decrypted)) as BackupData;
+      if (
+        parsed.version !== BACKUP_VERSION ||
+        parsed.count !== passwords.length ||
+        !Array.isArray(parsed.entries) ||
+        parsed.entries.length !== passwords.length
+      ) {
+        throw new Error('backup_verify_mismatch');
+      }
+    } catch (cause) {
+      logger.error('加密备份自检未通过:', cause);
+      const err = new Error(t('backup.exportVerifyFailed'));
+      err.name = 'BackupVerifyError';
+      (err as any).cause = cause;
+      throw err;
+    }
+
     // 下载文件
     const blob = new Blob([output], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
@@ -95,27 +140,47 @@ export async function exportEncryptedBackup(passwords: PasswordEntry[], masterPa
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   } catch (error) {
+    // 自检失败已有专属文案，原样上抛供调用方差异化提示；其余统一归为导出失败。
+    if ((error as any)?.name === 'BackupVerifyError') {
+      throw error;
+    }
     logger.error('导出加密备份失败:', error);
     const err = new Error(t('backup.exportError'));
     (err as any).cause = error;
     throw err;
+  }
+
+  // 走到此处说明自检通过且文件已产出；时间戳记录属提醒元数据，失败不影响本次备份成功。
+  try {
+    await markVerifiedBackupAt();
+  } catch (error) {
+    logger.error('记录成功备份时间失败（备份本身已完成）:', error);
   }
 }
 
 /**
  * 导入加密备份文件
  * 读取 .aph 文件，用主密码解密，返回密码数据
+ *
+ * 字节闸门先于 `arrayBuffer()`：条数与逐字段上限要等整份密文解密并解析后才生效，
+ * 挡不住「一次读取把任意大的输入拉进内存」；超限文件在此直接拒掉。
+ * 失败一律抛 {@link BackupImportUserError}：message 已是面向用户的文案，调用方可直接呈现，
+ * 原始异常保留在 `cause` 上供日志与诊断。
  */
 export async function importEncryptedBackup(
   file: File,
   masterPassword: string,
 ): Promise<Omit<PasswordEntry, 'id' | 'order'>[]> {
+  if (file.size > MAX_PASSWORD_IMPORT_INPUT_BYTES) {
+    throw new BackupImportUserError(t('backup.fileTooLarge', { max: formatFileSize(MAX_PASSWORD_IMPORT_INPUT_BYTES) }));
+  }
+
   try {
     const buffer = await file.arrayBuffer();
     const data = new Uint8Array(buffer);
 
     if (data.length < SALT_LENGTH + IV_LENGTH + 1) {
-      throw new Error(t('backup.invalidFile'));
+      throw new BackupImportUserError(t('backup.invalidFile'));
     }
 
     // 拆解: salt + iv + ciphertext
@@ -131,22 +196,29 @@ export async function importEncryptedBackup(
 
     const decoder = new TextDecoder();
     const jsonStr = decoder.decode(decrypted);
-    const backupData: BackupData = JSON.parse(jsonStr);
+    const backupData: unknown = JSON.parse(jsonStr);
 
-    if (!backupData.version || !Array.isArray(backupData.entries)) {
-      throw new Error(t('backup.invalidStructure'));
-    }
-
-    return backupData.entries;
-  } catch (error: any) {
-    if (error.message?.includes('decrypt') || error.name === 'OperationError') {
-      const err = new Error(t('backup.wrongPasswordOrCorrupted'));
-      (err as any).cause = error;
+    // B4：与 CSV/JSON 导入共用同一份边界口径——校验 version 上界、count↔entries
+    // 交叉一致、字段白名单、逐字段类型/长度上限与条数上界，替代此前仅判 version 真值
+    // + Array.isArray 的零逐条校验。解析成功即返回可信条目。
+    try {
+      return parseBackupContainer(backupData, true);
+    } catch (err) {
+      if (err instanceof PasswordBackupError) {
+        throw new BackupImportUserError(t('backup.invalidStructure'), err);
+      }
       throw err;
     }
+  } catch (error: unknown) {
+    // 已是用户可读文案（上面的尺寸/格式/结构分支）：原样上抛，不再包一层丢 cause
+    if (error instanceof BackupImportUserError) throw error;
+    const err = error as { message?: string; name?: string };
+    if (err.message?.includes('decrypt') || err.name === 'OperationError') {
+      throw new BackupImportUserError(t('backup.wrongPasswordOrCorrupted'), error);
+    }
     logger.error('导入加密备份失败:', error);
-    const err = new Error(error.message || t('backup.importError'));
-    (err as any).cause = error;
-    throw err;
+    // 其余异常（读文件失败、JSON.parse 语法错、deriveKey 异常等）的原文既看不懂也可能带出
+    // 内部信息，一律退到通用文案，原始异常经 cause 保留给日志与诊断。
+    throw new BackupImportUserError(t('backup.importError'), error);
   }
 }

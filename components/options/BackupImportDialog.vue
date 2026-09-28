@@ -33,6 +33,7 @@
             :limit="1"
             accept=".aph"
             @change="handleFileChange"
+            @exceed="handleExceed"
           >
             <div class="upload-dragger-content">
               <el-icon class="upload-icon"><Upload /></el-icon>
@@ -76,6 +77,9 @@
             :placeholder="t('options.backupImport.passwordPlaceholder')"
             show-password
             :disabled="decrypting"
+            @keydown="handleCapsKeyEvent"
+            @keyup="handleCapsKeyEvent"
+            @blur="resetCapsLockState"
             @keyup.enter="handleDecrypt"
           >
             <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
@@ -86,6 +90,8 @@
               </el-icon>
             </template>
           </el-input>
+          <!-- 误开大写锁定是「解密失败」的高频原因，与其他主密码输入口保持一致提示 -->
+          <CapsLockHint v-if="capsLockOn" />
           <el-button
             type="primary"
             :loading="decrypting"
@@ -106,6 +112,13 @@
             <h4>{{ t('options.import.previewTitle') }}</h4>
             <span class="preview-total">{{ t('options.import.previewTotal', { count: previewData.length }) }}</span>
           </div>
+          <!-- 额度告警：备份文件往往一次带回上千条，超限必须在这里摊开给用户看 -->
+          <CapacityAlert
+            :current-count="currentCount"
+            :incoming="previewData.length"
+            :remaining="remaining"
+            :skipped="skipped"
+          />
           <el-table
             :data="previewData.slice(0, 5)"
             style="width: 100%"
@@ -194,12 +207,14 @@
         <el-button @click="handleClose">{{ t('common.cancel') }}</el-button>
         <el-button
           type="success"
-          :disabled="previewData.length === 0"
+          :disabled="previewData.length === 0 || capacityExhausted"
           :loading="importing"
           @click="handleImport"
         >
           {{
-            importing ? t('options.import.importing') : t('options.import.confirmImport', { count: previewData.length })
+            importing
+              ? t('options.import.importing')
+              : t('options.import.confirmImport', { count: importableEntries.length })
           }}
         </el-button>
       </div>
@@ -208,15 +223,22 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, nextTick } from 'vue';
+import { ref, computed } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
-import { importEncryptedBackup } from '@/utils/backupExport';
+import { BackupImportUserError, importEncryptedBackup } from '@/utils/backupExport';
+import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
+import { formatFileSize } from '@/utils/formatFileSize';
+import { scrollDialogBodyToBottom } from '@/utils/dialogScroll';
 import { logger } from '@/utils/logger';
 import type { PasswordEntry } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
+import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
+import { importFailureMessage, importSuccessMessage, useImportCapacity } from '@/composables/useImportCapacity';
+import CapsLockHint from '@/components/CapsLockHint.vue';
+import CapacityAlert from '@/components/options/CapacityAlert.vue';
 
 interface Props {
   modelValue: boolean;
@@ -232,6 +254,9 @@ const emit = defineEmits<Emits>();
 
 const { t } = useI18n();
 
+/** 主密码输入框大写锁定检测（弹窗每次打开时重置，避免残留） */
+const { capsLockOn, handleCapsKeyEvent, resetCapsLockState } = useCapsLockDetection();
+
 const dialogVisible = computed({
   get: () => props.modelValue,
   set: value => emit('update:modelValue', value),
@@ -245,15 +270,18 @@ const selectedFile = ref<File | undefined>(undefined);
 const masterPassword = ref('');
 const showPreviewPassword = ref(false);
 
+/** 条目总量额度：预览页的超限告警、导入前的二次确认与本批可导入切片 */
+const { currentCount, remaining, skipped, capacityExhausted, importableEntries, takeImportableEntries } =
+  useImportCapacity(previewData);
+
 /**
- * 格式化文件大小为可读字符串
- * @param bytes 文件字节数
- * @returns 格式化后的文件大小字符串
+ * 超出数量上限的兜底提示
+ *
+ * `el-upload` 的 `on-exceed` 默认为空实现，命中 `limit` 时文件被静默丢弃：既不提示，
+ * 也不换选，用户以为已经选好备份文件。
  */
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+const handleExceed = () => {
+  ElMessage.warning(t('options.import.limitOneFile'));
 };
 
 /** 处理文件选择 */
@@ -267,17 +295,22 @@ const handleFileChange = async (file: UploadFile) => {
     }
     return;
   }
+  // 字节闸门：超限文件在选文件这一步就拒掉，避免用户填完主密码才被告知文件不可用。
+  // `importEncryptedBackup` 内另有同口径闸门，兜住其余调用路径与绕过 UI 的输入。
+  if (file.raw.size > MAX_PASSWORD_IMPORT_INPUT_BYTES) {
+    ElMessage.error(t('backup.fileTooLarge', { max: formatFileSize(MAX_PASSWORD_IMPORT_INPUT_BYTES) }));
+    if (uploadRef.value) {
+      uploadRef.value.clearFiles();
+    }
+    return;
+  }
   selectedFile.value = file.raw;
   previewData.value = [];
   masterPassword.value = '';
+  // 密码输入区经 v-if 卸载时不会触发 blur，需显式清除大写锁定提示，避免下次显示时残留
+  resetCapsLockState();
   // 文件选择后，密码输入区出现，等 DOM 渲染完毕后滚动弹窗内容区到底部
-  await nextTick();
-  setTimeout(() => {
-    const dialogBody = document.querySelector('.backup-import-dialog .dialog-body-scroll');
-    if (dialogBody) {
-      dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
-    }
-  }, 150);
+  await scrollDialogBodyToBottom('.backup-import-dialog .dialog-body-scroll');
 };
 
 /** 处理文件移除 */
@@ -285,6 +318,7 @@ const handleFileRemove = () => {
   previewData.value = [];
   selectedFile.value = undefined;
   masterPassword.value = '';
+  resetCapsLockState();
   if (uploadRef.value) {
     uploadRef.value.clearFiles();
   }
@@ -305,16 +339,12 @@ const handleDecrypt = async () => {
 
     previewData.value = entries;
     ElMessage.success(t('options.backupImport.decryptSuccess', { count: entries.length }));
-    await nextTick();
-    setTimeout(() => {
-      const dialogBody = document.querySelector('.backup-import-dialog .dialog-body-scroll');
-      if (dialogBody) {
-        dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
-      }
-    }, 150);
+    await scrollDialogBodyToBottom('.backup-import-dialog .dialog-body-scroll');
   } catch (error) {
     logger.error('解密备份文件失败:', error);
-    const message = error instanceof Error ? error.message : t('options.backupImport.decryptFailed');
+    // 只呈现已完成 i18n 的用户可读错误：底层 OperationError / SyntaxError 的英文原文
+    // 既看不懂也可能带出内部信息，非用户可读错误一律退到通用文案。
+    const message = error instanceof BackupImportUserError ? error.message : t('options.backupImport.decryptFailed');
     ElMessage.error(message);
     previewData.value = [];
   } finally {
@@ -325,16 +355,20 @@ const handleDecrypt = async () => {
 /** 确认导入 */
 const handleImport = async () => {
   if (previewData.value.length === 0) return;
+  // 超限时先按剩余额度切片，再让用户确认「只导入前 N 条」；取消即一条都不写。
+  const entries = await takeImportableEntries();
+  if (!entries) return;
 
   try {
     importing.value = true;
-    await StorageUtils.batchSavePasswords(previewData.value);
-    ElMessage.success(t('options.import.importSuccess', { count: previewData.value.length }));
+    await StorageUtils.batchSavePasswords(entries);
+    ElMessage.success(importSuccessMessage(entries.length, skipped.value));
     emit('imported');
     handleClose();
   } catch (error) {
     logger.error('导入失败:', error);
-    ElMessage.error(t('options.import.importFailed'));
+    // 兜底：解密预览到写入之间条目数可能已被其它入口填满，此时要说清是「上限」而非「导入失败」
+    ElMessage.error(importFailureMessage(error));
   } finally {
     importing.value = false;
   }
@@ -347,6 +381,7 @@ const handleClose = () => {
   selectedFile.value = undefined;
   masterPassword.value = '';
   showPreviewPassword.value = false;
+  resetCapsLockState();
   if (uploadRef.value) {
     uploadRef.value.clearFiles();
   }

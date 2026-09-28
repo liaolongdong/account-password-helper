@@ -34,6 +34,9 @@
           :placeholder="t('options.changePwd.oldPasswordPlaceholder')"
           show-password
           @keyup.enter="handleSubmit"
+          @keydown="handleOldCapsKeyEvent"
+          @keyup="handleOldCapsKeyEvent"
+          @blur="resetOldCapsLockState"
         >
           <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
           <template #password-icon="{ visible }">
@@ -43,6 +46,7 @@
             </el-icon>
           </template>
         </el-input>
+        <CapsLockHint v-if="oldCapsLockOn" />
       </el-form-item>
 
       <el-form-item
@@ -63,7 +67,9 @@
             :placeholder="t('options.changePwd.newPasswordPlaceholder')"
             show-password
             @focus="newPasswordFocused = true"
-            @blur="newPasswordFocused = false"
+            @blur="handleNewPasswordBlur"
+            @keydown="handleNewCapsKeyEvent"
+            @keyup="handleNewCapsKeyEvent"
             @keyup.enter="handleSubmit"
           >
             <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
@@ -75,6 +81,7 @@
             </template>
           </el-input>
         </PasswordStrengthPopover>
+        <CapsLockHint v-if="newCapsLockOn" />
       </el-form-item>
 
       <el-form-item
@@ -87,6 +94,9 @@
           :placeholder="t('options.changePwd.confirmPasswordPlaceholder')"
           show-password
           @keyup.enter="handleSubmit"
+          @keydown="handleConfirmCapsKeyEvent"
+          @keyup="handleConfirmCapsKeyEvent"
+          @blur="resetConfirmCapsLockState"
         >
           <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
           <template #password-icon="{ visible }">
@@ -96,6 +106,7 @@
             </el-icon>
           </template>
         </el-input>
+        <CapsLockHint v-if="confirmCapsLockOn" />
       </el-form-item>
     </el-form>
 
@@ -122,7 +133,9 @@ import { ref, reactive, computed, watch } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { View, Hide } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
+import CapsLockHint from '@/components/CapsLockHint.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
+import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { changeMasterPassword } from '@/utils/storage/changeMasterPassword';
 import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
@@ -143,6 +156,29 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/** 旧/新/确认密码分别独立检测大写锁定（仅当前输入字段展示提示） */
+const {
+  capsLockOn: oldCapsLockOn,
+  handleCapsKeyEvent: handleOldCapsKeyEvent,
+  resetCapsLockState: resetOldCapsLockState,
+} = useCapsLockDetection();
+const {
+  capsLockOn: newCapsLockOn,
+  handleCapsKeyEvent: handleNewCapsKeyEvent,
+  resetCapsLockState: resetNewCapsLockState,
+} = useCapsLockDetection();
+const {
+  capsLockOn: confirmCapsLockOn,
+  handleCapsKeyEvent: handleConfirmCapsKeyEvent,
+  resetCapsLockState: resetConfirmCapsLockState,
+} = useCapsLockDetection();
+
+/** 新密码失焦：收起强度气泡并清除大写锁定提示 */
+const handleNewPasswordBlur = (): void => {
+  newPasswordFocused.value = false;
+  resetNewCapsLockState();
+};
 
 const formRef = ref<FormInstance>();
 const loading = ref(false);
@@ -209,6 +245,9 @@ const handleSubmit = async () => {
     const msg = error?.message || '';
     if (error?.code === 'WRONG_PASSWORD' || msg.includes('验证失败')) {
       ElMessage.error(t('options.changePwd.wrongOldPassword'));
+    } else if (error?.code === 'EMPTY_PASSWORD') {
+      // 纯空白新密码过得了 required/min 规则，归一化后在存储层被拒，这里给出本地化提示
+      ElMessage.error(t('options.changePwd.newPasswordRequired'));
     } else {
       ElMessage.error(t('options.changePwd.failed', { msg: msg || t('message.unknownError') }));
     }
@@ -226,6 +265,9 @@ watch(
       form.newPassword = '';
       form.confirmPassword = '';
       formRef.value?.resetFields();
+      resetOldCapsLockState();
+      resetNewCapsLockState();
+      resetConfirmCapsLockState();
     }
   },
 );

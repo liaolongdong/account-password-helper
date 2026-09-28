@@ -8,8 +8,9 @@
  * AI 引擎引用真正生效。
  *
  * 机制：提取 index.html 内嵌的 I18N 中英字典，替换所有 data-i18n /
- * data-i18n-html 静态节点与 head 元信息；单一事实来源仍为 index.html，
- * 修改文案后运行 `pnpm gen:en` 重新生成（CI 部署前自动执行）。
+ * data-i18n-html 静态节点与 head 元信息，并把 FAQ 生成区整体换成英文静态 DOM；
+ * 单一事实来源仍为 index.html，修改文案后运行 `pnpm gen:en` 重新生成并提交
+ * （Pages 由 main 分支根目录发布，CI 不参与生成）。
  *
  * @file scripts/build-en-page.mjs
  */
@@ -17,18 +18,78 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
+import { applyI18n, assertI18nCoverage } from './lib/apply-i18n.mjs';
+import { syncFaqDom } from './lib/faq-dom.mjs';
+import { buildFaqPageJsonLd, parseFaqEntries, selectFaqEntries } from './lib/faq-schema.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'index.html');
 const outPath = path.join(root, 'en.html');
+// codeql[js/incomplete-hostname-regexp] -- SITE 仅作为字面量拼接进生成的 og:url / canonical 属性值，从不作为正则去匹配主机名，此处无需转义点号或尾部锚定
 const SITE = 'https://liaolongdong.github.io/account-password-helper';
 
 const EN_KEYWORDS =
-  'password manager,Chrome extension,local password manager,offline password manager,AES-256-GCM,autofill,auto login,TOTP,2FA,authenticator,password generator,security audit,developer tools,credential manager,local-first,password vault,open source password manager,password manager for developers';
+  'password manager,Account Password Helper,账号密码管理助手,Chrome extension,local password manager,offline password manager,AES-256-GCM,autofill,auto login,TOTP,2FA,authenticator,password generator,security audit,developer tools,credential manager,local-first,password vault,open source password manager,password manager for developers';
 const EN_JSONLD_DESCRIPTION =
-  'Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + AES-256-GCM encryption with zero network transfer, built-in TOTP 2FA, security audit and password generator, instant side panel (20-50ms warm path).';
+  'Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.';
+
+// SoftwareApplication 的语言相关字段：逐字段替换，版本 / 截图 / URL / 作者等非语言字段仍由 index.html 单一来源提供。
+// EN_FEATURE_LIST 必须与 index.html 的 featureList 一一对应，条数不一致时生成阶段直接报错（见下方守卫）。
+const EN_BROWSER_REQUIREMENTS =
+  'Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.';
+const EN_FEATURE_LIST = [
+  'One-click login: autofill + tick "remember me / I agree" + click sign in',
+  'Exact-host matching keeps dev / test / staging / prod accounts apart',
+  'Three cross-subdomain tiers: exact only, exact + wildcard entries (*.qq.com), or same root domain',
+  'Built-in TOTP 2FA (RFC 6238); add secrets by QR scan or image upload',
+  'Per-field AES-256-GCM encryption at rest, keyed by PBKDF2-SHA256 with 600,000 iterations',
+  'Offline security audit: a 0-100 score weighted across four dimensions, computed on your machine',
+  'Password generator: random passwords and a passphrase mode',
+  'Four fill paths: inline panel, side panel, context menu, keyboard shortcut',
+  'Site rules: per-domain custom selectors for login forms heuristic detection misses',
+  'CSV / JSON import and export with field auto-detection for common password-manager exports',
+  'Encrypted .aph backup and restore, plus email backup composed locally via mailto',
+  'Side panel opens instantly in every state (~20-50ms to data on the cached warm path)',
+  'Six color themes and a bilingual 中文 / English interface',
+  'Identity vault: ID, bank card and other personal details in a separate encrypted store',
+];
+
+const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored from the Chinese HowTo block in index.html -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "How to install the Account Password Helper Chrome extension",
+        "description": "Install Account Password Helper from the Chrome Web Store in one click, or download from GitHub Releases for manual installation.",
+        "step": [
+          {
+            "@type": "HowToStep",
+            "name": "Install the extension",
+            "text": "Visit the Chrome Web Store page and click 'Add to Chrome'; or download the zip from GitHub Releases and load it via developer mode in chrome://extensions/."
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Set your master password",
+            "text": "On first launch, click the extension icon to open the management page, set a master password (at least 8 characters with letters, numbers and a special character) and choose the session validity period."
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Import or add accounts",
+            "text": "Add accounts manually, or import CSV/JSON files from Chrome, LastPass, Bitwarden or 1Password in one click."
+          },
+          {
+            "@type": "HowToStep",
+            "name": "Start using it",
+            "text": "Visit a login page and fill your credentials via inline fill, the side panel, or the Ctrl+Shift+F shortcut; for auto sign-in, click 'Fill and sign in' or turn on the 'Auto login trigger' preference."
+          }
+        ]
+      }
+    </script>
+`;
 
 let html = readFileSync(srcPath, 'utf8');
+// 结构化数据与可见 FAQ 共用同一份条目，避免两处文案漂移
+const faqEntries = selectFaqEntries(parseFaqEntries(html));
 
 // ---------- 1. 提取 I18N 字典（纯对象字面量区域） ----------
 const dictStart = html.indexOf('const I18N = {');
@@ -39,35 +100,16 @@ if (dictEnd === -1) throw new Error('未找到 I18N 字典终点');
 const I18N = vm.runInNewContext(`(${html.slice(bodyStart, dictEnd + 1)})`);
 
 // ---------- 2. 替换静态 i18n 节点 ----------
-const escapeHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-const missing = [];
-let replacedText = 0;
-let replacedHtml = 0;
+const result = applyI18n(html, I18N);
+assertI18nCoverage(result, 'I18N');
+const { replacedText, textTotal, replacedHtml, htmlTotal } = result;
+html = result.html;
 
-const totalText = (html.match(/\bdata-i18n="/g) || []).length;
-const totalHtml = (html.match(/\bdata-i18n-html="/g) || []).length;
-
-html = html.replace(/(<[a-zA-Z][^>]*\bdata-i18n="([^"]+)"[^>]*>)([\s\S]*?)(?=<\/)/g, (m, open, key) => {
-  const entry = I18N[key];
-  if (typeof entry?.en !== 'string') {
-    missing.push(key);
-    return m;
-  }
-  replacedText += 1;
-  return open + escapeHtml(entry.en);
-});
-html = html.replace(/(<[a-zA-Z][^>]*\bdata-i18n-html="([^"]+)"[^>]*>)([\s\S]*?)(?=<\/)/g, (m, open, key) => {
-  const entry = I18N[key];
-  if (typeof entry?.en !== 'string') {
-    missing.push(key);
-    return m;
-  }
-  replacedHtml += 1;
-  return open + entry.en;
-});
-if (missing.length > 0) throw new Error(`I18N 字典缺少英文条目: ${missing.join(', ')}`);
-if (replacedText !== totalText) throw new Error(`data-i18n 覆盖率不一致: ${replacedText}/${totalText}`);
-if (replacedHtml !== totalHtml) throw new Error(`data-i18n-html 覆盖率不一致: ${replacedHtml}/${totalHtml}`);
+// ---------- 2.5 FAQ 静态 DOM：中文生成区整体换成英文 ----------
+// 生成区是纯静态字节（页内 FAQS 数组在 <script> 里，不受 applyI18n 影响），
+// 与 FAQPage JSON-LD 同样取自 FAQS，保证「可见内容 / 结构化数据」两处语言一致。
+const faqDom = syncFaqDom(html, 'en');
+html = faqDom.html;
 
 // ---------- 3. head 元信息与结构化数据 ----------
 const replaceOnce = (pattern, replacement) => {
@@ -104,13 +146,46 @@ replaceOnce(
   `name="twitter:description"\n      content="${I18N['meta.description'].en}"`,
 );
 replaceOnce(/rel="canonical"\s+href="[^"]*"/, `rel="canonical"\n      href="${SITE}/en.html"`);
-replaceOnce(
-  /"description": "开源免费的本地密码管理器：一键登录（填充\+勾选\+点击），PBKDF2 600K 迭代 \+ AES-256-GCM 加密零联网，TOTP 两步验证、安全体检与密码生成器，侧边栏秒开（缓存快路径 20-50ms），数据绝不出浏览器。",/,
-  `"description": "${EN_JSONLD_DESCRIPTION}",`,
+
+// 页内跳转改为英文兄弟页面，避免英文页链向中文页
+const replaceEvery = (from, to) => {
+  if (!html.includes(from)) throw new Error(`未匹配到替换目标: ${from}`);
+  html = html.replaceAll(from, to);
+};
+replaceEvery('href="./privacy.html"', 'href="./privacy.en.html"');
+replaceEvery('href="./pricing.html"', 'href="./pricing.en.html"');
+replaceEvery('href="./compare.html"', 'href="./compare.en.html"');
+replaceEvery('href="./blog/"', 'href="./blog/index.en.html"');
+// 跨域代理助手有英文产品页，英文页指过去；Transfer Any File 暂无英文页（实测 404），保持基础 URL
+replaceEvery(
+  'href="https://liaolongdong.github.io/cross-origin-proxy/"',
+  'href="https://liaolongdong.github.io/cross-origin-proxy/en.html"',
 );
-// 英文版移除中文 FAQPage / HowTo 结构化数据块，避免语言错配
-replaceOnce(/[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/, '');
-replaceOnce(/[ \t]*<!-- HowTo 结构化数据[\s\S]*?<\/script>\n/, '');
+// ---------- SoftwareApplication：语言相关字段换成英文 ----------
+// featureList 由本脚本单独维护一份英文，条数不一致即视为中文源已变更而英文未跟进，直接失败
+const zhFeatureList = html.match(/"featureList": \[[\s\S]*?\],/)?.[0];
+if (!zhFeatureList) throw new Error('未找到 featureList，请检查 index.html 的 SoftwareApplication 块');
+const zhFeatureCount = (zhFeatureList.match(/\n\s{10}"/g) || []).length;
+if (zhFeatureCount !== EN_FEATURE_LIST.length)
+  throw new Error(
+    `featureList 条数不一致：index.html ${zhFeatureCount} 条 vs 本脚本 ${EN_FEATURE_LIST.length} 条，请同步英文文案`,
+  );
+
+// name / alternateName 对调：英文页以英文名为主名，中文名进 alternateName，与中文页互为镜像（同一实体的双名声明）
+replaceOnce(
+  /"name": "账号密码管理助手",\n(\s*)"alternateName": "Account Password Helper",/,
+  '"name": "Account Password Helper",\n$1"alternateName": "账号密码管理助手",',
+);
+replaceOnce(/"browserRequirements": "[^\n]*",/, `"browserRequirements": "${EN_BROWSER_REQUIREMENTS}",`);
+replaceOnce(
+  /"featureList": \[[\s\S]*?\],/,
+  `"featureList": [\n${EN_FEATURE_LIST.map(feature => `          ${JSON.stringify(feature)}`).join(',\n')}\n        ],`,
+);
+replaceOnce(/"description": "开源免费的本地密码管理器[^\n]*",/, `"description": "${EN_JSONLD_DESCRIPTION}",`);
+// 英文版：中文 FAQPage / HowTo 结构化数据块替换为英文版，避免语言错配
+// FAQPage 与可见 FAQ 同源（faqEntries 取自 FAQS 数组），文案不再单独维护
+replaceOnce(/[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/, () => buildFaqPageJsonLd(faqEntries, 'en'));
+replaceOnce(/[ \t]*<!-- HowTo 结构化数据[\s\S]*?<\/script>\n/, () => EN_HOWTO_JSONLD);
 // 静态英文页缺省语言固定为 en（仍尊重 ?lang 参数与 localStorage 显式选择）
 replaceOnce("return (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';", "return 'en';");
 
@@ -120,4 +195,6 @@ html = html.replace(
 );
 
 writeFileSync(outPath, html);
-console.log(`en.html generated: data-i18n ${replacedText}/${totalText}, data-i18n-html ${replacedHtml}/${totalHtml}`);
+console.log(
+  `en.html generated: data-i18n ${replacedText}/${textTotal}, data-i18n-html ${replacedHtml}/${htmlTotal}, FAQ DOM ${faqDom.count}`,
+);

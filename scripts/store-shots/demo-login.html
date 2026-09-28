@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Acme Admin Console — Sign in</title>
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="64x64"
+      href="/favicon.png"
+    />
+    <meta
+      name="robots"
+      content="noindex"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        background:
+          radial-gradient(1200px 600px at 15% 10%, #e8efff 0%, transparent 60%),
+          radial-gradient(900px 500px at 90% 90%, #e6fbf4 0%, transparent 55%), #f6f8fc;
+        color: #0f172a;
+      }
+      .card {
+        width: 380px;
+        padding: 40px 36px 32px;
+        background: #fff;
+        border: 1px solid #e6eaf2;
+        border-radius: 16px;
+        box-shadow: 0 18px 40px rgb(15 23 42 / 8%);
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 26px;
+      }
+      .mark {
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, #2563eb, #0ea5e9);
+      }
+      .brand-name {
+        font-size: 16px;
+        font-weight: 650;
+        letter-spacing: -0.01em;
+      }
+      .card h1 {
+        margin: 0 0 6px;
+        font-size: 22px;
+        font-weight: 680;
+        letter-spacing: -0.02em;
+      }
+      .sub {
+        margin: 0 0 26px;
+        font-size: 13.5px;
+        color: #64748b;
+      }
+      .card label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 7px;
+      }
+      .card input[type='email'],
+      .card input[type='password'] {
+        width: 100%;
+        height: 42px;
+        padding: 0 12px;
+        font-size: 14px;
+        color: #0f172a;
+        background: #fff;
+        border: 1px solid #d7dee9;
+        border-radius: 9px;
+        outline: none;
+      }
+      .card input[type='email'] {
+        margin-bottom: 18px;
+      }
+      .card input:focus {
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgb(37 99 235 / 12%);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 18px 0 22px;
+        font-size: 13px;
+      }
+      .remember {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #475569;
+        font-weight: 500;
+      }
+      .remember input {
+        width: 15px;
+        height: 15px;
+        accent-color: #2563eb;
+      }
+      .card a {
+        color: #2563eb;
+        text-decoration: none;
+        font-weight: 550;
+      }
+      .card button {
+        width: 100%;
+        height: 44px;
+        font-size: 15px;
+        font-weight: 640;
+        color: #fff;
+        background: #2563eb;
+        border: 0;
+        border-radius: 9px;
+        cursor: pointer;
+      }
+      .status {
+        margin: 18px 0 0;
+        padding: 10px 12px;
+        font-size: 13px;
+        color: #14532d;
+        text-align: center;
+        background: #ecfdf5;
+        border: 1px solid #a7f3d0;
+        border-radius: 9px;
+      }
+      .foot {
+        margin-top: 22px;
+        text-align: center;
+        font-size: 12.5px;
+        color: #94a3b8;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <div class="brand">
+        <div class="mark"></div>
+        <div class="brand-name">Acme Admin Console</div>
+      </div>
+      <h1>Sign in</h1>
+      <p class="sub">Use your work account to continue.</p>
+
+      <form onsubmit="return false;">
+        <label for="email">Email</label>
+        <input
+          id="email"
+          type="email"
+          name="email"
+          autocomplete="username"
+          placeholder="you@example.com"
+        />
+
+        <label for="password">Password</label>
+        <input
+          id="password"
+          type="password"
+          name="password"
+          autocomplete="current-password"
+          placeholder="Enter your password"
+        />
+
+        <div class="row">
+          <label class="remember">
+            <input
+              type="checkbox"
+              name="remember"
+              id="remember"
+            />
+            <span>Remember me</span>
+          </label>
+          <a href="#">Forgot password?</a>
+        </div>
+
+        <button type="submit">Sign in</button>
+      </form>
+
+      <p
+        class="status"
+        id="status"
+        role="status"
+        hidden
+      ></p>
+
+      <div class="foot">example.com · demo page for screenshots</div>
+    </main>
+
+    <script>
+      // 仅在 ?demo=status 时启用：提交后显示登录状态，供 README 演示动图收尾。
+      // 分两拍（受理中 → 成功）是为了让动图拍得到「扩展点了登录」这件事本身。
+      // 默认不开启——商店截图（特别是自动保存弹窗那张）提交后要保持原样，
+      // 这个元素一出现会把卡片撑高、弹窗跟着位移。
+      if (new URLSearchParams(location.search).get('demo') === 'status') {
+        document.querySelector('form').addEventListener('submit', () => {
+          const el = document.getElementById('status');
+          const filled = document.getElementById('email').value && document.getElementById('password').value;
+          el.hidden = false;
+          if (!filled) {
+            el.textContent = 'Enter your account and password';
+            return;
+          }
+          el.textContent = 'Signing in...';
+          setTimeout(() => {
+            el.textContent = 'Signed in · demo environment';
+          }, 2500);
+        });
+      }
+    </script>
+  </body>
+</html>

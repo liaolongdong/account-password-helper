@@ -11,20 +11,20 @@ Please always upgrade to the latest version for the most up-to-date security fix
 
 ## Security Model
 
-Account Password Helper is a **local-first, zero network transfer** password manager. All sensitive data stays in your browser.
+Account Password Helper is a **local-first** password manager: credentials are encrypted and kept in your own browser, and no vault data ever leaves the device. The extension's only outbound request is an anonymous version check every 6 hours (see _Data Storage_ below).
 
 ### Encryption
 
 - **Key derivation**: PBKDF2 with 600,000 iterations (Web Crypto API) → 256-bit key from your master password + random salt
 - **Symmetric encryption**: AES-256-GCM authenticated encryption with random IV per field
 - **Encrypted fields**: username, password, URL, remark, TOTP secret
-- **Master password in memory**: derived via HKDF + SHA-256 into a session key, then AES-256-GCM encrypted before persisting to `chrome.storage.local`
+- **Master password**: never persisted in any recoverable form — only a PBKDF2-SHA256 verifier hash is stored, so a forgotten master password cannot be recovered
 
 ### Data Storage
 
 - All data is stored in `chrome.storage.local`, encrypted at rest
-- No data is ever sent over the network — no telemetry, no analytics, no cloud sync
-- Sensitive fields are automatically re-encrypted when the session expires
+- No telemetry, no analytics, no crash reporting, no cloud sync, no user data collection. The single outbound request is the automatic version check every 6 hours, which carries no vault contents, accounts, identifiers or analytics payload
+- Session expiry or locking discards the session key material and the decrypted in-memory cache; data on disk is ciphertext at rest throughout, so no bulk re-encryption ever occurs
 
 ### Session Management
 
@@ -34,7 +34,7 @@ Account Password Helper is a **local-first, zero network transfer** password man
 
 ### Permissions
 
-All Chrome permissions follow the principle of least privilege. Detailed justifications are available in the [CWS Privacy Documentation](./docs/CWS_FILL_CONTENT.md#第五步隐私惯例-privacy-practices).
+All Chrome permissions follow the principle of least privilege. Detailed justifications are available in the [CWS Privacy Documentation](../docs/CWS_FILL_CONTENT.md#第五步隐私惯例-privacy-practices).
 
 ## Reporting a Vulnerability
 

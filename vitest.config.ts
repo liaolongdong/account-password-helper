@@ -19,6 +19,9 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
+      // 口径限定：这份报告只统计 `utils/` 这一层纯领域逻辑，不代表整仓覆盖率。
+      // 它不进任何 CI 门禁（ci.yml 只跑 `pnpm test:run` 与 `tests/architecture`），
+      // 扩大到 entrypoints/composables 只会改变人工读数、不会拦住任何回归，故按需再议。
       include: ['utils/**/*.ts'],
       exclude: ['utils/**/*.d.ts'],
     },

@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { CopyDocument } from '@element-plus/icons-vue';
 import { useTotp } from '@/composables/useTotp';
 import { parseOtpAuth } from '@/utils/totp';
+import { activateOnKeydown } from '@/utils/a11y';
 import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
 
@@ -98,8 +99,12 @@ const handleCopy = async (): Promise<void> => {
       <el-icon
         v-if="copyable"
         class="totp-code__copy"
+        role="button"
+        tabindex="0"
         :title="t('sidepanel.item.copyTotp')"
+        :aria-label="t('sidepanel.item.copyTotp')"
         @click.stop="handleCopy"
+        @keydown.stop="activateOnKeydown($event, handleCopy)"
       >
         <CopyDocument />
       </el-icon>
@@ -199,6 +204,12 @@ const handleCopy = async (): Promise<void> => {
 
 .totp-code__copy:hover {
   color: var(--aph-primary);
+}
+
+.totp-code__copy:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 60%);
+  outline-offset: 1px;
+  border-radius: 2px;
 }
 
 .totp-code__invalid {

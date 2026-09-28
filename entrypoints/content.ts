@@ -3,26 +3,12 @@ import { FormDetector } from '@/entrypoints/content/FormDetector';
 import { LoginAutoSave } from '@/entrypoints/content/LoginAutoSave';
 import { getFloatingButtonManager, destroyFloatingButtonManager } from '@/entrypoints/content/floatingButtons';
 import { showSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
-import type { SavePromptData, SavePromptEditedData, NotificationType } from '@/entrypoints/content/types';
-import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
+import type { SavePromptData, SavePromptEditedData } from '@/entrypoints/content/types';
+import { rememberContextMenuTarget } from '@/entrypoints/content/contextMenuTarget';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import { logger } from '@/utils/logger';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { initLiteI18n } from '@/utils/i18n-lite';
-
-/** 委托通知最大文案长度（防止恶意 iframe 注入超长内容干扰/刷屏） */
-const MAX_DELEGATED_NOTIFICATION_LENGTH = 200;
-/** 委托通知频率限制：滑动窗口时长（毫秒） */
-const DELEGATED_NOTIFICATION_WINDOW_MS = 10_000;
-/** 委托通知频率限制：窗口内最大次数 */
-const DELEGATED_NOTIFICATION_MAX = 5;
-
-/** 合法通知类型集合，用于校验来自 iframe 的委托通知类型 */
-const VALID_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set(['success', 'warning', 'info', 'error']);
-
-/** 类型守卫：判断值是否为合法通知类型 */
-const isNotificationType = (value: unknown): value is NotificationType =>
-  typeof value === 'string' && VALID_NOTIFICATION_TYPES.has(value as NotificationType);
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -60,6 +46,19 @@ export default defineContentScript({
       { capture: true },
     );
 
+    // 右键菜单填充目标记忆：记录被右键的可编辑输入框（每个 frame 独立记录）。
+    // background 的 contextMenus.onClicked 只能拿到 frameId、拿不到具体元素，
+    // 由本监听补齐「填到哪个框」的信息；捕获阶段监听，避免页面脚本
+    // stopPropagation 导致漏记。非可编辑目标（右键空白处等）会清空记忆。
+    ctx.addEventListener(
+      document,
+      'contextmenu',
+      e => {
+        rememberContextMenuTarget(e.target);
+      },
+      { capture: true },
+    );
+
     // 被动预唤醒：用户切换回当前标签页时（页面变为可见），预唤醒 SW。
     // 覆盖用户从其他应用切回 Chrome 后直接使用快捷键 Cmd+Shift+L 打开侧边栏的场景，
     // 此时可能尚未聚焦表单输入框或 hover 悬浮按钮，需要 visibilitychange 作为兜底。
@@ -83,36 +82,10 @@ export default defineContentScript({
         logger.error('FloatingButtonManager 初始化失败:', error);
       });
 
-      // 委托通知频率限制状态（滑动窗口时间戳），防止恶意 iframe 高频伪造扩展通知
-      const delegatedNotificationTimes: number[] = [];
-      const canShowDelegatedNotification = (): boolean => {
-        const now = Date.now();
-        while (
-          delegatedNotificationTimes.length &&
-          now - delegatedNotificationTimes[0] > DELEGATED_NOTIFICATION_WINDOW_MS
-        ) {
-          delegatedNotificationTimes.shift();
-        }
-        if (delegatedNotificationTimes.length >= DELEGATED_NOTIFICATION_MAX) return false;
-        delegatedNotificationTimes.push(now);
-        return true;
-      };
-
       // 监听来自 iframe 的保存弹窗委托请求
       // iframe 中的 LoginAutoSave 捕获凭证后，通过 postMessage 委托顶层 frame 渲染弹窗，
       // 确保弹窗出现在整个页面右上角而非被限制在 iframe 小视口内
       ctx.addEventListener(window, 'message', event => {
-        // 处理来自 iframe 的通知委托（跨域场景也需要通知，故不做同主域名校验；
-        // 但严格校验入参类型/长度并限流，避免恶意 iframe 伪造或高频刷扩展通知）
-        if (event.data?.type === PostMessageType.SHOW_NOTIFICATION) {
-          const payload = event.data.data as { message?: unknown; type?: unknown } | undefined;
-          const rawMessage = typeof payload?.message === 'string' ? payload.message.trim() : '';
-          if (!rawMessage || !canShowDelegatedNotification()) return;
-          const type: NotificationType = isNotificationType(payload?.type) ? payload.type : 'info';
-          showNativeNotification(rawMessage.slice(0, MAX_DELEGATED_NOTIFICATION_LENGTH), type);
-          return;
-        }
-
         // 安全校验：仅接受同主域名 iframe 的委托请求
         if (!isSameMainDomain(event.origin, location.origin)) return;
         if (event.data?.type !== PostMessageType.SHOW_SAVE_PROMPT) return;

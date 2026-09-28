@@ -1,0 +1,11 @@
+<!--
+  同作者产品「跨域代理助手 / Cross-Origin Proxy」的官方扩展图标（cp 原样复制，未改一个字节）。
+  来源：chrome-plugins/cross-origin-proxy · public/icon.svg · commit 5a13282 · md5 5dfb020fcf3ef57d6f9de3f501a627ec
+  许可：MIT（Copyright (c) liaolongdong，与本源同属一位作者）；署名与出处见 ./README.md
+  用途：仅 index.html / en.html 的「作者的其他插件」互链卡；不进扩展构建闭包（assets/ 不经打包器，除非被 import）
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <rect width="128" height="128" rx="16" fill="#409EFF"/>
+  <path d="M32 64h48M64 48l16 16-16 16" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M96 64H48M64 80L48 64l16-16" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+</svg>

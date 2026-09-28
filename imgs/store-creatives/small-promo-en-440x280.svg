@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" viewBox="0 0 440 280" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A1A38"/>
+      <stop offset="1" stop-color="#123E77"/>
+    </linearGradient>
+    <linearGradient id="primary2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#409EFF"/>
+      <stop offset="1" stop-color="#337ECC"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="440" height="280" fill="url(#bg2)"/>
+  <circle cx="432" cy="14" r="86" fill="#1E5FA8" opacity="0.22"/>
+  <circle cx="16" cy="272" r="64" fill="#1E5FA8" opacity="0.16"/>
+
+  <g>
+    <rect x="28" y="26" width="42" height="42" rx="11" fill="url(#primary2)"/>
+    <g transform="translate(28,26) scale(0.328125)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+    <text x="82" y="48" font-size="19" font-weight="700" fill="#FFFFFF">Account Password Helper</text>
+    <text x="82" y="64" font-size="11" font-weight="600" fill="#7FB6FF">账号密码管理助手</text>
+  </g>
+
+  <text x="28" y="127" font-size="24" font-weight="700" fill="#FFFFFF">Passwords stay in your browser</text>
+  <text x="28" y="152" font-size="13" fill="#A9BEDD">Encrypted locally · never uploaded · no sign-up</text>
+
+  <g font-size="12" font-weight="600" fill="#FFFFFF">
+    <g transform="translate(41,196)">
+      <circle r="13" fill="#1E4F8F"/>
+      <path d="M0 -8 l7.5 2.7 v6.4 c0 4.8 -3.2 8 -7.5 10.1 c-4.3 -2.1 -7.5 -5.3 -7.5 -10.1 v-6.4 z" fill="#6EE7B7"/>
+      <text x="21" y="4.5">AES-256-GCM</text>
+    </g>
+    <g transform="translate(172,196)">
+      <circle r="13" fill="#1E4F8F"/>
+      <path d="M2.5 -8.5 l-8 11 h5.5 l-2 9.5 l10 -13 h-6.5 z" fill="#FBBF24"/>
+      <text x="21" y="4.5">One-click login</text>
+    </g>
+    <g transform="translate(326,196)">
+      <circle r="13" fill="#1E4F8F"/>
+      <path d="M-3.5 -5.5 l-5 5.5 l5 5.5" fill="none" stroke="#7FB6FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M3.5 -5.5 l5 5.5 l-5 5.5" fill="none" stroke="#7FB6FF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="1" y1="-7" x2="-1" y2="7" stroke="#6EE7B7" stroke-width="2.2" stroke-linecap="round"/>
+      <text x="21" y="4.5">GPL-3.0</text>
+    </g>
+  </g>
+
+  <text x="28" y="248" font-size="11" fill="#C9D8EE">Free &amp; open source · 中文 / English interface</text>
+</svg>

@@ -11,7 +11,7 @@
     <div class="dialog-body-scroll">
       <el-form
         ref="localFormRef"
-        :model="localForm"
+        :model="formModel"
         :rules="formRules"
         label-width="100px"
         size="large"
@@ -24,7 +24,8 @@
             v-model="localForm.username"
             :placeholder="t('options.form.usernamePlaceholder')"
             :disabled="loading"
-            maxlength="50"
+            clearable
+            :maxlength="PASSWORD_FIELD_LIMITS.username"
             show-word-limit
           />
         </el-form-item>
@@ -44,11 +45,10 @@
             <el-input
               v-model="localForm.password"
               type="password"
-              :placeholder="t('options.form.passwordPlaceholder')"
+              :placeholder="t('options.form.passwordPlaceholder', { max: PASSWORD_FIELD_MAX_LENGTH })"
               show-password
               :disabled="loading"
-              maxlength="50"
-              show-word-limit
+              :maxlength="PASSWORD_FIELD_MAX_LENGTH"
               @focus="formPasswordInputFocused = true"
               @blur="formPasswordInputFocused = false"
             >
@@ -75,9 +75,13 @@
             v-model="localForm.url"
             :placeholder="t('options.form.urlPlaceholder')"
             :disabled="loading"
-            maxlength="100"
+            clearable
+            :maxlength="PASSWORD_FIELD_LIMITS.url"
             show-word-limit
           />
+          <div class="form-tip">
+            {{ t('form.urlWildcardHint') }}
+          </div>
         </el-form-item>
 
         <el-form-item
@@ -93,6 +97,8 @@
             clearable
             :disabled="loading"
             :multiple-limit="MAX_TAG_COUNT"
+            :no-data-text="t('common.noData')"
+            :no-match-text="t('common.noMatch')"
             :placeholder="t('options.form.tagPlaceholder', { max: MAX_TAG_COUNT })"
             style="width: 100%"
             @update:model-value="$emit('update:tagArray', $event)"
@@ -116,7 +122,7 @@
             :rows="3"
             :placeholder="t('options.form.remarkPlaceholder')"
             :disabled="loading"
-            maxlength="1000"
+            :maxlength="PASSWORD_FIELD_LIMITS.remark"
             show-word-limit
           />
         </el-form-item>
@@ -241,13 +247,17 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
+import type { PasswordFormModel, PasswordFormPatch } from '@/utils/types';
 import { View, Hide, Camera, Upload } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
 import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopover.vue';
 import TotpCode from '@/components/TotpCode.vue';
 import { isValidTotpInput } from '@/utils/totp';
+import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
 import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
+import { copySecretToClipboard } from '@/utils/clipboard';
+import { useClipboardFeedback } from '@/composables/useClipboardFeedback';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
@@ -266,8 +276,8 @@ const props = defineProps<{
   isEditing: boolean;
   /** 当前编辑的条目 ID（编辑模式下用于加载历史） */
   editingId?: string;
-  /** 表单数据 */
-  form: { username: string; password: string; url: string; tag: string; remark: string; totp: string };
+  /** 表单数据（父级 passwordForm；tag 字段由 tagArray 通道独占写入） */
+  form: PasswordFormModel;
   /** 表单校验规则 */
   formRules: FormRules;
   /** 提交加载状态 */
@@ -284,9 +294,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean];
-  'update:form': [
-    value: { username: string; password: string; url: string; tag: string; remark: string; totp: string },
-  ];
+  'update:form': [value: PasswordFormPatch];
   'update:tagArray': [value: string[]];
   save: [];
   closed: [];
@@ -294,15 +302,33 @@ const emit = defineEmits<{
 
 const { t } = useI18n();
 
-/** 本地表单模型，从 props 同步并通过事件回写 */
+/**
+ * 本地表单模型：仅持有弹窗自有（可回写）的字段
+ *
+ * `tag` 刻意不在其中——它由父级 `tagArray` computed setter 独占写入，弹窗只通过
+ * `update:tagArray` 事件转发用户选择，本地不留副本，因此结构上不存在陈旧镜像
+ * （历史缺陷：本地副本在用户选完标签后即过期，随全量回写把父级标签清空 / 回滚）。
+ * 校验模型所需的 `tag` 由下方 `formModel` 直接从 props 实时取值。
+ */
 const localForm = reactive({
   username: props.form.username,
   password: props.form.password,
   url: props.form.url,
-  tag: props.form.tag,
   remark: props.form.remark,
   totp: props.form.totp,
 });
+
+/**
+ * `el-form` 的校验模型：弹窗自有字段取本地副本，`tag` 取父级实时值
+ *
+ * `tag` 当前没有校验规则（约束归 `tagArray` setter，见 `createPasswordFormRules`），
+ * 此处补齐它只为了让 model 形状与 `PasswordFormModel` 一致：`prop="tag"` 的 form-item
+ * 能解析出真实值而非 undefined，将来若恢复 tag 规则也读到父级实时值而不是过期镜像。
+ * 注意：该 computed 每次求值都返回新对象，只可用作只读校验模型——
+ * 不可对本表单调用 `resetFields()`（EP 会向 model 写回初值，写入会落到临时对象上静默失效）；
+ * 重置请沿用父级的 `clearValidate()` + `resetPasswordForm()` 组合。
+ */
+const formModel = computed(() => ({ ...localForm, tag: props.form.tag }));
 
 /** props -> local 同步（父组件重置时生效，如编辑/新增切换） */
 watch(
@@ -311,15 +337,20 @@ watch(
     localForm.username = val.username;
     localForm.password = val.password;
     localForm.url = val.url;
-    localForm.tag = val.tag;
     localForm.remark = val.remark;
     localForm.totp = val.totp;
   },
 );
 
-/** local -> parent 同步 */
+/** local -> parent 同步：只回写弹窗自有字段，`tag` 经 update:tagArray 通道独占写入 */
 watch(localForm, val => {
-  emit('update:form', { ...val });
+  emit('update:form', {
+    username: val.username,
+    password: val.password,
+    url: val.url,
+    remark: val.remark,
+    totp: val.totp,
+  });
 });
 
 /** 本地表单引用 */
@@ -434,7 +465,10 @@ const handleQrFileSelected = async (event: Event) => {
 
 // ==================== 密码修改历史 ====================
 
-const { historyList, loadHistory, decryptHistoryPassword } = usePasswordHistory();
+const { historyList, loadHistory, resetHistory, decryptHistoryPassword } = usePasswordHistory();
+
+/** 剪贴板自动清除回执（与详情抽屉、身份库共用同一文案与级别） */
+const { notifyClipboardCleared } = useClipboardFeedback();
 
 /** 密码历史配置（控制是否展示历史区块） */
 const historyConfig = ref<{ enabled: boolean; maxCount: number }>({ enabled: true, maxCount: 3 });
@@ -447,11 +481,17 @@ const handleCopyHistory = async (item: { password: string; loading: boolean }, i
   historyList.value[index].loading = true;
   try {
     const plain = await decryptHistoryPassword(item.password);
-    if (plain) {
-      await navigator.clipboard.writeText(plain);
+    if (!plain) {
+      ElMessage.error(t('message.decryptFailed'));
+      return;
+    }
+    // 必须走 copySecretToClipboard：直接 navigator.clipboard.writeText 会绕过
+    // 「剪贴板设置」的限时自动清除，让历史明文永久留在剪贴板，与详情抽屉行为不一致
+    const ok = await copySecretToClipboard(plain, notifyClipboardCleared);
+    if (ok) {
       ElMessage.success(t('options.form.historyCopied'));
     } else {
-      ElMessage.error(t('message.decryptFailed'));
+      ElMessage.error(t('message.copyFailed'));
     }
   } finally {
     historyList.value[index].loading = false;
@@ -474,19 +514,38 @@ const handleRestoreHistory = async (item: { password: string; loading: boolean }
   }
 };
 
-/** 弹窗打开时，编辑模式下加载历史（需配置启用） */
+/**
+ * 弹窗打开时，编辑模式下加载历史（需配置启用）
+ *
+ * 两次 await 都是「手里的目标可能已经变了」的窗口，故本组件自持一个开关序号：
+ * 期间被关闭或换到另一条条目，旧的一次就地作废（配置不落地、历史不加载）。
+ * 打开时先 `resetHistory()`，同时作废仍在飞的上一账号读取——否则它的结果会先落到
+ * 已经可见的历史区块里，等新一批到达才替换掉，中间那一下闪的是别人的记录。
+ * 配置读取失败按保守档处理（不展示历史区块）并记日志，与详情抽屉同一口径。
+ */
+let historyOpenSeq = 0;
+
 watch(
   () => props.modelValue,
   async visible => {
-    if (visible && props.isEditing && props.editingId) {
-      // 读取密码历史配置：禁用时不加载历史记录
+    const seq = ++historyOpenSeq;
+    if (!visible) {
+      resetHistory();
+      return;
+    }
+    if (!props.isEditing || !props.editingId) return;
+    const targetId = props.editingId;
+    resetHistory();
+    try {
       const { getPasswordHistoryConfig } = await import('@/utils/storage/configManager');
-      historyConfig.value = await getPasswordHistoryConfig();
-      if (historyConfig.value.enabled) {
-        loadHistory(props.editingId);
-      }
-    } else if (!visible) {
-      historyList.value = [];
+      const config = await getPasswordHistoryConfig();
+      if (seq !== historyOpenSeq) return;
+      historyConfig.value = config;
+      // 读取密码历史配置：禁用时不加载历史记录
+      if (config.enabled) loadHistory(targetId);
+    } catch (error) {
+      if (seq !== historyOpenSeq) return;
+      logger.error('编辑弹窗：读取密码历史配置失败:', error);
     }
   },
 );
@@ -531,6 +590,15 @@ defineExpose({ formRef: localFormRef });
   font-size: 12px;
   line-height: 1.5;
   color: #909399;
+}
+
+/* 网址字段的通配条目引导：el-form-item__content 是 flex，需独占一行 */
+.form-tip {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--aph-text-muted);
 }
 
 .password-history-section {

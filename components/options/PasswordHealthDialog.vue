@@ -27,6 +27,7 @@
 
       <div
         v-else
+        ref="healthRootRef"
         class="health"
       >
         <!-- 评分区（hero） -->
@@ -131,16 +132,16 @@
               </template>
               <p class="panel-hint">{{ t('health.reuseHint') }}</p>
               <div
-                v-for="(group, gi) in report.reuseGroups"
+                v-for="(revealedGroup, gi) in revealed.reuse.groups"
                 :key="gi"
                 class="reuse-group"
               >
                 <div class="reuse-group__head">
                   <el-icon><WarningFilled /></el-icon>
-                  {{ t('health.reuseGroupHead', { count: group.count }) }}
+                  {{ t('health.reuseGroupHead', { count: revealedGroup.group.count }) }}
                 </div>
                 <div
-                  v-for="entry in group.entries"
+                  v-for="entry in revealedGroup.entries"
                   :key="entry.id"
                   class="issue-row"
                 >
@@ -162,7 +163,21 @@
                     {{ t('health.goFix') }}
                   </el-button>
                 </div>
+                <!--
+                  单组被预算切开时的读数字（不是可点按钮）：标题里的「N 个账号共用」说的是
+                  完整组，这里必须补一句「只列了前若干条」，否则用户会以为列全了。
+                -->
+                <p
+                  v-if="revealedGroup.hidden > 0"
+                  class="panel-truncated"
+                >
+                  {{ t('health.hiddenInGroup', { count: revealedGroup.hidden }) }}
+                </p>
               </div>
+              <HealthShowMore
+                :hidden="revealed.reuse.hidden"
+                @more="revealMore('reuse')"
+              />
             </el-collapse-item>
 
             <!-- 弱密码 -->
@@ -181,7 +196,7 @@
               <p class="panel-hint">{{ t('health.weakHint') }}</p>
               <div class="issue-card">
                 <div
-                  v-for="entry in report.weak"
+                  v-for="entry in revealed.weak.items"
                   :key="entry.id"
                   class="issue-row"
                 >
@@ -204,6 +219,10 @@
                   </el-button>
                 </div>
               </div>
+              <HealthShowMore
+                :hidden="revealed.weak.hidden"
+                @more="revealMore('weak')"
+              />
             </el-collapse-item>
 
             <!-- 常见泄露密码（命中 top-1000 离线字典） -->
@@ -224,7 +243,7 @@
               </p>
               <div class="issue-card">
                 <div
-                  v-for="entry in report.breached"
+                  v-for="entry in revealed.breached.items"
                   :key="entry.id"
                   class="issue-row"
                 >
@@ -247,11 +266,15 @@
                   </el-button>
                 </div>
               </div>
+              <HealthShowMore
+                :hidden="revealed.breached.hidden"
+                @more="revealMore('breached')"
+              />
             </el-collapse-item>
 
             <!-- 长时间未更新 -->
             <el-collapse-item
-              v-if="report.stale.length"
+              v-if="revealed.stale.items.length"
               name="stale"
               class="health-panel-stale"
             >
@@ -265,7 +288,7 @@
               <p class="panel-hint">{{ t('health.staleHint') }}</p>
               <div class="issue-card">
                 <div
-                  v-for="entry in report.stale"
+                  v-for="entry in revealed.stale.items"
                   :key="entry.id"
                   class="issue-row"
                 >
@@ -323,6 +346,10 @@
                   </div>
                 </div>
               </div>
+              <HealthShowMore
+                :hidden="revealed.stale.hidden"
+                @more="revealMore('stale')"
+              />
             </el-collapse-item>
           </el-collapse>
         </section>
@@ -343,7 +370,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onScopeDispose } from 'vue';
 import {
   Aim,
   CopyDocument,
@@ -357,16 +384,24 @@ import {
   Bell,
 } from '@element-plus/icons-vue';
 import type { HealthReport, HealthGrade } from '@/utils/passwordHealth';
+import { revealReuseGroups } from '@/utils/passwordHealth';
 import { setReminder, getReminders } from '@/utils/storage/reminderManager';
+import { scrollBehavior } from '@/utils/a11y';
+import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
+import HealthShowMore from '@/components/options/HealthShowMore.vue';
 
 /**
  * 密码健康仪表盘弹窗
  *
  * 展示由 `utils/passwordHealth.buildHealthReport` 计算出的安全评分、弱密码、
- * 密码复用、长时间未更新与未开启两步验证统计。所有数据均来自父组件已解密的
+ * 密码复用、常见泄露密码与长时间未更新统计。所有数据均来自父组件已解密的
  * 内存报告，本组件不做任何解密、存储或网络操作。点击「去处理」通过 `edit`
  * 事件通知父组件跳转到对应条目的编辑流程。
+ *
+ * 四个明细面板按行预算渐进渲染（首屏 100 行，点「显示更多」逐档加 100）：
+ * 2000 条上限下四类问题会覆盖同一批条目，全量渲染最多撑出 4 × 2000 行 DOM。
+ * 截断只影响一次渲染的行数，不影响任何计数读数——面板徽标始终是完整数量。
  */
 const props = defineProps<{
   /** 控制弹窗显示 */
@@ -394,6 +429,15 @@ const RING_C = 2 * Math.PI * RING_R;
 /** 当前展开的明细面板 */
 const activePanels = ref<string[]>([]);
 
+/** 明细区根节点：`scrollToIssue` 的定位作用域（不向全局 document 查同名 class） */
+const healthRootRef = ref<HTMLDivElement>();
+
+/** 环形开场动画待执行的帧句柄（关闭或重开时取消，0 表示无待执行帧） */
+let scoreFrame = 0;
+
+/** 打开流程代际：作废在弹窗已关闭 / 已重开后才落地的补间帧与提醒状态 */
+let openSeq = 0;
+
 /** 用于开场动画的评分（从 0 过渡到真实评分，驱动环形 dashoffset） */
 const animatedScore = ref(0);
 
@@ -419,6 +463,57 @@ const hasIssues = computed(
     props.report.breached.length > 0 ||
     props.report.stale.length > 0,
 );
+
+/**
+ * 明细面板一次渲染的行数上界
+ *
+ * 取 100 与管理页分页同口径。2000 条上限下，四个面板会覆盖同一批条目（一条弱、陈旧
+ * 又被复用的密码同时出现在三处），全量渲染就是最多 4 × 2000 行 DOM，其中「长时间未更新」
+ * 每行还各带一个 `el-dropdown`（各自一份弹层实例）。
+ *
+ * 上限只约束**一次渲染的行数**，不减任何读数：面板徽标仍是完整计数，截断处由
+ * `health.showMore` / `health.hiddenInGroup` 说明还剩多少。
+ */
+const DETAIL_ROW_BUDGET = 100;
+
+/** 每次点「显示更多」追加的行数预算 */
+const DETAIL_ROW_STEP = 100;
+
+/** 各面板当前可用的行预算（键为面板名；缺省为首屏档位） */
+const rowBudgets = ref<Record<string, number>>({});
+
+/**
+ * 读取某面板的行预算
+ * @param key 面板名（reuse / weak / breached / stale）
+ */
+const budgetOf = (key: string): number => rowBudgets.value[key] ?? DETAIL_ROW_BUDGET;
+
+/**
+ * 再展开一档
+ * @param key 面板名
+ */
+const revealMore = (key: string): void => {
+  rowBudgets.value = { ...rowBudgets.value, [key]: budgetOf(key) + DETAIL_ROW_STEP };
+};
+
+/**
+ * 四个明细面板本次要渲染的内容
+ *
+ * `reuse` 走按行消耗的窗口（单组就可能远超预算），其余三个是一维列表、直接切前缀；
+ * `hidden` 一律是「本面板尚未渲染的行数」。
+ */
+const revealed = computed(() => {
+  const r = props.report;
+  const weakBudget = budgetOf('weak');
+  const breachedBudget = budgetOf('breached');
+  const staleBudget = budgetOf('stale');
+  return {
+    reuse: revealReuseGroups(r.reuseGroups, budgetOf('reuse')),
+    weak: { items: r.weak.slice(0, weakBudget), hidden: Math.max(0, r.weak.length - weakBudget) },
+    breached: { items: r.breached.slice(0, breachedBudget), hidden: Math.max(0, r.breached.length - breachedBudget) },
+    stale: { items: r.stale.slice(0, staleBudget), hidden: Math.max(0, r.stale.length - staleBudget) },
+  };
+});
 
 /** hero 区摘要文案 */
 const summaryText = computed(() => {
@@ -498,6 +593,10 @@ function formatAge(days: number): string {
 
 /**
  * 展开并滚动到指定问题面板
+ *
+ * 定位限定在本组件明细区根节点内：`.health-panel-*` 虽目前只出现在这里，但全局
+ * `document.querySelector` 一旦命中其它上下文（同名类被复用、上一份 DOM 未回收），
+ * 就会把视口滚到用户看不见的节点上。
  * @param key 面板名（reuse / weak / stale）
  */
 async function scrollToIssue(key: string): Promise<void> {
@@ -505,8 +604,8 @@ async function scrollToIssue(key: string): Promise<void> {
     activePanels.value = [...activePanels.value, key];
   }
   await nextTick();
-  const el = document.querySelector(`.health-panel-${key}`);
-  el?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  const el = healthRootRef.value?.querySelector<HTMLElement>(`.health-panel-${key}`);
+  el?.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
 }
 
 /**
@@ -541,25 +640,46 @@ async function handleSetReminder(entryId: string, username: string, days: number
  * 加载各条目已有的提醒状态（弹窗打开时异步加载）
  *
  * 单次读取全量提醒映射表，避免逐条读取造成 N 次冗余 storage IO。
+ * `openSeqAtStart` 是发起时的打开代际：等待期间关闭或重开，则本轮结果不再落地，
+ * 否则上一份报告的「N 天后提醒」会铺到当前报告的同名条目上。
+ * @param openSeqAtStart 发起本轮加载时的打开流程代际
  */
-async function loadReminderStates(): Promise<void> {
-  const states: Record<string, string> = {};
-  const reminders = await getReminders();
-  for (const entry of props.report.stale) {
-    const reminder = reminders[entry.id];
-    if (reminder && !reminder.notified) {
-      const daysLeft = Math.max(0, Math.ceil((reminder.remindAt - Date.now()) / (24 * 60 * 60 * 1000)));
-      states[entry.id] = daysLeft > 0 ? t('health.remindDays', { days: daysLeft }) : t('health.reminderExpired');
+async function loadReminderStates(openSeqAtStart: number): Promise<void> {
+  try {
+    const states: Record<string, string> = {};
+    const reminders = await getReminders();
+    for (const entry of props.report.stale) {
+      const reminder = reminders[entry.id];
+      if (reminder && !reminder.notified) {
+        const daysLeft = Math.max(0, Math.ceil((reminder.remindAt - Date.now()) / (24 * 60 * 60 * 1000)));
+        states[entry.id] = daysLeft > 0 ? t('health.remindDays', { days: daysLeft }) : t('health.reminderExpired');
+      }
     }
+    if (openSeqAtStart !== openSeq) return;
+    reminderStates.value = states;
+  } catch (error) {
+    if (openSeqAtStart !== openSeq) return;
+    logger.error('加载密码到期提醒状态失败:', error);
+    // 读取失败退到「未设置提醒」，按钮仍显示「设置提醒」，不把整块明细卡在旧文案上
+    reminderStates.value = {};
   }
-  reminderStates.value = states;
 }
 
 /** 弹窗打开时：重置并触发环形开场动画、默认展开全部问题面板、加载提醒状态 */
 watch(
   () => props.modelValue,
   visible => {
+    const seq = ++openSeq;
+    // 关闭与重开都要作废上一轮的补间帧：否则隐藏中的弹窗会把分数补到上一份报告的评分上
+    if (scoreFrame) {
+      cancelAnimationFrame(scoreFrame);
+      scoreFrame = 0;
+    }
     if (!visible) return;
+    // 每次打开都从首屏档位重新开始：上次展开到的位置属于一次已结束的浏览
+    rowBudgets.value = {};
+    // 提醒文案随本轮加载重建，先清空可避免上一份报告的「N 天后提醒」闪一下
+    reminderStates.value = {};
     activePanels.value = ['reuse', 'weak', 'breached', 'stale'].filter(k => {
       if (k === 'reuse') return props.report.reuseGroups.length > 0;
       if (k === 'weak') return props.report.weak.length > 0;
@@ -568,14 +688,21 @@ watch(
     });
     animatedScore.value = 0;
     nextTick(() => {
-      requestAnimationFrame(() => {
+      scoreFrame = requestAnimationFrame(() => {
+        scoreFrame = 0;
+        if (seq !== openSeq) return;
         animatedScore.value = props.report.score;
       });
     });
     // 异步加载提醒状态（不阻塞弹窗打开）
-    loadReminderStates();
+    void loadReminderStates(seq);
   },
 );
+
+/** 组件销毁时收回待执行的补间帧，避免脱离本组件生命周期的回调 */
+onScopeDispose(() => {
+  if (scoreFrame) cancelAnimationFrame(scoreFrame);
+});
 </script>
 
 <style scoped>
@@ -877,6 +1004,14 @@ watch(
   margin: 0 0 10px;
   font-size: 12px;
   line-height: 1.6;
+  color: #909399;
+}
+
+/* 预算切进单个复用组内部时的读数行：比 hint 更轻，避免抢过「N 个账号共用」标题 */
+.panel-truncated {
+  padding: 4px 0 0;
+  margin: 0;
+  font-size: 12px;
   color: #909399;
 }
 

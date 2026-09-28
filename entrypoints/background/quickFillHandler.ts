@@ -34,17 +34,39 @@ import {
 /** 通知 ID 前缀 */
 const NOTIFICATION_ID = 'quick-fill';
 
+/**
+ * 「需要解锁」专用通知 ID
+ *
+ * 与通用通知分开的原因：
+ * - 点击行为不同：`backgroundServices` 的 `notifications.onClicked` 据此直达主密码验证页，
+ *   普通失败通知（无匹配/填充失败）点击后无既定目的地；
+ * - 语义可合并：多条「需解锁」通知共用同一 ID 时 Chrome 会就地更新而非堆叠，
+ *   避免用户连点多次填充后在通知中心里堆积同一提示。
+ */
+export const UNLOCK_NOTIFICATION_ID = 'unlock-required';
+
 /** badge 角标自动清除延时（毫秒） */
 const BADGE_CLEAR_DELAY_MS = 3000;
+
+/**
+ * 处于临时角标态时快照的持久角标文本
+ *
+ * null 表示当前没有进行中的临时角标。恢复时写回该值（版本更新的 "new" 或空串）。
+ */
+let _badgePersistedText: string | null = null;
+
+/** 进行中的临时角标恢复定时器（null 表示无） */
+let _badgeRestoreTimer: ReturnType<typeof setTimeout> | null = null;
 
 /**
  * 显示桌面通知
  * @param message 通知内容
  * @param title 通知标题（默认「一键填充」，供内联下拉等复用方覆盖）
+ * @param notificationId 通知 ID（默认「一键填充」，需点击直达解锁页时传 UNLOCK_NOTIFICATION_ID）
  */
-async function showNotification(message: string, title?: string): Promise<void> {
+async function showNotification(message: string, title?: string, notificationId?: string): Promise<void> {
   try {
-    await chrome.notifications.create(NOTIFICATION_ID, {
+    await chrome.notifications.create(notificationId ?? NOTIFICATION_ID, {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icon/128.png'),
       title: title ?? tl('bg.quickFill.title'),
@@ -56,26 +78,91 @@ async function showNotification(message: string, title?: string): Promise<void> 
 }
 
 /**
+ * 把一条提示下发到指定标签页的顶层 frame，并回报是否送达
+ *
+ * 抽出来的理由：内容脚本的「委托顶层渲染」（`DELEGATE_PAGE_NOTICE`）需要知道
+ * 投递结果，好决定是在自己这个 frame 里降级渲染、还是就此结束——而本模块自己的
+ * 调用方只关心「别抛」，两种诉求共用同一份下发实现。
+ *
+ * @param tabId 目标标签页
+ * @param message 已本地化的提示文案
+ * @param type 提示类型（默认 warning）
+ * @returns 顶层 frame 是否已接收（content script 未注入、页面正在导航时为 false）
+ */
+export async function deliverPageNotice(
+  tabId: number,
+  message: string,
+  type: 'success' | 'warning' | 'error' | 'info' = 'warning',
+): Promise<boolean> {
+  try {
+    await chrome.tabs.sendMessage(
+      tabId,
+      { type: MessageType.SHOW_PAGE_NOTICE, data: { message, type } },
+      {
+        frameId: 0,
+      },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 在页面内显示一条提示条（不依赖操作系统通知权限的兜底反馈通道）
+ *
+ * 桌面通知在 macOS 专注模式 / 通知权限关闭下会整通道失效，工具栏角标在扩展
+ * 未固定到工具栏时不可见；页面内提示条是三者中唯一不受系统与浏览器 UI 状态影响的通道。
+ * 仅下发到顶层 frame（提示条需要用户可见的完整视口，且载荷不含任何凭证数据），
+ * content script 未注入时静默降级为「通知 + 角标」双通道。
+ *
+ * @param tabId 目标标签页
+ * @param message 已本地化的提示文案
+ * @param type 提示类型（默认 warning）
+ */
+export async function showPageNotice(
+  tabId: number,
+  message: string,
+  type: 'success' | 'warning' | 'error' | 'info' = 'warning',
+): Promise<void> {
+  if (!(await deliverPageNotice(tabId, message, type))) {
+    // 顶层 frame 未注入 content script（扩展更新后的旧标签页等），降级为通知 + 角标
+    logger.debug('Background: 页面内提示条下发失败，仅用通知与角标反馈');
+  }
+}
+
+/**
  * 在扩展工具栏图标上短暂显示结果角标
  *
  * 不依赖系统通知的兜底反馈通道：系统通知被关闭（macOS 常见）时，
  * 用户仍能通过工具栏角标感知填充成功/失败。
  *
- * 角标为全局单例状态：显示前快照既有角标（如版本更新的持久 "new" 蓝底角标，
+ * 角标为全局单例状态：首次进入临时态时快照既有角标（如版本更新的持久 "new" 蓝底角标，
  * 见 backgroundServices.showUpdateBadge），延时后恢复原角标与背景色而非直接清空，
  * 避免临时反馈永久抹掉持久角标。
  *
+ * 重叠调用（连点、快捷键与右键菜单同窗口内相继触发）只续期不重新快照：
+ * 否则后一次会把前一次的临时角标当成持久角标快照，恢复时把临时结果永久留在图标上。
+ *
  * @param success 是否成功（✓ 绿色 / ! 红色）
  */
-async function showBadgeFeedback(success: boolean): Promise<void> {
+export async function showBadgeFeedback(success: boolean): Promise<void> {
   try {
-    const prevText = await chrome.action.getBadgeText({}).catch(() => '');
+    const pendingTimer = _badgeRestoreTimer;
+    if (pendingTimer !== null) {
+      clearTimeout(pendingTimer);
+    } else {
+      _badgePersistedText = await chrome.action.getBadgeText({}).catch(() => '');
+    }
     await chrome.action.setBadgeBackgroundColor({ color: success ? '#67c23a' : '#f56c6c' }).catch(() => {});
     await chrome.action.setBadgeText({ text: success ? '✓' : '!' }).catch(() => {});
-    setTimeout(() => {
+    _badgeRestoreTimer = setTimeout(() => {
+      _badgeRestoreTimer = null;
+      const persistedText = _badgePersistedText ?? '';
+      _badgePersistedText = null;
       // 恢复既有角标（版本更新角标为蓝底，颜色与 showUpdateBadge 保持一致），无则清空
       void chrome.action.setBadgeBackgroundColor({ color: '#409eff' }).catch(() => {});
-      void chrome.action.setBadgeText({ text: prevText }).catch(() => {});
+      void chrome.action.setBadgeText({ text: persistedText }).catch(() => {});
     }, BADGE_CLEAR_DELAY_MS);
   } catch (error) {
     logger.debug('Background: 一键填充角标反馈失败:', error);
@@ -85,13 +172,14 @@ async function showBadgeFeedback(success: boolean): Promise<void> {
 /**
  * 统一的失败反馈：桌面通知 + 失败角标
  *
- * 导出供内联下拉快捷键处理（inlineDropdownHandler）复用同一反馈通道。
+ * 导出供内联下拉快捷键处理（inlineDropdownHandler）与右键菜单（contextMenuManager）复用同一反馈通道。
  * @param message 通知内容
  * @param title 通知标题（默认「一键填充」）
+ * @param notificationId 通知 ID（需点击直达解锁页时传 UNLOCK_NOTIFICATION_ID）
  */
-export async function notifyFailure(message: string, title?: string): Promise<void> {
+export async function notifyFailure(message: string, title?: string, notificationId?: string): Promise<void> {
   void showBadgeFeedback(false);
-  await showNotification(message, title);
+  await showNotification(message, title, notificationId);
 }
 
 /**
@@ -112,10 +200,12 @@ export async function getActiveTab(): Promise<chrome.tabs.Tab | null> {
 
 /**
  * 从标签页 URL 中提取 hostname
+ *
+ * 导出供右键菜单填充（contextMenuManager）复用。
  * @param url 标签页 URL
  * @returns hostname 或空字符串
  */
-function extractHostname(url: string | undefined): string {
+export function extractHostname(url: string | undefined): string {
   if (!url) return '';
   try {
     return new URL(url).hostname;
@@ -124,8 +214,8 @@ function extractHostname(url: string | undefined): string {
   }
 }
 
-/** 从 URL 提取端口号（仅 localhost 场景使用） */
-function extractPortFromUrl(url: string | undefined): string {
+/** 从 URL 提取端口号（仅 localhost 场景使用），导出供右键菜单填充复用 */
+export function extractPortFromUrl(url: string | undefined): string {
   if (!url) return '';
   try {
     return new URL(url).port;
@@ -135,7 +225,12 @@ function extractPortFromUrl(url: string | undefined): string {
 }
 
 /**
- * 派生条目展示标题（与内联下拉 getMatchingAccounts 的标题规则一致）
+ * 派生条目展示标题（标签 / 网址 / 用户名择优）
+ *
+ * 只服务一键填充的「命中多条、已填首条」通知：内联下拉的元数据里刻意不再携带该字段
+ * （面板按用户名成行、标签/备注/网址分列渲染，从未读取过派生标题），
+ * 避免同一语义在两处下发后各自演化。
+ *
  * @param entry 密码条目
  * @returns 展示标题
  */
@@ -161,7 +256,7 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
   // 快捷键与 popup 都可能在 onStartup clearSession 完成前触发；必须在恢复旧持久
   // 会话或读取 SW 明文缓存之前经过同一启动安全门。
   if (!(await ensureCredentialAccessAfterStartupRelock())) {
-    await notifyFailure(tl('bg.quickFill.sessionExpired'));
+    await notifyFailure(tl('bg.quickFill.sessionExpiredUnlock'), undefined, UNLOCK_NOTIFICATION_ID);
     return;
   }
 
@@ -169,6 +264,8 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
   const tab = commandTab?.id ? commandTab : await getActiveTab();
   if (!tab?.id) {
     logger.warn('Background: 一键填充 - 无法获取当前标签页');
+    // 无活跃标签页时同样经「通知 + 角标」反馈，避免用户按下快捷键后零感知（与其它早退分支一致）
+    await notifyFailure(tl('bg.quickFill.noUrl'));
     return;
   }
   const tabId = tab.id;
@@ -192,8 +289,8 @@ export async function handleQuickFill(commandTab?: chrome.tabs.Tab): Promise<voi
       const { tryOpenInlineDropdown } = await import('./inlineDropdownHandler');
       const opened = await tryOpenInlineDropdown(tabId);
       if (opened !== 'opened') {
-        // 页面不可达 / 无登录字段时回退原通知链路，确保用户有感知
-        await notifyFailure(tl('bg.quickFill.sessionExpired'));
+        // 页面不可达 / 无登录字段时回退通知链路（可点击直达验证页），确保用户有感知
+        await notifyFailure(tl('bg.quickFill.sessionExpiredUnlock'), undefined, UNLOCK_NOTIFICATION_ID);
       }
       return;
     }

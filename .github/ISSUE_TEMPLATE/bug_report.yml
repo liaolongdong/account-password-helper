@@ -1,0 +1,119 @@
+name: 🐛 Bug 反馈 / Bug report
+description: Report something that doesn't work as documented. 报告填充、锁定、导入导出等处的问题。
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！请先读一句：**不要把真实密码、TOTP 密钥、导出的凭据文件或完整截图贴进 Issue。**
+        这是一个本地密码管理器，Issue 是公开的 —— 请先把演示数据换成 `example.com` / `dummy` 之类的占位值，再上传截图或日志。
+
+        Please read this first: **never paste real passwords, TOTP secrets, exported credential files, or unredacted screenshots into an issue.**
+        This repository is public. Redact or replace them with placeholder values before you attach anything.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 出问题的功能面 / Which area
+      description: 只影响分类，不影响处理优先级。
+      options:
+        - 自动填充 / Autofill & one-click login
+        - 侧边栏 / Side panel
+        - 管理页（增删改查、搜索、标签）/ Options page
+        - 两步验证 TOTP
+        - 会话与锁定 / Session & locking
+        - 加密、备份、导入导出 / Encryption, backup, import & export
+        - 安全体检 / Security audit
+        - 密码生成器 / Password generator
+        - 界面、主题与国际化 / UI, theme & i18n
+        - 安装与权限 / Installation & permissions
+        - 其他 / Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: 发生了什么 / What happened
+      description: 实际现象，以及你期望看到什么。
+      placeholder: |
+        实际：在 admin.example.com 的登录页按 Ctrl+Shift+F，账号填进去了但密码没有。
+        期望：账号与密码一起填入。
+    validations:
+      required: true
+      maxlength: 3000
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      description: |
+        请给出最小可复现路径。若涉及具体网站，用可公开访问的演示站点或自建的占位登录页，
+        不要贴内部系统地址；需要多步时逐步编号。
+      value: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: input
+    id: extension-version
+    attributes:
+      label: 扩展版本 / Extension version
+      description: 工具栏图标 → 「关于」，或浏览器扩展管理页里查看。例如 3.9.0。
+      placeholder: '3.9.0'
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: 浏览器与版本 / Browser and version
+      description: 例如 Chromium 138、Microsoft Edge 138、Firefox 141（本项目同时构建 Firefox 版）。
+      placeholder: 'Chrome 138.0.7204.97 (Official Build) (x86_64)'
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: 操作系统 / Operating system
+      placeholder: 'macOS 13.2 / Windows 11 23H2 / Ubuntu 24.04'
+    validations:
+      required: false
+
+  - type: dropdown
+    id: reproducibility
+    attributes:
+      label: 复现频率 / How often
+      options:
+        - 每次都能复现 / Always
+        - 偶尔出现 / Sometimes
+        - 只出现过一次 / Once
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / Logs
+      description: |
+        扩展管理页 → 「检查视图：Service Worker」的控制台输出，或问题页面上按 F12 看 Content Script 的报错。
+        贴之前请再确认一遍：里面没有密码、密钥或解密后的内容。
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: 提交前确认 / Pre-submission checks
+      options:
+        - label: 我已经搜索过现有 Issue，这不是重复报告
+          required: true
+        - label: 我已确认贴出的截图、日志和示例数据里没有真实凭据
+          required: true
+        - label: 涉及密码、密钥或数据丢失的问题，我优先走 .github/SECURITY.md 的私密渠道
+          required: false

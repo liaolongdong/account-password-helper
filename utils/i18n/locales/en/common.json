@@ -7,6 +7,7 @@
   "common.delete": "Delete",
   "common.edit": "Edit",
   "common.copy": "Copy",
+  "common.shareCard": "Share card",
   "common.update": "Update",
   "common.add": "Add",
   "common.close": "Close",
@@ -28,5 +29,7 @@
   "common.pwdMismatch": "The two passwords do not match",
   "common.quickFill": "Quick Fill",
   "common.showPassword": "Show password",
-  "common.hidePassword": "Hide password"
+  "common.hidePassword": "Hide password",
+  "common.noData": "No data",
+  "common.noMatch": "No match"
 }

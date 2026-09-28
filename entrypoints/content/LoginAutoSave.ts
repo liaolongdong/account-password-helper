@@ -3,6 +3,7 @@ import {
   type AutoSaveConfig,
   type CredentialStatusResponse,
   type DomainPattern,
+  type PendingCipherKeyResponse,
   type RuntimeMessage,
 } from '@/utils/types';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
@@ -10,22 +11,29 @@ import type {
   PendingCredentials,
   SavePromptControls,
   SavePromptData,
+  SavePromptPrecheckInfo,
   NotificationType,
 } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
 import { logger } from '@/utils/logger';
 import { hashStringLight } from '@/utils/crypto-light';
+import { decryptPendingCredential, encryptPendingCredential } from '@/utils/pendingCredentialCodec';
 import { USERNAME_SELECTORS, LOGIN_BUTTON_KEYWORDS, normalizeButtonText } from '@/entrypoints/content/formSelectors';
 import { showNativeNotification } from '@/entrypoints/content/NativeNotification';
 import { showSavePasswordPrompt, dismissSavePasswordPrompt } from '@/entrypoints/content/SavePasswordPrompt';
 import { isElementVisible } from './domUtils';
 import { tl } from '@/utils/i18n-lite';
 
-/** sessionStorage 中存储待确认凭证的 key */
+/** sessionStorage 中存储待确认凭证密文的 key */
 const PENDING_SAVE_KEY = '__aph_pending_save__';
 
-/** sessionStorage 中存储加密密钥的 key（与数据分离，增加攻击者发现难度） */
-const SESSION_CIPHER_KEY = '__aph_sk__';
+/**
+ * 旧版遗留在宿主页面 sessionStorage 中的密钥 key
+ *
+ * 曾经「密文 + 解密密钥」同放页面可达存储，页面任意脚本一次读取即可还原明文凭据。
+ * 密钥已改由 background 签发并只存 storage.session；此处仅用于一次性清除升级前残留。
+ */
+const LEGACY_PAGE_CIPHER_KEY = '__aph_sk__';
 
 /** 待确认凭证最大有效期（30 秒），超过则丢弃 */
 const PENDING_MAX_AGE_MS = 30_000;
@@ -33,72 +41,56 @@ const PENDING_MAX_AGE_MS = 30_000;
 /** 「暂不保存」后的冷却期（60 秒），冷却期内相同凭证不重复弹窗 */
 const DISMISS_COOLDOWN_MS = 60_000;
 
-// ── sessionStorage 轻量加密（防止明文凭据被宿主页面 XSS 直接读取） ──
+// ── 凭据密文的密钥（由 background 签发，绝不落入宿主页面可达的存储） ──
+
+/** 密钥申请的最大尝试次数：瞬态失败（后台冷启动、安装/更新瞬间）可重试，超预算则本文档内放弃 */
+const CIPHER_KEY_MAX_ATTEMPTS = 3;
 
 /**
- * 获取或创建会话加密密钥
+ * 当前文档的凭据密钥 Promise（同一文档内复用，避免每次读写都跨进程申请）
  *
- * 密钥为 32 字节随机值的 hex 编码，首次访问时生成并存入 sessionStorage，
- * 后续同 tab 会话内复用（支持传统页面导航后新 content script 实例解密）。
- * 密钥存储在 sessionStorage 中而非闭包内，是因为页面导航后 content script
- * 会重新注入（新实例），需要能解密前一个实例写入的数据。
- *
- * 安全边界：密钥与密文虽同在 sessionStorage，但分离存储 + 非标准编码
- * 显著提高了自动化 XSS 窃取的攻击成本（需同时发现两个 key 并理解编码方案）。
+ * 刻意缓存 Promise 而非结果：所有读写路径 await 同一个 Promise，续体按注册顺序执行，
+ * 因此 sessionStorage 的写入顺序与用户输入顺序一致（旧实现靠同步写入天然满足这一点）。
+ * 密钥只存在于内容脚本闭包与 background 的 storage.session 中，宿主页面无法读取。
  */
-function getSessionCipherKey(): string {
-  let key = sessionStorage.getItem(SESSION_CIPHER_KEY);
-  if (!key) {
-    const bytes = crypto.getRandomValues(new Uint8Array(32));
-    key = Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
-    sessionStorage.setItem(SESSION_CIPHER_KEY, key);
-  }
-  return key;
-}
+let _cipherKeyPromise: Promise<string | null> | null = null;
+/** 已发起的密钥申请次数（仅在未拿到密钥时递增） */
+let _cipherKeyAttempts = 0;
 
-/**
- * 加密字符串（XOR + base64）
- * @param plaintext 明文字符串
- * @returns base64 编码的密文
- */
-function encryptForSession(plaintext: string): string {
-  const key = getSessionCipherKey();
-  const data = new TextEncoder().encode(plaintext);
-  const keyBytes = new TextEncoder().encode(key);
-  const encrypted = new Uint8Array(data.length);
-  for (let i = 0; i < data.length; i++) {
-    encrypted[i] = data[i] ^ keyBytes[i % keyBytes.length];
-  }
-  // 转为 base64（兼容 sessionStorage 字符串存储）
-  let binary = '';
-  for (let i = 0; i < encrypted.length; i++) {
-    binary += String.fromCharCode(encrypted[i]);
-  }
-  return btoa(binary);
-}
-
-/**
- * 解密字符串（base64 + XOR）
- * @param ciphertext base64 编码的密文
- * @returns 明文字符串，解密失败返回 null
- */
-function decryptFromSession(ciphertext: string): string | null {
+/** 向 background 申请一次当前 tab + origin 的凭据密钥 */
+async function requestCipherKey(): Promise<string | null> {
   try {
-    const key = getSessionCipherKey();
-    const binary = atob(ciphertext);
-    const encrypted = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      encrypted[i] = binary.charCodeAt(i);
-    }
-    const keyBytes = new TextEncoder().encode(key);
-    const decrypted = new Uint8Array(encrypted.length);
-    for (let i = 0; i < encrypted.length; i++) {
-      decrypted[i] = encrypted[i] ^ keyBytes[i % keyBytes.length];
-    }
-    return new TextDecoder().decode(decrypted);
+    if (!chrome.runtime?.id) return null;
+    const response = (await chrome.runtime.sendMessage({
+      type: MessageType.GET_PENDING_CIPHER_KEY,
+    })) as PendingCipherKeyResponse | undefined;
+    return typeof response?.key === 'string' && response.key ? response.key : null;
   } catch {
     return null;
   }
+}
+
+/**
+ * 取得（或复用）当前 tab + origin 的凭据密钥
+ *
+ * 失败结果不入缓存：后台不可达多为瞬态（SW 冷启动、扩展刚重载），钉死 null 会把既有的
+ * 「跳转后复现弹窗」能力整体降级。重试上限避免在后台长期不可用时退化成逐次击键的 RPC。
+ *
+ * @returns 64 位 hex 密钥；拿不到时返回 null，调用方据此放弃持久化（绝不退回明文存储），
+ *   代价仅落在「跳转后复现弹窗」这一增强路径，当前页面的弹窗流程不受影响
+ */
+function getCipherKey(): Promise<string | null> {
+  if (_cipherKeyPromise) return _cipherKeyPromise;
+  if (_cipherKeyAttempts >= CIPHER_KEY_MAX_ATTEMPTS) return Promise.resolve(null);
+  _cipherKeyAttempts++;
+
+  const attempt = requestCipherKey();
+  _cipherKeyPromise = attempt;
+  void attempt.then(key => {
+    // 仅当期间没有新的申请插进来时才清掉失败缓存，下一次读写可重试
+    if (!key && _cipherKeyPromise === attempt) _cipherKeyPromise = null;
+  });
+  return attempt;
 }
 
 /**
@@ -135,6 +127,14 @@ export class LoginAutoSave {
   private lastCapturedPasswordField: HTMLInputElement | null = null;
   /** 最近一次捕获的表单 DOM 引用（用于查找用户名字段以实时同步） */
   private lastCapturedForm: HTMLFormElement | null = null;
+  /**
+   * 待保存状态的变更代数（每次写入与每次清除各自递增）
+   *
+   * 密钥改由 background 签发后，写入前要多等一次跨进程往返；旧同步实现天然保证
+   * 「clearPending 一定落在写入之后」，这里用代数显式恢复该顺序：await 期间代数一旦变化，
+   * 说明已被更新的捕获或清除取代，陈旧写入必须丢弃，否则会复活本该删除的密文容器。
+   */
+  private pendingToken = 0;
   /** 字段同步监听器的清理函数列表 */
   private fieldSyncCleanups: (() => void)[] = [];
   /** MutationObserver 用于监听动态新增的密码字段并自动标记 data-aph-password */
@@ -165,6 +165,13 @@ export class LoginAutoSave {
     // 监听 runtime 消息，感知会话过期广播（闲时锁定、手动清除等场景）
     if (chrome?.runtime?.onMessage) {
       chrome.runtime.onMessage.addListener(this.handleRuntimeMessage);
+    }
+
+    // 清除升级前残留在宿主页面中的 XOR 密钥（密钥现由 background 签发，页面不该再持有）
+    try {
+      sessionStorage.removeItem(LEGACY_PAGE_CIPHER_KEY);
+    } catch {
+      // sessionStorage 不可用时忽略（如隐私模式）
     }
 
     // 标记页面上所有密码字段，确保 type 被切换为 text 后仍能通过组合选择器定位
@@ -313,6 +320,10 @@ export class LoginAutoSave {
    * 当用户在密码输入框中按 Enter 键时，尝试捕获凭证
    */
   private handleKeyDown = (e: KeyboardEvent): void => {
+    // 输入法合成期间的 Enter 是「上屏候选词」而非提交，此刻捕获会把半截拼音当成凭证，
+    // 故整段放行给 IME（与其他键盘入口同口径，由 imeKeyGuard 守卫钉住位置）
+    if (e.isComposing) return;
+
     if (!this.isEnabled || !this.configLoaded) return;
     if (e.key !== 'Enter') return;
 
@@ -419,22 +430,28 @@ export class LoginAutoSave {
       timestamp: Date.now(),
       mode: 'save',
     };
-    this.persistPending(pending);
+    void this.persistPending(pending);
 
     // 库级预检查：查询该域名+账号在密码库中的状态，决定是否/如何弹窗
     await this.evaluateAndPrompt(pending);
   }
 
   /**
-   * 将待确认凭证持久化到 sessionStorage
+   * 将待确认凭证加密后持久化到 sessionStorage
    *
    * 支持传统表单提交导航后，在目标页面由 checkPendingCredentials 恢复弹窗。
-   * sessionStorage 不可用时（如隐私模式）静默忽略。
+   * 密钥由 background 按 tab + origin 签发且只存 storage.session，页面侧只剩不可解的密文；
+   * 申请不到密钥（后台不可达 / 无法归属来源）时直接放弃持久化，绝不退回明文存储，
+   * 代价仅为「跳转后不再复现弹窗」，当前页面的弹窗流程不受影响。
+   * sessionStorage 不可用时（如隐私模式）同样静默忽略。
    * @param pending 待确认的凭证数据
    */
-  private persistPending(pending: PendingCredentials): void {
+  private async persistPending(pending: PendingCredentials): Promise<void> {
+    const token = ++this.pendingToken;
+    const key = await getCipherKey();
+    if (!key || token !== this.pendingToken) return;
     try {
-      sessionStorage.setItem(PENDING_SAVE_KEY, encryptForSession(JSON.stringify(pending)));
+      sessionStorage.setItem(PENDING_SAVE_KEY, encryptPendingCredential(JSON.stringify(pending), key));
     } catch {
       // sessionStorage 不可用时忽略（如隐私模式）
     }
@@ -473,10 +490,18 @@ export class LoginAutoSave {
    * - password_changed：以「更新」模式展示（用户未编辑时用已存标签/备注预填）
    * - new：以「保存」模式展示
    *
+   * 预检查一并返回的风险提示与去向提示作为独立参数向下传递，
+   * **不写入 pending 也不进 sessionStorage**：它们都是基于当次密码的派生结论，
+   * 一旦持久化就可能在用户改密码后变成陈旧数据；跳页恢复路径也会重新
+   * 进入本方法拿到新鲜值。
+   *
    * @param pending 待确认的凭证数据
    */
   private async evaluateAndPrompt(pending: PendingCredentials): Promise<void> {
-    const { status, existing } = await this.resolveCredentialStatus(pending.username, pending.password);
+    const { status, existing, risk, targetNote } = await this.resolveCredentialStatus(
+      pending.username,
+      pending.password,
+    );
 
     // await 期间可能收到 SESSION_EXPIRED 广播，二次确认避免过期后仍弹窗
     if (this.sessionExpired) {
@@ -506,8 +531,8 @@ export class LoginAutoSave {
     }
 
     // 回写带最终 mode/预填的 pending，确保传统导航后新页面恢复一致
-    this.persistPending(pending);
-    this.showPrompt(pending);
+    void this.persistPending(pending);
+    this.showPrompt(pending, { risk, targetNote });
   }
 
   /**
@@ -533,7 +558,12 @@ export class LoginAutoSave {
       const encrypted = sessionStorage.getItem(PENDING_SAVE_KEY);
       if (!encrypted) return;
 
-      const raw = decryptFromSession(encrypted);
+      // 密钥来自 background（只存 storage.session，页面不可读）。申请不到时不改写页面数据：
+      // 我们无权判定这条密文无效，而它本就受 30 秒 TTL 约束自然作废。
+      const key = await getCipherKey();
+      if (!key) return;
+
+      const raw = decryptPendingCredential(encrypted, key);
       if (!raw) {
         sessionStorage.removeItem(PENDING_SAVE_KEY);
         return;
@@ -582,12 +612,13 @@ export class LoginAutoSave {
   /**
    * 显示保存确认弹窗
    * @param pending 待确认的凭证数据（含标签和备注默认值）
+   * @param precheck 预检查得出的展示信息（风险提示、保存去向提示），仅用于弹窗内联展示
    */
-  private showPrompt(pending: PendingCredentials): void {
+  private showPrompt(pending: PendingCredentials, precheck: SavePromptPrecheckInfo = {}): void {
     // 如果在 iframe 中运行，委托给顶层 frame 渲染弹窗，
     // 避免弹窗被限制在 iframe 的小视口内（而非整个页面右上角）
     if (window !== window.top) {
-      this.delegatePromptToTopFrame(pending);
+      this.delegatePromptToTopFrame(pending, precheck);
       return;
     }
 
@@ -603,6 +634,8 @@ export class LoginAutoSave {
           tag: pending.tag,
           remark: pending.remark,
           mode: pending.mode ?? 'save',
+          risk: precheck.risk,
+          targetNote: precheck.targetNote,
         },
         editedData =>
           this.handleSave({
@@ -633,22 +666,20 @@ export class LoginAutoSave {
    * 用户操作结果通过 postMessage 回传，由当前实例执行保存/忽略/不再提示。
    *
    * @param pending 待确认的凭证数据
+   * @param precheck 预检查得出的展示信息，随 promptData 一同跨帧透传（接收方会再次校验）
    */
-  private delegatePromptToTopFrame(pending: PendingCredentials): void {
+  private delegatePromptToTopFrame(pending: PendingCredentials, precheck: SavePromptPrecheckInfo = {}): void {
     // 安全校验：仅在顶层 frame 与当前 frame 同主域名时才委托，
     // 防止跨域 iframe 场景下明文密码通过 postMessage 泄露给第三方页面
     // 使用 location.ancestorOrigins（Chrome 专有 API）获取顶层 origin，
     // 不会因跨子域名（如 account.aliyun.com ⊂ bailian.console.aliyun.com）抛出 SecurityError
     const ancestorOrigins = location.ancestorOrigins;
     const topOrigin = ancestorOrigins[ancestorOrigins.length - 1];
-    if (!topOrigin) {
-      // sandbox iframe 等极端情况禁止 ancestorOrigins 时回退
-      this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
-      return;
-    }
 
-    if (!isSameMainDomain(topOrigin, location.origin)) {
-      // 不同主域名的 iframe（如 attacker.com 嵌入 bank.com），不委托
+    if (!topOrigin || !isSameMainDomain(topOrigin, location.origin)) {
+      // 顶层 origin 解析不出（sandbox iframe 禁用 ancestorOrigins），或与之不同主域名
+      // （如 attacker.com 嵌入 bank.com）：两种情况下都不能把明文凭据跨帧广播，
+      // 只把这条不含凭证的提示委托出去
       this.delegateNotificationToTopFrame(tl('cs.notify.foundManualAdd', { url: pending.url }), 'warning');
       return;
     }
@@ -662,6 +693,8 @@ export class LoginAutoSave {
       tag: pending.tag,
       remark: pending.remark,
       mode: pending.mode ?? 'save',
+      risk: precheck.risk,
+      targetNote: precheck.targetNote,
     };
 
     /** 超时定时器 ID，用于 30s 后自动清理监听器 */
@@ -723,19 +756,33 @@ export class LoginAutoSave {
   /**
    * 将通知委托给顶层 frame 渲染
    *
-   * 当 iframe 中无法显示保存弹窗（跨域/沙箱限制）时，
-   * 优先通过 postMessage 委托顶层 frame 渲染通知，确保通知出现在整个页面右上角。
-   * postMessage 失败时回退到 iframe 内渲染。
+   * 当 iframe 中无法显示保存弹窗（跨域/沙箱限制）时，把一条不含凭证的提示委托给顶层
+   * frame 渲染，确保提示出现在整个页面右上角而非被限制在 iframe 的小视口内。
+   *
+   * 委托走 background，不再用 `window.top.postMessage`：postMessage 的载荷类型是包内
+   * 公开可得的字符串常量，宿主页面脚本一次 `postMessage({type:'APH_SHOW_NOTIFICATION'})`
+   * 就能冒充扩展在页面右上角说话；而 `chrome.runtime` 消息的 `sender.id` 由浏览器盖章，
+   * 页面世界无法伪造。后台据此以 `{ frameId: 0 }` 定向本标签页顶层 frame，投递目标
+   * 由浏览器而非我们解析的 origin 决定，sandbox / 跨域两种场景因此共用同一条安全路径。
+   * 后台不可达（扩展上下文失效）或未成功投递时回退到当前 frame 渲染——宁可位置降级。
    *
    * @param message - 通知消息内容
    * @param type - 通知类型
    */
   private delegateNotificationToTopFrame(message: string, type: NotificationType): void {
+    /** 降级路径：当前 frame 渲染 */
+    const renderLocally = (): void => showNativeNotification(message, type);
+
     try {
-      window.top!.postMessage({ type: PostMessageType.SHOW_NOTIFICATION, data: { message, type } }, '*');
+      chrome.runtime
+        .sendMessage({ type: MessageType.DELEGATE_PAGE_NOTICE, data: { message, type } })
+        .then((response: { success?: boolean } | undefined) => {
+          if (!response?.success) renderLocally();
+        })
+        .catch(renderLocally);
     } catch {
-      // postMessage 失败时回退到 iframe 内渲染
-      showNativeNotification(message, type);
+      // 扩展上下文已失效，sendMessage 同步抛错
+      renderLocally();
     }
   }
 
@@ -789,7 +836,7 @@ export class LoginAutoSave {
     const onPasswordInput = () => {
       controls.updatePassword(passwordField.value);
       // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
-      this.syncPendingToSession(passwordField.value);
+      void this.syncPendingToSession(passwordField.value);
     };
     passwordField.addEventListener('input', onPasswordInput);
     this.fieldSyncCleanups.push(() => {
@@ -805,7 +852,7 @@ export class LoginAutoSave {
       const onUsernameInput = () => {
         controls.updateUsername(usernameField.value);
         // 同步更新 sessionStorage，确保页面跳转后 checkPendingCredentials 读取到最新值
-        this.syncPendingToSession(undefined, usernameField.value);
+        void this.syncPendingToSession(undefined, usernameField.value);
       };
       usernameField.addEventListener('input', onUsernameInput);
       this.fieldSyncCleanups.push(() => {
@@ -825,16 +872,25 @@ export class LoginAutoSave {
    * @param password - 最新的密码值，undefined 表示不更新
    * @param username - 最新的用户名值，undefined 表示不更新
    */
-  private syncPendingToSession(password?: string, username?: string): void {
+  private async syncPendingToSession(password?: string, username?: string): Promise<void> {
+    // 先读容器再申请密钥：本方法由击键触发，没有待确认凭证时不该产生跨进程往返
+    let encrypted: string | null;
     try {
-      const encrypted = sessionStorage.getItem(PENDING_SAVE_KEY);
-      if (!encrypted) return;
-      const raw = decryptFromSession(encrypted);
+      encrypted = sessionStorage.getItem(PENDING_SAVE_KEY);
+    } catch {
+      return;
+    }
+    if (!encrypted) return;
+
+    const key = await getCipherKey();
+    if (!key) return;
+    try {
+      const raw = decryptPendingCredential(encrypted, key);
       if (!raw) return;
       const pending = JSON.parse(raw) as PendingCredentials;
       if (password !== undefined) pending.password = password;
       if (username !== undefined) pending.username = username;
-      sessionStorage.setItem(PENDING_SAVE_KEY, encryptForSession(JSON.stringify(pending)));
+      sessionStorage.setItem(PENDING_SAVE_KEY, encryptPendingCredential(JSON.stringify(pending), key));
     } catch {
       // sessionStorage 不可用时忽略（如隐私模式）
     }
@@ -950,6 +1006,8 @@ export class LoginAutoSave {
    * 清除 sessionStorage 中的待确认凭证
    */
   private clearPending(): void {
+    // 递增代数：让所有在途的异步写入作废（否则「等待密钥」期间的清除会被复活）
+    this.pendingToken++;
     try {
       sessionStorage.removeItem(PENDING_SAVE_KEY);
     } catch {

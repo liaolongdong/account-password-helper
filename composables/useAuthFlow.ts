@@ -1,6 +1,7 @@
 import { ref, computed, nextTick } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
 import { StorageUtils } from '@/utils/storage';
+import { lockSession } from '@/utils/sessionLock';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 
@@ -315,7 +316,15 @@ export function useAuthFlow(options: {
         type: 'warning',
       });
 
+      // B7：统一锁定编排先销毁会话密钥材料（内存镜像 + storage.session 的 DATA_KEY /
+      // SESSION_LOCK_STATE）并通知后台失效密码缓存，再清空 storage.local；
+      // 否则旧数据密钥与「假解锁」镜像会在重置后仍驻留至浏览器重启。
+      await lockSession();
       await StorageUtils.clearAllData();
+
+      // 让其它上下文（sidepanel / popup）同步进入未认证态
+      options.onSessionExpired?.();
+
       ElMessage.success(t('auth.resetDone'));
 
       await checkAuth();

@@ -40,5 +40,7 @@
   "health.allTotpOn": "All enabled",
   "health.noUsername": "(no username)",
   "health.ageYears": "Unchanged for over {years} year(s)",
-  "health.ageDays": "Unchanged for {days} days"
+  "health.ageDays": "Unchanged for {days} days",
+  "health.showMore": "Show more ({count} remaining)",
+  "health.hiddenInGroup": "{count} more accounts sharing this password are not listed"
 }

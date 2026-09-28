@@ -24,12 +24,17 @@ import {
   Link,
   Clock,
   Key,
+  Aim,
+  Grid,
+  Warning,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
 import type { PasswordEntry } from '@/utils/types';
+import type { SearchScope } from '@/utils/passwordFilter';
 import { getTagColor } from '@/utils/tagUtils';
 import { getPinyinRenderMemoDependency } from '@/utils/searchMatch';
 import { t } from '@/utils/i18n';
+import { scrollBehavior } from '@/utils/a11y';
 
 interface Props {
   /** 数据加载中状态 */
@@ -38,14 +43,34 @@ interface Props {
   filteredPasswords: PasswordEntry[];
   /** 全量密码条目数（区分「无数据引导」与「搜索无结果」空状态） */
   totalCount: number;
+  /** 最近一次权威加载是否失败（失败时展示「重试」而非「无账号·去新增」，B8） */
+  loadFailed: boolean;
+  /** 会话有效但无法解密的条目数（列表被静默变短时的可见化提示，B8） */
+  undecryptableCount: number;
   /** 当前键盘导航选中索引 */
   activeIndex: number;
   /** 全局「自动触发登录」是否开启（开启时隐藏每条冗余的「填充并登录」按钮） */
   autoTriggerLogin: boolean;
   /** 当前排序字段（用于下拉菜单高亮选中项） */
   sortProp: string;
-  /** 可选标签集（取自域名过滤后的条目；为空时隐藏标签筛选行） */
+  /** 可选标签集（取自当前搜索范围内的条目；为空时隐藏标签筛选行） */
   availableTags: string[];
+  /** 全库命中数（仅本站无结果时 > 0，用作空态的「搜索全部条目」引导） */
+  globalMatchCount: number;
+  /** 全站模式下无法填充当前页的外站条目 ID 集（本站模式为空集） */
+  offSiteIds: ReadonlySet<string>;
+  /** 跨子域命中（非精确层级）的条目 ID 集（`off` 档为空集，徽章据此查表） */
+  crossDomainIds: ReadonlySet<string>;
+  /** 放宽到「同主域名」档可额外带出的条目数（仅空态引导使用） */
+  crossDomainHintCount: number;
+  /**
+   * 已落地（防抖后）的关键词，与输入框即时值 `searchKeyword` 分离
+   *
+   * `filteredPasswords` 由父级按这一份关键词算出，故高亮、空态文案与 `v-memo`
+   * 依赖必须同样取它：若沿用输入框的即时值，防抖窗口内会出现「列表按上一个关键词
+   * 过滤、行内按刚打的字高亮」——刚输入的前缀在该批行上无命中，整列高亮闪没。
+   */
+  activeKeyword: string;
 }
 
 interface Emits {
@@ -57,6 +82,10 @@ interface Emits {
   addPassword: [];
   /** 无结果态「添加本站账号」（携带当前域名预填） */
   addSitePassword: [];
+  /** 空态深链：打开 Options 的跨子域匹配设置对话框 */
+  openDomainMatchSetting: [];
+  /** 加载失败态「重试」 */
+  retry: [];
   /** 鼠标悬停激活条目 */
   activate: [index: number];
   /** 认证视图首帧渲染完成（DOM flush + 首帧绘制，回传实际首帧渲染条目数，供性能埋点与骨架屏收尾） */
@@ -64,12 +93,16 @@ interface Emits {
   /** 以下为 PasswordListItem 事件透传 */
   fill: [password: PasswordEntry];
   fillAndLogin: [password: PasswordEntry];
+  /** 打开外站条目所属站点（全站模式下不可填充条目的整行动作） */
+  openSite: [password: PasswordEntry];
   edit: [password: PasswordEntry];
   toggleFavorite: [password: PasswordEntry];
   copyUsername: [username: string];
   copyPassword: [password: string];
   fillTotp: [password: PasswordEntry];
   copyTotp: [password: PasswordEntry];
+  /** 复制「用户名 / 密码 / 网址」分享卡片 */
+  shareCard: [password: PasswordEntry];
 }
 
 const props = defineProps<Props>();
@@ -84,10 +117,49 @@ const favoriteOnly = defineModel<boolean>('favoriteOnly', { required: true });
 /** 标签筛选选中集（双向绑定至父级，命中任一即保留） */
 const filterTags = defineModel<string[]>('filterTags', { required: true });
 
+/** 搜索范围（双向绑定至父级：site = 本站，all = 全库） */
+const searchScope = defineModel<SearchScope>('searchScope', { required: true });
+
+/** 范围切换按钮提示：与「只看收藏」一致，图标表当前状态、提示表即将执行的动作 */
+const scopeTooltip = computed(() =>
+  searchScope.value === 'all' ? t('sidepanel.scope.toSite') : t('sidepanel.scope.toAll'),
+);
+
+/** 切换搜索范围（本站 ⇄ 全站） */
+const toggleScope = () => {
+  searchScope.value = searchScope.value === 'all' ? 'site' : 'all';
+};
+
+/**
+ * 空态提示文案
+ *
+ * 有搜索词时补充拼音首字母线索：搜不到结果正是用户需要这条提示的时机；
+ * 仅有筛选条件而无搜索词时保持通用文案，不推送无关信息。
+ */
+const emptyHint = computed(() =>
+  props.activeKeyword.trim() ? t('sidepanel.noMatchDescSearch') : t('sidepanel.noMatchDesc'),
+);
+
+/**
+ * 条目能否填充到当前页
+ *
+ * 以布尔值（而非 offSiteIds 集合引用）参与 v-memo：仅当该行的能力真正变化时重渲染，
+ * 避免全站模式下每次过滤重算产生新 Set 导致整张列表无效重渲染。
+ */
+const canFill = (entry: PasswordEntry): boolean => !props.offSiteIds.has(entry.id);
+
+/**
+ * 条目是否由跨子域放宽带出（徽章依据）
+ *
+ * 与 `canFill` 同样以布尔值参与 v-memo：档位/域名变化会生成新 Set，
+ * 但只有该行自身的归属变化才触发重渲染。
+ */
+const isCrossDomain = (entry: PasswordEntry): boolean => props.crossDomainIds.has(entry.id);
+
 /**
  * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
  */
-const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(searchKeyword.value));
+const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(props.activeKeyword));
 
 /**
  * 切换单个筛选标签的选中态（点击即切，无需下拉选择）
@@ -130,8 +202,7 @@ const scrollActiveTagIntoView = (tag: string) => {
   const viewTop = strip.scrollTop;
   const viewBottom = viewTop + strip.clientHeight;
   if (chipTop < viewTop || chipBottom > viewBottom) {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    strip.scrollTo({ top: chipTop - strip.clientHeight / 2, behavior: reduceMotion ? 'auto' : 'smooth' });
+    strip.scrollTo({ top: chipTop - strip.clientHeight / 2, behavior: scrollBehavior() });
   }
 };
 
@@ -239,14 +310,55 @@ onUnmounted(() => {
   <!-- 搜索卡片 -->
   <div class="search-card">
     <div class="search-section">
+      <!--
+        placeholder 只承载「搜什么」的短清单：窄面板下会被硬裁切、且输入后即消失，
+        因此完整字段范围与拼音能力固定在 aria-label（读屏可完整播报，输入后不丢字段名）
+        与 title（悬停补充）上，拼音技巧本身则下放到「搜不到」的空态文案。
+        aria-label / title 保留全角 `、`：它们不受宽度约束，且读屏需要自然停顿，
+        所以同一控件的可见清单与朗读清单分隔符不同，属有意为之
+
+        四项是搜索范围的闭合清单（见 passwordFilter.applyListFilters）：一项都不能省，
+        也不用「…」暗示还有更多 —— 对密码工具，「还有更多」最容易被读成「密码也能搜」
+
+        不裁切条件实测为「面板宽 ≥ 文案宽 + 188px」（188 = 卡片外边距、内边距、行内
+        三个控件与 gap、wrapper 内边距、前缀图标之和），宽度按 PingFang SC /
+        Helvetica Neue 实测，逐语言各取最省写法：
+        - 中文以半角 `/` 替全角 `、`：154 → 133px（`、` 占满 1em，是中文独有的负担）
+        - 英文保留 `,` 并把复数收为单数：178.7 → 150.7px。拉丁文里 `, ` 本就接近半角，
+          换斜杠只省 9.4px、带空格反而更宽；而单数才是字段名形态，与排序菜单
+          「Username」「URL」、quickAdd 的 "Optional tag" / "Optional note" 同调
+        - 首词取 Account 而非 User（英文界面从未出现该词，且它指「人」不指「标识符」）
+          或 Username（虽与本 input 的 aria-label 同词，但 162.9px 刚好卡在阈值上，
+          省不出余量）；Account 与中文「账号」同指，保住中英配对
+        ::placeholder 再收 1px 字号（覆写在 assets/theme/tokens.css，扩展页输入框统一），
+        两语不裁切阈值降到 312 / 328px
+      -->
       <el-input
         ref="searchInputRef"
         v-model="searchKeyword"
         :placeholder="t('sidepanel.searchPlaceholder')"
+        :aria-label="t('sidepanel.searchAriaLabel')"
+        :title="t('sidepanel.searchAriaLabel')"
         :prefix-icon="Search"
         clearable
         @input="emit('search')"
       />
+      <el-tooltip
+        :content="scopeTooltip"
+        placement="top"
+        :show-after="400"
+      >
+        <el-button
+          :icon="searchScope === 'all' ? Grid : Aim"
+          circle
+          size="small"
+          :type="searchScope === 'all' ? 'primary' : 'default'"
+          :aria-label="scopeTooltip"
+          :aria-pressed="searchScope === 'all'"
+          class="scope-toggle-btn"
+          @click="toggleScope"
+        />
+      </el-tooltip>
       <el-tooltip
         :content="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
         placement="top"
@@ -257,6 +369,8 @@ onUnmounted(() => {
           circle
           size="small"
           :type="favoriteOnly ? 'warning' : 'default'"
+          :aria-label="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
+          :aria-pressed="favoriteOnly"
           @click="favoriteOnly = !favoriteOnly"
         />
       </el-tooltip>
@@ -274,6 +388,7 @@ onUnmounted(() => {
             :icon="Sort"
             circle
             size="small"
+            :aria-label="t('sidepanel.sortBy')"
           />
           <template #dropdown>
             <el-dropdown-menu>
@@ -342,6 +457,23 @@ onUnmounted(() => {
         </el-dropdown>
       </el-tooltip>
     </div>
+    <!-- 全站搜索状态条：显式告知当前范围并常驻「回到本站」出口，
+         避免用户把外站条目误当作可直接填充当前页的账号（图标 + 文案 + 按钮三重表达，不仅靠颜色） -->
+    <div
+      v-if="searchScope === 'all'"
+      class="scope-bar"
+      role="status"
+    >
+      <el-icon class="scope-bar__icon"><Grid /></el-icon>
+      <span class="scope-bar__text">{{ t('sidepanel.scope.barText') }}</span>
+      <button
+        type="button"
+        class="scope-bar__back"
+        @click="searchScope = 'site'"
+      >
+        {{ t('sidepanel.scope.backToSite') }}
+      </button>
+    </div>
     <!-- 标签筛选：多行 wrap 布局，max-height 限高约 2 行，超出部分纵向滚动；
          点击选中后自动滚入可视区，滚动条自身作为"更多内容"的提示 -->
     <div
@@ -386,8 +518,32 @@ onUnmounted(() => {
         v-else-if="filteredPasswords.length === 0"
         class="empty-state"
       >
+        <!-- 最近一次加载失败：给「重试」而非误报「无账号·去新增」（B8） -->
+        <template v-if="loadFailed">
+          <div class="empty-icon-circle empty-icon-circle--muted">
+            <el-icon class="empty-icon empty-icon--muted"><Refresh /></el-icon>
+          </div>
+          <h3 class="empty-title">{{ t('sidepanel.loadFailed') }}</h3>
+          <p class="empty-desc">{{ t('sidepanel.loadFailedDesc') }}</p>
+          <el-button
+            type="primary"
+            :icon="Refresh"
+            class="empty-add-btn"
+            @click="emit('retry')"
+          >
+            {{ t('sidepanel.retry') }}
+          </el-button>
+        </template>
+        <!-- 全部条目无法解密（密钥不符 / 密文损坏）：并非「没有数据」，引导恢复而非新增（B8） -->
+        <template v-else-if="totalCount === 0 && undecryptableCount > 0">
+          <div class="empty-icon-circle empty-icon-circle--muted">
+            <el-icon class="empty-icon empty-icon--muted"><Warning /></el-icon>
+          </div>
+          <h3 class="empty-title">{{ t('sidepanel.undecryptableTitle') }}</h3>
+          <p class="empty-desc">{{ t('sidepanel.undecryptableDesc', { count: undecryptableCount }) }}</p>
+        </template>
         <!-- 全部无数据：显示引导添加 -->
-        <template v-if="totalCount === 0">
+        <template v-else-if="totalCount === 0">
           <div class="empty-icon-circle">
             <el-icon class="empty-icon"><Key /></el-icon>
           </div>
@@ -408,7 +564,17 @@ onUnmounted(() => {
             <el-icon class="empty-icon empty-icon--muted"><Search /></el-icon>
           </div>
           <h3 class="empty-title">{{ t('sidepanel.noMatch') }}</h3>
-          <p class="empty-desc">{{ t('sidepanel.noMatchDesc') }}</p>
+          <p class="empty-desc">{{ emptyHint }}</p>
+          <!-- 本站无结果但全库有命中：给出行动出口，不让搜索停在死胡同（空屏即邀请） -->
+          <el-button
+            v-if="searchScope === 'site' && globalMatchCount > 0"
+            type="primary"
+            :icon="Grid"
+            class="empty-search-all-btn"
+            @click="searchScope = 'all'"
+          >
+            {{ t('sidepanel.scope.searchAllCta', { count: globalMatchCount }) }}
+          </el-button>
           <el-button
             type="primary"
             plain
@@ -418,6 +584,15 @@ onUnmounted(() => {
           >
             {{ t('sidepanel.addSiteAccount') }}
           </el-button>
+          <!-- 同主域还有账号但当前档位不放行：把跨子域匹配能力递到用户眼前（只读提示，不改可见集） -->
+          <button
+            v-if="crossDomainHintCount > 0"
+            type="button"
+            class="cross-domain-hint"
+            @click="emit('openDomainMatchSetting')"
+          >
+            {{ t('sidepanel.scope.crossSubdomainHint', { count: crossDomainHintCount }) }}
+          </button>
         </template>
       </div>
 
@@ -425,29 +600,47 @@ onUnmounted(() => {
         v-else
         class="password-items"
       >
+        <!-- 部分条目无法解密：列表已展示但被静默丢弃的条目需可见，避免误判「丢失」（B8） -->
+        <p
+          v-if="undecryptableCount > 0"
+          class="undecryptable-notice"
+          role="status"
+        >
+          {{ t('sidepanel.undecryptableNotice', { count: undecryptableCount }) }}
+        </p>
+        <!-- v-memo 依赖需覆盖「updateTime 不变但会被改写」的字段：条目编辑一律 bump updateTime，
+             唯独标签是元数据编辑（usePasswordManagement 刻意保留原 updateTime 以免干扰「最近更新」排序），
+             故 tag 必须显式入依赖，否则改标签后复用旧 vnode、行内容停留在旧标签 -->
         <PasswordListItem
           v-for="(password, index) in visiblePasswords"
           :key="password.id"
           v-memo="[
             activeIndex === index,
             password.favorite,
+            password.tag,
             password.updateTime,
             autoTriggerLogin,
-            searchKeyword,
+            activeKeyword,
             pinyinRenderMemoDependency,
+            canFill(password),
+            isCrossDomain(password),
           ]"
           :password="password"
           :is-active="activeIndex === index"
           :auto-login-enabled="autoTriggerLogin"
-          :search-keyword="searchKeyword"
+          :search-keyword="activeKeyword"
+          :can-fill="canFill(password)"
+          :cross-domain="isCrossDomain(password)"
           @fill="p => emit('fill', p)"
           @fill-and-login="p => emit('fillAndLogin', p)"
+          @open-site="p => emit('openSite', p)"
           @edit="p => emit('edit', p)"
           @toggle-favorite="p => emit('toggleFavorite', p)"
           @copy-username="u => emit('copyUsername', u)"
           @copy-password="p => emit('copyPassword', p)"
           @fill-totp="p => emit('fillTotp', p)"
           @copy-totp="p => emit('copyTotp', p)"
+          @share-card="p => emit('shareCard', p)"
           @mouseenter="emit('activate', index)"
         />
       </div>
@@ -487,7 +680,71 @@ onUnmounted(() => {
 }
 
 .search-section :deep(.el-input) {
+  /* 提示文字的对比度与字号已上收到 assets/theme/tokens.css 的「Element Plus 覆写」段，
+     扩展页输入框共用一套（本搜索框为默认档，calc(1em - 1px) 即 13px），不再局部重复声明 */
   flex: 1;
+}
+
+/* 行内间距统一由 gap 提供：抵消 Element Plus 相邻按钮默认的 12px 外边距。
+   el-tooltip 不产生包裹元素，故「全站」与「收藏」在 DOM 中相邻，
+   否则二者间距为 8 + 12 = 20px，与其余控件的 8px 不一致 */
+.search-section :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
+/* 范围切换按钮：全站激活态走主题色，与「只看收藏」的 warning 激活态同一交互语言 */
+.scope-toggle-btn {
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+
+/* 全站搜索状态条：主题色浅底条带随 search-card 圆角裁切，图标 + 文案 + 出口按钮三重表达 */
+.scope-bar {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 16px 8px;
+  font-size: 12px;
+  color: var(--aph-primary);
+  background: var(--aph-primary-bg);
+}
+
+.scope-bar__icon {
+  flex-shrink: 0;
+  font-size: 13px;
+}
+
+.scope-bar__text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scope-bar__back {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--aph-primary);
+  cursor: pointer;
+  background: transparent;
+  border: 1px solid var(--aph-primary-border);
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+
+.scope-bar__back:hover {
+  color: #fff;
+  background: var(--aph-primary);
+  border-color: var(--aph-primary);
+}
+
+.scope-bar__back:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 50%);
+  outline-offset: 1px;
 }
 
 /* 标签筛选外层 */
@@ -560,6 +817,22 @@ onUnmounted(() => {
   outline-offset: 1px;
 }
 
+/* 无结果态「在全部条目中查找」：主题色实心作为空态首选出口，与下方轻量描边的「添加本站账号」区分层级 */
+:deep(.empty-search-all-btn) {
+  padding: 8px 20px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 18px;
+  box-shadow: 0 2px 10px rgb(var(--aph-primary-rgb) / 25%);
+  transition: all 0.25s ease;
+}
+
+:deep(.empty-search-all-btn:hover) {
+  box-shadow: 0 4px 14px rgb(var(--aph-primary-rgb) / 40%);
+  transform: translateY(-1px);
+}
+
 /* 无结果态「添加本站账号」：轻量描边样式，与全空态主按钮区分层级 */
 :deep(.empty-add-site-btn) {
   padding: 8px 20px;
@@ -572,6 +845,28 @@ onUnmounted(() => {
 :deep(.empty-add-site-btn:hover) {
   box-shadow: 0 2px 10px rgb(var(--aph-primary-rgb) / 25%);
   transform: translateY(-1px);
+}
+
+/* 跨子域匹配深链：文字级按钮，与主操作按钮区分层级，避免空态出现三个同权重按钮 */
+.cross-domain-hint {
+  padding: 4px 8px;
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--aph-primary);
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.cross-domain-hint:hover {
+  text-decoration: underline;
+}
+
+.cross-domain-hint:focus-visible {
+  outline: 2px solid var(--aph-primary);
+  outline-offset: 2px;
 }
 
 .password-list {
@@ -645,6 +940,17 @@ onUnmounted(() => {
   color: #6b7280;
 }
 
+/* 部分条目无法解密提示（B8）：列表顶部浅色横幅，不替换列表、不阻断操作 */
+.undecryptable-notice {
+  padding: 8px 12px;
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--aph-text-secondary);
+  background: var(--aph-surface-2);
+  border: 1px solid var(--aph-surface-line);
+  border-radius: 8px;
+}
+
 /* 去添加密码按钮：圆角 + hover 上浮动效 */
 :deep(.empty-add-btn) {
   padding: 10px 24px;
@@ -677,17 +983,20 @@ onUnmounted(() => {
 .password-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
-
-/* 排序触发按钮：当选中非默认排序时显示微妙激活态 */
-.search-section :deep(.el-dropdown) .el-button.is-active-sort {
-  color: var(--aph-primary);
-  background: var(--aph-primary-bg);
-  border-color: var(--aph-primary-border);
-}
 </style>
 
 <style>
-/* 排序下拉菜单（popper teleported 到 body，无法使用 scoped） */
+/*
+ * 排序下拉菜单（popper teleported 到 body，无法使用 scoped）
+ *
+ * 这一段必须是全局样式：`el-dropdown` 的浮层经 Teleport 挂到 `body` 下，拿不到本组件的
+ * `data-v-*` 属性，`scoped` 后选择器一条都命不中。泄漏面靠 `.sort-dropdown-popper`
+ * 这个专属 popper class 收口——所有规则都以它为前缀，不裸写 `.el-dropdown-menu__item`，
+ * 因此不会影响同页其它下拉。两处 `!important` 是用来压过 Element Plus 自身给 popper
+ * 设的圆角与阴影（同等特异性、加载顺序不可控），去掉就会退化回 EP 默认外观。
+ * 中性文字色一律走 `--aph-*` 令牌（取值与 tokens.css 的 `:root` 段一致，视觉零变化），
+ * 只在 EP 没有对应令牌的地方保留字面量。
+ */
 .sort-dropdown-popper {
   border-radius: 8px !important;
   box-shadow: 0 4px 16px rgb(0 0 0 / 10%) !important;
@@ -714,7 +1023,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   align-items: center;
   font-size: 15px;
-  color: #9ca3af;
+  color: var(--aph-text-muted);
   transition: color 0.2s ease;
 }
 
@@ -733,12 +1042,12 @@ onUnmounted(() => {
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item:hover {
-  color: #1f2937;
+  color: var(--aph-text-primary);
   background: #f5f7fa;
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item:hover .sort-item-icon {
-  color: #6b7280;
+  color: var(--aph-text-secondary);
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item.is-active {

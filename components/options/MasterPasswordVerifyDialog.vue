@@ -23,6 +23,9 @@
       :style="{ '--shake-duration': shakeDurationMs + 'ms' }"
       autocomplete="current-password"
       @keyup.enter="handleConfirm"
+      @keydown="handleCapsKeyEvent"
+      @keyup="handleCapsKeyEvent"
+      @blur="resetCapsLockState"
       @input="clearError"
     >
       <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
@@ -33,6 +36,8 @@
         </el-icon>
       </template>
     </el-input>
+
+    <CapsLockHint v-if="capsLockOn" />
 
     <div
       v-if="errorMsg"
@@ -78,11 +83,16 @@ import {
   _rejectVerifyDialog,
 } from '@/utils/masterPasswordVerifyController';
 import { SHAKE_DURATION_MS } from '@/composables/useAuthFlow';
+import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
+import CapsLockHint from '@/components/CapsLockHint.vue';
 
 /** 连续错误次数达到此值后显示重置提示 */
 const MAX_FAIL_BEFORE_HINT = 3;
 
 const { t } = useI18n();
+
+/** 大写锁定检测（弹窗每次打开时重置，避免残留） */
+const { capsLockOn, handleCapsKeyEvent, resetCapsLockState } = useCapsLockDetection();
 
 const dialogState = _getVerifyDialogState();
 
@@ -120,6 +130,7 @@ watch(
       errorMsg.value = '';
       failCount.value = 0;
       shaking.value = false;
+      resetCapsLockState();
 
       nextTick(() => {
         const input = inputRef.value?.$el?.querySelector?.('.el-input__inner') as HTMLInputElement | undefined;
@@ -228,6 +239,13 @@ const clearError = () => {
 
 .shake {
   animation: shake var(--shake-duration, 400ms) ease-in-out;
+}
+
+/* 减弱动效：取消抖动，错误仍由内联提示与输入框错误态表达（与 PasswordVerifyView 同口径） */
+@media (prefers-reduced-motion: reduce) {
+  .shake {
+    animation: none;
+  }
 }
 
 /* 验证错误内联提示 */

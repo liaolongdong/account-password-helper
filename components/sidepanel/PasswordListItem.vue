@@ -10,9 +10,13 @@ import {
   EditPen,
   Timer,
   DocumentCopy,
+  Link,
+  Share,
 } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { buildTagPresentationRecords } from '@/utils/tagUtils';
+import { hasShareCardPassword } from '@/utils/shareCard';
+import { activateOnKeydown } from '@/utils/a11y';
 import SiteFavicon from '@/components/SiteFavicon.vue';
 import SearchHighlight from '@/components/SearchHighlight.vue';
 import { useI18n } from '@/utils/i18n';
@@ -33,8 +37,23 @@ interface Props {
   isActive: boolean;
   /** 全局「自动触发登录」是否开启（开启时点条目即等于填充并登录，隐藏每条冗余的「填充并登录」按钮） */
   autoLoginEnabled: boolean;
-  /** 当前搜索关键词（用于命中高亮，空串时不高亮） */
+  /** 当前搜索关键词（用于命中高亮，默认空串即不高亮） */
   searchKeyword?: string;
+  /**
+   * 能否填充到当前页（默认 true）
+   *
+   * 全站搜索命中的外站条目为 false：当前页没有对应输入框，填充必然失败，
+   * 故整行点击改为打开该站点，并隐藏面向当前页的动作（填充并登录 / 填充验证码）；
+   * 复制账号 / 复制密码 / 复制验证码 / 收藏 / 编辑不依赖当前页，全部保留。
+   */
+  canFill?: boolean;
+  /**
+   * 是否为跨子域命中的条目（默认 false）
+   *
+   * 由父级按档位算出的 ID 集查表得到，本组件不做域名判断。开启跨子域匹配后，
+   * 通配条目 / 主域条目 / 同主域其他子域条目带此徽章，回答「这条为什么出现在这里」。
+   */
+  crossDomain?: boolean;
 }
 
 interface Emits {
@@ -42,6 +61,8 @@ interface Emits {
   fill: [password: PasswordEntry];
   /** 填充并自动登录 */
   fillAndLogin: [password: PasswordEntry];
+  /** 打开条目所属站点（不可填充的外站条目整行动作） */
+  openSite: [password: PasswordEntry];
   /** 跳转到编辑页面 */
   edit: [password: PasswordEntry];
   /** 切换收藏状态 */
@@ -54,23 +75,51 @@ interface Emits {
   fillTotp: [password: PasswordEntry];
   /** 复制 TOTP 两步验证码 */
   copyTotp: [password: PasswordEntry];
+  /** 复制「用户名 / 密码 / 网址」分享卡片 */
+  shareCard: [password: PasswordEntry];
 }
 
-const props = defineProps<Props>();
-defineEmits<Emits>();
+const props = withDefaults(defineProps<Props>(), { searchKeyword: '', canFill: true, crossDomain: false });
+const emit = defineEmits<Emits>();
 
 const { t } = useI18n();
 
 /** 标签字符串未变化时复用解析结果与样式对象，避免列表行更新时重复创建。 */
 const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.password.tag));
+
+/** 整行动作的无障碍文案：本站条目为填充，外站条目为打开其站点 */
+const actionTitle = computed(() => (props.canFill ? t('sidepanel.item.fillTitle') : t('sidepanel.item.openSiteTitle')));
+
+/**
+ * 分享图标的无障碍文案
+ *
+ * 只有真的带上密码才承诺「含密码」：Element Plus 的 Share 图标本身不传达「复制的是凭据」，
+ * tooltip 是点击前唯一的提示载体，对空密码条目继续说「含密码」会与点击后的告警自相矛盾。
+ */
+const shareTitle = computed(() =>
+  hasShareCardPassword(props.password) ? t('sidepanel.item.shareCard') : t('sidepanel.item.shareCardPlain'),
+);
+
+/** 整行点击 / 键盘激活：按能否填充分派，与 title / aria-label 保持同一语义 */
+const activate = () => {
+  if (props.canFill) {
+    emit('fill', props.password);
+  } else {
+    emit('openSite', props.password);
+  }
+};
 </script>
 
 <template>
   <div
     class="password-item"
     :class="{ active: isActive }"
-    :title="t('sidepanel.item.fillTitle')"
-    @click="$emit('fill', password)"
+    role="button"
+    tabindex="0"
+    :title="actionTitle"
+    :aria-label="actionTitle"
+    @click="activate"
+    @keydown="activateOnKeydown($event, activate)"
   >
     <div class="password-info">
       <div class="username">
@@ -81,14 +130,25 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         >
           <el-icon><User /></el-icon>
         </SiteFavicon>
-        <SearchHighlight
-          :text="password.username"
-          :keyword="searchKeyword ?? ''"
-        />
+        <!-- 本行三处截断字段（用户名 / 网址 / 备注）统一用原生 title 兜住全文：
+             逐行 el-tooltip 的实例成本与侧边栏秒开 SLA 冲突，口径与 Options 表格的 username/url/remark 一致 -->
+        <span
+          class="username-text"
+          :title="password.username"
+        >
+          <SearchHighlight
+            :text="password.username"
+            :keyword="searchKeyword"
+          />
+        </span>
         <span
           class="copy-icon-wrapper"
+          role="button"
+          tabindex="0"
           :title="t('sidepanel.item.copyUsername')"
+          :aria-label="t('sidepanel.item.copyUsername')"
           @click.stop.prevent="$emit('copyUsername', password.username)"
+          @keydown.stop="activateOnKeydown($event, () => $emit('copyUsername', password.username))"
           @mousedown.stop
         >
           <el-icon class="copy-icon">
@@ -97,8 +157,12 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         </span>
         <span
           class="copy-icon-wrapper copy-password"
+          role="button"
+          tabindex="0"
           :title="t('sidepanel.item.copyPassword')"
+          :aria-label="t('sidepanel.item.copyPassword')"
           @click.stop.prevent="$emit('copyPassword', password.password)"
+          @keydown.stop="activateOnKeydown($event, () => $emit('copyPassword', password.password))"
           @mousedown.stop
         >
           <el-icon class="copy-icon">
@@ -117,17 +181,35 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         >
           <SearchHighlight
             :text="tagRecord.name"
-            :keyword="searchKeyword ?? ''"
+            :keyword="searchKeyword"
           />
         </el-tag>
+        <!-- 跨子域来源标识：放宽档位下带出非精确条目时说明它为何在此，不仅靠颜色传达状态 -->
+        <el-tag
+          v-if="crossDomain"
+          class="scope-badge"
+          size="small"
+          type="info"
+          effect="plain"
+        >
+          {{ t('sidepanel.scope.crossSubdomain') }}
+        </el-tag>
+        <!-- 外站标识：全站搜索下的非本站条目在 URL 前加链接图标，不仅靠颜色传达状态 -->
+        <el-icon
+          v-if="password.url && !canFill"
+          class="off-site-icon"
+        >
+          <Link />
+        </el-icon>
         <el-text
           v-if="password.url"
           type="info"
           size="small"
+          :title="password.url"
         >
           <SearchHighlight
             :text="password.url"
-            :keyword="searchKeyword ?? ''"
+            :keyword="searchKeyword"
           />
         </el-text>
       </div>
@@ -135,13 +217,15 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
         v-if="password.remark"
         class="remark"
       >
+        <!-- title 挂内联文本节点而非 .remark 块：块是整行宽，悬停在行尾空白也会弹出备注 -->
         <el-text
           type="info"
           size="small"
+          :title="password.remark"
         >
           <SearchHighlight
             :text="password.remark"
-            :keyword="searchKeyword ?? ''"
+            :keyword="searchKeyword"
           />
         </el-text>
       </div>
@@ -156,42 +240,87 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
     </div>
     <div class="password-actions">
       <el-icon
-        v-if="password.totp"
+        v-if="password.totp && canFill"
         class="action-icon totp-fill-icon"
+        role="button"
+        tabindex="0"
         :title="t('sidepanel.item.fillTotp')"
+        :aria-label="t('sidepanel.item.fillTotp')"
         @click.stop="$emit('fillTotp', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('fillTotp', password))"
       >
         <Timer />
       </el-icon>
       <el-icon
         v-if="password.totp"
         class="action-icon totp-copy-icon"
+        role="button"
+        tabindex="0"
         :title="t('sidepanel.item.copyTotp')"
+        :aria-label="t('sidepanel.item.copyTotp')"
         @click.stop="$emit('copyTotp', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('copyTotp', password))"
       >
         <DocumentCopy />
       </el-icon>
       <el-icon
         class="action-icon favorite-icon"
         :class="{ 'is-favorite': password.favorite }"
+        role="button"
+        tabindex="0"
         :title="password.favorite ? t('common.unfavorite') : t('common.favorite')"
+        :aria-label="password.favorite ? t('common.unfavorite') : t('common.favorite')"
         @click.stop="$emit('toggleFavorite', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('toggleFavorite', password))"
       >
         <StarFilled v-if="password.favorite" />
         <Star v-else />
       </el-icon>
       <el-icon
-        v-if="!autoLoginEnabled"
+        v-if="!autoLoginEnabled && canFill"
         class="action-icon auto-login-icon"
+        role="button"
+        tabindex="0"
         :title="t('sidepanel.item.fillAndLogin')"
+        :aria-label="t('sidepanel.item.fillAndLogin')"
         @click.stop="$emit('fillAndLogin', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('fillAndLogin', password))"
       >
         <Promotion />
       </el-icon>
+      <!-- 外站条目：以「打开站点」取代面向当前页的「填充并登录」，保持图标位数量与行高节奏不变 -->
+      <el-icon
+        v-if="!canFill"
+        class="action-icon open-site-icon"
+        role="button"
+        tabindex="0"
+        :title="t('sidepanel.item.openSite')"
+        :aria-label="t('sidepanel.item.openSite')"
+        @click.stop="$emit('openSite', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('openSite', password))"
+      >
+        <Link />
+      </el-icon>
+      <!-- 分享卡片：整行级动作（跨用户名/密码/网址三字段），故与编辑同列于右侧动作区；外站条目同样可分享 -->
+      <el-icon
+        class="action-icon share-icon"
+        role="button"
+        tabindex="0"
+        :title="shareTitle"
+        :aria-label="shareTitle"
+        @click.stop="$emit('shareCard', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('shareCard', password))"
+      >
+        <Share />
+      </el-icon>
       <el-icon
         class="action-icon edit-icon"
+        role="button"
+        tabindex="0"
         :title="t('common.edit')"
+        :aria-label="t('common.edit')"
         @click.stop="$emit('edit', password)"
+        @keydown.stop="activateOnKeydown($event, () => $emit('edit', password))"
       >
         <EditPen />
       </el-icon>
@@ -252,6 +381,14 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   margin-right: 6px;
   font-size: 16px;
   color: var(--aph-text-secondary);
+}
+
+/* 省略号只能长在会收缩的 flex 子项上：.username 是 flex 容器，其 overflow 只能硬裁 */
+.username-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* 网站图标与原用户图标占位一致，布局零偏移 */
@@ -349,6 +486,20 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   white-space: nowrap;
 }
 
+/* 外站标识图标：与 URL 文本同行，不参与截断 */
+.off-site-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--aph-icon-muted);
+}
+
+/* 跨子域来源徽章：与标签同处 .details 弹性行内，不与长 URL 争抢收缩空间 */
+.scope-badge {
+  flex-shrink: 0;
+  margin-right: 4px;
+  font-size: 11px;
+}
+
 .remark {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -380,6 +531,19 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
   content: '';
 }
 
+/* 键盘可达性：行与图标按钮获得焦点时展示可见焦点环 */
+.password-item:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 60%);
+  outline-offset: -2px;
+}
+
+.copy-icon-wrapper:focus-visible,
+.action-icon:focus-visible {
+  outline: 2px solid rgb(var(--aph-primary-rgb) / 60%);
+  outline-offset: 1px;
+  border-radius: 4px;
+}
+
 .favorite-icon {
   margin-right: 8px;
   color: var(--aph-icon-action);
@@ -404,6 +568,20 @@ const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.
 
 .auto-login-icon:hover {
   color: #67c23a;
+}
+
+/* 打开站点与分享卡片：同为「带右间距的次要动作图标」，共用一套状态色（与 totp 双图标的合并写法一致） */
+.open-site-icon,
+.share-icon {
+  margin-right: 8px;
+  color: var(--aph-icon-action);
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.open-site-icon:hover,
+.share-icon:hover {
+  color: var(--aph-primary);
 }
 
 .totp-fill-icon,

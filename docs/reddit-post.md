@@ -55,7 +55,7 @@ Session expires → all plaintext wiped → re-encrypted to ciphertext
 
 - **Exact domain matching** — `dev.example.com` and `prod.example.com` get separate credentials
 - **Tags + smart search** — pinyin/initials search with match highlighting
-- **Triple fill strategy** — inline panel / side panel / quick-fill shortcut
+- **Quadruple fill strategy** — inline panel / side panel / right-click menu / quick-fill shortcut
 - **Auto-save** — detects new logins, prompts to save with smart dedup
 - **Password health check** — weak passwords, reuse, stale entries, missing 2FA
 - **Trash bin** — 30 days recovery, encrypted storage

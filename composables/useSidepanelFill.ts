@@ -1,7 +1,8 @@
 import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { t } from '@/utils/i18n';
+import { t, currentLocale } from '@/utils/i18n';
+import { buildShareCard, hasShareCardPassword } from '@/utils/shareCard';
 import { getFillableFrameIds, fillPasswordInFrames } from '@/utils/frameFill';
 import { getClipboardConfig } from '@/utils/storage/configManager';
 import { lazyImport } from '@/utils/lazyImport';
@@ -11,7 +12,10 @@ import type { Ref } from 'vue';
 /** 剪贴板自动清除定时器（模块级变量，确保同一时刻只有一个定时器） */
 let clipboardClearTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** 当前已复制到剪贴板的密码值，用于定时器触发时验证内容是否被替换 */
+/**
+ * 当前已复制到剪贴板的敏感值（密码明文，或含明文密码的分享卡片文本）
+ * 用于定时器触发时验证内容是否已被用户替换，避免误清除新内容
+ */
 let copiedPasswordSnapshot: string | null = null;
 
 /**
@@ -30,7 +34,7 @@ const generateTotpCode = async (secret: string): Promise<string> => {
  *
  * 职责：
  * - 完整填充流程（ping -> inject -> detect -> fill -> hide）
- * - 剪贴板操作（复制用户名/密码，密码复制后自动清除）
+ * - 剪贴板操作（复制用户名 / 密码 / 分享卡片，含密码的复制后自动清除）
  * - 编辑跳转
  *
  * @param passwords 密码列表引用，用于就地更新 favoriteUsedAt
@@ -45,7 +49,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
    * document.execCommand('copy')，在 clipboardWrite 权限加持下
    * 无需用户手势和文档焦点即可写入剪贴板。
    *
-   * 清除前会验证剪贴板内容是否仍为原始密码（需文档有焦点）；
+   * 清除前会验证剪贴板内容是否仍为刚复制的敏感值（密码明文或分享卡片，需文档有焦点）；
    * 若 SidePanel 已失焦无法验证，则采纳\"尽力清除\"策略：直接执行清除以保证密码安全。
    */
   const clearClipboard = async () => {
@@ -550,6 +554,45 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
     }
   };
 
+  /**
+   * 复制「分享卡片」到剪贴板
+   *
+   * 把用户名 / 密码 / 网址编排为多行纯文本一次复制，便于直接粘贴给他人。
+   * 卡片含明文密码，因此与 {@link copyPassword} 共用本模块同一套定时器与快照：
+   * 改用 `utils/clipboard.ts` 会让本上下文同时挂两套互不知情的清除器，
+   * 旧定时器会误清刚复制的卡片。
+   *
+   * 卡片构造刻意保持同步（任何 `await` 都会消耗侧边栏的瞬时用户激活，
+   * 令 Async Clipboard API 抛错并被迫走 execCommand 兜底）。
+   *
+   * 条目未填密码时卡片不含可用凭据，成功提示改为告警，避免分享者误以为凭据已完整交付。
+   *
+   * @param entry 目标密码条目（侧边栏列表已持有解密后的值）
+   */
+  const copyShareCard = async (entry: PasswordEntry) => {
+    const withPassword = hasShareCardPassword(entry);
+    const card = buildShareCard(
+      entry,
+      { username: t('common.username'), password: t('common.password'), url: t('common.url') },
+      currentLocale.value,
+    );
+    try {
+      await navigator.clipboard.writeText(card);
+      if (withPassword) {
+        ElMessage.success(t('fill.shareCardCopied'));
+      } else {
+        ElMessage.warning(t('fill.shareCardNoPassword'));
+      }
+      // 记录卡片快照，用于定时器触发时验证剪贴板内容
+      copiedPasswordSnapshot = card;
+      scheduleClearClipboard();
+    } catch (error) {
+      // 卡片含明文密码，日志只记错误对象本身
+      logger.error('复制分享卡片失败:', error);
+      ElMessage.error(t('fill.shareCardCopyFailed'));
+    }
+  };
+
   return {
     fillPassword,
     handleFillAndLogin,
@@ -558,5 +601,6 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
     handleEditPassword,
     copyUsername,
     copyPassword,
+    copyShareCard,
   };
 }

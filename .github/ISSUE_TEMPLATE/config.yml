@@ -1,0 +1,14 @@
+blank_issues_enabled: true
+
+contact_links:
+  - name: 报安全问题 / Security issue
+    url: https://github.com/liaolongdong/account-password-helper/blob/main/.github/SECURITY.md
+    about: 涉及主密码、密钥、加密、会话或数据泄露的问题请走私密渠道，不要开公开 Issue。Report vulnerabilities privately, never in a public issue.
+
+  - name: 使用说明 / Usage FAQ
+    url: https://liaolongdong.github.io/account-password-helper/
+    about: 安装、填充失败、TOTP、备份还原等常见问题的图文说明在这里（中英双语）。How-to guides for install, fill failures, TOTP and backup/restore.
+
+  - name: 商店支持 / Store listing
+    url: https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli
+    about: 在 Chrome 应用商店查看评分与评论，或从那里反馈。

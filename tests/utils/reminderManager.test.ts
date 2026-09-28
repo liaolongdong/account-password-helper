@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 
 // Mock chrome.storage.local
 const mockStorage: Record<string, unknown> = {};
@@ -27,7 +28,7 @@ vi.stubGlobal('chrome', { storage: mockChromeStorage });
 const {
   getReminders,
   setReminder,
-  removeReminder,
+  removeReminders,
   getDueReminders,
   markNotified,
   getReminderForEntry,
@@ -85,23 +86,88 @@ describe('reminderManager', () => {
       const expectedDelta = 90 * 24 * 60 * 60 * 1000;
       expect(stored['entry-1'].remindAt).toBeGreaterThan(Date.now() + expectedDelta - 1000);
     });
+
+    it('超长账号名按条目账号容量截断后再冗余落盘', async () => {
+      await setReminder('entry-1', 'u'.repeat(PASSWORD_FIELD_LIMITS.username + 40), 30);
+
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { username: string }>;
+      expect(stored['entry-1'].username).toHaveLength(PASSWORD_FIELD_LIMITS.username);
+    });
+
+    it('截断点落在代理对中间时整对丢弃，不留下孤立代理字符', async () => {
+      // 容量 50 是码点口径：前 49 个单元 + 一个 emoji（2 单元）若按单元数硬切，
+      // 第 50 个单元会是 emoji 的高代理，通知正文渲染成替换符。
+      const username = `${'u'.repeat(PASSWORD_FIELD_LIMITS.username - 1)}🙂tail`;
+      await setReminder('entry-1', username, 30);
+
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { username: string }>;
+      expect(stored['entry-1'].username).toBe(`${'u'.repeat(PASSWORD_FIELD_LIMITS.username - 1)}🙂`);
+    });
   });
 
-  describe('removeReminder', () => {
-    it('应删除指定条目的提醒', async () => {
+  describe('removeReminders', () => {
+    it('批量删除指定条目的提醒，未点名的条目保持不变', async () => {
       await setReminder('entry-1', 'user1', 30);
       await setReminder('entry-2', 'user2', 60);
+      await setReminder('entry-3', 'user3', 90);
 
-      await removeReminder('entry-1');
+      await removeReminders(['entry-1', 'entry-3']);
 
       const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, unknown>;
       expect(stored['entry-1']).toBeUndefined();
+      expect(stored['entry-3']).toBeUndefined();
       expect(stored['entry-2']).toBeDefined();
     });
 
-    it('删除不存在的条目应无副作用', async () => {
-      await removeReminder('nonexistent');
-      // 不应抛错
+    it('整批只做一次读 + 一次写（批删 M 条不再产生 M 次往返）', async () => {
+      const ids = Array.from({ length: 50 }, (_, i) => `entry-${i}`);
+      for (const id of ids) await setReminder(id, 'user', 30);
+      vi.clearAllMocks();
+
+      await removeReminders(ids);
+
+      expect(mockChromeStorage.local.get).toHaveBeenCalledTimes(1);
+      expect(mockChromeStorage.local.set).toHaveBeenCalledTimes(1);
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, unknown>;
+      expect(Object.keys(stored)).toHaveLength(0);
+    });
+
+    it('集合中无任何命中时不落盘', async () => {
+      await setReminder('entry-1', 'user1', 30);
+      vi.clearAllMocks();
+
+      await removeReminders(['missing-1', 'missing-2']);
+
+      expect(mockChromeStorage.local.set).not.toHaveBeenCalled();
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, unknown>;
+      expect(Object.keys(stored)).toEqual(['entry-1']);
+    });
+
+    it('空集合直接返回，不产生任何 storage 往返', async () => {
+      await removeReminders([]);
+
+      expect(mockChromeStorage.local.get).not.toHaveBeenCalled();
+      expect(mockChromeStorage.local.set).not.toHaveBeenCalled();
+    });
+
+    it('入参含重复 id 时按去重处理，结果与写次数均不受影响', async () => {
+      await setReminder('entry-1', 'user1', 30);
+      vi.clearAllMocks();
+
+      await removeReminders(['entry-1', 'entry-1', 'entry-1']);
+
+      expect(mockChromeStorage.local.set).toHaveBeenCalledTimes(1);
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, unknown>;
+      expect(stored['entry-1']).toBeUndefined();
+    });
+
+    it('接受 Set 入参（回收站路径已持有 idSet 时无需转换）', async () => {
+      await setReminder('entry-1', 'user1', 30);
+
+      await removeReminders(new Set(['entry-1']));
+
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, unknown>;
+      expect(stored['entry-1']).toBeUndefined();
     });
   });
 

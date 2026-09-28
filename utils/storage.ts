@@ -8,7 +8,7 @@
  * - facades.ts         — 加密委托 + 会话委托 + 调试工具
  * - masterPassword.ts  — 主密码管理（设置/验证/重置/清空）
  * - passwordCrud.ts    — 密码 CRUD（保存/更新/删除/查询）
- * - configManager.ts   — 配置管理（排序/悬浮按钮/邮箱备份/剪贴板/收藏上限）
+ * - configManager.ts   — 配置管理（排序/每页条数/悬浮按钮/邮箱备份/剪贴板/收藏上限）
  * - autoSaveManager.ts — 自动保存配置与执行 + LRU 收藏淘汰
  */
 

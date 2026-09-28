@@ -19,5 +19,8 @@
   "fill.usernameCopied": "用户名已复制到剪贴板",
   "fill.usernameCopyFailed": "复制用户名失败",
   "fill.passwordCopied": "密码已复制到剪贴板",
-  "fill.passwordCopyFailed": "复制密码失败"
+  "fill.passwordCopyFailed": "复制密码失败",
+  "fill.shareCardCopied": "分享卡片已复制到剪贴板",
+  "fill.shareCardNoPassword": "分享卡片已复制，该条目没有密码",
+  "fill.shareCardCopyFailed": "复制分享卡片失败"
 }

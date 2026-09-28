@@ -12,6 +12,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  *   无兜底则 detect 返回 null（isWindowsPlatform 回退 false），失败不缓存，
  *   下次调用重新尝试检测。
  *
+ * 并锁定 isMacPlatform 的同步嗅探契约：userAgentData.platform 优先于已废弃的
+ * navigator.platform，两者皆不可得时按非 Apple 平台处理。该判定必须可预测：
+ * Node 会将 `navigator.platform` 继承为宿主机的值（在 macOS 上为 `MacIntel`），
+ * 因此本组用例全部显式覆盖全局 navigator 的形态，不依赖运行机器（覆盖方式见
+ * describe 内注释：不用 vi.stubGlobal，以免连带清除 fakeBrowser 注入的 chrome）。
+ *
  * 说明：
  * - 环境为 node，全局 chrome 由 WxtVitest 的 fakeBrowser 注入；
  * - getPlatformInfo 经 mock 从接缝注入，模块内部缓存通过 vi.resetModules + 动态 import 隔离。
@@ -128,5 +134,98 @@ describe('detectWindowsPlatform', () => {
     const { detectWindowsPlatform } = await loadPlatform();
 
     await expect(detectWindowsPlatform()).resolves.toBe(false);
+  });
+});
+
+/**
+ * isMacPlatform 同步嗅探
+ *
+ * 不涉 chrome.runtime，每次调用直读 navigator，故无模块级缓存需隔离。
+ */
+describe('isMacPlatform', () => {
+  /**
+   * Node 22 将 navigator 定义为 globalThis 上的可配置访问器属性，可安全覆盖与还原。
+   *
+   * 此处刻意不用 vi.stubGlobal / vi.unstubAllGlobals：后者会把 WxtVitest 注入的
+   * chrome 全局一并清除，使后续用例的 beforeEach 在 chrome.runtime 上抛
+   * ReferenceError。手动还原只影响 navigator 自身。
+   */
+  const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+
+  afterEach(() => {
+    if (originalNavigator) Object.defineProperty(globalThis, 'navigator', originalNavigator);
+  });
+
+  /** 以指定形态覆盖全局 navigator；不传参则模拟 navigator 不可得 */
+  function stubNavigator(shape?: { platform?: string; userAgentPlatform?: string }) {
+    Object.defineProperty(globalThis, 'navigator', {
+      configurable: true,
+      writable: true,
+      value: shape
+        ? {
+            platform: shape.platform,
+            userAgentData: shape.userAgentPlatform ? { platform: shape.userAgentPlatform } : undefined,
+          }
+        : undefined,
+    });
+  }
+
+  it('navigator.platform 为 MacIntel 时返回 true', async () => {
+    stubNavigator({ platform: 'MacIntel' });
+    const { isMacPlatform } = await loadPlatform();
+
+    expect(isMacPlatform()).toBe(true);
+  });
+
+  it('userAgentData.platform 为 macOS 时返回 true', async () => {
+    stubNavigator({ userAgentPlatform: 'macOS' });
+    const { isMacPlatform } = await loadPlatform();
+
+    expect(isMacPlatform()).toBe(true);
+  });
+
+  it('iOS 设备（iPhone / iPad）同样归为 Apple 平台', async () => {
+    const { isMacPlatform } = await loadPlatform();
+
+    stubNavigator({ platform: 'iPhone' });
+    expect(isMacPlatform()).toBe(true);
+
+    stubNavigator({ platform: 'iPad' });
+    expect(isMacPlatform()).toBe(true);
+  });
+
+  it('userAgentData.platform 优先于已废弃的 navigator.platform', async () => {
+    // 结构化 UA 明确为 Windows 时，不得因遗留的 MacIntel 而误判
+    stubNavigator({ platform: 'MacIntel', userAgentPlatform: 'Windows' });
+    const { isMacPlatform } = await loadPlatform();
+
+    expect(isMacPlatform()).toBe(false);
+  });
+
+  it('Windows 与 Linux 平台返回 false', async () => {
+    const { isMacPlatform } = await loadPlatform();
+
+    stubNavigator({ platform: 'Win32' });
+    expect(isMacPlatform()).toBe(false);
+
+    stubNavigator({ platform: 'Linux x86_64' });
+    expect(isMacPlatform()).toBe(false);
+  });
+
+  it('navigator 不可得时返回 false（如 Node 测试环境无 DOM navigator）', async () => {
+    stubNavigator();
+    const { isMacPlatform } = await loadPlatform();
+
+    expect(isMacPlatform()).toBe(false);
+  });
+
+  it('platform 字段缺失或为空时返回 false，不抛异常', async () => {
+    const { isMacPlatform } = await loadPlatform();
+
+    stubNavigator({ platform: '' });
+    expect(isMacPlatform()).toBe(false);
+
+    stubNavigator({});
+    expect(isMacPlatform()).toBe(false);
   });
 });

@@ -79,19 +79,137 @@ const CCTLD_SECOND_LEVEL_LABELS = new Set([
 /** 两字母国家码（ccTLD）正则，如 cn / uk / br / in */
 const TWO_LETTER_CCTLD_RE = /^[a-z]{2}$/;
 
+// ── 共享托管后缀 ──
+
+/**
+ * 已知的「一段标签 = 一个独立主体」的共享托管后缀（末两段形式）
+ *
+ * 存在理由：这些后缀下的一级子域由**互不相关的租户**各自持有，
+ * `evil.github.io` 与 `victim.github.io` 不是同一家，就像
+ * `evil.com` 与 `victim.com` 不是同一家。而「取末两段」的主域名口径会把它们
+ * 判成同一个 `github.io`，于是三条信任边界同时被放宽：
+ * 同主域名匹配档（其他租户的账号被列进本站）、跨域 iframe 回填门控
+ * （`isFrameFillable` / `isSameMainDomain`）、自动保存归属
+ * （`resolveTrustedContentUrl`，可把凭证写进别人的条目）。
+ *
+ * 收录标准（三条同时满足才进表，避免把真实租户关系判散）：
+ * 1. 该后缀下的一级子域名可由任意用户自助注册，无需平台方审核域名归属；
+ * 2. 该子域名常用于承载完整站点（登录页、预览环境），因此会出现在密码条目的 url 里；
+ * 3. 平台本身不做「同后缀下的多租户互信」——即租户之间确实是不同主体。
+ * 覆盖开发者/PaaS 托管、静态站托管、隧道与动态 DNS、建站与内容平台四类。
+ *
+ * 这是一张**拒绝表**而非 Public Suffix List：完整 PSL 需引入外部数据（tldts 约
+ * 10 KB gzip 级别），而本模块同时位于侧边栏首屏与 content script 闭包内，
+ * 项目规则要求优先复用既有依赖、按体积取舍。因此表内只放高频、可确证的条目，
+ * 未收录的后缀退回原「末两段」口径——漏收的后果是「和修复前一样」，
+ * 而不是新的误判。新增条目的方式就是往这张表里加一行，并由测试守卫其不可逆性。
+ */
+const MULTI_TENANT_SUFFIXES = new Set([
+  // 代码托管与 Pages
+  'github.io',
+  'gitlab.io',
+  'pages.dev',
+  'workers.dev',
+  'trycloudflare.com',
+  // 前端 / 应用托管
+  'vercel.app',
+  'netlify.app',
+  'herokuapp.com',
+  'fly.dev',
+  'onrender.com',
+  'railway.app',
+  'glitch.me',
+  'replit.dev',
+  'web.app',
+  'firebaseapp.com',
+  'appspot.com',
+  'elasticbeanstalk.com',
+  'awsapprunner.com',
+  'amplifyapp.com',
+  'azurewebsites.net',
+  'cloudfunctions.net',
+  'cloudfront.net',
+  // 临时隧道与动态 DNS（每个子域就是一次独立的对外服务）
+  'ngrok.io',
+  'ngrok.app',
+  'ngrok-free.app',
+  'loca.lt',
+  'localtunnel.me',
+  'servehttp.com',
+  'hopto.org',
+  'duckdns.org',
+  'mooo.com',
+  // 建站与内容平台
+  'wixsite.com',
+  'weebly.com',
+  'blogspot.com',
+  'wordpress.com',
+  'tumblr.com',
+  'neocities.org',
+  'surge.sh',
+  'pythonanywhere.com',
+]);
+
+/**
+ * 三段形式的共享托管后缀（云存储的虚拟主机风格端点）
+ *
+ * `mybucket.s3.amazonaws.com` 与 `victimbucket.s3.amazonaws.com` 分属不同租户，
+ * 租户标签在**倒数第四段**，故这类后缀单独一张表，命中时取末四段。
+ *
+ * 只收录「末两段本身就是某个真实注册域」的形态：`s3.amazonaws.com` 挂在
+ * `amazonaws.com` 下、`storage.googleapis.com` 挂在 `googleapis.com` 下。
+ * 形如 `d-xxxx.cloudfront.net` 的云分配域名只有三段、后缀是两段，归上面主表。
+ */
+const MULTI_TENANT_SUFFIXES_3 = new Set(['s3.amazonaws.com', 'storage.googleapis.com']);
+
+/**
+ * 计算 hostname 的「注册主体范围」
+ *
+ * 命中共享托管后缀时，把租户标签一并算进范围（`a.github.io` → `a.github.io`，
+ * `x.a.github.io` → `a.github.io`），否则退回 {@link getMainDomain}。
+ * 与 `getMainDomain` 同一条注释所承诺的方向：**只会让范围更具体、只会收窄匹配，
+ * 绝不新增匹配**，因此在任何一处信任判定里替换成它都朝安全侧倒。
+ *
+ * @param hostname - 完整主机名（调用方已归一为小写 hostname）
+ * @returns 注册主体范围的 hostname 字符串
+ *
+ * @example
+ * registrableScope('evil.github.io')            // → 'evil.github.io'
+ * registrableScope('x.evil.github.io')          // → 'evil.github.io'
+ * registrableScope('github.io')                 // → 'github.io'（后缀本身，无租户标签）
+ * registrableScope('mail.qq.com')               // → 'qq.com'
+ * registrableScope('me.s3.amazonaws.com')       // → 'me.s3.amazonaws.com'
+ */
+export function registrableScope(hostname: string): string {
+  if (!hostname) return hostname;
+  const parts = hostname.split('.');
+  if (parts.length >= 3) {
+    const lastTwo = parts.slice(-2).join('.');
+    if (MULTI_TENANT_SUFFIXES.has(lastTwo)) return parts.slice(-3).join('.');
+    if (parts.length >= 4) {
+      const lastThree = parts.slice(-3).join('.');
+      if (MULTI_TENANT_SUFFIXES_3.has(lastThree)) return parts.slice(-4).join('.');
+    }
+  }
+  return getMainDomain(hostname);
+}
+
 // ── postMessage 跨 frame 通信 ──
 
 /**
  * postMessage 通信消息类型常量
  * 用于 iframe 与顶层 frame 之间的保存弹窗委托通信
+ *
+ * 这里曾有一个 `SHOW_NOTIFICATION`（委托渲染提示）：枚举值是包内公开可得的字符串，
+ * 宿主页面脚本可自造载荷冒充扩展在页面右上角说话，已改走 `chrome.runtime` 消息
+ * （`MessageType.DELEGATE_PAGE_NOTICE`）由后台盖章转发。
+ * 保留的两个类型只在同主域名 frame 之间流转，且接收侧对 `event.origin` 做了校验。
  */
 export const PostMessageType = {
   /** iframe → 顶层 frame：委托显示保存确认弹窗 */
   SHOW_SAVE_PROMPT: 'APH_SHOW_SAVE_PROMPT',
   /** 顶层 frame → iframe：回传用户操作结果 */
   SAVE_PROMPT_RESULT: 'APH_SAVE_PROMPT_RESULT',
-  /** iframe → 顶层 frame：委托显示通知（跨域回退场景） */
-  SHOW_NOTIFICATION: 'APH_SHOW_NOTIFICATION',
 } as const;
 
 // ── 主域名提取 ──
@@ -102,6 +220,11 @@ export const PostMessageType = {
  * 对普通域名取最后两段（如 sub.example.com → example.com），
  * 对两段式 ccTLD 取最后三段（如 login.example.com.cn → example.com.cn）。
  * IP 地址、localhost 等单段 hostname 直接返回原值。
+ *
+ * 注意：**信任判定请用 {@link registrableScope}**，本函数不认共享托管后缀，
+ * 会把 `evil.github.io` 与 `victim.github.io` 算成同一个 `github.io`。
+ * 本函数保留为该更窄口径的兜底分支，同时供「描述一个 hostname 的注册域」这类
+ * 非信任用途使用。
  *
  * @param hostname - 完整主机名
  * @returns 主域名字符串
@@ -149,8 +272,8 @@ export function getMainDomain(hostname: string): string {
 /**
  * 判断是否为本地开发环境域名
  *
- * 针对 localhost 和 127.0.0.1 域名，默认匹配所有账号密码，
- * 方便开发人员在不同本地项目间快速填充密码。
+ * 命中该判定的域名改走 {@link matchesPortForLocalDev} 的端口过滤（而非精确 host 匹配），
+ * 方便开发人员在多个本地项目间快速填充密码，同时避免不同端口的本地账号互相混淆。
  *
  * @param domain - 当前页面域名（hostname）
  * @returns 是否为本地开发域名
@@ -167,21 +290,22 @@ export function isLocalDevDomain(domain: string): boolean {
 // ── 同主域名校验 ──
 
 /**
- * 判断两个 origin 是否属于同一主域名
+ * 判断两个 origin 是否属于同一注册主体
  *
  * 支持跨子域名的 iframe 委托场景（如 login.example.com 与 app.example.com），
- * 同时正确处理两段式 ccTLD（如 a.example.com.cn 与 b.example.com.cn）。
+ * 同时正确处理两段式 ccTLD（如 a.example.com.cn 与 b.example.com.cn）
+ * 与共享托管后缀（如 a.github.io 与 b.github.io **不同主体**，见 {@link registrableScope}）。
  * 对于 IP 地址或单段 hostname（如 localhost），直接比较完整 hostname。
  *
  * @param originA - 第一个 origin（如 https://sub.example.com）
  * @param originB - 第二个 origin（如 https://app.example.com）
- * @returns 是否属于同一主域名
+ * @returns 是否属于同一注册主体
  */
 export function isSameMainDomain(originA: string, originB: string): boolean {
   try {
     const hostA = new URL(originA).hostname;
     const hostB = new URL(originB).hostname;
-    return getMainDomain(hostA) === getMainDomain(hostB);
+    return registrableScope(hostA) === registrableScope(hostB);
   } catch {
     return false;
   }
@@ -244,6 +368,21 @@ export function matchesPortForLocalDev(storedUrl: string | undefined | null, cur
   return !storedPort || storedPort === currentPort;
 }
 
+/** 通配条目前缀（写在 `PasswordEntry.url` 里，形如 `*.qq.com`） */
+const WILDCARD_PREFIX = '*.';
+
+/**
+ * 还原 URL 解析器编码掉的通配标记
+ *
+ * `*` 不是合法的 host 码点，各解析器处理方式不一致：Chrome 把
+ * `new URL('https://*.qq.com').hostname` 给出 `%2A.qq.com`（且不会把 `%2A` 解回 `*`），
+ * Node 则原样保留 `*`。通配条目的档位判定必须在两端都成立，所以统一把开头的
+ * `%2A.` 还原为 `*.`——否则 `wildcard` 档在真机上永远匹配不到任何条目。
+ */
+function restoreWildcardMarker(host: string): string {
+  return host.slice(0, 4).toLowerCase() === '%2a.' ? `${WILDCARD_PREFIX}${host.slice(4)}` : host;
+}
+
 /**
  * 将 URL 或域名规范化为 hostname
  *
@@ -258,14 +397,15 @@ export function matchesPortForLocalDev(storedUrl: string | undefined | null, cur
  * normalizeToHostname('https://example.com/login') // → 'example.com'
  * normalizeToHostname('example.com')               // → 'example.com'
  * normalizeToHostname('localhost:3000')            // → 'localhost'
+ * normalizeToHostname('*.qq.com')                  // → '*.qq.com'（通配标记不被解析器改写）
  */
 export function normalizeToHostname(value: string): string {
   const s = value.toLowerCase().trim();
   if (!s) return s;
   try {
-    return new URL(s.includes('://') ? s : `https://${s}`).hostname;
+    return restoreWildcardMarker(new URL(s.includes('://') ? s : `https://${s}`).hostname);
   } catch {
-    return s.split('/')[0].split('?')[0].split('#')[0];
+    return restoreWildcardMarker(s.split('/')[0].split('?')[0].split('#')[0]);
   }
 }
 
@@ -289,11 +429,39 @@ export function normalizeToHostAndPort(value: string): string {
   if (!s) return s;
   try {
     const url = new URL(s.includes('://') ? s : `https://${s}`);
-    return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+    const host = restoreWildcardMarker(url.hostname);
+    return url.port ? `${host}:${url.port}` : host;
   } catch {
     // 回退：去除路径/查询/锚点
-    return s.split('/')[0].split('?')[0].split('#')[0].toLowerCase();
+    return restoreWildcardMarker(s.split('/')[0].split('?')[0].split('#')[0].toLowerCase());
   }
+}
+
+/** 最近一次参与匹配的当前主机入参，与其归一结果（一格记忆，见 `normalizeCurrentHostCached`） */
+let _currentHostInput: string | null = null;
+let _currentHostNormalized = '';
+/**
+ * 「当前主机」归一结果的一格记忆
+ *
+ * 存在理由：分层匹配的每条热路径都是「同一个 currentHost × 逐条 storedUrl」的形状
+ * （本站范围过滤、排序优先级预计算、`offSiteIds`/`crossDomainIds` 徽章集、空态引导计数），
+ * 而 `normalizeToHostname` 每次调用都要 `toLowerCase` + `new URL()`。实测 2000 条一轮
+ * 就是 3670 次 URL 构造，其中约一半解析的是同一个当前域名——纯浪费。
+ * 只记最近一个入参即可让整轮循环全命中；切标签页 / 换域名时自然回落一次解析。
+ *
+ * 刻意不用 Map：调用方传入的 currentHost 始终是「当前页」这一个值，一格记忆的残留上界
+ * 是一条 hostname 字符串，不给条目明文增加新的驻留位置。
+ * 正确性依赖 `normalizeToHostname` 是纯函数（同输入必同输出，无时钟与外部状态）。
+ *
+ * @param currentHost - 当前页面 hostname 或原始 URL 串
+ * @returns 归一后的 hostname（与直接调用 `normalizeToHostname` 逐字等价）
+ */
+function normalizeCurrentHostCached(currentHost: string): string {
+  if (_currentHostInput !== currentHost) {
+    _currentHostInput = currentHost;
+    _currentHostNormalized = normalizeToHostname(currentHost);
+  }
+  return _currentHostNormalized;
 }
 
 /**
@@ -320,9 +488,301 @@ export function normalizeToHostAndPort(value: string): string {
 export function isExactHostMatch(currentDomain: string, storedUrl: string): boolean {
   if (!currentDomain || !storedUrl) return false;
 
-  const a = normalizeToHostname(currentDomain);
+  const a = normalizeCurrentHostCached(currentDomain);
   const b = normalizeToHostname(storedUrl);
   if (!a || !b) return false;
 
   return a === b;
+}
+
+// ── 跨子域分层匹配 ──
+
+/**
+ * 跨子域匹配档位
+ *
+ * 档位是包含关系（`sameMainDomain` ⊃ `wildcard` ⊃ `off`），默认 `off`：
+ * 2026-07 为多测试环境隔离引入的精确 host 口径始终是缺省行为，放宽必须由用户显式选择。
+ *
+ * - `off`：仅精确 host 匹配（迁移前口径）
+ * - `wildcard`：额外纳入用户显式写成 `*.qq.com` 的通配条目，逐条由用户决定适用范围
+ * - `sameMainDomain`：再纳入同主域下的 apex 条目与其他子域条目，宽松度最高
+ */
+export type DomainMatchMode = 'off' | 'wildcard' | 'sameMainDomain';
+
+/** 档位合法性判定（storage 回读时收窄类型） */
+export function isDomainMatchMode(value: unknown): value is DomainMatchMode {
+  return value === 'off' || value === 'wildcard' || value === 'sameMainDomain';
+}
+
+/**
+ * 匹配层级：数字即排序权重，越小越靠前
+ *
+ * - 0 精确 host
+ * - 1 通配条目（`*.qq.com`）
+ * - 2 同主域 apex 条目（`qq.com`）
+ * - 3 同主域其他子域（`music.qq.com`）
+ * - 4 URL 为空的通用条目
+ *
+ * `off` 档下只可能返回 0、4 或 -1，与迁移前的二值优先级（0/1）等价。
+ */
+export type MatchTier = 0 | 1 | 2 | 3 | 4;
+
+/**
+ * 注册主体范围记忆化的容量上限（键为 hostname，超出即整体清空，避免无界增长）
+ *
+ * 取值口径：**条目总量上限 × 2**（2000 条最多贡献 2000 个不同 stored hostname，
+ * 通配条目另需其 base 一条，再加当前域名）——旧值 2000 与整库形状正好卡在临界点上，
+ * 一轮放宽档遍历会在中途触发一次整体清空，把前半库的主域名白算一遍。
+ * 与拼音缓存同口径由 `tests/architecture/pinyinCacheCapacity.test.ts` 钉住推导。
+ * 键是 hostname 而非条目明文，值是小字符串，4000 槽位的量级对内存无感。
+ *
+ * 导出仅为让容量推导守卫引用该上界，业务代码不应依赖它。
+ */
+export const MAIN_DOMAIN_CACHE_MAX = 4000;
+
+const _mainDomainCache = new Map<string, string>();
+
+/**
+ * {@link registrableScope} 的记忆化包装
+ *
+ * 分层匹配要逐条求注册主体范围，数百条目 × 多次查询下重复解析同一 hostname 的成本可观；
+ * 结果纯函数确定性，可安全缓存。
+ *
+ * 缓存的是「范围」而不是 `getMainDomain` 的原始结果：共享托管后缀那条规则
+ * 每次都要多做一次 Set 查表，而命中路径上两者本就同值。
+ */
+function memoizedScope(hostname: string): string {
+  if (!hostname) return hostname;
+  const hit = _mainDomainCache.get(hostname);
+  if (hit !== undefined) return hit;
+  const scope = registrableScope(hostname);
+  if (_mainDomainCache.size >= MAIN_DOMAIN_CACHE_MAX) _mainDomainCache.clear();
+  _mainDomainCache.set(hostname, scope);
+  return scope;
+}
+
+/**
+ * 解析条目网址相对当前域名的匹配层级
+ *
+ * 站点可见性与填充可行性的唯一判据：侧边栏本站范围、内联下拉、一键填充、右键菜单与
+ * Popup 计数全部经它，杜绝「下拉里有、侧边栏没有」或两处排序分歧。
+ *
+ * 前置约束：`localhost` / `127.0.0.1` 的端口过滤与「当前页无域名」两条特殊路径由调用方
+ * 在调用本函数**之前**处理，本函数不参与本地开发端口语义。
+ *
+ * 通配命中刻意不使用 `endsWith('.qq.com')`（会被 `evil-qq.com` 之类前缀碰撞绕过），
+ * 而是复用既有的可信边界「注册主体范围相等」（{@link registrableScope}），
+ * 与跨域 iframe 委托、自动保存归属同一口径，并自动继承 `getMainDomain` 的两段式
+ * ccTLD 全部规则与共享托管后缀表。
+ *
+ * 由此得到的一条**收窄**：共享托管后缀（`github.io` / `vercel.app` 等）下的一级子域
+ * 分属不同租户，`a.github.io` 页面因此看不到 `b.github.io` 的条目——放宽档与通配档
+ * 都一样。副作用是「`*.github.io` 这种覆盖整张公共后缀的通配条目」不再命中任何站点
+ * （它的字面含义就是「跨租户」）；要覆盖某个自己的项目，写成 `*.me.github.io`。
+ *
+ * @param currentHost - 当前页面 hostname（空串时除通用条目外一律不匹配）
+ * @param storedUrl - 密码条目存储的 URL/域名
+ * @param mode - 匹配档位，缺省 `off`（与迁移前行为一致）
+ * @returns 匹配层级；不匹配返回 -1
+ *
+ * @example
+ * resolveMatchTier('mail.qq.com', 'mail.qq.com', 'off')     // → 0
+ * resolveMatchTier('mail.qq.com', 'qq.com', 'off')          // → -1（默认仍严格隔离）
+ * resolveMatchTier('mail.qq.com', '*.qq.com', 'wildcard')   // → 1
+ * resolveMatchTier('mail.qq.com', 'music.qq.com', 'sameMainDomain') // → 3
+ * resolveMatchTier('mail.qq.com', 'evil-qq.com', 'sameMainDomain')  // → -1
+ * resolveMatchTier('a.github.io', 'b.github.io', 'sameMainDomain')  // → -1（不同租户）
+ */
+export function resolveMatchTier(
+  currentHost: string,
+  storedUrl: string | undefined,
+  mode: DomainMatchMode = 'off',
+): MatchTier | -1 {
+  const raw = storedUrl?.trim();
+  // 空 URL 条目不限站点，始终纳入（排在所有带网址条目之后）
+  if (!raw) return 4;
+  if (!currentHost) return -1;
+
+  const storedHost = normalizeToHostname(raw);
+  if (!storedHost) return -1;
+  const host = normalizeCurrentHostCached(currentHost);
+  if (storedHost === host) return 0;
+
+  if (storedHost.startsWith(WILDCARD_PREFIX)) {
+    if (mode === 'off') return -1;
+    const base = storedHost.slice(WILDCARD_PREFIX.length);
+    if (!base) return -1;
+    return memoizedScope(host) === memoizedScope(base) ? 1 : -1;
+  }
+
+  if (mode !== 'sameMainDomain') return -1;
+  const currentMain = memoizedScope(host);
+  if (!currentMain || currentMain !== memoizedScope(storedHost)) return -1;
+  return storedHost === currentMain ? 2 : 3;
+}
+
+/**
+ * 判定匹配层级是否属于「跨子域命中」
+ *
+ * 通配（1）/ 同主域 apex（2）/ 同主域其他子域（3）共同回答「这条为什么出现在别的子域」，
+ * 侧边栏徽章、内联下拉来源 chip、空态引导计数与自动保存去向提示四处必须同口径，
+ * 否则会呈现「侧边栏带徽章、内联下拉不带 chip」这类自相矛盾。空态计数读的是同一区间的
+ * 另一侧：落在区间内即「只有放宽才会被带出」，因此两端天然共用这一个判据。
+ *
+ * 0（精确）与 4（无网址通用条目）不属于：前者就是本站；后者在任何档位下都可见，
+ * 不是放宽带出来的，给它标来源等于报错。
+ *
+ * @param tier - `resolveMatchTier` 的返回值（含未匹配的 -1）
+ * @returns 是否为跨子域层级
+ */
+export function isCrossSubdomainTier(tier: MatchTier | -1): boolean {
+  return tier >= 1 && tier <= 3;
+}
+
+/**
+ * 统计「放宽到同主域名档」后可额外带出的条目数（跨子域匹配的空态引导计数）
+ *
+ * 只数真正会被档位改变的条目：当前档位下不匹配、但在 `sameMainDomain` 档下命中
+ * 通配 / 主域 / 兄弟子域任一层级。空 URL 通用条目不计（它在任何档位下都可见）；
+ * 已处于最宽松档时没有可放宽空间，恒为 0。本地开发域名按端口口径过滤，同样恒为 0。
+ *
+ * 侧边栏与内联下拉共用本函数，避免两处各自演化出分歧的引导计数。
+ *
+ * @param entries - 仅需携带 `url` 字段的条目集合（全库，非过滤后的子集）
+ * @param currentHost - 当前页面 hostname，空串表示无域名场景
+ * @param mode - 用户当前所选档位
+ * @returns 可被放宽带出的条目数
+ */
+export function countSameMainDomainCandidates(
+  entries: readonly { url?: string }[],
+  currentHost: string,
+  mode: DomainMatchMode,
+): number {
+  if (!currentHost || mode === 'sameMainDomain' || isLocalDevDomain(currentHost)) return 0;
+  let count = 0;
+  for (const entry of entries) {
+    const widened = resolveMatchTier(currentHost, entry.url, 'sameMainDomain');
+    if (!isCrossSubdomainTier(widened)) continue;
+    if (resolveMatchTier(currentHost, entry.url, mode) === -1) count += 1;
+  }
+  return count;
+}
+
+/**
+ * 剥离网址最左侧的通配段
+ *
+ * `*.qq.com` 表达的是「适用范围」而非可导航主机：直接补协议会得到 `https://*.qq.com/`
+ * 这类必然解析失败的主机名。导航与图标两条派生路径都先经本函数还原为可访问主机。
+ *
+ * @param value - 原始 URL 或域名字符串
+ * @returns 去掉最左 `*.` 后的字符串；非通配输入原样返回（仅首尾空白被去除）
+ *
+ * @example
+ * stripWildcardPrefix('*.qq.com')                 // → 'qq.com'
+ * stripWildcardPrefix('https://*.qq.com/login')    // → 'https://qq.com/login'
+ * stripWildcardPrefix('mail.qq.com')               // → 'mail.qq.com'
+ */
+export function stripWildcardPrefix(value: string | undefined | null): string {
+  const raw = value?.trim();
+  if (!raw) return '';
+  const schemeMatch = /^([a-z][a-z0-9+.-]*:\/\/)\*\./i.exec(raw);
+  if (schemeMatch) return `${schemeMatch[1]}${raw.slice(schemeMatch[0].length)}`;
+  return splitWildcardHost(raw).rest;
+}
+
+/**
+ * 拆出最左侧的通配段，供录入校验与匹配复用同一前缀口径
+ *
+ * 刻意只提供「拆分」而不给「是否合法通配主机」的判定：录入校验只需剥掉最左 `*.`，
+ * 再拿**既有**域名正则去判剩余部分，非法形态（`*.`、`*.*.x`、`a.*.x`）天然被该正则拒掉，
+ * 避免为通配条目另立第二套域名口径。
+ *
+ * @param value - 已去除首尾空白的主机字符串
+ * @returns `wildcard` 是否以最左 `*.` 开头；`rest` 为剥掉通配段后的主机（非通配输入即原值）
+ *
+ * @example
+ * splitWildcardHost('*.qq.com')      // → { wildcard: true,  rest: 'qq.com' }
+ * splitWildcardHost('*.*.qq.com')    // → { wildcard: true,  rest: '*.qq.com' }
+ * splitWildcardHost('mail.qq.com')   // → { wildcard: false, rest: 'mail.qq.com' }
+ */
+export function splitWildcardHost(value: string): { wildcard: boolean; rest: string } {
+  if (!value.startsWith(WILDCARD_PREFIX)) return { wildcard: false, rest: value };
+  return { wildcard: true, rest: value.slice(WILDCARD_PREFIX.length) };
+}
+
+// ── 可导航 URL ──
+
+/** 允许导航的协议白名单：仅 http/https，杜绝 javascript: / chrome: / file: / data: 等注入 */
+const NAVIGABLE_PROTOCOLS = new Set(['http:', 'https:']);
+
+/** 带层级路径的 scheme（如 https://、chrome://），命中时按原样解析后走白名单校验 */
+const HIERARCHICAL_SCHEME_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
+
+/** host:port 形式（端口为纯数字），需与 `javascript:` 等非层级 scheme 区分，避免误判为已带协议 */
+const HOST_PORT_RE = /^[^:/?#]+:\d+/;
+
+/** 非层级 scheme（如 javascript:、data:、mailto:），一律拒绝导航 */
+const OPAQUE_SCHEME_RE = /^[a-z][a-z0-9+.-]*:/i;
+
+/** IPv4 字面量：本地/内网服务通常无 TLS 证书，补协议时走 http */
+const IPV4_RE = /^\d{1,3}(\.\d{1,3}){3}$/;
+
+/**
+ * 推断补全协议时应使用的 scheme
+ *
+ * 本地开发域名（localhost / 127.0.0.1）与 IP 字面量走 http（通常无证书），
+ * 其余走 https。
+ *
+ * @param value - 不含协议的原始 URL 或域名字符串
+ * @returns 'http' 或 'https'
+ */
+function inferDefaultScheme(value: string): 'http' | 'https' {
+  const host = normalizeToHostname(value);
+  return isLocalDevDomain(host) || IPV4_RE.test(host) ? 'http' : 'https';
+}
+
+/**
+ * 将密码条目中存储的 URL 转为可安全导航的 http(s) URL
+ *
+ * 条目 URL 属用户可控输入，直接交给 `chrome.tabs.create` / `window.open` 存在协议注入风险，
+ * 故本函数作为导航前的唯一安全边界：
+ * - 最左通配段先经 {@link stripWildcardPrefix} 还原为可访问主机（适用范围不等于可打开的地址）；
+ * - 无协议时按 {@link inferDefaultScheme} 补全（`example.com/login` → `https://example.com/login`）；
+ * - 已带协议时按原样解析，仅放行 http/https；
+ * - `javascript:` / `data:` / `mailto:` 等非层级 scheme 显式拒绝，不进入补协议分支
+ *   （否则可能被拼接成形似合法的 https URL）；
+ * - 解析失败、无 hostname 时同样拒绝。
+ *
+ * @param storedUrl - 密码条目中存储的 URL/域名（可能为空、纯域名或完整 URL）
+ * @returns 可导航的完整 URL；输入为空、协议不允许或解析失败时返回 null
+ *
+ * @example
+ * toNavigableUrl('https://example.com/login')  // → 'https://example.com/login'
+ * toNavigableUrl('example.com')                // → 'https://example.com/'
+ * toNavigableUrl('*.qq.com')                   // → 'https://qq.com/'（通配段还原为 apex）
+ * toNavigableUrl('localhost:3000/admin')       // → 'http://localhost:3000/admin'
+ * toNavigableUrl('javascript:alert(1)')        // → null（协议拒绝）
+ * toNavigableUrl('')                           // → null
+ */
+export function toNavigableUrl(storedUrl: string | undefined | null): string | null {
+  const raw = stripWildcardPrefix(storedUrl);
+  if (!raw) return null;
+
+  let candidate: string;
+  if (HIERARCHICAL_SCHEME_RE.test(raw)) {
+    candidate = raw;
+  } else if (HOST_PORT_RE.test(raw) || !OPAQUE_SCHEME_RE.test(raw)) {
+    candidate = `${inferDefaultScheme(raw)}://${raw}`;
+  } else {
+    // 非层级 scheme（javascript: / data: / mailto: 等）：显式拒绝，不做补协议兜底
+    return null;
+  }
+
+  try {
+    const url = new URL(candidate);
+    if (!NAVIGABLE_PROTOCOLS.has(url.protocol) || !url.hostname) return null;
+    return url.href;
+  } catch {
+    return null;
+  }
 }

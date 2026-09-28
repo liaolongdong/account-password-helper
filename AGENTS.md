@@ -119,7 +119,8 @@
 
 ## Vue 3 与界面规范
 
-- 新增 Vue 代码默认使用 Composition API 和 `<script setup lang="ts">`；SFC 顺序保持 `<script>`、`<template>`、`<style>`。
+- 新增 Vue 代码默认使用 Composition API 和 `<script setup lang="ts">`。SFC 顶层块顺序遵循 Vue 官方风格指南 Priority C「Single-file component top-level element order」：`<style>` 必须在最后，而 `<script>` 与 `<template>` 的先后**两种都被官方认可**（指南的 Good 示例同时给出两种写法），规则本意是全仓保持一致，而非固定某一种顺序。硬性部分已由 `vue/block-order` 强制：`flat/recommended` 采用插件默认 `[["script", "template"], "style"]`（嵌套数组内顺序任意），配合 `pnpm lint` 的 `--max-warnings 0`，违规即失败。
+- 新增 `.vue` 文件跟随所在目录的既有惯例：`components/options/` 一律 `<template>` 在前，`components/sidepanel/` 与 `components/` 根下的小组件以 `<script>` 在前为主。修改存量文件时不得为「符合规范」重排块顺序——两种顺序都合规，重排只产生零行为收益的大 diff；若确需全仓统一，属独立任务，须先确认影响面再一次性处理。
 - 保持单一事实来源：源状态尽量少，派生值使用纯 `computed`，watcher 只承担副作用并正确清理异步任务。
 - Props 只读、事件向上。组件边界使用类型化的 `defineProps`、`defineEmits`；只有真正的双向组件契约才使用 `defineModel`。
 - 根入口组件保持为组合与装配层。组件同时承担多块 UI、状态编排和副作用时，按职责拆为子组件与 composable；小而单一的实现不为“复用”强行拆分。
@@ -147,6 +148,7 @@
   - 用户功能、安装或用法变化：`README.md` 与 `README.en.md`。
   - 架构、数据流或安全设计变化：`docs/ARCHITECTURE.md` 与 `docs/ARCHITECTURE.en.md`。
   - SidePanel 帮助内容变化：`components/sidepanel/HelpDialog.vue` 及其语言包。
+  - 新增用户可见功能：除上述对外文档外，同步 `docs/ARCHITECTURE.md`（及 `.en.md`）「功能实现详解」、侧边栏 `utils/i18n/locales/{zh-CN,en}/help.json` 词条（`HelpDialog.vue` 为数字序号驱动，新增条目需同步提升 `helpItems('help.gx', N)` 的 N，由 `tests/utils/i18nBundles.test.ts` 守卫）、以及 content/background 侧的 `utils/i18n-lite.ts`；博客修订时一并回改测试数量与修订日期并重跑 `pnpm gen:blog`；完整口径见 `docs/CWS_PUBLISHING_GUIDE.md`「其他同步约定」。
   - 官网展示变化：`index.html`。
   - 商店文案、权限、隐私或发布流程变化：`docs/CWS_FILL_CONTENT.md`、`docs/CWS_PUBLISHING_GUIDE.md`、`privacy.html` 中受影响的部分。
   - manifest 描述、权限、命令或配置变化：`wxt.config.ts` 及对应 locale 文案。
@@ -191,7 +193,7 @@
 
 - **禁止把全局内存当持久状态**：SW 随时被回收，重启后全局变量丢失。短期缓存必须可重建、可失效，以 `chrome.storage` 为事实来源。
 - **异步 `sendResponse` 必须返回 `true`**：否则 Chrome 会立即关闭消息通道，响应丢失。
-- **`chrome.alarms` 最小间隔**：MV3 限制 alarms 最小间隔为 1 分钟，不要期望秒级精度。
+- **`chrome.alarms` 最小间隔**：MV3 下 `periodInMinutes` 最小为 0.5（30 秒），更小的值会被上钳（旧版到 1 分钟）；闹钟轮询粒度 ≥30s，不要期望秒级精度——SW 存活期的秒级保活由 `setInterval` 心跳层负责。
 
 ### Storage
 
@@ -226,8 +228,27 @@
 
 ### 侧边栏秒开 SLA
 
-- 侧边栏在所有场景（会话有效/失效/浏览器冷启动/快速重启）必须秒开（<1s、无白屏），这是跨平台硬性目标。
+- 侧边栏在所有场景（会话有效/失效/浏览器冷启动/快速重启/长时间间隔）必须秒开（<1s、无白屏），这是跨平台硬性目标。
 - `sidePanel.open()` 之前禁止 `await`，保持用户手势链完整；tabId 经 `getTabIdSync` 同步获取。
+
+### 管理页（Options）首屏 SLA
+
+管理页首屏**分三段验收**，禁止用单一"mount 总时长"当阈值：分页落地后"整表进 DOM"这个状态已不可达
+（每页恒 100 行），旧阈值既量不到也无意义。探针字段取自 `benchmarks/measure-options-perf.mjs` 的 `mount` 场景。
+
+| 阶段              | 探针字段     | 含义                         | 阈值     | 2026-09-25 现状（2000 条夹具 / 每页 100） |
+| ----------------- | ------------ | ---------------------------- | -------- | ----------------------------------------- |
+| 空白 → 可看       | `preRowMs`   | 导航到第 15 行出现           | < 1.5 s  | 1.0～2.4 s（未达标）                      |
+| 可看 → 当前页铺满 | `wallMs`     | 导航到当前页 100 行全部完成  | < 2.5 s  | 1.7～3.3 s（临界，随负载翻转）            |
+| 交互阻塞          | `blockingMs` | 首屏窗口内 >50 ms 长任务之和 | < 200 ms | 0.88～2.0 s（未达标）                     |
+
+- **口径钉死**：2000 条密文形态夹具、每页 100（默认档）、全新导航（`--fresh --only mount`）、3 样本取中位数；
+  跨批次绝对值**不采信**，只采信同一串行窗口内的相对差（本机噪声地板约 ±300 ms，开跑前确认 `top -l 2` CPU idle 足够高）。
+- 这三段各自的成本归属不同：`preRowMs` 由包体与引导链负责，`wallMs − preRowMs` 由每页渲染负责（分页 + 实例削减），
+  `blockingMs` 与 `wallMs` 的大头在**数据层**（全库解密 + 整包 IO）。因此**不要因为一档红就改另一档的代码**，
+  先按渲染层报告 §9.13 与 E1 设计稿 §5.3 定位是哪一段在付费。
+- 本节目的在于把"达标"变成可判定的三句话，取代此前"mount < 1 s"这类无法验收的单一承诺；
+  未达标档位在下一轮改造（E1 写结构 / C1 密文形态）落地前不会自动变绿，也不得为了变绿而放宽阈值。
 
 ### 首屏体积
 

@@ -5,7 +5,8 @@ import { logger } from '@/utils/logger';
 import { useShortcuts } from '@/composables/useShortcuts';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useSessionLock } from '@/composables/useSessionLock';
-import { isExactHostMatch } from '@/utils/domain';
+import { isExactHostMatch, isLocalDevDomain, resolveMatchTier, type DomainMatchMode } from '@/utils/domain';
+import { DEFAULT_DOMAIN_MATCH_MODE } from '@/utils/storage/configManager';
 
 /**
  * Popup 初始化编排 Composable
@@ -28,17 +29,32 @@ export function usePopupInit() {
   /** 当前页面域名 */
   const currentDomain = shallowRef('');
 
+  /**
+   * 跨子域匹配档位（打开时读一次；读失败回落 `off`）
+   *
+   * Popup 只把它用于「此站已有账号数」的统计口径，不做列表、不加徽章。
+   */
+  const domainMatchMode = ref<DomainMatchMode>(DEFAULT_DOMAIN_MATCH_MODE);
+
   // ==================== 派生计算属性 ====================
 
   /** 密码总数 */
   const passwordCount = computed(() => allPasswords.value.length);
 
-  /** 当前域名匹配数 */
+  /**
+   * 当前域名匹配数
+   *
+   * 按用户所选档位统计，但继续排除空 URL 条目：这个数字表达的是「此站已有账号数」，
+   * 不限站点的通用账号不算此站账号（与侧边栏的可见集口径有意不同）。
+   * 本地开发域名沿用精确 host 口径，档位不参与。
+   */
   const domainMatchCount = computed(() => {
-    if (!currentDomain.value) return 0;
+    const domain = currentDomain.value;
+    if (!domain) return 0;
     return allPasswords.value.filter(p => {
-      if (!p.url) return false;
-      return isExactHostMatch(currentDomain.value, p.url);
+      if (!p.url?.trim()) return false;
+      if (isLocalDevDomain(domain)) return isExactHostMatch(domain, p.url);
+      return resolveMatchTier(domain, p.url, domainMatchMode.value) >= 0;
     }).length;
   });
 
@@ -55,8 +71,20 @@ export function usePopupInit() {
 
   onMounted(async () => {
     try {
-      // 并行加载：会话状态 + 快捷键 + 更新信息
-      const [sessionValid] = await Promise.all([StorageUtils.isSessionValid(), loadShortcuts(), initUpdateCheck()]);
+      // 并行加载：会话状态 + 快捷键 + 更新信息 + 跨子域匹配档位
+      const [sessionValid] = await Promise.all([
+        StorageUtils.isSessionValid(),
+        loadShortcuts(),
+        initUpdateCheck(),
+        StorageUtils.getDomainMatchConfig()
+          .then(config => {
+            domainMatchMode.value = config.mode;
+          })
+          .catch(error => {
+            logger.warn('Popup: 读取跨子域匹配档位失败，回落精确匹配', error);
+            domainMatchMode.value = DEFAULT_DOMAIN_MATCH_MODE;
+          }),
+      ]);
 
       isSessionValid.value = sessionValid;
 

@@ -59,7 +59,8 @@ async function findExistingOptionsTabId(optionsUrl: string): Promise<number | un
     }
   }
 
-  // Chrome < 116 理论不可达（manifest 已声明 minimum_chrome_version），防御性降级为新建标签页
+  // manifest 未声明 minimum_chrome_version（`wxt.config.ts` 中该项被注释），Chrome < 116 可达，
+  // 此处降级为新建标签页是实际会走到的兜底路径
   if (typeof chrome.runtime.getContexts !== 'function') {
     return undefined;
   }

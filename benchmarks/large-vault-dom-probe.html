@@ -1,0 +1,426 @@
+<!doctype html>
+<!--
+  大 Vault DOM 成本探针（issue #89 评估用）
+
+  目的：把「渲染行数」与「主线程阻塞时长」的关系量化，用于判断
+  「分页 / 虚拟滚动 / 窗口化 / 仅消除重复渲染」四条路线各自的收益来源。
+
+  这不是被测代码本身，而是 `components/options/PasswordTable.vue` 在
+  Element Plus 2.14.4 经典 `el-table`（非虚拟）下 DOM 结构的高保真复刻：
+  - 每行 10 列、约 75~90 个节点、约 50 个组件实例（此处以等价 DOM 节点近似）；
+  - 保留 `transition: all .3s ease` + `:hover{transform;box-shadow}`（PasswordTable.vue:393-400）；
+  - 保留 selection(fixed left) / actions(fixed right) 的 position:sticky 结构；
+  - 每行 5 个操作按钮 + 最多 3 个标签 + 1 个 TOTP svg。
+
+  测量项均为主线程同步阻塞时长（操作 + 强制布局收敛），与用户在
+  「点击新增 / 点标签筛选 / 切换密码显隐」时感知到的掉帧同源。
+
+  运行：浏览器直接打开本文件，结果打印在页面与 console。
+-->
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>large vault DOM probe</title>
+    <style>
+      body {
+        margin: 0;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Helvetica Neue',
+          sans-serif;
+        font-size: 14px;
+      }
+
+      .probe-toolbar {
+        padding: 12px 32px;
+        font:
+          12px/1.6 ui-monospace,
+          Menlo,
+          monospace;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+      }
+
+      .password-list {
+        margin: 0 32px 32px;
+        overflow: hidden;
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+      }
+
+      table {
+        width: 100%;
+        table-layout: fixed;
+        border-collapse: separate;
+        border-spacing: 0;
+      }
+
+      .cell {
+        padding: 8px 10px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      th {
+        position: sticky;
+        top: 0;
+        z-index: 3;
+        padding: 9px 10px;
+        font-weight: 600;
+        text-align: left;
+        background: #fafafa;
+        border-bottom: 1px solid #ebeef5;
+      }
+
+      td {
+        padding: 0;
+        border-bottom: 1px solid #ebeef5;
+      }
+
+      /* 复刻 PasswordTable.vue:393-400：全行 transition:all + hover transform */
+      tbody tr {
+        transition: all 0.3s ease;
+      }
+
+      tbody tr:hover {
+        box-shadow: 0 2px 8px rgb(59 130 246 / 20%);
+        transform: translateY(-2px);
+      }
+
+      /* 复刻 fixed 列 */
+      th.fixed-left,
+      td.fixed-left {
+        position: sticky;
+        left: 0;
+        z-index: 2;
+        background: #fff;
+      }
+
+      th.fixed-right,
+      td.fixed-right {
+        position: sticky;
+        right: 0;
+        z-index: 2;
+        background: #fff;
+      }
+
+      .password-cell {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .el-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 28px;
+        height: 28px;
+        padding: 0;
+        margin-left: 10px;
+        cursor: pointer;
+        background: #fff;
+        border: 1px solid #dcdfe6;
+        border-radius: 50%;
+      }
+
+      .el-button::after {
+        position: absolute;
+        inset: -5px;
+        content: '';
+      }
+
+      .operation-buttons {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+      }
+
+      .el-tag {
+        display: inline-flex;
+        max-width: min(110px, 100%);
+        padding: 0 8px;
+        margin: 0;
+        overflow: visible;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.5;
+        white-space: nowrap;
+        cursor: default;
+        border-radius: 4px;
+      }
+
+      .el-tag__content {
+        display: block;
+        max-width: 100%;
+        padding: 2px 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .el-tag + .el-tag {
+        margin-left: 4px;
+      }
+
+      .url-link {
+        display: inline-flex;
+        gap: 4px;
+        align-items: center;
+        max-width: 100%;
+        color: #409eff;
+        text-decoration: none;
+      }
+
+      .url-link__text {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .el-checkbox__inner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        background: #fff;
+        border: 1px solid #dcdfe6;
+        border-radius: 2px;
+      }
+
+      svg {
+        display: block;
+      }
+
+      /* 变体：行级 content-visibility（探针验证其对 table-row 是否真的生效） */
+      body.cv-row tbody tr {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 41px;
+      }
+
+      /* 变体：关闭全行 transition/hover 变换（隔离 CSS 成本） */
+      body.no-row-transition tbody tr {
+        transition: none;
+      }
+
+      body.no-row-transition tbody tr:hover {
+        box-shadow: none;
+        transform: none;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div
+      class="probe-toolbar"
+      id="toolbar"
+    >
+      准备中…
+    </div>
+    <div
+      class="password-list"
+      id="listHost"
+    ></div>
+    <pre
+      id="out"
+      style="padding: 0 32px 32px; font-size: 12px; line-height: 1.7"
+    ></pre>
+
+    <script>
+      /** 每行的列宽，合计与 PasswordTable.vue 的 min-width 序列同量级 */
+      const COLUMN_WIDTHS = [36, 150, 110, 120, 200, 100, 150, 100, 100, 210];
+
+      /** 复刻一行：10 列、约 80 个节点，含 5 个操作按钮与最多 3 个标签 */
+      function rowHTML(index) {
+        const tagCount = index % 4 === 0 ? 3 : index % 2 === 0 ? 1 : 0;
+        let tags = '';
+        for (let t = 0; t < tagCount; t++) {
+          tags += `<span class="el-tag" style="background:#ecf5ff;color:#409eff;border-color:#d9ecff">
+            <span class="el-tag__content"><span>标签${t}-demo${index}</span></span></span>`;
+        }
+        const totp =
+          index % 3 === 0
+            ? `<svg viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="10" fill="none" stroke="#ddd" stroke-width="2"></circle><circle cx="12" cy="12" r="10" fill="none" stroke="#409eff" stroke-width="2" stroke-dasharray="62.8" stroke-dashoffset="21"></circle></svg><span>18s</span><i class="el-icon"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M8 5v14l11-7z"></path></svg></i>`
+            : '-';
+        const actions = [0, 1, 2, 3, 4]
+          .map(
+            () =>
+              `<button class="el-button" style="position:relative"><i class="el-icon"><svg viewBox="0 0 24 24" width="14" height="14"><circle cx="12" cy="12" r="8"></circle></svg></i></button>`,
+          )
+          .join('');
+        return `<tr class="row-${index}">
+          <td class="fixed-left"><div class="cell"><label class="el-checkbox"><span class="el-checkbox__input"><span class="el-checkbox__inner"></span><input type="checkbox" hidden></span></label></div></td>
+          <td><div class="cell"><span>user${index}@example.com</span></div></td>
+          <td><div class="cell"><div class="password-cell"><span>********</span><button class="el-button" style="position:relative"><i class="el-icon"><svg viewBox="0 0 24 24" width="14" height="14"><path d="M12 5c-5 0-9 4.5-10 7 1 2.5 5 7 10 7s9-4.5 10-7c-1-2.5-5-7-10-7z"></path></svg></i></button></div></div></td>
+          <td><div class="cell">${totp}</div></td>
+          <td><div class="cell">${
+            index % 5 === 0
+              ? '-'
+              : `<a class="url-link" href="#"><img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E" width="14" height="14" loading="lazy"><span class="url-link__text"><span>site${index % 97}.com/login</span></span></a>`
+          }</div></td>
+          <td><div class="cell">${tags || '-'}</div></td>
+          <td><div class="cell"><span>备注说明文本若干字，用于复现真实单元格长度 about ${index}</span></div></td>
+          <td><div class="cell">2026-03-0${(index % 8) + 1}-14:22</div></td>
+          <td><div class="cell">2026-09-0${(index % 8) + 1}-14:22</div></td>
+          <td class="fixed-right"><div class="cell"><div class="operation-buttons">${actions}</div></div></td>
+        </tr>`;
+      }
+
+      /** 生成 N 行表格 HTML（含 colgroup 与表头） */
+      function tableHTML(rows) {
+        const cols = COLUMN_WIDTHS.map(w => `<col style="width:${w}px">`).join('');
+        const heads = ['选择', '用户名', '密码', '验证码', '网址', '标签', '备注', '创建', '更新', '操作']
+          .map((h, i) => `<th class="${i === 0 ? 'fixed-left' : i === 9 ? 'fixed-right' : ''}">${h}</th>`)
+          .join('');
+        let body = '';
+        for (let i = 0; i < rows; i++) body += rowHTML(i);
+        return `<table><colgroup>${cols}</colgroup><thead><tr>${heads}</tr></thead><tbody>${body}</tbody></table>`;
+      }
+
+      /** 阻塞时长测量：执行动作后强制布局收敛再取时间 */
+      function measure(action) {
+        const start = performance.now();
+        action();
+        // 强制样式与布局全部落地，等价于浏览器必须在下一帧前完成的同步工作
+        void document.body.offsetHeight;
+        return performance.now() - start;
+      }
+
+      const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)];
+
+      async function nextFrame() {
+        return new Promise(resolve => requestAnimationFrame(() => resolve()));
+      }
+
+      /** 一次完整场景：挂载 / 全量重渲染 / 模态框锁滚强制布局 / 全表样式失效 / 平滑滚动 */
+      async function scenario(rows) {
+        const host = document.getElementById('listHost');
+        const results = { rows };
+
+        results.mountMs = measure(() => {
+          host.innerHTML = tableHTML(rows);
+        });
+        results.nodeCount = host.querySelectorAll('*').length;
+
+        // 全量重渲染：等价于 filteredPasswords 换引用 → el-table 重排所有行
+        const rerenders = [];
+        for (let i = 0; i < 3; i++) {
+          rerenders.push(
+            measure(() => {
+              host.innerHTML = tableHTML(rows);
+            }),
+          );
+        }
+        results.rerenderMs = median(rerenders);
+
+        // 模态框锁滚：EP useLockscreen 改 body 宽度 + 读 body.scrollHeight，
+        // 随后表格 ResizeObserver 做 7 次同步读 → doLayout
+        const lockScrolls = [];
+        for (let i = 0; i < 3; i++) {
+          lockScrolls.push(
+            measure(() => {
+              document.body.classList.add('el-popup-parent--hidden');
+              document.body.style.width = 'calc(100% - 15px)';
+              void document.body.scrollHeight;
+              const table = host.querySelector('table');
+              void table.offsetWidth;
+              void table.offsetHeight;
+              void host.offsetHeight;
+              void host.scrollHeight;
+              document.body.classList.remove('el-popup-parent--hidden');
+              document.body.style.width = '';
+              void document.body.scrollHeight;
+            }),
+          );
+        }
+        results.dialogOpenForcedLayoutMs = median(lockScrolls);
+
+        // 全表样式失效：一次 class 变更让 600 行的 transition/选择器全部重算，
+        // 是「响应式写一处 → 整表重渲染」在 DOM 层的成本下界
+        const invalidations = [];
+        for (let i = 0; i < 3; i++) {
+          invalidations.push(
+            measure(() => {
+              document.body.classList.toggle('probe-invalidate');
+              host.querySelectorAll('td:nth-child(3) .cell span').forEach(el => {
+                el.style.fontWeight = document.body.classList.contains('probe-invalidate') ? '600' : '400';
+              });
+            }),
+          );
+        }
+        results.fullStyleInvalidationMs = median(invalidations);
+
+        // 平滑滚动到末行期间，每帧的同步读+写（复刻 EP syncPosition 绑 scroll）
+        await nextFrame();
+        const scrollFrames = [];
+        const target = host.querySelector(`.row-${Math.max(0, rows - 1)}`);
+        const scrollStart = performance.now();
+        target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        await new Promise(resolve => {
+          let frames = 0;
+          const tick = () => {
+            const t0 = performance.now();
+            const table = host.querySelector('table');
+            void table.offsetWidth;
+            void host.scrollHeight;
+            scrollFrames.push(performance.now() - t0);
+            frames += 1;
+            if (frames < 20) requestAnimationFrame(tick);
+            else resolve();
+          };
+          requestAnimationFrame(tick);
+        });
+        results.scrollFollowUpFrameMs = median(scrollFrames);
+        results.scrollTotalMs = performance.now() - scrollStart;
+
+        return results;
+      }
+
+      async function run() {
+        const out = [];
+        for (const rows of [30, 60, 100, 200, 600, 2000]) {
+          out.push(await scenario(rows));
+          document.getElementById('toolbar').textContent = `已完成 ${rows} 行`;
+        }
+
+        // 变体对照：600 行下关闭全行 transition、开启行级 content-visibility
+        const baseline600 = out.find(o => o.rows === 600);
+        document.body.classList.add('no-row-transition');
+        const noTransition = await scenario(600);
+        document.body.classList.remove('no-row-transition');
+        document.body.classList.add('cv-row');
+        const cvRow = await scenario(600);
+        document.body.classList.remove('cv-row');
+
+        const fmt = r =>
+          `${String(r.rows).padStart(5)} 行 | 节点 ${String(r.nodeCount).padStart(6)} | ` +
+          `挂载 ${r.mountMs.toFixed(1)} | 全量重排 ${r.rerenderMs.toFixed(1)} | ` +
+          `弹窗打开强制布局 ${r.dialogOpenForcedLayoutMs.toFixed(1)} | ` +
+          `全表样式失效 ${r.fullStyleInvalidationMs.toFixed(1)} | 滚动后续帧 ${r.scrollFollowUpFrameMs.toFixed(2)}`;
+
+        const text =
+          out.map(fmt).join('\n') +
+          '\n\n—— 600 行变体对照 ——\n' +
+          `基线          挂载 ${baseline600.mountMs.toFixed(1)} / 重排 ${baseline600.rerenderMs.toFixed(1)} / 弹窗 ${baseline600.dialogOpenForcedLayoutMs.toFixed(
+            1,
+          )} / 失效 ${baseline600.fullStyleInvalidationMs.toFixed(1)}\n` +
+          `无行 transition 挂载 ${noTransition.mountMs.toFixed(1)} / 重排 ${noTransition.rerenderMs.toFixed(1)} / 弹窗 ${noTransition.dialogOpenForcedLayoutMs.toFixed(
+            1,
+          )} / 失效 ${noTransition.fullStyleInvalidationMs.toFixed(1)}\n` +
+          `行级 cv:auto    挂载 ${cvRow.mountMs.toFixed(1)} / 重排 ${cvRow.rerenderMs.toFixed(1)} / 弹窗 ${cvRow.dialogOpenForcedLayoutMs.toFixed(
+            1,
+          )} / 失效 ${cvRow.fullStyleInvalidationMs.toFixed(1)}`;
+
+        document.getElementById('out').textContent = text;
+        window.__probeResult = { out, noTransition, cvRow, baseline600 };
+        console.log(text);
+      }
+
+      window.addEventListener('load', run);
+    </script>
+  </body>
+</html>

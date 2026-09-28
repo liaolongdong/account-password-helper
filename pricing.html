@@ -9,10 +9,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>永久免费 · 定价 — 账号密码管理助手 | 开源本地密码管理器，无订阅无高级版</title>
+    <title>永久免费 · 开源本地密码管理器定价 | 账号密码管理助手</title>
     <meta
       name="description"
-      content="账号密码管理助手 100% 免费、开源（GPL-3.0）：无订阅、无高级版、无需注册账号，全部功能对所有用户开放。AES-256-GCM 纯本地加密，零网络传输，内置 TOTP 两步验证、离线安全体检与弱密码字典。"
+      content="账号密码管理助手永久免费、开源（GPL-3.0）：无订阅、无高级版、无需注册，全部功能对所有用户开放。密码逐字段 AES-256-GCM 本机加密，不上传服务器。"
     />
     <link
       rel="icon"
@@ -38,20 +38,71 @@
       rel="canonical"
       href="https://liaolongdong.github.io/account-password-helper/pricing.html"
     />
+    <link
+      rel="alternate"
+      hreflang="zh-CN"
+      href="https://liaolongdong.github.io/account-password-helper/pricing.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://liaolongdong.github.io/account-password-helper/pricing.en.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://liaolongdong.github.io/account-password-helper/pricing.html"
+    />
     <meta
       property="og:type"
       content="website"
     />
     <meta
       property="og:title"
-      content="永久免费 · 定价 — 账号密码管理助手"
+      content="永久免费 · 开源本地密码管理器定价 | 账号密码管理助手"
     />
     <meta
       property="og:description"
-      content="100% 免费、开源（GPL-3.0）的本地密码管理器浏览器扩展：无订阅、无高级版、无需注册账号，全部功能对所有用户开放。"
+      content="账号密码管理助手永久免费、开源（GPL-3.0）：无订阅、无高级版、无需注册，全部功能对所有用户开放。密码逐字段 AES-256-GCM 本机加密，不上传服务器。"
     />
     <meta
       property="og:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+    />
+    <meta
+      property="og:url"
+      content="https://liaolongdong.github.io/account-password-helper/pricing.html"
+    />
+    <meta
+      property="og:site_name"
+      content="账号密码管理助手 Account Password Helper"
+    />
+    <meta
+      property="og:locale"
+      content="zh_CN"
+    />
+    <meta
+      property="og:locale:alternate"
+      content="en_US"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
+    />
+    <meta
+      name="twitter:card"
+      content="summary_large_image"
+    />
+    <meta
+      name="twitter:title"
+      content="永久免费 · 开源本地密码管理器定价 | 账号密码管理助手"
+    />
+    <meta
+      name="twitter:description"
+      content="账号密码管理助手永久免费、开源（GPL-3.0）：无订阅、无高级版、无需注册，全部功能对所有用户开放。密码逐字段 AES-256-GCM 本机加密，不上传服务器。"
+    />
+    <meta
+      name="twitter:image"
       content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
     />
     <style>
@@ -831,6 +882,19 @@
         color: var(--primary);
       }
 
+      .footer-more {
+        padding-bottom: 28px;
+      }
+
+      .footer-more a {
+        color: var(--text-muted);
+        transition: color 0.2s;
+      }
+
+      .footer-more a:hover {
+        color: var(--primary);
+      }
+
       /* ═══════════════════════════════════════════
          MOTION & RESPONSIVE
          ═══════════════════════════════════════════ */
@@ -1078,7 +1142,7 @@
             class="price-subtitle fade-up fade-up-2"
             data-i18n="hero.subtitle"
           >
-            所有功能、所有更新、所有用户——完全免费。无高级版、无订阅、无需注册账号，数据只存你自己的浏览器里。
+            所有功能、所有更新、所有用户——完全免费。无高级版、无订阅、无需注册账号，密码数据不出本机。
           </p>
 
           <!-- ═══ STATS ═══ -->
@@ -1144,7 +1208,7 @@
                 class="stat-label"
                 data-i18n="stats.cloud.label"
               >
-                云端占比，100% 本地
+                云端占比，密码只存本机
               </div>
             </div>
             <div class="stat">
@@ -1312,7 +1376,7 @@
                   <span
                     class="feature-text"
                     data-i18n="feat.audit"
-                    >离线安全体检 — 0~100 评分，弱密码/复用/泄露/过期/未开 2FA 五维检测</span
+                    >离线安全体检 — 0~100 评分，弱密码/复用/泄露/过期四维加权，未开 2FA 单列</span
                   >
                 </li>
                 <li class="feature-item">
@@ -1348,7 +1412,7 @@
                   <span
                     class="feature-text"
                     data-i18n="feat.generator"
-                    >密码生成器 — 随机密码 + EFF Diceware 助记词组，实时强度评估</span
+                    >密码生成器 — 随机密码 + 本地 3080 词库助记词组，实时强度评估</span
                   >
                 </li>
                 <li class="feature-item">
@@ -1398,7 +1462,7 @@
                   <span
                     class="feature-card-count"
                     data-i18n="count.autofill"
-                    >5 项能力</span
+                    >7 项能力</span
                   >
                 </div>
               </div>
@@ -1418,7 +1482,7 @@
                   <span
                     class="feature-text"
                     data-i18n-html="feat.autofill"
-                    >一键登录 <code>Ctrl+Shift+F</code> — 自动填充 + 勾选协议 + 点击登录</span
+                    >一键填充 <code>Ctrl+Shift+F</code> — 只填账号密码；配合「填充并登录」可自动勾选协议并点击登录</span
                   >
                 </li>
                 <li class="feature-item">
@@ -1436,7 +1500,26 @@
                   <span
                     class="feature-text"
                     data-i18n="feat.fill"
-                    >三重填充策略 — 内联图标 / 侧边栏 / 全局快捷键</span
+                    >四重填充策略 — 内联图标 / 侧边栏 / 右键菜单 / 全局快捷键</span
+                  >
+                </li>
+                <li class="feature-item">
+                  <span class="feature-check"
+                    ><svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 8.5l3.5 3.5 6.5-7" /></svg
+                  ></span>
+                  <span
+                    class="feature-text"
+                    data-i18n="feat.siteRules"
+                    >站点规则 — 为识别不准的登录页（典型 Web Components 站点）按域名自定义账号 /
+                    密码框选择器，默认开启开放 shadow root 穿透</span
                   >
                 </li>
                 <li class="feature-item">
@@ -1455,6 +1538,25 @@
                     class="feature-text"
                     data-i18n="feat.env"
                     >精确域名匹配，dev / test / staging / prod 多环境账号互不混淆</span
+                  >
+                </li>
+                <li class="feature-item">
+                  <span class="feature-check"
+                    ><svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 8.5l3.5 3.5 6.5-7" /></svg
+                  ></span>
+                  <span
+                    class="feature-text"
+                    data-i18n="feat.domainTier"
+                    >跨子域名匹配三档 — 默认仅精确匹配，可放宽为「精确 +
+                    通配条目」或「同主域名」；判重口径不随档位改变，localhost / 127.0.0.1 按端口区分</span
                   >
                 </li>
                 <li class="feature-item">
@@ -1529,7 +1631,7 @@
                   <span
                     class="feature-card-count"
                     data-i18n="count.data"
-                    >5 项能力</span
+                    >6 项能力</span
                   >
                 </div>
               </div>
@@ -1620,6 +1722,25 @@
                   ></span>
                   <span
                     class="feature-text"
+                    data-i18n="feat.identity"
+                    >身份信息库 — 证件号 / 银行卡等独立加密存放（整包 AES-256-GCM），默认掩码、复验主密码才打开，.aphid
+                    加密备份可导出导入，不参与自动备份</span
+                  >
+                </li>
+                <li class="feature-item">
+                  <span class="feature-check"
+                    ><svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 8.5l3.5 3.5 6.5-7" /></svg
+                  ></span>
+                  <span
+                    class="feature-text"
                     data-i18n="feat.rekey"
                     >修改主密码原子换钥，换钥过程不丢数据</span
                   >
@@ -1676,7 +1797,7 @@
                   <span
                     class="feature-card-count"
                     data-i18n="count.personal"
-                    >4 项能力</span
+                    >5 项能力</span
                   >
                 </div>
               </div>
@@ -1715,6 +1836,24 @@
                     class="feature-text"
                     data-i18n="feat.search"
                     >智能搜索 — 拼音 / 首字母缩写匹配，命中高亮</span
+                  >
+                </li>
+                <li class="feature-item">
+                  <span class="feature-check"
+                    ><svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 8.5l3.5 3.5 6.5-7" /></svg
+                  ></span>
+                  <span
+                    class="feature-text"
+                    data-i18n-html="feat.palette"
+                    >命令面板 — 管理页 <code>Ctrl/Cmd+K</code> 检索 23 条命令，支持中文 / 拼音 / 首字母，回车直达</span
                   >
                 </li>
                 <li class="feature-item">
@@ -2001,7 +2140,7 @@
                     class="col-us yes"
                     data-i18n="compare.val.yesSupport2"
                   >
-                    支持
+                    支持（跨子域三档可选）
                   </td>
                   <td
                     class="no"
@@ -2018,6 +2157,33 @@
                   <td
                     class="no"
                     data-i18n="compare.val.noSupport3"
+                  >
+                    不支持
+                  </td>
+                </tr>
+                <tr>
+                  <td data-i18n="compare.row.siteRules">站点规则（自定义选择器）</td>
+                  <td
+                    class="col-us yes"
+                    data-i18n="compare.val.yesSupport3"
+                  >
+                    支持
+                  </td>
+                  <td
+                    class="no"
+                    data-i18n="compare.val.noSupport4"
+                  >
+                    不支持
+                  </td>
+                  <td
+                    class="no"
+                    data-i18n="compare.val.noSupport5"
+                  >
+                    不支持
+                  </td>
+                  <td
+                    class="no"
+                    data-i18n="compare.val.noSupport6"
                   >
                     不支持
                   </td>
@@ -2115,7 +2281,7 @@
                 class="info-value"
                 data-i18n-html="info.cloud.value"
               >
-                无 — <span class="highlight">100% 本地</span>，零网络传输
+                无 — <span class="highlight">密码数据不出本机</span>，不上传服务器
               </div>
             </div>
             <div class="info-item">
@@ -2247,7 +2413,7 @@
     <footer class="footer">
       <div class="container footer-inner">
         <p class="footer-text">
-          <span data-i18n="footer.license">基于 GPL-3.0 协议发布 · 本地加密 · 零网络传输</span>
+          <span data-i18n="footer.license">基于 GPL-3.0 协议发布 · 本地加密 · 密码不上传</span>
         </p>
         <div class="footer-links">
           <a
@@ -2268,6 +2434,16 @@
           >
         </div>
       </div>
+      <div class="container">
+        <p
+          class="footer-text footer-more"
+          data-i18n-html="footer.more"
+        >
+          同作者的开源插件：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> ·
+          <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a> ·
+          <a href="https://github.com/liaolongdong">作者主页</a>
+        </p>
+      </div>
     </footer>
 
     <script>
@@ -2275,18 +2451,29 @@
          i18n 字典（与 index.html 相同的按 key 组织方式）
          ═══════════════════════════════════════════ */
       const i18n = {
+        'meta.title': {
+          zh: '永久免费 · 开源本地密码管理器定价 | 账号密码管理助手',
+          en: 'Pricing - Free Open Source Local Password Manager',
+        },
+        'meta.description': {
+          zh: '账号密码管理助手永久免费、开源（GPL-3.0）：无订阅、无高级版、无需注册，全部功能对所有用户开放。密码逐字段 AES-256-GCM 本机加密，不上传服务器。',
+          en: 'Pricing: this local password manager is free and open source (GPL-3.0). No subscription, no premium tier, no account. Every feature included.',
+        },
         'nav.name': { zh: '账号密码管理助手', en: 'Account Password Helper' },
         'hero.eyebrow': { zh: '开源免费 · GPL-3.0 · 无需注册账号', en: 'Open Source · GPL-3.0 · No Account' },
         'hero.price': { zh: '¥0', en: '$0' },
         'hero.title': { zh: '永久免费', en: 'Free Forever' },
         'hero.subtitle': {
-          zh: '所有功能、所有更新、所有用户——完全免费。无高级版、无订阅、无需注册账号，数据只存你自己的浏览器里。',
-          en: 'Every feature, every update, every user — completely free. No premium tier, no subscriptions, no account required. Your data stays in your own browser.',
+          zh: '所有功能、所有更新、所有用户——完全免费。无高级版、无订阅、无需注册账号，密码数据不出本机。',
+          en: 'Every feature, every update, every user — completely free. No premium tier, no subscriptions, no account required. Password data stays on your machine.',
         },
         'stats.users.value': { zh: '∞', en: '∞' },
         'stats.users.label': { zh: '用户数，无需注册', en: 'Users, No Sign-up' },
         'stats.cloud.value': { zh: '0%', en: '0%' },
-        'stats.cloud.label': { zh: '云端占比，100% 本地', en: 'Cloud, 100% Local' },
+        'stats.cloud.label': {
+          zh: '云端占比，密码只存本机',
+          en: 'Cloud share — password data stored locally',
+        },
         'stats.sub.value': { zh: '¥0', en: '$0' },
         'stats.sub.label': { zh: '每月，永久免费', en: 'Per Month, Forever' },
         'stats.sub.icon': { zh: '¥', en: '$' },
@@ -2301,9 +2488,9 @@
         'group.personal': { zh: '体验与个性化', en: 'Experience' },
         'group.platform': { zh: '跨平台与工程', en: 'Platform & Engineering' },
         'count.security': { zh: '7 项能力', en: '7 capabilities' },
-        'count.autofill': { zh: '5 项能力', en: '5 capabilities' },
-        'count.data': { zh: '5 项能力', en: '5 capabilities' },
-        'count.personal': { zh: '4 项能力', en: '4 capabilities' },
+        'count.autofill': { zh: '7 项能力', en: '7 capabilities' },
+        'count.data': { zh: '6 项能力', en: '6 capabilities' },
+        'count.personal': { zh: '5 项能力', en: '5 capabilities' },
         'count.platform': { zh: '4 项能力', en: '4 capabilities' },
         'feat.encryption': {
           zh: '<strong>AES-256-GCM</strong> 本地加密 · PBKDF2 <code>600,000</code> 次迭代',
@@ -2318,32 +2505,40 @@
           en: 'Persistent session countdown with click-to-renew badge',
         },
         'feat.audit': {
-          zh: '离线安全体检 — 0~100 评分，弱密码/复用/泄露/过期/未开 2FA 五维检测',
-          en: 'Offline security audit — 0-100 score across 5 dimensions (weak / reused / leaked / expired / no 2FA)',
+          zh: '离线安全体检 — 0~100 评分，弱密码/复用/泄露/过期四维加权，未开 2FA 单列',
+          en: 'Offline security audit — 0-100 score weighted across 4 dimensions (weak / reused / leaked / expired), no-2FA listed separately',
         },
         'feat.totp': {
           zh: '内置 <strong>TOTP 两步验证</strong>（RFC 6238），实时活码 + 二维码导入',
           en: 'Built-in <strong>TOTP 2FA</strong> (RFC 6238) with live codes and QR import',
         },
         'feat.generator': {
-          zh: '密码生成器 — 随机密码 + EFF Diceware 助记词组，实时强度评估',
-          en: 'Password generator — random + EFF Diceware passphrase with live strength meter',
+          zh: '密码生成器 — 随机密码 + 本地 3080 词库助记词组，实时强度评估',
+          en: 'Password generator — random passwords + passphrases from a bundled 3,080-word list, live strength meter',
         },
         'feat.clipboard': {
           zh: '剪贴板自动清除 — 复制密码后限时清空，秒数可配',
           en: 'Clipboard auto-clear — copied passwords expire on a configurable timer',
         },
         'feat.autofill': {
-          zh: '一键登录 <code>Ctrl+Shift+F</code> — 自动填充 + 勾选协议 + 点击登录',
-          en: 'One-click login <code>Ctrl+Shift+F</code> — autofill + tick consent + click login',
+          zh: '一键填充 <code>Ctrl+Shift+F</code> — 只填账号密码；配合「填充并登录」可自动勾选协议并点击登录',
+          en: 'Quick fill <code>Ctrl+Shift+F</code> — only fills credentials; pair it with "Fill and sign in" to tick consent and submit',
         },
         'feat.fill': {
-          zh: '三重填充策略 — 内联图标 / 侧边栏 / 全局快捷键',
-          en: 'Triple fill strategy — inline icon / side panel / global shortcut',
+          zh: '四重填充策略 — 内联图标 / 侧边栏 / 右键菜单 / 全局快捷键',
+          en: 'Quadruple fill strategy — inline icon / side panel / right-click menu / global shortcut',
+        },
+        'feat.siteRules': {
+          zh: '站点规则 — 为识别不准的登录页（典型 Web Components 站点）按域名自定义账号 / 密码框选择器，默认开启开放 shadow root 穿透',
+          en: 'Site rules — custom username / password field selectors per domain for login pages heuristic detection gets wrong (typically Web Components sites), with open shadow-root penetration on by default',
         },
         'feat.env': {
           zh: '精确域名匹配，dev / test / staging / prod 多环境账号互不混淆',
           en: 'Exact domain matching keeps dev / test / staging / prod accounts separate',
+        },
+        'feat.domainTier': {
+          zh: '跨子域名匹配三档 — 默认仅精确匹配，可放宽为「精确 + 通配条目」或「同主域名」；判重口径不随档位改变，localhost / 127.0.0.1 按端口区分',
+          en: 'Three cross-subdomain tiers — exact match only by default, widenable to wildcard entries or same main domain; the auto-save duplicate rule is tier-independent and localhost / 127.0.0.1 stays port-separated',
         },
         'feat.autosave': {
           zh: 'Chrome 式自动保存凭证，智能去重 + 域名黑白名单',
@@ -2369,6 +2564,10 @@
           zh: '标签多选与筛选、收藏置顶、一键去重、批量删除/打标、导出选中条目',
           en: 'Tags & filtering, favorites, one-click dedup, batch delete / retag, export selected entries',
         },
+        'feat.identity': {
+          zh: '身份信息库 — 证件号 / 银行卡等独立加密存放（整包 AES-256-GCM），默认掩码、复验主密码才打开，.aphid 加密备份可导出导入，不参与自动备份',
+          en: 'Identity vault — IDs and bank cards in a separately encrypted store (whole-blob AES-256-GCM), masked by default and gated by a master-password re-check, .aphid encrypted backup export / import, not covered by automatic backups',
+        },
         'feat.rekey': {
           zh: '修改主密码原子换钥，换钥过程不丢数据',
           en: 'Atomic re-key on master password change — no data loss',
@@ -2380,6 +2579,10 @@
         'feat.search': {
           zh: '智能搜索 — 拼音 / 首字母缩写匹配，命中高亮',
           en: 'Smart search — pinyin / initials matching with highlight',
+        },
+        'feat.palette': {
+          zh: '命令面板 — 管理页 <code>Ctrl/Cmd+K</code> 检索 23 条命令，支持中文 / 拼音 / 首字母，回车直达',
+          en: 'Command palette — <code>Ctrl/Cmd+K</code> on the manager page filters 23 commands by Chinese, pinyin or initials, Enter to run',
         },
         'feat.favicon': {
           zh: '网站图标展示 — 读取浏览器本地图标缓存，零外部请求',
@@ -2407,8 +2610,8 @@
         },
         'compare.title': { zh: '免费，免费到什么程度？', en: 'How free is "free"?' },
         'compare.sub': {
-          zh: '和其他常见选择放在一起看（价格口径：公开定价，截至 2026-08）',
-          en: 'Side by side with common choices (public pricing, as of Aug 2026)',
+          zh: '和其他常见选择放在一起看（价格口径：公开定价，截至 2026-09）',
+          en: 'Side by side with common choices (public pricing, as of Sep 2026)',
         },
         'compare.dim': { zh: '维度', en: 'Dimension' },
         'compare.us': { zh: '账号密码管理助手', en: 'Account Password Helper' },
@@ -2434,10 +2637,15 @@
         'compare.val.fillOnly2': { zh: '仅填充', en: 'Fill only' },
         'compare.val.fillOnly3': { zh: '仅填充', en: 'Fill only' },
         'compare.row.env': { zh: '多环境账号隔离', en: 'Multi-environment isolation' },
-        'compare.val.yesSupport2': { zh: '支持', en: 'Yes' },
+        'compare.val.yesSupport2': { zh: '支持（跨子域三档可选）', en: 'Yes (3 subdomain tiers)' },
         'compare.val.noSupport': { zh: '不支持', en: 'No' },
         'compare.val.noSupport2': { zh: '不支持', en: 'No' },
         'compare.val.noSupport3': { zh: '不支持', en: 'No' },
+        'compare.row.siteRules': { zh: '站点规则（自定义选择器）', en: 'Site rules (custom selectors)' },
+        'compare.val.yesSupport3': { zh: '支持', en: 'Yes' },
+        'compare.val.noSupport4': { zh: '不支持', en: 'No' },
+        'compare.val.noSupport5': { zh: '不支持', en: 'No' },
+        'compare.val.noSupport6': { zh: '不支持', en: 'No' },
         'compare.row.totp': { zh: '内置 TOTP 验证器', en: 'Built-in TOTP' },
         'compare.val.builtIn': { zh: '内置', en: 'Built-in' },
         'compare.val.bwTotp': { zh: '付费版 $10/年', en: 'Paid tier $10/yr' },
@@ -2459,8 +2667,8 @@
         },
         'info.cloud.label': { zh: '云端', en: 'Cloud' },
         'info.cloud.value': {
-          zh: '无 — <span class="highlight">100% 本地</span>，零网络传输',
-          en: 'None — <span class="highlight">100% local</span>, zero network transfer',
+          zh: '无 — <span class="highlight">密码数据不出本机</span>，不上传服务器',
+          en: 'None — <span class="highlight">password data stays on your machine</span>, nothing uploaded',
         },
         'info.sub.label': { zh: '订阅', en: 'Subscription' },
         'info.sub.value': {
@@ -2481,11 +2689,15 @@
         'cta.install': { zh: '添加至 Chrome（免费）', en: 'Add to Chrome (Free)' },
         'cta.btn': { zh: '在 GitHub 上查看', en: 'View on GitHub' },
         'footer.license': {
-          zh: '基于 GPL-3.0 协议发布 · 本地加密 · 零网络传输',
-          en: 'Released under GPL-3.0 · Local encryption · Zero network transfer',
+          zh: '基于 GPL-3.0 协议发布 · 本地加密 · 密码不上传',
+          en: 'Released under GPL-3.0 · Local encryption · Passwords never uploaded',
         },
         'footer.home': { zh: '产品官网', en: 'Homepage' },
         'footer.privacy': { zh: '隐私政策', en: 'Privacy Policy' },
+        'footer.more': {
+          zh: '同作者的开源插件：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> · <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a> · <a href="https://github.com/liaolongdong">作者主页</a>',
+          en: 'More open-source extensions by the same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> · <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a> · <a href="https://github.com/liaolongdong">Author page</a>',
+        },
       };
 
       /* ═══════════════════════════════════════════
@@ -2526,12 +2738,8 @@
         toggle.textContent = lang === 'zh' ? 'EN' : '中文';
         toggle.setAttribute('aria-label', lang === 'zh' ? 'Switch to English' : '切换为中文');
 
-        const title = {
-          zh: '永久免费 · 定价 — 账号密码管理助手 | 开源本地密码管理器，无订阅无高级版',
-          en: 'Free Forever — Pricing | Account Password Helper, Open-Source Local Password Manager',
-        }[lang];
-        document.title = title;
-        document.querySelector('meta[name="description"]').setAttribute('content', title);
+        document.title = i18n['meta.title'][lang];
+        document.querySelector('meta[name="description"]').setAttribute('content', i18n['meta.description'][lang]);
       }
 
       document.getElementById('langToggle').addEventListener('click', () => {

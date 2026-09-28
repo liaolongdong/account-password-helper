@@ -33,20 +33,32 @@
 
         <el-form-item :label="t('options.emailBackup.backupType')">
           <el-radio-group v-model="backupType">
-            <el-radio value="unencrypted">{{ t('options.emailBackup.unencrypted') }}</el-radio>
             <el-radio value="encrypted">{{ t('options.emailBackup.encrypted') }}</el-radio>
+            <el-radio value="unencrypted">{{ t('options.emailBackup.unencrypted') }}</el-radio>
           </el-radio-group>
           <el-alert
             v-if="backupType === 'encrypted'"
             type="warning"
             :closable="false"
             show-icon
-            class="encrypted-backup-tip"
+            class="backup-type-tip"
           >
             <template #default>
               {{ t('options.emailBackup.encryptedTipPrefix') }}
               <strong>{{ t('options.emailBackup.encryptedTipStrong') }}</strong>
               <strong>{{ t('options.emailBackup.encryptedTipRemember') }}</strong>
+            </template>
+          </el-alert>
+          <!-- 与加密档对称的风险提示：明文导出是本弹窗里唯一会生成未受保护凭据文件的分支 -->
+          <el-alert
+            v-else
+            type="error"
+            :closable="false"
+            show-icon
+            class="backup-type-tip"
+          >
+            <template #default>
+              {{ t('options.emailBackup.unencryptedTip') }}
             </template>
           </el-alert>
         </el-form-item>
@@ -173,7 +185,14 @@ const formRef = ref<FormInstance>();
 const backupLoading = ref(false);
 const saveLoading = ref(false);
 const lastBackupTime = ref('');
-const backupType = ref<BackupType>('unencrypted');
+/**
+ * 备份方式，默认取强度最高的「加密备份」
+ *
+ * 不加密档会把全库明文（含密码与 TOTP secret）落成 CSV 并引导用户作为邮件附件发出，
+ * 属于「默认值即最弱档」的反向安全默认；对密码管理器而言默认应当是需要显式放弃的那一档。
+ * 该字段不入 `EmailBackupConfig`，只影响本次备份动作，改默认值不迁移任何已存配置。
+ */
+const backupType = ref<BackupType>('encrypted');
 
 const form = ref<EmailBackupConfig>({
   email: '',
@@ -240,6 +259,23 @@ const handleBackup = async () => {
   if (!formRef.value) return;
   try {
     await formRef.value.validate();
+
+    // 明文导出是本弹窗唯一会生成「不受本插件保护的全库凭据文件」的动作。
+    // 后续的复验主密码只证明「操作者是本人」，不证明「操作者知道文件是明文」，
+    // 因此先要一次显式知情确认，再进入主密码复验（两闸串联，顺序上先易撤销的先问）。
+    if (backupType.value === 'unencrypted') {
+      await ElMessageBox.confirm(
+        t('options.emailBackup.unencryptedConfirmText'),
+        t('options.emailBackup.unencryptedConfirmTitle'),
+        {
+          confirmButtonText: t('options.emailBackup.unencryptedConfirmBtn'),
+          cancelButtonText: t('common.cancel'),
+          type: 'warning',
+          confirmButtonClass: 'el-button--danger',
+        },
+      );
+    }
+
     backupLoading.value = true;
 
     // 先保存配置
@@ -281,11 +317,11 @@ const handleClose = () => {
   color: #909399;
 }
 
-.encrypted-backup-tip {
+.backup-type-tip {
   margin-top: 10px;
 }
 
-:deep(.encrypted-backup-tip .el-alert__content) {
+:deep(.backup-type-tip .el-alert__content) {
   font-size: 13px;
   line-height: 1.5;
 }

@@ -1,6 +1,9 @@
 import type { InputFillResult } from '@/entrypoints/content/types';
 import { logger } from '@/utils/logger';
 
+/** 可填充的表单控件类型（单行输入框与多行文本框） */
+export type FillableFormControl = HTMLInputElement | HTMLTextAreaElement;
+
 /**
  * 输入框填充器
  * 提供多种策略来填充表单输入框的值，依次尝试直到成功：
@@ -15,7 +18,7 @@ export class InputFiller {
    * @param value - 要填充的值
    * @returns 填充结果，包含是否成功、是否验证通过及使用的策略
    */
-  async setInputValueWithStrategies(input: HTMLInputElement, value: string): Promise<InputFillResult> {
+  async setInputValueWithStrategies(input: FillableFormControl, value: string): Promise<InputFillResult> {
     // 策略1: 原生setter + 完整事件序列
     this.setInputValueNative(input, value);
     await this.delay(50);
@@ -46,7 +49,7 @@ export class InputFiller {
    * @param input - 目标输入框元素
    * @param value - 要填充的值
    */
-  setInputValueNative(input: HTMLInputElement, value: string): void {
+  setInputValueNative(input: FillableFormControl, value: string): void {
     try {
       input.focus();
       input.select();
@@ -55,7 +58,10 @@ export class InputFiller {
       document.execCommand('selectAll');
       document.execCommand('delete');
 
-      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set;
+      // textarea 的 value setter 定义在 HTMLTextAreaElement.prototype 上，
+      // 误用 HTMLInputElement.prototype 的 setter 会静默失效
+      const valueOwner = input instanceof HTMLTextAreaElement ? window.HTMLTextAreaElement : window.HTMLInputElement;
+      const nativeInputValueSetter = Object.getOwnPropertyDescriptor(valueOwner.prototype, 'value')?.set;
 
       if (nativeInputValueSetter) {
         nativeInputValueSetter.call(input, value);
@@ -102,7 +108,7 @@ export class InputFiller {
    * @param input - 目标输入框元素
    * @param value - 要填充的值
    */
-  private setInputValueExecCommand(input: HTMLInputElement, value: string): void {
+  private setInputValueExecCommand(input: FillableFormControl, value: string): void {
     try {
       input.focus();
       input.select();
@@ -121,7 +127,7 @@ export class InputFiller {
    * @param input - 目标输入框元素
    * @param value - 要填充的值
    */
-  private async setInputValueSimulate(input: HTMLInputElement, value: string): Promise<void> {
+  private async setInputValueSimulate(input: FillableFormControl, value: string): Promise<void> {
     try {
       input.focus();
       input.value = '';

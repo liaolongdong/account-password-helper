@@ -4,12 +4,17 @@ import type {
   CheckCredentialStatusData,
   CredentialStatusResponse,
   PasswordEntry,
+  SaveRiskHint,
+  SaveTargetNote,
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { isCrossSubdomainTier, normalizeToHostname, resolveMatchTier } from '@/utils/domain';
+import { isWeakPassword } from '@/utils/passwordStrengthCore';
 import { isSessionValid } from './facades';
 import { getAllPasswords, updatePassword, savePassword } from './passwordCrud';
-import { getFavoriteLimit } from './configManager';
+import { getDomainMatchConfig, getFavoriteLimit } from './configManager';
+import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from './vaultCapacity';
 import { tl } from '@/utils/i18n-lite';
 
 // ==================== 自动保存配置 ====================
@@ -171,10 +176,43 @@ export function isDomainMatchForAutoSave(host: string, config: AutoSaveConfig): 
 }
 
 /**
+ * 把条目存储的 URL 或页面 host 规范化为小写 hostname（剥离协议、端口与路径）
+ *
+ * @param raw 原始 URL 或 host，如 `https://a.com/login`、`a.com`、`localhost:3000`
+ * @returns 可比较的 hostname；无法解析时回退为剥离端口的小写字符串
+ */
+function toMatchableHost(raw: string): string {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  try {
+    return new URL(value.startsWith('http') ? value : `https://${value}`).hostname.toLowerCase();
+  } catch {
+    return value.toLowerCase().split(':')[0];
+  }
+}
+
+/**
+ * 域名匹配精度评分，供多条命中时择优
+ *
+ * @param dataHost 规范化后的页面 host
+ * @param entryHost 规范化后的条目 host
+ * @returns 2 = 同一 hostname；1 = 存在父子域包含关系；0 = 不匹配
+ */
+function hostMatchScore(dataHost: string, entryHost: string): number {
+  if (!dataHost || !entryHost) return 0;
+  if (entryHost === dataHost) return 2;
+  if (entryHost.endsWith(`.${dataHost}`) || dataHost.endsWith(`.${entryHost}`)) return 1;
+  return 0;
+}
+
+/**
  * 在密码库中查找与给定账号+域名匹配的已存条目
  *
  * 匹配条件：用户名完全一致，且域名双向包含（entryHost === dataHost，
  * 或任一方为另一方的子域名）。供自动保存与保存前预检查复用，确保两者判定一致。
+ *
+ * 多条命中时取**最精确**的一条（同一 hostname 优先于父子域），而非数组顺序首条 ——
+ * 避免在 `example.com` 与 `uat.example.com` 并存时改写错条目。精度并列时保留原顺序。
  *
  * @param passwords 已解密的密码条目列表
  * @param data 待匹配的账号与域名
@@ -184,24 +222,21 @@ export function findMatchingEntry(
   passwords: PasswordEntry[],
   data: { username: string; url: string },
 ): PasswordEntry | undefined {
-  // 统一通过 URL 解析提取 hostname（剥离端口号），确保 host:port 与纯 hostname 双向匹配
-  let dataHost: string;
-  try {
-    dataHost = new URL(data.url.startsWith('http') ? data.url : `https://${data.url}`).hostname.toLowerCase();
-  } catch {
-    dataHost = data.url.toLowerCase().split(':')[0];
+  const dataHost = toMatchableHost(data.url);
+  let best: PasswordEntry | undefined;
+  let bestScore = 0;
+
+  for (const entry of passwords) {
+    if (!entry.url || entry.username !== data.username) continue;
+    const score = hostMatchScore(dataHost, toMatchableHost(entry.url));
+    // 严格大于：并列时先到者胜，保持与迁移前相同的条目选择
+    if (score > bestScore) {
+      bestScore = score;
+      best = entry;
+    }
   }
-  return passwords.find(entry => {
-    if (!entry.url || entry.username !== data.username) return false;
-    const entryHost = (() => {
-      try {
-        return new URL(entry.url.startsWith('http') ? entry.url : `https://${entry.url}`).hostname;
-      } catch {
-        return entry.url;
-      }
-    })().toLowerCase();
-    return entryHost === dataHost || entryHost.endsWith('.' + dataHost) || dataHost.endsWith('.' + entryHost);
-  });
+
+  return best;
 }
 
 /**
@@ -228,6 +263,7 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
 
     // 匹配需基于明文 username/url，而 storage.local 中为密文（at-rest 不变量），
     // 故这里用 getAllPasswords()（会话期用缓存数据密钥解密，无 PBKDF2）而非原始密文。
+    // 载荷容量边界由调用方（background/autoSaveHandler）在本函数之前收口。
     const passwords = await getAllPasswords();
 
     const existingEntry = findMatchingEntry(passwords, data);
@@ -259,6 +295,11 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
     }
   } catch (error) {
     logger.error('自动保存密码失败:', error);
+    // 上限拒绝要单独成文并在页面提示里说明「未保存」：走通用失败分支的话，
+    // 用户看到的是一个含糊的错误，会反复重试同一次登录，而真实需要先清理条目。
+    if (isVaultCapacityError(error)) {
+      return { success: false, message: tl('bg.autoSave.capacityReached', { max: MAX_PASSWORD_ENTRIES }) };
+    }
     return {
       success: false,
       message: tl('bg.autoSave.failed', {
@@ -269,14 +310,119 @@ export async function autoSavePassword(data: AutoSavePasswordData): Promise<{ su
 }
 
 /**
+ * 构造保存前风险提示（background 侧，无 Vue i18n 依赖）
+ *
+ * 弱密码判定复用 `utils/passwordStrengthCore.ts`，与表单实时校验、设置页安全体检
+ * 完全同口径，避免各处自写阈值导致提示不一致。
+ *
+ * 调用方在弹窗前已经 `getAllPasswords()` 完成全量解密，因此本函数不产生额外的
+ * 存储读取或解密开销，属于零成本扩展点。
+ *
+ * 复用计数无需减去条目自身：`password_changed` 分支已排除密码相同的条目（那种情况
+ * 走 `identical`），`new` 分支则不存在匹配条目，所以命中数天然就是「其它账号」数量。
+ *
+ * 有意不做常见泄露密码字典校验：字典需异步懒加载，会给保存热路径引入延迟，
+ * 且该维度已由设置页安全体检覆盖。
+ *
+ * @param password 待保存的密码明文（仅在内存中参与比对，绝不写入日志）
+ * @param entries 已解密的全量密码条目
+ * @returns 风险提示；两个维度均未命中时返回 undefined，避免弹窗渲染空警示条
+ */
+function buildSaveRiskHint(password: string, entries: PasswordEntry[]): SaveRiskHint | undefined {
+  const hint: SaveRiskHint = {};
+
+  if (isWeakPassword(password)) {
+    hint.weak = true;
+  }
+
+  const reusedCount = entries.filter(entry => entry.password === password).length;
+  if (reusedCount > 0) {
+    hint.reusedCount = reusedCount;
+  }
+
+  return hint.weak || hint.reusedCount ? hint : undefined;
+}
+
+/**
+ * 查找「同名但判重未命中」的跨子域候选条目
+ *
+ * 档位固定按最宽的 `sameMainDomain` 求解，调用方只在 `off` 档丢弃提示，不再按实际档位二次筛：
+ * 这条文案陈述的是「库里有没有同名账号」这一客观事实，与当前档位能否看见它无关——
+ * 通配档下看不见 `music.qq.com`，但它确实是一条同名近重复，判重不认正是需要提醒的时刻。
+ * tier 取 1~3：
+ * - 1（通配条目）与 3（兄弟子域）都是跨子域档位才在填充路径露出的条目；
+ * - 2（同主域 apex）按 `hostMatchScore` 的父子域规则本应已被 `findMatchingEntry` 命中、
+ *   走不到这一步，保留在区间内是为了不把结论押在那条规则上；
+ * - 4（无网址条目）不限站点、无处可指，文案会指向空串，故排除。
+ *
+ * @param passwords 已解密的全量条目
+ * @param data 待保存的账号与网址
+ * @returns 首个同名跨子域候选；无候选返回 undefined
+ */
+function findCrossSubdomainTwin(
+  passwords: PasswordEntry[],
+  data: CheckCredentialStatusData,
+): PasswordEntry | undefined {
+  const host = normalizeToHostname(data.url);
+  if (!host) return undefined;
+
+  for (const entry of passwords) {
+    if (entry.username !== data.username) continue;
+    const tier = resolveMatchTier(host, entry.url, 'sameMainDomain');
+    if (isCrossSubdomainTier(tier)) return entry;
+  }
+  return undefined;
+}
+
+/**
+ * 生成「本次将新增一条」提示
+ *
+ * 只在确实存在同名跨子域候选时才读档位配置：普通新账号保存因此不产生额外存储读取。
+ * `off` 档下这些条目既不出现在填充列表，也与本次保存无关，提示反而误导，故按档位丢弃。
+ *
+ * @param passwords 已解密的全量条目
+ * @param data 待保存的账号与网址
+ * @returns 去向提示；不适用时返回 undefined
+ */
+async function buildWillCreateNote(
+  passwords: PasswordEntry[],
+  data: CheckCredentialStatusData,
+): Promise<SaveTargetNote | undefined> {
+  const twin = findCrossSubdomainTwin(passwords, data);
+  if (!twin?.url) return undefined;
+
+  const { mode } = await getDomainMatchConfig();
+  return mode === 'off' ? undefined : { kind: 'willCreate', url: twin.url };
+}
+
+/**
+ * 生成「将更新另一站的同名账号」提示
+ *
+ * 父子域判重（`hostMatchScore` 的 1 分）在 `off` 档同样成立，静默改写另一站条目是既有行为，
+ * 本提示只是把它说出来，因此无档位门禁。两侧 host 经 `normalizeToHostname` 归一后比较：
+ * 条目常存成完整 URL，而内容脚本上报的是 `location.hostname`，直接比字符串会误报。
+ *
+ * @param currentUrl 当前页网址（内容脚本上报值）
+ * @param matched 判重命中的已存条目
+ * @returns 去向提示；同 host 命中（去向不言自明）时返回 undefined
+ */
+function buildUpdateOtherHostNote(currentUrl: string, matched: PasswordEntry): SaveTargetNote | undefined {
+  const currentHost = normalizeToHostname(currentUrl);
+  const matchedHost = normalizeToHostname(matched.url);
+  return matchedHost && matchedHost !== currentHost ? { kind: 'updateOtherHost', url: matched.url } : undefined;
+}
+
+/**
  * 保存前预检查：查询当前域名+账号在密码库中的凭证状态
  *
  * 会话无效返回 `locked`；否则用 findMatchingEntry 定位条目：无 → `new`，
  * 有且密码相同 → `identical`，密码不同 → `password_changed`（附标签/备注）。
+ * `new` 与 `password_changed` 额外附带风险提示（弱密码/复用计数），供弹窗内联警示。
+ * 两个弹窗分支再各带一条去向提示（`targetNote`），说明本次保存落在哪一条上。
  * 仅返回状态枚举与非密码元数据，绝不回传已存明文密码。
  *
  * @param data 待检查的账号、密码与域名
- * @returns 凭证状态与（password_changed 时）已存条目的标签/备注
+ * @returns 凭证状态、（password_changed 时）已存条目的标签/备注、（需弹窗时）风险提示与去向提示
  */
 export async function checkCredentialStatus(data: CheckCredentialStatusData): Promise<CredentialStatusResponse> {
   try {
@@ -294,7 +440,11 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
     const existingEntry = findMatchingEntry(passwords, data);
 
     if (!existingEntry) {
-      return { status: 'new' };
+      return {
+        status: 'new',
+        risk: buildSaveRiskHint(data.password, passwords),
+        targetNote: await buildWillCreateNote(passwords, data),
+      };
     }
 
     if (existingEntry.password === data.password) {
@@ -304,6 +454,8 @@ export async function checkCredentialStatus(data: CheckCredentialStatusData): Pr
     return {
       status: 'password_changed',
       existing: { tag: existingEntry.tag || '', remark: existingEntry.remark || '' },
+      risk: buildSaveRiskHint(data.password, passwords),
+      targetNote: buildUpdateOtherHostNote(data.url, existingEntry),
     };
   } catch (error) {
     logger.error('自动保存预检查失败:', error);

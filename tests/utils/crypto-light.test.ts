@@ -11,8 +11,9 @@ import {
 /**
  * crypto-light.ts 特征化测试
  *
- * 目标：锁定当前可观察行为（含既有细节/怪癖），为后续重构提供护栏。
- * 注意：本文件仅记录「现状」，不主张「应然」；若发现 bug 亦不在此修复。
+ * 目标：锁定当前可观察行为，为后续重构提供护栏。
+ * 说明：`hexToBytes` 已于 B13 加入输入校验（偶数长度 + 仅十六进制字符，
+ * 非法即抛），该「应然」行为由下方「hexToBytes 非法输入校验」用例守卫。
  */
 
 describe('hexToBytes / bytesToHex', () => {
@@ -35,6 +36,29 @@ describe('hexToBytes / bytesToHex', () => {
     for (const hex of ['00', 'ff', '000aff', 'deadbeef', generateSalt()]) {
       expect(bytesToHex(hexToBytes(hex))).toBe(hex);
     }
+  });
+});
+
+describe('hexToBytes 非法输入校验（B13）', () => {
+  it('奇数长度抛错（而非 ArrayBuffer RangeError）', () => {
+    expect(() => hexToBytes('abc')).toThrow(/非法的十六进制字符串/);
+    expect(() => hexToBytes('0')).toThrow(/非法的十六进制字符串/);
+  });
+
+  it('含非十六进制字符抛错', () => {
+    expect(() => hexToBytes('zz')).toThrow(/非法的十六进制字符串/);
+    expect(() => hexToBytes('0x0a')).toThrow(/非法的十六进制字符串/);
+    expect(() => hexToBytes('ff f0')).toThrow(/非法的十六进制字符串/);
+  });
+
+  it('部分有效对不再静默降级为 0x00（修复前 parseInt("0g",16) 返回 0）', () => {
+    expect(() => hexToBytes('0g')).toThrow(/非法的十六进制字符串/);
+    expect(() => hexToBytes('deadbeeg')).toThrow(/非法的十六进制字符串/);
+  });
+
+  it('空串与合法 hex 不抛错', () => {
+    expect(() => hexToBytes('')).not.toThrow();
+    expect(() => hexToBytes('0A0bFF')).not.toThrow();
   });
 });
 

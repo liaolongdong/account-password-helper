@@ -47,8 +47,10 @@
                   :disabled="setupLoading"
                   autocomplete="new-password"
                   @keyup.enter="handleSubmit"
+                  @keydown="handleMasterCapsKeyEvent"
+                  @keyup="handleMasterCapsKeyEvent"
                   @focus="passwordInputFocused = true"
-                  @blur="passwordInputFocused = false"
+                  @blur="handleMasterBlur"
                 >
                   <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
                   <template #password-icon="{ visible }">
@@ -59,6 +61,7 @@
                   </template>
                 </el-input>
               </PasswordStrengthPopover>
+              <CapsLockHint v-if="masterCapsLockOn" />
             </el-form-item>
 
             <el-form-item
@@ -74,6 +77,9 @@
                 :disabled="setupLoading"
                 autocomplete="new-password"
                 @keyup.enter="handleSubmit"
+                @keydown="handleConfirmCapsKeyEvent"
+                @keyup="handleConfirmCapsKeyEvent"
+                @blur="resetConfirmCapsLockState"
               >
                 <!-- 动作语义：密文显示睁眼（点击显示），明文显示划线眼（点击隐藏） -->
                 <template #password-icon="{ visible }">
@@ -83,6 +89,7 @@
                   </el-icon>
                 </template>
               </el-input>
+              <CapsLockHint v-if="confirmCapsLockOn" />
             </el-form-item>
 
             <el-form-item
@@ -129,7 +136,9 @@ import BrandLogo from '@/components/BrandLogo.vue';
 import DisclaimerInfo from '@/components/options/DisclaimerInfo.vue';
 import ValidityHoursSelect from '@/components/options/ValidityHoursSelect.vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
+import CapsLockHint from '@/components/CapsLockHint.vue';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
+import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useI18n } from '@/utils/i18n';
 
 /**
@@ -158,6 +167,24 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
+
+/** 主密码与确认密码分别独立检测大写锁定（仅当前输入字段展示提示） */
+const {
+  capsLockOn: masterCapsLockOn,
+  handleCapsKeyEvent: handleMasterCapsKeyEvent,
+  resetCapsLockState: resetMasterCapsLockState,
+} = useCapsLockDetection();
+const {
+  capsLockOn: confirmCapsLockOn,
+  handleCapsKeyEvent: handleConfirmCapsKeyEvent,
+  resetCapsLockState: resetConfirmCapsLockState,
+} = useCapsLockDetection();
+
+/** 主密码失焦：收起强度气泡并清除大写锁定提示 */
+const handleMasterBlur = (): void => {
+  passwordInputFocused.value = false;
+  resetMasterCapsLockState();
+};
 
 /** 提交前本地表单校验，通过后通知父组件 */
 const handleSubmit = async () => {

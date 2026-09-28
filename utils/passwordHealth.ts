@@ -75,6 +75,24 @@ export interface ReuseGroup {
   entries: HealthEntryMeta[];
 }
 
+/** 复用组按行预算展开后的单组窗口 */
+export interface RevealedReuseGroup {
+  /** 原始复用组（`count` 仍是该组完整条目数，供标题读数使用） */
+  group: ReuseGroup;
+  /** 落在预算内、需要渲染的条目（可能是该组的前缀） */
+  entries: HealthEntryMeta[];
+  /** 该组未渲染的条目数（> 0 时提示「另有 N 个账号未列出」） */
+  hidden: number;
+}
+
+/** {@link revealReuseGroups} 的返回值 */
+export interface RevealedReuseWindow {
+  /** 预算内的组窗口（条目数之和 `<= ` 预算） */
+  groups: RevealedReuseGroup[];
+  /** 预算之外仍未渲染的条目总数（含被整组跳过的部分） */
+  hidden: number;
+}
+
 /** 密码健康报告 */
 export interface HealthReport {
   /** 参与统计的条目总数（含空密码条目） */
@@ -95,6 +113,30 @@ export interface HealthReport {
   stale: StaleEntry[];
   /** 未开启两步验证的条目数（仅信息展示，不计入评分） */
   noTotpCount: number;
+}
+
+/**
+ * 按累计行数预算切分复用组列表
+ *
+ * 明细面板一次渲染全部条目会在大 Vault 上撑出成千上万行 DOM（每行还各带一个按钮），
+ * 但只按「组数」截断挡不住「2000 条共用同一密码」这种单组极端情况——因此预算按行消耗：
+ * 逐组累加，越界的那一组只渲染落在预算内的前缀，其后的组整体不渲染但计入 `hidden` 读数。
+ *
+ * @param groups 复用组列表（按组内数量降序）
+ * @param budget 本次可渲染的最大行数；`<= 0` 时窗口为空、全部计入 `hidden`
+ * @returns 可渲染的组窗口，以及预算之外仍未渲染的条目总数
+ */
+export function revealReuseGroups(groups: ReuseGroup[], budget: number): RevealedReuseWindow {
+  const revealed: RevealedReuseGroup[] = [];
+  let used = 0;
+  let hidden = 0;
+  for (const group of groups) {
+    const take = used >= budget ? 0 : Math.min(group.entries.length, budget - used);
+    used += take;
+    hidden += group.entries.length - take;
+    if (take > 0) revealed.push({ group, entries: group.entries.slice(0, take), hidden: group.entries.length - take });
+  }
+  return { groups: revealed, hidden };
 }
 
 /**

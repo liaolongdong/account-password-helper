@@ -41,10 +41,16 @@ const SIDEPANEL_HTML = 'sidepanel.html';
  * - 本地数据直读 chunk（sessionManager-storage / passwordCrud / encryption）：
  *   浏览器重启后 storage.session 快照清零，侧边栏数据竞速回退本地直读路径时
  *   动态 import 这三个 chunk——若已被 macOS UBC 逐出则冷读放大白屏；
- * - 帮助弹窗 chunk（HelpDialog，含 el-dialog + help i18n 72 key）：
+ * - 帮助弹窗 chunk（HelpDialog，含 el-dialog + 体量最大的 help 命名空间）：
  *   Mac 长时间空闲后首次点击帮助时冷加载延迟，随轻量预热一并温热。
  * 白名单外其余按需 chunk（autoSaveManager / useSidepanelSettings 等）仍跳过以控制常态 IO；
  * 白名单 chunk 的二级静态依赖由递归收集自动带入。
+ *
+ * 已知残余窗口（有意不接受）：认证视图 chunk 的静态依赖里约 124KB 不在 `sidepanel.html`
+ * 的 modulepreload 清单里（异步 chunk 天然不进首屏闭包）。把它提进 HTML 等于用所有用户、
+ * 所有会话的首屏体积换「任何预热 tick 之前的认证态冷开」这一窗口的稳定性，与首屏体积
+ * 约束相悖；该窗口已由两处更便宜的机制覆盖——入口 HTML 自身的静态资源预热 + 侧边栏
+ * onMounted 在会话可能有效时立即预取该 chunk（与数据竞速并行）。
  */
 const LIGHTWEIGHT_DYNAMIC_CHUNK_ALLOWLIST: RegExp[] = [
   /^\.\/SidepanelAuthView-/,

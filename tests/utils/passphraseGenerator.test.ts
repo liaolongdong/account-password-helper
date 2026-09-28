@@ -10,6 +10,7 @@ import {
   generatePassphraseSync,
   preloadWordList,
   isWordListLoaded,
+  MAX_PASSPHRASE_LENGTH,
   SEPARATOR_OPTIONS,
 } from '@/utils/passphraseGenerator';
 
@@ -22,6 +23,39 @@ describe('passphraseGenerator', () => {
   describe('preloadWordList / isWordListLoaded', () => {
     it('预加载后 isWordListLoaded 返回 true', () => {
       expect(isWordListLoaded()).toBe(true);
+    });
+  });
+
+  describe('MAX_PASSPHRASE_LENGTH 字段长度契约', () => {
+    /**
+     * 背景：PasswordFormDialog 的密码输入框曾硬编码 maxlength=50，
+     * 而 8 词 + 分隔符 + 4 位数字的助记词组可达 75 字符。程序赋值同样按
+     * 规范截断，导致「界面显示的口令」≠「实际存入并注册到站点的口令」，
+     * 且用户无法自查。以下三条锁定修复后的不变量。
+     */
+    it('常量不小于按词库实测推出的最长口令', async () => {
+      const wordModule = await import('@/utils/data/passphrase-words.json');
+      const list = (wordModule.default ?? wordModule) as unknown as string[];
+      const maxWordLen = Math.max(...list.map(w => w.length));
+      // 8 词 × 最长词长 + 7 个单字符分隔符 + 4 位数字
+      const longestPossible = 8 * maxWordLen + 7 + 4;
+      expect(MAX_PASSPHRASE_LENGTH).toBeGreaterThanOrEqual(longestPossible);
+    });
+
+    it('最大配置真实生成一遍，长度不超过常量', () => {
+      const result = generatePassphraseSync({
+        wordCount: 8,
+        separator: '-',
+        capitalize: true,
+        appendNumber: true,
+        numberDigits: 4,
+      });
+      expect(result.length).toBeLessThanOrEqual(MAX_PASSPHRASE_LENGTH);
+    });
+
+    it('随机密码生成器的上限也被该常量覆盖（字段可只用一个上限）', async () => {
+      const { MAX_PASSWORD_LENGTH } = await import('@/utils/passwordGenerator');
+      expect(MAX_PASSPHRASE_LENGTH).toBeGreaterThanOrEqual(MAX_PASSWORD_LENGTH);
     });
   });
 

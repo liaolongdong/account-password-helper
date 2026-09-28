@@ -1,0 +1,34 @@
+<!--
+  同作者产品「文件格式任意转换助手 / Transfer Any File」的官方扩展图标（cp 原样复制，未改一个字节）。
+  来源：chrome-plugins/transfer-any-file · assets/icon.svg · commit 48ca1cc · md5 434f8e62d0878cb9705d02c8a9104e55
+  许可：MIT（Copyright (c) 2026 liaolongdong，与本源同属一位作者）；署名与出处见 ./README.md
+  用途：仅 index.html / en.html 的「作者的其他插件」互链卡；不进扩展构建闭包（assets/ 不经打包器，除非被 import）
+  ⚠️ 只经 <img src> 引用，不内联进页面——内部 `<linearGradient id="bg">` 一旦 inline 就会与宿主文档撞 id。
+-->
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#3B82F6"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- App tile -->
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+
+  <!-- Document sheet with folded corner -->
+  <path d="M34 20 H62 L78 36 V86 Q78 92 72 92 H34 Q28 92 28 86 V26 Q28 20 34 20 Z" fill="#FFFFFF"/>
+  <path d="M62 20 V32 Q62 36 66 36 H78 Z" fill="#BFDBFE"/>
+  <rect x="38" y="46" width="24" height="5" rx="2.5" fill="#93C5FD"/>
+  <rect x="38" y="58" width="28" height="5" rx="2.5" fill="#93C5FD"/>
+  <rect x="38" y="70" width="14" height="5" rx="2.5" fill="#93C5FD"/>
+
+  <!-- Conversion badge: autorenew arrows (Material geometry) -->
+  <circle cx="88" cy="88" r="27" fill="#FFFFFF"/>
+  <g transform="translate(66.4 66.4) scale(1.8)">
+    <path
+      d="M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z"
+      fill="#1D4ED8"
+    />
+  </g>
+</svg>

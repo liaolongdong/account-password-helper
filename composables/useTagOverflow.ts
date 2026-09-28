@@ -14,16 +14,18 @@ export function useTagOverflow() {
    * 检查当前 hover 的标签是否发生文本溢出
    * 检测内层 .el-tag__content 元素，仅当 scrollWidth > clientWidth 时才标记为溢出
    *
-   * @param e - 鼠标事件对象
-   * @param tag - 标签文本
+   * 标签文本直接取自触发元素自身的 `data-tag`，因此调用方只需传事件对象，
+   * 无需在渲染期闭包捕获标签名（避免每次渲染为每个标签重建监听函数）。
+   *
+   * @param e - 鼠标事件对象，其 currentTarget 为携带 `data-tag` 的标签根节点
    */
-  const checkTagOverflow = (e: MouseEvent, tag: string) => {
+  const checkTagOverflow = (e: MouseEvent) => {
     const el = e.currentTarget as HTMLElement | null;
     if (!el) return;
     // 检测内层 .el-tag__content 是否发生文本截断
     const contentEl = el.querySelector('.el-tag__content') as HTMLElement | null;
     const target = contentEl ?? el;
-    overflowedTag.value = target.scrollWidth > target.clientWidth ? tag : null;
+    overflowedTag.value = target.scrollWidth > target.clientWidth ? (el.dataset.tag ?? null) : null;
   };
 
   /**

@@ -1,35 +1,26 @@
-# 演示页面截图
+# 演示页面截图（已退役）
 
-本目录用于存放 [index.html](../../index.html) 演示页面所使用的功能截图。
+> ⚠️ **本目录已不再被 `index.html` 引用，文件也禁止再作为商店 / 官网 / README 素材使用。**
 
-## 工作机制
+## 为什么退役
 
-`index.html` 启动时会按下方文件名加载本目录中的截图。如果某个文件不存在或加载失败，页面会自动回退为内置的 SVG 占位图（带功能标题），不会报错。
+这里的 12 张图摄于 `v2.12.0`（2026-07-29），并且**画面里含真实凭据**：真实 GitHub 用户名、
+真实邮箱、当时的 TOTP 活码，以及 `06-sidepanel-fill.png` 自动保存弹窗中的明文密码。
+此外 `01-master-password.png` 还带着已删除的「严禁……后果自负」旧声明。
 
-只需把对应文件放入本目录并刷新页面，即可看到真实截图。
+文件本身与历史提交按当时的决定保留未删，但**任何公开表面都不要再引用它们**。
 
-## 命名规范
+## 现在的做法
 
-请严格按照以下文件名放入截图（推荐 PNG，宽高比 16:9，建议宽度 ≥ 1280px）：
+`index.html` 的「功能演示」轮播改从 `assets/cws-store/screen-*.png` 取图，这批图由
+`scripts/store-shots/` 脚本化生成：CDP 驱动本地 Chrome 加载解压扩展 → 注入
+`example.com` 占位数据 → 页面级截图 → 合成品牌标题带，中英各一套、每套 14 张。
 
-| 文件名                    | 对应功能         | 建议截图内容                           |
-| ------------------------- | ---------------- | -------------------------------------- |
-| `01-master-password.png`  | 设置主密码       | 首次启用时的主密码设置对话框           |
-| `02-password-list.png`    | 密码列表与管理   | 选项页的密码列表（含搜索、排序、标签） |
-| `03-excel-import.png`     | CSV 批量导入     | 导入对话框或导入成功后的列表           |
-| `04-excel-export.png`     | CSV 批量导出     | 导出成功后的文件下载场景               |
-| `05-add-account.png`      | 添加新账号       | 密码表单编辑对话框                     |
-| `06-sidepanel-fill.png`   | 侧边栏一键填充   | 登录页 + 侧边栏匹配账号的截图          |
-| `07-floating-button.png`  | 悬浮按钮快捷入口 | 悬浮按钮在登录页上的展示效果           |
-| `08-session-validity.png` | 灵活的会话有效期 | 会话有效期设置对话框                   |
-| `09-totp-code.png`        | TOTP 两步验证    | 列表/侧边栏的动态码与环形倒计时        |
-| `10-health-check.png`     | 安全体检仪表盘   | 安全评分与五维检测结果面板             |
-| `11-inline-fill.png`      | 内联填充迷你面板 | 登录框内钥匙图标展开的迷你面板         |
-| `12-theme-skin.png`       | 主题换肤与双语   | 主题切换或中英文界面对比               |
+- 生成方式、场景清单与文案口径见 [`scripts/store-shots/README.md`](../../scripts/store-shots/README.md)
+- 重新截图后无需改动 `index.html` 的文件名（轮播按语言自动选择 `-en` 后缀那一套）
 
-## 建议
+## 旧文件名对照（仅供追溯）
 
-- 推荐宽度 1280px 或 1440px，宽高比 16:9，体积控制在 300KB 以内
-- 浅色背景更易与页面整体风格融合
-- 关键 UI 元素可加红框/箭头标注突出重点
-- 保护隐私：截图前请清空真实账号密码，使用示例数据
+`01-master-password` / `02-password-list` / `03-excel-import` / `04-excel-export` /
+`05-add-account` / `06-sidepanel-fill` / `07-floating-button` / `08-session-validity` /
+`09-totp-code` / `10-health-check` / `11-inline-fill` / `12-theme-skin`

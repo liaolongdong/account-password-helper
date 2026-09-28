@@ -2,24 +2,92 @@
  * Chrome 风格的保存密码确认弹窗
  *
  * 在页面右上角显示一个卡片式弹窗，让用户确认是否保存账号密码。
- * 纯 DOM 操作，无需 Shadow DOM，复用 NativeNotification 的视觉风格。
+ * 纯 DOM 操作，复用 NativeNotification 的视觉风格；
+ * 卡片渲染在 Closed Shadow DOM 宿主内（与悬浮按钮 / 内联填充面板 / 填充失败气泡同一档），
+ * 宿主页样式既不会污染弹窗，弹窗也不向 `document.head` 写入全局样式表。
  */
 
 import { lockIcon } from '@/entrypoints/content/floatingButtons/icons';
 import type { SavePromptData, SavePromptControls, SavePromptEditedData } from '@/entrypoints/content/types';
-import { getStoredTheme, THEME_SHADOW_TOKENS, DEFAULT_THEME } from '@/utils/theme';
+import { applyThemeTokensToHost, getStoredTheme, DEFAULT_THEME } from '@/utils/theme';
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { tl } from '@/utils/i18n-lite';
+import { isWeakPassword } from '@/utils/passwordStrengthCore';
+import type { SaveRiskHint, SaveTargetNote } from '@/utils/types';
 
-/** 弹窗 DOM 容器 class 名 */
-const PROMPT_CLASS = 'aph-save-password-prompt';
+/** 弹窗宿主属性名与属性值（closed 影子树外部定位节点的唯一凭据，取值口径同 FillFailurePrompt） */
+const HOST_ATTRIBUTE = 'data-aph';
+const HOST_ATTRIBUTE_VALUE = 'save-password-prompt';
+
+/**
+ * 影子树基础样式
+ *
+ * `:host { all: initial }` 切断宿主页面向弹窗的继承链（字体、字重、字距、颜色等），
+ * 弹窗的其余样式继续逐条写在元素自身的 `cssText` 上，与迁入 Shadow DOM 之前完全一致，
+ * 因此这里只需承载「重置 + 动画关键帧」两件事。关键帧定义在影子树内即天然局部化，
+ * 不再向 `document.head` 注入全局样式表。
+ */
+const SHADOW_STYLE = `
+  :host { all: initial; }
+  *, *::before, *::after { box-sizing: border-box; }
+  @keyframes aphSlideIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  /*
+   * 入场动画挂在类上而不是 overlay.style.cssText：内联声明的优先级高于影子样式表，
+   * 写在 cssText 里就再也用 @media (prefers-reduced-motion) 关不掉了。
+   */
+  .aph-prompt {
+    animation: aphSlideIn 0.25s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aph-prompt { animation: none; }
+  }
+`;
+
+/**
+ * 弹窗字体栈
+ *
+ * 量具（measureLabelWidth）与弹窗本身共用同一份，保证量出来的标签宽度
+ * 与实际渲染一致——两者一旦分叉，量的宽度就会偏小、标签又会换行。
+ */
+const PROMPT_FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+/** 标签列最小宽度（中文两字「账号」一行放下所需的宽度） */
+const LABEL_MIN_WIDTH = 40;
 
 /**
  * 主色（主题令牌 + 晴空蓝回退）
  *
- * 本弹窗直接挂到页面 body（非 Shadow DOM），无法继承扩展页 :root 上的令牌，
- * 因此在 overlay 元素上内联写入 --aph-primary（后代继承），并异步解析当前主题。
+ * 自定义属性可穿透 shadow 边界，故令牌内联写在宿主元素上、由影子树内的后代继承；
+ * 先落默认主题保证首帧无闪烁，随后异步读取用户主题覆盖。
  */
 const THEME_BLUE = 'var(--aph-primary, #409eff)';
+
+/**
+ * 风险提示条配色
+ *
+ * 背景与边框沿用 NativeNotification 的 warning 语义色，保持插件内警示视觉一致；
+ * 正文取更深的琥珀色，因 12px 正文在浅黄底上需满足 WCAG AA 的 4.5:1 对比度
+ *（直接用 #e6a23c 仅约 2:1，不达标）。
+ */
+const RISK_BAR_COLORS = {
+  /** 背景色 */
+  bg: '#fdf6ec',
+  /** 边框色 */
+  border: '#f0c78a',
+  /** 正文色 */
+  text: '#8a5a12',
+} as const;
+
+/**
+ * 复用计数可信上限
+ *
+ * 超出此值的计数视为不可信数据（伪造或脏数据）而整个丢弃，
+ * 宁可少提醒也不展示错误的账号数量。
+ */
+const MAX_TRUSTED_REUSED_COUNT = 9999;
 
 /**
  * 显示保存密码确认弹窗
@@ -27,7 +95,14 @@ const THEME_BLUE = 'var(--aph-primary, #409eff)';
  * 在页面右上角弹出 Chrome 风格的确认卡片，包含用户名和密码信息，
  * 以及可编辑的标签和备注字段，用户可选择「保存」、「暂不保存」或「不再提示」。
  *
- * @param data - 待保存的账号密码数据（含标签和备注默认值）
+ * 若 `data.risk` 命中弱密码或密码复用，则在密码行下方内联展示琥珀色警示条。
+ * 警示是**非阻断**的：不加二次确认、不改变保存按钮流程与任何回调签名，
+ * 与 Chrome 原生保存弹窗的克制风格保持一致。
+ *
+ * 若 `data.targetNote` 存在，则在备注行下方补一行灰字，说明本次保存落在哪一条上
+ * （父子域判重会静默改写另一站条目，跨子域档位下同名条目则确实会新增为第二条）。
+ *
+ * @param data - 待保存的账号密码数据（含标签、备注默认值、可选风险提示与保存去向提示）
  * @param onSave - 用户点击「保存」时的回调，接收用户编辑后的标签和备注
  * @param onDismiss - 用户点击「暂不保存」时的回调
  * @param onNeverAsk - 用户点击「不再提示」时的回调（将域名加入屏蔽列表）
@@ -44,8 +119,24 @@ export function showSavePasswordPrompt(
   // 展示模式：update 时用于区分「更新已有密码」与「保存新密码」的标题与按钮文案
   const isUpdate = data.mode === 'update';
 
+  // 宿主先入文档：卡片仍按「组装完毕一次性挂载」的既有时序在最后一步进入影子树，
+  // 但影子树必须先处于渲染树中，量具才能在与弹窗完全相同的环境下量出标签宽度
+  const host = document.createElement('div');
+  host.setAttribute(HOST_ATTRIBUTE, HOST_ATTRIBUTE_VALUE);
+  // 主题令牌写在宿主（自定义属性可穿透 shadow 边界）：先落默认晴空蓝，
+  // 后异步读取当前主题覆盖，供子元素 var(--aph-primary) 继承
+  applyThemeTokensToHost(host, DEFAULT_THEME);
+  const shadow = host.attachShadow({ mode: 'closed' });
+  const shadowStyle = document.createElement('style');
+  shadowStyle.textContent = SHADOW_STYLE;
+  shadow.appendChild(shadowStyle);
+  document.documentElement.appendChild(host);
+  void getStoredTheme().then(theme => {
+    applyThemeTokensToHost(host, theme);
+  });
+
   const overlay = document.createElement('div');
-  overlay.className = PROMPT_CLASS;
+  overlay.classList.add('aph-prompt');
   overlay.style.cssText = `
     position: fixed;
     top: 16px;
@@ -55,20 +146,9 @@ export function showSavePasswordPrompt(
     background: #fff;
     border-radius: 8px;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15), 0 1px 4px rgba(0, 0, 0, 0.08);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-family: ${PROMPT_FONT};
     overflow: hidden;
-    animation: aphSlideIn 0.25s ease-out;
   `;
-
-  // 写入主题令牌（必须在 cssText 之后，否则会被整体覆盖）：先默认晴空蓝，
-  // 后异步读取当前主题覆盖，供子元素 var(--aph-primary) 继承
-  overlay.style.setProperty('--aph-primary', THEME_SHADOW_TOKENS[DEFAULT_THEME]['--aph-primary']);
-  void getStoredTheme().then(theme => {
-    overlay.style.setProperty('--aph-primary', THEME_SHADOW_TOKENS[theme]['--aph-primary']);
-  });
-
-  // 注入动画样式（仅一次）
-  injectAnimationStyle();
 
   // ── 头部 ──
   const header = document.createElement('div');
@@ -112,28 +192,80 @@ export function showSavePasswordPrompt(
   const body = document.createElement('div');
   body.style.cssText = 'padding: 12px 16px;';
 
-  const { row: userRow, valueEl: usernameValueEl } = createInfoRow(tl('cs.save.username'), data.username, false);
-  const { row: passRow, valueEl: passwordValueEl } = createInfoRow(tl('cs.save.password'), data.password, true);
+  // 四行标签共用同一个列宽：按当前语言里最长的那个标签量，避免英文单词被断词换行
+  const labelWidth = measureLabelWidth(shadow, [
+    tl('cs.save.username'),
+    tl('cs.save.password'),
+    tl('cs.save.tag'),
+    tl('cs.save.remark'),
+  ]);
+
+  const { row: userRow, valueEl: usernameValueEl } = createInfoRow(
+    tl('cs.save.username'),
+    data.username,
+    false,
+    labelWidth,
+  );
+  const { row: passRow, valueEl: passwordValueEl } = createInfoRow(
+    tl('cs.save.password'),
+    data.password,
+    true,
+    labelWidth,
+  );
   body.appendChild(userRow);
   body.appendChild(passRow);
 
-  // 可编辑字段：标签
+  // 风险提示条：紧接密码行之后、标签行之前，贴近它所警示的字段
+  const riskBar = createRiskBar();
+  body.appendChild(riskBar);
+
+  // background 评估风险时使用的密码：页面字段一旦偏离此值，后台结论即失效
+  const riskBaselinePassword = data.password;
+  const baselineRisk = sanitizeRiskHint(data.risk);
+  renderRiskHints(riskBar, baselineRisk);
+
+  // 可编辑字段：标签（「密码已变更」时预填的是条目已有标签串，其口径由 Options 标签编辑器
+  // 决定、可长于快速添加通道的 50，故这里既不截断显示值也不设 maxlength——两者都会把用户
+  // 自己写的合法标签静默改短，且 maxlength 会让人无法把被裁掉的部分补回来）
   const { row: tagRow, input: tagInput } = createEditableRow(
     tl('cs.save.tag'),
     data.tag,
     tl('cs.save.tagPlaceholder'),
     false,
+    labelWidth,
   );
   body.appendChild(tagRow);
 
-  // 可编辑字段：备注
+  // 可编辑字段：备注（超长会被 background 整次拒收，故在输入处就限死）
   const { row: remarkRow, input: remarkInput } = createEditableRow(
     tl('cs.save.remark'),
     data.remark,
     tl('cs.save.remarkPlaceholder'),
     true,
+    labelWidth,
   );
+  remarkInput.maxLength = PASSWORD_FIELD_LIMITS.remark;
   body.appendChild(remarkRow);
+
+  // 保存去向提示：只读一行灰字，说明本次保存落在哪一条上。刻意不带任何按钮——
+  // 提供「改为新增 / 改为更新」的入口等于从后门调整判重口径。
+  const targetNote = sanitizeTargetNote(data.targetNote);
+  if (targetNote) {
+    const noteEl = document.createElement('div');
+    noteEl.textContent = tl(
+      targetNote.kind === 'updateOtherHost' ? 'cs.save.noteUpdateOtherHost' : 'cs.save.noteWillCreate',
+      { url: targetNote.url },
+    );
+    // 网址可达 100 字符且常无空格，不强制断词会撑破卡片宽度
+    noteEl.style.cssText = `
+      margin-top: 6px;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #999;
+      overflow-wrap: break-word;
+    `;
+    body.appendChild(noteEl);
+  }
 
   // 追踪用户是否主动编辑过标签和备注输入框
   let tagEdited = false;
@@ -213,7 +345,7 @@ export function showSavePasswordPrompt(
   overlay.appendChild(body);
   overlay.appendChild(footer);
 
-  document.body.appendChild(overlay);
+  shadow.appendChild(overlay);
 
   return {
     updateUsername: (username: string) => {
@@ -221,30 +353,271 @@ export function showSavePasswordPrompt(
     },
     updatePassword: (password: string) => {
       passwordValueEl.textContent = '•'.repeat(Math.min(password.length, 12));
+      // 密码变化会同时改变强度与复用情况，警示条需随之刷新
+      renderRiskHints(riskBar, resolveRiskHints(baselineRisk, riskBaselinePassword, password));
     },
   };
 }
 
 /**
  * 关闭并移除保存确认弹窗
+ *
+ * 只移除宿主：closed 影子树无外部引用（宿主 `shadowRoot` 恒为 null），
+ * 摘掉宿主后整棵子树随 GC 一并回收，事件监听亦随之失效。
  */
 export function dismissSavePasswordPrompt(): void {
-  const existing = document.querySelector('.' + PROMPT_CLASS) as HTMLElement | null;
-  if (existing) {
-    existing.remove();
+  const hosts = document.querySelectorAll(`[${HOST_ATTRIBUTE}="${HOST_ATTRIBUTE_VALUE}"]`);
+  for (const host of hosts) {
+    host.remove();
   }
 }
 
 // ── 内部工具函数 ──
 
 /**
+ * 校验并归一化 background 返回的风险提示（边界校验）
+ *
+ * iframe 委托场景下该数据经 `postMessage` 跨帧传入，属不可信输入：即使类型声明为
+ * {@link SaveRiskHint}，运行时仍可能缺失、类型错乱或被伪造。此处逐字段收窄，
+ * 非法值一律丢弃——宁可少提醒，也不展示错误的账号数量。
+ *
+ * @param raw 未经校验的原始值
+ * @returns 归一化后的风险提示；无任何有效维度时返回 undefined
+ */
+function sanitizeRiskHint(raw: unknown): SaveRiskHint | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+
+  const source = raw as Record<string, unknown>;
+  const hint: SaveRiskHint = {};
+
+  // 仅接受严格布尔 true，其余（'true'、1、缺失）一律视为未命中
+  if (source.weak === true) {
+    hint.weak = true;
+  }
+
+  const reusedCount = source.reusedCount;
+  if (
+    typeof reusedCount === 'number' &&
+    Number.isInteger(reusedCount) &&
+    reusedCount > 0 &&
+    reusedCount <= MAX_TRUSTED_REUSED_COUNT
+  ) {
+    hint.reusedCount = reusedCount;
+  }
+
+  return hint.weak || hint.reusedCount ? hint : undefined;
+}
+
+/**
+ * 校验并归一化 background 返回的保存去向提示（边界校验）
+ *
+ * iframe 委托场景下该数据经 `postMessage` 跨帧传入，属不可信输入：`kind` 只接受两个已知
+ * 形态（否则会渲染出语义相反或空白的一行），`url` 只接受非空字符串并按条目容量截断
+ * （它随后被塞进文案做 `{url}` 替换）。校验不通过即整条丢弃，弹窗退回「无提示」的既有形态。
+ *
+ * @param raw 未经校验的原始值
+ * @returns 归一化后的去向提示；无效时返回 undefined
+ */
+function sanitizeTargetNote(raw: unknown): SaveTargetNote | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+
+  const { kind, url } = raw as Record<string, unknown>;
+  if (kind !== 'updateOtherHost' && kind !== 'willCreate') return undefined;
+  if (typeof url !== 'string') return undefined;
+
+  const trimmedUrl = url.trim().slice(0, PASSWORD_FIELD_LIMITS.url);
+  return trimmedUrl ? { kind, url: trimmedUrl } : undefined;
+}
+
+/**
+ * 依据当前密码推导生效的风险提示
+ *
+ * 两个维度的可重算性不同，故失效边界也不同：
+ * - **弱密码**是纯函数判定，密码改动后可就地重算，始终反映当前密码；
+ * - **复用计数**依赖 background 的全量密码库，content script 本地无法重算，
+ *   因此仅当密码与 background 评估时完全一致才沿用；用户一旦改动即撤下该行，
+ *   避免展示陈旧的账号数量。
+ *
+ * @param baseline background 返回并已校验的风险提示
+ * @param baselinePassword background 评估时使用的密码
+ * @param currentPassword 页面密码字段的当前值
+ * @returns 生效的风险提示；无风险时返回 undefined
+ */
+function resolveRiskHints(
+  baseline: SaveRiskHint | undefined,
+  baselinePassword: string,
+  currentPassword: string,
+): SaveRiskHint | undefined {
+  const unchanged = currentPassword === baselinePassword;
+  const hint: SaveRiskHint = {};
+
+  if (unchanged ? baseline?.weak === true : isWeakPassword(currentPassword)) {
+    hint.weak = true;
+  }
+
+  if (unchanged && baseline?.reusedCount) {
+    hint.reusedCount = baseline.reusedCount;
+  }
+
+  return hint.weak || hint.reusedCount ? hint : undefined;
+}
+
+/**
+ * 创建风险提示条容器（初始隐藏，由 {@link renderRiskHints} 决定显隐与内容）
+ *
+ * 使用 `role="status"` 使其成为 polite live region：弹窗挂载后，警示条随密码输入
+ * 出现、消失或文案变化时，屏幕阅读器会主动播报，而不只是静默改变视觉。
+ *
+ * 已知边界：首帧渲染发生在弹窗挂载进 document 之前，此时本区域尚未进入可访问性树，
+ * 因此「弹窗一打开就带着警示」这一帧不会被自动播报（文案仍在 DOM 中，可用虚拟光标
+ * 浏览到）。补齐它需把首帧推迟到挂载后的独立任务，会改变警示条出现的视觉时序；
+ * 本弹窗既有设计不含 `role="dialog"` 与焦点管理，故保持同步渲染，不引入异步时序。
+ *
+ * @returns 警示条容器元素
+ */
+function createRiskBar(): HTMLElement {
+  const bar = document.createElement('div');
+  bar.setAttribute('role', 'status');
+  bar.style.cssText = `
+    display: none;
+    flex-direction: column;
+    gap: 4px;
+    margin: 8px 0 2px;
+    padding: 8px 10px;
+    background: ${RISK_BAR_COLORS.bg};
+    border: 1px solid ${RISK_BAR_COLORS.border};
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: ${RISK_BAR_COLORS.text};
+  `;
+  return bar;
+}
+
+/** 警示条上次渲染的文案行，用于跳过内容未变化的重绘（键为弱引用，随元素回收） */
+const renderedRiskLines = new WeakMap<HTMLElement, string[]>();
+
+/**
+ * 按当前风险提示重绘警示条
+ *
+ * 文案全部经 `textContent` 写入，不使用 `innerHTML`；先收集待渲染行再决定显隐，
+ * 避免 hint 存在但无有效维度时渲染出空的警示框。
+ *
+ * 内容未变化时直接跳过：`updatePassword` 会随页面密码框的每次 input 触发，而
+ * `LoginAutoSave` 挂载后还会立即同步一次字段；清空重建相同文案既产生无谓的
+ * DOM 抖动，也会让 live region 重复播报同一条警示。
+ *
+ * @param bar 警示条容器
+ * @param hint 当前生效的风险提示，undefined 表示无风险，容器整体隐藏
+ */
+function renderRiskHints(bar: HTMLElement, hint: SaveRiskHint | undefined): void {
+  const lines: string[] = [];
+  if (hint?.weak) {
+    lines.push(tl('cs.save.riskWeak'));
+  }
+  if (hint?.reusedCount) {
+    lines.push(tl('cs.save.riskReused', { count: hint.reusedCount }));
+  }
+
+  const previous = renderedRiskLines.get(bar);
+  if (previous && previous.length === lines.length && previous.every((line, i) => line === lines[i])) {
+    return;
+  }
+  renderedRiskLines.set(bar, lines);
+
+  bar.textContent = '';
+  if (!lines.length) {
+    bar.style.display = 'none';
+    return;
+  }
+
+  for (const line of lines) {
+    bar.appendChild(createRiskLine(line));
+  }
+  bar.style.display = 'flex';
+}
+
+/**
+ * 创建单行警示文案（左侧 ! 图标 + 文本）
+ *
+ * @param text 警示文案
+ * @returns 单行容器元素
+ */
+function createRiskLine(text: string): HTMLElement {
+  const line = document.createElement('div');
+  line.style.cssText = 'display: flex; align-items: flex-start; gap: 6px;';
+
+  const iconEl = document.createElement('span');
+  iconEl.textContent = '!';
+  iconEl.style.cssText = 'flex-shrink: 0; font-weight: 700;';
+
+  const textEl = document.createElement('span');
+  textEl.textContent = text;
+  textEl.style.cssText = 'flex: 1; min-width: 0;';
+
+  line.appendChild(iconEl);
+  line.appendChild(textEl);
+  return line;
+}
+
+/**
+ * 量出标签列的统一宽度。
+ *
+ * 标签列原本写死 40px（中文两字「账号」「密码」刚好放下），但英文单词
+ * （`Username` / `Password`，13px 下约 60px）在 40px 里放不下会断词换行
+ *（实测英文环境下渲染成 `Usern` + `ame`）。这里用一个隐藏量具量出最长标签的
+ * 真实宽度，四行共用同一个值：既不断词、又保持左侧标签列对齐。
+ * 中文标签量出来不足 {@link LABEL_MIN_WIDTH}，仍取下限，既有版式不变。
+ *
+ * 量具挂进弹窗自己的影子树：脱离渲染树的元素 `offsetWidth` 恒为 0，而挂到
+ * `document.body` 会连带继承宿主页面的字重/字距（Shadow DOM 隔离后弹窗本身
+ * 已不再继承），量出来的宽度便与真实渲染不一致。同时显式指定字体与字号。
+ *
+ * @param shadow 弹窗所在的影子根，量具与弹窗共用同一渲染环境
+ * @param labels 需要参与比较的全部标签文本
+ * @returns 标签列宽度（px）
+ */
+function measureLabelWidth(shadow: ShadowRoot, labels: string[]): number {
+  const ruler = document.createElement('span');
+  ruler.setAttribute('aria-hidden', 'true');
+  ruler.style.cssText = `
+    position: absolute;
+    visibility: hidden;
+    left: -9999px;
+    top: 0;
+    white-space: nowrap;
+    font-size: 13px;
+    font-family: ${PROMPT_FONT};
+  `;
+  shadow.appendChild(ruler);
+  let widest = 0;
+  for (const label of labels) {
+    ruler.textContent = label;
+    widest = Math.max(widest, ruler.offsetWidth);
+  }
+  ruler.remove();
+  return Math.max(LABEL_MIN_WIDTH, Math.ceil(widest) + 2);
+}
+
+/** 生成标签元素样式（固定列宽 + 不换行，见 measureLabelWidth）。 */
+function labelStyle(labelWidth: number): string {
+  return `color: #999; width: ${labelWidth}px; flex-shrink: 0; white-space: nowrap;`;
+}
+
+/**
  * 创建信息行（账号/密码）
  * @param label 标签文本
  * @param value 值
  * @param isPassword 是否为密码字段（密码用圆点遮挡）
+ * @param labelWidth 标签列宽度（由 measureLabelWidth 统一量出）
  * @returns row 容器元素和 valueEl 值元素引用
  */
-function createInfoRow(label: string, value: string, isPassword: boolean): { row: HTMLElement; valueEl: HTMLElement } {
+function createInfoRow(
+  label: string,
+  value: string,
+  isPassword: boolean,
+  labelWidth: number,
+): { row: HTMLElement; valueEl: HTMLElement } {
   const row = document.createElement('div');
   row.style.cssText = `
     display: flex;
@@ -256,7 +629,7 @@ function createInfoRow(label: string, value: string, isPassword: boolean): { row
 
   const labelEl = document.createElement('span');
   labelEl.textContent = label;
-  labelEl.style.cssText = 'color: #999; width: 40px; flex-shrink: 0;';
+  labelEl.style.cssText = labelStyle(labelWidth);
 
   const valueEl = document.createElement('span');
   valueEl.textContent = isPassword ? '•'.repeat(Math.min(value.length, 12)) : value;
@@ -279,6 +652,7 @@ function createInfoRow(label: string, value: string, isPassword: boolean): { row
  * @param defaultValue 默认值
  * @param placeholder 占位提示文本
  * @param isTextarea 是否使用 textarea（用于备注多行输入）
+ * @param labelWidth 标签列宽度（由 measureLabelWidth 统一量出）
  * @returns row 容器元素和 input 输入框元素
  */
 function createEditableRow(
@@ -286,6 +660,7 @@ function createEditableRow(
   defaultValue: string,
   placeholder: string,
   isTextarea: boolean,
+  labelWidth: number,
 ): { row: HTMLElement; input: HTMLInputElement | HTMLTextAreaElement } {
   const row = document.createElement('div');
   row.style.cssText = `
@@ -298,7 +673,7 @@ function createEditableRow(
 
   const labelEl = document.createElement('span');
   labelEl.textContent = label;
-  labelEl.style.cssText = 'color: #999; width: 40px; flex-shrink: 0; padding-top: 5px;';
+  labelEl.style.cssText = `${labelStyle(labelWidth)} padding-top: 5px;`;
 
   const inputStyle = `
     flex: 1;
@@ -371,24 +746,4 @@ function createButton(text: string, bgColor: string, textColor: string, borderCo
     btn.style.opacity = '1';
   });
   return btn;
-}
-
-/** 动画样式是否已注入 */
-let animationStyleInjected = false;
-
-/**
- * 注入弹窗滑入动画样式（仅注入一次）
- */
-function injectAnimationStyle(): void {
-  if (animationStyleInjected) return;
-  animationStyleInjected = true;
-
-  const style = document.createElement('style');
-  style.textContent = `
-    @keyframes aphSlideIn {
-      from { opacity: 0; transform: translateY(-10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-  `;
-  document.head.appendChild(style);
 }

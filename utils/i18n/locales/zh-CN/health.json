@@ -40,5 +40,7 @@
   "health.allTotpOn": "已全部开启",
   "health.noUsername": "（无用户名）",
   "health.ageYears": "超过 {years} 年未更新",
-  "health.ageDays": "{days} 天未更新"
+  "health.ageDays": "{days} 天未更新",
+  "health.showMore": "显示更多（剩余 {count} 条）",
+  "health.hiddenInGroup": "另有 {count} 个账号共用此密码，未在此列出"
 }

@@ -1,284 +1,373 @@
-# Account Password Helper · 账号密码管理助手
+<div align="center">
+
+# Account Password Helper · 账号密码管理助手（开源免费本地密码管理器）
 
 **中文** | [English](./README.en.md)
 
-[![Star on GitHub](https://img.shields.io/badge/%E2%AD%90_Star_on_GitHub-24292f?logo=github&logoColor=white)](https://github.com/liaolongdong/account-password-helper/stargazers)
-[![WXT](https://img.shields.io/badge/WXT-v0.20.27-4E88FF)](https://wxt.dev/)
-[![Vue](https://img.shields.io/badge/Vue-v3.5.41-42b883)](https://vuejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-v6.0.3-3178c6)](https://www.typescriptlang.org/)
-[![Element Plus](https://img.shields.io/badge/Element%20Plus-v2.14.4-409EFF)](https://element-plus.org/)
-[![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4)](https://developer.chrome.com/docs/extensions/mv3/intro/)
-[![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)](#许可证)
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
-[![Chrome Web Store Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
-[![Chrome Web Store Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
-[![Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?label=Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
-[![Last Commit](https://img.shields.io/github/last-commit/liaolongdong/account-password-helper?logo=github&logoColor=white&label=Last%20Commit)](https://github.com/liaolongdong/account-password-helper/commits/main)
+[![Star this repo](https://img.shields.io/github/stars/liaolongdong/account-password-helper?style=for-the-badge&logo=github&label=%E2%AD%90%20Star%20this%20repo&color=yellow)](https://github.com/liaolongdong/account-password-helper/stargazers)
 
-> **开源免费的本地密码管理器** · 一键登录（填充+勾选+点击） · AES-256-GCM 零云端 · TOTP 两步验证 · 安全体检 · 多环境账号隔离 · 从 Chrome / Bitwarden / 1Password 一键迁移 · 为开发者与测试人员量身打造
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=CWS&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Users](https://img.shields.io/chrome-web-store/users/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Users&logo=googlechrome&logoColor=white&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Rating](https://img.shields.io/chrome-web-store/rating/fgimkdodpjfkddmildjieojpfakpanli?style=for-the-badge&label=Rating&color=4285F4)](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+[![Release](https://img.shields.io/github/v/release/liaolongdong/account-password-helper?style=for-the-badge&label=Release&logo=github&color=24292f)](https://github.com/liaolongdong/account-password-helper/releases/latest)
+[![Manifest V3](https://img.shields.io/badge/Chrome-MV3-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white)](https://developer.chrome.com/docs/extensions/mv3/intro/)
+[![License](https://img.shields.io/badge/License-GPL--3.0-blue?style=for-the-badge)](#-许可证)
+[![Last Commit](https://img.shields.io/github/last-commit/liaolongdong/account-password-helper?style=for-the-badge&label=Last%20Commit&logo=github&logoColor=white)](https://github.com/liaolongdong/account-password-helper/commits/main)
+[![CI](https://img.shields.io/github/actions/workflow/status/liaolongdong/account-password-helper/ci.yml?style=for-the-badge&label=CI&logo=github&logoColor=white)](https://github.com/liaolongdong/account-password-helper/actions/workflows/ci.yml)
 
-一款**开源免费**的本地加密 Chrome 密码管理扩展，为开发者与测试人员量身打造：**一键登录**（自动填充 + 勾选协议 + 点击登录，不只是填表）、精确域名匹配隔离 dev/test/staging/prod 多环境账号、内置 **TOTP 两步验证**、安全体检与**密码生成器**。采用 **PBKDF2（600,000 次迭代）+ AES-256-GCM** 加密体系，侧边栏秒开（缓存快路径 **20-50ms**），数据绝不出浏览器，无需注册账号。
+> **开源免费的本地优先密码管理器**：一键登录连登录按钮一起点、精确域名匹配隔离 dev/test/staging/prod、跨子域名匹配三档按需放宽、内置 TOTP 两步验证与离线安全体检。完全免费、无订阅、无需注册账号，密码数据只存本机。
 
-> **安全声明**：账号密码管理助手为开发、测试与日常登录场景而生：所有数据仅保存在浏览器本地，经 AES-256-GCM 加密，永不经过网络传输。为保障您的资产安全，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证。
->
-> 🌐 **在线演示**: https://liaolongdong.github.io/account-password-helper/
->
-> 📊 **技术亮点**: PBKDF2 600K 迭代 · AES-256-GCM 认证加密 · 侧边栏秒开（缓存快路径 20-50ms）· 6 款主题 · 中英文双语 · 完全离线可用 · 364 项自动化测试
+> 🌐 **[在线演示](https://liaolongdong.github.io/account-password-helper/)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K 迭代 + AES-256-GCM ｜ 🎨 6 款主题 · 中英文双语 ｜ 🧪 1953 项自动化测试
 
 <p align="center">
-  <img src="./assets/icons/icon.svg" alt="插件图标" width="120" />
-</p>
-
-<p align="center">
-  <img src="./docs/demo-login.webp" alt="一键登录演示" width="100%" />
+  <img src="./assets/icons/icon.svg" alt="账号密码管理助手扩展图标" width="120" />
   <br/>
-  <sub>Ctrl+Shift+F → 自动填充 → 勾选协议 → 点击登录 → 2FA 两步验证 → 验证口令 → 登录成功，1 秒完成</sub>
+  <img src="./docs/demo-totp.webp" alt="一键登录 + 两步验证接力演示：页内面板选中账号自动填充并登录，跳到验证码页后活码胶囊自动锚定，点「填入」完成第二步" width="100%" />
+  <br/>
+  <sub>页内面板选中账号 → 自动填充并登录 → 同域名验证码页自动锚定活码胶囊 → 点「填入」，全程不用摸手机</sub>
 </p>
 
-## 🖥️ 功能展示
+**[📥 立即安装](#-安装与上手) · [🌐 在线演示](https://liaolongdong.github.io/account-password-helper/) · [❓ 常见问题](#-常见问题) · [💬 交流群](#-联系方式)**
+
+**目录**：[核心优势](#-核心优势) · [工作原理](#-工作原理) · [功能演示](#-功能演示) · [横向对比](#-横向对比) · [功能全览](#-功能全览) · [使用场景](#-使用场景) · [安全与隐私](#-安全与隐私) · [安装与上手](#-安装与上手) · [常见问题](#-常见问题) · [作者的其他插件](#-作者的其他插件) · [参与贡献](#-参与贡献) · [许可证](#-许可证)
+
+</div>
+
+## ✨ 核心优势
+
+| 优势                              | 与其他工具的差异                                                                                                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ⚡ **一键登录，不只是填充**       | `Ctrl+Shift+F` 一次走完「填充账号 → 勾选记住我/同意」；开启「自动触发登录」或用侧边栏「填充并登录」，连登录按钮一起点掉                                |
+| 🎯 **多环境账号隔离**             | 精确域名匹配区分 dev/test/staging/prod——**同一站点的不同环境账号互不混淆**，开发者与测试刚需；同站多子域共用一套账号时，可放宽为通配条目或同主域名两档 |
+| 🔑 **内置 TOTP + 两步登录接力**   | 验证码和密码存在一起；GitHub 式两步登录自动衔接活码胶囊，**告别手机验证器，不用切 App**                                                                |
+| 🧲 **填不进的页面有兜底**         | 自动检测拿不准的自建登录页，可给该域名**指定账号 / 密码框的 CSS 选择器、深入 Shadow DOM 取字段**，规则还能导出 JSON 在团队与多台机器间共用             |
+| 🔒 **纯本地 AES-256-GCM，零云端** | 无云端、无账号、无订阅，**也就没有可供攻破的服务器**；五个敏感字段逐字段密文存储，密码数据从不作为明文离开本机                                         |
+| 📊 **离线安全体检**               | 一键 0-100 评分，四维加权检测，**全程本机计算**                                                                                                        |
+| 📦 **一键迁移，零门槛**           | 自动识别 Chrome / LastPass / Bitwarden / 1Password 导出格式，CSV / JSON 双格式，**30 秒搬家**                                                          |
+
+## 🧭 工作原理
+
+一次填充在你自己的电脑上走四步：
+
+1. **识别登录页** — 内容脚本在页面里判定账号、密码与验证码输入框；扫描限流分批进行，不改动宿主页面的样式与脚本
+2. **按域名取候选** — 三档跨子域名匹配决定哪些账号出现在侧边栏与内联下拉里，默认只认精确主机名，多环境账号因此互不串号
+3. **本机解密** — 主密码经 PBKDF2 派生密钥；打开列表时整库解密一次，明文只存在于扩展自身上下文，磁盘上始终是密文，锁定或过期即刻销毁密钥材料与快照
+4. **填充并登录** — 逐字段写入并自动勾选「记住我 / 同意协议」，可选再替你点下登录按钮；网页上新产生的凭证回写前先经你确认
+
+> 每一步的源码路径与策略细节见 [ARCHITECTURE.md — 功能实现详解](./docs/ARCHITECTURE.md#功能实现详解)，同一套四步的可视化说明见[在线演示页的「工作原理」一节](https://liaolongdong.github.io/account-password-helper/#how)。
+
+## 🖼️ 功能演示
+
+> 每个模块一行一张大图：图下第一行是模块名称，第二行只讲**图里看不到的信息**——容易踩空的默认值、开关位置与隐藏能力。**点任意一张可看原尺寸**（首图是 1152×720 的操作动图，其余七张为 2560×1600 的 2 倍屏截图）。
 
 <p align="center">
-  <img src="./assets/screenshots/02-password-list.png" alt="密码列表与管理" width="100%" />
-  <br/>
-  <sub>密码列表管理 — 智能搜索、标签分类、收藏置顶、一键去重</sub>
+  <a href="./docs/demo-login.webp"><img src="./docs/demo-login.webp" alt="一键登录演示：侧边栏选中条目后自动填充账号密码、勾选同意条款并点击登录" width="100%" /></a>
+  <br />
+  <b>⚡ 一键登录</b>
+  <br />
+  <sub>快捷键 <b>Ctrl+Shift+F</b> 默认停在「已填充 + 已勾选」，不会替你提交。</sub>
 </p>
 
 <p align="center">
-  <img src="./assets/screenshots/06-sidepanel-fill.png" alt="侧边栏快速填充" width="100%" />
-  <br/>
-  <sub>侧边栏快速填充 — 拼音首字母搜索，命中高亮，秒级响应</sub>
+  <a href="./assets/cws-store/screen-2-totp.png"><img src="./assets/cws-store/screen-2-totp.png" alt="两步验证：密码列表内直接展示 6 位活码与倒计时圆环" width="100%" /></a>
+  <br />
+  <b>🔑 内置 TOTP</b>
+  <br />
+  <sub>添加密钥可直接扫描网页二维码或上传二维码图片，本地解码；算法与 6 / 7 / 8 位均可自定义。</sub>
 </p>
 
 <p align="center">
-  <img src="./assets/screenshots/09-totp-code.png" alt="TOTP 两步验证" width="100%" />
-  <br/>
-  <sub>TOTP 两步验证 — 验证码和密码在一起，告别手机验证器</sub>
+  <a href="./assets/cws-store/screen-9-inline-fill.png"><img src="./assets/cws-store/screen-9-inline-fill.png" alt="页内填充面板：输入框旁的钥匙图标展开迷你面板，就地挑选账号填充" width="100%" /></a>
+  <br />
+  <b>📝 页内填充面板</b>
+  <br />
+  <sub>全新安装默认启用这种内联填充，可在偏好设置切换为侧边栏或仅手动。</sub>
 </p>
 
 <p align="center">
-  <img src="./assets/screenshots/10-health-check.png" alt="安全体检仪表盘" width="100%" />
-  <br/>
-  <sub>安全体检仪表盘 — 五维风险检测，全程本地计算</sub>
+  <a href="./assets/cws-store/screen-3-multi-env.png"><img src="./assets/cws-store/screen-3-multi-env.png" alt="多环境账号管理：同一站点的开发、测试、生产账号用标签分开" width="100%" /></a>
+  <br />
+  <b>🎯 多环境账号隔离</b>
+  <br />
+  <sub>在 <b>localhost</b> / <b>127.0.0.1</b> 上还会进一步按端口区分。</sub>
 </p>
 
 <p align="center">
-  <img src="./assets/screenshots/11-inline-fill.png" alt="内联填充迷你面板" width="100%" />
-  <br/>
-  <sub>内联填充迷你面板 — 输入框钥匙图标，点击即填</sub>
+  <a href="./assets/cws-store/screen-4-security-audit.png"><img src="./assets/cws-store/screen-4-security-audit.png" alt="离线安全体检：0 到 100 分综合评分与四类问题明细" width="100%" /></a>
+  <br />
+  <b>📊 离线安全体检</b>
+  <br />
+  <sub>泄露字典为内置近千条离线词表；「未开启两步验证」单独列示、不计入扣分。</sub>
 </p>
 
 <p align="center">
-  <img src="./assets/screenshots/12-theme-skin.png" alt="主题换肤与双语界面" width="100%" />
-  <br/>
-  <sub>6 款色彩主题 + 中英文双语界面，即时切换</sub>
+  <a href="./assets/cws-store/screen-13-generator.png"><img src="./assets/cws-store/screen-13-generator.png" alt="密码生成器：随机密码与助记词组双模式面板" width="100%" /></a>
+  <br />
+  <b>🛠️ 密码生成器</b>
+  <br />
+  <sub>输入框右键「生成并填充强密码」不读取任何已存凭证，会话锁定时同样可用。</sub>
 </p>
 
-## ✨ 为什么选择它
+<p align="center">
+  <a href="./assets/cws-store/screen-6-local-encryption.png"><img src="./assets/cws-store/screen-6-local-encryption.png" alt="本地加密：首次使用设置主密码，数据加密后只存本机浏览器" width="100%" /></a>
+  <br />
+  <b>🔒 本地加密</b>
+  <br />
+  <sub>主密码是唯一密钥：遗忘后无法找回，只能重置清空数据，请先用加密备份（.aph）留一条退路。</sub>
+</p>
 
-| 特性                              | 与其他密码管理器的区别                                                                                   |
-| --------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| ⚡ **一键登录，不只是填充**       | 快捷键 `Ctrl+Shift+F` 一步完成：填充账号 → 勾选协议 → 点击登录。其他工具只填表单，**登录按钮还得自己点** |
-| 🎯 **多环境账号隔离**             | 精确域名匹配区分 dev/test/staging/prod——**同一站点的不同环境账号互不混淆**，开发者刚需                   |
-| 🔑 **内置 TOTP + 两步登录接力**   | 验证码和密码在一起；GitHub 式两步登录自动衔接活码胶囊，**告别手机验证器，不用切 App**                    |
-| 🔒 **纯本地 AES-256-GCM，零云端** | 无云端、无账号、无订阅。数据全部加密在你的浏览器里，**即使服务器被攻破也拿不到你的密码**                 |
-| 📊 **离线安全体检**               | 一键 0-100 评分：弱密码 / 复用 / 泄露 / 过期 / 未开 2FA 五维检测，**全程离线计算**                       |
-| 📦 **一键迁移，零门槛**           | 自动识别 Chrome / LastPass / Bitwarden / 1Password 导出格式，CSV/JSON 双格式，**30 秒搬家**              |
+<p align="center">
+  <a href="./assets/cws-store/screen-5-preferences.png"><img src="./assets/cws-store/screen-5-preferences.png" alt="偏好设置：六款色彩主题色块与中英文语言切换" width="100%" /></a>
+  <br />
+  <b>🎨 主题与双语</b>
+  <br />
+  <sub>六款主题分别为晴空蓝 / 青竹绿 / 桃花粉 / 樱粉紫 / 落霞橙 / 雾墨灰，切换即时生效无需刷新。</sub>
+</p>
 
-## 适合谁
+> 📸 截图与动图取自商店素材流水线（`scripts/store-shots/`，全部为 `example.com` 占位演示数据）。悬浮按钮、自动保存弹窗、CSV 导入导出与加密备份、回收站与密码修改历史等更多界面见[在线演示页面](https://liaolongdong.github.io/account-password-helper/)。
 
-- **开发者** — 精确域名匹配隔离 dev / test / staging / prod 多环境账号，同一站点不同环境凭证互不混淆
-- **测试工程师** — 快速切换测试账号，`Ctrl+Shift+F` 一键登录，跨环境效率翻倍
-- **隐私敏感用户** — 纯本地 AES-256-GCM 加密，零网络传输，无需注册账号，无需云端同步
-- **日常用户** — 告别记忆密码，内置 TOTP 两步验证，密码生成器一键创建强密码
+## 🆚 横向对比
 
-## 与其他密码管理器的对比
+| 功能                             | ⭐ **Account Password Helper** |        Bitwarden         |        1Password         |          Chrome 自带           |
+| -------------------------------- | :----------------------------: | :----------------------: | :----------------------: | :----------------------------: |
+| 价格                             |        **✅ 完全免费**         | 免费 / 高级版约 $10/年起 | $2.99/月起（以官网为准） |              免费              |
+| 数据存储                         |     **✅ 纯本地，零云端**      |           云端           |           云端           | 本地 + Google 账号同步（可选） |
+| 需要注册账号                     |        **✅ 无需注册**         |            是            |            是            |               否               |
+| 一键登录（填充 + 勾选 + 点击）   |       **✅ 是，零配置**        |    需额外设置/仅填充     |    需额外设置/仅填充     |             仅填充             |
+| 多环境账号隔离                   |           **✅ 是**            |            否            |            否            |               否               |
+| 站点规则：为域名自定义填充选择器 |           **✅ 是**            |            否            |            否            |               否               |
+| TOTP 验证器                      |    **✅ 内置（同一扩展）**     |  独立免费 App / 高级版   |     所有订阅方案均含     |               否               |
+| 离线安全体检（0-100 评分）       |           **✅ 是**            |            否            |    托管式 Watchtower     |     有泄露密码检查，无评分     |
+| 开源（GPL-3.0）                  |           **✅ 是**            |            是            |            否            |               否               |
 
-| 功能                           | Account Password Helper |    Bitwarden    | 1Password | Chrome 自带 |
-| ------------------------------ | :---------------------: | :-------------: | :-------: | :---------: |
-| 价格                           |        完全免费         | 免费 / $10/年起 | $2.99/月  |    免费     |
-| 数据存储                       |         纯本地          |      云端       |   云端    |    本地     |
-| 需要注册账号                   |           否            |       是        |    是     |     否      |
-| 一键登录（填充 + 勾选 + 点击） |           是            |     仅填充      |  仅填充   |   仅填充    |
-| 多环境账号隔离                 |           是            |       否        |    否     |     否      |
-| 内置 TOTP 验证器               |           是            |  付费版 $10/年  |  付费版   |     否      |
-| 离线安全体检                   |           是            |       否        |    否     |     否      |
-| 开源（GPL-3.0）                |           是            |       是        |    否     |     否      |
+> ⭐ 为本项目列，✅ 表示开箱即用、无需额外配置。竞品信息（价格、功能边界）截至 2026-09，各厂商调整频繁，请以官网为准。完整对比见[替代方案对比页](https://liaolongdong.github.io/account-password-helper/compare.html)。
 
-## 核心特性
+## 📋 功能全览
 
-### 🔐 安全防护
+### 🔒 安全防护
 
-- **浏览器原生强加密**：基于 Web Crypto API，PBKDF2 + AES-256-GCM 加密存储，敏感字段（用户名/密码/URL/备注/TOTP）全部密文，零网络传输
-- **灵活的会话管理**：有效期 1 小时\~7 天可选；支持闲置自动锁定、浏览器重启锁定、Popup 一键锁定；剩余时间在管理页/侧边栏/Popup 常驻展示（临近过期变色预警），点击徽标即可续期
-- **离线安全体检**：一键 0\~100 综合评分，五维检测（弱密码/复用/泄露/过期/未开 2FA），全程离线计算
-- **TOTP 两步验证**：验证码本地生成（RFC 6238），列表/侧边栏实时活码与倒计时；支持扫描网页二维码或上传图片一键添加密钥；GitHub 式两步登录自动衔接活码胶囊，一键填入
+- 🛡️ **本地强加密**：主密码经 PBKDF2-SHA256（600,000 次迭代）派生密钥，用户名 / 密码 / 网址 / 备注 / TOTP 密钥五个敏感字段逐字段 AES-256-GCM 加密，每次使用新的随机 IV
+- ⏳ **会话可控**：有效期 1 小时-7 天可选（默认 24 小时）；剩余时间在管理页 / 侧边栏 / Popup 常驻展示，临近过期变色预警，点击徽标即可续期
+- 🔐 **自动锁定与剪贴板**：复制敏感字段后默认 30 秒自动清除剪贴板；闲置自动锁定与「浏览器重启锁定」默认关闭，可在偏好设置独立开启
+- 🩺 **离线安全体检**：0-100 四维加权评分（复用 35 / 弱密码 25 / 命中泄露字典 20 / 长期未更新 20），未开启 2FA 仅列示不计分，全程不联网
+- ⏰ **到期提醒**：在体检的「长时间未更新」明细中按条目设 7 / 30 / 90 天改密提醒，到期发桌面通知
+- 🔑 **TOTP 两步验证**：本地生成（RFC 6238），列表与侧边栏实时活码与倒计时；GitHub 式两步登录自动衔接活码胶囊
 
 ### ⚡ 智能填充
 
-- **三重填充策略**：内联填充（输入框钥匙图标，默认）、侧边栏一键填充、快捷键一键登录（`Ctrl+Shift+F`，填充 + 勾选协议 + 点击登录），桌面通知 + 工具栏角标双通道反馈
-- **精确域名匹配**：仅展示与当前 host 完全一致的条目，dev/test/staging/prod 账号互不混淆；`localhost` 默认匹配全部
-- **自动保存凭证**：Chrome 式登录捕获与保存确认，智能去重（相同凭证不重复提示、密码变化弹「更新」确认）、域名黑白名单、「不再提示」一键屏蔽
-- **广泛兼容**：动态检测登录表单（含跨 iframe），兼容 React/Vue 等主流框架，支持用户名+密码、手机号+验证码等多种场景
-- **密码可见性切换**：为页面密码框注入显隐切换按钮（悬浮按钮偏好设置中开启），填充后一键确认输入内容，无需专门安装额外扩展
+- ⚡ **一键登录**：填充账号密码 + 自动勾选「记住我 / 已阅读并同意 / 接受条款」；开启「自动触发登录」或使用侧边栏「填充并登录」后连登录按钮一起点
+- 🧩 **四种填充入口**：页内面板（默认）、侧边栏一键填充、输入框右键、快捷键；动态检测登录表单（含跨 iframe），兼容 React / Vue 与手机号 + 验证码场景
+- ⌨️ **页内面板即开即填**：迷你面板与侧边栏同一套排序和检索口径（用户名 / 标签 / 备注 / 网址多字段，认拼音全拼与首字母缩写），打开与每次筛选后默认选中首条、回车直接填充；中文输入法尚未上屏时不接管 ↑↓ / Enter / Esc，不会「字没打完就把密码填进页面」；本站无匹配账号时可带着关键词一键跳到管理页做全库搜索
+- 🧲 **站点规则兜底**：自动检测拿不准的自建登录页（尤其 Web Components 站点），可在管理页「站点规则」中为该域名指定账号 / 密码输入框的自定义 CSS 选择器，每条规则默认开启「影子 DOM 穿透」；规则可导出为明文 JSON（只含域名与选择器，不含账号密码）并按域名合并导入、回报新增 / 更新 / 忽略，换机或团队共用不必逐条手配
+- 💾 **自动保存凭证**：Chrome 式登录捕获与保存确认，相同凭证不重复提示、密码变化弹「更新」确认；支持域名黑白名单与「不再提示」，弹窗内联提示弱密码与复用风险
+- 🎯 **精确域名匹配**：所有填充入口与列表默认只展示与当前 host 完全一致的条目，dev / test / staging / prod 互不混淆
+- 🌐 **跨子域匹配（默认关闭）**：密码管理页头部可切三档——「精确匹配 + 通配条目」让网址写成 `*.qq.com` 的账号跨子域可用；「同主域名」在当前域名没有账号时依次带出 `qq.com`、`music.qq.com` 的条目并标注「跨子域」。侧边栏与内联下拉同一排序、一键填充取首条，`localhost` 始终按端口隔离；自动保存判重口径不放宽，弹窗会说明这次改的是哪一条
+- ➕ **就地添加与全站搜索**：侧边栏顶栏「+」预填当前域名快速建档；搜索一键切换「本站 / 全站」范围，外站命中仍可复制账号密码验证码、收藏与编辑
+- 📇 **分享卡片**：一次点击把「用户名 / 密码 / 网址」合成一段纯文本复制进剪贴板（网址为空时省略该行），侧边栏列表行与详情抽屉各一处入口；卡片含明文密码，同受剪贴板限时自动清除约束，内容只写本机剪贴板、不发起任何网络请求
 
 ### 📦 数据管理
 
-- **导入导出**：CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 导出格式，中英文列名自动映射
-- **多重备份**：加密备份（.aph）导出/导入（支持解密预览）、邮箱备份（加密/不加密可选）、定时备份提醒
-- **高效组织**：标签多选与筛选、收藏置顶（上限可配 + LRU 淘汰）、多字段智能搜索（拼音/首字母缩写，命中高亮）、一键去重、批量删除/编辑标签/导出选中
-- **防误操作**：回收站 30 天软删除、密码修改历史（可配置，每条最多 1\~10 份加密快照，可恢复）、修改主密码原子换钥不丢数据
+- 📥 **导入导出**：CSV / JSON 双格式，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式，中英文列名自动映射（Excel 请先另存为 CSV）
+- 🔐 **多重备份**：加密备份（.aph）导出 / 导入支持解密预览；邮箱备份默认选中「加密备份」档，本机组好内容后经 `mailto:` 交由你的邮件客户端发送，改选「不加密备份」时会先弹风险二次确认再复验主密码；定时备份提醒只发桌面通知，不会自动发信
+- 🏷️ **高效组织**：标签多选与筛选、收藏置顶（默认上限 10 条，可配 1-50，超出按 LRU 淘汰）、拼音 / 首字母智能搜索与高亮、一键去重、批量删除 / 改标签 / 导出选中为 CSV、只读详情抽屉一览完整备注与密码修改历史
+- 📄 **列表分页**：密码列表按页呈现，默认每页 100 条（可切 50 / 100 / 200，档位记在本机、下次打开管理页仍是这一档，回收站列表同档位），接近 2000 条上限时打开管理页不再需要等整张表渲染完；跨页勾选会保留，批量删除 / 改标签 / 导出选中作用的仍是全部勾选项（分页条会写明有几条不在当前页），表头「全选」按表格惯例只勾当前页；新增、编辑、收藏、创建副本后自动跳到该条所在页并高亮，搜索与排序口径变化则回到第 1 页；换每页条数不会把你送回第 1 页——页码按「当前页第一条在新档位下落到第几页」换算，你正在看的那批条目仍在眼前
+- ♻️ **防误操作**：回收站 30 天软删除（列表按最近删除排在最前，可按用户名 / 网址 / 标签关键词检索，条目多时不必翻页去找刚误删的那一条）；密码修改历史默认保留 3 份加密快照（可配 1-10）且可恢复；修改主密码原子换钥不丢数据
+- 🪪 **身份信息库**：独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段，默认掩码、打开时需主密码复验；支持加密备份（.aphid）导出导入、勾选导出子集，并提供可选的明文 .json 导出/导入（需验证主密码 + 风险二次确认，导入按 id 合并）；不参与自动备份，请定期手动导出加密备份
 
 ### 🎨 体验
 
-- **主题与语言**：6 款色彩主题 + 中英文双语界面，即时切换无需刷新，扩展页与页面内注入 UI 同步生效
-- **网站图标展示**：密码列表、侧边栏与内联下拉面板展示对应网站图标（读取 Chrome 本地图标缓存，零外部请求），长列表辨识更高效
-- **密码生成器**：随机密码（长度/字符集/排除易混淆字符可配）与助记词组（EFF Diceware 2048 词库）双模式
-- **秒开体验**：缓存快路径下侧边栏约 20-50ms 加载完成，会话失效后同样秒开
+- 🎨 **主题与语言**：6 款色彩主题 + 中英文双语界面，即时切换无需刷新，扩展页与页面内注入 UI 同步生效
+- 🚀 **秒开体验**：所有场景侧边栏秒开无白屏；会话有效时走缓存快路径，数据在 20-50ms 内返回
+- 🛠️ **密码生成器**：随机密码（默认 16 位，6-50 可选，字符集与易混淆字符可配）与助记词组（内置 3080 词英文词库，3-8 词可追加数字）双模式
+- 🔍 **细节体验**：密码输入时实时显示强度条与逐条规则清单；输入主密码开着 Caps Lock 会即时警示；页面密码框显隐切换按钮默认关闭、可在偏好设置开启；网站图标读取 Chrome 本地缓存（零外部请求）
+- ⌨️ **命令面板**：管理页按 `Ctrl/Cmd + K` 唤起，23 条命令支持中文 / 拼音 / 首字母检索——添加密码、安全体检、导入导出、加密备份、一键去重、回收站、身份信息库、站点规则、跨子域名匹配、修改主密码、偏好设置，回车直达；未解锁时不响应按键，删除与覆盖类命令沿用原有的二次确认
 
-> 🛠 技术栈、架构设计与项目结构见 [贡献指南](./docs/CONTRIBUTING.md)。
->
-> 📖 各功能的实现细节（源码路径、策略说明、参数约束）见 [docs/ARCHITECTURE.md — 功能实现详解](./docs/ARCHITECTURE.md#功能实现详解)。
+> 🛠 技术栈、架构设计与项目结构见[贡献指南](./docs/CONTRIBUTING.md)；各功能的实现细节（源码路径、策略说明、参数约束）见 [ARCHITECTURE.md — 功能实现详解](./docs/ARCHITECTURE.md#功能实现详解)；产品动机与加密 / 性能技术复盘见[技术博客](https://liaolongdong.github.io/account-password-helper/blog/)（中英双语）。
 
-## 快速开始
+## 🚀 使用场景
 
-### 从 Chrome 应用商店安装（推荐）
+**适合谁**
 
-直接访问 [Chrome Web Store 页面](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，点击「添加至 Chrome」即可一键安装，后续版本更新由商店自动推送。
+- 💻 **开发者** — 隔离多环境账号，同一站点的 dev / test / staging / prod 互不串号
+- 🧪 **测试工程师** — 一键填充 + 自动触发登录，跨环境回归效率翻倍
+- 🔏 **隐私敏感用户** — 纯本地加密、密码数据不出本机、无需注册与云端同步
+- 🙋 **日常用户** — 告别记忆密码，内置 TOTP 与密码生成器
 
-### 从 GitHub Releases 下载（无法访问 Google 的用户）
+| 场景                                              | 怎么做到                                                                                                                   |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 同一站点的 dev / test / staging / prod 互不串号   | 保持默认的「仅精确匹配」，所有填充入口与列表只认与当前 host 完全一致的条目；`localhost` / `127.0.0.1` 还会进一步按端口区分 |
+| 一套账号要覆盖整个域名家族                        | 管理页头部把「跨子域名匹配」切到「精确 + 通配条目」（网址写成 `*.qq.com`），或再切到「同主域名」做兜底并标注「跨子域」     |
+| 跨环境回归测试要反复登录                          | `Ctrl+Shift+F` 一次走完填充与勾选；开「自动触发登录」或用侧边栏「填充并登录」，连登录按钮一起点掉                          |
+| GitHub 式两步登录不想摸手机                       | TOTP 密钥与密码存在同一条目里，跳到验证码页时活码胶囊自动锚定，点「填入」完成第二步                                        |
+| 自建登录页填不进去                                | 管理页「站点规则」为该域名指定账号 / 密码框的自定义 CSS 选择器，每条规则默认开启影子 DOM 穿透                              |
+| 团队与多台机器共用一套登录配置                    | 站点规则导出为明文 JSON（只含域名与选择器，不含账号密码），导入时按域名合并并回报新增 / 更新 / 忽略                        |
+| 从 LastPass / Bitwarden / 1Password / Chrome 搬家 | 导入上传 CSV / JSON，自动识别这四家的导出格式并映射中英文列名，30 秒完成                                                   |
+| 定期自查密码健康度                                | 离线安全体检给出 0-100 四维加权评分，全程本机计算；还可按条目设 7 / 30 / 90 天改密提醒                                     |
+| 网页表单要填姓名、证件号、银行卡                  | 身份信息库独立存放这些字段，默认掩码、打开时需主密码复验，支持加密备份（.aphid）                                           |
+| 把一组凭据交给同事                                | 分享卡片一次复制「用户名 / 密码 / 网址」纯文本，卡片同受剪贴板限时自动清除约束                                             |
 
-如果你无法访问 Chrome 应用商店（如中国大陆地区用户），可从 [GitHub Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) 下载最新版安装包（zip），手动安装：
+## 🔒 安全与隐私
 
-1. 下载 zip 并解压到任意目录（请妥善保留该目录，后续更新时需覆盖此目录）
-2. 打开 `chrome://extensions/`，开启「开发者模式」
-3. 点击「加载已解压的扩展程序」，选择解压后的目录
-4. 首次使用需设置主密码（至少 8 位，含字母+数字+特殊字符）
+- **数据只在本机**：条目保存在 `chrome.storage.local`，敏感字段逐字段加密后落盘，从不作为明文离开本机；**明文形态的数据密钥**与解密快照只放在 `chrome.storage.session`（内存，浏览器关闭即清），`storage.local` 里持久保存的是密文，外加一份「被包裹的数据密钥」——它正是重启免密的实现前提；**不使用** `storage.sync` 或 `storage.managed`。
+- **保持登录 = 这台设备可解密**：会话有效期内，被包裹的数据密钥一直留在 `storage.local`，所以完全关闭再打开浏览器不必重输主密码；这段时间内能读取本机浏览器配置的程序足以把库解开。手动锁定、闲置锁定与会话过期都会立即销毁这份密钥材料。共用电脑请开启「浏览器重启锁定」。
+- **锁定与过期只销毁密钥**：磁盘上的敏感字段本来就是密文，会话过期或手动锁定不会触发整库重新加密，因此瞬间不卡顿；重新验证主密码即可恢复访问，账号数据不会丢失。
+- **唯一的对外请求**：每 6 小时一次的匿名版本检查——商店安装版向商店条目页发一个不透明的 HEAD 请求，手动安装版查询 GitHub Releases 的公开版本信息。两者都不携带任何密码库内容、账号、标识符或可推导信息；断网时该检查静默失败，不影响任何核心功能。除此之外不发起任何外部网络请求，网站图标也来自 Chrome 本地缓存。
+- **明确不做**：不读取 `cookies`、`history`、`downloads` 等未声明权限；无遥测、分析、广告与崩溃上报 SDK，不收集设备指纹或使用统计；主密码任何形态（原文、可逆密文）都不落盘，仅保存 PBKDF2 派生的校验值。
+- **使用建议**：本插件面向开发、测试与日常登录场景，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证；主密码遗忘**无法恢复**，请务必牢记并妥善保管；建议定期导出加密备份（.aph），剪贴板自动清除默认已开启，可再按需开启闲置自动锁定与「浏览器重启锁定」。
 
-> 💡 手动加载的扩展不会自动更新，但插件会通过 GitHub Releases API 每 6 小时检测新版本，并在 Popup 弹窗中展示更新提示。收到提示后下载新包，将文件覆盖到原安装目录即可。
+> 📋 13 项权限的逐项用途见[贡献指南 — Chrome 权限说明](./docs/CONTRIBUTING.md#chrome-权限说明)；加密方案、会话生命周期与备份格式见 [ARCHITECTURE.md](./docs/ARCHITECTURE.md#加密机制)。
 
-### 安装与构建（开发者）
+## 📥 安装与上手
 
-```bash
-# 安装依赖
-pnpm install
+### 安装
 
-# 开发模式（HMR 热更新）
-pnpm dev
+| 方式                   | 步骤                                                                                                                                                                                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🛍 **Chrome 应用商店**  | 访问[商店页面](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，点击「添加至 Chrome」，后续版本更新由商店自动推送。**推荐**                                                                                                                    |
+| 📦 **GitHub Releases** | 从 [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) 下载最新 zip，解压到**固定目录** → 在 `chrome://extensions/` 开启「开发者模式」→「加载已解压的扩展程序」选择该目录。适合无法访问 Google 的用户；手动加载不自动更新，扩展每 6 小时检测新版本并在 Popup 提示 |
+| 🛠 **源码构建**         | `pnpm install && pnpm build`，产物在 `.output/chrome-mv3/`，同样以「加载已解压的扩展程序」方式加载。完整命令与环境要求见[贡献指南 — 常用命令](./docs/CONTRIBUTING.md#常用命令)                                                                                                                    |
 
-# 生产构建
-pnpm build
+> ⚠️ 手动加载的更新方式是把新包**直接覆盖**原安装目录，**切勿换目录**——Chrome 会视为一次全新安装，原有密码数据将无法访问。
 
-# 构建并打包为 zip
-pnpm postbuild
-```
+### 四步上手
 
-构建产物在 `.output/chrome-mv3/`，在 `chrome://extensions/` 开启「开发者模式」→「加载已解压的扩展程序」选择该目录即可。
-
-> 📖 更多开发命令与环境要求见 [贡献指南](./docs/CONTRIBUTING.md)。
-
-### 更新版本
-
-- **Chrome 应用商店用户**：版本更新由商店自动推送，无需手动操作。
-- **手动加载用户（GitHub Releases 下载 / 开发者）**：只需将压缩包内的文件**直接覆盖**原有安装目录下的文件即可，**切勿**重新选择其他目录加载扩展。Chrome 扩展的本地数据（包括密码数据、配置等）存储在浏览器内部存储空间中，只要扩展 ID 不变，覆盖文件更新不会影响已有数据。如果更换了加载目录，Chrome 会将其视为全新安装，**原有的密码数据将无法访问**。
-
-> 💡 **如何查看当前安装目录**：打开 `chrome://extensions/`，找到「账号密码管理助手」的卡片，点击"详情"，在扩展详情页下方可以看到「来源：/path/to/your/directory」，冒号后面的路径即为当前安装目录。
-
-## 使用指南
-
-1. **初始设置**：安装后点击扩展图标进入密码管理页面，设置主密码并选择会话有效期（默认 24 小时）；「偏好设置」中可配置主题、语言、悬浮按钮、填充方式等
-2. **密码管理**：选项页提供完整 CRUD、批量导入导出（导出需验证主密码）、多字段智能搜索（拼音/首字母 + 命中高亮）与排序、标签与收藏
-3. **快速填充**：默认内联填充——登录框获焦后显示钥匙图标，点击选择账号即填；可在「偏好设置」切换为「侧边栏」（获焦自动弹出）或「仅手动」，也可使用快捷键
-4. **快捷键**：所有高频操作均有快捷键（Mac 为 `Cmd`），详见下方速查表
+1. **设置主密码**：首次进入管理页设置主密码（至少 8 位，含字母 + 数字 + 特殊字符）并选择会话有效期（默认 24 小时）
+2. **挑一种填充方式**：全新安装默认**内联填充**——登录框获焦后点钥匙图标选账号；可在「偏好设置」切换为**侧边栏**（获焦自动弹出）或**仅手动**。升级用户沿用升级前的侧边栏行为，不会被静默改为内联
+3. **导入已有密码**：管理页「数据管理 → 导入」上传 CSV / JSON，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式
+4. **按需开启自动登录**：「偏好设置 → 自动触发登录」打开后，`Ctrl+Shift+F` 连登录按钮一起点掉
 
 ### 快捷键速查
 
-| 功能                       | Windows / Linux | macOS         |
-| -------------------------- | --------------- | ------------- |
-| 打开密码管理页             | `Ctrl+Shift+P`  | `Cmd+Shift+P` |
-| 开关侧边栏                 | `Ctrl+Shift+L`  | `Cmd+Shift+L` |
-| 一键登录（填充+勾选+点击） | `Ctrl+Shift+F`  | `Cmd+Shift+F` |
-| 展开内联填充下拉列表       | `Ctrl+Shift+K`  | `Cmd+Shift+K` |
+<details>
+<summary>展开 5 组按键、默认行为与改键限制（日常四步用不到这张表）</summary>
 
-> 所有快捷键均可在 `chrome://extensions/shortcuts` 中自定义。
+| 功能           | Windows / Linux | macOS         | 默认行为                                                                                          |
+| -------------- | --------------- | ------------- | ------------------------------------------------------------------------------------------------- |
+| 打开密码管理页 | `Ctrl+Shift+P`  | `Cmd+Shift+P` | 打开选项页                                                                                        |
+| 开关侧边栏     | `Ctrl+Shift+L`  | `Cmd+Shift+L` | 开 / 关侧边栏                                                                                     |
+| 快速填充       | `Ctrl+Shift+F`  | `Cmd+Shift+F` | 填充当前站点最匹配账号 + 勾选协议；开启「自动触发登录」后连登录按钮一起点                         |
+| 展开内联下拉   | `Ctrl+Shift+K`  | `Cmd+Shift+K` | 在聚焦的输入框上展开账号下拉列表                                                                  |
+| 命令面板       | `Ctrl+K`        | `Cmd+K`       | 仅在密码管理页内生效，检索并直达 23 条命令；非扩展快捷键，不在 `chrome://extensions/shortcuts` 中 |
 
-> 📖 完整的操作指引与功能演示见[在线演示页面](https://liaolongdong.github.io/account-password-helper/)（含双语 FAQ），或侧边栏内的「帮助」入口。
+> 扩展内不支持改键（Chrome 未提供 `commands.update()`），请到 `chrome://extensions/shortcuts` 修改；管理页「安全设置 → 快捷键」与侧边栏「帮助」提供只读一览并会标注当前未生效的按键。命令 ID 与限制说明见[贡献指南 — 快捷键](./docs/CONTRIBUTING.md#快捷键)。
 
-## 常见问题
+</details>
 
-**Q：我的密码会被上传到云端吗？**
+## ❓ 常见问题
 
-A：不会。本插件采用纯本地存储方案，所有数据保存在浏览器本地空间，敏感字段经 AES-256-GCM 加密保存，永远不经过任何网络传输。
+<details open>
+<summary><strong>我的密码会被上传到云端吗？</strong></summary>
 
-**Q：忘记主密码怎么办？**
+不会。数据只保存在浏览器本地空间，敏感字段逐字段加密后落盘。唯一的外联是每 6 小时一次的匿名版本检查，详见[安全与隐私](#-安全与隐私)。
 
-A：主密码无法找回，只能通过「重置」功能清空数据后重新设置。建议定期通过数据导出或加密备份（.aph 文件）功能备份，避免数据丢失。
+</details>
 
-**Q：会话有效期到了会发生什么？**
+<details>
+<summary><strong>忘记主密码怎么办？</strong></summary>
 
-A：会话过期后，所有敏感字段会自动重新加密为密文；下次使用时只需重新验证主密码即可恢复访问，账号数据不会丢失。
+主密码无法找回，只能通过「重置」清空数据后重新设置。建议定期用数据导出或加密备份（.aph 文件）备份，避免数据丢失。
 
-**Q：侧边栏不显示？**
+</details>
 
-A：确认 Chrome >= 114，检查页面是否包含登录表单；也可点击插件图标（快捷键 `Ctrl+Shift+L` / `Cmd+Shift+L`），或通过悬浮按钮中的「快速填充」手动打开。
+<details>
+<summary><strong>会话有效期到了会发生什么？</strong></summary>
 
-**Q：密码填充不生效？**
+会话过期只清除密钥材料与内存缓存，磁盘上的敏感字段本来就是密文，不存在「过期瞬间批量重新加密」这一步，因此不会卡顿。下次使用时重新验证主密码即可恢复访问，账号数据不会丢失。
 
-A：等待页面完全加载后重试，填充器会依次尝试三种策略（Native Setter / execCommand / 模拟键盘事件）；仍不生效请刷新页面。
+</details>
 
-**Q：如何自定义快捷键？**
+<details>
+<summary><strong>支持从其他密码管理器导入吗？</strong></summary>
 
-A：在地址栏输入 `chrome://extensions/shortcuts`，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可修改。
+支持。在导入弹窗上传 CSV 或 JSON 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段，30 秒完成搬家。Excel 需先另存为 CSV（不解析 .xlsx）。
 
-**Q：支持从其他密码管理器导入吗？**
+</details>
 
-A：支持。在导入弹窗中上传 CSV 文件，插件会自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式并映射字段。
+<details>
+<summary><strong>同一套账号要覆盖整个站点的子域名，怎么办？</strong></summary>
 
-**Q：删除的密码能找回吗？**
+密码管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成 `*.qq.com` 的账号会在该站任意子域出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域 `qq.com` 与兄弟子域的条目，并在列表里标注「跨子域」。放宽只改变**哪些账号被展示与可填充**：自动保存的判重口径不随档位改变，`localhost` / `127.0.0.1` 始终按端口区分，侧边栏与内联下拉共用同一套排序、一键填充取首条。
 
-A：能。删除的密码会先移入回收站保留 30 天，在「数据管理」→「回收站」中可恢复或彻底删除；改错密码也可通过条目的「密码修改历史」一键恢复。
+</details>
 
-**Q：如何开启自动保存登录密码？**
+<details>
+<summary><strong>登录框识别不到，或者填不进去怎么办？</strong></summary>
 
-A：在密码管理页「自动保存设置」中开启开关，可选配置域名匹配规则（精确域名/正则）。登录时会弹出确认卡片（保存/暂不保存/不再提示），并可编辑标签和备注。
+表单藏在自建组件里时（典型是 Web Components 页面），在密码管理页「站点规则」为该域名手动指定账号与密码输入框的 CSS 选择器即可——域名需与登录页完全一致，不支持通配。每条规则默认开启「影子 DOM 穿透」，可关闭以只在主文档内匹配；需要说明的是，任何扩展都读不到 `mode: 'closed'` 的封闭 Shadow DOM，只能进入开放的 Shadow DOM。配好的规则可「导出 JSON」备份或分享给团队（明文，只含域名与选择器，不含账号密码），换机时用「导入 JSON」按域名合并，报告会写明新增、更新与忽略的条数。
 
-**Q：如何切换主题或界面语言？**
+</details>
 
-A：通过密码管理页「偏好设置」按钮、悬浮按钮齿轮图标或侧边栏齿轮图标进入偏好设置面板，可切换 6 款色彩主题与中文 / English 界面语言，即时生效无需刷新。
+<details>
+<summary><strong>导出的 CSV 用 Excel 打开，个别密码或备注变成了报错内容？</strong></summary>
 
-**Q：Windows 首次打开侧边栏较慢怎么办？**
+当某个字段的值本身以 `=`、`+`、`-`、`@` 开头（随机密码生成器的符号集就含这几个字符）时，Excel 会把该单元格当作公式求值。导出刻意不做公式转义：加前缀会改写字段内容，而密码是逐字符取用的，被改写后无论是从表格复制使用还是再导回来都是错的，同时也会破坏「导出 → 导入」的可逆性。请把导出文件视为你自己本机产出的数据，跨机迁移优先使用加密备份（.aph）。
 
-A：Windows Defender 会在扩展文件首次加载时逐文件扫描，导致冷启动延迟增加 1-2 秒。建议将 Chrome 扩展目录加入 Defender 排除列表以跳过扫描：打开「Windows 安全中心」→「病毒和威胁防护」→「管理设置」→「排除项」→「添加排除项」→选择「文件夹」→粘贴路径 `%LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions`。加入后冷启动可从 2-3 秒降至 1 秒以内。Mac 用户无需此操作。
+</details>
 
-> 📖 更多问题（TOTP 使用与排查、邮箱备份、加密备份、剪贴板清除、收藏上限、性能表现等）见[在线演示页面](https://liaolongdong.github.io/account-password-helper/)的完整 FAQ，或 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) 中对应功能的实现说明。
+<details>
+<summary><strong>删除的密码能找回吗？</strong></summary>
 
-## 立即体验
+能。删除的条目先进回收站保留 30 天，在「数据管理 → 回收站」可恢复或彻底删除；改错密码也可通过条目的「密码修改历史」一键恢复。
 
-🔗 [Chrome 应用商店安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) · [GitHub Releases 下载](https://github.com/liaolongdong/account-password-helper/releases/latest) · [在线演示](https://liaolongdong.github.io/account-password-helper/)
+</details>
 
-如果本项目对您有帮助，请帮忙点个 ⭐️、写个商店评价——这是对开源贡献者最大的支持！
+<details>
+<summary><strong>条目数量有上限吗？</strong></summary>
 
-🔥 **立即开始**：[Chrome 应用商店安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)（一键安装，自动更新） · [GitHub Releases 下载](https://github.com/liaolongdong/account-password-helper/releases/latest)（无法访问 Google 的用户）
+有。密码列表的条目总量上限为 2000 条，按列表条目数计数，回收站里的条目不占额度。达到上限后新增、导入、网页自动保存与回收站恢复都会明确提示被拒绝，不会静默覆盖或删除已保存的数据；导入超出剩余额度时，预览页会显示「还能导入多少条 / 将被忽略多少条」，由你选择只导入前若干条或取消。需要腾出额度时，在密码列表中删除不再使用的条目即可——条目移进回收站的那一刻就释放额度，无需再清空回收站；也可以先用「导出数据」「导出JSON」「加密备份导出」留存全量数据再清理列表。
 
-欢迎提交 Issue 和 Pull Request！完整变更记录见 [CHANGELOG.md](./CHANGELOG.md)。
+</details>
 
-## 安全提醒
+<details>
+<summary><strong>条目接近上限时管理页会卡吗？</strong></summary>
 
-- 账号密码管理助手为开发、测试与日常登录场景而生，建议不要在任何浏览器扩展中存放银行、支付等高敏感凭证；
-- 主密码遗忘**无法恢复**，请务必牢记并妥善保管；
-- 所有数据本地 AES-256-GCM 加密存储，零网络传输；
-- 建议定期通过加密备份功能（.aph 文件）导出备份；
-- 建议开启剪贴板自动清除与闲置自动锁定；对安全性要求较高时，建议开启「浏览器重启锁定」。
+不会按条目总数卡。列表按页呈现（默认每页 100 条，可切 50 / 100 / 200，档位记在本机、下次打开管理页仍是这一档），一次只渲染当前这一页，所以搜索、输入过滤、翻页、悬停这类交互的耗时基本不再随条目数增长——本机同法实测 600 条与近上限 2000 条两档的读数落在同一量级。打开管理页还包含一次「读整库并解密」，这一步的开销与条目总数相关、不由分页决定，因此这里的口径是「成本不随行数逐条放大」，不是「恒定耗时」。分页只改变"一次画多少行"：搜索、排序、导出与「总计 / 筛选后」读数作用的仍是**全部**命中条目，跨页勾选也会保留（分页条会写明有几条不在当前页）。需要留意的是表头「全选」按表格惯例只勾当前页，要批量处理大量条目时先切到每页 200 条或逐页勾选。
 
-## 许可证
+</details>
+
+<details>
+<summary><strong>侧边栏不显示，或首次打开较慢？</strong></summary>
+
+侧边栏依赖 Chrome 的 Side Panel API（需 Chromium 114 及以上），也可点击插件图标或按 `Ctrl+Shift+L` / `Cmd+Shift+L` 打开。Windows 上首次冷启动可能因 Defender 逐文件扫描延迟 1-2 秒，把 `%LOCALAPPDATA%\Google\Chrome\User Data\Default\Extensions` 加入排除列表即可降到 1 秒以内（Mac 无需操作）。
+
+</details>
+
+> 📖 更多问题（TOTP 使用与排查、填充失败排查、邮箱备份、加密备份、收藏上限等）见[在线演示页面](https://liaolongdong.github.io/account-password-helper/)的完整 FAQ，或 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) 中对应功能的实现说明。
+
+## 🚀 立即体验
+
+🔗 [Chrome 应用商店安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)（一键安装，自动更新） · [GitHub Releases 下载](https://github.com/liaolongdong/account-password-helper/releases/latest)（无法访问 Google 的用户） · [在线演示](https://liaolongdong.github.io/account-password-helper/)
+
+如果本项目对您有帮助，请帮忙点个 ⭐️、写个商店评价——这是对开源贡献者最大的支持！欢迎提交 Issue 和 Pull Request，完整变更记录见 [CHANGELOG.md](./CHANGELOG.md)。
+
+## 🧩 作者的其他插件
+
+同一位作者、同一套做法：开源、离线、数据只留在本机。作者的其余开源作品见 [github.com/liaolongdong](https://github.com/liaolongdong)。
+
+- [文件格式任意转换助手](https://github.com/liaolongdong/transfer-any-file)：14 种格式在浏览器里互转、一个字节也不上传的离线文件转换器——Markdown、Word、PDF、Excel、CSV、JSON、HTML 与图片在自己电脑上完成转换，支持批量混合格式、自动多步链路、预览与内联编辑、ZIP 打包。无账号、无上传、无网络请求。[产品页](https://liaolongdong.github.io/transfer-any-file/)
+- [跨域代理助手 · Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy)：把页面发出的 API 请求代理到另一个后端环境——重写 URL、请求头与响应，条件化 Mock、注入延迟、阻断请求、失败重试、转发 WebSocket，全部在浏览器里配置，数据只存在你的电脑上。本扩展管「这个环境我是谁」，它管「这个环境请求打到哪」，多环境联调时两个一起开最顺手。[产品页](https://liaolongdong.github.io/cross-origin-proxy/) · [Chrome 应用商店](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
+
+## 🤝 参与贡献
+
+欢迎 Issue 和 Pull Request。这是一个本地优先项目，两条硬约束是**密码数据不出本机**与**权限最小化**，跨线的建议请先在 Issue 里讨论。
+
+- **提 Issue / 功能建议**：[选择模板](https://github.com/liaolongdong/account-password-helper/issues/new/choose)（缺陷、功能两套模板，含复现步骤与影响面）
+- **报安全问题**：请走 [.github/SECURITY.md](./.github/SECURITY.md) 的私密渠道，不要开公开 Issue
+- **贴截图或日志之前**：请把真实账号、邮箱、密码与 TOTP 活码换成 `example.com` / `dummy` 这类占位数据——公开内容无法真正撤回
+- **开发环境与命令**：[docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) ｜ **行为准则**：[.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
+- **质量门禁**：每个 PR 与 `main` 的提交由 [ci.yml](./.github/workflows/ci.yml) 自动跑 `typecheck` / `lint` / `lint:style` / `test:run` / `build`（Chrome 与 Firefox 双构建）
+- **供 AI 引擎引用**：机器可读的项目摘要见 [llms.txt](https://liaolongdong.github.io/account-password-helper/llms.txt)，与站点的 `robots.txt`、`sitemap.xml` 配套，供 ChatGPT / Perplexity / Claude 等检索与引用
+
+## 📄 许可证
 
 本项目采用 GNU GPL-3.0 开源协议（仅 v3 版本，不含"或更高版本"）。
 
-- 允许自由使用、修改与分发（含商用），但**衍生作品必须以 GPL-3.0 同等开源**，禁止闭源分发。
-- 插件名称 "Account Password Helper（账号密码管理助手）"、logo 及品牌素材为作者商标，不在协议授权范围内，详见 [THIRD-PARTY-NOTICES.md](./docs/THIRD-PARTY-NOTICES.md)。
-- 本项目打包了第三方依赖（含 Apache-2.0 协议的 jsQR），归属声明见 [THIRD-PARTY-NOTICES.md](./docs/THIRD-PARTY-NOTICES.md)。
+- 允许自由使用、修改与分发（含商用），但**衍生作品必须以 GPL-3.0 同等开源**，禁止闭源分发；
+- 插件名称 "Account Password Helper（账号密码管理助手）"、logo 及品牌素材为作者商标，不在协议授权范围内；
+- 本项目打包了第三方依赖（含 Apache-2.0 协议的 jsQR），归属声明见 [THIRD-PARTY-NOTICES.md](./docs/THIRD-PARTY-NOTICES.md)；
 - 本仓库已发布的历史版本仍按当时的 MIT 协议存续，GPL-3.0 自切换后的新版本起生效。
 
-## 联系方式
+## 📮 联系方式
 
 邮箱：[924902324@qq.com](mailto:924902324@qq.com?subject=账号密码管理助手反馈)
 
@@ -288,4 +377,4 @@ A：Windows Defender 会在扩展文件首次加载时逐文件扫描，导致�
 
 ---
 
-> 📅 文档最后更新：2026-08 · 对应版本 [v3.6.0](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 文档最后更新：2026-09-25 · 功能描述以当前开发分支的最新实现为准，已发布版本请见 [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)

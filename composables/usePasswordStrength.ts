@@ -1,9 +1,13 @@
 import { computed, ref, watch, type Ref } from 'vue';
 import { isCommonPassword } from '@/utils/weakPasswordDict';
 import { t } from '@/utils/i18n';
-
-/** 密码强度等级 */
-export type StrengthLevel = 'none' | 'weak' | 'medium' | 'strong';
+import {
+  STRENGTH_COLORS,
+  evaluateStrengthCore,
+  evaluateStrengthRules,
+  type StrengthLevel,
+  type StrengthRuleId,
+} from '@/utils/passwordStrengthCore';
 
 /** 密码规则校验项 */
 export interface PasswordRuleItem {
@@ -28,61 +32,86 @@ export interface PasswordStrengthResult {
 }
 
 /**
- * 逐条校验密码规则（纯函数）
+ * 取强度规则的展示文案
  *
- * 抽离自 {@link usePasswordStrength}，使响应式 Composable 与批量健康统计
- *（`utils/passwordHealth.ts`）等非响应式场景共享同一套规则，避免逻辑重复。
+ * 刻意保留 `t('...')` 字面量调用（而非把 key 存入映射表再索引）：
+ * `tests/utils/i18nBundles.test.ts` 靠静态扫描源码中的 `t('key')` 校验命名空间
+ * 注册完整性，key 一旦脱离字面量形式就会从扫描与 grep 审计中隐身。
+ * 逐次调用（而非模块加载期求值）也保证了语言切换的响应式生效。
+ *
+ * @param id 规则标识
+ * @returns 对应语言的规则文案
+ */
+function ruleLabel(id: StrengthRuleId): string {
+  switch (id) {
+    case 'minLength':
+      return t('strength.ruleMinLength');
+    case 'hasLetter':
+      return t('strength.ruleHasLetter');
+    case 'hasNumber':
+      return t('strength.ruleHasNumber');
+    case 'hasSymbol':
+      return t('strength.ruleHasSymbol');
+  }
+}
+
+/**
+ * 取强度等级的展示文案
+ *
+ * `none`（空密码）不展示文案，返回空串——与重构前行为一致。
+ *
+ * @param level 强度等级
+ * @returns 对应语言的等级文案；`none` 等级返回空串
+ */
+function levelLabel(level: StrengthLevel): string {
+  switch (level) {
+    case 'none':
+      return '';
+    case 'weak':
+      return t('strength.weak');
+    case 'medium':
+      return t('strength.medium');
+    case 'strong':
+      return t('strength.strong');
+  }
+}
+
+/**
+ * 逐条校验密码规则（供 Vue 模板渲染）
+ *
+ * 判定逻辑完全委托 `utils/passwordStrengthCore.ts`，本函数只负责贴附 i18n 文案，
+ * 禁止在此处重新编写正则或阈值，以免与 background / 安全体检的口径发生漂移。
+ * 保留 {@link usePasswordStrength} 与批量健康统计（`utils/passwordHealth.ts`）共用。
  *
  * @param pwd 待校验的密码明文
- * @returns 规则逐条校验结果
+ * @returns 规则逐条校验结果（顺序与核心模块一致）
  */
 export function evaluatePasswordRules(pwd: string): PasswordRuleItem[] {
-  return [
-    { label: t('strength.ruleMinLength'), passed: pwd.length >= 8 },
-    { label: t('strength.ruleHasLetter'), passed: /[a-zA-Z]/.test(pwd) },
-    { label: t('strength.ruleHasNumber'), passed: /\d/.test(pwd) },
-    {
-      label: t('strength.ruleHasSymbol'),
-      passed: /[!@#$%^&*()_+\-={[\]};':"\\|,.<>/?~`]/.test(pwd),
-    },
-  ];
+  return evaluateStrengthRules(pwd).map(rule => ({
+    label: ruleLabel(rule.id),
+    passed: rule.passed,
+  }));
 }
 
 /**
  * 计算密码强度评估结果（纯函数）
  *
- * 与旧版 Composable 内联逻辑行为完全一致：空密码返回 `none`，否则按
- * 通过规则数映射为弱/中/强，供表单实时校验与批量健康统计共用。
+ * 数值与等级委托核心模块，本函数只负责映射颜色与 i18n 文案：空密码返回 `none`，
+ * 否则按通过规则数映射为弱/中/强，供表单实时校验与批量健康统计共用。
+ * 返回字段与重构前逐字段一致。
  *
  * @param pwd 待评估的密码明文
  * @returns 强度百分比、颜色、等级文本与等级枚举
  */
 export function evaluatePasswordStrength(pwd: string): PasswordStrengthResult {
-  if (!pwd) {
-    return { percentage: 0, color: '#e4e7ed', label: '', allPassed: false, level: 'none' };
-  }
-
-  const rules = evaluatePasswordRules(pwd);
-  const passedCount = rules.filter(r => r.passed).length;
-  const total = rules.length;
-  const percentage = Math.round((passedCount / total) * 100);
-  const allPassed = passedCount === total;
-
-  let color = '#f56c6c';
-  let label = t('strength.weak');
-  let level: StrengthLevel = 'weak';
-
-  if (allPassed) {
-    color = '#67c23a';
-    label = t('strength.strong');
-    level = 'strong';
-  } else if (passedCount >= 2) {
-    color = '#e6a23c';
-    label = t('strength.medium');
-    level = 'medium';
-  }
-
-  return { percentage, color, label, allPassed, level };
+  const core = evaluateStrengthCore(pwd);
+  return {
+    percentage: core.percentage,
+    color: STRENGTH_COLORS[core.level],
+    label: levelLabel(core.level),
+    allPassed: core.allPassed,
+    level: core.level,
+  };
 }
 
 /**
@@ -108,8 +137,8 @@ export async function evaluatePasswordStrengthAsync(
   if (breached) {
     return {
       percentage: Math.min(baseResult.percentage, 25),
-      color: '#f56c6c',
-      label: t('strength.weak'),
+      color: STRENGTH_COLORS.weak,
+      label: levelLabel('weak'),
       allPassed: false,
       level: 'weak',
       isBreached: true,
@@ -148,8 +177,8 @@ export function usePasswordStrength(passwordRef: Ref<string>) {
     if (isBreached.value) {
       return {
         percentage: Math.min(base.percentage, 25),
-        color: '#f56c6c',
-        label: t('strength.weak'),
+        color: STRENGTH_COLORS.weak,
+        label: levelLabel('weak'),
         allPassed: false,
         level: 'weak',
       };

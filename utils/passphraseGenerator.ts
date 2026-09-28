@@ -5,11 +5,11 @@
  * 既安全又易于记忆的助记词组密码（Passphrase）。
  * 使用 Web Crypto API（crypto.getRandomValues）确保随机性安全。
  *
- * 安全性参考：
- * - 4 词组合 ≈ 44 bits 熵（等同 8 位随机密码）
- * - 5 词组合 ≈ 55 bits 熵（等同 10 位随机密码）
- * - 6 词组合 ≈ 66 bits 熵（等同 12 位随机密码）
- * - 7 词组合 ≈ 77 bits 熵（极高安全等级）
+ * 安全性参考（词库 3080 词，单词 ≈11.6 bits）：
+ * - 4 词组合 ≈ 46 bits 熵（等同 62 字符集下 8 位随机密码）
+ * - 5 词组合 ≈ 58 bits 熵（等同 62 字符集下 10 位随机密码）
+ * - 6 词组合 ≈ 69 bits 熵（等同 62 字符集下 12 位随机密码）
+ * - 7 词组合 ≈ 81 bits 熵（极高安全等级）
  *
  * @module utils/passphraseGenerator
  */
@@ -51,6 +51,20 @@ const MIN_NUMBER_DIGITS = 1;
 /** 最大数字位数 */
 const MAX_NUMBER_DIGITS = 4;
 
+/** 词库单词的最大长度（当前 3080 词实测最长 8 字符，改词库时由测试守卫该假设） */
+const MAX_WORD_LENGTH = 8;
+
+/**
+ * 本生成器可能输出的最长口令长度
+ *
+ * = 最大单词数 × 词库最长词 +（单词数 − 1）个分隔符 + 最大追加数字位数。
+ * 分隔符按 `SEPARATOR_OPTIONS` 提供的单字符选项计，最长 1 字符。
+ *
+ * 密码字段的 `maxlength` 必须 ≥ 此值，否则生成的口令会在赋值时被静默截断，
+ * 导致「界面显示的口令」与「实际存入并注册到站点的口令」不一致且用户无法自查。
+ */
+export const MAX_PASSPHRASE_LENGTH = MAX_WORD_COUNT * MAX_WORD_LENGTH + (MAX_WORD_COUNT - 1) + MAX_NUMBER_DIGITS;
+
 /** 可选分隔符列表（供 UI 使用） */
 export const SEPARATOR_OPTIONS = [
   { label: '-', value: '-' },
@@ -69,7 +83,7 @@ let _loadingPromise: Promise<string[]> | null = null;
 /**
  * 加载助记词词库（懒加载，仅首次触发 import）
  *
- * @returns 包含 2048 个常见英文单词的数组
+ * @returns 包含 3080 个常见英文单词的数组
  */
 async function loadWordList(): Promise<string[]> {
   if (_wordList) return _wordList;
@@ -155,7 +169,7 @@ export async function generatePassphrase(options?: PassphraseGeneratorOptions): 
     throw new Error('词库加载失败，无法生成助记词组密码');
   }
 
-  // 从词库中随机选取单词（允许重复，但概率极低：2048^4 空间）
+  // 从词库中随机选取单词（允许重复，但概率极低：3080^4 空间）
   const selectedWords: string[] = [];
   for (let i = 0; i < wordCount; i++) {
     const index = secureRandomInt(words.length);

@@ -1,4 +1,4 @@
-import { type RuntimeMessage, MessageType } from '@/utils/types';
+import { type RuntimeMessage, type PendingCipherKeyResponse, MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import {
   getTabIdSync,
@@ -23,11 +23,17 @@ import {
   grantCredentialAccessAfterStartupRelock,
 } from './passwordCache';
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
-import { handleQuickFill } from './quickFillHandler';
+import { issuePendingCipherKey } from './pendingCipherKeyStore';
+import { handleQuickAddPassword } from './quickAddHandler';
+import { handleQuickFill, deliverPageNotice } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
+import { normalizeSiteRuleDomain } from '@/utils/storage/siteRules';
+import { normalizeEntryId } from '@/utils/generateId';
 import { isFrameFillable } from '@/utils/frameFill';
+import { isSameMainDomain } from '@/utils/domain';
+import { normalizeSearchKeyword } from '@/utils/keywordMatch';
 
 /**
  * SW 模块加载时刻（epoch 毫秒）
@@ -295,6 +301,72 @@ function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean 
 }
 
 /**
+ * 判定消息是否来自本扩展的任一上下文（扩展页面 **或** 自家内容脚本）
+ *
+ * 与 `isTrustedInternalSender` 的分工：后者额外要求 `sender.tab === undefined`，
+ * 只放行扩展自己的页面，用于返回明文/改状态的消息；本函数把内容脚本一并放行，
+ * 用于「合法发送方既有扩展页面、也有内容脚本」的窗口与跳转类指令。
+ * `sender.id` 由浏览器盖章，发送方无法自选。
+ */
+function isExtensionContextSender(sender: chrome.runtime.MessageSender): boolean {
+  return sender.id === chrome.runtime.id;
+}
+
+/**
+ * 必须由本扩展上下文驱动的窗口 / 跳转类指令清单
+ *
+ * 网页 JS 拿不到 `chrome.runtime.sendMessage`，因此这些指令今天不可能被页面直接伪造；
+ * 但这条前提此前只写在「谁能被打包进 content script」这一事实里，一旦将来引入
+ * `externally_connectable`、调试端口或新的注入通道就会被静默突破。这里把前提落成代码：
+ * 清单内的指令一律要求 `sender.id === chrome.runtime.id`（见 `isExtensionContextSender`）。
+ *
+ * @internal 导出仅为便于单元测试逐条遍历清单，不应被业务代码调用
+ */
+export const EXTENSION_CONTEXT_COMMANDS: readonly MessageType[] = [
+  MessageType.SIDEPANEL_PRELOAD,
+  MessageType.SHOW_SIDEPANEL,
+  MessageType.HIDE_SIDEPANEL,
+  MessageType.TOGGLE_SIDEPANEL,
+  MessageType.OPEN_OPTIONS_PAGE,
+  MessageType.OPEN_OPTIONS_AND_EDIT,
+  MessageType.OPEN_OPTIONS_AND_ADD,
+  MessageType.OPEN_OPTIONS_AND_VALIDITY,
+  MessageType.OPEN_OPTIONS_AND_SITE_RULES,
+  MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH,
+  MessageType.OPEN_OPTIONS_AND_SEARCH,
+];
+
+/**
+ * 校验内容脚本自报的凭证归属 URL 是否与其实际所在页面一致
+ *
+ * AUTO_SAVE_PASSWORD / CHECK_CREDENTIAL_STATUS 的 data.url 为内容脚本自报值，
+ * 不可信：恶意页面可谎报归属域名，把捕获的凭证写入或比对到任意目标站点名下。
+ * 这里以发送方上下文推导的 `sender.tab.url`（顶层页面，浏览器权威）为准，
+ * 仅当自报 URL 的域名与之同主域名时放行（兼容顶层发送与同主域名 iframe 委托保存，
+ * 如 accounts.example.com 嵌入 example.com）；无法校验或跨主域名时返回 null（fail-closed）。
+ *
+ * @param reportedUrl 内容脚本自报的 URL（hostname / host:port / 完整 URL）
+ * @param sender 消息发送方上下文
+ * @returns 校验通过返回去空白后的自报 URL，否则返回 null
+ * @internal 导出仅为便于单元测试，不应被业务代码调用
+ */
+export function resolveTrustedContentUrl(reportedUrl: unknown, sender: chrome.runtime.MessageSender): string | null {
+  if (typeof reportedUrl !== 'string') return null;
+  const trimmed = reportedUrl.trim();
+  if (!trimmed) return null;
+  const senderUrl = sender.tab?.url;
+  if (!senderUrl) return null;
+  let reportedHost: string;
+  try {
+    reportedHost = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`).hostname;
+  } catch {
+    return null;
+  }
+  if (!reportedHost || !isSameMainDomain(senderUrl, `https://${reportedHost}`)) return null;
+  return trimmed;
+}
+
+/**
  * 设置消息路由监听器
  * 处理来自 content script 和 popup 的所有 runtime 消息
  *
@@ -303,6 +375,20 @@ function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean 
  */
 export function setupMessageRouter(): void {
   chrome.runtime.onMessage.addListener((message: RuntimeMessage, sender, sendResponse) => {
+    // B12：消息形状守卫——外部/异常上下文可能投递 null / 非对象 / 无 type 的载荷，
+    // 直接 `message.type` 会在同步路径抛错并使该消息得不到任何响应（default 分支也救不回）。
+    if (!message || typeof message.type !== 'string') {
+      sendResponse({ success: false, error: '无效的消息格式' });
+      return;
+    }
+    // 窗口 / 跳转类指令的归属闸门：非本扩展上下文一律拒绝（清单与理由见
+    // EXTENSION_CONTEXT_COMMANDS）。失败应答统一用 `error` 字段——popup 的
+    // SHOW_SIDEPANEL 回退路径正是读 `response.error` 记录失败原因。
+    if (EXTENSION_CONTEXT_COMMANDS.includes(message.type) && !isExtensionContextSender(sender)) {
+      logger.warn('Background: 指令发送方非本扩展上下文，已拒绝: ' + message.type);
+      sendResponse({ success: false, error: '未授权的请求来源' });
+      return;
+    }
     switch (message.type) {
       case MessageType.SIDEPANEL_PRELOAD: {
         // 预唤醒消息：主动预热密码缓存（轻量、缓存已存在时 no-op）。
@@ -378,7 +464,7 @@ export function setupMessageRouter(): void {
       case MessageType.URL_CHANGED: {
         const tabId = sender.tab?.id;
         if (tabId) {
-          sendResponse({ success: true, result: 'URL变化处理完成' });
+          sendResponse({ success: true, result: 'ok' });
         } else {
           sendResponse({ success: false, error: '无法获取标签ID' });
         }
@@ -387,16 +473,35 @@ export function setupMessageRouter(): void {
 
       case MessageType.OPEN_OPTIONS_PAGE:
         openOptionsPage()
-          .then(() => sendResponse({ success: true }))
+          .then(tabId => {
+            // doOpenOptionsPage 内部吞异常并返回 undefined，故这里按真实结果应答，
+            // 否则失败时上游（popup 的「打开密码管理页」）拿到的仍是 success:true。
+            if (tabId === undefined) {
+              sendResponse({ success: false, error: 'Failed to open options page' });
+              return;
+            }
+            sendResponse({ success: true });
+          })
           .catch(error => {
             logger.error('处理OPEN_OPTIONS_PAGE失败:', error);
             sendResponse({ success: false, error: error.message });
           });
         return true;
 
-      case MessageType.OPEN_OPTIONS_AND_EDIT:
-        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_EDIT, message.data).then(sendResponse);
+      case MessageType.OPEN_OPTIONS_AND_EDIT: {
+        // editId 不因「只有自家侧边栏会发」就免检：路由只转发合法形态的 id，
+        // 非法时降级为不带预填的打开（与 OPEN_OPTIONS_AND_SITE_RULES 的 domain 同一口径）。
+        // id 本身不是凭据，但日志仍只记指令不记取值，避免把条目标识写进日志。
+        const rawEditId = (message.data as { editId?: unknown } | undefined)?.editId;
+        const editId = normalizeEntryId(rawEditId);
+        if (rawEditId !== undefined && !editId) {
+          logger.warn('Background: 编辑指令的条目 id 不合法，已忽略预填');
+        }
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_EDIT, editId ? { editId } : undefined).then(
+          sendResponse,
+        );
         return true;
+      }
 
       case MessageType.OPEN_OPTIONS_AND_ADD:
         // data 可选携带 url（侧边栏「添加本站账号」预填域名），无载荷时行为与旧版一致
@@ -408,7 +513,42 @@ export function setupMessageRouter(): void {
         openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY).then(sendResponse);
         return true;
 
+      case MessageType.OPEN_OPTIONS_AND_SITE_RULES: {
+        // data.domain 由内容脚本自报，属不可信输入：只接受合法主机名形态，非法时降级为「无预填」打开，
+        // 避免任意字符串经选项页写入站点规则主键。域名非凭据信息，但不回显原值以防噪声。
+        const reported = (message.data as { domain?: unknown } | undefined)?.domain;
+        const domain = normalizeSiteRuleDomain(reported);
+        if (reported !== undefined && !domain) {
+          logger.warn('Background: 站点规则引导的域名不合法，已忽略预填');
+        }
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_SITE_RULES, domain ? { domain } : undefined).then(
+          sendResponse,
+        );
+        return true;
+      }
+
+      case MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH:
+        // 无载荷：打开密码管理页并自动弹出「跨子域匹配」设置对话框（侧边栏/内联下拉就地引导开档）
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH).then(sendResponse);
+        return true;
+
+      case MessageType.OPEN_OPTIONS_AND_SEARCH: {
+        // 内联下拉空态的「到全库找」：关键词由页面侧自报，属不可信输入，
+        // 与 GET_MATCHING_ACCOUNTS 走同一收口（trim + 截断），空白按「无关键词」打开。
+        // 关键词可能是账号名，故只记指令本身，不回显取值。
+        const keyword = normalizeSearchKeyword(message.data?.keyword);
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_SEARCH, keyword ? { keyword } : undefined).then(
+          sendResponse,
+        );
+        return true;
+      }
+
       case MessageType.UPDATE_PASSWORD_CACHE: {
+        // B2：预热会让 SW 驻留明文密码缓存，属改状态操作，仅接受扩展内部页触发
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         // 轻量触发（无载荷）：由 background 自行经 warmPasswordCache 去重预热缓存，
         // 避免 sidepanel 回传全量明文列表的序列化开销（数百条目时主线程 5-30ms）；
         // 缓存已存在时 no-op，会话无效时内部门控自动跳过
@@ -446,6 +586,12 @@ export function setupMessageRouter(): void {
         for (const [key, value] of Object.entries(metaUpdates)) {
           normalizedUpdates[key] = value === null ? undefined : value;
         }
+        // 响应口径是「已接收并入队」，不是「已落盘」：updatePasswordInSession 走
+        // 1.5s 防抖合并写入，且 flush 失败按其设计只记日志不抛（下次写入自然带上），
+        // 其 Promise 恒 resolve。此处刻意不等待，避免为无人消费的字段把消息通道
+        // 占住 1.5s+（发送方两侧均为 fire-and-forget，且 await 会落在收藏的
+        // runLocalOperation 链内，与代际/序号守卫抢时序）。失败排查看
+        // passwordCrud 的「批量更新元数据失败」日志。
         void _getCrudModule()
           .then(({ updatePasswordInSession }) =>
             updatePasswordInSession(metaId, normalizedUpdates as Parameters<typeof updatePasswordInSession>[1]),
@@ -455,7 +601,24 @@ export function setupMessageRouter(): void {
         break;
       }
 
+      case MessageType.QUICK_ADD_PASSWORD: {
+        // 仅允许扩展内部页面（sidepanel）：内容脚本不得越权直接创建条目
+        // （内容脚本的合法路径是 AUTO_SAVE_PASSWORD，其 URL 经 sender 校验）
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, message: tl('bg.quickAdd.failed') });
+          break;
+        }
+        handleQuickAddPassword(message.data).then(sendResponse);
+        return true;
+      }
+
       case MessageType.INVALIDATE_PASSWORD_CACHE: {
+        // B2：远程清会话 + 锁定属破坏性状态变更（可被任意页用作 DoS / 打断秒开），
+        // 仅接受扩展内部页（useSessionLock / useSessionTimer）触发
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         // 使用 async IIFE 使动态 import + 异步 clearSession 在 switch-case 内正确执行
         void (async () => {
           const {
@@ -500,7 +663,15 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.AUTO_SAVE_PASSWORD: {
-        handleAutoSavePassword(message.data).then(result => {
+        // 安全：自报 url 必须与发送方实际所在页面同主域名，
+        // 防止内容脚本把捕获的凭证冒名保存到任意目标站点
+        const trustedSaveUrl = resolveTrustedContentUrl(message.data?.url, sender);
+        if (!trustedSaveUrl) {
+          logger.warn('Background: AUTO_SAVE_PASSWORD 因 URL 校验失败被拒绝（来源与自报域名不一致或缺失）');
+          sendResponse({ success: false, message: tl('bg.autoSave.failedGeneric') });
+          break;
+        }
+        handleAutoSavePassword({ ...message.data, url: trustedSaveUrl }).then(result => {
           sendResponse(result);
         });
         return true;
@@ -508,8 +679,48 @@ export function setupMessageRouter(): void {
 
       case MessageType.CHECK_CREDENTIAL_STATUS: {
         // 仅返回状态枚举与非密码元数据，不回传已存明文密码，内容脚本可调用
-        handleCheckCredentialStatus(message.data).then(result => {
+        // 安全：自报 url 校验失败时保底按新账号处理，不阻断后续保存流程（保存时仍会二次校验）
+        const trustedCheckUrl = resolveTrustedContentUrl(message.data?.url, sender);
+        if (!trustedCheckUrl) {
+          sendResponse({ status: 'new' });
+          break;
+        }
+        handleCheckCredentialStatus({ ...message.data, url: trustedCheckUrl }).then(result => {
           sendResponse(result);
+        });
+        return true;
+      }
+
+      case MessageType.DELEGATE_PAGE_NOTICE: {
+        // 安全：委托渲染提示的通道必须验发送方归属，而不是接受 postMessage——
+        // 扩展包公开可得，`window.postMessage({type:'APH_SHOW_NOTIFICATION'})` 任何页面
+        // 脚本一行就能伪造出「以扩展口吻说话」的顶层提示条（钓鱼形状）。
+        // chrome.runtime 消息由浏览器盖章：`sender.id` 必为本扩展、`sender.tab` 只在
+        // 真实页面上下文里存在，二者同时成立才放行；投递目标只取 sender 推导出的
+        // tabId 与固定 frameId 0，不接受任何自报的 tab / frame 参数。
+        const noticeTabId = sender.tab?.id;
+        if (sender.id !== chrome.runtime.id || typeof noticeTabId !== 'number') {
+          sendResponse({ success: false, error: '未授权的提示委托来源' });
+          break;
+        }
+        const noticeText = typeof message.data?.message === 'string' ? message.data.message.trim() : '';
+        if (!noticeText) {
+          sendResponse({ success: false, error: '空的提示文案' });
+          break;
+        }
+        deliverPageNotice(noticeTabId, noticeText, message.data?.type).then(delivered => {
+          // 未送达时如实回报 false，委托方据此在本 frame 内降级渲染，绝不静默丢提示
+          sendResponse({ success: delivered });
+        });
+        return true;
+      }
+
+      case MessageType.GET_PENDING_CIPHER_KEY: {
+        // 内容脚本为宿主页面 sessionStorage 中的待确认凭据密文申请密钥。
+        // 归属仅由 sender.tab.id + sender.url 推导（不接受自报值），无法归属时签发失败，
+        // 调用方据此放弃弹窗，绝不退回明文存储。
+        issuePendingCipherKey(sender).then(key => {
+          sendResponse({ key } satisfies PendingCipherKeyResponse);
         });
         return true;
       }
@@ -563,7 +774,10 @@ export function setupMessageRouter(): void {
               sendResponse({ success: true, data: { locked: false, accounts: [] } });
               return;
             }
-            const data = await getMatchingAccounts(domain, port);
+            // 关键词是页面侧可伪造的文本：类型/长度在边界处收口（空白等价于不过滤）。
+            // 该值参与拼音匹配但不进日志、不出扩展，且仅用于过滤展示元数据。
+            const keyword = normalizeSearchKeyword(message.data?.keyword);
+            const data = await getMatchingAccounts(domain, port, keyword);
             sendResponse({ success: true, data });
           } catch (error) {
             logger.error('Background: GET_MATCHING_ACCOUNTS 处理失败:', error);
@@ -676,6 +890,12 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.QUICK_FILL: {
+        // B2：向活跃标签页注入凭据的触发入口，仅接受 popup/options/sidepanel 内部页发起
+        //（快捷键命令经 chrome.commands 直接调用 handleQuickFill，不走本路由分支）
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         handleQuickFill()
           .then(() => sendResponse({ success: true }))
           .catch(error => {
@@ -686,6 +906,11 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.OPEN_INLINE_DROPDOWN: {
+        // B2：展开内联填充面板的触发入口，仅接受内部页发起（快捷键命令路径同上不走本分支）
+        if (!isTrustedInternalSender(sender)) {
+          sendResponse({ success: false, error: '未授权的请求来源' });
+          break;
+        }
         // popup 入口：在当前活跃标签页展开内联下拉（与快捷键 open_inline_dropdown 同一处理器）
         handleOpenInlineDropdown()
           .then(() => sendResponse({ success: true }))

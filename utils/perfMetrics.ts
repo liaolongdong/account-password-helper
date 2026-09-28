@@ -36,7 +36,7 @@ export const SP_PERF_MARKS = {
 } as const;
 
 /** 侧边栏打开触发源（区分不同打开路径的耗时分布） */
-export type SidepanelOpenTrigger = 'float' | 'shortcut' | 'popup' | 'content';
+export type SidepanelOpenTrigger = 'float' | 'shortcut' | 'popup' | 'content' | 'context';
 
 /** 环形缓冲最大记录数 */
 const PERF_LOG_MAX_ENTRIES = 20;

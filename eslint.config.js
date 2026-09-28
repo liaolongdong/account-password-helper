@@ -13,6 +13,12 @@ export default [
       '.husky/**',
       'node_modules/**',
       'scripts/**',
+      // 性能测量脚本的私有产物：构建快照与测量结果（体积大、非源码，扫到会淹没真实告警）
+      'benchmarks/.artifacts/**',
+      'benchmarks/results/**',
+      // 测量脚本本体是 Node 工具 + 经 `page.evaluate` 注入页面上下文的回调，
+      // 浏览器全局只在运行时存在；与 scripts/** 同属开发期工具，沿用同一豁免口径（`.ts` 夹具仍受检）
+      'benchmarks/**/*.mjs',
       'public/**',
       'icons/**',
       'assets/**',
@@ -39,6 +45,26 @@ export default [
       'vue/multi-word-component-names': 'off',
       'prefer-const': 'warn',
       'no-var': 'error',
+    },
+  },
+  {
+    // product-site/ 是对外产品页：手写的静态浏览器脚本，不进 WXT/Vite 打包，也不跑在扩展运行时里，
+    // 因此需要浏览器全局而不是 Node 全局。只对该目录生效，扩展源码的解析结果不受影响。
+    files: ['product-site/**/*.js'],
+    languageOptions: {
+      globals: {
+        window: 'readonly',
+        document: 'readonly',
+        navigator: 'readonly',
+        crypto: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
+        requestAnimationFrame: 'readonly',
+        matchMedia: 'readonly',
+        HTMLElement: 'readonly',
+        HTMLAnchorElement: 'readonly',
+        IntersectionObserver: 'readonly',
+      },
     },
   },
 ];

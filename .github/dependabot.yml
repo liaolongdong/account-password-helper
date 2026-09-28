@@ -1,0 +1,58 @@
+# Dependabot —— 依赖与 Action 版本更新
+#
+# 口径与仓库现状（docs/security-alerts 处置记录、AGENTS.md「技术栈与包管理」）：
+# - 本仓库对依赖升级采取「保守」策略：不强升 major，不因告警连带换技术方案。
+#   因此 version updates 限流，major 一律交给维护者判断；
+#   安全告警由 Settings → Security → Code security and analysis 里的
+#   Dependabot security updates 负责（那条开关与本文件独立，仍需单独打开）。
+# - esbuild / adm-zip / js-yaml 等是传递依赖，本文件的 version updates 不会直接
+#   给它们开 PR；它们的漏洞修复走 security updates。
+# - commit-message.prefix 是硬要求，不是美化：Dependabot 默认标题形如
+#   "Bump lodash from 4.17.20 to 4.17.21"，既过不了 .github/workflows/pr-title.yml
+#   的约定式提交门禁，也可能被 release-please 归入错误的 CHANGELOG 小节。
+#   加上 prefix 后标题变成 "chore(deps): Bump ..."，而 chore 类型不会触发版本号跳档。
+version: 2
+
+updates:
+  # ── 运行时与开发依赖（pnpm）────────────────────────────────────────
+  - package-ecosystem: pnpm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '03:00'
+      timezone: Asia/Shanghai
+    open-pull-requests-limit: 3
+    # 只在 package.json 声明的范围之外才提 PR，避免把 ^ 范围内的解析变化
+    # 伪装成一次"升级"，也符合"不强升"的既有约定。
+    versioning-strategy: increase-if-necessary
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    labels:
+      - dependencies
+    groups:
+      # 同一次扫描出来的 minor/patch 合成一个 PR，减少评审排队。
+      # major 不受本组影响：versioning-strategy 已限制其自动提出。
+      minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - minor
+          - patch
+
+  # ── GitHub Actions（CI 供应链）─────────────────────────────────────
+  # Action 版本变动会改变谁能在带 secrets 的 job 里执行代码，优先级高于普通依赖，
+  # 因此按月、限量，且必须由维护者读 diff 后合入（/.github/ 已在 CODEOWNERS 内）。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: chore
+      include: scope
+    labels:
+      - dependencies
+      - ci

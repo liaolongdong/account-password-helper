@@ -6,22 +6,22 @@
 
 ## 项目简介
 
-Account Password Helper 是一款基于 Chrome 扩展的本地加密账号密码管理工具，面向开发者与测试人员：精确域名匹配区分多环境账号、快捷键一键登录（自动填充 + 自动勾选协议 + 自动点击登录）、内置 TOTP 两步验证与安全体检。采用 PBKDF2 + AES-256-GCM 加密体系，数据绝不出浏览器，无需注册账号。项目基于 [GPL-3.0-only](../LICENSE) 开源协议。
+Account Password Helper 是一款基于 Chrome 扩展的本地加密账号密码管理工具，面向开发者与测试人员：精确域名匹配区分多环境账号、一键登录（自动填充 → 自动勾选「记住我 / 同意条款」→ 自动点击登录；其中 `Ctrl+Shift+F` 只做填充与勾选，点击登录由侧边栏「填充并登录」或可选的「自动触发登录」偏好（默认关闭）触发）、内置 TOTP 两步验证与安全体检。采用 PBKDF2 + AES-256-GCM 加密体系，密码数据不出本机（唯一外发请求是每 6 小时一次的匿名版本检查，不携带任何用户数据），无需注册账号。项目基于 [GPL-3.0-only](../LICENSE) 开源协议。
 
 > 📖 面向用户的安装与使用说明请见 [README](../README.md)。
 
 ## 技术栈
 
-| 类别      | 技术                                                                              | 版本 / 说明                                 |
-| --------- | --------------------------------------------------------------------------------- | ------------------------------------------- |
-| 扩展框架  | [WXT](https://wxt.dev/)                                                           | v0.20.27，基于 Manifest V3                  |
-| 前端框架  | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.41，Composition API + `<script setup>` |
-| UI 组件库 | [Element Plus](https://element-plus.org/)                                         | v2.14.4，按需引入（unplugin-auto-import）   |
-| 加密      | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256，浏览器原生  |
-| 拼音搜索  | [pinyin-match](https://github.com/WangRichard/pinyin-match)                       | v1.2.10，拼音首字母模糊匹配                 |
-| 构建工具  | Vite                                                                              | WXT 内置，HMR 热更新                        |
-| 测试框架  | [Vitest](https://vitest.dev/)                                                     | v4.1.11，Node 环境 + Web Crypto 原生支持    |
-| 代码规范  | ESLint + Prettier + Stylelint                                                     | TS v6，完整质量工具链                       |
+| 类别      | 技术                                                                              | 版本 / 说明                                                                                   |
+| --------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 扩展框架  | [WXT](https://wxt.dev/)                                                           | v0.20.27，基于 Manifest V3                                                                    |
+| 前端框架  | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.41，Composition API + `<script setup>`                                                   |
+| UI 组件库 | [Element Plus](https://element-plus.org/)                                         | v2.14.4，按需引入（unplugin-vue-components + unplugin-auto-import，均用 ElementPlusResolver） |
+| 加密      | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256，浏览器原生                                                    |
+| 拼音搜索  | [pinyin-match](https://github.com/xmflswood/pinyin-match)                         | v1.2.10，拼音首字母模糊匹配                                                                   |
+| 构建工具  | [Vite](https://vitejs.dev/)                                                       | v8.2.1（Rolldown 内核），由 WXT 驱动，HMR 热更新                                              |
+| 测试框架  | [Vitest](https://vitest.dev/)                                                     | v4.1.11，Node 环境 + Web Crypto 原生支持                                                      |
+| 代码规范  | ESLint + Prettier + Stylelint                                                     | TS v6，完整质量工具链                                                                         |
 
 ## 架构概览
 
@@ -55,8 +55,8 @@ graph LR
 ### 加密机制核心
 
 ```
-主密码 + 盐值 → PBKDF2 (600,000次迭代) → 256-bit 密钥
-明文 + 密钥 + 随机IV → AES-256-GCM → Base64(IV + 密文)
+主密码 + 盐值(16 随机字节) → PBKDF2-SHA256 (600,000 次迭代) → 256-bit 密钥
+明文 + 密钥 + 每次新随机的 12 字节 IV → AES-256-GCM → Base64(IV ‖ 密文 ‖ 16 字节认证标签)
 ```
 
 > 📖 完整架构设计（会话生命周期、加密细节、消息流说明）与逐文件注释的项目结构树见 [docs/ARCHITECTURE.md](./ARCHITECTURE.md)。
@@ -94,8 +94,9 @@ graph LR
 
 ## 环境要求
 
-- Node.js >= 22（rolldown 依赖 `node:util.styleText`）
-- Chrome >= 114（支持 SidePanel API，>= 129 支持 `sidePanel.close`）
+- **Node.js**：`package.json` 未声明 `engines` 字段，实际下限由工具链决定 —— WXT 要求 `>=20.12.0`，Vitest 接受 `^20 || ^22 || >=24`，**Vite 8.2.1 要求 `^20.19.0 || >=22.12.0`（这是最高、也就是真正生效的下限）**。换言之 Node 20.11.x 一类的早期 20.x 会直接跑不起来。CI 固定使用 **Node 22**，建议本地与其一致。
+- **包管理器**：`pnpm@10.12.1`（`package.json` 的 `packageManager` 字段，配合 corepack 自动切换），请勿混用 npm / yarn。
+- **Chrome**：manifest 未声明 `minimum_chrome_version`（该配置当前被注释掉），代码按 Chrome 114+（SidePanel API）、116+（`runtime.getContexts`）、129+（`sidePanel.close`，含降级路径）编写。
 
 ## 仓库搭建
 
@@ -113,7 +114,7 @@ graph LR
    pnpm dev
    ```
 
-4. 在 Chrome 中加载 `.output/chrome-mv3/` 目录生成的扩展。
+4. 在 Chrome 中加载 `.output/chrome-mv3-dev/` 目录（开发模式产物；`pnpm build` 的产物在 `.output/chrome-mv3/`）。
 
 ### Windows 用户提示
 
@@ -121,41 +122,53 @@ graph LR
 
 ## 常用命令
 
-| 命令                                      | 说明                                                     |
-| ----------------------------------------- | -------------------------------------------------------- |
-| `pnpm dev`                                | 开发模式（HMR 热更新，端口 8899）                        |
-| `pnpm build` / `pnpm postbuild`           | 生产构建 / 构建后产出 zip 包                             |
-| `pnpm build:firefox`                      | Firefox 生产构建                                         |
-| `pnpm dev:firefox`                        | Firefox 开发模式                                         |
-| `pnpm icons:build`                        | SVG 图标渲染为多尺寸 PNG                                 |
-| `pnpm analyze`                            | 构建并可视化分析打包体积（输出 `dist/stats.html`）       |
-| `pnpm typecheck`                          | TypeScript 类型检查                                      |
-| `pnpm lint` / `pnpm lint:fix`             | ESLint 检查 / 自动修复                                   |
-| `pnpm lint:style` / `pnpm lint:style:fix` | Stylelint 样式检查 / 自动修复                            |
-| `pnpm format:check` / `pnpm format`       | Prettier 格式检查 / 格式化                               |
-| `pnpm lint:all` / `pnpm fix:all`          | 运行所有检查（lint + stylelint + format） / 全部自动修复 |
-| `pnpm test` / `pnpm test:run`             | 运行测试（watch 模式） / 单次运行全部测试                |
-| `pnpm test:run -- <file>`                 | 运行单个测试文件                                         |
-| `pnpm coverage`                           | 运行测试并生成覆盖率报告                                 |
+| 命令                                                | 说明                                                                                                              |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                                          | 开发模式（HMR 热更新，端口 8899，产物 `.output/chrome-mv3-dev/`）                                                 |
+| `pnpm dev:firefox`                                  | Firefox 开发模式                                                                                                  |
+| `pnpm build`                                        | 生产构建（产物 `.output/chrome-mv3/`）                                                                            |
+| `pnpm prebuild` / `pnpm postbuild`                  | 构建前自动渲染图标 / 构建后自动 `wxt zip` 产出 `.output/account-password-helper-<ver>-chrome.zip`（无需手动调用） |
+| `pnpm build:firefox`                                | Firefox 生产构建（产物 `.output/firefox-mv2/`，MV2）                                                              |
+| `pnpm analyze` / `pnpm analyze:firefox`             | 构建并可视化分析打包体积（Chrome / Firefox，输出 `dist/stats.html`）                                              |
+| `pnpm icons:build`                                  | SVG 图标渲染为多尺寸 PNG（`public/icon/`）                                                                        |
+| `pnpm gen:en` / `gen:privacy-en` / `gen:pricing-en` | 由中文源页面生成 `en.html` / `privacy.en.html` / `pricing.en.html`                                                |
+| `pnpm gen:faq` / `gen:faq-dom`                      | 由 `index.html` 的 `FAQS` 生成 FAQPage JSON-LD / 页面可见的 FAQ 静态 DOM                                          |
+| `pnpm gen:blog`                                     | 由 `docs/blog/{zh,en}/*.md` 生成 `blog/*.html`                                                                    |
+| `pnpm covers:render`                                | 渲染博客封面图                                                                                                    |
+| `pnpm typecheck`                                    | TypeScript 类型检查                                                                                               |
+| `pnpm lint` / `pnpm lint:fix`                       | ESLint 检查 / 自动修复                                                                                            |
+| `pnpm lint:style` / `pnpm lint:style:fix`           | Stylelint 样式检查 / 自动修复                                                                                     |
+| `pnpm format:check` / `pnpm format`                 | Prettier 格式检查 / 格式化                                                                                        |
+| `pnpm lint:all` / `pnpm fix:all`                    | 运行所有检查（lint + stylelint + format） / 全部自动修复                                                          |
+| `pnpm test` / `pnpm test:run`                       | 运行测试（watch 模式） / 单次运行全部测试                                                                         |
+| `pnpm exec vitest run <file>`                       | 运行单个测试文件                                                                                                  |
+| `pnpm coverage`                                     | 运行测试并生成覆盖率报告                                                                                          |
+| `pnpm auto-merge`                                   | 将 `main` 的改动自动合并回当前分支（脚本 `scripts/auto-merge-main.js`）                                           |
+| `pnpm prepare`                                      | 安装 husky Git hooks（`pnpm install` 时由 npm 自动触发）                                                          |
+
+> ⚠️ 跑单个测试文件要用 `pnpm exec vitest run <file>`。`pnpm test:run -- <file>` 里的 `-- <file>` **不会**被转发给 vitest CLI（实测仍会跑完整套测试），因为它不是 `vitest run <file>` 那种位置参数形式。
+
+> ⚠️ `blog/*.html`、`en.html`、`privacy.en.html`、`pricing.en.html`、封面图与 `public/icon/*.png` 都是**生成产物**，禁止手改；请修改其 Markdown / SVG 源文件后执行对应 `gen:*` / `icons:build` / `covers:render` 重新生成。
 
 > 📖 图标工作流、测试页面、性能设计等开发细节见 [docs/ARCHITECTURE.md — 开发补充](./ARCHITECTURE.md#开发补充)。
 
 ## Chrome 权限说明
 
-| 权限             | 用途                                           |
-| ---------------- | ---------------------------------------------- |
-| `storage`        | 本地存储密码数据和配置                         |
-| `activeTab`      | 获取当前标签页信息用于域名匹配                 |
-| `scripting`      | 动态注入 Content Script                        |
-| `sidePanel`      | 侧边栏快速填充功能                             |
-| `alarms`         | 定时自动备份提醒和 Service Worker 保活         |
-| `notifications`  | 桌面通知（自动保存/备份提醒/版本更新）         |
-| `idle`           | 自动闲置锁定检测                               |
-| `clipboardWrite` | 写入剪贴板（复制密码）                         |
-| `clipboardRead`  | 读取剪贴板（验证清除前内容）                   |
-| `webNavigation`  | 跨 iframe 表单检测与填充                       |
-| `favicon`        | 读取 Chrome 本地缓存的网站图标，零外部网络请求 |
-| `<all_urls>`     | Content Script 匹配所有页面（host_permission） |
+| 权限             | 用途                                                                                                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storage`        | 保存密文条目、配置与会话密钥材料。仅使用 `chrome.storage.local`（持久密文）与 `chrome.storage.session`（内存态密钥 / 快照），不使用 `storage.sync` 或 `storage.managed` |
+| `activeTab`      | 用户主动触发（快捷键、扩展图标、右键菜单、悬浮按钮）时取得当前标签页地址与句柄，用于定位要填充的登录表单                                                                |
+| `scripting`      | 内容脚本未就绪时按 frame 补注入（`utils/contentScriptReadiness.ts` 的 `chrome.scripting.executeScript`）                                                                |
+| `sidePanel`      | 侧边栏快速填充功能                                                                                                                                                      |
+| `alarms`         | 5 类定时任务：SW 保活复活（0.5min）、版本检查（360min）、密码到期提醒检查（12h）、回收站清理（24h）、自动备份提醒（按用户设定天数）                                     |
+| `notifications`  | 桌面通知：自动保存、自动备份提醒、版本更新、密码到期提醒、快速填充结果反馈、「需要解锁」（点击直达主密码验证页）                                                        |
+| `idle`           | 主动闲置锁定检测（OS 锁屏 / 屏保 / 空闲）；该功能默认关闭，开启后生效                                                                                                   |
+| `clipboardWrite` | 写入剪贴板（复制密码 / TOTP）                                                                                                                                           |
+| `clipboardRead`  | 读取剪贴板（清除前比对内容，避免误清用户新复制的内容）                                                                                                                  |
+| `webNavigation`  | 通过 `chrome.webNavigation.getAllFrames` 枚举框架，实现跨 iframe 填充（仅查询，不监听导航事件）                                                                         |
+| `contextMenus`   | 右键菜单：可编辑字段的「填充用户名 / 填充密码 / 填充两步验证码 / 生成并填充强密码」与页面级「打开侧边栏 / 打开密码管理页」                                              |
+| `favicon`        | 读取 Chrome 本地缓存的网站图标，零外部网络请求                                                                                                                          |
+| `<all_urls>`     | Content Script 匹配所有页面（host_permission）                                                                                                                          |
 
 ## CSV / JSON 字段格式
 
@@ -186,7 +199,7 @@ graph LR
 
 ### 日志规范
 
-- **禁止**直接使用 `console.log` / `console.warn` / `console.error`。
+- ESLint 规则为 `no-console: ['warn', { allow: ['warn', 'error'] }]`，且 `pnpm lint` 带 `--max-warnings 0`，因此运行时代码中的 `console.log` 会直接导致检查失败；`console.warn` / `console.error` 虽被规则放行，项目约定仍要求统一走 `utils/logger.ts`（该文件自身有最小范围的豁免注释）。构建脚本等工具代码可直接使用 `console`。
 - 必须使用 `utils/logger.ts` 封装的日志方法，例如：
 
   ```ts
@@ -229,6 +242,17 @@ graph LR
 
 请确保提交前所有检查通过。
 
+### 提交范围
+
+仓库只承载产品代码、构建配置与对外内容，下列本地产物写在 `.gitignore` 里，不要提交：
+
+- AI 会话工作稿与工具跑批产物：`.qoder/plans/`、`.qoder/superpowers/`、`.qoder/better-harness/`、`.qoder/better-harness-runs/`、`.qoder/repowiki/`。`.qoder/` 整体不忽略，`rules/`、`skills/`、`commands/` 是团队协作要用的项目配置，保持跟踪。
+- 一次性代码评审报告：`docs/code-review-*.md`。结论应回写进提交说明与对应文档，报告本身留在本地。
+- Qoder Sites 的本地描述符 `*.qoder.site`：含 siteId 与整页 base64 快照，属机器绑定状态，换台机器就该重新生成。
+- 构建产物、性能测量原始结果、E2E 报告与凭据缓存等既有规则（见 `.gitignore` 各段落注释）。
+
+反向约束：对外与 SEO 内容（`README*`、`docs/blog/**`、`docs/promo/**`、`docs/公众号-*.md`、`docs/微博-*.md`、`docs/reddit-post.md`、`docs/exposure-status.md`、`docs/账号密码管理助手曝光提升执行手册.md`），以及被源码注释或 workflow 注释按路径引用的报告与治理文档（`docs/PERF_*.md`、`docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`、`docs/LANDING_MOTION_PROPOSAL.md`、`docs/PR_WORKFLOW_GUIDE.md`）必须保持跟踪——把它们「顺手」忽略会让仓库里的引用变成死链。新增这类文档前先确认它属于哪一边。
+
 ### 测试规范
 
 - 使用 Vitest 进行单元测试，测试文件放在 `tests/` 目录下，与源码目录结构对应。
@@ -238,11 +262,14 @@ graph LR
 - 提交前根据改动范围运行相关测试：
 
   ```sh
-  pnpm test:run                       # 运行全部测试
-  pnpm test:run -- tests/utils/xxx.ts # 运行单个测试文件
+  pnpm test:run                              # 运行全部测试
+  pnpm exec vitest run tests/utils/xxx.ts    # 运行单个测试文件
   ```
 
 - 不得为通过测试而弱化断言、删除测试或跳过测试。
+- 需要 DOM 的用例（如注入式叠加 UI 的布局跟随 / 位置还原生命周期）不改全局环境，在文件首行加 `/** @vitest-environment jsdom */` 逐文件启用；`vitest.config.ts` 的默认环境始终是 `node`，以免拖慢常态纯逻辑用例。
+- jsdom 不提供真实布局（`getBoundingClientRect()` 恒为 0、`offsetWidth/offsetHeight` 恒为 0、`getComputedStyle()` 对未声明属性返回空串），此类量测由 `tests/helpers/domLayout.ts` 的 `installDomLayout()` 装置接管，并提供可手动推进的 rAF 队列与跨读写有序日志（可断言「是否排帧」与「先全读后全写」）；装置自带自检用例，新增量测必须回带校验字段，防止样式未命中时产出看似合理实则全错的数字。
+- `.vue` 组件挂载渲染测试暂不支持：`@vitejs/plugin-vue`（v6.0.8，随 `@wxt-dev/module-vue` 引入）已可用，但未安装 `@vue/test-utils`，因此 Vue 侧交互链路只覆盖到状态所有者（composable / 纯函数）为止。`.vue` 文件本身仍以文本方式被 `tests/utils/i18nBundles.test.ts` 静态扫描（校验各依赖图只使用其已注册命名空间的 `t()` key），并非完全无测试触达。
 
 ### 快捷键
 
@@ -255,6 +282,10 @@ graph LR
 | `Ctrl+Shift+F`          | `Command+Shift+F` | 一键填充         |
 | `Ctrl+Shift+K`          | `Command+Shift+K` | 打开内联下拉面板 |
 
+> `quick_fill` 在 `quickFillHandler.ts` 中硬编码 `autoLogin: false`，因此 `Ctrl+Shift+F` 只做「填充 + 勾选」，不会点击登录按钮；点击登录仅来自侧边栏「填充并登录」或可选的「自动触发登录」偏好（默认关闭）。
+> Chrome 未提供 `chrome.commands.update()`，且 4 个命令槽位已用满配额，因此应用内的快捷键列表为**只读**，仅提供跳转 `chrome://extensions/shortcuts` 的入口；新增快捷键需要先腾出命令槽，不能指望应用内改键。
+> 上表只列扩展级快捷键。管理页另有一层**页面内**命令面板（`Ctrl/Cmd + K`，见 [useCommandPalette.ts](../composables/useCommandPalette.ts) 与 [options/App.vue](../entrypoints/options/App.vue) 中的命令清单），它不占用 `chrome.commands` 槽位，因此既不出现在上表、也不在 `chrome://extensions/shortcuts` 中，且未解锁主密码时不响应按键。
+
 ### 安全与隐私
 
 本项目是密码管理器，安全是最高优先级。贡献代码时请务必遵守以下原则：
@@ -264,7 +295,7 @@ graph LR
 - 运行时代码统一使用 `utils/logger.ts`，日志参数不得包含敏感数据。
 - 不得扩大明文敏感数据的存活时间、存储位置或可访问上下文。
 - 不得自创加密算法或修改现有加密参数（PBKDF2 迭代次数、AES 模式、IV 生成等）。
-- 新增网络请求、遥测或远程资源加载前必须获得用户明确确认，默认保持本地优先、离线可用。
+- 新增网络请求、遥测或远程资源加载前必须获得用户明确确认，默认保持本地优先、离线可用。当前唯一已获批的出站行为是 `utils/updateChecker.ts` 的匿名版本检查（不携带任何用户数据），它属于既有例外，不是待修的问题。
 - Chrome 权限遵循最小权限原则，新增权限需说明必要性。
 
 ## Pull Request 指南
@@ -286,9 +317,9 @@ graph LR
   - 多处拼写或注释修正请合并到同一个 PR。
   - 不鼓励纯粹为了代码风格的重构提交。代码重构需有明确的性能改善或可维护性提升理由。
 
-- PR 中可以包含多个小提交，GitHub 会在合并时自动 squash。
+- PR 中可以包含多个小提交。合并方式决定 `main` 上看到什么：squash 只留一条以 PR 标题为 message 的提交；merge commit 会把 PR 分支的全部提交带上 `main`。无论哪种，**PR 标题都必须合规**（见下）。
 
-- PR 标题需遵循 [约定式提交（Conventional Commits）](https://www.conventionalcommits.org/) 规范：
+- PR 标题需遵循 [约定式提交（Conventional Commits）](https://www.conventionalcommits.org/) 规范（`.github/workflows/pr-title.yml` 会强制校验）：
 
   ```
   feat: 新增自动登录开关功能
@@ -308,6 +339,29 @@ graph LR
   pnpm test:run           # 运行全部测试（或按需运行相关测试文件）
   pnpm build              # 生产构建验证
   ```
+
+> ⚠️ **CI 现状**：`.github/workflows/ci.yml` 在 push 到 `main` 与 PR 上分三个任务执行——`static`（`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`）、`test`（`pnpm test:run`）、`build`（`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`）。产物级守卫（如 sidepanel / popup 首屏闭包）只在 `build` 任务里跑，因为 `test` 任务没有 `.output/chrome-mv3`，那些用例会整文件跳过；本地跑它们前需先 `pnpm build`。`.github/workflows/release-please.yml` 只负责发版：release-please job 打 tag、建 GitHub Release，随后「`pnpm install` + `pnpm run build` → 上传 zip → 提交 Chrome Web Store」这一段挂在 `production` 环境上，必须维护者在 Actions run 页面点 Approve 才会执行；`.github/workflows/e2e.yml`（真实浏览器扩展 E2E）自 2026-09-22 起与本文同一口径触发——push 到 `main`、PR、以及随时可手动复跑，只对文档、博客与图片类改动跳过（`paths-ignore`）。它是所有任务里最慢的一个（每次先 `pnpm build`，再以 `workers=1` 逐条用例起独立 profile），因此目前处于**观察期**：job 带 `continue-on-error`，跑红只出警告、不挡合并，等到在 ubuntu runner 上连跑两次全绿才转为真正的门禁（细节见 `e2e/README.md`「现状」）。本地 `husky` + `lint-staged` 钩子仍对变更文件执行同样检查，是提交前的第一道关。另有一条独立检查 `.github/workflows/pr-title.yml`：它只校验 PR 标题是否为约定式提交（带 `!` 的标题会被拦下，需要维护者确认），不检出、不执行 PR 分支上的任何文件。
+>
+> 版本号与 `CHANGELOG.md` 由 release-please 自动管理，PR 中请勿手改这两个文件。
+
+### 分支模型与发版流程（两道独立闸门）
+
+本项目采用 **GitHub Flow**：`main` 是唯一长期分支、随时可发布，所有改动经 PR 进入 `main`。刻意不设 `develop`，也不设「先合进一个 PR 分支、再统一进 main」的中间层——发版闸门已经由 release-please 提供，中间分支只会多一次冲突的机会，不会多一道闸门。
+
+一个改动真正上线需要两个**分开的**人工动作：
+
+| 动作                        | 后果                                                                                                                                                         |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 维护者合入功能 PR 到 `main` | release-please 只更新那条自动发布 PR（分支名 `release-please--branches--main--components--account-password-helper`）：**不打 tag、不建 Release、不提审商店** |
+| 维护者合并那条 release PR   | 打 tag + 建 GitHub Release；随后「构建 → 上传 zip → 提交 Chrome Web Store」整段挂在 `production` 环境上，需在 Actions run 页面点 Approve 才真正提审          |
+
+由此得到几条对贡献者有约束力的约定：
+
+- **PR 标题是版本决策的输入，不是文案。** `feat` 会把版本号推一位 minor，`fix` 推一位 patch，type 后带 `!` 或描述里写 `BREAKING CHANGE` 会把整个版本号推到 major（例如 3.12.0 → 4.0.0）。其余类型不会自行触发发版，只在这班车真的发版时进 `CHANGELOG.md` 的对应小节。
+- 想让改动「先落地、等下一班车」不需要任何额外操作：合进 `main` 就够了，发版节奏由维护者掌握。
+- 纯文档 / 纯测试 / 纯 CI 配置的 PR 不会推高商店版本号，可以放心独立提、独立审。
+- 触及加密、会话、存储、权限、content script、CI 与发布配置的改动，需要 `.github/CODEOWNERS` 登记的负责人审批后才能合入。
+- 仓库侧设置口径与人工操作清单见 `docs/PR_WORKFLOW_GUIDE.md`。
 
 ## Issue 指南
 
@@ -341,22 +395,22 @@ Hello! Thank you for your interest in **Account Password Helper**. Please read t
 
 ## About the Project
 
-Account Password Helper is a local-first Chrome extension for managing account credentials, built for developers and QA engineers: exact-domain matching for multi-environment accounts, one-keystroke login (autofill + auto-tick consent + auto-click login), built-in TOTP 2FA and security audit. PBKDF2 + AES-256-GCM encryption with zero network transfer — no account needed. Licensed under [GPL-3.0-only](../LICENSE).
+Account Password Helper is a local-first Chrome extension for managing account credentials, built for developers and QA engineers: exact-domain matching for multi-environment accounts, one-click login (autofill → auto-tick remember-me/consent → auto-click login; `Ctrl+Shift+F` only fills and ticks, while the click comes from the side panel's "Fill and sign in" action or the opt-in "Auto-submit login" preference (off by default)), built-in TOTP 2FA and security audit. PBKDF2 + AES-256-GCM encryption keeps credential data on the device — the only outbound call is an anonymous version check that carries no user data — and no account is needed. Licensed under [GPL-3.0-only](../LICENSE).
 
 > 📖 For user-facing installation and usage instructions, see [README](../README.en.md).
 
 ## Tech Stack
 
-| Category      | Technology                                                                        | Version / Notes                             |
-| ------------- | --------------------------------------------------------------------------------- | ------------------------------------------- |
-| Framework     | [WXT](https://wxt.dev/)                                                           | v0.20.27, Manifest V3                       |
-| Frontend      | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.41, Composition API + `<script setup>` |
-| UI library    | [Element Plus](https://element-plus.org/)                                         | v2.14.4, on-demand (unplugin-auto-import)   |
-| Encryption    | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256, native      |
-| Pinyin search | [pinyin-match](https://github.com/WangRichard/pinyin-match)                       | v1.2.10, pinyin initial fuzzy matching      |
-| Build         | Vite                                                                              | Bundled with WXT, HMR                       |
-| Testing       | [Vitest](https://vitest.dev/)                                                     | v4.1.11, Node env + Web Crypto native       |
-| Code quality  | ESLint + Prettier + Stylelint                                                     | TS v6, full quality toolchain               |
+| Category      | Technology                                                                        | Version / Notes                                                                                   |
+| ------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| Framework     | [WXT](https://wxt.dev/)                                                           | v0.20.27, Manifest V3                                                                             |
+| Frontend      | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.41, Composition API + `<script setup>`                                                       |
+| UI library    | [Element Plus](https://element-plus.org/)                                         | v2.14.4, on-demand (unplugin-vue-components + unplugin-auto-import, both via ElementPlusResolver) |
+| Encryption    | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256, native                                                            |
+| Pinyin search | [pinyin-match](https://github.com/xmflswood/pinyin-match)                         | v1.2.10, pinyin initial fuzzy matching                                                            |
+| Build         | [Vite](https://vitejs.dev/)                                                       | v8.2.1 (Rolldown core), driven by WXT, HMR                                                        |
+| Testing       | [Vitest](https://vitest.dev/)                                                     | v4.1.11, Node env + Web Crypto native                                                             |
+| Code quality  | ESLint + Prettier + Stylelint                                                     | TS v6, full quality toolchain                                                                     |
 
 ## Architecture Overview
 
@@ -390,8 +444,8 @@ graph LR
 ### Encryption Core
 
 ```
-Master password + salt → PBKDF2 (600,000 iterations) → 256-bit key
-Plaintext + key + random IV → AES-256-GCM → Base64(IV + ciphertext)
+Master password + salt (16 random bytes) → PBKDF2-SHA256 (600,000 iterations) → 256-bit key
+Plaintext + key + a fresh random 12-byte IV per call → AES-256-GCM → Base64(IV ‖ ciphertext ‖ 16-byte auth tag)
 ```
 
 > 📖 Full architecture design (session lifecycle, encryption details, messaging notes) and the fully annotated project structure tree live in [docs/ARCHITECTURE.en.md](./ARCHITECTURE.en.md).
@@ -429,8 +483,9 @@ Plaintext + key + random IV → AES-256-GCM → Base64(IV + ciphertext)
 
 ## Requirements
 
-- Node.js >= 22 (rolldown depends on `node:util.styleText`)
-- Chrome >= 114 (SidePanel API; >= 129 for `sidePanel.close`)
+- **Node.js**: `package.json` declares no `engines` field; the real floor comes from the toolchain — WXT requires `>=20.12.0`, Vitest accepts `^20 || ^22 || >=24`, Vite accepts `^20.19.0 || >=22.12.0`. CI pins **Node 22**, so matching it locally is recommended.
+- **Package manager**: `pnpm@10.12.1` (the `packageManager` field, works with corepack). Do not mix npm / yarn.
+- **Chrome**: the manifest declares no `minimum_chrome_version` (that key is currently commented out). The code targets Chrome 114+ (SidePanel API), 116+ (`runtime.getContexts`) and 129+ (`sidePanel.close`, with a fallback path).
 
 ## Getting Started
 
@@ -448,7 +503,7 @@ Plaintext + key + random IV → AES-256-GCM → Base64(IV + ciphertext)
    pnpm dev
    ```
 
-4. Load the `.output/chrome-mv3/` directory as an unpacked extension in Chrome.
+4. Load the `.output/chrome-mv3-dev/` directory as an unpacked extension in Chrome (`pnpm build` outputs to `.output/chrome-mv3/`).
 
 ### Windows Tips
 
@@ -456,41 +511,53 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 
 ## Common Commands
 
-| Command                                   | Description                                                 |
-| ----------------------------------------- | ----------------------------------------------------------- |
-| `pnpm dev`                                | Dev mode (HMR, port 8899)                                   |
-| `pnpm build` / `pnpm postbuild`           | Production build / package the build as a zip               |
-| `pnpm build:firefox`                      | Firefox production build                                    |
-| `pnpm dev:firefox`                        | Firefox dev mode                                            |
-| `pnpm icons:build`                        | Render the SVG icon to multi-size PNGs                      |
-| `pnpm analyze`                            | Build with bundle size visualization (`dist/stats.html`)    |
-| `pnpm typecheck`                          | TypeScript type checking                                    |
-| `pnpm lint` / `pnpm lint:fix`             | ESLint check / auto-fix                                     |
-| `pnpm lint:style` / `pnpm lint:style:fix` | Stylelint check / auto-fix                                  |
-| `pnpm format:check` / `pnpm format`       | Prettier format check / format                              |
-| `pnpm lint:all` / `pnpm fix:all`          | Run all checks (lint + stylelint + format) / all auto-fixes |
-| `pnpm test` / `pnpm test:run`             | Run tests (watch mode) / single run all tests               |
-| `pnpm test:run -- <file>`                 | Run a single test file                                      |
-| `pnpm coverage`                           | Run tests with coverage report                              |
+| Command                                             | Description                                                                                                                                     |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`                                          | Dev mode (HMR, port 8899, output `.output/chrome-mv3-dev/`)                                                                                     |
+| `pnpm dev:firefox`                                  | Firefox dev mode                                                                                                                                |
+| `pnpm build`                                        | Production build (output `.output/chrome-mv3/`)                                                                                                 |
+| `pnpm prebuild` / `pnpm postbuild`                  | Renders icons before the build / runs `wxt zip` after it, producing `.output/account-password-helper-<ver>-chrome.zip` (both run automatically) |
+| `pnpm build:firefox`                                | Firefox production build (output `.output/firefox-mv2/`, MV2)                                                                                   |
+| `pnpm analyze` / `pnpm analyze:firefox`             | Build with bundle size visualization (Chrome / Firefox, `dist/stats.html`)                                                                      |
+| `pnpm icons:build`                                  | Render the SVG icon to multi-size PNGs (`public/icon/`)                                                                                         |
+| `pnpm gen:en` / `gen:privacy-en` / `gen:pricing-en` | Generate `en.html` / `privacy.en.html` / `pricing.en.html` from the Chinese source pages                                                        |
+| `pnpm gen:faq` / `gen:faq-dom`                      | Generate the FAQPage JSON-LD / the visible FAQ static DOM from `index.html`'s `FAQS` array                                                      |
+| `pnpm gen:blog`                                     | Generate `blog/*.html` from `docs/blog/{zh,en}/*.md`                                                                                            |
+| `pnpm covers:render`                                | Render the blog cover images                                                                                                                    |
+| `pnpm typecheck`                                    | TypeScript type checking                                                                                                                        |
+| `pnpm lint` / `pnpm lint:fix`                       | ESLint check / auto-fix                                                                                                                         |
+| `pnpm lint:style` / `pnpm lint:style:fix`           | Stylelint check / auto-fix                                                                                                                      |
+| `pnpm format:check` / `pnpm format`                 | Prettier format check / format                                                                                                                  |
+| `pnpm lint:all` / `pnpm fix:all`                    | Run all checks (lint + stylelint + format) / all auto-fixes                                                                                     |
+| `pnpm test` / `pnpm test:run`                       | Run tests (watch mode) / single run all tests                                                                                                   |
+| `pnpm exec vitest run <file>`                       | Run a single test file                                                                                                                          |
+| `pnpm coverage`                                     | Run tests with coverage report                                                                                                                  |
+| `pnpm auto-merge`                                   | Merge `main` back into the current branch (`scripts/auto-merge-main.js`)                                                                        |
+| `pnpm prepare`                                      | Install the husky Git hooks (triggered automatically by `pnpm install`)                                                                         |
+
+> ⚠️ To run one test file use `pnpm exec vitest run <file>`. The `-- <file>` in `pnpm test:run -- <file>` is **not** forwarded to the vitest CLI (measured: it still runs all 94 files), because it never becomes a positional `vitest run <file>` argument.
+
+> ⚠️ `blog/*.html`, `en.html`, `privacy.en.html`, `pricing.en.html`, the cover images and `public/icon/*.png` are **generated artifacts** and must never be hand-edited. Change their Markdown / SVG sources, then re-run the matching `gen:*` / `icons:build` / `covers:render` script.
 
 > 📖 Icon workflow, test page, and performance design details live in [docs/ARCHITECTURE.en.md — Development Extras](./ARCHITECTURE.en.md#development-extras).
 
 ## Chrome Permissions
 
-| Permission       | Purpose                                                               |
-| ---------------- | --------------------------------------------------------------------- |
-| `storage`        | Local storage of password data and settings                           |
-| `activeTab`      | Current tab info for domain matching                                  |
-| `scripting`      | Dynamic content script injection                                      |
-| `sidePanel`      | Side panel quick fill                                                 |
-| `alarms`         | Scheduled backup reminders and service worker keep-alive              |
-| `notifications`  | Desktop notifications (auto-save / backup / updates)                  |
-| `idle`           | Auto idle lock detection                                              |
-| `clipboardWrite` | Writing to the clipboard (copy password)                              |
-| `clipboardRead`  | Reading the clipboard (verify before clearing)                        |
-| `webNavigation`  | Cross-iframe form detection and filling                               |
-| `favicon`        | Read Chrome's locally cached website favicons, zero external requests |
-| `<all_urls>`     | Content script matches all pages (host_permission)                    |
+| Permission       | Purpose                                                                                                                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `storage`        | Stores ciphertext entries, settings and session key material. Only `chrome.storage.local` (persistent ciphertext) and `chrome.storage.session` (in-memory key / snapshot) — never `storage.sync` or `storage.managed` |
+| `activeTab`      | Reads the current tab's URL and handle — only when you act (shortcut, toolbar icon, right-click menu, floating button) — so the right login form is targeted                                                          |
+| `scripting`      | Re-injects the content script per frame when it is missing (`chrome.scripting.executeScript` in `utils/contentScriptReadiness.ts`)                                                                                    |
+| `sidePanel`      | Side panel quick fill                                                                                                                                                                                                 |
+| `alarms`         | Five scheduled jobs: SW keep-alive revival (0.5min), update check (360min), password expiry reminder check (12h), trash cleanup (24h), auto-backup reminder (user-configured days)                                    |
+| `notifications`  | Desktop notifications: auto-save, backup reminder, version update, password expiry, quick-fill feedback, and a clickable "unlock required" notice                                                                     |
+| `idle`           | Auto idle lock detection (OS lock / screensaver / idle); the feature is off by default and only active once enabled                                                                                                   |
+| `clipboardWrite` | Writing to the clipboard (copy password / TOTP)                                                                                                                                                                       |
+| `clipboardRead`  | Reading the clipboard (compare before clearing so fresh user copies are never destroyed)                                                                                                                              |
+| `webNavigation`  | Enumerate frames via `chrome.webNavigation.getAllFrames` for cross-iframe filling (query only — no navigation listeners)                                                                                              |
+| `contextMenus`   | Right-click menu: in editable fields "Fill username / Fill password / Fill 2FA code / Generate & fill a strong password"; on pages "Open side panel / Open password manager"                                          |
+| `favicon`        | Read Chrome's locally cached website favicons, zero external requests                                                                                                                                                 |
+| `<all_urls>`     | Content script matches all pages (host_permission)                                                                                                                                                                    |
 
 ## CSV / JSON Field Formats
 
@@ -521,7 +588,7 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 
 ### Logging
 
-- **Never** use `console.log` / `console.warn` / `console.error` directly.
+- The ESLint rule is `no-console: ['warn', { allow: ['warn', 'error'] }]`, and `pnpm lint` runs with `--max-warnings 0`, so any `console.log` in runtime code fails the check. `console.warn` / `console.error` are permitted by the rule, but the project convention still routes all runtime logging through `utils/logger.ts` (which carries a minimal, file-scoped exemption). Build and other tooling scripts may use `console` directly.
 - Always use the logger from `utils/logger.ts`:
 
   ```ts
@@ -564,6 +631,17 @@ The project is configured with `husky` + `lint-staged`. On every `git commit`, t
 
 Please ensure all checks pass before committing.
 
+### What Belongs in the Repo
+
+The repository carries product code, build configuration and public-facing content only. Local artifacts below are covered by `.gitignore` and must not be committed:
+
+- AI session drafts and tool run outputs: `.qoder/plans/`, `.qoder/superpowers/`, `.qoder/better-harness/`, `.qoder/better-harness-runs/`, `.qoder/repowiki/`. `.qoder/` as a whole is not ignored — `rules/`, `skills/` and `commands/` are project configuration the team relies on and stay tracked.
+- One-off code review reports: `docs/code-review-*.md`. Findings belong in commit messages and the relevant docs; the report itself stays local.
+- Qoder Sites local descriptors `*.qoder.site`: they carry the siteId and a base64 snapshot of the whole page, i.e. machine-bound state that should be regenerated on another machine.
+- Existing rules for build output, raw performance measurements, E2E reports and credential caches (see the comments in each `.gitignore` section).
+
+The reverse constraint: public and SEO content (`README*`, `docs/blog/**`, `docs/promo/**`, `docs/公众号-*.md`, `docs/微博-*.md`, `docs/reddit-post.md`, `docs/exposure-status.md`, `docs/账号密码管理助手曝光提升执行手册.md`), plus reports and governance docs cited by path from source or workflow comments (`docs/PERF_*.md`, `docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`, `docs/LANDING_MOTION_PROPOSAL.md`, `docs/PR_WORKFLOW_GUIDE.md`), must stay tracked — ignoring them "for cleanup" turns those references into dead links. Decide which side a new document belongs to before adding it.
+
 ### Testing
 
 - Use Vitest for unit tests. Test files go in the `tests/` directory, mirroring the source structure.
@@ -573,11 +651,14 @@ Please ensure all checks pass before committing.
 - Run relevant tests before submitting based on the scope of changes:
 
   ```sh
-  pnpm test:run                       # Run all tests
-  pnpm test:run -- tests/utils/xxx.ts # Run a single test file
+  pnpm test:run                              # Run all tests
+  pnpm exec vitest run tests/utils/xxx.ts    # Run a single test file
   ```
 
 - Never weaken assertions, delete tests, or skip tests to make them pass.
+- Cases that need a DOM (layout-following injected overlays, restore-position lifecycles) must not switch the global environment: enable jsdom per file with a leading `/** @vitest-environment jsdom */` comment. The default environment in `vitest.config.ts` always stays `node` so ordinary pure-logic suites do not slow down.
+- jsdom provides no real layout (`getBoundingClientRect()` always returns zeros, `offsetWidth` / `offsetHeight` are always 0, and `getComputedStyle()` returns an empty string for undeclared properties). Those measurements are handled by `installDomLayout()` in `tests/helpers/domLayout.ts`, which supplies a manually advanced rAF queue and an ordered read/write log (so you can assert "was a frame scheduled" and "all reads before all writes"). The harness ships its own self-check cases; any new measurement must return a verification field, so a missed selector cannot produce a plausible-but-wrong number.
+- Mount-based rendering tests for `.vue` components are not supported yet: `@vitejs/plugin-vue` (v6.0.8, pulled in by `@wxt-dev/module-vue`) is available, but `@vue/test-utils` is not installed, so Vue interaction coverage stops at the state owner (composable / pure function). `.vue` files are still reached statically — `tests/utils/i18nBundles.test.ts` reads them as text to verify each dependency graph only uses `t()` keys from its registered namespaces.
 
 ### Keyboard Shortcuts
 
@@ -590,6 +671,9 @@ The extension registers the following shortcuts (customizable in `chrome://exten
 | `Ctrl+Shift+F`           | `Command+Shift+F` | Quick fill           |
 | `Ctrl+Shift+K`           | `Command+Shift+K` | Open inline dropdown |
 
+> `quick_fill` hardcodes `autoLogin: false`, so `Ctrl+Shift+F` fills the credentials and ticks the checkbox but never clicks the login button; the click only happens through the side panel's "Fill and sign in" action or the opt-in "Auto-submit login" preference (off by default).
+> Chrome exposes no `chrome.commands.update()` and all 4 command slots are already used, so the in-app shortcut list is **read-only** and only links out to `chrome://extensions/shortcuts`. Adding a shortcut means freeing a command slot first — in-app rebinding is not an option.
+
 ### Security & Privacy
 
 This is a password manager — security is the top priority. Please follow these principles when contributing:
@@ -599,7 +683,7 @@ This is a password manager — security is the top priority. Please follow these
 - Runtime code must use `utils/logger.ts` exclusively; log parameters must not contain sensitive data.
 - Do not expand the lifetime, storage location, or accessible context of plaintext sensitive data.
 - Do not invent new encryption algorithms or modify existing encryption parameters (PBKDF2 iterations, AES mode, IV generation, etc.).
-- New network requests, telemetry, or remote resource loading must require explicit user confirmation; default to local-first, offline-capable.
+- New network requests, telemetry, or remote resource loading must require explicit user confirmation; default to local-first, offline-capable. The one already-approved outbound call is the anonymous version check in `utils/updateChecker.ts` (it carries no user data); it is an existing exception, not a defect to "fix".
 - Chrome permissions follow the principle of least privilege; new permissions must be justified.
 
 ## Pull Request Guidelines
@@ -621,9 +705,9 @@ This is a password manager — security is the top priority. Please follow these
   - Batch multiple spelling or comment corrections into a single PR.
   - Pure style refactoring is discouraged unless it clearly improves performance or maintainability.
 
-- PRs may contain multiple small commits; GitHub will squash them on merge.
+- A PR may contain several small commits. The merge method decides what `main` ends up seeing: squash leaves a single commit whose message is the PR title; a merge commit brings every commit from the PR branch onto `main`. Either way, **the PR title must be compliant** (see below).
 
-- PR titles should follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+- PR titles should follow the [Conventional Commits](https://www.conventionalcommits.org/) specification (enforced by `.github/workflows/pr-title.yml`):
 
   ```
   feat: add auto-login toggle
@@ -643,6 +727,29 @@ This is a password manager — security is the top priority. Please follow these
   pnpm test:run           # Run all tests (or relevant test files)
   pnpm build              # Production build verification
   ```
+
+> ⚠️ **What CI actually does**: `.github/workflows/ci.yml` runs three jobs on pushes to `main` and on pull requests — `static` (`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`), `test` (`pnpm test:run`), and `build` (`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`). Artifact-level guards (such as the sidepanel / popup first-screen closure check) run only in the `build` job, because the `test` job has no `.output/chrome-mv3` and those cases skip the whole file; run `pnpm build` locally before invoking them. `.github/workflows/release-please.yml` only handles releases: the release-please job cuts the tag and the GitHub Release, while the stretch after it (`pnpm install` + `pnpm run build` → upload zip → submit to the Chrome Web Store) is attached to the `production` environment and only runs once a maintainer clicks Approve on the Actions run; `.github/workflows/e2e.yml` (real-browser extension E2E) has shared the same triggers since 2026-09-22 — pushes to `main`, pull requests, plus a manual run anytime — and is skipped only for documentation, blog and image changes (`paths-ignore`). It is the slowest job of all (every run builds first, then executes one worker at a time, each case in its own fresh profile), so it is currently in a **trial period**: the job carries `continue-on-error`, meaning a red run only produces a warning and does not block merges. It becomes a real gate once it has gone green twice in a row on the ubuntu runner (see the status table at the top of `e2e/README.md`, Chinese-only, for details). The local `husky` + `lint-staged` hook still runs the same checks on changed files and remains the first gate before commit. One more check runs independently: `.github/workflows/pr-title.yml` validates only the PR title against Conventional Commits (titles with a `!` are rejected until a maintainer confirms them); it never checks out or executes anything from the PR branch.
+>
+> Version numbers and `CHANGELOG.md` are managed automatically by release-please; do not edit those two files by hand in a PR.
+
+### Branch model and release flow (two independent gates)
+
+This project uses **GitHub Flow**: `main` is the only long-lived branch, it is always releasable, and every change reaches it through a PR. There is deliberately no `develop` and no intermediate "merge into a PR branch first, then into main" layer — the release gate already exists via release-please, and an extra branch only adds one more chance to hit a conflict, not one more gate.
+
+Shipping a change takes two **separate** human actions:
+
+| Action                                     | Consequence                                                                                                                                                                                                         |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Maintainer merges a feature PR into `main` | release-please only updates its auto-generated release PR (branch `release-please--branches--main--components--account-password-helper`): **no tag, no GitHub Release, no store submission**                        |
+| Maintainer merges that release PR          | tag + GitHub Release are created; the following "build → upload zip → submit to Chrome Web Store" stretch is attached to the `production` environment and only runs after someone clicks Approve on the Actions run |
+
+Which yields the rules that actually bind contributors:
+
+- **The PR title is an input to version resolution, not copy.** `feat` bumps a minor, `fix` bumps a patch, and a `!` after the type or a `BREAKING CHANGE` in the description bumps the whole version to major (e.g. 3.12.0 → 4.0.0). Every other type never triggers a release on its own; it only lands in the matching `CHANGELOG.md` section when a release actually ships.
+- Landing a change "now, shipping later" needs no extra steps — merging into `main` is enough, and the release cadence stays with the maintainer.
+- Docs-only, test-only or CI-only PRs do not raise the store version, so they are safe to submit and review independently.
+- Changes touching crypto, session, storage, permissions, content scripts, CI or release configuration require approval from the owners registered in `.github/CODEOWNERS`.
+- Repository-side settings and the manual checklist live in `docs/PR_WORKFLOW_GUIDE.md`.
 
 ## Issue Guidelines
 

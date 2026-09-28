@@ -19,5 +19,8 @@
   "fill.usernameCopied": "Username copied to clipboard",
   "fill.usernameCopyFailed": "Failed to copy the username",
   "fill.passwordCopied": "Password copied to clipboard",
-  "fill.passwordCopyFailed": "Failed to copy the password"
+  "fill.passwordCopyFailed": "Failed to copy the password",
+  "fill.shareCardCopied": "Share card copied to clipboard",
+  "fill.shareCardNoPassword": "Share card copied. This entry has no password.",
+  "fill.shareCardCopyFailed": "Failed to copy the share card"
 }

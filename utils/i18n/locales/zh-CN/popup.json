@@ -22,5 +22,10 @@
   "popup.contact": "如有任何问题或者建议，请联系",
   "popup.versionLinkTitle": "查看最新版本与下载",
   "popup.feedbackSubject": "账号密码管理助手反馈",
-  "popup.openSidepanelFailed": "自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏"
+  "popup.openSidepanelFailed": "自动打开侧边栏失败，请手动点击地址栏右侧的扩展图标打开侧边栏",
+  "popup.validityFailed": "打开有效期设置失败，请在密码管理页的「会话有效期」中手动调整",
+  "popup.openOptionsFailed": "打开密码管理页失败，请稍后重试",
+  "popup.shortcutsPageFailed": "打开快捷键设置页失败，请在地址栏访问 chrome://extensions/shortcuts",
+  "popup.quickFillFailed": "一键填充请求未发送成功，请重试或改用侧边栏填充",
+  "popup.inlineDropdownFailed": "展开内联填充面板失败，请刷新页面后重试或改用侧边栏填充"
 }
