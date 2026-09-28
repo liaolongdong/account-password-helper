@@ -80,6 +80,7 @@ const ESM_ONLY_ERRORS =
  */
 function findScriptSyntaxIssues(page: string, html: string): ScriptSyntaxIssue[] {
   const issues: ScriptSyntaxIssue[] = [];
+  // codeql[js/bad-tag-filter] -- 该正则从本仓库自产的 HTML 里提取内联脚本，交给 vm.Script 做语法校验，不承担净化/过滤职责：提取结果只用于报告解析失败，无 HTML 输出也无 DOM sink，漏匹配的代价仅是测试少检一块脚本，不存在被绕过的安全边界。
   const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
   let match: RegExpExecArray | null;
   let index = 0;
