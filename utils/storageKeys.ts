@@ -39,7 +39,30 @@ export const STORAGE_KEYS = {
   OPTIONS_PAGE_SIZE: 'options_page_size',
   /** Options 密码列表多列排序链（数组顺序即优先级；空数组表示默认排序） */
   OPTIONS_SORT_CHAIN: 'options_sort_chain',
+  /** 密码分组树（扁平数组，邻接表表示；非敏感组织维度，不加密） */
+  PASSWORD_GROUPS: 'password_groups',
+  /** Options 密码表格「分组」列是否可见（用户自定义，默认 false 隐藏） */
+  OPTIONS_GROUP_COL_VISIBLE: 'options_group_col_visible',
+  /** 云文档同步配置（非敏感：开关、模式、目标表、分片阈值） */
+  CLOUD_SYNC_CONFIG: 'cloud_sync_config',
+  /** 云文档同步凭证（敏感：AES-256-GCM 加密后落盘，密钥为会话数据密钥） */
+  CLOUD_SYNC_CREDENTIALS: 'cloud_sync_credentials',
+  /** 云文档同步审计日志（字段白名单约束，FIFO 100 条） */
+  CLOUD_SYNC_AUDIT_LOG: 'cloud_sync_audit_log',
 };
+
+/**
+ * 云同步明文模式本地快照键名（按 provider + 文档标识隔离）
+ *
+ * 不同平台、不同目标文档各自独立，切换互不覆盖；同 provider 换目标文档
+ * 视为全新同步链路，旧快照保留不自动迁移（提供手动清理入口）。
+ *
+ * @param provider 平台标识
+ * @param docKey 飞书 `${appToken}:${tableId}`；腾讯 `${fileId}:${sheetId}`
+ */
+export function cloudSyncSnapshotKey(provider: string, docKey: string): string {
+  return `cloud_sync_snapshot_${provider}_${docKey}`;
+}
 
 /**
  * storage.session 键名常量（仅内存，不落盘，浏览器/扩展重启即清）
@@ -108,4 +131,11 @@ export const SESSION_MEMORY_KEYS = {
    * sessionStorage 自身的作用域边界，同站导航后新文档可解回、跨站与跨标签页不可。
    */
   PENDING_CIPHER_KEYS: 'pending_cipher_keys',
+  /**
+   * 云同步任务互斥锁（`{ [targetKey]: { acquiredAt, heartbeatAt, pageId } }` 聚合对象）
+   *
+   * 存于 storage.session 而非内存 Map：内存锁无法跨 Options 页面实例（多 tab）生效。
+   * 仅内存、跨扩展页面共享、浏览器关闭即清；心跳超 30s 判定为残留死锁可强制抢占。
+   */
+  CLOUD_SYNC_LOCK: 'cloud_sync_lock',
 };

@@ -68,6 +68,13 @@ export interface PasswordEntry {
    * 排列顺序
    */
   order: number;
+  /**
+   * 所属分组 code（一对一，文件夹式归属）
+   *
+   * 指向 {@link PasswordGroup.code}；缺失、指向已删除分组或等于 {@link UNGROUPED_CODE}
+   * 均视为「未分组」。属非敏感元数据（同 tag/order），归组与拖拽不触发解密-重加密。
+   */
+  groupId?: string;
 }
 
 /**
@@ -76,6 +83,65 @@ export interface PasswordEntry {
 export interface PasswordEntryWithUI extends PasswordEntry {
   /** 是否显示明文密码 */
   showPassword: boolean;
+}
+
+/**
+ * 分组树根节点的虚拟 code
+ *
+ * 不落盘：一级分组的 parentCode 等于本值，运行时由 buildTree 构造根节点。
+ * 选中根 = 查看全库（不做分组过滤）。
+ */
+export const ROOT_GROUP_CODE = '-1';
+
+/**
+ * 「未分组」虚拟叶子节点 code
+ *
+ * 不落盘、不可删除、不可重命名。承载所有无有效 groupId 的条目，
+ * 既是存量数据的平滑落地点，也是批量整理的入口。
+ */
+export const UNGROUPED_CODE = '__ungrouped__';
+
+/**
+ * 密码分组（树形，邻接表表示）
+ *
+ * 扁平数组存储于 chrome.storage.local 的 `password_groups` 键，内存中拼成树。
+ * 分组名与层级属非敏感组织维度，不加密；但日志不得记录分组名原文。
+ */
+export interface PasswordGroup {
+  /** 分组唯一标识，由 generateId() 生成 */
+  code: string;
+  /** 分组名称：同级唯一、≤30 字符、禁纯空白、禁含 `/`（全路径分隔符） */
+  name: string;
+  /** 父分组 code；一级分组为 {@link ROOT_GROUP_CODE} */
+  parentCode: string;
+  /** 同级排序序号（升序） */
+  order: number;
+}
+
+/**
+ * 分组树渲染节点（buildTree 产出，供 el-tree 直接消费）
+ *
+ * `isVirtual` 标记根节点与「未分组」叶子：UI 据此禁用重命名/删除，
+ * 并阻止其成为拖拽放置目标。虚拟节点的 name 为空串，文案由 UI 层 i18n 提供。
+ */
+export interface GroupTreeNode {
+  code: string;
+  name: string;
+  order: number;
+  children: GroupTreeNode[];
+  /** 是否为虚拟节点（根 / 未分组），虚拟节点不可删改、不可作为拖拽父级 */
+  isVirtual?: boolean;
+}
+
+/**
+ * 带分组全路径的密码条目（Options 表格渲染用）
+ *
+ * `groupPath` 由 usePasswordManagement 在排序前注入（`/` 拼接，如 `工作/项目A`），
+ * 未分组为空串。预计算避免表格每行重复递归上溯，同时让分组列可参与排序链。
+ */
+export interface PasswordEntryWithGroupPath extends PasswordEntry {
+  /** 分组全路径（`/` 拼接）；未分组为空串 */
+  groupPath: string;
 }
 
 /**
@@ -607,7 +673,8 @@ export interface UpdatePasswordMetadataData {
    * 新增字段时两处同步修改。
    */
   updates: {
-    [K in 'favorite' | 'favoriteUsedAt' | 'lastUsedAt' | 'updateTime' | 'tag' | 'order']?: PasswordEntry[K] | null;
+    [K in 'favorite' | 'favoriteUsedAt' | 'lastUsedAt' | 'updateTime' | 'tag' | 'order' | 'groupId']?:
+      PasswordEntry[K] | null;
   };
 }
 
@@ -677,6 +744,8 @@ export interface PasswordFormModel {
   remark: string;
   /** TOTP 密钥 */
   totp: string;
+  /** 所属分组 code；空串或 UNGROUPED_CODE 表示未分组 */
+  groupId: string;
 }
 
 /**

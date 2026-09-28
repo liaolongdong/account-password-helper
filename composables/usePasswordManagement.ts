@@ -26,7 +26,15 @@ export const MAX_TAG_LENGTH = 30;
 export const PAGE_SIZE_OPTIONS = OPTIONS_PAGE_SIZE_OPTIONS;
 
 /** 密码表单空值初始状态（避免多处重复字面量） */
-const EMPTY_PASSWORD_FORM = { username: '', password: '', url: '', tag: '', remark: '', totp: '' } as const;
+const EMPTY_PASSWORD_FORM = {
+  username: '',
+  password: '',
+  url: '',
+  tag: '',
+  remark: '',
+  totp: '',
+  groupId: '',
+} as const;
 
 /**
  * TOTP 密钥自定义校验器
@@ -95,6 +103,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     tag: '',
     remark: '',
     totp: '',
+    groupId: '',
   });
 
   const passwordFormRules = computed<FormRules>(() => ({
@@ -589,6 +598,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       tag: password.tag,
       remark: password.remark,
       totp: password.totp ?? '',
+      groupId: password.groupId ?? '',
     };
     showPasswordDialog.value = true;
   };

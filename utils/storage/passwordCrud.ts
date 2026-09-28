@@ -258,7 +258,15 @@ export async function batchUpdatePasswordMetadata(
  * （passwordCache）均必须从本常量派生，禁止另行硬编码；未来新增字段
  * 只需改这一处，避免漂移导致路由误收敏感字段破坏 at-rest 密文不变量。
  */
-export const METADATA_FIELDS = ['favorite', 'favoriteUsedAt', 'lastUsedAt', 'updateTime', 'tag', 'order'] as const;
+export const METADATA_FIELDS = [
+  'favorite',
+  'favoriteUsedAt',
+  'lastUsedAt',
+  'updateTime',
+  'tag',
+  'order',
+  'groupId',
+] as const;
 
 /**
  * 会话期内可更新的非敏感元数据字段子集类型
