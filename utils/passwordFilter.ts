@@ -5,17 +5,12 @@
  * 过滤判定，使其可被单元测试独立覆盖，同时作为「搜索范围」与「能否填充当前页」
  * 的唯一判据来源，避免两处逻辑各自演化出分歧。
  *
- * 域名匹配语义完全复用 `utils/domain.ts`，与既有的当前域名过滤行为保持一致。
+ * 域名匹配语义完全复用 `utils/domain.ts` 的 `resolveMatchTier`（档位化分层匹配），
+ * 缺省 `off` 档与既有的当前域名精确过滤行为一致。
  */
 import type { PasswordEntry } from '@/utils/types';
-import {
-  isExactHostMatch,
-  isLocalDevDomain,
-  matchesPortForLocalDev,
-  classifySiteMatch,
-  SiteMatchLevel,
-  type SiteMatchLevelValue,
-} from '@/utils/domain';
+import { isLocalDevDomain, matchesPortForLocalDev, resolveMatchTier, type DomainMatchMode } from '@/utils/domain';
+import { filterByKeyword, type KeywordMatcher } from '@/utils/keywordMatch';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { parseTags } from '@/utils/tagUtils';
 
@@ -33,13 +28,6 @@ export interface ScopeContext {
   domain: string;
   /** 当前标签页端口，仅本地开发域名参与过滤 */
   port: string;
-  /**
-   * 是否启用跨子域名分级匹配（展示放宽），默认 false
-   *
-   * 开启后本站列表 / 内联下拉在精确匹配之外，按 {@link SiteMatchLevel}
-   * 纳入主域名与同主域其他子域条目（带徽标）；关闭时行为与历史完全一致。
-   */
-  crossSubdomain?: boolean;
 }
 
 /** 列表级过滤条件（三者为叠加关系） */
@@ -50,6 +38,13 @@ export interface ListFilterOptions {
   tags?: string[];
   /** 是否仅保留收藏条目 */
   favoriteOnly?: boolean;
+  /**
+   * 关键词匹配器，缺省 {@link matchesKeyword}（子串 + 拼音）
+   *
+   * 供无法引用拼音内核的调用方（如内容脚本世界）注入自己的匹配器，
+   * 从而复用同一份「检索字段清单 + 保序过滤」口径；字段清单不接受定制。
+   */
+  matcher?: KeywordMatcher;
 }
 
 /**
@@ -58,74 +53,23 @@ export interface ListFilterOptions {
  * 同时充当「该条目能否填充到当前页」的判据：填充依赖当前页面存在对应输入框，
  * 域名不匹配的条目填充必然失败，故两者共用同一判定。
  *
- * 匹配规则与既有当前域名过滤保持一致：
+ * 匹配规则（与内联下拉 / 一键填充同源，均经 `resolveMatchTier`）：
  * - 无域名（新标签页等）→ 放行全部
- * - 本地开发域名（localhost / 127.0.0.1）→ 按端口过滤，当前页无端口时放行全部
- * - 空 URL 条目 → 始终放行（通用条目不限站点）
- * - 其余 → 精确 hostname 匹配（不跨子域名、不跨环境）
+ * - 本地开发域名（localhost / 127.0.0.1）→ 按端口过滤，当前页无端口时放行全部，档位不参与
+ * - 其余按档位判定：`off`（缺省）= 精确 hostname + 空 URL；`wildcard` 追加通配条目；
+ *   `sameMainDomain` 再追加主域名与同主域其他子域
  *
  * @param entry - 待判定的密码条目
  * @param ctx - 当前标签页域名上下文
+ * @param mode - 跨子域匹配档位，缺省 `off`（最严格，等价迁移前口径）
  * @returns 是否属于本站范围
  */
-export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext): boolean {
+export function matchesSiteScope(entry: PasswordEntry, ctx: ScopeContext, mode: DomainMatchMode = 'off'): boolean {
   if (!ctx.domain) return true;
   if (isLocalDevDomain(ctx.domain)) {
     return matchesPortForLocalDev(entry.url, ctx.port);
   }
-  if (!entry.url || entry.url.trim() === '') return true;
-  return isExactHostMatch(ctx.domain, entry.url);
-}
-
-/** 带站点匹配级别的条目（供列表排序与徽标渲染） */
-export interface SiteMatchedEntry {
-  /** 密码条目 */
-  entry: PasswordEntry;
-  /** 匹配级别（SiteMatchLevel 值；0 为精确，越大越近似） */
-  level: SiteMatchLevelValue;
-}
-
-/**
- * 按站点匹配级别筛选条目（侧边栏本站列表 / 内联下拉共用）
- *
- * - 无域名（新标签页）→ 放行全部，级别记 ExactHost（不显示徽标）
- * - 本地开发域名 → 走端口过滤旧逻辑，不参与分级
- * - crossSubdomain 关闭 → 仅精确匹配 + 空 URL（与历史行为一致）
- * - crossSubdomain 开启 → 按 {@link classifySiteMatch} 六级纳入，
- *   返回结果按级别升序稳定排序（组内保持入参顺序，调用方可再叠加业务排序）
- *
- * @param entries - 候选条目
- * @param ctx - 当前标签页域名上下文
- * @returns 匹配条目及其级别（已按级别升序）
- */
-export function filterEntriesBySiteLevel(entries: readonly PasswordEntry[], ctx: ScopeContext): SiteMatchedEntry[] {
-  if (!ctx.domain) return entries.map(entry => ({ entry, level: SiteMatchLevel.ExactHost }));
-
-  if (isLocalDevDomain(ctx.domain)) {
-    return entries
-      .filter(entry => matchesPortForLocalDev(entry.url, ctx.port))
-      .map(entry => ({ entry, level: SiteMatchLevel.ExactHost }));
-  }
-
-  const matched: SiteMatchedEntry[] = [];
-  for (const entry of entries) {
-    if (!entry.url || entry.url.trim() === '') {
-      matched.push({ entry, level: SiteMatchLevel.EmptyUrl });
-      continue;
-    }
-    const level = classifySiteMatch(ctx.domain, ctx.port, entry.url);
-    if (level === SiteMatchLevel.NoMatch) continue;
-    if (!ctx.crossSubdomain && level !== SiteMatchLevel.ExactHost) continue;
-    matched.push({ entry, level });
-  }
-
-  // 稳定排序：级别升序；空 URL 通用条目（EmptyUrl）排在所有分级条目之后
-  matched.sort((a, b) => {
-    const keyA = a.level === SiteMatchLevel.EmptyUrl ? Number.MAX_SAFE_INTEGER : a.level;
-    const keyB = b.level === SiteMatchLevel.EmptyUrl ? Number.MAX_SAFE_INTEGER : b.level;
-    return keyA - keyB;
-  });
-  return matched;
+  return resolveMatchTier(ctx.domain, entry.url, mode) >= 0;
 }
 
 /**
@@ -137,15 +81,17 @@ export function filterEntriesBySiteLevel(entries: readonly PasswordEntry[], ctx:
  * @param entries - 全量条目（如侧边栏缓存的完整密码列表）
  * @param scope - 搜索范围
  * @param ctx - 当前标签页域名上下文
+ * @param mode - 跨子域匹配档位，缺省 `off`
  * @returns 范围内的条目副本
  */
 export function filterEntriesByScope(
   entries: readonly PasswordEntry[],
   scope: SearchScope,
   ctx: ScopeContext,
+  mode: DomainMatchMode = 'off',
 ): PasswordEntry[] {
   if (scope === 'all') return [...entries];
-  return entries.filter(entry => matchesSiteScope(entry, ctx));
+  return entries.filter(entry => matchesSiteScope(entry, ctx, mode));
 }
 
 /**
@@ -161,13 +107,14 @@ export function filterEntriesByScope(
  * @returns 过滤后的条目副本
  */
 export function applyListFilters(entries: readonly PasswordEntry[], options: ListFilterOptions): PasswordEntry[] {
-  const { keyword, tags, favoriteOnly } = options;
+  const { keyword, tags, favoriteOnly, matcher = matchesKeyword } = options;
 
   let result: PasswordEntry[] = [...entries];
 
   if (keyword) {
-    // 智能匹配：子串（大小写不敏感）优先，拼音模块预热后自动补齐全拼/首字母命中
-    result = result.filter(p => matchesKeyword([p.username, p.tag, p.remark, p.url], keyword));
+    // 智能匹配：子串（大小写不敏感）优先，拼音模块预热后自动补齐全拼/首字母命中；
+    // 「搜哪几个字段」与「保序」由 utils/keywordMatch 单点定义，内联下拉共用同一清单
+    result = filterByKeyword(result, keyword, matcher);
   }
 
   if (tags && tags.length > 0) {

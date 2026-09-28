@@ -384,18 +384,25 @@ export function mergeImportedGroups(
 }
 
 /**
- * Resolve an imported payload into storage-ready entries and the complete
- * merged group array.
+ * Resolve an imported payload into storage-ready entries plus the group array
+ * to persist: every pre-existing group, and only the newly created groups that
+ * the resolved entries actually reference (ancestors included).
  *
  * Path-based imports are created level by level and share same-name siblings.
  * Code-based imports use the mapping produced by mergeImportedGroups.
+ *
+ * Dropping unreferenced new groups matters when the caller sliced the payload
+ * for vault capacity: the tail of the file never lands, so its group branch
+ * must not be created as empty folders either.
  */
 export function resolveImportedGroups(
   data: ParsedImportData,
   existing: readonly PasswordGroup[],
 ): { entries: Omit<PasswordEntry, 'id' | 'order'>[]; groups: PasswordGroup[] } {
   const { groups, codeMap } = mergeImportedGroups(data.groups, existing);
+  const existingCodes = new Set(existing.map(group => group.code));
   const entries: Omit<PasswordEntry, 'id' | 'order'>[] = [];
+  const referenced = new Set<string>();
 
   for (const entry of data.entries) {
     const { groupPath, ...rest } = entry;
@@ -407,10 +414,25 @@ export function resolveImportedGroups(
     } else if (entry.groupId) {
       groupId = codeMap.get(entry.groupId);
     }
+    if (groupId) referenced.add(groupId);
     entries.push({ ...rest, groupId });
   }
 
-  return { entries, groups };
+  // Keep every ancestor of a referenced group so no entry ends up dangling.
+  const byCode = new Map(groups.map(group => [group.code, group]));
+  const pending = [...referenced];
+  while (pending.length > 0) {
+    const code = pending.pop()!;
+    const parent = byCode.get(code)?.parentCode;
+    if (!parent || parent === ROOT_GROUP_CODE || referenced.has(parent)) continue;
+    referenced.add(parent);
+    pending.push(parent);
+  }
+
+  return {
+    entries,
+    groups: groups.filter(group => existingCodes.has(group.code) || referenced.has(group.code)),
+  };
 }
 
 /**

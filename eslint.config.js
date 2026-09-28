@@ -13,6 +13,12 @@ export default [
       '.husky/**',
       'node_modules/**',
       'scripts/**',
+      // 性能测量脚本的私有产物：构建快照与测量结果（体积大、非源码，扫到会淹没真实告警）
+      'benchmarks/.artifacts/**',
+      'benchmarks/results/**',
+      // 测量脚本本体是 Node 工具 + 经 `page.evaluate` 注入页面上下文的回调，
+      // 浏览器全局只在运行时存在；与 scripts/** 同属开发期工具，沿用同一豁免口径（`.ts` 夹具仍受检）
+      'benchmarks/**/*.mjs',
       'public/**',
       'icons/**',
       'assets/**',

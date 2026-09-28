@@ -1,4 +1,5 @@
 import { StorageUtils } from '@/utils/storage';
+import { lockSession } from '@/utils/sessionLock';
 import { logger } from '@/utils/logger';
 
 /**
@@ -62,8 +63,9 @@ class SessionManager {
    * 处理会话过期
    */
   private async handleSessionExpired(): Promise<void> {
-    // 先清除会话密钥材料（磁盘中的密码本就是密文），再通知 UI 切换到锁定态
-    await StorageUtils.clearSession();
+    // 清除会话密钥材料 + 通知后台失效密码缓存（与手动锁定路径对称），
+    // 磁盘中的密码本就是密文；随后通知 UI 切换到锁定态
+    await lockSession();
     window.dispatchEvent(new CustomEvent('sessionExpired'));
   }
 

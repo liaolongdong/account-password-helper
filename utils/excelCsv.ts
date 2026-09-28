@@ -1,6 +1,7 @@
 import type { ImportedPasswordEntry, ParsedImportData } from '@/utils/groupTree';
 import { logger } from '@/utils/logger';
 import { type CsvColumnMapping, FORMAT_COLUMN_MAP, type ImportFormat } from '@/utils/excelFormatMap';
+import { validateAndBoundEntries } from '@/utils/backup/parseBackupEntries';
 
 /**
  * CSV 导入解析
@@ -41,8 +42,14 @@ export function parseCSVBuffer(buffer: ArrayBuffer, format: ImportFormat = 'auto
     logger.warn('CSV 解析结果为空，请检查文件编码和格式');
   }
 
-  // CSV 不含独立分组树，条目携带的 groupPath 由 resolveImportedGroups 建组。
-  return { entries: results, groups: [] };
+  // 同时复用统一导入边界：CSV 不携带独立分组树，groupPath 由 resolveImportedGroups 建组。
+  // 分组路径统一成 string（无分组列即空串）：导入边界会丢掉空的可选字段，而分组是本仓
+  // 的补充维度，下游按字符串消费 groupPath，缺字段与空串必须同义。
+  const boundedEntries = validateAndBoundEntries(results);
+  return {
+    entries: boundedEntries.map(entry => ({ ...entry, groupPath: entry.groupPath ?? '' })),
+    groups: [],
+  };
 }
 
 /**

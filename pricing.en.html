@@ -1129,7 +1129,7 @@
           <p
             class="price-subtitle fade-up fade-up-2"
             data-i18n="hero.subtitle"
-          >Every feature, every update, every user — completely free. No premium tier, no subscriptions, no account required. Your data stays in your own browser.</p>
+          >Every feature, every update, every user — completely free. No premium tier, no subscriptions, no account required. Password data stays on your machine.</p>
 
           <!-- ═══ STATS ═══ -->
           <div class="stats fade-up fade-up-3">
@@ -1187,7 +1187,7 @@
               <div
                 class="stat-label"
                 data-i18n="stats.cloud.label"
-              >Cloud, 100% Local</div>
+              >Cloud share — password data stored locally</div>
             </div>
             <div class="stat">
               <div class="stat-icon stat-icon-orange">
@@ -1428,7 +1428,7 @@
                   <span
                     class="feature-card-count"
                     data-i18n="count.autofill"
-                    >5 capabilities</span
+                    >7 capabilities</span
                   >
                 </div>
               </div>
@@ -1483,8 +1483,44 @@
                   ></span>
                   <span
                     class="feature-text"
+                    data-i18n="feat.siteRules"
+                    >Site rules — custom username / password field selectors per domain for login pages heuristic detection gets wrong (typically Web Components sites), with open shadow-root penetration on by default</span
+                  >
+                </li>
+                <li class="feature-item">
+                  <span class="feature-check"
+                    ><svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 8.5l3.5 3.5 6.5-7" /></svg
+                  ></span>
+                  <span
+                    class="feature-text"
                     data-i18n="feat.env"
                     >Exact domain matching keeps dev / test / staging / prod accounts separate</span
+                  >
+                </li>
+                <li class="feature-item">
+                  <span class="feature-check"
+                    ><svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 8.5l3.5 3.5 6.5-7" /></svg
+                  ></span>
+                  <span
+                    class="feature-text"
+                    data-i18n="feat.domainTier"
+                    >Three cross-subdomain tiers — exact match only by default, widenable to wildcard entries or same main domain; the auto-save duplicate rule is tier-independent and localhost / 127.0.0.1 stays port-separated</span
                   >
                 </li>
                 <li class="feature-item">
@@ -1557,7 +1593,7 @@
                   <span
                     class="feature-card-count"
                     data-i18n="count.data"
-                    >5 capabilities</span
+                    >6 capabilities</span
                   >
                 </div>
               </div>
@@ -1648,6 +1684,24 @@
                   ></span>
                   <span
                     class="feature-text"
+                    data-i18n="feat.identity"
+                    >Identity vault — IDs and bank cards in a separately encrypted store (whole-blob AES-256-GCM), masked by default and gated by a master-password re-check, .aphid encrypted backup export / import, not covered by automatic backups</span
+                  >
+                </li>
+                <li class="feature-item">
+                  <span class="feature-check"
+                    ><svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 8.5l3.5 3.5 6.5-7" /></svg
+                  ></span>
+                  <span
+                    class="feature-text"
                     data-i18n="feat.rekey"
                     >Atomic re-key on master password change — no data loss</span
                   >
@@ -1702,7 +1756,7 @@
                   <span
                     class="feature-card-count"
                     data-i18n="count.personal"
-                    >4 capabilities</span
+                    >5 capabilities</span
                   >
                 </div>
               </div>
@@ -1741,6 +1795,24 @@
                     class="feature-text"
                     data-i18n="feat.search"
                     >Smart search — pinyin / initials matching with highlight</span
+                  >
+                </li>
+                <li class="feature-item">
+                  <span class="feature-check"
+                    ><svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2.5"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    >
+                      <path d="M3 8.5l3.5 3.5 6.5-7" /></svg
+                  ></span>
+                  <span
+                    class="feature-text"
+                    data-i18n-html="feat.palette"
+                    >Command palette — <code>Ctrl/Cmd+K</code> on the manager page filters 23 commands by Chinese, pinyin or initials, Enter to run</span
                   >
                 </li>
                 <li class="feature-item">
@@ -1913,7 +1985,7 @@
             <p
               class="section-sub"
               data-i18n="compare.sub"
-            >Side by side with common choices (public pricing, as of Aug 2026)</p>
+            >Side by side with common choices (public pricing, as of Sep 2026)</p>
           </div>
           <div class="compare-wrap">
             <table class="compare-table">
@@ -2004,7 +2076,7 @@
                   <td
                     class="col-us yes"
                     data-i18n="compare.val.yesSupport2"
-                  >Yes</td>
+                  >Yes (3 subdomain tiers)</td>
                   <td
                     class="no"
                     data-i18n="compare.val.noSupport"
@@ -2016,6 +2088,25 @@
                   <td
                     class="no"
                     data-i18n="compare.val.noSupport3"
+                  >No</td>
+                </tr>
+                <tr>
+                  <td data-i18n="compare.row.siteRules">Site rules (custom selectors)</td>
+                  <td
+                    class="col-us yes"
+                    data-i18n="compare.val.yesSupport3"
+                  >Yes</td>
+                  <td
+                    class="no"
+                    data-i18n="compare.val.noSupport4"
+                  >No</td>
+                  <td
+                    class="no"
+                    data-i18n="compare.val.noSupport5"
+                  >No</td>
+                  <td
+                    class="no"
+                    data-i18n="compare.val.noSupport6"
                   >No</td>
                 </tr>
                 <tr>
@@ -2088,7 +2179,7 @@
               <div
                 class="info-value"
                 data-i18n-html="info.cloud.value"
-              >None — <span class="highlight">100% local</span>, no password uploads</div>
+              >None — <span class="highlight">password data stays on your machine</span>, nothing uploaded</div>
             </div>
             <div class="info-item">
               <div
@@ -2245,13 +2336,16 @@
         'hero.price': { zh: '¥0', en: '$0' },
         'hero.title': { zh: '永久免费', en: 'Free Forever' },
         'hero.subtitle': {
-          zh: '所有功能、所有更新、所有用户——完全免费。无高级版、无订阅、无需注册账号，数据只存你自己的浏览器里。',
-          en: 'Every feature, every update, every user — completely free. No premium tier, no subscriptions, no account required. Your data stays in your own browser.',
+          zh: '所有功能、所有更新、所有用户——完全免费。无高级版、无订阅、无需注册账号，密码数据不出本机。',
+          en: 'Every feature, every update, every user — completely free. No premium tier, no subscriptions, no account required. Password data stays on your machine.',
         },
         'stats.users.value': { zh: '∞', en: '∞' },
         'stats.users.label': { zh: '用户数，无需注册', en: 'Users, No Sign-up' },
         'stats.cloud.value': { zh: '0%', en: '0%' },
-        'stats.cloud.label': { zh: '云端占比，100% 本地', en: 'Cloud, 100% Local' },
+        'stats.cloud.label': {
+          zh: '云端占比，密码只存本机',
+          en: 'Cloud share — password data stored locally',
+        },
         'stats.sub.value': { zh: '¥0', en: '$0' },
         'stats.sub.label': { zh: '每月，永久免费', en: 'Per Month, Forever' },
         'stats.sub.icon': { zh: '¥', en: '$' },
@@ -2266,9 +2360,9 @@
         'group.personal': { zh: '体验与个性化', en: 'Experience' },
         'group.platform': { zh: '跨平台与工程', en: 'Platform & Engineering' },
         'count.security': { zh: '7 项能力', en: '7 capabilities' },
-        'count.autofill': { zh: '5 项能力', en: '5 capabilities' },
-        'count.data': { zh: '5 项能力', en: '5 capabilities' },
-        'count.personal': { zh: '4 项能力', en: '4 capabilities' },
+        'count.autofill': { zh: '7 项能力', en: '7 capabilities' },
+        'count.data': { zh: '6 项能力', en: '6 capabilities' },
+        'count.personal': { zh: '5 项能力', en: '5 capabilities' },
         'count.platform': { zh: '4 项能力', en: '4 capabilities' },
         'feat.encryption': {
           zh: '<strong>AES-256-GCM</strong> 本地加密 · PBKDF2 <code>600,000</code> 次迭代',
@@ -2306,9 +2400,17 @@
           zh: '四重填充策略 — 内联图标 / 侧边栏 / 右键菜单 / 全局快捷键',
           en: 'Quadruple fill strategy — inline icon / side panel / right-click menu / global shortcut',
         },
+        'feat.siteRules': {
+          zh: '站点规则 — 为识别不准的登录页（典型 Web Components 站点）按域名自定义账号 / 密码框选择器，默认开启开放 shadow root 穿透',
+          en: 'Site rules — custom username / password field selectors per domain for login pages heuristic detection gets wrong (typically Web Components sites), with open shadow-root penetration on by default',
+        },
         'feat.env': {
           zh: '精确域名匹配，dev / test / staging / prod 多环境账号互不混淆',
           en: 'Exact domain matching keeps dev / test / staging / prod accounts separate',
+        },
+        'feat.domainTier': {
+          zh: '跨子域名匹配三档 — 默认仅精确匹配，可放宽为「精确 + 通配条目」或「同主域名」；判重口径不随档位改变，localhost / 127.0.0.1 按端口区分',
+          en: 'Three cross-subdomain tiers — exact match only by default, widenable to wildcard entries or same main domain; the auto-save duplicate rule is tier-independent and localhost / 127.0.0.1 stays port-separated',
         },
         'feat.autosave': {
           zh: 'Chrome 式自动保存凭证，智能去重 + 域名黑白名单',
@@ -2334,6 +2436,10 @@
           zh: '标签多选与筛选、收藏置顶、一键去重、批量删除/打标、导出选中条目',
           en: 'Tags & filtering, favorites, one-click dedup, batch delete / retag, export selected entries',
         },
+        'feat.identity': {
+          zh: '身份信息库 — 证件号 / 银行卡等独立加密存放（整包 AES-256-GCM），默认掩码、复验主密码才打开，.aphid 加密备份可导出导入，不参与自动备份',
+          en: 'Identity vault — IDs and bank cards in a separately encrypted store (whole-blob AES-256-GCM), masked by default and gated by a master-password re-check, .aphid encrypted backup export / import, not covered by automatic backups',
+        },
         'feat.rekey': {
           zh: '修改主密码原子换钥，换钥过程不丢数据',
           en: 'Atomic re-key on master password change — no data loss',
@@ -2345,6 +2451,10 @@
         'feat.search': {
           zh: '智能搜索 — 拼音 / 首字母缩写匹配，命中高亮',
           en: 'Smart search — pinyin / initials matching with highlight',
+        },
+        'feat.palette': {
+          zh: '命令面板 — 管理页 <code>Ctrl/Cmd+K</code> 检索 23 条命令，支持中文 / 拼音 / 首字母，回车直达',
+          en: 'Command palette — <code>Ctrl/Cmd+K</code> on the manager page filters 23 commands by Chinese, pinyin or initials, Enter to run',
         },
         'feat.favicon': {
           zh: '网站图标展示 — 读取浏览器本地图标缓存，零外部请求',
@@ -2372,8 +2482,8 @@
         },
         'compare.title': { zh: '免费，免费到什么程度？', en: 'How free is "free"?' },
         'compare.sub': {
-          zh: '和其他常见选择放在一起看（价格口径：公开定价，截至 2026-08）',
-          en: 'Side by side with common choices (public pricing, as of Aug 2026)',
+          zh: '和其他常见选择放在一起看（价格口径：公开定价，截至 2026-09）',
+          en: 'Side by side with common choices (public pricing, as of Sep 2026)',
         },
         'compare.dim': { zh: '维度', en: 'Dimension' },
         'compare.us': { zh: '账号密码管理助手', en: 'Account Password Helper' },
@@ -2399,10 +2509,15 @@
         'compare.val.fillOnly2': { zh: '仅填充', en: 'Fill only' },
         'compare.val.fillOnly3': { zh: '仅填充', en: 'Fill only' },
         'compare.row.env': { zh: '多环境账号隔离', en: 'Multi-environment isolation' },
-        'compare.val.yesSupport2': { zh: '支持', en: 'Yes' },
+        'compare.val.yesSupport2': { zh: '支持（跨子域三档可选）', en: 'Yes (3 subdomain tiers)' },
         'compare.val.noSupport': { zh: '不支持', en: 'No' },
         'compare.val.noSupport2': { zh: '不支持', en: 'No' },
         'compare.val.noSupport3': { zh: '不支持', en: 'No' },
+        'compare.row.siteRules': { zh: '站点规则（自定义选择器）', en: 'Site rules (custom selectors)' },
+        'compare.val.yesSupport3': { zh: '支持', en: 'Yes' },
+        'compare.val.noSupport4': { zh: '不支持', en: 'No' },
+        'compare.val.noSupport5': { zh: '不支持', en: 'No' },
+        'compare.val.noSupport6': { zh: '不支持', en: 'No' },
         'compare.row.totp': { zh: '内置 TOTP 验证器', en: 'Built-in TOTP' },
         'compare.val.builtIn': { zh: '内置', en: 'Built-in' },
         'compare.val.bwTotp': { zh: '付费版 $10/年', en: 'Paid tier $10/yr' },
@@ -2424,8 +2539,8 @@
         },
         'info.cloud.label': { zh: '云端', en: 'Cloud' },
         'info.cloud.value': {
-          zh: '无 — <span class="highlight">100% 本地</span>，密码不上传',
-          en: 'None — <span class="highlight">100% local</span>, no password uploads',
+          zh: '无 — <span class="highlight">密码数据不出本机</span>，不上传服务器',
+          en: 'None — <span class="highlight">password data stays on your machine</span>, nothing uploaded',
         },
         'info.sub.label': { zh: '订阅', en: 'Subscription' },
         'info.sub.value': {

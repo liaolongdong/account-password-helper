@@ -327,6 +327,23 @@ onMounted(() => {
   loadIdleLockSettings();
 });
 
+// ==================== 跨入口指令应答判定 ====================
+
+/**
+ * 取后台指令的失败原因，成功时返回 `null`
+ *
+ * 各 `OPEN_*` / `QUICK_FILL` 处理器的应答契约统一为 `{ success, error? }`；业务态失败
+ * （会话失效、无匹配账号等）由后台走桌面通知并回 `success: true`，因此这里非 `null` 的只有
+ * 通道 / 来源类失败——此时 popup 是唯一的反馈面，不能再指望通知兜底。
+ * 空应答（后台未注册处理器）按失败处理，避免静默；返回值只进日志，永不渲染进 DOM。
+ */
+const popupRejectionReason = (response: unknown): string | null => {
+  if (!response || typeof response !== 'object') return '空应答';
+  const { success, error } = response as { success?: unknown; error?: unknown };
+  if (success !== false) return null;
+  return typeof error === 'string' && error ? error : '后台未给出失败原因';
+};
+
 // ==================== 会话剩余时间（仅会话有效时展示；popup 生命周期短，无需手动停止） ====================
 const {
   remainingText: sessionRemainingText,
@@ -348,9 +365,15 @@ watch(
  */
 const openValiditySetting = async () => {
   try {
-    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_VALIDITY });
+    const response = await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_VALIDITY });
+    const reason = popupRejectionReason(response);
+    if (reason) {
+      logger.error('打开有效期设置失败:', reason);
+      ElMessage.error(t('popup.validityFailed'));
+    }
   } catch (error) {
     logger.error('打开有效期设置失败:', error);
+    ElMessage.error(t('popup.validityFailed'));
   }
 };
 
@@ -362,13 +385,20 @@ const openValiditySetting = async () => {
  */
 const openOptions = async () => {
   try {
-    await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_PAGE });
+    const response = await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_PAGE });
+    const reason = popupRejectionReason(response);
+    if (reason) {
+      logger.error('打开选项页面失败:', reason);
+      // 失败时不关 popup：关掉后用户只剩「点了没反应」，留着才能看到提示并重试
+      ElMessage.error(t('popup.openOptionsFailed'));
+      return;
+    }
   } catch (error) {
     logger.error('打开选项页面失败:', error);
-  } finally {
-    // 无论成功失败都关闭 popup
-    window.close();
+    ElMessage.error(t('popup.openOptionsFailed'));
+    return;
   }
+  window.close();
 };
 
 /**
@@ -380,9 +410,10 @@ const openShortcutsPage = async () => {
     await chrome.tabs.create({ url: CHROME_SHORTCUTS_PAGE_URL });
   } catch (error) {
     logger.error('打开快捷键设置页失败:', error);
-  } finally {
-    window.close();
+    ElMessage.error(t('popup.shortcutsPageFailed'));
+    return;
   }
+  window.close();
 };
 
 /**
@@ -427,9 +458,14 @@ const openSidePanel = async () => {
           ElMessage.error(t('popup.openSidepanelFailed'));
         }
       }
+    } else {
+      // 拿不到 tabId 时原本是一次彻底的空点击（无任何反馈），这里补上同一条引导文案
+      logger.warn('打开侧边栏失败: 无法获取当前标签页 id');
+      ElMessage.error(t('popup.openSidepanelFailed'));
     }
   } catch (error) {
     logger.error('打开侧边栏失败:', error);
+    ElMessage.error(t('popup.openSidepanelFailed'));
   }
 };
 
@@ -440,12 +476,19 @@ const openSidePanel = async () => {
  */
 const triggerDirectFill = async () => {
   try {
-    await chrome.runtime.sendMessage({ type: MessageType.QUICK_FILL });
+    const response = await chrome.runtime.sendMessage({ type: MessageType.QUICK_FILL });
+    const reason = popupRejectionReason(response);
+    if (reason) {
+      logger.error('一键填充指令未被接受:', reason);
+      ElMessage.error(t('popup.quickFillFailed'));
+      return;
+    }
   } catch (error) {
     logger.error('一键填充触发失败:', error);
-  } finally {
-    window.close();
+    ElMessage.error(t('popup.quickFillFailed'));
+    return;
   }
+  window.close();
 };
 
 /**
@@ -455,12 +498,19 @@ const triggerDirectFill = async () => {
  */
 const triggerInlineDropdown = async () => {
   try {
-    await chrome.runtime.sendMessage({ type: MessageType.OPEN_INLINE_DROPDOWN });
+    const response = await chrome.runtime.sendMessage({ type: MessageType.OPEN_INLINE_DROPDOWN });
+    const reason = popupRejectionReason(response);
+    if (reason) {
+      logger.error('内联下拉指令未被接受:', reason);
+      ElMessage.error(t('popup.inlineDropdownFailed'));
+      return;
+    }
   } catch (error) {
     logger.error('内联下拉触发失败:', error);
-  } finally {
-    window.close();
+    ElMessage.error(t('popup.inlineDropdownFailed'));
+    return;
   }
+  window.close();
 };
 
 /**

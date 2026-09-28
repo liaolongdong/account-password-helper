@@ -39,15 +39,18 @@ const EN_BROWSER_REQUIREMENTS =
 const EN_FEATURE_LIST = [
   'One-click login: autofill + tick "remember me / I agree" + click sign in',
   'Exact-host matching keeps dev / test / staging / prod accounts apart',
+  'Three cross-subdomain tiers: exact only, exact + wildcard entries (*.qq.com), or same root domain',
   'Built-in TOTP 2FA (RFC 6238); add secrets by QR scan or image upload',
   'Per-field AES-256-GCM encryption at rest, keyed by PBKDF2-SHA256 with 600,000 iterations',
   'Offline security audit: a 0-100 score weighted across four dimensions, computed on your machine',
   'Password generator: random passwords and a passphrase mode',
   'Four fill paths: inline panel, side panel, context menu, keyboard shortcut',
+  'Site rules: per-domain custom selectors for login forms heuristic detection misses',
   'CSV / JSON import and export with field auto-detection for common password-manager exports',
   'Encrypted .aph backup and restore, plus email backup composed locally via mailto',
   'Side panel opens instantly in every state (~20-50ms to data on the cached warm path)',
   'Six color themes and a bilingual 中文 / English interface',
+  'Identity vault: ID, bank card and other personal details in a separate encrypted store',
 ];
 
 const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored from the Chinese HowTo block in index.html -->

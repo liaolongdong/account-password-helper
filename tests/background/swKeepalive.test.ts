@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'fs';
+import path from 'path';
 import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 
 /**
@@ -7,7 +9,8 @@ import { SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
  * 覆盖统一常驻保活的决策语义：
  * - 任意平台/会话状态（会话有效、keys 过期残留、无任何会话键）均启用保活闹钟；
  * - 保活不再依赖 storage.session 宽限期/引导期标记（机制已移除）；
- * - 幂等：重复同步不重建既有闹钟（period 保持不变）。
+ * - 幂等：重复同步不重建既有闹钟（period 保持不变）；
+ * - 心跳间隔守住 MV3 的 30s 空闲阈值（闹钟周期由 `periodInMinutes` 断言覆盖）。
  *
  * 重依赖经 mock 从接缝注入：
  * - @/utils/storage（动态导入的 StorageUtils，本测试不触及但隔离真实存储模块）；
@@ -90,5 +93,17 @@ describe('syncSwKeepaliveAlarm（统一常驻保活）', () => {
     const second = await chrome.alarms.get(SW_KEEPALIVE_ALARM);
     expect(second).toBeDefined();
     expect(second!.periodInMinutes).toBe(0.5);
+  });
+
+  it('心跳间隔守住 MV3 的 30s 空闲阈值', () => {
+    // 值是模块私有常量，为测试导出会扩大内部 API 面，故沿用仓库既有的静态守卫手法。
+    // 心跳一旦 ≥30s，「存活期不死亡」这一层整体失效，侧边栏退回 SW 冷启动白屏；
+    // 闹钟周期已由上一条的 `periodInMinutes` 运行时断言覆盖，此处不重复钉。
+    const source = readFileSync(path.resolve(__dirname, '../../entrypoints/background/backgroundServices.ts'), 'utf-8');
+    const heartbeat = Number(/const SW_HEARTBEAT_INTERVAL_MS\s*=\s*([\d_]+)/.exec(source)?.[1]?.replace(/_/g, ''));
+
+    expect(Number.isFinite(heartbeat), '未从源码提取到 SW_HEARTBEAT_INTERVAL_MS，请检查正则').toBe(true);
+    expect(heartbeat).toBeGreaterThan(0);
+    expect(heartbeat).toBeLessThan(30_000);
   });
 });

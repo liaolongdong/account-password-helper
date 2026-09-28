@@ -1,17 +1,10 @@
 import type { QuickAddPasswordData } from '@/utils/types';
 import { logger } from '@/utils/logger';
-import { PASSWORD_FIELD_MAX_LENGTH } from '@/utils/formValidators';
+import { PASSWORD_FIELD_LIMITS } from '@/utils/constants';
 import { ensureCredentialAccessAfterStartupRelock, invalidatePasswordCache } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
-
-/** 各字段长度上限（password 与前端 maxlength / 校验规则同源，其余为纵深防御） */
-const FIELD_LIMITS = {
-  username: 50,
-  password: PASSWORD_FIELD_MAX_LENGTH,
-  url: 100,
-  tag: 50,
-  remark: 1000,
-} as const;
+// 只引零依赖的容量模块（不引 `@/utils/storage` 门面）：保持本文件对存储图的懒加载不变。
+import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
 
 /**
  * 处理侧边栏快速添加条目请求
@@ -39,11 +32,11 @@ export async function handleQuickAddPassword(
       return { success: false, message: tl('bg.quickAdd.invalidFields') };
     }
     if (
-      username.length > FIELD_LIMITS.username ||
-      password.length > FIELD_LIMITS.password ||
-      url.length > FIELD_LIMITS.url ||
-      tag.length > FIELD_LIMITS.tag ||
-      remark.length > FIELD_LIMITS.remark
+      username.length > PASSWORD_FIELD_LIMITS.username ||
+      password.length > PASSWORD_FIELD_LIMITS.password ||
+      url.length > PASSWORD_FIELD_LIMITS.url ||
+      tag.length > PASSWORD_FIELD_LIMITS.tag ||
+      remark.length > PASSWORD_FIELD_LIMITS.remark
     ) {
       logger.warn('Background: 快速添加条目字段校验失败（字段超长）');
       return { success: false, message: tl('bg.quickAdd.tooLong') };
@@ -78,6 +71,12 @@ export async function handleQuickAddPassword(
     return { success: true, message: tl('bg.quickAdd.success') };
   } catch (error) {
     logger.error('Background: 处理快速添加条目失败:', error);
-    return { success: false, message: tl('bg.quickAdd.failed') };
+    // 上限拒绝与真正的写入失败要分文：前者需要用户先清理条目，反复点「添加」不会成功。
+    return {
+      success: false,
+      message: isVaultCapacityError(error)
+        ? tl('bg.quickAdd.capacityReached', { max: MAX_PASSWORD_ENTRIES })
+        : tl('bg.quickAdd.failed'),
+    };
   }
 }

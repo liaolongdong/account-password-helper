@@ -2,10 +2,10 @@ import { ref, computed, watch, nextTick, type Ref } from 'vue';
 import type { FormRules } from 'element-plus';
 import { StorageUtils } from '@/utils/storage';
 import type { PasswordEntry } from '@/utils/types';
-import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
+import { lockSession } from '@/utils/sessionLock';
 import { formatSessionRemaining } from '@/composables/useSessionCountdown';
 
 /**
@@ -142,16 +142,8 @@ export function useSessionTimer(options: {
 
       clearSessionLoading.value = true;
 
-      await StorageUtils.clearSession();
-
-      // 通知 background 使密码缓存和 session 缓存失效，
-      // 防止 background 的 _sessionValidCache（5s TTL）返回过期 true，
-      // 导致后续 GET_INITIAL_DATA 返回错误的已认证状态
-      try {
-        await chrome.runtime.sendMessage({ type: MessageType.INVALIDATE_PASSWORD_CACHE });
-      } catch {
-        // background 可能未就绪，忽略
-      }
+      // 统一锁定编排：销毁会话密钥材料 + 通知后台失效密码缓存（与自动过期/重置路径共用）
+      await lockSession();
 
       // 广播会话过期到其他上下文（sidepanel、popup 等）
       options.broadcastSessionExpired?.();

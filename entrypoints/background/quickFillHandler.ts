@@ -49,6 +49,16 @@ export const UNLOCK_NOTIFICATION_ID = 'unlock-required';
 const BADGE_CLEAR_DELAY_MS = 3000;
 
 /**
+ * 处于临时角标态时快照的持久角标文本
+ *
+ * null 表示当前没有进行中的临时角标。恢复时写回该值（版本更新的 "new" 或空串）。
+ */
+let _badgePersistedText: string | null = null;
+
+/** 进行中的临时角标恢复定时器（null 表示无） */
+let _badgeRestoreTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
  * 显示桌面通知
  * @param message 通知内容
  * @param title 通知标题（默认「一键填充」，供内联下拉等复用方覆盖）
@@ -104,21 +114,32 @@ export async function showPageNotice(
  * 不依赖系统通知的兜底反馈通道：系统通知被关闭（macOS 常见）时，
  * 用户仍能通过工具栏角标感知填充成功/失败。
  *
- * 角标为全局单例状态：显示前快照既有角标（如版本更新的持久 "new" 蓝底角标，
+ * 角标为全局单例状态：首次进入临时态时快照既有角标（如版本更新的持久 "new" 蓝底角标，
  * 见 backgroundServices.showUpdateBadge），延时后恢复原角标与背景色而非直接清空，
  * 避免临时反馈永久抹掉持久角标。
+ *
+ * 重叠调用（连点、快捷键与右键菜单同窗口内相继触发）只续期不重新快照：
+ * 否则后一次会把前一次的临时角标当成持久角标快照，恢复时把临时结果永久留在图标上。
  *
  * @param success 是否成功（✓ 绿色 / ! 红色）
  */
 export async function showBadgeFeedback(success: boolean): Promise<void> {
   try {
-    const prevText = await chrome.action.getBadgeText({}).catch(() => '');
+    const pendingTimer = _badgeRestoreTimer;
+    if (pendingTimer !== null) {
+      clearTimeout(pendingTimer);
+    } else {
+      _badgePersistedText = await chrome.action.getBadgeText({}).catch(() => '');
+    }
     await chrome.action.setBadgeBackgroundColor({ color: success ? '#67c23a' : '#f56c6c' }).catch(() => {});
     await chrome.action.setBadgeText({ text: success ? '✓' : '!' }).catch(() => {});
-    setTimeout(() => {
+    _badgeRestoreTimer = setTimeout(() => {
+      _badgeRestoreTimer = null;
+      const persistedText = _badgePersistedText ?? '';
+      _badgePersistedText = null;
       // 恢复既有角标（版本更新角标为蓝底，颜色与 showUpdateBadge 保持一致），无则清空
       void chrome.action.setBadgeBackgroundColor({ color: '#409eff' }).catch(() => {});
-      void chrome.action.setBadgeText({ text: prevText }).catch(() => {});
+      void chrome.action.setBadgeText({ text: persistedText }).catch(() => {});
     }, BADGE_CLEAR_DELAY_MS);
   } catch (error) {
     logger.debug('Background: 一键填充角标反馈失败:', error);
@@ -181,7 +202,12 @@ export function extractPortFromUrl(url: string | undefined): string {
 }
 
 /**
- * 派生条目展示标题（与内联下拉 getMatchingAccounts 的标题规则一致）
+ * 派生条目展示标题（标签 / 网址 / 用户名择优）
+ *
+ * 只服务一键填充的「命中多条、已填首条」通知：内联下拉的元数据里刻意不再携带该字段
+ * （面板按用户名成行、标签/备注/网址分列渲染，从未读取过派生标题），
+ * 避免同一语义在两处下发后各自演化。
+ *
  * @param entry 密码条目
  * @returns 展示标题
  */

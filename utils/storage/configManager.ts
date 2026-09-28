@@ -2,6 +2,7 @@ import type {
   FloatingButtonConfig,
   EmailBackupConfig,
   ClipboardConfig,
+  DomainMatchConfig,
   IdleLockConfig,
   PasswordEntry,
   PasswordHistoryConfig,
@@ -10,7 +11,8 @@ import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { DEFAULT_THEME } from '@/utils/theme';
 import { sortPasswordEntries, DEFAULT_SORT, type SortCriterion } from '@/utils/passwordSort';
-import { isExactHostMatch } from '@/utils/domain';
+import { isExactHostMatch, isDomainMatchMode, type DomainMatchMode } from '@/utils/domain';
+import { DEFAULT_PAGE_SIZE, isVaultPageSize } from '@/utils/vaultPageSize';
 
 /** 默认收藏上限 */
 export const DEFAULT_FAVORITE_LIMIT = 10;
@@ -93,6 +95,10 @@ function createConfigStore<T extends object>(
 
 /**
  * 应用保存的排序配置
+ *
+ * 刻意不接入跨子域档位：唯一调用方 getPasswordsByUrl 无生产使用者，
+ * 这里保持迁移前的精确 host 二值优先级，避免后来者误以为「存储层排序也会跨子域」。
+ * 跨子域优先级在侧边栏与内联下拉的匹配真源（utils/passwordSort.ts）内按 tier 计算。
  */
 export async function applySavedSortConfig(passwords: PasswordEntry[], domain?: string): Promise<void> {
   const getDomainPriority = (entry: PasswordEntry): number => {
@@ -225,6 +231,46 @@ export async function saveSidepanelSortConfig(config: { prop: string; order: str
   }
 }
 
+// ==================== 管理页每页条数 ====================
+
+/**
+ * 读取管理页每页条数
+ *
+ * 走白名单而非范围校验：档位直接决定一次喂给 `el-table` 的行数（整表重排成本随行数近似
+ * 平方增长），存储里的非法值必须落回 `DEFAULT_PAGE_SIZE`，不能透传一个 0 让列表空白，
+ * 也不能让手改/导入的配置绕过 200 这条成本上限。读取失败同样降级，不向上抛。
+ */
+export async function getVaultPageSize(): Promise<number> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.VAULT_PAGE_SIZE);
+    const size = result[STORAGE_KEYS.VAULT_PAGE_SIZE];
+    return isVaultPageSize(size) ? size : DEFAULT_PAGE_SIZE;
+  } catch (error) {
+    logger.error('获取管理页每页条数失败:', error);
+    return DEFAULT_PAGE_SIZE;
+  }
+}
+
+/**
+ * 保存管理页每页条数
+ *
+ * 非法档位忽略写入并告警（与 `saveDomainMatchConfig` 同一取舍）：视图偏好不值得为一次
+ * 坏写入向用户报错，但把异常状态落盘会长期影响渲染成本，因此是「忽略」而不是「照写」。
+ * 写入本身失败会抛出，由调用方按非致命处理。
+ */
+export async function saveVaultPageSize(size: number): Promise<void> {
+  if (!isVaultPageSize(size)) {
+    logger.warn('忽略非法的管理页每页条数写入');
+    return;
+  }
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.VAULT_PAGE_SIZE]: size });
+  } catch (error) {
+    logger.error('保存管理页每页条数失败:', error);
+    throw error;
+  }
+}
+
 // ==================== 悬浮按钮配置 ====================
 
 const floatingButtonStore = createConfigStore<FloatingButtonConfig>(
@@ -237,10 +283,11 @@ const floatingButtonStore = createConfigStore<FloatingButtonConfig>(
     autoShowSidepanel: false,
     autoTriggerLogin: false,
     passwordVisibilityToggle: false,
-    crossSubdomainMatch: true,
     autoFillTotp: false,
+    crossSubdomainMatch: true,
     fillMode: 'inline',
     theme: DEFAULT_THEME,
+    penetrateShadow: true,
   }),
   '悬浮按钮配置',
 );
@@ -325,6 +372,38 @@ export async function setLastAutoBackupTime(timestamp: number = Date.now()): Pro
   }
 }
 
+// ==================== 成功备份时间戳 ====================
+
+/**
+ * 读取最近一次「通过完整性自检」的加密 .aph 导出时间戳
+ *
+ * 与 `getLastAutoBackupTime`（邮箱自动备份落点）区分：本键仅在导出后 round-trip
+ * 解密校验通过时写入，代表「这份备份确实可被解回」，供 Options「距上次成功备份 N 天」展示。
+ * 读取失败或从未成功导出时返回 null（降级，不抛）。
+ */
+export async function getLastVerifiedBackupAt(): Promise<number | null> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.LAST_VERIFIED_BACKUP_AT);
+    const value = result[STORAGE_KEYS.LAST_VERIFIED_BACKUP_AT];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  } catch (error) {
+    logger.error('获取最后成功备份时间失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 记录一次通过完整性自检的加密备份导出时间
+ *
+ * 由 `exportEncryptedBackup` 在自检通过、文件已下载后调用。写入失败会抛出，
+ * 调用方需自行按「非致命」处理（备份文件本身已产出，仅提醒时间戳缺失）。
+ */
+export async function markVerifiedBackupAt(timestamp: number = Date.now()): Promise<void> {
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.LAST_VERIFIED_BACKUP_AT]: timestamp,
+  });
+}
+
 // ==================== 剪贴板配置 ====================
 
 const clipboardStore = createConfigStore<ClipboardConfig>(
@@ -401,47 +480,6 @@ export async function setFavoriteLimit(limit: number): Promise<void> {
   }
 }
 
-// ==================== Options 列表分页配置 ====================
-
-/** Options 密码列表默认每页条数：平衡渲染成本（每行约 12 个 tooltip 实例）与翻页频率 */
-export const DEFAULT_OPTIONS_PAGE_SIZE = 50;
-
-/** 可选每页条数白名单（持久化值不在白名单内时回退默认，防 storage 数据被篡改导致异常分页） */
-export const OPTIONS_PAGE_SIZE_OPTIONS = [20, 50, 100, 200] as const;
-
-/**
- * 获取 Options 列表每页条数
- * 读取失败或值不在白名单内时降级为默认值（分页大小属展示偏好，异常不应阻断列表加载）
- */
-export async function getOptionsPageSize(): Promise<number> {
-  try {
-    const result = await chrome.storage.local.get(STORAGE_KEYS.OPTIONS_PAGE_SIZE);
-    const size = result[STORAGE_KEYS.OPTIONS_PAGE_SIZE] as number | undefined;
-    if (typeof size === 'number' && (OPTIONS_PAGE_SIZE_OPTIONS as readonly number[]).includes(size)) {
-      return size;
-    }
-    return DEFAULT_OPTIONS_PAGE_SIZE;
-  } catch (error) {
-    logger.error('获取每页条数配置失败:', error);
-    return DEFAULT_OPTIONS_PAGE_SIZE;
-  }
-}
-
-/**
- * 保存 Options 列表每页条数（仅接受白名单值）
- */
-export async function setOptionsPageSize(size: number): Promise<void> {
-  if (!(OPTIONS_PAGE_SIZE_OPTIONS as readonly number[]).includes(size)) {
-    throw new Error('无效的每页条数');
-  }
-  try {
-    await chrome.storage.local.set({ [STORAGE_KEYS.OPTIONS_PAGE_SIZE]: size });
-  } catch (error) {
-    logger.error('保存每页条数配置失败:', error);
-    throw error;
-  }
-}
-
 // ==================== Options 分组列显隐配置 ====================
 
 /**
@@ -504,4 +542,39 @@ export async function savePasswordHistoryConfig(config: Partial<PasswordHistoryC
     }
   }
   return passwordHistoryStore.save(config);
+}
+
+// ==================== 跨子域匹配档位 ====================
+
+/** 默认档位：仅精确 host 匹配，与引入跨子域之前的行为逐条一致 */
+export const DEFAULT_DOMAIN_MATCH_MODE: DomainMatchMode = 'off';
+
+const domainMatchStore = createConfigStore<DomainMatchConfig>(
+  STORAGE_KEYS.DOMAIN_MATCH_CONFIG,
+  { mode: DEFAULT_DOMAIN_MATCH_MODE },
+  '跨子域匹配档位',
+);
+
+/**
+ * 获取跨子域匹配档位
+ *
+ * 存储值非法（未知枚举、被外部改写成非对象）时回落 `off`：宁可少显示条目，也不静默放宽匹配。
+ * 返回固定形状，避免存储里的多余键位透出到调用方。
+ */
+export async function getDomainMatchConfig(): Promise<DomainMatchConfig> {
+  const config = await domainMatchStore.get();
+  return { mode: isDomainMatchMode(config?.mode) ? config.mode : DEFAULT_DOMAIN_MATCH_MODE };
+}
+
+/**
+ * 保存跨子域匹配档位（增量合并）
+ *
+ * 非法档位值直接忽略写入并告警，避免把异常状态落盘后长期影响匹配口径。
+ */
+export async function saveDomainMatchConfig(config: Partial<DomainMatchConfig>): Promise<void> {
+  if (config.mode !== undefined && !isDomainMatchMode(config.mode)) {
+    logger.warn('忽略非法的跨子域匹配档位写入');
+    return;
+  }
+  await domainMatchStore.save(config);
 }

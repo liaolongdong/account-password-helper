@@ -1,5 +1,6 @@
 {
   "backup.exportError": "导出加密备份失败",
+  "backup.exportVerifyFailed": "备份完整性自检未通过，文件未导出，请重试",
   "backup.invalidFile": "备份文件格式无效",
   "backup.invalidStructure": "备份数据结构不正确",
   "backup.wrongPasswordOrCorrupted": "主密码错误或备份文件已损坏",

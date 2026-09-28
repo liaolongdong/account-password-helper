@@ -22,5 +22,10 @@
   "popup.contact": "For questions or suggestions, contact",
   "popup.versionLinkTitle": "View latest release and download",
   "popup.feedbackSubject": "Account Password Helper feedback",
-  "popup.openSidepanelFailed": "Failed to open the sidebar automatically. Please click the extension icon next to the address bar to open it manually"
+  "popup.openSidepanelFailed": "Failed to open the sidebar automatically. Please click the extension icon next to the address bar to open it manually",
+  "popup.validityFailed": "Couldn't open the validity settings. Adjust them manually under \"Session Validity\" on the password manager page",
+  "popup.openOptionsFailed": "Failed to open the password manager. Please try again later",
+  "popup.shortcutsPageFailed": "Failed to open the keyboard shortcuts settings. Visit chrome://extensions/shortcuts in the address bar",
+  "popup.quickFillFailed": "The quick-fill request wasn't dispatched. Retry, or fill from the sidebar instead",
+  "popup.inlineDropdownFailed": "Couldn't open the inline fill panel. Refresh the page and retry, or fill from the sidebar instead"
 }

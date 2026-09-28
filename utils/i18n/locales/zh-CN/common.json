@@ -29,5 +29,7 @@
   "common.pwdMismatch": "两次输入的密码不一致",
   "common.quickFill": "快速填充",
   "common.showPassword": "显示密码",
-  "common.hidePassword": "隐藏密码"
+  "common.hidePassword": "隐藏密码",
+  "common.noData": "暂无数据",
+  "common.noMatch": "无匹配结果"
 }

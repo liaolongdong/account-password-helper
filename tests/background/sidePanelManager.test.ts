@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getSidePanelPorts,
   getTabIdSync,
@@ -7,6 +7,10 @@ import {
   setupSidePanelListeners,
 } from '@/entrypoints/background/sidePanelManager';
 import { MessageType } from '@/utils/types';
+
+/** B11：拦截 sidePanelManager 打开后延时预热的动态导入，观察是否被调用 */
+const warmMock = vi.hoisted(() => ({ maybeWarmSidePanelResources: vi.fn() }));
+vi.mock('@/utils/warmSidePanelResources', () => warmMock);
 
 type PortMessageListener = (message: { type: string; windowId?: number; tabId?: number }) => void;
 type DisconnectListener = () => void;
@@ -123,5 +127,54 @@ describe('getTabIdSync tabId 来源优先级', () => {
     const sender = { id: chrome.runtime.id } as chrome.runtime.MessageSender;
     expect(getTabIdSync(sender, 42)).toBe(42);
     expect(getTabIdSync(sender)).toBeUndefined();
+  });
+});
+
+describe('B11 打开后延时预热随断开取消', () => {
+  /** 注册 onConnect 监听并返回它，便于手动触发一次侧边栏连接 */
+  const captureOnConnect = (): ((port: chrome.runtime.Port) => void) => {
+    let onConnect: (port: chrome.runtime.Port) => void = () => {
+      throw new Error('onConnect listener not registered');
+    };
+    vi.spyOn(chrome.runtime.onConnect, 'addListener').mockImplementation(listener => {
+      onConnect = listener;
+    });
+    vi.spyOn(chrome.commands.onCommand, 'addListener').mockImplementation(() => {});
+    setupSidePanelListeners();
+    return onConnect;
+  };
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    warmMock.maybeWarmSidePanelResources.mockClear();
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  // WARM_AFTER_OPEN_DELAY_MS = 2000，推进 2500 稳定越过延时点
+  it('面板保持连接至延时到达时执行轻量预热', async () => {
+    const onConnect = captureOnConnect();
+    const { port } = createPort();
+    onConnect(port);
+
+    await vi.advanceTimersByTimeAsync(2500);
+
+    expect(warmMock.maybeWarmSidePanelResources).toHaveBeenCalledTimes(1);
+    expect(warmMock.maybeWarmSidePanelResources).toHaveBeenCalledWith({ allowNonWindowsLightweight: true });
+  });
+
+  it('延时到达前断开则取消预热（不残留定时器空跑）', async () => {
+    const onConnect = captureOnConnect();
+    const { port, disconnect } = createPort();
+    onConnect(port);
+
+    disconnect();
+    await vi.advanceTimersByTimeAsync(2500);
+
+    expect(warmMock.maybeWarmSidePanelResources).not.toHaveBeenCalled();
   });
 });

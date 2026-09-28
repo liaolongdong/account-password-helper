@@ -3,10 +3,10 @@ import { logger } from '@/utils/logger';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
 import {
   SESSION_STORAGE_KEYS,
-  invalidateSessionCache,
   markSessionInvalid,
   requestReEncryptAtRest,
   adoptRekeyedSession,
+  resetSessionMemoryState,
 } from '@/utils/sessionManager-storage';
 import {
   checkForUpdate,
@@ -16,6 +16,7 @@ import {
   UPDATE_CHECK_INTERVAL_MINUTES,
 } from '@/utils/updateChecker';
 import { getSidePanelPorts } from './sidePanelManager';
+import { openOptionsPage } from './optionsPageManager';
 import {
   invalidatePasswordCache,
   warmPasswordCache,
@@ -24,6 +25,7 @@ import {
   isMetadataOnlyChange,
   clearAllPendingTotp,
   resetCredentialAccessBarrierForStartup,
+  resetDomainMatchModeMirror,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
 import { UNLOCK_NOTIFICATION_ID } from './quickFillHandler';
@@ -189,6 +191,8 @@ async function setupPasswordReminderAlarm() {
  * 执行密码到期提醒检查
  *
  * 检查所有已到期且未通知的提醒，逐条发送桌面通知。
+ * 每条提醒独立捕获异常：系统通知配额耗尽、通知服务不可用等单条失败，
+ * 只跳过该条（下一周期 12 小时后仍会重试），不能连带丢掉后续所有到期提醒。
  */
 async function performReminderCheck() {
   try {
@@ -198,15 +202,20 @@ async function performReminderCheck() {
     if (dueReminders.length === 0) return;
 
     for (const reminder of dueReminders) {
-      const notificationId = `password-reminder-${reminder.entryId}`;
-      await chrome.notifications.create(notificationId, {
-        type: 'basic',
-        iconUrl: chrome.runtime.getURL('icon/128.png'),
-        title: tl('bg.reminder.title'),
-        message: tl('bg.reminder.message', { username: reminder.username }),
-      });
-      await markNotified(reminder.entryId);
-      logger.info(`Background: 密码提醒已发送 [${reminder.username}]`);
+      // 只记 entryId：账号名属敏感标识，不入日志（与 reminderManager 的日志口径一致）
+      try {
+        const notificationId = `password-reminder-${reminder.entryId}`;
+        await chrome.notifications.create(notificationId, {
+          type: 'basic',
+          iconUrl: chrome.runtime.getURL('icon/128.png'),
+          title: tl('bg.reminder.title'),
+          message: tl('bg.reminder.message', { username: reminder.username }),
+        });
+        await markNotified(reminder.entryId);
+        logger.info(`Background: 密码提醒已发送 [${reminder.entryId}]`);
+      } catch (error) {
+        logger.error(`Background: 单条密码提醒发送失败，跳过 [${reminder.entryId}]:`, error);
+      }
     }
   } catch (error) {
     logger.error('Background: 密码提醒检查失败:', error);
@@ -610,11 +619,11 @@ export function setupBackgroundServices(): void {
     } else if (notificationId === UNLOCK_NOTIFICATION_ID) {
       // 「需解锁」通知：点击直达主密码验证页（options 页会话失效时自动展示验证表单）
       // 并收起通知，避免已跳转后通知仍挂在通知中心
-      chrome.runtime.openOptionsPage();
+      openOptionsPage();
       chrome.notifications.clear(UNLOCK_NOTIFICATION_ID);
     } else if (notificationId.startsWith('password-reminder-')) {
       // 密码提醒通知点击：打开选项页面
-      chrome.runtime.openOptionsPage();
+      openOptionsPage();
       chrome.notifications.clear(notificationId);
     }
   });
@@ -629,6 +638,13 @@ export function setupBackgroundServices(): void {
         void markBrowserStartupRelockCurrentSessionReady().catch(error => {
           logger.warn('Background: 更新启动重锁屏障状态失败:', error);
         });
+      }
+
+      // 跨子域档位变更：仅复位 SW 内存里的档位镜像。档位只影响过滤结果，
+      // 不影响缓存明文与快照内容，因此刻意不走 invalidatePasswordCache——
+      // 那会删除 storage.session 快照并触发全量解密回温，让「切档后侧边栏仍秒开」失效。
+      if (STORAGE_KEYS.DOMAIN_MATCH_CONFIG in changes) {
+        resetDomainMatchModeMirror();
       }
 
       const relevantKeys = [
@@ -693,11 +709,13 @@ export function setupBackgroundServices(): void {
 
       // at-rest 安全网：旧版升级期并发 CRUD 写入可能把尚未迁移的明文重新写回，
       // 检测到明文残留时请求后台重跑一次密文化，尽快自愈明文再落盘窗口。
+      // 回收站同等纳入：moveToTrash 原样搬移磁盘条目，明文窗口内的删除会把它带进回收站。
       // 稳态全密文时 some() 快速返回、无副作用；迁移写回全密文后不再触发，无循环。
-      if (passwordsChange) {
-        const newPasswords = passwordsChange.newValue as { encrypted?: boolean }[] | undefined;
-        if (Array.isArray(newPasswords) && newPasswords.some(e => e.encrypted !== true)) {
+      for (const atRestChange of [passwordsChange, changes[STORAGE_KEYS.TRASH]]) {
+        const newValue = atRestChange?.newValue as { encrypted?: boolean }[] | undefined;
+        if (Array.isArray(newValue) && newValue.some(e => e.encrypted !== true)) {
           requestReEncryptAtRest();
+          break;
         }
       }
 
@@ -711,8 +729,14 @@ export function setupBackgroundServices(): void {
         const sessionRemoved = sessionKeyChanges.some(([, change]) => change.newValue === undefined);
 
         if (sessionRemoved) {
-          // 会话被清除：清除 BG 的会话验证缓存，防止 isSessionValid() 返回过期的 true
-          invalidateSessionCache();
+          // 会话被清除：重置 BG 的会话内存镜像与验证缓存，防止 isSessionValid() 依据
+          // 陈旧镜像（另一上下文执行的 clearSession 不会清空本上下文的镜像）跳过回读
+          // storage 而继续返回过期的 true
+          resetSessionMemoryState();
+          // 明文缓存必须显式失效：上方 hasRelevantChange 块在「元数据 flush + 会话清除」
+          // 被 Chrome 合并进同一个 onChanged 事件时会走原地修补分支并保留缓存，
+          // 那样锁定后 SW 仍持有整库明文。锁定语义优先于修补带来的快路径收益。
+          invalidatePasswordCache();
           // 会话清除安全网：一次性收口所有锁定入口（弹窗手动锁定/倒计时到期/锁定按钮），
           // 同步清除全部两步接力标记
           void clearAllPendingTotp();
@@ -748,10 +772,12 @@ export function setupBackgroundServices(): void {
           }
 
           syncSwKeepaliveAlarm();
-        }
 
-        // 会话创建后主动预热缓存，确保首次 sidepanel 打开时数据就绪
-        warmPasswordCache();
+          // 会话创建/rekey 后主动预热缓存，确保首次 sidepanel 打开时数据就绪。
+          // 只放在本分支：锁定/清除路径不得重新预热——那会带着（可能仍陈旧的）会话密钥
+          // 重建 SW 明文库与 storage.session 快照，把上锁刚销毁的密钥材料又放回去。
+          void warmPasswordCache();
+        }
       }
 
       if (STORAGE_KEYS.EMAIL_BACKUP_CONFIG in changes) {

@@ -10,17 +10,21 @@
  * @module utils/favicon
  */
 
+import { stripWildcardPrefix } from '@/utils/domain';
+import { registerPlaintextCacheCleaner } from '@/utils/plaintextCacheCleanup';
+
 /**
  * 将 URL 文本归一化为带协议的完整链接
  *
  * 密码条目的 url 字段允许不带协议（如 `github.com`），
  * `_favicon/` 端点要求完整 URL 才能命中缓存。
+ * 通配条目（`*.qq.com`）先还原为 apex 主机，否则取不到任何图标。
  *
  * @param url 原始 URL 文本
  * @returns 带协议的完整 URL；空输入返回空字符串
  */
 export function normalizeUrlForFavicon(url: string): string {
-  const trimmed = (url || '').trim();
+  const trimmed = stripWildcardPrefix(url);
   if (!trimmed) return '';
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://${trimmed}`;
@@ -58,6 +62,13 @@ const _faviconDataUrlCache = new Map<string, Promise<string>>();
 
 /** 缓存容量上限（每条约 1~4KB，200 条内存占用可控） */
 const FAVICON_CACHE_MAX = 200;
+
+// 缓存键是条目 `url` 字段归一化后的明文派生值，与拼音区间/标签呈现两把缓存同类：
+// 键集合本身就足以说明「这个用户有哪些站点上的账号」。写入方只有 Background，而 SW 被心跳
+// 长期保活，不随锁定销毁便会无限期驻留，故在模块初始化时登记进会话边界的清理器。
+registerPlaintextCacheCleaner(() => {
+  _faviconDataUrlCache.clear();
+});
 
 /**
  * 读取网站图标并转为 dataURL（仅限扩展自身上下文调用，如 background SW）

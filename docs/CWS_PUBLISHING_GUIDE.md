@@ -197,7 +197,8 @@
 rg -n "20-50|20–50" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/reddit-post.md
 
 # PBKDF2 千分位：不应出现无千分位的 600000
-rg -n "600000" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/CONTRIBUTING.md
+# （源码里的 `iterations: 600000` 是合法字面量，不在本命令的扫描面内）
+rg -n "600000" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/CONTRIBUTING.md docs/ARCHITECTURE.md docs/ARCHITECTURE.en.md
 
 # 版本号：三处应与 package.json 的 version 一致
 rg -n "softwareVersion|footer.updated" index.html
@@ -228,6 +229,8 @@ for idx, lang in ((2, 'zh'), (5, 'en')):
     ls = [l.strip() for l in blocks[idx].splitlines() if len(l.strip()) > 20]
     dup = {l: ls.count(l) for l in set(ls) if ls.count(l) > 1}
     print(f'duplicate lines in {lang} description:', dup or 'none')
+    # 历轮批注里的「说明长度」用的就是这个数（去掉首尾空行后的字符数），复述时别再换成别的口径
+    print(f'{lang} description chars (strip 后，批注记录的就是它):', len(blocks[idx].strip()))
 for path in ('public/_locales/zh_CN/messages.json', 'public/_locales/en/messages.json'):
     d = json.load(open(path, encoding='utf-8'))
     for key in ('extensionName', 'extensionDescription'):

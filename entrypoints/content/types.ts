@@ -3,7 +3,7 @@
  * 集中管理表单检测、通知弹窗、密码可见性切换等模块的 TypeScript 类型
  */
 
-import type { FillStrategy, SaveRiskHint } from '@/utils/types';
+import type { FillStrategy, SaveRiskHint, SaveTargetNote } from '@/utils/types';
 
 // ── InputFiller 相关 ──
 
@@ -89,6 +89,26 @@ export interface SavePromptData {
    * 无需新增消息类型。仅用于内联警示展示，不阻断保存。
    */
   risk?: SaveRiskHint;
+  /**
+   * 保存去向提示（本次保存落在哪一条上），缺省表示无需说明
+   *
+   * 与 `risk` 同源于 background 预检查，随本结构经 iframe 委托的 postMessage 自动跨帧透传，
+   * 接收方渲染前会再次校验。只读一行文本，不提供调整判重口径的入口。
+   */
+  targetNote?: SaveTargetNote;
+}
+
+/**
+ * 预检查得出的弹窗展示信息
+ *
+ * 两者都是**基于当次凭证**的派生结论，因此只随弹窗渲染一路传递，既不写入 `pending`、
+ * 也不进 sessionStorage —— 一旦持久化，用户改密码或换页恢复后就可能拿到陈旧结论。
+ */
+export interface SavePromptPrecheckInfo {
+  /** 风险提示（弱密码/复用计数），缺省表示无风险 */
+  risk?: SaveRiskHint;
+  /** 保存去向提示，缺省表示无需说明 */
+  targetNote?: SaveTargetNote;
 }
 
 /**

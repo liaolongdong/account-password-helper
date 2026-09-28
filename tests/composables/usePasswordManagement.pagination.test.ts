@@ -1,193 +1,189 @@
+/** @vitest-environment jsdom */
+
 /**
- * Options 列表分页测试（usePasswordManagement）
+ * 管理页分页接线回归测试（usePasswordManagement）
  *
- * 背景：导入数百条后 el-table 全量渲染导致整页卡顿（每行约 12 个 tooltip 实例，
- * 任意变更触发整表重建）。分页把表格渲染成本从 O(全部条目) 降到 O(pageSize)。
+ * 分页本身由 `useVaultListPagination` 负责（那里断言切片与钳位）；这里只钉住**接线**：
+ * 表格吃的是当前页、命中读数用的仍是全集、跨页选中能被如实计数、「保存/创建副本后定位到目标行」
+ * 这条链路会先把用户带到目标所在页，以及定位高亮的时长与清理时序。
  *
- * 锁定契约：
- * 1. 表格数据源 pagedPasswords 只渲染当前页，不超过 pageSize 条；
- * 2. 页码切换取到正确的切片窗口（以 filteredPasswords 为基准，不依赖具体排序）；
- * 3. 结果集变短使当前页越界时收敛到最后一页，不出现空白页；
- * 4. 过滤条件变化时回到第一页；
- * 5. 翻页后剔除不在当前页的选中 id，避免批量操作误删不可见条目；
- * 6. 自定义每页条数：切换后保持视口位置（首条不换页）并持久化到 storage。
+ * 五条各自对应一个真实故障形状：
+ * 1. `:data` 误接 `filteredPasswords` → 分页形同不存在，2000 条照样整表卡死；
+ * 2. 复位信号接在整条列表上 → 每删一条就被弹回第 1 页，无法连续清理同一页；
+ * 3. 只报「已选 N 条」而不报差额 → 用户以为跨页勾选丢了；
+ * 4. 定位不换页 → 副本落在第 1 页，而用户停在第 3 页，表现为「复制了但没看到」；
+ * 5. 高亮定时器不受控 → 改动时长无人发现，或作用域销毁后回调仍回来动已卸载的行。
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, afterEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import { effectScope, nextTick, ref, type EffectScope } from 'vue';
-import { usePasswordManagement } from '@/composables/usePasswordManagement';
-import { DEFAULT_OPTIONS_PAGE_SIZE } from '@/utils/storage/configManager';
+import type { PasswordEntry } from '@/utils/types';
+import { usePasswordManagement, ROW_HIGHLIGHT_MS } from '@/composables/usePasswordManagement';
 import { StorageUtils } from '@/utils/storage';
-import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
 
-/** 默认每页条数（空存储下异步加载落定的值） */
-const PAGE_SIZE = DEFAULT_OPTIONS_PAGE_SIZE;
+/** 造一条最小可用条目：`updateTime` 递增，默认排序（更新时间降序）下即 r{n}…r1 */
+const makeEntry = (index: number, patch: Partial<PasswordEntry> = {}): PasswordEntry => ({
+  id: `r${index}`,
+  username: index > 100 ? `ux${index}` : `u${index}`,
+  password: 'p',
+  url: '',
+  tag: '',
+  remark: '',
+  totp: '',
+  createTime: 1_000_000 + index,
+  updateTime: 1_000_000 + index,
+  order: index,
+  ...patch,
+});
 
-/** 排空微任务与 fakeBrowser 存储 Promise 链，让创建时发起的 pageSize 异步加载落定 */
-const flushAsync = () => new Promise(resolve => setTimeout(resolve, 0));
+const makeList = (n: number): PasswordEntry[] => Array.from({ length: n }, (_, i) => makeEntry(i + 1));
 
-/** 构造 n 条仅 id/username 不同的条目 */
-function makeEntries(n: number) {
-  return Array.from({ length: n }, (_, i) => makePasswordEntry({ id: `id-${i}`, username: `user-${i}`, order: i }));
-}
+/** jsdom 未实现 `scrollIntoView`（`Element.prototype` 上根本没有这个方法，故不能用 `vi.spyOn`） */
+Element.prototype.scrollIntoView = (): void => {};
 
-describe('usePasswordManagement 列表分页', () => {
+/**
+ * 挂一行可定位的表格行壳
+ *
+ * `el-table` 渲染出的真实行由 e2e 覆盖；这里只需要 `findPasswordRow` 按 `.${id}` 能命中一个
+ * 节点，让「换页 → 高亮 → 到点摘除」这条时序链在单测里可观测。
+ */
+const attachRow = (id: string): void => {
+  const row = document.createElement('tr');
+  row.className = id;
+  document.body.appendChild(row);
+};
+
+describe('usePasswordManagement 的分页接线', () => {
   let scope: EffectScope;
   let mgmt: ReturnType<typeof usePasswordManagement>;
+  let saveSpy: MockInstance<typeof StorageUtils.savePassword>;
 
-  beforeEach(async () => {
-    // fakeBrowser storage 在同文件内跨用例累积：先清除持久化的每页条数，
-    // 确保每个用例新建 composable 时异步加载都从默认档位起算（隔离「持久化」用例的写入）
-    await chrome.storage.local.remove(STORAGE_KEYS.OPTIONS_PAGE_SIZE);
+  beforeEach(() => {
+    document.body.innerHTML = '';
+    Object.assign(globalThis, {
+      ElMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn(), info: vi.fn() },
+      ElMessageBox: { confirm: vi.fn().mockResolvedValue('confirm') },
+    });
+
     scope = effectScope();
     mgmt = scope.run(() => usePasswordManagement({ validityForm: ref({ validityHours: 1 }) }))!;
-    // 等待创建时发起的每页条数异步加载落定（空存储 → 默认值），避免迟到回调覆盖用例设置
-    await flushAsync();
+    mgmt.passwords.value = makeList(250);
+    saveSpy = vi.spyOn(StorageUtils, 'savePassword');
   });
 
   afterEach(() => {
     scope.stop();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+    delete (globalThis as Record<string, unknown>).ElMessage;
+    delete (globalThis as Record<string, unknown>).ElMessageBox;
   });
 
-  it('数据源只渲染当前页，条数不超过 pageSize', () => {
-    mgmt.passwords.value = makeEntries(PAGE_SIZE * 2 + 10);
+  /**
+   * 让创建副本返回一条固定 ID 的条目
+   *
+   * ID 要能被当选择器用：`findPasswordRow` 查的是 `.${id}`，测试因此需要一个可预知的值。
+   * `updateTime` 取当下，副本按默认排序（更新时间降序）落到第 1 页首位。
+   */
+  const mockCopy = (id: string) => {
+    saveSpy.mockImplementation(async payload => ({
+      ...makeEntry(999, payload),
+      id,
+      updateTime: Date.now(),
+    }));
+  };
 
-    expect(mgmt.filteredPasswords.value.length).toBe(PAGE_SIZE * 2 + 10);
-    expect(mgmt.pagedPasswords.value.length).toBe(PAGE_SIZE);
+  it('表格只吃当前页，命中读数仍是完整命中集', () => {
+    expect(mgmt.filteredPasswords.value).toHaveLength(250);
+    expect(mgmt.totalCount.value).toBe(250);
+    expect(mgmt.pageCount.value).toBe(3);
+    expect(mgmt.pagedEntries.value).toHaveLength(100);
+    // 默认排序更新时间降序：第 1 页必须是最新的一批
+    expect(mgmt.pagedEntries.value[0].id).toBe('r250');
   });
 
-  it('切换页码取到正确的切片窗口', () => {
-    mgmt.passwords.value = makeEntries(PAGE_SIZE * 2 + 10);
-    const all = mgmt.filteredPasswords.value;
-
-    // 第一页
-    expect(mgmt.pagedPasswords.value).toEqual(all.slice(0, PAGE_SIZE));
-
-    // 第二页
-    mgmt.currentPage.value = 2;
-    expect(mgmt.pagedPasswords.value).toEqual(all.slice(PAGE_SIZE, PAGE_SIZE * 2));
-
-    // 最后一页（余数页）
-    mgmt.currentPage.value = 3;
-    expect(mgmt.pagedPasswords.value).toEqual(all.slice(PAGE_SIZE * 2));
-  });
-
-  it('结果集变短使当前页越界时收敛到最后一页', async () => {
-    mgmt.passwords.value = makeEntries(PAGE_SIZE * 3);
-    mgmt.currentPage.value = 3;
-    await nextTick();
-
-    // 收缩到只剩一页多一点（maxPage = 2）
-    mgmt.passwords.value = makeEntries(PAGE_SIZE + 5);
-    await nextTick();
-
-    expect(mgmt.currentPage.value).toBe(2);
-    expect(mgmt.pagedPasswords.value.length).toBe(5);
-  });
-
-  it('过滤条件变化时回到第一页', async () => {
-    mgmt.passwords.value = makeEntries(PAGE_SIZE * 3);
+  it('筛选口径变化回第 1 页，就地改内容不弹回', async () => {
     mgmt.currentPage.value = 3;
     await nextTick();
     expect(mgmt.currentPage.value).toBe(3);
 
-    // 收藏过滤属于结果集语义变化，应回到第一页
-    mgmt.favoriteOnly.value = true;
+    // 就地编辑一条：列表内容变了，但用户看的就是这一页，不该被弹走
+    Object.assign(mgmt.passwords.value[0], { remark: 'edited' });
     await nextTick();
-    expect(mgmt.currentPage.value).toBe(1);
+    expect(mgmt.currentPage.value).toBe(3);
+
+    mgmt.debouncedSearchKeyword.value = 'ux';
+    await nextTick();
+    expect(mgmt.currentPage.value, '搜索口径变化后停在越界页会读到空白').toBe(1);
+    expect(mgmt.totalCount.value).toBe(150);
   });
 
-  it('翻页后剔除已不可见的旧页选中项', async () => {
-    mgmt.passwords.value = makeEntries(PAGE_SIZE * 2);
-    await nextTick();
-    const all = mgmt.filteredPasswords.value;
-    const pageOneId = all[0].id;
+  it('跨页选中的差额被如实计数', async () => {
+    // r250 在第 1 页，r150 在第 2 页，r1 在第 3 页
+    mgmt.selectedIds.value = ['r250', 'r150', 'r1'];
+    expect(mgmt.offPageSelectedCount.value).toBe(2);
 
-    // 模拟用户在第一页勾选一条（handleSelectionChange 只会写入可见行）
-    mgmt.selectedIds.value = [pageOneId];
+    mgmt.currentPage.value = 3;
     await nextTick();
-    expect(mgmt.selectedIds.value).toEqual([pageOneId]);
+    expect(mgmt.offPageSelectedCount.value).toBe(2);
+  });
 
-    // 翻到第二页：第一页的勾选项不再可见（el-table 视觉选中态同样随 DOM 销毁而丢失），
-    // 必须从 selectedIds 剔除，否则「批量删除」会误删不可见条目
+  it('创建副本会把用户带到副本所在页', async () => {
+    mgmt.currentPage.value = 3;
+    mockCopy('copy-1');
+
+    await mgmt.copyPassword(mgmt.passwords.value[249]);
+
+    expect(mgmt.currentPage.value, '副本按更新时间排到第 1 页，停留原页等于没定位').toBe(1);
+    expect(mgmt.pagedEntries.value[0].id).toBe('copy-1');
+  });
+
+  it('副本被当前筛选排除时不硬翻页（维持原「找不到行就什么都不做」）', async () => {
+    mgmt.debouncedSearchKeyword.value = 'ux';
+    await nextTick();
     mgmt.currentPage.value = 2;
+    mockCopy('copy-2');
+
+    // r1 的账号名不含 ux，其副本同样不匹配当前关键词
+    await mgmt.copyPassword(mgmt.passwords.value[0]);
+
+    expect(mgmt.filteredPasswords.value.some(entry => entry.id === 'copy-2')).toBe(false);
+    expect(mgmt.currentPage.value).toBe(2);
+  });
+
+  it('定位高亮恰好持续 ROW_HIGHLIGHT_MS，到点自动摘除', async () => {
+    vi.useFakeTimers();
+    attachRow('copy-hl');
+    mockCopy('copy-hl');
+
+    await mgmt.copyPassword(mgmt.passwords.value[249]);
     await nextTick();
-    expect(mgmt.selectedIds.value).toEqual([]);
+
+    const row = document.querySelector<HTMLElement>('.copy-hl')!;
+    expect(row.classList.contains('new-item'), '副本落在第 1 页，定位必须给它挂上高亮').toBe(true);
+
+    vi.advanceTimersByTime(ROW_HIGHLIGHT_MS - 1);
+    expect(row.classList.contains('new-item'), '未到点就摘掉，等于把这段提示悄悄缩短').toBe(true);
+
+    vi.advanceTimersByTime(1);
+    expect(row.classList.contains('new-item')).toBe(false);
   });
 
-  it('未超过一页时不产生多余分页窗口', () => {
-    mgmt.passwords.value = makeEntries(PAGE_SIZE - 5);
-    expect(mgmt.pagedPasswords.value.length).toBe(PAGE_SIZE - 5);
-    expect(mgmt.currentPage.value).toBe(1);
-  });
+  it('销毁时取消挂起中的高亮定时器，不再回头改 DOM', async () => {
+    vi.useFakeTimers();
+    attachRow('copy-hl');
+    mockCopy('copy-hl');
 
-  describe('自定义每页条数', () => {
-    it('切换档位后每页渲染条数随之变化', async () => {
-      mgmt.passwords.value = makeEntries(100);
-      await nextTick();
-      expect(mgmt.pagedPasswords.value.length).toBe(PAGE_SIZE);
+    await mgmt.copyPassword(mgmt.passwords.value[249]);
+    await nextTick();
 
-      mgmt.handlePageSizeChange(20);
-      await nextTick();
-      expect(mgmt.pageSize.value).toBe(20);
-      expect(mgmt.pagedPasswords.value.length).toBe(20);
-    });
+    const row = document.querySelector<HTMLElement>('.copy-hl')!;
+    expect(row.classList.contains('new-item')).toBe(true);
 
-    it('切换档位保持视口位置（当前页首条不换页）', async () => {
-      mgmt.passwords.value = makeEntries(200);
-      await nextTick();
+    scope.stop();
+    vi.advanceTimersByTime(ROW_HIGHLIGHT_MS * 2);
 
-      // 默认 50/页，翻到第 2 页 → 首条为全量索引 50
-      mgmt.currentPage.value = 2;
-      await nextTick();
-      const firstBefore = mgmt.pagedPasswords.value[0];
-
-      // 切到 20/页：索引 50 落在第 3 页（floor(50/20)+1=3，覆盖索引 40~59）
-      // 视口保持的契约是「原首条仍可见、不被换页甩掉」，而非「仍是新页首行」
-      // （50 不是 20 的整数倍，新页首行只能是索引 40）
-      mgmt.handlePageSizeChange(20);
-      await nextTick();
-      expect(mgmt.currentPage.value).toBe(3);
-      expect(mgmt.pagedPasswords.value.some(p => p.id === firstBefore.id)).toBe(true);
-    });
-
-    it('切换档位持久化到 storage', async () => {
-      mgmt.passwords.value = makeEntries(100);
-      await nextTick();
-
-      mgmt.handlePageSizeChange(100);
-      await flushAsync();
-
-      const stored = await chrome.storage.local.get(STORAGE_KEYS.OPTIONS_PAGE_SIZE);
-      expect(stored[STORAGE_KEYS.OPTIONS_PAGE_SIZE]).toBe(100);
-    });
-
-    it('页大小变化使当前页越界时收敛到最后一页', async () => {
-      mgmt.passwords.value = makeEntries(60);
-      await nextTick();
-      // 默认 50/页 → 第 2 页有 10 条
-      mgmt.currentPage.value = 2;
-      await nextTick();
-      expect(mgmt.currentPage.value).toBe(2);
-
-      // 切到 100/页 → 只有 1 页，第 2 页越界应收敛到 1
-      mgmt.handlePageSizeChange(100);
-      await nextTick();
-      expect(mgmt.currentPage.value).toBe(1);
-      expect(mgmt.pagedPasswords.value.length).toBe(60);
-    });
-
-    it('从 storage 恢复用户偏好的每页条数', async () => {
-      await StorageUtils.setOptionsPageSize(20);
-      await flushAsync();
-
-      // 新建 composable 模拟页面重新加载：异步读取应把 pageSize 恢复为 20
-      const scope2 = effectScope();
-      const mgmt2 = scope2.run(() => usePasswordManagement({ validityForm: ref({ validityHours: 1 }) }))!;
-      await flushAsync();
-
-      expect(mgmt2.pageSize.value).toBe(20);
-      scope2.stop();
-    });
+    // 定时器由 `onScopeDispose` 清掉：卸载后不再有回调回来触碰这行 DOM。
+    // 类名留在原地不影响观感——那张表已经不存在，重挂时是全新的行。
+    expect(row.classList.contains('new-item'), '销毁后仍有定时器打进来改 DOM').toBe(true);
   });
 });

@@ -8,7 +8,20 @@
 
 // ── 内部工具 ──────────────────────────────────────────────
 
+/**
+ * 将 hex 字符串解析为字节数组
+ *
+ * 严格校验：长度为偶数且全部为十六进制字符，否则抛错。
+ * 不做校验时，奇数长度会让 `new ArrayBuffer` 抛出语义不明的 RangeError，
+ * 而 `parseInt('0g', 16)` 返回 0（而非 NaN），会把非法字符静默降级为 0x00
+ * 从而损坏密钥字节。此处提前失败，避免下游 AES-GCM 拿到错误的 key。
+ *
+ * @param hex 偶数长度、仅含 [0-9a-fA-F] 的字符串（空串合法，返回空数组）
+ */
 export function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
+  if (hex.length % 2 !== 0 || !/^[0-9a-fA-F]*$/.test(hex)) {
+    throw new Error('hexToBytes: 非法的十六进制字符串');
+  }
   const bytes = new Uint8Array(new ArrayBuffer(hex.length / 2));
   for (let i = 0; i < hex.length; i += 2) bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
   return bytes;

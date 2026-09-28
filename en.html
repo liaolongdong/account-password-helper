@@ -7,10 +7,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>Free Local Password Manager - Account Password Helper</title>
+    <title>Free Open-Source Local Password Manager - Account Password Helper</title>
     <meta
       name="description"
-      content="Free open-source local password manager for Chrome: one-click login, TOTP 2FA, multi-environment isolation, offline security audit, AES-256-GCM locally."
+      content="Free open-source local password manager for Chrome: one-click login, TOTP 2FA, multi-environment isolation, offline security audit, identity vault, AES-256-GCM locally."
     />
     <meta
       name="keywords"
@@ -40,11 +40,11 @@
     />
     <meta
       property="og:title"
-      content="Free Local Password Manager - Account Password Helper"
+      content="Free Open-Source Local Password Manager - Account Password Helper"
     />
     <meta
       property="og:description"
-      content="Free open-source local password manager for Chrome: one-click login, TOTP 2FA, multi-environment isolation, offline security audit, AES-256-GCM locally."
+      content="Free open-source local password manager for Chrome: one-click login, TOTP 2FA, multi-environment isolation, offline security audit, identity vault, AES-256-GCM locally."
     />
     <meta
       property="og:url"
@@ -72,11 +72,11 @@
     />
     <meta
       name="twitter:title"
-      content="Free Local Password Manager - Account Password Helper"
+      content="Free Open-Source Local Password Manager - Account Password Helper"
     />
     <meta
       name="twitter:description"
-      content="Free open-source local password manager for Chrome: one-click login, TOTP 2FA, multi-environment isolation, offline security audit, AES-256-GCM locally."
+      content="Free open-source local password manager for Chrome: one-click login, TOTP 2FA, multi-environment isolation, offline security audit, identity vault, AES-256-GCM locally."
     />
     <meta
       name="twitter:image"
@@ -120,7 +120,7 @@
         "operatingSystem": "Chrome",
         "browserRequirements": "Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.",
         "softwareVersion": "3.9.0",
-        "dateModified": "2026-09-12",
+        "dateModified": "2026-09-22",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -130,15 +130,18 @@
         "featureList": [
           "One-click login: autofill + tick \"remember me / I agree\" + click sign in",
           "Exact-host matching keeps dev / test / staging / prod accounts apart",
+          "Three cross-subdomain tiers: exact only, exact + wildcard entries (*.qq.com), or same root domain",
           "Built-in TOTP 2FA (RFC 6238); add secrets by QR scan or image upload",
           "Per-field AES-256-GCM encryption at rest, keyed by PBKDF2-SHA256 with 600,000 iterations",
           "Offline security audit: a 0-100 score weighted across four dimensions, computed on your machine",
           "Password generator: random passwords and a passphrase mode",
           "Four fill paths: inline panel, side panel, context menu, keyboard shortcut",
+          "Site rules: per-domain custom selectors for login forms heuristic detection misses",
           "CSV / JSON import and export with field auto-detection for common password-manager exports",
           "Encrypted .aph backup and restore, plus email backup composed locally via mailto",
           "Side panel opens instantly in every state (~20-50ms to data on the cached warm path)",
-          "Six color themes and a bilingual 中文 / English interface"
+          "Six color themes and a bilingual 中文 / English interface",
+          "Identity vault: ID, bank card and other personal details in a separate encrypted store"
         ],
         "description": "Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.",
         "url": "https://liaolongdong.github.io/account-password-helper/",
@@ -277,7 +280,15 @@
             "name": "What is inline fill?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "An alternative to the side panel. In \"Inline\" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Supports keyboard navigation (↑↓ browse, Enter fill, Esc close) and uses a closed Shadow DOM for full style isolation."
+              "text": "An alternative to the side panel. In \"Inline\" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Keyboard navigation is supported (↑↓ browse, Enter fill, Esc close), and the first row stays selected on open and after every filtering pass, so Enter fills the best match for the site. Search shares one rule set with the sidebar — username, tag, remark and URL all match, including full pinyin and initialisms — and ↑↓ / Enter / Esc are left alone while an IME candidate is still pending, so nothing fills by accident. When the site has no matching account, the empty state offers \"Search all accounts\", opening the manager page with the keyword already applied. Uses a closed Shadow DOM for full style isolation."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What if the login fields are not detected and nothing fills?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open \"Site rules\" on the manager page and pin the CSS selectors for that domain's username and password fields (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a \"Shadow DOM penetration\" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file."
             }
           },
           {
@@ -302,6 +313,14 @@
             "acceptedAnswer": {
               "@type": "Answer",
               "text": "Click \"Auto-save Settings\" on the management page and turn on \"Enable auto-save\". Optionally configure domain rules (exact domains or regex; empty matches all). On login a confirmation card appears with \"Save\", \"Not now\", and \"Never\" options, plus editable tag (defaults to page title) and remark (defaults to \"Auto-saved\"). \"Never\" adds the domain to the block list, removable later in settings. Before prompting, the extension compares against your vault: identical credentials are skipped silently, and changed passwords trigger an \"Update\" prompt."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can one account cover every subdomain of a site?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes — and by default it does not. The \"Cross-subdomain matching\" control in the manager page header has three tiers and defaults to \"Exact match only\". \"Exact + wildcard entries\" makes an account saved as *.qq.com surface on any subdomain of that site; \"Same main domain\" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged \"Cross-subdomain\". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row."
             }
           },
           {
@@ -417,6 +436,8 @@
         --radius: 16px;
         --radius-sm: 10px;
         --container: 1200px;
+        /* 与 .reveal 同款强出缓动，动效层统一引用，避免各处重复字面量 */
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
       }
 
       .container {
@@ -836,6 +857,10 @@
         background: rgba(14, 165, 233, 0.12);
         color: #0ea5e9;
       }
+      .feature-card:nth-child(12) .feature-icon {
+        background: rgba(132, 204, 22, 0.12);
+        color: #84cc16;
+      }
       .feature-card h3 {
         margin: 0 0 8px;
         font-size: 18px;
@@ -1075,6 +1100,65 @@
         color: var(--text-muted);
         font-size: 15px;
         line-height: 1.7;
+      }
+
+      /* ============ More by the author ============ */
+      .more {
+        background: var(--bg-soft);
+      }
+      .more-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 20px;
+      }
+      .more-card {
+        display: flex;
+        flex-direction: column;
+        padding: 28px;
+        background: white;
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+        transition:
+          transform 0.25s ease,
+          box-shadow 0.25s ease;
+      }
+      .more-card:hover {
+        transform: translateY(-4px);
+        box-shadow: var(--shadow-lg);
+      }
+      .more-card h3 {
+        margin: 0 0 10px;
+        font-size: 20px;
+      }
+      .more-card h3 a {
+        color: var(--text);
+        text-decoration: none;
+      }
+      .more-card h3 a:hover {
+        color: var(--primary);
+      }
+      .more-card p {
+        margin: 0;
+        color: var(--text-muted);
+        line-height: 1.7;
+      }
+      .more-card .more-desc {
+        flex: 1;
+      }
+      .more-links {
+        display: flex;
+        gap: 18px;
+        margin-top: 16px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .more-links a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+      .more-links a:hover {
+        color: var(--primary-dark);
+        text-decoration: underline;
       }
 
       /* ============ Footer ============ */
@@ -1436,6 +1520,191 @@
         transition-delay: 0.4s;
       }
 
+      /* ============ Motion layer ============ */
+      /* 落地页品牌动效：只改 transform / opacity，不触碰布局属性；
+         全部动效在文末 prefers-reduced-motion 区块统一降级，降级后仅保留透明度变化。 */
+      @keyframes aph-fade {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+      @keyframes aph-rise {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      /* 钥匙卡常驻 rotate(-6deg)，浮动必须把旋转一起写进关键帧，否则入场后姿态被重置 */
+      @keyframes aph-float {
+        from {
+          transform: rotate(-6deg) translateY(0);
+        }
+        to {
+          transform: rotate(-6deg) translateY(-10px);
+        }
+      }
+      @keyframes aph-bob {
+        from {
+          transform: translateY(0);
+        }
+        to {
+          transform: translateY(6px);
+        }
+      }
+      @keyframes aph-sheen {
+        0%,
+        62% {
+          transform: translateX(-70%);
+        }
+        82%,
+        100% {
+          transform: translateX(70%);
+        }
+      }
+      @keyframes aph-shackle {
+        from {
+          opacity: 0.4;
+          transform: translateY(-4px) scaleY(1.2);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+
+      /* Hero：文案自上而下分层入场，右侧视觉块随后落位 */
+      .hero-eyebrow,
+      .hero h1,
+      .hero p.lead,
+      .hero-cta,
+      .hero-hint,
+      .disclaimer-banner,
+      .hero-visual {
+        animation: aph-rise 0.6s var(--ease-out) both;
+      }
+      .hero h1 {
+        animation-delay: 0.06s;
+      }
+      .hero p.lead {
+        animation-delay: 0.14s;
+      }
+      .hero-cta {
+        animation-delay: 0.22s;
+      }
+      .hero-hint {
+        animation-delay: 0.28s;
+      }
+      .disclaimer-banner {
+        animation-delay: 0.34s;
+      }
+      .hero-visual {
+        animation-delay: 0.1s;
+        animation-duration: 0.7s;
+      }
+
+      .hero-visual .key-card {
+        overflow: hidden;
+        will-change: transform;
+        animation: aph-float 6s ease-in-out 0.9s infinite alternate;
+      }
+      /* 周期性掠光：伪元素整块位移，由 .key-card 的 overflow 裁出圆角边界 */
+      .hero-visual .key-card::after {
+        content: '';
+        position: absolute;
+        top: -40%;
+        right: -60%;
+        bottom: -40%;
+        left: -60%;
+        background: linear-gradient(100deg, transparent 42%, rgba(255, 255, 255, 0.42) 50%, transparent 58%);
+        transform: translateX(-70%);
+        animation: aph-sheen 7s ease-in-out 1.8s infinite;
+        pointer-events: none;
+      }
+      /* 角标与卡片反向浮动，拉开层次；锁扣入场闭合一次，呼应「本地加密」 */
+      .hero-badge {
+        will-change: transform;
+        animation: aph-bob 6s ease-in-out 0.9s infinite alternate;
+      }
+      .hero-badge .lock svg path {
+        transform-box: fill-box;
+        transform-origin: 50% 100%;
+        animation: aph-shackle 0.5s var(--ease-out) 1.15s both;
+      }
+
+      /* 步骤数字与 FAQ 答案：复用既有 .reveal / .open 状态，不新增脚本 */
+      .step-num {
+        opacity: 0.5;
+        transform: translateY(8px);
+        transition:
+          opacity 0.5s var(--ease-out) 0.12s,
+          transform 0.5s var(--ease-out) 0.12s;
+      }
+      .step-card.visible .step-num {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .faq-a-inner {
+        opacity: 0;
+        transform: translateY(-6px);
+        transition:
+          opacity 0.3s ease 0.05s,
+          transform 0.3s var(--ease-out) 0.05s;
+      }
+      .faq-item.open .faq-a-inner {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* 悬停微交互：只在真正有指针的设备上启用，避免触屏点击后状态粘滞 */
+      @media (hover: hover) and (pointer: fine) {
+        .feature-icon {
+          transition: transform 0.25s var(--ease-out);
+        }
+        .feature-card:hover .feature-icon {
+          transform: translateY(-2px) scale(1.06);
+        }
+        .nav-links a::after {
+          content: '';
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 2px;
+          background: var(--primary);
+          border-radius: 2px;
+          transform: scaleX(0);
+          transform-origin: left center;
+          transition: transform 0.22s var(--ease-out);
+        }
+        .nav-links a:hover::after,
+        .nav-links a.active::after {
+          transform: scaleX(1);
+        }
+        /* 作者互链卡箭头：用 border 画而非文字，中英一致且不被朗读 */
+        .more-links a::after {
+          content: '';
+          display: inline-block;
+          width: 5px;
+          height: 5px;
+          margin-left: 6px;
+          border-top: 1.5px solid currentColor;
+          border-right: 1.5px solid currentColor;
+          vertical-align: middle;
+          transform: translateX(0) rotate(45deg);
+          transition: transform 0.2s var(--ease-out);
+        }
+        .more-links a:hover::after {
+          transform: translateX(3px) rotate(45deg);
+        }
+      }
+
       /* ============ Responsive ============ */
       @media (max-width: 1024px) {
         .feature-grid {
@@ -1528,6 +1797,53 @@
         }
         .slide-info h3 {
           font-size: 18px;
+        }
+      }
+
+      /* ============ Reduced motion（动效降级） ============ */
+      /* 降级不等于没有动效：去掉位移、缩放与循环运动，保留淡入淡出，
+         这样用户依然能读进出场层级与展开关系。放在末尾以覆盖前面的基准规则。 */
+      @media (prefers-reduced-motion: reduce) {
+        .hero-eyebrow,
+        .hero h1,
+        .hero p.lead,
+        .hero-cta,
+        .hero-hint,
+        .disclaimer-banner,
+        .hero-visual {
+          animation-name: aph-fade;
+          animation-duration: 0.2s;
+          animation-timing-function: ease-out;
+        }
+        .hero-visual .key-card,
+        .hero-badge,
+        .hero-badge .lock svg path {
+          animation: none;
+        }
+        .hero-visual .key-card::after {
+          display: none;
+        }
+        .reveal,
+        .reveal.visible,
+        .step-num,
+        .step-card.visible .step-num,
+        .faq-a-inner,
+        .faq-item.open .faq-a-inner {
+          transform: none;
+        }
+        .nav-links a::after,
+        .more-links a::after {
+          transition: none;
+        }
+        .nav-links a:hover::after,
+        .nav-links a.active::after {
+          transform: scaleX(1);
+        }
+        .more-links a:hover::after {
+          transform: rotate(45deg);
+        }
+        .feature-card:hover .feature-icon {
+          transform: none;
         }
       }
     </style>
@@ -1669,7 +1985,7 @@
           <p
             class="lead"
             data-i18n="hero.lead"
-          >A Chrome password manager built for developers &amp; QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.</p>
+          >A Chrome password manager built for developers &amp; QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts, with three tiers to widen matching across subdomains when one account serves a whole site; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.</p>
           <div class="hero-cta">
             <a
               class="btn btn-primary"
@@ -2097,7 +2413,7 @@
               </svg>
             </div>
             <h3 data-i18n="features.f9.title">Trash &amp; Password History</h3>
-            <p data-i18n="features.f9.desc">Deleted entries stay in the trash for 30 days and can be restored anytime; password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 3) for one-click rollback; changing the master password re-keys atomically without data loss.</p>
+            <p data-i18n="features.f9.desc">Deleted entries stay in the trash for 30 days and can be restored anytime (newest deletion first, with keyword search); password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 3) for one-click rollback; changing the master password re-keys atomically without data loss.</p>
           </article>
           <article class="feature-card reveal reveal-delay-1">
             <div class="feature-icon">
@@ -2138,6 +2454,138 @@
             </div>
             <h3 data-i18n="features.f10.title">Themes &amp; Bilingual UI</h3>
             <p data-i18n="features.f10.desc">6 color themes and instant Chinese/English switching; entries show site favicons (read from the browser's local cache, zero network) for faster recognition in long lists.</p>
+          </article>
+          <article class="feature-card reveal reveal-delay-2">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect
+                  x="2"
+                  y="4"
+                  width="20"
+                  height="16"
+                  rx="2"
+                />
+                <circle
+                  cx="9"
+                  cy="10"
+                  r="2"
+                />
+                <path d="M5 16c0-2 1.8-3.2 4-3.2s4 1.2 4 3.2" />
+                <line
+                  x1="14"
+                  y1="10"
+                  x2="18"
+                  y2="10"
+                />
+                <line
+                  x1="14"
+                  y1="13"
+                  x2="18"
+                  y2="13"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f12.title">Identity Vault</h3>
+            <p data-i18n="features.f12.desc">A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open. Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets and collapse or expand all cards, search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; it is not covered by automatic backups, so export an encrypted backup regularly.</p>
+          </article>
+          <article class="feature-card reveal reveal-delay-3">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="10"
+                />
+                <line
+                  x1="22"
+                  y1="12"
+                  x2="18"
+                  y2="12"
+                />
+                <line
+                  x1="6"
+                  y1="12"
+                  x2="2"
+                  y2="12"
+                />
+                <line
+                  x1="12"
+                  y1="6"
+                  x2="12"
+                  y2="2"
+                />
+                <line
+                  x1="12"
+                  y1="22"
+                  x2="12"
+                  y2="18"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f13.title">Site Rules Fallback</h3>
+            <p data-i18n="features.f13.desc">Login fields hidden inside custom components? Under "Site rules" on the manager page, pin the CSS selectors for that domain's username and password inputs (the rule domain must equal the login page domain exactly). Every rule carries a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain, so a team can share one working set instead of configuring browser by browser.</p>
+          </article>
+          <article class="feature-card reveal reveal-delay-1">
+            <div class="feature-icon">
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle
+                  cx="18"
+                  cy="5"
+                  r="3"
+                />
+                <circle
+                  cx="6"
+                  cy="12"
+                  r="3"
+                />
+                <circle
+                  cx="18"
+                  cy="19"
+                  r="3"
+                />
+                <line
+                  x1="8.59"
+                  y1="13.51"
+                  x2="15.42"
+                  y2="17.49"
+                />
+                <line
+                  x1="15.41"
+                  y1="6.51"
+                  x2="8.59"
+                  y2="10.49"
+                />
+              </svg>
+            </div>
+            <h3 data-i18n="features.f14.title">Three Cross-Subdomain Tiers</h3>
+            <p data-i18n="features.f14.desc">By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.</p>
           </article>
         </div>
       </div>
@@ -2365,6 +2813,13 @@
                 <td><span class="compare-cross">✗</span></td>
               </tr>
               <tr>
+                <td data-i18n="compare.row.siterules">Site Rules (Custom Fill Selectors)</td>
+                <td class="highlight"><span class="compare-check">✓</span></td>
+                <td><span class="compare-cross">✗</span></td>
+                <td><span class="compare-cross">✗</span></td>
+                <td><span class="compare-cross">✗</span></td>
+              </tr>
+              <tr>
                 <td data-i18n="compare.row.totp">Built-in TOTP 2FA</td>
                 <td class="highlight"><span class="compare-check">✓</span></td>
                 <td><span class="compare-cross">✗</span></td>
@@ -2469,6 +2924,86 @@
           id="faqList"
         >
           <!-- items injected by JS -->
+        </div>
+      </div>
+    </section>
+
+    <!-- ======= More by the author ======= -->
+    <section
+      class="more"
+      id="more"
+    >
+      <div class="container">
+        <div class="section-head">
+          <h2 data-i18n="more.title">More by the author</h2>
+          <p
+            class="section-sub"
+            data-i18n="more.sub"
+          >Same author, same rules: open source, offline, data stays on your machine</p>
+        </div>
+        <div class="more-grid">
+          <article class="more-card reveal">
+            <h3>
+              <a
+                href="https://liaolongdong.github.io/transfer-any-file/"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="more.taf.name"
+                >Transfer Any File</a
+              >
+            </h3>
+            <p
+              class="more-desc"
+              data-i18n="more.taf.desc"
+            >14 formats converted entirely in the browser — not a single byte uploaded. Markdown, Word, PDF, Excel, CSV, JSON, HTML and images convert in batches or multi-step chains on your own machine, with preview, inline editing and ZIP packaging. No account, no uploads, no network requests.</p>
+            <p class="more-links">
+              <a
+                href="https://liaolongdong.github.io/transfer-any-file/"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="more.docs"
+                >Docs, demo &amp; download</a
+              >
+              <a
+                href="https://github.com/liaolongdong/transfer-any-file"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="more.repo"
+                >Source code</a
+              >
+            </p>
+          </article>
+          <article class="more-card reveal reveal-delay-1">
+            <h3>
+              <a
+                href="https://liaolongdong.github.io/cross-origin-proxy/"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="more.cop.name"
+                >Cross-origin Proxy</a
+              >
+            </h3>
+            <p
+              class="more-desc"
+              data-i18n="more.cop.desc"
+            >Proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket — all configured in the browser, with data stored only on your computer.</p>
+            <p class="more-links">
+              <a
+                href="https://liaolongdong.github.io/cross-origin-proxy/"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="more.docs"
+                >Docs, demo &amp; download</a
+              >
+              <a
+                href="https://github.com/liaolongdong/cross-origin-proxy"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="more.repo"
+                >Source code</a
+              >
+            </p>
+          </article>
         </div>
       </div>
     </section>
@@ -2679,11 +3214,11 @@
       const I18N = {
         'meta.title': {
           zh: '开源免费本地密码管理器 · 一键登录 + TOTP | 账号密码管理助手',
-          en: 'Free Local Password Manager - Account Password Helper',
+          en: 'Free Open-Source Local Password Manager - Account Password Helper',
         },
         'meta.description': {
-          zh: '开源免费本地密码管理器：一键登录（填充+勾选+点击）、TOTP 两步验证、多环境账号隔离、离线安全体检。密码逐字段 AES-256-GCM 本机加密，不上传服务器、无需注册账号。',
-          en: 'Free open-source local password manager for Chrome: one-click login, TOTP 2FA, multi-environment isolation, offline security audit, AES-256-GCM locally.',
+          zh: '开源免费本地密码管理器：一键登录（填充+勾选+点击）、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。密码逐字段 AES-256-GCM 本机加密，不上传服务器、无需注册账号。',
+          en: 'Free open-source local password manager for Chrome: one-click login, TOTP 2FA, multi-environment isolation, offline security audit, identity vault, AES-256-GCM locally.',
         },
         'nav.brand': { zh: '账号密码管理助手', en: 'Account Password Helper' },
         'nav.features': { zh: '特性', en: 'Features' },
@@ -2707,8 +3242,8 @@
           en: 'One-click login + local encryption<br />Password management, never this effortless & efficient',
         },
         'hero.lead': {
-          zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 + 点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号；内置 TOTP 两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。',
-          en: 'A Chrome password manager built for developers & QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.',
+          zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 + 点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号，需要时可按三档放宽跨子域匹配；内置 TOTP 两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。',
+          en: 'A Chrome password manager built for developers & QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts, with three tiers to widen matching across subdomains when one account serves a whole site; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.',
         },
         'hero.download': { zh: '下载插件', en: 'Install Extension' },
         'hero.githubDownload': { zh: 'GitHub 下载', en: 'GitHub Download' },
@@ -2789,13 +3324,28 @@
         },
         'features.f9.title': { zh: '回收站与修改历史', en: 'Trash & Password History' },
         'features.f9.desc': {
-          zh: '删除条目进回收站保留 30 天可随时恢复；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 3 份），改错一键回滚；修改主密码原子换钥不丢数据。',
-          en: 'Deleted entries stay in the trash for 30 days and can be restored anytime; password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 3) for one-click rollback; changing the master password re-keys atomically without data loss.',
+          zh: '删除条目进回收站保留 30 天可随时恢复（列表最近删除在前、支持关键词检索）；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 3 份），改错一键回滚；修改主密码原子换钥不丢数据。',
+          en: 'Deleted entries stay in the trash for 30 days and can be restored anytime (newest deletion first, with keyword search); password history is configurable (enable/disable, 1–10 encrypted snapshots per entry, default 3) for one-click rollback; changing the master password re-keys atomically without data loss.',
         },
         'features.f10.title': { zh: '主题换肤与双语界面', en: 'Themes & Bilingual UI' },
         'features.f10.desc': {
           zh: '6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，不发网络请求），长列表辨识更快。',
           en: "6 color themes and instant Chinese/English switching; entries show site favicons (read from the browser's local cache, zero network) for faster recognition in long lists.",
+        },
+        'features.f12.title': { zh: '身份信息库', en: 'Identity Vault' },
+        'features.f12.desc': {
+          zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验；支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、折叠 / 展开全部卡片、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 30 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 / 回导；不参与自动备份，建议定期手动导出加密备份。',
+          en: 'A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open. Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets and collapse or expand all cards, search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; it is not covered by automatic backups, so export an encrypted backup regularly.',
+        },
+        'features.f13.title': { zh: '站点规则兜底', en: 'Site Rules Fallback' },
+        'features.f13.desc': {
+          zh: '登录框藏在自定义组件里、识别不到输入框？在密码管理页「站点规则」为该域名手写用户名与密码框的 CSS 选择器（规则域名需与登录页域名完全一致），每条规则自带「Shadow DOM 穿透」开关，默认开启、只作用于开放影子根。规则可导出为纯文本 JSON（只含域名与选择器，不含凭据）并按域名合并导入，团队共享一套配置，不必逐台浏览器调。',
+          en: 'Login fields hidden inside custom components? Under "Site rules" on the manager page, pin the CSS selectors for that domain\'s username and password inputs (the rule domain must equal the login page domain exactly). Every rule carries a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain, so a team can share one working set instead of configuring browser by browser.',
+        },
+        'features.f14.title': { zh: '跨子域名匹配三档', en: 'Three Cross-Subdomain Tiers' },
+        'features.f14.desc': {
+          zh: '默认只展示与当前域名完全一致的条目；「精确 + 通配条目」让网址写成 *.qq.com 的账号在该站任意子域出现；「同主域名」再补一层兜底——当前域名没有账号时带出主域与兄弟子域的条目并标注「跨子域」。放宽只改变展示与可填充的账号，自动保存的判重口径不随档位改变。',
+          en: 'By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.',
         },
         'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
         'showcase.sub': {
@@ -2848,6 +3398,10 @@
         'compare.val.cloud2': { zh: '云端', en: 'Cloud' },
         'compare.row.oneclick': { zh: '一键登录（填充+勾选+点击）', en: 'One-Click Login (Fill + Tick + Click)' },
         'compare.row.multienv': { zh: '多环境账号隔离', en: 'Multi-Environment Isolation' },
+        'compare.row.siterules': {
+          zh: '站点规则（自定义填充选择器）',
+          en: 'Site Rules (Custom Fill Selectors)',
+        },
         'compare.row.totp': { zh: '内置 TOTP 两步验证', en: 'Built-in TOTP 2FA' },
         'compare.val.paidonly': { zh: '付费版', en: 'Paid Only' },
         'compare.row.security': { zh: '安全体检', en: 'Security Audit' },
@@ -2869,6 +3423,23 @@
           zh: '使用前后你可能会关心的问题',
           en: 'Questions you may have before and after using',
         },
+        'more.title': { zh: '作者的其他插件', en: 'More by the author' },
+        'more.sub': {
+          zh: '同一位作者、同一套做法：开源、离线、数据只留在本机',
+          en: 'Same author, same rules: open source, offline, data stays on your machine',
+        },
+        'more.taf.name': { zh: 'Transfer Any File', en: 'Transfer Any File' },
+        'more.taf.desc': {
+          zh: '14 种格式在浏览器里互转，一个字节也不上传：Markdown、Word、PDF、Excel、CSV、JSON、HTML 与图片在你自己的电脑上完成批量与多步转换，支持预览编辑与 ZIP 打包。无账号、无上传、无网络请求。',
+          en: '14 formats converted entirely in the browser — not a single byte uploaded. Markdown, Word, PDF, Excel, CSV, JSON, HTML and images convert in batches or multi-step chains on your own machine, with preview, inline editing and ZIP packaging. No account, no uploads, no network requests.',
+        },
+        'more.cop.name': { zh: '跨域代理助手', en: 'Cross-origin Proxy' },
+        'more.cop.desc': {
+          zh: '把页面发出的 API 请求代理到另一个后端环境：重写 URL、请求头与响应，条件化 Mock、注入延迟、阻断请求、失败重试、转发 WebSocket——全部在浏览器里配置，数据只存在你的电脑上。',
+          en: "Proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket — all configured in the browser, with data stored only on your computer.",
+        },
+        'more.docs': { zh: '使用说明、演示与下载', en: 'Docs, demo & download' },
+        'more.repo': { zh: '源码', en: 'Source code' },
         'footer.email': {
           zh: '邮箱：<a href="mailto:924902324@qq.com?subject=账号密码管理助手反馈">924902324@qq.com</a>',
           en: 'Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a>',
@@ -3108,6 +3679,16 @@
           },
         },
         {
+          q: {
+            zh: '登录页的输入框识别不到、填充没反应，怎么办？',
+            en: 'What if the login fields are not detected and nothing fills?',
+          },
+          a: {
+            zh: '先等页面完全加载或刷新后重试。如果表单渲染在自定义组件（Web Components）里，启发式识别可能取不到输入框——这时打开密码管理页的「站点规则」，为该域名手写用户名框与密码框的 CSS 选择器即可（规则域名需与登录页域名完全一致，不支持通配）。每条规则自带「Shadow DOM 穿透」开关，默认开启，只作用于开放影子根（closed 模式的影子根任何扩展都读不到）。规则可导出为纯文本 JSON（只含域名与选择器，不含任何凭据）并按域名合并导入，导入结果报「新增 / 更新 / 忽略」，上限 500 条规则、单文件 2 MiB。',
+            en: 'Wait for the page to finish loading, or refresh and retry. If the form is rendered by custom components (Web Components), heuristic detection may not find the inputs — open "Site rules" on the manager page and pin the CSS selectors for that domain\'s username and password fields (the rule domain must equal the login page domain exactly; wildcards are not supported). Each rule ships with a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only (no extension can read a closed root). Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, within 500 rules and 2 MiB per file.',
+          },
+        },
+        {
           q: { zh: '如何自定义快捷键？', en: 'How do I customize shortcuts?' },
           a: {
             zh: 'Chrome 浏览器原生支持修改扩展快捷键。在地址栏输入 chrome://extensions/shortcuts，找到「Account Password Helper」，点击对应命令右侧的快捷键输入框，按下新的组合键即可。修改后 Popup 弹窗中显示的快捷键会自动同步更新。也可以从密码管理页「安全设置 → 快捷键」打开一览弹窗查看四组按键的当前生效状态，其中「前往修改」按钮直达该管理页；侧边栏「帮助」弹窗的「快捷键」分组同样提供一览与入口。',
@@ -3158,8 +3739,8 @@
         {
           q: { zh: '什么是内联填充？', en: 'What is inline fill?' },
           a: {
-            zh: '内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充；也可按快捷键 Ctrl+Shift+K / Cmd+Shift+K 直接展开（任意填充模式下均可用）。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），使用 Closed Shadow DOM 完全隔离页面样式。',
-            en: 'An alternative to the side panel. In "Inline" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Supports keyboard navigation (↑↓ browse, Enter fill, Esc close) and uses a closed Shadow DOM for full style isolation.',
+            zh: '内联填充是侧边栏之外的另一种快捷填充方式。当填充模式为「内联」时，登录输入框获焦后会在右侧内缘显示一个钥匙图标，点击图标展开迷你面板（含搜索栏、账号列表和密码管理入口），选择账号即可填充；也可按快捷键 Ctrl+Shift+K / Cmd+Shift+K 直接展开（任意填充模式下均可用）。支持键盘导航（↑↓ 浏览、Enter 填充、Esc 关闭），面板打开与每次筛选后默认选中首条，回车即填当前站点最匹配的账号；搜索与侧边栏共用同一套口径，账号 / 标签 / 备注 / 网址多字段命中，认拼音全拼与首字母缩写；中文／日文输入法候选未上屏时不接管 ↑↓ / Enter / Esc，避免误填。当前站点无匹配账号时，空态提供「到全部账号中搜索」，带着关键词直达管理页做全库检索。使用 Closed Shadow DOM 完全隔离页面样式。',
+            en: 'An alternative to the side panel. In "Inline" mode, a key icon appears inside the focused login field; click it to open a mini panel (search bar, account list, manager entry) and pick an account to fill. You can also press Ctrl+Shift+K / Cmd+Shift+K to open it directly (works in any fill mode). Keyboard navigation is supported (↑↓ browse, Enter fill, Esc close), and the first row stays selected on open and after every filtering pass, so Enter fills the best match for the site. Search shares one rule set with the sidebar — username, tag, remark and URL all match, including full pinyin and initialisms — and ↑↓ / Enter / Esc are left alone while an IME candidate is still pending, so nothing fills by accident. When the site has no matching account, the empty state offers "Search all accounts", opening the manager page with the keyword already applied. Uses a closed Shadow DOM for full style isolation.',
           },
         },
 
@@ -3227,6 +3808,22 @@
           },
         },
 
+        {
+          q: { zh: '条目数量有上限吗？', en: 'Is there a limit on how many entries I can store?' },
+          a: {
+            zh: '有。密码列表的条目总量上限为 2000 条，按列表条目数计数，回收站中的条目不占额度。达到上限后新增、导入、网页自动保存与回收站恢复都会明确提示被拒绝，不会静默覆盖或删除已保存的数据；导入超出剩余额度时，预览页会显示还能导入多少条、将被忽略多少条，由你选择只导入前若干条或取消。需要腾出额度时，在密码列表中删除不再使用的条目即可——条目移进回收站的那一刻就释放额度，无需再清空回收站；也可以先用「导出数据」「导出JSON」「加密备份导出」留存全量数据再清理列表。',
+            en: 'Yes — the password list holds up to 2,000 entries, counted on the list itself; entries in the Trash do not take a slot. Once it is full, adding, importing, page auto-save and restoring from Trash are refused with an explicit message, and stored data is never silently overwritten or dropped. If an import exceeds the remaining slots, the preview tells you how many entries still fit and how many will be ignored, and you choose to import those or cancel. To make room, delete entries you no longer need from the password list — an entry releases its slot the moment it moves to the Trash, so emptying the Trash is not required — or keep a full copy via "Export Data" / "Export JSON" / "Export Encrypted Backup" and then trim the list.',
+          },
+        },
+
+        {
+          q: { zh: '条目接近上限时管理页会卡吗？', en: 'Does the manager page get sluggish near the entry limit?' },
+          a: {
+            zh: '不会按条目总数卡。列表按页呈现（默认每页 100 条，可切 50 / 100 / 200），一次只渲染当前这一页，所以搜索、输入过滤、翻页、悬停这类交互的耗时基本不再随条目数增长——本机同法实测，600 条与近上限 2000 条两档的读数落在同一量级。打开管理页还包含一次「读整库并解密」，这一步的开销与条目总数相关、不由分页决定，所以这里的口径是「成本不随行数逐条放大」，不是「恒定耗时」。分页只改变「一次画多少行」：搜索、排序、导出与「总计 / 筛选后」读数作用的仍是全部命中条目，跨页勾选也会保留（分页条会写明有几条不在当前页）；表头「全选」按表格惯例只勾当前页，需要大批量操作时先切到每页 200 条，或逐页勾选。新增、编辑、收藏、创建副本后会自动跳到该条所在页并高亮 6 秒。',
+            en: 'Not as a function of how many entries you have. The list paints one page at a time (100 rows by default, 50 / 100 / 200 on demand — the size you pick is remembered on this machine for your next visit), so searching, filtering as you type, flipping pages and hovering land in the same range at 600 entries as at the 2000-entry cap — measured on one machine with the same harness. Opening the page still reads and decrypts the whole vault once, and that step does track vault size; the promise is “cost does not grow row by row”, not “constant time”. Pagination only changes how many rows are drawn: search, sorting, export and the "total / filtered" readout still cover the entire matching set, and checked entries are kept across pages — the pager tells you how many of them are off-page. The header checkbox selects the current page only, as in any table, so switch to 200 rows per page or tick page by page when you need a large batch. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it for 6 seconds. The page number is not remembered: it follows the current filters and sort, so it is a derived value rather than a setting.',
+          },
+        },
+
         // ===== 高级配置 =====
         {
           category: { zh: '高级配置', en: 'Advanced' },
@@ -3256,6 +3853,16 @@
           a: {
             zh: '当同一网站（同域名）相同账号但密码发生变化时，插件会弹出「更新」确认，确认后更新该条目的密码，并保留原有的标签和备注（除非在弹窗中手动修改）；账号密码完全相同则不打扰；不同账号则新增条目，不会影响已有数据。',
             en: 'When the same account on the same site has a changed password, an "Update" prompt appears; on confirmation the password is updated while existing tags and remarks are kept (unless you edit them in the prompt). Identical credentials are skipped; different accounts create new entries without touching existing data.',
+          },
+        },
+        {
+          q: {
+            zh: '同一站点的多个子域名能共用一个账号吗？',
+            en: 'Can one account cover every subdomain of a site?',
+          },
+          a: {
+            zh: '可以，但默认不共用。密码管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成 *.qq.com 的账号会在该站点任意子域名出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域 qq.com 与兄弟子域的条目，并在列表里标注「跨子域」。放宽只改变哪些账号被展示与可填充：自动保存的判重口径不随档位改变，localhost / 127.0.0.1 始终按端口区分，侧边栏与内联下拉共用同一套排序、一键填充取首条。',
+            en: 'Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.',
           },
         },
         {
@@ -3780,12 +4387,17 @@
 
           <h4>什么是内联填充？ / What is inline fill?</h4>
           <p>
-            内联填充是侧边栏之外的另一种快捷填充方式。登录输入框获焦后会在右侧内缘显示钥匙图标，点击展开迷你面板选择账号即可填充。使用
+            内联填充是侧边栏之外的另一种快捷填充方式。登录输入框获焦后会在右侧内缘显示钥匙图标，点击展开迷你面板选择账号即可填充。搜索与侧边栏同一套口径（账号
+            / 标签 / 备注 /
+            网址，认拼音全拼与首字母），打开即默认选中首条、回车即填；当前站点无匹配账号时可带着关键词直达管理页做全库检索。使用
             Closed Shadow DOM 完全隔离页面样式。
           </p>
           <p>
             An alternative to the side panel. A key icon appears inside the focused login field; click it to open a mini
-            panel and pick an account to fill. Uses a closed Shadow DOM for full style isolation.
+            panel and pick an account to fill. Search follows the same rules as the sidebar (username, tag, remark and
+            URL, including full pinyin and initialisms), the first row is selected as soon as the panel opens so Enter
+            fills it, and the empty state can hand your keyword to the manager page to search the whole vault. Uses a
+            closed Shadow DOM for full style isolation.
           </p>
 
           <h3>数据管理 / Data Management</h3>

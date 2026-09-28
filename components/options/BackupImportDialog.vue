@@ -33,6 +33,7 @@
             :limit="1"
             accept=".aph"
             @change="handleFileChange"
+            @exceed="handleExceed"
           >
             <div class="upload-dragger-content">
               <el-icon class="upload-icon"><Upload /></el-icon>
@@ -111,6 +112,13 @@
             <h4>{{ t('options.import.previewTitle') }}</h4>
             <span class="preview-total">{{ t('options.import.previewTotal', { count: previewData.length }) }}</span>
           </div>
+          <!-- 额度告警：备份文件往往一次带回上千条，超限必须在这里摊开给用户看 -->
+          <CapacityAlert
+            :current-count="currentCount"
+            :incoming="previewData.length"
+            :remaining="remaining"
+            :skipped="skipped"
+          />
           <el-table
             :data="previewData.slice(0, 5)"
             style="width: 100%"
@@ -199,12 +207,14 @@
         <el-button @click="handleClose">{{ t('common.cancel') }}</el-button>
         <el-button
           type="success"
-          :disabled="previewData.length === 0"
+          :disabled="previewData.length === 0 || capacityExhausted"
           :loading="importing"
           @click="handleImport"
         >
           {{
-            importing ? t('options.import.importing') : t('options.import.confirmImport', { count: previewData.length })
+            importing
+              ? t('options.import.importing')
+              : t('options.import.confirmImport', { count: importableEntries.length })
           }}
         </el-button>
       </div>
@@ -224,7 +234,9 @@ import { logger } from '@/utils/logger';
 import type { PasswordEntry, PasswordGroup } from '@/utils/types';
 import { useI18n } from '@/utils/i18n';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
+import { importFailureMessage, importSuccessMessage, useImportCapacity } from '@/composables/useImportCapacity';
 import CapsLockHint from '@/components/CapsLockHint.vue';
+import CapacityAlert from '@/components/options/CapacityAlert.vue';
 
 interface Props {
   modelValue: boolean;
@@ -258,6 +270,10 @@ const selectedFile = ref<File | undefined>(undefined);
 const masterPassword = ref('');
 const showPreviewPassword = ref(false);
 
+/** 条目总量额度：预览页的超限告警、导入前的二次确认与本批可导入切片 */
+const { currentCount, remaining, skipped, capacityExhausted, importableEntries, takeImportableEntries } =
+  useImportCapacity(previewData);
+
 /**
  * 格式化文件大小为可读字符串
  * @param bytes 文件字节数
@@ -267,6 +283,16 @@ const formatFileSize = (bytes: number): string => {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+};
+
+/**
+ * 超出数量上限的兜底提示
+ *
+ * `el-upload` 的 `on-exceed` 默认为空实现，命中 `limit` 时文件被静默丢弃：既不提示，
+ * 也不换选，用户以为已经选好备份文件。
+ */
+const handleExceed = () => {
+  ElMessage.warning(t('options.import.limitOneFile'));
 };
 
 /** 处理文件选择 */
@@ -345,11 +371,15 @@ const handleDecrypt = async () => {
 /** 确认导入 */
 const handleImport = async () => {
   if (previewData.value.length === 0) return;
+  // 超限时先按剩余额度切片，再让用户确认「只导入前 N 条」；取消即一条都不写。
+  const entries = await takeImportableEntries();
+  if (!entries) return;
 
   try {
     importing.value = true;
     const existingGroups = await StorageUtils.getAllGroups();
-    const resolved = resolveImportedGroups({ entries: previewData.value, groups: previewGroups.value }, existingGroups);
+    // 分组解析与写入都限定在容量切片后的实际导入集合，避免超限时把未导入条目的分组也落盘
+    const resolved = resolveImportedGroups({ entries, groups: previewGroups.value }, existingGroups);
 
     // 分组先落盘，确保新增条目写入时 groupId 已指向有效本地分组。
     await StorageUtils.saveGroups(resolved.groups);
@@ -364,12 +394,13 @@ const handleImport = async () => {
       throw error;
     }
 
-    ElMessage.success(t('options.import.importSuccess', { count: resolved.entries.length }));
+    ElMessage.success(importSuccessMessage(resolved.entries.length, skipped.value));
     emit('imported');
     handleClose();
   } catch (error) {
     logger.error('导入失败:', error);
-    ElMessage.error(t('options.import.importFailed'));
+    // 兜底：解密预览到写入之间条目数可能已被其它入口填满，此时要说清是「上限」而非「导入失败」
+    ElMessage.error(importFailureMessage(error));
   } finally {
     importing.value = false;
   }

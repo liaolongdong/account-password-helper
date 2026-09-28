@@ -16,7 +16,6 @@ import {
 import type { PasswordEntry } from '@/utils/types';
 import { buildTagPresentationRecords } from '@/utils/tagUtils';
 import { hasShareCardPassword } from '@/utils/shareCard';
-import { normalizeToHostname } from '@/utils/domain';
 import { activateOnKeydown } from '@/utils/a11y';
 import SiteFavicon from '@/components/SiteFavicon.vue';
 import SearchHighlight from '@/components/SearchHighlight.vue';
@@ -49,10 +48,12 @@ interface Props {
    */
   canFill?: boolean;
   /**
-   * 站点匹配级别（跨子域名分级匹配）：0=精确（无徽标），
-   * 1=同子域端口不同，2=其他子域端口一致，3=主域名，4=其他子域通用，5=近似兜底
+   * 是否为跨子域命中的条目（默认 false）
+   *
+   * 由父级按档位算出的 ID 集查表得到，本组件不做域名判断。开启跨子域匹配后，
+   * 通配条目 / 主域条目 / 同主域其他子域条目带此徽章，回答「这条为什么出现在这里」。
    */
-  matchLevel?: number;
+  crossDomain?: boolean;
 }
 
 interface Emits {
@@ -78,30 +79,10 @@ interface Emits {
   shareCard: [password: PasswordEntry];
 }
 
-const props = withDefaults(defineProps<Props>(), { searchKeyword: '', canFill: true, matchLevel: 0 });
+const props = withDefaults(defineProps<Props>(), { searchKeyword: '', canFill: true, crossDomain: false });
 const emit = defineEmits<Emits>();
 
 const { t } = useI18n();
-
-/** 分级匹配徽标文案（0/6 不显示徽标） */
-const matchBadgeText = computed(() => {
-  switch (props.matchLevel) {
-    case 1:
-      return t('sidepanel.match.portDiff');
-    case 2:
-    case 4:
-      return t('sidepanel.match.subDomain');
-    case 3:
-      return t('sidepanel.match.mainDomain');
-    case 5:
-      return t('sidepanel.match.approx');
-    default:
-      return '';
-  }
-});
-
-/** 徽标上展示的条目实际域名（规范化 hostname，超长由 CSS 截断） */
-const badgeDomain = computed(() => normalizeToHostname(props.password.url || ''));
 
 /** 标签字符串未变化时复用解析结果与样式对象，避免列表行更新时重复创建。 */
 const tagPresentationRecords = computed(() => buildTagPresentationRecords(props.password.tag));
@@ -149,7 +130,12 @@ const activate = () => {
         >
           <el-icon><User /></el-icon>
         </SiteFavicon>
-        <span class="username-text">
+        <!-- 本行三处截断字段（用户名 / 网址 / 备注）统一用原生 title 兜住全文：
+             逐行 el-tooltip 的实例成本与侧边栏秒开 SLA 冲突，口径与 Options 表格的 username/url/remark 一致 -->
+        <span
+          class="username-text"
+          :title="password.username"
+        >
           <SearchHighlight
             :text="password.username"
             :keyword="searchKeyword"
@@ -185,13 +171,6 @@ const activate = () => {
         </span>
       </div>
       <div class="details">
-        <!-- 跨子域名匹配徽标：标明该条目非本站精确命中，附实际域名供用户核对 -->
-        <span
-          v-if="matchBadgeText"
-          class="match-badge"
-          :title="password.url"
-          >{{ matchBadgeText }}<template v-if="password.url"> · {{ badgeDomain }}</template></span
-        >
         <el-tag
           v-for="tagRecord in tagPresentationRecords"
           :key="tagRecord.name"
@@ -205,6 +184,16 @@ const activate = () => {
             :keyword="searchKeyword"
           />
         </el-tag>
+        <!-- 跨子域来源标识：放宽档位下带出非精确条目时说明它为何在此，不仅靠颜色传达状态 -->
+        <el-tag
+          v-if="crossDomain"
+          class="scope-badge"
+          size="small"
+          type="info"
+          effect="plain"
+        >
+          {{ t('sidepanel.scope.crossSubdomain') }}
+        </el-tag>
         <!-- 外站标识：全站搜索下的非本站条目在 URL 前加链接图标，不仅靠颜色传达状态 -->
         <el-icon
           v-if="password.url && !canFill"
@@ -216,6 +205,7 @@ const activate = () => {
           v-if="password.url"
           type="info"
           size="small"
+          :title="password.url"
         >
           <SearchHighlight
             :text="password.url"
@@ -227,9 +217,11 @@ const activate = () => {
         v-if="password.remark"
         class="remark"
       >
+        <!-- title 挂内联文本节点而非 .remark 块：块是整行宽，悬停在行尾空白也会弹出备注 -->
         <el-text
           type="info"
           size="small"
+          :title="password.remark"
         >
           <SearchHighlight
             :text="password.remark"
@@ -501,20 +493,11 @@ const activate = () => {
   color: var(--aph-icon-muted);
 }
 
-/* 跨子域名匹配徽标：琥珀色描边小标签，与标签 chip 区分（非用户数据） */
-.match-badge {
+/* 跨子域来源徽章：与标签同处 .details 弹性行内，不与长 URL 争抢收缩空间 */
+.scope-badge {
   flex-shrink: 0;
-  max-width: 160px;
-  padding: 0 6px;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  margin-right: 4px;
   font-size: 11px;
-  line-height: 18px;
-  color: #b45309;
-  white-space: nowrap;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
-  border-radius: 4px;
 }
 
 .remark {

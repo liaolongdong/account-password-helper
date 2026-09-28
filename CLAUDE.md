@@ -193,7 +193,7 @@
 
 - **禁止把全局内存当持久状态**：SW 随时被回收，重启后全局变量丢失。短期缓存必须可重建、可失效，以 `chrome.storage` 为事实来源。
 - **异步 `sendResponse` 必须返回 `true`**：否则 Chrome 会立即关闭消息通道，响应丢失。
-- **`chrome.alarms` 最小间隔**：MV3 限制 alarms 最小间隔为 1 分钟，不要期望秒级精度。
+- **`chrome.alarms` 最小间隔**：MV3 下 `periodInMinutes` 最小为 0.5（30 秒），更小的值会被上钳（旧版到 1 分钟）；闹钟轮询粒度 ≥30s，不要期望秒级精度——SW 存活期的秒级保活由 `setInterval` 心跳层负责。
 
 ### Storage
 
