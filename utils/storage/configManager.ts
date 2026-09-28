@@ -442,6 +442,36 @@ export async function setOptionsPageSize(size: number): Promise<void> {
   }
 }
 
+// ==================== Options 分组列显隐配置 ====================
+
+/**
+ * 获取 Options 表格「分组」列是否可见
+ *
+ * 默认隐藏：左侧分组树已表达当前归属，聚合视图下才需要路径列区分来源。
+ * 属展示偏好，读取异常降级为默认值，不阻断列表加载。
+ */
+export async function getOptionsGroupColVisible(): Promise<boolean> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.OPTIONS_GROUP_COL_VISIBLE);
+    return result[STORAGE_KEYS.OPTIONS_GROUP_COL_VISIBLE] === true;
+  } catch (error) {
+    logger.error('获取分组列显隐配置失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 保存 Options 表格「分组」列显隐偏好
+ */
+export async function setOptionsGroupColVisible(visible: boolean): Promise<void> {
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.OPTIONS_GROUP_COL_VISIBLE]: visible });
+  } catch (error) {
+    logger.error('保存分组列显隐配置失败:', error);
+    throw error;
+  }
+}
+
 // ==================== 密码历史记录配置 ====================
 
 /** 密码历史记录默认配置 */

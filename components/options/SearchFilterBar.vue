@@ -21,6 +21,13 @@
     </el-button>
     <el-button
       v-if="selectedCount > 0"
+      :icon="FolderOpened"
+      @click="$emit('batchMoveGroup')"
+    >
+      {{ t('options.group.moveToGroup', { count: selectedCount }) }}
+    </el-button>
+    <el-button
+      v-if="selectedCount > 0"
       :icon="Download"
       @click="$emit('batchExportSelected')"
     >
@@ -100,7 +107,7 @@
 </template>
 
 <script setup lang="ts">
-import { Search, Delete, Star, StarFilled, PriceTag, Download } from '@element-plus/icons-vue';
+import { Search, Delete, Star, StarFilled, PriceTag, Download, FolderOpened } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
 
 /**
@@ -142,6 +149,7 @@ defineEmits<{
   urlFilterVisibleChange: [visible: boolean];
   batchDelete: [];
   batchEditTags: [];
+  batchMoveGroup: [];
   batchExportSelected: [];
 }>();
 
@@ -151,6 +159,7 @@ const { t } = useI18n();
 <style scoped>
 .filters {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   padding: 20px;
@@ -164,6 +173,7 @@ const { t } = useI18n();
 /* 搜索框占据剩余空间 */
 .filters > :deep(.el-input) {
   flex: 1;
+  min-width: 220px;
 }
 
 /* 行内间距统一由 gap 提供：抵消 Element Plus 相邻按钮默认的 12px 外边距。

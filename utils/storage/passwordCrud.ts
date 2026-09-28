@@ -222,11 +222,16 @@ export async function updatePassword(
  * 传入敏感字段立即抛错；与 updatePassword 一致，updateTime 尊重显式传入值（传原值即保持不变）。
  *
  * @param updates 条目 ID 与更新字段的列表；不存在的 ID 静默跳过
+ * @param extraStorageItems 需要与密码元数据在同一次 storage.local.set 中落盘的附加键
  */
 export async function batchUpdatePasswordMetadata(
   updates: Array<{ id: string; updates: Partial<PasswordEntry> }>,
+  extraStorageItems?: Readonly<Record<string, unknown>>,
 ): Promise<void> {
-  if (updates.length === 0) return;
+  if (updates.length === 0) {
+    if (extraStorageItems) await chrome.storage.local.set(extraStorageItems);
+    return;
+  }
   try {
     for (const { updates: fields } of updates) {
       if (updatesTouchSensitiveFields(fields)) {
@@ -243,8 +248,14 @@ export async function batchUpdatePasswordMetadata(
       return { ...current, ...fields, updateTime: fields.updateTime ?? Date.now() } as
         PasswordEntry | EncryptedPasswordEntry;
     });
-    if (!changed) return;
-    await chrome.storage.local.set({ [STORAGE_KEYS.PASSWORDS]: entriesToSave });
+    if (!changed) {
+      if (extraStorageItems) await chrome.storage.local.set(extraStorageItems);
+      return;
+    }
+    await chrome.storage.local.set({
+      ...extraStorageItems,
+      [STORAGE_KEYS.PASSWORDS]: entriesToSave,
+    });
   } catch (error) {
     logger.error('批量更新密码元数据失败:', error);
     throw error;

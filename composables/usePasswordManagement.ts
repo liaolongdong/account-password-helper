@@ -1,6 +1,13 @@
 import { ref, computed, watch, nextTick, onScopeDispose, type Ref } from 'vue';
 import type { FormRules, FormInstance } from 'element-plus';
-import type { PasswordEntry, PasswordEntryWithUI, PasswordFormModel } from '@/utils/types';
+import type {
+  PasswordEntry,
+  PasswordEntryWithGroupPath,
+  PasswordEntryWithUI,
+  PasswordFormModel,
+  PasswordGroup,
+} from '@/utils/types';
+import { ROOT_GROUP_CODE, UNGROUPED_CODE } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
 import { DEFAULT_OPTIONS_PAGE_SIZE, OPTIONS_PAGE_SIZE_OPTIONS } from '@/utils/storage/configManager';
 import { ExcelUtils } from '@/utils/excel';
@@ -17,6 +24,14 @@ import { matchesKeyword, warmPinyinMatcher } from '@/utils/searchMatch';
 import { normalizeToHostname } from '@/utils/domain';
 import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
 import { createPasswordFormRules } from '@/utils/formValidators';
+import {
+  buildGroupPathMap,
+  buildTree,
+  countEntriesByGroup,
+  getDescendantCodes,
+  MAX_GROUP_NAME_LENGTH,
+  resolveEntryGroupId,
+} from '@/utils/groupTree';
 
 /** 最多可选择的标签数量 */
 export const MAX_TAG_COUNT = 3;
@@ -33,7 +48,7 @@ const EMPTY_PASSWORD_FORM = {
   tag: '',
   remark: '',
   totp: '',
-  groupId: '',
+  groupId: UNGROUPED_CODE,
 } as const;
 
 /**
@@ -89,6 +104,63 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const filterTags = ref<string[]>([]);
   /** 网址筛选：选中域名集合（命中任一即保留，与标签/收藏/搜索为叠加关系） */
   const filterUrls = ref<string[]>([]);
+
+  /**
+   * 分组树（扁平数组，邻接表）
+   *
+   * 与 passwords 同源加载：loadPasswords 时一并读取，保证列表过滤与树渲染一致。
+   */
+  const groups = ref<PasswordGroup[]>([]);
+
+  /** 当前选中的分组 code（默认根节点 = 全库，不做分组过滤） */
+  const selectedGroupCode = ref<string>(ROOT_GROUP_CODE);
+
+  /** 表格「分组」列是否可见（默认隐藏，用户偏好持久化） */
+  const groupColVisible = ref(false);
+
+  /** 读取分组列显隐偏好（fire-and-forget，失败保持默认隐藏） */
+  void StorageUtils.getOptionsGroupColVisible().then(visible => {
+    groupColVisible.value = visible;
+  });
+
+  /** 分组树渲染节点（含虚拟根与未分组叶子） */
+  const groupTree = computed(() => buildTree(groups.value));
+
+  /** 分组 code -> 全路径，供表格行一次性注入（避免每行重建分组索引） */
+  const groupPathByCode = computed(() => buildGroupPathMap(groups.value));
+
+  /** 各分组（含子孙聚合）的条目数，供树节点渲染计数 */
+  const groupEntryCounts = computed(() => countEntriesByGroup(groups.value, passwords.value));
+
+  /** 分组被外部删除或加载降级后，失效的选中项回到根节点，避免整表被过滤为空 */
+  watch(groups, groupList => {
+    if (
+      selectedGroupCode.value !== ROOT_GROUP_CODE &&
+      selectedGroupCode.value !== UNGROUPED_CODE &&
+      !groupList.some(group => group.code === selectedGroupCode.value)
+    ) {
+      selectedGroupCode.value = ROOT_GROUP_CODE;
+    }
+  });
+
+  /**
+   * 当前选中分组的可见 code 集
+   *
+   * 根节点返回 null 表示「不过滤」，避免为全库场景构造无用的大 Set。
+   */
+  const visibleGroupCodes = computed<Set<string> | null>(() => {
+    if (selectedGroupCode.value === ROOT_GROUP_CODE) return null;
+    if (selectedGroupCode.value === UNGROUPED_CODE) return new Set([UNGROUPED_CODE]);
+    return getDescendantCodes(selectedGroupCode.value, groups.value);
+  });
+
+  /** 判定条目是否落在当前选中分组范围内 */
+  const matchesGroupScope = (entry: Pick<PasswordEntry, 'groupId'>): boolean => {
+    const codes = visibleGroupCodes.value;
+    if (!codes) return true;
+    return codes.has(resolveEntryGroupId(entry.groupId, groups.value));
+  };
+
   const selectedIds = ref<string[]>([]);
   const isEditingPassword = ref(false);
   const editingPasswordId = ref<string>('');
@@ -119,8 +191,17 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    * 不含标签/网址筛选自身：下拉候选应反映「当前搜索语境下可选项」，
    * 若叠加筛选自身会导致选中一个选项后其余候选被互相挤掉。
    */
-  const searchFilteredPasswords = computed(() => {
-    let result: PasswordEntry[] = passwords.value;
+  const searchFilteredPasswords = computed<PasswordEntryWithGroupPath[]>(() => {
+    const scoped: PasswordEntryWithGroupPath[] = [];
+    for (const entry of passwords.value) {
+      if (!matchesGroupScope(entry)) continue;
+      const resolvedGroupId = resolveEntryGroupId(entry.groupId, groups.value);
+      const row = entry as PasswordEntryWithGroupPath;
+      row.groupPath = groupPathByCode.value.get(resolvedGroupId) ?? '';
+      scoped.push(row);
+    }
+
+    let result = scoped;
 
     if (debouncedSearchKeyword.value) {
       const keyword = debouncedSearchKeyword.value;
@@ -135,8 +216,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     return result;
   });
 
-  const filteredPasswords = computed(() => {
-    let result: PasswordEntry[] = searchFilteredPasswords.value;
+  const filteredPasswords = computed<PasswordEntryWithGroupPath[]>(() => {
+    let result: PasswordEntryWithGroupPath[] = searchFilteredPasswords.value;
 
     if (filterTags.value.length > 0) {
       result = result.filter(p => parseTags(p.tag).some(tag => filterTags.value.includes(tag)));
@@ -173,7 +254,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   });
 
   /** 当前页条目（表格实际渲染的数据源）；页码越界时按最后一页取值，避免空白页 */
-  const pagedPasswords = computed(() => {
+  const pagedPasswords = computed<PasswordEntryWithGroupPath[]>(() => {
     const all = filteredPasswords.value;
     const maxPage = Math.max(1, Math.ceil(all.length / pageSize.value));
     const page = Math.min(currentPage.value, maxPage);
@@ -196,7 +277,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    * 与既有「筛选变化清空选中」策略一致：结果集语义已变，停留在原页码
    * 会让用户看不到命中结果的第一条。
    */
-  watch([debouncedSearchKeyword, favoriteOnly, filterTags, filterUrls, sortChain], () => {
+  watch([debouncedSearchKeyword, favoriteOnly, filterTags, filterUrls, sortChain, selectedGroupCode], () => {
     currentPage.value = 1;
   });
 
@@ -250,8 +331,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   // 作用域销毁时清理未触发的防抖定时器，避免向已停用作用域赋值
   onScopeDispose(() => clearTimeout(searchDebounceTimer));
 
-  /** 收藏过滤变化时清空选中状态（符合交互策略：过滤条件变化清空选中） */
-  watch(favoriteOnly, () => {
+  /** 收藏或分组过滤变化时清空选中状态（结果集语义已变，避免批量操作误伤不可见条目） */
+  watch([favoriteOnly, selectedGroupCode], () => {
     selectedIds.value = [];
   });
 
@@ -468,18 +549,40 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
   };
 
+  /** 防止旧加载结果覆盖较新的加载或分组刷新结果 */
+  let passwordLoadRequestId = 0;
+  let groupLoadRequestId = 0;
+
   // 加载密码列表
-  const loadPasswords = async () => {
+  const loadPasswords = async (): Promise<boolean> => {
+    const requestId = ++passwordLoadRequestId;
+    const groupRequestId = ++groupLoadRequestId;
     try {
       tableLoading.value = true;
 
       const sessionValid = await StorageUtils.isSessionValid();
+      if (requestId !== passwordLoadRequestId) return false;
       if (!sessionValid) {
         passwords.value = [];
-        return;
+        return true;
       }
 
-      passwords.value = await StorageUtils.getAllPasswords();
+      const [entriesResult, groupsResult] = await Promise.allSettled([
+        StorageUtils.getAllPasswords(),
+        StorageUtils.getAllGroups(),
+      ]);
+      if (requestId !== passwordLoadRequestId) return false;
+      if (entriesResult.status === 'rejected') throw entriesResult.reason;
+
+      const entries = entriesResult.value;
+      passwords.value = entries;
+      if (groupsResult.status === 'fulfilled') {
+        if (groupRequestId === groupLoadRequestId) {
+          groups.value = groupsResult.value;
+        }
+      } else {
+        logger.error('加载分组失败，保留当前分组树:', groupsResult.reason);
+      }
 
       // 初始化每条记录的密码显隐状态
       passwords.value.forEach(p => {
@@ -489,13 +592,19 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
       // 初始化有效期设置表单
       const validityHours = await StorageUtils.getMasterPasswordValidityHours();
+      if (requestId !== passwordLoadRequestId) return false;
       validityForm.value.validityHours = validityHours;
+      return true;
     } catch (error: unknown) {
+      if (requestId !== passwordLoadRequestId) return false;
       logger.error('加载密码列表失败:', error);
       const message = error instanceof Error ? error.message : t('message.unknownError');
       ElMessage.error(t('message.loadListFailedDetail', { message }));
+      return false;
     } finally {
-      tableLoading.value = false;
+      if (requestId === passwordLoadRequestId) {
+        tableLoading.value = false;
+      }
     }
   };
 
@@ -583,7 +692,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const openPasswordDialog = (prefillUrl = '') => {
     isEditingPassword.value = false;
     editingPasswordId.value = '';
-    passwordForm.value = { ...EMPTY_PASSWORD_FORM, url: prefillUrl };
+    const presetGroupId =
+      selectedGroupCode.value === ROOT_GROUP_CODE || selectedGroupCode.value === UNGROUPED_CODE
+        ? UNGROUPED_CODE
+        : selectedGroupCode.value;
+    passwordForm.value = { ...EMPTY_PASSWORD_FORM, url: prefillUrl, groupId: presetGroupId };
     showPasswordDialog.value = true;
   };
 
@@ -598,7 +711,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       tag: password.tag,
       remark: password.remark,
       totp: password.totp ?? '',
-      groupId: password.groupId ?? '',
+      groupId: password.groupId && password.groupId !== UNGROUPED_CODE ? password.groupId : UNGROUPED_CODE,
     };
     showPasswordDialog.value = true;
   };
@@ -659,6 +772,10 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
           tag: normalizedTag,
           remark: passwordForm.value.remark.trim(),
           totp: passwordForm.value.totp.trim(),
+          groupId:
+            passwordForm.value.groupId && passwordForm.value.groupId !== UNGROUPED_CODE
+              ? passwordForm.value.groupId
+              : undefined,
           updateTime: Date.now(),
         };
         await runLocalOperation(async () => {
@@ -682,6 +799,10 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
             tag: normalizedTag,
             remark: passwordForm.value.remark.trim(),
             totp: passwordForm.value.totp.trim(),
+            groupId:
+              passwordForm.value.groupId && passwordForm.value.groupId !== UNGROUPED_CODE
+                ? passwordForm.value.groupId
+                : undefined,
             createTime: now,
             updateTime: now,
           });
@@ -713,6 +834,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         tag: password.tag,
         remark: password.remark,
         totp: password.totp,
+        groupId: password.groupId,
         createTime: password.createTime,
         updateTime: Date.now(),
       };
@@ -821,7 +943,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
     // 生成带日期后缀的文件名：passwords_YYYYMMDD_HHmmss.csv
     const filename = `passwords_${formatTimestampCompact()}.csv`;
-    ExcelUtils.exportToCSV(entries, filename);
+    ExcelUtils.exportToCSV(entries, filename, groups.value);
     ElMessage.success(t('form.exportSuccess'));
   };
 
@@ -948,7 +1070,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
       const now = new Date();
       const filename = `passwords_${formatTimestampCompact(now)}.json`;
-      ExcelUtils.exportToJSON(passwords.value, filename);
+      ExcelUtils.exportToJSON(passwords.value, filename, groups.value);
       ElMessage.success(t('form.exportSuccess'));
     } catch (error) {
       if (error !== 'cancel') {
@@ -987,7 +1109,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
 
       if (encrypted) {
         // 加密备份：导出 .aph 文件并打开邮件客户端
-        await exportEncryptedBackup(passwords.value, masterPassword);
+        await exportEncryptedBackup(passwords.value, masterPassword, groups.value);
         const mailtoUrl = EmailBackupUtils.buildMailtoUrl(
           email,
           t('form.emailSubjectEncrypted', { date: formatDateCompact(new Date()) }),
@@ -1004,7 +1126,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
         ElMessage.success(t('form.encryptedBackupDone'));
       } else {
         // 不加密备份：导出 CSV 文件
-        await EmailBackupUtils.backupToEmail(passwords.value, email);
+        await EmailBackupUtils.backupToEmail(passwords.value, email, groups.value);
         ElMessage.success(t('form.backupDone'));
       }
     } catch (error) {
@@ -1071,6 +1193,207 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     }
   };
 
+  // ==================== 分组管理编排 ====================
+
+  /** 重新加载分组树（CRUD 后调用，保持树与计数同步） */
+  const reloadGroups = async (): Promise<boolean> => {
+    const requestId = ++groupLoadRequestId;
+    try {
+      const groupList = await StorageUtils.getAllGroups();
+      if (requestId !== groupLoadRequestId) return false;
+      groups.value = groupList;
+      return true;
+    } catch (error) {
+      if (requestId !== groupLoadRequestId) return false;
+      logger.error('重新加载分组失败:', error);
+      ElMessage.error(t('options.group.operationFailed'));
+      return false;
+    }
+  };
+
+  /**
+   * 把分组操作的错误标识翻译为用户可读提示
+   *
+   * groupManager 抛出的是稳定英文标识（duplicate/tooLong/...），
+   * 在此集中映射到 i18n 文案，避免存储层依赖语言包。
+   */
+  const reportGroupError = (error: unknown) => {
+    const reason = error instanceof Error ? error.message : '';
+    if (reason === 'duplicate') {
+      ElMessage.error(t('options.group.nameDuplicate'));
+    } else if (reason === 'tooLong') {
+      ElMessage.error(t('options.group.nameTooLong', { max: MAX_GROUP_NAME_LENGTH }));
+    } else if (reason === 'empty') {
+      ElMessage.error(t('options.group.nameRequired'));
+    } else if (reason === 'invalidChar') {
+      ElMessage.error(t('options.group.nameInvalidChar'));
+    } else {
+      logger.error('分组操作失败:', error);
+      ElMessage.error(t('options.group.operationFailed'));
+    }
+  };
+
+  /**
+   * 新建分组
+   * @param name 分组名
+   * @param parentCode 父分组 code（一级分组传 ROOT_GROUP_CODE）
+   */
+  const createGroup = async (name: string, parentCode: string) => {
+    try {
+      await runLocalOperation(async () => {
+        await StorageUtils.createGroup(name, parentCode);
+      });
+      if (await reloadGroups()) {
+        ElMessage.success(t('options.group.createSuccess'));
+      }
+    } catch (error) {
+      reportGroupError(error);
+    }
+  };
+
+  /**
+   * 重命名分组
+   * @param code 目标分组 code
+   * @param name 新名称
+   */
+  const renameGroup = async (code: string, name: string) => {
+    try {
+      await runLocalOperation(async () => {
+        await StorageUtils.renameGroup(code, name);
+      });
+      if (await reloadGroups()) {
+        ElMessage.success(t('options.group.renameSuccess'));
+      }
+    } catch (error) {
+      reportGroupError(error);
+    }
+  };
+
+  /**
+   * 删除分组（条目处置由确认对话框裁决）
+   * @param code 目标分组 code
+   * @param mode 'toUngrouped' 条目移入未分组 / 'toTrash' 条目进回收站
+   */
+  const deleteGroup = async (code: string, mode: 'toUngrouped' | 'toTrash'): Promise<boolean> => {
+    try {
+      const selectedWillVanish = getDescendantCodes(code, groups.value).has(selectedGroupCode.value);
+      await runLocalOperation(async () => {
+        await StorageUtils.deleteGroup(code, mode);
+      });
+      if (selectedWillVanish) selectedGroupCode.value = ROOT_GROUP_CODE;
+      const loaded = await loadPasswords();
+      if (loaded) {
+        ElMessage.success(t('options.group.deleteSuccess'));
+      }
+      return loaded;
+    } catch (error) {
+      reportGroupError(error);
+      return false;
+    }
+  };
+
+  /**
+   * 移动分组到新父级（树内拖拽）
+   * @param code 被移动分组 code
+   * @param newParentCode 新父级 code
+   */
+  const moveGroup = async (code: string, newParentCode: string) => {
+    try {
+      await runLocalOperation(async () => {
+        await StorageUtils.moveGroup(code, newParentCode);
+      });
+    } catch (error) {
+      reportGroupError(error);
+    } finally {
+      await reloadGroups();
+    }
+  };
+
+  /**
+   * 同级重排序（树内拖拽）
+   * @param parentCode 共同父级
+   * @param orderedCodes 新顺序
+   */
+  const reorderGroups = async (parentCode: string, orderedCodes: string[]) => {
+    try {
+      await runLocalOperation(async () => {
+        await StorageUtils.reorderGroups(parentCode, orderedCodes);
+      });
+    } catch (error) {
+      reportGroupError(error);
+    } finally {
+      await reloadGroups();
+    }
+  };
+
+  /**
+   * 批量归组（表格行拖拽 / 批量移动对话框共用）
+   *
+   * 走元数据轻量路径（groupId 已在 METADATA_FIELDS 白名单内），不触发解密重加密；
+   * 保留原 updateTime，归组不干扰「最近更新」排序。
+   */
+  const moveEntriesToGroup = async (entryIds: string[], targetCode: string): Promise<boolean> => {
+    if (entryIds.length === 0) return false;
+    if (targetCode !== UNGROUPED_CODE && !groups.value.some(group => group.code === targetCode)) {
+      ElMessage.error(t('options.group.operationFailed'));
+      return false;
+    }
+
+    const uniqueIds = [...new Set(entryIds)];
+    const targetEntries = uniqueIds
+      .map(id => passwords.value.find(entry => entry.id === id))
+      .filter((entry): entry is PasswordEntry => Boolean(entry));
+    if (targetEntries.length === 0) {
+      ElMessage.error(t('options.group.operationFailed'));
+      return false;
+    }
+
+    const nextGroupId = targetCode === UNGROUPED_CODE ? undefined : targetCode;
+    try {
+      let currentGroups: PasswordGroup[] = [];
+      await runLocalOperation(async () => {
+        // 页面内存中的分组树可能滞后于其他标签页；写入前以存储快照复核目标。
+        currentGroups = await StorageUtils.getAllGroups();
+        if (nextGroupId && !currentGroups.some(group => group.code === nextGroupId)) {
+          throw new Error('invalidTarget');
+        }
+        await StorageUtils.batchUpdatePasswordMetadata(
+          targetEntries.map(entry => ({
+            id: entry.id,
+            updates: { groupId: nextGroupId, updateTime: entry.updateTime },
+          })),
+        );
+      });
+      groups.value = currentGroups;
+      for (const entry of targetEntries) entry.groupId = nextGroupId;
+      const targetName = nextGroupId
+        ? (currentGroups.find(group => group.code === nextGroupId)?.name ?? '')
+        : t('options.group.ungrouped');
+      ElMessage.success(t('options.group.moveSuccess', { name: targetName }));
+      return true;
+    } catch (error) {
+      if (error instanceof Error && error.message === 'invalidTarget') {
+        ElMessage.error(t('options.group.operationFailed'));
+        await reloadGroups();
+        return false;
+      }
+      logger.error('批量归组失败:', error);
+      ElMessage.error(t('options.group.operationFailed'));
+      return false;
+    }
+  };
+
+  /**
+   * 切换「分组」列显隐并持久化偏好
+   * @param visible 是否显示
+   */
+  const setGroupColVisible = (visible: boolean) => {
+    groupColVisible.value = visible;
+    void StorageUtils.setOptionsGroupColVisible(visible).catch(error => {
+      logger.error('保存分组列显隐偏好失败:', error);
+    });
+  };
+
   return {
     // 状态
     passwords,
@@ -1088,6 +1411,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     favoriteOnly,
     filterTags,
     filterUrls,
+    groups,
+    groupTree,
+    groupEntryCounts,
+    selectedGroupCode,
+    groupColVisible,
     filteredPasswords,
     currentPage,
     pageSize,
@@ -1128,6 +1456,14 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     backupToEmail,
     toggleFavorite,
     removeDuplicates,
+    createGroup,
+    renameGroup,
+    deleteGroup,
+    moveGroup,
+    reorderGroups,
+    moveEntriesToGroup,
+    reloadGroups,
+    setGroupColVisible,
     isLocalOperation,
   };
 }

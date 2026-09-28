@@ -1,5 +1,5 @@
 import { generateId } from '@/utils/generateId';
-import type { GroupTreeNode, PasswordGroup } from '@/utils/types';
+import type { GroupTreeNode, PasswordEntry, PasswordGroup } from '@/utils/types';
 import { ROOT_GROUP_CODE, UNGROUPED_CODE } from '@/utils/types';
 
 /** Full-path separator. Group names are forbidden from containing this character. */
@@ -15,6 +15,18 @@ export const MAX_GROUP_NAME_LENGTH = 30;
  * write `text/plain`.
  */
 export const ENTRY_DRAG_MIME = 'application/x-aph-entry-ids';
+
+/** Imported entry that may carry a full group path from a path-based format. */
+export type ImportedPasswordEntry = Omit<PasswordEntry, 'id' | 'order'> & {
+  /** Full slash-separated group path. Takes precedence over groupId when present. */
+  groupPath?: string;
+};
+
+/** Parsed import payload: entries plus a group tree when the format provides one. */
+export interface ParsedImportData {
+  entries: ImportedPasswordEntry[];
+  groups: PasswordGroup[];
+}
 
 function createGroupNode(group: PasswordGroup): GroupTreeNode {
   return {
@@ -119,19 +131,45 @@ export function buildTree(groups: readonly PasswordGroup[]): GroupTreeNode[] {
  */
 export function getGroupPath(code: string | undefined, groups: readonly PasswordGroup[]): string {
   if (!code || code === UNGROUPED_CODE || code === ROOT_GROUP_CODE) return '';
+  return buildGroupPathMap(groups).get(code) ?? '';
+}
 
+/**
+ * Build full paths for a group collection in one pass.
+ *
+ * This avoids rebuilding an index for every row when large tables need the
+ * group column. Invalid and cyclic parent chains degrade to the resolvable
+ * suffix, matching getGroupPath.
+ */
+export function buildGroupPathMap(groups: readonly PasswordGroup[]): Map<string, string> {
   const groupByCode = new Map(groups.map(group => [group.code, group]));
-  const segments: string[] = [];
-  const visited = new Set<string>();
-  let current: PasswordGroup | undefined = groupByCode.get(code);
+  const paths = new Map<string, string>();
 
-  while (current && !visited.has(current.code)) {
-    visited.add(current.code);
-    segments.unshift(current.name);
-    current = current.parentCode === ROOT_GROUP_CODE ? undefined : groupByCode.get(current.parentCode);
-  }
+  const resolve = (code: string): string => {
+    const cached = paths.get(code);
+    if (cached !== undefined) return cached;
 
-  return segments.join(GROUP_PATH_SEPARATOR);
+    const chain: PasswordGroup[] = [];
+    const visited = new Set<string>();
+    let current = groupByCode.get(code);
+    while (current && !visited.has(current.code)) {
+      visited.add(current.code);
+      chain.push(current);
+      current = current.parentCode === ROOT_GROUP_CODE ? undefined : groupByCode.get(current.parentCode);
+    }
+
+    const prefix = current ? (paths.get(current.code) ?? '') : '';
+    let path = prefix;
+    while (chain.length > 0) {
+      const group = chain.pop()!;
+      path = path ? `${path}${GROUP_PATH_SEPARATOR}${group.name}` : group.name;
+      paths.set(group.code, path);
+    }
+    return paths.get(code) ?? '';
+  };
+
+  for (const group of groups) resolve(group.code);
+  return paths;
 }
 
 /**
@@ -261,6 +299,118 @@ export function ensureGroupByPath(
   }
 
   return { code: currentCode, created };
+}
+
+/**
+ * Merge an imported group tree into the existing tree.
+ *
+ * Imported codes are never trusted as stable identifiers: names are matched
+ * among siblings, existing groups are reused, and newly created groups receive
+ * fresh codes. The returned map translates each imported code to its resolved
+ * local code.
+ */
+export function mergeImportedGroups(
+  imported: readonly PasswordGroup[],
+  existing: readonly PasswordGroup[],
+): { groups: PasswordGroup[]; codeMap: Map<string, string> } {
+  const groups: PasswordGroup[] = existing.map(group => ({ ...group }));
+  const codeMap = new Map<string, string>();
+  if (imported.length === 0) return { groups, codeMap };
+
+  const importedByCode = new Map<string, PasswordGroup>();
+  for (const group of imported) {
+    if (!importedByCode.has(group.code)) importedByCode.set(group.code, group);
+  }
+
+  const childrenByCode = new Map<string, PasswordGroup[]>();
+  for (const group of importedByCode.values()) {
+    const children = childrenByCode.get(group.parentCode);
+    if (children) children.push(group);
+    else childrenByCode.set(group.parentCode, [group]);
+  }
+
+  const siblingKey = (name: string, parentCode: string): string => `${parentCode}\0${name}`;
+  const groupBySiblingName = new Map<string, PasswordGroup>();
+  const nextOrderByParent = new Map<string, number>();
+  for (const group of groups) {
+    const key = siblingKey(group.name, group.parentCode);
+    if (!groupBySiblingName.has(key)) groupBySiblingName.set(key, group);
+    nextOrderByParent.set(group.parentCode, Math.max(nextOrderByParent.get(group.parentCode) ?? -1, group.order));
+  }
+
+  const materialize = (group: PasswordGroup, parentCode: string): string => {
+    const key = siblingKey(group.name, parentCode);
+    const reused = groupBySiblingName.get(key);
+    if (reused) return reused.code;
+
+    const nextOrder = (nextOrderByParent.get(parentCode) ?? -1) + 1;
+    const created: PasswordGroup = {
+      code: generateId(),
+      name: group.name,
+      parentCode,
+      order: nextOrder,
+    };
+    groups.push(created);
+    groupBySiblingName.set(key, created);
+    nextOrderByParent.set(parentCode, nextOrder);
+    return created.code;
+  };
+
+  const visited = new Set<string>();
+  const importedCodes = new Set(importedByCode.keys());
+  const queue: PasswordGroup[] = [];
+  for (const group of importedByCode.values()) {
+    if (!importedCodes.has(group.parentCode)) queue.push(group);
+  }
+
+  for (let index = 0; index < queue.length; index += 1) {
+    const group = queue[index];
+    if (visited.has(group.code)) continue;
+    visited.add(group.code);
+
+    const mappedParent =
+      group.parentCode === ROOT_GROUP_CODE ? ROOT_GROUP_CODE : (codeMap.get(group.parentCode) ?? ROOT_GROUP_CODE);
+    codeMap.set(group.code, materialize(group, mappedParent));
+    queue.push(...(childrenByCode.get(group.code) ?? []));
+  }
+
+  // Corrupt cyclic data is still preserved as root-level groups rather than
+  // silently dropping entries that reference it.
+  for (const group of importedByCode.values()) {
+    if (!visited.has(group.code)) codeMap.set(group.code, materialize(group, ROOT_GROUP_CODE));
+  }
+
+  return { groups, codeMap };
+}
+
+/**
+ * Resolve an imported payload into storage-ready entries and the complete
+ * merged group array.
+ *
+ * Path-based imports are created level by level and share same-name siblings.
+ * Code-based imports use the mapping produced by mergeImportedGroups.
+ */
+export function resolveImportedGroups(
+  data: ParsedImportData,
+  existing: readonly PasswordGroup[],
+): { entries: Omit<PasswordEntry, 'id' | 'order'>[]; groups: PasswordGroup[] } {
+  const { groups, codeMap } = mergeImportedGroups(data.groups, existing);
+  const entries: Omit<PasswordEntry, 'id' | 'order'>[] = [];
+
+  for (const entry of data.entries) {
+    const { groupPath, ...rest } = entry;
+    let groupId: string | undefined;
+    if (groupPath && groupPath.trim()) {
+      const resolved = ensureGroupByPath(groupPath, groups);
+      groups.push(...resolved.created);
+      groupId = resolved.code === UNGROUPED_CODE ? undefined : resolved.code;
+    } else if (entry.groupId) {
+      groupId = codeMap.get(entry.groupId);
+    }
+    entries.push({ ...rest, groupId });
+  }
+
+  return { entries, groups };
 }
 
 /**

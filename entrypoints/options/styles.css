@@ -7,9 +7,29 @@
 
 /* 主内容区域样式 */
 .main-content {
+  display: flex;
+  gap: 0;
+  align-items: flex-start;
   min-height: 100vh;
-  padding: 0;
+  padding: 20px 0 0;
   background: var(--aph-surface-2);
+}
+
+.content-right {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 中等宽度下左右分栏会压缩列表筛选区，提前切为上下布局。 */
+@media (width <= 1024px) {
+  .main-content {
+    flex-direction: column;
+    padding-top: 16px;
+  }
+
+  .content-right {
+    width: 100%;
+  }
 }
 
 .password-list-info {

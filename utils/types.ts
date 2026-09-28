@@ -139,7 +139,7 @@ export interface GroupTreeNode {
  * `groupPath` 由 usePasswordManagement 在排序前注入（`/` 拼接，如 `工作/项目A`），
  * 未分组为空串。预计算避免表格每行重复递归上溯，同时让分组列可参与排序链。
  */
-export interface PasswordEntryWithGroupPath extends PasswordEntry {
+export interface PasswordEntryWithGroupPath extends PasswordEntryWithUI {
   /** 分组全路径（`/` 拼接）；未分组为空串 */
   groupPath: string;
 }

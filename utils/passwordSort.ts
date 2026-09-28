@@ -86,11 +86,11 @@ function compareByField(a: PasswordEntry, b: PasswordEntry, prop: string, order:
  * @param priorityFn 可选优先级函数，返回数值越小优先级越高
  * @returns 负数 a 前、正数 b 前、0 相等
  */
-export function compareBySortChain(
-  a: PasswordEntry,
-  b: PasswordEntry,
+export function compareBySortChain<T extends PasswordEntry>(
+  a: T,
+  b: T,
   chain: readonly SortCriterion[],
-  priorityFn?: (entry: PasswordEntry) => number,
+  priorityFn?: (entry: T) => number,
 ): number {
   if (priorityFn) {
     const dp = priorityFn(a) - priorityFn(b);
@@ -117,11 +117,11 @@ export function compareBySortChain(
  * @param priorityFn 可选优先级函数
  * @returns 排序后的数组（同一引用）
  */
-export function sortByChain(
-  list: PasswordEntry[],
+export function sortByChain<T extends PasswordEntry>(
+  list: T[],
   chain: readonly SortCriterion[],
-  priorityFn?: (entry: PasswordEntry) => number,
-): PasswordEntry[] {
+  priorityFn?: (entry: T) => number,
+): T[] {
   return list.sort((a, b) => compareBySortChain(a, b, chain, priorityFn));
 }
 

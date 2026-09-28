@@ -17,6 +17,9 @@ const AUTH_RELATED_STORAGE_KEYS = new Set<string>([
   SESSION_STORAGE_KEYS.VALIDITY_HOURS,
 ]);
 
+/** 影响 Options 列表与分组树的本地数据键 */
+const PASSWORD_DATA_STORAGE_KEYS = new Set<string>([STORAGE_KEYS.PASSWORDS, STORAGE_KEYS.PASSWORD_GROUPS]);
+
 /**
  * Storage 与可见性变化监听 Composable
  *
@@ -46,30 +49,32 @@ export function useStorageWatcher(options: {
   ) => {
     if (areaName !== 'local') return;
     const hasAuthChange = Object.keys(changes).some(key => AUTH_RELATED_STORAGE_KEYS.has(key));
-    if (!hasAuthChange) return;
-    // rekey 自愈：包裹数据密钥被更新（修改主密码/重新登录）且 newValue 存在时，
-    // 失效本上下文旧数据密钥热缓存，确保后续 loadPasswords 用新密钥解密。
-    // 删除语义（newValue === undefined，锁定流程）不触发，避免干扰竞态防护。
-    const wrappedKeyChange = changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
-    if (wrappedKeyChange?.newValue !== undefined) {
-      adoptRekeyedSession(
-        wrappedKeyChange.newValue as string,
-        changes[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]?.newValue as number | undefined,
-        changes[SESSION_STORAGE_KEYS.VALIDITY_HOURS]?.newValue as number | undefined,
-      );
+    if (hasAuthChange) {
+      // rekey 自愈：包裹数据密钥被更新（修改主密码/重新登录）且 newValue 存在时，
+      // 失效本上下文旧数据密钥热缓存，确保后续 loadPasswords 用新密钥解密。
+      // 删除语义（newValue === undefined，锁定流程）不触发，避免干扰竞态防护。
+      const wrappedKeyChange = changes[SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY];
+      if (wrappedKeyChange?.newValue !== undefined) {
+        adoptRekeyedSession(
+          wrappedKeyChange.newValue as string,
+          changes[SESSION_STORAGE_KEYS.PASSWORD_EXPIRY]?.newValue as number | undefined,
+          changes[SESSION_STORAGE_KEYS.VALIDITY_HOURS]?.newValue as number | undefined,
+        );
+      }
+      logger.debug('StorageWatcher: 检测到认证相关 storage 变动，重新检查认证状态');
+      onAuthChange();
     }
-    logger.debug('StorageWatcher: 检测到认证相关 storage 变动，重新检查认证状态');
-    onAuthChange();
+
+    const hasPasswordDataChange = Object.keys(changes).some(key => PASSWORD_DATA_STORAGE_KEYS.has(key));
+    if (!hasPasswordDataChange) return;
     // 密码数据变化时，重新加载密码列表
     // 若 skipIf 标志为 true（本地操作进行中），跳过重载，因为 Vue 层已就地更新状态
-    if (STORAGE_KEYS.PASSWORDS in changes) {
-      if (skipIf?.value) {
-        logger.debug('StorageWatcher: 本地操作进行中，跳过密码列表重载');
-        return;
-      }
-      logger.debug('StorageWatcher: 检测到密码数据变动，重新加载密码列表');
-      onPasswordDataChange();
+    if (skipIf?.value) {
+      logger.debug('StorageWatcher: 本地操作进行中，跳过密码列表重载');
+      return;
     }
+    logger.debug('StorageWatcher: 检测到密码数据变动，重新加载密码列表');
+    onPasswordDataChange();
   };
 
   /** 可见性变化监听：页面重新可见时重跑认证检查 */

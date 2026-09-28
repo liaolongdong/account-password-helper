@@ -1,5 +1,8 @@
 <template>
-  <div class="password-list">
+  <div
+    ref="tableHostRef"
+    class="password-list"
+  >
     <el-table
       ref="localTableRef"
       v-loading="loading"
@@ -165,6 +168,34 @@
           >
         </template>
       </el-table-column>
+      <!--
+        分组列：默认隐藏，由操作列表头的齿轮开关控制。
+        显示全路径，聚合视图下区分条目来自哪个子分组。
+      -->
+      <el-table-column
+        v-if="groupColVisible"
+        prop="groupPath"
+        min-width="140"
+        show-overflow-tooltip
+      >
+        <template #header>
+          <SortHeaderCell
+            :label="t('options.group.column')"
+            prop="groupPath"
+            :chain="sortChain"
+            @sort="prop => $emit('columnSort', prop)"
+          />
+        </template>
+        <template #default="{ row }">
+          <span v-if="row.groupPath">{{ row.groupPath }}</span>
+          <span
+            v-else
+            class="no-tag"
+          >
+            {{ t('options.group.ungrouped') }}
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column
         prop="remark"
         min-width="150"
@@ -227,11 +258,35 @@
         </template>
       </el-table-column>
       <el-table-column
-        :label="t('common.actions')"
         header-align="center"
         width="210"
         fixed="right"
       >
+        <template #header>
+          <span class="actions-header">
+            {{ t('common.actions') }}
+            <el-popover
+              placement="bottom-end"
+              :width="180"
+              trigger="click"
+            >
+              <template #reference>
+                <el-button
+                  :icon="Setting"
+                  link
+                  size="small"
+                  :aria-label="t('options.group.columnSettings')"
+                  :title="t('options.group.columnSettings')"
+                />
+              </template>
+              <el-checkbox
+                :model-value="groupColVisible"
+                :label="t('options.group.showColumn')"
+                @update:model-value="$emit('update:groupColVisible', $event === true)"
+              />
+            </el-popover>
+          </span>
+        </template>
         <template #default="{ row }">
           <div
             class="operation-buttons"
@@ -317,9 +372,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onBeforeUpdate } from 'vue';
-import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
-import type { PasswordEntry } from '@/utils/types';
+import { ref, onBeforeUpdate, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link, Setting } from '@element-plus/icons-vue';
+import type { PasswordEntry, PasswordEntryWithGroupPath } from '@/utils/types';
+import { ENTRY_DRAG_MIME } from '@/utils/groupTree';
 import type { SortCriterion } from '@/utils/passwordSort';
 import { formatDate } from '@/utils/dateFormat';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
@@ -336,9 +392,9 @@ import { useI18n } from '@/utils/i18n';
  * 展示密码数据的完整表格，包含搜索排序、标签渲染、
  * 密码显隐切换和操作按钮（查看详情/复制/编辑/收藏/删除）。
  */
-defineProps<{
-  /** 表格数据 */
-  data: PasswordEntry[];
+const props = defineProps<{
+  /** 表格数据（含预计算的分组全路径） */
+  data: PasswordEntryWithGroupPath[];
   /** 加载状态 */
   loading: boolean;
   /** 行类名函数 */
@@ -347,6 +403,10 @@ defineProps<{
   searchKeyword?: string;
   /** 当前多列排序链（驱动表头方向/优先级指示） */
   sortChain: readonly SortCriterion[];
+  /** 「分组」列是否可见（默认隐藏，由表头齿轮开关控制） */
+  groupColVisible?: boolean;
+  /** 当前选中条目 ID（拖拽时决定搬运单行还是整批） */
+  selectedIds?: string[];
 }>();
 
 defineEmits<{
@@ -358,6 +418,8 @@ defineEmits<{
   edit: [row: PasswordEntry];
   toggleFavorite: [id: string];
   deletePassword: [id: string];
+  /** 切换「分组」列显隐 */
+  'update:groupColVisible': [value: boolean];
 }>();
 
 const { t } = useI18n();
@@ -406,6 +468,62 @@ onBeforeUpdate(() => {
   closeAllTooltips();
   tooltipInstances = [];
 });
+
+// ==================== 行拖拽归组 ====================
+
+/** 表格容器引用（dragstart 事件委托挂载点） */
+const tableHostRef = ref<HTMLElement | null>(null);
+
+/**
+ * 行拖拽起始：把条目 ID 写入 dataTransfer
+ *
+ * 拖拽已选中的行 → 搬运整批选中条目；拖拽未选中的行 → 只搬运该行。
+ * 用自定义 MIME（ENTRY_DRAG_MIME）让左侧分组树能区分「拖条目」与「拖分组节点」；
+ * text/plain 兜底：部分浏览器要求至少设置一种标准类型才允许拖拽。
+ */
+const handleRowDragStart = (event: DragEvent, row: PasswordEntryWithGroupPath) => {
+  const selected = props.selectedIds ?? [];
+  const ids = selected.includes(row.id) ? selected : [row.id];
+  event.dataTransfer?.setData(ENTRY_DRAG_MIME, ids.join(','));
+  event.dataTransfer?.setData('text/plain', ids.join(','));
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+};
+
+/**
+ * 事件委托：容器监听冒泡的 dragstart，从 tr 的 class 反查行数据
+ *
+ * 委托方式只挂一个监听器，不随行数增长，也无需在行销毁时逐个清理。
+ */
+const handleContainerDragStart = (event: DragEvent) => {
+  const target = event.target as HTMLElement | null;
+  const row = target?.closest?.('tr.el-table__row');
+  if (!row) return;
+  // rowClassName 把条目 id 写进了 tr 的 class 列表；排除 Element Plus 自身的类名
+  const id = [...row.classList].find(cls => !cls.startsWith('el-') && cls !== 'new-item' && cls !== 'del-item');
+  if (!id) return;
+  const entry = props.data.find(item => item.id === id);
+  if (entry) handleRowDragStart(event, entry);
+};
+
+/** 给所有表格行设置 draggable（数据更新后行 DOM 重建，需重新标记） */
+const markRowsDraggable = () => {
+  tableHostRef.value?.querySelectorAll('tr.el-table__row').forEach(row => row.setAttribute('draggable', 'true'));
+};
+
+onMounted(() => {
+  tableHostRef.value?.addEventListener('dragstart', handleContainerDragStart);
+  void nextTick(markRowsDraggable);
+});
+
+onUnmounted(() => {
+  tableHostRef.value?.removeEventListener('dragstart', handleContainerDragStart);
+});
+
+// 翻页/过滤/排序后行 DOM 重建，重新标记 draggable
+watch(
+  () => props.data,
+  () => void nextTick(markRowsDraggable),
+);
 
 /**
  * 将 URL 文本归一化为可跳转的完整链接
@@ -536,6 +654,22 @@ defineExpose({ tableRef: localTableRef });
   font-size: 12px;
   font-style: italic;
   color: #c0c4cc;
+}
+
+/* 操作列表头：标题 + 列显隐齿轮 */
+.actions-header {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* 可拖拽行：抓取光标提示 */
+:deep(.el-table__body-wrapper tr.el-table__row) {
+  cursor: grab;
+}
+
+:deep(.el-table__body-wrapper tr.el-table__row:active) {
+  cursor: grabbing;
 }
 
 /* 操作按钮样式 */

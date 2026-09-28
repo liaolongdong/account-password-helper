@@ -20,6 +20,7 @@ import { effectScope, ref, type EffectScope } from 'vue';
 import { usePasswordManagement } from '@/composables/usePasswordManagement';
 import { stringifyTags } from '@/utils/tagUtils';
 import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
+import { UNGROUPED_CODE } from '@/utils/types';
 
 describe('usePasswordManagement 密码表单字段所有权', () => {
   let scope: EffectScope;
@@ -84,6 +85,7 @@ describe('usePasswordManagement 密码表单字段所有权', () => {
       tag: '',
       remark: '',
       totp: '',
+      groupId: UNGROUPED_CODE,
     });
   });
 
@@ -97,6 +99,7 @@ describe('usePasswordManagement 密码表单字段所有权', () => {
       tag: '',
       remark: '',
       totp: '',
+      groupId: UNGROUPED_CODE,
     });
 
     mgmt.tagArray.value = ['生活'];

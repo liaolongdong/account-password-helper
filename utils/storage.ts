@@ -10,6 +10,7 @@
  * - passwordCrud.ts    — 密码 CRUD（保存/更新/删除/查询）
  * - configManager.ts   — 配置管理（排序/悬浮按钮/邮箱备份/剪贴板/收藏上限）
  * - autoSaveManager.ts — 自动保存配置与执行 + LRU 收藏淘汰
+ * - groupManager.ts    — 密码分组树 CRUD
  */
 
 import * as facades from './storage/facades';
@@ -17,6 +18,7 @@ import * as masterPassword from './storage/masterPassword';
 import * as passwordCrud from './storage/passwordCrud';
 import * as configManager from './storage/configManager';
 import * as autoSaveManager from './storage/autoSaveManager';
+import * as groupManager from './storage/groupManager';
 
 export const StorageUtils = {
   // 加密委托 + 会话委托 + 调试
@@ -33,6 +35,9 @@ export const StorageUtils = {
 
   // 自动保存 + LRU 淘汰
   ...autoSaveManager,
+
+  // 分组树 CRUD
+  ...groupManager,
 
   // 常量
   DEFAULT_FAVORITE_LIMIT: configManager.DEFAULT_FAVORITE_LIMIT,

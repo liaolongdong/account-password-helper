@@ -4,17 +4,21 @@ import {
   ENTRY_DRAG_MIME,
   GROUP_PATH_SEPARATOR,
   MAX_GROUP_NAME_LENGTH,
+  buildGroupPathMap,
   buildTree,
   countEntriesByGroup,
   ensureGroupByPath,
   filterGroupsByKeyword,
   getDescendantCodes,
   getGroupPath,
+  mergeImportedGroups,
+  resolveImportedGroups,
   resolveEntryGroupId,
   validateGroupName,
 } from '@/utils/groupTree';
 import type { PasswordGroup } from '@/utils/types';
 import { ROOT_GROUP_CODE, UNGROUPED_CODE } from '@/utils/types';
+import type { ImportedPasswordEntry } from '@/utils/groupTree';
 
 const makeGroup = (code: string, name: string, parentCode: string, order = 0): PasswordGroup => ({
   code,
@@ -30,6 +34,17 @@ const GROUPS: PasswordGroup[] = [
   makeGroup('projB', 'Project B', 'work', 1),
   makeGroup('fe', 'Frontend', 'projA', 0),
 ];
+
+const makeImportedEntry = (overrides: Partial<ImportedPasswordEntry> = {}): ImportedPasswordEntry => ({
+  username: 'u',
+  password: 'p',
+  url: '',
+  tag: '',
+  remark: '',
+  createTime: 0,
+  updateTime: 0,
+  ...overrides,
+});
 
 function flattenTree(nodes: ReturnType<typeof buildTree>): ReturnType<typeof buildTree> {
   const result: ReturnType<typeof buildTree> = [];
@@ -167,6 +182,20 @@ describe('getGroupPath', () => {
   });
 });
 
+describe('buildGroupPathMap', () => {
+  it('builds every path in one pass with the same values as getGroupPath', () => {
+    const paths = buildGroupPathMap(GROUPS);
+    for (const group of GROUPS) {
+      expect(paths.get(group.code)).toBe(getGroupPath(group.code, GROUPS));
+    }
+  });
+
+  it('keeps the resolvable suffix for a dangling parent', () => {
+    const paths = buildGroupPathMap([makeGroup('child', 'Child', 'missing-parent')]);
+    expect(paths.get('child')).toBe('Child');
+  });
+});
+
 describe('getDescendantCodes', () => {
   it('returns the group itself and every descendant', () => {
     expect([...getDescendantCodes('work', GROUPS)].sort()).toEqual(['fe', 'projA', 'projB', 'work']);
@@ -292,6 +321,93 @@ describe('ensureGroupByPath', () => {
 
     expect(created).toHaveLength(depth);
     expect(flattenTree(buildTree(created))).toHaveLength(depth + 2);
+  });
+});
+
+describe('mergeImportedGroups', () => {
+  it('reuses same-name same-level groups and remaps imported codes', () => {
+    const result = mergeImportedGroups(
+      [makeGroup('backup-work', 'Work', ROOT_GROUP_CODE), makeGroup('backup-proj', 'Project A', 'backup-work')],
+      GROUPS,
+    );
+
+    expect(result.groups).toHaveLength(GROUPS.length);
+    expect(result.codeMap.get('backup-work')).toBe('work');
+    expect(result.codeMap.get('backup-proj')).toBe('projA');
+  });
+
+  it('creates missing parents before their children regardless of input order', () => {
+    const result = mergeImportedGroups(
+      [makeGroup('child', 'Child', 'parent'), makeGroup('parent', 'Parent', ROOT_GROUP_CODE)],
+      [],
+    );
+
+    const parentCode = result.codeMap.get('parent')!;
+    const childCode = result.codeMap.get('child')!;
+    expect(result.groups.find(group => group.code === childCode)?.parentCode).toBe(parentCode);
+  });
+
+  it('attaches cyclic imported data to the root without losing groups', () => {
+    const result = mergeImportedGroups([makeGroup('a', 'A', 'b'), makeGroup('b', 'B', 'a')], []);
+
+    expect(result.codeMap.size).toBe(2);
+    expect(result.groups.map(group => group.parentCode)).toEqual([ROOT_GROUP_CODE, ROOT_GROUP_CODE]);
+  });
+
+  it('does not mutate imported or existing groups', () => {
+    const imported = [makeGroup('imported', 'Imported', ROOT_GROUP_CODE)];
+    const existing = GROUPS.map(group => ({ ...group }));
+    const importedBefore = imported.map(group => ({ ...group }));
+    const existingBefore = existing.map(group => ({ ...group }));
+
+    mergeImportedGroups(imported, existing);
+
+    expect(imported).toEqual(importedBefore);
+    expect(existing).toEqual(existingBefore);
+  });
+});
+
+describe('resolveImportedGroups', () => {
+  it('maps explicit group ids through the imported code map', () => {
+    const result = resolveImportedGroups(
+      {
+        entries: [makeImportedEntry({ groupId: 'backup-proj' })],
+        groups: [
+          makeGroup('backup-work', 'Work', ROOT_GROUP_CODE),
+          makeGroup('backup-proj', 'Project A', 'backup-work'),
+        ],
+      },
+      GROUPS,
+    );
+
+    const projectCode = result.groups.find(group => group.name === 'Project A')!.code;
+    expect(result.entries[0].groupId).toBe(projectCode);
+  });
+
+  it('builds groups from paths and gives path data precedence over group ids', () => {
+    const result = resolveImportedGroups(
+      {
+        entries: [makeImportedEntry({ groupId: 'ignored', groupPath: 'Life/Travel' })],
+        groups: [],
+      },
+      GROUPS,
+    );
+
+    const travel = result.groups.find(group => group.name === 'Travel')!;
+    expect(travel.parentCode).toBe('life');
+    expect(result.entries[0].groupId).toBe(travel.code);
+  });
+
+  it('maps missing explicit group ids to ungrouped', () => {
+    const result = resolveImportedGroups(
+      {
+        entries: [makeImportedEntry({ groupId: 'missing' })],
+        groups: [],
+      },
+      GROUPS,
+    );
+
+    expect(result.entries[0].groupId).toBeUndefined();
   });
 });
 

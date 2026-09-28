@@ -61,9 +61,13 @@ async function readPasswords(): Promise<(PasswordEntry | EncryptedPasswordEntry)
  * 条目保持密文状态不变，安全模型与主列表一致。
  *
  * @param ids 要移入回收站的条目 ID 列表
+ * @param extraStorageItems 需要与主列表、回收站同一次落盘的附加键
  */
-export async function moveToTrash(ids: string[]): Promise<void> {
-  if (!ids.length) return;
+export async function moveToTrash(ids: string[], extraStorageItems?: Readonly<Record<string, unknown>>): Promise<void> {
+  if (!ids.length) {
+    if (extraStorageItems) await chrome.storage.local.set(extraStorageItems);
+    return;
+  }
   try {
     const idSet = new Set(ids);
     const passwords = await readPasswords();
@@ -81,10 +85,14 @@ export async function moveToTrash(ids: string[]): Promise<void> {
       }
     }
 
-    if (movedEntries.length === 0) return;
+    if (movedEntries.length === 0) {
+      if (extraStorageItems) await chrome.storage.local.set(extraStorageItems);
+      return;
+    }
 
     // 原子写入：同时更新 passwords 和 trash
     await chrome.storage.local.set({
+      ...extraStorageItems,
       [STORAGE_KEYS.PASSWORDS]: remainingPasswords,
       [STORAGE_KEYS.TRASH]: [...trash, ...movedEntries],
     });

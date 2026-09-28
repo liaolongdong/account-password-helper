@@ -108,6 +108,26 @@
         </el-form-item>
 
         <el-form-item
+          :label="t('options.group.formLabel')"
+          prop="groupId"
+        >
+          <el-tree-select
+            v-model="localForm.groupId"
+            :data="groupSelectData"
+            :props="GROUP_TREE_PROPS"
+            node-key="code"
+            check-strictly
+            :render-after-expand="false"
+            default-expand-all
+            clearable
+            :disabled="loading"
+            :placeholder="t('options.group.selectPlaceholder')"
+            style="width: 100%"
+            @clear="localForm.groupId = UNGROUPED_CODE"
+          />
+        </el-form-item>
+
+        <el-form-item
           :label="t('common.remark')"
           prop="remark"
         >
@@ -242,7 +262,8 @@
 <script setup lang="ts">
 import { ref, reactive, watch, computed } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import type { PasswordFormModel, PasswordFormPatch } from '@/utils/types';
+import type { GroupTreeNode, PasswordFormModel, PasswordFormPatch } from '@/utils/types';
+import { ROOT_GROUP_CODE, UNGROUPED_CODE } from '@/utils/types';
 import { View, Hide, Camera, Upload } from '@element-plus/icons-vue';
 import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopover.vue';
 import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopover.vue';
@@ -283,6 +304,8 @@ const props = defineProps<{
   passwordStrength: PasswordStrengthResult;
   /** 密码规则逐条校验结果 */
   passwordRules: PasswordRuleItem[];
+  /** 分组树渲染节点（供分组下拉选择；空数组时下拉只有「未分组」） */
+  groupTree: GroupTreeNode[];
 }>();
 
 const emit = defineEmits<{
@@ -309,6 +332,7 @@ const localForm = reactive({
   url: props.form.url,
   remark: props.form.remark,
   totp: props.form.totp,
+  groupId: props.form.groupId,
 });
 
 /**
@@ -332,6 +356,7 @@ watch(
     localForm.url = val.url;
     localForm.remark = val.remark;
     localForm.totp = val.totp;
+    localForm.groupId = val.groupId;
   },
 );
 
@@ -343,6 +368,7 @@ watch(localForm, val => {
     url: val.url,
     remark: val.remark,
     totp: val.totp,
+    groupId: val.groupId,
   });
 });
 
@@ -354,6 +380,23 @@ const formPasswordInputFocused = ref(false);
 
 /** TOTP 密钥预览是否有效（控制是否展示实时动态码） */
 const totpPreviewValid = computed(() => isValidTotpInput((localForm.totp || '').trim()));
+
+/** el-tree-select 字段映射 */
+const GROUP_TREE_PROPS = { label: 'label', children: 'children' } as const;
+
+/**
+ * 分组下拉数据：剔除虚拟根（语义是「全库」不可选），
+ * 「未分组」保留真实 code，避免空字符串被 Element Plus 当作“未选择”而显示占位符。
+ */
+const groupSelectData = computed(() => {
+  const mapNode = (node: GroupTreeNode): { code: string; label: string; children: unknown[] } => ({
+    code: node.code,
+    label: node.code === UNGROUPED_CODE ? t('options.group.ungrouped') : node.name,
+    children: node.children.map(mapNode),
+  });
+  const root = props.groupTree.find(node => node.code === ROOT_GROUP_CODE);
+  return (root?.children ?? []).map(mapNode);
+});
 
 /**
  * 处理密码生成器确认事件
