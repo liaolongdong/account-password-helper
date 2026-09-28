@@ -67,17 +67,14 @@
   ],
   "packageManager": "pnpm@10.12.1",
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ],
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"],
     "overrides": {
       "shell-quote": ">=1.8.1",
       "tmp": ">=0.2.7",
       "uuid": ">=9.0.1",
       "js-yaml": "~4.3.2",
-      "fast-uri": "~3.1.7"
+      "fast-uri": "~3.1.7",
+      "firefox-profile": "~4.7.1"
     }
   },
   "type": "module",
@@ -117,16 +114,9 @@
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
