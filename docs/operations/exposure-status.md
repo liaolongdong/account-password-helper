@@ -40,7 +40,7 @@
 - **忽略规则净新增两条**（按用户勾选，未扩范围）：`.baoyu-skills/` 由只忽略 `.env` 升为整目录（个人公众号 / 微信发布流程与配图软链属机器绑定状态，AppSecret 本就在 `.env`）；`docs/pricing.md`（根目录对外那份的零引用落后副本）。两者同步 `git rm --cached` 取消跟踪，**磁盘文件未删**。顺带把 `docs/code-review-*.md` 拓宽为 `docs/**/code-review-*.md`，否则归类后评审报告落进子目录就漏。
 - **`.gitignore` 补了反向清单**（第 166–175 行一段）：`docs/operations/**`、`docs/store/**`、`docs/media/**`、`docs/reports/**`、`docs/fixtures/test-page.html` 等 12 条列明「刻意保持跟踪，勿顺手忽略」——搬完之后的死链风险从「一个文件名」变成「一整个目录」，只写正向忽略不够。`docs/README.md` 是这套口径的入口：中英各一张 13 行的目录职责表 + 「新增文档该放哪」四条判定 + 反查命令。
 - **历史记述不改写**。本文 §2026-09-27 的「26 条该留的路径」仍写「根目录 `pricing.md` 与 `test-page.html`」——那是当时快照，只机械更新会被链接检查判死的路径；读到这里时 `test-page.html` 已在 `docs/fixtures/`，根目录 `pricing.md` 确实没动。
-- **刻意没做**：`docs/demo-login.mp4`（用户未勾选，保持跟踪）、`imgs/` 出图工作稿（同）、`.qoder/{rules,skills,commands}`（团队配置）、`CHANGELOG.md` 与 `docs/blog/**`（Pages 与对外口径）。
+- **刻意没做**：`docs/media/demo-login.mp4`（用户未勾选，保持跟踪）、`imgs/` 出图工作稿（同）、`.qoder/{rules,skills,commands}`（团队配置）、`CHANGELOG.md` 与 `docs/blog/**`（Pages 与对外口径）。
 - **落点**：分两个提交——`docs(structure)`（22 个重命名 + 46 个引用改写 + 新增 `docs/README.md`）与紧随的 `chore(repo)`（`.gitignore` 全部改动 + 三处取消跟踪）。两个提交落在从 `chore-deps-adm-zip` 切出的 `docs-structure` 分支上——当时那个分支的工作树正被并行的依赖波次占用，直接切走会把 `package.json` / lockfile 退回旧版本，所以没有切回 `main`。**未推送、未发布**。
 
 ### 验证
