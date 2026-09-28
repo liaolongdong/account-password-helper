@@ -526,6 +526,37 @@ graph TB
 - **实时切换链路**：两套体系都监听 `storage.onChanged` 的 `app_locale` 变更并通知订阅者；右键菜单标题按用户语言渲染，语言切换时整体重建。
 - **一致性守卫**：`tests/utils/i18nBundles.test.ts` 校验中英文 key 集一致与 bundle 注册，`tests/utils/i18nLiteParity.test.ts` 校验轻量 i18n 中英对齐；新增/删除/重命名 key 必须两套语言同步，否则测试失败。manifest 文案另走 `public/_locales/{zh_CN,en}/messages.json`。
 
+### 27. 云文档同步（腾讯智能表 / 飞书多维表格 / WebDAV）
+
+- 入口在密码管理页「数据管理 → 云文档同步」，单弹窗内用 Tab 切换飞书 / 腾讯 / WebDAV，三平台凭证、目标与快照完全独立，切换不清空其他平台数据。
+- **仅手动触发，默认关闭**，无定时/后台自动同步；执行位置在 Options 页面内直接 `fetch`，`host_permissions: ['<all_urls>']` 已覆盖三平台域名（WebDAV 为用户自选服务器），**不新增任何浏览器权限**，也不走 Background 消息路由。
+- **两种模式**：密文（默认，推荐）为本地→云端单向备份 + 手动恢复；明文为行级双向同步（仅表格平台）。明文切换需强风险确认，且每次同步前必须通过 `promptAndVerifyMasterPassword` 重新验证主密码。WebDAV **仅支持密文模式**（`normalizeProvider` 强制 `mode='encrypted'`）。
+- **密文模式（表格平台）**：整库加密后按阈值分片（默认 48000 字符，超限自动减半降级），每片记录 `partHash`、整库记录 `snapshotHash` 形成双层校验链；恢复时按 `snapshotGroupId` 聚合、逐片校验后才解密，按 `id` 增量合并且**不删除本地任何条目**。版本保留默认 3 份，可在备份后自动清理超期版本与孤儿分片。
+- **WebDAV 密文备份（单文件）**：整库加密为**单个 `.aphdav` 文件**（`aph-<UTC时间戳14位>-<6位随机>.aphdav`，字典序即时间序）PUT 到用户目录下的 `aph-backup/` 子目录，单文件 PUT 原子、失败不产生半成品；恢复校验链为结构校验 → `snapshotHash` → AES-GCM 认证 → 载荷逐条校验，同样按 `id` 增量合并、**绝不删除本地条目**。版本保留复用全局 `keepVersions`，超出保留数的旧文件在备份后自动清理（清理失败不回滚备份，仅记入报告）。协议实现（[adapters/webdav.ts](../utils/cloudSync/adapters/webdav.ts)）：PROPFIND 响应按 `localName` 解析（兼容各服务器命名空间前缀差异）、MKCOL 201/405 均视为成功（幂等）、DELETE 404 视为成功、仅操作 `aph-*.aphdav` 文件绝不误删用户其他文件、下载 50MB 上限防内存耗尽；鉴权 Basic 为主、Bearer Token 可选（非空优先）。**传输安全门**：http 且非 localhost 时必须用户显式勾选确认（`allowInsecure` 持久化到 target），且每次备份/恢复报告常驻 `insecureTransport` 警告；安全门在适配器与编排层独立重算，不信任 UI 单侧判断。`DOMParser` 为 Window API，WebDAV 模块**仅可在 Options 页面使用**，严禁被 background/content 入口 import（构建产物已验证 `background.js` 不含 webdav 代码）。
+- **适配器双抽象**：`TableAdapter`（表格平台：recordId/字段/单元格语义）与 `FileStorageAdapter`（文件协议：testConnection/ensureDirectory/listFiles/putFile/getFile/deleteFile）并列，文件协议不硬套表格语义；`runContext.ts` 提供两路编排共享的 `loadReadyContext`/`emptyStats`/`buildReport` 基元。所有 provider 分派为穷尽式 `switch` + `never` 兜底，新增平台时 TS 编译期强制补全分支（`tests/utils/cloudSync.providerExhaustive.test.ts` 守卫）。
+- **明文模式**：以 `PasswordEntry.id` 为主键、云端 `recordId` 为平台内部标识，通过「本地 / 云端 / 本地快照」三方 diff 判定推送、拉取、删除、冲突；冲突按 LWW（本地 `updateTime` vs 云端 record 修改时间）裁决，本地删→删云端行，云端删→本地条目进回收站（复用 `trashManager`，可恢复），无业务 ID 的云端新增回退 `url + username` 判重。
+- **快照**：本地快照存 `chrome.storage.local`，按 `provider + docKey` 隔离（WebDAV 的 docKey 为 `backupDirUrl`），仅保存内容哈希、`recordId`/文件名与同步时间；哈希范围明确**不含 ID / updateTime / 云端时间**，避免推送刷新云端时间后被误判为云端变更。
+- **凭证安全**：飞书 `app_id` / `app_secret`、腾讯 `client_id` / `open_id` / `access_token` 与 WebDAV `username` / `password` / `bearerToken` 以 AES-256-GCM 加密后存 `chrome.storage.local`，密钥复用会话数据密钥（`getSessionDataKey`），锁定后不可解、修改主密码后提示重新录入；飞书 `tenant_access_token` 仅内存缓存并在过期前 30s 预刷新，绝不持久化。
+- **并发保护**：任务互斥锁存 `chrome.storage.session`（跨 Options 页面实例生效，内存 Map 无法做到），按 `provider:docKey` 加锁，10s 心跳、30s 心跳超时判定死锁并强制抢占，所有退出路径在 `finally` 释放锁。
+- **平台适配**：`adapters/` 统一屏蔽平台差异——飞书 Bitable V1（tenant token、`automatic_fields` 取 `last_modified_time`、批量 ≤500、`1254xxx` 错误码）、腾讯智能表 OpenAPI v2（三 Header 鉴权、文本字段数组包对象格式、`updateTime` 字符串转毫秒、增删改查共用同一 POST 路径靠 body 键区分、`10302/10303/10313/37019` 错误码）、WebDAV（HTTP 状态码全表映射：401→invalidCredential、403/407→permission、404/409→notFound、413→tooLarge、423→writeConflict、429→rateLimit、507→quota 且不重试）。表结构前置校验，被外部篡改时终止同步并告警，**绝不自动修改云端表结构**。
+- **数据边界**：云端行与云端文件一律按不可信输入校验（类型、长度、非法字符），失败行跳过并计入报告；审计日志执行字段白名单（仅时间戳、provider、模式、操作类型、业务 ID、哈希、`recordId`、统计与错误码），FIFO 100 条，绝不记录 token、密码、TOTP、用户名或网址。
+- **范围外**：不做定时/自动同步，不做原生多设备并发同步（快照仅存本机，推荐每台设备独立专属云端表/目录），不做收藏/排序/使用频次同步，不做 SidePanel 入口；WebDAV 不做明文同步、分片与自动分片降级、WebDAV LOCK/UNLOCK、自定义请求头与服务器端差量上传。
+
+### 28. 树形分组（Options 管理页）
+
+**数据结构**：邻接表独立存储。`password_groups` 键存扁平数组 `[{ code, name, parentCode, order }]`，一级分组 `parentCode = '-1'`（虚拟根）；条目经 `PasswordEntry.groupId` 一对一归属分组，缺失、悬空或指向已删除分组时归一到虚拟「未分组」节点。分组仅含组织维度，不加密；`groupId` 列入 `METADATA_FIELDS` 白名单，归组走元数据轻量路径，不解密重加密。
+
+**模块分层**：
+
+- `utils/groupTree.ts`：纯函数层（建树 / 全路径 / 子孙聚合 / 树搜索 / 路径建组 / 导入合并），无 IO 可独立测试；
+- `utils/storage/groupManager.ts`：CRUD 存储层，删除分组支持「条目移入未分组」与「条目进回收站」两种语义；
+- `composables/usePasswordManagement.ts`：`selectedGroupCode` 驱动过滤链最前置的分组过滤（本级 + 子孙聚合），并为每行注入 `groupPath` 供表格分组列渲染与排序；
+- `components/options/GroupTreePanel.vue`：左栏树（分组名搜索仅过滤树、不影响右侧列表），承载树内拖拽与表格行拖入归组（自定义 MIME `application/x-aph-entry-ids` 区分两类拖拽）。
+
+**搜索联动**：左侧树搜索只过滤分组名（保留命中节点祖先链）；右侧主搜索在选中分组范围内做 AND 过滤——选根为全库、选具体分组为本级 + 子孙、选未分组为无归属条目。
+
+**数据通道**：`.aph` 备份升 v2（顶层 `groups` + 条目 `groupId`，v1 导入归未分组）；JSON 同口径；CSV / Excel 以全路径列交换（导入按路径逐级建组，同名同级复用）；云同步明文表 9 字段含「分组」列（见云同步规格 V1.3），密文快照与 WebDAV 单文件也携带完整分组树。导入的分组 code 一律重新生成并按同名同级复用合并，避免跨设备 code 撞车。
+
 ## 开发补充
 
 ### 图标工作流

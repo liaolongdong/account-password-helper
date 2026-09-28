@@ -621,7 +621,13 @@
 
         <div class="policy-section">
           <h2>4. Network Communication</h2>
-          <p>The Extension makes only the two requests below, and neither one carries any user data:</p>
+          <p>By default the Extension makes only the two requests below, and neither one carries any user data:
+          <p>
+            <strong>Optional cloud document sync:</strong> only when you actively configure and trigger it under “Data
+            Management → Cloud Document Sync” does the Extension send data to the Tencent Docs Smartsheet, Feishu
+            Bitable or WebDAV server you choose. The feature is <strong>off by default and manual only</strong>, and adds no new browser
+            permission.
+          </p>
           <ul>
             <li>
               <strong>Chrome Web Store reachability probe:</strong> when checking for updates, one lightweight HEAD
@@ -641,6 +647,9 @@
               received.
             </li>
           </ul>
+          <p>
+            <strong>Optional cloud document sync (off by default, enabled explicitly by the user):</strong> once enabled, sync operations send requests directly from your browser to the Tencent Docs (docs.qq.com) or Feishu (open.feishu.cn) endpoints you configure, or to a WebDAV server of your choice (such as Jianguoyun or Nextcloud). For Tencent Docs and Feishu, in encrypted mode the uploaded payload is an encrypted chunked snapshot that stays unreadable in the cloud; <strong>in plaintext mode the uploaded content is readable text including usernames, passwords, notes and 2FA secrets</strong>, visible to anyone who can open that document. WebDAV supports encrypted backup only: the whole vault is encrypted into a single unreadable file, so the cloud can never view or edit entry contents; an HTTP (non-localhost) address requires an explicit checkbox confirmation of the plaintext-transport risk. The requests carry only your own vault data and the configured credentials, with no other telemetry, and no such request is made while the feature is disabled.
+          </p>
           <p>
             No other network communication occurs. Password import/export and email backup reminders are all local
             operations.
@@ -730,6 +739,9 @@
             bundled within the extension, and the Content Security Policy (CSP) restricts loading to self-only resources
             (script-src 'self'; object-src 'self').
           </p>
+          <p>
+            <strong>Exception: optional cloud document sync.</strong> Only when you explicitly enable and run a sync does the Extension contact the Tencent Docs, Feishu endpoints or WebDAV server you configured (see Section 4). Those platforms/servers are chosen and authorized by you, are not used for advertising or analytics, and receive no data unrelated to the sync.
+          </p>
         </div>
 
         <div class="policy-section">
@@ -746,6 +758,9 @@
               <strong>Email Backup Reminder:</strong> Opens the system email client via the mailto: protocol only; the
               Extension does not send emails or contact any mail server
             </li>
+            <li>
+              <strong>Cloud document sync (optional, off by default):</strong> uploads the vault to a third-party cloud document or WebDAV drive you choose. For Tencent Docs/Feishu, in the default encrypted mode the uploaded payload is encrypted and unreadable in the cloud; <strong>in plaintext mode usernames, passwords, notes and 2FA secrets are written to the cloud document as readable text</strong>, so review the risk and tighten the target document's permissions. WebDAV supports encrypted single-file backup only, unreadable in the cloud
+</li>
           </ul>
         </div>
 
