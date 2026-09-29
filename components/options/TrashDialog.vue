@@ -144,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onScopeDispose, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { Search } from '@element-plus/icons-vue';
 import {
   getTrashEntries,
@@ -161,7 +161,8 @@ import { useI18n } from '@/utils/i18n';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
 import { useVaultListPagination } from '@/composables/useVaultListPagination';
 import { useVaultPageSize } from '@/composables/useVaultPageSize';
-import { filterByKeyword, KEYWORD_DEBOUNCE_MS } from '@/utils/keywordMatch';
+import { filterByKeyword } from '@/utils/keywordMatch';
+import { useKeywordDebounce } from '@/composables/useKeywordDebounce';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import VaultPagination from '@/components/options/VaultPagination.vue';
@@ -219,34 +220,15 @@ const trashList = ref<TrashDisplayEntry[]>([]);
  */
 const isSearchable = ref(false);
 
-/** 检索关键词（输入框即时值）与其防抖副本，防抖理由见下方 `searchKeyword` 的 watcher */
+/** 检索关键词（输入框即时值）与其防抖副本，防抖实现见 `composables/useKeywordDebounce` */
 const searchKeyword = ref('');
-const debouncedKeyword = ref('');
+const { debounced: debouncedKeyword } = useKeywordDebounce(searchKeyword);
 
 /** 生效关键词：锁定那一屏没有明文可搜，检索与它的读数一起悬空 */
 const activeKeyword = computed(() => (isSearchable.value ? debouncedKeyword.value : ''));
 
 /** 是否存在生效中的关键词：驱动空态文案与计数读数 */
 const hasKeyword = computed(() => !!activeKeyword.value.trim());
-
-/**
- * 关键词防抖：与密码表共用 `KEYWORD_DEBOUNCE_MS`
- *
- * 输入框保持即时回显（`v-model` 挂在 `searchKeyword` 上），只有驱动过滤的副本延后落地。
- * 回收站同样受「整表按引用换 data 会重排当前已渲染行」的成本约束（见
- * `composables/useVaultListPagination` 的存在理由），连续击键时不防抖就是每击一次键
- * 重排一页；时长取共享常量，避免两处对「手感是否跟手」给出两种答案。
- */
-let searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
-watch(searchKeyword, value => {
-  clearTimeout(searchDebounceTimer);
-  searchDebounceTimer = setTimeout(() => {
-    debouncedKeyword.value = value;
-  }, KEYWORD_DEBOUNCE_MS);
-});
-
-// 作用域销毁时清理未触发的防抖定时器，避免向已停用作用域赋值
-onScopeDispose(() => clearTimeout(searchDebounceTimer));
 
 /**
  * 关键词过滤后的展示列表
@@ -402,7 +384,6 @@ watch(
       // 两个副本同时赋值（而非只清输入框）是为了不等防抖落地，不把「过滤后的旧关键词结果」
       // 闪进这一帧。
       void restorePageSize();
-      clearTimeout(searchDebounceTimer);
       searchKeyword.value = '';
       debouncedKeyword.value = '';
       loadTrash();

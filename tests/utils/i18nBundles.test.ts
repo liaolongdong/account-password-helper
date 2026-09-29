@@ -70,7 +70,6 @@ const BUNDLE_NAMESPACES = {
 const SIDEPANEL_GRAPH_FILES = [
   'entrypoints/sidepanel/App.vue',
   'entrypoints/sidepanel/main.ts',
-  'entrypoints/sidepanel/icons.ts',
   'components/sidepanel/PasswordListItem.vue',
   'components/sidepanel/SidepanelHeader.vue',
   'components/sidepanel/SidepanelAuthView.vue',

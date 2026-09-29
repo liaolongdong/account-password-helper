@@ -34,6 +34,7 @@ import type { SearchScope } from '@/utils/passwordFilter';
 import { getTagColor } from '@/utils/tagUtils';
 import { getPinyinRenderMemoDependency } from '@/utils/searchMatch';
 import { t } from '@/utils/i18n';
+import { scrollBehavior } from '@/utils/a11y';
 
 interface Props {
   /** 数据加载中状态 */
@@ -62,6 +63,14 @@ interface Props {
   crossDomainIds: ReadonlySet<string>;
   /** 放宽到「同主域名」档可额外带出的条目数（仅空态引导使用） */
   crossDomainHintCount: number;
+  /**
+   * 已落地（防抖后）的关键词，与输入框即时值 `searchKeyword` 分离
+   *
+   * `filteredPasswords` 由父级按这一份关键词算出，故高亮、空态文案与 `v-memo`
+   * 依赖必须同样取它：若沿用输入框的即时值，防抖窗口内会出现「列表按上一个关键词
+   * 过滤、行内按刚打的字高亮」——刚输入的前缀在该批行上无命中，整列高亮闪没。
+   */
+  activeKeyword: string;
 }
 
 interface Emits {
@@ -128,7 +137,7 @@ const toggleScope = () => {
  * 仅有筛选条件而无搜索词时保持通用文案，不推送无关信息。
  */
 const emptyHint = computed(() =>
-  searchKeyword.value.trim() ? t('sidepanel.noMatchDescSearch') : t('sidepanel.noMatchDesc'),
+  props.activeKeyword.trim() ? t('sidepanel.noMatchDescSearch') : t('sidepanel.noMatchDesc'),
 );
 
 /**
@@ -150,7 +159,7 @@ const isCrossDomain = (entry: PasswordEntry): boolean => props.crossDomainIds.ha
 /**
  * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
  */
-const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(searchKeyword.value));
+const pinyinRenderMemoDependency = computed(() => getPinyinRenderMemoDependency(props.activeKeyword));
 
 /**
  * 切换单个筛选标签的选中态（点击即切，无需下拉选择）
@@ -193,8 +202,7 @@ const scrollActiveTagIntoView = (tag: string) => {
   const viewTop = strip.scrollTop;
   const viewBottom = viewTop + strip.clientHeight;
   if (chipTop < viewTop || chipBottom > viewBottom) {
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    strip.scrollTo({ top: chipTop - strip.clientHeight / 2, behavior: reduceMotion ? 'auto' : 'smooth' });
+    strip.scrollTo({ top: chipTop - strip.clientHeight / 2, behavior: scrollBehavior() });
   }
 };
 
@@ -361,6 +369,8 @@ onUnmounted(() => {
           circle
           size="small"
           :type="favoriteOnly ? 'warning' : 'default'"
+          :aria-label="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
+          :aria-pressed="favoriteOnly"
           @click="favoriteOnly = !favoriteOnly"
         />
       </el-tooltip>
@@ -378,6 +388,7 @@ onUnmounted(() => {
             :icon="Sort"
             circle
             size="small"
+            :aria-label="t('sidepanel.sortBy')"
           />
           <template #dropdown>
             <el-dropdown-menu>
@@ -609,7 +620,7 @@ onUnmounted(() => {
             password.tag,
             password.updateTime,
             autoTriggerLogin,
-            searchKeyword,
+            activeKeyword,
             pinyinRenderMemoDependency,
             canFill(password),
             isCrossDomain(password),
@@ -617,7 +628,7 @@ onUnmounted(() => {
           :password="password"
           :is-active="activeIndex === index"
           :auto-login-enabled="autoTriggerLogin"
-          :search-keyword="searchKeyword"
+          :search-keyword="activeKeyword"
           :can-fill="canFill(password)"
           :cross-domain="isCrossDomain(password)"
           @fill="p => emit('fill', p)"
@@ -972,17 +983,20 @@ onUnmounted(() => {
 .password-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
-
-/* 排序触发按钮：当选中非默认排序时显示微妙激活态 */
-.search-section :deep(.el-dropdown) .el-button.is-active-sort {
-  color: var(--aph-primary);
-  background: var(--aph-primary-bg);
-  border-color: var(--aph-primary-border);
-}
 </style>
 
 <style>
-/* 排序下拉菜单（popper teleported 到 body，无法使用 scoped） */
+/*
+ * 排序下拉菜单（popper teleported 到 body，无法使用 scoped）
+ *
+ * 这一段必须是全局样式：`el-dropdown` 的浮层经 Teleport 挂到 `body` 下，拿不到本组件的
+ * `data-v-*` 属性，`scoped` 后选择器一条都命不中。泄漏面靠 `.sort-dropdown-popper`
+ * 这个专属 popper class 收口——所有规则都以它为前缀，不裸写 `.el-dropdown-menu__item`，
+ * 因此不会影响同页其它下拉。两处 `!important` 是用来压过 Element Plus 自身给 popper
+ * 设的圆角与阴影（同等特异性、加载顺序不可控），去掉就会退化回 EP 默认外观。
+ * 中性文字色一律走 `--aph-*` 令牌（取值与 tokens.css 的 `:root` 段一致，视觉零变化），
+ * 只在 EP 没有对应令牌的地方保留字面量。
+ */
 .sort-dropdown-popper {
   border-radius: 8px !important;
   box-shadow: 0 4px 16px rgb(0 0 0 / 10%) !important;
@@ -1009,7 +1023,7 @@ onUnmounted(() => {
   flex-shrink: 0;
   align-items: center;
   font-size: 15px;
-  color: #9ca3af;
+  color: var(--aph-text-muted);
   transition: color 0.2s ease;
 }
 
@@ -1028,12 +1042,12 @@ onUnmounted(() => {
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item:hover {
-  color: #1f2937;
+  color: var(--aph-text-primary);
   background: #f5f7fa;
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item:hover .sort-item-icon {
-  color: #6b7280;
+  color: var(--aph-text-secondary);
 }
 
 .sort-dropdown-popper .el-dropdown-menu__item.is-active {

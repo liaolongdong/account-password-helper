@@ -54,7 +54,7 @@ graph LR
 
 - **注入范围**：[entrypoints/content.ts](../entrypoints/content.ts) 以 `matches: ['<all_urls>']` + `allFrames: true` 注入所有 frame。表单检测与自动保存监听在**所有 frame** 初始化（iframe 内的登录表单同样需要被检测和捕获），而悬浮按钮、保存弹窗、委托通知只在**顶层 frame** 渲染，避免每个 iframe 重复注入造成重叠与定位错乱。
 - **样式隔离**：分两档，按实现如实区分。①**Closed Shadow DOM**（`all: initial` 重置 + 内联写入 `--aph-*` 主题令牌，`z-index 2147483647`，宿主引用不外泄）：悬浮按钮、内联填充面板、活码胶囊、填充失败引导气泡、保存密码提示（宿主挂在 `documentElement`，`data-aph="save-password-prompt"` 是影子树外定位它的唯一凭据，keyframes 随影子树作用域生效，不向 `document.head` 注入任何样式）。②**light DOM**（节点直接挂在页面 `body` 上，作用域靠扩展自有类名收敛，主题令牌内联写到自身元素）：密码可见性切换按钮（按 id 向 `document.head` 一次性注入样式表）、原生通知条（不注入任何样式表，全部 `cssText` 内联，**配色固定、不随主题变化**）。两类都不得依赖页面全局函数/变量，也不得以 `innerHTML`/`v-html` 渲染来自 DOM 或消息的不可信文本。
-- **跨 frame 明文边界**：iframe 内的凭证通过 `window.top.postMessage` 委托顶层 frame 渲染保存弹窗，回传结果时 `targetOrigin` 固定为来源 origin；保存类委托必须先经 `isSameMainDomain(event.origin, location.origin)` 校验，防止跨域 iframe 把明文密码泄露给第三方页面。通知委托因跨域场景也需要放行，但按不可信输入处理：发送侧 `targetOrigin` 锁定为 `location.ancestorOrigins` 末位解析出的顶层 origin（解析不出就不跨帧投递，直接在当前 frame 渲染），接收侧严格校验类型与长度并限流（10 秒滑动窗口内最多 5 次）。反向同理，明文凭证只下发到顶层或同主域名 frame（`isFrameFillable`）。
+- **跨 frame 明文边界**：iframe 内的凭证通过 `window.top.postMessage` 委托顶层 frame 渲染保存弹窗，回传结果时 `targetOrigin` 固定为来源 origin；保存类委托必须先经 `isSameMainDomain(event.origin, location.origin)` 校验，防止跨域 iframe 把明文密码泄露给第三方页面。提示委托**不再走 postMessage**：`APH_SHOW_NOTIFICATION` 这类枚举值是公开可得的字符串，宿主页面脚本一行 `postMessage` 就能冒充扩展在整页右上角渲染任意文案（钓鱼形状），改由内容脚本发 `MessageType.DELEGATE_PAGE_NOTICE` 给 background，路由校验 `sender.id === chrome.runtime.id` 且 `sender.tab.id` 存在（归属由浏览器盖章，页面世界发不出这条消息），再以 `tabs.sendMessage({ frameId: 0 })` 回投发起标签页的顶层 frame；tabId 只从 sender 推导，不接受自报值。后台回报未送达（如顶层 frame 尚未注入内容脚本）时委托方在当前 frame 降级渲染，提示不静默丢失。反向同理，明文凭证只下发到顶层或同主域名 frame（`isFrameFillable`）。
 - **监听器生命周期**：所有 DOM 监听统一经 WXT 的 `ctx.addEventListener` 注册（扩展上下文失效时自动移除），`ctx.onInvalidated` 与 `beforeunload` 触发集中 `cleanup()`，销毁 FormDetector / LoginAutoSave / 悬浮按钮管理器注册的监听器、MutationObserver 与注入 UI。这是消除重载后旧脚本残留调用 chrome API 抛 `Extension context invalidated` 的根因修复，新增监听时不得绕过。
 - **检测节奏**：首次扫描在 `DOMContentLoaded` 后延时 3 秒（文档已就绪时 500 毫秒），MutationObserver 以 500 毫秒去抖触发重扫，观察范围为 `document.body` 的 `childList + subtree + attributes(class/style/placeholder)`；SPA 路由变化合并进同一观察器（不额外建 Observer），`popstate` 仅覆盖前进/后退。填充前若字段尚未命中，`waitForFieldsDetected()` 以 100ms 起始、1.5 倍退避、上限 2000ms 重试至多 10 次；`blur` 等易触发重渲染的时机改用事件驱动的 `waitForDomStable(quietMs=50, budgetMs=300)` 等待 DOM 静默，而非固定 sleep。
 - **预唤醒**：表单输入框 `focusin`、顶层 frame `visibilitychange`、初始化后 100ms 三处调用 `preWarmServiceWorker()`，与用户操作并行拉起 SW，为后续 `sidePanel.open()` 消除冷启动等待（见「侧边栏秒开跨平台策略」）。
@@ -80,6 +80,7 @@ graph TB
 - 过期 / 锁定 / 手动锁定三条路径都只走 `clearSession()`：清除内存与 `storage.session` 中的密钥材料、解密快照、CryptoKey 句柄缓存，以及两把**以条目明文为键**的派生记忆缓存（拼音命中区间、标签呈现记录）。磁盘中的条目本来就是密文，**不存在「批量解密为明文存储」或「过期时批量加密回密文」的落盘动作**。
 - 上面两把缓存是模块级 `Map`，**只在加载了该模块的上下文里存在**，因此清理按上下文各自接线（`utils/plaintextCacheCleanup.ts` 登记处 + 各上下文一个触发点）：Background 走 `clearSession()` 与 `resetSessionMemoryState()`（后者由 storage 变更监听触发）；SidePanel 走 `useSidepanelData.ts` 的锁定与过期两条路径；Options 走 `isAuthenticated` 落 false 的 `flush: 'sync'` watcher——管理页可整日常驻，而跨上下文锁定时它只会翻这个状态（`clearSession()` 早在别的上下文跑完），只补 `onSessionExpired` 回调会漏掉 `checkAuth` 自检等其余四条翻转路径。Popup 与 content script 不写这两把缓存（内联下拉只用 `getTagColor`/`parseTags` 等纯函数，拼音模块在其上下文永不预热），故无需接线。该口径由 [plaintextCacheCleanupWiring.test.ts](../tests/architecture/plaintextCacheCleanupWiring.test.ts) 以依赖闭包守卫。
 - 闲置锁定（`chrome.idle`）与浏览器重启锁定是**两个默认关闭**的可选开关（`idleLockMinutes: 0`、`relockOnBrowserRestart: false`）。
+- **"保持登录"等价于"这台设备当前可解密"**：会话有效期内，`session_wrapped_data_key` 与 `session_wrap_key` 同时落在 `storage.local`，这是重启后免密恢复登录的实现依赖（见「加密机制」的会话密钥一条）——能读到该 Profile 的进程在此期间足以把密文解开，条目字段是不是明文反而不改变这个结论。锁定 / 过期 / `clearSession()` 会删除 `WRAPPED_DATA_KEY`（`sessionManager-storage.ts:801-809`），只留一枚对什么都无意义的随机包裹密钥。因此面向共用设备的建议是开启「浏览器重启锁定」：启动屏障会 `clearSession()`，密钥材料不再跨浏览器关闭长期驻留磁盘。该口径同时写进 `privacy.html`「数据存储」、管理页「自动锁定设置」的重启开关提示与侧边栏帮助条目，避免只在一处披露。
 
 ### 加密机制
 
@@ -90,6 +91,7 @@ graph TB
 ```
 
 - 敏感字段加密：`username`、`password`、`url`、`remark`、`totp`；`id`、`tag`、`createTime`、`updateTime`、`order`、`favorite`、`lastUsedAt` 等元数据保持明文，供排序与过滤使用。
+- **一处例外的明文：到期提醒表的账号名**。`password_reminders` 表按 `entryId` 冗余保存该条的 `username`（按码点截断到 `PASSWORD_FIELD_LIMITS.username`，见 [reminderManager.ts](../utils/storage/reminderManager.ts)），因为提醒由 `chrome.alarms` 在任意时刻发出桌面通知（含锁定态），去掉它就等于让通知退化成不含账号的通用文案。它额外泄露的信息是「哪个账号将在何时到期」——按上一条「保持登录 = 磁盘可解」的同一攻击面衡量并不新增防线，但确实是一处需要单独披露的明文；移除该条提醒、删除条目或清空回收站都会连带清除。
 - 空字段不参与加密（写空字符串）；Base64 解码失败安全降级返回原始数据，GCM 解密失败抛出错误由调用方按需处理——认证标签使篡改可检测，无静默回退。
 - **主密码从不落盘**。磁盘上只有校验哈希：`deriveVerifierHash` 同样是 PBKDF2-SHA256 / 600,000 次，但对盐值做了域分离（前缀 `aph-verify|`），使校验值与解密密钥在密码学上互相独立，存储中的校验值无法反推为密钥；比对使用常量时间。旧版单轮 SHA-256 校验值在验证成功时透明升级。
 - **会话密钥**：派生出的数据密钥由一枚新生成的随机包裹密钥（`session_wrap_key`）经同一套 AES-256-GCM 加密，写入 `session_wrapped_data_key`；两者必须在同一次 `chrome.storage.local.set()` 中原子落盘，避免多上下文并发写入时「A 的包裹密钥 + B 的密文」错配。明文数据密钥另存 `storage.session`（仅内存，浏览器关闭即清）。
@@ -252,8 +254,9 @@ graph TB
 │   ├── masterPasswordVerifyController.ts # 主密码验证弹窗单例控制器（命令式调用）
 │   ├── createVueApp.ts             # Vue 应用工厂
 │   ├── dateFormat.ts               # 日期格式化工具
-│   ├── domain.ts                   # 域名工具（getMainDomain / isExactHostMatch 精确主机匹配 / resolveMatchTier 跨子域分层匹配真源 / toNavigableUrl 安全导航）
+│   ├── domain.ts                   # 域名工具（getMainDomain / registrableScope 可注册域（认共享托管后缀）/ isExactHostMatch 精确主机匹配 / resolveMatchTier 跨子域分层匹配真源 / toNavigableUrl 安全导航）
 │   ├── formatShortcut.ts           # 快捷键格式化工具
+│   ├── formatFileSize.ts           # 文件字节数可读化（文件信息展示与导入闸门文案共用）
 │   ├── shortcutCommands.ts         # 快捷键命令清单（与 manifest.commands 对齐）与打开管理页动作
 │   ├── generateId.ts               # ID 生成工具（crypto 随机，独立模块避免页面 chunk 拉入 PBKDF2）
 │   ├── lazyImport.ts               # 泛型懒加载工具（并发去重的动态 import 封装）
@@ -303,6 +306,7 @@ graph TB
 - **已知限制：导出的 CSV 不做公式转义**。每个字段只按 CSV 语法加引号（`"` → `""`），以 `=`、`+`、`-`、`@` 开头的值不会额外加 `'` 或 TAB 前缀（见 [excelExport.ts](../utils/excelExport.ts) 的 `serializeCsvRows`）。刻意如此：① 前缀会改写字段内容，而密码是逐字符取用的凭证，随机密码生成器的符号集本就含 `+ - = @`，一条以这些符号开头的密码被前缀化后，无论是从表格复制使用还是再导回来都是错的；② 转义后的表格与本扩展的 CSV 解析器（[excelCsv.ts](../utils/excelCsv.ts)）不再互为可逆，破坏「导出 → 导入」往返一致性。代价是：用 Excel / Numbers 打开导出文件时，恰好以这些符号开头的单元格会被当作公式求值。缓解：只在自己本机、来源可信的表格里打开导出文件，跨机迁移优先用加密备份（.aph）。
 - JSON 导入导出：支持密码数据的 JSON 格式导出（需验证主密码），导出文件名格式为 `passwords_YYYYMMDD_HHmmss.json`；也支持从 JSON 文件导入。
 - 导入仅接受 `.csv` 与 `.json` 两类文件（无 xlsx 解析器）：Excel 表格请先「另存为 CSV」再导入（见 [ImportDialog.vue](../components/options/ImportDialog.vue)）。
+- **导入字节闸门（先于读盘）**：条数上限与逐字段长度上限都要等整份文件解码、解密、逐条 parse 之后才生效，防不住「一次 `arrayBuffer()` 把任意大的输入拉进内存」。因此 [backup/constants.ts](../utils/backup/constants.ts) 的 `MAX_PASSWORD_IMPORT_INPUT_BYTES`（32 MiB）与 [identity/constants.ts](../utils/identity/constants.ts) 的 `MAX_IDENTITY_IMPORT_INPUT_BYTES`（4 MiB，按身份库 30 条 PII 的实际容量取值）在**选文件这一步**就拒（[ImportDialog.vue](../components/options/ImportDialog.vue) / [BackupImportDialog.vue](../components/options/BackupImportDialog.vue) / [IdentityVaultDialog.vue](../components/options/IdentityVaultDialog.vue)），`.aph` 解密入口 [backupExport.ts](../utils/backupExport.ts) 内另有同口径兜底以覆盖绕过 UI 的调用路径。拒绝文案里的上限值由 [formatFileSize.ts](../utils/formatFileSize.ts) 从常量渲染，不写死数字；取值口径见各常量文件的 JSDoc，合法自导出永不命中（`tests/architecture/importByteGateWiring.test.ts` 机械守卫「闸门必须早于取字节」这条接线，以及 `formatFileSize` 不得回到组件内的私有实现）。
 - 标签下拉多选 + 自定义新增（每条最多 3 个，单个最长 30 字符）；相同标签颜色稳定一致（见 [utils/tagUtils.ts](../utils/tagUtils.ts)）。
 - 密码列表默认按更新时间倒序；侧边栏默认按最近使用倒序。支持按用户名、URL、标签、备注、创建/更新时间切换排序。
 - 支持用户名、标签、备注、URL 的多字段智能搜索：大小写不敏感子串优先，未命中降级拼音匹配（全拼 / 首字母缩写 / 中英混合，pinyin-match 经动态 import 拆分为独立 chunk 不占首屏，首帧后空闲预热），命中区间经 SearchHighlight 组件高亮（见 [utils/searchMatch.ts](../utils/searchMatch.ts)）。
@@ -334,7 +338,8 @@ graph TB
 ### 5. 邮箱备份
 
 - 导出密码列表为数据文件并唤起邮件客户端（见 [utils/emailBackup.ts](../utils/emailBackup.ts)）。
-- 支持选择备份方式：「不加密备份」导出标准数据文件；「加密备份」导出 .aph 加密文件（只能通过本插件的「加密备份导入」功能 + 原主密码解密查看）。
+- 支持选择备份方式：「加密备份」导出 .aph 加密文件（只能通过本插件的「加密备份导入」功能 + 原主密码解密查看）；「不加密备份」导出标准 CSV 数据文件。
+- **默认档是「加密备份」**（单选项把加密档列在首位，初始选中值同为 `encrypted`）。选择「不加密备份」时，选项下方常驻一条 `el-alert` 说明文件含明文密码、会离开本机并留存于邮箱；点「立即备份」还会先走一次 `ElMessageBox.confirm` 风险二次确认（危险色按钮），确认后才进入原有的复验主密码环节——两闸串联：知情确认解决"知道是明文"，复验主密码解决"是本人操作"。该选择只作用于本次动作、不写入 `EmailBackupConfig`，因此改默认值不迁移任何存量配置；`tests/architecture/securityDefaults.test.ts` 钉住这条默认值，避免日后被无声改回弱档。
 - 支持配置自动备份提醒，通过 chrome.alarms 定时发送桌面通知（不解密、不自动下载文件）。
 - 备份间隔可选：每天 / 每3天 / 每周 / 每两周 / 每月。
 
@@ -355,6 +360,7 @@ graph TB
 - 在密码管理页「自动锁定设置」中配置闲置时间（不锁定 / 5 / 10 / 30 / 60 分钟），连续闲置超过设定时间后自动清除主密码会话并锁定密码管理；系统锁屏或屏保激活时也会立即锁定（见 [IdleLockSetting.vue](../components/options/IdleLockSetting.vue)）。闲置判定基于 chrome.idle API，计时从最后一次系统级用户输入起算。**默认为「不锁定」（`idleLockMinutes: 0`）**，需用户主动开启。
 - 锁定后需重新验证主密码才能恢复访问，与手动锁定和会话过期行为一致。
 - **浏览器重启锁定**：在「自动锁定设置」中可开启「浏览器重启锁定」开关。**该开关默认关闭**：关闭状态下，完全关闭并重新打开浏览器后在有效期内自动保持登录，无需重复输入；开启后重启浏览器需重新输入主密码（更安全），且该屏障为 fail-closed——恢复状态无法判定时按锁定处理（见 [utils/browserStartupRelock.ts](../utils/browserStartupRelock.ts)）。
+- 两个开关的安全价值口径不同，别把它们当同一件事：闲置锁定防的是「人离开机器后留下的可操作会话」，重启锁定防的是「密钥材料长期驻留磁盘」。关闭重启锁定期间，`session_wrap_key` + `session_wrapped_data_key` 会跨重启长期留在 `storage.local`，即「保持登录 = 这台设备当前可解密」（详见「会话生命周期」）。共用设备应开启重启锁定。
 - Popup 弹窗也提供一键「锁定」按钮，可快速清除当前会话。
 
 ### 9. 密码强度可视化
@@ -608,14 +614,15 @@ graph TB
 
 - **定位与默认**：解决「同一根域名下的账号在子域名处处可用」（`qq.com` 的账号在 `mail.qq.com` / `music.qq.com` 也能填），同时不推翻 2026-07 为多测试环境隔离引入的精确 host 口径。三档为**包含关系**且缺省最严格：`off`（仅精确匹配，迁移前行为）⊂ `wildcard`（追加用户显式写成 `*.qq.com` 的通配条目）⊂ `sameMainDomain`（再追加主域名 apex 与同主域其他子域）。放宽只能由用户在 Options 显式选择，默认值与旧版本逐条一致。
 - **匹配单一真源**：[domain.ts](../utils/domain.ts) 的 `resolveMatchTier(currentHost, storedUrl, mode)` 返回 `MatchTier`（0 精确 / 1 通配 / 2 主域名 / 3 其他子域 / 4 空 URL）或 `-1`，数字同时就是排序权重。侧边栏本站范围（[passwordFilter.ts](../utils/passwordFilter.ts) 的 `matchesSiteScope` / `filterEntriesByScope`，也是「能否填充当前页」的判据）与内联下拉、一键填充（[passwordSort.ts](../utils/passwordSort.ts) 的 `filterAndSortEntriesForDomain`）都经它，杜绝「下拉里有、侧边栏没有」或两处排序分叉；`off` 档下集合与顺序与跨子域功能引入前逐条一致。
-- **通配条目的匹配口径**：通配写在 `PasswordEntry.url` 里（形如 `*.qq.com`），录入侧由 [formValidators.ts](../utils/formValidators.ts) 剥掉最左 `*.` 后复用既有域名正则校验（非法形态如 `*.`、`*.*.x`、`a.*.x` 天然被拒，不为通配另立第二套口径）。命中判定刻意不用 `endsWith('.qq.com')`（会被 `evil-qq.com` 这类前缀碰撞绕过），而是复用跨域 iframe 委托同一可信边界「主域名相等」，因此自动继承 `getMainDomain` 的两段式 ccTLD 全部规则。导航与图标两条派生路径先经 `stripWildcardPrefix` 还原为可访问主机（`*.qq.com` 表达的是适用范围，不是一个能打开的地址）。
+- **通配条目的匹配口径**：通配写在 `PasswordEntry.url` 里（形如 `*.qq.com`），录入侧由 [formValidators.ts](../utils/formValidators.ts) 剥掉最左 `*.` 后复用既有域名正则校验（非法形态如 `*.`、`*.*.x`、`a.*.x` 天然被拒，不为通配另立第二套口径）。命中判定刻意不用 `endsWith('.qq.com')`（会被 `evil-qq.com` 这类前缀碰撞绕过），而是复用跨域 iframe 委托同一可信边界「可注册域相等」（`registrableScope`）：它先查一张共享托管后缀表（`github.io` / `vercel.app` / `azurewebsites.net` 等），命中就取「租户 + 后缀」三段为边界，否则退回 `getMainDomain` 的两段式 ccTLD 全部规则。因此 `evil.github.io` 与 `victim.github.io` 不再互认（代价是写在公共后缀上的 `*.github.io` 这类通配条目不再命中任意子域，需要显式写成 `*.me.github.io`）；表是刻意精选的拒绝清单而非公共后缀表，未收录的后缀行为与修复前完全一致，不会新增误判。导航与图标两条派生路径先经 `stripWildcardPrefix` 还原为可访问主机（`*.qq.com` 表达的是适用范围，不是一个能打开的地址）。
+- **信任边界的可注册域口径**：`isSameMainDomain` 是跨域 iframe 填充门控（`utils/frameFill.ts` 的 `isFrameFillable`）、保存弹窗与提示的跨帧委托（`entrypoints/content.ts` / `LoginAutoSave.ts`）、`resolveTrustedContentUrl` 的自报域名放行与档位 1~3 命中判定共用的**唯一**信任判据，因此它比对的是 `registrableScope` 而不是 `getMainDomain`——否则 `attacker.github.io` 与 `victim.github.io` 会被算成「同一家」，跨域门控与自动保存归属双双失守。`getMainDomain` 的口径刻意不被改写：它只做 `registrableScope` 未命中托管后缀时的兜底分支，并继续供「描述一个主机名的注册域」这类非信任用途。收窄方向由 [domain.test.ts](../tests/utils/domain.test.ts) 用样本循环钉死「任何输入下只会更具体、绝不新增匹配」。
 - **通配标记必须活过 URL 解析**：`*` 在两端的 host 形态不一致——Chrome 的 `new URL('https://*.qq.com').hostname` 给出 `%2A.qq.com` 且不解回，Node 原样保留 `*`（并把字面录入的 `%2A.` 解回 `*.`），所以 `normalizeToHostname` / `normalizeToHostAndPort` 统一把**开头**的 `%2A.` 还原为 `*.`，让档位判定与解析器无关；二次编码 `%252A.` 在两端都直接抛 `Invalid URL`，走回退分支且首位是 `%252`，永不误还原。还原刻意只看最左一段、不做全串解码（条目 URL 是用户可控输入，全串还原会把 `%2F`/`%23` 解进主机段，破坏「通配只看最左段」的约定）。这条差异在 Node 里跑的单测永远测不到（真机首跑曾让 `wildcard` 档一条通配条目都放不出来，`sameMainDomain` 档把它错排到兄弟子域一层），守卫是 `e2e/cross-subdomain.spec.ts`。
 - **配置读写与分发**：落 `STORAGE_KEYS.DOMAIN_MATCH_CONFIG` 的 `{ mode }`，回读时经 `isDomainMatchMode` 收窄、非法值一律回落 `off`（宁可少显示条目，也不静默放宽）。入口是密码管理页头部「跨子域名匹配」与命令面板项，弹窗为 [DomainMatchSettingDialog.vue](../components/options/DomainMatchSettingDialog.vue)——档位是**非敏感元数据**（不暴露任何凭据），因此与主题、语言同类设置一样不需要主密码复验。Vue 侧（Options / SidePanel / Popup）直读 storage 并监听 `onChanged`；**内容脚本不感知档位**：后台 [passwordCache.ts](../entrypoints/background/passwordCache.ts) 的 `getCachedDomainMatchMode()` 在 `getMatchingAccounts` 里按条附带 `tier`，内联下拉只据其渲染来源标识。
 - **切档不伤秒开**：档位只影响过滤结果，不影响缓存明文与 `storage.session` 快照内容，因此 `backgroundServices` 的 `onChanged` 只调 `resetDomainMatchModeMirror()` 复位这一份内存镜像，刻意不借道 `invalidatePasswordCache`（那会删除快照并触发全量解密回温，让「切档后侧边栏仍秒开」失效）。
 - **来源标识与空态引导**：放宽档带出的非精确条目在侧边栏行内加「跨子域」徽章（`sidepanel.scope.crossSubdomain`，与标签同处弹性行、不与长 URL 争抢收缩空间），内联下拉按同一 `tier` 呈现，回答「这条为什么出现在这里」，不只靠颜色或顺序传达。本站无账号但同主域还有条目时，侧边栏空态与内联面板给出「同主域还有 N 条账号」的一键引导（计数统一来自 `countSameMainDomainCandidates`，已处于最宽松档、本地开发域名与无域名场景恒为 0），点击经 `OPEN_OPTIONS_AND_DOMAIN_MATCH` 直达该弹窗。「跨子域命中」的层级区间（1~3）只定义在 [domain.ts](../utils/domain.ts) 的 `isCrossSubdomainTier` 一处，侧边栏徽章、内联下拉来源 chip、空态计数与自动保存去向提示四个呈现面共用它；`tests/architecture/crossSubdomainTierWiring.test.ts` 机械禁止运行时代码再手写该区间，防止某处漏改后出现「同一条目一边标来源、一边不标」的分叉。
 - **不受档位影响的两条既有口径**：`localhost` / `127.0.0.1` 始终走 `matchesPortForLocalDev` 的端口过滤（`:3000` 与 `:5173` 不因放宽而混合）；「能否填充当前页」与「站点可见」仍共用同一判据，全站搜索下的外站降级行为不变。
 - **判重口径显式不变**：`findMatchingEntry` / `hostMatchScore` / `autoSavePassword` 完全不感知档位——沿用既有规则（同用户名 + host 相等**或父子域**算同一条，通配条目恒 0 分）。放宽档位只增加「可见性」，不会把两个环境的账号合并成一条，也不会让保存写到意料之外的条目；跨子域带来的歧义由弹窗的保存去向提示（见「自动保存登录凭证」的 `targetNote`）承担说明责任。
-- **回归口径**：[domain.test.ts](../tests/utils/domain.test.ts) 钉三档下的层级判定、通配前缀碰撞与 ccTLD，[passwordFilter.test.ts](../tests/utils/passwordFilter.test.ts) 与 [passwordSort.test.ts](../tests/utils/passwordSort.test.ts) 钉「`off` 档行为等价迁移前」与档位化排序，[configManager.domainMatch.test.ts](../tests/utils/configManager.domainMatch.test.ts) 钉非法值回落，[useRuntimeMessageHandler.domainMatch.test.ts](../tests/composables/useRuntimeMessageHandler.domainMatch.test.ts) 钉直达消息契约，[inlineFillDropdown.crossDomain.test.ts](../tests/content/inlineFillDropdown.crossDomain.test.ts) 钉内联面板的 `tier` 呈现与空态引导，[autoSaveManager.test.ts](../tests/utils/autoSaveManager.test.ts) 钉「判重不受档位影响」与 `targetNote` 的分支边界，[crossSubdomainTierWiring.test.ts](../tests/architecture/crossSubdomainTierWiring.test.ts) 以源码守卫钉「每处站点范围判定都显式传档位」与「档位变更不进缓存失效键」。
+- **回归口径**：[domain.test.ts](../tests/utils/domain.test.ts) 钉三档下的层级判定、通配前缀碰撞、ccTLD 与共享托管后缀（跨租户不互认、未收录后缀行为逐字不变），[passwordFilter.test.ts](../tests/utils/passwordFilter.test.ts) 与 [passwordSort.test.ts](../tests/utils/passwordSort.test.ts) 钉「`off` 档行为等价迁移前」与档位化排序，[configManager.domainMatch.test.ts](../tests/utils/configManager.domainMatch.test.ts) 钉非法值回落，[useRuntimeMessageHandler.domainMatch.test.ts](../tests/composables/useRuntimeMessageHandler.domainMatch.test.ts) 钉直达消息契约，[inlineFillDropdown.crossDomain.test.ts](../tests/content/inlineFillDropdown.crossDomain.test.ts) 钉内联面板的 `tier` 呈现与空态引导，[autoSaveManager.test.ts](../tests/utils/autoSaveManager.test.ts) 钉「判重不受档位影响」与 `targetNote` 的分支边界，[crossSubdomainTierWiring.test.ts](../tests/architecture/crossSubdomainTierWiring.test.ts) 以源码守卫钉「每处站点范围判定都显式传档位」与「档位变更不进缓存失效键」。
 
 ## 开发补充
 

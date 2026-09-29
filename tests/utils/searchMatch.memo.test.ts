@@ -21,8 +21,14 @@ const { matchSpy } = vi.hoisted(() => ({ matchSpy: vi.fn() }));
 
 vi.mock('pinyin-match', () => ({ default: { match: matchSpy } }));
 
-const { findMatchRange, highlightSegments, matchesKeyword, warmPinyinMatcher, isPinyinMatcherReady } =
-  await import('@/utils/searchMatch/core');
+const {
+  findMatchRange,
+  highlightSegments,
+  matchesKeyword,
+  warmPinyinMatcher,
+  isPinyinMatcherReady,
+  PINYIN_RANGE_CACHE_MAX,
+} = await import('@/utils/searchMatch/core');
 
 describe('findMatchRange 的拼音结果记忆缓存', () => {
   beforeEach(() => {
@@ -79,7 +85,7 @@ describe('findMatchRange 的拼音结果记忆缓存', () => {
     findMatchRange('有界-最早', 'zz');
     expect(matchSpy).toHaveBeenCalledTimes(1);
 
-    for (let i = 0; i < 2002; i += 1) {
+    for (let i = 0; i < PINYIN_RANGE_CACHE_MAX + 2; i += 1) {
       findMatchRange(`有界-填充-${i}`, 'zz');
     }
     matchSpy.mockClear();
@@ -89,8 +95,24 @@ describe('findMatchRange 的拼音结果记忆缓存', () => {
     expect(matchSpy).toHaveBeenCalledTimes(1);
     // 最近一次查询仍在缓存
     matchSpy.mockClear();
-    findMatchRange('有界-填充-2001', 'zz');
+    findMatchRange(`有界-填充-${PINYIN_RANGE_CACHE_MAX + 1}`, 'zz');
     expect(matchSpy).not.toHaveBeenCalled();
+  });
+
+  it('最坏键域正好装得下：整库一轮检索的第 2 遍零重算（不抖动）', async () => {
+    await warmPinyinMatcher();
+
+    // 一轮「整库 + 无匹配关键词」的去重文本数上界 = 条目上限 × 检索字段数，
+    // 即容量推导守卫钉住的那个乘积本身。旧上限 2000 恰好被这个形状越过
+    // （实测整库一轮 2119 个不同文本），于是同代际第 2 遍逐键未命中、整轮 DP 白跑第二遍；
+    // 列表重排、筛选变化、逐行高亮都要走这第 2 遍，用户读到的就是每键一卡。
+    const texts = Array.from({ length: PINYIN_RANGE_CACHE_MAX }, (_, i) => `整库-字段-${i}`);
+    for (const text of texts) findMatchRange(text, 'zz');
+    expect(matchSpy).toHaveBeenCalledTimes(PINYIN_RANGE_CACHE_MAX);
+
+    matchSpy.mockClear();
+    for (const text of texts) findMatchRange(text, 'zz');
+    expect(matchSpy, '同代际第 2 遍出现重算 = 缓存抖动').not.toHaveBeenCalled();
   });
 
   it('高亮分段沿用缓存结果，重复渲染不再切分', async () => {

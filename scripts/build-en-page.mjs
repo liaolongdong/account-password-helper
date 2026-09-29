@@ -8,8 +8,9 @@
  * AI 引擎引用真正生效。
  *
  * 机制：提取 index.html 内嵌的 I18N 中英字典，替换所有 data-i18n /
- * data-i18n-html 静态节点与 head 元信息；单一事实来源仍为 index.html，
- * 修改文案后运行 `pnpm gen:en` 重新生成（CI 部署前自动执行）。
+ * data-i18n-html 静态节点与 head 元信息，并把 FAQ 生成区整体换成英文静态 DOM；
+ * 单一事实来源仍为 index.html，修改文案后运行 `pnpm gen:en` 重新生成并提交
+ * （Pages 由 main 分支根目录发布，CI 不参与生成）。
  *
  * @file scripts/build-en-page.mjs
  */
@@ -18,22 +19,24 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { applyI18n, assertI18nCoverage } from './lib/apply-i18n.mjs';
+import { syncFaqDom } from './lib/faq-dom.mjs';
 import { buildFaqPageJsonLd, parseFaqEntries, selectFaqEntries } from './lib/faq-schema.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'index.html');
 const outPath = path.join(root, 'en.html');
-// codeql[js/incomplete-hostname-regexp] -- SITE 仅作为字面量拼接进生成的 og:url / canonical 属性值，从不作为正则去匹配主机名，此处无需转义点号或尾部锚定
+// CodeQL 误报说明（js/incomplete-hostname-regexp，告警 #6 已按「false positive」dismiss）：SITE 只作为字面量
+// 拼接进生成的 og:url / canonical 属性值，从不作为正则去匹配主机名，无需转义点号或尾部锚定。这里刻意不用行内
+// 抑制注释：CodeQL 的抑制判据只覆盖整行定位的结果，本查询报列级定位，写了不生效。
 const SITE = 'https://liaolongdong.github.io/account-password-helper';
 
 const EN_KEYWORDS =
-  'password manager,Chrome extension,local password manager,offline password manager,AES-256-GCM,autofill,auto login,TOTP,2FA,authenticator,password generator,security audit,developer tools,credential manager,local-first,password vault,open source password manager,password manager for developers';
+  'password manager,Account Password Helper,账号密码管理助手,Chrome extension,local password manager,offline password manager,AES-256-GCM,autofill,auto login,TOTP,2FA,authenticator,password generator,security audit,developer tools,credential manager,local-first,password vault,open source password manager,password manager for developers';
 const EN_JSONLD_DESCRIPTION =
   'Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.';
 
 // SoftwareApplication 的语言相关字段：逐字段替换，版本 / 截图 / URL / 作者等非语言字段仍由 index.html 单一来源提供。
 // EN_FEATURE_LIST 必须与 index.html 的 featureList 一一对应，条数不一致时生成阶段直接报错（见下方守卫）。
-const EN_APP_NAME = 'Account Password Helper — Local-First Password Manager';
 const EN_BROWSER_REQUIREMENTS =
   'Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.';
 const EN_FEATURE_LIST = [
@@ -104,6 +107,12 @@ assertI18nCoverage(result, 'I18N');
 const { replacedText, textTotal, replacedHtml, htmlTotal } = result;
 html = result.html;
 
+// ---------- 2.5 FAQ 静态 DOM：中文生成区整体换成英文 ----------
+// 生成区是纯静态字节（页内 FAQS 数组在 <script> 里，不受 applyI18n 影响），
+// 与 FAQPage JSON-LD 同样取自 FAQS，保证「可见内容 / 结构化数据」两处语言一致。
+const faqDom = syncFaqDom(html, 'en');
+html = faqDom.html;
+
 // ---------- 3. head 元信息与结构化数据 ----------
 const replaceOnce = (pattern, replacement) => {
   const next = html.replace(pattern, replacement);
@@ -149,6 +158,11 @@ replaceEvery('href="./privacy.html"', 'href="./privacy.en.html"');
 replaceEvery('href="./pricing.html"', 'href="./pricing.en.html"');
 replaceEvery('href="./compare.html"', 'href="./compare.en.html"');
 replaceEvery('href="./blog/"', 'href="./blog/index.en.html"');
+// 跨域代理助手有英文产品页，英文页指过去；Transfer Any File 暂无英文页（实测 404），保持基础 URL
+replaceEvery(
+  'href="https://liaolongdong.github.io/cross-origin-proxy/"',
+  'href="https://liaolongdong.github.io/cross-origin-proxy/en.html"',
+);
 // ---------- SoftwareApplication：语言相关字段换成英文 ----------
 // featureList 由本脚本单独维护一份英文，条数不一致即视为中文源已变更而英文未跟进，直接失败
 const zhFeatureList = html.match(/"featureList": \[[\s\S]*?\],/)?.[0];
@@ -159,9 +173,10 @@ if (zhFeatureCount !== EN_FEATURE_LIST.length)
     `featureList 条数不一致：index.html ${zhFeatureCount} 条 vs 本脚本 ${EN_FEATURE_LIST.length} 条，请同步英文文案`,
   );
 
+// name / alternateName 对调：英文页以英文名为主名，中文名进 alternateName，与中文页互为镜像（同一实体的双名声明）
 replaceOnce(
-  /"name": "Account Password Helper · 账号密码管理助手",\n(\s*)"applicationCategory"/,
-  `"name": "${EN_APP_NAME}",\n$1"applicationCategory"`,
+  /"name": "账号密码管理助手",\n(\s*)"alternateName": "Account Password Helper",/,
+  '"name": "Account Password Helper",\n$1"alternateName": "账号密码管理助手",',
 );
 replaceOnce(/"browserRequirements": "[^\n]*",/, `"browserRequirements": "${EN_BROWSER_REQUIREMENTS}",`);
 replaceOnce(
@@ -182,4 +197,6 @@ html = html.replace(
 );
 
 writeFileSync(outPath, html);
-console.log(`en.html generated: data-i18n ${replacedText}/${textTotal}, data-i18n-html ${replacedHtml}/${htmlTotal}`);
+console.log(
+  `en.html generated: data-i18n ${replacedText}/${textTotal}, data-i18n-html ${replacedHtml}/${htmlTotal}, FAQ DOM ${faqDom.count}`,
+);

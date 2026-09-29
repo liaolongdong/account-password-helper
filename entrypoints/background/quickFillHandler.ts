@@ -78,6 +78,37 @@ async function showNotification(message: string, title?: string, notificationId?
 }
 
 /**
+ * 把一条提示下发到指定标签页的顶层 frame，并回报是否送达
+ *
+ * 抽出来的理由：内容脚本的「委托顶层渲染」（`DELEGATE_PAGE_NOTICE`）需要知道
+ * 投递结果，好决定是在自己这个 frame 里降级渲染、还是就此结束——而本模块自己的
+ * 调用方只关心「别抛」，两种诉求共用同一份下发实现。
+ *
+ * @param tabId 目标标签页
+ * @param message 已本地化的提示文案
+ * @param type 提示类型（默认 warning）
+ * @returns 顶层 frame 是否已接收（content script 未注入、页面正在导航时为 false）
+ */
+export async function deliverPageNotice(
+  tabId: number,
+  message: string,
+  type: 'success' | 'warning' | 'error' | 'info' = 'warning',
+): Promise<boolean> {
+  try {
+    await chrome.tabs.sendMessage(
+      tabId,
+      { type: MessageType.SHOW_PAGE_NOTICE, data: { message, type } },
+      {
+        frameId: 0,
+      },
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * 在页面内显示一条提示条（不依赖操作系统通知权限的兜底反馈通道）
  *
  * 桌面通知在 macOS 专注模式 / 通知权限关闭下会整通道失效，工具栏角标在扩展
@@ -94,17 +125,9 @@ export async function showPageNotice(
   message: string,
   type: 'success' | 'warning' | 'error' | 'info' = 'warning',
 ): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage(
-      tabId,
-      { type: MessageType.SHOW_PAGE_NOTICE, data: { message, type } },
-      {
-        frameId: 0,
-      },
-    );
-  } catch (error) {
+  if (!(await deliverPageNotice(tabId, message, type))) {
     // 顶层 frame 未注入 content script（扩展更新后的旧标签页等），降级为通知 + 角标
-    logger.debug('Background: 页面内提示条下发失败，仅用通知与角标反馈:', error);
+    logger.debug('Background: 页面内提示条下发失败，仅用通知与角标反馈');
   }
 }
 

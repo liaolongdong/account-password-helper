@@ -220,14 +220,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { Upload, Delete, Document, View, Hide } from '@element-plus/icons-vue';
 import type { UploadFile } from 'element-plus';
 import { ExcelUtils } from '@/utils/excel';
 import type { ImportFormat } from '@/utils/excelFormatMap';
+import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { StorageUtils } from '@/utils/storage';
 import { importFailureMessage, importSuccessMessage, useImportCapacity } from '@/composables/useImportCapacity';
 import { formatDate } from '@/utils/dateFormat';
+import { formatFileSize } from '@/utils/formatFileSize';
+import { scrollDialogBodyToBottom } from '@/utils/dialogScroll';
 import { logger } from '@/utils/logger';
 import type { ImportedPasswordEntry } from '@/utils/groupTree';
 import { resolveImportedGroups } from '@/utils/groupTree';
@@ -268,17 +271,6 @@ const { currentCount, remaining, skipped, capacityExhausted, importableEntries, 
   useImportCapacity(previewData);
 
 /**
- * 格式化文件大小为可读字符串
- * @param bytes 文件字节数
- * @returns 格式化后的文件大小字符串
- */
-const formatFileSize = (bytes: number): string => {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-};
-
-/**
  * 超出数量上限的兜底提示
  *
  * `el-upload` 的 `on-exceed` 默认是空实现：命中 `limit` 时新文件既不入列表也不触发 `change`，
@@ -291,6 +283,14 @@ const handleExceed = () => {
 // 处理文件选择
 const handleFileChange = async (file: UploadFile) => {
   if (!file.raw) return;
+
+  // 字节闸门：条数与逐字段上限要等整份文件解码并逐行 parse 之后才生效，
+  // 挡不住「一次读取把任意大的输入拉进内存」；超限文件在取字节前先拒掉。
+  if (file.raw.size > MAX_PASSWORD_IMPORT_INPUT_BYTES) {
+    ElMessage.error(t('options.import.fileTooLarge', { max: formatFileSize(MAX_PASSWORD_IMPORT_INPUT_BYTES) }));
+    handleFileRemove();
+    return;
+  }
 
   try {
     const fileName = file.raw.name.toLowerCase();
@@ -327,13 +327,7 @@ const handleFileChange = async (file: UploadFile) => {
     } else {
       ElMessage.success(t('options.import.parseSuccess', { count: data.length }));
       // 有有效数据时，等 DOM 和 el-table 完全渲染后自动滚动弹窗内容区到底部
-      await nextTick();
-      setTimeout(() => {
-        const dialogBody = document.querySelector('.import-dialog .dialog-body-scroll');
-        if (dialogBody) {
-          dialogBody.scrollTo({ top: dialogBody.scrollHeight, behavior: 'smooth' });
-        }
-      }, 150);
+      await scrollDialogBodyToBottom('.import-dialog .dialog-body-scroll');
     }
   } catch (error) {
     logger.error('解析文件失败:', error);

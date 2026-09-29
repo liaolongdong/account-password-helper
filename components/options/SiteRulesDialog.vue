@@ -337,9 +337,27 @@ const formRules = computed(() => ({
   passwordSelector: selectorRules.value,
 }));
 
-/** 加载规则列表 */
+/**
+ * 列表加载代际
+ *
+ * 打开预填、保存、导入三条路径都会重载；只让最新一次结果落地，避免慢响应把
+ * 已删除/已更新的规则铺回列表，也避免 `openPrefilledRule` 对着旧快照判「是否已存在」。
+ */
+let rulesLoadSeq = 0;
+
+/**
+ * 打开流程代际
+ *
+ * 「加载列表 → 进入预填表单」中间有一次 await，等待期间弹窗可能已被关闭：
+ * 此时再把视图切到表单，等于在隐藏态写入用户没提交过的域名，下次打开先闪出上次的内容。
+ */
+let openFlowSeq = 0;
+
+/** 加载规则列表（结果按 `rulesLoadSeq` 取最新） */
 const loadRules = async () => {
+  const seq = ++rulesLoadSeq;
   const rules = await getSiteRules();
+  if (seq !== rulesLoadSeq) return;
   rulesList.value = Object.values(rules);
 };
 
@@ -504,8 +522,14 @@ const handleClosed = () => {
 // 打开时刷新列表；携带预填域名（内容脚本失败引导）则直接进入该域名的新增/编辑表单。
 // 同时监听 initialDomain，保证弹窗已开着时再次收到引导也能响应。
 watch([() => props.modelValue, () => props.initialDomain], async ([open, domain]) => {
-  if (!open) return;
+  if (!open) {
+    // 关闭即刻作废未落地的打开流程，避免预填视图在隐藏态生效
+    openFlowSeq += 1;
+    return;
+  }
+  const seq = ++openFlowSeq;
   await loadRules();
+  if (seq !== openFlowSeq) return;
   if (domain) openPrefilledRule(domain);
 });
 

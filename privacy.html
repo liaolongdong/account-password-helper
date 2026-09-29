@@ -415,6 +415,18 @@
           </ul>
           <p>主密码不以明文保存，磁盘上只留有加盐的 PBKDF2（SHA-256，600,000 次迭代）校验值。</p>
           <p>
+            <strong>请这样理解「保持登录」：</strong
+            >会话有效期内，用于恢复登录状态的密钥材料（数据密钥的包装值与包裹密钥）会随密文一起留在本机磁盘上，
+            这既是不重新输入主密码就能重启浏览器的原因，也意味着<strong>能读取这台电脑上该浏览器配置文件的程序，在此期间足以把数据解密</strong>。
+            手动锁定、闲置锁定或会话过期都会立即销毁这份密钥材料（只留一枚打不开任何东西的随机包裹密钥）。在共用电脑上，请在「自动锁定设置」中开启「浏览器重启锁定」：
+            完全关闭浏览器后密钥材料即被清除，重新打开必须输入主密码。
+          </p>
+          <p>
+            <strong>一处明文例外：</strong
+            >为某条密码设置到期提醒时，该条的账号名会以明文冗余记录在本地的到期提醒表中（提醒由系统在任意时刻发出桌面通知，
+            含已锁定状态，账号名用于让通知指明是哪个账号），它同时会留下「哪个账号将在何时到期」这一信息；删除该条提醒、删除对应条目或清空回收站都会连带清除这条明文记录。
+          </p>
+          <p>
             身份信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
             认证加密后写入本地存储，默认掩码显示，查看或复制均需再次验证主密码。
           </p>
@@ -550,7 +562,11 @@
               合并重新导入（同样需验证主密码并确认风险），请谨慎使用并妥善保管
             </li>
             <li>
-              <strong>邮件备份提醒：</strong>仅通过 mailto: 协议打开系统邮件客户端，扩展本身不发送邮件也不接触邮件服务器
+              <strong>邮件备份：</strong>默认走「加密备份」档，导出 .aph 密文文件后经 mailto:
+              唤起系统邮件客户端；改选「不加密备份」会先要求风险二次确认、再复验主密码，产物是含账号与密码的<strong
+                >明文</strong
+              >
+              CSV。两种形态下扩展本身都不发送邮件、也不接触邮件服务器
             </li>
             <li>
               <strong>云文档同步（可选，默认关闭）：</strong>将密码库上传到您指定的第三方云文档或 WebDAV 网盘。腾讯文档/飞书默认密文模式上传加密分片，云端不可读；<strong>明文模式下账号、密码、备注与两步验证密钥会以可读文本写入云端文档</strong>，请自行评估并收紧目标文档权限。WebDAV 仅支持密文单文件备份，云端不可读
@@ -646,6 +662,24 @@
           <p>
             The master password is never stored in plaintext — only a salted PBKDF2 (SHA-256, 600,000 iterations)
             verifier is kept.
+          </p>
+          <p>
+            <strong>What "stay signed in" really means:</strong> while a session is valid, the key material that
+            restores it (the wrapped data key and its wrap key) stays on this device's disk alongside the ciphertext.
+            That is why a browser restart needs no master password — and it also means
+            <strong
+              >any program able to read this browser profile on this machine can decrypt your data during that
+              window</strong
+            >. Manual lock, idle lock and session expiry destroy that key material immediately (leaving a random wrap
+            key that opens nothing). On a shared computer, turn on "Lock on browser restart" under Auto lock settings:
+            fully closing the browser then clears the key material, and reopening requires the master password.
+          </p>
+          <p>
+            <strong>One plaintext exception:</strong> when you set an expiry reminder for an entry, that entry's
+            username is redundantly recorded in plaintext in the local reminder table, because reminders fire as desktop
+            notifications at any moment — including while locked — and the username is what makes the notice name an
+            account. It also leaves behind which account is expiring and when. Deleting that reminder, deleting the
+            entry, or emptying the trash clears the record.
           </p>
           <p>
             Identity information (name, ID number, phone, email, address, bank card details and custom fields) is kept
@@ -789,8 +823,10 @@
               likewise requiring master-password verification and risk confirmation — use with care and store securely
             </li>
             <li>
-              <strong>Email Backup Reminder:</strong> Opens the system email client via the mailto: protocol only; the
-              Extension does not send emails or contact any mail server
+              <strong>Email Backup:</strong> defaults to the encrypted tier, producing an .aph ciphertext file handed to
+              your mail client via the mailto: protocol; choosing "Plain backup" first requires a risk acknowledgement
+              and then master-password re-verification, and the artifact is a <strong>plaintext</strong> CSV holding
+              usernames and passwords. Either way the Extension sends no email and touches no mail server
             </li>
             <li>
               <strong>Site Rule Export (JSON):</strong> fill-selector configuration only (domains plus CSS selectors),

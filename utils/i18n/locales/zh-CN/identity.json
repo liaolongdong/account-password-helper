@@ -95,6 +95,7 @@
   "identity.import.notAphid": "这不是身份信息备份文件（可能是密码库的 .aph 或 .json 备份），请在密码库中使用导入功能",
   "identity.import.invalidFile": "文件格式错误，无法解析",
   "identity.import.invalidStructure": "备份文件结构损坏，无法解析",
+  "identity.import.fileTooLarge": "身份信息文件过大（上限 {max}），请确认这是完整的导出文件",
   "identity.import.previewTitle": "导入预览",
   "identity.import.previewDesc": "将新增 {added} 条、更新 {updated} 条、跳过 {skipped} 条（较旧）。导入后共 {total} 条。",
   "identity.import.confirmImport": "确认导入",

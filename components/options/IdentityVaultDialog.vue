@@ -274,7 +274,8 @@ import {
   WarnTriangleFilled,
 } from '@element-plus/icons-vue';
 import type { IdentityEntry } from '@/utils/identity/types';
-import { MAX_IDENTITIES } from '@/utils/identity/constants';
+import { MAX_IDENTITIES, MAX_IDENTITY_IMPORT_INPUT_BYTES } from '@/utils/identity/constants';
+import { formatFileSize } from '@/utils/formatFileSize';
 import { buildIdentityFieldRows, formatIdentityCardText, hasSecretFields } from '@/utils/identity/fields';
 import {
   exportIdentityBackup,
@@ -353,7 +354,7 @@ const {
   copyField,
   copyCard,
   remove,
-  resetViewState,
+  teardown,
   load,
 } = props.vault;
 
@@ -397,9 +398,14 @@ watch(
   },
 );
 
-/** 弹窗关闭动画结束后复位显隐/搜索/过滤（不含 rows，下次打开会重新 load） */
+/**
+ * 弹窗关闭动画结束后释放解密明文并复位视图状态
+ *
+ * 列表数据不进 `passwords` 那条常驻链路，身份 PII 此前会一直留到会话失效才被清；
+ * 关闭即释放可把「没在看的敏感数据」从内存驻留集里拿掉，重开由 watch 重新 load 补齐。
+ */
 const handleClosed = (): void => {
-  resetViewState();
+  teardown();
 };
 
 /** 删除条目（二次确认 + 明说不可恢复） */
@@ -541,6 +547,12 @@ const handleFileChange = async (event: Event): Promise<void> => {
   const file = input.files?.[0];
   input.value = '';
   if (!file) return;
+  // 字节闸门：条数与逐字段上限要等整份文件读进内存并解析后才生效，挡不住
+  // 「一次读取把任意大的输入拉进内存」；`.aphid` 与 `.json` 两种格式共用此闸门。
+  if (file.size > MAX_IDENTITY_IMPORT_INPUT_BYTES) {
+    ElMessage.error(t('identity.import.fileTooLarge', { max: formatFileSize(MAX_IDENTITY_IMPORT_INPUT_BYTES) }));
+    return;
+  }
   const name = file.name.toLowerCase();
 
   try {

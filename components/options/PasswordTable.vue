@@ -784,6 +784,25 @@ defineExpose({
   }
 }
 
+/*
+ * 减弱动效：本表的两处大位移——新增行 20px 入场、删除行 800px 滑出，外加行悬浮上浮。
+ * 取消动画只影响观感，不影响正确性：新增高亮的 3 秒清除与删除落盘都由 JS 定时器驱动
+ * （`usePasswordManagement` 的 `ROW_HIGHLIGHT_MS` / `DELETE_ANIMATION_MS`），
+ * 且摘除节点走的是 `setTimeout` 而非 `animationend`，减弱档下删除时序与结果完全一致。
+ */
+@media (prefers-reduced-motion: reduce) {
+  :deep(.el-table__body-wrapper .el-table__row),
+  :deep(.el-table__body-wrapper .el-table__row:hover) {
+    transform: none;
+    transition: none;
+  }
+
+  :deep(.el-table__body-wrapper .el-table__row.new-item),
+  :deep(.el-table__body-wrapper .el-table__row.del-item) {
+    animation: none;
+  }
+}
+
 /* 表格操作栏样式 */
 :deep(.el-table-fixed-column--right .cell) {
   padding: 0 8px;

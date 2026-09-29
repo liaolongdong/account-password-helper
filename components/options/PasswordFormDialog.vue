@@ -277,6 +277,8 @@ import { isValidTotpInput } from '@/utils/totp';
 import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
 import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
+import { copySecretToClipboard } from '@/utils/clipboard';
+import { useClipboardFeedback } from '@/composables/useClipboardFeedback';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
@@ -506,7 +508,10 @@ const handleQrFileSelected = async (event: Event) => {
 
 // ==================== 密码修改历史 ====================
 
-const { historyList, loadHistory, decryptHistoryPassword } = usePasswordHistory();
+const { historyList, loadHistory, resetHistory, decryptHistoryPassword } = usePasswordHistory();
+
+/** 剪贴板自动清除回执（与详情抽屉、身份库共用同一文案与级别） */
+const { notifyClipboardCleared } = useClipboardFeedback();
 
 /** 密码历史配置（控制是否展示历史区块） */
 const historyConfig = ref<{ enabled: boolean; maxCount: number }>({ enabled: true, maxCount: 3 });
@@ -519,11 +524,17 @@ const handleCopyHistory = async (item: { password: string; loading: boolean }, i
   historyList.value[index].loading = true;
   try {
     const plain = await decryptHistoryPassword(item.password);
-    if (plain) {
-      await navigator.clipboard.writeText(plain);
+    if (!plain) {
+      ElMessage.error(t('message.decryptFailed'));
+      return;
+    }
+    // 必须走 copySecretToClipboard：直接 navigator.clipboard.writeText 会绕过
+    // 「剪贴板设置」的限时自动清除，让历史明文永久留在剪贴板，与详情抽屉行为不一致
+    const ok = await copySecretToClipboard(plain, notifyClipboardCleared);
+    if (ok) {
       ElMessage.success(t('options.form.historyCopied'));
     } else {
-      ElMessage.error(t('message.decryptFailed'));
+      ElMessage.error(t('message.copyFailed'));
     }
   } finally {
     historyList.value[index].loading = false;
@@ -546,19 +557,38 @@ const handleRestoreHistory = async (item: { password: string; loading: boolean }
   }
 };
 
-/** 弹窗打开时，编辑模式下加载历史（需配置启用） */
+/**
+ * 弹窗打开时，编辑模式下加载历史（需配置启用）
+ *
+ * 两次 await 都是「手里的目标可能已经变了」的窗口，故本组件自持一个开关序号：
+ * 期间被关闭或换到另一条条目，旧的一次就地作废（配置不落地、历史不加载）。
+ * 打开时先 `resetHistory()`，同时作废仍在飞的上一账号读取——否则它的结果会先落到
+ * 已经可见的历史区块里，等新一批到达才替换掉，中间那一下闪的是别人的记录。
+ * 配置读取失败按保守档处理（不展示历史区块）并记日志，与详情抽屉同一口径。
+ */
+let historyOpenSeq = 0;
+
 watch(
   () => props.modelValue,
   async visible => {
-    if (visible && props.isEditing && props.editingId) {
-      // 读取密码历史配置：禁用时不加载历史记录
+    const seq = ++historyOpenSeq;
+    if (!visible) {
+      resetHistory();
+      return;
+    }
+    if (!props.isEditing || !props.editingId) return;
+    const targetId = props.editingId;
+    resetHistory();
+    try {
       const { getPasswordHistoryConfig } = await import('@/utils/storage/configManager');
-      historyConfig.value = await getPasswordHistoryConfig();
-      if (historyConfig.value.enabled) {
-        loadHistory(props.editingId);
-      }
-    } else if (!visible) {
-      historyList.value = [];
+      const config = await getPasswordHistoryConfig();
+      if (seq !== historyOpenSeq) return;
+      historyConfig.value = config;
+      // 读取密码历史配置：禁用时不加载历史记录
+      if (config.enabled) loadHistory(targetId);
+    } catch (error) {
+      if (seq !== historyOpenSeq) return;
+      logger.error('编辑弹窗：读取密码历史配置失败:', error);
     }
   },
 );

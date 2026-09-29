@@ -361,6 +361,18 @@ export enum MessageType {
    * 不含任何凭证数据，故不受 `isFrameFillable` 门控约束，但仅发往顶层 frame。
    */
   SHOW_PAGE_NOTICE = 'SHOW_PAGE_NOTICE',
+  /**
+   * 页面内提示条委托：由**内容脚本**发起，请 background 把同一条提示转发到
+   * 本标签页的顶层 frame（内部即以 {@link MessageType.SHOW_PAGE_NOTICE} 下发）
+   *
+   * 存在的意义：iframe 内的自动保存需要把「未能自动保存，请手动添加」显示在
+   * 整页右上角，而 `window.top.postMessage` 的载荷任何页面脚本都能伪造——
+   * 扩展包公开可得，枚举值一旦确定，第三方页面就能以扩展口吻在顶层 frame 渲染
+   * 任意文案（钓鱼形状）。改走 `chrome.runtime` 后，发送方只能是自家内容脚本
+   * （`sender.id` + `sender.tab` 双重归属），投递目标由 background 依据
+   * `sender.tab.id` 与 `frameId: 0` 决定，页面侧既看不到也发不出。
+   */
+  DELEGATE_PAGE_NOTICE = 'DELEGATE_PAGE_NOTICE',
 }
 
 /**
@@ -407,7 +419,8 @@ export type RuntimeMessage =
   | { type: MessageType.UPDATE_PASSWORD_METADATA; data: UpdatePasswordMetadataData }
   | { type: MessageType.QUICK_ADD_PASSWORD; data: QuickAddPasswordData }
   | { type: MessageType.CONTEXT_MENU_FILL; data: ContextMenuFillData }
-  | { type: MessageType.SHOW_PAGE_NOTICE; data: PageNoticeData };
+  | { type: MessageType.SHOW_PAGE_NOTICE; data: PageNoticeData }
+  | { type: MessageType.DELEGATE_PAGE_NOTICE; data: PageNoticeData };
 
 /**
  * 悬浮按钮配置接口

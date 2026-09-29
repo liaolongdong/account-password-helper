@@ -17,10 +17,9 @@ import type { TruncationEvent } from './types';
  * 双向控制符（U+202A~202E）、词连接符等不可见格式符（U+2060~2064）
  * 与 BOM（U+FEFF）——这些字符在云端表格中不可见却会破坏哈希比对与人工核对。
  */
-/* eslint-disable no-control-regex -- 本模块职责就是匹配并移除控制字符（设计规格 §5.5），正则中的控制字符区间是刻意声明 */
 const INVISIBLE_PATTERN =
+  // eslint-disable-next-line no-control-regex -- 本模块职责就是匹配并移除控制字符（设计规格 §5.5），正则中的控制字符区间是刻意声明
   /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u200B-\u200F\u202A-\u202E\u2060-\u2064\uFEFF]/g;
-/* eslint-enable no-control-regex */
 
 /** 单字段默认长度上限（保守值，低于平台单元格上限，避免触发 TooLargeCell） */
 export const DEFAULT_FIELD_MAX_LENGTH = 20000;

@@ -150,3 +150,28 @@ e2e/.auth/
 # 结论与可比的相对数字已写入 docs/PERF_LARGE_VAULT_EVALUATION.md，原始数据不入库。
 benchmarks/.artifacts/
 benchmarks/results/
+
+# ===== AI 会话工作稿与工具跑批产物（本地产物，不入库）=====
+# 口径：仓库只承载产品代码与对外内容，会话生成的方案稿、分析跑批结果、工具生成的
+# 百科留在本地。`.qoder/` 整体不忽略——`rules/`、`skills/`、`commands/` 是团队协作
+# 要用的项目配置，只有下面这几个「输出目录」属本地产物。
+.qoder/plans/
+.qoder/superpowers/
+.qoder/better-harness/
+.qoder/better-harness-runs/
+.qoder/repowiki/
+
+# 一次性代码评审报告：结论已回写进各提交说明与相关文档，报告本身留在本地。
+docs/code-review-*.md
+
+# Qoder Sites 的本地描述符：文件名含站点标题，内容带 siteId 与整页 base64 快照，
+# 属机器绑定状态，换台机器就该重新生成，入库只会互相覆盖。
+*.qoder.site
+
+# ===== 反向清单：以下文档刻意保持跟踪，勿顺手加进上面任何一节 =====
+# 对外与 SEO 内容：README*、docs/ARCHITECTURE*.md、docs/blog/**、docs/promo/**、
+# docs/{公众号,微博,reddit}*.md、docs/exposure-status.md、docs/账号密码管理助手曝光提升执行手册.md。
+# 被源码注释或对外文档按路径引用的报告：docs/PERF_*.md、
+# docs/INLINE_DROPDOWN_PARITY_EVALUATION.md、docs/LANDING_MOTION_PROPOSAL.md
+# （连同其配套实物 docs/prototypes/landing-motion-lab.html）——忽略它们会让仓库里的引用变死链。
+# 完整口径见 docs/CONTRIBUTING.md「提交范围」。

@@ -87,7 +87,13 @@ function secureRandomInt(max: number): number {
  */
 export function generatePassword(options?: PasswordGeneratorOptions): string {
   const config = { ...DEFAULT_OPTIONS, ...options };
-  const length = Math.max(MIN_LENGTH, Math.min(MAX_PASSWORD_LENGTH, config.length));
+  // 长度必须先归一再夹逼：`Math.min(50, NaN)` 是 NaN，会让 `Math.max` 一并失守，
+  // 结果不是「回落到下界」而是「只输出每种字符集各一个」的 4 位弱口令。
+  // 表单清空（undefined / ''）与非数值输入因此必须落到有意义的长度上。
+  const parsed = Number(config.length);
+  const length = Number.isFinite(parsed)
+    ? Math.max(MIN_LENGTH, Math.min(MAX_PASSWORD_LENGTH, Math.trunc(parsed)))
+    : DEFAULT_OPTIONS.length;
 
   // 构建各字符集（考虑易混淆字符排除）
   const upperCharset = config.excludeAmbiguous ? removeAmbiguous(UPPERCASE_CHARS) : UPPERCASE_CHARS;

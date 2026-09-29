@@ -27,6 +27,225 @@
 | 公众号 + 微博文案              | `docs/公众号-账号密码管理助手.md`、`docs/微博-账号密码管理助手.md`（含配图清单与发布节奏；**已随 PR #81 入库**，不再是未跟踪状态）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | 测试基线                       | `pnpm test:run`（2026-09-22 21:35 复跑）→ **114 个测试文件 / 1292 个用例全部通过**。⚠️ 该树与并行的性能波次共用：114 个文件里有 7 个是对方**尚未提交**的测试（HEAD 只有 107 个），本轮中途 `tests/content/inlineFillDropdown.keyboard.test.ts` 曾因 jsdom 缺 `Element.scrollIntoView` 红过一次、最终一轮全绿。发布前须在干净树上按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复测再定稿各处数字                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | 文档事实审计（2026-09-09）     | README / ARCHITECTURE / CONTRIBUTING / THIRD-PARTY-NOTICES / CWS 两份 / 博客 4 篇的中英文均已按源码逐项校正；残留的代码侧错误口径见本文「🟡 需你决策」末节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 测试基线（2026-09-28 复跑）    | `pnpm test:run` → **167 个测试文件 / 1941 个用例全部通过，exit 0**。本表上一行的 114 / 1292（2026-09-22）与该行原有的 142 / 1563（2026-09-25）都是当时的快照，保留作记录；对外表面已于 2026-09-27 统一改标 **1941 项 / 167 文件**（README ×2、`llms.txt`、`index.html` 数据带 + JSON-LD `dateModified`、`en.html`、`product-site/index.html`、`docs/blog/**` 10 篇与 `blog/*.html` 12 页、封面 04/05 的 SVG 与 PNG、公众号 / 微博文案），`sitemap.xml` 12 条 `lastmod` 随博客 `modified` 同步；仍是易漂移字段，发布前按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复跑再刷新。**同日「落地页体验波次」复跑实测 167 / 1953**（+12 全在 `tests/docs/landingFaqDom.test.ts`，50 → 62 例），对外 21 个手工维护文件已于 2026-09-28 统一刷到 1953 / 167                                                                                                                                                                                                                                                                                                                                                                 |
+
+## 🆕 2026-09-27 落地页体验波次：页头减负 + 水波纹 / 脉冲 + 出口卡（已提交 12a0f61）
+
+用户一次给七条指令（附三张兄弟站截图）：① 撤页头的「应用商店 / GitHub 下载」两枚外链；② 参考 `cross-origin-proxy/#features` 给模块图标加 hover 水波纹；③ 导航字体太小颜色太浅、进度条太细且无渐变；④ 分类直达右栏缺「没找到答案」卡；⑤ 作者其他插件卡没有品牌图标；⑥ 在合适的模块补脉冲动效；⑦（中途追加）首屏主按钮「下载插件」改「添加到 Chrome」。仍然只动 `index.html`（`en.html` 由 `pnpm gen:en` 产出）+ FAQ DOM 生成器与其守卫测试，扩展运行时与产物零改动。
+
+- **页头从 12 项回到 10 项锚点**：两枚外链与首屏 CTA 完全重复，且是 12 项挤在一行的根因。删的是 `<a>` 与 `I18N` 的 `nav.cws` / `nav.github` 两个 key（中英各一处），**出口一条没少**——`chromewebstore.google.com` 在两页各仍有 11 处（首屏两枚按钮、移动端抽屉、页脚、FAQ、compare 等）。滚动高亮的锚点表与 `.nav-links` 因此严格同集。
+- **导航可读性**：字号 14 → 15px、字色并入新令牌 `--text-strong: #334155`（对白底约 10.4:1）、项间距 12 → 16px。1152px 容器内宽实测整行英文 1018px（品牌 222 + 锚点 696 + 右侧控件 101）、中文 784px，英文档余 134px；对照撤链前的 12 项 / 14px / 12px 那档是 1107px、只剩 45px。
+- **阅读进度条**：2px → 3px，纯色 → `linear-gradient(90deg, var(--primary), var(--accent))`，`@supports (animation-timeline: scroll())` 与 JS `--scroll-p` 两条路径同步改，只动一条会在 Chrome / Safari 之间呈现粗细与颜色不一致。
+- **右栏出口卡**：`.faq-rail` 由一格变两格（分类直达 + 「没找到答案？」）。文案的单一真源是 `I18N` 字典的 `faqRail.helpTitle` / `faqRail.help`，生成器经 `extractI18nEntry` 读同一份、运行时 `applyLang()` 写的也是这一串，**没有第三个写入点**；原先「生成块内不得出现 data-i18n」的守卫改成两个标记的精确白名单 + 变异测试（改 `id="contact"` 会让它变红）。`gen:en` 覆盖度 229/229 与 15/15、`FAQ DOM 41` 三项计数均未因这一格变化。
+- **两枚品牌图标（先自绘、后换真图标）**：第一版给的是自绘描边图形（`--taf` 琥珀 `#f59e0b` 双向箭头 / `--cop` 青 `#00b8d9` 节点连线）。用户当场质疑「为什么不用自带的」——这枚图形的唯一职责是品牌识别，而两个产品的真实主色都是蓝（COP `#409EFF`、TAF 渐变 `#3B82F6`→`#1D4ED8`），琥珀与青哪个都不属于它们，自绘等于用「与特性卡统一」的样式便利替换掉了图标存在的理由。终版改为直接引用对方扩展的官方图标本体：`assets/icons/brands/brand-{transfer-any-file,cross-origin-proxy}.svg`，从兄弟仓库 `cp` 而来、图形部分与源文件 md5 逐字节一致，出处 commit 与 MIT 署名写进文件头和该目录的 `README.md`（同作者作品，MIT → 本仓库 GPL-3.0 兼容）。两枚都是 `<img loading="lazy" alt="" width="48" height="48">` 而非内联：TAF 源图带 `<linearGradient id="bg">`，内联进页面会和宿主 id 撞车；`alt=""` + 包装层 `aria-hidden="true"`，装饰性图形不进无障碍树。
+- **水波纹 `aph-halo`**：环是 `inset: -1px` + `border: 1px solid currentcolor` 的绝对定位伪元素，两层错开 0.14s、各 0.62s 向外扩到 `scale(1.34)` 淡出；基准态 `opacity: 0` 就等于动画终态，所以降级只需 `animation: none`。触发只写在 `@media (hover: hover) and (pointer: fine)` 里，触屏没有 hover 态可依赖，不会点一下留残影。14 张特性卡与 2 张互链卡共用同一条 keyframes，环色随各卡自身的 `currentColor`。换真图标后互链卡这层的宿主必须还是包装 `<div>`：`<img>` 是替换元素、不生成 `::before`/`::after`；`border-radius: inherit` 又只认父级声明值，所以每张卡在包装层上各给 `--tile-radius`（源图 rx=16 / rx=28 落在 128 viewBox，缩到 48px 档即 6px / 10.5px）和品牌 `color`，两枚写同一个值时环会在方角那枚上明显外鼓。
+- **首屏 CTA 一次性脉冲 `aph-cta-pulse`**：`1.1s × 2`，主按钮 0.9s 起跳、次按钮 1.45s，两圈环出发时刻错开但允许半拍重叠；`.btn-ghost` 自带 1px 描边，环贴着画会读成「边框变粗」，所以次按钮的基准位再外挪到 `inset: -3px`。跑完停在透明，不做无限循环。挂在 `html.js` 下，脚本缺席时这层根本不存在。顺带补了 `.hero-eyebrow .dot` 的呼吸——它此前漏在降级块之外，而 `scale(1.4)` + `infinite` 正是那一档要撤掉的东西。
+- **禁 JS 兜底跟着抬**：`<noscript>` 里 `scroll-padding-top` 212 → 224px。字号 14 → 15px 把 ≤520 折行页头从 212px 抬到实测 217px，不补这一段则点锚点会把小标题压在页头底下。
+- **测试数漂移（已在本轮末尾收口）**：本轮守卫测试 50 → 62 例，实测 `167 文件 / 1953 用例`，而对外表面一度仍写 **1941 / 167**。这 21 个文件的基线刷新没有混进落地页 diff，而是按下一节「对外测试数基线刷新到实测 1953」单独走了一遍，顺序与守卫要求照本文既有的刷新规程执行。
+
+### 验证
+
+- **门禁**：`pnpm typecheck` / `pnpm lint`（`eslint . --max-warnings 0`）/ `pnpm lint:style` 均 exit 0；`pnpm exec prettier --check` 覆盖本轮变更的 17 个 md/ts 文件全绿；`pnpm test:run` → **167 文件 / 1953 用例全绿**，exit 0。`pnpm build` 同样跑过并 exit 0，zip **708.15 kB**、与上一波基线提交（`5bcb9fc`）记的同值，`find .output -name 'brand-*.svg' -o -name index.html` 为空——落地页与两枚品牌图标确实不在扩展构建闭包内（`wxt.config.ts` 不引用根 `index.html`，`assets/` 只有被 `import` 时才进包，扩展图标取的是 `public/icon/`）。
+- **真浏览器实测**（系统 Chrome + Playwright，headless，`file://` 直开两页）：`console` / `pageerror` 0 条；`.nav-links` 恰 10 条锚点、`15px` / `rgb(51, 65, 85)`；右栏 `railCards: 2`，出口卡标题中文「没找到答案？」/ 英文 "Didn't find your answer?"；两张互链卡各带一枚 `<img>` 品牌图标；首屏主按钮中文「添加到 Chrome」/ 英文 "Add to Chrome"。
+- **动效不是「写了就算」**：静止态两层环 computed `opacity` 为 `0` 且 `animationName: none`（不留常驻细环）；悬停中读到 `aph-halo` 在跑、两层分别 0.45 / 0.09 的衰减；悬停 1.2s（动画早已落定）再量，两条仍回 `0`。CTA 脉冲环在载入约 2.1s 时读到 0.41 / 0.01，即第二圈正在扩散。
+- **换真图标后的复测**：两枚 `<img>` 均 `complete && naturalWidth > 0`（`file://` 下 `requestfailed` 与 ≥400 响应 0 条）、渲染盒恒为 48×48；包装层与 `::after` 的 `border-radius` 分别为 `10.5px` / `6px`（继承生效）、环色 `rgb(59,130,246)` / `rgb(64,158,255)`（即各自品牌色经 `currentColor` 传出）；悬停中 `animationName: aph-halo`、第二层 `animationDelay: 0.14s`，移开后两层各自回到 `none` / `0`。中英两页 `.more-grid` 截图目视核对，图标与文字间距、底板圆角与环的贴合均无异常。
+- **禁 JS 档**：320 宽关脚本 → 页头 217px ≤ `scroll-padding-top` 224px、`.nav-links` 右边界 296px、右栏两卡都在且出口卡可见，中英两页同值。
+- **两条既有残留（不是本轮引入，HEAD 同值，故只记录未改）**：① 320 一档整页仍有 38px 横向滚动，来自 `#faqList` 的 334px 最小内容宽，与页头无关；② 禁脚本且视口 521–767px 时页头高 81–125px，高于基准 `scroll-padding-top` 84px，点锚点最多把 41px 内容压在页头下。两处口径都写进了 `index.html` 的 `<noscript>` 注释。
+
+## 🆕 2026-09-28 对外测试数基线刷新到实测 1953 / 167（本轮，已提交）
+
+紧接上一节的落地页波次：守卫测试 50 → 62 例让实测值走到 **1953 / 167**，而对外表面仍写 1941。本轮只改数字与日期，不动任何主张措辞、运行时代码与扩展产物——口径与 `5bcb9fc`（1563 → 1941 那一刷）完全一致。
+
+- **24 处数字位 / 21 个手工维护文件**：README ×2 首屏徽章行、`llms.txt` 的 `Quality` 行与 `Last updated`、`index.html` 数据带 `<b>` 与 JSON-LD `dateModified`、`product-site/index.html` 的统计卡与页脚 mono 行、`docs/公众号-*` / `docs/微博-*` 各 2 处、`docs/blog/{zh,en}/**` 共 10 篇正文、`imgs/blog-covers/` 的 04 / 05 两张 SVG 与 `outline.md` 两处。另 11 处（`en.html` ×1 + `blog/*.html` ×10）由生成链带出，合计 35 行数字变化。
+- **⚠️ 两种数字写法**：`product-site/index.html` 用千分位 `1,941`（统计卡 `<b>1,941 项</b>` + 页脚 `1,941 tests`），其余表面是 `1941`。**只 grep `1941` 会整份漏掉这两处**——上一刷能抓全是因为当时按 `1,563`→`1,941` 单独列过。刷新前先把 `1941` 与 `1,941` 两种形式各扫一遍。
+- **日期随行走**：博客 10 篇 `modified: 2026-09-27` → `2026-09-28`、`llms.txt` 的 `Last updated`、`index.html` 的 `dateModified`、`sitemap.xml` 的 12 条 `lastmod`（`/` + `en.html` + 10 篇文章页）。pricing ×2 / compare ×2 / 博客索引 ×2 保持 09-25、privacy ×2 保持 09-22——本轮这些页面一个字没动。
+- **刻意不动**：README 的「📅 文档最后更新：2026-09-25」与页脚月粒度时间（`5bcb9fc` 同样未动，属另一套更新节奏）；公众号 / 微博文案里的 `v3.9.0` 事实基线（那是发布版本口径，不是开发分支的测试数口径）；`docs/INLINE_DROPDOWN_PARITY_EVALUATION.md` 等评审文档里「119 文件 / 1337 例」的记述（那是那一波的现场快照，改掉等于伪造历史）；`CHANGELOG.md` 里 `0aa80d9…19412…` 那条 commit 哈希（子串巧合，不是计数）。
+- **顺序**：`pnpm covers:render 04 05` → `pnpm gen:blog`（12 页）→ **最后** `pnpm gen:en`。`en.html` 的数字与 `dateModified` 全部继承自 `index.html`，先跑 `gen:en` 再改中文页会让英文页停在旧值。
+- **批量替换带守卫**：21 个文件的一次性替换脚本对每一条 `from → to` 都断言「预期命中次数」（例如 `sitemap.xml` 的 `>2026-09-27<` 必须恰好 12 次、`docs/公众号-*` 的 `1941 项` 必须恰好 2 次），任一条不符即整个文件不落盘、脚本 exit 1。用裸 `sed -i` 或全局 replace 会让 `1941` 这种短串顺手吃掉别处的东西。
+
+### 验证
+
+- **零残留**：全仓（排除 `node_modules` / `.output` / `.git` / `.wxt` / `dist` / `playwright-report`）扫 `1941` 与 `1,941`，命中只剩 `CHANGELOG.md` 的 commit 哈希与本文档的历史记述两处刻意保留项；`1953` / `1,953` 落在 35 处，与 24 手工 + 11 生成的账面吻合。
+- **生成物没被手改**：`covers:render` + `gen:blog` + `gen:en` 连跑两遍，`en.html`、12 份 `blog/*.html`、两张封面 PNG 共 15 个产物的 md5 二次全等。
+- **封面目视复核**：两张重出的 PNG 里「1953 项自动化测试」都完整落在胶囊内、无溢出（1941 → 1953 位数不变，宽度天然安全，但按规程仍读一次）。
+- **门禁**：`pnpm test:run` → **167 文件 / 1953 例全绿**（与刚刷新的对外数字同一实测来源）；`pnpm typecheck` / `pnpm lint` / `pnpm lint:style` exit 0；`pnpm exec prettier --check` 覆盖 17 个变更的 md/ts 文件全绿；`pnpm build` exit 0，zip **708.15 kB** 与 `5bcb9fc` 同值，扩展产物零增长。
+
+## 🆕 2026-09-27 页头右侧控件成组右对齐（本轮，已提交）
+
+用户圈出产品页页头的「中/EN」与右上角 GitHub 图标问「为什么距离那么远」，要求按 UX/UI 最佳实践优化。**根因不是漏写间距，而是间距被 `space-between` 吃掉了**：`.nav-inner` 是 `display:flex; justify-content:space-between`，而语言键、GitHub 图标各自是它的**独立 flex item**，剩余空间会均分进每一道缝隙——`margin-left: 16px` 只是下限，实测语言键与图标之间 ≥1200px 档 100px、1199px 档 297px、1024px 档 239px、768px 档 154px。两枚不同族的控件被摊成页头里的两个孤点，且这个距离随视口每变一档就变一次。
+
+- **收组**：新增 `.nav-actions`（`display:flex; align-items:center; gap:12px; flex-shrink:0`）包住语言键 / GitHub 图标 / 汉堡三枚控件。`.nav-inner` 的 item 数从 4 降到 3，剩余空间只落在「品牌↔锚点条」和「锚点条↔控件组」两道缝上，组内间距从此**只由 `gap` 决定、不再随视口漂移**。
+- **统一形态**：两枚控件共用一条规则——36px 等高、`var(--radius-sm)`（10px）同圆角、`var(--bg-soft)` 同底色、`1px solid var(--border)` 同描边、同一条 `transition`。语言键此前是 28px 高的胶囊（`border-radius:999px`、`padding:5px 12px`），图标此前无描边；两者挨在一起时读作一组控件而不是两个恰好并排的部件。语言键的**触控靶从 44.2×28 抬到 44.2×36**。
+- **统一反馈**：GitHub 图标的 hover 从「反白成深色块」（`color:white; background:var(--text)`）改成与语言键同一套主色浅底（`--primary` 文字 + `--primary-soft` 底 + 主色描边 + `translateY(-1px)`）。相邻两枚控件给两种相反的悬停语言，是「不是一组」最直接的信号；`focus-visible` 也合并为同一条 2px 主色环。
+- **减弱档**：`.lang-toggle:hover, .nav-github:hover { transform: none }` 进 `prefers-reduced-motion` 块——位移本身就是这条动效，撤掉抬升但保留转色与描边，悬停仍有反馈。
+- **保留的既有阀门**：`html.js .nav-toggle` 的特指度（0,2,0）高于新的 `.nav-toggle{display:none}`，窄屏抽屉照常开启，源码顺序调整不影响；≤480 撤 GitHub 图标、≤520 禁 JS 换行两道既有保护原样保留。
+- **拍板过程中否决的三项**：① 把「中 / EN」升级成分段控件（`中|EN` 二选一胶囊）——用户选「等高同圆角」方案，不改控件形态；② 移除重复的 GitHub 出口（导航文字链 vs 右上角图标）——用户选「两者都留」，导航链服务「找下载」、图标服务「看源码」，意图不同；③ 给汉堡也加底框以凑齐三个盒子——汉堡是**不同族**的导航开关，且在 ≤480 是唯一留在原地的控件，给它加框会让窄屏页头变重，属未获授权的视觉扩张。
+
+### 验证
+
+- **间距**（裸 CDP + headless Chrome 144，`Emulation.setDeviceMetricsOverride` 逐档，改后共测 15 个宽度：320/360/375/414/420/480/600/768/900/1024/1199/1200/1280/1440/1600）：语言键↔图标在图标可见的每一档**恒为 12px**（1600/1440/1280/1200/1199/1024/900/768/600），汉堡↔前一枚同为 12px；改前同档实测为 100px（≥1200）/ 297px（1199）/ 239px（1024）/ 154px（768），图标撤除的窄屏档则是 8.9px（320）/ 28.9px（360）/ 55.9px（414）→ 统一为 12px。
+- **盒子**：`langBox {w:44.2,h:36,r:"10px"}`、`ghBox {w:36,h:36,marginLeft:"0px"}`，全档位一致；`.nav-inner` 的 `justify` 仍是 `space-between`（未改页头整体骨架）。
+- **320px 的横向溢出是既有事实、不是本轮引入**：把 `git show HEAD:index.html` 落成仓内临时副本同法测量，基线在 320 同样 `overflow:true`（且语言键只有 28px 高）；测完即删该副本，工作树只剩两份落地页。
+- **交互态**（`Input.dispatchMouseEvent` / `dispatchKeyEvent` 真事件）：两枚控件 hover 计算样式逐项相同（`rgb(78,136,255)` / `rgb(234,241,255)` / 主色描边 / `matrix(1,0,0,1,0,-1)`）；reduce 档 hover 为 `transform:none` + 主色浅底；Tab 序 14=`langToggle`、15=`navGithub`，焦点环均 `2px solid rgb(78,136,255)` / offset 2px。
+- **降级路径**：1199 抽屉展开后组内间距仍 12px；480 图标撤除后语言键↔汉堡仍 12px；禁 JS 副本 520 换行后仍 12px 且无溢出；点语言键后 `docLang` 翻到 `en`、标签转「中文」（就地切换，非跳转）。截图留在 `/tmp/aphref/shots/`（1440 中英 / 1199 / 480 / 375 / 禁 JS 520·420），按既有口径不入仓。
+- **生成链**：改完中文页再 `pnpm gen:en` → `data-i18n 230/230, data-i18n-html 14/14, FAQ DOM 41`，`en.html` 的 hunk 与 `index.html` 逐段对称；**再跑一次 `gen:en`，`en.html` md5 逐字节不变** → 英文页无手改。
+- **门禁**：`pnpm typecheck` / `pnpm lint`（`--max-warnings 0`）/ `pnpm lint:style` / `pnpm exec prettier --check index.html en.html` 全绿；`pnpm test:run` → **167 files / 1941 tests passed**，exit 0（118.06 s）；`pnpm build` exit 0，zip **708.15 kB** / Σ **2.01 MB**，与上一波同值 → 扩展运行时产物零改动（落地页不进构建闭包）。
+- **已知未改**：`en.html` 的静态字节里语言键仍写「EN」，要等主脚本把它改成「中文」——英文页首帧标签指向的是当前语言而非目标语言。这是收组前就存在的行为，用户已选择保留胶囊形态，本轮不动。
+
+## 🆕 2026-09-27 对外测试数基线刷新到实测值（本轮，已提交）
+
+用户选中上一波收口汇报里那条「本轮范围外的漂移」（对外表面仍写 **1563 项 / 142 文件**，实测已是 **1941 / 167**）说「这个帮我更新」。本轮只改数字与日期，不改任何主张措辞、不动运行时代码与扩展产物。
+
+- **24 处数字位**（`1563`→`1941`、`1,563`→`1,941`、`142`→`167`）改在 **20 个手工维护文件**上，分布在下列对外表面：README ×2 首屏徽章行、`llms.txt` 的 `Quality` 行与 `Last updated`、`index.html` 数据带 `<b>`、`product-site/index.html` 的统计卡与页脚 mono 行、`docs/公众号-*` / `docs/微博-*` 各 2 处、`docs/blog/{zh,en}/**` 共 10 篇正文、`imgs/blog-covers/` 的 04 / 05 两张 SVG 与 `outline.md` 两处；另有 11 处（`en.html` ×1 + `blog/*.html` ×10）由生成链自动带出，合计 35 行数字变化。
+- **生成链重跑**：`pnpm gen:blog`（12 页，其中两份博客索引页字节未变）、`pnpm gen:en`（data-i18n 230/230、data-i18n-html 14/14、FAQ DOM 41）、`pnpm covers:render 04 05`（sharp / libvips，无浏览器依赖）。顺序必须是**先改 `index.html`、后跑 `gen:en`**——`en.html` 的 `1941` 与 `dateModified` 都从中文页继承，反过来跑英文页就是旧值。
+- **JSON-LD 与地图新鲜度**：`index.html` 的 `SoftwareApplication.dateModified` → 2026-09-27；`sitemap.xml` **12 条** `lastmod` → 2026-09-27（首页、`en.html`、10 篇博客条目），`pricing` ×2 / `compare` ×2 / 博客索引 ×2 本轮内容未变保持 2026-09-25，`privacy` ×2 保持 2026-09-22。
+- **博客 frontmatter**：10 篇全部补 / 改 `modified: 2026-09-27`，`build-blog-pages.mjs` 据此填 `BlogPosting.dateModified`、`article:modified_time` 与可见的「更新于」。第 5 篇中英两份原本没有 `modified` 键，批量脚本用 `^date: …$` → `$1\nmodified: …` 替换时把 `date:` 这个**键名一起吃掉了**，`pnpm gen:blog` 立刻报 `frontmatter 缺少 date`（exit 1）；手工补回 `date: 2026-09-22` 后重跑才过——批量正则必须保留键名，且「预期命中次数」断言拦不住另一个循环里的错。
+- **刻意不动**：页脚 `footer.updated` 是月粒度（「最后更新：2026-09 · v3.12.0」）；`docs/公众号-*` / `docs/微博-*` 的「事实基线 v3.9.0」行保持 v3.9.0（2026-09-25 定的口径：整篇主张未逐条重审，不单独抬版本号）；`llms.txt` 的 `Latest release: v3.12.0 (2026-09-25)` 是 GitHub release 实测日期；本文件下方四处**过去波次**的验证记述（1563 / 142）保留原值，属历史快照不是当前基线。
+- **残留扫描**：`git grep` 不带 `--include` 过滤扫 `1563`，全仓命中只剩本文件四处**过去波次**的验证记述（无 JS 数字带 `[1563,…]`、W1 版式对齐的六卡说明、09-25 波次的新鲜度与门禁段落）加上本轮这一节自己；`docs/INLINE_DROPDOWN_PARITY_EVALUATION.md` 里的 `1292 / 1337` 是更早的波次转述，不含 `1563`；`tests/` 没有任何守卫写死旧数字（改数不会让测试变红），数字位也不在 `tests/docs/*` 的断言范围内。
+
+### 验证
+
+- **数字来源就是实测**：`pnpm test:run` 无管道直跑 → `Test Files 167 passed (167)` / `Tests 1941 passed (1941)`，exit 0，208.9 s。对外各处写的正是这一对值。
+- **生成链**：`pnpm gen:blog`（12 files）、`pnpm gen:en`（data-i18n 230/230、data-i18n-html 14/14、FAQ DOM 41）、`pnpm covers:render 04 05` 全部 exit 0；随后**再跑一次** `gen:en` + `gen:blog`，`en.html` 与 12 份 `blog/*.html` 的 md5 逐字节不变 → 生成物没有手改。
+- **封面目视复核**：两张重出的 PNG 里「1941 项自动化测试」渲染正确，05 的胶囊未溢出、04 的关键字行未折行。
+- **门禁**：`pnpm typecheck` / `pnpm lint`（`--max-warnings 0`）/ `pnpm lint:style` 均 exit 0；`pnpm exec prettier --check` 覆盖本轮 16 份人类维护 `.md`（README ×2、`docs/blog/{zh,en}/**` ×10、公众号 / 微博文案、`imgs/blog-covers/outline.md`、本文件）全绿（本文件表格补白后通过）；`pnpm build` exit 0，`.output/account-password-helper-3.9.0-chrome.zip` **708.15 kB**、Σ **2.01 MB**，与上一波同值 → 运行时代码与扩展产物零改动。
+- **未做的核验**：本轮没再开真浏览器渲染 `index.html` / `en.html`——改动只有一处静态数字文本与 JSON-LD 的日期，无 CSS/JS 变化，且 `index.html` 内联脚本的可解析性由守卫测试覆盖（套件全绿）。`sitemap.xml` / `llms.txt` / `.svg` 无 prettier parser，按既有口径不在门禁内。
+
+## 🆕 2026-09-27 本地产物与非 SEO 文档停止入库（本轮，已提交）
+
+用户指令「把一些没必要提交到远程代码仓库的文档添加到 .gitignore」，追问后定的口径是**对外博文与 SEO 内容不加忽略规则，本地产物与非 SEO 运营文档加**。本轮只动 `.gitignore`、`docs/CONTRIBUTING.md` 与一处注释，运行时代码与产物零改动。
+
+- **新增 7 条规则，分三块**（`.gitignore` 末尾 +25 行）：① AI 会话工作稿与工具跑批产物 `.qoder/plans/`、`.qoder/superpowers/`、`.qoder/better-harness/`、`.qoder/better-harness-runs/`、`.qoder/repowiki/`；② 一次性评审报告 `docs/code-review-*.md`；③ Qoder Sites 本地描述符 `*.qoder.site`（文件名带站点标题、内容含 siteId 与整页 base64 快照，属机器绑定状态，此前那份 `product-site/.账号密码管理助手 · 产品页.qoder.site` 一直没被忽略）。**`.qoder/` 整体不忽略**——`rules/`、`skills/`、`commands/` 是团队协作配置，原样保留跟踪。
+- **反向清单写进文件注释**：`docs/ARCHITECTURE*.md`、`docs/blog/**`、`docs/promo/**`、`docs/{公众号,微博,reddit}*.md`、`docs/exposure-status.md`、曝光提升执行手册属对外与 SEO 内容；`docs/PERF_*.md`、`docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`、`docs/LANDING_MOTION_PROPOSAL.md`（含配套实物 `docs/prototypes/landing-motion-lab.html`）**被源码注释按路径引用**——这几份在 `utils/`、`composables/`、`tests/`、`benchmarks/`、`e2e/` 的注释里被点名 16 次（13 个文件），忽略了就是把仓库里的引用变成死链，所以列成「勿顺手加进来」而不是留在脑子里。口径同步写进 `docs/CONTRIBUTING.md`「提交范围 / What Belongs in the Repo」中英各一节。
+- **14 个已跟踪文件 `git rm --cached`**（磁盘文件一份没删）：`better-harness`(4) + `better-harness-runs`(2) + `plans`(3) + `repowiki`(2) + `superpowers`(2) + 评审报告(1)。远端现状分两类——`.qoder/plans`、`better-harness`、`better-harness-runs`、`repowiki` 此前已推送，推上去时表现为删除；`docs/code-review-2026-09-26.md` 与 `.qoder/superpowers/` 只在未推送的提交里出现过。
+- **顺带清掉一处死引用**：`tests/architecture/sidepanelClosure.test.ts` 的文件头注释原引 `.qoder/plans/身份信息库（Identity Vault）实现方案.md`「独立性硬约束」，并用了只在方案稿里定义的「风险 R6」编号。方案稿不再入库后改引 `docs/ARCHITECTURE.md`「27. 身份信息库」的「定位与独立性」（该小节确实写了「不改 `utils/types.ts` / `passwordCrud.ts` / sidepanel / popup / content 任何既有路径」），R6 编号删掉、句子语义不变。
+- **⚠️ 一条要说清的限制**：忽略规则只管工作树，**不改历史**。`docs/code-review-2026-09-26.md` 与 `.qoder/superpowers/` 是在未推送的 `ca33c83` 进入历史的，本提交只让分支**顶端树**不再包含它们——按现状 push，这两个 blob 仍会上传到远端，只是 `main`/页面上看不到。要彻底不上传必须改写这 27 个提交的历史，本轮没做，也不建议做。
+
+### 验证
+
+- `git ls-files -i -c --exclude-standard` 输出为空 → 没有任何**仍被跟踪**的文件撞上 7 条新规则；`check-ignore --no-index` 逐条命中六个目标路径，并确认 `.qoder/better-harness/` 不会误吞 `.qoder/better-harness-runs/`（两条规则各自命中自己那条），`*.qoder.site` 对以点开头的 `product-site/.账号….qoder.site` 也照样生效。
+- 死引用扫描：提交后对全仓跟踪文件 `git grep` 六个被停跟踪路径与 `qoder.site`，命中只剩 `.gitignore` 自身；`风险 R` 编号在代码与文档里只剩本节这段事后记述，源码注释中归零。反向确认：**26 条该留的路径逐条 `check-ignore` 全为「未忽略」**（`ARCHITECTURE` 中英、`CONTRIBUTING`、`CWS_*` 两份、四份 `PERF_*` / 口径报告、`prototypes/landing-motion-lab.html`、本文件、执行手册、`reddit-post` / `promo/*` / `公众号-*` / `微博-*`、`docs/blog/**` 抽样、根目录 `pricing.md` 与 `test-page.html`、`.qoder/{rules,skills,commands}`），0 条误伤。其中 `docs/INLINE_DROPDOWN_PARITY_EVALUATION.md` 被本文件按 §9.4 引用、`test-page.html` 被 `docs/ARCHITECTURE.md` / `.en.md` 链接，忽略它们会立刻造出两处死链。
+- 门禁：`pnpm typecheck` exit 0、`pnpm lint`（`eslint . --max-warnings 0`）exit 0、`pnpm exec prettier --check docs/CONTRIBUTING.md tests/architecture/sidepanelClosure.test.ts` 全绿（`.gitignore` 无 prettier parser，不在门禁内）、`pnpm test:run` **167 文件 / 1941 用例全绿**（exit 0，跑在两次注释改动之后）。
+- 提交 `e5456df`（17 文件 / +49 / −6952），husky + lint-staged 通过；提交后 `git status --porcelain -uall` 为空。
+
+## 🆕 2026-09-27 FAQ 平铺内容区 + 分类直达右栏（本轮，已提交）
+
+用户指令「常见问题模块是否要平铺整个内容区域，目前左右都还有空白」，追问后指定**参考 cross-origin-proxy 的 `#faq-basics`，在右边加「分类直达」快速导航**。落地的判断是：**不把问答列拉满 1152，而把右侧空白变成导航**。问答列原本 820px 居中，容器内宽 1152 → 左右各 166px 空白；41 条收起态就有约 3700px 高（1440 宽实测 3658px），拉宽只会让行长更难读，而右侧那条空白正好能放一节导航。仍然只动 `index.html`（经 `pnpm gen:en` 出 `en.html`），扩展产物零改动。
+
+- **网格挂在本节容器上**：`#faq` 的 `.container` 加一个 `faq-wrap` 类，基准档单列（右栏落在问答之后，锚点照旧能点、禁 JS 也一样读），`@media (min-width: 1080px)` 才拆成 `minmax(0,1fr) 320px` + 40px 栏距（1152 = 792 + 40 + 320，正好铺满）。`.section-head` 用 `grid-column: 1 / -1` 横跨，标题与问答之间那道 40px 与拆分前逐字一致。`align-items: start` 是 sticky 的前提——默认 stretch 会把右栏拉成问答列那么高，它自己就是那一格，再没有可移动的空间。
+- **右栏属于生成区，不手写**：分类标题、每组条数、锚点 id 三样都只能从 `FAQS` 算出来，手写必然与左列漂移；而它必须与列表同一语言，所以 `renderFaqDom(faqs, lang)` 一次产出两格（`#faqList` 与 `<aside class="faq-rail">`），页内 `renderFaqRail()` 在切语言时按同一规则重建。生成区因此从一道 `prettier-ignore` 变两道——它的作用域只有紧随其后的那一个节点，漏了右栏那道，prettier 就会把 `<li>` 拆成多行，`gen:*` 与 `pnpm format` 互相回改。
+- **锚点用 `iconClass` 而不是序号**：`#faq-cat-security` 而非 `#faq-cat-1`——下标会在插删分类时整体位移，把已经发出去的深链指到别的分类上。`extractFaqs` 因此新增三条构建期校验：`iconClass` 必须是合法 slug、全页唯一、且问答不得出现在任何分类之前（否则右栏无法归组）。落位不需要 `scroll-margin-top`：全局 `html { scroll-padding-top: 84px }` 已经管住，且它与 sticky 的 `top: 84px` 同值，由测试钉住。
+- **不加 `html.js` 门控**：右栏不是「隐形初始态」，它是返回字节里就存在的可见内容；目录标签用 `textContent` 写入，分类标题是文案、不该被当标记解析。顺手改掉一处失效注释：`section:target` 那段原写「FAQ 条目无 id（静态 DOM 与脚本重渲染都不带）」，现在分类节点带 id 了，判据口径改成「问答条目不带 id；分类节点的 id 是右栏落点，且它是 div 不是 section，撞不进那条规则」。
+- **验证时抓到的一处真缺陷**：单列档右栏实测只有 **126px** 宽——网格项两边都是 `auto` 边距时不再 `stretch`，只按内容收缩，卡片缩成窄条（≥1080px 那档被 320px 那一格遮住，看不出问题）。补 `width: 100%` 后 1079 / 768 档实测 420px、375 档 327px。这条也进了守卫，并附一条变异自检；写这条变异时先踩了个坑：`width: 100%;` + `max-width: 420px;` 这一对在 `.hero-visual` 里也有，`replace` 打不中右栏却照样「改变了页面」，定位串必须带上 `margin-inline: auto` 才唯一。
+- **守卫扩到 50 例**（原 22 例，`tests/docs/landingFaqDom.test.ts`）：右栏与 `FAQS` 推导的分组逐字一致、条数总和 = 41、每条 `href` 都能落到真实 id 且 id 全页唯一、锚点前缀与页内 `faqCatAnchor` 及生成模块同式、右栏标题与页内 `FAQ_RAIL_TITLE` 双向钉死、中英两栏样式块逐字同源、两栏/sticky 只在 ≥1080px 那一档（按大括号扫描判嵌套，不按缩进猜）、`renderFaqs` 尾部必须重建右栏、右栏必须是 `#faqList` 的兄弟（否则切语言时被 `innerHTML = ''` 清掉）。变异自检 8 条，全部要求「改坏了必须变红」。
+
+### 验证
+
+- 真机（headless Chrome，裸 CDP，注入 15px 经典滚动条）9 个形态 × 每形态 4 个滚动位：1440 / 1200 / 1080 档 `grid-template-columns: 792px 320px`（1080 为 672 + 320）、`align-items: start`、右栏 `position: sticky` / `top: 84px`；1079 / 768 / 375 档单列、右栏 `static` 落在问答之后。**六个宽度全部 `scrollWidth == clientWidth`，无横向溢出**。
+- 点右栏第 3 条（数据管理）：`location.hash = #faq-cat-data`，目标分类 `top = 84`、页头底边 65、间隙 19px、完整可见——中英两页、reduce 档、禁 JS 副本、各断点共 9 次点击全部一致（滚动 `scroll-behavior: smooth`，取样前轮询到 `scrollY` 稳定才读）。sticky 到本节末尾自然让位：滚到最后一条问答时右栏底边 70 ≤ 本节底边 142，没有压到页脚。
+- 语言往返（中文页点 `#langToggle`）：标题 `分类直达 → Browse by category → 分类直达`，四条分类名同步往返，切完 `catIds` / `hrefs` 仍逐一对应、41 条问答不丢、右栏仍是 `.container.faq-wrap` 的第三个子节点（没被列表重建带走）。`en.html` 首屏即 `Browse by category`，禁 JS 副本首屏 `分类直达` + 4 条目录。截图目视 1440 sticky 中态 / 1440 段尾 / 860 单列 / 375 英文单列四张。
+- 生成链 `gen:faq-dom`（41 问答 / 4 分类）→ `gen:en`（data-i18n 230/230、html 14/14、FAQ DOM 41）；`gen → prettier → gen` 已证为不动点（两文件 md5 前后一致），`prettier --check index.html en.html` 通过。门禁：`typecheck` / `lint --max-warnings 0` / `lint:style` / `pnpm test:run`（167 文件 / 1941 例）/ `pnpm build`（8.2s，708 kB zip）全绿。
+
+## 🆕 2026-09-27 落地页阅读进度条（本轮，已提交）
+
+用户指令「参考 transfer-any-file 产品页，给本页增加页面进度条动效」。参考页的做法是一条跟随阅读进度的细线，这里把它接到**已有的 sticky 页头下边缘**，不新增 DOM 节点。仍然只动 `index.html`（经 `pnpm gen:en` 出 `en.html`），运行时代码与扩展产物零改动。
+
+- **三条路径成套**：① 主路径 `@supports (animation-timeline: scroll()) { .nav::after { … animation-timeline: scroll(root block) } }`，进度由 CSS 滚动时间线驱动，`transform: scaleX(0 → 1)`，JS 与页面主线程无关；② 兜底路径 `@supports not (...)` 消费脚本写入的 `--scroll-p`（Safari / 旧 Firefox）；③ `prefers-reduced-motion: reduce` 档整条 `content: none` 撤除——滚动时间线动画没有「时长」可塌，缩短等于没意义，只能撤，滚动位置信息仍由浏览器滚动条提供。两档 `@supports` 互斥，不会同时出现两条线。
+- **为什么挂在 `.nav::after` 而不是新开 fixed 元素**：页头是 `position: sticky`，绝对定位的伪元素天然以它为包含块；窄屏锚点条换行成两行时页头自己变高，这条线照样贴着底边（`bottom: -1px`，正好压在 `border-bottom` 那行），不需要脚本来猜页头高度。`pointer-events: none`，不挡任何点击。
+- **刻意不做 `html.js` 门控**：进度条不是「隐形初始态」，脚本解析失败与否都不该让它消失——这与 `landingScripts.test.ts` 守的那套「隐形初始态必挂兜底」是相反的情形，写在 CSS 注释里说明。
+- **顺带的一处等价重构**：`onScroll` 里原本两处各读一次 `document.documentElement.scrollHeight`（导轨触底判定 + 新增的进度），现合并成一个 `max` 变量。判据代数等价：`scrollY + innerHeight >= scrollHeight - 80` ⇔ `scrollY >= max - 80`，不改变原有隐藏「回到顶部 / 滚动到底部」的时机。
+- **新守卫** `tests/docs/landingProgressRail.test.ts`（10 例）：中英两页三件套齐备、`.nav` 仍是 sticky（否则线落到文档顶端）、中英实现逐字同源（`en.html` 是生成物，不许各写一套），外加 5 个变异自检——抽掉 `@keyframes` 名字、抽掉 reduce 档规则、把兜底档写成无门控、抽掉脚本侧判据门、抽掉主路径时间线绑定，每个都必须变红；另有一条「未变异的原文不误伤」。写这条守卫时踩到自己挖的坑：`.nav::after` 的三处规则不能一律要求 `@supports` 门控，reduce 档那处**应当**在 `@media` 里，判据已改成「门控 / 在 reduce 档 / 无归属」三分，只有第三类才算违规。
+
+### 验证
+
+- 真机（headless Chrome 1440 / 1080 / 768 + 中英两页，裸 CDP）：`.nav::after` 计算样式为 `content: ""` / `height: 2px` / `animation-timeline: scroll(root)`，`scaleX` 在 0% / 50% / 100% 三档取样实测 `0 / 0.5 / 1`，线的位置恒为 `y = 页头底边 - 1`、横向 `0 → 视口宽`。**取像素复核「真的画出来了」**（伪元素无法命中测试，只能看像素）：页面自身 `drawImage` 解截图后取样，0% 时线位两端的像素都是页头 `border-bottom` 的 `235,239,244`；50% 时左端 `61,112,223`（渐变起点 `--primary-dark`）、右端仍是 `235,239,244`；100% 时左 `60,110,220`、右 `76,134,252`（渐变终点 `--primary`）；线上下各 6px 处是纯白，说明没有溢出到 hero。
+- 两条降级路径各自单独验：`prefers-reduced-motion: reduce` 下计算样式 `content: none`（盒子不生成）；摘掉全部 `<script>` 的副本仍走主路径、三档取样与原文一致；把两档 `@supports` 判据同时改写成不可能成立的属性 + 把 `CSS.supports` 钉成 `false` 的「老引擎」副本里，线改由 `--scroll-p` 驱动，脚本写入 `0 / 0.5 / 1`、`scaleX` 同步 `0 / 0.5 / 1`。测量口径备注：页面有 `scroll-behavior: smooth`，第一版取样脚本用默认 `scrollTo` 量到的是「飞行途中」的值（bottom 档只走到 0.41），改 `behavior: 'instant'` 后才拿到底。
+- `pnpm gen:en` 连跑两次 md5 一致（`8073eb5c…`），生成物未手改；`typecheck` 通过；`tests/docs` 4 文件 / 48 例全绿；新增测试文件 `prettier --write` 后 `--check` 通过、`eslint --max-warnings 0` 0 报错。
+
+## 🆕 2026-09-27 同作者插件中文名同步（已提交）
+
+用户指令「把产品说明页和 README 的中文版，同作者插件『文件转换』的名称同步更新」，追问后选定**全站一起同步**。名称的事实来源是兄弟仓自身：`transfer-any-file` 的 `public/_locales/zh_CN/messages.json`（扩展名 `文件格式任意转换助手 — 离线转换无上传`）与 `utils/i18n/zh.ts` 的 `appName`，英文名仍是 `Transfer Any File`。此前中文面一律写英文名，与同卡片里「跨域代理助手」的中文命名口径不一致。
+
+- **中文面 5 个源**：`index.html`（`#more` 卡片静态文案 + I18N 字典 `more.taf.name` 的 zh）、`compare.html` 页脚互推行、`pricing.html`（静态 + 字典 zh 两处）、`scripts/build-blog-pages.mjs` 的两条 zh `footerNote`（文章页与博客首页）、`product-site/index.html` 页脚「社区与同作者作品」列表项（`Transfer Any File · 离线文件转换` → `文件格式任意转换助手 · 离线文件转换`）。
+- **英文面一律不动**：`README.en.md`、`llms.txt`、`compare.en.html`、`blog/*.en.html` 保持 `Transfer Any File`。`en.html` 与 `pricing.en.html` 各变 1 行，且只落在页内 I18N 字典的 **zh** 字段（供语言切回中文时使用），英文默认可见文案实测仍是 `Transfer Any File`。
+- **README.md 无改动**：`git diff` 为空，HEAD 早已写作「文件格式任意转换助手」——本轮第一次 grep 曾把它读成英文名，以 git 为准。
+- **生成链**：`gen:en`（data-i18n 230/230、data-i18n-html 14/14、FAQ DOM 41）→ `gen:pricing-en`（107/107、12/12）→ `gen:blog`（12 文件），生成物未手改。
+- **验证**：`typecheck` / `lint` 通过；`prettier --check` 改动文件 0 报错；`pnpm exec vitest run tests/docs` 38 例全绿（`landingFaqDom` / `faqSchemaParity` 会读 `index.html`）。改动面 13 文件 × 每文件 1–2 行，无越界改动。
+
+## 🆕 2026-09-26 落地页缺陷修复与评审波次（本轮，已提交；推送状态以 `git log origin/feature-opt..HEAD` 为准）
+
+用户指令「从最佳的用户体验、实用性和性能考虑按最优方案执行，完成后代码评审 + 自测，无问题自动提交」，随后追加「深度代码评审与安全评审，确保存量功能可用，然后提交并推送」。**仍然只动 `index.html`（经 `pnpm gen:en` 出 `en.html`）、两份 README 与本审计文档，运行时代码与扩展产物零改动。**
+
+### 改了什么
+
+- **R2 两个反馈**：① `.more-grid`（同作者互链卡）在 `@media (max-width:768px)` 收成 `1fr`——原先漏这条，768 以下每格 176px、长描述挤成 14-24 行、卡高 590-862px，收单列后 372px / 5 行 / 203px；② README 功能演示从 4 行 × 2 列 `<table>` 改回**一行一张**（`<p align="center">` + `<a href="原图">`，8 段），并订正引言口径为「首图 1152×720 操作动图，其余七张 2560×1600 的 2 倍屏截图」——原句把两类尺寸混为一谈是假事实。代价实测：单列比两列高约 3.7×，图片载荷约 4.9 MB，用户已确认接受。
+- **R3 缺陷轮（`d596fb4`，八处）**：窄屏页头三道阀门（品牌名可缩略 / ≤480 撤源码图标 / 禁 JS ≤520 换行 + 同档补 `scroll-padding-top: 212px`）；`.slide-shot` 画幅 `16/9` → `16/10`（母版是 16:10，旧值上下各切 23.75px 自带标题带）；`.compare-table` 死令牌 `--bg-subtle` / `--text-secondary` 换回 `--bg-soft` / `--text` / `--text-muted`，行列 hover 整组收进 `@media (hover:hover) and (pointer:fine)`；**跑动数据包 `.flow-packet` 抬 `z-index: 3` 并加白描边**（`.flow-step` 是 `z-index:auto` 不建层叠上下文，数字伪元素 z1 / 对勾 z2 直接参加卡片排序，auto 定位元素排在正 z 之后）；滚动高亮 `sections` 表补齐 10 条页内锚点（原 7 条）；轮播仅当前屏截图保留 `tabindex="0"`（离屏 13 个隐形停留点归零）；灯箱说明 `figcaption` → `div.lightbox-cap`（父元素不是 `<figure>`，语义不成立）。
+- **本轮双轴评审 + 安全评审后的四处修复**：① 灯箱**焦点陷阱**——`lbClose` 是对话框内唯一可聚焦控件，不拦 Tab 就会按文档顺序跑到遮罩背后（body 末尾之后先出浏览器界面，绕回来是页头品牌链），而背景此刻滚动锁死且整片被盖；② **方向键归位**——轮播的 `document` 级 `ArrowLeft/Right` 此前无条件翻页，灯箱开着时背后照样换屏，现在开着即 `return`；③ **开着就不空转**——`autoPlayAllowed()` 增第 4 道门 `!lightboxOpen`，`openLightbox` 置位 + `stop()`、`closeLightbox` 复位 + `start()`，与 hover 暂停走同一条路（不复用 `lightbox.hidden` 作判据：`start()` 在 6611 行初始化时就会跑，而 `const lightbox` 在文末，直接引用是 TDZ 崩溃）；④ 删 `.reveal-delay-5`（全仓仅定义无消费者，同族 1-4 都有引用）。
+- **安全评审结论（无需改动项也已列明）**：`innerHTML` 只吃文件内 `SLIDES` / `FAQS` / `I18N` 常量，`lang` 经 `'zh'|'en'` 白名单收窄，URL / `localStorage` / postMessage 无可注入面，灯箱说明走 `textContent`；新增远端资源 0（无外部 `<script>` / `<link>` / 字体 / 统计），`target="_blank"` 中文页 28/28、英文页 26/26 全带 `rel="noopener noreferrer"`；轮播图统一取 `assets/cws-store/screen-*.png` 占位套件，`assets/screenshots/` 旧 PII 图仅存于注释、无引用；`PBKDF2 600000`、五字段逐字段加密、`UPDATE_CHECK_INTERVAL_MINUTES=360`、13 项权限、23 条命令面板逐项对代码复算通过。
+
+### 评审提出但刻意未做
+
+- `docs/` 与 `compare.html` 的「十个维度」是 `compare.html` 自述口径（`e8d3d1e` 即如此，正文表体实有 11 行，第 11 行「跨设备云同步 / 移动端 App」是刻意保留的短板披露行）；`llms.txt` 只是跟随该口径，不在本轮改。
+- `index.html` 的 `dateModified`、`sitemap.xml`、`llms.txt`、README 更新时间仍是 2026-09-25：`CWS_PUBLISHING_GUIDE.md` 只要求年月一致，逐个改成 09-26 会把 18 条 `lastmod` 与四处日期一并搅动，收益为零。
+- 魔法色值（`.flow-step i{background:#b9d2ff}`、`.copied{color:#6ee7b7}`、灯箱 `#cbd5e1`）与 `.compare-cross{color:#ccc}` 低对比度：存量写法，`lint:style` 的 glob 不含 `.html`，本轮不扩范围。
+- `scripts/build-en-page.mjs:152` 的 `replaceEvery` 是全文件 `replaceAll`：当前只命中 2 处且未命中即 `throw`，但若 `#more` 文案将来改成 `data-i18n-html`，字典里的 **zh** 值会被一起改写。`pricing` 生成器用「字典里同时放 zh/en 两值」规避了同一风险——两套实现并存，统一它属独立任务。
+
+### 验证
+
+真机（headless Chrome 1440×900 + 裸 CDP，中英两页各跑一遍）：`{opened, focusOnOpen:"lightbox-close", pausedWhileOpen, trapped, arrowBlockedWhileOpen, closed, focusReturned, lockReleased, resumed, arrowWorksAfterClose, tabbableCount:1, deadDelay5:false}` 全绿；其中 Tab 陷阱**另在 `index.html` 上用真实 `Input.dispatchKeyEvent` 复测过一次**（合成事件证明不了原生焦点移动；`en.html` 侧靠 JS 与中文页逐字同源 + 合成事件覆盖）。评审前既有测量：数据包落格 38 采样点遮挡 23 → 0；离屏可 Tab 13 → 0；滚动高亮 10 锚点 × 中英全对。三条降级保险复测：无 JS 320/420/768/1024/1440 五档 0 溢出、12/12 锚点可见、0 reveal 卡隐；reduce 39/39 落终态；删 `IntersectionObserver` 39/39 可见、数字带 `[1563,5,3,6,23,0]`。`pnpm gen:en` 连跑两次 md5 一致（**data-i18n 230/230、data-i18n-html 14/14**）、生成物未手改；`typecheck` / `lint` / `lint:style` / `prettier --check` 0 报错；`pnpm test:run` **142 文件 / 1563 例全绿**（`tests/docs/faqSchemaParity.test.ts` 会读 `index.html`，故落地页改动在测试覆盖内）。口径备注：这一轮串行门禁脚本里 test 那步接了 `| tee`，退出码被 `tee` 吞成 0，而进程实际在半路收到 SIGTERM（日志末尾 `exit code 143`、无 `Test Files` 汇总行）；改为无管道重跑后先遇 1 例 `savePasswordPrompt.labelWidth` 的 5 s 争用超时（单跑通过），再跑一次得到上述全绿——**认的是日志里套件自己的汇总行，不是哨兵。**
+
+## 🆕 2026-09-25 落地页与 README 版式对齐波次（已提交）
+
+参照同作者另两个产品页（`cross-origin-proxy` / `transfer-any-file`）的版式与动效，把本插件的产品说明页与两份 README 对齐。**只动 `index.html`（经 `pnpm gen:en` 出 `en.html`）与两份 README，运行时代码与扩展产物零改动。**
+
+### 改了什么
+
+- **W0 动效令牌与落位反馈**：新增 `--dur-slow: 0.6s` 作为「滚动揭示 + 进场」那一档的单一来源（取值与收敛前逐字等价，不是新的时间承诺），hover / 按压两档仍是各处字面量；`--dur-fast` / `--dur-mid` 全仓 0 处引用，已删（快照：`82dc6f3` 时确实为 0；`d596fb4` 起两令牌各 3 处引用——灯箱入场、`aph-confirm` 落位反馈、追光过渡，别再照本句判断）。新增 `:target` 落位提示（`aph-found` 1.2s），reduce 用户改走本文件既有的 `aph-fade` 0.2s 约定而不是彻底静默。`html { scroll-behavior: smooth; scroll-padding-top: 84px; }`。
+- **W1 版式对齐**：① 数据带 `.metrics` 六卡（1563 用例 / 5 个逐字段加密字段 / 3 档跨子域名匹配 / 6 款主题 / 23 条命令面板命令 / 0 个云端账号与同步服务器，逐一可对代码复算；测试文件数 142 只出现在 README 与 `llms.txt`，落地页刻意不展示）；② 工作原理带 `.hiw` 四步，编号与 README「工作原理」四步、`docs/ARCHITECTURE.md` 功能实现详解同一口径；③ 隐私带 `.priv` 四条，措辞逐字取自 `privacy.html` 的权限表与既有隐私口径；④ 导航补 `#how` / `#privacy` 锚点并把 scroll-spy 列表扩到 7 项（快照：`d596fb4` 起是 10 项——本轮新增的痛点 / 场景 / 安装三节必须一并列进表，否则滚到那一节高亮还停在上一节）；⑤ 对比表「本插件列」整列 hover wash 用 `:has()` 实现（该列本来就有 `.highlight` class，不必加 `data-col` 脚本）。
+- **W2 README**：新增 `## 🧭 工作原理` 四步（目录同步加锚点）；功能演示从 8 段纵向 `<p align="center">` 改成 4 行 × 2 列 `<table>`（图片路径 / alt / 说明文字一字未改，只换排布）（快照：该排布已被 R2 撤回，HEAD 现状是一行一张 + 点看原图，见上一节）；快捷键速查表收进 `<details>`。中英文两份表达同一事实，非逐字互译。
+
+### 没做什么（以及为什么）
+
+- **不抄两个参考页的 `<span lang>` 双语同屏写法**：本仓 `index.html` 是 `en.html` 的唯一事实来源，`apply-i18n.mjs` 只替换 `data-i18n` 节点内容并 `escapeHtml`，`assertI18nCoverage` 缺英文即抛错——把中文写进属性或让一个节点同时挂两种语言会直接打断生成链。
+- **不写「0 网络请求」**：Transfer Any File 可以说，本扩展有每 6 小时一次的匿名版本检查（`UPDATE_CHECK_INTERVAL_MINUTES = 360`），只能用「无账号、无同步服务器」/「密码数据不出本机」。
+- **不把图标移到 H1 之上**：GitHub 移动端的 SEO 与首屏都以 H1 优先，参考页是无 H1 语义要求的纯静态页。
+- **只收纳快捷键表**：功能全览 / FAQ / 许可证是决策内容不是次要细节，保持可见。
+
+### 口径变更：落地页允许使用 JS
+
+用户 2026-09-25 明确「只要不影响 SEO 效果的地方都可以用 JS，比如增加动效」。核验过 Google 官方 JavaScript SEO 文档：「Google 使用 Chromium 运行 JavaScript」「并非所有漫游器都能运行 JavaScript。」「依然建议您采取服务器端渲染或预渲染」——所以用 JS **不会**被扣排名，此前把「零 JS」当硬约束是过强的前提。新口径是：**动效与计数器可以用 JS**，但三条降级不许撤——隐藏初始态挂 `html.js`、可见正文留一条无 JS 可读路径（静态 HTML 或 `<noscript>`；FAQ 列表自 2026-09-27 起改为构建期从 `FAQS` 注入静态 DOM、脚本只绑交互，原先手工维护的 9 条 `<noscript>` 节选随之删除）、缺 `IntersectionObserver` 落终态。唯一仍然禁止的方向是把正文从静态 HTML 挪进 JS。据此给数据带六个数字加了滚动（`countUp`，900ms cubic ease-out，由既有 reveal 观察器触发、`reduce` 下不滚、终值取节点自身写死的数，不新增第二处魔法值）。
+
+### 顺带修掉的既有缺陷
+
+- 数据带的破折号动画选择器写成 `html.js .metric.visible i::after`，而 `.reveal` 挂在 `.metrics-inner` 上——该状态永不可达，破折号在任何有 JS 的访问里都是 `scaleX(0)`（看不见）。已改为父子形式。
+- 工作原理带 4 张卡放进 3 列网格导致孤行，且注释写「六步」、留着两条永不匹配的 `nth-child(5)/(6)`；一并修正为 4 列并删死规则。
+- 我本轮先写的两条死 CSS（`section:target > .container > h2` 只有 `<noscript>` 段能命中、`.faq-item:target` 那 41 个注入项根本无 `id`）在实测后删除而不是上线。
+- 新带 CSS 原先写在 `@media` Responsive 之后，同特异性下把全仓响应式覆盖都吃掉了（390px 仍是 6 列）；整块 211 行移到 Responsive 之前，实测 390 → 2/1/1、900 → 3/2/1。
+- `en.html` 在 390px 有 42px 横向溢出，元凶是我自己新写的隐私带 `P.more-links > A`（对比表的 `overflow-x:auto` 溢出是 HEAD 就有的合法行为）；`.more-links` 改 `flex-wrap: wrap` 后溢出为 0。
+- 文案合规漂移：静态兜底文本写「数据不出本机」，词库写「密码数据不出本机」——统一为后者，并建了 zh→en→zh 回环漂移检测（156 节点，0 漂移）。
+
+## 🆕 2026-09-25 站外双名 + 同作者互推 + 新鲜度收口（未提交）
+
+用户批准口径四条：**① 同作者插件链接只进产品页与 README，商店六个粘贴块一字不动；② 插件名（manifest / 商店中英文 Name）不动，只统一站外双名口径；③ 版本口径 GitHub 写 3.12.0、商店写 3.11.0；④ GitHub 仓库元数据只更新文档候选，写操作由用户自己执行。**运行时代码与扩展产物零改动，只动官网静态页、生成脚本与文档表面。
+
+### 改了什么
+
+- **双名口径收口**：站外实体名统一为 `账号密码管理助手 Account Password Helper`。`index.html` 的 `og:site_name` / `WebSite.name` 用双名串，`SoftwareApplication` 改为 `name` = 本页语言主名 + `alternateName` = 另一语言名，`scripts/build-en-page.mjs` 里做镜像对调（英文页 `name` = Account Password Helper）。`llms.txt` H1 补中文名，`README.en.md` H1 补中文名。
+- **SERP 长度**：`meta.title.en` 65 → **60** 单位、`meta.description.en` 168 → **155**、中文描述 95 字（宽 ≈170）→ **86 字（宽 ≈154）**；中文 title 保持不动（36 字 / 宽 ≈59，再扩词会在搜索结果里被截断，这条是对上一轮建议的修正）。
+- **同作者互推**：`index.html` 的 `#more` 区块给跨域代理助手补上商店链接、网格下加「作者的其余开源作品」→ `github.com/liaolongdong`，footer 新增「作者的其他插件」锚点；`compare.html` / `compare.en.html`（手维护两份）、`pricing.html`（→ `gen:pricing-en`）、博客 12 页模板（→ `gen:blog`）、`llms.txt` 新增 `## More by this author`、两份 README 补作者主页链接。**英文面的跨域代理助手指 `/en.html`，Transfer Any File 一律指基础 URL——它的英文页实测 404**，`build-en-page.mjs` 里为此加了一条 `replaceEvery`。
+- **新鲜度**：测试数 1337 / 119 → **1563 / 142**（2026-09-25 `pnpm test:run` 实测，README ×2、`llms.txt`、博客 6 处正文、`imgs/blog-covers/` 大纲与 04 / 05 两张 SVG，并已 `pnpm covers:render 04 05` 重出 PNG）；`llms.txt` 的「八维度 / 8 dimensions」→ **十维度 / 10 dimensions**（`compare.html` 自述口径）；`index.html` JSON-LD `softwareVersion` 3.9.0 → **3.12.0**、`dateModified` → **2026-09-25**、页脚版本串同步；`sitemap.xml` 18 条 `lastmod` → 2026-09-25（`privacy.html` / `privacy.en.html` 本轮未改，保持 2026-09-22）；`docs/CWS_FILL_CONTENT.md` 第一步的 zip 版本与「商店线上 3.11.0」状态段（旧段落里的 3.7.0 / 3.9.0 已标注为驳回史快照）。
+- **GitHub 仓库元数据**：见下面「🔴 待你执行」§6 的最终候选与两条 curl——三版候选作废，改为单一 343 UTF-16 版本，并把长度口径钉死为 UTF-16 code unit。
+
+### 没做什么（以及为什么）
+
+- 商店六个粘贴块（Name / 摘要 / 中英说明 / 权限说明 / Featured）与 FAQ 文案一字未动：FAQ 与页面可见内容受 `tests/docs/faqSchemaParity.test.ts` 逐字约束，商店字段是第七次修订后的过审版本。
+- `privacy.html` 不加互推（法务页），`docs/公众号-*` / `docs/微博-*` 正文只刷新测试数、不改写卖点（这两份的「事实基线 v3.9.0」行仍标 v3.9.0：**整篇主张未逐条重审，单独把版本号抬到 3.12.0 会变成未经核验的承诺**；需要发布时先整篇过一遍再改基线）。
+- `blog/*.html`、`en.html`、`pricing.en.html` 全部走脚本重生成，未手改生成物。
+- 博客 frontmatter 的 `author: liaolongdong` 与站内署名口径（廖小新 / Better）仍不一致，留作待你拍板项。
+
+### 验证
+
+`pnpm gen:en`（data-i18n 125/125、data-i18n-html 5/5；快照：`d596fb4` 起是 **230/230 与 14/14**，本轮新增板块带去了 105 个 `data-i18n` 节点与 9 个 `data-i18n-html` 节点）、`pnpm gen:pricing-en`（107/107、12/12）、`pnpm gen:blog`（12 files）、`pnpm covers:render 04 05` 均成功；`pnpm exec prettier --check` 覆盖本轮改动的人类维护文件全绿（生成物与 `.txt` / `.xml` 无 parser，按既有口径排除）；`pnpm test:run` 1563 例全绿。
 
 ## 🆕 2026-09-22 文档刷新波次（本轮，未提交）
 
@@ -174,39 +393,28 @@
 - 拆 3-5 个 `good first issue`（新手主题色/翻译/文档校对/兼容性反馈），配 Issue 模板。
 - 商店评论 & GitHub Issue 48h 内回复；双周小版本维持"最近更新"活跃信号。
 - 外部链接统一带 UTM（`?utm_source=xxx` / `?ref=xxx`），在 CWS Analytics 与 GitHub Insights 归因。
-- **GitHub About（仓库描述）待替换**：2026-09-22 用 `curl https://api.github.com/repos/liaolongdong/account-password-helper` 复测，线上仍是 **346 字符**的旧版——此前拟好的替换**从未执行**，开头第二段还写着 `zero cloud - passwords never leave your browser`，与商店文案 / `llms.txt` 已收口的口径冲突（扩展每 6 小时会发一次不携带用户数据的匿名版本检查，`utils/updateChecker.ts:71-98`，"never leave" 属无法自证的绝对化表述）。⚠️ 本文此前标注的 343 / 341 是 **UTF-8 字节数**；GitHub 的 350 上限按**字符**计，实测 A = **304 字符**、B = **298 字符**。三版候选（事实逐条可核对、差异化卖点落在 Google 摘要可见的前 160 字符）：
+- **GitHub About（仓库描述）待替换**：2026-09-25 用 `curl --http1.1 https://api.github.com/repos/liaolongdong/account-password-helper` 复测，线上仍是旧版——2026-09-22 拟好的三版候选**从未执行**。旧版第二段写着 `zero cloud - passwords never leave your browser`，与商店文案 / `llms.txt` 已收口的口径冲突（扩展每 6 小时会发一次不携带用户数据的匿名版本检查，`utils/updateChecker.ts:71-98`，"never leave" 属无法自证的绝对化表述）；旧版结尾的 `本地账号密码管理助手` 也只出现中文名单独一项，与本波次收口的**站外双名口径 `账号密码管理助手 Account Password Helper`** 不一致。
+  ⚠️ **长度口径先钉死，避免再算错**：GitHub 的 350 上限按 **UTF-16 code unit** 计（`🔐` 占 2、汉字各占 1），复算命令是 `node -e 'console.log(s.length)'`；本文更早版本标注的 343 / 341 是 **UTF-8 字节数**、345 是 **Unicode 码点数**，两者都不能与 350 直接比。线上旧版实测 **346 UTF-16 / 345 码点 / 368 字节**。
 
-  **选项 A — 不含身份库（304 字符）**：
-
-  ```text
-  🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that also ticks consent and clicks sign in, exact-domain isolation for dev/test/staging/prod, built-in TOTP codes, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地加密密码管理器，一键填充并登录
-  ```
-
-  **选项 B — 补入「身份信息库」（298 字符，与 `llms.txt` / 官网描述口径一致）**：
+  **最终候选（343 UTF-16，距上限余 7）**——双名占开头 35 个 UTF-16 单位（`🔐 账号密码管理助手 Account Password Helper`），让中文检索与英文检索都命中，前 160 字符覆盖 Google 与 GitHub 搜索结果的可见摘要：
 
   ```text
-  🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, exact-domain isolation, built-in TOTP, encrypted identity vault, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地密码管理器 · 一键填充登录 · 身份信息库
+  🔐 账号密码管理助手 Account Password Helper — open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, 3 cross-subdomain matching tiers, built-in TOTP, encrypted identity vault, offline security audit, per-field AES-256-GCM in chrome.storage.local — no account, no sync server.
   ```
 
-  **选项 C — 推荐：把「跨子域名三档」写进去（325 字符）**：
+  逐句对代码核验：`one-click autofill that ... clicks sign in` = `entrypoints/content/CheckboxHandler.ts` + `FormDetector.ts` 的 `autoLogin` 路径；`3 cross-subdomain matching tiers` = `utils/domain.ts` 的 `resolveMatchTier`（默认档仍是精确匹配）；`built-in TOTP` = `utils/totp.ts`；`encrypted identity vault` = `utils/identity/` + `components/options/IdentityVaultDialog.vue`（整库独立加密、仅 Options 可达、不进侧边栏）；`offline security audit` = 体检的 0-100 四维加权评分；`per-field AES-256-GCM in chrome.storage.local` = `utils/encryption.ts` 与存储层（从不用 `storage.sync`）；`no account, no sync server` 取代原来的绝对化说法；`GPL-3.0` 与 `package.json` 的 `license` 一致。**被挤掉的两项**（站点规则自定义选择器、命令面板）由 README / 官网 / `llms.txt` 承担；此前三个候选 A / B / C 作废——A 缺身份库与体检、B 缺跨子域三档、C 缺离线体检，且三版都只把中文名放在句尾。
 
-  ```text
-  🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, per-domain isolation with 3 cross-subdomain tiers, built-in TOTP, encrypted identity vault, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地密码管理器 · 一键填充登录 · 身份信息库
-  ```
-
-  逐句对代码核验：`one-click autofill that ... clicks sign in` = `entrypoints/content/CheckboxHandler.ts` + `FormDetector.ts` 的 `autoLogin` 路径；`exact-domain isolation` = `utils/domain.ts` 的 `isExactHostMatch`；`per-field AES-256-GCM in chrome.storage.local` = `utils/encryption.ts:149-157` 与存储层（从不用 `storage.sync`）；`no account, no sync server` 替代原来的绝对化说法；`GPL-3.0` 与 `package.json` 的 `license` 一致。**B / C 额外**：`encrypted identity vault` = Options 页身份信息库（`utils/identity/` + `components/options/IdentityVaultDialog.vue`，整库独立加密、仅 Options 可达、不进侧边栏）。**C 相对 B 只替换一个短语**：`exact-domain isolation` → `per-domain isolation with 3 cross-subdomain tiers`（`utils/domain.ts` 的 `resolveMatchTier`，默认档仍是精确匹配），将用于对外回答「多个子域能共用账号吗」这一高频问题；站点规则与命令面板两项在 350 字符内放不下，由 README / 官网 / `llms.txt` 承担。
-
-  执行（`gh` 未安装，用 curl；把 `$GITHUB_TOKEN` 换成你的 PAT，需 `repo` 权限；`--data` 里的 description 换成选定那一版，下例为推荐的 C）：
+  执行（`gh` 未安装，用 curl；把 `$GITHUB_TOKEN` 换成你的 PAT，需 `repo` 写权限）：
 
   ```bash
   curl -sS -X PATCH \
     -H "Authorization: Bearer $GITHUB_TOKEN" \
     -H "Accept: application/vnd.github+json" \
     https://api.github.com/repos/liaolongdong/account-password-helper \
-    --data '{"description":"🔐 Open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, per-domain isolation with 3 cross-subdomain tiers, built-in TOTP, encrypted identity vault, per-field AES-256-GCM in chrome.storage.local — no account, no sync server. 本地密码管理器 · 一键填充登录 · 身份信息库"}'
+    --data '{"description":"🔐 账号密码管理助手 Account Password Helper — open-source, local-first password manager Chrome extension (MV3, GPL-3.0): one-click autofill that ticks consent & clicks sign in, 3 cross-subdomain matching tiers, built-in TOTP, encrypted identity vault, offline security audit, per-field AES-256-GCM in chrome.storage.local — no account, no sync server."}'
   ```
 
-  **topics：20 / 20 已满，换词必须先删一个**（2026-09-22 实测线上值：`2factor-authentication, aes-256-gcm-encryption, authenticator, auto-login, autofill-passwords, bitwarden, browser-extensions, chrome-extensions, credential-manager, developer-tools, local-first-auth, manifest-v3-chrome, multi-environment, offline, password-generator-web, password-managers, password-vault, password-visibility, privacy, totp-generator`）。建议做**四换**（四个新 slug 均已确认在 GitHub 上存在）：
+  **topics：20 / 20 已满，换词必须先删一个**（2026-09-25 复测线上值与 2026-09-22 记录逐字相同：`2factor-authentication, aes-256-gcm-encryption, authenticator, auto-login, autofill-passwords, bitwarden, browser-extensions, chrome-extensions, credential-manager, developer-tools, local-first-auth, manifest-v3-chrome, multi-environment, offline, password-generator-web, password-managers, password-vault, password-visibility, privacy, totp-generator`）。建议做**四换**（四个新 slug 均已确认在 GitHub 上存在）：
 
   | 删                       | 理由                                           | 加                   | 理由                        |
   | ------------------------ | ---------------------------------------------- | -------------------- | --------------------------- |
@@ -225,7 +433,14 @@
     --data '{"names":["2factor-authentication","aes-256-gcm-encryption","authenticator","auto-login","autofill","autofill-passwords","bitwarden","browser-extension","chrome-extensions","credential-manager","local-first-auth","manifest-v3-chrome","multi-environment","offline","open-source","password-generator","password-managers","password-vault","privacy","totp-generator"]}'
   ```
 
-  改完用 `curl -sS https://api.github.com/repos/liaolongdong/account-password-helper | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d['topics']), d['description'])"` 复核。`homepage` 已指向 GitHub Pages、Social Preview 已上传，均无需改。
+  改完复核（一行同时给出 topics 数量与描述的 UTF-16 长度，口径与上面「长度口径」段一致）：
+
+  ```bash
+  curl -sS --http1.1 https://api.github.com/repos/liaolongdong/account-password-helper \
+    | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const r=JSON.parse(s);console.log(r.topics.length+' topics · desc UTF-16 '+r.description.length);console.log(r.description);})"
+  ```
+
+  `homepage` 已指向 GitHub Pages、Social Preview 已上传，均无需改。
 
 ### 7. 🔴【隐私 · 最高优先】仓库仍在公开含真实凭据的旧截图（需你决策，我不擅自删）
 

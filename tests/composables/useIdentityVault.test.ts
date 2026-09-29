@@ -1,5 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { useIdentityVault } from '@/composables/useIdentityVault';
+import { getAllIdentity } from '@/utils/storage/identityCrud';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
 
 /**
@@ -9,9 +10,22 @@ import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
  * - 展开 / 收起只作用「可见且含机密字段」的卡片，无机密卡永不进 revealedIds；
  * - 折叠 / 展开只作用「可见」的卡片（与机密无关），保留被过滤掉的既有折叠态；
  * - 切换过滤不整体清空，保留被过滤掉的既有展开 / 折叠项（对齐 selectAllVisible 语义）；
- * - clearFilters 仅清过滤，保留显隐 / 折叠 / 勾选；resetViewState 清空全部视图态。
- * load / copy 等涉及 storage / clipboard / ElMessage 的路径不在此覆盖（另有纯函数单测）。
+ * - clearFilters 仅清过滤，保留显隐 / 折叠 / 勾选；resetViewState 清空全部视图态；
+ * - teardown 连解密明文（rows）一起释放，列表弹窗关闭后 PII 不再驻留内存。
+ * copy 等涉及 clipboard / ElMessage 的路径不在此覆盖（另有纯函数单测）。
  */
+
+vi.mock('@/utils/storage/identityCrud', () => ({
+  getAllIdentity: vi.fn(async () => ({ entries: [], skippedIds: [] })),
+  deleteIdentities: vi.fn(),
+  saveIdentity: vi.fn(),
+  updateIdentity: vi.fn(),
+}));
+
+beforeEach(() => {
+  vi.mocked(getAllIdentity).mockReset();
+  vi.mocked(getAllIdentity).mockResolvedValue({ entries: [], skippedIds: [] });
+});
 
 function entry(id: string, payload: Partial<IdentityPayload>): IdentityEntry {
   return {
@@ -119,5 +133,38 @@ describe('clearFilters', () => {
     expect(vault.revealedIds.value.has('a')).toBe(true);
     expect(vault.collapsedIds.value.has('a')).toBe(true);
     expect(vault.selectedIds.value.has('a')).toBe(true);
+  });
+});
+
+describe('teardown', () => {
+  it('连同解密明文一起释放（resetViewState 只清视图态，保留 rows）', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('a', { idNumber: '1' }), entry('b', { cardNo: '2' })];
+    vault.toggleRevealAll();
+    vault.toggleSelect('a');
+    vault.keyword.value = '身份证';
+
+    vault.teardown();
+
+    // 明文条目本身：关闭列表弹窗 / 会话失效后不该继续在内存里可寻址
+    expect(vault.rows.value).toEqual([]);
+    expect(vault.filteredRows.value).toEqual([]);
+    // 视图态一并复位，重开弹窗回到干净首屏
+    expect(vault.revealedIds.value.size).toBe(0);
+    expect(vault.selectedIds.value.size).toBe(0);
+    expect(vault.keyword.value).toBe('');
+    expect(vault.categoryFilter.value).toBe('all');
+  });
+
+  it('释放后按存储真值重载可恢复（列表弹窗关闭再打开的路径）', async () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('a', { name: 'A' })];
+    vault.teardown();
+    expect(vault.rows.value.length).toBe(0);
+
+    vi.mocked(getAllIdentity).mockResolvedValue({ entries: [entry('a', { name: 'A' })], skippedIds: [] });
+    await vault.load();
+
+    expect(vault.rows.value.map(r => r.id)).toEqual(['a']);
   });
 });

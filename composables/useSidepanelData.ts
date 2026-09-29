@@ -279,6 +279,10 @@ export function useSidepanelData() {
    * 在 handleSessionChange 检测到会话过期时同步设置，后续调用直接同步清除认证状态，
    * 跳过异步检查，避免异步延迟导致加密数据短暂闪烁。
    * 在 initSidepanelData 和 handleSessionChange 检测到会话有效时重置。
+   *
+   * 只在「有证据」时置位（session key 被移除、锁定广播、权威校验返回失效、
+   * 启动重锁未就绪）；3s 竞速超时的「所有路径都无结果」不构成证据，
+   * 置位会让三条唤醒路径永久跳过复查，把慢盘/冷 SW 固化成假失效。
    */
   let _sessionKnownExpired = false;
 
@@ -756,6 +760,8 @@ export function useSidepanelData() {
    * - 热 SW 场景：Background 路径 ~20ms 胜出，本地路径静默完成
    * - 冷 SW 场景：本地路径 ~200-400ms 先完成，Background 迟到结果用于缓存更新
    * - 任一路拒绝/格式异常只淘汰自身，统一 3s 上限后安全显示锁定态；迟到结果仍可在代际复核后采纳
+   * - 3s 上限只降级渲染，不写入「已知会话过期」粘滞位：超时是「无结果」而非「确定失效」，
+   *   置位会让慢盘/冷 SW 场景的假锁定态一直粘到用户关掉重开（唤醒路径全部被粘滞位短路）
    * - loadCurrentTab 与 GET_INITIAL_DATA 并行执行，节约 ~5ms 串行延迟
    *
    * @returns 初始化元信息（竞速胜出路径 + 会话状态），供性能埋点记录维度使用
@@ -1011,7 +1017,12 @@ export function useSidepanelData() {
       if (!winner) {
         logger.warn(`SidePanel: 所有初始化路径在 ${LOCAL_PATH_TIMEOUT_MS}ms 内均未返回可用结果，安全降级锁定态`);
         if (isCurrentGeneration()) {
-          _sessionKnownExpired = true;
+          // 纯超时「无结果」≠「确定失效」：这里刻意不置 _sessionKnownExpired。
+          // 该粘滞位是 handleVisibilityChange / handleStorageChange / sessionExpired
+          // 三条唤醒路径的同步跳过条件，一旦置位，慢盘或冷 SW 造成的超时会被固化成
+          // 「会话已失效」卡片，用户只能关掉侧边栏再重开才能恢复。
+          // 不置位后仍渲染锁定态兜底（避免无限骨架屏），但下一次唤醒会走
+          // handleSessionChange 的权威校验自行恢复或补上真正的失效判定。
           isAuthenticated.value = false;
           passwords.value = [];
           loading.value = false;
