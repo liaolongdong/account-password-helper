@@ -11,6 +11,7 @@
       row-key="id"
       :row-class-name="rowClassName"
       :default-sort="{ prop: 'updateTime', order: 'descending' }"
+      :tooltip-options="TABLE_OVERFLOW_TOOLTIP_OPTIONS"
       @selection-change="(selection: PasswordEntry[]) => $emit('selectionChange', selection)"
       @sort-change="(state: any) => $emit('sortChange', state)"
     >
@@ -317,6 +318,7 @@ import type { PasswordEntry } from '@/utils/types';
 import type { SortState } from '@/utils/passwordSort';
 import { formatDate } from '@/utils/dateFormat';
 import { buildTagPresentationRecords, type TagPresentationRecord } from '@/utils/tagUtils';
+import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
 import { useTagOverflow } from '@/composables/useTagOverflow';
 import { useSharedHoverTooltip } from '@/composables/useSharedHoverTooltip';
 import TotpCode from '@/components/TotpCode.vue';

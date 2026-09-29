@@ -16,6 +16,7 @@
         <el-table
           v-if="rulesList.length"
           :data="rulesList"
+          :tooltip-options="TABLE_OVERFLOW_TOOLTIP_OPTIONS"
           border
           max-height="360"
         >
@@ -216,6 +217,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus';
 import { Plus, Lock, Download, Upload } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
+import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
 import { logger } from '@/utils/logger';
 import {
   getSiteRules,

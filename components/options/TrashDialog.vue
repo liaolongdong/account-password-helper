@@ -46,6 +46,7 @@
         max-height="400"
         row-key="id"
         :empty-text="hasKeyword ? t('options.trash.searchNoMatch') : t('common.noData')"
+        :tooltip-options="TABLE_OVERFLOW_TOOLTIP_OPTIONS"
         class="trash-table"
       >
         <el-table-column
@@ -155,6 +156,7 @@ import {
 } from '@/utils/storage/trashManager';
 import { getSessionDataKey } from '@/utils/storage/facades';
 import { formatDate as formatDateYmd } from '@/utils/dateFormat';
+import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
 import { logger } from '@/utils/logger';
 import { lazyImport } from '@/utils/lazyImport';
 import { useI18n } from '@/utils/i18n';
