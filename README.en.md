@@ -22,7 +22,7 @@
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
   <br/>
-  <img src="./docs/demo-totp-en.webp" alt="One-click login plus two-factor handoff demo: pick the account in the in-page panel and it fills and signs in, then the live code capsule anchors beside the code field on the code page" width="100%" />
+  <img src="./docs/media/demo-totp-en.webp" alt="One-click login plus two-factor handoff demo: pick the account in the in-page panel and it fills and signs in, then the live code capsule anchors beside the code field on the code page" width="100%" />
   <br/>
   <sub>Pick the account in the in-page panel → credentials filled and submitted → the live-code capsule anchors beside the code field on the same-domain page → tap Fill, no phone authenticator in sight</sub>
 </p>
@@ -61,7 +61,7 @@ One fill takes four steps, all on your own machine:
 > One module per row, one full-width shot each: the bold line under each image is the module name, and the line below it carries **only what the image cannot show** — the defaults people trip over, where to switch them, and the hidden capabilities. **Click any of them to open it at full size** (the first is a 1152×720 capture of the flow; the other seven are 2560×1600 shots taken at 2× DPR).
 
 <p align="center">
-  <a href="./docs/demo-login-en.webp"><img src="./docs/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /></a>
+  <a href="./docs/media/demo-login-en.webp"><img src="./docs/media/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /></a>
   <br />
   <b>⚡ One-click login</b>
   <br />
@@ -236,6 +236,21 @@ One fill takes four steps, all on your own machine:
 3. **Import what you have**: "Data Management → Import" on the manager page accepts CSV or JSON and auto-detects Chrome, LastPass, Bitwarden and 1Password exports
 4. **Turn on auto-submit if you want it**: with "Preferences → Auto-submit login" enabled, `Ctrl+Shift+F` clicks the login button as well
 
+### Moving to another browser or machine
+
+Your vault travels in one encrypted file — no sync service, and no third-party authorization anywhere in the chain:
+
+1. **Export on the source machine**: "Data Management → Export Encrypted Backup" on the manager page, confirm the master password, and you get `backup_YYYYMMDD_HHmmss.aph`. Before that file is written, the extension decrypts the container it just produced and checks it round-trip; only a pass lets the file out, and the manager header records the "Verified backup" date — make sure that line is not "Never" before you start moving.
+2. **Any carrier will do**: a cloud drive, a USB stick, an email to yourself. Where you put it does not matter — what lands there is only `salt + IV + AES-256-GCM ciphertext`, with the key derived from your master password through 600,000 PBKDF2 rounds, so nothing opens without that password. That is precisely why this extension ships no cloud sync.
+3. **Install and set a master password on the new machine**: it may be a different one — **it does not have to match**.
+4. **Import**: "Data Management → Import Encrypted Backup", upload the `.aph`, enter **the master password used at export**, decrypt to a preview, then confirm. Entries land re-encrypted field by field with that machine's current key.
+
+- **Travels with the `.aph`**: account, password, URL, tag, note, TOTP secret, create time, update time, favorite — the nine fields of every entry.
+- **Has its own export, so move it separately**: the identity vault exports an `.aphid` encrypted backup; site rules export as plain JSON (domains and selectors only, never accounts or passwords) and merge by domain on import, reporting added / updated / ignored.
+- **Does not travel — set it again on the new machine**: the master password itself, session validity and idle auto-lock, auto-submit login, clipboard auto-clear, language and theme, page size and sorting, the cross-subdomain matching tier, per-entry change reminders, plus the Trash and password history, neither of which has an export.
+
+> ⚠️ Three things to know: **the import appends instead of merging** — no deduplication, and it shares the 2,000-entry cap with adding entries and page auto-save; when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and leftovers can be cleared afterwards with "Remove Duplicates" (same username + same URL counts as one group; the favorited entry is the one kept, and when a group holds several favorites, the most recently updated of them). **Runtime**: desktop Chrome / Edge are the verified targets — the `.aph` itself is browser-agnostic, so any Chromium browser that can run the extension behaves the same, while the Firefox build ships MV2 and both release and verification are Chrome-based. And **keep that `.aph` until you have checked the entry count on the new machine** — a forgotten master password cannot be recovered, and resetting wipes the data.
+
 ### Shortcut Cheat Sheet
 
 <details>
@@ -354,7 +369,7 @@ Issues and pull requests are welcome. This is a local-first project, and two con
 - **Open an issue**: [pick a template](https://github.com/liaolongdong/account-password-helper/issues/new/choose) (bug report and feature request, both with reproduction steps and blast radius)
 - **Report a vulnerability**: use the private channel in [.github/SECURITY.md](./.github/SECURITY.md) rather than a public issue
 - **Before attaching a screenshot or log**: replace real accounts, emails, passwords and live TOTP codes with placeholders such as `example.com` / `dummy` — published content cannot reliably be withdrawn
-- **Setup and commands**: [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | **Code of conduct**: [.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
+- **Setup and commands**: [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | **Documentation map (where a new doc goes / what stays local)**: [docs/README.md](./docs/README.md) | **Code of conduct**: [.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
 - **Quality gates**: every pull request and every commit to `main` runs [ci.yml](./.github/workflows/ci.yml) — `typecheck`, `lint`, `lint:style`, `test:run`, and `build` for both Chrome and Firefox
 - **For AI search engines**: a machine-readable project summary lives at [llms.txt](https://liaolongdong.github.io/account-password-helper/llms.txt), alongside the site's `robots.txt` and `sitemap.xml`
 

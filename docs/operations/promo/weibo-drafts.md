@@ -2,7 +2,7 @@
 
 > ⚠️ **待发稿件，尚未自动发布**。审阅后用微博编辑器或 `/baoyu-post-to-weibo` 手动发布。
 > 建议配图：`assets/cws-store/screen-*-*.png`（`scripts/store-shots/` 生成的占位演示截图，数据全为 `example.com`）。
-> **不要**用 `assets/screenshots/` 旧图——含真实账号、用户名与 TOTP 活码；`docs/demo-login.gif` 已于 2026-09-13 从占位演示页重录，可安全引用。
+> **不要**用 `assets/screenshots/` 旧图——含真实账号、用户名与 TOTP 活码；`docs/media/demo-login.gif` 已于 2026-09-13 从占位演示页重录，可安全引用。
 
 ---
 

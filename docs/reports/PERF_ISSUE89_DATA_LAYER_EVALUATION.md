@@ -597,7 +597,7 @@ P0/P1 做完后先复测 issue 复现路径：若用户剩余抱怨集中在"600
    （`disk` 步需要知道本机 Chrome 的 `--user-data-dir`，脚本按扩展 ID 自动定位 `Local Extension Settings/<extId>`）。
    P0 落地后建议在 Windows 真机复跑一次。
 7. **渲染层数字归属**：本报告引用的 6.419 s → 0.221 s、600 行 705.6 ms、table-v2 功能缺口等结论
-   出自 `docs/PERF_LARGE_VAULT_EVALUATION.md`（其 P2 否决、P1 真机对比由该报告负责）。
+   出自 `docs/reports/PERF_LARGE_VAULT_EVALUATION.md`（其 P2 否决、P1 真机对比由该报告负责）。
    工作区里另有一批 `options-p4a-shared` / `options-p4b-ctrl` 测量产物**不属于本报告口径**，
    未纳入任何结论。
 8. **并发会话同工作树**：本次测量期间另一会话在跑 `measure-options-perf.mjs`（08:50、09:02 各一批），

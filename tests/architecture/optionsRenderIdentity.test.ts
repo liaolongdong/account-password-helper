@@ -74,7 +74,7 @@ describe('管理页表格的渲染期对象身份', () => {
 
   it('操作列只有一个小 tooltip 实例，逐行按钮只带文案与稳定引用的悬停入口', () => {
     // 首屏成本按**组件实例**计价：逐行 5 个 el-tooltip 在 600 行上就是 3000 个实例，
-    // 实测占掉整表挂载耗时的四成（docs/PERF_LARGE_VAULT_EVALUATION.md 9.9）。
+    // 实测占掉整表挂载耗时的四成（docs/reports/PERF_LARGE_VAULT_EVALUATION.md 9.9）。
     // 模板里只允许出现「标签提示」和「共享操作提示」两处 el-tooltip 标签。
     expect([...TABLE_TPL.matchAll(/<el-tooltip/g)].length).toBe(2);
     expect(TABLE_TPL).toContain('virtual-triggering');

@@ -378,7 +378,7 @@ const { t } = useI18n();
  * 操作列 5 个按钮的 `aria-label` + `data-tip` 共 10 次、密码列显隐按钮 1 次，
  * 一页 100 行就是 1100 次消息解析与依赖登记。实测挂载期的 CPU 自耗时里
  * `chunks/i18n-*.js` 的函数合计约占 13%（口径见
- * `docs/PERF_LARGE_VAULT_EVALUATION.md` 的首屏阶段拆分），而这段成本与行数无关、
+ * `docs/reports/PERF_LARGE_VAULT_EVALUATION.md` 的首屏阶段拆分），而这段成本与行数无关、
  * 与用户是否看得见无关，纯属重复。
  *
  * 收成一个 computed 后：一次整表更新只解析一次，且仍然随语言切换失效重算——

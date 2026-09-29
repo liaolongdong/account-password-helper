@@ -171,7 +171,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    * 密码列表分页（详见 `useVaultListPagination`）
    *
    * `el-table` 每轮只拿到 `pagedEntries` 这一页：整表挂载成本随行数近似平方增长
-   * （2000 行实测 180 秒、首屏 33.6 秒，见 docs/PERF_LARGE_VAULT_EVALUATION.md 9.10），
+   * （2000 行实测 180 秒、首屏 33.6 秒，见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md 9.10），
    * 把渲染行数从「命中数」压成「页大小」是这条曲线上唯一有效的旋钮。
    */
   const { currentPage, pageSize, pageCount, totalCount, pagedEntries, revealIndex } = useVaultListPagination(

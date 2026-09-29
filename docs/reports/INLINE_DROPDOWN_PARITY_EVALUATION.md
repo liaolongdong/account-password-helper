@@ -280,14 +280,14 @@
 - `pnpm test:run`：**119 个测试文件 / 1337 例全绿**（本波次新增 5 个测试文件 / 42 例，另有拼音命中与关键词收口的用例补进既有的 `passwordCache` 与 `senderValidation` 测试）。
 - `pnpm typecheck`、`pnpm lint`（`--max-warnings 0`）、`pnpm lint:style`、`pnpm build`、`pnpm build:firefox` 全部通过。
 - 打包产物复核（"内联零包体"与"SW 零 Vue"两条不变量）：`content-scripts/content.js` 220,656 B，**不含** pinyin-match 字典、不含 Vue 运行时；`background.js` 147,352 B，不含 Vue 运行时、不引用 131KB 的 `i18n-*.js` 共享 chunk，拼音字典因 IIFE 产物无法代码分割而随内核内联进去（SW 侧拼音可用，代价是 SW 体积）；侧边栏 / 管理页一侧仍只有 1.4KB 的响应式外壳进 `modulepreload` 闭包，拼音字典 `chunks/main-*.js`（28,155 B）依旧是搜到才动态加载——秒开首屏未受影响。
-- 文档按 `docs/CWS_PUBLISHING_GUIDE.md`「其他同步约定」的 6 处表面 + 架构文档回灌：README / README.en、index.html（FAQS + JSON-LD，`pnpm gen:faq`）与 en.html（`pnpm gen:en`）、侧边栏 `help.json` 中英（改既有词条，未增条目故 `helpItems` 计数不动）、`CWS_FILL_CONTENT.md`（含十一修订记录与新的英文预算告警）、`utils/i18n-lite.ts`（`cs.inline.listboxLabel` / `cs.inline.searchAllHint` 中英）、ARCHITECTURE 中英第 17 节与检索口径；测试数量基线同步到 README、llms.txt 与 `docs/blog/**`（`pnpm gen:blog` 重生 12 个博客页），博客封面矢量源里的 `1292 项自动化测试` 一并改为 1337 并经 `pnpm covers:render 04 05`（sharp / libvips，无需浏览器）重栅格化两张 PNG，已目视复核新数字渲染正确。manifest 的 `extensionDescription`（`public/_locales/*/messages.json`，须与商店 132 字符摘要逐字一致，现为中文 131 / 英文 130）**未动**：那是 3.8.0 keyword-stuffing 驳回后定下的额度，本轮属既有能力的口径收紧而非新能力。
+- 文档按 `docs/store/CWS_PUBLISHING_GUIDE.md`「其他同步约定」的 6 处表面 + 架构文档回灌：README / README.en、index.html（FAQS + JSON-LD，`pnpm gen:faq`）与 en.html（`pnpm gen:en`）、侧边栏 `help.json` 中英（改既有词条，未增条目故 `helpItems` 计数不动）、`CWS_FILL_CONTENT.md`（含十一修订记录与新的英文预算告警）、`utils/i18n-lite.ts`（`cs.inline.listboxLabel` / `cs.inline.searchAllHint` 中英）、ARCHITECTURE 中英第 17 节与检索口径；测试数量基线同步到 README、llms.txt 与 `docs/blog/**`（`pnpm gen:blog` 重生 12 个博客页），博客封面矢量源里的 `1292 项自动化测试` 一并改为 1337 并经 `pnpm covers:render 04 05`（sharp / libvips，无需浏览器）重栅格化两张 PNG，已目视复核新数字渲染正确。manifest 的 `extensionDescription`（`public/_locales/*/messages.json`，须与商店 132 字符摘要逐字一致，现为中文 131 / 英文 130）**未动**：那是 3.8.0 keyword-stuffing 驳回后定下的额度，本轮属既有能力的口径收紧而非新能力。
 
 ### 9.3 刻意未做 / 待拍板
 
 1. **另两处 IME 同类入口**：`composables/useCommandPalette.ts` 的全局 `keydown`（合成态 Enter 会直接执行高亮命令）与 `entrypoints/content/LoginAutoSave.ts:322` 的 `handleKeyDown`（密码 / 文本框里为选候选词按 Enter 会触发凭证捕获）都**没有** `isComposing` 守卫。它们不在本次批准的范围内，属同一缺陷类，修法一致（早退放在最前面）——要不要一并修，等一句话。
 2. **E 的另外半（favicon 来源去重）** 与**「本站无匹配但同主域还有条目」的 `crossDomainCount` 计算**未动，前者是独立优化、后者会改变引导出现的时机。
 3. **未做真机验证**：超大库下内联的渲染耗时、不同平台输入法事件序列、以及上一波次遗留的跨子域 chip 真机回归。
-4. 商店文案的**英文说明余量已从约 378 字符降到约 261 字符**（上限 16,000），下一次回填英文前须先删已有内容，详见 `docs/CWS_FILL_CONTENT.md` 十一修订记录。
+4. 商店文案的**英文说明余量已从约 378 字符降到约 261 字符**（上限 16,000），下一次回填英文前须先删已有内容，详见 `docs/store/CWS_FILL_CONTENT.md` 十一修订记录。
 
 ### 9.4 评审追认（2026-09-24）：两处行为变化确认保留
 

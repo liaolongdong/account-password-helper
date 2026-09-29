@@ -14,7 +14,7 @@
  * 可选的每页条数
  *
  * 刻意不提供「全部」：管理页的整表挂载成本随行数近似平方增长（600 行中位 16.5 秒、
- * 2000 行 180.2 秒，数据见 docs/PERF_LARGE_VAULT_EVALUATION.md 9.10），
+ * 2000 行 180.2 秒，数据见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md 9.10），
  * 而条目总量上限就是 2000 条——「全部」这一档等于把分页要解决的问题原样留给用户。
  */
 export const PAGE_SIZE_OPTIONS = [50, 100, 200] as const;
@@ -23,7 +23,7 @@ export const PAGE_SIZE_OPTIONS = [50, 100, 200] as const;
  * 默认档位
  *
  * 取 100 的理由是实测出来的，不是外推的：同一份产物下按 `mount` 场景实测（真机数据见
- * `docs/PERF_LARGE_VAULT_EVALUATION.md` 9.11），每页 100 时 600 / 1200 / 2000 条的挂载与
+ * `docs/reports/PERF_LARGE_VAULT_EVALUATION.md` 9.11），每页 100 时 600 / 1200 / 2000 条的挂载与
  * 交互成本已不可区分（DOM 探针三档逐字一致），剩下的 2~4 秒是扩展页启动与数据层底盘，
  * 与页大小无关，属 P3 的范围。再往上的 200 档没有单独实测（按 9.10 的 rows² 曲线，
  * 一次 flush 里的行数翻倍会把这一页的重排成本推到约 3~4 倍），2000 条上限下 100 条至多 20 页，

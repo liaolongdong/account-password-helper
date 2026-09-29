@@ -1,13 +1,15 @@
 {
   "name": "account-password-helper",
+  "version": "3.13.1",
+  "description": "🔐 Free open-source password manager Chrome extension (Manifest V3): local-first AES-256-GCM encrypted vault, one-click autofill & auto-login, TOTP 2FA authenticator, password generator & health check, side panel quick fill, CSV/JSON import/export. Built with WXT + Vue 3 + TypeScript. 免费开源的浏览器账号密码管理器插件：本地加密存储、自动填充、一键登录、两步验证码、密码生成器与安全体检、侧边栏快速填充、导入导出。",
+  "license": "GPL-3.0-only",
+  "type": "module",
+  "packageManager": "pnpm@10.12.1",
   "author": {
     "name": "Better",
     "email": "924902324@qq.com",
     "url": "https://github.com/liaolongdong"
   },
-  "version": "3.13.1",
-  "license": "GPL-3.0-only",
-  "description": "🔐 Free open-source password manager Chrome extension (Manifest V3): local-first AES-256-GCM encrypted vault, one-click autofill & auto-login, TOTP 2FA authenticator, password generator & health check, side panel quick fill, CSV/JSON import/export. Built with WXT + Vue 3 + TypeScript. 免费开源的浏览器账号密码管理器插件：本地加密存储、自动填充、一键登录、两步验证码、密码生成器与安全体检、侧边栏快速填充、导入导出。",
   "homepage": "https://liaolongdong.github.io/account-password-helper/",
   "repository": {
     "type": "git",
@@ -15,6 +17,94 @@
   },
   "bugs": {
     "url": "https://github.com/liaolongdong/account-password-helper/issues"
+  },
+  "scripts": {
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "auto-merge": "node scripts/auto-merge-main.js",
+    "analyze": "ANALYZE=true wxt build",
+    "analyze:firefox": "ANALYZE=true wxt build -b firefox",
+    "icons:build": "node scripts/generate-icons.mjs",
+    "covers:render": "node scripts/render-blog-covers.mjs",
+    "store-creatives:render": "node scripts/render-store-creatives.mjs",
+    "gen:en": "node scripts/build-en-page.mjs",
+    "gen:faq": "node scripts/build-faq-jsonld.mjs",
+    "gen:faq-dom": "node scripts/build-faq-dom.mjs",
+    "gen:pricing-en": "node scripts/build-pricing-en-page.mjs",
+    "gen:privacy-en": "node scripts/build-privacy-en-page.mjs",
+    "gen:blog": "node scripts/build-blog-pages.mjs",
+    "prebuild": "pnpm run icons:build",
+    "postbuild": "wxt zip",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:e2e": "playwright test",
+    "coverage": "vitest run --coverage",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "lint:style": "stylelint **/*.{vue,css,scss} --cache --cache-location node_modules/.cache/stylelint/",
+    "lint:style:fix": "stylelint **/*.{vue,css,scss} --fix --cache --cache-location node_modules/.cache/stylelint/",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:all": "pnpm run lint && pnpm run lint:style && pnpm run format:check",
+    "fix:all": "pnpm run lint:fix && pnpm run lint:style:fix && pnpm run format",
+    "postinstall": "wxt prepare",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@element-plus/icons-vue": "^2.3.2",
+    "element-plus": "^2.14.4",
+    "jsqr": "^1.4.0",
+    "pinyin-match": "^1.2.10",
+    "vue": "^3.5.41"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.63.0",
+    "@types/chrome": "^0.1.43",
+    "@typescript-eslint/parser": "^8.67.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "@wxt-dev/module-vue": "^1.0.3",
+    "eslint": "^10.8.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-vue": "^10.10.0",
+    "husky": "^9.1.7",
+    "jsdom": "^30.0.1",
+    "lint-staged": "^16.4.0",
+    "marked": "^18.0.11",
+    "playwright": "^1.63.0",
+    "postcss-html": "^1.8.1",
+    "prettier": "^3.9.6",
+    "rollup-plugin-visualizer": "^7.1.1",
+    "sharp": "^0.35.4",
+    "stylelint": "^17.14.1",
+    "stylelint-config-recess-order": "^7.8.0",
+    "stylelint-config-standard": "^40.0.0",
+    "stylelint-order": "^8.1.1",
+    "typescript": "^6.0.3",
+    "unplugin-auto-import": "^21.1.0",
+    "unplugin-vue-components": "^32.1.0",
+    "vitest": "^4.1.11",
+    "wxt": "^0.20.27"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"],
+    "overrides": {
+      "shell-quote": ">=1.8.1",
+      "tmp": ">=0.2.7",
+      "uuid": ">=9.0.1",
+      "js-yaml": "~4.3.2",
+      "fast-uri": "~3.1.7",
+      "firefox-profile": "~4.7.1"
+    }
+  },
+  "lint-staged": {
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "keywords": [
     "password-manager",
@@ -64,106 +154,5 @@
     "本地密码管理器",
     "开发者工具",
     "安全体检"
-  ],
-  "packageManager": "pnpm@10.12.1",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ],
-    "overrides": {
-      "shell-quote": ">=1.8.1",
-      "tmp": ">=0.2.7",
-      "uuid": ">=9.0.1",
-      "js-yaml": "~4.3.2",
-      "fast-uri": "~3.1.7",
-      "firefox-profile": "~4.7.1"
-    }
-  },
-  "type": "module",
-  "scripts": {
-    "build": "wxt build",
-    "build:firefox": "wxt build -b firefox",
-    "dev": "wxt",
-    "dev:firefox": "wxt -b firefox",
-    "auto-merge": "node scripts/auto-merge-main.js",
-    "analyze": "ANALYZE=true wxt build",
-    "analyze:firefox": "ANALYZE=true wxt build -b firefox",
-    "icons:build": "node scripts/generate-icons.mjs",
-    "covers:render": "node scripts/render-blog-covers.mjs",
-    "store-creatives:render": "node scripts/render-store-creatives.mjs",
-    "gen:en": "node scripts/build-en-page.mjs",
-    "gen:faq": "node scripts/build-faq-jsonld.mjs",
-    "gen:faq-dom": "node scripts/build-faq-dom.mjs",
-    "gen:pricing-en": "node scripts/build-pricing-en-page.mjs",
-    "gen:privacy-en": "node scripts/build-privacy-en-page.mjs",
-    "gen:blog": "node scripts/build-blog-pages.mjs",
-    "prebuild": "pnpm run icons:build",
-    "postbuild": "wxt zip",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "test:e2e": "playwright test",
-    "coverage": "vitest run --coverage",
-    "lint": "eslint . --max-warnings 0",
-    "lint:fix": "eslint . --fix",
-    "lint:style": "stylelint **/*.{vue,css,scss} --cache --cache-location node_modules/.cache/stylelint/",
-    "lint:style:fix": "stylelint **/*.{vue,css,scss} --fix --cache --cache-location node_modules/.cache/stylelint/",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "lint:all": "pnpm run lint && pnpm run lint:style && pnpm run format:check",
-    "fix:all": "pnpm run lint:fix && pnpm run lint:style:fix && pnpm run format",
-    "postinstall": "wxt prepare",
-    "prepare": "husky"
-  },
-  "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
-  },
-  "dependencies": {
-    "@element-plus/icons-vue": "^2.3.2",
-    "element-plus": "^2.14.4",
-    "jsqr": "^1.4.0",
-    "pinyin-match": "^1.2.10",
-    "vue": "^3.5.41"
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.63.0",
-    "@types/chrome": "^0.1.43",
-    "@typescript-eslint/parser": "^8.67.0",
-    "@vitest/coverage-v8": "^4.1.11",
-    "@vue/eslint-config-typescript": "^14.9.0",
-    "@wxt-dev/module-vue": "^1.0.3",
-    "eslint": "^10.8.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-vue": "^10.10.0",
-    "husky": "^9.1.7",
-    "jsdom": "^30.0.1",
-    "lint-staged": "^16.4.0",
-    "marked": "^18.0.11",
-    "playwright": "^1.63.0",
-    "postcss-html": "^1.8.1",
-    "prettier": "^3.9.6",
-    "rollup-plugin-visualizer": "^7.1.1",
-    "sharp": "^0.35.4",
-    "stylelint": "^17.14.1",
-    "stylelint-config-recess-order": "^7.8.0",
-    "stylelint-config-standard": "^40.0.0",
-    "stylelint-order": "^8.1.1",
-    "typescript": "^6.0.3",
-    "unplugin-auto-import": "^21.1.0",
-    "unplugin-vue-components": "^32.1.0",
-    "vitest": "^4.1.11",
-    "wxt": "^0.20.27"
-  }
+  ]
 }

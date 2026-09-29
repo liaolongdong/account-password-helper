@@ -22,7 +22,7 @@
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="账号密码管理助手扩展图标" width="120" />
   <br/>
-  <img src="./docs/demo-totp.webp" alt="一键登录 + 两步验证接力演示：页内面板选中账号自动填充并登录，跳到验证码页后活码胶囊自动锚定，点「填入」完成第二步" width="100%" />
+  <img src="./docs/media/demo-totp.webp" alt="一键登录 + 两步验证接力演示：页内面板选中账号自动填充并登录，跳到验证码页后活码胶囊自动锚定，点「填入」完成第二步" width="100%" />
   <br/>
   <sub>页内面板选中账号 → 自动填充并登录 → 同域名验证码页自动锚定活码胶囊 → 点「填入」，全程不用摸手机</sub>
 </p>
@@ -61,7 +61,7 @@
 > 每个模块一行一张大图：图下第一行是模块名称，第二行只讲**图里看不到的信息**——容易踩空的默认值、开关位置与隐藏能力。**点任意一张可看原尺寸**（首图是 1152×720 的操作动图，其余七张为 2560×1600 的 2 倍屏截图）。
 
 <p align="center">
-  <a href="./docs/demo-login.webp"><img src="./docs/demo-login.webp" alt="一键登录演示：侧边栏选中条目后自动填充账号密码、勾选同意条款并点击登录" width="100%" /></a>
+  <a href="./docs/media/demo-login.webp"><img src="./docs/media/demo-login.webp" alt="一键登录演示：侧边栏选中条目后自动填充账号密码、勾选同意条款并点击登录" width="100%" /></a>
   <br />
   <b>⚡ 一键登录</b>
   <br />
@@ -236,6 +236,21 @@
 3. **导入已有密码**：管理页「数据管理 → 导入」上传 CSV / JSON，自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式
 4. **按需开启自动登录**：「偏好设置 → 自动触发登录」打开后，`Ctrl+Shift+F` 连登录按钮一起点掉
 
+### 换电脑 / 换浏览器搬家
+
+密码库靠一份加密备份文件搬走，不依赖任何同步服务，也不需要给第三方授权：
+
+1. **源机器导出**：管理页「数据管理 → 加密备份导出」，验证主密码后得到 `backup_YYYYMMDD_HHmmss.aph`。落盘前扩展会把这个容器原样解回做一次 round-trip 自检，校验通过才产出文件，并在管理页头部记下「最近验证备份」——搬家前先确认这一行不是「从未导出」。
+2. **挑一个中转处**：任意网盘、U 盘，或当邮件附件发给自己都可以。放哪里都行——对面收到的只是一段 `salt + IV + AES-256-GCM 密文`，密钥由主密码经 600,000 轮 PBKDF2 派生，没有这把主密码谁也解不开；这也正是本扩展不做云同步的原因。
+3. **新机器装好并设主密码**：可以是另一把密码，**不必与原来相同**。
+4. **导入**：「数据管理 → 加密备份导入」上传 `.aph`，填**导出时使用的主密码**，解密并预览后确认写入；条目落盘时按这台机器当前的密钥逐字段重新加密。
+
+- **随 `.aph` 一起走**：账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏——每条 9 个字段。
+- **有独立出口，需各自搬**：身份信息库导出 `.aphid` 加密备份；站点规则导出明文 JSON（只含域名与选择器，不含账号密码），导入按域名合并并回报新增 / 更新 / 忽略。
+- **不随备份走，在新机器重设**：主密码本身、会话有效期与闲置自动锁定、自动触发登录、剪贴板自动清除、语言与主题、每页条数与排序、跨子域名匹配档位、按条目的改密提醒，以及回收站与密码修改历史（这两者没有导出入口）。
+
+> ⚠️ 三点要注意：**导入是追加而非合并**——不做去重，且与新增、网页自动保存共用 2000 条上限，额度不足时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据可事后用「一键去重」清理（判据是相同用户名 + 相同 URL 算一组，每组保留收藏的那条；一组里收藏不止一条时，取最近更新的那条）。**运行环境**以桌面版 Chrome / Edge 为准；`.aph` 本身与浏览器无关，任何能装本扩展的 Chromium 内核浏览器同理，而 Firefox 构建产物为 MV2，发布与验证均以 Chrome 为准。**在新机器核对过条目总数之前，别丢掉那份 `.aph`**——主密码遗忘无法找回，重置即清空数据。
+
 ### 快捷键速查
 
 <details>
@@ -354,7 +369,7 @@
 - **提 Issue / 功能建议**：[选择模板](https://github.com/liaolongdong/account-password-helper/issues/new/choose)（缺陷、功能两套模板，含复现步骤与影响面）
 - **报安全问题**：请走 [.github/SECURITY.md](./.github/SECURITY.md) 的私密渠道，不要开公开 Issue
 - **贴截图或日志之前**：请把真实账号、邮箱、密码与 TOTP 活码换成 `example.com` / `dummy` 这类占位数据——公开内容无法真正撤回
-- **开发环境与命令**：[docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) ｜ **行为准则**：[.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
+- **开发环境与命令**：[docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) ｜ **文档地图（新文档放哪 / 哪些不入库）**：[docs/README.md](./docs/README.md) ｜ **行为准则**：[.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
 - **质量门禁**：每个 PR 与 `main` 的提交由 [ci.yml](./.github/workflows/ci.yml) 自动跑 `typecheck` / `lint` / `lint:style` / `test:run` / `build`（Chrome 与 Firefox 双构建）
 - **供 AI 引擎引用**：机器可读的项目摘要见 [llms.txt](https://liaolongdong.github.io/account-password-helper/llms.txt)，与站点的 `robots.txt`、`sitemap.xml` 配套，供 ChatGPT / Perplexity / Claude 等检索与引用
 

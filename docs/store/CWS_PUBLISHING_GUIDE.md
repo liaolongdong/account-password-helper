@@ -42,8 +42,8 @@
    - **摘要**（132字符硬限制，中英各一条）：
      - 权威来源是 `public/_locales/zh_CN/messages.json` 与 `en/messages.json` 的 `extensionDescription`（manifest 通过 `__MSG_extensionDescription__` 引用）。商店列表必须粘贴**同一句话**——两份副本逐字一致，否则审核会判定描述与 manifest 不符。可直接粘贴的当前文案见 `CWS_FILL_CONTENT.md`「第二步 → 摘要」。
      - ✅ 口径已订正：旧文案中的「零联网」/「100% offline」并不成立（扩展每 6 小时发起一次不携带用户数据的匿名版本检查），两份 `_locales` 的 `extensionDescription` 已改为限定口径。
-     - 🚫 **2026-09-09 关键字堆砌驳回后的现行口径（2026-09-10 二 / 三 / 四次修订，2026-09-11 五次修订，2026-09-12 六次修订）**：中文 **131 字符** / 英文 **130 字符**（上限 132，不留白）——句式必须是**读得通的完整句子**，功能项挂在谓语（中文「含……」/ 英文 `with …`）下面，而不是逗号裸串；品类词「密码管理器 / password manager」只出现一次，**不含任何竞品品牌名（Chrome / LastPass / Bitwarden / 1Password）**。`AES-256-GCM` 按用户要求写回摘要（准确的算法名，此前正文里不完整的「AES-256」已一并更正），`PBKDF2` 迭代次数这类参数仍只放在详细说明的【安全架构】。摘要按用户要求覆盖两步验证（TOTP/2FA）/ 密码强度检测 / 迁移导入，英文额度更紧，「密码可见性切换」只写在说明的 FEATURE SET。详细描述四次修订后为中文 **2380** / 英文 **6961** 字符，五次修订（SEO/ASO 复核）再回填六处已验证事实（密文只写入 local 与 session、改主密码原子重加密、生成器可排除易混淆字符、TOTP 可自定义算法与位数、主密码框大写锁定提示、换设备用 .aph 备份还原）、把「多环境账号隔离」「保存密码」写回正文，并驳回三处与实现不符的候选表述（快捷键自动登录 / EFF 助记词 / 五维检测）；六次修订（曝光与口径复核）追加中文 Name 的「与自动填充」（20 → 25 字符，英文 Name 不变），回填九处代码里确有而说明漏写的事实（悬浮填充按钮、侧边栏键盘全流程、Popup 操作中枢、锁定时可用的右键生成强密码、剪贴板清理档位、会话 9 档与两个锁定开关、标签 / 收藏 / 历史快照上限、TOTP 位数离散 6/7/8），并把三处无法自证的绝对表述改为可核对写法（泄露字典「近千条」、侧边栏「按 1 秒内出界面优化」、版本门槛写 **Chromium 114** 以避开品牌名 `Chrome`）——逐条代码依据见 `CWS_FILL_CONTENT.md`「第二步 → 摘要」的六次修订批注。现为中文 **3293** / 英文 **9504** 字符（上限 16,000）：回填方式是**机制归【功能全览】、价值归【为什么选择它】、问答只讲本节独有事实**，跨节不留重复句。3.8.0 草稿正是被 `Chrome, LastPass, Bitwarden, and 1Password (CSV/JSON formats` 判为 keyword stuffing，旧草稿已关闭，须在**已有商品**里上传新包生成新草稿重新提交（不要点「新建商品」）。
-     - **剩余动作**：`pnpm build` 后重新上传商店包，线上摘要才会与新文案一致。
+     - 🚫 **2026-09-09 关键字堆砌驳回后的现行口径（2026-09-10 二 / 三 / 四次修订，2026-09-11 五次修订，2026-09-12 六次修订）**：中文 **131 字符** / 英文 **130 字符**（上限 132，不留白）——句式必须是**读得通的完整句子**，功能项挂在谓语（中文「含……」/ 英文 `with …`）下面，而不是逗号裸串；品类词「密码管理器 / password manager」只出现一次，**不含任何竞品品牌名（Chrome / LastPass / Bitwarden / 1Password）**。`AES-256-GCM` 按用户要求写回摘要（准确的算法名，此前正文里不完整的「AES-256」已一并更正），`PBKDF2` 迭代次数这类参数仍只放在详细说明的【安全架构】。摘要按用户要求覆盖两步验证（TOTP/2FA）/ 密码强度检测 / 迁移导入，英文额度更紧，「密码可见性切换」只写在说明的 FEATURE SET。详细描述四次修订后为中文 **2380** / 英文 **6961** 字符，五次修订（SEO/ASO 复核）再回填六处已验证事实（密文只写入 local 与 session、改主密码原子重加密、生成器可排除易混淆字符、TOTP 可自定义算法与位数、主密码框大写锁定提示、换设备用 .aph 备份还原）、把「多环境账号隔离」「保存密码」写回正文，并驳回三处与实现不符的候选表述（快捷键自动登录 / EFF 助记词 / 五维检测）；六次修订（曝光与口径复核）追加中文 Name 的「与自动填充」（20 → 25 字符，英文 Name 不变），回填九处代码里确有而说明漏写的事实（悬浮填充按钮、侧边栏键盘全流程、Popup 操作中枢、锁定时可用的右键生成强密码、剪贴板清理档位、会话 9 档与两个锁定开关、标签 / 收藏 / 历史快照上限、TOTP 位数离散 6/7/8），并把三处无法自证的绝对表述改为可核对写法（泄露字典「近千条」、侧边栏「按 1 秒内出界面优化」、版本门槛写 **Chromium 114** 以避开品牌名 `Chrome`）——逐条代码依据见 `CWS_FILL_CONTENT.md`「第二步 → 摘要」的六次修订批注。现为中文 **5040** / 英文 **12283** 字符（Python `len()` 码点口径；上限 16,000，英文侧余量 3,717；2026-09-29 十四修订按用户反馈**重构了说明的层级并为每行加前导语义图标**，旧七节改为「🌟 为什么选它 → 📋 功能全览（六个分组）→ 🔒 安全架构 → 🚀 四步上手 → 👥 适合谁 → ❓ 常见问题 → 💡 温馨提示」，本段里提到的【安全架构】与 FEATURE SET 即现在的【🔒 安全架构】与 📋 FEATURE SET，若审核把图标判为 excessive metadata 只删前导 emoji、不改结构）：回填方式是**机制归【📋 功能全览】与【🔒 安全架构】、价值归【🌟 为什么选它】、问答只讲本节独有事实**，跨节不留重复句。3.8.0 草稿正是被 `Chrome, LastPass, Bitwarden, and 1Password (CSV/JSON formats` 判为 keyword stuffing，旧草稿已关闭，须在**已有商品**里上传新包生成新草稿重新提交（不要点「新建商品」）。
+     - **剩余动作（2026-09-29 更新）**：旧版这里写的是「`pnpm build` 后重新上传商店包，线上摘要才会与新文案一致」——**已完成**：商店在架包已到 **v3.13.0**，`_locales` 里那份 131 / 130 字符的摘要与 30 / 42 字符的名称（上限 45）自 v3.11 起的每个包都带着它。**仍未确认的是列表正文**：本机 curl 打不开 `chromewebstore.google.com`（恒 `000`，属已知限制），无法核对 Dashboard 里粘贴的说明是否与「第二步」一致。因此每次改完商店文案后的收口动作是：**在 Dashboard 的中英两个语言标签页各整段替换一次说明并提交审核**，改完在下方「第五步」的粘贴自检通过才算闭环（本轮十四修订即处于「文档已改、待你粘贴提交」状态）。⚠️ 仓库侧此刻已在 **3.13.1**（release-please 于 2026-09-29 发布，本地 `pnpm build` 产物为 `.output/account-password-helper-3.13.1-chrome.zip`），与在架 v3.13.0 差一个 patch；本轮**只改说明、不传包**（用户 2026-09-29 决定），下次动到名称／摘要／权限时再一并带上。
    - **详细描述**：参见下方"商店描述模板"
    - **分类**：Productivity
    - **语言**：中文（简体）和 English
@@ -186,7 +186,7 @@
 | 助记词词库      | 内置 **3080** 词词库（≈46 bit），表述为「思路参考 EFF Diceware」。禁止写「EFF 2048 词」                                                                                                                                                                                                                                                                                                                                           | CONTRIBUTING、CWS_FILL_CONTENT.md、llms.txt、help.json、passphraseGenerator.ts（均已订正为 3080 / ≈46 bit）                                                  |
 | 密码历史        | 每条可配 1~10 份加密快照，**默认 3 份**（`DEFAULT_MAX_HISTORY_PER_ENTRY = 3`）。禁止写默认 5 份                                                                                                                                                                                                                                                                                                                                   | README、ARCHITECTURE、index.html、pricing.md、llms.txt                                                                                                       |
 | 导入导出格式    | CSV / JSON 双格式，自动识别 Chrome / LastPass / Bitwarden / 1Password 导出；**不解析 .xlsx**（Excel 只体现为「导出的 CSV 可直接双击打开、中文不乱码」）。**分表面**：README / 官网 / 扩展内导入向导可列具体品牌名；**Chrome 商店的名称、摘要、说明、权限说明与 Featured 提名文案一律不写品牌名**，统一说「常见密码管理器的导出格式 / the export formats of common password managers」（2026-09-09 因品牌名被判 keyword stuffing） | README、ARCHITECTURE、index.html、pricing.md、compare.html；`CWS_FILL_CONTENT.md` 仅出现在说明性批注中，粘贴块内为零                                         |
-| 侧边栏性能      | 秒开（SLA <1s）；缓存快路径 20-50ms。禁止无限定词的裸「20-50ms 秒开」；英文正文用 en-dash（20–50ms），机器可读文件 llms.txt 用连字符（20-50ms）                                                                                                                                                                                                                                                                                   | README、README.en.md、index.html、llms.txt、CWS_FILL_CONTENT.md、docs/reddit-post.md                                                                         |
+| 侧边栏性能      | 秒开（SLA <1s）；缓存快路径 20-50ms。禁止无限定词的裸「20-50ms 秒开」；英文正文用 en-dash（20–50ms），机器可读文件 llms.txt 用连字符（20-50ms）                                                                                                                                                                                                                                                                                   | README、README.en.md、index.html、llms.txt、CWS_FILL_CONTENT.md、docs/operations/reddit-post.md                                                              |
 | 版本号          | 与 package.json 的 version 一致                                                                                                                                                                                                                                                                                                                                                                                                   | index.html（footer.updated 中英两处 + JSON-LD softwareVersion）、llms.txt（Last updated）、CWS 后台                                                          |
 | 测试数量        | tests/ 实际执行的用例数与测试文件数（见下方校验命令）                                                                                                                                                                                                                                                                                                                                                                             | README、README.en.md（用例数）、llms.txt（用例数 + 文件数）、index.html / en.html 数据带首卡（仅用例数，落地页不展示文件数）                                 |
 | 免费口径        | 完全免费、无订阅、无账号、无云端                                                                                                                                                                                                                                                                                                                                                                                                  | 全部表面 + pricing.md                                                                                                                                        |
@@ -196,13 +196,15 @@
 
 ### 快速校验命令
 
+> ⚠️ **字符数只认下面这段 python 的 `len()`（Unicode 码点）**。用 `node` 的 `String.length` 复算是 **UTF-16 code unit** 口径，说明里每个 emoji / 补充平面字符多算 1——2026-09-29 十四修订实测中英各差 64 / 63 个单位（终值 5040 ↔ 5104、12283 ↔ 12346）。批注、本指南与 `exposure-status.md` 记录的一律是码点数。
+
 ````bash
 # 性能口径：所有命中均应带「缓存快路径 / warm path」限定词
-rg -n "20-50|20–50" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/reddit-post.md
+rg -n "20-50|20–50" README.md README.en.md index.html llms.txt docs/store/CWS_FILL_CONTENT.md docs/operations/reddit-post.md
 
 # PBKDF2 千分位：不应出现无千分位的 600000
 # （源码里的 `iterations: 600000` 是合法字面量，不在本命令的扫描面内）
-rg -n "600000" README.md README.en.md index.html llms.txt docs/CWS_FILL_CONTENT.md docs/CONTRIBUTING.md docs/ARCHITECTURE.md docs/ARCHITECTURE.en.md
+rg -n "600000" README.md README.en.md index.html llms.txt docs/store/CWS_FILL_CONTENT.md docs/CONTRIBUTING.md docs/ARCHITECTURE.md docs/ARCHITECTURE.en.md
 
 # 版本号：三处应与 package.json 的 version 一致
 rg -n "softwareVersion|footer.updated" index.html
@@ -223,7 +225,7 @@ rg -n "零网络传输|零联网|数据不出浏览器|100% offline|军事级|20
 # 3) 跨小节重复行扫描：同一句话在小节里抄第二遍是 keyword-stuffing 判定的结构特征
 python3 - <<'PY'
 import json, re
-doc = open('docs/CWS_FILL_CONTENT.md', encoding='utf-8').read()
+doc = open('docs/store/CWS_FILL_CONTENT.md', encoding='utf-8').read()
 seg = doc.split('## 第二步')[1].split('## 第三步')[0]
 blocks = re.findall(r'```\n(.*?)```', seg, re.S)
 banned = ('LastPass', 'Bitwarden', '1Password', 'Chrome', '零联网', '零网络传输', '100% offline', '数据不出浏览器', '军事级', '五维')
@@ -256,7 +258,7 @@ PY
   2. `README.en.md`（英译镜像，最易遗漏）
   3. `index.html` 可见文案（FAQS / 功能数组，中英两处）与 `en.html` 对应内容——`en.html` 由 `scripts/build-en-page.mjs` 从中文源生成，改中文源后跑 `pnpm gen:en`；改的是 `FAQS` 时还要按上面的 **FAQ 生成链** 补齐 JSON-LD 与两侧的 FAQ 静态 DOM
   4. 侧边栏 `components/sidepanel/HelpDialog.vue` 对应的 `utils/i18n/locales/{zh-CN,en}/help.json` 词条（数字序号驱动，新增条目须同步提升 `helpItems('help.gx', N)` 的 N，由 `tests/utils/i18nBundles.test.ts` 守卫）
-  5. `docs/CWS_FILL_CONTENT.md` 商店文案 **与** `wxt.config.ts` 的 manifest 描述（manifest 走 `__MSG_extensionDescription__`，实际文案在 `public/_locales/*/messages.json`）
+  5. `docs/store/CWS_FILL_CONTENT.md` 商店文案 **与** `wxt.config.ts` 的 manifest 描述（manifest 走 `__MSG_extensionDescription__`，实际文案在 `public/_locales/*/messages.json`）
   6. content / background 侧可见文案走 `utils/i18n-lite.ts` 的 `tl()`，与 Vue 的完整 i18n 是两套独立词表，必须各写一份中英文
   7. `docs/ARCHITECTURE.md` 与 `docs/ARCHITECTURE.en.md` 的「功能实现详解」
 

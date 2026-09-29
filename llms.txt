@@ -13,7 +13,7 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-09-28 · **Latest release**: v3.12.0 (2026-09-25)
+- **Last updated**: 2026-09-29 · **Latest release**: v3.13.1 (2026-09-29) · Chrome Web Store listing serves v3.13.0 (2026-09-28); the one-patch gap is an Options-page tooltip click fix that has not been re-packaged for the store yet
 - **Quality**: 1953 automated test cases across 167 test files
 
 ## Key Features
@@ -24,10 +24,12 @@
 - **Per-field AES-256-GCM encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API; username, password, URL, remark and TOTP secret are encrypted field by field before touching disk, and password data is never uploaded
 - **Identity vault**: a separate, independently encrypted store for personal identity data (ID numbers, bank cards, passports, custom fields) with two-level format validation (checksum errors block, everything else warns), whole-card copy, save-time duplicate detection, encrypted `.aphid` backup and optional re-importable plaintext `.json` export — reachable only from the Options page and never surfaced in the side panel
 - **Offline security audit**: one-click 0–100 score weighted across four dimensions (reused 35 / weak 25 / commonly leaked 20 / stale 20), with missing-2FA reported separately but unscored — all computed on-device
+- **Live password strength check**: length / letters / numbers / symbols rated weak-medium-strong, shown as a real-time bar with a rule-by-rule checklist in the add, edit and master-password forms; the checklist carries a fifth item that forces weak when the value matches a built-in list of nearly a thousand commonly leaked passwords. The same weak-password verdict appears as a non-blocking heads-up in the save-on-login prompt.
 - **Password generator**: random mode (configurable length/charset/ambiguous-character exclusion) + passphrase mode drawing from a bundled 3,080-word list, Web Crypto CSPRNG
 - **Quadruple fill strategy**: inline fill (key icon in input, sharing the side panel's ordering and multi-field pinyin search), side panel one-click fill, right-click context menu fill, shortcut quick-fill
 - **Auto-save credentials**: Chrome-style login capture with smart dedup, domain allow/block lists; the save prompt flags weak and reused passwords inline (a heads-up only — it never blocks saving)
 - **Import / export**: CSV & JSON; auto-detects Chrome, LastPass, Bitwarden, 1Password exports
+- **Backup reminders**: a desktop notification on a 1 / 3 / 7 / 14 / 30-day schedule nudges you to export a backup; the encrypted `.aph` tier is preselected and switching to plaintext asks for a risk confirmation first. The extension has no mailing capability of its own — the file downloads to your machine and, if you choose the email tier, a prefilled draft is handed to your own mail client.
 - **Site rules for stubborn login pages**: pin custom CSS selectors for the username and password fields of a given domain, and optionally reach fields nested inside shadow DOM — for self-built login pages and component-library forms that heuristic detection gets wrong. Rules export to a plain-text JSON file (domains and selectors only, never credentials) and merge-import by domain with an added / updated / skipped report, capped at 500 rules and 2 MiB per file
 - **Command palette**: `Ctrl/Cmd + K` on the management page filters its 23 commands — add entry, health check, import / export, encrypted backup, trash, site rules, cross-subdomain matching, change master password, preferences — by Chinese, pinyin or initials; it opens only once you are unlocked, and destructive commands keep their confirmations
 - **Share card**: one click on a side panel row or in the read-only details drawer composes "username / password / URL" into a single plain-text clipboard payload, subject to the same timed clipboard wipe as every other copy
@@ -61,6 +63,9 @@ Nothing is lost and nothing needs re-encrypting — the vault is ciphertext at r
 
 **Can I import from other password managers?**
 Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password export formats, with Chinese/English column-name mapping. Typical migration takes about 30 seconds.
+
+**How do I move my vault to another browser or computer?**
+One encrypted backup file does it. Export "Data Management → Export Encrypted Backup" on the source machine and carry the resulting `.aph` anywhere — a cloud drive, a USB stick, an email to yourself. The file is browser-agnostic and opaque to whoever hosts it (salt + IV + AES-256-GCM ciphertext, key derived from the master password through 600,000 PBKDF2 rounds), which is exactly why this product ships no sync service and asks for no third-party authorization. On the new machine: install the extension, set a master password (it does not have to match the old one), then "Import Encrypted Backup" with the master password used at export — entries are re-encrypted field by field with that machine's key. The import appends rather than merges and shares the 2,000-entry cap, so an empty vault is the cleanest target. Only the nine vault fields travel in the `.aph`: the identity vault has its own `.aphid` export, site rules their own plain JSON export, while preferences, security settings, per-entry reminders, Trash and password history do not move.
 
 **Can one account serve a whole subdomain family?**
 Yes, on request. The default tier matches hosts exactly; "exact + wildcard entries" admits entries saved as `*.qq.com` on every subdomain of that site, and "same main domain" adds the apex and sibling subdomains as a fallback, badged as cross-subdomain. Widening is display-and-fill only: the auto-save duplicate rule is deliberately tier-independent, so a wider tier never changes which entry a save overwrites, and `localhost` / `127.0.0.1` stay separated by port.

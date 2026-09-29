@@ -2,7 +2,7 @@
 
 > ⚠️ 这是**待发稿件，尚未自动发布**。请审阅后用微信编辑器或 `/baoyu-post-to-wechat` 手动发布。
 > 建议用 `/baoyu-article-illustrator` 为标注 🖼 的位置生成/复用配图；配图优先取 `assets/cws-store/screen-*-*.png`（`scripts/store-shots/` 生成的占位演示截图，数据全为 `example.com`）。
-> ⚠️ `assets/screenshots/` 含真实账号、邮箱与 TOTP 活码，**已退役，任何场合都不要再引用**；配图一律用 `assets/cws-store/screen-*.png`（`scripts/store-shots/` 生成的占位演示截图）或 `docs/demo-login.gif`（2026-09-13 从占位演示页重录的动图，数据全为 `example.com`，可安全引用）。
+> ⚠️ `assets/screenshots/` 含真实账号、邮箱与 TOTP 活码，**已退役，任何场合都不要再引用**；配图一律用 `assets/cws-store/screen-*.png`（`scripts/store-shots/` 生成的占位演示截图）或 `docs/media/demo-login.gif`（2026-09-13 从占位演示页重录的动图，数据全为 `example.com`，可安全引用）。
 
 ---
 
@@ -37,7 +37,7 @@
 **1. 一键登录，不只是填充**
 侧边栏点「填充并登录」：自动填账号密码 → 自动勾选“同意条款” → 自动点击登录按钮，1 秒完成。在偏好设置里开启「自动触发登录」后，按 `Ctrl+Shift+F` 也能一步到位；默认状态下这个快捷键有意只填充、不提交，防止误触登进意料之外的页面。别的工具只填表，登录按钮还得你自己点。
 
-🖼 配图建议：`docs/demo-login.gif`（动图，2026-09-13 从占位演示页重录，900px 宽一轮约 7 秒）或静态图 `assets/cws-store/screen-1-one-click-login.png`
+🖼 配图建议：`docs/media/demo-login.gif`（动图，2026-09-13 从占位演示页重录，900px 宽一轮约 7 秒）或静态图 `assets/cws-store/screen-1-one-click-login.png`
 
 **2. 精确域名多环境隔离**
 dev / test / staging / prod 的账号按域名精确匹配，同一站点不同环境互不混淆——这条对开发者几乎是决定性功能。

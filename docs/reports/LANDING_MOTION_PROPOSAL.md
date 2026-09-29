@@ -1,7 +1,7 @@
 # 落地页与扩展动效提案（Motion Proposal）
 
 **日期**：2026-09-24 · **分支**：feature-opt · **状态**：待拍板，未落地
-**配套实物**：[`docs/prototypes/landing-motion-lab.html`](./prototypes/landing-motion-lab.html) —— 14 条候选已做成可重播、可模拟「减弱动效」、可模拟「禁用 JS」的预览页，编号与本文一一对应。
+**配套实物**：[`docs/prototypes/landing-motion-lab.html`](../prototypes/landing-motion-lab.html) —— 14 条候选已做成可重播、可模拟「减弱动效」、可模拟「禁用 JS」的预览页，编号与本文一一对应。
 
 ---
 

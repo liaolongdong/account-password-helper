@@ -9,7 +9,7 @@
  *
  * 1. 生成区与 `FAQS` 逐条、同序、逐字一致（防止改了 `FAQS` 忘了重跑生成——这是新鲜度守卫）；
  * 2. 中英两页的语言各归各位，英文块不残留中文；
- * 3. 折叠态只挂在 `html.js` 下——JS 缺席或兜底回退时 41 条答案必须全展开可读；
+ * 3. 折叠态只挂在 `html.js` 下——JS 缺席或兜底回退时全部答案必须展开可读；
  * 4. 静态 DOM 与页内 `renderFaqs()` 模板结构同构（同样的 `faq-q` / `chev` / `faq-a-inner` 与
  *    `aria-expanded="false"`），切语言重建后视觉与交互不变；
  * 5. 手工维护的 `<noscript>` FAQ 段确实被删掉，页内只剩窄屏页头那一个 `<noscript>`；
@@ -411,7 +411,9 @@ function expectedRail(page: Page): RailEntry[] {
 describe.each([zh, en])('$label — FAQ 生成区与 FAQS 同源', (page: Page) => {
   it('条目非空且问答 / 分类数量与 FAQS 一致', () => {
     expect(page.nodes.length).toBe(page.faqs.length);
-    expect(page.nodes.filter(n => n.kind === 'qa').length).toBe(41);
+    // 42 是写死的量级锚点：上一条断言只保证「生成区 == FAQS」，两处一起被误删时它仍然绿，
+    // 这一条负责让「少了一条问答」这件事必须有人在场外看见。增删条目时同步这个数字。
+    expect(page.nodes.filter(n => n.kind === 'qa').length).toBe(42);
     expect(page.nodes.filter(n => n.kind === 'category').length).toBe(4);
   });
 

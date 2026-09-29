@@ -34,7 +34,7 @@ Account Password Helper is a **local-first** password manager: credentials are e
 
 ### Permissions
 
-All Chrome permissions follow the principle of least privilege. Detailed justifications are available in the [CWS Privacy Documentation](../docs/CWS_FILL_CONTENT.md#第五步隐私惯例-privacy-practices).
+All Chrome permissions follow the principle of least privilege. Detailed justifications are available in the [CWS Privacy Documentation](../docs/store/CWS_FILL_CONTENT.md#第五步隐私惯例-privacy-practices).
 
 ## Reporting a Vulnerability
 

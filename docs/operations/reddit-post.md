@@ -11,7 +11,7 @@ I've been a developer/tester who manages dozens of accounts across dev/test/stag
 
 So I built **Account Password Helper** — an open-source Chrome extension.
 
-![Core Value: One-Click Login, Local Encryption, Multi-Env Isolation, Free TOTP](imgs/01-infographic-core-value.png)
+![Core Value: One-Click Login, Local Encryption, Multi-Env Isolation, Free TOTP](../../imgs/01-infographic-core-value.png)
 
 ## What makes it different
 
@@ -49,7 +49,7 @@ Session expires → all plaintext wiped → re-encrypted to ciphertext
 - **Auto idle lock** — configurable 5/10/30/60 min, or lock on browser restart
 - **Side panel opens instantly** — 20–50ms on the warm cache path via Service Worker keepalive + encrypted cache
 
-![Security Encryption Pipeline: Master Password → PBKDF2 → AES-256-GCM → Session Lock](imgs/02-flowchart-security-pipeline.png)
+![Security Encryption Pipeline: Master Password → PBKDF2 → AES-256-GCM → Session Lock](../../imgs/02-flowchart-security-pipeline.png)
 
 ## Built for developers
 
@@ -60,7 +60,7 @@ Session expires → all plaintext wiped → re-encrypted to ciphertext
 - **Password health check** — weak passwords, reuse, stale entries, missing 2FA
 - **Trash bin** — 30 days recovery, encrypted storage
 
-![Developer Features: Domain Isolation, Triple Fill, Auto-Save, Health Check, Smart Search, Trash Recovery](imgs/03-infographic-dev-features.png)
+![Developer Features: Domain Isolation, Triple Fill, Auto-Save, Health Check, Smart Search, Trash Recovery](../../imgs/03-infographic-dev-features.png)
 
 ## Tech stack
 

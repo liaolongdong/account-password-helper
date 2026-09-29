@@ -51,7 +51,7 @@ Closes #
 - [ ] `index.html`（改中文源后跑 `pnpm gen:en` 重生 `en.html`；改 `FAQS` 再按顺序跑 `pnpm gen:faq` 与 `pnpm gen:faq-dom`）
 - [ ] `components/sidepanel/HelpDialog.vue` 对应的 `help.json`（新增条目须同步提升 `helpItems('help.gx', N)` 的 N）
 - [ ] `docs/ARCHITECTURE.md` 与 `.en.md`「功能实现详解」
-- [ ] 涉及商店文案、权限或隐私时：`docs/CWS_FILL_CONTENT.md`、`docs/CWS_PUBLISHING_GUIDE.md`、`privacy.html`
+- [ ] 涉及商店文案、权限或隐私时：`docs/store/CWS_FILL_CONTENT.md`、`docs/store/CWS_PUBLISHING_GUIDE.md`、`privacy.html`
 
 ## 安全自查 / Security checklist
 
@@ -65,4 +65,4 @@ Closes #
 
 - [ ] 名称 / 摘要 / 说明 / 权限说明里**没有任何竞品或浏览器品牌名**（2026-09-09 的 3.8.0 草稿正是被 `Chrome, LastPass, Bitwarden, and 1Password` 判为 keyword stuffing）
 - [ ] 一个卖点只归一个小节，跨小节不留重复句；没有「零联网 / 100% offline / 军事级」这类无法自证的绝对化表述
-- [ ] 已跑 `docs/CWS_PUBLISHING_GUIDE.md`「粘贴前自检脚本」，输出为 `banned hits: none` 且重复行为 `none`
+- [ ] 已跑 `docs/store/CWS_PUBLISHING_GUIDE.md`「粘贴前自检脚本」，输出为 `banned hits: none` 且重复行为 `none`

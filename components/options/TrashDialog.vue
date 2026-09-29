@@ -298,7 +298,7 @@ const loadTrash = async () => {
     /**
      * 整库解密走受限并发：每条三个字段各一次 `crypto.subtle`，串行 `for … await` 的耗时
      * 因此随条目数线性累加（同口径实测：5N 串行在 2000 条时 705.0 ms、条目级并行 396.3 ms，
-     * 见 `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.3；本路径是 3N，量级按比例缩小），
+     * 见 `docs/reports/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.3；本路径是 3N，量级按比例缩小），
      * 而这份列表是**关键词检索的前提**——没解密的字段搜不到，所以不能退化成「只解当前页」。
      * `mapWithConcurrency` 保证输出与入参同序，降级分支在 mapper 内部消化，语义与原串行一致。
      */

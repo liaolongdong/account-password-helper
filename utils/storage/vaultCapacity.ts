@@ -3,7 +3,7 @@
  *
  * 存在理由（不是防护性设计，是实测结论）：管理页的整表渲染成本随行数**超线性**增长
  * （终版产物同一口径实测：600 行整表挂载中位 16.5 秒、1200 行 52.5 秒、2000 行 180.2 秒，
- * 拟合指数 1.67～2.0，数据见 docs/PERF_LARGE_VAULT_EVALUATION.md 9.10）。条目数一旦失去上界，
+ * 拟合指数 1.67～2.0，数据见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md 9.10）。条目数一旦失去上界，
  * 「打开管理页」这件事本身就会不可用，而数据仍在存储里、用户无从降级。
  * 因此在**写入侧**收口总量：只让三条会让条数变长的路径受限
  * （savePassword / batchSavePasswords / restoreFromTrash），

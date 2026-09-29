@@ -3,7 +3,7 @@
  *
  * 把 `imgs/store-creatives/<name>-<W>x<H>.svg` 栅格化为 `assets/cws-store/<name>-<W>x<H>.png`，
  * 供 Chrome 应用商店的宣传图（marquee 1400×560）与小推广图（440×280）使用，
- * 尺寸口径见 `docs/CWS_FILL_CONTENT.md`「第三步：图形资产」。
+ * 尺寸口径见 `docs/store/CWS_FILL_CONTENT.md`「第三步：图形资产」。
  *
  * 约定：
  * - 尺寸写进文件名：脚本按文件名声明的宽高校验 SVG 画布，不一致直接报错——

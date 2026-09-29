@@ -3,7 +3,7 @@
  *
  * 目的：把「与条目数 N 相关、但分页/虚拟滚动完全治不到」的那部分成本量化——
  * 即加解密、整包 JSON 序列化、storage.session 加密快照读写、Base64 助手。
- * 渲染层成本另见 docs/PERF_LARGE_VAULT_EVALUATION.md 第三节与第九节。
+ * 渲染层成本另见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md 第三节与第九节。
  *
  * 运行：`pnpm exec vitest bench benchmarks/data-layer.bench.ts --run`
  * 输出：终端摘要（stderr）+ `benchmarks/results/data-layer.json`
@@ -27,7 +27,7 @@
  *    - 变体 A（字段级并行）与变体 B（整条目一次 AES）：**未落地**。前者实测无收益已被否决，
  *      后者属 at-rest 密文格式改造（C1），需单独拍板。
  *    - 键分片（E1）不在本文件口径内：它是 IO 侧成本，由真机探针 `benchmarks/measure-storage-io.mjs` 测量，
- *      设计见 `docs/PERF_E1_KEY_SHARDING_DESIGN.md`。
+ *      设计见 `docs/reports/PERF_E1_KEY_SHARDING_DESIGN.md`。
  */
 import { afterAll, bench, describe, vi } from 'vitest';
 import { writeFileSync } from 'node:fs';

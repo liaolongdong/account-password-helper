@@ -151,7 +151,7 @@ export async function deriveEncryptionKey(masterPassword: string): Promise<strin
  * （N 条 × ≤5 字段），故这里的常数直接乘进全库解密耗时。
  * 实测（同一次迭代内配对）：1 MB 解码 170～545 ms → 5～7 ms；
  * 3 万次小字段 170～325 ms → 10～17 ms。口径见
- * `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.4 与第九节。
+ * `docs/reports/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.4 与第九节。
  *
  * 非法 Base64 由 `atob` 抛 `InvalidCharacterError` 向上传播，调用方维持原有归类。
  *
