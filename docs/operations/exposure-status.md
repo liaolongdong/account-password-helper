@@ -29,6 +29,39 @@
 | 文档事实审计（2026-09-09）     | README / ARCHITECTURE / CONTRIBUTING / THIRD-PARTY-NOTICES / CWS 两份 / 博客 4 篇的中英文均已按源码逐项校正；残留的代码侧错误口径见本文「🟡 需你决策」末节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 测试基线（2026-09-28 复跑）    | `pnpm test:run` → **167 个测试文件 / 1941 个用例全部通过，exit 0**。本表上一行的 114 / 1292（2026-09-22）与该行原有的 142 / 1563（2026-09-25）都是当时的快照，保留作记录；对外表面已于 2026-09-27 统一改标 **1941 项 / 167 文件**（README ×2、`llms.txt`、`index.html` 数据带 + JSON-LD `dateModified`、`en.html`、`product-site/index.html`、`docs/blog/**` 10 篇与 `blog/*.html` 12 页、封面 04/05 的 SVG 与 PNG、公众号 / 微博文案），`sitemap.xml` 12 条 `lastmod` 随博客 `modified` 同步；仍是易漂移字段，发布前按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复跑再刷新。**同日「落地页体验波次」复跑实测 167 / 1953**（+12 全在 `tests/docs/landingFaqDom.test.ts`，50 → 62 例），对外 21 个手工维护文件已于 2026-09-28 统一刷到 1953 / 167                                                                                                                                                                                                                                                                                                                                                                       |
 
+## 🆕 2026-09-29 搬家路径写进对外表面（本轮，已提交未推送）
+
+用户先问「有必要做接入飞书、腾讯文档之类的 API 同步到云文档吗？」，结论是**不做**，随后授权按推荐方案执行。落地的判断是**把已有路径讲清楚，而不是再造一条路径**：本轮只动文案，不动功能、交互、默认值、存储结构、权限，也不动任何隐私主张。
+
+- **不接云文档 API 的三条硬理由**：飞书 / 腾讯文档的开放接口要求预注册应用并以 `app_secret` 在服务端换 token，接进来等于必须自建一台 `README` 与 `privacy.html` 明确否认存在的服务器；云文档要的是可读内容，而 `.aph` 的价值恰恰是它不可读；商店 3.8.0 刚因 keyword stuffing 被拒，描述里新增「同步」类词要重走审核。而 `.aph` + 任意网盘这条路已经覆盖了所有想跨设备同步的用户，且不引入需要长期维护的第三方接口。
+- **落地页 FAQ**：`FAQS` 新增「换浏览器或换电脑，密码怎么搬过去？」（数据管理组，第 42 条可见问答），并加进 `scripts/lib/faq-schema.mjs` 白名单（进入 JSON-LD 的由 18 → **19** 条）。三链 `pnpm gen:faq && pnpm gen:faq-dom && pnpm gen:en` 重跑，右栏「数据管理」计数 10 → 11，中英两页各 42 条问答 / 4 个分类 / 19 个 `Question`。
+- **使用场景表**：`useCases.r9.how` 中英文重写，把「随身携带」这句空话换成三个具体事实——丢进任意网盘或 U 盘、新机器填的是**导出时**的主密码、本机主密码不必相同。
+- **README 中英**：新增 `### 换电脑 / 换浏览器搬家`（两份都在第 **239** 行，位置与篇幅 1:1），插在「四步上手」与「快捷键速查」之间：4 步流程 + 「随 `.aph` 走 / 有独立出口 / 不随备份走」三条清单 + 一段 `> ⚠️`（追加不合并、共用 2000 条上限、运行环境以桌面 Chrome / Edge 为准、核对条目数之前别丢 `.aph`）。
+- **`llms.txt`**：FAQ 段新增同名 Q&A，机器可读层与页面同源。
+
+### 事实口径（逐条读代码核对，不是照抄口述）
+
+- 容器为 `salt(16) ‖ IV(12) ‖ AES-256-GCM`，PBKDF2-SHA256 600,000 轮，`BACKUP_VERSION = 1`，文件名 `backup_YYYYMMDD_HHmmss.aph`；下载前把刚产出的容器原样解回做 round-trip 自检，通过才 `markVerifiedBackupAt()`，管理页 `HeaderBar` 的「最近验证备份 / Verified backup」就是它（「从未导出 / Never」是同一行的空态）——文案里「搬家前先确认这一行」由此而来。
+- `batchSavePasswords` 经 `resolveDataKey()` 取**当前会话密钥**逐字段重加密落盘 ⇒「新机器主密码可以不同」成立；导入对话框的占位文案本就是「请输入导出时使用的主密码」。
+- 导入是追加而非合并、不做去重，与新增和网页自动保存共用 2000 条上限，额度不足时由用户选「只导入前若干条」或取消。
+- `BackupData.entries` 恰为 9 字段（`id` / `order` 被剥掉）；`BACKUP_KEYS` 不含 SETTINGS / SORT_CONFIG / VAULT_PAGE_SIZE / 各类 `*_CONFIG` / LOCALE / TRASH / PASSWORD_HISTORY / IDENTITY / PASSWORD_REMINDERS / DOMAIN_MATCH ⇒「不随备份走」清单逐条对得上。`.aphid`（`utils/identity/backup.ts`）与站点规则明文 JSON 各有独立出口，回收站与密码修改历史确实没有导出入口。
+- **评审按实现收了两处过强表述**：`removeDuplicates` 是「username + url 分组、收藏优先、一组内多把收藏取 `updateTime` 最新」，并非「已收藏条目不会被删除」——README 中英两份据此改写；`authorisation` 统一为仓内既有美式拼写（对照 `customize` / `organized`）。
+
+### 刻意没做
+
+- `docs/store/CWS_FILL_CONTENT.md` 六个粘贴块一字未动（Name 与摘要已顶格，商店说明的「常见问题」是另一套文本）；`index.html` 的 `dateModified` 与 `sitemap.xml` 的 `lastmod` 未刷（既有口径是年月一致即可，本轮仍属 2026-09）；`privacy.html`、`compare*.html`、博客未动——没有新增任何联网能力，隐私叙述无需改。
+- 没有新增「零联网 / 数据不出浏览器 / 100% offline」这类绝对化说法，也没有削弱「密码数据不出本机」；新文案只描述既有的本地加密文件与用户自己的中转选择（商店「备份到邮箱」本就是 `mailto` 唤起邮件客户端，且明文 CSV 有专门的风险确认）。
+- 写死的条数散文一并清掉，避免下次增删一条问答就留下陈旧句：`tests/docs/landingFaqDom.test.ts` 文件头第 3 条去「41 条」；`index.html` / `en.html` 的折叠态注释与「分类直达右栏」注释改为不带当前条数的说法（高度读数标注为「2026-09-27 按当时 41 条、1440 宽实测 3658px」）；`scripts/build-faq-dom.mjs` 头部「含进入 JSON-LD 的那 18 条」改为指向白名单文件。**数量锚点仍刻意写死为 42**——`toBe(page.faqs.length)` 只保证生成区与 `FAQS` 同步，两处一起丢条目时它照样绿，锚点负责让「少了一条」在场外被看见。
+
+### 验证
+
+- **生成链零漂移**：三链重跑后 `index.html` / `en.html` 的 md5 与重跑前一致；`.faq-check.mjs` 临时自检器（校验后已删）报 19 条 JSON-LD / 42 条可见问答 / i18n 覆盖 229 + 15 全中。
+- **门禁**：`pnpm typecheck` exit 0；`pnpm exec prettier --check` 对 8 个改动文件（含 `index.html` / `en.html`）全绿，`llms.txt` 无 parser 按既有口径除外；`pnpm exec vitest run tests/docs/` → 4 文件 / **88 例全绿**；`pnpm test:run` → **167 文件 / 1953 用例全绿，exit 0**（本轮零新增用例，只把锚点从 41 抬到 42，对外基线数字无需刷新）。
+- **真 Chrome 三态（中英各一遍）**：`html.js` 在位时新问答收起 `max-height 0px` / 不参与阅读；摘掉 `js` 类后 `max-height none`、`overflow visible`、**opacity 1**，整段答案可读；点击展开 zh 390 宽 **685px**、en 390 宽 **1144px**，`clientHeight == scrollHeight`（未被任何上限裁掉），尾句完整。
+- **窄屏与宽屏无溢出**：390×844 与 1440×900 下 `documentElement.scrollWidth == innerWidth`（唯一越界元素是既有的装饰性 `.flow-packet`，负偏移不产生横向滚动；对照表与场景表在 `overflow-x: auto` 容器内）。`.faq-a-inner` 中英两页 `scrollWidth == clientWidth`，长令牌（`AES-256-GCM` / `600,000` / `.aphid`）不撑破 340px 窄列。右栏 `.faq-toc` 那 8px 是 `<a>` 的 `margin: 0 -8px` 点击区外扩，四条分类读数完全相同，非本轮引入。
+- **动效与降级**：新问答的祖先链（`.faq-item → .faq-list → .container.faq-wrap → section`）不挂任何 `.reveal`，四层 `opacity` 恒为 1，因此 `prefers-reduced-motion` 与 IntersectionObserver 缺失两条路径都无新的隐形初始态；全页滚动后视口内未揭示的 `.reveal` 计数为 0。
+- **控制台**：中英两页整页滚动后 `list_console_messages` 为空。
+
 ## 🆕 2026-09-28 文档归类：`docs/` 分层 + 两类本地内容停止入库（已提交于 `docs-structure` 分支，未推送）
 
 用户口径「把不需要放到项目根目录的文档内容新加文件夹进行归类，还有一些本地以及非 SEO 运营相关的内容加入 git 忽略规则」，四问拍板后执行：**完整归类**（`docs/` 下建 `store/` `reports/` `operations/` `media/` `fixtures/` 五个目录）、内部评估报告**保持跟踪只搬位置**、忽略规则**只加两条**、**补一份文档导航**。

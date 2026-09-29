@@ -62,6 +62,9 @@ Nothing is lost and nothing needs re-encrypting — the vault is ciphertext at r
 **Can I import from other password managers?**
 Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password export formats, with Chinese/English column-name mapping. Typical migration takes about 30 seconds.
 
+**How do I move my vault to another browser or computer?**
+One encrypted backup file does it. Export "Data Management → Export Encrypted Backup" on the source machine and carry the resulting `.aph` anywhere — a cloud drive, a USB stick, an email to yourself. The file is browser-agnostic and opaque to whoever hosts it (salt + IV + AES-256-GCM ciphertext, key derived from the master password through 600,000 PBKDF2 rounds), which is exactly why this product ships no sync service and asks for no third-party authorization. On the new machine: install the extension, set a master password (it does not have to match the old one), then "Import Encrypted Backup" with the master password used at export — entries are re-encrypted field by field with that machine's key. The import appends rather than merges and shares the 2,000-entry cap, so an empty vault is the cleanest target. Only the nine vault fields travel in the `.aph`: the identity vault has its own `.aphid` export, site rules their own plain JSON export, while preferences, security settings, per-entry reminders, Trash and password history do not move.
+
 **Can one account serve a whole subdomain family?**
 Yes, on request. The default tier matches hosts exactly; "exact + wildcard entries" admits entries saved as `*.qq.com` on every subdomain of that site, and "same main domain" adds the apex and sibling subdomains as a fallback, badged as cross-subdomain. Widening is display-and-fill only: the auto-save duplicate rule is deliberately tier-independent, so a wider tier never changes which entry a save overwrites, and `localhost` / `127.0.0.1` stay separated by port.
 

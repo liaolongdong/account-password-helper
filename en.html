@@ -336,6 +336,14 @@
           },
           {
             "@type": "Question",
+            "name": "How do I move my passwords to another browser or computer?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "One encrypted backup carries the whole vault. On the source browser, open the manager page and use \"Data Management → Export Encrypted Backup\"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use \"Import Encrypted Backup\", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with \"Remove Duplicates\". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the identity vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine."
+            }
+          },
+          {
+            "@type": "Question",
             "name": "How do I enable auto-save?",
             "acceptedAnswer": {
               "@type": "Answer",
@@ -1176,7 +1184,7 @@
         color: white;
       }
       /* 折叠态只挂在 html.js 下：FAQ 答案是构建期注入的静态 DOM（见 #faqList 生成区），
-         JS 缺席或门控保险回退时这里不生效，41 条答案全部展开可读；
+         JS 缺席或门控保险回退时这里不生效，全部答案展开可读；
          收起 / 展开的高度动画只在 JS 正常工作时存在，与 .faq-a-inner 的淡入同一档位。 */
       html.js .faq-a {
         max-height: 0;
@@ -1761,7 +1769,8 @@
       }
 
       /* ============ FAQ 分类直达右栏 ============ */
-      /* 41 条问答收起时就有约 3700px 高（1440 宽实测 3658px），滚动时没有任何「读到哪一节」的
+      /* 问答收起时就有约 3.7k px 高（2026-09-27 按当时 41 条、1440 宽实测 3658px，条数还会随
+         增删浮动，这里只留当时的量法与读数），滚动时没有任何「读到哪一节」的
          信号；而本节容器内宽 1152、问答列 820，左右各空着 166px——问答列自己已经是可读行长，
          再拉宽只会更难读。所以把容器拆成两栏：左列维持问答（820px 那道封顶不参与，
          两栏下它只有 792px），右栏放「分类直达」，空白变成了导航。
@@ -4720,7 +4729,7 @@
                   scope="row"
                   data-i18n="useCases.r9.scene"
                 >A new machine or a reinstalled OS</th>
-                <td data-i18n-html="useCases.r9.how">Export an <code>.aph</code> encrypted backup and carry it along; on import it decrypts to a preview before you confirm.</td>
+                <td data-i18n-html="useCases.r9.how">Export a <code>.aph</code> backup and take it along in any cloud drive or on a USB stick; on the new machine import it with the master password used at export — the local one does not have to match.</td>
                 <td data-i18n="useCases.r9.where">"Data management" on the manager page</td>
               </tr>
               <tr>
@@ -5246,6 +5255,10 @@ pnpm lint:style  # Stylelint</code></pre>
             <div class="faq-a"><div class="faq-a-inner">Under "Data Management", "Encrypted Backup Export" encrypts all data with your master password into an .aph file. "Encrypted Backup Import" decrypts an uploaded .aph with the original master password, previews the first 5 entries, then imports on confirmation. The scheme is PBKDF2 + AES-256-GCM.</div></div>
           </div>
           <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>How do I move my passwords to another browser or computer?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">One encrypted backup carries the whole vault. On the source browser, open the manager page and use "Data Management → Export Encrypted Backup"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use "Import Encrypted Backup", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with "Remove Duplicates". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the identity vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine.</div></div>
+          </div>
+          <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>Is there a limit on how many entries I can store?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
             <div class="faq-a"><div class="faq-a-inner">Yes — the password list holds up to 2,000 entries, counted on the list itself; entries in the Trash do not take a slot. Once it is full, adding, importing, page auto-save and restoring from Trash are refused with an explicit message, and stored data is never silently overwritten or dropped. If an import exceeds the remaining slots, the preview tells you how many entries still fit and how many will be ignored, and you choose to import those or cancel. To make room, delete entries you no longer need from the password list — an entry releases its slot the moment it moves to the Trash, so emptying the Trash is not required — or keep a full copy via "Export Data" / "Export JSON" / "Export Encrypted Backup" and then trim the list.</div></div>
           </div>
@@ -5321,7 +5334,7 @@ pnpm lint:style  # Stylelint</code></pre>
             <ol class="faq-toc" id="faqToc">
               <li><a href="#faq-cat-security"><span class="faq-toc-name">Security &amp; Privacy</span><span class="faq-toc-n">7</span></a></li>
               <li><a href="#faq-cat-basic"><span class="faq-toc-name">Basics</span><span class="faq-toc-n">10</span></a></li>
-              <li><a href="#faq-cat-data"><span class="faq-toc-name">Data Management</span><span class="faq-toc-n">10</span></a></li>
+              <li><a href="#faq-cat-data"><span class="faq-toc-name">Data Management</span><span class="faq-toc-n">11</span></a></li>
               <li><a href="#faq-cat-config"><span class="faq-toc-name">Advanced</span><span class="faq-toc-n">14</span></a></li>
             </ol>
           </nav>
@@ -5942,8 +5955,8 @@ pnpm lint:style  # Stylelint</code></pre>
         'useCases.r8.where': { zh: '管理页「导入数据」', en: '"Import data" on the manager page' },
         'useCases.r9.scene': { zh: '换电脑或重装系统', en: 'A new machine or a reinstalled OS' },
         'useCases.r9.how': {
-          zh: '导出 <code>.aph</code> 加密备份随身携带，导入时先解密预览再确认。',
-          en: 'Export an <code>.aph</code> encrypted backup and carry it along; on import it decrypts to a preview before you confirm.',
+          zh: '导出 <code>.aph</code> 加密备份，丢进任意网盘或 U 盘带走；新机器装好扩展后导入，填的是导出时的主密码，本机主密码不必相同。',
+          en: 'Export a <code>.aph</code> backup and take it along in any cloud drive or on a USB stick; on the new machine import it with the master password used at export — the local one does not have to match.',
         },
         'useCases.r9.where': { zh: '管理页「数据管理」', en: '"Data management" on the manager page' },
         'useCases.r10.scene': { zh: '不想为每个站点想密码', en: 'Not inventing a password per site' },
@@ -6568,6 +6581,16 @@ pnpm lint:style  # Stylelint</code></pre>
           a: {
             zh: '在密码管理页「数据管理」中，「加密备份导出」会用主密码将所有密码数据加密为 .aph 文件下载。「加密备份导入」上传 .aph 文件后输入导出时使用的主密码解密，解密成功可预览数据（前 5 条）再确认导入。加密方案为 PBKDF2 + AES-256-GCM，安全性极高。',
             en: 'Under "Data Management", "Encrypted Backup Export" encrypts all data with your master password into an .aph file. "Encrypted Backup Import" decrypts an uploaded .aph with the original master password, previews the first 5 entries, then imports on confirmation. The scheme is PBKDF2 + AES-256-GCM.',
+          },
+        },
+        {
+          q: {
+            zh: '换浏览器或换电脑，密码怎么搬过去？',
+            en: 'How do I move my passwords to another browser or computer?',
+          },
+          a: {
+            zh: '一份加密备份就能把账号库整个搬走。源浏览器在管理页「数据管理 → 加密备份导出」验证主密码，产出一个 .aph 文件；这份文件不认浏览器，丢进任意网盘、拷进 U 盘或当邮件附件发给自己都行——网盘那边收到的只是一个不透明的二进制容器（salt + IV + AES-256-GCM 密文，密钥由主密码经 60 万轮 PBKDF2 派生），没有这把主密码谁也解不开，所以搬家不需要同步服务，也不需要给任何第三方授权。新浏览器这边：装同一款扩展，先设一个主密码（不必和原来相同），再用「加密备份导入」上传 .aph 并输入「导出时使用的主密码」，解密成功先预览、确认后才写入，条目会按这台机器自己的密钥逐字段重新加密落盘。两处要留意：一是导入是追加而非合并，不做去重，且与新增、网页自动保存共用 2000 条上限，额度不够时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据事后用「一键去重」清理即可；二是备份只承载账号库的九个字段（账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏），身份信息库要单独导 .aphid，站点规则要单独导明文 JSON，而偏好与安全设置、按条目的改密提醒、回收站和密码修改历史不随备份走，需在新机器重新设置。',
+            en: 'One encrypted backup carries the whole vault. On the source browser, open the manager page and use "Data Management → Export Encrypted Backup"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use "Import Encrypted Backup", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with "Remove Duplicates". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the identity vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine.',
           },
         },
 
