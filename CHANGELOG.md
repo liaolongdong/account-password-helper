@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.13.1](https://github.com/liaolongdong/account-password-helper/compare/v3.13.0...v3.13.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **options:** 操作列提示浮层对指针透明，紧凑行距下不再吃掉上一行的点击 ([46d1482](https://github.com/liaolongdong/account-password-helper/commit/46d14822aa05d1e30fcf38b5a5696b0768629e5a))
+* **options:** 操作列提示的浮层对指针透明，紧凑行距下不再吃掉上一行的点击 ([93c58c5](https://github.com/liaolongdong/account-password-helper/commit/93c58c5dd97ecc3dc1b82a5433f54bd0fc6a2744))
+
 ## [3.13.0](https://github.com/liaolongdong/account-password-helper/compare/v3.12.0...v3.13.0) (2026-09-28)
 
 
