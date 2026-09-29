@@ -395,14 +395,22 @@ export const allRows = (page: Page) => page.locator('tr.el-table__row');
 /**
  * 当前可见的 tooltip 浮层文案列表
  *
- * 判据用 `offsetParent`：`persistent` 默认 false，浮层关闭后节点会从 DOM 移除，
- * 因此「有一条可见」几乎等价于「有一个未销毁的浮层节点」。
+ * 判据只认「盒模型 + 计算样式」，不认 `offsetParent`：表格截断浮层走
+ * `createTablePopper`，其 `strategy` 被 Element Plus 写死为 `fixed`，而
+ * `position: fixed` 的元素 `offsetParent` 恒为 `null`——用旧判据量它，会把一条
+ * 明明展开在屏幕上的浮层读成「不可见」，`parkPointer` 之类「等退场」的断言因此
+ * 变成永远绿的空跑。改后的三条同样够严格：`persistent` 默认 false，浮层关闭后
+ * 节点会从 DOM 移除；未展开时 EP 给 `display: none`；淡出过程中尺寸不会归零。
  * 只认 `role="tooltip"`：el-select / el-dropdown 也复用 `.el-popper`，不加区分会把别的浮层算进来。
  */
 export const visibleTooltipTexts = (page: Page): Promise<string[]> =>
   page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>('.el-popper[role="tooltip"]')]
-      .filter(el => el.offsetParent !== null)
+      .filter(el => {
+        const style = getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      })
       .map(el => (el.textContent ?? '').trim()),
   );
 
