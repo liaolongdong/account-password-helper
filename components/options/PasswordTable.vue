@@ -290,8 +290,11 @@
       mouseenter 绑到它身上（虚拟触发点是在 mouseenter **之后**才改写的，那一帧不会再触发），
       这 400 毫秒由 operationTip 排程器持有；而再次悬停同一颗按钮时 EP 自己那份监听器会生效，
       两条路径必须落在同一个延迟上，否则二次悬停变成即时弹出（EP 的 open 又拿不到新文案）。
-      hide-after 显式写死 200 毫秒，与逐行实例的默认值一致（含移入浮层保持显示的 enterable 行为）。
+      hide-after 显式写死 200 毫秒，与逐行实例的默认值一致。
       transition 绑定见 operationTipTransition：只有一条路径需要跳过淡出。
+      popper-style 绑定见 OPERATION_TIP_POPPER_STYLE：浮层对指针透明，代价是原先
+      「移入浮层保持显示」的 enterable 不再可达——那份行为正是紧凑行距下浮层吃掉
+      上一行点击的成因，而提示只是按钮文案的复述，没有需要移进去点或选中的内容。
     -->
     <el-tooltip
       ref="operationTipRef"
@@ -299,6 +302,7 @@
       :virtual-ref="operationTipTriggerEl"
       :content="operationTipContent"
       :transition="operationTipTransition"
+      :popper-style="OPERATION_TIP_POPPER_STYLE"
       placement="top"
       :show-after="400"
       :hide-after="200"
@@ -410,6 +414,24 @@ const tagRecordsOf = (row: PasswordEntry): readonly TagPresentationRecord[] => b
  */
 const TAG_TOOLTIP_POPPER_STYLE = Object.freeze({ maxWidth: '500px', wordBreak: 'break-word' }) as const;
 
+/**
+ * 操作列提示的 popper 样式：让浮层不参与指针命中。
+ *
+ * `placement="top"` 决定了浮层压在上一行的操作按钮那一侧，行距越紧重叠越多。真机实测（Chrome for
+ * Testing，两条条目）：行距 61 像素时浮层压住那颗 28 像素高的按钮 11 像素，按钮中心仍归按钮自己，
+ * 所以本机看不出问题；把单元格内边距压掉、行距降到 45 像素（runner 的 ≈42 像素是同一档）时压住 27
+ * 像素，`elementFromPoint(按钮中心)` 返回的就是浮层里的节点——那颗按钮再也收不到指针事件。
+ * Element Plus 的浮层默认 `enterable`（可移入且保持显示），于是它接走本应落在那颗按钮上的点击——
+ * 真机表现为「指针明明停在按钮上，点了没反应」，CI 侧则是 Playwright 判定
+ * 「subtree intercepts pointer events」后反复重试到超时（根因记录见 `e2e/README.md`「复跑稳定性」）。
+ * 提示内容只是按钮文案的复述，没有可点、可选中、可滚动的部分，因此让它对指针透明：
+ * 这样「浮层永不截走点击」就与行距、与 `hide-after` 和淡出时序都无关，成为一条恒成立的性质。
+ *
+ * 对象身份必须稳定（同 `TAG_TOOLTIP_POPPER_STYLE`）：模板里现造对象会让整表每次渲染都把这个
+ * 实例判定为需要更新（守卫见 `tests/architecture/optionsRenderIdentity.test.ts`）。
+ */
+const OPERATION_TIP_POPPER_STYLE = Object.freeze({ pointerEvents: 'none' }) as const;
+
 /** 表格引用（只经由文件末尾 `defineExpose` 的两个意图方法对外使用） */
 const localTableRef = ref();
 
@@ -417,7 +439,7 @@ const localTableRef = ref();
  * 共享 tooltip 实例的最小方法集（`el-tooltip` 的暴露面，只声明本组件用到的两个）
  *
  * `onOpen` / `onClose` 是 Element Plus 的延迟开/关：二者共用实例内的同一个计时器槽位，
- * 因此「回到同一元素取消隐藏」「移入浮层保持显示」都由它自己完成，本组件不再插手隐藏时序。
+ * 因此「回到同一元素取消隐藏」由它自己完成，本组件不再插手隐藏时序。
  */
 interface SharedTooltipInstance {
   /** `delay` 缺省取实例的 `show-after`（400 毫秒），本组件到点打开时显式传 0 */
@@ -425,7 +447,8 @@ interface SharedTooltipInstance {
   onClose: (event?: MouseEvent, delay?: number) => void;
   /**
    * 立即关闭，不等 `hide-after`（触发元素已从文档上消失时用它，与逐行实例随节点卸载即消失对齐）。
-   * 注意它只跳过 `hide-after` 的等待，浮层本身仍会淡出 300 毫秒，故需配合 `operationTipTransition`。
+   * 注意它只跳过 `hide-after` 的等待，浮层本身仍要走完 `el-fade-in-linear` 的 200 毫秒淡出
+   * （实测 `--el-transition-duration-fast` = `.2s`），故需配合 `operationTipTransition`。
    */
   hide: () => void;
 }
@@ -435,14 +458,19 @@ const operationTipRef = ref<SharedTooltipInstance | null>(null);
 
 /**
  * 跳过淡出时用的过渡名：仓库里没有对应的 CSS 类，Vue 的 `<Transition>` 在 leave 起始
- * 就取不到过渡类型，于是同帧把浮层摘掉（`whenTransitionEnds` 里 `!type` 直接 resolve）。
+ * 就取不到过渡类型，于是退场不再等动画（`whenTransitionEnds` 里 `!type` 直接 resolve）。
+ * 说清楚精度：这条路径摘掉浮层要跨**两帧**——`leave()` 里的双 `requestAnimationFrame`
+ * 之后才 `done()`。真机逐帧实测（Chrome for Testing，两条条目）：击键后 ≈214 毫秒行消失、
+ * 同一帧切档并清空文案，≈244 毫秒浮层才从 DOM 摘掉，中间 ≈30 毫秒它「可见且为空」。
+ * 观感与逐行实例时代一致，但**不是字面意义上的同帧**（e2e 的退场断言因此只看状态不看帧）。
  */
 const TOOLTIP_NO_FADE = 'aph-tooltip-no-fade';
 
 /**
- * 浮层的淡出过渡名，`undefined` 即 Element Plus 默认的 `el-fade-in-linear`（300 毫秒淡出）。
- * 只有「触发元素被整表重渲染移除」那一条路径会临时切成 `TOOLTIP_NO_FADE`：该路径同时清空了文案，
- * 若照常淡出就会有一个空气泡在原位悬 300 毫秒，而逐行实例时代的观感是浮层随节点同帧消失。
+ * 浮层的淡出过渡名，`undefined` 即 Element Plus 默认的 `el-fade-in-linear`（实测 200 毫秒淡出，
+ * 取自 `--el-transition-duration-fast: .2s`）。只有「触发元素被整表重渲染移除」那一条路径会临时
+ * 切成 `TOOLTIP_NO_FADE`：该路径同帧清空了文案，若照常淡出就会有一个空气泡在原位悬 200 毫秒，
+ * 而逐行实例时代的观感是浮层随节点卸载即消失。
  */
 const operationTipTransition = ref<string>();
 
@@ -454,7 +482,7 @@ const operationTipTransition = ref<string>();
  * EP 绑在新元素上的 `mouseenter` 这一帧不会再触发），所以那一次的 400 毫秒延迟由这里计时；
  * 再次悬停同一颗按钮时 EP 自己那份监听器已经在了，走它的 `show-after`——两个值必须相同，
  * 且到点开时必须显式传 `delay = 0`，否则"再划回同一颗按钮"会变成即时弹出 + 旧文案。
- * 关闭与 enterable 仍交给 EP。
+ * 关闭时序仍交给 EP；浮层的指针行为见 `OPERATION_TIP_POPPER_STYLE`。
  */
 const {
   triggerEl: operationTipTriggerEl,
@@ -517,11 +545,12 @@ onBeforeUpdate(() => {
  *
  * 逐行实例时代这些情形由实例随 `row` 一起卸载、浮层同帧消失；共享实例只剩
  * `onBeforeUpdate` 那条 200 毫秒的延迟关，而元素已卸载后它的 `mouseleave` 永远不会再来，
- * 于是浮层会原地悬停 200 毫秒。这里用 `hide()` 对齐"同帧消失"，同时释放对已脱离文档
+ * 于是浮层会原地悬停 200 毫秒。这里用 `hide()` 对齐"浮层随行卸载即消失"的观感（实测跨两帧，
+ * 精度见 `TOOLTIP_NO_FADE`），同时释放对已脱离文档
  * 节点的引用（`triggerEl` 只在下次悬停时才会被改写）。
  *
- * `hide()` 之前先把过渡名切到无淡出档：清空文案后若照常淡出，原位会悬着一个空气泡 300 毫秒，
- * 比逐行实例时代多出一段可见残留（真机由 e2e/operation-tooltip.spec.ts 钉住）。
+ * `hide()` 之前先把过渡名切到无淡出档：清空文案后若照常淡出，原位会悬着一个空气泡 200 毫秒，
+ * 比逐行实例时代多出一段可见残留（真机由 e2e/operation-tooltip.spec.ts 钉住退场状态）。
  */
 onUpdated(() => {
   const trigger = operationTipTriggerEl.value;

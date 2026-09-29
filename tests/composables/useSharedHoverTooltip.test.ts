@@ -5,8 +5,8 @@
  *
  * 背景：管理页操作列原本每行创建 5 个 `el-tooltip` 实例（600 行 = 3000 个组件实例），
  * 实测占掉整表挂载耗时的四成（`docs/PERF_LARGE_VAULT_EVALUATION.md` 9.9）。
- * 改造后全表只有一个 `virtual-triggering` 的 tooltip 实例，隐藏与 `enterable` 仍由
- * Element Plus 自己负责（它的计时器在实例内部，逐字沿用原行为），本模块只补上
+ * 改造后全表只有一个 `virtual-triggering` 的 tooltip 实例，隐藏时序与 `aria-describedby`
+ * 仍由 Element Plus 自己负责（它的计时器在实例内部，逐字沿用原行为），本模块只补上
  * Element Plus 无法自己做的一件事：**把「悬停哪个元素」换成了 mouseenter 之后才设定的
  * 虚拟触发点，所以 400 毫秒的显示延迟必须由调用方计时**。
  *

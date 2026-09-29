@@ -8,12 +8,12 @@ import { textOf } from './i18n';
  * 性能背景：操作列原本每行创建 5 个 `el-tooltip` 实例，600 行 = 3000 个组件实例，
  * 实测占掉整表挂载耗时的四成（`docs/PERF_LARGE_VAULT_EVALUATION.md` 9.9）。
  * 现在全表共享一个 `virtual-triggering` 实例：显示延迟（400 毫秒）搬到
- * `useSharedHoverTooltip`，隐藏（200 毫秒）、`enterable` 与 `aria-describedby` 留给
- * Element Plus——**一条交互被拆到两处实现，正是最容易把它改坏的形状**，
- * 所以这里按「用户能感知到的每一条时序」逐条钉住，而不是只断言"提示出现过"。
+ * `useSharedHoverTooltip`，隐藏（200 毫秒）与 `aria-describedby` 留给 Element Plus，
+ * 而浮层对指针透明是由实例上的 popper 样式决定的——**一条交互被拆到三处实现，正是最容易把它
+ * 改坏的形状**，所以这里按「用户能感知到的每一条时序」逐条钉住，而不是只断言"提示出现过"。
  *
- * 单测覆盖不了这些：`aria-describedby` 的挂与摘、浮层实际锚定位置、移入浮层保持显示、
- * 重渲染时的兜底关闭，全都发生在真实 DOM 与真实定时器里。
+ * 单测覆盖不了这些：`aria-describedby` 的挂与摘、浮层实际锚定位置、浮层会不会吃掉它下面
+ * 那颗按钮的点击、重渲染时的兜底关闭，全都发生在真实 DOM 与真实定时器里。
  */
 
 /** 合成条目：只用于产生行，密码不对应任何真实凭据 */
@@ -48,6 +48,53 @@ const tooltipIsGone = (page: Page) =>
 
 /** 取某条条目行内的操作按钮（只有它们带 data-tip） */
 const operationButtons = (page: Page, username: string) => rowOf(page, username).locator('button[data-tip]');
+
+/**
+ * 从「浮层还在」到「一条不剩」的退场过程，页面内单次测量
+ *
+ * 三条判据全部只看**状态**、不看时长：这条快路径的摘除实测只跨两帧（击键后 ≈214 毫秒行消失并
+ * 切档、≈244 毫秒摘掉，中间 ≈30 毫秒），任何"我这一刻看没看见它"的断言都是在跟这两帧赛跑——
+ * 本机 3/3 绿、全量套件第 18 条却输过一次。必须在页面里一次测完：跨进程逐次采样会把
+ * CDP 往返算进时长。选择器与 `visibleTooltipTexts` 同源。
+ *
+ * - `leftoverTexts`：首次采样时仍带文案的浮层。清空文案与切档、关闭在同一次 `onUpdated` 里，
+ *   还看得见旧文案就意味着这条路径根本没走（或被换成延迟关）。
+ * - `notLeaving`：首次采样时可见、但**没带上 Vue 的 `*-leave-active` 类**的浮层。带上它才说明
+ *   `hide()` 真的被调用了；只剩 `onBeforeUpdate` 那条 200 毫秒延迟关时，这一条在首次采样时仍
+ *   停在"开着"的状态（实测稳定态类名只有 `is-dark el-tooltip`）。
+ * - `animatingDurations`：其中还挂着过渡时长（`transition-duration !== 0s`）的那些。无淡出档
+ *   没切上时这里是 `["0.2s"]`——EP 的 `el-fade-in-linear` 取 `--el-transition-duration-fast`
+ *   = 0.2 秒（实测值；注释与文档里此前写的 300 毫秒是错的）。
+ * - `goneInMs`：首次采样到「全部不可见」的毫秒数；350 毫秒内没退场则为 `null`。
+ *   这个上限不是判据（判据是上面三条状态），而是测量窗口：无头指针停在的位置会在
+ *   行消失的那一帧被 Chrome 重新算成"下一行那颗按钮"，400 毫秒后重新悬停计时到点、下一条提示
+ *   就出现了，再往后等的量就不再是这条路径的退场时长。实测健康值 ≈30 毫秒，与 400 毫秒之间
+ *   有 13 倍余量；真·不退场（`hide()` 与兜底关都没了）同样落进 `null`。
+ */
+const measureTipExit = (
+  page: Page,
+): Promise<{ leftoverTexts: string[]; notLeaving: string[]; animatingDurations: string[]; goneInMs: number | null }> =>
+  page.evaluate(async () => {
+    const visible = () =>
+      [...document.querySelectorAll<HTMLElement>('.el-popper[role="tooltip"]')].filter(el => el.offsetParent !== null);
+    const first = visible();
+    const label = (el: HTMLElement) => `${(el.textContent ?? '').trim()}[${el.className}]`;
+    const leftoverTexts = first.map(el => (el.textContent ?? '').trim()).filter(text => text !== '');
+    const notLeaving = first.filter(el => !/-leave-active/.test(el.className)).map(label);
+    const animatingDurations = first
+      .map(el => getComputedStyle(el).transitionDuration)
+      .filter(duration => duration !== '0s');
+    const startedAt = performance.now();
+    // 上限必须短于「重新悬停」的 400 毫秒，否则等到的可能是下一条提示。
+    const ceilingMs = 350;
+    while (performance.now() - startedAt < ceilingMs) {
+      if (visible().length === 0) {
+        return { leftoverTexts, notLeaving, animatingDurations, goneInMs: Math.round(performance.now() - startedAt) };
+      }
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    return { leftoverTexts, notLeaving, animatingDurations, goneInMs: null };
+  });
 
 test.describe('操作列共享 tooltip', () => {
   test.beforeEach(async ({ optionsPage }) => {
@@ -113,18 +160,46 @@ test.describe('操作列共享 tooltip', () => {
     await expect(buttons.nth(2)).not.toHaveAttribute('aria-describedby', /.+/);
   });
 
-  test('指针移入浮层时保持显示（enterable），移出后才关', async ({ optionsPage }) => {
-    const editBtn = operationButtons(optionsPage, ENTRY_A.username).nth(2);
-    await editBtn.hover();
-    await tooltipShows(optionsPage, 'common.edit');
+  test('浮层对指针透明：盖住上一行的按钮也吃不掉那次点击', async ({ optionsPage }) => {
+    // `placement="top"` 决定了浮层落在触发按钮的上方，也就是上一行操作按钮那一侧：真机实测行距
+    // 61 像素时压住那颗 28 像素高的按钮 11 像素（按钮中心还归按钮，所以本机不复现），行距 45 像素
+    // 时压住 27 像素、`elementFromPoint(按钮中心)` 已落进浮层（runner 的 ≈42 像素是同一档）。
+    // Element Plus 的浮层默认 `enterable`（参与命中测试），于是它接走了本应落在那颗按钮上的指针事件：
+    // 真机表现为「指针明明停在按钮上，点了没反应」，CI 侧则是 Playwright 判「subtree intercepts
+    // pointer events」后在同一点重试到超时。现在浮层带 `pointer-events: none`，这条不变量
+    // 与行距、与 hide-after 和淡出时序都无关；被换掉的「移入浮层保持显示」在操作列没有可感知的
+    // 价值——提示只是那颗按钮文案的复述，里面没有可点、可选中、可滚动的内容。
+    const starA = operationButtons(optionsPage, ENTRY_A.username).nth(3);
+    const starB = operationButtons(optionsPage, ENTRY_B.username).nth(3);
+    // 哪一行在上头由排序决定，不写死：悬停下面那颗，点击上面那颗（也就是被浮层压住的那颗）
+    const boxA = (await starA.boundingBox())!;
+    const boxB = (await starB.boundingBox())!;
+    const [upper, lower] = boxA.y < boxB.y ? ([starA, starB] as const) : ([starB, starA] as const);
 
-    const popper = optionsPage.locator('.el-popper[role="tooltip"]').filter({ hasText: textOf('common.edit') });
-    const popperBox = (await popper.boundingBox())!;
-    await optionsPage.mouse.move(popperBox.x + popperBox.width / 2, popperBox.y + popperBox.height / 2);
+    await lower.hover();
+    await tooltipShows(optionsPage, 'common.favorite');
 
-    // 停留超过 hide-after：共享实例若在触发元素切换时丢掉 enterable，这里就会关掉
-    await optionsPage.waitForTimeout(900);
-    await tooltipShows(optionsPage, 'common.edit');
+    // ① 与行距无关的那颗牙：浮层最"实"的点——它自己的中心——不允许是命中测试的落点。
+    //    摘掉 popper 样式（退回可命中的 enterable 浮层）时，本地和 runner 都会在这一条红。
+    const tipId = await lower.getAttribute('aria-describedby');
+    expect(tipId, '浮层没有携带 aria-describedby，拿不到它的节点').toBeTruthy();
+    const hit = await optionsPage.evaluate((id: string) => {
+      const tip = document.getElementById(id);
+      if (!tip) return { pointerEvents: 'node-missing', hitsSelf: false };
+      const rect = tip.getBoundingClientRect();
+      const node = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+      return {
+        pointerEvents: getComputedStyle(tip).pointerEvents,
+        hitsSelf: Boolean(node) && (node === tip || tip.contains(node)),
+      };
+    }, tipId!);
+    expect(hit.pointerEvents, '浮层仍在参与指针命中').toBe('none');
+    expect(hit.hitsSelf, '浮层自己仍是命中测试的落点').toBe(false);
+
+    // ② 点击层面的等价：紧凑行距（runner）下这一击正穿过浮层，本机行距宽时它只是顺带通过，
+    //    真正的牙在 ①——那样写是为了「产品哪天把浮层挪出相邻行的范围」时本条不会反而变红。
+    await upper.click();
+    await expect(upper).toHaveAttribute('data-tip', textOf('common.unfavorite'));
 
     await parkPointer(optionsPage);
   });
@@ -208,10 +283,24 @@ test.describe('操作列共享 tooltip', () => {
     const search = optionsPage.locator('.filters input').first();
     await search.fill(ENTRY_B.username);
     await expect(rowOf(optionsPage, ENTRY_A.username)).toHaveCount(0);
-    // 整表重渲染会连带移除触发元素。逐行实例时代浮层随该行实例同帧消失；共享实例只剩
-    // `onBeforeUpdate` 那条 200 毫秒延迟关，而卸载后的元素再不会有 mouseleave——
-    // 所以这里断言"行没了的同一刻提示就没了"，只断言最终消失会把这段原地悬停放过去。
-    expect(await visibleTooltipTexts(optionsPage), '行已被移除，提示仍悬在原处').toEqual([]);
+    // 整表重渲染会连带移除触发元素，而卸载后的元素再不会有 `mouseleave`：共享实例若只剩
+    // `onBeforeUpdate` 那条 200 毫秒延迟关，提示就会原地悬停；`hide()` 又只跳过 `hide-after`，
+    // 淡出照样走完 200 毫秒，原位于是悬着一个空气泡。产品侧用「切无淡出过渡名 + `hide()` + 清文案」
+    // 三件事一起把这段压进两帧。
+    //
+    // 这里因此**不断言"行没了的同一刻看不见浮层"**：真机逐帧采样（Chrome for Testing）实测
+    // 击键后 ≈214 毫秒行消失、同一帧切档并清空文案，≈244 毫秒浮层才从 DOM 摘掉——Vue 的
+    // `<Transition>` 在 leave 起始取不到过渡类型时也是双 `requestAnimationFrame` 之后才 `done()`，
+    // 中间那 ≈30 毫秒它确实「可见且为空」。原写法是在跟这两帧赛跑：本机 3/3 绿、全量套件第 18 条
+    // 却输过一次；而这一格从本波起是硬门禁（`e2e.yml` 的 `continue-on-error` 已删），
+    // 这种量级的偶发红会堵住所有 PR。换成三条与帧调度无关的状态判据：文案必须已空（否则是延迟关
+    // 或整条路径没走）、残留的那一条必须已经带上 `*-leave-active`（否则 `hide()` 没被调用）、
+    // 且不得还挂着过渡时长（否则是淡出档，会先悬成空气泡）。最后只兜一条"终究会消失"。
+    const exit = await measureTipExit(optionsPage);
+    expect(exit.leftoverTexts, '行已被移除，提示却还带着文案悬在原处').toEqual([]);
+    expect(exit.notLeaving, '残留的浮层没处于退场状态：`hide()` 没被调用，它会原地悬着').toEqual([]);
+    expect(exit.animatingDurations, '浮层还挂着淡出：它会先在原位悬成一个空气泡再慢慢退场').toEqual([]);
+    expect(exit.goneInMs, '浮层始终没有退场').not.toBeNull();
 
     await search.fill('');
     await expect(rowOf(optionsPage, ENTRY_A.username)).toHaveCount(1);
