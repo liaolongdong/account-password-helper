@@ -25,7 +25,9 @@ import { buildFaqPageJsonLd, parseFaqEntries, selectFaqEntries } from './lib/faq
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'index.html');
 const outPath = path.join(root, 'en.html');
-// codeql[js/incomplete-hostname-regexp] -- SITE 仅作为字面量拼接进生成的 og:url / canonical 属性值，从不作为正则去匹配主机名，此处无需转义点号或尾部锚定
+// CodeQL 误报说明（js/incomplete-hostname-regexp，告警 #6 已按「false positive」dismiss）：SITE 只作为字面量
+// 拼接进生成的 og:url / canonical 属性值，从不作为正则去匹配主机名，无需转义点号或尾部锚定。这里刻意不用行内
+// 抑制注释：CodeQL 的抑制判据只覆盖整行定位的结果，本查询报列级定位，写了不生效。
 const SITE = 'https://liaolongdong.github.io/account-password-helper';
 
 const EN_KEYWORDS =
