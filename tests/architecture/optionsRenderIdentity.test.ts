@@ -95,9 +95,16 @@ describe('管理页表格的渲染期对象身份', () => {
     const schedulerShowAfter = Number(TABLE_SRC.match(/showAfter: (\d+)/)?.[1]);
     expect(epShowAfter).toBeGreaterThan(0);
     expect(schedulerShowAfter).toBe(epShowAfter);
-    // 隐藏时序与 enterable 必须留在 EP 里，不允许在 composable 内再造一套
+    // 隐藏时序必须留在 EP 里，不允许在 composable 内再造一套计时
     expect(TABLE_TPL).toContain(':hide-after="200"');
     expect(read('composables/useSharedHoverTooltip.ts')).not.toMatch(/hideAfter|hide\(/);
+    // 浮层必须对指针透明：`placement="top"` 把它压在上一行的操作按钮上，而 EP 的浮层默认
+    // `enterable`（参与命中测试），紧凑行距下那颗按钮的点击会被浮层接走（真机 CI 常红的根因）。
+    // 这条一旦被人「顺手」删掉，行为回归只在特定行距上出现，所以源码级也钉一次。
+    expect(sharedTipTpl, '共享操作提示的浮层丢了 popper 样式，会重新吃掉上一行的点击').toContain(
+      ':popper-style="OPERATION_TIP_POPPER_STYLE"',
+    );
+    expect(TABLE_SRC).toMatch(/const OPERATION_TIP_POPPER_STYLE = Object\.freeze\(\{ pointerEvents: 'none' \}\)/);
   });
 
   it('共享实例的打开动作排在重渲染之后（EP 的开与关共用一个计时器槽位）', () => {
