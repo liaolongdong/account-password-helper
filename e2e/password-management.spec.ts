@@ -7,6 +7,7 @@ import {
   expectSuccessToast,
   footerPrimary,
   leaksPlaintext,
+  parkPointer,
   rowOf,
   storedArrayCount,
   test,
@@ -153,6 +154,11 @@ test.describe('密码条目增删改', () => {
     await expect(allRows(page).first()).toContainText('e2e-fav-first');
     await expect(firstRow.getByRole('button', { name: textOf('common.unfavorite') })).toBeVisible();
 
+    // 收藏前 e2e-fav-first 是较旧的那条，排在第 2 行；置顶后它顶到第 1 行，停在原地的
+    // 无头指针于是落到 e2e-fav-second 的星形按钮上，400 毫秒后那条提示正好盖住第 1 行的
+    // 星形（`placement="top"`，行距小于气泡高度），而浮层是 enterable 的——不先收手，
+    // 下面的点击会被浮层截走（CI 上表现为 20s 超时、同一处重试 36 次）。
+    await parkPointer(page);
     await firstRow.getByRole('button', { name: textOf('common.unfavorite') }).click();
     await expectSuccessToast(page, 'sidepanel.unfavorited');
     await expect(allRows(page).first()).toContainText('e2e-fav-second');
