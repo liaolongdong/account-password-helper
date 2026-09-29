@@ -393,6 +393,34 @@ export const rowOf = (page: Page, username: string) => page.locator('tr.el-table
 export const allRows = (page: Page) => page.locator('tr.el-table__row');
 
 /**
+ * 当前可见的 tooltip 浮层文案列表
+ *
+ * 判据用 `offsetParent`：`persistent` 默认 false，浮层关闭后节点会从 DOM 移除，
+ * 因此「有一条可见」几乎等价于「有一个未销毁的浮层节点」。
+ * 只认 `role="tooltip"`：el-select / el-dropdown 也复用 `.el-popper`，不加区分会把别的浮层算进来。
+ */
+export const visibleTooltipTexts = (page: Page): Promise<string[]> =>
+  page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.el-popper[role="tooltip"]')]
+      .filter(el => el.offsetParent !== null)
+      .map(el => (el.textContent ?? '').trim()),
+  );
+
+/**
+ * 把指针移出所有按钮与浮层，并等提示彻底退场
+ *
+ * 行序会变的操作（收藏、删除、换页）之后，停在原地的无头指针会落到「顶上来的另一行」的按钮上，
+ * 400 毫秒后那条按钮的提示展开在目标控件正上方——`placement="top"`，而行距小于气泡高度。
+ * 浮层又是 enterable 的，于是指针再也进不到按钮，下一次点击被浮层截走（真机鼠标不会瞬移，
+ * 这是无头指针的固有陷阱）。凡「点 A 会让 A 换位置、紧接着还要再点 A」的用例，
+ * 两次点击之间都要先收手。
+ */
+export const parkPointer = async (page: Page): Promise<void> => {
+  await page.mouse.move(5, 5);
+  await expect.poll(() => visibleTooltipTexts(page), { timeout: 5_000, message: '提示没有退场' }).toEqual([]);
+};
+
+/**
  * 展开 HeaderBar 的某个下拉菜单（「数据管理」/「安全设置」）
  *
  * Element Plus 的 popper 懒渲染，未展开时菜单项根本不在 DOM 里，

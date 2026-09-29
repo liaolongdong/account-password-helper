@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test';
-import { createEntry, expect, rowOf, test } from './harness';
+import { createEntry, expect, parkPointer, rowOf, test, visibleTooltipTexts } from './harness';
 import { textOf } from './i18n';
 
 /**
@@ -30,20 +30,6 @@ const OPERATION_KEYS = [
 ] as const;
 
 /**
- * 当前可见的 tooltip 浮层文案列表
- *
- * 判据用 `offsetParent`：`persistent` 默认 false，浮层关闭后节点会从 DOM 移除，
- * 因此「有一条可见」几乎等价于「有一个未销毁的浮层节点」。
- * 只认 `role="tooltip"`：el-select / el-dropdown 也复用 `.el-popper`，不加区分会把别的浮层算进来。
- */
-const visibleTooltipTexts = (page: Page): Promise<string[]> =>
-  page.evaluate(() =>
-    [...document.querySelectorAll<HTMLElement>('.el-popper[role="tooltip"]')]
-      .filter(el => el.offsetParent !== null)
-      .map(el => (el.textContent ?? '').trim()),
-  );
-
-/**
  * 当前「恰好一条」可见浮层的文案
  *
  * 多于一条或一条都没有时返回 null，让 `toBe` 的失败输出直接把实际状态打出来
@@ -62,12 +48,6 @@ const tooltipIsGone = (page: Page) =>
 
 /** 取某条条目行内的操作按钮（只有它们带 data-tip） */
 const operationButtons = (page: Page, username: string) => rowOf(page, username).locator('button[data-tip]');
-
-/** 把指针移出所有按钮与浮层 */
-const parkPointer = async (page: Page) => {
-  await page.mouse.move(5, 5);
-  await tooltipIsGone(page);
-};
 
 test.describe('操作列共享 tooltip', () => {
   test.beforeEach(async ({ optionsPage }) => {

@@ -235,12 +235,17 @@ test.describe('邮箱备份设置', () => {
     ).toBeVisible();
     expect(await readStoredConfig(page, STORAGE_KEYS.EMAIL_BACKUP_CONFIG)).toBeNull();
 
-    // ② 加密备份方式：只多一条「只能通过加密备份导入解开」的提醒，不改写入语义。
+    // ② 备份方式的两条常驻提示：加密档只多一条「只能通过加密备份导入解开」的提醒，不改写入语义。
+    // 自 56319dc 起初始档就是「加密备份」，点加密档成了 no-op，所以这里走满两个分支：
+    // 默认态看加密提示 → 切明文档看风险告警 → 再切回来。两个分支共用 `.backup-type-tip`，
+    // 同帧只渲染一条（v-if / v-else），因此该定位符恒为唯一。
     // 两个 radio 的文案互为子串（加密备份 ⊂ 不加密备份），必须整串锚定才不撞 strict mode。
+    const backupTip = dialog.locator('.backup-type-tip');
+    await expect(backupTip).toContainText(textOf('options.emailBackup.encryptedTipPrefix'));
+    await dialog.locator('.el-radio', { hasText: anchoredTextOf('options.emailBackup.unencrypted') }).click();
+    await expect(backupTip).toContainText(textOf('options.emailBackup.unencryptedTip'));
     await dialog.locator('.el-radio', { hasText: anchoredTextOf('options.emailBackup.encrypted') }).click();
-    await expect(dialog.locator('.encrypted-backup-tip')).toContainText(
-      textOf('options.emailBackup.encryptedTipPrefix'),
-    );
+    await expect(backupTip).toContainText(textOf('options.emailBackup.encryptedTipPrefix'));
 
     // ③ 合法地址 + 打开自动提醒 + 间隔改成每3天，一次保存全部落盘
     await emailInput.fill(BACKUP_EMAIL);
