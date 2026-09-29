@@ -17,7 +17,7 @@
 
 > **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart — with three cross-subdomain tiers when one account legitimately serves a whole domain family — plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
 
-> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 1953 automated tests
+> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 2003 automated tests
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
@@ -181,6 +181,7 @@ One fill takes four steps, all on your own machine:
 - 🛠️ **Password generator**: random mode (default 16 characters, configurable 6–50, with charset and ambiguous-character exclusion) and passphrase mode (built-in 3,080-word English list, 3–8 words with optional digits)
 - 🔍 **Small touches**: a live strength bar with a per-rule checklist while you type a password, an instant Caps Lock warning on every master password field, a show/hide toggle injected into page password fields (off by default, enabled in Preferences), and site favicons read from Chrome's local cache with zero external requests
 - ⌨️ **Command palette**: press `Ctrl/Cmd + K` on the manager page and filter its 23 commands by Chinese, pinyin or initials — add entry, health check, import / export, encrypted backup, dedup, trash, identity vault, site rules, cross-subdomain matching, change master password, preferences — then press Enter to open. The key does nothing while the vault is locked, and destructive commands keep the confirmations they already had
+- 🧭 **Spotlight guided tour**: it plays on your first visit to the manager page, spotlighting the real buttons as it walks through adding an entry, the three ways out of an empty vault, search and filters, backups, security policy and the health check (steps are trimmed to what the current screen actually offers, so an empty vault and a populated one get their own script). Arrow keys change steps, Esc leaves at any time, `Tab` stays inside the card, and turning on "reduce motion" in your system drops the slides and pulses. Once you finish or skip it it never auto-plays again, and the "Tour" button in the header replays it
 
 > 🛠 The tech stack, architecture and project structure are covered in the [Contributing Guide](./docs/CONTRIBUTING.md); per-feature implementation details (source paths, strategies, constraints) live in [ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details); the engineering write-ups are on the [Tech Blog](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) (Chinese & English).
 

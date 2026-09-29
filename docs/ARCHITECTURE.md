@@ -25,7 +25,7 @@
 | **Background**     | Service Worker，消息路由（判别联合类型）、密码缓存（域名无关）、侧边栏状态（Port 连接追踪）、快捷键处理；后台子模块：消息路由/缓存管理/侧边栏管理/选项页管理/自动保存/一键填充/右键菜单/内联下拉/侧边栏快速添加/后台服务（SW 保活+闹钟） |
 | **Content Script** | 注入所有页面，初始化表单检测与悬浮按钮                                                                                                                                                                                                   |
 | **Popup**          | 扩展图标弹窗，提供「管理密码」和「快速填充」快捷入口                                                                                                                                                                                     |
-| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理                                                                                                                                                                                     |
+| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理、聚光式新手引导                                                                                                                                                                     |
 | **SidePanel**      | 侧边栏快速填充，支持拼音智能搜索与命中高亮、排序、域名匹配（本站 / 全站范围切换）、缓存加速、就地快速添加                                                                                                                                |
 
 ### 消息与数据流
@@ -157,6 +157,7 @@ graph TB
 │   │   ├── ImportDialog.vue            # CSV/JSON 导入对话框
 │   │   ├── MasterPasswordSetupView.vue # 主密码设置视图
 │   │   ├── MasterPasswordVerifyDialog.vue # 主密码验证弹窗（会话解锁/导出前验证）
+│   │   ├── OnboardingTour.vue          # 聚光式新手引导（遮罩挖空 + 步骤卡片，动态导入不进首屏）
 │   │   ├── PasswordDetailDrawer.vue    # 条目只读详情抽屉（备注全文/密码历史/限时复制清除）
 │   │   ├── PasswordFormDialog.vue      # 密码表单对话框（含 TOTP 字段与密码修改历史）
 │   │   ├── PasswordGeneratorPopover.vue # 密码生成器弹窗（随机密码/助记词组）
@@ -179,6 +180,7 @@ graph TB
 │   ├── useAuthFlow.ts              # 认证流程
 │   ├── useCapsLockDetection.ts     # 主密码输入框大写锁定检测（getModifierState）
 │   ├── useChromeListeners.ts       # Chrome API 监听器自动清理
+│   ├── useOnboardingTour.ts        # 聚光式新手引导状态机（步骤裁剪 + 锚点测量 + 卡片定位）
 │   ├── usePasswordManagement.ts    # 密码 CRUD + 搜索排序 + 收藏
 │   ├── usePasswordHistory.ts       # 密码修改历史加载与解密
 │   ├── usePasswordStrength.ts      # 密码强度校验
@@ -244,6 +246,7 @@ graph TB
 │   │   └── core.ts                 # 匹配内核（子串 + 拼音/首字母缩写 + 命中区间，零 Vue，SW 与 content 可复用）
 │   ├── clipboard.ts                # 剪贴板复制与限时自动清除（UI 无关，options 详情抽屉使用）
 │   ├── shareCard.ts                # 分享卡片纯文本构造（用户名/密码/网址一段，标签由调用方注入，内容零日志）
+│   ├── onboardingTour.ts           # 新手引导纯函数层（步骤清单 + 锚点裁剪 + 高亮框几何与卡片定位）
 │   ├── logger.ts                   # 环境感知日志
 │   ├── env.ts                      # isDev / isFirefox 常量
 │   ├── platform.ts                 # 操作系统平台检测（Windows 判定，跨上下文复用）
@@ -590,6 +593,18 @@ graph TB
 - **不受档位影响的两条既有口径**：`localhost` / `127.0.0.1` 始终走 `matchesPortForLocalDev` 的端口过滤（`:3000` 与 `:5173` 不因放宽而混合）；「能否填充当前页」与「站点可见」仍共用同一判据，全站搜索下的外站降级行为不变。
 - **判重口径显式不变**：`findMatchingEntry` / `hostMatchScore` / `autoSavePassword` 完全不感知档位——沿用既有规则（同用户名 + host 相等**或父子域**算同一条，通配条目恒 0 分）。放宽档位只增加「可见性」，不会把两个环境的账号合并成一条，也不会让保存写到意料之外的条目；跨子域带来的歧义由弹窗的保存去向提示（见「自动保存登录凭证」的 `targetNote`）承担说明责任。
 - **回归口径**：[domain.test.ts](../tests/utils/domain.test.ts) 钉三档下的层级判定、通配前缀碰撞、ccTLD 与共享托管后缀（跨租户不互认、未收录后缀行为逐字不变），[passwordFilter.test.ts](../tests/utils/passwordFilter.test.ts) 与 [passwordSort.test.ts](../tests/utils/passwordSort.test.ts) 钉「`off` 档行为等价迁移前」与档位化排序，[configManager.domainMatch.test.ts](../tests/utils/configManager.domainMatch.test.ts) 钉非法值回落，[useRuntimeMessageHandler.domainMatch.test.ts](../tests/composables/useRuntimeMessageHandler.domainMatch.test.ts) 钉直达消息契约，[inlineFillDropdown.crossDomain.test.ts](../tests/content/inlineFillDropdown.crossDomain.test.ts) 钉内联面板的 `tier` 呈现与空态引导，[autoSaveManager.test.ts](../tests/utils/autoSaveManager.test.ts) 钉「判重不受档位影响」与 `targetNote` 的分支边界，[crossSubdomainTierWiring.test.ts](../tests/architecture/crossSubdomainTierWiring.test.ts) 以源码守卫钉「每处站点范围判定都显式传档位」与「档位变更不进缓存失效键」。
+
+### 30. 聚光式新手引导
+
+- **入口与自动播放**：首次进入密码管理页、认证通过且表格加载结束后自动播放一次（[App.vue](../entrypoints/options/App.vue) 里 `watch([isAuthenticated, tableLoading])` 配一个一次性闸门，取快照的时机刻意等到 `tableLoading` 落定，否则空库分支尚未渲染、`empty` 锚点还不存在）；头部「新手引导」按钮（[HeaderBar.vue](../components/options/HeaderBar.vue)）随时重播，重播**不改写**已看过的状态。是否还自动播放只看 `STORAGE_KEYS.ONBOARDING_TOUR` 里的 `seen`。
+- **锚点契约**：剧本 [utils/onboardingTour.ts](../utils/onboardingTour.ts) 的 `TOUR_STEPS` 用 `anchor` 指向页面上的 `data-tour="…"` 元素（`add` / `health` / `data` / `settings` / `personalize` 在 HeaderBar，`search` 在 [SearchFilterBar.vue](../components/options/SearchFilterBar.vue)，`empty` 在 [EmptyGuide.vue](../components/options/EmptyGuide.vue)）。这是界面与引导之间唯一的隐式契约：改名或删除会**静默**让对应步骤消失，所以 `tests/utils/onboardingTour.test.ts` 双向扫源码钉住「剧本要的锚点都存在」与「界面上的锚点都有步骤认领」。
+- **按状态裁剪剧本**：`pickSteps` 在开场那一刻取一次快照，之后步内序号恒定——逐帧重算会让用户在引导中途添加第一条账号时把 `empty` 步抽掉、当前索引错位。空库引导卡与搜索栏互斥，正是靠锚点存在性天然二选一，不需要额外状态判断。
+- **几何全在纯函数**：`expandToSpot` 把锚点矩形外扩成聚光框（圆角按短边收一半，避免矮按钮框成胶囊），`resolvePlacement` 依 `SIDE_FALLBACK_ORDER` 试位（同轴对侧 → 横轴 → 退回原方位），取第一个完整落进安全区的方位，四向皆放不下时退回原方位并 `clampToViewport`（卡片高于视口时贴上沿，保证标题可见）。单列成 `utils/` 是因为本仓 vitest 固定 `environment: 'node'`，只有不碰 DOM 的部分能被直接断言，否则这些翻转分支只能靠人眼在浏览器里逐个试。
+- **聚光与遮罩一体**：镂空用单个元素的 `box-shadow: 0 0 0 9999px var(--tour-veil)` 一次成型（遮罩 + 光圈 + 呼吸辉光），不引第三方引导库；卡片宽度是常量 `CARD_WIDTH = 340`，高度由 `ResizeObserver` 回传（中英文案行数不同、窄屏换行都会改高度，而方位翻转的判据依赖它）。
+- **状态所有权与首屏预算**：composable [useOnboardingTour.ts](../composables/useOnboardingTour.ts) 由 Options 根组件持有、经 props 交给纯展示的 [OnboardingTour.vue](../components/options/OnboardingTour.vue)（它既不查 DOM 也不写存储，卸载即干净；卡片节点通过 `tour.setCard()` 显式交回，不跨边界写别人的 ref）。组件走 `defineAsyncComponent` 动态导入，管理页首屏 chunk 不为一个只播一次的引导付费——`preRowMs` / `wallMs` 那两段口径因此完全不受影响。
+- **无障碍**：`role="dialog"` + `aria-modal="true"` 复用既有 [useFocusTrap](../composables/useFocusTrap.ts)（`Tab` 圈在卡片内、关闭后焦点还给唤起方），步骤变化经 `aria-live="polite"` 播报「第 N / M 步：标题」，`←` / `→` 切步、`Esc` 退出，且用 [isEditableEventTarget](../utils/a11y.ts) 让路给输入框内的原生行为；`prefersReducedMotion()` 为真时滚动改瞬时、CSS 侧去掉入场位移与脉冲。`z-index: 3200` 高于命令面板的 3000，且引导期间 [App.vue](../entrypoints/options/App.vue) 传给 `useCommandPalette` 的 `canOpen` 额外要求「引导未激活」——面板的唤起走 `window` 全局 keydown、不经过这条链，若不加门槛就会在幕布下开出一个看不见却仍抢焦点的第二层浮层；由 [onboardingTour.test.ts](../tests/utils/onboardingTour.test.ts) 的源码守卫钉住这条接线。
+- **隐私**：落盘的只有 `{ seen, outcome, finishedAt }`（是否看过、完成还是跳过、什么时候结束），不含步骤内容、站点、账号或任何凭据；不新增权限、不发网络请求。写入失败只 `logger.warn`，最坏情况是下次仍自动播放，不打扰用户的当前操作（见 [configManager.ts](../utils/storage/configManager.ts)）。
+- **回归口径**：[onboardingTour.test.ts](../tests/utils/onboardingTour.test.ts) 钉几何分支、剧本自身约束、锚点双向对齐与 `TOUR_STEPS ↔ onboarding.json` 的文案齐全度（`title` / `desc` 必存、`tip` 只在声明 `hasTip` 的步骤上存在，中英文占位符集合一致）；[useOnboardingTour.dom.test.ts](../tests/composables/useOnboardingTour.dom.test.ts) 以 jsdom 钉只有装 DOM 才存在的那一半（锚点查询与矩形读数、视口与卡片高度三个来源的接线、← / → / Esc 的接管边界、监听器随开随关与 `onScopeDispose` 兜底、结束时只落三个标记位）；[i18nBundles.test.ts](../tests/utils/i18nBundles.test.ts) 把引导依赖图登记进扫描清单，钉住它用到的 key 全在 options bundle 内。
 
 ## 开发补充
 

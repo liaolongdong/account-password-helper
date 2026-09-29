@@ -124,6 +124,8 @@
 > **④ 覆盖不降反升**：借重构回填**五处代码里确有、此前从未进商店说明的能力**——分享卡片（`utils/shareCard.ts`）、批量删除与批量编辑标签（`components/options/BatchTagDialog.vue`）、邮箱备份默认加密档且改选不加密要先过风险二次确认（`components/options/EmailBackupDialog.vue`）、会话剩余时间可点按直达有效期设置续期（`components/sidepanel/SidepanelHeader.vue` 的 `openValidity` 与 `entrypoints/popup/App.vue:46,56` 的 `openValiditySetting`）、（英文侧）登录第二步活码「就近出现」。同时**纠一处旧归属错误**：强度条与逐条规则清单只挂在添加 / 编辑 / 设置与更换主密码的表单（`PasswordStrengthPopover.vue` 的消费方 `PasswordFormDialog.vue`、`MasterPasswordSetupView.vue`、`ChangeMasterPasswordDialog.vue`；生成器弹窗 `PasswordGeneratorPopover.vue:253` 亦实时算强度），登录保存提示走的是同步 `isWeakPassword` 的弱密码警示——旧说明把「实时强度条与清单」写成登录保存时也给，已按实际挂载点改写，详见批注③末尾。另有**重构过程中一度丢掉、现已改回原位**的两条既有事实归位：登录第二步接力的安全边界（只交当次码与有效期、密钥留在后台上下文、同站点三分钟失效）回到【🔒 安全架构】，导入超量时预览页写明「还能导入多少条 / 将被忽略多少条」回到【❓ 常见问题】。**刻意不写**「表头全选只勾当前页」「页码随每页条数换算」这类操作手册级细节（沿十二修订口径，由 README 常见问题与侧边栏帮助词条承载）。
 >
 > **⑤ 结构不变量全部保持**：一个卖点仍只有一个小节承载（剪贴板口径只出现一次、批量导出口径只归「导入与导出」、分页行不再复述导出）、竞品品牌名零出现、版本门槛仍写 **Chromium 114**、`20-50ms` 仍带「缓存快路径」限定词、泄露字典仍写「近千条」。自检：`paste blocks: 6 | banned hits: none`，中英说明**跨小节重复行为零**，四个 `_locales` 值与粘贴块逐字一致。
+>
+> 🧭 **十五修订（2026-09-29，聚光式新手引导回灌中英说明）**：新增「第一次进入密码管理页会自动播放聚光式分步引导」这条能力，**中英各一行、都挂在【⚙️ 界面与效率】分组已有的命令面板行之后**，不新增小节、不新增分组、不加营销口号；行内同时写明「看完或中途跳过都不再打扰」与「头部按钮可随时重播」这两个可核对的行为（实现见 [OnboardingTour.vue](../../components/options/OnboardingTour.vue)、[useOnboardingTour.ts](../../composables/useOnboardingTour.ts) 与 `StorageUtils.getOnboardingTourState()`）。名称与摘要**未动**（中文 30 / 英文 42 字符名称，中文 131 / 英文 130 字符摘要）。说明长度 中文 **5040 → 5122** / 英文 **12283 → 12549** 字符（上限 16,000；**英文侧余量由 3,717 收窄到 3,451**，长度口径仍是 `len(blocks[i].strip())`）。自检（本轮实跑）：`paste blocks: 6 | banned hits: none`、中英说明跨小节重复行均为零、四个 `_locales` 值与粘贴块逐字一致。⚠️ **给下一轮的提醒**：历轮批注里记录的「说明长度」是那一轮的**轮末快照**，只要粘贴块加删一行就会漂——发布前一律以 `CWS_PUBLISHING_GUIDE.md`「第五步 → 快速校验命令」那段 python 的**实时输出**为准，别照抄本文档的历史数。
 
 ### 说明 (Description) — 最多 16,000 字符
 
@@ -180,6 +182,7 @@
 ⚙️ 界面与效率
 🎨 6 款色彩主题、中英文界面即时切换，注入页面的浮层同步跟随
 ⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 23 条常用命令，主密码未验证时不响应按键
+🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「新手引导」按钮可随时重播
 🔧 四个默认快捷键 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作
 💡 细节体验：主密码输入框实时提示大写锁定；网站图标取自浏览器本地缓存，不发起外部请求
 
@@ -314,6 +317,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 ⚙️ Interface and efficiency
 🎨 6 color themes and an instant Chinese/English switch, followed by the UI injected into pages.
 ⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 23 commands by Chinese, pinyin or initials, inert until the master password is verified.
+🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the "Tour" button in the header replays it any time.
 🔧 Ctrl+Shift+P management / L side panel / F quick fill / K inline dropdown; rebind them on the browser's own extensions-shortcuts page.
 💡 A live Caps Lock hint on master-password fields, and site icons read from the browser's local cache with no external request.
 
