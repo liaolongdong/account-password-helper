@@ -29,6 +29,30 @@
 | 文档事实审计（2026-09-09）     | README / ARCHITECTURE / CONTRIBUTING / THIRD-PARTY-NOTICES / CWS 两份 / 博客 4 篇的中英文均已按源码逐项校正；残留的代码侧错误口径见本文「🟡 需你决策」末节                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | 测试基线（2026-09-28 复跑）    | `pnpm test:run` → **167 个测试文件 / 1941 个用例全部通过，exit 0**。本表上一行的 114 / 1292（2026-09-22）与该行原有的 142 / 1563（2026-09-25）都是当时的快照，保留作记录；对外表面已于 2026-09-27 统一改标 **1941 项 / 167 文件**（README ×2、`llms.txt`、`index.html` 数据带 + JSON-LD `dateModified`、`en.html`、`product-site/index.html`、`docs/blog/**` 10 篇与 `blog/*.html` 12 页、封面 04/05 的 SVG 与 PNG、公众号 / 微博文案），`sitemap.xml` 12 条 `lastmod` 随博客 `modified` 同步；仍是易漂移字段，发布前按 `CWS_PUBLISHING_GUIDE.md`「其他同步约定」复跑再刷新。**同日「落地页体验波次」复跑实测 167 / 1953**（+12 全在 `tests/docs/landingFaqDom.test.ts`，50 → 62 例），对外 21 个手工维护文件已于 2026-09-28 统一刷到 1953 / 167                                                                                                                                                                                                                                                                                                                                                                       |
 
+## 🆕 2026-09-29 商店说明重构（十四修订：分层 + 语义图标 + 精简）与版本新鲜度刷新（本轮，未提交）
+
+用户口径：「提交 Chrome 应用商店的描述文案**结构层次不够清晰、内容太详细太冗余**，重点突出核心功能，同时把插件实现的功能**尽量全覆盖**，而且**缺少对应的功能语义图标**。」因此本轮改的是**组织形式**而不是事实口径——一个卖点仍只归一个小节，竞品品牌名仍零出现，名称与摘要**逐字未动**。
+
+- **说明正文重写**（`docs/store/CWS_FILL_CONTENT.md`「第二步」两个粘贴块）：中文从七节改为「一句话开头 → 【🌟 为什么选它】→ 【📋 功能全览】（⚡ 填充与登录 / 🗂 保管与整理 / 🔐 两步验证与身份库 / 🛡 安全与体检 / 💾 导入导出与备份 / ⚙️ 界面与效率 六个分组）→ 【🔒 安全架构】→ 【🚀 四步上手】→ 【👥 适合谁】→ 【❓ 常见问题】→ 【💡 温馨提示】」，英文镜像同一棵树；「适合谁 / 四步上手」挪到功能全览之后，让核心能力在第一屏就被读到。每行改为**一个前导语义 emoji + 「名称：一句话规格」**。
+- **精简的对象是句长不是篇幅**：旧版单行写成小作文（中文最长行 249 / 240 / 202 / 182 / 163，英文 671 / 557 / 547 / 532 / 487 字符），本轮压到中文最长行 **141**、英文 **376**；中位行长 中文 68 → 53.5、英文 201.5 → 136.5。说明长度 中文 **5597 → 5040** / 英文 **15827 → 12283** 字符（上限 16,000）；**英文侧余量从 173 恢复到 3,717**，十一 / 十二 / 十三修订记录的「英文必须先删再写」约束就此解除。⚠️ **口径**：这些数字全部是 Python `len()`（Unicode 码点，且是「粘贴块 `strip()` 之后」的那个数，与第五步自检同源），**逐行 `trim()` 再剔除空行会得到 5026 / 12269——少掉的正是小节之间 14 个空行的换行符，别把它当成说明长度**；`node` 的 `String.length` 按 UTF-16 计数，含 emoji 的行每处多算 1，中文 5104 / 英文 12346——两套数字别混用。
+- **文案与实现不符一处，改的是文案**：「密码强度检测」旧写法称「在添加、编辑和登录保存时同步给出档位、实时强度条与逐条规则清单」。实测强度条 + 清单只挂在 `PasswordFormDialog.vue` / `MasterPasswordSetupView.vue` / `ChangeMasterPasswordDialog.vue`（`PasswordStrengthPopover.vue:24-52`，规则 4 条 + 「不在常见泄露密码列表」1 条，字典命中强制判弱，`composables/usePasswordStrength.ts:161-187`）；登录保存提示 `entrypoints/content/SavePasswordPrompt.ts:454` 走同步 `isWeakPassword`（`utils/passwordStrengthCore.ts:51-71`，刻意不含字典），只给弱密码警示。字典实际 **999 条**（`utils/data/top1000.json`），「近千条」的写法站得住。这不是代码缺陷（各处口径本就是这样设计的），所以修文案不修代码；中英各改写一行，中文 +31 / 英文 +123 字符。
+- **覆盖不降反升**：借重构回填**五处代码里确有、此前从未进商店说明**的能力——分享卡片、批量删除与批量编辑标签、邮箱备份默认加密档且改选不加密要先过风险二次确认、会话剩余时间点按直达有效期设置、（英文侧）登录第二步活码「就近出现」。**另纠一处旧归属错误**：强度条与逐条规则清单只挂在添加 / 编辑 / 设置与更换主密码的表单（生成器弹窗亦实时算强度），登录保存提示走同步 `isWeakPassword` 只给弱密码警示——旧说明写成「添加、编辑和登录保存时同步给出档位与清单」，已按实际挂载点改写。五处逐条、两处纠偏均对过实现文件，见 `CWS_FILL_CONTENT.md` 十四修订批注③④。
+- **重构中一度丢掉、已改回原位**的两条既有事实：接力只交当次码与有效期（密钥留后台、同站点三分钟失效）归【🔒 安全架构】；导入超量时预览页写明「还能导入多少条 / 将被忽略多少条」归【❓ 常见问题】。
+- **口径同步**：`CWS_FILL_CONTENT.md` 7.4 注意事项与 `CWS_PUBLISHING_GUIDE.md`「第二步 → 摘要」那条长口径里的**过时读数**（「现为中文 3293 / 英文 9504」）改为本轮实测值与新小节名，并写明 **emoji 回退方式**（只删前导图标、不动分行与文字）；`CWS_FILL_CONTENT.md`「第一步」补 2026-09-29 实测状态：**商店线上已是 v3.13.0**，本轮只动说明正文 ⇒ **无需 `pnpm build`、无需重新上传 zip**，直接编辑商品详情提交即可。手册「快速校验命令」加了一段 **UTF-16 vs 码点口径警告**（本轮踩过：`node` 复算比 python 多 64 / 63 个单位）。`llms.txt` 补齐它原本缺的两条功能事实：**实时强度检测**（四条构成规则 + 字典强制判弱、清单只在表单出现、登录保存只给警示）与**备份提醒**（1 / 3 / 7 / 14 / 30 天、默认加密档、明文二次确认、扩展无发信能力、`mailto:` 只是把预填草稿交给系统邮件客户端）——与商店说明同一口径，避免两个对外表面各说一套。
+- **版本新鲜度刷新（事实变更驱动，非例行 bump）**：本轮写作时四个读数同为 **3.13.0**，随后把 `origin/main` 合进分支的合并现场把它们推到 **3.13.1**——现值：`package.json` = `origin/main` = **3.13.1**，GitHub latest release **v3.13.1（2026-09-29 发布）**，商店在架读数 **v3.13.0（2026-09-28）**（`curl --http1.1 https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli.json` → `http=200`、`message: v3.13.0`；本机打不开 `chromewebstore.google.com`，以此为准；首轮 `-s` 无 `-o` 会返回空，须落文件再解析）。**两个读数自此不再相同，按用户 2026-09-29 拍板：对外表面跟 GitHub release**——据此改 `index.html`（`softwareVersion` 3.12.0→**3.13.1**、`dateModified` →2026-09-29、页脚 `footer.updated` 中英两处版本号）、`llms.txt`（`Last updated` 2026-09-29、`Latest release` **v3.13.1 / 2026-09-29**）、`sitemap.xml`（`/` 与 `/en.html` 两条 `lastmod` → 2026-09-29，其余页面本轮未动）→ `pnpm gen:en` 重生成 `en.html`；`CWS_FILL_CONTENT.md` 与 `CWS_PUBLISHING_GUIDE.md` 里「商店在架 v3.13.0」的表述**保持 3.13.0 不动**，因为它说的就是在架那个数。上一轮（09-29 搬家文案）**刻意没刷** `dateModified` / `lastmod`，本轮刷的理由是**版本号这个事实本身变了**，不是日期到了。
+- **未动**：`README*.md` 的「📅 文档最后更新」保持 **2026-09-25**（本轮一度改成 09-29，随后 `git restore` 退回头——README 正文这轮一个字没改，只挪日期会给读者「内容变了」的假信号；`CWS_PUBLISHING_GUIDE.md` 那条「年月一致」校验看的是 `2026-09`，README / index.html / en.html / llms.txt 四处同月，退回后仍过）；测试数对外基线 **1953 / 167** 无需刷新（本轮零代码零测试改动）；`public/_locales/*`、`privacy*.html`、`compare*.html`、博客全部未动。
+- **PR #102 冲突（同日已合并，提交 `2395638`）**：`origin/main` 自 merge-base `c350dbb` 起前移 12 个提交（到 `5c15818`），分支领先 6 个，两边同改 7 个文件，**真冲突只有 2 个**——`package.json`（分支 `86ae5e5` 把顶层字段按使用频率重排 vs release-please `f4b5528` 原地把 3.13.0 改 3.13.1，git 合不起「搬家」与「原地改值」，实际值差只有 version 一格）与 `tests/composables/useSharedHoverTooltip.test.ts` 的表头注释（分支改文档路径 `docs/reports/…` vs main `92a0ffa` 改措辞「隐藏时序与 `aria-describedby`」）。解法：`package.json` 保留分支字段顺序 + 跟到 `3.13.1`；注释块里路径行留分支、措辞两行取 main。其余 5 个文件自动合，重命名检测正常（main 对性能报告的编辑被搬进 `docs/reports/`）。经用户 2026-09-29 授权，该解法已在真实工作树执行并**提交为 `2395638`**（两个 parent：分支尖端 `86ae5e5` + `origin/main` 的 `5c15818`；`package.json` 在提交里为 **3.13.1**），**尚未推送**——PR #102 推上去后会重算为可合。⚠️ **这是复利冲突**：release-please 每次发版都重写 `package.json`（它展开出来的数组还不合 prettier——`5c15818` 那份 `prettier --check` 是红的，只是 CI 按 `ci.yml:33` 刻意不跑这道门禁），字段重排没进 `main` 之前，每个版本都要重解一次同样的冲突。
+
+### 验证
+
+- **商店自检全绿**：`CWS_PUBLISHING_GUIDE.md`「第五步 → 快速校验命令」里的 python 自检 → `paste blocks: 6 | banned hits: none`、`duplicate lines in zh description: none`、`duplicate lines in en description: none`、`zh description chars 5040` / `en 12283`，四个 `_locales` 值与粘贴块逐字一致（名称与摘要未动，所以这条一致是**预期的不变量**，不是本轮成果）。这条自检本轮**原样从指南里抽出跑 `python3`**（19 行，`py_exit=0`），不是用 node 复刻的近似版——近似版给的是 UTF-16 口径，正是上一段警告的坑。
+- **生成链零漂移**：`pnpm gen:en` 只产生预期的 4 行变动（`en.html` 的 `softwareVersion` / `dateModified` / 页脚中英），`data-i18n 229/229`、`data-i18n-html 15/15`、`FAQ DOM 42` 与上一轮一致，无别人未提交内容混入。
+- **emoji 合规依据**：商店推广政策只禁「excessive metadata / 重复关键字」，**未对特殊字符、表情符号或标点立规**；名称与摘要这两个受硬字符数限制的字段没有使用 emoji。
+- **门禁实跑**：`pnpm exec prettier --check` 对 5 个可解析文件（两份商店 / 运营 md、`index.html`、`en.html`）→ `All matched files use Prettier code style!`、exit 0；`llms.txt` 与 `sitemap.xml` 无 parser，按既有口径排除（`--include` 一类通配参数在 zsh 下会让命令根本没跑，别用）。`pnpm exec vitest run tests/docs` → **4 文件 / 88 例全绿**；`pnpm test:run` 全量 → **167 文件 / 1953 例全绿、exit 0**，与 `llms.txt` 的 `Quality` 行、README 的对外基线一致（本轮零代码改动，这个数字是**复核**而非刷新）。
+- **事实复核顺带量化**：泄露密码字典 `utils/data/top1000.json` 实测 **999 条**，商店「近千条」与 `llms.txt` "nearly a thousand" 两种写法都成立。
+- **合并现场验证**：先在一次性克隆里把 `origin/main` 合进分支跑完整条链（零冲突标记、`prettier --check` 0、`tsc --noEmit` 0、`wxt build` 0、全量测试 167 / **1947 通过 + 6 跳过**——副本没有 `.output`，那 6 例按 `skipIf` 设计跳过；补跑 `tests/architecture` 等产物依赖项 24 文件 163 全绿，再补构建后全量 **1953 通过**），随后在真实工作树用 `git merge --no-commit --no-ff origin/main` 搭出同样的现场并按上述解法收口：全树零冲突标记、`prettier --check package.json tests/composables/useSharedHoverTooltip.test.ts` exit 0、`pnpm typecheck` / `pnpm lint` / `pnpm build`（`.output/account-password-helper-3.13.1-chrome.zip`，Σ708.17 kB）/ `pnpm test:run` **167 文件 / 1953 例**全部 exit 0。另对 22 个被移动或删除的 docs 路径做全仓扫描：合并**未带回任何失效旧路径引用**（唯一 7 处 `docs/pricing.md` 命中是分支自己的说明文字，分支尖端同样如此）。
+- **提交后再复跑一遍门禁**（`git commit --no-edit` 会触发 husky + lint-staged 的 `eslint --fix` / `stylelint --fix` / `prettier --write`，必须证明它没改写收口结果）：提交产物 `2395638` 的两个 parent 为 `86ae5e5` 与 `5c15818`、`git diff --diff-filter=U` 为空、全树零冲突标记、`HEAD:package.json` 的 version 为 **3.13.1**、`HEAD` 里 `PasswordTable.vue` 的 `OPERATION_TIP_POPPER_STYLE`（main 侧的浮层点击修复）与 `docs/reports/PERF_LARGE_VAULT_EVALUATION.md`（分支侧的搬家）**同时在位**；`pnpm typecheck` / `pnpm lint` / `pnpm lint:style` / 对三份在飞 md 的 `prettier --check` / `pnpm test:run`（**167 文件 / 1953 例、64.7 s**）全部 exit 0。工作区剩下的就是本轮商店文案那 7 个未提交文件，`git diff --stat HEAD` 逐一对得上。
+
 ## 🆕 2026-09-29 搬家路径写进对外表面（本轮，已提交未推送）
 
 用户先问「有必要做接入飞书、腾讯文档之类的 API 同步到云文档吗？」，结论是**不做**，随后授权按推荐方案执行。落地的判断是**把已有路径讲清楚，而不是再造一条路径**：本轮只动文案，不动功能、交互、默认值、存储结构、权限，也不动任何隐私主张。
@@ -395,6 +419,10 @@
 
 ### 1. 【最高优先】把本轮文档修正送上线（旧的「main 落后」问题已解决）
 
+> 🔄 **2026-09-29 复核（当天两次，后一次以本段为准）**：下面这段的正文写于 2026-09-22，其中的版本号与分支名（`feature-opt`、3.9.0 / 3.11.0）是**当时的快照**，现状以本条复核为准。已解决的部分：文档波次已按职责分五层提交在 **`docs-structure`** 分支，且**已推到 `origin/docs-structure`**（`git rev-list --count origin/docs-structure..HEAD` = **0**，前一次复核写的「5 个提交未推送」已不成立），分支相对 `origin/main` **领先 6 个提交**（`0ea6a8b` 文档分层 / `c9a4449` 本地产物停止入库 / `69a7d67` `d1bacaf` 落点订正 / `a0eed6d` 搬家文案 / `86ae5e5` `package.json` 字段重排——最后一项不是本轮产物）；`package.json` 已跟随 `origin/main` 到 **3.13.0**，身份信息库 / 站点规则 / 跨子域三档 / 命令面板**都已合入 `main` 并发版**，所以「不要粘贴未发布能力」那条告警**已解除**。仍待办的是：把今天这轮商店文案重写提交、推送，并让 `docs-structure` 合入 `main`（Pages 随之重新构建）。
+
+> 🔄 **2026-09-29 第四次复核（以本段为准）**：`origin/main` 又前移到 **`5c15818`**（PR #101 = release-please 发 **v3.13.1**，本地 `package.json` 已跟随到 **3.13.1**），分支领先 6 个提交，PR #102 因此被判 `mergeable: false / dirty`。**真冲突只有 `package.json` 与 `tests/composables/useSharedHoverTooltip.test.ts` 两处**（成因见上方十四修订小节那条「PR #102 冲突」）。**合并已按验证过的解法在真实工作树执行并经授权提交为 `2395638`**（`git merge --no-commit --no-ff origin/main` → 两文件手工解 + 其余 5 文件自动合 → `git commit --no-edit`；parents = `86ae5e5` + `5c15818`；husky/lint-staged 的 `--fix` 未改写收口结果，提交后 typecheck / lint / lint:style / prettier / `test:run` 167 文件 1953 例全部 exit 0）。于是 `origin/docs-structure` 落后本地 **1 个提交**（那个合并提交），上一段写的「领先 6 / 已推平」是本段之前的快照。**你的动作只剩两步**：提交本轮商店文案那 7 个在飞文件，然后 `git push`（一次推 2 个提交：合并 + 文案），PR #102 会自动重算为可合。⚠️ 更早那段里「`package.json` 已跟随 `origin/main` 到 **3.13.0**」是快照，现值为 **3.13.1**。
+
 ✅ 9-06 记录的阻塞已不存在，且 `origin/main` 又往前走了两个版本：release-please 已连发 **v3.8.0 → v3.11.0**（**v3.11.0 发布于 2026-09-15，是线上最新**；v3.10.0 = 2026-09-13）。2026-09-22 实测 `git fetch origin && git rev-list --left-right --count origin/main...HEAD` = **`6 / 42`**——`main` 有 6 个提交本地没有，`feature-opt` 有 42 个提交未合入。
 
 🔴 现在真正卡住曝光的是**本轮文档修正（连同 09-16 之后的功能波次）仍未提交**：`README*.md`、`docs/*`、`index.html` / `en.html` / `pricing*.html` / `privacy*.html` / `compare*.html`、`sitemap.xml`、`llms.txt`、`blog/*`、`imgs/blog-covers/*` 与生成脚本的改动全部躺在 `feature-opt` 工作区。⚠️ **同一个工作区还混着并行的性能波次**（`benchmarks/`、`components/options/PasswordTable.vue`、`composables/*`、`utils/searchMatch.ts`、`utils/tagUtils.ts`、`docs/ARCHITECTURE.md(.en.md)`、6 个未跟踪测试文件等），提交时必须**按文件挑选**，不能 `git add -A`。
@@ -415,24 +443,21 @@
 - 选项 A：从原设计源（Figma/生成 prompt）重新导出，把 MIT 改成 GPL-3.0（推荐，保真）。
 - 选项 B：用 ImageGen 重绘——但中文信息图 AI 重绘易糊字，风险较高，需你确认再动手。
 
-### 4. 【商店最高优先】重新提交草稿（被拒草稿已关闭，只能新建）
+### 4. 【商店最高优先】把重写后的说明粘进两个语言标签页并提交
 
-按顺序执行（下面命令由你在本地跑，我不代为提交或发布）：
+> 🔄 **2026-09-29 改写本条**。原来的第 1–3 步写在 2026-09-22，前提是「商店线上还停在 3.7.0、被拒草稿只能新建」。**该前提已不成立**：线上已连发并上架到 **v3.13.0**（2026-09-28，`curl --http1.1 https://img.shields.io/chrome-web-store/v/fgimkdodpjfkddmildjieojpfakpanli.json` 读数 `v3.13.0`；本机 curl 打不开 `chromewebstore.google.com`，以此为准），列表在架、身份库 / 站点规则 / 跨子域三档 / 命令面板都已随版本上线。本轮十四修订**只动说明正文，名称与摘要逐字未动**，包内 manifest 与 `_locales` 仍然一致 ⇒ **不需要 `pnpm build`、不需要上传 zip**。⚠️ 括号里的理由已经变了：合并 `origin/main` 之后本地构建产物是 **`.output/account-password-helper-3.13.1-chrome.zip`**，与在架 v3.13.0 **不再同号**，技术上是可以传的——**但按用户 2026-09-29 决定，本轮只改说明、不传包**（一次提审只动一类元数据，被拒时才好定位原因；且 v3.13.1 那个 patch 是 Options 页浮层点击修复，与商店元数据无关）。被删掉的那三步（同步分支 → 构建 → 新建草稿传包）并没有消失：出包上传的通用流程在 `docs/store/CWS_PUBLISHING_GUIDE.md`「第二步：创建扩展商品」第 2 条与 `docs/store/CWS_FILL_CONTENT.md`「第一步」，下次动到名称 / 摘要 / 权限 / manifest 时照它走。
 
-1. **先同步分支、再构建**（顺序不能颠倒：本地 `package.json` 仍是 3.7.0，实测 `pnpm build` 出的是 `account-password-helper-3.7.0-chrome.zip`，与商店线上已发布版本同号，Dashboard 会拒绝上传）：
-   ```bash
-   git fetch origin && git rebase origin/main     # 或 git merge origin/main；origin/main 已由 release-please 发到 v3.9.0
-   pnpm build                                     # 期望产物：.output/account-password-helper-3.9.0-chrome.zip
-   ```
-2. **粘贴前先跑自检**（`docs/store/CWS_PUBLISHING_GUIDE.md`「快速校验命令」末尾的脚本）：期望 `paste blocks: 6 | banned hits: none`，且中英 `extensionName` / `extensionDescription` 与「第二步」的粘贴块逐字一致、长度 ≤132。
-3. 登录 [Developer Dashboard](https://chrome.google.com/webstore/devconsole) → 该扩展 → **新建草稿**，上传第 1 步的 zip（版本号取同步后的 **3.9.0**——只要大于线上 3.7.0 即可；若 Dashboard 拒绝该版本号，再到 `main` 上让 release-please 升一版）。
-4. _store listing_ 文本一律从 `docs/store/CWS_FILL_CONTENT.md`「第二步」整段复制：中文 Name / 摘要 / 说明 + 英文 Name / 摘要 / 说明（该文件是唯一事实来源，**不要再从手册复制**）。
-5. 图片：marquee 与小推广图**已重绘为合规版本**（`assets/cws-store/`，源在 `imgs/store-creatives/`），直接上传即可。**产品截图候选已扩到 14 张（`screen-1..14`）**，由 `scripts/store-shots/` 从占位演示页生成，画面全部是 `example.com` 数据、不含任何真实账号；英文页同一批 `capture` 换 `en` 参数跑，产出带 `-en` 后缀的同名文件。旧的 `assets/screenshots/01..12` 与 `assets/cws-store/01..08`（v2.12.0 真机图、含真实凭据）不再作为上传素材。
-   ⚠️ **上传前逐张核对版本徽章**：徽章取自构建产物的 `manifest.version`。分支已同步 `origin/main`（`package.json` = **3.9.0**），**28 张（14 × 中英）于 2026-09-13 全新 profile 整批重截**，徽章统一为 **`v3.9.0`**——「截图版本与商店版本不符」是已知的驳回与信任风险点（图片里的文字同属商店元数据）。商店每语言页上限 5 张，按卖点排序取舍即可。
-6. 隐私标签页：权限逐项说明（用「第二步 → 权限说明」原文，其中 `webNavigation` 的说法已按实测改为「仅枚举当前标签页框架，不监听导航」）、隐私政策 URL 与官网一致。
-7. 提交审核，并在日历上记一次复盘：若再次被拒，把驳回文本原样补进 `CWS_PUBLISHING_GUIDE.md`「第四步 → 常见驳回原因」。
+按顺序执行（下面 Dashboard 操作由你本人点，我不代为提交或发布）：
 
-⏸️ Featured 提名（`CWS_FILL_CONTENT.md` 第七步 + 手册 3.3）请**推迟到本次草稿通过审核后**再做——表单每 6 个月只有一次机会，列表处于被拒状态时提交没有意义。
+1. **粘贴前先跑自检**（`docs/store/CWS_PUBLISHING_GUIDE.md`「快速校验命令」末尾的 python）：期望 `paste blocks: 6 | banned hits: none`、中英说明 `duplicate lines: none`、`zh description chars … 5040` / `en … 12283`（与本文档头部记录的轮末值一致即说明复制源没被中途改过），且四个 `_locales` 值与粘贴块逐字一致。
+2. 登录 [Developer Dashboard](https://chrome.google.com/webstore/devconsole) → 该扩展 → **商品详情**：中文语言标签页替换「说明」，English 标签页替换「Description」。两段都从 `docs/store/CWS_FILL_CONTENT.md`「第二步」整段复制（该文件是唯一事实来源，**不要再从手册复制**）；名称与摘要**不用动**。
+3. 顺带核对，不必重做：marquee 与小推广图**已重绘为合规版本**（`assets/cws-store/`，源在 `imgs/store-creatives/`）。**产品截图候选 14 张（`screen-1..14`）**由 `scripts/store-shots/` 从占位演示页生成，画面全部是 `example.com` 数据、不含任何真实账号；英文页同一批 `capture` 换 `en` 参数跑，产出带 `-en` 后缀的同名文件。旧的 `assets/screenshots/01..12` 与 `assets/cws-store/01..08`（v2.12.0 真机图、含真实凭据）**永远不要再上传**。
+   ⚠️ **若本轮要重传截图，先核对版本徽章**：徽章取自构建产物的 `manifest.version`，现存的 28 张（2026-09-13 整批重截）徽章是 **`v3.9.0`**，与线上 **v3.13.0** 已不符——「截图版本与商店版本不符」是已知的驳回与信任风险点（图片里的文字同属商店元数据）。要重传就按 `docs/store/CWS_FILL_CONTENT.md`「屏幕截图」重截到新徽章，商店每语言页上限 5 张，按卖点排序取舍。
+4. 隐私标签页：权限逐项说明（用「第二步 → 权限说明」原文，其中 `webNavigation` 的说法已按实测改为「仅枚举当前标签页框架，不监听导航」）、隐私政策 URL 与官网一致。
+5. 提交审核，并在日历上记一次复盘：若再次被拒，把驳回文本原样补进 `CWS_PUBLISHING_GUIDE.md`「第四步 → 常见驳回原因」。
+6. 🔻 **若驳回点名的是表情符号**（措辞像「excessive metadata / 过多特殊字符」）：按十四修订记录的兜底做法，**只删每行前导 emoji、保留分行与全部文字不变**再提交一次。商店政策本身没有禁 emoji，但判定权在审核，回退成本必须压到一次文本替换。
+
+⏸️ Featured 提名（`CWS_FILL_CONTENT.md` 第七步 + 手册 3.3）请**推迟到本次说明改稿通过审核后**再做——表单每 6 个月只有一次机会。
 
 ### 5. 站外分发"实际发出去"（导流主力，决定 star 增长）
 
@@ -447,7 +472,7 @@
 - 拆 3-5 个 `good first issue`（新手主题色/翻译/文档校对/兼容性反馈），配 Issue 模板。
 - 商店评论 & GitHub Issue 48h 内回复；双周小版本维持"最近更新"活跃信号。
 - 外部链接统一带 UTM（`?utm_source=xxx` / `?ref=xxx`），在 CWS Analytics 与 GitHub Insights 归因。
-- **GitHub About（仓库描述）待替换**：2026-09-25 用 `curl --http1.1 https://api.github.com/repos/liaolongdong/account-password-helper` 复测，线上仍是旧版——2026-09-22 拟好的三版候选**从未执行**。旧版第二段写着 `zero cloud - passwords never leave your browser`，与商店文案 / `llms.txt` 已收口的口径冲突（扩展每 6 小时会发一次不携带用户数据的匿名版本检查，`utils/updateChecker.ts:71-98`，"never leave" 属无法自证的绝对化表述）；旧版结尾的 `本地账号密码管理助手` 也只出现中文名单独一项，与本波次收口的**站外双名口径 `账号密码管理助手 Account Password Helper`** 不一致。
+- **GitHub About（仓库描述）待替换**：2026-09-25 用 `curl --http1.1 https://api.github.com/repos/liaolongdong/account-password-helper` 复测，线上仍是旧版——2026-09-22 拟好的三版候选**从未执行**。**2026-09-29 再次复核仍是旧版**（实测 **346 UTF-16 / 345 码点 / 368 字节**，结尾 `…idle auto-lock. 本地账号密码管理助手`；本轮第一次请求 `curl` 以 exit 28 / `http=000` 超时，重试才拿到 200——这条读请求不稳定，判定「未替换」必须以拿到 200 且长度=346 的那次为准，别把空响应读成「已经改好」）。旧版第二段写着 `zero cloud - passwords never leave your browser`，与商店文案 / `llms.txt` 已收口的口径冲突（扩展每 6 小时会发一次不携带用户数据的匿名版本检查，`utils/updateChecker.ts:71-98`，"never leave" 属无法自证的绝对化表述）；旧版结尾的 `本地账号密码管理助手` 也只出现中文名单独一项，与本波次收口的**站外双名口径 `账号密码管理助手 Account Password Helper`** 不一致。
   ⚠️ **长度口径先钉死，避免再算错**：GitHub 的 350 上限按 **UTF-16 code unit** 计（`🔐` 占 2、汉字各占 1），复算命令是 `node -e 'console.log(s.length)'`；本文更早版本标注的 343 / 341 是 **UTF-8 字节数**、345 是 **Unicode 码点数**，两者都不能与 350 直接比。线上旧版实测 **346 UTF-16 / 345 码点 / 368 字节**。
 
   **最终候选（343 UTF-16，距上限余 7）**——双名占开头 35 个 UTF-16 单位（`🔐 账号密码管理助手 Account Password Helper`），让中文检索与英文检索都命中，前 160 字符覆盖 Google 与 GitHub 搜索结果的可见摘要：
@@ -545,4 +570,6 @@
 
 ## 📉 现状基线
 
-- GitHub star：**11**（2026-09-22 由 `api.github.com` 读取；本文首次记录的基线为 8，2026-09-12 为 9）。fork 1。发布/合并后建议用 star-history.com 建立增长曲线，每月复盘（手册第八章）。
+- GitHub star：**12**（2026-09-29 由 `curl --http1.1 api.github.com/repos/liaolongdong/account-password-helper` 读取；2026-09-22 基线为 11，本文首次记录为 8，2026-09-12 为 9）。fork 1、open issues 3。发布/合并后建议用 star-history.com 建立增长曲线，每月复盘（手册第八章）。
+- ⚠️ **GitHub About 仍是旧版**（2026-09-29 复测）：API 返回的 `description.length` = **346**，正是本文「待你执行」第 6 项记录的**旧版读数**（旧版含 `passwords never leave your browser`）——2026-09-25 拟好的最终候选（343 UTF-16）**至今未执行**。命令与逐句代码依据见下方第 6 项，改完用同一条 `curl` 复测应为 **343**。
+- Chrome 商店读数（2026-09-29，shields）：版本 **v3.13.0**、评分 **5/5**；`users` 徽章返回 `not found`（本机读不到用户数，不代表商店没有数据，别把它当「零用户」写进任何表面）。
