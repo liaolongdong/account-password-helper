@@ -28,8 +28,10 @@ import type {
   UpsertRow,
 } from '../types';
 import { chunkItems, isTransientStatus, requestWithRetry, type RetryContext } from './httpClient';
+import { normalizeServerBaseUrl, resolveServerBaseUrl } from './serverAddress';
 
-const BASE_URL = 'https://open.feishu.cn';
+/** 官方 SaaS 开放平台地址：未配置自定义地址时使用，行为与既往完全一致 */
+export const FEISHU_DEFAULT_BASE_URL = 'https://open.feishu.cn';
 
 /** 单次批量写入/删除上限 */
 const BATCH_LIMIT = 500;
@@ -54,8 +56,35 @@ export interface FeishuAdapterInit {
   appToken: string;
   /** 未建表前为 null，建表成功后由调用方回填 */
   tableId: string | null;
+  /** 私有化部署的开放平台地址；留空或 null 使用官方 SaaS 地址 */
+  baseUrl?: string | null;
+  /** HTTP 明文传输已由用户显式确认 */
+  allowInsecure?: boolean;
   credentials: FeishuCredentials;
   options?: AdapterOptions;
+}
+
+/**
+ * 归一化飞书开放平台地址（私有化部署支持）
+ *
+ * - 空值 → 官方默认地址；
+ * - 合法地址 → `origin + 路径前缀`（去掉末尾斜杠），兼容网关反代把开放平台挂在子路径的部署；
+ * - 无法解析、非 http(s)，或 http 非回环但未显式确认明文传输 → 抛 `notFound`，
+ *   与 WebDAV 目录地址校验口径一致。
+ *   宁可显式失败也不回退官方域名：静默回退会把私有化凭证发往公网端点。
+ */
+export function resolveFeishuBaseUrl(input?: string | null, allowInsecure = false): string {
+  return resolveServerBaseUrl(input, FEISHU_DEFAULT_BASE_URL, allowInsecure);
+}
+
+/**
+ * 把用户填写的开放平台地址归一为**可入库形态**（写入 `FeishuTarget.baseUrl`）
+ *
+ * 与 `resolveFeishuBaseUrl` 的差别：空值与官方地址都归一为 `null`（语义即"用官方 SaaS"），
+ * 避免把默认值写进配置产生无意义差异；非法地址同样抛 `notFound`。
+ */
+export function normalizeFeishuBaseUrl(input?: string | null, allowInsecure = false): string | null {
+  return normalizeServerBaseUrl(input, FEISHU_DEFAULT_BASE_URL, allowInsecure);
 }
 
 /** 飞书字段类型枚举（本设计只用前两种） */
@@ -171,6 +200,8 @@ export class FeishuAdapter implements TableAdapter {
   private tableId: string | null;
   private credentials: FeishuCredentials;
   private options: AdapterOptions;
+  /** 本次实例生效的开放平台地址（官方 SaaS 或私有化部署） */
+  private baseUrl: string;
 
   /** tenant_access_token 仅内存缓存，页面销毁即清空 */
   private token: string | null = null;
@@ -181,6 +212,7 @@ export class FeishuAdapter implements TableAdapter {
     this.tableId = init.tableId;
     this.credentials = init.credentials;
     this.options = init.options ?? {};
+    this.baseUrl = resolveFeishuBaseUrl(init.baseUrl, init.allowInsecure === true);
   }
 
   /** 建表成功后回填 table_id，避免重新探测 */
@@ -197,7 +229,7 @@ export class FeishuAdapter implements TableAdapter {
   private async ensureToken(): Promise<string> {
     if (this.token && Date.now() < this.tokenExpiresAt - TOKEN_REFRESH_MARGIN_MS) return this.token;
 
-    const { json } = await requestWithRetry(`${BASE_URL}/open-apis/auth/v3/tenant_access_token/internal`, {
+    const { json } = await requestWithRetry(`${this.baseUrl}/open-apis/auth/v3/tenant_access_token/internal`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ app_id: this.credentials.appId, app_secret: this.credentials.appSecret }),
@@ -227,7 +259,7 @@ export class FeishuAdapter implements TableAdapter {
   ): Promise<T> {
     const token = await this.ensureToken();
     const suffix = init.query ? `?${init.query.toString()}` : '';
-    const { response, json } = await requestWithRetry(`${BASE_URL}${path}${suffix}`, {
+    const { response, json } = await requestWithRetry(`${this.baseUrl}${path}${suffix}`, {
       method: init.method ?? 'GET',
       headers: {
         Authorization: `Bearer ${token}`,

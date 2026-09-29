@@ -195,6 +195,7 @@ export async function computeDiff(input: DiffInput): Promise<DiffResult> {
 
   // 未被本地条目匹配的云端行
   const localFallbackKeys = new Set(input.local.map(entry => fallbackKey(entry.url, entry.username)));
+  const pulledBusinessIds = new Set<string>();
   for (const item of validCloudRows) {
     if (matchedRecordIds.has(item.row.recordId)) continue;
     const snapshotKnown =
@@ -208,14 +209,14 @@ export async function computeDiff(input: DiffInput): Promise<DiffResult> {
     }
 
     if (item.businessId) {
-      // 云端存在本设备从未见过的业务 ID：疑似其他设备写入，人工冲突
-      plan.push({
-        kind: 'manualConflict',
-        reason: 'externalChange',
-        businessId: item.businessId,
-        recordId: item.row.recordId,
-        row: item.row,
-      });
+      if (localById.has(item.businessId) || pulledBusinessIds.has(item.businessId)) {
+        plan.push({ kind: 'skip', businessId: item.row.recordId, reason: 'duplicate-business-id' });
+        continue;
+      }
+      // 云端带业务 ID 且本地/快照均未见过：这是其他设备写入的新增项。
+      // 必须保留原业务 ID 拉取，否则下一轮仍会被判成新的外部业务 ID。
+      pulledBusinessIds.add(item.businessId);
+      plan.push({ kind: 'pullCreateWithId', row: item.row, businessId: item.businessId });
       continue;
     }
 

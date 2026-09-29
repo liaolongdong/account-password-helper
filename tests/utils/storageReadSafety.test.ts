@@ -142,6 +142,83 @@ describe('密码列表写路径：读取失败时拒绝且不覆盖真实数据'
   });
 });
 
+describe('batchApplyPasswordChanges：批量拉取一次落库并保留业务 ID', () => {
+  const entry = {
+    username: 'u',
+    password: 'p',
+    url: 'https://example.com',
+    tag: '',
+    remark: '',
+    createTime: 1,
+    updateTime: 1,
+  };
+
+  it('新增与敏感更新混合时只读一次、写一次，并保留显式 ID', async () => {
+    const { batchApplyPasswordChanges } = await import('@/utils/storage/passwordCrud');
+    storageData[STORAGE_KEYS.PASSWORDS] = [cipherEntry('existing')];
+
+    const result = await batchApplyPasswordChanges(
+      [{ id: 'uuid-browser-b', entry }],
+      [{ id: 'existing', updates: { username: 'updated', password: 'updated-pass' } }],
+      'master-password',
+    );
+
+    expect(result.created).toEqual([expect.objectContaining({ ...entry, id: 'uuid-browser-b', order: 1 })]);
+    expect(localGet.mock.calls.filter(([key]) => key === STORAGE_KEYS.PASSWORDS)).toHaveLength(1);
+    expect(localSet.mock.calls.filter(([items]) => STORAGE_KEYS.PASSWORDS in items)).toHaveLength(1);
+    const stored = storageData[STORAGE_KEYS.PASSWORDS] as Array<Record<string, unknown>>;
+    expect(stored).toHaveLength(2);
+    expect(stored[0]).toMatchObject({ id: 'existing', encrypted: true });
+    expect(stored[1]).toMatchObject({ id: 'uuid-browser-b', encrypted: true });
+  });
+
+  it('ID 已存在时整批拒绝且不落盘', async () => {
+    const { batchApplyPasswordChanges } = await import('@/utils/storage/passwordCrud');
+    storageData[STORAGE_KEYS.PASSWORDS] = [cipherEntry('uuid-browser-b')];
+
+    await expect(
+      batchApplyPasswordChanges(
+        [
+          { id: 'uuid-browser-b', entry },
+          { id: 'another-id', entry },
+        ],
+        [],
+        'master-password',
+      ),
+    ).rejects.toThrow('密码条目 ID 已存在');
+
+    expect(localSet).not.toHaveBeenCalled();
+    expect(storageData[STORAGE_KEYS.PASSWORDS]).toHaveLength(1);
+  });
+
+  it('同一批内重复 ID 整批拒绝且不落盘', async () => {
+    const { batchApplyPasswordChanges } = await import('@/utils/storage/passwordCrud');
+
+    await expect(
+      batchApplyPasswordChanges(
+        [
+          { id: 'duplicate-id', entry },
+          { id: 'duplicate-id', entry },
+        ],
+        [],
+        'master-password',
+      ),
+    ).rejects.toThrow('密码条目 ID 已存在');
+
+    expect(localSet).not.toHaveBeenCalled();
+  });
+
+  it('空 ID 整批拒绝且不落盘', async () => {
+    const { batchApplyPasswordChanges } = await import('@/utils/storage/passwordCrud');
+
+    await expect(batchApplyPasswordChanges([{ id: '   ', entry }], [], 'master-password')).rejects.toThrow(
+      '密码条目 ID 不能为空',
+    );
+
+    expect(localSet).not.toHaveBeenCalled();
+  });
+});
+
 describe('回收站写路径：读取失败时拒绝且不覆盖真实数据', () => {
   it('restoreFromTrash 主列表读取失败时拒绝，主列表与回收站均不被清空', async () => {
     const { restoreFromTrash } = await import('@/utils/storage/trashManager');

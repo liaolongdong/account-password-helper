@@ -106,6 +106,16 @@
                 :placeholder="t('cloudSync.feishu.appSecretPlaceholder')"
               />
             </el-form-item>
+            <el-form-item :label="t('cloudSync.feishu.baseUrl')">
+              <el-input
+                v-model="feishuBaseUrl"
+                autocomplete="off"
+                :placeholder="t('cloudSync.feishu.baseUrlPlaceholder')"
+              />
+              <div class="cloud-sync__hint">
+                {{ t('cloudSync.feishu.baseUrlTip') }}
+              </div>
+            </el-form-item>
           </template>
 
           <template v-else-if="activeProvider === 'tencent'">
@@ -131,6 +141,16 @@
                 autocomplete="new-password"
                 :placeholder="t('cloudSync.tencent.accessTokenPlaceholder')"
               />
+            </el-form-item>
+            <el-form-item :label="t('cloudSync.tencent.baseUrl')">
+              <el-input
+                v-model="tencentBaseUrl"
+                autocomplete="off"
+                :placeholder="t('cloudSync.tencent.baseUrlPlaceholder')"
+              />
+              <div class="cloud-sync__hint">
+                {{ t('cloudSync.tencent.baseUrlTip') }}
+              </div>
             </el-form-item>
           </template>
 
@@ -186,9 +206,9 @@
             </div>
           </el-form-item>
 
-          <el-form-item v-if="activeProvider === 'webdav' && webdavNeedsInsecure">
-            <el-checkbox v-model="webdavAllowInsecure">
-              {{ t('cloudSync.webdav.allowInsecure') }}
+          <el-form-item v-if="serverNeedsInsecure">
+            <el-checkbox v-model="activeAllowInsecure">
+              {{ t('cloudSync.allowInsecure') }}
             </el-checkbox>
           </el-form-item>
 
@@ -257,13 +277,38 @@
               {{ t('cloudSync.testConnection') }}
             </el-button>
             <el-button
+              v-if="providerForm.mode === 'encrypted'"
               type="primary"
               :loading="running"
               :disabled="!providerForm.configured || insecureBlocked"
               @click="handlePrimaryAction"
             >
-              {{ primaryActionText }}
+              {{ t('cloudSync.backupNow') }}
             </el-button>
+            <template v-else>
+              <el-button
+                :loading="running && activePlaintextDirection === 'push'"
+                :disabled="running || !providerForm.configured || insecureBlocked"
+                @click="handlePlaintextSync('push')"
+              >
+                {{ t('cloudSync.pushToTable') }}
+              </el-button>
+              <el-button
+                :loading="running && activePlaintextDirection === 'pull'"
+                :disabled="running || !providerForm.configured || insecureBlocked"
+                @click="handlePlaintextSync('pull')"
+              >
+                {{ t('cloudSync.pullFromTable') }}
+              </el-button>
+              <el-button
+                type="primary"
+                :loading="running && activePlaintextDirection === 'both'"
+                :disabled="running || !providerForm.configured || insecureBlocked"
+                @click="handlePlaintextSync('both')"
+              >
+                {{ t('cloudSync.syncNow') }}
+              </el-button>
+            </template>
             <el-button
               v-if="running"
               type="danger"
@@ -281,14 +326,14 @@
             </el-button>
             <el-button
               v-else
-              :disabled="running || !providerForm.configured"
+              :disabled="running || !providerForm.configured || insecureBlocked"
               @click="handleRebuildSnapshot"
             >
               {{ t('cloudSync.rebuild') }}
             </el-button>
             <el-button
               v-if="providerForm.mode === 'encrypted'"
-              :disabled="running || !providerForm.configured"
+              :disabled="running || !providerForm.configured || insecureBlocked"
               @click="handleClearVersions"
             >
               {{ t('cloudSync.clearVersions') }}
@@ -462,6 +507,7 @@ import {
   runEncryptedRestore,
   runPlaintextSync,
 } from '@/utils/cloudSync/syncEngine';
+import type { PlaintextSyncDirection } from '@/utils/cloudSync/syncEngine';
 import {
   clearOldWebDavVersions,
   listWebDavVersions,
@@ -470,14 +516,18 @@ import {
   runWebDavRestore,
 } from '@/utils/cloudSync/webdavSync';
 import type { WebDavVersion } from '@/utils/cloudSync/webdavSync';
-import { needsInsecureConfirm } from '@/utils/cloudSync/adapters/webdav';
+import { normalizeFeishuBaseUrl } from '@/utils/cloudSync/adapters/feishu';
+import { normalizeTencentBaseUrl } from '@/utils/cloudSync/adapters/tencent';
+import { needsServerInsecureConfirm } from '@/utils/cloudSync/adapters/serverAddress';
 import type {
   CloudProvider,
   CloudSyncMode,
   CloudSyncProviderConfig,
+  FeishuTarget,
   ProviderCredentialMap,
   SyncProgress,
   SyncReport,
+  TencentTarget,
   WebDavTarget,
 } from '@/utils/cloudSync/types';
 
@@ -497,7 +547,12 @@ const activeProvider = ref<CloudProvider>('feishu');
 const enabled = ref(false);
 const keepVersions = ref(3);
 const targetUrl = ref('');
+/** 飞书私有化部署的开放平台地址；空串表示使用官方 SaaS 地址 */
+const feishuBaseUrl = ref('');
+/** 腾讯文档私有化部署的开放平台地址；空串表示使用官方 SaaS 地址 */
+const tencentBaseUrl = ref('');
 const running = ref(false);
+const activePlaintextDirection = ref<PlaintextSyncDirection | null>(null);
 const testing = ref(false);
 const progress = ref<SyncProgress | null>(null);
 const report = ref<SyncReport | null>(null);
@@ -508,14 +563,14 @@ const providerForms = reactive<Record<CloudProvider, CloudSyncProviderConfig>>({
   feishu: {
     configured: false,
     mode: 'encrypted',
-    target: { appToken: null, tableId: null, fileUrl: null },
+    target: { appToken: null, tableId: null, fileUrl: null, baseUrl: null, allowInsecure: false },
     chunkSize: 48000,
     lastSyncAt: null,
   },
   tencent: {
     configured: false,
     mode: 'encrypted',
-    target: { fileId: null, sheetId: null, fileUrl: null },
+    target: { fileId: null, sheetId: null, fileUrl: null, baseUrl: null, allowInsecure: false },
     chunkSize: 48000,
     lastSyncAt: null,
   },
@@ -543,6 +598,8 @@ const webdavCredentials = reactive<Required<ProviderCredentialMap['webdav']>>({
 
 /** WebDAV：HTTP 明文传输确认、版本下拉数据 */
 const webdavAllowInsecure = ref(false);
+const feishuAllowInsecure = ref(false);
+const tencentAllowInsecure = ref(false);
 const webdavVersions = ref<WebDavVersion[]>([]);
 const selectedVersion = ref('');
 const versionsLoading = ref(false);
@@ -567,10 +624,6 @@ const credentialStatusText = computed(() => {
   }
 });
 
-const primaryActionText = computed(() =>
-  providerForm.value.mode === 'encrypted' ? t('cloudSync.backupNow') : t('cloudSync.syncNow'),
-);
-
 const progressPercent = computed(() => {
   const current = progress.value?.current ?? 0;
   const total = progress.value?.total ?? 0;
@@ -593,24 +646,58 @@ const reportStats = computed(() => {
 });
 
 /**
- * 当前 WebDAV 目录是否为 http 明文（需显式确认）
+ * 当前平台的 API/目录地址是否为需要显式确认的 HTTP 明文地址
  *
- * 非法 URL 返回 false：由后端 prepareWebDavTarget 的安全门兜底抛错，
+ * 非法 URL 返回 false：由后端各平台准备函数的安全门兜底抛错，
  * UI 侧不因输入过程中的半成品 URL 误显示确认框。
  */
-const webdavNeedsInsecure = computed(() => {
-  if (activeProvider.value !== 'webdav' || !targetUrl.value.trim()) return false;
-  try {
-    return needsInsecureConfirm(targetUrl.value.trim());
-  } catch {
-    return false;
-  }
+const serverNeedsInsecure = computed(() => {
+  const value =
+    activeProvider.value === 'feishu'
+      ? feishuBaseUrl.value
+      : activeProvider.value === 'tencent'
+        ? tencentBaseUrl.value
+        : targetUrl.value;
+  return needsServerInsecureConfirm(value);
 });
 
-/** http 明文未确认时禁用测试连接/备份/恢复（规格 §7.2） */
-const insecureBlocked = computed(
-  () => activeProvider.value === 'webdav' && webdavNeedsInsecure.value && !webdavAllowInsecure.value,
-);
+/** 当前平台的 HTTP 明文确认状态（按平台分别保存） */
+const activeAllowInsecure = computed({
+  get() {
+    switch (activeProvider.value) {
+      case 'feishu':
+        return feishuAllowInsecure.value;
+      case 'tencent':
+        return tencentAllowInsecure.value;
+      case 'webdav':
+        return webdavAllowInsecure.value;
+      default: {
+        const _exhaustive: never = activeProvider.value;
+        return _exhaustive;
+      }
+    }
+  },
+  set(value: boolean) {
+    switch (activeProvider.value) {
+      case 'feishu':
+        feishuAllowInsecure.value = value;
+        break;
+      case 'tencent':
+        tencentAllowInsecure.value = value;
+        break;
+      case 'webdav':
+        webdavAllowInsecure.value = value;
+        break;
+      default: {
+        const _exhaustive: never = activeProvider.value;
+        throw new Error(`unsupported provider: ${String(_exhaustive)}`);
+      }
+    }
+  },
+});
+
+/** http 明文未确认时禁用所有会发起网络请求的操作 */
+const insecureBlocked = computed(() => serverNeedsInsecure.value && !activeAllowInsecure.value);
 
 const targetUrlPlaceholder = computed(() => {
   switch (activeProvider.value) {
@@ -718,10 +805,9 @@ async function loadConfig(): Promise<void> {
     providerForms.tencent = config.providers.tencent;
     providerForms.webdav = config.providers.webdav;
     targetUrl.value = currentTargetUrl();
-    if (activeProvider.value === 'webdav') {
-      const target = providerForms.webdav.target as WebDavTarget;
-      webdavAllowInsecure.value = target.allowInsecure;
-    }
+    feishuBaseUrl.value = currentFeishuBaseUrl();
+    tencentBaseUrl.value = currentTencentBaseUrl();
+    syncAllowInsecureFromConfig();
   } catch (error) {
     logger.error('CloudSyncDialog: 加载配置失败:', error);
     ElMessage.error(t('cloudSync.loadFailed'));
@@ -733,6 +819,23 @@ function currentTargetUrl(): string {
   const target = providerForm.value.target;
   if (activeProvider.value === 'webdav') return (target as WebDavTarget).dirUrl ?? '';
   return target.fileUrl ?? '';
+}
+
+/** 已保存的飞书私有化 API 地址（空串表示官方 SaaS；旧配置缺字段时同样回退空串） */
+function currentFeishuBaseUrl(): string {
+  return (providerForms.feishu.target as FeishuTarget).baseUrl ?? '';
+}
+
+/** 已保存的腾讯文档私有化 API 地址（空串表示官方 SaaS；旧配置缺字段时同样回退空串） */
+function currentTencentBaseUrl(): string {
+  return (providerForms.tencent.target as TencentTarget).baseUrl ?? '';
+}
+
+/** 从各平台已保存目标同步明文确认状态，避免切换平台后沿用上一个平台的勾选 */
+function syncAllowInsecureFromConfig(): void {
+  feishuAllowInsecure.value = (providerForms.feishu.target as FeishuTarget).allowInsecure;
+  tencentAllowInsecure.value = (providerForms.tencent.target as TencentTarget).allowInsecure;
+  webdavAllowInsecure.value = (providerForms.webdav.target as WebDavTarget).allowInsecure;
 }
 
 /** 读取当前平台凭证状态；已存在凭证时回填输入框便于用户确认/替换 */
@@ -777,6 +880,8 @@ async function loadCredentialState(): Promise<void> {
 async function handleProviderChange(provider: CloudProvider): Promise<void> {
   activeProvider.value = provider;
   targetUrl.value = currentTargetUrl();
+  feishuBaseUrl.value = currentFeishuBaseUrl();
+  tencentBaseUrl.value = currentTencentBaseUrl();
   report.value = null;
   await loadCredentialState();
 }
@@ -801,13 +906,12 @@ watch(
 
 watch(activeProvider, async () => {
   targetUrl.value = currentTargetUrl();
+  feishuBaseUrl.value = currentFeishuBaseUrl();
+  tencentBaseUrl.value = currentTencentBaseUrl();
   report.value = null;
   webdavVersions.value = [];
   selectedVersion.value = '';
-  if (activeProvider.value === 'webdav') {
-    const target = providerForms.webdav.target as WebDavTarget;
-    webdavAllowInsecure.value = target.allowInsecure;
-  }
+  syncAllowInsecureFromConfig();
   await loadCredentialState();
   // webdav 已配置且凭证就绪时预加载版本列表，避免下拉初始为空
   if (activeProvider.value === 'webdav' && providerForms.webdav.configured && credentialStatus.value === 'ok') {
@@ -870,6 +974,27 @@ async function handleTestConnection(): Promise<void> {
     ElMessage.warning(t('cloudSync.urlRequired'));
     return;
   }
+  // 私有化 API 地址先本地校验：格式非法时立即提示，既不落盘凭证也不发请求
+  let resolvedFeishuBaseUrl: string | null = null;
+  let resolvedTencentBaseUrl: string | null = null;
+  if (activeProvider.value === 'feishu') {
+    try {
+      resolvedFeishuBaseUrl = normalizeFeishuBaseUrl(feishuBaseUrl.value, feishuAllowInsecure.value);
+    } catch {
+      ElMessage.warning(t('cloudSync.feishu.baseUrlInvalid'));
+      return;
+    }
+    // 回显归一化结果（官方地址归为空、去掉末尾斜杠），让用户看到实际生效的地址
+    feishuBaseUrl.value = resolvedFeishuBaseUrl ?? '';
+  } else if (activeProvider.value === 'tencent') {
+    try {
+      resolvedTencentBaseUrl = normalizeTencentBaseUrl(tencentBaseUrl.value, tencentAllowInsecure.value);
+    } catch {
+      ElMessage.warning(t('cloudSync.tencent.baseUrlInvalid'));
+      return;
+    }
+    tencentBaseUrl.value = resolvedTencentBaseUrl ?? '';
+  }
   testing.value = true;
   try {
     await saveCredentials(activeProvider.value, currentCredentials());
@@ -893,10 +1018,25 @@ async function handleTestConnection(): Promise<void> {
         currentCredentials(),
         targetUrl.value.trim(),
         providerForm.value.mode,
+        {},
+        {
+          feishuBaseUrl: resolvedFeishuBaseUrl,
+          tencentBaseUrl: resolvedTencentBaseUrl,
+          allowInsecure: activeAllowInsecure.value,
+        },
       );
       providerForm.value.configured = true;
       providerForm.value.target = result.target;
       targetUrl.value = result.target.fileUrl ?? targetUrl.value;
+      if (activeProvider.value === 'feishu') {
+        const target = result.target as FeishuTarget;
+        feishuBaseUrl.value = target.baseUrl ?? '';
+        feishuAllowInsecure.value = target.allowInsecure;
+      } else if (activeProvider.value === 'tencent') {
+        const target = result.target as TencentTarget;
+        tencentBaseUrl.value = target.baseUrl ?? '';
+        tencentAllowInsecure.value = target.allowInsecure;
+      }
       ElMessage.success(result.created ? t('cloudSync.tableCreated') : t('cloudSync.tableReady'));
     }
   } catch (error) {
@@ -924,7 +1064,10 @@ async function refreshWebDavVersions(): Promise<void> {
 }
 
 /** 执行同步/备份；明文模式每次同步前必须验证主密码 */
-async function runWithMasterPassword(action: 'sync' | 'backup' | 'restore' | 'rebuild'): Promise<void> {
+async function runWithMasterPassword(
+  action: 'sync' | 'backup' | 'restore' | 'rebuild',
+  direction: PlaintextSyncDirection = 'both',
+): Promise<void> {
   if (!credentialsComplete()) {
     ElMessage.warning(t('cloudSync.credentialIncomplete'));
     return;
@@ -933,6 +1076,7 @@ async function runWithMasterPassword(action: 'sync' | 'backup' | 'restore' | 're
   if (!masterPassword) return;
 
   running.value = true;
+  activePlaintextDirection.value = action === 'sync' ? direction : null;
   progress.value = null;
   abortController = new AbortController();
   try {
@@ -944,6 +1088,26 @@ async function runWithMasterPassword(action: 'sync' | 'backup' | 'restore' | 're
       onProgress: (value: SyncProgress) => {
         progress.value = value;
       },
+      direction,
+      onEmptyLocalCloud:
+        action === 'sync' && direction !== 'pull'
+          ? async (): Promise<boolean> => {
+              try {
+                await ElMessageBox.confirm(
+                  t('cloudSync.emptyLocalDeleteConfirm'),
+                  t('cloudSync.emptyLocalDeleteTitle'),
+                  {
+                    type: 'warning',
+                    confirmButtonText: t('cloudSync.emptyLocalDeleteButton'),
+                    cancelButtonText: t('common.cancel'),
+                  },
+                );
+                return true;
+              } catch {
+                return false;
+              }
+            }
+          : undefined,
     };
     let result: SyncReport;
     if (activeProvider.value === 'webdav') {
@@ -986,6 +1150,7 @@ async function runWithMasterPassword(action: 'sync' | 'backup' | 'restore' | 're
     }
   } finally {
     running.value = false;
+    activePlaintextDirection.value = null;
     abortController = null;
     progress.value = null;
   }
@@ -993,6 +1158,11 @@ async function runWithMasterPassword(action: 'sync' | 'backup' | 'restore' | 're
 
 async function handlePrimaryAction(): Promise<void> {
   await runWithMasterPassword(providerForm.value.mode === 'encrypted' ? 'backup' : 'sync');
+}
+
+/** 明文模式单向/双向同步入口 */
+async function handlePlaintextSync(direction: PlaintextSyncDirection): Promise<void> {
+  await runWithMasterPassword('sync', direction);
 }
 
 async function handleRestore(): Promise<void> {

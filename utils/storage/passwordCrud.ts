@@ -45,6 +45,74 @@ async function resolveDataKey(masterPassword?: string): Promise<string | null> {
   return getSessionDataKey();
 }
 
+type NewPasswordEntryInput = Omit<PasswordEntry, 'id' | 'order'>;
+
+interface PersistNewPasswordOptions {
+  /** 指定新条目 ID（云同步拉取时保留云端业务 ID） */
+  expectedId?: string;
+  /** 在指定条目后插入副本；不存在时回退到列表末尾 */
+  copyItemId?: string;
+}
+
+/** 新增密码条目的统一落盘路径，保证 at-rest 始终为密文 */
+async function persistNewPassword(
+  entry: NewPasswordEntryInput,
+  masterPassword: string | undefined,
+  options: PersistNewPasswordOptions = {},
+): Promise<PasswordEntry> {
+  const passwords = await getAllPasswordsRaw();
+  const expectedId = options.expectedId;
+  if (expectedId !== undefined) {
+    if (!expectedId.trim()) {
+      throw new Error('密码条目 ID 不能为空');
+    }
+    if (passwords.some(password => password.id === expectedId)) {
+      throw new Error('密码条目 ID 已存在');
+    }
+  }
+
+  // 总量守卫必须先于密钥派生与加密：超限时这次保存连 PBKDF2/AES-GCM 的开销都不该付。
+  assertWithinCapacity(passwords.length, 1);
+
+  const now = Date.now();
+  const createTime = entry.createTime ?? now;
+  const updateTime = entry.updateTime ?? createTime;
+  const newEntry: PasswordEntry = {
+    ...entry,
+    id: expectedId ?? generateId(),
+    createTime,
+    updateTime,
+    order: passwords.length,
+  };
+
+  // at-rest 不变量：新条目含敏感字段，必须加密后写入
+  const key = await resolveDataKey(masterPassword);
+  if (!key) {
+    throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
+  }
+  const enc = await _getEncryption();
+  const encryptedEntry = await enc.encryptPasswordEntry(newEntry, masterPassword ?? '', key);
+
+  const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
+  if (options.copyItemId) {
+    const copyIndex = entriesToSave.findIndex(p => p.id === options.copyItemId);
+    if (copyIndex !== -1) {
+      entriesToSave.splice(copyIndex + 1, 0, encryptedEntry);
+    } else {
+      entriesToSave.push(encryptedEntry);
+    }
+  } else {
+    entriesToSave.push(encryptedEntry);
+  }
+
+  await chrome.storage.local.set({
+    [STORAGE_KEYS.PASSWORDS]: entriesToSave,
+  });
+
+  // 返回明文条目供 UI 就地展示
+  return newEntry;
+}
+
 /**
  * 获取所有密码条目（原始数据，不进行解密）
  *
@@ -66,54 +134,158 @@ export async function getAllPasswordsRaw(): Promise<(PasswordEntry | EncryptedPa
  * 保存密码条目（始终以密文落盘）
  */
 export async function savePassword(
-  entry: Omit<PasswordEntry, 'id' | 'order'>,
+  entry: NewPasswordEntryInput,
   masterPassword?: string,
   copyItemId?: string,
 ): Promise<PasswordEntry> {
   try {
+    return await persistNewPassword(entry, masterPassword, { copyItemId });
+  } catch (error) {
+    logger.error('保存密码失败:', error);
+    throw error;
+  }
+}
+
+export interface BatchPasswordCreate {
+  /** 指定新条目 ID；缺省时按本地规则生成 */
+  id?: string;
+  entry: NewPasswordEntryInput;
+}
+
+export interface BatchPasswordUpdate {
+  id: string;
+  updates: Partial<PasswordEntry>;
+}
+
+export interface BatchPasswordChangesResult {
+  /** 新增条目（与入参顺序一致，含最终 ID） */
+  created: PasswordEntry[];
+}
+
+/**
+ * 批量应用密码条目新增与更新
+ *
+ * 云同步一次性拉取多行时使用：整批只读取一次密码数组、只派生一次数据密钥，
+ * 敏感更新与新增条目按受限并发加密，最后只写回一次。
+ * 更新目标不存在时按既有 updatePassword 语义静默跳过；指定 ID 已存在时整批拒绝。
+ */
+export async function batchApplyPasswordChanges(
+  creates: readonly BatchPasswordCreate[],
+  updates: readonly BatchPasswordUpdate[],
+  masterPassword?: string,
+): Promise<BatchPasswordChangesResult> {
+  try {
+    if (creates.length === 0 && updates.length === 0) return { created: [] };
+
     const passwords = await getAllPasswordsRaw();
-    // 总量守卫必须先于密钥派生与加密：超限时这次保存连 PBKDF2/AES-GCM 的开销都不该付。
-    assertWithinCapacity(passwords.length, 1);
+    assertWithinCapacity(passwords.length, creates.length);
 
     const now = Date.now();
-    const createTime = entry.createTime ?? now;
-    const updateTime = entry.updateTime ?? createTime;
-    const newEntry: PasswordEntry = {
-      ...entry,
-      id: generateId(),
-      createTime,
-      updateTime,
-      order: passwords.length,
-    };
+    const existingIndexById = new Map(passwords.map((password, index) => [password.id, index]));
+    const newIds = new Set<string>();
+    const newEntries: PasswordEntry[] = creates.map((create, index) => {
+      if (create.id !== undefined && !create.id.trim()) {
+        throw new Error('密码条目 ID 不能为空');
+      }
+      const id = create.id ?? generateId();
+      if (existingIndexById.has(id) || newIds.has(id)) {
+        throw new Error('密码条目 ID 已存在');
+      }
+      newIds.add(id);
 
-    // at-rest 不变量：新条目含敏感字段，必须加密后写入
-    const key = await resolveDataKey(masterPassword);
-    if (!key) {
+      const createTime = create.entry.createTime ?? now;
+      const updateTime = create.entry.updateTime ?? createTime;
+      return {
+        ...create.entry,
+        id,
+        createTime,
+        updateTime,
+        order: passwords.length + index,
+      };
+    });
+
+    const updatesById = new Map<string, Partial<PasswordEntry>>();
+    for (const update of updates) {
+      const existing = updatesById.get(update.id);
+      updatesById.set(update.id, existing ? { ...existing, ...update.updates } : update.updates);
+    }
+
+    const sensitiveUpdates: { index: number; id: string; updates: Partial<PasswordEntry> }[] = [];
+    const metadataUpdates: { index: number; updates: Partial<PasswordEntry> }[] = [];
+    for (const [id, nextUpdates] of updatesById) {
+      const index = existingIndexById.get(id);
+      if (index === undefined) continue;
+      if (updatesTouchSensitiveFields(nextUpdates)) sensitiveUpdates.push({ index, id, updates: nextUpdates });
+      else metadataUpdates.push({ index, updates: nextUpdates });
+    }
+
+    const needsDataKey = newEntries.length > 0 || sensitiveUpdates.length > 0;
+    const key = needsDataKey ? await resolveDataKey(masterPassword) : null;
+    if (needsDataKey && !key) {
       throw new Error('无法获取加密密钥（会话已过期或未验证主密码）');
     }
-    const enc = await _getEncryption();
-    const encryptedEntry = await enc.encryptPasswordEntry(newEntry, masterPassword ?? '', key);
+    const enc = needsDataKey ? await _getEncryption() : null;
+    if (needsDataKey && !enc) {
+      throw new Error('无法加载加密模块');
+    }
 
     const entriesToSave: (PasswordEntry | EncryptedPasswordEntry)[] = [...passwords];
-    if (copyItemId) {
-      const copyIndex = entriesToSave.findIndex(p => p.id === copyItemId);
-      if (copyIndex !== -1) {
-        entriesToSave.splice(copyIndex + 1, 0, encryptedEntry);
-      } else {
-        entriesToSave.push(encryptedEntry);
-      }
-    } else {
-      entriesToSave.push(encryptedEntry);
+
+    for (const { index, updates: nextUpdates } of metadataUpdates) {
+      entriesToSave[index] = {
+        ...passwords[index],
+        ...nextUpdates,
+        updateTime: nextUpdates.updateTime ?? now,
+      } as PasswordEntry | EncryptedPasswordEntry;
+    }
+
+    if (sensitiveUpdates.length > 0) {
+      const decryptedUpdates = await mapWithConcurrency(
+        sensitiveUpdates,
+        async ({ index, id, updates: nextUpdates }) => {
+          const current = passwords[index];
+          const currentPlain = await enc!.decryptPasswordEntry(
+            current as EncryptedPasswordEntry,
+            masterPassword ?? '',
+            key!,
+          );
+
+          if ('password' in nextUpdates && nextUpdates.password !== currentPlain.password) {
+            snapshotPasswordHistory(id, current.password).catch(() => {});
+          }
+
+          return {
+            index,
+            updatedPlain: {
+              ...currentPlain,
+              ...nextUpdates,
+              updateTime: nextUpdates.updateTime ?? now,
+            },
+          };
+        },
+      );
+
+      const encryptedUpdates = await mapWithConcurrency(decryptedUpdates, async ({ index, updatedPlain }) => ({
+        index,
+        entry: await enc!.encryptPasswordEntry(updatedPlain, masterPassword ?? '', key!),
+      }));
+      for (const { index, entry } of encryptedUpdates) entriesToSave[index] = entry;
+    }
+
+    if (newEntries.length > 0) {
+      const encryptedNewEntries = await mapWithConcurrency(newEntries, entry =>
+        enc!.encryptPasswordEntry(entry, masterPassword ?? '', key!),
+      );
+      entriesToSave.push(...encryptedNewEntries);
     }
 
     await chrome.storage.local.set({
       [STORAGE_KEYS.PASSWORDS]: entriesToSave,
     });
 
-    // 返回明文条目供 UI 就地展示
-    return newEntry;
+    return { created: newEntries };
   } catch (error) {
-    logger.error('保存密码失败:', error);
+    logger.error('批量应用密码变更失败:', error);
     throw error;
   }
 }

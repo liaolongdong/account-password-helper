@@ -205,13 +205,40 @@ describe('computeDiff：匹配优先级与降级', () => {
     expect(result.plan).toEqual([{ kind: 'pullCreate', row: expect.anything() }]);
   });
 
-  it('外部变更：云端存在快照与本地均无的业务 ID → 人工冲突，不自动合并', async () => {
+  it('跨设备新增：云端存在快照与本地均无的业务 ID → 保留原 ID 拉取', async () => {
+    const remote = cloudRow({ [PLAINTEXT_FIELDS.id]: 'foreign-id' }, { recordId: 'rec-x' });
     const result = await computeDiff({
       local: [],
-      cloud: [cloudRow({ [PLAINTEXT_FIELDS.id]: 'foreign-id' }, { recordId: 'rec-x' })],
+      cloud: [remote],
       snapshot: { provider: 'feishu', docKey: 'doc', entries: {} },
     });
-    expect(result.plan[0]).toMatchObject({ kind: 'manualConflict', reason: 'externalChange' });
+    expect(result.plan).toEqual([{ kind: 'pullCreateWithId', row: remote, businessId: 'foreign-id' }]);
+  });
+
+  it('跨设备新增拉取后：本地已有同一业务 ID → 下一轮稳定为 baseline，不再报冲突', async () => {
+    const pulled = local({ id: 'foreign-id' });
+    const remote = cloudRow({ [PLAINTEXT_FIELDS.id]: 'foreign-id' }, { recordId: 'rec-x' });
+    const result = await computeDiff({
+      local: [pulled],
+      cloud: [remote],
+      snapshot: await snapshotFor(pulled, 'rec-x'),
+    });
+    expect(result.plan).toEqual([{ kind: 'baseline', businessId: 'foreign-id', recordId: 'rec-x' }]);
+  });
+
+  it('同一业务 ID 的重复云端行 → 只拉取一次，其余跳过', async () => {
+    const result = await computeDiff({
+      local: [],
+      cloud: [
+        cloudRow({ [PLAINTEXT_FIELDS.id]: 'foreign-id' }, { recordId: 'rec-x1' }),
+        cloudRow({ [PLAINTEXT_FIELDS.id]: 'foreign-id' }, { recordId: 'rec-x2' }),
+      ],
+      snapshot: { provider: 'feishu', docKey: 'doc', entries: {} },
+    });
+    expect(result.plan).toEqual([
+      { kind: 'pullCreateWithId', row: expect.anything(), businessId: 'foreign-id' },
+      { kind: 'skip', businessId: 'rec-x2', reason: 'duplicate-business-id' },
+    ]);
   });
 });
 

@@ -650,15 +650,18 @@ const tableHostRef = ref<HTMLElement | null>(null);
 /**
  * 行拖拽起始：把条目 ID 写入 dataTransfer
  *
- * 拖拽已选中的行 → 搬运整批选中条目；拖拽未选中的行 → 只搬运该行。
+ * 只有已选中的行允许拖拽，落到分组树后搬运当前整批选中条目。
  * 用自定义 MIME（ENTRY_DRAG_MIME）让左侧分组树能区分「拖条目」与「拖分组节点」；
  * text/plain 兜底：部分浏览器要求至少设置一种标准类型才允许拖拽。
  */
 const handleRowDragStart = (event: DragEvent, row: PasswordEntryWithGroupPath) => {
   const selected = props.selectedIds ?? [];
-  const ids = selected.includes(row.id) ? selected : [row.id];
-  event.dataTransfer?.setData(ENTRY_DRAG_MIME, ids.join(','));
-  event.dataTransfer?.setData('text/plain', ids.join(','));
+  if (!selected.includes(row.id)) {
+    event.preventDefault();
+    return;
+  }
+  event.dataTransfer?.setData(ENTRY_DRAG_MIME, selected.join(','));
+  event.dataTransfer?.setData('text/plain', selected.join(','));
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
 };
 
@@ -678,9 +681,13 @@ const handleContainerDragStart = (event: DragEvent) => {
   if (entry) handleRowDragStart(event, entry);
 };
 
-/** 给所有表格行设置 draggable（数据更新后行 DOM 重建，需重新标记） */
+/** 只给已选中的表格行设置 draggable（数据或选中集更新后重新标记） */
 const markRowsDraggable = () => {
-  tableHostRef.value?.querySelectorAll('tr.el-table__row').forEach(row => row.setAttribute('draggable', 'true'));
+  const selectedIds = props.selectedIds ?? [];
+  tableHostRef.value?.querySelectorAll('tr.el-table__row').forEach(row => {
+    const id = [...row.classList].find(cls => !cls.startsWith('el-') && cls !== 'new-item' && cls !== 'del-item');
+    row.setAttribute('draggable', String(Boolean(id && selectedIds.includes(id))));
+  });
 };
 
 onMounted(() => {
@@ -693,10 +700,7 @@ onUnmounted(() => {
 });
 
 // 翻页/过滤/排序后行 DOM 重建，重新标记 draggable
-watch(
-  () => props.data,
-  () => void nextTick(markRowsDraggable),
-);
+watch([() => props.data, () => props.selectedIds], () => void nextTick(markRowsDraggable));
 
 /**
  * 将 URL 文本归一化为可跳转的完整链接
@@ -726,16 +730,6 @@ defineExpose({
 </script>
 
 <style scoped>
-/* 密码列表容器 */
-.password-list {
-  margin: 0 32px 32px;
-  overflow: hidden;
-  background: white;
-  border: 1px solid var(--aph-surface-line);
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
-}
-
 .password-cell {
   display: flex;
   gap: 8px;
@@ -913,12 +907,5 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* 响应式 */
-@media (width <= 768px) {
-  .password-list {
-    margin: 0 16px 16px;
-  }
 }
 </style>

@@ -313,18 +313,14 @@ const promptRename = async (data: GroupTreeNode) => {
 </script>
 
 <style scoped>
+/* 分组窗格：列表卡内左栏，与右侧筛选/表格同卡，右边框分隔 */
 .group-panel {
   display: flex;
   flex-shrink: 0;
   flex-direction: column;
   width: 240px;
-  max-height: calc(100vh - 32px);
-  margin: 0 0 32px 32px;
   overflow: hidden;
-  background: var(--el-bg-color);
-  border: 1px solid var(--aph-surface-line);
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
+  border-right: 1px solid var(--aph-surface-line);
 }
 
 .group-panel__header {
@@ -400,12 +396,13 @@ const promptRename = async (data: GroupTreeNode) => {
   margin-left: 2px;
 }
 
-/* 窄屏：左栏收窄为顶部区块，宽度占满 */
-@media (width <= 768px) {
+/* 窄屏：列表卡切为上下布局，分组窗格变为顶部块 */
+@media (width <= 1024px) {
   .group-panel {
     width: auto;
     max-height: 240px;
-    margin: 0 16px 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--aph-surface-line);
   }
 }
 </style>

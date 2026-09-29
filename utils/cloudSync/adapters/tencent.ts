@@ -30,8 +30,10 @@ import type {
   UpsertRow,
 } from '../types';
 import { chunkItems, isTransientStatus, requestWithRetry } from './httpClient';
+import { normalizeServerBaseUrl, resolveServerBaseUrl } from './serverAddress';
 
-const BASE_URL = 'https://docs.qq.com';
+/** 官方 SaaS 开放平台地址 */
+export const TENCENT_DEFAULT_BASE_URL = 'https://docs.qq.com';
 
 /** 单次批量写入/删除建议上限（官方建议 ≤500） */
 const BATCH_LIMIT = 500;
@@ -47,8 +49,26 @@ export interface TencentAdapterInit {
   fileId: string;
   /** 未建子表前为 null，建表成功后由调用方回填 */
   sheetId: string | null;
+  /** 私有化部署的开放平台地址；留空或 null 使用官方 SaaS 地址 */
+  baseUrl?: string | null;
+  /** HTTP 明文传输已由用户显式确认 */
+  allowInsecure?: boolean;
   credentials: TencentCredentials;
   options?: AdapterOptions;
+}
+
+/**
+ * 归一化腾讯文档开放平台地址
+ *
+ * 空值回退官方地址；非法、非 http(s) 或未确认的内网 HTTP 地址抛 `notFound`。
+ */
+export function resolveTencentBaseUrl(input?: string | null, allowInsecure = false): string {
+  return resolveServerBaseUrl(input, TENCENT_DEFAULT_BASE_URL, allowInsecure);
+}
+
+/** 把用户填写地址归一为可入库形态；官方地址与空值返回 `null` */
+export function normalizeTencentBaseUrl(input?: string | null, allowInsecure = false): string | null {
+  return normalizeServerBaseUrl(input, TENCENT_DEFAULT_BASE_URL, allowInsecure);
 }
 
 /** 腾讯响应外壳：平台统一用 `ret` 表示业务结果，`0` 为成功 */
@@ -142,12 +162,15 @@ export class TencentAdapter implements TableAdapter {
   private sheetId: string | null;
   private credentials: TencentCredentials;
   private options: AdapterOptions;
+  /** 本次实例生效的开放平台地址（官方 SaaS 或私有化部署） */
+  private baseUrl: string;
 
   constructor(init: TencentAdapterInit) {
     this.fileId = init.fileId;
     this.sheetId = init.sheetId;
     this.credentials = init.credentials;
     this.options = init.options ?? {};
+    this.baseUrl = resolveTencentBaseUrl(init.baseUrl, init.allowInsecure === true);
   }
 
   /** 建子表成功后回填 sheetID */
@@ -171,7 +194,7 @@ export class TencentAdapter implements TableAdapter {
    * 平台错误既可能通过 HTTP 状态码表达，也可能通过 `ret` 字段表达，故两者都映射。
    */
   private async request<T>(path: string, body?: unknown): Promise<T> {
-    const { response, json } = await requestWithRetry(`${BASE_URL}${path}`, {
+    const { response, json } = await requestWithRetry(`${this.baseUrl}${path}`, {
       method: body === undefined ? 'GET' : 'POST',
       headers: this.headers(body !== undefined),
       body: body !== undefined ? JSON.stringify(body) : undefined,

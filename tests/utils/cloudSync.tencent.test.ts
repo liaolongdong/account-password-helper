@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  TENCENT_DEFAULT_BASE_URL,
   TencentAdapter,
   encodeFields,
   fromTencentValue,
   mapTencentErrorCode,
+  normalizeTencentBaseUrl,
+  resolveTencentBaseUrl,
 } from '@/utils/cloudSync/adapters/tencent';
 
 /**
@@ -51,8 +54,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function makeAdapter(sheetId: string | null = 'sheet-1'): TencentAdapter {
-  return new TencentAdapter({ fileId: FILE_ID, sheetId, credentials: CREDS });
+function makeAdapter(
+  sheetId: string | null = 'sheet-1',
+  baseUrl?: string | null,
+  allowInsecure = false,
+): TencentAdapter {
+  return new TencentAdapter({ fileId: FILE_ID, sheetId, credentials: CREDS, baseUrl, allowInsecure });
 }
 
 describe('TencentAdapter：鉴权与值格式', () => {
@@ -206,5 +213,28 @@ describe('mapTencentErrorCode：错误码映射', () => {
 
   it('未知错误码 → unknown', () => {
     expect(mapTencentErrorCode(999999, 'x').kind).toBe('unknown');
+  });
+});
+
+describe('TencentAdapter：自定义开放平台地址', () => {
+  it('自定义 baseUrl 时请求打到自建地址，末尾斜杠被归一', async () => {
+    const { calls } = stubFetchSequence([{ body: { ret: 0, data: { sheets: [] } } }]);
+    await makeAdapter('sheet-1', 'https://docs.corp.example/gateway/').listTables();
+    expect(calls[0].url.startsWith('https://docs.corp.example/gateway/openapi/smartbook/v2/files/')).toBe(true);
+  });
+
+  it('内网 http 未确认时拒绝，确认后允许', async () => {
+    expect(() => makeAdapter('sheet-1', 'http://192.168.1.8:8080')).toThrowError(/explicit confirmation/);
+
+    const { calls } = stubFetchSequence([{ body: { ret: 0, data: { sheets: [] } } }]);
+    await makeAdapter('sheet-1', 'http://192.168.1.8:8080/', true).listTables();
+    expect(calls[0].url.startsWith('http://192.168.1.8:8080/openapi/smartbook/v2/files/')).toBe(true);
+  });
+
+  it('空值与官方地址回退官方地址，自定义地址可归一入库', () => {
+    expect(resolveTencentBaseUrl()).toBe(TENCENT_DEFAULT_BASE_URL);
+    expect(resolveTencentBaseUrl('https://docs.qq.com/')).toBe(TENCENT_DEFAULT_BASE_URL);
+    expect(normalizeTencentBaseUrl('https://docs.qq.com/')).toBeNull();
+    expect(normalizeTencentBaseUrl('https://docs.corp.example/gateway/')).toBe('https://docs.corp.example/gateway');
   });
 });

@@ -36,6 +36,10 @@ const h = vi.hoisted(() => {
     upsertCalls: unknown[][];
     deleteCalls: string[][];
     getRowsCalls: number;
+    /** 最近一次构造适配器时收到的飞书私有化地址（null 表示官方 SaaS） */
+    lastAdapterBaseUrl: string | null;
+    /** 最近一次构造适配器时收到的 HTTP 明文确认状态 */
+    lastAdapterAllowInsecure: boolean;
   }
   const state: FakeState = {
     rows: [],
@@ -49,6 +53,8 @@ const h = vi.hoisted(() => {
     upsertCalls: [],
     deleteCalls: [],
     getRowsCalls: 0,
+    lastAdapterBaseUrl: null,
+    lastAdapterAllowInsecure: false,
   };
 
   class FakeAdapter {
@@ -59,6 +65,8 @@ const h = vi.hoisted(() => {
     constructor(opts: {
       appToken?: string;
       tableId?: string | null;
+      baseUrl?: string | null;
+      allowInsecure?: boolean;
       fileId?: string;
       sheetId?: string | null;
       options?: { onApiCall?: () => void };
@@ -67,6 +75,8 @@ const h = vi.hoisted(() => {
       this.tableId = opts.tableId ?? null;
       this.sheetId = opts.sheetId ?? null;
       this.options = opts.options ?? {};
+      state.lastAdapterBaseUrl = opts.baseUrl ?? null;
+      state.lastAdapterAllowInsecure = opts.allowInsecure === true;
     }
     private tick() {
       this.options.onApiCall?.();
@@ -132,19 +142,28 @@ const h = vi.hoisted(() => {
     loadCredentialsMock: vi.fn(),
     getAllPasswordsMock: vi.fn(),
     savePasswordMock: vi.fn(),
+    batchApplyPasswordChangesMock: vi.fn(),
     updatePasswordMock: vi.fn(),
     moveToTrashMock: vi.fn(),
     appendAuditLogMock: vi.fn(),
   };
 });
 
-vi.mock('@/utils/cloudSync/adapters/feishu', () => ({ FeishuAdapter: h.FakeAdapter }));
-vi.mock('@/utils/cloudSync/adapters/tencent', () => ({ TencentAdapter: h.FakeAdapter }));
+// 保留真实模块的纯函数（normalizeFeishuBaseUrl 等），只替换适配器类
+vi.mock('@/utils/cloudSync/adapters/feishu', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/utils/cloudSync/adapters/feishu')>();
+  return { ...actual, FeishuAdapter: h.FakeAdapter };
+});
+vi.mock('@/utils/cloudSync/adapters/tencent', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/utils/cloudSync/adapters/tencent')>();
+  return { ...actual, TencentAdapter: h.FakeAdapter };
+});
 vi.mock('@/utils/cloudSync/taskLock', () => ({ acquireTaskLock: h.acquireTaskLockMock, isTargetLocked: vi.fn() }));
 vi.mock('@/utils/cloudSync/credentialStore', () => ({ loadCredentials: h.loadCredentialsMock }));
 vi.mock('@/utils/storage/passwordCrud', () => ({
   getAllPasswords: h.getAllPasswordsMock,
   savePassword: h.savePasswordMock,
+  batchApplyPasswordChanges: h.batchApplyPasswordChangesMock,
   updatePassword: h.updatePasswordMock,
 }));
 vi.mock('@/utils/storage/trashManager', () => ({ moveToTrash: h.moveToTrashMock }));
@@ -181,6 +200,8 @@ function resetState() {
   h.state.upsertCalls = [];
   h.state.deleteCalls = [];
   h.state.getRowsCalls = 0;
+  h.state.lastAdapterBaseUrl = null;
+  h.state.lastAdapterAllowInsecure = false;
 }
 
 async function setupConfig(
@@ -191,8 +212,8 @@ async function setupConfig(
   const config = getDefaultCloudSyncConfig();
   const target =
     provider === 'feishu'
-      ? { appToken: 'app', tableId: 'tbl', fileUrl: null }
-      : { fileId: 'file', sheetId: 'sheet', fileUrl: null };
+      ? { appToken: 'app', tableId: 'tbl', fileUrl: null, baseUrl: null, allowInsecure: false }
+      : { fileId: 'file', sheetId: 'sheet', fileUrl: null, baseUrl: null, allowInsecure: false };
   config.providers[provider] = { ...config.providers[provider], configured: true, mode, target, ...overrides } as never;
   await saveCloudSyncConfig(config);
 }
@@ -272,6 +293,19 @@ beforeEach(async () => {
     ...entry,
     id: `saved-${Math.random().toString(36).slice(2, 8)}`,
   }));
+  h.batchApplyPasswordChangesMock.mockReset();
+  h.batchApplyPasswordChangesMock.mockImplementation(
+    async (
+      creates: Array<{ id?: string; entry: Record<string, unknown> }>,
+      _updates: Array<{ id: string; updates: Record<string, unknown> }>,
+    ) => ({
+      created: creates.map((create, index) => ({
+        ...create.entry,
+        id: create.id ?? `saved-batch-${index}`,
+        order: index,
+      })),
+    }),
+  );
   h.updatePasswordMock.mockReset();
   h.updatePasswordMock.mockResolvedValue(undefined);
   h.moveToTrashMock.mockReset();
@@ -361,6 +395,167 @@ describe('prepareProviderTarget：建表与探测（§4.3）', () => {
       prepareProviderTarget('feishu', FEISHU_CREDS, 'https://x.feishu.cn/base/appToken123', 'encrypted'),
     ).rejects.toMatchObject({ kind: 'invalidCredential' });
   });
+
+  it('私有化部署：自定义地址透传适配器、随 target 落盘，并放行自有域名的文档链接', async () => {
+    h.state.tables = [{ id: 'tbl-existing', name: 'APH-Sync-Encrypted' }];
+    h.state.schemaResult = { ok: true };
+    const result = await prepareProviderTarget(
+      'feishu',
+      FEISHU_CREDS,
+      'https://docs.corp.example/base/appToken123?table=tbl-existing',
+      'encrypted',
+      {},
+      { feishuBaseUrl: 'https://open.corp.example/' },
+    );
+    expect(result.target).toMatchObject({
+      appToken: 'appToken123',
+      tableId: 'tbl-existing',
+      baseUrl: 'https://open.corp.example',
+    });
+    expect(h.state.lastAdapterBaseUrl).toBe('https://open.corp.example');
+    const config = await import('@/utils/cloudSync/configStore').then(m => m.getCloudSyncConfig());
+    expect(config.providers.feishu.target.baseUrl).toBe('https://open.corp.example');
+  });
+
+  it('填写官方地址等同留空：target.baseUrl 归一为 null', async () => {
+    h.state.tables = [];
+    const result = await prepareProviderTarget(
+      'feishu',
+      FEISHU_CREDS,
+      'https://x.feishu.cn/base/appToken123',
+      'encrypted',
+      {},
+      { feishuBaseUrl: 'https://open.feishu.cn/' },
+    );
+    expect((result.target as { baseUrl?: string | null }).baseUrl).toBeNull();
+    expect(h.state.lastAdapterBaseUrl).toBeNull();
+  });
+
+  it('私有化地址非法（公网 http）→ notFound，不落盘配置', async () => {
+    await expect(
+      prepareProviderTarget(
+        'feishu',
+        FEISHU_CREDS,
+        'https://x.feishu.cn/base/appToken123',
+        'encrypted',
+        {},
+        { feishuBaseUrl: 'http://open.corp.example' },
+      ),
+    ).rejects.toMatchObject({ kind: 'notFound' });
+    const config = await import('@/utils/cloudSync/configStore').then(m => m.getCloudSyncConfig());
+    expect(config.providers.feishu.configured).toBe(false);
+  });
+
+  it('未配置私有化地址时，非白名单文档域名仍被拒绝（既有行为不变）', async () => {
+    await expect(
+      prepareProviderTarget('feishu', FEISHU_CREDS, 'https://docs.corp.example/base/appToken123', 'encrypted'),
+    ).rejects.toMatchObject({ kind: 'notFound' });
+  });
+
+  it('私有化地址只对飞书生效，腾讯 target 保持官方默认地址', async () => {
+    h.state.tables = [];
+    const result = await prepareProviderTarget(
+      'tencent',
+      { clientId: 'c', openId: 'o', accessToken: 'a' },
+      'https://docs.qq.com/smartsheet/file123',
+      'encrypted',
+      {},
+      { feishuBaseUrl: 'https://open.corp.example' },
+    );
+    expect(result.target).toEqual({
+      fileId: 'file123',
+      sheetId: 'tbl-created',
+      fileUrl: 'https://docs.qq.com/smartsheet/file123',
+      baseUrl: null,
+      allowInsecure: false,
+    });
+  });
+
+  it('腾讯私有化部署：自定义 API 地址与自有文档域名可用并落盘', async () => {
+    h.state.tables = [{ id: 'tbl-existing', name: 'APH-Sync-Encrypted' }];
+    h.state.schemaResult = { ok: true };
+    const result = await prepareProviderTarget(
+      'tencent',
+      { clientId: 'c', openId: 'o', accessToken: 'a' },
+      'https://docs.corp.example/smartsheet/file123?tab=tbl-existing',
+      'encrypted',
+      {},
+      { tencentBaseUrl: 'https://api.corp.example/gateway/' },
+    );
+    expect(result.target).toEqual({
+      fileId: 'file123',
+      sheetId: 'tbl-existing',
+      fileUrl: 'https://docs.corp.example/smartsheet/file123?tab=tbl-existing',
+      baseUrl: 'https://api.corp.example/gateway',
+      allowInsecure: false,
+    });
+    expect(h.state.lastAdapterBaseUrl).toBe('https://api.corp.example/gateway');
+  });
+
+  it('腾讯内网 HTTP 未确认时拒绝，显式确认后允许并记录标记', async () => {
+    await expect(
+      prepareProviderTarget(
+        'tencent',
+        { clientId: 'c', openId: 'o', accessToken: 'a' },
+        'http://192.168.1.8:8080/smartsheet/file123',
+        'encrypted',
+        {},
+        { tencentBaseUrl: 'http://192.168.1.8:8080' },
+      ),
+    ).rejects.toMatchObject({ kind: 'notFound' });
+
+    h.state.tables = [];
+    const result = await prepareProviderTarget(
+      'tencent',
+      { clientId: 'c', openId: 'o', accessToken: 'a' },
+      'http://192.168.1.8:8080/smartsheet/file123',
+      'encrypted',
+      {},
+      { tencentBaseUrl: 'http://192.168.1.8:8080/', allowInsecure: true },
+    );
+    expect(result.target).toMatchObject({
+      baseUrl: 'http://192.168.1.8:8080',
+      allowInsecure: true,
+    });
+    expect(h.state.lastAdapterBaseUrl).toBe('http://192.168.1.8:8080');
+    expect(h.state.lastAdapterAllowInsecure).toBe(true);
+  });
+});
+
+describe('已保存的私有化地址在执行期透传适配器', () => {
+  it('rebuildSnapshot 用配置里的 baseUrl 构造适配器', async () => {
+    await setupConfig('feishu', 'plaintext', {
+      target: {
+        appToken: 'app',
+        tableId: 'tbl',
+        fileUrl: null,
+        baseUrl: 'https://open.corp.example',
+        allowInsecure: false,
+      },
+    });
+    await rebuildSnapshot('feishu', TEST_MASTER_PASSWORD);
+    expect(h.state.lastAdapterBaseUrl).toBe('https://open.corp.example');
+  });
+
+  it('未配置 baseUrl 时透传 null，适配器自行回退官方地址', async () => {
+    await setupConfig('feishu', 'plaintext');
+    await rebuildSnapshot('feishu', TEST_MASTER_PASSWORD);
+    expect(h.state.lastAdapterBaseUrl).toBeNull();
+  });
+
+  it('腾讯 rebuildSnapshot 透传已保存的自定义地址', async () => {
+    await setupConfig('tencent', 'plaintext', {
+      target: {
+        fileId: 'file',
+        sheetId: 'sheet',
+        fileUrl: 'https://docs.corp.example/sheet/file',
+        baseUrl: 'https://api.corp.example',
+        allowInsecure: false,
+      },
+    });
+    await rebuildSnapshot('tencent', TEST_MASTER_PASSWORD);
+    expect(h.state.lastAdapterBaseUrl).toBe('https://api.corp.example');
+  });
 });
 
 // ==================== 前置校验 ====================
@@ -428,6 +623,120 @@ describe('runPlaintextSync：明文双向同步（§6）', () => {
     expect(snap?.entries.e1.recordId).toBe('rec-0');
   });
 
+  it('推送到表格：只执行本地上行，不拉取云端独有行', async () => {
+    await setupConfig('feishu', 'plaintext');
+    const e1 = makePasswordEntry({
+      id: 'e1',
+      username: 'alice',
+      password: 'p1',
+      url: 'https://a.example',
+      updateTime: 1000,
+    });
+    h.getAllPasswordsMock.mockResolvedValue([e1]);
+    h.state.rows = [
+      plaintextRow(
+        {
+          [PLAINTEXT_FIELDS.id]: '',
+          [PLAINTEXT_FIELDS.username]: 'bob',
+          [PLAINTEXT_FIELDS.url]: 'https://b.example',
+        },
+        { recordId: 'rec-cloud-only' },
+      ),
+    ];
+
+    const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD, { direction: 'push' });
+
+    expect(h.state.upsertCalls).toHaveLength(1);
+    expect(h.state.upsertCalls[0][0]).toMatchObject({ businessId: 'e1' });
+    expect(h.savePasswordMock).not.toHaveBeenCalled();
+    expect(h.batchApplyPasswordChangesMock).not.toHaveBeenCalled();
+    expect(report.stats.created).toBe(1);
+    expect(report.stats.pulled).toBe(0);
+  });
+
+  it('从表格拉取：只执行云端下行，不推送本地独有行', async () => {
+    await setupConfig('feishu', 'plaintext');
+    const e1 = makePasswordEntry({
+      id: 'e1',
+      username: 'alice',
+      password: 'p1',
+      url: 'https://a.example',
+      updateTime: 1000,
+    });
+    h.getAllPasswordsMock.mockResolvedValue([e1]);
+    h.state.rows = [
+      plaintextRow(
+        {
+          [PLAINTEXT_FIELDS.id]: '',
+          [PLAINTEXT_FIELDS.username]: 'bob',
+          [PLAINTEXT_FIELDS.url]: 'https://b.example',
+        },
+        { recordId: 'rec-cloud-only' },
+      ),
+    ];
+
+    const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD, { direction: 'pull' });
+
+    expect(h.state.upsertCalls).toHaveLength(0);
+    expect(h.batchApplyPasswordChangesMock).toHaveBeenCalledTimes(1);
+    expect(h.savePasswordMock).not.toHaveBeenCalled();
+    expect(report.stats.created).toBe(0);
+    expect(report.stats.pulled).toBe(1);
+  });
+
+  it('本地为空且推送已确认 → 删除线上全部账号行，并清空本地快照', async () => {
+    await setupConfig('feishu', 'plaintext');
+    h.getAllPasswordsMock.mockResolvedValue([]);
+    h.state.rows = [
+      plaintextRow({ [PLAINTEXT_FIELDS.id]: 'e1' }, { recordId: 'rec1' }),
+      plaintextRow({ [PLAINTEXT_FIELDS.id]: 'e2' }, { recordId: 'rec2' }),
+    ];
+    const confirm = vi.fn().mockResolvedValue(true);
+
+    const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD, {
+      direction: 'push',
+      onEmptyLocalCloud: confirm,
+    });
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(h.state.deleteCalls.flat()).toEqual(['rec1', 'rec2']);
+    expect(report.stats.deleted).toBe(2);
+    expect(report.cancelled).toBe(false);
+    const snapshot = await loadSnapshot('feishu', 'app:tbl');
+    expect(snapshot?.entries).toEqual({});
+  });
+
+  it('本地为空但用户取消删除 → 本轮取消且不删除任何云端行', async () => {
+    await setupConfig('feishu', 'plaintext');
+    h.getAllPasswordsMock.mockResolvedValue([]);
+    h.state.rows = [plaintextRow({ [PLAINTEXT_FIELDS.id]: 'e1' }, { recordId: 'rec1' })];
+
+    const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD, {
+      direction: 'both',
+      onEmptyLocalCloud: vi.fn().mockResolvedValue(false),
+    });
+
+    expect(h.state.deleteCalls).toHaveLength(0);
+    expect(report.cancelled).toBe(true);
+    expect(report.stats.deleted).toBe(0);
+  });
+
+  it('从表格拉取时本地为空不会触发云端删除确认', async () => {
+    await setupConfig('feishu', 'plaintext');
+    h.getAllPasswordsMock.mockResolvedValue([]);
+    h.state.rows = [plaintextRow({ [PLAINTEXT_FIELDS.id]: '' }, { recordId: 'rec-cloud-only' })];
+    const confirm = vi.fn().mockResolvedValue(true);
+
+    const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD, {
+      direction: 'pull',
+      onEmptyLocalCloud: confirm,
+    });
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(h.state.deleteCalls).toHaveLength(0);
+    expect(report.stats.pulled).toBe(1);
+  });
+
   it('云端删除 + 本地未变 → 条目进回收站（trashLocal），stats.trashed=1', async () => {
     await setupConfig('feishu', 'plaintext');
     const e1 = makePasswordEntry({
@@ -459,8 +768,128 @@ describe('runPlaintextSync：明文双向同步（§6）', () => {
     h.state.rows = [plaintextRow({ [PLAINTEXT_FIELDS.id]: '' }, { recordId: 'rec-new' })];
 
     const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD);
-    expect(h.savePasswordMock).toHaveBeenCalled();
+    expect(h.batchApplyPasswordChangesMock).toHaveBeenCalledTimes(1);
     expect(report.stats.pulled).toBe(1);
+  });
+
+  it('跨设备新增（带业务 ID）→ 保留原 ID 拉取并写入快照，不报人工冲突', async () => {
+    await setupConfig('feishu', 'plaintext');
+    h.getAllPasswordsMock.mockResolvedValue([]);
+    h.state.rows = [
+      plaintextRow(
+        {
+          [PLAINTEXT_FIELDS.id]: 'uuid-browser-b',
+          [PLAINTEXT_FIELDS.username]: 'bob',
+          [PLAINTEXT_FIELDS.password]: 'p2',
+          [PLAINTEXT_FIELDS.url]: 'https://b.example',
+        },
+        { recordId: 'rec-browser-b' },
+      ),
+    ];
+
+    const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD);
+
+    expect(h.batchApplyPasswordChangesMock).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          id: 'uuid-browser-b',
+          entry: expect.objectContaining({ username: 'bob', password: 'p2', url: 'https://b.example' }),
+        }),
+      ],
+      [],
+      TEST_MASTER_PASSWORD,
+    );
+    expect(h.savePasswordMock).not.toHaveBeenCalled();
+    expect(report.stats.pulled).toBe(1);
+    expect(report.stats.conflicts).toBe(0);
+    const snapshot = await loadSnapshot('feishu', 'app:tbl');
+    expect(snapshot?.entries['uuid-browser-b']).toMatchObject({ recordId: 'rec-browser-b' });
+  });
+
+  it('多行云端新增与更新合并为一次本地批量落库', async () => {
+    await setupConfig('feishu', 'plaintext');
+    const local = makePasswordEntry({
+      id: 'existing',
+      username: 'old-name',
+      password: 'old-pass',
+      url: 'https://existing.example',
+      updateTime: 1000,
+    });
+    h.getAllPasswordsMock.mockResolvedValue([local]);
+    h.state.rows = [
+      plaintextRow(
+        {
+          [PLAINTEXT_FIELDS.id]: 'existing',
+          [PLAINTEXT_FIELDS.username]: 'cloud-name',
+          [PLAINTEXT_FIELDS.password]: 'cloud-pass',
+          [PLAINTEXT_FIELDS.url]: 'https://existing.example',
+          [PLAINTEXT_FIELDS.localUpdateTime]: 2000,
+        },
+        { recordId: 'rec-existing', cloudModifiedAt: 2000 },
+      ),
+      plaintextRow(
+        {
+          [PLAINTEXT_FIELDS.id]: '',
+          [PLAINTEXT_FIELDS.username]: 'new-user',
+          [PLAINTEXT_FIELDS.password]: 'new-pass',
+          [PLAINTEXT_FIELDS.url]: 'https://new.example',
+          [PLAINTEXT_FIELDS.localUpdateTime]: 3000,
+        },
+        { recordId: 'rec-new', cloudModifiedAt: 3000 },
+      ),
+    ];
+    await saveSnapshot({
+      provider: 'feishu',
+      docKey: 'app:tbl',
+      entries: {
+        existing: {
+          hash: await computeEntryHash(local),
+          recordId: 'rec-existing',
+          syncedAt: 1000,
+        },
+      },
+    });
+
+    const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD);
+
+    expect(h.batchApplyPasswordChangesMock).toHaveBeenCalledTimes(1);
+    const [creates, updates] = h.batchApplyPasswordChangesMock.mock.calls[0] as [
+      Array<{ entry: Record<string, unknown> }>,
+      Array<{ id: string; updates: Record<string, unknown> }>,
+    ];
+    expect(creates).toHaveLength(1);
+    expect(updates).toEqual([
+      {
+        id: 'existing',
+        updates: expect.objectContaining({
+          username: 'cloud-name',
+          password: 'cloud-pass',
+          updateTime: 2000,
+        }),
+      },
+    ]);
+    expect(report.stats.pulled).toBe(2);
+  });
+
+  it('推送到表格：跳过跨设备带业务 ID 的新增行，不拉取也不报人工冲突', async () => {
+    await setupConfig('feishu', 'plaintext');
+    h.getAllPasswordsMock.mockResolvedValue([]);
+    h.state.rows = [
+      plaintextRow(
+        {
+          [PLAINTEXT_FIELDS.id]: 'uuid-browser-b',
+          [PLAINTEXT_FIELDS.username]: 'bob',
+          [PLAINTEXT_FIELDS.url]: 'https://b.example',
+        },
+        { recordId: 'rec-browser-b' },
+      ),
+    ];
+
+    const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD, { direction: 'push' });
+
+    expect(h.batchApplyPasswordChangesMock).not.toHaveBeenCalled();
+    expect(report.stats.pulled).toBe(0);
+    expect(report.stats.conflicts).toBe(0);
   });
 
   it('本地删除 + 云端仍在 + 快照证明 → 删除云端行，stats.deleted=1', async () => {
@@ -483,6 +912,20 @@ describe('runPlaintextSync：明文双向同步（§6）', () => {
     h.appendAuditLogMock.mockResolvedValue(false);
     const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD);
     expect(report.warnings.some(w => w.key === 'cloudSync.warning.auditLogFailed')).toBe(true);
+  });
+
+  it('目标已确认内网 HTTP → 每次明文同步都报告明文传输警告', async () => {
+    await setupConfig('feishu', 'plaintext', {
+      target: {
+        appToken: 'app',
+        tableId: 'tbl',
+        fileUrl: 'http://docs.corp.example/base/app',
+        baseUrl: 'http://10.0.0.8:8080',
+        allowInsecure: true,
+      },
+    });
+    const report = await runPlaintextSync('feishu', TEST_MASTER_PASSWORD);
+    expect(report.warnings.some(w => w.key === 'cloudSync.warning.insecureTransport')).toBe(true);
   });
 
   it('快照缺失 → 降级全量比对，报告含 snapshotDegraded 警告', async () => {
@@ -574,10 +1017,10 @@ describe('runPlaintextSync：分组列（云同步规格 V1.3）', () => {
 
     await runPlaintextSync('feishu', TEST_MASTER_PASSWORD);
 
-    const saved = h.savePasswordMock.mock.calls[0][0] as { groupId?: string };
+    const [creates] = h.batchApplyPasswordChangesMock.mock.calls[0] as [Array<{ entry: { groupId?: string } }>];
     const groups = await getAllGroups();
     expect(groups.map(group => group.name)).toEqual(['工作', '项目A']);
-    expect(saved.groupId).toBe(groups.find(group => group.name === '项目A')?.code);
+    expect(creates[0].entry.groupId).toBe(groups.find(group => group.name === '项目A')?.code);
   });
 });
 
@@ -623,6 +1066,21 @@ describe('runEncryptedBackup：密文备份（§5）', () => {
 
     await expect(runEncryptedBackup('feishu', TEST_MASTER_PASSWORD)).rejects.toMatchObject({ kind: 'unknown' });
     expect(h.releaseMock).toHaveBeenCalled();
+  });
+
+  it('目标已确认内网 HTTP → 密文备份报告明文传输警告', async () => {
+    await setupConfig('tencent', 'encrypted', {
+      target: {
+        fileId: 'file',
+        sheetId: 'sheet',
+        fileUrl: 'http://docs.corp.example/sheet/file',
+        baseUrl: 'http://10.0.0.8:8080',
+        allowInsecure: true,
+      },
+    });
+    h.getAllPasswordsMock.mockResolvedValue([makePasswordEntry({ id: 'a' })]);
+    const report = await runEncryptedBackup('tencent', TEST_MASTER_PASSWORD);
+    expect(report.warnings.some(w => w.key === 'cloudSync.warning.insecureTransport')).toBe(true);
   });
 });
 
@@ -697,6 +1155,22 @@ describe('runEncryptedRestore：密文恢复（§5.3）', () => {
     expect(groups.map(group => group.name)).toEqual(['工作', '项目A']);
     expect(project).toBeDefined();
     expect(h.savePasswordMock.mock.calls[0][0]).toMatchObject({ groupId: project?.code });
+  });
+
+  it('目标已确认内网 HTTP → 密文恢复报告明文传输警告', async () => {
+    await setupConfig('feishu', 'encrypted', {
+      target: {
+        appToken: 'app',
+        tableId: 'tbl',
+        fileUrl: 'http://docs.corp.example/base/app',
+        baseUrl: 'http://10.0.0.8:8080',
+        allowInsecure: true,
+      },
+    });
+    await seedEncryptedRows([makePasswordEntry({ id: 'a', updateTime: 5000 })]);
+    h.getAllPasswordsMock.mockResolvedValue([]);
+    const report = await runEncryptedRestore('feishu', TEST_MASTER_PASSWORD);
+    expect(report.warnings.some(w => w.key === 'cloudSync.warning.insecureTransport')).toBe(true);
   });
 });
 

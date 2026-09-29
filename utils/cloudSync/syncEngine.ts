@@ -9,7 +9,7 @@
  */
 import type { PasswordEntry, PasswordGroup } from '@/utils/types';
 import { UNGROUPED_CODE } from '@/utils/types';
-import { getAllPasswords, savePassword, updatePassword } from '@/utils/storage/passwordCrud';
+import { batchApplyPasswordChanges, getAllPasswords, savePassword, updatePassword } from '@/utils/storage/passwordCrud';
 import { getAllGroups, saveGroups } from '@/utils/storage/groupManager';
 import { moveToTrash } from '@/utils/storage/trashManager';
 import { logger } from '@/utils/logger';
@@ -46,8 +46,9 @@ import {
 } from './schema';
 import { sanitizeFields } from './sanitize';
 import { CloudSyncError, isAbortError, toCloudSyncError } from './errors';
-import { FeishuAdapter } from './adapters/feishu';
-import { TencentAdapter } from './adapters/tencent';
+import { FeishuAdapter, normalizeFeishuBaseUrl } from './adapters/feishu';
+import { TencentAdapter, normalizeTencentBaseUrl } from './adapters/tencent';
+import { needsServerInsecureConfirm } from './adapters/serverAddress';
 import { parseCloudUrl } from './urlParse';
 import type {
   AdapterOptions,
@@ -67,10 +68,41 @@ import type {
   UpsertRow,
 } from './types';
 
+/** 明文同步方向 */
+export type PlaintextSyncDirection = 'push' | 'pull' | 'both';
+
 /** 运行期选项 */
 export interface SyncRunOptions {
   signal?: AbortSignal;
   onProgress?: (progress: SyncProgress) => void;
+  /**
+   * 明文同步方向：
+   * - `push`：只把本地新增、修改与删除推送到表格；
+   * - `pull`：只把表格新增、修改与删除拉取到本地；
+   * - `both`：双向同步（默认，保持既有行为）。
+   */
+  direction?: PlaintextSyncDirection;
+  /**
+   * 本地条目为空而云端仍有行时的确认回调。
+   *
+   * 仅在推送/双向同步中调用；返回 true 才删除云端全部同步行，返回 false 则本轮取消。
+   * 不传回调时保持既有行为，便于库级调用方自行决定策略。
+   */
+  onEmptyLocalCloud?: () => boolean | Promise<boolean>;
+}
+
+interface PendingPullCreate {
+  row: CloudRow;
+  entry: LocalSyncEntry;
+  explicitId?: string;
+  groupId?: string;
+}
+
+interface PendingPullUpdate {
+  businessId: string;
+  row: CloudRow;
+  entry: LocalSyncEntry;
+  groupId?: string;
 }
 
 /** 目标表准备结果 */
@@ -79,6 +111,19 @@ export interface PrepareTargetResult {
   tableName: string;
   created: boolean;
   target: ProviderTargetMap[CloudProvider];
+}
+
+/** 目标表准备选项：凭证与文档链接之外的部署信息 */
+export interface PrepareTargetOptions {
+  /**
+   * 飞书私有化部署的开放平台地址（如 `https://open.example.com`）；留空表示官方 SaaS。
+   * 归一化后随 target 落盘，后续备份/恢复/同步直接复用，无需每次重填。
+   */
+  feishuBaseUrl?: string | null;
+  /** 腾讯文档私有化部署的开放平台地址；留空表示官方 SaaS。 */
+  tencentBaseUrl?: string | null;
+  /** 用户已确认允许内网 HTTP 明文传输。仅对非回环 HTTP 地址生效。 */
+  allowInsecure?: boolean;
 }
 
 /** 本地条目 → 同步投影（`order` 等本地 UX 状态不参与同步） */
@@ -174,12 +219,26 @@ function createAdapter(
     case 'feishu': {
       const t = target as ProviderTargetMap['feishu'];
       const c = credentials as ProviderCredentialMap['feishu'];
-      return new FeishuAdapter({ appToken: t.appToken ?? '', tableId: t.tableId, credentials: c, options });
+      return new FeishuAdapter({
+        appToken: t.appToken ?? '',
+        tableId: t.tableId,
+        baseUrl: t.baseUrl,
+        allowInsecure: t.allowInsecure,
+        credentials: c,
+        options,
+      });
     }
     case 'tencent': {
       const t = target as ProviderTargetMap['tencent'];
       const c = credentials as ProviderCredentialMap['tencent'];
-      return new TencentAdapter({ fileId: t.fileId ?? '', sheetId: t.sheetId, credentials: c, options });
+      return new TencentAdapter({
+        fileId: t.fileId ?? '',
+        sheetId: t.sheetId,
+        baseUrl: t.baseUrl,
+        allowInsecure: t.allowInsecure,
+        credentials: c,
+        options,
+      });
     }
     case 'webdav':
       throw new CloudSyncError('unknown', 'webdav uses FileStorageAdapter (see webdavSync.ts)');
@@ -208,15 +267,28 @@ export async function prepareProviderTarget<P extends CloudProvider>(
   fileUrl: string,
   mode: CloudSyncMode,
   options: AdapterOptions = {},
+  prepareOptions: PrepareTargetOptions = {},
 ): Promise<PrepareTargetResult> {
-  const parsed = parseCloudUrl(provider, fileUrl);
+  const allowInsecure = prepareOptions.allowInsecure === true;
+  // 私有化部署地址先归一化（非法即抛 notFound）：既用于放宽文档链接的域名校验，也随 target 落盘
+  const baseUrl =
+    provider === 'feishu'
+      ? normalizeFeishuBaseUrl(prepareOptions.feishuBaseUrl, allowInsecure)
+      : provider === 'tencent'
+        ? normalizeTencentBaseUrl(prepareOptions.tencentBaseUrl, allowInsecure)
+        : null;
+  const parsed = parseCloudUrl(provider, fileUrl, {
+    feishuBaseUrl: provider === 'feishu' ? baseUrl : null,
+    tencentBaseUrl: provider === 'tencent' ? baseUrl : null,
+  });
   if (!parsed) throw new CloudSyncError('notFound', 'unrecognized document url');
+  const insecureConfirmed = allowInsecure && baseUrl !== null && needsServerInsecureConfirm(baseUrl);
 
   const tableName = getTableName(mode);
   const requiredFields = getTableSpec(mode);
 
   // 先以「仅有文件标识」构造适配器完成探测与建表，再回填子表标识
-  const target = buildTarget(provider, parsed.fileKey, parsed.subKey, fileUrl);
+  const target = buildTarget(provider, parsed.fileKey, parsed.subKey, fileUrl, baseUrl, insecureConfirmed);
   const adapter = createAdapter(provider, target, credentials, options);
   await adapter.testConnection();
 
@@ -237,7 +309,7 @@ export async function prepareProviderTarget<P extends CloudProvider>(
   }
 
   const subKey = readSubKey(adapter, provider);
-  const resolvedTarget = buildTarget(provider, parsed.fileKey, subKey, fileUrl);
+  const resolvedTarget = buildTarget(provider, parsed.fileKey, subKey, fileUrl, baseUrl, insecureConfirmed);
   await patchProviderConfig(provider, { configured: true, mode, target: resolvedTarget });
   await audit(makeAuditEntry(provider, mode, 'prepareTarget', `${parsed.fileKey}:${subKey ?? ''}`));
 
@@ -250,12 +322,14 @@ function buildTarget<P extends CloudProvider>(
   fileKey: string,
   subKey: string | null,
   fileUrl: string,
+  baseUrl: string | null,
+  allowInsecure: boolean,
 ): ProviderTargetMap[P] {
   switch (provider) {
     case 'feishu':
-      return { appToken: fileKey, tableId: subKey, fileUrl } as ProviderTargetMap[P];
+      return { appToken: fileKey, tableId: subKey, fileUrl, baseUrl, allowInsecure } as ProviderTargetMap[P];
     case 'tencent':
-      return { fileId: fileKey, sheetId: subKey, fileUrl } as ProviderTargetMap[P];
+      return { fileId: fileKey, sheetId: subKey, fileUrl, baseUrl, allowInsecure } as ProviderTargetMap[P];
     case 'webdav':
       throw new CloudSyncError('unknown', 'webdav target is built by prepareWebDavTarget');
     default: {
@@ -302,10 +376,10 @@ function readSubKey(adapter: TableAdapter, provider: CloudProvider): string | nu
 // ==================== 明文双向同步 ====================
 
 /**
- * 执行明文双向同步
+ * 执行明文同步
  *
  * 需先由调用方通过 `promptAndVerifyMasterPassword` 取得主密码（本地加解密需要），
- * UI 必须同时展示"明文密码将上传第三方云端"的红字警告。
+ * UI 必须同时展示"明文密码将上传第三方云端"的红字警告。默认双向，也可只推送或只拉取。
  */
 export async function runPlaintextSync(
   provider: CloudProvider,
@@ -315,6 +389,7 @@ export async function runPlaintextSync(
   const startedAt = Date.now();
   const { providerConfig, credentials, docKey } = await loadReadyContext(provider);
   if (providerConfig.mode !== 'plaintext') throw new CloudSyncError('unknown', 'provider not in plaintext mode');
+  const direction = options.direction ?? 'both';
 
   const targetKey = `${provider}:${docKey}`;
   const lock = await acquireTaskLock(targetKey);
@@ -350,6 +425,30 @@ export async function runPlaintextSync(
     options.onProgress?.({ phaseKey: 'cloudSync.progress.fetchCloud', current: 0, total: 1 });
     const cloudRows = await adapter.getRows();
 
+    if (direction !== 'pull' && localEntries.length === 0 && cloudRows.length > 0 && options.onEmptyLocalCloud) {
+      const confirmed = await options.onEmptyLocalCloud();
+      if (!confirmed) {
+        return buildReport(provider, 'plaintext', docKey, startedAt, stats, [], [], [], [], apiCalls, true);
+      }
+
+      const deleteResult = await runBatch(() => adapter.batchDelete(cloudRows.map(row => row.recordId)));
+      stats.deleted = deleteResult.succeeded.length;
+      stats.failed = deleteResult.failed.length;
+      failures.push(...deleteResult.failed);
+      if (deleteResult.failed.length === 0) {
+        await saveSnapshot(createEmptySnapshot(provider, docKey));
+        await patchProviderConfig(provider, { lastSyncAt: Date.now() });
+      }
+      const auditFailed = !(await audit(
+        makeAuditEntry(provider, 'plaintext', 'sync', docKey, {
+          stats,
+        }),
+      ));
+      if (auditFailed) warnings.push({ key: 'cloudSync.warning.auditLogFailed' });
+      if (providerConfig.target.allowInsecure) warnings.push({ key: 'cloudSync.warning.insecureTransport' });
+      return buildReport(provider, 'plaintext', docKey, startedAt, stats, [], failures, warnings, [], apiCalls, false);
+    }
+
     const snapshot = (await loadSnapshot(provider, docKey)) ?? createEmptySnapshot(provider, docKey);
     const diff = await computeDiff({
       local: localEntries,
@@ -369,6 +468,8 @@ export async function runPlaintextSync(
     const createItems: Extract<DiffPlanItem, { kind: 'pushCreate' }>[] = [];
     const updateItems: Extract<DiffPlanItem, { kind: 'pushUpdate' }>[] = [];
     const deleteRecordIds: string[] = [];
+    const pendingPullCreates: PendingPullCreate[] = [];
+    const pendingPullUpdates: PendingPullUpdate[] = [];
 
     options.onProgress?.({ phaseKey: 'cloudSync.progress.apply', current: 0, total: diff.plan.length });
     let processed = 0;
@@ -382,61 +483,50 @@ export async function runPlaintextSync(
 
       switch (item.kind) {
         case 'pushCreate':
+          if (direction === 'pull') break;
           createItems.push(item);
           break;
         case 'pushUpdate':
+          if (direction === 'pull') break;
           updateItems.push(item);
           break;
         case 'deleteCloudRow':
+          if (direction === 'pull') break;
           deleteRecordIds.push(item.recordId);
           break;
         case 'pullCreate': {
+          if (direction === 'push') break;
           const entry = cloudRowToLocal(item.row);
           const groupId = await resolveCloudGroupId(entry.groupPath, groups, resolvedCloudGroupIds);
-          const saved = await savePassword(
-            {
-              username: entry.username,
-              password: entry.password,
-              url: entry.url,
-              tag: entry.tag,
-              remark: entry.remark,
-              totp: entry.totp,
-              createTime: now,
-              updateTime: entry.updateTime || now,
-              groupId,
-            },
-            masterPassword,
-          );
-          stats.pulled += 1;
-          working = withEntries(working, {
-            [saved.id]: { hash: await computeEntryHash(entry), recordId: item.row.recordId, syncedAt: now },
+          pendingPullCreates.push({ row: item.row, entry, groupId });
+          break;
+        }
+        case 'pullCreateWithId': {
+          if (direction === 'push') break;
+          const entry = cloudRowToLocal(item.row);
+          const groupId = await resolveCloudGroupId(entry.groupPath, groups, resolvedCloudGroupIds);
+          pendingPullCreates.push({
+            row: item.row,
+            entry,
+            explicitId: item.businessId,
+            groupId,
           });
           break;
         }
         case 'pullUpdate': {
+          if (direction === 'push') break;
           const entry = cloudRowToLocal(item.row);
           const groupId = await resolveCloudGroupId(entry.groupPath, groups, resolvedCloudGroupIds);
-          await updatePassword(
-            item.businessId,
-            {
-              username: entry.username,
-              password: entry.password,
-              url: entry.url,
-              tag: entry.tag,
-              remark: entry.remark,
-              totp: entry.totp,
-              updateTime: entry.updateTime || now,
-              groupId,
-            },
-            masterPassword,
-          );
-          stats.pulled += 1;
-          working = withEntries(working, {
-            [item.businessId]: { hash: await computeEntryHash(entry), recordId: item.row.recordId, syncedAt: now },
+          pendingPullUpdates.push({
+            businessId: item.businessId,
+            row: item.row,
+            entry,
+            groupId,
           });
           break;
         }
         case 'trashLocal': {
+          if (direction === 'push') break;
           await moveToTrash([item.businessId]);
           stats.trashed += 1;
           working = withEntries(working, { [item.businessId]: null });
@@ -472,28 +562,17 @@ export async function runPlaintextSync(
             url: item.entry.url,
             winner: item.winner,
           });
-          if (item.winner === 'local') {
+          // 单向模式只执行该方向上胜出的一方，不把反方向变更带入本轮同步。
+          if (direction !== 'pull' && item.winner === 'local') {
             updateItems.push({ kind: 'pushUpdate', entry: item.entry, recordId: item.recordId });
-          } else {
+          } else if (direction !== 'push' && item.winner === 'cloud') {
             const cloudEntry = cloudRowToLocal(item.row);
             const groupId = await resolveCloudGroupId(cloudEntry.groupPath, groups, resolvedCloudGroupIds);
-            await updatePassword(
-              item.businessId,
-              {
-                username: cloudEntry.username,
-                password: cloudEntry.password,
-                url: cloudEntry.url,
-                tag: cloudEntry.tag,
-                remark: cloudEntry.remark,
-                totp: cloudEntry.totp,
-                updateTime: cloudEntry.updateTime || now,
-                groupId,
-              },
-              masterPassword,
-            );
-            stats.pulled += 1;
-            working = withEntries(working, {
-              [item.businessId]: { hash: await computeEntryHash(cloudEntry), recordId: item.recordId, syncedAt: now },
+            pendingPullUpdates.push({
+              businessId: item.businessId,
+              row: item.row,
+              entry: cloudEntry,
+              groupId,
             });
           }
           break;
@@ -509,6 +588,63 @@ export async function runPlaintextSync(
         }
       }
       options.onProgress?.({ phaseKey: 'cloudSync.progress.apply', current: processed, total: diff.plan.length });
+    }
+
+    // 本地下行统一落库：一次全量读取、一次密钥派生、批量加解密、一次写回。
+    if (pendingPullCreates.length > 0 || pendingPullUpdates.length > 0) {
+      const result = await batchApplyPasswordChanges(
+        pendingPullCreates.map(({ entry, explicitId, groupId }) => ({
+          id: explicitId,
+          entry: {
+            username: entry.username,
+            password: entry.password,
+            url: entry.url,
+            tag: entry.tag,
+            remark: entry.remark,
+            totp: entry.totp,
+            createTime: now,
+            updateTime: entry.updateTime || now,
+            groupId,
+          },
+        })),
+        pendingPullUpdates.map(({ businessId, entry, groupId }) => ({
+          id: businessId,
+          updates: {
+            username: entry.username,
+            password: entry.password,
+            url: entry.url,
+            tag: entry.tag,
+            remark: entry.remark,
+            totp: entry.totp,
+            updateTime: entry.updateTime || now,
+            groupId,
+          },
+        })),
+        masterPassword,
+      );
+
+      for (let index = 0; index < pendingPullCreates.length; index += 1) {
+        const pending = pendingPullCreates[index];
+        const created = result.created[index];
+        if (!created) throw new Error('批量写入结果缺失');
+        working = withEntries(working, {
+          [created.id]: {
+            hash: await computeEntryHash(pending.entry),
+            recordId: pending.row.recordId,
+            syncedAt: now,
+          },
+        });
+      }
+      for (const pending of pendingPullUpdates) {
+        working = withEntries(working, {
+          [pending.businessId]: {
+            hash: await computeEntryHash(pending.entry),
+            recordId: pending.row.recordId,
+            syncedAt: now,
+          },
+        });
+      }
+      stats.pulled += pendingPullCreates.length + pendingPullUpdates.length;
     }
 
     // 批量推送：新增与更新合并为一次调用，内部按平台上限分批
@@ -570,6 +706,7 @@ export async function runPlaintextSync(
     ));
     if (auditFailed) warnings.push({ key: 'cloudSync.warning.auditLogFailed' });
     if (snapshotDegraded) warnings.push({ key: 'cloudSync.warning.snapshotDegraded' });
+    if (providerConfig.target.allowInsecure) warnings.push({ key: 'cloudSync.warning.insecureTransport' });
   } catch (error) {
     if (isAbortError(error)) {
       cancelled = true;
@@ -766,6 +903,7 @@ export async function runEncryptedBackup(
       }
       await audit(makeAuditEntry(provider, 'encrypted', 'backup', docKey, { stats }));
     }
+    if (providerConfig.target.allowInsecure) warnings.push({ key: 'cloudSync.warning.insecureTransport' });
   } catch (error) {
     if (isAbortError(error)) {
       cancelled = true;
@@ -899,6 +1037,7 @@ export async function runEncryptedRestore(
     stats.pulled = added + updated;
     stats.skipped = skipped;
     stats.failed = rejected;
+    if (providerConfig.target.allowInsecure) warnings.push({ key: 'cloudSync.warning.insecureTransport' });
     await patchProviderConfig(provider, { lastSyncAt: Date.now() });
     await audit(makeAuditEntry(provider, 'encrypted', 'restore', docKey, { stats }));
 

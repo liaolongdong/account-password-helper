@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { FeishuAdapter, mapFeishuErrorCode } from '@/utils/cloudSync/adapters/feishu';
+import {
+  FEISHU_DEFAULT_BASE_URL,
+  FeishuAdapter,
+  mapFeishuErrorCode,
+  normalizeFeishuBaseUrl,
+  resolveFeishuBaseUrl,
+} from '@/utils/cloudSync/adapters/feishu';
 
 /**
  * 飞书 Bitable V1 适配器测试（设计规格 §3.2）
@@ -49,8 +55,8 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-function makeAdapter(tableId: string | null = 'tbl1'): FeishuAdapter {
-  return new FeishuAdapter({ appToken: APP_TOKEN, tableId, credentials: CREDS });
+function makeAdapter(tableId: string | null = 'tbl1', baseUrl?: string | null, allowInsecure = false): FeishuAdapter {
+  return new FeishuAdapter({ appToken: APP_TOKEN, tableId, credentials: CREDS, baseUrl, allowInsecure });
 }
 
 describe('FeishuAdapter：token 与请求', () => {
@@ -301,5 +307,85 @@ describe('mapFeishuErrorCode：错误码映射', () => {
     expect(mapFeishuErrorCode(1254304, 'x').kind).toBe('permission');
     expect(mapFeishuErrorCode(91402, 'x').kind).toBe('notFound');
     expect(mapFeishuErrorCode(1, 'x').kind).toBe('unknown');
+  });
+});
+
+describe('FeishuAdapter：私有化部署地址', () => {
+  it('自定义 baseUrl 时 token 与业务请求都打到该地址，末尾斜杠被归一', async () => {
+    const { calls } = stubFetchSequence([
+      { body: TOKEN_OK },
+      { body: { code: 0, data: { items: [{ table_id: 'tbl1', name: 'A' }], has_more: false } } },
+    ]);
+    await makeAdapter('tbl1', 'https://open.corp.example/').listTables();
+
+    expect(calls[0].url).toBe('https://open.corp.example/open-apis/auth/v3/tenant_access_token/internal');
+    expect(calls[1].url.startsWith(`https://open.corp.example/open-apis/bitable/v1/apps/${APP_TOKEN}/tables`)).toBe(
+      true,
+    );
+    expect(calls.some(call => call.url.includes('open.feishu.cn'))).toBe(false);
+  });
+
+  it('支持网关路径前缀（开放平台挂在子路径的部署）', async () => {
+    const { calls } = stubFetchSequence([{ body: TOKEN_OK }]);
+    await makeAdapter(null, 'https://gw.corp.example/feishu/').testConnection();
+    expect(calls[0].url).toBe('https://gw.corp.example/feishu/open-apis/auth/v3/tenant_access_token/internal');
+  });
+
+  it('未填 baseUrl 时仍走官方地址（既有行为不变）', async () => {
+    const { calls } = stubFetchSequence([{ body: TOKEN_OK }]);
+    await makeAdapter().testConnection();
+    expect(calls[0].url).toBe(`${FEISHU_DEFAULT_BASE_URL}/open-apis/auth/v3/tenant_access_token/internal`);
+  });
+
+  it('内网 http 地址未确认时在构造阶段拒绝，不发出请求', () => {
+    stubFetchSequence([{ body: TOKEN_OK }]);
+    expect(() => makeAdapter('tbl1', 'http://192.168.1.8:8080')).toThrowError(/explicit confirmation/);
+  });
+
+  it('显式确认后内网 http 地址可用，请求打向自建地址', async () => {
+    const { calls } = stubFetchSequence([{ body: TOKEN_OK }]);
+    await makeAdapter('tbl1', 'http://192.168.1.8:8080/', true).testConnection();
+    expect(calls[0].url).toBe('http://192.168.1.8:8080/open-apis/auth/v3/tenant_access_token/internal');
+  });
+});
+
+describe('resolveFeishuBaseUrl / normalizeFeishuBaseUrl：地址归一化', () => {
+  it('空值回退官方默认地址', () => {
+    expect(resolveFeishuBaseUrl()).toBe(FEISHU_DEFAULT_BASE_URL);
+    expect(resolveFeishuBaseUrl(null)).toBe(FEISHU_DEFAULT_BASE_URL);
+    expect(resolveFeishuBaseUrl('   ')).toBe(FEISHU_DEFAULT_BASE_URL);
+  });
+
+  it('去掉末尾斜杠，保留端口与路径前缀', () => {
+    expect(resolveFeishuBaseUrl(' https://open.corp.example/ ')).toBe('https://open.corp.example');
+    expect(resolveFeishuBaseUrl('https://open.corp.example:8443//')).toBe('https://open.corp.example:8443');
+    expect(resolveFeishuBaseUrl('https://gw.corp.example/feishu/')).toBe('https://gw.corp.example/feishu');
+  });
+
+  it('本机 http 放行（仅联调用）', () => {
+    expect(resolveFeishuBaseUrl('http://localhost:8080')).toBe('http://localhost:8080');
+    expect(resolveFeishuBaseUrl('http://127.0.0.1:8080/')).toBe('http://127.0.0.1:8080');
+  });
+
+  it('未确认的内网 http、缺协议、非 http(s) 协议一律归一为 notFound', () => {
+    for (const input of ['http://192.168.1.8', 'open.corp.example', 'ftp://open.corp.example', 'https://']) {
+      try {
+        resolveFeishuBaseUrl(input);
+        expect.unreachable(`should throw: ${input}`);
+      } catch (error) {
+        expect(error).toMatchObject({ kind: 'notFound' });
+      }
+    }
+  });
+
+  it('确认后放行内网 http，并仍归一化端口与路径', () => {
+    expect(resolveFeishuBaseUrl('http://192.168.1.8:8080/feishu/', true)).toBe('http://192.168.1.8:8080/feishu');
+  });
+
+  it('normalizeFeishuBaseUrl：官方地址与空值归一为 null，自定义地址归一化返回', () => {
+    expect(normalizeFeishuBaseUrl()).toBeNull();
+    expect(normalizeFeishuBaseUrl('')).toBeNull();
+    expect(normalizeFeishuBaseUrl('https://open.feishu.cn/')).toBeNull();
+    expect(normalizeFeishuBaseUrl('https://open.corp.example/')).toBe('https://open.corp.example');
   });
 });

@@ -236,12 +236,6 @@
             </el-dropdown-menu>
           </template>
         </el-dropdown>
-        <el-button
-          :icon="Cloudy"
-          @click="$emit('openCloudSync')"
-        >
-          {{ t('options.header.cloudSync') }}
-        </el-button>
       </div>
       <!-- 右侧辅助入口：空间不足时整组换行到下一行右侧，不与左组换行后的基线错位 -->
       <div class="header-actions-right">
@@ -317,8 +311,6 @@ defineEmits<{
   dataCommand: [command: string];
   /** 安全设置菜单项点击 */
   settingsCommand: [command: string];
-  /** 打开云文档同步弹窗 */
-  openCloudSync: [];
   /** 打开偏好设置弹窗 */
   openPersonalization: [];
   /** 点击会话徽标，打开有效期设置弹窗 */

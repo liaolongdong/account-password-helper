@@ -33,20 +33,6 @@
       v-if="isAuthenticated"
       class="main-content"
     >
-      <!-- 左侧分组树：空数据时也显示，分组管理不依赖条目存在 -->
-      <GroupTreePanel
-        :tree-data="groupTree"
-        :entry-counts="groupEntryCounts"
-        :selected-group-code="selectedGroupCode"
-        @select="selectedGroupCode = $event"
-        @create="createGroup"
-        @rename="renameGroup"
-        @request-delete="openGroupDeleteDialog"
-        @move="moveGroup"
-        @reorder="reorderGroups"
-        @drop-entries="moveEntriesToGroup"
-      />
-
       <div class="content-right">
         <!-- 头部 -->
         <HeaderBar
@@ -59,116 +45,134 @@
           @open-validity="openValiditySetting"
           @data-command="handleDataCommand"
           @settings-command="handleSettingsCommand"
-          @open-cloud-sync="showCloudSyncDialog = true"
           @open-personalization="openPersonalizationDialog"
         />
 
-        <!-- 搜索和筛选（空数据时隐藏） -->
-        <SearchFilterBar
-          v-if="passwords.length > 0 || tableLoading"
-          v-model:search-keyword="searchKeyword"
-          v-model:favorite-only="favoriteOnly"
-          v-model:filter-tags="filterTags"
-          v-model:filter-urls="filterUrls"
-          :selected-count="selectedIds.length"
-          :tag-options="filterTagOptions"
-          :url-options="filterUrlOptions"
-          @tag-filter-visible-change="handleTagFilterVisibleChange"
-          @url-filter-visible-change="handleUrlFilterVisibleChange"
-          @batch-delete="batchDelete"
-          @batch-edit-tags="showBatchTagDialog = true"
-          @batch-move-group="showBatchGroupDialog = true"
-          @batch-export-selected="batchExportSelected"
-        />
+        <!-- 列表卡片：分组窗格与筛选/表格共用同一张卡片，构成一个整体表格块 -->
+        <div class="list-card">
+          <!-- 左侧分组树：空数据时也显示，分组管理不依赖条目存在 -->
+          <GroupTreePanel
+            :tree-data="groupTree"
+            :entry-counts="groupEntryCounts"
+            :selected-group-code="selectedGroupCode"
+            @select="selectedGroupCode = $event"
+            @create="createGroup"
+            @rename="renameGroup"
+            @request-delete="openGroupDeleteDialog"
+            @move="moveGroup"
+            @reorder="reorderGroups"
+            @drop-entries="moveEntriesToGroup"
+          />
 
-        <!-- 展示密码列表总数和搜索结果总数 -->
-        <div
-          v-if="passwords.length > 0"
-          class="password-list-info"
-        >
-          <span>
-            {{ t('options.totalPasswords') }}
-            <el-text type="success">
-              {{ passwords.length }}
-            </el-text>
-            {{ t('options.totalUnit') }}
-          </span>
-          <span v-if="filteredPasswords.length !== passwords.length">
-            {{ t('options.filtered') }}
-            <el-text type="success">{{ filteredPasswords.length }}</el-text>
-            {{ t('options.filteredUnit') }}
-          </span>
-          <!-- 多列排序链：chip 可拖拽改优先级、可单独移除，末尾一键清除回退默认排序 -->
-          <span
-            v-if="sortChain.length > 0"
-            class="sort-chain"
-          >
-            <span class="sort-chain__title">{{ t('options.sort.sortedBy') }}</span>
-            <el-tag
-              v-for="(criterion, index) in sortChain"
-              :key="criterion.prop"
-              class="sort-chain__chip"
-              :class="{ 'is-dragging': dragIndex === index, 'is-drop-target': isDropTarget(index) }"
-              size="small"
-              type="primary"
-              effect="light"
-              draggable="true"
-              closable
-              @dragstart="onSortDragStart(index)"
-              @dragover.prevent="onSortDragOver(index)"
-              @drop.prevent="onSortDrop"
-              @dragend="onSortDragEnd"
-              @close="removeSortCriterion(criterion.prop)"
+          <div class="list-card__body">
+            <!-- 搜索和筛选（空数据时隐藏） -->
+            <SearchFilterBar
+              v-if="passwords.length > 0 || tableLoading"
+              v-model:search-keyword="searchKeyword"
+              v-model:favorite-only="favoriteOnly"
+              v-model:filter-tags="filterTags"
+              v-model:filter-urls="filterUrls"
+              :selected-count="selectedIds.length"
+              :tag-options="filterTagOptions"
+              :url-options="filterUrlOptions"
+              @tag-filter-visible-change="handleTagFilterVisibleChange"
+              @url-filter-visible-change="handleUrlFilterVisibleChange"
+              @batch-delete="batchDelete"
+              @batch-edit-tags="showBatchTagDialog = true"
+              @batch-move-group="showBatchGroupDialog = true"
+              @batch-export-selected="batchExportSelected"
+            />
+
+            <!-- 展示密码列表总数和搜索结果总数 -->
+            <div
+              v-if="passwords.length > 0"
+              class="password-list-info"
             >
-              <span class="sort-chain__seq">{{ index + 1 }}</span>
-              {{ sortLabel(criterion.prop) }}
-              <span class="sort-chain__dir">{{ criterion.order === 'ascending' ? '↑' : '↓' }}</span>
-            </el-tag>
-            <button
-              type="button"
-              class="sort-chain__clear"
-              @click="clearSortChain"
-            >
-              {{ t('options.sort.clear') }}
-            </button>
-          </span>
+              <span>
+                {{ t('options.totalPasswords') }}
+                <el-text type="success">
+                  {{ passwords.length }}
+                </el-text>
+                {{ t('options.totalUnit') }}
+              </span>
+              <span v-if="filteredPasswords.length !== passwords.length">
+                {{ t('options.filtered') }}
+                <el-text type="success">{{ filteredPasswords.length }}</el-text>
+                {{ t('options.filteredUnit') }}
+              </span>
+              <!-- 多列排序链：chip 可拖拽改优先级、可单独移除，末尾一键清除回退默认排序 -->
+              <span
+                v-if="sortChain.length > 0"
+                class="sort-chain"
+              >
+                <span class="sort-chain__title">{{ t('options.sort.sortedBy') }}</span>
+                <el-tag
+                  v-for="(criterion, index) in sortChain"
+                  :key="criterion.prop"
+                  class="sort-chain__chip"
+                  :class="{ 'is-dragging': dragIndex === index, 'is-drop-target': isDropTarget(index) }"
+                  size="small"
+                  type="primary"
+                  effect="light"
+                  draggable="true"
+                  closable
+                  @dragstart="onSortDragStart(index)"
+                  @dragover.prevent="onSortDragOver(index)"
+                  @drop.prevent="onSortDrop"
+                  @dragend="onSortDragEnd"
+                  @close="removeSortCriterion(criterion.prop)"
+                >
+                  <span class="sort-chain__seq">{{ index + 1 }}</span>
+                  {{ sortLabel(criterion.prop) }}
+                  <span class="sort-chain__dir">{{ criterion.order === 'ascending' ? '↑' : '↓' }}</span>
+                </el-tag>
+                <button
+                  type="button"
+                  class="sort-chain__clear"
+                  @click="clearSortChain"
+                >
+                  {{ t('options.sort.clear') }}
+                </button>
+              </span>
+            </div>
+
+            <!-- 空数据状态引导 -->
+            <EmptyGuide
+              v-if="passwords.length === 0 && !tableLoading"
+              @add="openAddDialogWithActiveTab"
+              @import="showImportDialog = true"
+              @restore="showBackupImportDialog = true"
+            />
+
+            <!-- 密码列表 -->
+            <PasswordTable
+              v-else
+              ref="passwordTableRef"
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :data="pagedEntries"
+              :loading="tableLoading"
+              :search-keyword="debouncedSearchKeyword"
+              :row-class-name="handleRowClassName"
+              :sort-chain="sortChain"
+              :group-col-visible="groupColVisible"
+              :selected-ids="selectedIds"
+              :page-count="pageCount"
+              :total-count="totalCount"
+              :selected-count="selectedIds.length"
+              :off-page-selected-count="offPageSelectedCount"
+              @update:group-col-visible="setGroupColVisible"
+              @selection-change="handleSelectionChange"
+              @column-sort="handleColumnSort"
+              @toggle-password="togglePasswordVisibility"
+              @view-detail="onViewDetail"
+              @copy="copyPassword"
+              @edit="editPassword"
+              @toggle-favorite="toggleFavorite"
+              @delete-password="deletePassword"
+            />
+          </div>
         </div>
-
-        <!-- 空数据状态引导 -->
-        <EmptyGuide
-          v-if="passwords.length === 0 && !tableLoading"
-          @add="openAddDialogWithActiveTab"
-          @import="showImportDialog = true"
-          @restore="showBackupImportDialog = true"
-        />
-
-        <!-- 密码列表 -->
-        <PasswordTable
-          v-else
-          ref="passwordTableRef"
-          v-model:current-page="currentPage"
-          v-model:page-size="pageSize"
-          :data="pagedEntries"
-          :loading="tableLoading"
-          :search-keyword="debouncedSearchKeyword"
-          :row-class-name="handleRowClassName"
-          :sort-chain="sortChain"
-          :group-col-visible="groupColVisible"
-          :selected-ids="selectedIds"
-          :page-count="pageCount"
-          :total-count="totalCount"
-          :selected-count="selectedIds.length"
-          :off-page-selected-count="offPageSelectedCount"
-          @update:group-col-visible="setGroupColVisible"
-          @selection-change="handleSelectionChange"
-          @column-sort="handleColumnSort"
-          @toggle-password="togglePasswordVisibility"
-          @view-detail="onViewDetail"
-          @copy="copyPassword"
-          @edit="editPassword"
-          @toggle-favorite="toggleFavorite"
-          @delete-password="deletePassword"
-        />
       </div>
     </div>
 
@@ -868,6 +872,9 @@ const {
 } = usePasswordManagement({
   validityForm: initialValidityForm,
 });
+
+/** PasswordTable 实例引用：仅用于清空选中集与恢复表头排序指示器 */
+const passwordTableRef = ref<InstanceType<typeof PasswordTable>>();
 
 /**
  * 回收站弹窗关闭后，让主表跟上弹窗里改过的档位

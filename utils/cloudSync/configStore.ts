@@ -45,12 +45,13 @@ function defaultProviderConfig<P extends CloudProvider>(provider: P): CloudSyncP
     case 'feishu':
       return {
         ...BASE_PROVIDER_CONFIG,
-        target: { appToken: null, tableId: null, fileUrl: null },
+        // baseUrl 为 null 表示官方 SaaS；私有化部署地址在「测试连接」时归一化后写入
+        target: { appToken: null, tableId: null, fileUrl: null, baseUrl: null, allowInsecure: false },
       } as CloudSyncProviderConfig<P>;
     case 'tencent':
       return {
         ...BASE_PROVIDER_CONFIG,
-        target: { fileId: null, sheetId: null, fileUrl: null },
+        target: { fileId: null, sheetId: null, fileUrl: null, baseUrl: null, allowInsecure: false },
       } as CloudSyncProviderConfig<P>;
     case 'webdav':
       return {
@@ -122,12 +123,43 @@ function normalizeProvider<P extends CloudProvider>(
     typeof value.chunkSize === 'number' && value.chunkSize >= MIN_CHUNK_SIZE && value.chunkSize <= DEFAULT_CHUNK_SIZE
       ? value.chunkSize
       : DEFAULT_CHUNK_SIZE;
+  const target = (value.target ?? fallback.target) as ProviderTargetMap[P];
   return {
     configured: value.configured === true,
     mode,
-    target: (value.target ?? fallback.target) as ProviderTargetMap[P],
+    // 表格平台 target 补齐自定义服务地址与明文确认字段，其余平台原样透传
+    target: (provider === 'feishu'
+      ? withFeishuBaseUrl(target)
+      : provider === 'tencent'
+        ? withTencentBaseUrl(target)
+        : target) as ProviderTargetMap[P],
     chunkSize,
     lastSyncAt: typeof value.lastSyncAt === 'number' ? value.lastSyncAt : null,
+  };
+}
+
+/**
+ * 补齐飞书 target 的 `baseUrl` 字段（私有化部署新增）
+ *
+ * 旧版本配置没有该字段：补 `null` 表示官方 SaaS，让调用方永远拿到结构完整的 target；
+ * 其余字段按既有口径原样透传（不校验、不改写）。
+ */
+function withFeishuBaseUrl(target: unknown): ProviderTargetMap['feishu'] {
+  const feishu = target as ProviderTargetMap['feishu'];
+  return {
+    ...feishu,
+    baseUrl: typeof feishu?.baseUrl === 'string' ? feishu.baseUrl : null,
+    allowInsecure: feishu?.allowInsecure === true,
+  };
+}
+
+/** 补齐腾讯 target 的自定义地址字段（旧配置与损坏字段统一回退官方地址） */
+function withTencentBaseUrl(target: unknown): ProviderTargetMap['tencent'] {
+  const tencent = target as ProviderTargetMap['tencent'];
+  return {
+    ...tencent,
+    baseUrl: typeof tencent?.baseUrl === 'string' ? tencent.baseUrl : null,
+    allowInsecure: tencent?.allowInsecure === true,
   };
 }
 
@@ -211,6 +243,8 @@ export function getDocKey<P extends CloudProvider>(provider: P, target: Provider
   switch (provider) {
     case 'feishu': {
       const t = target as ProviderTargetMap['feishu'];
+      // 只取 app_token + table_id，不含 baseUrl：换服务器必然换文档链接，且改动键名会让
+      // 既有用户的本地快照与任务锁全部失联（快照可重建但会退化为全量比对，无必要）
       return t.appToken && t.tableId ? `${t.appToken}:${t.tableId}` : null;
     }
     case 'tencent': {

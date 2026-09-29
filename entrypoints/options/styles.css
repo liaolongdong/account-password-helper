@@ -7,33 +7,47 @@
 
 /* 主内容区域样式 */
 .main-content {
-  display: flex;
-  gap: 0;
-  align-items: flex-start;
   min-height: 100vh;
   padding: 20px 0 0;
   background: var(--aph-surface-2);
 }
 
 .content-right {
+  min-width: 0;
+}
+
+/* 列表卡片：分组窗格与筛选/表格同卡，构成一个整体表格块 */
+.list-card {
+  display: flex;
+  margin: 0 32px 32px;
+  overflow: hidden;
+  background: white;
+  border: 1px solid var(--aph-surface-line);
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
+}
+
+.list-card__body {
   flex: 1;
   min-width: 0;
 }
 
 /* 中等宽度下左右分栏会压缩列表筛选区，提前切为上下布局。 */
 @media (width <= 1024px) {
-  .main-content {
+  .list-card {
     flex-direction: column;
-    padding-top: 16px;
   }
+}
 
-  .content-right {
-    width: 100%;
+@media (width <= 768px) {
+  .list-card {
+    margin: 0 16px 16px;
   }
 }
 
 .password-list-info {
-  margin: 0 32px 10px;
+  padding: 12px 20px 10px;
+  margin: 0;
 }
 
 /* 弹窗样式 */

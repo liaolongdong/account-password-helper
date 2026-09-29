@@ -157,17 +157,14 @@ const { t } = useI18n();
 </script>
 
 <style scoped>
+/* 列表卡内工具行：与分组窗格、表格同卡，用底边框分隔 */
 .filters {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
-  padding: 20px;
-  margin: 0 32px 20px;
-  background: white;
-  border: 1px solid var(--aph-surface-line);
-  border-radius: 8px;
-  box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--aph-surface-line);
 }
 
 /* 搜索框占据剩余空间 */
@@ -196,7 +193,6 @@ const { t } = useI18n();
     flex-direction: column;
     gap: 16px;
     padding: 16px;
-    margin: 0 16px 20px;
   }
 }
 </style>

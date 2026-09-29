@@ -55,6 +55,16 @@ export interface FeishuTarget {
   tableId: string | null;
   /** 用户粘贴的原始文档 URL（便于回显与重新解析） */
   fileUrl: string | null;
+  /**
+   * 开放平台 API 地址（私有化部署用，形如 `https://open.example.com`，可带网关路径前缀）
+   *
+   * `null` 表示官方 SaaS（`https://open.feishu.cn`），旧配置缺该字段时按 `null` 处理。
+   * 不参与 docKey：换服务器必然换文档链接与 app_token，沿用既有键不会与旧快照/任务锁串台，
+   * 也避免改动已有用户的快照键名。
+   */
+  baseUrl: string | null;
+  /** 用户已显式确认允许 HTTP 明文传输 */
+  allowInsecure: boolean;
 }
 
 /** 腾讯目标：智能表文件 */
@@ -65,6 +75,10 @@ export interface TencentTarget {
   sheetId: string | null;
   /** 用户粘贴的原始文档 URL */
   fileUrl: string | null;
+  /** 开放平台 API 地址；`null` 表示官方 `https://docs.qq.com` */
+  baseUrl: string | null;
+  /** 用户已显式确认允许 HTTP 明文传输 */
+  allowInsecure: boolean;
 }
 
 /** WebDAV 目标：用户自选服务器上的备份目录（WebDAV 规格 §3.1） */
@@ -275,15 +289,14 @@ export type ManualConflictReason =
   /** 云端行的业务 ID 与快照记录不一致（用户手改主键） */
   | 'primaryKeyChanged'
   /** 本地已改 + 云端已删 */
-  | 'localModifiedCloudDeleted'
-  /** 云端存在快照与本地均无的 recordId（疑似其他设备写入） */
-  | 'externalChange';
+  | 'localModifiedCloudDeleted';
 
 /** 三方 diff 产出的执行计划项 */
 export type DiffPlanItem =
   | { kind: 'pushCreate'; entry: LocalSyncEntry }
   | { kind: 'pushUpdate'; entry: LocalSyncEntry; recordId: string }
   | { kind: 'pullCreate'; row: CloudRow }
+  | { kind: 'pullCreateWithId'; row: CloudRow; businessId: string }
   | { kind: 'pullUpdate'; row: CloudRow; businessId: string }
   | { kind: 'deleteCloudRow'; recordId: string; businessId: string }
   | { kind: 'trashLocal'; businessId: string }

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fakeBrowser } from 'wxt/testing';
 import { getCloudSyncConfig, getDocKey, patchProviderConfig } from '@/utils/cloudSync/configStore';
 import { sanitizeEntry } from '@/utils/cloudSync/auditLog';
-import type { AuditEntry } from '@/utils/cloudSync/types';
+import type { AuditEntry, FeishuTarget, TencentTarget } from '@/utils/cloudSync/types';
 
 /**
  * provider 穷尽分派守卫（WebDAV 规格 §2）
@@ -19,9 +19,27 @@ beforeEach(() => {
 
 describe('provider 穷尽分派', () => {
   it('getDocKey：各 provider 读各自 target 字段', () => {
-    expect(getDocKey('feishu', { appToken: 'a', tableId: 't', fileUrl: null })).toBe('a:t');
-    expect(getDocKey('tencent', { fileId: 'f', sheetId: 's', fileUrl: null })).toBe('f:s');
-    expect(getDocKey('feishu', { appToken: 'a', tableId: null, fileUrl: null })).toBeNull();
+    expect(
+      getDocKey('feishu', { appToken: 'a', tableId: 't', fileUrl: null, baseUrl: null, allowInsecure: false }),
+    ).toBe('a:t');
+    expect(
+      getDocKey('tencent', { fileId: 'f', sheetId: 's', fileUrl: null, baseUrl: null, allowInsecure: false }),
+    ).toBe('f:s');
+    expect(
+      getDocKey('feishu', { appToken: 'a', tableId: null, fileUrl: null, baseUrl: null, allowInsecure: false }),
+    ).toBeNull();
+  });
+
+  it('getDocKey：飞书私有化地址不参与 docKey（换服务器必然换 app_token）', () => {
+    expect(
+      getDocKey('feishu', {
+        appToken: 'a',
+        tableId: 't',
+        fileUrl: null,
+        baseUrl: 'https://open.corp.example',
+        allowInsecure: false,
+      }),
+    ).toBe('a:t');
   });
 
   it('getDocKey：webdav 读 backupDirUrl，未探测时 null', () => {
@@ -60,6 +78,46 @@ describe('provider 穷尽分派', () => {
       chunkSize: 48000,
       lastSyncAt: null,
       target: { dirUrl: null, backupDirUrl: null, allowInsecure: false },
+    });
+  });
+
+  it('默认飞书配置：baseUrl 为 null（官方 SaaS）', async () => {
+    const config = await getCloudSyncConfig();
+    expect(config.providers.feishu.target).toEqual({
+      appToken: null,
+      tableId: null,
+      fileUrl: null,
+      baseUrl: null,
+      allowInsecure: false,
+    });
+  });
+
+  it('旧配置缺自定义地址字段时归一化为安全默认值，其余字段原样保留', async () => {
+    await patchProviderConfig('feishu', {
+      configured: true,
+      target: { appToken: 'a', tableId: 't', fileUrl: 'https://x.feishu.cn/base/a' } as unknown as FeishuTarget,
+    });
+    const config = await getCloudSyncConfig();
+    expect(config.providers.feishu.target).toEqual({
+      appToken: 'a',
+      tableId: 't',
+      fileUrl: 'https://x.feishu.cn/base/a',
+      baseUrl: null,
+      allowInsecure: false,
+    });
+    expect(getDocKey('feishu', config.providers.feishu.target)).toBe('a:t');
+
+    await patchProviderConfig('tencent', {
+      configured: true,
+      target: { fileId: 'f', sheetId: 's', fileUrl: 'https://docs.qq.com/sheet/f' } as unknown as TencentTarget,
+    });
+    const tencent = await getCloudSyncConfig();
+    expect(tencent.providers.tencent.target).toEqual({
+      fileId: 'f',
+      sheetId: 's',
+      fileUrl: 'https://docs.qq.com/sheet/f',
+      baseUrl: null,
+      allowInsecure: false,
     });
   });
 
