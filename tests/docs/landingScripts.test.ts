@@ -80,7 +80,11 @@ const ESM_ONLY_ERRORS =
  */
 function findScriptSyntaxIssues(page: string, html: string): ScriptSyntaxIssue[] {
   const issues: ScriptSyntaxIssue[] = [];
-  // codeql[js/bad-tag-filter] -- 该正则从本仓库自产的 HTML 里提取内联脚本，交给 vm.Script 做语法校验，不承担净化/过滤职责：提取结果只用于报告解析失败，无 HTML 输出也无 DOM sink，漏匹配的代价仅是测试少检一块脚本，不存在被绕过的安全边界。
+  // CodeQL 误报说明（js/bad-tag-filter，告警 #9 已按「used in tests」dismiss）：该正则从本仓库自产的 HTML
+  // 里提取内联脚本，交给 vm.Script 做语法校验，不承担净化/过滤职责——提取结果只用于报告解析失败，无 HTML
+  // 输出也无 DOM sink，漏匹配 `</script >` 这类变体的代价仅是测试少检一块脚本，不存在被绕过的安全边界。
+  // 这里刻意不用行内抑制注释：CodeQL 的抑制判据只覆盖整行定位的结果，而本查询报的是列级定位，写了不生效
+  // （2026-09-29 实测：抑制注释合入 main 并重扫后，告警仍在同一处重新出现）。
   const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
   let match: RegExpExecArray | null;
   let index = 0;

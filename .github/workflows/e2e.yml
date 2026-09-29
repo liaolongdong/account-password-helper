@@ -11,14 +11,19 @@ name: E2E (Chrome extension)
 # **40 passed / 1 skipped（20.4 分钟）**，断言与超时一个字没改；侧边栏单文件另跑过 6/6。
 # 也就是说本地已经攒到两次全量绿灯，缺的是 runner 那一格：CI 用 ubuntu 上的
 # Playwright Chromium，本地是 macOS x64 的 Chrome for Testing，同一内核不同构建，没法预跑。
-# 所以本 job 先以 `continue-on-error` 的观察身份接进 push/PR：跑红只出警告，不挡合并。
+# 所以本 job 接进 push/PR 时先带 `continue-on-error` 的观察身份：跑红只出警告，不挡合并。
 # 转正条件：在 ubuntu runner 上连跑两次全绿，届时删掉那一行即可，无需再改触发口径。
+# 2026-09-29 转正达成——runner 连跑三次全绿，且都是 61 passed / 1 skipped、零重试：
+#   PR #99 的 `7e48585`（6.7 分钟）、同 PR 的 `793c3e7`（7.1 分钟）、合并后的 main `8770852`（7.0 分钟）。
+# 那之前 main 上有 2 条常红用例（备份提示定位器已失效、收藏用例的点击被浮层截走），
+# 都在 PR #99 里修掉，根因与逐条证据见 e2e/README.md「复跑稳定性」。后一条的根因
+# （`placement="top"` 的浮层压在上一行按钮上、又参与指针命中）随后也从产品侧修掉了：
+# 浮层现在对指针透明，见 PasswordTable.vue 的 `OPERATION_TIP_POPPER_STYLE`。
 #
-# 三点仍未消除的偏差，首次 push/PR 运行才是它的实测：
+# 两点仍未消除的偏差：
 # 1. 本地验证用的是 Chrome for Testing（macOS x64），CI 用的是 Playwright 分发的 Chromium
 #    （ubuntu）——同一内核不同构建与平台，本工作流无法在本机预跑；
-# 2. 接进 PR 门禁≠成为必过检查，是否 required 由分支保护规则决定，那一步不在本文件里；
-# 3. 观察期内 `continue-on-error` 让它连「红」都算不上，真正的门禁化要等上面那次转正。
+# 2. 接进 PR 门禁≠成为必过检查，是否 required 由分支保护规则决定，那一步不在本文件里。
 on:
   workflow_dispatch:
   push:
@@ -64,8 +69,6 @@ jobs:
   e2e:
     name: Playwright extension E2E
     runs-on: ubuntu-latest
-    # 观察期：见文件头「转正条件」。runner 上的首次全绿之前，红灯只出警告不挡合并。
-    continue-on-error: true
     # 每次运行都会先 `pnpm build`（globalSetup 保证产物新鲜），再逐条用例起独立 profile
     timeout-minutes: 30
     steps:
