@@ -45,6 +45,7 @@
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
         @open-personalization="openPersonalizationDialog"
+        @open-tour="replayTour"
       />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
@@ -263,6 +264,12 @@
       :filtered="paletteFiltered"
       @run="paletteRunAt"
     />
+
+    <!-- 聚光式新手引导：状态机由本页持有，组件只做渲染（v-if 决定异步 chunk 何时加载） -->
+    <OnboardingTour
+      v-if="tourActive"
+      :tour="tour"
+    />
   </div>
 </template>
 
@@ -310,6 +317,8 @@ const DomainMatchSettingDialog = defineAsyncComponent(
   () => import('@/components/options/DomainMatchSettingDialog.vue'),
 );
 const CommandPalette = defineAsyncComponent(() => import('@/components/options/CommandPalette.vue'));
+// 新手引导：仅首次进入认证态或用户主动重温时才需要这一块，异步加载不占管理页首屏
+const OnboardingTour = defineAsyncComponent(() => import('@/components/options/OnboardingTour.vue'));
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -327,6 +336,7 @@ import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useIdentityVault } from '@/composables/useIdentityVault';
 import { useCommandPalette } from '@/composables/useCommandPalette';
+import { useOnboardingTour } from '@/composables/useOnboardingTour';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
 import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
@@ -1191,7 +1201,10 @@ const {
   runAt: paletteRunAt,
 } = useCommandPalette({
   getActions: buildPaletteActions,
-  canOpen: () => isAuthenticated.value,
+  // 引导是 `aria-modal` 的聚光层：面板开在它下面只会得到一个看不见、还在抢焦点的浮层，
+  // 因此引导期间直接不给唤起（`canOpen` 为假时快捷键仍会 preventDefault，不串给浏览器）。
+  // `tour` 在下方声明：这里传的是回调，setup 同步跑完后才可能被按键触发，不存在前置引用问题。
+  canOpen: () => isAuthenticated.value && !tour.isActive.value,
 });
 
 /** Storage 与可见性变化监听 */
@@ -1231,6 +1244,47 @@ useRuntimeMessageHandler({
   openDomainMatchSetting,
   applySearchKeyword,
 });
+
+// ==================== 聚光式新手引导 ====================
+
+/**
+ * 引导状态机在本页持有，而非组件内部或模块级全局
+ *
+ * 组件是异步加载的展示层，生命周期跟着 `v-if` 走；状态放在本页，
+ * 才能保证「一次安装只自动弹一次」这条承诺不受组件挂载/卸载顺序影响。
+ */
+const tour = useOnboardingTour();
+
+/** 顶层解构才能在模板里自动解包 ref：`tour.isActive` 作为对象属性是 Ref 本体，恒为真值 */
+const tourActive = tour.isActive;
+
+/** 本次页面加载中是否已经判过要不要自动弹（只在首次进入认证态时读一次存储） */
+let tourAutoChecked = false;
+
+/** 手动重温：HeaderBar「新手引导」按钮的入口，走完或退出后仍可反复唤起 */
+const replayTour = async () => {
+  await tour.start();
+};
+
+/**
+ * 首次进入认证态后自动引导一次
+ *
+ * 必须等 `tableLoading` 落定：搜索筛选栏与空库引导卡是互斥渲染的，
+ * 加载态下两者都不存在，剧本会缺一步。判定只发生一次，
+ * 会话往返（锁解后再认证）不会反复读存储、也不会在用户主动关掉后又冒出来。
+ */
+watch(
+  [isAuthenticated, tableLoading],
+  async ([authenticated, loading]) => {
+    if (tourAutoChecked || !authenticated || loading) return;
+    tourAutoChecked = true;
+    const state = await StorageUtils.getOnboardingTourState();
+    if (state.seen) return;
+    await nextTick();
+    await tour.start();
+  },
+  { immediate: true },
+);
 
 /** 初始化：启动会话管理器、监听会话过期事件、加载配置并检查认证状态 */
 onMounted(async () => {

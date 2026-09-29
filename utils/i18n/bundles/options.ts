@@ -18,6 +18,7 @@ import zhHealth from '@/utils/i18n/locales/zh-CN/health.json';
 import zhHelp from '@/utils/i18n/locales/zh-CN/help.json';
 import zhIdentity from '@/utils/i18n/locales/zh-CN/identity.json';
 import zhMessage from '@/utils/i18n/locales/zh-CN/message.json';
+import zhOnboarding from '@/utils/i18n/locales/zh-CN/onboarding.json';
 import zhOptions from '@/utils/i18n/locales/zh-CN/options.json';
 import zhPopup from '@/utils/i18n/locales/zh-CN/popup.json';
 import zhSession from '@/utils/i18n/locales/zh-CN/session.json';
@@ -36,6 +37,7 @@ import enHealth from '@/utils/i18n/locales/en/health.json';
 import enHelp from '@/utils/i18n/locales/en/help.json';
 import enIdentity from '@/utils/i18n/locales/en/identity.json';
 import enMessage from '@/utils/i18n/locales/en/message.json';
+import enOnboarding from '@/utils/i18n/locales/en/onboarding.json';
 import enOptions from '@/utils/i18n/locales/en/options.json';
 import enPopup from '@/utils/i18n/locales/en/popup.json';
 import enSession from '@/utils/i18n/locales/en/session.json';
@@ -57,6 +59,7 @@ registerMessages(
   zhHelp,
   zhIdentity,
   zhMessage,
+  zhOnboarding,
   zhOptions,
   zhPopup,
   zhSession,
@@ -78,6 +81,7 @@ registerMessages(
   enHelp,
   enIdentity,
   enMessage,
+  enOnboarding,
   enOptions,
   enPopup,
   enSession,

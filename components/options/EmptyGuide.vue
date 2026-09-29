@@ -1,5 +1,8 @@
 <template>
-  <div class="empty-guide">
+  <div
+    class="empty-guide"
+    data-tour="empty"
+  >
     <el-empty
       :image-size="120"
       :description="t('options.emptyGuide.title')"

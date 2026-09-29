@@ -46,6 +46,7 @@
     <div class="header-actions-row">
       <div class="header-actions">
         <el-button
+          data-tour="add"
           type="primary"
           :icon="Plus"
           @click="$emit('addPassword')"
@@ -53,6 +54,7 @@
           {{ t('options.header.addPassword') }}
         </el-button>
         <el-button
+          data-tour="health"
           :icon="Aim"
           :title="healthGrade ? t('options.header.healthScore', { score: healthScore ?? 0 }) : undefined"
           @click="$emit('openHealth')"
@@ -70,7 +72,10 @@
           trigger="click"
           @command="(cmd: string) => $emit('dataCommand', cmd)"
         >
-          <el-button :icon="FolderOpened">
+          <el-button
+            data-tour="data"
+            :icon="FolderOpened"
+          >
             {{ t('options.header.data') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
           <template #dropdown>
@@ -158,7 +163,10 @@
           trigger="click"
           @command="(cmd: string) => $emit('settingsCommand', cmd)"
         >
-          <el-button :icon="Setting">
+          <el-button
+            data-tour="settings"
+            :icon="Setting"
+          >
             {{ t('options.header.securitySettings') }}<el-icon class="el-icon--right"><ArrowDown /></el-icon>
           </el-button>
           <template #dropdown>
@@ -234,6 +242,14 @@
       <!-- 右侧辅助入口：空间不足时整组换行到下一行右侧，不与左组换行后的基线错位 -->
       <div class="header-actions-right">
         <el-button
+          :icon="Compass"
+          :title="t('options.header.tourTitle')"
+          @click="$emit('openTour')"
+        >
+          {{ t('options.header.tour') }}
+        </el-button>
+        <el-button
+          data-tour="personalize"
           :icon="Brush"
           @click="$emit('openPersonalization')"
         >
@@ -266,6 +282,7 @@ import {
   Key,
   Document,
   Brush,
+  Compass,
   Operation,
   Link,
   Connection,
@@ -282,7 +299,11 @@ import { useSessionCountdown } from '@/composables/useSessionCountdown';
  *
  * 包含标题、版本号、会话剩余时间徽标、安全体检入口、数据管理/安全设置下拉菜单以及偏好设置按钮。
  * 「安全设置」聚焦主密码、会话安全与填充行为（含站点规则）及快捷键一览，「偏好设置」聚焦外观与填充交互，两者图标区分避免混淆。
+ * 「新手引导」常驻在右侧入口组，让已看过一次的用户仍有一条明确的回头路（自动弹出终生仅一次）。
  * 语言切换已迁移至「偏好设置」面板（与主题风格同组，三入口可达）。
+ *
+ * 带 `data-tour` 的按钮是聚光引导的锚点，键名与 `utils/onboardingTour.ts` 的剧本一一对应；
+ * 删除或改名会静默让对应步骤消失（锚点缺失即跳步），改动时请同步剧本。
  */
 const props = defineProps<{
   /** 当前插件版本号 */
@@ -308,6 +329,8 @@ defineEmits<{
   openPersonalization: [];
   /** 点击会话徽标，打开有效期设置弹窗 */
   openValidity: [];
+  /** 重温新手引导 */
+  openTour: [];
 }>();
 
 const { t } = useI18n();

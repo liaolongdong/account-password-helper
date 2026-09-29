@@ -45,6 +45,13 @@ export const STORAGE_KEYS = {
   PLATFORM_IS_WINDOWS: 'platform_is_windows',
   /** 内联填充首次引导气泡已展示标记（终生仅展示一次） */
   INLINE_FILL_HINT_SHOWN: 'inline_fill_hint_shown',
+  /**
+   * 新手引导（聚光引导）状态
+   *
+   * 仅存 `{ seen, outcome, finishedAt }` 三个标记位，不含任何账号、密码、
+   * 站点或步骤内容，因此本键不构成隐私面。自动弹出终生仅一次。
+   */
+  ONBOARDING_TOUR: 'onboarding_tour_state',
 };
 
 /**
