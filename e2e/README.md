@@ -7,7 +7,7 @@
 | 项                                                                           | 状态                                                                                                                                                                                                                           |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 夹具（加载扩展、取扩展 ID、解锁管理页、读写 `storage.local`、PING 内容脚本） | 已写好：`e2e/harness.ts` + `e2e/global-setup.ts`                                                                                                                                                                               |
-| 用例                                                                         | 10 个 `*.spec.ts` 共 62 条：站点规则 6 / 密码条目 6 / 会话 6 / 安全 6 / 备份回环 6 / 侧边栏 8 / 导入导出与工具 5 / 跨子域档位 3 / 操作列 tooltip 10 / 分页 6（其中 1 条刻意 skip）                                             |
+| 用例                                                                         | 11 个 `*.spec.ts` 共 65 条：站点规则 6 / 密码条目 6 / 会话 6 / 安全 6 / 备份回环 6 / 侧边栏 8 / 导入导出与工具 5 / 跨子域档位 3 / 操作列 tooltip 10 / 分页 6 / 表格截断浮层 3（其中 1 条刻意 skip）                            |
 | CI                                                                           | **push 到 `main` + 所有 PR + 手动**：`.github/workflows/e2e.yml`（2026-09-22 接入），文档与图片类改动按 `paths-ignore` 跳过。**已是真门禁**：2026-09-29 runner 连跑三绿后删掉了 `continue-on-error`，跑红即为失败检查          |
 | 本机（macOS 13）能否跑通                                                     | **能**，但要自备 Chromium 系构建：Playwright 1.63 拒绝在 macOS 13 装 chromium，改下载 Chrome for Testing 并设 `E2E_EXECUTABLE_PATH`                                                                                            |
 | 首次真实绿色运行                                                             | 2026-09-21：`e2e/site-rules.spec.ts` 6/6；同日把另外 6 个作废 spec 全部重写，全量为 40 passed / 1 skipped（Chrome for Testing 153.0.8010.52，macOS 13 x64，4.0 分钟）                                                          |
@@ -72,6 +72,24 @@
     `e2e/operation-tooltip.spec.ts` 里原守卫 `enterable` 的那条用例改写为守卫新不变量
     （浮层自己的中心点不得是命中测试的落点 + 浮层开着时点上一行的星形必须生效），用例总数不变。
     `parkPointer` 保留：它把提示状态归零，让「当前有几条可见提示」这类断言不受上一条动作残留干扰。
+- 同一根因的全仓排查（2026-09-29 续波）：把「浮层参与命中测试、抢走本该落在别的控件上的点击」
+  这类形状在 `components/` + `entrypoints/` 里查了一遍，逐处用真机测量而不是靠推断——
+  `show-overflow-tooltip` 的**表格截断浮层**是同一条性质，且它比操作列那条更宽（实测 1280×52，
+  横贯整行），压住上一行的**八处**可点控件（勾选框、显示密码、站点链接、查看详情、创建副本、
+  编辑、收藏、删除），在未修复的构建上这八处 `elementFromPoint(中心)` 全部返回浮层节点。
+  修法与守卫见 `utils/tableOverflowTooltip.ts`、
+  `tests/architecture/tableOverflowTooltipPointerTransparent.test.ts` 与 `e2e/table-overflow-tooltip.spec.ts`。
+  同批测量里 **URL 列差 1 像素压不住、用户名列根本没截断**，回收站与两个导入预览表因删除确认弹层
+  挡住导航未能单独测量——它们只由源码级守卫覆盖到「绑定存在」这一层，不声称量过。
+  新守卫 3 条已按变异法自证有牙：摘掉 `PasswordTable` 那行绑定后重出产物，第 1 条报
+  「截断浮层仍在参与指针命中测试」（`pointerEvents` 读回 `auto`）、第 3 条报
+  「指针已离开单元格，截断浮层还占着按钮」，第 2 条（口径自检）两种构建都绿——它本来就该两边都绿。
+  本地全量复跑：**64 passed / 1 skipped / 9.6 分钟**（共 65 条，含本波新增 3 条）。
+- 顺带修掉一处**会让守卫静默空跑的量具缺陷**：`harness.ts` 的 `visibleTooltipTexts` 原用
+  `el.offsetParent !== null` 判可见，而表格截断浮层的 `strategy` 被 EP 写死为 `fixed`，
+  `position: fixed` 的元素 `offsetParent` **恒为 `null`**——用旧判据量它，一条摊在屏幕上的浮层
+  会被读成「不可见」，任何"它不该吞点击"的断言都因此恒真。现改为 `display` / `visibility` /
+  尺寸三条判据（`operation-tooltip.spec.ts` 里那条操作列浮层是 `absolute`，两种判据同结果，存量用例不受影响）。
 - 同一轮全量复跑（13.9 分钟、62 条）里还抓到一条**与本次改动无关的既有赛跑**：
   `operation-tooltip.spec.ts` 的「浮层开着时该行被过滤掉」写成一行
   `expect(await visibleTooltipTexts(page)).toEqual([])`，本机单跑 3/3 绿，全量套件第 18 条却红了。
