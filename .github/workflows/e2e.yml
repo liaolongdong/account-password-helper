@@ -13,6 +13,9 @@ name: E2E (Chrome extension)
 # Playwright Chromium，本地是 macOS x64 的 Chrome for Testing，同一内核不同构建，没法预跑。
 # 所以本 job 先以 `continue-on-error` 的观察身份接进 push/PR：跑红只出警告，不挡合并。
 # 转正条件：在 ubuntu runner 上连跑两次全绿，届时删掉那一行即可，无需再改触发口径。
+# 2026-09-29 第一绿达成（PR #99 / `7e48585`）：61 passed / 1 skipped、6.7 分钟、零重试。
+# 此前 main 上有 2 条常红用例（备份提示定位器已失效、收藏用例的点击被浮层截走），
+# 都在本 PR 里修掉，根因与逐条证据见 e2e/README.md「复跑稳定性」。转正还差第二次连绿。
 #
 # 三点仍未消除的偏差，首次 push/PR 运行才是它的实测：
 # 1. 本地验证用的是 Chrome for Testing（macOS x64），CI 用的是 Playwright 分发的 Chromium
