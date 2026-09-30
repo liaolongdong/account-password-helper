@@ -31,6 +31,8 @@ export const STORAGE_KEYS = {
   PASSWORD_HISTORY_CONFIG: 'password_history_config',
   /** 身份信息库条目（个人信息收藏夹，整块加密存储） */
   IDENTITY: 'personal_identity_infos',
+  /** 身份信息库列表排序档位（仅存枚举值，不含任何 PII，故明文单键） */
+  IDENTITY_SORT_MODE: 'identity_sort_mode',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
   /** 用户语言偏好（'zh-CN' | 'en'） */

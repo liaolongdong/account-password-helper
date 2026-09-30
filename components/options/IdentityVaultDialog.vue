@@ -9,7 +9,7 @@
     @closed="handleClosed"
   >
     <div class="identity-content">
-      <!-- 顶部工具栏：类别过滤 + 搜索 + 添加 -->
+      <!-- 顶部工具栏：类别过滤 + 排序档位 + 搜索 + 添加 -->
       <div class="identity-toolbar">
         <el-radio-group
           v-model="categoryFilter"
@@ -22,6 +22,30 @@
           <el-radio-button value="bank_card">{{ t('identity.category.bank_card') }}</el-radio-button>
           <el-radio-button value="address">{{ t('identity.category.address') }}</el-radio-button>
         </el-radio-group>
+        <!--
+          排序档位：触发器只显示档位名，用途交给 tooltip + aria-label 说明，
+          这样最宽的「Category」/「最近修改」也能收进 104px，把宽度留给高频的搜索框。
+        -->
+        <el-tooltip
+          :content="t('identity.sortLabel')"
+          :show-after="400"
+          placement="top"
+        >
+          <el-select
+            :model-value="sortMode"
+            size="small"
+            class="identity-toolbar__sort"
+            :aria-label="t('identity.sortLabel')"
+            @update:model-value="handleSortModeChange"
+          >
+            <el-option
+              v-for="option in sortOptions"
+              :key="option.value"
+              :value="option.value"
+              :label="option.label"
+            />
+          </el-select>
+        </el-tooltip>
         <el-input
           v-model="keyword"
           :prefix-icon="Search"
@@ -154,6 +178,12 @@
             </div>
             <div class="identity-card__actions">
               <el-button
+                :icon="isCollapsed(entry.id) ? ArrowDown : ArrowUp"
+                :aria-label="isCollapsed(entry.id) ? t('identity.expandOne') : t('identity.collapseOne')"
+                link
+                @click="toggleCollapse(entry.id)"
+              />
+              <el-button
                 v-if="cardHasSecret(entry) && !isCollapsed(entry.id)"
                 :icon="isRevealed(entry.id) ? Hide : View"
                 :aria-label="isRevealed(entry.id) ? t('identity.hide') : t('identity.show')"
@@ -261,6 +291,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import {
+  ArrowDown,
+  ArrowUp,
   CopyDocument,
   Delete,
   DocumentCopy,
@@ -273,8 +305,13 @@ import {
   View,
   WarnTriangleFilled,
 } from '@element-plus/icons-vue';
-import type { IdentityEntry } from '@/utils/identity/types';
-import { MAX_IDENTITIES, MAX_IDENTITY_IMPORT_INPUT_BYTES } from '@/utils/identity/constants';
+import type { IdentityEntry, IdentitySortMode } from '@/utils/identity/types';
+import {
+  IDENTITY_SORT_MODES,
+  MAX_IDENTITIES,
+  MAX_IDENTITY_IMPORT_INPUT_BYTES,
+  isIdentitySortMode,
+} from '@/utils/identity/constants';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { buildIdentityFieldRows, formatIdentityCardText, hasSecretFields } from '@/utils/identity/fields';
 import {
@@ -297,7 +334,8 @@ import type { IdentityVault } from '@/composables/useIdentityVault';
 /**
  * 身份信息库列表弹窗
  *
- * 展示解密后的身份条目（类别过滤 + 搜索 + 卡级机密显隐 / 批量展开收起 + 批量折叠 / 展开全部 +
+ * 展示解密后的身份条目（类别过滤 + 排序档位 + 搜索 + 卡级机密显隐 / 批量展开收起 +
+ * 单卡折叠与「折叠 / 展开全部」+
  * 整卡/逐字段复制 + 勾选 + 删除；顶部状态栏显示搜索命中数与「已用 n/30」条数上限，无匹配时空态提供「清除筛选」）。
  * 眼睛按「卡片」为粒度切换该卡全部机密字段（设计如此，非 bug）；每卡复选框 + 工具栏
  * 全选驱动导出作用域——未勾选=导出全部，勾选=仅导出所选子集。footer 常驻备份导入/导出：
@@ -331,6 +369,7 @@ const {
   loading,
   keyword,
   categoryFilter,
+  sortMode,
   filteredRows,
   selectedIds,
   selectedCount,
@@ -345,7 +384,10 @@ const {
   toggleReveal,
   toggleRevealAll,
   isCollapsed,
+  toggleCollapse,
   toggleCollapseAll,
+  setSortMode,
+  restoreSortMode,
   isSelected,
   toggleSelect,
   selectAllVisible,
@@ -377,6 +419,23 @@ const filterActive = computed(() => keyword.value.trim() !== '' || categoryFilte
 const canRevealAll = computed(() => filteredRows.value.some(cardHasSecret));
 
 /**
+ * 排序档位下拉项
+ *
+ * 档位顺序与标签在 setup 期一次算好（`IDENTITY_SORT_MODES` 为单一事实来源），
+ * 不在模板里逐档写四行 `t()`；标签随界面语言响应，档位本身与语言无关。
+ */
+const sortOptions = computed<{ value: IdentitySortMode; label: string }[]>(() =>
+  IDENTITY_SORT_MODES.map(mode => ({ value: mode, label: t(`identity.sort.${mode}`) })),
+);
+
+/** 下拉回调：`el-select` 给出的值是 unknown 形状，过白名单判据收窄后才交给 composable */
+const handleSortModeChange = (value: unknown): void => {
+  if (isIdentitySortMode(value)) {
+    setSortMode(value);
+  }
+};
+
+/**
  * 复制整条身份信息：拼成「标签: 值」多行文本一次性写入剪贴板
  *
  * 与逐字段复制一致——复制的是明文值本身，掩码仅为展示态，故未显隐的机密字段照样复制。
@@ -388,12 +447,13 @@ const handleCopyCard = (entry: IdentityEntry): Promise<void> =>
 /** 当前导出作用域：未勾选→全部；已勾选→所选子集 */
 const exportTargets = computed(() => resolveExportEntries(rows.value, selectedIds.value));
 
-/** 弹窗打开时加载数据（对标 TrashDialog 的 watch modelValue） */
+/** 弹窗打开时加载数据，并行恢复落盘的排序档位（对标 TrashDialog 的 watch modelValue） */
 watch(
   () => props.modelValue,
   visible => {
     if (visible) {
       void load();
+      void restoreSortMode();
     }
   },
 );
@@ -621,6 +681,17 @@ const handleFileChange = async (event: Event): Promise<void> => {
 .identity-toolbar__search {
   flex: 1;
   min-width: 0;
+}
+
+/*
+ * 排序档位：固定窄宽，把剩余宽度留给搜索框。
+ * 104px 是实测下限——弹窗 760px（内容区 728）下，档位触发器显示最宽标签
+ * （en「Category」/ zh「最近修改」）时不出现省略号，搜索框仍保有 zh 210px / en 174px；
+ * 再宽就要动搜索框，而搜索是高频入口。
+ */
+.identity-toolbar__sort {
+  flex: none;
+  width: 104px;
 }
 
 .identity-reminder {

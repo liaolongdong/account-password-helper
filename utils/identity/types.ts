@@ -9,6 +9,16 @@
 /** 身份信息类别（进密文，不明文落盘） */
 export type IdentityCategory = 'person' | 'id_card' | 'bank_card' | 'address';
 
+/**
+ * 列表排序档位（纯视图偏好，明文单键落盘，不含任何 PII）
+ *
+ * - `updated` / `created` 记录级时间戳（明文键，无需解密即可比较）；
+ * - `category` 按 `constants.ts` 的 `CATEGORY_ORDER` 固定档序分组，不跟随语言包译名，
+ *   否则切语言会把顺序换一遍；
+ * - `title` 用列表标题（`displayTitle` 回退链）按界面语言排序，走 Intl 拼写排序而非码位序。
+ */
+export type IdentitySortMode = 'updated' | 'created' | 'category' | 'title';
+
 /** 自定义字段（label/value 均为用户输入，secret 决定掩码与复制通道） */
 export interface IdentityCustomField {
   /** 稳定 ID（generateId()），供 v-for 与删除定位 */
