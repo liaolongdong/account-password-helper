@@ -4,7 +4,7 @@
  * 存储键名不在此重复：单一事实来源为 `utils/storageKeys.ts` 的
  * `STORAGE_KEYS.IDENTITY`，由 `utils/storage/identityCrud.ts` 引用。
  */
-import type { IdentityCategory } from './types';
+import type { IdentityCategory, IdentitySortMode } from './types';
 
 /** 单用户身份条目数上限（超出拒绝新增；仅影响一次性解密批大小） */
 export const MAX_IDENTITIES = 30;
@@ -46,6 +46,32 @@ export const CATEGORY_ORDER = [
   'bank_card',
   'address',
 ] as const satisfies readonly IdentityCategory[];
+
+/**
+ * 列表排序档位（数组顺序即下拉顺序）
+ *
+ * `updated` 排第一是刻意保持既有行为：改造前列表写死「最近修改倒序」，
+ * 默认档不变，用户第一次打开不会发现顺序莫名变了。
+ */
+export const IDENTITY_SORT_MODES = [
+  'updated',
+  'created',
+  'category',
+  'title',
+] as const satisfies readonly IdentitySortMode[];
+
+/** 默认排序档（最近修改倒序，与改造前写死的顺序一致） */
+export const DEFAULT_IDENTITY_SORT_MODE: IdentitySortMode = 'updated';
+
+/**
+ * 落盘偏好的白名单判据
+ *
+ * 与 `isVaultPageSize` / `isDomainMatchMode` 同一取舍：存储值可能是旧版本写入或手工篡改的
+ * 产物，读到时不在档位白名单内一律回落默认；写入侧同样据此忽略非法值，不照写。
+ */
+export function isIdentitySortMode(value: unknown): value is IdentitySortMode {
+  return typeof value === 'string' && (IDENTITY_SORT_MODES as readonly string[]).includes(value);
+}
 
 /** 身份信息备份容器 kind 标识（区分于密码库的 .aph） */
 export const APHID_KIND = 'aphid';

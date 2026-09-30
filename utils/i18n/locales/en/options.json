@@ -29,6 +29,8 @@
   "options.header.shortcuts": "Keyboard Shortcuts",
   "options.header.securitySettings": "Security Settings",
   "options.header.personalization": "Preferences",
+  "options.header.tour": "Tour",
+  "options.header.tourTitle": "Replay the guided tour",
   "options.header.siteRules": "Site Rules",
   "options.header.domainMatch": "Cross-Subdomain Matching",
   "options.domainMatch.off": "Exact match only (default)",

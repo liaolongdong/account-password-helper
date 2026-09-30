@@ -3,26 +3,38 @@
  *
  * 单一实例由 `entrypoints/options/App.vue` 创建并注入给列表弹窗（props），
  * 保证会话失效时 App.vue 侧的 `teardown()` 与弹窗共享同一份状态：
- * - 状态：rows（解密后条目）/ loading / revealedIds（掩码显隐）/ selectedIds（导出勾选）/ collapsedIds（卡片折叠）/ keyword / categoryFilter；
- * - 派生：filteredRows（类别过滤 + 搜索 + updateTime 倒序）；
- * - 生命周期：load() / teardown() / resetViewState()；
- * - 视图态：卡级显隐 toggleReveal / 批量 toggleRevealAll（仅作用可见含机密卡）/ 批量折叠 toggleCollapseAll（仅作用可见卡）/ 勾选选择态 / 过滤清除 clearFilters；
+ * - 状态：rows（解密后条目）/ loading / revealedIds（掩码显隐）/ selectedIds（导出勾选）/ collapsedIds（卡片折叠）/ keyword / categoryFilter / sortMode（列表排序档位）；
+ * - 派生：filteredRows（类别过滤 + 搜索 + 按 sortMode 排序）；
+ * - 生命周期：load() / teardown() / resetViewState() / restoreSortMode()；
+ * - 视图态：卡级显隐 toggleReveal / 批量 toggleRevealAll（仅作用可见含机密卡）/ 单卡折叠 toggleCollapse 与批量折叠 toggleCollapseAll（均仅作用可见卡）/ 档位切换 setSortMode（落盘为偏好）/ 勾选选择态 / 过滤清除 clearFilters；
  * - 领域：displayTitle（列表标题回退链）/ copyField（逐字段复制）/ copyCard（整卡复制，恒走限时自动清除通道）。
  *
  * 搜索刻意**不加防抖**：既有 200ms 防抖是为上百条密码设计，身份库 ≤30 条，
  * 即时过滤更简单（有意偏离，见方案 §4.1）。
+ *
+ * 排序档位只改**列表展示**顺序：`rows` 恒按 updateTime 倒序，导出与勾选摘要读的是 `rows`，
+ * 因此换档位不会改写备份文件的条目次序（视图偏好不该惊动数据层）。
  */
 import { computed, ref, shallowRef } from 'vue';
-import type { IdentityCategory, IdentityEntry, IdentityPayload } from '@/utils/identity/types';
-import { deleteIdentities, getAllIdentity, saveIdentity, updateIdentity } from '@/utils/storage/identityCrud';
+import type { IdentityCategory, IdentityEntry, IdentityPayload, IdentitySortMode } from '@/utils/identity/types';
+import { DEFAULT_IDENTITY_SORT_MODE } from '@/utils/identity/constants';
+import {
+  deleteIdentities,
+  getAllIdentity,
+  getIdentitySortMode,
+  saveIdentity,
+  saveIdentitySortMode,
+  updateIdentity,
+} from '@/utils/storage/identityCrud';
 import { IDENTITY_FIELD_DEFS, hasSecretFields } from '@/utils/identity/fields';
+import { sortIdentityEntries } from '@/utils/identity/sort';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { copySecretToClipboard, copyTextToClipboard } from '@/utils/clipboard';
 import { logger } from '@/utils/logger';
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback';
 import { useI18n } from '@/utils/i18n';
 
-const { t } = useI18n();
+const { t, currentLocale } = useI18n();
 
 /** 类别过滤器取值（'all' 表示不过滤） */
 export type IdentityCategoryFilter = 'all' | IdentityCategory;
@@ -60,8 +72,12 @@ export function useIdentityVault() {
   const collapsedIds = ref<Set<string>>(new Set());
   const keyword = ref('');
   const categoryFilter = ref<IdentityCategoryFilter>('all');
+  /** 列表排序档位（视图偏好，明文单键落盘；初始取默认档，restoreSortMode 用落盘值对齐） */
+  const sortMode = ref<IdentitySortMode>(DEFAULT_IDENTITY_SORT_MODE);
+  /** 手动换档次数（`restoreSortMode` 的代际判据，见该函数注释） */
+  let manualSortTicks = 0;
 
-  /** 类别过滤 + 搜索过滤后的条目（保持 load 时的 updateTime 倒序） */
+  /** 类别过滤 + 搜索过滤后的条目，按当前档位排序（≤30 条，每次重排成本可忽略） */
   const filteredRows = computed(() => {
     const category = categoryFilter.value;
     const kw = keyword.value.trim();
@@ -72,7 +88,7 @@ export function useIdentityVault() {
     if (kw) {
       list = list.filter(entry => matchesKeyword(collectSearchableFields(entry.payload), kw));
     }
-    return list;
+    return sortIdentityEntries(list, { titleOf: displayTitle, locale: currentLocale.value }, sortMode.value);
   });
 
   /**
@@ -80,6 +96,8 @@ export function useIdentityVault() {
    *
    * 解密失败的单条由 getAllIdentity 跳过并告警；整体读取失败仅记录日志，
    * 交由调用方决定是否提示（弹窗打开时调用，失败不阻断弹窗骨架）。
+   *
+   * 这里的倒序是**数据层基准序**：导出与勾选摘要读 `rows`，故备份内容不受视图档位影响。
    */
   async function load(): Promise<void> {
     loading.value = true;
@@ -161,6 +179,21 @@ export function useIdentityVault() {
     return collapsedIds.value.has(id);
   }
 
+  /**
+   * 切换单张卡片的折叠态
+   *
+   * 与 `toggleReveal` 同款口径：整组换新 Set，让浅响应可靠触发依赖更新。
+   */
+  function toggleCollapse(id: string): void {
+    const next = new Set(collapsedIds.value);
+    if (next.has(id)) {
+      next.delete(id);
+    } else {
+      next.add(id);
+    }
+    collapsedIds.value = next;
+  }
+
   /** 当前可见条目是否已全部折叠（驱动「折叠 / 展开全部」按钮文案与态） */
   const allVisibleCollapsed = computed(
     () => filteredRows.value.length > 0 && filteredRows.value.every(r => collapsedIds.value.has(r.id)),
@@ -182,6 +215,36 @@ export function useIdentityVault() {
       }
     }
     collapsedIds.value = next;
+  }
+
+  /**
+   * 切换列表排序档位并落盘
+   *
+   * 先改内存再写盘：视图必须立即响应，而落盘失败只意味着「下次打开回到旧档位」，
+   * 不值得为一次偏好写入向用户报错（与分页档位同一取舍），故此处只告警不上抛。
+   */
+  function setSortMode(mode: IdentitySortMode): void {
+    if (mode === sortMode.value) return;
+    manualSortTicks += 1;
+    sortMode.value = mode;
+    void saveIdentitySortMode(mode).catch(error => logger.warn('身份信息排序档位落盘失败，本次会话内仍生效:', error));
+  }
+
+  /**
+   * 从落盘值恢复排序档位（弹窗每次打开时与 load() 并行调用）
+   *
+   * 两条读取互不依赖，故并行发起、不新增串行等待；存储层已把非法值与读失败
+   * 回落成默认档，这里不需要再判异常。
+   *
+   * `manualSortTicks` 是本组件自己的代际保护：读回是异步的，用户可能在结果落地前
+   * 就动手换了档，那种情况下过期读数必须作废，否则「一打开就选好档位」会被一次慢读覆盖。
+   */
+  async function restoreSortMode(): Promise<void> {
+    const ticks = manualSortTicks;
+    const mode = await getIdentitySortMode();
+    if (ticks === manualSortTicks) {
+      sortMode.value = mode;
+    }
   }
 
   /** 切换某条目的勾选态 */
@@ -301,6 +364,7 @@ export function useIdentityVault() {
     collapsedIds,
     keyword,
     categoryFilter,
+    sortMode,
     filteredRows,
     selectedCount,
     allVisibleSelected,
@@ -315,7 +379,10 @@ export function useIdentityVault() {
     toggleRevealAll,
     isRevealed,
     isCollapsed,
+    toggleCollapse,
     toggleCollapseAll,
+    setSortMode,
+    restoreSortMode,
     toggleSelect,
     isSelected,
     selectAllVisible,

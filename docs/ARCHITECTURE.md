@@ -25,7 +25,7 @@
 | **Background**     | Service Worker，消息路由（判别联合类型）、密码缓存（域名无关）、侧边栏状态（Port 连接追踪）、快捷键处理；后台子模块：消息路由/缓存管理/侧边栏管理/选项页管理/自动保存/一键填充/右键菜单/内联下拉/侧边栏快速添加/后台服务（SW 保活+闹钟） |
 | **Content Script** | 注入所有页面，初始化表单检测与悬浮按钮                                                                                                                                                                                                   |
 | **Popup**          | 扩展图标弹窗，提供「管理密码」和「快速填充」快捷入口                                                                                                                                                                                     |
-| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理                                                                                                                                                                                     |
+| **Options**        | 密码管理主页面，完整 CRUD、导入导出、会话/有效期管理、聚光式新手引导                                                                                                                                                                     |
 | **SidePanel**      | 侧边栏快速填充，支持拼音智能搜索与命中高亮、排序、域名匹配（本站 / 全站范围切换）、缓存加速、就地快速添加                                                                                                                                |
 
 ### 消息与数据流
@@ -157,6 +157,7 @@ graph TB
 │   │   ├── ImportDialog.vue            # CSV/JSON 导入对话框
 │   │   ├── MasterPasswordSetupView.vue # 主密码设置视图
 │   │   ├── MasterPasswordVerifyDialog.vue # 主密码验证弹窗（会话解锁/导出前验证）
+│   │   ├── OnboardingTour.vue          # 聚光式新手引导（遮罩挖空 + 步骤卡片，动态导入不进首屏）
 │   │   ├── PasswordDetailDrawer.vue    # 条目只读详情抽屉（备注全文/密码历史/限时复制清除）
 │   │   ├── PasswordFormDialog.vue      # 密码表单对话框（含 TOTP 字段与密码修改历史）
 │   │   ├── PasswordGeneratorPopover.vue # 密码生成器弹窗（随机密码/助记词组）
@@ -179,6 +180,7 @@ graph TB
 │   ├── useAuthFlow.ts              # 认证流程
 │   ├── useCapsLockDetection.ts     # 主密码输入框大写锁定检测（getModifierState）
 │   ├── useChromeListeners.ts       # Chrome API 监听器自动清理
+│   ├── useOnboardingTour.ts        # 聚光式新手引导状态机（步骤裁剪 + 锚点测量 + 卡片定位）
 │   ├── usePasswordManagement.ts    # 密码 CRUD + 搜索排序 + 收藏
 │   ├── usePasswordHistory.ts       # 密码修改历史加载与解密
 │   ├── usePasswordStrength.ts      # 密码强度校验
@@ -244,6 +246,7 @@ graph TB
 │   │   └── core.ts                 # 匹配内核（子串 + 拼音/首字母缩写 + 命中区间，零 Vue，SW 与 content 可复用）
 │   ├── clipboard.ts                # 剪贴板复制与限时自动清除（UI 无关，options 详情抽屉使用）
 │   ├── shareCard.ts                # 分享卡片纯文本构造（用户名/密码/网址一段，标签由调用方注入，内容零日志）
+│   ├── onboardingTour.ts           # 新手引导纯函数层（步骤清单 + 锚点裁剪 + 高亮框几何与卡片定位）
 │   ├── logger.ts                   # 环境感知日志
 │   ├── env.ts                      # isDev / isFirefox 常量
 │   ├── platform.ts                 # 操作系统平台检测（Windows 判定，跨上下文复用）
@@ -559,7 +562,8 @@ graph TB
 - **第 4 个加密域**：[identityCrud.ts](../utils/storage/identityCrud.ts) 与密码库平行，整块加密（一个 `encryptedPayload` blob，PBKDF2-SHA256/600k + AES-256-GCM），落盘形状仅 `id / encryptedPayload / createTime / updateTime` 四个不可识别明文键，其余字段（含类别）一律进密文，避免泄露「用户存了一张银行卡」这类事实。存储键 `personal_identity_infos`，无新权限；`updateTime` 兼作并发令牌。
 - **两级校验**：[validators.ts](../utils/identity/validators.ts) 零 i18n、纯函数，输出「级别 + 文案 key」。格式类（长度/字符集）→ `error` 阻止保存；18 位大陆身份证 GB11643 mod 11 校验位（连同地区码、出生日期合法性）与大陆手机号形态校验 → `error` 阻止保存（该数字形态几乎只对应大陆居民身份证，校验位不符基本可判定为录入笔误）；银行卡 Luhn、有效期已过期 → `warning` 仅提示允许保存——护照号/港澳台通行证（非 18 位纯数字形态，不进入校验位分支）、社保卡/门禁卡（不过 Luhn）等合法数据不被误杀。[formRules.ts](../utils/identity/formRules.ts) 贴附 i18n 产出 Element Plus 规则，warning 由表单常驻 `el-alert` 呈现。
 - **并发与上限**：条数上限 30（写入前校验）；`updateIdentity` 以读取时的 `updateTime` 拒绝过期写（多 Options 标签页并存是真实场景，提示刷新后重试）；更新走 `{ ...existing, ...patch, pv: 1 }` 前向合并，未来版本新增键经旧版本编辑后仍存活。保存前经 [dedup.ts](../utils/identity/dedup.ts) 的 `findDuplicateIdentity` 做**非阻断**疑似重复检测：仅证件号 / 卡号参与（`trim` + 大写归一、排除编辑自身），命中则弹二次确认，用户仍可选择保存。
-- **会话安全**：[useIdentityVault.ts](../composables/useIdentityVault.ts) 由 `App.vue` 单一实例化并注入列表弹窗，`watch(isAuthenticated)` 在会话失效时清空内存明文并关闭两个弹窗，防 PII 残留。机密字段（证件号/卡号/CVV）默认掩码、以「卡片」为粒度显隐（单只眼睛切换该卡全部机密字段，不落盘；「是否含机密字段」的判定口径由 [fields.ts](../utils/identity/fields.ts) 的 `hasSecretFields` 统一供弹窗与批量操作共享），工具栏另提供「显示 / 隐藏全部机密」批量显隐（`toggleRevealAll`，只增删「当前可见且含机密字段」的卡片、不动被过滤掉的既有展开项）与「折叠 / 展开全部」批量折叠（`toggleCollapseAll`，折叠后卡片仅保留标题行、用于概览与减少滚动，同样只作用「当前可见」的卡片、保留被过滤掉的既有折叠态，折叠时隐藏该卡的眼睛按钮，`resetViewState` 复位为全展开）；复制分「逐字段」与「复制整卡」（`copyCard`：经 `buildIdentityFieldRows` + `formatIdentityCardText` 把该卡非空字段拼成「标签: 值」多行文本一次性写入）两种粒度，二者复制的都是明文值本身（掩码仅为展示态）——逐字段按字段机密与否分流（机密走 `copySecretToClipboard`、非机密走 `copyTextToClipboard`），而整卡载荷恒含姓名 / 手机号 / 住址等 PII，故 `copyCard` 一律走 `copySecretToClipboard` 限时自动清除、不再按是否含机密字段分支；列表搜索复用 `searchMatch` 的拼音匹配，机密字段参与匹配但不高亮。状态栏常驻「已用 n/30」条数上限提示（达上限转告警色），过滤生效时显示命中条数、无匹配空态提供「清除筛选」一键复位。
+- **会话安全**：[useIdentityVault.ts](../composables/useIdentityVault.ts) 由 `App.vue` 单一实例化并注入列表弹窗，`watch(isAuthenticated)` 在会话失效时清空内存明文并关闭两个弹窗，防 PII 残留。机密字段（证件号/卡号/CVV）默认掩码、以「卡片」为粒度显隐（单只眼睛切换该卡全部机密字段，不落盘；「是否含机密字段」的判定口径由 [fields.ts](../utils/identity/fields.ts) 的 `hasSecretFields` 统一供弹窗与批量操作共享），工具栏另提供「显示 / 隐藏全部机密」批量显隐（`toggleRevealAll`，只增删「当前可见且含机密字段」的卡片、不动被过滤掉的既有展开项）与「折叠 / 展开全部」批量折叠（`toggleCollapseAll`，折叠后卡片仅保留标题行、用于概览与减少滚动，同样只作用「当前可见」的卡片、保留被过滤掉的既有折叠态，折叠时隐藏该卡的眼睛按钮，`resetViewState` 复位为全展开），卡片操作区首位另有单卡 chevron（`toggleCollapse(id)`，与批量档共用同一个 `collapsedIds` 集合、同样不落盘），批量按钮的文案由「可见项是否全部折叠/揭示」推导，单卡折叠后该判据自然翻转，无需两套状态；复制分「逐字段」与「复制整卡」（`copyCard`：经 `buildIdentityFieldRows` + `formatIdentityCardText` 把该卡非空字段拼成「标签: 值」多行文本一次性写入）两种粒度，二者复制的都是明文值本身（掩码仅为展示态）——逐字段按字段机密与否分流（机密走 `copySecretToClipboard`、非机密走 `copyTextToClipboard`），而整卡载荷恒含姓名 / 手机号 / 住址等 PII，故 `copyCard` 一律走 `copySecretToClipboard` 限时自动清除、不再按是否含机密字段分支；列表搜索复用 `searchMatch` 的拼音匹配，机密字段参与匹配但不高亮。状态栏常驻「已用 n/30」条数上限提示（达上限转告警色），过滤生效时显示命中条数、无匹配空态提供「清除筛选」一键复位。
+- **视图偏好与排序**：工具栏的类别按钮只做过滤，列表顺序由档位下拉决定——`updated`（默认档，等于本轮改造前写死的「最近修改倒序」，旧行为不漂移）/ `created` / `category` / `title`。四档常量与白名单判据在 [constants.ts](../utils/identity/constants.ts)，比较器在 [sort.ts](../utils/identity/sort.ts)：纯函数、先拷贝再排序，因为 `rows` 是 shallowRef 里的同一份数组，就地 `sort` 会把导出顺序一并改掉；同档一律以 `updateTime` 倒序 → `id` 兜底，否则结果先后取决于 `storage.local` 的键序。`category` 档序取 `CATEGORY_ORDER`（与工具栏按钮同序）而非译名，切语言不变；`title` 档用 `Intl.Collator(locale, { numeric: true, sensitivity: 'base' })`，中文按拼音、英文按字典序，跟随界面语言。档位是**持久化的视图偏好**：明文单键 `identity_sort_mode`（非 PII，不进加密域、不进 `.aphid` 备份），读写落在 [identityCrud.ts](../utils/storage/identityCrud.ts) 而不是 `configManager`——后者位于 sidepanel 首屏 `modulepreload` 闭包内，把只有 Options 消费的身份域代码接进去等于给侧边栏首屏加码（同一口径见「管理页大 Vault 渲染性能」一节里分页档位的拆文件理由）；非法写入被 `isIdentitySortMode` 忽略、非法存储值回落默认档。打开弹窗时 `restoreSortMode()` 与 `load()` 并行且带代际计数：慢读回来的档位若晚于用户的手动切换则丢弃。**排序只改展示顺序**——`rows` 恒为 `load()` 建立的 updateTime 倒序基准序，导出作用域、勾选摘要与备份内容都不随档位变化。宽度预算：760px 弹窗（内容区 728px）下触发器固定 104px，实测最宽标签（en「Category」/ zh「最近修改」）不出省略号、搜索框仍保有 zh 210px / en 174px，档位用途由 tooltip + `aria-label` 说明。守卫见 [identitySort.test.ts](../tests/utils/identitySort.test.ts)（含「永不原地重排」、同时间戳兜底、未知类别排末档、标题档随 locale 反转，以及动态键 `identity.sort.<mode>` 与中英文语言包的双向对齐——静态扫描对动态键无能为力）、[identityCrud.sortMode.test.ts](../tests/utils/identityCrud.sortMode.test.ts)（存储侧回落默认档、非法写入不落盘、写失败上抛）、[useIdentityVault.test.ts](../tests/composables/useIdentityVault.test.ts)（含档位竞态与「档位不改 `rows`」）与 [identitySortSelect.dom.test.ts](../tests/components/identitySortSelect.dom.test.ts)（钉 tooltip 不给 flex 容器插包装节点）。
 - **备份**：[backup.ts](../utils/identity/backup.ts) 输出 `.aphid` 容器（`salt‖iv‖ciphertext`），以 `kind` 标记与 `.aph` 密码备份互斥（导错文件有明确提示）；导入按 `id` 合并（同 id 取较新 `updateTime`）并显式报告「新增/更新/跳过」计数。导出支持**勾选子集**（`resolveExportEntries`：未勾选=全部，勾选=所选，成功后清空勾选复位默认）。另提供**可选的明文 `.json` 导出/导入**（`buildIdentityPlaintextJson` / `exportIdentityPlaintext` / `parseIdentityPlaintextJson`）：明文非加密、复用 `.aphid` 数据结构（导入走同一份 `parseIdentityBackupData` 校验并按 `id` 合并），读写均须主密码复验 + 风险二次确认，属隐私边界的例外通道（长期留存仍以加密 `.aphid` 为首选）。身份库**不参与**既有自动备份与邮箱备份（独立性边界），弹窗内常驻 `el-alert` 提示定期手动导出加密备份（根治列 Phase 2）。
 - **换主密码**：身份数据并入 [changeMasterPassword.ts](../utils/storage/changeMasterPassword.ts) 同一次原子 `set`（读取置于任何写入之前），`reencryptAll` 解密失败的单条原样保留不丢弃，与既有三域口径一致。
 
@@ -590,6 +594,18 @@ graph TB
 - **不受档位影响的两条既有口径**：`localhost` / `127.0.0.1` 始终走 `matchesPortForLocalDev` 的端口过滤（`:3000` 与 `:5173` 不因放宽而混合）；「能否填充当前页」与「站点可见」仍共用同一判据，全站搜索下的外站降级行为不变。
 - **判重口径显式不变**：`findMatchingEntry` / `hostMatchScore` / `autoSavePassword` 完全不感知档位——沿用既有规则（同用户名 + host 相等**或父子域**算同一条，通配条目恒 0 分）。放宽档位只增加「可见性」，不会把两个环境的账号合并成一条，也不会让保存写到意料之外的条目；跨子域带来的歧义由弹窗的保存去向提示（见「自动保存登录凭证」的 `targetNote`）承担说明责任。
 - **回归口径**：[domain.test.ts](../tests/utils/domain.test.ts) 钉三档下的层级判定、通配前缀碰撞、ccTLD 与共享托管后缀（跨租户不互认、未收录后缀行为逐字不变），[passwordFilter.test.ts](../tests/utils/passwordFilter.test.ts) 与 [passwordSort.test.ts](../tests/utils/passwordSort.test.ts) 钉「`off` 档行为等价迁移前」与档位化排序，[configManager.domainMatch.test.ts](../tests/utils/configManager.domainMatch.test.ts) 钉非法值回落，[useRuntimeMessageHandler.domainMatch.test.ts](../tests/composables/useRuntimeMessageHandler.domainMatch.test.ts) 钉直达消息契约，[inlineFillDropdown.crossDomain.test.ts](../tests/content/inlineFillDropdown.crossDomain.test.ts) 钉内联面板的 `tier` 呈现与空态引导，[autoSaveManager.test.ts](../tests/utils/autoSaveManager.test.ts) 钉「判重不受档位影响」与 `targetNote` 的分支边界，[crossSubdomainTierWiring.test.ts](../tests/architecture/crossSubdomainTierWiring.test.ts) 以源码守卫钉「每处站点范围判定都显式传档位」与「档位变更不进缓存失效键」。
+
+### 30. 聚光式新手引导
+
+- **入口与自动播放**：首次进入密码管理页、认证通过且表格加载结束后自动播放一次（[App.vue](../entrypoints/options/App.vue) 里 `watch([isAuthenticated, tableLoading])` 配一个一次性闸门，取快照的时机刻意等到 `tableLoading` 落定，否则空库分支尚未渲染、`empty` 锚点还不存在）；头部「新手引导」按钮（[HeaderBar.vue](../components/options/HeaderBar.vue)）随时重播，重播**不改写**已看过的状态。是否还自动播放只看 `STORAGE_KEYS.ONBOARDING_TOUR` 里的 `seen`。
+- **锚点契约**：剧本 [utils/onboardingTour.ts](../utils/onboardingTour.ts) 的 `TOUR_STEPS` 用 `anchor` 指向页面上的 `data-tour="…"` 元素（`add` / `health` / `data` / `settings` / `personalize` 在 HeaderBar，`search` 在 [SearchFilterBar.vue](../components/options/SearchFilterBar.vue)，`empty` 在 [EmptyGuide.vue](../components/options/EmptyGuide.vue)）。这是界面与引导之间唯一的隐式契约：改名或删除会**静默**让对应步骤消失，所以 `tests/utils/onboardingTour.test.ts` 双向扫源码钉住「剧本要的锚点都存在」与「界面上的锚点都有步骤认领」。
+- **按状态裁剪剧本**：`pickSteps` 在开场那一刻取一次快照，之后步内序号恒定——逐帧重算会让用户在引导中途添加第一条账号时把 `empty` 步抽掉、当前索引错位。空库引导卡与搜索栏互斥，正是靠锚点存在性天然二选一，不需要额外状态判断。
+- **几何全在纯函数**：`expandToSpot` 把锚点矩形外扩成聚光框（圆角按短边收一半，避免矮按钮框成胶囊），`resolvePlacement` 依 `SIDE_FALLBACK_ORDER` 试位（同轴对侧 → 横轴 → 退回原方位），取第一个完整落进安全区的方位，四向皆放不下时退回原方位并 `clampToViewport`（卡片高于视口时贴上沿，保证标题可见）。单列成 `utils/` 是因为本仓 vitest 固定 `environment: 'node'`，只有不碰 DOM 的部分能被直接断言，否则这些翻转分支只能靠人眼在浏览器里逐个试。
+- **聚光与遮罩一体**：镂空用单个元素的 `box-shadow: 0 0 0 9999px var(--tour-veil)` 一次成型（遮罩 + 光圈 + 呼吸辉光），不引第三方引导库；卡片宽度是常量 `CARD_WIDTH = 340`，高度由 `ResizeObserver` 回传（中英文案行数不同、窄屏换行都会改高度，而方位翻转的判据依赖它）。
+- **状态所有权与首屏预算**：composable [useOnboardingTour.ts](../composables/useOnboardingTour.ts) 由 Options 根组件持有、经 props 交给纯展示的 [OnboardingTour.vue](../components/options/OnboardingTour.vue)（它既不查 DOM 也不写存储，卸载即干净；卡片节点通过 `tour.setCard()` 显式交回，不跨边界写别人的 ref）。组件走 `defineAsyncComponent` 动态导入，管理页首屏 chunk 不为一个只播一次的引导付费——`preRowMs` / `wallMs` 那两段口径因此完全不受影响。
+- **无障碍**：`role="dialog"` + `aria-modal="true"` 复用既有 [useFocusTrap](../composables/useFocusTrap.ts)（`Tab` 圈在卡片内、关闭后焦点还给唤起方），步骤变化经 `aria-live="polite"` 播报「第 N / M 步：标题」，`←` / `→` 切步、`Esc` 退出，且用 [isEditableEventTarget](../utils/a11y.ts) 让路给输入框内的原生行为；`prefersReducedMotion()` 为真时滚动改瞬时、CSS 侧去掉入场位移与脉冲。`z-index: 3200` 高于命令面板的 3000，且引导期间 [App.vue](../entrypoints/options/App.vue) 传给 `useCommandPalette` 的 `canOpen` 额外要求「引导未激活」——面板的唤起走 `window` 全局 keydown、不经过这条链，若不加门槛就会在幕布下开出一个看不见却仍抢焦点的第二层浮层；由 [onboardingTour.test.ts](../tests/utils/onboardingTour.test.ts) 的源码守卫钉住这条接线。
+- **隐私**：落盘的只有 `{ seen, outcome, finishedAt }`（是否看过、完成还是跳过、什么时候结束），不含步骤内容、站点、账号或任何凭据；不新增权限、不发网络请求。写入失败只 `logger.warn`，最坏情况是下次仍自动播放，不打扰用户的当前操作（见 [configManager.ts](../utils/storage/configManager.ts)）。
+- **回归口径**：[onboardingTour.test.ts](../tests/utils/onboardingTour.test.ts) 钉几何分支、剧本自身约束、锚点双向对齐与 `TOUR_STEPS ↔ onboarding.json` 的文案齐全度（`title` / `desc` 必存、`tip` 只在声明 `hasTip` 的步骤上存在，中英文占位符集合一致）；[useOnboardingTour.dom.test.ts](../tests/composables/useOnboardingTour.dom.test.ts) 以 jsdom 钉只有装 DOM 才存在的那一半（锚点查询与矩形读数、视口与卡片高度三个来源的接线、← / → / Esc 的接管边界、监听器随开随关与 `onScopeDispose` 兜底、结束时只落三个标记位）；[i18nBundles.test.ts](../tests/utils/i18nBundles.test.ts) 把引导依赖图登记进扫描清单，钉住它用到的 key 全在 options bundle 内。
 
 ## 开发补充
 

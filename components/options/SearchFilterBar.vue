@@ -1,5 +1,8 @@
 <template>
-  <div class="filters">
+  <div
+    class="filters"
+    data-tour="search"
+  >
     <el-input
       :model-value="searchKeyword"
       :placeholder="t('options.filter.searchPlaceholder')"

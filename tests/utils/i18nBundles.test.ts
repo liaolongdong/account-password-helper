@@ -45,6 +45,7 @@ const BUNDLE_NAMESPACES = {
     'help',
     'identity',
     'message',
+    'onboarding',
     'options',
     'popup',
     'session',
@@ -123,6 +124,17 @@ const IDENTITY_GRAPH_FILES = [
   'composables/useIdentityVault.ts',
   'entrypoints/options/App.vue',
 ];
+
+/**
+ * 新手引导（Onboarding Tour）依赖图源文件
+ *
+ * 引导是 Options 页独有的懒加载 chunk（`defineAsyncComponent` 动态导入），
+ * 其文案命名空间只注册进 options bundle。步骤标题/描述/小贴士走
+ * `tourKey(id, part)` 拼出的动态 key（`onboarding.<id>.<part>`），
+ * 由「整命名空间注册」策略覆盖，其完整性另由
+ * `tests/utils/onboardingTour.test.ts` 的 TOUR_STEPS ↔ 语言包对齐全守卫强制。
+ */
+const ONBOARDING_GRAPH_FILES = ['components/options/OnboardingTour.vue', 'composables/useOnboardingTour.ts'];
 
 /** 读取指定语言的某命名空间语言包 */
 function readNamespace(locale: (typeof LOCALES)[number], ns: string): Record<string, string> {
@@ -244,6 +256,15 @@ describe('入口 bundle key 覆盖率（静态扫描源码）', () => {
       }
     }
   });
+
+  it('新手引导依赖图使用的 key 全部在 options bundle 内', () => {
+    const bundleKeys = collectBundleKeys(BUNDLE_NAMESPACES.options);
+    for (const file of ONBOARDING_GRAPH_FILES) {
+      for (const key of extractI18nKeys(file)) {
+        expect(bundleKeys.has(key), `${file} 使用的 key「${key}」未被 options bundle 覆盖`).toBe(true);
+      }
+    }
+  });
 });
 
 /**
@@ -279,13 +300,14 @@ describe('侧边栏扫描清单认领完整性', () => {
     ).toEqual([]);
   });
 
-  it('五份清单里的每个文件都真实存在', () => {
+  it('六份清单里的每个文件都真实存在', () => {
     const listed = [
       ...SIDEPANEL_GRAPH_FILES,
       ...HELP_DIALOG_FILES,
       ...QUICK_ADD_DIALOG_FILES,
       ...POPUP_GRAPH_FILES,
       ...IDENTITY_GRAPH_FILES,
+      ...ONBOARDING_GRAPH_FILES,
     ];
     const missing = listed.filter(file => !existsSync(path.join(ROOT, file)));
     expect(missing, `扫描清单指向不存在的文件（重命名或删除后未同步）: ${missing.join(', ')}`).toEqual([]);

@@ -65,7 +65,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-09-28"
+      content="2026-09-30"
     />
     <meta
       name="twitter:card"
@@ -92,7 +92,7 @@
   "inLanguage": "en",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png",
   "datePublished": "2026-09-22",
-  "dateModified": "2026-09-28",
+  "dateModified": "2026-09-30",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -242,7 +242,7 @@
     </nav>
     <article>
       <h1>Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught</h1>
-      <p class="meta">2026-09-22 · Updated 2026-09-28 · liaolongdong</p>
+      <p class="meta">2026-09-22 · Updated 2026-09-30 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught" />
       <h1>Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught</h1>
 <p><img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="Three tiers of cross-subdomain matching: implementation notes and a real-browser bug"></p>
@@ -352,7 +352,7 @@ hit ⟺ getMainDomain(currentHost) === getMainDomain(base)
 <p>The content script bundle grew from 217,062 to 217,080 bytes: +18 B. The predicate is a pure function and tree-shaking absorbed it, which is where it belongs.</p>
 <p>Three caveats so these numbers aren&#39;t over-read: they measure the JS data layer, not end-to-end render time — the side-panel list already renders in a windowed fashion, so the first frame doesn&#39;t care about the tier; the badge scan and the empty-state count are both lazy, so the <code>off</code> default path pays nothing; and the honest conclusion is that <strong>the wider tiers needed no performance work at all</strong>. The most expensive cell in the table is still single- to double-digit milliseconds, and what it buys is &quot;accounts for this site show up on its subdomains&quot;.</p>
 <h2>Test and guard surface</h2>
-<p>The repo currently holds 1953 automated test cases across 167 test files. What covers this area directly: the <code>resolveMatchTier</code> tier cases (<code>off</code> reproducing the pre-migration exact-host rule, <code>wildcard</code> admitting only wildcard entries, <code>sameMainDomain</code> producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as <code>%2A</code>, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (<code>evil-qq.com</code> / <code>notqq.com</code> / <code>mail.qq.com.evil.io</code>) all return -1 against <code>*.qq.com</code>; an equivalence guard on <code>filterAndSortEntriesForDomain</code> claiming the same set in the same order id by id under <code>off</code>, plus the widened tiers&#39; priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.</p>
+<p>The repo currently holds 2041 automated test cases across 172 test files. What covers this area directly: the <code>resolveMatchTier</code> tier cases (<code>off</code> reproducing the pre-migration exact-host rule, <code>wildcard</code> admitting only wildcard entries, <code>sameMainDomain</code> producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as <code>%2A</code>, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (<code>evil-qq.com</code> / <code>notqq.com</code> / <code>mail.qq.com.evil.io</code>) all return -1 against <code>*.qq.com</code>; an equivalence guard on <code>filterAndSortEntriesForDomain</code> claiming the same set in the same order id by id under <code>off</code>, plus the widened tiers&#39; priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.</p>
 <p>The unusual one is <code>tests/architecture/crossSubdomainTierWiring.test.ts</code>: it doesn&#39;t exercise behaviour, it scans source. Invariants of the form &quot;all four consumers must agree&quot; die most often when a new call site forgets to pass the tier — and because the parameter has an <code>off</code> default, type checking and ESLint stay completely silent. It happened once for real: a full row click in the side panel used the tier-aware predicate while the keyboard Enter path ate the default value, producing &quot;clickable, but Enter won&#39;t open it&quot; for cross-subdomain entries. The same file mechanically forbids hand-writing range comparisons like <code>tier &gt;= 1 &amp;&amp; tier &lt;= 3</code> in runtime code, locking the one definition of that interval inside <code>isCrossSubdomainTier</code>. Constraints of the shape &quot;these two places must agree&quot; drift when they rely on discipline; they don&#39;t drift when a scanner enforces them.</p>
 <h2>If this is the wall you hit</h2>
 <p>First decide which of the two you actually want on <code>mail.qq.com</code>: only a few accounts spanning subdomains (<code>wildcard</code> tier, hand-write <code>*.qq.com</code>), or the whole subdomain family (<code>sameMainDomain</code>, and remember it drags <code>fat</code> / <code>uat</code> in with it). The switch is &quot;Cross-Subdomain Matching&quot; in the manager page header, and it takes effect immediately without re-unlocking.</p>

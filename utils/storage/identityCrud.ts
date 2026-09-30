@@ -12,9 +12,12 @@
  * 依赖方向单向：只依赖既有底层能力（encryption / facades.getSessionDataKey /
  * generateId），既有模块不 import 本模块；唯一例外是 changeMasterPassword.ts
  * 必须纳入身份数据（否则换主密码后 PII 永久不可解）。
+ *
+ * 例外于「整块加密」的只有一样东西：列表排序档位（`IDENTITY_SORT_MODE`）。它是个
+ * 四值枚举、不含任何 PII，也没有进密文的必要——把它塞进每条 payload 反而要整库重加密。
  */
-import type { IdentityEntry, IdentityPayload, IdentityRecord } from '@/utils/identity/types';
-import { MAX_IDENTITIES } from '@/utils/identity/constants';
+import type { IdentityEntry, IdentityPayload, IdentityRecord, IdentitySortMode } from '@/utils/identity/types';
+import { DEFAULT_IDENTITY_SORT_MODE, MAX_IDENTITIES, isIdentitySortMode } from '@/utils/identity/constants';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { generateId } from '@/utils/generateId';
@@ -345,4 +348,46 @@ export async function replaceAllIdentity(
     });
   }
   await replaceAllIdentityRaw([...reencrypted, ...preserved]);
+}
+
+// ==================== 列表偏好（非 PII，明文单键） ====================
+
+/**
+ * 读取身份库列表排序档位
+ *
+ * 住在身份存储层而不是 `configManager`，是产物闭包的硬要求而非风格：`configManager`
+ * 落在 sidepanel 首屏 `modulepreload` 闭包内（同一口径见 docs/ARCHITECTURE.md「管理页大 Vault
+ * 渲染性能」一节里分页档位拆文件的理由），让它引用身份档位会把只有 Options 消费的判据一起拽进侧边栏预加载。
+ *
+ * 读失败与非法值一律回落默认档，不向上抛：这是视图偏好，坏值不值得阻断弹窗打开，
+ * 也不该把异常透给用户（与 `getVaultPageSize` 同取舍）。
+ */
+export async function getIdentitySortMode(): Promise<IdentitySortMode> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.IDENTITY_SORT_MODE);
+    const mode = result[STORAGE_KEYS.IDENTITY_SORT_MODE];
+    return isIdentitySortMode(mode) ? mode : DEFAULT_IDENTITY_SORT_MODE;
+  } catch (error) {
+    logger.error('获取身份信息排序档位失败:', error);
+    return DEFAULT_IDENTITY_SORT_MODE;
+  }
+}
+
+/**
+ * 保存身份库列表排序档位
+ *
+ * 非法档位忽略写入并告警（照 `saveVaultPageSize` 的取舍）：视图偏好不值得为一次坏写入
+ * 向用户报错，但把非法状态落盘会长期影响排序结果。写入本身失败会抛出，由调用方按非致命处理。
+ */
+export async function saveIdentitySortMode(mode: IdentitySortMode): Promise<void> {
+  if (!isIdentitySortMode(mode)) {
+    logger.warn('忽略非法的身份信息排序档位写入');
+    return;
+  }
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY_SORT_MODE]: mode });
+  } catch (error) {
+    logger.error('保存身份信息排序档位失败:', error);
+    throw error;
+  }
 }

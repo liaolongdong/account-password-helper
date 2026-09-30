@@ -973,3 +973,26 @@ export interface FillResult {
     strategy: FillStrategy;
   };
 }
+
+/**
+ * 新手引导（聚光引导）的持久化状态
+ *
+ * 只记录「有没有看过、以何种方式结束、什么时候结束」三个标记，
+ * 不含任何步骤内容、站点或凭据；是本扩展唯一的新手引导落盘数据。
+ */
+export interface OnboardingTourState {
+  /**
+   * 是否已见过引导
+   *
+   * 走完最后一步或主动退出都会置真；自动弹出只发生在其为假时，
+   * 因此引导对每个安装至多打扰一次，之后只能由用户主动重温。
+   */
+  seen: boolean;
+  /** 结束方式：走完为 `completed`，中途退出为 `skipped`；从未结束为 `null` */
+  outcome: OnboardingTourOutcome;
+  /** 结束时间戳（epoch 毫秒）；从未结束为 `null` */
+  finishedAt: number | null;
+}
+
+/** 新手引导的结束方式 */
+export type OnboardingTourOutcome = 'completed' | 'skipped' | null;

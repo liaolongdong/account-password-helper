@@ -31,6 +31,8 @@ export const STORAGE_KEYS = {
   PASSWORD_HISTORY_CONFIG: 'password_history_config',
   /** 身份信息库条目（个人信息收藏夹，整块加密存储） */
   IDENTITY: 'personal_identity_infos',
+  /** 身份信息库列表排序档位（仅存枚举值，不含任何 PII，故明文单键） */
+  IDENTITY_SORT_MODE: 'identity_sort_mode',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
   /** 用户语言偏好（'zh-CN' | 'en'） */
@@ -45,6 +47,13 @@ export const STORAGE_KEYS = {
   PLATFORM_IS_WINDOWS: 'platform_is_windows',
   /** 内联填充首次引导气泡已展示标记（终生仅展示一次） */
   INLINE_FILL_HINT_SHOWN: 'inline_fill_hint_shown',
+  /**
+   * 新手引导（聚光引导）状态
+   *
+   * 仅存 `{ seen, outcome, finishedAt }` 三个标记位，不含任何账号、密码、
+   * 站点或步骤内容，因此本键不构成隐私面。自动弹出终生仅一次。
+   */
+  ONBOARDING_TOUR: 'onboarding_tour_state',
 };
 
 /**
