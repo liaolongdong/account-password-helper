@@ -13,8 +13,8 @@
 - **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
 - **Account required**: No
 - **Subscription**: No
-- **Last updated**: 2026-09-29 · **Latest release**: v3.13.1 (2026-09-29) · Chrome Web Store listing serves v3.13.0 (2026-09-28); the one-patch gap is an Options-page tooltip click fix that has not been re-packaged for the store yet
-- **Quality**: 2003 automated test cases across 169 test files
+- **Last updated**: 2026-09-30 · **Latest release**: v3.13.1 (2026-09-29) · Chrome Web Store listing serves v3.13.0 (2026-09-28); the one-patch gap is an Options-page tooltip click fix that has not been re-packaged for the store yet
+- **Quality**: 2041 automated test cases across 172 test files
 
 ## Key Features
 
