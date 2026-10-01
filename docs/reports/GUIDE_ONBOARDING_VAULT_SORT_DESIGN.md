@@ -198,15 +198,43 @@ manifest 描述这条路走不通：`public/_locales/*/messages.json` 的 `exten
 1. **归属**（沿用既有）：按 chunk 文件名前缀排除身份域模块，按代码形态排除 `.aphid`；
 2. **预算**（本轮新增 `EAGER_ALLOW_LIST`）：入口 HTML 点名的每个 chunk 基名必须在清单内，同名出现次数不得超上限——`css-*` 是 Element Plus 匿名块，光靠名字挡不住「首屏多引了一个组件」，只能靠计数；`total` 与 `bases` 上限之和互为对账；另有无产物自检证明匹配规则吃得住 hash 变体（`tokens-BG44T6k-`、`a11y-ihm-cz4H`）、不误放相近前缀（`tag` vs `tagUtils`），并断言清单里不含 `GuideView` / `RichText` / `OnboardingTour` / `identity` 任何基名。
 
-### 5.3 无头计时
+### 5.3 秒开计时（真机有头，2026-10-01 把「量不出来」换成了实测）
 
-场景矩阵：会话有效 / 会话失效或未验证 / 扩展冷启动（SW 未起）/ 快速重启（保活中）/ 引导播放期间打开侧边栏 / 2000 条大库。指标取 FCP、首个非白屏帧、首屏窗口内 >50 ms 长任务之和。真机路径按既有结论：stable 已废 `--load-extension`、MCP 浏览器带 `--disable-extensions`，需克隆 profile + `--app` + 手动开开发者模式。
+场景矩阵：会话有效 / 会话失效或未验证 / 扩展冷启动（SW 未起）/ 快速重启（保活中）/ 引导播放期间打开侧边栏 / 2000 条大库。指标取 FCP、首个非白屏帧、首屏窗口内 >50 ms 长任务之和。
 
-两条口径边界必须写进交付说明，不得含糊：`sidePanel.open()` 的浏览器 UI 侧冷启动延迟无头量不到（`e2e/harness.ts:322` 已记录 Playwright 点不到工具栏，自动化只能走内容脚本 `SHOW_SIDEPANEL`）；Windows 慢磁盘与杀软扫描在这台 Mac 上实测不了，只能用「全量预热 + 常驻保活」的静态断言加现有 e2e 覆盖代替，标为未验证。
+**原先堵路的三个前提已解除**：品牌版 Google Chrome 自 135 起忽略 `--load-extension`（`e2e/README.md` 已记录）、chrome-devtools MCP 的浏览器确实带 `--disable-extensions`，但都不是死路——本机按 `e2e/README.md` 的既有办法手动取 Chrome for Testing 153.0.8010.52（Chromium 系构建，`--load-extension` 照常生效），把 `E2E_EXECUTABLE_PATH` 指过去；Playwright 1.63 在 macOS 13 拒绝装自己的 chromium 这一节也只影响它自己的分发，不影响借道 CFT。量具是 `benchmarks/measure-sidepanel-open.mjs`：有头模式启动 CFT，`--load-extension` 加载 `.output/chrome-mv3` 打包件，侧边栏以 docked 形态打开，经 CDP `Target.attachToTarget{flatten:false}` + `sendMessageToTarget` 直连面板执行探针脚本（面板是扩展自己的页面，不是宿主页面，因此不需要克隆 profile、也不需要手动开开发者模式）。
 
-AGENTS.md 对侧边栏只有「<1 s、无白屏」一句，没有三段数值阈值表。实测数据交用户决定是否入档，实现阶段不擅自修改 AGENTS.md 的性能章节。
+**两档分开跑，一行数据不混两档**：
 
-**实测（2026-10-01）**：六场景的打开耗时在这台机器上量不出来，三条路都堵着——本机 Playwright 缺 chromium 二进制（装它要解压官方 zip）、chrome-devtools MCP 的浏览器带 `--disable-extensions`、stable Chrome 已废 `--load-extension`。因此这一档换成两条本机跑得动的量：
+- **干净档**（无 trace，`--repeat 3`）管耗时三项。开启 `devtools.timeline` 的浏览器级 trace 本身有开销，绝不能在秒开 SLA 的判定里掺进去。
+- **trace 档**（`--repeat 3 --trace`）只管 >50 ms 长任务那一列。
+
+| 场景           | 就绪    | 铺满        | FP          | FCP         | tFCP     | 首屏窗口 | 窗内主线程忙 | 占用率 | >50 ms 之和（中位/最坏） | 单条最长（中位/最坏） |
+| -------------- | ------- | ----------- | ----------- | ----------- | -------- | -------- | ------------ | ------ | ------------------------ | --------------------- |
+| s1 会话有效    | 362 ms  | 658.5 ms    | 332 ms      | 332 ms      | 392 ms   | 460.5 ms | 421.9 ms     | 93.3%  | 202.9 / 342.9 ms         | 104.7 / 197.3 ms      |
+| s2 会话失效    | 260 ms  | 253 ms      | 280 ms      | 280 ms      | 290 ms   | 82 ms    | 69.9 ms      | 78.8%  | 39.2 / 78.4 ms           | 39.2 / 78.4 ms        |
+| s3 冷启动      | 430 ms  | 628 ms      | 408 ms      | 408 ms      | 510 ms   | 504.1 ms | 414 ms       | 82.1%  | 246.8 / 701.9 ms         | 137.7 / 295.9 ms      |
+| s4 快速重启    | 272 ms  | 476 ms      | 284 ms      | 284 ms      | 388 ms   | 510.7 ms | 477.9 ms     | 88.0%  | 293.5 / 345 ms           | 130.3 / 171.6 ms      |
+| s5 引导播放中  | 441 ms  | 610.5 ms    | 388 ms      | 460 ms      | 320 ms   | 371.1 ms | 355.4 ms     | 95.4%  | 190 / 367.1 ms           | 98.8 / 170.4 ms       |
+| s6 2000 条大库 | 1275 ms | **2315 ms** | **1728 ms** | **1728 ms** | 见下方注 | 619.6 ms | 603.7 ms     | 96.6%  | 571.6 / 573.8 ms         | 226.6 / 249.5 ms      |
+
+列口径：**就绪 / 铺满 / FP / FCP** 取干净档三样本中位数，全部是文档相对时刻（`performance` 时间线，不含点击工具栏到 Chrome 创建面板那段 UI 侧延迟）；**就绪** = `sp-data-ready`（数据到手、骨架已在），**铺满** = `sp-list-rendered`（列表真正画完，用户感知的「开完了」），**FP** = `first-paint` 即首个非白屏帧，**FCP** = `first-contentful-paint`；**tFCP / 首屏窗口 / 窗内主线程忙 / 占用率 / >50 ms 之和 / 单条最长** 全部来自 trace 档。
+
+「首屏窗口」= `sp-main-start` → `sp-list-rendered`（面板自己打的 PerformanceMark，走 trace 里的 `blink.user_timing` 事件），「占用率」= 该窗口内主线程 `RunTask` 时间之和（越界任务裁到窗口末）÷ 窗口宽度。s2 的**铺满 < 就绪**是真实形态而非噪声：会话失效态下空列表先画完（`sp-list-rendered` 反而早于 `sp-data-ready`，两档合计 5 个 s2 样本的 `dataToRender` 全为负，−7.3 ～ −187.3 ms）；同理 `sp-list-rendered` 是脚本层标记（渲染函数返回），落在屏幕上的那一帧（FP / FCP）在其之后，所以 s2 出现「铺满 253 ms 而 FP 280 ms」并不矛盾。
+
+**长任务那一列为什么只能走 trace**：页面内 `PerformanceObserver('longtask')` 这条路在本机被三条实测证伪——`context.addInitScript` 不在 docked 面板里执行；attach 之后再注入，观察器落在文档相对 515–873 ms，晚于 `sp-mounted`；`buffered: true` 不回填观察器建立之前已结束的任务。第四条是顺带发现而非证伪：CDP `Runtime.evaluate` 里直接跑的 400 ms 忙等根本不产生 longtask 条目，改成由页内 `setTimeout` 发起同样的忙等才加回来一条越过 300 ms 判据的条目。量具把这条固化成 `--longtask` 档的阳性对照（`measure-sidepanel-open.mjs:122-123`，判据 `ltTeeth` 见 `:957`；注释与实测不符的订正单独提交为 `5ac5094`），但**本轮表里那两档跑的都是 `--trace`、没有开 `--longtask`**，所以长任务那一列并不由这条对照担保——它由下一段的 FCP 对表与重叠自检担保，且六场景的 `traceLongSumMs` 中位读数 39.2–571.6 ms 全部非零。trace 路线的代价是浏览器级 `disabled-by-default-devtools.timeline` 分类——它记录的是整台机器的任务，且这笔代价随负载走而非恒定：本机 21–35% idle 时它把面板 `docToMain` 从干净档的 106–210 ms 抬到 960–3034 ms（4–15×），而本次 trace 档（开跑前 `top` 记到 idle 40.1%）只量到 93–200 ms，与干净档无差别。两档仍然分开跑、耗时判定只认干净档，不是因为 trace 一定慢，而是因为负载不可控时它可能慢一个数量级。
+
+**归因自检必须每场景都过**（不过就整列作废，不采信）：trace 里 `firstContentfulPaint` 相对 `sp-main-start` 的偏移必须等于探针的 `fcpMs − docToMainMs`；主线程 `RunTask` 区间必须两两不重叠（重叠即重复计数）。本次六场景最差 |Δ| = 4.0 ms（阈值 25 ms，16 个可对比样本，`s3#3` 因探针 FCP 为 null 不参与对表）、重叠数全为 0、每场景汇总位 `traceAttributionOk`（量具里定义为「worst |Δ| ≤ 25 且 `traceOverlaps === 0`」，见 `measure-sidepanel-open.mjs:934-938`）六条全为 `true`。选线程的依据也是实测而非猜测：`performance.mark()` 在 trace 里是 `ph:'I'` 且 `e.name` 即标记名（`args.data.entryName` 只出现在匿名 `UserTiming::Measure` 上，只认后者会一条都匹配不到），标记所在 `pid/tid` 即面板主线程，同 pid 还会发 Compositor / ChildIOThread / ServiceWorker 线程的 `RunTask`，不筛线程会虚增约 290 ms 并冒出假的 327.9 ms 长任务。
+
+**读数怎么读**：以「铺满」这个用户感知完成时刻判，s1–s5 是 **253–658.5 ms**（就绪 260–441 ms），全部 <1 s；首个非白屏帧与 FCP 都在 280–460 ms，即「打开即有内容」，没有白屏窗口。真正的结论在占用率那一列——首屏窗口内主线程占用 s1–s5 为 **78.8%–95.4%**、s6 为 **96.6%**，也就是说侧边栏的那不到 1 s 不是「线程空闲、只是在等 IO」，而是主线程几乎排满。这条把「无卡顿」的含义讲实了：窗口里已经没有空闲余量去吸收额外的主线程工作，因此任何把数据就绪时刻推后的因素（更大的库、慢磁盘、杀软扫描）都会 1:1 反映到端到端耗时上——s6 大库就是已经越线的例子。后两者在本机测不了，仍是未验证项（见下方口径边界）。
+
+**s6 大库未达标，如实记**：干净档就绪 1275 ms、铺满中位 **2315 ms**（三个样本 1540 / 2315 / 3306 ms，没有一条进 1 s）、FCP 1728 ms，三条都超 1 s，`fcpUnder1000ms:false` / `totalUnder1000ms:false`。trace 档独立佐证了同一件事——三个样本里唯一「列表铺满后才采样」的那一个（DOM 7685 节点 / 210 行，`sp-list-rendered` @1108 ms）FCP = 1244 ms，同样 >1 s；另外两个样本在 3439 节点 / 90 行的中途状态就采了样，FCP 读数（388 / 432 ms）与干净档不同态，因此 **s6 那一行的 trace 档 FCP 不入表、不作达标依据**，只有窗口 / 占用率 / 长任务三项可比（96.6% 占用、>50 ms 之和 571.6 ms、单条最长 249.5 ms）。这是 2000 条密文夹具 + 每页 100 行的既有成本，成本归属与 AGENTS.md「管理页（Options）首屏 SLA」一节把大头点给**数据层**（全库解密 + 整包 IO）是同一件事——那张三段阈值表管辖的是管理页而非侧边栏，这里只借用它的归属结论，不声称侧边栏受那三段数字约束。本轮的五档排序与文档中页改造没有新增首屏文件（§5.1 / §10 的 eager 集合复测为 34 文件 / 276,658 B，逐字节一致）。**不因此放宽阈值、也不擅自改 AGENTS.md 的性能章节**，未达标事实交由用户决定是否入档。
+
+**样本级异常清单（不藏）**：trace 档 `s2#1` 整样本失败（`page.waitForTimeout: Target page, context or browser has been closed`），故 s2 只有 2 个有效样本；`s3#3` 是离群样本（首帧与 FCP 读数均为 null、就绪 1456.3 ms、`sp-list-rendered` @1968 ms、窗口内占用 90.4%），并且它是两档合计 35 条有读数的样本里**唯一一条视口为 `[0, 0]`** 的（其余 34 条都是 360×666，仅 `s1#3` 是 360×669）——面板采样时还没拿到尺寸，足以同时解释 null 与偏高。但它对表里那一行的影响只在「最坏」那一列：s3 的 >50 ms 之和 701.9 ms、单条最长 295.9 ms 正是这条贡献的，而中位列（窗口 504.1 ms、窗内忙 414 ms、占用 82.1%、之和 246.8 ms、单条最长 137.7 ms）全部来自 `s3#2`——三样本取中值时离群端点动不了中位数。跑 trace 档时本机 idle 仅 40.1%（Qoder 自身在占 CPU），同机噪声地板按项目记忆约 ±300 ms，所以离群样本只标注、不剔除，也不拿任何单样本的绝对值当 SLA 判定——SLA 只认干净档的三样本中位数。另有 4 个样本（`s3#1`、`s4#2`、`s4#3`、`s5#2`）的 DOM 快照落在 `sp-list-rendered` 之前（149 节点，只有面板外壳），这些样本的 FCP 仍是有效的首帧读数，但与 DOM 规模相关的读数（节点数、行数）只在同一渲染状态下才可比，所以 s6 那一行单独按「铺满态样本」报，见上一段。干净档同样有 2 个这种早采样样本（`s1#1`、`s5#3`，均为 149 节点的外壳态、没读到 `sp-list-rendered`），因此这两场景的「铺满」中位数是 2 个样本的中位数（658.5 / 610.5 ms），标注取样数，不补插值。**两档的耗时可以互验而不互替**：本次 trace 档的 `docToMain` 中位与干净档同量级（93–200 vs 106–210 ms），s1–s5 的 trace 档 FCP（290–510 ms）与干净档（280–460 ms）方向一致，所以表里两列各记各的，谁也不覆盖谁；判定秒开 SLA 只认干净档。
+
+**口径边界（沿用并保持）**：`sidePanel.open()` 的浏览器 UI 侧冷启动延迟无头量不到（`e2e/harness.ts:322` 已记录 Playwright 点不到工具栏，自动化只能走内容脚本 `SHOW_SIDEPANEL`），本量具同样是从内容脚本触发路径计时，量的是「面板进程起来到列表铺满」这一段，不含用户点击工具栏图标到 Chrome 决定创建面板的那段 UI 侧延迟；Windows 慢磁盘与杀软扫描在这台 Mac 上实测不了，只能用「全量预热 + 常驻保活」的静态断言加现有 e2e 覆盖代替，**这两条仍是未验证项**。AGENTS.md 对侧边栏只有「<1 s、无白屏」一句，没有三段数值阈值表，实测数据交用户决定是否入档，实现阶段不擅自修改 AGENTS.md 的性能章节。
+
+**同一节的另外两条本机读数（保留，与计时无关）**：
 
 | 量                                                   | 结果                                                                                               |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
@@ -215,7 +243,7 @@ AGENTS.md 对侧边栏只有「<1 s、无白屏」一句，没有三段数值阈
 
 第二行取的是 `parseRichText` 的纯字符串成本（`vitest bench`，jsdom），与 DOM 后端无关，可直接外推到浏览器；**挂载环节的读数刻意不采信**——量具里每条都要 `createApp()` 起一个独立 app 根，而真实的 `RichText.vue` 是 HelpDialog 里的子组件，两者不可比。产出的 DOM 节点数与 `v-html` 完全一致（同一批 `<b>` / `<code>`），不新增布局成本；帮助弹窗一次只渲染一个分组（最多 15 条），按单条 3.7 µs 折算约 0.06 ms。
 
-仍未验证并如实标注：六场景的 FCP / 首个非白屏帧 / 首屏窗口内 >50 ms 长任务之和；Windows 慢磁盘与杀软扫描路径。
+仍未验证并如实标注：Windows 慢磁盘与杀软扫描路径；`sidePanel.open()` 浏览器 UI 侧那一段延迟；s6 大库的 >1 s 尚未解决（本轮不修，理由是它不属本轮改造引入，且修法在数据层）。
 
 ## 6. 明确不做
 
@@ -287,9 +315,9 @@ AGENTS.md 对侧边栏只有「<1 s、无白屏」一句，没有三段数值阈
 
 - `pnpm typecheck`（`tsc --noEmit`）→ 0；`pnpm lint`（`eslint . --max-warnings 0`）→ 0。
 - `pnpm exec stylelint "**/*.{vue,css,scss}" --no-cache` → 无输出（刻意不用 `--cache`：缓存会掩盖 recess-order 违规，这是 09-26 那一轮踩过的）。
-- `pnpm test:run` → **178 文件 / 2126 例全绿**（基线 2045/173，本轮 +81 例 / +5 文件，全部来自新增守卫：`richText` ×2、`identityCardActions`、`identityCrud.manualOrder`、`installOpensOptionsPage`，以及 §5.2 扩写的 `sidepanelClosure`）。四个提交落地后在终态树复跑一次同样 178/2126 全绿、Duration 44.64 s；本节先前记的 353.21 s 是并发负载下的同批数据——绝对时长随机器负载浮动，只有用例数是判据。对外长文档仍写 2041/172，属决策 10 的「发布前统一刷」，本轮刻意不动。
+- `pnpm test:run` → **178 文件 / 2126 例全绿**（基线 2045/173，本轮 +81 例 / +5 文件，全部来自新增守卫：`richText` ×2、`identityCardActions`、`identityCrud.manualOrder`、`installOpensOptionsPage`，以及 §5.2 扩写的 `sidepanelClosure`）。四个提交落地后在终态树复跑一次同样 178/2126 全绿、Duration 44.64 s；本节先前记的 353.21 s 是并发负载下的同批数据——绝对时长随机器负载浮动，只有用例数是判据。对外长文档仍写 2041/172，属决策 10 的「发布前统一刷」，本轮刻意不动。量具（`53b6ecb` + 注释订正 `5ac5094`）入树、本节订正尚未提交的工作树状态下，五道门禁再整体复跑一遍：`typecheck` / `lint` / `prettier --check . --no-cache` / `test:run` / stylelint `--no-cache` 退出码逐条为 0，用例数仍是 178 文件 / 2126 例（绝对时长随机器负载浮动，这一轮不再记 Duration）。
 - `pnpm build` → 0，Σ 2.07 MB / zip 732.78 kB；`pnpm build:firefox` → 0。首次记录的两条耗时（58.5 s / 29.0 s）同样是并发负载下的读数，终态树静置复跑为 4.7 s / 5.0 s，产物 Σ 与 zip 字节数两次一致。
-- `pnpm exec prettier --check` 对本次改动的 md / json / ts 全部通过，收口时另跑了一次全仓 `pnpm format:check` → 0。其中 `docs/README.md` 的 `reports/` 行改为通配枚举（`PERF_*`、`*_EVALUATION.md`、`*_DESIGN.md`），这样新报告不再需要改文档地图；该行显示宽度小于同列最大值，因此 prettier 只按列宽重新对齐两张表的中缝，未改动其它单元格文本。
+- `pnpm exec prettier --check` 对本次改动的 md / json / ts 全部通过，收口时另跑了一次全仓 `pnpm format:check` → 0。其中 `docs/README.md` 的 `reports/` 行改为通配枚举（`PERF_*`、`*_EVALUATION.md`、`*_DESIGN.md`），这样新报告不再需要改文档地图；该行显示宽度小于同列最大值，因此 prettier 只按列宽重新对齐两张表的中缝，未改动其它单元格文本。**本轮 `format:check` 唯一一次红是在量具上**：`benchmarks/measure-sidepanel-open.mjs` 是全仓门禁覆盖（`prettier --check .` 无 glob、`.prettierignore` 不含 `.mjs`）但 lint-staged 的 glob 不含 `.mjs` 的那种文件，只能人工过一遍——处理方式是对该单文件 `prettier --write` 后 `node --check` 复验，不使用会改写整仓的 `pnpm format`。
 
 ### 10.1 提交拆分（`feature-dev`，基线 `447a909`，全部未推送）
 
@@ -299,14 +327,23 @@ AGENTS.md 对侧边栏只有「<1 s、无白屏」一句，没有三段数值阈
 | `0db7205` | §4.3 富文本白名单：`richText.ts` / `RichText.vue` / 分组图标与键帽抽件、HelpDialog 换渲染器、豁免清单归零 | 12 files +659 −244 |
 | `d967413` | §3 + §4.1 + §4.2：`#guide` 文档中页、引导第九步与侧边栏实开、安装即开管理页、`--tour-accent` 跟随换肤     | 17 files +1581 −90 |
 | `c617b7a` | §5.2 eager 预算守卫 + 本文件与 `docs/ARCHITECTURE.{md,en.md}` / `docs/README.md` 回灌                     | 5 files +568 −28   |
+| `1d8b3a1` | §10 门禁耗时口径订正 + 上面四行的首次登记                                                                 | 1 file +16 −3      |
+| `024a1cd` | §10.2 两轴评审回灌五条：GuideView link 按钮 `:deep` 抵消、四处文案/文档口径、删两条死词条                 | 9 files +42 −7     |
+| `53b6ecb` | §10.4 秒开量具 `benchmarks/measure-sidepanel-open.mjs`（纯测量脚本，不进任何入口的产物）                  | 1 file +1184 −0    |
+| `5ac5094` | 量具注释订正：阳性对照是页内 `setTimeout` 忙等 400 ms、判据下限 ≥300 ms（四处 JSDoc，零逻辑改动）         | 1 file +4 −4       |
+| 本提交    | §5.3 六场景读数 + §10 / §10.3 / §10.4 收口（即本文件这次改动）                                            | 1 file             |
 
 拆分依据是**稳定职责**而非波次编号：`manual` 档只碰身份域，白名单解析器被侧边栏与管理页共用，
 文档中页与引导/安装同属「管理页的可见入口」这一条链，守卫与文档则只记录前三者已经造成的事实。
-每个提交单独 `git add` 明确的文件清单，husky 的 lint-staged 在四次提交里各跑一遍并全过。
+每个提交单独 `git add` 明确的文件清单。husky 的 lint-staged 在前六个提交里各跑一遍并全过；
+`53b6ecb` 与 `5ac5094` 是唯二两次它没匹配到任务的提交——其 glob 是 `*.{ts,vue,js}` / `*.{css,scss,vue}` /
+`*.{json,md}`，**不含 `.mjs`**（提交时原话为 `lint-staged could not find any staged files matching configured tasks`），
+所以那份量具的格式与检查全靠人工跑（`node --check` + `pnpm exec prettier --write` 与 `--check --no-cache`
+单文件，而全仓 `format:check` 覆盖 `.mjs`，本轮红过一次就是它）。
 
 重建后复测首屏集合：sidepanel **34 文件 / 276,658 B**、popup **44 文件 / 292,679 B**，与 §5.1 的字节表逐字节一致；`tests/architecture/sidepanelClosure.test.ts` 17 例全绿，`EAGER_ALLOW_LIST` **无需刷新**——即本轮全部改造（含 `RichText.vue` 这个被两个入口共用的模块）没有给侧边栏或 popup 的 eager 预加载增加任何一个文件。
 
-仍未验证（与 §5.3 同一份清单，不得当成已通过）：六场景的无头耗时（本机 Playwright chromium 缺位、MCP 浏览器带 `--disable-extensions`、stable Chrome 已废 `--load-extension`，`sidePanel.open()` 的浏览器 UI 侧冷启动延迟本就无头量不到）；Windows 慢磁盘与杀软扫描路径；折叠态与拖拽的真机视觉核验（仅有 DOM 断言）。
+仍未验证（与 §5.3 同一份清单，不得当成已通过）：Windows 慢磁盘与杀软扫描路径；`sidePanel.open()` 浏览器 UI 侧那一段延迟（量具走内容脚本 `SHOW_SIDEPANEL` 触发路径）；s6 2000 条大库的 >1 s 未解决（干净档就绪 1275 ms / 列表铺满中位 2315 ms / FCP 1728 ms，三条都超，本轮不修也不放宽阈值）。**六场景的 FCP / 首个非白屏帧 / 首屏窗口内 >50 ms 长任务之和已在 §5.3 用有头真机量完并给出读数，不再是未验证项**；折叠态与拖拽的真机视觉核验（仅有 DOM 断言）。
 
 ### 10.2 两轴评审回灌（2026-10-01，基线 `447a909`）
 
@@ -332,3 +369,47 @@ AGENTS.md 对侧边栏只有「<1 s、无白屏」一句，没有三段数值阈
 - GuideView 的快捷键一节与 HelpDialog 内容重叠：两处读同一份语言包，重叠在词条层而非代码层，删任一处等于删用户可见内容。
 
 **回灌后的门禁复跑**：`pnpm typecheck` / `pnpm lint` / `pnpm format:check` 全仓均为 0，`pnpm exec stylelint components/options/GuideView.vue --no-cache` 0（`--cache` 会掩盖 recess-order，见项目记忆），`pnpm test:run` 178 文件 / 2126 例全绿（与 §10 同一批数，本轮五条改动全是文案 / 样式 / 文档，没有用例增删），`pnpm build` 与 `pnpm build:firefox` 均 0，chrome zip 732.78 kB → **732.71 kB**（删掉两条死词条、加进一小段 CSS，净额为负）。`tests/architecture/sidepanelClosure.test.ts` 对着重建后的产物复跑 **17 例全绿、0 skip**，`EAGER_ALLOW_LIST` 仍无需刷新。第 1 项的修法在产物层可核对：`.output/chrome-mv3/assets/GuideView-*.css` 里是 `[data-v-…] .el-button--primary.is-link{background-color:#0000;border-color:#0000}`，(0,3,0) 压得住全局那条 (0,2,0)。
+
+### 10.3 link 按钮的真机像素复核（2026-10-01，补 §10.2 第 1 项）
+
+§10.2 第 1 项当时只核到构建产物层——产物里那条规则存在，证明的是「写进去了」，不是「用户看得见」。这一节补像素级证据，量具在 `benchmarks/.artifacts/link-check/`（`verify.mjs` 主测、`aa-mode.mjs` 验残余、`png.mjs` 纯 stdlib 解 PNG，都不进产品代码）：Chrome for Testing 153 无头 + 当前 `.output/chrome-mv3` 打包件（扩展 ID `jpicbhkekckfiihfhbkibjpnfblmjlfd`，由绝对路径 sha256 前 32 位 0–f→a–p 映射而来），打开 `options.html#guide/shortcut`，对按钮矩形**内缩 1 px** 后截图采样。
+
+判据一律取漆出来的像素，不拿 `getComputedStyle` 当结论——computed 只会回吐你写进去的那串，正是这次要防的自证。`scrollIntoView` 会挪版面，所以每次采样前重取矩形并记 `scrollY`（复用旧矩形实测让同一按钮的前景占比从 0.24 跳到 0.45）。
+
+**先给量具装牙（A 道：两个已知终态走同一套采样）**
+
+| 对照组                       | 漆底      | 色桶数 | 前景像素占比 | 最亮/最暗桶对最大对比 |
+| ---------------------------- | --------- | ------ | ------------ | --------------------- |
+| 主色字压主色底（应判不可见） | `#409eff` | 1      | 0            | 1                     |
+| 主色字压白底（应判可见）     | `#ffffff` | 66     | 0.4594       | 2.78                  |
+
+坏那一侧给出 `bucketCount 1 / foregroundShare 0 / maxPairContrast 1`，判据才真的能把「字与底同色」判死；两条都过，下面的读数才算数。
+
+**B/C/D 三道实测（本轮修完的那颗「前往修改」）**
+
+- **C 像素**：漆底 `#f8fbff`（`.guide-view` 的 `var(--aph-surface-2)`）、64 个色桶、前景像素占比 **0.5521**、CSS 声明色对漆底对比 **2.68**、桶间最大对比 2.65。文字确实在画。
+- **D 红绿**：把全局那条陷阱规则手动请回来（`background-color:#409eff !important`），同一盒子立刻退化成 **7 个色桶、前景占比 0.0069、最大对比 1**，与 A 道坏对照同形；撤掉注入后连拍与首拍逐字节相同（`aa-mode.mjs` 五张：注入前两张、注入一张、撤掉后两张，`identical_1_2` / `identical_4_5` / `identical_1_4` 全为真），说明注入没改变文字抗锯齿模式、没留残余。该脚本 2026-10-01 复跑一次，五张哈希与首轮逐字节一致（as-built / after-remove 同为 `39bc56f51eaf…`，与磁盘上 `btn-as-built.png`、`btn-after-remove.png` 的 md5 同一串），注入态仍是 `426904a4bb5f…`；读数仍是 `#f8fbff` / 64 桶 / 占比 0.5521 / 最大对比 2.65 与 `#409eff` / 7 桶 / 0.0069 / 1。
+- **B 计算样式**：`backgroundColor: rgba(0,0,0,0)`、`color: rgb(64,158,255)`、`borderTopColor: rgba(0,0,0,0)`——级联落定后实心背景确实被抵消掉了。
+
+顺带采了富文本改造后首次生效的 `<code>` 胶囊（GuideView 与侧边栏 HelpDialog 各 38 枚，读数一致）：漆底 `#f3f4f6`、前景占比 0.1257、CSS 色对漆底对比 **4.19**、桶间最大对比 3.44。
+
+**六档换肤下的同一算式**：文字色取各档 `--el-color-primary`，底取各档 `--aph-surface-2`，用 WCAG 2.1 相对亮度公式直接从 `assets/theme/tokens.css` 算（口径可复算：逐档取这两个令牌、sRGB 线性化后 `(L1+0.05)/(L2+0.05)`）。蓝档算出的 2.68 与 C 道真机读数一致，可作这条算式的外校点。
+
+| 档         | 文字 / 底             | 对比 |
+| ---------- | --------------------- | ---- |
+| 蓝（默认） | `#409eff` / `#f8fbff` | 2.68 |
+| 绿         | `#69b599` / `#fafdfc` | 2.37 |
+| 粉         | `#d87998` / `#fdf9fb` | 2.83 |
+| 紫         | `#ad84cd` / `#fcfafd` | 2.91 |
+| 橙         | `#e28e65` / `#fefbf9` | 2.46 |
+| 灰蓝       | `#7f92b4` / `#fafbfc` | 3.04 |
+
+**必须如实标注的余留问题**：六档全部低于 WCAG AA 对正文文本的 4.5:1，只有灰蓝勉强过「大字 3:1」那条线，而这颗按钮是 12px、按 AA 只能算正文。再往上提对比度要动的是换肤体系的主色本身，同受影响的不止这一颗按钮（管理页里所有以主色作文字色的元素同一档位同一数值），属独立决策，本轮不擅自改。本轮实际把状态从「同色不可见」推进到「可见但对比偏低」。
+
+### 10.4 秒开计时的量具与订正（2026-10-01，把 §5.3 的「未验证」划掉）
+
+§5.3 原来写的是「六场景的打开耗时在这台机器上量不出来」，本轮用 `benchmarks/measure-sidepanel-open.mjs`（本波新增，已提交为 `53b6ecb`）量出来了，两处口径同时改写到该节。量具走 Chrome for Testing 153.0.8010.52 有头 + `--load-extension`，与 `e2e/` 既有夹具同一个入口（`E2E_EXECUTABLE_PATH`），不新造第二条浏览器启动路径。
+
+写量具的过程中被实测推翻四条初始假设。前两条的判据与读数写在 §5.3 的归因自检段里：`performance.mark()` 在 trace 里落成的事件形状（`ph:'I'` + `e.name`，而不是 `args.data.entryName`）、面板主线程要靠 mark 所在 `tid` 认而不是把同 pid 的所有 `RunTask` 加起来。后两条属量具自身的接线问题，只在此处记形态：`Tracing` 是浏览器级单例（s4 一场开两次面板必须先收尾上一段），`Tracing.dataCollected` 监听器按 `startTrace` 重复注册会让 chunk 翻倍——这两条加上「不筛线程」那条，是此前「占用率 >100%」假象的成因，出现时先怀疑量具而不是被测代码。它们共同构成本节数字可信的前提。
+
+两条不改口径的说明：**干净档与 trace 档分开跑**，前者出耗时、后者出长任务，任何一行不混两档；**AGENTS.md 的性能章节一个字没动**，s6 大库未达标按原样记为未达标，是否入档由用户决定。s6 的 >1 s 与身份库五档、文档中页无关（eager 集合复测 34 文件 / 276,658 B 未变），成本在数据层，本轮不修。
