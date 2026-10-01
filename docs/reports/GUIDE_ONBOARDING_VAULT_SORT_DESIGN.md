@@ -352,6 +352,9 @@ manifest 描述这条路走不通：`public/_locales/*/messages.json` 的 `exten
 **成立并已修（5 项）**
 
 1. `GuideView.vue` 的「修改快捷键」按钮是 `link type="primary"`，踩中 Options 全局实心主色背景陷阱：构建产物里 `[data-v-1712090a] .el-button--primary{background:var(--aph-primary)}` 与 EP 的 `.el-button.is-link{background:0 0}` 权重同为 (0,2,0)，而 `options.html` 把 `options-*.css` 排在 `css-ZSOkJyjJ.css` **之后**，全局那条胜出 → 主色文字压在同色背景上不可见。补 `:deep(.el-button--primary.is-link)` 抵消，与 `SiteRulesDialog` / `PasswordHealthDialog` / `IdentityFormDialog` 同一写法；用 `:deep()` 而不是给 `.guide-note__btn` 直接补声明，是因为前者编译后 (0,3,0)，不依赖本组件异步 CSS 与 `options.css` 的先后。
+   > **后续（2026-10-01，`GUIDE_PAGE_UX_DESIGN.md` §8）**：这一项已被撤销——那颗按钮不再走 `el-button`，
+   > 改成与返回胶囊同一套原生 ghost 形态（文字取中性主文本色），`:deep` 抵消块随之删除，无残留。
+   > 另三处 dialog 仍在用该写法，不受影响。
 2. `help.gb.15` 宣称「页内『查看完整在线说明』是唯一指向站外的超链接」与实现不符：`GuideView.vue:13-20` 标题旁的版本号也指向 GitHub Releases。中英改为「两处」并列点名。
 3. `onboarding.sidepanel.desc` 中文「侧边栏就在这排旁边展开」指代不明（该步刻意无锚点、卡片落在页面中央），且与英文 "docks beside this tab" 不同口径 → 改「就在当前标签页旁边展开」。
 4. `options.guide.intro` 中英各一条从未被任何 `t()` 引用（两份 `options.json` 的 377 行）→ 删除，不留死文案。
@@ -405,6 +408,12 @@ manifest 描述这条路走不通：`public/_locales/*/messages.json` 的 `exten
 | 灰蓝       | `#7f92b4` / `#fafbfc` | 3.04 |
 
 **必须如实标注的余留问题**：六档全部低于 WCAG AA 对正文文本的 4.5:1，只有灰蓝勉强过「大字 3:1」那条线，而这颗按钮是 12px、按 AA 只能算正文。再往上提对比度要动的是换肤体系的主色本身，同受影响的不止这一颗按钮（管理页里所有以主色作文字色的元素同一档位同一数值），属独立决策，本轮不擅自改。本轮实际把状态从「同色不可见」推进到「可见但对比偏低」。
+
+> **后续（2026-10-01，`GUIDE_PAGE_UX_DESIGN.md` §5 / §8）**：上表算式的外校点（2.68）与六档数字都成立，
+> 但**这一页**的余留已关闭——那颗按钮不再是「主色文字」，而是中性主文本色 + 1px 描边的 ghost 胶囊
+> （描边对条带六档 4.63～4.72，过 1.4.11 的 3:1），指引页内以主色作文字色的元素已清零，
+> 真机 126 行读数里 90 项判定项全部过线。表里那句「管理页里所有以主色作文字色的元素同一档位同一数值」
+> 对**文档中页以外的位置仍然成立**，本节因此保留为历史记录。
 
 ### 10.4 秒开计时的量具与订正（2026-10-01，把 §5.3 的「未验证」划掉）
 
