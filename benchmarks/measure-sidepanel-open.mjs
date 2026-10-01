@@ -21,7 +21,7 @@
  * 不带该档时读到的 0 只代表量具没接线——`getEntriesByType('longtask')` 在没有观察器时恒为空数组。
  * `--longtask` 在面板目标出现后**附加、第一件事就装观察器**，窗口口径为「安装点 → 列表进 DOM」，
  * 并把安装时刻 `ltInstall.atMs`（面板文档自己的 `performance.now()`）作为盲区一起上报；
- * 每个样本落定后再硬阻塞 300 ms 作阳性对照（`ltControl`），只有观察器活着、条数加回来、
+ * 每个样本落定后再由页内 `setTimeout` 忙等 400 ms 作阳性对照（`ltControl`），只有观察器活着、条数加回来、
  * 且新增条目时长 ≥300 ms，那一列的 0 才是结论。实测 Playwright 的 `ctx.addInitScript`
  * **不作用于停靠面板**（该 target 不走 Playwright 的 frame 生命周期），因此无法把安装点推到 0。
  * 同一窗口另取 CDP `Performance.getMetrics` 的 `TaskDuration` 增量（`busyMsSinceAttach`）作交叉
@@ -93,7 +93,7 @@ const SETTLE_TIMEOUT_MS = Number(process.env.SP_SETTLE_TIMEOUT ?? 30_000);
  * - 因此改成「目标一出现就附加、附加后第一件事就装观察器」，并把安装时刻 `atMs`（面板文档的
  *   `performance.now()`）记下来当盲区上报——`[0, atMs]` 之间**已经结束**的任务收不到，
  *   跨越安装点的任务则按整段时长上报。
- * 每个样本落定后再硬阻塞 300 ms 作阳性对照，只有条数真的加回来且时长 ≥300 ms，
+ * 每个样本落定后再由页内 `setTimeout` 忙等 400 ms 作阳性对照，只有条数真的加回来且时长 ≥300 ms，
  * 这一列的 0 才可以被当成「确实没有长任务」。量具只存在于本脚本，不进产品代码。
  */
 const LT = process.argv.includes('--longtask');
@@ -680,7 +680,7 @@ class Rig {
     const ltOf = arr => (arr ?? []).filter(([st, dur]) => dur > 50 && st <= windowEnd);
     const inWindow = LT ? ltOf(timeline.obs) : ltOf(timeline.longs);
     /**
-     * 阳性对照（仅 `--longtask`）：落定之后在主线程上硬阻塞 300 ms，再看条数是否加得回来。
+     * 阳性对照（仅 `--longtask`）：落定之后由页内定时器在主线程上忙等 400 ms，再看条数是否加得回来。
      * 加得回来才证明观察器真的在收条目——否则「首屏长任务 0 条」可能只是量具没接线。
      * 对照发生在采样与截图之后，不参与任何耗时列。
      */
@@ -945,7 +945,7 @@ function summarize(name, samples) {
   out.viewports = [...new Set(ok.map(s => s.summary.viewport?.join?.('x')))].join('/');
   out.fcpUnder1000ms = ok.every(s => typeof s.summary.fcpMs === 'number' && s.summary.fcpMs < 1000);
   out.totalUnder1000ms = ok.every(s => typeof s.summary.totalMs === 'number' && s.summary.totalMs < 1000);
-  /** 阳性对照汇总：观察器必须装成功，且页内 400 ms 定时器忙等必须加回来一条 ≥350 ms 的任务 */
+  /** 阳性对照汇总：观察器必须装成功，且页内 400 ms 定时器忙等必须加回来一条 ≥300 ms 的任务（阈值见 `ltTeeth`） */
   const controls = ok.map(s => s.summary.ltControl).filter(Boolean);
   if (controls.length) {
     out.ltControlSamples = controls.length;
