@@ -667,7 +667,8 @@ function dotLabel(index: number): string {
   letter-spacing: 0.04em;
 }
 
-/* 末步的文档退路：小字弱色，不与步骤正文抢注意力 */
+/* 末步的文档退路：小字弱色，不与步骤正文抢注意力。
+   左对齐与卡片里其余文字同侧——居中时折出来的第二行只剩几个字，看着像孤字 */
 .tour__docs {
   --tour-delay: 0.2s;
 
@@ -675,11 +676,13 @@ function dotLabel(index: number): string {
   font-size: 11px;
   line-height: 1.6;
   color: var(--tour-ink-faint);
-  text-align: center;
+  text-align: left;
 }
 
+/* 中文按字折行会把「在线说 / 明」劈开，链接内部禁折，折点只落在链接之间 */
 .tour__docs-link {
   color: var(--tour-accent);
+  white-space: nowrap;
   text-decoration: none;
 }
 
