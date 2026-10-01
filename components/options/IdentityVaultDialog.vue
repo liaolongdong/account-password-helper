@@ -122,6 +122,16 @@
         </div>
       </div>
 
+      <!--
+        手排换位的读屏播报区（视觉隐藏、恒在 DOM 里）：文本一变即由 polite 通道播报
+        「已移动到第 n 位」。放在 v-if/v-else 链之外，否则会打断空态与列表的分支配对。
+      -->
+      <span
+        class="identity-live"
+        aria-live="polite"
+        >{{ moveAnnouncement }}</span
+      >
+
       <!-- 空态：未保存任何条目 -->
       <div
         v-if="!loading && rows.length === 0"
@@ -154,9 +164,38 @@
         <div
           v-for="entry in filteredRows"
           :key="entry.id"
-          :class="['identity-card', { 'is-collapsed': isCollapsed(entry.id) }]"
+          :class="[
+            'identity-card',
+            {
+              'is-collapsed': isCollapsed(entry.id),
+              'is-drop-before': dropTargetId === entry.id && dropSide === 'before',
+              'is-drop-after': dropTargetId === entry.id && dropSide === 'after',
+            },
+          ]"
+          @dragover="handleDragOver(entry, $event)"
+          @drop="handleDrop(entry, $event)"
         >
           <div class="identity-card__header">
+            <!--
+              手排档抓握把手：渲染在最左、`el-checkbox` 之前，只在 `manual` 档出现。
+              `draggable` 只挂把手而不是整张卡——整卡可拖会与文字选中、按钮点击抢事件。
+              它也不进 `.identity-card__actions`：档位是全局态，所有卡片同时出现把手，
+              不会造成卡间错位，动作行的 5 槽不变量也因此不受影响。
+            -->
+            <span
+              v-if="sortMode === 'manual'"
+              class="identity-card__grip"
+              draggable="true"
+              role="button"
+              tabindex="0"
+              :aria-label="t('identity.sort.dragHandle', { title: displayTitle(entry) })"
+              @dragstart="handleDragStart(entry, $event)"
+              @dragend="handleDragEnd"
+              @keydown.alt.up.prevent="handleKeyMove(entry, 'before')"
+              @keydown.alt.down.prevent="handleKeyMove(entry, 'after')"
+            >
+              <el-icon><Operation /></el-icon>
+            </span>
             <el-checkbox
               class="identity-card__check"
               :aria-label="t('identity.selectOne')"
@@ -183,8 +222,13 @@
                 link
                 @click="toggleCollapse(entry.id)"
               />
+              <!--
+                眼睛常驻：动作行恒为 5 槽（折叠 / 显隐 / 整卡复制 / 编辑 / 删除）。
+                折叠态或无机密字段的卡挂 `.is-void` 占位不隐藏，避免右对齐的按钮行
+                随槽位数横移（含机密与不含机密的卡之间同样错开）。
+              -->
               <el-button
-                v-if="cardHasSecret(entry) && !isCollapsed(entry.id)"
+                :class="{ 'is-void': !cardHasSecret(entry) || isCollapsed(entry.id) }"
                 :icon="isRevealed(entry.id) ? Hide : View"
                 :aria-label="isRevealed(entry.id) ? t('identity.hide') : t('identity.show')"
                 link
@@ -299,13 +343,14 @@ import {
   Download,
   Edit,
   Hide,
+  Operation,
   Plus,
   Search,
   Upload,
   View,
   WarnTriangleFilled,
 } from '@element-plus/icons-vue';
-import type { IdentityEntry, IdentitySortMode } from '@/utils/identity/types';
+import type { IdentityEntry, IdentityMoveSide, IdentitySortMode } from '@/utils/identity/types';
 import {
   IDENTITY_SORT_MODES,
   MAX_IDENTITIES,
@@ -341,6 +386,9 @@ import type { IdentityVault } from '@/composables/useIdentityVault';
  * 全选驱动导出作用域——未勾选=导出全部，勾选=仅导出所选子集。footer 常驻备份导入/导出：
  * 加密 `.aphid` 走主密码解密；「导出明文（不推荐）」与导入均接受明文 `.json`，明文读写都设
  * 主密码复验 + 风险确认双重门槛。明文 `.json` 复用 `.aphid` 数据结构，导入按 id 合并回导。
+ * 排序档位里的 `manual` 在卡片最左（`el-checkbox` 之前）挂抓握把手，鼠标拖拽与
+ * Alt+↑ / Alt+↓ 两条路径都走 `moveIdentity` 落盘；动作行恒 5 槽，折叠与无机密卡靠
+ * `.is-void` 占位不隐藏，保证按钮行在任何状态下不横移。
  * 状态由 App.vue 的 useIdentityVault 单一实例注入
  * （props.vault），本组件不自行实例化，保证会话失效时 App.vue 侧 teardown() 与弹窗
  * 共享同一份内存明文并同步清空（R2）。
@@ -388,6 +436,7 @@ const {
   toggleCollapseAll,
   setSortMode,
   restoreSortMode,
+  moveIdentity,
   isSelected,
   toggleSelect,
   selectAllVisible,
@@ -406,7 +455,7 @@ const MASK = '*'.repeat(8);
 /** 字段行：复用 utils/identity/fields 展示模型，传入本组件 t 取标签（单一事实来源） */
 const buildFieldRows = (entry: IdentityEntry) => buildIdentityFieldRows(entry, t);
 
-/** 该卡片是否含机密字段（决定卡级显/隐眼睛是否出现；与批量展开/收起作用范围同源） */
+/** 该卡片是否含机密字段（决定卡级眼睛是实占位还是空占位；与批量展开/收起作用范围同源） */
 const cardHasSecret = (entry: IdentityEntry) => hasSecretFields(entry.payload);
 
 /** 是否已达条目上限（驱动条数指示切换为告警文案） */
@@ -433,6 +482,103 @@ const handleSortModeChange = (value: unknown): void => {
   if (isIdentitySortMode(value)) {
     setSortMode(value);
   }
+};
+
+// ==================== manual 档：拖拽 + 键盘两条写入路径 ====================
+
+/** 正在被拖动的条目 id（仅本把手发起的拖拽期间非空；`drop` / `dragend` 后复位） */
+const draggingId = ref<string | null>(null);
+/** 落点指示线所在的目标卡 id */
+const dropTargetId = ref<string | null>(null);
+/** 落点指示线侧别（指针在目标卡的上半 / 下半） */
+const dropSide = ref<IdentityMoveSide>('before');
+/** 最近一次手排换位的播报文本（由 `aria-live` 区域消费，视觉隐藏） */
+const moveAnnouncement = ref('');
+
+/** 播报一次换位；`null` 表示没有实际位移（原地落下），不播报也不写盘 */
+const announceMove = (position: number | null): void => {
+  if (position !== null) {
+    moveAnnouncement.value = t('identity.sort.moved', { position });
+  }
+};
+
+/** 清除落点指示线 */
+const clearDropIndicator = (): void => {
+  dropTargetId.value = null;
+};
+
+/** 复位拖拽态（弹窗关闭时一并调用，避免残留 id 影响下一次打开） */
+const resetDragState = (): void => {
+  draggingId.value = null;
+  clearDropIndicator();
+  moveAnnouncement.value = '';
+};
+
+const handleDragStart = (entry: IdentityEntry, event: DragEvent): void => {
+  draggingId.value = entry.id;
+  const transfer = event.dataTransfer;
+  if (transfer) {
+    transfer.effectAllowed = 'move';
+    // Firefox 要求 dragstart 里写入数据才真正启动拖拽；载荷是随机 id，不含任何 PII
+    transfer.setData('text/plain', entry.id);
+  }
+};
+
+/**
+ * 拖动过程中定位插入侧
+ *
+ * 只在「值真的变了」时写 ref：`dragover` 每秒可触发几十次，无条件赋值会让整列卡片
+ * 按帧重渲染。非本把手发起的拖拽（如把文件拖进弹窗）完全不接管，既不 preventDefault
+ * 也不改 `dropEffect`，保持既有页面行为不变。
+ */
+const handleDragOver = (entry: IdentityEntry, event: DragEvent): void => {
+  const dragging = draggingId.value;
+  if (!dragging || !event.dataTransfer) return;
+  if (dragging === entry.id) {
+    clearDropIndicator();
+    return;
+  }
+  const card = event.currentTarget as HTMLElement | null;
+  if (!card) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = 'move';
+  const rect = card.getBoundingClientRect();
+  const side: IdentityMoveSide = event.clientY < rect.top + rect.height / 2 ? 'before' : 'after';
+  if (dropTargetId.value !== entry.id) dropTargetId.value = entry.id;
+  if (dropSide.value !== side) dropSide.value = side;
+};
+
+/** 拖拽生命周期结束（drop 之后浏览器仍会补发 `dragend`；两处清理幂等） */
+const handleDragEnd = (): void => {
+  draggingId.value = null;
+  clearDropIndicator();
+};
+
+const handleDrop = (entry: IdentityEntry, event: DragEvent): void => {
+  const dragging = draggingId.value;
+  if (!dragging) return;
+  event.preventDefault();
+  const side = dropSide.value;
+  // 先复位再落库：指示线必须立刻消失，播报文本则留给 `aria-live` 区域读完
+  handleDragEnd();
+  if (dragging === entry.id) return;
+  announceMove(moveIdentity(dragging, entry.id, side));
+};
+
+/**
+ * 键盘换位：Alt+↑ 与上一张可见卡交换、Alt+↓ 与下一张交换
+ *
+ * 邻居取自 `filteredRows`，因此过滤态下会跳过隐藏项，与鼠标拖拽共用同一只
+ * `moveIdentity`——两条写入路径的落盘形状与「只在可见子集内重排」口径必然一致。
+ * 已在可见列表首 / 末位时无处可去，静默不响应（把手的 aria-label 说明了操作方式）。
+ */
+const handleKeyMove = (entry: IdentityEntry, side: IdentityMoveSide): void => {
+  const list = filteredRows.value;
+  const at = list.findIndex(row => row.id === entry.id);
+  if (at === -1) return;
+  const neighbor = list[at + (side === 'before' ? -1 : 1)];
+  if (!neighbor) return;
+  announceMove(moveIdentity(entry.id, neighbor.id, side));
 };
 
 /**
@@ -466,6 +612,7 @@ watch(
  */
 const handleClosed = (): void => {
   teardown();
+  resetDragState();
 };
 
 /** 删除条目（二次确认 + 明说不可恢复） */
@@ -733,6 +880,16 @@ const handleFileChange = async (event: Event): Promise<void> => {
   margin-left: auto;
 }
 
+/* 读屏播报区：不能用 display:none / visibility:hidden——那样读屏也读不到，只能裁出可视区 */
+.identity-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 .identity-empty {
   display: flex;
   align-items: center;
@@ -749,10 +906,10 @@ const handleFileChange = async (event: Event): Promise<void> => {
   overflow-y: auto;
 }
 
-/* 条目卡片：对齐 PasswordTable 卡片观感（白底 + 主题描边 + 轻阴影 + hover 上浮） */
+/* 条目卡片：对齐 PasswordTable 卡片观感（主题 surface 底 + 主题描边 + 轻阴影 + hover 上浮） */
 .identity-card {
   padding: 12px 16px;
-  background: white;
+  background: var(--aph-surface-2);
   border: 1px solid var(--aph-surface-line);
   border-radius: 8px;
   box-shadow: 0 1px 4px rgb(var(--aph-primary-rgb) / 8%);
@@ -761,6 +918,19 @@ const handleFileChange = async (event: Event): Promise<void> => {
 
 .identity-card:hover {
   transform: translateY(-2px);
+}
+
+/*
+ * 落点指示线：把手拖到目标卡上半 / 下半时，用卡片边缘的一道主色线标示插入位置。
+ * 走 box-shadow 而非 border 或伪元素——它不占布局、不改元素数量，拖动过程中卡片
+ * 不会因为多出一圈边框而抖动（覆盖的是 .identity-card 那层轻阴影，拖动结束即复原）。
+ */
+.identity-card.is-drop-before {
+  box-shadow: 0 -3px 0 0 var(--aph-primary);
+}
+
+.identity-card.is-drop-after {
+  box-shadow: 0 3px 0 0 var(--aph-primary);
 }
 
 .identity-card__header {
@@ -773,6 +943,29 @@ const handleFileChange = async (event: Event): Promise<void> => {
 
 .identity-card.is-collapsed .identity-card__header {
   margin-bottom: 0;
+}
+
+/*
+ * 手排档抓握把手：`draggable` 只挂它（不挂整卡），`tabindex` + `role=button`
+ * 让 Alt+↑ / Alt+↓ 在纯键盘路径下也能换位。
+ */
+.identity-card__grip {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  font-size: 16px;
+  color: var(--el-text-color-secondary);
+  cursor: grab;
+  user-select: none;
+}
+
+.identity-card__grip:active {
+  cursor: grabbing;
+}
+
+.identity-card__grip:focus-visible {
+  outline: 2px solid var(--aph-primary);
+  outline-offset: 2px;
 }
 
 .identity-card__check {
@@ -799,6 +992,16 @@ const handleFileChange = async (event: Event): Promise<void> => {
   display: flex;
   flex-shrink: 0;
   gap: 4px;
+}
+
+/*
+ * 动作行恒为 5 槽（折叠 / 显隐 / 整卡复制 / 编辑 / 删除）：折叠态或无机密字段的卡
+ * 让眼睛按钮挂 `.is-void` 占位而不卸载，右对齐的按钮行因此在任何状态、任何卡型下
+ * 横坐标完全一致。用 `visibility` 而不是 `opacity: 0`——它同时把按钮移出 Tab 序与
+ * 无障碍树，不需要额外的 `aria-hidden` 或禁用逻辑。
+ */
+.identity-card__actions .is-void {
+  visibility: hidden;
 }
 
 /* 字段行：文本 + 行内操作按钮（对标 PasswordDetailDrawer 的 .detail-value） */

@@ -8,9 +8,22 @@
  * 标题排序依赖运行时 ICU 的中文拼写排序（Chrome 与 Node ≥ 13 默认 full-icu），
  * 因此它是** locale 相关**的：中文按拼音、英文按字典序，切语言顺序可能随之变化，
  * 这是「按标题排序」的常规预期，不是抖动。类别档序刻意不跟随译名（见 categoryRank）。
+ *
+ * `manual` 档不做任何比较，只查调用方注入的序位数组（见 `IdentitySortContext.orderIndexOf`）。
+ * 与之配套的 `normalizeManualOrder` / `applyManualMove` 也留在这里：过滤态「只在可见子集内
+ * 重排」是这一档最容易写错、又最难在 UI 上看出错的口径，放在纯函数里才能直接单测。
  */
-import type { IdentityCategory, IdentityEntry, IdentitySortMode } from './types';
+import type { IdentityCategory, IdentityEntry, IdentityMoveSide, IdentitySortMode } from './types';
 import { CATEGORY_ORDER, DEFAULT_IDENTITY_SORT_MODE } from './constants';
+
+/**
+ * `manual` 档未登记 id 的序位哨兵
+ *
+ * 新建 / 导入进来的条目不在落盘顺序数组里，给极大值而不是 -1：极大值经比较器落到末尾、
+ * 再由 `tieBreak` 按时间倒序安定排列，保证「不在数组里」的条目**出现**在列表尾部而不是消失。
+ * 用 `MAX_SAFE_INTEGER` 而非 `MAX_VALUE`：两个序位相减不会溢出成 Infinity，符号仍然正确。
+ */
+export const MANUAL_ORDER_UNRANKED = Number.MAX_SAFE_INTEGER;
 
 /**
  * 排序上下文
@@ -22,6 +35,13 @@ export interface IdentitySortContext {
   titleOf: (entry: IdentityEntry) => string;
   /** Intl 排序语言，跟随界面语言（'zh-CN' | 'en'） */
   locale: string;
+  /**
+   * id → 手动顺序里的序位，仅 `manual` 档使用
+   *
+   * 未登记的 id 必须返回 {@link MANUAL_ORDER_UNRANKED}（落末尾）；顺序数组住在存储层，
+   * 注入而不是 import，与 `titleOf` 同一取舍：排序口径可以单测，存储依赖留在调用方。
+   */
+  orderIndexOf: (id: string) => number;
 }
 
 /**
@@ -73,6 +93,9 @@ const COMPARATORS = {
     const collator = new Intl.Collator(ctx.locale, { numeric: true, sensitivity: 'base' });
     return (a, b) => collator.compare(ctx.titleOf(a), ctx.titleOf(b)) || tieBreak(a, b);
   },
+  // 手排档不比时间也不比文本，只查注入的序位；未登记（新建 / 导入）的 id 同为
+  // MANUAL_ORDER_UNRANKED，差值归零后由 tieBreak 安定落到尾部。
+  manual: (ctx: IdentitySortContext) => (a, b) => ctx.orderIndexOf(a.id) - ctx.orderIndexOf(b.id) || tieBreak(a, b),
 } satisfies Record<IdentitySortMode, (ctx: IdentitySortContext) => IdentityComparator>;
 
 /**
@@ -95,4 +118,83 @@ export function sortIdentityEntries(
   if (list.length < 2) return list;
 
   return list.sort(COMPARATORS[mode](ctx));
+}
+
+/**
+ * 把落盘的手排顺序对齐到当前库里的条目集合
+ *
+ * 两件事一次做完，且都只在真正写盘时执行（读路径不写库）：
+ * - **prune**：已删除条目的 id 从数组里去掉，否则数组会随删除无限增长；
+ * - **append**：新建与 `.aphid` / 明文导入带来的新 id 追加到尾部，顺序取传入的
+ *   现存 id 序列（即 `rows` 的基准序），与「未登记条目显示在末尾」这一档内表现一致。
+ *
+ * - **dedupe**：`stored` 里的重复 id 会被去掉——读侧已把重复数组整体回落成空数组，
+ *   这里是写入侧的第二道闸门，保证「一次坏写入」不会长期污染后续排位。
+ *
+ * @param stored 存储里现有的顺序数组（可为脏数据，按只读处理）
+ * @param presentIds 当前库中实际存在的条目 id（顺序即新出现条目的追加顺序）
+ * @returns 新的顺序数组：保留原有相对次序 + 尾部追加新 id
+ */
+export function normalizeManualOrder(stored: readonly string[], presentIds: readonly string[]): string[] {
+  const present = new Set(presentIds);
+  const kept: string[] = [];
+  const seen = new Set<string>();
+  for (const id of stored) {
+    if (present.has(id) && !seen.has(id)) {
+      seen.add(id);
+      kept.push(id);
+    }
+  }
+  for (const id of presentIds) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      kept.push(id);
+    }
+  }
+  return kept;
+}
+
+/** {@link applyManualMove} 的入参 */
+export interface ManualMoveInput {
+  /** 全量手排顺序（已 {@link normalizeManualOrder} 过，与库里条目一一对应） */
+  globalIds: readonly string[];
+  /** 当前可见（过滤后）条目的 id，顺序即列表呈现次序 */
+  visibleIds: readonly string[];
+  /** 被移动条目的 id */
+  draggedId: string;
+  /** 落点参照条目的 id */
+  targetId: string;
+  /** 插到参照卡之前还是之后 */
+  side: IdentityMoveSide;
+}
+
+/**
+ * 在可见子集内移动一条，并把结果回写到它在全局数组里的原槽位
+ *
+ * 过滤态（搜索词 / 类别过滤）下只能看见子集，若按「可见列表」整体覆盖全局数组，
+ * 被隐藏条目会被静默挤到数组尾部、顺序全部丢失。这里的口径是：**可见项只在彼此之间
+ * 换位，占据的全局槽位集合不变**，隐藏项一动也不动，取消过滤后手排结果与用户看到的一致。
+ *
+ * @param input 移动参数
+ * @returns 新的全局数组与移动后在可见列表里的 0 基下标；无实际位移时返回 null（调用方据此不落盘）
+ */
+export function applyManualMove(input: ManualMoveInput): { ids: string[]; index: number } | null {
+  const { globalIds, visibleIds, draggedId, targetId, side } = input;
+  if (draggedId === targetId) return null;
+
+  const from = visibleIds.indexOf(draggedId);
+  const targetAt = visibleIds.indexOf(targetId);
+  if (from === -1 || targetAt === -1) return null;
+
+  const nextVisible = [...visibleIds];
+  nextVisible.splice(from, 1);
+  // 先摘掉被移动项再定位锚点：`before/after` 因此不必为「向下移动时目标下标已左移一位」特判
+  const anchor = nextVisible.indexOf(targetId);
+  const index = side === 'after' ? anchor + 1 : anchor;
+  nextVisible.splice(index, 0, draggedId);
+
+  const visible = new Set(visibleIds);
+  const queue = [...nextVisible];
+  const ids = globalIds.map(id => (visible.has(id) ? (queue.shift() ?? id) : id));
+  return { ids, index };
 }

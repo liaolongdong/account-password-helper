@@ -3,10 +3,10 @@
  *
  * 单一实例由 `entrypoints/options/App.vue` 创建并注入给列表弹窗（props），
  * 保证会话失效时 App.vue 侧的 `teardown()` 与弹窗共享同一份状态：
- * - 状态：rows（解密后条目）/ loading / revealedIds（掩码显隐）/ selectedIds（导出勾选）/ collapsedIds（卡片折叠）/ keyword / categoryFilter / sortMode（列表排序档位）；
+ * - 状态：rows（解密后条目）/ loading / revealedIds（掩码显隐）/ selectedIds（导出勾选）/ collapsedIds（卡片折叠）/ keyword / categoryFilter / sortMode（列表排序档位）/ manualOrder（`manual` 档的手排 id 顺序）；
  * - 派生：filteredRows（类别过滤 + 搜索 + 按 sortMode 排序）；
  * - 生命周期：load() / teardown() / resetViewState() / restoreSortMode()；
- * - 视图态：卡级显隐 toggleReveal / 批量 toggleRevealAll（仅作用可见含机密卡）/ 单卡折叠 toggleCollapse 与批量折叠 toggleCollapseAll（均仅作用可见卡）/ 档位切换 setSortMode（落盘为偏好）/ 勾选选择态 / 过滤清除 clearFilters；
+ * - 视图态：卡级显隐 toggleReveal / 批量 toggleRevealAll（仅作用可见含机密卡）/ 单卡折叠 toggleCollapse 与批量折叠 toggleCollapseAll（均仅作用可见卡）/ 档位切换 setSortMode（落盘为偏好）/ 手排换位 moveIdentity（仅 `manual` 档，落盘顺序数组）/ 勾选选择态 / 过滤清除 clearFilters；
  * - 领域：displayTitle（列表标题回退链）/ copyField（逐字段复制）/ copyCard（整卡复制，恒走限时自动清除通道）。
  *
  * 搜索刻意**不加防抖**：既有 200ms 防抖是为上百条密码设计，身份库 ≤30 条，
@@ -14,20 +14,35 @@
  *
  * 排序档位只改**列表展示**顺序：`rows` 恒按 updateTime 倒序，导出与勾选摘要读的是 `rows`，
  * 因此换档位不会改写备份文件的条目次序（视图偏好不该惊动数据层）。
+ * `manual` 档同样只重排 `filteredRows`，唯一写进数据侧的东西是一张独立的 id 顺序数组
+ * （`IDENTITY_MANUAL_ORDER`），条目 payload 与 `.aphid` 结构一概不动，回滚等于删掉那个键。
  */
 import { computed, ref, shallowRef } from 'vue';
-import type { IdentityCategory, IdentityEntry, IdentityPayload, IdentitySortMode } from '@/utils/identity/types';
+import type {
+  IdentityCategory,
+  IdentityEntry,
+  IdentityMoveSide,
+  IdentityPayload,
+  IdentitySortMode,
+} from '@/utils/identity/types';
 import { DEFAULT_IDENTITY_SORT_MODE } from '@/utils/identity/constants';
 import {
   deleteIdentities,
   getAllIdentity,
+  getIdentityManualOrder,
   getIdentitySortMode,
   saveIdentity,
+  saveIdentityManualOrder,
   saveIdentitySortMode,
   updateIdentity,
 } from '@/utils/storage/identityCrud';
 import { IDENTITY_FIELD_DEFS, hasSecretFields } from '@/utils/identity/fields';
-import { sortIdentityEntries } from '@/utils/identity/sort';
+import {
+  MANUAL_ORDER_UNRANKED,
+  applyManualMove,
+  normalizeManualOrder,
+  sortIdentityEntries,
+} from '@/utils/identity/sort';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { copySecretToClipboard, copyTextToClipboard } from '@/utils/clipboard';
 import { logger } from '@/utils/logger';
@@ -74,8 +89,29 @@ export function useIdentityVault() {
   const categoryFilter = ref<IdentityCategoryFilter>('all');
   /** 列表排序档位（视图偏好，明文单键落盘；初始取默认档，restoreSortMode 用落盘值对齐） */
   const sortMode = ref<IdentitySortMode>(DEFAULT_IDENTITY_SORT_MODE);
+  /**
+   * `manual` 档的手排顺序（id 数组，明文单键落盘）
+   *
+   * 与档位同属「切走再切回仍然保留」的视图偏好，故不进 `resetViewState` / `teardown`：
+   * 里面只有随机 id、不含 PII，保留可避免弹窗重开时把用户排好的顺序读成中间态。
+   */
+  const manualOrder = ref<string[]>([]);
   /** 手动换档次数（`restoreSortMode` 的代际判据，见该函数注释） */
   let manualSortTicks = 0;
+
+  /** id → 手排序位（一次建表供整轮比较器复用；`rows` ≤30 条，重排成本可忽略） */
+  const manualRank = computed(() => new Map(manualOrder.value.map((id, index) => [id, index])));
+
+  /**
+   * 手排序位查询（注入 `sort.ts` 的比较上下文，使排序模块零存储依赖）
+   *
+   * 不在数组里的 id（新建、刚导入，或本次 load 前还没读到落盘值）返回
+   * {@link MANUAL_ORDER_UNRANKED}，由比较器连 `tieBreak` 一起落到列表尾部——
+   * 「排过序的条目」永远不会因为新条目不在数组里而被挤出去或看不见。
+   */
+  function orderIndexOf(id: string): number {
+    return manualRank.value.get(id) ?? MANUAL_ORDER_UNRANKED;
+  }
 
   /** 类别过滤 + 搜索过滤后的条目，按当前档位排序（≤30 条，每次重排成本可忽略） */
   const filteredRows = computed(() => {
@@ -88,7 +124,11 @@ export function useIdentityVault() {
     if (kw) {
       list = list.filter(entry => matchesKeyword(collectSearchableFields(entry.payload), kw));
     }
-    return sortIdentityEntries(list, { titleOf: displayTitle, locale: currentLocale.value }, sortMode.value);
+    return sortIdentityEntries(
+      list,
+      { titleOf: displayTitle, locale: currentLocale.value, orderIndexOf },
+      sortMode.value,
+    );
   });
 
   /**
@@ -98,16 +138,22 @@ export function useIdentityVault() {
    * 交由调用方决定是否提示（弹窗打开时调用，失败不阻断弹窗骨架）。
    *
    * 这里的倒序是**数据层基准序**：导出与勾选摘要读 `rows`，故备份内容不受视图档位影响。
+   *
+   * 手排序号与条目同批**并行**读取：两者互不依赖，串行等于给「打开弹窗」多加一次
+   * storage IPC；读到的顺序在下次 `moveIdentity` 落盘时才与条目集合对齐（剪掉已删除的 id、
+   * 尾部追加新出现的 id），读路径本身不写库。
    */
   async function load(): Promise<void> {
     loading.value = true;
     try {
-      const { entries } = await getAllIdentity();
+      const [{ entries }, order] = await Promise.all([getAllIdentity(), getIdentityManualOrder()]);
       entries.sort((a, b) => b.updateTime - a.updateTime);
       rows.value = entries;
+      manualOrder.value = order;
     } catch (error) {
       logger.error('加载身份信息失败:', error);
       rows.value = [];
+      manualOrder.value = [];
     } finally {
       loading.value = false;
     }
@@ -247,6 +293,44 @@ export function useIdentityVault() {
     }
   }
 
+  /**
+   * 手排档唯一的写序入口：把 `draggedId` 移到 `targetId` 的前 / 后
+   *
+   * 拖拽与键盘（Alt+↑ / Alt+↓）两条路径都收敛到这一只函数，落盘形状与换位算法因此
+   * 只有一份。与 `setSortMode` 同一取舍：先改内存让视图立即响应，落盘失败只告警不上抛
+   * （视图偏好不值得为一次坏写入向用户报错，下次打开回到旧顺序）。
+   *
+   * 落盘前先把顺序数组与当前条目集合对齐（`normalizeManualOrder`）：被删除的 id 就此剪掉，
+   * 新建与导入带来的新 id 追加尾部，数组因此恒等于「库里现存的那些 id」。
+   * 有过滤条件时只在可见子集内换位、按可见项的全局原槽位回写（`applyManualMove`），
+   * 隐藏项的位置一动不动。
+   *
+   * @param draggedId 被移动条目的 id
+   * @param targetId 落点参照条目的 id
+   * @param side 插到参照卡之前还是之后
+   * @returns 移动后在**可见列表**里的 1 基位次（供 aria-live 播报）；无实际位移时返回 null 且不写盘
+   */
+  function moveIdentity(draggedId: string, targetId: string, side: IdentityMoveSide): number | null {
+    const globalIds = normalizeManualOrder(
+      manualOrder.value,
+      rows.value.map(entry => entry.id),
+    );
+    const moved = applyManualMove({
+      globalIds,
+      visibleIds: filteredRows.value.map(entry => entry.id),
+      draggedId,
+      targetId,
+      side,
+    });
+    if (!moved) return null;
+
+    manualOrder.value = moved.ids;
+    void saveIdentityManualOrder(moved.ids).catch(error =>
+      logger.warn('身份信息手动排序落盘失败，本次会话内仍生效:', error),
+    );
+    return moved.index + 1;
+  }
+
   /** 切换某条目的勾选态 */
   function toggleSelect(id: string): void {
     const next = new Set(selectedIds.value);
@@ -365,6 +449,7 @@ export function useIdentityVault() {
     keyword,
     categoryFilter,
     sortMode,
+    manualOrder,
     filteredRows,
     selectedCount,
     allVisibleSelected,
@@ -383,6 +468,7 @@ export function useIdentityVault() {
     toggleCollapseAll,
     setSortMode,
     restoreSortMode,
+    moveIdentity,
     toggleSelect,
     isSelected,
     selectAllVisible,
