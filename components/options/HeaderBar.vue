@@ -249,6 +249,13 @@
           {{ t('options.header.tour') }}
         </el-button>
         <el-button
+          :icon="Reading"
+          :title="t('options.header.guideTitle')"
+          @click="$emit('openGuide')"
+        >
+          {{ t('options.header.guide') }}
+        </el-button>
+        <el-button
           data-tour="personalize"
           :icon="Brush"
           @click="$emit('openPersonalization')"
@@ -283,6 +290,7 @@ import {
   Document,
   Brush,
   Compass,
+  Reading,
   Operation,
   Link,
   Connection,
@@ -299,7 +307,8 @@ import { useSessionCountdown } from '@/composables/useSessionCountdown';
  *
  * 包含标题、版本号、会话剩余时间徽标、安全体检入口、数据管理/安全设置下拉菜单以及偏好设置按钮。
  * 「安全设置」聚焦主密码、会话安全与填充行为（含站点规则）及快捷键一览，「偏好设置」聚焦外观与填充交互，两者图标区分避免混淆。
- * 「新手引导」常驻在右侧入口组，让已看过一次的用户仍有一条明确的回头路（自动弹出终生仅一次）。
+ * 「新手引导」与「使用指引」常驻在右侧入口组，让已看过一次的用户仍有一条明确的回头路
+ * （自动弹出终生仅一次，指引则是页内 `#guide` 一级视图、离线可读）。
  * 语言切换已迁移至「偏好设置」面板（与主题风格同组，三入口可达）。
  *
  * 带 `data-tour` 的按钮是聚光引导的锚点，键名与 `utils/onboardingTour.ts` 的剧本一一对应；
@@ -331,6 +340,8 @@ defineEmits<{
   openValidity: [];
   /** 重温新手引导 */
   openTour: [];
+  /** 打开页内「使用指引」文档中页 */
+  openGuide: [];
 }>();
 
 const { t } = useI18n();

@@ -1,4 +1,6 @@
 import { computed, nextTick, onScopeDispose, ref, shallowRef, watch } from 'vue';
+import type { RuntimeMessage } from '@/utils/types';
+import { MessageType } from '@/utils/types';
 import type { TourPlacement, TourSpot, TourStep } from '@/utils/onboardingTour';
 import { CARD_WIDTH, TOUR_STEPS, expandToSpot, pickSteps, resolvePlacement } from '@/utils/onboardingTour';
 import { StorageUtils } from '@/utils/storage';
@@ -30,6 +32,18 @@ export interface StartTourOptions {
 const ANCHOR_SELECTOR = 'data-tour';
 
 /**
+ * `SHOW_SIDEPANEL` 的应答形状
+ *
+ * 后台对这条指令的成功与失败统一走 `{ success, error }`（含「拿不到 tabId」
+ * 与「运行时没有 `chrome.sidePanel`」两条提前返回），这里只取判定所需的两个字段，
+ * 避免把 `any` 带进引导这一侧。
+ */
+interface ShowSidepanelResponse {
+  success?: boolean;
+  error?: string;
+}
+
+/**
  * 查询锚点元素
  *
  * @param anchor 锚点键名
@@ -46,7 +60,7 @@ export function useOnboardingTour() {
   const steps = shallowRef<TourStep[]>([]);
   /** 当前步骤在快照中的下标 */
   const stepIndex = ref(0);
-  /** 当前聚光框；`null` 表示无锚点（欢迎步整屏居中） */
+  /** 当前聚光框；`null` 表示无锚点（欢迎步与「打开侧边栏」步整屏居中） */
   const spot = ref<TourSpot | null>(null);
   /** 当前卡片落点 */
   const placement = ref<TourPlacement>({ side: 'center', top: 0, left: 0 });
@@ -54,6 +68,13 @@ export function useOnboardingTour() {
   const cardRef = ref<HTMLElement | null>(null);
   /** 卡片实测高度；未测量前用 0 触发一次即刻重算 */
   const cardHeight = ref(0);
+  /**
+   * 「打开侧边栏」是否已降级为快捷键提示
+   *
+   * 只在这次引导的会话内成立，`start()` 时归零：它是一个「刚刚失败了」的即时反馈，
+   * 落盘反而会让下次打开管理页无缘无故先显示一句快捷键提示。
+   */
+  const sidepanelFallback = ref(false);
 
   /** 当前步骤 */
   const currentStep = computed<TourStep | undefined>(() => steps.value[stepIndex.value]);
@@ -142,6 +163,7 @@ export function useOnboardingTour() {
     steps.value = [];
     stepIndex.value = 0;
     spot.value = null;
+    sidepanelFallback.value = false;
     placement.value = { side: 'center', top: 0, left: 0 };
     await StorageUtils.saveOnboardingTourState({ seen: true, outcome, finishedAt: Date.now() });
   }
@@ -158,11 +180,41 @@ export function useOnboardingTour() {
   }
 
   /**
+   * 请求打开侧边栏（`sidepanel` 步卡内的动作按钮）
+   *
+   * 走既有 `MessageType.SHOW_SIDEPANEL`：后台在同步路径里调用 `sidePanel.open()`
+   * （见 messageRouter 的手势链约束注释），Options 只是普通发送方，无需任何后台改动。
+   * `trigger: 'tour'` 单列一档，是为了把「在管理页签上打开」这一路径的耗时与页面内的
+   * 悬浮按钮分开统计（见 `SidepanelOpenTrigger`）。
+   *
+   * 失败来源有三种——`open()` 被拒、后台没有 `chrome.sidePanel`、消息通道本身抛错——
+   * 一律收成同一个降级态：卡内按钮换成快捷键提示。不弹一次性提示也不静默吞掉，
+   * 因为这一步唯一的目的就是让用户真的看到侧边栏。
+   */
+  async function openSidePanel(): Promise<void> {
+    const request: RuntimeMessage = {
+      type: MessageType.SHOW_SIDEPANEL,
+      // clickTs 取按钮点击时刻：后台据此算「点击 → 渲染进程创建」，与悬浮按钮/快捷键同口径
+      data: { trigger: 'tour', clickTs: Date.now() },
+    };
+
+    try {
+      const response: ShowSidepanelResponse | undefined = await chrome.runtime.sendMessage(request);
+      if (response?.success) return;
+      logger.warn('新手引导：侧边栏未打开，改用快捷键提示:', response?.error);
+    } catch (error) {
+      logger.warn('新手引导：请求打开侧边栏失败，改用快捷键提示:', error);
+    }
+    sidepanelFallback.value = true;
+  }
+
+  /**
    * 打开引导
    *
-   * 先按锚点存在性裁剪剧本，再定位起始步。首步是无锚点的欢迎步，`pickSteps` 恒保留它，
-   * 因此以当前剧本而言这里总能打开（锚点全缺时退化成只讲欢迎步，仍给出退出入口），
-   * 返回 false 只在剧本被清空这种异常形态下发生，不静默摆一个零步弹窗。
+   * 先按锚点存在性裁剪剧本，再定位起始步。`welcome` 与 `sidepanel` 两步无锚点、恒被保留
+   * （后者要指的侧边栏不在本页 DOM 里），因此以当前剧本而言这里总能打开（锚点全缺时
+   * 退化成只讲这两步，仍给出退出入口），返回 false 只在剧本被清空这种异常形态下发生，
+   * 不静默摆一个零步弹窗。
    *
    * @param options 起始步等可选入参
    * @returns 是否真的打开了
@@ -179,6 +231,7 @@ export function useOnboardingTour() {
     const wanted = options.startId ? snapshot.findIndex(step => step.id === options.startId) : -1;
     steps.value = snapshot;
     stepIndex.value = wanted >= 0 ? wanted : 0;
+    sidepanelFallback.value = false;
     isActive.value = true;
 
     revealAnchor();
@@ -302,6 +355,8 @@ export function useOnboardingTour() {
     progress,
     isFirst,
     isLast,
+    sidepanelFallback,
+    openSidePanel,
     start,
     next,
     prev,

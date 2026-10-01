@@ -1,8 +1,19 @@
 <template>
   <div class="options-page">
+    <!--
+      使用指引文档中页：`#guide` 一级视图，优先级高于认证态，
+      未设主密码 / 待验证阶段同样进得去（免认证可见）。
+      主内容只是 `display:none`，表格的勾选、排序指示与内部滚动因此原样保留。
+    -->
+    <GuideView
+      v-if="guideActive"
+      :section="guideSection"
+      @back="closeGuide"
+    />
+
     <!-- 设置主密码页面 -->
     <MasterPasswordSetupView
-      v-if="showMasterPasswordSetup"
+      v-else-if="showMasterPasswordSetup"
       :setup-form="setupForm"
       :setup-rules="setupRules"
       :setup-loading="setupLoading"
@@ -31,6 +42,7 @@
     <!-- 主内容区域 -->
     <div
       v-if="isAuthenticated"
+      v-show="!guideActive"
       class="main-content"
     >
       <!-- 头部 -->
@@ -46,6 +58,7 @@
         @settings-command="handleSettingsCommand"
         @open-personalization="openPersonalizationDialog"
         @open-tour="replayTour"
+        @open-guide="openGuide"
       />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
@@ -319,6 +332,8 @@ const DomainMatchSettingDialog = defineAsyncComponent(
 const CommandPalette = defineAsyncComponent(() => import('@/components/options/CommandPalette.vue'));
 // 新手引导：仅首次进入认证态或用户主动重温时才需要这一块，异步加载不占管理页首屏
 const OnboardingTour = defineAsyncComponent(() => import('@/components/options/OnboardingTour.vue'));
+// 使用指引文档中页：只有 `#guide` 命中时才加载，四十几条正文文案随本 chunk 一同落地
+const GuideView = defineAsyncComponent(() => import('@/components/options/GuideView.vue'));
 // 关键路径组件：静态导入确保首屏渲染
 import MasterPasswordSetupView from '@/components/options/MasterPasswordSetupView.vue';
 import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
@@ -1044,6 +1059,13 @@ const buildPaletteActions = () => [
     run: () => (showHealthDialog.value = true),
   },
   {
+    id: 'guide',
+    group: 'entry',
+    label: t('options.header.guide'),
+    keywords: ['guide', 'help', 'doc', 'manual', 'faq'],
+    run: () => openGuide(),
+  },
+  {
     id: 'downloadTemplate',
     group: 'data',
     label: t('options.header.downloadTemplate'),
@@ -1203,8 +1225,10 @@ const {
   getActions: buildPaletteActions,
   // 引导是 `aria-modal` 的聚光层：面板开在它下面只会得到一个看不见、还在抢焦点的浮层，
   // 因此引导期间直接不给唤起（`canOpen` 为假时快捷键仍会 preventDefault，不串给浏览器）。
-  // `tour` 在下方声明：这里传的是回调，setup 同步跑完后才可能被按键触发，不存在前置引用问题。
-  canOpen: () => isAuthenticated.value && !tour.isActive.value,
+  // 文档中页同理：它是整屏的一级视图，面板里的 24 条命令讲的都是列表页的事，
+  // 开在它下面只会让用户以为按键没反应——退出文档页有自己的入口（返回按钮 / Esc）。
+  // `tour` 与 `guideActive` 在下方声明：这里传的是回调，setup 同步跑完后才可能被按键触发，不存在前置引用问题。
+  canOpen: () => isAuthenticated.value && !tour.isActive.value && !guideActive.value,
 });
 
 /** Storage 与可见性变化监听 */
@@ -1245,6 +1269,73 @@ useRuntimeMessageHandler({
   applySearchKeyword,
 });
 
+// ==================== 使用指引文档中页 ====================
+
+/** 文档页的锚点前缀：`#guide` 开第一章，`#guide/<sectionId>` 直达章节 */
+const GUIDE_HASH = '#guide';
+
+/**
+ * 从当前 hash 解析文档页路由
+ *
+ * 只认 `#guide` 与 `#guide/xxx` 两种形状，其余一律视为未进入文档页。章节 id 不在此处
+ * 校验：未知 id 交给 GuideView 找不到元素即不滚动，省一份会漂移的白名单副本。
+ */
+const parseGuideHash = (): { active: boolean; section: string | null } => {
+  const hash = window.location.hash;
+  if (hash !== GUIDE_HASH && !hash.startsWith(`${GUIDE_HASH}/`)) return { active: false, section: null };
+  return { active: true, section: hash.slice(GUIDE_HASH.length + 1) || null };
+};
+
+/** 文档页路由状态：唯一事实来源是 hash，前进 / 后退与直接深链都走同一条解析 */
+const guideRoute = ref(parseGuideHash());
+
+/** 文档页是否占据当前视图 */
+const guideActive = computed(() => guideRoute.value.active);
+
+/** 传给文档页的锚定章节（null 表示落在第一章） */
+const guideSection = computed(() => guideRoute.value.section);
+
+/** 同步 hash 变化到路由状态（hashchange 与历史遍历都会走到这里） */
+const syncGuideRoute = (): void => {
+  guideRoute.value = parseGuideHash();
+};
+
+/**
+ * 打开文档页
+ *
+ * 写 hash 而不是直接改状态：浏览器因此留下一条历史记录，后退即可回到列表，
+ * 章节链接也能被 Ctrl+点击 / 复制到地址栏。状态同时就地赋值一次，
+ * 使「hash 已是该值、不会再触发 hashchange」的重入同样成立。
+ * @param section 要直达的章节 id，省略则打开第一章
+ */
+const openGuide = (section?: string): void => {
+  const target = section ? `${GUIDE_HASH}/${section}` : GUIDE_HASH;
+  window.location.hash = target;
+  guideRoute.value = { active: true, section: section ?? null };
+};
+
+/** 关闭文档页回到列表 */
+const closeGuide = (): void => {
+  window.location.hash = '';
+  guideRoute.value = { active: false, section: null };
+};
+
+/** 进入文档页前的列表滚动位置：主内容被 `display:none` 收起时文档 scrollTop 归零，返回时原样还回 */
+let listScrollTop = 0;
+
+watch(guideActive, (active, previous) => {
+  if (active && !previous) {
+    listScrollTop = window.scrollY;
+    // 引导幕布在 z 3200、文档页在 z 100：不收掉引导，文档页就压在幕布下面看不见。
+    // 走 skip() 而非隐藏——用户是从引导卡里主动点走的，「看过」这条承诺照样兑现。
+    if (tour.isActive.value) void tour.skip();
+    return;
+  }
+  if (!active && previous) {
+    void nextTick(() => window.scrollTo(0, listScrollTop));
+  }
+});
+
 // ==================== 聚光式新手引导 ====================
 
 /**
@@ -1272,11 +1363,15 @@ const replayTour = async () => {
  * 必须等 `tableLoading` 落定：搜索筛选栏与空库引导卡是互斥渲染的，
  * 加载态下两者都不存在，剧本会缺一步。判定只发生一次，
  * 会话往返（锁解后再认证）不会反复读存储、也不会在用户主动关掉后又冒出来。
+ *
+ * 文档中页打开时不改判定标志、直接延后：聚光层要圈的是列表页上的真实按钮，
+ * 主内容此刻是 `display:none`，锚点一个都找不到。把 `guideActive` 纳入监听源，
+ * 返回列表时这一轮会重新触发，承诺仍然只兑现一次。
  */
 watch(
-  [isAuthenticated, tableLoading],
-  async ([authenticated, loading]) => {
-    if (tourAutoChecked || !authenticated || loading) return;
+  [isAuthenticated, tableLoading, guideActive],
+  async ([authenticated, loading, guide]) => {
+    if (tourAutoChecked || !authenticated || loading || guide) return;
     tourAutoChecked = true;
     const state = await StorageUtils.getOnboardingTourState();
     if (state.seen) return;
@@ -1291,6 +1386,9 @@ onMounted(async () => {
   injectPersonalizationStyles();
   initSessionManager();
   window.addEventListener('sessionExpired', handleSessionExpired);
+  // 文档页的章节导航是原生 `<a href="#guide/xxx">`，点击只改 hash 不经过 openGuide；
+  // 后退/前进同样只触发本事件。没有它，点章节目录时状态不更新，视图停在原章节。
+  window.addEventListener('hashchange', syncGuideRoute);
   // 每页条数决定首帧喂给表格多少行：必须在 checkAuth 拉起数据与渲染之前落定，否则换档要把
   // 整表重排付两遍（本页最贵的单项操作）。它是纯视图偏好，单键读取，不依赖会话态。
   await restorePageSizeConfig();
@@ -1318,6 +1416,7 @@ const restoreSortConfig = async () => {
 onUnmounted(() => {
   personalizationViewHandle?.destroy();
   window.removeEventListener('sessionExpired', handleSessionExpired);
+  window.removeEventListener('hashchange', syncGuideRoute);
 });
 </script>
 

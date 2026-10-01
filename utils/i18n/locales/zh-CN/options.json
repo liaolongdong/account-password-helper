@@ -31,6 +31,8 @@
   "options.header.personalization": "偏好设置",
   "options.header.tour": "新手引导",
   "options.header.tourTitle": "重新播放新手引导",
+  "options.header.guide": "使用指引",
+  "options.header.guideTitle": "打开页内使用指引（离线可读，无需联网）",
   "options.header.siteRules": "站点规则",
   "options.header.domainMatch": "跨子域名匹配",
   "options.domainMatch.off": "仅精确匹配（默认）",
@@ -367,5 +369,16 @@
   "options.shortcuts.label.openOptions": "打开账号密码管理选项页面",
   "options.shortcuts.label.toggleSidepanel": "打开/关闭密码快速填充侧边栏",
   "options.shortcuts.label.quickFill": "一键填充当前页面账号密码",
-  "options.shortcuts.label.openInlineDropdown": "展开内联填充下拉列表"
+  "options.shortcuts.label.openInlineDropdown": "展开内联填充下拉列表",
+  "options.guide.back": "返回密码管理",
+  "options.guide.toc": "章节导航",
+  "options.guide.online": "查看完整在线说明",
+  "options.guide.sectionProduct": "产品说明",
+  "options.guide.intro": "本页内置了完整的操作指引与常见问题，无需联网即可查阅；在线说明与本页同源，随版本更新。",
+  "options.guide.productLead": "Account Password Helper 是一个本地优先的密码管理器浏览器扩展：账号、密码、两步验证码与身份信息只保存在这台电脑的浏览器里，加密、检索、填充、体检与备份全部在本机完成。",
+  "options.guide.pointLocal": "<b>数据不出本机</b> 敏感字段始终以 AES-256-GCM 密文形式落盘，加解密使用浏览器原生 Web Crypto；扩展不保存也不上传任何账号、密码或验证码，离线状态下所有功能照常可用。",
+  "options.guide.pointFill": "<b>四种填充入口</b> 侧边栏、页面内联下拉、一键填充快捷键与右键菜单任选；搜索认账号 / 标签 / 备注 / 网址多字段，支持拼音全拼与首字母缩写；跨子域匹配提供三档口径，识别认错登录框时还可为站点钉死 CSS 选择器。",
+  "options.guide.pointAudit": "<b>安全体检</b> 一键扫描弱密码、密码复用、常见泄露密码（离线字典）与长时间未更新，生成 0~100 综合评分，问题条目逐条「去处理」，陈旧条目可设到期提醒。",
+  "options.guide.pointBackup": "<b>备份与迁移</b> CSV / JSON 导入导出并自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式；加密备份 .aph 与身份信息备份 .aphid 可离线保存，删除的条目进回收站保留 30 天。",
+  "options.guide.pointWarn": "<b>主密码无法找回</b> 主密码只用于在本机派生解密密钥，扩展不保存它，也无法替你重置。忘记主密码只能清空数据后重新设置，请务必定期导出加密备份。"
 }

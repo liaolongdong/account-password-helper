@@ -35,8 +35,14 @@ export const SP_PERF_MARKS = {
   LIST_RENDERED: 'sp-list-rendered',
 } as const;
 
-/** 侧边栏打开触发源（区分不同打开路径的耗时分布） */
-export type SidepanelOpenTrigger = 'float' | 'shortcut' | 'popup' | 'content' | 'context';
+/**
+ * 侧边栏打开触发源（区分不同打开路径的耗时分布）
+ *
+ * `tour` 单列一档而不是并入 `content`：新手引导卡内那次「立即打开侧边栏」发生在管理页
+ * 所在的标签页上（`getTabIdSync` 取的是 `sender.tab.id`），渲染进程创建条件与页面悬浮
+ * 按钮那条路径根本不是一条曲线，混档会让两类的平均值互相污染。
+ */
+export type SidepanelOpenTrigger = 'float' | 'shortcut' | 'popup' | 'content' | 'context' | 'tour';
 
 /** 环形缓冲最大记录数 */
 const PERF_LOG_MAX_ENTRIES = 20;
