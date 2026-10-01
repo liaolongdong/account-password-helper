@@ -285,9 +285,22 @@ AGENTS.md 对侧边栏只有「<1 s、无白屏」一句，没有三段数值阈
 
 - `pnpm typecheck`（`tsc --noEmit`）→ 0；`pnpm lint`（`eslint . --max-warnings 0`）→ 0。
 - `pnpm exec stylelint "**/*.{vue,css,scss}" --no-cache` → 无输出（刻意不用 `--cache`：缓存会掩盖 recess-order 违规，这是 09-26 那一轮踩过的）。
-- `pnpm test:run` → **178 文件 / 2126 例全绿**，Duration 353.21s（基线 2045/173，本轮 +81 例 / +5 文件，全部来自新增守卫：`richText` ×2、`identityCardActions`、`identityCrud.manualOrder`、`installOpensOptionsPage`，以及 §5.2 扩写的 `sidepanelClosure`）。对外长文档仍写 2041/172，属决策 10 的「发布前统一刷」，本轮刻意不动。
-- `pnpm build` → 0，58.5 s，Σ 2.07 MB / zip 732.78 kB；`pnpm build:firefox` → 0，29.0 s。
-- `pnpm exec prettier --check` 对本次改动的 md / json / ts 全部通过。其中 `docs/README.md` 的 `reports/` 行改为通配枚举（`PERF_*`、`*_EVALUATION.md`、`*_DESIGN.md`），这样新报告不再需要改文档地图；该行显示宽度小于同列最大值，因此 prettier 只按列宽重新对齐两张表的中缝，未改动其它单元格文本。
+- `pnpm test:run` → **178 文件 / 2126 例全绿**（基线 2045/173，本轮 +81 例 / +5 文件，全部来自新增守卫：`richText` ×2、`identityCardActions`、`identityCrud.manualOrder`、`installOpensOptionsPage`，以及 §5.2 扩写的 `sidepanelClosure`）。四个提交落地后在终态树复跑一次同样 178/2126 全绿、Duration 44.64 s；本节先前记的 353.21 s 是并发负载下的同批数据——绝对时长随机器负载浮动，只有用例数是判据。对外长文档仍写 2041/172，属决策 10 的「发布前统一刷」，本轮刻意不动。
+- `pnpm build` → 0，Σ 2.07 MB / zip 732.78 kB；`pnpm build:firefox` → 0。首次记录的两条耗时（58.5 s / 29.0 s）同样是并发负载下的读数，终态树静置复跑为 4.7 s / 5.0 s，产物 Σ 与 zip 字节数两次一致。
+- `pnpm exec prettier --check` 对本次改动的 md / json / ts 全部通过，收口时另跑了一次全仓 `pnpm format:check` → 0。其中 `docs/README.md` 的 `reports/` 行改为通配枚举（`PERF_*`、`*_EVALUATION.md`、`*_DESIGN.md`），这样新报告不再需要改文档地图；该行显示宽度小于同列最大值，因此 prettier 只按列宽重新对齐两张表的中缝，未改动其它单元格文本。
+
+### 10.1 提交拆分（`feature-dev`，基线 `447a909`，全部未推送）
+
+| 提交      | 范围                                                                                                      | 规模               |
+| --------- | --------------------------------------------------------------------------------------------------------- | ------------------ |
+| `2c34ad8` | §2 身份库：五档排序与 `manual` 落盘、拖拽与键盘双路、动作行恒五槽                                         | 14 files +1200 −31 |
+| `0db7205` | §4.3 富文本白名单：`richText.ts` / `RichText.vue` / 分组图标与键帽抽件、HelpDialog 换渲染器、豁免清单归零 | 12 files +659 −244 |
+| `d967413` | §3 + §4.1 + §4.2：`#guide` 文档中页、引导第九步与侧边栏实开、安装即开管理页、`--tour-accent` 跟随换肤     | 17 files +1581 −90 |
+| `c617b7a` | §5.2 eager 预算守卫 + 本文件与 `docs/ARCHITECTURE.{md,en.md}` / `docs/README.md` 回灌                     | 5 files +568 −28   |
+
+拆分依据是**稳定职责**而非波次编号：`manual` 档只碰身份域，白名单解析器被侧边栏与管理页共用，
+文档中页与引导/安装同属「管理页的可见入口」这一条链，守卫与文档则只记录前三者已经造成的事实。
+每个提交单独 `git add` 明确的文件清单，husky 的 lint-staged 在四次提交里各跑一遍并全过。
 
 重建后复测首屏集合：sidepanel **34 文件 / 276,658 B**、popup **44 文件 / 292,679 B**，与 §5.1 的字节表逐字节一致；`tests/architecture/sidepanelClosure.test.ts` 17 例全绿，`EAGER_ALLOW_LIST` **无需刷新**——即本轮全部改造（含 `RichText.vue` 这个被两个入口共用的模块）没有给侧边栏或 popup 的 eager 预加载增加任何一个文件。
 
