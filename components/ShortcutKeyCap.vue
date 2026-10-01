@@ -22,9 +22,10 @@
  * 供 Options 快捷键弹窗与侧边栏帮助弹窗共用，视觉沿用 Popup 既有键帽语言
  * （等宽字体 + 1px 边框 + 底部 1px 投影），颜色改走 `--aph-*` 令牌以跟随 6 套主题。
  *
- * 本组件刻意不引入 i18n：`tests/utils/i18nBundles.test.ts` 的 `HELP_DIALOG_FILES`
- * 只扫描 `HelpDialog.vue`，组件内调用 `t()` 会绕过 key 覆盖率校验，
- * 并在侧边栏懒加载 chunk 中渲染出原始 key。所有文案由调用方翻译后经 props 传入。
+ * 本组件刻意不引入 i18n：所有文案由调用方翻译后经 props 传入，键帽自身只呈现按键字符。
+ * 它已登记在 `tests/utils/i18nBundles.test.ts` 的 `HELP_DIALOG_FILES` 里，后续若要在此
+ * 调用 `t()`，静态字面量 key 仍受 bundle 覆盖率校验；用变量拼出的 key 不在扫描口径内，
+ * 需要另加守卫。
  */
 defineProps<{
   /** 已格式化的按键文本，如 `Ctrl⇧F` */
