@@ -168,18 +168,26 @@ describe.skipIf(!hasOutput)('身份库独立性 — 首屏产物闭包不含 ide
  *
  * 命中红线的正确处置不是「把新名字加进清单」，而是先确认它为什么变成 eager：
  * 多数情况是 sidepanel 入口链上某个模块被从动态 `import()` 改成了静态 `import`。
+ *
+ * **2026-10-01 读数（`icon` 上限从 1 放到 2、`total` 同步收到 33/43 的依据）**：
+ * 指引页把最后两颗 `el-button` 换成原生 `<button>` 后，EP 组件在跨入口共享 chunk 里的归属变了，
+ * rolldown 重切了 vendor 块——`browser-*`（14,035 B）与 `event-*`（745 B）不再被 HTML 点名，
+ * 它们的内容并进了两只都以 icon 模块命名的块（42,269 + 19,663 = 61,932 B）。对拍：同一
+ * node_modules、同一 HEAD 构建为 sidepanel 34 文件 / 276,658 B、popup 44 文件 / 292,679 B，
+ * 工作树构建为 33 文件 / 276,818 B 与 43 文件 / 292,895 B——请求数各少 1，字节各 +0.06%/+0.07%
+ * （重切带来的压缩开销），首屏没有变厚。所以红的是**按基名计数的口径**，不是预算本身；
+ * `total` 跟着实际读数往下收，新增一个 eager 文件仍然会红，牙没磨钝。
  */
 const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases: Readonly<Record<string, number>> }> = {
   'sidepanel.html': {
-    total: 34,
+    total: 33,
     bases: {
       sidepanel: 1,
       'rolldown-runtime': 1,
       logger: 1,
       storageKeys: 1,
       i18n: 1,
-      icon: 1,
-      browser: 1,
+      icon: 2,
       lazyImport: 1,
       'preload-helper': 1,
       '_plugin-vue_export-helper': 1,
@@ -187,7 +195,6 @@ const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases:
       'use-global-config': 1,
       'use-form-item': 1,
       css: 3,
-      event: 1,
       dist: 1,
       typescript: 1,
       message: 1,
@@ -208,15 +215,14 @@ const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases:
     },
   },
   'popup.html': {
-    total: 44,
+    total: 43,
     bases: {
       popup: 1,
       'rolldown-runtime': 1,
       logger: 1,
       storageKeys: 1,
       i18n: 1,
-      icon: 1,
-      browser: 1,
+      icon: 2,
       lazyImport: 1,
       'preload-helper': 1,
       '_plugin-vue_export-helper': 1,
@@ -224,7 +230,6 @@ const EAGER_ALLOW_LIST: Record<(typeof ENTRIES)[number], { total: number; bases:
       'use-global-config': 1,
       'use-form-item': 1,
       css: 4,
-      event: 1,
       dist: 1,
       typescript: 1,
       message: 1,

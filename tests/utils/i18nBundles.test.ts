@@ -149,9 +149,11 @@ const ONBOARDING_GRAPH_FILES = ['components/options/OnboardingTour.vue', 'compos
  * 与新手引导同为 Options 页的 `defineAsyncComponent` 懒加载 chunk，可用命名空间
  * 即 options bundle（全命名空间）。正文直接复用 `help.*` 词条，所以本文件同时是
  * `HELP_ITEM_SOURCES` 的成员；章节导航的 label 走 `labelKey` 间接寻址，
- * 由 `extractI18nKeys` 的第二种形态认领（见该函数注释）。
+ * 由 `extractI18nKeys` 的第二种形态认领（见该函数注释）。目录清单抽到
+ * `utils/guideNav.ts` 后字面量落在那个文件，故两处都在依赖图内——
+ * 漏登记等于这七个章节 label 从此不再被校验。
  */
-const GUIDE_GRAPH_FILES = ['components/options/GuideView.vue'];
+const GUIDE_GRAPH_FILES = ['components/options/GuideView.vue', 'utils/guideNav.ts'];
 
 /** 读取指定语言的某命名空间语言包 */
 function readNamespace(locale: (typeof LOCALES)[number], ns: string): Record<string, string> {
