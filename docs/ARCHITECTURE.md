@@ -613,7 +613,7 @@ graph TB
 
 ### 31. 页内使用指引（文档中页）与安全富文本
 
-- **承载形态**：[GuideView.vue](../components/options/GuideView.vue) 是 Options 的一级视图，左章节导航 + 右正文 + 顶部返回，回答「侧边栏帮助弹窗只给了八组速览，完整说明在哪」这个问题。入口三处：HeaderBar 的「使用指引」图标按钮（与「新手引导」并排）、命令面板项 `guide`、`#guide` 深链。
+- **承载形态**：[GuideView.vue](../components/options/GuideView.vue) 是 Options 的一级视图，左章节导航 + 右正文 + 顶部返回，回答「侧边栏帮助弹窗只给了八组速览，完整说明在哪」这个问题。入口三处：HeaderBar 的「使用指引」图标按钮（与「新手引导」并排）、命令面板项 `guide`、`#guide` 深链。另有两条页内链接指向同一个 `#guide` 锚点，因此同样落在这三种入口之内——设主密码页底部的「使用指引」（未设主密码时免认证可达）与引导末步文档行的「页内使用指引」。
 - **免认证可见**：`#guide` 的视图分支优先级**高于** `isAuthenticated`，Setup / Verify 阶段就进得去——初次安装的用户第一件事是设主密码，此时正是最需要读「这玩意怎么工作」的时刻；把说明藏在认证之后等于在引导链路上留一个断点。实现是 [App.vue](../entrypoints/options/App.vue) 里 `guideActive` 为真时把主内容整块 `v-show="false"` 后渲染中页，因此表格的滚动位置在进出中页时保存并还原（`listScrollTop`），出来不会跳回顶部。
 - **命名空间不与既有深链抢地盘**：本仓既有「打开管理页并编辑 / 新增 / 查有效期」那批 `OPEN_OPTIONS_AND_*` 指令走的是 `openOptionsAndSendMessage` 的**消息预填**通道而非 URL 片段；`App.vue` 此前完全不读 `location.hash`，`#guide/<sectionId>` 是唯一使用方，`hashchange` 监听在 `onMounted`/`onUnmounted` 成对注册与移除，返回时清 hash 落回原视图。
 - **章节顺序 = 正文滚动顺序**：`product` / `gs` / `gb` / `gd` / `gc` / `shortcut` / `faq`。导航项的排列必须与页面从上到下一致，不能因为「FAQ 像收尾动作」就排到最后——那是菜单顺序而非内容顺序，读起来像索引错乱。label 走 `labelKey` 间接寻址（`help.group*` / `options.guide.sectionProduct`），由 `i18nBundles.test.ts` 的 `labelKey:` 采集器校验。

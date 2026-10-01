@@ -153,6 +153,8 @@
 
 链接：`utils/urls.ts` 新增 `PRODUCT_DOCS_URL`，字符串与 `HelpDialog.vue:38` 现硬编码 `https://liaolongdong.github.io/account-password-helper/` 完全一致，:38 改引常量（纯替换、行为不变）。`entrypoints/sidepanel/App.vue:739` 的 repo 硬编码属无关改动，本轮不动。四个新落点：GuideView 顶/底「查看完整在线说明」、引导末步一句带链接、HeaderBar「使用指引」按钮、`components/options/MasterPasswordSetupView.vue` 底部一行。
 
+**一处必须点名的可见变化**：HelpDialog 的 `<code>` 胶囊样式从本轮起**首次生效**。原先 `.help-section code` 写在 `scoped` 块里，编译成 `.help-section code[data-v-xxx]`（旧构建产物 `benchmarks/.artifacts/*/HelpDialog-*.css` 可核对），而 `v-html` 生成的节点不带 `data-v`，这条规则从未命中，`<code>` 一直按纯文本呈现。摘掉 `v-html` 后规则挪进非 scoped 块（`.el-dialog.help-dialog .help-section code`），`RichText` 生成的 `<code>` 同样不带 `data-v`，于是粉字灰底胶囊真的画出来了，与 GuideView 用同一套配色。DOM 结构与文本仍然逐节点一致——变化的只有样式。这是还原原作者意图、也是决策 12「连 HelpDialog 一起换」的直接后果；若判定不该出现，撤法是删掉这两处规则而不是回退渲染器。
+
 ### 4.4 文档同步（按决策 10 收窄）
 
 本轮必改的是守卫强制项：`help.gb` 加一条「使用指引页」并把 N 由 14 提到 15，中英词条 + **两处**字面量（`components/sidepanel/HelpDialog.vue:146` 与 GuideView 对应分组）同步，否则 §4.2 改造后的 `HELP_ITEM_SOURCES` 守卫红；`help.gd.9` 现写死「顺序可按最近修改 / 创建时间 / 类别 / 标题切换」，加第五档后必须改写。README / README.en / ARCHITECTURE(.en) / index.html / en.html / CWS_FILL_CONTENT / llms.txt 留到发布前统一刷。
@@ -305,3 +307,28 @@ AGENTS.md 对侧边栏只有「<1 s、无白屏」一句，没有三段数值阈
 重建后复测首屏集合：sidepanel **34 文件 / 276,658 B**、popup **44 文件 / 292,679 B**，与 §5.1 的字节表逐字节一致；`tests/architecture/sidepanelClosure.test.ts` 17 例全绿，`EAGER_ALLOW_LIST` **无需刷新**——即本轮全部改造（含 `RichText.vue` 这个被两个入口共用的模块）没有给侧边栏或 popup 的 eager 预加载增加任何一个文件。
 
 仍未验证（与 §5.3 同一份清单，不得当成已通过）：六场景的无头耗时（本机 Playwright chromium 缺位、MCP 浏览器带 `--disable-extensions`、stable Chrome 已废 `--load-extension`，`sidePanel.open()` 的浏览器 UI 侧冷启动延迟本就无头量不到）；Windows 慢磁盘与杀软扫描路径；折叠态与拖拽的真机视觉核验（仅有 DOM 断言）。
+
+### 10.2 两轴评审回灌（2026-10-01，基线 `447a909`）
+
+评审按规范轴与需求轴并行出报告，每条结论都回到代码 / 构建产物 / 词条复核过一遍才落地。
+
+**成立并已修（5 项）**
+
+1. `GuideView.vue` 的「修改快捷键」按钮是 `link type="primary"`，踩中 Options 全局实心主色背景陷阱：构建产物里 `[data-v-1712090a] .el-button--primary{background:var(--aph-primary)}` 与 EP 的 `.el-button.is-link{background:0 0}` 权重同为 (0,2,0)，而 `options.html` 把 `options-*.css` 排在 `css-ZSOkJyjJ.css` **之后**，全局那条胜出 → 主色文字压在同色背景上不可见。补 `:deep(.el-button--primary.is-link)` 抵消，与 `SiteRulesDialog` / `PasswordHealthDialog` / `IdentityFormDialog` 同一写法；用 `:deep()` 而不是给 `.guide-note__btn` 直接补声明，是因为前者编译后 (0,3,0)，不依赖本组件异步 CSS 与 `options.css` 的先后。
+2. `help.gb.15` 宣称「页内『查看完整在线说明』是唯一指向站外的超链接」与实现不符：`GuideView.vue:13-20` 标题旁的版本号也指向 GitHub Releases。中英改为「两处」并列点名。
+3. `onboarding.sidepanel.desc` 中文「侧边栏就在这排旁边展开」指代不明（该步刻意无锚点、卡片落在页面中央），且与英文 "docks beside this tab" 不同口径 → 改「就在当前标签页旁边展开」。
+4. `options.guide.intro` 中英各一条从未被任何 `t()` 引用（两份 `options.json` 的 377 行）→ 删除，不留死文案。
+5. `docs/ARCHITECTURE.{md,en.md}` 的「入口三处」漏计两条页内链接（设主密码页底部、引导末步文档行）→ 补写，并说明它们同属 `#guide` 深链这一类，不改变免认证可达的口径。
+
+**评审提出但证伪（2 项）**
+
+- 「GuideView 八个章节」：`SECTIONS` 与模板里的 `id="guide-sec-*"` 实测都是 7 个，`help.gb.15` 写的「七章」正确。
+- 「新增 `manual` 档后要重测排序触发器的 104px 预算」：五档中文最长仍是 4 字（`手动排序` 与既有的 `最近修改` / `创建时间` 同宽），英文 `Manual` 短于既有的 `Category`，按标签构造即可判预算不变，无需再开 headless。
+
+**判断后保留（3 项）**
+
+- `#d6336c` / `#f3f4f6` 在两处非 scoped 块里重复：取值是从 HelpDialog 原先那条（从不命中的）规则里搬来的，不是新造色；两处分属 sidepanel 与 options 两个入口，为一枚 `<code>` 胶囊新增 `--aph-*` 令牌会把只服务富文本的配色推进全局主题层。
+- `tests/components/identityCardActions.dom.test.ts` 用 `new Function` 求值模板 `:class` 原文：仓库禁令针对不可信内容，这里的字符串是本仓自己的 SFC 源文件；改成在测试里重写一份判定逻辑，恰恰是这份守卫要防的漂移。
+- GuideView 的快捷键一节与 HelpDialog 内容重叠：两处读同一份语言包，重叠在词条层而非代码层，删任一处等于删用户可见内容。
+
+**回灌后的门禁复跑**：`pnpm typecheck` / `pnpm lint` / `pnpm format:check` 全仓均为 0，`pnpm exec stylelint components/options/GuideView.vue --no-cache` 0（`--cache` 会掩盖 recess-order，见项目记忆），`pnpm test:run` 178 文件 / 2126 例全绿（与 §10 同一批数，本轮五条改动全是文案 / 样式 / 文档，没有用例增删），`pnpm build` 与 `pnpm build:firefox` 均 0，chrome zip 732.78 kB → **732.71 kB**（删掉两条死词条、加进一小段 CSS，净额为负）。`tests/architecture/sidepanelClosure.test.ts` 对着重建后的产物复跑 **17 例全绿、0 skip**，`EAGER_ALLOW_LIST` 仍无需刷新。第 1 项的修法在产物层可核对：`.output/chrome-mv3/assets/GuideView-*.css` 里是 `[data-v-…] .el-button--primary.is-link{background-color:#0000;border-color:#0000}`，(0,3,0) 压得住全局那条 (0,2,0)。

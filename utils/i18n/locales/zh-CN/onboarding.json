@@ -6,7 +6,7 @@
   "onboarding.add.desc": "填网站、账号和密码就能保存。下次再打开这个网站，插件按域名匹配到它：点登录框旁的钥匙图标填入，或在偏好设置里开启「自动触发登录」。",
   "onboarding.add.tip": "不想自己造密码？弹窗里的「生成」按钮按长度和字符类型随机产出。",
   "onboarding.sidepanel.title": "存好之后，从侧边栏取用",
-  "onboarding.sidepanel.desc": "点下面的按钮，侧边栏就在这排旁边展开：刚存的条目能逐条浏览、可搜索，常用的标星收藏。管理页没有自己的网站地址，所以这里列出的是整座保险库；换到任意网站的登录页，它只显示那个站点的账号。",
+  "onboarding.sidepanel.desc": "点下面的按钮，侧边栏就在当前标签页旁边展开：刚存的条目能逐条浏览、可搜索，常用的标星收藏。管理页没有自己的网站地址，所以这里列出的是整座保险库；换到任意网站的登录页，它只显示那个站点的账号。",
   "onboarding.sidepanel.action": "立即打开侧边栏",
   "onboarding.sidepanel.shortcutHint": "没能打开？按 {shortcut} 也能随时叫出侧边栏。",
   "onboarding.empty.title": "三条路，任选一条",

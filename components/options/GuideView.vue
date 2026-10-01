@@ -590,6 +590,16 @@ onUnmounted(() => {
   color: var(--aph-text-secondary);
 }
 
+/* link 型「修改快捷键」按钮：抵消 options 全局 .el-button--primary 的实心背景/边框，
+   否则主色文字压在同色背景上不可见（对标 SiteRulesDialog / PasswordHealthDialog）。
+   用 `:deep()` 而非直接给 `.guide-note__btn` 补声明：编译后是 (0,3,0)，压得住全局那条
+   (0,2,0)，不依赖本组件异步 CSS 与 options.css 的先后顺序 */
+:deep(.el-button--primary.is-link),
+:deep(.el-button--primary.is-link:hover) {
+  background-color: transparent;
+  border-color: transparent;
+}
+
 /* el-button link 默认带高度与内边距，此处归零以随行文本基线排版 */
 .guide-note__btn {
   height: auto;
