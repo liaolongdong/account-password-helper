@@ -727,8 +727,8 @@
          （#4e88ff 上的 white 是站内既有比例）。
          但「主色作文字用」不能跟着一起保持原值：--primary 在暗底上是 5.6:1（比亮档的
          3.34:1 好），--primary-dark 却相反——#3a6cd9 落在暗档 --primary-soft 上实测只有
-         2.95:1，比亮档的 4.28:1 更差。所以暗档只翻 --primary-ink / --success-ink 这两枚
-         文字令牌，实底与描边仍走原值。 */
+         2.95:1，比亮档的 4.28:1 更差。所以暗档只翻 --primary-ink / --success-ink / --warn-ink
+         这三枚文字令牌，实底与描边仍走原值。 */
       @media (prefers-color-scheme: dark) {
         :root {
           --primary-soft: #1c2a45;
