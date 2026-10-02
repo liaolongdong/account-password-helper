@@ -108,6 +108,9 @@
         color-scheme: light dark;
         --primary: #4f6ef7;
         --primary-light: #e8ecff;
+        /* 主色「作文字用」的那一档。--primary 同时是实底按钮与白字的组合色，暗档不能抬亮它，
+           所以语言切换与页脚链接的文字另走 --primary-ink（本页主色是 #4f6ef7，墨色按同色相压深）。 */
+        --primary-ink: #3450c8;
         --text: #1a1a2e;
         --text-secondary: #555;
         --bg: #ffffff;
@@ -117,10 +120,12 @@
         --max-width: 800px;
       }
 
-      /* 暗色档与落地页同源：只翻令牌。--primary 保持原值（它是实底按钮与白字的组合色）。 */
+      /* 暗色档与落地页同源：只翻令牌。--primary 保持原值（它是实底按钮与白字的组合色），
+         只有 --primary-ink 这一枚文字令牌在暗档换亮。 */
       @media (prefers-color-scheme: dark) {
         :root {
           --primary-light: #1c2a45;
+          --primary-ink: #8aa4ff;
           --text: #e6edf7;
           --text-secondary: #a8b3c4;
           --bg: #0b1220;
@@ -172,7 +177,7 @@
 
       .lang-btn:hover {
         border-color: var(--primary);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .lang-btn.active {
@@ -234,6 +239,12 @@
         margin-bottom: 6px;
       }
 
+      /* 正文链接此前没有一条规则，吃的是 UA 默认 #0000EE：亮档压白底还算得清，暗档压 #0b1220 只有
+         1.99——这类缺陷静态令牌守卫看不见（没有声明就没有可扫的东西），是渲染层探针抓出来的。 */
+      .policy-section a {
+        color: var(--primary-ink);
+      }
+
       /* Highlight box */
       .highlight-box {
         background: var(--primary-light);
@@ -286,7 +297,7 @@
       }
 
       .footer a {
-        color: var(--primary);
+        color: var(--primary-ink);
         text-decoration: none;
       }
 

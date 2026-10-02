@@ -669,6 +669,10 @@
            5.29:1，同一枚墨色落到暗档那张卡（#141f33 上叠 7%，合成 #172a39）只剩 2.62:1。 */
         --primary-ink: #3566cb;
         --success-ink: #27754e;
+        /* 琥珀档同理：#ff9f43 是实底徽标与描边的组合色，白底上只有 2.04:1，被 .compare-partial
+           这类 13px 文字直接拿去用就不达标；暗档反过来要亮值，故换回 #ff9f43。
+           取值与 compare.html 的 --warn-ink 逐字同源。 */
+        --warn-ink: #a35d00;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
         --text: #0f172a;
@@ -730,6 +734,7 @@
           --primary-soft: #1c2a45;
           --primary-ink: #7ea6ff;
           --success-ink: #42b883;
+          --warn-ink: #ff9f43;
           --text: #e6edf7;
           --text-muted: #9aa8bd;
           --text-strong: #c7d2e1;
@@ -838,7 +843,7 @@
       }
       .nav-links a:hover,
       .nav-links a.active {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .nav-links a.active::after {
         content: '';
@@ -881,7 +886,7 @@
       }
       .lang-toggle:hover,
       .nav-github:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
         border-color: var(--primary);
         transform: translateY(-1px);
@@ -940,7 +945,7 @@
         gap: 8px;
         padding: 6px 14px;
         background: rgba(78, 136, 255, 0.1);
-        color: var(--primary);
+        color: var(--primary-ink);
         border-radius: 999px;
         font-size: 13px;
         font-weight: 500;
@@ -1015,7 +1020,7 @@
       }
       .btn-ghost:hover {
         border-color: var(--primary);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .hero-hint {
         margin: 14px 0 0;
@@ -1023,7 +1028,7 @@
         color: var(--text-muted);
       }
       .hero-hint a {
-        color: var(--primary);
+        color: var(--primary-ink);
         font-weight: 500;
         text-decoration: underline;
         text-underline-offset: 3px;
@@ -1083,7 +1088,7 @@
         height: 32px;
         border-radius: 8px;
         background: rgba(66, 184, 131, 0.14);
-        color: var(--accent);
+        color: var(--success-ink);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -1145,7 +1150,7 @@
         padding: 4px 10px;
         font-size: 12px;
         font-weight: 500;
-        color: var(--primary);
+        color: var(--primary-ink);
         background: rgba(78, 136, 255, 0.08);
         border-radius: 999px;
       }
@@ -1165,15 +1170,15 @@
         justify-content: center;
         margin-bottom: 18px;
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .feature-card:nth-child(2) .feature-icon {
         background: rgba(66, 184, 131, 0.12);
-        color: var(--accent);
+        color: var(--success-ink);
       }
       .feature-card:nth-child(3) .feature-icon {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
       .feature-card:nth-child(4) .feature-icon {
         background: rgba(155, 89, 255, 0.12);
@@ -1273,7 +1278,7 @@
       .slide-info .step-tag {
         display: inline-block;
         background: var(--surface);
-        color: var(--primary);
+        color: var(--primary-ink);
         padding: 4px 12px;
         border-radius: 999px;
         font-size: 12px;
@@ -1310,7 +1315,7 @@
         z-index: 2;
       }
       .carousel-arrow:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         transform: scale(1.06);
       }
       .carousel-arrow.prev {
@@ -1526,7 +1531,7 @@
         text-decoration: none;
       }
       .more-card h3 a:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .more-card p {
         margin: 0;
@@ -1545,7 +1550,7 @@
         font-weight: 500;
       }
       .more-links a {
-        color: var(--primary);
+        color: var(--primary-ink);
         text-decoration: none;
       }
       .more-links a:hover {
@@ -1705,7 +1710,7 @@
           background 0.2s;
       }
       .scroll-rail button:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
       }
       .scroll-rail button:focus-visible {
@@ -1845,7 +1850,7 @@
       }
       .compare-table thead th.highlight {
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
         position: relative;
       }
       .compare-table thead th.highlight::before {
@@ -1865,7 +1870,7 @@
       .compare-table tbody td.highlight {
         background: rgba(66, 133, 244, 0.04);
         font-weight: 600;
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .compare-table tbody tr:last-child td {
         border-bottom: none;
@@ -1883,16 +1888,16 @@
         }
       }
       .compare-check {
-        color: #42b983;
+        color: var(--success-ink);
         font-weight: 700;
         font-size: 16px;
       }
       .compare-cross {
-        color: #ccc;
+        color: var(--text-muted);
         font-size: 16px;
       }
       .compare-partial {
-        color: #ff9f43;
+        color: var(--warn-ink);
         font-weight: 600;
         font-size: 13px;
       }
@@ -1905,11 +1910,11 @@
       }
       .compare-price.free {
         background: rgba(66, 185, 131, 0.12);
-        color: #42b983;
+        color: var(--success-ink);
       }
       .compare-price.paid {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
       @media (max-width: 768px) {
         .compare-table {
@@ -1954,7 +1959,7 @@
         border-bottom: 1px solid var(--border);
       }
       .pa-table thead th.after {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .pa-table tbody th {
         width: 15%;
@@ -2157,11 +2162,11 @@
       }
       .faq-category-icon.security {
         background: rgba(66, 184, 131, 0.12);
-        color: var(--accent);
+        color: var(--success-ink);
       }
       .faq-category-icon.basic {
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .faq-category-icon.data {
         background: rgba(155, 89, 255, 0.12);
@@ -2169,7 +2174,7 @@
       }
       .faq-category-icon.config {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
       .faq-category-title {
         font-size: 15px;
@@ -2282,7 +2287,7 @@
         border-bottom: 1px solid rgba(78, 136, 255, 0.35);
       }
       .faq-rail-card--key a:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         border-bottom-color: var(--primary);
       }
       /* 加群备注是「要抄进微信的那几个字符」，用等宽描出来，与前后中文正文一眼分开 */
@@ -2799,7 +2804,7 @@
         position: relative;
         flex: none;
         width: 42px;
-        color: var(--accent);
+        color: var(--success-ink);
         font-size: 26px;
         font-weight: 800;
         text-align: center;
@@ -3428,7 +3433,7 @@
       }
       .metric b {
         display: block;
-        color: var(--primary);
+        color: var(--primary-ink);
         font-size: 28px;
         font-weight: 800;
         letter-spacing: -0.03em;
@@ -3578,7 +3583,7 @@
       .priv-facts svg {
         flex: none;
         margin-top: 3px;
-        color: var(--accent);
+        color: var(--success-ink);
       }
       .priv-perms {
         display: grid;
@@ -3613,7 +3618,7 @@
         text-align: right;
       }
       .priv-more a {
-        color: var(--primary);
+        color: var(--primary-ink);
         font-weight: 600;
       }
       .priv-more a:hover {
@@ -5398,7 +5403,7 @@
                 href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
                 target="_blank"
                 rel="noopener noreferrer"
-                style="color: var(--primary); font-weight: 500; text-decoration: underline"
+                style="color: var(--primary-ink); font-weight: 500; text-decoration: underline"
                 >Chrome 应用商店</a
               >
               一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从
@@ -5406,7 +5411,7 @@
                 href="https://github.com/liaolongdong/account-password-helper/releases/latest"
                 target="_blank"
                 rel="noopener noreferrer"
-                style="color: var(--primary); font-weight: 500; text-decoration: underline"
+                style="color: var(--primary-ink); font-weight: 500; text-decoration: underline"
                 >GitHub Releases</a
               >
               下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。
@@ -7137,8 +7142,8 @@ pnpm lint:style  # Stylelint</code></pre>
         'steps.sub': { zh: '无需注册，无需登录，下载即用', en: 'No sign-up, no login — download and go' },
         'steps.s1.title': { zh: '安装扩展', en: 'Install the Extension' },
         'steps.s1.desc': {
-          zh: '从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">Chrome 应用商店</a> 一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">GitHub Releases</a> 下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。',
-          en: 'Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can\'t access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.',
+          zh: '从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">Chrome 应用商店</a> 一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">GitHub Releases</a> 下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。',
+          en: 'Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can\'t access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.',
         },
         'steps.s2.title': { zh: '设置主密码', en: 'Set a Master Password' },
         'steps.s2.desc': {

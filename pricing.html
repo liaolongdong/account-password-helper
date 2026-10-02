@@ -124,6 +124,12 @@
         --primary-ink: #3566cb;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
+        /* 强调绿「作图标/判定文字用」的那一档，与 index.html 同源：--accent 是实底徽标与描边的
+           组合色，暗档不能抬亮它，所以 ✓ 图标与「是」这类文字另走 --success-ink。 */
+        --success-ink: #27754e;
+        /* 琥珀档同理：#ff9f43 是实底徽标与描边的组合色，白底上只有 2.04:1，橙色图标底 + 橙字
+           那两格就不达标；暗档反过来要亮值。取值与 index.html / compare.html 逐字同源。 */
+        --warn-ink: #a35d00;
         --text: #0f172a;
         --text-muted: #64748b;
         --bg: #fff;
@@ -142,11 +148,13 @@
 
       /* 暗色档与落地页同源：只翻令牌，不动组件规则。
          --primary / --primary-dark / --accent 保持原值（主色实底上的白字比例由它们决定）；
-         只有 --primary-ink 这一枚文字令牌在暗档换亮，同 index.html。 */
+         只有 --primary-ink 与 --success-ink 这两枚文字令牌在暗档换亮，同 index.html。 */
       @media (prefers-color-scheme: dark) {
         :root {
           --primary-soft: #1c2a45;
           --primary-ink: #7ea6ff;
+          --success-ink: #42b883;
+          --warn-ink: #ff9f43;
           --text: #e6edf7;
           --text-muted: #9aa8bd;
           --bg: #0b1220;
@@ -249,7 +257,7 @@
       }
 
       .lang-toggle:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
         border-color: var(--primary);
       }
@@ -345,7 +353,7 @@
       .shield-icon {
         width: 40px;
         height: 40px;
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .eyebrow {
@@ -356,7 +364,7 @@
         margin-bottom: 20px;
         font-size: 13px;
         font-weight: 500;
-        color: var(--primary);
+        color: var(--primary-ink);
         background: rgba(78, 136, 255, 0.1);
         border-radius: 999px;
       }
@@ -456,17 +464,17 @@
 
       .stat-icon-blue {
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .stat-icon-green {
         background: rgba(66, 184, 131, 0.12);
-        color: var(--accent);
+        color: var(--success-ink);
       }
 
       .stat-icon-orange {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
 
       .stat-value {
@@ -565,17 +573,17 @@
 
       .gi-blue {
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .gi-green {
         background: rgba(66, 184, 131, 0.12);
-        color: var(--accent);
+        color: var(--success-ink);
       }
 
       .gi-orange {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
 
       .gi-purple {
@@ -634,7 +642,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
         border-radius: 50%;
       }
@@ -741,7 +749,7 @@
         border-right: 1px solid rgba(78, 136, 255, 0.22);
         border-left: 1px solid rgba(78, 136, 255, 0.22);
         font-weight: 600;
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .compare-table tbody tr:hover td.col-us {
@@ -749,7 +757,7 @@
       }
 
       .compare-table .yes {
-        color: var(--accent);
+        color: var(--success-ink);
         font-weight: 700;
       }
 
@@ -807,7 +815,7 @@
       }
 
       .info-value .highlight {
-        color: var(--primary);
+        color: var(--primary-ink);
         font-weight: 700;
       }
 
@@ -872,7 +880,7 @@
 
       .btn-ghost:hover {
         border-color: var(--primary);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .footer {
@@ -908,7 +916,7 @@
       }
 
       .footer-links a:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .footer-more {
@@ -921,7 +929,7 @@
       }
 
       .footer-more a:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       /* ═══════════════════════════════════════════
