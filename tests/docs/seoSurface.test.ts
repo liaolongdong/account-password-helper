@@ -12,6 +12,8 @@
  *    没有自述日期的页面（pricing / compare 两份）本文件不校验日期，只校验不能是未来日期。
  * 3. **隐私口径**：站页正文不出现被禁的绝对化表达（「绝不出浏览器」/ `Passwords Never Leave the
  *    Browser` / `100% offline` 一类）——这类词在商店审核侧已被判过，网站与 README 保持同一口径。
+ *    扫描面除根目录页面外还包括 `blog/*.html`、`README*.md`、封面矢量源与 issue 模板：
+ *    烧进封面 PNG 的字同样是对外承诺，而只扫 HTML 的 rg 看不见它。
  *
  * 结构方面顺带守住两条：每个页面只有一个 `<h1>`；`llms.txt` 里指向本站的每个链接都取得到文件。
  */
@@ -26,6 +28,33 @@ const SITE = 'https://liaolongdong.github.io/account-password-helper';
 const ROOT_PAGES = readdirSync(ROOT)
   .filter(f => f.endsWith('.html'))
   .sort();
+
+/**
+ * 隐私口径的补充扫描面：同样对外可见、但不在根目录 HTML 里的那几处。
+ *
+ * `blog/*.html` 是 `pnpm gen:blog` 的产物；README 两版是仓库门面；
+ * `imgs/blog-covers/blog-cover-*.svg` 的文字层由 `pnpm covers:render` 栅格进封面 PNG，
+ * 而封面 PNG 就是博客的 `og:image`——烧进图片的字也是承诺，只扫 HTML 看不见。
+ * `docs/operations/promo/*.md` 是要贴到站外的成稿（公众号 / 微博），落地页之外的读者
+ * 先在那儿读到这句话，口径就得在那儿成立。
+ * `outline.md`、`docs/store/*` 与 `PULL_REQUEST_TEMPLATE.md` 刻意不在名单里：
+ * 它们出现禁用词是在**转述禁令**，扫它们恒红。
+ */
+const COPY_SURFACES = [
+  'README.md',
+  'README.en.md',
+  'llms.txt',
+  '.github/ISSUE_TEMPLATE/feature_request.yml',
+  ...readdirSync(path.join(ROOT, 'blog'))
+    .filter(f => f.endsWith('.html'))
+    .map(f => `blog/${f}`),
+  ...readdirSync(path.join(ROOT, 'imgs/blog-covers'))
+    .filter(f => /^blog-cover-.+\.svg$/.test(f))
+    .map(f => `imgs/blog-covers/${f}`),
+  ...readdirSync(path.join(ROOT, 'docs/operations/promo'))
+    .filter(f => f.endsWith('.md'))
+    .map(f => `docs/operations/promo/${f}`),
+];
 
 /** 页面文件名 → sitemap 里的 `<loc>`（index.html 是目录根） */
 const locOf = (file: string) => `${SITE}/${file === 'index.html' ? '' : file}`;
@@ -83,9 +112,40 @@ const BANNED_PHRASES = [
   'Never Leave the Browser',
   'never leave your browser',
   'never leave the browser',
+  // 第三人称单数形态：主语是 credential data 时写的是 leaves，漏掉它等于给扫描面留了个洞
+  'never leaves the browser',
   '100% offline',
   '零联网',
 ];
+
+/**
+ * 逐字找一段文本里出现的被禁绝对化隐私口径。
+ *
+ * 抽成函数是为了让自检能直接往里塞一枚违规词：这条断言一次扫十几个文件，
+ * 「全绿」既可能因为文案干净，也可能因为匹配根本没跑，只有注入才能分辨。
+ *
+ * @param text 待查文本
+ * @returns 命中的禁用词，干净时为空数组
+ */
+function bannedPhraseHitsIn(text: string): string[] {
+  return BANNED_PHRASES.filter(phrase => text.includes(phrase));
+}
+
+/**
+ * 在给定表面里找被禁的绝对化隐私口径。
+ *
+ * @param files 相对仓库根目录的路径
+ * @returns `文件 → 命中词` 的清单，全部干净时为空数组
+ */
+function findBannedPhraseOffenders(files: string[]): string[] {
+  const offenders: string[] = [];
+  for (const file of files) {
+    bannedPhraseHitsIn(readFileSync(path.join(ROOT, file), 'utf8')).forEach(phrase => {
+      offenders.push(`${file} → ${phrase}`);
+    });
+  }
+  return offenders;
+}
 
 describe('官网 SEO 表面一致性', () => {
   const entries = sitemapEntries();
@@ -186,14 +246,8 @@ describe('官网 SEO 表面一致性', () => {
     }
   });
 
-  it('站页正文不出现被禁的绝对化隐私口径', () => {
-    const offenders: string[] = [];
-    for (const file of [...ROOT_PAGES, 'llms.txt']) {
-      const text = readFileSync(path.join(ROOT, file), 'utf8');
-      for (const phrase of BANNED_PHRASES) {
-        if (text.includes(phrase)) offenders.push(`${file} → ${phrase}`);
-      }
-    }
+  it('站页正文、README 与封面矢量源都不出现被禁的绝对化隐私口径', () => {
+    const offenders = findBannedPhraseOffenders([...ROOT_PAGES, ...COPY_SURFACES]);
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
 
@@ -221,5 +275,24 @@ describe('官网 SEO 表面一致性', () => {
       if (!existsSync(path.join(ROOT, rel))) missing.push(url);
     }
     expect(missing, `llms.txt 里有 ${missing.length} 条链接指向不存在的本地文件`).toEqual([]);
+  });
+});
+
+describe('守卫自检：匹配层与扫描面都得有牙', () => {
+  it('往文案里塞一枚禁用词 → 匹配层认得出，合规口径不误伤', () => {
+    expect(bannedPhraseHitsIn('密码数据不出浏览器，多环境账号不串号')).toEqual(['数据不出浏览器']);
+    expect(bannedPhraseHitsIn('credential data never leaves the browser')).toEqual(['never leaves the browser']);
+    expect(bannedPhraseHitsIn('密码数据不出本机，多环境账号不串号')).toEqual([]);
+    expect(bannedPhraseHitsIn('credential data never leaves this machine')).toEqual([]);
+  });
+
+  it('扫描面确实读到了 README、博客页、封面矢量源与 issue 模板', () => {
+    expect(COPY_SURFACES).toContain('README.md');
+    expect(COPY_SURFACES).toContain('README.en.md');
+    expect(COPY_SURFACES).toContain('.github/ISSUE_TEMPLATE/feature_request.yml');
+    const blogPages = COPY_SURFACES.filter(f => f.startsWith('blog/'));
+    expect(blogPages.length, 'blog/*.html 没进扫描面，那条断言成了空转').toBeGreaterThan(0);
+    const coverSources = COPY_SURFACES.filter(f => f.startsWith('imgs/blog-covers/'));
+    expect(coverSources.length, '封面矢量源没进扫描面，烧进 PNG 的文案无人看守').toBeGreaterThan(0);
   });
 });

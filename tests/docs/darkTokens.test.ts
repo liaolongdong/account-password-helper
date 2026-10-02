@@ -233,9 +233,27 @@ const FG_TOKENS = ['--text', '--text-strong', '--text-muted', '--text-secondary'
 const BG_TOKENS = ['--bg', '--bg-soft', '--bg-alt', '--card', '--surface'];
 
 describe('官网暗色档：全站每个对外页面都覆盖', () => {
-  it('页面清单非空，且不含已 noindex 的 product-site 副本', () => {
-    expect(publishedPages.length).toBeGreaterThan(15);
-    expect(publishedPages.filter(p => p.startsWith('product-site'))).toEqual([]);
+  it('页面清单是根目录 8 页 + 博客 12 页，product-site 副本仍在名单外', () => {
+    // 名单本身必须是钉死的断言：publishedPages 由 readdirSync 现取，「长度 > 15」和
+    // 「不含 product-site」都由构造方式保证，永远红不了。真正有牙的是这两条等式
+    // （新增/删除页面必须来这里点名）加下面那条针对副本文件本身的断言。
+    expect(publishedPages.filter(p => !p.includes('/'))).toEqual([
+      'compare.en.html',
+      'compare.html',
+      'en.html',
+      'index.html',
+      'pricing.en.html',
+      'pricing.html',
+      'privacy.en.html',
+      'privacy.html',
+    ]);
+    expect(publishedPages.filter(p => p.startsWith('blog/'))).toHaveLength(12);
+    // 副本的样式是外链（product-site/assets/css/site.css），页面里没有 `<style>` 主体，
+    // 所以「名单外」只能这样验：HTML 与它自己那份 CSS 都不出现 prefers-color-scheme。
+    const copy = [read('product-site/index.html'), read('product-site/assets/css/site.css')].join('\n');
+    expect(copy, 'product-site 副本不该有暗色档——它是 noindex 的镜像，改它等于改两处').not.toMatch(
+      /prefers-color-scheme/,
+    );
   });
 
   it.each(publishedPages)('%s 有暗档 :root 与 color-scheme', page => {
@@ -257,6 +275,7 @@ describe('官网暗色档：全站每个对外页面都覆盖', () => {
     const light = rootTokens(css);
     const dark = rootTokens(css, true);
     const failures: string[] = [];
+    let checked = 0;
     for (const fg of FG_TOKENS) {
       for (const bg of BG_TOKENS) {
         for (const [scheme, tokens] of [
@@ -264,12 +283,19 @@ describe('官网暗色档：全站每个对外页面都覆盖', () => {
           ['暗', dark],
         ] as const) {
           const ratio = contrast(tokens.get(fg), tokens.get(bg));
-          if (ratio !== null && ratio < 4.5) {
+          if (ratio === null) continue;
+          checked += 1;
+          if (ratio < 4.5) {
             failures.push(`${fg} on ${bg}（${scheme}档）${ratio.toFixed(2)}:1`);
           }
         }
       }
     }
+    // 实算到的组合数必须有下限：contrast() 对渐变与 rgba 返回 null 并被跳过，
+    // 一页把底色换成渐变就能让整条断言静默空转——全绿不等于达标。
+    // 地板取 8：最少的那批页面（博客与 privacy / compare）恰好是 2 前景 × 2 背景 × 两档 = 8，
+    // 少一档令牌或把它改成非十六进制就会掉到 8 以下；落地页 18、定价页 12 都在其上。
+    expect(checked, `${page} 只实算到 ${checked} 组对比度，断言近乎空转`).toBeGreaterThanOrEqual(8);
     expect(failures, `${page} 对比度不达标：\n${failures.join('\n')}`).toEqual([]);
   });
 

@@ -18,8 +18,9 @@
  *
  * 常量与 `scripts/lib/share-image.mjs` 重复一份是刻意的——守卫不能依赖被守卫的模块。
  *
- * ⚠️ 暗色波次（`prefers-color-scheme` 自动跟随）会给每页补一枚带 `media=` 的
- *    `theme-color`，届时第 3 条的「恰好一枚」要改成「浅色一枚 + 深色一枚」。
+ * 暗色波次（`prefers-color-scheme` 自动跟随）落定时没有给每页补第二枚 `theme-color`：每页那枚
+ * 取的是品牌主色 `#4e88ff`，明暗两档都不与页面底色相冲，所以第 3 条的「恰好一枚」仍是契约。
+ * 若将来要让浏览器边框随暗色变深，加 `media=` 那一枚的同时要把这里改成「浅色一枚 + 深色一枚」。
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'fs';

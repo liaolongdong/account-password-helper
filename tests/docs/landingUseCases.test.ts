@@ -14,9 +14,10 @@
  * @module tests/docs/landingUseCases
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync } from 'fs';
 import { describe, expect, it } from 'vitest';
 import { hasReducedMotionRule, reducedMotionRules } from '../helpers/landingCss';
+import { i18nEntry } from '../helpers/landingI18n';
 
 const ROOT = process.cwd();
 
@@ -50,22 +51,6 @@ function tbodyOf(section: string): string {
   const open = section.indexOf('<tbody>');
   expect(open, '#use-cases 缺少 tbody').toBeGreaterThan(-1);
   return section.slice(open + '<tbody>'.length, section.indexOf('</tbody>', open));
-}
-
-/**
- * 从 I18N 字典里取某个 key 的 zh / en 两个值。
- *
- * @param html 页面源码
- * @param key data-i18n 用到的 key
- * @returns 中英两值；字典里没有该 key（或缺任意一档）时返回 null
- */
-function i18nEntry(html: string, key: string): { zh: string; en: string } | null {
-  const body = html.slice(html.indexOf('const I18N = {'));
-  const entry = new RegExp(`'${key.replace(/\./g, '\\.')}':\\s*\\{([\\s\\S]*?)\\}`).exec(body);
-  if (!entry) return null;
-  const zh = /zh:\s*'((?:[^'\\]|\\.)*)'/.exec(entry[1])?.[1];
-  const en = /en:\s*'((?:[^'\\]|\\.)*)'/.exec(entry[1])?.[1];
-  return zh === undefined || en === undefined ? null : { zh, en };
 }
 
 describe('#use-cases 分类筛选的结构契约', () => {

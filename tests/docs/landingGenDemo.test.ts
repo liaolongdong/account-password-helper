@@ -13,10 +13,11 @@
  * @module tests/docs/landingGenDemo
  */
 
-import { readFileSync } from 'node:fs';
-import path from 'node:path';
+import { readFileSync } from 'fs';
+import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { hasReducedMotionRule, reducedMotionRules } from '../helpers/landingCss';
+import { i18nEntry } from '../helpers/landingI18n';
 
 const ROOT = process.cwd();
 
@@ -30,6 +31,10 @@ const CHARSET_PAIRS: Array<[demo: string, source: string]> = [
 
 /** 等级色只查这三档：`none` 档对应空密码，演示里不存在输入为空的时刻 */
 const LEVELS = ['weak', 'medium', 'strong'] as const;
+
+/** 组装的五个语句阶段，数组顺序就是演示与生成器共同要求的出现次序 */
+const ASSEMBLY_STAGES = ['merged', 'each', 'fill', 'shuffle', 'join'] as const;
+type AssemblyStage = (typeof ASSEMBLY_STAGES)[number];
 
 /** 被 html.gen-live 打开的控件排：一条「默认不可见」加一条「打开」，两条都必须在场 */
 const GATED_BLOCKS: Array<[base: RegExp, open: RegExp, label: string]> = [
@@ -137,22 +142,6 @@ function corePredicates(coreSrc: string): string[] {
 }
 
 /**
- * 取内嵌 I18N 字典里某个 key 的中英两值。
- *
- * @param source 页面源码
- * @param key 字典 key
- * @returns zh / en；字典缺该 key 或缺任一档时 null
- */
-function i18nEntry(source: string, key: string): { zh: string; en: string } | null {
-  const body = source.slice(source.indexOf('const I18N = {'));
-  const entry = new RegExp(`'${key.replace(/\./g, '\\.')}':\\s*\\{([\\s\\S]*?)\\}`).exec(body);
-  if (!entry) return null;
-  const zh = /zh:\s*'((?:[^'\\]|\\.)*)'/.exec(entry[1])?.[1];
-  const en = /en:\s*'((?:[^'\\]|\\.)*)'/.exec(entry[1])?.[1];
-  return zh === undefined || en === undefined ? null : { zh, en };
-}
-
-/**
  * 取带 data-i18n 的节点里那段静态兜底文本。
  *
  * 只取到下一个 `<` 为止：这五个 key 的内容都是纯文本，没有嵌套标签，
@@ -189,6 +178,82 @@ function findCharsetViolations(source: string, generatorSrc: string): string[] {
   if (String(numberConst(demo, 'GEN_LENGTH')) !== defaultLength) {
     problems.push(`GEN_LENGTH 不是生成器默认档的 ${defaultLength} 位`);
   }
+  return problems;
+}
+
+/**
+ * 组装五阶段在各文件里的定位式。
+ *
+ * `each` 与 `fill` 都把外层循环一起写进定位式：两侧的「各出一枚」和「补齐」用的是同一种
+ * `push(池[随机(池.length)])` 形状，只写这一句会先命中各出一枚那一处，补齐池就对错了对象。
+ * `merged` 与 `fill` 各带一个捕获组，取的是「补齐位实际索引的那个池变量名」——
+ * 两个名字必须相同，否则补齐位就不是从合并池取的，某些启用的字符集可能一枚都不出。
+ * `randArg` 单独钉洗牌的取值上界：`rand(i + 1)` 才是「前 i+1 位里等概率抽一位」，
+ * 写成 `rand(i)` 或 `rand(len)` 时长度与规则照旧说得过去，分布却已经偏了。
+ */
+const ASSEMBLY_SIDES: Array<{
+  label: string;
+  stages: Record<AssemblyStage, RegExp>;
+  randArg: RegExp;
+  pick: (source: string, generatorSrc: string) => string;
+}> = [
+  {
+    label: '演示',
+    stages: {
+      merged: /const (\w+) = pools\.join\(''\);/,
+      each: /const chars = pools\.map\(pool => pool\[genInt\(pool\.length\)\]\);/,
+      fill: /while \(chars\.length < GEN_LENGTH\) chars\.push\((\w+)\[genInt\(\1\.length\)\]\);/,
+      shuffle: /for \(let i = chars\.length - 1; i > 0; i -= 1\) \{/,
+      join: /return chars\.join\(''\);/,
+    },
+    randArg: /const j = genInt\(i \+ 1\);/,
+    pick: source => demoBlock(source),
+  },
+  {
+    label: '生成器',
+    stages: {
+      merged: /const (\w+) = enabledCharsets\.join\(''\);/,
+      each: /for \(const charset of enabledCharsets\) \{\n\s+result\.push\(charset\[secureRandomInt\(charset\.length\)\]\);/,
+      fill: /for \(let i = 0; i < remaining; i\+\+\) \{\n\s+result\.push\((\w+)\[secureRandomInt\(\1\.length\)\]\);/,
+      shuffle: /for \(let i = result\.length - 1; i > 0; i--\) \{/,
+      join: /return result\.join\(''\);/,
+    },
+    randArg: /const j = secureRandomInt\(i \+ 1\);/,
+    pick: (_source, generatorSrc) => generatorSrc,
+  },
+];
+
+/**
+ * 组装顺序是否与 utils/passwordGenerator.ts 同形。
+ *
+ * 光对字符集和谓词还不够：顺序本身承载一条分布承诺——「每个启用的字符集先各出一枚，
+ * 剩余位从合并池补齐，最后整体洗牌」，所以每类至少一枚且落点随机。把洗牌挪到补齐之前、
+ * 或让补齐位只从某一类字符集取，产出的口令仍在长度与规则上说得过去，分布却已换了算法。
+ * 这里按语句在各自文件里出现的先后取五个下标，要求两侧同为「合并池 → 每类一枚 → 补齐 →
+ * 洗牌 → 拼接」这一单调序，并确认补齐索引的就是合并池那个变量。
+ *
+ * @param source 页面源码
+ * @param generatorSrc 生成器模块源码
+ * @returns 违规描述，一致时为空数组
+ */
+function findAssemblyViolations(source: string, generatorSrc: string): string[] {
+  const problems: string[] = [];
+  ASSEMBLY_SIDES.forEach(side => {
+    const code = side.pick(source, generatorSrc);
+    const at = ASSEMBLY_STAGES.map(stage => code.search(side.stages[stage]));
+    ASSEMBLY_STAGES.forEach((stage, i) => {
+      if (at[i] < 0) problems.push(`${side.label}里认不出「${stage}」这一组装阶段，对账对象丢失`);
+    });
+    if (at.every(index => index >= 0) && at.some((index, i) => i > 0 && index <= at[i - 1])) {
+      problems.push(`${side.label}的组装顺序不再是「合并池 → 每类一枚 → 补齐 → 洗牌 → 拼接」`);
+    }
+    const pool = side.stages.merged.exec(code)?.[1];
+    const filled = side.stages.fill.exec(code)?.[1];
+    if (pool !== undefined && filled !== undefined && pool !== filled) {
+      problems.push(`${side.label}的补齐位取的是 ${filled}，不是合并后的 ${pool}`);
+    }
+    if (!side.randArg.test(code)) problems.push(`${side.label}的洗牌步不再以 rand(i + 1) 取值`);
+  });
   return problems;
 }
 
@@ -374,6 +439,10 @@ describe('f8 生成器演示必须与扩展那台同规则', () => {
     expect(findCharsetViolations(source, generatorSrc)).toEqual([]);
   });
 
+  it('组装顺序与补齐池同为「合并池 → 每类一枚 → 补齐 → 洗牌 → 拼接」', () => {
+    expect(findAssemblyViolations(source, generatorSrc)).toEqual([]);
+  });
+
   it('四条强度谓词、两个等级门槛与三档等级色逐字等于核心模块', () => {
     expect(findStrengthViolations(source, coreSrc)).toEqual([]);
   });
@@ -445,6 +514,37 @@ describe('守卫自检：真源漂开时必须判红', () => {
     expect(findCharsetViolations(source, generatorSrc.replace('length: 16,', 'length: 14,')).join('\n')).toContain(
       'GEN_LENGTH',
     );
+  });
+
+  it('补齐位改从单一字符集取 → 组装顺序对账红', () => {
+    const broken = source.replace(
+      'while (chars.length < GEN_LENGTH) chars.push(merged[genInt(merged.length)]);',
+      'while (chars.length < GEN_LENGTH) chars.push(GEN_UPPER[genInt(GEN_UPPER.length)]);',
+    );
+    expect(broken).not.toBe(source);
+    expect(findAssemblyViolations(broken, generatorSrc).join('\n')).toContain('补齐位取的是 GEN_UPPER');
+  });
+
+  it('把洗牌挪到补齐之前 → 组装顺序对账红', () => {
+    // 两段整体互换：单改循环边界只会改形状，不会让「洗牌晚于补齐」这条次序断言失效
+    const fillLine = 'while (chars.length < GEN_LENGTH) chars.push(merged[genInt(merged.length)]);';
+    const shuffleBlock = `for (let i = chars.length - 1; i > 0; i -= 1) {
+            const j = genInt(i + 1);
+            const keep = chars[i];
+            chars[i] = chars[j];
+            chars[j] = keep;
+          }`;
+    const broken = source.replace(fillLine, '@FILL@').replace(shuffleBlock, fillLine).replace('@FILL@', shuffleBlock);
+    expect(broken).not.toBe(source);
+    expect(findAssemblyViolations(broken, generatorSrc).join('\n')).toContain('演示的组装顺序不再是');
+  });
+
+  it('洗牌的取值上界少一 → 组装顺序对账红', () => {
+    // rand(i + 1) → rand(i)：长度、字符集、四条规则全都照旧，只有「最后一位永远留在原位」
+    // 这一条分布偏差，是这类对账里最容易静默溜过去的一种
+    const broken = source.replace('const j = genInt(i + 1);', 'const j = genInt(i);');
+    expect(broken).not.toBe(source);
+    expect(findAssemblyViolations(broken, generatorSrc).join('\n')).toContain('演示的洗牌步不再以');
   });
 
   it('强度谓词换掉一条 → 对账红', () => {

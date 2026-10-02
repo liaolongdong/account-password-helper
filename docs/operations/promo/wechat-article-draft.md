@@ -57,7 +57,7 @@ dev / test / staging / prod 的账号按域名精确匹配，同一站点不同�
 
 ### 和 Bitwarden / 1Password / Chrome 自带怎么选？
 
-一句话：**需要跨设备云同步、移动端 App、团队协作 → 选 Bitwarden / 1Password；只想要免注册、密码数据绝不出浏览器、还能一键登录 → 选这个。** 它完全免费开源（GPL-3.0），内置 TOTP 与安全体检都免费；取舍是**没有云同步、没有移动端 App**。
+一句话：**需要跨设备云同步、移动端 App、团队协作 → 选 Bitwarden / 1Password；只想要免注册、密码数据不出本机、还能一键登录 → 选这个。** 它完全免费开源（GPL-3.0），内置 TOTP 与安全体检都免费；取舍是**没有云同步、没有移动端 App**。
 
 完整八维度对比我放在官网页：https://liaolongdong.github.io/account-password-helper/compare.html
 

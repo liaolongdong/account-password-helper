@@ -60,12 +60,15 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 - 左栏底部固定一条「证据行」：细分隔线 + 26px 源码路径 / 仓库地址，既补留白又把可核对信息放上封面。
 - 验收尺寸：`blog/index.html` 列表卡以 **200×120 + object-fit:cover** 展示（等效可见区 x 50–1550），
   已按该尺寸实测：五张主标题、品牌角标、关键字行均可读；胶囊与证据行属次级信息，缩略图下不要求可读。
+- 封面文字也是对外承诺，禁用词表与商店文案同源（`docs/store/CWS_PUBLISHING_GUIDE.md`「隐私承诺」行）：
+  不写「零联网 / 100% offline / 数据不出浏览器」——扩展每 6 小时有一次不携带用户数据的匿名版本检查；
+  隐私口径统一写「密码数据不出本机」。改文案后重跑 `pnpm covers:render <文件名子串>`。
 
 ## Illustration 1 — blog-cover-01-local-first
 
 **Position**: `docs/blog/{zh,en}/01-local-first-password-manager.md` 封面 + og:image
 **Purpose**: 传达「零云端 / 本地加密 / 为开发者而生」的立项动机
-**Text**: H1 `零云端 · 本地加密`；关键字 `AES-256-GCM · PBKDF2 600,000×`；说明 `密码数据不出浏览器，多环境账号不串号`；胶囊 `精确域名匹配` `一键登录` `内置 TOTP` `GPL-3.0 开源`；证据行 `github.com/liaolongdong/account-password-helper`
+**Text**: H1 `零云端 · 本地加密`；关键字 `AES-256-GCM · PBKDF2 600,000×`；说明 `密码数据不出本机，多环境账号不串号`；胶囊 `精确域名匹配` `一键登录` `内置 TOTP` `GPL-3.0 开源`；证据行 `github.com/liaolongdong/account-password-helper`
 **Visual Content**: 划掉的云（零云端）→ 浏览器窗口内品牌钥匙保险块（复用 `assets/icons/icon.svg` 骨架）→ 虚线落到笔记本（数据只在本机）→ 盾牌对勾（安全体检）与 `</>`（为开发者而生）
 **Filename**: blog-cover-01-local-first.svg → ../blog-cover-01-local-first.png
 

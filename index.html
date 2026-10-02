@@ -2854,7 +2854,8 @@
       /* f8 生成器演示。判定不自创：四条强度规则、字符集字面量、"每类至少一枚 → 合并池补齐
          → Fisher-Yates 洗牌"全部对齐 utils/passwordGenerator.ts 与
          utils/passwordStrengthCore.ts，由 tests/docs/landingGenDemo.test.ts 逐字对账，
-         所以强度条不是装饰——关掉「数字」就掉到 3/4，与扩展里同一枚密码的评分一致。
+         所以强度条不是装饰——关掉「数字」就掉到 3/4。复刻的是同步四条规则；扩展另有泄露字典判定
+         （composables/usePasswordStrength.ts），命中即降 weak，那一档不进落地页。
          控件的可见性挂在 html.gen-live 上（比 .uc-filters 的 html.js 多一道条件）：
          这个演示的随机源是 crypto.getRandomValues，探测不通过就整排不出场，
          只留源码里的静态样例——既不制造异常，也不留一套点不动的死按钮。
@@ -5471,7 +5472,7 @@
           </p>
         </div>
         <!-- 分类筛选：控件只在 JS 可用时存在（基线 display:none、html.js 才放开）。
-             11 行三类混排，读者通常只关心其中一类；行上的 data-cat 随行走，
+             11 行分四类混排，读者通常只关心其中一类；行上的 data-cat 随行走，
              将来插一行或调顺序都不会让分类漂移——这是把类目写在 markup 而不是写在脚本表里的理由。 -->
         <div
           class="uc-filters"
@@ -8398,11 +8399,11 @@ pnpm lint:style  # Stylelint</code></pre>
       }
 
       // =================== 使用场景分类筛选 ===================
-      /* 11 行三类混排，读者通常只关心其中一类。摘掉整行用 `hidden` 属性而不是 display 类：
+      /* 11 行分四类混排，读者通常只关心其中一类。摘掉整行用 `hidden` 属性而不是 display 类：
          UA 样式负责把它从布局里移除，不必再和 .pa-table 的 border / 列宽规则较劲。
-         错峰序号 --ri 按「当前可见的第几行」重给：切完仍是逐行铺开，不会出现「只剩第 7 行
-         还在慢慢淡入」。入场那一遍由这里的 ucReindex('all') 先铺好序号，
-         所以筛选发生在滚动到位之前也是正确的。 */
+         错峰序号 --ri 按「当前可见的第几行」重给，筛选后的序号是密排的 0..n-1，不会留下断号。
+         这一遍重给服务于入场：整节淡入之前切类别，铺开的节奏仍按可见行算；已经淡完之后再切是
+         瞬时换行而不是重新铺开——行的 opacity 已到 1，transition 不会再放一遍。 */
       const ucChips = [...document.querySelectorAll('#ucFilters .uc-chip')];
       const ucRows = [...document.querySelectorAll('#use-cases .pa-table tbody tr')];
       const ucReindex = cat => {
@@ -8432,7 +8433,7 @@ pnpm lint:style  # Stylelint</code></pre>
          「每类先各出一枚 → 剩余位从合并池补齐 → Fisher-Yates 打乱」的组装顺序，
          以及四条强度谓词与等级映射，逐字对齐 utils/passwordGenerator.ts 与
          utils/passwordStrengthCore.ts，由 tests/docs/landingGenDemo.test.ts 对账。
-         所以强度条不是装饰：关掉「数字」立刻掉到 3/4，同一枚密码在扩展里也是这个分。
+         所以强度条不是装饰：关掉「数字」立刻掉到 3/4。读的是同步四条规则，不含扩展那侧的泄露字典判定。
          助记词模式只用下面 96 词节选词库（3080 全量在扩展里，note 文案已注明），
          组装顺序对齐 utils/passphraseGenerator.ts：4 词首字母大写、'-' 连接、末尾 2 位数字。
          随机源探测不通过就整排控件不出场——宁可没有 demo，也不留一套点不动的死按钮，
