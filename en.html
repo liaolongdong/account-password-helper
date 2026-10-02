@@ -663,6 +663,13 @@
         color-scheme: light dark;
         --primary: #4e88ff;
         --primary-dark: #3a6cd9;
+        /* 主色「作文字用」的那一档。--primary-dark 同时是 .btn-primary:hover 的实底色，
+           暗档不能抬亮它（白字比例会掉），所以文字另起一枚令牌：暗档换成亮蓝，
+           亮档比 --primary-dark 再深半档（#3a6cd9 压在 --primary-soft 上只有 4.28:1）。
+           --success-ink 同理：#27754e 在亮档绿底卡（#fff 上叠 7% --accent，合成 #f2faf6）是
+           5.29:1，同一枚墨色落到暗档那张卡（#141f33 上叠 7%，合成 #172a39）只剩 2.62:1。 */
+        --primary-ink: #3566cb;
+        --success-ink: #27754e;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
         --text: #0f172a;
@@ -714,11 +721,16 @@
          只改令牌，不改任何一条组件规则：所有底色/文字色在上一节已经令牌化，
          这里翻令牌即可让整页换档；--primary / --primary-dark / --accent 刻意保持原值，
          因为主色实底按钮上的白字比例由它们决定，抬亮主色会让白字对比度反而掉下来
-         （#4e88ff 上的 white 是站内既有比例），而主色作文字用的那几档在暗底上本就比
-         亮档更好（--primary-soft 同步压深，比值从亮档的 2.95:1 抬到 4.2:1）。 */
+         （#4e88ff 上的 white 是站内既有比例）。
+         但「主色作文字用」不能跟着一起保持原值：--primary 在暗底上是 5.6:1（比亮档的
+         3.34:1 好），--primary-dark 却相反——#3a6cd9 落在暗档 --primary-soft 上实测只有
+         2.95:1，比亮档的 4.28:1 更差。所以暗档只翻 --primary-ink / --success-ink 这两枚
+         文字令牌，实底与描边仍走原值。 */
       @media (prefers-color-scheme: dark) {
         :root {
           --primary-soft: #1c2a45;
+          --primary-ink: #7ea6ff;
+          --success-ink: #42b883;
           --text: #e6edf7;
           --text-muted: #9aa8bd;
           --text-strong: #c7d2e1;
@@ -1018,7 +1030,7 @@
         text-underline-offset: 3px;
       }
       .hero-hint a:hover {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
       }
 
       .hero-visual {
@@ -1538,7 +1550,7 @@
         text-decoration: none;
       }
       .more-links a:hover {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         text-decoration: underline;
       }
       .more-author {
@@ -1576,7 +1588,9 @@
         display: flex;
         gap: 10px 24px;
         margin-top: 14px;
-        color: #64748b;
+        /* #64748b 在页脚深底上两档都不到 4.5:1（亮 3.75 / 暗 4.09），这行是版本号与联系方式，
+           字号 13px 读不到就不该留；页脚两档同底，所以直接写值而不是令牌。 */
+        color: #7c8ba3;
         font-size: 13px;
         flex-wrap: wrap;
       }
@@ -2235,7 +2249,7 @@
           background var(--dur-fast) ease;
       }
       .faq-toc a:hover {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         background: var(--primary-soft);
       }
       .faq-toc-n {
@@ -2251,7 +2265,7 @@
         border-color: rgba(66, 184, 131, 0.3);
       }
       .faq-rail-card--key .faq-rail-title {
-        color: #27754e;
+        color: var(--success-ink);
       }
       /* 正文由字典整段提供（两个 <p>，见 I18N 的 faqRail.help），容器只负责排版 */
       .faq-rail-help p {
@@ -2264,7 +2278,7 @@
         margin-top: 8px;
       }
       .faq-rail-card--key a {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         text-decoration: none;
         border-bottom: 1px solid rgba(78, 136, 255, 0.35);
       }
@@ -3583,7 +3597,7 @@
       }
       .perm code {
         padding: 2px 7px;
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         background: var(--primary-soft);
         border-radius: 6px;
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;

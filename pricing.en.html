@@ -120,6 +120,9 @@
         color-scheme: light dark;
         --primary: #4e88ff;
         --primary-dark: #3a6cd9;
+        /* 主色作文字用的那一档，与 index.html 同源：--primary-dark 同时是实底按钮色，
+           暗档不能抬亮它，所以 .feature-text code 的文字另走 --primary-ink。 */
+        --primary-ink: #3566cb;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
         --text: #0f172a;
@@ -139,10 +142,12 @@
       }
 
       /* 暗色档与落地页同源：只翻令牌，不动组件规则。
-         --primary / --primary-dark / --accent 保持原值（主色实底上的白字比例由它们决定）。 */
+         --primary / --primary-dark / --accent 保持原值（主色实底上的白字比例由它们决定）；
+         只有 --primary-ink 这一枚文字令牌在暗档换亮，同 index.html。 */
       @media (prefers-color-scheme: dark) {
         :root {
           --primary-soft: #1c2a45;
+          --primary-ink: #7ea6ff;
           --text: #e6edf7;
           --text-muted: #9aa8bd;
           --bg: #0b1220;
@@ -655,7 +660,7 @@
         font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
         font-size: 12px;
         background: var(--primary-soft);
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         padding: 2px 6px;
         border-radius: 5px;
       }
