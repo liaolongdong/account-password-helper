@@ -6,7 +6,7 @@
  * 现在中文页直接带静态 DOM（问答列表，以及由同一数组推导出的「分类直达」右栏），`en.html` 的
  * 英文 DOM 由 `build-en-page.mjs` 用同一模块生成。
  *
- * 改动 `FAQS`（其中进入 JSON-LD 的那部分由 `scripts/lib/faq-schema.mjs` 的白名单决定）后执行：
+ * 改动 `FAQS` 后执行（可见问答与 FAQPage JSON-LD 同源同量，顺序名单见 `scripts/lib/faq-schema.mjs`）：
  *   pnpm gen:faq && pnpm gen:faq-dom && pnpm gen:en
  * 并运行 `pnpm test:run -- tests/docs/landingFaqDom.test.ts` 确认生成区没滞后。
  *

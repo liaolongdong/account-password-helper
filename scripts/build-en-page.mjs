@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { applyI18n, assertI18nCoverage } from './lib/apply-i18n.mjs';
 import { syncFaqDom } from './lib/faq-dom.mjs';
-import { buildFaqPageJsonLd, parseFaqEntries, selectFaqEntries } from './lib/faq-schema.mjs';
+import { buildFaqPageJsonLd, orderFaqEntries, parseFaqEntries } from './lib/faq-schema.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'index.html');
@@ -91,7 +91,7 @@ const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored f
 
 let html = readFileSync(srcPath, 'utf8');
 // 结构化数据与可见 FAQ 共用同一份条目，避免两处文案漂移
-const faqEntries = selectFaqEntries(parseFaqEntries(html));
+const faqEntries = orderFaqEntries(parseFaqEntries(html));
 
 // ---------- 1. 提取 I18N 字典（纯对象字面量区域） ----------
 const dictStart = html.indexOf('const I18N = {');

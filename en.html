@@ -381,6 +381,190 @@
               "@type": "Answer",
               "text": "Heavily optimized. The service worker stays resident on all platforms via a two-tier keep-alive (20s heartbeat + 30s revival alarm) so the password cache is always in memory — the side panel loads from cache in about 20–50ms with no cold-start delay, instantly even after session expiry. The worker also pre-warms the cache 500ms after startup and warms side panel render resources on demand. Keep-alive wakes the extension roughly every 30 seconds in the background — a deliberate trade-off to eliminate cold-start white screens."
             }
+          },
+          {
+            "@type": "Question",
+            "name": "What is lock on browser restart?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Enable \"Lock on browser restart\" in \"Auto lock settings\". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period. The trade-off to know about: while you stay signed in, the key material that restores the session remains on this device's disk (that is what makes password-free restarts possible), so any program able to read this browser profile can decrypt your data until you lock or the session expires — keep the switch on for shared computers."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why doesn't the side panel open automatically sometimes?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Make sure Chrome is 114 or later and the page contains a login form. You can also click the extension icon (shortcut Ctrl+Shift+L / Cmd+Shift+L) or use \"Quick fill\" on the floating button."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Filling doesn't work on some sites?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Wait for the page to fully load and try again, or refresh the page. The extension ships three fill strategies (Native setter / execCommand / simulated typing) and switches automatically to fit different sites."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why aren't shortcuts bound by default?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see \"Not set\" — bind it once as above and it sticks. Unbound entries in the popup show a \"Set shortcut\" button linking to chrome://extensions/shortcuts; the \"Security Settings → Keyboard Shortcuts\" overview on the manager page and the shortcut group in the side panel Help dialog flag exactly which keys are currently inactive, so a dead keystroke is never a mystery."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "When does a validity change take effect?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Immediately — a new session is created with the new validity right away."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I switch themes?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Open the preferences panel via ① the \"Preferences\" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Pick one of 6 color themes; all pages and components update instantly, no refresh needed."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I troubleshoot a failed CSV import?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Click \"Download Template\" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is JSON import/export supported?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Choose \"Export JSON\" in the \"Data Management\" menu to export all data as JSON (master password required); the filename is passwords_YYYYMMDD_HHmmss.json. To import, select a JSON file in the import dialog — the structure matches internal storage."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does one-click dedup work?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Click \"Remove Duplicates\" under \"Data Management\". The extension detects duplicates (same username + same URL) and shows the result for confirmation before cleanup. Favorited entries are never deleted."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I recover deleted passwords?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Deleted passwords move to the trash for 30 days. Open \"Data Management\" → \"Trash\" to restore, permanently delete, or empty the trash. Entries older than 30 days are cleaned automatically; trash entries stay encrypted."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I restore an old password after a change?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Every password change snapshots the old password (configurable in \"Security Settings\" → \"Password History Settings\" — enable/disable and set max records, default 3). The edit dialog shows a \"Password history\" section — \"Copy\" copies the old password, \"Restore\" fills it back into the password field. History is stored encrypted and requires a valid session to view."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I back up to email?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Click \"Email Backup\" on the management page, configure the target address, and choose \"Plain backup\" (standard data file) or \"Encrypted backup\" (.aph file, viewable only via this extension's encrypted import with the original master password). Enable \"Auto backup reminder\" for scheduled desktop notifications — daily / every 3 days / weekly / biweekly / monthly."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is there a limit on how many entries I can store?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes — the password list holds up to 2,000 entries, counted on the list itself; entries in the Trash do not take a slot. Once it is full, adding, importing, page auto-save and restoring from Trash are refused with an explicit message, and stored data is never silently overwritten or dropped. If an import exceeds the remaining slots, the preview tells you how many entries still fit and how many will be ignored, and you choose to import those or cancel. To make room, delete entries you no longer need from the password list — an entry releases its slot the moment it moves to the Trash, so emptying the Trash is not required — or keep a full copy via \"Export Data\" / \"Export JSON\" / \"Export Encrypted Backup\" and then trim the list."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does the manager page get sluggish near the entry limit?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Not as a function of how many entries you have. The list paints one page at a time (100 rows by default, 50 / 100 / 200 on demand — the size you pick is remembered on this machine for your next visit), so searching, filtering as you type, flipping pages and hovering land in the same range at 600 entries as at the 2000-entry cap — measured on one machine with the same harness. Opening the page still reads and decrypts the whole vault once, and that step does track vault size; the promise is “cost does not grow row by row”, not “constant time”. Pagination only changes how many rows are drawn: search, sorting, export and the \"total / filtered\" readout still cover the entire matching set, and checked entries are kept across pages — the pager tells you how many of them are off-page. The header checkbox selects the current page only, as in any table, so switch to 200 rows per page or tick page by page when you need a large batch. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it for 6 seconds. The page number is not remembered: it follows the current filters and sort, so it is a derived value rather than a setting."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why is there no save prompt after login sometimes?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Possible reasons: ① the domain is on the block list (check \"Blocked domains\" in auto-save settings); ② the credentials are identical to what is already saved; ③ the domain does not match your allowlist rules; ④ the session is locked or expired."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Will auto-save overwrite existing passwords?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "When the same account on the same site has a changed password, an \"Update\" prompt appears; on confirmation the password is updated while existing tags and remarks are kept (unless you edit them in the prompt). Identical credentials are skipped; different accounts create new entries without touching existing data."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I set the favorites limit?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Go to \"Security Settings\" → \"Favorites Limit\" on the management page (1–50, default 10). When the limit is reached, the least recently used favorite is evicted so frequent accounts stay pinned. Evicted entries only lose the star — password data is untouched."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I configure floating button preferences?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Open the preferences panel via ① the \"Preferences\" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, auto login trigger, password visibility toggle, and opacity."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I switch the interface language?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "In the \"Language\" group of the preferences panel, click \"中文\" or \"English\". The change applies instantly and syncs to all open extension pages (manager / side panel / popup) — no refresh needed."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "No show/hide button on password fields?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "\"Password visibility toggle\" is off by default in the floating button preferences. Once enabled, a toggle is injected into every password field and becomes visible when the field has a value."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is the clipboard cleared after copying a password?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Per \"Clipboard Settings\", the clipboard is cleared after a delay (default 30s; options 10/15/30/60/120s). Before clearing, the extension verifies the content has not been replaced; if unfocused, it falls back to best-effort clearing. Copying a username cancels the timer. Confirm the switch is on under \"Security Settings\" → \"Clipboard Settings\"."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I generate a random password?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "In the add/edit form, click the magic-wand icon next to the password field, then toggle between \"Random\" and \"Passphrase\" modes. Random: customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). Passphrase: 3–8 random words from a bundled 3,080-word list with separator, capitalization, and trailing-digit options — secure yet memorable. A strength bar shows in real time; click \"Use this password\" to fill it in. Backed by the Web Crypto API for cryptographic randomness."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why is the first sidebar open on Windows slow?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Windows Defender scans each extension file on first load, adding 1-2 seconds to cold starts. Add the Chrome extensions folder to Defender's exclusion list to skip scanning: open \"Windows Security\" → \"Virus & threat protection\" → \"Manage settings\" → \"Exclusions\" → \"Add an exclusion\" → select \"Folder\" → paste %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Extensions. This cuts cold-start time from 2-3s to under 1s. Not needed on Mac."
+            }
           }
         ]
       }

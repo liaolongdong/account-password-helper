@@ -11,8 +11,15 @@
  * @file scripts/lib/faq-schema.mjs
  */
 
-/** 会被写进 FAQPage 结构化数据的可见问题（按此顺序输出，文案须与 `FAQS` 完全一致）。 */
-export const FAQ_SCHEMA_QUESTIONS = [
+/**
+ * 排在 FAQPage 结构化数据最前面的高意图问题（其余可见问答按 `FAQS` 原序自动追加）。
+ *
+ * 这份名单只决定**顺序**，不再决定**覆盖面**：2026-10-02 之前它是一份白名单，42 条可见问答只有
+ * 19 条进得了 JSON-LD，非 JS 爬虫（GPTBot / PerplexityBot / ClaudeBot）读不到其余 23 条，
+ * 而「新增一条 FAQ 却忘了加进名单」不会有任何报错——覆盖面只会悄悄缩水。现在名单外的问答自动进入，
+ * 想调整权重只改这份名单的顺序即可。名单里的问题文案必须与 `FAQS` 里的逐字一致，否则匹配不上会抛错。
+ */
+export const FAQ_SCHEMA_PINNED = [
   '我的密码会被上传到云端吗？',
   '忘记主密码了怎么办？',
   '如何修改主密码？',
@@ -125,18 +132,20 @@ export function parseFaqEntries(html) {
 }
 
 /**
- * 按 `FAQ_SCHEMA_QUESTIONS` 的顺序与文案，从可见 FAQ 中挑选结构化数据条目。
+ * 把可见 FAQ 排成结构化数据的输出顺序：名单内的按名单顺序排前，其余按 `FAQS` 原序追在身后。
  *
  * @param {ReturnType<typeof parseFaqEntries>} entries 可见 FAQ 条目
- * @returns {typeof entries} 选中条目（顺序与 FAQ_SCHEMA_QUESTIONS 一致）
+ * @returns {ReturnType<typeof parseFaqEntries>} 全部条目（pinned 优先，一条不落）
  */
-export function selectFaqEntries(entries) {
+export function orderFaqEntries(entries) {
   const byQuestion = new Map(entries.map(entry => [entry.zh.q, entry]));
-  return FAQ_SCHEMA_QUESTIONS.map(question => {
+  const pinned = FAQ_SCHEMA_PINNED.map(question => {
     const entry = byQuestion.get(question);
-    if (!entry) throw new Error(`FAQ_SCHEMA_QUESTIONS 中的问题在可见 FAQ 里不存在: ${question}`);
+    if (!entry) throw new Error(`FAQ_SCHEMA_PINNED 中的问题在可见 FAQ 里不存在: ${question}`);
     return entry;
   });
+  const pinnedSet = new Set(pinned);
+  return [...pinned, ...entries.filter(entry => !pinnedSet.has(entry))];
 }
 
 /**
@@ -185,7 +194,7 @@ export function buildFaqPageJsonLd(entries, lang) {
  * @returns {{ html: string, count: number }} 替换后的 HTML 与条目数
  */
 export function syncIndexHtmlFaqJsonLd(html) {
-  const entries = selectFaqEntries(parseFaqEntries(html));
+  const entries = orderFaqEntries(parseFaqEntries(html));
   const block = buildFaqPageJsonLd(entries, 'zh');
   const re = /[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/;
   if (!re.test(html)) throw new Error('未匹配到 index.html 的 FAQPage 结构化数据块');

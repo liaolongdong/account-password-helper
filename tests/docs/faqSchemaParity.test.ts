@@ -8,7 +8,11 @@
  *
  * 1. index.html 与 en.html 各自都存在 FAQPage 块，且每条问题与答案文案在其 `FAQS` 数组源码中逐字可见；
  * 2. 两页 FAQPage 条目数一致，且同序配对（防只重新生成一侧或语言张冠李戴）；
- * 3. 单页内无重复问题，英文块不残留中文；中文块的问题为中文。
+ * 3. 单页内无重复问题，英文块不残留中文；中文块的问题为中文。英文块里唯一放行的中文是界面上
+ *    真实显示的标签原文「中文」（见 `EN_ALLOWED_CJK`）——那是用户在面板里要点的那个词，不是漏翻；
+ * 4. **覆盖面**：FAQPage 条目数必须等于可见 FAQ 条数——`scripts/lib/faq-schema.mjs` 里的名单从
+ *    白名单改成了顺序名单（2026-10-02 前 42 条问答只有 19 条进得了 JSON-LD，且「新增 FAQ 忘了加进
+ *    名单」不会报错），这条断言让「少一条」第一次就会变红。
  *
  * 中文块由 `pnpm gen:faq`（scripts/build-faq-jsonld.mjs）生成，英文块由 `pnpm gen:en`
  * （scripts/build-en-page.mjs）用同一份可见 FAQ 生成；改动 FAQS 后需两条命令都执行。
@@ -27,6 +31,17 @@ const EN_PAGE = { file: 'en.html', label: '英文页' } as const;
 interface FaqPageItem {
   name: string;
   text: string;
+}
+
+/**
+ * 英文块里允许原样出现的中文：界面上真实显示的标签文字。语言切换那条问答必须写「中文」，
+ * 换成 "Chinese" 用户反而在面板里找不到对应项。除这些字以外的任何汉字都算漏翻。
+ */
+const EN_ALLOWED_CJK = ['中文'];
+
+/** 去掉允许的界面标签原文后再判中文 */
+function stripUiLabels(text: string): string {
+  return EN_ALLOWED_CJK.reduce((acc, label) => acc.split(label).join(''), text);
 }
 
 /** 取出页面内 FAQPage 结构化数据的问答条目 */
@@ -90,6 +105,12 @@ describe.each([
     const names = items.map(item => item.name);
     expect(new Set(names).size).toBe(names.length);
   });
+
+  it('每条可见问答都进了结构化数据（一条不落）', () => {
+    const visible = (region.match(/q: \{/g) ?? []).length;
+    expect(visible, '可见 FAQS 解析不到条目').toBeGreaterThan(0);
+    expect(items.length, `可见 FAQ ${visible} 条，FAQPage 只有 ${items.length} 条`).toBe(visible);
+  });
 });
 
 describe('官网 FAQPage 结构化数据中英对齐', () => {
@@ -99,10 +120,14 @@ describe('官网 FAQPage 结构化数据中英对齐', () => {
 
   it('同序配对且语言各自正确', () => {
     expect(en.items.length).toBe(zh.items.length);
+    const offenders: string[] = [];
     zh.items.forEach((item, i) => {
-      expect(item.name, '中文块的问题应为中文').toMatch(CJK);
-      expect(en.items[i].name, '英文块的问题不应残留中文').not.toMatch(CJK);
-      expect(en.items[i].text, '英文块的答案不应残留中文').not.toMatch(CJK);
+      if (!CJK.test(item.name)) offenders.push(`中文块的问题应为中文：${item.name}`);
+      const enName = stripUiLabels(en.items[i].name);
+      const enText = stripUiLabels(en.items[i].text);
+      if (CJK.test(enName)) offenders.push(`英文块的问题残留中文：${enName}`);
+      if (CJK.test(enText)) offenders.push(`英文块的答案残留中文：${en.items[i].name} → ${enText}`);
     });
+    expect(offenders, offenders.join('\n')).toEqual([]);
   });
 });
