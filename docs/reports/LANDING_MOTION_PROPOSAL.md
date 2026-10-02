@@ -167,6 +167,19 @@ C5/C6 直接触及「侧边栏秒开」与主题一致性，按仓库规则属�
 | 无 JS        | `--disable-javascript` 起 Chrome 截全页                                                                                                                                                                                                                                                  | 首屏文案、14 张特性卡、对比表、FAQ 全部可见                                                                                                                                                                          |
 | 视觉回归     | 真 Chrome 渲染 `file://` 页面（`--load-extension` 在 stable 已废，MCP 浏览器带 `--disable-extensions`，按既有笔记克隆 profile + `--app`）                                                                                                                                                | 6 套配色 + 中英两版无破版                                                                                                                                                                                            |
 
+### 7.1 减弱动效与无 JS 两行的实测回灌（2026-10-02，两项都已做，方法换了）
+
+上面两行原本写的是「裸 CDP `Emulation.setEmulatedMedia`」和「`--disable-javascript` 截全页」。两条都没按原文执行，因为在本机都量不出可信结果，换了等价方法：
+
+- **减弱动效**：系统 Chrome 154 `--headless=new --force-prefers-reduced-motion --virtual-time-budget=20000 --dump-dom`，页面副本在 `</body>` 前挂一段只读探针（遍历滚动 → 读计算值 → 写进 `<pre id=__probe>`）。
+  - **踩到的坑**：`--virtual-time-budget` 推进的是定时器，**不推进动画/过渡时钟**——首轮 41 枚 `.reveal` 全读成 `opacity: 0`，看着像「降级后整页不显形」的致命缺陷，其实是 `getAnimations()` 里那 8 条还停在 `running`。改成先对每条动画调 `finish()` 再读数，才拿到终态。
+  - **第二个坑**：同一个 virtual-time 形状下 `window.scrollTo()` 派发不出 IntersectionObserver 回调（真机 Chrome 同页同脚本此前已单独量到 41/41 命中），所以探针在滚动遍历之后把没命中那 40 枚补上 `.visible`，并在输出里带 `ioForcedByProbe: 40` 自证——**这一步把断言范围收窄成「只问 CSS 那一段」**，观察器本身不在此行的判据里。
+  - **读数**：`.reveal` 41/41 落 `opacity: 1`、`transform ≠ none` 0 枚；场景表 11/11 行 `opacity: 1`；`getAnimations()` 里 `iterations = Infinity` 的 0 条，剩 8 条全是一次性的 `aph-fade / 200ms / finished`。
+  - **停在不可见的那几枚是对的不是错的**：`.cipher-in`（明文，reduce 停在「已加密」那一帧）、闭合态 `.faq-a-inner`、`scrollY = 0` 处的 `.sticky-cta`、被 `display: none` 撤掉的 `.flow-packet` 与 `.carousel-progress`。`.flow-step:nth-child(3)::after` 探针报 MISSING 是量具的限制（`querySelector` 选不到伪元素），不是页面缺节点。
+- **无 JS**：**不用** `--disable-javascript`（该开关对本机 headless 的 `--dump-dom` / `--screenshot` 无效，量到的仍是开 JS 的那份）。改为把 index.html 的 `<script>…</script>` 整段剥掉做成副本 `.tmp-rm/nojs.html`，再单独挂探针。
+  - **读数**：`html` 上没有 `.js` 类，41/41 枚 `.reveal` 与 11/11 行表格在**开动画**与**减弱动效**两档下都是 `opacity: 1`、0 枚残留位移。也就是 `html.js` 门控那条承诺（隐形初始态只挂在 JS 在场时）成立，爬虫与禁用 JS 用户看到的就是终态。
+  - 附带一个不是缺陷的形状：无 JS 时仍有 4 条循环动画在跑（`pulse` / `aph-float` / `aph-sheen` / `aph-bob`），因为这几条没挂 `html.js` 前缀；它们在 reduce 档归零，且没有承载信息的 opacity 变化，所以不影响可读性。
+
 ---
 
 ## 8. 风险与未验证项
