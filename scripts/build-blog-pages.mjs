@@ -30,6 +30,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { marked } from 'marked';
+import { OG_IMAGE_EN, OG_IMAGE_ZH } from './lib/share-image.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const SITE = 'https://liaolongdong.github.io/account-password-helper';
@@ -110,10 +111,7 @@ const GH_URL = 'https://github.com/liaolongdong/account-password-helper';
 const CWS_URL = 'https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli';
 
 /** 无封面文章与索引页的分享卡兜底图：中英各一张 1200×630，语言与页面一致 */
-const OG_IMAGE = {
-  'zh-CN': `${SITE}/assets/cws-store/og-1200x630.png`,
-  en: `${SITE}/assets/cws-store/og-en-1200x630.png`,
-};
+const OG_IMAGE = { 'zh-CN': OG_IMAGE_ZH, en: OG_IMAGE_EN };
 
 /**
  * 页内共享的图标、主题色与爬虫指令。
