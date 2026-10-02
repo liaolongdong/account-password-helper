@@ -415,7 +415,7 @@ describe('compare 两页：判定格与链接只用文字令牌', () => {
     expect(checked, `${page} 只实算到 ${checked} 组，断言近乎空转`).toBeGreaterThanOrEqual(20);
   });
 
-  it('两枚判定令牌在暗档确实翻了值，且 --success-ink 与 index.html 逐字同源', () => {
+  it('两枚判定令牌在暗档确实翻了值，且与 index.html 逐字同源', () => {
     const refLight = rootTokens(mainStyle(read('index.html')));
     const refDark = rootTokens(mainStyle(read('index.html')), true);
     for (const page of comparePages) {
@@ -426,15 +426,12 @@ describe('compare 两页：判定格与链接只用文字令牌', () => {
         expect(light.has(token), `${page} 缺少 :root ${token}`).toBe(true);
         expect(dark.has(token), `${page} 暗档没翻 ${token}（会停在亮档值上）`).toBe(true);
         expect(dark.get(token), `${page} 的 ${token} 两档同值`).not.toBe(light.get(token));
+        // 同源范围到 2026-10-03 那批已扩到含 --warn-ink：落地页的 12 处 `#ff9f43` 字面量收进同一枚，
+        // 六页（index / en / pricing 两页 / compare 两页）取值逐字相同，页面注释也这么声明。
+        // 此前只钉 --success-ink，于是「六页同源」在琥珀那一枚上是无人守卫的散文断言。
+        expect(light.get(token), `${page} 亮档 ${token} 与 index.html 不同值`).toBe(refLight.get(token));
+        expect(dark.get(token), `${page} 暗档 ${token} 与 index.html 不同值`).toBe(refDark.get(token));
       }
-      // compare 页的注释写着「与 index.html 同源」，--success-ink 必须逐字相等。
-      // --warn-ink 是这两页自有令牌：落地页的琥珀字面量另成一批，不在同源范围。
-      expect(light.get('--success-ink'), `${page} 亮档 --success-ink 与 index.html 不同值`).toBe(
-        refLight.get('--success-ink'),
-      );
-      expect(dark.get('--success-ink'), `${page} 暗档 --success-ink 与 index.html 不同值`).toBe(
-        refDark.get('--success-ink'),
-      );
     }
   });
 
@@ -662,7 +659,10 @@ describe('privacy 两页与博客 12 页：各自的墨色令牌', () => {
   const blogPages = publishedPages.filter(p => p.startsWith('blog/'));
 
   it('名单本身没漂：privacy 两页 + 博客 12 页', () => {
-    expect(privacyPages).toEqual(['privacy.html', 'privacy.en.html']);
+    // 原来这条写的是 `expect(privacyPages).toEqual(['privacy.html', 'privacy.en.html'])`——
+    // 手写字面量和它自己比，永真、无牙。会漂的是它相对 publishedPages 的**覆盖面**：对外清单里
+    // 新增或改名一枚 privacy 页，下面那批 `it.each(privacyPages)` 就整批漏测。所以按真源反查。
+    expect([...privacyPages].sort()).toEqual(publishedPages.filter(p => p.startsWith('privacy')).sort());
     expect(blogPages).toHaveLength(12);
   });
 
@@ -688,7 +688,8 @@ describe('privacy 两页与博客 12 页：各自的墨色令牌', () => {
     expect(light.has('--primary-ink'), `${page} 缺少 :root --primary-ink`).toBe(true);
     expect(dark.has('--primary-ink'), `${page} 暗档没翻 --primary-ink`).toBe(true);
     // 暗档「不重写」不等于「没有」：--primary 刻意两档同值，暗档块里查不到就得回落 :root
-    // （同 line 212 那条断言的口径）。不回落就会拿到 undefined，暗档三组整批静默跳过。
+    // （同上面「暗档不把主色改掉」那条用例里 `dark.get(token) ?? light.get(token)` 的口径）。
+    // 不回落就会拿到 undefined，暗档三组整批静默跳过。
     const darkEff = new Map([...light, ...dark]);
     const failures: string[] = [];
     let checked = 0;
