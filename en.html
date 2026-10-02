@@ -147,7 +147,7 @@
         "operatingSystem": "Chrome",
         "browserRequirements": "Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.",
         "softwareVersion": "3.13.1",
-        "dateModified": "2026-09-30",
+        "dateModified": "2026-10-02",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -4147,7 +4147,7 @@
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
-            <h3 data-i18n="features.f1.title">Local Encryption — Passwords Never Leave the Browser</h3>
+            <h3 data-i18n="features.f1.title">Local Encryption — Passwords Are Never Uploaded</h3>
             <p data-i18n="features.f1.desc">The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark and TOTP are each stored as ciphertext. Locking and session expiry destroy only the session key material — the vault is already ciphertext at rest, and no password content is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.</p>
             <div class="feature-chips">
               <span
@@ -6179,8 +6179,8 @@ pnpm lint:style  # Stylelint</code></pre>
           en: 'From encrypted storage to smart filling, from 2FA to health checks — the full lifecycle of your credentials in one place',
         },
         'features.f1.title': {
-          zh: '纯本地加密，密码绝不出浏览器',
-          en: 'Local Encryption — Passwords Never Leave the Browser',
+          zh: '纯本地加密，密码不上传服务器',
+          en: 'Local Encryption — Passwords Are Never Uploaded',
         },
         'features.f1.desc': {
           zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 逐字段密文存储；锁定与会话过期只销毁会话密钥材料（数据本就密文落盘），密码内容永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。',
