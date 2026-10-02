@@ -232,10 +232,10 @@ const inkPages = ['index.html', 'en.html', 'compare.html', 'compare.en.html', 'p
 /** 墨色令牌可能被压上去的底色（compare 页没有 --surface，缺席的组合由 contrast() 返回 null 跳过） */
 const INK_BACKDROPS = ['--bg', '--surface', '--primary-soft'];
 
-/** 取某条选择器的声明块正文；找不到返回空串 */
+/** 取某条选择器的声明块正文；找不到返回空串。行首锚定，避免 `a` 命中 `.topbar a` */
 function ruleBody(css: string, selector: string): string {
   const escaped = selector.replace(/[.#]/g, '\\$&');
-  const re = new RegExp(`${escaped}\\s*\\{([\\s\\S]*?)\\}`);
+  const re = new RegExp(`^\\s*${escaped}\\s*\\{([\\s\\S]*?)\\}`, 'm');
   return re.exec(css)?.[1] ?? '';
 }
 
@@ -335,6 +335,144 @@ describe('落地页墨色：主色作文字用的那两枚令牌', () => {
         refDark.get('--primary-ink'),
       );
     }
+  });
+});
+
+/**
+ * compare 两页的判定格与链接（2026-10-02 整页 AA 扫描补的守卫）
+ *
+ * 上面几组都按「令牌 → 令牌」实算，而这两页的缺陷不在令牌层：`--accent` / `--warn` 是**实底色**
+ * （实底按钮、徽标、描边），被 `.yes` / `.partial` 直接拿去当文字；`#cbd5e1` 是页头深色条上的浅字，
+ * 被 `.no` 借用。三个值在 `:root` 里各自都成立，落在白底表格里却是 2.50:1、2.04:1、1.48:1——
+ * 十六进制没变、令牌名没拼错、暗档也没停更，前面任何一条断言都不会红。
+ *
+ * 所以这里改钉「哪条规则用了哪个令牌」：选择器的 `color` 必须是指定的文字令牌，且该令牌在它
+ * **实际压到的那几块底**上两档都 ≥4.5:1。`td.us` 的半透明蓝底按合成色算（亮档 #f6f9ff、暗档
+ * #0e182b），不拿 `--bg` 代替——合成后最坏的一档是 `.partial` 的 4.83:1，按纯白底读会变成 5.09:1。
+ */
+const comparePages = ['compare.html', 'compare.en.html'] as const;
+
+interface InkRule {
+  sel: string;
+  token: string;
+  on: string[];
+}
+
+/** 规则 → 必须使用的文字令牌 → 真实底色（`td.us` 指那条半透明蓝底叠在 `--bg` 上的合成色） */
+const COMPARE_INK_RULES: readonly InkRule[] = [
+  { sel: '.yes', token: '--success-ink', on: ['--bg', '--bg-soft', 'td.us'] },
+  { sel: '.no', token: '--text-muted', on: ['--bg', '--bg-soft', 'td.us'] },
+  { sel: '.partial', token: '--warn-ink', on: ['--bg', '--bg-soft', 'td.us'] },
+  { sel: 'a', token: '--primary-ink', on: ['--bg', '--bg-soft'] },
+  { sel: '.btn.ghost', token: '--primary-ink', on: ['--primary-soft'] },
+];
+
+/** 把 `rgba()` 半透明底叠到不透明底色上，得到实际参与对比的十六进制；任一侧不可解析时返回 null */
+function blendOnto(tint: string, bg: string | undefined): string | null {
+  const m = /rgba\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*,\s*([0-9.]+)\s*\)/.exec(tint);
+  const base = bg === undefined ? undefined : channels(bg);
+  if (!m || !base) return null;
+  const [r, g, b, a] = [Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4])];
+  const mix = (c: number, u: number) => Math.round(c * a + u * (1 - a));
+  return `#${[mix(r, base[0]), mix(g, base[1]), mix(b, base[2])].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+}
+
+describe('compare 两页：判定格与链接只用文字令牌', () => {
+  it.each(comparePages)('%s 的判定格/链接墨色在其真实底色上两档都过线', page => {
+    const css = mainStyle(read(page));
+    const light = rootTokens(css);
+    const dark = rootTokens(css, true);
+    const tint = /background:\s*(rgba\([^)]*\))/.exec(ruleBody(css, 'td.us'))?.[1];
+    expect(tint, `${page} 的 td.us 不再是 rgba() 半透明底，合成色算法要跟着改`).toBeDefined();
+    const failures: string[] = [];
+    let checked = 0;
+    for (const rule of COMPARE_INK_RULES) {
+      const body = ruleBody(css, rule.sel);
+      expect(body, `${page} 找不到 ${rule.sel} 规则`).not.toBe('');
+      const used = /\bcolor:\s*(var\(--[\w-]+\)|[^;]+)/.exec(body)?.[1];
+      if (used !== `var(${rule.token})`) {
+        failures.push(`${rule.sel} 的 color 应为 var(${rule.token})，实际是 ${used}`);
+        continue;
+      }
+      for (const [scheme, tokens] of [
+        ['亮', light],
+        ['暗', dark],
+      ] as const) {
+        for (const surface of rule.on) {
+          const bg = surface === 'td.us' ? blendOnto(tint!, tokens.get('--bg')) : tokens.get(surface);
+          const ratio = contrast(tokens.get(rule.token), bg ?? undefined);
+          if (ratio === null) continue;
+          checked += 1;
+          if (ratio < 4.5) failures.push(`${rule.sel}（${scheme}档）on ${surface} ${ratio.toFixed(2)}:1`);
+        }
+      }
+    }
+    expect(failures, `${page} 判定格/链接对比度不达标：\n${failures.join('\n')}`).toEqual([]);
+    // 5 条规则共 12 块面 × 两档 = 24 组，当前全实算到。地板 20：只要有一枚底色令牌被换成
+    // 渐变或 rgba，contrast() 就返回 null 跳过，整条断言会静默空转——全绿不等于达标。
+    expect(checked, `${page} 只实算到 ${checked} 组，断言近乎空转`).toBeGreaterThanOrEqual(20);
+  });
+
+  it.each(comparePages)('%s 不许再把实底色写成文字色', page => {
+    const offenders = mainStyle(read(page))
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => /^color:\s*var\(--(primary|accent|warn)\);/.test(l));
+    expect(offenders, `${page} 拿实底色当文字色用了：\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  it('两枚判定令牌在暗档确实翻了值，且 --success-ink 与 index.html 逐字同源', () => {
+    const refLight = rootTokens(mainStyle(read('index.html')));
+    const refDark = rootTokens(mainStyle(read('index.html')), true);
+    for (const page of comparePages) {
+      const css = mainStyle(read(page));
+      const light = rootTokens(css);
+      const dark = rootTokens(css, true);
+      for (const token of ['--success-ink', '--warn-ink']) {
+        expect(light.has(token), `${page} 缺少 :root ${token}`).toBe(true);
+        expect(dark.has(token), `${page} 暗档没翻 ${token}（会停在亮档值上）`).toBe(true);
+        expect(dark.get(token), `${page} 的 ${token} 两档同值`).not.toBe(light.get(token));
+      }
+      // compare 页的注释写着「与 index.html 同源」，--success-ink 必须逐字相等。
+      // --warn-ink 是这两页自有令牌：落地页的琥珀字面量另成一批，不在同源范围。
+      expect(light.get('--success-ink'), `${page} 亮档 --success-ink 与 index.html 不同值`).toBe(
+        refLight.get('--success-ink'),
+      );
+      expect(dark.get('--success-ink'), `${page} 暗档 --success-ink 与 index.html 不同值`).toBe(
+        refDark.get('--success-ink'),
+      );
+    }
+  });
+
+  it('两页的 <div class="card"> 都有对应的 .card 规则', () => {
+    // 英文版此前只有 HTML 用了这个类、CSS 里根本没写规则：不报错、不塌布局，只是边框 / 内距 /
+    // 底色全部消失，读起来和普通段落没区别——没有任何一条既有断言会因此变红。用「用到 ⇒ 必须存在」钉住。
+    for (const page of comparePages) {
+      expect(read(page), `${page} 的 .card 用例被删了？那这条守卫也该一起删`).toContain('class="card');
+      const body = ruleBody(mainStyle(read(page)), '.card');
+      expect(body, `${page} 的 CSS 缺少 .card 规则`).not.toBe('');
+      expect(body).toMatch(/padding:/);
+      expect(body).toMatch(/border:\s*1px solid var\(--border\)/);
+      expect(body).toMatch(/background:\s*var\(--bg-soft\)/);
+    }
+  });
+
+  it('两页的主体样式逐行等价，只允许字体栈那一处不同', () => {
+    // 英文版是「手工维护的复制页」：中文页补了 `.card` 而英文页没有时，页面照常渲染、既有断言
+    // 一条都不会红（上一条守卫正是为那次缺陷加的）。这里把两页 `<style>` 主体压成行序列逐行比对，
+    // 只摘掉本就应当不同的那一处字体栈——此后任何一边单方面漂走都会当场撞上，而不是等用户看出来。
+    const rows = (page: string) =>
+      mainStyle(read(page))
+        .replace(/(?:-\w+-)?font-family:[^;]*;/g, '')
+        .split('\n')
+        .filter(l => l.trim() !== '');
+    const zh = rows('compare.html');
+    const en = rows('compare.en.html');
+    expect(en.length, `两页主体样式行数不一致（中文 ${zh.length} / 英文 ${en.length}）`).toBe(zh.length);
+    const drift = zh
+      .map((line, i) => (line === en[i] ? null : `L${i + 1} 中文「${line}」/ 英文「${en[i]}」`))
+      .filter((d): d is string => d !== null);
+    expect(drift, `compare 两页的主体样式出现了单方面漂移：\n${drift.join('\n')}`).toEqual([]);
   });
 });
 

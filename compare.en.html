@@ -250,6 +250,11 @@
            暗档不能抬亮它，所以 thead th.us 的文字另走 --primary-ink（#3a6cd9 压在暗档
            --primary-soft 上只有 2.95:1）。 */
         --primary-ink: #3566cb;
+        /* 判定格的墨色同理：实底色（--accent / --warn）拿来做文字时，白底上只有 2.5:1 与
+           2.04:1，而「是 / 否 / 付费版」正是这张表里唯一要读清的信息。各配一枚文字令牌，
+           实底与描边继续用原值。--warn-ink 是本页自有令牌，落地页的琥珀字面量另成一批。 */
+        --success-ink: #27754e;
+        --warn-ink: #a35d00;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
         --text: #0f172a;
@@ -267,11 +272,13 @@
 
       /* 暗色档与落地页同源：只翻令牌，不动任何一条组件规则。
          --primary / --accent / --warn 保持原值，理由同 index.html（主色实底上的白字比例）；
-         只有 --primary-ink 这一枚文字令牌在暗档换亮，同 index.html。 */
+         只有三枚文字令牌在暗档换亮，同 index.html 的 --primary-ink 那一条。 */
       @media (prefers-color-scheme: dark) {
         :root {
           --primary-soft: #1c2a45;
           --primary-ink: #7ea6ff;
+          --success-ink: #42b883;
+          --warn-ink: #ff9f43;
           --text: #e6edf7;
           --text-muted: #9aa8bd;
           --bg: #0b1220;
@@ -294,7 +301,7 @@
       }
 
       a {
-        color: var(--primary);
+        color: var(--primary-ink);
         text-decoration: none;
       }
 
@@ -371,7 +378,7 @@
       }
 
       .btn.ghost {
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
       }
 
@@ -437,16 +444,28 @@
       }
 
       .yes {
-        color: var(--accent);
+        color: var(--success-ink);
         font-weight: 700;
       }
 
       .no {
-        color: #cbd5e1;
+        color: var(--text-muted);
       }
 
       .partial {
-        color: var(--warn);
+        color: var(--warn-ink);
+      }
+
+      .card {
+        padding: 20px 22px;
+        margin-top: 18px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--bg-soft);
+      }
+
+      .card h3 {
+        margin-top: 0;
       }
 
       .two-col {
