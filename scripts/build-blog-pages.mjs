@@ -379,6 +379,9 @@ ${breadcrumbJsonLd(breadcrumb)}
         --text: #1f2937;
         --muted: #6b7280;
         --accent: #4e88ff;
+        /* 强调色「作文字用」的那一档：--accent 是实底徽标与描边的组合色，暗档不能抬亮它，
+           所以下方三处链接与序号文字另走 --accent-ink，取值同落地页的 --primary-ink。 */
+        --accent-ink: #3566cb;
         --border: #e5e9f0;
         --code: #eef2f7;
       }
@@ -390,6 +393,7 @@ ${breadcrumbJsonLd(breadcrumb)}
           --card: #141f33;
           --text: #e6edf7;
           --muted: #9aa8bd;
+          --accent-ink: #7ea6ff;
           --border: #263349;
           --code: #1e2a3f;
         }
@@ -423,7 +427,7 @@ ${breadcrumbJsonLd(breadcrumb)}
       }
       .topbar a {
         font-size: 14px;
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
       .topbar .spacer {
@@ -461,7 +465,7 @@ ${breadcrumbJsonLd(breadcrumb)}
         margin: 14px 0;
       }
       a {
-        color: var(--accent);
+        color: var(--accent-ink);
       }
       ul,
       ol {
@@ -513,7 +517,7 @@ ${breadcrumbJsonLd(breadcrumb)}
         margin: 6px 0;
       }
       .footer a {
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
     </style>
@@ -651,6 +655,9 @@ ${breadcrumbJsonLd(breadcrumb)}
         --text: #1f2937;
         --muted: #6b7280;
         --accent: #4e88ff;
+        /* 强调色「作文字用」的那一档：--accent 是实底徽标与描边的组合色，暗档不能抬亮它，
+           所以下方三处链接与序号文字另走 --accent-ink，取值同落地页的 --primary-ink。 */
+        --accent-ink: #3566cb;
         --border: #e5e9f0;
         --code: #eef2f7;
       }
@@ -662,6 +669,7 @@ ${breadcrumbJsonLd(breadcrumb)}
           --card: #141f33;
           --text: #e6edf7;
           --muted: #9aa8bd;
+          --accent-ink: #7ea6ff;
           --border: #263349;
           --code: #1e2a3f;
         }
@@ -695,7 +703,7 @@ ${breadcrumbJsonLd(breadcrumb)}
       }
       .topbar a {
         font-size: 14px;
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
       .topbar .spacer {
@@ -750,7 +758,7 @@ ${breadcrumbJsonLd(breadcrumb)}
       }
       .card-meta {
         font-size: 13px;
-        color: var(--accent);
+        color: var(--accent-ink);
       }
       .footer {
         padding: 24px;
@@ -762,7 +770,7 @@ ${breadcrumbJsonLd(breadcrumb)}
         margin: 6px 0;
       }
       .footer a {
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
       @media (max-width: 640px) {
