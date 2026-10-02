@@ -206,9 +206,134 @@ describe('官网暗色档：两档对比度成对达标', () => {
     const css = mainStyle(read('index.html'));
     const light = rootTokens(css);
     const dark = rootTokens(css, true);
-    // --primary 一旦被抬亮，.btn-primary 的白字对比度会掉（暗档 2.4:1 < 亮档 3.4:1）
+    // --primary 一旦被抬亮，.btn-primary 的白字对比度会掉（暗档 2.4:1 < 亮档 3.4:1）。
+    // 文字侧不在本条约束内：那部分走 --primary-ink / --success-ink，见下一组用例。
     for (const token of ['--primary', '--primary-dark', '--accent']) {
       expect(dark.get(token) ?? light.get(token), `${token} 不应在暗档另起炉灶`).toBe(light.get(token));
+    }
+  });
+});
+
+/**
+ * 「主色作文字用」的那一档（批3-5 真机复核补的守卫）
+ *
+ * 上面那组用例只实算了 `--text` / `--text-muted` 这类成对令牌，而落地页还有第五种文字色
+ * 走的是主色族：`color: var(--primary-dark)`。它在亮档是 4.28:1（勉强过线），暗档因为
+ * `--primary-dark` 被钉成两档同值（那条断言是对的，它是 `.btn-primary:hover` 的实底色），
+ * 落在压深的 `--primary-soft` 上只剩 2.95:1 —— 亮档全绿、暗档肉眼可读，却谁都不会变红。
+ *
+ * 所以这里钉三件事：
+ * 1. 文字令牌必须在暗档**确实翻了值**（没翻 = 停在亮档值上，正是这次的缺陷形态）；
+ * 2. 翻出来的值在三种底色（页面底 / 卡片面 / 主色软底）上两档都要 ≥ 4.5:1；
+ * 3. 组件规则里不许再出现 `color: var(--primary-dark)`，也不许退回写死的十六进制墨色。
+ */
+const inkPages = ['index.html', 'en.html', 'compare.html', 'compare.en.html', 'pricing.html', 'pricing.en.html'];
+
+/** 墨色令牌可能被压上去的底色（compare 页没有 --surface，缺席的组合由 contrast() 返回 null 跳过） */
+const INK_BACKDROPS = ['--bg', '--surface', '--primary-soft'];
+
+/** 取某条选择器的声明块正文；找不到返回空串 */
+function ruleBody(css: string, selector: string): string {
+  const escaped = selector.replace(/[.#]/g, '\\$&');
+  const re = new RegExp(`${escaped}\\s*\\{([\\s\\S]*?)\\}`);
+  return re.exec(css)?.[1] ?? '';
+}
+
+/** 从声明块里取出 `color: #hex`，返回 undefined 表示该规则不写死墨色 */
+function literalColor(css: string, selector: string): string | undefined {
+  return /\bcolor:\s*(#[0-9a-fA-F]{3,8})\b/.exec(ruleBody(css, selector))?.[1];
+}
+
+describe('落地页墨色：主色作文字用的那两枚令牌', () => {
+  it.each(inkPages)('%s 的 --primary-ink 在暗档确实翻了值，且两档三种底色都过线', page => {
+    const css = mainStyle(read(page));
+    const light = rootTokens(css);
+    const dark = rootTokens(css, true);
+    expect(light.has('--primary-ink'), `${page} 缺少 :root --primary-ink`).toBe(true);
+    expect(dark.has('--primary-ink'), `${page} 暗档没翻 --primary-ink（会停在亮档值上）`).toBe(true);
+    expect(dark.get('--primary-ink')).not.toBe(light.get('--primary-ink'));
+    const failures: string[] = [];
+    let checked = 0;
+    for (const bg of INK_BACKDROPS) {
+      for (const [scheme, tokens] of [
+        ['亮', light],
+        ['暗', dark],
+      ] as const) {
+        const ratio = contrast(tokens.get('--primary-ink'), tokens.get(bg));
+        if (ratio === null) continue;
+        checked += 1;
+        if (ratio < 4.5) failures.push(`--primary-ink on ${bg}（${scheme}档）${ratio.toFixed(2)}:1`);
+      }
+    }
+    // 地板 4：最少的那页（compare 无 --surface）也有 1 底色 × 两档 × …，实算数不足说明
+    // 令牌被换成了非十六进制值，整条断言会静默空转。
+    expect(checked, `${page} 只实算到 ${checked} 组墨色对比度，断言近乎空转`).toBeGreaterThanOrEqual(4);
+    expect(failures, `${page} 墨色对比度不达标：\n${failures.join('\n')}`).toEqual([]);
+  });
+
+  it('落地页的 --success-ink 两档都压得住绿底卡，且暗档确实翻了值', () => {
+    const css = mainStyle(read('index.html'));
+    const light = rootTokens(css);
+    const dark = rootTokens(css, true);
+    expect(light.has('--success-ink'), '缺少 :root --success-ink').toBe(true);
+    expect(dark.has('--success-ink'), '暗档没翻 --success-ink').toBe(true);
+    for (const [scheme, tokens] of [
+      ['亮', light],
+      ['暗', dark],
+    ] as const) {
+      for (const bg of ['--bg', '--surface']) {
+        const ratio = contrast(tokens.get('--success-ink'), tokens.get(bg));
+        expect(ratio, `--success-ink on ${bg}（${scheme}档）`).not.toBeNull();
+        // 绿底卡那一层是 rgba(66,184,131,0.07) 压在 --surface 上的合成色（亮 #f2faf6、
+        // 暗 #172a39）。实算跌幅两档不一样：亮档 5.61 → 5.29（−0.32），暗档 6.61 → 5.90
+        // （−0.71）。及格线抬到 4.8，是按最坏的那一档（−0.71）仍留得住 ≥4.5 定的。
+        expect(ratio!, `--success-ink on ${bg}（${scheme}档）`).toBeGreaterThanOrEqual(4.8);
+      }
+    }
+  });
+
+  it('组件规则里不再拿实底色当文字色', () => {
+    const offenders: string[] = [];
+    for (const page of inkPages) {
+      const css = mainStyle(read(page));
+      css.split('\n').forEach((line, i) => {
+        const trimmed = line.trim();
+        if (trimmed === 'color: var(--primary-dark);' || /^color:\s*#(27754e|3a6cd9);/.test(trimmed)) {
+          offenders.push(`${page} L${i}: ${trimmed}`);
+        }
+      });
+    }
+    expect(offenders, `主色实底/写死墨色被当成文字色用了：\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  it('.footer-meta 的写死墨色在页脚底色上两档都过线', () => {
+    const css = mainStyle(read('index.html'));
+    const ink = literalColor(css, '.footer-meta');
+    expect(ink, '.footer-meta 没写出十六进制墨色').toBeDefined();
+    for (const [scheme, tokens] of [
+      ['亮', rootTokens(css)],
+      ['暗', rootTokens(css, true)],
+    ] as const) {
+      const ratio = contrast(ink, tokens.get('--footer-bg'));
+      expect(ratio, `.footer-meta on --footer-bg（${scheme}档）`).not.toBeNull();
+      expect(ratio!, `.footer-meta 在${scheme}档页脚上只有 ${ratio!.toFixed(2)}:1`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  // 这六页各存一份字面量（独立页、没有共享样式表），前面几条只保证「每页自己过线」，
+  // 单独改某一页照样全绿——而那正是这组令牌最不该有的漂移形状。
+  it('六页的墨色令牌逐字等于 index.html（每页注释都写着「与 index.html 同源」）', () => {
+    const refLight = rootTokens(mainStyle(read('index.html')));
+    const refDark = rootTokens(mainStyle(read('index.html')), true);
+    for (const page of inkPages.slice(1)) {
+      const css = mainStyle(read(page));
+      const light = rootTokens(css);
+      for (const token of ['--primary', '--primary-dark', '--accent', '--primary-ink']) {
+        expect(light.get(token), `${page} 的 ${token} 与 index.html 不同值`).toBe(refLight.get(token));
+      }
+      expect(rootTokens(css, true).get('--primary-ink'), `${page} 暗档的 --primary-ink 与 index.html 不同值`).toBe(
+        refDark.get('--primary-ink'),
+      );
     }
   });
 });
