@@ -218,9 +218,89 @@ function findJsGateViolations(page: string, html: string): string[] {
   return problems.map(problem => `${page}: ${problem}`);
 }
 
+/** 找到 `open` 处 `{` 的配对 `}` 下标；找不到返回字符串末尾 */
+function matchBrace(css: string, open: number): number {
+  let depth = 0;
+  for (let i = open; i < css.length; i += 1) {
+    if (css[i] === '{') depth += 1;
+    else if (css[i] === '}') {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return css.length;
+}
+
+/**
+ * 收集一段 CSS 里的「普通规则」（选择器 + 声明块），按大括号配对递归进 at-rule。
+ *
+ * 不能按 `}` 切段：`@media (prefers-reduced-motion: reduce)` 里还套着一层
+ * `@media (max-width: 520px)`，切段会把嵌套层的声明拼进外层选择器。
+ */
+function collectRules(css: string, out: Array<{ selectors: string; body: string }> = []): typeof out {
+  let cursor = 0;
+  while (cursor < css.length) {
+    const open = css.indexOf('{', cursor);
+    if (open === -1) break;
+    const close = matchBrace(css, open);
+    const prelude = css.slice(cursor, open).replace(/\s+/g, ' ').trim();
+    if (prelude.startsWith('@')) collectRules(css.slice(open + 1, close), out);
+    else if (prelude) out.push({ selectors: prelude, body: css.slice(open + 1, close) });
+    cursor = close + 1;
+  }
+  return out;
+}
+
+/** 去掉 CSS 注释——注释里的括号会干扰大括号配对 */
+const stripCssComments = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, '');
+
+/** 隐形初始态与它的终态，两条都必须出现在降级侧 */
+const REVEAL_STATES = ['html.js .reveal', 'html.js .reveal.visible'];
+
+/**
+ * 隐形初始态必须有减弱动效兜底，且选择器与基准侧一一对应。
+ *
+ * 漏掉终态那条是真实会犯的形状：基准侧 `html.js .reveal` 是 (0,2,1)，终态同样是 (0,2,1)，
+ * 降级块只列基准那条时，`.reveal.visible` 的 `transform: translateY(0)` 仍然生效——
+ * 「减弱动效」档里 24px 位移照样跑一遍，而这一档要的恰恰是没有位移。
+ *
+ * @param page 页面相对路径，仅用于报告
+ * @param html 页面源码
+ * @returns 违规描述列表，合规时为空数组
+ */
+function findReducedMotionViolations(page: string, html: string): string[] {
+  if (!/html\.js\s+\.reveal\s*\{[^}]*opacity:\s*0/.test(html)) return [];
+  const reduced = html
+    .split('@media (prefers-reduced-motion: reduce)')
+    .slice(1)
+    .map(part => stripCssComments(part))
+    .flatMap(part => {
+      const open = part.indexOf('{');
+      if (open === -1) return [];
+      return collectRules(part.slice(open + 1, matchBrace(part, open)));
+    });
+  if (reduced.length === 0) return [`${page}: 有 html.js .reveal 隐形初始态，却没有 prefers-reduced-motion 降级块`];
+
+  const problems: string[] = [];
+  for (const state of REVEAL_STATES) {
+    const covered = reduced.some(
+      rule =>
+        /transform:\s*none/.test(rule.body) && rule.selectors.split(',').some(selector => selector.trim() === state),
+    );
+    if (!covered) problems.push(`${page}: 降级块里没有一条「${state} { transform: none }」`);
+  }
+  return problems;
+}
+
 describe('html.js 隐形初始态必须配错误兜底', () => {
-  it.each(['index.html', 'en.html'])('%s 的门控 / 保险 / 解除成套且按序', page => {
+  const gatedPages = ['index.html', 'en.html', 'compare.html', 'compare.en.html'];
+
+  it.each(gatedPages)('%s 的门控 / 保险 / 解除成套且按序', page => {
     expect(findJsGateViolations(page, readFileSync(path.join(ROOT, page), 'utf8'))).toEqual([]);
+  });
+
+  it.each(gatedPages)('%s 的入场位移在减弱动效档被撤掉', page => {
+    expect(findReducedMotionViolations(page, readFileSync(path.join(ROOT, page), 'utf8'))).toEqual([]);
   });
 
   it('守卫自检：抽掉解除标记或 error 监听会被判违规', () => {
@@ -234,7 +314,15 @@ describe('html.js 隐形初始态必须配错误兜底', () => {
     expect(findJsGateViolations('index.html', withoutGuard).join('\n')).toContain("addEventListener('error'");
   });
 
+  it('守卫自检：降级块只列基准态、漏掉终态会被判违规', () => {
+    const html = readFileSync(path.join(ROOT, 'compare.html'), 'utf8');
+    const missingTerminal = html.replace('html.js .reveal,\n        html.js .reveal.visible {', 'html.js .reveal {');
+    expect(missingTerminal).not.toBe(html);
+    expect(findReducedMotionViolations('compare.html', missingTerminal).join('\n')).toContain('.reveal.visible');
+  });
+
   it('没有隐形初始态的页面不被误伤', () => {
     expect(findJsGateViolations('plain.html', '<style>.reveal { opacity: 0.5; }</style>')).toEqual([]);
+    expect(findReducedMotionViolations('plain.html', '<style>.reveal { opacity: 0.5; }</style>')).toEqual([]);
   });
 });
