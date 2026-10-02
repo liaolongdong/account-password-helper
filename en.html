@@ -1725,13 +1725,69 @@
           bottom: 16px;
         }
       }
+      /* ============ Sticky install CTA（滚动期直达商店） ============
+         页头那枚「安装」是锚点跳转，这一枚直达商店——动作不同，不构成重复入口。
+         隐藏态写在基线规则里（不像 .reveal 那样挂 html.js）：这条元素的全部意义就是
+         跟随滚动收放，禁 JS 时它若可见就成了一枚永远不会消失的浮层；而它承载的那句话
+         在 hero、页头锚点、「安装」小节里各有一份，摘掉它不违反「无 JS 也能读完整页」。
+         落位让开滚动导轨：导轨底缘 24px + 自身 82px，这一枚从 124px 起，两者同列不重叠。 */
+      .sticky-cta {
+        position: fixed;
+        right: 24px;
+        bottom: 124px;
+        z-index: 90;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 18px;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        background: var(--primary);
+        border-radius: 999px;
+        box-shadow: var(--shadow-md);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(10px) scale(0.96);
+        transition:
+          opacity 0.25s ease,
+          transform 0.25s var(--ease-out),
+          background 0.2s;
+      }
+      .sticky-cta.is-in {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: none;
+      }
+      .sticky-cta:hover {
+        background: var(--primary-dark);
+      }
+      .sticky-cta:focus-visible {
+        outline: 2px solid var(--primary-dark);
+        outline-offset: 2px;
+      }
+      .sticky-cta svg {
+        flex: none;
+      }
+      @media (max-width: 768px) {
+        .sticky-cta {
+          right: 16px;
+          bottom: 112px;
+          padding: 10px 16px;
+          font-size: 13px;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         html {
           scroll-behavior: auto;
         }
         .scroll-rail,
         .scroll-rail button,
-        .scroll-rail-divider {
+        .scroll-rail-divider,
+        .sticky-cta {
           transition: none;
         }
         /* 页头两枚控件的 hover 抬升：位移本身就是这条动效，减弱档撤掉它、保留转色与描边，
@@ -1931,6 +1987,90 @@
       .pa-table.scene tbody td:last-child {
         width: 26%;
         font-size: 13px;
+      }
+      /* 行悬停回色：与 .compare-table 属同一族反馈。两张表分别 6 行 / 11 行数据行，逐行横向
+         读时没有回色就找不到视线落在哪一行——场景表的「在哪操作」列只有 26% 宽、字会换行，
+         一行占两三行高时更容易串行。
+         底色挂在 th/td 而不是 tr：`td.after` 自带一层 0.045 的半透明蓝底，单元格自己的
+         背景画在行之上，只挂行就会被它盖掉（正好盖掉的是最需要跟读的那一列）。
+         after 的悬停档同族加深到 0.09：既跟着行变色，又不让推荐列在悬停时和另外两列糊成一片。
+         触屏必须收进 hover 介质查询——`:hover` 点后会粘住，没门控就留下一条擦不掉的灰带。 */
+      @media (hover: hover) and (pointer: fine) {
+        .pa-table tbody tr:hover th,
+        .pa-table tbody tr:hover td {
+          background: var(--bg-soft);
+        }
+        .pa-table tbody tr:hover td.after {
+          background: rgba(78, 136, 255, 0.09);
+        }
+      }
+      /* 分类筛选条：整条控件的可见性挂在 html.js 上（基线 display:none）。
+         这是「隐形初始态挂 html.js」那条规则的反向用法——原理同一个：没有 JS 就没有行为，
+         而这里不能留一份「永远点不动」的死控件给禁 JS 的读者，所以默认收起、由 JS 放开。
+         与 .reveal 不同的是它隐藏的是控件而不是内容：11 行场景在禁 JS 时全数可见。 */
+      .uc-filters {
+        display: none;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+      html.js .uc-filters {
+        display: flex;
+      }
+      .uc-filters-label {
+        margin-right: 4px;
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+      .uc-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 13px;
+        /* --text-muted 在 --surface-chip 上只有 4.28:1（13px 字不达 AA），取页头锚点那档
+           --text-strong：亮档 9.2:1、暗档 10.4:1，且不与正文标题抢层级。 */
+        color: var(--text-strong);
+        background: var(--surface-chip);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 13px;
+        cursor: pointer;
+        transition:
+          color var(--dur-fast) var(--ease-out),
+          background var(--dur-fast) var(--ease-out),
+          border-color var(--dur-fast) var(--ease-out);
+      }
+      .uc-chip-n {
+        font-style: normal;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.8;
+      }
+      /* 选中档压在 --primary-dark 而不是 --primary：白字在 #4e88ff 上只有 3.34:1，
+         按钮那套 16px 尚可，chip 的 13px 必须走 AA；--primary-dark 是 .btn-primary:hover
+         已在用的同族深档，不引入新色值。计数数字在实底里不再压暗（0.8 的白只有 3.66:1）。 */
+      .uc-chip.is-on {
+        color: white;
+        background: var(--primary-dark);
+        border-color: var(--primary-dark);
+      }
+      .uc-chip.is-on .uc-chip-n {
+        opacity: 1;
+      }
+      .uc-chip:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      @media (hover: hover) and (pointer: fine) {
+        .uc-chip:hover:not(.is-on) {
+          color: var(--text);
+          border-color: var(--primary);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .uc-chip {
+          transition: none;
+        }
       }
       .req-grid {
         display: grid;
@@ -2181,6 +2321,18 @@
       }
       .reveal-delay-4 {
         transition-delay: 0.32s;
+      }
+      /* 场景表逐行错峰：`.pa-wrap` 已经整体淡入上移，行再各自补一层「只染不移」的淡入。
+         这一层必须用 opacity 而不是 transform——CSS Transforms 只作用于可变换元素，
+         table-row 盒不是，写在 tr 上的 transform 会被静默丢弃，看着生效实际整表一起动。
+         步进值 --ri 由文末脚本按「当前可见的第几行」现给：写进 markup 就是 11 处魔法数，
+         增删一行要手工重排，而分类筛选之后可见行的序号本来就会变。 */
+      html.js #use-cases .pa-wrap tbody tr {
+        opacity: 0;
+        transition: opacity var(--dur-mid) var(--ease-out) calc(var(--ri, 0) * 0.05s);
+      }
+      html.js #use-cases .pa-wrap.visible tbody tr {
+        opacity: 1;
       }
 
       /* ============ Motion layer ============ */
@@ -3609,6 +3761,13 @@
         html.js .faq-item.open .faq-a-inner {
           transform: none;
         }
+        /* 场景表逐行错峰要撤的是「一行一行来」的时间差，不是位移（那层本来只有 opacity）。
+           摘掉 transition 之后 11 行随容器一次落定；基准与终态两条选择器都写，
+           是因为权重和基准侧相同，只列一条会留下另一条的时长。 */
+        html.js #use-cases .pa-wrap tbody tr,
+        html.js #use-cases .pa-wrap.visible tbody tr {
+          transition: none;
+        }
         /* 功能自证四块：停掉动画即停在各自终态（表单已填好并勾选 / 环满格 / 条按权重 / 密文在场），
            选择器必须带上 html.js 前缀压过基准规则的权重。 */
         html.js .flow-step i,
@@ -4714,7 +4873,7 @@
     <!-- ======= Carousel ======= -->
     <section id="showcase">
       <div class="container">
-        <div class="section-head">
+        <div class="section-head reveal">
           <h2 data-i18n="showcase.title">Feature Showcase</h2>
           <p
             class="section-sub"
@@ -4897,6 +5056,62 @@
             data-i18n="useCases.sub"
           >The shortest path from scenario to entry point — the third column uses the exact names shown in the UI</p>
         </div>
+        <!-- 分类筛选：控件只在 JS 可用时存在（基线 display:none、html.js 才放开）。
+             11 行三类混排，读者通常只关心其中一类；行上的 data-cat 随行走，
+             将来插一行或调顺序都不会让分类漂移——这是把类目写在 markup 而不是写在脚本表里的理由。 -->
+        <div
+          class="uc-filters"
+          id="ucFilters"
+          role="group"
+          aria-labelledby="ucFiltersLabel"
+        >
+          <span
+            class="uc-filters-label"
+            id="ucFiltersLabel"
+            data-i18n="useCases.filter.label"
+            >Filter by type</span
+          >
+          <button
+            class="uc-chip is-on"
+            type="button"
+            data-cat="all"
+            aria-pressed="true"
+          >
+            <span data-i18n="useCases.filter.all">All</span><i class="uc-chip-n"></i>
+          </button>
+          <button
+            class="uc-chip"
+            type="button"
+            data-cat="env"
+            aria-pressed="false"
+          >
+            <span data-i18n="useCases.filter.env">Environments</span><i class="uc-chip-n"></i>
+          </button>
+          <button
+            class="uc-chip"
+            type="button"
+            data-cat="login"
+            aria-pressed="false"
+          >
+            <span data-i18n="useCases.filter.login">Login &amp; form quirks</span><i class="uc-chip-n"></i>
+          </button>
+          <button
+            class="uc-chip"
+            type="button"
+            data-cat="migrate"
+            aria-pressed="false"
+          >
+            <span data-i18n="useCases.filter.migrate">Migration &amp; sharing</span><i class="uc-chip-n"></i>
+          </button>
+          <button
+            class="uc-chip"
+            type="button"
+            data-cat="security"
+            aria-pressed="false"
+          >
+            <span data-i18n="useCases.filter.security">Everyday hygiene</span><i class="uc-chip-n"></i>
+          </button>
+        </div>
         <div class="pa-wrap reveal">
           <table class="pa-table scene">
             <caption>
@@ -4919,7 +5134,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr>
+              <tr data-cat="env">
                 <th
                   scope="row"
                   data-i18n="useCases.r1.scene"
@@ -4927,7 +5142,7 @@
                 <td data-i18n-html="useCases.r1.how">Keep the default tier and the accounts on <code>fat.example.com</code> and <code>uat.example.com</code> stay strictly apart.</td>
                 <td data-i18n="useCases.r1.where">"Cross-subdomain matching" in the password manager header</td>
               </tr>
-              <tr>
+              <tr data-cat="env">
                 <th
                   scope="row"
                   data-i18n="useCases.r2.scene"
@@ -4935,7 +5150,7 @@
                 <td data-i18n-html="useCases.r2.how">Widen one tier to "exact match + wildcard entries" and decide entry by entry which URLs are written as <code>*.qq.com</code>.</td>
                 <td data-i18n="useCases.r2.where">Same place; all three tiers switch anytime</td>
               </tr>
-              <tr>
+              <tr data-cat="env">
                 <th
                   scope="row"
                   data-i18n="useCases.r3.scene"
@@ -4943,7 +5158,7 @@
                 <td data-i18n="useCases.r3.how">Widen again to "same apex domain (loosest)": when the current hostname has no match, the apex domain and its other subdomains are offered in order.</td>
                 <td data-i18n="useCases.r3.where">Same place (localhost always stays per-port)</td>
               </tr>
-              <tr>
+              <tr data-cat="login">
                 <th
                   scope="row"
                   data-i18n="useCases.r4.scene"
@@ -4951,7 +5166,7 @@
                 <td data-i18n="useCases.r4.how">Turn on "Auto-trigger login" and the login button gets clicked as part of filling.</td>
                 <td data-i18n="useCases.r4.where">Preferences (manager page / floating-button gear / side-panel gear)</td>
               </tr>
-              <tr>
+              <tr data-cat="login">
                 <th
                   scope="row"
                   data-i18n="useCases.r5.scene"
@@ -4959,7 +5174,7 @@
                 <td data-i18n="useCases.r5.how">Store the code in the same entry as the password; on the code page the live pill anchors automatically and one click fills it.</td>
                 <td data-i18n="useCases.r5.where">"Fill and login" in the side-panel entry menu</td>
               </tr>
-              <tr>
+              <tr data-cat="login">
                 <th
                   scope="row"
                   data-i18n="useCases.r6.scene"
@@ -4967,7 +5182,7 @@
                 <td data-i18n="useCases.r6.how">Add a site rule for that domain giving the CSS selectors of the account / password fields; it reaches into Shadow DOM.</td>
                 <td data-i18n="useCases.r6.where">"Site rules" on the manager page</td>
               </tr>
-              <tr>
+              <tr data-cat="migrate">
                 <th
                   scope="row"
                   data-i18n="useCases.r7.scene"
@@ -4975,7 +5190,7 @@
                 <td data-i18n="useCases.r7.how">Export the rules as JSON; import merges by domain — same-domain entries are overwritten, the rest are kept.</td>
                 <td data-i18n="useCases.r7.where">Import / export inside the "Site rules" dialog</td>
               </tr>
-              <tr>
+              <tr data-cat="migrate">
                 <th
                   scope="row"
                   data-i18n="useCases.r8.scene"
@@ -4983,7 +5198,7 @@
                 <td data-i18n="useCases.r8.how">CSV and JSON imports, with Chrome / LastPass / Bitwarden / 1Password export formats detected automatically.</td>
                 <td data-i18n="useCases.r8.where">"Import data" on the manager page</td>
               </tr>
-              <tr>
+              <tr data-cat="migrate">
                 <th
                   scope="row"
                   data-i18n="useCases.r9.scene"
@@ -4991,7 +5206,7 @@
                 <td data-i18n-html="useCases.r9.how">Export a <code>.aph</code> backup and take it along in any cloud drive or on a USB stick; on the new machine import it with the master password used at export — the local one does not have to match.</td>
                 <td data-i18n="useCases.r9.where">"Data management" on the manager page</td>
               </tr>
-              <tr>
+              <tr data-cat="security">
                 <th
                   scope="row"
                   data-i18n="useCases.r10.scene"
@@ -4999,7 +5214,7 @@
                 <td data-i18n="useCases.r10.how">The built-in generator outputs random passwords or passphrase sets, and the field context menu can generate and fill in place.</td>
                 <td data-i18n="useCases.r10.where">The magic-wand button beside the password field, and the page context menu</td>
               </tr>
-              <tr>
+              <tr data-cat="security">
                 <th
                   scope="row"
                   data-i18n="useCases.r11.scene"
@@ -5391,7 +5606,7 @@ pnpm lint:style  # Stylelint</code></pre>
       <!-- `.faq-wrap` 把本节容器变成两栏网格：左列是问答列表，右列是「分类直达」。
            两格都由 #faqList 生成区产出，这里只提供网格本身（见 scripts/lib/faq-dom.mjs）。 -->
       <div class="container faq-wrap">
-        <div class="section-head">
+        <div class="section-head reveal">
           <h2 data-i18n="faq.title">FAQ</h2>
           <p
             class="section-sub"
@@ -5872,6 +6087,37 @@ pnpm lint:style  # Stylelint</code></pre>
       </div>
     </footer>
 
+    <!-- ======= Sticky install CTA（滚动期直达商店） ======= -->
+    <a
+      class="sticky-cta"
+      id="stickyCta"
+      href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line
+          x1="12"
+          y1="15"
+          x2="12"
+          y2="3"
+        />
+      </svg>
+      <span data-i18n="hero.download">Add to Chrome</span>
+    </a>
+
     <!-- ======= Scroll Rail（回顶 / 到底） ======= -->
     <div
       class="scroll-rail at-top"
@@ -6143,6 +6389,12 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '常见场景、各自的做法，以及在哪里操作',
           en: 'Common scenarios, the way to handle each, and where to do it',
         },
+        'useCases.filter.label': { zh: '按类型筛选', en: 'Filter by type' },
+        'useCases.filter.all': { zh: '全部', en: 'All' },
+        'useCases.filter.env': { zh: '多环境', en: 'Environments' },
+        'useCases.filter.login': { zh: '登录与适配', en: 'Login & form quirks' },
+        'useCases.filter.migrate': { zh: '迁移与共享', en: 'Migration & sharing' },
+        'useCases.filter.security': { zh: '日常安全', en: 'Everyday hygiene' },
         'useCases.col.scene': { zh: '场景', en: 'Scenario' },
         'useCases.col.how': { zh: '做法', en: 'How' },
         'useCases.col.where': { zh: '在哪操作', en: 'Where' },
@@ -7366,6 +7618,7 @@ pnpm lint:style  # Stylelint</code></pre>
         .map(id => document.getElementById(id))
         .filter(Boolean);
       const scrollRail = document.getElementById('scrollRail');
+      const stickyCta = document.getElementById('stickyCta');
       /* 阅读进度条：引擎支持滚动时间线时这件事由 CSS 独立完成（见「阅读进度条」区块的
          @supports），这里只补它缺席的那一档（Safari / 旧 Firefox）。判据取一次即可——
          同一次会话里不会中途变化；而个别老引擎上 CSS.supports 根本不是函数，
@@ -7375,6 +7628,23 @@ pnpm lint:style  # Stylelint</code></pre>
         typeof CSS !== 'undefined' &&
         typeof CSS.supports === 'function' &&
         CSS.supports('animation-timeline', 'scroll()');
+
+      /* 粘性安装入口的让位信号：读到「安装」小节时把浮层收起——那一屏本来就有同款按钮，
+         叠两枚只是遮挡。这里用 IntersectionObserver 而不是像素阈值：#install 的实际高度
+         随语言与断点变化，写死数字必在某一档错位；而「小节进入视口」本身就是判据，无需换算。
+         老浏览器没有 IO 时保持「不观测 = 不让位」，入口照常跟随滚动阈值出现，
+         不因缺少观测而整个消失（与 .reveal 那套「能力缺席就落终态」是同一取舍）。 */
+      let installInView = false;
+      if ('IntersectionObserver' in window) {
+        const installObserver = new IntersectionObserver(
+          entries => {
+            installInView = entries[entries.length - 1].isIntersecting;
+            onScroll();
+          },
+          { threshold: 0.12 },
+        );
+        installObserver.observe(document.getElementById('install'));
+      }
 
       function onScroll() {
         const y = window.scrollY + 120;
@@ -7394,6 +7664,10 @@ pnpm lint:style  # Stylelint</code></pre>
         // 滚动导轨：顶部隐藏「回到顶部」，触底隐藏「滚动到底部」
         scrollRail.classList.toggle('at-top', window.scrollY < 200);
         scrollRail.classList.toggle('at-bottom', window.scrollY >= max - 80);
+
+        /* 粘性安装入口：越过首屏 60% 才出现（按视口高而非绝对像素——矮屏上 600px 已经把
+           hero 甩在身后很远，高屏上又还没出 hero）。hero 里本来就有这枚按钮，同屏不叠两枚。 */
+        stickyCta.classList.toggle('is-in', window.scrollY > window.innerHeight * 0.6 && !installInView);
 
         if (navEl && !scrollTimelineSupported) {
           navEl.style.setProperty('--scroll-p', max > 0 ? String(Math.min(1, window.scrollY / max)) : '0');
@@ -7578,6 +7852,36 @@ pnpm lint:style  # Stylelint</code></pre>
         // 老浏览器没有 IntersectionObserver：直接落到终态，绝不让内容卡在隐形初始态
         document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
       }
+
+      // =================== 使用场景分类筛选 ===================
+      /* 11 行三类混排，读者通常只关心其中一类。摘掉整行用 `hidden` 属性而不是 display 类：
+         UA 样式负责把它从布局里移除，不必再和 .pa-table 的 border / 列宽规则较劲。
+         错峰序号 --ri 按「当前可见的第几行」重给：切完仍是逐行铺开，不会出现「只剩第 7 行
+         还在慢慢淡入」。入场那一遍由这里的 ucReindex('all') 先铺好序号，
+         所以筛选发生在滚动到位之前也是正确的。 */
+      const ucChips = [...document.querySelectorAll('#ucFilters .uc-chip')];
+      const ucRows = [...document.querySelectorAll('#use-cases .pa-table tbody tr')];
+      const ucReindex = cat => {
+        let visibleIndex = 0;
+        ucRows.forEach(row => {
+          const show = cat === 'all' || row.dataset.cat === cat;
+          row.hidden = !show;
+          if (show) row.style.setProperty('--ri', String(visibleIndex++));
+        });
+      };
+      ucChips.forEach(chip => {
+        const cat = chip.dataset.cat;
+        const count = cat === 'all' ? ucRows.length : ucRows.filter(row => row.dataset.cat === cat).length;
+        chip.querySelector('.uc-chip-n').textContent = String(count);
+        chip.addEventListener('click', () => {
+          ucChips.forEach(c => {
+            c.classList.toggle('is-on', c === chip);
+            c.setAttribute('aria-pressed', c === chip ? 'true' : 'false');
+          });
+          ucReindex(cat);
+        });
+      });
+      ucReindex('all');
 
       // =================== 卡片追光 ===================
       /* 指针停在卡片上时，一层径向光斑跟着指针走：CSS 侧只读 --gx / --gy 两个自定义属性
