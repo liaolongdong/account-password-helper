@@ -328,12 +328,14 @@ describe('落地页墨色：主色作文字用的那两枚令牌', () => {
     for (const page of inkPages.slice(1)) {
       const css = mainStyle(read(page));
       const light = rootTokens(css);
-      for (const token of ['--primary', '--primary-dark', '--accent', '--primary-ink']) {
+      const dark = rootTokens(css, true);
+      for (const token of ['--primary', '--primary-dark', '--accent', '--primary-ink', '--success-ink', '--warn-ink']) {
         expect(light.get(token), `${page} 的 ${token} 与 index.html 不同值`).toBe(refLight.get(token));
       }
-      expect(rootTokens(css, true).get('--primary-ink'), `${page} 暗档的 --primary-ink 与 index.html 不同值`).toBe(
-        refDark.get('--primary-ink'),
-      );
+      // 三枚文字令牌都必须真的翻档：只写 :root 而漏暗档，是这套令牌最容易犯的缺陷形状。
+      for (const token of ['--primary-ink', '--success-ink', '--warn-ink']) {
+        expect(dark.get(token), `${page} 暗档的 ${token} 与 index.html 不同值`).toBe(refDark.get(token));
+      }
     }
   });
 });
@@ -411,14 +413,6 @@ describe('compare 两页：判定格与链接只用文字令牌', () => {
     // 5 条规则共 12 块面 × 两档 = 24 组，当前全实算到。地板 20：只要有一枚底色令牌被换成
     // 渐变或 rgba，contrast() 就返回 null 跳过，整条断言会静默空转——全绿不等于达标。
     expect(checked, `${page} 只实算到 ${checked} 组，断言近乎空转`).toBeGreaterThanOrEqual(20);
-  });
-
-  it.each(comparePages)('%s 不许再把实底色写成文字色', page => {
-    const offenders = mainStyle(read(page))
-      .split('\n')
-      .map(l => l.trim())
-      .filter(l => /^color:\s*var\(--(primary|accent|warn)\);/.test(l));
-    expect(offenders, `${page} 拿实底色当文字色用了：\n${offenders.join('\n')}`).toEqual([]);
   });
 
   it('两枚判定令牌在暗档确实翻了值，且 --success-ink 与 index.html 逐字同源', () => {
@@ -570,5 +564,179 @@ describe('官网暗色档：全站每个对外页面都覆盖', () => {
       .map(l => l.trim())
       .filter(l => isBannedBackground(l) && !ALLOWED_LIGHT_BG.includes(l));
     expect(offenders, `${page} 存在暗档会露白的底色：\n${offenders.join('\n')}`).toEqual([]);
+  });
+});
+
+/**
+ * 全站「实底色不得当文字色」总闸（2026-10-02 收口那 87 处之后补的）
+ *
+ * 前面几组都是「令牌 → 底色」的成对实算，它们能证明某枚令牌压得住某块底，却管不住**新写的规则
+ * 拿哪一枚令牌当文字**：`.foo { color: var(--accent) }` 一行新代码，只要没人把它加进 COMPARE_INK_RULES
+ * 那种名单，就一条断言都不会红——这一族缺陷（#4e88ff 压白底 3.34:1、#42b883 只有 2.50:1、#ff9f43
+ * 只有 2.04:1）正是这样一轮轮攒出来的。所以这里反过来钉：`color:` 的取值**不许**命中任何一枚
+ * 实底色令牌，也不许命中它们对应的十六进制字面量（写死值能绕过令牌名单，#ff9f43 那 6 处就是这么漏的）。
+ *
+ * 扫描面是**整份 HTML**而不是 `<style>` 主体：落地页有 4 处内联 `style=` 和语言包里的 HTML 字符串
+ * 同样在决定文字颜色，只读 `<style>` 会连它们的存在都看不见。
+ */
+const FILL_AS_TEXT_TOKENS = ['--primary', '--primary-dark', '--accent', '--warn'] as const;
+/**
+ * 上面四枚令牌的取值字面量（privacy 页的 --primary 另有一枚 #4f6ef7，一并列入）。
+ * `#42b983` 是 2026-10-03 真机渲染探针补进来的：它是 `--accent` `#42b883` 的**错字近邻**
+ * （第 5 位 8→9），按值扫令牌名单永远扫不到，而它正被拿去当文字（`.compare-check` 的 ✓
+ * 与 `.compare-price.free` 的「免费」徽标，16px / 13px，实算 2.47:1）。
+ */
+const FILL_AS_TEXT_HEXES = ['#4e88ff', '#3a6cd9', '#42b883', '#42b983', '#ff9f43', '#4f6ef7'] as const;
+
+describe('官网全站：实底色不得当文字色（令牌名与字面量都算）', () => {
+  it.each(publishedPages)('%s 全文的 color: 没有一处落在实底色上', page => {
+    const offenders: string[] = [];
+    read(page)
+      .split('\n')
+      .forEach((line, i) => {
+        // 前缀 `[^\w-]` 把 border-color / text-decoration-color / -webkit-text-fill-color 挡在门外：
+        // 那几处是实底色的正当用法，本守卫只管文字。
+        for (const m of line.matchAll(/(^|[^\w-])color:\s*(var\(--[\w-]+\)|#[0-9a-fA-F]{3,8})/g)) {
+          const value = m[2];
+          const token = /var\((--[\w-]+)\)/.exec(value)?.[1];
+          if (token && (FILL_AS_TEXT_TOKENS as readonly string[]).includes(token)) {
+            offenders.push(`L${i + 1} color: ${value}`);
+          } else if (!token && (FILL_AS_TEXT_HEXES as readonly string[]).includes(value.toLowerCase())) {
+            offenders.push(`L${i + 1} color: ${value}（实底色字面量）`);
+          }
+        }
+      });
+    expect(offenders, `${page} 拿实底色当文字色用了：\n${offenders.join('\n')}`).toEqual([]);
+  });
+
+  // 上一条是「不许有」型断言，删光全部墨色文字也能让它全绿——所以这里补一条「不许没有」：
+  // 收口后的形状是文字改走 -ink 令牌，全站 20 页每页都该有墨色文字（现测 170 处，地板 140）。
+  it('墨色令牌确实是这批文字的着色方式（全站 20 页、每页 ≥2 处，总量不低于 140）', () => {
+    let total = 0;
+    const thin: string[] = [];
+    for (const page of publishedPages) {
+      const n = [...read(page).matchAll(/(^|[^\w-])color:\s*var\(--[\w-]+-ink\)/g)].length;
+      total += n;
+      if (n < 2) thin.push(`${page} 只有 ${n} 处`);
+    }
+    expect(thin, `墨色文字薄到近乎没有，上一条扫描可能在空转：\n${thin.join('\n')}`).toEqual([]);
+    expect(total, '全站墨色文字总数跌破地板，检查是不是成批改回了实底色').toBeGreaterThanOrEqual(140);
+  });
+
+  /**
+   * 对比表那三枚判定标记（`✓` / `✗` / 「免费」徽标）按规则点名钉住
+   *
+   * 它们是**文字**不是图形，走的是 1.4.3 的 4.5:1；而 `#ccc`（实算 1.61:1）这种「浅灰弱化」
+   * 写法不在任何实底色名单里，上面那条总闸抓不到它。所以这里按选择器钉取值：标记一旦漂回
+   * 写死值就红。墨色令牌压不压得住各自的底，由上面 `--success-ink` / `--warn-ink` 那两组
+   * 成对实算负责（`--text-muted` 则在 `--text` / `--text-muted` 成对断言里）。
+   */
+  const MARK_RULES = [
+    { sel: '.compare-check', token: '--success-ink' },
+    { sel: '.compare-cross', token: '--text-muted' },
+    { sel: '.compare-price.free', token: '--success-ink' },
+    { sel: '.compare-price.paid', token: '--warn-ink' },
+  ] as const;
+
+  it.each(['index.html', 'en.html'])('%s 的判定标记只用文字令牌', page => {
+    const css = mainStyle(read(page));
+    for (const { sel, token } of MARK_RULES) {
+      const body = ruleBody(css, sel);
+      expect(body, `${page} 找不到 ${sel} 规则`).not.toBe('');
+      const used = /\bcolor:\s*var\((--[\w-]+)\)/.exec(body)?.[1];
+      expect(used, `${page} ${sel} 的 color 不是文字令牌（实底色或写死值会在这里露出来）`).toBe(token);
+    }
+  });
+});
+
+/**
+ * privacy 与博客的自有墨色令牌（2026-10-02 同批补）
+ *
+ * privacy.html 的 `--primary` 是 #4f6ef7（比落地页那套蓝更深一档的靛蓝），墨色只能按**本页**色相压深，
+ * 抄 index 的 #3566cb 会把两档配色拆开；博客模板的 `--accent` 又是 #4e88ff（值同落地页主色、名字不同）。
+ * 所以这两批页面不进 inkPages 的逐字同源名单，改为各自钉三件事：暗档真的翻了值、压得住**本页真实底色**、
+ * 且 privacy 的墨色确实比它自己的实底色更压得住底（把墨色抄成实底色时当场变红）。
+ */
+describe('privacy 两页与博客 12 页：各自的墨色令牌', () => {
+  const privacyPages = ['privacy.html', 'privacy.en.html'] as const;
+  const blogPages = publishedPages.filter(p => p.startsWith('blog/'));
+
+  it('名单本身没漂：privacy 两页 + 博客 12 页', () => {
+    expect(privacyPages).toEqual(['privacy.html', 'privacy.en.html']);
+    expect(blogPages).toHaveLength(12);
+  });
+
+  /**
+   * 正文链接必须**有自己的**着色规则
+   *
+   * 这条是渲染层探针抓出来的缺陷钉成的断言：`.policy-section a` 此前整页没有一条规则，链接吃的是
+   * UA 默认 `#0000EE`——压白底 9.40（所以亮档从没暴露），压暗档底 `#0b1220` 只有 **1.99**。
+   * 本文件的零容忍总闸对这一类是**结构性失明**的：没有声明就没有可扫的东西，令牌名单与底色实算
+   * 也证不了「这一族文字真的被着色」。所以只能按选择器把这条规则本身钉住：删掉它或改回写死值即红。
+   */
+  it.each(privacyPages)('%s 的正文链接不是 UA 默认蓝', page => {
+    const body = ruleBody(mainStyle(read(page)), '.policy-section a');
+    expect(body, `${page} 缺少 .policy-section a 规则（链接会回落到 UA 默认 #0000EE，暗档 1.99）`).not.toBe('');
+    const used = /\bcolor:\s*var\((--[\w-]+)\)/.exec(body)?.[1];
+    expect(used, `${page} 的正文链接 color 不是文字令牌`).toBe('--primary-ink');
+  });
+
+  it.each(privacyPages)('%s 的 --primary-ink 两档都压得住本页底色，且严格优于 --primary', page => {
+    const css = mainStyle(read(page));
+    const light = rootTokens(css);
+    const dark = rootTokens(css, true);
+    expect(light.has('--primary-ink'), `${page} 缺少 :root --primary-ink`).toBe(true);
+    expect(dark.has('--primary-ink'), `${page} 暗档没翻 --primary-ink`).toBe(true);
+    // 暗档「不重写」不等于「没有」：--primary 刻意两档同值，暗档块里查不到就得回落 :root
+    // （同 line 212 那条断言的口径）。不回落就会拿到 undefined，暗档三组整批静默跳过。
+    const darkEff = new Map([...light, ...dark]);
+    const failures: string[] = [];
+    let checked = 0;
+    for (const [scheme, tokens] of [
+      ['亮', light],
+      ['暗', darkEff],
+    ] as const) {
+      for (const bg of ['--bg', '--bg-alt', '--primary-light']) {
+        const ink = contrast(tokens.get('--primary-ink'), tokens.get(bg));
+        const fill = contrast(tokens.get('--primary'), tokens.get(bg));
+        if (ink === null || fill === null) continue;
+        checked += 1;
+        if (ink < 4.5) failures.push(`--primary-ink on ${bg}（${scheme}档）${ink.toFixed(2)}:1`);
+        // 抄成同一个值时两档都会相等：这条比上一条更早红，且说得出为什么。
+        if (ink <= fill)
+          failures.push(`${scheme}档 --primary-ink（${ink.toFixed(2)}）不优于 --primary（${fill.toFixed(2)}）on ${bg}`);
+      }
+    }
+    expect(checked, `${page} 只实算到 ${checked} 组，断言近乎空转`).toBeGreaterThanOrEqual(6);
+    expect(failures, `${page} 墨色对比度不达标：\n${failures.join('\n')}`).toEqual([]);
+  });
+
+  it.each(blogPages)('%s 的 --accent-ink 逐字等于落地页的 --primary-ink，且两档压得住底/卡', page => {
+    const refLight = rootTokens(mainStyle(read('index.html')));
+    const refDark = rootTokens(mainStyle(read('index.html')), true);
+    const css = mainStyle(read(page));
+    const light = rootTokens(css);
+    const dark = rootTokens(css, true);
+    expect(light.get('--accent-ink'), `${page} 亮档 --accent-ink 与 index.html 的 --primary-ink 不同值`).toBe(
+      refLight.get('--primary-ink'),
+    );
+    expect(dark.get('--accent-ink'), `${page} 暗档 --accent-ink 与 index.html 的 --primary-ink 不同值`).toBe(
+      refDark.get('--primary-ink'),
+    );
+    const failures: string[] = [];
+    let checked = 0;
+    for (const [scheme, tokens] of [
+      ['亮', light],
+      ['暗', dark],
+    ] as const) {
+      for (const bg of ['--bg', '--card']) {
+        const ratio = contrast(tokens.get('--accent-ink'), tokens.get(bg));
+        if (ratio === null) continue;
+        checked += 1;
+        if (ratio < 4.5) failures.push(`--accent-ink on ${bg}（${scheme}档）${ratio.toFixed(2)}:1`);
+      }
+    }
+    expect(checked, `${page} 只实算到 ${checked} 组，断言近乎空转`).toBe(4);
+    expect(failures, `${page} 博客链接墨色不达标：\n${failures.join('\n')}`).toEqual([]);
   });
 });
