@@ -25,7 +25,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
 import vm from 'vm';
-import { hasReducedMotionRule, reducedMotionRules } from '../helpers/landingCss';
+import { hasReducedMotionRule, reducedMotionRules } from '@/tests/helpers/landingCss';
 
 const ROOT = path.resolve(__dirname, '../..');
 

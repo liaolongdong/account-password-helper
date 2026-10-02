@@ -16,8 +16,8 @@
 import { readFileSync } from 'fs';
 import path from 'path';
 import { describe, expect, it } from 'vitest';
-import { hasReducedMotionRule, reducedMotionRules } from '../helpers/landingCss';
-import { i18nEntry } from '../helpers/landingI18n';
+import { hasReducedMotionRule, reducedMotionRules } from '@/tests/helpers/landingCss';
+import { i18nEntry } from '@/tests/helpers/landingI18n';
 
 const ROOT = process.cwd();
 
