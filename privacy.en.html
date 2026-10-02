@@ -105,6 +105,7 @@
     />
     <style>
       :root {
+        color-scheme: light dark;
         --primary: #4f6ef7;
         --primary-light: #e8ecff;
         --text: #1a1a2e;
@@ -114,6 +115,18 @@
         --border: #e2e6ef;
         --radius: 12px;
         --max-width: 800px;
+      }
+
+      /* 暗色档与落地页同源：只翻令牌。--primary 保持原值（它是实底按钮与白字的组合色）。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-light: #1c2a45;
+          --text: #e6edf7;
+          --text-secondary: #a8b3c4;
+          --bg: #0b1220;
+          --bg-alt: #101a2c;
+          --border: #263349;
+        }
       }
 
       * {
@@ -371,8 +384,9 @@
       <div class="lang-zh">
         <div class="highlight-box">
           <p>
-            核心承诺：账号、密码、URL、备注、TOTP 密钥与身份信息逐字段加密后只写入您本机的浏览器存储，不上传任何服务器；本扩展的全部网络行为只有第
-            4 节列出的两类匿名请求。
+            核心承诺：账号、密码、URL、备注、TOTP
+            密钥与身份信息逐字段加密后只写入您本机的浏览器存储，不上传任何服务器；本扩展的全部网络行为只有第 4
+            节列出的两类匿名请求。
           </p>
         </div>
 
@@ -872,8 +886,7 @@
               >GitHub</a
             >
             · GPL-3.0 License ·
-            <a href="./">产品官网</a> · <a href="./pricing.html">定价</a> ·
-            <a href="./compare.html">功能对比</a></span
+            <a href="./">产品官网</a> · <a href="./pricing.html">定价</a> · <a href="./compare.html">功能对比</a></span
           >
           <span class="lang-en"
             >Account Password Helper &copy; 2026 ·
@@ -883,8 +896,7 @@
               >GitHub</a
             >
             · GPL-3.0 License ·
-            <a href="./en.html">Product page</a> ·
-            <a href="./pricing.en.html">Pricing</a> ·
+            <a href="./en.html">Product page</a> · <a href="./pricing.en.html">Pricing</a> ·
             <a href="./compare.en.html">Comparison</a></span
           >
         </p>

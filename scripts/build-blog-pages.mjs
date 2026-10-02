@@ -356,12 +356,26 @@ ${breadcrumbJsonLd(breadcrumb)}
     </script>
     <style>
       :root {
+        color-scheme: light dark;
         --bg: #f7f9fc;
         --card: #ffffff;
         --text: #1f2937;
         --muted: #6b7280;
         --accent: #4e88ff;
         --border: #e5e9f0;
+        --code: #eef2f7;
+      }
+      /* 暗色档与官网落地页同源（批2-A）：只翻令牌，不动组件规则。
+         pre 代码块两档都保持深色，所以不在此列。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --card: #141f33;
+          --text: #e6edf7;
+          --muted: #9aa8bd;
+          --border: #263349;
+          --code: #1e2a3f;
+        }
       }
       * {
         box-sizing: border-box;
@@ -450,7 +464,7 @@ ${breadcrumbJsonLd(breadcrumb)}
       code {
         padding: 2px 6px;
         font-size: 0.9em;
-        background: #eef2f7;
+        background: var(--code);
         border-radius: 4px;
       }
       pre {
@@ -614,12 +628,26 @@ ${breadcrumbJsonLd(breadcrumb)}
     </script>
     <style>
       :root {
+        color-scheme: light dark;
         --bg: #f7f9fc;
         --card: #ffffff;
         --text: #1f2937;
         --muted: #6b7280;
         --accent: #4e88ff;
         --border: #e5e9f0;
+        --code: #eef2f7;
+      }
+      /* 暗色档与官网落地页同源（批2-A）：只翻令牌，不动组件规则。
+         pre 代码块两档都保持深色，所以不在此列。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --card: #141f33;
+          --text: #e6edf7;
+          --muted: #9aa8bd;
+          --border: #263349;
+          --code: #1e2a3f;
+        }
       }
       * {
         box-sizing: border-box;

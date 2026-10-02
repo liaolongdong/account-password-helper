@@ -224,16 +224,32 @@
     </script>
     <style>
       :root {
+        color-scheme: light dark;
         --primary: #4e88ff;
         --primary-dark: #3a6cd9;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
         --text: #0f172a;
         --text-muted: #64748b;
+        --bg: #fff;
         --bg-soft: #f8fafc;
         --border: #e2e8f0;
         --warn: #ff9f43;
         --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+      }
+
+      /* 暗色档与落地页同源：只翻令牌，不动任何一条组件规则。
+         --primary / --accent / --warn 保持原值，理由同 index.html（主色实底上的白字比例）。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-soft: #1c2a45;
+          --text: #e6edf7;
+          --text-muted: #9aa8bd;
+          --bg: #0b1220;
+          --bg-soft: #101a2c;
+          --border: #263349;
+          --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+        }
       }
 
       * {
@@ -246,7 +262,7 @@
         font-family:
           -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
         line-height: 1.7;
-        background: #fff;
+        background: var(--bg);
       }
 
       a {
@@ -287,7 +303,7 @@
 
       .hero {
         padding: 56px 0 32px;
-        background: linear-gradient(180deg, #f8fafc, #fff);
+        background: linear-gradient(180deg, var(--bg-soft), var(--bg));
         text-align: center;
       }
 

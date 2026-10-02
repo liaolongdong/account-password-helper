@@ -638,8 +638,8 @@
         margin: 0;
         font-family:
           -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
-        color: #0f172a;
-        background: #ffffff;
+        color: var(--text);
+        background: var(--bg);
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
       }
@@ -659,6 +659,8 @@
       }
 
       :root {
+        /* 让表单控件、滚动条、默认画布跟着档位走，不写死 light */
+        color-scheme: light dark;
         --primary: #4e88ff;
         --primary-dark: #3a6cd9;
         --primary-soft: #eaf1ff;
@@ -668,7 +670,27 @@
         /* 页头锚点用的中间档：--text-muted（#64748b）在 15px 上仍读成「次要信息」，
            而 --text（#0f172a）会和正文标题抢层级。锚点是导航主控件，取两者之间的 slate-700。 */
         --text-strong: #334155;
+        --bg: #ffffff;
         --bg-soft: #f8fafc;
+        /* 表面层令牌。这几档此前是散落在各选择器里的 white / #ffffff / #f4f8ff 字面量，
+           暗色档要翻它们只能逐处补覆盖；收进令牌后暗色块只改令牌，逐处底色的层次关系不变。 */
+        --surface: #ffffff;
+        --surface-hero: #f4f8ff;
+        --surface-tint: #f6f9ff;
+        --surface-chip: #eef3ff;
+        /* 顶部告示条的琥珀档：整组随档位换，否则暗底上一块亮黄条最抢眼 */
+        --warn-surface: #fff8e1;
+        --warn-border: #ffecb3;
+        --warn-text: #8d6e12;
+        /* 页脚在两档里都是深色，但暗档要给它与正文底一道可辨的落差 */
+        --footer-bg: #0f172a;
+        /* 页头是半透明 + backdrop blur，亮档那层 78% 白在暗档会变成一条亮斑，
+           必须单独给档（不能复用 --surface，它是不透明的）。 */
+        --nav-bg: rgba(255, 255, 255, 0.78);
+        --nav-border: rgba(226, 232, 240, 0.7);
+        /* 填充演示里那条「点亮」横带的颜色：它压在字形下方作衬底，
+           暗档必须压深，否则浅色横带会把浅色字形整段吃掉。 */
+        --flow-fill: #b9d2ff;
         --border: #e2e8f0;
         --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
         --shadow-md: 0 4px 24px rgba(15, 23, 42, 0.06);
@@ -686,6 +708,40 @@
            收敛它们会逐条改变手感，属独立任务。 */
         --dur-fast: 0.2s;
         --dur-mid: 0.32s;
+      }
+
+      /* ============ Dark scheme（自动跟随系统，无站内开关） ============
+         只改令牌，不改任何一条组件规则：所有底色/文字色在上一节已经令牌化，
+         这里翻令牌即可让整页换档；--primary / --primary-dark / --accent 刻意保持原值，
+         因为主色实底按钮上的白字比例由它们决定，抬亮主色会让白字对比度反而掉下来
+         （#4e88ff 上的 white 是站内既有比例），而主色作文字用的那几档在暗底上本就比
+         亮档更好（--primary-soft 同步压深，比值从亮档的 2.95:1 抬到 4.2:1）。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-soft: #1c2a45;
+          --text: #e6edf7;
+          --text-muted: #9aa8bd;
+          --text-strong: #c7d2e1;
+          --bg: #0b1220;
+          --bg-soft: #101a2c;
+          --surface: #141f33;
+          --surface-hero: #0e1a2e;
+          --surface-tint: #18263f;
+          --surface-chip: #16233a;
+          --warn-surface: #29220f;
+          --warn-border: #4f421a;
+          --warn-text: #e6c76a;
+          --footer-bg: #070d18;
+          --nav-bg: rgba(11, 18, 32, 0.82);
+          --nav-border: rgba(38, 51, 73, 0.8);
+          --flow-fill: #2f4b7c;
+          --border: #263349;
+          /* 亮档那三档影子是 slate-900 的低透明度，落在深底上等于没有；
+             暗档改用纯黑并抬不透明度，保住卡片与页头之间原有的层次。 */
+          --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+          --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.42);
+          --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
       }
 
       .container {
@@ -718,8 +774,8 @@
         z-index: 100;
         backdrop-filter: saturate(180%) blur(14px);
         -webkit-backdrop-filter: saturate(180%) blur(14px);
-        background: rgba(255, 255, 255, 0.78);
-        border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+        background: var(--nav-bg);
+        border-bottom: 1px solid var(--nav-border);
       }
       .nav-inner {
         display: flex;
@@ -858,7 +914,7 @@
         background:
           radial-gradient(circle at 20% 0%, rgba(78, 136, 255, 0.16), transparent 55%),
           radial-gradient(circle at 90% 30%, rgba(66, 184, 131, 0.1), transparent 50%),
-          linear-gradient(180deg, #f4f8ff 0%, #ffffff 100%);
+          linear-gradient(180deg, var(--surface-hero) 0%, var(--bg) 100%);
         overflow: hidden;
       }
       .hero-inner {
@@ -903,7 +959,7 @@
         letter-spacing: -0.03em;
         line-height: 1.15;
         margin: 0 0 20px;
-        background: linear-gradient(135deg, #0f172a 0%, #4e88ff 100%);
+        background: linear-gradient(135deg, var(--text) 0%, var(--primary) 100%);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -942,7 +998,7 @@
         transform: translateY(-1px);
       }
       .btn-ghost {
-        background: white;
+        background: var(--surface);
         color: var(--text);
         border: 1px solid var(--border);
       }
@@ -1000,7 +1056,7 @@
         position: absolute;
         bottom: -20px;
         right: -10px;
-        background: white;
+        background: var(--surface);
         padding: 14px 18px;
         border-radius: 14px;
         box-shadow: var(--shadow-lg);
@@ -1025,11 +1081,11 @@
       .disclaimer-banner {
         margin-top: 30px;
         padding: 14px 18px;
-        background: #fff8e1;
-        border: 1px solid #ffecb3;
+        background: var(--warn-surface);
+        border: 1px solid var(--warn-border);
         border-radius: 12px;
         font-size: 13px;
-        color: #8d6e12;
+        color: var(--warn-text);
         display: flex;
         align-items: flex-start;
         gap: 10px;
@@ -1050,7 +1106,7 @@
       }
       .feature-card {
         grid-column: span 2;
-        background: white;
+        background: var(--surface);
         padding: 28px;
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
@@ -1062,7 +1118,7 @@
       .feature-card-lg {
         grid-column: span 3;
         padding: 32px;
-        background: linear-gradient(160deg, #ffffff 0%, #f6f9ff 100%);
+        background: linear-gradient(160deg, var(--surface) 0%, var(--surface-tint) 100%);
         border: 1px solid rgba(78, 136, 255, 0.14);
       }
       .feature-card-lg h3 {
@@ -1164,7 +1220,7 @@
         position: relative;
         overflow: hidden;
         border-radius: var(--radius);
-        background: linear-gradient(135deg, #eef3ff 0%, #f8fafc 100%);
+        background: linear-gradient(135deg, var(--surface-chip) 0%, var(--bg-soft) 100%);
         box-shadow: var(--shadow-lg);
       }
       .carousel-track {
@@ -1190,7 +1246,7 @@
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
-        background: white;
+        background: var(--surface);
         display: flex;
       }
       .slide-shot img {
@@ -1205,7 +1261,7 @@
       }
       .slide-info .step-tag {
         display: inline-block;
-        background: white;
+        background: var(--surface);
         color: var(--primary);
         padding: 4px 12px;
         border-radius: 999px;
@@ -1231,7 +1287,7 @@
         width: 44px;
         height: 44px;
         border-radius: 50%;
-        background: white;
+        background: var(--surface);
         box-shadow: var(--shadow-md);
         display: flex;
         align-items: center;
@@ -1303,7 +1359,7 @@
         counter-reset: step;
       }
       .step-card {
-        background: white;
+        background: var(--surface);
         padding: 28px 24px;
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
@@ -1338,7 +1394,7 @@
         gap: 12px;
       }
       .faq-item {
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 14px;
         overflow: hidden;
@@ -1410,7 +1466,7 @@
         display: flex;
         flex-direction: column;
         padding: 28px;
-        background: white;
+        background: var(--surface);
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
         transition:
@@ -1492,7 +1548,7 @@
 
       /* ============ Footer ============ */
       .footer {
-        background: #0f172a;
+        background: var(--footer-bg);
         color: #cbd5e1;
         padding: 40px 0 28px;
         font-size: 14px;
@@ -1551,6 +1607,8 @@
         width: 108px;
         height: 108px;
         padding: 5px;
+        /* 刻意保持 white 而不下沉到 --surface：这层是二维码的成像底，
+           暗档把它翻成深色会让黑白二维码与深色框糊在一起，扫码成功率直接受影响。 */
         background: white;
         border-radius: var(--radius-sm);
       }
@@ -1608,7 +1666,7 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 999px;
         box-shadow: var(--shadow-md);
@@ -1690,7 +1748,7 @@
         -webkit-overflow-scrolling: touch;
         border-radius: 16px;
         border: 1px solid var(--border);
-        background: white;
+        background: var(--surface);
         box-shadow: var(--shadow-sm);
       }
       .compare-table {
@@ -1802,7 +1860,7 @@
         -webkit-overflow-scrolling: touch;
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        background: white;
+        background: var(--surface);
         box-shadow: var(--shadow-sm);
       }
       .pa-table {
@@ -1883,7 +1941,7 @@
         padding: 24px;
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        background: white;
+        background: var(--surface);
         box-shadow: var(--shadow-sm);
       }
       .req-card h3 {
@@ -2001,7 +2059,7 @@
       }
       .faq-rail-card {
         padding: 16px 18px;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-sm);
@@ -2343,17 +2401,17 @@
         flex: 1;
         height: 34px;
         overflow: hidden;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 8px;
       }
       /* 填充层压在字形下方（z-index 0 / 1），所以「点亮」不会盖掉内容，只把它衬出来。
-         取值 #b9d2ff 对白底 1.53:1，是原来 #eaf1ff（1.13:1）读不出来的那档以下。 */
+         亮档取值 #b9d2ff 对白底 1.53:1，是原来 #eaf1ff（1.13:1）读不出来的那档以下。 */
       .flow-step i {
         position: absolute;
         inset: 0;
         z-index: 0;
-        background: #b9d2ff;
+        background: var(--flow-fill);
         transform: scaleX(1);
         transform-origin: left center;
       }
@@ -2385,7 +2443,9 @@
         left: 9px;
         width: 15px;
         height: 15px;
-        background: white;
+        /* 与 .flow-step 自己的底同色 = 「未勾选的空框」，描边才是它的轮廓；
+           写死 white 会在暗档变成一块白方块，读成已勾选。 */
+        background: var(--surface);
         border: 1.5px solid var(--text-muted);
         border-radius: 4px;
         transform: translateY(-50%);
@@ -2706,7 +2766,7 @@
         flex: 1;
         height: 100%;
         overflow: hidden;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 8px;
       }
@@ -3123,7 +3183,7 @@
       .hiw-step {
         position: relative;
         padding: 20px 18px 18px;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-sm);
@@ -3204,7 +3264,7 @@
         display: flex;
         gap: 10px;
         padding: 14px 16px;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
         font-size: 14.5px;
@@ -3224,7 +3284,7 @@
         gap: 12px;
         align-items: baseline;
         padding: 12px 16px;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
       }
@@ -3311,7 +3371,7 @@
           right: 0;
           flex-direction: column;
           gap: 0;
-          background: white;
+          background: var(--surface);
           padding: 8px 24px 16px;
           border-bottom: 1px solid var(--border);
           box-shadow: var(--shadow-md);

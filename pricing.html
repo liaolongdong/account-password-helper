@@ -116,13 +116,18 @@
       }
 
       :root {
+        color-scheme: light dark;
         --primary: #4e88ff;
         --primary-dark: #3a6cd9;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
         --text: #0f172a;
         --text-muted: #64748b;
+        --bg: #fff;
         --bg-soft: #f8fafc;
+        --surface: #fff;
+        --surface-hero: #f4f8ff;
+        --nav-bg: rgba(255, 255, 255, 0.78);
         --border: #e2e8f0;
         --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
         --shadow-md: 0 4px 24px rgba(15, 23, 42, 0.06);
@@ -130,6 +135,25 @@
         --radius: 16px;
         --radius-sm: 10px;
         --container: 1080px;
+      }
+
+      /* 暗色档与落地页同源：只翻令牌，不动组件规则。
+         --primary / --primary-dark / --accent 保持原值（主色实底上的白字比例由它们决定）。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-soft: #1c2a45;
+          --text: #e6edf7;
+          --text-muted: #9aa8bd;
+          --bg: #0b1220;
+          --bg-soft: #101a2c;
+          --surface: #141f33;
+          --surface-hero: #0e1a2e;
+          --nav-bg: rgba(11, 18, 32, 0.82);
+          --border: #263349;
+          --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+          --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.42);
+          --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
       }
 
       html {
@@ -142,7 +166,7 @@
         font-family:
           -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
         color: var(--text);
-        background: #fff;
+        background: var(--bg);
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -175,7 +199,7 @@
         z-index: 100;
         -webkit-backdrop-filter: saturate(180%) blur(14px);
         backdrop-filter: saturate(180%) blur(14px);
-        background: rgba(255, 255, 255, 0.78);
+        background: var(--nav-bg);
         border-bottom: 1px solid rgba(226, 232, 240, 0.7);
       }
 
@@ -264,7 +288,7 @@
         background:
           radial-gradient(circle at 20% 0%, rgba(78, 136, 255, 0.16), transparent 55%),
           radial-gradient(circle at 90% 30%, rgba(66, 184, 131, 0.1), transparent 50%),
-          linear-gradient(180deg, #f4f8ff 0%, #fff 100%);
+          linear-gradient(180deg, var(--surface-hero) 0%, var(--bg) 100%);
         text-align: center;
       }
 
@@ -276,7 +300,7 @@
         height: 72px;
         margin-bottom: 20px;
         position: relative;
-        background: #fff;
+        background: var(--surface);
         border: 1px solid rgba(78, 136, 255, 0.14);
         border-radius: 20px;
         box-shadow: var(--shadow-md);
@@ -394,7 +418,7 @@
         flex-direction: column;
         align-items: center;
         gap: 6px;
-        background: #fff;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-sm);
@@ -493,7 +517,7 @@
       }
 
       .feature-card {
-        background: #fff;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
@@ -643,7 +667,7 @@
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
-        background: #fff;
+        background: var(--surface);
       }
 
       .compare-table {
@@ -747,7 +771,7 @@
         display: flex;
         flex-direction: column;
         justify-content: center;
-        background: #fff;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-sm);
@@ -836,7 +860,7 @@
       }
 
       .btn-ghost {
-        background: #fff;
+        background: var(--surface);
         color: var(--text);
         border: 1px solid var(--border);
       }
