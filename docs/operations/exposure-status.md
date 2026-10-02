@@ -612,11 +612,12 @@
 - `utils/i18n/locales/{zh-CN,en}/help.json`：`help.fc.8` 词库 2048 → **3080**；`help.fs.6` 「五维/five checks」→ **4 个计分维度 + 两步验证仅列示不计分**；`help.fc.12` 历史条数默认 5 → **3**；`help.fs.1`/`help.fs.3` 去掉「零网络传输」与「过期后全量重加密」两处错误表述；`help.fb.5` 版本检测改为「先探测商店可达性、不可达才查 GitHub Releases」；`help.fc.10` 把「零网络传输」限定到 TOTP 计算本身。
 - `public/_locales/{zh_CN,en}/messages.json` 的 `extensionDescription`：五跳修正——① 2026-09-09 把「零联网」/「100% offline, no sign-up.」改为「密码数据不上传」+ 逐字段加密口径（中文 117 / 英文 127 字符）；② 2026-09-10 因该版本仍属关键词堆砌（逗号串关键词、含竞品品牌名）随驳回一并重写为完整句子（中文 57 / 英文 129 字符）；③ 同日二次修订，按用户「别浪费字符、加密方式是 AES-256-GCM」的要求把核心功能排满 132 额度（中文 121 / 英文 130 字符）；④ 同日三次修订，按用户「TOTP 2FA、迁移导入、密码强度检测、密码可见性切换等核心优势尽量覆盖」的要求把这四项一并排进句子（中文 127 / 英文 130 字符；英文密度低装不下 `show or hide`，该特性由说明的 FEATURE SET 承担；强度检测写作 `strength checks` 而非 `strength audit`，避免与【功能全览】里 0–100 分的安全体检撞词）；⑤ 同日评审微调，按「这里改为 TOTP 2FA」的意见把中文写成**「两步验证（TOTP/2FA）」**（**中文 131 / 英文 130 字符**；「两步验证」是中文侧真实检索词，所以保留而不是换成裸的 `TOTP 2FA`）。五跳的每版中文与英文都与 `docs/store/CWS_FILL_CONTENT.md`「第二步 → 摘要」逐字一致。
 - `utils/i18n/locales/{zh-CN,en}/options.json` 的 `options.disclaimer.desc`：去掉绝对化的「零网络传输」，改为「密码数据仅存本地、逐字段 AES-256-GCM 加密、不上传任何服务器」，并保留银行/支付高敏感凭证不建议存放的提示。
+- `utils/i18n/locales/{zh-CN,en}/health.json` 的 `health.breachedHint`（2026-10-02 评审回灌）：中文「（离线检测、零联网）」→ **「（内置离线字典，检测过程不发起网络请求）」**，英文「(offline, no network)」→ **"(bundled offline — this check makes no network request)"**。这一条是 2026-09-10 那轮清扫的漏网——`tests/docs/seoSurface.test.ts` 的扫描面当时只覆盖站页 / README / 封面矢量源，**没有 `utils/i18n/locales/**` 与 `public/_locales/**`**，而 `docs/store/CWS_PUBLISHING_GUIDE.md:193` 写的是「全部表面」。本轮已把这三处（中英语言包、商店 `_locales`、`imgs/store-creatives/*.svg`）补进扫描面，并把「零网络传输」加进禁用词表；注入原句可让守卫变红，已有自检用例看守。
 - `utils/passphraseGenerator.ts` JSDoc：3080 词、单词 ≈11.6 bit、4 词 ≈46 bit。
 - `composables/useSidepanelData.ts:762` 注释：alarm 最小间隔 60s → **0.5min（30s）**。
 - `entrypoints/background/backgroundServices.ts:814` 注释：锁定不再「加密全部密码」，只销毁会话密钥材料与解密快照。
 
-⚠️ 上面 help.json、`_locales` 摘要、`options.disclaimer.desc` 三组都是**已上架扩展的用户可见文案**，必须 `pnpm build` 后随商店包重新提交才会真正生效；在此之前线上帮助弹窗、商店列表摘要与选项页安全声明仍显示旧口径。商店侧的生效路径见本文「🔴 待你执行」第 4 项——**被拒草稿不会自动带上新文案，必须新建草稿并粘贴 `CWS_FILL_CONTENT.md`「第二步」的最新内容**。
+⚠️ 上面 help.json、`_locales` 摘要、`options.disclaimer.desc`、`health.breachedHint` 四组都是**已上架扩展的用户可见文案**，必须 `pnpm build` 后随商店包重新提交才会真正生效；在此之前线上帮助弹窗、商店列表摘要、选项页安全声明与体检面板的泄露密码提示仍显示旧口径。商店侧的生效路径见本文「🔴 待你执行」第 4 项——**被拒草稿不会自动带上新文案，必须新建草稿并粘贴 `CWS_FILL_CONTENT.md`「第二步」的最新内容**。
 
 ## 📉 现状基线
 

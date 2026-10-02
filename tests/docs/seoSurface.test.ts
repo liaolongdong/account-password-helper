@@ -14,6 +14,10 @@
  *    Browser` / `100% offline` 一类）——这类词在商店审核侧已被判过，网站与 README 保持同一口径。
  *    扫描面除根目录页面外还包括 `blog/*.html`、`README*.md`、封面矢量源与 issue 模板：
  *    烧进封面 PNG 的字同样是对外承诺，而只扫 HTML 的 rg 看不见它。
+ *    2026-10-02 的评审把另外三处补进来——`utils/i18n/locales/**`（装进扩展、用户在侧边栏
+ *    与管理页读到的就是它）、`public/_locales/**`（商店 listing 的元数据）与
+ *    `imgs/store-creatives/*.svg`（`store-creatives:render` 栅格进商店宣传图 PNG 的文字层）。
+ *    这三处当初都在口径之外，`docs/store/CWS_PUBLISHING_GUIDE.md:193` 那句「全部表面」才落到实处。
  *
  * 结构方面顺带守住两条：每个页面只有一个 `<h1>`；`llms.txt` 里指向本站的每个链接都取得到文件。
  */
@@ -37,6 +41,10 @@ const ROOT_PAGES = readdirSync(ROOT)
  * 而封面 PNG 就是博客的 `og:image`——烧进图片的字也是承诺，只扫 HTML 看不见。
  * `docs/operations/promo/*.md` 是要贴到站外的成稿（公众号 / 微博），落地页之外的读者
  * 先在那儿读到这句话，口径就得在那儿成立。
+ * `utils/i18n/locales/{zh-CN,en}/*.json` 与 `public/_locales/*\/messages.json` 装进的是
+ * 用户机器上的扩展本体——侧边栏、管理页和商店 listing 里的每一句隐私承诺都由它们写出；
+ * `imgs/store-creatives/*.svg` 同理由 `pnpm store-creatives:render` 烧进商店宣传图 PNG。
+ * 这三处此前都在扫描面之外，2026-10-02 评审就是从 `health.json` 那句「零联网」发现这个洞的。
  * `outline.md`、`docs/store/*` 与 `PULL_REQUEST_TEMPLATE.md` 刻意不在名单里：
  * 它们出现禁用词是在**转述禁令**，扫它们恒红。
  */
@@ -51,9 +59,18 @@ const COPY_SURFACES = [
   ...readdirSync(path.join(ROOT, 'imgs/blog-covers'))
     .filter(f => /^blog-cover-.+\.svg$/.test(f))
     .map(f => `imgs/blog-covers/${f}`),
+  ...readdirSync(path.join(ROOT, 'imgs/store-creatives'))
+    .filter(f => f.endsWith('.svg'))
+    .map(f => `imgs/store-creatives/${f}`),
   ...readdirSync(path.join(ROOT, 'docs/operations/promo'))
     .filter(f => f.endsWith('.md'))
     .map(f => `docs/operations/promo/${f}`),
+  ...['zh-CN', 'en'].flatMap(lang =>
+    readdirSync(path.join(ROOT, 'utils/i18n/locales', lang))
+      .filter(f => f.endsWith('.json'))
+      .map(f => `utils/i18n/locales/${lang}/${f}`),
+  ),
+  ...['zh_CN', 'en'].map(l => `public/_locales/${l}/messages.json`),
 ];
 
 /** 页面文件名 → sitemap 里的 `<loc>`（index.html 是目录根） */
@@ -116,6 +133,8 @@ const BANNED_PHRASES = [
   'never leaves the browser',
   '100% offline',
   '零联网',
+  // 「零网络传输」与「零联网」是两条不同的旧措辞，商店指南点名禁的是前者（`CWS_PUBLISHING_GUIDE.md:193`）
+  '零网络传输',
 ];
 
 /**
@@ -246,7 +265,7 @@ describe('官网 SEO 表面一致性', () => {
     }
   });
 
-  it('站页正文、README 与封面矢量源都不出现被禁的绝对化隐私口径', () => {
+  it('站页正文、README、语言包与两处矢量源都不出现被禁的绝对化隐私口径', () => {
     const offenders = findBannedPhraseOffenders([...ROOT_PAGES, ...COPY_SURFACES]);
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
@@ -284,6 +303,9 @@ describe('守卫自检：匹配层与扫描面都得有牙', () => {
     expect(bannedPhraseHitsIn('credential data never leaves the browser')).toEqual(['never leaves the browser']);
     expect(bannedPhraseHitsIn('密码数据不出本机，多环境账号不串号')).toEqual([]);
     expect(bannedPhraseHitsIn('credential data never leaves this machine')).toEqual([]);
+    expect(bannedPhraseHitsIn('密码数据零网络传输，多环境账号不串号')).toEqual(['零网络传输']);
+    // 评审从语言包里翻出来的原句——匹配层必须认得出它，否则「扫到了」只是侥幸
+    expect(bannedPhraseHitsIn('命中常见泄露密码字典（离线检测、零联网）')).toEqual(['零联网']);
   });
 
   it('扫描面确实读到了 README、博客页、封面矢量源与 issue 模板', () => {
@@ -294,5 +316,27 @@ describe('守卫自检：匹配层与扫描面都得有牙', () => {
     expect(blogPages.length, 'blog/*.html 没进扫描面，那条断言成了空转').toBeGreaterThan(0);
     const coverSources = COPY_SURFACES.filter(f => f.startsWith('imgs/blog-covers/'));
     expect(coverSources.length, '封面矢量源没进扫描面，烧进 PNG 的文案无人看守').toBeGreaterThan(0);
+  });
+
+  it('扫描面确实读到了语言包、商店元数据与商店宣传图矢量源', () => {
+    const locales = COPY_SURFACES.filter(f => f.startsWith('utils/i18n/locales/'));
+    const zhLocales = locales.filter(f => f.includes('/zh-CN/'));
+    expect(zhLocales.length, '语言包没进扫描面，装进用户机器的那句口径无人看守').toBeGreaterThan(10);
+    expect(
+      locales.filter(f => f.includes('/en/')),
+      '只扫到中文语言包，英文文案仍在口径之外',
+    ).toHaveLength(zhLocales.length);
+    expect(COPY_SURFACES).toContain('public/_locales/zh_CN/messages.json');
+    expect(COPY_SURFACES).toContain('public/_locales/en/messages.json');
+    const storeCreatives = COPY_SURFACES.filter(f => f.startsWith('imgs/store-creatives/'));
+    expect(storeCreatives.length, '商店宣传图矢量源没进扫描面，烧进 PNG 的文案无人看守').toBeGreaterThan(0);
+  });
+
+  it('泄露密码提示那条已改成限定口径，语言包扫得到它', () => {
+    for (const file of ['utils/i18n/locales/zh-CN/health.json', 'utils/i18n/locales/en/health.json']) {
+      const hint = JSON.parse(readFileSync(path.join(ROOT, file), 'utf8'))['health.breachedHint'] as string;
+      expect(hint, `${file} 缺 health.breachedHint`).toBeTruthy();
+      expect(bannedPhraseHitsIn(hint), `${file} 仍写着被禁的绝对化说法`).toEqual([]);
+    }
   });
 });
