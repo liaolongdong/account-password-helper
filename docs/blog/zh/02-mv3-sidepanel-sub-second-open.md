@@ -3,7 +3,7 @@ title: 让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热�
 description: MV3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文复盘秒开方案：双层保活、四层资源预热与三路数据竞速。
 tags: Chrome扩展,Manifest V3,Service Worker,性能优化,前端工程化
 date: 2026-08-28
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-02-sub-second-sidepanel.png
 ---

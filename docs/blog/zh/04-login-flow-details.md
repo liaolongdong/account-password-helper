@@ -3,7 +3,7 @@ title: 四个新功能，四段实现笔记：右键填充、全站搜索、快�
 description: 这批更新没有新增任何设置页开关。本文逐个拆开右键菜单填充、内联面板定位、侧边栏全站搜索与条目只读详情背后的实现取舍与安全边界。
 tags: Chrome扩展,浏览器扩展,密码管理器,前端开发,交互设计
 date: 2026-09-05
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-04-login-flow-details.png
 ---

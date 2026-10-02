@@ -3,7 +3,7 @@ title: 同一站点的账号该出现在哪些子域：跨子域名匹配三档�
 description: 精确 host 匹配是多环境隔离的立身之本，但真实登录常横跨一整个子域家族。拆开三档匹配的分层判据、不能切的主域名边界，以及只有真机才抓到的 %2A 踩坑。
 tags: Chrome扩展,密码管理器,域名匹配,多环境测试,前端开发
 date: 2026-09-22
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-05-cross-subdomain-matching.png
 ---

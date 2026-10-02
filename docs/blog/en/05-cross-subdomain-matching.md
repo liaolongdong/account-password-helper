@@ -3,7 +3,7 @@ title: Three Tiers of Cross-Subdomain Matching
 description: Exact-host matching isolates environments, but real logins span a subdomain family. Three tiers, one root-domain rule, and a %2A bug only a real browser caught.
 tags: chrome extension, password manager, domain matching, multi-environment testing, frontend
 date: 2026-09-22
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-05-cross-subdomain-matching.png
 ---

@@ -3,7 +3,7 @@ title: Four Features, Four Implementation Notes
 description: Right-click fill, inline panel positioning, site-wide side panel search and the read-only entry drawer — the trade-offs and security boundaries behind each.
 tags: chrome extension, browser extension, password manager, frontend, interaction design
 date: 2026-09-05
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-04-login-flow-details.png
 ---

@@ -3,7 +3,7 @@ title: Why I Built a Local-First Password Manager
 description: A local-first, open-source Chrome password manager for developers juggling dev, test, staging and prod accounts. No account, no sync server, no cloud trust.
 tags: password manager,browser extension,open source,chrome extension,local-first
 date: 2026-08-28
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---

@@ -3,7 +3,7 @@ title: Sub-Second Chrome Side Panel on MV3
 description: MV3 service workers die without warning, so the side panel cold-starts white. Dual-layer keep-alive, four-tier pre-warming and three-way data racing fix that.
 tags: chrome extension,manifest v3,service worker,performance,frontend engineering
 date: 2026-08-28
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-02-sub-second-sidepanel.png
 ---
