@@ -297,6 +297,75 @@ describe('官网 SEO 表面一致性', () => {
   });
 });
 
+/**
+ * 结构化数据块：整块必须留在 `<script type="application/ld+json">` 里
+ *
+ * HTML 解析器不认识 JSON，它只在一个裸的 `</script` 面前收工。值里出现这个形状时块会就地终止，
+ * 后半截变成页面上的裸文本——爬虫读到的是断掉的 JSON，而本地 `JSON.parse(块体)` 照样绿，
+ * 因为测试拿到的已经是被截短的那半截。所以对整个对外表面立两条：
+ *
+ * 1. 块体内不许出现裸的 `<`（小于号一律写成等价的 `<`，语义不变）；
+ * 2. 块体必须可解析。
+ *
+ * 生成侧的转义在 `scripts/lib/faq-schema.mjs`（FAQPage）与 `scripts/build-blog-pages.mjs`
+ * （BreadcrumbList / ItemList / BlogPosting）。根目录另外几页是手写块，同在此扫描面内。
+ */
+const BLOG_PAGES = readdirSync(path.join(ROOT, 'blog'))
+  .filter(f => f.endsWith('.html'))
+  .map(f => `blog/${f}`);
+
+/**
+ * 尚无结构化数据的页面。这是**缺口名单**不是豁免理由：补上一块 ld+json 就得把它从这里删掉，
+ * 由下面那条自检把关。默默跳过这些页等于让它们永远不在扫描面内。
+ */
+const NO_LD_JSON_PAGES = ['privacy.en.html', 'privacy.html'];
+
+const LD_JSON_PAGES = [...ROOT_PAGES, ...BLOG_PAGES].sort().filter(p => !NO_LD_JSON_PAGES.includes(p));
+
+/** 按 HTML 解析器的切法切出每个 ld+json 块的正文 */
+function ldJsonBlocks(html: string): string[] {
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map(m => m[1]);
+}
+
+describe('结构化数据块：不被值内的尖括号截断', () => {
+  it.each(LD_JSON_PAGES)('%s 的每个 ld+json 块可解析、块体内没有裸的 <', page => {
+    const blocks = ldJsonBlocks(readPage(page));
+    expect(blocks.length, `${page} 一个 ld+json 块都没有，这两条判据成了空转`).toBeGreaterThan(0);
+    blocks.forEach((body, i) => {
+      let parsed: unknown = null;
+      expect(
+        () => {
+          parsed = JSON.parse(body);
+        },
+        `${page} 块 #${i + 1} 无法解析`,
+      ).not.toThrow();
+      expect(parsed, `${page} 块 #${i + 1} 解析结果为空`).toBeTruthy();
+      // 只查 `<`：`</script` 与 `<!--` 两种起始形状都以它开头，而 JSON 字符串里的合法写法只能是转义形式
+      expect(body.indexOf('<'), `${page} 块 #${i + 1} 块体内有裸的 <，script 会被就地截断`).toBe(-1);
+    });
+  });
+
+  it('缺口名单精确等于「当前没有 ld+json 的页面」', () => {
+    // 名单只能与实际空缺对上：多写一项会让某页永久离开扫描面，少写一项则当场变红。
+    const empty = [...ROOT_PAGES, ...BLOG_PAGES].filter(p => ldJsonBlocks(readPage(p)).length === 0).sort();
+    expect(empty).toEqual(NO_LD_JSON_PAGES);
+  });
+
+  it('守卫自检：还原转义就立刻命中，</script 会真的把块切短', () => {
+    const faq = ldJsonBlocks(readPage('index.html')).find(b => b.includes('"FAQPage"'));
+    expect(faq, 'index.html 里没有 FAQPage 块，这条自检抓不到东西').toBeDefined();
+    // 夹具本身必须真含转义，否则「还原后被判据抓到」只是空转
+    expect(faq!.includes('\\u003c'), 'FAQPage 块里没有 <，转义层已经不在产物里了').toBe(true);
+    const unescaped = faq!.replace(/\\u003c/g, '<');
+    expect(unescaped).not.toBe(faq);
+    expect(unescaped.indexOf('<'), '把转义还原成裸 < 之后判据应当命中').toBeGreaterThanOrEqual(0);
+    // 提取器按 HTML 解析器的切法走：值内的 </script 会让块停在它前面，后半截根本不在块体内
+    const broken = ldJsonBlocks('<script type="application/ld+json">{"a":"</script><p>x</p>"} </script>');
+    expect(broken).toHaveLength(1);
+    expect(broken[0], '块体没被截短，说明这条自检没有复现真实形状').toBe('{"a":"');
+  });
+});
+
 describe('守卫自检：匹配层与扫描面都得有牙', () => {
   it('往文案里塞一枚禁用词 → 匹配层认得出，合规口径不误伤', () => {
     expect(bannedPhraseHitsIn('密码数据不出浏览器，多环境账号不串号')).toEqual(['数据不出浏览器']);

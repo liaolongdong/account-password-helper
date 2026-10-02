@@ -149,6 +149,18 @@ export function orderFaqEntries(entries) {
 }
 
 /**
+ * JSON 字面量，但把小于号改写成等价的 Unicode 转义形式。
+ *
+ * 产物落在 `<script type="application/ld+json">` 里，HTML 解析器不看 JSON：值内出现 `</script`
+ * 会就地终止这个块，后半截变成页面里的裸文本。FAQ 文案由人撰写，`误差 < 30 秒` 这类写法今天就在
+ * 库里，转义 `<` 一并堵掉 `</script` 与 `<!--` 两种起始形状，且 `JSON.parse` 读回原字符，语义不变。
+ *
+ * @param {unknown} value 任意可序列化值
+ * @returns {string} 转义过的 JSON 文本
+ */
+const jsonLit = value => JSON.stringify(value).replace(/</g, '\\u003c');
+
+/**
  * 生成 FAQPage JSON-LD 块（含起始注释，缩进与 index.html 现有脚本块一致）。
  *
  * @param {ReturnType<typeof parseFaqEntries>} entries 条目（已按目标顺序排好）
@@ -162,10 +174,10 @@ export function buildFaqPageJsonLd(entries, lang) {
       return [
         '          {',
         '            "@type": "Question",',
-        `            "name": ${JSON.stringify(item.q)},`,
+        `            "name": ${jsonLit(item.q)},`,
         '            "acceptedAnswer": {',
         '              "@type": "Answer",',
-        `              "text": ${JSON.stringify(item.a)}`,
+        `              "text": ${jsonLit(item.a)}`,
         '            }',
         '          }',
       ].join('\n');

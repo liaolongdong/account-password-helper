@@ -43,6 +43,22 @@ marked.setOptions({ gfm: true, breaks: false });
 const escapeHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const escapeAttr = s => escapeHtml(s);
 
+/**
+ * 结构化数据块：JSON 之外还要把小于号改写成等价的 Unicode 转义形式。
+ *
+ * 产物整段落在 `<script type="application/ld+json">` 里，HTML 解析器不看 JSON——值内出现
+ * `</script` 会就地终止这个块，剩下的半截变成页面上的裸文本。标题与摘要是作者手写的，
+ * 这条转义让「写进正文的尖号」不需要作者记得避开。
+ */
+const jsonLd = value => JSON.stringify(value, null, 2).replace(/</g, '\\u003c');
+
+/** 文件名即 slug，同时直接拼进产物文件名与 URL，只允许「两位序号 + 小写连字符词」 */
+const SLUG_RE = /^\d{2}-[a-z0-9][a-z0-9-]*$/;
+/** `date` / `modified` 原样进 `article:*_time` 与 JSON-LD，按 ISO 日期钉死形状 */
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+/** 封面只能是仓库内的位图路径：段名只允许 `\w` 与 `-`，`..`、空格、引号一并挡在门外 */
+const IMG_PATH_RE = /^imgs(?:\/[\w-]+)+\.png$/;
+
 /** 脱去 YAML 单/双引号包裹；只有整值被同类引号包住时才脱，避免误伤内文引号 */
 function unquote(value) {
   const m = value.match(/^(['"])([\s\S]*)\1$/);
@@ -83,8 +99,21 @@ function readArticles(dir) {
       for (const key of ['title', 'description', 'date']) {
         if (!meta[key]) throw new Error(`${file} frontmatter 缺少 ${key}`);
       }
+      const slug = file.replace(/\.md$/, '');
+      // 这三个形状是下游的唯一防线：slug 进产物文件名与 URL，date/modified 进 `article:*_time`
+      // 与 JSON-LD，image 进 og/twitter 的 content 和 `<img src>`——四处都不做二次转义，
+      // 所以坏值必须在读到这里就让构建失败，而不是安静地长进已发布的字节里。
+      if (!SLUG_RE.test(slug)) throw new Error(`${file} 文件名不是合法 slug（需匹配 ${SLUG_RE}）`);
+      for (const key of ['date', 'modified']) {
+        if (meta[key] && !ISO_DATE_RE.test(meta[key])) {
+          throw new Error(`${file} frontmatter 的 ${key} 不是 YYYY-MM-DD：${meta[key]}`);
+        }
+      }
+      if (meta.image && !IMG_PATH_RE.test(meta.image)) {
+        throw new Error(`${file} frontmatter 的 image 不是 imgs/ 下的位图路径：${meta.image}`);
+      }
       return {
-        slug: file.replace(/\.md$/, ''),
+        slug,
         title: meta.title,
         description: meta.description,
         tags: (meta.tags || '')
@@ -187,58 +216,46 @@ function siblingLinks(lang) {
 
 /** BreadcrumbList 结构化数据 */
 function breadcrumbJsonLd(items) {
-  return JSON.stringify(
-    {
-      '@context': 'https://schema.org',
-      '@type': 'BreadcrumbList',
-      itemListElement: items.map((item, i) => ({
-        '@type': 'ListItem',
-        position: i + 1,
-        name: item.name,
-        item: item.url,
-      })),
-    },
-    null,
-    2,
-  );
+  return jsonLd({
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((item, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: item.name,
+      item: item.url,
+    })),
+  });
 }
 
 /** ItemList 结构化数据（博客索引页的文章清单，供爬虫与 AI 引擎直接读取目录） */
 function itemListJsonLd(articles, lang) {
-  return JSON.stringify(
-    {
-      '@context': 'https://schema.org',
-      '@type': 'ItemList',
-      name: lang === 'zh-CN' ? '技术博客文章列表' : 'Engineering blog posts',
-      itemListElement: articles.map((a, i) => ({
-        '@type': 'ListItem',
-        position: i + 1,
-        url: `${SITE}/blog/${a.slug}${lang === 'zh-CN' ? '' : '.en'}.html`,
-      })),
-    },
-    null,
-    2,
-  );
+  return jsonLd({
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: lang === 'zh-CN' ? '技术博客文章列表' : 'Engineering blog posts',
+    itemListElement: articles.map((a, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      url: `${SITE}/blog/${a.slug}${lang === 'zh-CN' ? '' : '.en'}.html`,
+    })),
+  });
 }
 
 function blogPostingJsonLd(article, url, lang) {
-  return JSON.stringify(
-    {
-      '@context': 'https://schema.org',
-      '@type': 'BlogPosting',
-      headline: article.title,
-      description: article.description,
-      inLanguage: lang,
-      image: article.image ? `${SITE}/${article.image}` : undefined,
-      datePublished: article.date,
-      dateModified: article.modified || article.date,
-      author: { '@type': 'Person', name: article.author },
-      keywords: article.tags.join(','),
-      mainEntityOfPage: { '@type': 'WebPage', '@id': url },
-    },
-    null,
-    2,
-  );
+  return jsonLd({
+    '@context': 'https://schema.org',
+    '@type': 'BlogPosting',
+    headline: article.title,
+    description: article.description,
+    inLanguage: lang,
+    image: article.image ? `${SITE}/${article.image}` : undefined,
+    datePublished: article.date,
+    dateModified: article.modified || article.date,
+    author: { '@type': 'Person', name: article.author },
+    keywords: article.tags.join(','),
+    mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+  });
 }
 
 /** 品牌名按语言输出：中文页此前挂着英文品牌，与 pricing/privacy 等页面口径不一致 */
