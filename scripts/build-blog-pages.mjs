@@ -15,9 +15,14 @@
  * - frontmatter 支持 title / description / tags / date / modified / author / image；
  *   `modified` 为可选的修订日期，仅当文章在发布后被回改时填写，用于填充
  *   `BlogPosting.dateModified`、`article:modified_time` 与页面上的「更新于」；
- *   `sitemap.xml` 不由本脚本产出，其 `lastmod` 需手工同步到同一日期。
+ * - 页面唯一的 `<h1>` 取自 frontmatter 的 `title`。正文开头若出现同级 ATX 标题
+ *   （`# ...`）会被剥掉，避免一页两个 h1 稀释权重、破损文档大纲；
+ *   值允许用 YAML 单/双引号包裹，解析时会被脱引；
+ * - `sitemap.xml` 不由本脚本产出，其 `lastmod` 需手工同步到同一日期。
  *
- * 修改文章后运行 `pnpm gen:blog` 重新生成（CI 部署前自动执行）。
+ * 修改文章后运行 `pnpm gen:blog` 重新生成。本仓库没有 Pages 部署 workflow，
+ * Pages 直接读 `main` 分支根目录，所以 `blog/*.html` 属**必须提交入库的产物**——
+ * 只在本地重跑不会让线上变化。
  *
  * @file scripts/build-blog-pages.mjs
  */
@@ -37,7 +42,15 @@ marked.setOptions({ gfm: true, breaks: false });
 const escapeHtml = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const escapeAttr = s => escapeHtml(s);
 
-/** 解析 frontmatter（仅支持 `key: value` 单行格式） */
+/** 脱去 YAML 单/双引号包裹；只有整值被同类引号包住时才脱，避免误伤内文引号 */
+function unquote(value) {
+  const m = value.match(/^(['"])([\s\S]*)\1$/);
+  if (!m) return value;
+  // 内文里的转义引号（如 \'）随脱引一并还原
+  return m[2].replace(/\\(['"])/g, '$1');
+}
+
+/** 解析 frontmatter（仅支持 `key: value` 单行格式，值可被 YAML 引号包裹） */
 function parseFrontmatter(md) {
   const m = md.match(/^---\n([\s\S]*?)\n---\n/);
   if (!m) throw new Error('缺少 frontmatter');
@@ -45,9 +58,19 @@ function parseFrontmatter(md) {
   for (const line of m[1].split('\n')) {
     const idx = line.indexOf(':');
     if (idx === -1) continue;
-    meta[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+    meta[line.slice(0, idx).trim()] = unquote(line.slice(idx + 1).trim());
   }
   return { meta, body: md.slice(m[0].length) };
+}
+
+/**
+ * 剥掉正文开头的同级 ATX 标题。
+ *
+ * 页面 `<h1>` 由模板按 frontmatter 的 `title` 渲染，正文再带一个 `# ...` 就会出现
+ * 一页两个 h1；这里只处理**第一块内容**处的标题，正文里其余的 `#` 不动。
+ */
+function stripLeadingHeading(body) {
+  return body.replace(/^\s*#[^\n]*\n+/, '');
 }
 
 function readArticles(dir) {
@@ -71,7 +94,7 @@ function readArticles(dir) {
         modified: meta.modified || '',
         author: meta.author || 'liaolongdong',
         image: meta.image || '',
-        body,
+        body: stripLeadingHeading(body),
       };
     });
 }
@@ -81,6 +104,123 @@ function renderMarkdown(body) {
   let html = marked.parse(body);
   html = html.replace(/src="imgs\//g, `src="${SITE}/imgs/`);
   return html;
+}
+
+const GH_URL = 'https://github.com/liaolongdong/account-password-helper';
+const CWS_URL = 'https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli';
+
+/** 无封面文章与索引页的分享卡兜底图：中英各一张 1200×630，语言与页面一致 */
+const OG_IMAGE = {
+  'zh-CN': `${SITE}/assets/cws-store/og-1200x630.png`,
+  en: `${SITE}/assets/cws-store/og-en-1200x630.png`,
+};
+
+/**
+ * 页内共享的图标、主题色与爬虫指令。
+ *
+ * 博客 12 个页面此前既没有 favicon 也没有 `robots` meta，而同站另外 8 个页面都写了
+ * `index, follow, max-image-preview:large`——文章封面是 1600×900（16:9），
+ * 少了这条声明就拿不到大图富结果。
+ */
+function headKit() {
+  return `    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="${SITE}/assets/icons/icon.svg"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="${SITE}/public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="${SITE}/public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
+    />`;
+}
+
+/** 站内落点链接：锚文本用具体意图词，不用「官网」这类泛词 */
+function siteLinks(lang) {
+  const zh = lang === 'zh-CN';
+  const suffix = zh ? '' : '.en';
+  const home = zh ? `${SITE}/` : `${SITE}/en.html`;
+  const anchors = zh
+    ? ['产品官网与功能演示', '定价：永久免费', '与 Bitwarden、1Password 对比', '隐私政策', 'Chrome 应用商店', 'GitHub']
+    : [
+        'Product site &amp; demo',
+        'Pricing: free forever',
+        'Compared with Bitwarden &amp; 1Password',
+        'Privacy policy',
+        'Chrome Web Store',
+        'GitHub',
+      ];
+  const hrefs = [
+    home,
+    `${SITE}/pricing${suffix}.html`,
+    `${SITE}/compare${suffix}.html`,
+    `${SITE}/privacy${suffix}.html`,
+    CWS_URL,
+    GH_URL,
+  ];
+  return hrefs.map((href, i) => `<a href="${href}">${anchors[i]}</a>`).join(' · ');
+}
+
+/** 同作者兄弟产品互链（中英各一份，英文页指向英文落点） */
+function siblingLinks(lang) {
+  const zh = lang === 'zh-CN';
+  const taf = 'https://liaolongdong.github.io/transfer-any-file/';
+  const cop = zh
+    ? 'https://liaolongdong.github.io/cross-origin-proxy/'
+    : 'https://liaolongdong.github.io/cross-origin-proxy/en.html';
+  return zh
+    ? `同作者：<a href="${taf}">文件格式任意转换助手</a> / <a href="${cop}">跨域代理助手</a>`
+    : `Same author: <a href="${taf}">Transfer Any File</a> / <a href="${cop}">Cross-origin Proxy</a>`;
+}
+
+/** BreadcrumbList 结构化数据 */
+function breadcrumbJsonLd(items) {
+  return JSON.stringify(
+    {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: items.map((item, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        name: item.name,
+        item: item.url,
+      })),
+    },
+    null,
+    2,
+  );
+}
+
+/** ItemList 结构化数据（博客索引页的文章清单，供爬虫与 AI 引擎直接读取目录） */
+function itemListJsonLd(articles, lang) {
+  return JSON.stringify(
+    {
+      '@context': 'https://schema.org',
+      '@type': 'ItemList',
+      name: lang === 'zh-CN' ? '技术博客文章列表' : 'Engineering blog posts',
+      itemListElement: articles.map((a, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        url: `${SITE}/blog/${a.slug}${lang === 'zh-CN' ? '' : '.en'}.html`,
+      })),
+    },
+    null,
+    2,
+  );
 }
 
 function blogPostingJsonLd(article, url, lang) {
@@ -103,8 +243,19 @@ function blogPostingJsonLd(article, url, lang) {
   );
 }
 
-function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, switchLabel, footerNote }) {
-  const cover = article.image ? `${SITE}/${article.image}` : `${SITE}/assets/cws-store/marquee-1400x560.png`;
+/** 品牌名按语言输出：中文页此前挂着英文品牌，与 pricing/privacy 等页面口径不一致 */
+const BRAND = { 'zh-CN': '账号密码管理助手', en: 'Account Password Helper' };
+
+/** 面包屑里博客一级的短名（索引页标题较长，不适合当 crumb 文案） */
+const BLOG_CRUMB = { 'zh-CN': '博客', en: 'Blog' };
+
+function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, switchLabel }) {
+  const cover = article.image ? `${SITE}/${article.image}` : OG_IMAGE[lang];
+  const breadcrumb = [
+    { name: BRAND[lang], url: lang === 'zh-CN' ? `${SITE}/` : `${SITE}/en.html` },
+    { name: BLOG_CRUMB[lang], url: `${SITE}/blog/${lang === 'zh-CN' ? '' : 'index.en.html'}` },
+    { name: article.title, url: selfUrl },
+  ];
   return `<!doctype html>
 <!-- Generated by scripts/build-blog-pages.mjs from docs/blog/${lang === 'zh-CN' ? 'zh' : 'en'}/${article.slug}.md — do not edit manually. -->
 <html lang="${lang}">
@@ -114,7 +265,7 @@ function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, swit
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>${escapeHtml(article.title)} | Account Password Helper</title>
+    <title>${escapeHtml(article.title)} | ${BRAND[lang]}</title>
     <meta
       name="description"
       content="${escapeAttr(article.description)}"
@@ -123,6 +274,7 @@ function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, swit
       name="author"
       content="${escapeAttr(article.author)}"
     />
+${headKit()}
     <link
       rel="canonical"
       href="${selfUrl}"
@@ -147,6 +299,10 @@ function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, swit
       content="article"
     />
     <meta
+      property="og:locale"
+      content="${lang === 'zh-CN' ? 'zh_CN' : 'en_US'}"
+    />
+    <meta
       property="og:title"
       content="${escapeAttr(article.title)}"
     />
@@ -164,7 +320,7 @@ function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, swit
     />
     <meta
       property="og:site_name"
-      content="Account Password Helper"
+      content="${BRAND[lang]}"
     />
     <meta
       property="article:published_time"
@@ -196,6 +352,9 @@ function articlePage(article, { lang, selfUrl, altUrl, backHref, backLabel, swit
     />
     <script type="application/ld+json">
 ${blogPostingJsonLd(article, selfUrl, lang)}
+    </script>
+    <script type="application/ld+json">
+${breadcrumbJsonLd(breadcrumb)}
     </script>
     <style>
       :root {
@@ -321,6 +480,9 @@ ${blogPostingJsonLd(article, selfUrl, lang)}
         color: var(--muted);
         text-align: center;
       }
+      .footer p {
+        margin: 6px 0;
+      }
       .footer a {
         color: var(--accent);
         text-decoration: none;
@@ -339,28 +501,21 @@ ${blogPostingJsonLd(article, selfUrl, lang)}
       ${article.image ? `<img class="cover" src="${SITE}/${article.image}" alt="${escapeAttr(article.title)}" />` : ''}
       ${renderMarkdown(article.body)}
     </article>
-    <footer class="footer">${footerNote}</footer>
+    <footer class="footer">
+      <p>${BRAND[lang]} · ${lang === 'zh-CN' ? '开源（GPL-3.0）' : 'Open source (GPL-3.0)'}</p>
+      <p>${siteLinks(lang)}</p>
+      <p>${siblingLinks(lang)}</p>
+    </footer>
   </body>
 </html>
 `;
 }
 
-function indexPage({
-  lang,
-  title,
-  subtitle,
-  selfUrl,
-  altUrl,
-  articles,
-  readLabel,
-  backLabel,
-  switchLabel,
-  footerNote,
-}) {
+function indexPage({ lang, title, subtitle, selfUrl, altUrl, articles, readLabel, backLabel, switchLabel }) {
   const cards = articles
     .map(a => {
       const href = lang === 'zh-CN' ? `${a.slug}.html` : `${a.slug}.en.html`;
-      const cover = a.image ? `${SITE}/${a.image}` : `${SITE}/assets/cws-store/marquee-1400x560.png`;
+      const cover = a.image ? `${SITE}/${a.image}` : OG_IMAGE[lang];
       return `      <a class="card" href="${href}">
         <img src="${cover}" alt="${escapeAttr(a.title)}" loading="lazy" />
         <div class="card-body">
@@ -371,6 +526,10 @@ function indexPage({
       </a>`;
     })
     .join('\n');
+  const breadcrumb = [
+    { name: BRAND[lang], url: lang === 'zh-CN' ? `${SITE}/` : `${SITE}/en.html` },
+    { name: BLOG_CRUMB[lang], url: selfUrl },
+  ];
   return `<!doctype html>
 <!-- Generated by scripts/build-blog-pages.mjs — do not edit manually. -->
 <html lang="${lang}">
@@ -380,11 +539,12 @@ function indexPage({
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>${escapeHtml(title)} | Account Password Helper</title>
+    <title>${escapeHtml(title)} | ${BRAND[lang]}</title>
     <meta
       name="description"
       content="${escapeAttr(subtitle)}"
     />
+${headKit()}
     <link
       rel="canonical"
       href="${selfUrl}"
@@ -409,6 +569,10 @@ function indexPage({
       content="website"
     />
     <meta
+      property="og:locale"
+      content="${lang === 'zh-CN' ? 'zh_CN' : 'en_US'}"
+    />
+    <meta
       property="og:title"
       content="${escapeAttr(title)}"
     />
@@ -422,12 +586,34 @@ function indexPage({
     />
     <meta
       property="og:image"
-      content="${SITE}/assets/cws-store/marquee-1400x560.png"
+      content="${OG_IMAGE[lang]}"
+    />
+    <meta
+      property="og:site_name"
+      content="${BRAND[lang]}"
     />
     <meta
       name="twitter:card"
       content="summary_large_image"
     />
+    <meta
+      name="twitter:title"
+      content="${escapeAttr(title)}"
+    />
+    <meta
+      name="twitter:description"
+      content="${escapeAttr(subtitle)}"
+    />
+    <meta
+      name="twitter:image"
+      content="${OG_IMAGE[lang]}"
+    />
+    <script type="application/ld+json">
+${itemListJsonLd(articles, lang)}
+    </script>
+    <script type="application/ld+json">
+${breadcrumbJsonLd(breadcrumb)}
+    </script>
     <style>
       :root {
         --bg: #f7f9fc;
@@ -529,6 +715,9 @@ function indexPage({
         color: var(--muted);
         text-align: center;
       }
+      .footer p {
+        margin: 6px 0;
+      }
       .footer a {
         color: var(--accent);
         text-decoration: none;
@@ -557,7 +746,11 @@ function indexPage({
 ${cards}
       </div>
     </main>
-    <footer class="footer">${footerNote}</footer>
+    <footer class="footer">
+      <p>${BRAND[lang]} · ${lang === 'zh-CN' ? '开源（GPL-3.0）' : 'Open source (GPL-3.0)'}</p>
+      <p>${siteLinks(lang)}</p>
+      <p>${siblingLinks(lang)}</p>
+    </footer>
   </body>
 </html>
 `;
@@ -588,7 +781,6 @@ for (const zh of zhArticles) {
       backHref: './index.html',
       backLabel: '← 博客首页',
       switchLabel: 'English',
-      footerNote: `Account Password Helper · <a href="${SITE}/">官网</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · 同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a>`,
     }),
   );
   writeFileSync(
@@ -600,7 +792,6 @@ for (const zh of zhArticles) {
       backHref: './index.en.html',
       backLabel: '← Blog Home',
       switchLabel: '中文',
-      footerNote: `Account Password Helper · <a href="${SITE}/en.html">Website</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a>`,
     }),
   );
   written += 2;
@@ -610,15 +801,14 @@ writeFileSync(
   path.join(outDir, 'index.html'),
   indexPage({
     lang: 'zh-CN',
-    title: '技术博客',
-    subtitle: 'Account Password Helper 的产品思考与工程实现：本地优先的安全设计、MV3 性能实战与 Web Crypto 加密详解。',
+    title: '博客 · 本地优先密码管理器的工程实战',
+    subtitle: '账号密码管理助手的产品思考与工程实现：本地优先的安全设计、MV3 秒开实战与 Web Crypto 加密详解。',
     selfUrl: `${SITE}/blog/`,
     altUrl: `${SITE}/blog/index.en.html`,
     articles: zhArticles,
     readLabel: '阅读全文',
-    backLabel: { href: `${SITE}/`, text: '← 官网首页' },
+    backLabel: { href: `${SITE}/`, text: '← 产品官网与功能演示' },
     switchLabel: 'English',
-    footerNote: `Account Password Helper · 开源（GPL-3.0）· <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · 同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a>`,
   }),
 );
 writeFileSync(
@@ -632,9 +822,8 @@ writeFileSync(
     altUrl: `${SITE}/blog/`,
     articles: enArticles,
     readLabel: 'Read article',
-    backLabel: { href: `${SITE}/en.html`, text: '← Website' },
+    backLabel: { href: `${SITE}/en.html`, text: '← Product site & demo' },
     switchLabel: '中文',
-    footerNote: `Account Password Helper · Open source (GPL-3.0) · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a>`,
   }),
 );
 written += 2;

@@ -1,16 +1,12 @@
 ---
 title: 同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑
-description: 精确 host 匹配是多环境隔离的立身之本，但真实登录常常横跨一整个子域家族。本文拆开跨子域名匹配三档的分层判据、主域名相等这条不能切的安全边界，以及 Chrome 把通配符编码成 %2A、让全部单元测试集体失声的那次真机踩坑。
+description: 精确 host 匹配是多环境隔离的立身之本，但真实登录常横跨一整个子域家族。拆开三档匹配的分层判据、不能切的主域名边界，以及只有真机才抓到的 %2A 踩坑。
 tags: Chrome扩展,密码管理器,域名匹配,多环境测试,前端开发
 date: 2026-09-22
 modified: 2026-09-30
 author: liaolongdong
 image: imgs/blog-cover-05-cross-subdomain-matching.png
 ---
-
-# 同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑
-
-![跨子域名匹配三档的实现与踩坑](imgs/blog-cover-05-cross-subdomain-matching.png)
 
 自 2026-07 把匹配口径收敛成「精确 host 相等」以来，这条规则一直是这个扩展的多环境隔离底座：`fat.example.com` 的页面上不会看到 `uat.example.com` 或 `example.com` 的账号。它同时是最容易被用户碰到的一面墙——同一主域名下的账号，在别的子域里就是不出来。
 

@@ -1,16 +1,12 @@
 ---
-title: Four New Features, Four Implementation Notes: Right-Click Fill, Site-Wide Search, Quick Add & Read-Only Details
-description: None of these updates added a settings toggle. This post walks through the implementation trade-offs and security boundaries behind right-click fill, inline panel positioning, side panel site-wide search, and the read-only entry drawer.
+title: Four Features, Four Implementation Notes
+description: Right-click fill, inline panel positioning, site-wide side panel search and the read-only entry drawer — the trade-offs and security boundaries behind each.
 tags: chrome extension, browser extension, password manager, frontend, interaction design
 date: 2026-09-05
 modified: 2026-09-30
 author: liaolongdong
 image: imgs/blog-cover-04-login-flow-details.png
 ---
-
-# Four New Features, Four Implementation Notes: Right-Click Fill, Site-Wide Search, Quick Add & Read-Only Details
-
-![Implementation highlights of the four new features](imgs/blog-cover-04-login-flow-details.png)
 
 Not one feature in this batch added a switch to the settings page, and only one permission grew the manifest — `contextMenus`, belonging to the single heavyweight item in the group (right-click fill). Everything else rides on rails that already existed: the login field, the side panel, the password list. That was deliberate — every extra toggle on a password manager's settings page is one more "should I turn this on?" decision pushed onto the user.
 

@@ -8,8 +8,6 @@ author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---
 
-# 零云端、开源、为开发者而生：我从零做了一款浏览器密码管理器
-
 ![Account Password Helper 核心价值一览](imgs/01-infographic-core-value.png)
 
 同一个后台系统，我有四套账号：dev、test、staging、prod。域名分别是 `admin-dev.example.com`、`admin-test.example.com`、`admin.example.com`……不对，其实很多团队的多环境是同一主域加子域，或者干脆是 `192.168.1.10:8080` 这种地址。

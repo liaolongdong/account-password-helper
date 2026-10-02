@@ -2,21 +2,28 @@
 
 本目录文章（`zh/` 中文、`en/` 英文）采用 **本地仓库为唯一事实来源** 的策略：
 
-- 仓库内 Markdown → CI 生成 GitHub Pages 博客页（`scripts/build-blog-pages.mjs`）
+- 仓库内 Markdown → 本地 `pnpm gen:blog` 生成 `blog/*.html`（脚本：`scripts/build-blog-pages.mjs`）
+  - 本仓库**没有 Pages 部署 workflow**，Pages 直接读 `main` 分支根目录，因此 `blog/*.html` 属**必须提交入库的产物**；只改 Markdown 不重跑并提交了，线上仍是旧页
 - 各平台投稿时附 **原文链接（canonical）**，把权重导回官网域名
-- 每次修改文章后运行 `pnpm gen:blog` 重新生成静态页
+- 每次修改文章后运行 `pnpm gen:blog` 重新生成静态页，并把 `blog/` 一并提交
 - 封面图以 `imgs/blog-covers/*.svg` 为矢量源，改完运行 `pnpm covers:render` 栅格化为 `imgs/blog-cover-*.png`（1600×900）；
   文件名不变，因此无需重跑 `pnpm gen:blog`。五张封面的共用令牌、版式与文案口径见 `imgs/blog-covers/outline.md`。
 
 ## 文章与资源速查
 
-| #   | 中文标题                                                                  | 英文标题                                                                                    | 封面图                                        | 信息图/流程图                                                                |
-| --- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------- |
-| 01  | 零云端、开源、为开发者而生：我从零做了一款浏览器密码管理器                | Zero Cloud, Open Source, Built for Developers: Why I Built Another Browser Password Manager | `imgs/blog-cover-01-local-first.png`          | `imgs/01-infographic-core-value.png`、`imgs/03-infographic-dev-features.png` |
-| 02  | 让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战            | Opening the Chrome Side Panel in Under One Second                                           | `imgs/blog-cover-02-sub-second-sidepanel.png` | —                                                                            |
-| 03  | 用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战 | Password-Manager-Grade Encryption with Web Crypto                                           | `imgs/blog-cover-03-webcrypto.png`            | `imgs/02-flowchart-security-pipeline.png`                                    |
-| 04  | 四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情          | Four New Features, Four Implementation Notes                                                | `imgs/blog-cover-04-login-flow-details.png`   | —                                                                            |
-| 05  | 同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑              | Which Subdomains Should an Account Show On                                                  | `imgs/blog-cover-05-cross-subdomain-matching.png` | —                                                                        |
+| #   | 中文标题                                                                  | 英文标题                                        | 封面图                                        | 信息图/流程图                                                                |
+| --- | ------------------------------------------------------------------------- | ----------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------------- |
+| 01  | 零云端、开源、为开发者而生：我从零做了一款浏览器密码管理器                | Why I Built a Local-First Password Manager      | `imgs/blog-cover-01-local-first.png`          | `imgs/01-infographic-core-value.png`、`imgs/03-infographic-dev-features.png` |
+| 02  | 让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战            | Sub-Second Chrome Side Panel on MV3             | `imgs/blog-cover-02-sub-second-sidepanel.png` | —                                                                            |
+| 03  | 用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战 | Web Crypto for a Real Password Manager          | `imgs/blog-cover-03-webcrypto.png`            | `imgs/02-flowchart-security-pipeline.png`                                    |
+| 04  | 四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情          | Four Features, Four Implementation Notes        | `imgs/blog-cover-04-login-flow-details.png`   | —                                                                            |
+| 05  | 同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑              | Three Tiers of Cross-Subdomain Matching         | `imgs/blog-cover-05-cross-subdomain-matching.png` | —                                                                            |
+
+> 英文标题即 `en/*.md` front matter 里的 `title`，会被 `gen:blog` 原样写进 `<title>` 与 `og:title`。
+> `<title>` 还会追加 ` | Account Password Helper`（26 个字符）品牌后缀，因此 front matter 的 `title`
+> 建议控制在 45 字符内，整条 `<title>` 才不会被搜索结果截断。中文侧后缀 ` | 账号密码管理助手` 是 11 个字符，
+> 但全角按像素算更宽，标题同样不宜超过 40 个汉字。2026-10-02 已把五篇英文标题统一收紧到 35～42 字符。
+> 改标题时同步更新本表。
 
 发布后的规范链接（canonical）：
 

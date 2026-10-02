@@ -1,14 +1,12 @@
 ---
-title: 'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice'
-description: No crypto libraries, just the browser-native Web Crypto API. How Account Password Helper implements an auditable encryption system — key derivation, field-level encryption, session lifecycle, and atomic re-keying.
+title: Web Crypto for a Real Password Manager
+description: No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying.
 tags: web crypto,encryption,password manager,security,chrome extension
 date: 2026-08-28
 modified: 2026-09-30
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
-
-# Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice
 
 ![From master password to ciphertext: the full encryption pipeline](imgs/02-flowchart-security-pipeline.png)
 

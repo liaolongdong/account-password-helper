@@ -7,14 +7,38 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战 | Account Password Helper</title>
+    <title>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战 | 账号密码管理助手</title>
     <meta
       name="description"
-      content="Manifest V3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文完整复盘 Account Password Helper 的秒开方案：双层保活、四层资源预热、三路数据竞速与非阻塞 CSS。"
+      content="MV3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文复盘秒开方案：双层保活、四层资源预热与三路数据竞速。"
     />
     <meta
       name="author"
       content="liaolongdong"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="https://liaolongdong.github.io/account-password-helper/assets/icons/icon.svg"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
     />
     <link
       rel="canonical"
@@ -40,12 +64,16 @@
       content="article"
     />
     <meta
+      property="og:locale"
+      content="zh_CN"
+    />
+    <meta
       property="og:title"
       content="让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战"
     />
     <meta
       property="og:description"
-      content="Manifest V3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文完整复盘 Account Password Helper 的秒开方案：双层保活、四层资源预热、三路数据竞速与非阻塞 CSS。"
+      content="MV3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文复盘秒开方案：双层保活、四层资源预热与三路数据竞速。"
     />
     <meta
       property="og:url"
@@ -57,7 +85,7 @@
     />
     <meta
       property="og:site_name"
-      content="Account Password Helper"
+      content="账号密码管理助手"
     />
     <meta
       property="article:published_time"
@@ -77,7 +105,7 @@
     />
     <meta
       name="twitter:description"
-      content="Manifest V3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文完整复盘 Account Password Helper 的秒开方案：双层保活、四层资源预热、三路数据竞速与非阻塞 CSS。"
+      content="MV3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文复盘秒开方案：双层保活、四层资源预热与三路数据竞速。"
     />
     <meta
       name="twitter:image"
@@ -88,7 +116,7 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战",
-  "description": "Manifest V3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文完整复盘 Account Password Helper 的秒开方案：双层保活、四层资源预热、三路数据竞速与非阻塞 CSS。",
+  "description": "MV3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文复盘秒开方案：双层保活、四层资源预热与三路数据竞速。",
   "inLanguage": "zh-CN",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png",
   "datePublished": "2026-08-28",
@@ -102,6 +130,32 @@
     "@type": "WebPage",
     "@id": "https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html"
   }
+}
+    </script>
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "账号密码管理助手",
+      "item": "https://liaolongdong.github.io/account-password-helper/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "博客",
+      "item": "https://liaolongdong.github.io/account-password-helper/blog/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战",
+      "item": "https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html"
+    }
+  ]
 }
     </script>
     <style>
@@ -228,6 +282,9 @@
         color: var(--muted);
         text-align: center;
       }
+      .footer p {
+        margin: 6px 0;
+      }
       .footer a {
         color: var(--accent);
         text-decoration: none;
@@ -244,8 +301,7 @@
       <h1>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</h1>
       <p class="meta">2026-08-28 · 更新于 2026-09-30 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png" alt="让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战" />
-      <h1>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</h1>
-<p>做过 Manifest V3 扩展的人，大概率都被同一个问题咬过：<strong>侧边栏（Side Panel）冷启动白屏</strong>。</p>
+      <p>做过 Manifest V3 扩展的人，大概率都被同一个问题咬过：<strong>侧边栏（Side Panel）冷启动白屏</strong>。</p>
 <p>用户点击图标，侧边栏框架是出来了，内容区白一片，两秒后才慢慢渲染。在桌面软件里，这叫不可用。更糟的是，MV3 把后台换成了 Service Worker——一个随时可能被浏览器回收的短命进程，你精心维护的内存缓存、连接状态，说没就没。</p>
 <p><a href="https://github.com/liaolongdong/account-password-helper">Account Password Helper</a> 是一款本地密码管理器扩展，侧边栏是它的最高频入口（解锁、搜索、填充都在这）。我们给它定了一个硬性 SLA：<strong>所有场景（会话有效/失效、浏览器冷启动、快速重启）侧边栏必须 1 秒内打开、无白屏</strong>。最终结果：缓存快路径 20-50ms 拿到数据。</p>
 <p>这篇文章把整套方案的实现和踩坑完整公开，源码路径都会给出，可以直接抄。</p>
@@ -317,6 +373,10 @@
 <p><em>本文涉及的关键文件：<code>entrypoints/background/backgroundServices.ts</code>（保活）、<code>utils/warmSidePanelResources.ts</code>（预热）、<code>composables/useSidepanelData.ts</code>（三路竞速）、<code>wxt.config.ts</code>（非阻塞 CSS）。</em></p>
 
     </article>
-    <footer class="footer">Account Password Helper · <a href="https://liaolongdong.github.io/account-password-helper/">官网</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · 同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a></footer>
+    <footer class="footer">
+      <p>账号密码管理助手 · 开源（GPL-3.0）</p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/">产品官网与功能演示</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.html">定价：永久免费</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.html">与 Bitwarden、1Password 对比</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.html">隐私政策</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a></p>
+      <p>同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a></p>
+    </footer>
   </body>
 </html>
