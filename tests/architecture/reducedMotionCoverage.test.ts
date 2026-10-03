@@ -59,19 +59,17 @@ interface MotionExceptionReasons {
 }
 
 /**
- * 有 `@keyframes` 但有意不配减弱档的位置
+ * 有意不配减弱档的位置（两轴各一张表，登记即说明理由）
  *
- * 登记即说明理由，不登记则守卫变红——避免"忘了写"和"故意不写"混成同一种状态。
+ * 不登记则守卫变红，避免「忘了写」和「故意不写」混成同一种状态；登记还必须是
+ * **仍在赦免违规**的（判据见 `exceptionProblems`）——文件后来补上了减弱档，这条登记
+ * 就该删掉，否则它会悄悄赦免掉下一次退化。
+ *
+ * 两张表当前都为空。`floatingButtons/styles.ts` 曾登记在 keyframes 轴上，但 M-1 那轮
+ * 为 hover 轴补的减弱档已让整文件满足这条**文件级**判据，登记不再赦免任何违规；
+ * 「`spin` 有意不减弱」这件事改由该文件减弱档的注释承载。
  */
-const MOTION_EXCEPTIONS: Record<string, MotionExceptionReasons> = {
-  // 那枚 `spin` 是悬浮按钮 loading 态唯一的反馈：`AnimationController` 只加 `loading` 类，
-  // 没有别的文字或图标变化。关掉动画等于把「正在处理」这个状态整个藏起来，
-  // 比留着 0.8s 旋转更糟；要减弱它得先补一个非运动的态提示，属独立改动。
-  // 只登记 keyframes 一轴：同文件的悬浮缩放已按减弱档补齐，不该被这条理由顺带免掉。
-  'entrypoints/content/floatingButtons/styles.ts': {
-    keyframes: 'spin 是悬浮按钮唯一的加载反馈，取消动画会丢状态提示',
-  },
-};
+const MOTION_EXCEPTIONS: Record<string, MotionExceptionReasons> = {};
 
 /** 悬浮位移轴的例外（当前为空：确有位移且刻意不兜底时才登记，并写明理由） */
 const HOVER_EXCEPTIONS: Record<string, MotionExceptionReasons> = {};
@@ -117,6 +115,34 @@ function missingHoverFallback(source: string): boolean {
   return hoverMovementSelectors(source).length > 0 && !REDUCED_MOTION_RE.test(source);
 }
 
+/**
+ * 一条例外登记是否仍然成立：写了理由、且它豁免的那一轴在当前文件里真的有违规
+ *
+ * 返回问题清单而不是直接断言，是为了让「判据有牙」这条能拿**人造条目**自证：
+ * 两张表都可能长期为空，只遍历真实条目的话这条判据会静默空跑并恒绿。
+ */
+function exceptionProblems(file: string, axes: MotionExceptionReasons): string[] {
+  const source = readSource(file);
+  const problems: string[] = [];
+  // 按键是否存在判定，不按值真假：`{ hover: '' }` 是「登记了这一轴但没写理由」，
+  // 若用真值判断会被上面那条"没登记任何轴"顺手吃掉，理由缺失就永远报不出正确的名字
+  const registered = (axis: keyof MotionExceptionReasons) => Object.prototype.hasOwnProperty.call(axes, axis);
+  if (!registered('keyframes') && !registered('hover')) problems.push(`${file} 的例外没登记任何轴`);
+  if (registered('keyframes')) {
+    if (!axes.keyframes?.trim()) problems.push(`${file} 的 keyframes 轴例外没写理由`);
+    if (!missingReducedMotionFallback(source)) {
+      problems.push(`${file} 已不再缺关键帧兜底，该轴例外该删`);
+    }
+  }
+  if (registered('hover')) {
+    if (!axes.hover?.trim()) problems.push(`${file} 的 hover 轴例外没写理由`);
+    if (!missingHoverFallback(styleSource(file, source))) {
+      problems.push(`${file} 已不再缺悬浮位移兜底，该轴例外该删`);
+    }
+  }
+  return problems;
+}
+
 /** 组件样式 + 注入影子样式的全量扫描集 */
 const scannedFiles = [
   ...VUE_DIRS.flatMap(dir => listSourceFiles(dir, ['.vue'])),
@@ -141,19 +167,33 @@ describe('关键帧与减弱动效兜底配对', () => {
     expect(missingReducedMotionFallback('.a { transition: all 0.2s; } /* 无关键帧 */')).toBe(false);
   });
 
-  it('白名单里的例外仍在动画该在的文件上（挪了地方就要重新说明）', () => {
-    for (const [file, axes] of Object.entries(MOTION_EXCEPTIONS)) {
-      for (const [axis, reason] of Object.entries(axes)) {
-        expect(reason?.trim(), `${file} 的 ${axis} 轴例外没写理由`).not.toBe('');
-      }
-      if (axes.keyframes) {
-        expect(KEYFRAMES_RE.test(readSource(file)), `${file} 已不再声明 @keyframes，该轴例外该删`).toBe(true);
-      }
-      if (axes.hover) {
-        const found = hoverMovementSelectors(styleSource(file, readSource(file))).length > 0;
-        expect(found, `${file} 已不再声明 hover 位移，该轴例外该删`).toBe(true);
+  /**
+   * 两张表都要校验。此前只遍历 `MOTION_EXCEPTIONS`，于是 `HOVER_EXCEPTIONS` 里
+   * 「空理由 / 指向早已没有位移的文件」的豁免不会被任何断言拦住，而 violations
+   * （下方那条 filter）照样按它赦免一个真实违规——登记门槛必须和它影响的判据一样严。
+   */
+  it('例外登记仍在赦免它登记的那一轴，且两轴同判（挪了地方就要重新说明）', () => {
+    const problems: string[] = [];
+    for (const table of [MOTION_EXCEPTIONS, HOVER_EXCEPTIONS]) {
+      for (const [file, axes] of Object.entries(table)) {
+        problems.push(...exceptionProblems(file, axes));
       }
     }
+    expect(problems, problems.join('\n')).toEqual([]);
+
+    // 判据有牙（两张表都为空时，上面那段循环一次都不跑，只能靠人造条目证明它不是空壳）：
+    expect(
+      exceptionProblems('components/sidepanel/PasswordListItem.vue', { hover: '  ' }).length,
+      '空理由必须被判为问题',
+    ).toBeGreaterThan(0);
+    expect(
+      exceptionProblems('components/sidepanel/PasswordListItem.vue', { hover: '有位移但刻意不兜底' }).length,
+      '减弱档已补齐的文件，其登记必须被判为「该删」',
+    ).toBeGreaterThan(0);
+    expect(
+      exceptionProblems('utils/logger.ts', { hover: '有位移但刻意不兜底' }).length,
+      '根本没有该轴运动的文件必须被判为问题',
+    ).toBeGreaterThan(0);
   });
 
   it('每个声明关键帧的文件都带减弱动效兜底（或已登记 keyframes 轴例外）', () => {

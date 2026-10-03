@@ -302,6 +302,9 @@ export const floatingButtonStyles = `
  *   是**垂直居中定位**，必须保留——写成 transform: none 会让整组按钮跳出中线，看起来像控件坏了；
  * - 折叠 / 拖拽态里的 scale(0) 与 translate(-50%, -50%) 同样属于"隐藏 + 定位"，不参与降级。
  * 基态 .btn 用的是 transition: all，撤掉位移后仍在过渡的是颜色与阴影，因此不必收窄。
+ * loading 态的 spin 关键帧不在这里关：它是「正在处理」的唯一反馈（AnimationController 只加
+ * loading 类，没有别的文字或图标变化），关掉等于把状态整个藏起来，比留着 0.8s 旋转更糟；
+ * 要减弱它得先补一个非运动的态提示，属独立改动。
  */
 @media (prefers-reduced-motion: reduce) {
   .btn:hover,
