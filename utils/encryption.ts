@@ -2,6 +2,7 @@ import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { hexToBytes, bytesToHex } from '@/utils/crypto-light';
+import { PBKDF2_ITERATIONS } from '@/utils/cryptoParams';
 
 // ── CryptoKey 句柄缓存 ────────────────────────────────────
 
@@ -108,7 +109,7 @@ export async function deriveVerifierHash(password: string, salt: string): Promis
   const enc = new TextEncoder();
   const baseKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: enc.encode('aph-verify|' + salt), iterations: 600000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: enc.encode('aph-verify|' + salt), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
     baseKey,
     256,
   );
@@ -128,7 +129,7 @@ export async function deriveEncryptionKey(masterPassword: string): Promise<strin
     const enc = new TextEncoder();
     const baseKey = await crypto.subtle.importKey('raw', enc.encode(masterPassword), 'PBKDF2', false, ['deriveKey']);
     const derivedKey = await crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt: enc.encode(config.salt), iterations: 600000, hash: 'SHA-256' },
+      { name: 'PBKDF2', salt: enc.encode(config.salt), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
       baseKey,
       { name: 'AES-GCM', length: 256 },
       true,
