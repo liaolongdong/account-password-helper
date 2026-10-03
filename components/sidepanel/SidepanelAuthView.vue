@@ -962,6 +962,28 @@ onUnmounted(() => {
 .password-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+/* ==================== 降级动效 ==================== */
+
+/*
+ * 空态三个按钮的 hover 上浮属于位移类动效，需随系统「减弱动态效果」关闭；
+ * 阴影反馈保留（它是按钮层级的提示载体，关掉会把首选出口降格成普通按钮），
+ * 因此把基态的 `transition: all` 收窄为只过渡 box-shadow。
+ * `:deep()` 是必需的：这些类挂在 el-button 内部节点上，不带本组件的 data-v 属性。
+ */
+@media (prefers-reduced-motion: reduce) {
+  :deep(.empty-search-all-btn),
+  :deep(.empty-add-site-btn),
+  :deep(.empty-add-btn) {
+    transition: box-shadow 0.25s ease;
+  }
+
+  :deep(.empty-search-all-btn:hover),
+  :deep(.empty-add-site-btn:hover),
+  :deep(.empty-add-btn:hover) {
+    transform: none;
+  }
+}
 </style>
 
 <style>
