@@ -197,6 +197,9 @@ export async function getStoredTheme(): Promise<ThemeName> {
   }
 }
 
+/** storage 主题变更监听是否已注册（模块级防重入，与 `initLocaleSync` 同构） */
+let themeSyncInitialized = false;
+
 /**
  * 扩展页主题同步：读取并应用当前主题，并监听配置变更实时切换
  *
@@ -205,6 +208,11 @@ export async function getStoredTheme(): Promise<ThemeName> {
  */
 export function initThemeSync(): void {
   void getStoredTheme().then(theme => applyThemeToRoot(theme));
+
+  // 监听注册幂等：三个入口各自只在自身 JS 上下文调一次，但 dev HMR 会重跑 main.ts，
+  // 且本函数是公开导出，重复调用会让同一次主题变更被多次应用。首帧读取不受此守卫影响。
+  if (themeSyncInitialized || !chrome?.storage?.onChanged) return;
+  themeSyncInitialized = true;
 
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
