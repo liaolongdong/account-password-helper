@@ -31,6 +31,14 @@
  * `storage.local['sidepanel_perf_log']` 环形缓冲（保留最近 20 条）。本脚本读它，
  * 既避免在页面里塞探针污染被测对象，也让「记录确实新增」成为面板真的开起来的判据。
  *
+ * 行数的两个口径（列表采用有界渲染窗口后必须分开看，否则会互相误读）：
+ * - `rows`：首屏窗口那一枪的 `.password-item` 数——窗口起始档，不等于稳态；
+ * - `rowsSettled`：等到连续若干次采样不变之后的 `.password-item` 数，即落定态，
+ *   上限由 `composables/useListRenderWindow.ts` 的 `IDLE_RENDER_LIMIT` 决定（与内联下拉
+ *   `INLINE_MAX_RESULT_ROWS` 同档），`rampMs` 是补齐这段额外耗时；
+ * - `renderedItemCount` 是应用自报的「渲染完成」计数，属被测方口径，只能与上面两列对账，
+ *   不能替代 DOM 实测。
+ *
  * 数据是合成的，且只在临时 profile 里以「全明文直通」形态存在
  * （`utils/storage/passwordCrud.ts` 里 `hasEncryptedEntries === false` 分支），
  * 目的是把解密成本从测量里剥掉、只留打开链路。profile 用完即删，不落任何真实凭据。
@@ -82,6 +90,13 @@ const HEADLESS = process.argv.includes('--headless') || process.env.E2E_HEADLESS
 const PANEL_TIMEOUT_MS = Number(process.env.SP_PANEL_TIMEOUT ?? 60_000);
 /** 附加后面板时间线里出现 `sp-data-ready` 的等待上限 */
 const SETTLE_TIMEOUT_MS = Number(process.env.SP_SETTLE_TIMEOUT ?? 30_000);
+/**
+ * 落定态行数（`rowsSettled`）的等待上限：首屏那一枪只覆盖到「有界渲染窗口」的起始档，
+ * rAF 空闲补齐需要额外帧，必须再采到「连续多次行数不变」才代表 DOM 真正的稳态。
+ */
+const RAMP_TIMEOUT_MS = Number(process.env.SP_RAMP_TIMEOUT ?? 4_000);
+/** 行数连续不变多少次算落定 */
+const RAMP_STABLE_POLLS = 3;
 /**
  * 长任务档：`--longtask`
  *
@@ -700,8 +715,34 @@ class Rig {
         controlMs: added.length ? Math.max(...added.map(([, d]) => d)) : 0,
       };
     }
+    /**
+     * 落定态行数（`rowsSettled` / `nodesSettled`）
+     *
+     * 首屏那一枪的 `rows` 读的是「侧边栏列表有界渲染窗口」的起始档，之后由 rAF 逐批补到上限，
+     * 因此它既不是整库行数也不是稳态行数。落定判据取「连续 `RAMP_STABLE_POLLS` 次行数不变」，
+     * 否则会把「还没铺满」误读成「只铺了这么多」。
+     * 采样放在截图与计数器增量之后，不给首屏窗口的任何一列加成本。
+     */
+    const rampT0 = Date.now();
+    let rowsSettled = timeline.rows;
+    let nodesSettled = timeline.nodes;
+    let prevRows = -1;
+    let stablePolls = 0;
+    while (Date.now() - rampT0 < RAMP_TIMEOUT_MS && stablePolls < RAMP_STABLE_POLLS) {
+      await new Promise(r => setTimeout(r, 100));
+      const probe = JSON.parse(await this.evalIn(sessionId, TIMELINE_PROBE));
+      stablePolls = probe.rows === prevRows ? stablePolls + 1 : 0;
+      prevRows = probe.rows;
+      rowsSettled = probe.rows;
+      nodesSettled = probe.nodes;
+    }
+    const rampMs = Date.now() - rampT0;
+
     return {
       settleMs: Date.now() - t0,
+      rowsSettled,
+      nodesSettled,
+      rampMs,
       visibility: timeline.visibility,
       viewport: timeline.viewport,
       dpr: timeline.dpr,
@@ -902,6 +943,10 @@ const FIELDS = [
   'traceLongMaxMs',
   'nodes',
   'rows',
+  /** 落定态（rAF 补齐之后）的 DOM 行数与节点数，与 `rows`/`nodes` 的首屏口径分开看 */
+  'rowsSettled',
+  'nodesSettled',
+  'rampMs',
   'renderedItemCount',
 ];
 
