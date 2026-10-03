@@ -6,11 +6,11 @@
  * （实测单个长任务 6.1 s）。以下六组断言各自对应一个真实故障形状：
  *
  * 1. 空闲不铺满 —— 缺了这条，首屏之后的分帧循环会一路放开到全量（旧行为）；
- * 2. 身份变化回落 —— 缺了这条，深滚留下的上千行会参与后续每一次击键的补丁；
+ * 2. 长度变化回落 —— 缺了这条，深滚留下的上千行会参与后续每一次击键的补丁；
  * 3. 滚动按需续放且**可达全量** —— 窗口有界不等于把条目藏起来，越滚必须越放开；
  * 4. 提前量之外不空转 —— 否则每次滚动都白排一帧；
  * 5. 键盘导航同步放开 —— 异步扩容会让调用方 `nextTick` 里的 `scrollIntoView` 找不到目标行；
- * 6. 作用域销毁后不再写回 —— SW/面板卸载后的 ref 写入是泄漏与告警的来源。
+ * 6. 作用域销毁后不再写回 —— 面板卸载后的 ref 写入是泄漏与告警的来源。
  *
  * rAF 在本仓 vitest 的 node 环境里不存在，用可手动泵动的时钟替身：
  * 断言「第 N 帧之后是什么样」比依赖真实帧率确定得多，也能量出排队是否单飞。
@@ -136,7 +136,7 @@ describe('useListRenderWindow 空闲放开', () => {
   });
 });
 
-describe('useListRenderWindow 列表身份变化', () => {
+describe('useListRenderWindow 列表长度变化', () => {
   it('深滚留下的窗口在长度变化时回落到上限内，本次补丁不再触碰上千行', async () => {
     const { view, totalLength } = mount(2000);
     // 模拟深滚：一路按需放开到 1200 行
@@ -155,6 +155,36 @@ describe('useListRenderWindow 列表身份变化', () => {
     totalLength.value = 20;
     await nextTick();
     expect(view.renderCount.value).toBe(20);
+  });
+
+  /**
+   * 钉住实现注释里写明的那条已知边界，而不是把它藏起来
+   *
+   * 回落只由**长度**变化触发（按数组引用回落会在内容与行数都没变时也把窗口砍回 100，
+   * 卸载用户正看着的行、滚动条跟着跳）。于是"深滚放开过 → 一次行数恰好守恒的过滤"
+   * 这一格，本次击键仍要为上千行打补丁——本条断言的就是这个不回落的事实：
+   * 若哪天有人把触发量换成引用、或让回落不再依赖长度，这条会红，届时须连边界一起重议。
+   * 后半句钉的是"它是自愈的"：长度一旦变化就回到上限内，不会永久停在深滚态。
+   */
+  it('行数恰好守恒的过滤不触发回落，但下一次长度一变即回到上限内', async () => {
+    const { view, totalLength } = mount(2000);
+    for (let i = 0; i < 20; i += 1) {
+      view.notifyViewport(viewportAtDistance(0));
+      await pump(2);
+    }
+    const deepRows = view.renderCount.value;
+    expect(deepRows).toBeGreaterThan(1000);
+
+    // 关键词命中全部条目：列表换了一批对象、条数没变 —— 窗口保持原位
+    totalLength.value = 2000;
+    await nextTick();
+    await pump(1);
+    expect(view.renderCount.value, '长度未变即不回落，这是有意选定的触发量').toBe(deepRows);
+
+    // 下一条长度一变就收回上限内
+    totalLength.value = 1999;
+    await nextTick();
+    expect(view.renderCount.value).toBe(IDLE_RENDER_LIMIT);
   });
 
   it('长度增长只把目标抬到上限，超出部分等滚动再放', async () => {
