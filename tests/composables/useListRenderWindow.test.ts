@@ -6,6 +6,7 @@
  * （实测单个长任务 6.1 s）。以下六组断言各自对应一个真实故障形状：
  *
  * 1. 空闲不铺满 —— 缺了这条，首屏之后的分帧循环会一路放开到全量（旧行为）；
+ *    同一条里还钉「首帧地板」：冷启动时列表后到，窗口从 0 起跳也要停在 initialCount；
  * 2. 长度变化回落 —— 缺了这条，深滚留下的上千行会参与后续每一次击键的补丁；
  * 3. 滚动按需续放且**可达全量** —— 窗口有界不等于把条目藏起来，越滚必须越放开；
  * 4. 提前量之外不空转 —— 否则每次滚动都白排一帧；
@@ -83,12 +84,12 @@ const viewportAtDistance = (distance: number): ViewportMetrics => ({
 /** 在独立 effect scope 里挂载窗口，避免 watcher 与 rAF 跨用例泄漏 */
 let scope: EffectScope | undefined;
 
-function mount(total: number, options?: Parameters<typeof useListRenderWindow>[1]) {
+function mount(total: number) {
   const totalLength = ref(total);
   const activeIndex = ref(0);
   scope = effectScope();
   const view: ListRenderWindow = scope.run(() =>
-    useListRenderWindow({ totalLength: () => totalLength.value, activeIndex: () => activeIndex.value }, options),
+    useListRenderWindow({ totalLength: () => totalLength.value, activeIndex: () => activeIndex.value }),
   )!;
   return { view, totalLength, activeIndex };
 }
@@ -133,6 +134,31 @@ describe('useListRenderWindow 空闲放开', () => {
     await pump(3);
     expect(view.renderCount.value).toBe(50);
     expect(raf.pending()).toBe(0);
+  });
+
+  /**
+   * 冷启动的真实挂载顺序：认证态先落、密码后到
+   *
+   * `useSidepanelData.ts:506-507` 是 `isAuthenticated.value = true; await loadPasswords(true);`，
+   * 而 `SidepanelAuthView` 以 `v-else`（`!isAuthenticated`）挂载 —— 于是窗口在**列表还是空的**
+   * 那一刻建立：immediate 回落按 `min(len, 上限)` 把首帧计数钳到 0（空列表本就无行可渲染，正确）。
+   * 真正要钉的是**数据到达后的第一帧**：它必须仍是 `INITIAL_RENDER_COUNT` 行，而不是
+   * 「从 0 起跳一整个 `RENDER_BATCH_SIZE`」。首帧是侧边栏秒开 SLA 里唯一落在用户等待时间内的
+   * 一帧，行数翻倍就是那一帧的长任务翻倍——本条钉的正是「首帧只渲染 initialCount 行」这句承诺。
+   */
+  it('挂载时列表为空、数据后到时，首帧仍停在 initialCount 而不是跳一整个批次', async () => {
+    const { view, totalLength } = mount(0);
+    expect(view.renderCount.value, '空列表没有可渲染的行').toBe(0);
+
+    totalLength.value = 2000;
+    await nextTick();
+    await pump(1);
+    expect(view.renderCount.value, '冷路径首帧不得超过 INITIAL_RENDER_COUNT').toBe(INITIAL_RENDER_COUNT);
+
+    await pump(1);
+    expect(view.renderCount.value).toBe(INITIAL_RENDER_COUNT + RENDER_BATCH_SIZE);
+    await pump(1);
+    expect(view.renderCount.value).toBe(IDLE_RENDER_LIMIT);
   });
 });
 

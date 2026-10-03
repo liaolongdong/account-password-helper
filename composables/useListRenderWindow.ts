@@ -3,11 +3,11 @@ import { onScopeDispose, ref, watch, type Ref } from 'vue';
 /**
  * 侧边栏密码列表的按需渲染窗口
  *
- * 存在的理由（评审缺陷 C-1，见 `docs/code-review-2026-10-03.md`）：列表行是
- * `v-for + v-memo` 的重组件（每行约 25 个 Element Plus 实例与 4 个高亮分段计算），
- * 单行落定成本约 1.5～3 ms。此前分片渲染把窗口一路放开到**全量**，2000 条时
- * 落定态等于 71,253 个常驻 DOM 节点、约 190 MB 堆、13.2 s 的主线程占用，
+ * 存在的理由：列表行是 `v-for + v-memo` 的重组件（每行约 25 个 Element Plus 实例与
+ * 4 个高亮分段计算），单行落定成本约 1.5～3 ms。此前分片渲染把窗口一路放开到**全量**，
+ * 2000 条时落定态等于整库常驻 DOM（实测 71,253 个节点、约 190 MB 堆、13.2 s 主线程占用），
  * 而一次击键要重渲染整库行数——实测单个长任务 6.1 s，UI 在那 6 秒里完全不响应。
+ * 问题定位、整改与前后读数见 `docs/reports/PERF_LARGE_VAULT_EVALUATION.md` §9.14。
  *
  * 本模块把「窗口」变成有界且**按需**的量，三条增长/回落路径各有归属：
  *
@@ -61,18 +61,6 @@ export interface ViewportMetrics {
   clientHeight: number;
 }
 
-/** 可调窗口参数（缺省取本模块导出的常量，测试用于压缩时间轴） */
-export interface ListRenderWindowOptions {
-  /** 首帧条目数 */
-  initialCount?: number;
-  /** 每帧追加条目数 */
-  batchSize?: number;
-  /** 空闲放开上限 */
-  idleLimit?: number;
-  /** 触底提前量（px） */
-  preloadPx?: number;
-}
-
 /** 渲染窗口的对外接口 */
 export interface ListRenderWindow {
   /** 当前渲染窗口大小（列表切片依据） */
@@ -84,20 +72,15 @@ export interface ListRenderWindow {
 /**
  * 建立侧边栏列表的按需渲染窗口
  *
+ * 窗口参数直接取自本模块导出的三个常量：唯一的调用方（`SidepanelAuthView`）按默认策略
+ * 建窗，没有需要覆盖的时间轴，所以不保留可注入参数的间接层——参数一旦无人传递，
+ * 「常量即口径」就只由导出的那三个值负责（口径本身由架构守卫钉住）。
+ *
  * @param sources 列表长度与选中索引的响应式来源
- * @param options 窗口参数，缺省取本模块导出的常量
  * @returns 渲染窗口与滚动采样入口
  */
-export function useListRenderWindow(
-  sources: ListRenderWindowSources,
-  options: ListRenderWindowOptions = {},
-): ListRenderWindow {
-  const initialCount = options.initialCount ?? INITIAL_RENDER_COUNT;
-  const batchSize = options.batchSize ?? RENDER_BATCH_SIZE;
-  const idleLimit = options.idleLimit ?? IDLE_RENDER_LIMIT;
-  const preloadPx = options.preloadPx ?? VIEWPORT_PRELOAD_PX;
-
-  const renderCount = ref(initialCount);
+export function useListRenderWindow(sources: ListRenderWindowSources): ListRenderWindow {
+  const renderCount = ref(INITIAL_RENDER_COUNT);
 
   /** 本轮希望渲染到的条目数（已按列表长度收窄后使用） */
   let target = 0;
@@ -116,12 +99,23 @@ export function useListRenderWindow(
     rafId = requestAnimationFrame(step);
   };
 
-  /** 每帧放开一批，达到目标即停 */
+  /**
+   * 每帧放开一批，达到目标即停
+   *
+   * `initialCount` 同时是**首帧地板**：挂载时列表若还是空的（认证态先落、密码后到），
+   * 下面的长度回落会把窗口钳到 0——空列表无行可渲染，这是对的。但数据到达后不能从 0
+   * 起跳一整个批次：侧边栏秒开 SLA 里唯一落在用户等待时间内的那一帧，成本会翻倍到
+   * 60 行（按本模块开头每行 1.5～3 ms 的实测单价计，约 90～180 ms 的单个长任务）。
+   * 所以不足 `initialCount` 时先补到 `initialCount`，
+   * 之后每帧 +`RENDER_BATCH_SIZE`；两条路径的**总量**不变，只是第一帧的大小重新有界。
+   */
   function step() {
     stepping = false;
     const limit = goal();
     if (renderCount.value >= limit) return;
-    renderCount.value = Math.min(limit, renderCount.value + batchSize);
+    const next =
+      renderCount.value < INITIAL_RENDER_COUNT ? INITIAL_RENDER_COUNT : renderCount.value + RENDER_BATCH_SIZE;
+    renderCount.value = Math.min(limit, next);
     if (renderCount.value < limit) schedule();
   }
 
@@ -129,7 +123,7 @@ export function useListRenderWindow(
    * 列表长度变化：目标回到空闲上限，并把窗口收回上限内
    *
    * 回落必须与目标更新在同一个 tick 内完成（`watch` 默认 pre-flush，早于本次重渲染），
-   * 这样本次 DOM 补丁只触碰 `min(新长度, idleLimit)` 行——深滚留下的上千行会被这次
+   * 这样本次 DOM 补丁只触碰 `min(新长度, IDLE_RENDER_LIMIT)` 行——深滚留下的上千行会被这次
    * 补丁一并卸载，而不是留在 DOM 里参与后续每一次击键。
    *
    * 触发量选的是**长度**而不是数组引用：`filteredPasswords` 是 computed，任何依赖变化都会
@@ -142,7 +136,7 @@ export function useListRenderWindow(
   watch(
     () => sources.totalLength(),
     len => {
-      target = Math.min(len, idleLimit);
+      target = Math.min(len, IDLE_RENDER_LIMIT);
       if (renderCount.value > target) renderCount.value = target;
       if (renderCount.value < target) schedule();
     },
@@ -158,7 +152,7 @@ export function useListRenderWindow(
   watch(
     () => sources.activeIndex(),
     index => {
-      const needed = Math.min(sources.totalLength(), index + batchSize);
+      const needed = Math.min(sources.totalLength(), index + RENDER_BATCH_SIZE);
       if (needed <= renderCount.value) return;
       target = Math.max(target, needed);
       renderCount.value = needed;
@@ -168,9 +162,9 @@ export function useListRenderWindow(
   const notifyViewport = (metrics: ViewportMetrics) => {
     const len = sources.totalLength();
     if (renderCount.value >= len) return;
-    if (metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight > preloadPx) return;
+    if (metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight > VIEWPORT_PRELOAD_PX) return;
     // 滚动按需续放：至少再放开一批，越过后一屏的提前量由调用方下次采样再决定
-    target = Math.min(len, Math.max(target, renderCount.value + batchSize));
+    target = Math.min(len, Math.max(target, renderCount.value + RENDER_BATCH_SIZE));
     schedule();
   };
 
