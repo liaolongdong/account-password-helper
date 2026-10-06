@@ -1999,7 +1999,15 @@
         const el = document.querySelector('[data-log="' + formId + '"]');
         if (!el) return;
         const t = new Date().toLocaleTimeString('en', { hour12: false });
-        el.innerHTML += '<div><span class="' + (cls || 'log-info') + '">[' + t + ']</span> ' + msg + '</div>';
+        // 日志内容含用户输入的原文，必须走 DOM 构造：拼进 innerHTML 会让输入的
+        // `<img src=x onerror=...>` 在这张夹具页里真的执行。
+        const line = document.createElement('div');
+        const time = document.createElement('span');
+        time.className = cls || 'log-info';
+        time.textContent = '[' + t + ']';
+        line.appendChild(time);
+        line.appendChild(document.createTextNode(' ' + msg));
+        el.appendChild(line);
         el.scrollTop = el.scrollHeight;
       }
 
