@@ -4,17 +4,19 @@ import { onScopeDispose, ref, watch, type Ref } from 'vue';
  * 侧边栏密码列表的按需渲染窗口
  *
  * 存在的理由：列表行是 `v-for + v-memo` 的重组件（每行约 25 个 Element Plus 实例与
- * 4 个高亮分段计算），单行落定成本约 1.5～3 ms。此前分片渲染把窗口一路放开到**全量**，
+ * 4 个高亮分段计算），单行落定实测上界约 4.3 ms（见下方 `ROW_RENDER_COST_MS`）。此前分片渲染把窗口一路放开到**全量**，
  * 2000 条时落定态等于整库常驻 DOM（实测 71,253 个节点、约 190 MB 堆、13.2 s 主线程占用），
  * 而一次击键要重渲染整库行数——实测单个长任务 6.1 s，UI 在那 6 秒里完全不响应。
- * 问题定位、整改与前后读数见 `docs/reports/PERF_LARGE_VAULT_EVALUATION.md` §9.14。
+ * 问题定位、整改与前后读数见 `docs/reports/PERF_LARGE_VAULT_EVALUATION.md` §9.14 与 §9.15。
  *
  * 本模块把「窗口」变成有界且**按需**的量，三条增长/回落路径各有归属：
  *
- * 1. 空闲放开：首帧只渲染 `INITIAL_RENDER_COUNT` 行，其后每帧 +`RENDER_BATCH_SIZE`，
+ * 1. 空闲放开：首帧只渲染 `INITIAL_RENDER_COUNT` 行，其后每帧 +`RENDER_BATCH_SIZE`
+ *    （由单帧预算反推，把每一帧压在长任务定义线附近——实测边缘约 52 ms，见报告 §9.15），
  *    到 `IDLE_RENDER_LIMIT` 即停——落定态不再等于整库，首屏与内存因此有上界；
- * 2. 按需续放：滚动接近底部时再放开一批，**不受空闲上限约束**，所以任何一行都可达，
- *    不需要「显示更多」这类额外交互，也不改变列表语义（过滤/排序/搜索仍是全量）；
+ * 2. 按需续放：滚动接近底部时一次承诺 `SCROLL_EXTEND_ROWS` 行，**不受空闲上限约束**，所以任何一行
+ *    都可达，不需要「显示更多」这类额外交互，也不改变列表语义（过滤/排序/搜索仍是全量）；
+ *    承诺的量由 `step()` 按帧预算摊开，触底那一下不产生长任务；
  * 3. 身份回落：过滤后列表长度变化时把窗口收回上限内。这一步是关键——上一次深滚
  *    留在 DOM 里的上千行不会参与本次补丁，否则「深滚后打一个字」仍是要重渲染整库。
  *
@@ -29,8 +31,37 @@ import { onScopeDispose, ref, watch, type Ref } from 'vue';
 /** 首帧渲染条目数：覆盖常见可视区高度，超出部分交给后续动画帧 */
 export const INITIAL_RENDER_COUNT = 30;
 
-/** 每帧追加渲染的条目数 */
-export const RENDER_BATCH_SIZE = 60;
+/** 长任务定义线（ms）：超过它浏览器报一条 longtask，这段时间 UI 完全不响应 */
+const LONG_TASK_MS = 50;
+
+/**
+ * 每行落定的实测成本上界（ms）
+ *
+ * 由「批次 ÷ 单个长任务」反推：批次为 60 时，2000 条夹具的首屏窗口内量到 195–255 ms 的
+ * 单个长任务（长任务观察器阳性对照通过，读数见报告 §9.15），上界即 255 ÷ 60 ≈ 4.3 ms/行。
+ * 它只用于把「帧预算」换算成行数，不宣称行成本恒定。
+ */
+const ROW_RENDER_COST_MS = 4.3;
+
+/**
+ * 每帧追加渲染的条目数：由单帧预算反推，不是定值
+ *
+ * 放开窗口这件事自己就占主线程——一批 60 行正是首屏窗口内那条 255 ms 长任务的来源。
+ * 所以批次按「一帧的预估成本不得越过长任务定义线」算出：⌊50 ÷ 4.3⌋ = 11。
+ * 铺满 100 行因此从 2 帧变成 7 帧，落定要晚约 5 帧（按 60 Hz 约 83 ms 的**几何**推算）；
+ * 实测的落定列（`rampMs` 有约 410 ms 的量具地板、`settleMs` 同臂内跨度覆盖了这个差）
+ * 在本机噪声地板下读不出它，两个配对窗口里它的符号还不一致，见报告 §9.15。
+ */
+export const RENDER_BATCH_SIZE = Math.max(1, Math.floor(LONG_TASK_MS / ROW_RENDER_COST_MS));
+
+/**
+ * 一次触底采样承诺放开的行数
+ *
+ * 与每帧批次分开的理由是两者约束方向相反：这个量管**可达性**（滚到底要触发几次），
+ * 每帧批次管**流畅度**（单帧卡多久）。调小它会原地退化 §9.14 ⑤ 那条「约需 32 次触底续放
+ * 取到第 2000 行」的读数；调大它就重新造出长任务。所以一个跟着预算走、一个钉在旧口径上。
+ */
+export const SCROLL_EXTEND_ROWS = 60;
 
 /**
  * 空闲态渲染窗口上限：与内联下拉同口径的 100 行
@@ -72,9 +103,9 @@ export interface ListRenderWindow {
 /**
  * 建立侧边栏列表的按需渲染窗口
  *
- * 窗口参数直接取自本模块导出的三个常量：唯一的调用方（`SidepanelAuthView`）按默认策略
+ * 窗口参数直接取自本模块导出的几个常量：唯一的调用方（`SidepanelAuthView`）按默认策略
  * 建窗，没有需要覆盖的时间轴，所以不保留可注入参数的间接层——参数一旦无人传递，
- * 「常量即口径」就只由导出的那三个值负责（口径本身由架构守卫钉住）。
+ * 「常量即口径」就只由导出的那些值负责（口径本身由架构守卫钉住）。
  *
  * @param sources 列表长度与选中索引的响应式来源
  * @returns 渲染窗口与滚动采样入口
@@ -103,11 +134,12 @@ export function useListRenderWindow(sources: ListRenderWindowSources): ListRende
    * 每帧放开一批，达到目标即停
    *
    * `initialCount` 同时是**首帧地板**：挂载时列表若还是空的（认证态先落、密码后到），
-   * 下面的长度回落会把窗口钳到 0——空列表无行可渲染，这是对的。但数据到达后不能从 0
-   * 起跳一整个批次：侧边栏秒开 SLA 里唯一落在用户等待时间内的那一帧，成本会翻倍到
-   * 60 行（按本模块开头每行 1.5～3 ms 的实测单价计，约 90～180 ms 的单个长任务）。
-   * 所以不足 `initialCount` 时先补到 `initialCount`，
-   * 之后每帧 +`RENDER_BATCH_SIZE`；两条路径的**总量**不变，只是第一帧的大小重新有界。
+   * 下面的长度回落会把窗口钳到 0——空列表无行可渲染，这是对的。但数据到达后的第一帧
+   * 必须直接铺到 `initialCount`：侧边栏可视区约 9～15 行，地板保证首帧就填满屏幕。
+   * 批次按单帧预算反推后只有 11 行，去掉地板的话冷路径首帧只有 11 行，
+   * 用户会看到列表在半屏处停一下再逐帧长出来——那正是本窗口想消灭的「分片闪烁」。
+   * 所以不足 `initialCount` 时先补到 `initialCount`，之后每帧 +`RENDER_BATCH_SIZE`；
+   * 两条路径的**总量**不变，只是首帧的落点重新变成可承诺的「一屏」。
    */
   function step() {
     stepping = false;
@@ -148,6 +180,13 @@ export function useListRenderWindow(sources: ListRenderWindowSources): ListRende
    *
    * `nextTick` 之后调用方就要 `scrollIntoView` 目标行，异步扩容会让该行的 DOM 还不存在，
    * 表现为「按 ↓ 到第 101 条时高亮消失、回车填了上一条」。
+   *
+   * 缓冲批取 `RENDER_BATCH_SIZE` 而非 `SCROLL_EXTEND_ROWS`：这条路径是**同步**提交，
+   * 它的批量直接等于越界那一下的卡顿时长。跟着帧预算走，单次补 11 行约 47 ms（预算值），
+   * 而不是单次补 60 行约 255 ms。代价的形状要写清楚：`needed = index + 批次`，所以越过窗口之后
+   * 每按一次 ↓ 就同步补一行（批次 60 时是每按 60 次才一次性补一大批）——总行数一样、
+   * 单次更跟手，但 flush 次数变多，每次 flush 的固定开销随之多次付费。这一段只有算术依据，
+   * 量具里没有键盘行走场景，未实测。
    */
   watch(
     () => sources.activeIndex(),
@@ -163,8 +202,9 @@ export function useListRenderWindow(sources: ListRenderWindowSources): ListRende
     const len = sources.totalLength();
     if (renderCount.value >= len) return;
     if (metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight > VIEWPORT_PRELOAD_PX) return;
-    // 滚动按需续放：至少再放开一批，越过后一屏的提前量由调用方下次采样再决定
-    target = Math.min(len, Math.max(target, renderCount.value + RENDER_BATCH_SIZE));
+    // 滚动按需续放：一次承诺 `SCROLL_EXTEND_ROWS` 行的可达距离，但由 `step()` 按帧预算摊开发开，
+    // 所以触底那一下不会自己变成一个几百毫秒的长任务。
+    target = Math.min(len, Math.max(target, renderCount.value + SCROLL_EXTEND_ROWS));
     schedule();
   };
 

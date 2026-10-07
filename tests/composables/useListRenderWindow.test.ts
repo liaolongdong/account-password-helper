@@ -22,6 +22,7 @@ import {
   IDLE_RENDER_LIMIT,
   INITIAL_RENDER_COUNT,
   RENDER_BATCH_SIZE,
+  SCROLL_EXTEND_ROWS,
   useListRenderWindow,
   type ListRenderWindow,
   type ViewportMetrics,
@@ -99,6 +100,18 @@ const pump = async (frames: number) => {
   for (let i = 0; i < frames; i += 1) await raf.tick();
 };
 
+/**
+ * 把当前这一轮分帧放开跑到头（排队的帧全部落地）
+ *
+ * 「几帧铺满 100 行」是每帧批次的因变量，而批次由单帧预算反推、会随行成本读数变动。
+ * 用例里凡是把「先跑到空闲上限」当前置条件的地方，一律用它，
+ * 这样预算调整只会让 `首帧→上限` 那条核算帧数的用例变，不会满屏假红。
+ */
+const pumpUntilSettled = async () => {
+  for (let frame = 0; frame < 100 && raf.pending() > 0; frame += 1) await raf.tick();
+  expect(raf.pending(), '分帧循环未在 100 帧内收敛，窗口在空转').toBe(0);
+};
+
 beforeEach(() => {
   raf.reset();
   raf.installed();
@@ -115,11 +128,14 @@ describe('useListRenderWindow 空闲放开', () => {
     const { view } = mount(2000);
     expect(view.renderCount.value).toBe(INITIAL_RENDER_COUNT);
 
-    // 一帧一批：30 → 90 → 100（最后一批被上限截断，不越过 idleLimit）
-    await pump(1);
-    expect(view.renderCount.value).toBe(INITIAL_RENDER_COUNT + RENDER_BATCH_SIZE);
-    await pump(1);
-    expect(view.renderCount.value).toBe(IDLE_RENDER_LIMIT);
+    // 一帧一批、逐帧核算边界：30 → 41 → 52 …→ 100（最后一批被上限截断，不越过 idleLimit）
+    const framesToLimit = Math.ceil((IDLE_RENDER_LIMIT - INITIAL_RENDER_COUNT) / RENDER_BATCH_SIZE);
+    for (let frame = 1; frame <= framesToLimit; frame += 1) {
+      await pump(1);
+      expect(view.renderCount.value, `第 ${frame} 帧应恰好放开一批，多退少补都说明分帧循环被改坏了`).toBe(
+        Math.min(IDLE_RENDER_LIMIT, INITIAL_RENDER_COUNT + frame * RENDER_BATCH_SIZE),
+      );
+    }
 
     // 继续泵 40 帧仍停在 100：C-1 的回归钉——落定态不再等于 2000 行
     await pump(40);
@@ -127,10 +143,18 @@ describe('useListRenderWindow 空闲放开', () => {
     expect(raf.pending(), '达到目标后不该继续排帧').toBe(0);
   });
 
-  it('列表本就短于上限时一次放开到底，不留二次分片闪烁', async () => {
+  /**
+   * 短列表的分片终点是**列表长度**，不是空闲上限
+   *
+   * 批次从 60 降到按预算反推的量之后，「一帧铺完 50 行」这个旧读数不再成立（50 行要 2 帧）。
+   * 原本真正要钉的是：短于上限的列表必须放开到**自身长度**，不能停在 100 附近把尾巴留在窗口外，
+   * 也不该在上限处多留一格空转帧——这条与批次大小无关，所以按收敛结果断言，不按帧数。
+   */
+  it('列表本就短于上限时放开到自身长度即停，不在上限处多留帧', async () => {
     const { view } = mount(50);
-    await pump(1);
+    await pumpUntilSettled();
     expect(view.renderCount.value).toBe(50);
+
     await pump(3);
     expect(view.renderCount.value).toBe(50);
     expect(raf.pending()).toBe(0);
@@ -142,9 +166,11 @@ describe('useListRenderWindow 空闲放开', () => {
    * `useSidepanelData.ts:506-507` 是 `isAuthenticated.value = true; await loadPasswords(true);`，
    * 而 `SidepanelAuthView` 以 `v-else`（`!isAuthenticated`）挂载 —— 于是窗口在**列表还是空的**
    * 那一刻建立：immediate 回落按 `min(len, 上限)` 把首帧计数钳到 0（空列表本就无行可渲染，正确）。
-   * 真正要钉的是**数据到达后的第一帧**：它必须仍是 `INITIAL_RENDER_COUNT` 行，而不是
-   * 「从 0 起跳一整个 `RENDER_BATCH_SIZE`」。首帧是侧边栏秒开 SLA 里唯一落在用户等待时间内的
-   * 一帧，行数翻倍就是那一帧的长任务翻倍——本条钉的正是「首帧只渲染 initialCount 行」这句承诺。
+   * 真正要钉的是**数据到达后的第一帧**：它必须正好是 `INITIAL_RENDER_COUNT` 行。
+   * 断言用的是精确相等，所以两个方向都拦得住——高于地板意味着首帧（侧边栏秒开 SLA 里唯一
+   * 落在用户等待时间内的一帧）要为超出可视区的行付钱；低于地板意味着批次预算反推出来的
+   * 行数（现在只有 11 行）直接成了首帧落点，列表会在半屏处停一下再逐帧长出来。
+   * 本条钉的正是「首帧铺满一屏、不多不少」这句承诺。
    */
   it('挂载时列表为空、数据后到时，首帧仍停在 initialCount 而不是跳一整个批次', async () => {
     const { view, totalLength } = mount(0);
@@ -157,7 +183,8 @@ describe('useListRenderWindow 空闲放开', () => {
 
     await pump(1);
     expect(view.renderCount.value).toBe(INITIAL_RENDER_COUNT + RENDER_BATCH_SIZE);
-    await pump(1);
+
+    await pumpUntilSettled();
     expect(view.renderCount.value).toBe(IDLE_RENDER_LIMIT);
   });
 });
@@ -168,7 +195,7 @@ describe('useListRenderWindow 列表长度变化', () => {
     // 模拟深滚：一路按需放开到 1200 行
     for (let i = 0; i < 20; i += 1) {
       view.notifyViewport(viewportAtDistance(0));
-      await pump(2);
+      await pumpUntilSettled();
     }
     expect(view.renderCount.value).toBeGreaterThan(1000);
 
@@ -196,7 +223,7 @@ describe('useListRenderWindow 列表长度变化', () => {
     const { view, totalLength } = mount(2000);
     for (let i = 0; i < 20; i += 1) {
       view.notifyViewport(viewportAtDistance(0));
-      await pump(2);
+      await pumpUntilSettled();
     }
     const deepRows = view.renderCount.value;
     expect(deepRows).toBeGreaterThan(1000);
@@ -220,7 +247,7 @@ describe('useListRenderWindow 列表长度变化', () => {
 
     totalLength.value = 2000;
     await nextTick();
-    await pump(60);
+    await pumpUntilSettled();
     expect(view.renderCount.value).toBe(IDLE_RENDER_LIMIT);
   });
 });
@@ -228,25 +255,47 @@ describe('useListRenderWindow 列表长度变化', () => {
 describe('useListRenderWindow 滚动按需续放', () => {
   it('接近底部时逐批放开，一路可达全库任意一行', async () => {
     const { view } = mount(2000);
-    await pump(2);
+    await pumpUntilSettled();
     expect(view.renderCount.value).toBe(IDLE_RENDER_LIMIT);
 
     view.notifyViewport(viewportAtDistance(100));
     await pump(1);
     expect(view.renderCount.value).toBe(IDLE_RENDER_LIMIT + RENDER_BATCH_SIZE);
 
-    // 继续滚到底：放开量不越过实际条目数
+    // 继续滚到底：每次触底承诺的量由 `SCROLL_EXTEND_ROWS` 决定，帧只是把它摊开
     for (let i = 0; i < 60; i += 1) {
       view.notifyViewport(viewportAtDistance(0));
-      await pump(1);
+      await pumpUntilSettled();
     }
     expect(view.renderCount.value).toBe(2000);
     expect(raf.pending()).toBe(0);
   });
 
+  /**
+   * 可达性口径没被帧预算调整带走
+   *
+   * 每帧批次从 60 降到按预算反推的 11，动的是「单帧卡多久」；这里钉的是「滚到底要触发几次」。
+   * 若哪天有人把 `notifyViewport` 的放开量也改成跟着批次走，这条会红，
+   * 而它的实际后果是 §9.14 ⑤ 那条「约需 32 次触底续放」悄悄变成 170+ 次。
+   */
+  it('触底续放每次承诺的行数与每帧批次解耦，2000 条仍约 32 次触底可达底', async () => {
+    const { view } = mount(2000);
+    await pumpUntilSettled();
+    expect(view.renderCount.value).toBe(IDLE_RENDER_LIMIT);
+
+    let triggers = 0;
+    while (view.renderCount.value < 2000 && triggers < 200) {
+      view.notifyViewport(viewportAtDistance(0));
+      await pumpUntilSettled();
+      triggers += 1;
+    }
+    expect(view.renderCount.value).toBe(2000);
+    expect(triggers).toBe(Math.ceil((2000 - IDLE_RENDER_LIMIT) / SCROLL_EXTEND_ROWS));
+  });
+
   it('距底部还有提前量之外时不排帧、不放开', async () => {
     const { view } = mount(2000);
-    await pump(2);
+    await pumpUntilSettled();
     const before = view.renderCount.value;
 
     view.notifyViewport(viewportAtDistance(5000));
@@ -267,7 +316,7 @@ describe('useListRenderWindow 滚动按需续放', () => {
 
   it('同一帧内多次触发只排一个任务（单飞）', async () => {
     const { view } = mount(2000);
-    await pump(2);
+    await pumpUntilSettled();
     view.notifyViewport(viewportAtDistance(0));
     view.notifyViewport(viewportAtDistance(0));
     view.notifyViewport(viewportAtDistance(0));
@@ -280,7 +329,7 @@ describe('useListRenderWindow 滚动按需续放', () => {
 describe('useListRenderWindow 键盘导航越界', () => {
   it('选中行超出窗口时同步放开，不等下一帧', async () => {
     const { view, activeIndex } = mount(2000);
-    await pump(2);
+    await pumpUntilSettled();
     expect(view.renderCount.value).toBe(IDLE_RENDER_LIMIT);
 
     activeIndex.value = 180;
