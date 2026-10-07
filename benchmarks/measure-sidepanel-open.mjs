@@ -55,6 +55,9 @@
  * 场景（与 §5.3 的矩阵逐条对应）：
  *   s1 会话有效          s2 会话失效或未验证     s3 扩展冷启动（SW 未起）
  *   s4 快速重启（保活中） s5 引导播放期间打开     s6 大库（--rows 条，默认 2000）
+ *   s7 中规模库（--mid-rows 条，默认 200）——s1–s5 都是空库、s6 是上限档，
+ *   中间那一段（几百条、真实用户最常见的规模）此前没有任何读数；200 越过空闲上限 100，
+ *   因此它是唯一能同时看到「窗口会分帧」与「分帧成本尚未主导」两件事的场景。
  */
 import { chromium } from 'playwright';
 import { createHash } from 'node:crypto';
@@ -81,6 +84,14 @@ function arg(name, fallback) {
 const REPEAT = Number(arg('repeat', 3));
 const LABEL = arg('label', 'run');
 const ROWS = Number(arg('rows', 2000));
+/**
+ * 中规模库的行数（`--mid-rows`，s7 用）
+ *
+ * 200 是刻意选的：它**越过** `IDLE_RENDER_LIMIT`（100）所以窗口真的会分帧放开，
+ * 又远小于 2000 所以整库 DOM 成本不构成瓶颈——这一段正是真实用户最常处的规模，
+ * 而 s1–s5 全在空库（0 行）上测，只有 0 与 2000 两个端点，中间是空的。
+ */
+const MID_ROWS = Number(arg('mid-rows', 200));
 const ONLY = String(arg('only', ''))
   .split(',')
   .map(s => s.trim())
@@ -691,7 +702,17 @@ class Rig {
      * 安装点在面板文档自己的时间轴上（`ltInstall.atMs`），因此这一列的盲区是可读的数值，
      * 而不是像 `busyMsSinceAttach` 那样只是「附加之后」这种定性下界。
      */
-    const windowEnd = markOf('sp-list-rendered') ?? markOf('sp-data-ready') ?? Infinity;
+    const listRenderedMark = markOf('sp-list-rendered');
+    const windowEnd = listRenderedMark ?? markOf('sp-data-ready') ?? Infinity;
+    /**
+     * 窗口右端是否退到了 `sp-data-ready`（而不是 `sp-list-rendered`）
+     *
+     * 面板没打出纳点 mark 时（实测 20 个样本里有 3 个 `sp-list-rendered` 缺失、同一批里
+     * `rows@shot=0`），窗口右端会退到数据就绪那一刻，于是**渲染段本身那一条长任务被整条切掉**，
+     * `longtaskCount=0` 读起来像「这一枪没有长任务」，实际是窗口比渲染段先结束。
+     * 缺这个标记时，0 与「没有长任务」无法区分。
+     */
+    const ltWindowTruncated = LT && listRenderedMark === null && markOf('sp-data-ready') !== null;
     const ltOf = arr => (arr ?? []).filter(([st, dur]) => dur > 50 && st <= windowEnd);
     const inWindow = LT ? ltOf(timeline.obs) : ltOf(timeline.longs);
     /**
@@ -786,6 +807,15 @@ class Rig {
         1,
       ),
       longtaskMaxMs: inWindow.length ? Math.max(...inWindow.map(([, dur]) => dur)) : null,
+      /**
+       * 窗口内每条长任务的 `[开始, 时长]`（面板文档自己的时间轴）。
+       * 只有条数和最值时无法归因——同一个 174 ms 既可能是首帧的 30 行，也可能是分帧循环里
+       * 某一帧，还可能是与列表无关的引导任务，三者的整改方向彼此相反。开始时间对着
+       * `marks`（`sp-data-ready` / `sp-list-rendered`）比一比才知道钱花在哪一段。
+       */
+      longtaskEntries: inWindow,
+      /** 长任务窗口右端是否因 `sp-list-rendered` 缺失而退到数据就绪（true 时上面那三列是下界，不是结论） */
+      ltWindowTruncated,
       /** 观察器安装点：`atMs` 之前的已结束任务收不到，这个数就是本样本的盲区宽度 */
       ltInstall,
       /** 观察器是否收到过窗口之外的条目，以及阳性对照是否真的加回来一条 ≥300 ms 的任务 */
@@ -1002,6 +1032,8 @@ function summarize(name, samples) {
     out.ltTeeth = controls.every(c => c.added >= 1 && c.controlMs >= 300);
     out.ltMaxMs = Math.max(...ok.map(s => s.summary.longtaskMaxMs ?? 0));
     out.ltSumMax = Math.max(...ok.map(s => s.summary.longtaskSumMs ?? 0));
+    /** 有多少个样本的长任务窗口被提前截断（右端退到 `sp-data-ready`）——这些样本的 0 是下界 */
+    out.ltTruncatedSamples = ok.filter(s => s.summary.ltWindowTruncated).length;
   }
   return out;
 }
@@ -1166,6 +1198,26 @@ async function main() {
         return out;
       },
     },
+    /**
+     * s7 中规模库：--mid-rows 条（默认 200），有效会话下打开
+     *
+     * 与 s6 只差一个行数，为的是让「条数 → 首屏成本」这条曲线中间有一个点：
+     * s1–s5 都是空库（`rows=0`，窗口根本不分帧），s6 是 2000 条上限档，
+     * 于是「有界窗口在几百条这一档到底花多少」至今没有读数。
+     */
+    s7: {
+      title: `${MID_ROWS} 条中规模库`,
+      async run(rig, i) {
+        const onb = await rig.open(rig.originUrl('options.html'));
+        await rig.onboard(onb);
+        await rig.seed(onb, MID_ROWS);
+        await rig.closeWindow(onb);
+        const g = await rig.openViaPopup();
+        const out = await collect(rig, g, `s7-${i + 1}`, rig.seen);
+        await rig.closeWindow(g.page).catch(() => {});
+        return out;
+      },
+    },
   };
 
   const wanted = ONLY.length ? ONLY : Object.keys(scenarios);
@@ -1218,7 +1270,21 @@ async function main() {
   const dir = path.join(REPO, 'benchmarks', 'results');
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `sidepanel-open-${LABEL}.json`);
-  fs.writeFileSync(file, JSON.stringify({ meta: { headless: HEADLESS, repeat: REPEAT, rows: ROWS }, out }, null, 2));
+  /**
+   * `extension` 必须落进 meta：A/B 的两臂靠 `E2E_EXT` 切换，产物里若不记自己量的是哪份构建，
+   * 事后就只能靠文件名猜臂——猜错一次的代价是把 before 的读数讲成 after 的。
+   */
+  const meta = {
+    headless: HEADLESS,
+    repeat: REPEAT,
+    rows: ROWS,
+    midRows: MID_ROWS,
+    only: ONLY || 'all',
+    longtask: LT,
+    trace: TRACE,
+    extension: EXTENSION_PATH,
+  };
+  fs.writeFileSync(file, JSON.stringify({ meta, out }, null, 2));
   log(`结果 → ${file}`);
   console.log(JSON.stringify(Object.fromEntries(Object.entries(out).map(([k, v]) => [k, v.summary])), null, 2));
 }
