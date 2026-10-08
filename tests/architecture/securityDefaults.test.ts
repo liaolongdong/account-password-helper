@@ -14,10 +14,30 @@
  */
 import { describe, expect, it } from 'vitest';
 import { getDefaultClipboardConfig, getDefaultIdleLockConfig } from '@/utils/storage/configManager';
-import { listSourceFiles, readSource } from '../helpers/architectureScan';
+import { listSourceFiles, readSource, resolveSpecifier } from '../helpers/architectureScan';
 
 /** 运行时代码目录（不含 tests / e2e / product-site 与构建脚本） */
 const RUNTIME_DIRS = ['components', 'composables', 'entrypoints', 'utils'] as const;
+
+/**
+ * 按「使用的名字」反查它来自哪个具名导入
+ *
+ * `import { A as B } from 'x'` 里使用名是 B、真实导出是 A，两者都要还给调用方，
+ * 否则跟到来源文件却按别名查声明会查不到，把合法写法误报成"值来自别处"。
+ */
+function namedImport(src: string, usedName: string): { spec: string; original: string } | null {
+  for (const m of src.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g)) {
+    for (const part of m[1].split(',')) {
+      const [original, alias] = part
+        .trim()
+        .split(/\s+as\s+/)
+        .map(s => s.trim());
+      if (!original || original === 'type') continue;
+      if ((alias || original) === usedName) return { spec: m[2], original };
+    }
+  }
+  return null;
+}
 
 describe('安全默认值锚定', () => {
   it('剪贴板：默认开启自动清除且窗口为 30 秒（README:151 承诺）', () => {
@@ -71,13 +91,15 @@ describe('安全默认值锚定', () => {
     }
   });
 
-  it('密码学参数：全仓 PBKDF2 轮数恒为 600000，且不来自任何外部入参', () => {
+  it('密码学参数：全仓 PBKDF2 轮数只有一个取值来源，值恒为 600000 且不来自任何外部入参', () => {
     const files = RUNTIME_DIRS.flatMap(dir => listSourceFiles(dir));
     /** 每处 PBKDF2 轮数的写法：`位置: 字面量值` */
     const sites: string[] = [];
     /** 每处 PBKDF2 轮数解析出的数值（含经 ALL_CAPS 模块常量中转的） */
     const values: number[] = [];
-    /** 非法取值表达式：既非数字字面量、也非全大写模块常量 ⇒ 轮数可被配置/入参削弱 */
+    /** 数值字面量真正所在的文件（多于一处 = 同一参数写了两遍，早晚漂移） */
+    const owners = new Set<string>();
+    /** 非法取值表达式：既非数字字面量、也非可回溯到字面量的模块常量 ⇒ 轮数可被配置/入参削弱 */
     const dynamic: string[] = [];
 
     for (const file of files) {
@@ -86,16 +108,36 @@ describe('安全默认值锚定', () => {
       for (const match of src.matchAll(/\biterations:\s*([^,}\n]+)/g)) {
         const raw = match[1].trim();
         const line = src.slice(0, match.index).split('\n').length;
-        sites.push(`${file}:${line} ${raw}`);
+        const where = `${file}:${line} ${raw}`;
+        sites.push(where);
+        const declIn = (text: string, name: string): number | null => {
+          const decl = new RegExp(`(?:const|let|var)\\s+${name}\\s*=\\s*(\\d[\\d_]*)`).exec(text);
+          return decl ? Number(decl[1].replace(/_/g, '')) : null;
+        };
+
         if (/^\d[\d_]*$/.test(raw)) {
           values.push(Number(raw.replace(/_/g, '')));
+          owners.add(file);
         } else if (/^[A-Z0-9_]+$/.test(raw)) {
-          // 具名常量：回到声明处取值，禁止"名字像常量但值来自别处"
-          const decl = new RegExp(`${raw}\\s*=\\s*(\\d[\\d_]*)`).exec(src);
-          if (decl) values.push(Number(decl[1].replace(/_/g, '')));
-          else dynamic.push(`${file}:${line} ${raw}（未在本文件取到数值）`);
+          // 具名常量：回到声明处取值，禁止"名字像常量但值来自别处"；
+          // 声明允许抽进独立的参数模块，因此跟着 import 说明符再找一次
+          const local = declIn(src, raw);
+          if (local !== null) {
+            values.push(local);
+            owners.add(file);
+            continue;
+          }
+          const imported = namedImport(src, raw);
+          const from = imported ? resolveSpecifier(imported.spec, file) : null;
+          const remote = from === null ? null : declIn(readSource(from), imported!.original);
+          if (from && remote !== null) {
+            values.push(remote);
+            owners.add(from);
+          } else {
+            dynamic.push(`${where}（既不在本文件取到数值，也跟随不到 import 来源）`);
+          }
         } else {
-          dynamic.push(`${file}:${line} ${raw}`);
+          dynamic.push(where);
         }
       }
     }
@@ -107,5 +149,18 @@ describe('安全默认值锚定', () => {
     ).toBeGreaterThanOrEqual(4);
     expect(dynamic, `PBKDF2 轮数被改成可外部影响的取值：${dynamic.join(' | ')}`).toEqual([]);
     expect(new Set(values), `PBKDF2 轮数出现非 600000 的档位：${sites.join(' | ')}`).toEqual(new Set([600000]));
+    // 轮数不随密文落盘：四条派生路径（校验值 / 字段密钥 / .aph 备份 / .aphid 备份）各写一份
+    // 就等于四个带外约定，任何一处漂移都是「解密失败」这一层查不出根因的静默故障。
+    expect([...owners], `PBKDF2 轮数出现 ${owners.size} 个定义处，应只有一个：${sites.join(' | ')}`).toHaveLength(1);
+  });
+
+  it('取值跟随 import 的解析确实生效（否则上一条的"只有一个定义处"是空断言）', () => {
+    const src = readSource('utils/encryption.ts');
+    expect(src, 'encryption.ts 不再经 import 取轮数，本条跟随逻辑该一起改写').toMatch(
+      /iterations:\s*PBKDF2_ITERATIONS/,
+    );
+    expect(namedImport(src, 'PBKDF2_ITERATIONS')?.spec, 'PBKDF2 参数模块不再被 encryption 引用').toBe(
+      '@/utils/cryptoParams',
+    );
   });
 });

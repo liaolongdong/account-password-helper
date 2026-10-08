@@ -1,6 +1,7 @@
 import { shallowRef, ref } from 'vue';
 import type { UpdateInfo } from '@/utils/types';
 import { getCachedUpdateInfo } from '@/utils/updateChecker';
+import { toNavigableUrl } from '@/utils/domain';
 import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
 
 /**
@@ -36,14 +37,13 @@ export function useVersionUpdate() {
 
   /**
    * 打开版本更新下载页面
-   * 跳转到 GitHub Release 页面，同时关闭当前窗口
+   *
+   * 跳转地址取自 storage 里的缓存值，而写入方（`updateChecker`）是网络响应：
+   * 这里再判一次协议，覆盖「修复前已缓存的旧值」这条路径——非法或缺失一律退回仓库 Releases 页。
    */
   const openUpdatePage = () => {
-    if (updateInfo.value?.downloadUrl) {
-      chrome.tabs.create({ url: updateInfo.value.downloadUrl });
-    } else {
-      chrome.tabs.create({ url: GITHUB_RELEASES_PAGE_URL });
-    }
+    const target = toNavigableUrl(updateInfo.value?.downloadUrl) ?? GITHUB_RELEASES_PAGE_URL;
+    chrome.tabs.create({ url: target });
     window.close();
   };
 

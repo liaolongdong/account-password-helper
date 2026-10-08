@@ -1,14 +1,12 @@
 ---
 title: 用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战
-description: 不引任何加密库，只用浏览器原生 Web Crypto API，如何构建一个可审计的密码管理器加密体系？本文拆解密钥派生、字段级加密、会话生命周期与换钥的完整实现。
+description: 不引任何加密库，只用浏览器原生 Web Crypto API 构建可审计的加密体系：密钥派生、字段级加密、会话生命周期与换钥的完整实现。
 tags: Web Crypto,加密,密码管理器,安全,Chrome扩展
 date: 2026-08-28
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
-
-# 用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战
 
 ![从主密码到密文：加密管线全流程](imgs/02-flowchart-security-pipeline.png)
 

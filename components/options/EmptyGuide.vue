@@ -132,4 +132,19 @@ const { t } = useI18n();
 .empty-guide__card-icon--warning {
   color: var(--el-color-warning);
 }
+
+/* ==================== 降级动效 ==================== */
+
+/* 与侧边栏列表行同一口径：只撤 hover 位移，描边变色与阴影反馈保留（它们是「可点卡片」的提示载体） */
+@media (prefers-reduced-motion: reduce) {
+  .empty-guide__card {
+    transition:
+      border-color 0.25s,
+      box-shadow 0.25s;
+  }
+
+  .empty-guide__card:hover {
+    transform: none;
+  }
+}
 </style>

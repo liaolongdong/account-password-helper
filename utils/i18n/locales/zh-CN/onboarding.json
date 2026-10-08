@@ -1,10 +1,14 @@
 {
   "onboarding.kicker": "新手引导",
   "onboarding.welcome.title": "欢迎来到本地保险库",
-  "onboarding.welcome.desc": "账号、密码和两步验证码只加密存在这台电脑上，不上传任何服务器。花半分钟走一遍，日常用侧边栏就够了。",
+  "onboarding.welcome.desc": "账号、密码和两步验证码只加密存在这台电脑上，不上传任何服务器。花半分钟走一遍，日常用侧边栏就够了——引导里会当场把它打开一次。",
   "onboarding.add.title": "先放第一条进去",
-  "onboarding.add.desc": "填网站、账号和密码就能保存。下次打开这个网站，插件会按域名自动匹配并填好。",
+  "onboarding.add.desc": "填网站、账号和密码就能保存。下次再打开这个网站，插件按域名匹配到它：点登录框旁的钥匙图标填入，或在偏好设置里开启「自动触发登录」。",
   "onboarding.add.tip": "不想自己造密码？弹窗里的「生成」按钮按长度和字符类型随机产出。",
+  "onboarding.sidepanel.title": "存好之后，从侧边栏取用",
+  "onboarding.sidepanel.desc": "点下面的按钮，侧边栏就在当前标签页旁边展开：刚存的条目能逐条浏览、可搜索，常用的标星收藏。管理页没有自己的网站地址，所以这里列出的是整座保险库；换到任意网站的登录页，它只显示那个站点的账号。",
+  "onboarding.sidepanel.action": "立即打开侧边栏",
+  "onboarding.sidepanel.shortcutHint": "没能打开？按 {shortcut} 也能随时叫出侧边栏。",
   "onboarding.empty.title": "三条路，任选一条",
   "onboarding.empty.desc": "手动添加、从 CSV 文件批量导入，或恢复 .aph 加密备份。导入前会先算清还能收多少条、哪几条会被忽略。",
   "onboarding.search.title": "条目多了以后靠这里",
@@ -15,9 +19,9 @@
   "onboarding.settings.title": "把安全策略调成你的习惯",
   "onboarding.settings.desc": "闲置自动锁定、会话有效期、自动保存、站点规则、剪贴板清理和快捷键，都从这一组进。",
   "onboarding.health.title": "定期做一次安全体检",
-  "onboarding.health.desc": "找出重复、过弱、已到更新期和长期未更换的密码，给出 0–100 分评分与逐条待办。",
+  "onboarding.health.desc": "找出重复使用、强度过弱、命中常见泄露密码（近千条离线字典）和长期未更换的密码，给出 0–100 分评分与逐条待办。",
   "onboarding.personalize.title": "换成你顺眼的样子",
-  "onboarding.personalize.desc": "六套主题色、中英文界面，以及悬浮按钮的显示与位置，都在这一处切换。",
+  "onboarding.personalize.desc": "六套主题色、中英文界面和悬浮按钮的显隐都在这一处切换；按钮位置不在这里设，直接在页面上把它拖到想要的边缘，松手自动吸附。",
   "onboarding.skip": "跳过",
   "onboarding.prev": "上一步",
   "onboarding.next": "下一步",
@@ -25,5 +29,8 @@
   "onboarding.keyboardHint": "← → 切换 · Esc 退出",
   "onboarding.progressAria": "第 {current} / {total} 步：{title}",
   "onboarding.dotCurrent": "第 {index} 步（当前所在）",
-  "onboarding.dotJump": "跳到第 {index} 步：{title}"
+  "onboarding.dotJump": "跳到第 {index} 步：{title}",
+  "onboarding.docsLead": "想不起哪一步了？完整说明一直在：",
+  "onboarding.docsGuide": "页内使用指引",
+  "onboarding.docsOnline": "在线说明"
 }

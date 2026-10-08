@@ -357,6 +357,25 @@ export type RuntimeMessage =
   | { type: MessageType.DELEGATE_PAGE_NOTICE; data: PageNoticeData };
 
 /**
+ * 侧边栏 → Background 的 Port 通道消息
+ *
+ * 与 {@link RuntimeMessage} 分列：Port 是长连接、由 `chrome.runtime.onConnect` 按
+ * `name === 'sidepanel'` 建立，不经 messageRouter 的 `onMessage` 分发，消息集封闭且只有两条。
+ * `HEARTBEAT` 刻意使用字符串字面量而非 `MessageType` 成员——它只在「侧边栏打开期间保活」
+ * 这一条通道上有意义，进枚举会让它看起来像一条可被 messageRouter 处理的跨入口消息。
+ */
+export type SidepanelToBackgroundPortMessage =
+  { type: 'HEARTBEAT' } | { type: MessageType.SIDEPANEL_READY; tabId: number; windowId: number };
+
+/**
+ * Background → 侧边栏的 Port 通道消息
+ *
+ * 两者都只由后台主动下发（关窗 / 会话失效广播），侧边栏侧按 `type` 收窄。
+ */
+export type BackgroundToSidepanelPortMessage =
+  { type: MessageType.CLOSE_SIDEPANEL } | { type: MessageType.SESSION_EXPIRED };
+
+/**
  * 悬浮按钮配置接口
  */
 export interface FloatingButtonConfig {

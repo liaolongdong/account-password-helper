@@ -5,10 +5,10 @@ import { DEFAULT_IDENTITY_SORT_MODE } from '@/utils/identity/constants';
 /**
  * 身份信息库排序档位的落盘读写测试
  *
- * 档位是**明文单键**（四值枚举、零 PII），所以它不走整块加密那条通道，而是与
+ * 档位是**明文单键**（枚举值、零 PII），所以它不走整块加密那条通道，而是与
  * `vault_page_size` 同一形态的偏好读写。这里钉死两件事，形状照
  * `configManager.vaultPageSize.test.ts`：
- * 1. 读出来的值只可能是四档之一——存储被历史版本、手改或导入污染时回落默认档，
+ * 1. 读出来的值只可能是 `IDENTITY_SORT_MODES` 白名单里的一档——存储被历史版本、手改或导入污染时回落默认档，
  *    绝不把坏值透传给视图层（否则 `sortIdentityEntries` 会走进兜底分支，用户看到的是
  *    「排序坏了」而不是「回落了」）；
  * 2. 非法写入被忽略且**不落盘**：视图偏好不值得为一次坏写入向用户报错，但把非法状态
@@ -52,8 +52,10 @@ describe('getIdentitySortMode', () => {
     }
   });
 
-  it('四个合法档位原样读回', async () => {
-    for (const mode of ['updated', 'created', 'category', 'title'] as const) {
+  it('五个合法档位原样读回', async () => {
+    // 这份字面量不会因新增档位而变红（它是写死的，不是从 IDENTITY_SORT_MODES 派生的），
+    // 所以加一档必须同时补进来——否则新档位的落盘读回无人验证。
+    for (const mode of ['updated', 'created', 'category', 'title', 'manual'] as const) {
       store[STORAGE_KEYS.IDENTITY_SORT_MODE] = mode;
       expect(await getIdentitySortMode()).toBe(mode);
     }

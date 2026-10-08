@@ -443,6 +443,21 @@ export const settingsPanelViewStyles = `
 .fill-mode-option.active::before {
   content: '✓ ';
 }
+
+/*
+ * 减弱动效档：只撤悬浮时的放大，且必须保留把手的定位位移。
+ * .slider-thumb 的 translate(-50%, -50%) 是用来把把手钉在轨道端点中心的定位手段，
+ * 不是动效——写成 transform: none 会让把手跳出中心、看起来像控件坏了。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .slider-thumb:hover {
+    transform: translate(-50%, -50%);
+  }
+
+  .theme-swatch:hover {
+    transform: none;
+  }
+}
 `;
 
 /** 快速填充入口（3 选 1，由 autoShowSidepanel + fillMode 两字段派生） */

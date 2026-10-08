@@ -35,7 +35,7 @@
           <el-icon class="help-link-icon"><Document /></el-icon>
           <span>{{ t('help.viewFull') }}</span>
           <a
-            href="https://liaolongdong.github.io/account-password-helper/"
+            :href="PRODUCT_DOCS_URL"
             target="_blank"
             rel="noopener noreferrer"
             class="help-link"
@@ -92,130 +92,60 @@
         <h4>{{ t('help.guideTitle') }}</h4>
 
         <h5 class="help-group-title">
-          <span class="help-group-icon security">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          </span>
+          <HelpGroupIcon kind="security" />
           {{ t('help.groupSecurity') }}
         </h5>
         <ol>
           <!--
-            帮助文案为语言包内置静态内容，v-html 仅渲染内置 code/b 标记；
-            本文件 8 组条目同此口径，豁免范围收在各自 <li> 上，登记见
-            `tests/architecture/lintBypassInventory.test.ts`。
+            帮助文案是语言包内置字符串，其中的 code/b 标记经 RichText 白名单渲染，
+            其余任何尖括号写法按字面文本显示。本文件不再使用 v-html，因此也没有
+            eslint 豁免（清单收缩登记见 `tests/architecture/lintBypassInventory.test.ts`）。
           -->
-          <!-- eslint-disable vue/no-v-html -->
           <li
             v-for="(item, idx) in helpItems('help.gs', 11)"
             :key="idx"
-            v-html="item"
-          ></li>
-          <!-- eslint-enable vue/no-v-html -->
+          >
+            <RichText :source="item" />
+          </li>
         </ol>
 
         <h5 class="help-group-title">
-          <span class="help-group-icon basic">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-          </span>
+          <HelpGroupIcon kind="basic" />
           {{ t('help.groupBasic') }}
         </h5>
         <ol>
-          <!-- eslint-disable vue/no-v-html -->
           <li
-            v-for="(item, idx) in helpItems('help.gb', 14)"
+            v-for="(item, idx) in helpItems('help.gb', 15)"
             :key="idx"
-            v-html="item"
-          ></li>
-          <!-- eslint-enable vue/no-v-html -->
+          >
+            <RichText :source="item" />
+          </li>
         </ol>
 
         <h5 class="help-group-title">
-          <span class="help-group-icon data">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <ellipse
-                cx="12"
-                cy="5"
-                rx="9"
-                ry="3"
-              />
-              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-            </svg>
-          </span>
+          <HelpGroupIcon kind="data" />
           {{ t('help.groupData') }}
         </h5>
         <ol>
-          <!-- eslint-disable vue/no-v-html -->
           <li
             v-for="(item, idx) in helpItems('help.gd', 11)"
             :key="idx"
-            v-html="item"
-          ></li>
-          <!-- eslint-enable vue/no-v-html -->
+          >
+            <RichText :source="item" />
+          </li>
         </ol>
 
         <h5 class="help-group-title">
-          <span class="help-group-icon config">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="3"
-              />
-              <path
-                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-              />
-            </svg>
-          </span>
+          <HelpGroupIcon kind="config" />
           {{ t('help.groupConfig') }}
         </h5>
         <ol>
-          <!-- eslint-disable vue/no-v-html -->
           <li
             v-for="(item, idx) in helpItems('help.gc', 6)"
             :key="idx"
-            v-html="item"
-          ></li>
-          <!-- eslint-enable vue/no-v-html -->
+          >
+            <RichText :source="item" />
+          </li>
         </ol>
       </section>
 
@@ -224,125 +154,55 @@
         <h4>{{ t('help.faqTitle') }}</h4>
 
         <h5 class="help-group-title">
-          <span class="help-group-icon security">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-          </span>
+          <HelpGroupIcon kind="security" />
           {{ t('help.groupSecurity') }}
         </h5>
         <ul>
-          <!-- eslint-disable vue/no-v-html -->
           <li
             v-for="(item, idx) in helpItems('help.fs', 9)"
             :key="idx"
-            v-html="item"
-          ></li>
-          <!-- eslint-enable vue/no-v-html -->
+          >
+            <RichText :source="item" />
+          </li>
         </ul>
 
         <h5 class="help-group-title">
-          <span class="help-group-icon basic">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-            </svg>
-          </span>
+          <HelpGroupIcon kind="basic" />
           {{ t('help.groupBasic') }}
         </h5>
         <ul>
-          <!-- eslint-disable vue/no-v-html -->
           <li
             v-for="(item, idx) in helpItems('help.fb', 9)"
             :key="idx"
-            v-html="item"
-          ></li>
-          <!-- eslint-enable vue/no-v-html -->
+          >
+            <RichText :source="item" />
+          </li>
         </ul>
 
         <h5 class="help-group-title">
-          <span class="help-group-icon data">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <ellipse
-                cx="12"
-                cy="5"
-                rx="9"
-                ry="3"
-              />
-              <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3" />
-              <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
-            </svg>
-          </span>
+          <HelpGroupIcon kind="data" />
           {{ t('help.groupData') }}
         </h5>
         <ul>
-          <!-- eslint-disable vue/no-v-html -->
           <li
             v-for="(item, idx) in helpItems('help.fd', 7)"
             :key="idx"
-            v-html="item"
-          ></li>
-          <!-- eslint-enable vue/no-v-html -->
+          >
+            <RichText :source="item" />
+          </li>
         </ul>
 
         <h5 class="help-group-title">
-          <span class="help-group-icon config">
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.5"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <circle
-                cx="12"
-                cy="12"
-                r="3"
-              />
-              <path
-                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-              />
-            </svg>
-          </span>
+          <HelpGroupIcon kind="config" />
           {{ t('help.groupConfig') }}
         </h5>
         <ul>
-          <!-- eslint-disable vue/no-v-html -->
           <li
             v-for="(item, idx) in helpItems('help.fc', 13)"
             :key="idx"
-            v-html="item"
-          ></li>
-          <!-- eslint-enable vue/no-v-html -->
+          >
+            <RichText :source="item" />
+          </li>
         </ul>
       </section>
     </div>
@@ -363,10 +223,13 @@
 import { watch } from 'vue';
 import { Document } from '@element-plus/icons-vue';
 import ShortcutKeyCap from '@/components/ShortcutKeyCap.vue';
+import HelpGroupIcon from '@/components/HelpGroupIcon.vue';
+import RichText from '@/components/RichText.vue';
 import { useShortcuts, type ShortcutEntry } from '@/composables/useShortcuts';
+import { SHORTCUT_LABEL_KEYS } from '@/utils/shortcutCommands';
 import { isFirefox } from '@/utils/env';
 import { useI18n } from '@/utils/i18n';
-import { GITHUB_RELEASES_PAGE_URL } from '@/utils/urls';
+import { GITHUB_RELEASES_PAGE_URL, PRODUCT_DOCS_URL } from '@/utils/urls';
 // help 命名空间语言包随本组件懒加载 chunk 按需注册，不占用侧边栏首屏体积
 import '@/utils/i18n/bundles/help';
 
@@ -386,19 +249,6 @@ const version = chrome.runtime.getManifest().version;
 
 /** 快捷键绑定状态（useShortcuts 随本组件懒加载 chunk 落地，不进入侧边栏首屏包） */
 const { entries, loadShortcuts, openShortcutsPage } = useShortcuts();
-
-/**
- * 命令标识到 help 命名空间 key 的映射
- *
- * 采用具名 key 而非帮助文案那套 `.1`~`.N` 数字序号，
- * 避免语言包与 SHORTCUT_COMMANDS 数组顺序产生隐式耦合。
- */
-const SHORTCUT_LABEL_KEYS = {
-  open_options: 'help.sc.openOptions',
-  toggle_sidepanel: 'help.sc.toggleSidepanel',
-  quick_fill: 'help.sc.quickFill',
-  open_inline_dropdown: 'help.sc.openInlineDropdown',
-} as const satisfies Record<ShortcutEntry['id'], string>;
 
 /** 键帽的无障碍名：命令名 + 按键；未生效语义由列表内可见警示文本承载 */
 const keycapLabel = (entry: ShortcutEntry): string => `${t(SHORTCUT_LABEL_KEYS[entry.id])} ${entry.shortcut}`;
@@ -481,40 +331,6 @@ const handleGoToOptions = () => {
 }
 .help-group-title:first-child {
   margin-top: 4px;
-}
-
-.help-group-icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 5px;
-}
-.help-group-icon.security {
-  color: #059669;
-  background: rgb(16 185 129 / 10%);
-}
-.help-group-icon.basic {
-  color: #4e88ff;
-  background: rgb(78 136 255 / 10%);
-}
-.help-group-icon.data {
-  color: #7c3aed;
-  background: rgb(139 92 246 / 10%);
-}
-.help-group-icon.config {
-  color: #d97706;
-  background: rgb(245 158 11 / 10%);
-}
-
-.help-section code {
-  padding: 1px 6px;
-  font-size: 12px;
-  color: #d6336c;
-  background: #f3f4f6;
-  border-radius: 3px;
 }
 
 .help-link-banner {
@@ -623,6 +439,16 @@ const handleGoToOptions = () => {
 .el-dialog.help-dialog {
   margin-top: 40px;
   margin-bottom: 40px;
+}
+
+/* RichText 动态创建的 code 元素不带本组件的 scoped 标识，胶囊样式只能由宿主按后代选择器给；
+   选择器前缀收在 .help-dialog 内，不外溢到其他入口的同名标签 */
+.el-dialog.help-dialog .help-section code {
+  padding: 1px 6px;
+  font-size: 12px;
+  color: #d6336c;
+  background: #f3f4f6;
+  border-radius: 3px;
 }
 
 /* 弹性布局约束：让 body 作为唯一可滚动容器，header/footer 自然在滚动区之外保持固定 */

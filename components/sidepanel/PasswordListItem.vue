@@ -612,4 +612,30 @@ const activate = () => {
   font-weight: 700;
   color: inherit;
 }
+
+/* ==================== 降级动效 ==================== */
+
+/*
+ * 减弱动态效果：只撤位移与缩放，颜色反馈照旧过渡。
+ * 这两处位移（行右移 2px、复制图标放大 1.12）是大列表里唯一随鼠标划过反复触发的
+ * 合成工作：关掉它既符合系统偏好，也顺带削掉深滚时的合成成本；
+ * 而 hover 底色与图标变色是「可点」的提示载体，`transition` 因此只摘掉 transform 分量，
+ * 整体写 `transition: none` 会把颜色渐隐一起抹平，观感退化。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .password-item {
+    transition: background-color 0.2s;
+  }
+
+  .copy-icon-wrapper {
+    transition:
+      background-color 0.2s,
+      color 0.2s;
+  }
+
+  .password-item:hover,
+  .copy-icon-wrapper:hover {
+    transform: none;
+  }
+}
 </style>

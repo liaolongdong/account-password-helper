@@ -9,6 +9,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { applyI18n, assertI18nCoverage } from './lib/apply-i18n.mjs';
+import { OG_IMAGE_EN } from './lib/share-image.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'pricing.html');
@@ -64,6 +65,9 @@ replaceOnce(
   /name="twitter:description"\s+content="[^"]*"/,
   `name="twitter:description"\n      content="${EN_DESCRIPTION}"`,
 );
+// 分享卡跟着语言走：源页里是中文卡，英文页必须换成英文那张 1200×630
+replaceOnce(/property="og:image"\s+content="[^"]*"/, `property="og:image"\n      content="${OG_IMAGE_EN}"`);
+replaceOnce(/name="twitter:image"\s+content="[^"]*"/, `name="twitter:image"\n      content="${OG_IMAGE_EN}"`);
 
 // 页内跳转改为英文兄弟页面，避免英文页链向中文页
 const replaceEvery = (from, to) => {

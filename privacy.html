@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>隐私政策 / Privacy Policy - Account Password Helper</title>
+    <title>隐私政策 | 账号密码管理助手</title>
     <meta
       name="description"
       content="隐私政策：不收集、不分析、无遥测与广告；账号、密码、URL、备注与 TOTP 密钥逐字段 AES-256-GCM 本地加密，不上传任何服务器；唯一联网为匿名版本号检查。"
@@ -29,7 +29,7 @@
     />
     <meta
       name="theme-color"
-      content="#ffffff"
+      content="#4e88ff"
     />
     <link
       rel="canonical"
@@ -56,7 +56,7 @@
     />
     <meta
       property="og:title"
-      content="隐私政策 / Privacy Policy - Account Password Helper"
+      content="隐私政策 | 账号密码管理助手"
     />
     <meta
       property="og:description"
@@ -64,7 +64,7 @@
     />
     <meta
       property="og:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
     />
     <meta
       property="og:url"
@@ -92,7 +92,7 @@
     />
     <meta
       name="twitter:title"
-      content="隐私政策 / Privacy Policy - Account Password Helper"
+      content="隐私政策 | 账号密码管理助手"
     />
     <meta
       name="twitter:description"
@@ -100,12 +100,16 @@
     />
     <meta
       name="twitter:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
     />
     <style>
       :root {
+        color-scheme: light dark;
         --primary: #4f6ef7;
         --primary-light: #e8ecff;
+        /* 主色「作文字用」的那一档。--primary 同时是实底按钮与白字的组合色，暗档不能抬亮它，
+           所以语言切换与页脚链接的文字另走 --primary-ink（本页主色是 #4f6ef7，墨色按同色相压深）。 */
+        --primary-ink: #3450c8;
         --text: #1a1a2e;
         --text-secondary: #555;
         --bg: #ffffff;
@@ -113,6 +117,20 @@
         --border: #e2e6ef;
         --radius: 12px;
         --max-width: 800px;
+      }
+
+      /* 暗色档与落地页同源：只翻令牌。--primary 保持原值（它是实底按钮与白字的组合色），
+         只有 --primary-ink 这一枚文字令牌在暗档换亮。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-light: #1c2a45;
+          --primary-ink: #8aa4ff;
+          --text: #e6edf7;
+          --text-secondary: #a8b3c4;
+          --bg: #0b1220;
+          --bg-alt: #101a2c;
+          --border: #263349;
+        }
       }
 
       * {
@@ -158,7 +176,7 @@
 
       .lang-btn:hover {
         border-color: var(--primary);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .lang-btn.active {
@@ -220,6 +238,12 @@
         margin-bottom: 6px;
       }
 
+      /* 正文链接此前没有一条规则，吃的是 UA 默认 #0000EE：亮档压白底还算得清，暗档压 #0b1220 只有
+         1.99——这类缺陷静态令牌守卫看不见（没有声明就没有可扫的东西），是渲染层探针抓出来的。 */
+      .policy-section a {
+        color: var(--primary-ink);
+      }
+
       /* Highlight box */
       .highlight-box {
         background: var(--primary-light);
@@ -272,7 +296,7 @@
       }
 
       .footer a {
-        color: var(--primary);
+        color: var(--primary-ink);
         text-decoration: none;
       }
 
@@ -352,24 +376,28 @@
 
       <!-- Header -->
       <div class="header">
-        <div class="lang-zh">
-          <h1>隐私政策</h1>
-          <p class="subtitle">Account Password Helper 浏览器扩展</p>
-        </div>
-        <div class="lang-en">
-          <h1>Privacy Policy</h1>
-          <p class="subtitle">Account Password Helper Browser Extension</p>
-        </div>
+        <h1>
+          <span class="lang-zh">隐私政策</span>
+          <span class="lang-en">Privacy Policy</span>
+        </h1>
+        <p class="subtitle">
+          <span class="lang-zh">Account Password Helper 浏览器扩展</span>
+          <span class="lang-en">Account Password Helper Browser Extension</span>
+        </p>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年9月22日</span>
-          <span class="lang-en">Last updated: September 22, 2026</span>
+          <span class="lang-zh">最后更新：2026年10月2日</span>
+          <span class="lang-en">Last updated: October 2, 2026</span>
         </span>
       </div>
 
       <!-- ==================== 中文部分 ==================== -->
       <div class="lang-zh">
         <div class="highlight-box">
-          <p>核心承诺：本扩展不会将您的任何数据发送到外部服务器。所有密码与身份信息均加密存储在您的本地浏览器中。</p>
+          <p>
+            核心承诺：账号、密码、URL、备注、TOTP
+            密钥与身份信息逐字段加密后只写入您本机的浏览器存储，不上传任何服务器；本扩展的全部网络行为只有第 4
+            节列出的两类匿名请求。
+          </p>
         </div>
 
         <div class="policy-section">
@@ -595,8 +623,9 @@
       <div class="lang-en">
         <div class="highlight-box">
           <p>
-            Core Commitment: This extension does not send any of your data to external servers. All password and
-            identity data is encrypted and stored locally in your browser.
+            Core Commitment: Account names, passwords, URLs, notes, TOTP secrets and identity fields are encrypted field
+            by field and written only to your browser's local storage — never uploaded to any server. All network
+            activity this extension performs is limited to the two anonymous requests listed in Section 4.
           </p>
         </div>
 
@@ -866,7 +895,8 @@
               target="_blank"
               >GitHub</a
             >
-            · GPL-3.0 License</span
+            · GPL-3.0 License ·
+            <a href="./">产品官网</a> · <a href="./pricing.html">定价</a> · <a href="./compare.html">功能对比</a></span
           >
           <span class="lang-en"
             >Account Password Helper &copy; 2026 ·
@@ -875,7 +905,9 @@
               target="_blank"
               >GitHub</a
             >
-            · GPL-3.0 License</span
+            · GPL-3.0 License ·
+            <a href="./en.html">Product page</a> · <a href="./pricing.en.html">Pricing</a> ·
+            <a href="./compare.en.html">Comparison</a></span
           >
         </p>
       </div>
@@ -888,7 +920,7 @@
        */
       const META = {
         title: {
-          zh: '隐私政策 / Privacy Policy - Account Password Helper',
+          zh: '隐私政策 | 账号密码管理助手',
           en: 'Privacy Policy - Account Password Helper',
         },
         description: {

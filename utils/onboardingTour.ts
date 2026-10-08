@@ -63,9 +63,10 @@ export interface TourStep {
   /**
    * 锚点键名，对应页面上 `[data-tour="…"]` 元素
    *
-   * `null` 表示无锚点（欢迎步整屏居中）。非 `null` 时若该元素不在 DOM 中，
-   * 本步骤在开场前被整体剔除——所以互斥的界面状态（空库引导卡 / 搜索筛选栏）
-   * 各写一步即可，运行时自然只留一条。
+   * `null` 表示无锚点（整屏居中），目前只有 `welcome` 与 `sidepanel` 两步：后者要指的
+   * 侧边栏不在 Options 的 DOM 里，聚光灯圈不到它，只能屏幕布 + 卡内动作按钮。
+   * 非 `null` 时若该元素不在 DOM 中，本步骤在开场前被整体剔除——所以互斥的界面状态
+   * （空库引导卡 / 搜索筛选栏）各写一步即可，运行时自然只留一条。
    */
   anchor: string | null;
   /** 期望方位；放不下时按 {@link SIDE_FALLBACK_ORDER} 翻转 */
@@ -90,16 +91,25 @@ export const VIEWPORT_PADDING = 16;
 export const CARD_WIDTH = 340;
 
 /**
+ * 「打开侧边栏」这一步的 id
+ *
+ * 单独导出常量，是因为这一步没有锚点可寻（侧边栏不在 Options 的 DOM 里），
+ * 组件只能按 id 判定要不要在卡内渲染那颗动作按钮。
+ */
+export const SIDEPANEL_STEP_ID = 'sidepanel';
+
+/**
  * 剧本
  *
- * 顺序即用户旅程：先讲「东西在哪、为什么安全」，再落到「加第一条」，
+ * 顺序即用户旅程：先讲「东西在哪、为什么安全」，再落到「加第一条」，紧接着当场把
+ * 侧边栏叫出来形成「存 → 取」闭环（`welcome.desc` 那句「日常用侧边栏就够了」就在这一步兑现），
  * 然后是日常会用到的检索、导入、自动化与体检，最后收尾在个性化。
- * `empty` 与 `search` 互斥（空库时前者存在、有数据时后者存在），
- * 由锚点存在性自动二选一。
+ * `empty` 与 `search` 互斥（空库时前者存在、有数据时后者存在），由锚点存在性自动二选一。
  */
 export const TOUR_STEPS: readonly TourStep[] = [
   { id: 'welcome', anchor: null, prefer: 'center' },
   { id: 'add', anchor: 'add', prefer: 'bottom', hasTip: true },
+  { id: SIDEPANEL_STEP_ID, anchor: null, prefer: 'center' },
   { id: 'empty', anchor: 'empty', prefer: 'top' },
   { id: 'search', anchor: 'search', prefer: 'bottom' },
   { id: 'data', anchor: 'data', prefer: 'bottom', hasTip: true },

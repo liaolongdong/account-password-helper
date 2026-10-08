@@ -30,7 +30,7 @@
   "health.weakHint": "These passwords are weak; increase length and mix upper/lowercase letters, numbers and symbols.",
   "health.weakCaption": "Strengthen",
   "health.noWeak": "No weak passwords",
-  "health.breachedHint": "These passwords appear in a common breached-password dictionary (offline, no network) and are easy to brute-force. Change them immediately.",
+  "health.breachedHint": "These passwords appear in a common breached-password dictionary (bundled offline — this check makes no network request) and are easy to brute-force. Change them immediately.",
   "health.breachedCaption": "Change now",
   "health.notInDict": "Not in dictionary",
   "health.staleHint": "These entries haven't been updated for a long time (based on last modified). Rotate important passwords regularly.",

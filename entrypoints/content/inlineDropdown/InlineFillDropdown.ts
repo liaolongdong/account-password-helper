@@ -589,6 +589,26 @@ const inlineStyles = `
 .aph-no-master-btn:hover {
   opacity: 0.9;
 }
+
+/*
+ * 减弱动效档：只撤位移与缩放，保留阴影与透明度变化。
+ * 触发图标的悬浮反馈由 box-shadow 承担，引导气泡的入场由 opacity 承担——
+ * 撤掉整条 transition 会把这两个状态提示一起删掉，故逐项降级。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .aph-trigger {
+    transition: box-shadow 0.12s ease;
+  }
+
+  .aph-trigger:hover {
+    transform: none;
+  }
+
+  .aph-hint {
+    transform: none;
+    transition: opacity 0.2s ease;
+  }
+}
 `;
 
 /** 首次引导气泡自动消失延迟（毫秒） */

@@ -84,6 +84,33 @@
           >
             {{ stepTip }}
           </p>
+
+          <!-- 「打开侧边栏」这一步独有的卡内动作：侧边栏不在本页 DOM 里，聚光灯圈不到，
+               这一步只能由按钮自己把东西开出来；失败后原位换成快捷键提示 -->
+          <div
+            v-if="isSidepanelStep"
+            class="tour__action"
+          >
+            <button
+              v-if="!sidepanelFallback"
+              type="button"
+              class="tour__btn tour__btn--primary tour__action-btn"
+              @click="openSidePanel()"
+            >
+              <span
+                class="tour__btn-sweep"
+                aria-hidden="true"
+              ></span>
+              <span class="tour__btn-text">{{ t('onboarding.sidepanel.action') }}</span>
+            </button>
+            <p
+              v-else
+              class="tour__action-fallback"
+              role="status"
+            >
+              {{ shortcutHint }}
+            </p>
+          </div>
         </div>
 
         <!-- 进度点与键盘提示同处一行：两者都是「关于这一步的位置」，
@@ -106,6 +133,26 @@
           </ol>
           <p class="tour__hint">{{ t('onboarding.keyboardHint') }}</p>
         </div>
+
+        <!-- 末步给一条「看完去哪查」的退路：页内指引离线可读，在线说明随版本更新 -->
+        <p
+          v-if="isLast"
+          class="tour__docs"
+        >
+          {{ t('onboarding.docsLead') }}
+          <a
+            class="tour__docs-link"
+            href="#guide"
+            >{{ t('onboarding.docsGuide') }}</a
+          ><span class="tour__docs-sep">·</span
+          ><a
+            class="tour__docs-link"
+            :href="PRODUCT_DOCS_URL"
+            target="_blank"
+            rel="noopener noreferrer"
+            >{{ t('onboarding.docsOnline') }}</a
+          >
+        </p>
 
         <div class="tour__foot">
           <button
@@ -148,11 +195,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId } from 'vue';
+import { computed, ref, useId, watch } from 'vue';
 import type { OnboardingTourApi } from '@/composables/useOnboardingTour';
 import { useFocusTrap } from '@/composables/useFocusTrap';
+import { useShortcuts } from '@/composables/useShortcuts';
 import { useI18n } from '@/utils/i18n';
-import { tourKey } from '@/utils/onboardingTour';
+import { PRODUCT_DOCS_URL } from '@/utils/urls';
+import { SIDEPANEL_STEP_ID, tourKey } from '@/utils/onboardingTour';
 
 /**
  * 聚光式新手引导（Vault Spotlight）
@@ -171,7 +220,20 @@ const props = defineProps<{
 
 const { t } = useI18n();
 
-const { isActive, steps, spot, placement, progress, isFirst, isLast, total, stepIndex, currentStep } = props.tour;
+const {
+  isActive,
+  steps,
+  spot,
+  placement,
+  progress,
+  isFirst,
+  isLast,
+  total,
+  stepIndex,
+  currentStep,
+  sidepanelFallback,
+  openSidePanel,
+} = props.tour;
 
 /** 卡片根节点，供焦点陷阱与测试定位 */
 const cardEl = ref<HTMLElement | null>(null);
@@ -201,6 +263,34 @@ const descId = computed(() => `${uid}-desc`);
 const stepTitle = computed(() => (currentStep.value ? t(tourKey(currentStep.value.id, 'title')) : ''));
 const stepDesc = computed(() => (currentStep.value ? t(tourKey(currentStep.value.id, 'desc')) : ''));
 const stepTip = computed(() => (currentStep.value?.hasTip ? t(tourKey(currentStep.value.id, 'tip')) : ''));
+
+/** 当前是否走到「打开侧边栏」那一步（无锚点，动作只能长在卡里） */
+const isSidepanelStep = computed(() => currentStep.value?.id === SIDEPANEL_STEP_ID);
+
+/**
+ * 打开失败后的快捷键兜底文案
+ *
+ * 按键复用 `useShortcuts`：它已把「真实绑定优先、未绑定回退为按平台择一的 manifest
+ * 建议值」这套口径收在一处，这里不再抄一份查表与格式化。加载在本组件 setup 里发起一次
+ * 即可——组件经 `defineAsyncComponent` + `v-if` 只在引导播放期间存在，不像 HelpDialog
+ * 那样身处侧边栏首屏关键路径，`chrome.commands.getAll()` 放在这里不违反秒开约束。
+ */
+const { shortcuts, loadShortcuts } = useShortcuts();
+void loadShortcuts();
+const shortcutHint = computed(() =>
+  t('onboarding.sidepanel.shortcutHint', { shortcut: shortcuts.value.toggle_sidepanel }),
+);
+
+/**
+ * 失败换文案时把焦点收回卡片
+ *
+ * 按钮被 `v-if` 卸载后焦点会掉回 `body`，而焦点陷阱的 Tab 监听挂在卡片容器上，
+ * `body` 上的按键不会冒泡进容器——模态语义当场失效。卡片根节点本身带 `tabindex="-1"`，
+ * 收回来既保住陷阱，也让键盘用户停在还能继续按 Tab 的地方。
+ */
+watch(sidepanelFallback, fallback => {
+  if (fallback) cardEl.value?.focus({ preventScroll: true });
+});
 
 /** 两位数步序，避免「1 / 7」这种单薄读数 */
 const counterCurrent = computed(() => String(stepIndex.value + 1).padStart(2, '0'));
@@ -243,7 +333,10 @@ function dotLabel(index: number): string {
 </script>
 
 <style scoped>
-/* ==================== 令牌 ==================== */
+/* ==================== 令牌 ====================
+   口径：跟随主题的只有「强调」那一层（主色、描边、进度条、光环走 --aph-primary /
+   --aph-primary-rgb），幕布、深色卡底与浅色文字是聚焦对比的功能必需，六套主题下都
+   保持固定值——换肤换的是气质，不是把引导改成浅色。 */
 .tour {
   /* 幕布底色：深墨蓝而非纯黑，保留一丝冷光，避免遮住浅色界面时显得「坏掉了」 */
   --tour-veil: rgb(9 13 26 / 82%);
@@ -251,7 +344,9 @@ function dotLabel(index: number): string {
   --tour-ink: #f2f5fb;
   --tour-ink-soft: rgb(226 232 240 / 76%);
   --tour-ink-faint: rgb(203 213 225 / 68%);
-  --tour-line: rgb(148 163 184 / 18%);
+
+  /* 卡片描边：主题色的极淡一层，让深色卡在当前主题下收口而不是浮着一圈中性灰边 */
+  --tour-line: rgb(var(--aph-primary-rgb) / 22%);
 
   /* 强调色：任何主题 pastel 提到这个亮度都能在深底上过 WCAG 对比度 */
   --tour-accent: color-mix(in srgb, var(--aph-primary) 62%, #fff);
@@ -424,14 +519,14 @@ function dotLabel(index: number): string {
   letter-spacing: 0.18em;
 }
 
-/* 进度轨：2px，填充段随步骤推进生长 */
+/* 进度轨：2px，填充段随步骤推进生长（轨道与填充同属「进度条」，一起跟随主题） */
 .tour__progress {
   --tour-delay: 0.04s;
 
   height: 2px;
   margin: 12px 0 14px;
   overflow: hidden;
-  background: rgb(148 163 184 / 16%);
+  background: rgb(var(--aph-primary-rgb) / 16%);
   border-radius: 999px;
 }
 
@@ -474,6 +569,29 @@ function dotLabel(index: number): string {
   color: var(--tour-accent);
 }
 
+/* ==================== 卡内动作（仅「打开侧边栏」步） ====================
+   这一步聚光灯圈不到东西——侧边栏不在本页 DOM 里，于是「讲它」换成「演一次」：
+   整宽按钮比挤进底部那三枚里更能说明「点它真的会开一个东西」 */
+.tour__action {
+  --tour-delay: 0.18s;
+
+  margin-top: 14px;
+}
+
+.tour__action-btn {
+  box-sizing: border-box;
+  width: 100%;
+}
+
+/* 兜底态：打开失败后原位换成快捷键提示。`.tour__action` 的入场动画此时早已跑完，
+   文案替换不再叠一次位移，免得用户视线被第二次跳动带走 */
+.tour__action-fallback {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--tour-accent);
+}
+
 /* ==================== 进度点 + 键盘提示 ====================
    这一行只负责「我在哪儿」，按钮行只负责「我往哪儿走」；
    两件事挤在同一行时，340px 卡宽下三枚按钮会被压到折字 */
@@ -502,7 +620,7 @@ function dotLabel(index: number): string {
   height: 7px;
   padding: 0;
   cursor: pointer;
-  background: rgb(148 163 184 / 34%);
+  background: rgb(var(--aph-primary-rgb) / 34%);
   border: none;
   border-radius: 50%;
   transition:
@@ -511,7 +629,7 @@ function dotLabel(index: number): string {
 }
 
 .tour__dot:hover {
-  background: rgb(148 163 184 / 64%);
+  background: rgb(var(--aph-primary-rgb) / 64%);
   transform: scale(1.25);
 }
 
@@ -549,6 +667,34 @@ function dotLabel(index: number): string {
   letter-spacing: 0.04em;
 }
 
+/* 末步的文档退路：小字弱色，不与步骤正文抢注意力。
+   左对齐与卡片里其余文字同侧——居中时折出来的第二行只剩几个字，看着像孤字 */
+.tour__docs {
+  --tour-delay: 0.2s;
+
+  margin: 12px 0 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--tour-ink-faint);
+  text-align: left;
+}
+
+/* 中文按字折行会把「在线说 / 明」劈开，链接内部禁折，折点只落在链接之间 */
+.tour__docs-link {
+  color: var(--tour-accent);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.tour__docs-link:hover {
+  text-decoration: underline;
+}
+
+.tour__docs-sep {
+  margin: 0 4px;
+  color: var(--tour-ink-faint);
+}
+
 .tour__btn {
   position: relative;
   flex: none;
@@ -573,6 +719,7 @@ function dotLabel(index: number): string {
   border: 1px solid transparent;
 }
 
+/* 次级按钮的悬浮面是「中性交互底色」，不承担强调语义，因此不跟随主题色 */
 .tour__btn--ghost:hover {
   color: var(--tour-ink);
   background: rgb(148 163 184 / 12%);
@@ -647,7 +794,7 @@ function dotLabel(index: number): string {
 
 /* ==================== 入场错落 ====================
    一次编排好的分页入场比一堆零散微交互更有分量：
-   读数 → 进度轨 → 标题 → 描述 → 提示 → 圆点 → 动作，逐级约 40ms 递进。
+   读数 → 进度轨 → 标题 → 描述 → 提示 → 卡内动作 → 圆点 → 底部按钮，逐级约 40ms 递进。
    节奏由各自规则里声明的 `--tour-delay` 提供，这里只写一条共享简写——
    重复点名同一批选择器会被 stylelint 判成重复选择器，也没法一眼看出递进关系 */
 .tour__head,
@@ -655,7 +802,9 @@ function dotLabel(index: number): string {
 .tour__title,
 .tour__desc,
 .tour__tip,
+.tour__action,
 .tour__meta,
+.tour__docs,
 .tour__foot {
   animation: tour-rise 0.44s var(--tour-ease) var(--tour-delay, 0s) both;
 }
@@ -687,7 +836,9 @@ function dotLabel(index: number): string {
   .tour__title,
   .tour__desc,
   .tour__tip,
+  .tour__action,
   .tour__meta,
+  .tour__docs,
   .tour__foot,
   .tour__spot-glow {
     animation: none;

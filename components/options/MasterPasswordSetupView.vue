@@ -118,6 +118,26 @@
               </el-button>
             </el-form-item>
           </el-form>
+          <!--
+            首次使用时的文档入口：页内指引是 `#guide` 一级视图（免认证可见、离线可读），
+            在线说明是同内容的对外地址。用原生 `<a href="#guide">` 而不是按钮，
+            父级已通过 hashchange 监听该锚点，因此后退 / 新标签打开都天然可用。
+          -->
+          <div class="guide-entry">
+            <a
+              class="guide-entry__link"
+              href="#guide"
+              >{{ t('options.header.guideTitle') }}</a
+            >
+            <span class="guide-entry__sep">·</span>
+            <a
+              class="guide-entry__link"
+              :href="PRODUCT_DOCS_URL"
+              target="_blank"
+              rel="noopener noreferrer"
+              >{{ t('options.guide.online') }}</a
+            >
+          </div>
           <!-- 免责声明 -->
           <div class="disclaimer-compact">
             <DisclaimerInfo />
@@ -140,6 +160,7 @@ import CapsLockHint from '@/components/CapsLockHint.vue';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
 import { useCapsLockDetection } from '@/composables/useCapsLockDetection';
 import { useI18n } from '@/utils/i18n';
+import { PRODUCT_DOCS_URL } from '@/utils/urls';
 
 /**
  * 主密码设置视图组件
@@ -311,6 +332,31 @@ defineExpose({ formRef: localSetupFormRef });
   font-size: 12px;
   line-height: 1.4;
   color: #909399;
+}
+
+/* 首次使用的文档入口 */
+.guide-entry {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.guide-entry__link {
+  color: var(--aph-primary);
+  text-decoration: none;
+}
+
+.guide-entry__link:hover {
+  text-decoration: underline;
+}
+
+.guide-entry__sep {
+  color: var(--aph-text-muted);
 }
 
 /* 紧凑免责声明 */

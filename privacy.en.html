@@ -30,7 +30,7 @@
     />
     <meta
       name="theme-color"
-      content="#ffffff"
+      content="#4e88ff"
     />
     <link
       rel="canonical"
@@ -65,7 +65,7 @@
     />
     <meta
       property="og:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png"
     />
     <meta
       property="og:url"
@@ -101,12 +101,16 @@
     />
     <meta
       name="twitter:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png"
     />
     <style>
       :root {
+        color-scheme: light dark;
         --primary: #4f6ef7;
         --primary-light: #e8ecff;
+        /* 主色「作文字用」的那一档。--primary 同时是实底按钮与白字的组合色，暗档不能抬亮它，
+           所以语言切换与页脚链接的文字另走 --primary-ink（本页主色是 #4f6ef7，墨色按同色相压深）。 */
+        --primary-ink: #3450c8;
         --text: #1a1a2e;
         --text-secondary: #555;
         --bg: #ffffff;
@@ -114,6 +118,20 @@
         --border: #e2e6ef;
         --radius: 12px;
         --max-width: 800px;
+      }
+
+      /* 暗色档与落地页同源：只翻令牌。--primary 保持原值（它是实底按钮与白字的组合色），
+         只有 --primary-ink 这一枚文字令牌在暗档换亮。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-light: #1c2a45;
+          --primary-ink: #8aa4ff;
+          --text: #e6edf7;
+          --text-secondary: #a8b3c4;
+          --bg: #0b1220;
+          --bg-alt: #101a2c;
+          --border: #263349;
+        }
       }
 
       * {
@@ -159,7 +177,7 @@
 
       .lang-btn:hover {
         border-color: var(--primary);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .lang-btn.active {
@@ -221,6 +239,12 @@
         margin-bottom: 6px;
       }
 
+      /* 正文链接此前没有一条规则，吃的是 UA 默认 #0000EE：亮档压白底还算得清，暗档压 #0b1220 只有
+         1.99——这类缺陷静态令牌守卫看不见（没有声明就没有可扫的东西），是渲染层探针抓出来的。 */
+      .policy-section a {
+        color: var(--primary-ink);
+      }
+
       /* Highlight box */
       .highlight-box {
         background: var(--primary-light);
@@ -273,7 +297,7 @@
       }
 
       .footer a {
-        color: var(--primary);
+        color: var(--primary-ink);
         text-decoration: none;
       }
 
@@ -353,24 +377,28 @@
 
       <!-- Header -->
       <div class="header">
-        <div class="lang-zh">
-          <h1>隐私政策</h1>
-          <p class="subtitle">Account Password Helper 浏览器扩展</p>
-        </div>
-        <div class="lang-en">
-          <h1>Privacy Policy</h1>
-          <p class="subtitle">Account Password Helper Browser Extension</p>
-        </div>
+        <h1>
+          <span class="lang-zh">隐私政策</span>
+          <span class="lang-en">Privacy Policy</span>
+        </h1>
+        <p class="subtitle">
+          <span class="lang-zh">Account Password Helper 浏览器扩展</span>
+          <span class="lang-en">Account Password Helper Browser Extension</span>
+        </p>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年9月22日</span>
-          <span class="lang-en">Last updated: September 22, 2026</span>
+          <span class="lang-zh">最后更新：2026年10月2日</span>
+          <span class="lang-en">Last updated: October 2, 2026</span>
         </span>
       </div>
 
       <!-- ==================== 中文部分 ==================== -->
       <div class="lang-zh">
         <div class="highlight-box">
-          <p>核心承诺：本扩展不会将您的任何数据发送到外部服务器。所有密码与身份信息均加密存储在您的本地浏览器中。</p>
+          <p>
+            核心承诺：账号、密码、URL、备注、TOTP
+            密钥与身份信息逐字段加密后只写入您本机的浏览器存储，不上传任何服务器；本扩展的全部网络行为只有第 4
+            节列出的两类匿名请求。
+          </p>
         </div>
 
         <div class="policy-section">
@@ -416,13 +444,15 @@
           </ul>
           <p>主密码不以明文保存，磁盘上只留有加盐的 PBKDF2（SHA-256，600,000 次迭代）校验值。</p>
           <p>
-            <strong>请这样理解「保持登录」：</strong>会话有效期内，用于恢复登录状态的密钥材料（数据密钥的包装值与包裹密钥）会随密文一起留在本机磁盘上，
+            <strong>请这样理解「保持登录」：</strong
+            >会话有效期内，用于恢复登录状态的密钥材料（数据密钥的包装值与包裹密钥）会随密文一起留在本机磁盘上，
             这既是不重新输入主密码就能重启浏览器的原因，也意味着<strong>能读取这台电脑上该浏览器配置文件的程序，在此期间足以把数据解密</strong>。
             手动锁定、闲置锁定或会话过期都会立即销毁这份密钥材料（只留一枚打不开任何东西的随机包裹密钥）。在共用电脑上，请在「自动锁定设置」中开启「浏览器重启锁定」：
             完全关闭浏览器后密钥材料即被清除，重新打开必须输入主密码。
           </p>
           <p>
-            <strong>一处明文例外：</strong>为某条密码设置到期提醒时，该条的账号名会以明文冗余记录在本地的到期提醒表中（提醒由系统在任意时刻发出桌面通知，
+            <strong>一处明文例外：</strong
+            >为某条密码设置到期提醒时，该条的账号名会以明文冗余记录在本地的到期提醒表中（提醒由系统在任意时刻发出桌面通知，
             含已锁定状态，账号名用于让通知指明是哪个账号），它同时会留下「哪个账号将在何时到期」这一信息；删除该条提醒、删除对应条目或清空回收站都会连带清除这条明文记录。
           </p>
           <p>
@@ -594,8 +624,9 @@
       <div class="lang-en">
         <div class="highlight-box">
           <p>
-            Core Commitment: This extension does not send any of your data to external servers. All password and
-            identity data is encrypted and stored locally in your browser.
+            Core Commitment: Account names, passwords, URLs, notes, TOTP secrets and identity fields are encrypted field
+            by field and written only to your browser's local storage — never uploaded to any server. All network
+            activity this extension performs is limited to the two anonymous requests listed in Section 4.
           </p>
         </div>
 
@@ -650,20 +681,22 @@
             verifier is kept.
           </p>
           <p>
-            <strong>What "stay signed in" really means:</strong> while a session is valid, the key material that restores
-            it (the wrapped data key and its wrap key) stays on this device's disk alongside the ciphertext. That is why a
-            browser restart needs no master password — and it also means
-            <strong>any program able to read this browser profile on this machine can decrypt your data during that
-            window</strong>. Manual lock, idle lock and session expiry destroy that key material immediately (leaving a
-            random wrap key that opens nothing). On a shared computer, turn on "Lock on browser restart" under Auto lock
-            settings: fully closing the browser then clears the key material, and reopening requires the master password.
+            <strong>What "stay signed in" really means:</strong> while a session is valid, the key material that
+            restores it (the wrapped data key and its wrap key) stays on this device's disk alongside the ciphertext.
+            That is why a browser restart needs no master password — and it also means
+            <strong
+              >any program able to read this browser profile on this machine can decrypt your data during that
+              window</strong
+            >. Manual lock, idle lock and session expiry destroy that key material immediately (leaving a random wrap
+            key that opens nothing). On a shared computer, turn on "Lock on browser restart" under Auto lock settings:
+            fully closing the browser then clears the key material, and reopening requires the master password.
           </p>
           <p>
-            <strong>One plaintext exception:</strong> when you set an expiry reminder for an entry, that entry's username is
-            redundantly recorded in plaintext in the local reminder table, because reminders fire as desktop notifications
-            at any moment — including while locked — and the username is what makes the notice name an account. It also
-            leaves behind which account is expiring and when. Deleting that reminder, deleting the entry, or emptying the
-            trash clears the record.
+            <strong>One plaintext exception:</strong> when you set an expiry reminder for an entry, that entry's
+            username is redundantly recorded in plaintext in the local reminder table, because reminders fire as desktop
+            notifications at any moment — including while locked — and the username is what makes the notice name an
+            account. It also leaves behind which account is expiring and when. Deleting that reminder, deleting the
+            entry, or emptying the trash clears the record.
           </p>
           <p>
             Identity information (name, ID number, phone, email, address, bank card details and custom fields) is kept
@@ -863,7 +896,8 @@
               target="_blank"
               >GitHub</a
             >
-            · GPL-3.0 License</span
+            · GPL-3.0 License ·
+            <a href="./">产品官网</a> · <a href="./pricing.html">定价</a> · <a href="./compare.html">功能对比</a></span
           >
           <span class="lang-en"
             >Account Password Helper &copy; 2026 ·
@@ -872,7 +906,9 @@
               target="_blank"
               >GitHub</a
             >
-            · GPL-3.0 License</span
+            · GPL-3.0 License ·
+            <a href="./en.html">Product page</a> · <a href="./pricing.en.html">Pricing</a> ·
+            <a href="./compare.en.html">Comparison</a></span
           >
         </p>
       </div>
@@ -885,7 +921,7 @@
        */
       const META = {
         title: {
-          zh: '隐私政策 / Privacy Policy - Account Password Helper',
+          zh: '隐私政策 | 账号密码管理助手',
           en: 'Privacy Policy - Account Password Helper',
         },
         description: {

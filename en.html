@@ -78,7 +78,7 @@
     />
     <meta
       property="og:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png"
     />
     <meta
       property="og:site_name"
@@ -106,7 +106,7 @@
     />
     <meta
       name="twitter:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png"
     />
     <!-- Canonical：声明本页唯一规范 URL，避免带参数 URL 被判定为重复内容 -->
     <link
@@ -147,7 +147,7 @@
         "operatingSystem": "Chrome",
         "browserRequirements": "Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.",
         "softwareVersion": "3.13.1",
-        "dateModified": "2026-09-30",
+        "dateModified": "2026-10-02",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -174,7 +174,7 @@
         "url": "https://liaolongdong.github.io/account-password-helper/",
         "installUrl": "https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli",
         "downloadUrl": "https://github.com/liaolongdong/account-password-helper/releases/latest",
-        "image": "https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png",
+        "image": "https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png",
         "screenshot": [
           "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-1-one-click-login.png",
           "https://liaolongdong.github.io/account-password-helper/assets/cws-store/screen-2-totp.png",
@@ -381,6 +381,190 @@
               "@type": "Answer",
               "text": "Heavily optimized. The service worker stays resident on all platforms via a two-tier keep-alive (20s heartbeat + 30s revival alarm) so the password cache is always in memory — the side panel loads from cache in about 20–50ms with no cold-start delay, instantly even after session expiry. The worker also pre-warms the cache 500ms after startup and warms side panel render resources on demand. Keep-alive wakes the extension roughly every 30 seconds in the background — a deliberate trade-off to eliminate cold-start white screens."
             }
+          },
+          {
+            "@type": "Question",
+            "name": "What is lock on browser restart?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Enable \"Lock on browser restart\" in \"Auto lock settings\". Even within a valid session, fully closing and reopening the browser then requires the master password again — for higher security needs. When off, you stay signed in within the validity period. The trade-off to know about: while you stay signed in, the key material that restores the session remains on this device's disk (that is what makes password-free restarts possible), so any program able to read this browser profile can decrypt your data until you lock or the session expires — keep the switch on for shared computers."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why doesn't the side panel open automatically sometimes?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Make sure Chrome is 114 or later and the page contains a login form. You can also click the extension icon (shortcut Ctrl+Shift+L / Cmd+Shift+L) or use \"Quick fill\" on the floating button."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Filling doesn't work on some sites?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Wait for the page to fully load and try again, or refresh the page. The extension ships three fill strategies (Native setter / execCommand / simulated typing) and switches automatically to fit different sites."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why aren't shortcuts bound by default?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "For security, Chrome does not auto-bind suggested shortcuts for commands added via updates (to prevent silent hijacking). Users who installed before the shortcut feature shipped, and developers reloading the extension, will see \"Not set\" — bind it once as above and it sticks. Unbound entries in the popup show a \"Set shortcut\" button linking to chrome://extensions/shortcuts; the \"Security Settings → Keyboard Shortcuts\" overview on the manager page and the shortcut group in the side panel Help dialog flag exactly which keys are currently inactive, so a dead keystroke is never a mystery."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "When does a validity change take effect?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Immediately — a new session is created with the new validity right away."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I switch themes?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Open the preferences panel via ① the \"Preferences\" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Pick one of 6 color themes; all pages and components update instantly, no refresh needed."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I troubleshoot a failed CSV import?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Click \"Download Template\" for a standard CSV and make sure the username column is not empty. The extension accepts .csv and auto-detects Chrome, LastPass, Bitwarden, and 1Password export formats."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is JSON import/export supported?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Choose \"Export JSON\" in the \"Data Management\" menu to export all data as JSON (master password required); the filename is passwords_YYYYMMDD_HHmmss.json. To import, select a JSON file in the import dialog — the structure matches internal storage."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How does one-click dedup work?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Click \"Remove Duplicates\" under \"Data Management\". The extension detects duplicates (same username + same URL) and shows the result for confirmation before cleanup. Favorited entries are never deleted."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I recover deleted passwords?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Deleted passwords move to the trash for 30 days. Open \"Data Management\" → \"Trash\" to restore, permanently delete, or empty the trash. Entries older than 30 days are cleaned automatically; trash entries stay encrypted."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I restore an old password after a change?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Every password change snapshots the old password (configurable in \"Security Settings\" → \"Password History Settings\" — enable/disable and set max records, default 3). The edit dialog shows a \"Password history\" section — \"Copy\" copies the old password, \"Restore\" fills it back into the password field. History is stored encrypted and requires a valid session to view."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I back up to email?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Click \"Email Backup\" on the management page, configure the target address, and choose \"Plain backup\" (standard data file) or \"Encrypted backup\" (.aph file, viewable only via this extension's encrypted import with the original master password). Enable \"Auto backup reminder\" for scheduled desktop notifications — daily / every 3 days / weekly / biweekly / monthly."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is there a limit on how many entries I can store?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes — the password list holds up to 2,000 entries, counted on the list itself; entries in the Trash do not take a slot. Once it is full, adding, importing, page auto-save and restoring from Trash are refused with an explicit message, and stored data is never silently overwritten or dropped. If an import exceeds the remaining slots, the preview tells you how many entries still fit and how many will be ignored, and you choose to import those or cancel. To make room, delete entries you no longer need from the password list — an entry releases its slot the moment it moves to the Trash, so emptying the Trash is not required — or keep a full copy via \"Export Data\" / \"Export JSON\" / \"Export Encrypted Backup\" and then trim the list."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Does the manager page get sluggish near the entry limit?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Not as a function of how many entries you have. The list paints one page at a time (100 rows by default, 50 / 100 / 200 on demand — the size you pick is remembered on this machine for your next visit), so searching, filtering as you type, flipping pages and hovering land in the same range at 600 entries as at the 2000-entry cap — measured on one machine with the same harness. Opening the page still reads and decrypts the whole vault once, and that step does track vault size; the promise is “cost does not grow row by row”, not “constant time”. Pagination only changes how many rows are drawn: search, sorting, export and the \"total / filtered\" readout still cover the entire matching set, and checked entries are kept across pages — the pager tells you how many of them are off-page. The header checkbox selects the current page only, as in any table, so switch to 200 rows per page or tick page by page when you need a large batch. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it for 6 seconds. The page number is not remembered: it follows the current filters and sort, so it is a derived value rather than a setting."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why is there no save prompt after login sometimes?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Possible reasons: ① the domain is on the block list (check \"Blocked domains\" in auto-save settings); ② the credentials are identical to what is already saved; ③ the domain does not match your allowlist rules; ④ the session is locked or expired."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Will auto-save overwrite existing passwords?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "When the same account on the same site has a changed password, an \"Update\" prompt appears; on confirmation the password is updated while existing tags and remarks are kept (unless you edit them in the prompt). Identical credentials are skipped; different accounts create new entries without touching existing data."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I set the favorites limit?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Go to \"Security Settings\" → \"Favorites Limit\" on the management page (1–50, default 10). When the limit is reached, the least recently used favorite is evicted so frequent accounts stay pinned. Evicted entries only lose the star — password data is untouched."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I configure floating button preferences?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Open the preferences panel via ① the \"Preferences\" button on the management page, ② the gear icon on the floating button, or ③ the gear icon in the side panel. Configure: theme (6 colors), interface language (中文 / English), floating button visibility, quick fill mode, auto login trigger, password visibility toggle, and opacity."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I switch the interface language?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "In the \"Language\" group of the preferences panel, click \"中文\" or \"English\". The change applies instantly and syncs to all open extension pages (manager / side panel / popup) — no refresh needed."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "No show/hide button on password fields?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "\"Password visibility toggle\" is off by default in the floating button preferences. Once enabled, a toggle is injected into every password field and becomes visible when the field has a value."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is the clipboard cleared after copying a password?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Per \"Clipboard Settings\", the clipboard is cleared after a delay (default 30s; options 10/15/30/60/120s). Before clearing, the extension verifies the content has not been replaced; if unfocused, it falls back to best-effort clearing. Copying a username cancels the timer. Confirm the switch is on under \"Security Settings\" → \"Clipboard Settings\"."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How do I generate a random password?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "In the add/edit form, click the magic-wand icon next to the password field, then toggle between \"Random\" and \"Passphrase\" modes. Random: customize length (6–50) and character sets (upper/lower/digits/specials), optionally excluding ambiguous characters (1, l, I, 0, O). Passphrase: 3–8 random words from a bundled 3,080-word list with separator, capitalization, and trailing-digit options — secure yet memorable. A strength bar shows in real time; click \"Use this password\" to fill it in. Backed by the Web Crypto API for cryptographic randomness."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Why is the first sidebar open on Windows slow?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Windows Defender scans each extension file on first load, adding 1-2 seconds to cold starts. Add the Chrome extensions folder to Defender's exclusion list to skip scanning: open \"Windows Security\" → \"Virus & threat protection\" → \"Manage settings\" → \"Exclusions\" → \"Add an exclusion\" → select \"Folder\" → paste %LOCALAPPDATA%\\Google\\Chrome\\User Data\\Default\\Extensions. This cuts cold-start time from 2-3s to under 1s. Not needed on Mac."
+            }
           }
         ]
       }
@@ -421,6 +605,21 @@
       type="image/svg+xml"
       href="./assets/icons/icon.svg"
     />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="./public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="./public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
+    />
     <style>
       /* ============ Reset & Base ============ */
       *,
@@ -439,8 +638,8 @@
         margin: 0;
         font-family:
           -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
-        color: #0f172a;
-        background: #ffffff;
+        color: var(--text);
+        background: var(--bg);
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
       }
@@ -460,8 +659,21 @@
       }
 
       :root {
+        /* 让表单控件、滚动条、默认画布跟着档位走，不写死 light */
+        color-scheme: light dark;
         --primary: #4e88ff;
         --primary-dark: #3a6cd9;
+        /* 主色「作文字用」的那一档。--primary-dark 同时是 .btn-primary:hover 的实底色，
+           暗档不能抬亮它（白字比例会掉），所以文字另起一枚令牌：暗档换成亮蓝，
+           亮档比 --primary-dark 再深半档（#3a6cd9 压在 --primary-soft 上只有 4.28:1）。
+           --success-ink 同理：#27754e 在亮档绿底卡（#fff 上叠 7% --accent，合成 #f2faf6）是
+           5.29:1，同一枚墨色落到暗档那张卡（#141f33 上叠 7%，合成 #172a39）只剩 2.62:1。 */
+        --primary-ink: #3566cb;
+        --success-ink: #27754e;
+        /* 琥珀档同理：#ff9f43 是实底徽标与描边的组合色，白底上只有 2.04:1，被 .compare-partial
+           这类 13px 文字直接拿去用就不达标；暗档反过来要亮值，故换回 #ff9f43。
+           取值与 compare.html 的 --warn-ink 逐字同源。 */
+        --warn-ink: #a35d00;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
         --text: #0f172a;
@@ -469,7 +681,27 @@
         /* 页头锚点用的中间档：--text-muted（#64748b）在 15px 上仍读成「次要信息」，
            而 --text（#0f172a）会和正文标题抢层级。锚点是导航主控件，取两者之间的 slate-700。 */
         --text-strong: #334155;
+        --bg: #ffffff;
         --bg-soft: #f8fafc;
+        /* 表面层令牌。这几档此前是散落在各选择器里的 white / #ffffff / #f4f8ff 字面量，
+           暗色档要翻它们只能逐处补覆盖；收进令牌后暗色块只改令牌，逐处底色的层次关系不变。 */
+        --surface: #ffffff;
+        --surface-hero: #f4f8ff;
+        --surface-tint: #f6f9ff;
+        --surface-chip: #eef3ff;
+        /* 顶部告示条的琥珀档：整组随档位换，否则暗底上一块亮黄条最抢眼 */
+        --warn-surface: #fff8e1;
+        --warn-border: #ffecb3;
+        --warn-text: #8d6e12;
+        /* 页脚在两档里都是深色，但暗档要给它与正文底一道可辨的落差 */
+        --footer-bg: #0f172a;
+        /* 页头是半透明 + backdrop blur，亮档那层 78% 白在暗档会变成一条亮斑，
+           必须单独给档（不能复用 --surface，它是不透明的）。 */
+        --nav-bg: rgba(255, 255, 255, 0.78);
+        --nav-border: rgba(226, 232, 240, 0.7);
+        /* 填充演示里那条「点亮」横带的颜色：它压在字形下方作衬底，
+           暗档必须压深，否则浅色横带会把浅色字形整段吃掉。 */
+        --flow-fill: #b9d2ff;
         --border: #e2e8f0;
         --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
         --shadow-md: 0 4px 24px rgba(15, 23, 42, 0.06);
@@ -487,6 +719,46 @@
            收敛它们会逐条改变手感，属独立任务。 */
         --dur-fast: 0.2s;
         --dur-mid: 0.32s;
+      }
+
+      /* ============ Dark scheme（自动跟随系统，无站内开关） ============
+         只改令牌，不改任何一条组件规则：所有底色/文字色在上一节已经令牌化，
+         这里翻令牌即可让整页换档；--primary / --primary-dark / --accent 刻意保持原值，
+         因为主色实底按钮上的白字比例由它们决定，抬亮主色会让白字对比度反而掉下来
+         （#4e88ff 上的 white 是站内既有比例）。
+         但「主色作文字用」不能跟着一起保持原值：--primary 在暗底上是 5.6:1（比亮档的
+         3.34:1 好），--primary-dark 却相反——#3a6cd9 落在暗档 --primary-soft 上实测只有
+         2.95:1，比亮档的 4.28:1 更差。所以暗档只翻 --primary-ink / --success-ink / --warn-ink
+         这三枚文字令牌，实底与描边仍走原值。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-soft: #1c2a45;
+          --primary-ink: #7ea6ff;
+          --success-ink: #42b883;
+          --warn-ink: #ff9f43;
+          --text: #e6edf7;
+          --text-muted: #9aa8bd;
+          --text-strong: #c7d2e1;
+          --bg: #0b1220;
+          --bg-soft: #101a2c;
+          --surface: #141f33;
+          --surface-hero: #0e1a2e;
+          --surface-tint: #18263f;
+          --surface-chip: #16233a;
+          --warn-surface: #29220f;
+          --warn-border: #4f421a;
+          --warn-text: #e6c76a;
+          --footer-bg: #070d18;
+          --nav-bg: rgba(11, 18, 32, 0.82);
+          --nav-border: rgba(38, 51, 73, 0.8);
+          --flow-fill: #2f4b7c;
+          --border: #263349;
+          /* 亮档那三档影子是 slate-900 的低透明度，落在深底上等于没有；
+             暗档改用纯黑并抬不透明度，保住卡片与页头之间原有的层次。 */
+          --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+          --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.42);
+          --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
       }
 
       .container {
@@ -519,8 +791,8 @@
         z-index: 100;
         backdrop-filter: saturate(180%) blur(14px);
         -webkit-backdrop-filter: saturate(180%) blur(14px);
-        background: rgba(255, 255, 255, 0.78);
-        border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+        background: var(--nav-bg);
+        border-bottom: 1px solid var(--nav-border);
       }
       .nav-inner {
         display: flex;
@@ -572,7 +844,7 @@
       }
       .nav-links a:hover,
       .nav-links a.active {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .nav-links a.active::after {
         content: '';
@@ -615,7 +887,7 @@
       }
       .lang-toggle:hover,
       .nav-github:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
         border-color: var(--primary);
         transform: translateY(-1px);
@@ -659,7 +931,7 @@
         background:
           radial-gradient(circle at 20% 0%, rgba(78, 136, 255, 0.16), transparent 55%),
           radial-gradient(circle at 90% 30%, rgba(66, 184, 131, 0.1), transparent 50%),
-          linear-gradient(180deg, #f4f8ff 0%, #ffffff 100%);
+          linear-gradient(180deg, var(--surface-hero) 0%, var(--bg) 100%);
         overflow: hidden;
       }
       .hero-inner {
@@ -674,7 +946,7 @@
         gap: 8px;
         padding: 6px 14px;
         background: rgba(78, 136, 255, 0.1);
-        color: var(--primary);
+        color: var(--primary-ink);
         border-radius: 999px;
         font-size: 13px;
         font-weight: 500;
@@ -704,7 +976,7 @@
         letter-spacing: -0.03em;
         line-height: 1.15;
         margin: 0 0 20px;
-        background: linear-gradient(135deg, #0f172a 0%, #4e88ff 100%);
+        background: linear-gradient(135deg, var(--text) 0%, var(--primary) 100%);
         -webkit-background-clip: text;
         background-clip: text;
         -webkit-text-fill-color: transparent;
@@ -743,13 +1015,13 @@
         transform: translateY(-1px);
       }
       .btn-ghost {
-        background: white;
+        background: var(--surface);
         color: var(--text);
         border: 1px solid var(--border);
       }
       .btn-ghost:hover {
         border-color: var(--primary);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .hero-hint {
         margin: 14px 0 0;
@@ -757,13 +1029,13 @@
         color: var(--text-muted);
       }
       .hero-hint a {
-        color: var(--primary);
+        color: var(--primary-ink);
         font-weight: 500;
         text-decoration: underline;
         text-underline-offset: 3px;
       }
       .hero-hint a:hover {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
       }
 
       .hero-visual {
@@ -801,7 +1073,7 @@
         position: absolute;
         bottom: -20px;
         right: -10px;
-        background: white;
+        background: var(--surface);
         padding: 14px 18px;
         border-radius: 14px;
         box-shadow: var(--shadow-lg);
@@ -817,7 +1089,7 @@
         height: 32px;
         border-radius: 8px;
         background: rgba(66, 184, 131, 0.14);
-        color: var(--accent);
+        color: var(--success-ink);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -826,11 +1098,11 @@
       .disclaimer-banner {
         margin-top: 30px;
         padding: 14px 18px;
-        background: #fff8e1;
-        border: 1px solid #ffecb3;
+        background: var(--warn-surface);
+        border: 1px solid var(--warn-border);
         border-radius: 12px;
         font-size: 13px;
-        color: #8d6e12;
+        color: var(--warn-text);
         display: flex;
         align-items: flex-start;
         gap: 10px;
@@ -851,7 +1123,7 @@
       }
       .feature-card {
         grid-column: span 2;
-        background: white;
+        background: var(--surface);
         padding: 28px;
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
@@ -863,7 +1135,7 @@
       .feature-card-lg {
         grid-column: span 3;
         padding: 32px;
-        background: linear-gradient(160deg, #ffffff 0%, #f6f9ff 100%);
+        background: linear-gradient(160deg, var(--surface) 0%, var(--surface-tint) 100%);
         border: 1px solid rgba(78, 136, 255, 0.14);
       }
       .feature-card-lg h3 {
@@ -879,7 +1151,7 @@
         padding: 4px 10px;
         font-size: 12px;
         font-weight: 500;
-        color: var(--primary);
+        color: var(--primary-ink);
         background: rgba(78, 136, 255, 0.08);
         border-radius: 999px;
       }
@@ -899,15 +1171,15 @@
         justify-content: center;
         margin-bottom: 18px;
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .feature-card:nth-child(2) .feature-icon {
         background: rgba(66, 184, 131, 0.12);
-        color: var(--accent);
+        color: var(--success-ink);
       }
       .feature-card:nth-child(3) .feature-icon {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
       .feature-card:nth-child(4) .feature-icon {
         background: rgba(155, 89, 255, 0.12);
@@ -965,7 +1237,7 @@
         position: relative;
         overflow: hidden;
         border-radius: var(--radius);
-        background: linear-gradient(135deg, #eef3ff 0%, #f8fafc 100%);
+        background: linear-gradient(135deg, var(--surface-chip) 0%, var(--bg-soft) 100%);
         box-shadow: var(--shadow-lg);
       }
       .carousel-track {
@@ -991,7 +1263,7 @@
         border-radius: 12px;
         overflow: hidden;
         box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
-        background: white;
+        background: var(--surface);
         display: flex;
       }
       .slide-shot img {
@@ -1006,8 +1278,8 @@
       }
       .slide-info .step-tag {
         display: inline-block;
-        background: white;
-        color: var(--primary);
+        background: var(--surface);
+        color: var(--primary-ink);
         padding: 4px 12px;
         border-radius: 999px;
         font-size: 12px;
@@ -1032,7 +1304,7 @@
         width: 44px;
         height: 44px;
         border-radius: 50%;
-        background: white;
+        background: var(--surface);
         box-shadow: var(--shadow-md);
         display: flex;
         align-items: center;
@@ -1044,7 +1316,7 @@
         z-index: 2;
       }
       .carousel-arrow:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         transform: scale(1.06);
       }
       .carousel-arrow.prev {
@@ -1104,7 +1376,7 @@
         counter-reset: step;
       }
       .step-card {
-        background: white;
+        background: var(--surface);
         padding: 28px 24px;
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
@@ -1139,7 +1411,7 @@
         gap: 12px;
       }
       .faq-item {
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 14px;
         overflow: hidden;
@@ -1211,7 +1483,7 @@
         display: flex;
         flex-direction: column;
         padding: 28px;
-        background: white;
+        background: var(--surface);
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
         transition:
@@ -1260,7 +1532,7 @@
         text-decoration: none;
       }
       .more-card h3 a:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .more-card p {
         margin: 0;
@@ -1279,11 +1551,11 @@
         font-weight: 500;
       }
       .more-links a {
-        color: var(--primary);
+        color: var(--primary-ink);
         text-decoration: none;
       }
       .more-links a:hover {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         text-decoration: underline;
       }
       .more-author {
@@ -1293,7 +1565,7 @@
 
       /* ============ Footer ============ */
       .footer {
-        background: #0f172a;
+        background: var(--footer-bg);
         color: #cbd5e1;
         padding: 40px 0 28px;
         font-size: 14px;
@@ -1321,7 +1593,9 @@
         display: flex;
         gap: 10px 24px;
         margin-top: 14px;
-        color: #64748b;
+        /* #64748b 在页脚深底上两档都不到 4.5:1（亮 3.75 / 暗 4.09），这行是版本号与联系方式，
+           字号 13px 读不到就不该留；页脚两档同底，所以直接写值而不是令牌。 */
+        color: #7c8ba3;
         font-size: 13px;
         flex-wrap: wrap;
       }
@@ -1352,6 +1626,8 @@
         width: 108px;
         height: 108px;
         padding: 5px;
+        /* 刻意保持 white 而不下沉到 --surface：这层是二维码的成像底，
+           暗档把它翻成深色会让黑白二维码与深色框糊在一起，扫码成功率直接受影响。 */
         background: white;
         border-radius: var(--radius-sm);
       }
@@ -1409,7 +1685,7 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 999px;
         box-shadow: var(--shadow-md);
@@ -1435,7 +1711,7 @@
           background 0.2s;
       }
       .scroll-rail button:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
       }
       .scroll-rail button:focus-visible {
@@ -1468,13 +1744,69 @@
           bottom: 16px;
         }
       }
+      /* ============ Sticky install CTA（滚动期直达商店） ============
+         页头那枚「安装」是锚点跳转，这一枚直达商店——动作不同，不构成重复入口。
+         隐藏态写在基线规则里（不像 .reveal 那样挂 html.js）：这条元素的全部意义就是
+         跟随滚动收放，禁 JS 时它若可见就成了一枚永远不会消失的浮层；而它承载的那句话
+         在 hero、页头锚点、「安装」小节里各有一份，摘掉它不违反「无 JS 也能读完整页」。
+         落位让开滚动导轨：导轨底缘 24px + 自身 82px，这一枚从 124px 起，两者同列不重叠。 */
+      .sticky-cta {
+        position: fixed;
+        right: 24px;
+        bottom: 124px;
+        z-index: 90;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 11px 18px;
+        color: white;
+        font-size: 14px;
+        font-weight: 600;
+        text-decoration: none;
+        background: var(--primary);
+        border-radius: 999px;
+        box-shadow: var(--shadow-md);
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transform: translateY(10px) scale(0.96);
+        transition:
+          opacity 0.25s ease,
+          transform 0.25s var(--ease-out),
+          background 0.2s;
+      }
+      .sticky-cta.is-in {
+        opacity: 1;
+        visibility: visible;
+        pointer-events: auto;
+        transform: none;
+      }
+      .sticky-cta:hover {
+        background: var(--primary-dark);
+      }
+      .sticky-cta:focus-visible {
+        outline: 2px solid var(--primary-dark);
+        outline-offset: 2px;
+      }
+      .sticky-cta svg {
+        flex: none;
+      }
+      @media (max-width: 768px) {
+        .sticky-cta {
+          right: 16px;
+          bottom: 112px;
+          padding: 10px 16px;
+          font-size: 13px;
+        }
+      }
       @media (prefers-reduced-motion: reduce) {
         html {
           scroll-behavior: auto;
         }
         .scroll-rail,
         .scroll-rail button,
-        .scroll-rail-divider {
+        .scroll-rail-divider,
+        .sticky-cta {
           transition: none;
         }
         /* 页头两枚控件的 hover 抬升：位移本身就是这条动效，减弱档撤掉它、保留转色与描边，
@@ -1491,7 +1823,7 @@
         -webkit-overflow-scrolling: touch;
         border-radius: 16px;
         border: 1px solid var(--border);
-        background: white;
+        background: var(--surface);
         box-shadow: var(--shadow-sm);
       }
       .compare-table {
@@ -1519,7 +1851,7 @@
       }
       .compare-table thead th.highlight {
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
         position: relative;
       }
       .compare-table thead th.highlight::before {
@@ -1539,7 +1871,7 @@
       .compare-table tbody td.highlight {
         background: rgba(66, 133, 244, 0.04);
         font-weight: 600;
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .compare-table tbody tr:last-child td {
         border-bottom: none;
@@ -1557,16 +1889,16 @@
         }
       }
       .compare-check {
-        color: #42b983;
+        color: var(--success-ink);
         font-weight: 700;
         font-size: 16px;
       }
       .compare-cross {
-        color: #ccc;
+        color: var(--text-muted);
         font-size: 16px;
       }
       .compare-partial {
-        color: #ff9f43;
+        color: var(--warn-ink);
         font-weight: 600;
         font-size: 13px;
       }
@@ -1579,11 +1911,11 @@
       }
       .compare-price.free {
         background: rgba(66, 185, 131, 0.12);
-        color: #42b983;
+        color: var(--success-ink);
       }
       .compare-price.paid {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
       @media (max-width: 768px) {
         .compare-table {
@@ -1603,7 +1935,7 @@
         -webkit-overflow-scrolling: touch;
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        background: white;
+        background: var(--surface);
         box-shadow: var(--shadow-sm);
       }
       .pa-table {
@@ -1628,7 +1960,7 @@
         border-bottom: 1px solid var(--border);
       }
       .pa-table thead th.after {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .pa-table tbody th {
         width: 15%;
@@ -1675,6 +2007,90 @@
         width: 26%;
         font-size: 13px;
       }
+      /* 行悬停回色：与 .compare-table 属同一族反馈。两张表分别 6 行 / 11 行数据行，逐行横向
+         读时没有回色就找不到视线落在哪一行——场景表的「在哪操作」列只有 26% 宽、字会换行，
+         一行占两三行高时更容易串行。
+         底色挂在 th/td 而不是 tr：`td.after` 自带一层 0.045 的半透明蓝底，单元格自己的
+         背景画在行之上，只挂行就会被它盖掉（正好盖掉的是最需要跟读的那一列）。
+         after 的悬停档同族加深到 0.09：既跟着行变色，又不让推荐列在悬停时和另外两列糊成一片。
+         触屏必须收进 hover 介质查询——`:hover` 点后会粘住，没门控就留下一条擦不掉的灰带。 */
+      @media (hover: hover) and (pointer: fine) {
+        .pa-table tbody tr:hover th,
+        .pa-table tbody tr:hover td {
+          background: var(--bg-soft);
+        }
+        .pa-table tbody tr:hover td.after {
+          background: rgba(78, 136, 255, 0.09);
+        }
+      }
+      /* 分类筛选条：整条控件的可见性挂在 html.js 上（基线 display:none）。
+         这是「隐形初始态挂 html.js」那条规则的反向用法——原理同一个：没有 JS 就没有行为，
+         而这里不能留一份「永远点不动」的死控件给禁 JS 的读者，所以默认收起、由 JS 放开。
+         与 .reveal 不同的是它隐藏的是控件而不是内容：11 行场景在禁 JS 时全数可见。 */
+      .uc-filters {
+        display: none;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+      html.js .uc-filters {
+        display: flex;
+      }
+      .uc-filters-label {
+        margin-right: 4px;
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+      .uc-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 13px;
+        /* --text-muted 在 --surface-chip 上只有 4.28:1（13px 字不达 AA），取页头锚点那档
+           --text-strong：亮档 9.2:1、暗档 10.4:1，且不与正文标题抢层级。 */
+        color: var(--text-strong);
+        background: var(--surface-chip);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 13px;
+        cursor: pointer;
+        transition:
+          color var(--dur-fast) var(--ease-out),
+          background var(--dur-fast) var(--ease-out),
+          border-color var(--dur-fast) var(--ease-out);
+      }
+      .uc-chip-n {
+        font-style: normal;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.8;
+      }
+      /* 选中档压在 --primary-dark 而不是 --primary：白字在 #4e88ff 上只有 3.34:1，
+         按钮那套 16px 尚可，chip 的 13px 必须走 AA；--primary-dark 是 .btn-primary:hover
+         已在用的同族深档，不引入新色值。计数数字在实底里不再压暗（0.8 的白只有 3.66:1）。 */
+      .uc-chip.is-on {
+        color: white;
+        background: var(--primary-dark);
+        border-color: var(--primary-dark);
+      }
+      .uc-chip.is-on .uc-chip-n {
+        opacity: 1;
+      }
+      .uc-chip:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      @media (hover: hover) and (pointer: fine) {
+        .uc-chip:hover:not(.is-on) {
+          color: var(--text);
+          border-color: var(--primary);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .uc-chip {
+          transition: none;
+        }
+      }
       .req-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1684,7 +2100,7 @@
         padding: 24px;
         border: 1px solid var(--border);
         border-radius: var(--radius);
-        background: white;
+        background: var(--surface);
         box-shadow: var(--shadow-sm);
       }
       .req-card h3 {
@@ -1747,11 +2163,11 @@
       }
       .faq-category-icon.security {
         background: rgba(66, 184, 131, 0.12);
-        color: var(--accent);
+        color: var(--success-ink);
       }
       .faq-category-icon.basic {
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
       .faq-category-icon.data {
         background: rgba(155, 89, 255, 0.12);
@@ -1759,7 +2175,7 @@
       }
       .faq-category-icon.config {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
       .faq-category-title {
         font-size: 15px;
@@ -1802,7 +2218,7 @@
       }
       .faq-rail-card {
         padding: 16px 18px;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-sm);
@@ -1838,7 +2254,7 @@
           background var(--dur-fast) ease;
       }
       .faq-toc a:hover {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         background: var(--primary-soft);
       }
       .faq-toc-n {
@@ -1854,7 +2270,7 @@
         border-color: rgba(66, 184, 131, 0.3);
       }
       .faq-rail-card--key .faq-rail-title {
-        color: #27754e;
+        color: var(--success-ink);
       }
       /* 正文由字典整段提供（两个 <p>，见 I18N 的 faqRail.help），容器只负责排版 */
       .faq-rail-help p {
@@ -1867,12 +2283,12 @@
         margin-top: 8px;
       }
       .faq-rail-card--key a {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         text-decoration: none;
         border-bottom: 1px solid rgba(78, 136, 255, 0.35);
       }
       .faq-rail-card--key a:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         border-bottom-color: var(--primary);
       }
       /* 加群备注是「要抄进微信的那几个字符」，用等宽描出来，与前后中文正文一眼分开 */
@@ -1924,6 +2340,18 @@
       }
       .reveal-delay-4 {
         transition-delay: 0.32s;
+      }
+      /* 场景表逐行错峰：`.pa-wrap` 已经整体淡入上移，行再各自补一层「只染不移」的淡入。
+         这一层必须用 opacity 而不是 transform——CSS Transforms 只作用于可变换元素，
+         table-row 盒不是，写在 tr 上的 transform 会被静默丢弃，看着生效实际整表一起动。
+         步进值 --ri 由文末脚本按「当前可见的第几行」现给：写进 markup 就是 11 处魔法数，
+         增删一行要手工重排，而分类筛选之后可见行的序号本来就会变。 */
+      html.js #use-cases .pa-wrap tbody tr {
+        opacity: 0;
+        transition: opacity var(--dur-mid) var(--ease-out) calc(var(--ri, 0) * 0.05s);
+      }
+      html.js #use-cases .pa-wrap.visible tbody tr {
+        opacity: 1;
       }
 
       /* ============ Motion layer ============ */
@@ -2144,17 +2572,17 @@
         flex: 1;
         height: 34px;
         overflow: hidden;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 8px;
       }
       /* 填充层压在字形下方（z-index 0 / 1），所以「点亮」不会盖掉内容，只把它衬出来。
-         取值 #b9d2ff 对白底 1.53:1，是原来 #eaf1ff（1.13:1）读不出来的那档以下。 */
+         亮档取值 #b9d2ff 对白底 1.53:1，是原来 #eaf1ff（1.13:1）读不出来的那档以下。 */
       .flow-step i {
         position: absolute;
         inset: 0;
         z-index: 0;
-        background: #b9d2ff;
+        background: var(--flow-fill);
         transform: scaleX(1);
         transform-origin: left center;
       }
@@ -2186,7 +2614,9 @@
         left: 9px;
         width: 15px;
         height: 15px;
-        background: white;
+        /* 与 .flow-step 自己的底同色 = 「未勾选的空框」，描边才是它的轮廓；
+           写死 white 会在暗档变成一块白方块，读成已勾选。 */
+        background: var(--surface);
         border: 1.5px solid var(--text-muted);
         border-radius: 4px;
         transform: translateY(-50%);
@@ -2375,7 +2805,7 @@
         position: relative;
         flex: none;
         width: 42px;
-        color: var(--accent);
+        color: var(--success-ink);
         font-size: 26px;
         font-weight: 800;
         text-align: center;
@@ -2439,6 +2869,147 @@
       }
       html.js .feature-card.visible .audit-bar:nth-child(4) i {
         animation-delay: 0.28s;
+      }
+
+      /* f8 生成器演示。判定不自创：四条强度规则、字符集字面量、"每类至少一枚 → 合并池补齐
+         → Fisher-Yates 洗牌"全部对齐 utils/passwordGenerator.ts 与
+         utils/passwordStrengthCore.ts，由 tests/docs/landingGenDemo.test.ts 逐字对账，
+         所以强度条不是装饰——关掉「数字」就掉到 3/4。复刻的是同步四条规则；扩展另有泄露字典判定
+         （composables/usePasswordStrength.ts），命中即降 weak，那一档不进落地页。
+         控件的可见性挂在 html.gen-live 上（比 .uc-filters 的 html.js 多一道条件）：
+         这个演示的随机源是 crypto.getRandomValues，探测不通过就整排不出场，
+         只留源码里的静态样例——既不制造异常，也不留一套点不动的死按钮。
+         生成的值只走 textContent，不拼 innerHTML。 */
+      .gen {
+        margin-top: 18px;
+      }
+      .gen[data-level='strong'] {
+        --gen-color: #67c23a;
+      }
+      .gen[data-level='medium'] {
+        --gen-color: #e6a23c;
+      }
+      .gen[data-level='weak'] {
+        --gen-color: #f56c6c;
+      }
+      .gen-out {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 12px;
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+      }
+      /* 折行而不是省略号：演示一枚密码，截断就等于演示了一枚不存在的密码 */
+      .gen-value {
+        flex: 1;
+        min-width: 0;
+        overflow-wrap: anywhere;
+        color: var(--text);
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .gen-again {
+        display: none;
+        flex: none;
+        padding: 5px 11px;
+        color: var(--text-strong);
+        background: var(--surface-chip);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 12px;
+        font-family: inherit;
+        cursor: pointer;
+        transition:
+          color var(--dur-fast) var(--ease-out),
+          border-color var(--dur-fast) var(--ease-out);
+      }
+      html.gen-live .gen-again {
+        display: inline-block;
+      }
+      .gen-bar {
+        height: 6px;
+        margin-top: 12px;
+        background: var(--border);
+        border-radius: 999px;
+      }
+      /* 与 .audit-bar 同款：走 scaleX 而不是 width，动画只碰 transform */
+      .gen-bar i {
+        display: block;
+        width: 100%;
+        height: 100%;
+        background: var(--gen-color, var(--primary));
+        border-radius: 999px;
+        transform: scaleX(var(--w, 1));
+        transform-origin: left center;
+        transition:
+          transform var(--dur-mid) var(--ease-out),
+          background var(--dur-mid) var(--ease-out);
+      }
+      .gen-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        margin-top: 8px;
+        color: var(--text-muted);
+        font-size: 12.5px;
+      }
+      .gen-rules {
+        font-variant-numeric: tabular-nums;
+      }
+      .gen-modes,
+      .gen-sets {
+        display: none;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+      html.gen-live .gen-modes,
+      html.gen-live .gen-sets {
+        display: flex;
+      }
+      .gen-chip {
+        padding: 4px 11px;
+        color: var(--text-strong);
+        background: var(--surface-chip);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-size: 12px;
+        font-family: inherit;
+        cursor: pointer;
+        transition:
+          color var(--dur-fast) var(--ease-out),
+          background var(--dur-fast) var(--ease-out),
+          border-color var(--dur-fast) var(--ease-out);
+      }
+      .gen-chip.is-on {
+        color: white;
+        background: var(--primary-dark);
+        border-color: var(--primary-dark);
+      }
+      .gen-chip:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      .gen-chip:focus-visible {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      .gen-note {
+        margin-top: 10px;
+        color: var(--text-muted);
+        font-size: 11.5px;
+        line-height: 1.6;
+      }
+      @media (hover: hover) and (pointer: fine) {
+        .gen-chip:hover:not(.is-on):not(:disabled),
+        .gen-again:hover {
+          color: var(--text);
+          border-color: var(--primary);
+        }
       }
 
       /* A5 逐字段密文：明文退场 → 掠光扫过 → 密文进场并长持，对应 f1
@@ -2507,7 +3078,7 @@
         flex: 1;
         height: 100%;
         overflow: hidden;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: 8px;
       }
@@ -2863,7 +3434,7 @@
       }
       .metric b {
         display: block;
-        color: var(--primary);
+        color: var(--primary-ink);
         font-size: 28px;
         font-weight: 800;
         letter-spacing: -0.03em;
@@ -2924,7 +3495,7 @@
       .hiw-step {
         position: relative;
         padding: 20px 18px 18px;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-sm);
@@ -3005,7 +3576,7 @@
         display: flex;
         gap: 10px;
         padding: 14px 16px;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
         font-size: 14.5px;
@@ -3013,7 +3584,7 @@
       .priv-facts svg {
         flex: none;
         margin-top: 3px;
-        color: var(--accent);
+        color: var(--success-ink);
       }
       .priv-perms {
         display: grid;
@@ -3025,13 +3596,13 @@
         gap: 12px;
         align-items: baseline;
         padding: 12px 16px;
-        background: white;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius-sm);
       }
       .perm code {
         padding: 2px 7px;
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         background: var(--primary-soft);
         border-radius: 6px;
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -3048,7 +3619,7 @@
         text-align: right;
       }
       .priv-more a {
-        color: var(--primary);
+        color: var(--primary-ink);
         font-weight: 600;
       }
       .priv-more a:hover {
@@ -3112,7 +3683,7 @@
           right: 0;
           flex-direction: column;
           gap: 0;
-          background: white;
+          background: var(--surface);
           padding: 8px 24px 16px;
           border-bottom: 1px solid var(--border);
           box-shadow: var(--shadow-md);
@@ -3350,6 +3921,13 @@
         html.js .faq-item.open .faq-a-inner {
           transform: none;
         }
+        /* 场景表逐行错峰要撤的是「一行一行来」的时间差，不是位移（那层本来只有 opacity）。
+           摘掉 transition 之后 11 行随容器一次落定；基准与终态两条选择器都写，
+           是因为权重和基准侧相同，只列一条会留下另一条的时长。 */
+        html.js #use-cases .pa-wrap tbody tr,
+        html.js #use-cases .pa-wrap.visible tbody tr {
+          transition: none;
+        }
         /* 功能自证四块：停掉动画即停在各自终态（表单已填好并勾选 / 环满格 / 条按权重 / 密文在场），
            选择器必须带上 html.js 前缀压过基准规则的权重。 */
         html.js .flow-step i,
@@ -3360,6 +3938,13 @@
         html.js .cipher-out,
         html.js .feature-card.visible .audit-bar i {
           animation: none;
+        }
+        /* 生成器演示：强度条的伸缩与 chip 的变色是状态反馈，不是叙事动效，
+           这一档要的是「瞬时到位」，所以只撤时长、保留终态值。 */
+        .gen-bar i,
+        .gen-chip,
+        .gen-again {
+          transition: none;
         }
         /* 数据包与掠光是「运动本身」，降级后没有承载信息，直接撤掉 */
         html.js .flow-packet,
@@ -3948,7 +4533,7 @@
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
               </svg>
             </div>
-            <h3 data-i18n="features.f1.title">Local Encryption — Passwords Never Leave the Browser</h3>
+            <h3 data-i18n="features.f1.title">Local Encryption — Passwords Are Never Uploaded</h3>
             <p data-i18n="features.f1.desc">The master password derives a 256-bit key via PBKDF2 (600,000 iterations); username, password, URL, remark and TOTP are each stored as ciphertext. Locking and session expiry destroy only the session key material — the vault is already ciphertext at rest, and no password content is ever uploaded. Every master password field also warns live when Caps Lock is on, so a case typo never looks like a wrong password.</p>
             <div class="feature-chips">
               <span
@@ -4255,6 +4840,115 @@
             </div>
             <h3 data-i18n="features.f8.title">Dual-Mode Password Generator</h3>
             <p data-i18n="features.f8.desc">Random passwords (length, character sets, ambiguous-character exclusion) and passphrases (a bundled 3,080-word list) — cryptographically secure via Web Crypto, with a live strength bar.</p>
+            <!-- 生成器实机演示。随机模式复刻 utils/passwordGenerator.ts 的默认档（16 位 /
+                 四集全开 / 每类至少一枚 / 合并池补齐 / Fisher-Yates），强度条读的是
+                 utils/passwordStrengthCore.ts 那四条规则的「通过几条」——不是装饰：关掉
+                 「数字」立刻掉到 3/4。助记词模式用下方注明的词库节选，扩展内置 3080 词全量。
+                 下面三排控件挂在 html.gen-live 上：随机源探测不通过就只留这枚静态样例，
+                 不留一套点不动的死按钮，也不拿 Math.random 冒充密码学安全随机。 -->
+            <div
+              class="gen"
+              id="genDemo"
+              data-level="strong"
+            >
+              <div class="gen-out">
+                <code
+                  class="gen-value"
+                  id="genValue"
+                  >Vector-Sunset-King-Ready73</code
+                ><button
+                  class="gen-again"
+                  type="button"
+                  id="genAgain"
+                  data-i18n="features.f8.demo.again"
+                >Regenerate</button>
+              </div>
+              <div
+                class="gen-bar"
+                aria-hidden="true"
+              >
+                <i id="genBarFill"></i>
+              </div>
+              <p
+                class="gen-meta"
+                id="genMeta"
+                role="status"
+              >
+                <span
+                  id="genLevel"
+                  data-i18n="features.f8.demo.level.strong"
+                  >Strong</span
+                ><span
+                  class="gen-rules"
+                  id="genRules"
+                  >4/4</span
+                >
+              </p>
+              <div
+                class="gen-modes"
+                id="genModes"
+                role="group"
+              >
+                <button
+                  class="gen-chip gen-mode is-on"
+                  type="button"
+                  data-mode="random"
+                  aria-pressed="true"
+                >
+                  <span data-i18n="features.f8.demo.mode.random">Random</span>
+                </button>
+                <button
+                  class="gen-chip gen-mode"
+                  type="button"
+                  data-mode="passphrase"
+                  aria-pressed="false"
+                >
+                  <span data-i18n="features.f8.demo.mode.passphrase">Passphrase</span>
+                </button>
+              </div>
+              <div
+                class="gen-sets"
+                id="genSets"
+                role="group"
+              >
+                <button
+                  class="gen-chip gen-set is-on"
+                  type="button"
+                  data-set="upper"
+                  aria-pressed="true"
+                >
+                  ABC
+                </button>
+                <button
+                  class="gen-chip gen-set is-on"
+                  type="button"
+                  data-set="lower"
+                  aria-pressed="true"
+                >
+                  abc
+                </button>
+                <button
+                  class="gen-chip gen-set is-on"
+                  type="button"
+                  data-set="number"
+                  aria-pressed="true"
+                >
+                  123
+                </button>
+                <button
+                  class="gen-chip gen-set is-on"
+                  type="button"
+                  data-set="symbol"
+                  aria-pressed="true"
+                >
+                  #$
+                </button>
+              </div>
+              <p
+                class="gen-note"
+                data-i18n="features.f8.demo.note"
+              >The demo draws on a 96-word excerpt; the extension ships the full 3,080-word list.</p>
+            </div>
           </article>
           <article class="feature-card reveal reveal-delay-3">
             <div class="feature-icon">
@@ -4455,7 +5149,7 @@
     <!-- ======= Carousel ======= -->
     <section id="showcase">
       <div class="container">
-        <div class="section-head">
+        <div class="section-head reveal">
           <h2 data-i18n="showcase.title">Feature Showcase</h2>
           <p
             class="section-sub"
@@ -4575,7 +5269,7 @@
           <article class="step-card reveal reveal-delay-1">
             <div class="step-num">01</div>
             <h3 data-i18n="steps.s1.title">Install the Extension</h3>
-            <p data-i18n-html="steps.s1.desc">Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can't access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.</p>
+            <p data-i18n-html="steps.s1.desc">Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can't access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.</p>
           </article>
           <article class="step-card reveal reveal-delay-2">
             <div class="step-num">02</div>
@@ -4638,6 +5332,62 @@
             data-i18n="useCases.sub"
           >The shortest path from scenario to entry point — the third column uses the exact names shown in the UI</p>
         </div>
+        <!-- 分类筛选：控件只在 JS 可用时存在（基线 display:none、html.js 才放开）。
+             11 行分四类混排，读者通常只关心其中一类；行上的 data-cat 随行走，
+             将来插一行或调顺序都不会让分类漂移——这是把类目写在 markup 而不是写在脚本表里的理由。 -->
+        <div
+          class="uc-filters"
+          id="ucFilters"
+          role="group"
+          aria-labelledby="ucFiltersLabel"
+        >
+          <span
+            class="uc-filters-label"
+            id="ucFiltersLabel"
+            data-i18n="useCases.filter.label"
+            >Filter by type</span
+          >
+          <button
+            class="uc-chip is-on"
+            type="button"
+            data-cat="all"
+            aria-pressed="true"
+          >
+            <span data-i18n="useCases.filter.all">All</span><i class="uc-chip-n"></i>
+          </button>
+          <button
+            class="uc-chip"
+            type="button"
+            data-cat="env"
+            aria-pressed="false"
+          >
+            <span data-i18n="useCases.filter.env">Environments</span><i class="uc-chip-n"></i>
+          </button>
+          <button
+            class="uc-chip"
+            type="button"
+            data-cat="login"
+            aria-pressed="false"
+          >
+            <span data-i18n="useCases.filter.login">Login &amp; form quirks</span><i class="uc-chip-n"></i>
+          </button>
+          <button
+            class="uc-chip"
+            type="button"
+            data-cat="migrate"
+            aria-pressed="false"
+          >
+            <span data-i18n="useCases.filter.migrate">Migration &amp; sharing</span><i class="uc-chip-n"></i>
+          </button>
+          <button
+            class="uc-chip"
+            type="button"
+            data-cat="security"
+            aria-pressed="false"
+          >
+            <span data-i18n="useCases.filter.security">Everyday hygiene</span><i class="uc-chip-n"></i>
+          </button>
+        </div>
         <div class="pa-wrap reveal">
           <table class="pa-table scene">
             <caption>
@@ -4660,7 +5410,7 @@
               </tr>
             </thead>
             <tbody>
-              <tr>
+              <tr data-cat="env">
                 <th
                   scope="row"
                   data-i18n="useCases.r1.scene"
@@ -4668,7 +5418,7 @@
                 <td data-i18n-html="useCases.r1.how">Keep the default tier and the accounts on <code>fat.example.com</code> and <code>uat.example.com</code> stay strictly apart.</td>
                 <td data-i18n="useCases.r1.where">"Cross-subdomain matching" in the password manager header</td>
               </tr>
-              <tr>
+              <tr data-cat="env">
                 <th
                   scope="row"
                   data-i18n="useCases.r2.scene"
@@ -4676,7 +5426,7 @@
                 <td data-i18n-html="useCases.r2.how">Widen one tier to "exact match + wildcard entries" and decide entry by entry which URLs are written as <code>*.qq.com</code>.</td>
                 <td data-i18n="useCases.r2.where">Same place; all three tiers switch anytime</td>
               </tr>
-              <tr>
+              <tr data-cat="env">
                 <th
                   scope="row"
                   data-i18n="useCases.r3.scene"
@@ -4684,7 +5434,7 @@
                 <td data-i18n="useCases.r3.how">Widen again to "same apex domain (loosest)": when the current hostname has no match, the apex domain and its other subdomains are offered in order.</td>
                 <td data-i18n="useCases.r3.where">Same place (localhost always stays per-port)</td>
               </tr>
-              <tr>
+              <tr data-cat="login">
                 <th
                   scope="row"
                   data-i18n="useCases.r4.scene"
@@ -4692,7 +5442,7 @@
                 <td data-i18n="useCases.r4.how">Turn on "Auto-trigger login" and the login button gets clicked as part of filling.</td>
                 <td data-i18n="useCases.r4.where">Preferences (manager page / floating-button gear / side-panel gear)</td>
               </tr>
-              <tr>
+              <tr data-cat="login">
                 <th
                   scope="row"
                   data-i18n="useCases.r5.scene"
@@ -4700,7 +5450,7 @@
                 <td data-i18n="useCases.r5.how">Store the code in the same entry as the password; on the code page the live pill anchors automatically and one click fills it.</td>
                 <td data-i18n="useCases.r5.where">"Fill and login" in the side-panel entry menu</td>
               </tr>
-              <tr>
+              <tr data-cat="login">
                 <th
                   scope="row"
                   data-i18n="useCases.r6.scene"
@@ -4708,7 +5458,7 @@
                 <td data-i18n="useCases.r6.how">Add a site rule for that domain giving the CSS selectors of the account / password fields; it reaches into Shadow DOM.</td>
                 <td data-i18n="useCases.r6.where">"Site rules" on the manager page</td>
               </tr>
-              <tr>
+              <tr data-cat="migrate">
                 <th
                   scope="row"
                   data-i18n="useCases.r7.scene"
@@ -4716,7 +5466,7 @@
                 <td data-i18n="useCases.r7.how">Export the rules as JSON; import merges by domain — same-domain entries are overwritten, the rest are kept.</td>
                 <td data-i18n="useCases.r7.where">Import / export inside the "Site rules" dialog</td>
               </tr>
-              <tr>
+              <tr data-cat="migrate">
                 <th
                   scope="row"
                   data-i18n="useCases.r8.scene"
@@ -4724,7 +5474,7 @@
                 <td data-i18n="useCases.r8.how">CSV and JSON imports, with Chrome / LastPass / Bitwarden / 1Password export formats detected automatically.</td>
                 <td data-i18n="useCases.r8.where">"Import data" on the manager page</td>
               </tr>
-              <tr>
+              <tr data-cat="migrate">
                 <th
                   scope="row"
                   data-i18n="useCases.r9.scene"
@@ -4732,7 +5482,7 @@
                 <td data-i18n-html="useCases.r9.how">Export a <code>.aph</code> backup and take it along in any cloud drive or on a USB stick; on the new machine import it with the master password used at export — the local one does not have to match.</td>
                 <td data-i18n="useCases.r9.where">"Data management" on the manager page</td>
               </tr>
-              <tr>
+              <tr data-cat="security">
                 <th
                   scope="row"
                   data-i18n="useCases.r10.scene"
@@ -4740,7 +5490,7 @@
                 <td data-i18n="useCases.r10.how">The built-in generator outputs random passwords or passphrase sets, and the field context menu can generate and fill in place.</td>
                 <td data-i18n="useCases.r10.where">The magic-wand button beside the password field, and the page context menu</td>
               </tr>
-              <tr>
+              <tr data-cat="security">
                 <th
                   scope="row"
                   data-i18n="useCases.r11.scene"
@@ -5132,7 +5882,7 @@ pnpm lint:style  # Stylelint</code></pre>
       <!-- `.faq-wrap` 把本节容器变成两栏网格：左列是问答列表，右列是「分类直达」。
            两格都由 #faqList 生成区产出，这里只提供网格本身（见 scripts/lib/faq-dom.mjs）。 -->
       <div class="container faq-wrap">
-        <div class="section-head">
+        <div class="section-head reveal">
           <h2 data-i18n="faq.title">FAQ</h2>
           <p
             class="section-sub"
@@ -5402,6 +6152,13 @@ pnpm lint:style  # Stylelint</code></pre>
                 data-i18n="more.repo"
                 >Source code</a
               >
+              <a
+                href="https://chromewebstore.google.com/detail/blkdmpkcaceicinkhindniepbbbaekkb"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-i18n="more.store"
+                >Chrome Web Store</a
+              >
             </p>
           </article>
           <article class="more-card reveal reveal-delay-1">
@@ -5612,6 +6369,37 @@ pnpm lint:style  # Stylelint</code></pre>
         </div>
       </div>
     </footer>
+
+    <!-- ======= Sticky install CTA（滚动期直达商店） ======= -->
+    <a
+      class="sticky-cta"
+      id="stickyCta"
+      href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line
+          x1="12"
+          y1="15"
+          x2="12"
+          y2="3"
+        />
+      </svg>
+      <span data-i18n="hero.download">Add to Chrome</span>
+    </a>
 
     <!-- ======= Scroll Rail（回顶 / 到底） ======= -->
     <div
@@ -5884,6 +6672,12 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '常见场景、各自的做法，以及在哪里操作',
           en: 'Common scenarios, the way to handle each, and where to do it',
         },
+        'useCases.filter.label': { zh: '按类型筛选', en: 'Filter by type' },
+        'useCases.filter.all': { zh: '全部', en: 'All' },
+        'useCases.filter.env': { zh: '多环境', en: 'Environments' },
+        'useCases.filter.login': { zh: '登录与适配', en: 'Login & form quirks' },
+        'useCases.filter.migrate': { zh: '迁移与共享', en: 'Migration & sharing' },
+        'useCases.filter.security': { zh: '日常安全', en: 'Everyday hygiene' },
         'useCases.col.scene': { zh: '场景', en: 'Scenario' },
         'useCases.col.how': { zh: '做法', en: 'How' },
         'useCases.col.where': { zh: '在哪操作', en: 'Where' },
@@ -5980,8 +6774,8 @@ pnpm lint:style  # Stylelint</code></pre>
           en: 'From encrypted storage to smart filling, from 2FA to health checks — the full lifecycle of your credentials in one place',
         },
         'features.f1.title': {
-          zh: '纯本地加密，密码绝不出浏览器',
-          en: 'Local Encryption — Passwords Never Leave the Browser',
+          zh: '纯本地加密，密码不上传服务器',
+          en: 'Local Encryption — Passwords Are Never Uploaded',
         },
         'features.f1.desc': {
           zh: '主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，用户名、密码、网址、备注、TOTP 逐字段密文存储；锁定与会话过期只销毁会话密钥材料（数据本就密文落盘），密码内容永远不上传任何服务器；主密码输入框实时检测大写锁定并给出提示，避免大小写误输被当成「密码错误」。',
@@ -6041,6 +6835,22 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '随机密码（长度 / 字符集 / 排除易混淆字符可配）与助记词组（本地 3080 词词库）双模式，基于 Web Crypto 密码学安全随机，实时展示强度。',
           en: 'Random passwords (length, character sets, ambiguous-character exclusion) and passphrases (a bundled 3,080-word list) — cryptographically secure via Web Crypto, with a live strength bar.',
         },
+        'features.f8.demo.again': { zh: '换一枚', en: 'Regenerate' },
+        'features.f8.demo.mode.random': { zh: '随机密码', en: 'Random' },
+        'features.f8.demo.mode.passphrase': { zh: '助记词组', en: 'Passphrase' },
+        'features.f8.demo.level.strong': { zh: '强', en: 'Strong' },
+        'features.f8.demo.level.medium': { zh: '中', en: 'Medium' },
+        'features.f8.demo.level.weak': { zh: '弱', en: 'Weak' },
+        'features.f8.demo.aria.modes': { zh: '生成模式', en: 'Generation mode' },
+        'features.f8.demo.aria.sets': { zh: '字符集', en: 'Character sets' },
+        'features.f8.demo.aria.upper': { zh: '大写字母 A-Z', en: 'Uppercase A-Z' },
+        'features.f8.demo.aria.lower': { zh: '小写字母 a-z', en: 'Lowercase a-z' },
+        'features.f8.demo.aria.number': { zh: '数字 0-9', en: 'Digits 0-9' },
+        'features.f8.demo.aria.symbol': { zh: '特殊字符', en: 'Symbols' },
+        'features.f8.demo.note': {
+          zh: '演示词库为 96 词节选，扩展内置 3080 词全量。',
+          en: 'The demo draws on a 96-word excerpt; the extension ships the full 3,080-word list.',
+        },
         'features.f9.title': { zh: '回收站与修改历史', en: 'Trash & Password History' },
         'features.f9.desc': {
           zh: '删除条目进回收站保留 30 天可随时恢复（列表最近删除在前、支持关键词检索）；密码修改历史可配置启用/关闭（每条最多保留 1~10 份加密快照，默认 3 份），改错一键回滚；修改主密码原子换钥不丢数据。',
@@ -6075,8 +6885,8 @@ pnpm lint:style  # Stylelint</code></pre>
         'steps.sub': { zh: '无需注册，无需登录，下载即用', en: 'No sign-up, no login — download and go' },
         'steps.s1.title': { zh: '安装扩展', en: 'Install the Extension' },
         'steps.s1.desc': {
-          zh: '从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">Chrome 应用商店</a> 一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">GitHub Releases</a> 下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。',
-          en: 'Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can\'t access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.',
+          zh: '从 <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">Chrome 应用商店</a> 一键安装（推荐，后续自动更新）；无法访问 Google 的用户可从 <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">GitHub Releases</a> 下载 zip 包手动安装。安装完成后即可在工具栏看到钥匙图标。',
+          en: 'Install with one click from the <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">Chrome Web Store</a> (recommended — auto-updates). If you can\'t access Google, download the zip from <a href="https://github.com/liaolongdong/account-password-helper/releases/latest" target="_blank" rel="noopener noreferrer" style="color: var(--primary-ink); font-weight: 500; text-decoration: underline">GitHub Releases</a> and install manually. After installation the key icon appears in the toolbar.',
         },
         'steps.s2.title': { zh: '设置主密码', en: 'Set a Master Password' },
         'steps.s2.desc': {
@@ -7107,6 +7917,7 @@ pnpm lint:style  # Stylelint</code></pre>
         .map(id => document.getElementById(id))
         .filter(Boolean);
       const scrollRail = document.getElementById('scrollRail');
+      const stickyCta = document.getElementById('stickyCta');
       /* 阅读进度条：引擎支持滚动时间线时这件事由 CSS 独立完成（见「阅读进度条」区块的
          @supports），这里只补它缺席的那一档（Safari / 旧 Firefox）。判据取一次即可——
          同一次会话里不会中途变化；而个别老引擎上 CSS.supports 根本不是函数，
@@ -7116,6 +7927,23 @@ pnpm lint:style  # Stylelint</code></pre>
         typeof CSS !== 'undefined' &&
         typeof CSS.supports === 'function' &&
         CSS.supports('animation-timeline', 'scroll()');
+
+      /* 粘性安装入口的让位信号：读到「安装」小节时把浮层收起——那一屏本来就有同款按钮，
+         叠两枚只是遮挡。这里用 IntersectionObserver 而不是像素阈值：#install 的实际高度
+         随语言与断点变化，写死数字必在某一档错位；而「小节进入视口」本身就是判据，无需换算。
+         老浏览器没有 IO 时保持「不观测 = 不让位」，入口照常跟随滚动阈值出现，
+         不因缺少观测而整个消失（与 .reveal 那套「能力缺席就落终态」是同一取舍）。 */
+      let installInView = false;
+      if ('IntersectionObserver' in window) {
+        const installObserver = new IntersectionObserver(
+          entries => {
+            installInView = entries[entries.length - 1].isIntersecting;
+            onScroll();
+          },
+          { threshold: 0.12 },
+        );
+        installObserver.observe(document.getElementById('install'));
+      }
 
       function onScroll() {
         const y = window.scrollY + 120;
@@ -7135,6 +7963,10 @@ pnpm lint:style  # Stylelint</code></pre>
         // 滚动导轨：顶部隐藏「回到顶部」，触底隐藏「滚动到底部」
         scrollRail.classList.toggle('at-top', window.scrollY < 200);
         scrollRail.classList.toggle('at-bottom', window.scrollY >= max - 80);
+
+        /* 粘性安装入口：越过首屏 60% 才出现（按视口高而非绝对像素——矮屏上 600px 已经把
+           hero 甩在身后很远，高屏上又还没出 hero）。hero 里本来就有这枚按钮，同屏不叠两枚。 */
+        stickyCta.classList.toggle('is-in', window.scrollY > window.innerHeight * 0.6 && !installInView);
 
         if (navEl && !scrollTimelineSupported) {
           navEl.style.setProperty('--scroll-p', max > 0 ? String(Math.min(1, window.scrollY / max)) : '0');
@@ -7192,6 +8024,14 @@ pnpm lint:style  # Stylelint</code></pre>
         document.getElementById('scrollTopBtn').setAttribute('title', I18N['aria.toTop'][lang]);
         document.getElementById('scrollBottomBtn').setAttribute('aria-label', I18N['aria.toBottom'][lang]);
         document.getElementById('scrollBottomBtn').setAttribute('title', I18N['aria.toBottom'][lang]);
+        // f8 生成器演示的两组 chip 与四枚字符集按钮：文案在字典里，标签在这里补
+        document.getElementById('genModes').setAttribute('aria-label', I18N['features.f8.demo.aria.modes'][lang]);
+        document.getElementById('genSets').setAttribute('aria-label', I18N['features.f8.demo.aria.sets'][lang]);
+        ['upper', 'lower', 'number', 'symbol'].forEach(name => {
+          document
+            .querySelector(`.gen-set[data-set="${name}"]`)
+            .setAttribute('aria-label', I18N[`features.f8.demo.aria.${name}`][lang]);
+        });
         // 按钮展示目标语言，点击即切换
         langToggle.textContent = lang === 'zh' ? 'EN' : '中文';
 
@@ -7318,6 +8158,188 @@ pnpm lint:style  # Stylelint</code></pre>
       } else {
         // 老浏览器没有 IntersectionObserver：直接落到终态，绝不让内容卡在隐形初始态
         document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+      }
+
+      // =================== 使用场景分类筛选 ===================
+      /* 11 行分四类混排，读者通常只关心其中一类。摘掉整行用 `hidden` 属性而不是 display 类：
+         UA 样式负责把它从布局里移除，不必再和 .pa-table 的 border / 列宽规则较劲。
+         错峰序号 --ri 按「当前可见的第几行」重给，筛选后的序号是密排的 0..n-1，不会留下断号。
+         这一遍重给服务于入场：整节淡入之前切类别，铺开的节奏仍按可见行算；已经淡完之后再切是
+         瞬时换行而不是重新铺开——行的 opacity 已到 1，transition 不会再放一遍。 */
+      const ucChips = [...document.querySelectorAll('#ucFilters .uc-chip')];
+      const ucRows = [...document.querySelectorAll('#use-cases .pa-table tbody tr')];
+      const ucReindex = cat => {
+        let visibleIndex = 0;
+        ucRows.forEach(row => {
+          const show = cat === 'all' || row.dataset.cat === cat;
+          row.hidden = !show;
+          if (show) row.style.setProperty('--ri', String(visibleIndex++));
+        });
+      };
+      ucChips.forEach(chip => {
+        const cat = chip.dataset.cat;
+        const count = cat === 'all' ? ucRows.length : ucRows.filter(row => row.dataset.cat === cat).length;
+        chip.querySelector('.uc-chip-n').textContent = String(count);
+        chip.addEventListener('click', () => {
+          ucChips.forEach(c => {
+            c.classList.toggle('is-on', c === chip);
+            c.setAttribute('aria-pressed', c === chip ? 'true' : 'false');
+          });
+          ucReindex(cat);
+        });
+      });
+      ucReindex('all');
+
+      // =================== f8 生成器演示 ===================
+      /* 页面上这台可点的生成器是扩展那台的复刻：字符集字面量、16 位默认长度、
+         「每类先各出一枚 → 剩余位从合并池补齐 → Fisher-Yates 打乱」的组装顺序，
+         以及四条强度谓词与等级映射，逐字对齐 utils/passwordGenerator.ts 与
+         utils/passwordStrengthCore.ts，由 tests/docs/landingGenDemo.test.ts 对账。
+         所以强度条不是装饰：关掉「数字」立刻掉到 3/4。读的是同步四条规则，不含扩展那侧的泄露字典判定。
+         助记词模式只用下面 96 词节选词库（3080 全量在扩展里，note 文案已注明），
+         组装顺序对齐 utils/passphraseGenerator.ts：4 词首字母大写、'-' 连接、末尾 2 位数字。
+         随机源探测不通过就整排控件不出场——宁可没有 demo，也不留一套点不动的死按钮，
+         也不拿 Math.random 冒充密码学安全随机。生成的值只走 textContent。 */
+      if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        document.documentElement.classList.add('gen-live');
+
+        const GEN_UPPER = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const GEN_LOWER = 'abcdefghijklmnopqrstuvwxyz';
+        const GEN_NUMBER = '0123456789';
+        const GEN_SYMBOL = '!@#$%^&*()_+-=[]{}|;:,.<>?';
+        /** 扩展的默认长度，也是演示唯一暴露的档位（长度滑块不进落地页） */
+        const GEN_LENGTH = 16;
+        const GEN_WORD_COUNT = 4;
+        const GEN_DIGITS = 2;
+        /** 强度规则总数，取自 utils/passwordStrengthCore.ts 的 RULE_IDS 长度 */
+        const GEN_RULES_TOTAL = 4;
+        /** 从 utils/data/passphrase-words.json 的 3080 词里等距抽出的 96 词 */
+        const GEN_WORDS = (
+          'able almost atom basic beyond boat breed bunny ' +
+          'care chess claw cold courage crush dark delight ' +
+          'dilemma doubt due egg equal exist far fifty ' +
+          'flaw focus freak gala giant gone grill gut ' +
+          'hazard hind hotel icon install job king land ' +
+          'least limp lose main max mild mole muck ' +
+          'neat notion onset owl parrot pelican pin plot ' +
+          'post prevent prompt pupil quite ready relax resist ' +
+          'ridge romance rust save search severe shop silk ' +
+          'slant smirk soil specimen spring state stoop stuck ' +
+          'sunset swollen taunt theme ticket too transfer truck ' +
+          'twinkle uphold vector virus warn were win wound'
+        ).split(' ');
+
+        const GEN_POOL = { upper: GEN_UPPER, lower: GEN_LOWER, number: GEN_NUMBER, symbol: GEN_SYMBOL };
+
+        /** [0, max) 安全随机整数；rejection sampling 消除模偏差，与 utils/passphraseGenerator.ts 同法 */
+        const genInt = max => {
+          const buf = new Uint32Array(1);
+          crypto.getRandomValues(buf);
+          const limit = Math.floor(0xffffffff / max) * max;
+          let value = buf[0];
+          while (value >= limit) {
+            crypto.getRandomValues(buf);
+            value = buf[0];
+          }
+          return value % max;
+        };
+
+        const genDemo = document.getElementById('genDemo');
+        const genValue = document.getElementById('genValue');
+        const genFill = document.getElementById('genBarFill');
+        const genLevelEl = document.getElementById('genLevel');
+        const genRulesEl = document.getElementById('genRules');
+        const genModeChips = [...document.querySelectorAll('.gen-mode')];
+        const genSetChips = [...document.querySelectorAll('.gen-set')];
+        const genOn = chips => chips.filter(chip => chip.classList.contains('is-on'));
+
+        const genRandom = () => {
+          const pools = genOn(genSetChips).map(chip => GEN_POOL[chip.dataset.set]);
+          const merged = pools.join('');
+          // 第一步：每种启用的字符集先各出一枚；第二步：剩余位从合并池补齐
+          const chars = pools.map(pool => pool[genInt(pool.length)]);
+          while (chars.length < GEN_LENGTH) chars.push(merged[genInt(merged.length)]);
+          for (let i = chars.length - 1; i > 0; i -= 1) {
+            const j = genInt(i + 1);
+            const keep = chars[i];
+            chars[i] = chars[j];
+            chars[j] = keep;
+          }
+          return chars.join('');
+        };
+
+        const genPassphrase = () => {
+          const words = [];
+          for (let i = 0; i < GEN_WORD_COUNT; i += 1) {
+            const word = GEN_WORDS[genInt(GEN_WORDS.length)];
+            words.push(word.charAt(0).toUpperCase() + word.slice(1));
+          }
+          let out = words.join('-');
+          for (let i = 0; i < GEN_DIGITS; i += 1) out += String(genInt(10));
+          return out;
+        };
+
+        /** 四条规则与等级映射抄自 utils/passwordStrengthCore.ts：4/4 才 strong，≥2 是 medium */
+        const genStrength = pwd => {
+          const passed = [
+            pwd.length >= 8,
+            /[a-zA-Z]/.test(pwd),
+            /\d/.test(pwd),
+            /[!@#$%^&*()_+\-={[\]};':"\\|,.<>/?~`]/.test(pwd),
+          ].filter(Boolean).length;
+          let level = 'weak';
+          if (passed === 4) level = 'strong';
+          else if (passed >= 2) level = 'medium';
+          return { passed, level };
+        };
+
+        const genRender = () => {
+          const value = genOn(genModeChips)[0].dataset.mode === 'passphrase' ? genPassphrase() : genRandom();
+          genValue.textContent = value;
+          const { passed, level } = genStrength(value);
+          genDemo.dataset.level = level;
+          genFill.style.setProperty('--w', String(passed / GEN_RULES_TOTAL));
+          // 等级词把自己的 data-i18n 指向当前那一档，语言切换时 applyLang 顺带把它翻掉
+          const key = `features.f8.demo.level.${level}`;
+          genLevelEl.dataset.i18n = key;
+          genLevelEl.textContent = I18N[key][lang];
+          genRulesEl.textContent = `${passed}/${GEN_RULES_TOTAL}`;
+        };
+
+        /* 字符集 chips 的可用性：助记词模式整排灰掉（它们不参与那次组装）；随机模式最后一枚不给关。
+           扩展里最后一步是抛「至少需要启用一种字符集」，页面上直接不给按更诚实。 */
+        const genSyncSets = () => {
+          const enabled = genOn(genSetChips);
+          const passphrase = genOn(genModeChips)[0].dataset.mode === 'passphrase';
+          genSetChips.forEach(chip => {
+            chip.disabled = passphrase || (chip.classList.contains('is-on') && enabled.length === 1);
+          });
+        };
+
+        genModeChips.forEach(chip => {
+          chip.addEventListener('click', () => {
+            if (chip.classList.contains('is-on')) return;
+            genModeChips.forEach(c => {
+              c.classList.toggle('is-on', c === chip);
+              c.setAttribute('aria-pressed', c === chip ? 'true' : 'false');
+            });
+            genSyncSets();
+            genRender();
+          });
+        });
+        genSetChips.forEach(chip => {
+          chip.addEventListener('click', () => {
+            const on = !chip.classList.contains('is-on');
+            chip.classList.toggle('is-on', on);
+            chip.setAttribute('aria-pressed', String(on));
+            genSyncSets();
+            genRender();
+          });
+        });
+        document.getElementById('genAgain').addEventListener('click', genRender);
+
+        genSyncSets();
+        genRender();
       }
 
       // =================== 卡片追光 ===================

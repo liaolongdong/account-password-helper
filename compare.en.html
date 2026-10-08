@@ -6,10 +6,52 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
+    <script>
+      // 渐进增强门控：与 index.html 同款。滚动入场（.reveal）的隐形初始态挂在 html.js 下，
+      // 禁用 JS / 无头抓取 / AI 爬虫拿到的永远是完整可读的页面。必须内联在首屏样式之前，
+      // 否则正文先全显再隐藏会闪一下。
+      const jsGateRoot = document.documentElement;
+      jsGateRoot.classList.add('js');
+      jsGateRoot.dataset.jsGate = 'armed';
+      /* 「JS 可用」不等于「JS 没炸」：隐形初始态靠文末脚本补 .visible 才解除，那段脚本
+         若在揭示逻辑就位前抛错，门控就把空白锁死。这里装一道一次性保险：本页脚本抛出未捕获
+         错误且主脚本还没跑到 ready，就摘掉 js 类，退回「无动效但内容全显」。
+         只认本页脚本：资源加载失败与跨域脱敏错误没有 error 对象，扩展注入脚本的 filename 是
+         chrome-extension://… 都不匹配；比对 filename 时两侧都要裁掉 ?query 与 #hash。 */
+      const stripUrlTail = url => String(url).split('#')[0].split('?')[0];
+      window.addEventListener('error', function jsGateFallback(event) {
+        if (jsGateRoot.dataset.jsGate !== 'armed') return;
+        if (!event.error) return;
+        if (event.filename && stripUrlTail(event.filename) !== stripUrlTail(location.href)) return;
+        jsGateRoot.classList.remove('js');
+        jsGateRoot.dataset.jsGate = 'fallback';
+        window.removeEventListener('error', jsGateFallback);
+      });
+    </script>
     <title>Bitwarden vs 1Password vs Chrome: Free Local Alternative</title>
     <meta
       name="description"
       content="2026 Bitwarden vs 1Password vs Chrome built-in: compared on ten dimensions — price, storage, sign-up, one-click login, multi-environment isolation and cross-subdomain tiers, site rules, TOTP, offline audit, identity vault and license — with an honest take on who each suits."
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="./assets/icons/icon.svg"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="./public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="./public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
     />
     <meta
       name="keywords"
@@ -37,7 +79,7 @@
     />
     <meta
       property="og:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png"
     />
     <meta
       property="og:site_name"
@@ -61,7 +103,7 @@
     />
     <meta
       name="twitter:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png"
     />
     <link
       rel="canonical"
@@ -201,16 +243,50 @@
     </script>
     <style>
       :root {
+        color-scheme: light dark;
         --primary: #4e88ff;
         --primary-dark: #3a6cd9;
+        /* 主色作文字用的那一档，与 index.html 同源：--primary-dark 在本页同时是实底按钮色，
+           暗档不能抬亮它，所以 thead th.us 的文字另走 --primary-ink（#3a6cd9 压在暗档
+           --primary-soft 上只有 2.95:1）。 */
+        --primary-ink: #3566cb;
+        /* 判定格的墨色同理：实底色（--accent / --warn）拿来做文字时，白底上只有 2.5:1 与
+           2.04:1，而「是 / 否 / 付费版」正是这张表里唯一要读清的信息。各配一枚文字令牌，
+           实底与描边继续用原值。--warn-ink 原为本页自有令牌，2026-10-03 那批把 index / en / pricing 两页
+           的 12 处 #ff9f43 字面量收进同一枚，六页取值逐字同源，由 darkTokens 守卫钉住。 */
+        --success-ink: #27754e;
+        --warn-ink: #a35d00;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
         --text: #0f172a;
         --text-muted: #64748b;
+        --bg: #fff;
         --bg-soft: #f8fafc;
         --border: #e2e8f0;
         --warn: #ff9f43;
         --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+        /* 动效令牌与 index.html 取同值：入场曲线和时长在两页必须一致，否则同一趟浏览里
+           落地页与对比页的「升起」节奏不同，读起来像两套页面。 */
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+        --dur-slow: 0.6s;
+      }
+
+      /* 暗色档与落地页同源：只翻令牌，不动任何一条组件规则。
+         --primary / --accent / --warn 保持原值，理由同 index.html（主色实底上的白字比例）；
+         只有三枚文字令牌在暗档换亮，同 index.html 的 --primary-ink 那一条。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-soft: #1c2a45;
+          --primary-ink: #7ea6ff;
+          --success-ink: #42b883;
+          --warn-ink: #ff9f43;
+          --text: #e6edf7;
+          --text-muted: #9aa8bd;
+          --bg: #0b1220;
+          --bg-soft: #101a2c;
+          --border: #263349;
+          --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+        }
       }
 
       * {
@@ -222,11 +298,11 @@
         color: var(--text);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         line-height: 1.7;
-        background: #fff;
+        background: var(--bg);
       }
 
       a {
-        color: var(--primary);
+        color: var(--primary-ink);
         text-decoration: none;
       }
 
@@ -263,7 +339,7 @@
 
       .hero {
         padding: 56px 0 32px;
-        background: linear-gradient(180deg, #f8fafc, #fff);
+        background: linear-gradient(180deg, var(--bg-soft), var(--bg));
         text-align: center;
       }
 
@@ -303,7 +379,7 @@
       }
 
       .btn.ghost {
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
       }
 
@@ -359,7 +435,7 @@
       }
 
       thead th.us {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         background: var(--primary-soft);
       }
 
@@ -369,16 +445,28 @@
       }
 
       .yes {
-        color: var(--accent);
+        color: var(--success-ink);
         font-weight: 700;
       }
 
       .no {
-        color: #cbd5e1;
+        color: var(--text-muted);
       }
 
       .partial {
-        color: var(--warn);
+        color: var(--warn-ink);
+      }
+
+      .card {
+        padding: 20px 22px;
+        margin-top: 18px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--bg-soft);
+      }
+
+      .card h3 {
+        margin-top: 0;
       }
 
       .two-col {
@@ -441,6 +529,37 @@
           grid-template-columns: 1fr;
         }
       }
+
+      /* ============ Scroll Reveal（滚动入场） ============ */
+      /* 与 index.html 同一套约定：隐形初始态挂在 html.js 下，禁用 JS / 无头抓取 / AI 爬虫
+         拿到的永远是完整可读的页面。基准态与终态必须带同一层前缀——html.js .reveal 是 (0,2,1)，
+         终态若只写 .reveal.visible (0,2,0) 会被自己的基准规则压住，永远不显形。 */
+      html.js .reveal {
+        opacity: 0;
+        transform: translateY(24px);
+        transition:
+          opacity var(--dur-slow) var(--ease-out),
+          transform var(--dur-slow) var(--ease-out);
+      }
+
+      html.js .reveal.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .reveal-delay-1 {
+        transition-delay: 0.08s;
+      }
+
+      /* ============ Reduced motion（动效降级） ============ */
+      /* 降级不等于没有动效：撤掉位移，保留淡入，用户依然读得出「这一块是刚进场的」。
+         放在末尾以覆盖前面的基准规则，两侧选择器必须与基准侧一一对应。 */
+      @media (prefers-reduced-motion: reduce) {
+        html.js .reveal,
+        html.js .reveal.visible {
+          transform: none;
+        }
+      }
     </style>
   </head>
   <body>
@@ -487,7 +606,7 @@
             <b>no sign-up, password data that stays on your machine, and one-keystroke login</b> as a developer / QA or
             privacy-conscious user — pick Account Password Helper.
           </p>
-          <div class="table-wrap">
+          <div class="table-wrap reveal">
             <table>
               <thead>
                 <tr>
@@ -584,7 +703,7 @@
             competitor feature claims as of 2026-09 — please confirm on their official sites too), intended to help
             users choose — not to disparage any product. Competitor trademarks belong to their owners.
           </p>
-          <div class="card">
+          <div class="card reveal reveal-delay-1">
             <h3>Four capabilities shipped in recent releases</h3>
             <ul>
               <li>
@@ -626,7 +745,7 @@
       <section id="vs-bitwarden">
         <div class="wrap">
           <h2>vs Bitwarden</h2>
-          <div class="two-col">
+          <div class="two-col reveal">
             <div>
               <h3>Bitwarden is strong at</h3>
               <ul>
@@ -653,7 +772,7 @@
               </ul>
             </div>
           </div>
-          <div class="choose">
+          <div class="choose reveal reveal-delay-1">
             <b>How to choose:</b> multi-device sync and mobile → Bitwarden; browser-only, "data stays local + no sign-up
             + one-keystroke login" → Account Password Helper.
           </div>
@@ -663,7 +782,7 @@
       <section id="vs-1password">
         <div class="wrap">
           <h2>vs 1Password</h2>
-          <div class="two-col">
+          <div class="two-col reveal">
             <div>
               <h3>1Password is strong at</h3>
               <ul>
@@ -684,7 +803,7 @@
               </ul>
             </div>
           </div>
-          <div class="choose">
+          <div class="choose reveal reveal-delay-1">
             <b>How to choose:</b> team collaboration, enterprise compliance, cross-device → 1Password; individual /
             dev-test, local-first and zero subscription → Account Password Helper.
           </div>
@@ -694,7 +813,7 @@
       <section id="vs-chrome">
         <div class="wrap">
           <h2>vs Chrome's built-in password manager</h2>
-          <div class="two-col">
+          <div class="two-col reveal">
             <div>
               <h3>Chrome built-in is strong at</h3>
               <ul>
@@ -716,7 +835,7 @@
               </ul>
             </div>
           </div>
-          <div class="choose">
+          <div class="choose reveal reveal-delay-1">
             <b>How to choose:</b> simplest possible fill and fine with cloud sync → Chrome; multi-environment
             management, TOTP, audit and local encryption → Account Password Helper, with one-click import from Chrome.
           </div>
@@ -803,7 +922,7 @@
         >
           <h2>Try it free, migrate in 30 seconds</h2>
           <p class="lead">Open source, no sign-up, password data that stays on your machine.</p>
-          <div class="cta">
+          <div class="cta reveal">
             <a
               class="btn"
               href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
@@ -839,5 +958,30 @@
         </p>
       </div>
     </footer>
+
+    <script>
+      // 滚动入场：与 index.html 同一套兜底，三道保险缺一不可。
+      // ① 隐形初始态挂在 <head> 那段门控加上的 html.js 下；
+      // ② 没有 IntersectionObserver 的老浏览器直接落终态，绝不把内容卡在 opacity:0；
+      // ③ 同步初始化跑完把 data-js-gate 置为 ready，此后 <head> 里那道一次性保险不再干预
+      //    （揭示逻辑已就位，交互期偶发报错不该把整页打回「无动效」态）。
+      if ('IntersectionObserver' in window) {
+        const revealObserver = new IntersectionObserver(
+          entries => {
+            entries.forEach(entry => {
+              if (!entry.isIntersecting) return;
+              entry.target.classList.add('visible');
+              revealObserver.unobserve(entry.target);
+            });
+          },
+          { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+        );
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+      } else {
+        document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+      }
+
+      document.documentElement.dataset.jsGate = 'ready';
+    </script>
   </body>
 </html>

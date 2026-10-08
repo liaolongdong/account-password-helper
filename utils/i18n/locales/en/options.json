@@ -31,6 +31,8 @@
   "options.header.personalization": "Preferences",
   "options.header.tour": "Tour",
   "options.header.tourTitle": "Replay the guided tour",
+  "options.header.guide": "Guide",
+  "options.header.guideTitle": "Open the built-in user guide (readable offline)",
   "options.header.siteRules": "Site Rules",
   "options.header.domainMatch": "Cross-Subdomain Matching",
   "options.domainMatch.off": "Exact match only (default)",
@@ -367,5 +369,15 @@
   "options.shortcuts.label.openOptions": "Open password management page",
   "options.shortcuts.label.toggleSidepanel": "Open/close quick-fill side panel",
   "options.shortcuts.label.quickFill": "Quick fill credentials on current page",
-  "options.shortcuts.label.openInlineDropdown": "Open the inline fill dropdown"
+  "options.shortcuts.label.openInlineDropdown": "Open the inline fill dropdown",
+  "options.guide.back": "Back to passwords",
+  "options.guide.toc": "Section navigation",
+  "options.guide.online": "View the full online guide",
+  "options.guide.sectionProduct": "Product overview",
+  "options.guide.productLead": "Account Password Helper is a local-first password manager for your browser: accounts, passwords, TOTP codes and identity records live only in this browser on this computer, and encryption, search, filling, health checks and backups all run locally.",
+  "options.guide.pointLocal": "<b>Your data never leaves this machine</b> Sensitive fields are always stored on disk as AES-256-GCM ciphertext, and every encryption operation uses the browser's native Web Crypto. The extension neither stores nor uploads any account, password or verification code, and everything keeps working offline.",
+  "options.guide.pointFill": "<b>Four ways to fill</b> Pick the side panel, the inline dropdown, the one-keystroke shortcut or the context menu. Search matches username, tags, notes and URL, and understands full pinyin as well as initials. Cross-subdomain matching comes in three tiers, and when auto-detection picks the wrong fields you can pin CSS selectors for that site.",
+  "options.guide.pointAudit": "<b>Security checkup</b> One click scans for weak passwords, reuse, common leaked passwords (offline dictionary) and entries that haven't been rotated, then produces a 0-100 score. Every finding has a \"Fix\" action, and stale entries can raise an expiry reminder.",
+  "options.guide.pointBackup": "<b>Backup and migration</b> Import and export CSV or JSON, with automatic recognition of exports from Chrome, LastPass, Bitwarden and 1Password. The encrypted .aph backup and .aphid identity backup can be stored offline, and deleted entries stay in the trash for 30 days.",
+  "options.guide.pointWarn": "<b>The master password cannot be recovered</b> It is only used to derive the decryption key on this machine; the extension never stores it and cannot reset it for you. If it is lost, the only way forward is to erase the data and set it again, so export encrypted backups regularly."
 }

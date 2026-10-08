@@ -7,14 +7,38 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑 | Account Password Helper</title>
+    <title>同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑 | 账号密码管理助手</title>
     <meta
       name="description"
-      content="精确 host 匹配是多环境隔离的立身之本，但真实登录常常横跨一整个子域家族。本文拆开跨子域名匹配三档的分层判据、主域名相等这条不能切的安全边界，以及 Chrome 把通配符编码成 %2A、让全部单元测试集体失声的那次真机踩坑。"
+      content="精确 host 匹配是多环境隔离的立身之本，但真实登录常横跨一整个子域家族。拆开三档匹配的分层判据、不能切的主域名边界，以及只有真机才抓到的 %2A 踩坑。"
     />
     <meta
       name="author"
       content="liaolongdong"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="https://liaolongdong.github.io/account-password-helper/assets/icons/icon.svg"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
     />
     <link
       rel="canonical"
@@ -40,12 +64,16 @@
       content="article"
     />
     <meta
+      property="og:locale"
+      content="zh_CN"
+    />
+    <meta
       property="og:title"
       content="同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑"
     />
     <meta
       property="og:description"
-      content="精确 host 匹配是多环境隔离的立身之本，但真实登录常常横跨一整个子域家族。本文拆开跨子域名匹配三档的分层判据、主域名相等这条不能切的安全边界，以及 Chrome 把通配符编码成 %2A、让全部单元测试集体失声的那次真机踩坑。"
+      content="精确 host 匹配是多环境隔离的立身之本，但真实登录常横跨一整个子域家族。拆开三档匹配的分层判据、不能切的主域名边界，以及只有真机才抓到的 %2A 踩坑。"
     />
     <meta
       property="og:url"
@@ -57,7 +85,7 @@
     />
     <meta
       property="og:site_name"
-      content="Account Password Helper"
+      content="账号密码管理助手"
     />
     <meta
       property="article:published_time"
@@ -65,7 +93,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-09-30"
+      content="2026-10-02"
     />
     <meta
       name="twitter:card"
@@ -77,7 +105,7 @@
     />
     <meta
       name="twitter:description"
-      content="精确 host 匹配是多环境隔离的立身之本，但真实登录常常横跨一整个子域家族。本文拆开跨子域名匹配三档的分层判据、主域名相等这条不能切的安全边界，以及 Chrome 把通配符编码成 %2A、让全部单元测试集体失声的那次真机踩坑。"
+      content="精确 host 匹配是多环境隔离的立身之本，但真实登录常横跨一整个子域家族。拆开三档匹配的分层判据、不能切的主域名边界，以及只有真机才抓到的 %2A 踩坑。"
     />
     <meta
       name="twitter:image"
@@ -88,11 +116,11 @@
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   "headline": "同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑",
-  "description": "精确 host 匹配是多环境隔离的立身之本，但真实登录常常横跨一整个子域家族。本文拆开跨子域名匹配三档的分层判据、主域名相等这条不能切的安全边界，以及 Chrome 把通配符编码成 %2A、让全部单元测试集体失声的那次真机踩坑。",
+  "description": "精确 host 匹配是多环境隔离的立身之本，但真实登录常横跨一整个子域家族。拆开三档匹配的分层判据、不能切的主域名边界，以及只有真机才抓到的 %2A 踩坑。",
   "inLanguage": "zh-CN",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png",
   "datePublished": "2026-09-22",
-  "dateModified": "2026-09-30",
+  "dateModified": "2026-10-02",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -104,14 +132,58 @@
   }
 }
     </script>
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "账号密码管理助手",
+      "item": "https://liaolongdong.github.io/account-password-helper/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "博客",
+      "item": "https://liaolongdong.github.io/account-password-helper/blog/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑",
+      "item": "https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html"
+    }
+  ]
+}
+    </script>
     <style>
       :root {
+        color-scheme: light dark;
         --bg: #f7f9fc;
         --card: #ffffff;
         --text: #1f2937;
         --muted: #6b7280;
         --accent: #4e88ff;
+        /* 强调色「作文字用」的那一档：--accent 是实底徽标与描边的组合色，暗档不能抬亮它，
+           所以下方那三处 color: var(--accent-ink) 的声明走它，取值同落地页的 --primary-ink。 */
+        --accent-ink: #3566cb;
         --border: #e5e9f0;
+        --code: #eef2f7;
+      }
+      /* 暗色档与官网落地页同源（批2-A）：只翻令牌，不动组件规则。
+         pre 代码块两档都保持深色，所以不在此列。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --card: #141f33;
+          --text: #e6edf7;
+          --muted: #9aa8bd;
+          --accent-ink: #7ea6ff;
+          --border: #263349;
+          --code: #1e2a3f;
+        }
       }
       * {
         box-sizing: border-box;
@@ -142,7 +214,7 @@
       }
       .topbar a {
         font-size: 14px;
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
       .topbar .spacer {
@@ -180,7 +252,7 @@
         margin: 14px 0;
       }
       a {
-        color: var(--accent);
+        color: var(--accent-ink);
       }
       ul,
       ol {
@@ -200,7 +272,7 @@
       code {
         padding: 2px 6px;
         font-size: 0.9em;
-        background: #eef2f7;
+        background: var(--code);
         border-radius: 4px;
       }
       pre {
@@ -228,8 +300,11 @@
         color: var(--muted);
         text-align: center;
       }
+      .footer p {
+        margin: 6px 0;
+      }
       .footer a {
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
     </style>
@@ -242,11 +317,9 @@
     </nav>
     <article>
       <h1>同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑</h1>
-      <p class="meta">2026-09-22 · 更新于 2026-09-30 · liaolongdong</p>
+      <p class="meta">2026-09-22 · 更新于 2026-10-02 · liaolongdong</p>
       <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑" />
-      <h1>同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑</h1>
-<p><img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="跨子域名匹配三档的实现与踩坑"></p>
-<p>自 2026-07 把匹配口径收敛成「精确 host 相等」以来，这条规则一直是这个扩展的多环境隔离底座：<code>fat.example.com</code> 的页面上不会看到 <code>uat.example.com</code> 或 <code>example.com</code> 的账号。它同时是最容易被用户碰到的一面墙——同一主域名下的账号，在别的子域里就是不出来。</p>
+      <p>自 2026-07 把匹配口径收敛成「精确 host 相等」以来，这条规则一直是这个扩展的多环境隔离底座：<code>fat.example.com</code> 的页面上不会看到 <code>uat.example.com</code> 或 <code>example.com</code> 的账号。它同时是最容易被用户碰到的一面墙——同一主域名下的账号，在别的子域里就是不出来。</p>
 <p>这篇讲三档放宽的实现取舍，以及一个只有真浏览器能抓到的 bug。</p>
 <h2>精确匹配是对的默认，但登录不总是按域名边界发生</h2>
 <p>先说清楚：精确匹配不该被当成保守主义，它是<strong>唯一能同时挡住两类事故</strong>的默认值——<code>fat.example.com</code> 拿不到 <code>example.com</code> 的凭据，钓鱼站也拿不到任何长得像的东西。任何放宽都必须由用户显式选择，这条没得谈。</p>
@@ -362,6 +435,10 @@
 <p><em>本文涉及的关键文件：<code>utils/domain.ts</code>（<code>resolveMatchTier</code> / <code>isCrossSubdomainTier</code> / <code>getMainDomain</code> / <code>restoreWildcardMarker</code>）、<code>components/options/DomainMatchSettingDialog.vue</code>（档位弹窗）、<code>utils/passwordFilter.ts</code> 与 <code>utils/passwordSort.ts</code>（侧边栏可见集与排序）、<code>entrypoints/background/passwordCache.ts</code>（内联下拉与一键填充的取数）、<code>entrypoints/content/inlineDropdown/InlineFillDropdown.ts</code>（来源 chip）、<code>tests/architecture/crossSubdomainTierWiring.test.ts</code>（接线守卫）、<code>e2e/cross-subdomain.spec.ts</code>（真机回归）、<code>benchmarks/sidepanel-p0.bench.ts</code>（跨档基准）。</em></p>
 
     </article>
-    <footer class="footer">Account Password Helper · <a href="https://liaolongdong.github.io/account-password-helper/">官网</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · 同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a></footer>
+    <footer class="footer">
+      <p>账号密码管理助手 · 开源（GPL-3.0）</p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/">产品官网与功能演示</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.html">定价：永久免费</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.html">与 Bitwarden、1Password 对比</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.html">隐私政策</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a></p>
+      <p>同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a></p>
+    </footer>
   </body>
 </html>

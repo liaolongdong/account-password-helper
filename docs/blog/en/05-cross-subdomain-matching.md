@@ -1,16 +1,12 @@
 ---
-title: Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught
-description: Exact-host matching is the foundation of multi-environment isolation, but real logins span a whole subdomain family. This post breaks down the three-tier matching predicate, the root-domain-equality security boundary that must not be cut, and the time Chrome percent-encoded a wildcard into %2A and every unit test went silent.
+title: Three Tiers of Cross-Subdomain Matching
+description: Exact-host matching isolates environments, but real logins span a subdomain family. Three tiers, one root-domain rule, and a %2A bug only a real browser caught.
 tags: chrome extension, password manager, domain matching, multi-environment testing, frontend
 date: 2026-09-22
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-05-cross-subdomain-matching.png
 ---
-
-# Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught
-
-![Three tiers of cross-subdomain matching: implementation notes and a real-browser bug](imgs/blog-cover-05-cross-subdomain-matching.png)
 
 Ever since the matching rule was narrowed to "hostnames must be equal" in July 2026, that rule has been this extension's foundation for multi-environment isolation: a page on `fat.example.com` never sees entries from `uat.example.com` or from `example.com`. It is also the wall users hit most often — an account saved under one host of a domain family simply does not appear on its siblings.
 

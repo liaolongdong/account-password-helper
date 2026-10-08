@@ -12,6 +12,15 @@ export const CHROME_WEB_STORE_URL =
   'https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli';
 
 /**
+ * 产品说明站（GitHub Pages）
+ *
+ * 完整使用说明与常见问题对外长文档的地址。插件内的入口（帮助弹窗横幅、
+ * Options 文档中页顶/底、新手引导末步、设密页底部）统一引用本常量，
+ * 避免同一地址在多处硬编码后各自漂移。
+ */
+export const PRODUCT_DOCS_URL = 'https://liaolongdong.github.io/account-password-helper/';
+
+/**
  * CWS 可访问性探测 URL（轻量 HEAD 请求目标）
  *
  * 使用 CWS 首页而非具体扩展页面，减少请求载荷；

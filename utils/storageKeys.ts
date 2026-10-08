@@ -33,6 +33,13 @@ export const STORAGE_KEYS = {
   IDENTITY: 'personal_identity_infos',
   /** 身份信息库列表排序档位（仅存枚举值，不含任何 PII，故明文单键） */
   IDENTITY_SORT_MODE: 'identity_sort_mode',
+  /**
+   * 身份信息库 `manual` 档的手排顺序（明文 `string[]`，只存条目 id，上限同 `MAX_IDENTITIES`）
+   *
+   * 与排序档位同一形态：id 是 `generateId()` 产出的随机串，不携带任何 PII，
+   * 因此无需进密文；读写只出现在 Options 的身份库弹窗链路上，不得被侧边栏首屏闭包引用。
+   */
+  IDENTITY_MANUAL_ORDER: 'identity_manual_order',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
   /** 用户语言偏好（'zh-CN' | 'en'） */

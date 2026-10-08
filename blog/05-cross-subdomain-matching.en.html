@@ -7,14 +7,38 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught | Account Password Helper</title>
+    <title>Three Tiers of Cross-Subdomain Matching | Account Password Helper</title>
     <meta
       name="description"
-      content="Exact-host matching is the foundation of multi-environment isolation, but real logins span a whole subdomain family. This post breaks down the three-tier matching predicate, the root-domain-equality security boundary that must not be cut, and the time Chrome percent-encoded a wildcard into %2A and every unit test went silent."
+      content="Exact-host matching isolates environments, but real logins span a subdomain family. Three tiers, one root-domain rule, and a %2A bug only a real browser caught."
     />
     <meta
       name="author"
       content="liaolongdong"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="https://liaolongdong.github.io/account-password-helper/assets/icons/icon.svg"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
     />
     <link
       rel="canonical"
@@ -40,12 +64,16 @@
       content="article"
     />
     <meta
+      property="og:locale"
+      content="en_US"
+    />
+    <meta
       property="og:title"
-      content="Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught"
+      content="Three Tiers of Cross-Subdomain Matching"
     />
     <meta
       property="og:description"
-      content="Exact-host matching is the foundation of multi-environment isolation, but real logins span a whole subdomain family. This post breaks down the three-tier matching predicate, the root-domain-equality security boundary that must not be cut, and the time Chrome percent-encoded a wildcard into %2A and every unit test went silent."
+      content="Exact-host matching isolates environments, but real logins span a subdomain family. Three tiers, one root-domain rule, and a %2A bug only a real browser caught."
     />
     <meta
       property="og:url"
@@ -65,7 +93,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-09-30"
+      content="2026-10-02"
     />
     <meta
       name="twitter:card"
@@ -73,11 +101,11 @@
     />
     <meta
       name="twitter:title"
-      content="Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught"
+      content="Three Tiers of Cross-Subdomain Matching"
     />
     <meta
       name="twitter:description"
-      content="Exact-host matching is the foundation of multi-environment isolation, but real logins span a whole subdomain family. This post breaks down the three-tier matching predicate, the root-domain-equality security boundary that must not be cut, and the time Chrome percent-encoded a wildcard into %2A and every unit test went silent."
+      content="Exact-host matching isolates environments, but real logins span a subdomain family. Three tiers, one root-domain rule, and a %2A bug only a real browser caught."
     />
     <meta
       name="twitter:image"
@@ -87,12 +115,12 @@
 {
   "@context": "https://schema.org",
   "@type": "BlogPosting",
-  "headline": "Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught",
-  "description": "Exact-host matching is the foundation of multi-environment isolation, but real logins span a whole subdomain family. This post breaks down the three-tier matching predicate, the root-domain-equality security boundary that must not be cut, and the time Chrome percent-encoded a wildcard into %2A and every unit test went silent.",
+  "headline": "Three Tiers of Cross-Subdomain Matching",
+  "description": "Exact-host matching isolates environments, but real logins span a subdomain family. Three tiers, one root-domain rule, and a %2A bug only a real browser caught.",
   "inLanguage": "en",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png",
   "datePublished": "2026-09-22",
-  "dateModified": "2026-09-30",
+  "dateModified": "2026-10-02",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -104,14 +132,58 @@
   }
 }
     </script>
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Account Password Helper",
+      "item": "https://liaolongdong.github.io/account-password-helper/en.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Blog",
+      "item": "https://liaolongdong.github.io/account-password-helper/blog/index.en.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Three Tiers of Cross-Subdomain Matching",
+      "item": "https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html"
+    }
+  ]
+}
+    </script>
     <style>
       :root {
+        color-scheme: light dark;
         --bg: #f7f9fc;
         --card: #ffffff;
         --text: #1f2937;
         --muted: #6b7280;
         --accent: #4e88ff;
+        /* 强调色「作文字用」的那一档：--accent 是实底徽标与描边的组合色，暗档不能抬亮它，
+           所以下方那三处 color: var(--accent-ink) 的声明走它，取值同落地页的 --primary-ink。 */
+        --accent-ink: #3566cb;
         --border: #e5e9f0;
+        --code: #eef2f7;
+      }
+      /* 暗色档与官网落地页同源（批2-A）：只翻令牌，不动组件规则。
+         pre 代码块两档都保持深色，所以不在此列。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --card: #141f33;
+          --text: #e6edf7;
+          --muted: #9aa8bd;
+          --accent-ink: #7ea6ff;
+          --border: #263349;
+          --code: #1e2a3f;
+        }
       }
       * {
         box-sizing: border-box;
@@ -142,7 +214,7 @@
       }
       .topbar a {
         font-size: 14px;
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
       .topbar .spacer {
@@ -180,7 +252,7 @@
         margin: 14px 0;
       }
       a {
-        color: var(--accent);
+        color: var(--accent-ink);
       }
       ul,
       ol {
@@ -200,7 +272,7 @@
       code {
         padding: 2px 6px;
         font-size: 0.9em;
-        background: #eef2f7;
+        background: var(--code);
         border-radius: 4px;
       }
       pre {
@@ -228,8 +300,11 @@
         color: var(--muted);
         text-align: center;
       }
+      .footer p {
+        margin: 6px 0;
+      }
       .footer a {
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
     </style>
@@ -241,12 +316,10 @@
       <a href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html">中文</a>
     </nav>
     <article>
-      <h1>Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught</h1>
-      <p class="meta">2026-09-22 · Updated 2026-09-30 · liaolongdong</p>
-      <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught" />
-      <h1>Which Subdomains Should an Account Show On: Three Tiers of Cross-Subdomain Matching, and the Bug Only a Real Browser Caught</h1>
-<p><img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="Three tiers of cross-subdomain matching: implementation notes and a real-browser bug"></p>
-<p>Ever since the matching rule was narrowed to &quot;hostnames must be equal&quot; in July 2026, that rule has been this extension&#39;s foundation for multi-environment isolation: a page on <code>fat.example.com</code> never sees entries from <code>uat.example.com</code> or from <code>example.com</code>. It is also the wall users hit most often — an account saved under one host of a domain family simply does not appear on its siblings.</p>
+      <h1>Three Tiers of Cross-Subdomain Matching</h1>
+      <p class="meta">2026-09-22 · Updated 2026-10-02 · liaolongdong</p>
+      <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="Three Tiers of Cross-Subdomain Matching" />
+      <p>Ever since the matching rule was narrowed to &quot;hostnames must be equal&quot; in July 2026, that rule has been this extension&#39;s foundation for multi-environment isolation: a page on <code>fat.example.com</code> never sees entries from <code>uat.example.com</code> or from <code>example.com</code>. It is also the wall users hit most often — an account saved under one host of a domain family simply does not appear on its siblings.</p>
 <p>This post covers the trade-offs behind the three widening tiers, and a bug that only a real browser could catch.</p>
 <h2>Exact matching is the right default — but logins don&#39;t respect hostname boundaries</h2>
 <p>To be clear: exact matching isn&#39;t conservatism for its own sake. It is the <strong>only default that blocks both classes of incident at once</strong> — <code>fat.example.com</code> can&#39;t reach <code>example.com</code> credentials, and a phishing site can&#39;t reach anything that merely looks close. Widening must be an explicit user choice; that part isn&#39;t negotiable.</p>
@@ -362,6 +435,10 @@ hit ⟺ getMainDomain(currentHost) === getMainDomain(base)
 <p><em>Key files referenced: <code>utils/domain.ts</code> (<code>resolveMatchTier</code> / <code>isCrossSubdomainTier</code> / <code>getMainDomain</code> / <code>restoreWildcardMarker</code>), <code>components/options/DomainMatchSettingDialog.vue</code> (the tier dialog), <code>utils/passwordFilter.ts</code> and <code>utils/passwordSort.ts</code> (side-panel visibility and order), <code>entrypoints/background/passwordCache.ts</code> (data path for the inline dropdown and quick fill), <code>entrypoints/content/inlineDropdown/InlineFillDropdown.ts</code> (the source chip), <code>tests/architecture/crossSubdomainTierWiring.test.ts</code> (the wiring guard), <code>e2e/cross-subdomain.spec.ts</code> (real-browser regression), <code>benchmarks/sidepanel-p0.bench.ts</code> (cross-tier benchmark).</em></p>
 
     </article>
-    <footer class="footer">Account Password Helper · <a href="https://liaolongdong.github.io/account-password-helper/en.html">Website</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a></footer>
+    <footer class="footer">
+      <p>Account Password Helper · Open source (GPL-3.0)</p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a></p>
+      <p>Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a></p>
+    </footer>
   </body>
 </html>

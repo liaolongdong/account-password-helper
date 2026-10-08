@@ -1,10 +1,14 @@
 {
   "onboarding.kicker": "Getting started",
   "onboarding.welcome.title": "Welcome to your local vault",
-  "onboarding.welcome.desc": "Accounts, passwords and two-factor codes stay encrypted on this computer — nothing is uploaded to a server. Thirty seconds now, and day to day the side panel is all you need.",
+  "onboarding.welcome.desc": "Accounts, passwords and two-factor codes stay encrypted on this computer — nothing is uploaded to a server. Thirty seconds now, and day to day the side panel is all you need; the tour opens it once along the way.",
   "onboarding.add.title": "Add your first entry",
-  "onboarding.add.desc": "Enter the site, account and password, then save. Next time you open that site, the extension matches it by domain and fills it in.",
+  "onboarding.add.desc": "Enter the site, account and password, then save. Next time you open that site the extension matches it by domain: click the key icon beside the login field to fill it in, or turn on \"Auto-submit login\" in preferences.",
   "onboarding.add.tip": "No password worth keeping? The Generate button in the dialog builds one from your length and character rules.",
+  "onboarding.sidepanel.title": "Get it back out of the side panel",
+  "onboarding.sidepanel.desc": "Hit the button below and the panel docks beside this tab: browse what you just saved, search it, star what you use daily. The options page has no site address of its own, so it lists the whole vault — open it on a website's login page and it narrows down to that site's accounts.",
+  "onboarding.sidepanel.action": "Open the side panel",
+  "onboarding.sidepanel.shortcutHint": "Couldn't open it? Press {shortcut} to toggle the side panel.",
   "onboarding.empty.title": "Three ways in — pick one",
   "onboarding.empty.desc": "Add entries by hand, bulk-import a CSV file, or restore an encrypted .aph backup. The import preview works out how many entries still fit and which ones get skipped.",
   "onboarding.search.title": "What you'll lean on later",
@@ -15,9 +19,9 @@
   "onboarding.settings.title": "Tune the security policy",
   "onboarding.settings.desc": "Idle auto-lock, session validity, auto-save, site rules, clipboard clearing and shortcuts all start from this group.",
   "onboarding.health.title": "Check your vault regularly",
-  "onboarding.health.desc": "Finds reused, weak, due-for-update and long-unchanged passwords, with a 0–100 score and a per-entry to-do list.",
+  "onboarding.health.desc": "Finds reused, weak, commonly breached (a near-1,000-entry offline dictionary) and long-unchanged passwords, with a 0–100 score and a per-entry to-do list.",
   "onboarding.personalize.title": "Make it look the way you like",
-  "onboarding.personalize.desc": "Six accent themes, the Chinese/English interface, and the floating button's visibility and position all switch here.",
+  "onboarding.personalize.desc": "Six accent themes, the Chinese/English interface and the floating button's visibility all switch here. Its position isn't a setting — drag the button to the screen edge you want and it snaps into place.",
   "onboarding.skip": "Skip",
   "onboarding.prev": "Back",
   "onboarding.next": "Next",
@@ -25,5 +29,8 @@
   "onboarding.keyboardHint": "← → to switch · Esc to exit",
   "onboarding.progressAria": "Step {current} of {total}: {title}",
   "onboarding.dotCurrent": "Step {index} (current)",
-  "onboarding.dotJump": "Jump to step {index}: {title}"
+  "onboarding.dotJump": "Jump to step {index}: {title}",
+  "onboarding.docsLead": "Forgot a step? The full documentation is always here:",
+  "onboarding.docsGuide": "Built-in guide",
+  "onboarding.docsOnline": "Online guide"
 }

@@ -2,15 +2,16 @@
  * i18n 命名空间拆分完整性测试
  *
  * 语言包已按命名空间拆分（utils/i18n/locales/{locale}/{ns}.json），
- * 各入口经 utils/i18n/bundles/ 按需注册。本测试提供三层保障：
+ * 各入口经 utils/i18n/bundles/ 按需注册。本测试提供五层保障：
  * 1. zh/en 每个命名空间文件 key 集合完全对齐（防单边漏译）；
  * 2. 命名空间文件内 key 前缀正确且跨文件无重复（防拆分错位）；
- * 3. 静态扫描各入口依赖图源码中的 t('...') 调用，校验 key 全部
- *    落在该入口 bundle 注册的命名空间内（防「新增文案未注册命名空间
- *    导致界面渲染原始 key」的回归）；
- * 4. 校验 HelpDialog 以 helpItems(prefix, N) 序号驱动渲染的分组，其
- *    1..N 条目在中英文语言包中齐全且无多余（防「改了 N 忘了补文案」
- *    或「补了文案忘了抬 N」两类单边漂移）；
+ * 3. 静态扫描各入口依赖图源码中的 t('...') 调用（含 `labelKey:` 与 `*_KEYS`
+ *    两种间接寻址），校验 key 全部落在该入口 bundle 注册的命名空间内
+ *    （防「新增文案未注册命名空间导致界面渲染原始 key」的回归）；
+ * 4. 校验以 helpItems(prefix, N) 序号驱动渲染 help 词条的两处呈现面
+ *    （HelpDialog、GuideView），其 1..N 条目在中英文语言包中齐全且无多余，
+ *    且两侧 N 一致（防「改了 N 忘了补文案」「补了文案忘了抬 N」
+ *    以及「一侧抬了另一侧没跟」三类漂移）；
  * 5. 校验侧边栏专属目录下的源文件都被扫描清单认领、且清单不指向已不存在的
  *    文件（防「清单漏登记 → 该文件的 key 永不校验」这种静默失效）。
  */
@@ -88,10 +89,16 @@ const SIDEPANEL_GRAPH_FILES = [
 /**
  * HelpDialog 懒加载 chunk 源文件（可用命名空间 = sidepanel bundle + help）
  *
- * ShortcutKeyCap 是 HelpDialog 的子组件，随同一 chunk 落地。它当前不调用 t()
- * （文案一律由调用方翻译后经 props 传入），纳入扫描是为了防止后续回归。
+ * ShortcutKeyCap 与 HelpGroupIcon 是 HelpDialog 的子组件，随同一 chunk 落地。两者当前都
+ * 不调用 t()（键帽文案由调用方翻译后经 props 传入，图标组更是刻意零 i18n），
+ * 纳入扫描是为了防止后续回归。RichText 是共用的文案渲染层，同批登记。
  */
-const HELP_DIALOG_FILES = ['components/sidepanel/HelpDialog.vue', 'components/ShortcutKeyCap.vue'];
+const HELP_DIALOG_FILES = [
+  'components/sidepanel/HelpDialog.vue',
+  'components/ShortcutKeyCap.vue',
+  'components/HelpGroupIcon.vue',
+  'components/RichText.vue',
+];
 
 /**
  * QuickAdd 懒加载 chunk 源文件（可用命名空间 = sidepanel + form）
@@ -136,6 +143,18 @@ const IDENTITY_GRAPH_FILES = [
  */
 const ONBOARDING_GRAPH_FILES = ['components/options/OnboardingTour.vue', 'composables/useOnboardingTour.ts'];
 
+/**
+ * 页内使用指引（GuideView）依赖图源文件
+ *
+ * 与新手引导同为 Options 页的 `defineAsyncComponent` 懒加载 chunk，可用命名空间
+ * 即 options bundle（全命名空间）。正文直接复用 `help.*` 词条，所以本文件同时是
+ * `HELP_ITEM_SOURCES` 的成员；章节导航的 label 走 `labelKey` 间接寻址，
+ * 由 `extractI18nKeys` 的第二种形态认领（见该函数注释）。目录清单抽到
+ * `utils/guideNav.ts` 后字面量落在那个文件，故两处都在依赖图内——
+ * 漏登记等于这七个章节 label 从此不再被校验。
+ */
+const GUIDE_GRAPH_FILES = ['components/options/GuideView.vue', 'utils/guideNav.ts'];
+
 /** 读取指定语言的某命名空间语言包 */
 function readNamespace(locale: (typeof LOCALES)[number], ns: string): Record<string, string> {
   return JSON.parse(readFileSync(path.join(LOCALES_DIR, locale, `${ns}.json`), 'utf-8'));
@@ -151,14 +170,28 @@ function listNamespaces(locale: (typeof LOCALES)[number]): string[] {
 
 /**
  * 从源码中提取静态 t('key') / t("key") 调用的 key
+ *
  * 前置断言排除 setAttribute('style' 等误匹配；模板字符串动态 key
- * （如 HelpDialog 的 t(`${prefix}.${i}`)）由「整命名空间注册」策略覆盖，无需提取
+ * （如 HelpDialog 的 t(`${prefix}.${i}`)）由「整命名空间注册」策略覆盖，无需提取。
+ *
+ * 另认两种「先声明 key、再 t(变量)」的间接寻址形态（GuideView 的章节导航与产品要点）：
+ * `labelKey: 'x.y.z'` 与 `const *_KEYS = ['x.y.z', ...]`。形态必须点名，
+ * 因为 `helpItems('help.gs', 11)` 里的前缀同样是 `命名空间.xxx` 形状的字符串字面量，
+ * 泛化地扫「像 key 的字符串」会把它当成 key 而误报。
  */
 function extractI18nKeys(filePath: string): string[] {
   const source = readFileSync(path.join(ROOT, filePath), 'utf-8');
   const keys: string[] = [];
   for (const match of source.matchAll(/(?<![\w$.])t\(\s*['"]([a-zA-Z0-9_.]+)['"]/g)) {
     keys.push(match[1]);
+  }
+  for (const match of source.matchAll(/\blabelKey:\s*['"]([a-zA-Z0-9_.]+)['"]/g)) {
+    keys.push(match[1]);
+  }
+  for (const block of source.matchAll(/const\s+[A-Za-z0-9_]*KEYS[A-Za-z0-9_]*\s*=\s*\[([^\]]*)\]/g)) {
+    for (const match of block[1].matchAll(/['"]([a-zA-Z0-9_.]+)['"]/g)) {
+      keys.push(match[1]);
+    }
   }
   return keys;
 }
@@ -265,6 +298,15 @@ describe('入口 bundle key 覆盖率（静态扫描源码）', () => {
       }
     }
   });
+
+  it('页内使用指引依赖图使用的 key 全部在 options bundle 内', () => {
+    const bundleKeys = collectBundleKeys(BUNDLE_NAMESPACES.options);
+    for (const file of GUIDE_GRAPH_FILES) {
+      for (const key of extractI18nKeys(file)) {
+        expect(bundleKeys.has(key), `${file} 使用的 key「${key}」未被 options bundle 覆盖`).toBe(true);
+      }
+    }
+  });
 });
 
 /**
@@ -300,7 +342,7 @@ describe('侧边栏扫描清单认领完整性', () => {
     ).toEqual([]);
   });
 
-  it('六份清单里的每个文件都真实存在', () => {
+  it('七份清单里的每个文件都真实存在', () => {
     const listed = [
       ...SIDEPANEL_GRAPH_FILES,
       ...HELP_DIALOG_FILES,
@@ -308,39 +350,57 @@ describe('侧边栏扫描清单认领完整性', () => {
       ...POPUP_GRAPH_FILES,
       ...IDENTITY_GRAPH_FILES,
       ...ONBOARDING_GRAPH_FILES,
+      ...GUIDE_GRAPH_FILES,
     ];
     const missing = listed.filter(file => !existsSync(path.join(ROOT, file)));
     expect(missing, `扫描清单指向不存在的文件（重命名或删除后未同步）: ${missing.join(', ')}`).toEqual([]);
   });
 });
 
-/** HelpDialog 的分组条目由 helpItems(prefix, N) 按 1..N 序号渲染，无空值兼容 */
-const HELP_DIALOG_SOURCE = 'components/sidepanel/HelpDialog.vue';
+/**
+ * 以 `helpItems(prefix, N)` 序号驱动渲染 help 词条的源文件
+ *
+ * 两处共用同一份 `help.json`（侧边栏帮助弹窗、Options 页内使用指引），
+ * 因此条目数必须同时与语言包对齐、且两侧互相一致——只对齐语言包会放过
+ * 「一侧抬了 N、另一侧忘了」这种「同文案不同呈现」的漂移。
+ */
+const HELP_ITEM_SOURCES = ['components/sidepanel/HelpDialog.vue', 'components/options/GuideView.vue'];
 
-describe('HelpDialog 序号驱动的条目数与语言包对齐', () => {
+describe('helpItems 序号驱动的条目数与语言包对齐', () => {
   it('每个 helpItems 前缀的 1..N 在中英文语言包中齐全且无多余', () => {
-    const source = readFileSync(path.join(ROOT, HELP_DIALOG_SOURCE), 'utf-8');
-    const calls = [...source.matchAll(/helpItems\(\s*'([a-zA-Z0-9_.]+)'\s*,\s*(\d+)\s*\)/g)].map(m => ({
-      prefix: m[1],
-      count: Number(m[2]),
-    }));
-    // 扫不到调用说明模板已重构、本守卫失效，必须显式提醒而非静默通过
-    expect(calls.length, '未从 HelpDialog.vue 扫描到 helpItems 调用，请检查正则').toBeGreaterThan(0);
+    const countsByPrefix = new Map<string, Set<string>>();
+    for (const sourceFile of HELP_ITEM_SOURCES) {
+      const source = readFileSync(path.join(ROOT, sourceFile), 'utf-8');
+      const calls = [...source.matchAll(/helpItems\(\s*'([a-zA-Z0-9_.]+)'\s*,\s*(\d+)\s*\)/g)].map(m => ({
+        prefix: m[1],
+        count: m[2],
+      }));
+      // 扫不到调用说明模板已重构、本守卫失效，必须显式提醒而非静默通过
+      expect(calls.length, `未从 ${sourceFile} 扫描到 helpItems 调用，请检查正则`).toBeGreaterThan(0);
 
-    for (const { prefix, count } of calls) {
-      // 前缀含 `.`，拼正则前必须转义，否则 `help.gs` 会当作 `helpXgs` 匹配
-      const numberedPattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.\\d+$`);
-      for (const locale of LOCALES) {
-        const keys = Object.keys(readNamespace(locale, 'help'));
-        for (let i = 1; i <= count; i++) {
-          expect(keys.includes(`${prefix}.${i}`), `${locale} 缺少 ${prefix}.${i}，弹窗会渲染出裸 key`).toBe(true);
+      for (const { prefix, count } of calls) {
+        countsByPrefix.set(prefix, (countsByPrefix.get(prefix) ?? new Set()).add(count));
+        // 前缀含 `.`，拼正则前必须转义，否则 `help.gs` 会当作 `helpXgs` 匹配
+        const numberedPattern = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.\\d+$`);
+        for (const locale of LOCALES) {
+          const keys = Object.keys(readNamespace(locale, 'help'));
+          for (let i = 1; i <= Number(count); i++) {
+            expect(keys.includes(`${prefix}.${i}`), `${locale} 缺少 ${prefix}.${i}，弹窗会渲染出裸 key`).toBe(true);
+          }
+          const numbered = keys.filter(k => numberedPattern.test(k));
+          expect(
+            numbered.length,
+            `${locale} 的 ${prefix} 实有 ${numbered.length} 条编号文案，但 ${sourceFile} 只渲染 ${count} 条`,
+          ).toBe(Number(count));
         }
-        const numbered = keys.filter(k => numberedPattern.test(k));
-        expect(
-          numbered.length,
-          `${locale} 的 ${prefix} 实有 ${numbered.length} 条编号文案，但 HelpDialog 只渲染 ${count} 条`,
-        ).toBe(count);
       }
+    }
+
+    for (const [prefix, counts] of countsByPrefix) {
+      expect(
+        [...counts],
+        `${prefix} 在不同渲染面的条目数不一致（${[...counts].join(' / ')}），两处内容会各说一套`,
+      ).toHaveLength(1);
     }
   });
 });

@@ -130,15 +130,30 @@ Add a site rule for that domain: your own CSS selectors for the username and pas
 - [Pricing (machine-readable)](https://liaolongdong.github.io/account-password-helper/pricing.md)
 - [Alternatives Comparison (中文)](https://liaolongdong.github.io/account-password-helper/compare.html) — Bitwarden / 1Password / Chrome 自带替代方案十维度事实对比
 - [Alternatives Comparison (English)](https://liaolongdong.github.io/account-password-helper/compare.en.html) — Bitwarden alternative, 1Password alternative and Chrome built-in compared across 10 dimensions
+- [Privacy Policy (中文)](https://liaolongdong.github.io/account-password-helper/privacy.html) — 逐条列明存什么、存在哪、哪些字段加密、以及仅有的两类外联请求（商店可达性探测 + 每 6 小时匿名版本检查），不含任何用户数据
+- [Privacy Policy (English)](https://liaolongdong.github.io/account-password-helper/privacy.en.html) — the same policy in English: what is stored, where, which fields are encrypted per field, and the only two outbound requests the extension ever makes
 - [Architecture & Implementation Details](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.md)
 - [Contributing Guide](https://github.com/liaolongdong/account-password-helper/blob/main/docs/CONTRIBUTING.md)
 - [Changelog](https://github.com/liaolongdong/account-password-helper/blob/main/CHANGELOG.md)
+
+## Optional
+
+Deep-dive pages — skip them for a summary, read them when a question needs the mechanism, the numbers or the trade-offs behind a claim above.
+
+- [Blog 01 · Why a local-first password manager](https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html) — 产品立场：为什么不做云端同步、不接第三方服务，开源与可审计在这里意味着什么
+- [Blog 02 · Sub-second MV3 side panel](https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html) — Service Worker 保活（20s 心跳 + 0.5min 复活闹钟）、资源预热与三路竞速取数的完整实现笔记，含冷启动白屏的排查路径
+- [Blog 03 · Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html) — PBKDF2 600,000 次迭代 + AES-256-GCM 逐字段加密的落地细节：密钥包装、会话密钥材料销毁、`.aph` 加密备份格式
+- [Blog 04 · Four features, four notes](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html) — 右键填充、全站搜索、快速添加与只读详情抽屉四段实现笔记
+- [Blog 05 · Cross-subdomain matching tiers](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html) — 三档匹配判据（精确主机名 / 通配条目 / 同主域回退）如何实现，以及 `localhost` 端口为何恒隔离
+- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all five posts in Chinese; the English set is at `blog/index.en.html`
+- [Architecture (English)](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.en.md) — module breakdown, message protocol, storage and crypto boundaries, cross-entry data flow
+- [README (English)](https://github.com/liaolongdong/account-password-helper/blob/main/README.en.md) — install, usage, feature table and screenshots for the English-speaking reader
 
 ## More by this author
 
 The same author builds open-source, offline-first Chrome extensions where data stays on your machine.
 
-- [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — 14 file formats converted to each other entirely in the browser, without uploading a byte: Markdown, Word, PDF, Excel, CSV, JSON, HTML and images, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/)
+- [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — 14 file formats converted to each other entirely in the browser, without uploading a byte: Markdown, Word, PDF, Excel, CSV, JSON, HTML and images, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/) · [Chrome Web Store](https://chromewebstore.google.com/detail/blkdmpkcaceicinkhindniepbbbaekkb)
 - [Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy) — proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket, all configured in the browser. This extension covers "who am I in this environment", that one covers "where this environment's requests go". [Product page](https://liaolongdong.github.io/cross-origin-proxy/en.html) · [Chrome Web Store](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
 - [Author page](https://github.com/liaolongdong)
 

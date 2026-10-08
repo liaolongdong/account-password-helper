@@ -3,12 +3,10 @@ title: 零云端、开源、为开发者而生：我从零做了一款浏览器�
 description: 为什么在 Bitwarden、1Password 之外还需要一款本地优先的密码管理器？本文讲述 Account Password Helper 的产品动机、核心设计与安全模型。
 tags: 密码管理器,浏览器扩展,开源项目,Chrome扩展,本地优先
 date: 2026-08-28
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---
-
-# 零云端、开源、为开发者而生：我从零做了一款浏览器密码管理器
 
 ![Account Password Helper 核心价值一览](imgs/01-infographic-core-value.png)
 

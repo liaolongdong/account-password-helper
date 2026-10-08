@@ -7,14 +7,38 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice' | Account Password Helper</title>
+    <title>Web Crypto for a Real Password Manager | Account Password Helper</title>
     <meta
       name="description"
-      content="No crypto libraries, just the browser-native Web Crypto API. How Account Password Helper implements an auditable encryption system — key derivation, field-level encryption, session lifecycle, and atomic re-keying."
+      content="No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying."
     />
     <meta
       name="author"
       content="liaolongdong"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="https://liaolongdong.github.io/account-password-helper/assets/icons/icon.svg"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
     />
     <link
       rel="canonical"
@@ -40,12 +64,16 @@
       content="article"
     />
     <meta
+      property="og:locale"
+      content="en_US"
+    />
+    <meta
       property="og:title"
-      content="'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice'"
+      content="Web Crypto for a Real Password Manager"
     />
     <meta
       property="og:description"
-      content="No crypto libraries, just the browser-native Web Crypto API. How Account Password Helper implements an auditable encryption system — key derivation, field-level encryption, session lifecycle, and atomic re-keying."
+      content="No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying."
     />
     <meta
       property="og:url"
@@ -65,7 +93,7 @@
     />
     <meta
       property="article:modified_time"
-      content="2026-09-30"
+      content="2026-10-02"
     />
     <meta
       name="twitter:card"
@@ -73,11 +101,11 @@
     />
     <meta
       name="twitter:title"
-      content="'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice'"
+      content="Web Crypto for a Real Password Manager"
     />
     <meta
       name="twitter:description"
-      content="No crypto libraries, just the browser-native Web Crypto API. How Account Password Helper implements an auditable encryption system — key derivation, field-level encryption, session lifecycle, and atomic re-keying."
+      content="No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying."
     />
     <meta
       name="twitter:image"
@@ -87,12 +115,12 @@
 {
   "@context": "https://schema.org",
   "@type": "BlogPosting",
-  "headline": "'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice'",
-  "description": "No crypto libraries, just the browser-native Web Crypto API. How Account Password Helper implements an auditable encryption system — key derivation, field-level encryption, session lifecycle, and atomic re-keying.",
+  "headline": "Web Crypto for a Real Password Manager",
+  "description": "No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying.",
   "inLanguage": "en",
   "image": "https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png",
   "datePublished": "2026-08-28",
-  "dateModified": "2026-09-30",
+  "dateModified": "2026-10-02",
   "author": {
     "@type": "Person",
     "name": "liaolongdong"
@@ -104,14 +132,58 @@
   }
 }
     </script>
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "Account Password Helper",
+      "item": "https://liaolongdong.github.io/account-password-helper/en.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "Blog",
+      "item": "https://liaolongdong.github.io/account-password-helper/blog/index.en.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": "Web Crypto for a Real Password Manager",
+      "item": "https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html"
+    }
+  ]
+}
+    </script>
     <style>
       :root {
+        color-scheme: light dark;
         --bg: #f7f9fc;
         --card: #ffffff;
         --text: #1f2937;
         --muted: #6b7280;
         --accent: #4e88ff;
+        /* 强调色「作文字用」的那一档：--accent 是实底徽标与描边的组合色，暗档不能抬亮它，
+           所以下方那三处 color: var(--accent-ink) 的声明走它，取值同落地页的 --primary-ink。 */
+        --accent-ink: #3566cb;
         --border: #e5e9f0;
+        --code: #eef2f7;
+      }
+      /* 暗色档与官网落地页同源（批2-A）：只翻令牌，不动组件规则。
+         pre 代码块两档都保持深色，所以不在此列。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --card: #141f33;
+          --text: #e6edf7;
+          --muted: #9aa8bd;
+          --accent-ink: #7ea6ff;
+          --border: #263349;
+          --code: #1e2a3f;
+        }
       }
       * {
         box-sizing: border-box;
@@ -142,7 +214,7 @@
       }
       .topbar a {
         font-size: 14px;
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
       .topbar .spacer {
@@ -180,7 +252,7 @@
         margin: 14px 0;
       }
       a {
-        color: var(--accent);
+        color: var(--accent-ink);
       }
       ul,
       ol {
@@ -200,7 +272,7 @@
       code {
         padding: 2px 6px;
         font-size: 0.9em;
-        background: #eef2f7;
+        background: var(--code);
         border-radius: 4px;
       }
       pre {
@@ -228,8 +300,11 @@
         color: var(--muted);
         text-align: center;
       }
+      .footer p {
+        margin: 6px 0;
+      }
       .footer a {
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
     </style>
@@ -241,11 +316,10 @@
       <a href="https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html">中文</a>
     </nav>
     <article>
-      <h1>'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice'</h1>
-      <p class="meta">2026-08-28 · Updated 2026-09-30 · liaolongdong</p>
-      <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png" alt="'Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice'" />
-      <h1>Password-Manager-Grade Encryption with Web Crypto: PBKDF2 at 600,000 Iterations + AES-256-GCM in Practice</h1>
-<p><img src="https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.png" alt="From master password to ciphertext: the full encryption pipeline"></p>
+      <h1>Web Crypto for a Real Password Manager</h1>
+      <p class="meta">2026-08-28 · Updated 2026-10-02 · liaolongdong</p>
+      <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png" alt="Web Crypto for a Real Password Manager" />
+      <p><img src="https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.png" alt="From master password to ciphertext: the full encryption pipeline"></p>
 <p>When building the encryption module for a password manager, the instinct is to pull in a crypto library. But if you&#39;re building a browser extension, there&#39;s a better option: <strong>import nothing, and build directly on the browser-native Web Crypto API</strong>.</p>
 <p><a href="https://github.com/liaolongdong/account-password-helper">Account Password Helper</a> is a zero-cloud, local-first password manager extension. Its encryption module (<code>utils/encryption.ts</code>) is built entirely on Web Crypto — not a single line of third-party crypto code. This post breaks down the full design: why these choices, how each parameter was set, and the edge cases that are easy to miss.</p>
 <h2>Why Web Crypto Instead of a Library</h2>
@@ -299,6 +373,10 @@
 <p><em>Key files referenced: <code>utils/encryption.ts</code> (crypto core), <code>utils/sessionManager.ts</code> (session management), <code>tests/</code> (2041 automated tests, including encryption and re-key paths).</em></p>
 
     </article>
-    <footer class="footer">Account Password Helper · <a href="https://liaolongdong.github.io/account-password-helper/en.html">Website</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a></footer>
+    <footer class="footer">
+      <p>Account Password Helper · Open source (GPL-3.0)</p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a></p>
+      <p>Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a></p>
+    </footer>
   </body>
 </html>

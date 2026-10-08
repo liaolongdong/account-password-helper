@@ -1,14 +1,12 @@
 ---
-title: 'Zero Cloud, Open Source, Built for Developers: Why I Built Another Browser Password Manager'
-description: Why does the world need another password manager? The case for a local-first, open-source tool built around multi-environment logins, one-click sign-in, and zero network trust.
+title: Why I Built a Local-First Password Manager
+description: A local-first, open-source Chrome password manager for developers juggling dev, test, staging and prod accounts. No account, no sync server, no cloud trust.
 tags: password manager,browser extension,open source,chrome extension,local-first
 date: 2026-08-28
-modified: 2026-09-30
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---
-
-# Zero Cloud, Open Source, Built for Developers: Why I Built Another Browser Password Manager
 
 ![Account Password Helper core value overview](imgs/01-infographic-core-value.png)
 

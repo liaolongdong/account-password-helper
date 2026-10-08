@@ -2,7 +2,7 @@
  * TOTP / 两步验证码工具（RFC 6238 / RFC 4226）
  *
  * 纯本地实现：动态码由 Web Crypto HMAC 在本地计算，不产生任何网络请求，
- * 契合插件「密码绝不出浏览器」的零网络定位。
+ * 契合插件「密码数据不出本机」的本地优先定位。
  *
  * 支持两种密钥输入形式：
  * - `otpauth://totp/<label>?secret=..&algorithm=..&digits=..&period=..` 标准 URI

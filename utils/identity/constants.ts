@@ -52,12 +52,16 @@ export const CATEGORY_ORDER = [
  *
  * `updated` 排第一是刻意保持既有行为：改造前列表写死「最近修改倒序」，
  * 默认档不变，用户第一次打开不会发现顺序莫名变了。
+ *
+ * `manual` 追加在末位：它是唯一需要「额外落盘一份顺序数组」的档位，
+ * 放在末尾既不改变旧用户看到的默认序，也不挤占前四档的下排位置。
  */
 export const IDENTITY_SORT_MODES = [
   'updated',
   'created',
   'category',
   'title',
+  'manual',
 ] as const satisfies readonly IdentitySortMode[];
 
 /** 默认排序档（最近修改倒序，与改造前写死的顺序一致） */

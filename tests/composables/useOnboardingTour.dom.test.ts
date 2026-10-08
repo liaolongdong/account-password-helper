@@ -10,7 +10,9 @@
  *   `ResizeObserver` 回传值——三者任一接错，落点就会飘到屏幕外；
  * - 键盘三键（← / → / Esc）在激活与未激活、可编辑目标与非可编辑目标之间的接管边界；
  * - 监听器随开随关、scope 销毁后不残留（SW 之外的页面同样会因组件复用泄漏监听）；
- * - 结束时只落 `{ seen, outcome, finishedAt }` 三个标记位。
+ * - 结束时只落 `{ seen, outcome, finishedAt }` 三个标记位；
+ * - 「打开侧边栏」那一步发出去的 `SHOW_SIDEPANEL` 请求形状，以及三种失败来源如何被
+ *   收成同一个兜底态（卡内按钮换成快捷键提示的开关就靠它）。
  *
  * jsdom 没有真实布局，`getBoundingClientRect()` 与 `offsetHeight` 恒为 0，
  * 因此复用 `tests/helpers/domLayout.ts` 的登记表装置；它同时提供手动 rAF 队列，
@@ -21,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { effectScope, nextTick } from 'vue';
 import { installDomLayout, type DomLayout } from '../helpers/domLayout';
 import { SPOT_PADDING, TOUR_STEPS } from '@/utils/onboardingTour';
+import { MessageType } from '@/utils/types';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { useOnboardingTour, type OnboardingTourApi } from '@/composables/useOnboardingTour';
 
@@ -109,11 +112,15 @@ function press(key: string, target: EventTarget = window): KeyboardEvent {
 let store: Record<string, unknown>;
 let layout: DomLayout;
 let scrollSpy: Mock<(arg?: boolean | ScrollIntoViewOptions) => void>;
+/** `chrome.runtime.sendMessage` 桩：`sidepanel` 步卡内那颗按钮走这条通道 */
+let sendMessage: Mock<(message: unknown) => Promise<unknown>>;
 
 beforeEach(() => {
   store = {};
   FakeResizeObserver.created = [];
+  sendMessage = vi.fn(async () => ({ success: true }));
   vi.stubGlobal('chrome', {
+    runtime: { sendMessage },
     storage: {
       local: {
         get: vi.fn(async (key: string) => (key in store ? { [key]: store[key] } : {})),
@@ -146,7 +153,7 @@ describe('锚点查询与剧本裁剪', () => {
     const { tour, dispose } = mountTour();
 
     expect(await tour.start()).toBe(true);
-    expect(tour.steps.value.map(step => step.id)).toEqual(['welcome', 'add', 'search', 'health']);
+    expect(tour.steps.value.map(step => step.id)).toEqual(['welcome', 'add', 'sidepanel', 'search', 'health']);
     dispose();
   });
 
@@ -166,12 +173,13 @@ describe('锚点查询与剧本裁剪', () => {
     withSearch.dispose();
   });
 
-  it('欢迎步无锚点，恒在剧本首位（锚点全缺时也能打开，不摆空弹窗）', async () => {
+  it('两个无锚点步恒在剧本里（锚点全缺时也能打开，不摆空弹窗）', async () => {
     buildPage([]);
     const { tour, dispose } = mountTour();
 
     expect(await tour.start()).toBe(true);
-    expect(tour.steps.value.map(step => step.id)).toEqual(['welcome']);
+    // `sidepanel` 指的是侧边栏本身，不在本页 DOM 里，因此它和欢迎步一样不依赖锚点
+    expect(tour.steps.value.map(step => step.id)).toEqual(['welcome', 'sidepanel']);
     expect(tour.spot.value).toBeNull();
     expect(tour.placement.value).toEqual({ side: 'center', top: 0, left: 0 });
     dispose();
@@ -358,6 +366,75 @@ describe('键盘接管', () => {
     press('ArrowRight');
     press('Escape');
     expect((chrome.storage.local.set as ReturnType<typeof vi.fn>).mock.calls.length).toBe(writesBefore);
+    dispose();
+  });
+});
+
+describe('sidepanel 步的卡内动作', () => {
+  /** `SHOW_SIDEPANEL` 请求体里本文件关心的那部分 */
+  interface SentRequest {
+    type?: string;
+    data?: { trigger?: string; clickTs?: number };
+  }
+
+  /** 取第一次 sendMessage 的请求体（未调用时为空对象，让断言直接变红而不是报 undefined） */
+  function sentRequest(): SentRequest {
+    return (sendMessage.mock.calls[0]?.[0] ?? {}) as SentRequest;
+  }
+
+  it('走既有 SHOW_SIDEPANEL 通道，trigger 单列为 tour、clickTs 是点击时刻', async () => {
+    buildPage(['add']);
+    const { tour, dispose } = mountTour();
+    await tour.start({ startId: 'sidepanel' });
+    expect(tour.currentStep.value?.id).toBe('sidepanel');
+
+    await tour.openSidePanel();
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sentRequest().type).toBe(MessageType.SHOW_SIDEPANEL);
+    expect(sentRequest().data?.trigger).toBe('tour');
+    expect(sentRequest().data?.clickTs).toBeTypeOf('number');
+    expect(tour.sidepanelFallback.value).toBe(false);
+    dispose();
+  });
+
+  it('后台回 success=false（无 sidePanel API / 拿不到 tabId）时切到快捷键兜底态', async () => {
+    sendMessage.mockResolvedValue({ success: false, error: '当前Chrome版本不支持sidePanel API' });
+    buildPage(['add']);
+    const { tour, dispose } = mountTour();
+    await tour.start({ startId: 'sidepanel' });
+
+    await tour.openSidePanel();
+
+    expect(tour.sidepanelFallback.value).toBe(true);
+    dispose();
+  });
+
+  it('消息通道本身抛错同样降级：不外抛、不静默', async () => {
+    sendMessage.mockRejectedValue(new Error('Extension context invalidated'));
+    buildPage(['add']);
+    const { tour, dispose } = mountTour();
+    await tour.start({ startId: 'sidepanel' });
+
+    await expect(tour.openSidePanel()).resolves.toBeUndefined();
+
+    expect(tour.sidepanelFallback.value).toBe(true);
+    dispose();
+  });
+
+  it('兜底态只活在本次引导会话里：重开归零，不让下次管理页先显示一句快捷键提示', async () => {
+    buildPage(['add']);
+    const { tour, dispose } = mountTour();
+    await tour.start({ startId: 'sidepanel' });
+    sendMessage.mockResolvedValue({ success: false, error: 'boom' });
+    await tour.openSidePanel();
+    expect(tour.sidepanelFallback.value).toBe(true);
+
+    await tour.finish();
+    sendMessage.mockResolvedValue({ success: true });
+    await tour.start({ startId: 'sidepanel' });
+
+    expect(tour.sidepanelFallback.value).toBe(false);
     dispose();
   });
 });

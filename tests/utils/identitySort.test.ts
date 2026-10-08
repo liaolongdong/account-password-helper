@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { sortIdentityEntries } from '@/utils/identity/sort';
+import {
+  MANUAL_ORDER_UNRANKED,
+  applyManualMove,
+  normalizeManualOrder,
+  sortIdentityEntries,
+} from '@/utils/identity/sort';
 import {
   CATEGORY_ORDER,
   DEFAULT_IDENTITY_SORT_MODE,
@@ -15,13 +20,14 @@ const ROOT = path.resolve(__dirname, '../..');
 /**
  * 身份库列表排序纯函数测试（node 环境，无需 DOM）
  *
- * 锁定五件事，这些都是「顺手改比较器 / 顺手加档位」最容易悄悄破坏的：
+ * 锁定六件事，这些都是「顺手改比较器 / 顺手加档位」最容易悄悄破坏的：
  * 1. 默认档与改造前写死的 updateTime 倒序逐位一致（旧行为不漂移）；
  * 2. 永不原地重排——`rows` 是 shallowRef 里的同一份数组，就地 sort 会连带改掉导出次序；
  * 3. 结果与输入顺序无关（同档兜底必须走到 id），否则两次 load 之间顺序会漂；
  * 4. 类别档序取 CATEGORY_ORDER 而非界面译名，切语言不该把顺序换一遍；标题档则**必须**跟随 locale；
  * 5. 下拉靠动态键 `identity.sort.<mode>` 取词，静态扫描提不到它，只能在这里对语言包做双向校验
- *    （与 `onboardingTour.test.ts` 对剧本动态键的同一手法）。
+ *    （与 `onboardingTour.test.ts` 对剧本动态键的同一手法）；
+ * 6. `manual` 档只认注入的序位：未登记的 id 落末尾而不是消失，过滤态的重排也只动可见子集。
  */
 
 function entry(
@@ -37,22 +43,28 @@ function entry(
   };
 }
 
-/** 标题档的最简上下文：标题即 name，语言固定中文（比较器不该关心 i18n 取词） */
-const ctx = { titleOf: (e: IdentityEntry) => e.payload.name ?? '', locale: 'zh-CN' };
+/** 标题档的最简上下文：标题即 name，语言固定中文（比较器不该关心 i18n 取词）、手排序位恒缺省 */
+const ctx = {
+  titleOf: (e: IdentityEntry) => e.payload.name ?? '',
+  locale: 'zh-CN',
+  orderIndexOf: () => MANUAL_ORDER_UNRANKED,
+};
 
 const ids = (list: IdentityEntry[]) => list.map(e => e.id);
 
 describe('档位口径', () => {
   it('默认档 = updated，且下拉顺序与档位集合以此处为单一事实来源', () => {
     expect(DEFAULT_IDENTITY_SORT_MODE).toBe('updated');
-    expect(IDENTITY_SORT_MODES).toEqual(['updated', 'created', 'category', 'title']);
+    // 这条 toEqual 是「档位集合单一真源」的守卫本体：加一档必须同时改这里，
+    // 目的是让「顺手加档」在评审里显形，而不是能悄悄飘过去。
+    expect(IDENTITY_SORT_MODES).toEqual(['updated', 'created', 'category', 'title', 'manual']);
   });
 
-  it('白名单判据只认四档，其它形状一律回落（供存储层读写两侧使用）', () => {
+  it('白名单判据只认五档，其它形状一律回落（供存储层读写两侧使用）', () => {
     for (const mode of IDENTITY_SORT_MODES) {
       expect(isIdentitySortMode(mode)).toBe(true);
     }
-    for (const junk of ['updatedAt', '', 'TITLE', 1, null, undefined, {}, ['title']]) {
+    for (const junk of ['updatedAt', '', 'TITLE', 'manual_order', 1, null, undefined, {}, ['title']]) {
       expect(isIdentitySortMode(junk)).toBe(false);
     }
   });
@@ -133,6 +145,113 @@ describe('title', () => {
   it('同名靠时间倒序兜底，空标题不参与比较也不抛错', () => {
     const list = [entry('a', { name: '', updateTime: 1 }), entry('b', { name: '', updateTime: 2 })];
     expect(ids(sortIdentityEntries(list, ctx, 'title'))).toEqual(['b', 'a']);
+  });
+});
+
+describe('manual（手排档）', () => {
+  /** 序位上下文：数组下标即序位，不在数组里的一律取哨兵值（与 composable 的注入同一形状） */
+  const rankCtx = (order: readonly string[]) => {
+    const map = new Map(order.map((id, index) => [id, index]));
+    return { ...ctx, orderIndexOf: (id: string) => map.get(id) ?? MANUAL_ORDER_UNRANKED };
+  };
+
+  it('只认注入的序位，时间与标题一律不参与', () => {
+    const list = [
+      entry('a', { name: 'A', updateTime: 300 }),
+      entry('b', { name: 'B', updateTime: 100 }),
+      entry('c', { name: 'C', updateTime: 200 }),
+    ];
+    expect(ids(sortIdentityEntries(list, rankCtx(['c', 'a', 'b']), 'manual'))).toEqual(['c', 'a', 'b']);
+    // 反过来给序位 → 结果整体反转：证明这一档真的在读 ctx，而不是落到别的档的兜底分支
+    expect(ids(sortIdentityEntries(list, rankCtx(['b', 'a', 'c']), 'manual'))).toEqual(['b', 'a', 'c']);
+  });
+
+  it('未登记的 id（新建 / 导入）落到末尾且不消失，尾部按时间倒序安定排列', () => {
+    const list = [
+      entry('pinned', { name: 'P', updateTime: 1 }),
+      entry('fresh1', { name: 'F1', updateTime: 100 }),
+      entry('fresh2', { name: 'F2', updateTime: 300 }),
+    ];
+    expect(ids(sortIdentityEntries(list, rankCtx(['pinned']), 'manual'))).toEqual(['pinned', 'fresh2', 'fresh1']);
+    // 完全没排过序（存储回落空数组）：整表退化为 tieBreak 的更新时间倒序，一条都不该少
+    expect(ids(sortIdentityEntries(list, ctx, 'manual'))).toEqual(['fresh2', 'fresh1', 'pinned']);
+  });
+
+  it('结果与输入顺序无关（同一份序位两次 load 给出同一序列）', () => {
+    const order = ['x', 'y'];
+    const a = entry('x', { name: 'X', updateTime: 5 });
+    const b = entry('y', { name: 'Y', updateTime: 5 });
+    expect(ids(sortIdentityEntries([a, b], rankCtx(order), 'manual'))).toEqual(['x', 'y']);
+    expect(ids(sortIdentityEntries([b, a], rankCtx(order), 'manual'))).toEqual(['x', 'y']);
+  });
+});
+
+describe('normalizeManualOrder（落盘顺序与现存条目对齐）', () => {
+  it('剪掉已删除的 id，保持其余相对次序', () => {
+    expect(normalizeManualOrder(['a', 'gone', 'b', 'alsoGone'], ['a', 'b', 'c'])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('新出现的 id（新建 / 导入）按传入顺序追加尾部', () => {
+    expect(normalizeManualOrder([], ['c', 'a', 'b'])).toEqual(['c', 'a', 'b']);
+    expect(normalizeManualOrder(['a'], ['b', 'c', 'a'])).toEqual(['a', 'b', 'c']);
+  });
+
+  it('stored 里的重复 id 去重（写入侧第二道闸门）', () => {
+    expect(normalizeManualOrder(['a', 'a', 'b', 'a'], ['a', 'b'])).toEqual(['a', 'b']);
+  });
+
+  it('两侧都空返回空数组，不改动入参', () => {
+    const stored = ['a', 'b'];
+    expect(normalizeManualOrder(stored, [])).toEqual([]);
+    expect(stored).toEqual(['a', 'b']);
+  });
+});
+
+describe('applyManualMove（过滤态只在可见子集内换位）', () => {
+  it('无过滤：插到目标卡之前 / 之后都按预期给出新序与落点下标', () => {
+    const ids1 = ['a', 'b', 'c'];
+    const before = applyManualMove({
+      globalIds: ids1,
+      visibleIds: ids1,
+      draggedId: 'c',
+      targetId: 'a',
+      side: 'before',
+    });
+    expect(before).toEqual({ ids: ['c', 'a', 'b'], index: 0 });
+    const after = applyManualMove({ globalIds: ids1, visibleIds: ids1, draggedId: 'a', targetId: 'c', side: 'after' });
+    expect(after).toEqual({ ids: ['b', 'c', 'a'], index: 2 });
+  });
+
+  it('键盘 Alt+↑ / Alt+↓：与相邻可见卡交换一位', () => {
+    const ids = ['a', 'b', 'c'];
+    expect(
+      applyManualMove({ globalIds: ids, visibleIds: ids, draggedId: 'c', targetId: 'b', side: 'before' })?.ids,
+    ).toEqual(['a', 'c', 'b']);
+    expect(
+      applyManualMove({ globalIds: ids, visibleIds: ids, draggedId: 'a', targetId: 'b', side: 'after' })?.ids,
+    ).toEqual(['b', 'a', 'c']);
+  });
+
+  it('过滤态：隐藏项占据的全局槽位一动不动', () => {
+    // 全局 a, hidden1, b, hidden2, c；只见 a / b / c —— 把 c 提到最前应落在 a 的槽位上，
+    // 两个隐藏项仍在原位（否则取消过滤后它们的顺序会被静默挤到末尾）
+    const globalIds = ['a', 'hidden1', 'b', 'hidden2', 'c'];
+    const moved = applyManualMove({
+      globalIds,
+      visibleIds: ['a', 'b', 'c'],
+      draggedId: 'c',
+      targetId: 'a',
+      side: 'before',
+    });
+    expect(moved).toEqual({ ids: ['c', 'hidden1', 'a', 'hidden2', 'b'], index: 0 });
+  });
+
+  it('原地落回 / id 不在可见列表：返回 null，调用方据此不写盘', () => {
+    const ids = ['a', 'b'];
+    const base = { globalIds: ids, visibleIds: ids };
+    expect(applyManualMove({ ...base, draggedId: 'a', targetId: 'a', side: 'before' })).toBeNull();
+    expect(applyManualMove({ ...base, draggedId: 'ghost', targetId: 'a', side: 'before' })).toBeNull();
+    expect(applyManualMove({ ...base, draggedId: 'a', targetId: 'ghost', side: 'after' })).toBeNull();
   });
 });
 

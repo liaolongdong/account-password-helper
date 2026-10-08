@@ -148,7 +148,7 @@ graph LR
 
 > ⚠️ 跑单个测试文件要用 `pnpm exec vitest run <file>`。`pnpm test:run -- <file>` 里的 `-- <file>` **不会**被转发给 vitest CLI（实测仍会跑完整套测试），因为它不是 `vitest run <file>` 那种位置参数形式。
 
-> ⚠️ `blog/*.html`、`en.html`、`privacy.en.html`、`pricing.en.html`、封面图与 `public/icon/*.png` 都是**生成产物**，禁止手改；请修改其 Markdown / SVG 源文件后执行对应 `gen:*` / `icons:build` / `covers:render` 重新生成。
+> ⚠️ `blog/*.html`、`en.html`、`privacy.en.html`、`pricing.en.html`、封面图、`assets/cws-store/*.png` 与 `public/icon/*.png` 都是**生成产物**，禁止手改；请修改其 Markdown / SVG 源文件后执行对应 `gen:*` / `icons:build` / `covers:render` / `store-creatives:render` 重新生成。
 
 > 📖 图标工作流、测试页面、性能设计等开发细节见 [docs/ARCHITECTURE.md — 开发补充](./ARCHITECTURE.md#开发补充)。
 
@@ -539,7 +539,7 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 
 > ⚠️ To run one test file use `pnpm exec vitest run <file>`. The `-- <file>` in `pnpm test:run -- <file>` is **not** forwarded to the vitest CLI (measured: it still runs all 94 files), because it never becomes a positional `vitest run <file>` argument.
 
-> ⚠️ `blog/*.html`, `en.html`, `privacy.en.html`, `pricing.en.html`, the cover images and `public/icon/*.png` are **generated artifacts** and must never be hand-edited. Change their Markdown / SVG sources, then re-run the matching `gen:*` / `icons:build` / `covers:render` script.
+> ⚠️ `blog/*.html`, `en.html`, `privacy.en.html`, `pricing.en.html`, the cover images, `assets/cws-store/*.png` and `public/icon/*.png` are **generated artifacts** and must never be hand-edited. Change their Markdown / SVG sources, then re-run the matching `gen:*` / `icons:build` / `covers:render` / `store-creatives:render` script.
 
 > 📖 Icon workflow, test page, and performance design details live in [docs/ARCHITECTURE.en.md — Development Extras](./ARCHITECTURE.en.md#development-extras).
 

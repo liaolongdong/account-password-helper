@@ -8,6 +8,10 @@
  *
  * 几何断言全部以常量（SPOT_PADDING / CARD_GAP / VIEWPORT_PADDING / CARD_WIDTH）
  * 为口径写成绝对数值，目的是让「顺手改个间距」必须显式改测试，而不是静默漂移。
+ *
+ * 末尾两个 describe 不在测这个模块，而是守引导的两处跨文件接线（`App.vue` 的 canOpen
+ * 门槛、`OnboardingTour.vue` 的卡内动作按钮）：`.vue` 在本仓库的测试管线里挂不起来，
+ * 这类接线回退又完全静默，只能在源码层钉死。
  */
 import { describe, it, expect, vi } from 'vitest';
 import { readdirSync, readFileSync } from 'fs';
@@ -164,16 +168,34 @@ describe('pickSteps：按锚点存在性裁剪剧本', () => {
     expect(picked.map(step => step.id)).toEqual(TOUR_STEPS.map(step => step.id));
   });
 
-  it('无锚点步（欢迎）永远保留', () => {
+  it('无锚点步（欢迎 + 打开侧边栏）永远保留', () => {
     const picked = pickSteps(TOUR_STEPS, () => false);
-    expect(picked.map(step => step.id)).toEqual(['welcome']);
+    expect(picked.map(step => step.id)).toEqual(['welcome', 'sidepanel']);
   });
 
   it('空库引导卡与搜索栏互斥：只留当下存在的那一条', () => {
     const idsWith = (anchor: string) =>
       pickSteps(TOUR_STEPS, a => (a !== 'empty' && a !== 'search') || a === anchor).map(s => s.id);
-    expect(idsWith('empty')).toEqual(['welcome', 'add', 'empty', 'data', 'settings', 'health', 'personalize']);
-    expect(idsWith('search')).toEqual(['welcome', 'add', 'search', 'data', 'settings', 'health', 'personalize']);
+    expect(idsWith('empty')).toEqual([
+      'welcome',
+      'add',
+      'sidepanel',
+      'empty',
+      'data',
+      'settings',
+      'health',
+      'personalize',
+    ]);
+    expect(idsWith('search')).toEqual([
+      'welcome',
+      'add',
+      'sidepanel',
+      'search',
+      'data',
+      'settings',
+      'health',
+      'personalize',
+    ]);
   });
 
   it('欢迎步不查询锚点，判定函数只被有锚点的步骤调用', () => {
@@ -200,11 +222,23 @@ describe('TOUR_STEPS：剧本自身约束', () => {
     expect(new Set(anchors).size).toBe(anchors.length);
   });
 
-  it('欢迎步是唯一无锚点步，且排在最前并居中', () => {
+  /**
+   * 无锚点步按显式白名单放行，而不是「只许有一个」
+   *
+   * 这条守卫的本意从来是「不许出现来历不明的无锚点步」。`sidepanel` 的无锚点是结构性的：
+   * 侧边栏不在 Options 的 DOM 里，聚光灯圈不到，只能整屏幕布 + 卡内动作按钮。
+   * 白名单写法保留了原来那条的牙——将来再冒出第三个无锚点 id，或者谁把居中偏好改掉，照样变红。
+   */
+  it('无锚点步恰为白名单那两个，都居中、欢迎仍排首位', () => {
     const anchorless = TOUR_STEPS.filter(step => step.anchor === null);
-    expect(anchorless).toHaveLength(1);
-    expect(anchorless[0].prefer).toBe('center');
+    expect(anchorless.map(step => step.id)).toEqual(['welcome', 'sidepanel']);
+    for (const step of anchorless) expect(step.prefer).toBe('center');
     expect(TOUR_STEPS[0].anchor).toBeNull();
+  });
+
+  it('「打开侧边栏」紧跟「先放第一条进去」，存 → 取在同一段里走完', () => {
+    // 位置即承诺：welcome.desc 那句「日常用侧边栏就够了」要在第 3 屏兑现，不是拖到末步
+    expect(TOUR_STEPS.slice(0, 3).map(step => step.id)).toEqual(['welcome', 'add', 'sidepanel']);
   });
 
   it('锚点键名与页面上的 data-tour 契约保持 snake 简洁（无空格与点号）', () => {
@@ -267,7 +301,27 @@ const CHROME_KEYS = [
   'onboarding.progressAria',
   'onboarding.dotCurrent',
   'onboarding.dotJump',
+  'onboarding.docsLead',
+  'onboarding.docsGuide',
+  'onboarding.docsOnline',
 ] as const;
+
+/**
+ * 步骤卡内「title / desc / tip 三件套」之外的附加文案（步骤 id → 键名后缀）
+ *
+ * 目前只有 `sidepanel` 有：卡内那颗动作按钮（`action`）与打开失败后的快捷键提示
+ * （`shortcutHint`）。它们刻意不进 `tourKey()` 的 part 联合类型——组件里写成
+ * `t('onboarding.sidepanel.action')` 这样的字面量，`i18nBundles.test.ts` 的静态扫描
+ * 才提得到；动态拼出来的三件套扫描提不到，才由本文件逐条兜底。两种取词方式各守一头。
+ */
+const STEP_EXTRA_PARTS: Record<string, readonly string[]> = {
+  sidepanel: ['action', 'shortcutHint'],
+};
+
+/** 某步骤的附加文案键名（`onboarding.<id>.<part>`） */
+function extraKeysOf(id: string): string[] {
+  return (STEP_EXTRA_PARTS[id] ?? []).map(part => `onboarding.${id}.${part}`);
+}
 
 describe('TOUR_STEPS 与 onboarding 语言包双向对齐', () => {
   it('每个步骤的 title / desc 在中英文里都非空', () => {
@@ -277,6 +331,23 @@ describe('TOUR_STEPS 与 onboarding 语言包双向对齐', () => {
         for (const part of ['title', 'desc'] as const) {
           const key = tourKey(step.id, part);
           expect(messages[key], `${locale} 缺少 ${key}，引导卡片会渲染裸 key`).toBeTruthy();
+        }
+      }
+    }
+  });
+
+  it('卡内附加文案在中英文里都非空，且登记的步骤 id 真实存在', () => {
+    const ids = new Set(TOUR_STEPS.map(step => step.id));
+    expect(
+      Object.keys(STEP_EXTRA_PARTS).every(id => ids.has(id)),
+      '登记了剧本里没有的步骤',
+    ).toBe(true);
+
+    for (const locale of LOCALES) {
+      const messages = readOnboarding(locale);
+      for (const id of Object.keys(STEP_EXTRA_PARTS)) {
+        for (const key of extraKeysOf(id)) {
+          expect(messages[key], `${locale} 缺少 ${key}，卡内动作按钮会渲染裸 key`).toBeTruthy();
         }
       }
     }
@@ -298,6 +369,7 @@ describe('TOUR_STEPS 与 onboarding 语言包双向对齐', () => {
       stepKeys.add(tourKey(step.id, 'title'));
       stepKeys.add(tourKey(step.id, 'desc'));
       if (step.hasTip) stepKeys.add(tourKey(step.id, 'tip'));
+      for (const key of extraKeysOf(step.id)) stepKeys.add(key);
     }
     const owned = new Set<string>([...stepKeys, ...CHROME_KEYS]);
 
@@ -325,11 +397,84 @@ describe('引导期间的模态独占：命令面板不在幕布下开第二层'
    * 开出一个藏在遮罩下、还在抢焦点的浮层。这种接线回退不报错、类型检查也看不见，
    * 所以在源码层钉死，并配一个负向对照（去掉门槛后判据必须不再命中）。
    */
-  it('App.vue 的 canOpen 同时要求「已认证」与「引导未激活」', () => {
+  it('App.vue 的 canOpen 同时要求「已认证」「引导未激活」与「文档页未打开」', () => {
     const app = readFileSync(path.join(ROOT, 'entrypoints/options/App.vue'), 'utf-8');
-    const gate = /canOpen: \(\) => isAuthenticated\.value && !tour\.isActive\.value,/;
+    const gate = /canOpen: \(\) => isAuthenticated\.value && !tour\.isActive\.value && !guideActive\.value,/;
 
-    expect(gate.test(app), 'App.vue 传给 useCommandPalette 的 canOpen 不再包含引导门槛').toBe(true);
+    expect(gate.test(app), 'App.vue 传给 useCommandPalette 的 canOpen 不再包含引导 / 文档页门槛').toBe(true);
     expect(app.replace('&& !tour.isActive.value', '')).not.toMatch(gate);
+    expect(app.replace('&& !guideActive.value', '')).not.toMatch(gate);
+  });
+});
+
+/**
+ * 「打开侧边栏」这一步的卡内动作接线
+ *
+ * 本仓库的 vitest 管线（`WxtVitest()`）里没有 `@vitejs/plugin-vue`，项目 `.vue` 文件
+ * 既不能 import 也挂载不起来：消息形状、失败降级这些**行为**只能在
+ * `tests/composables/useOnboardingTour.dom.test.ts` 里测；而「模板有没有把那颗按钮接到
+ * 这一步上」属于纯接线，删掉 `v-if`、换掉 `@click` 处理器、动效列表漏一项都不报错也不改
+ * 类型，只能按上面 `canOpen` 那条的先例在文本层钉死。判据一律取「相邻两行」的写法，
+ * 单个选择器换行位置被 prettier 挪动不会误红。
+ */
+describe('卡内动作按钮：接线固定在「打开侧边栏」这一步', () => {
+  const cardSource = readFileSync(path.join(ROOT, 'components/options/OnboardingTour.vue'), 'utf-8');
+
+  it('动作区按步骤 id 收口，其他步骤不渲染', () => {
+    const gate = /v-if="isSidepanelStep"\s+class="tour__action"/;
+    expect(gate.test(cardSource), '动作区不再按步骤 id 收口，会在每一步里常驻').toBe(true);
+    expect(cardSource.replace('v-if="isSidepanelStep"', 'v-if="false"')).not.toMatch(gate);
+
+    // 判定口径必须是步骤 id 常量，不能写死字符串——改 id 时类型层要跟着红
+    expect(cardSource).toMatch(
+      /const isSidepanelStep = computed\(\(\) => currentStep\.value\?\.id === SIDEPANEL_STEP_ID\);/,
+    );
+  });
+
+  it('按钮点下去调 openSidePanel，文案取卡内动作 key', () => {
+    expect(cardSource).toMatch(/@click="openSidePanel\(\)"/);
+    expect(cardSource).toMatch(/\{\{ t\('onboarding\.sidepanel\.action'\) \}\}/);
+  });
+
+  it('打开失败后原位换成快捷键提示，按键真实读自 shortcuts 表', () => {
+    expect(cardSource).toMatch(/v-if="!sidepanelFallback"/);
+    expect(cardSource).toMatch(/v-else\s+class="tour__action-fallback"\s+role="status"/);
+    expect(cardSource).toMatch(/\{\{ shortcutHint \}\}/);
+    expect(cardSource).toMatch(
+      /t\('onboarding\.sidepanel\.shortcutHint', \{ shortcut: shortcuts\.value\.toggle_sidepanel \}\)/,
+    );
+  });
+
+  it('兜底文案换上去时把焦点收回卡片，模态陷阱不因此失效', () => {
+    /**
+     * 焦点陷阱的 Tab 监听挂在卡片容器上：按钮被 `v-if` 卸载后焦点掉回 `body`，
+     * 那里的按键不会冒泡进容器，`aria-modal` 当场名存实亡。这行 `focus()` 是唯一防线。
+     */
+    expect(cardSource).toMatch(/if \(fallback\) cardEl\.value\?\.focus\(\{ preventScroll: true \}\);/);
+  });
+
+  it('卡内文案走文本节点，不引入 v-html', () => {
+    // 引导文案来自语言包但仍属用户可见内容，渲染面保持纯文本
+    expect(cardSource).not.toMatch(/v-html/);
+  });
+
+  it('入场错落与减弱动效两处列表都点名了动作区', () => {
+    const mark = cardSource.indexOf('@media (prefers-reduced-motion: reduce)');
+    expect(mark, '组件不再含 prefers-reduced-motion 块').toBeGreaterThan(0);
+
+    const before = cardSource.slice(0, mark);
+    const reduced = cardSource.slice(mark);
+    const pair = /\.tour__tip,\s*\n\s*\.tour__action,\s*\n\s*\.tour__meta/;
+
+    expect(before, '动作区没跟着入场错落进场').toMatch(pair);
+    expect(reduced, '动作区漏在减弱动效名单里').toMatch(pair);
+    expect(before.replace('.tour__action,', '.tour__nothing,')).not.toMatch(pair);
+  });
+
+  it('动作区不复写色值：强调一律回到 --aph-primary 族', () => {
+    const block = cardSource.slice(cardSource.indexOf('.tour__action {'), cardSource.indexOf('.tour__meta {'));
+    expect(block.length).toBeGreaterThan(0);
+    expect(block, '新增样式里出现写死色，换肤时不会跟随主题').not.toMatch(/#[0-9a-f]{3,8}/i);
+    expect(block).toMatch(/color: var\(--tour-accent\);/);
   });
 });

@@ -34,11 +34,10 @@ import {
 } from './constants';
 import { logger } from '@/utils/logger';
 import { formatTimestampCompact } from '@/utils/dateFormat';
+import { PBKDF2_ITERATIONS } from '@/utils/cryptoParams';
 
 /** AES-GCM IV 长度 */
 const IV_LENGTH = 12;
-/** PBKDF2 迭代次数（与主加密体系一致的 600K） */
-const PBKDF2_ITERATIONS = 600_000;
 /** Salt 长度 */
 const SALT_LENGTH = 16;
 

@@ -6,10 +6,52 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
+    <script>
+      // 渐进增强门控：与 index.html 同款。滚动入场（.reveal）的隐形初始态挂在 html.js 下，
+      // 禁用 JS / 无头爬虫 / AI 抓取拿到的永远是完整可读的页面。必须内联在首屏样式之前，
+      // 否则正文先全显再隐藏会闪一下。
+      const jsGateRoot = document.documentElement;
+      jsGateRoot.classList.add('js');
+      jsGateRoot.dataset.jsGate = 'armed';
+      /* 「JS 可用」不等于「JS 没炸」：隐形初始态靠文末脚本补 .visible 才解除，那段脚本
+         若在揭示逻辑就位前抛错，门控就把空白锁死。这里装一道一次性保险：本页脚本抛出未捕获
+         错误且主脚本还没跑到 ready，就摘掉 js 类，退回「无动效但内容全显」。
+         只认本页脚本：资源加载失败与跨域脱敏错误没有 error 对象，扩展注入脚本的 filename 是
+         chrome-extension://… 都不匹配；比对 filename 时两侧都要裁掉 ?query 与 #hash。 */
+      const stripUrlTail = url => String(url).split('#')[0].split('?')[0];
+      window.addEventListener('error', function jsGateFallback(event) {
+        if (jsGateRoot.dataset.jsGate !== 'armed') return;
+        if (!event.error) return;
+        if (event.filename && stripUrlTail(event.filename) !== stripUrlTail(location.href)) return;
+        jsGateRoot.classList.remove('js');
+        jsGateRoot.dataset.jsGate = 'fallback';
+        window.removeEventListener('error', jsGateFallback);
+      });
+    </script>
     <title>Bitwarden / 1Password 替代方案十维对比 · 开源本地密码管理器</title>
     <meta
       name="description"
       content="2026 年找 Bitwarden 替代、1Password 替代或更好的 Chrome 自带密码管理器？十个维度对比价格、存储、注册、一键登录、多环境隔离与跨子域名档位、站点规则、TOTP、离线体检、身份信息库、开源，说清各自适合谁。"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="./assets/icons/icon.svg"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="./public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="./public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
     />
     <meta
       name="keywords"
@@ -37,7 +79,7 @@
     />
     <meta
       property="og:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
     />
     <meta
       property="og:site_name"
@@ -61,7 +103,7 @@
     />
     <meta
       name="twitter:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
     />
     <link
       rel="canonical"
@@ -204,16 +246,50 @@
     </script>
     <style>
       :root {
+        color-scheme: light dark;
         --primary: #4e88ff;
         --primary-dark: #3a6cd9;
+        /* 主色作文字用的那一档，与 index.html 同源：--primary-dark 在本页同时是实底按钮色，
+           暗档不能抬亮它，所以 thead th.us 的文字另走 --primary-ink（#3a6cd9 压在暗档
+           --primary-soft 上只有 2.95:1）。 */
+        --primary-ink: #3566cb;
+        /* 判定格的墨色同理：实底色（--accent / --warn）拿来做文字时，白底上只有 2.5:1 与
+           2.04:1，而「是 / 否 / 付费版」正是这张表里唯一要读清的信息。各配一枚文字令牌，
+           实底与描边继续用原值。--warn-ink 原为本页自有令牌，2026-10-03 那批把 index / en / pricing 两页
+           的 12 处 #ff9f43 字面量收进同一枚，六页取值逐字同源，由 darkTokens 守卫钉住。 */
+        --success-ink: #27754e;
+        --warn-ink: #a35d00;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
         --text: #0f172a;
         --text-muted: #64748b;
+        --bg: #fff;
         --bg-soft: #f8fafc;
         --border: #e2e8f0;
         --warn: #ff9f43;
         --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
+        /* 动效令牌与 index.html 取同值：入场曲线和时长在两页必须一致，否则同一趟浏览里
+           落地页与对比页的「升起」节奏不同，读起来像两套页面。 */
+        --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+        --dur-slow: 0.6s;
+      }
+
+      /* 暗色档与落地页同源：只翻令牌，不动任何一条组件规则。
+         --primary / --accent / --warn 保持原值，理由同 index.html（主色实底上的白字比例）；
+         只有三枚文字令牌在暗档换亮，同 index.html 的 --primary-ink 那一条。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-soft: #1c2a45;
+          --primary-ink: #7ea6ff;
+          --success-ink: #42b883;
+          --warn-ink: #ff9f43;
+          --text: #e6edf7;
+          --text-muted: #9aa8bd;
+          --bg: #0b1220;
+          --bg-soft: #101a2c;
+          --border: #263349;
+          --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+        }
       }
 
       * {
@@ -226,11 +302,11 @@
         font-family:
           -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
         line-height: 1.7;
-        background: #fff;
+        background: var(--bg);
       }
 
       a {
-        color: var(--primary);
+        color: var(--primary-ink);
         text-decoration: none;
       }
 
@@ -267,7 +343,7 @@
 
       .hero {
         padding: 56px 0 32px;
-        background: linear-gradient(180deg, #f8fafc, #fff);
+        background: linear-gradient(180deg, var(--bg-soft), var(--bg));
         text-align: center;
       }
 
@@ -307,7 +383,7 @@
       }
 
       .btn.ghost {
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
       }
 
@@ -363,7 +439,7 @@
       }
 
       thead th.us {
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         background: var(--primary-soft);
       }
 
@@ -373,16 +449,16 @@
       }
 
       .yes {
-        color: var(--accent);
+        color: var(--success-ink);
         font-weight: 700;
       }
 
       .no {
-        color: #cbd5e1;
+        color: var(--text-muted);
       }
 
       .partial {
-        color: var(--warn);
+        color: var(--warn-ink);
       }
 
       .card {
@@ -457,6 +533,37 @@
           grid-template-columns: 1fr;
         }
       }
+
+      /* ============ Scroll Reveal（滚动入场） ============ */
+      /* 与 index.html 同一套约定：隐形初始态挂在 html.js 下，禁用 JS / 无头抓取 / AI 爬虫
+         拿到的永远是完整可读的页面。基准态与终态必须带同一层前缀——html.js .reveal 是 (0,2,1)，
+         终态若只写 .reveal.visible (0,2,0) 会被自己的基准规则压住，永远不显形。 */
+      html.js .reveal {
+        opacity: 0;
+        transform: translateY(24px);
+        transition:
+          opacity var(--dur-slow) var(--ease-out),
+          transform var(--dur-slow) var(--ease-out);
+      }
+
+      html.js .reveal.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .reveal-delay-1 {
+        transition-delay: 0.08s;
+      }
+
+      /* ============ Reduced motion（动效降级） ============ */
+      /* 降级不等于没有动效：撤掉位移，保留淡入，用户依然读得出「这一块是刚进场的」。
+         放在末尾以覆盖前面的基准规则，两侧选择器必须与基准侧一一对应。 */
+      @media (prefers-reduced-motion: reduce) {
+        html.js .reveal,
+        html.js .reveal.visible {
+          transform: none;
+        }
+      }
     </style>
   </head>
   <body>
@@ -502,7 +609,7 @@
             1Password。<b>只想要免注册、密码数据不出本机、又能一键完成登录</b>的开发者 /
             测试人员与隐私敏感用户——选账号密码管理助手。
           </p>
-          <div class="table-wrap">
+          <div class="table-wrap reveal">
             <table>
               <thead>
                 <tr>
@@ -598,7 +705,7 @@
             以上为公开可查的功能口径对比（价格以官网公布为准，可能随时调整；竞品功能口径截至
             2026-09，同样以其官网为准），用于帮助用户按需选择，而非贬低任何产品。竞品商标归其各自所有者所有。
           </p>
-          <div class="card">
+          <div class="card reveal reveal-delay-1">
             <h3>近期版本新增的四项能力</h3>
             <ul>
               <li>
@@ -634,7 +741,7 @@
       <section id="vs-bitwarden">
         <div class="wrap">
           <h2>账号密码管理助手 vs Bitwarden</h2>
-          <div class="two-col">
+          <div class="two-col reveal">
             <div>
               <h3>Bitwarden 擅长</h3>
               <ul>
@@ -657,7 +764,7 @@
               </ul>
             </div>
           </div>
-          <div class="choose">
+          <div class="choose reveal reveal-delay-1">
             <b>怎么选：</b>需要多设备同步与移动端 → Bitwarden；只在浏览器内工作、看重"数据不出本机 + 免注册 + 一键登录"
             → 账号密码管理助手。
           </div>
@@ -667,7 +774,7 @@
       <section id="vs-1password">
         <div class="wrap">
           <h2>账号密码管理助手 vs 1Password</h2>
-          <div class="two-col">
+          <div class="two-col reveal">
             <div>
               <h3>1Password 擅长</h3>
               <ul>
@@ -686,7 +793,7 @@
               </ul>
             </div>
           </div>
-          <div class="choose">
+          <div class="choose reveal reveal-delay-1">
             <b>怎么选：</b>团队协作、企业合规、跨设备托管 → 1Password；个人 / 开发测试、坚持本地优先与零订阅 →
             账号密码管理助手。
           </div>
@@ -696,7 +803,7 @@
       <section id="vs-chrome">
         <div class="wrap">
           <h2>账号密码管理助手 vs Chrome 自带密码管理器</h2>
-          <div class="two-col">
+          <div class="two-col reveal">
             <div>
               <h3>Chrome 自带擅长</h3>
               <ul>
@@ -718,7 +825,7 @@
               </ul>
             </div>
           </div>
-          <div class="choose">
+          <div class="choose reveal reveal-delay-1">
             <b>怎么选：</b>只想要最省事的填充且接受云同步 → Chrome 自带；需要多环境管理、TOTP、体检与本地加密 →
             账号密码管理助手，且可从 Chrome 一键导入。
           </div>
@@ -800,7 +907,7 @@
         >
           <h2>免费试用，30 秒搬家</h2>
           <p class="lead">开源免费、无需注册、密码数据不出本机。</p>
-          <div class="cta">
+          <div class="cta reveal">
             <a
               class="btn"
               href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
@@ -834,5 +941,30 @@
         </p>
       </div>
     </footer>
+
+    <script>
+      // 滚动入场：与 index.html 同一套兜底，三道保险缺一不可。
+      // ① 隐形初始态挂在 <head> 那段门控加上的 html.js 下；
+      // ② 没有 IntersectionObserver 的老浏览器直接落终态，绝不把内容卡在 opacity:0；
+      // ③ 同步初始化跑完把 data-js-gate 置为 ready，此后 <head> 里那道一次性保险不再干预
+      //    （揭示逻辑已就位，交互期偶发报错不该把整页打回「无动效」态）。
+      if ('IntersectionObserver' in window) {
+        const revealObserver = new IntersectionObserver(
+          entries => {
+            entries.forEach(entry => {
+              if (!entry.isIntersecting) return;
+              entry.target.classList.add('visible');
+              revealObserver.unobserve(entry.target);
+            });
+          },
+          { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
+        );
+        document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+      } else {
+        document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+      }
+
+      document.documentElement.dataset.jsGate = 'ready';
+    </script>
   </body>
 </html>
