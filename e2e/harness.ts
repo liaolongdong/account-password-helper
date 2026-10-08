@@ -16,6 +16,7 @@ import path from 'node:path';
 
 import { EXTENSION_PATH } from './global-setup';
 import { textOf } from './i18n';
+import { STORAGE_KEYS } from '../utils/storageKeys';
 
 /**
  * 主密码只在测试 profile 内使用，不对应任何真实凭据
@@ -128,8 +129,23 @@ export { expect };
  * Vue mount 与其后的文案渲染还没发生，两次 `isVisible()` 会都拿到 false 而静默返回，
  * 把未解锁的页面交给用例——表现为下一条用例在 20s 动作超时里等一个不存在的按钮。
  * 末尾的断言把这种静默失败收口成「夹具没带你到已解锁态」这一条明确错误。
+ *
+ * 进门第一件事是把新手引导标记为「已经走过」。`entrypoints/options/App.vue` 的 tour watcher
+ * 在首次进入认证态且 `onboarding_tour_state.seen` 为假时会 `tour.start()`，而全新 profile
+ * 里它必然为假——聚光层 `.tour__veil` 覆盖整页并接管指针事件，于是后续每一次 `click()`
+ * 都在 20s 动作超时里反复重试，全套用例一起红（表现为「按钮点不到」而不是「引导弹出来了」）。
+ * 本夹具测的是其它功能，起点按老用户设定；引导自身的真机行为目前**没有**用例覆盖。
  */
 export async function onboardAndUnlock(page: Page): Promise<void> {
+  await page.evaluate(
+    async args => {
+      await chrome.storage.local.set({
+        [args.key]: { seen: true, outcome: 'skipped', finishedAt: Date.now() },
+      });
+    },
+    { key: STORAGE_KEYS.ONBOARDING_TOUR },
+  );
+
   const unlockedHeader = page.locator('.header-title h1');
   const setupSubmit = page.getByRole('button', { name: textOf('auth.setupSubmit') });
   const verifySubmit = page.getByRole('button', { name: textOf('auth.verifySubmit') });
