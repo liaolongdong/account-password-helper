@@ -1279,7 +1279,7 @@ async function main() {
     repeat: REPEAT,
     rows: ROWS,
     midRows: MID_ROWS,
-    only: ONLY || 'all',
+    only: ONLY.length ? ONLY.join(',') : 'all',
     longtask: LT,
     trace: TRACE,
     extension: EXTENSION_PATH,
