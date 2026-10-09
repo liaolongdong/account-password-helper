@@ -18,6 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import path from 'path';
+import { escapeRegExp } from '@/tests/helpers/escapeRegExp';
 
 const ROOT = path.resolve(__dirname, '../..');
 const read = (file: string) => readFileSync(path.join(ROOT, file), 'utf8');
@@ -234,8 +235,7 @@ const INK_BACKDROPS = ['--bg', '--surface', '--primary-soft'];
 
 /** 取某条选择器的声明块正文；找不到返回空串。行首锚定，避免 `a` 命中 `.topbar a` */
 function ruleBody(css: string, selector: string): string {
-  const escaped = selector.replace(/[.#]/g, '\\$&');
-  const re = new RegExp(`^\\s*${escaped}\\s*\\{([\\s\\S]*?)\\}`, 'm');
+  const re = new RegExp(`^\\s*${escapeRegExp(selector)}\\s*\\{([\\s\\S]*?)\\}`, 'm');
   return re.exec(css)?.[1] ?? '';
 }
 

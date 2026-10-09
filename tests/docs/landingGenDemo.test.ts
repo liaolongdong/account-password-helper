@@ -18,6 +18,7 @@ import path from 'path';
 import { describe, expect, it } from 'vitest';
 import { hasReducedMotionRule, reducedMotionRules } from '@/tests/helpers/landingCss';
 import { i18nEntry } from '@/tests/helpers/landingI18n';
+import { escapeRegExp } from '@/tests/helpers/escapeRegExp';
 
 const ROOT = process.cwd();
 
@@ -152,7 +153,7 @@ function corePredicates(coreSrc: string): string[] {
  * @returns 压平空白后的文本；markup 里没有该 key 时 undefined
  */
 function markedText(source: string, key: string): string | undefined {
-  const pattern = new RegExp(`data-i18n="${key.replace(/\./g, '\\.')}[^>]*>([^<]*)`);
+  const pattern = new RegExp(`data-i18n="${escapeRegExp(key)}[^>]*>([^<]*)`);
   const raw = pattern.exec(source)?.[1];
   return raw === undefined ? undefined : raw.replace(/\s+/g, ' ').trim();
 }
