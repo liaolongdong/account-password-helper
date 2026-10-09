@@ -11,6 +11,8 @@
  * @module tests/helpers/landingI18n
  */
 
+import { escapeRegExp } from './escapeRegExp';
+
 /** 字典条目：中英两值 */
 export interface I18nEntry {
   zh: string;
@@ -29,7 +31,7 @@ export interface I18nEntry {
  */
 export function i18nEntry(html: string, key: string): I18nEntry | null {
   const body = html.slice(html.indexOf('const I18N = {'));
-  const entry = new RegExp(`'${key.replace(/\./g, '\\.')}':\\s*\\{([\\s\\S]*?)\\}`).exec(body);
+  const entry = new RegExp(`'${escapeRegExp(key)}':\\s*\\{([\\s\\S]*?)\\}`).exec(body);
   if (!entry) return null;
   const zh = /zh:\s*'((?:[^'\\]|\\.)*)'/.exec(entry[1])?.[1];
   const en = /en:\s*'((?:[^'\\]|\\.)*)'/.exec(entry[1])?.[1];
