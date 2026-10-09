@@ -13,7 +13,7 @@
 | 第三步              | 配自动提审：3.1 建服务账号 / 3.2 绑到开发者账号 / 3.3 Secrets / 3.4 本地验凭据 / 3.5 两条 workflow 与闸门 / 3.6 四档执行深度 / 3.7 预检判据 |
 | 第四步              | 审核与发布、批准后的三项核对、常见拒绝原因                                                                                                  |
 | 第五步              | 事实一致性校验（每次发版必做）：核心事实清单、快速校验命令、其他同步约定                                                                    |
-| 常见问题解答（FAQ） | A 闸门与人工批准 / B 凭据与 token / C 上传与提审 / D 流水线本身（共 29 条）                                                                 |
+| 常见问题解答（FAQ） | A 闸门与人工批准 / B 凭据与 token / C 上传与提审 / D 流水线本身（共 33 条）                                                                 |
 | 附录                | 商店描述模板、隐私政策 URL、CI/CD 配置说明                                                                                                  |
 
 ## 前置条件
@@ -146,11 +146,14 @@
 
 > ⚠️ `CWS_SA_PRIVATE_KEY` 最常见的两个粘贴坑：一是把 `\n` 当**字面量**存了进去（GitHub 的输入框支持多行，要粘贴真实换行）；
 > 二是只粘贴了中间那段 base64 而丢掉 PEM 头尾——Node 的 `createPrivateKey` 靠这两行判格式。
-> 症状都是 `pnpm cws:token` 直接失败；CLI 会打印可执行的修复提示，但**任何输出都不含私钥与 access token**。
+> 症状都是 `pnpm cws:token` 直接失败；CLI 会跟着打印私钥的**结构形状**（字符数 / 行数 / 有无 PEM 首尾标记 / 是否含字面量 `\n`）和对应的修法，但**任何输出都不含私钥与 access token**。
 
-> ℹ️ 与旧版的对应关系：`CWS_CLIENT_ID`、`CWS_CLIENT_SECRET`、`CWS_REFRESH_TOKEN` 这三项已废弃，
-> 换成 `CWS_PUBLISHER_ID`、`CWS_SA_EMAIL`、`CWS_SA_PRIVATE_KEY`。旧的那三项可以在 Settings 里删掉——
+> ℹ️ 与旧版的对应关系：旧链路一共四项商店 Secret，其中**废弃三项**——`CWS_CLIENT_ID`、`CWS_CLIENT_SECRET`、`CWS_REFRESH_TOKEN`
+> 这套 OAuth 2.0 桌面客户端凭据整体失去用途（服务账号改用 `private_key` 自签 JWT，不再有 refresh token 过期这回事），
+> 换成 `CWS_PUBLISHER_ID`、`CWS_SA_EMAIL`、`CWS_SA_PRIVATE_KEY`；**`CWS_EXTENSION_ID` 是唯一沿用的一项**，新旧两侧同值。
+> 合计仍是四项，一增一减是因为那三项整体退场。旧的那三项可以在 Settings 里删掉——
 > 留着不会让流水线失败（`preflight` 段根本不读它们），但会让人误以为还在走 OAuth 路线。
+> 另：`RELEASE_PLEASE_TOKEN` 不属于商店凭据（它供 release-please 打 tag 与挂 Release 附件），不在废弃范围。
 
 > ⚠️ 发布前的校验会确认 `CWS_EXTENSION_ID` 是 32 位 `a-p` 小写字母；从 URL 复制时带入空格或换行会直接判红并打印实际长度，重新粘贴纯净 ID 即可。
 
@@ -210,14 +213,14 @@ v3.13.1 的 Release 因此 `assets: []`。拆开后 publish.yml 的并发组**�
 
 Actions → “Publish to Chrome Web Store” → Run workflow，`mode` 决定跑到哪一档（默认 `preflight`）：
 
-| mode          | 跑到哪                                                | 需要哪些 Secret                                 | 需要人批准 | 什么时候用                                                          |
-| ------------- | ----------------------------------------------------- | ----------------------------------------------- | ---------- | ------------------------------------------------------------------- |
-| `preflight`   | 只有 `prepare`：构建 + 离线预检（零凭据、零网络写）   | 可以全空（走 `--ids-optional`，标识符降为告警） | 否         | fork、服务账号还没建出来的分支、只想证明产物本身是绿的              |
-| `status`      | `prepare` + `inspect`：多一次只读 `fetchStatus`       | 四项齐全（`inspect` job 不挂 environment）      | 否         | 验证服务账号那条链通、看当前在架与在审版本                          |
-| `publish-dry` | 加 `submit`：传包但**不提审**（CLI 的 `--no-submit`） | 四项齐全                                        | **是**     | 只改商店文案那一轮——包先进去，说明在 Dashboard 里手改后由人工点提审 |
-| `publish`     | 加 `submit`：传包并提审                               | 四项齐全                                        | **是**     | 正式发版（`release` 事件走的就是这一档）                            |
+| mode          | 跑到哪                                                     | 需要哪些 Secret                                 | 需要人批准 | 什么时候用                                                             |
+| ------------- | ---------------------------------------------------------- | ----------------------------------------------- | ---------- | ---------------------------------------------------------------------- |
+| `preflight`   | 只有 `prepare`：构建 + 离线预检（零凭据、零网络写）        | 可以全空（走 `--ids-optional`，标识符降为告警） | 否         | fork、服务账号还没建出来的分支、只想证明产物本身是绿的                 |
+| `status`      | 只有 `inspect`：一次只读 `fetchStatus`，**免构建、免 tag** | 四项齐全（`inspect` job 不挂 environment）      | 否         | 验证服务账号那条链通、看当前在架与在审版本——想在 CI 上验凭据就用这一档 |
+| `publish-dry` | 加 `submit`：传包但**不提审**（CLI 的 `--no-submit`）      | 四项齐全                                        | **是**     | 只改商店文案那一轮——包先进去，说明在 Dashboard 里手改后由人工点提审    |
+| `publish`     | 加 `submit`：传包并提审                                    | 四项齐全                                        | **是**     | 正式发版（`release` 事件走的就是这一档）                               |
 
-`tag` 输入留空时只能跑 `preflight`：其余三档要靠它做「包内版本 == 发布 tag」的对账，没给 tag 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并说明原因。
+`tag` 输入留空时可跑 `preflight` 与 `status`；`publish-dry` 与 `publish` 必须填 tag——那两档要靠它做「包内版本 == 发布 tag」的对账，没给 tag 会在 `prepare` 的 `Resolve tag / version / mode` 步骤 `exit 1` 并说明原因。
 
 ### 3.7 预检到底在验什么
 
@@ -415,6 +418,7 @@ PY
 11. **私钥明明贴进去了，`pnpm cws:token` 仍说解析失败。**
     两个坑（3.3 有详述）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行），或者丢了 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 这两行——Node 的 `createPrivateKey` 靠它们判格式。
     本地验证时可以先用 `node -e "require('crypto').createPrivateKey(process.env.CWS_SA_PRIVATE_KEY)"` 自证，报错即 Secret 内容本身有问题。
+    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里，当时 CLI 只透传这一句）。补上形状诊断后，同一份坏 Secret 在 run 37963106478 多打两行，其中 `1732 字符 / 1 行` 就足以锁定根因：`generateKeyPairSync('rsa', {modulusLength: 2048})` 导出的 PKCS#8 PEM 实测为 28 行 / 1704 字符，把 28 处换行各写成两个字符的反斜杠 n 正好是 1732——数字本身就能对上；而换行一旦压没——无论存成字面量 `\n` 还是整段连成一行——`createPrivateKey` 报的都是同一句 `error:1E08010C`，所以「1 行」必然是坏的。紧接着那行直接指向 `jq -r .private_key`。只报结构事实，不回显密钥。
 
 12. **fork 的贡献者 PR 会不会误提审我的商品？**
     不会，三重保险：`publish.yml` 只在 `release: published` 与手动 dispatch 时触发（PR 事件根本不触发它）；`submit` 带 `if: github.repository == 'liaolongdong/account-password-helper'`；GitHub 本身不会把仓库 Secrets 暴露给 fork 的 run。
@@ -477,7 +481,7 @@ PY
     不一定要。Re-run jobs 时 `prepare` 的 artifact 在保留期（`retention-days: 7`）内仍然可下载，直接复用；超过 7 天就得整个 run 重跑。
 
 26. **手动 dispatch 忘了填 `tag`。**
-    那只能跑 `preflight`。其余三档要靠 tag 做「包内版本 == 发布 tag」的对账，没给 tag 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并打印原因，而不是拿当前分支的产物闷头提审。
+    `preflight` 与 `status` 都照跑：前者只验产物本身，后者根本不进 `prepare`。`publish-dry` 与 `publish` 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并打印原因，而不是拿当前分支的产物闷头提审——那两档要靠 tag 做「包内版本 == 发布 tag」的对账。
     还有一个更早的坎：`workflow_dispatch` 只对**默认分支上已存在**的 workflow 生效。`publish.yml` 合进 `main` 之前，Actions 页面里没有它的「Run workflow」按钮，API 也回 404（`GET /repos/{owner}/{repo}/actions/workflows/publish.yml` 同样 404，而 `main` 上只列得出 ci / e2e / pr-title / release-please 四个）。这不是配错了，是 GitHub 的注册时机——第一次手动 dispatch 只能在合入之后。
 
 27. **`concurrency.cancel-in-progress` 为什么必须是 `false`？**
@@ -488,11 +492,43 @@ PY
     本项目 2026-10-09 起两者都不用，改为自写 `scripts/cwsPublish.mjs` + 服务账号：零第三方依赖、端点与请求体可被单测逐字钉住（`tests/scripts/cwsPublishCli.test.ts` 用本地假商店断言整条请求序列），且支持 `STAGED_PUBLISH` 与撤回审核这些 action 没覆盖的操作。
 
 29. **怎么验证这条链本身没被改坏？**
+
     ```bash
-    pnpm exec vitest run tests/scripts/cwsPublishCli.test.ts   # 20 例，含请求序列与验签
+    pnpm exec vitest run tests/scripts/cwsPublishCli.test.ts   # 22 例，含请求序列、验签与私钥形状提示
     pnpm cws:preflight                                          # 拿真产物跑离线预检
     ```
+
     两条都不会碰真实商店：单测把 CLI 的端点指向进程内的假商店（`CWS_API_ROOT` / `CWS_OAUTH_TOKEN_URI` 两个环境变量只服务于这个场景，生产不设），`preflight` 则是纯离线。任何分支上都能跑。
+
+30. **点了 Approve，`submit` 为什么过一会儿才动？**
+    因为 `production` 上除了 Required reviewers 还配了 `wait_timer: 10`（分钟）。两条是 **AND** 而不是「谁先到谁放行」——证据：run 36556089630 的 `pending_deployments` 里 `wait_timer_started_at = 2026-09-29T10:31:46Z`，十分钟早已走完，job 却在没有批准的情况下停在 `waiting` 十天。
+    所以净效果是「批准 **且** 进入 waiting 满 10 分钟」才执行：合完 release PR 就立刻点批准，会看到按钮已经点掉但 job 还在 waiting，那是在等 timer 补齐，不是坏了。等满 10 分钟之后再批准则不必再等（这一半是按 AND 语义推的，本轮没有实测批准后的耗时——那次批准我们始终没点）。
+    要即点即走就把 wait timer 设 0。它的价值是给自动化一个反悔窗口，对单人维护的项目收益有限，留着或清零都算合理配置。
+
+31. **怎么只读核验凭据配在哪一级、闸门到底有没有牙？**
+    四条 GET，全部不需要写权限，也读不到任何 Secret 的值（只返回名字与 `updated_at`）：
+
+    ```bash
+    R=https://api.github.com/repos/liaolongdong/account-password-helper
+    curl -s -H "Authorization: Bearer $PAT" "$R/actions/secrets"                       # 四项 CWS_* 应在此列
+    curl -s -H "Authorization: Bearer $PAT" "$R/environments/production"               # protection_rules 里要有 required_reviewers
+    curl -s -H "Authorization: Bearer $PAT" "$R/environments/production/secrets"       # 这一条必须为空
+    curl -s -H "Authorization: Bearer $PAT" "$R/actions/runs/<run_id>/pending_deployments"  # 非空 = 真有 job 停在等你批准
+    ```
+
+    第三条最关键：四项**必须配在仓库级**。若哪天把 `CWS_SA_PRIVATE_KEY` 等配成了 `production` 环境级，`inspect` job（不挂 environment）就看不见它们，`status` 档会以「凭据缺失」失败——这正是 FAQ B.10「本地通、CI 失败」的一种成因，也是 `submit` 判红前最容易漏查的一层。
+    第二条顺带能读出 `prevent_self_review` 和 `wait_timer`（见第 1 条与第 30 条）。
+
+32. **`production` 环境没有分支限制，要不要收紧？**
+    实测读数：它的 `protection_rules` 只有 `required_reviewers` 与 `wait_timer`，**没有 `branch_policy`**——而同仓库的 `github-pages` 环境里 `branch_policy` 是存在的，所以这不是没读出来。
+    含义是任何分支上的 run（包括未来从 feature 分支手动 dispatch `publish`）只要过了那道人工批准，就能进 `submit` 并读到四项凭据。要收窄：Settings → Environments → `production` → Deployment branches 选「Available for select branches」并只放 `main`。
+    这属于防自己误操作的加固，不是漏洞：真实提审仍需人工批准。是否收紧由维护者定，定了记得回到第 31 条那四条 curl 的第二条（`/environments/production`），确认 `protection_rules` 里多出 `branch_policy`。
+
+33. **对一个比 CLI 更早的 tag 跑 `publish-dry` / `publish` 会怎样？**
+    会在 `prepare` 的 `Offline preflight` 步骤报 `Cannot find module '…/scripts/cwsPublish.mjs'`（`MODULE_NOT_FOUND`）。
+    原因是 `prepare` 按 `github.event.release.tag_name || inputs.tag` 检出，也就是**那个 tag 的树**，而 `scripts/cwsPublish.mjs` 是 2026-10-09 才合进 `main` 的——`v3.13.1` 及更早的 tag 上根本没有这个文件。
+    这不是凭据问题：它失败在 `prepare`，还没走到任何联网的步骤。坐实的方法是一条只读命令：`git ls-tree <tag> scripts/cwsPublish.mjs`，输出为空即该 tag 没有 CLI。
+    结论是 `publish-dry` / `publish` 只对本次要发布的那个 tag（即合并了 CLI 之后打出的 tag）有意义；**只想验凭据链就用 `status` 档**——它不检出 tag，`tag` 输入直接留空即可。
 
 ---
 
@@ -571,6 +607,6 @@ Fully open-source, code auditable: https://github.com/liaolongdong/account-passw
 - **没有「跳过提审」这回事了**。旧版靠 `if: env.CWS_EXTENSION_ID != ''` 让整段发布静默跳过，代价是「Secret 忘了配」和「这轮刻意不提审」两种状态在日志里长得一模一样。
   现在的口径是：`release` 事件一定进入 `submit`，**由 `production` 环境的人工批准决定要不要真的提审**——不点 Approve 就等于跳过，且留下 `waiting` 这个可见的状态。
   三项标识符缺失时在联网之前判红（`✗ 标识符形状`），不再静默跳过。只有 `preflight` 档允许凭据为空（`--ids-optional`，降级为 `!`），因为它设计上就不碰商店。
-- **旧三项 Secret 已废弃**（`CWS_CLIENT_ID` / `CWS_CLIENT_SECRET` / `CWS_REFRESH_TOKEN`），换成 `CWS_PUBLISHER_ID` / `CWS_SA_EMAIL` / `CWS_SA_PRIVATE_KEY` 三项加 `CWS_EXTENSION_ID`，见 3.3。留着旧的不会让流水线失败，但会让人误判凭据形态。
+- **旧四项商店 Secret 里废弃三项**：`CWS_CLIENT_ID` / `CWS_CLIENT_SECRET` / `CWS_REFRESH_TOKEN` 这套 OAuth 桌面客户端凭据整体退场，换成 `CWS_PUBLISHER_ID` / `CWS_SA_EMAIL` / `CWS_SA_PRIVATE_KEY`；**`CWS_EXTENSION_ID` 沿用、新旧同值**，所以总数一增一减仍是四项。`RELEASE_PLEASE_TOKEN` 不是商店凭据，不在废弃范围。见 3.3。留着旧的不会让流水线失败，但会让人误判凭据形态。
 - Pages 由仓库设置里的 `Deploy from a branch`（`main` / 根目录）发布，CI 不参与生成站点——`en.html`、`pricing.en.html`、`privacy.en.html` 与 `blog/*.html` 需本地跑 `pnpm gen:en` / `gen:pricing-en` / `gen:privacy-en` / `gen:blog` 后提交；只改中文源而不重跑生成，线上英文版会滞后于中文版。站点直接服务 `main` 根目录，意味着**入库即公开**，不要把内部文档放进仓库根目录。
 - 同一条口径也适用于 `index.html` 内部的生成产物：FAQPage JSON-LD 与 FAQ 静态 DOM 由 `FAQS` 生成（`pnpm gen:faq` / `gen:faq-dom`），改 `FAQS` 后不重跑就等于线上可见 FAQ 与真源脱节，且禁用 JS 的抓取端读到的是滞后的那份。
