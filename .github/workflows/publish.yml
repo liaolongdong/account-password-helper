@@ -13,7 +13,7 @@ name: Publish to Chrome Web Store
 #
 # 三段式深度，越靠下越接近真实提审：
 #   preflight   只构建 + 离线预检（零凭据、零网络写）——fork 和没配服务账号的分支也必须是绿的
-#   status      加一次只读的 fetchStatus，用来证明服务账号凭据链通
+#   status      免构建、免 tag，只跑一次只读的 fetchStatus，用来证明服务账号凭据链通
 #   publish-dry 传包但**不提审**（改商店文案那一轮用它）
 #   publish     传包 + 提审，一旦放行不可即时撤回
 # 后两段都挂在 `production` 环境上，必须人工点 Approve；`release` 事件默认走 publish。
@@ -29,7 +29,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: '要处理的 GitHub Release tag（留空 = 用当前分支的 package.json 版本，只能跑 preflight）'
+        description: '要处理的 GitHub Release tag（留空 = 用当前分支的 package.json 版本，只能跑 preflight 与 status）'
         required: false
         type: string
       mode:
@@ -57,6 +57,10 @@ jobs:
   prepare:
     name: Build and preflight (no store calls)
     runs-on: ubuntu-latest
+    # status 档不需要构建：它只查凭据链，产物压根不用。跳过 prepare 还顺带解掉两个约束——
+    # 不必填 tag（对账用的版本比对不发生），也不必切到 tag 的树（见 inspect 的说明）。
+    # release 事件没有 inputs.mode，条件恒为真，那条链路不受影响。
+    if: ${{ inputs.mode != 'status' }}
     outputs:
       version: ${{ steps.resolve.outputs.version }}
       tag_version: ${{ steps.resolve.outputs.tag_version }}
@@ -144,15 +148,17 @@ jobs:
 
   inspect:
     name: Store status (read-only)
-    needs: prepare
-    if: ${{ needs.prepare.outputs.mode == 'status' }}
+    # 不依赖 prepare，也不按 tag 检出：status 的用途是「随时证明服务账号那条链通」，
+    # 而 CLI（scripts/cwsPublish.mjs）只 import node 内置模块，不需要 pnpm install。
+    # 按 tag 检出反而会坏——比 CLI 问世更早的 tag 上没有这个文件，会在 checkout 之后
+    # 立刻 MODULE_NOT_FOUND（2026-10-09 实测：tag v3.13.1 的 scripts/ 里没有 cwsPublish.mjs）。
+    # 因此固定检出本次 dispatch 所在的 ref，只认「这条 workflow 当前这份代码」。
+    if: ${{ inputs.mode == 'status' }}
     runs-on: ubuntu-latest
     # 只读段不挂 environment：`fetchStatus` 一个字节都不写，不需要人工放行；
     # 用它验证「服务账号 → access token → v2 端点」这条链通，就能把凭据问题在提审之前暴露掉。
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.release.tag_name || inputs.tag }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
