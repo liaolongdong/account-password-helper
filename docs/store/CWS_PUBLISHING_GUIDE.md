@@ -478,6 +478,7 @@ PY
 
 26. **手动 dispatch 忘了填 `tag`。**
     那只能跑 `preflight`。其余三档要靠 tag 做「包内版本 == 发布 tag」的对账，没给 tag 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并打印原因，而不是拿当前分支的产物闷头提审。
+    还有一个更早的坎：`workflow_dispatch` 只对**默认分支上已存在**的 workflow 生效。`publish.yml` 合进 `main` 之前，Actions 页面里没有它的「Run workflow」按钮，API 也回 404（`GET /repos/{owner}/{repo}/actions/workflows/publish.yml` 同样 404，而 `main` 上只列得出 ci / e2e / pr-title / release-please 四个）。这不是配错了，是 GitHub 的注册时机——第一次手动 dispatch 只能在合入之后。
 
 27. **`concurrency.cancel-in-progress` 为什么必须是 `false`？**
     一个正在等人工审批、或者正在往商店传包的 run 被后来的 run 取消，等于一次半途而废的发版，而且商店侧可能已经收到包但没提审。宁可排队，不要中断。
