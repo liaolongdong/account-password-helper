@@ -468,7 +468,7 @@ describe('status / cancel', { timeout: 30_000 }, () => {
   // 这两条钉的是 2026-10-09 真实踩过的那一步：CI 的 status 档当时只留下一句
   // `error:1E08010C:DECODER routines::unsupported`，没说形状哪里不对。
   // 两个用例都把令牌端点指回本地端口，保证万一解析竟然成功也不会敲到 Google。
-  it('私钥被存成字面量 \\n 时，报出行数与首尾行形状并指向 jq，且不回显密钥', async () => {
+  it('私钥被存成字面量 \\n 时，报出行数与 PEM 首尾标记形状并指向 jq，且不回显密钥', async () => {
     const flattened = saPrivateKey.replace(/\n/g, '\\n');
     const r = await runCli(
       ['status'],
@@ -493,8 +493,8 @@ describe('status / cancel', { timeout: 30_000 }, () => {
       baseEnv({ CWS_SA_PRIVATE_KEY: bodyOnly, CWS_OAUTH_TOKEN_URI: 'http://127.0.0.1:9/token' }),
     );
     expect(r.ok).toBe(false);
-    expect(r.stderr).toContain('无 PEM 首行');
-    expect(r.stderr).toContain('无 PEM 尾行');
+    expect(r.stderr).toContain('无 PEM 首部标记');
+    expect(r.stderr).toContain('无 PEM 尾部标记');
     expect(r.stderr).toContain('整段 PEM');
     expect(`${r.stdout}${r.stderr}`).not.toContain(saPrivateKey.slice(40, 80));
   });

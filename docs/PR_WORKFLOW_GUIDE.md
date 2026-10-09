@@ -297,7 +297,7 @@ git branch -D feature-fixbug Feature-ai-tip            # 仅当上面 diff 为�
 | `tests/scripts/cwsPublishCli.test.ts` | 新增 22 例：本地假商店逐字钉住请求序列、请求体、`content-type`、错误提示与「输出不含 token 与私钥」；端点靠 env 覆盖指向假服务                                                  | 新增 |
 | `package.json`                        | 新增 `cws:preflight` / `cws:token` / `cws:status` / `cws:publish` / `cws:cancel` 五个脚本                                                                                       | 改   |
 | `.github/workflows/e2e.yml`           | 两处 `paths-ignore` 加上 `publish.yml`（改发布链不该触发一次真浏览器 E2E）                                                                                                      | 改   |
-| `docs/store/CWS_PUBLISHING_GUIDE.md`  | 第三步整体重写为服务账号路线（3.1–3.7），第四步补「批准后核对三件事」，新增 FAQ 四组 29 条，附录改写                                                                            | 改   |
+| `docs/store/CWS_PUBLISHING_GUIDE.md`  | 第三步整体重写为服务账号路线（3.1–3.7），第四步补「批准后核对三件事」，新增 FAQ 四组 33 条，附录改写                                                                            | 改   |
 
 三处改动动机与硬伤，按证据列在这里，便于将来回溯为什么长这样：
 

@@ -117,7 +117,7 @@ export function buildJwtAssertion({
  *
  * OpenSSL 在这条路径上只回 `error:1E08010C:DECODER routines::unsupported`，不说明形状哪里不对，
  * 而「`\n` 存成字面量」与「丢了 PEM 首尾行」这两类粘贴坑恰好占了凭据失败的多数（见 3.3 的告警块）。
- * 这里只打印长度、行数与首尾行是否存在这几个结构事实——不回显任何密钥材料，也不打印 PEM 标记本身，
+ * 这里只打印长度、行数与 PEM 首尾标记是否存在这几个结构事实——不回显任何密钥材料，也不打印 PEM 标记本身，
  * 好让「任何输出都不含私钥」这条断言保持简单。
  *
  * @param {string} privateKey
@@ -129,8 +129,8 @@ function privateKeyShapeError(privateKey, cause) {
   const facts = [
     `${text.length} 字符`,
     `${text ? text.split('\n').length : 0} 行`,
-    text.includes('-----BEGIN') ? '有 PEM 首行' : '无 PEM 首行',
-    text.includes('-----END') ? '有 PEM 尾行' : '无 PEM 尾行',
+    text.includes('-----BEGIN') ? '有 PEM 首部标记' : '无 PEM 首部标记',
+    text.includes('-----END') ? '有 PEM 尾部标记' : '无 PEM 尾部标记',
     text.includes('\\n') ? '含字面量 \\n' : '不含字面量 \\n',
   ];
   let next;

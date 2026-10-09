@@ -146,7 +146,7 @@
 
 > ⚠️ `CWS_SA_PRIVATE_KEY` 最常见的两个粘贴坑：一是把 `\n` 当**字面量**存了进去（GitHub 的输入框支持多行，要粘贴真实换行）；
 > 二是只粘贴了中间那段 base64 而丢掉 PEM 头尾——Node 的 `createPrivateKey` 靠这两行判格式。
-> 症状都是 `pnpm cws:token` 直接失败；CLI 会跟着打印私钥的**结构形状**（字符数 / 行数 / 有无 PEM 首尾行 / 是否含字面量 `\n`）和对应的修法，但**任何输出都不含私钥与 access token**。
+> 症状都是 `pnpm cws:token` 直接失败；CLI 会跟着打印私钥的**结构形状**（字符数 / 行数 / 有无 PEM 首尾标记 / 是否含字面量 `\n`）和对应的修法，但**任何输出都不含私钥与 access token**。
 
 > ℹ️ 与旧版的对应关系：旧链路一共四项商店 Secret，其中**废弃三项**——`CWS_CLIENT_ID`、`CWS_CLIENT_SECRET`、`CWS_REFRESH_TOKEN`
 > 这套 OAuth 2.0 桌面客户端凭据整体失去用途（服务账号改用 `private_key` 自签 JWT，不再有 refresh token 过期这回事），
@@ -418,7 +418,7 @@ PY
 11. **私钥明明贴进去了，`pnpm cws:token` 仍说解析失败。**
     两个坑（3.3 有详述）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行），或者丢了 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 这两行——Node 的 `createPrivateKey` 靠它们判格式。
     本地验证时可以先用 `node -e "require('crypto').createPrivateKey(process.env.CWS_SA_PRIVATE_KEY)"` 自证，报错即 Secret 内容本身有问题。
-    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里），CLI 会跟着打印私钥的形状（字符数 / 行数 / 有无 PEM 首尾行 / 是否含字面量 `\n`）——只报结构事实，不回显密钥。
+    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里），CLI 会跟着打印私钥的形状（字符数 / 行数 / 有无 PEM 首尾标记 / 是否含字面量 `\n`）——只报结构事实，不回显密钥。
 
 12. **fork 的贡献者 PR 会不会误提审我的商品？**
     不会，三重保险：`publish.yml` 只在 `release: published` 与手动 dispatch 时触发（PR 事件根本不触发它）；`submit` 带 `if: github.repository == 'liaolongdong/account-password-helper'`；GitHub 本身不会把仓库 Secrets 暴露给 fork 的 run。
@@ -481,7 +481,7 @@ PY
     不一定要。Re-run jobs 时 `prepare` 的 artifact 在保留期（`retention-days: 7`）内仍然可下载，直接复用；超过 7 天就得整个 run 重跑。
 
 26. **手动 dispatch 忘了填 `tag`。**
-    那只能跑 `preflight`。其余三档要靠 tag 做「包内版本 == 发布 tag」的对账，没给 tag 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并打印原因，而不是拿当前分支的产物闷头提审。
+    `preflight` 与 `status` 都照跑：前者只验产物本身，后者根本不进 `prepare`。`publish-dry` 与 `publish` 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并打印原因，而不是拿当前分支的产物闷头提审——那两档要靠 tag 做「包内版本 == 发布 tag」的对账。
     还有一个更早的坎：`workflow_dispatch` 只对**默认分支上已存在**的 workflow 生效。`publish.yml` 合进 `main` 之前，Actions 页面里没有它的「Run workflow」按钮，API 也回 404（`GET /repos/{owner}/{repo}/actions/workflows/publish.yml` 同样 404，而 `main` 上只列得出 ci / e2e / pr-title / release-please 四个）。这不是配错了，是 GitHub 的注册时机——第一次手动 dispatch 只能在合入之后。
 
 27. **`concurrency.cancel-in-progress` 为什么必须是 `false`？**
@@ -522,7 +522,7 @@ PY
 32. **`production` 环境没有分支限制，要不要收紧？**
     实测读数：它的 `protection_rules` 只有 `required_reviewers` 与 `wait_timer`，**没有 `branch_policy`**——而同仓库的 `github-pages` 环境里 `branch_policy` 是存在的，所以这不是没读出来。
     含义是任何分支上的 run（包括未来从 feature 分支手动 dispatch `publish`）只要过了那道人工批准，就能进 `submit` 并读到四项凭据。要收窄：Settings → Environments → `production` → Deployment branches 选「Available for select branches」并只放 `main`。
-    这属于防自己误操作的加固，不是漏洞：真实提审仍需人工批准。是否收紧由维护者定，定了记得回到第二条那三个 curl 里确认 `branch_policy` 出现。
+    这属于防自己误操作的加固，不是漏洞：真实提审仍需人工批准。是否收紧由维护者定，定了记得回到第 31 条那四条 curl 的第二条（`/environments/production`），确认 `protection_rules` 里多出 `branch_policy`。
 
 33. **对一个比 CLI 更早的 tag 跑 `publish-dry` / `publish` 会怎样？**
     会在 `prepare` 的 `Offline preflight` 步骤报 `Cannot find module '…/scripts/cwsPublish.mjs'`（`MODULE_NOT_FOUND`）。
