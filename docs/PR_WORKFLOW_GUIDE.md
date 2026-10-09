@@ -294,7 +294,7 @@ git branch -D feature-fixbug Feature-ai-tip            # 仅当上面 diff 为�
 | `.github/workflows/publish.yml`       | 新增。接 `release: published` 与手动 dispatch；`prepare`（构建 + 离线预检 + 存 artifact）/ `inspect`（只读 `fetchStatus`）/ `submit`（挂 `production` 审批）；并发组按 tag 分组 | 新增 |
 | `scripts/cwsPublish.mjs`              | 新增 CLI：`preflight` / `token` / `status` / `publish` / `cancel` 五个子命令，走 Chrome Web Store API **v2** + 服务账号，替掉第三方 action 的 v1.1 调用路径                     | 新增 |
 | `scripts/lib/cwsPublish.mjs`          | 新增 v2 薄客户端与离线预检判据（JWT 签票、upload、轮询 `lastAsyncUploadState`、publish、cancelSubmission、错误码解释）                                                          | 新增 |
-| `tests/scripts/cwsPublishCli.test.ts` | 新增 20 例：本地假商店逐字钉住请求序列、请求体、`content-type`、错误提示与「输出不含 token 与私钥」；端点靠 env 覆盖指向假服务                                                  | 新增 |
+| `tests/scripts/cwsPublishCli.test.ts` | 新增 22 例：本地假商店逐字钉住请求序列、请求体、`content-type`、错误提示与「输出不含 token 与私钥」；端点靠 env 覆盖指向假服务                                                  | 新增 |
 | `package.json`                        | 新增 `cws:preflight` / `cws:token` / `cws:status` / `cws:publish` / `cws:cancel` 五个脚本                                                                                       | 改   |
 | `.github/workflows/e2e.yml`           | 两处 `paths-ignore` 加上 `publish.yml`（改发布链不该触发一次真浏览器 E2E）                                                                                                      | 改   |
 | `docs/store/CWS_PUBLISHING_GUIDE.md`  | 第三步整体重写为服务账号路线（3.1–3.7），第四步补「批准后核对三件事」，新增 FAQ 四组 29 条，附录改写                                                                            | 改   |

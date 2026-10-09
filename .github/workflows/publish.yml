@@ -21,7 +21,7 @@ name: Publish to Chrome Web Store
 # 凭据形态：服务账号 JSON key（四项 Secret），不再用 OAuth refresh token——
 # 后者在同意屏幕「Testing」模式下 7 天过期，正是历史上 `invalid_grant` 的根因。
 # 端点、请求体与轮询口径由 `scripts/cwsPublish.mjs` 实现，
-# 并由 `tests/scripts/cwsPublishCli.test.ts` 的本地假商店逐字钉住（20 例）。
+# 并由 `tests/scripts/cwsPublishCli.test.ts` 的本地假商店逐字钉住（22 例）。
 # ──────────────────────────────────────────────────────────────────────────────
 on:
   release:

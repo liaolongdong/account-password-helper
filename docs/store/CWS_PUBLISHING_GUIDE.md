@@ -146,7 +146,7 @@
 
 > ⚠️ `CWS_SA_PRIVATE_KEY` 最常见的两个粘贴坑：一是把 `\n` 当**字面量**存了进去（GitHub 的输入框支持多行，要粘贴真实换行）；
 > 二是只粘贴了中间那段 base64 而丢掉 PEM 头尾——Node 的 `createPrivateKey` 靠这两行判格式。
-> 症状都是 `pnpm cws:token` 直接失败；CLI 会打印可执行的修复提示，但**任何输出都不含私钥与 access token**。
+> 症状都是 `pnpm cws:token` 直接失败；CLI 会跟着打印私钥的**结构形状**（字符数 / 行数 / 有无 PEM 首尾行 / 是否含字面量 `\n`）和对应的修法，但**任何输出都不含私钥与 access token**。
 
 > ℹ️ 与旧版的对应关系：旧链路一共四项商店 Secret，其中**废弃三项**——`CWS_CLIENT_ID`、`CWS_CLIENT_SECRET`、`CWS_REFRESH_TOKEN`
 > 这套 OAuth 2.0 桌面客户端凭据整体失去用途（服务账号改用 `private_key` 自签 JWT，不再有 refresh token 过期这回事），
@@ -418,6 +418,7 @@ PY
 11. **私钥明明贴进去了，`pnpm cws:token` 仍说解析失败。**
     两个坑（3.3 有详述）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行），或者丢了 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 这两行——Node 的 `createPrivateKey` 靠它们判格式。
     本地验证时可以先用 `node -e "require('crypto').createPrivateKey(process.env.CWS_SA_PRIVATE_KEY)"` 自证，报错即 Secret 内容本身有问题。
+    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里），CLI 会跟着打印私钥的形状（字符数 / 行数 / 有无 PEM 首尾行 / 是否含字面量 `\n`）——只报结构事实，不回显密钥。
 
 12. **fork 的贡献者 PR 会不会误提审我的商品？**
     不会，三重保险：`publish.yml` 只在 `release: published` 与手动 dispatch 时触发（PR 事件根本不触发它）；`submit` 带 `if: github.repository == 'liaolongdong/account-password-helper'`；GitHub 本身不会把仓库 Secrets 暴露给 fork 的 run。
@@ -493,7 +494,7 @@ PY
 29. **怎么验证这条链本身没被改坏？**
 
     ```bash
-    pnpm exec vitest run tests/scripts/cwsPublishCli.test.ts   # 20 例，含请求序列与验签
+    pnpm exec vitest run tests/scripts/cwsPublishCli.test.ts   # 22 例，含请求序列、验签与私钥形状提示
     pnpm cws:preflight                                          # 拿真产物跑离线预检
     ```
 
