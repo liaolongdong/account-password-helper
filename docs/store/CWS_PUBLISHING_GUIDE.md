@@ -418,7 +418,7 @@ PY
 11. **私钥明明贴进去了，`pnpm cws:token` 仍说解析失败。**
     两个坑（3.3 有详述）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行），或者丢了 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 这两行——Node 的 `createPrivateKey` 靠它们判格式。
     本地验证时可以先用 `node -e "require('crypto').createPrivateKey(process.env.CWS_SA_PRIVATE_KEY)"` 自证，报错即 Secret 内容本身有问题。
-    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里，当时 CLI 只透传这一句）。补上形状诊断后，同一份坏 Secret 在 run 37963106478 多打两行，其中 `1732 字符 / 1 行` 就足以锁定根因：本机自签一把同规格的 PKCS#8 私钥是 28 行，而把换行压没（无论存成字面量 `\n` 还是整段连成一行）后 `createPrivateKey` 报的都是同一句 `error:1E08010C`——所以「1 行」必然是坏的，紧接着那行直接指向 `jq -r .private_key`。只报结构事实，不回显密钥。
+    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里，当时 CLI 只透传这一句）。补上形状诊断后，同一份坏 Secret 在 run 37963106478 多打两行，其中 `1732 字符 / 1 行` 就足以锁定根因：`generateKeyPairSync('rsa', {modulusLength: 2048})` 导出的 PKCS#8 PEM 实测为 28 行 / 1704 字符，把 28 处换行各写成两个字符的反斜杠 n 正好是 1732——数字本身就能对上；而换行一旦压没——无论存成字面量 `\n` 还是整段连成一行——`createPrivateKey` 报的都是同一句 `error:1E08010C`，所以「1 行」必然是坏的。紧接着那行直接指向 `jq -r .private_key`。只报结构事实，不回显密钥。
 
 12. **fork 的贡献者 PR 会不会误提审我的商品？**
     不会，三重保险：`publish.yml` 只在 `release: published` 与手动 dispatch 时触发（PR 事件根本不触发它）；`submit` 带 `if: github.repository == 'liaolongdong/account-password-helper'`；GitHub 本身不会把仓库 Secrets 暴露给 fork 的 run。
