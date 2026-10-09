@@ -33,7 +33,7 @@
         window.removeEventListener('error', jsGateFallback);
       });
     </script>
-    <title>Open-Source Local Password Manager - Account Password Helper</title>
+    <title>Open-Source Chrome Password Manager for Developers</title>
     <meta
       name="description"
       content="Free open-source, local-first password manager for Chrome: one-click login, TOTP 2FA, environment isolation, offline security audit. No account, no server."
@@ -66,7 +66,7 @@
     />
     <meta
       property="og:title"
-      content="Open-Source Local Password Manager - Account Password Helper"
+      content="Open-Source Chrome Password Manager for Developers"
     />
     <meta
       property="og:description"
@@ -98,7 +98,7 @@
     />
     <meta
       name="twitter:title"
-      content="Open-Source Local Password Manager - Account Password Helper"
+      content="Open-Source Chrome Password Manager for Developers"
     />
     <meta
       name="twitter:description"
@@ -147,7 +147,7 @@
         "operatingSystem": "Chrome",
         "browserRequirements": "Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.",
         "softwareVersion": "3.13.1",
-        "dateModified": "2026-10-02",
+        "dateModified": "2026-10-08",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -4197,11 +4197,11 @@
           <span class="hero-eyebrow"
             ><span class="dot"></span><span data-i18n="hero.eyebrow">Open source (GPL-3.0) · Local encryption · No password uploads</span></span
           >
-          <h1 data-i18n-html="hero.title">One-click login + local encryption<br />Password management, never this effortless & efficient</h1>
+          <h1 data-i18n-html="hero.title">A local-first password manager<br />built for developers & QA</h1>
           <p
             class="lead"
             data-i18n="hero.lead"
-          >A Chrome password manager built for developers &amp; QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts, with three tiers to widen matching across subdomains when one account serves a whole site; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.</p>
+          >Account Password Helper is an open-source Chrome password manager: usernames, passwords, URLs, notes and TOTP secrets are encrypted field by field with AES-256-GCM and kept only on your machine, then it fills, ticks and clicks sign-in for you. Exact-hostname matching isolates dev / test / staging / prod accounts, with three tiers to widen it; offline security audit and password generator built in. No sign-up, no servers, no uploads.</p>
           <div class="hero-cta">
             <a
               class="btn btn-primary"
@@ -6472,7 +6472,7 @@ pnpm lint:style  # Stylelint</code></pre>
       const I18N = {
         'meta.title': {
           zh: '开源免费本地密码管理器 · 一键登录 + TOTP | 账号密码管理助手',
-          en: 'Open-Source Local Password Manager - Account Password Helper',
+          en: 'Open-Source Chrome Password Manager for Developers',
         },
         'meta.description': {
           zh: '开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。',
@@ -6577,12 +6577,12 @@ pnpm lint:style  # Stylelint</code></pre>
         'footer.blog': { zh: '技术博客', en: 'Tech Blog' },
         'footer.more': { zh: '作者的其他插件', en: 'More by the author' },
         'hero.title': {
-          zh: '一键登录 + 本地加密<br />密码管理，从未如此省心高效',
-          en: 'One-click login + local encryption<br />Password management, never this effortless & efficient',
+          zh: '本地加密的密码管理器<br />为开发者与测试人员而做',
+          en: 'A local-first password manager<br />built for developers & QA',
         },
         'hero.lead': {
-          zh: '一款为开发者与测试人员量身打造的 Chrome 密码管理扩展：一键登录（填充 + 勾选协议 + 点击登录），精确域名匹配隔离 dev/test/staging/prod 多环境账号，需要时可按三档放宽跨子域匹配；内置 TOTP 两步验证、安全体检与密码生成器，敏感字段逐字段 AES-256-GCM 本地加密，密码数据不上传任何服务器。',
-          en: 'A Chrome password manager built for developers & QA: one-click login (fill + tick + click); exact-domain matching isolates dev / test / staging / prod accounts, with three tiers to widen matching across subdomains when one account serves a whole site; built-in TOTP 2FA, security audit and password generator. Sensitive fields are encrypted per field with AES-256-GCM locally, and password data is never uploaded.',
+          zh: '账号密码管理助手是一款开源的 Chrome 密码管理扩展：账号、密码、URL、备注与 TOTP 密钥逐字段 AES-256-GCM 加密后只存您本机，再替您在网站上完成填充、勾选协议与点击登录。精确主机名隔离 dev/test/staging/prod 多环境账号，需要时按三档放宽；另内置离线安全体检与密码生成器。无需注册、没有服务器、数据不上传。',
+          en: 'Account Password Helper is an open-source Chrome password manager: usernames, passwords, URLs, notes and TOTP secrets are encrypted field by field with AES-256-GCM and kept only on your machine, then it fills, ticks and clicks sign-in for you. Exact-hostname matching isolates dev / test / staging / prod accounts, with three tiers to widen it; offline security audit and password generator built in. No sign-up, no servers, no uploads.',
         },
         'hero.download': { zh: '添加到 Chrome', en: 'Add to Chrome' },
         'hero.githubDownload': { zh: 'GitHub 下载', en: 'GitHub Download' },
