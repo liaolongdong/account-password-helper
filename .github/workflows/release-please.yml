@@ -10,8 +10,12 @@ permissions:
   pull-requests: write
 
 # 同一时刻只允许一个发版链路在跑：release-please 会读改写同一条自动发布分支，
-# 两个 run 交错会把 CHANGELOG / package.json 版本位算乱。cancel-in-progress 必须为
-# false——正在等审批或正在提审商店的 run 被取消，等于一次半途而废的发版。
+# 两个 run 交错会把 CHANGELOG / package.json 版本位算乱。cancel-in-progress 保持 false。
+#
+# 2026-10-09 起本 workflow 不再挂 `production` 环境、也不再碰商店——它只做
+# 「算版本 → 打 tag → 建 GitHub Release → 挂 zip」。审批闸门搬进 publish.yml，
+# 于是「一条卡在审批的发布链堵死后续所有 run」这个 2026-09-29 真实发生过的故障
+# （v3.13.1 停在 waiting 十天，期间每次合 main 的新 run 全程 0 job）不再可能在这里复现。
 concurrency:
   group: release-please-${{ github.ref }}
   cancel-in-progress: false
@@ -32,27 +36,11 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  build-and-upload:
+  build-and-attach:
+    name: Build and attach zip to Release
     needs: release-please
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-latest
-    # ──────────────────────────────────────────────────────────────
-    # 发版审批闸门（2026-09-28 接入；三道闸门的最后一道，编号口径见
-    # docs/PR_WORKFLOW_GUIDE.md 第 0 节）。
-    # 上一段 release-please job 只负责打 tag + 建 GitHub Release；从这个 job 起，
-    # 构建、上传 zip 产物、提交 Chrome Web Store 审核是同一条链——一旦放行就不可即时撤回
-    # （商店侧只能再传一版重新排队）。所以整段挂在 `production` 环境上，
-    # 该环境配置 Required reviewers 后，合入 release PR 只让 run 进入 "waiting for approval"，
-    # 必须由维护者在 Actions run 页面点 Approve 才会真正提审。
-    # 未配置该环境或环境无审批人时，job 会直接放行——配置步骤见
-    # docs/PR_WORKFLOW_GUIDE.md 第 1 节「GitHub 网页端手动设置」。
-    # 前置事实：贡献者 PR 合入 main 不会走到这里；只有合并 release-please 自动生成的
-    # release PR 才置 release_created=true。
-    # ──────────────────────────────────────────────────────────────
-    environment: production
-    # secrets 上下文不能在 step 级 if 中直接引用，先提升为 job 级 env 供条件判断
-    env:
-      CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -60,9 +48,11 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
       - run: pnpm run build
 
+      # 这一段不需要人工审批：GitHub Release 的附件不是用户机器上跑的那份东西，
+      # 提审商店才是。闸门位置见 publish.yml 的 `environment: production`。
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
@@ -71,75 +61,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
 
-      # ──────────────────────────────────────────────────────────────
-      # Chrome Web Store auto-publish
-      # 需要在 GitHub repo Settings → Secrets and variables → Actions 中配置：
-      #   CWS_EXTENSION_ID  — 扩展 ID（从 CWS Dashboard 获取）
-      #   CWS_CLIENT_ID     — Google Cloud OAuth 2.0 Client ID
-      #   CWS_CLIENT_SECRET — Google Cloud OAuth 2.0 Client Secret
-      #   CWS_REFRESH_TOKEN — OAuth 2.0 Refresh Token
-      # ──────────────────────────────────────────────────────────────
-      # mnao305/chrome-extension-upload 的 file-path 不支持 glob 通配符，
-      # 会将 ".output/*-chrome.zip" 当作字面文件名打开而报 ENOENT。
-      # 因此先解析出实际的 zip 路径（取最新构建产物），再传入发布步骤。
-      - name: Resolve extension zip path
-        if: ${{ env.CWS_EXTENSION_ID != '' }}
-        id: cws_zip
-        run: |
-          ZIP_PATH="$(ls -t .output/*-chrome.zip | head -n1)"
-          echo "path=$ZIP_PATH" >> "$GITHUB_OUTPUT"
-          echo "Resolved Chrome zip: $ZIP_PATH"
-
-      # 校验 CWS OAuth 凭据：用 refresh_token 换取 access_token。
-      # chrome-extension-upload 上传前会先做此交换，返回 400 通常意味着：
-      #   - invalid_grant：refresh token 过期/被撤销（OAuth 应用处于 Testing 模式时约 7 天过期，最常见）
-      #   - invalid_client：client id/secret 与该 refresh token 不是同一套
-      # 本步骤把不透明的 400 转成明确错误信息；仅打印错误体，绝不打印 access_token。
-      - name: Verify CWS OAuth credentials
-        if: ${{ env.CWS_EXTENSION_ID != '' }}
+      # 给用户一个下一步的明确指针：合 release PR 之后商店提审不会自动发生，
+      # 它由 publish.yml 接 `release: published` 事件、并在 production 环境等人点 Approve。
+      - name: Point to the store pipeline
         env:
-          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          RELEASE_TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
-          HTTP_CODE=$(curl -s -o token_resp.json -w '%{http_code}' \
-            --data-urlencode "client_id=$CWS_CLIENT_ID" \
-            --data-urlencode "client_secret=$CWS_CLIENT_SECRET" \
-            --data-urlencode "refresh_token=$CWS_REFRESH_TOKEN" \
-            --data-urlencode "grant_type=refresh_token" \
-            https://oauth2.googleapis.com/token)
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "OAuth credentials OK（已获取 access_token，不打印）。若发布仍报 400，问题在扩展条目状态/版本号/包内容，而非凭据。"
-            rm -f token_resp.json
-          else
-            echo "OAuth token exchange failed，HTTP $HTTP_CODE："
-            cat token_resp.json
-            echo ""
-            echo "修复：重新走 OAuth 授权流程生成新的 refresh token，将 client-id/secret/refresh-token 作为同一套更新到仓库 Secrets；并把 OAuth 应用发布为 In production 以避免 token 过期。"
-            rm -f token_resp.json
-            exit 1
-          fi
-
-      # 校验扩展 ID 格式：CWS 扩展 ID 必须是 32 位 a-p 小写字母。
-      # Secret 值若混入空格/换行等不可见字符，上传 URL 会变形导致 Google 返回 404，
-      # 且该问题不会被 OAuth 凭据校验步骤拦截，故在发布前显式校验并给出明确错误。
-      - name: Verify CWS extension id format
-        if: ${{ env.CWS_EXTENSION_ID != '' }}
-        run: |
-          if printf '%s' "$CWS_EXTENSION_ID" | grep -qE '^[a-p]{32}$'; then
-            echo "CWS_EXTENSION_ID 格式 OK（32 位 a-p 字母）。"
-          else
-            echo "CWS_EXTENSION_ID 格式非法：应为 32 位 a-p 小写字母，实际长度 $(printf '%s' "$CWS_EXTENSION_ID" | wc -c | tr -d ' ')。"
-            echo "多为复制时带入了空格/换行，请在仓库 Secrets 中重新粘贴纯净的扩展 ID。"
-            exit 1
-          fi
-
-      - name: Publish to Chrome Web Store
-        if: ${{ env.CWS_EXTENSION_ID != '' }}
-        uses: mnao305/chrome-extension-upload@v6.0.0
-        with:
-          file-path: ${{ steps.cws_zip.outputs.path }}
-          extension-id: ${{ secrets.CWS_EXTENSION_ID }}
-          client-id: ${{ secrets.CWS_CLIENT_ID }}
-          client-secret: ${{ secrets.CWS_CLIENT_SECRET }}
-          refresh-token: ${{ secrets.CWS_REFRESH_TOKEN }}
+          echo "### 下一步：提交 Chrome Web Store 审核" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 已生成 Release：\`$RELEASE_TAG\`（zip 已挂为附件）" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 商店提审由 **Publish to Chrome Web Store** workflow 接手，它会停在 \`Waiting for approval\`，" >> "$GITHUB_STEP_SUMMARY"
+          echo "  需要维护者在 Actions run 页面点 **Review deployments → Approve** 才会真正排队人工审核。" >> "$GITHUB_STEP_SUMMARY"
+          echo "- 未点批准 = 商店侧什么都没有发生；这一步不可撤回，所以刻意留给人。" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "口径与故障排查见 docs/store/CWS_PUBLISHING_GUIDE.md「第三步」。" >> "$GITHUB_STEP_SUMMARY"

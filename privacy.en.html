@@ -231,6 +231,16 @@
         color: var(--text);
       }
 
+      /* 新增章节用 <code> 标注存储键名与 CSP 片段，样式跟随本页令牌，不引入新色值 */
+      .policy-section code {
+        padding: 1px 5px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        background: var(--bg-alt);
+        border: 1px solid var(--border);
+        border-radius: 4px;
+      }
+
       .policy-section ul {
         margin: 8px 0 12px 24px;
       }
@@ -386,8 +396,8 @@
           <span class="lang-en">Account Password Helper Browser Extension</span>
         </p>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年10月2日</span>
-          <span class="lang-en">Last updated: October 2, 2026</span>
+          <span class="lang-zh">最后更新：2026年10月8日 · 生效日期：2026年10月8日</span>
+          <span class="lang-en">Last updated: October 8, 2026 · Effective: October 8, 2026</span>
         </span>
       </div>
 
@@ -397,7 +407,9 @@
           <p>
             核心承诺：账号、密码、URL、备注、TOTP
             密钥与身份信息逐字段加密后只写入您本机的浏览器存储，不上传任何服务器；本扩展的全部网络行为只有第 4
-            节列出的两类匿名请求。
+            节列出的两类匿名请求。本政策另逐节说明了数据保留与删除的具体路径（第 8 节）、我们采取的安全措施（第 9
+            节）、每一类数据的使用目的与单一用途（第 10 节）、不出售不共享不转移（第 11 节），以及 GDPR / CCPA
+            等法规下您的权利如何行使（第 12 节）。
           </p>
         </div>
 
@@ -420,12 +432,23 @@
 
         <div class="policy-section">
           <h2>2. 数据收集</h2>
-          <p><strong>本扩展不收集任何用户数据。</strong>具体来说：</p>
+          <p>
+            <strong>本扩展不收集、不接收、也不传输您的任何个人数据。</strong>您录入的账号、密码、URL、备注、TOTP
+            密钥与身份信息，自始至终只在您自己的设备上被处理；我们之所以能这样承诺，是因为本扩展<strong>没有任何自有服务器，也没有任何数据上报通道</strong>——不存在一个「我们这边」可以存放您的数据的地方。具体来说：
+          </p>
           <ul>
             <li>不使用任何分析工具（如 Google Analytics、Mixpanel 等）</li>
             <li>不包含任何遥测或追踪代码</li>
             <li>不记录用户行为或使用统计</li>
             <li>不收集设备信息或浏览器指纹</li>
+            <li>不要求注册账号、不采集邮箱或姓名，安装即可使用，因此我们不持有可用于识别您的标识符</li>
+            <li>
+              页面上读取的表单结构（输入框位置、选择器、域名）只用于定位要填充或锚定的字段，用完即弃，不写入任何存储、不外传
+            </li>
+            <li>
+              「自动保存」为可选项且默认关闭：只有您在登录后的确认弹窗中点击保存，该条凭据才会加密写入本机存储（详见第 3
+              节）
+            </li>
           </ul>
         </div>
 
@@ -595,17 +618,144 @@
         </div>
 
         <div class="policy-section">
-          <h2>8. 儿童隐私</h2>
+          <h2>8. 数据保留与删除</h2>
+          <p>
+            <strong>保留位置与期限：</strong>您的全部数据只保存在本机的
+            <code>chrome.storage.local</code>
+            中，保留到您主动删除它们或卸载本扩展为止。我们没有任何服务端副本、日志、数据库或远程备份——因此不存在「请你们那边删掉」这种请求的对象；删除动作全部发生在您自己的设备上。
+          </p>
+          <p><strong>您可以使用的删除路径：</strong></p>
+          <ul>
+            <li>
+              <strong>删除单条条目：</strong
+              >条目先移入回收站，在回收站中彻底删除或「清空回收站」后，其密文即从本机存储移除
+            </li>
+            <li><strong>身份信息库：</strong>整块独立加密存储，删除条目即移除对应的密文块；清空回收站同样连带清理</li>
+            <li>
+              <strong>到期提醒：</strong
+              >删除该条提醒、删除对应条目或清空回收站，都会一并清除提醒表里那条明文的账号名记录（见第 3 节）
+            </li>
+            <li>
+              <strong>「忘记密码？重置所有数据」：</strong
+              >主密码无法找回，重置会清空本机全部密码数据且不可撤销——这是忘记主密码时唯一的路径，操作前有二次确认
+            </li>
+            <li>
+              <strong>卸载扩展：</strong>扩展被移除时，Chrome 会一并清除它在 <code>chrome.storage.local</code> 中的数据
+            </li>
+            <li><strong>密码历史快照：</strong>每条默认保留 3 份旧密码（可配 1~10），随所属条目一同删除</li>
+          </ul>
+          <p>
+            您导出的文件（CSV / JSON /
+            <code>.aph</code> / <code>.aphid</code>
+            /站点规则
+            JSON）离开扩展后就归您所有，删除只能在您存放它们的位置进行；其中明文形态的文件包含可直接读取的凭据，请按第 7
+            节的提示妥善保管。
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>9. 安全措施</h2>
+          <ul>
+            <li>
+              <strong>静态加密：</strong>账号、密码、URL、备注、TOTP 密钥逐字段以 AES-256-GCM
+              认证加密后落盘；身份信息库整块加密
+            </li>
+            <li>
+              <strong>密钥来源：</strong>数据密钥由主密码经 PBKDF2-SHA-256（600,000 次迭代 +
+              随机盐）在本机派生；主密码本身从不保存，磁盘上只留有加盐的校验值
+            </li>
+            <li>
+              <strong>本地运算：</strong>全部加解密由浏览器原生 Web Crypto API
+              完成，不引入第三方加密库，也不调用任何远端密码学服务
+            </li>
+            <li>
+              <strong>会话密钥销毁：</strong
+              >手动锁定、闲置锁定与会话到期都会立即销毁内存与磁盘上的会话密钥材料；「保持登录」在这段有效期内留下的密钥材料及其风险已在第
+              3 节明示，共用电脑建议开启「浏览器重启锁定」
+            </li>
+            <li>
+              <strong>剪贴板：</strong>复制密码后自动清除，并在清除前校验内容未被替换（这是
+              <code>clipboardRead</code> 权限的唯一用途）
+            </li>
+            <li>
+              <strong>二次验证：</strong
+              >身份信息的查看与复制需重新验证主密码，默认掩码显示；明文导出与「不加密备份」需风险二次确认并复验主密码
+            </li>
+            <li>
+              <strong>投递面收窄：</strong
+              >自动填充默认按精确主机名匹配站点规则才放宽，避免把凭据投递到仿冒或相邻域名；主密码输入框实时检测大写锁定
+            </li>
+            <li>
+              <strong>代码与权限边界：</strong>CSP 限制为
+              <code>script-src 'self'; object-src 'self'</code>，不加载远程代码；权限取最小集合且逐项标注用途（第 5
+              节）；页面 DOM、导入文件与运行时消息一律按不可信输入做类型、长度与来源校验
+            </li>
+            <li>
+              <strong>可审计性：</strong>源代码以 GPL-3.0
+              完整公开，上述每一条都可以在仓库中对照实现验证，无需相信我们的自述
+            </li>
+          </ul>
+        </div>
+
+        <div class="policy-section">
+          <h2>10. 数据的使用目的（单一用途）</h2>
+          <p>
+            本扩展的用途是单一的：<strong>在您本机安全地保存账号凭据，并替您在自己的网站上完成填充与登录辅助。</strong>每一类被经手的信息只服务于这条链路上的一个目的：
+          </p>
+          <ul>
+            <li>
+              <strong>凭据（账号 / 密码 / TOTP 密钥 / 身份信息）：</strong>只用于「加密存储 → 会话内解密 →
+              填充、复制或展示」，以及您主动发起的导出与备份
+            </li>
+            <li>
+              <strong>页面表单结构与当前域名：</strong
+              >只用于定位要填充的输入框、锚定要填写的验证码胶囊，以及决定该展示哪些条目和按哪一档匹配
+            </li>
+            <li><strong>您自定义的站点规则：</strong>只用于在您指定的域名上改用您指定的选择器</li>
+            <li>
+              <strong>版本信息：</strong>更新检查只读取公开的最新版本号与不超过 200
+              字的更新说明，唯一用途是提示您可以升级（第 4 节）
+            </li>
+          </ul>
+          <p>
+            <strong>明确不做用途之外的处理：</strong>不用于广告投放或用户画像，不用于训练任何模型，不出售、不共享（第 11
+            节），也不与第 4 节之外的任何系统或第三方交换数据。
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>11. 不出售、不共享、不转移</h2>
+          <p>
+            我们不出售、不出租、不以物易物，也不以任何方式向第三方共享或转移您的个人数据或凭据信息；不使用广告网络、数据经纪商或分析服务商；不把数据托管到任何云存储服务。由于没有任何数据离开您的设备，也就不存在云服务提供商访问、跨境转移或第三方执法调取数据副本的情形——没有可被调取的副本。本扩展不在任何意义上是您的数据的管理者或中间人。
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>12. 适用法规与您的权利</h2>
+          <p>
+            因为我们不接收、不持有也不传输您的任何个人数据，本扩展的开发者不担任任何个人数据的控制者或处理者。GDPR、CCPA/CPRA
+            等法规赋予的访问、更正、删除、可携带、退出「出售」或「共享」等权利，在这里都对应一个更简单的动作：<strong
+              >本机数据由您直接删除，或卸载扩展（见第 8 节）</strong
+            >，无需向我们提出请求，也无需等待响应。
+          </p>
+          <p>
+            如果您仍希望就隐私事项联系开发者（例如所在组织的合规审查需要书面说明），请使用第 15
+            节的联系方式；我们会按适用法律予以响应。
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>13. 儿童隐私</h2>
           <p>本扩展不会有意收集任何用户（包括 13 岁以下儿童）的个人信息。所有数据仅存储在用户本地设备上。</p>
         </div>
 
         <div class="policy-section">
-          <h2>9. 隐私政策变更</h2>
+          <h2>14. 隐私政策变更</h2>
           <p>如本隐私政策有任何变更，将在本页面更新并标注变更日期。重大变更将通过扩展内通知提示用户。</p>
         </div>
 
         <div class="policy-section">
-          <h2>10. 联系我们</h2>
+          <h2>15. 联系我们</h2>
           <p>如对本隐私政策有任何疑问，请通过以下方式联系：</p>
           <ul>
             <li>邮箱：924902324@qq.com</li>
@@ -626,7 +776,11 @@
           <p>
             Core Commitment: Account names, passwords, URLs, notes, TOTP secrets and identity fields are encrypted field
             by field and written only to your browser's local storage — never uploaded to any server. All network
-            activity this extension performs is limited to the two anonymous requests listed in Section 4.
+            activity this extension performs is limited to the two anonymous requests listed in Section 4. This policy
+            also sets out, section by section: how long data is retained and every path you can use to delete it
+            (Section 8), the security measures we take (Section 9), the purpose of use for each category of information
+            and our single-purpose commitment (Section 10), that we do not sell, share or transfer anything (Section
+            11), and how you exercise your rights under GDPR, CCPA and similar laws (Section 12).
           </p>
         </div>
 
@@ -649,12 +803,31 @@
 
         <div class="policy-section">
           <h2>2. Data Collection</h2>
-          <p><strong>The Extension does not collect any user data.</strong> Specifically:</p>
+          <p>
+            <strong>The Extension does not collect, receive, or transmit any of your personal data.</strong> The account
+            names, passwords, URLs, notes, TOTP secrets and identity fields you enter are processed exclusively on your
+            own device. We can make that commitment because the Extension has
+            <strong>no servers of its own and no data-reporting channel</strong> — there is no "our side" where your
+            data could ever end up. Specifically:
+          </p>
           <ul>
             <li>No analytics tools are used (no Google Analytics, Mixpanel, etc.)</li>
             <li>No telemetry or tracking code is included</li>
             <li>No user behavior or usage statistics are recorded</li>
             <li>No device information or browser fingerprints are collected</li>
+            <li>
+              No account sign-up, email address or name is required, so we hold no identifier that could be used to
+              recognise you
+            </li>
+            <li>
+              Page structure we read (input positions, selectors, the current domain) is used only to locate the field
+              to fill or the code capsule to anchor, is discarded immediately, never written to storage and never sent
+              anywhere
+            </li>
+            <li>
+              "Auto-save" is optional and off by default: a credential is encrypted into local storage only after you
+              tap Save in the confirmation dialog that follows your sign-in (see Section 3)
+            </li>
           </ul>
         </div>
 
@@ -854,7 +1027,167 @@
         </div>
 
         <div class="policy-section">
-          <h2>8. Children's Privacy</h2>
+          <h2>8. Data Retention &amp; Deletion</h2>
+          <p>
+            <strong>Where and how long:</strong> all of your data lives only in <code>chrome.storage.local</code> on
+            your own machine, and is retained until you delete it or uninstall the Extension. We keep no server-side
+            copy, log, database or remote backup of any kind — so there is no object for a "please delete it on your
+            side" request; every deletion happens on your device.
+          </p>
+          <p><strong>Deletion paths available to you:</strong></p>
+          <ul>
+            <li>
+              <strong>Single entry:</strong> a deleted entry first moves to the trash; permanently removing it there or
+              emptying the trash removes its ciphertext from local storage
+            </li>
+            <li>
+              <strong>Identity vault:</strong> stored as its own encrypted block — removing an entry removes that block,
+              and emptying the trash cleans it up as well
+            </li>
+            <li>
+              <strong>Expiry reminders:</strong> removing the reminder, removing the related entry, or emptying the
+              trash all clear the plaintext account-name record kept in the reminder table (see Section 3)
+            </li>
+            <li>
+              <strong>"Forgot password? Reset all data":</strong> the master password cannot be recovered, and resetting
+              wipes all local password data irreversibly — it is the only path when the master password is lost, and it
+              requires a confirmation step
+            </li>
+            <li>
+              <strong>Uninstalling the Extension:</strong> Chrome clears the extension's
+              <code>chrome.storage.local</code>
+              data when the extension is removed
+            </li>
+            <li>
+              <strong>Password history snapshots:</strong> 3 previous values per entry by default (configurable 1~10),
+              removed together with the entry they belong to
+            </li>
+          </ul>
+          <p>
+            Files you export (CSV / JSON /
+            <code>.aph</code> / <code>.aphid</code>
+            / site-rule JSON) leave the Extension and become yours to keep; they can only be deleted wherever you store
+            them. Plaintext forms contain directly readable credentials, so handle them as Section 7 advises.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>9. Security Measures</h2>
+          <ul>
+            <li>
+              <strong>Encryption at rest:</strong> usernames, passwords, URLs, notes and TOTP secrets are encrypted
+              field by field with AES-256-GCM (authenticated encryption); the identity vault is encrypted as a whole
+              block
+            </li>
+            <li>
+              <strong>Key origin:</strong> the data key is derived on your device from the master password via
+              PBKDF2-SHA-256 (600,000 iterations + random salt); the master password itself is never stored — only a
+              salted verifier stays on disk
+            </li>
+            <li>
+              <strong>Local computation only:</strong> all cryptography runs through the browser-native Web Crypto API —
+              no third-party crypto library, no remote cryptographic service
+            </li>
+            <li>
+              <strong>Session key destruction:</strong> manual lock, idle lock and session expiry all destroy the
+              session key material immediately; the key material that "keep me signed in" leaves on disk during a valid
+              session, and the risk that implies, are spelled out in Section 3 — enable "lock on browser restart" on
+              shared machines
+            </li>
+            <li>
+              <strong>Clipboard:</strong> copied passwords are cleared automatically, and the content is verified
+              unchanged before clearing (the sole purpose of the <code>clipboardRead</code> permission)
+            </li>
+            <li>
+              <strong>Step-up verification:</strong> identity fields are masked by default and require re-entering the
+              master password to view or copy; plaintext exports and the "unencrypted backup" tier require a risk
+              acknowledgement plus master-password re-verification
+            </li>
+            <li>
+              <strong>Narrow delivery surface:</strong> autofill matches the exact hostname by default and only widens
+              through the tiers or site rules you choose, so credentials are not delivered to look-alike or neighbouring
+              domains; the master-password field detects Caps Lock in real time
+            </li>
+            <li>
+              <strong>Code and permission boundaries:</strong> CSP is
+              <code>script-src 'self'; object-src 'self'</code>
+              with no remote code; permissions are the minimal set, each with its purpose listed in Section 5; page DOM,
+              imported files and runtime messages are all treated as untrusted input and validated for type, length and
+              origin
+            </li>
+            <li>
+              <strong>Auditability:</strong> the full source is published under GPL-3.0, so every claim above can be
+              verified against the implementation rather than taken on our word
+            </li>
+          </ul>
+        </div>
+
+        <div class="policy-section">
+          <h2>10. Purpose of Use (Single Purpose)</h2>
+          <p>
+            The Extension has one purpose:
+            <strong
+              >to store your credentials securely on your machine and to help you fill and sign in on your own
+              sites.</strong
+            >
+            Every category of information it handles serves exactly one step of that chain:
+          </p>
+          <ul>
+            <li>
+              <strong>Credentials (username / password / TOTP secret / identity fields):</strong> used only for "encrypt
+              at rest → decrypt within the session → fill, copy or display", plus the exports and backups you start
+              yourself
+            </li>
+            <li>
+              <strong>Page form structure and the current domain:</strong> used only to locate the input to fill, the
+              code capsule to anchor, and to decide which entries to show and which matching tier applies
+            </li>
+            <li>
+              <strong>Site rules you define:</strong> used only to substitute your own selectors on the domains you
+              specify
+            </li>
+            <li>
+              <strong>Version information:</strong> the update check reads only the public latest version number and a
+              release note of at most 200 characters, used solely to tell you an upgrade is available (Section 4)
+            </li>
+          </ul>
+          <p>
+            <strong>Nothing beyond that purpose:</strong> no advertising or user profiling, no training of any model, no
+            sale or sharing (Section 11), and no data exchanged with any system or third party other than the two
+            anonymous requests in Section 4.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>11. No Sale, No Sharing, No Transfer</h2>
+          <p>
+            We do not sell, rent, trade, or otherwise share or transfer your personal data or credentials with any third
+            party; we use no ad networks, data brokers, or analytics providers; and your data is never hosted on any
+            cloud storage service. Because no data leaves your device, there is no cloud-provider access, no
+            cross-border transfer, and no copy that could be subpoenaed — there is nothing to subpoena. In no sense are
+            we a custodian or intermediary of your data.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>12. Applicable Laws &amp; Your Rights</h2>
+          <p>
+            Since we neither receive, hold, nor transmit any of your personal data, the developer of this Extension acts
+            as neither controller nor processor of any personal data. The rights granted by GDPR, CCPA/CPRA and similar
+            laws — access, rectification, erasure, portability, opting out of "sale" or "sharing" — map here onto a
+            single simpler action:
+            <strong>you delete the local data directly, or uninstall the Extension (see Section 8)</strong>, without
+            filing a request with us or waiting for a response.
+          </p>
+          <p>
+            If you still wish to reach the developer about privacy matters (for example, your organisation's compliance
+            review needs it in writing), use the contact details in Section 15; we will respond in line with applicable
+            law.
+          </p>
+        </div>
+
+        <div class="policy-section">
+          <h2>13. Children's Privacy</h2>
           <p>
             The Extension does not knowingly collect personal information from any user, including children under 13.
             All data is stored only on the user's local device.
@@ -862,7 +1195,7 @@
         </div>
 
         <div class="policy-section">
-          <h2>9. Changes to This Policy</h2>
+          <h2>14. Changes to This Policy</h2>
           <p>
             Any changes to this Privacy Policy will be updated on this page with the revised date. Significant changes
             will be communicated to users via in-extension notifications.
@@ -870,7 +1203,7 @@
         </div>
 
         <div class="policy-section">
-          <h2>10. Contact Us</h2>
+          <h2>15. Contact Us</h2>
           <p>If you have any questions about this Privacy Policy, please contact us at:</p>
           <ul>
             <li>Email: 924902324@qq.com</li>

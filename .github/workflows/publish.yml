@@ -1,0 +1,246 @@
+name: Publish to Chrome Web Store
+
+# ──────────────────────────────────────────────────────────────────────────────
+# 商店提审专用 workflow（2026-10-09 从 release-please.yml 拆出）。
+#
+# 为什么要拆：原来「打 tag」和「提审商店」在同一条 workflow 里，且 workflow 级
+# concurrency 是 `release-please-${{ github.ref }}` + `cancel-in-progress: false`。
+# 于是 2026-09-29 那次 v3.13.1 停在 production 的 `waiting` 状态十天，把这唯一的一个
+# 并发组占死——之后每次合入 main 产生的 run 全程 0 个 job，并在下一次合并的瞬间被自动
+# 取消（run 36556089630 / 37735256974 的 created_at 与 updated_at 逐条对得上）。
+# 拆开后：本 workflow 的并发组**按 tag 分组**，一条等审批的发布链只占住它自己那个 tag，
+# 主干上的发版与别的版本的提审互不阻塞。
+#
+# 三段式深度，越靠下越接近真实提审：
+#   preflight   只构建 + 离线预检（零凭据、零网络写）——fork 和没配服务账号的分支也必须是绿的
+#   status      加一次只读的 fetchStatus，用来证明服务账号凭据链通
+#   publish-dry 传包但**不提审**（改商店文案那一轮用它）
+#   publish     传包 + 提审，一旦放行不可即时撤回
+# 后两段都挂在 `production` 环境上，必须人工点 Approve；`release` 事件默认走 publish。
+#
+# 凭据形态：服务账号 JSON key（四项 Secret），不再用 OAuth refresh token——
+# 后者在同意屏幕「Testing」模式下 7 天过期，正是历史上 `invalid_grant` 的根因。
+# 端点、请求体与轮询口径由 `scripts/cwsPublish.mjs` 实现，
+# 并由 `tests/scripts/cwsPublishCli.test.ts` 的本地假商店逐字钉住（20 例）。
+# ──────────────────────────────────────────────────────────────────────────────
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要处理的 GitHub Release tag（留空 = 用当前分支的 package.json 版本，只能跑 preflight）'
+        required: false
+        type: string
+      mode:
+        description: '执行深度：preflight 离线预检 / status 只读查询 / publish-dry 传包不提审 / publish 传包并提审'
+        required: true
+        type: choice
+        default: 'preflight'
+        options:
+          - 'preflight'
+          - 'status'
+          - 'publish-dry'
+          - 'publish'
+
+# 只读代码。写商店不经过 GITHUB_TOKEN，凭据全在 CWS_* 四项 Secret 里。
+permissions:
+  contents: read
+
+# 按 tag 分组：等审批的 run 只占住自己那个版本，不再堵死主干与别的版本。
+# cancel-in-progress 必须为 false——正在等审批或正在传包的 run 被取消，等于一次半途而废的发版。
+concurrency:
+  group: cws-publish-${{ github.event.release.tag_name || inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Build and preflight (no store calls)
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      tag_version: ${{ steps.resolve.outputs.tag_version }}
+      mode: ${{ steps.resolve.outputs.mode }}
+      artifact: ${{ steps.resolve.outputs.artifact }}
+      zip_name: ${{ steps.zip.outputs.name }}
+    steps:
+      # release 事件用事件里的 tag；手动触发用输入的 tag；两者都空时留在当前 ref 上跑预检。
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Resolve tag / version / mode
+        id: resolve
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+          INPUT_MODE: ${{ inputs.mode }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          TAG="${RELEASE_TAG:-$INPUT_TAG}"
+          VERSION="$(node -p "require('./package.json').version")"
+          # release 事件没有 mode 输入：那条路径的语义就是走完提审（仍被 production 审批挡在后面）。
+          MODE="${INPUT_MODE:-publish}"
+          if [ -z "$TAG" ] && [ "$MODE" != "preflight" ]; then
+            echo "没给 tag 却选了 $MODE：无法核对「包版本 == 发布版本」。请填 tag，或把 mode 改回 preflight。"
+            exit 1
+          fi
+          {
+            echo "version=$VERSION"
+            echo "tag_version=${TAG#v}"
+            echo "mode=$MODE"
+            echo "artifact=cws-zip-$VERSION-$RUN_ID-$RUN_ATTEMPT"
+          } >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG:-（空，仅离线预检）} version=$VERSION mode=$MODE"
+
+      - name: Build extension
+        run: pnpm run build
+
+      - name: Locate chrome zip
+        id: zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$(ls .output/*-chrome.zip | head -n1)"
+          echo "path=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename "$ZIP")" >> "$GITHUB_OUTPUT"
+          echo "包：$(basename "$ZIP")，$(wc -c < "$ZIP") 字节"
+
+      # 离线闸：包内 manifest 版本 vs package.json vs 发布 tag、标识符形状、权限集合与
+      # .output/chrome-mv3 的逐项差异。`--ids-optional` 只在这一段用：服务账号还没建出来的
+      # 分支上三项标识符天然是空的，让「包对不对」先能单独给出结论。真正提审的 submit 段
+      # 不带这个标志，缺凭据照旧判红。
+      - name: Offline preflight
+        shell: bash
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_SA_EMAIL: ${{ secrets.CWS_SA_EMAIL }}
+          ZIP_PATH: ${{ steps.zip.outputs.path }}
+          EXPECT_VERSION: ${{ steps.resolve.outputs.tag_version }}
+        run: |
+          set -euo pipefail
+          ARGS=(preflight --zip "$ZIP_PATH" --ids-optional)
+          if [ -n "${EXPECT_VERSION:-}" ]; then ARGS+=(--expect-version "$EXPECT_VERSION"); fi
+          node scripts/cwsPublish.mjs "${ARGS[@]}"
+
+      # 把这个包交给下游 job 用：submit 提审的就是**预检过的那个字节包**，不是重新构建的第二次产物。
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.resolve.outputs.artifact }}
+          path: ${{ steps.zip.outputs.path }}
+          retention-days: 7
+          if-no-files-found: error
+
+  inspect:
+    name: Store status (read-only)
+    needs: prepare
+    if: ${{ needs.prepare.outputs.mode == 'status' }}
+    runs-on: ubuntu-latest
+    # 只读段不挂 environment：`fetchStatus` 一个字节都不写，不需要人工放行；
+    # 用它验证「服务账号 → access token → v2 端点」这条链通，就能把凭据问题在提审之前暴露掉。
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Fetch item status
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_SA_EMAIL: ${{ secrets.CWS_SA_EMAIL }}
+          CWS_SA_PRIVATE_KEY: ${{ secrets.CWS_SA_PRIVATE_KEY }}
+        run: node scripts/cwsPublish.mjs status
+
+  submit:
+    name: Submit to Chrome Web Store (needs approval)
+    needs: prepare
+    if: ${{ github.repository == 'liaolongdong/account-password-helper' && (needs.prepare.outputs.mode == 'publish' || needs.prepare.outputs.mode == 'publish-dry') }}
+    runs-on: ubuntu-latest
+    # ──────────────────────────────────────────────────────────────
+    # 第三道闸门：不可撤回的商店提审（编号口径见 docs/PR_WORKFLOW_GUIDE.md 第 0 节）。
+    # 环境名为 `production`、必须配 Required reviewers；**环境不存在时 GitHub 会静默自建
+    # 一个无保护规则的环境直接放行**，所以「建环境」这步不做，闸门就不成立。
+    # 未配置该环境时本 job 会直接跑——验证方法：合入 release PR 后 run 应停在
+    # `Waiting for approval` 并出现 `Review deployments` 按钮。
+    # ──────────────────────────────────────────────────────────────
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.prepare.outputs.artifact }}
+          path: .output
+
+      - name: Resolve downloaded zip
+        id: zip
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$(ls .output/*-chrome.zip | head -n1)"
+          echo "path=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "将提审的包：$ZIP（$(wc -c < "$ZIP") 字节，来自 prepare job 的同一份产物）"
+
+      # publish 子命令内部会再跑一次**严格**预检（不带 --ids-optional）：
+      # 三项标识符缺任何一项都在这里判红，然后在联网之前停下。
+      # 序列固定为 fetchStatus → upload → 轮询 lastAsyncUploadState → publish → fetchStatus，
+      # 其中轮询是 v2 的新坑：upload 可能回 IN_PROGRESS，此时提审拿到的是上一个已解析版本。
+      - name: Publish to Chrome Web Store
+        shell: bash
+        env:
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID }}
+          CWS_SA_EMAIL: ${{ secrets.CWS_SA_EMAIL }}
+          CWS_SA_PRIVATE_KEY: ${{ secrets.CWS_SA_PRIVATE_KEY }}
+          ZIP_PATH: ${{ steps.zip.outputs.path }}
+          EXPECT_VERSION: ${{ needs.prepare.outputs.tag_version }}
+          MODE: ${{ needs.prepare.outputs.mode }}
+        run: |
+          set -euo pipefail
+          ARGS=(publish --zip "$ZIP_PATH")
+          if [ -n "${EXPECT_VERSION:-}" ]; then ARGS+=(--expect-version "$EXPECT_VERSION"); fi
+          if [ "$MODE" = "publish-dry" ]; then ARGS+=(--no-submit); fi
+          node scripts/cwsPublish.mjs "${ARGS[@]}"
+
+      - name: Write job summary
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          MODE: ${{ needs.prepare.outputs.mode }}
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          ZIP_NAME: ${{ needs.prepare.outputs.zip_name }}
+        run: |
+          set -euo pipefail
+          {
+            if [ "$MODE" = "publish-dry" ]; then
+              echo "### Chrome Web Store：只传包、未提审（$MODE）"
+              echo "- 包：\`$ZIP_NAME\` / tag：\`${TAG:-（未给）}\`"
+              echo "- 商店侧现在处于「已上传新包、等人工在 Dashboard 提审」的状态。"
+            else
+              echo "### Chrome Web Store：已提交审核"
+              echo "- 包：\`$ZIP_NAME\` / tag：\`${TAG:-（未给）}\`"
+              echo "- 接下来是 Google 人工审核，通常 1–3 天；进度看 Developer Dashboard。"
+              echo "- 需要撤版：\`node scripts/cwsPublish.mjs cancel\`（每天每 publisher 上限 6 次）。"
+            fi
+            echo ""
+            echo "- 排查与口径：docs/store/CWS_PUBLISHING_GUIDE.md「第三步」与「常见问题」。"
+          } >> "$GITHUB_STEP_SUMMARY"
