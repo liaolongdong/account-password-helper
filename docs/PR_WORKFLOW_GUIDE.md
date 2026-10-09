@@ -25,16 +25,26 @@
  维护者合并那条 release PR ─────────── 〔第二道闸门：决定发哪一版〕
         │
         ▼
- tag + GitHub Release 生成 → run 停在 Waiting for approval
+ release-please.yml：打 tag → 建 GitHub Release → pnpm build → zip 挂成 Release 附件
+        │
+        ▼（release: published 事件对接）
+ publish.yml 的 prepare job：pnpm build → 离线预检 → 把这个字节包存成 artifact
         │
         ▼
- 维护者点 Approve（production 环境）── 〔第三道闸门：不可撤回的商店提审〕
+ submit job 停在 Waiting for approval
         │
         ▼
- pnpm build → zip 传 Release 附件 → 提交 Chrome Web Store → Google 人工审核 1-3 天
+ 维护者点 Approve（production 环境）── 〔第三道闸门：不可即时撤回的商店提审〕
+        │
+        ▼
+ fetchStatus → 传包 → 轮询上传落定 → 提审 → Google 人工审核 1-3 天
 ```
 
-三道闸门各自挡住的错误类型不同：第一道挡「代码没审」，第二道挡「版本号和 CHANGELOG 不是你要发的那一版」，第三道挡「商店包一旦提交就不能即时撤回」。
+三道闸门各自挡住的错误类型不同：第一道挡「代码没审」，第二道挡「版本号和 CHANGELOG 不是你要发的那一版」，第三道挡「商店包一旦提审就进入 Google 队列，只能撤回（每个 publisher 每天上限 6 次）或等它审完」。
+
+**为什么第三道闸门在 `publish.yml` 而不是 `release-please.yml`**：2026-10-09 之前它在 release-please 那条 workflow 里，而 workflow 级并发组只有一个且 `cancel-in-progress: false`。
+2026-09-29 合入 v3.13.1 的 release PR 后，那条 run 停在 `waiting` 十天，把并发组占死——期间每次合入 `main` 产生的 run 全程 0 个 job，并在下一次合并的瞬间被自动取消，Release 也因此没有 zip 附件。
+拆开后 `publish.yml` 的并发组**按 tag 分组**，一条等审批的发布链只占住它自己那个 tag。完整时序与故障证据见 `docs/store/CWS_PUBLISHING_GUIDE.md` 3.5。
 
 **为什么不需要一个单独的「PR 分支」**：release-please 已经替你维护了那条分支（`release-please--branches--main--components--account-password-helper`），贡献者合进 `main` 不会发版。再手工加一层 `develop`/`pr` 分支，只会多出一次合并冲突，闸门数量不变。所以本方案是 **GitHub Flow（单主干）+ 三道闸门**，不是 Git Flow。
 
@@ -46,7 +56,7 @@
 
 ### 1.1 创建 `production` 环境并配审批人（最关键）
 
-`.github/workflows/release-please.yml` 的 `build-and-upload` job 已带 `environment: production`。
+`.github/workflows/publish.yml` 的 `submit` job 带 `environment: production`（2026-10-09 起闸门从 `release-please.yml` 搬到了这里，job 名也从 `build-and-upload` 变成 `submit`）。
 
 1. Settings → **Environments** → **New environment**，名称**必须逐字写** `production`（大小写敏感，写错等于没闸门）。
 2. 在 **Protection rules** 里勾选 **Required reviewers**，输入自己的账号 `liaolongdong`。
@@ -106,7 +116,7 @@ Conventional PR title      ← pr-title.yml
 
 > 兜底那条 `*` 的副作用：所有 PR 都需要 owner 审。单人阶段这等于「都归我」，无害；招人后**先删 `*`**，否则新维护者的文档 PR 也要老维护者点头，会把你变成瓶颈。
 
-**为什么 `.github/` 必须在内**：工作流文件若能被静默改动，攻击者可以让一个 PR 在带 `CWS_REFRESH_TOKEN` 的 job 里跑任意命令。这条是这套方案里唯一防「评审过了但 CI 被改写」的规则。
+**为什么 `.github/` 必须在内**：工作流文件若能被静默改动，攻击者可以让一个 PR 在带 `CWS_SA_PRIVATE_KEY` 的 job（`publish.yml` 的 `inspect` / `submit`）里跑任意命令，等于直接拿到商店发布权。这条是这套方案里唯一防「评审过了但 CI 被改写」的规则。
 
 ### 1.4 统一合并方式为 Squash merge
 
@@ -129,9 +139,9 @@ Settings → **Actions** → **General** → 拉到 **Fork pull request workflow
 - Approves and runs workflow jobs… → 选 **Require approval for first-time contributors**（首次贡献者需人工放行）。
 - 可选再开 **Require approval for all outside collaborators**。
 
-同时确认同页的 **Read repository contents and packages permissions** 为默认只读（本仓库四个 workflow 都显式写了 `permissions:`，`ci.yml`/`pr-title.yml` 是 `contents: read`，`e2e.yml` 同理，只有 `release-please.yml` 拿 `contents: write` + `pull-requests: write`——这是刻意最小化，勿在别的 workflow 上加权限）。
+同时确认同页的 **Read repository contents and packages permissions** 为默认只读（本仓库五个 workflow 都显式写了 `permissions:`，`ci.yml`/`pr-title.yml`/`e2e.yml`/`publish.yml` 均为 `contents: read`，只有 `release-please.yml` 拿 `contents: write` + `pull-requests: write`——这是刻意最小化，勿在别的 workflow 上加权限。`publish.yml` 尤其不要加：它虽然能写商店，但写商店靠的是 `CWS_*` Secret 里的服务账号凭据，`GITHUB_TOKEN` 在这条链上一个写操作都不需要）。
 
-挡的是「PR 里塞一个挖矿脚本白嫖 Actions 分钟数」。注意：fork PR 本来就读不到 Secrets，且 `release-please.yml` 不由 PR 事件触发，所以凭据外泄这条路已经封死；此项只补算力滥用。
+挡的是「PR 里塞一个挖矿脚本白嫖 Actions 分钟数」。注意：fork PR 本来就读不到 Secrets，且 `release-please.yml` 与 `publish.yml` 都不由 PR 事件触发（后者只接 `release: published` 和手动 dispatch，`submit` 还额外要求 `github.repository` 等于本仓库），所以凭据外泄这条路已经封死；此项只补算力滥用。
 
 ### 1.6 打开 Dependabot
 
@@ -157,14 +167,22 @@ Settings → **Secrets and variables** → **Actions** → 确认：
 
 - 该 PAT 是 **Fine-grained**、只作用于此仓库、权限仅 `Contents: Read and write` + `Pull requests: Read and write`；classic + `repo` full scope 属于过宽。
 - 设置**过期时间**并记入日历轮换；过期当晚的发版会红，报错通常落在 `release-please` job 而不是发布 job。
-- 切勿把 `CWS_*` 四个 Secret 与该 PAT 放同一环境（见 1.8）。
+- 仓库级 Secrets 页应当**只有** `RELEASE_PLEASE_TOKEN` 与 `CWS_*` 这组商店凭据两类；两类的权限面不同（一个能写主干，一个能发商店），任何一类出现在别的 workflow 的 `env:` 里都应当能被解释。
+- `release-please.yml` 现在完全不引用任何 `CWS_*`（2026-10-09 起商店凭据只在 `publish.yml` 里用），所以「打 tag 的那段被改写」不再等于「拿到商店发布权」。
 
-### 1.8（可选加固）把商店凭据限定到 `production` 环境
+### 1.8（可选加固）把商店私钥限定到 `production` 环境
 
-1.1 建好环境后，Secrets 页可以按 Environment 作用域存凭据：把 `CWS_CLIENT_ID` / `CWS_CLIENT_SECRET` / `CWS_REFRESH_TOKEN` 存成 `production` 环境的 Secrets，而不是仓库级。
+做法：1.1 建好环境后，在 Secrets 页按 Environment 作用域存凭据——把 `CWS_SA_PRIVATE_KEY` 存成 `production` 环境的 Secret，而不是仓库级（另外三项标识符 `CWS_EXTENSION_ID` / `CWS_PUBLISHER_ID` / `CWS_SA_EMAIL` 留在仓库级，它们不含秘密，`prepare` 的离线预检要读）。
 
-收益：只有跑在 `production` 环境且**已获人工批准**的 job 才读得到 refresh token。仓库里其他 workflow 被改写、或某个 run 被恶意触发，都拿不到商店凭据。
-成本：环境被删除或重命名会让凭据一起消失，发版当场失败。做之前确认 1.1 已完成，且改名为非 `production` 时记得同步搬 Secret。
+收益：私钥只出现在跑于 `production` 环境**且已获人工批准**的 job 里；仓库里别的 workflow 被改写、或某个 run 被恶意触发，都拿不到发布凭据。
+
+**代价（这条必须先看，否则会把自己锁在门外）**：`publish.yml` 的 `inspect` job **没有**挂 `environment`（只读段不需要人工放行，见上架指南 3.6），环境级 Secret 对它不可见——于是 `status` 档会当场失败。
+两条路选一：
+
+- **接受代价**：把 `inspect` 也挂上 `environment: production`，代价是连一次只读的 `fetchStatus` 都要人工点 Approve。
+- **保持现状（本仓库当前做法）**：四项都存仓库级，把防线放在 1.3 的 `.github/` CODEOWNERS 上——能改 workflow 文件的人本来就能改 `env:`，环境作用域在这里并没有多挡住什么。
+
+两种失效方向要分开记，别混成一条。一是**凭据随环境消失**：只有选了「环境级 Secret」这条路才成立——环境被改名或删除，挂在它上面的私钥一起没了，`submit` 在预检的「标识符形状」处当场判红（上架指南 FAQ 第 3 条）。二是**闸门静默失效**：与 Secret 存在哪一级无关，环境从未创建（或被删掉）时 GitHub 直接放行，`Waiting for approval` 根本不出现（FAQ 第 4 条）。本仓库当前做法是四项存仓库级，只吃第二种亏，所以 §6 自检里「Environments 里有 `production` 且列着 Required reviewers」是闸门成立与否的唯一判据。
 
 ---
 
@@ -191,10 +209,12 @@ git log --oneline origin/main -20
 ```
 
 1. 打开 release-please 自动生成的那条 PR（标题 `chore(main): release X.Y.Z`），核对 CHANGELOG 与版本号：`docs:`/`chore:` 的条目**不该**让版本号动；若某条贡献者的标题被写歪导致跳档判断错了，在这里改掉标题或要求作者改，比发出去再撤便宜得多。
-2. 合并它 → tag 与 GitHub Release 生成。
-3. Actions 里找到该 run → **Review deployments** → **Approve and wait** → **Approve**。
-4. 等 `build-and-upload` 跑完，确认三件事：Release 页面挂上了 `account-password-helper-X.Y.Z-chrome.zip`；`Verify CWS OAuth credentials` 绿；`Publish to Chrome Web Store` 绿。
-5. 去 [Developer Dashboard](https://chrome.google.com/webstore/devconsole) 确认草稿已变成「在审核中」，并按 `docs/store/CWS_PUBLISHING_GUIDE.md` 第五步做事实一致性校验。
+2. 合并它 → `release-please.yml` 打 tag、建 GitHub Release，`build-and-attach` job 构建并把 zip 挂成 Release 附件。**这一段没有人工闸门**，它只写 GitHub Releases。
+3. Release 生成会触发**另一条 run**——Actions 里它的名字是 **Publish to Chrome Web Store**，不是 release-please 那条：`prepare` 构建 + 离线预检，`submit` 停在 `Waiting for approval`。点开那条 run → **Review deployments** → 勾选 `production` → **Approve**。
+   （别在 release-please 的 run 页面找审批按钮，2026-10-09 起它没有闸门，也不该有。）
+4. 批准后 `submit` 依次跑：严格预检 → `fetchStatus` → 传包 → 轮询上传落定 → 提审 → 回读状态。确认三件事：
+   Release 页面挂上了 `account-password-helper-X.Y.Z-chrome.zip`；`Offline preflight` 逐行里没有 `✗`；`Publish to Chrome Web Store` 步骤末尾打印 `已提交审核：state=…`，job summary 出现「Chrome Web Store：已提交审核」。
+5. 去 [Developer Dashboard](https://chrome.google.com/webstore/devconsole) 确认草稿已变成「在审核中」（等价的命令行读法：`pnpm cws:status`，本地需先导出那四项 `CWS_*`，见上架指南 3.4），再按上架指南第四步「批准之后，先在 Dashboard 核对三件事」与第五步做事实一致性校验。
 
 ### 2.4 热修（线上版本有安全问题）
 
@@ -209,9 +229,14 @@ git fetch origin && git checkout -b hotfix-x-y-z origin/main
 
 ### 2.5 撤版 / 回滚
 
-商店侧**没有「撤回已提审版本」**。一旦第 3 道闸门放行，只能：Dashboard 里把该商品设为未发布（用户端会失去更新，影响比继续放出去更差），或等审核通过后立刻再发一版更高的版本号。所以：
+分两种情况，别混为一谈：
 
-- 批准前一定要看一眼 GitHub Release 的 CHANGELOG（2.3 第 1 步）。
+- **还在排队（`PENDING_REVIEW`）**：可以撤回这次提交——`node scripts/cwsPublish.mjs cancel`（等价 `pnpm cws:cancel`）。Google 的限制是**每个 publisher 每天最多撤回 6 次**，用尽之后只能等审核自然结束。撤下来的商品回到草稿状态，改完再走一遍 `publish.yml`。
+- **已经上架**：没有「撤回某个已发布版本」这个操作。只能 Dashboard 里把该商品设为未发布（用户端会失去更新，影响比继续放出去更差），或者再发一版更高的版本号盖上去。
+
+所以：
+
+- 批准前一定要看一眼 GitHub Release 的 CHANGELOG（2.3 第 1 步）——第 3 道闸门的定位是「挡住不该进队列的版本」，不是「给发错留的后门」。
 - 真发错了，回滚提交用 `revert:` 类型，让 release-please 在下一班车里带上 Reverts 小节。
 - 删 tag 会让 release-please 的状态与 `.release-please-manifest.json` 打架，**不要删已发布的 tag**；往前修，不往后退。
 
@@ -250,17 +275,38 @@ git branch -D feature-fixbug Feature-ai-tip            # 仅当上面 diff 为�
 
 ## 4. 本波已落进仓库的东西
 
-| 文件                                   | 作用                                                                                                                                        | 状态 |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
-| `.github/workflows/release-please.yml` | `build-and-upload` 挂 `environment: production`（第二→第三道闸门之间的人工批准）；加 workflow 级 `concurrency`，`cancel-in-progress: false` | 改   |
-| `.github/workflows/pr-title.yml`       | 约定式提交标题门禁；`pull_request` 触发、`contents: read`、不检出 PR 代码、标题经 env 传参不拼 shell                                        | 新增 |
-| `.github/CODEOWNERS`                   | 认领加密/会话/存储/类型契约/权限与 manifest/content/background/CI/依赖/脚本                                                                 | 新增 |
-| `.github/dependabot.yml`               | pnpm 每周限量 + `increase-if-necessary`；Actions 每月限量；`prefix: chore`                                                                  | 新增 |
-| `.github/PULL_REQUEST_TEMPLATE.md`     | 顶部说明标题即版本输入、合 PR ≠ 发布                                                                                                        | 改   |
-| `docs/CONTRIBUTING.md`                 | 中英两半新增「分支模型与发版流程」，并修正「GitHub 会自动 squash」这句与历史不符的表述                                                      | 改   |
-| `docs/store/CWS_PUBLISHING_GUIDE.md`   | 第三步补 `production` 审批环节与「环境没建就等于没闸门」的警告                                                                              | 改   |
+| 文件                                   | 作用                                                                                                                                                                   | 状态 |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| `.github/workflows/release-please.yml` | 加 workflow 级 `concurrency`，`cancel-in-progress: false`；当初把 `environment: production` 挂在它的发布 job 上，**2026-10-09 那道闸门已搬进 `publish.yml`**（见 4.1） | 改   |
+| `.github/workflows/pr-title.yml`       | 约定式提交标题门禁；`pull_request` 触发、`contents: read`、不检出 PR 代码、标题经 env 传参不拼 shell                                                                   | 新增 |
+| `.github/CODEOWNERS`                   | 认领加密/会话/存储/类型契约/权限与 manifest/content/background/CI/依赖/脚本                                                                                            | 新增 |
+| `.github/dependabot.yml`               | pnpm 每周限量 + `increase-if-necessary`；Actions 每月限量；`prefix: chore`                                                                                             | 新增 |
+| `.github/PULL_REQUEST_TEMPLATE.md`     | 顶部说明标题即版本输入、合 PR ≠ 发布                                                                                                                                   | 改   |
+| `docs/CONTRIBUTING.md`                 | 中英两半新增「分支模型与发版流程」，并修正「GitHub 会自动 squash」这句与历史不符的表述                                                                                 | 改   |
+| `docs/store/CWS_PUBLISHING_GUIDE.md`   | 第三步补 `production` 审批环节与「环境没建就等于没闸门」的警告                                                                                                         | 改   |
 
 `pr-title.yml` 的内联校验逻辑已在本地按 GitHub Actions 相同方式（`bash -c` + env 注入）跑过 14 个用例：4 类合法标题通过；`Update readme`、中文冒号 `feat：`、`wip:`、空标题、`feat!:` 全部被拦；机器人账号放行；含 `$(reboot)` 与反引号的标题只被判格式不合法、未被执行。带 `BREAKING CHANGE` 的 PR 描述出警告不出红灯。
+
+### 4.1 2026-10-09 增补：商店发布链改造（v1.1 停服 + 解开发版堵塞）
+
+| 文件                                  | 作用                                                                                                                                                                            | 状态 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---- |
+| `.github/workflows/publish.yml`       | 新增。接 `release: published` 与手动 dispatch；`prepare`（构建 + 离线预检 + 存 artifact）/ `inspect`（只读 `fetchStatus`）/ `submit`（挂 `production` 审批）；并发组按 tag 分组 | 新增 |
+| `scripts/cwsPublish.mjs`              | 新增 CLI：`preflight` / `token` / `status` / `publish` / `cancel` 五个子命令，走 Chrome Web Store API **v2** + 服务账号，替掉第三方 action 的 v1.1 调用路径                     | 新增 |
+| `scripts/lib/cwsPublish.mjs`          | 新增 v2 薄客户端与离线预检判据（JWT 签票、upload、轮询 `lastAsyncUploadState`、publish、cancelSubmission、错误码解释）                                                          | 新增 |
+| `tests/scripts/cwsPublishCli.test.ts` | 新增 20 例：本地假商店逐字钉住请求序列、请求体、`content-type`、错误提示与「输出不含 token 与私钥」；端点靠 env 覆盖指向假服务                                                  | 新增 |
+| `package.json`                        | 新增 `cws:preflight` / `cws:token` / `cws:status` / `cws:publish` / `cws:cancel` 五个脚本                                                                                       | 改   |
+| `.github/workflows/e2e.yml`           | 两处 `paths-ignore` 加上 `publish.yml`（改发布链不该触发一次真浏览器 E2E）                                                                                                      | 改   |
+| `docs/store/CWS_PUBLISHING_GUIDE.md`  | 第三步整体重写为服务账号路线（3.1–3.7），第四步补「批准后核对三件事」，新增 FAQ 四组 29 条，附录改写                                                                            | 改   |
+
+三处改动动机与硬伤，按证据列在这里，便于将来回溯为什么长这样：
+
+1. **发版链自 2026-09-29 停摆**：v3.13.1 的 run 停在 `production` 的 `waiting` 十天，占死唯一的并发组，后续每次合 `main` 的 run 全程 0 个 job 并被下一次合并自动取消（run 36556089630 / 37735256974），v3.13.1 的 Release `assets: []`。
+2. **发布通道 6 天后失效**：Chrome Web Store API v1.1 于 **2026-10-15** 停止支持，旧 job 用的 `mnao305/chrome-extension-upload@v6.0.0` 走的正是 v1.1。
+3. **教程里的取 token 段落已死**：OOB 授权 2023-01-31 全面终止，而 Testing 同意屏幕签出的 refresh token 7 天过期——就是历史 `invalid_grant` 的根因。
+
+> ⚠️ 本波**只改流水线与文档，没有真的提审过任何版本**。商店侧的实际验证走 `publish.yml` 的 `preflight` 档（零凭据、零网络写），
+> 而 `status` / `publish-dry` / `publish` 三档需要先在 Cloud Console 建出服务账号并完成 3.2 的绑定——**这一步目前还没做**，是发版前的硬前置。
 
 ---
 
@@ -269,8 +315,11 @@ git branch -D feature-fixbug Feature-ai-tip            # 仅当上面 diff 为�
 1. **合并方式**（1.4）：squash 还是继续 merge commit？文档目前按 squash 的假设写。
 2. **`feature-blog` / `Feature-pa`**（第 3 节）：废弃还是捡回来？
 3. **`pnpm auto-merge`**（第 3 节）：停用还是保留长期分支模式？
-4. **1.8 环境级 Secrets**：做还是不做？收益明确但多一个「环境被改名就发版失败」的坑。
+4. **1.8 环境级 Secrets**：做还是不做？做完这条有一个确定代价——`inspect` job 不挂 `environment`，`status` 档会读不到私钥（两个走法见 1.8）。
 5. 出现第二个维护者后，回头删 CODEOWNERS 的 `*` 兜底、并打开「Do not allow bypassing」。
+6. **服务账号（3.1–3.2）**：由谁在 Cloud Console 建、绑到哪个 publisher。这一步不在仓库里，本波无法替你完成；**没做之前 `publish.yml` 的 `status` / `publish` 两档必然失败**，只有 `preflight` 档是绿的。
+7. **孤儿环境 `CWS_EXTENSION_ID`** 与**旧三项 Secret**（`CWS_CLIENT_ID` / `CWS_CLIENT_SECRET` / `CWS_REFRESH_TOKEN`）删不删。留着都不影响流水线，但会误导下一个人以为凭据形态还是 OAuth。
+8. **`--staged` 要不要成为默认**：现在 `publish` 走 `DEFAULT_PUBLISH`（审核通过即上架）。改成挂起放行需要每次带上 `STAGED_PUBLISH`，而放量百分比的 API 调用有「7 日活跃用户 > 10,000」的门槛（FAQ C.21）。
 
 ## 6. 快速自检
 
@@ -281,4 +330,8 @@ git branch -D feature-fixbug Feature-ai-tip            # 仅当上面 diff 为�
 - [ ] Dependabot 三个开关都开着
 - [ ] PAT 是 fine-grained、有到期日
 - [ ] 本地 `main` 已 `git pull`，僵尸分支按第 3 节处理过
-- [ ] 下一次真实发版跑通三段：tag → 停在 Waiting for approval → Approve 后商店出现草稿
+- [ ] 服务账号已建、Chrome Web Store API 已在该 Cloud 项目启用、邮箱已加进 Dashboard → Account（上架指南 3.1–3.2）
+- [ ] 仓库级 `CWS_EXTENSION_ID` / `CWS_PUBLISHER_ID` / `CWS_SA_EMAIL` / `CWS_SA_PRIVATE_KEY` 四项就位，且 `pnpm cws:token` 与 `pnpm cws:status` 本地都通（3.3–3.4）
+- [ ] 旧的 `CWS_CLIENT_ID` / `CWS_CLIENT_SECRET` / `CWS_REFRESH_TOKEN` 已删或已标注废弃
+- [ ] 孤儿环境 `CWS_EXTENSION_ID` 已删（它不是闸门）
+- [ ] 下一次真实发版跑通四段：tag + Release 附件 → **另一条 run**（Publish to Chrome Web Store）的 `prepare` 预检无 `✗` → `submit` 停在 Waiting for approval → Approve 后 Dashboard 出现「在审核中」

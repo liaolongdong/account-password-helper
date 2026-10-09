@@ -43,6 +43,7 @@ on:
       - 'assets/wx-qrcode/**'
       - '.github/workflows/ci.yml'
       - '.github/workflows/release-please.yml'
+      - '.github/workflows/publish.yml'
   pull_request:
     paths-ignore:
       - '**.md'
@@ -55,6 +56,7 @@ on:
       - 'assets/wx-qrcode/**'
       - '.github/workflows/ci.yml'
       - '.github/workflows/release-please.yml'
+      - '.github/workflows/publish.yml'
 
 # 只读代码，不写任何权限
 permissions:

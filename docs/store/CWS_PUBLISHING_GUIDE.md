@@ -2,11 +2,26 @@
 
 本文档记录 Account Password Helper 上架 Chrome Web Store 的完整流程。
 
+> 📌 **2026-10-09 起，第三步是服务账号路线。** 旧的「OAuth 桌面客户端 + OOB 授权码换 refresh token」已经不可用，
+> 且 Chrome Web Store API v1.1 于 2026-10-15 停止支持——改动原因与逐条依据见 3.1 开头的批注。
+
+**目录**
+
+| 章节                | 内容                                                                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| 第一步 / 第二步     | 注册开发者账号、在 Dashboard 建商品与填文案                                                                                                 |
+| 第三步              | 配自动提审：3.1 建服务账号 / 3.2 绑到开发者账号 / 3.3 Secrets / 3.4 本地验凭据 / 3.5 两条 workflow 与闸门 / 3.6 四档执行深度 / 3.7 预检判据 |
+| 第四步              | 审核与发布、批准后的三项核对、常见拒绝原因                                                                                                  |
+| 第五步              | 事实一致性校验（每次发版必做）：核心事实清单、快速校验命令、其他同步约定                                                                    |
+| 常见问题解答（FAQ） | A 闸门与人工批准 / B 凭据与 token / C 上传与提审 / D 流水线本身（共 29 条）                                                                 |
+| 附录                | 商店描述模板、隐私政策 URL、CI/CD 配置说明                                                                                                  |
+
 ## 前置条件
 
 - Google 账号（已有）
 - 双币/全币种信用卡或借记卡（用于支付 $5 注册费）
 - 稳定的网络代理（访问 Google 服务）
+- 走第三步还需要：一个 Google Cloud 项目（能创建服务账号与下载 JSON key）、该开发者账号下「添加服务账号邮箱」的权限、以及 GitHub 仓库 **Settings → Secrets and variables** 的管理权限。三者都属于 `liaolongdong` 账号，外部贡献者不需要——fork 只跑到 `preflight` 档。
 
 ---
 
@@ -73,84 +88,158 @@
 
 ---
 
-## 第三步：配置 CI/CD 自动化发布
+## 第三步：配置自动提审（服务账号 + 人工批准闸门）
 
-### 3.1 获取 OAuth 凭据
+### 3.1 建服务账号（Google Cloud Console）
 
-1. 打开 [Google Cloud Console](https://console.cloud.google.com/)
+> ⚠️ **本小节 2026-10-09 整体重写。** 旧版教的是「OAuth 桌面客户端 + `redirect_uri=urn:ietf:wg:oauth:2.0:oob` 取授权码换 refresh token」，
+> 那条路已经彻底走不通：Google 自 2022-02-28 起不再允许新建客户端使用 OOB、2022-10-03 对存量客户端废止、2023-01-31 全面终止，
+> 那个授权 URL 现在只会返回错误页；即便改走 loopback 授权，同意屏幕处于「Testing」模式时签出的 refresh token **7 天就过期**——
+> 这正是本项目历史上 `invalid_grant` 的根因。
+> 另一个必须换的理由：Chrome Web Store API **v1.1 于 2026-10-15 停止支持**
+> （Google 原文：“We plan to support the old API until 15th October 2026, at which point you will need to move to the V2 API to continue making requests.”），
+> 而服务账号是 **v2 才支持**的凭据形态。本项目因此改用「服务账号 + 自写 v2 REST 调用」（`scripts/cwsPublish.mjs`），不再依赖第三方 action。
 
-2. 创建新项目（或选择已有项目）
+1. 打开 [Google Cloud Console](https://console.cloud.google.com/)，创建或选择一个项目（只用来签凭据，不装任何工作负载）。
 
-3. 启用 **Chrome Web Store API**：
-   - 搜索 "Chrome Web Store API"
-   - 点击 "启用"
+2. 「APIs & Services → Library」搜索 **Chrome Web Store API** → Enable。
+   漏掉这一步时所有 v2 调用都是 `403 accessNotConfigured`，错误体会写明该 API 在此项目上从未被启用。
 
-4. 创建 OAuth 2.0 凭据：
-   - 进入 "API 和服务" → "凭据"
-   - 点击 "创建凭据" → "OAuth 客户端 ID"
-   - 应用类型选择 **"桌面应用"**
-   - 记录下 **Client ID** 和 **Client Secret**
+3. 「IAM & Admin → Service Accounts」→ Create Service Account：
+   - 名称随意（例如 `cws-publisher`），**不需要**给它任何角色或权限。
+     Google 文档原文：“You don't need to add any permissions to the service account at this stage.”——真正的授权在 3.2 由 Developer Dashboard 完成。
+   - 「Grant users access to this service account」一栏留空，直接创建。
 
-5. 生成 Refresh Token：
+4. 点开这个服务账号 → 「Keys」→ 「Add key」→ 「Create new key」→ **JSON** → 下载。
+   那份 JSON 里要用到两个字段：`client_email`（3.3 的 `CWS_SA_EMAIL`）与 `private_key`（3.3 的 `CWS_SA_PRIVATE_KEY`，整段 PEM，含 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 和中间换行）。
 
-   在浏览器中打开以下 URL（替换 YOUR_CLIENT_ID）：
+5. 记下 `client_email`，形如 `cws-publisher@<project-id>.iam.gserviceaccount.com`。JSON 文件本身不要提交进仓库，验证完放本地。
 
-   ```
-   https://accounts.google.com/o/oauth2/auth?response_type=code&scope=https://www.googleapis.com/auth/chromewebstore&client_id=YOUR_CLIENT_ID&redirect_uri=urn:ietf:wg:oauth:2.0:oob
-   ```
+> ℹ️ 换票方式：用私钥签一个 RS256 JWT（`scope=https://www.googleapis.com/auth/chromewebstore`），
+> POST 到 `https://oauth2.googleapis.com/token` 且 `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`。
+> 不走 `gcloud auth print-access-token`——runner 上没有 gcloud 凭据链，而私钥本来就必须落 Secret，两者等价且少一个外部依赖。
 
-   - 授权后会得到一个 **授权码 (Code)**
-   - 使用以下命令换取 Refresh Token（替换 YOUR_CLIENT_ID 和 YOUR_CLIENT_SECRET 和 AUTH_CODE）：
+### 3.2 把服务账号绑到开发者账号
 
-   ```bash
-   curl -X POST https://accounts.google.com/o/oauth2/token \
-     -d "code=AUTH_CODE" \
-     -d "client_id=YOUR_CLIENT_ID" \
-     -d "client_secret=YOUR_CLIENT_SECRET" \
-     -d "grant_type=authorization_code" \
-     -d "redirect_uri=urn:ietf:wg:oauth:2.0:oob"
-   ```
+1. 打开 Developer Dashboard：https://chrome.google.com/webstore/devconsole
+2. 进入账户设置里的 **Service account permissions**（Google 文档路径：Add a service account to your developer profile）。
+3. 粘贴 3.1 的 `client_email` → 保存。到这里凭据链才算通，没做这一步时写接口一律 `403 permissionDenied`。
 
-   - 从返回的 JSON 中提取 **refresh_token**
+两条约束：
 
-### 3.2 配置 GitHub Secrets
+- Google 文档原文：“At this time, you can only add one service account to your publisher.”——一个 publisher 只能绑**一个**服务账号；
+  要换新邮箱，必须先把旧的那条移除。
+- 私钥疑似泄漏时两步都要做：Cloud Console 删掉那把 key，**并且**在这页移除服务账号邮箱。只删 key 时 Dashboard 里那行仍然挂着，容易被误认为还可用。
 
-1. 打开 GitHub 仓库页面：https://github.com/liaolongdong/account-password-helper
+### 3.3 配置 GitHub Secrets
 
-2. 进入 **Settings** → **Secrets and variables** → **Actions**
+打开仓库 https://github.com/liaolongdong/account-password-helper → **Settings** → **Secrets and variables** → **Actions** → 在 **Repository secrets** 里新增四条（缺一不可，`submit` job 的严格预检会当场判红）：
 
-3. 添加以下 4 个 Secrets：
+| Secret 名称          | 值                                                                 | 从哪来                                            |
+| -------------------- | ------------------------------------------------------------------ | ------------------------------------------------- |
+| `CWS_EXTENSION_ID`   | `fgimkdodpjfkddmildjieojpfakpanli`                                 | 商店商品 URL 里那 32 位（也等于包 manifest 派生） |
+| `CWS_PUBLISHER_ID`   | Dashboard 账户页里的纯数字 Publisher ID                            | 拼成请求路径 `publishers/{id}/items/{extId}`      |
+| `CWS_SA_EMAIL`       | 3.1 的 `client_email`                                              | 服务账号 JSON 的 `client_email`                   |
+| `CWS_SA_PRIVATE_KEY` | 服务账号 JSON 的 `private_key`（**整段 PEM，含头尾行和真实换行**） | 下载的那份 JSON                                   |
 
-   | Secret 名称         | 值                                                             |
-   | ------------------- | -------------------------------------------------------------- |
-   | `CWS_EXTENSION_ID`  | `fgimkdodpjfkddmildjieojpfakpanli`（商店商品 URL 中即为该 ID） |
-   | `CWS_CLIENT_ID`     | Google Cloud OAuth Client ID                                   |
-   | `CWS_CLIENT_SECRET` | Google Cloud OAuth Client Secret                               |
-   | `CWS_REFRESH_TOKEN` | OAuth Refresh Token                                            |
+可选的第五条 `CWS_REQUIRED_PERMISSIONS`（逗号分隔的权限名，如 `storage,activeTab,scripting`）只用于「包内权限没越出清单」这项漂移告警；不配则该检查直接判过。CI 目前不注入它，本地排查权限漂移时可以临时导出。
 
-   > ℹ️ `release-please.yml` 的发布步骤带 `if: env.CWS_EXTENSION_ID != ''`：该 Secret 留空时 CI 只构建并上传 GitHub Release 产物，**跳过**自动提交商店审核，需回到 Dashboard 手动上传 zip。
-   >
-   > ⚠️ 发布前有一个校验步骤会确认 `CWS_EXTENSION_ID` 是 32 位 `a-p` 小写字母；从 URL 复制时带入空格或换行会直接失败并打印实际长度，此时在 Secrets 中重新粘贴纯净 ID 即可。
+> ⚠️ `CWS_SA_PRIVATE_KEY` 最常见的两个粘贴坑：一是把 `\n` 当**字面量**存了进去（GitHub 的输入框支持多行，要粘贴真实换行）；
+> 二是只粘贴了中间那段 base64 而丢掉 PEM 头尾——Node 的 `createPrivateKey` 靠这两行判格式。
+> 症状都是 `pnpm cws:token` 直接失败；CLI 会打印可执行的修复提示，但**任何输出都不含私钥与 access token**。
 
-4. 保存所有 Secrets
+> ℹ️ 与旧版的对应关系：`CWS_CLIENT_ID`、`CWS_CLIENT_SECRET`、`CWS_REFRESH_TOKEN` 这三项已废弃，
+> 换成 `CWS_PUBLISHER_ID`、`CWS_SA_EMAIL`、`CWS_SA_PRIVATE_KEY`。旧的那三项可以在 Settings 里删掉——
+> 留着不会让流水线失败（`preflight` 段根本不读它们），但会让人误以为还在走 OAuth 路线。
 
-### 3.3 验证自动化
+> ⚠️ 发布前的校验会确认 `CWS_EXTENSION_ID` 是 32 位 `a-p` 小写字母；从 URL 复制时带入空格或换行会直接判红并打印实际长度，重新粘贴纯净 ID 即可。
 
-发版链在 2026-09-28 起分成两段，中间多了一道人工批准（`build-and-upload` job 挂 `environment: production`）：
+### 3.4 本地先把凭据验通（不必在 CI 上试错）
 
-1. **合并 release PR** → release-please job 打 tag、建 GitHub Release。此时 Release 页面**还没有 zip 附件**，因为它在下一段。
-2. **该 run 停在 `Waiting for approval`** → 维护者在 Actions run 页面点 **Review deployments → Approve**（审批人由 `production` 环境的 Required reviewers 决定）。
-3. **批准后自动执行**：构建扩展 zip 包（`pnpm build`，Node 22 + pnpm 缓存）→ 以 `.output/*-chrome.zip` 上传为 Release Asset → 解析出实际 zip 路径 → 上传 Chrome Web Store 并提交审核。
+三条命令按深度递增，都能在本地跑完再动流水线：
 
-> ⚠️ 第 2 段的前置是 `production` 环境**已创建并配了 Required reviewers**。环境不存在时 GitHub 会静默自建一个无保护规则的环境，job 直接放行——也就是「以为加了闸门，其实没加」。创建步骤见 `docs/PR_WORKFLOW_GUIDE.md` 第 1 节，验证方法也在同一节。
+```bash
+# ① 纯离线：不联网，只看产物、包内版本、标识符形状（缺三项标识符只告警，不判红）
+pnpm cws:preflight
 
-> ℹ️ 贡献者的功能 PR 合入 `main` 不会走到第 1 段：release-please 只会更新那条自动发布 PR，不打 tag、不提审。
+# ② 只验凭据链：私钥签 JWT → 换 access token，打印类型与有效期，绝不打印 token 本身
+pnpm cws:token
 
-发布前还有三道预检，失败会直接终止发布并给出明确原因，而不是抛出一个不透明的 400/404：
+# ③ 只读商品状态：证明「服务账号 → token → v2 端点」整条通，一个字节都不写商店
+pnpm cws:status
+```
 
-- **解析 zip 路径**：`mnao305/chrome-extension-upload` 的 `file-path` 不接受 glob，故先 `ls -t .output/*-chrome.zip | head -n1` 取最新产物
-- **验证 OAuth 凭据**：用 refresh token 交换 access token（只打印错误体，绝不打印 token）。`invalid_grant` 多为 token 过期或 OAuth 应用仍处于 Testing 模式
-- **验证扩展 ID 格式**：必须是 32 位 `a-p` 小写字母，混入空格/换行会在此拦下
+②③ 需要在当前 shell 导出 3.3 那四项（`export CWS_SA_EMAIL=...` 等）。**先跑通 ③ 再让 CI 提审**——
+它把「Secret 里是旧 key」「服务账号没绑进 Dashboard」这类问题在没排队进人工审核之前暴露掉。
+`pnpm cws:publish` 也存在，但**别在本地打**——它绕过 `production` 那道人工闸门，而那道闸门存在的理由（提审不可即时撤回）在本地同样成立；
+`pnpm cws:cancel` 相反，它是应急手段，CI 里没有撤审步骤，本地跑就是它的正确用法（FAQ C.15）。
+
+### 3.5 发版链：两条 workflow、一道人工闸门
+
+2026-10-09 起，「打 tag」和「提审商店」拆成两个文件，中间靠 GitHub Releases 的 `published` 事件对接：
+
+| Workflow                    | 文件                                   | 触发                                | 做什么                                                                  | 要不要人批准                                      |
+| --------------------------- | -------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------- |
+| Release Please              | `.github/workflows/release-please.yml` | 合入 `main`                         | 算版本 → 打 tag → 建 GitHub Release → 构建并挂上 `.output/*-chrome.zip` | 否                                                |
+| Publish to Chrome Web Store | `.github/workflows/publish.yml`        | `release: published`、手动 dispatch | 构建 → 离线预检 → 传包 → 提审（或只传包）                               | **是**：`submit` job 挂 `environment: production` |
+
+**为什么要拆**——这是 2026-09-29 真实发生过的故障，不是假想的整洁性问题：
+原来两段在同一条 workflow 里，而 workflow 级并发组是唯一的 `release-please-${{ github.ref }}` 且 `cancel-in-progress: false`。
+合入 v3.13.1 的 release PR 后，那条 run 停在 `production` 的 `waiting` 状态**十天**，把这个唯一并发组占死——
+期间每次合入 `main` 产生的新 run 全程 0 个 job，并在下一次合并的瞬间被自动取消（run 36556089630 / 37735256974 的 `created_at` 与 `updated_at` 逐条对得上），
+v3.13.1 的 Release 因此 `assets: []`。拆开后 publish.yml 的并发组**按 tag 分组**（`cws-publish-<tag>`），
+一条等审批的发布链只占住它自己那个 tag，主干发版与别的版本提审互不阻塞。
+
+完整时序（合并 release PR 之后会发生什么）：
+
+1. 贡献者的功能 PR 合入 `main` → release-please 只更新那条自动发布 PR，**不打 tag、不提审**。
+2. 合并 release PR → release-please job 打 tag、建 Release；`build-and-attach` job 构建并把 zip 挂成 Release 附件。这一段无人值守。
+3. `release: published` 触发 publish.yml 的 `prepare` job：Node 22 + `pnpm install --frozen-lockfile` + `pnpm run build`，
+   取 `.output/*-chrome.zip` 跑离线预检，再把**这一个字节包**存成 artifact——下游 `submit` 提审的就是它，本 workflow 内不再重新构建。
+   （注意第 2 步的 Release 附件来自另一次构建，两者是同一提交下的两次独立构建，边界见 FAQ D.24。）
+4. `submit` job 停在 `Waiting for approval`，维护者在 Actions run 页面点 **Review deployments → Approve**。
+5. 批准后执行严格预检（这次不带 `--ids-optional`，缺任何一项凭据判红）→ `fetchStatus` → `upload` → 轮询 `lastAsyncUploadState` 落定 → `publish` → `fetchStatus`，结果写进 job summary。
+
+> ⚠️ 第 4 步的前置是 `production` 环境**已创建并配了 Required reviewers**。环境不存在时 GitHub 会静默自建一个无保护规则的环境，job 直接放行——
+> 也就是「以为加了闸门，其实没加」。创建与验证方法见 `docs/PR_WORKFLOW_GUIDE.md` 第 1 节。
+
+> ℹ️ 仓库里还留着一个孤儿环境 `CWS_EXTENSION_ID`（2026-07-12 建的，无任何保护规则，现已无 workflow 引用它）。
+> 它既不放行也不拦截任何东西，可在 Settings → Environments 删掉，避免误以为它是第二道闸门。
+
+### 3.6 手动触发：四档执行深度
+
+Actions → “Publish to Chrome Web Store” → Run workflow，`mode` 决定跑到哪一档（默认 `preflight`）：
+
+| mode          | 跑到哪                                                | 需要哪些 Secret                                 | 需要人批准 | 什么时候用                                                          |
+| ------------- | ----------------------------------------------------- | ----------------------------------------------- | ---------- | ------------------------------------------------------------------- |
+| `preflight`   | 只有 `prepare`：构建 + 离线预检（零凭据、零网络写）   | 可以全空（走 `--ids-optional`，标识符降为告警） | 否         | fork、服务账号还没建出来的分支、只想证明产物本身是绿的              |
+| `status`      | `prepare` + `inspect`：多一次只读 `fetchStatus`       | 四项齐全（`inspect` job 不挂 environment）      | 否         | 验证服务账号那条链通、看当前在架与在审版本                          |
+| `publish-dry` | 加 `submit`：传包但**不提审**（CLI 的 `--no-submit`） | 四项齐全                                        | **是**     | 只改商店文案那一轮——包先进去，说明在 Dashboard 里手改后由人工点提审 |
+| `publish`     | 加 `submit`：传包并提审                               | 四项齐全                                        | **是**     | 正式发版（`release` 事件走的就是这一档）                            |
+
+`tag` 输入留空时只能跑 `preflight`：其余三档要靠它做「包内版本 == 发布 tag」的对账，没给 tag 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并说明原因。
+
+### 3.7 预检到底在验什么
+
+`node scripts/cwsPublish.mjs preflight` 逐行打印 `✓` / `!` / `✗`，任一 `✗` 即终止（退出码非零、包不会上传）。
+它存在的意义是把问题**挡在排队进人工审核之前**，而不是抛出一个不透明的 400/404：
+
+| 判据                       | 判红（`✗`）条件                                                  | 说明                                                                             |
+| -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `zip 产物存在`             | `.output/` 下找不到对应版本的 `*-chrome.zip`                     | 给了 `--expect-version` 时只认文件名里带该版本的包，避免把旧版本包提审上去       |
+| `标识符形状`               | ID 不是 32 位 `a-p` 小写、Publisher ID 含非法字符、SA 邮箱不成形 | 三项**全空**且带 `--ids-optional` 时降为 `!`；只空其中一项仍判红                 |
+| `包内 manifest 可读`       | `unzip -p 包 manifest.json` 失败或不是合法 JSON                  | 顺带打印 `manifest_version`                                                      |
+| `包内版本 == package.json` | 两者不等                                                         | 防「改了版本号没重新构建」这一类混编事故                                         |
+| `包内版本 == 发布 tag`     | 两者不等                                                         | 只在传了 `--expect-version` 时出现（CI 里就是 release tag）                      |
+| `权限集合符合预期`         | 不判红，只 `!`                                                   | 需要 `CWS_REQUIRED_PERMISSIONS` 才有实质内容，缺项时告警列出名字                 |
+| `仓库 manifest 与包内一致` | 不判红，只 `!`                                                   | 比对**集合差异**而不是数量——数量相等但换了一项权限，正是「产物来自旧提交」的形状 |
+
+> ⚠️ v2 特有的一个坑，值得单独钉在这里：`upload` 可能返回 `uploadState=IN_PROGRESS`（Google 侧还在异步解析包）。
+> 此时若立刻 `publish`，提审拿到的是**上一个已解析的版本**。`publish` 子命令因此固定轮询 `fetchStatus.lastAsyncUploadState`
+> 到落定（最多 10 次、间隔 2 秒），并在 `FAILED` 时终止且不提审。手工调 API 时这一步容易被省略。
+
+`publish` 还留了一个逃生阀 `--skip-preflight`：跳过上表这整套离线判据，但「zip 找得到」和「文件名带对版本」这两条仍然生效——
+它们发生在定位包的那一步，不归预检管。只在排查产物本身的问题时用；日常发版不要加，CI 的 `submit` 段也没带它。
 
 ---
 
@@ -159,6 +248,17 @@
 - **首次审核**：通常需要 1-3 个工作日，密码管理类扩展可能更久
 - **后续更新**：通常 24 小时内完成审核
 - **审核被拒**：根据拒绝理由修改文案或代码后**新建草稿**重新提交——被拒的草稿本身已关闭，不能在其上继续编辑
+- **撤回正在排队的提交**：`node scripts/cwsPublish.mjs cancel`（等价于 `pnpm cws:cancel`）。Google 的限制是「每个 publisher 每天最多撤回 6 次」，用尽之后只能等审核自然结束。
+
+### 批准之后，先在 Dashboard 核对三件事
+
+CLI 只做「传包 + 提审」——可见性档位、图文详情、隐私问答这些字段它一律不碰，仍要在 Dashboard 人工确认。点完 Approve 后核对：
+
+1. 商品状态进入 `In review`（对应 `fetchStatus` 的 `submittedItemRevisionStatus.state = PENDING_REVIEW`）
+2. 提交版本指向**这一版**而不是上一版（命令行等价读法：`pnpm cws:status` 的 `submitted=` 字段，取自 `submittedItemRevisionStatus.distributionChannels[0].crxVersion`）。显示成上一版通常意味着异步上传没落定就提审了，见 FAQ C.14
+3. 中英两个语言标签页里的说明正文与 `CWS_FILL_CONTENT.md` 一致（只改文案那一轮用 `publish-dry`，见 3.6）
+
+第 1、2 项不必进 Dashboard 也能读：`pnpm cws:status` 或 CI 的 `status` 档会打印 `state=` / `submitted=` / `published=` 三个值。
 
 ### 审核常见拒绝原因
 
@@ -268,6 +368,133 @@ PY
 
 ---
 
+## 常见问题解答（FAQ）
+
+按「闸门 → 凭据 → 上传与提审 → 流水线本身」四类排查。每条都给出**现象、根因、可执行的处置**，命令均可直接复制。
+
+### A. 闸门与人工批准
+
+1. **run 停在 `Waiting for approval`，是不是流水线坏了？**
+   不是，这是刻意设计的一道闸。批准路径：Actions → 点开该 run → job 列表里的 **Submit to Chrome Web Store (needs approval)** → 右上角 **Review deployments** → 勾选 `production` → **Approve**。
+   当前环境配置是 `prevent_self_review: false`，所以审批人可以是触发这次发版的那个人——这一点不必额外去改。
+
+2. **一直没人点 Approve 会怎样？**
+   不会超时放行、不会自动批准，商店侧什么都没有发生。因为 `publish.yml` 的并发组**按 tag 分组**，这条 `waiting` 的 run 只占住它自己那个 tag，主干上的发版与别的版本的提审都不受影响。
+   （拆成两条 workflow 之前不是这样：2026-09-29 那次它占死了唯一的并发组，之后每次合 `main` 的 run 全程 0 个 job，见 3.5。）
+
+3. **点了 Approve，`submit` 立刻红，报 `✗ 标识符形状`。**
+   `submit` 里的预检**不带** `--ids-optional`（严格模式），`CWS_EXTENSION_ID` / `CWS_PUBLISHER_ID` / `CWS_SA_EMAIL` 缺任何一项都会在这里判红。
+   好消息是它发生在联网之前——商店侧什么都没发生。补好 Secret 后 **Re-run jobs** 只重跑 `submit` 即可，`prepare` 上传的 artifact 在保留期（7 天）内还在。
+
+4. **合了 release PR，`submit` 直接就绿了，从来没见过 `Waiting for approval`。**
+   这说明闸门**不成立**：GitHub 对未创建的 environment 会静默自建一个「无保护规则」的环境并直接放行，也就是「以为加了闸门，其实没加」。
+   处置：Settings → Environments → New environment，名字必须逐字符是 `production`（与 `publish.yml` 里 `environment:` 的值一致），加上 Required reviewers，再合一次 release PR 验证是否出现 `Review deployments` 按钮。
+
+5. **Environments 列表里那个 `CWS_EXTENSION_ID` 环境是干什么的？**
+   它是 2026-07-12 留下的孤儿：没有任何保护规则，现在也没有任何 workflow 引用它。它既不放行也不拦截任何东西，可以在该页删掉，避免误认为它是第二道闸门。真正的闸门只有一个，名字叫 `production`。
+
+### B. 凭据与 token
+
+6. **还在报 `invalid_grant`？**
+   那是旧 OAuth refresh token 路线的专属错误码（同意屏幕处于 Testing 模式时 token 7 天过期）。新路线用服务账号签 JWT，不会产生这个响应。
+   如果你仍在日志里看到它，说明跑的是拆改之前的旧 job 定义，而不是 `publish.yml`。
+
+7. **`401`。**
+   CLI 的提示原文是「凭据被拒：确认服务账号邮箱与私钥成套，且 access token 未过期」。两种形状：换了新 key 但 Dashboard 里挂的还是旧邮箱（不成套），或者 token 超过 1 小时有效期（本项目每次调用现签，通常是前者）。
+
+8. **`403 accessNotConfigured`。**
+   Cloud 项目没启用 Chrome Web Store API：APIs & Services → Library → 搜 “Chrome Web Store API” → Enable。见 3.1 第 2 步。
+
+9. **`403 permissionDenied`。**
+   服务账号邮箱没加进 Developer Dashboard → Account。见 3.2。注意 Google 的限制是**一个 publisher 只能绑一个服务账号**（“At this time, you can only add one service account to your publisher.”），换邮箱要先把旧的移除。
+
+10. **本地 `pnpm cws:status` 通，CI 的 `status` 档却失败。**
+    大概率是 Secret 存错了**作用域**：`inspect` job 不挂 `environment`（只读段不需要人工放行），所以它读不到 environment-scoped 的 Secret。
+    3.3 明确要求这四项存成 **Repository secrets**；若历史上存成 `production` 环境的，请在仓库级重建一份。
+
+11. **私钥明明贴进去了，`pnpm cws:token` 仍说解析失败。**
+    两个坑（3.3 有详述）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行），或者丢了 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 这两行——Node 的 `createPrivateKey` 靠它们判格式。
+    本地验证时可以先用 `node -e "require('crypto').createPrivateKey(process.env.CWS_SA_PRIVATE_KEY)"` 自证，报错即 Secret 内容本身有问题。
+
+12. **fork 的贡献者 PR 会不会误提审我的商品？**
+    不会，三重保险：`publish.yml` 只在 `release: published` 与手动 dispatch 时触发（PR 事件根本不触发它）；`submit` 带 `if: github.repository == 'liaolongdong/account-password-helper'`；GitHub 本身不会把仓库 Secrets 暴露给 fork 的 run。
+    fork 上想验证产物是否合规，跑 `preflight` 档即可——它设计上就是零凭据、零网络写。
+
+### C. 上传与提审
+
+13. **`包在商店侧解析失败`（`uploadState=FAILED`）。**
+    CLI 在这种情况下**不提审**并终止。常见根因：manifest 缺必需字段、体积超限、或者 zip 结构不对——必须是「解包后根目录直接是 `manifest.json`」，而不是把 `.output/chrome-mv3/` 整目录压进去。
+    `wxt zip`（本项目 `postbuild`）的产物结构是对的；手搓 zip 常错在这一条。先用 `unzip -l 包名.zip | head` 自证。
+
+14. **提审之后发现商店拿到的是上一版。**
+    v2 的 `upload` 可能返回 `uploadState=IN_PROGRESS`（Google 侧还在异步解析包），此时立刻 `publish` 拿到的就是**上一个已解析的版本**。
+    本项目的 `publish` 子命令固定轮询 `fetchStatus.lastAsyncUploadState` 到落定（最多 10 次、间隔 2 秒）才提审，不会踩这条；**自己手搓 curl 调 API 时这一步最容易被省略**。
+
+15. **`400 FAILED_PRECONDITION`——「商品状态不允许再次提审」。**
+    上一版还在审核中。先 `node scripts/cwsPublish.mjs cancel` 撤回当前提交（**每天每 publisher 上限 6 次**），或者等审核自然结束。
+    CLI 在 publish 之前会先读一次 `submittedItemRevisionStatus.state`，是 `PENDING_REVIEW` 且没带 `--no-submit` 时**在本地就终止**，不会把注定被拒的请求打出去。
+
+16. **`400`——「多为包内 manifest 版本与已发布版本相同」。**
+    版本号没涨。两个来源：release-please 没打 tag（贡献者的功能 PR 合 `main` 只会更新那条自动发布 PR，不产生 Release），或者本地 `pnpm build` 用的是旧 `package.json`。
+    预检里的「包内版本 == package.json」与「包内版本 == 发布 tag」两项就是拦这个的。
+
+17. **`404 item not found`。**
+    先核对 `CWS_PUBLISHER_ID` 与 `CWS_EXTENSION_ID` 拼出的 `publishers/{id}/items/{extId}`。
+    另一个可能：商品从没建过——**v2 API 不能新建商品**，第一次上架必须在 Dashboard 点「新建商品」上传 zip 才拿得到 ID。
+
+18. **`429`。**
+    触发配额限制，稍后重试。注意撤回审核的请求单独计数，每天最多 6 次。
+
+19. **只改商店文案 / 截图，要不要走流水线？**
+    文案与图形素材这些字段本 CLI 一个都不写（`publish` 的请求体只有 `publishType`、`skipReview`、`blockOnWarnings` 三项），所以改文案的正确路径是在 Dashboard 里改完由人工点提审。
+    如果那一轮**同时**有新包但暂时不想提审，用 `publish-dry` 档把包先传上去（`--no-submit`），商店侧停在「已上传、等人工提审」的状态。
+
+20. **`skipReview` / `blockOnWarnings` 能不能打开？**
+    本项目恒传 `false`，两条理由不同。`skipReview` 是 Google 给 **Declarative Net Request 类扩展**的免审通道，密码管理器不属于该豁免，打开也不会生效。
+    `blockOnWarnings` 沿用 v2 默认值 `false`；它的效果是「商品带任何一条**商店侧**告警就不放行」（对应 `fetchStatus` 的 `warned` 字段），和 3.7 里本 CLI 打的 `!` 不是一回事。
+    要收紧这道闸，先用 `pnpm cws:status` 看一眼当前商品的 `warned=` 读数，确认自己能在 Dashboard 里定位到告警明细，再把 `publishItem` 的这个默认值改成 `true`。
+
+21. **能不能「审核通过后先挂起，我自己控制放量」？**
+    可以：CLI 的 `--staged` 会把 `publishType` 换成 `STAGED_PUBLISH`，审核通过后商品处于 `STAGED` 状态，由开发者手动放行。
+    但两点限制：① 按 Google 文档，`setPublishedDeployPercentage` 这个端点的调用前提是该商品**7 日活跃用户超过 10,000**，量级不足时请求被拒，只能在 Dashboard 手动操作；
+    ② 本项目 CLI **没有实现**该端点（只有 preflight / token / status / publish / cancel 五个子命令），所以放量这一步当前必须去 Dashboard 做，`--staged` 只负责把「审过即上架」改成「审过先挂起」。
+
+22. **能用 API 把商品改成 unlisted 或 trusted testers 吗？**
+    不能。v2 的 `PublishType` 只有 `DEFAULT_PUBLISH` 与 `STAGED_PUBLISH`，且 Google 明确写道 “we no longer support changing the visibility of an item using the API”。可见性一律在 Dashboard 改。
+
+### D. 流水线本身
+
+23. **`prepare` job 为什么不注入 `CWS_SA_PRIVATE_KEY`？**
+    离线预检不需要凭据；而 `prepare` 不挂 `environment`（审批只设在 `submit` 上），把私钥注入一个无审批的构建 job 只会扩大暴露面。
+    注入私钥的只有两处：`inspect`（只读，靠它证明凭据链通）与 `submit`（挂 `production`，批准后执行）。
+
+24. **提审的包和预检的包是同一个吗？**
+    是。`prepare` 把构建出的 zip 用 `upload-artifact` 存下来，`submit` 用 `download-artifact` 取回后提审——**预检过的那个字节包**，不会出现「预检绿了但提审的是另一份」。
+    一个需要知道的边界：GitHub Release 的 zip 附件由 `release-please.yml` 的 `build-and-attach` 单独构建，与 `prepare` 是**两次独立构建**（同一 tag、同一 `pnpm-lock.yaml`）。
+    旧版是同一个 job 里一次构建同时供两处，所以这一点是拆分带来的变化；两者内容应当一致，但如果你在排查「Release 附件与商店包字节不同」，这是原因，不是被篡改。
+
+25. **想重跑 `submit`，需要重新构建吗？**
+    不一定要。Re-run jobs 时 `prepare` 的 artifact 在保留期（`retention-days: 7`）内仍然可下载，直接复用；超过 7 天就得整个 run 重跑。
+
+26. **手动 dispatch 忘了填 `tag`。**
+    那只能跑 `preflight`。其余三档要靠 tag 做「包内版本 == 发布 tag」的对账，没给 tag 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并打印原因，而不是拿当前分支的产物闷头提审。
+
+27. **`concurrency.cancel-in-progress` 为什么必须是 `false`？**
+    一个正在等人工审批、或者正在往商店传包的 run 被后来的 run 取消，等于一次半途而废的发版，而且商店侧可能已经收到包但没提审。宁可排队，不要中断。
+
+28. **2026-10-15 之后 `mnao305/chrome-extension-upload@v6.0.0` 还能用吗？**
+    不能——它走的是 v1.1。该 action 的 v7.0.0 已改走 v2，同时把 `publisher-id` 变成必填、删掉 `publish-target`、runtime 升到 node24。
+    本项目 2026-10-09 起两者都不用，改为自写 `scripts/cwsPublish.mjs` + 服务账号：零第三方依赖、端点与请求体可被单测逐字钉住（`tests/scripts/cwsPublishCli.test.ts` 用本地假商店断言整条请求序列），且支持 `STAGED_PUBLISH` 与撤回审核这些 action 没覆盖的操作。
+
+29. **怎么验证这条链本身没被改坏？**
+    ```bash
+    pnpm exec vitest run tests/scripts/cwsPublishCli.test.ts   # 20 例，含请求序列与验签
+    pnpm cws:preflight                                          # 拿真产物跑离线预检
+    ```
+    两条都不会碰真实商店：单测把 CLI 的端点指向进程内的假商店（`CWS_API_ROOT` / `CWS_OAUTH_TOKEN_URI` 两个环境变量只服务于这个场景，生产不设），`preflight` 则是纯离线。任何分支上都能跑。
+
+---
+
 ## 附录：商店描述模板
 
 > 📌 商店正文的权威文案（含逐字符数校验、中英双语、截图与权限说明）在 `CWS_FILL_CONTENT.md`「第二步」。本附录只保留一份精简兜底模板，两者冲突时以 `CWS_FILL_CONTENT.md` 为准。
@@ -336,10 +563,13 @@ Fully open-source, code auditable: https://github.com/liaolongdong/account-passw
 
 ## 附录：CI/CD 配置说明
 
-发布流程的权威说明见本文「第三步：配置 CI/CD 自动化发布」（含三道预检）。
+发布流程的权威说明见本文「第三步：配置自动提审（服务账号 + 人工批准闸门）」（含 3.7 的七项预检判据）与「常见问题解答（FAQ）」。
 
-补充两点：
+补充三点：
 
-- 跳过条件只看 `CWS_EXTENSION_ID`：**它为空**时步骤 3 整体跳过，Release 仍会正常构建并挂到 GitHub Releases；**它有值但 OAuth 三项 Secret 缺失或过期**时，凭据预检会让作业失败（不是跳过），需按错误提示更新那一套 Secret。
+- **没有「跳过提审」这回事了**。旧版靠 `if: env.CWS_EXTENSION_ID != ''` 让整段发布静默跳过，代价是「Secret 忘了配」和「这轮刻意不提审」两种状态在日志里长得一模一样。
+  现在的口径是：`release` 事件一定进入 `submit`，**由 `production` 环境的人工批准决定要不要真的提审**——不点 Approve 就等于跳过，且留下 `waiting` 这个可见的状态。
+  三项标识符缺失时在联网之前判红（`✗ 标识符形状`），不再静默跳过。只有 `preflight` 档允许凭据为空（`--ids-optional`，降级为 `!`），因为它设计上就不碰商店。
+- **旧三项 Secret 已废弃**（`CWS_CLIENT_ID` / `CWS_CLIENT_SECRET` / `CWS_REFRESH_TOKEN`），换成 `CWS_PUBLISHER_ID` / `CWS_SA_EMAIL` / `CWS_SA_PRIVATE_KEY` 三项加 `CWS_EXTENSION_ID`，见 3.3。留着旧的不会让流水线失败，但会让人误判凭据形态。
 - Pages 由仓库设置里的 `Deploy from a branch`（`main` / 根目录）发布，CI 不参与生成站点——`en.html`、`pricing.en.html`、`privacy.en.html` 与 `blog/*.html` 需本地跑 `pnpm gen:en` / `gen:pricing-en` / `gen:privacy-en` / `gen:blog` 后提交；只改中文源而不重跑生成，线上英文版会滞后于中文版。站点直接服务 `main` 根目录，意味着**入库即公开**，不要把内部文档放进仓库根目录。
 - 同一条口径也适用于 `index.html` 内部的生成产物：FAQPage JSON-LD 与 FAQ 静态 DOM 由 `FAQS` 生成（`pnpm gen:faq` / `gen:faq-dom`），改 `FAQS` 后不重跑就等于线上可见 FAQ 与真源脱节，且禁用 JS 的抓取端读到的是滞后的那份。
