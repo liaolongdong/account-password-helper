@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.14.1](https://github.com/liaolongdong/account-password-helper/compare/v3.14.0...v3.14.1) (2026-10-09)
+
+
+### Bug Fixes
+
+* **ci:** 商店 status 档免构建免 tag，凭据链自检随时可跑 ([39ffdb0](https://github.com/liaolongdong/account-password-helper/commit/39ffdb0cdf136adcfa390f3006a00514f35f14a5))
+
 ## [3.14.0](https://github.com/liaolongdong/account-password-helper/compare/v3.13.1...v3.14.0) (2026-10-09)
 
 
