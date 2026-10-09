@@ -1,5 +1,57 @@
 # Changelog
 
+## [3.14.0](https://github.com/liaolongdong/account-password-helper/compare/v3.13.1...v3.14.0) (2026-10-09)
+
+
+### Features
+
+* **identity:** 身份信息库排序增至五档，拖拽排位落盘为手动序 ([2c34ad8](https://github.com/liaolongdong/account-password-helper/commit/2c34ad8e53c6226919472b46c9930a4d0bea553d))
+* **identity:** 身份信息库支持逐张折叠与四档排序，档位作为视图偏好落盘 ([42e406d](https://github.com/liaolongdong/account-password-helper/commit/42e406d18e086e3a9dd5d32420547ba8018e9e5d))
+* **options:** 密码管理页内置文档中页，引导补一步「当场打开侧边栏」 ([d967413](https://github.com/liaolongdong/account-password-helper/commit/d9674132c9ff2fa1ae96e8f3026fd762a93b759e))
+* **options:** 指引页目录跟随滚动、条带与正文共用一根基准线，阅读宽度收到 696px ([236226b](https://github.com/liaolongdong/account-password-helper/commit/236226b08b2a62eeaf089c775633107895a3b8ad))
+* **options:** 新增聚光式新手引导，光圈直接套住页面上的真实按钮 ([779bbfd](https://github.com/liaolongdong/account-password-helper/commit/779bbfd747e2d8939196c973842b5976931503fb))
+* **options:** 新增聚光式新手引导，身份信息库支持逐张折叠与四档排序 ([447a909](https://github.com/liaolongdong/account-password-helper/commit/447a909d322bb329ad35e357f18163380e92bf99))
+* **site:** compare 两页铺上滚动入场，门控页由 2 个增至 4 个且守卫会配对读 CSS ([e5d6a84](https://github.com/liaolongdong/account-password-helper/commit/e5d6a84d8f42130808c21127b227b05385d147d6))
+* **site:** f8 装上可点的生成器演示，强度条读的是扩展那四条规则 ([26c996c](https://github.com/liaolongdong/account-password-helper/commit/26c996c3da2c4efc87ed542509c4b3da1946ea01))
+* **site:** 场景表逐行错峰与分类筛选，补粘性安装入口和行悬停回色 ([e3438f8](https://github.com/liaolongdong/account-password-helper/commit/e3438f825e66b3530d63d4710aecae6063188422))
+* **site:** 官网 20 个对外页面自动跟随系统暗色，令牌层成为唯一改色入口 ([3539e0d](https://github.com/liaolongdong/account-password-helper/commit/3539e0dcaaa7ba303192f16439fd64962dadcd80))
+* 侧边栏有界渲染窗口与按单帧预算反推的批次，附安全/评审回灌、量具与对外口径收口 ([ee9cac0](https://github.com/liaolongdong/account-password-helper/commit/ee9cac0f71b5f97040ae0ab65a27c3de22321d3b))
+
+
+### Bug Fixes
+
+* **benchmarks:** meta.only 的空数组恒为真，跑全部场景时按约定记 all ([20ffacb](https://github.com/liaolongdong/account-password-helper/commit/20ffacb7a84250094eb7f54fe1ab1eec6bd385b0))
+* **blog:** 五张封面的角标计数跟上门牌，blogMeta 补 15 例产物守卫 ([0b3d5dd](https://github.com/liaolongdong/account-password-helper/commit/0b3d5ddb3dc0a38e064b1386c02d3089b125b34f))
+* **blog:** 博客 12 页一次性修掉五类 SEO 缺陷，并补上会变的守卫 ([b1c0b89](https://github.com/liaolongdong/account-password-helper/commit/b1c0b896efe70cd698ddcf2c571b94a56dc6a695))
+* **blog:** 博客 12 页链接与序号文字改走 --accent-ink，生成器两份模板同步 ([3334b81](https://github.com/liaolongdong/account-password-helper/commit/3334b81fa7e147de35dbc3c632e5fb465fd547fb))
+* **copy:** 语言包那句「零联网」改限定口径，守卫扫描面补上三处对外表面 ([24ef71b](https://github.com/liaolongdong/account-password-helper/commit/24ef71b382a662efef37a6434d9e6ea99b58ab4a))
+* **crypto:** PBKDF2 轮数收进 utils/cryptoParams.ts 单一真源 ([62cbf2d](https://github.com/liaolongdong/account-password-helper/commit/62cbf2d203046106fc47fa470cae64b3149a6f1b))
+* **i18n:** 「大列表分页」点明管理页归属，并说明侧边栏按需渲染不跟随档位 ([c69521d](https://github.com/liaolongdong/account-password-helper/commit/c69521d8aada9fd3fa602f5ea772f2518b168440))
+* **landing/compare:** 判定格与链接改走墨色令牌，英文版补齐 .card 并钉上成对守卫 ([08c02f1](https://github.com/liaolongdong/account-password-helper/commit/08c02f1d7bdf82fd6b164d2d4270f154493e443b))
+* **landing:** 官网六页「实底色当文字用」全部改走墨色令牌，并给正文链接补上着色规则 ([7b40419](https://github.com/liaolongdong/account-password-helper/commit/7b404190a76faff0685787984695bc973d48c574))
+* **landing:** 暗档不再拿实底主色当文字色，另起 --primary-ink / --success-ink 两枚文字令牌 ([4c890c0](https://github.com/liaolongdong/account-password-helper/commit/4c890c0a56771c121ceea62d70f85c77cca34d7c))
+* **options:** 两轴评审回灌——指引页 link 按钮不可见与四处文案/文档口径 ([024a1cd](https://github.com/liaolongdong/account-password-helper/commit/024a1cd71edb7d4bc5e5076325241b5aae21d207))
+* **options:** 引导末步的文档退路行改左对齐，链接内部禁止折行 ([41b8b8e](https://github.com/liaolongdong/account-password-helper/commit/41b8b8ebc62d82a46365867da2d7d32d6addea58))
+* **options:** 表格截断浮层对指针透明，不再吃掉上一行的八处点击 ([97f0536](https://github.com/liaolongdong/account-password-helper/commit/97f05369c4dd1929cc7989a20cb42a6daf37aa3e))
+* **options:** 表格截断浮层对指针透明，紧凑行距下不再吃掉上一行的八处点击 ([ff85d89](https://github.com/liaolongdong/account-password-helper/commit/ff85d895e808a3b374150cc211578989e69b0719))
+* **security:** 夹具页事件日志改用 DOM 构造，消除 innerHTML 注入点 ([ade26b7](https://github.com/liaolongdong/account-password-helper/commit/ade26b757c293b9d61ab51ad05193642882d7a79))
+* **seo:** FAQPage 结构化数据由 19 条白名单改为 42 条全量，覆盖面从此有守卫 ([e60ea8a](https://github.com/liaolongdong/account-password-helper/commit/e60ea8adaf9b1915bf73e52e410e32d27b0080f4))
+* **seo:** front matter 补三道形状校验，ld+json 的尖号统一转义，sitemap 日期收口 ([3e9b242](https://github.com/liaolongdong/account-password-helper/commit/3e9b242f70279aa4c7052cdd461ec3d7f4bf4e32))
+* **seo:** sitemap 自述日期对齐、隐私页双 h1 合一与口径订正、product-site 副本 noindex ([4943ebd](https://github.com/liaolongdong/account-password-helper/commit/4943ebdaf214e8e22b94a0f0ff70c8ad4cbca8bc))
+* **seo:** 分享卡按语言分中英两张 1200×630，compare 两页补齐图标与 theme-color ([58f2c3c](https://github.com/liaolongdong/account-password-helper/commit/58f2c3c43c31bdef21131e5ec673fbaa9a2ee408))
+* **seo:** 博客回改补登 modified 到 2026-10-02，重生成 12 页并同步 sitemap ([4752fb8](https://github.com/liaolongdong/account-password-helper/commit/4752fb8456505031008ede795369b2906099ff5a))
+* **sidepanel:** 复制验证码时取消待执行的密码自动清除，避免抹掉正要粘贴的活码 ([12d1bfb](https://github.com/liaolongdong/account-password-helper/commit/12d1bfb61dcd38f695469b5beb14927ab1ce429d))
+* **site:** 评审回灌——被禁隐私口径清零、守卫补牙与注释订正 ([8073a53](https://github.com/liaolongdong/account-password-helper/commit/8073a53933063edfd949039d7d97f13ff5922113))
+* **tests:** 动态正则的转义补全为全量控制字符 ([07fa41b](https://github.com/liaolongdong/account-password-helper/commit/07fa41b89331768ecdc5d043ad2e49946f8ab8f3))
+* **tests:** 动态正则的转义补全为全量控制字符 ([c0928ac](https://github.com/liaolongdong/account-password-helper/commit/c0928acbbee096d9a2476e5dd963a90ce07e4d5f))
+* **update:** 更新跳转地址在写入与出口两处过协议闸门，杜绝非 http(s) scheme ([c3554f9](https://github.com/liaolongdong/account-password-helper/commit/c3554f9bf59dbefb9ddc836f025615e1ea7254ba))
+
+
+### Performance Improvements
+
+* **render-window:** 每帧批次改由单帧预算反推，触底到达量拆成独立常量 ([b10f20a](https://github.com/liaolongdong/account-password-helper/commit/b10f20a4458494e7814cd9e3da3a2ea74c9bb8f5))
+* **sidepanel:** 列表落定态收进 100 行有界渲染窗口，2000 条击键不再重渲整库 ([d504f13](https://github.com/liaolongdong/account-password-helper/commit/d504f13fe70d59633386595e109cc3dc6c984842))
+
 ## [3.13.1](https://github.com/liaolongdong/account-password-helper/compare/v3.13.0...v3.13.1) (2026-09-29)
 
 
