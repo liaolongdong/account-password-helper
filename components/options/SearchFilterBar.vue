@@ -11,9 +11,9 @@
       @update:model-value="$emit('update:searchKeyword', $event)"
     />
     <!--
-      批量操作按钮置于标签筛选左侧：按钮随选中态显隐时，
-      由 flex:1 的搜索框吸收宽度变化，右侧筛选控件位置保持稳定，
-      避免标签筛选触发器位移导致其下拉面板错位
+      批量操作按钮紧跟搜索框、收藏按钮锚定右侧：按钮随选中态显隐时，
+      由 flex:1 的搜索框吸收宽度变化，右侧收藏按钮位置保持稳定。
+      标签与站点两项筛选已搬去左侧分类栏（`CategoryRail.vue`），这里不再放筛选下拉。
     -->
     <el-button
       v-if="selectedCount > 0"
@@ -37,53 +37,6 @@
     >
       {{ t('options.filter.batchDelete', { count: selectedCount }) }}
     </el-button>
-    <el-select
-      v-if="availableTags.length > 0"
-      :model-value="filterTags"
-      multiple
-      collapse-tags
-      collapse-tags-tooltip
-      clearable
-      class="tag-filter"
-      :placeholder="t('options.filter.tagPlaceholder')"
-      @update:model-value="$emit('update:filterTags', $event)"
-      @visible-change="$emit('filterDropdownVisibleChange', $event)"
-    >
-      <el-option
-        v-for="tag in availableTags"
-        :key="tag"
-        :label="tag"
-        :value="tag"
-      />
-    </el-select>
-    <!--
-      站点候选集由条目网址自动汇总，规模上界是条目数（大库可达数千个不同站点），
-      因此用虚拟列表的 `el-select-v2`：只实例化可视窗口的行，
-      避免普通 `el-select` 把每个候选渲染成一个常驻 option 组件。
-      计数放在 option 的默认插槽里，闭合态的选中标签只显示域名本身。
-    -->
-    <el-select-v2
-      v-if="availableSites.length > 0"
-      :model-value="filterSites"
-      :options="availableSites"
-      :props="SITE_OPTION_PROPS"
-      multiple
-      filterable
-      collapse-tags
-      collapse-tags-tooltip
-      clearable
-      class="site-filter"
-      :placeholder="t('options.filter.sitePlaceholder')"
-      @update:model-value="$emit('update:filterSites', $event)"
-      @visible-change="$emit('filterDropdownVisibleChange', $event)"
-    >
-      <template #default="{ item }">
-        <div class="site-option">
-          <span class="site-option__host">{{ item.site }}</span>
-          <span class="site-option__count">{{ item.count }}</span>
-        </div>
-      </template>
-    </el-select-v2>
     <el-tooltip
       :content="favoriteOnly ? t('sidepanel.showAll') : t('sidepanel.favoritesOnly')"
       placement="top"
@@ -103,15 +56,13 @@
 <script setup lang="ts">
 import { Search, Delete, Star, StarFilled, PriceTag, Download } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
-import type { SiteOption } from '@/utils/siteUtils';
 
 /**
  * 搜索与筛选栏组件
  *
- * 包含关键词搜索框、批量操作按钮（编辑标签/导出/删除）、标签筛选、站点筛选与收藏过滤按钮，
- * 支持 v-model 双向绑定搜索关键词、收藏过滤状态、标签筛选集与站点筛选集。
- * 布局上筛选控件锚定右侧、批量按钮随选中态显隐并由搜索框吸收宽度变化，
- * 保证标签筛选下拉触发器位置稳定。
+ * 承载关键词搜索、批量操作按钮（编辑标签 / 导出 / 删除）与收藏过滤开关。
+ * 布局上收藏按钮锚定右侧、批量按钮随选中态显隐并由搜索框吸收宽度变化，
+ * 保证右侧控件位置稳定。标签与站点筛选不在这里——它们是常驻的左侧分类栏。
  */
 defineProps<{
   /** 搜索关键词 */
@@ -120,30 +71,15 @@ defineProps<{
   favoriteOnly: boolean;
   /** 已选中条目数量 */
   selectedCount: number;
-  /** 可选标签集（为空时隐藏标签筛选下拉） */
-  availableTags: string[];
-  /** 标签筛选选中集（命中任一即保留） */
-  filterTags: string[];
-  /** 可选站点集（为空时隐藏站点筛选下拉） */
-  availableSites: SiteOption[];
-  /** 站点筛选选中集（命中任一即保留，通用条目恒保留） */
-  filterSites: string[];
 }>();
 
 defineEmits<{
   'update:searchKeyword': [value: string];
   'update:favoriteOnly': [value: boolean];
-  'update:filterTags': [value: string[]];
-  'update:filterSites': [value: string[]];
-  /** 筛选下拉（标签 / 站点）展开或收起（供父级延迟清空选中，避免交互中途布局跳动） */
-  filterDropdownVisibleChange: [visible: boolean];
   batchDelete: [];
   batchEditTags: [];
   batchExportSelected: [];
 }>();
-
-/** `el-select-v2` 的候选字段映射：站点键同时充当 value 与 label */
-const SITE_OPTION_PROPS = { label: 'site', value: 'site' };
 
 const { t } = useI18n();
 </script>
@@ -154,7 +90,7 @@ const { t } = useI18n();
   gap: 12px;
   align-items: center;
   padding: 20px;
-  margin: 0 32px 20px;
+  margin-bottom: 20px;
   background: white;
   border: 1px solid var(--aph-surface-line);
   border-radius: 8px;
@@ -173,49 +109,12 @@ const { t } = useI18n();
   margin-left: 0;
 }
 
-/* 标签筛选：固定宽度，避免多标签撑开挤压搜索框 */
-.filters .tag-filter {
-  flex-shrink: 0;
-  width: 200px;
-}
-
-/* 站点筛选：与标签筛选同族（同为右侧锚定的多选下拉），略宽以容纳域名；
-   闭合态选中标签靠省略号 + collapse-tags-tooltip 兜住长 hostname */
-.filters .site-filter {
-  flex-shrink: 0;
-  width: 220px;
-}
-
-/* 站点选项行：域名吃掉剩余宽度，条目数右对齐 */
-.site-option {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-}
-
-/* min-width:0 是省略号生效的前提：flex 子项默认 min-width:auto，长域名会把行撑宽 */
-.site-option__host {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.site-option__count {
-  flex-shrink: 0;
-  font-size: 12px;
-  color: var(--aph-text-muted);
-}
-
-/* 响应式 */
+/* 响应式：窄屏纵向排列（左右外边距由 `.vault-layout` 统一持有） */
 @media (width <= 768px) {
   .filters {
     flex-direction: column;
     gap: 16px;
     padding: 16px;
-    margin: 0 16px 20px;
   }
 }
 </style>

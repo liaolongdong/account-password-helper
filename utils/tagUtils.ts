@@ -3,6 +3,8 @@
  * 根据标签内容生成基于 HSL 色彩空间的自定义颜色，确保不同标签颜色区分度高、同一标签颜色始终一致。
  */
 import type { PasswordEntry } from '@/utils/types';
+import type { FacetOption } from '@/utils/facet';
+import { countFacet } from '@/utils/facet';
 import { hashStringLight } from '@/utils/crypto-light';
 import { registerPlaintextCacheCleaner } from '@/utils/plaintextCacheCleanup';
 
@@ -106,6 +108,22 @@ export const collectAllTags = (passwords: Array<Pick<PasswordEntry, 'tag'>>): st
   }
   return result;
 };
+
+/**
+ * 聚合所有密码条目中的标签，返回带命中条目数的候选项
+ *
+ * 与 `collectAllTags` 的差别只在「是否计数」：前者供表单的标签建议下拉使用
+ * （只需要去重后的名字），后者供管理页左侧分类栏使用（计数是这一栏的主要信息量）。
+ * 一条多标签的条目给**每个**标签各计一次，因此各段计数之和会大于条目数——
+ * 这与站点段的口径一致（同一站点下的多条账号本来就各自计数）。
+ *
+ * 排序与站点段共用 `countFacet`，两段在同一屏里给出同一套「谁排在前面」的答案。
+ *
+ * @param passwords 密码条目列表（只读 `tag` 字段）
+ * @returns 按「条目数倒序 → 标签正序」排列的标签候选集
+ */
+export const collectTagOptions = (passwords: readonly Pick<PasswordEntry, 'tag'>[]): FacetOption[] =>
+  countFacet(passwords.flatMap(entry => parseTags(entry.tag)));
 
 /**
  * 标签颜色对象，包含背景色、文字色和边框色

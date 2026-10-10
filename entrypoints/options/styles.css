@@ -12,8 +12,33 @@
   background: var(--aph-surface-2);
 }
 
+/* 两栏骨架：左栏宽度固定，右栏吃掉剩余宽度并允许自身收缩（min-width:0 是省略号生效的前提） */
+.vault-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  padding: 0 32px 32px;
+}
+
+.vault-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .password-list-info {
-  margin: 0 32px 10px;
+  margin-bottom: 10px;
+}
+
+/* 窄屏：分类栏从「左侧」退成「上方」，功能一项不减，只是不再常驻可见 */
+@media (width <= 900px) {
+  .vault-layout {
+    flex-direction: column;
+    padding: 0 16px 32px;
+  }
+
+  .vault-main {
+    width: 100%;
+  }
 }
 
 /* 弹窗样式 */

@@ -49,13 +49,69 @@ const FAVORITE_BUTTON_INDEX = 3;
 /** 一行内可点控件的取样范围；零尺寸的原生 input（如多选框的 hidden checkbox）由下面的判据剔除 */
 const INTERACTIVE_SELECTOR = 'button, a[href], input:not([type="hidden"]), .el-checkbox__inner, .el-tag, .el-select';
 
-/** 悬浮到触发行备注单元格并等截断浮层成为唯一可见 tooltip */
+/**
+ * 悬浮到触发行备注单元格并等截断浮层成为唯一可见 tooltip
+ *
+ * 落点与悬浮方式都不能图省事：
+ *
+ * 1. 管理页是两栏布局，1280 视口下表格要横向滚动，备注格只露在「左右两条 sticky 固定列之间」
+ *    那条可视带里。`hover({ force: true })` 会跳过命中检测，指针于是停在操作列的按钮上
+ *    ——要不到截断浮层，红出来的却是「截断浮层没有出现」这条与真相无关的断言。
+ *    所以先把单元格滚到可视带正中，落点取「单元格 ∩ 可视带」的中心。
+ * 2. 滚完之后必须让布局落定再悬浮。同帧内 `scrollLeft +=` 紧跟一次裸 `mouse.move`，
+ *    Chrome 的命中测试用的还是滚动前的布局：指针「进入」的是滚动前占在那个坐标的另一格，
+ *    `mouseenter` 不会补发，浮层永远不出（实测落点事后自证仍在备注格内、`tips` 却恒为空）。
+ *    `locator.hover()` 自带 stable 判定（连续两帧包围盒不变）与命中检测，因此交给它。
+ */
 async function hoverTruncatedCell(page: Page): Promise<void> {
   const cell = rowOf(page, TRIGGER.username).locator('td').nth(REMARK_CELL_INDEX).locator('.cell').first();
 
   // 下标写死后必须自证量的是备注列：哪天列序变动，这里红，而不是让整份守卫静默空跑
   await expect(cell).toContainText(TRIGGER.remark.slice(0, 12));
-  await cell.hover({ force: true });
+
+  // 先把指针挪出表格：上一步 `createEntry` 关掉弹窗后指针本就停在页面里，横向滚动会把备注格
+  // 送到它底下，而同一个元素内不重发 `mouseenter`——不先归零，下面的悬浮可能只是「原地不动」。
+  await page.mouse.move(5, 5);
+
+  const spot = await page.evaluate(
+    ({ rowText, columnIndex }) => {
+      const row = [...document.querySelectorAll<HTMLElement>('tr.el-table__row')].find(node =>
+        (node.textContent ?? '').includes(rowText),
+      );
+      if (!row) throw new Error('触发行不在 DOM 里');
+
+      const tds = [...row.querySelectorAll<HTMLElement>('td')];
+      const target = tds[columnIndex];
+      const inner = target?.querySelector<HTMLElement>('.cell');
+      if (!target || !inner) throw new Error(`取不到第 ${columnIndex} 列的备注单元格：列序或列数已变`);
+
+      /** 备注格与「左右固定列之间可视带」的交集中心（视口坐标）；带外部分不算落点 */
+      const stripCenterOf = (): { x: number; y: number; exposed: number } => {
+        const box = target.getBoundingClientRect();
+        const left = Math.max(box.left, tds[0].getBoundingClientRect().right);
+        const right = Math.min(box.right, tds[tds.length - 1].getBoundingClientRect().left);
+        return { x: (left + right) / 2, y: box.top + box.height / 2, exposed: right - left };
+      };
+
+      let scroller: HTMLElement | null = target.parentElement;
+      while (scroller && scroller.scrollWidth <= scroller.clientWidth) scroller = scroller.parentElement;
+      if (scroller) {
+        const bandCenter =
+          (tds[0].getBoundingClientRect().right + tds[tds.length - 1].getBoundingClientRect().left) / 2;
+        scroller.scrollLeft += stripCenterOf().x - bandCenter;
+      }
+
+      const spot = stripCenterOf();
+      if (spot.exposed < 40) {
+        throw new Error(`备注格只露出 ${Math.round(spot.exposed)} 像素就被固定列盖住：测量口径需重新确认`);
+      }
+      const innerBox = inner.getBoundingClientRect();
+      return { x: spot.x - innerBox.left, y: innerBox.height / 2 };
+    },
+    { rowText: TRIGGER.username, columnIndex: REMARK_CELL_INDEX },
+  );
+
+  await cell.hover({ position: { x: spot.x, y: spot.y } });
 
   await expect
     .poll(() => visibleTooltipTexts(page), { timeout: 5_000, message: '截断浮层没有出现' })

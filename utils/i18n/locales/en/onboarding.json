@@ -12,7 +12,7 @@
   "onboarding.empty.title": "Three ways in — pick one",
   "onboarding.empty.desc": "Add entries by hand, bulk-import a CSV file, or restore an encrypted .aph backup. The import preview works out how many entries still fit and which ones get skipped.",
   "onboarding.search.title": "What you'll lean on later",
-  "onboarding.search.desc": "Search understands pinyin initials, and tags plus 'favorites only' stack as filters. Select rows to retag, delete or export in bulk.",
+  "onboarding.search.desc": "Search understands pinyin initials; the category rail on the left counts entries by tag and site — click a row to filter, and stack it with 'favorites only'. Select rows to retag, delete or export in bulk.",
   "onboarding.data.title": "Backups and migrations live here",
   "onboarding.data.desc": "Import/export, encrypted backup, trash and the identity vault share this one menu. An exported .aph only opens with your master password.",
   "onboarding.data.tip": "Run an encrypted backup export now — the menu header records your last successful backup.",

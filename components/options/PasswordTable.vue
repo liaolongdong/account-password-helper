@@ -593,9 +593,8 @@ defineExpose({
 </script>
 
 <style scoped>
-/* 密码列表容器 */
+/* 密码列表容器（左右外边距由 `.vault-layout` 统一持有，便于与左侧分类栏对齐） */
 .password-list {
-  margin: 0 32px 32px;
   overflow: hidden;
   background: white;
   border: 1px solid var(--aph-surface-line);
