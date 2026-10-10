@@ -205,6 +205,12 @@
    做 `findIndex` 是 O(T²)，且 `el-select` 的 `persistent` 默认 true → 弹窗关闭后 T 个 option 仍常驻、
    仍会随候选集变化重算。**分页不改变 T，"点新增"这一次一分不省。**
 
+   > 2026-10-11 追记：筛选栏的标签候选已换成 `el-select-v2`（虚拟列表，只实例化可视窗口的行），
+   > 这条对**筛选栏**不再成立；新增表单与批量标签弹窗仍是普通 `el-select`
+   > （`allow-create` + `multiple-limit` 的交互依赖它），那两处仍在这条账上。
+   > 聚合本身仍是一次 O(N×标签)，只是从 `collectAllTags` 换成 `countTags`——同一份 Map 派生
+   > 「带计数的筛选候选」与「裸标签的弹窗候选」两个视图，遍历次数没增加。
+
 5. **保存/收藏/删除后可能整表重建。** 设计意图是"就地更新 + 跳过 watcher"（`usePasswordManagement.ts:477-479`），
    靠 `runLocalOperation` 的 `setTimeout(0)` 清除标志（`useLocalOperationGuard.ts:33-44`）来抑制
    `useStorageWatcher.ts:62-72` 的 `loadPasswords()`。但 `chrome.storage.onChanged` 经 IPC 派发通常**晚于**

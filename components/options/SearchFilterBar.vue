@@ -37,31 +37,40 @@
     >
       {{ t('options.filter.batchDelete', { count: selectedCount }) }}
     </el-button>
-    <el-select
-      v-if="availableTags.length > 0"
+    <!--
+      标签 / 站点两个下拉同构：都用虚拟列表 `el-select-v2` + `filterable`，
+      行内右对齐放条目数，闭合态的选中标签只显示标签 / 域名本身。
+      用 select-v2 的原因：候选集规模上界是条目数（大库可达上千个不同标签或站点），
+      普通 `el-select` 的 `persistent` 默认 true 会让每个候选常驻一个 option 组件并重演 O(T²)
+      （见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md §3 第 4 条），select-v2 只实例化可视窗口的行。
+      计数放在 option 的默认插槽里，不进 `label`——否则闭合态的选中标签会带上数字。
+    -->
+    <el-select-v2
+      v-if="availableTagOptions.length > 0"
       :model-value="filterTags"
+      :options="availableTagOptions"
+      :props="TAG_OPTION_PROPS"
       multiple
+      filterable
       collapse-tags
       collapse-tags-tooltip
       clearable
       class="tag-filter"
+      popper-class="tag-filter-popper"
       :placeholder="t('options.filter.tagPlaceholder')"
       @update:model-value="$emit('update:filterTags', $event)"
       @visible-change="$emit('filterDropdownVisibleChange', $event)"
     >
-      <el-option
-        v-for="tag in availableTags"
-        :key="tag"
-        :label="tag"
-        :value="tag"
-      />
-    </el-select>
-    <!--
-      站点候选集由条目网址自动汇总，规模上界是条目数（大库可达数千个不同站点），
-      因此用虚拟列表的 `el-select-v2`：只实例化可视窗口的行，
-      避免普通 `el-select` 把每个候选渲染成一个常驻 option 组件。
-      计数放在 option 的默认插槽里，闭合态的选中标签只显示域名本身。
-    -->
+      <template #default="{ item }">
+        <div
+          class="facet-option"
+          :title="item.tag"
+        >
+          <span class="facet-option__text">{{ item.tag }}</span>
+          <span class="facet-option__count">{{ item.count }}</span>
+        </div>
+      </template>
+    </el-select-v2>
     <el-select-v2
       v-if="availableSites.length > 0"
       :model-value="filterSites"
@@ -73,14 +82,24 @@
       collapse-tags-tooltip
       clearable
       class="site-filter"
+      popper-class="site-filter-popper"
       :placeholder="t('options.filter.sitePlaceholder')"
       @update:model-value="$emit('update:filterSites', $event)"
       @visible-change="$emit('filterDropdownVisibleChange', $event)"
     >
       <template #default="{ item }">
-        <div class="site-option">
-          <span class="site-option__host">{{ item.site }}</span>
-          <span class="site-option__count">{{ item.count }}</span>
+        <!--
+          title 是截断的唯一兜底：面板宽度按最长 label 量出（select-v2 的 calculateLabelMaxWidth），
+          不会把同一行的计数列算进去，最长的那一条因此必然显示成省略号。
+          不用 el-tooltip：普通 select 的 option 常驻、虚拟列表的行随滚动回收，
+          两种情况下按候选数实例化 tooltip 都是净增开销。
+        -->
+        <div
+          class="facet-option"
+          :title="item.site"
+        >
+          <span class="facet-option__text">{{ item.site }}</span>
+          <span class="facet-option__count">{{ item.count }}</span>
         </div>
       </template>
     </el-select-v2>
@@ -104,6 +123,7 @@
 import { Search, Delete, Star, StarFilled, PriceTag, Download } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
 import type { SiteOption } from '@/utils/siteUtils';
+import type { TagOption } from '@/utils/tagUtils';
 
 /**
  * 搜索与筛选栏组件
@@ -112,6 +132,9 @@ import type { SiteOption } from '@/utils/siteUtils';
  * 支持 v-model 双向绑定搜索关键词、收藏过滤状态、标签筛选集与站点筛选集。
  * 布局上筛选控件锚定右侧、批量按钮随选中态显隐并由搜索框吸收宽度变化，
  * 保证标签筛选下拉触发器位置稳定。
+ *
+ * 两个筛选下拉同构（虚拟列表 + 键入过滤 + 行内条目数 + 整行 `title`），
+ * 候选的计数口径都是**全库条目数**，与当前筛选结果无关。
  */
 defineProps<{
   /** 搜索关键词 */
@@ -120,8 +143,8 @@ defineProps<{
   favoriteOnly: boolean;
   /** 已选中条目数量 */
   selectedCount: number;
-  /** 可选标签集（为空时隐藏标签筛选下拉） */
-  availableTags: string[];
+  /** 可选标签集（带条目数、按条目数倒序；为空时隐藏标签筛选下拉） */
+  availableTagOptions: TagOption[];
   /** 标签筛选选中集（命中任一即保留） */
   filterTags: string[];
   /** 可选站点集（为空时隐藏站点筛选下拉） */
@@ -142,7 +165,9 @@ defineEmits<{
   batchExportSelected: [];
 }>();
 
-/** `el-select-v2` 的候选字段映射：站点键同时充当 value 与 label */
+/** `el-select-v2` 的候选字段映射：标签键同时充当 value 与 label，计数只进插槽 */
+const TAG_OPTION_PROPS = { label: 'tag', value: 'tag' };
+/** `el-select-v2` 的候选字段映射：站点键同时充当 value 与 label，计数只进插槽 */
 const SITE_OPTION_PROPS = { label: 'site', value: 'site' };
 
 const { t } = useI18n();
@@ -179,15 +204,15 @@ const { t } = useI18n();
   width: 200px;
 }
 
-/* 站点筛选：与标签筛选同族（同为右侧锚定的多选下拉），略宽以容纳域名；
+/* 站点筛选：与标签筛选同族（同为右侧锚定的多选虚拟列表下拉），略宽以容纳域名；
    闭合态选中标签靠省略号 + collapse-tags-tooltip 兜住长 hostname */
 .filters .site-filter {
   flex-shrink: 0;
   width: 220px;
 }
 
-/* 站点选项行：域名吃掉剩余宽度，条目数右对齐 */
-.site-option {
+/* 候选行：标签 / 站点共用一份结构，文本吃掉剩余宽度，条目数右对齐 */
+.facet-option {
   display: flex;
   gap: 12px;
   align-items: center;
@@ -195,15 +220,15 @@ const { t } = useI18n();
   width: 100%;
 }
 
-/* min-width:0 是省略号生效的前提：flex 子项默认 min-width:auto，长域名会把行撑宽 */
-.site-option__host {
+/* min-width:0 是省略号生效的前提：flex 子项默认 min-width:auto，长标签 / 长域名会把行撑宽 */
+.facet-option__text {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.site-option__count {
+.facet-option__count {
   flex-shrink: 0;
   font-size: 12px;
   color: var(--aph-text-muted);

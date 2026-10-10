@@ -7,7 +7,14 @@ import { EmailBackupUtils } from '@/utils/emailBackup';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
-import { parseTags, stringifyTags, collectAllTags, normalizeTagInput } from '@/utils/tagUtils';
+import {
+  buildTagOptions,
+  countTags,
+  normalizeTagInput,
+  parseTags,
+  stringifyTags,
+  type TagOption,
+} from '@/utils/tagUtils';
 import { collectSiteOptions, matchesSiteFilter, type SiteOption } from '@/utils/siteUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
@@ -264,18 +271,38 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   /**
-   * 下拉候选标签列表
-   * 从所有密码条目中聚合去重，供表单中的标签下拉选项使用。
+   * 标签计数的单一来源（标签 → 含该标签的条目数，按首次出现顺序）
+   *
+   * 下面两个候选视图都从这一份 Map 派生，全库标签的解析（每条一次 `parseTags`）只发生一次；
+   * 键集同源也意味着筛选栏的计数版本与弹窗的裸标签版本不可能给出不同的候选集。
    */
-  const availableTags = computed<string[]>(() => collectAllTags(passwords.value));
+  const tagCounts = computed(() => countTags(passwords.value));
+
+  /**
+   * 下拉候选标签列表（首次出现顺序）
+   * 从所有密码条目中聚合去重，供表单中的标签下拉选项使用；
+   * 顺序刻意不随计数变化，新增表单与批量标签弹窗的候选顺序保持原样。
+   */
+  const availableTags = computed<string[]>(() => [...tagCounts.value.keys()]);
+
+  /**
+   * 下拉候选标签集（带条目数、按条目数倒序）
+   *
+   * 计数口径与 `availableSites` 一致：**全库条目数**而非当前筛选结果数，
+   * 否则选中一个标签后其余候选当场归零，下拉读起来就是空集。
+   * 成本与 `availableSites` 同量级（一次 O(N) 解析 + 一次按键数排序，2000 条约几毫秒），
+   * 不进首屏阻塞预算；渲染侧用 `el-select-v2` 虚拟化，只实例化可视窗口的行。
+   */
+  const availableTagOptions = computed<TagOption[]>(() => buildTagOptions(tagCounts.value));
 
   /**
    * 下拉候选站点列表（按条目数倒序）
    *
    * 成本是一次 O(N) 的 hostname 归一与聚合：2000 条约 5ms，低于 50ms 长任务阈值，
    * 不进首屏阻塞预算。渲染侧用 `el-select-v2` 虚拟化，候选数再大也只实例化可视窗口，
-   * 不会重演 `availableTags` + 普通 `el-select` 的 O(T²) 常驻问题
-   * （见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md §3 第 4 条）。
+   * 不会重演普通 `el-select` 的 O(T²) 常驻问题——筛选栏的标签下拉同此形态，
+   * 仍走普通 `el-select` 的是新增表单与批量标签弹窗（`allow-create` 依赖它），
+   * 那两处还在这条账上（见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md §3 第 4 条）。
    */
   const availableSites = computed<SiteOption[]>(() => collectSiteOptions(passwords.value));
 
@@ -1175,6 +1202,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     offPageSelectedCount,
     currentSort,
     availableTags,
+    availableTagOptions,
     availableSites,
     tagArray,
     // 方法

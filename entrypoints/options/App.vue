@@ -69,7 +69,7 @@
         v-model:filter-tags="filterTags"
         v-model:filter-sites="filterSites"
         :selected-count="selectedIds.length"
-        :available-tags="availableTags"
+        :available-tag-options="availableTagOptions"
         :available-sites="availableSites"
         @filter-dropdown-visible-change="handleFilterDropdownVisibleChange"
         @batch-delete="batchDelete"
@@ -711,6 +711,7 @@ const {
   offPageSelectedCount,
   currentSort,
   availableTags,
+  availableTagOptions,
   availableSites,
   tagArray,
   loadPasswords,
