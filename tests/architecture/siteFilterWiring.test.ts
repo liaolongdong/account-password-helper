@@ -267,6 +267,22 @@ describe('无网址候选桶', () => {
     const pushAt = SITE_SRC.indexOf('if (genericCount > 0) options.push({ site: GENERIC_SITE_KEY');
     expect(sortAt, '站点候选不再排序（同数量站点的顺序会随平台漂）').toBeGreaterThan(-1);
     expect(pushAt, '通用条目桶不再固定末位，或根本不再产桶').toBeGreaterThan(sortAt);
+    // 牙齿：摘掉产桶守卫（库里一条空网址都没有时也会多出一个 0 计数候选），上一条 toMatch 必须抓到
+    expect(
+      /if \(genericCount > 0\) options\.push\(\{ site: GENERIC_SITE_KEY, count: genericCount \}\)/.test(
+        SITE_SRC.replace('if (genericCount > 0) options.push', 'options.push'),
+      ),
+      '产桶守卫的判据没有牙齿：无条件产桶也算通过',
+    ).toBe(false);
+    // 牙齿：把这一行删掉（等价于「并进 counts 一起排序」，通用桶于是跟着计数跳位），先后判定必须抓到
+    const noPush = SITE_SRC.replace(
+      '  if (genericCount > 0) options.push({ site: GENERIC_SITE_KEY, count: genericCount });\n',
+      '',
+    );
+    expect(
+      noPush.indexOf('if (genericCount > 0) options.push({ site: GENERIC_SITE_KEY') > noPush.indexOf('.sort('),
+      '末位固定的判据没有牙齿：不产桶也算通过',
+    ).toBe(false);
     // 恒保留规则不能被动：只勾某个站点时这批条目仍要在结果里
     expect(SITE_SRC, '通用条目不再恒保留，站点筛选会把可用条目一起筛掉').toMatch(
       /return !key \|\| selectedSites\.includes\(key\)/,
@@ -299,11 +315,19 @@ describe('无网址候选桶', () => {
   });
 
   it('候选文案在中英文语言包里各有一条', () => {
+    const KEY = '"options.filter.siteGenericOption"';
+    /** 谓词与下面循环用的是同一句判断，这样「牙齿」证明的是这条判据本身 */
+    const hasCopy = (src: string): boolean => src.includes(KEY);
     for (const [locale, src] of [
       ['zh-CN', read('utils/i18n/locales/zh-CN/options.json')],
       ['en', read('utils/i18n/locales/en/options.json')],
     ]) {
-      expect(src, `${locale} 缺少无网址候选桶文案`).toContain('"options.filter.siteGenericOption"');
+      expect(hasCopy(src), `${locale} 缺少无网址候选桶文案`).toBe(true);
     }
+    // 牙齿：把英文那一侧改名（只留下一侧文案的常见失守形态），谓词必须对这一侧变 false
+    expect(
+      hasCopy(read('utils/i18n/locales/en/options.json').replace(KEY, '"options.filter.siteGeneric"')),
+      '文案齐备的判据没有牙齿：缺一侧也算通过',
+    ).toBe(false);
   });
 });
