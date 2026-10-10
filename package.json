@@ -63,7 +63,7 @@
     "element-plus": "^2.14.4",
     "jsqr": "^1.4.0",
     "pinyin-match": "^1.2.10",
-    "vue": "^3.5.41"
+    "vue": "^3.5.43"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -96,13 +96,9 @@
     "wxt": "^0.20.27"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ],
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"],
     "overrides": {
-      "shell-quote": ">=1.8.1",
+      "shell-quote": "~1.11.0",
       "tmp": ">=0.2.7",
       "uuid": ">=9.0.1",
       "js-yaml": "~4.3.2",
@@ -111,16 +107,9 @@
     }
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "keywords": [
     "password-manager",

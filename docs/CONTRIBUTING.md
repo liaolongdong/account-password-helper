@@ -15,7 +15,7 @@ Account Password Helper 是一款基于 Chrome 扩展的本地加密账号密码
 | 类别      | 技术                                                                              | 版本 / 说明                                                                                   |
 | --------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | 扩展框架  | [WXT](https://wxt.dev/)                                                           | v0.20.27，基于 Manifest V3                                                                    |
-| 前端框架  | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.41，Composition API + `<script setup>`                                                   |
+| 前端框架  | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.43，Composition API + `<script setup>`                                                   |
 | UI 组件库 | [Element Plus](https://element-plus.org/)                                         | v2.14.4，按需引入（unplugin-vue-components + unplugin-auto-import，均用 ElementPlusResolver） |
 | 加密      | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256，浏览器原生                                                    |
 | 拼音搜索  | [pinyin-match](https://github.com/xmflswood/pinyin-match)                         | v1.2.10，拼音首字母模糊匹配                                                                   |
@@ -406,7 +406,7 @@ Account Password Helper is a local-first Chrome extension for managing account c
 | Category      | Technology                                                                        | Version / Notes                                                                                   |
 | ------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Framework     | [WXT](https://wxt.dev/)                                                           | v0.20.27, Manifest V3                                                                             |
-| Frontend      | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.41, Composition API + `<script setup>`                                                       |
+| Frontend      | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.43, Composition API + `<script setup>`                                                       |
 | UI library    | [Element Plus](https://element-plus.org/)                                         | v2.14.4, on-demand (unplugin-vue-components + unplugin-auto-import, both via ElementPlusResolver) |
 | Encryption    | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256, native                                                            |
 | Pinyin search | [pinyin-match](https://github.com/xmflswood/pinyin-match)                         | v1.2.10, pinyin initial fuzzy matching                                                            |
