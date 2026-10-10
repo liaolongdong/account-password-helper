@@ -28,6 +28,7 @@ import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
 import { useKeywordDebounce } from '@/composables/useKeywordDebounce';
 import { useVaultListPagination } from '@/composables/useVaultListPagination';
 import { useVaultPageSize } from '@/composables/useVaultPageSize';
+import { noteRevealIntent } from '@/composables/useModalScrollRestoration';
 import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
 
@@ -650,6 +651,9 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       }
       row.classList.add('new-item');
       row.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
+      // 保存链路里弹窗是在这次定位**之后**才关的，弹窗关闭会触发滚动还原；
+      // 不打这颗标记，还原会把刚进视口的行推回去（见 useModalScrollRestoration）。
+      noteRevealIntent();
       clearTimeout(rowHighlights.get(id));
       rowHighlights.set(
         id,
