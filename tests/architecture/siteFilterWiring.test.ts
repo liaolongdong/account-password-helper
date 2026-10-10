@@ -5,7 +5,7 @@
  * props / emits / 解构名三边一旦改名或漏接，typecheck、lint、build 全绿，
  * 坏掉的是运行时（下拉不出现、筛选不生效或选中集不再收口）。
  * 因此按本仓既有惯例（见 `vaultPageSizeWiring.test.ts`、`crossSubdomainTierWiring.test.ts`）
- * 做源码扫描，钉住四类会静默失守的契约：
+ * 做源码扫描，钉住以下几类会静默失守的契约：
  *
  * - 筛选链漏一段 → 站点条件不参与过滤，或改了筛选却不复位页码（停在第 7 页读空白）；
  * - 两个下拉各建一套「展开期延迟清空」标记 → 批量按钮在交互中途消失引起布局跳动；
@@ -14,7 +14,8 @@
  *   docs/reports/PERF_LARGE_VAULT_EVALUATION.md §3 第 4 条）；这条对标签下拉同样成立；
  * - 标签 / 站点两条候选行的计数或 `title` 少挂一处 → 截断的那条读不出原文，
  *   而 `title` 是唯一不新增常驻组件的兜底（`el-tooltip` 会按候选数实例化）；
- * - 深链带关键词进来时只清标签不清站点 → 「到全库找」这个入口显示成空表。
+ * - 深链带关键词进来时只清标签不清站点 → 「到全库找」这个入口显示成空表；
+ * - 「无网址」候选桶的哨兵键漏进展示层或漏回筛选集 → 用户读到乱码，或选中的条件在界面上不可见。
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'fs';
@@ -61,7 +62,8 @@ describe('站点筛选接线', () => {
 
   it('候选站点用虚拟列表渲染，且失效站点会被剔除', () => {
     expect(BAR_SRC, '站点下拉退回普通 el-select：大库下上千 option 会常驻').toMatch(/<el-select-v2\b/);
-    expect(BAR_SRC).toMatch(/:options="availableSites"/);
+    // 绑的是展示派生集：哨兵键要换成本地化文案，见下方「无网址候选桶」守卫
+    expect(BAR_SRC, '站点下拉不再绑展示候选集').toMatch(/:options="siteOptions"/);
     // 候选集变化后剔除已失效站点，否则留下看不见的空过滤
     expect(MANAGER_SRC, 'availableSites 变化时不再收口 filterSites').toMatch(
       /watch\(availableSites, options => \{[\s\S]*?filterSites\.value = filterSites\.value\.filter/,
@@ -128,11 +130,37 @@ describe('筛选栏候选行的共同形状（标签计数与截断兜底）', (
   const tagBlock = selectBlock(BAR_SRC, 'v-if="availableTagOptions.length > 0"');
   const siteBlock = selectBlock(BAR_SRC, 'v-if="availableSites.length > 0"');
 
-  /** 两个下拉的块本体、独有属性与字段名，逐项同构 */
+  /**
+   * 两个下拉的块本体与共用的行结构逐项比对；`field` 是各自 `:title` 读的字段名，
+   * 两处**本就不同**（标签键即展示串，站点侧多一个不是 hostname 的哨兵桶），
+   * 所以这里比的是「行结构与交互」同形，不是「字段名」同形。
+   */
   const DROPDOWNS = [
     { name: '标签', field: 'tag', block: tagBlock },
-    { name: '站点', field: 'site', block: siteBlock },
+    { name: '站点', field: 'label', block: siteBlock },
   ] as const;
+
+  it('两份候选字段映射的键集相同，值的分工不同', () => {
+    // `el-select-v2` 的 `props` 只认字段名，键集缺一位就是组件契约被改（展示或回填失去来源）。
+    // 值不同是设计：标签两处都指 `tag`，站点必须把展示（`label`）与机器键（`site`）分开，
+    // 否则通用条目桶的本地化文案会渗进 `filterSites`，切语言就换不掉。
+    const keySets = (source: string) =>
+      [...source.matchAll(/const \w+_OPTION_PROPS = \{([^}]+)\}/g)].map(m =>
+        m[1]
+          .split(',')
+          .map(pair => pair.split(':')[0].trim())
+          .sort(),
+      );
+    const sets = keySets(BAR_SRC);
+    expect(sets, '候选字段映射的数量不再是标签 / 站点两份').toHaveLength(2);
+    expect(sets[0]).toEqual(['label', 'value']);
+    expect(sets[1]).toEqual(['label', 'value']);
+    // 牙齿：把标签那份的展示键改名成 el-select-v2 不认的 `text`，键集比对必须抓到
+    expect(keySets(BAR_SRC.replace("{ label: 'tag', value: 'tag' }", "{ text: 'tag', value: 'tag' }"))[0]).not.toEqual([
+      'label',
+      'value',
+    ]);
+  });
 
   it('两个下拉都是虚拟列表多选，筛选栏不再有普通 el-select', () => {
     expect(BAR_SRC, '筛选栏出现普通 el-select：候选会常驻 DOM 并重演 O(T²)').not.toMatch(/<el-select(?!-v2)/);
@@ -158,7 +186,7 @@ describe('筛选栏候选行的共同形状（标签计数与截断兜底）', (
       ).toBe(false);
     }
     expect(tagBlock, '标签下拉不再绑计数候选集').toMatch(/:options="availableTagOptions"/);
-    expect(siteBlock, '站点下拉不再绑候选集').toMatch(/:options="availableSites"/);
+    expect(siteBlock, '站点下拉不再绑展示候选集').toMatch(/:options="siteOptions"/);
   });
 
   it('两条候选行共用同一份行结构，计数与 title 各挂一处', () => {
@@ -218,5 +246,64 @@ describe('筛选栏候选行的共同形状（标签计数与截断兜底）', (
 
     // 新增表单与批量标签弹窗的候选口径不变（仍是 string[]，顺序也不随计数漂）
     expect(APP_SRC.match(/:available-tags="availableTags"/g), '弹窗标签候选被顺手改成了计数版本').toHaveLength(2);
+  });
+});
+
+/**
+ * 「无网址」候选桶的接线守卫
+ *
+ * 通用条目（空 `url`）在候选集里占一格，但它的键是哨兵串而非 hostname。哨兵漏进展示层，
+ * 用户读到的是一个像路径的乱码；漏回筛选集，`filterSites` 里就存着一条界面看不见的条件。
+ * 两种都在运行时才显形，`tsc --noEmit` / lint / build 全绿，所以钉住这条链的三段契约：
+ * 聚合端按条件产桶并固定末位、展示端换成文案、回填端仍交回站点键，另加中英文案齐备。
+ */
+describe('无网址候选桶', () => {
+  it('聚合端：有通用条目才产桶，且排在排序之后（不跟着计数在列表里跳位）', () => {
+    expect(SITE_SRC, 'siteUtils 不再导出通用条目桶的哨兵键').toMatch(/export const GENERIC_SITE_KEY = '\/no-url'/);
+    expect(SITE_SRC, '通用条目桶变成无条件产出：库里一条空网址都没有时也会多出一个 0 计数候选').toMatch(
+      /if \(genericCount > 0\) options\.push\(\{ site: GENERIC_SITE_KEY, count: genericCount \}\)/,
+    );
+    const sortAt = SITE_SRC.indexOf('.sort(');
+    const pushAt = SITE_SRC.indexOf('if (genericCount > 0) options.push({ site: GENERIC_SITE_KEY');
+    expect(sortAt, '站点候选不再排序（同数量站点的顺序会随平台漂）').toBeGreaterThan(-1);
+    expect(pushAt, '通用条目桶不再固定末位，或根本不再产桶').toBeGreaterThan(sortAt);
+    // 恒保留规则不能被动：只勾某个站点时这批条目仍要在结果里
+    expect(SITE_SRC, '通用条目不再恒保留，站点筛选会把可用条目一起筛掉').toMatch(
+      /return !key \|\| selectedSites\.includes\(key\)/,
+    );
+  });
+
+  it('展示端：哨兵换成本地化文案，但回填筛选集的仍是站点键', () => {
+    // 文案必须落在数据上：闭合态选中标签、`filterable` 键入过滤、面板宽度测量三处都读 `label`，
+    // 只在候选行插槽里换文案会让这三处仍显示哨兵串。
+    expect(BAR_SRC, '站点候选的展示字段不再读 label，哨兵串会直接露出').toMatch(
+      /const SITE_OPTION_PROPS = \{ label: 'label', value: 'site' \}/,
+    );
+    expect(BAR_SRC, '展示集不再由 availableSites 派生').toMatch(
+      /const siteOptions = computed\(\(\) =>\s*props\.availableSites\.map/,
+    );
+    expect(BAR_SRC, '哨兵键没有被换成本地化文案').toMatch(
+      /label: option\.site === GENERIC_SITE_KEY \? t\('options\.filter\.siteGenericOption'\) : option\.site/,
+    );
+    // 牙齿：把文案分支还原成 hostname，上一条必须抓到
+    expect(
+      /label: option\.site === GENERIC_SITE_KEY \? t\('options\.filter\.siteGenericOption'\) : option\.site/.test(
+        BAR_SRC.replace("t('options.filter.siteGenericOption')", 'option.site'),
+      ),
+      '哨兵文案映射的判据没有牙齿',
+    ).toBe(false);
+    // 候选行与省略号兜底读的都是展示字段
+    expect(selectBlock(BAR_SRC, 'v-if="availableSites.length > 0"'), '站点候选行没渲染展示字段').toMatch(
+      /:title="item\.label"/,
+    );
+  });
+
+  it('候选文案在中英文语言包里各有一条', () => {
+    for (const [locale, src] of [
+      ['zh-CN', read('utils/i18n/locales/zh-CN/options.json')],
+      ['en', read('utils/i18n/locales/en/options.json')],
+    ]) {
+      expect(src, `${locale} 缺少无网址候选桶文案`).toContain('"options.filter.siteGenericOption"');
+    }
   });
 });

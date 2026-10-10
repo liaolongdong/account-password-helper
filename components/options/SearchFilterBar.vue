@@ -38,8 +38,10 @@
       {{ t('options.filter.batchDelete', { count: selectedCount }) }}
     </el-button>
     <!--
-      标签 / 站点两个下拉同构：都用虚拟列表 `el-select-v2` + `filterable`，
-      行内右对齐放条目数，闭合态的选中标签只显示标签 / 域名本身。
+      标签 / 站点两个下拉共用同一套交互形态：都用虚拟列表 `el-select-v2` + `filterable`，
+      行内右对齐放条目数，闭合态的选中项只显示标签 / 域名本身（站点侧的通用条目桶显示它的
+      本地化文案，见 `siteOptions`）。`:props` 映射两处**故意不同**：标签键同时就是展示串，
+      站点侧多了一个不是 hostname 的哨兵桶，展示字段必须与机器键字段分开。
       用 select-v2 的原因：候选集规模上界是条目数（大库可达上千个不同标签或站点），
       普通 `el-select` 的 `persistent` 默认 true 会让每个候选常驻一个 option 组件并重演 O(T²)
       （见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md §3 第 4 条），select-v2 只实例化可视窗口的行。
@@ -74,7 +76,7 @@
     <el-select-v2
       v-if="availableSites.length > 0"
       :model-value="filterSites"
-      :options="availableSites"
+      :options="siteOptions"
       :props="SITE_OPTION_PROPS"
       multiple
       filterable
@@ -96,9 +98,9 @@
         -->
         <div
           class="facet-option"
-          :title="item.site"
+          :title="item.label"
         >
-          <span class="facet-option__text">{{ item.site }}</span>
+          <span class="facet-option__text">{{ item.label }}</span>
           <span class="facet-option__count">{{ item.count }}</span>
         </div>
       </template>
@@ -120,9 +122,10 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue';
 import { Search, Delete, Star, StarFilled, PriceTag, Download } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
-import type { SiteOption } from '@/utils/siteUtils';
+import { GENERIC_SITE_KEY, type SiteOption } from '@/utils/siteUtils';
 import type { TagOption } from '@/utils/tagUtils';
 
 /**
@@ -133,10 +136,11 @@ import type { TagOption } from '@/utils/tagUtils';
  * 布局上筛选控件锚定右侧、批量按钮随选中态显隐并由搜索框吸收宽度变化，
  * 保证标签筛选下拉触发器位置稳定。
  *
- * 两个筛选下拉同构（虚拟列表 + 键入过滤 + 行内条目数 + 整行 `title`），
- * 候选的计数口径都是**全库条目数**，与当前筛选结果无关。
+ * 两个筛选下拉共用同一套交互（虚拟列表 + 键入过滤 + 行内条目数 + 整行 `title`），
+ * 只有 `:props` 的字段映射按候选形状各自定义；候选的计数口径都是**全库条目数**，
+ * 与当前筛选结果无关。
  */
-defineProps<{
+const props = defineProps<{
   /** 搜索关键词 */
   searchKeyword: string;
   /** 是否仅显示收藏 */
@@ -147,7 +151,7 @@ defineProps<{
   availableTagOptions: TagOption[];
   /** 标签筛选选中集（命中任一即保留） */
   filterTags: string[];
-  /** 可选站点集（为空时隐藏站点筛选下拉） */
+  /** 可选站点集（末位可能带一个通用条目桶；为空时隐藏站点筛选下拉） */
   availableSites: SiteOption[];
   /** 站点筛选选中集（命中任一即保留，通用条目恒保留） */
   filterSites: string[];
@@ -167,10 +171,25 @@ defineEmits<{
 
 /** `el-select-v2` 的候选字段映射：标签键同时充当 value 与 label，计数只进插槽 */
 const TAG_OPTION_PROPS = { label: 'tag', value: 'tag' };
-/** `el-select-v2` 的候选字段映射：站点键同时充当 value 与 label，计数只进插槽 */
-const SITE_OPTION_PROPS = { label: 'site', value: 'site' };
+/** `el-select-v2` 的候选字段映射：展示读 `label`（通用桶是本地化文案），回填筛选集读 `value`（始终是站点键） */
+const SITE_OPTION_PROPS = { label: 'label', value: 'site' };
 
 const { t } = useI18n();
+
+/**
+ * 站点候选的展示集：通用条目桶换成本地化文案，其余仍是 hostname。
+ *
+ * 文案必须落在数据上而不是插槽里：`el-select-v2` 的 `props` 映射只认字段名，
+ * 闭合态的选中标签、`filterable` 的键入过滤和面板宽度测量（calculateLabelMaxWidth）
+ * 全都读 `label`，只在插槽里换文案会让这三处仍显示哨兵串。
+ * `value` 保持站点键，所以 `filterSites` 里存的值与语言无关，切语言不会让已选条件失效。
+ */
+const siteOptions = computed(() =>
+  props.availableSites.map(option => ({
+    ...option,
+    label: option.site === GENERIC_SITE_KEY ? t('options.filter.siteGenericOption') : option.site,
+  })),
+);
 </script>
 
 <style scoped>
