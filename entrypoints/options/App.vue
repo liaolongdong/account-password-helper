@@ -180,6 +180,7 @@
       v-model="showDetailDrawer"
       :entry="detailEntry"
       @edit="onDetailEdit"
+      @search-identity="onDetailSearchIdentity"
     />
 
     <!-- 有效期设置弹窗 -->
@@ -588,11 +589,21 @@ const openTrashWithVerify = async (): Promise<void> => {
  *
  * 身份库含证件号/卡号等高敏 PII，复验门槛防「会话已解锁但用户离开座位」时
  * 旁人一次性看到全部身份信息；取消则弹窗不得打开。镜像 openTrashWithVerify。
+ *
+ * `presetKeyword` 供「从条目详情跳来检索」使用：它只进搜索框那一个 `ref`
+ * （`useIdentityVault.keyword`），不参与任何解密，也不落盘；弹窗 `@closed → teardown()`
+ * 连同视图态一起清掉，所以不会串到下一次正常打开。门槛只有这一处，两个入口共用，
+ * 避免哪天新增入口绕过它直接开弹窗。
+ *
+ * @param presetKeyword 打开后预填的搜索词，默认空
+ * @returns 复验是否通过（调用方据此决定要不要收起来源界面——取消复验不该连带弄没用户的抽屉）
  */
-const openIdentityVaultWithVerify = async (): Promise<void> => {
+const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean> => {
   const masterPassword = await promptAndVerifyMasterPassword(t('identity.verifyTitle'), t('identity.verifyPrompt'));
-  if (!masterPassword) return;
+  if (!masterPassword) return false;
+  identityVault.keyword.value = presetKeyword;
   showIdentityVaultDialog.value = true;
+  return true;
 };
 
 /**
@@ -866,6 +877,21 @@ const onViewDetail = (entry: PasswordEntry) => {
 const onDetailEdit = (entry: PasswordEntry) => {
   showDetailDrawer.value = false;
   editPassword(entry);
+};
+
+/**
+ * 从详情抽屉跳去身份信息库检索该用户名
+ *
+ * 回答的是「这个账号绑的是哪个手机号/邮箱」，但**不做跨库关联**：用户名只当搜索词递给
+ * 身份库，由身份库自己的搜索口径（姓名/证件号/手机号/卡号，拼音与子串都算）去命中，
+ * 因此这里不需要新的匹配语义、不给 `PasswordEntry` 加关联字段、也不在密码库里显示 PII 值。
+ * 复验门槛通过后收起抽屉（与 `onDetailEdit` 同形：一次只留一个上层视图），
+ * 用户取消复验则抽屉原地不动。
+ * @param username 抽屉当前条目的用户名
+ */
+const onDetailSearchIdentity = async (username: string): Promise<void> => {
+  if (!(await openIdentityVaultWithVerify(username))) return;
+  showDetailDrawer.value = false;
 };
 
 /** 认证流程状态与操作方法 */

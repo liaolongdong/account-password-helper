@@ -135,6 +135,7 @@
   "options.detail.noRemark": "暂无备注",
   "options.detail.timeInfo": "时间信息",
   "options.detail.lastUsed": "最后使用",
+  "options.detail.searchIdentity": "用此用户名在身份信息库中搜索（需复验主密码）",
   "options.form.addTitle": "添加密码",
   "options.form.editTitle": "编辑密码",
   "options.form.usernamePlaceholder": "请输入用户名或邮箱（最多50字符）",

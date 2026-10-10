@@ -61,6 +61,18 @@
               link
               @click="copyText(entry.username)"
             />
+            <!-- 只读跳转：把用户名当搜索词带去身份库，本抽屉不解身份密文、也不显示任何 PII 值 -->
+            <el-tooltip
+              :content="t('options.detail.searchIdentity')"
+              placement="top"
+            >
+              <el-button
+                :icon="Search"
+                :aria-label="t('options.detail.searchIdentity')"
+                link
+                @click="searchIdentity"
+              />
+            </el-tooltip>
           </div>
         </el-descriptions-item>
 
@@ -244,7 +256,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { CopyDocument, Edit, View, Hide, StarFilled, Link, Share } from '@element-plus/icons-vue';
+import { CopyDocument, Edit, View, Hide, StarFilled, Link, Share, Search } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { formatDateTime } from '@/utils/dateFormat';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
@@ -277,6 +289,13 @@ const emit = defineEmits<{
   'update:modelValue': [boolean];
   /** 请求进入编辑态（由父级关闭抽屉并复用既有编辑弹窗流程） */
   edit: [entry: PasswordEntry];
+  /**
+   * 请求以当前用户名检索身份信息库
+   *
+   * 只把用户名当**搜索词**上交：身份库的复验门槛与开窗都由父级持有，
+   * 本组件既不解身份密文，也不会在抽屉里显示任何 PII 值。
+   */
+  searchIdentity: [username: string];
 }>();
 
 const { t, currentLocale } = useI18n();
@@ -391,6 +410,15 @@ const copyHistory = async (item: { password: string; loading: boolean }, index: 
 /** 请求进入编辑态：向上抛出当前条目，由父级关闭抽屉并打开编辑弹窗 */
 const handleEdit = (): void => {
   if (props.entry) emit('edit', props.entry);
+};
+
+/**
+ * 请求以当前用户名检索身份信息库：用户名是唯一的跨库线索，值本身不外泄
+ * @param username 当前条目的用户名，空值时不发起
+ */
+const searchIdentity = (): void => {
+  const username = props.entry?.username.trim();
+  if (username) emit('searchIdentity', username);
 };
 
 /** 抽屉关闭动画结束后复位敏感态（密码可见性、历史列表） */

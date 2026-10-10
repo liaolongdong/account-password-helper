@@ -135,6 +135,7 @@
   "options.detail.noRemark": "No notes yet",
   "options.detail.timeInfo": "Timestamps",
   "options.detail.lastUsed": "Last used",
+  "options.detail.searchIdentity": "Search the identity vault for this username (requires master password)",
   "options.form.addTitle": "Add Password",
   "options.form.editTitle": "Edit Password",
   "options.form.usernamePlaceholder": "Enter a username or email (max 50 characters)",
