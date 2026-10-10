@@ -14,9 +14,15 @@
  * 它对任意站点都可用，藏起来等于让用户以为库里没有。
  */
 import type { PasswordEntry } from '@/utils/types';
-import type { FacetOption } from '@/utils/facet';
-import { countFacet } from '@/utils/facet';
 import { normalizeToHostname } from '@/utils/domain';
+
+/** 站点筛选候选项 */
+export interface SiteOption {
+  /** 站点键：`normalizeToHostname` 归一后的 hostname（通配条目保留 `*.` 前缀） */
+  site: string;
+  /** 该站点下的条目数，供下拉展示规模、并作为排序主键 */
+  count: number;
+}
 
 /**
  * 取条目所属的站点键
@@ -32,15 +38,26 @@ export const siteKeyOf = (url: string | undefined | null): string => normalizeTo
 /**
  * 聚合全库条目，得到按站点分桶的筛选候选集
  *
- * 排序与标签段共用 `countFacet` 的「条目数倒序 → 站点键正序」，两栏在同一屏里
- * 给出同一套顺序答案。空 `url` 的通用条目被跳过——它是「所有站点」而非某个站点，
- * 进候选集只会产生一个选了等于没选的空转选项。
+ * 排序为「条目数倒序 → 站点键正序」：常用站点排在前面，同数量站点顺序稳定
+ * （比较器不用 `localeCompare`，避免不同平台 locale 规则给出不同顺序）。
+ * 空 `url` 的通用条目被跳过——它是「所有站点」而非某个站点，进候选集只会产生一个
+ * 选了等于没选的空转选项。
  *
  * @param entries - 密码条目（只读 `url` 字段）
  * @returns 站点候选集；无任何带网址条目时为空数组
  */
-export const collectSiteOptions = (entries: readonly Pick<PasswordEntry, 'url'>[]): FacetOption[] =>
-  countFacet(entries.map(entry => siteKeyOf(entry.url)));
+export const collectSiteOptions = (entries: readonly Pick<PasswordEntry, 'url'>[]): SiteOption[] => {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    const key = siteKeyOf(entry.url);
+    if (!key) continue;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+
+  return Array.from(counts, ([site, count]) => ({ site, count })).sort(
+    (a, b) => b.count - a.count || (a.site < b.site ? -1 : a.site > b.site ? 1 : 0),
+  );
+};
 
 /**
  * 判定条目是否落在选中的站点集合内

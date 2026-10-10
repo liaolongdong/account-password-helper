@@ -7,9 +7,8 @@ import { EmailBackupUtils } from '@/utils/emailBackup';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
-import { parseTags, stringifyTags, collectAllTags, collectTagOptions, normalizeTagInput } from '@/utils/tagUtils';
-import { collectSiteOptions, matchesSiteFilter } from '@/utils/siteUtils';
-import type { FacetOption } from '@/utils/facet';
+import { parseTags, stringifyTags, collectAllTags, normalizeTagInput } from '@/utils/tagUtils';
+import { collectSiteOptions, matchesSiteFilter, type SiteOption } from '@/utils/siteUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
@@ -230,52 +229,68 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   });
 
   /**
-   * 标签 / 站点筛选变化同样视为过滤条件变化，需清空选中（与收藏过滤策略一致）。
+   * 标签/站点筛选变化同样视为过滤条件变化，需清空选中（与收藏过滤策略一致）。
+   * 但多选下拉展开期间每次勾选项都会触发变化：若此时立即清空选中，
+   * 批量按钮会在交互中途消失引起布局跳动。因此展开期间仅记录待清空标记，
+   * 待下拉收起时（见 handleFilterDropdownVisibleChange）统一清空。
    *
-   * 这两项由管理页左侧分类栏点选，每次点击都是一个落定状态，因此没有「面板展开中」
-   * 需要延迟清空的中间态——那是多选下拉时代的产物（展开期间清空会让批量按钮在交互
-   * 中途消失、引起布局跳动）。
+   * 两个下拉共用一个「是否展开」标记：`el-select` 的 clickoutside 会先收起旧面板再展开新面板，
+   * 因此同一时刻至多一个下拉处于展开态，不需要计数器。
    */
-  watch([filterTags, filterSites], () => {
-    selectedIds.value = [];
-  });
+  let filterDropdownVisible = false;
+  let pendingSelectionClear = false;
+  const clearSelectionUnlessDropdownOpen = () => {
+    if (filterDropdownVisible) {
+      pendingSelectionClear = true;
+    } else {
+      selectedIds.value = [];
+    }
+  };
+  watch(filterTags, clearSelectionUnlessDropdownOpen);
+  watch(filterSites, clearSelectionUnlessDropdownOpen);
 
   /**
-   * 表单里的标签建议候选（去重、不计数）
-   * 供新增/编辑弹窗、批量改标签弹窗与侧边栏快填的标签下拉使用。
+   * 筛选下拉（标签 / 站点）展开与收起回调
+   * 收起时若交互期间发生过筛选变化，则补执行选中清空，
+   * 此时下拉面板已关闭，按钮显隐引起的布局变化不再被用户感知。
+   * @param visible 下拉面板是否展开
+   */
+  const handleFilterDropdownVisibleChange = (visible: boolean) => {
+    filterDropdownVisible = visible;
+    if (!visible && pendingSelectionClear) {
+      pendingSelectionClear = false;
+      selectedIds.value = [];
+    }
+  };
+
+  /**
+   * 下拉候选标签列表
+   * 从所有密码条目中聚合去重，供表单中的标签下拉选项使用。
    */
   const availableTags = computed<string[]>(() => collectAllTags(passwords.value));
 
   /**
-   * 分类栏标签段候选（带命中条目数，按「计数倒序 → 标签正序」）
-   *
-   * 与 `availableTags` 分开是刻意的：前者是「能选哪些名字」，后者是「选了这个能筛出几条」，
-   * 计数只在分类栏里有意义。成本与站点段同为一次 O(N) 聚合。
-   */
-  const tagOptions = computed<FacetOption[]>(() => collectTagOptions(passwords.value));
-
-  /**
-   * 分类栏站点段候选（按条目数倒序）
+   * 下拉候选站点列表（按条目数倒序）
    *
    * 成本是一次 O(N) 的 hostname 归一与聚合：2000 条约 5ms，低于 50ms 长任务阈值，
-   * 不进首屏阻塞预算。渲染侧由分类栏的可见上限截断（见 `utils/facet.ts` 的
-   * `FACET_VISIBLE_LIMIT`），候选数再大也只渲染前若干行。
+   * 不进首屏阻塞预算。渲染侧用 `el-select-v2` 虚拟化，候选数再大也只实例化可视窗口，
+   * 不会重演 `availableTags` + 普通 `el-select` 的 O(T²) 常驻问题
+   * （见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md §3 第 4 条）。
    */
-  const availableSites = computed<FacetOption[]>(() => collectSiteOptions(passwords.value));
+  const availableSites = computed<SiteOption[]>(() => collectSiteOptions(passwords.value));
 
   // 批量移除标签等操作后候选集可能不再包含已选筛选标签：
-  // 及时剔除失效项，避免分类栏里看不见、列表却残留过滤条件造成「隐形空过滤」
-  watch(tagOptions, options => {
-    const tags = options.map(option => option.value);
+  // 及时剔除失效项，避免筛选下拉隐藏后残留过滤条件造成「隐形空过滤」
+  watch(availableTags, tags => {
     if (filterTags.value.some(selected => !tags.includes(selected))) {
       filterTags.value = filterTags.value.filter(selected => tags.includes(selected));
     }
   });
 
-  // 站点候选集同理：某站点的条目被全部删除或改网址后，该站点从分类栏消失，
+  // 站点候选集同理：某站点的条目被全部删除或改网址后，该站点从下拉消失，
   // 残留的筛选条件会让列表变成看不见的空集
   watch(availableSites, options => {
-    const sites = options.map(option => option.value);
+    const sites = options.map(option => option.site);
     if (filterSites.value.some(selected => !sites.includes(selected))) {
       filterSites.value = filterSites.value.filter(selected => sites.includes(selected));
     }
@@ -1160,7 +1175,6 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     offPageSelectedCount,
     currentSort,
     availableTags,
-    tagOptions,
     availableSites,
     tagArray,
     // 方法
@@ -1173,6 +1187,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     togglePasswordVisibility,
     handleRowClassName,
     handleSelectionChange,
+    handleFilterDropdownVisibleChange,
     openPasswordDialog,
     editPassword,
     resetPasswordForm,

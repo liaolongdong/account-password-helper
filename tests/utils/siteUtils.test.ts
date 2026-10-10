@@ -60,15 +60,15 @@ describe('siteUtils.collectSiteOptions', () => {
     ]);
 
     expect(options).toEqual([
-      { value: 'example.com', count: 2 },
-      { value: 'other.com', count: 1 },
+      { site: 'example.com', count: 2 },
+      { site: 'other.com', count: 1 },
     ]);
   });
 
   it('空 `url` 的通用条目不进候选集', () => {
     const options = collectSiteOptions([{ url: '' }, { url: 'a.com' }, { url: '  ' }]);
 
-    expect(options).toEqual([{ value: 'a.com', count: 1 }]);
+    expect(options).toEqual([{ site: 'a.com', count: 1 }]);
   });
 
   it('排序为条目数倒序，同数量时站点键正序（不随平台 locale 规则漂移）', () => {
@@ -82,14 +82,14 @@ describe('siteUtils.collectSiteOptions', () => {
     ]);
 
     // a.com 三条最前；其余各一条，按归一后的键正序
-    expect(options.map(option => option.value)).toEqual(['a.com', 'b.com', 'c.com', 'd.com']);
+    expect(options.map(option => option.site)).toEqual(['a.com', 'b.com', 'c.com', 'd.com']);
     expect(options.map(option => option.count)).toEqual([3, 1, 1, 1]);
   });
 
   it('大小写不同的同一站点合并计数，不因原始写法分裂成两个候选', () => {
     const options = collectSiteOptions([{ url: 'Example.com' }, { url: 'example.com' }, { url: 'EXAMPLE.COM/x' }]);
 
-    expect(options).toEqual([{ value: 'example.com', count: 3 }]);
+    expect(options).toEqual([{ site: 'example.com', count: 3 }]);
   });
 
   it('空列表得到空候选集', () => {

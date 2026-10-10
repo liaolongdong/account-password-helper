@@ -1,20 +1,19 @@
 /** @vitest-environment jsdom */
 
 /**
- * 分类栏两段候选的列表链路回归测试（usePasswordManagement 的 tagOptions / availableSites 与对应筛选）
+ * 站点筛选的列表链路回归测试（usePasswordManagement 的 filterSites / availableSites）
  *
- * 站点候选与既有的标签候选、标签筛选与站点筛选共用同一条过滤链，因此这里钉的是
- * 「两段接进同一个左栏之后不破坏原有语义」：
+ * 站点筛选与既有的标签筛选共用同一条过滤链，因此这里钉的是「接进去之后不破坏原有语义」：
  *
- * 1. **叠加关系不变**：站点与关键词、收藏、标签是 AND，同一段内部多个值之间是 OR。
+ * 1. **叠加关系不变**：站点与关键词、收藏、标签是 AND，多个站点之间是 OR。
  *    写成 AND 会让「选了 github.com 又选 gitlab.com」变成空表。
  * 2. **通用条目恒保留**：空 `url` 的条目对任何站点都可用，被筛掉等于让用户以为库里没有。
- * 3. **隐形空过滤**：某站点（某标签）的条目被删光后它从候选集消失，若筛选条件不跟着剔除，
- *    左栏里看不见、列表却一直是空的。
+ * 3. **隐形空过滤**：某站点的条目被删光后该站点从候选集消失，若筛选条件不跟着剔除，
+ *    下拉里看不见、列表却一直是空的。
  * 4. **页码复位**：筛选口径变了继续停在第 7 页只会读到空白，`filterSites` 必须进
  *    `listFilterSignature`。
- * 5. **两段候选同形同序**：都产出 `{ value, count }` 且按「计数倒序 → 值正序」，
- *    否则同一屏里两段给出两套排序答案。
+ * 5. **选中清空的延迟时机**：多选下拉展开期间每次勾选都会触发筛选变化，
+ *    立即清空选中会让批量按钮在交互中途消失、引起布局跳动。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, nextTick, ref, type EffectScope } from 'vue';
@@ -109,8 +108,8 @@ describe('usePasswordManagement.siteFilter', () => {
 
     // 通用条目（空 url）不进候选集
     expect(mgmt.availableSites.value).toEqual([
-      { value: 'github.com', count: 2 },
-      { value: 'gitlab.com', count: 1 },
+      { site: 'github.com', count: 2 },
+      { site: 'gitlab.com', count: 1 },
     ]);
   });
 
@@ -123,7 +122,7 @@ describe('usePasswordManagement.siteFilter', () => {
     mgmt.passwords.value = [makeEntry('b', 'gitlab.com')];
     await nextTick();
 
-    expect(mgmt.availableSites.value).toEqual([{ value: 'gitlab.com', count: 1 }]);
+    expect(mgmt.availableSites.value).toEqual([{ site: 'gitlab.com', count: 1 }]);
     expect(mgmt.filterSites.value).toEqual(['gitlab.com']);
     expect(matchedIds()).toEqual(['b']);
   });
@@ -144,51 +143,43 @@ describe('usePasswordManagement.siteFilter', () => {
     expect(mgmt.totalCount.value).toBe(30);
   });
 
-  it('两段候选同形同序：都产出 `{ value, count }`，计数倒序、同数量按值正序', () => {
-    mgmt.passwords.value = [
-      makeEntry('a', 'github.com', 'work'),
-      makeEntry('b', 'https://github.com/settings', 'home'),
-      makeEntry('c', 'gitlab.com', 'work'),
-      makeEntry('d', '', ''),
-    ];
-
-    // 站点段与标签段必须给出同一套顺序答案，否则同一屏里两段读起来像两个规则
-    expect(mgmt.tagOptions.value).toEqual([
-      { value: 'work', count: 2 },
-      { value: 'home', count: 1 },
-    ]);
-    expect(mgmt.availableSites.value).toEqual([
-      { value: 'github.com', count: 2 },
-      { value: 'gitlab.com', count: 1 },
-    ]);
-  });
-
-  it('左栏没有「面板展开中」这个中间态，改任一筛选立即清空选中', async () => {
-    // 多选下拉时代要延迟清空，是因为面板开着时批量按钮消失会引起布局跳动；
-    // 左栏每次点击都是一个落定状态，因此与收藏过滤同策略、立即清空。
-    mgmt.passwords.value = [makeEntry('a', 'github.com', 'work'), makeEntry('b', 'gitlab.com', 'home')];
-
+  it('下拉展开期间勾选站点不清空选中，收起后补执行', async () => {
+    mgmt.passwords.value = [makeEntry('a', 'github.com'), makeEntry('b', 'gitlab.com')];
     mgmt.handleSelectionChange(mgmt.passwords.value);
+    expect(mgmt.selectedIds.value).toHaveLength(2);
+
+    mgmt.handleFilterDropdownVisibleChange(true);
     mgmt.filterSites.value = ['github.com'];
     await nextTick();
-    expect(mgmt.selectedIds.value).toHaveLength(0);
+    expect(mgmt.selectedIds.value).toHaveLength(2);
 
-    mgmt.handleSelectionChange(mgmt.passwords.value);
-    mgmt.filterTags.value = ['work'];
-    await nextTick();
+    mgmt.handleFilterDropdownVisibleChange(false);
     expect(mgmt.selectedIds.value).toHaveLength(0);
   });
 
-  it('标签被删光后自动剔除该筛选条件，与站点段同策略', async () => {
+  it('下拉收起状态下改站点筛选，立即清空选中（与标签筛选同策略）', async () => {
+    mgmt.passwords.value = [makeEntry('a', 'github.com'), makeEntry('b', 'gitlab.com')];
+    mgmt.handleSelectionChange(mgmt.passwords.value);
+
+    mgmt.filterSites.value = ['github.com'];
+    await nextTick();
+
+    expect(mgmt.selectedIds.value).toHaveLength(0);
+  });
+
+  it('合并后的处理器仍管住标签勾选：展开期间延迟清空、收起后补执行', async () => {
     mgmt.passwords.value = [makeEntry('a', 'github.com', 'work'), makeEntry('b', 'gitlab.com', 'home')];
-    mgmt.filterTags.value = ['work', 'home'];
-    await nextTick();
+    mgmt.handleSelectionChange(mgmt.passwords.value);
 
-    mgmt.passwords.value = [makeEntry('b', 'gitlab.com', 'home')];
+    // 原来标签下拉由 handleTagFilterVisibleChange 独占标记，改名并共用后这条语义必须原样保留：
+    // 标签勾选发生在展开期间时不清空，收起那一次才补执行。
+    // 「两个下拉共用一份标记」这件事是结构性的，由 tests/architecture/siteFilterWiring.test.ts 钉。
+    mgmt.handleFilterDropdownVisibleChange(true);
+    mgmt.filterTags.value = ['work'];
     await nextTick();
+    expect(mgmt.selectedIds.value).toHaveLength(2);
 
-    expect(mgmt.tagOptions.value).toEqual([{ value: 'home', count: 1 }]);
-    expect(mgmt.filterTags.value).toEqual(['home']);
-    expect(matchedIds()).toEqual(['b']);
+    mgmt.handleFilterDropdownVisibleChange(false);
+    expect(mgmt.selectedIds.value).toHaveLength(0);
   });
 });

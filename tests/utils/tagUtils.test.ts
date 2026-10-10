@@ -1,12 +1,6 @@
 import { computed, reactive } from 'vue';
 import { describe, expect, it } from 'vitest';
-import {
-  buildTagPresentationRecords,
-  collectTagOptions,
-  getTagFullStyle,
-  normalizeTagInput,
-  parseTags,
-} from '@/utils/tagUtils';
+import { buildTagPresentationRecords, getTagFullStyle, normalizeTagInput, parseTags } from '@/utils/tagUtils';
 
 describe('buildTagPresentationRecords', () => {
   it('保持既有标签解析顺序、去重规则与样式结果', () => {
@@ -98,37 +92,5 @@ describe('normalizeTagInput', () => {
     expect(normalizeTagInput(['   ', '  \t '], 30)).toEqual({ accepted: [], rejectedTooLong: [] });
     expect(normalizeTagInput([], 30)).toEqual({ accepted: [], rejectedTooLong: [] });
     expect(normalizeTagInput(undefined, 30)).toEqual({ accepted: [], rejectedTooLong: [] });
-  });
-});
-
-describe('collectTagOptions', () => {
-  it('一条多标签的条目给每个标签各计一次，不给组合计', () => {
-    expect(collectTagOptions([{ tag: '工作,重要' }, { tag: '工作' }, { tag: '重要' }])).toEqual([
-      { value: '工作', count: 2 },
-      { value: '重要', count: 2 },
-    ]);
-  });
-
-  it('同一条目里重复的标签只计一次（与 parseTags 的去重口径一致）', () => {
-    expect(collectTagOptions([{ tag: 'a,a，a' }])).toEqual([{ value: 'a', count: 1 }]);
-  });
-
-  it('空标签与纯空白条目不进候选集', () => {
-    expect(collectTagOptions([{ tag: '' }, { tag: '   ' }, { tag: 'x' }])).toEqual([{ value: 'x', count: 1 }]);
-  });
-
-  it('计数倒序、同数量按值正序，与站点段共用同一套排序', () => {
-    const options = collectTagOptions([{ tag: 'b' }, { tag: 'a' }, { tag: 'c' }, { tag: 'c,work' }]);
-
-    expect(options).toEqual([
-      { value: 'c', count: 2 },
-      { value: 'a', count: 1 },
-      { value: 'b', count: 1 },
-      { value: 'work', count: 1 },
-    ]);
-  });
-
-  it('空库得到空候选集', () => {
-    expect(collectTagOptions([])).toEqual([]);
   });
 });

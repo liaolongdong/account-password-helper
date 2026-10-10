@@ -61,81 +61,72 @@
         @open-guide="openGuide"
       />
 
-      <!-- 两栏：左侧分类栏常驻，右侧仍是「搜索筛选 → 计数 → 表格」 -->
-      <div class="vault-layout">
-        <CategoryRail
-          v-if="passwords.length > 0"
-          v-model:filter-tags="filterTags"
-          v-model:filter-sites="filterSites"
-          :tag-options="tagOptions"
-          :site-options="availableSites"
-          :total-count="passwords.length"
-        />
+      <!-- 搜索和筛选（空数据时隐藏） -->
+      <SearchFilterBar
+        v-if="passwords.length > 0 || tableLoading"
+        v-model:search-keyword="searchKeyword"
+        v-model:favorite-only="favoriteOnly"
+        v-model:filter-tags="filterTags"
+        v-model:filter-sites="filterSites"
+        :selected-count="selectedIds.length"
+        :available-tags="availableTags"
+        :available-sites="availableSites"
+        @filter-dropdown-visible-change="handleFilterDropdownVisibleChange"
+        @batch-delete="batchDelete"
+        @batch-edit-tags="showBatchTagDialog = true"
+        @batch-export-selected="batchExportSelected"
+      />
 
-        <div class="vault-main">
-          <!-- 搜索和筛选（空数据时隐藏） -->
-          <SearchFilterBar
-            v-if="passwords.length > 0 || tableLoading"
-            v-model:search-keyword="searchKeyword"
-            v-model:favorite-only="favoriteOnly"
-            :selected-count="selectedIds.length"
-            @batch-delete="batchDelete"
-            @batch-edit-tags="showBatchTagDialog = true"
-            @batch-export-selected="batchExportSelected"
-          />
-
-          <!-- 展示密码列表总数和搜索结果总数 -->
-          <div
-            v-if="passwords.length > 0"
-            class="password-list-info"
-          >
-            <span>
-              {{ t('options.totalPasswords') }}
-              <el-text type="success">
-                {{ passwords.length }}
-              </el-text>
-              {{ t('options.totalUnit') }}
-            </span>
-            <span v-if="filteredPasswords.length !== passwords.length">
-              {{ t('options.filtered') }}
-              <el-text type="success">{{ filteredPasswords.length }}</el-text>
-              {{ t('options.filteredUnit') }}
-            </span>
-          </div>
-
-          <!-- 空数据状态引导 -->
-          <EmptyGuide
-            v-if="passwords.length === 0 && !tableLoading"
-            @add="openAddDialogWithActiveTab"
-            @import="showImportDialog = true"
-            @restore="showBackupImportDialog = true"
-          />
-
-          <!-- 密码列表 -->
-          <PasswordTable
-            v-else
-            ref="passwordTableRef"
-            v-model:current-page="currentPage"
-            v-model:page-size="pageSize"
-            :data="pagedEntries"
-            :loading="tableLoading"
-            :search-keyword="debouncedSearchKeyword"
-            :row-class-name="handleRowClassName"
-            :page-count="pageCount"
-            :total-count="totalCount"
-            :selected-count="selectedIds.length"
-            :off-page-selected-count="offPageSelectedCount"
-            @selection-change="handleSelectionChange"
-            @sort-change="handleSortChange"
-            @toggle-password="togglePasswordVisibility"
-            @view-detail="onViewDetail"
-            @copy="copyPassword"
-            @edit="editPassword"
-            @toggle-favorite="toggleFavorite"
-            @delete-password="deletePassword"
-          />
-        </div>
+      <!-- 展示密码列表总数和搜索结果总数 -->
+      <div
+        v-if="passwords.length > 0"
+        class="password-list-info"
+      >
+        <span>
+          {{ t('options.totalPasswords') }}
+          <el-text type="success">
+            {{ passwords.length }}
+          </el-text>
+          {{ t('options.totalUnit') }}
+        </span>
+        <span v-if="filteredPasswords.length !== passwords.length">
+          {{ t('options.filtered') }}
+          <el-text type="success">{{ filteredPasswords.length }}</el-text>
+          {{ t('options.filteredUnit') }}
+        </span>
       </div>
+
+      <!-- 空数据状态引导 -->
+      <EmptyGuide
+        v-if="passwords.length === 0 && !tableLoading"
+        @add="openAddDialogWithActiveTab"
+        @import="showImportDialog = true"
+        @restore="showBackupImportDialog = true"
+      />
+
+      <!-- 密码列表 -->
+      <PasswordTable
+        v-else
+        ref="passwordTableRef"
+        v-model:current-page="currentPage"
+        v-model:page-size="pageSize"
+        :data="pagedEntries"
+        :loading="tableLoading"
+        :search-keyword="debouncedSearchKeyword"
+        :row-class-name="handleRowClassName"
+        :page-count="pageCount"
+        :total-count="totalCount"
+        :selected-count="selectedIds.length"
+        :off-page-selected-count="offPageSelectedCount"
+        @selection-change="handleSelectionChange"
+        @sort-change="handleSortChange"
+        @toggle-password="togglePasswordVisibility"
+        @view-detail="onViewDetail"
+        @copy="copyPassword"
+        @edit="editPassword"
+        @toggle-favorite="toggleFavorite"
+        @delete-password="deletePassword"
+      />
     </div>
 
     <!-- 偏好设置弹窗（复用悬浮按钮设置面板） -->
@@ -353,7 +344,6 @@ import PasswordTable from '@/components/options/PasswordTable.vue';
 import HeaderBar from '@/components/options/HeaderBar.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
-import CategoryRail from '@/components/options/CategoryRail.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
@@ -710,7 +700,6 @@ const {
   offPageSelectedCount,
   currentSort,
   availableTags,
-  tagOptions,
   availableSites,
   tagArray,
   loadPasswords,
@@ -721,6 +710,7 @@ const {
   togglePasswordVisibility,
   handleRowClassName,
   handleSelectionChange,
+  handleFilterDropdownVisibleChange,
   openPasswordDialog,
   editPassword,
   resetPasswordForm,

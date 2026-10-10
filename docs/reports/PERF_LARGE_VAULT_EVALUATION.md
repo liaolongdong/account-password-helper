@@ -381,11 +381,6 @@ node benchmarks/measure-options-perf.mjs --rows 600 --repeat 5 --fresh --label b
   P2 一并否决（9.8）**，因此这一项现在只有在选定"减少每行组件实例"路线时才值得重提。
 - **`el-select` 设 `:persistent="false"`**：会把"打开标签筛选下拉"从"读已挂载的 option"变成"每次重建"，
   属可感知的交互变化（下拉动画与焦点行为），按 `agents.md` 需单独确认。
-  （2026-10-10 追记：管理页筛选栏的标签 / 站点下拉已被常驻左侧分类栏取代，`el-select-v2`
-  是上一波只为站点候选引入的，随本次改形**整体退出产物**——`grep -r select-v2 .output/chrome-mv3`
-  与 `el-vl__wrapper` 均零命中（上一提交时两者都在），zip 752.07 → 738.02 kB；差额不全归因于此，
-  未做逐 chunk 对账。这一条现在只对 `PasswordFormDialog` / `BatchTagDialog` 里的标签候选
-  有效，那两处是普通 `el-select` + `el-option`，不是虚拟列表。）
 
 ### 9.4 两条"未验证"假设的结算
 
