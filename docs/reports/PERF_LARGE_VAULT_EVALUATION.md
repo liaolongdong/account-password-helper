@@ -127,7 +127,8 @@
 ### 3.3 渲染层是瓶颈（实测，复刻探针）
 
 探针：`benchmarks/large-vault-dom-probe.html`（本次新增）。它按 `PasswordTable.vue` 的真实结构复刻
-每行 10 列、约 62 节点、5 个操作按钮、最多 3 个标签、TOTP svg、固定左右列 sticky、以及
+每行 10 列、约 62 节点、5 个操作按钮、最多 3 个标签（夹具刻意停在 3 以保持与本轮读数可比；
+2026-10-10 `MAX_TAG_COUNT` 已放宽到 5，按 5 标签量会更悲观，本轮未重测）、TOTP svg、固定左右列 sticky、以及
 `transition: all .3s` + `:hover{transform;box-shadow}`（`PasswordTable.vue:393-400`）。
 在真实浏览器中分别以 30/60/100/200/600/2000 行测量主线程同步阻塞时长（取 3 次中位数）。
 

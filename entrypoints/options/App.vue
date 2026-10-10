@@ -67,9 +67,11 @@
         v-model:search-keyword="searchKeyword"
         v-model:favorite-only="favoriteOnly"
         v-model:filter-tags="filterTags"
+        v-model:filter-sites="filterSites"
         :selected-count="selectedIds.length"
         :available-tags="availableTags"
-        @tag-filter-visible-change="handleTagFilterVisibleChange"
+        :available-sites="availableSites"
+        @filter-dropdown-visible-change="handleFilterDropdownVisibleChange"
         @batch-delete="batchDelete"
         @batch-edit-tags="showBatchTagDialog = true"
         @batch-export-selected="batchExportSelected"
@@ -688,6 +690,7 @@ const {
   tableLoading,
   favoriteOnly,
   filterTags,
+  filterSites,
   filteredPasswords,
   pagedEntries,
   currentPage,
@@ -697,6 +700,7 @@ const {
   offPageSelectedCount,
   currentSort,
   availableTags,
+  availableSites,
   tagArray,
   loadPasswords,
   patchMetadataOnlyFromStorage,
@@ -706,7 +710,7 @@ const {
   togglePasswordVisibility,
   handleRowClassName,
   handleSelectionChange,
-  handleTagFilterVisibleChange,
+  handleFilterDropdownVisibleChange,
   openPasswordDialog,
   editPassword,
   resetPasswordForm,
@@ -1247,13 +1251,14 @@ useStorageWatcher({
 /**
  * 应用内联下拉「到全库找」带过来的关键词
  *
- * 一并清掉收藏与标签筛选：两者与搜索是叠加（AND）关系，残留会让「我库里到底有没有这个账号」
+ * 一并清掉收藏、标签与站点筛选：三者与搜索是叠加（AND）关系，残留会让「我库里到底有没有这个账号」
  * 这个入口显示成空表。筛选条件是页面态、不入存储，因此清理只影响这次深链呈现的视图。
  */
 const applySearchKeyword = (keyword: string): void => {
   searchKeyword.value = keyword;
   favoriteOnly.value = false;
   filterTags.value = [];
+  filterSites.value = [];
 };
 
 /** Runtime 消息监听 */

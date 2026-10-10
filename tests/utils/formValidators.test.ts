@@ -6,7 +6,7 @@
  * 输入框 `maxlength` + background `FIELD_LIMITS` 兜底）。
  *
  * 回归背景：工厂曾产出 `tag: [{ max: 50 }]`，而 `tagArray` 的合法容量是
- * `MAX_TAG_COUNT × MAX_TAG_LENGTH + (MAX_TAG_COUNT - 1)` = 92 字符。Element Plus 的
+ * `MAX_TAG_COUNT × MAX_TAG_LENGTH + (MAX_TAG_COUNT - 1)` = 154 字符。Element Plus 的
  * `form.validate()` 走 `validateField(undefined)`，其 `getFilteredRule` 在 trigger 为空时
  * 放行全部规则（`if (!rule.trigger || !trigger) return true`），因此含 2 个 25 字符标签
  * （序列化后 51 字符）的条目在编辑态会被 `validate()` 直接拒绝——用户改任何字段都存不下。

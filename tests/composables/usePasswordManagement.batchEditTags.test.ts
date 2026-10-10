@@ -128,7 +128,10 @@ describe('usePasswordManagement.batchEditTags', () => {
   });
 
   it('超出标签上限的条目跳过不写，其余照常落盘并提示跳过数量', async () => {
-    const entries = [makeEntry('a', 'x1,x2,x3'), makeEntry('b', 'x1'), makeEntry('c', 'x1,x2')];
+    // 构造口径按 MAX_TAG_COUNT 派生：满标签的条目追加后必超限，少一个标签的条目刚好落进上限
+    const fullTags = Array.from({ length: MAX_TAG_COUNT }, (_, index) => `x${index + 1}`).join(',');
+    const roomyTags = Array.from({ length: MAX_TAG_COUNT - 1 }, (_, index) => `x${index + 1}`).join(',');
+    const entries = [makeEntry('a', fullTags), makeEntry('b', 'x1'), makeEntry('c', roomyTags)];
     mgmt.passwords.value = entries;
     mgmt.handleSelectionChange(entries);
 
@@ -141,13 +144,13 @@ describe('usePasswordManagement.batchEditTags', () => {
   });
 
   it('标签上限只有一条定义来源：跳过的判据就是 MAX_TAG_COUNT', async () => {
-    // 3 个已有标签 + 1 个新标签 = 4 > MAX_TAG_COUNT → 全被跳过，一条都不写
-    expect(MAX_TAG_COUNT).toBe(3);
-    const entries = [makeEntry('a', 'x1,x2,x3')];
+    // MAX_TAG_COUNT 个已有标签 + 1 个新标签 = 上限 + 1 > MAX_TAG_COUNT → 全被跳过，一条都不写
+    expect(MAX_TAG_COUNT).toBe(5);
+    const entries = [makeEntry('a', Array.from({ length: MAX_TAG_COUNT }, (_, index) => `x${index + 1}`).join(','))];
     mgmt.passwords.value = entries;
     mgmt.handleSelectionChange(entries);
 
-    await mgmt.batchEditTags(['x4'], 'append');
+    await mgmt.batchEditTags([`x${MAX_TAG_COUNT + 1}`], 'append');
 
     expect(writeSpy).not.toHaveBeenCalled();
     expect(ep.ElMessage.info).toHaveBeenCalledWith('form.batchTagAllSkipped');
