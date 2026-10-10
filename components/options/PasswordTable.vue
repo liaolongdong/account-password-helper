@@ -212,8 +212,15 @@
               文案随按钮自带（data-tip），悬停只登记一个稳定引用的处理函数，
               不产生逐行闭包、也不产生逐行组件实例。
             -->
+            <!--
+              查看详情用 ⓘ 而不是眼睛，也不用「文档」：
+              ① 眼睛在本产品里是显隐机密的专用语义（本行密码列、详情抽屉、身份库卡片、
+                 注入到页面密码框的切换按钮都如此），同一行两只眼睛会让人分不清哪只展开明文；
+              ② `Document` 在本页已经表示「文件」——头部「数据管理」里的下载模板与密码历史都用它，
+                 而且它的形状与右边那颗 `CopyDocument`（创建副本）在手边尺寸下近乎同形。
+            -->
             <el-button
-              :icon="View"
+              :icon="InfoFilled"
               :aria-label="rowLabels.viewDetail"
               :data-tip="rowLabels.viewDetail"
               circle
@@ -313,7 +320,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUpdate, onUpdated, ref } from 'vue';
-import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
+import { CopyDocument, InfoFilled, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import type { SortState } from '@/utils/passwordSort';
 import { formatDate } from '@/utils/dateFormat';
