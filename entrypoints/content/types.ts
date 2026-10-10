@@ -76,7 +76,7 @@ export interface SavePromptData {
   password: string;
   /** 网站域名 */
   url: string;
-  /** 标签默认值，通常为 document.title */
+  /** 标签默认值，取自页面标题里的站点名分段（见 `utils/capturedTag`；「密码已变更」时为条目已有标签串） */
   tag: string;
   /** 备注默认值，通常为 "自动保存" */
   remark: string;
@@ -149,7 +149,7 @@ export interface PendingCredentials {
   password: string;
   /** 网站域名 */
   url: string;
-  /** 标签，取自 document.title */
+  /** 标签，取自页面标题的站点名分段（见 `utils/capturedTag`） */
   tag: string;
   /** 备注，默认为 "自动保存" */
   remark: string;
