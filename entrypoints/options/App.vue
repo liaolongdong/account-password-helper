@@ -355,7 +355,6 @@ import { useVersionUpdate } from '@/composables/useVersionUpdate';
 import { useIdentityVault } from '@/composables/useIdentityVault';
 import { useCommandPalette } from '@/composables/useCommandPalette';
 import { useOnboardingTour } from '@/composables/useOnboardingTour';
-import { useModalScrollRestoration } from '@/composables/useModalScrollRestoration';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
 import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
@@ -540,9 +539,6 @@ const injectPersonalizationStyles = () => {
 
 /** 当前插件版本号（复用 useVersionUpdate） */
 const { currentVersion } = useVersionUpdate();
-
-// 弹窗开关会把列表的滚动位置抹掉，这里按模态生命周期记一次、还一次（详见该 composable 注释）
-useModalScrollRestoration();
 
 /** 加密备份导入弹窗可见性 */
 const showBackupImportDialog = ref(false);
