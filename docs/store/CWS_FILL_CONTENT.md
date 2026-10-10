@@ -153,7 +153,7 @@
 
 🗂 保管与整理
 🔍 智能搜索：同时匹配用户名、标签、备注和网址，认拼音全拼与首字母，命中片段高亮；侧边栏可切「本站 / 全站」范围
-🏷 标签与收藏：每条最多 3 个标签，可分类筛选；收藏置顶（默认 10 个、可调 1~50，超出时按最少使用自动让位）
+🏷 标签与收藏：每条最多 5 个标签，可分类筛选；收藏置顶（默认 10 个、可调 1~50，超出时按最少使用自动让位）
 🧰 批量操作：批量删除、批量编辑标签、一键去重
 📄 列表分页：每页 50 / 100 / 200 条（默认 100 条），跨页勾选会被保留，搜索与排序作用的仍是全部命中条目
 ➕ 就地添加与只读详情：侧边栏顶栏「+」添加当前站点并预填网址；每行「查看详情」以抽屉展示完整备注、活码与修改历史，无需进入编辑态
@@ -289,7 +289,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 
 🗂 Keeping and organising
 🔍 Smart search across username, tags, notes and URL, by full pinyin or initials, with hits highlighted and a "this site / all entries" scope switch.
-🏷 Up to 3 tags per entry, and favorites pinned on top (10 by default, 1-50 configurable, least used making way).
+🏷 Up to 5 tags per entry, and favorites pinned on top (10 by default, 1-50 configurable, least used making way).
 🧰 Batch delete, batch retag and one-tap duplicate cleanup.
 📄 Paged list at 50, 100 or 200 rows (100 by default); selections across pages are kept, and search and sorting still cover every match.
 ➕ The "+" in the panel header saves the current site with its domain pre-filled; "View details" opens a drawer with the full note, live code and change history.

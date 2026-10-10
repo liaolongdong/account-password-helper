@@ -79,6 +79,30 @@ describe('siteUtils.collectSiteOptions', () => {
     expect(collectSiteOptions([{ url: '' }, { url: '   ' }])).toEqual([{ site: GENERIC_SITE_KEY, count: 2 }]);
   });
 
+  it('通用桶只收归一后为空串的网址：退化成非空键的畸形值各自成桶', () => {
+    // 这一条钉的是「哪些条目会被（无网址）这一档挑出来」的真实边界，JSDoc / ARCHITECTURE /
+    // 帮助文案的口径以此为准：判据是 `siteKeyOf` 归一结果为**空串**，实践中即「网址没填」。
+    // `normalizeToHostname` 的解析失败分支返回去斜杠首段，所以 `http://` 得到 `http:`、
+    // `not a url` 原样留着——它们各自成为一个候选，既不进这一档，也不享受恒保留。
+    // 另一处反直觉：URL 解析器会吃掉 `https:` 后面的重复斜杠，`/qq.com` 因此归一成
+    // `qq.com`（一个真实站点）而不是空串。
+    expect(siteKeyOf('http://')).toBe('http:');
+    expect(siteKeyOf('not a url')).toBe('not a url');
+    expect(siteKeyOf('/qq.com')).toBe('qq.com');
+    expect(siteKeyOf('///')).toBe('');
+
+    expect(collectSiteOptions([{ url: '' }, { url: '///' }, { url: '/qq.com' }, { url: 'http://' }])).toEqual([
+      { site: 'http:', count: 1 },
+      { site: 'qq.com', count: 1 },
+      { site: GENERIC_SITE_KEY, count: 2 },
+    ]);
+
+    // 恒保留跟着同一个判据走：残值算「一个奇怪的站点」，选中别的站点时它会被筛掉；
+    // 归一为空串才算「没填网址」，才恒保留。
+    expect(matchesSiteFilter('http://', ['example.com'])).toBe(false);
+    expect(matchesSiteFilter('///', ['example.com'])).toBe(true);
+  });
+
   it('没有通用条目时不产生空转的通用桶', () => {
     expect(collectSiteOptions([{ url: 'a.com' }])).toEqual([{ site: 'a.com', count: 1 }]);
   });
