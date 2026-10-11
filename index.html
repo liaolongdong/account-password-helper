@@ -346,7 +346,7 @@
             "name": "如何开启自动保存登录密码？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认取页面标题）和备注（默认为\"自动保存\"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。"
+              "text": "在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认从页面标题里取站点名）和备注（默认为\"自动保存\"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。"
             }
           },
           {
@@ -6273,7 +6273,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>如何开启自动保存登录密码？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认取页面标题）和备注（默认为"自动保存"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。</div></div>
+            <div class="faq-a"><div class="faq-a-inner">在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认从页面标题里取站点名）和备注（默认为"自动保存"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>为什么有时登录后没有弹出保存提示？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -7694,8 +7694,8 @@ pnpm lint:style  # Stylelint</code></pre>
         {
           q: { zh: '如何开启自动保存登录密码？', en: 'How do I enable auto-save?' },
           a: {
-            zh: '在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认取页面标题）和备注（默认为"自动保存"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。',
-            en: 'Click "Auto-save Settings" on the management page and turn on "Enable auto-save". Optionally configure domain rules (exact domains or regex; empty matches all). On login a confirmation card appears with "Save", "Not now", and "Never" options, plus editable tag (defaults to page title) and remark (defaults to "Auto-saved"). "Never" adds the domain to the block list, removable later in settings. Before prompting, the extension compares against your vault: identical credentials are skipped silently, and changed passwords trigger an "Update" prompt.',
+            zh: '在密码管理页点击「自动保存设置」按钮，开启「启用自动保存」开关。可选配置域名匹配规则（支持精确域名和正则表达式），规则为空时匹配所有域名。登录时会弹出确认卡片，可选择「保存」「暂不保存」或「不再提示」。弹窗中还可编辑标签（默认从页面标题里取站点名）和备注（默认为"自动保存"）。选择「不再提示」会将该域名加入屏蔽列表；已屏蔽的域名可在设置中移除以恢复提示。插件会在弹窗前比对密码库：账号密码完全相同则不再重复提示，密码发生变化时弹出「更新」确认。',
+            en: 'Click "Auto-save Settings" on the management page and turn on "Enable auto-save". Optionally configure domain rules (exact domains or regex; empty matches all). On login a confirmation card appears with "Save", "Not now", and "Never" options, plus editable tag (defaults to the site name from the page title) and remark (defaults to "Auto-saved"). "Never" adds the domain to the block list, removable later in settings. Before prompting, the extension compares against your vault: identical credentials are skipped silently, and changed passwords trigger an "Update" prompt.',
           },
         },
         {

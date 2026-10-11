@@ -11,6 +11,9 @@
   - 保留 `transition: all .3s ease` + `:hover{transform;box-shadow}`（PasswordTable.vue:393-400）；
   - 保留 selection(fixed left) / actions(fixed right) 的 position:sticky 结构；
   - 每行 5 个操作按钮 + 最多 3 个标签 + 1 个 TOTP svg。
+    （标签数刻意停在 3：它与归档的 2026-09 读数同源，改成当前 `MAX_TAG_COUNT` 会让
+    本探针与历史样本不可比。标签上限已放宽到 5，只在真正打满 5 个标签的条目上
+    增加行高，本探针量的是「行数 × 每行成本」这条曲线，结论不受影响。）
 
   测量项均为主线程同步阻塞时长（操作 + 强制布局收敛），与用户在
   「点击新增 / 点标签筛选 / 切换密码显隐」时感知到的掉帧同源。

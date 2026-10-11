@@ -330,7 +330,8 @@ graph TB
 - sessionStorage 暂存凭证，支持传统表单提交导致的跨页面导航场景。页面侧只保留**不可解的密文容器**，解密密钥由后台按 `tab + origin` 签发并只存 `chrome.storage.session`（默认 `TRUSTED_CONTEXTS`，宿主页面与内容脚本均不可读，见 [pendingCipherKeyStore.ts](../entrypoints/background/pendingCipherKeyStore.ts)）；申请不到密钥时直接放弃暂存（代价仅为跳转后不复现弹窗），绝不退回明文存储。
 - 保存成功后发送桌面通知，并使密码缓存失效以确保下次加载获取最新数据。
 - **三选项交互**：保存确认弹窗提供「保存」、「暂不保存」和「不再提示」三个操作选项。
-- **可编辑字段**：弹窗中除显示账号和密码外，还提供可编辑的**标签**（默认取页面标题）和**备注**（默认为"自动保存"）输入框，用户可在保存前自定义。
+- **可编辑字段**：弹窗中除显示账号和密码外，还提供可编辑的**标签**（默认从页面标题里取站点名，见下条）和**备注**（默认为"自动保存"）输入框，用户可在保存前自定义。
+- **标签预填清洗**：捕获时不再整串照搬 `document.title`，而由 [capturedTag.ts](../utils/capturedTag.ts) 的 `deriveCapturedTag` 收敛成一个短标签——先按分隔符切段（逗号/顿号恒为分段，连字符/冒号/斜杠仅在邻接空白处分段，避免切碎 `E-commerce`、`12:30`），再按「命中主域名首段的端段 → 末段 → 首段 → 其余中段按长度升序」取第一个不超 `CAPTURED_TAG_MAX_LENGTH` 的分段；全都装不下时预填空串。动机：整串页面名普遍超过单标签上限，而落盘通道刻意不限 `tag` 长度（原因见 [autoSaveHandler.ts](../entrypoints/background/autoSaveHandler.ts)），于是这条超长标签会一路落库，直到用户下次在编辑弹窗里改动标签时被 `normalizeTagInput` 丢掉并弹警告；含逗号会被 `parseTags` 拆成多标签；保存后它还会进入由条目聚合而来的标签候选池（`countTags`），让筛选变噪音。上限与编辑器 `MAX_TAG_LENGTH` 的同口径关系由 `tests/utils/capturedTag.test.ts` 钉住（content 侧刻意不 import 那个 composable）。
 - **智能更新策略**：同账号 + 同域名且密码有变化时，以「更新」弹窗确认后更新已有条目的密码，保留存量标签和备注（除非用户在弹窗中主动修改）；账号密码完全相同则不打扰；不同账号则新增条目。
 - **黑名单屏蔽**：保存弹窗中点击「不再提示」可将当前域名加入屏蔽列表（见 [SavePasswordPrompt.ts](../entrypoints/content/SavePasswordPrompt.ts)）；无端口条目屏蔽该 hostname 及子域名所有端口的登录弹窗，含端口条目（如 `localhost:3000`）仅屏蔽对应端口的弹窗。可在设置对话框的「已屏蔽的域名」中删除以恢复提示。
 - **智能防重复**：弹窗前先向后台查询该域名 + 账号在密码库中的状态（见 [autoSaveManager.ts](../utils/storage/autoSaveManager.ts) 的 `checkCredentialStatus`），据此分流：账号密码完全相同则完全静默不弹窗（跨登录持久生效，从根本上避免同账号反复登录反复弹窗）；密码发生变化则弹出「更新」确认弹窗；新账号弹出「保存」弹窗。同时保留基于凭证指纹（用户名 + 密码长度）的同页防抖（见 [LoginAutoSave.ts](../entrypoints/content/LoginAutoSave.ts)），吸收表单提交 / 按钮点击 / 回车三连触发。
@@ -530,6 +531,7 @@ graph TB
 - 复制用户名 / 网址走 [clipboard.ts](../utils/clipboard.ts) 的 `copyTextToClipboard`，复制密码与历史密码走 `copySecretToClipboard`——按「剪贴板设置」的延时自动清除，清除成功/失败经回调提示。侧边栏的同名能力是另一套上下文内定时器（见「14 剪贴板自动清除」），两处只共享卡片的纯文本构造，不共享定时器。
 - 底部操作栏在「关闭」与「编辑」之间提供「分享卡片」：把该条目的用户名 / 密码 / 网址合成一段纯文本一次性复制（网址为空时省略该行），省去对方分段粘贴；因为含明文密码，同样受限时自动清除约束（该开关关闭时卡片明文会留在剪贴板，直至下次复制）。密码为空的条目同样完成复制，只是提示换成告警，判空与侧边栏共用 `hasShareCardPassword`。
 - 密码历史仅在「密码历史设置」启用时才动态导入配置并按需加载，避免打开抽屉即触发无谓解密。
+- **用户名行的「在身份库中检索」**：回答「这个账号绑的是哪个手机号/邮箱」，但刻意**不做跨库关联**——抽屉把该条目的 `username` 当**搜索词**向上抛 `searchIdentity`，父级经与菜单同一个 `openIdentityVaultWithVerify` 主密码复验门槛后打开身份库并预填那个搜索框（`useIdentityVault.keyword`），由身份库自身的检索口径（姓名/证件号/手机号/卡号，拼音与子串都算）去命中。因此这里不给 `PasswordEntry` 加关联字段、不在密码侧渲染任何 PII 值、这次跳转也不解密任何身份载荷；空用户名不发跳转（否则等于开了个没有筛选效果的窗口），复验被取消时抽屉原地不动，预填词随弹窗 `@closed → teardown() → resetViewState()` 一并清除、不串到下一次正常打开。选「跳转即搜索」而非「条目级关联」的理由：两库之间没有可靠连接键（用户名可能是邮箱、手机号或任意自填值，身份库里的同值也可能属于另一人），做成结构化关联会同时扩大密码库的 PII 存储面与导出面。守卫见 [identityLookupFromDetailWiring.test.ts](../tests/architecture/identityLookupFromDetailWiring.test.ts)（钉住「全文件只有一处开窗赋值」「预填晚于门槛」「抽屉不持有身份库状态」）。另有真机用例 [identity-lookup-from-detail.spec.ts](../e2e/identity-lookup-from-detail.spec.ts) 守住只在真实浏览器里才成立的四件事：门槛真的弹窗、取消复验真的不打开库（抽屉原地留着）、搜索词真的落进库内既有搜索框并把列表收窄到命中项、关闭后预填真的不残留（下一次从菜单进来仍是全量）。
 
 ### 24. 两步验证码接力
 
@@ -558,7 +560,7 @@ graph TB
 
 ### 27. 身份信息库
 
-- **定位与独立性**：独立的「个人信息收藏夹」，与密码库完全解耦——存放姓名、证件号、手机号、邮箱、住址、银行卡信息（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段，解决证件号、银行卡号等非登录凭据无处安放的问题。入口在管理页「数据管理 → 身份信息库」，打开前需主密码复验（纯门槛，刻意不使用返回的密码，防「会话已解锁但离座」时旁人一次性看到全部身份信息）。不改 `utils/types.ts` / `passwordCrud.ts` / sidepanel / popup / content 任何既有路径，唯一跨域触点是换主密码。
+- **定位与独立性**：独立的「个人信息收藏夹」，与密码库完全解耦——存放姓名、证件号、手机号、邮箱、住址、银行卡信息（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段，解决证件号、银行卡号等非登录凭据无处安放的问题。入口在管理页「数据管理 → 身份信息库」，打开前需主密码复验（纯门槛，刻意不使用返回的密码，防「会话已解锁但离座」时旁人一次性看到全部身份信息）；第二个入口是密码条目详情抽屉的「在身份库中检索」跳转（见第 23 节），共用同一个 `openIdentityVaultWithVerify` 与同一道门槛，且只递交搜索词。不改 `utils/types.ts` / `passwordCrud.ts` / sidepanel / popup / content 任何既有路径，唯一跨域触点是换主密码。
 - **第 4 个加密域**：[identityCrud.ts](../utils/storage/identityCrud.ts) 与密码库平行，整块加密（一个 `encryptedPayload` blob，PBKDF2-SHA256/600k + AES-256-GCM），落盘形状仅 `id / encryptedPayload / createTime / updateTime` 四个不可识别明文键，其余字段（含类别）一律进密文，避免泄露「用户存了一张银行卡」这类事实。存储键 `personal_identity_infos`，无新权限；`updateTime` 兼作并发令牌。
 - **两级校验**：[validators.ts](../utils/identity/validators.ts) 零 i18n、纯函数，输出「级别 + 文案 key」。格式类（长度/字符集）→ `error` 阻止保存；18 位大陆身份证 GB11643 mod 11 校验位（连同地区码、出生日期合法性）与大陆手机号形态校验 → `error` 阻止保存（该数字形态几乎只对应大陆居民身份证，校验位不符基本可判定为录入笔误）；银行卡 Luhn、有效期已过期 → `warning` 仅提示允许保存——护照号/港澳台通行证（非 18 位纯数字形态，不进入校验位分支）、社保卡/门禁卡（不过 Luhn）等合法数据不被误杀。[formRules.ts](../utils/identity/formRules.ts) 贴附 i18n 产出 Element Plus 规则，warning 由表单常驻 `el-alert` 呈现。
 - **并发与上限**：条数上限 30（写入前校验）；`updateIdentity` 以读取时的 `updateTime` 拒绝过期写（多 Options 标签页并存是真实场景，提示刷新后重试）；更新走 `{ ...existing, ...patch, pv: 1 }` 前向合并，未来版本新增键经旧版本编辑后仍存活。保存前经 [dedup.ts](../utils/identity/dedup.ts) 的 `findDuplicateIdentity` 做**非阻断**疑似重复检测：仅证件号 / 卡号参与（`trim` + 大写归一、排除编辑自身），命中则弹二次确认，用户仍可选择保存。
