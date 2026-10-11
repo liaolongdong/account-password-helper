@@ -125,7 +125,8 @@
 
 1. 打开 Developer Dashboard：https://chrome.google.com/webstore/devconsole
 2. 进入账户设置里的 **Service account permissions**（Google 文档路径：Add a service account to your developer profile）。
-3. 粘贴 3.1 的 `client_email` → 保存。到这里凭据链才算通，没做这一步时写接口一律 `403 permissionDenied`。
+3. 粘贴 3.1 的 `client_email` → 保存。到这里凭据链才算通，没做这一步时**连只读的那次商品状态查询都会**被判 `403 PERMISSION_DENIED`
+   ——2026-10-11 就见过一次 `publish` 档在只读的第一跳 GET 上拿到 403（预检全绿、access token 已换到），两种成因见 FAQ B.9。
 
 两条约束：
 
@@ -470,7 +471,14 @@ PY
    Cloud 项目没启用 Chrome Web Store API：APIs & Services → Library → 搜 “Chrome Web Store API” → Enable。见 3.1 第 2 步。
 
 9. **`403 permissionDenied`。**
-   服务账号邮箱没加进 Developer Dashboard → Account。见 3.2。注意 Google 的限制是**一个 publisher 只能绑一个服务账号**（“At this time, you can only add one service account to your publisher.”），换邮箱要先把旧的移除。
+   Google 那句话同时涵盖两种成因：`Permission denied on resource 'publishers/{id}/items/{extId}' (or it might not exist)`。
+   ① 服务账号邮箱没加进 Developer Dashboard → Account（见 3.2）——这一条**连只读查询都会被拒**，不用等到写接口；
+   ② `CWS_PUBLISHER_ID` 与 `CWS_EXTENSION_ID` 拼出的那个资源不归当前账号（Publisher ID 填成 Cloud project number、或商品 ID 抄错都会这样）。
+   先查 ①：Dashboard 账户页 Service account permissions 那行必须**逐字符等于当前这份 JSON 的 `client_email`**（换过服务账号才等于换过邮箱，只换 key 时邮箱不变）；
+   Google 的限制是**一个 publisher 只能绑一个服务账号**（“At this time, you can only add one service account to your publisher.”），换邮箱要先把旧的移除。
+   那行确实对，再查 ②：账户页那串纯数字 Publisher ID、商品 URL 里那 32 位，两处分别核对。
+   判绿用只读档，别拿 `publish` 档试：dispatch `mode=status`（不写商店、不需要 `production` 批准）或本地 `pnpm cws:status`，它只调 `fetchItemStatus` 那一跳；
+   这里过了，再 Re-run failed jobs 补那一次 `publish`。
 
 10. **本地 `pnpm cws:status` 通，CI 的 `status` 档却失败。**
     大概率是 Secret 存错了**作用域**：`inspect` job 不挂 `environment`（只读段不需要人工放行），所以它读不到 environment-scoped 的 Secret。
@@ -480,9 +488,10 @@ PY
     致命形状四种（3.3 的对照表逐条实测过）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行）、只贴中间那段 base64 而两行标记全丢、只留 `-----BEGIN PRIVATE KEY-----` 丢了尾行、连 JSON 的那对双引号一起贴进去。
     本地验证时可以先用 `node -e "require('crypto').createPrivateKey(process.env.CWS_SA_PRIVATE_KEY)"` 自证，报错即 Secret 内容本身有问题。
     CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里，当时 CLI 只透传这一句）。补上形状诊断后，同一份坏 Secret 在 run 37963106478 多打两行，其中 `1732 字符 / 1 行` 就足以锁定根因：`generateKeyPairSync('rsa', {modulusLength: 2048})` 导出的 PKCS#8 PEM 实测为 28 行 / 1704 字符，把 28 处换行各写成两个字符的反斜杠 n 正好是 1732——数字本身就能对上；而换行一旦压没——无论存成字面量 `\n` 还是整段连成一行——`createPrivateKey` 报的都是同一句 `error:1E08010C`，所以「1 行」必然是坏的。紧接着那行给的修法是 `jq -r .private_key`——Actions 的 ubuntu runner 自带 `jq`，本机没装就用 3.3 那条 `node` 取法（`JSON.parse` 同样把 `\n` 还原成真实换行）；贴之前用 3.3 的自检命令过一遍剪贴板。只报结构事实，不回显密钥。（私钥原文已经出现在日志或聊天记录里时的处置，见 3.3 末尾的「已泄露，只能换不能删」。）
-    这一格挂在**联网之前**，所以跑 `publish` 档撞到它时商店侧是零调用：2026-10-10 那次 `release` 触发的 run 38133410628（v3.15.0）就是预检全绿后死在本地签名，商品状态与草稿都没动，
-    只有 GitHub Release 已公开、商店还是旧版。补好 Secret 后 Re-run failed jobs 复用同一次 `prepare` 的 artifact 即可（依旧要过 `production` 那道批准）；
-    超过 artifact 保留期（7 天）就按 3.6 手动 dispatch `mode=publish` + `tag=v3.15.0` 补这一次提审。
+    这一格挂在**联网之前**，所以跑 `publish` 档撞到它时商店侧是零调用：2026-10-11 那次 `release` 触发的 run 38133410628（v3.15.0）attempt 1 就是预检全绿后死在本地签名，商品状态与草稿都没动，
+    只有 GitHub Release 已公开、商店还是旧版。按 3.3 重贴 Secret 后 attempt 2 构建与预检全绿、换票成功，改红在 `403 PERMISSION_DENIED`（成因与处置见 FAQ B.9）——
+    **这一样是零写入**：403 落在 `publish` 的第一跳（只读的商品状态 GET，`uploadPackage` 在它之后），日志里没有「包已上传」那行，说明包没上去、也没生成新 revision。
+    两种红都不用重新发版：artifact 保留期内 Re-run failed jobs 复用同一次 `prepare` 的产物即可（依旧要过 `production` 那道批准）；超过 7 天就按 3.6 手动 dispatch `mode=publish` + `tag=v3.15.0`。
 
 12. **fork 的贡献者 PR 会不会误提审我的商品？**
     不会，三重保险：`publish.yml` 只在 `release: published` 与手动 dispatch 时触发（PR 事件根本不触发它）；`submit` 带 `if: github.repository == 'liaolongdong/account-password-helper'`；GitHub 本身不会把仓库 Secrets 暴露给 fork 的 run。
