@@ -16,8 +16,14 @@
  * - 两条选择器用的类名来自筛选栏的 `popper-class`。守卫按 `SearchFilterBar.vue` 里的
  *   实际类名反查样式，任一侧改名都会变红。
  *
- * 行为侧的兜底是真机用例 `e2e/dialog-scroll-isolation.spec.ts` 的第 2 条（面板滚到底再滚，
- * 列表不动，并且那个节点上的计算样式确实是 `contain`）。
+ * 全局块里现在共有两条剪链规则（见 `EXPECTED_CONTAIN_TARGETS`）：候选面板那条，以及
+ * 遮罩 `.el-overlay-dialog` 那条。后者挂在 EP 内部类名上，组件侧没有可比对的真源，
+ * 所以它的选择器能否命中只能由真机用例兜（本文件只钉「它在全局块、取值是 contain、
+ * 没有第二条重复」这三件静态事实）。
+ *
+ * 行为侧的兜底是真机用例 `e2e/dialog-scroll-isolation.spec.ts`：第 2 条管候选面板
+ * （面板滚到底再滚，列表不动，并且那个节点上的计算样式确实是 `contain`），
+ * 第 5 条管遮罩（复验门槛弹窗开着，滚轮打在遮罩上，文档不动）。
  *
  * 曾经与本文件并列的「弹窗关掉后把列表滚动位置还回去」那半边已在实测中撤销：逐帧对照
  * 量下来，触发器可见时（真鼠标与自动化点击各测一遍）弹窗开关全程不动文档 scrollTop，
@@ -54,6 +60,33 @@ const GLOBAL_STYLE = APP_SRC.match(/<style>([\s\S]*?)<\/style>/)![1];
 const CONTAIN_RULE =
   /\.tag-filter-popper \.el-vl__window,\n\.site-filter-popper \.el-vl__window \{\n {2}overscroll-behavior: contain;\n\}/;
 
+/**
+ * 全局块去注释后的文本
+ *
+ * 注释里出现了 CSS 形状的片段（比如那条 `{overscroll-behavior:contain}` 的引用），
+ * 按「选择器 + 声明」成对提取时必须先摘掉，否则注释会被当成选择器的一部分。
+ */
+const GLOBAL_CSS = GLOBAL_STYLE.replace(/\/\*[\s\S]*?\*\//g, '');
+
+/**
+ * 全局块里「哪条规则剪断了滚动链」的唯一登记表
+ *
+ * 逐条写成 `选择器 → 取值`，是为了让重复与错挂都落进同一条判据：多一处（有人把规则复制
+ * 到别的节点，或挂到根本不是滚动容器的节点上）就红，取值写成 `auto` 也红。
+ * 新增剪链目标时，必须同时在这里登记并说明它的真机判据落在哪条 e2e 用例上。
+ */
+const EXPECTED_CONTAIN_TARGETS = [
+  '.tag-filter-popper .el-vl__window,.site-filter-popper .el-vl__window → contain',
+  '.el-overlay-dialog → contain',
+];
+
+/** 把 `选择器 { …overscroll-behavior: X… }` 成对读出来，选择器压成单行以便与登记表逐字比对 */
+const containTargets = (css: string) =>
+  [...css.matchAll(/([^{}]*)\{([^{}]*overscroll-behavior[^{}]*)\}/g)].map(([, selector, body]) => {
+    const value = body.match(/overscroll-behavior:\s*([^;]+);/)![1].trim();
+    return `${selector.replace(/\s+/g, ' ').trim().replace(/,\s*/g, ',')} → ${value}`;
+  });
+
 describe('候选面板的滚动链剪断接线', () => {
   /** 类名以筛选栏为真源，这样「组件改名 / 样式改名」任一侧都能在另一侧被查到 */
   const popperClasses = [...BAR_SRC.matchAll(/popper-class="([\w-]+)"/g)].map(m => m[1]);
@@ -86,10 +119,26 @@ describe('候选面板的滚动链剪断接线', () => {
       CONTAIN_RULE.test(GLOBAL_STYLE.replace('overscroll-behavior: contain;', 'overscroll-behavior: auto;')),
       'contain 取值的判据没有牙齿：改成 auto 也算通过',
     ).toBe(false);
-    // 正面钉住「这条声明是全局块里唯一的 overscroll」：多一处就说明有人把它挂到了别的（非滚动）节点上
+
+    // 正面钉住「全局块里到底有哪些规则剪断了滚动链」：整份登记表逐字比对。
+    // 数量比对（早期版本写的是 `overscroll-behavior` 出现 1 次）在第二条剪链规则落地后
+    // 就失去了含义 —— 把它放宽成 2 等于「几处都行」，重复与错挂都不再红。
+    expect(containTargets(GLOBAL_CSS), '全局块里的剪链规则与登记表不一致').toEqual(EXPECTED_CONTAIN_TARGETS);
+    // 牙齿（选择器维）：把遮罩那条挂到非滚动容器 `.el-dialog` 上 —— `overflow: visible` 的节点
+    // 接不住 `overscroll-behavior`，等同静默撤销修复。登记表比对必须抓到这次换挂。
     expect(
-      (GLOBAL_STYLE.match(/overscroll-behavior/g) || []).length,
-      '全局块里出现了第二条 overscroll-behavior：规则被复制/搬到了别的选择器上',
-    ).toBe(1);
+      containTargets(GLOBAL_CSS.replace('.el-overlay-dialog {', '.el-dialog {')),
+      '把遮罩规则换挂到别的选择器上，登记表比对没有反应',
+    ).not.toEqual(EXPECTED_CONTAIN_TARGETS);
+    // 牙齿（重复维）：同一条规则复制一份，必须多出一条而不是被去重吞掉。
+    expect(
+      containTargets(`${GLOBAL_CSS}\n.el-overlay-dialog {\n  overscroll-behavior: contain;\n}`),
+      '剪链规则被复制了一份，登记表比对没有反应',
+    ).toHaveLength(EXPECTED_CONTAIN_TARGETS.length + 1);
+    // 牙齿（取值维，走登记表这条判据本身）：两处都改成 auto，比对必须红。
+    expect(
+      containTargets(GLOBAL_CSS.replace(/overscroll-behavior: contain;/g, 'overscroll-behavior: auto;')),
+      '两处剪链取值改成 auto，登记表比对没有反应',
+    ).not.toEqual(EXPECTED_CONTAIN_TARGETS);
   });
 });

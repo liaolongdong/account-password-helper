@@ -1496,6 +1496,23 @@ body {
   overscroll-behavior: contain;
 }
 
+/*
+ * 复验门槛弹窗（回收站、身份信息库）开着时，滚动穿透到底下的列表。
+ * 实测：滚轮打在遮罩上一格 deltaY=800，文档 scrollTop 回收站 0→800、身份信息库 87→887；
+ * 同期「导入数据」（无复验）与详情抽屉都是 0 —— 差别不在弹窗本身，在那把 body 锁滚类。
+ * 根因是这两个入口要先弹 `ElMessageBox` 复验主密码，复验通过后的 200ms 内才弹正式弹窗，
+ * 而 Element Plus 的 `useLockscreen` 在「类已在」时不给后来者记账（`withoutHiddenClass=false`），
+ * 于是 MessageBox 的延时 cleanup 把锁摘了 —— 弹窗还开着，`body` 已解锁，
+ * 遮罩这层滚动容器（`.el-overlay-dialog`，EP 编译产物里是 `position:fixed;inset:0;overflow:auto`）
+ * 内容不够高，滚动链就顺着它交给文档。
+ * 这里不修「锁」——那是 EP 内部实现，且补锁要动 MessageBox 的关闭时序；只把滚动链剪断在
+ * 遮罩自己身上，症状即消。上面那两条复验门槛路径的判据见 `e2e/dialog-scroll-isolation.spec.ts` 第 5 条。
+ * 同样必须留在非 scoped 块：遮罩由 EP 挂到 `body` 下，节点不带 `data-v-*`。
+ */
+.el-overlay-dialog {
+  overscroll-behavior: contain;
+}
+
 /* 滚动条样式（参考 HelpDialog 风格：纤细 4px，slate 色调，无轨道背景） */
 .dialog-body-scroll::-webkit-scrollbar {
   width: 4px;
