@@ -8,6 +8,8 @@
  * 1. **叠加关系不变**：站点与关键词、收藏、标签是 AND，多个站点之间是 OR。
  *    写成 AND 会让「选了 github.com 又选 gitlab.com」变成空表。
  * 2. **通用条目恒保留**：空 `url` 的条目对任何站点都可用，被筛掉等于让用户以为库里没有。
+ *    它们另汇成候选集末位的「无网址」一桶，单独勾选时列表只剩这批——「找出没填网址的条目
+ *    去补全」在管理页里只有这一个落点。
  * 3. **隐形空过滤**：某站点的条目被删光后该站点从候选集消失，若筛选条件不跟着剔除，
  *    下拉里看不见、列表却一直是空的。
  * 4. **页码复位**：筛选口径变了继续停在第 7 页只会读到空白，`filterSites` 必须进
@@ -19,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { effectScope, nextTick, ref, type EffectScope } from 'vue';
 import { usePasswordManagement } from '@/composables/usePasswordManagement';
 import { StorageUtils } from '@/utils/storage';
+import { GENERIC_SITE_KEY } from '@/utils/siteUtils';
 import type { PasswordEntry } from '@/utils/types';
 
 /** 造一条条目：`url` 与 `tag` 可覆盖，其余字段取固定值 */
@@ -98,7 +101,7 @@ describe('usePasswordManagement.siteFilter', () => {
     expect(matchedIds()).toEqual(['a']);
   });
 
-  it('候选集按条目数倒序汇总站点', () => {
+  it('候选集按条目数倒序汇总站点，未填网址的条目汇成末位的通用桶', () => {
     mgmt.passwords.value = [
       makeEntry('a', 'github.com'),
       makeEntry('b', 'https://github.com/settings'),
@@ -106,11 +109,26 @@ describe('usePasswordManagement.siteFilter', () => {
       makeEntry('d', ''),
     ];
 
-    // 通用条目（空 url）不进候选集
+    // 通用条目（空 url）自成一桶、恒排末位：它不是一个站点，跟着计数在列表里跳位
+    // 会让用户每次打开下拉都要重新找它
     expect(mgmt.availableSites.value).toEqual([
       { site: 'github.com', count: 2 },
       { site: 'gitlab.com', count: 1 },
+      { site: GENERIC_SITE_KEY, count: 1 },
     ]);
+  });
+
+  it('只勾「无网址」这一桶时，列表只剩这批条目', () => {
+    mgmt.passwords.value = [
+      makeEntry('a', 'github.com'),
+      makeEntry('b', 'gitlab.com'),
+      makeEntry('c', ''),
+      makeEntry('d', ''),
+    ];
+    mgmt.filterSites.value = [GENERIC_SITE_KEY];
+
+    // 真实站点的键永远不等于哨兵，所以这一勾就是「把待补网址的条目挑出来」的落点
+    expect(matchedIds()).toEqual(['c', 'd']);
   });
 
   it('站点条目被删光后自动剔除该筛选条件，不留隐形空过滤', async () => {

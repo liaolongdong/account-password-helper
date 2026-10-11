@@ -1481,6 +1481,21 @@ body {
   overflow-y: auto;
 }
 
+/*
+ * 筛选候选面板滚到末行之后，继续滚动会把底下的列表推着走（面板同时飘出视口）。
+ * 实测：30 个站点候选、面板 274px，滚到底再滚一格，文档 scrollTop 从 150 跳到 950。
+ * 原因是这两个下拉的浮层不是模态 —— Element Plus 只给 dialog/drawer 上 body 锁滚，
+ * 浮层里的虚拟列表滚到底，滚动链就顺着祖先一路交给文档。`contain` 把这条链剪断在
+ * 面板自己的滚动容器上，面板内部照常滚。
+ * 必须留在非 scoped 块：实测浮层由 Element Plus 挂到 body 下的裸 div 里（不在
+ * `.options-page` 子树内），滚动容器 `.el-vl__window` 上也没有任何 `data-v-*`，
+ * scoped 规则编译后带 `[data-v-*]`，对它永远匹配不到。
+ */
+.tag-filter-popper .el-vl__window,
+.site-filter-popper .el-vl__window {
+  overscroll-behavior: contain;
+}
+
 /* 滚动条样式（参考 HelpDialog 风格：纤细 4px，slate 色调，无轨道背景） */
 .dialog-body-scroll::-webkit-scrollbar {
   width: 4px;

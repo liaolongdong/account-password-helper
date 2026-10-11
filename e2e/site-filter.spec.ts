@@ -6,14 +6,16 @@ import { textOf } from './i18n';
 /**
  * 管理页筛选栏的两个候选下拉（标签 / 站点）的真机回归
  *
- * 单测钉的是算法与接线（`siteUtils` / `tagUtils` / `siteFilterWiring`），证明不了只有真浏览器才成立的四件事：
+ * 单测钉的是算法与接线（`siteUtils` / `tagUtils` / `siteFilterWiring`），证明不了只有真浏览器才成立的五件事：
  * ① 候选下拉**真的渲染得出来**——两个下拉都是虚拟列表 `el-select-v2`，它的 `:props` 字段映射、
  *    自定义 option 插槽、`.el-select-dropdown__item` 类名都是 Element Plus 内部约定，
  *    任一条对不上，用户看到的就是一个空面板或一个点不动的控件；
  * ② 多种网址写法在真实数据上确实落进同一个桶（条目经导入落盘为密文，读出来才参与归一）；
  * ③ 选站后主表的行数与内容跟着变，而不是「筛选算了但没接到 `el-table`」；
  * ④ 候选行的**省略号与 `title` 兜底**：面板宽度由 Element Plus 按最长 label 量出（`calculateLabelMaxWidth`），
- *    不会把插槽里的计数列算进去，所以最长的那一条必然截断——省略号生效与 title 给回原文都只在真实排版下成立。
+ *    不会把插槽里的计数列算进去，所以最长的那一条必然截断——省略号生效与 title 给回原文都只在真实排版下成立；
+ * ⑤ 「无网址」桶的**哨兵键没有漏进界面**：候选行与闭合态选中标签都要读到本地化文案，
+ *    而不是 `/no-url` 这个像路径的串（`el-select-v2` 的 `:props` 只认字段名，文案必须落在数据上）。
  *
  * 前置数据沿用 `pagination.spec.ts` 的做法：走真实的「数据管理 → 导入数据」入口灌入。
  */
@@ -99,18 +101,35 @@ async function openTagDropdown(page: Page): Promise<void> {
   await expect(tagOption(page, 'sfwork')).toBeVisible();
 }
 
-/** 走导入入口灌入 12 条，等到候选下拉真的出现 */
-async function seedVault(page: Page): Promise<void> {
+/**
+ * 通用桶的用例数据：三条没填网址、两个真实站点各一条。
+ *
+ * 刻意让通用桶的计数**最大**：它不是一个站点，排在末位是固定规则而不是排序结果，
+ * 只有让它赢过真实站点，断言才抓得住「跟着条目数跳位」这种改法。
+ */
+const GENERIC_CSV = [
+  'username,password,url,tag,remark',
+  `e2e-sg-a,Synthetic!Ga,https://${domainOf('alpha')}/x,,`,
+  `e2e-sg-b,Synthetic!Gb,${domainOf('beta')},,`,
+  ...Array.from({ length: 3 }, (_, i) => `e2e-sg-n${i + 1},Synthetic!Gn${i + 1},,,`),
+].join('\n');
+
+/** 走真实的「数据管理 → 导入数据」入口把一份 CSV 落库 */
+async function importCsv(page: Page, fileName: string, csv: string): Promise<void> {
   await runHeaderCommand(page, 'options.header.data', 'options.header.importData');
   const dialog = page.getByRole('dialog').filter({ hasText: textOf('options.import.title') });
   await expect(dialog).toBeVisible();
   await dialog
     .locator('input[type=file]')
-    .setInputFiles({ name: 'e2e-site-filter.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV, 'utf-8') });
+    .setInputFiles({ name: fileName, mimeType: 'text/csv', buffer: Buffer.from(csv, 'utf-8') });
   await expect(dialog.locator('.preview-section')).toBeVisible();
   await dialog.locator('.el-dialog__footer .el-button--success').click();
   await expect(dialog).toBeHidden();
+}
 
+/** 走真实导入入口灌入 12 条，并等主表与 storage 两边的数对上（候选下拉由各用例自己展开） */
+async function seedVault(page: Page): Promise<void> {
+  await importCsv(page, 'e2e-site-filter.csv', CSV);
   await expect(mainRows(page)).toHaveCount(TOTAL);
   expect(await storedArrayCount(page, STORAGE_KEYS.PASSWORDS)).toBe(TOTAL);
 }
@@ -180,6 +199,31 @@ test.describe('管理页筛选栏候选下拉（标签 / 站点）', () => {
 
     // gamma 的两条没有 sfwork 标签：叠加后应当是空表，而不是回落到任一维度
     await expect(mainRows(page)).toHaveCount(0);
+  });
+
+  test('未填网址的条目汇成末位的「无网址」候选，单独勾选只留这批', async ({ optionsPage: page }) => {
+    await importCsv(page, 'e2e-site-generic.csv', GENERIC_CSV);
+    await expect(mainRows(page)).toHaveCount(5);
+
+    await openSiteDropdown(page);
+    // 通用桶的计数比任何一个真实站点都大（3 > 1）却仍排末位：它不是一个站点，
+    // 跟着条目数在列表里跳位会让用户每次打开下拉都要重新找它
+    await expect(facetTexts(page, 'site')).toHaveText([
+      domainOf('alpha'),
+      domainOf('beta'),
+      textOf('options.filter.siteGenericOption'),
+    ]);
+    await expect(facetPopper(page, 'site').locator('.facet-option__count')).toHaveText(['1', '1', '3']);
+
+    await facetOption(page, 'site', textOf('options.filter.siteGenericOption')).click();
+    await page.keyboard.press('Escape');
+
+    // 展示文案落在 option 数据上、不只在插槽里：闭合态的选中标签读的是同一份 label，
+    // 哨兵串若漏到这里，用户看到的就是一个像路径的乱码
+    await expect(siteSelect(page)).toContainText(textOf('options.filter.siteGenericOption'));
+    await expect(siteSelect(page)).not.toContainText('/no-url');
+    // 真实站点的键永远不等于哨兵，所以这一勾筛出的恰好就是待补网址的那三条
+    await expect(mainRows(page)).toHaveCount(3);
   });
 
   test('标签候选与站点候选同构：条目数倒序 + 行内计数', async ({ optionsPage: page }) => {
