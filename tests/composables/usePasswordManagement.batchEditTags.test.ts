@@ -22,7 +22,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { effectScope, ref, type EffectScope } from 'vue';
-import { usePasswordManagement, MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
+import { usePasswordManagement } from '@/composables/usePasswordManagement';
+import { MAX_TAG_COUNT } from '@/utils/constants';
 import { StorageUtils } from '@/utils/storage';
 import type { PasswordEntry } from '@/utils/types';
 

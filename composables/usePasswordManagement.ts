@@ -29,23 +29,8 @@ import { useKeywordDebounce } from '@/composables/useKeywordDebounce';
 import { useVaultListPagination } from '@/composables/useVaultListPagination';
 import { useVaultPageSize } from '@/composables/useVaultPageSize';
 import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
+import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
-
-/**
- * 最多可选择的标签数量
- *
- * 上限 5 是「扁平标签够用」这条产品判断的容量前提：用户反馈里「想按站点/项目/环境
- * 多层组织」的诉求，先用「一个维度一个标签」的扁平组合覆盖，而不是引入层级分组
- * （层级会带来「同一条目属于几个文件夹」的模型改动，见
- * docs/reports/FEATURE_CANDIDATES_EVALUATION.md）。3 个维度不够拼出这种组合。
- *
- * 放宽后的序列化串最长 5 × 30 + 4 = 154 字符，仍低于导入闸门 `MAX_TAG_LEN`（256），
- * 自导出 → 回灌闭环不受影响；SidePanel 快速添加通道的 `PASSWORD_FIELD_LIMITS.tag`
- * （50）刻意不跟随——那条通道只有一个短输入框，不承担多维标注。
- */
-export const MAX_TAG_COUNT = 5;
-/** 单个标签最大字符长度 */
-export const MAX_TAG_LENGTH = 30;
 
 /**
  * 删除动画时长：行淡出后再落盘（沿用原实现的 1s 节奏，不改变观感）

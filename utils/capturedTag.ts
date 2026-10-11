@@ -14,13 +14,14 @@ import { getMainDomain } from '@/utils/domain';
 /**
  * 预填标签的长度上限
  *
- * 与 Options 标签编辑器的单标签上限同口径（`composables/usePasswordManagement` 的
- * `MAX_TAG_LENGTH`）：超过该值的预填逃得过落库（后台不限 tag），却逃不过编辑弹窗——用户下次
- * 改动标签时它会被归一化丢掉，等于给了一个「一改就没」的值。
+ * 与 Options 标签编辑器的单标签上限同口径（`utils/constants` 的 `MAX_TAG_LENGTH`）：超过该值的
+ * 预填逃得过落库（后台不限 tag），却逃不过编辑弹窗——用户下次改动标签时它会被归一化丢掉，
+ * 等于给了一个「一改就没」的值。
  *
- * 刻意在本模块写死这个数字，而不是 import 那个 composable——content script 首屏 chunk 不该为
- * 一个常量带上整块标签管理组合式函数（Vue 响应式 + storage 依赖）。两者的同口径关系由
- * `tests/utils/capturedTag.test.ts` 钉住，只改一处会直接测红。
+ * 刻意在本模块写死这个数字，而不是 import 过来——本模块是 content 首屏链路上的纯函数叶子
+ * （只依赖 `utils/domain`），为一个常量再牵进字段容量模块不值得。两者的同口径关系由
+ * `tests/utils/capturedTag.test.ts` 与 `tests/architecture/tagCapacityConstantSource.test.ts` 钉住，
+ * 只改一处会直接测红。
  */
 export const CAPTURED_TAG_MAX_LENGTH = 30;
 

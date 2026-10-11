@@ -28,7 +28,7 @@ const TOTAL = SITES.alpha + SITES.beta + SITES.gamma;
 const domainOf = (letter: string) => `${letter}.e2e-sf.test`;
 
 /**
- * 满长度标签：恰好 30 个字符，等于 `usePasswordManagement` 里的 `MAX_TAG_LENGTH` 上界，
+ * 满长度标签：恰好 30 个字符，等于 `utils/constants` 里的 `MAX_TAG_LENGTH` 上界，
  * 也就是编辑弹窗允许的最长标签（下面有断言钉住这个长度，改一处就会红）。
  *
  * 刻意取上界而不是随手写一串：截断只在「label 宽度 > 面板宽度 − 计数列」时出现，

@@ -17,9 +17,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { FormItemRule, FormRules } from 'element-plus';
 import { createPasswordFormRules, createUrlValidator } from '@/utils/formValidators';
-import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
+import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH, MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
 import { MAX_PASSWORD_LEN, MAX_REMARK_LEN, MAX_URL_LEN, MAX_USERNAME_LEN } from '@/utils/backup/constants';
-import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/composables/usePasswordManagement';
 import { MAX_PASSPHRASE_LENGTH } from '@/utils/passphraseGenerator';
 import { stringifyTags } from '@/utils/tagUtils';
 
