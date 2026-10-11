@@ -276,6 +276,85 @@ test.describe('管理页筛选栏候选下拉（标签 / 站点）', () => {
     await expect(tagOption(page, 'sfhome').locator('.facet-option')).toHaveAttribute('title', 'sfhome');
   });
 
+  /**
+   * 悬浮落点解析：给定坐标，沿 DOM 往上找第一个带 `title` 的祖先
+   *
+   * 原生 tooltip 的触发条件就是这条链——链断了（祖先里没有 `title`），鼠标停在那里什么也不会弹。
+   * 所以「title 属性在不在」不等于「用户 hover 得到得不到」，必须按落点量。
+   */
+  const titledAt = (page: Page, x: number, y: number): Promise<{ cls: string; title: string | null }> =>
+    page.evaluate(
+      ({ x, y }) => {
+        let el: Element | null = document.elementFromPoint(x, y);
+        while (el && !(el as HTMLElement).title) el = el.parentElement;
+        return el
+          ? { cls: el.getAttribute('class') || el.tagName, title: (el as HTMLElement).title }
+          : { cls: '', title: null };
+      },
+      { x, y },
+    );
+
+  test('候选行的 title 覆盖整行，左/右内边距不再是悬浮死区', async ({ optionsPage: page }) => {
+    await seedVault(page);
+    await openTagDropdown(page);
+
+    const row = tagOption(page, LONG_TAG);
+    const box = await row.boundingBox();
+    expect(box, '候选行没有排版，落点判据不可信').not.toBeNull();
+
+    /**
+     * EP 给候选行 `<li>` 的是 `padding: 0 32px 0 20px`：title 挂在 padding 内侧的节点上时，
+     * 行首 20px / 行尾 32px 都是悬浮死区（面板本体才 200px，52px 是整行的四分之一）。
+     * 最右只探到 −16px：再往外是虚拟列表的滚动条覆层，它盖在行之上、不属于我们。
+     */
+    const probes = [
+      { name: '行首', x: box!.x + 2 },
+      { name: '左侧内边距带', x: box!.x + 16 },
+      { name: '右侧内边距带', x: box!.x + box!.width - 16 },
+    ];
+    for (const { name, x } of probes) {
+      const hit = await titledAt(page, x, box!.y + box!.height / 2);
+      expect(hit.title, `${name}的落点解析不到 title：那一段仍是悬浮死区`).toBe(LONG_TAG);
+    }
+
+    // 覆盖面换到整行，代价不能是文本挪位：padding 从 `<li>` 搬进 `.facet-option`，两侧必须同值
+    const insets = await row.evaluate(el => {
+      const line = el.getBoundingClientRect();
+      const text = el.querySelector<HTMLElement>('.facet-option__text')!.getBoundingClientRect();
+      const count = el.querySelector<HTMLElement>('.facet-option__count')!.getBoundingClientRect();
+      return { left: Math.round(text.x - line.x), right: Math.round(line.x + line.width - count.x - count.width) };
+    });
+    expect(insets, '候选行的文本落点变了：两侧内边距必须与 Element Plus 的原值 20 / 32px 一致').toEqual({
+      left: 20,
+      right: 32,
+    });
+  });
+
+  test('闭合态选中的长标签靠原生 title 给回原文', async ({ optionsPage: page }) => {
+    await seedVault(page);
+    await openTagDropdown(page);
+    await tagOption(page, LONG_TAG).click();
+    await page.keyboard.press('Escape');
+
+    const chip = page.locator('.filters .tag-filter .el-tag').first();
+    await expect(chip).toBeVisible();
+    const chipBox = await chip.boundingBox();
+    expect(chipBox, '闭合态标签没有排版，落点判据不可信').not.toBeNull();
+
+    // 前提：这一条在 200px 宽的触发器里确实是截断的，否则 title 兜底无从验证
+    const truncation = await chip.evaluate(el => {
+      const text = el.querySelector<HTMLElement>('.el-select__tags-text');
+      return { visible: text?.clientWidth ?? 0, content: text?.scrollWidth ?? 0, text: text?.textContent ?? '' };
+    });
+    expect(truncation.text).toBe(LONG_TAG);
+    expect(truncation.visible, '标签没有宽度，截断读数不可信').toBeGreaterThan(0);
+    expect(truncation.content, '这一条没被截断，title 兜底的断言就失去了前提').toBeGreaterThan(truncation.visible);
+
+    // 落点在标签文字正中：title 必须挂在这条链上，且给回的是原文
+    const hit = await titledAt(page, chipBox!.x + chipBox!.width / 2, chipBox!.y + chipBox!.height / 2);
+    expect(hit.title, '闭合态标签截断了却读不到原文').toBe(LONG_TAG);
+  });
+
   test('标签下拉可键入过滤，且过滤文本不改主表', async ({ optionsPage: page }) => {
     await seedVault(page);
     await openTagDropdown(page);

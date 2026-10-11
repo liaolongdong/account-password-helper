@@ -1497,6 +1497,19 @@ body {
 }
 
 /*
+ * 候选行的悬浮死区：Element Plus 给 `<li>` 的是 `padding: 0 32px 0 20px`，而 title 挂在这段
+ * padding 内侧的 `.facet-option` 上——实测行首 6px 的落点解析到的就是这颗 `<li>` 本身，
+ * 祖先链上没有 title，鼠标停在那里什么也不弹（面板本体才 200px，这 52px 是整行的四分之一）。
+ * 把 padding 归零、让 `.facet-option` 自持同值内边距，title 的覆盖面即等于整行，文本落点不变。
+ * 选中态那颗对勾是 `<li>::after` 的 `right: 20px` 绝对定位，不随 padding 移动，仍在原位。
+ * 同样必须留在非 scoped 块：`<li>` 由 Element Plus 渲染，节点上没有 `data-v-*`。
+ */
+.tag-filter-popper .el-select-dropdown__item,
+.site-filter-popper .el-select-dropdown__item {
+  padding: 0;
+}
+
+/*
  * 复验门槛弹窗（回收站、身份信息库）开着时，滚动穿透到底下的列表。
  * 实测：滚轮打在遮罩上一格 deltaY=800，文档 scrollTop 回收站 0→800、身份信息库 87→887；
  * 同期「导入数据」（无复验）与详情抽屉都是 0 —— 差别不在弹窗本身，在那把 body 锁滚类。
