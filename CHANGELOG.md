@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.15.1](https://github.com/liaolongdong/account-password-helper/compare/v3.15.0...v3.15.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **options:** 复验门槛弹窗剪断滚动链，动作图标净间距归一到 8px ([55c4aea](https://github.com/liaolongdong/account-password-helper/commit/55c4aeaf9ac3dbe11dcaa0868fe8d5955391d73a))
+* **scripts:** 私钥与 Publisher ID 的两处 CLI 提示不再指向错地方 ([f8a92f4](https://github.com/liaolongdong/account-password-helper/commit/f8a92f4140c6fda8ab3aec180c35762271dc947e))
+
 ## [3.15.0](https://github.com/liaolongdong/account-password-helper/compare/v3.14.1...v3.15.0) (2026-10-11)
 
 
