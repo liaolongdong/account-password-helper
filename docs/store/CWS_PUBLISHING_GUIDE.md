@@ -36,7 +36,7 @@
 
 4. 支付 $5 美元一次性注册费（使用双币/全币种卡）
 
-5. 注册成功后，记录下 Dashboard 的访问地址（后续配置 CI/CD 时需要）
+5. 注册成功后，记录下 Dashboard 的访问地址（后续配置 CI/CD 时需要）——`devconsole/` 之后的**第一段就是 Publisher ID**（即 `CWS_PUBLISHER_ID`），第二段是商品 ID，读法与易混候选见 3.3——`devconsole/` 之后的**第一段就是 Publisher ID**（填进 `CWS_PUBLISHER_ID`），第二段是商品 ID；本项目那一段是 36 位 UUID 而不是纯数字，三个易混候选怎么分见 3.3
 
 > **提示**：注册过程中需要访问 Google 服务，建议选择网络稳定的时段操作。
 
@@ -139,16 +139,42 @@
 
 打开仓库 https://github.com/liaolongdong/account-password-helper → **Settings** → **Secrets and variables** → **Actions** → 在 **Repository secrets** 里新增四条（缺一不可，`submit` job 的严格预检会当场判红）：
 
-| Secret 名称          | 值                                                                 | 从哪来                                            |
-| -------------------- | ------------------------------------------------------------------ | ------------------------------------------------- |
-| `CWS_EXTENSION_ID`   | `fgimkdodpjfkddmildjieojpfakpanli`                                 | 商店商品 URL 里那 32 位（也等于包 manifest 派生） |
-| `CWS_PUBLISHER_ID`   | Dashboard 账户页里的纯数字 Publisher ID                            | 拼成请求路径 `publishers/{id}/items/{extId}`      |
-| `CWS_SA_EMAIL`       | 3.1 的 `client_email`                                              | 服务账号 JSON 的 `client_email`                   |
-| `CWS_SA_PRIVATE_KEY` | 服务账号 JSON 的 `private_key`（**整段 PEM，含头尾行和真实换行**） | 下载的那份 JSON                                   |
+| Secret 名称          | 值                                                                 | 从哪来                                                                        |
+| -------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `CWS_EXTENSION_ID`   | `fgimkdodpjfkddmildjieojpfakpanli`                                 | 商店商品 URL 里那 32 位（也等于包 manifest 派生）                             |
+| `CWS_PUBLISHER_ID`   | Dashboard 地址栏的第一段（**本项目是 36 位 UUID，不是纯数字**）    | `…/devconsole/{这一段}/{商品ID}/edit` 里的 `{这一段}`，见下面「到底取哪一段」 |
+| `CWS_SA_EMAIL`       | 3.1 的 `client_email`                                              | 服务账号 JSON 的 `client_email`                                               |
+| `CWS_SA_PRIVATE_KEY` | 服务账号 JSON 的 `private_key`（**整段 PEM，含头尾行和真实换行**） | 下载的那份 JSON                                                               |
 
 可选的第五条 `CWS_REQUIRED_PERMISSIONS`（逗号分隔的权限名，如 `storage,activeTab,scripting`）只用于「包内权限没越出清单」这项漂移告警；不配则该检查直接判过。CI 目前不注入它，本地排查权限漂移时可以临时导出。
 
+**`CWS_PUBLISHER_ID` 到底取哪一段：是 UUID，不是纯数字（2026-10-11 踩实）**
+
+打开 Developer Dashboard、点进这个商品，地址栏形如：
+
+```
+https://chrome.google.com/webstore/devconsole/{A}/{B}/edit
+```
+
+`{B}` 就是上面表里 `CWS_EXTENSION_ID` 的那 32 位；`{A}` 就是 `CWS_PUBLISHER_ID`——它与 API 路径 `publishers/{publisherId}/items/{itemId}` 是同构的两段寻址。
+本项目实测 `{A}` 是 **36 位 UUID（含 `-`）**，不是账户页里的某串纯数字——本页旧版就是这么写的，那次踩坑的源头在它。
+那个页面需要登录态，`curl` 拿不到你的账户页，所以 `{A}` 只能由你在浏览器地址栏里读（第一步第 5 条「记下 Dashboard 的访问地址」记的就是它）。三个长得都像的候选，只有一个能用：
+
+| 候选串                                     | 它是什么                                                                                  | 能不能填进 `CWS_PUBLISHER_ID` |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------- | ----------------------------- |
+| 地址栏第一段（本项目为 36 位 UUID 形）     | 开发者账号（publisher）的 ID，v2 资源路径的第一段                                         | ✅ 就是它                     |
+| 服务账号详情页的「唯一 ID」（21 位纯数字） | Cloud IAM 给这个服务账号分配的编号，用途是拼 `{该编号}@iam.gserviceaccount.com` principal | ❌ 与商店授权无关             |
+| Cloud 项目的 project number（纯数字）      | GCP 项目号                                                                                | ❌                            |
+
+**预检对这一格是瞎的，别拿「预检全绿」当标识符正确的证据。** Google 的 v2 接口定义（`https://chromewebstore.googleapis.com/$discovery/rest?version=v2`，
+四个方法与 `media.upload` 共用同一条 `name` 规则）对这段只要求 `[^/]+`——即 `^publishers/[^/]+/items/[^/]+$`；
+本仓 `scripts/lib/cwsPublish.mjs:31` 的 `ITEM_NAME_PATTERN` 与之同形、判定在 `:59`，**只要不含 `/` 就放行**。
+所以「形状合法、值是另一个编号」会带着六行 ✓ 一路走到 Google，才在只读的第一跳拿到 `403 PERMISSION_DENIED`（2026-10-11 run 38133410628 attempt 2 就是这个现场）。
+CI 日志里那句 `publishers/***/items/***` 也帮不上忙：`***` 是 GitHub 对 Secret 值的掩码，只要两项非空且合法形就长这样，读不出值对不对（若某项为空会渲染成 `publishers//items/…`，那才看得出缺失）。
+Secret 只写不可读，所以这一条的处置不是「先去核对旧值」，而是**直接用地址栏那串覆盖一次**，再用只读档验（3.4 或 dispatch `mode=status`）。
+
 > ⚠️ `CWS_SA_PRIVATE_KEY` 只有一种正确形状：**`-----BEGIN PRIVATE KEY-----` 与 `-----END PRIVATE KEY-----` 这两行都在，中间是真实换行**。
+> 一句话记法：**BEGIN / END 那两行要，`\n` 这两个字符不要。**
 > 下载的 JSON 里那串值中的 `\n` 是 JSON 的**编码形态**、不是私钥的内容，全选那段直接贴过去得到的就是「一行、含字面量 `\n`」——见下面的形状对照表。
 > 症状都是 `pnpm cws:token` 直接失败；CLI 会跟着打印私钥的**结构形状**（字符数 / 行数 / 有无 PEM 首尾标记 / 是否含字面量 `\n`）和对应的修法，但**任何输出都不含私钥与 access token**。
 
@@ -239,6 +265,14 @@ export CWS_SA_PRIVATE_KEY="$(node -e 'console.log(JSON.parse(require("fs").readF
 `pnpm cws:publish` 也存在，但**别在本地打**——它绕过 `production` 那道人工闸门，而那道闸门存在的理由（提审不可即时撤回）在本地同样成立；
 `pnpm cws:cancel` 相反，它是应急手段，CI 里没有撤审步骤，本地跑就是它的正确用法（FAQ C.15）。
 
+**②③ 在这类机器上根本出不了网，别把「本地红」读成「凭据错」（2026-10-11 本机实测）**
+
+直连 `chromewebstore.googleapis.com` 是 19.9 秒超时（`http=000`），只有走系统代理（本机是 `http://127.0.0.1:65532`）才出得来；
+而这三个脚本用的是 `fetch`，**Node v22 及更早不读 `HTTPS_PROXY`**——`NODE_USE_ENV_PROXY=1` 是 Node 24 才有的开关，本机 nvm 里最高只有 `v22.19.0`，加上该变量实测仍 `fetch failed`。
+网络层没出去时 `pnpm cws:token` / `cws:status` 报的都是 `fetch failed` 一类，而不是商店给的状态码，所以它**不构成任何凭据结论**。
+①（`pnpm cws:preflight`）不联网，在这种机器上照跑，但它看不出 Publisher ID 的值对不对（原因见 3.3）。
+这种环境的判绿改走 CI：dispatch `mode=status`，runner 侧没有这层代理问题，同样只调 `fetchItemStatus` 那一跳、不写商店、不需要 `production` 批准。
+
 ### 3.5 发版链：两条 workflow、一道人工闸门
 
 2026-10-09 起，「打 tag」和「提审商店」拆成两个文件，中间靠 GitHub Releases 的 `published` 事件对接：
@@ -289,15 +323,15 @@ Actions → “Publish to Chrome Web Store” → Run workflow，`mode` 决定�
 `node scripts/cwsPublish.mjs preflight` 逐行打印 `✓` / `!` / `✗`，任一 `✗` 即终止（退出码非零、包不会上传）。
 它存在的意义是把问题**挡在排队进人工审核之前**，而不是抛出一个不透明的 400/404：
 
-| 判据                       | 判红（`✗`）条件                                                  | 说明                                                                             |
-| -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `zip 产物存在`             | `.output/` 下找不到对应版本的 `*-chrome.zip`                     | 给了 `--expect-version` 时只认文件名里带该版本的包，避免把旧版本包提审上去       |
-| `标识符形状`               | ID 不是 32 位 `a-p` 小写、Publisher ID 含非法字符、SA 邮箱不成形 | 三项**全空**且带 `--ids-optional` 时降为 `!`；只空其中一项仍判红                 |
-| `包内 manifest 可读`       | `unzip -p 包 manifest.json` 失败或不是合法 JSON                  | 顺带打印 `manifest_version`                                                      |
-| `包内版本 == package.json` | 两者不等                                                         | 防「改了版本号没重新构建」这一类混编事故                                         |
-| `包内版本 == 发布 tag`     | 两者不等                                                         | 只在传了 `--expect-version` 时出现（CI 里就是 release tag）                      |
-| `权限集合符合预期`         | 不判红，只 `!`                                                   | 需要 `CWS_REQUIRED_PERMISSIONS` 才有实质内容，缺项时告警列出名字                 |
-| `仓库 manifest 与包内一致` | 不判红，只 `!`                                                   | 比对**集合差异**而不是数量——数量相等但换了一项权限，正是「产物来自旧提交」的形状 |
+| 判据                       | 判红（`✗`）条件                                                                                        | 说明                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `zip 产物存在`             | `.output/` 下找不到对应版本的 `*-chrome.zip`                                                           | 给了 `--expect-version` 时只认文件名里带该版本的包，避免把旧版本包提审上去       |
+| `标识符形状`               | ID 不是 32 位 `a-p` 小写、Publisher ID 含非法字符（**只查字符，值错判不出来**，见 3.3）、SA 邮箱不成形 | 三项**全空**且带 `--ids-optional` 时降为 `!`；只空其中一项仍判红                 |
+| `包内 manifest 可读`       | `unzip -p 包 manifest.json` 失败或不是合法 JSON                                                        | 顺带打印 `manifest_version`                                                      |
+| `包内版本 == package.json` | 两者不等                                                                                               | 防「改了版本号没重新构建」这一类混编事故                                         |
+| `包内版本 == 发布 tag`     | 两者不等                                                                                               | 只在传了 `--expect-version` 时出现（CI 里就是 release tag）                      |
+| `权限集合符合预期`         | 不判红，只 `!`                                                                                         | 需要 `CWS_REQUIRED_PERMISSIONS` 才有实质内容，缺项时告警列出名字                 |
+| `仓库 manifest 与包内一致` | 不判红，只 `!`                                                                                         | 比对**集合差异**而不是数量——数量相等但换了一项权限，正是「产物来自旧提交」的形状 |
 
 > ⚠️ v2 特有的一个坑，值得单独钉在这里：`upload` 可能返回 `uploadState=IN_PROGRESS`（Google 侧还在异步解析包）。
 > 此时若立刻 `publish`，提审拿到的是**上一个已解析的版本**。`publish` 子命令因此固定轮询 `fetchStatus.lastAsyncUploadState`
@@ -473,10 +507,13 @@ PY
 9. **`403 permissionDenied`。**
    Google 那句话同时涵盖两种成因：`Permission denied on resource 'publishers/{id}/items/{extId}' (or it might not exist)`。
    ① 服务账号邮箱没加进 Developer Dashboard → Account（见 3.2）——这一条**连只读查询都会被拒**，不用等到写接口；
-   ② `CWS_PUBLISHER_ID` 与 `CWS_EXTENSION_ID` 拼出的那个资源不归当前账号（Publisher ID 填成 Cloud project number、或商品 ID 抄错都会这样）。
+   ② `CWS_PUBLISHER_ID` 与 `CWS_EXTENSION_ID` 拼出的那个资源不归当前账号（Publisher ID 填成服务账号页那个 21 位「唯一 ID」、填成 Cloud project number、或商品 ID 抄错都会这样）。
    先查 ①：Dashboard 账户页 Service account permissions 那行必须**逐字符等于当前这份 JSON 的 `client_email`**（换过服务账号才等于换过邮箱，只换 key 时邮箱不变）；
    Google 的限制是**一个 publisher 只能绑一个服务账号**（“At this time, you can only add one service account to your publisher.”），换邮箱要先把旧的移除。
-   那行确实对，再查 ②：账户页那串纯数字 Publisher ID、商品 URL 里那 32 位，两处分别核对。
+   那行确实对，再查 ②：Publisher ID 取 **Dashboard 地址栏的第一段**（本项目是 36 位 UUID，**不是纯数字**，也不是服务账号详情页那个 21 位「唯一 ID」；三者怎么分见 3.3「到底取哪一段」），
+   商品 URL 里那 32 位另行核对。这一样查不动日志里的 `publishers/***/items/***`（GitHub 对 Secret 值的掩码，非空且合法形就长这样），
+   而**预检也不会替你拦下来**——它对 Publisher ID 只禁 `/`（`scripts/lib/cwsPublish.mjs:31`，判定 `:59`），值错照样全绿。
+   所以判法是「拿地址栏那串**直接覆盖一次 Secret**」（Secret 只写不可读，覆盖即收敛），而不是先去比对旧值。
    判绿用只读档，别拿 `publish` 档试：dispatch `mode=status`（不写商店、不需要 `production` 批准）或本地 `pnpm cws:status`，它只调 `fetchItemStatus` 那一跳；
    这里过了，再 Re-run failed jobs 补那一次 `publish`。
 
