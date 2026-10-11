@@ -180,7 +180,7 @@ Secret 只写不可读，所以这一条的处置不是「先去核对旧值」�
 
 **取法：一条命令拿到带真实换行的 PEM**
 
-GitHub Actions 的 ubuntu runner 自带 `jq`，CLI 的提示也是按 `jq -r .private_key` 写的；本机没装 `jq` 时用下面的 `node` 那条，`JSON.parse` 同样把 `\n` 还原成真实换行。
+GitHub Actions 的 ubuntu runner 自带 `jq`；私钥解析失败时 CLI 的那行提示现在**两条取法都给**（`jq -r .private_key` 与 `node -e`），本机没装 `jq` 就直接用下面 `node` 那条，`JSON.parse` 同样把 `\n` 还原成真实换行。
 `pbcopy` 是 macOS 的，Linux 换成 `xclip -selection clipboard`。
 
 ```bash
@@ -524,7 +524,7 @@ PY
 11. **私钥明明贴进去了，`pnpm cws:token` 仍说解析失败。**
     致命形状四种（3.3 的对照表逐条实测过）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行）、只贴中间那段 base64 而两行标记全丢、只留 `-----BEGIN PRIVATE KEY-----` 丢了尾行、连 JSON 的那对双引号一起贴进去。
     本地验证时可以先用 `node -e "require('crypto').createPrivateKey(process.env.CWS_SA_PRIVATE_KEY)"` 自证，报错即 Secret 内容本身有问题。
-    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里，当时 CLI 只透传这一句）。补上形状诊断后，同一份坏 Secret 在 run 37963106478 多打两行，其中 `1732 字符 / 1 行` 就足以锁定根因：`generateKeyPairSync('rsa', {modulusLength: 2048})` 导出的 PKCS#8 PEM 实测为 28 行 / 1704 字符，把 28 处换行各写成两个字符的反斜杠 n 正好是 1732——数字本身就能对上；而换行一旦压没——无论存成字面量 `\n` 还是整段连成一行——`createPrivateKey` 报的都是同一句 `error:1E08010C`，所以「1 行」必然是坏的。紧接着那行给的修法是 `jq -r .private_key`——Actions 的 ubuntu runner 自带 `jq`，本机没装就用 3.3 那条 `node` 取法（`JSON.parse` 同样把 `\n` 还原成真实换行）；贴之前用 3.3 的自检命令过一遍剪贴板。只报结构事实，不回显密钥。（私钥原文已经出现在日志或聊天记录里时的处置，见 3.3 末尾的「已泄露，只能换不能删」。）
+    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里，当时 CLI 只透传这一句）。补上形状诊断后，同一份坏 Secret 在 run 37963106478 多打两行，其中 `1732 字符 / 1 行` 就足以锁定根因：`generateKeyPairSync('rsa', {modulusLength: 2048})` 导出的 PKCS#8 PEM 实测为 28 行 / 1704 字符，把 28 处换行各写成两个字符的反斜杠 n 正好是 1732——数字本身就能对上；而换行一旦压没——无论存成字面量 `\n` 还是整段连成一行——`createPrivateKey` 报的都是同一句 `error:1E08010C`，所以「1 行」必然是坏的。紧接着那行给的修法当时只有 `jq -r .private_key` 这一条（那次跑的 CLI 就是这个措辞，别按现在的提示去对旧日志）——Actions 的 ubuntu runner 自带 `jq`，本机没装就用 3.3 那条 `node` 取法（`JSON.parse` 同样把 `\n` 还原成真实换行；自 2026-10-11 起 CLI 的提示 jq / node 两条都给，见 3.3）；贴之前用 3.3 的自检命令过一遍剪贴板。只报结构事实，不回显密钥。（私钥原文已经出现在日志或聊天记录里时的处置，见 3.3 末尾的「已泄露，只能换不能删」。）
     这一格挂在**联网之前**，所以跑 `publish` 档撞到它时商店侧是零调用：2026-10-11 那次 `release` 触发的 run 38133410628（v3.15.0）attempt 1 就是预检全绿后死在本地签名，商品状态与草稿都没动，
     只有 GitHub Release 已公开、商店还是旧版。按 3.3 重贴 Secret 后 attempt 2 构建与预检全绿、换票成功，改红在 `403 PERMISSION_DENIED`（成因与处置见 FAQ B.9）——
     **这一样是零写入**：403 落在 `publish` 的第一跳（只读的商品状态 GET，`uploadPackage` 在它之后），日志里没有「包已上传」那行，说明包没上去、也没生成新 revision。

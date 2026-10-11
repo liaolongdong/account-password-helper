@@ -468,7 +468,7 @@ describe('status / cancel', { timeout: 30_000 }, () => {
   // 这两条钉的是 2026-10-09 真实踩过的那一步：CI 的 status 档当时只留下一句
   // `error:1E08010C:DECODER routines::unsupported`，没说形状哪里不对。
   // 两个用例都把令牌端点指回本地端口，保证万一解析竟然成功也不会敲到 Google。
-  it('私钥被存成字面量 \\n 时，报出行数与 PEM 首尾标记形状并指向 jq，且不回显密钥', async () => {
+  it('私钥被存成字面量 \\n 时，报出行数与 PEM 首尾标记形状并给出 jq / node 两条取法，且不回显密钥', async () => {
     const flattened = saPrivateKey.replace(/\n/g, '\\n');
     const r = await runCli(
       ['status'],
@@ -479,6 +479,8 @@ describe('status / cancel', { timeout: 30_000 }, () => {
     expect(r.stderr).toContain('1 行');
     expect(r.stderr).toContain('含字面量');
     expect(r.stderr).toContain('jq -r .private_key');
+    // 2026-10-11：本机与多数开发环境没有 jq，提示必须同时给 node 那条，否则人只会卡在 jq 上
+    expect(r.stderr).toContain('node -e');
     expect(`${r.stdout}${r.stderr}`).not.toContain(saPrivateKey.slice(40, 80));
     expect(`${r.stdout}${r.stderr}`).not.toContain('PRIVATE KEY');
   });
