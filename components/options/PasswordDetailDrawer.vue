@@ -532,6 +532,36 @@ watch(
   min-width: 0;
 }
 
+/*
+ * 图标之间的净间距归一到 8px（实测原先是 16px）。
+ * 成因：Element Plus 的 `.el-button + .el-button { margin-left: 12px }` 与本行的 `gap: 4px`
+ * 是叠加的，两处都没意识到对方存在。这里显式接管那 12px，让「图标↔图标」= 8px，
+ * 而「文本↔图标」保持 4px 的紧贴关系（它们说的是同一个值）。
+ * 量的是按钮盒子之间的净间距；按可见图标量，间距同步从 22px 收到 14px
+ * （盒子两侧各留 1px 边框 + 2px padding 的空位）。
+ */
+.detail-value .el-button + .el-button {
+  margin-left: 4px;
+}
+
+/*
+ * 命中区补到 WCAG 2.5.8 的 24px 下限：`link` 按钮的盒子只有 20×20（14px 图标 + 2×2px padding
+ * + 2×1px 边框）。视觉尺寸与 DOM 都不动，只用 `::after` 向外扩。
+ * 口径：`inset` 以 padding box 为基准，被 EP 按钮那 1px 边框吃掉一格，所以 −4px 实际只外扩 3px。
+ * 真鼠标实测：盒子右缘外 +2px 仍能翻显隐，+3px 起落空 —— 相邻两颗的热区之间因此还留约 2px
+ * 中性带，既没有重叠误点，也没把整行铺成一颗接一颗的分段控件。
+ * 与表格操作列 `.operation-buttons` 同一套做法（那边是 28px 盒 + 10px 间距 + 外扩 5px）。
+ */
+.detail-value .el-button {
+  position: relative;
+}
+
+.detail-value .el-button::after {
+  position: absolute;
+  inset: -4px;
+  content: '';
+}
+
 .detail-value__text {
   overflow: hidden;
   text-overflow: ellipsis;

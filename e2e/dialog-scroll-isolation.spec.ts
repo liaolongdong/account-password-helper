@@ -1,5 +1,5 @@
 import type { Locator, Page } from '@playwright/test';
-import { expect, expectSuccessToastFor, footerPrimary, runHeaderCommand, test } from './harness';
+import { expect, expectSuccessToastFor, footerPrimary, runHeaderCommand, test, verifyMasterPassword } from './harness';
 import { textOf } from './i18n';
 
 /**
@@ -7,7 +7,7 @@ import { textOf } from './i18n';
  *
  * 这一族行为只在真浏览器里成立，单测与 `tsc` 都摸不到。
  *
- * 先钉两条读数口径，下面四条都按它们读：
+ * 先钉两条读数口径，下面五条都按它们读：
  *
  * - **`expect.poll` 的「没变」只是一次成功的采样**，不是逐帧盯梢：断言一通过就返回。
  *   所以本文件说的「弹窗期间位置没动」，严格含义是「弹窗可见后第一次采样仍是起点值」。
@@ -39,12 +39,25 @@ import { textOf } from './i18n';
  *    本用例自己各采一次。Element Plus 的 `useLockscreen` 让后开的弹窗没抢到锁滚类
  *    （`withoutHiddenClass = false`），抽屉那句 200ms 延时的 cleanup 于是把锁摘在弹窗还开着
  *    的时候 —— 「弹窗开着但 body 未锁」是已删探针量的，本用例不判 body 类（那是 EP 内部实现）。
- *    这条路径本来也不归零，钉的就是这个终态。锁被提前摘掉带来的后果实测只到「锁不在」为止：
- *    滚轮打在遮罩上由 `.el-overlay-dialog` 自己接走（探针：文档停在 150；同一坐标把浮层去掉、
- *    一格 `deltaY=400` 推到 550），所以并不构成「遮罩下能滚列表」的用户可见症状，
- *    本轮不为它改「锁」的判定。
+ *    这条路径本来也不归零，钉的就是这个终态。
+ *    **订正**：本文件早先在这里写过「锁被提前摘掉无可观测症状，滚轮由 `.el-overlay-dialog`
+ *    自己接走」，那句话只在它当时的落点成立 —— 那颗「编辑」打开的是长表单，比 420px 视口高，
+ *    遮罩自己是能滚的滚动容器，于是链被它吃掉（探针：文档停在 150；同一坐标把浮层去掉、
+ *    一格 `deltaY=400` 推到 550）。遮罩滚不动时（内容比视口矮）链就顺着交给文档，
+ *    第 5 条量的正是这一半。
+ * 5. **复验门槛弹窗开着，滚轮打在遮罩上不该推动列表**。回收站与身份信息库要先弹
+ *    `ElMessageBox` 复验主密码，正式弹窗落在 MessageBox 那 200ms 延时 cleanup 的窗口里，
+ *    按第 4 条说的同一处 `useLockscreen` 判定拿不到锁滚类 —— 于是这两条路径上「锁不在」
+ *    是真有症状的：修复前实测同一格 `deltaY=800` 把文档推走 —— 回收站 `0 → 800`、身份信息库
+ *    `87 → 887`；而无复验门槛的「导入数据」与详情抽屉在同坐标的**位移**是 0（锁滚类在场）。
+ *    那两组的基线（0 与 87）都来自口径第二条的夹具滚动，所以第 5 条按位移判定、不钉绝对位置。
+ *    修法是把链剪断在遮罩自己身上
+ *    （`entrypoints/options/App.vue` 全局块里的 `.el-overlay-dialog { overscroll-behavior: contain }`），
+ *    不动 EP 的锁 —— 补锁要改 MessageBox 的关闭时序，那是它的内部实现。
+ *    这条只钉回收站：它是两扇门里形状更简单的那个（短内容、`close-on-click-modal=false`），
+ *    身份信息库的读数与它同源。
  *
- * 四条都把视口压到 420px 高：列表因此真的可滚（不然「scrollTop 没变」是空断言），
+ * 五条都把视口压到 420px 高：列表因此真的可滚（不然「scrollTop 没变」是空断言），
  * 30 个站点候选也才装得下面板放不下（不然滚不到底，越界滚动这一格就无从发生）。
  */
 
@@ -61,7 +74,7 @@ ${Array.from({ length: TOTAL }, (_, i) => `e2e-si-${String(i + 1).padStart(3, '0
  * 文档坐标（视口 420 高、30 行、行距 45）：头部「添加密码」按钮 68..100，站点筛选 170..202，
  * 表格首行 335..380，第 12 行 830..875，可滚范围 1718−420=1298。
  */
-/** 第 1 条：让「添加密码」按钮留在视口内的同时，文档确实滚了一段 */
+/** 第 1、5 条：让头部的按钮（「添加密码」/「数据管理」，同一行 68..100）留在视口内的同时，文档确实滚了一段 */
 const ADD_TOP = 40;
 /** 第 2、4 条：站点筛选与首行都还在视口内 */
 const START_TOP = 150;
@@ -229,10 +242,11 @@ test.describe('弹窗与浮层的滚动隔离', () => {
    * 就不记账（`withoutHiddenClass = false`），于是抽屉那句 200ms 延时的 cleanup 把锁摘了 ——
    * 弹窗开着的时候 body 是**未锁**状态（这三段 `lock` 的开关来自已删探针，本用例不判它）。
    * 净效果是位置不掉，所以本用例只钉三段位置读数，不钉 EP 的锁滚类（那是它的内部实现，改了就红）。
-   * 那条「弹窗开着但 body 未锁」的窗口期实测没有用户可见后果，见文件头第 4 条。
+   * 那条「弹窗开着但 body 未锁」的窗口期在**本路径**上没有可见后果——长表单让遮罩自己就能滚，
+   * 链被它接走；同一条缺失的锁在复验门槛弹窗上是有后果的，见文件头第 5 条与本文件最后一条用例。
    *
    * 读数万一成了 0：本路径上已知的唯一产生方式是文件头口径第二条那种夹具滚动，而它要求触发器
-   * 落在视口外 —— 第 230 行那道 `expectInView` 挡的是首行的「查看详情」，抽屉里那颗「编辑」在
+   * 落在视口外 —— 本用例里那道 `expectInView` 挡的是首行的「查看详情」，抽屉里那颗「编辑」在
    * fixed 浮层内、本就可见，正常走不到那条路。撤销还原逻辑之后这条判据在本机红过 1 次（16 次里，
    * 失败值 0），此后 15 次连续干净，原因未能复现到可以指名。
    */
@@ -259,5 +273,69 @@ test.describe('弹窗与浮层的滚动隔离', () => {
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect.poll(() => docTop(page), { timeout: 2_000, message: '关掉嵌套弹窗后没停在原位' }).toBe(START_TOP);
+  });
+
+  /**
+   * 复验门槛弹窗（回收站）：遮罩上滚一格，列表不动
+   *
+   * 这条钉的是文件头第 5 条那个「锁没抢到」真有后果的落点。回收站要先过 `ElMessageBox` 复验，
+   * 正式弹窗落在 MessageBox 200ms 延时 cleanup 的窗口里，按 `useLockscreen` 的记账规则拿不到
+   * 锁滚类；遮罩（`.el-overlay-dialog`，EP 里是 `position:fixed;inset:0;overflow:auto`）此时
+   * 内容比视口矮、自己滚不动，滚动链就顺着 fixed 祖先交给文档 —— 修复前实测同一格 `+800`。
+   * 修法只剪链（全局块的 `overscroll-behavior: contain`），不去补锁：锁是 EP 的内部时序。
+   * 红绿都验过：把那条声明改成 `auto` 重跑本文件，五条里**只有这条**红（实测 `36 → 836`，
+   * 恰好一格），其余四条不动；改回 `contain` 即绿。
+   *
+   * 判据是**位移**而不是绝对位置：`回收站` 那一行菜单项落在文档坐标 500 上下（EP 的 popper
+   * 按文档坐标绝对定位），而视口只有 420 高，Playwright 为了点中它把文档往下搬了一段。
+   * 搬多少不归本用例管：起点钉死在 40，基线本机两次分别量到 87 与 36 —— 这正是文件头口径
+   * 第二条说的夹具滚动，只是这里搬不进视口外的菜单项是这条路径绕不开的一步（复验门槛的入口
+   * 只有这一个）。所以基线在弹窗可见之后现采，判的只是「这一格有没有把它推走」。
+   *
+   * 三道前提各自否掉一种假绿：`docRoom > 0` 保证文档此刻真的还能滚（不然「没动」是空断言），
+   * `overlayRoom <= 0` 保证这条路径上遮罩确实滚不动（否则链被它自己吃掉，读到的「文档不动」
+   * 属于第 4 条那种路径而不是本条），滚完之后那道 `contain` 保证样式真的落到这个节点上
+   * （口径与第 2 条对 `.el-vl__window` 的那道检查一致，但它排在位移之后 —— 见用例里的注释）。
+   */
+  test('复验门槛弹窗开着，遮罩上滚一格不推动列表', async ({ optionsPage: page }) => {
+    await scrollDocTo(page, ADD_TOP, '文档滚不到起点，测量前提不成立');
+    const dataBtn = page.getByRole('button', { name: textOf('options.header.data') });
+    await expectInView(page, dataBtn, '头部的数据管理按钮');
+
+    await runHeaderCommand(page, 'options.header.data', 'options.header.trash');
+    await verifyMasterPassword(page, 'options.trash.verifyPrompt');
+    const dialog = page.getByRole('dialog').filter({ hasText: textOf('options.trash.title') });
+    await expect(dialog).toBeVisible();
+    const baseline = await docTop(page);
+
+    // 卡片 920px 居中、视口 1280 宽，左右各留 180px 遮罩区；取左侧偏中的这一格
+    const POINT = { x: 90, y: 210 };
+    const premises = (p: Page) =>
+      p.evaluate(coords => {
+        const root = document.documentElement;
+        const node = document.elementFromPoint(coords.x, coords.y)?.closest('.el-overlay-dialog');
+        return {
+          hit: !!node,
+          contain: node ? getComputedStyle(node).overscrollBehaviorY : null,
+          // 遮罩自己还能滚多少：<=0 表示这一格滚轮注定要上抛
+          overlayRoom: node ? Math.round(node.scrollHeight - node.getBoundingClientRect().height) : null,
+          docRoom: root.scrollHeight - root.clientHeight - root.scrollTop,
+        };
+      }, POINT);
+
+    const before = await premises(page);
+    expect(before.hit, '滚轮落点不在弹窗遮罩上：量的不是这条路径').toBe(true);
+    expect(before.overlayRoom, '遮罩自己就能滚：这条用例分不清「剪链」与「被遮罩吃掉」').toBeLessThanOrEqual(0);
+    expect(before.docRoom, '文档已经滚到底：这一格本来也推不动它，判据是空的').toBeGreaterThan(0);
+
+    await page.mouse.move(POINT.x, POINT.y);
+    await page.mouse.wheel(0, 800);
+    await page.waitForTimeout(300);
+    // 主判据是行为：把样式的核对排在位移之后，这样「规则没落地」红的时候先红的是这一条
+    // （否则末尾那道静态样式检查若排在前面，位移判据就没人证过它有牙）。
+    expect(await docTop(page), '遮罩上的滚轮把底下的列表推着走了').toBe(baseline);
+
+    const after = await premises(page);
+    expect(after.contain, '遮罩上没有 contain：剪断滚动链的样式没落到这个节点').toBe('contain');
   });
 });
