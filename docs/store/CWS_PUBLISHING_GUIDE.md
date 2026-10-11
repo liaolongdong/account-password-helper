@@ -170,6 +170,7 @@ https://chrome.google.com/webstore/devconsole/{A}/{B}/edit
 四个方法与 `media.upload` 共用同一条 `name` 规则）对这段只要求 `[^/]+`——即 `^publishers/[^/]+/items/[^/]+$`；
 本仓 `scripts/lib/cwsPublish.mjs:31` 的 `ITEM_NAME_PATTERN` 与之同形、判定在 `:59`，**只要不含 `/` 就放行**。
 所以「形状合法、值是另一个编号」会带着六行 ✓ 一路走到 Google，才在只读的第一跳拿到 `403 PERMISSION_DENIED`（2026-10-11 run 38133410628 attempt 2 就是这个现场）。
+这一格由 `tests/scripts/cwsPublishCli.test.ts` 钉住：UUID 形判绿、含 `/` 才判红——把规则「收紧成只认纯数字」会红在那条用例上，因为本项目真实的 `{A}` 恰恰不是纯数字。
 CI 日志里那句 `publishers/***/items/***` 也帮不上忙：`***` 是 GitHub 对 Secret 值的掩码，只要两项非空且合法形就长这样，读不出值对不对（若某项为空会渲染成 `publishers//items/…`，那才看得出缺失）。
 Secret 只写不可读，所以这一条的处置不是「先去核对旧值」，而是**直接用地址栏那串覆盖一次**，再用只读档验（3.4 或 dispatch `mode=status`）。
 
@@ -604,7 +605,7 @@ PY
 29. **怎么验证这条链本身没被改坏？**
 
     ```bash
-    pnpm exec vitest run tests/scripts/cwsPublishCli.test.ts   # 22 例，含请求序列、验签与私钥形状提示
+    pnpm exec vitest run tests/scripts/cwsPublishCli.test.ts   # 23 例，含请求序列、验签、私钥形状与标识符形状提示
     pnpm cws:preflight                                          # 拿真产物跑离线预检
     ```
 
