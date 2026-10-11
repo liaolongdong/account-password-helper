@@ -232,6 +232,25 @@ describe('preflight（离线预检，不联网）', { timeout: 30_000 }, () => {
     expect(r.stdout).toContain('CWS_EXTENSION_ID 应为 32 位 a-p 小写字母，实际长度 33');
   });
 
+  /**
+   * 2026-10-11 的真实形状：`CWS_PUBLISHER_ID` 是 Dashboard 地址栏 `devconsole/` 之后的第一段，本项目是 36 位 UUID。
+   * v2 对这一段只要求「不含 `/`」（discovery 里 `name` 的 pattern 就是 `^publishers/[^/]+/items/[^/]+$`），
+   * 所以这里同时钉住两端：UUID 判绿——谁把形状规则收紧成「纯数字」就会红在这第一条断言上；含 `/` 才判红。
+   * 用的 UUID 是合成的：这一段属账户标识、GitHub 侧按 Secret 存，测试夹具里不放真值。
+   */
+  it('Publisher ID 为 UUID 形时判绿、含斜杠才判红（形状规则不收紧到纯数字）', async () => {
+    const uuid = '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0';
+
+    const shaped = await runCli(['preflight', '--zip', goodZipPath], baseEnv({ CWS_PUBLISHER_ID: uuid }));
+    expect(shaped.ok).toBe(true);
+    expect(shaped.stdout).toContain('✓ 标识符形状');
+
+    const slashed = await runCli(['preflight', '--zip', goodZipPath], baseEnv({ CWS_PUBLISHER_ID: `${uuid}/x` }));
+    expect(slashed.ok).toBe(false);
+    expect(slashed.stdout).toContain('✗ 标识符形状');
+    expect(slashed.stdout).toContain('CWS_PUBLISHER_ID 缺失或含非法字符');
+  });
+
   it('给了 --expect-version 就同时校验包版本 == 发布 tag', async () => {
     const r = await runCli(['preflight', '--zip', goodZipPath, '--expect-version', 'v9.9.9'], baseEnv());
     expect(r.ok).toBe(false);
