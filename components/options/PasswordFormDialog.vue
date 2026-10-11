@@ -253,14 +253,13 @@ import PasswordStrengthPopover from '@/components/options/PasswordStrengthPopove
 import PasswordGeneratorPopover from '@/components/options/PasswordGeneratorPopover.vue';
 import TotpCode from '@/components/TotpCode.vue';
 import { isValidTotpInput } from '@/utils/totp';
-import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH } from '@/utils/constants';
+import { PASSWORD_FIELD_LIMITS, PASSWORD_FIELD_MAX_LENGTH, MAX_TAG_COUNT } from '@/utils/constants';
 import { formatDateTime } from '@/utils/dateFormat';
 import { logger } from '@/utils/logger';
 import { copySecretToClipboard } from '@/utils/clipboard';
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback';
 import { usePasswordHistory } from '@/composables/usePasswordHistory';
 import type { PasswordRuleItem, PasswordStrengthResult } from '@/composables/usePasswordStrength';
-import { MAX_TAG_COUNT } from '@/composables/usePasswordManagement';
 import { useI18n } from '@/utils/i18n';
 
 /**

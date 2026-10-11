@@ -5,12 +5,12 @@
  * 盯住三类契约：
  * 1. 真实页面标题语料收敛出的预填值（站点名优先、短、可读）；
  * 2. 预填值必然能原样通过 Options 标签编辑器的归一化——不触发「超限丢弃」警告，也不被逗号拆成多标签；
- * 3. 上限与编辑器 `MAX_TAG_LENGTH` 的同口径关系（本模块刻意不 import 那个 composable，靠这条兜住漂移）。
+ * 3. 上限与编辑器 `MAX_TAG_LENGTH` 的同口径关系（本模块刻意不 import 那份常量，靠这条兜住漂移）。
  */
 import { describe, expect, it } from 'vitest';
 import { CAPTURED_TAG_MAX_LENGTH, deriveCapturedTag } from '@/utils/capturedTag';
 import { normalizeTagInput, parseTags } from '@/utils/tagUtils';
-import { MAX_TAG_LENGTH } from '@/composables/usePasswordManagement';
+import { MAX_TAG_LENGTH } from '@/utils/constants';
 
 /** 真实站点标题语料：[document.title, hostname, 期望预填值] */
 const CORPUS: readonly [string, string, string][] = [
