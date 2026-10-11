@@ -1,5 +1,31 @@
 # Changelog
 
+## [3.15.0](https://github.com/liaolongdong/account-password-helper/compare/v3.14.1...v3.15.0) (2026-10-11)
+
+
+### Features
+
+* **content:** 自动保存的标签预填只取页面标题里的站点名 ([8c1d3ab](https://github.com/liaolongdong/account-password-helper/commit/8c1d3ab9f6d49279e7a0d891b1084028315b6162))
+* **options:** 按站点筛选、标签上限 5、详情抽屉一键检索身份库 ([3f280ff](https://github.com/liaolongdong/account-password-helper/commit/3f280ff929d6b1f780a7db23c84dc459d0d27ffd))
+* **options:** 标签 / 站点筛选从下拉搬进管理页常驻左侧分类栏 ([707f34d](https://github.com/liaolongdong/account-password-helper/commit/707f34dcdf0f6772890c0a112d3f6353cfc10614))
+* **options:** 标签筛选候选带条目数与悬浮原文，两个下拉形状对齐 ([4f86a96](https://github.com/liaolongdong/account-password-helper/commit/4f86a962634ed3ded80fdc20924eb31b89bcb3bf))
+* **options:** 站点筛选与标签上限 5，详情图标去眼睛化，候选面板滚动隔离 ([885cb96](https://github.com/liaolongdong/account-password-helper/commit/885cb969c0cf21edb7033105f8a2d2ca09a0ba68))
+* **options:** 站点筛选补「（无网址）」一档，把没填网址的条目挑出来 ([b11c4b2](https://github.com/liaolongdong/account-password-helper/commit/b11c4b21bac099add0afe338d8e87a02d23b62db))
+* **options:** 管理页新增「按站点筛选」，标签上限放宽到 5 ([34881aa](https://github.com/liaolongdong/account-password-helper/commit/34881aa6403a9bc6c2a83cb2a2c5ae6b2ed3f490))
+* **options:** 详情抽屉一键把用户名带去身份库检索 ([f632017](https://github.com/liaolongdong/account-password-helper/commit/f63201768bed16939964dda7145a631c84c5b80a))
+
+
+### Bug Fixes
+
+* **options:** 弹窗关掉不再把列表弹回顶部，候选面板不再拖着列表滚 ([efbcef4](https://github.com/liaolongdong/account-password-helper/commit/efbcef40aecb804653c5081a0f6d049ee10f1e89))
+* **options:** 详情按钮改用圆圈 i，把眼睛留给「显示 / 隐藏密码」 ([a39436d](https://github.com/liaolongdong/account-password-helper/commit/a39436dd7bf0fca57b9286a2d616ee09d5a3ab53))
+
+
+### Reverts
+
+* **options:** 撤销「左侧分类栏」，标签 / 站点筛选恢复为筛选栏下拉 ([96513ba](https://github.com/liaolongdong/account-password-helper/commit/96513baf5f3852e236718fc0ceac6d53babee381))
+* **options:** 撤销弹窗滚动还原——归零是 Playwright 自己滚的 ([5903ba7](https://github.com/liaolongdong/account-password-helper/commit/5903ba7820c9f4d8ec5add29aa8c08856b6a2df0))
+
 ## [3.14.1](https://github.com/liaolongdong/account-password-helper/compare/v3.14.0...v3.14.1) (2026-10-09)
 
 
