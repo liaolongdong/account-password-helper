@@ -112,8 +112,10 @@
 
 4. 点开这个服务账号 → 「Keys」→ 「Add key」→ 「Create new key」→ **JSON** → 下载。
    那份 JSON 里要用到两个字段：`client_email`（3.3 的 `CWS_SA_EMAIL`）与 `private_key`（3.3 的 `CWS_SA_PRIVATE_KEY`，整段 PEM，含 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 和中间换行）。
+   ⚠️ JSON 里那串 `private_key` 的值中出现的 `\n` 是 **JSON 字符串的编码形态**，不是私钥本身的内容——全选那一段直接贴进 Secret，得到的就是 3.3 表里「`\n` 存成字面量」那一行（致命形状之一）；取法与自检命令见 3.3。
 
-5. 记下 `client_email`，形如 `cws-publisher@<project-id>.iam.gserviceaccount.com`。JSON 文件本身不要提交进仓库，验证完放本地。
+5. 记下 `client_email`，形如 `cws-publisher@<project-id>.iam.gserviceaccount.com`。JSON 文件本身不要提交进仓库；
+   按 3.3 取出两个字段、Secret 验通之后把下载的那份删掉——含 `private_key` 的文件多留一天就多一个泄露面。
 
 > ℹ️ 换票方式：用私钥签一个 RS256 JWT（`scope=https://www.googleapis.com/auth/chromewebstore`），
 > POST 到 `https://oauth2.googleapis.com/token` 且 `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`。
@@ -129,7 +131,8 @@
 
 - Google 文档原文：“At this time, you can only add one service account to your publisher.”——一个 publisher 只能绑**一个**服务账号；
   要换新邮箱，必须先把旧的那条移除。
-- 私钥疑似泄漏时两步都要做：Cloud Console 删掉那把 key，**并且**在这页移除服务账号邮箱。只删 key 时 Dashboard 里那行仍然挂着，容易被误认为还可用。
+- 私钥泄露后的处置分两种，别混：**同一服务账号换一把 key**（常规做法）时 `client_email` 不变，这一页不用动，只走 3.3 末尾的轮换四步；
+  **连服务账号一起废弃、换新邮箱**时两步都要做——Cloud Console 删掉那把 key，**并且**在这页移除旧邮箱（否则那行仍挂着，容易被误认为还可用），新邮箱再按上面第 3 步贴进来。
 
 ### 3.3 配置 GitHub Secrets
 
@@ -144,9 +147,56 @@
 
 可选的第五条 `CWS_REQUIRED_PERMISSIONS`（逗号分隔的权限名，如 `storage,activeTab,scripting`）只用于「包内权限没越出清单」这项漂移告警；不配则该检查直接判过。CI 目前不注入它，本地排查权限漂移时可以临时导出。
 
-> ⚠️ `CWS_SA_PRIVATE_KEY` 最常见的两个粘贴坑：一是把 `\n` 当**字面量**存了进去（GitHub 的输入框支持多行，要粘贴真实换行）；
-> 二是只粘贴了中间那段 base64 而丢掉 PEM 头尾——Node 的 `createPrivateKey` 靠这两行判格式。
+> ⚠️ `CWS_SA_PRIVATE_KEY` 只有一种正确形状：**`-----BEGIN PRIVATE KEY-----` 与 `-----END PRIVATE KEY-----` 这两行都在，中间是真实换行**。
+> 下载的 JSON 里那串值中的 `\n` 是 JSON 的**编码形态**、不是私钥的内容，全选那段直接贴过去得到的就是「一行、含字面量 `\n`」——见下面的形状对照表。
 > 症状都是 `pnpm cws:token` 直接失败；CLI 会跟着打印私钥的**结构形状**（字符数 / 行数 / 有无 PEM 首尾标记 / 是否含字面量 `\n`）和对应的修法，但**任何输出都不含私钥与 access token**。
+
+**取法：一条命令拿到带真实换行的 PEM**
+
+GitHub Actions 的 ubuntu runner 自带 `jq`，CLI 的提示也是按 `jq -r .private_key` 写的；本机没装 `jq` 时用下面的 `node` 那条，`JSON.parse` 同样把 `\n` 还原成真实换行。
+`pbcopy` 是 macOS 的，Linux 换成 `xclip -selection clipboard`。
+
+```bash
+SA_JSON=~/Downloads/service-account.json   # 换成你下载那份的实际路径
+
+jq -r .private_key "$SA_JSON" | pbcopy                                                  # 有 jq
+node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).private_key)' "$SA_JSON" | pbcopy   # 无 jq
+
+# 贴之前先自检（不联网、不落盘，读的是剪贴板里那一串）
+pbpaste | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{require("crypto").createPrivateKey(s);console.log("✓ 可解析 | 行数",s.trimEnd().split("\n").length,"| 含字面量 \\n:",s.includes("\\n"))}catch(e){console.log("✗ 仍然坏：",e.message)}})'
+```
+
+自检命令的期望读数是 `✓ 可解析 | 行数 28 | 含字面量 \n: false`（28 行 / 1704 字符是 2048 位 RSA PKCS#8 的形状，Google 现在发的服务账号 key 就是这个规格）。
+读数打出 `✗ 仍然坏` 就对照下表——四种致命形状全在那张表里；表里另外三种无害形状（少一个行尾换行、多几个空行、CRLF）不影响解析，不用管。
+粘的时候直接 `Cmd+V`，**别把 JSON 里的那对双引号一起带上**（实测带上引号，`createPrivateKey` 报的仍是同一句 `error:1E08010C`）。
+
+**形状对照表（2048 位服务账号 key 导出的 PKCS#8 PEM 恒为 28 行 / 1704 字符，本机逐形状实测）**
+
+| 形状                             | `createPrivateKey` | 说明                                        |
+| -------------------------------- | ------------------ | ------------------------------------------- |
+| 真实换行 + BEGIN/END 两行        | 通过               | 目标形状，28 行                             |
+| 行尾那个换行丢失                 | 通过               | `pbcopy` 的固有行为，不用管                 |
+| 末尾多几个空行                   | 通过               | 同上                                        |
+| CRLF 行尾                        | 通过               | 同上                                        |
+| `\n` 存成字面量（JSON 编码形态） | **失败**           | 1704 + 28 = 1732 字符 / 1 行，CI 里就是这格 |
+| 只贴 base64 正文、丢了首尾两行   | **失败**           | Node 靠这两行判格式                         |
+| 只有 BEGIN、没有 END             | **失败**           | 同上                                        |
+| 连 JSON 的那对双引号一起贴进去   | **失败**           | 引号成了 PEM 的一部分                       |
+
+四种失败形状报的都是同一句 `error:1E08010C:DECODER routines::unsupported`，所以判据只能看行数：**1 行必然是坏的**（正常 28 行），这也是 CLI 那句形状提示存在的原因。
+
+**私钥原文进过聊天窗口、Issue / PR 评论、CI 日志、终端回滚缓冲或提交记录 = 已泄露，只能换不能删**
+
+只要原文出现过一次就按泄露处理，「别人贴给我、我复制回来核对过」也算。删除那条消息不是处置手段——它可能已被缓存、被索引、被别人的截图带走。
+轮换四步（**同一服务账号下换 key 时 `client_email` 不变**，所以 3.2 的 Dashboard 绑定不用重做）：
+
+1. Cloud Console → IAM & Admin → Service Accounts → 该账号 → **Keys** → 删掉那把旧 key（对应旧 JSON 里的 `private_key_id`）。
+2. **Add key → Create new key → JSON**，下载新那份。
+3. 按上面的「取法 → 自检」把新 PEM 覆盖 Settings 里的 `CWS_SA_PRIVATE_KEY`（Secret 是整体替换，改完不用动别的）。
+4. `pnpm cws:token` → `pnpm cws:status` 复跑确认新 key 生效，然后把下载那份删掉（3.1 第 5 步同一条）。
+
+若换的是**新邮箱**（连服务账号一起废弃）：Dashboard 侧按 3.2 先移除旧邮箱再挂新的，`CWS_SA_EMAIL` 也必须同步换成新 JSON 的 `client_email`——
+邮箱与这把私钥要**出自同一个 JSON key**，只改一边时 `pnpm cws:token` 停在换票那步，CLI 给的正是这句提示（「确认 CWS_SA_EMAIL 与 CWS_SA_PRIVATE_KEY 出自同一个 JSON key」）。
 
 > ℹ️ 与旧版的对应关系：旧链路一共四项商店 Secret，其中**废弃三项**——`CWS_CLIENT_ID`、`CWS_CLIENT_SECRET`、`CWS_REFRESH_TOKEN`
 > 这套 OAuth 2.0 桌面客户端凭据整体失去用途（服务账号改用 `private_key` 自签 JWT，不再有 refresh token 过期这回事），
@@ -174,6 +224,17 @@ pnpm cws:status
 
 ②③ 需要在当前 shell 导出 3.3 那四项（`export CWS_SA_EMAIL=...` 等）。**先跑通 ③ 再让 CI 提审**——
 它把「Secret 里是旧 key」「服务账号没绑进 Dashboard」这类问题在没排队进人工审核之前暴露掉。
+
+本地导出私钥那一项别再手敲多行，直接用 3.3 的取法命令生成（`$SA_JSON` 就是 3.3 里赋值的那个变量）：
+
+```bash
+export CWS_SA_PRIVATE_KEY="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).private_key)' "$SA_JSON")"
+```
+
+命令替换会吃掉末尾那个换行，这属于 3.3 表里「无害」的那一档，不影响解析。
+导出只留在当前这个 shell 会话里，**不要写进 `~/.zshrc` 之类的启动文件**；要看它长什么样时用 3.3 的自检命令（只报行数与判据、不回显内容），
+`echo "$CWS_SA_PRIVATE_KEY"` 会把整段 PEM 打进终端回滚缓冲里。
+
 `pnpm cws:publish` 也存在，但**别在本地打**——它绕过 `production` 那道人工闸门，而那道闸门存在的理由（提审不可即时撤回）在本地同样成立；
 `pnpm cws:cancel` 相反，它是应急手段，CI 里没有撤审步骤，本地跑就是它的正确用法（FAQ C.15）。
 
@@ -416,9 +477,12 @@ PY
     3.3 明确要求这四项存成 **Repository secrets**；若历史上存成 `production` 环境的，请在仓库级重建一份。
 
 11. **私钥明明贴进去了，`pnpm cws:token` 仍说解析失败。**
-    两个坑（3.3 有详述）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行），或者丢了 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 这两行——Node 的 `createPrivateKey` 靠它们判格式。
+    致命形状四种（3.3 的对照表逐条实测过）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行）、只贴中间那段 base64 而两行标记全丢、只留 `-----BEGIN PRIVATE KEY-----` 丢了尾行、连 JSON 的那对双引号一起贴进去。
     本地验证时可以先用 `node -e "require('crypto').createPrivateKey(process.env.CWS_SA_PRIVATE_KEY)"` 自证，报错即 Secret 内容本身有问题。
-    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里，当时 CLI 只透传这一句）。补上形状诊断后，同一份坏 Secret 在 run 37963106478 多打两行，其中 `1732 字符 / 1 行` 就足以锁定根因：`generateKeyPairSync('rsa', {modulusLength: 2048})` 导出的 PKCS#8 PEM 实测为 28 行 / 1704 字符，把 28 处换行各写成两个字符的反斜杠 n 正好是 1732——数字本身就能对上；而换行一旦压没——无论存成字面量 `\n` 还是整段连成一行——`createPrivateKey` 报的都是同一句 `error:1E08010C`，所以「1 行」必然是坏的。紧接着那行直接指向 `jq -r .private_key`。只报结构事实，不回显密钥。
+    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里，当时 CLI 只透传这一句）。补上形状诊断后，同一份坏 Secret 在 run 37963106478 多打两行，其中 `1732 字符 / 1 行` 就足以锁定根因：`generateKeyPairSync('rsa', {modulusLength: 2048})` 导出的 PKCS#8 PEM 实测为 28 行 / 1704 字符，把 28 处换行各写成两个字符的反斜杠 n 正好是 1732——数字本身就能对上；而换行一旦压没——无论存成字面量 `\n` 还是整段连成一行——`createPrivateKey` 报的都是同一句 `error:1E08010C`，所以「1 行」必然是坏的。紧接着那行给的修法是 `jq -r .private_key`——Actions 的 ubuntu runner 自带 `jq`，本机没装就用 3.3 那条 `node` 取法（`JSON.parse` 同样把 `\n` 还原成真实换行）；贴之前用 3.3 的自检命令过一遍剪贴板。只报结构事实，不回显密钥。（私钥原文已经出现在日志或聊天记录里时的处置，见 3.3 末尾的「已泄露，只能换不能删」。）
+    这一格挂在**联网之前**，所以跑 `publish` 档撞到它时商店侧是零调用：2026-10-10 那次 `release` 触发的 run 38133410628（v3.15.0）就是预检全绿后死在本地签名，商品状态与草稿都没动，
+    只有 GitHub Release 已公开、商店还是旧版。补好 Secret 后 Re-run failed jobs 复用同一次 `prepare` 的 artifact 即可（依旧要过 `production` 那道批准）；
+    超过 artifact 保留期（7 天）就按 3.6 手动 dispatch `mode=publish` + `tag=v3.15.0` 补这一次提审。
 
 12. **fork 的贡献者 PR 会不会误提审我的商品？**
     不会，三重保险：`publish.yml` 只在 `release: published` 与手动 dispatch 时触发（PR 事件根本不触发它）；`submit` 带 `if: github.repository == 'liaolongdong/account-password-helper'`；GitHub 本身不会把仓库 Secrets 暴露给 fork 的 run。
