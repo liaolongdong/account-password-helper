@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.15.2](https://github.com/liaolongdong/account-password-helper/compare/v3.15.1...v3.15.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **options:** 筛选下拉的悬浮 title 补到整行与闭合态选中标签 ([5fb7bfb](https://github.com/liaolongdong/account-password-helper/commit/5fb7bfb9b5f5cad7960a84b891f7f2f072fadad2))
+* **options:** 筛选下拉的悬浮 title 补到整行与闭合态选中标签 ([5e50556](https://github.com/liaolongdong/account-password-helper/commit/5e50556ee8362f1d457aa5b6202721829ca5c164))
+
 ## [3.15.1](https://github.com/liaolongdong/account-password-helper/compare/v3.15.0...v3.15.1) (2026-10-11)
 
 
