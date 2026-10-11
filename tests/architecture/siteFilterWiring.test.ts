@@ -205,6 +205,55 @@ describe('筛选栏候选行的共同形状（标签计数与截断兜底）', (
     expect(BAR_SRC, '站点候选行没并进共用结构').not.toMatch(/class="site-option/);
   });
 
+  /**
+   * title 的覆盖面：候选行整行 + 闭合态选中标签
+   *
+   * 原生 `title` 只在**指针落点自身或其祖先**带该属性时才弹，而 EP 给候选行 `<li>` 的是
+   * `padding: 0 32px 0 20px`（`.el-select-dropdown__item`）——title 挂在 padding 内侧的
+   * `.facet-option` 上，于是每行左右共 52px 是悬浮死区（面板本身才 ~200px 宽）。
+   * 闭合态那侧更彻底：EP 的 `el-select` / `el-select-v2` 产物里**没有任何 `title` 绑定**
+   * （35 个 `.mjs` 扫过，命中 0），选中的长标签被 `.el-select__tags-text` 截断后无从读原文。
+   *
+   * 两条修法各钉一处契约：padding 从 li 挪到 `.facet-option`（谁持 padding 谁持 title，
+   * 文本落点逐像素不变）；闭合态走 `el-select-v2` 的 `#label` 作用域插槽（EP 在
+   * `.el-select__tags-text` 内部 renderSlot，是把 title 送进标签文本祖先链的唯一入口）。
+   */
+  it('候选行的 title 覆盖整行：padding 从 li 挪到 title 所属的节点', () => {
+    const FACET_ITEM_RULE =
+      /\.tag-filter-popper \.el-select-dropdown__item,\n\.site-filter-popper \.el-select-dropdown__item \{\n {2}padding: 0;\n\}/;
+    // `<style scoped>` 编译后给选择器末位补 `[data-v-*]`，跨不到 teleport 出去的浮层；
+    // 按标签精确切出全局块，别用「整份文件」当搜索面——那样规则搬进 scoped 块就抓不到。
+    const globalStyle = APP_SRC.match(/<style>([\s\S]*?)<\/style>/);
+    expect(globalStyle, '未找到 App.vue 的全局样式块').toBeTruthy();
+    expect(globalStyle![1], '全局块没把两个候选行的 EP padding 归零：行左右两段仍是悬浮死区').toMatch(FACET_ITEM_RULE);
+
+    expect(BAR_SRC, '.facet-option 没接住那段 padding：文本与计数会整体左移/右贴').toMatch(
+      /\.facet-option \{[\s\S]*?\n {2}padding: 0 32px 0 20px;/,
+    );
+    // 牙齿：把 padding 收回 li（即删掉 .facet-option 那条），上一条必须抓到
+    expect(
+      /\.facet-option \{[\s\S]*?\n {2}padding: 0 32px 0 20px;/.test(
+        BAR_SRC.replace('  padding: 0 32px 0 20px;', '  padding: 0;'),
+      ),
+      '.facet-option 的 padding 判据没有牙齿',
+    ).toBe(false);
+  });
+
+  it('闭合态选中标签带原生 title，两个下拉各挂一处', () => {
+    expect(BAR_SRC.match(/<template #label=/g), '闭合态标签的 title 插槽数量不再是两份').toHaveLength(2);
+    for (const { name, block } of DROPDOWNS) {
+      expect(block, `${name}下拉的闭合态标签没有 title 兜底：截断后读不出原文`).toMatch(
+        /<template #label="\{ label \}">\s*<span\b[\s\S]{0,120}?:title="label"/,
+      );
+      // 牙齿：删掉这一块里的 title 绑定，上一条必须抓到
+      const noChipTitle = block.replace(':title="label"', '');
+      expect(
+        /<template #label="\{ label \}">\s*<span\b[\s\S]{0,120}?:title="label"/.test(noChipTitle),
+        `${name}下拉的闭合态标签 title 判据没有牙齿`,
+      ).toBe(false);
+    }
+  });
+
   it('两个下拉各自带 popper-class，且共用同一份展开期延迟清空', () => {
     expect(BAR_SRC.match(/popper-class="[a-z-]+-filter-popper"/g), '下拉面板缺少各自的 popper-class').toHaveLength(2);
     // e2e 靠 popper-class 收窄面板：共用一个类名会把另一个下拉的残留面板当成目标

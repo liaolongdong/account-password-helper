@@ -46,6 +46,9 @@
       普通 `el-select` 的 `persistent` 默认 true 会让每个候选常驻一个 option 组件并重演 O(T²)
       （见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md §3 第 4 条），select-v2 只实例化可视窗口的行。
       计数放在 option 的默认插槽里，不进 `label`——否则闭合态的选中标签会带上数字。
+      title 要覆盖两个地方：候选行的**整行**（`.facet-option` 自持左右内边距，把 EP 留给 `<li>` 的
+      `padding: 0 32px 0 20px` 那两段悬浮死区接过来，见 `entrypoints/options/App.vue` 全局块）
+      与**闭合态选中的标签**（EP 的 select/select-v2 产物里没有任何 `title` 绑定，只能走 `#label` 插槽）。
     -->
     <el-select-v2
       v-if="availableTagOptions.length > 0"
@@ -71,6 +74,9 @@
           <span class="facet-option__text">{{ item.tag }}</span>
           <span class="facet-option__count">{{ item.count }}</span>
         </div>
+      </template>
+      <template #label="{ label }">
+        <span :title="label">{{ label }}</span>
       </template>
     </el-select-v2>
     <el-select-v2
@@ -103,6 +109,9 @@
           <span class="facet-option__text">{{ item.label }}</span>
           <span class="facet-option__count">{{ item.count }}</span>
         </div>
+      </template>
+      <template #label="{ label }">
+        <span :title="label">{{ label }}</span>
       </template>
     </el-select-v2>
     <el-tooltip
@@ -230,13 +239,22 @@ const siteOptions = computed(() =>
   width: 220px;
 }
 
-/* 候选行：标签 / 站点共用一份结构，文本吃掉剩余宽度，条目数右对齐 */
+/*
+ * 候选行：标签 / 站点共用一份结构，文本吃掉剩余宽度，条目数右对齐。
+ * 左右内边距从 `<li>` 挪到这里（全局块把 EP 那份归零）——原生 title 只在指针落在
+ * 该节点自身或其祖先上才弹，谁持 padding 谁才覆盖得到整行；20 / 32px 是 EP 原值，
+ * 所以文本与计数的落点逐像素不变。
+ * box-sizing 必须写明：本仓没有全局 `border-box` 重置，content-box 下 `width: 100%`
+ * 会在这 100% 之外再加 52px，把计数列顶出行外被 `<li>` 的 overflow 剪掉。
+ */
 .facet-option {
+  box-sizing: border-box;
   display: flex;
   gap: 12px;
   align-items: center;
   justify-content: space-between;
   width: 100%;
+  padding: 0 32px 0 20px;
 }
 
 /* min-width:0 是省略号生效的前提：flex 子项默认 min-width:auto，长标签 / 长域名会把行撑宽 */
