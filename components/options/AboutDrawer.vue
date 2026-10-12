@@ -9,7 +9,22 @@
     <div class="about">
       <!-- 品牌与版本：版本号在此只作展示，升级入口在下方「最新版本与下载」 -->
       <div class="about__brand">
-        <BrandLogo class="about__logo" />
+        <!--
+          这里用打包内的真实扩展图标，而不是复用 `BrandLogo.vue`：
+          `BrandLogo` 同时被 Options 与侧边栏的**首屏**引用，抽屉却是异步 chunk，
+          一个模块被「首屏 + 按需」两侧共同引用时会被拆成独立 chunk，于是
+          popup / sidepanel 的 eager 预加载各多出一个文件——实测 popup 由 43 涨到 44，
+          直接被 `tests/architecture/sidepanelClosure.test.ts` 判红。为了一个装饰性
+          logo 放宽守着侧边栏秒开 SLA 的预算，方向反了；图标本来就是产物里的
+          `public/icon/`，按 3 倍图给 32px 落位，零模块图影响。
+        -->
+        <img
+          class="about__logo"
+          src="/icon/96.png"
+          width="32"
+          height="32"
+          alt=""
+        />
         <div class="about__brand-text">
           <span class="about__name">{{ t('appName') }}</span>
           <el-tag
@@ -88,7 +103,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { TopRight } from '@element-plus/icons-vue';
-import BrandLogo from '@/components/BrandLogo.vue';
 import { isFirefox } from '@/utils/env';
 import { useI18n } from '@/utils/i18n';
 import {
@@ -187,8 +201,9 @@ const facts = computed(() => [
 
 .about__logo {
   flex-shrink: 0;
-  font-size: 32px;
-  color: var(--el-color-primary);
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
 }
 
 .about__brand-text {
