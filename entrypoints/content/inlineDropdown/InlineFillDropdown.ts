@@ -180,8 +180,11 @@ const inlineStyles = `
   outline: none;
 }
 
+/* 占位色与扩展页共用同一令牌（此前硬编码 #b6bcc6、白底仅 1.9:1，是全仓最浅的一处提示文字）。
+   影子树拿不到 tokens.css，取值靠 theme.ts 的 SHADOW_NEUTRAL_TOKENS 内联进宿主，
+   由 tests/architecture/shadowTokenCoverage.test.ts 保证两边逐字同值。 */
 .aph-search input::placeholder {
-  color: #b6bcc6;
+  color: var(--aph-text-placeholder, #6e7582);
 }
 
 /* 列表 */
