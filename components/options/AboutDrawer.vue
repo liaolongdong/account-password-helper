@@ -41,6 +41,23 @@
         {{ t('options.about.summary') }}
       </p>
 
+      <!--
+        核心能力：口径取自 README「核心优势」里已在对外承诺的那几条，逐条都能在本仓找到实现，
+        不在此另起一套说法（对外文案与产品内文案漂移，用户读到的是两个产品）。
+        用小标题而非 el-divider：divider 自带 24px 上下外边距，会把摘要与清单之间撑开，
+        与本抽屉「标题贴内容」的排布相反。
+      -->
+      <p class="about__section">{{ t('options.about.featuresTitle') }}</p>
+
+      <ul class="about__features">
+        <li
+          v-for="feature in features"
+          :key="feature"
+        >
+          {{ feature }}
+        </li>
+      </ul>
+
       <!-- 安全与网络事实：与 privacy.html / llms.txt 已公开的口径一致，不在此另起说法 -->
       <dl class="about__facts">
         <div
@@ -184,6 +201,15 @@ const facts = computed(() => [
   { label: t('options.about.factCrypto'), value: t('options.about.factCryptoValue') },
   { label: t('options.about.factNetwork'), value: t('options.about.factNetworkValue') },
 ]);
+
+/** 核心能力清单（一句话一条；顺序按「用户多久碰到一次」排，两步验证最先） */
+const features = computed(() => [
+  t('options.about.featureTotp'),
+  t('options.about.featureDomain'),
+  t('options.about.featureHealth'),
+  t('options.about.featureTransfer'),
+  t('options.about.featurePanel'),
+]);
 </script>
 
 <style scoped>
@@ -222,10 +248,31 @@ const facts = computed(() => [
 }
 
 .about__summary {
-  margin: 16px 0 12px;
+  margin: 16px 0 0;
   font-size: 13px;
   line-height: 1.6;
   color: var(--el-text-color-regular);
+}
+
+/* 小节标题：与事实清单的 dt 同一套量级，但它是「能力清单」的引导句，紧贴清单 */
+.about__section {
+  margin: 12px 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
+
+.about__features {
+  padding: 0 0 0 18px;
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--el-text-color-regular);
+  list-style: disc;
+}
+
+.about__features li + li {
+  margin-top: 2px;
 }
 
 /* 事实清单：标签在上、值在下 */
