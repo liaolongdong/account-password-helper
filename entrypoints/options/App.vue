@@ -59,6 +59,7 @@
         @open-personalization="openPersonalizationDialog"
         @open-tour="replayTour"
         @open-guide="openGuide"
+        @open-about="showAboutDrawer = true"
       />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
@@ -287,6 +288,12 @@
       v-if="tourActive"
       :tour="tour"
     />
+
+    <!-- 「关于」抽屉：版本、数据存放口径与对外链接的集中落点（纯展示，不读存储也不发请求） -->
+    <AboutDrawer
+      v-model="showAboutDrawer"
+      :version="currentVersion"
+    />
   </div>
 </template>
 
@@ -334,6 +341,8 @@ const DomainMatchSettingDialog = defineAsyncComponent(
   () => import('@/components/options/DomainMatchSettingDialog.vue'),
 );
 const CommandPalette = defineAsyncComponent(() => import('@/components/options/CommandPalette.vue'));
+// 「关于」抽屉：纯展示、低频入口，异步加载不占管理页首屏
+const AboutDrawer = defineAsyncComponent(() => import('@/components/options/AboutDrawer.vue'));
 // 新手引导：仅首次进入认证态或用户主动重温时才需要这一块，异步加载不占管理页首屏
 const OnboardingTour = defineAsyncComponent(() => import('@/components/options/OnboardingTour.vue'));
 // 使用指引文档中页：只有 `#guide` 命中时才加载，四十几条正文文案随本 chunk 一同落地
@@ -430,6 +439,9 @@ const showSiteRulesDialog = ref(false);
 
 /** 跨子域匹配档位弹窗可见性 */
 const showDomainMatchDialog = ref(false);
+
+/** 「关于」抽屉可见性 */
+const showAboutDrawer = ref(false);
 
 /** 站点规则弹窗预填域名（来自内容脚本填充失败就地引导，编辑已有规则时不使用） */
 const siteRulePrefillDomain = ref<string | undefined>(undefined);

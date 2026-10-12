@@ -262,6 +262,13 @@
         >
           {{ t('options.header.personalization') }}
         </el-button>
+        <el-button
+          :icon="InfoFilled"
+          :title="t('options.header.aboutTitle')"
+          @click="$emit('openAbout')"
+        >
+          {{ t('options.header.about') }}
+        </el-button>
       </div>
     </div>
   </div>
@@ -295,6 +302,7 @@ import {
   Link,
   Connection,
   Postcard,
+  InfoFilled,
 } from '@element-plus/icons-vue';
 import type { HealthGrade } from '@/utils/passwordHealth';
 import BrandLogo from '@/components/BrandLogo.vue';
@@ -305,7 +313,7 @@ import { useSessionCountdown } from '@/composables/useSessionCountdown';
 /**
  * Options 页面头部组件
  *
- * 包含标题、版本号、会话剩余时间徽标、安全体检入口、数据管理/安全设置下拉菜单以及偏好设置按钮。
+ * 包含标题、版本号、会话剩余时间徽标、安全体检入口、数据管理/安全设置下拉菜单以及偏好设置/关于按钮。
  * 「安全设置」聚焦主密码、会话安全与填充行为（含站点规则）及快捷键一览，「偏好设置」聚焦外观与填充交互，两者图标区分避免混淆。
  * 「新手引导」与「使用指引」常驻在右侧入口组，让已看过一次的用户仍有一条明确的回头路
  * （自动弹出终生仅一次，指引则是页内 `#guide` 一级视图、离线可读）。
@@ -342,6 +350,8 @@ defineEmits<{
   openTour: [];
   /** 打开页内「使用指引」文档中页 */
   openGuide: [];
+  /** 打开「关于」抽屉 */
+  openAbout: [];
 }>();
 
 const { t } = useI18n();

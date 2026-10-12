@@ -155,6 +155,16 @@ const ONBOARDING_GRAPH_FILES = ['components/options/OnboardingTour.vue', 'compos
  */
 const GUIDE_GRAPH_FILES = ['components/options/GuideView.vue', 'utils/guideNav.ts'];
 
+/**
+ * 「关于」抽屉依赖图源文件
+ *
+ * 抽屉里 `options.about.*` 那 16 条文案（标题、说明、存放/加密/网络三项事实、链接区
+ * 标题与六个出口、许可证）全部是本组件独有的，与页面其他部分零共享；这类「一次性写成」
+ * 的长命名空间最容易敲错一个字母而静默显示成 key 本身，故单独登记走 bundle 覆盖校验，
+ * 并反向要求每个词条都有消费者。
+ */
+const ABOUT_GRAPH_FILES = ['components/options/AboutDrawer.vue'];
+
 /** 读取指定语言的某命名空间语言包 */
 function readNamespace(locale: (typeof LOCALES)[number], ns: string): Record<string, string> {
   return JSON.parse(readFileSync(path.join(LOCALES_DIR, locale, `${ns}.json`), 'utf-8'));
@@ -307,6 +317,24 @@ describe('入口 bundle key 覆盖率（静态扫描源码）', () => {
       }
     }
   });
+
+  it('「关于」抽屉使用的 key 全部在 options bundle 内', () => {
+    const bundleKeys = collectBundleKeys(BUNDLE_NAMESPACES.options);
+    const used = new Set<string>();
+    for (const file of ABOUT_GRAPH_FILES) {
+      for (const key of extractI18nKeys(file)) {
+        used.add(key);
+        expect(bundleKeys.has(key), `${file} 使用的 key「${key}」未被 options bundle 覆盖`).toBe(true);
+      }
+    }
+    // 反向对照：抽屉独有那段命名空间的每个 key 都该有消费者，写了没人用要变红。
+    // 这一条同时兜住「抽取器失配导致的永真」——16 个词条全部要求命中，提取不到 key
+    // 时这里必然整排报错，而不是让上面那条覆盖校验静默空转。
+    const declared = Object.keys(readNamespace('zh-CN', 'options')).filter(k => k.startsWith('options.about.'));
+    const orphan = declared.filter(k => !used.has(k));
+    expect(orphan, `语言包里这些 options.about.* 没有任何消费者: ${orphan.join(', ')}`).toEqual([]);
+    expect(declared.length, 'options.about.* 词条数与抽屉条目数不符（新增文案未进抽屉）').toBe(16);
+  });
 });
 
 /**
@@ -342,7 +370,7 @@ describe('侧边栏扫描清单认领完整性', () => {
     ).toEqual([]);
   });
 
-  it('七份清单里的每个文件都真实存在', () => {
+  it('八份清单里的每个文件都真实存在', () => {
     const listed = [
       ...SIDEPANEL_GRAPH_FILES,
       ...HELP_DIALOG_FILES,
@@ -351,6 +379,7 @@ describe('侧边栏扫描清单认领完整性', () => {
       ...IDENTITY_GRAPH_FILES,
       ...ONBOARDING_GRAPH_FILES,
       ...GUIDE_GRAPH_FILES,
+      ...ABOUT_GRAPH_FILES,
     ];
     const missing = listed.filter(file => !existsSync(path.join(ROOT, file)));
     expect(missing, `扫描清单指向不存在的文件（重命名或删除后未同步）: ${missing.join(', ')}`).toEqual([]);

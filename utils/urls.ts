@@ -12,6 +12,25 @@ export const CHROME_WEB_STORE_URL =
   'https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli';
 
 /**
+ * 反馈与问题提交入口（GitHub Issues 模板选择页）
+ *
+ * 由 `REPO_GITHUB_URL` 派生而非另写一条：仓库改名或迁移时只有一处需要动。
+ * 指向 `issues/new/choose` 而不是直接开 blank issue，是因为仓库配了模板
+ * （`.github/ISSUE_TEMPLATE/`），其中安全问题那条明确要求走私密渠道。
+ */
+export const REPO_ISSUES_URL = `${REPO_GITHUB_URL}/issues/new/choose`;
+
+/**
+ * 隐私政策（GitHub Pages，中英各一份）
+ *
+ * 与 Chrome 应用商店后台填写的那条隐私政策 URL 指向同一份文档
+ * （口径见 `docs/store/CWS_PUBLISHING_GUIDE.md`），插件内不得另起一个地址，
+ * 否则用户在商店里和在插件里读到的政策会分成两份。
+ */
+export const PRIVACY_POLICY_URL = 'https://liaolongdong.github.io/account-password-helper/privacy.html';
+export const PRIVACY_POLICY_URL_EN = 'https://liaolongdong.github.io/account-password-helper/privacy.en.html';
+
+/**
  * 产品说明站（GitHub Pages）
  *
  * 完整使用说明与常见问题对外长文档的地址。插件内的入口（帮助弹窗横幅、
