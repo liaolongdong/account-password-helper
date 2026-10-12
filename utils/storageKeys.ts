@@ -17,6 +17,30 @@ export const STORAGE_KEYS = {
   LAST_AUTO_BACKUP_TIME: 'last_auto_backup_time',
   /** 最近一次「通过完整性自检」的加密 .aph 导出时间戳（epoch 毫秒），用于「距上次成功备份 N 天」提醒 */
   LAST_VERIFIED_BACKUP_AT: 'last_verified_backup_at',
+  /**
+   * 最近一次「与备份相关」的密码变更时间戳（epoch 毫秒）
+   *
+   * 由 Service Worker 的 `storage.onChanged` 写入，判据见 `utils/backup/changeDetection`
+   * 的 `isBackupRelevantPasswordChange`——使用痕迹（`lastUsedAt` / `favoriteUsedAt`）刻意不算，
+   * 否则每次自动填充都会把用户推向一次多余的备份提醒。只存时间戳，不含任何条目数据。
+   */
+  LAST_PASSWORD_CHANGE_AT: 'last_password_change_at',
+  /**
+   * 最近一次「与备份相关」的身份库变更时间戳（epoch 毫秒）
+   *
+   * 与上一键同一形态，判据为 `isBackupRelevantIdentityChange`。之所以要单独存而不能
+   * 由身份记录的 `max(updateTime)` 推出来：`deleteIdentities` 只删记录，删掉最新那条后
+   * 最大值会变小，删除就判不出来了。只存时间戳，不含任何 PII。
+   */
+  LAST_IDENTITY_CHANGE_AT: 'last_identity_change_at',
+  /**
+   * 最近一次**完整**导出加密 .aphid 身份备份的时间戳（epoch 毫秒）
+   *
+   * 只在导出范围覆盖全部条目时写入——部分勾选导出并不构成「身份库已备份」，
+   * 此时提醒必须留着。刻意不由明文 .json 导出触发：那条通道是隐私边界例外，
+   * 提醒文案要求的就是加密备份。只存时间戳，不含任何 PII。
+   */
+  LAST_IDENTITY_BACKUP_AT: 'last_identity_backup_at',
   AUTO_SAVE_CONFIG: 'auto_save_config',
   IDLE_LOCK_CONFIG: 'idle_lock_config',
   CLIPBOARD_CONFIG: 'clipboard_config',

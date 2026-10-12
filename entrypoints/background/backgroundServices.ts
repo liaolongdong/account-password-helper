@@ -30,6 +30,11 @@ import {
 import { tl } from '@/utils/i18n-lite';
 import { UNLOCK_NOTIFICATION_ID } from './quickFillHandler';
 import {
+  decidePasswordBackupReminder,
+  isBackupRelevantIdentityChange,
+  isBackupRelevantPasswordChange,
+} from '@/utils/backup/changeDetection';
+import {
   markBrowserStartupRelockCurrentSessionReady,
   setBrowserStartupRelockState,
   waitForBrowserStartupRelockMarker,
@@ -318,6 +323,44 @@ async function setupAutoBackupAlarm() {
 }
 
 /**
+ * 记录「与备份相关」的变更时间戳（密码库 + 身份库）
+ *
+ * 由 `storage.onChanged` 每次 local 区变更时调用。两个判据都是纯函数
+ * （`utils/backup/changeDetection`），只在真的发生用户数据变更时落时间戳：
+ * 使用痕迹（每次自动填充都会 bump 的 `lastUsedAt` / `favoriteUsedAt`）被排除，
+ * 否则「越常用密码越常被提醒备份」，与用户诉求相反。
+ *
+ * 身份库刻意**不**加进上面的 `relevantKeys`——那个数组驱动的是密码缓存失效，
+ * 身份域与密码缓存无关，加进去会让身份库的每次编辑误触发 `invalidatePasswordCache()`，
+ * 把侧边栏打回全量解密回温路径。这里单独读 `changes[STORAGE_KEYS.IDENTITY]`。
+ *
+ * 写入的是另外三个键，不在 `relevantKeys` 内，因此本函数触发的 `onChanged`
+ * 不会再回到这里，无自激循环。失败只记 warn：提醒退化回纯时间驱动，不影响任何数据。
+ *
+ * @param changes `storage.onChanged` 的变更集
+ */
+async function recordBackupRelevantChanges(changes: Record<string, chrome.storage.StorageChange>): Promise<void> {
+  try {
+    const StorageUtils = await _getStorageUtils();
+    const now = Date.now();
+
+    const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
+    if (passwordsChange && isBackupRelevantPasswordChange(passwordsChange.oldValue, passwordsChange.newValue)) {
+      await StorageUtils.setLastPasswordChangeAt(now);
+      logger.debug('Background: 检测到与备份相关的密码变更，已记录时间戳');
+    }
+
+    const identityChange = changes[STORAGE_KEYS.IDENTITY];
+    if (identityChange && isBackupRelevantIdentityChange(identityChange.oldValue, identityChange.newValue)) {
+      await StorageUtils.setLastIdentityChangeAt(now);
+      logger.debug('Background: 检测到与备份相关的身份信息变更，已记录时间戳');
+    }
+  } catch (error) {
+    logger.warn('Background: 记录备份变更时间戳失败，提醒退回纯时间驱动:', error);
+  }
+}
+
+/**
  * 执行自动备份提醒
  */
 async function performAutoBackup() {
@@ -352,16 +395,33 @@ async function performAutoBackup() {
       return;
     }
 
+    // 变更触发判定：只在「自上次成功备份后确有变更」或「距上次成功备份已超过兜底下限」时出声。
+    // 兜底下限沿用 autoBackupIntervalDays —— 没有它，长期不改密码的重度用户会永远收不到提醒，
+    // 而他们恰恰是换机/重装时最容易丢数据的一群人。
+    const verdict = decidePasswordBackupReminder({
+      lastChangeAt: await StorageUtils.getLastPasswordChangeAt(),
+      lastVerifiedBackupAt: await StorageUtils.getLastVerifiedBackupAt(),
+      floorMs: (config.autoBackupIntervalDays || 7) * 24 * 60 * 60 * 1000,
+      now: Date.now(),
+    });
+
+    // 无论出声与否都推进「上次提醒」时间戳：本次改动只决定这一拍要不要响，
+    // 不改闹钟节奏，因此提醒频率上限与既有实现完全一致。
     await StorageUtils.setLastAutoBackupTime();
+
+    if (verdict === null) {
+      logger.info('Background: 自上次成功备份后无内容变更、且未超过兜底下限，跳过本次备份提醒');
+      return;
+    }
 
     await chrome.notifications.create('auto-backup-reminder', {
       type: 'basic',
       iconUrl: chrome.runtime.getURL('icon/128.png'),
       title: tl('bg.backup.title'),
-      message: tl('bg.backup.message', { count: passwordCount }),
+      message: tl(verdict === 'changed' ? 'bg.backup.messageChanged' : 'bg.backup.message', { count: passwordCount }),
     });
 
-    logger.info(`Background: 自动备份提醒已发送，密码条目数: ${passwordCount}`);
+    logger.info(`Background: 自动备份提醒已发送（${verdict}），密码条目数: ${passwordCount}`);
   } catch (error) {
     logger.error('Background: 发送自动备份提醒失败:', error);
   }
@@ -658,6 +718,10 @@ export function setupBackgroundServices(): void {
       ];
       const hasRelevantChange = Object.keys(changes).some(key => relevantKeys.includes(key));
       const passwordsChange = changes[STORAGE_KEYS.PASSWORDS];
+
+      // 备份提醒的变更追踪与缓存失效互相独立：前者只读内容判据、只写时间戳键，
+      // 不参与下面的缓存失效分支（身份库尤其不能进 relevantKeys）。
+      void recordBackupRelevantChanges(changes);
 
       if (hasRelevantChange) {
         logger.debug('Background: 检测到存储变化，处理缓存失效');
