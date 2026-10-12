@@ -179,6 +179,7 @@
     <PasswordDetailDrawer
       v-model="showDetailDrawer"
       :entry="detailEntry"
+      :keyword="searchKeyword"
       @edit="onDetailEdit"
       @search-identity="onDetailSearchIdentity"
     />

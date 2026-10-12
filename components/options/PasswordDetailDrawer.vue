@@ -175,9 +175,20 @@
         <el-descriptions-item :label="t('common.remark')">
           <div
             v-if="entry.remark"
-            class="detail-remark"
+            class="detail-value detail-remark"
           >
-            {{ entry.remark }}
+            <span class="detail-remark__text">
+              <SearchHighlight
+                :text="entry.remark"
+                :keyword="keyword || ''"
+              />
+            </span>
+            <el-button
+              :icon="CopyDocument"
+              :aria-label="t('common.copy')"
+              link
+              @click="copyText(entry.remark)"
+            />
           </div>
           <span
             v-else
@@ -269,6 +280,7 @@ import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
 import TotpCode from '@/components/TotpCode.vue';
 import SiteFavicon from '@/components/SiteFavicon.vue';
+import SearchHighlight from '@/components/SearchHighlight.vue';
 
 /**
  * 密码条目只读详情抽屉
@@ -283,6 +295,13 @@ const props = defineProps<{
   modelValue: boolean;
   /** 当前查看的条目（已解密，为空时不渲染内容） */
   entry: PasswordEntry | null;
+  /**
+   * 当前搜索关键词（用于备注命中高亮，空串时不高亮）
+   *
+   * 列表里搜到一条再点进详情，高亮若消失就是可感的断裂；表格与侧边栏都已用
+   * `SearchHighlight`，抽屉此前是唯一没有的一处。
+   */
+  keyword?: string;
 }>();
 
 const emit = defineEmits<{
@@ -554,6 +573,13 @@ watch(
  */
 .detail-value .el-button {
   position: relative;
+
+  /*
+   * 值文本改为可折行后，它的 flex 基准尺寸（max-content，整段一行）远超容器，
+   * 负剩余空间会按「收缩系数 × 基准尺寸」分摊到同行每个弹性项 —— 不加这一句，
+   * 20px 的图标按钮会被长备注 / 长网址挤到 10px 左右（热区与图标同时变形）。
+   */
+  flex-shrink: 0;
 }
 
 .detail-value .el-button::after {
@@ -562,10 +588,15 @@ watch(
   content: '';
 }
 
+/*
+ * 值文本折行而非省略号截断：本抽屉是列表截断后的唯一完整读通道（见组件头注释），
+ * 超长用户名 / 网址 / 明文密码应当折行展示全文。同时解除 nowrap 对表格布局的
+ * min-content 挤压——`el-descriptions border` 渲染为 table，一个 nowrap 的长值会把
+ * 值列撑到整串宽度，把标签 th 挤到一字宽、中文标签逐字竖排。
+ */
 .detail-value__text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .detail-value__text--mono {
@@ -590,9 +621,7 @@ watch(
 }
 
 .detail-url__text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .detail-muted {
@@ -605,13 +634,34 @@ watch(
   margin-left: 4px;
 }
 
-/* 备注全文：保留换行，长文本自动折行（核心价值，列表中被截断） */
-.detail-remark {
+/*
+ * 备注行：容器直接复用 `.detail-value`（同一套 flex + 4px 间距 + 图标热区外扩），
+ * 这里只把居中对齐改成顶部对齐 —— 备注折成多行时，复制按钮贴第一行而不是悬在中间。
+ * 用 `.detail-value.detail-remark` 复合选择器而非单类，是为了压过 `.detail-value`
+ * 的 `align-items: center`（同为单类时谁生效取决于样式顺序，换行序即翻车）。
+ */
+.detail-value.detail-remark {
+  align-items: flex-start;
+}
+
+.detail-remark__text {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   line-height: 1.6;
   color: var(--el-text-color-regular);
   overflow-wrap: break-word;
   white-space: pre-wrap;
+}
+
+/*
+ * 标签格不得逐字竖排：border 形态下 el-descriptions 是 table，标签 th 的宽度由
+ * min-content 决定，中文可在任意字间断行，一旦值列挤压就会退成一字一行。
+ * 标签本身最长四字（两步验证 / Username），nowrap 后其 min-content 即整词宽度，
+ * 表格布局必先满足它，竖排随之消失。
+ */
+.detail-descriptions :deep(.el-descriptions__label) {
+  white-space: nowrap;
 }
 
 /* 密码历史（只读） */
