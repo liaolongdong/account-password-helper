@@ -1,8 +1,10 @@
 <template>
+  <!-- 720px 是列表四列的地板：弹窗左右各 16px padding + 滚动容器 4px padding-right，
+       表格可用宽度 = 720 − 36 = 684 ≥ 160+260+110+130 = 660；再窄一格表格就会横向滚动。 -->
   <el-dialog
     v-model="visible"
     :title="dialogTitle"
-    width="640px"
+    width="720px"
     align-center
     class="site-rules-dialog"
     @closed="handleClosed"
@@ -49,6 +51,26 @@
                 class="text-gray"
               >
                 {{ t('options.siteRules.noSelectors') }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            :label="t('options.siteRules.columnFillEntry')"
+            width="110"
+            align="center"
+          >
+            <template #default="{ row }">
+              <span
+                v-if="row.fillEntry"
+                class="fill-entry-tag"
+              >
+                {{ fillEntryLabel(row.fillEntry) }}
+              </span>
+              <span
+                v-else
+                class="text-gray"
+              >
+                {{ t('options.siteRules.fillFollowGlobal') }}
               </span>
             </template>
           </el-table-column>
@@ -128,6 +150,34 @@
           <div class="field-tip">
             {{ isEditing ? t('options.siteRules.domainReadonlyHint') : t('options.siteRules.formDomainHint') }}
           </div>
+        </el-form-item>
+
+        <el-form-item
+          :label="t('options.siteRules.formFillEntry')"
+          prop="fillEntry"
+        >
+          <el-select
+            v-model="formData.fillEntry"
+            class="fill-entry-select"
+          >
+            <el-option
+              value=""
+              :label="t('options.siteRules.fillFollowGlobal')"
+            />
+            <el-option
+              value="sidepanel"
+              :label="t('options.siteRules.fillSidepanel')"
+            />
+            <el-option
+              value="inline"
+              :label="t('options.siteRules.fillInline')"
+            />
+            <el-option
+              value="manual"
+              :label="t('options.siteRules.fillManual')"
+            />
+          </el-select>
+          <div class="field-tip">{{ t('options.siteRules.fillEntryHint') }}</div>
         </el-form-item>
 
         <el-form-item
@@ -217,6 +267,7 @@ import { computed, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus';
 import { Plus, Lock, Download, Upload } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
+import type { FillEntry } from '@/utils/types';
 import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
 import { logger } from '@/utils/logger';
 import {
@@ -285,6 +336,8 @@ interface FormData {
   usernameSelector: string;
   passwordSelector: string;
   penetrateShadow: boolean;
+  /** 覆盖的填充档位；'' 表示跟随全局（存储里以「不写该字段」表达） */
+  fillEntry: FillEntry | '';
 }
 
 const formData = reactive<FormData>({
@@ -292,11 +345,40 @@ const formData = reactive<FormData>({
   usernameSelector: '',
   passwordSelector: '',
   penetrateShadow: true,
+  fillEntry: '',
 });
 
-/** 选择器规则：必填 + 语法合法（与内容脚本消费端共用同一判定） */
+/** 档位 → 文案 key，与列表列、下拉选项共用同一份标签 */
+const FILL_ENTRY_I18N_KEYS: Record<FillEntry, string> = {
+  sidepanel: 'options.siteRules.fillSidepanel',
+  inline: 'options.siteRules.fillInline',
+  manual: 'options.siteRules.fillManual',
+};
+
+/** 列表列与表单复用的档位标签 */
+const fillEntryLabel = (entry: FillEntry): string => t(FILL_ENTRY_I18N_KEYS[entry]);
+
+/**
+ * 选择器规则：要么两侧都填、要么都留空，且语法合法
+ *
+ * 不能只填一侧：`CustomSelectors` 是成对语义（消费端拿它同时覆盖账号/密码两个字段的来源），
+ * 半条规则会让另一侧继续走启发式检测，用户看到的是一张「规则生效了一半」的页面。
+ * 两侧都留空则合法——只覆盖填充档位、或只关影子穿透，都是有效规则。
+ * 判定读的是 `formData` 而非回调里的 `value`，因为这条规则同时挂在账号与密码两个字段上，
+ * 任一侧 blur 都要能对整对字段给出结论。
+ */
 const selectorRules = computed(() => [
-  { required: true, message: t('options.siteRules.validateSelector'), trigger: 'blur' },
+  {
+    validator: (_rule: unknown, _value: string, callback: (err?: Error) => void) => {
+      const hasUsername = !!formData.usernameSelector.trim();
+      const hasPassword = !!formData.passwordSelector.trim();
+      if (hasUsername !== hasPassword) {
+        return callback(new Error(t('options.siteRules.validateSelectorPair')));
+      }
+      callback();
+    },
+    trigger: 'blur',
+  },
   {
     validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
       const selector = (value ?? '').trim();
@@ -369,6 +451,7 @@ const resetForm = () => {
   formData.usernameSelector = '';
   formData.passwordSelector = '';
   formData.penetrateShadow = true;
+  formData.fillEntry = '';
   formRef.value?.clearValidate();
 };
 
@@ -386,6 +469,7 @@ const handleEdit = (rule: SiteRule) => {
   formData.usernameSelector = rule.customSelectors?.username ?? '';
   formData.passwordSelector = rule.customSelectors?.password ?? '';
   formData.penetrateShadow = rule.penetrateShadow ?? true;
+  formData.fillEntry = rule.fillEntry ?? '';
   formRef.value?.clearValidate();
   showForm.value = true;
 };
@@ -409,15 +493,24 @@ const handleSubmit = async () => {
   // 编辑态必须写回原 key（历史数据可能带大小写差异），否则同一条规则会被拆成两条、
   // 旧条目再也匹配不到；新增态用规范化后的域名，与内容脚本的精确匹配形态保持一致。
   const domain = editingRule.value?.domain ?? normalizeSiteRuleDomain(formData.domain) ?? formData.domain.trim();
+  const username = formData.usernameSelector.trim();
+  const password = formData.passwordSelector.trim();
+  // 三项覆盖全为空时不入库：只带一个域名的规则什么都不做，却会在列表里长期占一行，
+  // 让人以为这个站点已被管住（导入侧对同样的空规则也是直接剔除）。
+  if (!formData.fillEntry && formData.penetrateShadow && !(username && password)) {
+    ElMessage.warning(t('options.siteRules.validateEmptyRule'));
+    return;
+  }
+  const patch: Omit<SiteRule, 'domain'> = { penetrateShadow: formData.penetrateShadow };
+  // 选择器成对写入（校验已保证两侧同时有或同时无），两侧都空时干脆不写这个键，
+  // 而不是留一条 `{ username: '', password: '' }`：消费端按「键存在」决定是否覆盖，空串只会变成两条永不命中的查询
+  if (username && password) patch.customSelectors = { username, password };
+  // 「跟随全局」= 不写该字段，而不是写死当前全局档位：写死会让用户之后的全局设置变更
+  // 在这个站点上被永久挡掉，而那并不是他设规则时的意思。
+  if (formData.fillEntry) patch.fillEntry = formData.fillEntry;
   saving.value = true;
   try {
-    await setSiteRule(domain, {
-      customSelectors: {
-        username: formData.usernameSelector.trim(),
-        password: formData.passwordSelector.trim(),
-      },
-      penetrateShadow: formData.penetrateShadow,
-    });
+    await setSiteRule(domain, patch);
     await loadRules();
     cancelForm();
     ElMessage.success(t('options.siteRules.saveSuccess'));
@@ -596,6 +689,18 @@ function openPrefilledRule(rawDomain: string): void {
   white-space: nowrap;
 }
 
+/* 覆盖档位标签：与选择器行的 .selector-tag 同族，但它是「一档设置」不是「一段代码」，
+   用中性底色而不是主色胶囊，避免列表里两类信息看起来同等重要 */
+.fill-entry-tag {
+  display: inline-block;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--el-text-color-primary);
+  background: var(--el-fill-color-light);
+  border-radius: 3px;
+}
+
 .empty-tip {
   margin-top: -4px;
   font-size: 13px;
@@ -617,6 +722,11 @@ function openPrefilledRule(rawDomain: string): void {
 
 .form-hint {
   margin-bottom: 18px;
+}
+
+/* 档位下拉与同列的输入框同宽（el-select 默认按内容收缩，跟隔壁 el-input 摆不齐） */
+.fill-entry-select {
+  width: 100%;
 }
 
 .field-tip {

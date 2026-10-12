@@ -298,16 +298,26 @@ export async function readSiteRules(page: Page): Promise<Record<string, unknown>
 /** 以内容脚本同款消息形状写入规则，验证的是真实存储形态而非测试专用后门 */
 export async function seedSiteRule(
   page: Page,
-  rule: { domain: string; username: string; password: string; penetrateShadow?: boolean },
+  rule: {
+    domain: string;
+    username?: string;
+    password?: string;
+    penetrateShadow?: boolean;
+    fillEntry?: string;
+  },
 ): Promise<void> {
   await page.evaluate(async payload => {
     const key = 'site_rules';
     const stored = ((await chrome.storage.local.get(key)) as Record<string, Record<string, unknown>>)[key] ?? {};
-    stored[payload.domain] = {
-      domain: payload.domain,
-      customSelectors: { username: payload.username, password: payload.password },
-      penetrateShadow: payload.penetrateShadow ?? true,
-    };
+    const rule: Record<string, unknown> = { domain: payload.domain };
+    // 选择器要么成对要么整体不写：单侧留空会造出内容脚本要当场降级的半条规则，
+    // 而「只设填充档位」正是本扩展的合法形态（这个站别自动弹侧边栏）
+    if (payload.username && payload.password) {
+      rule.customSelectors = { username: payload.username, password: payload.password };
+    }
+    if (payload.penetrateShadow === false) rule.penetrateShadow = false;
+    if (payload.fillEntry) rule.fillEntry = payload.fillEntry;
+    stored[payload.domain] = rule;
     await chrome.storage.local.set({ [key]: stored });
   }, rule);
 }

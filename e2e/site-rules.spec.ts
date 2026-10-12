@@ -11,12 +11,14 @@ import {
 import { textOf } from './i18n';
 
 /**
- * 站点级填充规则（F1）端到端
+ * 站点级填充规则（F1 + C6）端到端
  *
- * 覆盖三段真实链路，都是单元测试拿不到的东西：
+ * 覆盖四段真实链路，都是单元测试拿不到的东西：
  * 1. Options 表单 → `storage.local` 的真实落盘形态（含域名规范化与主键稳定）；
  * 2. 规则 → 内容脚本检测结果的收窄（通过内容脚本自己的 PING 观测口验证「权威覆盖」真的生效）；
- * 3. 引导消息经 Background 回到 Options 并带预填打开弹窗。
+ * 3. 引导消息经 Background 回到 Options 并带预填打开弹窗；
+ * 4. 按站点覆盖的填充档位（C6）：只设档位也算有效规则、三项全空拒绝入库、
+ *    列表区分「已覆盖 / 跟随全局」、编辑回显与清空（存储里以「不写该字段」表达）。
  */
 
 const RULE_DOMAIN = 'site-rules.e2e.test';
@@ -112,6 +114,77 @@ test.describe('站点规则表单与存储', () => {
       .click();
     await expectSuccessToast(page, 'options.siteRules.deleteSuccess');
     expect(await readSiteRules(page)).toEqual({});
+  });
+});
+
+test.describe('按站点覆盖快速填充方式（C6）', () => {
+  /** 表单里的档位下拉（本弹窗只有这一个 el-select，选择器天然唯一） */
+  const fillSelect = (page: Page) => page.locator('.fill-entry-select');
+
+  /** 打开档位下拉并选中指定文案对应的选项 */
+  async function pickFillEntry(page: Page, textKey: string): Promise<void> {
+    await fillSelect(page).locator('.el-select__wrapper').click();
+    await page
+      .locator('.el-select-dropdown__item')
+      .filter({ hasText: textOf(textKey) })
+      .click();
+  }
+
+  test('只设档位、选择器留空也能保存，且档位按字段落盘', async ({ optionsPage: page }) => {
+    await openSiteRulesDialog(page);
+    await page.getByRole('button', { name: textOf('options.siteRules.addButton') }).click();
+
+    await domainInput(page).fill(RULE_DOMAIN);
+    await pickFillEntry(page, 'options.siteRules.fillManual');
+    await saveButton(page).click();
+
+    await expectSuccessToast(page, 'options.siteRules.saveSuccess');
+    const rule = (await readSiteRules(page))[RULE_DOMAIN] as Record<string, unknown>;
+    expect(rule).toMatchObject({ domain: RULE_DOMAIN, fillEntry: 'manual' });
+    // 两侧都留空时不写这个键：半条选择器会让消费端在两种来源之间摇摆
+    expect(rule.customSelectors).toBeUndefined();
+  });
+
+  test('三项覆盖全为空时拒绝入库，不留下什么都不做的规则行', async ({ optionsPage: page }) => {
+    await openSiteRulesDialog(page);
+    await page.getByRole('button', { name: textOf('options.siteRules.addButton') }).click();
+
+    await domainInput(page).fill(RULE_DOMAIN);
+    await saveButton(page).click();
+
+    await expect(page.getByText(textOf('options.siteRules.validateEmptyRule'))).toBeVisible();
+    expect(await readSiteRules(page)).toEqual({});
+  });
+
+  test('列表用档位名列区分「本站已覆盖」与「跟随全局」', async ({ optionsPage: page }) => {
+    await seedSiteRule(page, { domain: RULE_DOMAIN, fillEntry: 'manual' });
+    await seedSiteRule(page, { domain: 'follow.e2e.test', username: '#u', password: '#p' });
+
+    await openSiteRulesDialog(page);
+    const tags = page.locator('.fill-entry-tag');
+    await expect(tags).toHaveCount(1);
+    await expect(tags.first()).toHaveText(textOf('options.siteRules.fillManual'));
+    await expect(page.getByText(textOf('options.siteRules.fillFollowGlobal'))).toBeVisible();
+  });
+
+  test('编辑态回显已存档位，改回「跟随全局」后字段从存储里消失', async ({ optionsPage: page }) => {
+    await seedSiteRule(page, { domain: RULE_DOMAIN, fillEntry: 'manual' });
+
+    await openSiteRulesDialog(page);
+    await page
+      .getByRole('button', { name: textOf('options.siteRules.edit') })
+      .first()
+      .click();
+    await expect(fillSelect(page)).toContainText(textOf('options.siteRules.fillManual'));
+
+    await pickFillEntry(page, 'options.siteRules.fillFollowGlobal');
+    await saveButton(page).click();
+    await expectSuccessToast(page, 'options.siteRules.saveSuccess');
+
+    const rule = (await readSiteRules(page))[RULE_DOMAIN] as Record<string, unknown>;
+    expect(rule).toMatchObject({ domain: RULE_DOMAIN });
+    // 「跟随全局」= 不写该字段，而不是按当下的全局档位设死
+    expect('fillEntry' in rule).toBe(false);
   });
 });
 
