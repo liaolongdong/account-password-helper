@@ -95,6 +95,20 @@ describe('站点覆盖快速填充入口的接线', () => {
     expect(readSource(PANEL_TYPES)).toContain('setSiteFillOverride(entry: FillEntry | null)');
   });
 
+  it('面板的档位写回走 fillEntryToPatch，不手搓两字段', () => {
+    // 上方那条正向对照只证明 `utils/fillEntry.ts` 里**定义**了这个函数，
+    // 而面板完全可以在点击处复刻一遍映射——那时定义位依旧存在、守卫照绿，
+    // 用户看到的却是「面板显示 A、写回 B」。判据因此落在**使用位**上。
+    const view = readSource(PANEL_VIEW);
+    const callIndex = view.indexOf('fillEntryToPatch(entry)');
+    expect(callIndex, '面板不再调用 fillEntryToPatch：两字段映射被复刻了一遍').toBeGreaterThan(-1);
+    // 派生出的那份 patch 必须就是提交出去的那份（换成内联字面量等于绕开单一口径）
+    expect(view.slice(callIndex, callIndex + GUARD_WINDOW)).toContain('onConfigChange(patch)');
+    // 反向对照：手搓派生与手搓字面量补丁
+    expect(view).not.toMatch(/config\.fillMode\s*===\s*'inline'/);
+    expect(view).not.toMatch(/autoShowSidepanel:\s*(?:true|false)/);
+  });
+
   it('面板的覆盖参数可选，提示元素默认隐藏（侧边栏与 Options 两处复用零改动）', () => {
     const view = readSource(PANEL_VIEW);
     expect(view).toMatch(/siteFillOverride\?:\s*FillEntry\s*\|\s*null/);
