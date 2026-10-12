@@ -191,6 +191,12 @@
                 {{ t('options.header.idleLock') }}
               </el-dropdown-item>
               <el-dropdown-item
+                command="identityAccess"
+                :icon="Postcard"
+              >
+                {{ t('options.header.identityAccess') }}
+              </el-dropdown-item>
+              <el-dropdown-item
                 divided
                 command="autoSave"
                 :icon="FolderChecked"

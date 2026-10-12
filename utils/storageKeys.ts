@@ -58,6 +58,13 @@ export const STORAGE_KEYS = {
   /** 身份信息库列表排序档位（仅存枚举值，不含任何 PII，故明文单键） */
   IDENTITY_SORT_MODE: 'identity_sort_mode',
   /**
+   * 身份信息库访问配置（仅存复验策略枚举，不含任何 PII，故明文单键）
+   *
+   * 与 `IDENTITY_SORT_MODE` 同一形态：值只有三个字符串常量，读写都只在 Options 链路。
+   * 非法值不得被当作「免复验」，归一化口径见 `utils/identityVaultAccess.ts`。
+   */
+  IDENTITY_VAULT_ACCESS_CONFIG: 'identity_vault_access_config',
+  /**
    * 身份信息库 `manual` 档的手排顺序（明文 `string[]`，只存条目 id，上限同 `MAX_IDENTITIES`）
    *
    * 与排序档位同一形态：id 是 `generateId()` 产出的随机串，不携带任何 PII，

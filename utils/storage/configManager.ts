@@ -4,6 +4,7 @@ import type {
   ClipboardConfig,
   DomainMatchConfig,
   IdleLockConfig,
+  IdentityVaultAccessConfig,
   PasswordEntry,
   PasswordHistoryConfig,
   OnboardingTourState,
@@ -11,6 +12,7 @@ import type {
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { DEFAULT_THEME } from '@/utils/theme';
+import { DEFAULT_IDENTITY_VERIFY_POLICY, normalizeIdentityVerifyPolicy } from '@/utils/identityVaultAccess';
 import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
 import { isExactHostMatch, isDomainMatchMode, type DomainMatchMode } from '@/utils/domain';
 import { DEFAULT_PAGE_SIZE, isVaultPageSize } from '@/utils/vaultPageSize';
@@ -467,6 +469,46 @@ export async function getIdleLockConfig(): Promise<IdleLockConfig> {
  */
 export async function saveIdleLockConfig(config: Partial<IdleLockConfig>): Promise<void> {
   return idleLockStore.save(config);
+}
+
+// ==================== 身份信息库访问配置 ====================
+
+const identityVaultAccessStore = createConfigStore<IdentityVaultAccessConfig>(
+  STORAGE_KEYS.IDENTITY_VAULT_ACCESS_CONFIG,
+  { verifyPolicy: DEFAULT_IDENTITY_VERIFY_POLICY },
+  '身份信息库访问配置',
+);
+
+/**
+ * 默认身份信息库访问配置
+ */
+export function getDefaultIdentityVaultAccessConfig(): IdentityVaultAccessConfig {
+  return identityVaultAccessStore.getDefaults();
+}
+
+/**
+ * 读取身份信息库复验策略
+ *
+ * 出口处强制归一化：非法值回落最严格的 `always`，不让「读到一个认不出的策略」
+ * 静默变成「少问一次主密码」。
+ */
+export async function getIdentityVaultAccessConfig(): Promise<IdentityVaultAccessConfig> {
+  const config = await identityVaultAccessStore.get();
+  return { verifyPolicy: normalizeIdentityVerifyPolicy(config.verifyPolicy) };
+}
+
+/**
+ * 保存身份信息库复验策略（增量合并）
+ * @throws 传入非法策略值时抛出，不落盘
+ */
+export async function saveIdentityVaultAccessConfig(config: Partial<IdentityVaultAccessConfig>): Promise<void> {
+  if (config.verifyPolicy !== undefined) {
+    const normalized = normalizeIdentityVerifyPolicy(config.verifyPolicy);
+    if (normalized !== config.verifyPolicy) {
+      throw new Error('身份库复验策略取值非法');
+    }
+  }
+  return identityVaultAccessStore.save(config);
 }
 
 // ==================== 收藏上限配置 ====================
