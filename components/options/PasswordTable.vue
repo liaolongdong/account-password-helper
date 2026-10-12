@@ -126,7 +126,7 @@
               placement="top"
               :show-after="300"
               :disabled="!isTagOverflowed(tag.name)"
-              :popper-style="TAG_TOOLTIP_POPPER_STYLE"
+              :popper-style="OVERFLOW_TIP_TEXT_STYLE"
             >
               <el-tag
                 :style="tag.style"
@@ -328,7 +328,7 @@ import type { PasswordEntry } from '@/utils/types';
 import type { SortState } from '@/utils/passwordSort';
 import { formatDate } from '@/utils/dateFormat';
 import { buildTagPresentationRecords, type TagPresentationRecord } from '@/utils/tagUtils';
-import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
+import { TABLE_OVERFLOW_TOOLTIP_OPTIONS, OVERFLOW_TIP_TEXT_STYLE } from '@/utils/tableOverflowTooltip';
 import { useTagOverflow } from '@/composables/useTagOverflow';
 import { useSharedHoverTooltip } from '@/composables/useSharedHoverTooltip';
 import TotpCode from '@/components/TotpCode.vue';
@@ -422,12 +422,6 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 const tagRecordsOf = (row: PasswordEntry): readonly TagPresentationRecord[] => buildTagPresentationRecords(row.tag);
 
 /**
- * 标签 tooltip 的 popper 样式（提升为组件级常量：随实例创建一次而非随渲染创建，
- * 对象身份稳定才不会让 el-tooltip 被判定为 prop 变化）
- */
-const TAG_TOOLTIP_POPPER_STYLE = Object.freeze({ maxWidth: '500px', wordBreak: 'break-word' }) as const;
-
-/**
  * 操作列提示的 popper 样式：让浮层不参与指针命中。
  *
  * `placement="top"` 决定了浮层压在上一行的操作按钮那一侧，行距越紧重叠越多。真机实测（Chrome for
@@ -440,10 +434,11 @@ const TAG_TOOLTIP_POPPER_STYLE = Object.freeze({ maxWidth: '500px', wordBreak: '
  * 提示内容只是按钮文案的复述，没有可点、可选中、可滚动的部分，因此让它对指针透明：
  * 这样「浮层永不截走点击」就与行距、与 `hide-after` 和淡出时序都无关，成为一条恒成立的性质。
  *
- * 对象身份必须稳定（同 `TAG_TOOLTIP_POPPER_STYLE`）：模板里现造对象会让整表每次渲染都把这个
- * 实例判定为需要更新（守卫见 `tests/architecture/optionsRenderIdentity.test.ts`）。
+ * 对象身份必须稳定（同 `utils/tableOverflowTooltip` 的 `OVERFLOW_TIP_TEXT_STYLE`）：模板里现造对象
+ * 会让整表每次渲染都把这个实例判定为需要更新（守卫见
+ * `tests/architecture/optionsRenderIdentity.test.ts`）。
  */
-const OPERATION_TIP_POPPER_STYLE = Object.freeze({ pointerEvents: 'none' }) as const;
+const OPERATION_TIP_POPPER_STYLE = Object.freeze({ pointerEvents: 'none' });
 
 /** 表格引用（只经由文件末尾 `defineExpose` 的两个意图方法对外使用） */
 const localTableRef = ref();
