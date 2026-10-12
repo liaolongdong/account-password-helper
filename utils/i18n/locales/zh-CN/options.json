@@ -103,6 +103,7 @@
   "options.siteRules.fillEntryHint": "只对本域名生效，优先于全局的「快速填充方式」。选「仅手动」后该站点聚焦登录框不再自动弹出侧边栏，仍可点悬浮按钮或工具栏图标打开；「跟随全局」表示不做覆盖。",
   "options.siteRules.noSelectors": "未配置",
   "options.siteRules.saveSuccess": "规则已保存",
+  "options.siteRules.clearSuccess": "已清除该站点的全部覆盖，规则一并移除",
   "options.siteRules.saveError": "保存失败，请重试",
   "options.siteRules.deleteSuccess": "规则已删除",
   "options.siteRules.deleteError": "删除失败",

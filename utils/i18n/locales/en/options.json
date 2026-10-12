@@ -103,6 +103,7 @@
   "options.siteRules.fillEntryHint": "Applies to this domain only and takes precedence over the global quick fill mode. With “Manual only”, focusing a login field no longer opens the sidebar automatically — the floating button and toolbar icon still do. “Follow global” means no override.",
   "options.siteRules.noSelectors": "Not configured",
   "options.siteRules.saveSuccess": "Rule saved",
+  "options.siteRules.clearSuccess": "Overrides for this site were cleared and the rule was removed",
   "options.siteRules.saveError": "Failed to save, please retry",
   "options.siteRules.deleteSuccess": "Rule deleted",
   "options.siteRules.deleteError": "Failed to delete",

@@ -495,9 +495,12 @@ const handleSubmit = async () => {
   const domain = editingRule.value?.domain ?? normalizeSiteRuleDomain(formData.domain) ?? formData.domain.trim();
   const username = formData.usernameSelector.trim();
   const password = formData.passwordSelector.trim();
-  // 三项覆盖全为空时不入库：只带一个域名的规则什么都不做，却会在列表里长期占一行，
+  // 三项覆盖全为空：新增态是在造一条空壳，编辑态是在撤销这个站点的全部特殊处理，两种意图
+  // 不能按同一条规则处置（见下面 clearingAll 分支）。
+  const clearingAll = !formData.fillEntry && formData.penetrateShadow && !(username && password);
+  // 新增态拒绝入库：只带一个域名的规则什么都不做，却会在列表里长期占一行，
   // 让人以为这个站点已被管住（导入侧对同样的空规则也是直接剔除）。
-  if (!formData.fillEntry && formData.penetrateShadow && !(username && password)) {
+  if (clearingAll && !editingRule.value) {
     ElMessage.warning(t('options.siteRules.validateEmptyRule'));
     return;
   }
@@ -510,10 +513,13 @@ const handleSubmit = async () => {
   if (formData.fillEntry) patch.fillEntry = formData.fillEntry;
   saving.value = true;
   try {
-    await setSiteRule(domain, patch);
+    // 编辑态把唯一覆盖改回跟随全局时整条规则移除，而不是拦下来报「请至少设置一项」：
+    // 「跟随全局」是下拉里明摆着的选项，选了它却存不进去，等于给用户一条改不回去的死路。
+    if (clearingAll) await removeSiteRule(domain);
+    else await setSiteRule(domain, patch);
     await loadRules();
     cancelForm();
-    ElMessage.success(t('options.siteRules.saveSuccess'));
+    ElMessage.success(t(clearingAll ? 'options.siteRules.clearSuccess' : 'options.siteRules.saveSuccess'));
   } catch (error) {
     logger.error('保存站点规则失败:', error);
     ElMessage.error(t('options.siteRules.saveError'));

@@ -145,7 +145,7 @@ test.describe('按站点覆盖快速填充方式（C6）', () => {
     expect(rule.customSelectors).toBeUndefined();
   });
 
-  test('三项覆盖全为空时拒绝入库，不留下什么都不做的规则行', async ({ optionsPage: page }) => {
+  test('新增态三项覆盖全为空时拒绝入库，不留下什么都不做的规则行', async ({ optionsPage: page }) => {
     await openSiteRulesDialog(page);
     await page.getByRole('button', { name: textOf('options.siteRules.addButton') }).click();
 
@@ -167,8 +167,13 @@ test.describe('按站点覆盖快速填充方式（C6）', () => {
     await expect(page.getByText(textOf('options.siteRules.fillFollowGlobal'))).toBeVisible();
   });
 
-  test('编辑态回显已存档位，改回「跟随全局」后字段从存储里消失', async ({ optionsPage: page }) => {
-    await seedSiteRule(page, { domain: RULE_DOMAIN, fillEntry: 'manual' });
+  test('编辑带选择器的规则时改回「跟随全局」，只去掉档位键而不动其它覆盖', async ({ optionsPage: page }) => {
+    await seedSiteRule(page, {
+      domain: RULE_DOMAIN,
+      username: '#a-user',
+      password: '#a-pwd',
+      fillEntry: 'manual',
+    });
 
     await openSiteRulesDialog(page);
     await page
@@ -182,9 +187,28 @@ test.describe('按站点覆盖快速填充方式（C6）', () => {
     await expectSuccessToast(page, 'options.siteRules.saveSuccess');
 
     const rule = (await readSiteRules(page))[RULE_DOMAIN] as Record<string, unknown>;
-    expect(rule).toMatchObject({ domain: RULE_DOMAIN });
+    expect(rule).toMatchObject({
+      domain: RULE_DOMAIN,
+      customSelectors: { username: '#a-user', password: '#a-pwd' },
+    });
     // 「跟随全局」= 不写该字段，而不是按当下的全局档位设死
     expect('fillEntry' in rule).toBe(false);
+  });
+
+  test('把唯一一项覆盖改回「跟随全局」时整条规则移除，而不是留一条改不回去的空壳', async ({ optionsPage: page }) => {
+    await seedSiteRule(page, { domain: RULE_DOMAIN, fillEntry: 'manual' });
+
+    await openSiteRulesDialog(page);
+    await page
+      .getByRole('button', { name: textOf('options.siteRules.edit') })
+      .first()
+      .click();
+
+    await pickFillEntry(page, 'options.siteRules.fillFollowGlobal');
+    await saveButton(page).click();
+    await expectSuccessToast(page, 'options.siteRules.clearSuccess');
+
+    expect(Object.keys(await readSiteRules(page))).not.toContain(RULE_DOMAIN);
   });
 });
 
