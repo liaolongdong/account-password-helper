@@ -410,7 +410,20 @@ const activate = () => {
     transform 0.15s ease;
 }
 
+/*
+ * 两颗复制图标之间的净间距：12px → 8px，与「文字 → 第一颗图标」的 8px（2px 外边距 +
+ * 6px 内边距）对齐。原先两颗图标各自留 6px 内边距、彼此又不相贴，图标间距（12px）反而
+ * 大于图标到用户名的距离（8px）——读起来像两个不相干的动作，而不是「复制这一对」。
+ *
+ * 让出的是相邻那一侧的内边距，热区只从 26×26 收到 24×26（WCAG 2.5.8 的 24px 下限仍在），
+ * 两盒之间既不留缝也不重叠，所以不存在「点哪颗」的歧义边界。
+ */
+.copy-icon-wrapper:not(.copy-password) {
+  padding-right: 4px;
+}
+
 .copy-icon-wrapper.copy-password {
+  padding-left: 4px;
   margin-left: 0;
 }
 
