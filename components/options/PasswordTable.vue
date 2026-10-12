@@ -213,14 +213,17 @@
               不产生逐行闭包、也不产生逐行组件实例。
             -->
             <!--
-              查看详情用 ⓘ 而不是眼睛，也不用「文档」：
-              ① 眼睛在本产品里是显隐机密的专用语义（本行密码列、详情抽屉、身份库卡片、
+              查看详情用自绘的「详情卡」（ViewDetailIcon），三件事各自排除了一个候选：
+              ① 眼睛（`View`）在本产品里是显隐机密的专用语义（本行密码列、详情抽屉、身份库卡片、
                  注入到页面密码框的切换按钮都如此），同一行两只眼睛会让人分不清哪只展开明文；
               ② `Document` 在本页已经表示「文件」——头部「数据管理」里的下载模板与密码历史都用它，
-                 而且它的形状与右边那颗 `CopyDocument`（创建副本）在手边尺寸下近乎同形。
+                 而且它的形状与右边那颗 `CopyDocument`（创建副本）在手边尺寸下近乎同形；
+              ③ 原先的圆圈 i（`InfoFilled`）读起来是「提示」而不是「查看详情」，且它是实心圆盘，
+                 比同排四颗线性图标明显重一档。
+              详情卡 = 带标题栏的面板 + 一行内容，正是点下去展开的那只只读抽屉。
             -->
             <el-button
-              :icon="InfoFilled"
+              :icon="ViewDetailIcon"
               :aria-label="rowLabels.viewDetail"
               :data-tip="rowLabels.viewDetail"
               circle
@@ -320,7 +323,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUpdate, onUpdated, ref } from 'vue';
-import { CopyDocument, InfoFilled, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
+import { CopyDocument, Edit, Delete, View, Hide, Star, StarFilled, Link } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import type { SortState } from '@/utils/passwordSort';
 import { formatDate } from '@/utils/dateFormat';
@@ -331,6 +334,7 @@ import { useSharedHoverTooltip } from '@/composables/useSharedHoverTooltip';
 import TotpCode from '@/components/TotpCode.vue';
 import SiteFavicon from '@/components/SiteFavicon.vue';
 import SearchHighlight from '@/components/SearchHighlight.vue';
+import ViewDetailIcon from '@/components/ViewDetailIcon.vue';
 import VaultPagination from '@/components/options/VaultPagination.vue';
 import { useI18n } from '@/utils/i18n';
 
