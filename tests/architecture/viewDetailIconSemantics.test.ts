@@ -107,13 +107,10 @@ describe('查看详情按钮的图标语义', () => {
     expect(icon, '详情卡不再跟随按钮颜色：currentColor 是换肤与悬浮态的唯一入口').toContain('stroke="currentColor"');
     expect(icon, '详情卡没有 aria-hidden：装饰图形会被读屏重复播报按钮名').toContain('aria-hidden="true"');
     // 显式导入：typecheck 看不见 .vue 的 script setup，漏写这行只会在运行时渲染成空按钮
-    expect(TABLE_SRC, 'PasswordTable 没有导入 ViewDetailIcon').toContain(
-      "import ViewDetailIcon from '@/components/ViewDetailIcon.vue';",
-    );
-    // 牙齿：删掉导入，判据要红
-    expect(TABLE_SRC.replace("import ViewDetailIcon from '@/components/ViewDetailIcon.vue';", '')).not.toContain(
-      "import ViewDetailIcon from '@/components/ViewDetailIcon.vue';",
-    );
+    const IMPORT_STMT = "import ViewDetailIcon from '@/components/ViewDetailIcon.vue';";
+    expect(TABLE_SRC, 'PasswordTable 没有导入 ViewDetailIcon').toContain(IMPORT_STMT);
+    // 且只有一处：出现两处时上面那条存在性判据会被「另一处」满足，删掉真正在用的那行也不会红
+    expect(TABLE_SRC.split(IMPORT_STMT).length - 1, 'ViewDetailIcon 的导入语句不唯一').toBe(1);
   });
 
   it('页内帮助的中英文都描述成详情卡', () => {
