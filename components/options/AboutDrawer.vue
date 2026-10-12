@@ -113,6 +113,7 @@ import {
   PRODUCT_DOCS_URL,
   REPO_GITHUB_URL,
   REPO_ISSUES_URL,
+  REPO_LICENSE_URL,
 } from '@/utils/urls';
 
 /**
@@ -166,6 +167,7 @@ const links = computed<AboutLink[]>(() => {
       label: t('options.about.linkPrivacy'),
     },
     { href: REPO_GITHUB_URL, label: t('options.about.linkRepo') },
+    { href: REPO_LICENSE_URL, label: t('options.about.linkLicense') },
     { href: GITHUB_RELEASES_PAGE_URL, label: t('options.about.linkReleases') },
   ];
   // Firefox 构建没有 Chrome 商店条目可去
@@ -226,25 +228,28 @@ const facts = computed(() => [
   color: var(--el-text-color-regular);
 }
 
-/* 事实清单：左标签右值，值可折行（不允许撑出横向滚动） */
+/* 事实清单：标签在上、值在下 */
 .about__facts {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding: 12px;
   margin: 0;
   background: var(--el-fill-color-light);
   border-radius: 6px;
 }
 
+/*
+ * 不用「左标签右值」的两列排布：英文标签最长有 18 字符（Where it is stored），
+ * 与值并排会把值列压到约 246px，那条讲 PBKDF2 与 AES 的值要折 5 行，而中文只折 3 行——
+ * 同一份事实在两种语言里行数不同、且英文更挤。竖排后值独占整幅宽度，中英读到的形状一致。
+ */
 .about__fact {
-  display: flex;
-  gap: 12px;
-  align-items: baseline;
+  display: block;
 }
 
 .about__fact dt {
-  flex-shrink: 0;
+  margin-bottom: 2px;
   font-size: 12px;
   font-weight: 600;
   color: var(--el-text-color-secondary);

@@ -21,6 +21,15 @@ export const CHROME_WEB_STORE_URL =
 export const REPO_ISSUES_URL = `${REPO_GITHUB_URL}/issues/new/choose`;
 
 /**
+ * 许可证全文（仓库内的 `LICENSE`）
+ *
+ * 由 `REPO_GITHUB_URL` 派生，与 Issues 入口同一口径。GPL-3.0 要求被分发方
+ * 能方便地读到许可条款，「关于」抽屉里那句许可说明因此配一个直达全文的出口，
+ * 而不是让用户自己去仓库里找。
+ */
+export const REPO_LICENSE_URL = `${REPO_GITHUB_URL}/blob/main/LICENSE`;
+
+/**
  * 隐私政策（GitHub Pages，中英各一份）
  *
  * 与 Chrome 应用商店后台填写的那条隐私政策 URL 指向同一份文档
