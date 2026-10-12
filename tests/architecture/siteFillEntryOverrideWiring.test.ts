@@ -113,7 +113,17 @@ describe('站点覆盖快速填充入口的接线', () => {
 
   it('「跟随全局」表达为不写该字段，而不是冻结当前全局档位', () => {
     const dialog = readSource(RULES_DIALOG);
-    expect(dialog).toMatch(/if\s*\(\s*formData\.fillEntry\s*\)\s*patch\.fillEntry\s*=/);
+    // 表单以非空哨兵表达「跟随全局」：空串会被 `el-select` 判成未选（`getOption` 对空串返回
+    // 空标签），选中这一档也不显示标签、只剩占位符——本仓未装 EP 语言包，那颗占位符是英文的。
+    // 判据因此是「与哨兵比较」；退回真值判断后 `'follow'` 恒为真，每次保存都把当下的全局档位
+    // 写死进规则，用户之后的全局变更在这个站点上被永久挡掉。
+    expect(dialog).toMatch(/if\s*\(\s*formData\.fillEntry\s*!==\s*FOLLOW_GLOBAL\s*\)\s*patch\.fillEntry\s*=/);
+    // 哨兵一旦与某个真实档位重名，「选了那一档」就静默等于「跟随全局」——存进去却没有覆盖
+    const sentinel = dialog.match(/^const FOLLOW_GLOBAL = '([a-zA-Z]+)';$/m)?.[1];
+    expect(sentinel, '哨兵字面量形状变了：本条判据需要跟着重新确认').toBeTruthy();
+    const realEntries = [...dialog.matchAll(/<el-option\n\s+value="([a-zA-Z]+)"/g)].map(m => m[1]);
+    expect(realEntries.length, '档位下拉的真实选项少于三条：提取口径失配').toBeGreaterThanOrEqual(3);
+    expect(realEntries).not.toContain(sentinel);
     // 无条件写入（对象字面量里直接带 fillEntry）会把「跟随全局」变成「按当下的全局设死」
     expect(dialog).not.toMatch(/fillEntry:\s*formData\.fillEntry/);
     // 编辑态把唯一覆盖改回跟随全局必须走删除：这条分支一旦被「简化」掉，用户点开一条

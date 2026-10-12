@@ -195,6 +195,30 @@ test.describe('按站点覆盖快速填充方式（C6）', () => {
     expect('fillEntry' in rule).toBe(false);
   });
 
+  test('新增态档位框显示「跟随全局」，不是 Element Plus 的英文占位符', async ({ optionsPage: page }) => {
+    // 这一条是用户截图里那个缺陷的直接形态：本仓没有安装 Element Plus 语言包，未选中态的
+    // 占位符是内置英文 "Select"，出现在中文界面里既不统一、也读不出「当前是什么档位」。
+    // 实现上用哨兵值 `'follow'` 而不是 `''`——EP 把空串判成未选中，选中值因此不显示。
+    await openSiteRulesDialog(page);
+    await page.getByRole('button', { name: textOf('options.siteRules.addButton') }).click();
+    await expect(fillSelect(page)).toContainText(textOf('options.siteRules.fillFollowGlobal'));
+    await expect(fillSelect(page)).not.toContainText('Select');
+  });
+
+  test('编辑没有档位字段的存量规则时，档位框同样回显「跟随全局」', async ({ optionsPage: page }) => {
+    // 与新增态是两条不同的码路径：这里走 `handleEdit` 的 `rule.fillEntry ?? FOLLOW_GLOBAL`。
+    // 存量规则里「跟随全局」的表达方式正是「不写该字段」，所以这条也必须在框里看得见档位名。
+    await seedSiteRule(page, { domain: RULE_DOMAIN, username: '#u', password: '#p' });
+
+    await openSiteRulesDialog(page);
+    await page
+      .getByRole('button', { name: textOf('options.siteRules.edit') })
+      .first()
+      .click();
+    await expect(fillSelect(page)).toContainText(textOf('options.siteRules.fillFollowGlobal'));
+    await expect(fillSelect(page)).not.toContainText('Select');
+  });
+
   test('把唯一一项覆盖改回「跟随全局」时整条规则移除，而不是留一条改不回去的空壳', async ({ optionsPage: page }) => {
     await seedSiteRule(page, { domain: RULE_DOMAIN, fillEntry: 'manual' });
 

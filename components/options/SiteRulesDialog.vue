@@ -161,7 +161,7 @@
             class="fill-entry-select"
           >
             <el-option
-              value=""
+              :value="FOLLOW_GLOBAL"
               :label="t('options.siteRules.fillFollowGlobal')"
             />
             <el-option
@@ -331,13 +331,24 @@ const dialogTitle = computed(() => {
   return isEditing.value ? t('options.siteRules.editTitle') : t('options.siteRules.addTitle');
 });
 
+/**
+ * 「跟随全局」在表单里的哨兵值
+ *
+ * 不能用空串：Element Plus 的 `el-select` 把 `''` 判成「未选」（`getOption` 对空串直接返回
+ * 空标签），于是这一档**选中了也不显示标签**，框里只剩占位符——而本仓未装 EP 语言包
+ * （约定是逐处显式传文案），那颗占位符还是英文的 `Select`。用户看到的既是语言不一致，
+ * 也是「我明明选了跟随全局，框里却没字」。存储层仍以「不写该字段」表达跟随全局，
+ * 哨兵只活在这份表单状态里，提交时按 `fillEntry !== FOLLOW_GLOBAL` 换算。
+ */
+const FOLLOW_GLOBAL = 'follow';
+
 interface FormData {
   domain: string;
   usernameSelector: string;
   passwordSelector: string;
   penetrateShadow: boolean;
-  /** 覆盖的填充档位；'' 表示跟随全局（存储里以「不写该字段」表达） */
-  fillEntry: FillEntry | '';
+  /** 覆盖的填充档位；`FOLLOW_GLOBAL` 表示跟随全局（存储里以「不写该字段」表达） */
+  fillEntry: FillEntry | typeof FOLLOW_GLOBAL;
 }
 
 const formData = reactive<FormData>({
@@ -345,7 +356,7 @@ const formData = reactive<FormData>({
   usernameSelector: '',
   passwordSelector: '',
   penetrateShadow: true,
-  fillEntry: '',
+  fillEntry: FOLLOW_GLOBAL,
 });
 
 /** 档位 → 文案 key，与列表列、下拉选项共用同一份标签 */
@@ -451,7 +462,7 @@ const resetForm = () => {
   formData.usernameSelector = '';
   formData.passwordSelector = '';
   formData.penetrateShadow = true;
-  formData.fillEntry = '';
+  formData.fillEntry = FOLLOW_GLOBAL;
   formRef.value?.clearValidate();
 };
 
@@ -469,7 +480,7 @@ const handleEdit = (rule: SiteRule) => {
   formData.usernameSelector = rule.customSelectors?.username ?? '';
   formData.passwordSelector = rule.customSelectors?.password ?? '';
   formData.penetrateShadow = rule.penetrateShadow ?? true;
-  formData.fillEntry = rule.fillEntry ?? '';
+  formData.fillEntry = rule.fillEntry ?? FOLLOW_GLOBAL;
   formRef.value?.clearValidate();
   showForm.value = true;
 };
@@ -497,7 +508,7 @@ const handleSubmit = async () => {
   const password = formData.passwordSelector.trim();
   // 三项覆盖全为空：新增态是在造一条空壳，编辑态是在撤销这个站点的全部特殊处理，两种意图
   // 不能按同一条规则处置（见下面 clearingAll 分支）。
-  const clearingAll = !formData.fillEntry && formData.penetrateShadow && !(username && password);
+  const clearingAll = formData.fillEntry === FOLLOW_GLOBAL && formData.penetrateShadow && !(username && password);
   // 新增态拒绝入库：只带一个域名的规则什么都不做，却会在列表里长期占一行，
   // 让人以为这个站点已被管住（导入侧对同样的空规则也是直接剔除）。
   if (clearingAll && !editingRule.value) {
@@ -510,7 +521,7 @@ const handleSubmit = async () => {
   if (username && password) patch.customSelectors = { username, password };
   // 「跟随全局」= 不写该字段，而不是写死当前全局档位：写死会让用户之后的全局设置变更
   // 在这个站点上被永久挡掉，而那并不是他设规则时的意思。
-  if (formData.fillEntry) patch.fillEntry = formData.fillEntry;
+  if (formData.fillEntry !== FOLLOW_GLOBAL) patch.fillEntry = formData.fillEntry;
   saving.value = true;
   try {
     // 编辑态把唯一覆盖改回跟随全局时整条规则移除，而不是拦下来报「请至少设置一项」：
