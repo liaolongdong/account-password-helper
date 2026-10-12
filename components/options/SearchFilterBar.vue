@@ -162,7 +162,7 @@ const props = defineProps<{
   filterTags: string[];
   /** 可选站点集（末位可能带一个通用条目桶；为空时隐藏站点筛选下拉） */
   availableSites: SiteOption[];
-  /** 站点筛选选中集（命中任一即保留，通用条目恒保留） */
+  /** 站点筛选选中集（命中任一即保留；没填网址的条目算「（无网址）」这一档，勾了才出现） */
   filterSites: string[];
 }>();
 

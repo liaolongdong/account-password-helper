@@ -10,10 +10,13 @@
  * 「把全库按站点摊开成可点选的桶」，所以只做**精确 hostname 分桶**，不读跨子域档位。
  * 若把档位语义混进来，筛选结果会随另一个弹窗里的设置变化，用户无法预期。
  *
- * 归一后网址为空串的条目（`''`、`'   '`、`'///'` 这类）在任何站点筛选下都保留（见
- * `matchesSiteFilter`）：它对任意站点都可用，藏起来等于让用户以为库里没有。
- * 同时它们汇成一个末位候选桶（见 `GENERIC_SITE_KEY`），单独勾选时只剩这批条目——
- * 否则「找出没填网址的条目补全」这个动作在管理页里无处落脚。
+ * 归一后网址为空串的条目（`''`、`'   '`、`'///'` 这类）汇成一个末位候选桶
+ * （见 `GENERIC_SITE_KEY`），它和其他站点一样**只有被勾选才参与结果**——与同一条过滤链上的
+ * 标签筛选同口径（`parseTags(...).some(选中)`）。勾了站点却带出一批没填网址的条目，
+ * 读起来就是「筛选没生效」。这批条目并没有因此失去落点：下拉里恒有「（无网址）」一档并标着
+ * 条数，勾它即只看这批，「把网址没填的条目挑出来补全」照旧可达。至于「这个站点上会出现哪些
+ * 条目」，那是填充场景的问题，由侧边栏的 `matchesSiteScope` 回答（那里空网址条目任何站点都带出），
+ * 管理页不替它作答。
  * 畸形网址**不一定**进这一桶：`normalizeToHostname` 只做收敛、不判合法性，
  * `http://`、`not a url` 这类归一后是非空残值的网址各自成一个候选桶。
  */
@@ -85,12 +88,12 @@ export const collectSiteOptions = (entries: readonly Pick<PasswordEntry, 'url'>[
 /**
  * 判定条目是否落在选中的站点集合内
  *
- * 未选中任何站点即放行（不参与筛选）；通用条目（归一后网址为空串）恒放行，理由见模块头。
+ * 未选中任何站点即放行（不参与筛选）；一旦选中，归一后网址为空串的条目也按「它自己的桶」
+ * 判定——也就是 `GENERIC_SITE_KEY` 有没有被勾选。恒放行会让「筛了等于没筛」，理由见模块头。
  * 多个选中站点之间是「命中任一即保留」的或关系，与标签筛选一致。
  *
  * 只勾 `GENERIC_SITE_KEY` 时结果恰好就是这批通用条目——真实站点的键永远不等于哨兵，
- * 于是「把网址没填的条目挑出来补全」有了落点；
- * 它与别的站点同选时不改变结果（恒保留已在前面生效）。
+ * 于是「把网址没填的条目挑出来补全」有了落点。
  *
  * @param url - 条目的网址字段
  * @param selectedSites - 选中的站点键集合
@@ -98,6 +101,6 @@ export const collectSiteOptions = (entries: readonly Pick<PasswordEntry, 'url'>[
  */
 export const matchesSiteFilter = (url: string | undefined | null, selectedSites: readonly string[]): boolean => {
   if (selectedSites.length === 0) return true;
-  const key = siteKeyOf(url);
-  return !key || selectedSites.includes(key);
+  // 空键映射成哨兵，让「没填网址」在选中集里走和其他站点同一条判定，而不是另开一条恒保留的旁路
+  return selectedSites.includes(siteKeyOf(url) || GENERIC_SITE_KEY);
 };
