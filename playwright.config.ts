@@ -28,7 +28,9 @@ export default defineConfig({
   reporter: process.env.CI ? 'list' : [['list'], ['html', { open: 'never' }]],
   globalSetup: './e2e/global-setup.ts',
   use: {
-    trace: 'on-first-retry',
+    // 不用 `on-first-retry`：它只给**第二次尝试**留 trace，而 `retries=1` 下第二次通常是绿的，
+    // 于是真正要查的「首试为什么红」反而什么都没留下（10-13 那条间歇红的 artifact 就是这样空的）
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     // 录制视频需要 ffmpeg，本机（macOS 13）不在 Playwright 的分发矩阵内，默认关闭
     video: 'off',
