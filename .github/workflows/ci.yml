@@ -9,6 +9,16 @@ on:
 permissions:
   contents: read
 
+# runner 与 action 版本的口径（2026-10-14）
+# - `runs-on` 钉 `ubuntu-24.04` 而非 `ubuntu-latest`：GitHub 将在 2026-10-19 把 latest
+#   迁到 Ubuntu 26（actions/runner-images#14748）。e2e 的 `playwright install --with-deps`
+#   是按发行版装系统包的，迁移日会让一条没改代码的 PR 直接变红，所以这里显式钉住已验证过的镜像。
+# - actions 停在「声明 node24 的最低大版本」（checkout v5、setup-node v5、pnpm/action-setup v5、
+#   upload-artifact v6、download-artifact v7、release-please-action v5、action-gh-release v3）：
+#   v4 线仍声明 node20，GitHub 现在每个 job 都发一条 Node.js 20 deprecation 警告，
+#   垫片撤掉就是硬失败。逐个核对过 action.yml 的 runs.using 与 release notes，这些 major 只换运行时。
+#   例外：upload-artifact v5 与 download-artifact v6 仍声明 node20，所以要跳到 v6 / v7。
+
 # 同一分支的新提交取消仍在排队/运行的旧任务，避免并发跑满 Actions 分钟数
 concurrency:
   group: ci-${{ github.ref }}
@@ -17,12 +27,12 @@ concurrency:
 jobs:
   static:
     name: Type check and lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -35,14 +45,14 @@ jobs:
 
   test:
     name: Unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # PBKDF2 相关用例（tests/utils/encryption.test.ts）在并行环境下贴近超时上限，
     # 这里给足整体余量，避免把机器抖动误判成回归。
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -51,12 +61,12 @@ jobs:
 
   build:
     name: Build extension
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
