@@ -1311,7 +1311,7 @@ const {
   getActions: buildPaletteActions,
   // 引导是 `aria-modal` 的聚光层：面板开在它下面只会得到一个看不见、还在抢焦点的浮层，
   // 因此引导期间直接不给唤起（`canOpen` 为假时快捷键仍会 preventDefault，不串给浏览器）。
-  // 文档中页同理：它是整屏的一级视图，面板里的 24 条命令讲的都是列表页的事，
+  // 文档中页同理：它是整屏的一级视图，命令面板讲的都是列表页的事，
   // 开在它下面只会让用户以为按键没反应——退出文档页有自己的入口（返回按钮 / Esc）。
   // `tour` 与 `guideActive` 在下方声明：这里传的是回调，setup 同步跑完后才可能被按键触发，不存在前置引用问题。
   canOpen: () => isAuthenticated.value && !tour.isActive.value && !guideActive.value,

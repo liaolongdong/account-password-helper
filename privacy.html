@@ -395,8 +395,8 @@
           <span class="lang-en">Account Password Helper Browser Extension</span>
         </p>
         <span class="update-date">
-          <span class="lang-zh">最后更新：2026年10月8日 · 生效日期：2026年10月8日</span>
-          <span class="lang-en">Last updated: October 8, 2026 · Effective: October 8, 2026</span>
+          <span class="lang-zh">最后更新：2026年10月13日 · 生效日期：2026年10月13日</span>
+          <span class="lang-en">Last updated: October 13, 2026 · Effective: October 13, 2026</span>
         </span>
       </div>
 
@@ -479,7 +479,7 @@
           </p>
           <p>
             身份信息（姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段）单独成库，整块以 AES-256-GCM
-            认证加密后写入本地存储，默认掩码显示，查看或复制均需再次验证主密码。
+            认证加密后写入本地存储，默认掩码显示；打开该库是否要求验证主密码由「身份库复验设置」决定（默认同一管理页会话内只问一次，锁定、会话过期或刷新、重开管理页后会重新问），库内的查看与复制不再额外索要主密码。
           </p>
         </div>
 
@@ -678,7 +678,7 @@
             </li>
             <li>
               <strong>二次验证：</strong
-              >身份信息的查看与复制需重新验证主密码，默认掩码显示；明文导出与「不加密备份」需风险二次确认并复验主密码
+              >打开身份信息库是否要求验证主密码由复验策略决定（默认同一管理页会话内只问一次），机密字段默认掩码显示；明文导出与「不加密备份」需风险二次确认并复验主密码
             </li>
             <li>
               <strong>投递面收窄：</strong
@@ -873,7 +873,8 @@
           <p>
             Identity information (name, ID number, phone, email, address, bank card details and custom fields) is kept
             in a separate vault, stored locally only as one AES-256-GCM authenticated-encrypted blob; it is masked by
-            default, and viewing or copying it requires verifying the master password again.
+            default, and whether opening that vault asks for the master password follows a configurable policy (once per
+            manager-page session by default) — viewing or copying inside an already opened vault asks nothing further.
           </p>
         </div>
 
@@ -1098,9 +1099,10 @@
               unchanged before clearing (the sole purpose of the <code>clipboardRead</code> permission)
             </li>
             <li>
-              <strong>Step-up verification:</strong> identity fields are masked by default and require re-entering the
-              master password to view or copy; plaintext exports and the "unencrypted backup" tier require a risk
-              acknowledgement plus master-password re-verification
+              <strong>Step-up verification:</strong> identity fields are masked by default, and opening the vault asks
+              for the master password per the configurable verification policy (once per manager-page session by
+              default); plaintext exports and the "unencrypted backup" tier require a risk acknowledgement plus
+              master-password re-verification
             </li>
             <li>
               <strong>Narrow delivery surface:</strong> autofill matches the exact hostname by default and only widens
