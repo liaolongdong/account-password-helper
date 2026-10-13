@@ -87,25 +87,51 @@ export const normalizeTagInput = (tags: string[] | undefined | null, maxLength: 
   return { accepted, rejectedTooLong };
 };
 
+/** 标签筛选候选项 */
+export interface TagOption {
+  /** 标签文本（`parseTags` 归一后的形态） */
+  tag: string;
+  /** 含该标签的条目数，供下拉展示规模、并作为排序主键 */
+  count: number;
+}
+
 /**
- * 聚合所有密码条目中的标签，返回去重后的候选项
- * 用于标签下拉框的候选列表。
+ * 聚合全库条目的标签计数
  *
- * @param passwords 密码条目列表
- * @returns 去重后的标签候选数组
+ * 返回 Map 是为了让一次遍历喂两个视图：键集是「首次出现顺序」，继续作为表单与批量弹窗的
+ * 候选顺序；`buildTagOptions` 在其上按条目数排序，供筛选栏展示。两者键集必然一致，
+ * 筛选条件的失效剔除不会与展示版本分叉。
+ *
+ * 计数口径是**全库条目数**，不是当前筛选结果数：后者会在选中一个标签后让其余候选归零，
+ * 下拉当场读成空集（与 `siteUtils.collectSiteOptions` 同口径）。
+ *
+ * @param entries 密码条目（只读 `tag` 字段）
+ * @returns 标签 → 含该标签的条目数，按标签首次出现顺序
  */
-export const collectAllTags = (passwords: Array<Pick<PasswordEntry, 'tag'>>): string[] => {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const p of passwords) {
-    for (const tag of parseTags(p.tag)) {
-      if (seen.has(tag)) continue;
-      seen.add(tag);
-      result.push(tag);
+export const countTags = (entries: readonly Pick<PasswordEntry, 'tag'>[]): Map<string, number> => {
+  const counts = new Map<string, number>();
+  for (const entry of entries) {
+    // parseTags 已在条目内去重，同一条目里的重复标签不会把计数抬成 2
+    for (const tag of parseTags(entry.tag)) {
+      counts.set(tag, (counts.get(tag) ?? 0) + 1);
     }
   }
-  return result;
+  return counts;
 };
+
+/**
+ * 把标签计数整理成筛选栏候选集
+ *
+ * 排序为「条目数倒序 → 标签码点正序」：常用标签排在前面，同数量标签顺序稳定
+ * （比较器不用 `localeCompare`，避免不同平台 locale 规则给出不同顺序）。
+ *
+ * @param counts `countTags` 的结果
+ * @returns 标签候选集；无标签时为空数组
+ */
+export const buildTagOptions = (counts: ReadonlyMap<string, number>): TagOption[] =>
+  Array.from(counts, ([tag, count]) => ({ tag, count })).sort(
+    (a, b) => b.count - a.count || (a.tag < b.tag ? -1 : a.tag > b.tag ? 1 : 0),
+  );
 
 /**
  * 标签颜色对象，包含背景色、文字色和边框色

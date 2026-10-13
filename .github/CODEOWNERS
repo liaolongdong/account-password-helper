@@ -34,7 +34,7 @@
 
 # ── 权限、manifest 与商店元数据 ─────────────────────────────────────────
 # 权限与 host_permissions 变化要重新提审；_locales 里的名称/摘要受 132 字符
-# 与 keyword-stuffing 红线约束（见 docs/CWS_PUBLISHING_GUIDE.md）。
+# 与 keyword-stuffing 红线约束（见 docs/store/CWS_PUBLISHING_GUIDE.md）。
 # manifest.json 本身是 WXT 由这两处生成的产物，不在仓库里，无需单独认领。
 /wxt.config.ts @liaolongdong
 /public/_locales/ @liaolongdong

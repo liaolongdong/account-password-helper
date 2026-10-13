@@ -7,10 +7,34 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0"
     />
-    <title>技术博客 | Account Password Helper</title>
+    <title>博客 · 本地优先密码管理器的工程实战 | 账号密码管理助手</title>
     <meta
       name="description"
-      content="Account Password Helper 的产品思考与工程实现：本地优先的安全设计、MV3 性能实战与 Web Crypto 加密详解。"
+      content="账号密码管理助手的产品思考与工程实现：本地优先的安全设计、MV3 秒开实战与 Web Crypto 加密详解。"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="https://liaolongdong.github.io/account-password-helper/assets/icons/icon.svg"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="https://liaolongdong.github.io/account-password-helper/public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
     />
     <link
       rel="canonical"
@@ -36,12 +60,16 @@
       content="website"
     />
     <meta
+      property="og:locale"
+      content="zh_CN"
+    />
+    <meta
       property="og:title"
-      content="技术博客"
+      content="博客 · 本地优先密码管理器的工程实战"
     />
     <meta
       property="og:description"
-      content="Account Password Helper 的产品思考与工程实现：本地优先的安全设计、MV3 性能实战与 Web Crypto 加密详解。"
+      content="账号密码管理助手的产品思考与工程实现：本地优先的安全设计、MV3 秒开实战与 Web Crypto 加密详解。"
     />
     <meta
       property="og:url"
@@ -49,20 +77,108 @@
     />
     <meta
       property="og:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
+    />
+    <meta
+      property="og:site_name"
+      content="账号密码管理助手"
     />
     <meta
       name="twitter:card"
       content="summary_large_image"
     />
+    <meta
+      name="twitter:title"
+      content="博客 · 本地优先密码管理器的工程实战"
+    />
+    <meta
+      name="twitter:description"
+      content="账号密码管理助手的产品思考与工程实现：本地优先的安全设计、MV3 秒开实战与 Web Crypto 加密详解。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
+    />
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "ItemList",
+  "name": "技术博客文章列表",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 4,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html"
+    },
+    {
+      "@type": "ListItem",
+      "position": 5,
+      "url": "https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html"
+    }
+  ]
+}
+    </script>
+    <script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "账号密码管理助手",
+      "item": "https://liaolongdong.github.io/account-password-helper/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "博客",
+      "item": "https://liaolongdong.github.io/account-password-helper/blog/"
+    }
+  ]
+}
+    </script>
     <style>
       :root {
+        color-scheme: light dark;
         --bg: #f7f9fc;
         --card: #ffffff;
         --text: #1f2937;
         --muted: #6b7280;
         --accent: #4e88ff;
+        /* 强调色「作文字用」的那一档：--accent 是实底徽标与描边的组合色，暗档不能抬亮它，
+           所以下方那三处 color: var(--accent-ink) 的声明走它，取值同落地页的 --primary-ink。 */
+        --accent-ink: #3566cb;
         --border: #e5e9f0;
+        --code: #eef2f7;
+      }
+      /* 暗色档与官网落地页同源（批2-A）：只翻令牌，不动组件规则。
+         pre 代码块两档都保持深色，所以不在此列。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --card: #141f33;
+          --text: #e6edf7;
+          --muted: #9aa8bd;
+          --accent-ink: #7ea6ff;
+          --border: #263349;
+          --code: #1e2a3f;
+        }
       }
       * {
         box-sizing: border-box;
@@ -93,7 +209,7 @@
       }
       .topbar a {
         font-size: 14px;
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
       .topbar .spacer {
@@ -148,7 +264,7 @@
       }
       .card-meta {
         font-size: 13px;
-        color: var(--accent);
+        color: var(--accent-ink);
       }
       .footer {
         padding: 24px;
@@ -156,8 +272,11 @@
         color: var(--muted);
         text-align: center;
       }
+      .footer p {
+        margin: 6px 0;
+      }
       .footer a {
-        color: var(--accent);
+        color: var(--accent-ink);
         text-decoration: none;
       }
       @media (max-width: 640px) {
@@ -173,13 +292,13 @@
   </head>
   <body>
     <nav class="topbar">
-      <a href="https://liaolongdong.github.io/account-password-helper/">← 官网首页</a>
+      <a href="https://liaolongdong.github.io/account-password-helper/">← 产品官网与功能演示</a>
       <span class="spacer"></span>
       <a href="https://liaolongdong.github.io/account-password-helper/blog/index.en.html">English</a>
     </nav>
     <main>
-      <h1>技术博客</h1>
-      <p class="subtitle">Account Password Helper 的产品思考与工程实现：本地优先的安全设计、MV3 性能实战与 Web Crypto 加密详解。</p>
+      <h1>博客 · 本地优先密码管理器的工程实战</h1>
+      <p class="subtitle">账号密码管理助手的产品思考与工程实现：本地优先的安全设计、MV3 秒开实战与 Web Crypto 加密详解。</p>
       <div class="grid">
       <a class="card" href="01-local-first-password-manager.html">
         <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-01-local-first.png" alt="零云端、开源、为开发者而生：我从零做了一款浏览器密码管理器" loading="lazy" />
@@ -193,7 +312,7 @@
         <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-02-sub-second-sidepanel.png" alt="让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战" loading="lazy" />
         <div class="card-body">
           <h2>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</h2>
-          <p>Manifest V3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文完整复盘 Account Password Helper 的秒开方案：双层保活、四层资源预热、三路数据竞速与非阻塞 CSS。</p>
+          <p>MV3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文复盘秒开方案：双层保活、四层资源预热与三路数据竞速。</p>
           <span class="card-meta">2026-08-28 · 阅读全文 →</span>
         </div>
       </a>
@@ -201,7 +320,7 @@
         <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-03-webcrypto.png" alt="用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战" loading="lazy" />
         <div class="card-body">
           <h2>用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战</h2>
-          <p>不引任何加密库，只用浏览器原生 Web Crypto API，如何构建一个可审计的密码管理器加密体系？本文拆解密钥派生、字段级加密、会话生命周期与换钥的完整实现。</p>
+          <p>不引任何加密库，只用浏览器原生 Web Crypto API 构建可审计的加密体系：密钥派生、字段级加密、会话生命周期与换钥的完整实现。</p>
           <span class="card-meta">2026-08-28 · 阅读全文 →</span>
         </div>
       </a>
@@ -217,12 +336,16 @@
         <img src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑" loading="lazy" />
         <div class="card-body">
           <h2>同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑</h2>
-          <p>精确 host 匹配是多环境隔离的立身之本，但真实登录常常横跨一整个子域家族。本文拆开跨子域名匹配三档的分层判据、主域名相等这条不能切的安全边界，以及 Chrome 把通配符编码成 %2A、让全部单元测试集体失声的那次真机踩坑。</p>
+          <p>精确 host 匹配是多环境隔离的立身之本，但真实登录常横跨一整个子域家族。拆开三档匹配的分层判据、不能切的主域名边界，以及只有真机才抓到的 %2A 踩坑。</p>
           <span class="card-meta">2026-09-22 · 阅读全文 →</span>
         </div>
       </a>
       </div>
     </main>
-    <footer class="footer">Account Password Helper · 开源（GPL-3.0）· <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · 同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a></footer>
+    <footer class="footer">
+      <p>账号密码管理助手 · 开源（GPL-3.0）</p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/">产品官网与功能演示</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.html">定价：永久免费</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.html">与 Bitwarden、1Password 对比</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.html">隐私政策</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a></p>
+      <p>同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a></p>
+    </footer>
   </body>
 </html>

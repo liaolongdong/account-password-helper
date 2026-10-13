@@ -2,11 +2,17 @@
  * 侧边栏列表过滤纯函数
  *
  * 从 `entrypoints/sidepanel/App.vue` 的派生 computed 中抽离出与 Vue 响应式无关的
- * 过滤判定，使其可被单元测试独立覆盖，同时作为「搜索范围」与「能否填充当前页」
- * 的唯一判据来源，避免两处逻辑各自演化出分歧。
+ * 过滤判定，使其可被单元测试独立覆盖，同时作为侧边栏「搜索范围」与「能否填充当前页」
+ * 的唯一判据来源，避免这两处在侧边栏内部各自演化出分歧。
  *
  * 域名匹配语义完全复用 `utils/domain.ts` 的 `resolveMatchTier`（档位化分层匹配），
  * 缺省 `off` 档与既有的当前域名精确过滤行为一致。
+ *
+ * 作用边界：本模块只服务侧边栏。内联下拉与一键填充走
+ * `utils/passwordSort.ts` 的 `filterAndSortEntriesForDomain`，两者仅在「当前页无域名」
+ * 一支语义相反——那里只放行空 URL 通用条目，这里放行全库（见 `matchesSiteScope`）。
+ * 这是既有产品行为，不是待收敛的缺陷：无域名时侧边栏没有「本站」可收敛，全库列表本身
+ * 就是它的降级形态；而下拉需要贴在当前页上，展示外站条目没有可填充的目标。
  */
 import type { PasswordEntry } from '@/utils/types';
 import { isLocalDevDomain, matchesPortForLocalDev, resolveMatchTier, type DomainMatchMode } from '@/utils/domain';
@@ -54,7 +60,8 @@ export interface ListFilterOptions {
  * 域名不匹配的条目填充必然失败，故两者共用同一判定。
  *
  * 匹配规则（与内联下拉 / 一键填充同源，均经 `resolveMatchTier`）：
- * - 无域名（新标签页等）→ 放行全部
+ * - 无域名（新标签页等）→ 放行全部，与 `filterAndSortEntriesForDomain` 的
+ *   「只留空 URL 通用条目」刻意不同：侧边栏此刻是全库浏览入口，没有「当前站」可收敛
  * - 本地开发域名（localhost / 127.0.0.1）→ 按端口过滤，当前页无端口时放行全部，档位不参与
  * - 其余按档位判定：`off`（缺省）= 精确 hostname + 空 URL；`wildcard` 追加通配条目；
  *   `sameMainDomain` 再追加主域名与同主域其他子域

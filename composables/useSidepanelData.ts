@@ -1,5 +1,10 @@
 import { ref, onUnmounted } from 'vue';
-import type { PasswordEntry, RuntimeMessage } from '@/utils/types';
+import type {
+  PasswordEntry,
+  RuntimeMessage,
+  SidepanelToBackgroundPortMessage,
+  BackgroundToSidepanelPortMessage,
+} from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import type { SidepanelInitMeta } from '@/utils/perfMetrics';
 import { getSidepanelSortConfig } from '@/utils/storage/configManager';
@@ -770,7 +775,10 @@ export function useSidepanelData() {
     // 建立与 background 的 port 连接，用于状态追踪和接收关闭消息
     try {
       bgPort = chrome.runtime.connect({ name: 'sidepanel' });
-      bgPort.onMessage.addListener((message: any) => {
+      bgPort.onMessage.addListener((message: BackgroundToSidepanelPortMessage) => {
+        // 形状守卫与 messageRouter 同源：Port 载荷可能是 null / 非对象 / 无 type，
+        // 直接取 `message.type` 会在监听器内抛 TypeError
+        if (!message || typeof message.type !== 'string') return;
         if (message.type === MessageType.CLOSE_SIDEPANEL) {
           logger.debug('SidePanel: 收到关闭消息，正在关闭侧边栏');
           try {
@@ -800,7 +808,7 @@ export function useSidepanelData() {
       heartbeatTimer = setInterval(() => {
         if (bgPort) {
           try {
-            bgPort.postMessage({ type: 'HEARTBEAT' });
+            bgPort.postMessage({ type: 'HEARTBEAT' } satisfies SidepanelToBackgroundPortMessage);
           } catch {
             // port 已断开，停止心跳
             if (heartbeatTimer) {
@@ -836,7 +844,11 @@ export function useSidepanelData() {
       void tabPromise.then(tab => {
         if (!bgPort || tab?.id === undefined || tab.windowId === undefined) return;
         try {
-          bgPort.postMessage({ type: MessageType.SIDEPANEL_READY, tabId: tab.id, windowId: tab.windowId });
+          bgPort.postMessage({
+            type: MessageType.SIDEPANEL_READY,
+            tabId: tab.id,
+            windowId: tab.windowId,
+          } satisfies SidepanelToBackgroundPortMessage);
         } catch {
           // port 已断开时由 onDisconnect 统一清理
         }

@@ -1,16 +1,12 @@
 ---
-title: Four New Features, Four Implementation Notes: Right-Click Fill, Site-Wide Search, Quick Add & Read-Only Details
-description: None of these updates added a settings toggle. This post walks through the implementation trade-offs and security boundaries behind right-click fill, inline panel positioning, side panel site-wide search, and the read-only entry drawer.
+title: Four Features, Four Implementation Notes
+description: Right-click fill, inline panel positioning, site-wide side panel search and the read-only entry drawer — the trade-offs and security boundaries behind each.
 tags: chrome extension, browser extension, password manager, frontend, interaction design
 date: 2026-09-05
-modified: 2026-09-28
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-04-login-flow-details.png
 ---
-
-# Four New Features, Four Implementation Notes: Right-Click Fill, Site-Wide Search, Quick Add & Read-Only Details
-
-![Implementation highlights of the four new features](imgs/blog-cover-04-login-flow-details.png)
 
 Not one feature in this batch added a switch to the settings page, and only one permission grew the manifest — `contextMenus`, belonging to the single heavyweight item in the group (right-click fill). Everything else rides on rails that already existed: the login field, the side panel, the password list. That was deliberate — every extra toggle on a password manager's settings page is one more "should I turn this on?" decision pushed onto the user.
 
@@ -52,7 +48,7 @@ The read-only detail drawer (`components/options/PasswordDetailDrawer.vue`) serv
 
 ## What the four have in common
 
-Looking back, all four chains obey the same constraints: **no new toggles, no new permissions beyond `contextMenus`, no change to storage layout or encryption format, no redefinition of existing entries**; every new user-visible string ships in Chinese and English as a pair; every feature came with regression tests, with 1953 automated tests across 167 test files plus `pnpm build` and `pnpm build:firefox` (Chromium and Firefox targets) as the acceptance bar.
+Looking back, all four chains obey the same constraints: **no new toggles, no new permissions beyond `contextMenus`, no change to storage layout or encryption format, no redefinition of existing entries**; every new user-visible string ships in Chinese and English as a pair; every feature came with regression tests, with 2041 automated tests across 172 test files plus `pnpm build` and `pnpm build:firefox` (Chromium and Firefox targets) as the acceptance bar.
 
 Feature increments in a password manager shouldn't be "a few more buttons". They should polish the same login chain until it's a little smoother: one less app switch, one less wrong input box, one less accidental edit made just to read a note.
 

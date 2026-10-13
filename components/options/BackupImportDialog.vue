@@ -121,6 +121,7 @@
           />
           <el-table
             :data="previewData.slice(0, 5)"
+            :tooltip-options="TABLE_OVERFLOW_TOOLTIP_OPTIONS"
             style="width: 100%"
             stripe
             size="small"
@@ -230,6 +231,7 @@ import { BackupImportUserError, importEncryptedBackup } from '@/utils/backupExpo
 import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { StorageUtils } from '@/utils/storage';
 import { formatDate } from '@/utils/dateFormat';
+import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { scrollDialogBodyToBottom } from '@/utils/dialogScroll';
 import { logger } from '@/utils/logger';

@@ -8,7 +8,9 @@
  * - show()/hide() 通过切换 visible 类控制显隐
  */
 
-import type { FloatingButtonConfig } from '@/utils/types';
+import type { FillEntry, FloatingButtonConfig } from '@/utils/types';
+import { isFillEntry } from '@/utils/fillEntry';
+import { getSiteRule } from '@/utils/storage/siteRules';
 import type { SettingsPanelOptions, SettingsPanelViewHandle } from '@/entrypoints/content/floatingButtons/types';
 import {
   getSettingsPanelHTML,
@@ -59,6 +61,28 @@ export class SettingsPanel {
 
     // 异步读取用户语言偏好并应用（构造期默认中文渲染，storage 读取通常在面板展示前完成）
     void getStoredPanelLocale().then(locale => this.viewHandle?.setLocale(locale));
+
+    // 站点规则是异步读到的，构造期先取一次，让首次打开就带上覆盖提示
+    this.refreshSiteFillOverride();
+  }
+
+  /**
+   * 读取当前域名的站点规则，把覆盖的填充档位推给面板
+   *
+   * 这里自己读 storage，而不是由 FormDetector 把规则传进来：面板与表单检测器各有自己的
+   * 生命周期，前者是用户点开设置时才存在。跨模块传状态要新增一条 FormDetector →
+   * FloatingButtonManager → SettingsPanel 的边，还得处理「规则变了但面板还没打开过」的时序；
+   * 而 `getSiteRule` 读的是明文 storage 键、内部已把异常降级成「无规则」，只在面板构造与每次
+   * show 上各跑一次，代价可以忽略。
+   */
+  private refreshSiteFillOverride(): void {
+    const domain = document.domain || window.location.hostname || '';
+    void getSiteRule(domain).then(rule => {
+      const entry = rule?.fillEntry;
+      const override: FillEntry | null = isFillEntry(entry) ? entry : null;
+      // destroy() 已把句柄置空时这里自然什么都不做，迟到的读取结果不会写到已移除的 DOM 上
+      this.viewHandle?.setSiteFillOverride(override);
+    });
   }
 
   /**
@@ -67,6 +91,9 @@ export class SettingsPanel {
   show(): void {
     if (this.isVisible) return;
     this.isVisible = true;
+
+    // 规则可能在面板上次打开之后被编辑（内容脚本无需刷新即生效），每次展示都重新取一次
+    this.refreshSiteFillOverride();
 
     this.overlay?.classList.add('visible');
     this.panel?.classList.add('visible');

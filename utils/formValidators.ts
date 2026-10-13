@@ -71,7 +71,7 @@ export type InitialFieldLengths = Partial<Record<BoundedPasswordField, number>>;
  * 刻意不包含 `tag` 规则：该字段的约束不归校验层，而归各自的写入通道——
  * Options 侧由 `usePasswordManagement` 的 `tagArray` computed setter 独占归一化
  * （`MAX_TAG_COUNT` 个 x `MAX_TAG_LENGTH` 字符，超限即时提示），序列化后的标签串
- * 最长可达 92 字符；SidePanel 侧由输入框 `PASSWORD_FIELD_LIMITS.tag` 与 background
+ * 最长可达 154 字符；SidePanel 侧由输入框 `PASSWORD_FIELD_LIMITS.tag` 与 background
  * 落盘兜底双层约束。若在此按序列化串长度另设上限，会与实际容量口径
  * 冲突并误拦合法组合（历史缺陷：`max: 50` 使含 2 个 25 字符标签的条目在编辑态
  * 被 `validate()` 拒绝，用户无法保存任何改动）。

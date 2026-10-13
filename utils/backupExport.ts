@@ -6,13 +6,12 @@ import { formatFileSize } from '@/utils/formatFileSize';
 import { MAX_PASSWORD_IMPORT_INPUT_BYTES } from '@/utils/backup/constants';
 import { parseBackupContainer, PasswordBackupError } from '@/utils/backup/parseBackupEntries';
 import { markVerifiedBackupAt } from '@/utils/storage/configManager';
+import { PBKDF2_ITERATIONS } from '@/utils/cryptoParams';
 
 /** 备份文件版本标识 */
 const BACKUP_VERSION = 1;
 /** AES-GCM IV 长度 */
 const IV_LENGTH = 12;
-/** PBKDF2 迭代次数（与主加密体系一致的 600K） */
-const PBKDF2_ITERATIONS = 600_000;
 /** Salt 长度 */
 const SALT_LENGTH = 16;
 

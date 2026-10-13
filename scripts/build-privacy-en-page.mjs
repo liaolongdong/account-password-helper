@@ -13,6 +13,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { OG_IMAGE_EN } from './lib/share-image.mjs';
 import vm from 'node:vm';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -60,6 +61,9 @@ replaceOnce(
   /name="twitter:description"\s+content="[^"]*"/,
   `name="twitter:description"\n      content="${EN_DESCRIPTION}"`,
 );
+// 分享卡跟着语言走：源页里是中文卡，英文页必须换成英文那张 1200×630
+replaceOnce(/property="og:image"\s+content="[^"]*"/, `property="og:image"\n      content="${OG_IMAGE_EN}"`);
+replaceOnce(/name="twitter:image"\s+content="[^"]*"/, `name="twitter:image"\n      content="${OG_IMAGE_EN}"`);
 
 // hreflang 三条交替声明随 privacy.html 一并继承（双语互指内容相同，无需按语言改写）
 

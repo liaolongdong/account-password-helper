@@ -9,10 +9,12 @@
  * 2. 合并语义是「按域名覆盖、其余保留」，且必须显式报告新增/更新/被剔除条数，
  *    不得静默改数据，也不得让「10 条只进了 3 条」看起来像全部成功；
  * 3. 域名是内容脚本精确匹配的主键，导入必须走与写入端同一个规范化函数，
- *    否则同一站点会被存成两条互相看不见的规则。
+ *    否则同一站点会被存成两条互相看不见的规则；
+ * 4. 填充档位是可选覆盖项：缺省 = 跟随全局，所以「只写域名」仍是空规则，而「只设档位」
+ *    是有效规则；同时它不参与 version 判定（v1 文件读作「无覆盖」本就是正确结果）。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { bulkSetSiteRules, getSiteRules } from '@/utils/storage/siteRules';
+import { bulkSetSiteRules, getSiteRule, getSiteRules } from '@/utils/storage/siteRules';
 import {
   buildSiteRulesExportPayload,
   exportSiteRulesToFile,
@@ -54,6 +56,19 @@ describe('buildSiteRulesExportPayload（导出信封）', () => {
     expect(payload.rules.map(r => r.domain)).toEqual(['alpha.com', 'zeta.com']);
   });
 
+  it('带档位的规则原样导出，与导入侧构成往返（换机后按站点的填充偏好不丢）', () => {
+    const payload = buildSiteRulesExportPayload([
+      { domain: 'a.com', fillEntry: 'manual' },
+      { domain: 'b.com', customSelectors: { username: '#u', password: '#p' } },
+    ]);
+
+    expect(payload.rules).toEqual([
+      { domain: 'a.com', fillEntry: 'manual' },
+      { domain: 'b.com', customSelectors: { username: '#u', password: '#p' } },
+    ]);
+    expect(parseRules(JSON.stringify(payload))).toEqual(payload.rules);
+  });
+
   it('不改动传入数组本身（排序在副本上做）', () => {
     const rules = [{ domain: 'zeta.com' }, { domain: 'alpha.com' }];
     buildSiteRulesExportPayload(rules);
@@ -89,6 +104,78 @@ describe('parseSiteRulesImportText（结构与条目校验）', () => {
 
   it('只写域名的规则不产出任何条目：它既不指定选择器也不关闭穿透，落库只会变成噪声', () => {
     expect(codeOf(() => parseSiteRulesImportText(envelopeText([{ domain: 'foo.com' }])))).toBe('NO_VALID_RULES');
+  });
+
+  it('只设填充档位的规则是有效规则：「这个站别自动弹侧边栏」本来就只需要档位', () => {
+    expect(parseRules(envelopeText([{ domain: 'foo.com', fillEntry: 'manual' }]))).toEqual([
+      { domain: 'foo.com', fillEntry: 'manual' },
+    ]);
+  });
+
+  it('档位与选择器、穿透开关共存时三项一起保留', () => {
+    const rules = parseRules(
+      envelopeText([
+        {
+          domain: 'foo.com',
+          penetrateShadow: false,
+          fillEntry: 'inline',
+          customSelectors: { username: '#u', password: '#p' },
+        },
+      ]),
+    );
+
+    expect(rules).toEqual([
+      {
+        domain: 'foo.com',
+        penetrateShadow: false,
+        fillEntry: 'inline',
+        customSelectors: { username: '#u', password: '#p' },
+      },
+    ]);
+  });
+
+  it('非法档位与 false 之类噪声按未设置丢弃，但规则本体的有效部分照常落库', () => {
+    const rules = parseRules(
+      envelopeText([
+        { domain: 'a.com', fillEntry: 'sidepanel-auto', penetrateShadow: false },
+        { domain: 'b.com', fillEntry: true, customSelectors: { username: '#u', password: '#p' } },
+      ]),
+    );
+
+    expect(rules).toEqual([
+      { domain: 'a.com', penetrateShadow: false },
+      { domain: 'b.com', customSelectors: { username: '#u', password: '#p' } },
+    ]);
+  });
+
+  it('只有非法档位的条目仍算空规则，计入 dropped 而不是塞进存储', () => {
+    const { dropped } = parseSiteRulesImportText(
+      envelopeText([
+        { domain: 'good.com', fillEntry: 'manual' },
+        { domain: 'junk.com', fillEntry: 'AUTO' },
+      ]),
+    );
+    expect(dropped).toBe(1);
+    // 整份文件只剩这一条 junk 档位规则时，等同「无有效规则」，不能按空文件落库
+    expect(codeOf(() => parseSiteRulesImportText(envelopeText([{ domain: 'a.com', fillEntry: 'AUTO' }])))).toBe(
+      'NO_VALID_RULES',
+    );
+  });
+
+  it('没有档位字段的旧 v1 文件照旧导入，且不会被凭空补出一个档位', () => {
+    // 本次加字段时刻意没提升 version：老文件读作「无覆盖」才是正确结果
+    const rules = parseRules(
+      envelopeText([
+        { domain: 'a.com', customSelectors: { username: '#u', password: '#p' } },
+        { domain: 'b.com', penetrateShadow: false },
+      ]),
+    );
+
+    expect(rules).toEqual([
+      { domain: 'a.com', customSelectors: { username: '#u', password: '#p' } },
+      { domain: 'b.com', penetrateShadow: false },
+    ]);
+    for (const rule of rules) expect('fillEntry' in rule).toBe(false);
   });
 
   it('剔除非法域名与非法选择器，保留同一文件里的合法规则', () => {
@@ -244,6 +331,22 @@ describe('importSiteRulesFromText（落盘）', () => {
 
     expect(result).toEqual({ added: 1, updated: 0, dropped: 1 });
     expect(Object.keys(await getSiteRules())).toEqual(['ok.com']);
+  });
+
+  it('只设档位的规则落库后仍能被内容脚本按域名读到', async () => {
+    const result = await importSiteRulesFromText(
+      envelopeText([
+        { domain: 'intranet.example.com', fillEntry: 'manual' },
+        { domain: 'junk.example.com', fillEntry: 'sidepanel-auto' },
+      ]),
+    );
+
+    expect(result).toEqual({ added: 1, updated: 0, dropped: 1 });
+    expect(await getSiteRule('intranet.example.com')).toEqual({
+      domain: 'intranet.example.com',
+      fillEntry: 'manual',
+    });
+    expect(await getSiteRule('junk.example.com')).toBeUndefined();
   });
 
   it('导入失败时不触碰存储', async () => {

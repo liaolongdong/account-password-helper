@@ -15,6 +15,7 @@ import type {
   NotificationType,
 } from '@/entrypoints/content/types';
 import { StorageUtils } from '@/utils/storage';
+import { deriveCapturedTag } from '@/utils/capturedTag';
 import { logger } from '@/utils/logger';
 import { hashStringLight } from '@/utils/crypto-light';
 import { decryptPendingCredential, encryptPendingCredential } from '@/utils/pendingCredentialCodec';
@@ -423,7 +424,8 @@ export class LoginAutoSave {
       username,
       password,
       url: location.host, // 使用 host（含端口号，如 localhost:3000、192.168.1.1:8080）
-      tag: document.title,
+      // 只取标题里的站点名做预填：整串页面名普遍超单标签上限（编辑器里一改就被归一化丢掉），还会污染标签候选池（见 capturedTag）
+      tag: deriveCapturedTag(document.title, location.hostname),
       remark: tl('cs.save.autoSaveRemark'),
       tagEdited: false,
       remarkEdited: false,

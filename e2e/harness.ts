@@ -16,6 +16,7 @@ import path from 'node:path';
 
 import { EXTENSION_PATH } from './global-setup';
 import { textOf } from './i18n';
+import { STORAGE_KEYS } from '../utils/storageKeys';
 
 /**
  * 主密码只在测试 profile 内使用，不对应任何真实凭据
@@ -128,8 +129,23 @@ export { expect };
  * Vue mount 与其后的文案渲染还没发生，两次 `isVisible()` 会都拿到 false 而静默返回，
  * 把未解锁的页面交给用例——表现为下一条用例在 20s 动作超时里等一个不存在的按钮。
  * 末尾的断言把这种静默失败收口成「夹具没带你到已解锁态」这一条明确错误。
+ *
+ * 进门第一件事是把新手引导标记为「已经走过」。`entrypoints/options/App.vue` 的 tour watcher
+ * 在首次进入认证态且 `onboarding_tour_state.seen` 为假时会 `tour.start()`，而全新 profile
+ * 里它必然为假——聚光层 `.tour__veil` 覆盖整页并接管指针事件，于是后续每一次 `click()`
+ * 都在 20s 动作超时里反复重试，全套用例一起红（表现为「按钮点不到」而不是「引导弹出来了」）。
+ * 本夹具测的是其它功能，起点按老用户设定；引导自身的真机行为目前**没有**用例覆盖。
  */
 export async function onboardAndUnlock(page: Page): Promise<void> {
+  await page.evaluate(
+    async args => {
+      await chrome.storage.local.set({
+        [args.key]: { seen: true, outcome: 'skipped', finishedAt: Date.now() },
+      });
+    },
+    { key: STORAGE_KEYS.ONBOARDING_TOUR },
+  );
+
   const unlockedHeader = page.locator('.header-title h1');
   const setupSubmit = page.getByRole('button', { name: textOf('auth.setupSubmit') });
   const verifySubmit = page.getByRole('button', { name: textOf('auth.verifySubmit') });
@@ -282,16 +298,26 @@ export async function readSiteRules(page: Page): Promise<Record<string, unknown>
 /** 以内容脚本同款消息形状写入规则，验证的是真实存储形态而非测试专用后门 */
 export async function seedSiteRule(
   page: Page,
-  rule: { domain: string; username: string; password: string; penetrateShadow?: boolean },
+  rule: {
+    domain: string;
+    username?: string;
+    password?: string;
+    penetrateShadow?: boolean;
+    fillEntry?: string;
+  },
 ): Promise<void> {
   await page.evaluate(async payload => {
     const key = 'site_rules';
     const stored = ((await chrome.storage.local.get(key)) as Record<string, Record<string, unknown>>)[key] ?? {};
-    stored[payload.domain] = {
-      domain: payload.domain,
-      customSelectors: { username: payload.username, password: payload.password },
-      penetrateShadow: payload.penetrateShadow ?? true,
-    };
+    const rule: Record<string, unknown> = { domain: payload.domain };
+    // 选择器要么成对要么整体不写：单侧留空会造出内容脚本要当场降级的半条规则，
+    // 而「只设填充档位」正是本扩展的合法形态（这个站别自动弹侧边栏）
+    if (payload.username && payload.password) {
+      rule.customSelectors = { username: payload.username, password: payload.password };
+    }
+    if (payload.penetrateShadow === false) rule.penetrateShadow = false;
+    if (payload.fillEntry) rule.fillEntry = payload.fillEntry;
+    stored[payload.domain] = rule;
     await chrome.storage.local.set({ [key]: stored });
   }, rule);
 }
@@ -391,6 +417,43 @@ export const rowOf = (page: Page, username: string) => page.locator('tr.el-table
 
 /** 管理页全部列表行 */
 export const allRows = (page: Page) => page.locator('tr.el-table__row');
+
+/**
+ * 当前可见的 tooltip 浮层文案列表
+ *
+ * 判据只认「盒模型 + 计算样式」，不认 `offsetParent`：表格截断浮层走
+ * `createTablePopper`，其 `strategy` 被 Element Plus 写死为 `fixed`，而
+ * `position: fixed` 的元素 `offsetParent` 恒为 `null`——用旧判据量它，会把一条
+ * 明明展开在屏幕上的浮层读成「不可见」，`parkPointer` 之类「等退场」的断言因此
+ * 变成永远绿的空跑。改后的三条同样够严格：`persistent` 默认 false，浮层关闭后
+ * 节点会从 DOM 移除；未展开时 EP 给 `display: none`；淡出过程中尺寸不会归零。
+ * 只认 `role="tooltip"`：el-select / el-dropdown 也复用 `.el-popper`，不加区分会把别的浮层算进来。
+ */
+export const visibleTooltipTexts = (page: Page): Promise<string[]> =>
+  page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('.el-popper[role="tooltip"]')]
+      .filter(el => {
+        const style = getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+      })
+      .map(el => (el.textContent ?? '').trim()),
+  );
+
+/**
+ * 把指针移出所有按钮与浮层，并等提示彻底退场
+ *
+ * 行序会变的操作（收藏、删除、换页）之后，停在原地的无头指针会落到「顶上来的另一行」的按钮上，
+ * 400 毫秒后那条按钮的提示展开在目标控件正上方——`placement="top"`，而行距小于气泡高度。
+ * 真机鼠标不会瞬移，这是无头指针的固有陷阱：指针停在哪一行，看到的就是哪一行的提示。
+ * 浮层已改为对指针透明（`OPERATION_TIP_POPPER_STYLE`），不再吃掉下一次点击，但提示照样会展开，
+ * 所以凡「点 A 会让 A 换位置、紧接着还要再点 A」的用例，两次点击之间仍要先收手——
+ * 既把状态归零，也让「当前有几条可见提示」这类断言不被上一条动作的残留干扰。
+ */
+export const parkPointer = async (page: Page): Promise<void> => {
+  await page.mouse.move(5, 5);
+  await expect.poll(() => visibleTooltipTexts(page), { timeout: 5_000, message: '提示没有退场' }).toEqual([]);
+};
 
 /**
  * 展开 HeaderBar 的某个下拉菜单（「数据管理」/「安全设置」）

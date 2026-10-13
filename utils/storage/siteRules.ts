@@ -6,6 +6,7 @@
  */
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import type { FillEntry } from '@/utils/types';
 
 /**
  * 自定义选择器配置
@@ -32,6 +33,16 @@ export interface SiteRule {
    * 填充失败的就地引导气泡也一并隐藏；受全局配置同名开关总闸约束（任一为 false 即关闭）。
    */
   penetrateShadow?: boolean;
+  /**
+   * 覆盖该站点的快速填充入口（可选，缺省即「跟随全局设置」）
+   *
+   * 覆盖的是「内联下拉 / 侧边栏自动 / 仅手动」这一整档，而不是单独的 `fillMode`：
+   * 用户最常见的诉求「这个站别自动弹侧边栏」由 `autoShowSidepanel` 决定，只覆盖
+   * `fillMode` 交付不了它。与 `penetrateShadow` 那条总闸方向相反——这里站点规则
+   * 是**替换**全局档位而非收窄，因为档位之间不存在「更保守」的全序，且作用域只有
+   * 当前这一个域名，用户是在明确知道站点的前提下逐条设的。
+   */
+  fillEntry?: FillEntry;
 }
 
 /**

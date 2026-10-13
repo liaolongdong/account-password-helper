@@ -60,6 +60,19 @@ export const SHORTCUT_COMMANDS: readonly ShortcutCommandMeta[] = [
 ];
 
 /**
+ * 命令标识到展示文案 key 的映射（help 命名空间）
+ *
+ * 采用具名 key 而非帮助文案那套 `.1`~`.N` 数字序号，避免语言包与本数组顺序产生
+ * 隐式耦合。侧边栏帮助弹窗与 Options「使用指引」页共用本表，两处口径不会漂移。
+ */
+export const SHORTCUT_LABEL_KEYS = {
+  open_options: 'help.sc.openOptions',
+  toggle_sidepanel: 'help.sc.toggleSidepanel',
+  quick_fill: 'help.sc.quickFill',
+  open_inline_dropdown: 'help.sc.openInlineDropdown',
+} as const satisfies Record<ShortcutCommandId, string>;
+
+/**
  * 取当前平台应展示的兜底按键（manifest `suggested_key` 原值，尚未格式化）
  *
  * 必须与浏览器实际注册的平台分支保持一致：若固定返回 `default`，Apple 平台用户

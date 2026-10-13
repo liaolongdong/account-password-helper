@@ -58,7 +58,10 @@ describe('管理页表格的渲染期对象身份', () => {
   });
 
   it('tooltip 的 popper 样式使用提升后的常量而非对象字面量', () => {
-    expect(TABLE_TPL).toContain(':popper-style="TAG_TOOLTIP_POPPER_STYLE"');
+    // 该常量已上移到 `utils/tableOverflowTooltip`，与表格截断气泡共用同一档宽度上限；
+    // 模块级冻结对象的身份比组件级 const 更稳，因此这里同时钉住导入，防止退回本地字面量
+    expect(TABLE_TPL).toContain(':popper-style="OVERFLOW_TIP_TEXT_STYLE"');
+    expect(TABLE_SRC).toMatch(/import \{[^}]*\bOVERFLOW_TIP_TEXT_STYLE\b[^}]*\} from '@\/utils\/tableOverflowTooltip'/);
     expect(TABLE_TPL).not.toMatch(/:popper-style="\{\s*\w/);
   });
 
@@ -74,7 +77,7 @@ describe('管理页表格的渲染期对象身份', () => {
 
   it('操作列只有一个小 tooltip 实例，逐行按钮只带文案与稳定引用的悬停入口', () => {
     // 首屏成本按**组件实例**计价：逐行 5 个 el-tooltip 在 600 行上就是 3000 个实例，
-    // 实测占掉整表挂载耗时的四成（docs/PERF_LARGE_VAULT_EVALUATION.md 9.9）。
+    // 实测占掉整表挂载耗时的四成（docs/reports/PERF_LARGE_VAULT_EVALUATION.md 9.9）。
     // 模板里只允许出现「标签提示」和「共享操作提示」两处 el-tooltip 标签。
     expect([...TABLE_TPL.matchAll(/<el-tooltip/g)].length).toBe(2);
     expect(TABLE_TPL).toContain('virtual-triggering');
@@ -95,9 +98,16 @@ describe('管理页表格的渲染期对象身份', () => {
     const schedulerShowAfter = Number(TABLE_SRC.match(/showAfter: (\d+)/)?.[1]);
     expect(epShowAfter).toBeGreaterThan(0);
     expect(schedulerShowAfter).toBe(epShowAfter);
-    // 隐藏时序与 enterable 必须留在 EP 里，不允许在 composable 内再造一套
+    // 隐藏时序必须留在 EP 里，不允许在 composable 内再造一套计时
     expect(TABLE_TPL).toContain(':hide-after="200"');
     expect(read('composables/useSharedHoverTooltip.ts')).not.toMatch(/hideAfter|hide\(/);
+    // 浮层必须对指针透明：`placement="top"` 把它压在上一行的操作按钮上，而 EP 的浮层默认
+    // `enterable`（参与命中测试），紧凑行距下那颗按钮的点击会被浮层接走（真机 CI 常红的根因）。
+    // 这条一旦被人「顺手」删掉，行为回归只在特定行距上出现，所以源码级也钉一次。
+    expect(sharedTipTpl, '共享操作提示的浮层丢了 popper 样式，会重新吃掉上一行的点击').toContain(
+      ':popper-style="OPERATION_TIP_POPPER_STYLE"',
+    );
+    expect(TABLE_SRC).toMatch(/const OPERATION_TIP_POPPER_STYLE = Object\.freeze\(\{ pointerEvents: 'none' \}\)/);
   });
 
   it('共享实例的打开动作排在重渲染之后（EP 的开与关共用一个计时器槽位）', () => {

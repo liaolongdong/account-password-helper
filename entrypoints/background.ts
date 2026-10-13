@@ -5,6 +5,7 @@ import { freezeLegacyFillDefaults } from '@/utils/storage/configManager';
 import { setupSidePanelListeners } from './background/sidePanelManager';
 import { setupMessageRouter } from './background/messageRouter';
 import { setupContextMenu } from './background/contextMenuManager';
+import { openOptionsPage } from './background/optionsPageManager';
 import {
   setupBackgroundServices,
   initBackgroundConfig,
@@ -47,6 +48,14 @@ export default defineBackground(() => {
     // 新版本 chunk hash 全部变化，OS 磁盘缓存中的旧文件不再命中，
     // 首次打开侧边栏等同于全冷启动；ignorePlatformGate 跳过平台门控强制温热一次
     triggerWarmSidePanelResources({ ignorePlatformGate: true });
+    // 首次安装：直接把用户带到管理页。设置主密码、聚光式新手引导、页内使用指引
+    // 三样都只在那一页存在，商店弹窗关掉之后新手找不到入口。
+    // 只在 `install` 触发——升级同样走这条监听，每次版本更新都抢开一个标签页是纯打扰；
+    // 放在所有初始化之后且不 await，`openOptionsPage` 内部已捕获并记日志，不会拖慢也不会
+    // 打乱前面的落盘与预热顺序。
+    if (details.reason === 'install') {
+      void openOptionsPage();
+    }
   });
 
   // 浏览器/配置文件启动时，按「浏览器重启后重新锁定」设置执行安全重锁（默认关闭时无副作用）

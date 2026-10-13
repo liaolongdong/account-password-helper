@@ -1,4 +1,4 @@
-import { MessageType } from '@/utils/types';
+import { MessageType, type SidepanelToBackgroundPortMessage } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { markSidepanelOpenRequested, type SidepanelOpenTrigger } from '@/utils/perfMetrics';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
@@ -309,7 +309,10 @@ export function setupSidePanelListeners(): void {
         }
       }, WARM_AFTER_OPEN_DELAY_MS);
 
-      port.onMessage.addListener((message: any) => {
+      port.onMessage.addListener((message: SidepanelToBackgroundPortMessage) => {
+        // 形状守卫与 messageRouter 同源：Port 收到的载荷同样可能是 null / 非对象 / 无 type，
+        // 直接取 `message.type` 会在同步路径抛错（HEARTBEAT 也就白发了）
+        if (!message || typeof message.type !== 'string') return;
         if (message.type === MessageType.SIDEPANEL_READY) {
           void registerReadySidePanelPort(port, message);
           return;

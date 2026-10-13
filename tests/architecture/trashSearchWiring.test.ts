@@ -11,7 +11,7 @@
  *    漏掉这一项，用户读到的是「搜索没结果」而不是「你在那一页」。
  * 3. **整库解密走受限并发**：`getTrashEntries` 的倒序只有配上「全量解密」才可检索——
  *    没解密的字段搜不到，所以不能退化成只解当前页；而串行 `for … await` 的耗时随条目数
- *    线性累加（口径见 `utils/concurrency.ts` 与 `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.3）。
+ *    线性累加（口径见 `utils/concurrency.ts` 与 `docs/reports/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.3）。
  *
  * 另附三条外围：打开弹窗必须清掉上一次的检索词（否则这次打开只显示一小撮旧结果）、
  * 锁定那一屏不得参与检索（占位符与密文会搜出无意义命中）、`password` 字段永不解密

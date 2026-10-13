@@ -1,6 +1,7 @@
 import type { UpdateInfo } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
+import { toNavigableUrl } from '@/utils/domain';
 import { GITHUB_RELEASES_API_URL, GITHUB_RELEASES_PAGE_URL, CHROME_WEB_STORE_CHECK_URL } from '@/utils/urls';
 
 /**
@@ -134,9 +135,16 @@ async function fetchLatestRelease(): Promise<UpdateInfo | null> {
     const rawBody: string = data.body ?? '';
     const releaseNotes = rawBody.length > 200 ? rawBody.slice(0, 200) + '...' : rawBody;
 
+    // `html_url` 是外部响应字段，落库前先在边界处过一遍协议闸门：它最终会喂给
+    // `chrome.tabs.create`，而 `javascript:` / `data:` 这类非 http(s) 值一旦进了存储，
+    // 就会借着「用户点更新按钮」这条可信路径被打开。
+    // 判据复用条目跳转的同一函数（`toNavigableUrl`），非法值退回仓库 Releases 页。
+    const releasePageUrl =
+      toNavigableUrl(typeof data.html_url === 'string' ? data.html_url : '') ?? GITHUB_RELEASES_PAGE_URL;
+
     return {
       latestVersion,
-      downloadUrl: data.html_url || GITHUB_RELEASES_PAGE_URL,
+      downloadUrl: releasePageUrl,
       releaseNotes,
       publishedAt: data.published_at ?? '',
       checkedAt: Date.now(),

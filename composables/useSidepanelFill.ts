@@ -450,6 +450,11 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
    * 复制条目的 TOTP 两步验证码到剪贴板
    * 验证码 30 秒自失效，不挂自动清除定时器
    *
+   * 复制成功后要取消待执行的密码自动清除定时器（与 `copyUsername` 同一不变量）：
+   * 剪贴板此刻已被验证码覆写，那条定时器要清除的密码明文早就不在剪贴板里了；
+   * 若任其触发，`clearClipboard` 在侧边栏失焦时读不到剪贴板、走「尽力清除」分支，
+   * 会把用户刚复制、可能正要粘贴的验证码一起抹掉。
+   *
    * 注意：先异步生成动态码（Web Crypto）会耗掉侧边栏的瞬时用户激活/文档聚焦，
    * 导致 Async Clipboard API 可能抛错；因此失败时降级到 execCommand 兑底（与 clearClipboard 一致）。
    * @param password 目标密码条目
@@ -472,6 +477,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
     // 优先 Async Clipboard API（需文档聚焦）；因上方 await 生成可能丢失瞬时激活，失败时降级 execCommand
     try {
       await navigator.clipboard.writeText(code);
+      cancelPendingClear();
       ElMessage.success(t('fill.totpCopied'));
       return;
     } catch {
@@ -489,6 +495,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
       const ok = document.execCommand('copy');
       document.body.removeChild(textarea);
       if (ok) {
+        cancelPendingClear();
         ElMessage.success(t('fill.totpCopied'));
       } else {
         ElMessage.error(t('fill.totpCopyFailed'));

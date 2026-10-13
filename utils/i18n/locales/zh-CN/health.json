@@ -30,7 +30,7 @@
   "health.weakHint": "这些密码强度较弱，建议增加长度并混合大小写字母、数字与特殊字符。",
   "health.weakCaption": "建议增强",
   "health.noWeak": "无弱密码",
-  "health.breachedHint": "这些密码命中了常见泄露密码字典（离线检测、零联网），极易被暴力破解，建议立即更换。",
+  "health.breachedHint": "这些密码命中了常见泄露密码字典（内置离线字典，检测过程不发起网络请求），极易被暴力破解，建议立即更换。",
   "health.breachedCaption": "建议立即更换",
   "health.notInDict": "未命中字典",
   "health.staleHint": "这些条目长时间未更新（以最后修改时间估算），建议定期更换重要账号的密码。",

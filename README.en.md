@@ -17,12 +17,12 @@
 
 > **A free, open-source, local-first password manager**: one-keystroke login that clicks the submit button too, exact-domain matching that keeps dev/test/staging/prod accounts apart — with three cross-subdomain tiers when one account legitimately serves a whole domain family — plus built-in **TOTP 2FA** and an **offline security audit**. Completely free — no subscription, no account to register, and your password data stays on your machine.
 
-> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 1953 automated tests
+> 🌐 **[Live demo](https://liaolongdong.github.io/account-password-helper/en.html)** ｜ ⚙️ Chrome MV3 ｜ 🔒 PBKDF2 600K iterations + AES-256-GCM ｜ 🎨 6 themes · bilingual UI ｜ 🧪 2041 automated tests
 
 <p align="center">
   <img src="./assets/icons/icon.svg" alt="Account Password Helper extension icon" width="120" />
   <br/>
-  <img src="./docs/demo-totp-en.webp" alt="One-click login plus two-factor handoff demo: pick the account in the in-page panel and it fills and signs in, then the live code capsule anchors beside the code field on the code page" width="100%" />
+  <img src="./docs/media/demo-totp-en.webp" alt="One-click login plus two-factor handoff demo: pick the account in the in-page panel and it fills and signs in, then the live code capsule anchors beside the code field on the code page" width="100%" />
   <br/>
   <sub>Pick the account in the in-page panel → credentials filled and submitted → the live-code capsule anchors beside the code field on the same-domain page → tap Fill, no phone authenticator in sight</sub>
 </p>
@@ -61,7 +61,7 @@ One fill takes four steps, all on your own machine:
 > One module per row, one full-width shot each: the bold line under each image is the module name, and the line below it carries **only what the image cannot show** — the defaults people trip over, where to switch them, and the hidden capabilities. **Click any of them to open it at full size** (the first is a 1152×720 capture of the flow; the other seven are 2560×1600 shots taken at 2× DPR).
 
 <p align="center">
-  <a href="./docs/demo-login-en.webp"><img src="./docs/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /></a>
+  <a href="./docs/media/demo-login-en.webp"><img src="./docs/media/demo-login-en.webp" alt="One-click login demo: pick an entry in the side panel and it fills the credentials, ticks the consent box and clicks sign in" width="100%" /></a>
   <br />
   <b>⚡ One-click login</b>
   <br />
@@ -170,9 +170,9 @@ One fill takes four steps, all on your own machine:
 - 📥 **Import / export**: CSV / JSON, with auto-detection of Chrome, LastPass, Bitwarden and 1Password exports and bilingual column mapping (re-save Excel sheets as CSV)
 - 🔐 **Several backups**: encrypted (.aph) export/import with a decrypt preview; email backup that defaults to the encrypted mode, assembles everything locally and hands it to your own mail client over `mailto:` — switching to plain backup asks for a risk acknowledgement before the master-password re-verification; scheduled reminders that only notify you, nothing is ever sent automatically
 - 🏷️ **Organization that scales**: tag filtering, favorites pinned to the top (cap defaults to 10, configurable 1–50, evicted LRU), multi-field smart search with pinyin/initials and highlighting, one-click dedup, batch delete / retag / export selected to CSV, and a read-only detail drawer with the full remark and password history
-- 📄 **Paginated list**: the password list renders one page at a time (100 rows by default, switchable to 50 / 100 / 200 — the size you pick is remembered on your machine and reused next time you open the page, and the trash list paginates at that same size), so opening the manager page near the 2,000-entry cap no longer means waiting for the whole table to paint. Selections survive page flips — batch delete / retag / export-selected still act on every checked entry (the pager tells you how many of them are off-page), while the header checkbox follows the usual table convention of selecting the current page only. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it; a search or sort change takes you back to page 1. Switching the page size does not — the page number is recomputed from wherever the first row you were looking at lands in the new size, so that batch of entries stays in front of you
+- 📄 **Paginated list**: the manager page's password table renders one page at a time (100 rows by default, switchable to 50 / 100 / 200 — the size you pick is remembered on your machine and reused next time you open the page, and the trash list paginates at that same size), so opening the manager page near the 2,000-entry cap no longer means waiting for the whole table to paint. Selections survive page flips — batch delete / retag / export-selected still act on every checked entry (the pager tells you how many of them are off-page), while the header checkbox follows the usual table convention of selecting the current page only. After adding, editing, favoriting or duplicating an entry the list jumps to its page and highlights it; a search or sort change takes you back to page 1. Switching the page size does not — the page number is recomputed from wherever the first row you were looking at lands in the new size, so that batch of entries stays in front of you. The sidebar list isn't paginated and doesn't follow this setting either — it paints a first batch of entries and keeps loading as you scroll down, so a near-cap vault isn't laid out all at once
 - ♻️ **Mistake-proofing**: 30-day trash bin (soft delete, newest deletion first, searchable by username / URL / tag so you are not paging through to find what you just removed), password change history keeping 3 encrypted snapshots per entry by default (configurable 1–10, restorable), and an atomic master password change that never loses data
-- 🪪 **Identity vault**: a separate locker for personal details — name, ID number, phone, email, address, bank card info and custom fields — masked by default and gated by a master-password re-check when you open it; supports encrypted (.aphid) export/import, exporting a selected subset, and an optional plaintext .json export/import (master-password re-check + risk confirmation; import merges by id); it is not covered by automatic backups, so export an encrypted backup regularly
+- 🪪 **Identity vault**: a separate locker for personal details — name, ID number, phone, email, address, bank card info and custom fields — masked by default and gated by a master-password re-check when you open it; cards collapse one at a time or all at once, and the list can be sorted by updated / created / category / title (your choice is remembered); supports encrypted (.aphid) export/import, exporting a selected subset, and an optional plaintext .json export/import (master-password re-check + risk confirmation; import merges by id); it is not covered by automatic backups, so export an encrypted backup regularly
 
 ### 🎨 Experience
 
@@ -181,6 +181,7 @@ One fill takes four steps, all on your own machine:
 - 🛠️ **Password generator**: random mode (default 16 characters, configurable 6–50, with charset and ambiguous-character exclusion) and passphrase mode (built-in 3,080-word English list, 3–8 words with optional digits)
 - 🔍 **Small touches**: a live strength bar with a per-rule checklist while you type a password, an instant Caps Lock warning on every master password field, a show/hide toggle injected into page password fields (off by default, enabled in Preferences), and site favicons read from Chrome's local cache with zero external requests
 - ⌨️ **Command palette**: press `Ctrl/Cmd + K` on the manager page and filter its 23 commands by Chinese, pinyin or initials — add entry, health check, import / export, encrypted backup, dedup, trash, identity vault, site rules, cross-subdomain matching, change master password, preferences — then press Enter to open. The key does nothing while the vault is locked, and destructive commands keep the confirmations they already had
+- 🧭 **Spotlight guided tour**: it plays on your first visit to the manager page, spotlighting the real buttons as it walks through adding an entry, the three ways out of an empty vault, search and filters, backups, security policy and the health check (steps are trimmed to what the current screen actually offers, so an empty vault and a populated one get their own script). Arrow keys change steps, Esc leaves at any time, `Tab` stays inside the card, and turning on "reduce motion" in your system drops the slides and pulses. Once you finish or skip it it never auto-plays again, and the "Tour" button in the header replays it
 
 > 🛠 The tech stack, architecture and project structure are covered in the [Contributing Guide](./docs/CONTRIBUTING.md); per-feature implementation details (source paths, strategies, constraints) live in [ARCHITECTURE.en.md — Feature Implementation Details](./docs/ARCHITECTURE.en.md#feature-implementation-details); the engineering write-ups are on the [Tech Blog](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) (Chinese & English).
 
@@ -235,6 +236,21 @@ One fill takes four steps, all on your own machine:
 2. **Pick a fill mode**: fresh installs default to **inline fill** — a key icon appears in a focused login field and you pick an account there. Switch to **Sidebar** (auto-opens on focus) or **Manual** in Preferences; users upgrading keep the side-panel behaviour they had before, so nothing changes silently under them
 3. **Import what you have**: "Data Management → Import" on the manager page accepts CSV or JSON and auto-detects Chrome, LastPass, Bitwarden and 1Password exports
 4. **Turn on auto-submit if you want it**: with "Preferences → Auto-submit login" enabled, `Ctrl+Shift+F` clicks the login button as well
+
+### Moving to another browser or machine
+
+Your vault travels in one encrypted file — no sync service, and no third-party authorization anywhere in the chain:
+
+1. **Export on the source machine**: "Data Management → Export Encrypted Backup" on the manager page, confirm the master password, and you get `backup_YYYYMMDD_HHmmss.aph`. Before that file is written, the extension decrypts the container it just produced and checks it round-trip; only a pass lets the file out, and the manager header records the "Verified backup" date — make sure that line is not "Never" before you start moving.
+2. **Any carrier will do**: a cloud drive, a USB stick, an email to yourself. Where you put it does not matter — what lands there is only `salt + IV + AES-256-GCM ciphertext`, with the key derived from your master password through 600,000 PBKDF2 rounds, so nothing opens without that password. That is precisely why this extension ships no cloud sync.
+3. **Install and set a master password on the new machine**: it may be a different one — **it does not have to match**.
+4. **Import**: "Data Management → Import Encrypted Backup", upload the `.aph`, enter **the master password used at export**, decrypt to a preview, then confirm. Entries land re-encrypted field by field with that machine's current key.
+
+- **Travels with the `.aph`**: account, password, URL, tag, note, TOTP secret, create time, update time, favorite — the nine fields of every entry.
+- **Has its own export, so move it separately**: the identity vault exports an `.aphid` encrypted backup; site rules export as plain JSON (domains and selectors only, never accounts or passwords) and merge by domain on import, reporting added / updated / ignored.
+- **Does not travel — set it again on the new machine**: the master password itself, session validity and idle auto-lock, auto-submit login, clipboard auto-clear, language and theme, page size and sorting, the cross-subdomain matching tier, per-entry change reminders, plus the Trash and password history, neither of which has an export.
+
+> ⚠️ Three things to know: **the import appends instead of merging** — no deduplication, and it shares the 2,000-entry cap with adding entries and page auto-save; when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and leftovers can be cleared afterwards with "Remove Duplicates" (same username + same URL counts as one group; the favorited entry is the one kept, and when a group holds several favorites, the most recently updated of them). **Runtime**: desktop Chrome / Edge are the verified targets — the `.aph` itself is browser-agnostic, so any Chromium browser that can run the extension behaves the same, while the Firefox build ships MV2 and both release and verification are Chrome-based. And **keep that `.aph` until you have checked the entry count on the new machine** — a forgotten master password cannot be recovered, and resetting wipes the data.
 
 ### Shortcut Cheat Sheet
 
@@ -344,7 +360,7 @@ If this project helps you, please give it a ⭐️ and leave a review on the Chr
 
 Same author, same rules: open source, offline, data stays on your machine. More of the author's open-source work: [github.com/liaolongdong](https://github.com/liaolongdong).
 
-- [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — an offline converter that turns 14 formats into each other inside the browser without uploading a byte. Markdown, Word, PDF, Excel, CSV, JSON, HTML and images convert on your own machine, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/)
+- [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — an offline converter that turns 14 formats into each other inside the browser without uploading a byte. Markdown, Word, PDF, Excel, CSV, JSON, HTML and images convert on your own machine, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/) · [Chrome Web Store](https://chromewebstore.google.com/detail/blkdmpkcaceicinkhindniepbbbaekkb)
 - [Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy) — proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket, all configured in the browser with data stored only on your computer. This extension answers "who am I in this environment", that one answers "where do this environment's requests go" — the two are handy together when you debug across environments. [Product page](https://liaolongdong.github.io/cross-origin-proxy/en.html) · [Chrome Web Store](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
 
 ## 🤝 Contributing
@@ -354,7 +370,7 @@ Issues and pull requests are welcome. This is a local-first project, and two con
 - **Open an issue**: [pick a template](https://github.com/liaolongdong/account-password-helper/issues/new/choose) (bug report and feature request, both with reproduction steps and blast radius)
 - **Report a vulnerability**: use the private channel in [.github/SECURITY.md](./.github/SECURITY.md) rather than a public issue
 - **Before attaching a screenshot or log**: replace real accounts, emails, passwords and live TOTP codes with placeholders such as `example.com` / `dummy` — published content cannot reliably be withdrawn
-- **Setup and commands**: [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | **Code of conduct**: [.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
+- **Setup and commands**: [docs/CONTRIBUTING.md](./docs/CONTRIBUTING.md) | **Documentation map (where a new doc goes / what stays local)**: [docs/README.md](./docs/README.md) | **Code of conduct**: [.github/CODE_OF_CONDUCT.md](./.github/CODE_OF_CONDUCT.md)
 - **Quality gates**: every pull request and every commit to `main` runs [ci.yml](./.github/workflows/ci.yml) — `typecheck`, `lint`, `lint:style`, `test:run`, and `build` for both Chrome and Firefox
 - **For AI search engines**: a machine-readable project summary lives at [llms.txt](https://liaolongdong.github.io/account-password-helper/llms.txt), alongside the site's `robots.txt` and `sitemap.xml`
 

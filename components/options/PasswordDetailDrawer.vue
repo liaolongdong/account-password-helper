@@ -61,6 +61,18 @@
               link
               @click="copyText(entry.username)"
             />
+            <!-- 只读跳转：把用户名当搜索词带去身份库，本抽屉不解身份密文、也不显示任何 PII 值 -->
+            <el-tooltip
+              :content="t('options.detail.searchIdentity')"
+              placement="top"
+            >
+              <el-button
+                :icon="Search"
+                :aria-label="t('options.detail.searchIdentity')"
+                link
+                @click="searchIdentity"
+              />
+            </el-tooltip>
           </div>
         </el-descriptions-item>
 
@@ -163,9 +175,20 @@
         <el-descriptions-item :label="t('common.remark')">
           <div
             v-if="entry.remark"
-            class="detail-remark"
+            class="detail-value detail-remark"
           >
-            {{ entry.remark }}
+            <span class="detail-remark__text">
+              <SearchHighlight
+                :text="entry.remark"
+                :keyword="keyword || ''"
+              />
+            </span>
+            <el-button
+              :icon="CopyDocument"
+              :aria-label="t('common.copy')"
+              link
+              @click="copyText(entry.remark)"
+            />
           </div>
           <span
             v-else
@@ -244,7 +267,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { CopyDocument, Edit, View, Hide, StarFilled, Link, Share } from '@element-plus/icons-vue';
+import { CopyDocument, Edit, View, Hide, StarFilled, Link, Share, Search } from '@element-plus/icons-vue';
 import type { PasswordEntry } from '@/utils/types';
 import { formatDateTime } from '@/utils/dateFormat';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
@@ -257,6 +280,7 @@ import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
 import TotpCode from '@/components/TotpCode.vue';
 import SiteFavicon from '@/components/SiteFavicon.vue';
+import SearchHighlight from '@/components/SearchHighlight.vue';
 
 /**
  * 密码条目只读详情抽屉
@@ -271,12 +295,26 @@ const props = defineProps<{
   modelValue: boolean;
   /** 当前查看的条目（已解密，为空时不渲染内容） */
   entry: PasswordEntry | null;
+  /**
+   * 当前搜索关键词（用于备注命中高亮，空串时不高亮）
+   *
+   * 列表里搜到一条再点进详情，高亮若消失就是可感的断裂；表格与侧边栏都已用
+   * `SearchHighlight`，抽屉此前是唯一没有的一处。
+   */
+  keyword?: string;
 }>();
 
 const emit = defineEmits<{
   'update:modelValue': [boolean];
   /** 请求进入编辑态（由父级关闭抽屉并复用既有编辑弹窗流程） */
   edit: [entry: PasswordEntry];
+  /**
+   * 请求以当前用户名检索身份信息库
+   *
+   * 只把用户名当**搜索词**上交：身份库的复验门槛与开窗都由父级持有，
+   * 本组件既不解身份密文，也不会在抽屉里显示任何 PII 值。
+   */
+  searchIdentity: [username: string];
 }>();
 
 const { t, currentLocale } = useI18n();
@@ -393,6 +431,15 @@ const handleEdit = (): void => {
   if (props.entry) emit('edit', props.entry);
 };
 
+/**
+ * 请求以当前用户名检索身份信息库：用户名是唯一的跨库线索，值本身不外泄
+ * @param username 当前条目的用户名，空值时不发起
+ */
+const searchIdentity = (): void => {
+  const username = props.entry?.username.trim();
+  if (username) emit('searchIdentity', username);
+};
+
 /** 抽屉关闭动画结束后复位敏感态（密码可见性、历史列表） */
 const handleClosed = (): void => {
   passwordVisible.value = false;
@@ -504,10 +551,52 @@ watch(
   min-width: 0;
 }
 
+/*
+ * 图标之间的净间距归一到 8px（实测原先是 16px）。
+ * 成因：Element Plus 的 `.el-button + .el-button { margin-left: 12px }` 与本行的 `gap: 4px`
+ * 是叠加的，两处都没意识到对方存在。这里显式接管那 12px，让「图标↔图标」= 8px，
+ * 而「文本↔图标」保持 4px 的紧贴关系（它们说的是同一个值）。
+ * 量的是按钮盒子之间的净间距；按可见图标量，间距同步从 22px 收到 14px
+ * （盒子两侧各留 1px 边框 + 2px padding 的空位）。
+ */
+.detail-value .el-button + .el-button {
+  margin-left: 4px;
+}
+
+/*
+ * 命中区补到 WCAG 2.5.8 的 24px 下限：`link` 按钮的盒子只有 20×20（14px 图标 + 2×2px padding
+ * + 2×1px 边框）。视觉尺寸与 DOM 都不动，只用 `::after` 向外扩。
+ * 口径：`inset` 以 padding box 为基准，被 EP 按钮那 1px 边框吃掉一格，所以 −4px 实际只外扩 3px。
+ * 真鼠标实测：盒子右缘外 +2px 仍能翻显隐，+3px 起落空 —— 相邻两颗的热区之间因此还留约 2px
+ * 中性带，既没有重叠误点，也没把整行铺成一颗接一颗的分段控件。
+ * 与表格操作列 `.operation-buttons` 同一套做法（那边是 28px 盒 + 10px 间距 + 外扩 5px）。
+ */
+.detail-value .el-button {
+  position: relative;
+
+  /*
+   * 值文本改为可折行后，它的 flex 基准尺寸（max-content，整段一行）远超容器，
+   * 负剩余空间会按「收缩系数 × 基准尺寸」分摊到同行每个弹性项 —— 不加这一句，
+   * 20px 的图标按钮会被长备注 / 长网址挤到 10px 左右（热区与图标同时变形）。
+   */
+  flex-shrink: 0;
+}
+
+.detail-value .el-button::after {
+  position: absolute;
+  inset: -4px;
+  content: '';
+}
+
+/*
+ * 值文本折行而非省略号截断：本抽屉是列表截断后的唯一完整读通道（见组件头注释），
+ * 超长用户名 / 网址 / 明文密码应当折行展示全文。同时解除 nowrap 对表格布局的
+ * min-content 挤压——`el-descriptions border` 渲染为 table，一个 nowrap 的长值会把
+ * 值列撑到整串宽度，把标签 th 挤到一字宽、中文标签逐字竖排。
+ */
 .detail-value__text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .detail-value__text--mono {
@@ -532,9 +621,7 @@ watch(
 }
 
 .detail-url__text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .detail-muted {
@@ -547,13 +634,34 @@ watch(
   margin-left: 4px;
 }
 
-/* 备注全文：保留换行，长文本自动折行（核心价值，列表中被截断） */
-.detail-remark {
+/*
+ * 备注行：容器直接复用 `.detail-value`（同一套 flex + 4px 间距 + 图标热区外扩），
+ * 这里只把居中对齐改成顶部对齐 —— 备注折成多行时，复制按钮贴第一行而不是悬在中间。
+ * 用 `.detail-value.detail-remark` 复合选择器而非单类，是为了压过 `.detail-value`
+ * 的 `align-items: center`（同为单类时谁生效取决于样式顺序，换行序即翻车）。
+ */
+.detail-value.detail-remark {
+  align-items: flex-start;
+}
+
+.detail-remark__text {
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   line-height: 1.6;
   color: var(--el-text-color-regular);
   overflow-wrap: break-word;
   white-space: pre-wrap;
+}
+
+/*
+ * 标签格不得逐字竖排：border 形态下 el-descriptions 是 table，标签 th 的宽度由
+ * min-content 决定，中文可在任意字间断行，一旦值列挤压就会退成一字一行。
+ * 标签本身最长四字（两步验证 / Username），nowrap 后其 min-content 即整词宽度，
+ * 表格布局必先满足它，竖排随之消失。
+ */
+.detail-descriptions :deep(.el-descriptions__label) {
+  white-space: nowrap;
 }
 
 /* 密码历史（只读） */

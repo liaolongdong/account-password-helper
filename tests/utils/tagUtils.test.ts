@@ -1,6 +1,13 @@
 import { computed, reactive } from 'vue';
 import { describe, expect, it } from 'vitest';
-import { buildTagPresentationRecords, getTagFullStyle, normalizeTagInput, parseTags } from '@/utils/tagUtils';
+import {
+  buildTagOptions,
+  buildTagPresentationRecords,
+  countTags,
+  getTagFullStyle,
+  normalizeTagInput,
+  parseTags,
+} from '@/utils/tagUtils';
 
 describe('buildTagPresentationRecords', () => {
   it('保持既有标签解析顺序、去重规则与样式结果', () => {
@@ -92,5 +99,63 @@ describe('normalizeTagInput', () => {
     expect(normalizeTagInput(['   ', '  \t '], 30)).toEqual({ accepted: [], rejectedTooLong: [] });
     expect(normalizeTagInput([], 30)).toEqual({ accepted: [], rejectedTooLong: [] });
     expect(normalizeTagInput(undefined, 30)).toEqual({ accepted: [], rejectedTooLong: [] });
+  });
+});
+
+/**
+ * countTags / buildTagOptions：管理页筛选栏的标签候选计数
+ *
+ * 计数口径钉的是「全库条目数」，不是「当前筛选结果里的条数」——后者会让选中一个标签后
+ * 其余候选当场归零，下拉读起来就是空集（与站点候选 `collectSiteOptions` 同口径）。
+ * 一次遍历同时喂两个视图：键集（首次出现顺序）给表单与批量弹窗，排序候选给筛选栏，
+ * 两者键集必然一致，`filterTags` 的失效剔除不会跟计数版本分叉。
+ */
+describe('countTags', () => {
+  it('每个标签按包含它的条目数计数，同一条目内重复标签只算一次', () => {
+    const counts = countTags([{ tag: '工作,工作' }, { tag: '工作' }, { tag: '个人' }]);
+
+    expect([...counts]).toEqual([
+      ['工作', 2],
+      ['个人', 1],
+    ]);
+  });
+
+  it('按标签首次出现的顺序给出键集，弹窗候选顺序不随计数漂移', () => {
+    const counts = countTags([{ tag: '少,中' }, { tag: '多' }, { tag: '多,中' }]);
+
+    expect([...counts.keys()]).toEqual(['少', '中', '多']);
+  });
+
+  it('去空白并入同桶，大小写差异仍是两个候选——打错的标签要看得见分叉', () => {
+    const counts = countTags([{ tag: 'GitHub' }, { tag: 'github' }, { tag: 'GitHub ' }]);
+
+    expect([...counts]).toEqual([
+      ['GitHub', 2],
+      ['github', 1],
+    ]);
+  });
+
+  it('空串与纯空白标签不进计数，空库得到空 Map', () => {
+    expect([...countTags([{ tag: '' }, { tag: ' , ， ' }]).keys()]).toEqual([]);
+    expect(countTags([]).size).toBe(0);
+  });
+});
+
+describe('buildTagOptions', () => {
+  it('条目数倒序，同数量按标签码点正序（不用 localeCompare，避免平台规则给出不同顺序）', () => {
+    const options = buildTagOptions(
+      countTags([{ tag: 'b' }, { tag: 'a' }, { tag: 'a' }, { tag: 'C' }, { tag: 'C' }, { tag: 'd' }]),
+    );
+
+    expect(options).toEqual([
+      { tag: 'C', count: 2 },
+      { tag: 'a', count: 2 },
+      { tag: 'b', count: 1 },
+      { tag: 'd', count: 1 },
+    ]);
+  });
+
+  it('空计数得到空候选集，筛选栏据此隐藏标签下拉', () => {
+    expect(buildTagOptions(countTags([]))).toEqual([]);
   });
 });

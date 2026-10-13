@@ -1,0 +1,85 @@
+# 【微信公众号 · 待发布草稿】
+
+> ⚠️ 这是**待发稿件，尚未自动发布**。请审阅后用微信编辑器或 `/baoyu-post-to-wechat` 手动发布。
+> 建议用 `/baoyu-article-illustrator` 为标注 🖼 的位置生成/复用配图；配图优先取 `assets/cws-store/screen-*-*.png`（`scripts/store-shots/` 生成的占位演示截图，数据全为 `example.com`）。
+> ⚠️ `assets/screenshots/` 含真实账号、邮箱与 TOTP 活码，**已退役，任何场合都不要再引用**；配图一律用 `assets/cws-store/screen-*.png`（`scripts/store-shots/` 生成的占位演示截图）或 `docs/media/demo-login.gif`（2026-09-13 从占位演示页重录的动图，数据全为 `example.com`，可安全引用）。
+
+---
+
+**标题（主）**：我做了个「只在你浏览器里」的密码管理器：一键登录、多环境账号不填错
+
+**备选标题**：
+
+- 告别云端焦虑：一个纯本地、免注册的开源密码管理 Chrome 扩展
+- 开发者的多环境账号救星：精确域名隔离 + 一键登录
+
+**摘要（digest，120 字内）**：
+一款开源免费、数据纯本地的 Chrome 密码管理扩展。PBKDF2+AES-256-GCM 逐字段本地加密，密码不上传、免注册；一键登录（填充+勾选协议+点击登录），精确域名隔离 dev/test/staging/prod，内置 TOTP 与安全体检。
+
+**作者/账号**：（发布时填写公众号作者名）
+
+---
+
+## 正文
+
+![封面图 🖼 建议用 assets/cws-store/marquee-1400x560.png]
+
+先说清它是什么：**账号密码管理助手（Account Password Helper）**，一款**开源免费、数据 100% 留在你浏览器里**的 Chrome 密码管理扩展。没有云端、没有账号、没有订阅，也不需要注册任何东西。
+
+### 为什么又做一个密码管理器？
+
+因为我自己的痛点很具体——作为开发者/测试，同一个网站我手里有开发、测试、预发、生产**四套环境、十几个账号**，长得很像。普通密码管理器只会填表单，**环境一多就填错**，登录还得自己勾协议、自己点登录按钮。
+
+于是我把这些"刚需"做进了一个扩展里。
+
+### 它能帮你做什么
+
+**1. 一键登录，不只是填充**
+侧边栏点「填充并登录」：自动填账号密码 → 自动勾选“同意条款” → 自动点击登录按钮，1 秒完成。在偏好设置里开启「自动触发登录」后，按 `Ctrl+Shift+F` 也能一步到位；默认状态下这个快捷键有意只填充、不提交，防止误触登进意料之外的页面。别的工具只填表，登录按钮还得你自己点。
+
+🖼 配图建议：`docs/media/demo-login.gif`（动图，2026-09-13 从占位演示页重录，900px 宽一轮约 7 秒）或静态图 `assets/cws-store/screen-1-one-click-login.png`
+
+**2. 精确域名多环境隔离**
+dev / test / staging / prod 的账号按域名精确匹配，同一站点不同环境互不混淆——这条对开发者几乎是决定性功能。
+
+**3. 内置 TOTP 两步验证**
+验证码和密码住在一起，按 RFC 6238 本地生成。GitHub 式两步登录时，活码胶囊自动锚定在输入框旁，一键填入，不用再掏手机。
+
+🖼 配图建议：`assets/cws-store/screen-2-totp.png`
+
+**4. 离线安全体检**
+一键给出 0–100 评分，四个维度加权：密码复用 35 / 弱密码 25 / 命中常见泄露密码字典 20 / 长期未更新 20（未开两步验证单独列出但不扣分），**这一项全程本地计算，不发起任何网络请求**。
+
+🖼 配图建议：`assets/cws-store/screen-4-security-audit.png`
+
+**5. 纯本地加密，密码不上传**
+主密码经 **PBKDF2（600,000 次迭代）** 派生密钥，敏感字段用 **AES-256-GCM** 逐字段认证加密，密文全部存在浏览器本地，密码数据不出机器、不上传任何服务器。扩展唯一的联网动作是每 6 小时一次的匿名版本检查（探测商店可达性，不可达才查 GitHub Releases 版本号），不携带任何账号数据。
+
+### 和 Bitwarden / 1Password / Chrome 自带怎么选？
+
+一句话：**需要跨设备云同步、移动端 App、团队协作 → 选 Bitwarden / 1Password；只想要免注册、密码数据不出本机、还能一键登录 → 选这个。** 它完全免费开源（GPL-3.0），内置 TOTP 与安全体检都免费；取舍是**没有云同步、没有移动端 App**。
+
+完整八维度对比我放在官网页：https://liaolongdong.github.io/account-password-helper/compare.html
+
+### 从别的工具搬家？30 秒搞定
+
+支持 CSV / JSON 导入，自动识别 **Chrome、LastPass、Bitwarden、1Password** 导出格式，列名自动映射；导出同样方便，数据随时能带走，绝不锁定。
+
+🖼 配图建议：`assets/cws-store/screen-12-import-backup.png`
+
+### 还想再多嘴一句安全
+
+它是为**开发、测试和日常登录**场景而生的。和任何浏览器扩展一样，**不建议在里面存放银行、支付等高敏感凭证**。忘记主密码无法找回，请定期用加密备份（.aph）导出。
+
+### 去哪拿
+
+- Chrome 应用商店（推荐，自动更新）：搜「账号密码管理助手」，或直接安装 👉 https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli
+- 官网演示 + 完整 FAQ：https://liaolongdong.github.io/account-password-helper/
+- 开源地址：https://github.com/liaolongdong/account-password-helper
+- 无法访问 Google 的用户：可从 GitHub Releases 下载 zip 手动安装
+
+> 觉得有用的话，帮忙点个 **赞 / 在看 / 转发**，或到 Chrome 应用商店留个五星——这是对独立开发者最大的支持 🙏
+
+---
+
+_（文末可放微信交流群二维码：`assets/wx-qrcode/`，备注 aph 进群）_

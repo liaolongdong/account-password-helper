@@ -35,23 +35,23 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 
 项目 UI 只有浅底主题，深底封面需要的「面板 / 描边 / 内层」颜色在此固定，改图时不要临时取色：
 
-| 用途                      | 色值                                | 出现位置                                                                         |
-| ------------------------- | ----------------------------------- | -------------------------------------------------------------------------------- |
-| 深底主图形色              | `#8fb4ff`                           | 迭代点阵、锁梁、放大镜、虚线脊柱                                                 |
-| 深底面板 / 次级行         | `#0f1e3d` / `#1e3a6b`               | 输入框、列表行、密文块底                                                         |
-| 深底卡片渐变与描边        | `#1e3564 → #16264b`，描边 `#2a4a80` | 04 四张卡片                                                                      |
-| 深底证据行分隔线          | `#23406e`                           | 03/05 左栏底部                                                                   |
-| 深底正文 / 胶囊字         | `#a9bfe0` / `#cfe3ff`               | 说明行、卡片标签                                                                 |
-| 浅底表盘与骨架行          | `#f4f9ff` / `#dcebff` / `#b8d4f5`   | 02 秒表与浏览器骨架                                                              |
-| 提速闪电（EP warning 系） | `#ffd04b → #e6a23c`                 | 02 闪电、05 兄弟子域警示徽章                                                     |
-| 钥匙孔内圈                | `#3b86e8`                           | 01 保险块（取主色渐变中段）                                                      |
-| 系列标                    | `#9ca3af`（= `--aph-text-muted`）   | 右上 `技术博客 0N / 05`（01–04 存量封面印的是 `/ 04`，如需统一须重渲染四张 PNG） |
+| 用途                      | 色值                                | 出现位置                                                       |
+| ------------------------- | ----------------------------------- | -------------------------------------------------------------- |
+| 深底主图形色              | `#8fb4ff`                           | 迭代点阵、锁梁、放大镜、虚线脊柱                               |
+| 深底面板 / 次级行         | `#0f1e3d` / `#1e3a6b`               | 输入框、列表行、密文块底                                       |
+| 深底卡片渐变与描边        | `#1e3564 → #16264b`，描边 `#2a4a80` | 04 四张卡片                                                    |
+| 深底证据行分隔线          | `#23406e`                           | 03/05 左栏底部                                                 |
+| 深底正文 / 胶囊字         | `#a9bfe0` / `#cfe3ff`               | 说明行、卡片标签                                               |
+| 浅底表盘与骨架行          | `#f4f9ff` / `#dcebff` / `#b8d4f5`   | 02 秒表与浏览器骨架                                            |
+| 提速闪电（EP warning 系） | `#ffd04b → #e6a23c`                 | 02 闪电、05 兄弟子域警示徽章                                   |
+| 钥匙孔内圈                | `#3b86e8`                           | 01 保险块（取主色渐变中段）                                    |
+| 系列标                    | `#9ca3af`（= `--aph-text-muted`）   | 右上 `技术博客 0N / 05`（五张 SVG 已统一，改计数须重渲染 PNG） |
 
 ## 共享版式
 
 - 画布 1600×900，安全边距 96px（OG 卡与列表小图裁切后文字仍完整）。
 - 左上品牌角标：52×52 主蓝圆角块 + 白色钥匙记号（`assets/icons/icon.svg` 同骨架）+ 27px 产品名。
-- 右上系列标：24px `技术博客 0N / 05`（01–04 存量封面印的是 `/ 04`）。
+- 右上系列标：24px `技术博客 0N / 05`（05 是文章总数；新增一篇要连同前四张的 `/ 05` 一起改并重渲染）。
 - 文字层级：H1 84px/700 → 关键字行 38px/600 主色 → 说明行 28px 辅助色 → 胶囊 27px/500（高 56、圆角 28、左右内距 26、间距 16）。
 - 01/02/03/05 为「左文字 + 右插画」双栏（文字栏 x 96–860，插画栏 x 880–1504）；
   04 因主体是「四个功能」卡片带，改为「上文字横排 + 下方四卡带」，其余令牌完全一致。
@@ -60,12 +60,15 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 - 左栏底部固定一条「证据行」：细分隔线 + 26px 源码路径 / 仓库地址，既补留白又把可核对信息放上封面。
 - 验收尺寸：`blog/index.html` 列表卡以 **200×120 + object-fit:cover** 展示（等效可见区 x 50–1550），
   已按该尺寸实测：五张主标题、品牌角标、关键字行均可读；胶囊与证据行属次级信息，缩略图下不要求可读。
+- 封面文字也是对外承诺，禁用词表与商店文案同源（`docs/store/CWS_PUBLISHING_GUIDE.md`「隐私承诺」行）：
+  不写「零联网 / 100% offline / 数据不出浏览器」——扩展每 6 小时有一次不携带用户数据的匿名版本检查；
+  隐私口径统一写「密码数据不出本机」。改文案后重跑 `pnpm covers:render <文件名子串>`。
 
 ## Illustration 1 — blog-cover-01-local-first
 
 **Position**: `docs/blog/{zh,en}/01-local-first-password-manager.md` 封面 + og:image
 **Purpose**: 传达「零云端 / 本地加密 / 为开发者而生」的立项动机
-**Text**: H1 `零云端 · 本地加密`；关键字 `AES-256-GCM · PBKDF2 600,000×`；说明 `密码数据不出浏览器，多环境账号不串号`；胶囊 `精确域名匹配` `一键登录` `内置 TOTP` `GPL-3.0 开源`；证据行 `github.com/liaolongdong/account-password-helper`
+**Text**: H1 `零云端 · 本地加密`；关键字 `AES-256-GCM · PBKDF2 600,000×`；说明 `密码数据不出本机，多环境账号不串号`；胶囊 `精确域名匹配` `一键登录` `内置 TOTP` `GPL-3.0 开源`；证据行 `github.com/liaolongdong/account-password-helper`
 **Visual Content**: 划掉的云（零云端）→ 浏览器窗口内品牌钥匙保险块（复用 `assets/icons/icon.svg` 骨架）→ 虚线落到笔记本（数据只在本机）→ 盾牌对勾（安全体检）与 `</>`（为开发者而生）
 **Filename**: blog-cover-01-local-first.svg → ../blog-cover-01-local-first.png
 
@@ -89,7 +92,7 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 
 **Position**: `04-login-flow-details.md` 封面 + og:image
 **Purpose**: 一图说清「这批更新加了什么、没加什么」
-**Text**: H1 `四个新功能 · 四段实现笔记`；关键字 `0 新增设置开关 · 仅 +1 权限 · 1953 项自动化测试`；说明 `每个功能都撞上一个 Chrome 扩展特有的坑`；卡片标签 `右键填充` `内联面板` `全站搜索` `只读详情`
+**Text**: H1 `四个新功能 · 四段实现笔记`；关键字 `0 新增设置开关 · 仅 +1 权限 · 2041 项自动化测试`；说明 `每个功能都撞上一个 Chrome 扩展特有的坑`；卡片标签 `右键填充` `内联面板` `全站搜索` `只读详情`
 **Visual Content**: 四张等宽卡片横带（带 01–04 序号），各配一个功能微缩图形（右键菜单 + 光标 / 输入框上方翻转面板 / 本站-全站分段控件 + 放大镜 / 列表 + 只读抽屉），虚线脊柱串联
 **Filename**: blog-cover-04-login-flow-details.svg → ../blog-cover-04-login-flow-details.png
 
@@ -97,6 +100,6 @@ consumers: docs/blog/{zh,en}/*.md frontmatter image + og:image + blog/index.html
 
 **Position**: `05-cross-subdomain-matching.md` 封面 + og:image
 **Purpose**: 把「同一站点的账号该出现在哪些子域」这件事画成一张可核对的层级梯
-**Text**: H1 两行 `同一站点的账号` / `该出现在哪些子域`；关键字 `off · wildcard · sameMainDomain`；说明 `三档分层判据 · 一个函数决定 · 多处消费`；胶囊 `三档分层判据` `主域名相等` `不用 endsWith` `1953 项自动化测试` `+18 B 包体积`；证据行 `utils/domain.ts · resolveMatchTier`
+**Text**: H1 两行 `同一站点的账号` / `该出现在哪些子域`；关键字 `off · wildcard · sameMainDomain`；说明 `三档分层判据 · 一个函数决定 · 多处消费`；胶囊 `三档分层判据` `主域名相等` `不用 endsWith` `2041 项自动化测试` `+18 B 包体积`；证据行 `utils/domain.ts · resolveMatchTier`
 **Visual Content**: 顶部地址栏（锁形记号 + `mail.example.com` + 「当前档：同主域名」）→ 虚线脊柱串起 tier 0–3 四行（0 精确行主蓝高亮、1 通配 `*.example.com`、2 apex `example.com`、3 兄弟子域 `uat.example.com` 用 warning 系描边），1–3 行右侧带「跨子域」徽章 → 底部虚线框 `evil-example.com` 配 EP 红叉，注脚 `主域名相等，不是 endsWith('example.com')`；域名一律用 `example.com` 家族，不出现任何真实站点或账号
 **Filename**: blog-cover-05-cross-subdomain-matching.svg → ../blog-cover-05-cross-subdomain-matching.png

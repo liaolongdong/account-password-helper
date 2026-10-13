@@ -45,7 +45,7 @@ licenses are reproduced below as required.
 
 | Package                 | Version | License    | Repository                                         |
 | ----------------------- | ------- | ---------- | -------------------------------------------------- |
-| vue                     | ^3.5.41 | MIT        | https://github.com/vuejs/core                      |
+| vue                     | ^3.5.43 | MIT        | https://github.com/vuejs/core                      |
 | element-plus            | ^2.14.4 | MIT        | https://github.com/element-plus/element-plus       |
 | @element-plus/icons-vue | ^2.3.2  | MIT        | https://github.com/element-plus/element-plus-icons |
 | pinyin-match            | ^1.2.10 | MIT        | https://github.com/xmflswood/pinyin-match          |

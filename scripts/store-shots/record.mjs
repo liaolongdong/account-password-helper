@@ -3,7 +3,7 @@
  *
  *   node record.mjs <path-to-.output/chrome-mv3> [zh|en] [login|totp]
  *
- * 输出：中文 `docs/<场景>.webp` + `docs/<场景>.gif`，英文 `docs/<场景>-en.webp`。
+ * 输出：中文 `docs/media/<场景>.webp` + `docs/media/<场景>.gif`，英文 `docs/media/<场景>-en.webp`。
  * 旧的真机录屏含真实账号画面，已退役；这里全部走 `example.com` 占位演示页，不含任何真实凭据。
  *
  * - `login`：`admin` 站的一键登录（侧边栏），四帧。
@@ -69,7 +69,8 @@ import { COPY } from './copy.mjs';
 import { DEMO_HOSTS, HOST_ADMIN, HOST_CONSOLE, pageUrl } from './demo-hosts.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const DOCS_DIR = resolve(HERE, '../../docs');
+/** 演示动图产物目录：README / 推广文档统一从这里取 `docs/media/` 下的 webp 与 gif。 */
+const MEDIA_DIR = resolve(HERE, '../../docs/media');
 
 const EXT_DIR = process.argv[2];
 const LANG = process.argv[3] || 'zh';
@@ -490,8 +491,8 @@ writeFileSync(
   frames.map(f => `file '${f.file}'\nduration ${f.hold}`).join('\n') + `\nfile '${frames[frames.length - 1].file}'\n`,
 );
 
-const targets = [{ out: join(DOCS_DIR, `${S.out}${suffix}.webp`), size: WEBP_SIZE, kind: 'webp' }];
-if (LANG === 'zh') targets.push({ out: join(DOCS_DIR, `${S.out}.gif`), size: GIF_SIZE, kind: 'gif' });
+const targets = [{ out: join(MEDIA_DIR, `${S.out}${suffix}.webp`), size: WEBP_SIZE, kind: 'webp' }];
+if (LANG === 'zh') targets.push({ out: join(MEDIA_DIR, `${S.out}.gif`), size: GIF_SIZE, kind: 'gif' });
 
 for (const t of targets) {
   const common = ['-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', list];

@@ -29,6 +29,7 @@ import {
   Warning,
 } from '@element-plus/icons-vue';
 import PasswordListItem from '@/components/sidepanel/PasswordListItem.vue';
+import { useListRenderWindow } from '@/composables/useListRenderWindow';
 import type { PasswordEntry } from '@/utils/types';
 import type { SearchScope } from '@/utils/passwordFilter';
 import { getTagColor } from '@/utils/tagUtils';
@@ -206,71 +207,45 @@ const scrollActiveTagIntoView = (tag: string) => {
   }
 };
 
-// ==================== 大列表分片渲染 ====================
-
-/** 首屏渲染条目数：覆盖常见可视区高度，超出部分经 rAF 分批放开 */
-const INITIAL_RENDER_COUNT = 30;
-
-/** 每帧追加渲染的条目数：数百条列表约 2-4 帧内补齐，快于用户滚动/翻页速度 */
-const RENDER_BATCH_SIZE = 60;
+// ==================== 大列表按需渲染窗口 ====================
 
 /**
- * 当前渲染上限（只增不减）：
- * 首帧只渲染前 INITIAL_RENDER_COUNT 条压缩首屏渲染耗时（大库用户 Windows 低端机
- * 首渲可达数百 ms），其余条目在后续动画帧分批放开；完整放开后维持上限不再收缩，
- * 使搜索/过滤切换即时全量渲染，避免二次分片闪烁。
+ * 渲染窗口策略见 `composables/useListRenderWindow.ts`
+ *
+ * 首帧只渲染 `INITIAL_RENDER_COUNT` 行，其后逐帧放开到 `IDLE_RENDER_LIMIT` 即停；
+ * 用户滚到接近底部、或键盘导航越过窗口时按需继续放开，因此任意一行仍然可达，
+ * 列表的过滤/排序语义也始终是全集。之所以不再像旧实现那样一路铺到全量：
+ * 2000 条落定态等于整库常驻 DOM，一次击键要重渲染 2000 行（实测单个长任务 6.1 s）。
  */
-const renderCount = ref(INITIAL_RENDER_COUNT);
+const { renderCount, notifyViewport } = useListRenderWindow({
+  totalLength: () => props.filteredPasswords.length,
+  activeIndex: () => props.activeIndex,
+});
 
-/** 分片渲染中标志（防止并发 rAF 扩容循环） */
-let _expanding = false;
-
-/** rAF 句柄（组件卸载时取消，避免卸载后 ref 写入） */
-let _expandRafId = 0;
-
-/** 首屏可见条目切片（渲染上限覆盖全量后直接复用原数组引用，零拷贝） */
+/** 当前窗口的条目切片（窗口覆盖全量后直接复用原数组引用，零拷贝） */
 const visiblePasswords = computed(() =>
   props.filteredPasswords.length > renderCount.value
     ? props.filteredPasswords.slice(0, renderCount.value)
     : props.filteredPasswords,
 );
 
-/** 逐帧扩容渲染上限直至覆盖全量列表 */
-const expandRenderCount = () => {
-  if (_expanding) return;
-  _expanding = true;
-  const step = () => {
-    if (renderCount.value >= props.filteredPasswords.length) {
-      _expanding = false;
-      return;
-    }
-    renderCount.value += RENDER_BATCH_SIZE;
-    _expandRafId = requestAnimationFrame(step);
-  };
-  _expandRafId = requestAnimationFrame(step);
-};
-
-/** 列表长度超出渲染上限时启动分批放开（含首帧） */
-watch(
-  () => props.filteredPasswords.length,
-  len => {
-    if (len > renderCount.value) expandRenderCount();
-  },
-  { immediate: true },
-);
+/** 滚动采样的 rAF 句柄：同一帧内的多次滚动只读一次几何 */
+let _scrollRafId = 0;
 
 /**
- * 键盘导航越界防护：选中索引超出渲染上限时同步扩容，
- * 确保 App.vue 的 scrollToActiveItem 在 nextTick 时目标 DOM 已存在
+ * 接近列表底部时按需放开一批
+ *
+ * 几何读取排在 rAF 里（此时布局已稳定，读 `scrollHeight` 不会强制同步布局）；
+ * `currentTarget` 必须在调度前同步取到——事件对象派发结束即被复用，异步再读是 null。
  */
-watch(
-  () => props.activeIndex,
-  index => {
-    if (index + 1 > renderCount.value) {
-      renderCount.value = index + RENDER_BATCH_SIZE;
-    }
-  },
-);
+const handleListScroll = (event: Event) => {
+  const el = event.currentTarget as HTMLElement | null;
+  if (!el || _scrollRafId) return;
+  _scrollRafId = requestAnimationFrame(() => {
+    _scrollRafId = 0;
+    notifyViewport({ scrollTop: el.scrollTop, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight });
+  });
+};
 
 // ==================== 挂载收尾 ====================
 
@@ -282,7 +257,7 @@ onMounted(() => {
   });
 
   // 首帧渲染完成通知：DOM flush（nextTick）+ 首帧绘制（rAF）后上报实际渲染条目数
-  // （分片渲染下首帧上限为 INITIAL_RENDER_COUNT，非过滤后全量），
+  // （窗口化渲染下首帧上限为 useListRenderWindow 的 INITIAL_RENDER_COUNT，非过滤后全量），
   // 供 App.vue 打 sp-list-rendered 埋点并收尾骨架屏过渡
   nextTick(() => {
     requestAnimationFrame(() => emit('rendered', visiblePasswords.value.length));
@@ -301,8 +276,9 @@ watch(
 );
 
 onUnmounted(() => {
-  if (_expandRafId) cancelAnimationFrame(_expandRafId);
-  _expanding = false;
+  // 滚动采样的 rAF 只负责读几何，取消即可；渲染窗口自身的 rAF 由 composable 清理
+  if (_scrollRafId) cancelAnimationFrame(_scrollRafId);
+  _scrollRafId = 0;
 });
 </script>
 
@@ -505,7 +481,10 @@ onUnmounted(() => {
 
   <!-- 密码列表卡片 -->
   <div class="list-card">
-    <div class="password-list">
+    <div
+      class="password-list"
+      @scroll.passive="handleListScroll"
+    >
       <div
         v-if="loading"
         class="loading-state"
@@ -982,6 +961,28 @@ onUnmounted(() => {
 
 .password-list::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* ==================== 降级动效 ==================== */
+
+/*
+ * 空态三个按钮的 hover 上浮属于位移类动效，需随系统「减弱动态效果」关闭；
+ * 阴影反馈保留（它是按钮层级的提示载体，关掉会把首选出口降格成普通按钮），
+ * 因此把基态的 `transition: all` 收窄为只过渡 box-shadow。
+ * `:deep()` 是必需的：这些类挂在 el-button 内部节点上，不带本组件的 data-v 属性。
+ */
+@media (prefers-reduced-motion: reduce) {
+  :deep(.empty-search-all-btn),
+  :deep(.empty-add-site-btn),
+  :deep(.empty-add-btn) {
+    transition: box-shadow 0.25s ease;
+  }
+
+  :deep(.empty-search-all-btn:hover),
+  :deep(.empty-add-site-btn:hover),
+  :deep(.empty-add-btn:hover) {
+    transform: none;
+  }
 }
 </style>
 

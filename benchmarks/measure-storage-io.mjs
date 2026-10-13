@@ -77,7 +77,7 @@
  *    "分片形态 / 键名长度 / 索引键"，**这个分解已收回**：SW 侧键名步 +19.6%→+30.7%，可 options@2000 的键名步
  *    只有 +0.2% 而分片步 +28.3%，四格互相矛盾，归因只在 SW（纯 IO、离散度 <8%）成立。见设计稿 §5.3 M-6 结论 3。
  *    真实实现还要付索引键写入与跨键一致性，那是**风险成本**而非**收益折扣**——
- *    见 `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 4.2 与第十节、`docs/PERF_E1_KEY_SHARDING_DESIGN.md` §5.3。
+ *    见 `docs/reports/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 4.2 与第十节、`docs/reports/PERF_E1_KEY_SHARDING_DESIGN.md` §5.3。
  * 4. 绝对值受磁盘状态、杀软扫描、整机负载影响（同一命令两次可差数倍）。
  *    **只在同一串行窗口内做相对比较**，跑前先确认 `top -l 2` 的 CPU idle 足够高。
  * 5. 夹具写在 `bench_blob` 而非 `account_passwords`：后者会触发扩展自身的 `onChanged` 扇出

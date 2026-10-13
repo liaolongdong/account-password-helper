@@ -13,6 +13,7 @@
  * 都要过一遍校验，不合法的条目逐条剔除而不是整份接受。
  */
 import { formatTimestampCompact } from '@/utils/dateFormat';
+import { isFillEntry } from '@/utils/fillEntry';
 import { logger } from '@/utils/logger';
 import {
   bulkSetSiteRules,
@@ -25,7 +26,14 @@ import {
 /** 导出文件类型标识，用于把站点规则文件与密码库 / 身份库的 JSON 区分开 */
 export const SITE_RULES_EXPORT_KIND = 'aphsr';
 
-/** 导出格式版本，字段增删时提升，并在导入侧作为兼容判据 */
+/**
+ * 导出格式版本，字段增删时提升，并在导入侧作为兼容判据
+ *
+ * `fillEntry`（按站点覆盖快速填充入口）没有提升版本：它是可选字段，缺省语义就是
+ * 「跟随全局」，因此 v1 文件在新版本里读作「无覆盖」是正确结果，而新文件里的这个字段
+ * 被旧版本忽略也不损失任何东西。一旦提升到 2，导入侧的严格相等校验会把用户手上现有的
+ * v1 文件全部判成 `UNSUPPORTED_FILE`——那是为了一个不存在的兼容问题制造真实故障。
+ */
 export const SITE_RULES_EXPORT_VERSION = 1;
 
 /** 单次导入的规则条数上限，防止异常文件把存储撑爆 */
@@ -87,8 +95,8 @@ export interface SiteRulesParseResult {
  *
  * 域名走与写入端相同的规范化（小写、去空白、可含端口），否则规则会在内容脚本的
  * 精确匹配下静默失效。选择器两侧要么都合法要么整体丢弃：`CustomSelectors` 本来就
- * 要求成对，半条规则只会让消费端在两种来源之间摇摆。两侧都不成立时返回 null，
- * 避免往存储里塞一条什么都不做的记录。
+ * 要求成对，半条规则只会让消费端在两种来源之间摇摆。三样覆盖项（选择器 / 影子穿透 /
+ * 填充档位）全不成立时返回 null，避免往存储里塞一条什么都不做的记录。
  */
 function toSiteRule(rawDomain: unknown, rawRule: unknown): SiteRule | null {
   const domain = normalizeSiteRuleDomain(rawDomain);
@@ -116,7 +124,12 @@ function toSiteRule(rawDomain: unknown, rawRule: unknown): SiteRule | null {
   // 默认即为 true，只保留显式关闭，避免把可推导的默认值固化进存储
   if (source.penetrateShadow === false) rule.penetrateShadow = false;
 
-  return rule.customSelectors || rule.penetrateShadow === false ? rule : null;
+  // 档位是覆盖项而非默认值：缺省 = 跟随全局，因此非法值与「未设置」同样处理（丢弃而不是回写），
+  // 而不是把文件里的垃圾字符串存起来参与判定
+  if (isFillEntry(source.fillEntry)) rule.fillEntry = source.fillEntry;
+
+  // 三样都没有才算空规则；只设档位（这个站别自动弹侧边栏）或只关穿透，都是有效规则
+  return rule.customSelectors || rule.penetrateShadow === false || rule.fillEntry !== undefined ? rule : null;
 }
 
 /**

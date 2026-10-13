@@ -25,6 +25,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
 import vm from 'vm';
+import { hasReducedMotionRule, reducedMotionRules } from '@/tests/helpers/landingCss';
 
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -80,6 +81,11 @@ const ESM_ONLY_ERRORS =
  */
 function findScriptSyntaxIssues(page: string, html: string): ScriptSyntaxIssue[] {
   const issues: ScriptSyntaxIssue[] = [];
+  // CodeQL 误报说明（js/bad-tag-filter，告警 #9 已按「used in tests」dismiss）：该正则从本仓库自产的 HTML
+  // 里提取内联脚本，交给 vm.Script 做语法校验，不承担净化/过滤职责——提取结果只用于报告解析失败，无 HTML
+  // 输出也无 DOM sink，漏匹配 `</script >` 这类变体的代价仅是测试少检一块脚本，不存在被绕过的安全边界。
+  // 这里刻意不用行内抑制注释：CodeQL 的抑制判据只覆盖整行定位的结果，而本查询报的是列级定位，写了不生效
+  // （2026-09-29 实测：抑制注释合入 main 并重扫后，告警仍在同一处重新出现）。
   const scriptRe = /<script\b([^>]*)>([\s\S]*?)<\/script>/gi;
   let match: RegExpExecArray | null;
   let index = 0;
@@ -213,9 +219,46 @@ function findJsGateViolations(page: string, html: string): string[] {
   return problems.map(problem => `${page}: ${problem}`);
 }
 
+/** 隐形初始态与它的终态，两条都必须出现在降级侧 */
+const REVEAL_STATES = ['html.js .reveal', 'html.js .reveal.visible'];
+
+/**
+ * 隐形初始态必须有减弱动效兜底，且选择器与基准侧一一对应。
+ *
+ * 漏掉终态那条是真实会犯的形状：基准侧 `html.js .reveal` 是 (0,2,1)，终态同样是 (0,2,1)，
+ * 降级块只列基准那条时，`.reveal.visible` 的 `transform: translateY(0)` 仍然生效——
+ * 「减弱动效」档里 24px 位移照样跑一遍，而这一档要的恰恰是没有位移。
+ *
+ * 解析部分复用 `tests/helpers/landingCss`：降级块里还套着 `@media (max-width: 520px)`，
+ * 按 `}` 切段会把嵌套层的声明拼进外层选择器，只有括号配平 + 递归进 at-rule 才读得对。
+ *
+ * @param page 页面相对路径，仅用于报告
+ * @param html 页面源码
+ * @returns 违规描述列表，合规时为空数组
+ */
+function findReducedMotionViolations(page: string, html: string): string[] {
+  if (!/html\.js\s+\.reveal\s*\{[^}]*opacity:\s*0/.test(html)) return [];
+  const reduced = reducedMotionRules(html);
+  if (reduced.length === 0) return [`${page}: 有 html.js .reveal 隐形初始态，却没有 prefers-reduced-motion 降级块`];
+
+  const problems: string[] = [];
+  for (const state of REVEAL_STATES) {
+    if (!hasReducedMotionRule(reduced, state, /transform:\s*none/)) {
+      problems.push(`${page}: 降级块里没有一条「${state} { transform: none }」`);
+    }
+  }
+  return problems;
+}
+
 describe('html.js 隐形初始态必须配错误兜底', () => {
-  it.each(['index.html', 'en.html'])('%s 的门控 / 保险 / 解除成套且按序', page => {
+  const gatedPages = ['index.html', 'en.html', 'compare.html', 'compare.en.html'];
+
+  it.each(gatedPages)('%s 的门控 / 保险 / 解除成套且按序', page => {
     expect(findJsGateViolations(page, readFileSync(path.join(ROOT, page), 'utf8'))).toEqual([]);
+  });
+
+  it.each(gatedPages)('%s 的入场位移在减弱动效档被撤掉', page => {
+    expect(findReducedMotionViolations(page, readFileSync(path.join(ROOT, page), 'utf8'))).toEqual([]);
   });
 
   it('守卫自检：抽掉解除标记或 error 监听会被判违规', () => {
@@ -229,7 +272,15 @@ describe('html.js 隐形初始态必须配错误兜底', () => {
     expect(findJsGateViolations('index.html', withoutGuard).join('\n')).toContain("addEventListener('error'");
   });
 
+  it('守卫自检：降级块只列基准态、漏掉终态会被判违规', () => {
+    const html = readFileSync(path.join(ROOT, 'compare.html'), 'utf8');
+    const missingTerminal = html.replace('html.js .reveal,\n        html.js .reveal.visible {', 'html.js .reveal {');
+    expect(missingTerminal).not.toBe(html);
+    expect(findReducedMotionViolations('compare.html', missingTerminal).join('\n')).toContain('.reveal.visible');
+  });
+
   it('没有隐形初始态的页面不被误伤', () => {
     expect(findJsGateViolations('plain.html', '<style>.reveal { opacity: 0.5; }</style>')).toEqual([]);
+    expect(findReducedMotionViolations('plain.html', '<style>.reveal { opacity: 0.5; }</style>')).toEqual([]);
   });
 });

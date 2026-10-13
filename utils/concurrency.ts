@@ -4,7 +4,7 @@
  * 只服务一类场景：「一次要处理整库条目」的异步循环。串行 `for … await` 会把每次
  * 约 25～30 µs 的 `crypto.subtle` 固定调用开销乘上条目数堆成秒级（实测 N=2000
  * 整库重加密 705.0 ms，条目级并行 396.3 ms，约 1.8×，见
- * `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.3），而一次性全并行又会在超大库上
+ * `docs/reports/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.3），而一次性全并行又会在超大库上
  * 同时压入数千个任务。分批（批间串行、批内并行）是两者之间的折中。
  *
  * 纯工具，不依赖 Vue 生命周期与 Chrome API。

@@ -67,7 +67,7 @@
     />
     <meta
       property="og:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
     />
     <meta
       property="og:url"
@@ -103,7 +103,7 @@
     />
     <meta
       name="twitter:image"
-      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/marquee-1400x560.png"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
     />
     <style>
       /* ═══════════════════════════════════════════
@@ -116,13 +116,27 @@
       }
 
       :root {
+        color-scheme: light dark;
         --primary: #4e88ff;
         --primary-dark: #3a6cd9;
+        /* 主色作文字用的那一档，与 index.html 同源：--primary-dark 同时是实底按钮色，
+           暗档不能抬亮它，所以 .feature-text code 的文字另走 --primary-ink。 */
+        --primary-ink: #3566cb;
         --primary-soft: #eaf1ff;
         --accent: #42b883;
+        /* 强调绿「作图标/判定文字用」的那一档，与 index.html 同源：--accent 是实底徽标与描边的
+           组合色，暗档不能抬亮它，所以 ✓ 图标与「是」这类文字另走 --success-ink。 */
+        --success-ink: #27754e;
+        /* 琥珀档同理：#ff9f43 是实底徽标与描边的组合色，白底上只有 2.04:1，橙色图标底 + 橙字
+           那两格就不达标；暗档反过来要亮值。取值与 index.html / compare.html 逐字同源。 */
+        --warn-ink: #a35d00;
         --text: #0f172a;
         --text-muted: #64748b;
+        --bg: #fff;
         --bg-soft: #f8fafc;
+        --surface: #fff;
+        --surface-hero: #f4f8ff;
+        --nav-bg: rgba(255, 255, 255, 0.78);
         --border: #e2e8f0;
         --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.04);
         --shadow-md: 0 4px 24px rgba(15, 23, 42, 0.06);
@@ -130,6 +144,29 @@
         --radius: 16px;
         --radius-sm: 10px;
         --container: 1080px;
+      }
+
+      /* 暗色档与落地页同源：只翻令牌，不动组件规则。
+         --primary / --primary-dark / --accent 保持原值（主色实底上的白字比例由它们决定）；
+         只有 --primary-ink 与 --success-ink 这两枚文字令牌在暗档换亮，同 index.html。 */
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --primary-soft: #1c2a45;
+          --primary-ink: #7ea6ff;
+          --success-ink: #42b883;
+          --warn-ink: #ff9f43;
+          --text: #e6edf7;
+          --text-muted: #9aa8bd;
+          --bg: #0b1220;
+          --bg-soft: #101a2c;
+          --surface: #141f33;
+          --surface-hero: #0e1a2e;
+          --nav-bg: rgba(11, 18, 32, 0.82);
+          --border: #263349;
+          --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.35);
+          --shadow-md: 0 4px 24px rgba(0, 0, 0, 0.42);
+          --shadow-lg: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
       }
 
       html {
@@ -142,7 +179,7 @@
         font-family:
           -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
         color: var(--text);
-        background: #fff;
+        background: var(--bg);
         line-height: 1.6;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
@@ -175,7 +212,7 @@
         z-index: 100;
         -webkit-backdrop-filter: saturate(180%) blur(14px);
         backdrop-filter: saturate(180%) blur(14px);
-        background: rgba(255, 255, 255, 0.78);
+        background: var(--nav-bg);
         border-bottom: 1px solid rgba(226, 232, 240, 0.7);
       }
 
@@ -220,7 +257,7 @@
       }
 
       .lang-toggle:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
         border-color: var(--primary);
       }
@@ -264,7 +301,7 @@
         background:
           radial-gradient(circle at 20% 0%, rgba(78, 136, 255, 0.16), transparent 55%),
           radial-gradient(circle at 90% 30%, rgba(66, 184, 131, 0.1), transparent 50%),
-          linear-gradient(180deg, #f4f8ff 0%, #fff 100%);
+          linear-gradient(180deg, var(--surface-hero) 0%, var(--bg) 100%);
         text-align: center;
       }
 
@@ -276,7 +313,7 @@
         height: 72px;
         margin-bottom: 20px;
         position: relative;
-        background: #fff;
+        background: var(--surface);
         border: 1px solid rgba(78, 136, 255, 0.14);
         border-radius: 20px;
         box-shadow: var(--shadow-md);
@@ -316,7 +353,7 @@
       .shield-icon {
         width: 40px;
         height: 40px;
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .eyebrow {
@@ -327,7 +364,7 @@
         margin-bottom: 20px;
         font-size: 13px;
         font-weight: 500;
-        color: var(--primary);
+        color: var(--primary-ink);
         background: rgba(78, 136, 255, 0.1);
         border-radius: 999px;
       }
@@ -394,7 +431,7 @@
         flex-direction: column;
         align-items: center;
         gap: 6px;
-        background: #fff;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-sm);
@@ -427,17 +464,17 @@
 
       .stat-icon-blue {
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .stat-icon-green {
         background: rgba(66, 184, 131, 0.12);
-        color: var(--accent);
+        color: var(--success-ink);
       }
 
       .stat-icon-orange {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
 
       .stat-value {
@@ -493,7 +530,7 @@
       }
 
       .feature-card {
-        background: #fff;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
@@ -536,17 +573,17 @@
 
       .gi-blue {
         background: var(--primary-soft);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .gi-green {
         background: rgba(66, 184, 131, 0.12);
-        color: var(--accent);
+        color: var(--success-ink);
       }
 
       .gi-orange {
         background: rgba(255, 159, 67, 0.12);
-        color: #ff9f43;
+        color: var(--warn-ink);
       }
 
       .gi-purple {
@@ -605,7 +642,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        color: var(--primary);
+        color: var(--primary-ink);
         background: var(--primary-soft);
         border-radius: 50%;
       }
@@ -630,7 +667,7 @@
         font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
         font-size: 12px;
         background: var(--primary-soft);
-        color: var(--primary-dark);
+        color: var(--primary-ink);
         padding: 2px 6px;
         border-radius: 5px;
       }
@@ -643,7 +680,7 @@
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-md);
-        background: #fff;
+        background: var(--surface);
       }
 
       .compare-table {
@@ -712,7 +749,7 @@
         border-right: 1px solid rgba(78, 136, 255, 0.22);
         border-left: 1px solid rgba(78, 136, 255, 0.22);
         font-weight: 600;
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .compare-table tbody tr:hover td.col-us {
@@ -720,7 +757,7 @@
       }
 
       .compare-table .yes {
-        color: var(--accent);
+        color: var(--success-ink);
         font-weight: 700;
       }
 
@@ -747,7 +784,7 @@
         display: flex;
         flex-direction: column;
         justify-content: center;
-        background: #fff;
+        background: var(--surface);
         border: 1px solid var(--border);
         border-radius: var(--radius);
         box-shadow: var(--shadow-sm);
@@ -778,7 +815,7 @@
       }
 
       .info-value .highlight {
-        color: var(--primary);
+        color: var(--primary-ink);
         font-weight: 700;
       }
 
@@ -836,14 +873,14 @@
       }
 
       .btn-ghost {
-        background: #fff;
+        background: var(--surface);
         color: var(--text);
         border: 1px solid var(--border);
       }
 
       .btn-ghost:hover {
         border-color: var(--primary);
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .footer {
@@ -879,7 +916,7 @@
       }
 
       .footer-links a:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       .footer-more {
@@ -892,7 +929,7 @@
       }
 
       .footer-more a:hover {
-        color: var(--primary);
+        color: var(--primary-ink);
       }
 
       /* ═══════════════════════════════════════════

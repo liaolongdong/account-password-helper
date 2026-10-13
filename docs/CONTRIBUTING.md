@@ -15,7 +15,7 @@ Account Password Helper 是一款基于 Chrome 扩展的本地加密账号密码
 | 类别      | 技术                                                                              | 版本 / 说明                                                                                   |
 | --------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | 扩展框架  | [WXT](https://wxt.dev/)                                                           | v0.20.27，基于 Manifest V3                                                                    |
-| 前端框架  | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.41，Composition API + `<script setup>`                                                   |
+| 前端框架  | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.43，Composition API + `<script setup>`                                                   |
 | UI 组件库 | [Element Plus](https://element-plus.org/)                                         | v2.14.4，按需引入（unplugin-vue-components + unplugin-auto-import，均用 ElementPlusResolver） |
 | 加密      | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256，浏览器原生                                                    |
 | 拼音搜索  | [pinyin-match](https://github.com/xmflswood/pinyin-match)                         | v1.2.10，拼音首字母模糊匹配                                                                   |
@@ -148,7 +148,7 @@ graph LR
 
 > ⚠️ 跑单个测试文件要用 `pnpm exec vitest run <file>`。`pnpm test:run -- <file>` 里的 `-- <file>` **不会**被转发给 vitest CLI（实测仍会跑完整套测试），因为它不是 `vitest run <file>` 那种位置参数形式。
 
-> ⚠️ `blog/*.html`、`en.html`、`privacy.en.html`、`pricing.en.html`、封面图与 `public/icon/*.png` 都是**生成产物**，禁止手改；请修改其 Markdown / SVG 源文件后执行对应 `gen:*` / `icons:build` / `covers:render` 重新生成。
+> ⚠️ `blog/*.html`、`en.html`、`privacy.en.html`、`pricing.en.html`、封面图、`assets/cws-store/*.png` 与 `public/icon/*.png` 都是**生成产物**，禁止手改；请修改其 Markdown / SVG 源文件后执行对应 `gen:*` / `icons:build` / `covers:render` / `store-creatives:render` 重新生成。
 
 > 📖 图标工作流、测试页面、性能设计等开发细节见 [docs/ARCHITECTURE.md — 开发补充](./ARCHITECTURE.md#开发补充)。
 
@@ -244,14 +244,16 @@ graph LR
 
 ### 提交范围
 
-仓库只承载产品代码、构建配置与对外内容，下列本地产物写在 `.gitignore` 里，不要提交：
+文档目录的职责划分与「新文档放哪」的判定见 [docs/README.md](./README.md)。仓库只承载产品代码、构建配置与对外内容，下列本地产物写在 `.gitignore` 里，不要提交：
 
 - AI 会话工作稿与工具跑批产物：`.qoder/plans/`、`.qoder/superpowers/`、`.qoder/better-harness/`、`.qoder/better-harness-runs/`、`.qoder/repowiki/`。`.qoder/` 整体不忽略，`rules/`、`skills/`、`commands/` 是团队协作要用的项目配置，保持跟踪。
-- 一次性代码评审报告：`docs/code-review-*.md`。结论应回写进提交说明与对应文档，报告本身留在本地。
+- 一次性代码评审报告：`docs/**/code-review-*.md`（平铺或落在任一归类子目录都覆盖）。结论应回写进提交说明与对应文档，报告本身留在本地。
+- 本地发布工具链配置：`.baoyu-skills/`（公众号 / 微信发布的个人流程配置与配图软链，与产品内容无关）。
+- 根目录定价表的历史副本 `docs/pricing.md`：对外的机器可读定价只认根目录 `pricing.md`（`llms.txt` 指向它）。
 - Qoder Sites 的本地描述符 `*.qoder.site`：含 siteId 与整页 base64 快照，属机器绑定状态，换台机器就该重新生成。
 - 构建产物、性能测量原始结果、E2E 报告与凭据缓存等既有规则（见 `.gitignore` 各段落注释）。
 
-反向约束：对外与 SEO 内容（`README*`、`docs/blog/**`、`docs/promo/**`、`docs/公众号-*.md`、`docs/微博-*.md`、`docs/reddit-post.md`、`docs/exposure-status.md`、`docs/账号密码管理助手曝光提升执行手册.md`），以及被源码注释或 workflow 注释按路径引用的报告与治理文档（`docs/PERF_*.md`、`docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`、`docs/LANDING_MOTION_PROPOSAL.md`、`docs/PR_WORKFLOW_GUIDE.md`）必须保持跟踪——把它们「顺手」忽略会让仓库里的引用变成死链。新增这类文档前先确认它属于哪一边。
+反向约束：对外与 SEO 内容（`README*`、`docs/ARCHITECTURE*.md`、`docs/blog/**`、`docs/operations/**`（曝光手册、执行手册、公众号 / 微博 / reddit 文案与 `promo/**`）、`docs/store/**`、`docs/media/**`），以及被源码注释或 workflow 注释按路径引用的报告与治理文档（`docs/reports/**`、`docs/CONTRIBUTING.md`、`docs/PR_WORKFLOW_GUIDE.md`、`docs/THIRD-PARTY-NOTICES.md`、`docs/fixtures/test-page.html`）必须保持跟踪——把它们「顺手」忽略会让仓库里的引用变成死链。新增这类文档前先确认它属于哪一边。
 
 ### 测试规范
 
@@ -340,7 +342,7 @@ graph LR
   pnpm build              # 生产构建验证
   ```
 
-> ⚠️ **CI 现状**：`.github/workflows/ci.yml` 在 push 到 `main` 与 PR 上分三个任务执行——`static`（`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`）、`test`（`pnpm test:run`）、`build`（`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`）。产物级守卫（如 sidepanel / popup 首屏闭包）只在 `build` 任务里跑，因为 `test` 任务没有 `.output/chrome-mv3`，那些用例会整文件跳过；本地跑它们前需先 `pnpm build`。`.github/workflows/release-please.yml` 只负责发版：release-please job 打 tag、建 GitHub Release，随后「`pnpm install` + `pnpm run build` → 上传 zip → 提交 Chrome Web Store」这一段挂在 `production` 环境上，必须维护者在 Actions run 页面点 Approve 才会执行；`.github/workflows/e2e.yml`（真实浏览器扩展 E2E）自 2026-09-22 起与本文同一口径触发——push 到 `main`、PR、以及随时可手动复跑，只对文档、博客与图片类改动跳过（`paths-ignore`）。它是所有任务里最慢的一个（每次先 `pnpm build`，再以 `workers=1` 逐条用例起独立 profile），因此目前处于**观察期**：job 带 `continue-on-error`，跑红只出警告、不挡合并，等到在 ubuntu runner 上连跑两次全绿才转为真正的门禁（细节见 `e2e/README.md`「现状」）。本地 `husky` + `lint-staged` 钩子仍对变更文件执行同样检查，是提交前的第一道关。另有一条独立检查 `.github/workflows/pr-title.yml`：它只校验 PR 标题是否为约定式提交（带 `!` 的标题会被拦下，需要维护者确认），不检出、不执行 PR 分支上的任何文件。
+> ⚠️ **CI 现状**：`.github/workflows/ci.yml` 在 push 到 `main` 与 PR 上分三个任务执行——`static`（`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`）、`test`（`pnpm test:run`）、`build`（`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`）。产物级守卫（如 sidepanel / popup 首屏闭包）只在 `build` 任务里跑，因为 `test` 任务没有 `.output/chrome-mv3`，那些用例会整文件跳过；本地跑它们前需先 `pnpm build`。`.github/workflows/release-please.yml` 只负责发版：release-please job 打 tag、建 GitHub Release，随后「`pnpm install` + `pnpm run build` → 上传 zip → 提交 Chrome Web Store」这一段挂在 `production` 环境上，必须维护者在 Actions run 页面点 Approve 才会执行；`.github/workflows/e2e.yml`（真实浏览器扩展 E2E）自 2026-09-22 起与本文同一口径触发——push 到 `main`、PR、以及随时可手动复跑，只对文档、博客与图片类改动跳过（`paths-ignore`）。它是所有任务里最慢的一个（每次先 `pnpm build`，再以 `workers=1` 逐条用例起独立 profile）。它已于 2026-09-29 **转正**：ubuntu runner 连跑三次全绿之后，job 上的 `continue-on-error` 那一行随之删掉，跑红即为一条失败检查（转正依据与逐条证据见 `e2e/README.md`「现状」）。但它到底挡不挡合并不由这个文件决定——取决于 `main` 的分支保护 / ruleset 有没有把它勾成 required，那一步在仓库之外，需去 Settings 核对。本地 `husky` + `lint-staged` 钩子仍对变更文件执行同样检查，是提交前的第一道关。另有一条独立检查 `.github/workflows/pr-title.yml`：它只校验 PR 标题是否为约定式提交（带 `!` 的标题会被拦下，需要维护者确认），不检出、不执行 PR 分支上的任何文件。
 >
 > 版本号与 `CHANGELOG.md` 由 release-please 自动管理，PR 中请勿手改这两个文件。
 
@@ -404,7 +406,7 @@ Account Password Helper is a local-first Chrome extension for managing account c
 | Category      | Technology                                                                        | Version / Notes                                                                                   |
 | ------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | Framework     | [WXT](https://wxt.dev/)                                                           | v0.20.27, Manifest V3                                                                             |
-| Frontend      | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.41, Composition API + `<script setup>`                                                       |
+| Frontend      | [Vue 3](https://vuejs.org/) + TypeScript                                          | v3.5.43, Composition API + `<script setup>`                                                       |
 | UI library    | [Element Plus](https://element-plus.org/)                                         | v2.14.4, on-demand (unplugin-vue-components + unplugin-auto-import, both via ElementPlusResolver) |
 | Encryption    | [Web Crypto API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API) | PBKDF2 + AES-256-GCM + SHA-256, native                                                            |
 | Pinyin search | [pinyin-match](https://github.com/xmflswood/pinyin-match)                         | v1.2.10, pinyin initial fuzzy matching                                                            |
@@ -537,7 +539,7 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 
 > ⚠️ To run one test file use `pnpm exec vitest run <file>`. The `-- <file>` in `pnpm test:run -- <file>` is **not** forwarded to the vitest CLI (measured: it still runs all 94 files), because it never becomes a positional `vitest run <file>` argument.
 
-> ⚠️ `blog/*.html`, `en.html`, `privacy.en.html`, `pricing.en.html`, the cover images and `public/icon/*.png` are **generated artifacts** and must never be hand-edited. Change their Markdown / SVG sources, then re-run the matching `gen:*` / `icons:build` / `covers:render` script.
+> ⚠️ `blog/*.html`, `en.html`, `privacy.en.html`, `pricing.en.html`, the cover images, `assets/cws-store/*.png` and `public/icon/*.png` are **generated artifacts** and must never be hand-edited. Change their Markdown / SVG sources, then re-run the matching `gen:*` / `icons:build` / `covers:render` / `store-creatives:render` script.
 
 > 📖 Icon workflow, test page, and performance design details live in [docs/ARCHITECTURE.en.md — Development Extras](./ARCHITECTURE.en.md#development-extras).
 
@@ -633,14 +635,16 @@ Please ensure all checks pass before committing.
 
 ### What Belongs in the Repo
 
-The repository carries product code, build configuration and public-facing content only. Local artifacts below are covered by `.gitignore` and must not be committed:
+For how the `docs/` folders are divided and where a new document goes, see [docs/README.md](./README.md). The repository carries product code, build configuration and public-facing content only. Local artifacts below are covered by `.gitignore` and must not be committed:
 
 - AI session drafts and tool run outputs: `.qoder/plans/`, `.qoder/superpowers/`, `.qoder/better-harness/`, `.qoder/better-harness-runs/`, `.qoder/repowiki/`. `.qoder/` as a whole is not ignored — `rules/`, `skills/` and `commands/` are project configuration the team relies on and stay tracked.
-- One-off code review reports: `docs/code-review-*.md`. Findings belong in commit messages and the relevant docs; the report itself stays local.
+- One-off code review reports: `docs/**/code-review-*.md` (covers this folder and any category subfolder). Findings belong in commit messages and the relevant docs; the report itself stays local.
+- Local publishing toolchain configuration: `.baoyu-skills/` (personal WeChat / Official Account flows and image symlinks, unrelated to product content).
+- `docs/pricing.md`: a historical copy of the root pricing sheet. The machine-readable pricing document is only the root `pricing.md`, which `llms.txt` points to.
 - Qoder Sites local descriptors `*.qoder.site`: they carry the siteId and a base64 snapshot of the whole page, i.e. machine-bound state that should be regenerated on another machine.
 - Existing rules for build output, raw performance measurements, E2E reports and credential caches (see the comments in each `.gitignore` section).
 
-The reverse constraint: public and SEO content (`README*`, `docs/blog/**`, `docs/promo/**`, `docs/公众号-*.md`, `docs/微博-*.md`, `docs/reddit-post.md`, `docs/exposure-status.md`, `docs/账号密码管理助手曝光提升执行手册.md`), plus reports and governance docs cited by path from source or workflow comments (`docs/PERF_*.md`, `docs/INLINE_DROPDOWN_PARITY_EVALUATION.md`, `docs/LANDING_MOTION_PROPOSAL.md`, `docs/PR_WORKFLOW_GUIDE.md`), must stay tracked — ignoring them "for cleanup" turns those references into dead links. Decide which side a new document belongs to before adding it.
+The reverse constraint: public and SEO content (`README*`, `docs/ARCHITECTURE*.md`, `docs/blog/**`, `docs/operations/**` (exposure handbook, execution manual, WeChat / Weibo / Reddit copy and `promo/**`), `docs/store/**`, `docs/media/**`), plus reports and governance docs cited by path from source or workflow comments (`docs/reports/**`, `docs/CONTRIBUTING.md`, `docs/PR_WORKFLOW_GUIDE.md`, `docs/THIRD-PARTY-NOTICES.md`, `docs/fixtures/test-page.html`), must stay tracked — ignoring them "for cleanup" turns those references into dead links. Decide which side a new document belongs to before adding it.
 
 ### Testing
 
@@ -728,7 +732,7 @@ This is a password manager — security is the top priority. Please follow these
   pnpm build              # Production build verification
   ```
 
-> ⚠️ **What CI actually does**: `.github/workflows/ci.yml` runs three jobs on pushes to `main` and on pull requests — `static` (`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`), `test` (`pnpm test:run`), and `build` (`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`). Artifact-level guards (such as the sidepanel / popup first-screen closure check) run only in the `build` job, because the `test` job has no `.output/chrome-mv3` and those cases skip the whole file; run `pnpm build` locally before invoking them. `.github/workflows/release-please.yml` only handles releases: the release-please job cuts the tag and the GitHub Release, while the stretch after it (`pnpm install` + `pnpm run build` → upload zip → submit to the Chrome Web Store) is attached to the `production` environment and only runs once a maintainer clicks Approve on the Actions run; `.github/workflows/e2e.yml` (real-browser extension E2E) has shared the same triggers since 2026-09-22 — pushes to `main`, pull requests, plus a manual run anytime — and is skipped only for documentation, blog and image changes (`paths-ignore`). It is the slowest job of all (every run builds first, then executes one worker at a time, each case in its own fresh profile), so it is currently in a **trial period**: the job carries `continue-on-error`, meaning a red run only produces a warning and does not block merges. It becomes a real gate once it has gone green twice in a row on the ubuntu runner (see the status table at the top of `e2e/README.md`, Chinese-only, for details). The local `husky` + `lint-staged` hook still runs the same checks on changed files and remains the first gate before commit. One more check runs independently: `.github/workflows/pr-title.yml` validates only the PR title against Conventional Commits (titles with a `!` are rejected until a maintainer confirms them); it never checks out or executes anything from the PR branch.
+> ⚠️ **What CI actually does**: `.github/workflows/ci.yml` runs three jobs on pushes to `main` and on pull requests — `static` (`pnpm typecheck` / `pnpm lint` / `pnpm lint:style`), `test` (`pnpm test:run`), and `build` (`pnpm build` → `pnpm exec vitest run tests/architecture` → `pnpm build:firefox`). Artifact-level guards (such as the sidepanel / popup first-screen closure check) run only in the `build` job, because the `test` job has no `.output/chrome-mv3` and those cases skip the whole file; run `pnpm build` locally before invoking them. `.github/workflows/release-please.yml` only handles releases: the release-please job cuts the tag and the GitHub Release, while the stretch after it (`pnpm install` + `pnpm run build` → upload zip → submit to the Chrome Web Store) is attached to the `production` environment and only runs once a maintainer clicks Approve on the Actions run; `.github/workflows/e2e.yml` (real-browser extension E2E) has shared the same triggers since 2026-09-22 — pushes to `main`, pull requests, plus a manual run anytime — and is skipped only for documentation, blog and image changes (`paths-ignore`). It is the slowest job of all (every run builds first, then executes one worker at a time, each case in its own fresh profile). It **graduated on 2026-09-29**: after three consecutive green runs on the ubuntu runner, the job's `continue-on-error` line was removed, so a red run is now a failing check (see the status table at the top of `e2e/README.md`, Chinese-only, for the graduation evidence). Whether it actually blocks a merge is decided by `main`'s branch protection / ruleset, not by this file — that box lives outside the repository and has to be checked in Settings. The local `husky` + `lint-staged` hook still runs the same checks on changed files and remains the first gate before commit. One more check runs independently: `.github/workflows/pr-title.yml` validates only the PR title against Conventional Commits (titles with a `!` are rejected until a maintainer confirms them); it never checks out or executes anything from the PR branch.
 >
 > Version numbers and `CHANGELOG.md` are managed automatically by release-please; do not edit those two files by hand in a PR.
 

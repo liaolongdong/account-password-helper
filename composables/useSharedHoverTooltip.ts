@@ -28,8 +28,14 @@ export interface SharedHoverTooltipOptions {
  * 单实例共享 tooltip 的显示排程器
  *
  * 用途：大列表里把「每行 N 个 `el-tooltip`」收敛成全表一个 `virtual-triggering` 实例。
- * Element Plus 的隐藏（`hide-after`）、移入浮层保持显示（`enterable`）、
- * `aria-describedby` 标注都仍由它自己负责——这些行为逐字沿用原实现，本模块不重写。
+ * Element Plus 的隐藏（`hide-after`）与 `aria-describedby` 标注都仍由它自己负责——
+ * 这些行为逐字沿用原实现，本模块不重写。
+ *
+ * 浮层是否参与指针命中不归本模块管，由调用方给实例的 popper 样式决定：操作列那一份把浮层
+ * 设成对指针透明，因为 `placement="top"` 会把它压在上一行的按钮上，而 `enterable` 的浮层
+ * 会接走那颗按钮的点击（取舍与实测见 `components/options/PasswordTable.vue` 的
+ * `OPERATION_TIP_POPPER_STYLE`）。指针不再进浮层，EP 的 `enterable` 因此不可达，
+ * 但显示/隐藏延迟与 `aria-describedby` 的时序一条都没动。
  *
  * 本模块只补 EP 无法自己做的半件事：虚拟触发点是在 `mouseenter` **之后**才被改写的，
  * EP 绑在新元素上的 `mouseenter` 这一帧不会再触发，所以首次悬停的显示延迟必须由调用方计时。

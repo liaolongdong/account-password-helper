@@ -31,24 +31,19 @@ interface BypassEntry {
 }
 
 /**
- * 现状清单（2026-09 评审波次）
+ * 现状清单（2026-10 收敛后）
  *
  * - `logger.ts`：`no-console` 的唯一合法宿主就是这层封装本身；
- * - `HelpDialog.vue`：8 组帮助文案是语言包内置静态富文本（`<code>` / `<b>`），
- *   内容不经任何用户输入，且改成结构化渲染会动到 DOM 与既有样式；
  * - `ValiditySettingDialog.vue`：表单对象由父级持有并按引用双向绑定，
  *   改成 emit 需连带调整父级的表单所有权；
  * - `e2e/harness.ts`：解构出空对象以满足 Playwright 参数占位，属测试脚手架噪声。
+ *
+ * `HelpDialog.vue` 曾有 8 组 `vue/no-v-html` 块级豁免，本波改由 `components/RichText.vue`
+ * 结构化渲染（白名单 `<b>` / `<code>`，其余按字面文本），豁免随实现一并归零——
+ * 这条清单从此只减不增的口径由下方「块级豁免为空」的用例强制。
  */
 const ALLOWED: BypassEntry[] = [
   { file: 'utils/logger.ts', rule: 'no-console', form: 'line', count: 4, reason: 'logger 是 console 的唯一封装层' },
-  {
-    file: 'components/sidepanel/HelpDialog.vue',
-    rule: 'vue/no-v-html',
-    form: 'block',
-    count: 8,
-    reason: '语言包内置静态富文本，无用户输入路径',
-  },
   {
     file: 'components/options/ValiditySettingDialog.vue',
     rule: 'vue/no-mutating-props',
@@ -206,8 +201,8 @@ describe('静态绕过项清单', () => {
     }
   });
 
-  it('行内豁免不越界：`eslint-disable` 不带 `-next-line` 的位置只有 HelpDialog 的富文本块', () => {
+  it('块级豁免已归零：出现任何不带 `-next-line` 的 `eslint-disable` 都必须先登记理由', () => {
     const blockSites = [...new Set(found.filter(bypass => bypass.form === 'block').map(bypass => bypass.file))];
-    expect(blockSites).toEqual(['components/sidepanel/HelpDialog.vue']);
+    expect(blockSites, `以下文件出现了块级豁免，但未登记进清单: ${blockSites.join(', ')}`).toEqual([]);
   });
 });

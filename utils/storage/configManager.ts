@@ -6,6 +6,7 @@ import type {
   IdleLockConfig,
   PasswordEntry,
   PasswordHistoryConfig,
+  OnboardingTourState,
 } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
@@ -484,4 +485,53 @@ export async function saveDomainMatchConfig(config: Partial<DomainMatchConfig>):
     return;
   }
   await domainMatchStore.save(config);
+}
+
+// ==================== 新手引导状态 ====================
+
+/** 新手引导的默认状态：从未出现过 */
+export const DEFAULT_ONBOARDING_TOUR_STATE: OnboardingTourState = {
+  seen: false,
+  outcome: null,
+  finishedAt: null,
+};
+
+const onboardingTourStore = createConfigStore<OnboardingTourState>(
+  STORAGE_KEYS.ONBOARDING_TOUR,
+  DEFAULT_ONBOARDING_TOUR_STATE,
+  '新手引导状态',
+);
+
+/** 合法的引导结束方式（用于收窄 storage 里不可信的存量值） */
+const ONBOARDING_OUTCOMES = ['completed', 'skipped'] as const;
+
+/**
+ * 读取新手引导状态
+ *
+ * 本键由外部可写（devtools / 其它扩展无权，但用户可自行改存储），故逐字段收窄：
+ * `seen` 非真一律按未见过处理，`outcome` / `finishedAt` 非法时归零，
+ * 保证「弹不弹」这个开关只有确定的三种取值，不会因脏数据卡在半开状态。
+ */
+export async function getOnboardingTourState(): Promise<OnboardingTourState> {
+  const config = await onboardingTourStore.get();
+  const outcome = ONBOARDING_OUTCOMES.find(value => value === config?.outcome) ?? null;
+  const finishedAt =
+    typeof config?.finishedAt === 'number' && Number.isFinite(config.finishedAt) ? config.finishedAt : null;
+  // seen 为假时 outcome/finishedAt 无意义，一并归零，避免「未看过但已标记完成」的矛盾态
+  if (config?.seen !== true) return { ...DEFAULT_ONBOARDING_TOUR_STATE };
+  return { seen: true, outcome, finishedAt };
+}
+
+/**
+ * 保存新手引导状态（增量合并）
+ *
+ * 引导只在结束时写入，调用方无需处理失败：写失败仅意味着下次进管理页会再弹一次，
+ * 不该让一次已经完成的引导在 UI 上报错。
+ */
+export async function saveOnboardingTourState(patch: Partial<OnboardingTourState>): Promise<void> {
+  try {
+    await onboardingTourStore.save(patch);
+  } catch (error) {
+    logger.warn('保存新手引导状态失败（下次进入管理页会重新引导）:', error);
+  }
 }

@@ -8,7 +8,7 @@ body:
         这个项目的设计约束写在 `docs/ARCHITECTURE.md` 和 `.github/SECURITY.md` 里：**本地优先、密码数据不出本机、权限最小化**。
         会突破这三条的建议（云同步、远程托管密钥、放宽 host 权限等）请一并说明你打算如何补偿随之而来的安全代价，否则大概率不会被接受。
 
-        This project is local-first: credential data never leaves the browser, and permissions stay minimal.
+        This project is local-first: credential data never leaves this machine, and permissions stay minimal.
         If your idea crosses that line, say how you'd compensate for the security cost — otherwise it will likely be declined.
 
   - type: textarea

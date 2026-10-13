@@ -2,6 +2,7 @@ import type { PasswordEntry, MasterPasswordConfig, EncryptedPasswordEntry } from
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { hexToBytes, bytesToHex } from '@/utils/crypto-light';
+import { PBKDF2_ITERATIONS } from '@/utils/cryptoParams';
 
 // ── CryptoKey 句柄缓存 ────────────────────────────────────
 
@@ -108,7 +109,7 @@ export async function deriveVerifierHash(password: string, salt: string): Promis
   const enc = new TextEncoder();
   const baseKey = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveBits']);
   const bits = await crypto.subtle.deriveBits(
-    { name: 'PBKDF2', salt: enc.encode('aph-verify|' + salt), iterations: 600000, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: enc.encode('aph-verify|' + salt), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
     baseKey,
     256,
   );
@@ -128,7 +129,7 @@ export async function deriveEncryptionKey(masterPassword: string): Promise<strin
     const enc = new TextEncoder();
     const baseKey = await crypto.subtle.importKey('raw', enc.encode(masterPassword), 'PBKDF2', false, ['deriveKey']);
     const derivedKey = await crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt: enc.encode(config.salt), iterations: 600000, hash: 'SHA-256' },
+      { name: 'PBKDF2', salt: enc.encode(config.salt), iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
       baseKey,
       { name: 'AES-GCM', length: 256 },
       true,
@@ -151,7 +152,7 @@ export async function deriveEncryptionKey(masterPassword: string): Promise<strin
  * （N 条 × ≤5 字段），故这里的常数直接乘进全库解密耗时。
  * 实测（同一次迭代内配对）：1 MB 解码 170～545 ms → 5～7 ms；
  * 3 万次小字段 170～325 ms → 10～17 ms。口径见
- * `docs/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.4 与第九节。
+ * `docs/reports/PERF_ISSUE89_DATA_LAYER_EVALUATION.md` 3.4 与第九节。
  *
  * 非法 Base64 由 `atob` 抛 `InvalidCharacterError` 向上传播，调用方维持原有归类。
  *

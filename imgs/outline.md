@@ -4,7 +4,7 @@ density: balanced
 style: notion
 palette: default
 image_count: 3
-article: docs/reddit-post.md
+article: docs/operations/reddit-post.md
 ---
 
 ## Illustration 1

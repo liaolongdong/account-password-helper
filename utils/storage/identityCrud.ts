@@ -12,9 +12,14 @@
  * 依赖方向单向：只依赖既有底层能力（encryption / facades.getSessionDataKey /
  * generateId），既有模块不 import 本模块；唯一例外是 changeMasterPassword.ts
  * 必须纳入身份数据（否则换主密码后 PII 永久不可解）。
+ *
+ * 例外于「整块加密」的只有列表偏好两样：排序档位（`IDENTITY_SORT_MODE`，五值枚举）与
+ * 手排序号数组（`IDENTITY_MANUAL_ORDER`，明文 `string[]`）。它们要么是枚举、要么是
+ * `generateId()` 产出的随机 id，不含任何 PII，也没有进密文的必要——把它塞进每条 payload
+ * 反而要整库重加密。
  */
-import type { IdentityEntry, IdentityPayload, IdentityRecord } from '@/utils/identity/types';
-import { MAX_IDENTITIES } from '@/utils/identity/constants';
+import type { IdentityEntry, IdentityPayload, IdentityRecord, IdentitySortMode } from '@/utils/identity/types';
+import { DEFAULT_IDENTITY_SORT_MODE, MAX_IDENTITIES, isIdentitySortMode } from '@/utils/identity/constants';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { generateId } from '@/utils/generateId';
@@ -345,4 +350,110 @@ export async function replaceAllIdentity(
     });
   }
   await replaceAllIdentityRaw([...reencrypted, ...preserved]);
+}
+
+// ==================== 列表偏好（非 PII，明文单键） ====================
+
+/**
+ * 读取身份库列表排序档位
+ *
+ * 住在身份存储层而不是 `configManager`，是产物闭包的硬要求而非风格：`configManager`
+ * 落在 sidepanel 首屏 `modulepreload` 闭包内（同一口径见 docs/ARCHITECTURE.md「管理页大 Vault
+ * 渲染性能」一节里分页档位拆文件的理由），让它引用身份档位会把只有 Options 消费的判据一起拽进侧边栏预加载。
+ *
+ * 读失败与非法值一律回落默认档，不向上抛：这是视图偏好，坏值不值得阻断弹窗打开，
+ * 也不该把异常透给用户（与 `getVaultPageSize` 同取舍）。
+ */
+export async function getIdentitySortMode(): Promise<IdentitySortMode> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.IDENTITY_SORT_MODE);
+    const mode = result[STORAGE_KEYS.IDENTITY_SORT_MODE];
+    return isIdentitySortMode(mode) ? mode : DEFAULT_IDENTITY_SORT_MODE;
+  } catch (error) {
+    logger.error('获取身份信息排序档位失败:', error);
+    return DEFAULT_IDENTITY_SORT_MODE;
+  }
+}
+
+/**
+ * 保存身份库列表排序档位
+ *
+ * 非法档位忽略写入并告警（照 `saveVaultPageSize` 的取舍）：视图偏好不值得为一次坏写入
+ * 向用户报错，但把非法状态落盘会长期影响排序结果。写入本身失败会抛出，由调用方按非致命处理。
+ */
+export async function saveIdentitySortMode(mode: IdentitySortMode): Promise<void> {
+  if (!isIdentitySortMode(mode)) {
+    logger.warn('忽略非法的身份信息排序档位写入');
+    return;
+  }
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY_SORT_MODE]: mode });
+  } catch (error) {
+    logger.error('保存身份信息排序档位失败:', error);
+    throw error;
+  }
+}
+
+/**
+ * 收窄落盘的手排顺序数组
+ *
+ * 存储值属不可信输入（历史版本、手改、并发写坏都可能把它变成任意形状）：
+ * 非数组、元素非非空字符串、含重复 id、长度超过条目上限（30）一律回落成空数组，
+ * 而不是尽力修补——脏数组里的每个位置都不可信，修补出来的顺序会静默决定用户的
+ * 手排结果；回落空数组则退化为「未登记 → 全部落末尾 + tieBreak」，列表照常显示。
+ *
+ * @param value 存储里的原始值
+ * @returns 合法时返回新的字符串数组副本，任何非法形状返回空数组
+ */
+function sanitizeManualOrder(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_IDENTITIES) return [];
+  const seen = new Set<string>();
+  const ids: string[] = [];
+  for (const item of value) {
+    if (typeof item !== 'string' || item === '' || seen.has(item)) return [];
+    seen.add(item);
+    ids.push(item);
+  }
+  return ids;
+}
+
+/**
+ * 读取身份库 `manual` 档的手排顺序（id 数组）
+ *
+ * 与排序档位同住身份存储层、同样不得进 `configManager`（侧边栏首屏闭包的硬约束，
+ * 理由见 `getIdentitySortMode`）。读的是随机 id 而非密文，因此不需要数据密钥，
+ * 会话失效时也能读——但它只对 Options 的列表弹窗有意义。
+ *
+ * 缺键、脏数据与读失败都回落空数组：手排序号是视图偏好，坏值只意味着「本次按默认
+ * 兜底顺序显示」，不该阻断弹窗，也不该把异常透给用户（与 `getIdentitySortMode` 同取舍）。
+ */
+export async function getIdentityManualOrder(): Promise<string[]> {
+  try {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.IDENTITY_MANUAL_ORDER);
+    return sanitizeManualOrder(result[STORAGE_KEYS.IDENTITY_MANUAL_ORDER]);
+  } catch (error) {
+    logger.error('获取身份信息手动排序失败:', error);
+    return [];
+  }
+}
+
+/**
+ * 保存身份库 `manual` 档的手排顺序（明文单键，上限即条目上限 30 条）
+ *
+ * 只在用户真的动了顺序（拖拽 / 键盘换位）时被调用，数组由调用方先经
+ * `normalizeManualOrder` 剪枝 + 追加对齐过，故这里的形状校验只是第二道闸门：
+ * 非法写入忽略并告警、不落盘（照 `saveIdentitySortMode` 的取舍）；写入本身失败会抛出，
+ * 由调用方按非致命处理（视图偏好不值得为一次坏写入向用户报错）。
+ */
+export async function saveIdentityManualOrder(ids: readonly string[]): Promise<void> {
+  if (ids.length > MAX_IDENTITIES || ids.some(id => typeof id !== 'string' || id === '')) {
+    logger.warn('忽略非法的身份信息手动排序写入');
+    return;
+  }
+  try {
+    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY_MANUAL_ORDER]: [...ids] });
+  } catch (error) {
+    logger.error('保存身份信息手动排序失败:', error);
+    throw error;
+  }
 }

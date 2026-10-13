@@ -7,7 +7,7 @@
  * 而顶层 `await` 在**收集阶段**就完成——同一个 bench 文件跑在同一个 worker 里，因此文件内不存在
  * 「只影响后半段」的预热写法。放在 `sidepanel-p0.bench.ts` 里会把那边的
  * `all scope + keyword match` 从「纯子串」变成「每个字段都问一遍拼音」，而
- * `docs/PERF_LARGE_VAULT_EVALUATION.md` §3.1 记录的基线是前者。隔离之后本文件测「拼音已就绪」，
+ * `docs/reports/PERF_LARGE_VAULT_EVALUATION.md` §3.1 记录的基线是前者。隔离之后本文件测「拼音已就绪」，
  * 那边测「拼音未就绪」，两组数字各自可长期对比。
  *
  * 夹具与 `sidepanel-p0.bench.ts` 共用 `benchmarks/fixtures/vaultDataset.ts`，

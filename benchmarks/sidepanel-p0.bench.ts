@@ -6,7 +6,7 @@
  * **本文件禁止触碰拼音匹配器的就绪位**（不调 `warmPinyinMatcher()`，也不引任何会引到它的模块）。
  * 一个 bench 文件在同一 worker 里跑，而 `warmPinyinMatcher()` 翻的是模块级标志、在收集阶段就完成——
  * 同文件内不存在「只影响后半段」的写法。一次预热会把 `all scope + keyword match` 从
- * 「纯子串」变成「每个字段都问一遍拼音」，而 `docs/PERF_LARGE_VAULT_EVALUATION.md` §3.1 / §9.10
+ * 「纯子串」变成「每个字段都问一遍拼音」，而 `docs/reports/PERF_LARGE_VAULT_EVALUATION.md` §3.1 / §9.10
  * 记录的基线是前者，前后数字就此不可比。拼音成本用例因此住在
  * `benchmarks/pinyin-keyword.bench.ts`（自带预热、独立 worker）。
  */

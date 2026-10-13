@@ -46,6 +46,10 @@ describe('buildShareCard 排版', () => {
   it('不含表头与尾随换行（尾随换行粘贴进聊天框会触发误发送）', () => {
     const card = buildShareCard(source('alice', 'p@ss', 'https://example.com'), ZH_LABELS, 'zh-CN');
     expect(card.startsWith('用户名')).toBe(true);
+    // CodeQL 误报说明（js/incomplete-url-substring-sanitization，告警 #8 已按「used in tests」dismiss）：
+    // 下一行的 'https://example.com' 是写死的测试夹具常量，断言语义只是「卡片以网址行结尾」（尾随换行会
+    // 触发聊天框误发送），不参与任何来源校验或权限判断；被测的 buildShareCard 仅做字段拼接，不承载 URL
+    // 安全语义。这里刻意不用行内抑制注释：CodeQL 的抑制判据只覆盖整行定位，本查询报列级定位，写了不生效。
     expect(card.endsWith('https://example.com')).toBe(true);
   });
 });

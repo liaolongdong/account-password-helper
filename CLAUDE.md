@@ -42,6 +42,7 @@
 | 主题令牌         | `assets/theme/tokens.css`（`--aph-*` 变量，6 套色彩方案）                |
 | WXT 配置         | `wxt.config.ts`（路径别名、Element Plus 按需引入、非阻塞 CSS）           |
 | 测试配置         | `vitest.config.ts`（`WxtVitest()` 插件，Node 环境，Web Crypto 原生支持） |
+| 文档地图         | `docs/README.md`（目录职责、入库与本地产物的判定口径）                   |
 
 ## 代码改动与优化边界
 
@@ -144,13 +145,14 @@
 - 所有新增或修改的用户可见文案同时提供简体中文和英文，不在 Vue/TypeScript 中硬编码可见字符串。
 - Vue UI 文案更新 `utils/i18n/locales/zh-CN/` 与 `utils/i18n/locales/en/` 的对应 namespace，并确认相关 `utils/i18n/bundles/` 已注册；manifest 文案更新 `public/_locales/zh_CN/messages.json` 与 `public/_locales/en/messages.json`。
 - 新增、删除或重命名 i18n key 时保持中英文 key 集一致，并运行 i18n bundle 测试。
+- 文档落点先查 `docs/README.md`（文档地图：目录职责、哪些必须入库、哪些属本地产物）。仓库根目录不放文档——Pages 从 `main` 分支根目录发布，根目录的 HTML、`llms.txt`、`robots.txt`、`sitemap.xml`、`pricing.md` 都是已发布的对外地址。
 - 文档按影响范围更新，而不是每次机械修改所有文件：
   - 用户功能、安装或用法变化：`README.md` 与 `README.en.md`。
   - 架构、数据流或安全设计变化：`docs/ARCHITECTURE.md` 与 `docs/ARCHITECTURE.en.md`。
   - SidePanel 帮助内容变化：`components/sidepanel/HelpDialog.vue` 及其语言包。
-  - 新增用户可见功能：除上述对外文档外，同步 `docs/ARCHITECTURE.md`（及 `.en.md`）「功能实现详解」、侧边栏 `utils/i18n/locales/{zh-CN,en}/help.json` 词条（`HelpDialog.vue` 为数字序号驱动，新增条目需同步提升 `helpItems('help.gx', N)` 的 N，由 `tests/utils/i18nBundles.test.ts` 守卫）、以及 content/background 侧的 `utils/i18n-lite.ts`；博客修订时一并回改测试数量与修订日期并重跑 `pnpm gen:blog`；完整口径见 `docs/CWS_PUBLISHING_GUIDE.md`「其他同步约定」。
+  - 新增用户可见功能：除上述对外文档外，同步 `docs/ARCHITECTURE.md`（及 `.en.md`）「功能实现详解」、侧边栏 `utils/i18n/locales/{zh-CN,en}/help.json` 词条（`HelpDialog.vue` 为数字序号驱动，新增条目需同步提升 `helpItems('help.gx', N)` 的 N，由 `tests/utils/i18nBundles.test.ts` 守卫）、以及 content/background 侧的 `utils/i18n-lite.ts`；博客修订时一并回改测试数量与修订日期并重跑 `pnpm gen:blog`；完整口径见 `docs/store/CWS_PUBLISHING_GUIDE.md`「其他同步约定」。
   - 官网展示变化：`index.html`。
-  - 商店文案、权限、隐私或发布流程变化：`docs/CWS_FILL_CONTENT.md`、`docs/CWS_PUBLISHING_GUIDE.md`、`privacy.html` 中受影响的部分。
+  - 商店文案、权限、隐私或发布流程变化：`docs/store/CWS_FILL_CONTENT.md`、`docs/store/CWS_PUBLISHING_GUIDE.md`、`privacy.html` 中受影响的部分。
   - manifest 描述、权限、命令或配置变化：`wxt.config.ts` 及对应 locale 文案。
 - 中英文文档应表达同一事实；不要只更新一种语言。
 

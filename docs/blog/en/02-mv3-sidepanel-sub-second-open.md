@@ -1,14 +1,12 @@
 ---
-title: 'Opening the Chrome Side Panel in Under One Second: MV3 Service Worker Keep-Alive and Pre-Warming in Practice'
-description: Manifest V3 service workers can be terminated at any time, and side panel cold-start white screens are the #1 pain in extension UX. A complete breakdown of Account Password Helper's sub-second strategy — dual-layer keep-alive, four-layer resource pre-warming, three-way data racing, and non-blocking CSS.
+title: Sub-Second Chrome Side Panel on MV3
+description: MV3 service workers die without warning, so the side panel cold-starts white. Dual-layer keep-alive, four-tier pre-warming and three-way data racing fix that.
 tags: chrome extension,manifest v3,service worker,performance,frontend engineering
 date: 2026-08-28
-modified: 2026-09-28
+modified: 2026-10-02
 author: liaolongdong
 image: imgs/blog-cover-02-sub-second-sidepanel.png
 ---
-
-# Opening the Chrome Side Panel in Under One Second: MV3 Service Worker Keep-Alive and Pre-Warming in Practice
 
 If you've shipped a Manifest V3 extension, you've probably been bitten by the same bug: **the side panel cold-start white screen**.
 
@@ -93,7 +91,7 @@ Alongside the implementation, the test suite grew to cover every layer (vitest �
 - `passwordCache` / `startupRelock` / `idleLock`: cache re-warm and every lock path;
 - `sidePanelManager`: open sequencing.
 
-The repo now has 1953 automated tests across 167 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
+The repo now has 2041 automated tests across 172 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
 
 ## Retrospective: Three Lessons
 

@@ -20,12 +20,15 @@ import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { applyI18n, assertI18nCoverage } from './lib/apply-i18n.mjs';
 import { syncFaqDom } from './lib/faq-dom.mjs';
-import { buildFaqPageJsonLd, parseFaqEntries, selectFaqEntries } from './lib/faq-schema.mjs';
+import { buildFaqPageJsonLd, orderFaqEntries, parseFaqEntries } from './lib/faq-schema.mjs';
+import { OG_IMAGE_EN, OG_IMAGE_ZH } from './lib/share-image.mjs';
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const srcPath = path.join(root, 'index.html');
 const outPath = path.join(root, 'en.html');
-// codeql[js/incomplete-hostname-regexp] -- SITE 仅作为字面量拼接进生成的 og:url / canonical 属性值，从不作为正则去匹配主机名，此处无需转义点号或尾部锚定
+// CodeQL 误报说明（js/incomplete-hostname-regexp，告警 #6 已按「false positive」dismiss）：SITE 只作为字面量
+// 拼接进生成的 og:url / canonical 属性值，从不作为正则去匹配主机名，无需转义点号或尾部锚定。这里刻意不用行内
+// 抑制注释：CodeQL 的抑制判据只覆盖整行定位的结果，本查询报列级定位，写了不生效。
 const SITE = 'https://liaolongdong.github.io/account-password-helper';
 
 const EN_KEYWORDS =
@@ -89,7 +92,7 @@ const EN_HOWTO_JSONLD = `<!-- HowTo structured data: English version, mirrored f
 
 let html = readFileSync(srcPath, 'utf8');
 // 结构化数据与可见 FAQ 共用同一份条目，避免两处文案漂移
-const faqEntries = selectFaqEntries(parseFaqEntries(html));
+const faqEntries = orderFaqEntries(parseFaqEntries(html));
 
 // ---------- 1. 提取 I18N 字典（纯对象字面量区域） ----------
 const dictStart = html.indexOf('const I18N = {');
@@ -146,6 +149,11 @@ replaceOnce(
   `name="twitter:description"\n      content="${I18N['meta.description'].en}"`,
 );
 replaceOnce(/rel="canonical"\s+href="[^"]*"/, `rel="canonical"\n      href="${SITE}/en.html"`);
+// 分享卡跟着语言走：源页里是中文卡，英文页必须换成英文那张 1200×630
+replaceOnce(/property="og:image"\s+content="[^"]*"/, `property="og:image"\n      content="${OG_IMAGE_EN}"`);
+replaceOnce(/name="twitter:image"\s+content="[^"]*"/, `name="twitter:image"\n      content="${OG_IMAGE_EN}"`);
+// SoftwareApplication 的 image 与分享图同源，否则英文页的富结果会挂上中文卡
+replaceOnce(`"image": "${OG_IMAGE_ZH}"`, `"image": "${OG_IMAGE_EN}"`);
 
 // 页内跳转改为英文兄弟页面，避免英文页链向中文页
 const replaceEvery = (from, to) => {
