@@ -96,7 +96,9 @@ Build extension            ← ci.yml 的 build
 Conventional PR title      ← pr-title.yml
 ```
 
-`Playwright extension E2E` **暂时不要设为 required**：它带着 `continue-on-error: true` 处于观察期，红灯不算失败，设为 required 会永远等不到绿色信号（转正条件见 `e2e/README.md`）。
+`Playwright extension E2E` 的**观察期已经结束了**：2026-09-29 它在 ubuntu runner 上连跑三次全绿（61 passed / 1 skipped，6.7 / 7.1 / 7.0 分钟、零重试），`.github/workflows/e2e.yml` 里的 `continue-on-error` 随之删掉，跑红从此就是一条失败检查（逐条证据见 `e2e/README.md`「现状」）。所以「设成 required 会永远等不到绿」这条理由不再成立，要不要把它一并勾上变成一道真实取舍：勾上＝每条 PR 多等这一格最慢的 job（预算 `timeout-minutes: 30`，实测 7 分钟上下，偶发红会直接堵住合并）；不勾＝它照常跑、照常出红，只是不挡合并。
+
+> 当前 `main` 的 ruleset 里到底有没有勾它，仓库内的文件读不到（分支保护与 ruleset 不在匿名 API 的返回体里），得去 Settings → Branches 核对后回填本节 1.2 与第 6 节那条自检。
 
 > ⚠️ **关于「Do not allow bypassing」**：这条是给多人团队准备的。你自己是单人维护者 + 唯一 code owner，全开之后**你无法批准自己的 PR**（GitHub 不允许作者自审，code owner 也不能是自己）。所以：
 >
@@ -294,10 +296,10 @@ git branch -D feature-fixbug Feature-ai-tip            # 仅当上面 diff 为�
 | `.github/workflows/publish.yml`       | 新增。接 `release: published` 与手动 dispatch；`prepare`（构建 + 离线预检 + 存 artifact）/ `inspect`（只读 `fetchStatus`）/ `submit`（挂 `production` 审批）；并发组按 tag 分组 | 新增 |
 | `scripts/cwsPublish.mjs`              | 新增 CLI：`preflight` / `token` / `status` / `publish` / `cancel` 五个子命令，走 Chrome Web Store API **v2** + 服务账号，替掉第三方 action 的 v1.1 调用路径                     | 新增 |
 | `scripts/lib/cwsPublish.mjs`          | 新增 v2 薄客户端与离线预检判据（JWT 签票、upload、轮询 `lastAsyncUploadState`、publish、cancelSubmission、错误码解释）                                                          | 新增 |
-| `tests/scripts/cwsPublishCli.test.ts` | 新增 20 例：本地假商店逐字钉住请求序列、请求体、`content-type`、错误提示与「输出不含 token 与私钥」；端点靠 env 覆盖指向假服务                                                  | 新增 |
+| `tests/scripts/cwsPublishCli.test.ts` | 新增 22 例：本地假商店逐字钉住请求序列、请求体、`content-type`、错误提示与「输出不含 token 与私钥」；端点靠 env 覆盖指向假服务                                                  | 新增 |
 | `package.json`                        | 新增 `cws:preflight` / `cws:token` / `cws:status` / `cws:publish` / `cws:cancel` 五个脚本                                                                                       | 改   |
 | `.github/workflows/e2e.yml`           | 两处 `paths-ignore` 加上 `publish.yml`（改发布链不该触发一次真浏览器 E2E）                                                                                                      | 改   |
-| `docs/store/CWS_PUBLISHING_GUIDE.md`  | 第三步整体重写为服务账号路线（3.1–3.7），第四步补「批准后核对三件事」，新增 FAQ 四组 29 条，附录改写                                                                            | 改   |
+| `docs/store/CWS_PUBLISHING_GUIDE.md`  | 第三步整体重写为服务账号路线（3.1–3.7），第四步补「批准后核对三件事」，新增 FAQ 四组 33 条，附录改写                                                                            | 改   |
 
 三处改动动机与硬伤，按证据列在这里，便于将来回溯为什么长这样：
 
@@ -324,7 +326,7 @@ git branch -D feature-fixbug Feature-ai-tip            # 仅当上面 diff 为�
 ## 6. 快速自检
 
 - [ ] Settings → Environments 里有 `production` 且列着 Required reviewers
-- [ ] `main` 有 ruleset/分支保护，required checks 是那四条，`Playwright extension E2E` 不在其中
+- [ ] `main` 有 ruleset/分支保护，required checks 至少是那四条；`Playwright extension E2E` 在不在其中，按 1.2 的取舍核对 Settings 后写回本节
 - [ ] Require review from Code Owners 已开
 - [ ] 合并方式已选定并写回本节 1.4
 - [ ] Dependabot 三个开关都开着

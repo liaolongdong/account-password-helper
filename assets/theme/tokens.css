@@ -195,3 +195,15 @@
 .el-input .el-input__inner::placeholder {
   font-size: calc(1em - 1px);
 }
+
+/* ===== Element Plus 覆写：抽屉标题与正文之间的空带 =====
+ * EP 把 `.el-drawer__header` 写成 `margin-bottom: 32px`，而 `.el-drawer__body` 自带
+ * `padding: 20px`，两条叠加后标题文字与第一行内容之间空出 52px——抽屉只有 400～440px 宽，
+ * 这片空带在视口里就成了「标题飘在半空」。本仓只有两只抽屉（「关于」与「条目详情」），
+ * 它们的标题下面都紧跟一条自带下边线与内边距的头部行（品牌行 / 站点行），
+ * 分隔由那一行自己给，不需要 EP 再补 32px。
+ * 收到 4px 后总空带为 24px（4 + 20），与本仓卡片内边距的 20px 量级一致。
+ * 选择器用后代组合抬到 (0,2,0)，避免与 EP 同权重而依赖样式顺序。 */
+.el-drawer .el-drawer__header {
+  margin-bottom: 4px;
+}

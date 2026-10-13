@@ -9,7 +9,8 @@
  */
 
 import { closeIcon } from '@/entrypoints/content/floatingButtons/icons';
-import type { FloatingButtonConfig } from '@/utils/types';
+import type { FillEntry, FloatingButtonConfig } from '@/utils/types';
+import { fillEntryToPatch, getFillEntry, isFillEntry } from '@/utils/fillEntry';
 import { THEME_OPTIONS, type ThemeName } from '@/utils/theme';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { getStoredLocale, isLiteLocale, type LiteLocale } from '@/utils/i18n-lite';
@@ -39,6 +40,7 @@ type PanelMessageKey =
   | 'fillSidebar'
   | 'fillInline'
   | 'fillManual'
+  | 'fillOverrideNote'
   | 'autoTriggerLogin'
   | 'autoTriggerTip'
   | 'passwordVisibility'
@@ -56,6 +58,8 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     fillSidebar: '侧边栏',
     fillInline: '页面内联',
     fillManual: '仅手动',
+    // 以 textContent 渲染（不进 data-i18n 的 innerHTML 通道），`{entry}` 由内建档位标签替换，不含外部数据
+    fillOverrideNote: '当前站点已被站点规则覆盖为「{entry}」，此处改动的是全局设置，对该站点不生效',
     autoTriggerLogin: '自动触发登录',
     autoTriggerTip:
       '开启后，在侧边栏或页面内联快速填充密码成功后将自动点击登录按钮<span class="highlight-tip">（仅账号密码场景）</span>',
@@ -73,6 +77,7 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     fillSidebar: 'Sidebar',
     fillInline: 'Inline',
     fillManual: 'Manual',
+    fillOverrideNote: 'A site rule overrides this site to "{entry}". Settings here apply globally and not to this site',
     autoTriggerLogin: 'Auto-submit login',
     autoTriggerTip:
       'When enabled, the login button is clicked automatically after a successful quick fill from the sidebar or inline panel<span class="highlight-tip"> (username &amp; password forms only)</span>',
@@ -358,6 +363,16 @@ export const settingsPanelViewStyles = `
   font-weight: 500;
 }
 
+/*
+ * 站点覆盖提示：与常规 tip 同规格，只换颜色做归因标记。
+ * 用告警色而非常规灰，是因为它解释的是「你在这里改了也没用」——静默混在说明文字里
+ * 等于没有提示。隐藏由 hidden 属性负责（本类不设置 display，浏览器默认生效）。
+ */
+.setting-fill-override {
+  color: ${WARNING_COLOR};
+  font-weight: 500;
+}
+
 /* 快速填充方式 - 三选一分段控件 */
 .setting-item.setting-item-stack {
   flex-direction: column;
@@ -460,8 +475,14 @@ export const settingsPanelViewStyles = `
 }
 `;
 
-/** 快速填充入口（3 选 1，由 autoShowSidepanel + fillMode 两字段派生） */
-type FillEntry = 'sidepanel' | 'inline' | 'manual';
+/** 快速填充入口的类型与「两字段 ↔ 三档」映射见 `@/utils/fillEntry`，与内容脚本、站点规则共用同一份口径 */
+
+/** 各入口在分段控件上的文案 key，供「已被站点规则覆盖」提示复用同一个词 */
+const FILL_ENTRY_LABEL_KEYS: Record<FillEntry, PanelMessageKey> = {
+  sidepanel: 'fillSidebar',
+  inline: 'fillInline',
+  manual: 'fillManual',
+};
 
 /** 各填充入口的说明文案（随选择与语言动态切换） */
 const FILL_ENTRY_TIPS: Record<PanelLocale, Record<FillEntry, string>> = {
@@ -478,40 +499,6 @@ const FILL_ENTRY_TIPS: Record<PanelLocale, Record<FillEntry, string>> = {
 };
 
 /**
- * 由配置派生当前填充入口
- *
- * 三态互斥，消除“内联开启 + 侧边栏自动”这种自相矛盾的组合：
- * - fillMode 为 'inline' 时优先判定为内联（此时 autoShowSidepanel 不生效）
- * - 否则按 autoShowSidepanel 区分“侧边栏自动”与“仅手动”
- * @param config 悬浮按钮配置
- * @returns 当前填充入口
- */
-function getFillEntry(config: FloatingButtonConfig): FillEntry {
-  if (config.fillMode === 'inline') return 'inline';
-  return config.autoShowSidepanel ? 'sidepanel' : 'manual';
-}
-
-/**
- * 将填充入口映射回存储字段
- *
- * 每次选择都同时写入 fillMode 与 autoShowSidepanel，保证存储始终为规范态、
- * 不残留旧的矛盾组合。
- * @param entry 目标填充入口
- * @returns 需增量保存的配置补丁
- */
-function fillEntryToPatch(entry: FillEntry): Partial<FloatingButtonConfig> {
-  switch (entry) {
-    case 'inline':
-      return { fillMode: 'inline', autoShowSidepanel: false };
-    case 'manual':
-      return { fillMode: 'sidepanel', autoShowSidepanel: false };
-    case 'sidepanel':
-    default:
-      return { fillMode: 'sidepanel', autoShowSidepanel: true };
-  }
-}
-
-/**
  * 获取主题选项在指定语言下的展示标签
  * @param option 主题选项
  * @param locale 面板语言
@@ -522,14 +509,63 @@ function getThemeLabel(option: (typeof THEME_OPTIONS)[number], locale: PanelLoca
 }
 
 /**
+ * 组装「已被站点规则覆盖」提示文案
+ *
+ * `{entry}` 只由本模块内建的档位标签（`fillSidebar` / `fillInline` / `fillManual`）替换，
+ * 不含域名或任何外部数据，渲染侧也用 textContent 而非 innerHTML。
+ * @param locale 面板语言
+ * @param entry 站点规则覆盖到的档位
+ * @returns 提示文案
+ */
+function fillOverrideNote(locale: PanelLocale, entry: FillEntry): string {
+  const label = PANEL_MESSAGES[locale][FILL_ENTRY_LABEL_KEYS[entry]];
+  return PANEL_MESSAGES[locale].fillOverrideNote.replace('{entry}', label);
+}
+
+/**
+ * 刷新「已被站点规则覆盖」提示的文案与显隐
+ *
+ * 判定与初始 HTML 用的是同一条（有覆盖 **且** 与全局档位不同），语言切换、配置刷新、
+ * 覆盖值变化三处都走这里——各自复刻一遍迟早出现「改了全局档位提示没跟着消失」这类
+ * 只更新一半的状态。元素不存在时（侧边栏 / Options 复用面板不渲染覆盖提示的可能）静默返回。
+ *
+ * @param panelRoot 面板根元素
+ * @param locale 面板语言
+ * @param config 当前配置（用于比对全局档位）
+ * @param siteFillOverride 站点规则覆盖的档位，无覆盖传 null
+ */
+function renderFillOverride(
+  panelRoot: HTMLElement,
+  locale: PanelLocale,
+  config: FloatingButtonConfig,
+  siteFillOverride: FillEntry | null,
+): void {
+  const el = panelRoot.querySelector<HTMLElement>('[data-fill-override]');
+  if (!el) return;
+  const note =
+    siteFillOverride && siteFillOverride !== getFillEntry(config) ? fillOverrideNote(locale, siteFillOverride) : '';
+  el.hidden = !note;
+  el.textContent = note;
+}
+
+/**
  * 生成设置面板内部 HTML（不含外层 .settings-panel 容器本身，由调用方提供容器）
  * @param config 悬浮按钮配置
  * @param locale 面板语言（扩展页传 currentLocale，content script 经 getStoredPanelLocale 获取）
+ * @param siteFillOverride 当前站点由站点规则覆盖的档位（无覆盖时传 null；侧边栏与 Options 的全局设置不传）
  */
-export function getSettingsPanelHTML(config: FloatingButtonConfig, locale: PanelLocale = 'zh-CN'): string {
+export function getSettingsPanelHTML(
+  config: FloatingButtonConfig,
+  locale: PanelLocale = 'zh-CN',
+  siteFillOverride?: FillEntry | null,
+): string {
   const msg = PANEL_MESSAGES[locale];
   const opacityPct = Math.round(config.opacity * 100);
   const fillEntry = getFillEntry(config);
+  // 覆盖提示只在「确有覆盖，且覆盖与全局不同档」时有话可说；元素常驻并以 `hidden` 控制显隐，
+  // 因为悬浮按钮面板先于 storage 读取渲染，档位是之后由 setSiteFillOverride 点亮的。
+  const overrideNote =
+    siteFillOverride && siteFillOverride !== fillEntry ? fillOverrideNote(locale, siteFillOverride) : '';
   const themeSwatches = THEME_OPTIONS.map(
     option =>
       `<button class="theme-swatch ${config.theme === option.name ? 'active' : ''}" data-theme="${option.name}" title="${getThemeLabel(option, locale)}" style="--swatch: ${option.swatch}"></button>`,
@@ -571,6 +607,7 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig, locale: Panel
         </div>
       </div>
       <div class="setting-tip" data-fill-tip>${FILL_ENTRY_TIPS[locale][fillEntry]}</div>
+      <div class="setting-tip setting-fill-override" data-fill-override${overrideNote ? '' : ' hidden'}>${overrideNote}</div>
 
       <div class="setting-item">
         <span class="setting-label" data-i18n="autoTriggerLogin">${msg.autoTriggerLogin}</span>
@@ -608,8 +645,14 @@ export function getSettingsPanelHTML(config: FloatingButtonConfig, locale: Panel
  * @param panelRoot 面板根元素
  * @param locale 目标语言
  * @param config 当前配置（用于计算填充提示文案）
+ * @param siteFillOverride 当前站点的覆盖档位（用于刷新覆盖提示文案）
  */
-function applyPanelLocale(panelRoot: HTMLElement, locale: PanelLocale, config: FloatingButtonConfig): void {
+function applyPanelLocale(
+  panelRoot: HTMLElement,
+  locale: PanelLocale,
+  config: FloatingButtonConfig,
+  siteFillOverride: FillEntry | null,
+): void {
   const msg = PANEL_MESSAGES[locale];
 
   // data-i18n 标记的文案（tip 类含高亮 span，统一以 innerHTML 渲染静态内建文案）
@@ -625,6 +668,9 @@ function applyPanelLocale(panelRoot: HTMLElement, locale: PanelLocale, config: F
   // 填充方式说明文案
   const fillTip = panelRoot.querySelector('[data-fill-tip]');
   if (fillTip) fillTip.textContent = FILL_ENTRY_TIPS[locale][getFillEntry(config)];
+
+  // 站点覆盖提示的文案也要跟着换语言
+  renderFillOverride(panelRoot, locale, config, siteFillOverride);
 
   // 主题色块 tooltip
   panelRoot.querySelectorAll<HTMLElement>('.theme-swatch').forEach(swatch => {
@@ -657,6 +703,8 @@ export function bindSettingsPanelView(
 ): SettingsPanelViewHandle {
   const config: FloatingButtonConfig = { ...initialConfig };
   let locale: PanelLocale = initialLocale;
+  /** 当前站点的覆盖档位；由调用方在异步读到站点规则后经 `setSiteFillOverride` 写入 */
+  let siteFillOverride: FillEntry | null = null;
   const cleanups: Array<() => void> = [];
 
   // 关闭按钮
@@ -710,6 +758,8 @@ export function bindSettingsPanelView(
         Object.assign(config, patch);
         optionEls.forEach(item => item.classList.toggle('active', item === optionEl));
         if (fillTipEl) fillTipEl.textContent = FILL_ENTRY_TIPS[locale][entry];
+        // 全局档位一旦改到与站点覆盖同档，提示就失去可解释的差异，跟着收回去
+        renderFillOverride(panelRoot, locale, config, siteFillOverride);
         options.onConfigChange(patch);
       };
       optionEl.addEventListener('click', onOptionClick);
@@ -721,7 +771,7 @@ export function bindSettingsPanelView(
   const setPanelLocale = (next: PanelLocale) => {
     if (locale === next) return;
     locale = next;
-    applyPanelLocale(panelRoot, next, config);
+    applyPanelLocale(panelRoot, next, config, siteFillOverride);
   };
   const localeGroup = panelRoot.querySelector('[data-setting="locale"]') as HTMLElement | null;
   if (localeGroup) {
@@ -856,6 +906,7 @@ export function bindSettingsPanelView(
     });
     const fillTip = panelRoot.querySelector('[data-fill-tip]');
     if (fillTip) fillTip.textContent = FILL_ENTRY_TIPS[locale][currentEntry];
+    renderFillOverride(panelRoot, locale, config, siteFillOverride);
 
     // 更新主题色块选中态
     panelRoot.querySelectorAll<HTMLElement>('.theme-swatch').forEach(swatch => {
@@ -875,10 +926,22 @@ export function bindSettingsPanelView(
     }
   };
 
+  /**
+   * 写入/清除当前站点的覆盖档位
+   *
+   * 面板的 HTML 是先渲染、站点规则是之后异步读到的（内容脚本构造期不能等待 storage），
+   * 所以覆盖提示需要一个后续点亮的入口；规则被删掉或改成跟随全局时传 null 收回。
+   * 非法定值按「无覆盖」处理，不让 storage 里的脏值参与判定。
+   */
+  const setSiteFillOverride = (entry: FillEntry | null): void => {
+    siteFillOverride = isFillEntry(entry) ? entry : null;
+    renderFillOverride(panelRoot, locale, config, siteFillOverride);
+  };
+
   const destroy = () => {
     cleanups.forEach(fn => fn());
     cleanups.length = 0;
   };
 
-  return { updateConfig, setLocale: setPanelLocale, destroy };
+  return { updateConfig, setLocale: setPanelLocale, setSiteFillOverride, destroy };
 }

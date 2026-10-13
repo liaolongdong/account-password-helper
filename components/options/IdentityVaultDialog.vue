@@ -995,6 +995,34 @@ const handleFileChange = async (event: Event): Promise<void> => {
 }
 
 /*
+ * 图标之间的净间距归一到 8px（实测原先是 16px）：Element Plus 的
+ * `.el-button + .el-button { margin-left: 12px }` 与这里的 `gap: 4px` 叠加，两处都没意识到
+ * 对方存在。取值与条目详情抽屉的 `.detail-value` 对齐，让两处动作图标同一密度。
+ * 5 槽恒在（见上方注释），间距收窄不会让按钮行横移。
+ * 量的是盒子之间的净间距；按可见图标量，同步从 22px 收到 14px。
+ */
+.identity-card__actions .el-button + .el-button {
+  margin-left: 4px;
+}
+
+/*
+ * 命中区补到 WCAG 2.5.8 的 24px 下限：`link` 按钮的盒子只有 20×20（14px 图标 + 2×2px padding
+ * + 2×1px 边框）。视觉尺寸与 DOM 都不动，`::after` 向外扩——`inset` 以 padding box 为基准，被 EP 按钮那 1px
+ * 边框吃掉一格，故 −4px 实际外扩 3px，相邻热区之间仍留约 2px 中性带（抽屉侧真鼠标实测过）。
+ * `.is-void` 用 `visibility: hidden` 占位，而该属性继承进伪元素，整块热区随之不参与命中，
+ * 因此占位槽不会留下一个透明的可点区。
+ */
+.identity-card__actions .el-button {
+  position: relative;
+}
+
+.identity-card__actions .el-button::after {
+  position: absolute;
+  inset: -4px;
+  content: '';
+}
+
+/*
  * 动作行恒为 5 槽（折叠 / 显隐 / 整卡复制 / 编辑 / 删除）：折叠态或无机密字段的卡
  * 让眼睛按钮挂 `.is-void` 占位而不卸载，右对齐的按钮行因此在任何状态、任何卡型下
  * 横坐标完全一致。用 `visibility` 而不是 `opacity: 0`——它同时把按钮移出 Tab 序与

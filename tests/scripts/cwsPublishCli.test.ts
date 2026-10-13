@@ -232,6 +232,25 @@ describe('preflight（离线预检，不联网）', { timeout: 30_000 }, () => {
     expect(r.stdout).toContain('CWS_EXTENSION_ID 应为 32 位 a-p 小写字母，实际长度 33');
   });
 
+  /**
+   * 2026-10-11 的真实形状：`CWS_PUBLISHER_ID` 是 Dashboard 地址栏 `devconsole/` 之后的第一段，本项目是 36 位 UUID。
+   * v2 对这一段只要求「不含 `/`」（discovery 里 `name` 的 pattern 就是 `^publishers/[^/]+/items/[^/]+$`），
+   * 所以这里同时钉住两端：UUID 判绿——谁把形状规则收紧成「纯数字」就会红在这第一条断言上；含 `/` 才判红。
+   * 用的 UUID 是合成的：这一段属账户标识、GitHub 侧按 Secret 存，测试夹具里不放真值。
+   */
+  it('Publisher ID 为 UUID 形时判绿、含斜杠才判红（形状规则不收紧到纯数字）', async () => {
+    const uuid = '0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0';
+
+    const shaped = await runCli(['preflight', '--zip', goodZipPath], baseEnv({ CWS_PUBLISHER_ID: uuid }));
+    expect(shaped.ok).toBe(true);
+    expect(shaped.stdout).toContain('✓ 标识符形状');
+
+    const slashed = await runCli(['preflight', '--zip', goodZipPath], baseEnv({ CWS_PUBLISHER_ID: `${uuid}/x` }));
+    expect(slashed.ok).toBe(false);
+    expect(slashed.stdout).toContain('✗ 标识符形状');
+    expect(slashed.stdout).toContain('CWS_PUBLISHER_ID 缺失或含非法字符');
+  });
+
   it('给了 --expect-version 就同时校验包版本 == 发布 tag', async () => {
     const r = await runCli(['preflight', '--zip', goodZipPath, '--expect-version', 'v9.9.9'], baseEnv());
     expect(r.ok).toBe(false);
@@ -463,6 +482,42 @@ describe('status / cancel', { timeout: 30_000 }, () => {
     const r = await runCli(['status'], baseEnv({ CWS_SA_PRIVATE_KEY: '' }));
     expect(r.ok).toBe(false);
     expect(r.stderr).toContain('缺少 CWS_SA_PRIVATE_KEY');
+  });
+
+  // 这两条钉的是 2026-10-09 真实踩过的那一步：CI 的 status 档当时只留下一句
+  // `error:1E08010C:DECODER routines::unsupported`，没说形状哪里不对。
+  // 两个用例都把令牌端点指回本地端口，保证万一解析竟然成功也不会敲到 Google。
+  it('私钥被存成字面量 \\n 时，报出行数与 PEM 首尾标记形状并给出 jq / node 两条取法，且不回显密钥', async () => {
+    const flattened = saPrivateKey.replace(/\n/g, '\\n');
+    const r = await runCli(
+      ['status'],
+      baseEnv({ CWS_SA_PRIVATE_KEY: flattened, CWS_OAUTH_TOKEN_URI: 'http://127.0.0.1:9/token' }),
+    );
+    expect(r.ok).toBe(false);
+    expect(r.stderr).toContain('CWS_SA_PRIVATE_KEY 无法解析');
+    expect(r.stderr).toContain('1 行');
+    expect(r.stderr).toContain('含字面量');
+    expect(r.stderr).toContain('jq -r .private_key');
+    // 2026-10-11：本机与多数开发环境没有 jq，提示必须同时给 node 那条，否则人只会卡在 jq 上
+    expect(r.stderr).toContain('node -e');
+    expect(`${r.stdout}${r.stderr}`).not.toContain(saPrivateKey.slice(40, 80));
+    expect(`${r.stdout}${r.stderr}`).not.toContain('PRIVATE KEY');
+  });
+
+  it('私钥只剩 base64 正文时，指向「整段 PEM 都要贴进来」', async () => {
+    const bodyOnly = saPrivateKey
+      .split('\n')
+      .filter(l => !l.startsWith('-----'))
+      .join('\n');
+    const r = await runCli(
+      ['status'],
+      baseEnv({ CWS_SA_PRIVATE_KEY: bodyOnly, CWS_OAUTH_TOKEN_URI: 'http://127.0.0.1:9/token' }),
+    );
+    expect(r.ok).toBe(false);
+    expect(r.stderr).toContain('无 PEM 首部标记');
+    expect(r.stderr).toContain('无 PEM 尾部标记');
+    expect(r.stderr).toContain('整段 PEM');
+    expect(`${r.stdout}${r.stderr}`).not.toContain(saPrivateKey.slice(40, 80));
   });
 
   it('换票失败时报 error 码并指向成套凭据，且不泄露 assertion', async () => {

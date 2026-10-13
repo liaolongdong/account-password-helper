@@ -13,7 +13,7 @@
 | 第三步              | 配自动提审：3.1 建服务账号 / 3.2 绑到开发者账号 / 3.3 Secrets / 3.4 本地验凭据 / 3.5 两条 workflow 与闸门 / 3.6 四档执行深度 / 3.7 预检判据 |
 | 第四步              | 审核与发布、批准后的三项核对、常见拒绝原因                                                                                                  |
 | 第五步              | 事实一致性校验（每次发版必做）：核心事实清单、快速校验命令、其他同步约定                                                                    |
-| 常见问题解答（FAQ） | A 闸门与人工批准 / B 凭据与 token / C 上传与提审 / D 流水线本身（共 29 条）                                                                 |
+| 常见问题解答（FAQ） | A 闸门与人工批准 / B 凭据与 token / C 上传与提审 / D 流水线本身（共 33 条）                                                                 |
 | 附录                | 商店描述模板、隐私政策 URL、CI/CD 配置说明                                                                                                  |
 
 ## 前置条件
@@ -36,7 +36,7 @@
 
 4. 支付 $5 美元一次性注册费（使用双币/全币种卡）
 
-5. 注册成功后，记录下 Dashboard 的访问地址（后续配置 CI/CD 时需要）
+5. 注册成功后，记录下 Dashboard 的访问地址（后续配置 CI/CD 时需要）——`devconsole/` 之后的**第一段就是 Publisher ID**（即 `CWS_PUBLISHER_ID`），第二段是商品 ID，读法与易混候选见 3.3——`devconsole/` 之后的**第一段就是 Publisher ID**（填进 `CWS_PUBLISHER_ID`），第二段是商品 ID；本项目那一段是 36 位 UUID 而不是纯数字，三个易混候选怎么分见 3.3
 
 > **提示**：注册过程中需要访问 Google 服务，建议选择网络稳定的时段操作。
 
@@ -112,8 +112,10 @@
 
 4. 点开这个服务账号 → 「Keys」→ 「Add key」→ 「Create new key」→ **JSON** → 下载。
    那份 JSON 里要用到两个字段：`client_email`（3.3 的 `CWS_SA_EMAIL`）与 `private_key`（3.3 的 `CWS_SA_PRIVATE_KEY`，整段 PEM，含 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 和中间换行）。
+   ⚠️ JSON 里那串 `private_key` 的值中出现的 `\n` 是 **JSON 字符串的编码形态**，不是私钥本身的内容——全选那一段直接贴进 Secret，得到的就是 3.3 表里「`\n` 存成字面量」那一行（致命形状之一）；取法与自检命令见 3.3。
 
-5. 记下 `client_email`，形如 `cws-publisher@<project-id>.iam.gserviceaccount.com`。JSON 文件本身不要提交进仓库，验证完放本地。
+5. 记下 `client_email`，形如 `cws-publisher@<project-id>.iam.gserviceaccount.com`。JSON 文件本身不要提交进仓库；
+   按 3.3 取出两个字段、Secret 验通之后把下载的那份删掉——含 `private_key` 的文件多留一天就多一个泄露面。
 
 > ℹ️ 换票方式：用私钥签一个 RS256 JWT（`scope=https://www.googleapis.com/auth/chromewebstore`），
 > POST 到 `https://oauth2.googleapis.com/token` 且 `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`。
@@ -123,34 +125,113 @@
 
 1. 打开 Developer Dashboard：https://chrome.google.com/webstore/devconsole
 2. 进入账户设置里的 **Service account permissions**（Google 文档路径：Add a service account to your developer profile）。
-3. 粘贴 3.1 的 `client_email` → 保存。到这里凭据链才算通，没做这一步时写接口一律 `403 permissionDenied`。
+3. 粘贴 3.1 的 `client_email` → 保存。到这里凭据链才算通，没做这一步时**连只读的那次商品状态查询都会**被判 `403 PERMISSION_DENIED`
+   ——2026-10-11 就见过一次 `publish` 档在只读的第一跳 GET 上拿到 403（预检全绿、access token 已换到），两种成因见 FAQ B.9。
 
 两条约束：
 
 - Google 文档原文：“At this time, you can only add one service account to your publisher.”——一个 publisher 只能绑**一个**服务账号；
   要换新邮箱，必须先把旧的那条移除。
-- 私钥疑似泄漏时两步都要做：Cloud Console 删掉那把 key，**并且**在这页移除服务账号邮箱。只删 key 时 Dashboard 里那行仍然挂着，容易被误认为还可用。
+- 私钥泄露后的处置分两种，别混：**同一服务账号换一把 key**（常规做法）时 `client_email` 不变，这一页不用动，只走 3.3 末尾的轮换四步；
+  **连服务账号一起废弃、换新邮箱**时两步都要做——Cloud Console 删掉那把 key，**并且**在这页移除旧邮箱（否则那行仍挂着，容易被误认为还可用），新邮箱再按上面第 3 步贴进来。
 
 ### 3.3 配置 GitHub Secrets
 
 打开仓库 https://github.com/liaolongdong/account-password-helper → **Settings** → **Secrets and variables** → **Actions** → 在 **Repository secrets** 里新增四条（缺一不可，`submit` job 的严格预检会当场判红）：
 
-| Secret 名称          | 值                                                                 | 从哪来                                            |
-| -------------------- | ------------------------------------------------------------------ | ------------------------------------------------- |
-| `CWS_EXTENSION_ID`   | `fgimkdodpjfkddmildjieojpfakpanli`                                 | 商店商品 URL 里那 32 位（也等于包 manifest 派生） |
-| `CWS_PUBLISHER_ID`   | Dashboard 账户页里的纯数字 Publisher ID                            | 拼成请求路径 `publishers/{id}/items/{extId}`      |
-| `CWS_SA_EMAIL`       | 3.1 的 `client_email`                                              | 服务账号 JSON 的 `client_email`                   |
-| `CWS_SA_PRIVATE_KEY` | 服务账号 JSON 的 `private_key`（**整段 PEM，含头尾行和真实换行**） | 下载的那份 JSON                                   |
+| Secret 名称          | 值                                                                 | 从哪来                                                                        |
+| -------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| `CWS_EXTENSION_ID`   | `fgimkdodpjfkddmildjieojpfakpanli`                                 | 商店商品 URL 里那 32 位（也等于包 manifest 派生）                             |
+| `CWS_PUBLISHER_ID`   | Dashboard 地址栏的第一段（**本项目是 36 位 UUID，不是纯数字**）    | `…/devconsole/{这一段}/{商品ID}/edit` 里的 `{这一段}`，见下面「到底取哪一段」 |
+| `CWS_SA_EMAIL`       | 3.1 的 `client_email`                                              | 服务账号 JSON 的 `client_email`                                               |
+| `CWS_SA_PRIVATE_KEY` | 服务账号 JSON 的 `private_key`（**整段 PEM，含头尾行和真实换行**） | 下载的那份 JSON                                                               |
 
 可选的第五条 `CWS_REQUIRED_PERMISSIONS`（逗号分隔的权限名，如 `storage,activeTab,scripting`）只用于「包内权限没越出清单」这项漂移告警；不配则该检查直接判过。CI 目前不注入它，本地排查权限漂移时可以临时导出。
 
-> ⚠️ `CWS_SA_PRIVATE_KEY` 最常见的两个粘贴坑：一是把 `\n` 当**字面量**存了进去（GitHub 的输入框支持多行，要粘贴真实换行）；
-> 二是只粘贴了中间那段 base64 而丢掉 PEM 头尾——Node 的 `createPrivateKey` 靠这两行判格式。
-> 症状都是 `pnpm cws:token` 直接失败；CLI 会打印可执行的修复提示，但**任何输出都不含私钥与 access token**。
+**`CWS_PUBLISHER_ID` 到底取哪一段：是 UUID，不是纯数字（2026-10-11 踩实）**
 
-> ℹ️ 与旧版的对应关系：`CWS_CLIENT_ID`、`CWS_CLIENT_SECRET`、`CWS_REFRESH_TOKEN` 这三项已废弃，
-> 换成 `CWS_PUBLISHER_ID`、`CWS_SA_EMAIL`、`CWS_SA_PRIVATE_KEY`。旧的那三项可以在 Settings 里删掉——
+打开 Developer Dashboard、点进这个商品，地址栏形如：
+
+```
+https://chrome.google.com/webstore/devconsole/{A}/{B}/edit
+```
+
+`{B}` 就是上面表里 `CWS_EXTENSION_ID` 的那 32 位；`{A}` 就是 `CWS_PUBLISHER_ID`——它与 API 路径 `publishers/{publisherId}/items/{itemId}` 是同构的两段寻址。
+本项目实测 `{A}` 是 **36 位 UUID（含 `-`）**，不是账户页里的某串纯数字——本页旧版就是这么写的，那次踩坑的源头在它。
+那个页面需要登录态，`curl` 拿不到你的账户页，所以 `{A}` 只能由你在浏览器地址栏里读（第一步第 5 条「记下 Dashboard 的访问地址」记的就是它）。三个长得都像的候选，只有一个能用：
+
+| 候选串                                     | 它是什么                                                                                  | 能不能填进 `CWS_PUBLISHER_ID` |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------- | ----------------------------- |
+| 地址栏第一段（本项目为 36 位 UUID 形）     | 开发者账号（publisher）的 ID，v2 资源路径的第一段                                         | ✅ 就是它                     |
+| 服务账号详情页的「唯一 ID」（21 位纯数字） | Cloud IAM 给这个服务账号分配的编号，用途是拼 `{该编号}@iam.gserviceaccount.com` principal | ❌ 与商店授权无关             |
+| Cloud 项目的 project number（纯数字）      | GCP 项目号                                                                                | ❌                            |
+
+**预检对这一格是瞎的，别拿「预检全绿」当标识符正确的证据。** Google 的 v2 接口定义（`https://chromewebstore.googleapis.com/$discovery/rest?version=v2`，
+四个方法与 `media.upload` 共用同一条 `name` 规则）对这段只要求 `[^/]+`——即 `^publishers/[^/]+/items/[^/]+$`；
+本仓 `scripts/lib/cwsPublish.mjs:31` 的 `ITEM_NAME_PATTERN` 与之同形、判定在 `:59`，**只要不含 `/` 就放行**。
+所以「形状合法、值是另一个编号」会带着六行 ✓ 一路走到 Google，才在只读的第一跳拿到 `403 PERMISSION_DENIED`（2026-10-11 run 38133410628 attempt 2 就是这个现场）。
+这一格由 `tests/scripts/cwsPublishCli.test.ts` 钉住：UUID 形判绿、含 `/` 才判红——把规则「收紧成只认纯数字」会红在那条用例上，因为本项目真实的 `{A}` 恰恰不是纯数字。
+CI 日志里那句 `publishers/***/items/***` 也帮不上忙：`***` 是 GitHub 对 Secret 值的掩码，只要两项非空且合法形就长这样，读不出值对不对（若某项为空会渲染成 `publishers//items/…`，那才看得出缺失）。
+Secret 只写不可读，所以这一条的处置不是「先去核对旧值」，而是**直接用地址栏那串覆盖一次**，再用只读档验（3.4 或 dispatch `mode=status`）。
+
+> ⚠️ `CWS_SA_PRIVATE_KEY` 只有一种正确形状：**`-----BEGIN PRIVATE KEY-----` 与 `-----END PRIVATE KEY-----` 这两行都在，中间是真实换行**。
+> 一句话记法：**BEGIN / END 那两行要，`\n` 这两个字符不要。**
+> 下载的 JSON 里那串值中的 `\n` 是 JSON 的**编码形态**、不是私钥的内容，全选那段直接贴过去得到的就是「一行、含字面量 `\n`」——见下面的形状对照表。
+> 症状都是 `pnpm cws:token` 直接失败；CLI 会跟着打印私钥的**结构形状**（字符数 / 行数 / 有无 PEM 首尾标记 / 是否含字面量 `\n`）和对应的修法，但**任何输出都不含私钥与 access token**。
+
+**取法：一条命令拿到带真实换行的 PEM**
+
+GitHub Actions 的 ubuntu runner 自带 `jq`；私钥解析失败时 CLI 的那行提示现在**两条取法都给**（`jq -r .private_key` 与 `node -e`），本机没装 `jq` 就直接用下面 `node` 那条，`JSON.parse` 同样把 `\n` 还原成真实换行。
+`pbcopy` 是 macOS 的，Linux 换成 `xclip -selection clipboard`。
+
+```bash
+SA_JSON=~/Downloads/service-account.json   # 换成你下载那份的实际路径
+
+jq -r .private_key "$SA_JSON" | pbcopy                                                  # 有 jq
+node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).private_key)' "$SA_JSON" | pbcopy   # 无 jq
+
+# 贴之前先自检（不联网、不落盘，读的是剪贴板里那一串）
+pbpaste | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{require("crypto").createPrivateKey(s);console.log("✓ 可解析 | 行数",s.trimEnd().split("\n").length,"| 含字面量 \\n:",s.includes("\\n"))}catch(e){console.log("✗ 仍然坏：",e.message)}})'
+```
+
+自检命令的期望读数是 `✓ 可解析 | 行数 28 | 含字面量 \n: false`（28 行 / 1704 字符是 2048 位 RSA PKCS#8 的形状，Google 现在发的服务账号 key 就是这个规格）。
+读数打出 `✗ 仍然坏` 就对照下表——四种致命形状全在那张表里；表里另外三种无害形状（少一个行尾换行、多几个空行、CRLF）不影响解析，不用管。
+粘的时候直接 `Cmd+V`，**别把 JSON 里的那对双引号一起带上**（实测带上引号，`createPrivateKey` 报的仍是同一句 `error:1E08010C`）。
+
+**形状对照表（2048 位服务账号 key 导出的 PKCS#8 PEM 恒为 28 行 / 1704 字符，本机逐形状实测）**
+
+| 形状                             | `createPrivateKey` | 说明                                        |
+| -------------------------------- | ------------------ | ------------------------------------------- |
+| 真实换行 + BEGIN/END 两行        | 通过               | 目标形状，28 行                             |
+| 行尾那个换行丢失                 | 通过               | `pbcopy` 的固有行为，不用管                 |
+| 末尾多几个空行                   | 通过               | 同上                                        |
+| CRLF 行尾                        | 通过               | 同上                                        |
+| `\n` 存成字面量（JSON 编码形态） | **失败**           | 1704 + 28 = 1732 字符 / 1 行，CI 里就是这格 |
+| 只贴 base64 正文、丢了首尾两行   | **失败**           | Node 靠这两行判格式                         |
+| 只有 BEGIN、没有 END             | **失败**           | 同上                                        |
+| 连 JSON 的那对双引号一起贴进去   | **失败**           | 引号成了 PEM 的一部分                       |
+
+四种失败形状报的都是同一句 `error:1E08010C:DECODER routines::unsupported`，所以判据只能看行数：**1 行必然是坏的**（正常 28 行），这也是 CLI 那句形状提示存在的原因。
+
+**私钥原文进过聊天窗口、Issue / PR 评论、CI 日志、终端回滚缓冲或提交记录 = 已泄露，只能换不能删**
+
+只要原文出现过一次就按泄露处理，「别人贴给我、我复制回来核对过」也算。删除那条消息不是处置手段——它可能已被缓存、被索引、被别人的截图带走。
+轮换四步（**同一服务账号下换 key 时 `client_email` 不变**，所以 3.2 的 Dashboard 绑定不用重做）：
+
+1. Cloud Console → IAM & Admin → Service Accounts → 该账号 → **Keys** → 删掉那把旧 key（对应旧 JSON 里的 `private_key_id`）。
+2. **Add key → Create new key → JSON**，下载新那份。
+3. 按上面的「取法 → 自检」把新 PEM 覆盖 Settings 里的 `CWS_SA_PRIVATE_KEY`（Secret 是整体替换，改完不用动别的）。
+4. `pnpm cws:token` → `pnpm cws:status` 复跑确认新 key 生效，然后把下载那份删掉（3.1 第 5 步同一条）。
+
+若换的是**新邮箱**（连服务账号一起废弃）：Dashboard 侧按 3.2 先移除旧邮箱再挂新的，`CWS_SA_EMAIL` 也必须同步换成新 JSON 的 `client_email`——
+邮箱与这把私钥要**出自同一个 JSON key**，只改一边时 `pnpm cws:token` 停在换票那步，CLI 给的正是这句提示（「确认 CWS_SA_EMAIL 与 CWS_SA_PRIVATE_KEY 出自同一个 JSON key」）。
+
+> ℹ️ 与旧版的对应关系：旧链路一共四项商店 Secret，其中**废弃三项**——`CWS_CLIENT_ID`、`CWS_CLIENT_SECRET`、`CWS_REFRESH_TOKEN`
+> 这套 OAuth 2.0 桌面客户端凭据整体失去用途（服务账号改用 `private_key` 自签 JWT，不再有 refresh token 过期这回事），
+> 换成 `CWS_PUBLISHER_ID`、`CWS_SA_EMAIL`、`CWS_SA_PRIVATE_KEY`；**`CWS_EXTENSION_ID` 是唯一沿用的一项**，新旧两侧同值。
+> 合计仍是四项，一增一减是因为那三项整体退场。旧的那三项可以在 Settings 里删掉——
 > 留着不会让流水线失败（`preflight` 段根本不读它们），但会让人误以为还在走 OAuth 路线。
+> 另：`RELEASE_PLEASE_TOKEN` 不属于商店凭据（它供 release-please 打 tag 与挂 Release 附件），不在废弃范围。
 
 > ⚠️ 发布前的校验会确认 `CWS_EXTENSION_ID` 是 32 位 `a-p` 小写字母；从 URL 复制时带入空格或换行会直接判红并打印实际长度，重新粘贴纯净 ID 即可。
 
@@ -171,8 +252,27 @@ pnpm cws:status
 
 ②③ 需要在当前 shell 导出 3.3 那四项（`export CWS_SA_EMAIL=...` 等）。**先跑通 ③ 再让 CI 提审**——
 它把「Secret 里是旧 key」「服务账号没绑进 Dashboard」这类问题在没排队进人工审核之前暴露掉。
+
+本地导出私钥那一项别再手敲多行，直接用 3.3 的取法命令生成（`$SA_JSON` 就是 3.3 里赋值的那个变量）：
+
+```bash
+export CWS_SA_PRIVATE_KEY="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1],"utf8")).private_key)' "$SA_JSON")"
+```
+
+命令替换会吃掉末尾那个换行，这属于 3.3 表里「无害」的那一档，不影响解析。
+导出只留在当前这个 shell 会话里，**不要写进 `~/.zshrc` 之类的启动文件**；要看它长什么样时用 3.3 的自检命令（只报行数与判据、不回显内容），
+`echo "$CWS_SA_PRIVATE_KEY"` 会把整段 PEM 打进终端回滚缓冲里。
+
 `pnpm cws:publish` 也存在，但**别在本地打**——它绕过 `production` 那道人工闸门，而那道闸门存在的理由（提审不可即时撤回）在本地同样成立；
 `pnpm cws:cancel` 相反，它是应急手段，CI 里没有撤审步骤，本地跑就是它的正确用法（FAQ C.15）。
+
+**②③ 在这类机器上根本出不了网，别把「本地红」读成「凭据错」（2026-10-11 本机实测）**
+
+直连 `chromewebstore.googleapis.com` 是 19.9 秒超时（`http=000`），只有走系统代理（本机是 `http://127.0.0.1:65532`）才出得来；
+而这三个脚本用的是 `fetch`，**Node v22 及更早不读 `HTTPS_PROXY`**——`NODE_USE_ENV_PROXY=1` 是 Node 24 才有的开关，本机 nvm 里最高只有 `v22.19.0`，加上该变量实测仍 `fetch failed`。
+网络层没出去时 `pnpm cws:token` / `cws:status` 报的都是 `fetch failed` 一类，而不是商店给的状态码，所以它**不构成任何凭据结论**。
+①（`pnpm cws:preflight`）不联网，在这种机器上照跑，但它看不出 Publisher ID 的值对不对（原因见 3.3）。
+这种环境的判绿改走 CI：dispatch `mode=status`，runner 侧没有这层代理问题，同样只调 `fetchItemStatus` 那一跳、不写商店、不需要 `production` 批准。
 
 ### 3.5 发版链：两条 workflow、一道人工闸门
 
@@ -210,29 +310,29 @@ v3.13.1 的 Release 因此 `assets: []`。拆开后 publish.yml 的并发组**�
 
 Actions → “Publish to Chrome Web Store” → Run workflow，`mode` 决定跑到哪一档（默认 `preflight`）：
 
-| mode          | 跑到哪                                                | 需要哪些 Secret                                 | 需要人批准 | 什么时候用                                                          |
-| ------------- | ----------------------------------------------------- | ----------------------------------------------- | ---------- | ------------------------------------------------------------------- |
-| `preflight`   | 只有 `prepare`：构建 + 离线预检（零凭据、零网络写）   | 可以全空（走 `--ids-optional`，标识符降为告警） | 否         | fork、服务账号还没建出来的分支、只想证明产物本身是绿的              |
-| `status`      | `prepare` + `inspect`：多一次只读 `fetchStatus`       | 四项齐全（`inspect` job 不挂 environment）      | 否         | 验证服务账号那条链通、看当前在架与在审版本                          |
-| `publish-dry` | 加 `submit`：传包但**不提审**（CLI 的 `--no-submit`） | 四项齐全                                        | **是**     | 只改商店文案那一轮——包先进去，说明在 Dashboard 里手改后由人工点提审 |
-| `publish`     | 加 `submit`：传包并提审                               | 四项齐全                                        | **是**     | 正式发版（`release` 事件走的就是这一档）                            |
+| mode          | 跑到哪                                                     | 需要哪些 Secret                                 | 需要人批准 | 什么时候用                                                             |
+| ------------- | ---------------------------------------------------------- | ----------------------------------------------- | ---------- | ---------------------------------------------------------------------- |
+| `preflight`   | 只有 `prepare`：构建 + 离线预检（零凭据、零网络写）        | 可以全空（走 `--ids-optional`，标识符降为告警） | 否         | fork、服务账号还没建出来的分支、只想证明产物本身是绿的                 |
+| `status`      | 只有 `inspect`：一次只读 `fetchStatus`，**免构建、免 tag** | 四项齐全（`inspect` job 不挂 environment）      | 否         | 验证服务账号那条链通、看当前在架与在审版本——想在 CI 上验凭据就用这一档 |
+| `publish-dry` | 加 `submit`：传包但**不提审**（CLI 的 `--no-submit`）      | 四项齐全                                        | **是**     | 只改商店文案那一轮——包先进去，说明在 Dashboard 里手改后由人工点提审    |
+| `publish`     | 加 `submit`：传包并提审                                    | 四项齐全                                        | **是**     | 正式发版（`release` 事件走的就是这一档）                               |
 
-`tag` 输入留空时只能跑 `preflight`：其余三档要靠它做「包内版本 == 发布 tag」的对账，没给 tag 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并说明原因。
+`tag` 输入留空时可跑 `preflight` 与 `status`；`publish-dry` 与 `publish` 必须填 tag——那两档要靠它做「包内版本 == 发布 tag」的对账，没给 tag 会在 `prepare` 的 `Resolve tag / version / mode` 步骤 `exit 1` 并说明原因。
 
 ### 3.7 预检到底在验什么
 
 `node scripts/cwsPublish.mjs preflight` 逐行打印 `✓` / `!` / `✗`，任一 `✗` 即终止（退出码非零、包不会上传）。
 它存在的意义是把问题**挡在排队进人工审核之前**，而不是抛出一个不透明的 400/404：
 
-| 判据                       | 判红（`✗`）条件                                                  | 说明                                                                             |
-| -------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `zip 产物存在`             | `.output/` 下找不到对应版本的 `*-chrome.zip`                     | 给了 `--expect-version` 时只认文件名里带该版本的包，避免把旧版本包提审上去       |
-| `标识符形状`               | ID 不是 32 位 `a-p` 小写、Publisher ID 含非法字符、SA 邮箱不成形 | 三项**全空**且带 `--ids-optional` 时降为 `!`；只空其中一项仍判红                 |
-| `包内 manifest 可读`       | `unzip -p 包 manifest.json` 失败或不是合法 JSON                  | 顺带打印 `manifest_version`                                                      |
-| `包内版本 == package.json` | 两者不等                                                         | 防「改了版本号没重新构建」这一类混编事故                                         |
-| `包内版本 == 发布 tag`     | 两者不等                                                         | 只在传了 `--expect-version` 时出现（CI 里就是 release tag）                      |
-| `权限集合符合预期`         | 不判红，只 `!`                                                   | 需要 `CWS_REQUIRED_PERMISSIONS` 才有实质内容，缺项时告警列出名字                 |
-| `仓库 manifest 与包内一致` | 不判红，只 `!`                                                   | 比对**集合差异**而不是数量——数量相等但换了一项权限，正是「产物来自旧提交」的形状 |
+| 判据                       | 判红（`✗`）条件                                                                                        | 说明                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `zip 产物存在`             | `.output/` 下找不到对应版本的 `*-chrome.zip`                                                           | 给了 `--expect-version` 时只认文件名里带该版本的包，避免把旧版本包提审上去       |
+| `标识符形状`               | ID 不是 32 位 `a-p` 小写、Publisher ID 含非法字符（**只查字符，值错判不出来**，见 3.3）、SA 邮箱不成形 | 三项**全空**且带 `--ids-optional` 时降为 `!`；只空其中一项仍判红                 |
+| `包内 manifest 可读`       | `unzip -p 包 manifest.json` 失败或不是合法 JSON                                                        | 顺带打印 `manifest_version`                                                      |
+| `包内版本 == package.json` | 两者不等                                                                                               | 防「改了版本号没重新构建」这一类混编事故                                         |
+| `包内版本 == 发布 tag`     | 两者不等                                                                                               | 只在传了 `--expect-version` 时出现（CI 里就是 release tag）                      |
+| `权限集合符合预期`         | 不判红，只 `!`                                                                                         | 需要 `CWS_REQUIRED_PERMISSIONS` 才有实质内容，缺项时告警列出名字                 |
+| `仓库 manifest 与包内一致` | 不判红，只 `!`                                                                                         | 比对**集合差异**而不是数量——数量相等但换了一项权限，正是「产物来自旧提交」的形状 |
 
 > ⚠️ v2 特有的一个坑，值得单独钉在这里：`upload` 可能返回 `uploadState=IN_PROGRESS`（Google 侧还在异步解析包）。
 > 此时若立刻 `publish`，提审拿到的是**上一个已解析的版本**。`publish` 子命令因此固定轮询 `fetchStatus.lastAsyncUploadState`
@@ -406,15 +506,30 @@ PY
    Cloud 项目没启用 Chrome Web Store API：APIs & Services → Library → 搜 “Chrome Web Store API” → Enable。见 3.1 第 2 步。
 
 9. **`403 permissionDenied`。**
-   服务账号邮箱没加进 Developer Dashboard → Account。见 3.2。注意 Google 的限制是**一个 publisher 只能绑一个服务账号**（“At this time, you can only add one service account to your publisher.”），换邮箱要先把旧的移除。
+   Google 那句话同时涵盖两种成因：`Permission denied on resource 'publishers/{id}/items/{extId}' (or it might not exist)`。
+   ① 服务账号邮箱没加进 Developer Dashboard → Account（见 3.2）——这一条**连只读查询都会被拒**，不用等到写接口；
+   ② `CWS_PUBLISHER_ID` 与 `CWS_EXTENSION_ID` 拼出的那个资源不归当前账号（Publisher ID 填成服务账号页那个 21 位「唯一 ID」、填成 Cloud project number、或商品 ID 抄错都会这样）。
+   先查 ①：Dashboard 账户页 Service account permissions 那行必须**逐字符等于当前这份 JSON 的 `client_email`**（换过服务账号才等于换过邮箱，只换 key 时邮箱不变）；
+   Google 的限制是**一个 publisher 只能绑一个服务账号**（“At this time, you can only add one service account to your publisher.”），换邮箱要先把旧的移除。
+   那行确实对，再查 ②：Publisher ID 取 **Dashboard 地址栏的第一段**（本项目是 36 位 UUID，**不是纯数字**，也不是服务账号详情页那个 21 位「唯一 ID」；三者怎么分见 3.3「到底取哪一段」），
+   商品 URL 里那 32 位另行核对。这一样查不动日志里的 `publishers/***/items/***`（GitHub 对 Secret 值的掩码，非空且合法形就长这样），
+   而**预检也不会替你拦下来**——它对 Publisher ID 只禁 `/`（`scripts/lib/cwsPublish.mjs:31`，判定 `:59`），值错照样全绿。
+   所以判法是「拿地址栏那串**直接覆盖一次 Secret**」（Secret 只写不可读，覆盖即收敛），而不是先去比对旧值。
+   判绿用只读档，别拿 `publish` 档试：dispatch `mode=status`（不写商店、不需要 `production` 批准）或本地 `pnpm cws:status`，它只调 `fetchItemStatus` 那一跳；
+   这里过了，再 Re-run failed jobs 补那一次 `publish`。
 
 10. **本地 `pnpm cws:status` 通，CI 的 `status` 档却失败。**
     大概率是 Secret 存错了**作用域**：`inspect` job 不挂 `environment`（只读段不需要人工放行），所以它读不到 environment-scoped 的 Secret。
     3.3 明确要求这四项存成 **Repository secrets**；若历史上存成 `production` 环境的，请在仓库级重建一份。
 
 11. **私钥明明贴进去了，`pnpm cws:token` 仍说解析失败。**
-    两个坑（3.3 有详述）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行），或者丢了 `-----BEGIN PRIVATE KEY-----` / `-----END PRIVATE KEY-----` 这两行——Node 的 `createPrivateKey` 靠它们判格式。
+    致命形状四种（3.3 的对照表逐条实测过）：把 `\n` 当**字面量**存了进去（GitHub 输入框支持多行，要粘真实换行）、只贴中间那段 base64 而两行标记全丢、只留 `-----BEGIN PRIVATE KEY-----` 丢了尾行、连 JSON 的那对双引号一起贴进去。
     本地验证时可以先用 `node -e "require('crypto').createPrivateKey(process.env.CWS_SA_PRIVATE_KEY)"` 自证，报错即 Secret 内容本身有问题。
+    CI 里这一格的症状是同一句 `error:1E08010C:DECODER routines::unsupported`（2026-10-09 实测 run 37962114514 就红在这里，当时 CLI 只透传这一句）。补上形状诊断后，同一份坏 Secret 在 run 37963106478 多打两行，其中 `1732 字符 / 1 行` 就足以锁定根因：`generateKeyPairSync('rsa', {modulusLength: 2048})` 导出的 PKCS#8 PEM 实测为 28 行 / 1704 字符，把 28 处换行各写成两个字符的反斜杠 n 正好是 1732——数字本身就能对上；而换行一旦压没——无论存成字面量 `\n` 还是整段连成一行——`createPrivateKey` 报的都是同一句 `error:1E08010C`，所以「1 行」必然是坏的。紧接着那行给的修法当时只有 `jq -r .private_key` 这一条（那次跑的 CLI 就是这个措辞，别按现在的提示去对旧日志）——Actions 的 ubuntu runner 自带 `jq`，本机没装就用 3.3 那条 `node` 取法（`JSON.parse` 同样把 `\n` 还原成真实换行；自 2026-10-11 起 CLI 的提示 jq / node 两条都给，见 3.3）；贴之前用 3.3 的自检命令过一遍剪贴板。只报结构事实，不回显密钥。（私钥原文已经出现在日志或聊天记录里时的处置，见 3.3 末尾的「已泄露，只能换不能删」。）
+    这一格挂在**联网之前**，所以跑 `publish` 档撞到它时商店侧是零调用：2026-10-11 那次 `release` 触发的 run 38133410628（v3.15.0）attempt 1 就是预检全绿后死在本地签名，商品状态与草稿都没动，
+    只有 GitHub Release 已公开、商店还是旧版。按 3.3 重贴 Secret 后 attempt 2 构建与预检全绿、换票成功，改红在 `403 PERMISSION_DENIED`（成因与处置见 FAQ B.9）——
+    **这一样是零写入**：403 落在 `publish` 的第一跳（只读的商品状态 GET，`uploadPackage` 在它之后），日志里没有「包已上传」那行，说明包没上去、也没生成新 revision。
+    两种红都不用重新发版：artifact 保留期内 Re-run failed jobs 复用同一次 `prepare` 的产物即可（依旧要过 `production` 那道批准）；超过 7 天就按 3.6 手动 dispatch `mode=publish` + `tag=v3.15.0`。
 
 12. **fork 的贡献者 PR 会不会误提审我的商品？**
     不会，三重保险：`publish.yml` 只在 `release: published` 与手动 dispatch 时触发（PR 事件根本不触发它）；`submit` 带 `if: github.repository == 'liaolongdong/account-password-helper'`；GitHub 本身不会把仓库 Secrets 暴露给 fork 的 run。
@@ -477,7 +592,7 @@ PY
     不一定要。Re-run jobs 时 `prepare` 的 artifact 在保留期（`retention-days: 7`）内仍然可下载，直接复用；超过 7 天就得整个 run 重跑。
 
 26. **手动 dispatch 忘了填 `tag`。**
-    那只能跑 `preflight`。其余三档要靠 tag 做「包内版本 == 发布 tag」的对账，没给 tag 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并打印原因，而不是拿当前分支的产物闷头提审。
+    `preflight` 与 `status` 都照跑：前者只验产物本身，后者根本不进 `prepare`。`publish-dry` 与 `publish` 会在 `Resolve tag / version / mode` 步骤 `exit 1` 并打印原因，而不是拿当前分支的产物闷头提审——那两档要靠 tag 做「包内版本 == 发布 tag」的对账。
     还有一个更早的坎：`workflow_dispatch` 只对**默认分支上已存在**的 workflow 生效。`publish.yml` 合进 `main` 之前，Actions 页面里没有它的「Run workflow」按钮，API 也回 404（`GET /repos/{owner}/{repo}/actions/workflows/publish.yml` 同样 404，而 `main` 上只列得出 ci / e2e / pr-title / release-please 四个）。这不是配错了，是 GitHub 的注册时机——第一次手动 dispatch 只能在合入之后。
 
 27. **`concurrency.cancel-in-progress` 为什么必须是 `false`？**
@@ -488,11 +603,43 @@ PY
     本项目 2026-10-09 起两者都不用，改为自写 `scripts/cwsPublish.mjs` + 服务账号：零第三方依赖、端点与请求体可被单测逐字钉住（`tests/scripts/cwsPublishCli.test.ts` 用本地假商店断言整条请求序列），且支持 `STAGED_PUBLISH` 与撤回审核这些 action 没覆盖的操作。
 
 29. **怎么验证这条链本身没被改坏？**
+
     ```bash
-    pnpm exec vitest run tests/scripts/cwsPublishCli.test.ts   # 20 例，含请求序列与验签
+    pnpm exec vitest run tests/scripts/cwsPublishCli.test.ts   # 23 例，含请求序列、验签、私钥形状与标识符形状提示
     pnpm cws:preflight                                          # 拿真产物跑离线预检
     ```
+
     两条都不会碰真实商店：单测把 CLI 的端点指向进程内的假商店（`CWS_API_ROOT` / `CWS_OAUTH_TOKEN_URI` 两个环境变量只服务于这个场景，生产不设），`preflight` 则是纯离线。任何分支上都能跑。
+
+30. **点了 Approve，`submit` 为什么过一会儿才动？**
+    因为 `production` 上除了 Required reviewers 还配了 `wait_timer: 10`（分钟）。两条是 **AND** 而不是「谁先到谁放行」——证据：run 36556089630 的 `pending_deployments` 里 `wait_timer_started_at = 2026-09-29T10:31:46Z`，十分钟早已走完，job 却在没有批准的情况下停在 `waiting` 十天。
+    所以净效果是「批准 **且** 进入 waiting 满 10 分钟」才执行：合完 release PR 就立刻点批准，会看到按钮已经点掉但 job 还在 waiting，那是在等 timer 补齐，不是坏了。等满 10 分钟之后再批准则不必再等（这一半是按 AND 语义推的，本轮没有实测批准后的耗时——那次批准我们始终没点）。
+    要即点即走就把 wait timer 设 0。它的价值是给自动化一个反悔窗口，对单人维护的项目收益有限，留着或清零都算合理配置。
+
+31. **怎么只读核验凭据配在哪一级、闸门到底有没有牙？**
+    四条 GET，全部不需要写权限，也读不到任何 Secret 的值（只返回名字与 `updated_at`）：
+
+    ```bash
+    R=https://api.github.com/repos/liaolongdong/account-password-helper
+    curl -s -H "Authorization: Bearer $PAT" "$R/actions/secrets"                       # 四项 CWS_* 应在此列
+    curl -s -H "Authorization: Bearer $PAT" "$R/environments/production"               # protection_rules 里要有 required_reviewers
+    curl -s -H "Authorization: Bearer $PAT" "$R/environments/production/secrets"       # 这一条必须为空
+    curl -s -H "Authorization: Bearer $PAT" "$R/actions/runs/<run_id>/pending_deployments"  # 非空 = 真有 job 停在等你批准
+    ```
+
+    第三条最关键：四项**必须配在仓库级**。若哪天把 `CWS_SA_PRIVATE_KEY` 等配成了 `production` 环境级，`inspect` job（不挂 environment）就看不见它们，`status` 档会以「凭据缺失」失败——这正是 FAQ B.10「本地通、CI 失败」的一种成因，也是 `submit` 判红前最容易漏查的一层。
+    第二条顺带能读出 `prevent_self_review` 和 `wait_timer`（见第 1 条与第 30 条）。
+
+32. **`production` 环境没有分支限制，要不要收紧？**
+    实测读数：它的 `protection_rules` 只有 `required_reviewers` 与 `wait_timer`，**没有 `branch_policy`**——而同仓库的 `github-pages` 环境里 `branch_policy` 是存在的，所以这不是没读出来。
+    含义是任何分支上的 run（包括未来从 feature 分支手动 dispatch `publish`）只要过了那道人工批准，就能进 `submit` 并读到四项凭据。要收窄：Settings → Environments → `production` → Deployment branches 选「Available for select branches」并只放 `main`。
+    这属于防自己误操作的加固，不是漏洞：真实提审仍需人工批准。是否收紧由维护者定，定了记得回到第 31 条那四条 curl 的第二条（`/environments/production`），确认 `protection_rules` 里多出 `branch_policy`。
+
+33. **对一个比 CLI 更早的 tag 跑 `publish-dry` / `publish` 会怎样？**
+    会在 `prepare` 的 `Offline preflight` 步骤报 `Cannot find module '…/scripts/cwsPublish.mjs'`（`MODULE_NOT_FOUND`）。
+    原因是 `prepare` 按 `github.event.release.tag_name || inputs.tag` 检出，也就是**那个 tag 的树**，而 `scripts/cwsPublish.mjs` 是 2026-10-09 才合进 `main` 的——`v3.13.1` 及更早的 tag 上根本没有这个文件。
+    这不是凭据问题：它失败在 `prepare`，还没走到任何联网的步骤。坐实的方法是一条只读命令：`git ls-tree <tag> scripts/cwsPublish.mjs`，输出为空即该 tag 没有 CLI。
+    结论是 `publish-dry` / `publish` 只对本次要发布的那个 tag（即合并了 CLI 之后打出的 tag）有意义；**只想验凭据链就用 `status` 档**——它不检出 tag，`tag` 输入直接留空即可。
 
 ---
 
@@ -571,6 +718,6 @@ Fully open-source, code auditable: https://github.com/liaolongdong/account-passw
 - **没有「跳过提审」这回事了**。旧版靠 `if: env.CWS_EXTENSION_ID != ''` 让整段发布静默跳过，代价是「Secret 忘了配」和「这轮刻意不提审」两种状态在日志里长得一模一样。
   现在的口径是：`release` 事件一定进入 `submit`，**由 `production` 环境的人工批准决定要不要真的提审**——不点 Approve 就等于跳过，且留下 `waiting` 这个可见的状态。
   三项标识符缺失时在联网之前判红（`✗ 标识符形状`），不再静默跳过。只有 `preflight` 档允许凭据为空（`--ids-optional`，降级为 `!`），因为它设计上就不碰商店。
-- **旧三项 Secret 已废弃**（`CWS_CLIENT_ID` / `CWS_CLIENT_SECRET` / `CWS_REFRESH_TOKEN`），换成 `CWS_PUBLISHER_ID` / `CWS_SA_EMAIL` / `CWS_SA_PRIVATE_KEY` 三项加 `CWS_EXTENSION_ID`，见 3.3。留着旧的不会让流水线失败，但会让人误判凭据形态。
+- **旧四项商店 Secret 里废弃三项**：`CWS_CLIENT_ID` / `CWS_CLIENT_SECRET` / `CWS_REFRESH_TOKEN` 这套 OAuth 桌面客户端凭据整体退场，换成 `CWS_PUBLISHER_ID` / `CWS_SA_EMAIL` / `CWS_SA_PRIVATE_KEY`；**`CWS_EXTENSION_ID` 沿用、新旧同值**，所以总数一增一减仍是四项。`RELEASE_PLEASE_TOKEN` 不是商店凭据，不在废弃范围。见 3.3。留着旧的不会让流水线失败，但会让人误判凭据形态。
 - Pages 由仓库设置里的 `Deploy from a branch`（`main` / 根目录）发布，CI 不参与生成站点——`en.html`、`pricing.en.html`、`privacy.en.html` 与 `blog/*.html` 需本地跑 `pnpm gen:en` / `gen:pricing-en` / `gen:privacy-en` / `gen:blog` 后提交；只改中文源而不重跑生成，线上英文版会滞后于中文版。站点直接服务 `main` 根目录，意味着**入库即公开**，不要把内部文档放进仓库根目录。
 - 同一条口径也适用于 `index.html` 内部的生成产物：FAQPage JSON-LD 与 FAQ 静态 DOM 由 `FAQS` 生成（`pnpm gen:faq` / `gen:faq-dom`），改 `FAQS` 后不重跑就等于线上可见 FAQ 与真源脱节，且禁用 JS 的抓取端读到的是滞后的那份。

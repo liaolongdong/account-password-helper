@@ -3,7 +3,7 @@
  * 集中管理动画控制器、拖拽处理器、设置面板等模块的 TypeScript 类型
  */
 
-import type { FloatingButtonConfig } from '@/utils/types';
+import type { FillEntry, FloatingButtonConfig } from '@/utils/types';
 import type { AnimationController } from '@/entrypoints/content/floatingButtons/AnimationController';
 
 // ── AnimationController 相关 ──
@@ -109,6 +109,12 @@ export interface SettingsPanelViewHandle {
   updateConfig(config: FloatingButtonConfig): void;
   /** 切换面板展示语言（刷新全部内建文案与语言选中态） */
   setLocale(locale: 'zh-CN' | 'en'): void;
+  /**
+   * 写入/清除当前站点由站点规则覆盖的填充档位
+   *
+   * 面板 HTML 先渲染、规则后异步读到，故提示需要这个入口在读到后点亮；传 null 收回。
+   */
+  setSiteFillOverride(entry: FillEntry | null): void;
   /** 解绑所有事件（DOM 由调用方移除） */
   destroy(): void;
 }

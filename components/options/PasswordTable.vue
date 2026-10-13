@@ -126,7 +126,7 @@
               placement="top"
               :show-after="300"
               :disabled="!isTagOverflowed(tag.name)"
-              :popper-style="TAG_TOOLTIP_POPPER_STYLE"
+              :popper-style="OVERFLOW_TIP_TEXT_STYLE"
             >
               <el-tag
                 :style="tag.style"
@@ -212,8 +212,18 @@
               文案随按钮自带（data-tip），悬停只登记一个稳定引用的处理函数，
               不产生逐行闭包、也不产生逐行组件实例。
             -->
+            <!--
+              查看详情用自绘的「详情卡」（ViewDetailIcon），三件事各自排除了一个候选：
+              ① 眼睛（`View`）在本产品里是显隐机密的专用语义（本行密码列、详情抽屉、身份库卡片、
+                 注入到页面密码框的切换按钮都如此），同一行两只眼睛会让人分不清哪只展开明文；
+              ② `Document` 在本页已经表示「文件」——头部「数据管理」里的下载模板与密码历史都用它，
+                 而且它的形状与右边那颗 `CopyDocument`（创建副本）在手边尺寸下近乎同形；
+              ③ 原先的圆圈 i（`InfoFilled`）读起来是「提示」而不是「查看详情」，且它是实心圆盘，
+                 比同排四颗线性图标明显重一档。
+              详情卡 = 带标题栏的面板 + 一行内容，正是点下去展开的那只只读抽屉。
+            -->
             <el-button
-              :icon="View"
+              :icon="ViewDetailIcon"
               :aria-label="rowLabels.viewDetail"
               :data-tip="rowLabels.viewDetail"
               circle
@@ -318,12 +328,13 @@ import type { PasswordEntry } from '@/utils/types';
 import type { SortState } from '@/utils/passwordSort';
 import { formatDate } from '@/utils/dateFormat';
 import { buildTagPresentationRecords, type TagPresentationRecord } from '@/utils/tagUtils';
-import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
+import { TABLE_OVERFLOW_TOOLTIP_OPTIONS, OVERFLOW_TIP_TEXT_STYLE } from '@/utils/tableOverflowTooltip';
 import { useTagOverflow } from '@/composables/useTagOverflow';
 import { useSharedHoverTooltip } from '@/composables/useSharedHoverTooltip';
 import TotpCode from '@/components/TotpCode.vue';
 import SiteFavicon from '@/components/SiteFavicon.vue';
 import SearchHighlight from '@/components/SearchHighlight.vue';
+import ViewDetailIcon from '@/components/ViewDetailIcon.vue';
 import VaultPagination from '@/components/options/VaultPagination.vue';
 import { useI18n } from '@/utils/i18n';
 
@@ -411,12 +422,6 @@ const { checkTagOverflow, isTagOverflowed } = useTagOverflow();
 const tagRecordsOf = (row: PasswordEntry): readonly TagPresentationRecord[] => buildTagPresentationRecords(row.tag);
 
 /**
- * 标签 tooltip 的 popper 样式（提升为组件级常量：随实例创建一次而非随渲染创建，
- * 对象身份稳定才不会让 el-tooltip 被判定为 prop 变化）
- */
-const TAG_TOOLTIP_POPPER_STYLE = Object.freeze({ maxWidth: '500px', wordBreak: 'break-word' }) as const;
-
-/**
  * 操作列提示的 popper 样式：让浮层不参与指针命中。
  *
  * `placement="top"` 决定了浮层压在上一行的操作按钮那一侧，行距越紧重叠越多。真机实测（Chrome for
@@ -429,10 +434,11 @@ const TAG_TOOLTIP_POPPER_STYLE = Object.freeze({ maxWidth: '500px', wordBreak: '
  * 提示内容只是按钮文案的复述，没有可点、可选中、可滚动的部分，因此让它对指针透明：
  * 这样「浮层永不截走点击」就与行距、与 `hide-after` 和淡出时序都无关，成为一条恒成立的性质。
  *
- * 对象身份必须稳定（同 `TAG_TOOLTIP_POPPER_STYLE`）：模板里现造对象会让整表每次渲染都把这个
- * 实例判定为需要更新（守卫见 `tests/architecture/optionsRenderIdentity.test.ts`）。
+ * 对象身份必须稳定（同 `utils/tableOverflowTooltip` 的 `OVERFLOW_TIP_TEXT_STYLE`）：模板里现造对象
+ * 会让整表每次渲染都把这个实例判定为需要更新（守卫见
+ * `tests/architecture/optionsRenderIdentity.test.ts`）。
  */
-const OPERATION_TIP_POPPER_STYLE = Object.freeze({ pointerEvents: 'none' }) as const;
+const OPERATION_TIP_POPPER_STYLE = Object.freeze({ pointerEvents: 'none' });
 
 /** 表格引用（只经由文件末尾 `defineExpose` 的两个意图方法对外使用） */
 const localTableRef = ref();

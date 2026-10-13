@@ -7,7 +7,15 @@ import { EmailBackupUtils } from '@/utils/emailBackup';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
-import { parseTags, stringifyTags, collectAllTags, normalizeTagInput } from '@/utils/tagUtils';
+import {
+  buildTagOptions,
+  countTags,
+  normalizeTagInput,
+  parseTags,
+  stringifyTags,
+  type TagOption,
+} from '@/utils/tagUtils';
+import { collectSiteOptions, matchesSiteFilter, type SiteOption } from '@/utils/siteUtils';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { formatDateCompact, formatTimestampCompact } from '@/utils/dateFormat';
 import { DEFAULT_SORT, sortPasswordEntries, comparePasswordEntries, type SortState } from '@/utils/passwordSort';
@@ -21,12 +29,8 @@ import { useKeywordDebounce } from '@/composables/useKeywordDebounce';
 import { useVaultListPagination } from '@/composables/useVaultListPagination';
 import { useVaultPageSize } from '@/composables/useVaultPageSize';
 import { createPasswordFormRules, type InitialFieldLengths } from '@/utils/formValidators';
+import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
-
-/** 最多可选择的标签数量 */
-export const MAX_TAG_COUNT = 3;
-/** 单个标签最大字符长度 */
-export const MAX_TAG_LENGTH = 30;
 
 /**
  * 删除动画时长：行淡出后再落盘（沿用原实现的 1s 节奏，不改变观感）
@@ -94,6 +98,12 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const favoriteOnly = ref(false);
   /** 标签筛选：选中标签集合（命中任一即保留，与搜索/收藏过滤为叠加关系） */
   const filterTags = ref<string[]>([]);
+  /**
+   * 站点筛选：选中站点集合（命中任一即保留，与搜索/收藏/标签过滤为叠加关系）
+   *
+   * 候选集由条目 `url` 自动汇总（见 `utils/siteUtils.ts`），用户不需要维护第二套组织结构。
+   */
+  const filterSites = ref<string[]>([]);
   const selectedIds = ref<string[]>([]);
   const isEditingPassword = ref(false);
   const editingPasswordId = ref<string>('');
@@ -144,6 +154,10 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       result = result.filter(p => parseTags(p.tag).some(tag => filterTags.value.includes(tag)));
     }
 
+    if (filterSites.value.length > 0) {
+      result = result.filter(p => matchesSiteFilter(p.url, filterSites.value));
+    }
+
     // 始终按当前排序状态排序（替代 el-table 客户端排序）
     return sortPasswordEntries([...result], currentSort.value);
   });
@@ -154,7 +168,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
    * 筛选与排序口径一变，用户眼前的集合就是一批新东西，继续停在第 7 页只会读到空白；
    * 而删除、就地编辑、收藏这类**内容**变化刻意不进这里——它们应保持用户当前所在页，
    * 页码越界由 `useVaultListPagination` 内部的 `pageCount` 钳位兜住。
-   * 拼成单串是为了让 `watch` 按值比较：`filterTags` 每次勾选都是新数组，
+   * 拼成单串是为了让 `watch` 按值比较：`filterTags` / `filterSites` 每次勾选都是新数组，
    * 直接当依赖会让同一份口径反复复位页码。
    */
   const listFilterSignature = computed(() =>
@@ -162,6 +176,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
       debouncedSearchKeyword.value,
       favoriteOnly.value ? 1 : 0,
       filterTags.value.join(','),
+      filterSites.value.join(','),
       currentSort.value.prop,
       currentSort.value.order ?? '',
     ].join('\u0000'),
@@ -206,29 +221,34 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   });
 
   /**
-   * 标签筛选变化同样视为过滤条件变化，需清空选中（与收藏过滤策略一致）。
+   * 标签/站点筛选变化同样视为过滤条件变化，需清空选中（与收藏过滤策略一致）。
    * 但多选下拉展开期间每次勾选项都会触发变化：若此时立即清空选中，
    * 批量按钮会在交互中途消失引起布局跳动。因此展开期间仅记录待清空标记，
-   * 待下拉收起时（见 handleTagFilterVisibleChange）统一清空。
+   * 待下拉收起时（见 handleFilterDropdownVisibleChange）统一清空。
+   *
+   * 两个下拉共用一个「是否展开」标记：`el-select` 的 clickoutside 会先收起旧面板再展开新面板，
+   * 因此同一时刻至多一个下拉处于展开态，不需要计数器。
    */
-  let tagFilterDropdownVisible = false;
+  let filterDropdownVisible = false;
   let pendingSelectionClear = false;
-  watch(filterTags, () => {
-    if (tagFilterDropdownVisible) {
+  const clearSelectionUnlessDropdownOpen = () => {
+    if (filterDropdownVisible) {
       pendingSelectionClear = true;
     } else {
       selectedIds.value = [];
     }
-  });
+  };
+  watch(filterTags, clearSelectionUnlessDropdownOpen);
+  watch(filterSites, clearSelectionUnlessDropdownOpen);
 
   /**
-   * 标签筛选下拉展开/收起回调
+   * 筛选下拉（标签 / 站点）展开与收起回调
    * 收起时若交互期间发生过筛选变化，则补执行选中清空，
    * 此时下拉面板已关闭，按钮显隐引起的布局变化不再被用户感知。
    * @param visible 下拉面板是否展开
    */
-  const handleTagFilterVisibleChange = (visible: boolean) => {
-    tagFilterDropdownVisible = visible;
+  const handleFilterDropdownVisibleChange = (visible: boolean) => {
+    filterDropdownVisible = visible;
     if (!visible && pendingSelectionClear) {
       pendingSelectionClear = false;
       selectedIds.value = [];
@@ -236,16 +256,55 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   };
 
   /**
-   * 下拉候选标签列表
-   * 从所有密码条目中聚合去重，供表单中的标签下拉选项使用。
+   * 标签计数的单一来源（标签 → 含该标签的条目数，按首次出现顺序）
+   *
+   * 下面两个候选视图都从这一份 Map 派生，全库标签的解析（每条一次 `parseTags`）只发生一次；
+   * 键集同源也意味着筛选栏的计数版本与弹窗的裸标签版本不可能给出不同的候选集。
    */
-  const availableTags = computed<string[]>(() => collectAllTags(passwords.value));
+  const tagCounts = computed(() => countTags(passwords.value));
+
+  /**
+   * 下拉候选标签列表（首次出现顺序）
+   * 从所有密码条目中聚合去重，供表单中的标签下拉选项使用；
+   * 顺序刻意不随计数变化，新增表单与批量标签弹窗的候选顺序保持原样。
+   */
+  const availableTags = computed<string[]>(() => [...tagCounts.value.keys()]);
+
+  /**
+   * 下拉候选标签集（带条目数、按条目数倒序）
+   *
+   * 计数口径与 `availableSites` 一致：**全库条目数**而非当前筛选结果数，
+   * 否则选中一个标签后其余候选当场归零，下拉读起来就是空集。
+   * 成本与 `availableSites` 同量级（一次 O(N) 解析 + 一次按键数排序，2000 条约几毫秒），
+   * 不进首屏阻塞预算；渲染侧用 `el-select-v2` 虚拟化，只实例化可视窗口的行。
+   */
+  const availableTagOptions = computed<TagOption[]>(() => buildTagOptions(tagCounts.value));
+
+  /**
+   * 下拉候选站点列表（按条目数倒序）
+   *
+   * 成本是一次 O(N) 的 hostname 归一与聚合：2000 条约 5ms，低于 50ms 长任务阈值，
+   * 不进首屏阻塞预算。渲染侧用 `el-select-v2` 虚拟化，候选数再大也只实例化可视窗口，
+   * 不会重演普通 `el-select` 的 O(T²) 常驻问题——筛选栏的标签下拉同此形态，
+   * 仍走普通 `el-select` 的是新增表单与批量标签弹窗（`allow-create` 依赖它），
+   * 那两处还在这条账上（见 docs/reports/PERF_LARGE_VAULT_EVALUATION.md §3 第 4 条）。
+   */
+  const availableSites = computed<SiteOption[]>(() => collectSiteOptions(passwords.value));
 
   // 批量移除标签等操作后候选集可能不再包含已选筛选标签：
   // 及时剔除失效项，避免筛选下拉隐藏后残留过滤条件造成「隐形空过滤」
   watch(availableTags, tags => {
     if (filterTags.value.some(selected => !tags.includes(selected))) {
       filterTags.value = filterTags.value.filter(selected => tags.includes(selected));
+    }
+  });
+
+  // 站点候选集同理：某站点的条目被全部删除或改网址后，该站点从下拉消失，
+  // 残留的筛选条件会让列表变成看不见的空集
+  watch(availableSites, options => {
+    const sites = options.map(option => option.site);
+    if (filterSites.value.some(selected => !sites.includes(selected))) {
+      filterSites.value = filterSites.value.filter(selected => sites.includes(selected));
     }
   });
 
@@ -1117,6 +1176,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     tableLoading,
     favoriteOnly,
     filterTags,
+    filterSites,
     filteredPasswords,
     /** 当前页切片：`el-table` 的 `data` 只认这个，不再直接吃 `filteredPasswords` */
     pagedEntries,
@@ -1127,6 +1187,8 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     offPageSelectedCount,
     currentSort,
     availableTags,
+    availableTagOptions,
+    availableSites,
     tagArray,
     // 方法
     loadPasswords,
@@ -1138,7 +1200,7 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
     togglePasswordVisibility,
     handleRowClassName,
     handleSelectionChange,
-    handleTagFilterVisibleChange,
+    handleFilterDropdownVisibleChange,
     openPasswordDialog,
     editPassword,
     resetPasswordForm,

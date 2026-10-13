@@ -35,7 +35,7 @@ const EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
 /**
  * 拼出 API 里的 item 资源名。
  *
- * @param {string} publisherId Dashboard「Publisher → Settings」里的开发者 ID
+ * @param {string} publisherId 开发者账号 ID，取 Dashboard 地址栏 `devconsole/{这里}/{itemId}` 的第一段（本项目是 36 位 UUID，不是纯数字）
  * @param {string} extensionId 商品 ID（即扩展 ID）
  * @returns {string} `publishers/{publisherId}/items/{extensionId}`
  */
@@ -58,7 +58,7 @@ export function validateIdentifiers({ extensionId, publisherId, saEmail }) {
   }
   if (!publisherId || !ITEM_NAME_PATTERN.test(itemName(publisherId, 'x'))) {
     problems.push(
-      `CWS_PUBLISHER_ID 缺失或含非法字符（应取 Dashboard「Publisher → Settings」里的纯 ID，实际长度 ${charLength(publisherId)}）`,
+      `CWS_PUBLISHER_ID 缺失或含非法字符（应取 Dashboard 地址栏 devconsole/ 之后的第一段，就是开发者账号 ID，别填服务账号页那个纯数字「唯一 ID」，实际长度 ${charLength(publisherId)}）`,
     );
   }
   if (!saEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(saEmail)) {
@@ -103,7 +103,49 @@ export function buildJwtAssertion({
   const sign = createSign('RSA-SHA256');
   sign.update(signingInput);
   sign.end();
-  return `${signingInput}.${sign.sign(privateKey).toString('base64url')}`;
+  let signature;
+  try {
+    signature = sign.sign(privateKey);
+  } catch (cause) {
+    throw privateKeyShapeError(privateKey, cause);
+  }
+  return `${signingInput}.${signature.toString('base64url')}`;
+}
+
+/**
+ * 私钥解析失败时的可执行提示。
+ *
+ * OpenSSL 在这条路径上只回 `error:1E08010C:DECODER routines::unsupported`，不说明形状哪里不对，
+ * 而「`\n` 存成字面量」与「丢了 PEM 首尾行」这两类粘贴坑恰好占了凭据失败的多数（见 3.3 的告警块）。
+ * 这里只打印长度、行数与 PEM 首尾标记是否存在这几个结构事实——不回显任何密钥材料，也不打印 PEM 标记本身，
+ * 好让「任何输出都不含私钥」这条断言保持简单。
+ *
+ * @param {string} privateKey
+ * @param {unknown} cause
+ * @returns {Error}
+ */
+function privateKeyShapeError(privateKey, cause) {
+  const text = typeof privateKey === 'string' ? privateKey : '';
+  const facts = [
+    `${text.length} 字符`,
+    `${text ? text.split('\n').length : 0} 行`,
+    text.includes('-----BEGIN') ? '有 PEM 首部标记' : '无 PEM 首部标记',
+    text.includes('-----END') ? '有 PEM 尾部标记' : '无 PEM 尾部标记',
+    text.includes('\\n') ? '含字面量 \\n' : '不含字面量 \\n',
+  ];
+  let next;
+  if (text.includes('\\n')) {
+    next =
+      'Secret 里存成了字面量的反斜杠 n（两个字符），要粘真实换行；本地先取还原后的整段再贴——有 jq 用 `jq -r .private_key <JSON>`（Actions 的 ubuntu runner 自带），没装 jq 就用 `node -e` 把同一字段 JSON.parse 出来，两条命令见 docs/store/CWS_PUBLISHING_GUIDE.md 3.3。';
+  } else if (!text.includes('-----BEGIN') || !text.includes('-----END')) {
+    next = '整段 PEM 都要贴进来，含首行与尾行那两行标记——Node 的 createPrivateKey 靠它们判格式。';
+  } else {
+    next = '形状看着正常：确认它与 CWS_SA_EMAIL 出自同一份 JSON key，且粘贴过程中没被截断。';
+  }
+  return new Error(
+    `CWS_SA_PRIVATE_KEY 无法解析（${cause instanceof Error ? cause.message : String(cause)}）\n` +
+      `  实际形状：${facts.join(' / ')}\n  ${next}`,
+  );
 }
 
 function base64url(value) {

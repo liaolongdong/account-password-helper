@@ -1,7 +1,8 @@
 /**
  * 项目级常量定义
  *
- * 只放跨领域共享的值，且保持依赖极浅（仅口令生成器的长度常量）。
+ * 只放跨领域共享的值（字段容量 `PASSWORD_FIELD_LIMITS`、标签容量 `MAX_TAG_COUNT` /
+ * `MAX_TAG_LENGTH`），且保持依赖极浅（仅口令生成器的长度常量）。
  * URL 常量在 `utils/urls.ts`，单一领域内的常量留在各自模块。
  */
 import { MAX_PASSWORD_LENGTH } from '@/utils/passwordGenerator';
@@ -39,3 +40,26 @@ export const PASSWORD_FIELD_LIMITS = {
   tag: 50,
   remark: 1000,
 } as const;
+
+/**
+ * 最多可选择的标签数量
+ *
+ * 上限 5 是「扁平标签够用」这条产品判断的容量前提：用户反馈里「想按站点/项目/环境
+ * 多层组织」的诉求，先用「一个维度一个标签」的扁平组合覆盖，而不是引入层级分组
+ * （层级会带来「同一条目属于几个文件夹」的模型改动，见
+ * docs/reports/FEATURE_CANDIDATES_EVALUATION.md）。3 个维度不够拼出这种组合。
+ *
+ * 放宽后的序列化串最长 5 × 30 + 4 = 154 字符，仍低于导入闸门 `MAX_TAG_LEN`（256），
+ * 自导出 → 回灌闭环不受影响；SidePanel 快速添加通道的 `PASSWORD_FIELD_LIMITS.tag`
+ * （50）刻意不跟随——那条通道只有一个短输入框，不承担多维标注。
+ */
+export const MAX_TAG_COUNT = 5;
+
+/**
+ * 单个标签最大字符长度
+ *
+ * 与表单校验规则、超限提示文案、`normalizeTagInput` 的丢弃阈值共用同一个数字；
+ * content 侧的采集上限（`utils/capturedTag.ts` 的 `CAPTURED_TAG_MAX_LENGTH`）刻意不 import
+ * 本值，由 `tests/utils/capturedTag.test.ts` 钉住两者的同口径关系。
+ */
+export const MAX_TAG_LENGTH = 30;

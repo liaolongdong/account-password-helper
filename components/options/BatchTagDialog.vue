@@ -78,7 +78,7 @@
 import { ref, computed, watch } from 'vue';
 import { useI18n } from '@/utils/i18n';
 import { normalizeTagInput } from '@/utils/tagUtils';
-import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/composables/usePasswordManagement';
+import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
 
 /** 批量编辑标签模式：追加并入 / 移除剔除 */
 export type BatchTagMode = 'append' | 'remove';

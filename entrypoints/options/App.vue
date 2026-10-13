@@ -59,6 +59,7 @@
         @open-personalization="openPersonalizationDialog"
         @open-tour="replayTour"
         @open-guide="openGuide"
+        @open-about="showAboutDrawer = true"
       />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
@@ -67,9 +68,11 @@
         v-model:search-keyword="searchKeyword"
         v-model:favorite-only="favoriteOnly"
         v-model:filter-tags="filterTags"
+        v-model:filter-sites="filterSites"
         :selected-count="selectedIds.length"
-        :available-tags="availableTags"
-        @tag-filter-visible-change="handleTagFilterVisibleChange"
+        :available-tag-options="availableTagOptions"
+        :available-sites="availableSites"
+        @filter-dropdown-visible-change="handleFilterDropdownVisibleChange"
         @batch-delete="batchDelete"
         @batch-edit-tags="showBatchTagDialog = true"
         @batch-export-selected="batchExportSelected"
@@ -177,7 +180,9 @@
     <PasswordDetailDrawer
       v-model="showDetailDrawer"
       :entry="detailEntry"
+      :keyword="searchKeyword"
       @edit="onDetailEdit"
+      @search-identity="onDetailSearchIdentity"
     />
 
     <!-- 有效期设置弹窗 -->
@@ -283,6 +288,12 @@
       v-if="tourActive"
       :tour="tour"
     />
+
+    <!-- 「关于」抽屉：版本、数据存放口径与对外链接的集中落点（纯展示，不读存储也不发请求） -->
+    <AboutDrawer
+      v-model="showAboutDrawer"
+      :version="currentVersion"
+    />
   </div>
 </template>
 
@@ -330,6 +341,8 @@ const DomainMatchSettingDialog = defineAsyncComponent(
   () => import('@/components/options/DomainMatchSettingDialog.vue'),
 );
 const CommandPalette = defineAsyncComponent(() => import('@/components/options/CommandPalette.vue'));
+// 「关于」抽屉：纯展示、低频入口，异步加载不占管理页首屏
+const AboutDrawer = defineAsyncComponent(() => import('@/components/options/AboutDrawer.vue'));
 // 新手引导：仅首次进入认证态或用户主动重温时才需要这一块，异步加载不占管理页首屏
 const OnboardingTour = defineAsyncComponent(() => import('@/components/options/OnboardingTour.vue'));
 // 使用指引文档中页：只有 `#guide` 命中时才加载，四十几条正文文案随本 chunk 一同落地
@@ -426,6 +439,9 @@ const showSiteRulesDialog = ref(false);
 
 /** 跨子域匹配档位弹窗可见性 */
 const showDomainMatchDialog = ref(false);
+
+/** 「关于」抽屉可见性 */
+const showAboutDrawer = ref(false);
 
 /** 站点规则弹窗预填域名（来自内容脚本填充失败就地引导，编辑已有规则时不使用） */
 const siteRulePrefillDomain = ref<string | undefined>(undefined);
@@ -586,11 +602,21 @@ const openTrashWithVerify = async (): Promise<void> => {
  *
  * 身份库含证件号/卡号等高敏 PII，复验门槛防「会话已解锁但用户离开座位」时
  * 旁人一次性看到全部身份信息；取消则弹窗不得打开。镜像 openTrashWithVerify。
+ *
+ * `presetKeyword` 供「从条目详情跳来检索」使用：它只进搜索框那一个 `ref`
+ * （`useIdentityVault.keyword`），不参与任何解密，也不落盘；弹窗 `@closed → teardown()`
+ * 连同视图态一起清掉，所以不会串到下一次正常打开。门槛只有这一处，两个入口共用，
+ * 避免哪天新增入口绕过它直接开弹窗。
+ *
+ * @param presetKeyword 打开后预填的搜索词，默认空
+ * @returns 复验是否通过（调用方据此决定要不要收起来源界面——取消复验不该连带弄没用户的抽屉）
  */
-const openIdentityVaultWithVerify = async (): Promise<void> => {
+const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean> => {
   const masterPassword = await promptAndVerifyMasterPassword(t('identity.verifyTitle'), t('identity.verifyPrompt'));
-  if (!masterPassword) return;
+  if (!masterPassword) return false;
+  identityVault.keyword.value = presetKeyword;
   showIdentityVaultDialog.value = true;
+  return true;
 };
 
 /**
@@ -688,6 +714,7 @@ const {
   tableLoading,
   favoriteOnly,
   filterTags,
+  filterSites,
   filteredPasswords,
   pagedEntries,
   currentPage,
@@ -697,6 +724,8 @@ const {
   offPageSelectedCount,
   currentSort,
   availableTags,
+  availableTagOptions,
+  availableSites,
   tagArray,
   loadPasswords,
   patchMetadataOnlyFromStorage,
@@ -706,7 +735,7 @@ const {
   togglePasswordVisibility,
   handleRowClassName,
   handleSelectionChange,
-  handleTagFilterVisibleChange,
+  handleFilterDropdownVisibleChange,
   openPasswordDialog,
   editPassword,
   resetPasswordForm,
@@ -862,6 +891,21 @@ const onViewDetail = (entry: PasswordEntry) => {
 const onDetailEdit = (entry: PasswordEntry) => {
   showDetailDrawer.value = false;
   editPassword(entry);
+};
+
+/**
+ * 从详情抽屉跳去身份信息库检索该用户名
+ *
+ * 回答的是「这个账号绑的是哪个手机号/邮箱」，但**不做跨库关联**：用户名只当搜索词递给
+ * 身份库，由身份库自己的搜索口径（姓名/证件号/手机号/卡号，拼音与子串都算）去命中，
+ * 因此这里不需要新的匹配语义、不给 `PasswordEntry` 加关联字段、也不在密码库里显示 PII 值。
+ * 复验门槛通过后收起抽屉（与 `onDetailEdit` 同形：一次只留一个上层视图），
+ * 用户取消复验则抽屉原地不动。
+ * @param username 抽屉当前条目的用户名
+ */
+const onDetailSearchIdentity = async (username: string): Promise<void> => {
+  if (!(await openIdentityVaultWithVerify(username))) return;
+  showDetailDrawer.value = false;
 };
 
 /** 认证流程状态与操作方法 */
@@ -1247,13 +1291,14 @@ useStorageWatcher({
 /**
  * 应用内联下拉「到全库找」带过来的关键词
  *
- * 一并清掉收藏与标签筛选：两者与搜索是叠加（AND）关系，残留会让「我库里到底有没有这个账号」
+ * 一并清掉收藏、标签与站点筛选：三者与搜索是叠加（AND）关系，残留会让「我库里到底有没有这个账号」
  * 这个入口显示成空表。筛选条件是页面态、不入存储，因此清理只影响这次深链呈现的视图。
  */
 const applySearchKeyword = (keyword: string): void => {
   searchKeyword.value = keyword;
   favoriteOnly.value = false;
   filterTags.value = [];
+  filterSites.value = [];
 };
 
 /** Runtime 消息监听 */
@@ -1447,6 +1492,51 @@ body {
   max-height: 70vh;
   padding-right: 4px;
   overflow-y: auto;
+}
+
+/*
+ * 筛选候选面板滚到末行之后，继续滚动会把底下的列表推着走（面板同时飘出视口）。
+ * 实测：30 个站点候选、面板 274px，滚到底再滚一格，文档 scrollTop 从 150 跳到 950。
+ * 原因是这两个下拉的浮层不是模态 —— Element Plus 只给 dialog/drawer 上 body 锁滚，
+ * 浮层里的虚拟列表滚到底，滚动链就顺着祖先一路交给文档。`contain` 把这条链剪断在
+ * 面板自己的滚动容器上，面板内部照常滚。
+ * 必须留在非 scoped 块：实测浮层由 Element Plus 挂到 body 下的裸 div 里（不在
+ * `.options-page` 子树内），滚动容器 `.el-vl__window` 上也没有任何 `data-v-*`，
+ * scoped 规则编译后带 `[data-v-*]`，对它永远匹配不到。
+ */
+.tag-filter-popper .el-vl__window,
+.site-filter-popper .el-vl__window {
+  overscroll-behavior: contain;
+}
+
+/*
+ * 候选行的悬浮死区：Element Plus 给 `<li>` 的是 `padding: 0 32px 0 20px`，而 title 挂在这段
+ * padding 内侧的 `.facet-option` 上——实测行首 6px 的落点解析到的就是这颗 `<li>` 本身，
+ * 祖先链上没有 title，鼠标停在那里什么也不弹（面板本体才 200px，这 52px 是整行的四分之一）。
+ * 把 padding 归零、让 `.facet-option` 自持同值内边距，title 的覆盖面即等于整行，文本落点不变。
+ * 选中态那颗对勾是 `<li>::after` 的 `right: 20px` 绝对定位，不随 padding 移动，仍在原位。
+ * 同样必须留在非 scoped 块：`<li>` 由 Element Plus 渲染，节点上没有 `data-v-*`。
+ */
+.tag-filter-popper .el-select-dropdown__item,
+.site-filter-popper .el-select-dropdown__item {
+  padding: 0;
+}
+
+/*
+ * 复验门槛弹窗（回收站、身份信息库）开着时，滚动穿透到底下的列表。
+ * 实测：滚轮打在遮罩上一格 deltaY=800，文档 scrollTop 回收站 0→800、身份信息库 87→887；
+ * 同期「导入数据」（无复验）与详情抽屉都是 0 —— 差别不在弹窗本身，在那把 body 锁滚类。
+ * 根因是这两个入口要先弹 `ElMessageBox` 复验主密码，复验通过后的 200ms 内才弹正式弹窗，
+ * 而 Element Plus 的 `useLockscreen` 在「类已在」时不给后来者记账（`withoutHiddenClass=false`），
+ * 于是 MessageBox 的延时 cleanup 把锁摘了 —— 弹窗还开着，`body` 已解锁，
+ * 遮罩这层滚动容器（`.el-overlay-dialog`，EP 编译产物里是 `position:fixed;inset:0;overflow:auto`）
+ * 内容不够高，滚动链就顺着它交给文档。
+ * 这里不修「锁」——那是 EP 内部实现，且补锁要动 MessageBox 的关闭时序；只把滚动链剪断在
+ * 遮罩自己身上，症状即消。上面那两条复验门槛路径的判据见 `e2e/dialog-scroll-isolation.spec.ts` 第 5 条。
+ * 同样必须留在非 scoped 块：遮罩由 EP 挂到 `body` 下，节点不带 `data-v-*`。
+ */
+.el-overlay-dialog {
+  overscroll-behavior: contain;
 }
 
 /* 滚动条样式（参考 HelpDialog 风格：纤细 4px，slate 色调，无轨道背景） */

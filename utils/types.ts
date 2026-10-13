@@ -10,6 +10,19 @@ import type { DomainMatchMode, MatchTier } from '@/utils/domain';
 export type FillMode = 'sidepanel' | 'inline';
 
 /**
+ * 快速填充入口（设置面板里那个三选一分段控件的取值）
+ *
+ * 由 `FillMode` + `autoShowSidepanel` 两个存储字段派生而来，是三态互斥的对外语义：
+ * - `sidepanel`：聚焦登录框自动弹出侧边栏
+ * - `inline`：在登录框内显示钥匙图标，点击展开页面内填充面板
+ * - `manual`：聚焦不自动弹出，需点悬浮按钮或工具栏图标才打开侧边栏
+ *
+ * 站点规则以它为单位做覆盖（`SiteRule.fillEntry`），因为只覆盖 `fillMode` 交付不了
+ * 「这个站别自动弹侧边栏」——那由 `autoShowSidepanel` 决定，是两个字段而非一个。
+ */
+export type FillEntry = FillMode | 'manual';
+
+/**
  * 账号密码数据接口
  */
 export interface PasswordEntry {
@@ -672,7 +685,7 @@ export interface AutoSavePasswordData {
   password: string;
   /** 网站域名 */
   url: string;
-  /** 页面标题，取自 document.title，用于 tag 字段 */
+  /** 标签，取自页面标题的站点名分段（见 `utils/capturedTag`）；「密码已变更」时为条目已有标签串 */
   tag: string;
   /** 备注信息，默认值为 "自动保存" */
   remark: string;
