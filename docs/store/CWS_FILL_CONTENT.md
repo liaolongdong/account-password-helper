@@ -181,7 +181,7 @@
 
 ⚙️ 界面与效率
 🎨 6 款色彩主题、中英文界面即时切换，注入页面的浮层同步跟随
-⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 23 条常用命令，主密码未验证时不响应按键
+⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 24 条常用命令，主密码未验证时不响应按键
 🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「新手引导」按钮可随时重播
 🔧 四个默认快捷键 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作
 💡 细节体验：主密码输入框实时提示大写锁定；网站图标取自浏览器本地缓存，不发起外部请求
@@ -316,7 +316,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 
 ⚙️ Interface and efficiency
 🎨 6 color themes and an instant Chinese/English switch, followed by the UI injected into pages.
-⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 23 commands by Chinese, pinyin or initials, inert until the master password is verified.
+⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 24 commands by Chinese, pinyin or initials, inert until the master password is verified.
 🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the "Tour" button in the header replays it any time.
 🔧 Ctrl+Shift+P management / L side panel / F quick fill / K inline dropdown; rebind them on the browser's own extensions-shortcuts page.
 💡 A live Caps Lock hint on master-password fields, and site icons read from the browser's local cache with no external request.

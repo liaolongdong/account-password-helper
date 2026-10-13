@@ -3,7 +3,7 @@ title: Web Crypto for a Real Password Manager
 description: No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying.
 tags: web crypto,encryption,password manager,security,chrome extension
 date: 2026-08-28
-modified: 2026-10-02
+modified: 2026-10-13
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
@@ -85,4 +85,4 @@ Source and discussion: [the GitHub repository](https://github.com/liaolongdong/a
 
 ---
 
-_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (2041 automated tests, including encryption and re-key paths)._
+_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (2786 automated tests, including encryption and re-key paths)._
