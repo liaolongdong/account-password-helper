@@ -15,7 +15,8 @@ import { anchoredTextOf, numericTemplateOf, templatedOf, textOf } from './i18n';
  *
  * 守卫单测（`tests/architecture/identityLookupFromDetailWiring.test.ts`）钉的是源码接线，
  * 下面四件事只有真浏览器 + 已加载的扩展才证得了：
- * ① 复验门槛真的会弹、也真的拦得住——取消复验既不该把用户的抽屉一起关掉，也不该留下半个身份库；
+ * ① 复验门槛按默认档 `perSession` 走两面：本文档会话的第一趟真的会弹、也真的拦得住（取消复验既
+ *    不该把用户的抽屉一起关掉，也不该留下半个身份库），第二趟不该再问——两面分别由两条用例承载；
  * ② 用户名真的落进了身份库**已有**的那个搜索框，并即时收敛出命中卡片。这条链跨「抽屉 emit →
  *    App 编排 → composable 状态 → Element Plus 输入框双向绑定」四段，任一段接错，用户看到的都是
  *    「点了没反应」或「库开了但搜索框是空的」，而源码看起来完全正常；
@@ -102,9 +103,22 @@ async function addIdentity(page: Page, name: string, phone: string): Promise<voi
   await expect(form).toBeHidden();
 }
 
-/** 经数据管理菜单打开身份库（会弹复验），返回前库已处于已解锁态 */
-async function openVaultFromMenu(page: Page): Promise<void> {
+/**
+ * 经数据管理菜单打开身份库，返回前库已处于已解锁态
+ *
+ * `expectRecheck` 必须显式传：默认档 `perSession` 的语义是「同一管理页文档会话内第一次打开问、
+ * 之后不再问」（`entrypoints/options/App.vue` 的 `identityVaultVerifiedThisSession`）。写成
+ * 「有弹窗就填、没弹窗就跳过」会把这条语义整个测没了，所以两种预期各走各的断言。
+ * 不问那一趟的判据顺序是**先等库可见**：复验若弹，库被挡在它后面打不开，这一步就超时判红；
+ * 反过来先断言「复验层不在」是恒真——`runHeaderCommand` 只负责点菜单、不等任何弹窗落地。
+ */
+async function openVaultFromMenu(page: Page, expectRecheck: boolean): Promise<void> {
   await runHeaderCommand(page, 'options.header.data', 'identity.title');
+  if (!expectRecheck) {
+    await expect(vaultDialog(page)).toBeVisible();
+    await expect(verifyDialog(page)).toBeHidden();
+    return;
+  }
   await verifyMasterPassword(page, 'identity.verifyPrompt');
   await expect(vaultDialog(page)).toBeVisible();
 }
@@ -123,17 +137,19 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
   await createEntry(page, { username: PHONE_HIT, password: 'E2eLookup!Passw0rd', url: SITE_URL });
 
   // 前置：库里先有一条「手机号命中」和一条「不命中」的身份信息
-  await openVaultFromMenu(page);
+  // 这一趟是本文档会话里的第一次打开，默认档 perSession 下必须问
+  await openVaultFromMenu(page, true);
   await addIdentity(page, NAME_HIT, PHONE_HIT);
   await addIdentity(page, NAME_MISS, PHONE_MISS);
   await expect(cards(page)).toHaveCount(2);
 
   await closeVault(page);
 
-  // 跳转：抽屉用户名行的检索按钮 → 复验 → 库带着该用户名打开
+  // 跳转：抽屉用户名行的检索按钮 → 库带着该用户名直接打开
+  // 前置播种已经在本会话复验过一次，perSession 这一趟**不该再问**；判据是搜索框真的落进了
+  // 值——复验若弹，库根本不会打开，这一句就超时判红。「会弹、且取消就不打开」由下面那条用例钉。
   const drawer = await openDrawer(page, PHONE_HIT);
   await drawer.getByRole('button', { name: textOf('options.detail.searchIdentity') }).click();
-  await verifyMasterPassword(page, 'identity.verifyPrompt');
 
   await expect(searchInput(page)).toHaveValue(PHONE_HIT);
   await expect(cards(page)).toHaveCount(1);
@@ -147,7 +163,7 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
   // 不在关闭态就地读那颗输入框——EP 收起对话框时整层 `display:none`，节点已退出无障碍树，
   // `getByRole('dialog')` 根本解析不到（实测「element(s) not found」），要读只能等它重新可见。
   await closeVault(page);
-  await openVaultFromMenu(page);
+  await openVaultFromMenu(page, false);
   await expect(searchInput(page)).toHaveValue('');
   await expect(cards(page)).toHaveCount(2);
   await expect(vaultDialog(page).locator('.identity-meta')).not.toContainText(numericTemplateOf('identity.matchCount'));
