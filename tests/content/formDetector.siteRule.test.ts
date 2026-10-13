@@ -248,6 +248,131 @@ describe('FormDetector 站点规则消费', () => {
     });
   });
 
+  describe('站点档位覆盖快速填充入口（C6）', () => {
+    /** 按给定全局配置与站点规则创建实例，读出生效档位后销毁 */
+    const resolveEntry = async (config: Record<string, unknown>, rule: Partial<SiteRule> | null): Promise<string> => {
+      buildLoginDom();
+      installChromeMock(config, rule ? { [DOMAIN]: { domain: DOMAIN, ...rule } } : {});
+      const instance = await createDetector();
+      const entry = (instance as any).effectiveFillEntry as string;
+      instance.destroy();
+      return entry;
+    };
+
+    it('站点显式设档时替换全局（含全局「仅手动」而该站点要自动弹侧边栏）', async () => {
+      expect(
+        await resolveEntry(makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: false }), { fillEntry: 'sidepanel' }),
+      ).toBe('sidepanel');
+      expect(
+        await resolveEntry(makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: true }), { fillEntry: 'manual' }),
+      ).toBe('manual');
+      expect(
+        await resolveEntry(makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: true }), { fillEntry: 'inline' }),
+      ).toBe('inline');
+    });
+
+    it('规则未声明档位即跟随全局：只配选择器/只关穿透的规则不得顺手改填充入口', async () => {
+      expect(await resolveEntry(makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: false }), {})).toBe('manual');
+      expect(
+        await resolveEntry(makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: true }), { penetrateShadow: false }),
+      ).toBe('sidepanel');
+      expect(await resolveEntry(makeConfig(), null)).toBe('inline');
+    });
+
+    it('档位是替换而非取更保守的一档：两向都能覆盖', async () => {
+      // penetrateShadow 那条总闸只能收窄，档位没有全序，两向都必须生效
+      expect(await resolveEntry(makeConfig({ fillMode: 'inline' }), { fillEntry: 'sidepanel' })).toBe('sidepanel');
+      expect(
+        await resolveEntry(makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: true }), { fillEntry: 'inline' }),
+      ).toBe('inline');
+    });
+
+    it('规则里是非法档位时回落到全局，坏值不得悄悄打开侧边栏', async () => {
+      for (const junk of ['sidepanel-auto', 'Sidepanel', true, 1, '', undefined]) {
+        expect(
+          await resolveEntry(makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: false }), {
+            fillEntry: junk as any,
+          }),
+        ).toBe('manual');
+      }
+    });
+
+    /**
+     * 档位真的决定「点/聚焦登录框时发生什么」，所以交互层单独钉一组。
+     * 字段是否算登录框（shouldShowSidePanel）的判定由既有用例覆盖，这里固定为 true，
+     * 只断言入口分派，避免与字段检测的用例重复。
+     */
+    const dispatchTo = async (
+      type: 'click' | 'focusin',
+      config: Record<string, unknown>,
+      rule: Partial<SiteRule> | null,
+    ): Promise<{ sidePanelCalls: number; triggerCalls: number }> => {
+      const fields = buildLoginDom();
+      installChromeMock(config, rule ? { [DOMAIN]: { domain: DOMAIN, ...rule } } : {});
+      const instance = await createDetector();
+      vi.spyOn(instance as any, 'shouldShowSidePanel').mockReturnValue(true);
+      const showSidePanel = vi.spyOn(instance as any, 'showSidePanel').mockResolvedValue(undefined);
+      const showTriggerFor = vi.spyOn((instance as any).inlineDropdown, 'showTriggerFor').mockImplementation(() => {});
+
+      fields.aPwd.dispatchEvent(new Event(type, { bubbles: true }));
+      await settle();
+
+      const result = {
+        sidePanelCalls: showSidePanel.mock.calls.length,
+        triggerCalls: showTriggerFor.mock.calls.length,
+      };
+      instance.destroy();
+      return result;
+    };
+
+    it('全局「仅手动」时点击登录框不自动开侧边栏、也不显示内联图标', async () => {
+      expect(await dispatchTo('click', makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: false }), null)).toEqual({
+        sidePanelCalls: 0,
+        triggerCalls: 0,
+      });
+    });
+
+    it('站点把自动弹出关掉：全局是侧边栏自动，该站点仍不弹', async () => {
+      const config = makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: true });
+      expect(await dispatchTo('click', config, null)).toEqual({ sidePanelCalls: 1, triggerCalls: 0 });
+      expect(await dispatchTo('click', config, { fillEntry: 'manual' })).toEqual({
+        sidePanelCalls: 0,
+        triggerCalls: 0,
+      });
+    });
+
+    it('站点改成内联：点击改为显示钥匙图标，不再弹侧边栏', async () => {
+      const config = makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: true });
+      expect(await dispatchTo('click', config, { fillEntry: 'inline' })).toEqual({
+        sidePanelCalls: 0,
+        triggerCalls: 1,
+      });
+    });
+
+    it('站点改成侧边栏自动：全局是内联时点击改回开侧边栏', async () => {
+      expect(await dispatchTo('click', makeConfig(), { fillEntry: 'sidepanel' })).toEqual({
+        sidePanelCalls: 1,
+        triggerCalls: 0,
+      });
+    });
+
+    it('聚焦只在生效内联档时显示图标：全局内联 + 站点 manual 也不显示', async () => {
+      expect(await dispatchTo('focusin', makeConfig(), null)).toEqual({ sidePanelCalls: 0, triggerCalls: 1 });
+      expect(await dispatchTo('focusin', makeConfig(), { fillEntry: 'manual' })).toEqual({
+        sidePanelCalls: 0,
+        triggerCalls: 0,
+      });
+      expect(
+        await dispatchTo('focusin', makeConfig({ fillMode: 'sidepanel', autoShowSidepanel: false }), {
+          fillEntry: 'inline',
+        }),
+      ).toEqual({
+        sidePanelCalls: 0,
+        triggerCalls: 1,
+      });
+    });
+  });
+
   describe('首轮检测与规则读取的时序', () => {
     it('规则读取晚于首轮定时任务时，选择器依然生效', async () => {
       const fields = buildLoginDom();

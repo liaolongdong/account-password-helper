@@ -8,9 +8,10 @@
  *    同一个站点会被拆成好几个候选，用户选中其中一个还筛不出想要的条目。
  * 2. **通配条目（`*.qq.com`）自成一站，不并进 `qq.com`。** 它是条目自己声明的适用范围，
  *    折进主域名等于把「这条是通配的」这一层信息抹掉。
- * 3. **通用条目（空 `url`）汇成末位的 `GENERIC_SITE_KEY` 一桶，但在任何站点筛选下都保留。**
- *    它对任意站点都可用，藏起来会让用户以为库里没有；可它同时也是「没填网址」这一类，
- *    没有这个桶，管理页里就没有任何动作能把这批条目单独挑出来补全。
+ * 3. **通用条目（空 `url`）汇成末位的 `GENERIC_SITE_KEY` 一桶，并且只在被勾选时参与结果。**
+ *    它不是「对任意站点都可用」——那是侧边栏填充范围（`matchesSiteScope`）回答的问题；
+ *    管理页的站点筛选回答的是「这条填了哪个站点」，勾了站点还带出一批没填网址的条目，
+ *    读起来就是筛选没生效。桶恒在末位并标着条数，所以「把这批挑出来补全」照旧有落点。
  */
 import { describe, expect, it } from 'vitest';
 import { GENERIC_SITE_KEY, collectSiteOptions, matchesSiteFilter, siteKeyOf } from '@/utils/siteUtils';
@@ -83,7 +84,7 @@ describe('siteUtils.collectSiteOptions', () => {
     // 这一条钉的是「哪些条目会被（无网址）这一档挑出来」的真实边界，JSDoc / ARCHITECTURE /
     // 帮助文案的口径以此为准：判据是 `siteKeyOf` 归一结果为**空串**，实践中即「网址没填」。
     // `normalizeToHostname` 的解析失败分支返回去斜杠首段，所以 `http://` 得到 `http:`、
-    // `not a url` 原样留着——它们各自成为一个候选，既不进这一档，也不享受恒保留。
+    // `not a url` 原样留着——它们各自成为一个候选，既不进这一档，也不在这一档被勾选时出现。
     // 另一处反直觉：URL 解析器会吃掉 `https:` 后面的重复斜杠，`/qq.com` 因此归一成
     // `qq.com`（一个真实站点）而不是空串。
     expect(siteKeyOf('http://')).toBe('http:');
@@ -97,10 +98,11 @@ describe('siteUtils.collectSiteOptions', () => {
       { site: GENERIC_SITE_KEY, count: 2 },
     ]);
 
-    // 恒保留跟着同一个判据走：残值算「一个奇怪的站点」，选中别的站点时它会被筛掉；
-    // 归一为空串才算「没填网址」，才恒保留。
+    // 判据只有一条：选中集里有没有这个条目归一出的桶。残值算「一个奇怪的站点」，
+    // 空串算「没填网址」并映射到哨兵桶——两者在只勾 example.com 时都被筛掉。
     expect(matchesSiteFilter('http://', ['example.com'])).toBe(false);
-    expect(matchesSiteFilter('///', ['example.com'])).toBe(true);
+    expect(matchesSiteFilter('///', ['example.com'])).toBe(false);
+    expect(matchesSiteFilter('///', [GENERIC_SITE_KEY])).toBe(true);
   });
 
   it('没有通用条目时不产生空转的通用桶', () => {
@@ -165,9 +167,13 @@ describe('siteUtils.matchesSiteFilter', () => {
     expect(matchesSiteFilter('third.com', selected)).toBe(false);
   });
 
-  it('通用条目在任何站点筛选下都保留', () => {
-    expect(matchesSiteFilter('', ['example.com'])).toBe(true);
-    expect(matchesSiteFilter(undefined, ['example.com'])).toBe(true);
+  it('没填网址的条目不再恒保留：勾了别的站点就把它筛掉', () => {
+    // 这条是本函数的核心转变——旧口径「通用条目在任何站点筛选下都保留」会让
+    // 「按站点筛选」看起来漏了批次（用户筛 example.com，结果里混着一批没有网址的条目）。
+    // 它和标签筛选同口径：勾了标签，没打标签的条目同样消失。
+    expect(matchesSiteFilter('', ['example.com'])).toBe(false);
+    expect(matchesSiteFilter(undefined, ['example.com'])).toBe(false);
+    expect(matchesSiteFilter('   ', ['example.com'])).toBe(false);
   });
 
   it('只勾通用桶时结果恰好就是通用条目（把没填网址的条目挑出来的落点）', () => {
@@ -176,7 +182,7 @@ describe('siteUtils.matchesSiteFilter', () => {
     expect(matchesSiteFilter('https://example.com/login', [GENERIC_SITE_KEY])).toBe(false);
   });
 
-  it('通用桶与真实站点同选时不额外改变结果（恒保留已在前面生效）', () => {
+  it('通用桶与真实站点同选时两批并集（它是一档，不是一条恒保留的旁路）', () => {
     const selected = ['example.com', GENERIC_SITE_KEY];
     expect(matchesSiteFilter('example.com', selected)).toBe(true);
     expect(matchesSiteFilter('', selected)).toBe(true);

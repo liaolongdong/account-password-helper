@@ -23,7 +23,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import path from 'path';
-import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
+import { TABLE_OVERFLOW_TOOLTIP_OPTIONS, OVERFLOW_TIP_TEXT_STYLE } from '@/utils/tableOverflowTooltip';
 
 const ROOT = path.resolve(__dirname, '../..');
 
@@ -82,7 +82,10 @@ describe('表格截断浮层对指针透明', () => {
       overflowTables.push({
         file,
         openingTag: openingTagOf(block),
-        hasImport: src.includes("import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';"),
+        // 按名判定而非整串比对：同一行还会导入共享的宽度上限常量，字面量比对会把它判成「没导入」
+        hasImport: /import \{[^}]*\bTABLE_OVERFLOW_TOOLTIP_OPTIONS\b[^}]*\} from '@\/utils\/tableOverflowTooltip/.test(
+          src,
+        ),
       });
     }
   }
@@ -103,9 +106,14 @@ describe('表格截断浮层对指针透明', () => {
     expect(missing, `以下文件绑定了 tooltip-options 却没有导入常量：${missing.join(', ')}`).toEqual([]);
   });
 
-  it('常量本体只改指针命中这一件事，且对象身份稳定', () => {
-    expect(TABLE_OVERFLOW_TOOLTIP_OPTIONS).toStrictEqual({ popperStyle: { pointerEvents: 'none' } });
+  it('常量本体只做「指针透明 + 宽度上限」两件事，且对象身份稳定', () => {
+    expect(TABLE_OVERFLOW_TOOLTIP_OPTIONS).toStrictEqual({
+      popperStyle: { ...OVERFLOW_TIP_TEXT_STYLE, pointerEvents: 'none' },
+    });
     expect(Object.isFrozen(TABLE_OVERFLOW_TOOLTIP_OPTIONS)).toBe(true);
     expect(Object.isFrozen(TABLE_OVERFLOW_TOOLTIP_OPTIONS.popperStyle)).toBe(true);
+    // 宽度上限是这一半的牙：删掉它，长备注又会横铺满整个视口（用户反馈的那一形）
+    expect(OVERFLOW_TIP_TEXT_STYLE.maxWidth).toMatch(/^\d+px$/);
+    expect(TABLE_OVERFLOW_TOOLTIP_OPTIONS.popperStyle.maxWidth).toBe(OVERFLOW_TIP_TEXT_STYLE.maxWidth);
   });
 });

@@ -2,6 +2,7 @@ import {
   type RuntimeMessage,
   MessageType,
   FloatingButtonConfig,
+  type FillEntry,
   FillPasswordData,
   FillResult,
   PingResponse,
@@ -39,6 +40,7 @@ import {
 } from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { getSiteRule, isValidCssSelector, type SiteRule } from '@/utils/storage/siteRules';
+import { resolveFillEntry } from '@/utils/fillEntry';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 /** 收集 open shadow DOM 查询根时的节点预算，防止极端页面把主线程吃满 */
@@ -471,7 +473,7 @@ export class FormDetector {
    * 此处若焦点仍停留在登录字段则补偿一次展示（showTriggerFor 对同一字段幂等）。
    */
   private syncInlineTriggerWithActiveElement(): void {
-    if (this.floatingButtonConfig.fillMode !== 'inline') return;
+    if (this.effectiveFillEntry !== 'inline') return;
     const active = document.activeElement;
     if (!(active instanceof HTMLInputElement)) return;
     if (!this.shouldShowSidePanel(active)) return;
@@ -536,6 +538,17 @@ export class FormDetector {
    */
   private get penetrateShadowEnabled(): boolean {
     return this.floatingButtonConfig.penetrateShadow !== false && this.siteRule?.penetrateShadow !== false;
+  }
+
+  /**
+   * F1: 当前站点生效的快速填充入口
+   *
+   * 站点规则优先于全局配置，未设档位即跟随全局（见 `resolveFillEntry`）。这是填充
+   * 入口判定的唯一出口：内联图标的展示与侧边栏的自动展开都从这里取值，避免两处
+   * 各读各的 `fillMode` / `autoShowSidepanel` 而让覆盖只生效一半。
+   */
+  private get effectiveFillEntry(): FillEntry {
+    return resolveFillEntry(this.floatingButtonConfig, this.siteRule);
   }
 
   /**
@@ -801,7 +814,7 @@ export class FormDetector {
    * 处理委托的聚焦事件：内联模式下为登录字段显示钥匙触发图标
    */
   private handleDelegatedFocusIn = (event: FocusEvent): void => {
-    if (this.floatingButtonConfig.fillMode !== 'inline') return;
+    if (this.effectiveFillEntry !== 'inline') return;
     const target = event.target;
     if (!(target instanceof HTMLElement)) return;
     const input = target instanceof HTMLInputElement ? target : target.closest('input');
@@ -828,14 +841,16 @@ export class FormDetector {
       return;
     }
     if (this.shouldShowSidePanel(input)) {
+      const entry = this.effectiveFillEntry;
       // 内联模式：不自动打开侧边栏，改为显示钥匙触发图标（点击图标展开面板）
-      if (this.floatingButtonConfig.fillMode === 'inline') {
+      if (entry === 'inline') {
         this.inlineDropdown.showTriggerFor(input, {
           hasEyeToggle: this.isEyeToggleAtInputRight(input),
         });
         return;
       }
-      if (!this.floatingButtonConfig.autoShowSidepanel) {
+      // 「仅手动」档（全局设为 manual，或站点规则把自动弹出关掉）：聚焦与点击都不自动开侧边栏
+      if (entry === 'manual') {
         return;
       }
       this.showSidePanel();

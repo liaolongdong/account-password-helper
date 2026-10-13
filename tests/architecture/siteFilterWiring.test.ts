@@ -332,10 +332,20 @@ describe('无网址候选桶', () => {
       noPush.indexOf('if (genericCount > 0) options.push({ site: GENERIC_SITE_KEY') > noPush.indexOf('.sort('),
       '末位固定的判据没有牙齿：不产桶也算通过',
     ).toBe(false);
-    // 恒保留规则不能被动：只勾某个站点时这批条目仍要在结果里
-    expect(SITE_SRC, '通用条目不再恒保留，站点筛选会把可用条目一起筛掉').toMatch(
-      /return !key \|\| selectedSites\.includes\(key\)/,
+    // 「没填网址」走和其他站点同一条判定：空键先映射成哨兵，再看它有没有被勾选。
+    // 旧的 `!key ||` 恒保留旁路一旦回来，勾选某个站点会带出一批没填网址的条目，
+    // 用户读到的是「筛选没生效」——所以两条判据一起钉：映射在、旁路不在。
+    expect(SITE_SRC, '站点筛选不再把空网址条目映射到通用桶（它要么恒保留，要么彻底消失）').toMatch(
+      /return selectedSites\.includes\(siteKeyOf\(url\) \|\| GENERIC_SITE_KEY\)/,
     );
+    expect(SITE_SRC, '恒保留旁路回来了：勾了站点仍会带出没填网址的条目').not.toMatch(/return !key \|\|/);
+    // 牙齿：摘掉空键映射（只按归一键判定），上一条 toMatch 必须抓到
+    expect(
+      /return selectedSites\.includes\(siteKeyOf\(url\) \|\| GENERIC_SITE_KEY\)/.test(
+        SITE_SRC.replace('siteKeyOf(url) || GENERIC_SITE_KEY', 'siteKeyOf(url)'),
+      ),
+      '空键映射的判据没有牙齿：不映射也算通过',
+    ).toBe(false);
   });
 
   it('展示端：哨兵换成本地化文案，但回填筛选集的仍是站点键', () => {

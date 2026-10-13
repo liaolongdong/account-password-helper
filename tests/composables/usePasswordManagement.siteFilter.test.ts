@@ -7,9 +7,9 @@
  *
  * 1. **叠加关系不变**：站点与关键词、收藏、标签是 AND，多个站点之间是 OR。
  *    写成 AND 会让「选了 github.com 又选 gitlab.com」变成空表。
- * 2. **通用条目恒保留**：空 `url` 的条目对任何站点都可用，被筛掉等于让用户以为库里没有。
- *    它们另汇成候选集末位的「无网址」一桶，单独勾选时列表只剩这批——「找出没填网址的条目
- *    去补全」在管理页里只有这一个落点。
+ * 2. **没填网址的条目按它自己的桶判定**：空 `url` 归一后是空串，落到候选集末位的
+ *    「无网址」一桶。勾了别的站点就不出现（与同一条链上的标签筛选同口径），
+ *    单独勾这一桶时列表只剩这批——「找出没填网址的条目去补全」在管理页里只有这一个落点。
  * 3. **隐形空过滤**：某站点的条目被删光后该站点从候选集消失，若筛选条件不跟着剔除，
  *    下拉里看不见、列表却一直是空的。
  * 4. **页码复位**：筛选口径变了继续停在第 7 页只会读到空白，`filterSites` 必须进
@@ -69,7 +69,7 @@ describe('usePasswordManagement.siteFilter', () => {
     expect(matchedIds()).toEqual(['a', 'b']);
   });
 
-  it('选中站点后只留该站点条目，并保留空 url 的通用条目', () => {
+  it('选中站点后只留该站点条目，空 url 的条目跟着被筛掉', () => {
     mgmt.passwords.value = [
       makeEntry('gh1', 'https://github.com/login'),
       makeEntry('gh2', 'github.com'),
@@ -78,7 +78,7 @@ describe('usePasswordManagement.siteFilter', () => {
     ];
     mgmt.filterSites.value = ['github.com'];
 
-    expect(matchedIds()).toEqual(['any', 'gh1', 'gh2']);
+    expect(matchedIds()).toEqual(['gh1', 'gh2']);
   });
 
   it('多个站点之间是或关系', () => {

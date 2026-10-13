@@ -58,7 +58,10 @@ describe('管理页表格的渲染期对象身份', () => {
   });
 
   it('tooltip 的 popper 样式使用提升后的常量而非对象字面量', () => {
-    expect(TABLE_TPL).toContain(':popper-style="TAG_TOOLTIP_POPPER_STYLE"');
+    // 该常量已上移到 `utils/tableOverflowTooltip`，与表格截断气泡共用同一档宽度上限；
+    // 模块级冻结对象的身份比组件级 const 更稳，因此这里同时钉住导入，防止退回本地字面量
+    expect(TABLE_TPL).toContain(':popper-style="OVERFLOW_TIP_TEXT_STYLE"');
+    expect(TABLE_SRC).toMatch(/import \{[^}]*\bOVERFLOW_TIP_TEXT_STYLE\b[^}]*\} from '@\/utils\/tableOverflowTooltip'/);
     expect(TABLE_TPL).not.toMatch(/:popper-style="\{\s*\w/);
   });
 
