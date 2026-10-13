@@ -446,8 +446,8 @@ node scripts/store-shots/export-upload.mjs
 
 > 演示账号（中英各 **10 条**占位）内联在 `scripts/store-shots/seed.mjs` 的 `DEMO_CSV_ZH` / `DEMO_CSV_EN`，`seed.mjs` 还会收藏 2 条、把 1 条密码改两次（图 7、图 8 依赖这两步）；演示登录页 / 2FA 页为同目录的 `demo-login.html`、`demo-2fa.html`；截图与合成脚本也在该目录，完整用法（含 Chrome 启动参数、favicon 预热、自备 CSV）见其 `README.md`。
 >
-> 💡 版本徽章：脚本读取构建产物里的 `manifest.version`，所以**务必先让分支版本与即将提交的包一致**（同步到 `main` 后应为 3.9.0）再截，否则又会出现「截图版本与商店版本不符」。
-> ✅ 版本徽章已核验（2026-09-13 复核）：当前母版是合并 `main`（`package.json` 3.9.0）之后重截的一批，管理页截图里的徽章实测为 **v3.9.0**，与 `package.json` / `.output/chrome-mv3/manifest.json` 一致，可直接提交 3.9.0。图 6 是首启「设置主密码」页，**该页面本身不渲染版本徽章**，不存在徽章核对项。今后 `package.json` 再升版本，必须 `pnpm build` → 重跑 `capture.mjs` → 重跑 `export-upload.mjs`，否则又会出现「截图版本与商店版本不符」。
+> 💡 版本徽章：脚本读取构建产物里的 `manifest.version`，所以**务必先让分支版本与即将提交的包一致**（当前 `package.json` 与商店在架版本同为 3.15.2）再截，否则又会出现「截图版本与商店版本不符」。
+> ✅ 版本徽章已核验（2026-10-13 重拍）：当前母版是 2026-10-13 用 `.output/chrome-mv3`（manifest **3.15.2**）重截的一批，管理页截图里的徽章实测为 **v3.15.2**，与 `package.json` 及商店在架读数（shields `v3.15.2`）一致。图 6 是首启「设置主密码」页，**该页面本身不渲染版本徽章**，不存在徽章核对项。今后 `package.json` 再升版本，必须 `pnpm build` → 重跑 `capture.mjs` → 重跑 `export-upload.mjs`，否则又会出现「截图版本与商店版本不符」。
 
 > 📐 **尺寸对照**：新一组母版是官方规格的精确 2 倍（1280×800 @2x = 2560×1600），`export-upload.mjs` 按 2:1 降采样即得官方尺寸；母版本身仍用于 `index.html` 与 README（高清显示更锐利），**商店截图槽取 `upload/` 里的 1280×800 版**。`assets/screenshots/` 里的旧 12 张是 2880×1598~1610（约 16:9），既非官方比例、版本也已过期。
 >
@@ -740,7 +740,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 | 7   | 核心功能无付费墙 | 核心功能免费                        | ✅ 已满足（完全免费）                                                                                                    |
 | 8   | 无未解决违规     | 无政策违规记录                      | ⚠️ 2026-09-09 有一条 keyword stuffing 驳回（3.8.0 草稿，未上架）——须新建草稿通过审核后再提名                             |
 | 9   | 性能             | 高效运行、不滥用资源                | ✅ 已满足（侧边栏全场景秒开，SLA <1s；缓存快路径 20-50ms 拿到数据）                                                      |
-| 10  | 商店列表质量     | 标题/描述/截图完整高质量            | 🔄 文案已按驳回重写待审；截图已于 2026-09-13 用 `scripts/store-shots/` 重制（中英各 14 张候选），**徽章已是 v3.9.0**     |
+| 10  | 商店列表质量     | 标题/描述/截图完整高质量            | 🔄 文案已按驳回重写待审；截图已于 2026-10-13 用 `scripts/store-shots/` 重制（中英各 14 张候选），**徽章已是 v3.15.2**    |
 
 ### 7.2 提名表单文案 — 英文（直接粘贴）
 
@@ -892,7 +892,7 @@ No specific website accounts are required. The extension treats all websites uni
 - [ ] 分类选择 Productivity
 - [ ] 商店图标已上传（128×128）
 - [ ] 截图已上传（**中文页与 English (United States) 页各 5 张**，从 `assets/cws-store/upload/*-1280x800.png` 的 14 张候选里选，英文页取 `-en-` 那一套；**不要传 2560×1600 母版、也不要再用旧的 `01-*.png` ~ `12-*.png`**）
-- [ ] 截图版本徽章与提交包一致（**当前批次徽章为 v3.9.0**，与 `package.json` / `manifest` 同源；改版本后必须 `pnpm build` 并重跑 `scripts/store-shots/`）
+- [ ] 截图版本徽章与提交包一致（**当前批次徽章为 v3.15.2**，2026-10-13 重拍，与 `package.json` / `manifest` 同源；改版本后必须 `pnpm build` 并重跑 `scripts/store-shots/`）
 - [ ] Marquee 宣传图（1400×560）已上传
 - [ ] Small Promo Tile（440×280）已上传
 - [ ] 隐私政策 URL 已填写

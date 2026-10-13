@@ -558,7 +558,7 @@
 1. **粘贴前先跑自检**（`docs/store/CWS_PUBLISHING_GUIDE.md`「快速校验命令」末尾的 python）：期望 `paste blocks: 6 | banned hits: none`、中英说明 `duplicate lines: none`、`zh description chars … 5122` / `en … 12549`（十五修订轮末值；与本文档头部记录的轮末值一致即说明复制源没被中途改过——**粘贴块每加删一行这个数就会漂，历史轮末值只作该轮快照，别当实时阈值用**），且四个 `_locales` 值与粘贴块逐字一致。
 2. 登录 [Developer Dashboard](https://chrome.google.com/webstore/devconsole) → 该扩展 → **商品详情**：中文语言标签页替换「说明」，English 标签页替换「Description」。两段都从 `docs/store/CWS_FILL_CONTENT.md`「第二步」整段复制（该文件是唯一事实来源，**不要再从手册复制**）；名称与摘要**不用动**。
 3. 顺带核对，不必重做：marquee 与小推广图**已重绘为合规版本**（`assets/cws-store/`，源在 `imgs/store-creatives/`）。**产品截图候选 14 张（`screen-1..14`）**由 `scripts/store-shots/` 从占位演示页生成，画面全部是 `example.com` 数据、不含任何真实账号；英文页同一批 `capture` 换 `en` 参数跑，产出带 `-en` 后缀的同名文件。旧的 `assets/screenshots/01..12` 与 `assets/cws-store/01..08`（v2.12.0 真机图、含真实凭据）**永远不要再上传**。
-   ⚠️ **若本轮要重传截图，先核对版本徽章**：徽章取自构建产物的 `manifest.version`，现存的 28 张（2026-09-13 整批重截）徽章是 **`v3.9.0`**，与线上 **v3.13.0** 已不符——「截图版本与商店版本不符」是已知的驳回与信任风险点（图片里的文字同属商店元数据）。要重传就按 `docs/store/CWS_FILL_CONTENT.md`「屏幕截图」重截到新徽章，商店每语言页上限 5 张，按卖点排序取舍。
+   ⚠️ **若本轮要重传截图，先核对版本徽章**：徽章取自构建产物的 `manifest.version`，现存的 28 张母版是 **2026-10-13 整批重拍**的，徽章为 **`v3.15.2`**，与商店在架读数（shields 2026-10-13 复核 `v3.15.2`）**一致**，可直接取 `assets/cws-store/upload/*-1280x800.png` 上传——「截图版本与商店版本不符」是已知的驳回与信任风险点（图片里的文字同属商店元数据），下次 `package.json` 再升版本就要按 `docs/store/CWS_FILL_CONTENT.md`「屏幕截图」重截到新徽章。商店每语言页上限 5 张，按卖点排序取舍。
 4. 隐私标签页：权限逐项说明（用「第二步 → 权限说明」原文，其中 `webNavigation` 的说法已按实测改为「仅枚举当前标签页框架，不监听导航」）、隐私政策 URL 与官网一致。
 5. 提交审核，并在日历上记一次复盘：若再次被拒，把驳回文本原样补进 `CWS_PUBLISHING_GUIDE.md`「第四步 → 常见驳回原因」。
 6. 🔻 **若驳回点名的是表情符号**（措辞像「excessive metadata / 过多特殊字符」）：按十四修订记录的兜底做法，**只删每行前导 emoji、保留分行与全部文字不变**再提交一次。商店政策本身没有禁 emoji，但判定权在审核，回退成本必须压到一次文本替换。
