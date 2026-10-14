@@ -1119,8 +1119,14 @@ const {
  * 命令面板动作清单（Ctrl/Cmd+K）
  *
  * 每项 `run` 复用 HeaderBar 菜单/按钮已有的处理函数，走完全相同的落码路径，不新增业务行为；
- * `label` 复用既有菜单文案，`keywords` 仅为检索别名（不渲染，故不受 i18n 约束）。
+ * `label` 复用既有菜单文案，`keywords` 仅为检索别名（不渲染，故不受 i18n 约束）——但别往里写
+ * 属于另一条命令的词：匹配方向是「输入必须是别名的子串」，借词会把那个词的首位结果抢过来。
  * 每次面板打开时按当前语言重新求值标签，语言切换后重开即生效。
+ *
+ * `entry` 组跟随头部右侧那一排辅助入口的相对顺序（新手引导 → 使用指引 → 关于；偏好设置在
+ * `preferences` 组）。清单会在 `useCommandPalette` 里 `watch(filtered)` 的初次求值时跑一遍，
+ * 所以引用声明在本清单之后的 handler 必须包一层箭头（`run: () => foo()`），写函数名会撞 TDZ。
+ * 增删条目要同轮改 14 个对外文件里的 20 处条数文案；这两条判据都在 `tests/architecture/commandPaletteCopy.test.ts`。
  */
 const buildPaletteActions = () => [
   {
@@ -1138,11 +1144,25 @@ const buildPaletteActions = () => [
     run: () => (showHealthDialog.value = true),
   },
   {
+    id: 'tour',
+    group: 'entry',
+    label: t('options.header.tour'),
+    keywords: ['tour', 'onboarding', 'walkthrough', 'replay'],
+    run: () => replayTour(),
+  },
+  {
     id: 'guide',
     group: 'entry',
     label: t('options.header.guide'),
     keywords: ['guide', 'help', 'doc', 'manual', 'faq'],
     run: () => openGuide(),
+  },
+  {
+    id: 'about',
+    group: 'entry',
+    label: t('options.header.about'),
+    keywords: ['about', 'version', 'info', 'privacy', 'link'],
+    run: () => (showAboutDrawer.value = true),
   },
   {
     id: 'downloadTemplate',
