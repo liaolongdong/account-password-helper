@@ -1,5 +1,40 @@
 # Changelog
 
+## [3.16.0](https://github.com/liaolongdong/account-password-helper/compare/v3.15.2...v3.16.0) (2026-10-14)
+
+
+### Features
+
+* **backup:** 备份提醒接通落盘闭环——全库导出才撤提醒，判定与接线补守卫 ([da254c7](https://github.com/liaolongdong/account-password-helper/commit/da254c7ff0cf31adf0ceb842e1c8da227af04d64))
+* **identity:** 身份库主密码复验改成三档策略，默认「本会话内复验一次」 ([f542787](https://github.com/liaolongdong/account-password-helper/commit/f542787107d0012fafc92b26e95a5e55063f622f))
+* **options:** 「关于」简介改成一段能读的事实 + 五条核心能力清单 ([f8dd7b7](https://github.com/liaolongdong/account-password-helper/commit/f8dd7b788766b5ebb20bd5c44afa833f6010793c))
+* **options:** 「查看详情」改用自绘详情卡，替掉语义是「提示」的圆圈 i ([8f0b054](https://github.com/liaolongdong/account-password-helper/commit/8f0b054a2a498bf1c3a018f451c45601a262bdf0))
+* **options:** 新增「关于」抽屉，集中版本、数据存放口径与对外出口 ([54d6d48](https://github.com/liaolongdong/account-password-helper/commit/54d6d48ebe2a115c09e94133e7baa15dbcd83d1f))
+* **scripts:** 实现 main 分支自动同步合并工具 ([6d27ac8](https://github.com/liaolongdong/account-password-helper/commit/6d27ac8da80ce5e83c4be2d18b78d58dadb5f841))
+* **site-rules:** 站点规则可按域名覆盖快速填充入口 ([7b14d3d](https://github.com/liaolongdong/account-password-helper/commit/7b14d3d9a6228eb6a2137211699819eb3a9d11c0))
+* **theme:** 占位符独立成 --aph-text-placeholder 令牌，内联下拉同色收口 ([5f25e23](https://github.com/liaolongdong/account-password-helper/commit/5f25e23af3aa79b02edc93bce668a624f6816a77))
+* 身份库复验三档 + 备份提醒落盘闭环 + 占位符令牌，对外文档口径随功能落地即刷 ([108e058](https://github.com/liaolongdong/account-password-helper/commit/108e058e751e64b3d9ba8481ff1d04acd9cf2292))
+
+
+### Bug Fixes
+
+* **command-palette:** 遮罩先成为滚动容器，再剪断滚轮到底部列表的滚动链 ([e22e721](https://github.com/liaolongdong/account-password-helper/commit/e22e721c289af6536f52dc23684d450d1ae0d607))
+* **deploy:** Worker 静态资源只装公开落地页闭包 ([c60f63b](https://github.com/liaolongdong/account-password-helper/commit/c60f63bc880de2949c16f20eae4a331e9f298785))
+* **deploy:** Worker 静态资源只装公开落地页闭包 ([a635a37](https://github.com/liaolongdong/account-password-helper/commit/a635a37165fc9af05bed9e2b29ba1ad341aae9fd))
+* **options:** 「关于」抽屉的品牌标改用产物图标，堵住首屏 eager 预算被拆出新 chunk ([ae00ae2](https://github.com/liaolongdong/account-password-helper/commit/ae00ae28e6e27869cd93a1f9cb0a380987ed90d7))
+* **options:** 「关于」抽屉的许可证订正为 GPL-3.0，并补全文出口与纵向版式 ([e947e1c](https://github.com/liaolongdong/account-password-helper/commit/e947e1c8957a260feee21beb095787386316383b))
+* **options:** 「关于」简介的英文开关名改成界面真实显示的 Auto-submit login ([164c4a4](https://github.com/liaolongdong/account-password-helper/commit/164c4a48bc8e1c52a356a7786043b7a0a7985422))
+* **options:** 抽屉标题与正文之间的空带由 52px 收到 24px ([1bc2c0a](https://github.com/liaolongdong/account-password-helper/commit/1bc2c0ac9b54b5069415636d05ed62c9b528a615))
+* **options:** 条目详情抽屉长值折行、字段名不再竖排，备注补高亮与一键复制 ([8a79760](https://github.com/liaolongdong/account-password-helper/commit/8a79760e72f04c199546c2b318bebbceb9d46cd1))
+* **options:** 站点筛选把「（无网址）」当普通一档，勾了站点不再带出没填网址的条目 ([a192e7b](https://github.com/liaolongdong/account-password-helper/commit/a192e7b89b9009386a720e4c677aebd32dfa3b10))
+* **options:** 站点规则「跟随全局」改用非空哨兵，替掉英文占位符 ([e807276](https://github.com/liaolongdong/account-password-helper/commit/e807276a3d56b7e289c1ae8f6dbdb7205ee7d61c))
+* **options:** 表格截断浮层收到 500px 上限，与标签气泡共用同一档宽度 ([2e42ba4](https://github.com/liaolongdong/account-password-helper/commit/2e42ba4f4c89dbc30a9506ba42e06191e59289f9))
+* **options:** 顶部工具条左右两组按钮净间距统一为 12px ([933f03c](https://github.com/liaolongdong/account-password-helper/commit/933f03c88ffb92d12a82abc511ba86d4b9525396))
+* **sidepanel:** 两颗复制图标之间的净间距由 12px 收到 8px ([7a0cc89](https://github.com/liaolongdong/account-password-helper/commit/7a0cc8952442ab85e4c09d91994ef97358cd5e2e))
+* **site-rules:** 修正影子 DOM 穿透行提示语左对齐问题 ([c709c0c](https://github.com/liaolongdong/account-password-helper/commit/c709c0c27abcb5b2953b83dd74b98600d8a27d95))
+* **site-rules:** 清掉唯一覆盖时移除规则，而不是把用户堵在改不回去的死路上 ([7cbd38d](https://github.com/liaolongdong/account-password-helper/commit/7cbd38db256b9c553424d0b0e993064fe7463e77))
+* **store-shots:** 修掉两处把 Node 常量写进浏览器侧脚本的引用错误，seed 时压掉新手引导 ([2a59bef](https://github.com/liaolongdong/account-password-helper/commit/2a59bef952a73400ee72bb6418a9edcf29fdc418))
+
 ## [3.15.2](https://github.com/liaolongdong/account-password-helper/compare/v3.15.1...v3.15.2) (2026-10-11)
 
 
