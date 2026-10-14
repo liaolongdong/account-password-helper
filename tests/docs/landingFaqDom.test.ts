@@ -12,7 +12,7 @@
  * 3. 折叠态只挂在 `html.js` 下——JS 缺席或兜底回退时全部答案必须展开可读；
  * 4. 静态 DOM 与页内 `renderFaqs()` 模板结构同构（同样的 `faq-q` / `chev` / `faq-a-inner` 与
  *    `aria-expanded="false"`），切语言重建后视觉与交互不变；
- * 5. 手工维护的 `<noscript>` FAQ 段确实被删掉，页内只剩窄屏页头那一个 `<noscript>`；
+ * 5. 手工维护的 `<noscript>` FAQ 段确实被删掉，页内只剩「窄屏页头样式」与「无 JS 文字兜底」两个 `<noscript>`；
  * 6. 右栏「分类直达」同样只从 `FAQS` 推导：标题、条数、锚点三样与左列逐字对齐，且锚点在页面里
  *    真的落得下去（`#faq-cat-*` 与分类节点成对出现、id 全页唯一、网格拆分只在 ≥1080px 生效）；
  * 7. 右栏第二张卡「没找到答案」的真源是页面的 `I18N` 字典，不是 `FAQS`，也不是页内第二份常量：
@@ -624,6 +624,9 @@ describe.each([zh, en])('$label — FAQ 静态 DOM 的无 JS 可读路径', (pag
   it('手工维护的 <noscript> FAQ 段已删除', () => {
     expect(page.html).not.toContain('faq-noscript');
     expect(page.html).not.toContain('常见问题 / FAQ');
+    // 两处：<head> 里兜窄屏页头样式，body 里给「哪些区块需要 JS」的文字兜底（见 landingNoJsSurface）。
+    // 行首锚定只为把「真标记」与 <style>/字典里复述的那几遍分开——整份文件直接数会得到 7。
+    expect(page.html.match(/^ {4}<noscript[>]/gm) || []).toHaveLength(2);
     expect(page.html.match(/^ {4}<noscript>$/gm) || []).toHaveLength(1);
   });
 

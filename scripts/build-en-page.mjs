@@ -154,6 +154,17 @@ replaceOnce(/property="og:image"\s+content="[^"]*"/, `property="og:image"\n     
 replaceOnce(/name="twitter:image"\s+content="[^"]*"/, `name="twitter:image"\n      content="${OG_IMAGE_EN}"`);
 // SoftwareApplication 的 image 与分享图同源，否则英文页的富结果会挂上中文卡
 replaceOnce(`"image": "${OG_IMAGE_ZH}"`, `"image": "${OG_IMAGE_EN}"`);
+// screenshot[] 同理：英文页声明英文那套截图。整块按 `-en` 后缀重写，条数与顺序照抄源页，
+// 所以新增一张截图不需要动本脚本——源页没有 `-en` 版本时，页面自己就会挂出中文图，
+// 那属于「图还没做」而不是「生成器漏了」。
+replaceOnce(/"screenshot": \[[\s\S]*?\],/, block => block.replaceAll('.png"', '-en.png"'));
+// 首帧静态 slide 的截图与 alt：`applyI18n` 只换标签内容、不碰属性，而这一屏是服务字节里唯一
+// 静态写着的 slide，所以按运行时 `shotFile()` 的同一条规则换英文那套图，alt 直接取字典里的英文名
+// （与 h3 同一个真源，不在此处再抄一遍）。中文源页改了文件名 → 这里匹配不上即失败，不会静默留一张中文图。
+replaceOnce(
+  /src="\.\/assets\/cws-store\/(screen-1-one-click-login)\.png" alt="[^"]*"/,
+  `src="./assets/cws-store/$1-en.png" alt="${I18N['showcase.s1.title'].en}"`,
+);
 
 // 页内跳转改为英文兄弟页面，避免英文页链向中文页
 const replaceEvery = (from, to) => {

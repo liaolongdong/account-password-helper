@@ -134,7 +134,8 @@
       type="application/xml"
       href="./sitemap.xml"
     />
-    <!-- SoftwareApplication 结构化数据：帮助 Google 识别为 Chrome 扩展产品页，提升富媒体搜索结果展示 -->
+    <!-- SoftwareApplication 结构化数据：帮助 Google 识别为 Chrome 扩展产品页，提升富媒体搜索结果展示。
+         datePublished 取首个发布标签的提交日期，可复算：`git log -1 --format=%ci v1.0.0` → 2026-05-23 -->
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -146,6 +147,7 @@
         "operatingSystem": "Chrome",
         "browserRequirements": "需要 Chrome 114 或更高版本以使用 Side Panel API（未声明 minimum_chrome_version，旧版本仅侧边栏功能不可用）；兼容 Edge、Brave 等 Chromium 内核浏览器",
         "softwareVersion": "3.15.2",
+        "datePublished": "2026-05-23",
         "dateModified": "2026-10-14",
         "isAccessibleForFree": true,
         "offers": {
@@ -764,6 +766,25 @@
         max-width: var(--container);
         margin: 0 auto;
         padding: 0 24px;
+      }
+
+      /*
+       * JS 缺席时的文字兜底（真身在 body 里那条 `<noscript>`，紧接页头之后）。
+       *
+       * 之前页内唯一的 `<noscript>` 在 head 里，只兜窄屏页头的导航样式，关掉脚本的访客和
+       * 不执行 JS 的爬虫拿不到任何「这个区块需要 JS、其余照常可读」的说明。这条只借
+       * `--text-muted` 与容器宽度，不参与配色，也不遮挡正文。
+       */
+      .noscript-note {
+        padding-top: 16px;
+        font-size: 14px;
+        line-height: 1.7;
+        color: var(--text-muted);
+      }
+
+      .noscript-note a {
+        color: inherit;
+        text-decoration: underline;
       }
 
       section {
@@ -4367,6 +4388,9 @@
       </div>
     </header>
 
+    <!-- prettier-ignore -->
+    <noscript><div class="container noscript-note"><p data-i18n-html="noscript.note">本页的功能截图轮播（首帧除外）、密码生成器演示与语言切换需要 JavaScript；正文、安装步骤与常见问题无需 JavaScript 即可完整阅读，整站纯文摘要见 <a href="./llms.txt">llms.txt</a>。</p></div></noscript>
+
     <!-- ======= Metrics ======= -->
     <section
       class="metrics"
@@ -5285,7 +5309,17 @@
               class="carousel-track"
               id="carouselTrack"
             >
-              <!-- slides injected by JS -->
+              <!-- 首帧静态：非 JS 的消费者（GPTBot / ClaudeBot / 关掉脚本的访客）抓到的不再是空区块。
+                   `renderCarousel()` 起手即 `track.innerHTML = ''`，所以开着 JS 的人永远看不到这一块，
+                   它不会与运行时注入的那 13 屏并存，也不需要第二条渲染路径。
+                   `prettier-ignore` 是必须的：printWidth 120 会把这段长文案在 CJK 之间折行，
+                   而折行在 HTML 里塌成一个空格。 -->
+              <!-- prettier-ignore -->
+              <div class="slide">
+                <div class="slide-shot"><img src="./assets/cws-store/screen-1-one-click-login.png" alt="一键登录：填充 → 勾选 → 提交" loading="lazy" /></div>
+                <div class="slide-info"><span class="step-tag">STEP 01</span><h3 data-i18n="showcase.s1.title">一键登录：填充 → 勾选 → 提交</h3><p data-i18n="showcase.s1.desc">在登录页打开侧边栏，点「填充并登录」即可填好账号密码、勾选「记住我」并点击登录；开启「自动触发登录」后，快捷键 Ctrl+Shift+F 也能一步到位。侧边栏按当前域名优先展示，顶栏常驻「+」可就地添加本站账号。</p></div>
+              </div>
+              <!-- 其余各屏由 JS 注入 -->
             </div>
             <button
               class="carousel-arrow prev"
@@ -6544,6 +6578,15 @@ pnpm lint:style  # Stylelint</code></pre>
                 >作者的其他插件</a
               ></span
             >
+            <!-- llms.txt 是给非 JS 爬虫（GPTBot / ClaudeBot 等）读的纯文本站点摘要；
+                 它此前只被 sitemap 之外的一切引用，页面上没有任何入口指向它。 -->
+            <span
+              ><a
+                href="./llms.txt"
+                data-i18n="footer.llms"
+                >AI 摘要（llms.txt）</a
+              ></span
+            >
             <span>
               <a
                 href="https://github.com/liaolongdong/account-password-helper"
@@ -6841,6 +6884,7 @@ pnpm lint:style  # Stylelint</code></pre>
         'footer.compare': { zh: '替代方案对比', en: 'Alternatives' },
         'footer.blog': { zh: '技术博客', en: 'Tech Blog' },
         'footer.more': { zh: '作者的其他插件', en: 'More by the author' },
+        'footer.llms': { zh: 'AI 摘要（llms.txt）', en: 'AI summary (llms.txt)' },
         'hero.title': {
           zh: '本地加密的密码管理器<br />为开发者与测试人员而做',
           en: 'A local-first password manager<br />built for developers & QA',
@@ -7146,6 +7190,23 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '从初次设置到日常使用，一图看懂每一项功能',
           en: 'From first-time setup to daily use — one image per feature',
         },
+        // 首帧 slide 的文案是「服务字节」的一部分：`#carouselTrack` 里静态写着这一屏，
+        // 而不是等 JS 注入。真源放字典，`SLIDES[0]` 与静态 DOM 都读这里（由守卫钉住一致）。
+        'showcase.s1.title': {
+          zh: '一键登录：填充 → 勾选 → 提交',
+          en: 'One-click sign-in: fill, tick, submit',
+        },
+        'showcase.s1.desc': {
+          zh: '在登录页打开侧边栏，点「填充并登录」即可填好账号密码、勾选「记住我」并点击登录；开启「自动触发登录」后，快捷键 Ctrl+Shift+F 也能一步到位。侧边栏按当前域名优先展示，顶栏常驻「+」可就地添加本站账号。',
+          en: 'On a login page, pick an entry in the side panel and choose "Fill and sign in" — credentials filled, "remember me" ticked, sign-in clicked. Turn on "Auto-submit login" and Ctrl+Shift+F does the same. The panel lists the current domain first, and the "+" in its header adds an account for this site on the spot.',
+        },
+        // body 里 `<noscript>` 的文字兜底：不执行 JS 的读者需要知道哪些区块受限、去哪儿拿纯文版。
+        // 带 `<a>` 所以走 data-i18n-html；`<noscript>` 的子节点在 JS 开启时不入 DOM，
+        // 运行时 applyLang 永远碰不到它，只有服务字节里的这一份会渲染。
+        'noscript.note': {
+          zh: '本页的功能截图轮播（首帧除外）、密码生成器演示与语言切换需要 JavaScript；正文、安装步骤与常见问题无需 JavaScript 即可完整阅读，整站纯文摘要见 <a href="./llms.txt">llms.txt</a>。',
+          en: 'The feature carousel (first frame aside), the password-generator demo and the language switch need JavaScript; the prose, install steps and FAQ read in full without it. A plain-text summary of the whole site lives in <a href="./llms.txt">llms.txt</a>.',
+        },
         'steps.title': { zh: '四步开始使用', en: 'Get Started in Four Steps' },
         'steps.sub': { zh: '无需注册，无需登录，下载即用', en: 'No sign-up, no login — download and go' },
         'steps.s1.title': { zh: '安装扩展', en: 'Install the Extension' },
@@ -7322,11 +7383,10 @@ pnpm lint:style  # Stylelint</code></pre>
         {
           file: 'screen-1-one-click-login.png',
           tag: 'STEP 01',
-          title: { zh: '一键登录：填充 → 勾选 → 提交', en: 'One-click sign-in: fill, tick, submit' },
-          desc: {
-            zh: '在登录页打开侧边栏，点「填充并登录」即可填好账号密码、勾选「记住我」并点击登录；开启「自动触发登录」后，快捷键 Ctrl+Shift+F 也能一步到位。侧边栏按当前域名优先展示，顶栏常驻「+」可就地添加本站账号。',
-            en: 'On a login page, pick an entry in the side panel and choose "Fill and sign in" — credentials filled, "remember me" ticked, sign-in clicked. Turn on "Auto-submit login" and Ctrl+Shift+F does the same. The panel lists the current domain first, and the "+" in its header adds an account for this site on the spot.',
-          },
+          // 这一屏的文案在 I18N 字典里：静态首帧 DOM、`pnpm gen:en` 的 alt 替换、这里的运行时
+          // 渲染三条路径共用同一份值。其余各屏只由 JS 注入，仍就地写着。
+          title: I18N['showcase.s1.title'],
+          desc: I18N['showcase.s1.desc'],
         },
         {
           file: 'screen-2-totp.png',

@@ -208,6 +208,27 @@ describe('官网 SEO 表面一致性', () => {
     }
   });
 
+  it('SoftwareApplication 声明 datePublished，且不晚于 dateModified', () => {
+    // 只补 datePublished，不加 aggregateRating：后者要求真实评分来源与可见展示，伪造的星级
+    // 既违反 Google 的结构化数据政策，也会被 AI 爬虫原样引用成一条不存在的口碑。
+    const values: string[] = [];
+    for (const file of ['index.html', 'en.html']) {
+      const html = readPage(file);
+      const published = /"datePublished":\s*"(\d{4}-\d{2}-\d{2})"/.exec(html);
+      const modified = /"dateModified":\s*"(\d{4}-\d{2}-\d{2})"/.exec(html);
+      expect(published, `${file} 缺少 datePublished`).not.toBeNull();
+      expect(modified, `${file} 缺少 dateModified`).not.toBeNull();
+      expect(
+        new Date(published![1]).getTime() <= new Date(modified![1]).getTime(),
+        `${file} 的 datePublished 晚于 dateModified`,
+      ).toBe(true);
+      // 取值口径必须写在页内注释里，否则下一个读到 "2026-05-23" 的人无法判断它是不是编的
+      expect(html, `${file} 没有交代 datePublished 从哪来`).toContain('git log -1 --format=%ci v1.0.0');
+      values.push(published![1]);
+    }
+    expect(values[0], '中英两页的 datePublished 不同源').toBe(values[1]);
+  });
+
   it('隐私页的 lastmod 等于页内「最后更新」', () => {
     for (const file of ['privacy.html', 'privacy.en.html']) {
       const body = bodyOf(file);
