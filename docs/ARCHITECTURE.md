@@ -125,6 +125,7 @@ graph TB
 │   │   ├── PasswordVisibilityToggle.ts # 密码显示/隐藏切换
 │   │   ├── CheckboxHandler.ts      # 复选框自动勾选
 │   │   ├── NativeNotification.ts   # 原生浏览器通知
+│   │   ├── FillAckChip.ts          # 填充成功页面内回执胶囊（Closed Shadow DOM）
 │   │   ├── contextMenuTarget.ts    # 右键目标输入框记忆（供 Background 定向下发）
 │   │   ├── formSelectors.ts        # 选择器与关键词常量
 │   │   ├── domUtils.ts             # DOM 元素可见性检测工具
@@ -301,6 +302,7 @@ graph TB
 - 识别用户名、密码、手机号、验证码字段；填充后自动勾选**得分最高的那一个**复选框——`calculateCheckboxScore` 按与密码输入框的距离、关键词命中、DOM 位置、是否同表单、层级深度为每个候选打分后取最优，而非单纯取最近的复选框；按 `CHECKBOX_POSITIVE_KEYWORDS`（记住我 / 自动登录 / 同意 / 服务条款 / remember / agree / terms…）判定可勾，命中 `CHECKBOX_NEGATIVE_KEYWORDS`（订阅 / 通知 / 营销 / subscribe / newsletter / ads…）则跳过，避免误勾营销类选项（见 [CheckboxHandler.ts](../entrypoints/content/CheckboxHandler.ts) / [formSelectors.ts](../entrypoints/content/formSelectors.ts)）。
 - WeakMap / WeakSet 缓存字段判断结果，避免内存泄漏。
 - 填充策略自动降级：**Native Setter → execCommand → 模拟键盘事件**，每级约 50ms 后回读校验实际值。
+- 填充成功后，真正写进去的那个输入框下缘浮出一枚回执胶囊（「已填充」/「已填充，请核对」），1.6 秒自动收起，滚动与缩放时跟随字段重定位、字段脱离文档即收起（见 [FillAckChip.ts](../entrypoints/content/FillAckChip.ts)）。它补的是「侧边栏 / popup 填充后立即关闭、快捷键与右键菜单本来没有页面内提示」这段反馈真空：确认动作发生在视线当前位置，不必把眼睛挪回表单核对。四条填充路径（账号密码 / 手机号 / 动态码 / 右键菜单）各自锚到**真正落地的那个框**，密码框优先；一个字段都没写进去时不回执（失败提示归发起方，且面板刻意保持打开）。`unverified`（写入成功但站点未必登记了 `input` 事件）用「请核对」文案，因为这一档真正需要用户看一眼。胶囊走 Closed Shadow DOM、只渲染固定文案，**绝不承载账号 / 密码 / 验证码**；减弱动效档只关那 3px 上浮，淡入淡出保留。
 - 链条末端的「点击登录」由偏好设置中的**「自动触发登录」开关**决定（默认关闭），开启后按「点击登录按钮 → `form.requestSubmit()`」两级策略提交（见 [SettingsPanel.ts](../entrypoints/content/floatingButtons/SettingsPanel.ts) / [FormDetector.ts](../entrypoints/content/FormDetector.ts)）。不想常开时，侧边栏每条账号另有显式的「填充并登录」按钮，只对本次生效。
 
 ### 3. 数据管理
