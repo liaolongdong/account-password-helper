@@ -100,8 +100,8 @@ jobs:
           # 保持默认无头：新无头模式支持加载扩展，不需要 xvfb
         run: pnpm test:e2e
 
-      # CI 下 reporter 为 list、trace 为 on-first-retry，失败时产物落在 test-results/；
-      # playwright-report/ 只在非 CI 配置下生成，允许缺失。
+      # CI 下 reporter 为 list、trace 为 retain-on-failure（首试那一轮的 trace 也留），
+      # 失败时产物落在 test-results/；playwright-report/ 只在非 CI 配置下生成，允许缺失。
       - name: Upload test artifacts
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v6

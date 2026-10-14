@@ -228,7 +228,7 @@ pnpm exec playwright show-trace trace.zip
 
 `.github/workflows/e2e.yml` 与 `ci.yml` 同一触发口径：**push 到 `main`、所有 PR、外加 `workflow_dispatch`
 手动复跑**。它装 Playwright Chromium、把 `E2E_EXECUTABLE_PATH` 指向该构建、跑 `pnpm test:e2e`
-（`globalSetup` 先 `pnpm build`），失败时上传 `test-results/`（含首次重试的 trace）。
+（`globalSetup` 先 `pnpm build`），失败时上传 `test-results/`（含每个失败尝试的 trace，首试那一轮也在内）。
 文档、博客与图片类改动按 `paths-ignore` 跳过——被测面就是整个扩展源码，所以用「排除法」而不是
 白名单：白名单会在新增源码目录时静默漏跑。
 
