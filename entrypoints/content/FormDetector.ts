@@ -5,6 +5,7 @@ import {
   type FillEntry,
   FillPasswordData,
   FillResult,
+  type FillOutcome,
   PingResponse,
   PendingTotpData,
 } from '@/utils/types';
@@ -38,6 +39,7 @@ import {
   getTotpHandoffCapsule,
   destroyTotpHandoffCapsule,
 } from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
+import { getFillAckChip, destroyFillAckChip } from './FillAckChip';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { getSiteRule, isValidCssSelector, type SiteRule } from '@/utils/storage/siteRules';
 import { resolveFillEntry } from '@/utils/fillEntry';
@@ -1214,6 +1216,7 @@ export class FormDetector {
         // 右键菜单填充：目标为被右键的输入框（由 contextMenuTarget 记忆），
         // 消息由 background 经 tabs.sendMessage({ frameId }) 定向本 frame
         fillContextMenuTarget(message.data).then(result => {
+          if (result.success) this.showFillAck(resolveContextMenuInputTarget());
           sendResponse(result);
         });
         return true;
@@ -1385,6 +1388,22 @@ export class FormDetector {
   }
 
   /**
+   * 在页面内给出「填充已落地」的回执
+   *
+   * 侧边栏 / popup 在填充成功后会各自关闭，快捷键与右键菜单同样没有页面内提示，
+   * 回执胶囊因此锚定在刚写入的那个字段下缘，让确认动作发生在用户视线当前位置。
+   * `unverified`（写入成功但站点未必登记了 input 事件）换成「请核对」文案，
+   * 因为这一档真正需要用户看一眼。胶囊只渲染固定文案，不含任何填充值。
+   *
+   * @param field - 刚写入值的字段，无有效字段时静默跳过
+   * @param outcome - 填充成功档位，来自 FillResult.outcome
+   */
+  private showFillAck(field: HTMLElement | null, outcome?: FillOutcome): void {
+    if (!field) return;
+    getFillAckChip().show(field, outcome === 'unverified' ? 'check' : 'filled', this.floatingButtonConfig.theme);
+  }
+
+  /**
    * 填充密码并返回详细结果
    * @param data - 填充数据（用户名和密码）
    * @returns 填充结果
@@ -1446,6 +1465,9 @@ export class FormDetector {
         }
       }
 
+      // 回执锚点：记下真正写进去的那个框，密码框优先（用户最关心它有没有落进去）
+      let ackField: HTMLInputElement | null = null;
+
       // 填充用户名（仅选取仍在文档中且可见的字段，避免写入已分离的过期节点）
       if (data.username) {
         const usernameField = this.findFillableField(this.usernameFields);
@@ -1455,6 +1477,7 @@ export class FormDetector {
           result.details.usernameField.filled = fillResult.filled;
           result.details.usernameField.verified = fillResult.verified;
           result.details.strategy = fillResult.strategy;
+          if (fillResult.filled) ackField = usernameField;
         }
       }
 
@@ -1466,6 +1489,7 @@ export class FormDetector {
           const fillResult = await this.inputFiller.setInputValueWithStrategies(passwordField, data.password);
           result.details.passwordField.filled = fillResult.filled;
           result.details.passwordField.verified = fillResult.verified;
+          if (fillResult.filled) ackField = passwordField;
           if (fillResult.strategy !== 'native') {
             result.details.strategy = fillResult.strategy;
           }
@@ -1489,6 +1513,11 @@ export class FormDetector {
         result.reason = 'nothing_filled';
         result.message = tl('cs.fd.fillIncomplete');
       }
+
+      // 回执只跟着「真正写进去的字段」走：失败路径必然一个字段都没写（ackField 仍为 null），
+      // 此时提示语由发起方（侧边栏 / popup / 内联面板）展示且面板刻意保持打开，
+      // 再叠一枚胶囊就是同一件事说两遍
+      this.showFillAck(ackField, result.outcome);
 
       // 按配置自动触发登录（仅账号密码场景，且密码字段已实际填充）
       // 当 autoLogin 为 true 时强制触发登录
@@ -1562,15 +1591,24 @@ export class FormDetector {
    */
   private fillMobileCode(data: { mobile: string; code: string }): void {
     try {
+      // 回执锚点：写到「仍在文档中且可见」的框才算真的落地，与密码填充同一口径
+      let ackField: HTMLInputElement | null = null;
+
       if (data.mobile && this.mobileFields.length > 0) {
-        this.inputFiller.setInputValueNative(this.mobileFields[0], data.mobile);
+        const field = this.mobileFields[0];
+        this.inputFiller.setInputValueNative(field, data.mobile);
+        if (field.isConnected && isElementVisible(field)) ackField = field;
       }
 
       if (data.mobile && this.mobileFields.length === 0 && this.usernameFields.length > 0) {
-        this.inputFiller.setInputValueNative(this.usernameFields[0], data.mobile);
+        const field = this.usernameFields[0];
+        this.inputFiller.setInputValueNative(field, data.mobile);
+        if (field.isConnected && isElementVisible(field)) ackField = field;
       }
 
       this.checkboxHandler.autoCheckNearestCheckbox(this.checkboxFields, this.passwordFields, this.usernameFields);
+
+      this.showFillAck(ackField);
 
       setTimeout(() => {
         this.hideSidePanel();
@@ -1622,6 +1660,7 @@ export class FormDetector {
       }
 
       if (result.success) {
+        this.showFillAck(field);
         setTimeout(() => {
           this.hideSidePanel();
         }, 300);
@@ -1680,5 +1719,6 @@ export class FormDetector {
     this.passwordVisibilityToggle.destroy();
     destroyInlineFillDropdown();
     destroyTotpHandoffCapsule();
+    destroyFillAckChip();
   }
 }
