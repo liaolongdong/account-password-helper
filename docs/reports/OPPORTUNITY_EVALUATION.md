@@ -59,6 +59,25 @@
 **验证**：新增 content 单测（tel-only / tel+code / text-mobile 三类页面的判定表）、`FillFailurePrompt`
 一条集成用例、e2e 一条真机填充、六场景首屏耗时无回归。
 
+> **落地记录（2026-10-15，波次 2）——第 1 步已做，但不是按上面那个顺序做的**
+>
+> 「先修判定门、不动填充语义」单独上线是**回归**：`FillFailurePrompt` 只在 `reason === 'no_form'`
+> 时出现，把门放宽到 tel+code 却不给 `fillPasswordWithResult` 加账号回退，这些页面就从
+> 「有明确提示的失败」退化成静默的「填充未完成」。所以两半同一笔落地：就绪门收敛成
+> `hasFillableLoginForm` 一处（填充入口与 `waitForFieldsDetected()` 共用），账号回退
+> 只在「页面上确实没有密码框」时把 `username` 带进手机号框。
+>
+> 两处与本节判断不同的事实，按实测订正：①**悬浮按钮出现面没被改变**——`shouldShowSidePanel`
+> 早就认「mobile + verifyCode」这一组合，本波只是让填充入口问同一个问题；②§2 那句「0 个发送方」
+> 仍成立，`FILL_MOBILE_CODE` 一条没动。判据表与回退边界由 `tests/content/formDetector.mobileGate.test.ts`
+> 9 例钉住（含「门只放宽到组合、不放宽到单字段」这一条的反例）。
+>
+> **仍未做**：第 2 步的两个新增入口与 `fillMobileCode` 的响应形态（它那句无条件
+> `sendResponse({ success: true })` 属于「改了才好看」但会动消息契约，留在拍板上）；
+> §9 第一条的真实站点 tel-only 命中率抽样、e2e 真机填充。六场景首屏耗时**未重测**——
+> 本笔不新增模块、不改注入范围，回退分支只在账号桶为空时多跑一次数组扫描，
+> 这是结构论证不是实测值。README 中英那句「兼容手机号 + 验证码场景」在本笔之前是不成立的，现在是。
+
 ### F-2 按 URL 粒度匹配与保存：唯一「用户在主动要」的功能
 
 - `gh issue list --state open` 实测只有 2 条 open issue，且指向同一件事：#68 要按 `IP:Port` 存与匹配，
