@@ -14,7 +14,7 @@
 - **Account required**: No
 - **Subscription**: No
 - **Last updated**: 2026-10-13 · **Latest release**: v3.15.2 (2026-10-12) · the Chrome Web Store listing serves the same v3.15.2 — no version gap between GitHub Releases and the store
-- **Quality**: 2878 automated test cases across 218 test files
+- **Quality**: 2888 automated test cases across 219 test files
 
 ## Key Features
 
