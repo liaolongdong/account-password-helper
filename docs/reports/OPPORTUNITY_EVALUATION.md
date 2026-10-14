@@ -115,6 +115,43 @@ README / 商店 / `llms.txt` 里「三档」的对外承诺。
 
 **需拍板**：是，且**必须**拍——留白就是留着一条可能被商店审核或用户质疑的过度表述。
 
+> **落地记录（2026-10-15，波次 2）——过度表述已收掉，但「最小档」按字面做不成，需重新拍板**
+>
+> 拍的是路线 A，实测下来 A 的最小档撞在两条现存架构守卫上，而这条过度表述本身是**纯文案缺陷**、
+> 可以当场兑现。所以本轮做的是 B 那句（收文案），把 A 的最小档放回待拍板桌——不是偷换路线，
+> 是 A 的这一档需要用户先决定要不要放宽守卫，我不能顺手降测试规则。
+>
+> **先核对事实：能力早就在树上，落后的是 README。**
+> 逐字段复制 = [IdentityVaultDialog.vue:281-286](../../components/options/IdentityVaultDialog.vue#L281)
+> → [useIdentityVault.ts:504](../../composables/useIdentityVault.ts#L504) `copyField`；整卡复制 =
+> 同文件 :239/:591-594 → `copyCard`（:515，恒走 `copySecretToClipboard` 的限时清除通道，理由写在它的
+> JSDoc 里：整卡载荷必含 PII，不按"是否含机密"分支）；机密判定单一真源
+> [utils/identity/fields.ts:36-48](../../utils/identity/fields.ts#L36)。而 `index.html` 的 `features.f12.desc`
+> **早已**写明「支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）」——也就是说这条"过度表述"
+> 的真实形态是 README 落后于代码，不是代码落后于 README。
+>
+> **本轮改动（三处，纯文案）**：`README.md` 功能全览的身份库一行补上复制粒度与限时清除；
+> 「使用场景」表里「网页表单要填姓名、证件号、银行卡」那一行的答案栏改成「逐字段或整卡一键复制再粘贴」，
+> 场景本身保留（它是真的用户处境，且是搜索词），过度声称在答案栏里被消掉；`README.en.md` 两处同义镜像。
+> `docs/store/CWS_FILL_CONTENT.md:168` 的商店说明行**没动**——它只是漏说复制粒度，并未声称能填表单，
+> 按「只动违规本身」不顺手改；要补得走完整的商店修订仪式（计数 + 中英长度 A→B 批注），且 v3.16.0 审批在途，
+> 留到下一轮商店修订一并做。
+>
+> **最小档为什么做不成（三条都是现存守卫，不是意愿问题）**：
+> ① [tests/architecture/sidepanelClosure.test.ts](../../tests/architecture/sidepanelClosure.test.ts) 禁止身份库
+> chunk 进入 sidepanel / popup 入口闭包，且 `computeClosure` 连动态 `import()` 一起走——侧边栏挂身份库入口
+> 等于放宽这条预算守卫，直接对上「侧边栏秒开 SLA」；②
+> [tests/architecture/identityLookupFromDetailWiring.test.ts](../../tests/architecture/identityLookupFromDetailWiring.test.ts)
+> 钉住「`App.vue` 里 `showIdentityVaultDialog.value = true` 恰好一处、且必须排在复验成功之后」（:112-132），
+> 新增入口若不走这道门就是免密通道；③ 身份明文刻意**不进** `storage.session` 快照与 `InitialDataResponse`，
+> 而侧边栏的取数通道正是这两条——要在侧边栏逐字段复制明文，就得把明文延长进一个新的可访问上下文，
+> 违反安全基线「不延长明文数据的存活时间、存储位置或可访问上下文」。
+> AGENTS.md 明令不得为绕过问题降低测试规则，故此项**必须由用户拍板**（放宽哪条、代价是什么），不由实现方顺手做。
+>
+> **仍未动**：完整档（姓名 / 电话 / 地址真填充）需安全评审，且「卡号 / CVV 不进自动填充路径」这条口径
+> 目前只存在于文案（`identity.form.cvvWarning`）——实现侧根本没有身份字段填充路径，也就无从"落地"。
+> 本轮无代码行为变化，不涉及性能量具重跑。
+
 ---
 
 ## 2. 缺陷型清单（属"写错 / 半截 / 静默"，不是新功能）
