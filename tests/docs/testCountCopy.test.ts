@@ -1,0 +1,304 @@
+/**
+ * 「N 项自动化测试 / 分布在 M 个测试文件」的对外口径守卫
+ *
+ * 这两个数字在 33 个文件、48 个落点被写死：README 中英、`llms.txt`、落地页中英的指标位、
+ * 产品站的统计卡与页脚、微博/公众号的事实基线行、五篇博客的中英源文与 `pnpm gen:blog` 生成的
+ * HTML、两张封面 SVG 与 `imgs/blog-covers/outline.md`。2026-10-13 一天之内它错了两次：先按
+ * 合并前的树刷成 2786，合并后重测刷成 2847，而 2847 来自一次**负载争用的并行跑**（当时只收集到
+ * 215 个文件，新增的守卫没被算进去），真实读数是 216 文件 / 2868 例——35 处落点当时齐刷刷写着
+ * 同一个错数，因为博客 HTML 与封面 PNG 都是从那个错数派生的。（本守卫自己入树后，同一棵树的重测
+ * 读数是 217 文件 / 2873 例；2026-10-14 同分支又并进 `siteRuleFieldTipAlignment`（+1 文件 / +3 例）
+ * 和命令面板条数守卫补的 2 例，串行重测漂到 **218 文件 / 2878 例**，即下面这些落点当前应有的值——
+ * 它本身就是「加一个测试文件数字就漂」的现场例证。）
+ *
+ * **判据边界（不要高估这条守卫的能力）**：用例数与文件数都没有可以在单测内推导的真源——
+ * 只有真跑一次全量才知道。所以这里只做三件事：
+ * 1. 48 处必须两两同值（漏改任一处、中英只改一侧、源文改了没重跑 `gen:blog` / `gen:en` /
+ *    `covers:render` 导致派生物滞后，都会红）；
+ * 2. 形状与比例自检（用例数四位数起、且不少于文件数，防把文件数当用例数抄）；
+ * 3. 取数非空且落点数等于登记数（锚点失配会静默空跑，这条把「扫到了吗」也记账）。
+ * **全体一致地写错它拦不住**（本次的 2847 就是），所以每合一批代码仍须当场重跑全量取真数再刷，
+ * 顺序与判据见 `docs/operations/exposure-status.md`。
+ *
+ * 另注：这里刻意**不**拿 `tests/` 下 `.test.ts` 的实际个数当判据。若那样写，任何新增一个测试文件
+ * 的 PR（含贡献者 PR）都会因为 13 处文案未同步而 CI 红，而用例数本来就只能靠重跑同步——把一个
+ * 拦不住的滞后换成另一个更烦人的硬闸，不划算。
+ */
+import { describe, expect, it } from 'vitest';
+import { readSource } from '../helpers/architectureScan';
+
+/** 一处对外文案：文件 + 捕获用例数的正则 + 捕获文件数的正则（该落点没写文件数时为 undefined） */
+interface CopySite {
+  file: string;
+  label: string;
+  cases: RegExp;
+  files?: RegExp;
+}
+
+/** 数字形态允许千分位（产品站用 `2,868`，其余表面用 `2868`），统一去逗号后比数值 */
+function digits(raw: string): number {
+  return Number(raw.replace(/,/g, ''));
+}
+
+const CASES = /(\d[\d,]{2,})\s*(?:项自动化测试|项测试兜底|个自动化用例)/g;
+const CASES_EN = /(\d[\d,]{2,}) automated test(?:s| cases)/g;
+const FILES_ZH = /分布在 (\d[\d,]{2,}) 个测试文件/g;
+const FILES_EN = /across (\d[\d,]{2,}) test files/g;
+
+const COPY_SITES: CopySite[] = [
+  // —— README 与 llms.txt ——
+  { file: 'README.md', label: 'README 首屏徽标行', cases: /🧪 ([\d,]{3,}) 项自动化测试/g },
+  { file: 'README.en.md', label: 'README（英文）首屏徽标行', cases: /🧪 ([\d,]{3,}) automated tests/g },
+  {
+    file: 'llms.txt',
+    label: 'llms.txt 质量行',
+    cases: /(\d[\d,]{2,}) automated test cases/g,
+    files: FILES_EN,
+  },
+
+  // —— 落地页与产品站 ——
+  {
+    file: 'index.html',
+    label: '落地页指标位',
+    cases: /<b>(\d+)<\/b>\s*<span data-i18n="metrics\.cases">/g,
+  },
+  {
+    file: 'en.html',
+    label: '英文落地页指标位（gen:en 产物）',
+    cases: /<b>(\d+)<\/b>\s*<span data-i18n="metrics\.cases">/g,
+  },
+  {
+    file: 'product-site/index.html',
+    label: '产品站统计卡与页脚',
+    cases: /<b>([\d,]{3,}) 项<\/b><span>自动化测试|· ([\d,]{3,}) tests ·/g,
+  },
+
+  // —— 待投递的运营成稿 ——
+  {
+    file: 'docs/operations/微博-账号密码管理助手.md',
+    label: '微博事实基线与正文',
+    cases: /(\d[\d,]{2,}) 项(?:自动化)?测试/g,
+  },
+  {
+    file: 'docs/operations/公众号-账号密码管理助手.md',
+    label: '公众号事实基线与正文',
+    cases: CASES,
+  },
+
+  // —— 博客源文（五篇 × 中英）——
+  {
+    file: 'docs/blog/zh/01-local-first-password-manager.md',
+    label: '博客 01 中文源文',
+    cases: CASES,
+  },
+  {
+    file: 'docs/blog/en/01-local-first-password-manager.md',
+    label: '博客 01 英文源文',
+    cases: CASES_EN,
+  },
+  {
+    file: 'docs/blog/zh/02-mv3-sidepanel-sub-second-open.md',
+    label: '博客 02 中文源文',
+    cases: CASES,
+    files: FILES_ZH,
+  },
+  {
+    file: 'docs/blog/en/02-mv3-sidepanel-sub-second-open.md',
+    label: '博客 02 英文源文',
+    cases: CASES_EN,
+    files: FILES_EN,
+  },
+  {
+    file: 'docs/blog/zh/03-webcrypto-encryption-in-practice.md',
+    label: '博客 03 中文源文',
+    cases: CASES,
+  },
+  {
+    file: 'docs/blog/en/03-webcrypto-encryption-in-practice.md',
+    label: '博客 03 英文源文',
+    cases: CASES_EN,
+  },
+  {
+    file: 'docs/blog/zh/04-login-flow-details.md',
+    label: '博客 04 中文源文',
+    cases: CASES,
+    files: FILES_ZH,
+  },
+  {
+    file: 'docs/blog/en/04-login-flow-details.md',
+    label: '博客 04 英文源文',
+    cases: CASES_EN,
+    files: FILES_EN,
+  },
+  {
+    file: 'docs/blog/zh/05-cross-subdomain-matching.md',
+    label: '博客 05 中文源文',
+    cases: CASES,
+    files: FILES_ZH,
+  },
+  {
+    file: 'docs/blog/en/05-cross-subdomain-matching.md',
+    label: '博客 05 英文源文',
+    cases: CASES_EN,
+    files: FILES_EN,
+  },
+
+  // —— `pnpm gen:blog` 的产物：源文改了没重跑生成链，这里就会红 ——
+  {
+    file: 'blog/01-local-first-password-manager.html',
+    label: '博客 01 中文页（gen:blog 产物）',
+    cases: CASES,
+  },
+  {
+    file: 'blog/01-local-first-password-manager.en.html',
+    label: '博客 01 英文页（gen:blog 产物）',
+    cases: CASES_EN,
+  },
+  {
+    file: 'blog/02-mv3-sidepanel-sub-second-open.html',
+    label: '博客 02 中文页（gen:blog 产物）',
+    cases: CASES,
+    files: FILES_ZH,
+  },
+  {
+    file: 'blog/02-mv3-sidepanel-sub-second-open.en.html',
+    label: '博客 02 英文页（gen:blog 产物）',
+    cases: CASES_EN,
+    files: FILES_EN,
+  },
+  {
+    file: 'blog/03-webcrypto-encryption-in-practice.html',
+    label: '博客 03 中文页（gen:blog 产物）',
+    cases: CASES,
+  },
+  {
+    file: 'blog/03-webcrypto-encryption-in-practice.en.html',
+    label: '博客 03 英文页（gen:blog 产物）',
+    cases: CASES_EN,
+  },
+  {
+    file: 'blog/04-login-flow-details.html',
+    label: '博客 04 中文页（gen:blog 产物）',
+    cases: CASES,
+    files: FILES_ZH,
+  },
+  {
+    file: 'blog/04-login-flow-details.en.html',
+    label: '博客 04 英文页（gen:blog 产物）',
+    cases: CASES_EN,
+    files: FILES_EN,
+  },
+  {
+    file: 'blog/05-cross-subdomain-matching.html',
+    label: '博客 05 中文页（gen:blog 产物）',
+    cases: CASES,
+    files: FILES_ZH,
+  },
+  {
+    file: 'blog/05-cross-subdomain-matching.en.html',
+    label: '博客 05 英文页（gen:blog 产物）',
+    cases: CASES_EN,
+    files: FILES_EN,
+  },
+
+  // —— 封面（`covers:render` 的输入；PNG 是二进制，只能钉 SVG 源）——
+  {
+    file: 'imgs/blog-covers/outline.md',
+    label: '封面文案大纲 04 与 05',
+    cases: CASES,
+  },
+  {
+    file: 'imgs/blog-covers/blog-cover-04-login-flow-details.svg',
+    label: '封面 04 SVG',
+    cases: CASES,
+  },
+  {
+    file: 'imgs/blog-covers/blog-cover-05-cross-subdomain-matching.svg',
+    label: '封面 05 SVG',
+    cases: CASES,
+  },
+];
+
+/**
+ * 一条正则可能用多个分支各捕获一组（如产品站的 `m1`/`m2`），取每次匹配里非空的那个数字。
+ * 入参正则一律带 `g`，`matchAll` 不推进 `lastIndex`，因此同一文件内多处同形数字都能数到。
+ */
+function numbersIn(source: string, pattern: RegExp): number[] {
+  const found: number[] = [];
+  for (const match of source.matchAll(pattern)) {
+    const raw = match.slice(1).find(group => group !== undefined);
+    if (raw !== undefined) found.push(digits(raw));
+  }
+  return found;
+}
+
+/** 扫出一个落点集里全部数字，并按「文件 : 标签 : 值」保留可定位的错值现场 */
+function scan(pick: (site: CopySite) => RegExp | undefined): { value: number; where: string }[] {
+  const hits: { value: number; where: string }[] = [];
+  for (const site of COPY_SITES) {
+    const pattern = pick(site);
+    if (!pattern) continue;
+    for (const value of numbersIn(readSource(site.file), pattern)) {
+      hits.push({ value, where: `${site.file} · ${site.label}` });
+    }
+  }
+  return hits;
+}
+
+describe('「N 项自动化测试」的对外口径', () => {
+  const caseHits = scan(site => site.cases);
+  const fileHits = scan(site => site.files);
+
+  it('取数非空且落点数等于登记数（锚点失配会静默空跑，这条先自证扫到了）', () => {
+    // 用例数 35 处：README 2 + llms 1 + 落地页 2 + 产品站 2 + 微博 2 + 公众号 2
+    //              + 博客源文 10 + 博客产物 10 + 封面 3
+    // 文件数 13 处：llms 1 + 博客源文 6（02/04/05 中英）+ 博客产物 6
+    expect(caseHits.length).toBe(35);
+    expect(fileHits.length).toBe(13);
+  });
+
+  it('35 个用例数落点写的是同一个数（漏改任一处、只改一侧语言、生成链没重跑都会红）', () => {
+    const distinct = [...new Set(caseHits.map(h => h.value))];
+    expect(
+      distinct.map(
+        v =>
+          `${v}: ${caseHits
+            .filter(h => h.value === v)
+            .map(h => h.where)
+            .join(' | ')}`,
+      ),
+      `对外用例数出现了 ${distinct.length} 个不同值`,
+    ).toHaveLength(1);
+  });
+
+  it('13 个文件数落点写的是同一个数', () => {
+    const distinct = [...new Set(fileHits.map(h => h.value))];
+    expect(
+      distinct.map(
+        v =>
+          `${v}: ${fileHits
+            .filter(h => h.value === v)
+            .map(h => h.where)
+            .join(' | ')}`,
+      ),
+      `对外文件数出现了 ${distinct.length} 个不同值`,
+    ).toHaveLength(1);
+  });
+
+  it('形状自检：用例数四位数起、文件数三位数起，且用例数明显多于文件数（防把两个数抄反）', () => {
+    const cases = caseHits[0].value;
+    const files = fileHits[0].value;
+    expect(cases).toBeGreaterThanOrEqual(1000);
+    expect(files).toBeGreaterThanOrEqual(100);
+    // 当前实测约 13 条用例/文件；留足余量，只挡「数量级写歪」
+    expect(cases).toBeGreaterThan(files * 2);
+  });
+
+  it('中英两侧的表述成对出现（只刷一种语言会留下另一种的旧数）', () => {
+    const zhFiles = fileHits.filter(h => h.where.includes('中文')).map(h => h.value);
+    const enFiles = fileHits.filter(h => /英文|en\b/.test(h.where)).map(h => h.value);
+    expect(zhFiles.length).toBeGreaterThan(0);
+    expect(enFiles.length).toBeGreaterThan(0);
+    expect([...new Set([...zhFiles, ...enFiles])]).toEqual([fileHits[0].value]);
+  });
+});

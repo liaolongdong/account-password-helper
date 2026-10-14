@@ -4,10 +4,10 @@
  * 单一实例由 `entrypoints/options/App.vue` 创建并注入给列表弹窗（props），
  * 保证会话失效时 App.vue 侧的 `teardown()` 与弹窗共享同一份状态：
  * - 状态：rows（解密后条目）/ loading / revealedIds（掩码显隐）/ selectedIds（导出勾选）/ collapsedIds（卡片折叠）/ keyword / categoryFilter / sortMode（列表排序档位）/ manualOrder（`manual` 档的手排 id 顺序）；
- * - 派生：filteredRows（类别过滤 + 搜索 + 按 sortMode 排序）；
+ * - 派生：filteredRows（类别过滤 + 搜索 + 按 sortMode 排序）/ identityBackupPending（备份提醒条显隐）；
  * - 生命周期：load() / teardown() / resetViewState() / restoreSortMode()；
  * - 视图态：卡级显隐 toggleReveal / 批量 toggleRevealAll（仅作用可见含机密卡）/ 单卡折叠 toggleCollapse 与批量折叠 toggleCollapseAll（均仅作用可见卡）/ 档位切换 setSortMode（落盘为偏好）/ 手排换位 moveIdentity（仅 `manual` 档，落盘顺序数组）/ 勾选选择态 / 过滤清除 clearFilters；
- * - 领域：displayTitle（列表标题回退链）/ copyField（逐字段复制）/ copyCard（整卡复制，恒走限时自动清除通道）。
+ * - 领域：displayTitle（列表标题回退链）/ copyField（逐字段复制）/ copyCard（整卡复制，恒走限时自动清除通道）/ markBackupPending 与 markBackupDone（备份提醒的会话内信号）。
  *
  * 搜索刻意**不加防抖**：既有 200ms 防抖是为上百条密码设计，身份库 ≤30 条，
  * 即时过滤更简单（有意偏离，见方案 §4.1）。
@@ -45,6 +45,8 @@ import {
 } from '@/utils/identity/sort';
 import { matchesKeyword } from '@/utils/searchMatch';
 import { copySecretToClipboard, copyTextToClipboard } from '@/utils/clipboard';
+import { getLastIdentityBackupAt, getLastIdentityChangeAt, markIdentityBackupAt } from '@/utils/storage/configManager';
+import { hasPendingIdentityBackup } from '@/utils/backup/changeDetection';
 import { logger } from '@/utils/logger';
 import { useClipboardFeedback } from '@/composables/useClipboardFeedback';
 import { useI18n } from '@/utils/i18n';
@@ -99,6 +101,25 @@ export function useIdentityVault() {
   /** 手动换档次数（`restoreSortMode` 的代际判据，见该函数注释） */
   let manualSortTicks = 0;
 
+  /**
+   * 落盘口径的「身份库有未备份变更」（`load()` 时按两个时间戳重算）
+   *
+   * 与 `identityBackupPending` 分开存：这一份是**上次读盘时的结论**，
+   * 下面那份是叠加了本页面会话内即时信号后供模板消费的结果。
+   */
+  const persistedBackupPending = ref(false);
+  /**
+   * 本页面会话内发生过、且尚未导出备份的变更
+   *
+   * 存在的唯一理由是竞态：`LAST_IDENTITY_CHANGE_AT` 由 Service Worker 的
+   * `storage.onChanged` 写入，而 `create` / `update` / `remove` 在 CRUD 之后
+   * 立刻 `await load()`，此时那一写常常还没落地——**删除**尤其致命，删掉最新
+   * 一条会让「按记录 createTime / updateTime 比对」这条信号反而变假，
+   * 提醒条会先消失、等用户重开弹窗才回来。这个内存标志把该窗口补齐；
+   * 页面刷新即失效，此后完全由落盘时间戳接管。
+   */
+  const unbackedMutation = ref(false);
+
   /** id → 手排序位（一次建表供整轮比较器复用；`rows` ≤30 条，重排成本可忽略） */
   const manualRank = computed(() => new Map(manualOrder.value.map((id, index) => [id, index])));
 
@@ -132,6 +153,17 @@ export function useIdentityVault() {
   });
 
   /**
+   * 备份提醒条是否该出现
+   *
+   * 空库恒不提醒（没有条目就没有可备份的东西）；有条目时，本会话内的即时信号与
+   * 落盘时间戳任一为真即提醒。改造前这条提醒是「有数据就常驻」，与密码侧
+   * 「有变更才提醒」的口径不一致，且对已经导出过 `.aphid` 的用户构成持续噪音。
+   */
+  const identityBackupPending = computed(
+    () => rows.value.length > 0 && (unbackedMutation.value || persistedBackupPending.value),
+  );
+
+  /**
    * 加载并解密全部身份条目（updateTime 倒序）
    *
    * 解密失败的单条由 getAllIdentity 跳过并告警；整体读取失败仅记录日志，
@@ -139,41 +171,82 @@ export function useIdentityVault() {
    *
    * 这里的倒序是**数据层基准序**：导出与勾选摘要读 `rows`，故备份内容不受视图档位影响。
    *
-   * 手排序号与条目同批**并行**读取：两者互不依赖，串行等于给「打开弹窗」多加一次
-   * storage IPC；读到的顺序在下次 `moveIdentity` 落盘时才与条目集合对齐（剪掉已删除的 id、
-   * 尾部追加新出现的 id），读路径本身不写库。
+   * 手排序号、两个备份时间戳与条目同批**并行**读取：四者互不依赖，串行等于给
+   * 「打开弹窗」多加三次 storage IPC；读到的顺序在下次 `moveIdentity` 落盘时才与条目集合
+   * 对齐（剪掉已删除的 id、尾部追加新出现的 id），读路径本身不写库。
+   * 时间戳读取内部已吞异常并降级为 null，不会把整个 `load()` 拖进 catch。
    */
   async function load(): Promise<void> {
     loading.value = true;
     try {
-      const [{ entries }, order] = await Promise.all([getAllIdentity(), getIdentityManualOrder()]);
+      const [{ entries }, order, lastChangeAt, lastBackupAt] = await Promise.all([
+        getAllIdentity(),
+        getIdentityManualOrder(),
+        getLastIdentityChangeAt(),
+        getLastIdentityBackupAt(),
+      ]);
       entries.sort((a, b) => b.updateTime - a.updateTime);
       rows.value = entries;
       manualOrder.value = order;
+      persistedBackupPending.value = hasPendingIdentityBackup({ records: entries, lastChangeAt, lastBackupAt });
     } catch (error) {
       logger.error('加载身份信息失败:', error);
       rows.value = [];
       manualOrder.value = [];
+      persistedBackupPending.value = false;
     } finally {
       loading.value = false;
+    }
+  }
+
+  /**
+   * 标记「本会话内出现了尚未备份的变更」
+   *
+   * `create` / `update` / `remove` 内部自调；不经过这三者的写路径（弹窗里的
+   * 备份导入走 `replaceAllIdentity`）由调用方显式调一次。
+   */
+  function markBackupPending(): void {
+    unbackedMutation.value = true;
+  }
+
+  /**
+   * 记录一次**完整**加密导出并撤下备份提醒
+   *
+   * 只在导出作用域等于全库时调用（见 `IdentityVaultDialog` 的 `handleExport`）：
+   * 部分导出留下的仍是残缺备份，此时撤下提醒等于告诉用户「已经备好了」。
+   * 明文导出也不得调用——明文 JSON 不是可长期保管的备份形态。
+   *
+   * 落盘失败只记 warn：内存标志已复位，提醒在本次页面会话内不会回来；
+   * 重开弹窗按落盘时间戳重算，最坏是多提醒一次，不会漏提醒。
+   */
+  async function markBackupDone(): Promise<void> {
+    unbackedMutation.value = false;
+    persistedBackupPending.value = false;
+    try {
+      await markIdentityBackupAt();
+    } catch (error) {
+      logger.warn('记录身份库备份时间失败:', error);
     }
   }
 
   /** 新增身份条目（写失败上抛，由调用方提示） */
   async function create(payload: IdentityPayload): Promise<void> {
     await saveIdentity(payload);
+    markBackupPending();
     await load();
   }
 
   /** 更新身份条目（携带并发令牌，写失败上抛，由调用方提示） */
   async function update(id: string, patch: Partial<IdentityPayload>, expectedUpdateTime: number): Promise<void> {
     await updateIdentity(id, patch, expectedUpdateTime);
+    markBackupPending();
     await load();
   }
 
   /** 删除身份条目（失败上抛，由调用方提示） */
   async function remove(id: string): Promise<void> {
     await deleteIdentities([id]);
+    markBackupPending();
     await load();
   }
 
@@ -451,6 +524,7 @@ export function useIdentityVault() {
     sortMode,
     manualOrder,
     filteredRows,
+    identityBackupPending,
     selectedCount,
     allVisibleSelected,
     selectionIndeterminate,
@@ -460,6 +534,8 @@ export function useIdentityVault() {
     create,
     update,
     remove,
+    markBackupPending,
+    markBackupDone,
     toggleReveal,
     toggleRevealAll,
     isRevealed,

@@ -13,7 +13,11 @@
  *   （与同目录其他架构守卫一致），并各自配一条「抽取非空」用例，防止正则漂移导致守卫空跑。
  */
 import { describe, expect, it } from 'vitest';
-import { getDefaultClipboardConfig, getDefaultIdleLockConfig } from '@/utils/storage/configManager';
+import {
+  getDefaultClipboardConfig,
+  getDefaultIdentityVaultAccessConfig,
+  getDefaultIdleLockConfig,
+} from '@/utils/storage/configManager';
 import { listSourceFiles, readSource, resolveSpecifier } from '../helpers/architectureScan';
 
 /** 运行时代码目录（不含 tests / e2e / product-site 与构建脚本） */
@@ -49,6 +53,13 @@ describe('安全默认值锚定', () => {
     // 与 WRAP_KEY 落盘（storage.local）配套；单边改成 true 会让侧边栏在重启后
     // 长时间停在锁定卡片，而 README/restartTip 仍承诺自动保持登录 → 文档与实现分叉。
     expect(getDefaultIdleLockConfig()).toEqual({ idleLockMinutes: 0, relockOnBrowserRestart: false });
+  });
+
+  it('身份信息库复验：默认档是「本会话内复验一次」，不是免验', () => {
+    // 三档里只有 `always` 等价于这道门槛引入前的行为。把默认值悄悄改成 `followValidity`
+    // 会让所有新用户的身份库在有效期内完全免验，而 help.gd.9 与 README 仍写着「打开时需要
+    // 验证主密码」——与 §5.2「邮箱备份默认不加密」同类的「默认值即公开承诺」，故钉住。
+    expect(getDefaultIdentityVaultAccessConfig()).toEqual({ verifyPolicy: 'perSession' });
   });
 
   it('邮箱备份：初始档是「加密备份」，不加密档必须过显式风险确认', () => {

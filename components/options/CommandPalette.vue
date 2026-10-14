@@ -195,6 +195,18 @@ watch(
   align-items: flex-start;
   justify-content: center;
   padding: 12vh 16px 16px;
+
+  /*
+   * 面板是模态层，滚轮不该推动底下的列表。实测三个落点全部穿透（起点 150、一格 deltaY=800，
+   * 各自到 950）：遮罩空白处、面板内的非滚动区（搜索框 / 底部提示条）、列表滚到底之后的那一格。
+   * 根因只有一处 —— 遮罩此前是 `overflow: visible`，连滚动容器都不是，`overscroll-behavior`
+   * 写在它身上也不生效，滚轮直接交给文档。先让它成为滚动容器，再用 `contain` 把链剪断在
+   * 自己身上，与 `entrypoints/options/App.vue` 里 `.el-overlay-dialog` 那条同构。
+   * 判据见 `e2e/dialog-scroll-isolation.spec.ts` 第 6 条。列表自己那格越界**不需要**再补一份
+   * `contain`：变异验证摘掉它之后位移判据照旧绿，链先落到遮罩就被拦住了。
+   */
+  overflow: auto;
+  overscroll-behavior: contain;
   background: rgb(15 23 42 / 45%);
   animation: cp-fade 0.12s ease;
 }

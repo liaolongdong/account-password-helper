@@ -34,6 +34,12 @@
   --aph-text-secondary: #6b7280;
   --aph-text-muted: #9ca3af;
 
+  /* 占位符独立成令牌：它此前直接复用 `--aph-text-secondary`，于是「输入提示」与
+     「次要正文」同色，且比输入框下方的 `.form-tip`（#909399）还深，层级是倒的。
+     这里只往下挪一档——白底 4.64:1，是仍过 WCAG 1.4.3（4.5:1）的最浅值，
+     再浅一格（#717884，4.45:1）就破线，故变浅幅度刻意有限。 */
+  --aph-text-placeholder: #6e7582;
+
   /* 中性色：图标 */
   --aph-icon-muted: #9ca3af;
   --aph-icon-action: #b0b7c3;
@@ -166,8 +172,9 @@
  * 故定点覆写三类占位符，选择器用后代组合抬特异性，避免与 EP 同权重而依赖样式顺序。
  *
  * 覆盖面：扩展页（options / popup / sidepanel）内的 el-input、el-input-number、
- * el-textarea、el-select，含 teleport 到 body 的弹窗；不含 Shadow DOM 内的注入式 UI
- * （内联下拉搜索框自带 #b6bcc6 占位色，约 1.9:1，属 theme.ts 的 shadow 令牌体系），
+ * el-textarea、el-select，含 teleport 到 body 的弹窗；Shadow DOM 内的注入式 UI 够不到
+ * 本文件，内联下拉搜索框改走 `var(--aph-text-placeholder)`，取值由 theme.ts 的
+ * `SHADOW_NEUTRAL_TOKENS` 镜像进宿主，两处共用同一令牌（此前它硬编码 #b6bcc6、约 1.9:1）。
  * 也不含本仓未使用的 date-range / select-v2 / input-tag 占位符。
  *
  * 未纳入的：框内图标（前缀 / 清除 / 密码眼睛走 --el-input-icon-color，下拉箭头走
@@ -182,8 +189,8 @@
 .el-input .el-input__inner::placeholder,
 .el-textarea .el-textarea__inner::placeholder,
 .el-select .el-select__wrapper:not(.is-disabled) .el-select__placeholder.is-transparent {
-  /* 4.83:1，与次要文字令牌同色，过 WCAG 1.4.3 */
-  color: var(--aph-text-secondary);
+  /* 独立令牌，白底 4.64:1，过 WCAG 1.4.3；比次要文字低一档，不再与正文同色 */
+  color: var(--aph-text-placeholder);
 }
 
 /* 提示比正文低一级，且只给原生 ::placeholder：

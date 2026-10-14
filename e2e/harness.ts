@@ -68,6 +68,7 @@ async function launchExtensionContext(): Promise<{ context: BrowserContext; user
       '--no-first-run',
       '--no-default-browser-check',
       '--disable-sync',
+      ...(process.env.E2E_LANG ? [`--lang=${process.env.E2E_LANG}`] : []),
     ],
   });
   return { context, userDataDir };

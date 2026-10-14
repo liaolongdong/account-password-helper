@@ -2,7 +2,13 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "account-password-helper",
   "compatibility_date": "2026-08-20",
+  // 只上传对外落地页那套文件，由 `pnpm run web:build`（scripts/build-web-assets.mjs）组装。
+  // 之前这里是 "."，意味着整个仓库目录都是静态资源——docs/、.qoder/、benchmarks/ 与
+  // 全部源码会跟着发到一个公开域名上。wrangler 的 assets 段没有排除语法（4.99 的
+  // config-schema 里 Assets 只有 directory/binding/html_handling/not_found_handling/
+  // run_worker_first，且 additionalProperties: false），所以只能靠专用输出目录收窄。
+  // Cloudflare 后台的 Build command 需配成 `pnpm run web:build`，与本目录保持一致。
   "assets": {
-    "directory": "."
+    "directory": "site-dist"
   }
 }

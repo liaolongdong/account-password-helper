@@ -4,6 +4,7 @@ import type {
   ClipboardConfig,
   DomainMatchConfig,
   IdleLockConfig,
+  IdentityVaultAccessConfig,
   PasswordEntry,
   PasswordHistoryConfig,
   OnboardingTourState,
@@ -11,6 +12,7 @@ import type {
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { DEFAULT_THEME } from '@/utils/theme';
+import { DEFAULT_IDENTITY_VERIFY_POLICY, normalizeIdentityVerifyPolicy } from '@/utils/identityVaultAccess';
 import { sortPasswordEntries, DEFAULT_SORT } from '@/utils/passwordSort';
 import { isExactHostMatch, isDomainMatchMode, type DomainMatchMode } from '@/utils/domain';
 import { DEFAULT_PAGE_SIZE, isVaultPageSize } from '@/utils/vaultPageSize';
@@ -342,6 +344,84 @@ export async function markVerifiedBackupAt(timestamp: number = Date.now()): Prom
   });
 }
 
+// ==================== 备份提醒的变更时间戳 ====================
+
+/**
+ * 读取单个 epoch 毫秒时间戳键
+ *
+ * 三个键（密码变更 / 身份变更 / 身份备份）读写形状完全一致，收成本地一对助手，
+ * 避免六份逐字重复的 try/catch。语义与既有的 `getLastVerifiedBackupAt` /
+ * `markVerifiedBackupAt` 保持同口径：读失败降级为 null（不抛），写失败上抛由调用方定性。
+ *
+ * @param key storage.local 键名
+ * @param label 日志用的中文名称
+ * @returns 有限数值时间戳；缺失、类型不符或读取失败时为 null
+ */
+async function readTimestampKey(key: string, label: string): Promise<number | null> {
+  try {
+    const result = await chrome.storage.local.get(key);
+    const value = result[key];
+    return typeof value === 'number' && Number.isFinite(value) ? value : null;
+  } catch (error) {
+    logger.error(`获取${label}失败:`, error);
+    return null;
+  }
+}
+
+/**
+ * 写入单个 epoch 毫秒时间戳键
+ *
+ * @param key storage.local 键名
+ * @param timestamp 时间戳，默认当前时间
+ */
+async function writeTimestampKey(key: string, timestamp: number): Promise<void> {
+  await chrome.storage.local.set({ [key]: timestamp });
+}
+
+/**
+ * 读取最近一次「与备份相关」的密码变更时间戳
+ *
+ * 由 Service Worker 的 `storage.onChanged` 写入。返回 null 有两种含义，调用方需区分：
+ * 从未发生过相关变更，或本功能上线前的存量数据（监听器没赶上那次写入）。
+ */
+export async function getLastPasswordChangeAt(): Promise<number | null> {
+  return readTimestampKey(STORAGE_KEYS.LAST_PASSWORD_CHANGE_AT, '最后密码变更时间');
+}
+
+/** 记录一次「与备份相关」的密码变更（判据见 `utils/backup/changeDetection`） */
+export async function setLastPasswordChangeAt(timestamp: number = Date.now()): Promise<void> {
+  await writeTimestampKey(STORAGE_KEYS.LAST_PASSWORD_CHANGE_AT, timestamp);
+}
+
+/** 读取最近一次「与备份相关」的身份库变更时间戳 */
+export async function getLastIdentityChangeAt(): Promise<number | null> {
+  return readTimestampKey(STORAGE_KEYS.LAST_IDENTITY_CHANGE_AT, '最后身份信息变更时间');
+}
+
+/** 记录一次「与备份相关」的身份库变更 */
+export async function setLastIdentityChangeAt(timestamp: number = Date.now()): Promise<void> {
+  await writeTimestampKey(STORAGE_KEYS.LAST_IDENTITY_CHANGE_AT, timestamp);
+}
+
+/**
+ * 读取最近一次**完整**导出加密 .aphid 身份备份的时间戳
+ *
+ * 与 `getLastVerifiedBackupAt`（密码库 .aph）分列：两库的导出链路、文件格式与
+ * 完整性自检各自独立，共用一个键会让「备份了密码」误清掉身份库的提醒。
+ */
+export async function getLastIdentityBackupAt(): Promise<number | null> {
+  return readTimestampKey(STORAGE_KEYS.LAST_IDENTITY_BACKUP_AT, '最后身份信息备份时间');
+}
+
+/**
+ * 记录一次完整的加密身份备份导出
+ *
+ * 只在导出范围覆盖全部条目时调用；部分勾选导出不得调用（见 `LAST_IDENTITY_BACKUP_AT` 注释）。
+ */
+export async function markIdentityBackupAt(timestamp: number = Date.now()): Promise<void> {
+  await writeTimestampKey(STORAGE_KEYS.LAST_IDENTITY_BACKUP_AT, timestamp);
+}
+
 // ==================== 剪贴板配置 ====================
 
 const clipboardStore = createConfigStore<ClipboardConfig>(
@@ -389,6 +469,46 @@ export async function getIdleLockConfig(): Promise<IdleLockConfig> {
  */
 export async function saveIdleLockConfig(config: Partial<IdleLockConfig>): Promise<void> {
   return idleLockStore.save(config);
+}
+
+// ==================== 身份信息库访问配置 ====================
+
+const identityVaultAccessStore = createConfigStore<IdentityVaultAccessConfig>(
+  STORAGE_KEYS.IDENTITY_VAULT_ACCESS_CONFIG,
+  { verifyPolicy: DEFAULT_IDENTITY_VERIFY_POLICY },
+  '身份信息库访问配置',
+);
+
+/**
+ * 默认身份信息库访问配置
+ */
+export function getDefaultIdentityVaultAccessConfig(): IdentityVaultAccessConfig {
+  return identityVaultAccessStore.getDefaults();
+}
+
+/**
+ * 读取身份信息库复验策略
+ *
+ * 出口处强制归一化：非法值回落最严格的 `always`，不让「读到一个认不出的策略」
+ * 静默变成「少问一次主密码」。
+ */
+export async function getIdentityVaultAccessConfig(): Promise<IdentityVaultAccessConfig> {
+  const config = await identityVaultAccessStore.get();
+  return { verifyPolicy: normalizeIdentityVerifyPolicy(config.verifyPolicy) };
+}
+
+/**
+ * 保存身份信息库复验策略（增量合并）
+ * @throws 传入非法策略值时抛出，不落盘
+ */
+export async function saveIdentityVaultAccessConfig(config: Partial<IdentityVaultAccessConfig>): Promise<void> {
+  if (config.verifyPolicy !== undefined) {
+    const normalized = normalizeIdentityVerifyPolicy(config.verifyPolicy);
+    if (normalized !== config.verifyPolicy) {
+      throw new Error('身份库复验策略取值非法');
+    }
+  }
+  return identityVaultAccessStore.save(config);
 }
 
 // ==================== 收藏上限配置 ====================

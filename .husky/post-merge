@@ -1,0 +1,7 @@
+# main 合并后把最新代码同步进其他分支（临时 worktree 里跑，不动当前工作区）。
+# 必须先由 husky 接管钩子目录：core.hooksPath 指向 .husky/_ 时，.git/hooks/* 一律不执行。
+BRANCH=$(git branch --show-current)
+if [ "$BRANCH" = "main" ]; then
+  echo "[post-merge] 同步 main 到其他分支：pnpm auto-merge"
+  node scripts/auto-merge-main.js
+fi

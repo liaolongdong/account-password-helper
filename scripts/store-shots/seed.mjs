@@ -257,13 +257,21 @@ await wait(3000);
 
 // 先把界面语言切到目标语言：英文跑批时若页面仍是默认中文，下方标签匹配会落空。
 // 与偏好设置面板里的「中文 / English」开关等效（见 utils/i18n/index.ts 的双写）。
+//
+// 同一笔写入顺带把新手引导标记为「已跳过」：`onboarding_tour_state.seen` 为假时，
+// 引导会在管理页首次渲染后自动弹出，聚光遮罩压暗整页、引导卡盖住列表，Options 那
+// 几张图就全废了（引导是 v3.13 才有的功能，Sep 28 那批图不受影响）。落盘形状与用户
+// 中途点「跳过」后的真实状态一致，不是为演示数据开的特例。
 const locale = LANG === 'en' ? 'en' : 'zh-CN';
 await evalIn(
   s,
   `(async () => {
     localStorage.setItem('app_locale', ${JSON.stringify(locale)});
-    await chrome.storage.local.set({ app_locale: ${JSON.stringify(locale)} });
-    return 'locale set';
+    await chrome.storage.local.set({
+      app_locale: ${JSON.stringify(locale)},
+      onboarding_tour_state: { seen: true, outcome: 'skipped', finishedAt: Date.now() },
+    });
+    return 'locale + tour state set';
   })()`,
 );
 await s.send('Page.reload', { ignoreCache: true });

@@ -56,7 +56,7 @@ concurrency:
 jobs:
   prepare:
     name: Build and preflight (no store calls)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # status 档不需要构建：它只查凭据链，产物压根不用。跳过 prepare 还顺带解掉两个约束——
     # 不必填 tag（对账用的版本比对不发生），也不必切到 tag 的树（见 inspect 的说明）。
     # release 事件没有 inputs.mode，条件恒为真，那条链路不受影响。
@@ -69,12 +69,12 @@ jobs:
       zip_name: ${{ steps.zip.outputs.name }}
     steps:
       # release 事件用事件里的 tag；手动触发用输入的 tag；两者都空时留在当前 ref 上跑预检。
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
 
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -139,7 +139,7 @@ jobs:
           node scripts/cwsPublish.mjs "${ARGS[@]}"
 
       # 把这个包交给下游 job 用：submit 提审的就是**预检过的那个字节包**，不是重新构建的第二次产物。
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: ${{ steps.resolve.outputs.artifact }}
           path: ${{ steps.zip.outputs.path }}
@@ -154,12 +154,12 @@ jobs:
     # 立刻 MODULE_NOT_FOUND（2026-10-09 实测：tag v3.13.1 的 scripts/ 里没有 cwsPublish.mjs）。
     # 因此固定检出本次 dispatch 所在的 ref，只认「这条 workflow 当前这份代码」。
     if: ${{ inputs.mode == 'status' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 只读段不挂 environment：`fetchStatus` 一个字节都不写，不需要人工放行；
     # 用它验证「服务账号 → access token → v2 端点」这条链通，就能把凭据问题在提审之前暴露掉。
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -175,7 +175,7 @@ jobs:
     name: Submit to Chrome Web Store (needs approval)
     needs: prepare
     if: ${{ github.repository == 'liaolongdong/account-password-helper' && (needs.prepare.outputs.mode == 'publish' || needs.prepare.outputs.mode == 'publish-dry') }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # ──────────────────────────────────────────────────────────────
     # 第三道闸门：不可撤回的商店提审（编号口径见 docs/PR_WORKFLOW_GUIDE.md 第 0 节）。
     # 环境名为 `production`、必须配 Required reviewers；**环境不存在时 GitHub 会静默自建
@@ -185,14 +185,14 @@ jobs:
     # ──────────────────────────────────────────────────────────────
     environment: production
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           name: ${{ needs.prepare.outputs.artifact }}
           path: .output

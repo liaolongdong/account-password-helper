@@ -135,6 +135,7 @@ graph LR
 | `pnpm gen:faq` / `gen:faq-dom`                      | 由 `index.html` 的 `FAQS` 生成 FAQPage JSON-LD / 页面可见的 FAQ 静态 DOM                                          |
 | `pnpm gen:blog`                                     | 由 `docs/blog/{zh,en}/*.md` 生成 `blog/*.html`                                                                    |
 | `pnpm covers:render`                                | 渲染博客封面图                                                                                                    |
+| `pnpm web:build`                                    | 组装 Worker 部署目录 `site-dist/`（只收公开落地页闭包，商店素材与内部文档不入包）                                 |
 | `pnpm typecheck`                                    | TypeScript 类型检查                                                                                               |
 | `pnpm lint` / `pnpm lint:fix`                       | ESLint 检查 / 自动修复                                                                                            |
 | `pnpm lint:style` / `pnpm lint:style:fix`           | Stylelint 样式检查 / 自动修复                                                                                     |
@@ -526,6 +527,7 @@ If you encounter symlink issues on Windows, consider [enabling Developer Mode](h
 | `pnpm gen:faq` / `gen:faq-dom`                      | Generate the FAQPage JSON-LD / the visible FAQ static DOM from `index.html`'s `FAQS` array                                                      |
 | `pnpm gen:blog`                                     | Generate `blog/*.html` from `docs/blog/{zh,en}/*.md`                                                                                            |
 | `pnpm covers:render`                                | Render the blog cover images                                                                                                                    |
+| `pnpm web:build`                                    | Assemble the Worker deploy directory `site-dist/` (public landing-page closure only; store assets and internal docs stay out)                   |
 | `pnpm typecheck`                                    | TypeScript type checking                                                                                                                        |
 | `pnpm lint` / `pnpm lint:fix`                       | ESLint check / auto-fix                                                                                                                         |
 | `pnpm lint:style` / `pnpm lint:style:fix`           | Stylelint check / auto-fix                                                                                                                      |

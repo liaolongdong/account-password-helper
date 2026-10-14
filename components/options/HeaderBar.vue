@@ -191,6 +191,12 @@
                 {{ t('options.header.idleLock') }}
               </el-dropdown-item>
               <el-dropdown-item
+                command="identityAccess"
+                :icon="Postcard"
+              >
+                {{ t('options.header.identityAccess') }}
+              </el-dropdown-item>
+              <el-dropdown-item
                 divided
                 command="autoSave"
                 :icon="FolderChecked"
@@ -483,6 +489,18 @@ const backupStatusText = computed(() => {
   flex-shrink: 0;
   gap: 12px;
   margin-left: auto;
+}
+
+/* 工具条行内间距的唯一真源是上面两条 `gap: 12px`，此处抵消 Element Plus 的
+   `.el-button + .el-button { margin-left: 12px }`（2.14.4 index.css，特异性 (0,2,0)）。
+   它按「相邻兄弟恰好都是 .el-button」命中，而本行两组结构并不一致：左组只有
+   「添加密码→安全体检」是直接相邻的按钮，「数据管理」「安全设置」的按钮包在
+   `.el-dropdown` 里、`+` 不命中。于是接管前左组实测 24/12/12、右组 24/24/24。
+   与 SearchFilterBar / TrashDialog / SidepanelAuthView 同一处理方式，
+   由 tests/architecture/headerToolbarDensity.test.ts 守卫两侧同值 */
+.header-actions :deep(.el-button + .el-button),
+.header-actions-right :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 /* 安全体检小圆点：一眼可见的健康信号灯 */

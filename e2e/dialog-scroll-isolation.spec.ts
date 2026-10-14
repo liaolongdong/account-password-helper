@@ -7,7 +7,7 @@ import { textOf } from './i18n';
  *
  * 这一族行为只在真浏览器里成立，单测与 `tsc` 都摸不到。
  *
- * 先钉两条读数口径，下面五条都按它们读：
+ * 先钉两条读数口径，下面六条都按它们读：
  *
  * - **`expect.poll` 的「没变」只是一次成功的采样**，不是逐帧盯梢：断言一通过就返回。
  *   所以本文件说的「弹窗期间位置没动」，严格含义是「弹窗可见后第一次采样仍是起点值」。
@@ -56,9 +56,18 @@ import { textOf } from './i18n';
  *    不动 EP 的锁 —— 补锁要改 MessageBox 的关闭时序，那是它的内部实现。
  *    这条只钉回收站：它是两扇门里形状更简单的那个（短内容、`close-on-click-modal=false`），
  *    身份信息库的读数与它同源。
+ * 6. **命令面板开着，滚轮打在遮罩、面板非滚动区、以及列表滚到底之后的那一格，都不该推动列表**。
+ *    面板不是 el-dialog，Element Plus 的 `useLockscreen` 根本不参与（body 全程未上锁）；而它的遮罩
+ *    此前是 `overflow: visible` —— 连滚动容器都不是，`overscroll-behavior` 写在它身上也不生效，
+ *    滚轮于是直接交给文档。修复前实测（起点 150、一格 `deltaY=800`）三个落点全部穿透到 950。
+ *    修法是让遮罩真的成为滚动容器再剪链（`components/options/CommandPalette.vue` 的
+ *    `.cp-overlay { overflow: auto; overscroll-behavior: contain }`），与第 5 条同构。
+ *    只此一条：先写过「遮罩 + 列表各一条」，把列表那条摘掉重跑三段位移全部照旧绿，
+ *    故按实测的承重位置收掉 —— 详见该条用例的注释。
  *
- * 五条都把视口压到 420px 高：列表因此真的可滚（不然「scrollTop 没变」是空断言），
- * 30 个站点候选也才装得下面板放不下（不然滚不到底，越界滚动这一格就无从发生）。
+ * 六条都把视口压到 420px 高：列表因此真的可滚（不然「scrollTop 没变」是空断言），
+ * 30 个站点候选也才装得下面板放不下（不然滚不到底，越界滚动这一格就无从发生），
+ * 命令面板那一长串命令同理要超出 `.cp-list` 的 52vh，第 6 条的第三段才量得到。
  */
 
 /** 30 条各挂一个独立域名，给站点候选攒出一个超过面板高度的列表 */
@@ -337,5 +346,94 @@ test.describe('弹窗与浮层的滚动隔离', () => {
 
     const after = await premises(page);
     expect(after.contain, '遮罩上没有 contain：剪断滚动链的样式没落到这个节点').toBe('contain');
+  });
+
+  /**
+   * 命令面板开着，三个落点都不把滚动交给底下的列表
+   *
+   * 与第 5 条同构，但成因完全不同：面板不是 `el-dialog`，Element Plus 的 `useLockscreen` 压根
+   * 没参与（实测 `body` 的 `overflow` 全程是 `visible`，从未上锁），隔离全靠组件自己那一条声明。
+   * 三个落点各钉一段：遮罩空白处、面板底部提示条（它的最近滚动容器同样是遮罩）、列表末行之后。
+   *
+   * 为什么只钉遮罩上的 `contain`、不钉列表上的：先按「遮罩一条 + 列表一条」写过，变异验证把
+   * 列表那条摘掉重跑，**三段位移全部照旧绿** —— 越界那一格顺着祖先爬到遮罩，链在遮罩那里就断了，
+   * 轮不到列表自己那份声明。留一条没人证的声明，不如把判据钉在实际承重的那一条上
+   * （组件里的注释记着这条负结果，免得下次又「补」回去）。
+   *
+   * 两道前提各否掉一种假绿，口径与第 2、5 条一致：`docRoom > 0` 保证文档此刻真的还滚得动
+   * （不然「没动」是空断言）；遮罩那两段的 `room <= 0` 保证这一格注定要上抛（否则「文档不动」
+   * 是遮罩自己吃掉的，量不到剪链这件事）。视口 420 高、面板 319 高，遮罩装得下面板、`room` 恒为 0
+   * —— 而修复前它连滚动容器都不是（`overflow: visible`），三个落点因此全部穿透。
+   */
+  test('命令面板开着，遮罩、页脚与列表末行的滚轮都不推动列表', async ({ optionsPage: page }) => {
+    await scrollDocTo(page, START_TOP, '文档滚不到起点，测量前提不成立');
+    await page.keyboard.press('Control+k');
+    const overlay = page.locator('.cp-overlay');
+    await expect(overlay, 'Ctrl+K 没唤起命令面板').toBeVisible();
+    const baseline = await docTop(page);
+
+    /** 把指针落到 (x,y)，先自证它落在 `selector` 上且判据不是空的，再滚一格读位置 */
+    const wheelOn = async (x: number, y: number, selector: string, label: string): Promise<void> => {
+      const read = await page.evaluate(
+        ({ coords, sel }) => {
+          const root = document.documentElement;
+          const node = document.elementFromPoint(coords.x, coords.y)?.closest(sel) as HTMLElement | null;
+          return {
+            hit: !!node,
+            contain: node ? getComputedStyle(node).overscrollBehaviorY : null,
+            // 该容器自己还能滚多少：<=0 表示这一格滚轮注定要上抛
+            room: node ? Math.round(node.scrollHeight - node.getBoundingClientRect().height) : null,
+            docRoom: root.scrollHeight - root.clientHeight - root.scrollTop,
+          };
+        },
+        { coords: { x, y }, sel: selector },
+      );
+      expect(read.hit, `${label}：滚轮落点不在 ${selector} 上，量的不是这条路径`).toBe(true);
+      expect(read.docRoom, `${label}：文档已经滚到底，这一格本来也推不动它，判据是空的`).toBeGreaterThan(0);
+      if (selector === '.cp-overlay') {
+        expect(read.room, `${label}：遮罩自己就能滚，这条分不清「剪链」与「被遮罩吃掉」`).toBeLessThanOrEqual(0);
+      }
+
+      await page.mouse.move(x, y);
+      await page.mouse.wheel(0, 800);
+      await page.waitForTimeout(300);
+      // 与第 5 条同口径：主判据是位移，样式的核对排在它后面 —— 若 `contain` 排在前面，
+      // 「规则没落地」会先红在样式上，位移那条判据就永远没人证过它有牙。
+      expect(await docTop(page), `${label}：滚轮把底下的列表推着走了`).toBe(baseline);
+      expect(read.contain, `${label}：contain 没落到 ${selector} 这个节点上`).toBe('contain');
+    };
+
+    // 落点 1：面板之外的遮罩。卡片 560px 居中于 1280 宽，左右各留 360px 遮罩区
+    await wheelOn(90, 210, '.cp-overlay', '面板外的遮罩');
+
+    // 落点 2：面板内的非滚动区（底部提示条），它的最近滚动容器同样是遮罩
+    const footerBox = await page.locator('.cp-footer').boundingBox();
+    expect(footerBox, '面板底部提示条量不到位置').not.toBeNull();
+    await wheelOn(
+      footerBox!.x + footerBox!.width / 2,
+      footerBox!.y + footerBox!.height / 2,
+      '.cp-overlay',
+      '面板底部提示条',
+    );
+
+    // 落点 3：列表滚到底之后的那一格 —— 列表自己那份 `contain` 并没有（变异验证摘掉后三段位移照旧绿，
+    // 链在遮罩那一层就被拦住），这一段落在这里量的正是「越界上抛后有没有人接住」这件事。
+    const list = page.locator('.cp-list');
+    const listRoom = await list.evaluate(el => el.scrollHeight - el.clientHeight);
+    expect(listRoom, '列表没有超出可视高度：滚不到底，越界这一格无从发生').toBeGreaterThan(0);
+    const listBox = await list.boundingBox();
+    expect(listBox, '列表量不到位置').not.toBeNull();
+    await page.mouse.move(listBox!.x + listBox!.width / 2, listBox!.y + listBox!.height / 2);
+    await page.mouse.wheel(0, 2_000);
+    await expect
+      .poll(() => list.evaluate(el => el.scrollTop + el.clientHeight >= el.scrollHeight - 1), {
+        message: '命令列表没滚到底',
+      })
+      .toBe(true);
+    expect(await docTop(page), '列表滚到底这一段就把文档推走了').toBe(baseline);
+
+    await page.mouse.wheel(0, 800);
+    await page.waitForTimeout(300);
+    expect(await docTop(page), '命令列表滚到底后，滚动链把底下的列表推着走了').toBe(baseline);
   });
 });

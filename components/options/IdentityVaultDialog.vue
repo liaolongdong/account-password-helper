@@ -62,9 +62,9 @@
         </el-button>
       </div>
 
-      <!-- 备份提醒条：仅在有条目时显示，缓解「身份信息无自动备份」的真实损害 -->
+      <!-- 备份提醒条：有条目且自上次完整加密导出后有过变更时才显示（判据在 useIdentityVault） -->
       <el-alert
-        v-if="rows.length > 0"
+        v-if="identityBackupPending"
         type="info"
         :closable="false"
         :title="t('identity.backupReminder')"
@@ -419,6 +419,7 @@ const {
   categoryFilter,
   sortMode,
   filteredRows,
+  identityBackupPending,
   selectedIds,
   selectedCount,
   allVisibleSelected,
@@ -447,6 +448,8 @@ const {
   remove,
   teardown,
   load,
+  markBackupPending,
+  markBackupDone,
 } = props.vault;
 
 /** 统一掩码（'*' × 8，对标 PasswordTable / PasswordDetailDrawer） */
@@ -633,7 +636,13 @@ const handleDelete = async (entry: IdentityEntry): Promise<void> => {
   }
 };
 
-/** 导出备份（加密 .aphid）：按当前导出作用域（未勾选=全部），主密码复验门槛 */
+/**
+ * 导出备份（加密 .aphid）：按当前导出作用域（未勾选=全部），主密码复验门槛
+ *
+ * 导出成功后只在**作用域覆盖全库**时撤下备份提醒：子集导出落盘的仍是残缺备份，
+ * 此时撤下提醒等于谎报「已经备好了」；明文导出不属于可长期保管的备份形态，
+ * 因此 `handleExportPlaintext` 刻意不调 `markBackupDone`。
+ */
 const handleExport = async (): Promise<void> => {
   const targets = exportTargets.value;
   if (targets.length === 0) {
@@ -645,6 +654,9 @@ const handleExport = async (): Promise<void> => {
   try {
     await exportIdentityBackup(targets, masterPassword);
     clearSelection();
+    // 勾选恰好覆盖全部条目时同样算「完整备份」：targets 恒是 rows 的子集，
+    // 故条数相等即集合相等（id 唯一），不必再比对 id 序列。
+    if (targets.length === rows.value.length) await markBackupDone();
     ElMessage.success(t('identity.export.success'));
   } catch (error) {
     logger.error('导出身份信息备份失败:', error);
@@ -744,6 +756,11 @@ const applyImportedData = async (data: IdentityBackupData, plaintext: boolean): 
   }
 
   await replaceAllIdentity(merged.records);
+  // 导入绕开 create/update/remove，这里补上会话内即时信号：`LAST_IDENTITY_CHANGE_AT`
+  // 由 Service Worker 的 storage.onChanged 异步写入，紧随其后的 load() 大概率读不到，
+  // 只靠落盘时间戳会让「刚导入完却看不见提醒」成为下一次开弹窗才自愈的假阴性。
+  // 导入的子集文件不等于全库备份，故此处只置「待备份」，不做反向的 markBackupDone。
+  markBackupPending();
   await load();
   ElMessage.success(t('identity.import.importSuccess', { count: merged.added + merged.updated }));
 };

@@ -131,7 +131,7 @@ async function unlockIfNeeded(s) {
     `(() => {
       const el = document.querySelector('input[type=password]');
       const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), 'value');
-      d.set.call(el, DEMO_MASTER_PASSWORD);
+      d.set.call(el, ${JSON.stringify(DEMO_MASTER_PASSWORD)});
       el.dispatchEvent(new Event('input', { bubbles: true }));
       el.dispatchEvent(new Event('change', { bubbles: true }));
       const b = [...document.querySelectorAll('button')].find((x) =>
@@ -592,7 +592,7 @@ if (MODE === 'seeded') {
       if (els.length < 2) return 'not first-run';
       const d = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(els[0]), 'value');
       for (const el of els) {
-        d.set.call(el, DEMO_MASTER_PASSWORD);
+        d.set.call(el, ${JSON.stringify(DEMO_MASTER_PASSWORD)});
         el.dispatchEvent(new Event('input', { bubbles: true }));
         el.dispatchEvent(new Event('change', { bubbles: true }));
       }

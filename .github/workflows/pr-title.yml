@@ -14,7 +14,7 @@ name: PR Title
 #    内联在本 job，贡献者无法通过改动仓库内容来让自己的标题"合法"。代价是这份逻辑
 #    只有一处、改动要走 PR 评审，对这条门禁来说是划算的取舍。
 # 3. 标题经 env 传给 node，绝不拼进 shell 命令，避免标题里的反引号、$、() 被执行。
-# 4. ubuntu-latest 自带 node，不为一次正则起 setup-node 的下载与缓存。
+# 4. runner 自带 node，不为一次正则起 setup-node 的下载与缓存。
 
 on:
   pull_request:
@@ -36,7 +36,7 @@ concurrency:
 jobs:
   conventional:
     name: Conventional PR title
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Validate PR title
