@@ -14,7 +14,7 @@
 
 ## What's included
 
-- Unlimited password entries and tags; favorites pinning (default cap 10, configurable 1–50)
+- Up to 2,000 password entries (counted by list rows; Trash items do not occupy the quota — new, import, web auto-save and trash restore are all refused with an explicit message once the cap is reached); up to 5 tags per entry; favorites pinning (default cap 10, configurable 1–50, excess evicted LRU)
 - One-click login (autofill + tick consent + click login)
 - Cross-subdomain matching, three tiers set on the manager page header: "Exact match only" (default), "Exact + wildcard entries" (an entry saved as `*.qq.com` is offered on every subdomain of that site), "Same main domain" (additionally falls back to the apex domain and sibling subdomains when the current host has no entry, badged as cross-subdomain). Widening only affects which entries are offered: the auto-save duplicate rule is deliberately tier-independent, and `localhost` / `127.0.0.1` always stay separated by port
 - Site rules: per-domain custom CSS selectors for the username and password input fields, for login pages heuristic detection gets wrong (typically Web Components sites). Each rule carries a Shadow DOM penetration switch, on by default, that reaches OPEN shadow roots only — no extension can read a closed (`mode: 'closed'`) root. The domain must equal the login page domain exactly (no wildcards inside rules). Rules export as a plain-text JSON file (`site_rules_<timestamp>.json`, domains and selectors only, never credentials) and merge-import by domain, reporting added / updated / skipped; limits are 500 rules and 2 MiB per file, and the export / import buttons live in the site-rules dialog footer
