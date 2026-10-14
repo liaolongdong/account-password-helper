@@ -29,7 +29,7 @@
 
 **[📥 Install](#-install--get-started) · [🌐 Live demo](https://liaolongdong.github.io/account-password-helper/en.html) · [❓ FAQ](#-faq) · [💬 Community](#-contact)**
 
-**Contents**: [Core Advantages](#-core-advantages) · [How It Works](#-how-it-works) · [Feature Tour](#-feature-tour) · [How It Compares](#-how-it-compares) · [Feature Overview](#-feature-overview) · [Use Cases](#-use-cases) · [Security & Privacy](#-security--privacy) · [Install & Get Started](#-install--get-started) · [FAQ](#-faq) · [More by the author](#-more-by-the-author) · [Contributing](#-contributing) · [License](#-license)
+**Contents**: [Core Advantages](#-core-advantages) · [How It Works](#-how-it-works) · [Feature Tour](#-feature-tour) · [How It Compares](#-how-it-compares) · [Feature Overview](#-feature-overview) · [Use Cases](#-use-cases) · [Security & Privacy](#-security--privacy) · [Install & Get Started](#-install--get-started) · [FAQ](#-faq) · [Changelog](#-changelog) · [More by the author](#-more-by-the-author) · [Contributing](#-contributing) · [License](#-license)
 
 </div>
 
@@ -351,6 +351,28 @@ The side panel relies on Chrome's Side Panel API (Chromium 114 or newer); you ca
 
 > 📖 More questions (TOTP usage & troubleshooting, fill troubleshooting, email backup, encrypted backup, the favorites limit, etc.) are covered in the full FAQ on the [live demo page](https://liaolongdong.github.io/account-password-helper/en.html) and the per-feature notes in [docs/ARCHITECTURE.en.md](./docs/ARCHITECTURE.en.md).
 
+## 🕒 Changelog
+
+Highlights from the most recent releases. The item-by-item record is in [CHANGELOG.md](./CHANGELOG.md); packages and release notes are on [Releases](https://github.com/liaolongdong/account-password-helper/releases).
+
+### v3.16.0 (2026-10-14)
+
+- **Site rules can override the fill entry per domain**: keep the sidebar globally while a single site falls back to the inline panel or manual mode. The settings panel now states which entry the site rule pins it to, and clearing the last override removes the rule instead of leaving you stuck with a setting you cannot change back.
+- **Identity vault re-verification is now a three-way choice**, defaulting to "verify once per session" — no prompt on every use, but not a free pass for the whole session either.
+- **Backup reminder closes the loop with the disk**: it only clears after a full export actually lands, so glancing at the dialog no longer counts as "backed up".
+- **A new "About" drawer on the management page** gathers the version, where your data lives, and the public links in one place; the per-entry "view details" action now uses a custom detail card — long values wrap instead of stacking vertically, and notes are one click to copy.
+- **Command palette no longer leaks the scroll**: the overlay becomes the scroll container itself, so reaching the bottom of the list stops handing the wheel to the whole page.
+
+### v3.15.1 / v3.15.2 (2026-10-11)
+
+Two polish patches: the re-verification dialog cuts its scroll chain and action-icon spacing normalises to 8px; filter dropdown tooltips now cover the whole row and the collapsed selection label, so long site names are readable without opening the dropdown.
+
+### v3.15.0 (2026-10-11)
+
+- **Filter by site**, including a dedicated "(no URL)" bucket so entries without a site address are easy to sort out.
+- **Tag limit raised to 5**, with candidate lists showing entry counts and the full original text on hover.
+- **One click from the detail drawer searches the identity vault with that username**; auto-save now prefills a tag from the site name in the page title instead of the entire title.
+
 ## 🚀 Try It Now
 
 🔗 [Install from Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) (one-click install, auto-updates) · [Download from GitHub Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) (if Google is unreachable) · [Live Demo](https://liaolongdong.github.io/account-password-helper/en.html)
@@ -394,4 +416,4 @@ Email: [924902324@qq.com](mailto:924902324@qq.com?subject=Account%20Password%20H
 
 ---
 
-> 📅 Last updated: 2026-10-13 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
+> 📅 Last updated: 2026-10-15 · Feature descriptions track the latest implementation on the current development branch — for published versions see [Releases](https://github.com/liaolongdong/account-password-helper/releases/latest)
