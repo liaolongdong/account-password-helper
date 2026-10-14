@@ -3576,6 +3576,30 @@
         transition-delay: 0.32s;
       }
 
+      /* ============ 打开速度带（工作原理段末） ============ */
+      /* 行式、配色与断点全部复用 priv-perms / .perm：这里只补标题层级与间距，
+         不新增布局规则，因此窄屏不必再写第三份 media query，也不引入新的颜色对。 */
+      .hiw-speed {
+        margin-top: 42px;
+      }
+      .hiw-speed h3 {
+        margin: 0 0 6px;
+        font-size: 18px;
+      }
+      .hiw-speed-sub {
+        margin: 0;
+        color: var(--text-muted);
+        font-size: 14px;
+      }
+      .hiw-speed .priv-perms {
+        margin-top: 16px;
+      }
+      .hiw-speed-note {
+        margin: 18px 0 0;
+        color: var(--text-muted);
+        font-size: 13.5px;
+      }
+
       /* ============ Privacy（隐私与权限带） ============ */
       .priv {
         background: var(--bg-soft);
@@ -5283,6 +5307,35 @@
             <p data-i18n="how.s4.desc">Fields are written one by one, consent and “remember me” boxes get ticked, and the sign-in button can be clicked for you if you switch that on. A credential seen for the first time always asks before it is saved.</p>
           </article>
         </div>
+        <div class="hiw-speed">
+          <h3 data-i18n="how.speedTitle">Why it opens without a stall</h3>
+          <p
+            class="hiw-speed-sub"
+            data-i18n="how.speedSub"
+          >All four happen on your own machine — not one of them waits on a server.</p>
+          <div class="priv-perms">
+            <div class="perm reveal reveal-delay-1">
+              <code data-i18n="how.k1.chip">Resident</code>
+              <span data-i18n="how.k1.text">A 20s heartbeat plus a 30s revival alarm keep the background service worker alive on every platform, so the password cache is already in memory — there is no cold start to wait for when you open the panel.</span>
+            </div>
+            <div class="perm reveal reveal-delay-2">
+              <code data-i18n="how.k2.chip">Pre-warmed</code>
+              <span data-i18n="how.k2.text">Window focus, tab switches and the keep-alive tick each warm the side panel’s render resources per platform (throttled to once every 5 minutes), so the first open is not fetching chunks off disk.</span>
+            </div>
+            <div class="perm reveal reveal-delay-3">
+              <code data-i18n="how.k3.chip">Race</code>
+              <span data-i18n="how.k3.text">The in-memory session snapshot, the background data call and the panel’s own storage read run in parallel — whichever returns first is used, and one path failing never blocks the other two.</span>
+            </div>
+            <div class="perm reveal reveal-delay-4">
+              <code data-i18n="how.k4.chip">First batch</code>
+              <span data-i18n="how.k4.text">The list paints one batch of rows on the first frame, then opens up frame by frame as you scroll — so even near the 2000-entry ceiling you never wait for the whole table.</span>
+            </div>
+          </div>
+          <p
+            class="hiw-speed-note"
+            data-i18n="how.speedNote"
+          >We tune “open the side panel” toward “the UI is already there”: with a live session the data comes back from cache in roughly 20-50ms. We deliberately make no single millisecond promise across machines — disk speed and live antivirus scanning vary more than anything we control.</p>
+        </div>
       </div>
     </section>
 
@@ -6568,6 +6621,35 @@ pnpm lint:style  # Stylelint</code></pre>
         'how.s4.desc': {
           zh: '逐字段写入并自动勾选「记住我 / 同意协议」，可选再替你点下登录按钮；网页上新产生的凭证回写前先经你确认。',
           en: 'Fields are written one by one, consent and “remember me” boxes get ticked, and the sign-in button can be clicked for you if you switch that on. A credential seen for the first time always asks before it is saved.',
+        },
+        'how.speedTitle': { zh: '为什么它开起来不卡', en: 'Why it opens without a stall' },
+        'how.speedSub': {
+          zh: '四件事全在你自己的机器上完成，没有一步在等服务器',
+          en: 'All four happen on your own machine — not one of them waits on a server.',
+        },
+        'how.k1.chip': { zh: '常驻', en: 'Resident' },
+        'how.k1.text': {
+          zh: '20 秒心跳 + 30 秒复活闹钟让后台 Service Worker 全平台常驻，密码缓存因此一直留在内存里，点开侧边栏不必等冷启动。',
+          en: 'A 20s heartbeat plus a 30s revival alarm keep the background service worker alive on every platform, so the password cache is already in memory — there is no cold start to wait for when you open the panel.',
+        },
+        'how.k2.chip': { zh: '预热', en: 'Pre-warmed' },
+        'how.k2.text': {
+          zh: '窗口聚焦、标签切换与保活心跳都会按平台预热侧边栏要用的渲染资源（5 分钟节流一次），首次打开不必现场去磁盘取 chunk。',
+          en: 'Window focus, tab switches and the keep-alive tick each warm the side panel’s render resources per platform (throttled to once every 5 minutes), so the first open is not fetching chunks off disk.',
+        },
+        'how.k3.chip': { zh: '竞速', en: 'Race' },
+        'how.k3.text': {
+          zh: '会话内存快照、后台取数、侧边栏本地读取三路并行，谁先回来用谁；任何一路失败都不拖累其余两路。',
+          en: 'The in-memory session snapshot, the background data call and the panel’s own storage read run in parallel — whichever returns first is used, and one path failing never blocks the other two.',
+        },
+        'how.k4.chip': { zh: '首批', en: 'First batch' },
+        'how.k4.text': {
+          zh: '列表首帧只画第一批行，之后逐帧放开、滚动到哪铺到哪，接近 2000 条上限时也不必等整张表画完才动手。',
+          en: 'The list paints one batch of rows on the first frame, then opens up frame by frame as you scroll — so even near the 2000-entry ceiling you never wait for the whole table.',
+        },
+        'how.speedNote': {
+          zh: '我们把「点开侧边栏就立刻有界面」当作调优目标：会话有效时数据从缓存取回约 20-50ms。跨机器不给统一的毫秒承诺——磁盘速度与杀毒软件的实时扫描，差别比我们能控制的还大。',
+          en: 'We tune “open the side panel” toward “the UI is already there”: with a live session the data comes back from cache in roughly 20-50ms. We deliberately make no single millisecond promise across machines — disk speed and live antivirus scanning vary more than anything we control.',
         },
         // ---------- 隐私与权限 ----------
         'priv.title': { zh: '隐私与权限', en: 'Privacy & permissions' },
