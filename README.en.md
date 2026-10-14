@@ -310,7 +310,7 @@ The manager page header carries a "Cross-subdomain matching" control with three 
 <details>
 <summary><strong>What if the login fields are not detected, or nothing fills?</strong></summary>
 
-When the form lives inside custom components (typically Web Components pages), open "Site rules" on the manager page and pin the CSS selectors for that domain's username and password fields — the domain must match the login page exactly, wildcards are not supported. Each rule ships with "Shadow DOM penetration" switched on and it can be turned off to match the main document only; note that no extension can read a closed shadow root (`mode: 'closed'`), only open ones. Finished rules export as JSON (plain text — domains and selectors, never credentials) for backup or team sharing, and importing merges by domain with an added / updated / skipped report.
+When the form lives inside custom components (typically Web Components pages), open "Site rules" on the manager page and pin the CSS selectors for that domain's username and password fields — the domain must match the login page exactly, wildcards are not supported. Each rule ships with "Shadow DOM penetration" switched on and it can be turned off to match the main document only; the Preferences panel carries a master gate under the same name, and switching it off stops every site from crossing the boundary (a site rule can only narrow it further while that gate is on, never re-open it). Note that no extension can read a closed shadow root (`mode: 'closed'`), only open ones. Finished rules export as JSON (plain text — domains and selectors, never credentials) for backup or team sharing, and importing merges by domain with an added / updated / skipped report.
 
 </details>
 
