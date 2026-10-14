@@ -90,6 +90,28 @@ export const floatingButtonStyles = `
 }
 
 /*
+ * 键盘/程序化激活的按压反馈（AnimationController.buttonClickFeedback 负责加类）。
+ * 走关键帧而不是内联 transform：内联会盖住 .btn:hover 的放大（两者抢同一个属性），
+ * 而播放结束后元素本就回到当前状态，因此类留在身上没有视觉后果，也不需要计时器或
+ * animationend 清理——只有「必须在结束时复位」的过渡才需要那套收尾。
+ */
+.btn.click-feedback {
+  animation: btn-press 0.18s ease;
+}
+
+@keyframes btn-press {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(0.95);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/*
  * 键盘可达（WCAG 2.4.7）：三个悬浮按钮是原生 button，而基态的 outline: none 连 UA 焦点环
  * 一起撤掉了，Tab 走到悬浮按钮上时没有任何可见落点。只给 :focus-visible 补轮廓——鼠标点击
  * 不留常驻方框，键盘路径才画环。主色由宿主写下的令牌提供，跟随换肤。
@@ -315,11 +337,17 @@ export const floatingButtonStyles = `
  * loading 态的 spin 关键帧不在这里关：它是「正在处理」的唯一反馈（AnimationController 只加
  * loading 类，没有别的文字或图标变化），关掉等于把状态整个藏起来，比留着 0.8s 旋转更糟；
  * 要减弱它得先补一个非运动的态提示，属独立改动。
+ * btn-press 与 spin 同为关键帧但归属相反：它和 .btn:active 是同一个按压反馈，
+ * 关掉只是少一次 5% 缩放，按下本身仍有底色与阴影变化可读。
  */
 @media (prefers-reduced-motion: reduce) {
   .btn:hover,
   .btn:active {
     transform: none;
+  }
+
+  .btn.click-feedback {
+    animation: none;
   }
 
   .floating-container.hidden {
