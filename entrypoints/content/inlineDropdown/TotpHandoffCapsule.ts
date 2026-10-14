@@ -114,6 +114,18 @@ const capsuleStyles = `
 .aph-handoff-close:hover {
   color: #6b7280;
 }
+
+/*
+ * 减弱动效：入场那 3px 上浮关掉，淡入保留——它是「胶囊出现在哪个输入框上」的唯一
+ * 过渡线索，全关会让突然出现读起来像页面闪烁。口径与内联下拉的减弱档一致：重列
+ * transition、只摘掉位移。可见态那条归零的位移本就是空操作，不用再覆盖。
+ */
+@media (prefers-reduced-motion: reduce) {
+  .aph-handoff {
+    transition: box-shadow 0.15s ease, opacity 0.2s ease;
+    transform: none;
+  }
+}
 `;
 
 /** 字段不可见或脱离文档时隐藏胶囊的检查间隔（毫秒，随秒级心跳顺带执行） */
