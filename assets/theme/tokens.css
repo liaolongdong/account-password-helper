@@ -48,6 +48,16 @@
   --aph-border-light: #f3f4f5;
   --aph-bg-zebra: #f8f9fb;
   --aph-bg-hover: #eef1f5;
+
+  /* 动效时长档位：全仓 `transition` / `animation` 只准取这三档。
+     取值直接来自本轮改动前各处的实际字面值（0.15s / 0.2s / 0.3s 是仓库里占比最高的三簇），
+     因此换用令牌本身零视觉变化；新增动效时按「反馈位移=fast、状态切换=mid、入场/滑出=slow」取档，
+     不再随手写 0.25s、0.12s 这类邻近但不同的值。
+     与主题无关（六个主题块都不覆盖），故 `SHADOW_NEUTRAL_TOKENS` 里**故意不镜像**：
+     内容脚本的影子样式继续写字面时长，避免把整条动效链拖进跨上下文同步面。 */
+  --aph-duration-fast: 0.15s;
+  --aph-duration-mid: 0.2s;
+  --aph-duration-slow: 0.3s;
 }
 
 /* ==================== 青竹绿 ==================== */

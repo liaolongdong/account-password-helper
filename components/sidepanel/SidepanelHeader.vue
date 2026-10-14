@@ -185,7 +185,12 @@ watch(
   background: transparent;
   border: none;
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease,
+    outline var(--aph-duration-mid) ease;
 }
 
 .pill-btn:hover {
@@ -305,7 +310,12 @@ watch(
   background: transparent;
   border: 1px solid rgb(var(--aph-primary-rgb) / 45%);
   border-radius: 50%;
-  transition: all 0.2s ease;
+  transition:
+    color var(--aph-duration-mid) ease,
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease,
+    outline var(--aph-duration-mid) ease;
 }
 
 .add-site-plus:hover {

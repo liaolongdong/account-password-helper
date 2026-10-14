@@ -405,9 +405,9 @@ const activate = () => {
   cursor: pointer;
   border-radius: 4px;
   transition:
-    background-color 0.2s,
-    color 0.2s,
-    transform 0.15s ease;
+    background-color var(--aph-duration-mid),
+    color var(--aph-duration-mid),
+    transform var(--aph-duration-fast) ease;
 }
 
 /*

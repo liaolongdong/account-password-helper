@@ -33,12 +33,16 @@ import { MAX_TAG_COUNT, MAX_TAG_LENGTH } from '@/utils/constants';
 import { isVaultCapacityError, MAX_PASSWORD_ENTRIES } from '@/utils/storage/vaultCapacity';
 
 /**
- * 删除动画时长：行淡出后再落盘（沿用原实现的 1s 节奏，不改变观感）
+ * 删除动画时长：行淡出后再落盘
  *
  * 导出供回归测试复用：测试里写死同一个数字，实现调整节奏后只会「多推进」而不会失败，
  * 动画与落盘的时序契约就静默失守了。
+ *
+ * 与 `PasswordTable.vue` 里 `.del-item` 的 `animation: fade-out var(--aph-duration-mid)`
+ * 是同一节奏（0.2s）。两边不一致时后果是有界的：定时器晚于动画，行由 `forwards` 保持透明
+ * 直到摘除；定时器早于动画，行在中途被摘掉、少显示剩下那一小段。都不会把行留在页面上。
  */
-export const DELETE_ANIMATION_MS = 1000;
+export const DELETE_ANIMATION_MS = 200;
 
 /**
  * 保存 / 收藏 / 创建副本后目标行的高亮时长

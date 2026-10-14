@@ -653,7 +653,11 @@ const handleEmailClick = (event: Event) => {
   background: #fafafa;
   border: 1px solid #ebeef5;
   border-radius: 10px;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease;
 }
 
 .action-card:hover {
@@ -775,7 +779,11 @@ const handleEmailClick = (event: Event) => {
   background: #fef0f0;
   border: 1px solid #fbc4c4;
   border-radius: 10px;
-  transition: all 0.2s ease;
+  transition:
+    background-color var(--aph-duration-mid) ease,
+    border-color var(--aph-duration-mid) ease,
+    box-shadow var(--aph-duration-mid) ease,
+    transform var(--aph-duration-mid) ease;
 }
 
 .update-card:hover {
