@@ -31,22 +31,37 @@ export type PanelLocale = LiteLocale;
 export const getStoredPanelLocale = getStoredLocale;
 
 /**
- * 三个布尔开关的设置键 → 面板文案键
+ * 四个布尔开关的设置键 → 面板文案键
  *
  * `div.switch` 不是原生控件，读屏只能靠 `aria-label` 念出它是什么；这份映射让
  * aria-label 与同行可见标签取同一个真源，切语言时由 `applyPanelLocale` 一起刷新。
+ *
+ * `penetrateShadow` 是这四项里唯一**可选**的字段（存量存储里可能没有这个键），
+ * 「未写」等于开，因此它的当前态由 {@link isSwitchOn} 统一给出，渲染与切换读同一个口径。
  */
 const SWITCH_LABEL_KEYS = {
   visible: 'visible',
   autoTriggerLogin: 'autoTriggerLogin',
   passwordVisibilityToggle: 'passwordVisibility',
+  penetrateShadow: 'penetrateShadow',
 } as const;
 
-/** 开关设置键（同时也是 `FloatingButtonConfig` 上的三个布尔字段） */
+/** 开关设置键（同时也是 `FloatingButtonConfig` 上的四个布尔字段） */
 type SwitchSetting = keyof typeof SWITCH_LABEL_KEYS;
 
 /** 开关设置键列表（绑定与外部同步共用） */
 const SWITCH_SETTINGS = Object.keys(SWITCH_LABEL_KEYS) as SwitchSetting[];
+
+/**
+ * 开关的当前态
+ *
+ * `penetrateShadow` 是这四个字段里唯一的可选布尔，语义是「未写即开」——检测侧
+ * （`FormDetector.penetrateShadowEnabled`）按 `!== false` 判定，面板必须读同一个口径。
+ * 渲染与切换共用这一个函数：两处各写一份时，老配置（无该键）下面板显示开、
+ * 点下去算的是 `!undefined = true` 还是开，用户看到的是一次没任何反应的点击。
+ */
+const isSwitchOn = (key: SwitchSetting, config: FloatingButtonConfig): boolean =>
+  key === 'penetrateShadow' ? config.penetrateShadow !== false : !!config[key];
 
 /**
  * 透明度滑块的键盘档位
@@ -73,6 +88,8 @@ type PanelMessageKey =
   | 'autoTriggerTip'
   | 'passwordVisibility'
   | 'passwordVisibilityTip'
+  | 'penetrateShadow'
+  | 'penetrateShadowTip'
   | 'opacity';
 
 /** 面板内建双语文案（tip 类文案含 highlight-tip 高亮标记，需以 innerHTML 渲染） */
@@ -94,6 +111,9 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     passwordVisibility: '密码显示切换',
     passwordVisibilityTip:
       '开启后，密码输入框内将显示眼睛图标按钮，点击可切换密码明文/密文<span class="highlight-tip">（注：页面如有自带的眼睛图标会重叠显示）</span>',
+    penetrateShadow: 'Shadow DOM 穿透',
+    penetrateShadowTip:
+      '开启后，字段匹配会进入页面组件的开放 Shadow DOM，Ionic/Lightning 这类 Web Components 登录框才认得出来，站点规则里的自定义选择器同样受益；关闭后只在页面主文档内匹配，「未检测到登录表单」的就地引导也一并隐藏。站点规则还能逐站点再关一次，两处任一关闭即不穿透。',
     opacity: '按钮透明度',
   },
   en: {
@@ -112,6 +132,9 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     passwordVisibility: 'Password visibility toggle',
     passwordVisibilityTip:
       'When enabled, an eye icon appears inside password fields to toggle between plain and masked text<span class="highlight-tip"> (note: it may overlap the site&#39;s own eye icon)</span>',
+    penetrateShadow: 'Shadow DOM penetration',
+    penetrateShadowTip:
+      'When enabled, field detection reaches into open Shadow DOM inside page components — the only way to see login forms built with Web Components such as Ionic or Lightning — and custom selectors benefit the same way. When disabled, matching stays in the main document and the inline “no login form detected” guidance is hidden too. A site rule can switch it off per site as well; either one off means no penetration.',
     opacity: 'Button opacity',
   },
 };
@@ -725,6 +748,14 @@ export function getSettingsPanelHTML(
       <div class="setting-tip" data-i18n="passwordVisibilityTip">${msg.passwordVisibilityTip}</div>
 
       <div class="setting-item">
+        <span class="setting-label" data-i18n="penetrateShadow">${msg.penetrateShadow}</span>
+        <div class="switch ${isSwitchOn('penetrateShadow', config) ? 'active' : ''}" data-setting="penetrateShadow" role="switch" tabindex="0" aria-checked="${isSwitchOn('penetrateShadow', config)}" aria-label="${msg.penetrateShadow}">
+          <div class="switch-handle"></div>
+        </div>
+      </div>
+      <div class="setting-tip" data-i18n="penetrateShadowTip">${msg.penetrateShadowTip}</div>
+
+      <div class="setting-item">
         <span class="setting-label" data-i18n="opacity">${msg.opacity}</span>
         <div class="slider-container">
           <div class="slider" data-setting="opacity" role="slider" tabindex="0" aria-label="${msg.opacity}" aria-valuemin="${OPACITY_MIN_PCT}" aria-valuemax="100" aria-valuenow="${opacityPct}" aria-valuetext="${opacityPct}%">
@@ -856,7 +887,7 @@ export function bindSettingsPanelView(
     const el = panelRoot.querySelector<HTMLElement>(`[data-setting="${key}"]`);
     if (!el) return;
     const toggle = () => {
-      const next = !config[key];
+      const next = !isSwitchOn(key, config);
       config[key] = next;
       el.classList.toggle('active', next);
       // 开关是 div，选中态既要用类名给眼睛，也要用 aria-checked 给读屏

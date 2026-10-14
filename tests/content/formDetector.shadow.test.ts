@@ -19,7 +19,8 @@
  *    嵌套一层的 open 影子树也能被显式选择器命中；
  * 3. closed 影子树对扩展不可见（`el.shadowRoot` 为 null），即使配置了选择器也拿不到；
  * 4. 穿透开关（全局配置或该站点规则任一关闭）会把查询根收回到文档主树：选择器仍在
- *    light DOM 生效，但不再跨进 open 影子树——开关语义与选项页文案一致。
+ *    light DOM 生效，但不再跨进 open 影子树——开关语义与选项页文案一致；
+ * 5. 总闸在运行中翻转时立即重检测（改透明度/拖动位置这类不翻转的写入不得重检测）。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FormDetector } from '@/entrypoints/content/FormDetector';
@@ -288,5 +289,54 @@ describe('FormDetector 的 Shadow DOM 边界', () => {
 
     expect((detector as any).usernameFields[0].id).toBe('light-user');
     expect((detector as any).passwordFields).toHaveLength(0);
+  });
+
+  it('运行中翻转总闸立刻重检测，不必刷新页面', async () => {
+    const { openRoot } = buildShadowOnlyDom();
+    openRoot.host.insertAdjacentHTML('beforebegin', '<input id="light-user" type="text">');
+    const config = makeConfig();
+    installChromeMock(config, {
+      [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#light-user', password: '#shadow-pwd' } },
+    });
+    detector = await createDetector();
+    (detector as any).detectForms();
+    expect((detector as any).passwordFields).toHaveLength(1);
+
+    // 两份监听器都收得到这次变更：站点规则那份只认 site_rules，让它一并跑一遍，
+    // 免得测试和 addListener 的注册顺序绑死。
+    const addListener = (globalThis as any).chrome.storage.onChanged.addListener;
+    const fire = (newValue: Record<string, unknown>) =>
+      addListener.mock.calls.forEach(([fn]: [(changes: unknown, area: string) => void]) =>
+        fn({ [STORAGE_KEYS.FLOATING_BUTTON_CONFIG]: { newValue } }, 'local'),
+      );
+
+    fire({ ...config, penetrateShadow: false });
+    await settle();
+    expect((detector as any).passwordFields).toHaveLength(0);
+
+    // 开回来必须看得见——总闸是双向的，只做「关掉」这一半会漏掉重新开启的路径
+    fire(config);
+    await settle();
+    expect((detector as any).passwordFields).toHaveLength(1);
+  });
+
+  it('总闸没翻转时不重检测（拖动位置/改透明度都在写这份配置）', async () => {
+    const { openRoot } = buildShadowOnlyDom();
+    openRoot.host.insertAdjacentHTML('beforebegin', '<input id="light-user" type="text">');
+    const config = makeConfig();
+    installChromeMock(config, {
+      [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#light-user', password: '#shadow-pwd' } },
+    });
+    detector = await createDetector();
+    (detector as any).detectForms();
+    const detectSpy = vi.spyOn(detector as any, 'detectForms');
+
+    const addListener = (globalThis as any).chrome.storage.onChanged.addListener;
+    addListener.mock.calls.forEach(([fn]: [(changes: unknown, area: string) => void]) =>
+      fn({ [STORAGE_KEYS.FLOATING_BUTTON_CONFIG]: { newValue: { ...config, opacity: 0.5 } } }, 'local'),
+    );
+    await settle();
+
+    expect(detectSpy).not.toHaveBeenCalled();
   });
 });

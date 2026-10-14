@@ -220,6 +220,7 @@ export class FormDetector {
       if (changes.floating_button_config) {
         const rawConfig = changes.floating_button_config.newValue as Partial<FloatingButtonConfig> | undefined;
         if (rawConfig) {
+          const penetratedBefore = this.penetrateShadowEnabled;
           // 合并默认值兜底：升级钩子 freezeLegacyFillDefaults 可能写入部分对象，
           // 直接整体替换会令 visible/theme 等未覆盖字段变为 undefined
           const newConfig: FloatingButtonConfig = {
@@ -235,6 +236,9 @@ export class FormDetector {
           this.inlineDropdown.setTheme(newConfig.theme);
           // 同步两步接力胶囊主题
           getTotpHandoffCapsule().setTheme(newConfig.theme);
+          // 穿透总闸翻转后重检测，口径同站点规则那条监听：否则关闸要刷新页面才见效。
+          // 只在翻转时做——位置/透明度每次拖动都会写这份配置，全量重检测代价太大。
+          if (penetratedBefore !== this.penetrateShadowEnabled) this.detectForms();
         }
       }
     };

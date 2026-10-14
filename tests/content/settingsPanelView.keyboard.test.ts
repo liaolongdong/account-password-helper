@@ -85,10 +85,10 @@ afterEach(() => {
 });
 
 describe('可聚焦：非原生控件必须进入 Tab 序列', () => {
-  it('三个开关与滑块带 role 与 tabindex，焦点轮廓才有消费者', () => {
+  it('四个开关与滑块带 role 与 tabindex，焦点轮廓才有消费者', () => {
     const { root } = mount();
 
-    ['visible', 'autoTriggerLogin', 'passwordVisibilityToggle'].forEach(setting => {
+    ['visible', 'autoTriggerLogin', 'passwordVisibilityToggle', 'penetrateShadow'].forEach(setting => {
       const el = switchOf(root, setting);
       expect(el.getAttribute('role')).toBe('switch');
       expect(el.getAttribute('tabindex')).toBe('0');
@@ -108,6 +108,7 @@ describe('可聚焦：非原生控件必须进入 Tab 序列', () => {
       switchOf(root, 'visible'),
       switchOf(root, 'autoTriggerLogin'),
       switchOf(root, 'passwordVisibilityToggle'),
+      switchOf(root, 'penetrateShadow'),
       sliderOf(root),
     ];
     controls.forEach(el => {
@@ -164,6 +165,26 @@ describe('开关：键盘激活键与 aria-checked', () => {
     expect(el.classList.contains('active')).toBe(true);
     expect(el.getAttribute('aria-checked')).toBe('true');
     expect(onConfigChange).toHaveBeenCalledWith({ passwordVisibilityToggle: true });
+  });
+
+  it('穿透总闸「未写过」渲染为开，关掉只写这一个字段', () => {
+    // 存量用户的存储里没有这个键，`get()` 合并默认值后是 true；面板也必须按
+    // 「未写 = 开」渲染，否则老用户一打开偏好设置就看到总闸写着关、行为却是开。
+    const unset = mount(makeConfig({ penetrateShadow: undefined }));
+    const unsetEl = switchOf(unset.root, 'penetrateShadow');
+    expect(unsetEl.classList.contains('active')).toBe(true);
+    expect(unsetEl.getAttribute('aria-checked')).toBe('true');
+
+    unsetEl.click();
+    expect(unsetEl.classList.contains('active')).toBe(false);
+    expect(unset.onConfigChange).toHaveBeenCalledWith({ penetrateShadow: false });
+
+    // 真关掉之后重新挂载，渲染要跟着变关；再点一次回到开
+    const off = mount(makeConfig({ penetrateShadow: false }));
+    const offEl = switchOf(off.root, 'penetrateShadow');
+    expect(offEl.classList.contains('active')).toBe(false);
+    offEl.click();
+    expect(off.onConfigChange).toHaveBeenCalledWith({ penetrateShadow: true });
   });
 });
 
@@ -291,6 +312,7 @@ describe('语言切换：无障碍名不能留在旧语言', () => {
       switchOf(root, 'visible'),
       switchOf(root, 'autoTriggerLogin'),
       switchOf(root, 'passwordVisibilityToggle'),
+      switchOf(root, 'penetrateShadow'),
       sliderOf(root),
     ];
     controls.forEach(el => expect(el.getAttribute('aria-label')).toBe(rowLabelText(el)));
