@@ -4,7 +4,6 @@
       ref="localTableRef"
       v-loading="loading"
       :element-loading-text="t('options.table.loading')"
-      :empty-text="t('common.noData')"
       :data="data"
       style="width: 100%"
       stripe
@@ -277,6 +276,33 @@
           </div>
         </template>
       </el-table-column>
+      <template #empty>
+        <!--
+          空态到这里只有一种真实形状：库里有条目，但筛选把这一页筛空了
+          （整库为空时父级走 EmptyGuide，本组件在 v-else 分支上不渲染）。
+          所以这里给的是「清空筛选」出口，而不是又一句「暂无数据」。
+        -->
+        <div
+          v-if="hasActiveFilters"
+          class="table-empty-filtered"
+        >
+          <p class="empty-title">
+            {{ t('options.table.noMatchedEntries') }}
+          </p>
+          <el-button
+            size="small"
+            @click="$emit('clearFilters')"
+          >
+            {{ t('options.table.clearFilters') }}
+          </el-button>
+        </div>
+        <div
+          v-else
+          class="table-empty-plain"
+        >
+          {{ t('common.noData') }}
+        </div>
+      </template>
     </el-table>
     <!--
       分页条：与表格同属这张卡片，因此挂在 `.password-list` 内部而不是 App 层，
@@ -365,6 +391,8 @@ defineProps<{
   selectedCount: number;
   /** 已选中但不在当前页的条数 */
   offPageSelectedCount: number;
+  /** 是否有生效中的筛选条件，决定空态给「清空筛选」出口还是纯占位文案 */
+  hasActiveFilters?: boolean;
 }>();
 
 defineEmits<{
@@ -376,6 +404,7 @@ defineEmits<{
   edit: [row: PasswordEntry];
   toggleFavorite: [id: string];
   deletePassword: [id: string];
+  clearFilters: [];
   'update:currentPage': [page: number];
   'update:pageSize': [size: number];
 }>();
@@ -789,6 +818,21 @@ defineExpose({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* 空态：库里有条目但筛选把这一页筛空，给一条回到整库视图的出口 */
+.table-empty-filtered {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.empty-title {
+  margin: 0;
+  font-size: 14px;
+  color: var(--aph-text-secondary);
 }
 
 /* 响应式 */

@@ -43,6 +43,7 @@
   "sidepanel.favorited": "已收藏",
   "sidepanel.unfavorited": "已取消收藏",
   "sidepanel.favoriteEvicted": "收藏已满（{limit} 条），已自动替换「{username}」",
+  "sidepanel.favoriteSaveFailed": "收藏状态未能保存，已恢复原状",
   "sidepanel.openSiteInvalidUrl": "该条目的网址无效，请先编辑修正",
   "sidepanel.openSiteFailed": "打开站点失败",
   "sidepanel.header.github": "查看开源仓库",

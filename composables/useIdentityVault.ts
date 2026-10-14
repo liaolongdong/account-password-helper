@@ -398,9 +398,12 @@ export function useIdentityVault() {
     if (!moved) return null;
 
     manualOrder.value = moved.ids;
-    void saveIdentityManualOrder(moved.ids).catch(error =>
-      logger.warn('身份信息手动排序落盘失败，本次会话内仍生效:', error),
-    );
+    // 不回滚内存顺序：卡片已经跟着手势落位，弹回去比留一条明确提示更糟。
+    // 但落盘失败必须让用户知道——否则刷新后顺序悄悄复原，看着像拖拽没生效。
+    void saveIdentityManualOrder(moved.ids).catch(error => {
+      logger.warn('身份信息手动排序落盘失败，本次会话内仍生效:', error);
+      ElMessage.warning(t('identity.sort.saveFailed'));
+    });
     return moved.index + 1;
   }
 

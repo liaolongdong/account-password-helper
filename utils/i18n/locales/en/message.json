@@ -12,6 +12,7 @@
   "message.noDataToBackup": "No password data to back up",
   "message.unknownError": "Unknown error",
   "message.locked": "Locked",
+  "message.lockFailed": "Lock failed — the session may still be active. Please try again.",
   "message.entryNotFound": "Matching password entry not found; it may have been deleted",
   "message.siteRulesNeedUnlock": "Password manager opened — unlock it to configure site-fill rules for this site"
 }

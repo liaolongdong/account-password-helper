@@ -161,6 +161,8 @@
   "options.batchTag.appendTip": "选中标签将并入每条选中条目的已有标签（自动去重）；超出 {max} 个标签上限的条目将被跳过",
   "options.batchTag.removeTip": "选中标签将从每条选中条目的已有标签中移除",
   "options.table.loading": "加载数据中...",
+  "options.table.noMatchedEntries": "没有符合条件的条目",
+  "options.table.clearFilters": "清空筛选",
   "options.table.updateTime": "更新时间",
   "options.table.copyEntry": "创建副本",
   "options.detail.title": "条目详情",

@@ -24,8 +24,16 @@ import type { IdentityEntry, IdentityPayload, IdentitySortMode } from '@/utils/i
  * - 切换过滤不整体清空，保留被过滤掉的既有展开 / 折叠项（对齐 selectAllVisible 语义）；
  * - clearFilters 仅清过滤，保留显隐 / 折叠 / 勾选；resetViewState 清空全部视图态（档位属落盘偏好，不在其内）；
  * - teardown 连解密明文（rows）一起释放，列表弹窗关闭后 PII 不再驻留内存。
- * copy 等涉及 clipboard / ElMessage 的路径不在此覆盖（另有纯函数单测）。
+ * copy 等涉及 clipboard 的路径不在此覆盖（另有纯函数单测）。
  */
+
+/**
+ * `ElMessage` 桩：WxtVitest 不套 Element Plus 的 AutoImport 解析器，运行时它是裸标识符
+ * （同 `useSidepanelFill.totpClipboard.test.ts` 的打桩理由）。手动排序落盘失败那一例
+ * 会真的走到 `ElMessage.warning`，不打桩就是 unhandled rejection 而不是断言失败。
+ */
+const elMessage = { success: vi.fn(), warning: vi.fn(), error: vi.fn(), info: vi.fn() };
+Object.assign(globalThis, { ElMessage: elMessage });
 
 vi.mock('@/utils/storage/identityCrud', () => ({
   getAllIdentity: vi.fn(async () => ({ entries: [], skippedIds: [] })),
@@ -54,6 +62,7 @@ beforeEach(() => {
   vi.mocked(getIdentityManualOrder).mockResolvedValue([]);
   vi.mocked(saveIdentityManualOrder).mockReset();
   vi.mocked(saveIdentityManualOrder).mockResolvedValue(undefined);
+  elMessage.warning.mockReset();
 });
 
 function entry(
@@ -439,6 +448,13 @@ describe('manual 档与 moveIdentity（手排换位）', () => {
     vault.moveIdentity('c', 'a', 'before');
     await Promise.resolve();
     expect(vault.filteredRows.value.map(r => r.id)).toEqual(['c', 'a', 'b']);
+    // 静默失败是这一例原本的形状：卡片已跟着手势落位，落盘却没成功，用户下次打开弹窗
+    // 会看到顺序"复活"。不回滚内存顺序（弹回去比留一条提示更糟），但必须留下提示。
+    // 断的是 **key** 而不是文案：node 环境不加载语言包，`t()` 原样回吐 key（本文件其余
+    // 用例也只断 locale 参与的排序结果、从不断渲染后的字符串）。文案与中英文一致性由
+    // `tests/utils/i18nBundles.test.ts` 与语言包本身守。
+    expect(elMessage.warning).toHaveBeenCalledTimes(1);
+    expect(elMessage.warning).toHaveBeenCalledWith('identity.sort.saveFailed');
   });
 
   it('切走档位再切回、以及 teardown 之后，序位数组都保留', () => {

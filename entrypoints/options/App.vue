@@ -119,7 +119,9 @@
         :total-count="totalCount"
         :selected-count="selectedIds.length"
         :off-page-selected-count="offPageSelectedCount"
+        :has-active-filters="hasActiveFilters"
         @selection-change="handleSelectionChange"
+        @clear-filters="clearFilters"
         @sort-change="handleSortChange"
         @toggle-password="togglePasswordVisibility"
         @view-detail="onViewDetail"
@@ -1358,6 +1360,25 @@ useStorageWatcher({
  */
 const applySearchKeyword = (keyword: string): void => {
   searchKeyword.value = keyword;
+  favoriteOnly.value = false;
+  filterTags.value = [];
+  filterSites.value = [];
+};
+
+/**
+ * 是否有生效中的筛选条件
+ *
+ * 供表格空态判断该给「清空筛选」出口还是纯占位文案。搜索、收藏、标签、站点四者是
+ * 叠加（AND）关系，任一非空都可能把列表筛成 0 条。
+ */
+const hasActiveFilters = computed(
+  () =>
+    !!searchKeyword.value.trim() || favoriteOnly.value || filterTags.value.length > 0 || filterSites.value.length > 0,
+);
+
+/** 清空全部筛选条件，回到整库视图（表格空态里的「清空筛选」按钮） */
+const clearFilters = (): void => {
+  searchKeyword.value = '';
   favoriteOnly.value = false;
   filterTags.value = [];
   filterSites.value = [];

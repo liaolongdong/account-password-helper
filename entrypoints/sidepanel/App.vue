@@ -674,6 +674,14 @@ const toggleFavorite = async (password: PasswordEntry) => {
   try {
     const newFav = !password.favorite;
     const entry = passwords.value.find(p => p.id === password.id);
+    // 乐观更新前的原值：委托写入失败时据此回滚，否则星标停在已翻转态、刷新后又"复活"
+    const prevFavorite = entry?.favorite ?? false;
+    const prevFavoriteUsedAt = entry?.favoriteUsedAt;
+    const restoreFavorite = () => {
+      if (!entry) return;
+      entry.favorite = prevFavorite;
+      entry.favoriteUsedAt = prevFavoriteUsedAt;
+    };
 
     /** 委托 SW 持久化元数据（取消收藏的 favoriteUsedAt 传 null，由 SW 侧转换为字段删除） */
     const persistMetadata = (updates: UpdatePasswordMetadataData['updates']) =>
@@ -684,7 +692,8 @@ const toggleFavorite = async (password: PasswordEntry) => {
         } as RuntimeMessage)
         .catch(error => {
           logger.error('切换收藏失败:', error);
-          ElMessage.error(t('message.operationFailed'));
+          restoreFavorite();
+          ElMessage.error(t('sidepanel.favoriteSaveFailed'));
         });
 
     if (newFav) {

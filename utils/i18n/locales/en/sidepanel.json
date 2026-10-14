@@ -43,6 +43,7 @@
   "sidepanel.favorited": "Added to favorites",
   "sidepanel.unfavorited": "Removed from favorites",
   "sidepanel.favoriteEvicted": "Favorites full ({limit} max); \"{username}\" was replaced automatically",
+  "sidepanel.favoriteSaveFailed": "Couldn't save the favorite state — reverted",
   "sidepanel.openSiteInvalidUrl": "Invalid URL in this entry. Please edit it first.",
   "sidepanel.openSiteFailed": "Failed to open the site",
   "sidepanel.header.github": "View source on GitHub",

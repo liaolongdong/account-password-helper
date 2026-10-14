@@ -161,6 +161,8 @@
   "options.batchTag.appendTip": "Selected tags will be merged into each selected entry (deduplicated). Entries exceeding the {max}-tag limit will be skipped",
   "options.batchTag.removeTip": "Selected tags will be removed from each selected entry",
   "options.table.loading": "Loading data...",
+  "options.table.noMatchedEntries": "No entries match the current filters",
+  "options.table.clearFilters": "Clear filters",
   "options.table.updateTime": "Updated",
   "options.table.copyEntry": "Duplicate",
   "options.detail.title": "Entry Details",

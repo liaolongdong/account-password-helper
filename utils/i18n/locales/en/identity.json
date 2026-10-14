@@ -31,6 +31,7 @@
   "identity.sort.manual": "Manual",
   "identity.sort.dragHandle": "Drag to reorder {title}, or hold Alt with the Up or Down arrow key",
   "identity.sort.moved": "Moved to position {position}",
+  "identity.sort.saveFailed": "Couldn't save the manual order — it will revert on refresh. Please try again.",
   "identity.selectAll": "Select all",
   "identity.selectOne": "Select this identity record",
   "identity.selection.summary": "{selected} of {total} selected — exports all when none is selected",
