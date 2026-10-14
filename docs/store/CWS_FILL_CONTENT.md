@@ -126,6 +126,8 @@
 > **⑤ 结构不变量全部保持**：一个卖点仍只有一个小节承载（剪贴板口径只出现一次、批量导出口径只归「导入与导出」、分页行不再复述导出）、竞品品牌名零出现、版本门槛仍写 **Chromium 114**、`20-50ms` 仍带「缓存快路径」限定词、泄露字典仍写「近千条」。自检：`paste blocks: 6 | banned hits: none`，中英说明**跨小节重复行为零**，四个 `_locales` 值与粘贴块逐字一致。
 >
 > 🧭 **十五修订（2026-09-29，聚光式新手引导回灌中英说明）**：新增「第一次进入密码管理页会自动播放聚光式分步引导」这条能力，**中英各一行、都挂在【⚙️ 界面与效率】分组已有的命令面板行之后**，不新增小节、不新增分组、不加营销口号；行内同时写明「看完或中途跳过都不再打扰」与「头部按钮可随时重播」这两个可核对的行为（实现见 [OnboardingTour.vue](../../components/options/OnboardingTour.vue)、[useOnboardingTour.ts](../../composables/useOnboardingTour.ts) 与 `StorageUtils.getOnboardingTourState()`）。名称与摘要**未动**（中文 30 / 英文 42 字符名称，中文 131 / 英文 130 字符摘要）。说明长度 中文 **5040 → 5122** / 英文 **12283 → 12549** 字符（上限 16,000；**英文侧余量由 3,717 收窄到 3,451**，长度口径仍是 `len(blocks[i].strip())`）。自检（本轮实跑）：`paste blocks: 6 | banned hits: none`、中英说明跨小节重复行均为零、四个 `_locales` 值与粘贴块逐字一致。⚠️ **给下一轮的提醒**：历轮批注里记录的「说明长度」是那一轮的**轮末快照**，只要粘贴块加删一行就会漂——发布前一律以 `CWS_PUBLISHING_GUIDE.md`「第五步 → 快速校验命令」那段 python 的**实时输出**为准，别照抄本文档的历史数。
+>
+> 🧾 **十六修订（2026-10-13，两处说明正文按实现订正，不新增卖点）**：① 【功能全览】的身份信息库一行中文原写「查看与复制需再次验证主密码」、英文原写 `masked by default and gated by a master-password re-check`，属对实现的过度声称——实际是**打开**身份库时要求复验，且复验策略可配三档、默认「同一管理页会话内只问一次」（实现见 [identityVaultAccess.ts](../../utils/identityVaultAccess.ts) 的 `DEFAULT_IDENTITY_VERIFY_POLICY = 'perSession'` 与 [IdentityVaultAccessSetting.vue](../../components/options/IdentityVaultAccessSetting.vue)），中英两侧同改为条件式表述；② 命令面板条数 **23 → 25**（本轮新增 `identityAccess` 一条，真源 [App.vue](../../entrypoints/options/App.vue) 的 `buildPaletteActions()`，由 `tests/architecture/commandPaletteCopy.test.ts` 钉住 14 文件 19 处同值）。**名称与摘要未动**（中文 30 / 英文 42 字符名称，中文 131 / 英文 130 字符摘要，与 `public/_locales/*/messages.json` 逐字一致）。说明长度 中文 **5122 → 5155** / 英文 **12549 → 12665** 字符（上限 16,000；英文侧余量由 3,451 收窄到 **3,335**，长度口径仍是 `len(blocks[i].strip())`）。同轮把【功能全览】的标签上限从 3 订正为 5，但那是 e9bf708 的**等字符数替换**（`3` → `5`），代码依据是 [constants.ts](../../utils/constants.ts) 的 `MAX_TAG_COUNT = 5`，不构成本轮长度变化。自检（本轮实跑 `CWS_PUBLISHING_GUIDE.md`「第五步 → 快速校验命令」那段 python）：`paste blocks: 6 | banned hits: none`、中英说明跨小节重复行均为零、四个 `_locales` 值与粘贴块逐字一致。
 
 ### 说明 (Description) — 最多 16,000 字符
 
@@ -163,7 +165,7 @@
 📱 内置 TOTP：扫描网页二维码或上传图片即可添加密钥，动态码按 RFC 6238 在你设备上生成，不联网、不上传
 🧩 参数可自定义：otpauth:// 里的算法认 SHA1 / SHA256 / SHA512、位数认 6 / 7 / 8、周期认自定义秒数，没写的按 6 位 / SHA1 / 30 秒处理；只支持时间型动态码（计数器型 HOTP 不在范围内）
 🔗 登录第二步接力：列表与侧边栏同屏显示活码和倒计时环，登录走到第二步时活码就近出现，可一键填入
-🪪 身份信息库：姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段单独成库，默认掩码，查看与复制需再次验证主密码；支持 .aphid 加密备份与勾选导出子集，也可按需导出 / 导入明文 .json（需复验主密码并二次确认风险）
+🪪 身份信息库：姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段单独成库，默认掩码，打开是否要求主密码由复验策略决定（默认同一管理页会话内只问一次，可改成每次都问或不再单独问）；支持 .aphid 加密备份与勾选导出子集，也可按需导出 / 导入明文 .json（需复验主密码并二次确认风险）
 
 🛡 安全与体检
 🩺 离线安全体检：0 到 100 分综合评分，四类问题按受影响条目占比扣分——复用 35、弱密码 25、命中内置近千条常见泄露密码 20、长期未更新 20（再分 90 / 180 / 365 天三档）；未开启两步验证的条目单独列出但不计分
@@ -181,7 +183,7 @@
 
 ⚙️ 界面与效率
 🎨 6 款色彩主题、中英文界面即时切换，注入页面的浮层同步跟随
-⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 23 条常用命令，主密码未验证时不响应按键
+⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 27 条常用命令，主密码未验证时不响应按键
 🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「新手引导」按钮可随时重播
 🔧 四个默认快捷键 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作
 💡 细节体验：主密码输入框实时提示大写锁定；网站图标取自浏览器本地缓存，不发起外部请求
@@ -298,7 +300,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 🔐 Two-factor and identity
 📱 Built-in TOTP: add a key by scanning the page's QR code or uploading an image; codes follow RFC 6238 and are generated on your device, with no network request. Algorithm SHA1 / SHA256 / SHA512, 6, 7 or 8 digits and a custom period are read from the otpauth:// link, defaulting to 6 / SHA1 / 30s. Counter-based HOTP is out of scope.
 🔗 Second-step handoff: the live code and its countdown ring sit in the list and the side panel, and when a login reaches step two the code appears beside the field, ready to fill.
-🪪 Identity vault: name, ID number, phone, email, address, bank card details and custom fields in a separate store, masked by default and gated by a master-password re-check, with encrypted .aphid export/import, a ticked subset, and an optional plaintext .json round-trip behind a risk confirmation.
+🪪 Identity vault: name, ID number, phone, email, address, bank card details and custom fields in a separate store, masked by default and opened behind a master-password re-check (once per manager-page session by default; configurable to every time, or to no separate check), with encrypted .aphid export/import, a ticked subset, and an optional plaintext .json round-trip behind a re-check and a risk confirmation.
 
 🛡 Safety and check-up
 🩺 On-device check-up scored 0-100: reused passwords 35, weak 25, a hit in the built-in list of nearly a thousand commonly leaked ones 20, long-unchanged 20 (in 90, 180 and 365 day bands), each weighted by how many entries it touches. Missing two-factor is listed but unscored.
@@ -316,7 +318,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 
 ⚙️ Interface and efficiency
 🎨 6 color themes and an instant Chinese/English switch, followed by the UI injected into pages.
-⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 23 commands by Chinese, pinyin or initials, inert until the master password is verified.
+⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 27 commands by Chinese, pinyin or initials, inert until the master password is verified.
 🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the "Tour" button in the header replays it any time.
 🔧 Ctrl+Shift+P management / L side panel / F quick fill / K inline dropdown; rebind them on the browser's own extensions-shortcuts page.
 💡 A live Caps Lock hint on master-password fields, and site icons read from the browser's local cache with no external request.
@@ -446,8 +448,8 @@ node scripts/store-shots/export-upload.mjs
 
 > 演示账号（中英各 **10 条**占位）内联在 `scripts/store-shots/seed.mjs` 的 `DEMO_CSV_ZH` / `DEMO_CSV_EN`，`seed.mjs` 还会收藏 2 条、把 1 条密码改两次（图 7、图 8 依赖这两步）；演示登录页 / 2FA 页为同目录的 `demo-login.html`、`demo-2fa.html`；截图与合成脚本也在该目录，完整用法（含 Chrome 启动参数、favicon 预热、自备 CSV）见其 `README.md`。
 >
-> 💡 版本徽章：脚本读取构建产物里的 `manifest.version`，所以**务必先让分支版本与即将提交的包一致**（同步到 `main` 后应为 3.9.0）再截，否则又会出现「截图版本与商店版本不符」。
-> ✅ 版本徽章已核验（2026-09-13 复核）：当前母版是合并 `main`（`package.json` 3.9.0）之后重截的一批，管理页截图里的徽章实测为 **v3.9.0**，与 `package.json` / `.output/chrome-mv3/manifest.json` 一致，可直接提交 3.9.0。图 6 是首启「设置主密码」页，**该页面本身不渲染版本徽章**，不存在徽章核对项。今后 `package.json` 再升版本，必须 `pnpm build` → 重跑 `capture.mjs` → 重跑 `export-upload.mjs`，否则又会出现「截图版本与商店版本不符」。
+> 💡 版本徽章：脚本读取构建产物里的 `manifest.version`，所以**务必先让分支版本与即将提交的包一致**（当前 `package.json` 与商店在架版本同为 3.15.2）再截，否则又会出现「截图版本与商店版本不符」。
+> ✅ 版本徽章已核验（2026-10-13 重拍）：当前母版是 2026-10-13 用 `.output/chrome-mv3`（manifest **3.15.2**）重截的一批，管理页截图里的徽章实测为 **v3.15.2**，与 `package.json` 及商店在架读数（shields `v3.15.2`）一致。图 6 是首启「设置主密码」页，**该页面本身不渲染版本徽章**，不存在徽章核对项。今后 `package.json` 再升版本，必须 `pnpm build` → 重跑 `capture.mjs` → 重跑 `export-upload.mjs`，否则又会出现「截图版本与商店版本不符」。
 
 > 📐 **尺寸对照**：新一组母版是官方规格的精确 2 倍（1280×800 @2x = 2560×1600），`export-upload.mjs` 按 2:1 降采样即得官方尺寸；母版本身仍用于 `index.html` 与 README（高清显示更锐利），**商店截图槽取 `upload/` 里的 1280×800 版**。`assets/screenshots/` 里的旧 12 张是 2880×1598~1610（约 16:9），既非官方比例、版本也已过期。
 >
@@ -740,7 +742,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 | 7   | 核心功能无付费墙 | 核心功能免费                        | ✅ 已满足（完全免费）                                                                                                    |
 | 8   | 无未解决违规     | 无政策违规记录                      | ⚠️ 2026-09-09 有一条 keyword stuffing 驳回（3.8.0 草稿，未上架）——须新建草稿通过审核后再提名                             |
 | 9   | 性能             | 高效运行、不滥用资源                | ✅ 已满足（侧边栏全场景秒开，SLA <1s；缓存快路径 20-50ms 拿到数据）                                                      |
-| 10  | 商店列表质量     | 标题/描述/截图完整高质量            | 🔄 文案已按驳回重写待审；截图已于 2026-09-13 用 `scripts/store-shots/` 重制（中英各 14 张候选），**徽章已是 v3.9.0**     |
+| 10  | 商店列表质量     | 标题/描述/截图完整高质量            | 🔄 文案已按驳回重写待审；截图已于 2026-10-13 用 `scripts/store-shots/` 重制（中英各 14 张候选），**徽章已是 v3.15.2**    |
 
 ### 7.2 提名表单文案 — 英文（直接粘贴）
 
@@ -892,7 +894,7 @@ No specific website accounts are required. The extension treats all websites uni
 - [ ] 分类选择 Productivity
 - [ ] 商店图标已上传（128×128）
 - [ ] 截图已上传（**中文页与 English (United States) 页各 5 张**，从 `assets/cws-store/upload/*-1280x800.png` 的 14 张候选里选，英文页取 `-en-` 那一套；**不要传 2560×1600 母版、也不要再用旧的 `01-*.png` ~ `12-*.png`**）
-- [ ] 截图版本徽章与提交包一致（**当前批次徽章为 v3.9.0**，与 `package.json` / `manifest` 同源；改版本后必须 `pnpm build` 并重跑 `scripts/store-shots/`）
+- [ ] 截图版本徽章与提交包一致（**当前批次徽章为 v3.15.2**，2026-10-13 重拍，与 `package.json` / `manifest` 同源；改版本后必须 `pnpm build` 并重跑 `scripts/store-shots/`）
 - [ ] Marquee 宣传图（1400×560）已上传
 - [ ] Small Promo Tile（440×280）已上传
 - [ ] 隐私政策 URL 已填写

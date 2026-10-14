@@ -205,10 +205,14 @@
         <el-form-item
           :label="t('options.siteRules.formPenetrateShadow')"
           label-position="left"
+          class="penetrate-item"
         >
           <el-switch v-model="formData.penetrateShadow" />
-          <div class="field-tip">{{ t('options.siteRules.penetrateShadowHint') }}</div>
         </el-form-item>
+        <!-- 提示语必须是 form-item 的兄弟块而不是插槽内容：这一行为了紧凑把标签放在左侧，
+             el-form-item 随之变成 flex 行，内容列只剩「弹窗宽度 - 标签宽度」（实测 684 − 181），
+             放在里面的提示语会跟着标签缩进，与上方两条 top 标签字段的提示语左边界不齐 -->
+        <div class="field-tip penetrate-tip">{{ t('options.siteRules.penetrateShadowHint') }}</div>
       </el-form>
     </div>
 
@@ -752,6 +756,16 @@ function openPrefilledRule(rawDomain: string): void {
   font-size: 12px;
   line-height: 1.4;
   color: #909399;
+}
+
+/* 影子 DOM 穿透行的下边距从 form-item 交给移到外面的提示语，
+   保证「提示语贴开关 4px、行末留白 18px」的纵向节奏与改动前一致 */
+.penetrate-item {
+  margin-bottom: 0;
+}
+
+.penetrate-tip {
+  margin-bottom: 18px;
 }
 
 /* 编辑态域名锁定字段。options 全局样式（entrypoints/options/styles.css）把所有输入框

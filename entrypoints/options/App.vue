@@ -209,6 +209,9 @@
     <!-- 闲置锁定设置弹窗 -->
     <IdleLockSetting v-model="showIdleLockDialog" />
 
+    <!-- 身份信息库复验策略弹窗 -->
+    <IdentityVaultAccessSetting v-model="showIdentityAccessDialog" />
+
     <!-- 收藏上限设置弹窗 -->
     <FavoriteLimitSetting v-model="showFavoriteLimitDialog" />
 
@@ -318,6 +321,9 @@ const ValiditySettingDialog = defineAsyncComponent(() => import('@/components/op
 const EmailBackupDialog = defineAsyncComponent(() => import('@/components/options/EmailBackupDialog.vue'));
 const AutoSaveSettingDialog = defineAsyncComponent(() => import('@/components/options/AutoSaveSettingDialog.vue'));
 const IdleLockSetting = defineAsyncComponent(() => import('@/components/options/IdleLockSetting.vue'));
+const IdentityVaultAccessSetting = defineAsyncComponent(
+  () => import('@/components/options/IdentityVaultAccessSetting.vue'),
+);
 const FavoriteLimitSetting = defineAsyncComponent(() => import('@/components/options/FavoriteLimitSetting.vue'));
 const ClipboardSettingDialog = defineAsyncComponent(() => import('@/components/options/ClipboardSettingDialog.vue'));
 const PasswordHealthDialog = defineAsyncComponent(() => import('@/components/options/PasswordHealthDialog.vue'));
@@ -370,6 +376,7 @@ import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
+import { shouldVerifyIdentityVault } from '@/utils/identityVaultAccess';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
 import { normalizeToHostAndPort } from '@/utils/domain';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
@@ -415,6 +422,9 @@ const showAutoSaveDialog = ref(false);
 
 /** 闲置锁定设置弹窗可见性 */
 const showIdleLockDialog = ref(false);
+
+/** 身份信息库复验策略弹窗可见性 */
+const showIdentityAccessDialog = ref(false);
 
 /** 收藏上限设置弹窗可见性 */
 const showFavoriteLimitDialog = ref(false);
@@ -598,10 +608,25 @@ const openTrashWithVerify = async (): Promise<void> => {
 };
 
 /**
- * 打开身份信息库前先验证主密码（纯门槛，刻意不使用返回的密码）
+ * 本文档生命周期内是否已为身份库成功复验过主密码（`perSession` 档的记账位）
+ *
+ * 刻意用模块内的普通变量而不是 `ref`：它不进模板、不参与渲染，只作为门槛的一次性凭据，
+ * 并必须在会话失效时复位（见下方 `isAuthenticated` 监听）。刷新或重开管理页会回到 `false`，
+ * 粒度比「浏览器会话」更严——这是安全开关可接受的偏保守方向，也避免了把复位点铺进
+ * `clearSession()` 带来的跨入口改动面。
+ */
+let identityVaultVerifiedThisSession = false;
+
+/**
+ * 打开身份信息库前按策略决定是否复验主密码（纯门槛，刻意不使用返回的密码）
  *
  * 身份库含证件号/卡号等高敏 PII，复验门槛防「会话已解锁但用户离开座位」时
  * 旁人一次性看到全部身份信息；取消则弹窗不得打开。镜像 openTrashWithVerify。
+ *
+ * 三档策略（`utils/identityVaultAccess.ts`）里只有 `always` 等价于本功能引入前的行为，
+ * 默认 `perSession` 省掉的是同一坐席内反复打开的重复输入，**首次打开仍然要问**。
+ * 三档都不改解密链路：身份库始终用全局会话数据密钥解密。没写过这个键取默认档，
+ * 显式写了个认不出的值则收敛到最严格的 `always`（fail-closed，见 `identityVaultAccess.test.ts`）。
  *
  * `presetKeyword` 供「从条目详情跳来检索」使用：它只进搜索框那一个 `ref`
  * （`useIdentityVault.keyword`），不参与任何解密，也不落盘；弹窗 `@closed → teardown()`
@@ -612,8 +637,12 @@ const openTrashWithVerify = async (): Promise<void> => {
  * @returns 复验是否通过（调用方据此决定要不要收起来源界面——取消复验不该连带弄没用户的抽屉）
  */
 const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean> => {
-  const masterPassword = await promptAndVerifyMasterPassword(t('identity.verifyTitle'), t('identity.verifyPrompt'));
-  if (!masterPassword) return false;
+  const { verifyPolicy } = await StorageUtils.getIdentityVaultAccessConfig();
+  if (shouldVerifyIdentityVault(verifyPolicy, identityVaultVerifiedThisSession)) {
+    const masterPassword = await promptAndVerifyMasterPassword(t('identity.verifyTitle'), t('identity.verifyPrompt'));
+    if (!masterPassword) return false;
+    identityVaultVerifiedThisSession = true;
+  }
   identityVault.keyword.value = presetKeyword;
   showIdentityVaultDialog.value = true;
   return true;
@@ -681,6 +710,9 @@ const handleSettingsCommand = (command: string) => {
       break;
     case 'idleLock':
       showIdleLockDialog.value = true;
+      break;
+    case 'identityAccess':
+      showIdentityAccessDialog.value = true;
       break;
     case 'favoriteLimit':
       showFavoriteLimitDialog.value = true;
@@ -1033,6 +1065,9 @@ watch(isAuthenticated, authenticated => {
     showIdentityVaultDialog.value = false;
     showIdentityFormDialog.value = false;
     editingIdentity.value = null;
+    // 锁定/过期即作废「本会话已复验」凭据：`perSession` 档下重新解锁必须再问一次，
+    // 否则门槛退化成「只要曾经解锁过一次就永久免验」，威胁模型当场失效。
+    identityVaultVerifiedThisSession = false;
     return;
   }
   const pending = pendingSiteRuleDomain.value;
@@ -1084,8 +1119,14 @@ const {
  * 命令面板动作清单（Ctrl/Cmd+K）
  *
  * 每项 `run` 复用 HeaderBar 菜单/按钮已有的处理函数，走完全相同的落码路径，不新增业务行为；
- * `label` 复用既有菜单文案，`keywords` 仅为检索别名（不渲染，故不受 i18n 约束）。
+ * `label` 复用既有菜单文案，`keywords` 仅为检索别名（不渲染，故不受 i18n 约束）——但别往里写
+ * 属于另一条命令的词：匹配方向是「输入必须是别名的子串」，借词会把那个词的首位结果抢过来。
  * 每次面板打开时按当前语言重新求值标签，语言切换后重开即生效。
+ *
+ * `entry` 组跟随头部右侧那一排辅助入口的相对顺序（新手引导 → 使用指引 → 关于；偏好设置在
+ * `preferences` 组）。清单会在 `useCommandPalette` 里 `watch(filtered)` 的初次求值时跑一遍，
+ * 所以引用声明在本清单之后的 handler 必须包一层箭头（`run: () => foo()`），写函数名会撞 TDZ。
+ * 增删条目要同轮改 14 个对外文件里的 20 处条数文案；这两条判据都在 `tests/architecture/commandPaletteCopy.test.ts`。
  */
 const buildPaletteActions = () => [
   {
@@ -1103,11 +1144,25 @@ const buildPaletteActions = () => [
     run: () => (showHealthDialog.value = true),
   },
   {
+    id: 'tour',
+    group: 'entry',
+    label: t('options.header.tour'),
+    keywords: ['tour', 'onboarding', 'walkthrough', 'replay'],
+    run: () => replayTour(),
+  },
+  {
     id: 'guide',
     group: 'entry',
     label: t('options.header.guide'),
     keywords: ['guide', 'help', 'doc', 'manual', 'faq'],
     run: () => openGuide(),
+  },
+  {
+    id: 'about',
+    group: 'entry',
+    label: t('options.header.about'),
+    keywords: ['about', 'version', 'info', 'privacy', 'link'],
+    run: () => (showAboutDrawer.value = true),
   },
   {
     id: 'downloadTemplate',
@@ -1201,6 +1256,13 @@ const buildPaletteActions = () => [
     run: () => (showIdleLockDialog.value = true),
   },
   {
+    id: 'identityAccess',
+    group: 'security',
+    label: t('options.header.identityAccess'),
+    keywords: ['identity', 'vault', 'verify', 'master', '身份库', '复验'],
+    run: () => (showIdentityAccessDialog.value = true),
+  },
+  {
     id: 'autoSave',
     group: 'security',
     label: t('options.header.autoSave'),
@@ -1269,7 +1331,7 @@ const {
   getActions: buildPaletteActions,
   // 引导是 `aria-modal` 的聚光层：面板开在它下面只会得到一个看不见、还在抢焦点的浮层，
   // 因此引导期间直接不给唤起（`canOpen` 为假时快捷键仍会 preventDefault，不串给浏览器）。
-  // 文档中页同理：它是整屏的一级视图，面板里的 24 条命令讲的都是列表页的事，
+  // 文档中页同理：它是整屏的一级视图，命令面板讲的都是列表页的事，
   // 开在它下面只会让用户以为按键没反应——退出文档页有自己的入口（返回按钮 / Esc）。
   // `tour` 与 `guideActive` 在下方声明：这里传的是回调，setup 同步跑完后才可能被按键触发，不存在前置引用问题。
   canOpen: () => isAuthenticated.value && !tour.isActive.value && !guideActive.value,

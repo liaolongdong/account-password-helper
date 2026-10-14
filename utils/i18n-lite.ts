@@ -120,6 +120,8 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.backup.title': '密码备份提醒',
     'bg.backup.message':
       '您配置的自动备份时间已到，共有 {count} 条密码待备份。请在密码管理页面点击"备份到邮箱"按钮手动完成备份。',
+    'bg.backup.messageChanged':
+      '自上次成功备份后密码内容有变更，共有 {count} 条密码待备份。请在密码管理页面点击"备份到邮箱"按钮手动完成备份。',
     'bg.autoSave.savedTitle': '账号密码已保存',
     'bg.autoSave.sessionExpired': '会话已过期，跳过自动保存',
     'bg.autoSave.disabled': '自动保存已禁用',
@@ -252,6 +254,8 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'bg.backup.title': 'Password backup reminder',
     'bg.backup.message':
       'Your scheduled backup is due: {count} passwords to back up. Open the manager page and click "Back Up to Email" to finish manually.',
+    'bg.backup.messageChanged':
+      'Your passwords changed since the last successful backup: {count} entries to back up. Open the manager page and click "Back Up to Email" to finish manually.',
     'bg.autoSave.savedTitle': 'Credentials saved',
     'bg.autoSave.sessionExpired': 'Session expired, auto-save skipped',
     'bg.autoSave.disabled': 'Auto-save is disabled',

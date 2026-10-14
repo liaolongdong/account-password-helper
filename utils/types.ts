@@ -934,6 +934,26 @@ export interface IdleLockConfig {
 }
 
 /**
+ * 身份信息库的主密码复验策略
+ *
+ * - `always`：每次打开都复验（本功能引入前的唯一行为，最严格）
+ * - `perSession`：管理页本次文档生命周期内首次打开复验一次，锁定/过期后重新要求
+ * - `followValidity`：不复验，完全跟随全局会话有效期
+ *
+ * 三档都不改变解密链路：身份库始终用全局会话数据密钥解密（见 utils/storage/identityCrud.ts），
+ * 本策略只决定「打开前要不要再让用户证明一次知道主密码」。
+ */
+export type IdentityVaultVerifyPolicy = 'always' | 'perSession' | 'followValidity';
+
+/**
+ * 身份信息库访问配置
+ */
+export interface IdentityVaultAccessConfig {
+  /** 打开身份库前的主密码复验策略 */
+  verifyPolicy: IdentityVaultVerifyPolicy;
+}
+
+/**
  * 跨子域匹配档位配置
  *
  * 取值语义见 `utils/domain.ts` 的 `DomainMatchMode`。仅存枚举值，不含任何域名或账号信息。

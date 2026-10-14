@@ -149,6 +149,7 @@ export const THEME_SHADOW_TOKENS: Record<ThemeName, Record<string, string>> = {
  */
 export const SHADOW_NEUTRAL_TOKENS: Record<string, string> = {
   '--aph-text-muted': '#9ca3af',
+  '--aph-text-placeholder': '#6e7582',
 };
 
 /**
