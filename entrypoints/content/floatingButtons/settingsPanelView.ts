@@ -30,6 +30,34 @@ export type PanelLocale = LiteLocale;
  */
 export const getStoredPanelLocale = getStoredLocale;
 
+/**
+ * 三个布尔开关的设置键 → 面板文案键
+ *
+ * `div.switch` 不是原生控件，读屏只能靠 `aria-label` 念出它是什么；这份映射让
+ * aria-label 与同行可见标签取同一个真源，切语言时由 `applyPanelLocale` 一起刷新。
+ */
+const SWITCH_LABEL_KEYS = {
+  visible: 'visible',
+  autoTriggerLogin: 'autoTriggerLogin',
+  passwordVisibilityToggle: 'passwordVisibility',
+} as const;
+
+/** 开关设置键（同时也是 `FloatingButtonConfig` 上的三个布尔字段） */
+type SwitchSetting = keyof typeof SWITCH_LABEL_KEYS;
+
+/** 开关设置键列表（绑定与外部同步共用） */
+const SWITCH_SETTINGS = Object.keys(SWITCH_LABEL_KEYS) as SwitchSetting[];
+
+/**
+ * 透明度滑块的键盘档位
+ *
+ * `aria-valuemin` 与方向键下限都取自 {@link OPACITY_MIN_PCT}，与 `updateSlider` 里
+ * 「夹到 0.1」的既有硬下限同值；步长 5 个百分点，走完 10→100 需 18 次按键，
+ * 与鼠标拖拽的精细度相当，又不至于一次按过头。
+ */
+const OPACITY_MIN_PCT = 10;
+const OPACITY_STEP_PCT = 5;
+
 /** 面板文案 key 类型 */
 type PanelMessageKey =
   | 'title'
@@ -199,7 +227,9 @@ export const settingsPanelViewStyles = `
   background: transparent;
   color: #999;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
 .settings-close:hover {
@@ -460,6 +490,36 @@ export const settingsPanelViewStyles = `
 }
 
 /*
+ * 键盘焦点轮廓（WCAG 2.4.7）。面板里的可调控件是 div（开关、滑块）和无边框 button
+ * （分段项、关闭键），Tab 停上去原本没有任何可见落点；这里给每一类补一圈轮廓。
+ * 用 :focus-visible 而非 :focus：鼠标点击不留常驻方框，只给键盘路径画轮廓。
+ * 主色走 THEME_COLOR——Shadow DOM 由 host 内联写入、扩展页由 tokens.css 的 :root 提供，因此跟随换肤。
+ */
+.switch:focus-visible,
+.fill-mode-option:focus-visible,
+.settings-close:focus-visible {
+  outline: 2px solid ${THEME_COLOR};
+  outline-offset: 2px;
+}
+
+/* 轨道只有 4px 高，轮廓贴边会看成一条线，多留 2px 让焦点环明显包住整根滑块 */
+.slider:focus-visible {
+  outline: 2px solid ${THEME_COLOR};
+  outline-offset: 4px;
+}
+
+/*
+ * 色块的 outline 已被选中态占用（.active 用它画同色外圈），焦点只能另起一层 box-shadow：
+ * 先用一道白环把 2px 白边框与焦点环分开，再画主色环，选中态与焦点态于是能同时被看见。
+ * 层级从内到外：白边框 → 灰色常驻描边 → 白环 → 主色环。
+ */
+.theme-swatch:focus-visible {
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 4px ${THEME_COLOR};
+}
+
+/*
  * 减弱动效档：只撤悬浮时的放大，且必须保留把手的定位位移。
  * .slider-thumb 的 translate(-50%, -50%) 是用来把把手钉在轨道端点中心的定位手段，
  * 不是动效——写成 transform: none 会让把手跳出中心、看起来像控件坏了。
@@ -549,6 +609,45 @@ function renderFillOverride(
 }
 
 /**
+ * 把透明度写进滑块的填充条、把手、读数与 ARIA 取值
+ *
+ * 拖拽、触摸、键盘、外部配置同步四条路径共用同一出口，避免「视觉上动了、读屏里没动」。
+ * 填充与把手保留原始的 `percentage * 100` 写法（不做整数化），只有读数与 ARIA 取整。
+ *
+ * @param slider 滑块根元素（`role="slider"`）
+ * @param percentage 0–1 的透明度
+ */
+function renderOpacity(slider: HTMLElement, percentage: number): void {
+  const pct = Math.round(percentage * 100);
+  const fill = slider.querySelector<HTMLElement>('.slider-fill');
+  const thumb = slider.querySelector<HTMLElement>('.slider-thumb');
+  const valueDisplay = slider.parentElement?.querySelector<HTMLElement>('.slider-value');
+  if (fill) fill.style.width = `${percentage * 100}%`;
+  if (thumb) thumb.style.left = `${percentage * 100}%`;
+  if (valueDisplay) valueDisplay.textContent = `${pct}%`;
+  slider.setAttribute('aria-valuenow', String(pct));
+  slider.setAttribute('aria-valuetext', `${pct}%`);
+}
+
+/**
+ * 同步分段控件 / 主题色块的选中态
+ *
+ * 类名给眼睛、`aria-pressed` 给读屏，两者必须一起改：只改类名时，键盘用户 Tab 到按钮上
+ * 只听到「按钮，侧边栏」，永远不知道当前生效的是哪一档——选中态在面板里是靠底色和勾表达的，
+ * 全属视觉通道。
+ *
+ * @param items 同一分组内的全部可选项
+ * @param isActive 判定某项是否选中
+ */
+function setPressedState(items: HTMLElement[], isActive: (item: HTMLElement) => boolean): void {
+  items.forEach(item => {
+    const active = isActive(item);
+    item.classList.toggle('active', active);
+    item.setAttribute('aria-pressed', String(active));
+  });
+}
+
+/**
  * 生成设置面板内部 HTML（不含外层 .settings-panel 容器本身，由调用方提供容器）
  * @param config 悬浮按钮配置
  * @param locale 面板语言（扩展页传 currentLocale，content script 经 getStoredPanelLocale 获取）
@@ -568,7 +667,7 @@ export function getSettingsPanelHTML(
     siteFillOverride && siteFillOverride !== fillEntry ? fillOverrideNote(locale, siteFillOverride) : '';
   const themeSwatches = THEME_OPTIONS.map(
     option =>
-      `<button class="theme-swatch ${config.theme === option.name ? 'active' : ''}" data-theme="${option.name}" title="${getThemeLabel(option, locale)}" style="--swatch: ${option.swatch}"></button>`,
+      `<button class="theme-swatch ${config.theme === option.name ? 'active' : ''}" data-theme="${option.name}" title="${getThemeLabel(option, locale)}" aria-pressed="${config.theme === option.name}" style="--swatch: ${option.swatch}"></button>`,
   ).join('');
   return `
     <div class="settings-header">
@@ -586,14 +685,14 @@ export function getSettingsPanelHTML(
       <div class="setting-item">
         <span class="setting-label">语言 / Language</span>
         <div class="fill-mode-group locale-group" data-setting="locale">
-          <button class="fill-mode-option ${locale === 'zh-CN' ? 'active' : ''}" data-value="zh-CN">中文</button>
-          <button class="fill-mode-option ${locale === 'en' ? 'active' : ''}" data-value="en">English</button>
+          <button class="fill-mode-option ${locale === 'zh-CN' ? 'active' : ''}" data-value="zh-CN" aria-pressed="${locale === 'zh-CN'}">中文</button>
+          <button class="fill-mode-option ${locale === 'en' ? 'active' : ''}" data-value="en" aria-pressed="${locale === 'en'}">English</button>
         </div>
       </div>
 
       <div class="setting-item">
         <span class="setting-label" data-i18n="visible">${msg.visible}</span>
-        <div class="switch ${config.visible ? 'active' : ''}" data-setting="visible">
+        <div class="switch ${config.visible ? 'active' : ''}" data-setting="visible" role="switch" tabindex="0" aria-checked="${config.visible}" aria-label="${msg.visible}">
           <div class="switch-handle"></div>
         </div>
       </div>
@@ -601,9 +700,9 @@ export function getSettingsPanelHTML(
       <div class="setting-item setting-item-stack">
         <span class="setting-label" data-i18n="fillMode">${msg.fillMode}</span>
         <div class="fill-mode-group" data-setting="fillEntry">
-          <button class="fill-mode-option ${fillEntry === 'sidepanel' ? 'active' : ''}" data-value="sidepanel" data-i18n="fillSidebar">${msg.fillSidebar}</button>
-          <button class="fill-mode-option ${fillEntry === 'inline' ? 'active' : ''}" data-value="inline" data-i18n="fillInline">${msg.fillInline}</button>
-          <button class="fill-mode-option ${fillEntry === 'manual' ? 'active' : ''}" data-value="manual" data-i18n="fillManual">${msg.fillManual}</button>
+          <button class="fill-mode-option ${fillEntry === 'sidepanel' ? 'active' : ''}" data-value="sidepanel" aria-pressed="${fillEntry === 'sidepanel'}" data-i18n="fillSidebar">${msg.fillSidebar}</button>
+          <button class="fill-mode-option ${fillEntry === 'inline' ? 'active' : ''}" data-value="inline" aria-pressed="${fillEntry === 'inline'}" data-i18n="fillInline">${msg.fillInline}</button>
+          <button class="fill-mode-option ${fillEntry === 'manual' ? 'active' : ''}" data-value="manual" aria-pressed="${fillEntry === 'manual'}" data-i18n="fillManual">${msg.fillManual}</button>
         </div>
       </div>
       <div class="setting-tip" data-fill-tip>${FILL_ENTRY_TIPS[locale][fillEntry]}</div>
@@ -611,7 +710,7 @@ export function getSettingsPanelHTML(
 
       <div class="setting-item">
         <span class="setting-label" data-i18n="autoTriggerLogin">${msg.autoTriggerLogin}</span>
-        <div class="switch ${config.autoTriggerLogin ? 'active' : ''}" data-setting="autoTriggerLogin">
+        <div class="switch ${config.autoTriggerLogin ? 'active' : ''}" data-setting="autoTriggerLogin" role="switch" tabindex="0" aria-checked="${config.autoTriggerLogin}" aria-label="${msg.autoTriggerLogin}">
           <div class="switch-handle"></div>
         </div>
       </div>
@@ -619,7 +718,7 @@ export function getSettingsPanelHTML(
 
       <div class="setting-item">
         <span class="setting-label" data-i18n="passwordVisibility">${msg.passwordVisibility}</span>
-        <div class="switch ${config.passwordVisibilityToggle ? 'active' : ''}" data-setting="passwordVisibilityToggle">
+        <div class="switch ${config.passwordVisibilityToggle ? 'active' : ''}" data-setting="passwordVisibilityToggle" role="switch" tabindex="0" aria-checked="${config.passwordVisibilityToggle}" aria-label="${msg.passwordVisibility}">
           <div class="switch-handle"></div>
         </div>
       </div>
@@ -628,7 +727,7 @@ export function getSettingsPanelHTML(
       <div class="setting-item">
         <span class="setting-label" data-i18n="opacity">${msg.opacity}</span>
         <div class="slider-container">
-          <div class="slider" data-setting="opacity">
+          <div class="slider" data-setting="opacity" role="slider" tabindex="0" aria-label="${msg.opacity}" aria-valuemin="${OPACITY_MIN_PCT}" aria-valuemax="100" aria-valuenow="${opacityPct}" aria-valuetext="${opacityPct}%">
             <div class="slider-fill" style="width: ${opacityPct}%"></div>
             <div class="slider-thumb" style="left: ${opacityPct}%"></div>
           </div>
@@ -680,9 +779,19 @@ function applyPanelLocale(
   });
 
   // 语言分段控件选中态
-  panelRoot.querySelectorAll<HTMLElement>('[data-setting="locale"] .fill-mode-option').forEach(optionEl => {
-    optionEl.classList.toggle('active', optionEl.getAttribute('data-value') === locale);
+  setPressedState(
+    [...panelRoot.querySelectorAll<HTMLElement>('[data-setting="locale"] .fill-mode-option')],
+    optionEl => optionEl.getAttribute('data-value') === locale,
+  );
+
+  // 非原生控件的无障碍名与同行可见标签同值，跟着换语言一起刷（否则读屏会一直念着旧语言）
+  SWITCH_SETTINGS.forEach(setting => {
+    panelRoot
+      .querySelector<HTMLElement>(`[data-setting="${setting}"]`)
+      ?.setAttribute('aria-label', msg[SWITCH_LABEL_KEYS[setting]]);
   });
+  // 滑块没有可读的同行标签可兜底，aria-label 是它唯一的无障碍名通道
+  panelRoot.querySelector<HTMLElement>('[data-setting="opacity"]')?.setAttribute('aria-label', msg.opacity);
 }
 
 /**
@@ -726,23 +835,48 @@ export function bindSettingsPanelView(
   panelRoot.addEventListener('click', onPanelClick);
   cleanups.push(() => panelRoot.removeEventListener('click', onPanelClick));
 
+  // Esc 关闭：面板有遮罩点击与关闭按钮两条鼠标出口，键盘必须有等价的第三条（WCAG 2.1.1）。
+  // 挂在 document 捕获阶段而不是面板内：面板刻意不抢焦点，用户此刻的焦点常常仍停在页面登录框上，
+  // 按键路径不经过影子树（口径同内联下拉与保存弹窗的 Esc 兜底）。不 preventDefault——页面自己的
+  // Esc 语义（收起它自己的下拉、清空搜索）不该被一个偏好面板撤掉，最坏结果只是面板跟着关，而这正是意图。
+  // 必须按 visible 类收窄：悬浮按钮侧的 SettingsPanel 在构造期就绑定视图，此后 show()/hide() 只切类，
+  // 无条件响应会把站点页面上每一次 Esc 都吞成「关闭一个根本没打开的面板」。
+  const onEscapeKeydown = (e: Event): void => {
+    if (!(e instanceof KeyboardEvent) || e.key !== 'Escape') return;
+    // 输入法合成期间的 Esc 语义是「取消候选词」，必须让位
+    if (e.isComposing) return;
+    if (!panelRoot.classList.contains('visible')) return;
+    options.onClose?.();
+  };
+  document.addEventListener('keydown', onEscapeKeydown, true);
+  cleanups.push(() => document.removeEventListener('keydown', onEscapeKeydown, true));
+
   // 布尔 switch
-  const switchKeys: Array<'visible' | 'autoTriggerLogin' | 'passwordVisibilityToggle'> = [
-    'visible',
-    'autoTriggerLogin',
-    'passwordVisibilityToggle',
-  ];
-  switchKeys.forEach(key => {
-    const el = panelRoot.querySelector(`[data-setting="${key}"]`) as HTMLElement | null;
+  SWITCH_SETTINGS.forEach(key => {
+    const el = panelRoot.querySelector<HTMLElement>(`[data-setting="${key}"]`);
     if (!el) return;
-    const onClick = () => {
+    const toggle = () => {
       const next = !config[key];
       config[key] = next;
       el.classList.toggle('active', next);
+      // 开关是 div，选中态既要用类名给眼睛，也要用 aria-checked 给读屏
+      el.setAttribute('aria-checked', String(next));
       options.onConfigChange({ [key]: next } as Partial<FloatingButtonConfig>);
     };
+    const onClick = () => toggle();
+    // 非原生控件必须自己接键盘：Enter 与空格是 role="switch" 的约定激活键，
+    // 空格还要 preventDefault，否则按下的是「翻页」而不是「切换」。
+    const onKeydown = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+      e.preventDefault();
+      toggle();
+    };
     el.addEventListener('click', onClick);
-    cleanups.push(() => el.removeEventListener('click', onClick));
+    el.addEventListener('keydown', onKeydown);
+    cleanups.push(() => {
+      el.removeEventListener('click', onClick);
+      el.removeEventListener('keydown', onKeydown);
+    });
   });
 
   // 快速填充方式（3 选 1 分段控件，写回 fillMode + autoShowSidepanel 两字段）
@@ -756,7 +890,7 @@ export function bindSettingsPanelView(
         if (!entry || getFillEntry(config) === entry) return;
         const patch = fillEntryToPatch(entry);
         Object.assign(config, patch);
-        optionEls.forEach(item => item.classList.toggle('active', item === optionEl));
+        setPressedState(optionEls, item => item === optionEl);
         if (fillTipEl) fillTipEl.textContent = FILL_ENTRY_TIPS[locale][entry];
         // 全局档位一旦改到与站点覆盖同档，提示就失去可解释的差异，跟着收回去
         renderFillOverride(panelRoot, locale, config, siteFillOverride);
@@ -811,7 +945,7 @@ export function bindSettingsPanelView(
         const name = swatch.getAttribute('data-theme') as ThemeName | null;
         if (!name || config.theme === name) return;
         config.theme = name;
-        swatches.forEach(item => item.classList.toggle('active', item === swatch));
+        setPressedState(swatches, item => item === swatch);
         options.onConfigChange({ theme: name });
       };
       swatch.addEventListener('click', onSwatchClick);
@@ -820,26 +954,60 @@ export function bindSettingsPanelView(
   }
 
   // 透明度滑块
-  const opacitySlider = panelRoot.querySelector('[data-setting="opacity"]') as HTMLElement | null;
+  const opacitySlider = panelRoot.querySelector<HTMLElement>('[data-setting="opacity"]');
   if (opacitySlider) {
-    const fill = opacitySlider.querySelector('.slider-fill') as HTMLElement | null;
-    const thumb = opacitySlider.querySelector('.slider-thumb') as HTMLElement | null;
-    const valueDisplay = opacitySlider.parentElement?.querySelector('.slider-value') as HTMLElement | null;
-
     let isDragging = false;
+
+    /** 键盘与外部同步共用的写值入口（`config.opacity` 仍以 0–1 存放，百分比只是显示与 ARIA 的单位） */
+    const setOpacityPct = (pct: number) => {
+      const clamped = Math.max(OPACITY_MIN_PCT, Math.min(100, pct));
+      config.opacity = clamped / 100;
+      renderOpacity(opacitySlider, config.opacity);
+      options.onConfigChange({ opacity: config.opacity });
+    };
 
     const updateSlider = (clientX: number) => {
       const rect = opacitySlider.getBoundingClientRect();
       let percentage = (clientX - rect.left) / rect.width;
       percentage = Math.max(0.1, Math.min(1, percentage));
 
-      if (fill) fill.style.width = `${percentage * 100}%`;
-      if (thumb) thumb.style.left = `${percentage * 100}%`;
-      if (valueDisplay) valueDisplay.textContent = `${Math.round(percentage * 100)}%`;
-
       config.opacity = percentage;
+      renderOpacity(opacitySlider, percentage);
       options.onConfigChange({ opacity: percentage });
     };
+
+    // 键盘调值：role="slider" 的约定是方向键增减、PageUp/PageDown 大步、Home/End 到端点。
+    // 这些键在页面里本有默认动作（滚动），接管后必须 preventDefault。
+    const onKeydown = (e: KeyboardEvent) => {
+      const pct = Math.round(config.opacity * 100);
+      switch (e.key) {
+        case 'ArrowRight':
+        case 'ArrowUp':
+          setOpacityPct(pct + OPACITY_STEP_PCT);
+          break;
+        case 'ArrowLeft':
+        case 'ArrowDown':
+          setOpacityPct(pct - OPACITY_STEP_PCT);
+          break;
+        case 'PageUp':
+          setOpacityPct(pct + OPACITY_STEP_PCT * 2);
+          break;
+        case 'PageDown':
+          setOpacityPct(pct - OPACITY_STEP_PCT * 2);
+          break;
+        case 'Home':
+          setOpacityPct(OPACITY_MIN_PCT);
+          break;
+        case 'End':
+          setOpacityPct(100);
+          break;
+        default:
+          return;
+      }
+      e.preventDefault();
+    };
+    opacitySlider.addEventListener('keydown', onKeydown);
+    cleanups.push(() => opacitySlider.removeEventListener('keydown', onKeydown));
 
     const handleMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
@@ -894,36 +1062,32 @@ export function bindSettingsPanelView(
     Object.assign(config, newConfig);
 
     // 更新布尔 switch
-    switchKeys.forEach(key => {
-      const el = panelRoot.querySelector(`[data-setting="${key}"]`);
-      el?.classList.toggle('active', !!config[key]);
+    SWITCH_SETTINGS.forEach(key => {
+      const el = panelRoot.querySelector<HTMLElement>(`[data-setting="${key}"]`);
+      if (!el) return;
+      el.classList.toggle('active', !!config[key]);
+      el.setAttribute('aria-checked', String(!!config[key]));
     });
 
     // 更新快速填充方式分段控件与说明文案（限定 fillEntry 分组，避免误改语言分段控件）
     const currentEntry = getFillEntry(config);
-    panelRoot.querySelectorAll<HTMLElement>('[data-setting="fillEntry"] .fill-mode-option').forEach(optionEl => {
-      optionEl.classList.toggle('active', optionEl.getAttribute('data-value') === currentEntry);
-    });
+    setPressedState(
+      [...panelRoot.querySelectorAll<HTMLElement>('[data-setting="fillEntry"] .fill-mode-option')],
+      optionEl => optionEl.getAttribute('data-value') === currentEntry,
+    );
     const fillTip = panelRoot.querySelector('[data-fill-tip]');
     if (fillTip) fillTip.textContent = FILL_ENTRY_TIPS[locale][currentEntry];
     renderFillOverride(panelRoot, locale, config, siteFillOverride);
 
     // 更新主题色块选中态
-    panelRoot.querySelectorAll<HTMLElement>('.theme-swatch').forEach(swatch => {
-      swatch.classList.toggle('active', swatch.getAttribute('data-theme') === config.theme);
-    });
+    setPressedState(
+      [...panelRoot.querySelectorAll<HTMLElement>('.theme-swatch')],
+      swatch => swatch.getAttribute('data-theme') === config.theme,
+    );
 
     // 更新滑块
-    const slider = panelRoot.querySelector('[data-setting="opacity"]');
-    if (slider) {
-      const fill = slider.querySelector('.slider-fill') as HTMLElement | null;
-      const thumb = slider.querySelector('.slider-thumb') as HTMLElement | null;
-      const valueDisplay = slider.parentElement?.querySelector('.slider-value') as HTMLElement | null;
-      const pct = Math.round(config.opacity * 100);
-      if (fill) fill.style.width = `${pct}%`;
-      if (thumb) thumb.style.left = `${pct}%`;
-      if (valueDisplay) valueDisplay.textContent = `${pct}%`;
-    }
+    const slider = panelRoot.querySelector<HTMLElement>('[data-setting="opacity"]');
+    if (slider) renderOpacity(slider, config.opacity);
   };
 
   /**

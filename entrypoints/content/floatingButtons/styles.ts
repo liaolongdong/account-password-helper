@@ -89,6 +89,16 @@ export const floatingButtonStyles = `
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
 }
 
+/*
+ * 键盘可达（WCAG 2.4.7）：三个悬浮按钮是原生 button，而基态的 outline: none 连 UA 焦点环
+ * 一起撤掉了，Tab 走到悬浮按钮上时没有任何可见落点。只给 :focus-visible 补轮廓——鼠标点击
+ * 不留常驻方框，键盘路径才画环。主色由宿主写下的令牌提供，跟随换肤。
+ */
+.btn:focus-visible {
+  outline: 2px solid ${THEME_COLOR};
+  outline-offset: 2px;
+}
+
 .btn svg {
   width: 14px;
   height: 14px;

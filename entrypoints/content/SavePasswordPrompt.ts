@@ -20,6 +20,14 @@ const HOST_ATTRIBUTE = 'data-aph';
 const HOST_ATTRIBUTE_VALUE = 'save-password-prompt';
 
 /**
+ * 当前弹窗的 Esc 监听清理函数
+ *
+ * 同一时刻至多一个弹窗（{@link showSavePasswordPrompt} 起手即 dismiss），故只需一个模块级槽位；
+ * 每次展示各注册一份监听、由 {@link dismissSavePasswordPrompt} 统一回收，避免累积。
+ */
+let escapeKeydownCleanup: (() => void) | null = null;
+
+/**
  * 影子树基础样式
  *
  * `:host { all: initial }` 切断宿主页面向弹窗的继承链（字体、字重、字距、颜色等），
@@ -40,6 +48,15 @@ const SHADOW_STYLE = `
    */
   .aph-prompt {
     animation: aphSlideIn 0.25s ease-out;
+  }
+  /*
+   * 键盘可达：卡片内控件的焦点轮廓。用 :focus-visible 而非 :focus，鼠标点击按钮后
+   * 不留常驻方框，只给 Tab 进来的用户画轮廓——否则键盘用户看不见自己在哪一格。
+   * 主色取宿主写下的主题令牌，跟随换肤（自定义属性可穿透 shadow 边界）。
+   */
+  .aph-prompt :is(button, input, textarea):focus-visible {
+    outline: 2px solid var(--aph-primary, #409eff);
+    outline-offset: 2px;
   }
   @media (prefers-reduced-motion: reduce) {
     .aph-prompt { animation: none; }
@@ -104,7 +121,7 @@ const MAX_TRUSTED_REUSED_COUNT = 9999;
  *
  * @param data - 待保存的账号密码数据（含标签、备注默认值、可选风险提示与保存去向提示）
  * @param onSave - 用户点击「保存」时的回调，接收用户编辑后的标签和备注
- * @param onDismiss - 用户点击「暂不保存」时的回调
+ * @param onDismiss - 用户点击「暂不保存」或按 Esc 时的回调（两者语义相同：本轮不保存，冷却期照常）
  * @param onNeverAsk - 用户点击「不再提示」时的回调（将域名加入屏蔽列表）
  */
 export function showSavePasswordPrompt(
@@ -297,7 +314,6 @@ export function showSavePasswordPrompt(
     cursor: pointer;
     text-decoration: underline;
     padding: 6px 0;
-    outline: none;
     line-height: 1.4;
   `;
   neverAskBtn.addEventListener('mouseenter', () => {
@@ -347,6 +363,22 @@ export function showSavePasswordPrompt(
 
   shadow.appendChild(overlay);
 
+  // 键盘出口：弹窗在用户输密码的中途出现，Esc 必须等价于「暂不保存」，否则只能用鼠标点掉。
+  // 绑在 document 捕获阶段而非影子树内：宿主追加在 `<html>` 末尾，卡片里的控件要靠 Tab 走完
+  // 整页才够得着，此刻焦点多半还留在页面的登录框上——挂在影子树内会让这条在最常见情形下失效
+  // （口径同 InlineFillDropdown 的 `handleGlobalEscape`）。
+  // 刻意不 autofocus：焦点留在页面输入框里，用户才能接着填下一步（短信验证码等），
+  // 代价是读屏不主动播报这张卡片，与既有「非阻断、不抢焦点、不挡页面输入」的设计一致。
+  const handleKeydown = (e: Event): void => {
+    if (!(e instanceof KeyboardEvent) || e.key !== 'Escape') return;
+    // 输入法合成期间的 Esc 语义是「取消候选词」，必须让位，否则用户选词途中弹窗凭空消失
+    if (e.isComposing) return;
+    dismissSavePasswordPrompt();
+    onDismiss();
+  };
+  document.addEventListener('keydown', handleKeydown, true);
+  escapeKeydownCleanup = () => document.removeEventListener('keydown', handleKeydown, true);
+
   return {
     updateUsername: (username: string) => {
       usernameValueEl.textContent = username;
@@ -364,8 +396,12 @@ export function showSavePasswordPrompt(
  *
  * 只移除宿主：closed 影子树无外部引用（宿主 `shadowRoot` 恒为 null），
  * 摘掉宿主后整棵子树随 GC 一并回收，事件监听亦随之失效。
+ * Esc 监听是唯一挂在 document 上的例外，必须在同一处显式回收。
  */
 export function dismissSavePasswordPrompt(): void {
+  escapeKeydownCleanup?.();
+  escapeKeydownCleanup = null;
+
   const hosts = document.querySelectorAll(`[${HOST_ATTRIBUTE}="${HOST_ATTRIBUTE_VALUE}"]`);
   for (const host of hosts) {
     host.remove();
@@ -682,7 +718,6 @@ function createEditableRow(
     border-radius: 4px;
     font-size: 12px;
     color: #333;
-    outline: none;
     font-family: inherit;
     resize: none;
     box-sizing: border-box;
@@ -735,7 +770,6 @@ function createButton(text: string, bgColor: string, textColor: string, borderCo
     color: ${textColor};
     font-size: 13px;
     cursor: pointer;
-    outline: none;
     transition: opacity 0.15s;
     line-height: 1.4;
   `;
