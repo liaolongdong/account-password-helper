@@ -70,13 +70,15 @@ concurrency:
 jobs:
   e2e:
     name: Playwright extension E2E
-    runs-on: ubuntu-latest
+    # 钉 24.04：--with-deps 按发行版解析系统依赖包，ubuntu-latest 于 2026-10-19 迁到
+    # Ubuntu 26 会让这条 job 先于任何代码改动变红（完整口径见 ci.yml 头部）。
+    runs-on: ubuntu-24.04
     # 每次运行都会先 `pnpm build`（globalSetup 保证产物新鲜），再逐条用例起独立 profile
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: pnpm
@@ -102,7 +104,7 @@ jobs:
       # playwright-report/ 只在非 CI 配置下生成，允许缺失。
       - name: Upload test artifacts
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: e2e-artifacts
           path: |
