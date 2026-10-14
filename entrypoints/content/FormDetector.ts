@@ -1297,6 +1297,23 @@ export class FormDetector {
   }
 
   /**
+   * 页面是否已就绪到「可以试着填充」
+   *
+   * 判据刻意不把 `mobile` 单独算作就绪：搜索框、注册表单、收货地址页都会命中
+   * `input[type="tel"]`，放宽到单字段等于把这些页面判成登录页。手机号 + 验证码同时存在
+   * 才是国内短信登录页的形状，与 `shouldShowSidePanel` 里既有的组合判据同源，不是新造规则。
+   *
+   * @returns 是否存在可填充的登录表单
+   */
+  private get hasFillableLoginForm(): boolean {
+    return (
+      this.usernameFields.length > 0 ||
+      this.passwordFields.length > 0 ||
+      (this.mobileFields.length > 0 && this.verifyCodeFields.length > 0)
+    );
+  }
+
+  /**
    * 等待表单字段被检测到（带指数退避重试）
    * @param maxRetries - 最大重试次数，默认 10
    * @returns 是否成功检测到字段
@@ -1308,7 +1325,7 @@ export class FormDetector {
     for (let i = 0; i < maxRetries; i++) {
       this.detectForms();
 
-      if (this.usernameFields.length > 0 || this.passwordFields.length > 0) {
+      if (this.hasFillableLoginForm) {
         return true;
       }
 
@@ -1435,7 +1452,7 @@ export class FormDetector {
       // 会导致可见输入框保持空白
       this.detectForms();
 
-      if (this.usernameFields.length === 0 && this.passwordFields.length === 0) {
+      if (!this.hasFillableLoginForm) {
         const detected = await this.waitForFieldsDetected();
         if (this.disposed) return result;
         if (!detected) {
@@ -1470,7 +1487,12 @@ export class FormDetector {
 
       // 填充用户名（仅选取仍在文档中且可见的字段，避免写入已分离的过期节点）
       if (data.username) {
-        const usernameField = this.findFillableField(this.usernameFields);
+        // 手机号 + 短信码登录页既没有账号框也没有密码框，而条目里的 username 存的就是手机号。
+        // 回退只在「页面上确实没有密码框」时成立：只要存在密码框，这就是账号密码表单，
+        // 此时页面里另一个 tel 输入框通常是「绑定手机号/短信找回」而非登录账号，写进去是错的。
+        const usernameField =
+          this.findFillableField(this.usernameFields) ??
+          (this.passwordFields.length === 0 ? this.findFillableField(this.mobileFields) : null);
         if (usernameField) {
           result.details.usernameField.found = true;
           const fillResult = await this.inputFiller.setInputValueWithStrategies(usernameField, data.username);
