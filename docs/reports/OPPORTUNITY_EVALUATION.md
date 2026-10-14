@@ -268,6 +268,35 @@ background-color` 三项（真实动机是正确性的——`all` 会连 `.new-i
   「工具栏图标一眼看出会话是否锁定」是零新权限、高感知的安全感表达。
   **需拍板**：改可见外观，且要先生成多尺寸产物（`public/icon/` 目前只有静态 16–128）。
 
+  > **落地记录（2026-10-15，波次 2）——已实施，两档状态机 + 两个接线点**
+  >
+  > 实现：新增 [actionIcon.ts](../../entrypoints/background/actionIcon.ts)（`unlocked` / `locked` 两档，状态唯一来源
+  > `isSessionValid({ skipConsistencyCheck: true })`）；锁定态矢量源 `assets/icons/icon-locked.svg` 由
+  > `scripts/generate-icons.mjs` 的 `ICON_SETS` 与既有钥匙一起出两套 PNG，**锁定态整体落在 `public/icon/locked/` 子目录**
+  > （WXT 只把根目录那五个数字文件名认作 `manifest.icons` / `action.default_icon`，混进根目录会让安装首帧显示哪一档不再由我们决定）；
+  > 解锁态沿用既有 `public/icon/*.png`，逐字节重生成后与改前**完全一致**，商店截图与 manifest 图标不受影响。
+  > 接线只有两处，且都在既有链路上：`setupBackgroundServices()`（每次 SW 启动）`void refreshActionIcon()` 对齐一次，
+  > `storage.onChanged` 的会话键分支按 `sessionRemoved` 调 `setActionIconState()`——后者是**唯一收口点**，
+  > 手动锁定、倒计时到期、重启重锁、闲置锁定、设置与验证主密码、换钥最终都汇到 `WRAPPED_DATA_KEY` + `PASSWORD_EXPIRY`
+  > 这两个键上，所以不需要在任何入口单独接线，也不会出现「某条锁定路径忘了改图标」。
+  >
+  > 验证：`tests/background/actionIconSessionState.test.ts` 7 例 + `tests/architecture/toolbarIconSessionState.test.ts` 7 例。
+  > 五处变异各自变红——锁定 16px 路径指回解锁图（3 红）、去掉 `skipConsistencyCheck`（1 红，防图标顺手触发 at-rest 密文化）、
+  > 删去重早退（2 红）、把刷新挂到 `initBackgroundConfig`（1 红，且反向断言独立验过牙）、往 `public/icon/` 根塞多余文件与
+  > 把锁定 PNG 改成与解锁同字节（各 1 红）。清单守卫对 `.DS_Store` 给了唯一豁免：它在全仓 `.gitignore` 第 41 行、
+  > 干净检出量不到而本地 macOS 人人都有，算进清单只会让守卫在无关改动上无故变红。
+  >
+  > **刻意不做**：`chrome.action.setTitle` 的悬浮文案（会牵动 manifest `default_title` 的中英两套词条与 Popup 会话面板口径，
+  > 而形状+明度双编码已足够区分，不依赖颜色可读性）；角标通道一行未动，`actionIcon` 内出现任何 `setBadge*` 都会红。
+  >
+  > **仍未验证**：没有真 Chrome / e2e 观测点，图标切换目前只有源码与单测层面的证据——工具栏实际渲染、
+  > 换档时机是否跟得上锁定动作，需要一次真机确认（收口补，不写成已验证）。
+  >
+  > **对外文档落点**：README / README.en 功能全览「安全防护」各加一条，`docs/ARCHITECTURE.md` / `.en.md` 的
+  > §8 与「图标工作流」就地扩写，侧边栏 `help.gs.2` **就地补句**而非新增 `help.gs.12`——后者要把两处
+  > `helpItems('help.gs', N)` 字面量与「gs 11 / 43 条操作指引」这类写死的计数一并改动，属独立一轮。
+  > `index.html` / `en.html` / CWS 文案本轮**刻意不刷**：商店 v3.16.0 正在审查期，不改对外商店与站点文案。
+
 **沿用、不复活**：上轮判死的 A3（三档匹配扫描带，撞调性红线）、A8（步骤连线 SVG，与既有错峰重叠）
 维持不做。**需拍板才动**：B5 / D12 秒开演示带——它的否决理由「数字要先由 `benchmarks/` 跑出可复现口径」
 现在**部分失效**：三段 SLA 口径与六场景计时都已落进 `AGENTS.md`。可以写成「按 1 秒内出界面调优、骨架先行」

@@ -370,6 +370,7 @@ graph TB
 - **浏览器重启锁定**：在「自动锁定设置」中可开启「浏览器重启锁定」开关。**该开关默认关闭**：关闭状态下，完全关闭并重新打开浏览器后在有效期内自动保持登录，无需重复输入；开启后重启浏览器需重新输入主密码（更安全），且该屏障为 fail-closed——恢复状态无法判定时按锁定处理（见 [utils/browserStartupRelock.ts](../utils/browserStartupRelock.ts)）。
 - 两个开关的安全价值口径不同，别把它们当同一件事：闲置锁定防的是「人离开机器后留下的可操作会话」，重启锁定防的是「密钥材料长期驻留磁盘」。关闭重启锁定期间，`session_wrap_key` + `session_wrapped_data_key` 会跨重启长期留在 `storage.local`，即「保持登录 = 这台设备当前可解密」（详见「会话生命周期」）。共用设备应开启重启锁定。
 - Popup 弹窗也提供一键「锁定」按钮，可快速清除当前会话。
+- **工具栏图标即时钟**：解锁态沿用 manifest 里的钥匙，锁定态换成闭合挂锁（`public/icon/locked/`，实现在 [actionIcon.ts](../entrypoints/background/actionIcon.ts)）。状态唯一来源仍是 `isSessionValid`，切换只有两个入口——SW 每次启动 `void refreshActionIcon()` 对齐一次（Chrome 的默认档位恒为解锁态钥匙，而会话材料是落盘的，「重启后材料仍在但已过期」必须被纠正，否则留下「库锁着、图标却是钥匙」的错相），以及 `storage.onChanged` 的会话键分支按「材料出现 / 被清除」调 `setActionIconState()`。后者是唯一的收口点：手动锁定、倒计时到期、重启重锁、闲置锁定、设置与验证主密码、换钥最终都汇到这两个键上，因此不必在每个入口逐个接线。图标与角标刻意分道——角标（✓ / ! / new）是「刚刚发生了什么」的一次性回执，图标是「现在能不能用」的持续状态，两通道互不覆写；零新权限、零新数据，`setIcon` 失败只记日志不抛出，不让工具栏外观冒泡进锁定链路（回归见 [actionIconSessionState.test.ts](../tests/background/actionIconSessionState.test.ts) 与 [toolbarIconSessionState.test.ts](../tests/architecture/toolbarIconSessionState.test.ts)）。
 
 ### 9. 密码强度可视化
 
@@ -637,9 +638,10 @@ graph TB
 
 ### 图标工作流
 
-1. 编辑或替换 [assets/icons/icon.svg](../assets/icons/icon.svg)（可从 [variants](../assets/icons/variants) 挑选一款覆盖）
-2. 运行 `pnpm icons:build` 生成 `public/icon/{16,32,48,96,128}.png`
-3. WXT 会自动识别为 `manifest.icons` 和 `action.default_icon`，无需在 [wxt.config.ts](../wxt.config.ts) 显式声明
+1. 编辑或替换 [assets/icons/icon.svg](../assets/icons/icon.svg)（可从 [variants](../assets/icons/variants) 挑选一款覆盖）；锁定态另有独立矢量源 [assets/icons/icon-locked.svg](../assets/icons/icon-locked.svg)
+2. 运行 `pnpm icons:build` 生成 `public/icon/{16,32,48,96,128}.png` 与 `public/icon/locked/{16,32,48,96,128}.png`——两档由脚本里的 `ICON_SETS` 逐套生成，漏配一套不会报错，只会到用户第一次锁定时才发现切不过去
+3. WXT 会自动识别 `public/icon/` 根目录那五档为 `manifest.icons` 和 `action.default_icon`，无需在 [wxt.config.ts](../wxt.config.ts) 显式声明；锁定态**必须**待在 `locked/` 子目录，混进根目录后「安装后首帧显示哪一档」就不再完全由我们决定（该清单由架构守卫钉死）
+4. 运行时切换走 `chrome.action.setIcon`，只取 16 / 32 / 48 / 128 四档：工具栏按设备像素比最多取到 16 的两倍，96 档没有消费方（见「自动闲置锁定与浏览器重启锁定」的图标状态条目）
 
 ### 测试页面
 

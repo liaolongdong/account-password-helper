@@ -21,7 +21,7 @@
   "help.sc.quickFill": "Quick fill credentials on current page",
   "help.sc.openInlineDropdown": "Open the inline fill dropdown",
   "help.gs.1": "First use: set a master password (8+ characters with letters, numbers and symbols). It cannot be recovered — never forget it.",
-  "help.gs.2": "Session validity: choose 1/2/4/8/12/24 hours or 3/5/7 days (default 24 hours); re-verify the master password after it expires. The remaining session time is always visible in the manager header, sidebar header and popup; it turns to a warning color within the last 10 minutes, and the manager badge links straight to the validity settings.",
+  "help.gs.2": "Session validity: choose 1/2/4/8/12/24 hours or 3/5/7 days (default 24 hours); re-verify the master password after it expires. The remaining session time is always visible in the manager header, sidebar header and popup; it turns to a warning color within the last 10 minutes, and the manager badge links straight to the validity settings. The toolbar icon tracks the same state: a key while unlocked, a closed padlock once locked or expired, so you can tell whether filling is available without opening anything.",
   "help.gs.3": "Auto idle lock: configure the idle time (5/10/30/60 minutes) in \"Auto-Lock Settings\"; the session is cleared and locked after the timeout.",
   "help.gs.4": "Lock on browser restart: when enabled in \"Auto-Lock Settings\", the master password is required again after fully closing and reopening the browser (more secure).",
   "help.gs.5": "Health check: click \"Health Check\" at the top of the manager page to scan for weak, reused, commonly breached (offline dictionary) and long-unchanged passwords, producing an overall security score with per-item \"Fix\" actions.",

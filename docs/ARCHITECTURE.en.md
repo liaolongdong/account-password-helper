@@ -196,6 +196,7 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - **Lock on browser restart**: available as a "Lock on browser restart" switch in the same "Auto lock settings" dialog. **This switch defaults to off**: while off, fully closing and reopening the browser keeps you signed in within the validity period; when on, a restart requires the master password again (more secure), and the barrier is fail-closed — if the restore state cannot be determined it locks (see [utils/browserStartupRelock.ts](../utils/browserStartupRelock.ts)).
 - The two switches protect different things, so don't read them as one: the idle lock covers "you walked away with a live session", the restart lock covers "key material sitting on disk for a long time". With the restart lock off, `session_wrap_key` + `session_wrapped_data_key` persist in `storage.local` across browser restarts — i.e. "stay signed in = decryptable on this device" (see "Session Lifecycle"). Turn it on for shared machines.
 - The popup also provides a one-click "Lock" button to clear the current session.
+- **The toolbar icon doubles as a status light**: the unlocked state keeps the manifest key, the locked state switches to a closed padlock (`public/icon/locked/`, implemented in [actionIcon.ts](../entrypoints/background/actionIcon.ts)). The single source of truth stays `isSessionValid`, and there are only two switch points — `void refreshActionIcon()` on every SW start, and the session-key branch of `storage.onChanged` calling `setActionIconState()` when key material appears or is cleared. The refresh matters because Chrome's default state is always the unlocked key while session material is stored on disk: after a restart with "material present but expired" the toolbar would otherwise claim the vault is open. The `onChanged` branch is the single funnel — manual lock, countdown expiry, startup relock, idle lock, setting and verifying the master password, and rekeying all end up writing or clearing those two keys, so no entry point needs its own wiring. Icon and badge stay deliberately separate channels: the badge (✓ / ! / new) is a one-off receipt of "what just happened", the icon is the standing answer to "can I use it now", and neither overwrites the other. No new permissions and no new data — and a failed `setIcon` is logged, never thrown, so toolbar cosmetics cannot bubble into the lock path (regressions: [actionIconSessionState.test.ts](../tests/background/actionIconSessionState.test.ts), [toolbarIconSessionState.test.ts](../tests/architecture/toolbarIconSessionState.test.ts)).
 
 ### 9. Password Strength Visualization
 
@@ -464,9 +465,10 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 
 ### Icon Workflow
 
-1. Edit or replace [assets/icons/icon.svg](../assets/icons/icon.svg) (pick one from [variants](../assets/icons/variants) if desired)
-2. Run `pnpm icons:build` to generate `public/icon/{16,32,48,96,128}.png`
-3. WXT picks them up automatically as `manifest.icons` and `action.default_icon` — no explicit declaration in [wxt.config.ts](../wxt.config.ts) needed
+1. Edit or replace [assets/icons/icon.svg](../assets/icons/icon.svg) (pick one from [variants](../assets/icons/variants) if desired); the locked state has its own source at [assets/icons/icon-locked.svg](../assets/icons/icon-locked.svg)
+2. Run `pnpm icons:build` to generate `public/icon/{16,32,48,96,128}.png` and `public/icon/locked/{16,32,48,96,128}.png` — both sets come from `ICON_SETS` in the script, and a missing entry there fails silently: you only find out the first time a user locks the vault
+3. WXT picks up the five root files as `manifest.icons` and `action.default_icon` — no explicit declaration in [wxt.config.ts](../wxt.config.ts) needed; the locked set **must** stay under `locked/`, because anything else in the root means "which icon shows on the first frame after install" is no longer ours to decide (that listing is pinned by an architecture guard)
+4. Runtime switching uses `chrome.action.setIcon` with only 16 / 32 / 48 / 128: the toolbar never asks for more than 2× 16, so 96 has no consumer (see the icon-state entry under "Auto Idle Lock & Lock on Browser Restart")
 
 ### Test Page
 
