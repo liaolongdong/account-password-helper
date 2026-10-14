@@ -1,4 +1,4 @@
-import type { PasswordEntry, PingResponse, FillResult } from '@/utils/types';
+import type { PasswordEntry, PingResponse, FillResult, FillFailureReason } from '@/utils/types';
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { t, currentLocale } from '@/utils/i18n';
@@ -8,6 +8,29 @@ import { getClipboardConfig } from '@/utils/storage/configManager';
 import { lazyImport } from '@/utils/lazyImport';
 import { ensureContentScriptReady, type ContentScriptProbeResult } from '@/utils/contentScriptReadiness';
 import type { Ref } from 'vue';
+
+/**
+ * 填充失败原因 → 账号密码填充文案 key。
+ *
+ * `FillResult.message` 由 content script 的 `tl()` 产出，而 `currentLiteLocale` 初值为
+ * `zh-CN`、要等异步 `getStoredLocale()` 才切档，透传它会让英文界面收到中文串；
+ * 因此这里只认结构化的 `reason`，文案一律由侧边栏自己的语言包出。
+ * 旧版本 content script 不带 `reason`，落到 `fill.fillFailed` 兜底。
+ */
+const FILL_FAILURE_KEYS: Record<FillFailureReason, string> = {
+  no_form: 'fill.noLoginForm',
+  no_totp_input: 'fill.noLoginForm',
+  nothing_filled: 'fill.fillIncomplete',
+  fill_error: 'fill.fillFailed',
+};
+
+/** 同上，验证码填充一支：`nothing_filled` 的出路是手动输入而不是刷新页面 */
+const TOTP_FAILURE_KEYS: Record<FillFailureReason, string> = {
+  no_form: 'fill.noTotpInput',
+  no_totp_input: 'fill.noTotpInput',
+  nothing_filled: 'fill.totpFillManual',
+  fill_error: 'fill.totpFillFailed',
+};
 
 /** 剪贴板自动清除定时器（模块级变量，确保同一时刻只有一个定时器） */
 let clipboardClearTimer: ReturnType<typeof setTimeout> | null = null;
@@ -325,7 +348,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
 
       // 步骤5: 根据响应显示结果
       if (response && response.success) {
-        ElMessage.success(response.message || t('fill.fillSuccess'));
+        ElMessage.success(t(response.outcome === 'unverified' ? 'fill.fillCheck' : 'fill.fillSuccess'));
         // 填充成功时，刷新 lastUsedAt（"最近使用"排序依据）和 favoriteUsedAt（LRU 依据）
         const now = Date.now();
         if (passwords?.value) {
@@ -363,11 +386,8 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
           data: { tabId },
         });
       } else {
-        const rawMsg = response?.message || '';
-        // 优先用结构化 reason 判断（跨语言稳定）；字符串匹配保留作旧版本 content script 兜底
-        const isNoForm = response?.reason === 'no_form' || rawMsg.includes('未检测到登录表单');
-        const errorMsg = isNoForm ? t('fill.noLoginForm') : rawMsg;
-        ElMessage.warning(errorMsg);
+        const reason = response?.reason;
+        ElMessage.warning(t(reason ? FILL_FAILURE_KEYS[reason] : 'fill.fillFailed'));
       }
     } catch (error: any) {
       logger.error('填充密码失败:', error);
@@ -432,13 +452,14 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
 
       const response = await fillTotpInAllFrames(tabId, frameIds, code);
       if (response && response.success) {
-        ElMessage.success(response.message || t('fill.totpFillSuccess'));
+        ElMessage.success(t('fill.totpFillSuccess'));
         await chrome.runtime.sendMessage({
           type: MessageType.HIDE_SIDEPANEL,
           data: { tabId },
         });
       } else {
-        ElMessage.warning(response?.message || t('fill.noTotpInput'));
+        const reason = response?.reason;
+        ElMessage.warning(t(reason ? TOTP_FAILURE_KEYS[reason] : 'fill.totpFillFailed'));
       }
     } catch (error: any) {
       logger.error('填充验证码失败:', error);

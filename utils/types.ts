@@ -1012,13 +1012,27 @@ export interface FieldFillResult {
 }
 
 /**
+ * 填充失败的结构化原因（仅 `success === false` 时出现）
+ *
+ * 文案一律由消费侧按自己的语言本地化：`message` 由 content script 的 `tl()` 产出，
+ * 而 `currentLiteLocale` 初值为 `zh-CN` 且要等异步 `getStoredLocale()` 才切档，
+ * 因此跨上下文透传 `message` 会让英文界面收到中文串。
+ */
+export type FillFailureReason = 'no_form' | 'no_totp_input' | 'nothing_filled' | 'fill_error';
+
+/** 填充成功的可信度（仅 `success === true` 时出现）：字段已写入但是否回读校验通过 */
+export type FillOutcome = 'verified' | 'unverified';
+
+/**
  * 填充结果接口
  */
 export interface FillResult {
   success: boolean;
   message: string;
   /** 结构化失败原因（跨语言稳定判断，替代对 message 文案的字符串匹配） */
-  reason?: 'no_form';
+  reason?: FillFailureReason;
+  /** 结构化成功档位，供消费侧选择「已填充」还是「已填充待核对」文案 */
+  outcome?: FillOutcome;
   details: {
     usernameField: FieldFillResult;
     passwordField: FieldFillResult;

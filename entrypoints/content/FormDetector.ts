@@ -1475,11 +1475,14 @@ export class FormDetector {
 
       if (usernameSuccess && passwordSuccess) {
         result.success = true;
+        result.outcome = 'verified';
         result.message = tl('cs.fd.fillSuccess');
       } else if (result.details.usernameField.filled || result.details.passwordField.filled) {
         result.success = true;
+        result.outcome = 'unverified';
         result.message = tl('cs.fd.fillCheck');
       } else {
+        result.reason = 'nothing_filled';
         result.message = tl('cs.fd.fillIncomplete');
       }
 
@@ -1501,6 +1504,7 @@ export class FormDetector {
       }
     } catch (error) {
       logger.error('填充密码失败:', error);
+      result.reason = 'fill_error';
       result.message = tl('cs.fd.fillError');
     }
 
@@ -1597,6 +1601,7 @@ export class FormDetector {
         this.detectForms();
       }
       if (this.verifyCodeFields.length === 0) {
+        result.reason = 'no_totp_input';
         result.message = tl('cs.fd.noTotpInput');
         return result;
       }
@@ -1605,7 +1610,12 @@ export class FormDetector {
       const fillResult = await this.inputFiller.setInputValueWithStrategies(field, code);
       result.success = fillResult.filled;
       result.details.strategy = fillResult.strategy;
-      result.message = fillResult.filled ? tl('cs.fd.totpFillSuccess') : tl('cs.fd.totpFillManual');
+      if (fillResult.filled) {
+        result.message = tl('cs.fd.totpFillSuccess');
+      } else {
+        result.reason = 'nothing_filled';
+        result.message = tl('cs.fd.totpFillManual');
+      }
 
       if (result.success) {
         setTimeout(() => {
@@ -1614,6 +1624,7 @@ export class FormDetector {
       }
     } catch (error) {
       logger.error('填充 TOTP 验证码失败:', error);
+      result.reason = 'fill_error';
       result.message = tl('cs.fd.totpFillError');
     }
 

@@ -34,6 +34,7 @@ import { normalizeEntryId } from '@/utils/generateId';
 import { isFrameFillable } from '@/utils/frameFill';
 import { isSameMainDomain } from '@/utils/domain';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
+import { tl } from '@/utils/i18n-lite';
 
 /**
  * SW 模块加载时刻（epoch 毫秒）
@@ -144,12 +145,12 @@ async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: 
   // 安全：仅允许顶层或与顶层同主域名的 frame 接收明文凭证，
   // 避免跨域 iframe 伪造登录框骗取顶层站点账密（与侧边栏 getFillableFrameIds 同一道防线）
   if (!(await isFrameFillable(tabId, frameId))) {
-    return { success: false, message: '当前 frame 无权填充' };
+    return { success: false, message: tl('bg.router.frameDenied') };
   }
 
   const entry = await getDecryptedEntryById(data.id);
   if (!entry) {
-    return { success: false, message: '会话已锁定或账号不存在' };
+    return { success: false, message: tl('bg.router.sessionOrAccount') };
   }
 
   const fillMessage = {
@@ -194,12 +195,12 @@ async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: 
  */
 async function handleGetInlineTotp(data: { id: string }, tabId: number, frameId: number | undefined) {
   if (!(await isFrameFillable(tabId, frameId))) {
-    return { success: false, message: '当前 frame 无权获取验证码' };
+    return { success: false, message: tl('bg.router.frameDeniedTotpRead') };
   }
 
   const totp = await getInlineTotpCode(data.id);
   if (!totp) {
-    return { success: false, message: '会话已锁定、账号不存在或未配置两步验证' };
+    return { success: false, message: tl('bg.router.sessionOrNoTotp') };
   }
 
   return { success: true, data: totp };
@@ -218,12 +219,12 @@ async function handleGetInlineTotp(data: { id: string }, tabId: number, frameId:
  */
 async function handleFillTotpById(data: { id: string }, tabId: number, frameId: number | undefined) {
   if (!(await isFrameFillable(tabId, frameId))) {
-    return { success: false, message: '当前 frame 无权填充验证码' };
+    return { success: false, message: tl('bg.router.frameDeniedTotpFill') };
   }
 
   const totp = await getInlineTotpCode(data.id);
   if (!totp) {
-    return { success: false, message: '会话已锁定、账号不存在或未配置两步验证' };
+    return { success: false, message: tl('bg.router.sessionOrNoTotp') };
   }
 
   // 显式定向发起 frame（与 FILL_BY_ID 一致，frameId 缺失时回退顶层）
@@ -268,7 +269,7 @@ async function handleGetPendingTotp(tabId: number) {
 async function handleSetPendingTotp(data?: { tabId?: number; entryId?: string }) {
   const tabId = data?.tabId;
   const entryId = data?.entryId;
-  if (!tabId || !entryId) return { success: false, message: '缺少参数' };
+  if (!tabId || !entryId) return { success: false, message: tl('bg.router.missingParams') };
   const entry = await getDecryptedEntryById(entryId);
   if (entry?.totp && entry.totp.trim()) {
     await recordPendingTotpIfEligible(tabId, entryId);
@@ -803,7 +804,7 @@ export function setupMessageRouter(): void {
             } else {
               logger.error('Background: FILL_BY_ID 处理失败:', error);
             }
-            sendResponse({ success: false, message: '填充失败' });
+            sendResponse({ success: false, message: tl('bg.router.fillFailed') });
           });
         return true;
       }
@@ -811,14 +812,14 @@ export function setupMessageRouter(): void {
       case MessageType.GET_INLINE_TOTP: {
         const tabId = sender.tab?.id;
         if (!tabId) {
-          sendResponse({ success: false, message: '无法获取标签ID' });
+          sendResponse({ success: false, message: tl('bg.router.noTabId') });
           break;
         }
         handleGetInlineTotp(message.data, tabId, sender.frameId)
           .then(sendResponse)
           .catch(error => {
             logger.error('Background: GET_INLINE_TOTP 处理失败:', error);
-            sendResponse({ success: false, message: '获取验证码失败' });
+            sendResponse({ success: false, message: tl('bg.router.totpReadFailed') });
           });
         return true;
       }
@@ -826,7 +827,7 @@ export function setupMessageRouter(): void {
       case MessageType.FILL_TOTP_BY_ID: {
         const tabId = sender.tab?.id;
         if (!tabId) {
-          sendResponse({ success: false, message: '无法获取标签ID' });
+          sendResponse({ success: false, message: tl('bg.router.noTabId') });
           break;
         }
         handleFillTotpById(message.data, tabId, sender.frameId)
@@ -839,7 +840,7 @@ export function setupMessageRouter(): void {
             } else {
               logger.error('Background: FILL_TOTP_BY_ID 处理失败:', error);
             }
-            sendResponse({ success: false, message: '填充验证码失败' });
+            sendResponse({ success: false, message: tl('bg.router.totpFillFailed') });
           });
         return true;
       }
@@ -847,7 +848,7 @@ export function setupMessageRouter(): void {
       case MessageType.GET_PENDING_TOTP: {
         const tabId = sender.tab?.id;
         if (!tabId) {
-          sendResponse({ success: false, message: '无法获取标签ID' });
+          sendResponse({ success: false, message: tl('bg.router.noTabId') });
           break;
         }
         handleGetPendingTotp(tabId)
@@ -862,7 +863,7 @@ export function setupMessageRouter(): void {
       case MessageType.CLEAR_PENDING_TOTP: {
         const tabId = sender.tab?.id;
         if (!tabId) {
-          sendResponse({ success: false, message: '无法获取标签ID' });
+          sendResponse({ success: false, message: tl('bg.router.noTabId') });
           break;
         }
         handleClearPendingTotp(tabId)
@@ -877,7 +878,7 @@ export function setupMessageRouter(): void {
       case MessageType.SET_PENDING_TOTP: {
         // 仅允许扩展内部页面（sidepanel）：防止内容脚本伪造接力标记
         if (!isTrustedInternalSender(sender)) {
-          sendResponse({ success: false, message: '未授权的请求来源' });
+          sendResponse({ success: false, message: tl('bg.router.unauthorized') });
           break;
         }
         handleSetPendingTotp(message.data)
