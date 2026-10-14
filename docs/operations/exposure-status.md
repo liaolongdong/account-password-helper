@@ -40,6 +40,7 @@
 - **定稿读数**取自合并后那棵树（`0c1d627`，`git status` 干净，`origin/main` 与 `origin/feature-dev` 同指）上的串行全量 `pnpm exec vitest run --no-file-parallelism`：**133.20s、219 文件 / 2888 例、0 skipped、exit 0**，同一份日志里 `Timeout starting forks runner` 计数为 0。
 - **48 处落点按新数重刷**：20 个手工维护源文件（README 中英、`llms.txt` 的质量行含文件数、`index.html` 指标位、产品站统计卡与页脚两处千分位 `2,888`、微博与公众号各 2 处、五篇博客中英源文含 6 处文件数、`outline.md` 与 04/05 两张封面 SVG）→ `gen:blog`（12 页）→ `gen:en`（只有 `en.html` 一行变）→ `covers:render`（5 张里只有 04/05 的 PNG 变）。用例数位宽仍是 4 位，封面胶囊宽度不受影响。
 - **守卫头部与牙齿**：`tests/docs/testCountCopy.test.ts` 头部叙述跟到 219 / 2888；把任一手工落点改回旧数，预期红的是「对外用例数出现了 2 个不同值」那一条。
+- **e2e 那本账另算，本轮复核没变**：`pnpm exec playwright test --list` 实读仍是 **15 文件 / 93 条**，与 `e2e/README.md` 第 10 行的账目相符；并发落下的 `cc13f01`（PR #134）只改 `e2e/README.md` 措辞与 `.github/workflows/e2e.yml`，未动 `tests/`，所以 vitest 那 219 / 2888 不受它影响。两个数分属两套口径，别互相引用。
 - 🟡 **本轮刻意未动、需要你决策的一处口径**：`llms.txt` 第 16 行写「Last updated: 2026-10-13 · Latest release: v3.15.2 (2026-10-12) · the Chrome Web Store listing serves the same v3.15.2 — no version gap between GitHub Releases and the store」。而 `package.json` 已是 **3.16.0**（2026-10-14 由 release-please 发 tag + GitHub Release）。这行同时含**商店与 GitHub 无版本差**的公开主张，而 `Submit to Chrome Web Store` 那一条在 CI 上仍是 `waiting`（production 审批闸门），商店实际服务哪个版本本地核不到——所以不能按 `package.json` 就地替换，得先确认商店状态再决定这句话怎么改。落地页与产品站里同形的 `v3.15.2` 徽章（`index.html` 的 `softwareVersion` / 页脚、`product-site` 两处、微博与公众号的事实基线行）受同一处决策约束。
 
 ## 🆕 2026-10-14 命令面板补两条入口，对外测试数跟到串行实测 2878 / 218（本轮，已提交、已推送）
