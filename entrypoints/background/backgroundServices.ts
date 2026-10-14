@@ -28,6 +28,7 @@ import {
   resetDomainMatchModeMirror,
 } from './passwordCache';
 import { tl } from '@/utils/i18n-lite';
+import { refreshActionIcon, setActionIconState } from './actionIcon';
 import { UNLOCK_NOTIFICATION_ID } from './quickFillHandler';
 import {
   decidePasswordBackupReminder,
@@ -670,6 +671,11 @@ export function setupBackgroundServices(): void {
     }
   });
 
+  // SW 每次启动对齐工具栏图标与会话状态：Chrome 的默认档位始终是 manifest 里的解锁态钥匙，
+  // 而会话材料是落盘的——浏览器重启后仍「有材料但已过期」或「已锁定」时，不刷新就会留下
+  // 「库是锁着的、图标却是钥匙」的错相。fire-and-forget，不阻塞其余初始化。
+  void refreshActionIcon();
+
   // 监听通知点击事件
   chrome.notifications.onClicked.addListener(notificationId => {
     if (notificationId === 'extension-update-available') {
@@ -791,6 +797,11 @@ export function setupBackgroundServices(): void {
         // 检测会话键是否被删除（clearSession 从任意上下文调用都会触发 storage 变化）
         // 这是通用安全网：覆盖手动清除（弹窗）、自动过期、锁定按钮等所有清除路径
         const sessionRemoved = sessionKeyChanges.some(([, change]) => change.newValue === undefined);
+
+        // 工具栏图标跟随会话材料出现 / 消失：本分支天然覆盖全部锁定与解锁入口
+        // （弹窗手动锁定、倒计时到期、浏览器重启重锁、闲置锁定、设置与验证主密码、换钥），
+        // 因为它们最终都要么清除要么写入这两个键，无需在每个入口逐个接线
+        setActionIconState(sessionRemoved ? 'locked' : 'unlocked');
 
         if (sessionRemoved) {
           // 会话被清除：重置 BG 的会话内存镜像与验证缓存，防止 isSessionValid() 依据
