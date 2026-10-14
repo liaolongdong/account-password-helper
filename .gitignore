@@ -8,6 +8,8 @@ pnpm-debug.log*
 # Build outputs
 .output/
 dist/
+# 对外落地页的部署目录，由 `pnpm web:build`（scripts/build-web-assets.mjs）从引用闭包生成。
+site-dist/
 build/
 
 # WXT cache and temporary files
