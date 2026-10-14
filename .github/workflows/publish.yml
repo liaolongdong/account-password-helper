@@ -159,9 +159,14 @@ jobs:
     # 用它验证「服务账号 → access token → v2 端点」这条链通，就能把凭据问题在提审之前暴露掉。
     steps:
       - uses: actions/checkout@v5
+      # `package-manager-cache` 是 setup-node v5 的新输入且**默认 true**：它读 package.json 的
+      # `packageManager` 字段（本仓 pnpm）并去 PATH 上找 pnpm 解析 store 路径。本 job 与 submit 都
+      # 不跑 pnpm/action-setup（CLI 只 import node 内置模块，无需安装依赖），于是 v5 直接判红
+      # `Unable to locate executable file: pnpm`（2026-10-14 v3.16.0 run 38515396084 实测）。
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
 
       - name: Fetch item status
         env:
@@ -188,9 +193,11 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
+      # 同 inspect：关掉 v5 的自动包管理器缓存，本 job 只需要 node 跑 CLI，不装依赖。
       - uses: actions/setup-node@v5
         with:
           node-version: 22
+          package-manager-cache: false
 
       - uses: actions/download-artifact@v7
         with:
