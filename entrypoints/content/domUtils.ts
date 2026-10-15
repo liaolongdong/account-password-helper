@@ -65,6 +65,39 @@ export function isDetectableCheckbox(input: HTMLInputElement): boolean {
   return selfVisible || hasVisibleAssociatedLabel(input);
 }
 
+/**
+ * 判断 role="checkbox" 的模拟复选框元素是否应纳入自动勾选候选
+ *
+ * 现代组件库（Radix/shadcn 等，如豆包登录弹窗的协议勾选）用 button 承载
+ * role="checkbox" 模拟复选框：页内完全没有原生 input，勾选态由页面维护在
+ * aria-checked 上。要求显式声明 aria-checked 才纳入：缺失时没有判断勾选态的
+ * 可靠依据，盲点击可能误反而语义不同的控件；同时要求自身可见且未被禁用。
+ * 可见性用 isElementVisible（尺寸+样式）而非 offsetParent，避免 fixed 定位容器
+ * 内的元素被误判为不可见。
+ * 另排除可提交/可导航的载体：button 缺省 type 即 submit，位于 form 内时程序化
+ * 勾选会直接提交登录表单；a[href][role=checkbox] 会触发导航——都是原生复选框
+ * 路径不存在的副作用面（Radix/shadcn 产物显式声明 type="button"，不受影响）。
+ *
+ * @param el - role="checkbox" 的候选元素
+ * @returns 是否应纳入自动勾选候选
+ */
+export function isDetectableAriaCheckbox(el: HTMLElement): boolean {
+  if (!el.hasAttribute('aria-checked')) {
+    return false;
+  }
+  if (el.hasAttribute('disabled') || el.getAttribute('aria-disabled') === 'true') {
+    return false;
+  }
+  const tag = el.tagName.toLowerCase();
+  if (tag === 'a' && el.hasAttribute('href')) {
+    return false;
+  }
+  if (tag === 'button' && el.getAttribute('type') !== 'button' && el.closest('form')) {
+    return false;
+  }
+  return isElementVisible(el);
+}
+
 /** 矩形度量子集（getBoundingClientRect 的结构化子集，便于纯函数复用与单测） */
 export interface RectMetrics {
   left: number;

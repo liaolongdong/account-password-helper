@@ -33,7 +33,7 @@ import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
 import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
 import type { FormFieldSets } from '@/entrypoints/content/types';
 import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
-import { isDetectableCheckbox, isElementVisible } from './domUtils';
+import { isDetectableAriaCheckbox, isDetectableCheckbox, isElementVisible } from './domUtils';
 import { fillContextMenuTarget, resolveContextMenuInputTarget } from './contextMenuTarget';
 import { isNotificationType, NOTICE_MAX_LENGTH, showNativeNotification } from './NativeNotification';
 import { tl } from '@/utils/i18n-lite';
@@ -69,7 +69,7 @@ export class FormDetector {
   /** 检测到的验证码输入框列表 */
   private verifyCodeFields: HTMLInputElement[] = [];
   /** 检测到的复选框列表 */
-  private checkboxFields: HTMLInputElement[] = [];
+  private checkboxFields: HTMLElement[] = [];
   /** 检测到的登录按钮列表 */
   private loginButtons: HTMLElement[] = [];
   /** DOM 变化观察器 */
@@ -462,9 +462,14 @@ export class FormDetector {
       this.detectUsernameByProximity();
     }
 
-    // 检测复选框（含原生 input 被隐藏但存在可见关联 label 的自定义样式复选框）
+    // 检测复选框：原生 input（含 input 被隐藏但存在可见关联 label 的自定义样式载体）+
+    // role="checkbox" 按钮模拟复选框（现代组件库载体，如豆包登录弹窗的协议勾选）
     const checkboxInputs = document.querySelectorAll('input[type="checkbox"]') as NodeListOf<HTMLInputElement>;
-    this.checkboxFields = Array.from(checkboxInputs).filter(input => isDetectableCheckbox(input));
+    const ariaCheckboxes = document.querySelectorAll('[role="checkbox"]') as NodeListOf<HTMLElement>;
+    this.checkboxFields = [
+      ...Array.from(checkboxInputs).filter(input => isDetectableCheckbox(input)),
+      ...Array.from(ariaCheckboxes).filter(el => isDetectableAriaCheckbox(el)),
+    ];
 
     // F1: 站点规则自定义选择器——命中则作为权威字段覆盖启发式结果（确定性控制）
     this.applySiteRuleSelectors();
@@ -1591,7 +1596,12 @@ export class FormDetector {
         }
       }
 
-      this.checkboxHandler.autoCheckNearestCheckbox(this.checkboxFields, this.passwordFields, this.usernameFields);
+      this.checkboxHandler.autoCheckNearestCheckbox(
+        this.checkboxFields,
+        this.passwordFields,
+        this.usernameFields,
+        this.mobileFields,
+      );
 
       const usernameSuccess = !data.username || result.details.usernameField.verified;
       const passwordSuccess = !data.password || result.details.passwordField.verified;
@@ -1705,7 +1715,12 @@ export class FormDetector {
         }
       }
 
-      this.checkboxHandler.autoCheckNearestCheckbox(this.checkboxFields, this.passwordFields, this.usernameFields);
+      this.checkboxHandler.autoCheckNearestCheckbox(
+        this.checkboxFields,
+        this.passwordFields,
+        this.usernameFields,
+        this.mobileFields,
+      );
 
       this.showFillAck(ackField);
 

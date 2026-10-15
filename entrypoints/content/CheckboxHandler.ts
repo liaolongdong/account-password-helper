@@ -4,26 +4,43 @@ import { CHECKBOX_POSITIVE_KEYWORDS, CHECKBOX_NEGATIVE_KEYWORDS } from '@/entryp
 /**
  * 复选框处理器
  * 负责在登录表单中自动勾选协议/记住密码等复选框，
- * 通过打分算法找到最合适的复选框并尝试多种方式勾选
+ * 通过打分算法找到最合适的复选框并尝试多种方式勾选。
+ * 支持两种载体：原生 input[type=checkbox] 与现代组件库
+ * （Radix/shadcn 等）用 role="checkbox" 按钮模拟的复选框。
  */
 export class CheckboxHandler {
   /**
+   * 已发出程序化点击、等待页面回写 aria-checked 的模拟复选框集合
+   *
+   * aria-checked 由页面 JS（React/Radix）异步回写，不是点击的同步默认动作：
+   * 短窗口内重复触发（快速重复填充、多通道双发）若读到陈旧的 false 会再点一次，
+   * 把刚勾上的状态又翻回去。点击后置入、复检落地后清除，窗口内的重复调用直接跳过。
+   */
+  private readonly ariaClickPending = new WeakSet<HTMLElement>();
+
+  /**
    * 自动勾选距离参考字段最近的合适复选框
-   * @param checkboxFields - 页面中检测到的复选框列表
+   * @param checkboxFields - 页面中检测到的复选框列表（原生 input 或 role="checkbox" 模拟复选框）
    * @param passwordFields - 密码输入框列表
    * @param usernameFields - 用户名输入框列表
+   * @param mobileFields - 手机号输入框列表（账号密码字段均缺失时的兜底参照，如手机号+验证码登录页）
    */
   autoCheckNearestCheckbox(
-    checkboxFields: HTMLInputElement[],
+    checkboxFields: HTMLElement[],
     passwordFields: HTMLInputElement[],
     usernameFields: HTMLInputElement[],
+    mobileFields: HTMLInputElement[] = [],
   ): void {
     if (checkboxFields.length === 0) {
       return;
     }
 
     const referenceField =
-      passwordFields.length > 0 ? passwordFields[0] : usernameFields.length > 0 ? usernameFields[0] : null;
+      passwordFields.length > 0
+        ? passwordFields[0]
+        : usernameFields.length > 0
+          ? usernameFields[0]
+          : (mobileFields[0] ?? null);
 
     if (!referenceField) {
       return;
@@ -31,8 +48,12 @@ export class CheckboxHandler {
 
     const targetCheckbox = this.findBestCheckbox(referenceField, checkboxFields);
 
-    if (targetCheckbox && !targetCheckbox.checked) {
-      this.checkCheckbox(targetCheckbox);
+    if (targetCheckbox && !this.isCheckboxChecked(targetCheckbox)) {
+      if (targetCheckbox instanceof HTMLInputElement) {
+        this.checkCheckbox(targetCheckbox);
+      } else {
+        this.checkAriaCheckbox(targetCheckbox);
+      }
     }
   }
 
@@ -42,11 +63,8 @@ export class CheckboxHandler {
    * @param checkboxFields - 候选复选框列表
    * @returns 得分最高的复选框，若无候选则返回 null
    */
-  private findBestCheckbox(
-    referenceField: HTMLInputElement,
-    checkboxFields: HTMLInputElement[],
-  ): HTMLInputElement | null {
-    let bestCheckbox: HTMLInputElement | null = null;
+  private findBestCheckbox(referenceField: HTMLElement, checkboxFields: HTMLElement[]): HTMLElement | null {
+    let bestCheckbox: HTMLElement | null = null;
     let bestScore = -1;
 
     checkboxFields.forEach(checkbox => {
@@ -67,7 +85,7 @@ export class CheckboxHandler {
    * @param checkbox - 待评分的复选框
    * @returns 综合得分
    */
-  private calculateCheckboxScore(referenceField: HTMLInputElement, checkbox: HTMLInputElement): number {
+  private calculateCheckboxScore(referenceField: HTMLElement, checkbox: HTMLElement): number {
     let score = 0;
 
     const distance = this.calculateAccurateDistance(referenceField, checkbox);
@@ -138,7 +156,7 @@ export class CheckboxHandler {
    * @param checkbox - 复选框
    * @returns 位置得分
    */
-  private calculatePositionScore(referenceField: HTMLInputElement, checkbox: HTMLInputElement): number {
+  private calculatePositionScore(referenceField: HTMLElement, checkbox: HTMLElement): number {
     const refRect = referenceField.getBoundingClientRect();
     const checkboxRect = checkbox.getBoundingClientRect();
     let score = 0;
@@ -167,7 +185,7 @@ export class CheckboxHandler {
    * @param checkbox - 复选框
    * @returns 层级得分
    */
-  private calculateHierarchyScore(referenceField: HTMLInputElement, checkbox: HTMLInputElement): number {
+  private calculateHierarchyScore(referenceField: HTMLElement, checkbox: HTMLElement): number {
     let score = 0;
     const commonAncestor = this.findCommonAncestor(referenceField, checkbox);
     if (commonAncestor) {
@@ -242,21 +260,40 @@ export class CheckboxHandler {
 
   /**
    * 获取复选框关联的文本标签
-   * 依次尝试：for 属性关联的 label、父级 label、前后兄弟元素、父元素文本
+   * 原生 input 依次尝试：for 属性关联的 label、父级 label、前后兄弟元素、父元素文本；
+   * role="checkbox" 模拟复选框依次尝试：aria-label、aria-labelledby、前后兄弟元素、父元素文本
    * @param checkbox - 复选框元素
    * @returns 标签文本
    */
-  private getCheckboxLabel(checkbox: HTMLInputElement): string {
-    if (checkbox.id) {
-      const label = this.queryLabelByFor(checkbox);
-      if (label) {
-        return label.textContent?.trim() || '';
+  private getCheckboxLabel(checkbox: HTMLElement): string {
+    if (checkbox instanceof HTMLInputElement) {
+      if (checkbox.id) {
+        const label = this.queryLabelByFor(checkbox);
+        if (label) {
+          return label.textContent?.trim() || '';
+        }
       }
-    }
 
-    const parentLabel = checkbox.closest('label');
-    if (parentLabel) {
-      return parentLabel.textContent?.trim() || '';
+      const parentLabel = checkbox.closest('label');
+      if (parentLabel) {
+        return parentLabel.textContent?.trim() || '';
+      }
+    } else {
+      const ariaLabel = checkbox.getAttribute('aria-label')?.trim();
+      if (ariaLabel) {
+        return ariaLabel;
+      }
+      const labelledBy = checkbox.getAttribute('aria-labelledby');
+      if (labelledBy) {
+        const text = labelledBy
+          .split(/\s+/)
+          .map(id => document.getElementById(id)?.textContent?.trim() ?? '')
+          .filter(Boolean)
+          .join(' ');
+        if (text) {
+          return text;
+        }
+      }
     }
 
     const nextSibling = checkbox.nextElementSibling;
@@ -274,15 +311,29 @@ export class CheckboxHandler {
     const parent = checkbox.parentElement;
     if (parent) {
       const clone = parent.cloneNode(true) as HTMLElement;
-      const checkboxClone = clone.querySelector('input[type="checkbox"]');
-      if (checkboxClone) {
-        checkboxClone.remove();
-      }
+      // 两种载体都要从副本中剔除控件自身，避免其内部文本（如图标）混入标签
+      clone.querySelectorAll('input[type="checkbox"], [role="checkbox"]').forEach(node => node.remove());
       const text = clone.textContent?.trim();
       if (text) return text;
     }
 
-    return checkbox.name || checkbox.id || checkbox.className || '未知复选框';
+    const fallbackName = checkbox instanceof HTMLInputElement ? checkbox.name : '';
+    return fallbackName || checkbox.id || checkbox.className || '未知复选框';
+  }
+
+  /**
+   * 判断复选框是否处于勾选态
+   * 原生 input 读 checked；role="checkbox" 模拟复选框读 aria-checked
+   * （'true' 与 'mixed' 均视为已勾选：mixed 是不确定态，单击会翻到对侧而非期望的勾选）
+   * @param checkbox - 复选框元素
+   * @returns 是否已勾选
+   */
+  private isCheckboxChecked(checkbox: HTMLElement): boolean {
+    if (checkbox instanceof HTMLInputElement) {
+      return checkbox.checked;
+    }
+    const ariaChecked = checkbox.getAttribute('aria-checked');
+    return ariaChecked === 'true' || ariaChecked === 'mixed';
   }
 
   /**
@@ -339,6 +390,42 @@ export class CheckboxHandler {
       }, 100);
     } catch (error) {
       logger.error('勾选复选框失败:', error);
+    }
+  }
+
+  /**
+   * 尝试勾选 role="checkbox" 模拟复选框
+   *
+   * 受控组件（Radix 等）的勾选态由页面 JS 从 state 同步到 aria-checked，没有可强设的
+   * 原生 checked：自行改写 aria-checked 只会骗过复检（页面下次渲染即覆盖），真实状态
+   * 并未变化。因此真实的程序化点击是唯一可靠路径；失败不重试——盲发第二次点击会把
+   * 已勾上的状态又翻回去，150ms 后复检未生效仅记录告警（不含页面数据）。
+   * @param checkbox - 模拟复选框元素
+   */
+  private checkAriaCheckbox(checkbox: HTMLElement): void {
+    // SPA 重渲染后的陈旧节点：点击是静默空操作，且复检读到的永远是旧属性，
+    // 提前退出避免把「节点已失效」误报成「页面未响应程序化点击」
+    if (!checkbox.isConnected) {
+      return;
+    }
+    // 页面回写落地前的重复调用直接跳过：第二次点击会把刚勾上的状态翻回未勾选
+    if (this.ariaClickPending.has(checkbox)) {
+      return;
+    }
+    this.ariaClickPending.add(checkbox);
+
+    try {
+      checkbox.click();
+
+      setTimeout(() => {
+        this.ariaClickPending.delete(checkbox);
+        if (checkbox.isConnected && !this.isCheckboxChecked(checkbox)) {
+          logger.warn('自动勾选 role="checkbox" 模拟复选框未生效（页面可能未响应程序化点击）');
+        }
+      }, 150);
+    } catch (error) {
+      this.ariaClickPending.delete(checkbox);
+      logger.error('勾选模拟复选框失败:', error);
     }
   }
 

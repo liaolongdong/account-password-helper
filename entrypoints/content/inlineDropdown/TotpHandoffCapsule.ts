@@ -20,6 +20,7 @@ import { logger } from '@/utils/logger';
 import { applyThemeTokensToHost, DEFAULT_THEME, type ThemeName } from '@/utils/theme';
 import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
+import { attachHostEventIsolation } from './eventIsolation';
 
 /** 填入图标（与内联面板活码胶囊一致） */
 const FILL_ICON = `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="m7 8 5 5 5-5"/><path d="M5 21h14"/></svg>`;
@@ -256,6 +257,9 @@ export class TotpHandoffCapsule {
     this.shadowRoot.appendChild(this.capsuleEl);
 
     document.body.appendChild(this.shadowHost);
+    // 宿主级事件隔离：胶囊多浮于页面登录弹窗内（验证码框场景），pointerdown/mousedown
+    // 泄漏到 document 会被弹窗「点击外部关闭」误判为外部交互；与内联面板同一防线
+    attachHostEventIsolation(this.shadowHost);
     applyThemeTokensToHost(this.shadowHost, this.currentTheme);
 
     // 语言切换时就地刷新胶囊 tooltip（含初始化异步加载完成后的首次通知）

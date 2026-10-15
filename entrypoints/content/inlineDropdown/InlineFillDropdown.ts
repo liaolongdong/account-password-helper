@@ -23,6 +23,7 @@ import { isCrossSubdomainTier } from '@/utils/domain';
 import { filterByKeyword, normalizeSearchKeyword, substringMatcher } from '@/utils/keywordMatch';
 import { tl, onLiteLocaleChanged } from '@/utils/i18n-lite';
 import { copyTextToClipboard } from '@/entrypoints/content/domUtils';
+import { attachHostEventIsolation } from './eventIsolation';
 
 /** 钥匙图标（与 components/InlineKeyIcon.vue 保持一致，修改请同步） */
 const KEY_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="M10.7 12.3 21 2"/><path d="m16 7 3 3"/></svg>`;
@@ -917,6 +918,12 @@ export class InlineFillDropdown {
 
     document.body.appendChild(this.shadowHost);
 
+    // 宿主级事件隔离：图标/面板内的事件在宿主冒泡阶段统一终结，不再冒泡到页面 document——
+    // 弹窗组件（如豆包手机号登录）的「点击外部关闭」多监听 pointerdown/mousedown，
+    // 元素级 click stopPropagation 拦不住这些更早的类型，点击钥匙图标会被判为外部交互导致弹窗意外关闭。
+    // 隔离挂在宿主上覆盖整棵注入子树（含引导气泡与运行时动态节点），新增 UI 不会遗漏。
+    attachHostEventIsolation(this.shadowHost);
+
     // 应用当前缓存的主题令牌到宿主（取值由 FormDetector 依据配置推送）
     applyThemeTokensToHost(this.shadowHost, this.currentTheme);
 
@@ -1269,6 +1276,8 @@ export class InlineFillDropdown {
     // Shadow DOM 只隔离样式，不隔离事件冒泡与焦点变化——面板宿主挂在 body 下，
     // 点击泄漏到页面 document 会被弹窗「点击外部关闭」监听判定为外部交互，
     // 焦点从面板跌落 body 亦会触发「焦点逃出容器即关闭」类弹窗逻辑。
+    // 传播终结现由宿主层隔离兜底（ensureShadow → attachHostEventIsolation），
+    // 此处保留 click 拦截作双保险，mousedown 的 preventDefault 仍负责防焦点跌落，不可移除。
     // 监听器引用稳定，重复调用 buildPanel 不会产生重复绑定。
     this.panelEl.addEventListener('mousedown', this.handlePanelMouseDown);
     this.panelEl.addEventListener('click', this.handlePanelClick);
