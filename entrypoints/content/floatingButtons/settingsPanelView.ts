@@ -31,22 +31,24 @@ export type PanelLocale = LiteLocale;
 export const getStoredPanelLocale = getStoredLocale;
 
 /**
- * 四个布尔开关的设置键 → 面板文案键
+ * 五个布尔开关的设置键 → 面板文案键
  *
  * `div.switch` 不是原生控件，读屏只能靠 `aria-label` 念出它是什么；这份映射让
  * aria-label 与同行可见标签取同一个真源，切语言时由 `applyPanelLocale` 一起刷新。
  *
- * `penetrateShadow` 是这四项里唯一**可选**的字段（存量存储里可能没有这个键），
- * 「未写」等于开，因此它的当前态由 {@link isSwitchOn} 统一给出，渲染与切换读同一个口径。
+ * `penetrateShadow` 与 `identityHintEnabled` 是这五项里唯二**可选**的字段（存量存储里
+ * 可能没有这两个键），「未写」等于开，因此当前态一律由 {@link isSwitchOn} 给出，
+ * 渲染与切换读同一个口径。
  */
 const SWITCH_LABEL_KEYS = {
   visible: 'visible',
   autoTriggerLogin: 'autoTriggerLogin',
   passwordVisibilityToggle: 'passwordVisibility',
   penetrateShadow: 'penetrateShadow',
+  identityHintEnabled: 'identityHint',
 } as const;
 
-/** 开关设置键（同时也是 `FloatingButtonConfig` 上的四个布尔字段） */
+/** 开关设置键（同时也是 `FloatingButtonConfig` 上的五个布尔字段） */
 type SwitchSetting = keyof typeof SWITCH_LABEL_KEYS;
 
 /** 开关设置键列表（绑定与外部同步共用） */
@@ -55,13 +57,13 @@ const SWITCH_SETTINGS = Object.keys(SWITCH_LABEL_KEYS) as SwitchSetting[];
 /**
  * 开关的当前态
  *
- * `penetrateShadow` 是这四个字段里唯一的可选布尔，语义是「未写即开」——检测侧
- * （`FormDetector.penetrateShadowEnabled`）按 `!== false` 判定，面板必须读同一个口径。
- * 渲染与切换共用这一个函数：两处各写一份时，老配置（无该键）下面板显示开、
- * 点下去算的是 `!undefined = true` 还是开，用户看到的是一次没任何反应的点击。
+ * `penetrateShadow` / `identityHintEnabled` 是这五个字段里仅有的可选布尔，语义是「未写即开」
+ * ——检测侧（`FormDetector.penetrateShadowEnabled`、`handleIdentityHintOnFocus`）按 `!== false`
+ * 判定，面板必须读同一个口径。渲染与切换共用这一个函数：两处各写一份时，老配置（无该键）下面板
+ * 显示开、点下去算的是 `!undefined = true` 还是开，用户看到的是一次没任何反应的点击。
  */
 const isSwitchOn = (key: SwitchSetting, config: FloatingButtonConfig): boolean =>
-  key === 'penetrateShadow' ? config.penetrateShadow !== false : !!config[key];
+  key === 'penetrateShadow' || key === 'identityHintEnabled' ? config[key] !== false : !!config[key];
 
 /**
  * 透明度滑块的键盘档位
@@ -90,6 +92,8 @@ type PanelMessageKey =
   | 'passwordVisibilityTip'
   | 'penetrateShadow'
   | 'penetrateShadowTip'
+  | 'identityHint'
+  | 'identityHintTip'
   | 'opacity';
 
 /** 面板内建双语文案（tip 类文案含 highlight-tip 高亮标记，需以 innerHTML 渲染） */
@@ -114,6 +118,9 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     penetrateShadow: 'Shadow DOM 穿透',
     penetrateShadowTip:
       '开启后，字段匹配会进入页面组件的开放 Shadow DOM，Ionic/Lightning 这类 Web Components 登录框才认得出来，站点规则里的自定义选择器同样受益；关闭后只在页面主文档内匹配，「未检测到登录表单」的就地引导也一并隐藏。站点规则还能逐站点再关一次，两处任一关闭即不穿透。',
+    identityHint: '个人信息字段提示',
+    identityHintTip:
+      '开启后，在页面里点到姓名、证件号、邮编这类个人信息输入框时，字段下方浮出一枚轻提示，说明这个框要的是什么，并可一键打开管理页身份库取值<span class="highlight-tip">（提示只说明字段类型，库内内容仍需你在管理页自行复制，页面拿不到）</span>。关闭后不再出现该提示，页面里也不会注入这枚气泡。',
     opacity: '按钮透明度',
   },
   en: {
@@ -135,6 +142,9 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
     penetrateShadow: 'Shadow DOM penetration',
     penetrateShadowTip:
       'When enabled, field detection reaches into open Shadow DOM inside page components — the only way to see login forms built with Web Components such as Ionic or Lightning — and custom selectors benefit the same way. When disabled, matching stays in the main document and the inline “no login form detected” guidance is hidden too. A site rule can switch it off per site as well; either one off means no penetration.',
+    identityHint: 'Personal-field hints',
+    identityHintTip:
+      'When enabled, clicking into a name, ID-number or postal-code field shows a small hint under it saying what the field expects, with a one-click route to the identity vault in the manager page<span class="highlight-tip"> (the hint only names the field type — vault values still have to be copied inside the manager page and never reach the web page)</span>. When disabled, no hint appears and no bubble is injected into the page.',
     opacity: 'Button opacity',
   },
 };
@@ -754,6 +764,14 @@ export function getSettingsPanelHTML(
         </div>
       </div>
       <div class="setting-tip" data-i18n="penetrateShadowTip">${msg.penetrateShadowTip}</div>
+
+      <div class="setting-item">
+        <span class="setting-label" data-i18n="identityHint">${msg.identityHint}</span>
+        <div class="switch ${isSwitchOn('identityHintEnabled', config) ? 'active' : ''}" data-setting="identityHintEnabled" role="switch" tabindex="0" aria-checked="${isSwitchOn('identityHintEnabled', config)}" aria-label="${msg.identityHint}">
+          <div class="switch-handle"></div>
+        </div>
+      </div>
+      <div class="setting-tip" data-i18n="identityHintTip">${msg.identityHintTip}</div>
 
       <div class="setting-item">
         <span class="setting-label" data-i18n="opacity">${msg.opacity}</span>

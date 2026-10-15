@@ -34,6 +34,7 @@ import { normalizeEntryId } from '@/utils/generateId';
 import { isFrameFillable } from '@/utils/frameFill';
 import { isSameMainDomain } from '@/utils/domain';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
+import { normalizeIdentityHintRole } from '@/utils/identity/hintRoles';
 import { tl } from '@/utils/i18n-lite';
 
 /**
@@ -341,6 +342,7 @@ export const EXTENSION_CONTEXT_COMMANDS: readonly MessageType[] = [
   MessageType.OPEN_OPTIONS_AND_SITE_RULES,
   MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH,
   MessageType.OPEN_OPTIONS_AND_SEARCH,
+  MessageType.OPEN_OPTIONS_AND_IDENTITY,
 ];
 
 /**
@@ -562,6 +564,17 @@ export function setupMessageRouter(): void {
         void warmPasswordCache();
         sendResponse({ success: true });
         break;
+      }
+
+      case MessageType.OPEN_OPTIONS_AND_IDENTITY: {
+        // 身份库召唤提示：角色由内容脚本自报，属不可信输入，按闭集枚举收口。
+        // 非法值降级为「不带筛选」打开——身份库本身有复验门槛，这里只决定初始筛选档位，
+        // 放行任意字符串既无收益也可能把页面文本带进选项页的检索框。
+        const role = normalizeIdentityHintRole((message.data as { role?: unknown } | undefined)?.role);
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_IDENTITY, role ? { role } : undefined).then(
+          sendResponse,
+        );
+        return true;
       }
 
       case MessageType.UPDATE_PASSWORD_METADATA: {

@@ -1,0 +1,718 @@
+/**
+ * 页面个人信息（PII）字段分类器
+ *
+ * 定位：为「身份库召唤提示」提供**单字段**语义判定。本模块只做识别，不填充、不落盘、
+ * 不发起任何网络请求，也不写任何日志。唯一的取值发生在最后一层——形状回推要读一次
+ * `input.value`，判的是「像不像证件号 / 手机号 / 邮箱」，命中时给出的 `evidence` 是形状码
+ * 而不是原文；其余各层吃的都是属性、标签与 `autocomplete` 这些字段自报的元数据。
+ * 调用方只取「语义角色 + 是否需复验」两个标签（见 `FormDetector.handleIdentityHintOnFocus`），
+ * 密文与明文都不离开管理页（边界见 `docs/ARCHITECTURE.md`「27. 身份信息库」的「定位与独立性」）。
+ *
+ * 与既有登录桶的分工：`formSelectors.ts` 的 username/mobile/verifyCode 三桶按**子串**匹配
+ * 认领登录字段，本模块刻意不复用那套判据——姓名/证件号词典若照抄子串会把 `username`
+ * 判成姓名。两条链的让位规则收口在 {@link resolvePiiField} 的登录容器守卫里：
+ * 字段组内出现凭据框即认定这一组是登录语义，身份提示完全不参与。
+ *
+ * 分层顺序即优先级（弱信号永不覆盖强信号）：
+ * 结构性排除 → `autocomplete` 自声明 → 负向短语 → `name`/`id` 词元 → label 文本 → 已输入值形状。
+ * 顺序调换会引入真实回归：负向短语必须早于正向词元，否则「用户名 / Display name」会被
+ * `name` 抢走；`autocomplete` 必须早于负向短语，否则 `autocomplete="tel"` 的登录手机号
+ * 会被账号守卫挡掉后又落入 `phone` 词典。
+ *
+ * @module entrypoints/content/piiClassifier
+ */
+
+import type { IdentityHintRole } from '@/utils/identity/hintRoles';
+
+/**
+ * 语义角色（分类器词表，不等于身份库字段——库内没有的角色由调用方降级为「需自建」提示）。
+ *
+ * 可提示的 13 个角色取共享词表 {@link IdentityHintRole}，卡类三角色只在本模块内部出现：
+ * 它们由 autocomplete 自声明识别出来后立即压制，类型上就进不了跨入口的载荷。
+ */
+export type PiiRole = IdentityHintRole | 'cardNo' | 'cardExp' | 'cardCvv';
+
+/** 命中层级：越靠前越可信，`value` 只用于收口、不作为主动判据 */
+export type PiiTier = 'autocomplete' | 'attr' | 'label' | 'value';
+
+/**
+ * 归属档位（模拟跑批的主要教训）：
+ * - `self`：无他人修饰，可直接当作本人信息使用；
+ * - `confirm`：可能是本人也可能是家属/同行（收货人、乘车人、入住人），提示语必须要求核对；
+ * - `other`：语义上一定是别人（紧急联系人、担保人），不给身份提示——用本人身份填别人
+ *   的证件号是本功能唯一不可接受的错误。
+ */
+export type PiiOwnership = 'self' | 'confirm' | 'other';
+
+/** 不出提示的原因码（仅供日志与单测定位，不进任何用户可见文案） */
+export type PiiSuppressReason = 'excluded' | 'negative' | 'account' | 'card' | 'ownership' | 'loginGroup' | 'noRole';
+
+/** 生产判定的唯一出口：要么给出角色，要么给出被压制的原因 */
+export interface PiiVerdict {
+  /** 可提示的角色；被压制时为 null */
+  role: PiiRole | null;
+  tier: PiiTier | null;
+  ownership: PiiOwnership;
+  /** 证件号类高敏角色或他人歧义：提示语必须额外要求「核对后再用」 */
+  needsVerify: boolean;
+  suppress: PiiSuppressReason | null;
+  /** 命中的依据：label 层是页面文本、值层是形状码；只留在返回值里供判据自身定位，调用方不读、不上报、不写盘、不进日志 */
+  evidence: string;
+}
+
+/** 卡类 autocomplete 取值（按既有拍板，银行卡信息不进身份提示路径） */
+const CARD_AUTOCOMPLETE: Record<string, PiiRole> = {
+  'cc-number': 'cardNo',
+  'cc-exp': 'cardExp',
+  'cc-exp-month': 'cardExp',
+  'cc-exp-year': 'cardExp',
+  'cc-csc': 'cardCvv',
+  'cc-name': 'name',
+};
+
+/** autocomplete 官方取值 → 角色（最强的自声明信号，站点自己写的就是答案） */
+const AUTOCOMPLETE_MAP: Record<string, PiiRole> = {
+  name: 'name',
+  'given-name': 'givenName',
+  'additional-name': 'givenName',
+  'family-name': 'familyName',
+  bday: 'birthday',
+  sex: 'gender',
+  'street-address': 'address',
+  'address-line1': 'address',
+  'address-line2': 'address',
+  'address-level1': 'region',
+  'address-level2': 'region',
+  'address-level3': 'region',
+  'postal-code': 'postal',
+  tel: 'phone',
+  'tel-national': 'phone',
+  mobile: 'phone',
+  email: 'email',
+  organization: 'org',
+};
+
+/** 账号语义守卫：出现这些词元即认定是登录字段 */
+const ACCOUNT_TOKENS = new Set(['user', 'username', 'account', 'login', 'signin', 'pwd', 'password', 'pass']);
+
+/**
+ * 负向词元：整词即非个人信息。
+ * 教训是裸 `code` / `s` 不能进——`post_code`（邮编）与 `zip_code` 会被一起吃成漏报。
+ * 末段是「元信息」词元（标签 / 类型 / 数量），它们描述「怎么填」而不是「填什么」。
+ * 刻意不含裸 `no`，否则 `idCardNo`（证件号）会被误杀。
+ */
+const NEG_TOKENS = new Set([
+  'nickname',
+  'nick',
+  'displayname',
+  'screenname',
+  'author',
+  'handle',
+  'captcha',
+  'vcode',
+  'otp',
+  'sms',
+  'verif',
+  'coupon',
+  'promo',
+  'discount',
+  'search',
+  'searchbox',
+  'keyword',
+  'keywords',
+  'query',
+  'q',
+  'kw',
+  'remark',
+  'note',
+  'notes',
+  'comment',
+  'message',
+  'content',
+  'resume',
+  'attachment',
+  'file',
+  'salary',
+  'expect',
+  'expectation',
+  'major',
+  'school',
+  'college',
+  'company',
+  'occupation',
+  'position',
+  'year',
+  'years',
+  'tag',
+  'label',
+  'type',
+  'kind',
+  'mode',
+  'index',
+  'picker',
+]);
+
+/**
+ * `name` 词元的上下文噪声：`goods_name` / `hotelName` / `file_name` 是事物名不是人名。
+ * 缺这一层会把「物品名称」判成「姓名」。
+ */
+const NAME_CONTEXT_NOISE = new Set([
+  'goods',
+  'product',
+  'item',
+  'file',
+  'project',
+  'brand',
+  'shop',
+  'store',
+  'hotel',
+  'city',
+  'country',
+  'province',
+  'region',
+  'domain',
+  'window',
+  'button',
+  'class',
+  'column',
+  'variable',
+  'key',
+  'tag',
+  'label',
+  'category',
+  'song',
+  'movie',
+  'book',
+  'app',
+  'task',
+]);
+
+/**
+ * `name`/`id` 属性词元 → 角色。
+ *
+ * 词典内容与模拟跑批的 tier H 配置逐字一致，唯一差异是**不收录裸 `cardno`**：
+ * 中文站点同时用它指身份证号和银行卡号，词元层面无法区分，而卡类按既有拍板永不进
+ * 提示路径，收录只会把支付页的卡号框读成证件号。真实身份证字段靠 `idCardNo` /
+ * `cert_no` 这类带前缀的形状命中（拼接词元已覆盖）。
+ *
+ * 形态选 `[角色, 词元表]` 元组数组而不是 Record：`Object.entries` 会把键放宽成
+ * `string`，遍历处只能靠 `as` 断言角色；写成元组后角色天然就是 `PiiRole`，
+ * 且数组顺序即词典优先级（先到先得），与 Record 的键序语义相同但不依赖实现细节。
+ */
+const ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[] = [
+  ['name', ['name', 'realname', 'truename', 'fullname', 'personname']],
+  ['givenName', ['givenname', 'firstname', 'forename']],
+  ['familyName', ['familyname', 'lastname', 'surname']],
+  ['phone', ['phone', 'phonenumber', 'mobile', 'mobileno', 'cellphone', 'tel', 'telephone', 'msisdn', 'contactno']],
+  ['email', ['email', 'emailaddress', 'mail', 'myemail']],
+  ['address', ['address', 'addr', 'detailaddress', 'street', 'streetaddress', 'addressline', 'doorno']],
+  ['region', ['region', 'province', 'city', 'district', 'state', 'area', 'location']],
+  ['postal', ['postalcode', 'zipcode', 'zip', 'postcode']],
+  ['idNumber', ['idcard', 'idcardno', 'idno', 'idnumber', 'certno', 'certnum', 'identityno', 'idnum', 'ssn']],
+  ['passport', ['passport', 'passportno', 'passno', 'travelcert', 'permitno']],
+  ['birthday', ['birthday', 'birthdate', 'birth', 'bdate']],
+  ['gender', ['gender', 'sex']],
+];
+
+/**
+ * 修饰词白名单：`receiver_name` / `realName` 这类组合里，剥掉修饰后剩余词元仍按角色判。
+ * 修饰词本身另用于归属判定（见 {@link OTHER_CONFIRM}）。
+ */
+const NAME_MODIFIERS = new Set([
+  'real',
+  'true',
+  'full',
+  'receiver',
+  'consignee',
+  'contact',
+  'applicant',
+  'passenger',
+  'viewer',
+  'guest',
+  'booker',
+  'shipping',
+  'billing',
+  'sender',
+  'linkman',
+  'person',
+  'student',
+  'patient',
+  'driver',
+  'main',
+  'primary',
+]);
+
+/** 中文短语词典（作用于 label / aria / title 文本，不作用于 name 属性——属性走切词） */
+const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
+  {
+    role: 'name',
+    phrases: [
+      '姓名',
+      '名字',
+      '联系人',
+      '收件人',
+      '收货人',
+      '寄件人',
+      '申请人',
+      '乘客',
+      '乘机人',
+      '入住人',
+      '就诊人',
+      '监护人',
+      '本人',
+    ],
+  },
+  { role: 'phone', phrases: ['手机', '电话', '联系方式', '联系电话'] },
+  { role: 'email', phrases: ['邮箱', '邮件', '电子邮箱'] },
+  { role: 'address', phrases: ['地址', '详细地址', '街道', '门牌', '小区'] },
+  { role: 'region', phrases: ['所在地区', '所在区域', '省份', '城市', '区县', '地区'] },
+  { role: 'postal', phrases: ['邮编', '邮政编码'] },
+  {
+    role: 'idNumber',
+    phrases: ['身份证', '证件号', '证件号码', '军官证', '社保卡', '台胞证', '永久居留', '统一社会信用'],
+  },
+  { role: 'passport', phrases: ['护照', '通行证', '签证'] },
+  { role: 'birthday', phrases: ['出生', '生日'] },
+  { role: 'gender', phrases: ['性别'] },
+  { role: 'org', phrases: ['公司', '单位', '院校', '学校'] },
+];
+
+/**
+ * 中文负向短语：这些框无论如何不该出身份提示。
+ * 末段是「元信息 / 事物名」后缀——`地址标签`、`证件类型`、`房间数量`、`物品名称`
+ * 在模拟跑批里分别被读成 address / idNumber / — / name，是误报的主要来源。
+ */
+const ZH_NEG = [
+  '昵称',
+  '用户名',
+  '账号',
+  '帐号',
+  '密码',
+  '搜索',
+  '关键词',
+  '验证码',
+  '优惠券',
+  '兑换码',
+  '备注',
+  '留言',
+  '评论',
+  '期望',
+  '工作年限',
+  '年收入',
+  '职业',
+  '专业',
+  '毕业院校',
+  '动态口令',
+  '安全码',
+  '标签',
+  '类型',
+  '方式',
+  '数量',
+  '名称',
+];
+
+/**
+ * 英文短语词典。扩展本身中英双语，只写中文词典等于英文站点全漏——
+ * 留出集的纯英文注册页实测整段漏报。
+ */
+const EN_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
+  { role: 'givenName', phrases: ['first name', 'given name', 'forename'] },
+  { role: 'familyName', phrases: ['last name', 'family name', 'surname'] },
+  {
+    role: 'name',
+    phrases: ['full name', 'real name', 'true name', 'contact name', 'your name', 'passenger name'],
+  },
+  { role: 'phone', phrases: ['mobile', 'phone number', 'telephone', 'cell phone', 'msisdn'] },
+  { role: 'email', phrases: ['email', 'e-mail'] },
+  { role: 'address', phrases: ['address line', 'street address', 'delivery address', 'address'] },
+  { role: 'region', phrases: ['state', 'province', 'city', 'region', 'county'] },
+  { role: 'postal', phrases: ['postcode', 'postal code', 'zip code', 'zipcode'] },
+  {
+    role: 'idNumber',
+    phrases: ['id number', 'identity number', 'national insurance', 'drivers license', 'identity card'],
+  },
+  { role: 'passport', phrases: ['passport'] },
+  { role: 'birthday', phrases: ['date of birth', 'birth date', 'day of birth'] },
+  { role: 'gender', phrases: ['gender', 'sex'] },
+  { role: 'org', phrases: ['company', 'organisation', 'organization', 'employer', 'school'] },
+];
+
+/** 英文负向短语 */
+const EN_NEG = [
+  'nickname',
+  'display name',
+  'user name',
+  'username',
+  'password',
+  'search',
+  'keyword',
+  'verification code',
+  'captcha',
+  'one time',
+  'coupon',
+  'promo',
+  'comment',
+  'message',
+  'notes',
+  'job title',
+  'expected',
+];
+
+/**
+ * 归属词表：`OTHER_BLOCK` 一定是别人，`OTHER_CONFIRM` 可能是本人也可能是家属/同行。
+ * 用词干而非整词：`收货` 要同时覆盖「收货人」「收货地址」「收货电话」。
+ */
+const OTHER_BLOCK = ['紧急联系人', '担保人', '被访人', '代收人', '配偶', '父母', '子女', 'emergency', 'guarantor'];
+const OTHER_CONFIRM = [
+  '收货',
+  '收件',
+  '寄件',
+  '联系人',
+  '乘客',
+  '乘机人',
+  '入住人',
+  '就诊人',
+  '申请人',
+  '乘车人',
+  'receiver',
+  'consignee',
+  'sender',
+  'contact',
+  'passenger',
+  'viewer',
+  'guest',
+  'applicant',
+  'patient',
+];
+
+/** 结构性排除的 input type：隐藏域、按钮、勾选框等都不是个人信息载体 */
+const STRUCTURAL_EXCLUDE_TYPES = new Set([
+  'hidden',
+  'submit',
+  'button',
+  'reset',
+  'image',
+  'checkbox',
+  'radio',
+  'range',
+  'color',
+  'file',
+]);
+
+/** 中文短语匹配前先去空白：真实站点大量写成 `姓 名` / `身 份 证` */
+const squeeze = (t: string): string => t.replace(/[\s\u3000]+/g, '');
+
+/** 英文短语匹配前把空白压成单个空格并小写 */
+const flatten = (t: string): string => t.toLowerCase().replace(/\s+/g, ' ').trim();
+
+const toLower = (t: string): string => t.toLowerCase();
+
+/** 把 name/id 切成小写词元：分隔符 + camelCase 双向拆分，保留 CJK */
+export function tokenize(raw: string): string[] {
+  const spaced = raw.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2');
+  return spaced
+    .toLowerCase()
+    .split(/[^a-z0-9\u4e00-\u9fa5]+/)
+    .filter(Boolean);
+}
+
+/** 单个字段采集到的信号（独立导出供单测直接喂形状） */
+export interface PiiSignals {
+  attr: string;
+  /** name / id 单列，供「整串拼接词元」比对：`idCardNo` 切词后是 id/card/no，只有拼回来才是 idcardno */
+  attrSources: string[];
+  label: string;
+  placeholder: string;
+  value: string;
+  type: string;
+  autocomplete: string;
+  roleAttr: string;
+  inSearchBox: boolean;
+}
+
+/** 祖先链上是否为搜索容器（最多 4 层，够用且不陪跑整棵 DOM） */
+function isInSearchContainer(el: Element): boolean {
+  let cur: Element | null = el;
+  for (let depth = 0; cur && depth < 4; depth += 1) {
+    const hay = `${cur.className ?? ''} ${cur.getAttribute('role') ?? ''}`.toLowerCase();
+    if (/search|keyword|query/.test(hay)) return true;
+    cur = cur.parentElement;
+  }
+  return false;
+}
+
+/**
+ * 只接受「叶子状」的标签节点。
+ * 不限定的话，`重量(kg)` 会一路退到 `<fieldset>` 的聚合文本「收件人姓名电话地址」，
+ * 于是整个寄件区里每个空框都被读成姓名框。
+ */
+const isLabelish = (n: Node): boolean =>
+  n.nodeType === Node.TEXT_NODE || !(n as Element).querySelector('input, textarea, select');
+
+/**
+ * 文本长度阈值按文字体系分档：中文 20 字已是很宽的一条 label，
+ * 而 `National Insurance number` 25 个字母是常态——同一个阈值会把英文站 label 全丢。
+ */
+const withinLabelBudget = (text: string): boolean => text.length <= (/[\u4e00-\u9fa5]/.test(text) ? 20 : 60);
+
+/** 逐字段采集信号，含裸 input 的兄弟文本回退（12306 那种 `姓名：<input>` 形状）与表格 `th` */
+export function collectPiiSignals(el: Element): PiiSignals {
+  const input = el as HTMLInputElement;
+  const nameAttr = input.getAttribute('name') ?? '';
+  const idAttr = input.id ?? '';
+  const placeholder = input.getAttribute('placeholder') ?? '';
+  const aria = input.getAttribute('aria-label') ?? '';
+  const title = input.getAttribute('title') ?? '';
+
+  let label = `${aria} ${title}`.trim();
+  const node = el as HTMLElement;
+  if (!label) {
+    const nearestLabel = node.closest('label');
+    if (nearestLabel) label = (nearestLabel.textContent ?? '').trim();
+  }
+  if (!label) {
+    let sib: ChildNode | null = el.previousSibling;
+    let hops = 0;
+    while (sib && hops < 4) {
+      const text = (sib.textContent ?? '').trim();
+      if (text && withinLabelBudget(text) && isLabelish(sib)) {
+        label = text;
+        break;
+      }
+      sib = sib.previousSibling;
+      hops += 1;
+    }
+    if (!label) {
+      const prevEl = el.previousElementSibling as HTMLElement | null;
+      const prevText = prevEl?.textContent?.trim() ?? '';
+      if (prevText && withinLabelBudget(prevText) && prevEl && isLabelish(prevEl)) label = prevText;
+    }
+    if (!label) {
+      const th = node.closest('tr')?.querySelector('th');
+      if (th) label = (th.textContent ?? '').trim();
+    }
+  }
+
+  return {
+    attr: `${nameAttr} ${idAttr}`.trim(),
+    attrSources: [nameAttr, idAttr].filter(Boolean),
+    label,
+    placeholder,
+    value: input.value ?? '',
+    type: (input.type ?? input.getAttribute('type') ?? 'text').toLowerCase(),
+    autocomplete: (input.getAttribute('autocomplete') ?? '').toLowerCase(),
+    roleAttr: (input.getAttribute('role') ?? '').toLowerCase(),
+    inSearchBox: isInSearchContainer(el),
+  };
+}
+
+/** 区块标题：向上找最近的标题类节点，用于「收货地址」这类整卡归属继承 */
+function sectionTitle(el: Element): string {
+  let cur: Element | null = el;
+  for (let depth = 0; cur && depth < 6; depth += 1) {
+    const head = cur.matches('h1,h2,h3,h4,legend,.hd,.title,.card-hd')
+      ? cur
+      : cur.querySelector?.('h1,h2,h3,h4,legend,.hd,.title,.card-hd');
+    if (head) {
+      const text = (head.textContent ?? '').trim();
+      if (text && text.length <= 30) return text;
+    }
+    cur = cur.parentElement;
+  }
+  return '';
+}
+
+/** 在一段文本里查归属词（CJK 短语先压空白再子串匹配，拉丁短语按小写子串） */
+function ownershipOf(text: string): PiiOwnership {
+  const zh = squeeze(toLower(text));
+  const en = flatten(toLower(text));
+  const hit = (phrases: string[]): boolean =>
+    phrases.some(p => (p.charCodeAt(0) > 127 ? zh.includes(p) : en.includes(p)));
+  if (hit(OTHER_BLOCK)) return 'other';
+  if (hit(OTHER_CONFIRM)) return 'confirm';
+  return 'self';
+}
+
+/** 卡类 autocomplete（`cc-number section` 这类组合只看第一段） */
+function cardRole(autocomplete: string): PiiRole | null {
+  return CARD_AUTOCOMPLETE[autocomplete.split(/\s+/)[0]] ?? null;
+}
+
+/** 分类器内核返回值（不含生产侧的让位与压制决策） */
+export interface PiiRawClassification {
+  role: PiiRole | null;
+  tier: PiiTier | null;
+  ownership: PiiOwnership;
+  /** 卡类语义：按既有拍板永不提示 */
+  card: boolean;
+  /** 结构性排除 / 负向语义 / 账号守卫 */
+  suppress: PiiSuppressReason | null;
+  evidence: string;
+}
+
+/**
+ * 分层判定内核：返回角色与命中层级，以及三类守卫标记。
+ *
+ * 归属档位在这一步就算好并随结果返回，因为「收货人」这类修饰既影响是否提示，
+ * 也影响提示语怎么说，两条信息必须来自同一次文本扫描。
+ */
+export function classifyPiiRaw(el: Element): PiiRawClassification {
+  const s = collectPiiSignals(el);
+  const hintText = `${s.label} ${s.placeholder} ${s.attr}`;
+  const zhHint = squeeze(toLower(hintText));
+  const enHint = flatten(toLower(hintText));
+
+  let ownership = ownershipOf(hintText);
+  if (ownership === 'self') {
+    /**
+     * 区块归属继承：框上只写「手机号码」时，归属信息在卡头（「收货地址」），不在框上。
+     * 只在自身文本判为 self 时才读卡头，因此继承是**单向变保守**的：它能把 self 升到
+     * confirm / other（提示加「请核对」或直接不给），绝不会把已写明他人的框降回 self。
+     */
+    const title = sectionTitle(el);
+    if (title) ownership = ownershipOf(title);
+  }
+
+  const base = { ownership, card: false, evidence: '' };
+
+  // 1) 结构性排除
+  if (STRUCTURAL_EXCLUDE_TYPES.has(s.type) || s.roleAttr === 'searchbox' || s.inSearchBox) {
+    return { ...base, role: null, tier: null, suppress: 'excluded', evidence: `type=${s.type}` };
+  }
+
+  // 2) autocomplete 自声明（最强，且必须早于负向短语：`autocomplete="tel"` 的登录框另有让位规则）
+  if (s.autocomplete && s.autocomplete !== 'off') {
+    const card = cardRole(s.autocomplete);
+    if (card) {
+      return { ...base, role: card, tier: 'autocomplete', card: true, suppress: 'card', evidence: s.autocomplete };
+    }
+    const mapped = AUTOCOMPLETE_MAP[s.autocomplete.split(/\s+/)[0]];
+    if (mapped) return { ...base, role: mapped, tier: 'autocomplete', suppress: null, evidence: s.autocomplete };
+  }
+
+  // 3) 负向短语（早于任何正向判定，否则「用户名 / Display name」会被 name 抢走）
+  const zhNegHit = ZH_NEG.find(phrase => zhHint.includes(phrase));
+  if (zhNegHit) return { ...base, role: null, tier: null, suppress: 'negative', evidence: `zh-neg:${zhNegHit}` };
+  const enNegHit = EN_NEG.find(phrase => enHint.includes(phrase));
+  if (enNegHit) return { ...base, role: null, tier: null, suppress: 'negative', evidence: `en-neg:${enNegHit}` };
+
+  // 4) name/id 词元
+  const tokens = tokenize(s.attr);
+  /** 逐来源整体拼接：`idCardNo` 切词后是 id/card/no，只有拼回 idcardno 才对得上词典 */
+  const joinedList = s.attrSources.map(src => tokenize(src).join('')).filter(Boolean);
+  if (tokens.some(t => ACCOUNT_TOKENS.has(t))) {
+    return { ...base, role: null, tier: null, suppress: 'account', evidence: `account:${tokens.join(',')}` };
+  }
+  const negToken = tokens.find(t => NEG_TOKENS.has(t));
+  if (negToken) return { ...base, role: null, tier: null, suppress: 'negative', evidence: `neg-token:${negToken}` };
+
+  for (const [role, words] of ATTR_DICT) {
+    const isBareName = role === 'name';
+    for (const token of tokens) {
+      if (words.includes(token)) {
+        // 「name」词元必须先看同生词元：goods_name / hotelName 是事物名不是人名
+        if (isBareName && token === 'name' && tokens.some(t => t !== 'name' && NAME_CONTEXT_NOISE.has(t))) continue;
+        return { ...base, role, tier: 'attr', suppress: null, evidence: token };
+      }
+      // 组合词元：realname / receivername —— 剥掉已知修饰再比
+      if (token.endsWith('name') && token.length > 4) {
+        const modifier = token.slice(0, -4);
+        if (NAME_MODIFIERS.has(modifier) && !ACCOUNT_TOKENS.has(modifier) && !NAME_CONTEXT_NOISE.has(modifier)) {
+          return { ...base, role: 'name', tier: 'attr', suppress: null, evidence: token };
+        }
+      }
+      if (token.length > 5 && words.some(w => token.endsWith(w) && NAME_MODIFIERS.has(token.slice(0, -w.length)))) {
+        return { ...base, role, tier: 'attr', suppress: null, evidence: token };
+      }
+    }
+    // 跨分隔符粘连：zip_code → zipcode（只在前几种比对都没命中时才试，避免抢语义）
+    const joinedHit = joinedList.find(j => words.includes(j));
+    if (joinedHit) return { ...base, role, tier: 'attr', suppress: null, evidence: joinedHit };
+  }
+
+  // 5) label 文本（中文短语主战场，英文词典兜双语站点）
+  const zhLabel = ZH_DICT.find(entry => entry.phrases.some(p => squeeze(s.label).includes(p)));
+  if (zhLabel) return { ...base, role: zhLabel.role, tier: 'label', suppress: null, evidence: s.label };
+  const enLabel = EN_DICT.find(entry => entry.phrases.some(p => flatten(s.label).includes(p)));
+  if (enLabel) return { ...base, role: enLabel.role, tier: 'label', suppress: null, evidence: s.label };
+
+  // 6) 已输入值的形状回推（只用于收口：用户已经手打过一次，形状是最强的自证）
+  const value = s.value.trim();
+  if (value) {
+    if (/^\d{17}[\dXx]$/.test(value)) {
+      return { ...base, role: 'idNumber', tier: 'value', suppress: null, evidence: 'id-shape' };
+    }
+    if (/^1[3-9]\d{9}$/.test(value)) {
+      return { ...base, role: 'phone', tier: 'value', suppress: null, evidence: 'phone-shape' };
+    }
+    if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(value)) {
+      return { ...base, role: 'email', tier: 'value', suppress: null, evidence: 'email-shape' };
+    }
+  }
+
+  return { ...base, role: null, tier: null, suppress: 'noRole', evidence: '' };
+}
+
+/**
+ * 字段组：`label` 包裹优先，否则取直接父节点。
+ *
+ * 登录容器守卫必须按「最小字段组」判定，不能按 `<form>`——注册页常把 1 个密码框和
+ * 9 个身份框放进同一个 form，整块拦掉等于功能为零（对照组实测命中 47 → 27）。
+ */
+function fieldGroupOf(el: Element): Element {
+  return el.closest('label') ?? el.parentElement ?? el;
+}
+
+/**
+ * 所在字段组是否是登录语义（组内有口令框）。
+ *
+ * 卡类密码框（CVV 写成 `type="password"`）必须豁免，否则支付页会被整页判成登录容器，
+ * 连带挡掉账单地址与邮箱——这条豁免在模拟跑批里值 5 个字段。
+ */
+function looksLikeLoginGroup(el: Element): boolean {
+  const group = fieldGroupOf(el);
+  const fields = Array.from(group.querySelectorAll('input, textarea'));
+  if (fields.length > 4) return false;
+  return fields.some(f => {
+    const type = (f as HTMLInputElement).type;
+    if (type !== 'password') return false;
+    const name = `${f.getAttribute('name') ?? ''} ${f.getAttribute('autocomplete') ?? ''}`.toLowerCase();
+    return !/cvv|csc|cc-/.test(name);
+  });
+}
+
+/**
+ * 生产判定：给出「是否提示、提示什么角色、要不要核对」。
+ *
+ * 三条压制规则都来自模拟跑批的实测，不是审美选择：
+ * - `placeholder` 档在 94 个字段的语料上有效命中为 0，所以正向词典不吃它，只留进负向扫描少一条弱信号通道；
+ * - 归属 `other` 一律不提示——用本人证件号填「紧急联系人」是唯一不可接受的误填；
+ * - 卡类语义按既有拍板不进身份提示路径。
+ */
+export function resolvePiiField(el: Element): PiiVerdict {
+  const raw = classifyPiiRaw(el);
+  const needsVerify = raw.role === 'idNumber' || raw.ownership === 'confirm';
+
+  /** 压制出口：角色置空、原因如实记录，其余信号（层级/归属/依据）原样带回便于定位 */
+  const veto = (reason: PiiSuppressReason): PiiVerdict => ({
+    role: null,
+    tier: raw.tier,
+    ownership: raw.ownership,
+    needsVerify: false,
+    suppress: reason,
+    evidence: raw.evidence,
+  });
+
+  if (raw.suppress) return veto(raw.suppress);
+  if (raw.ownership === 'other') return veto('ownership');
+  if (raw.role && looksLikeLoginGroup(el)) return veto('loginGroup');
+
+  return {
+    role: raw.role,
+    tier: raw.tier,
+    ownership: raw.ownership,
+    needsVerify,
+    suppress: null,
+    evidence: raw.evidence,
+  };
+}

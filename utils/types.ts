@@ -209,6 +209,14 @@ export enum MessageType {
    */
   OPEN_OPTIONS_AND_SEARCH = 'OPEN_OPTIONS_AND_SEARCH',
   /**
+   * 跳转到密码管理页并自动打开身份库（内容脚本识别出个人信息字段后的召唤式提示）
+   *
+   * 载荷只有 `utils/identity/hintRoles.ts` 里的角色枚举串，属内容脚本自报的不可信输入，
+   * 在后台边界统一收口（`normalizeIdentityHintRole`）；非法值按「未筛选」处理，
+   * 不会带出任何页面字段值或库内数据。
+   */
+  OPEN_OPTIONS_AND_IDENTITY = 'OPEN_OPTIONS_AND_IDENTITY',
+  /**
    * 主动触发版本更新检测
    */
   CHECK_UPDATE = 'CHECK_UPDATE',
@@ -345,6 +353,7 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_AND_SITE_RULES; data?: { domain: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH }
   | { type: MessageType.OPEN_OPTIONS_AND_SEARCH; data?: { keyword: string } }
+  | { type: MessageType.OPEN_OPTIONS_AND_IDENTITY; data?: { role: string } }
   | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }
@@ -435,6 +444,12 @@ export interface FloatingButtonConfig {
    * 也一并隐藏。默认 true；与站点规则同名开关取「任一为 false 即关闭」。
    */
   penetrateShadow?: boolean;
+  /**
+   * 个人信息字段召唤提示总闸：聚焦到「语义上属于个人信息」的字段时，在字段下方
+   * 出现一枚只说明「这个框要的是什么」的气泡，动作项跳转管理页身份库（库内明文
+   * 始终不出管理页）。默认 true；关闭后识别链完全不启动，页面不注入任何扩展 UI。
+   */
+  identityHintEnabled?: boolean;
 }
 
 /**

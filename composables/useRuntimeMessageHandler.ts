@@ -3,6 +3,7 @@ import { MessageType, type PasswordEntry, type RuntimeMessage } from '@/utils/ty
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
 import { normalizeSearchKeyword } from '@/utils/keywordMatch';
+import { normalizeIdentityHintRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
 
 /**
  * Runtime 消息监听 Composable
@@ -29,6 +30,8 @@ export function useRuntimeMessageHandler(options: {
   openDomainMatchSetting?: () => void;
   /** 应用全库检索关键词（来自内联下拉空态的「到全库找」，实现侧需一并清掉叠加筛选） */
   applySearchKeyword?: (keyword: string) => void;
+  /** 打开身份库并预选类别筛选（来自页面侧个人信息字段提示，角色缺失即不过滤） */
+  openIdentityVault?: (role?: IdentityHintRole) => void;
 }) {
   const {
     passwords,
@@ -40,6 +43,7 @@ export function useRuntimeMessageHandler(options: {
     openSiteRules,
     openDomainMatchSetting,
     applySearchKeyword,
+    openIdentityVault,
   } = options;
 
   /**
@@ -108,6 +112,13 @@ export function useRuntimeMessageHandler(options: {
       logger.debug('RuntimeMsg: 收到全库检索指令');
       // 无需等列表就绪：写入的是筛选条件本身，锁定态下同样成立，解锁后列表自然按此过滤
       applySearchKeyword?.(keyword);
+    } else if (message.type === MessageType.OPEN_OPTIONS_AND_IDENTITY) {
+      // 与站点规则同一时序口径：身份库要过复验门槛，等会话状态落地后再交给调用方决策。
+      // 后台已按闭集收窄过一次，这里按「外部输入一律不可校验上游」再收一次。
+      const role = normalizeIdentityHintRole(message.data?.role);
+      // 角色是页面字段语义标签，不是凭据，可以入日志；非法值只记指令本身不记取值
+      logger.debug('RuntimeMsg: 收到打开身份库指令' + (role ? `，角色=${role}` : ''));
+      waitForPasswords().then(() => openIdentityVault?.(role ?? undefined));
     }
   };
 

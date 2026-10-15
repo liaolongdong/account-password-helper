@@ -46,6 +46,9 @@ import {
   destroyTotpHandoffCapsule,
 } from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
 import { getFillAckChip, destroyFillAckChip } from './FillAckChip';
+import { destroyIdentityHint, hideIdentityHint, showIdentityHint } from './IdentityHint';
+import { resolvePiiField } from './piiClassifier';
+import { normalizeIdentityHintRole } from '@/utils/identity/hintRoles';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { getSiteRule, isValidCssSelector, type SiteRule } from '@/utils/storage/siteRules';
 import { resolveFillEntry } from '@/utils/fillEntry';
@@ -831,10 +834,13 @@ export class FormDetector {
    * 处理委托的聚焦事件：内联模式下为登录字段显示钥匙触发图标
    */
   private handleDelegatedFocusIn = (event: FocusEvent): void => {
+    const focusTarget = event.target;
+    if (!(focusTarget instanceof HTMLElement)) return;
+    // 身份提示与填充入口档位无关：仅手动/侧边栏模式下，注册页里的姓名、证件号同样需要
+    // 「这个框要的是什么」的说明，因此判定必须早于下面那条内联模式的 early return。
+    this.handleIdentityHintOnFocus(focusTarget);
     if (this.effectiveFillEntry !== 'inline') return;
-    const target = event.target;
-    if (!(target instanceof HTMLElement)) return;
-    const input = target instanceof HTMLInputElement ? target : target.closest('input');
+    const input = focusTarget instanceof HTMLInputElement ? focusTarget : focusTarget.closest('input');
     if (!input) return;
     if (this.shouldShowSidePanel(input)) {
       this.inlineDropdown.showTriggerFor(input, {
@@ -842,6 +848,41 @@ export class FormDetector {
       });
     }
   };
+
+  /**
+   * 聚焦字段上的身份库召唤提示（形态一：识别 + 提示 + 深链，零明文跨界）
+   *
+   * 判据全部来自 {@link resolvePiiField} 的单字段语义分类，只读取 name/id/label/placeholder
+   * 等**结构信号**与该字段当前值（值仅用于形状收口，不进入任何出口）；结论经
+   * `normalizeIdentityHintRole` 收到闭集枚举后才交给气泡，卡类与登录语义在这一步之前就被挡掉。
+   *
+   * 三道守卫的必要性：
+   * - 总闸关闭时整条链不启动，页面不注入任何扩展 UI（对齐「关闭即完全不出现」的标签承诺）；
+   * - `allFrames` 注入让内容脚本在每个 iframe 各跑一份，而广告/统计 iframe 里的悬浮气泡
+   *   既不在用户的注视点上，也给页面脚本多一个可反复触发的扩展 UI，只在顶层 frame 出提示；
+   * - 已归入登录桶的字段由快速填充负责（钥匙图标已说明「这是账号/密码框」），不再叠一层。
+   *
+   * @param target 当前获得焦点的元素（`focusin` 的 retargeted 目标）
+   */
+  private handleIdentityHintOnFocus(target: HTMLElement): void {
+    if (this.floatingButtonConfig.identityHintEnabled === false) return;
+    if (window !== window.top) return;
+
+    // 提示只跟随真正的表单控件：`<input>` / `<textarea>` / `<select>` 三类都是个人信息的载体
+    // （详细地址常用 textarea，地区/性别常用 select）。聚焦目标是包裹元素时不出提示——
+    // 真实的焦点转移一定以控件为目标，收起上一枚气泡由 `focusout` 负责。
+    if (!target.matches('input, textarea, select')) return;
+    if (target instanceof HTMLInputElement && this.getFieldType(target)) return;
+
+    const verdict = resolvePiiField(target);
+    const role = normalizeIdentityHintRole(verdict.role);
+    if (!role) {
+      // 气泡只跟随当前聚焦字段：新字段无身份语义时必须收起上一个字段的提示
+      hideIdentityHint();
+      return;
+    }
+    showIdentityHint(target, role, verdict.needsVerify);
+  }
 
   /**
    * 处理委托的点击事件，判断是否需要显示侧边栏
@@ -1841,5 +1882,6 @@ export class FormDetector {
     destroyInlineFillDropdown();
     destroyTotpHandoffCapsule();
     destroyFillAckChip();
+    destroyIdentityHint();
   }
 }

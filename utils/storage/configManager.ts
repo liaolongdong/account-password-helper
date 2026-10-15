@@ -228,6 +228,7 @@ const floatingButtonStore = createConfigStore<FloatingButtonConfig>(
     fillMode: 'inline',
     theme: DEFAULT_THEME,
     penetrateShadow: true,
+    identityHintEnabled: true,
   }),
   '悬浮按钮配置',
 );

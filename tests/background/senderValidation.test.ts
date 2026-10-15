@@ -34,6 +34,7 @@ import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
 import { MessageType } from '@/utils/types';
 import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
 import { normalizeEntryId, MAX_ID_LENGTH } from '@/utils/generateId';
+import { IDENTITY_HINT_ROLES } from '@/utils/identity/hintRoles';
 
 // 仅测试纯校验函数，将 router 的重依赖全部 mock 为轻量 stub，保证测试密闭
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
@@ -648,6 +649,55 @@ describe('OPEN_OPTIONS_AND_SEARCH 关键词收口（分发级）', () => {
   });
 });
 
+describe('OPEN_OPTIONS_AND_IDENTITY 角色收口（分发级）', () => {
+  beforeEach(() => {
+    vi.mocked(openOptionsAndSendMessage).mockResolvedValue({ success: true });
+  });
+
+  /** 取回路由转发给选项页的载荷 */
+  const forwardedData = () => {
+    const calls = vi.mocked(openOptionsAndSendMessage).mock.calls;
+    return calls[calls.length - 1]?.[1];
+  };
+
+  it('闭集内的角色原样转发，选项页据此预选类别筛选', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const role of IDENTITY_HINT_ROLES) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role } },
+        contentSender('https://example.com/register'),
+        vi.fn(),
+      );
+      expect(forwardedData()).toEqual({ role });
+    }
+  });
+
+  it('词表外的值一律按「不带筛选」打开', () => {
+    const listener = setupAndCaptureListener();
+
+    // `cardNo` 是分类器词表里的卡类角色，但按既有拍板永不进提示路径；
+    // `姓名` 与超长串代表页面侧被改写后的畸形载荷，同样不得穿透到选项页。
+    for (const bad of ['cardNo', '姓名', 'name ', 'NAME', 'x'.repeat(300), 12345, { role: 'name' }, null, undefined]) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: bad } },
+        contentSender('https://a.com/'),
+        vi.fn(),
+      );
+      expect(forwardedData()).toBeUndefined();
+    }
+  });
+
+  it('无载荷时不阻断深链（打开但不预筛）', () => {
+    const listener = setupAndCaptureListener();
+
+    const result = listener({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY }, contentSender('https://a.com/'), vi.fn());
+
+    expect(result).toBe(true);
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, undefined);
+  });
+});
+
 describe('UI 指令的 sender 归属闸门（分发级）', () => {
   /** 外部扩展形态的发送方：sender.id 非本扩展 */
   const foreignSender = { id: 'abcdefghijklmnopabcdefghijklmnop' } as chrome.runtime.MessageSender;
@@ -669,6 +719,7 @@ describe('UI 指令的 sender 归属闸门（分发级）', () => {
       MessageType.OPEN_OPTIONS_AND_SITE_RULES,
       MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH,
       MessageType.OPEN_OPTIONS_AND_SEARCH,
+      MessageType.OPEN_OPTIONS_AND_IDENTITY,
     ]) {
       expect(EXTENSION_CONTEXT_COMMANDS).toContain(type);
     }

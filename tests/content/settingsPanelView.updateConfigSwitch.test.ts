@@ -1,16 +1,17 @@
 /** @vitest-environment jsdom */
 
 /**
- * `updateConfig` 回灌时四个开关的显隐口径回归测试
+ * `updateConfig` 回灌时五个开关的显隐口径回归测试
  *
  * 面板读开关态的地方有三处：初始 HTML、点击切换、`updateConfig`（storage 监听回灌全局配置）。
- * 前两处走 `isSwitchOn`，第三处此前自己写了一遍 `!!config[key]`——`penetrateShadow` 是唯一
- * 可选的布尔（存量存储里可能根本没这个键，检测侧按「未写即开」跑），于是老配置只要触发一次
- * 回灌，面板就把总闸画成关，而引擎照常按开在查 shadowRoot。读屏还念着 `aria-checked="false"`。
+ * 前两处走 `isSwitchOn`，第三处此前自己写了一遍 `!!config[key]`——`penetrateShadow` 与
+ * `identityHintEnabled` 是唯二可选的布尔（存量存储里可能根本没这两个键，检测侧按「未写即开」跑），
+ * 于是老配置只要触发一次回灌，面板就把开关画成关，而引擎照常按开在查 shadowRoot / 出提示。
+ * 读屏还念着 `aria-checked="false"`。
  *
  * 因此钉住两件事：
  * 1. 缺键回灌必须仍是开（与初始渲染同口径，不能「先对后错」）；
- * 2. 「未写即开」只属于 `penetrateShadow`，另外三个必填开关收到 `false` 仍要落回关。
+ * 2. 「未写即开」只属于那两个可选开关，另外三个必填开关收到 `false` 仍要落回关。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { bindSettingsPanelView, getSettingsPanelHTML } from '@/entrypoints/content/floatingButtons/settingsPanelView';
@@ -30,10 +31,11 @@ const makeConfig = (overrides: Partial<FloatingButtonConfig> = {}): FloatingButt
   ...overrides,
 });
 
-/** 存量配置形态：storage 里压根没有 penetrateShadow 这个键 */
+/** 存量配置形态：storage 里两个可选布尔键都没写过 */
 const legacyConfig = (): FloatingButtonConfig => {
   const config = makeConfig();
   delete config.penetrateShadow;
+  delete config.identityHintEnabled;
   return config;
 };
 
@@ -42,9 +44,10 @@ const mount = (config: FloatingButtonConfig = makeConfig()) => {
   root.className = 'settings-panel';
   root.innerHTML = getSettingsPanelHTML(config);
   document.body.appendChild(root);
-  const instance = bindSettingsPanelView(root, null, config, { onConfigChange: vi.fn() });
+  const onConfigChange = vi.fn();
+  const instance = bindSettingsPanelView(root, null, config, { onConfigChange });
   const switchOf = (setting: string) => root.querySelector<HTMLElement>(`[data-setting="${setting}"]`)!;
-  return { root, instance, switchOf };
+  return { root, instance, switchOf, onConfigChange };
 };
 
 /** 开关的两种可读状态：视觉 class 与读屏值，二者必须同向 */
@@ -91,5 +94,27 @@ describe('updateConfig 的开关显隐口径', () => {
       expect(switchState(switchOf(setting)), setting).toEqual({ active: false, ariaChecked: 'false' });
     });
     expect(switchState(switchOf('penetrateShadow'))).toEqual({ active: true, ariaChecked: 'true' });
+  });
+
+  it('「个人信息字段提示」同样是未写即开：缺键画成开、回灌仍是开、显式 false 才落回关', () => {
+    const { instance, switchOf } = mount(legacyConfig());
+
+    expect(switchState(switchOf('identityHintEnabled'))).toEqual({ active: true, ariaChecked: 'true' });
+
+    instance.updateConfig(legacyConfig());
+    expect(switchState(switchOf('identityHintEnabled'))).toEqual({ active: true, ariaChecked: 'true' });
+
+    instance.updateConfig(makeConfig({ identityHintEnabled: false }));
+    expect(switchState(switchOf('identityHintEnabled'))).toEqual({ active: false, ariaChecked: 'false' });
+  });
+
+  it('老配置下点一次该开关发出显式 false，不是「算了个没变化」的空点击', () => {
+    const { switchOf, onConfigChange } = mount(legacyConfig());
+
+    switchOf('identityHintEnabled').click();
+
+    // 缺键时若按 `!config[key]` 取反，算出来仍是开 → 存储不写值、开关不动，用户看到的是死点击
+    expect(onConfigChange).toHaveBeenCalledWith({ identityHintEnabled: false });
+    expect(switchState(switchOf('identityHintEnabled'))).toEqual({ active: false, ariaChecked: 'false' });
   });
 });

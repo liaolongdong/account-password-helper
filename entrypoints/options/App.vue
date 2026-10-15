@@ -374,6 +374,7 @@ import { useIdentityVault } from '@/composables/useIdentityVault';
 import { useCommandPalette } from '@/composables/useCommandPalette';
 import { useOnboardingTour } from '@/composables/useOnboardingTour';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
+import { identityCategoryForRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
@@ -648,6 +649,24 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
   identityVault.keyword.value = presetKeyword;
   showIdentityVaultDialog.value = true;
   return true;
+};
+
+/**
+ * 从页面侧身份提示打开身份库
+ *
+ * 只带「角色」这一个枚举标签进来（后台已按闭集收窄，非法值即 `undefined`），
+ * 因此这里能做的只有把弹窗的类别筛选预选到对应档，让用户少点一次；
+ * 复验门槛与 palette 入口共用同一个 `openIdentityVaultWithVerify`，不新开旁路。
+ *
+ * 筛选在复验通过、弹窗确实要打开之后才写：取消复验时弹窗没出现，
+ * 留下的筛选态会让下次正常打开身份库莫名少一批条目。
+ *
+ * @param role 已收窄的角色，缺失时按「不过滤」打开
+ */
+const openIdentityVaultFromPage = (role?: IdentityHintRole): void => {
+  void openIdentityVaultWithVerify().then(passed => {
+    if (passed && role) identityVault.categoryFilter.value = identityCategoryForRole(role);
+  });
 };
 
 /**
@@ -1395,6 +1414,7 @@ useRuntimeMessageHandler({
   openSiteRules,
   openDomainMatchSetting,
   applySearchKeyword,
+  openIdentityVault: openIdentityVaultFromPage,
 });
 
 // ==================== 使用指引文档中页 ====================
