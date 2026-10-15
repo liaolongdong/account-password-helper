@@ -13,10 +13,15 @@
  * 在合并后的树上串行重测漂到 219 文件 / 2888 例；2026-10-15 波次 2（缺陷修复 + 动效 +
  * 就绪门 + 图标状态 + 秒开带）新增 11 个测试文件并改动 6 个，串行重测漂到 230 文件 / 2994 例；
  * 2026-10-16 缺陷复查收口（填错框 / 写后复检 / 后台判死补提示 / 注入 UI 事件隔离 / 总闸回灌 /
- * 回执档位，`b2490bd..cf310a2` 共 15 笔）新增 8 个测试文件并改动 5 个，同一棵树串行重测漂到
- * **238 文件 / 3058 例**，即下面这些落点当前应有的值——这两次增量的可对账来源分别是
- * `git diff --name-status 698bcae..HEAD -- tests/`（A 那 11 行即 +11 文件）与
- * `git diff --name-status b2490bd..HEAD -- tests/`（A 那 8 行即 +8 文件）。
+ * 回执档位，`b2490bd..cf310a2` 共 15 笔）新增 8 个测试文件并改动 5 个，同一棵树串行重测漂到 238 文件 /
+ * 3058 例；同日页面个人信息字段提示（`piiClassifier` 分层判定 + 召唤式气泡 + `OPEN_OPTIONS_AND_IDENTITY`）
+ * 新增 6 个测试文件并改动 3 个，工作树串行重测漂到 **244 文件 / 3165 例**，即下面这些落点当前应有的值——
+ * 这三笔增量的可对账来源分别是 `git diff --name-status 698bcae..HEAD -- tests/`（A 那 11 行即 +11 文件）、
+ * `git diff --name-status b2490bd..HEAD -- tests/`（A 那 8 行即 +8 文件），以及本轮的 6 个未跟踪新文件
+ * （`piiClassifier` 46 例 / `identityHint` 17 / `identityHintRoles` 14 / `formDetector.identityHint` 11 /
+ * `useRuntimeMessageHandler.identityVault` 8 / `identityHintWiring` 5 = +101）加存量 3 个文件的 +6
+ * （`senderValidation` 53 → 56、`settingsPanelView.updateConfigSwitch` 4 → 6、`configManager.fillmode` 6 → 7），
+ * 101 + 6 恰等于 3165 − 3058。
  * 它本身就是「加一个测试文件数字就漂」的现场例证，也是「分支上数对了 ≠ 合并后还对」的例证。）
  *
  * **判据边界（不要高估这条守卫的能力）**：用例数与文件数都没有可以在单测内推导的真源——

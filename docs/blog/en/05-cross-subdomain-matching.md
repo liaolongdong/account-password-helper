@@ -29,10 +29,10 @@ The failure modes are obvious. Giving them a non-abusable answer meant splitting
 
 The setting lives in the "Cross-Subdomain Matching" dialog in the manager page header (`components/options/DomainMatchSettingDialog.vue`). The three tiers are nested:
 
-| Tier | Label | Semantics |
-| --- | --- | --- |
-| `off` (default) | Exact match only | Only entries whose full hostname is equal; entries with an empty URL keep showing, as before |
-| `wildcard` | Exact match + wildcard entries | Additionally includes entries the user deliberately wrote as `*.qq.com` — the scope of each one is declared per entry |
+| Tier             | Label                              | Semantics                                                                                                                                                                |
+| ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `off` (default)  | Exact match only                   | Only entries whose full hostname is equal; entries with an empty URL keep showing, as before                                                                             |
+| `wildcard`       | Exact match + wildcard entries     | Additionally includes entries the user deliberately wrote as `*.qq.com` — the scope of each one is declared per entry                                                    |
 | `sameMainDomain` | Same root domain (most permissive) | When the current hostname has no entry of its own, fall back to the apex entry (`qq.com`), then to sibling subdomains (`music.qq.com`), labelling the source in the list |
 
 Selecting `sameMainDomain` expands a read-only warning right under the radio group: `fat.example.com` and `uat.example.com` share one root domain, so test-environment accounts will appear together — switch to the wildcard tier if you need isolation. That is the only new risk this tier carries, and exactly why it sits last: `wildcard` widens per entry the user chose, `sameMainDomain` widens the whole family at once.
@@ -93,12 +93,12 @@ The lesson isn't the empty truism "test on real browsers". It's more specific: *
 
 Numbers from the project's own Vitest benchmark, `benchmarks/sidepanel-p0.bench.ts` (tiers compared inside one multi-environment fixture; absolute values aren't comparable against other fixtures):
 
-| Scenario | `off` | `sameMainDomain` |
-| --- | --- | --- |
-| Side-panel this-site pipeline, 2000 entries | 5.9ms | 9.9ms |
-| Side-panel this-site pipeline, 600 entries | 1.6ms | 2.7ms |
-| Cross-subdomain badge scan (2000 entries) | zero traversal (shared empty set) | ~2.9ms |
-| Empty-state widening counter (2000 entries) | 5.6–5.7ms | constant 0 (nothing left to widen) |
+| Scenario                                    | `off`                             | `sameMainDomain`                   |
+| ------------------------------------------- | --------------------------------- | ---------------------------------- |
+| Side-panel this-site pipeline, 2000 entries | 5.9ms                             | 9.9ms                              |
+| Side-panel this-site pipeline, 600 entries  | 1.6ms                             | 2.7ms                              |
+| Cross-subdomain badge scan (2000 entries)   | zero traversal (shared empty set) | ~2.9ms                             |
+| Empty-state widening counter (2000 entries) | 5.6–5.7ms                         | constant 0 (nothing left to widen) |
 
 The content script bundle grew from 217,062 to 217,080 bytes: +18 B. The predicate is a pure function and tree-shaking absorbed it, which is where it belongs.
 
@@ -106,7 +106,7 @@ Three caveats so these numbers aren't over-read: they measure the JS data layer,
 
 ## Test and guard surface
 
-The repo currently holds 3058 automated test cases across 238 test files. What covers this area directly: the `resolveMatchTier` tier cases (`off` reproducing the pre-migration exact-host rule, `wildcard` admitting only wildcard entries, `sameMainDomain` producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as `%2A`, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io`) all return -1 against `*.qq.com`; an equivalence guard on `filterAndSortEntriesForDomain` claiming the same set in the same order id by id under `off`, plus the widened tiers' priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.
+The repo currently holds 3165 automated test cases across 244 test files. What covers this area directly: the `resolveMatchTier` tier cases (`off` reproducing the pre-migration exact-host rule, `wildcard` admitting only wildcard entries, `sameMainDomain` producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as `%2A`, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io`) all return -1 against `*.qq.com`; an equivalence guard on `filterAndSortEntriesForDomain` claiming the same set in the same order id by id under `off`, plus the widened tiers' priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.
 
 The unusual one is `tests/architecture/crossSubdomainTierWiring.test.ts`: it doesn't exercise behaviour, it scans source. Invariants of the form "all four consumers must agree" die most often when a new call site forgets to pass the tier — and because the parameter has an `off` default, type checking and ESLint stay completely silent. It happened once for real: a full row click in the side panel used the tier-aware predicate while the keyboard Enter path ate the default value, producing "clickable, but Enter won't open it" for cross-subdomain entries. The same file mechanically forbids hand-writing range comparisons like `tier >= 1 && tier <= 3` in runtime code, locking the one definition of that interval inside `isCrossSubdomainTier`. Constraints of the shape "these two places must agree" drift when they rely on discipline; they don't drift when a scanner enforces them.
 
