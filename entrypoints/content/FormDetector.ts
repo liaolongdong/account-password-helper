@@ -1213,7 +1213,7 @@ export class FormDetector {
         // 右键菜单填充：目标为被右键的输入框（由 contextMenuTarget 记忆），
         // 消息由 background 经 tabs.sendMessage({ frameId }) 定向本 frame
         fillContextMenuTarget(message.data).then(result => {
-          if (result.success) this.showFillAck(resolveContextMenuInputTarget());
+          if (result.success) this.showFillAck(resolveContextMenuInputTarget(), result.outcome);
           sendResponse(result);
         });
         return true;

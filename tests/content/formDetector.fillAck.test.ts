@@ -12,7 +12,7 @@
  */
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FormDetector } from '@/entrypoints/content/FormDetector';
-import type { InputFiller } from '@/entrypoints/content/InputFiller';
+import { InputFiller } from '@/entrypoints/content/InputFiller';
 import type { InputFillResult } from '@/entrypoints/content/types';
 import { MessageType } from '@/utils/types';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
@@ -272,7 +272,7 @@ describe('填充成功回执的接线', () => {
     expect(ack.mock.calls[0]).toEqual([totp, 'unverified']);
   });
 
-  it('右键菜单填充成功后回执锚在被右键的那个框', async () => {
+  it('右键菜单填充成功后回执锚在被右键的那个框，并带上写入档位', async () => {
     buildLoginDom();
     installChromeMock(makeConfig());
     detector = await createDetector();
@@ -285,8 +285,28 @@ describe('填充成功回执的接线', () => {
     handler({ type: MessageType.CONTEXT_MENU_FILL, data: { value: 'u-name' } }, {}, sendResponse);
     await vi.waitFor(() => expect(ack).toHaveBeenCalledTimes(1));
 
-    expect(ack.mock.calls[0]![0]).toBe(target);
-    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    // 档位一起钉：只断锚点会让「站点改写值后仍报乐观回执」从测试缝里漏掉
+    expect(ack.mock.calls[0]).toEqual([target, 'verified']);
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true, outcome: 'verified' }));
+  });
+
+  it('右键菜单填的值被站点改写：回执降档为「请核对」', async () => {
+    buildLoginDom();
+    installChromeMock(makeConfig());
+    detector = await createDetector();
+    const ack = vi.spyOn(detector as any, 'showFillAck').mockImplementation(() => {});
+    const handler = captureMessageHandler();
+    const target = document.getElementById('h-user') as HTMLInputElement;
+    rememberContextMenuTarget(target);
+    // 原型级桩：右键路径用的是 contextMenuTarget 模块自有的填充器实例，桩 detector 那一只盖不到
+    vi.spyOn(InputFiller.prototype, 'setInputValueWithStrategies').mockResolvedValue(WRITTEN_UNVERIFIED);
+
+    const sendResponse = vi.fn();
+    handler({ type: MessageType.CONTEXT_MENU_FILL, data: { value: 'u-name' } }, {}, sendResponse);
+    await vi.waitFor(() => expect(ack).toHaveBeenCalledTimes(1));
+
+    expect(ack.mock.calls[0]).toEqual([target, 'unverified']);
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true, outcome: 'unverified' }));
   });
 
   it('destroy 后回执宿主一并移除', async () => {
