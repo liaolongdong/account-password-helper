@@ -106,6 +106,37 @@
 > 本笔不新增模块、不改注入范围，回退分支只在账号桶为空时多跑一次数组扫描，
 > 这是结构论证不是实测值。README 中英那句「兼容手机号 + 验证码场景」对 `text` 型标记本来就成立，
 > 本波把它补到了 `mobileFields` 那条形状上（覆盖面订正见上一段，勿按字面理解成「以前完全填不了」）。
+>
+> **存/填口径协调（2026-10-15，缺陷复查 P1c）——填侧就绪之后，存侧仍然没有入口**
+>
+> 复查结论是「不对称成立，但它是产品决定而不是缺陷」，因此**本轮不改代码**，只把判据与可选形态记下来。
+>
+> - **存侧三道门都要求密码非空**：`LoginAutoSave` 的三条捕获路径
+>   `handleFormSubmit`（`:252-257`）、`handleButtonClick`（`:299-304`）、`handleKeyDown`（`:340-343`）
+>   各自先 `form.querySelector('input[type="password"], input[data-aph-password]')` 再判 `!passwordField.value` 早退；
+>   弹窗期间的实时同步 `captureCurrentCredentials`（`:816`）与会话恢复后的补检 `checkPendingCredentials`（`:577`）
+>   同样以密码非空为前提。纯「手机号 + 短信验证码」登录页没有密码框，于是**永不提示保存**。
+> - **用户名那侧已经认手机号，但只在有 form 时**：`findUsernameInForm`（`:1080-1106`）在 `USERNAME_SELECTORS`
+>   之后还有一条回退，遍历 `input[type="text" | "email" | "tel"]` 取第一个可见非空值（`:1095-1103`）；而
+>   `USERNAME_SELECTORS`（`entrypoints/content/formSelectors.ts:7-`）自己那些手机号条目都带 `type="text"` 限定
+>   （`[name*="mobile"]` / `[placeholder*="手机号"]`），**不含裸 `input[type="tel"]`**。无 form 场景走的
+>   `findUsernameInPage`（`:1144-1157`）没有那条回退，tel 型手机号框只有在 `autocomplete="username"` 或命中
+>   关键词时才被当成账号。所以缺的不是「能不能把手机号当账号存」，只是「没有密码还存不存」这一个决定；
+>   真要做，这处 tel 回退的不对称得一起补齐，否则无 form 的短信码页面仍然存不下手机号。
+> - **为什么不在本波顺手做**：短信码是一次性值，存进去没有复用价值；「只存手机号」会把凭据条目的语义
+>   从「账号 + 秘密」扩成「账号 + 联系方式」，牵动条目模型、重复判定（`createCredentialFingerprint`
+>   以 `username::密码长度::密码哈希` 为键，`:1037-1038`；无密码时这个键会退化成 `手机号::0::0`）、
+>   导入导出兼容、以及商店与 `privacy.html` 里「保存账号密码」的对外表述。
+>   按 AGENTS.md「影响功能 / 交互 / 默认值先拍板」，留给决策。
+> - **要做的话三条形态（按推荐顺序）**：① 不动存储，在填充侧给一句引导——短信码站点提示「可用身份库
+>   存手机号」，把需求引到已落地的 F-3 能力上（零语义扩张，成本一段文案 + 一条测试）；
+>   ② 允许「有 TOTP 的条目无密码保存」（只覆盖二步验证场景，不解决短信码）；
+>   ③ 允许纯手机号条目入库并在管理页用另一种图标区分（改动最大，会污染密码库的搜索 / 排序 / 统计口径）。
+> - **顺带记下与本波缺陷同源的一处死代码**：`FILL_MOBILE_CODE` 仍无发送方（§2 那条判据不变），
+>   其 handler `fillMobileCode` 内部是 `this.showFillAck(ackField)`——**不传档位**。本波把右键菜单那条
+>   路径的档位透传补上了（`contextMenuTarget` 增可选 `outcome`），这一条留到通道被接活时一起补，
+>   否则就是在给死代码写测试。接活时若照抄右键菜单的写法即可（`setInputValueWithStrategies` 的
+>   `verified` → `outcome`），但它现在用的是 `setInputValueNative`，没有复检，需要先换填充策略。
 
 ### F-2 按 URL 粒度匹配与保存：唯一「用户在主动要」的功能
 
