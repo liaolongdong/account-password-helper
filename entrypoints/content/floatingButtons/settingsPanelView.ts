@@ -1096,8 +1096,11 @@ export function bindSettingsPanelView(
     SWITCH_SETTINGS.forEach(key => {
       const el = panelRoot.querySelector<HTMLElement>(`[data-setting="${key}"]`);
       if (!el) return;
-      el.classList.toggle('active', !!config[key]);
-      el.setAttribute('aria-checked', String(!!config[key]));
+      // 读同一个 isSwitchOn：`!!config[key]` 是这份口径的第三份副本，老配置（无 penetrateShadow 键）
+      // 下会把「未写即开」的开关画成关，而检测侧照常按开跑——面板与引擎各说一套
+      const on = isSwitchOn(key, config);
+      el.classList.toggle('active', on);
+      el.setAttribute('aria-checked', String(on));
     });
 
     // 更新快速填充方式分段控件与说明文案（限定 fillEntry 分组，避免误改语言分段控件）
