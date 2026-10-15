@@ -19,10 +19,15 @@ import {
   LOGIN_BUTTON_KEYWORDS,
   LOGIN_BUTTON_SELECTORS,
   MUTATION_LOGIN_KEYWORDS,
-  MOBILE_KEYWORDS,
+  classifyAccountField,
+  isEmailLikeValue,
+  isPhoneLikeValue,
+  looksLikeCodeField,
+  looksLikePhoneField,
   normalizeButtonText,
   shouldExcludeButton,
 } from '@/entrypoints/content/formSelectors';
+import type { AccountFieldKind } from '@/entrypoints/content/formSelectors';
 import { InputFiller } from '@/entrypoints/content/InputFiller';
 import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
 import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
@@ -991,28 +996,14 @@ export class FormDetector {
 
   /**
    * 判断输入框是否可能是手机号输入框
+   *
+   * 判据本体在 `formSelectors.looksLikePhoneField`（与账号候选排序同一把尺子），
+   * 这里保留方法名是为了不改动本文件里那几处按业务语义读判的调用点。
    * @param input - 输入框元素
    * @returns 是否可能是手机号输入
    */
   private isLikelyMobileInput(input: HTMLInputElement): boolean {
-    const name = (input.name || '').toLowerCase();
-    const id = (input.id || '').toLowerCase();
-    const placeholder = (input.placeholder || '').toLowerCase();
-    const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
-    const type = input.type.toLowerCase();
-    const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase();
-
-    const textToCheck = `${name} ${id} ${placeholder} ${ariaLabel} ${autocomplete}`;
-
-    if (type === 'tel') {
-      return true;
-    }
-
-    if (autocomplete.includes('tel') || autocomplete.includes('phone') || autocomplete.includes('mobile')) {
-      return true;
-    }
-
-    return MOBILE_KEYWORDS.some(keyword => textToCheck.includes(keyword));
+    return looksLikePhoneField(input);
   }
 
   /**
@@ -1406,6 +1397,65 @@ export class FormDetector {
   }
 
   /**
+   * 账号值该进账号桶里的哪一个框
+   *
+   * `USERNAME_SELECTORS` 把 `[name*="email"]`、`[name*="mobile"]`、`[name*="user"]` 收进同一个桶，
+   * 于是「手机号 / 邮箱二选一」这类两个框都渲染在页面上的登录表单，旧逻辑按文档顺序取首个，
+   * 条目里存的是邮箱却可能写进手机号框（反之亦然）。
+   *
+   * 排序只在**多个候选**且**值形状明确**时介入，且只调次序、不淘汰候选：
+   * ① 值是邮箱 → 邮箱语义框优先；② 值是国内手机号或带 `+` 的国际格式 → 手机号语义框优先；
+   * ③ 其余情况（单候选、值形状不明确、无匹配语义的框）结果与文档顺序首个逐字节相同。
+   * 语义自相矛盾的框（同时命中两组关键词）按通用处理，不抢优先位。
+   *
+   * @param fields - 账号候选字段列表
+   * @param value - 要写入的账号值（条目的 username）
+   * @returns 目标框，无有效字段时返回 null
+   */
+  private pickAccountField(fields: HTMLInputElement[], value: string): HTMLInputElement | null {
+    const available = fields.filter(input => input.isConnected && isElementVisible(input));
+    if (available.length <= 1) return available[0] ?? null;
+
+    const wantedKind: AccountFieldKind | null = isEmailLikeValue(value)
+      ? 'email'
+      : isPhoneLikeValue(value)
+        ? 'phone'
+        : null;
+    if (!wantedKind) return available[0];
+
+    /** 0＝语义与值形状吻合，1＝通用框（不反对这个值），2＝语义与值冲突 */
+    const scoreOf = (input: HTMLInputElement): number => {
+      const kind = classifyAccountField(input);
+      if (kind === wantedKind) return 0;
+      return kind === 'generic' ? 1 : 2;
+    };
+
+    // 严格小于：同分时保留排在前面的那个，与旧逻辑的「首个可见」结果一致
+    return available.reduce((best, current) => (scoreOf(current) < scoreOf(best) ? current : best), available[0]);
+  }
+
+  /**
+   * 密码值该进哪个密码框
+   *
+   * `VERIFY_CODE_SELECTORS` 里 `input[name*="otp"]`、`[name*="2fa"]` 这些条目不带 type 限定，
+   * 而密码检测又是无条件收 `input[type="password"]`，于是「把动态口令框做成掩码输入」的站点
+   * 会让同一个框同时出现在密码桶与验证码桶里。密码取首个的旧写法，在一页既有登录密码框
+   * 又有掩码口令框时可能把条目的静态密码写进口令框（银行 / 券商网页登录就是这个形状）。
+   *
+   * 只在候选之间调次序、不新增拒填路径：单候选或全同分时结果与「取首个可见」逐字节相同。
+   *
+   * @returns 目标密码框，无可见字段时返回 null
+   */
+  private pickPasswordField(): HTMLInputElement | null {
+    const available = this.passwordFields.filter(input => input.isConnected && isElementVisible(input));
+    if (available.length === 0) return null;
+    /** 0＝语义不像一次性口令（正是静态密码该去的地方），1＝像口令 */
+    const scoreOf = (input: HTMLInputElement): number => (looksLikeCodeField(input) ? 1 : 0);
+    // 严格小于：同分时保留排在前面的那个，与旧逻辑的「首个可见」结果一致
+    return available.reduce((best, current) => (scoreOf(current) < scoreOf(best) ? current : best), available[0]);
+  }
+
+  /**
    * 手机号 + 短信码登录页里，账号（手机号）应该落到哪个 tel 框
    *
    * 仅在「页面确实没有密码框」时由账号回退路径调用。`mobileFields` 里混着国家码 / 区号等
@@ -1514,7 +1564,7 @@ export class FormDetector {
         // 回退只在「页面上确实没有密码框」时成立：只要存在密码框，这就是账号密码表单，
         // 此时页面里另一个 tel 输入框通常是「绑定手机号/短信找回」而非登录账号，写进去是错的。
         const usernameField =
-          this.findFillableField(this.usernameFields) ??
+          this.pickAccountField(this.usernameFields, data.username) ??
           (this.passwordFields.length === 0 ? this.findMobileAccountField() : null);
         if (usernameField) {
           result.details.usernameField.found = true;
@@ -1528,7 +1578,7 @@ export class FormDetector {
 
       // 填充密码（仅选取仍在文档中且可见的字段，避免写入已分离的过期节点）
       if (data.password) {
-        const passwordField = this.findFillableField(this.passwordFields);
+        const passwordField = this.pickPasswordField();
         if (passwordField) {
           result.details.passwordField.found = true;
           const fillResult = await this.inputFiller.setInputValueWithStrategies(passwordField, data.password);
@@ -1640,15 +1690,19 @@ export class FormDetector {
       let ackField: HTMLInputElement | null = null;
 
       if (data.mobile && this.mobileFields.length > 0) {
-        const field = this.mobileFields[0];
-        this.inputFiller.setInputValueNative(field, data.mobile);
-        if (field.isConnected && isElementVisible(field)) ackField = field;
+        const field = this.findMobileAccountField();
+        if (field) {
+          this.inputFiller.setInputValueNative(field, data.mobile);
+          ackField = field;
+        }
       }
 
       if (data.mobile && this.mobileFields.length === 0 && this.usernameFields.length > 0) {
-        const field = this.usernameFields[0];
-        this.inputFiller.setInputValueNative(field, data.mobile);
-        if (field.isConnected && isElementVisible(field)) ackField = field;
+        const field = this.pickAccountField(this.usernameFields, data.mobile);
+        if (field) {
+          this.inputFiller.setInputValueNative(field, data.mobile);
+          ackField = field;
+        }
       }
 
       this.checkboxHandler.autoCheckNearestCheckbox(this.checkboxFields, this.passwordFields, this.usernameFields);
@@ -1693,7 +1747,11 @@ export class FormDetector {
         return result;
       }
 
-      const field = this.verifyCodeFields[0];
+      // 优先写「仍在文档中且可见」的那个框：页面里常见一个 hidden 的 name="code" 输入
+      // 排在可见框前面，取首个会把动态码写进看不见的框还回报「已填充」。
+      // 一个都不可见时退回取首个（保留六格验证码组件那种「可见格子 + 隐藏真实输入」的页面形状，
+      // 那类页面站点的 JS 正是从隐藏输入读值）。
+      const field = this.findFillableField(this.verifyCodeFields) ?? this.verifyCodeFields[0];
       const fillResult = await this.inputFiller.setInputValueWithStrategies(field, code);
       result.success = fillResult.filled;
       result.details.strategy = fillResult.strategy;

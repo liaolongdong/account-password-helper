@@ -287,6 +287,136 @@ export const POPUP_KEYWORDS = ['modal', 'popup', 'dialog', 'drawer', 'overlay', 
 /** 手机号相关关键词 */
 export const MOBILE_KEYWORDS = ['phone', 'mobile', 'tel', 'cell', '手机', '电话', '号码'] as const;
 
+/** 邮箱语义关键词（与 `USERNAME_SELECTORS` 里那组 email 属性选择器同一词表口径） */
+export const EMAIL_FIELD_KEYWORDS = ['email', 'e-mail', '邮箱', '电子邮箱', '邮件'] as const;
+
+/**
+ * 一次性口令语义关键词
+ *
+ * 用作**次序判据**而不是归属判据：`input[type=password]` 那条选择器不分口令语义，
+ * 于是「登录密码 + 动态口令都做掩码输入」这类页面里两个框同进密码桶，取文档顺序首个
+ * 就可能把静态密码写进口令框。只在多个候选之间调次序，不据此拒收任何字段。
+ */
+export const CODE_FIELD_KEYWORDS = [
+  'otp',
+  'totp',
+  '2fa',
+  'mfa',
+  'code',
+  'captcha',
+  'verif',
+  '验证码',
+  '动态码',
+  '动态口令',
+  '安全码',
+  '校验码',
+] as const;
+
+/**
+ * 判断输入框是否声明了「一次性口令」语义
+ * @param input - 待判定的输入框
+ */
+export function looksLikeCodeField(input: HTMLInputElement): boolean {
+  if ((input.getAttribute('autocomplete') || '').toLowerCase().includes('one-time-code')) return true;
+  const text = `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`.toLowerCase();
+  return CODE_FIELD_KEYWORDS.some(keyword => text.includes(keyword));
+}
+
+/**
+ * 判断输入框是否具备手机号语义
+ *
+ * 原为 `FormDetector.isLikelyMobileInput`，抽到这里是因为分类、侧边栏触发与「账号该进哪个框」
+ * 三处必须用同一把尺子，否则同一字段在不同判定点会被读成两种意图。
+ *
+ * @param input - 待判定的输入框
+ */
+export function looksLikePhoneField(input: HTMLInputElement): boolean {
+  const name = (input.name || '').toLowerCase();
+  const id = (input.id || '').toLowerCase();
+  const placeholder = (input.placeholder || '').toLowerCase();
+  const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
+  const type = input.type.toLowerCase();
+  const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase();
+
+  const textToCheck = `${name} ${id} ${placeholder} ${ariaLabel} ${autocomplete}`;
+
+  if (type === 'tel') {
+    return true;
+  }
+
+  if (autocomplete.includes('tel') || autocomplete.includes('phone') || autocomplete.includes('mobile')) {
+    return true;
+  }
+
+  return MOBILE_KEYWORDS.some(keyword => textToCheck.includes(keyword));
+}
+
+/**
+ * 判断输入框是否具备邮箱语义
+ * @param input - 待判定的输入框
+ */
+export function looksLikeEmailField(input: HTMLInputElement): boolean {
+  if (input.type.toLowerCase() === 'email') return true;
+  const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase();
+  if (autocomplete.includes('email')) return true;
+  const textToCheck =
+    `${input.name} ${input.id} ${input.placeholder} ${input.getAttribute('aria-label') || ''}`.toLowerCase();
+  return EMAIL_FIELD_KEYWORDS.some(keyword => textToCheck.includes(keyword));
+}
+
+/**
+ * 账号候选框的语义分类
+ *
+ * `USERNAME_SELECTORS` 是一个大杂烩桶：`[name*="user"]`、`[name*="email"]`、`[name*="mobile"]`、
+ * `[placeholder*="手机号"]` 都命中它，于是「手机号 / 邮箱二选一」这类页面会把两种语义的框
+ * 一起收进账号桶。分类只读字段自己声明的属性意图，不做 DOM 结构推断，也不看值。
+ */
+export type AccountFieldKind = 'email' | 'phone' | 'generic';
+
+/**
+ * 判断一个账号候选框声明的是邮箱、手机号，还是两者都不是
+ *
+ * 同时命中两组关键词（`name="email_mobile"` 这类）按 `generic` 处理：语义自相矛盾的框
+ * 不足以支撑「这个值就该进这个框」的判断，宁可按文档顺序取。
+ *
+ * @param input - 账号候选输入框
+ * @returns 字段语义分类
+ */
+export function classifyAccountField(input: HTMLInputElement): AccountFieldKind {
+  const isEmail = looksLikeEmailField(input);
+  const isPhone = looksLikePhoneField(input);
+
+  if (isEmail && !isPhone) return 'email';
+  if (isPhone && !isEmail) return 'phone';
+  return 'generic';
+}
+
+/** 邮箱形态的值：必须是「本地@域.顶级域」这一段完整形状，不能只含 `@` */
+const EMAIL_LIKE_VALUE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/**
+ * 判断条目的账号值是不是邮箱形态
+ * @param value - 条目的 username
+ */
+export function isEmailLikeValue(value: string): boolean {
+  return EMAIL_LIKE_VALUE.test(value.trim());
+}
+
+/**
+ * 判断条目的账号值是不是电话号码形态
+ *
+ * 刻意只认两种 unmistakable 形状：国内手机号（`1` 开头 + 第二位 3~9 + 共 11 位，允许空格 /
+ * 连字符 / 括号分隔）与显式带 `+` 的国际格式。纯数字登录名（学号、工号、QQ 号）一律不算——
+ * 它们没有 `+`、也不符合手机号段，误判会把这类值往页面的手机号框里推。
+ *
+ * @param value - 条目的 username
+ */
+export function isPhoneLikeValue(value: string): boolean {
+  const cleaned = value.trim().replace(/[\s\-()]/g, '');
+  if (/^1[3-9]\d{9}$/.test(cleaned)) return true;
+  return /^\+\d{7,15}$/.test(cleaned);
+}
+
 /** MutationObserver 中使用的登录文本关键词 */
 export const MUTATION_LOGIN_KEYWORDS = [
   '登录',
