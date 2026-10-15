@@ -1242,8 +1242,7 @@ export class FormDetector {
         });
         return true;
       case MessageType.FILL_MOBILE_CODE:
-        this.fillMobileCode(message.data);
-        sendResponse({ success: true, message: tl('cs.fd.fillDone') });
+        sendResponse(this.fillMobileCode(message.data));
         return true;
       case MessageType.FILL_TOTP:
         this.fillTotpCode(message.data.code).then(result => {
@@ -1733,9 +1732,14 @@ export class FormDetector {
 
   /**
    * 填充手机号（验证码需用户手动获取）
+   *
+   * 回执与返回值只跟着「是否真的写进了那个可见的手机号框」走：找不到可填字段时
+   * `success` 为 false，不再无条件谎报成功（与账号密码填充支路的 outcome 契约同口径）。
+   * 号码本身写入即视为「已填充」（验证码由用户手动获取，不在本方法职责内）。
    * @param data - 包含手机号和验证码的数据
+   * @returns 填充是否落地，以及面向发起方的提示文案
    */
-  private fillMobileCode(data: { mobile: string; code: string }): void {
+  private fillMobileCode(data: { mobile: string; code: string }): { success: boolean; message: string } {
     try {
       // 回执锚点：写到「仍在文档中且可见」的框才算真的落地，与密码填充同一口径
       let ackField: HTMLInputElement | null = null;
@@ -1768,8 +1772,11 @@ export class FormDetector {
       setTimeout(() => {
         this.hideSidePanel();
       }, 300);
+
+      return { success: ackField !== null, message: tl(ackField ? 'cs.fd.fillDone' : 'cs.fd.fillIncomplete') };
     } catch (error) {
       logger.error('填充手机号+验证码失败:', error);
+      return { success: false, message: tl('cs.fd.fillIncomplete') };
     }
   }
 

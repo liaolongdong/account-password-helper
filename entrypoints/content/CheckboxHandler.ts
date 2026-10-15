@@ -58,10 +58,24 @@ export class CheckboxHandler {
   }
 
   /**
+   * 自动勾选的最低相关性得分
+   *
+   * `role="checkbox"` 在 SPA 中被大量复用为非「同意/记住」语义的控件（显示密码切换、
+   * 筛选标签、Cookie 项等），而程序化 `click()` 会驱动这些页面自有组件、副作用不可枚举。
+   * 无阈值时「只要存在候选就取最优」，一个远离凭证框、无任何关联信号的自定义组件也可能被
+   * 点中。这里给准入设一条下限：距离分（0-100，>800px 即跌破 60）为主，命中正向关键词或
+   * 与参考字段同表单/近层级可补足，低于该线一律不勾选，宁可漏勾也不误点。
+   */
+  private static readonly CHECKBOX_MIN_SCORE = 60;
+
+  /**
    * 根据打分算法找到最合适的复选框
+   *
+   * 得分低于 {@link CheckboxHandler.CHECKBOX_MIN_SCORE} 的候选视为「与登录表单无足够关联」，
+   * 返回 null（不勾选），避免对页面自定义 `role="checkbox"` 组件发出无谓的程序化点击。
    * @param referenceField - 参考字段（通常是密码或用户名输入框）
    * @param checkboxFields - 候选复选框列表
-   * @returns 得分最高的复选框，若无候选则返回 null
+   * @returns 得分最高且达到准入下限的复选框，若无则返回 null
    */
   private findBestCheckbox(referenceField: HTMLElement, checkboxFields: HTMLElement[]): HTMLElement | null {
     let bestCheckbox: HTMLElement | null = null;
@@ -74,6 +88,10 @@ export class CheckboxHandler {
         bestCheckbox = checkbox;
       }
     });
+
+    if (bestScore < CheckboxHandler.CHECKBOX_MIN_SCORE) {
+      return null;
+    }
 
     return bestCheckbox;
   }
@@ -101,11 +119,12 @@ export class CheckboxHandler {
         keywordScore += 50;
       }
     });
-    CHECKBOX_NEGATIVE_KEYWORDS.forEach(keyword => {
-      if (labelText.includes(keyword)) {
-        keywordScore -= 30;
-      }
-    });
+    // 命中负向关键词（订阅/营销/通知等）的复选框与「记住我/同意条款」无关，
+    // 点它会订阅邮件、开启推送等——直接判负淘汰，而不是仅按 -30 扣分后再被距离分拉回。
+    const hasNegativeKeyword = CHECKBOX_NEGATIVE_KEYWORDS.some(keyword => labelText.includes(keyword));
+    if (hasNegativeKeyword) {
+      return Number.NEGATIVE_INFINITY;
+    }
     score += keywordScore;
 
     score += this.calculatePositionScore(referenceField, checkbox);

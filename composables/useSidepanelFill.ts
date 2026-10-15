@@ -32,6 +32,22 @@ const TOTP_FAILURE_KEYS: Record<FillFailureReason, string> = {
   fill_error: 'fill.totpFillFailed',
 };
 
+/**
+ * 按失败原因取文案 key，对跨上下文不可信的 `reason` 做运行时收窄。
+ *
+ * `reason` 来自 content script 消息，声明类型是 `FillFailureReason` 但运行时不受保证；
+ * 非枚举值会索引到 `undefined` 再进 `t()`，令面向用户的失败提示退化成裸 key。
+ * 只认自有属性命中，否则回落到兜底 key。
+ * @param map 原因 → 文案 key 映射
+ * @param reason content script 回传的失败原因（不可信）
+ * @param fallbackKey 未命中时的兜底文案 key
+ * @returns 命中的文案 key 或兜底 key
+ */
+const pickFailureKey = (map: Record<FillFailureReason, string>, reason: unknown, fallbackKey: string): string =>
+  typeof reason === 'string' && Object.prototype.hasOwnProperty.call(map, reason)
+    ? map[reason as FillFailureReason]
+    : fallbackKey;
+
 /** 剪贴板自动清除定时器（模块级变量，确保同一时刻只有一个定时器） */
 let clipboardClearTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -386,8 +402,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
           data: { tabId },
         });
       } else {
-        const reason = response?.reason;
-        ElMessage.warning(t(reason ? FILL_FAILURE_KEYS[reason] : 'fill.fillFailed'));
+        ElMessage.warning(t(pickFailureKey(FILL_FAILURE_KEYS, response?.reason, 'fill.fillFailed')));
       }
     } catch (error: any) {
       logger.error('填充密码失败:', error);
@@ -461,8 +476,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
           data: { tabId },
         });
       } else {
-        const reason = response?.reason;
-        ElMessage.warning(t(reason ? TOTP_FAILURE_KEYS[reason] : 'fill.totpFillFailed'));
+        ElMessage.warning(t(pickFailureKey(TOTP_FAILURE_KEYS, response?.reason, 'fill.totpFillFailed')));
       }
     } catch (error: any) {
       logger.error('填充验证码失败:', error);

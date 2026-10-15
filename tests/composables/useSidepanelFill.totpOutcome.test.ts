@@ -83,6 +83,18 @@ const fillResultWith = (outcome: FillResult['outcome']): FillResult => ({
   },
 });
 
+/** 构造一个失败的 FillResult，reason 由用例指定（可为不可信的任意值） */
+const fillFailureWith = (reason: unknown): FillResult => ({
+  success: false,
+  message: '',
+  reason: reason as FillResult['reason'],
+  details: {
+    usernameField: { found: false, filled: false, verified: false },
+    passwordField: { found: false, filled: false, verified: false },
+    strategy: 'native',
+  },
+});
+
 describe('useSidepanelFill 验证码填充可信度分档', () => {
   const sendMessage = vi.fn();
 
@@ -174,5 +186,23 @@ describe('useSidepanelFill 验证码填充可信度分档', () => {
     await fill.fillTotp(entryWithTotp());
 
     expect(elMessage.success.mock.calls[0][0]).toBe('fill.totpFillCheck');
+  });
+
+  it('content script 回传非法 reason 时降级到兜底文案，不把裸 key 弹给用户', async () => {
+    sendMessage.mockResolvedValue(fillFailureWith('bogus_reason'));
+    const fill = await useFill();
+
+    await fill.fillTotp(entryWithTotp());
+
+    expect(elMessage.warning).toHaveBeenCalledWith('fill.totpFillFailed');
+  });
+
+  it('合法 reason 仍命中对应文案（白名单收窄未误伤枚举值）', async () => {
+    sendMessage.mockResolvedValue(fillFailureWith('no_totp_input'));
+    const fill = await useFill();
+
+    await fill.fillTotp(entryWithTotp());
+
+    expect(elMessage.warning).toHaveBeenCalledWith('fill.noTotpInput');
   });
 });

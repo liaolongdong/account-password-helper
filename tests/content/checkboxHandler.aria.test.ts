@@ -143,4 +143,35 @@ describe('CheckboxHandler 对 role="checkbox" 模拟复选框的勾选', () => {
     handler.autoCheckNearestCheckbox([cb], [makePasswordField()], []);
     expect(cb.checked).toBe(true);
   });
+
+  it('命中负向关键词（订阅/营销）的复选框被淘汰，绝不程序化点击', () => {
+    const { el, clicks } = makeInertAriaCheckbox();
+    // aria-label 命中负向词——即便紧邻密码框（距离分高）也应被判负淘汰
+    el.setAttribute('aria-label', '订阅最新资讯与营销通知');
+    handler.autoCheckNearestCheckbox([el], [makePasswordField()], []);
+    vi.runAllTimers();
+    expect(clicks()).toBe(0);
+  });
+
+  it('同一批候选中负向项被淘汰、命中「记住我」的正向项被勾选', () => {
+    const { el: sub } = makeInertAriaCheckbox();
+    sub.setAttribute('aria-label', '订阅邮件推送');
+    const agree = makeAriaCheckbox();
+    agree.setAttribute('aria-label', '记住我');
+    handler.autoCheckNearestCheckbox([sub, agree], [makePasswordField()], []);
+    vi.runAllTimers();
+    expect(sub.getAttribute('aria-checked')).toBe('false');
+    expect(agree.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('远离凭证框且无任何关键词的自定义 role=checkbox 不被点击（准入阈值兜底）', () => {
+    const { el, clicks } = makeInertAriaCheckbox();
+    // 无 aria-label → 标签回退为「未知复选框」，无正/负关键词
+    // 把它推到距参考框 >800px：距离分（0-100）跌到 0，仅剩层级加分，合计低于阈值
+    el.getBoundingClientRect = () =>
+      ({ left: 5000, top: 5000, right: 5100, bottom: 5100, width: 100, height: 100, x: 5000, y: 5000 }) as DOMRect;
+    handler.autoCheckNearestCheckbox([el], [makePasswordField()], []);
+    vi.runAllTimers();
+    expect(clicks()).toBe(0);
+  });
 });

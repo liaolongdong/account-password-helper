@@ -240,6 +240,44 @@ describe('填充成功回执的接线', () => {
     expect(ackHostCount()).toBe(0);
   });
 
+  it('FILL_MOBILE_CODE 无可填字段时按真实结果回 success:false，不再无条件谎报成功', async () => {
+    buildLoginDom();
+    installChromeMock(makeConfig());
+    detector = await createDetector();
+    // 清空手机号/账号候选，findMobileAccountField 与 username 回退均落空
+    (detector as any).mobileFields = [];
+    (detector as any).usernameFields = [];
+    vi.spyOn(detector as any, 'showFillAck').mockImplementation(() => {});
+
+    const handler = captureMessageHandler();
+    const sendResponse = vi.fn();
+    const keepChannel = handler(
+      { type: MessageType.FILL_MOBILE_CODE, data: { mobile: '13800000000', code: '' } },
+      {},
+      sendResponse,
+    );
+
+    expect(keepChannel).toBe(true);
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: false }));
+  });
+
+  it('FILL_MOBILE_CODE 写入可见手机号框后回 success:true', async () => {
+    buildLoginDom();
+    installChromeMock(makeConfig());
+    detector = await createDetector();
+    const mobile = document.createElement('input');
+    mobile.type = 'text';
+    document.body.appendChild(mobile);
+    (detector as any).mobileFields = [mobile];
+    vi.spyOn(detector as any, 'showFillAck').mockImplementation(() => {});
+
+    const handler = captureMessageHandler();
+    const sendResponse = vi.fn();
+    handler({ type: MessageType.FILL_MOBILE_CODE, data: { mobile: '13800000000', code: '' } }, {}, sendResponse);
+
+    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+  });
+
   it('动态码填充：回执锚在验证码框', async () => {
     buildLoginDom();
     installChromeMock(makeConfig());
