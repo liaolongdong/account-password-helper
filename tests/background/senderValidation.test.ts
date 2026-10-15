@@ -76,6 +76,7 @@ vi.mock('@/entrypoints/background/quickAddHandler', () => ({
 vi.mock('@/entrypoints/background/quickFillHandler', () => ({
   handleQuickFill: vi.fn(),
   deliverPageNotice: vi.fn(),
+  showPageNotice: vi.fn(async () => {}),
 }));
 
 vi.mock('@/entrypoints/background/inlineDropdownHandler', () => ({

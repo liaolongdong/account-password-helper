@@ -25,7 +25,7 @@ import {
 import { handleAutoSavePassword, handleCheckCredentialStatus } from './autoSaveHandler';
 import { issuePendingCipherKey } from './pendingCipherKeyStore';
 import { handleQuickAddPassword } from './quickAddHandler';
-import { handleQuickFill, deliverPageNotice } from './quickFillHandler';
+import { handleQuickFill, deliverPageNotice, showPageNotice } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
@@ -135,6 +135,7 @@ async function handleGetInitialData(_domain?: string) {
  * 安全：明文仅在此刻经 FILL_PASSWORD 瞬时下发到内容脚本所在 frame（与侧边栏填充暴露面一致），
  * 且只能回填发起请求的 tab/frame 自身，无法定向其他标签页；下发前经 isFrameFillable 校验，
  * 仅顶层或与顶层同主域名的 frame 可接收，跨域 iframe（如第三方广告位）会被拒绝，防止越权骗取顶层站点凭证。
+ * 拒绝与失败只补发固定文案的页面提示条：载荷取自 `tl()`，不含条目内容，也不含任何页面可控文本。
  *
  * @param data FILL_BY_ID 载荷（条目 ID 与是否自动登录）
  * @param tabId 发起请求的标签页 ID
@@ -144,12 +145,17 @@ async function handleGetInitialData(_domain?: string) {
 async function handleFillById(data: { id: string; autoLogin?: boolean }, tabId: number, frameId: number | undefined) {
   // 安全：仅允许顶层或与顶层同主域名的 frame 接收明文凭证，
   // 避免跨域 iframe 伪造登录框骗取顶层站点账密（与侧边栏 getFillableFrameIds 同一道防线）
+  // 拒绝即补发提示条：内联面板点击后立刻收起，而这条路径 content script 从未收到填充指令，
+  // 页面侧「找不到表单」的就地引导也不会触发——不补发就是用户眼里的「点了没反应」。
   if (!(await isFrameFillable(tabId, frameId))) {
+    void showPageNotice(tabId, tl('bg.router.frameDenied'));
     return { success: false, message: tl('bg.router.frameDenied') };
   }
 
+  // 同一口径：锁定态与条目已删除都是「面板收起后页面无任何变化」，且文案已是给发起方的最终串，直接复用
   const entry = await getDecryptedEntryById(data.id);
   if (!entry) {
+    void showPageNotice(tabId, tl('bg.router.sessionOrAccount'));
     return { success: false, message: tl('bg.router.sessionOrAccount') };
   }
 
@@ -803,6 +809,10 @@ export function setupMessageRouter(): void {
               logger.debug('Background: FILL_BY_ID 接收端已不存在（页面导航/刷新竞态）');
             } else {
               logger.error('Background: FILL_BY_ID 处理失败:', error);
+              // 只在非竞态分支补发：竞态时用户已经在新页面上，提示条会落在他没点过的页面；
+              // 其余异常（目标 frame 未注入、tab 已销毁）同样没有任何页面侧反馈可用。
+              // 载荷用固定串而非 errorMsg——错误消息可能夹带 URL 等页面可控内容，不进提示条。
+              void showPageNotice(tabId, tl('bg.router.fillFailed'));
             }
             sendResponse({ success: false, message: tl('bg.router.fillFailed') });
           });

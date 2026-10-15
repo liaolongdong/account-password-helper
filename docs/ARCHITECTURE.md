@@ -482,6 +482,7 @@ graph TB
 - 面板内容仅展示账号元数据（用户名、标签、备注、网址），密码仅在用户显式选择时经 Background 瞬时下发，安全模型与侧边栏一致。
 - 条目前的钥匙图标优先展示对应网站图标：由 Background 经本地 `_favicon/` 端点读取并转为 dataURL 随元数据下发（内存缓存 + 失败降级钥匙图标，见 [utils/favicon.ts](../utils/favicon.ts) 的 `fetchFaviconDataUrl`）；不将 `_favicon/*` 暴露为 web_accessible_resources，避免网页借端点探测浏览历史的隐私风险，全程零外部网络请求。
 - 会话锁定态下，面板显示「解锁后填充」引导，点击跳转密码管理页验证主密码。
+- **面板收起之后的失败同样有反馈**：选中条目即收起面板，而三条「后台就地判死」的路径——跨域 frame 被 `isFrameFillable` 拒绝、会话锁定或条目已删除、目标 frame 未注入——content script 从未收到填充指令，页面侧的「填充失败引导气泡」也就不会触发，用户看到的只剩「点了没反应」。这三条各经 `showPageNotice` 补发一条页面内提示条（与右键菜单同一兜底通道，见第 22 节），载荷只取 `tl()` 固定文案：异常原文可能夹带 URL 等页面可控内容，不进提示条。「接收端已不存在」的导航/刷新竞态刻意保持静默——那一刻用户已经在新页面上，提示条会落在他没点过的页面。回归见 [fillByIdFailureFeedback.test.ts](../tests/background/fillByIdFailureFeedback.test.ts)。
 - 使用 Closed Shadow DOM（`all: initial`）完全隔离页面样式，主题令牌内联写入宿主元素，跟随整体主题换肤。
 - **视口自适应定位**：面板先置可见再定位（不可见时 `offsetHeight` 恒为 0，首开上下空间判断会失效），随后默认锚定输入框下方，仅当下方放不下且上方更宽时才上翻；所选一侧空间不足时压缩面板高度（列表内部滚动，压缩下限 120px 保证搜索行 + 至少一条可用），视口过小时降级为视口内贴合，水平方向保留 8px 视口边距——嵌套 iframe 登录框等窄视口下面板不再被裁切（见 `InlineFillDropdown.positionPanel()`）。定位与置可见在同一同步任务内完成，不闪现错误位置；若定位过程中面板已被关闭，则中止后续交互绑定与聚焦。
 
