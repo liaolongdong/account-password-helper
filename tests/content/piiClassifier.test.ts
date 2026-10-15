@@ -274,6 +274,66 @@ describe('登录容器守卫按最小字段组', () => {
   });
 });
 
+/**
+ * 真机勘察（30 字段逐字段读 verdict）暴露的三处分档缺口。
+ * 每一节都同时钉住「当初为什么不敢改」的对照组，收紧词典最容易把已有形状踩没。
+ */
+describe('姓名拆分：given / family 不能被裸 name 抢走', () => {
+  it.each(['first_name', 'firstName', 'given_name', 'givenName'])('%s 判成「名」（attr）', attr => {
+    expect(resolvePiiField(inputOf(`<input name="${attr}">`))).toMatchObject({ role: 'givenName', tier: 'attr' });
+  });
+
+  it.each(['last_name', 'lastName', 'family_name', 'surname'])('%s 判成「姓」（attr）', attr => {
+    expect(resolvePiiField(inputOf(`<input name="${attr}">`))).toMatchObject({ role: 'familyName', tier: 'attr' });
+  });
+
+  it('拆分只改角色，不动归属：`realname` 仍是完整姓名档', () => {
+    expect(resolvePiiField(inputOf('<input name="realname">'))).toMatchObject({ role: 'name', evidence: 'realname' });
+    expect(resolvePiiField(inputOf('<input name="full_name">')).role).toBe('name');
+  });
+});
+
+describe('单位名：属性档此前被 `company` 负向词元整条吃掉', () => {
+  it.each(['company', 'company_name', 'companyName', 'employer'])('%s 判成 org', attr => {
+    expect(resolvePiiField(inputOf(`<input name="${attr}">`))).toMatchObject({ role: 'org', suppress: null });
+  });
+
+  it('`company_name` 不再被裸 name 词元读成人名', () => {
+    expect(resolvePiiField(inputOf('<input name="company_name">')).evidence).not.toBe('name');
+  });
+
+  it('公司 + 描述性后缀仍是元信息，豁免只给「单位叫什么」', () => {
+    for (const attr of ['company_size', 'company_logo', 'company_url', 'company_industry']) {
+      expect(resolvePiiField(inputOf(`<input name="${attr}">`)).role).toBeNull();
+    }
+  });
+
+  it('公司地址仍归 address：org 档排在词典末尾，不抢既有角色', () => {
+    expect(resolvePiiField(inputOf('<input name="company_address">')).role).toBe('address');
+  });
+
+  it('毕业院校仍是负向：`school` 在表单里通常指院校而不是雇主，不进单位名豁免', () => {
+    expect(resolvePiiField(inputOf('<input name="school">')).suppress).toBe('negative');
+    expect(resolvePiiField(inputOf('<input name="school_name">')).role).toBeNull();
+  });
+});
+
+describe('中文单位名不再被裸「名称」负向词吃掉', () => {
+  it('「单位名称 / 公司名称」给 org 提示', () => {
+    expect(resolvePiiField(inputOf('<label>单位名称<input name="dwmc"></label>'))).toMatchObject({
+      role: 'org',
+      tier: 'label',
+    });
+    expect(resolvePiiField(inputOf('<label>公司名称<input name="gsmc"></label>')).role).toBe('org');
+    expect(resolvePiiField(inputOf('<label>发票抬头单位名称<input name="title"></label>')).role).toBe('org');
+  });
+
+  it('豁免只认组织名词：「物品名称 / 商品名称」仍是事物名', () => {
+    expect(resolvePiiField(inputOf('<label>物品名称<input name="wpmc"></label>')).role).toBeNull();
+    expect(resolvePiiField(inputOf('<label>商品名称<input name="spm"></label>')).role).toBeNull();
+  });
+});
+
 describe('输出边界', () => {
   it('判定的可见产物只有角色/层级/归属/核对标志/原因/依据，不含字段值', () => {
     const el = inputOf('<input name="idCardNo">');

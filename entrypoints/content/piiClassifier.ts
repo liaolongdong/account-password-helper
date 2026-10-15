@@ -100,6 +100,10 @@ const ACCOUNT_TOKENS = new Set(['user', 'username', 'account', 'login', 'signin'
  * 教训是裸 `code` / `s` 不能进——`post_code`（邮编）与 `zip_code` 会被一起吃成漏报。
  * 末段是「元信息」词元（标签 / 类型 / 数量），它们描述「怎么填」而不是「填什么」。
  * 刻意不含裸 `no`，否则 `idCardNo`（证件号）会被误杀。
+ *
+ * `school` / `college` 留在表内、`company` 不在：表单里的「学校」按实测绝大多数是毕业院校
+ * （属于经历，不是要填进对方系统的本人单位名），而「公司」在注册页与发票页要的正是单位名。
+ * 单位名的正向判定见 `ATTR_DICT` 的 org 档。
  */
 const NEG_TOKENS = new Set([
   'nickname',
@@ -138,7 +142,6 @@ const NEG_TOKENS = new Set([
   'major',
   'school',
   'college',
-  'company',
   'occupation',
   'position',
   'year',
@@ -155,11 +158,14 @@ const NEG_TOKENS = new Set([
 /**
  * `name` 词元的上下文噪声：`goods_name` / `hotelName` / `file_name` 是事物名不是人名。
  * 缺这一层会把「物品名称」判成「姓名」。
+ * `company` 也在表内，但它不是「到此为止」——`company_name` 剥掉裸 name 后要继续往下走，
+ * 由 org 档接住（单位名），所以这里的语义是「这个 name 不是人名」，不是「这个字段无用」。
  */
 const NAME_CONTEXT_NOISE = new Set([
   'goods',
   'product',
   'item',
+  'company',
   'file',
   'project',
   'brand',
@@ -188,6 +194,46 @@ const NAME_CONTEXT_NOISE = new Set([
 ]);
 
 /**
+ * 裸单位名词元的上下文噪声：`company_size` / `company_logo` 描述的是公司这件事，
+ * 不是「公司叫什么」——org 档只在该词元承担「名称」职责时才提示。
+ * 表内不放 `name` / `address`：`company_name` 要判单位名，`company_address` 由 address 档先接住。
+ */
+const ORG_CONTEXT_NOISE = new Set([
+  'size',
+  'scale',
+  'logo',
+  'icon',
+  'img',
+  'image',
+  'url',
+  'uri',
+  'link',
+  'website',
+  'site',
+  'web',
+  'industry',
+  'trade',
+  'field',
+  'desc',
+  'description',
+  'about',
+  'intro',
+  'contact',
+  'num',
+  'number',
+  'count',
+  'code',
+  'level',
+  'stage',
+  'status',
+  'tax',
+  'taxid',
+]);
+
+/** 需要「同生词元核查」的单位名词元：这三个短词在公司名之外还大量用于描述公司这件事 */
+const ORG_BARE_TOKENS = new Set(['company', 'corp', 'org']);
+
+/**
  * `name`/`id` 属性词元 → 角色。
  *
  * 词典内容与模拟跑批的 tier H 配置逐字一致，唯一差异是**不收录裸 `cardno`**：
@@ -198,11 +244,17 @@ const NAME_CONTEXT_NOISE = new Set([
  * 形态选 `[角色, 词元表]` 元组数组而不是 Record：`Object.entries` 会把键放宽成
  * `string`，遍历处只能靠 `as` 断言角色；写成元组后角色天然就是 `PiiRole`，
  * 且数组顺序即词典优先级（先到先得），与 Record 的键序语义相同但不依赖实现细节。
+ *
+ * 顺序上的两处真机教训（30 字段逐字段勘察）：
+ * - givenName / familyName 必须早于裸 `name`，否则 `first_name` 的 `name` 词元先赢，
+ *   「名 / 姓」两档在最常见的属性写法上永远够不到（label 档写对了也没用）；
+ * - org 排最后：`company_address` 这类带更具体角色的形状先被 address 接走，
+ *   单位名只收「除了公司词元没说别的」的字段。
  */
 const ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[] = [
-  ['name', ['name', 'realname', 'truename', 'fullname', 'personname']],
-  ['givenName', ['givenname', 'firstname', 'forename']],
+  ['givenName', ['givenname', 'firstname', 'forename', 'given']],
   ['familyName', ['familyname', 'lastname', 'surname']],
+  ['name', ['name', 'realname', 'truename', 'fullname', 'personname']],
   ['phone', ['phone', 'phonenumber', 'mobile', 'mobileno', 'cellphone', 'tel', 'telephone', 'msisdn', 'contactno']],
   ['email', ['email', 'emailaddress', 'mail', 'myemail']],
   ['address', ['address', 'addr', 'detailaddress', 'street', 'streetaddress', 'addressline', 'doorno']],
@@ -212,6 +264,7 @@ const ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[
   ['passport', ['passport', 'passportno', 'passno', 'travelcert', 'permitno']],
   ['birthday', ['birthday', 'birthdate', 'birth', 'bdate']],
   ['gender', ['gender', 'sex']],
+  ['org', ['company', 'companyname', 'corp', 'corpname', 'org', 'orgname', 'organization', 'organisation', 'employer']],
 ];
 
 /**
@@ -281,6 +334,10 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
  * 中文负向短语：这些框无论如何不该出身份提示。
  * 末段是「元信息 / 事物名」后缀——`地址标签`、`证件类型`、`房间数量`、`物品名称`
  * 在模拟跑批里分别被读成 address / idNumber / — / name，是误报的主要来源。
+ *
+ * 唯一的例外写在 {@link ORG_NOUNS_ZH} 上：裸「名称」同时是「物品名称」（事物名，必须挡）
+ * 和「单位名称」（本人供对方记录的组织名，应该提示）的后缀，按整串负向拦会把中文最常见
+ * 的单位名字段一起清零——真机勘察里 `单位名称` / `公司名称` 就是这样静默掉的。
  */
 const ZH_NEG = [
   '昵称',
@@ -310,6 +367,19 @@ const ZH_NEG = [
   '数量',
   '名称',
 ];
+
+/**
+ * 「名称」负向例外的触发词：同一段文本里出现这些组织名词时，「名称」问的是组织叫什么。
+ * 刻意不含 `学校` / `院校`——表单里的院校绝大多数是毕业院校（经历），不是本人供对方登记的单位。
+ */
+const ORG_NOUNS_ZH = ['单位', '公司', '企业', '组织', '机构', '团体'];
+
+/** 「名称」是带歧义的负向短语：只有整段文本没提组织时才按事物名拦掉 */
+function isZhNegative(phrase: string, zhHint: string): boolean {
+  if (!zhHint.includes(phrase)) return false;
+  if (phrase === '名称') return !ORG_NOUNS_ZH.some(noun => zhHint.includes(noun));
+  return true;
+}
 
 /**
  * 英文短语词典。扩展本身中英双语，只写中文词典等于英文站点全漏——
@@ -591,7 +661,7 @@ export function classifyPiiRaw(el: Element): PiiRawClassification {
   }
 
   // 3) 负向短语（早于任何正向判定，否则「用户名 / Display name」会被 name 抢走）
-  const zhNegHit = ZH_NEG.find(phrase => zhHint.includes(phrase));
+  const zhNegHit = ZH_NEG.find(phrase => isZhNegative(phrase, zhHint));
   if (zhNegHit) return { ...base, role: null, tier: null, suppress: 'negative', evidence: `zh-neg:${zhNegHit}` };
   const enNegHit = EN_NEG.find(phrase => enHint.includes(phrase));
   if (enNegHit) return { ...base, role: null, tier: null, suppress: 'negative', evidence: `en-neg:${enNegHit}` };
@@ -608,10 +678,15 @@ export function classifyPiiRaw(el: Element): PiiRawClassification {
 
   for (const [role, words] of ATTR_DICT) {
     const isBareName = role === 'name';
+    const isBareOrg = role === 'org';
     for (const token of tokens) {
       if (words.includes(token)) {
         // 「name」词元必须先看同生词元：goods_name / hotelName 是事物名不是人名
         if (isBareName && token === 'name' && tokens.some(t => t !== 'name' && NAME_CONTEXT_NOISE.has(t))) continue;
+        // 「company」这类裸单位词同理要看同生词元：company_size / company_logo 是元信息不是单位名
+        if (isBareOrg && ORG_BARE_TOKENS.has(token) && tokens.some(t => t !== token && ORG_CONTEXT_NOISE.has(t))) {
+          continue;
+        }
         return { ...base, role, tier: 'attr', suppress: null, evidence: token };
       }
       // 组合词元：realname / receivername —— 剥掉已知修饰再比
