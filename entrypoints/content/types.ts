@@ -13,7 +13,7 @@ import type { FillStrategy, SaveRiskHint, SaveTargetNote } from '@/utils/types';
 export interface InputFillResult {
   /** 是否成功填充 */
   filled: boolean;
-  /** 填充值是否与预期一致 */
+  /** 填充值是否在写后复检窗口结束时仍与预期一致（站点脚本稍后改写或清空则判 false） */
   verified: boolean;
   /** 使用的填充策略 */
   strategy: FillStrategy;
