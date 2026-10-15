@@ -284,8 +284,24 @@ export const LOGIN_CONTAINER_KEYWORDS = [
 /** 弹窗/模态框相关关键词 */
 export const POPUP_KEYWORDS = ['modal', 'popup', 'dialog', 'drawer', 'overlay', '弹窗', '对话框', '模态'] as const;
 
-/** 手机号相关关键词 */
-export const MOBILE_KEYWORDS = ['phone', 'mobile', 'tel', 'cell', '手机', '电话', '号码'] as const;
+/**
+ * 手机号相关关键词（子串匹配档）
+ *
+ * 这几个词足够独特，`hotel` / `teller` 之类不会顺带命中，因此继续用子串匹配；
+ * 短歧义词 `tel` / `cell` 已移到 `MOBILE_KEYWORDS_WHOLE_WORD`。
+ */
+export const MOBILE_KEYWORDS = ['phone', 'mobile', '手机', '电话', '号码'] as const;
+
+/**
+ * 手机号相关关键词（整词匹配档）
+ *
+ * 子串匹配这两个短词会把 `name="hotel"`、`id="teller"` 判成手机号框，而
+ * `MOBILE_SELECTORS` 从来没收过裸 `*=tel` / `*=cell`——判据比选择器还宽，
+ * 于是「酒店名」输入框有机会进手机号语义，进而在账号候选排序里抢下手机号那条值。
+ * 整词匹配 + 容忍尾随数字（`tel1` / `tel2` 是拆号页标主备电话的常见写法）后与选择器同宽：
+ * `tel-national`、`cell phone`、`telCountryCode` 仍然命中，`hotel` 不再命中。
+ */
+export const MOBILE_KEYWORDS_WHOLE_WORD = ['tel', 'cell'] as const;
 
 /** 邮箱语义关键词（与 `USERNAME_SELECTORS` 里那组 email 属性选择器同一词表口径） */
 export const EMAIL_FIELD_KEYWORDS = ['email', 'e-mail', '邮箱', '电子邮箱', '邮件'] as const;
@@ -331,24 +347,31 @@ export function looksLikeCodeField(input: HTMLInputElement): boolean {
  * @param input - 待判定的输入框
  */
 export function looksLikePhoneField(input: HTMLInputElement): boolean {
-  const name = (input.name || '').toLowerCase();
-  const id = (input.id || '').toLowerCase();
-  const placeholder = (input.placeholder || '').toLowerCase();
-  const ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
-  const type = input.type.toLowerCase();
-  const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase();
-
-  const textToCheck = `${name} ${id} ${placeholder} ${ariaLabel} ${autocomplete}`;
-
-  if (type === 'tel') {
+  if (input.type.toLowerCase() === 'tel') {
     return true;
   }
 
+  const autocomplete = (input.getAttribute('autocomplete') || '').toLowerCase();
   if (autocomplete.includes('tel') || autocomplete.includes('phone') || autocomplete.includes('mobile')) {
     return true;
   }
 
-  return MOBILE_KEYWORDS.some(keyword => textToCheck.includes(keyword));
+  // 驼峰先切成词，否则 telCountryCode / cellPhone 里的短词没有分隔符可依，整词判据会漏。
+  // autocomplete 不进这段文本：它是枚举值，上面那条分支已经按同样的三个词判过。
+  const rawText = `${input.name || ''} ${input.id || ''} ${input.placeholder || ''} ${
+    input.getAttribute('aria-label') || ''
+  }`;
+  const textToCheck = rawText.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase();
+
+  if (MOBILE_KEYWORDS.some(keyword => textToCheck.includes(keyword))) {
+    return true;
+  }
+
+  // 整词档容忍尾随数字：tel1 / tel2 是表单里标「主用 / 备用电话」的常见写法
+  const words = textToCheck.split(/[^a-z0-9]+/);
+  return MOBILE_KEYWORDS_WHOLE_WORD.some(keyword =>
+    words.some(word => word === keyword || word.replace(/\d+$/, '') === keyword),
+  );
 }
 
 /**

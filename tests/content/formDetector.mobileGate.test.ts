@@ -160,6 +160,18 @@ describe('手机号登录页的就绪门与账号回退', () => {
       expect(ready()).toBe(false);
     });
 
+    it('名字里含 tel 子串的酒店名框不算手机号字段', async () => {
+      // 手机号语义判据曾按子串匹配 `tel`，于是 `name="hotel"` 在点击时会被读成手机号输入框，
+      // 而「手机号 + 登录按钮」那一档自动弹出判定正是从 getFieldType 起步的
+      buildDom(`<input id="hotel" type="text" name="hotel">`);
+      installChromeMock(makeConfig());
+      detector = await createDetector();
+
+      expect(bucketSizes()).toEqual({ username: 0, password: 0, mobile: 0, verifyCode: 0 });
+      const hotel = document.getElementById('hotel') as HTMLInputElement;
+      expect((detector as any).getFieldType(hotel)).toBeNull();
+    });
+
     it('只有验证码框：不就绪，该场景由两步接力胶囊负责', async () => {
       buildDom(`<input id="code" type="text" name="smsCode">`);
       installChromeMock(makeConfig());

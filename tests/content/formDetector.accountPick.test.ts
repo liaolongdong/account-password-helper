@@ -353,5 +353,19 @@ describe('账号桶内的取值顺序', () => {
       expect(looksLikePhoneField(makeInput({ type: 'text', placeholder: '请输入手机号' }))).toBe(true);
       expect(looksLikePhoneField(makeInput({ type: 'text', name: 'username' }))).toBe(false);
     });
+
+    it('tel / cell 按整词判：hotel 不再冒充手机号，telephone 这类复合词不因此掉出去', () => {
+      // 子串匹配 `tel` 曾把酒店名、柜员号读成手机号语义，而 MOBILE_SELECTORS 从来没收过裸 *=tel
+      expect(looksLikePhoneField(makeInput({ type: 'text', name: 'hotel' }))).toBe(false);
+      expect(looksLikePhoneField(makeInput({ type: 'text', id: 'teller' }))).toBe(false);
+      expect(looksLikePhoneField(makeInput({ type: 'text', placeholder: 'Hotel name' }))).toBe(false);
+      // phone / mobile 仍走子串档
+      expect(looksLikePhoneField(makeInput({ type: 'text', name: 'telephone' }))).toBe(true);
+      // 整词档要认出连字符、下划线、驼峰与尾随数字这几种真实写法
+      expect(looksLikePhoneField(makeInput({ type: 'text', name: 'tel_country' }))).toBe(true);
+      expect(looksLikePhoneField(makeInput({ type: 'text', name: 'telCountryCode' }))).toBe(true);
+      expect(looksLikePhoneField(makeInput({ type: 'text', name: 'tel1' }))).toBe(true);
+      expect(looksLikePhoneField(makeInput({ type: 'text', placeholder: 'Cell phone' }))).toBe(true);
+    });
   });
 });
