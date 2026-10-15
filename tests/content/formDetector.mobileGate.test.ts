@@ -239,6 +239,41 @@ describe('手机号登录页的就绪门与账号回退', () => {
       expect(writes).toEqual([{ id: 'user', value: 'u-name' }]);
     });
 
+    it('拆号页把账号写进完整手机号框，而非排在前面的国家码 / 区号子框', async () => {
+      // 国家码子框 autocomplete=tel-country-code 会被 MOBILE_SELECTORS 收进 mobileFields，
+      // 且排在完整手机号框前面——旧逻辑取首个可见 tel 会把整串号塞进 3 位的国家码框并谎报成功
+      buildDom(`
+        <input id="cc" type="tel" autocomplete="tel-country-code" name="countryCode">
+        <input id="tel" type="tel" autocomplete="tel-national" name="mobile">
+        <input id="code" type="text" name="smsCode">
+      `);
+      installChromeMock(makeConfig());
+      detector = await createDetector();
+      spyWrites();
+
+      const result = await (detector as any).fillPasswordWithResult({ username: '13800000000' });
+
+      expect(writes).toEqual([{ id: 'tel', value: '13800000000' }]);
+      expect(result.success).toBe(true);
+    });
+
+    it('只剩号码子框时不回退填充，宁可提示也不写进明显错误的短框', async () => {
+      // 页面里唯一的 tel 是国家码子框：就绪门仍成立（mobile + 验证码并存），但回退找不到
+      // 可承载完整手机号的目标，必须返回未填充失败，而不是把整串号塞进 3 位子框报成功
+      buildDom(`
+        <input id="cc" type="tel" autocomplete="tel-country-code" name="countryCode">
+        <input id="code" type="text" name="smsCode">
+      `);
+      installChromeMock(makeConfig());
+      detector = await createDetector();
+      spyWrites();
+
+      const result = await (detector as any).fillPasswordWithResult({ username: '13800000000' });
+
+      expect(writes).toEqual([]);
+      expect(result.success).toBe(false);
+    });
+
     it('纯验证码页的失败仍带回 no_form，就地引导的前提不变', async () => {
       buildDom(`<input id="tel" type="tel" name="mobile">`);
       // 关掉穿透总闸，避免失败分支去动态加载引导气泡——本用例只钉判定与失败原因

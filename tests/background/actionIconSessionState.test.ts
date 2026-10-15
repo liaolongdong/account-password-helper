@@ -139,3 +139,37 @@ describe('档位去重与失败重试', () => {
     expect(setIcon).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('在途档位切换的收敛（异步竞态）', () => {
+  /** 冲排微任务，让单飞循环在 setIcon 兑现后继续比对下一档 */
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
+  };
+
+  it('在途 setIcon 完成期间到达的更晚档位不会被旧完成覆盖', async () => {
+    // 第一次 setIcon 挂起，模拟 chrome.action.setIcon 在途、完成顺序晚于后续请求
+    let releaseFirst!: () => void;
+    setIcon.mockImplementationOnce(
+      () =>
+        new Promise<void>(resolve => {
+          releaseFirst = resolve;
+        }),
+    );
+
+    // 请求 unlocked：drain 同步发起第一次 setIcon 后挂在 await 上
+    mod.setActionIconState('unlocked');
+    expect(setIcon).toHaveBeenCalledTimes(1);
+    expect(pathOfCall(0)).toEqual(UNLOCKED_PATH);
+
+    // 在途期间到达更晚的 locked：单飞循环仍在跑，只更新期望档位，不立即重绘
+    mod.setActionIconState('locked');
+    await flush();
+    expect(setIcon).toHaveBeenCalledTimes(1);
+
+    // 释放第一次（unlocked 完成）→ 循环发现期望 locked ≠ 已应用 unlocked，补写 locked
+    releaseFirst();
+    await flush();
+    expect(setIcon).toHaveBeenCalledTimes(2);
+    expect(pathOfCall(1)).toEqual(LOCKED_PATH);
+  });
+});

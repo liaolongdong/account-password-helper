@@ -664,6 +664,15 @@ const scrollToActiveItem = () => {
 };
 
 /**
+ * 每个条目最近一次收藏操作的代际号
+ *
+ * 连续快速切换收藏时，早先请求可能晚于后续请求失败返回；若其回滚无条件写回发起时的旧值，
+ * 会覆盖更晚一次已完成操作的状态与 favoriteUsedAt。用「最新代际」守卫回滚：只有仍是该条目
+ * 最新一次操作的失败才回滚，迟到的旧失败静默忽略（持久化真值以 SW 单写队列为准）。
+ */
+const favoriteOpSeq = new Map<string, number>();
+
+/**
  * 切换收藏状态（支持 LRU 淘汰：收藏数达上限时自动替换最近最少使用的收藏条目）
  *
  * 持久化与填充路径对称：经 UPDATE_PASSWORD_METADATA 委托 SW 上下文的防抖队列落盘，
@@ -677,8 +686,11 @@ const toggleFavorite = async (password: PasswordEntry) => {
     // 乐观更新前的原值：委托写入失败时据此回滚，否则星标停在已翻转态、刷新后又"复活"
     const prevFavorite = entry?.favorite ?? false;
     const prevFavoriteUsedAt = entry?.favoriteUsedAt;
+    // 本次操作的代际：晚到的旧请求失败时据此判定是否仍是最新操作，避免覆盖更晚的新状态
+    const seq = (favoriteOpSeq.get(password.id) ?? 0) + 1;
+    favoriteOpSeq.set(password.id, seq);
     const restoreFavorite = () => {
-      if (!entry) return;
+      if (!entry || favoriteOpSeq.get(password.id) !== seq) return;
       entry.favorite = prevFavorite;
       entry.favoriteUsedAt = prevFavoriteUsedAt;
     };

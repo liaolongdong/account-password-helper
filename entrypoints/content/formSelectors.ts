@@ -136,6 +136,29 @@ export const MOBILE_SELECTORS = [
   'input[autocomplete="off"][id*="mobile"]',
 ] as const;
 
+/**
+ * 电话号码「子字段」的 autocomplete 取值
+ *
+ * 这些字段会被 `MOBILE_SELECTORS` 一并收进 `mobileFields`，但它们是「整号被拆成几段」里的
+ * 短段（国家码 / 区号 / 分机），把完整手机号写进 3～4 位的区号框既填不下也是错的。
+ * 手机号 + 短信码登录页回退填账号时必须排除。
+ */
+export const PHONE_EXTENSION_AUTOCOMPLETE = ['tel-country-code', 'tel-area-code', 'tel-extension'] as const;
+
+/**
+ * 判断一个输入是否为国家码 / 区号 / 分机等电话号码子字段
+ *
+ * 只认显式的 `autocomplete` 取值，不做 name/id 猜测——避免把「手机号」主框误判成子字段而漏填。
+ *
+ * @param input - 待判定的输入框
+ * @returns 是否为应被排除的号码子字段
+ */
+export function isPhoneExtensionField(input: HTMLInputElement): boolean {
+  const autocomplete = input.getAttribute('autocomplete');
+  if (!autocomplete) return false;
+  return (PHONE_EXTENSION_AUTOCOMPLETE as readonly string[]).includes(autocomplete.trim().toLowerCase());
+}
+
 /** 验证码字段选择器 */
 export const VERIFY_CODE_SELECTORS = [
   'input[type="text"][name*="code"]',

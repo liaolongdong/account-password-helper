@@ -38,27 +38,47 @@ const ICON_PATHS: Record<ActionIconState, Record<string, string>> = {
 };
 
 /**
- * 上一次已应用的档位
+ * 上一次已成功应用的档位
  *
- * 仅作去重，避免同一档位被反复 `setIcon`（storage 变更事件可能成批到达）。它不是事实来源：
+ * 仅作去重下限，避免同一档位被反复 `setIcon`（storage 变更事件可能成批到达）。它不是事实来源：
  * SW 重启后归零，下一次 `refreshActionIcon` 必然重新应用一次，因此不存在「内存镜像与工具栏
  * 长期不一致」的窗口。
  */
 let _appliedState: ActionIconState | null = null;
 
+/** 最新一次请求的目标档位（可能在途），完成当前 `setIcon` 后以此为准收敛 */
+let _desiredState: ActionIconState | null = null;
+
+/** 是否有一次收敛循环正在跑，避免并发 `drain` 交错导致旧档位覆盖新档位 */
+let _draining = false;
+
 /**
- * 应用档位图标
+ * 把工具栏收敛到最新期望档位
  *
- * 失败只记日志、不抛出：工具栏外观属于「锦上添花」，绝不能让一次 `setIcon` 失败
- * （如扩展刚被重载、上下文失效）冒泡成锁定 / 解锁链路上的异常。
+ * 用「最新期望状态 + 单飞循环」取代「读一次即写」：`setIcon` 在途时若又来了新的档位请求，
+ * 只更新 `_desiredState`，当前这次写完成后循环会再比对一次并补写，确保最终停在**最后一次**
+ * 请求的档位上，而不是被在途操作的完成顺序带回旧状态（快速锁定 / 解锁交错时的错相根因）。
+ *
+ * 失败只记日志、不抛出、且中断本轮循环：工具栏外观属于「锦上添花」，绝不能让一次 `setIcon`
+ * 失败（如扩展刚被重载、上下文失效）冒泡成锁定 / 解锁链路上的异常；`_appliedState` 只在成功时
+ * 置位，下一次刷新会自然重试。
  */
-async function applyState(state: ActionIconState): Promise<void> {
-  if (_appliedState === state) return;
+async function drainActionIcon(): Promise<void> {
+  if (_draining) return;
+  _draining = true;
   try {
-    await chrome.action.setIcon({ path: ICON_PATHS[state] });
-    _appliedState = state;
-  } catch (error) {
-    logger.warn('Background: 工具栏图标状态更新失败:', error);
+    while (_desiredState !== null && _desiredState !== _appliedState) {
+      const next = _desiredState;
+      try {
+        await chrome.action.setIcon({ path: ICON_PATHS[next] });
+        _appliedState = next;
+      } catch (error) {
+        logger.warn('Background: 工具栏图标状态更新失败:', error);
+        break;
+      }
+    }
+  } finally {
+    _draining = false;
   }
 }
 
@@ -69,7 +89,8 @@ async function applyState(state: ActionIconState): Promise<void> {
  * 省掉一次存储读取。
  */
 export function setActionIconState(state: ActionIconState): void {
-  void applyState(state);
+  _desiredState = state;
+  void drainActionIcon();
 }
 
 /**
@@ -81,5 +102,6 @@ export function setActionIconState(state: ActionIconState): void {
  */
 export async function refreshActionIcon(): Promise<void> {
   const valid = await isSessionValid({ skipConsistencyCheck: true });
-  await applyState(valid ? 'unlocked' : 'locked');
+  _desiredState = valid ? 'unlocked' : 'locked';
+  await drainActionIcon();
 }

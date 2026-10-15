@@ -252,6 +252,26 @@ describe('填充成功回执的接线', () => {
     expect(ack.mock.calls[0]![0]).toBe(totp);
   });
 
+  it('动态码写入成功但未核验时按 unverified 档回执，与账号密码填充同一语义', async () => {
+    buildLoginDom();
+    installChromeMock(makeConfig());
+    detector = await createDetector();
+    const ack = vi.spyOn(detector as any, 'showFillAck').mockImplementation(() => {});
+    const totp = document.createElement('input');
+    totp.autocomplete = 'one-time-code';
+    document.body.appendChild(totp);
+    (detector as any).verifyCodeFields = [totp];
+    // 站点未登记 input 事件（回读校验失败）：动态码时效短，绝不能一律报「已填充」
+    stubWrites(detector, WRITTEN_UNVERIFIED);
+
+    const result = await (detector as any).fillTotpCode('123456');
+
+    expect(result.success).toBe(true);
+    expect(result.outcome).toBe('unverified');
+    expect(ack).toHaveBeenCalledTimes(1);
+    expect(ack.mock.calls[0]).toEqual([totp, 'unverified']);
+  });
+
   it('右键菜单填充成功后回执锚在被右键的那个框', async () => {
     buildLoginDom();
     installChromeMock(makeConfig());

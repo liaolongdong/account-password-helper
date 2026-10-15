@@ -15,6 +15,7 @@ import {
   USERNAME_SELECTORS,
   MOBILE_SELECTORS,
   VERIFY_CODE_SELECTORS,
+  isPhoneExtensionField,
   LOGIN_BUTTON_KEYWORDS,
   LOGIN_BUTTON_SELECTORS,
   MUTATION_LOGIN_KEYWORDS,
@@ -1405,6 +1406,28 @@ export class FormDetector {
   }
 
   /**
+   * 手机号 + 短信码登录页里，账号（手机号）应该落到哪个 tel 框
+   *
+   * 仅在「页面确实没有密码框」时由账号回退路径调用。`mobileFields` 里混着国家码 / 区号等
+   * 子字段，直接取首个可见项会把整串手机号写进 3～4 位的短框，因此这里加两道约束：
+   * ① 排除 `isPhoneExtensionField` 命中的号码子字段；
+   * ② 优先取与某个验证码字段同属一个 `<form>` 的 tel 框——这才是「手机号 + 短信码」的登录形状，
+   *    避开另一表单里「绑定手机号 / 短信找回」用途的 tel 输入。
+   * 无同表单项时退回首个非子字段 tel，兼容 tel 框未包裹在 `<form>` 内的页面；一个都不剩则返回
+   * null（宁可回退到「未填充并提示」，也不写进明显错误的短框）。
+   *
+   * @returns 应作为账号目标的手机号框，无合适字段时返回 null
+   */
+  private findMobileAccountField(): HTMLInputElement | null {
+    const candidates = this.mobileFields.filter(
+      input => input.isConnected && isElementVisible(input) && !isPhoneExtensionField(input),
+    );
+    if (candidates.length === 0) return null;
+    const verifyForms = new Set(this.verifyCodeFields.filter(field => field.isConnected).map(field => field.form));
+    return candidates.find(input => input.form !== null && verifyForms.has(input.form)) ?? candidates[0];
+  }
+
+  /**
    * 在页面内给出「填充已落地」的回执
    *
    * 侧边栏 / popup 在填充成功后会各自关闭，快捷键与右键菜单同样没有页面内提示，
@@ -1492,7 +1515,7 @@ export class FormDetector {
         // 此时页面里另一个 tel 输入框通常是「绑定手机号/短信找回」而非登录账号，写进去是错的。
         const usernameField =
           this.findFillableField(this.usernameFields) ??
-          (this.passwordFields.length === 0 ? this.findFillableField(this.mobileFields) : null);
+          (this.passwordFields.length === 0 ? this.findMobileAccountField() : null);
         if (usernameField) {
           result.details.usernameField.found = true;
           const fillResult = await this.inputFiller.setInputValueWithStrategies(usernameField, data.username);
@@ -1675,6 +1698,9 @@ export class FormDetector {
       result.success = fillResult.filled;
       result.details.strategy = fillResult.strategy;
       if (fillResult.filled) {
+        // 与账号密码填充同一语义：写入成功但站点未登记 input 事件（未回读校验）时降级为「请核对」，
+        // 动态码时效短、前端常受控更新，unverified 概率更高，不能一律报「已填充」误导用户。
+        result.outcome = fillResult.verified ? 'verified' : 'unverified';
         result.message = tl('cs.fd.totpFillSuccess');
       } else {
         result.reason = 'nothing_filled';
@@ -1682,7 +1708,7 @@ export class FormDetector {
       }
 
       if (result.success) {
-        this.showFillAck(field);
+        this.showFillAck(field, result.outcome);
         setTimeout(() => {
           this.hideSidePanel();
         }, 300);
