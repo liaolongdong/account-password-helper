@@ -13,6 +13,7 @@
   "fill.noTotpConfigured": "This entry has no 2FA configured",
   "fill.totpGenerateFailed": "Failed to generate the code, please check the secret",
   "fill.totpFillSuccess": "2FA code filled",
+  "fill.totpFillCheck": "2FA code filled, please verify",
   "fill.totpFillFailed": "Failed to fill the 2FA code, please refresh and retry",
   "fill.totpFillManual": "Failed to fill the 2FA code, please enter it manually",
   "fill.noTotpInput": "No 2FA code input detected on this page",

@@ -13,6 +13,7 @@
   "fill.noTotpConfigured": "该条目未配置两步验证",
   "fill.totpGenerateFailed": "生成验证码失败，请检查密钥",
   "fill.totpFillSuccess": "验证码填充成功",
+  "fill.totpFillCheck": "验证码已填充，请核对",
   "fill.totpFillFailed": "填充验证码失败，请刷新页面后重试",
   "fill.totpFillManual": "验证码填充失败，请手动输入",
   "fill.noTotpInput": "当前页面未检测到验证码输入框",

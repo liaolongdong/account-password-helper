@@ -452,7 +452,10 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
 
       const response = await fillTotpInAllFrames(tabId, frameIds, code);
       if (response && response.success) {
-        ElMessage.success(t('fill.totpFillSuccess'));
+        // 与账号密码填充同口径：write-after 复检未通过（outcome==='unverified'）时不再乐观
+        // 报「填充成功」，改为「已填充，请核对」。动态码时效极短，误报成功会让用户
+        // 在码过期后才发觉表单其实未填入，最不该给用户虚假确定感。
+        ElMessage.success(t(response.outcome === 'unverified' ? 'fill.totpFillCheck' : 'fill.totpFillSuccess'));
         await chrome.runtime.sendMessage({
           type: MessageType.HIDE_SIDEPANEL,
           data: { tabId },
