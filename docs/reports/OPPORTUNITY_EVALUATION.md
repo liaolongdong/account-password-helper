@@ -72,11 +72,40 @@
 > 仍成立，`FILL_MOBILE_CODE` 一条没动。判据表与回退边界由 `tests/content/formDetector.mobileGate.test.ts`
 > 9 例钉住（含「门只放宽到组合、不放宽到单字段」这一条的反例）。
 >
+> **覆盖面订正（2026-10-15，缺陷复查）——本节原来那句「README 中英那句…现在是」把本波的贡献说大了**
+>
+> 复查分类顺序才发现 `USERNAME_SELECTORS`（`formSelectors.ts:13-14,19-20,24,28-29,34`）与
+> `MOBILE_SELECTORS`（`:90-93,100-105,122,128,129-132`）大量重叠：`text` 型带 mobile/phone 的
+> name 与 id、`placeholder*="手机号" / "mobile" / "phone"`、`autocomplete="tel"` 两边都写，
+> 而 `FormDetector.ts:419-437` 是**先 username 后 mobile**、手机号那轮带 `!usernameFieldsSet` 排除。
+> 于是最常见的两种标记——`<input type="text" name="mobile">` 与
+> `<input type="tel" placeholder="请输入手机号">`——先落进账号桶，`mobileFields` 是空的。
+> 后果按分支说清：
+>
+> - **就绪门那半没换来新覆盖**：这些页面在 `7e94911` 之前就满足旧条件
+>   `usernameFields.length > 0`，本来就能填。`mobile && verifyCode` 那一支只在「命中 mobile
+>   选择器且没被 username 选择器抢走」的框上参与（如 `type="tel"` 配 `联系电话` 占位符、
+>   `autocomplete="mobile"`、`name="phoneNumber"` 的无 `type` 属性形态）。
+> - **账号回退同理**：`findMobileAccountField()` 挂在「账号桶为空」这个前提上，
+>   账号桶非空时它根本不跑，而这些页面的手机号框就在账号桶里。
+> - **值落点没错**：条目的 `username` 存的本来就是手机号，写进账号桶里那个手机号框是正确结果；
+>   `shouldShowSidePanel` 也有对应分支（:940 的 username+verifyCode+`isLikelyMobileInput`、
+>   :978 的 `hasUsernameFields && hasVerifyCodeFields && fieldType === 'verifyCode'`）。
+>   所以这一项是**桶归属失真**，不是「填不进去」，README 那句「兼容手机号 + 验证码场景」
+>   在本波之前对这两类标记就是成立的——本波真正补上的是上面那批 mobile-only 形状。
+>
+> 顺带记下这一重叠真正要修的地方（另笔处理，不在此文范围）：账号桶里同时存在
+> 「手机号语义框」与「用户名 / 邮箱语义框」时，`findFillableField(this.usernameFields)` 取的是
+> 文档顺序首个，账号值可能落进语义不对的那个框。修法是按值的形状在候选间排序，
+> **不是**把 mobile 判定排到 username 之前——那会让「手机号 + 密码」这一最常见形态的账号框
+> 离开账号桶，而回退分支被「页面存在密码框」这条刻意的前置挡着，结果是账号不填（回归）。
+>
 > **仍未做**：第 2 步的两个新增入口与 `fillMobileCode` 的响应形态（它那句无条件
 > `sendResponse({ success: true })` 属于「改了才好看」但会动消息契约，留在拍板上）；
 > §9 第一条的真实站点 tel-only 命中率抽样、e2e 真机填充。六场景首屏耗时**未重测**——
 > 本笔不新增模块、不改注入范围，回退分支只在账号桶为空时多跑一次数组扫描，
-> 这是结构论证不是实测值。README 中英那句「兼容手机号 + 验证码场景」在本笔之前是不成立的，现在是。
+> 这是结构论证不是实测值。README 中英那句「兼容手机号 + 验证码场景」对 `text` 型标记本来就成立，
+> 本波把它补到了 `mobileFields` 那条形状上（覆盖面订正见上一段，勿按字面理解成「以前完全填不了」）。
 
 ### F-2 按 URL 粒度匹配与保存：唯一「用户在主动要」的功能
 
