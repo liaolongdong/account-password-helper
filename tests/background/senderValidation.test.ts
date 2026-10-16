@@ -696,6 +696,57 @@ describe('OPEN_OPTIONS_AND_IDENTITY 角色收口（分发级）', () => {
     expect(result).toBe(true);
     expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, undefined);
   });
+
+  /**
+   * 搜索词那一半（A 方案：把用户已打好的本人姓名带进身份库做筛选）
+   *
+   * 收口口径必须与「到全库找」那条既有通道一字不差：同一个 `normalizeSearchKeyword`、
+   * 同一个 64 字上限。这里另加一条本页特有的形状要求——空白值不许留下 `keyword: ''` 这个键，
+   * 否则选项页会把「筛成空」和「不筛」读成同一件事。
+   */
+  it('合法角色 + 姓名搜索词一起转发，词本身按全库检索同一口径收口', () => {
+    const listener = setupAndCaptureListener();
+
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'idNumber', keyword: '  廖龙东  ' } },
+      contentSender('https://a.com/'),
+      vi.fn(),
+    );
+    expect(forwardedData()).toEqual({ role: 'idNumber', keyword: '廖龙东' });
+
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name', keyword: 'x'.repeat(300) } },
+      contentSender('https://a.com/'),
+      vi.fn(),
+    );
+    expect((forwardedData() as { keyword: string }).keyword).toHaveLength(MAX_SEARCH_KEYWORD_LENGTH);
+  });
+
+  it('搜索词非字符串 / 纯空白 / 缺失时只带角色，不写出空串键', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const bad of ['', '   ', 12345, { keyword: 'zs' }, ['zs'], null, undefined]) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name', keyword: bad } },
+        contentSender('https://a.com/'),
+        vi.fn(),
+      );
+      expect(forwardedData()).toEqual({ role: 'name' });
+    }
+  });
+
+  it('角色非法时整条降级，搜索词一并丢掉：畸形载荷不许只留一半穿透', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const badRole of ['cardNo', '姓名', 12345, undefined]) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: badRole, keyword: '廖龙东' } },
+        contentSender('https://a.com/'),
+        vi.fn(),
+      );
+      expect(forwardedData()).toBeUndefined();
+    }
+  });
 });
 
 describe('UI 指令的 sender 归属闸门（分发级）', () => {

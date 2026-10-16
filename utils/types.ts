@@ -211,9 +211,11 @@ export enum MessageType {
   /**
    * 跳转到密码管理页并自动打开身份库（内容脚本识别出个人信息字段后的召唤式提示）
    *
-   * 载荷只有 `utils/identity/hintRoles.ts` 里的角色枚举串，属内容脚本自报的不可信输入，
-   * 在后台边界统一收口（`normalizeIdentityHintRole`）；非法值按「未筛选」处理，
-   * 不会带出任何页面字段值或库内数据。
+   * 载荷是两个标签，都属内容脚本自报的不可信输入、都在后台边界统一收口：
+   * - `role`：`utils/identity/hintRoles.ts` 的角色枚举（`normalizeIdentityHintRole`），非法值按「未筛选」处理；
+   * - `keyword`（可选）：同一个表单里用户已打好的**本人姓名**（`normalizeSearchKeyword`，与「到全库找」
+   *   同一上限），只用于把身份库列表筛到那一个人。取值规则与边界见 `piiClassifier.selfNameValueNear`。
+   * 角色不合法时整条载荷都不转发，二者同一个降级口径；除此之外不带任何字段值或库内数据。
    */
   OPEN_OPTIONS_AND_IDENTITY = 'OPEN_OPTIONS_AND_IDENTITY',
   /**
@@ -353,7 +355,7 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_AND_SITE_RULES; data?: { domain: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH }
   | { type: MessageType.OPEN_OPTIONS_AND_SEARCH; data?: { keyword: string } }
-  | { type: MessageType.OPEN_OPTIONS_AND_IDENTITY; data?: { role: string } }
+  | { type: MessageType.OPEN_OPTIONS_AND_IDENTITY; data?: { role: string; keyword?: string } }
   | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }

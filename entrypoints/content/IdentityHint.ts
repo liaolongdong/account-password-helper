@@ -3,8 +3,10 @@
  *
  * 用户聚焦到一个「语义上属于个人信息」的字段时，在字段下方出现一枚轻量气泡，
  * 告诉用户「这个框要的是姓名 / 证件号 / 邮编」，并提供一个动作：打开管理页的身份库
- * （照旧过复验门槛）由用户自己取值。本模块**不填充、不取值、不比对库内数据**——
- * 页侧从未接触过密文与明文，跨入口只流动「角色」这一个枚举标签。
+ * （照旧过复验门槛）由用户自己取值。本模块**不填充、不比对库内数据**；跨入口流动的是
+ * 「角色」这一个枚举标签，外加一个可选的搜索词——同一个表单里用户已经打好的本人姓名，
+ * 且只在用户点下「从身份库选择」那一刻才读（判据与边界见 `piiClassifier.selfNameValueNear`）。
+ * 库内密文与明文始终不离开管理页。
  *
  * 为什么做成提示而不是自动填充：身份明文只在管理页文档内存在（见
  * `docs/ARCHITECTURE.md`「27. 身份信息库」），把它送进页面需要同时放宽存储边界、
@@ -27,6 +29,7 @@ import { onLiteLocaleChanged, tl } from '@/utils/i18n-lite';
 import { applyThemeTokensToHost, DEFAULT_THEME, getStoredTheme } from '@/utils/theme';
 import type { IdentityHintRole } from '@/utils/identity/hintRoles';
 import { attachHostEventIsolation } from './inlineDropdown/eventIsolation';
+import { selfNameValueNear } from './piiClassifier';
 
 let hostEl: HTMLElement | null = null;
 let shadowRoot: ShadowRoot | null = null;
@@ -237,8 +240,9 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
   pick.type = 'button';
   pick.className = 'aph-idh__btn aph-idh__btn--primary';
   pick.textContent = tl('cs.identity.hintPick');
+  // 搜索词在点击这一刻才取：聚焦期间不缓存任何字段值，明文的存活时间等于这一次消息的在途时间
   pick.addEventListener('click', () => {
-    openIdentityVault(role);
+    openIdentityVault(role, boundInput ? selfNameValueNear(boundInput) : '');
     hideIdentityHint();
   });
 
@@ -251,13 +255,15 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
 /**
  * 通知后台打开管理页身份库
  *
- * 载荷只有已收窄的角色枚举：不含字段值、不含页面 URL、不含任何库内数据。
+ * 出口只有两个标签：已收窄的角色枚举，加上一个可选的搜索词——后者是用户在**同一个表单里
+ * 已经打好的本人姓名**（取值规则见 `piiClassifier.selfNameValueNear`），只用来把身份库列表
+ * 筛到那一个人。不含其它字段值、不含页面 URL、不含任何库内数据，长度在后台与选项页各收口一次。
  * 扩展上下文失效（页面残留旧 content script）时静默降级，不打扰用户。
  */
-function openIdentityVault(role: IdentityHintRole): void {
+function openIdentityVault(role: IdentityHintRole, keyword: string): void {
   try {
     void chrome.runtime
-      .sendMessage({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role } })
+      .sendMessage({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: keyword ? { role, keyword } : { role } })
       .catch(err => logger.debug('IdentityHint: 打开身份库指令发送失败:', err));
   } catch (err) {
     logger.debug('IdentityHint: 扩展上下文不可用:', err);

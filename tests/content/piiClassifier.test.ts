@@ -69,6 +69,55 @@ describe('信号采集', () => {
     const el = inputOf('<label>姓 名<input name="xingming"></label>');
     expect(resolvePiiField(el)).toMatchObject({ role: 'name', tier: 'label' });
   });
+
+  /**
+   * Element Plus / Ant Design 那类「label 块与 content 块互为兄弟」的表单：input 不是 label 的
+   * 后代，`closest('label')` 拿不到；它的 id 是 `el-id-1-2` 这种合成串，属性档也没信号；
+   * 兄弟回退同样落空（input 是 `.el-input` 的独子）。三条路全断 = 证件号框**静默漏报**。
+   * 唯一还挂在页面上的线索是 `label for`，所以必须做反查。
+   */
+  it('label[for] 反查救回组件库形状：label 不是 input 的祖先时也能拿到标签', () => {
+    document.body.innerHTML = `
+      <div class="el-form-item">
+        <label class="el-form-item__label" for="el-id-1-2">证件号码</label>
+        <div class="el-form-item__content">
+          <div class="el-input"><input id="el-id-1-2" class="el-input__inner" type="text"></div>
+        </div>
+      </div>`;
+    const el = document.getElementById('el-id-1-2') as HTMLInputElement;
+    expect(collectPiiSignals(el).label).toBe('证件号码');
+    expect(resolvePiiField(el)).toMatchObject({ role: 'idNumber', tier: 'label' });
+  });
+
+  it('aria-labelledby 反查 id 列表：显式关联赢过恰好挨着的兄弟节点', () => {
+    document.body.innerHTML =
+      '<span id="lb-a">详细</span><span id="lb-b">地址</span><input id="f" aria-labelledby="lb-a lb-b">';
+    const el = document.getElementById('f') as HTMLInputElement;
+    expect(collectPiiSignals(el).label).toBe('详细 地址');
+    expect(resolvePiiField(el)).toMatchObject({ role: 'address', tier: 'label' });
+  });
+
+  it('显式关联排在兄弟文本回退之前：包着 input 的 label 赢过页面上另一枚 for 指向它的 label', () => {
+    document.body.innerHTML = '<label>手机<input id="c"></label><label for="c">单位名称</label>';
+    const el = document.getElementById('c') as HTMLInputElement;
+    expect(resolvePiiField(el)).toMatchObject({ role: 'phone', tier: 'label' });
+  });
+
+  /**
+   * 「联系方式」就是手机号框最常见的中文写法，ZH_DICT 的 phone 档里明确收了它——
+   * 但 `方式` 作为「元信息」负向短语排在正向词典之前，整串里只要出现「方式」就先被判负向，
+   * 于是 phone 档那条「联系方式」在这套顺序下**永远够不到**。
+   * 例外只开「联系」这一个词：`支付方式` / `配送方式` / `缴费方式` 描述的仍是「怎么填」，必须照旧挡掉。
+   */
+  it('「联系方式」不再被裸「方式」负向短语吃掉', () => {
+    const el = inputOf('<label>联系方式<input name="contact_way"></label>');
+    expect(resolvePiiField(el)).toMatchObject({ role: 'phone', tier: 'label' });
+  });
+
+  it.each(['支付方式', '配送方式'])('%s 仍按元信息挡掉：放行的只有「联系方式」这一种写法', text => {
+    const el = inputOf(`<label>${text}<input name="way"></label>`);
+    expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'negative' });
+  });
 });
 
 describe('结构性排除', () => {

@@ -654,17 +654,19 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
 /**
  * 从页面侧身份提示打开身份库
  *
- * 只带「角色」这一个枚举标签进来（后台已按闭集收窄，非法值即 `undefined`），
- * 因此这里能做的只有把弹窗的类别筛选预选到对应档，让用户少点一次；
+ * 进来的是两个标签（后台已按闭集与既有检索口径各收口一次，非法值即 `undefined`）：
+ * 角色把弹窗的类别筛选预选到对应档，搜索词预填检索框——后者取的是用户自己刚打在该页面
+ * 上的本人姓名，作用是让列表直接筛到那一个人，省掉「打开身份库再手打名字」。
  * 复验门槛与 palette 入口共用同一个 `openIdentityVaultWithVerify`，不新开旁路。
  *
- * 筛选在复验通过、弹窗确实要打开之后才写：取消复验时弹窗没出现，
- * 留下的筛选态会让下次正常打开身份库莫名少一批条目。
+ * 两者都只在复验通过、弹窗确实要打开之后才生效：取消复验时弹窗没出现，
+ * 留下的筛选/检索态会让下次正常打开身份库莫名少一批条目。
  *
  * @param role 已收窄的角色，缺失时按「不过滤」打开
+ * @param keyword 已收口的搜索词，缺失时不预填
  */
-const openIdentityVaultFromPage = (role?: IdentityHintRole): void => {
-  void openIdentityVaultWithVerify().then(passed => {
+const openIdentityVaultFromPage = (role?: IdentityHintRole, keyword?: string): void => {
+  void openIdentityVaultWithVerify(keyword).then(passed => {
     if (passed && role) identityVault.categoryFilter.value = identityCategoryForRole(role);
   });
 };

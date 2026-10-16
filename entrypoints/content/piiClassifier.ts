@@ -2,11 +2,15 @@
  * 页面个人信息（PII）字段分类器
  *
  * 定位：为「身份库召唤提示」提供**单字段**语义判定。本模块只做识别，不填充、不落盘、
- * 不发起任何网络请求，也不写任何日志。唯一的取值发生在最后一层——形状回推要读一次
+ * 不发起任何网络请求，也不写任何日志。判定链里的取值只发生在最后一层——形状回推要读一次
  * `input.value`，判的是「像不像证件号 / 手机号 / 邮箱」，命中时给出的 `evidence` 是形状码
  * 而不是原文；其余各层吃的都是属性、标签与 `autocomplete` 这些字段自报的元数据。
- * 调用方只取「语义角色 + 是否需复验」两个标签（见 `FormDetector.handleIdentityHintOnFocus`），
- * 密文与明文都不离开管理页（边界见 `docs/ARCHITECTURE.md`「27. 身份信息库」的「定位与独立性」）。
+ * 调用方只取「语义角色 + 是否需复验」两个标签（见 `FormDetector.handleIdentityHintOnFocus`）。
+ *
+ * 唯一的例外是 {@link selfNameValueNear}：它不在判定链上，是「点了『从身份库选择』之后，
+ * 顺手把用户已经打好的**本人姓名**当搜索词」这条已批准通道。边界由该函数的判据钉死
+ * （只取 `role === 'name'` 且 `ownership === 'self'` 的框、点击时才读、只进搜索框、不落盘不写日志），
+ * 除此之外密文与明文都不离开管理页（见 `docs/ARCHITECTURE.md`「27. 身份信息库」的「定位与独立性」）。
  *
  * 与既有登录桶的分工：`formSelectors.ts` 的 username/mobile/verifyCode 三桶按**子串**匹配
  * 认领登录字段，本模块刻意不复用那套判据——姓名/证件号词典若照抄子串会把 `username`
@@ -378,6 +382,10 @@ const ORG_NOUNS_ZH = ['单位', '公司', '企业', '组织', '机构', '团体'
 function isZhNegative(phrase: string, zhHint: string): boolean {
   if (!zhHint.includes(phrase)) return false;
   if (phrase === '名称') return !ORG_NOUNS_ZH.some(noun => zhHint.includes(noun));
+  // 「方式」的同一条歧义：`支付方式` / `配送方式` 问的是怎么填，但「联系方式」就是手机号框
+  // 最常见的中文写法——ZH_DICT 的 phone 档收了它，而负向短语排在正向词典之前，
+  // 不放这个例外那条词典项在这套顺序下永远够不到（真机漏报的一条，见其 JSDoc）。
+  if (phrase === '方式') return !zhHint.includes('联系');
   return true;
 }
 
@@ -533,6 +541,41 @@ const isLabelish = (n: Node): boolean =>
  */
 const withinLabelBudget = (text: string): boolean => text.length <= (/[\u4e00-\u9fa5]/.test(text) ? 20 : 60);
 
+/**
+ * 显式关联反查：`label for` 与 `aria-labelledby`。
+ *
+ * 这两条是页面上「哪个标签属于这个框」唯一被写死的答案，优先级必须排在兄弟文本回退之前：
+ * 回退靠的是 DOM 邻居这种弱线索，而组件库（Element Plus / Ant Design 那类把 label 与
+ * content 渲染成兄弟块的结构）会让所有弱线索同时落空——input 不是 label 的后代、
+ * 没有前兄弟、id 是 `el-id-1-2` 这种合成串，于是字段静默漏报，用户在表单里看不到提示。
+ *
+ * 只读文本、不读值；`htmlFor` 取的是 DOM 属性，无需对 id 做选择器转义。
+ */
+function labelFromAssociation(el: Element): string {
+  const id = el.getAttribute('id');
+  if (id) {
+    const labels = Array.from(document.querySelectorAll('label'));
+    for (const label of labels) {
+      if (label.htmlFor !== id) continue;
+      const text = (label.textContent ?? '').trim();
+      if (text) return text;
+      break;
+    }
+  }
+
+  const labelledBy = el.getAttribute('aria-labelledby');
+  if (labelledBy) {
+    const texts = labelledBy
+      .split(/\s+/)
+      .map(refId => document.getElementById(refId)?.textContent?.trim() ?? '')
+      .filter(Boolean)
+      .slice(0, 3);
+    if (texts.length) return texts.join(' ');
+  }
+
+  return '';
+}
+
 /** 逐字段采集信号，含裸 input 的兄弟文本回退（12306 那种 `姓名：<input>` 形状）与表格 `th` */
 export function collectPiiSignals(el: Element): PiiSignals {
   const input = el as HTMLInputElement;
@@ -548,6 +591,7 @@ export function collectPiiSignals(el: Element): PiiSignals {
     const nearestLabel = node.closest('label');
     if (nearestLabel) label = (nearestLabel.textContent ?? '').trim();
   }
+  if (!label) label = labelFromAssociation(el);
   if (!label) {
     let sib: ChildNode | null = el.previousSibling;
     let hops = 0;
@@ -798,4 +842,44 @@ export function resolvePiiField(el: Element): PiiVerdict {
     suppress: null,
     evidence: raw.evidence,
   };
+}
+
+/** {@link selfNameValueNear} 一次扫描的控件上限：长注册表单里点一次不该退化成全表扫描 */
+export const NAME_KEYWORD_SCAN_LIMIT = 80;
+
+/**
+ * 就近取一个「本人姓名」框的当前值，供身份库弹窗做搜索词
+ *
+ * 用户在表单里先打好的姓名是「这一份身份是谁」最强的现场证据，把它带进身份库当筛选词，
+ * 点「从身份库选择」时看到的就是那一个人的条目，少一次手工检索。这是本功能**唯一**一条
+ * 明文离开页面的通道，四条边界把它压在「只是搜索词」这个量级上：
+ *
+ * 1. 候选只认 `role === 'name'` 且 `ownership === 'self'`——`confirm`（收货人可能是家属）是歧义、
+ *    `other`（紧急联系人一定是别人）在 {@link resolvePiiField} 里已被整条压制，两者都不许反过来
+ *    决定库里该显示谁；`password` / `hidden` 这类结构性排除的框拿不到角色，遮蔽值物理上读不到。
+ * 2. 只在用户点击那一刻调用（见 `IdentityHint`），聚焦时不缓存取值，明文不额外延长存活时间。
+ * 3. 作用域是所在 `<form>`，无 form 时退到整页；控件数封顶 {@link NAME_KEYWORD_SCAN_LIMIT}。
+ *    不做可见性判断：那要给每个候选框读一次布局（点击路径上的强制回流），而一个 CSS 隐藏的
+ *    姓名框最坏也只是让搜索框多一个看得懂、一键可清的条件词——它不参与填充、不参与解密。
+ * 4. 取值后交给 `normalizeSearchKeyword`（trim + 64 字上限）在后台与选项页各收口一次，
+ *    与既有「到全库找」那条关键词通道同一口径，不另立长度真源。
+ *
+ * 命中即返回：同一区块里若摆着「本人姓名 + 监护人姓名」，按文档顺序取第一个非空，
+ * 与用户的注视点一致（本人信息栏在前的表单是绝大多数）。
+ *
+ * @param el 用户当前聚焦的那个字段（气泡绑定的那一枚）
+ * @returns 姓名框的当前值（已 trim），没有合格候选时为空串
+ */
+export function selfNameValueNear(el: Element): string {
+  if (!el.isConnected) return '';
+  const scope = el.closest('form') ?? el.ownerDocument.body;
+  if (!scope) return '';
+  const controls = Array.from(scope.querySelectorAll('input, textarea, select')).slice(0, NAME_KEYWORD_SCAN_LIMIT);
+  for (const control of controls) {
+    const verdict = resolvePiiField(control);
+    if (verdict.role !== 'name' || verdict.ownership !== 'self') continue;
+    const value = (control as HTMLInputElement).value?.trim() ?? '';
+    if (value) return value;
+  }
+  return '';
 }

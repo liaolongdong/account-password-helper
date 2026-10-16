@@ -15,6 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp, h, ref, type Ref } from 'vue';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { MessageType, type PasswordEntry } from '@/utils/types';
+import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
 
 /** 捕获到的 runtime 消息监听器 */
 let registeredListener: ((message: unknown) => unknown) | undefined;
@@ -24,7 +25,7 @@ let passwords: Ref<PasswordEntry[]>;
 let isAuthenticated: Ref<boolean>;
 
 /** 以最小宿主组件挂载 composable，触发 onMounted 注册 */
-function mountHandler(openIdentityVault?: (role?: string) => void): () => void {
+function mountHandler(openIdentityVault?: (role?: string, keyword?: string) => void): () => void {
   passwords = ref<PasswordEntry[]>([]);
   isAuthenticated = ref(true);
   const app = createApp({
@@ -76,7 +77,7 @@ describe('OPEN_OPTIONS_AND_IDENTITY 分发', () => {
 
     registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'idNumber' } });
 
-    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledWith('idNumber'));
+    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledWith('idNumber', undefined));
     unmount();
   });
 
@@ -108,7 +109,7 @@ describe('OPEN_OPTIONS_AND_IDENTITY 分发', () => {
     expect(openIdentityVault).not.toHaveBeenCalled();
 
     isAuthenticated.value = true;
-    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledWith('name'));
+    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledWith('name', undefined));
     unmount();
   });
 
@@ -118,6 +119,57 @@ describe('OPEN_OPTIONS_AND_IDENTITY 分发', () => {
     expect(() =>
       registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name' } }),
     ).not.toThrow();
+    unmount();
+  });
+
+  /**
+   * 搜索词那一半（A 方案）：后台已收口一次，这里按「外部输入一律不可校验上游」再收一次，
+   * 且与角色同一个降级口径——角色不合法时整条不带，不许只把姓名透进搜索框。
+   */
+  it('合法角色带姓名时，两个标签一起交给回调（列表筛到那一个人）', async () => {
+    const openIdentityVault = vi.fn();
+    const unmount = mountHandler(openIdentityVault);
+
+    registeredListener?.({
+      type: MessageType.OPEN_OPTIONS_AND_IDENTITY,
+      data: { role: 'idNumber', keyword: '廖龙东' },
+    });
+
+    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledWith('idNumber', '廖龙东'));
+    unmount();
+  });
+
+  it('姓名超长时按既有上限截断，空白与非字符串一律当成没带', async () => {
+    const openIdentityVault = vi.fn();
+    const unmount = mountHandler(openIdentityVault);
+
+    registeredListener?.({
+      type: MessageType.OPEN_OPTIONS_AND_IDENTITY,
+      data: { role: 'name', keyword: 'k'.repeat(MAX_SEARCH_KEYWORD_LENGTH + 20) },
+    });
+    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledTimes(1));
+    expect(openIdentityVault.mock.calls[0][1]).toHaveLength(MAX_SEARCH_KEYWORD_LENGTH);
+
+    openIdentityVault.mockClear();
+    const badKeywords = ['', '   ', 12345, ['zs'], null, undefined];
+    for (const bad of badKeywords) {
+      registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name', keyword: bad } });
+    }
+    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledTimes(badKeywords.length));
+    for (const call of openIdentityVault.mock.calls) {
+      expect(call[1]).toBeUndefined();
+    }
+    unmount();
+  });
+
+  it('角色不合法时搜索词一并丢掉：降级成「不过滤、不预填」打开', async () => {
+    const openIdentityVault = vi.fn();
+    const unmount = mountHandler(openIdentityVault);
+
+    registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'cardNo', keyword: '廖龙东' } });
+
+    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledTimes(1));
+    expect(openIdentityVault.mock.calls[0]).toEqual([undefined, undefined]);
     unmount();
   });
 });

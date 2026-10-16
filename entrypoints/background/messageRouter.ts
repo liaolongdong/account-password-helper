@@ -567,13 +567,17 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.OPEN_OPTIONS_AND_IDENTITY: {
-        // 身份库召唤提示：角色由内容脚本自报，属不可信输入，按闭集枚举收口。
-        // 非法值降级为「不带筛选」打开——身份库本身有复验门槛，这里只决定初始筛选档位，
-        // 放行任意字符串既无收益也可能把页面文本带进选项页的检索框。
+        // 身份库召唤提示：角色与搜索词都由内容脚本自报，属不可信输入，在本边界统一收口。
+        // 角色按闭集枚举收口，非法值把整条载荷一起丢——不许只让搜索词那一半穿透到选项页。
+        // 词本身复用「到全库找」同一个 `normalizeSearchKeyword`（trim + 64 字上限），不另立长度真源；
+        // 空白值不写出 `keyword` 键，否则选项页会把「筛成空」和「不筛」读成同一件事。
+        // 词的内容可能是用户姓名，属 PII，故本分支不记任何取值。
         const role = normalizeIdentityHintRole((message.data as { role?: unknown } | undefined)?.role);
-        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_IDENTITY, role ? { role } : undefined).then(
-          sendResponse,
-        );
+        const keyword = normalizeSearchKeyword((message.data as { keyword?: unknown } | undefined)?.keyword);
+        openOptionsAndSendMessage(
+          MessageType.OPEN_OPTIONS_AND_IDENTITY,
+          role ? { role, ...(keyword ? { keyword } : {}) } : undefined,
+        ).then(sendResponse);
         return true;
       }
 

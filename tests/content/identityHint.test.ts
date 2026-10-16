@@ -5,8 +5,9 @@
  * 这个界面是「识别 + 提示 + 深链」形态里唯一会出现在页面里的一环，因此它同时背着
  * 三条必须可证的承诺，本文件按这三条组织用例：
  *
- * 1. **零明文跨界**。气泡的文本与 `sendMessage` 的载荷都不允许出现字段当前值、页面 URL
- *    或任何库内数据——出口只有一个已收窄的角色枚举。用 canary 值取证，比读代码可靠。
+ * 1. **跨入口只走两个标签**。气泡文本永远不允许出现字段当前值、页面 URL 或任何库内数据；
+ *    消息载荷里除已收窄的角色枚举外，只可能多一个「本人姓名」搜索词（取值规则见
+ *    `piiClassifier.selfNameValueNear` 的用例）。用 canary 值取证，比读代码可靠。
  * 2. **键盘与失焦出口**。Esc 收起（输入法合成期间让位）、焦点离开绑定字段即收起，
  *    且监听随收起回收，重复展示不累积（口径同 `promptKeyboardExit`）。
  * 3. **单例跟随**。同一字段同角色重复聚焦不重建（不然每按一次 Tab 就闪一下），
@@ -77,7 +78,7 @@ const trackAttachShadow = (): void => {
 /** 字段当前值的哨兵串：任何用户可见出口出现它都是越界 */
 const CANARY = 'Zhang-San-110101-Canary';
 
-/** 布一个待聚焦的字段并登记其几何（值只用于取证，被测代码不读它） */
+/** 布一个待聚焦的字段并登记其几何（值只用于取证：出现它的位置必须是可列举的那一处） */
 const makeField = (name: string, value = CANARY): HTMLInputElement => {
   const input = document.createElement('input');
   input.name = name;
@@ -170,9 +171,15 @@ describe('身份提示气泡', () => {
     });
   });
 
-  describe('零明文跨界', () => {
-    it('气泡文本与消息载荷都不含字段当前值，载荷只有角色', async () => {
-      show('idNumber', true);
+  describe('跨入口只走两个标签', () => {
+    it('气泡文本永不含字段当前值；没有本人姓名框可取时，载荷只有角色', async () => {
+      // beforeEach 那枚 `realName` 框会 legitimate 地成为搜索词，本条要测的是「无姓名框」，
+      // 所以现场只留一个证件号框——搜索词取不到，载荷必须退回只有角色那一档。
+      document.body.innerHTML = '';
+      const idEl = makeField('idNumber');
+      layout.setRect(idEl, { left: 100, top: 200, width: 240, height: 32 });
+
+      showIdentityHint(idEl, 'idNumber', true);
       const html = bubbleRoot()?.innerHTML ?? '';
       expect(html).not.toContain(CANARY);
 
@@ -187,6 +194,19 @@ describe('身份提示气泡', () => {
       await Promise.resolve();
     });
 
+    it('聚焦框自己就是本人姓名框：它的值走搜索词这一条通道，但气泡文本里没有它', () => {
+      // beforeEach 的 `field` 是 `realName` + CANARY 值。这条钉住新边界的形状：明文只从
+      // 「已判定为本人姓名」的框出发，且只进消息载荷，不进任何页面可见的文本。
+      show('name');
+      expect(bubbleRoot()?.querySelector('.aph-idh')?.textContent).not.toContain(CANARY);
+      (bubbleRoot()?.querySelector('.aph-idh__btn--primary') as HTMLElement).click();
+      const sendMessage = (globalThis as any).chrome.runtime.sendMessage as Mock;
+      expect(sendMessage.mock.calls[0][0]).toEqual({
+        type: MessageType.OPEN_OPTIONS_AND_IDENTITY,
+        data: { role: 'name', keyword: CANARY },
+      });
+    });
+
     it('收起按钮不发消息（「稍后再说」不该把用户甩到管理页）', () => {
       show('name');
       (bubbleRoot()?.querySelector('.aph-idh__btn--ghost') as HTMLElement).click();
@@ -199,6 +219,70 @@ describe('身份提示气泡', () => {
       expect(document.querySelectorAll(HOST_SELECTOR)).toHaveLength(1);
       expect(document.body.querySelectorAll('[data-aph]')).toHaveLength(0);
       expect(document.body.innerHTML).not.toContain('aph-idh');
+    });
+  });
+
+  describe('搜索词通道（点击时惰性取本人姓名）', () => {
+    /**
+     * 布一个「姓名 + 证件号」同表单字段组
+     *
+     * 证件号框固定带 CANARY：这条通道开的是「姓名框的值」，那么**别的框**的值就必须一处都不出现在
+     * 载荷里，CANARY 在这里就是那枚反证。姓名框的值由用例给定（含空串这一档）。
+     */
+    const pair = (nameValue: string): { nameEl: HTMLInputElement; idEl: HTMLInputElement } => {
+      const form = document.createElement('form');
+      document.body.appendChild(form);
+      const mk = (label: string, name: string, value: string): HTMLInputElement => {
+        const input = document.createElement('input');
+        input.name = name;
+        input.value = value;
+        const wrap = document.createElement('label');
+        wrap.textContent = label;
+        wrap.appendChild(input);
+        form.appendChild(wrap);
+        layout.setRect(input, { left: 100, top: 100, width: 240, height: 32 });
+        return input;
+      };
+      return { nameEl: mk('真实姓名', 'realname', nameValue), idEl: mk('证件号码', 'idNumber', CANARY) };
+    };
+
+    const sendMessage = (): Mock => (globalThis as any).chrome.runtime.sendMessage as Mock;
+
+    /** 点「从身份库选择」并回读那条消息 */
+    const clickPick = (): unknown => {
+      (bubbleRoot()?.querySelector('.aph-idh__btn--primary') as HTMLElement).click();
+      return sendMessage().mock.calls[0][0];
+    };
+
+    it('同表单里已填好的本人姓名，就是那条唯一出页面的搜索词', () => {
+      const { idEl } = pair('廖龙东');
+      showIdentityHint(idEl, 'idNumber', true);
+      expect(clickPick()).toEqual({
+        type: MessageType.OPEN_OPTIONS_AND_IDENTITY,
+        data: { role: 'idNumber', keyword: '廖龙东' },
+      });
+    });
+
+    it('姓名框还空着就不带 keyword 键：载荷退回「只有角色」那一档', () => {
+      const { idEl } = pair('');
+      showIdentityHint(idEl, 'idNumber', true);
+      expect(clickPick()).toEqual({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'idNumber' } });
+    });
+
+    it('证件号框自己的值哪儿也没去：CANARY 不在载荷里', () => {
+      const { idEl } = pair('廖龙东');
+      showIdentityHint(idEl, 'idNumber', true);
+      const json = JSON.stringify(clickPick());
+      expect(json, '字段值出现在了跨入口载荷里').not.toContain(CANARY);
+      expect(json).toContain('廖龙东');
+    });
+
+    it('取值发生在点击那一刻，不在气泡展示时（明文不多活一段时间）', () => {
+      const { nameEl, idEl } = pair('');
+      showIdentityHint(idEl, 'idNumber', true);
+      // 气泡已经在屏幕上，用户回头把姓名补上——搜索词必须是补完之后的那一串
+      nameEl.value = '廖龙东';
+      expect(clickPick()).toMatchObject({ data: { keyword: '廖龙东' } });
     });
   });
 
