@@ -118,6 +118,46 @@ export function placeholderOf(key: string): RegExp {
 /** 直接取某一侧的完整文案（需要精确断言文本内容时使用） */
 export function exactText(key: string, locale: (typeof LOCALES)[number] = 'zh-CN'): string {
   const value = loadLocale(locale)[key];
-  if (!value) throw new Error(`E2E 文案缺失：${locale} 下没有 key "${key}"`);
+  if (!value) throw new Error(`E2E 文案缺失：${locale} 下没有 key "${key}"（产品文案改名后请同步测试）`);
   return value;
+}
+
+const LITE_SOURCE = path.resolve(HERE, '..', 'utils', 'i18n-lite.ts');
+
+/**
+ * 读取 content / background 侧的轻量文案（`utils/i18n-lite.ts` 里的 `LITE_MESSAGES`）
+ *
+ * 上面那套只认 `utils/i18n/locales/*.json`，而页面注入式 UI（悬浮按钮、内联下拉、身份提示气泡）
+ * 走的是不含 Vue 响应式开销的第二套体系，两侧 key 各自独立维护。身份提示的气泡文本正是这一套，
+ * 因此它的断言必须从源码取词，而不是把中英文抄进测试里。
+ *
+ * 取源码而不是 import：`i18n-lite.ts` 的语言初值由 `chrome.i18n` 在运行时决定，测试进程里
+ * 拿到的是「当前这一侧」，而闭包里的中英两份才是真正的契约。
+ */
+function liteValues(key: string): string[] {
+  const source = fs.readFileSync(LITE_SOURCE, 'utf-8');
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const values = [...source.matchAll(new RegExp(`'${escaped}':\\s*'((?:[^'\\\\]|\\\\.)*)'`, 'g'))].map(m => m[1]);
+  if (!values.length) throw new Error(`E2E 轻量文案缺失：utils/i18n-lite.ts 里没有 key "${key}"`);
+  return [...new Set(values)];
+}
+
+/** 供文本包含类断言使用的中英并集正则（轻量文案侧） */
+export function liteTextOf(key: string): RegExp {
+  const alternatives = liteValues(key)
+    .map(value => stripPlaceholders(value))
+    .map(value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .filter(Boolean);
+  return new RegExp(alternatives.join('|'));
+}
+
+/**
+ * 完整文案逐字命中（不带占位符裁剪）
+ *
+ * 气泡里的角色词是模板 `{role}` 被替换后的那一段，砍前缀拿不到它；要断言「角色词真的被
+ * 填进去了」，只能按完整值匹配。同 key 的中英两份都算命中，语言由浏览器决定。
+ */
+export function liteExactText(key: string): RegExp {
+  const alternatives = liteValues(key).map(value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(alternatives.join('|'));
 }
