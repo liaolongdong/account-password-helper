@@ -71,6 +71,18 @@ export function hasSecretFields(payload: IdentityPayload): boolean {
   return (payload.customFields ?? []).some(field => field.secret && !!field.value);
 }
 
+/**
+ * 列表标题回退链：name ?? cardHolder ?? email ?? phone ?? 类别名
+ *
+ * 纯函数（`t` 形参注入），供列表 composable 与回收站弹窗共用同一口径——
+ * 两处各写一份回退链，会让「同一条目在列表和回收站里叫不同名字」成为静默缺陷。
+ */
+export function identityDisplayTitle(payload: IdentityPayload, t: Translate): string {
+  return (
+    payload.name || payload.cardHolder || payload.email || payload.phone || t(`identity.category.${payload.category}`)
+  );
+}
+
 /** 把条目展开为字段行（仅非空字段；自定义字段附在其后） */
 export function buildIdentityFieldRows(entry: IdentityEntry, t: Translate): IdentityFieldRow[] {
   const rows: IdentityFieldRow[] = [];

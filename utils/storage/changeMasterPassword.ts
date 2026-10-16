@@ -8,6 +8,7 @@ import { getAllPasswordsRaw } from './passwordCrud';
 import { getAllTrashRaw } from './trashManager';
 import { getAllHistoryRaw } from './passwordHistory';
 import { getAllIdentityRaw, reencryptAll } from './identityCrud';
+import { getAllIdentityTrashRaw } from './identityTrashManager';
 import { lazyImport } from '@/utils/lazyImport';
 import type { MasterPasswordConfig } from '@/utils/types';
 
@@ -58,12 +59,15 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   // 2. 派生旧数据密钥
   const oldKey = await enc.deriveEncryptionKey(oldPw);
 
-  // 3. 读取三块密文数据（身份库为第 4 个加密域，读取置于任何写入之前，
+  // 3. 读取三块密文数据（身份库主列表与身份回收站为第 4、5 个加密域，读取置于任何写入之前，
   //    故读取失败会在任何写入发生前中止整次 rekey）
   const rawPasswords = await getAllPasswordsRaw();
   const rawTrash = await getAllTrashRaw();
   const rawHistory = await getAllHistoryRaw();
   const identityRaw = await getAllIdentityRaw();
+  // 身份回收站必须同批纳入 rekey：漏掉它会让软删除条目在换钥后永久不可解、
+  // 更不可恢复（PII 唯一「可找回通道」被静默销毁），与主列表漏 rekey 同等致命
+  const identityTrashRaw = await getAllIdentityTrashRaw();
 
   // 4. 用旧密钥解密 passwords
   // 条目级并行（批内 64）：结果顺序与 rawPasswords 一致；单条解密失败仍按原样向上抛出，
@@ -129,6 +133,14 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   reEncryptedHistory.push(...unrecoverableHistory);
 
   const reEncryptedIdentity = await reencryptAll(identityRaw, oldKey, newKey);
+  // 回收站同走 reencryptAll（单条失败原样携带）；`reencryptAll` 成功分支会把记录
+  // 归一化为四个标准键，因此换钥后必须按输入顺序回填 `deletedAt`——TTL 与剩余天数
+  // 读数都读这个明文键，漏回填会让到期清理把换钥前的回收站条目当成永不到期的驻留数据。
+  const reEncryptedIdentityTrashRaw = await reencryptAll(identityTrashRaw, oldKey, newKey);
+  const reEncryptedIdentityTrash = reEncryptedIdentityTrashRaw.map((record, i) => ({
+    ...record,
+    deletedAt: identityTrashRaw[i].deletedAt,
+  }));
 
   // 9. 生成新的校验哈希（保留原 salt！）
   // 注意：deriveEncryptionKey 内部从 storage 读取 salt 来派生数据密钥，
@@ -156,6 +168,7 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
       [STORAGE_KEYS.TRASH]: reEncryptedTrash,
       [STORAGE_KEYS.PASSWORD_HISTORY]: reEncryptedHistory,
       [STORAGE_KEYS.IDENTITY]: reEncryptedIdentity,
+      [STORAGE_KEYS.IDENTITY_TRASH]: reEncryptedIdentityTrash,
       [STORAGE_KEYS.MASTER_PASSWORD]: {
         hashedPassword: newVerifierHash,
         salt: existingSalt,

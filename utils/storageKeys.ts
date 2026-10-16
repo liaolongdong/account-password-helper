@@ -55,6 +55,14 @@ export const STORAGE_KEYS = {
   PASSWORD_HISTORY_CONFIG: 'password_history_config',
   /** 身份信息库条目（个人信息收藏夹，整块加密存储） */
   IDENTITY: 'personal_identity_infos',
+  /**
+   * 身份信息库回收站（软删除，30 天 TTL 自动清理）
+   *
+   * 落盘形状 = `IdentityRecord` 四键 + `deletedAt`，密文原样搬移（与密码库 TRASH 同一口径）。
+   * 注意不能复用密码库的 `TRASH` 键：两侧条目形状不同，且 at-rest 安全网按
+   * `encrypted` 标志扫描密码形状，混入身份形状会被误判为明文残留。
+   */
+  IDENTITY_TRASH: 'personal_identity_infos_trash',
   /** 身份信息库列表排序档位（仅存枚举值，不含任何 PII，故明文单键） */
   IDENTITY_SORT_MODE: 'identity_sort_mode',
   /**

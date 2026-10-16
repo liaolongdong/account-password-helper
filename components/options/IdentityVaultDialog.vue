@@ -325,10 +325,22 @@
           >
             {{ t('identity.import.action') }}
           </el-button>
+          <el-button
+            :icon="Delete"
+            @click="trashVisible = true"
+          >
+            {{ trashButtonLabel }}
+          </el-button>
         </div>
         <el-button @click="$emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
       </div>
     </template>
+
+    <!-- 身份回收站（嵌套弹窗）：恢复/彻底删除/清空后经 changed 刷新主列表与计数 -->
+    <IdentityTrashDialog
+      v-model="trashVisible"
+      @changed="handleTrashChanged"
+    />
   </el-dialog>
 </template>
 
@@ -370,10 +382,13 @@ import {
 } from '@/utils/identity/backup';
 import type { IdentityBackupData } from '@/utils/identity/backup';
 import { replaceAllIdentity } from '@/utils/storage/identityCrud';
+import { getIdentityTrashCount } from '@/utils/storage/identityTrashManager';
+import { TRASH_RETENTION_DAYS } from '@/utils/storage/trashRetention';
 import { promptAndVerifyMasterPassword } from '@/utils/masterPasswordVerify';
 import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
 import SearchHighlight from '@/components/SearchHighlight.vue';
+import IdentityTrashDialog from '@/components/options/IdentityTrashDialog.vue';
 import type { IdentityVault } from '@/composables/useIdentityVault';
 
 /**
@@ -596,13 +611,14 @@ const handleCopyCard = (entry: IdentityEntry): Promise<void> =>
 /** 当前导出作用域：未勾选→全部；已勾选→所选子集 */
 const exportTargets = computed(() => resolveExportEntries(rows.value, selectedIds.value));
 
-/** 弹窗打开时加载数据，并行恢复落盘的排序档位（对标 TrashDialog 的 watch modelValue） */
+/** 弹窗打开时加载数据，并行恢复落盘的排序档位、拉取回收站计数（对标 TrashDialog 的 watch modelValue） */
 watch(
   () => props.modelValue,
   visible => {
     if (visible) {
       void load();
       void restoreSortMode();
+      void refreshTrashCount();
     }
   },
 );
@@ -618,16 +634,44 @@ const handleClosed = (): void => {
   resetDragState();
 };
 
-/** 删除条目（二次确认 + 明说不可恢复） */
+// ==================== 回收站 ====================
+
+/** 回收站弹窗显隐 */
+const trashVisible = ref(false);
+/** 回收站条目数（驱动入口按钮计数读数；读失败由数据层降级为 0，不打扰用户） */
+const trashCount = ref(0);
+
+/** 入口按钮文案：有条目时附计数，用户不必打开弹窗即可判断回收站是否有货 */
+const trashButtonLabel = computed(() =>
+  trashCount.value > 0 ? `${t('identity.trash.action')} (${trashCount.value})` : t('identity.trash.action'),
+);
+
+/** 刷新回收站计数 */
+const refreshTrashCount = async (): Promise<void> => {
+  trashCount.value = await getIdentityTrashCount();
+};
+
+/** 回收站内容变化（恢复/彻底删除/清空）后同步主列表与计数——恢复的新条目须立刻可见 */
+const handleTrashChanged = (): void => {
+  void load();
+  void refreshTrashCount();
+};
+
+/** 删除条目（二次确认；软删除移入回收站，保留期内可恢复） */
 const handleDelete = async (entry: IdentityEntry): Promise<void> => {
   try {
-    await ElMessageBox.confirm(t('identity.deleteConfirm'), t('identity.deleteConfirmTitle'), {
-      confirmButtonText: t('common.delete'),
-      cancelButtonText: t('common.cancel'),
-      type: 'warning',
-    });
+    await ElMessageBox.confirm(
+      t('identity.deleteConfirm', { days: TRASH_RETENTION_DAYS }),
+      t('identity.deleteConfirmTitle'),
+      {
+        confirmButtonText: t('common.delete'),
+        cancelButtonText: t('common.cancel'),
+        type: 'warning',
+      },
+    );
     await remove(entry.id);
-    ElMessage.success(t('identity.deleteSuccess'));
+    ElMessage.success(t('identity.deleteSuccess', { days: TRASH_RETENTION_DAYS }));
+    void refreshTrashCount();
   } catch (error) {
     if (error !== 'cancel') {
       logger.error('删除身份信息失败:', error);

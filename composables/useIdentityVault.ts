@@ -36,7 +36,7 @@ import {
   saveIdentitySortMode,
   updateIdentity,
 } from '@/utils/storage/identityCrud';
-import { IDENTITY_FIELD_DEFS, hasSecretFields } from '@/utils/identity/fields';
+import { IDENTITY_FIELD_DEFS, hasSecretFields, identityDisplayTitle } from '@/utils/identity/fields';
 import {
   MANUAL_ORDER_UNRANKED,
   applyManualMove,
@@ -475,10 +475,9 @@ export function useIdentityVault() {
     resetViewState();
   }
 
-  /** 列表标题回退链：name ?? cardHolder ?? email ?? phone ?? 类别名 */
+  /** 列表标题回退链：name ?? cardHolder ?? email ?? phone ?? 类别名（与回收站弹窗共用 identityDisplayTitle） */
   function displayTitle(entry: IdentityEntry): string {
-    const p = entry.payload;
-    return p.name || p.cardHolder || p.email || p.phone || t(`identity.category.${p.category}`);
+    return identityDisplayTitle(entry.payload, t);
   }
 
   /** 自动清除完成回调（与密码详情抽屉、编辑弹窗历史复制共用 useClipboardFeedback） */

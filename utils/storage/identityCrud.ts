@@ -26,6 +26,7 @@ import { generateId } from '@/utils/generateId';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
 import { getSessionDataKey } from './facades';
+import { moveIdentitiesToTrash } from './identityTrashManager';
 
 /**
  * 延迟加载加密模块（encryptData / decryptData / deriveEncryptionKey）
@@ -247,19 +248,15 @@ export async function updateIdentity(
 }
 
 /**
- * 硬删除身份条目（一期无回收站）
+ * 删除身份条目（软删除：移入回收站，30 天内可恢复）
  *
- * @param ids 待删除条目 ID 列表；不存在的 ID 静默忽略
+ * 命名保持不变（调用方零改动），语义由「硬删除」升级为与密码库同口径的软删除：
+ * 实际搬迁由 `identityTrashManager.moveIdentitiesToTrash` 原子双写完成。
+ *
+ * @param ids 待移入回收站的条目 ID 列表；不存在的 ID 静默忽略
  */
 export async function deleteIdentities(ids: string[]): Promise<void> {
-  try {
-    const records = await getAllIdentityRaw();
-    const remaining = records.filter(r => !ids.includes(r.id));
-    await chrome.storage.local.set({ [STORAGE_KEYS.IDENTITY]: remaining });
-  } catch (error) {
-    logger.error('删除身份信息失败:', error);
-    throw error;
-  }
+  await moveIdentitiesToTrash(ids);
 }
 
 /**

@@ -165,7 +165,7 @@
 📱 内置 TOTP：扫描网页二维码或上传图片即可添加密钥，动态码按 RFC 6238 在你设备上生成，不联网、不上传
 🧩 参数可自定义：otpauth:// 里的算法认 SHA1 / SHA256 / SHA512、位数认 6 / 7 / 8、周期认自定义秒数，没写的按 6 位 / SHA1 / 30 秒处理；只支持时间型动态码（计数器型 HOTP 不在范围内）
 🔗 登录第二步接力：列表与侧边栏同屏显示活码和倒计时环，登录走到第二步时活码就近出现，可一键填入
-🪪 身份信息库：姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段单独成库，默认掩码，打开是否要求主密码由复验策略决定（默认同一管理页会话内只问一次，可改成每次都问或不再单独问）；支持 .aphid 加密备份与勾选导出子集，也可按需导出 / 导入明文 .json（需复验主密码并二次确认风险）
+🪪 身份信息库：姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段单独成库，默认掩码，打开是否要求主密码由复验策略决定（默认同一管理页会话内只问一次，可改成每次都问或不再单独问）；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；支持 .aphid 加密备份与勾选导出子集，也可按需导出 / 导入明文 .json（需复验主密码并二次确认风险）
 
 🛡 安全与体检
 🩺 离线安全体检：0 到 100 分综合评分，四类问题按受影响条目占比扣分——复用 35、弱密码 25、命中内置近千条常见泄露密码 20、长期未更新 20（再分 90 / 180 / 365 天三档）；未开启两步验证的条目单独列出但不计分
@@ -300,7 +300,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 🔐 Two-factor and identity
 📱 Built-in TOTP: add a key by scanning the page's QR code or uploading an image; codes follow RFC 6238 and are generated on your device, with no network request. Algorithm SHA1 / SHA256 / SHA512, 6, 7 or 8 digits and a custom period are read from the otpauth:// link, defaulting to 6 / SHA1 / 30s. Counter-based HOTP is out of scope.
 🔗 Second-step handoff: the live code and its countdown ring sit in the list and the side panel, and when a login reaches step two the code appears beside the field, ready to fill.
-🪪 Identity vault: name, ID number, phone, email, address, bank card details and custom fields in a separate store, masked by default and opened behind a master-password re-check (once per manager-page session by default; configurable to every time, or to no separate check), with encrypted .aphid export/import, a ticked subset, and an optional plaintext .json round-trip behind a re-check and a risk confirmation.
+🪪 Identity vault: name, ID number, phone, email, address, bank card details and custom fields in a separate store, masked by default and opened behind a master-password re-check (once per manager-page session by default; configurable to every time, or to no separate check). Its own trash keeps deleted records restorable or permanently deletable for 30 days before they are cleaned automatically, and encrypted .aphid export/import supports a ticked subset, plus an optional plaintext .json round-trip behind a re-check and a risk confirmation.
 
 🛡 Safety and check-up
 🩺 On-device check-up scored 0-100: reused passwords 35, weak 25, a hit in the built-in list of nearly a thousand commonly leaked ones 20, long-unchanged 20 (in 90, 180 and 365 day bands), each weighted by how many entries it touches. Missing two-factor is listed but unscored.

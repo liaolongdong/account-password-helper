@@ -248,6 +248,9 @@ async function setupTrashCleanupAlarm() {
 
 /**
  * 执行回收站过期清理
+ *
+ * 密码库与身份库两个回收站共用本闹钟（同一 30 天保留期口径），
+ * 各自独立容错——一侧清理失败不阻断另一侧。
  */
 async function performTrashCleanup() {
   try {
@@ -255,6 +258,12 @@ async function performTrashCleanup() {
     await cleanExpiredTrash();
   } catch (error) {
     logger.error('Background: 回收站过期清理失败:', error);
+  }
+  try {
+    const { cleanExpiredIdentityTrash } = await import('@/utils/storage/identityTrashManager');
+    await cleanExpiredIdentityTrash();
+  } catch (error) {
+    logger.error('Background: 身份回收站过期清理失败:', error);
   }
 }
 
@@ -353,6 +362,11 @@ async function recordBackupRelevantChanges(changes: Record<string, chrome.storag
 
     const identityChange = changes[STORAGE_KEYS.IDENTITY];
     if (identityChange && isBackupRelevantIdentityChange(identityChange.oldValue, identityChange.newValue)) {
+      // 只比对主列表 IDENTITY，与密码库同口径（其 recordBackupRelevantChanges 只读
+      // PASSWORDS、从不读 TRASH）：软删/恢复都改变主列表活动条目，本分支已覆盖；
+      // 而彻底删除/清空/TTL 自动清理只动 IDENTITY_TRASH、活动条目不变，`.aphid` 备份
+      // 又不含回收站——若为回收站单独刷新时间戳，会点亮「重新导出也无法消除」的假提醒
+      //（备份内容与上次一致却判为未备份），违背本模块「只在有内容可备时出声」的契约。
       await StorageUtils.setLastIdentityChangeAt(now);
       logger.debug('Background: 检测到与备份相关的身份信息变更，已记录时间戳');
     }

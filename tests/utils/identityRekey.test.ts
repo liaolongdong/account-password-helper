@@ -158,4 +158,34 @@ describe('changeMasterPassword 纳入身份库 rekey', () => {
     expect(identity.find(r => r.id === 'broken')?.encryptedPayload).toBe('corrupted');
     expect(identity).toHaveLength(2);
   });
+
+  it('身份回收站同批 rekey：新钥可解、保留 deletedAt 并入同一次原子写入', async () => {
+    // R1 的回收站对应面：漏掉它会让软删除条目在换钥后永久不可解、更不可恢复；
+    // 漏回填 deletedAt 则会让到期清理把换钥前的条目当成永不到期的驻留数据。
+    (storageData as Record<string, unknown>)[STORAGE_KEYS.IDENTITY_TRASH] = [
+      {
+        id: 't1',
+        encryptedPayload: enc(identityPayloadJson, 'key:old-pw'),
+        createTime: 1,
+        updateTime: 1,
+        deletedAt: 987654321,
+      },
+    ];
+
+    const { changeMasterPassword } = await import('@/utils/storage/changeMasterPassword');
+    await changeMasterPassword('old-pw', 'new-pw');
+
+    const trash = storageData[STORAGE_KEYS.IDENTITY_TRASH] as {
+      id: string;
+      encryptedPayload: string;
+      deletedAt: number;
+    }[];
+    expect(trash).toHaveLength(1);
+    expect(dec(trash[0].encryptedPayload, 'key:new-pw')).toBe(identityPayloadJson);
+    expect(() => dec(trash[0].encryptedPayload, 'key:old-pw')).toThrow('key mismatch');
+    expect(trash[0].deletedAt).toBe(987654321);
+
+    const writtenItems = localSet.mock.calls[0][0] as Record<string, unknown>;
+    expect(writtenItems).toHaveProperty(STORAGE_KEYS.IDENTITY_TRASH);
+  });
 });

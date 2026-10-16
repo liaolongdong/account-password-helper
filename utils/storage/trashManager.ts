@@ -6,35 +6,14 @@ import { removeReminders } from './reminderManager';
 import { assertWithinCapacity } from './vaultCapacity';
 
 /**
- * 回收站条目保留天数
+ * 本模块的到期阈值（= trashRetention.TRASH_RETENTION_MS）。
  *
- * 对外导出：回收站弹窗的「剩余天数」读数与这里的自动清理必须同一口径，
- * 各自写死 30 的话，改保留期时弹窗会静默显示一个与真实清理规则不符的倒计时。
+ * 刻意写成字面量而不是 `import { TRASH_RETENTION_MS }`：trashManager 被 passwordCrud
+ * 静态引用、位于 popup 首屏闭包内，任何指向 trashRetention 的模块边都会把该 chunk
+ * 提升进 eager 清单（sidepanelClosure 守卫会当场失败）。口径单一事实源在
+ * trashRetention.ts，由回收站天数测试断言两者永远相等。
  */
-export const TRASH_RETENTION_DAYS = 30;
-
-/** 一天的毫秒数 */
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
-
-/** 毫秒数：30 天 */
-const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * MS_PER_DAY;
-
-/**
- * 计算某条回收站条目的剩余保留天数（按「已过几个完整 24 小时」扣减，已到期为 0）
- *
- * 纯展示口径，与 {@link cleanExpiredTrash} 的到期判定同源（共用 `TRASH_RETENTION_DAYS`）：
- * 阈值仍由 `now - deletedAt > TRASH_RETENTION_MS` 决定，这里只是把同一个差值换算成天数读数。
- *
- * 读数按**天**而不是按保留期整体换算：`30 - floor(已过天数)` 才会随时间逐格递减，
- * 若除以 `TRASH_RETENTION_MS` 则整月都停在 30、到期当天直接跳到 0。
- * 上限同样夹在 `TRASH_RETENTION_DAYS`：时钟回拨或 `deletedAt` 带未来时间时不给出「31 天」。
- *
- * @param deletedAt 删除时间戳（毫秒）
- * @param now 基准时刻（毫秒），由调用方一次取样，避免同一屏内每行各取一次 `Date.now()`
- * @returns 剩余天数（0 ~ `TRASH_RETENTION_DAYS`）
- */
-export const getTrashRemainingDays = (deletedAt: number, now: number = Date.now()): number =>
-  Math.min(TRASH_RETENTION_DAYS, Math.max(0, TRASH_RETENTION_DAYS - Math.floor((now - deletedAt) / MS_PER_DAY)));
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 // ==================== 内部工具 ====================
 

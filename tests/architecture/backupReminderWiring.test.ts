@@ -167,6 +167,23 @@ describe('备份提醒的接线', () => {
     expect(keysBlock).not.toContain('STORAGE_KEYS.IDENTITY');
   });
 
+  it('SW 侧：备份判据只读主列表键，回收站单独变化不点亮提醒（与密码库同口径）', () => {
+    const background = readSource(BACKGROUND);
+    const recorderAt = background.indexOf('async function recordBackupRelevantChanges');
+    expect(recorderAt).toBeGreaterThan(-1);
+    const recorderBody = background.slice(recorderAt, recorderAt + 1400);
+
+    // 密码侧先立规矩：TRASH 从未进入判据，身份侧不得自创一套
+    expect(recorderBody).toContain('changes[STORAGE_KEYS.PASSWORDS]');
+    expect(recorderBody).not.toContain('changes[STORAGE_KEYS.TRASH]');
+    // 身份侧同理：彻底删除 / 清空 / TTL 自动清理只动 IDENTITY_TRASH、活动条目不变，
+    // 而 .aphid 备份不含回收站——为回收站单独刷新时间戳会点亮「重新导出也无法消除」的假提醒
+    expect(recorderBody).toContain('changes[STORAGE_KEYS.IDENTITY]');
+    expect(recorderBody, '回收站键回到了备份判据：会制造无法消除的假提醒').not.toContain(
+      'changes[STORAGE_KEYS.IDENTITY_TRASH]',
+    );
+  });
+
   it('SW 侧：静默早退排在闹钟时间戳推进之后，且 changed 分支用专属文案', () => {
     const background = readSource(BACKGROUND);
     const advanceAt = background.indexOf('await StorageUtils.setLastAutoBackupTime()');

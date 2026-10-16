@@ -80,6 +80,17 @@ export interface IdentityRecord {
   updateTime: number;
 }
 
+/**
+ * 回收站落盘形状：`IdentityRecord` 四键 + `deletedAt`
+ *
+ * 密文原样搬移（与密码库 `TrashedPasswordEntry` 同一口径），TTL 判定只读
+ * 明文时间戳，到期清理无需数据密钥。
+ */
+export interface TrashedIdentityRecord extends IdentityRecord {
+  /** 移入回收站的时刻（epoch 毫秒），30 天 TTL 的基准 */
+  deletedAt: number;
+}
+
 /** 解密后的内存形状（仅在 Options 上下文，会话失效即销毁） */
 export interface IdentityEntry extends IdentityRecord {
   payload: IdentityPayload;
