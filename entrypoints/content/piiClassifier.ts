@@ -542,6 +542,15 @@ const isLabelish = (n: Node): boolean =>
 const withinLabelBudget = (text: string): boolean => text.length <= (/[\u4e00-\u9fa5]/.test(text) ? 20 : 60);
 
 /**
+ * 「可能有原生关联标签」这一形状。
+ *
+ * `labels` 只声明在 labelable 那几枚元素上，而 TS 的 DOM 类型里没有规范给的
+ * `HTMLLabelableElement` 这个名字（直接写它 `tsc` 会报 TS2552）；本函数的入参在调用链上
+ * 恒是 `input` / `textarea` / `select` 之一，所以用交叉类型表达「读得到就读、读不到就算了」。
+ */
+type LabelAwareElement = Element & { labels?: NodeListOf<HTMLLabelElement> | null };
+
+/**
  * 显式关联反查：`label for` 与 `aria-labelledby`。
  *
  * 这两条是页面上「哪个标签属于这个框」唯一被写死的答案，优先级必须排在兄弟文本回退之前：
@@ -549,15 +558,15 @@ const withinLabelBudget = (text: string): boolean => text.length <= (/[\u4e00-\u
  * content 渲染成兄弟块的结构）会让所有弱线索同时落空——input 不是 label 的后代、
  * 没有前兄弟、id 是 `el-id-1-2` 这种合成串，于是字段静默漏报，用户在表单里看不到提示。
  *
- * 只读文本、不读值。`label for` 走原生关联 `HTMLLabelableElement.labels`：浏览器已按 `for`
- * 与包裹关系算好集合，不必扫全文档的 `<label>`——这条判据既在聚焦热路径上每个框走一次，
+ * 只读文本、不读值。`label for` 走原生关联的 `labels`：浏览器已按 `for` 与包裹关系算好集合，
+ * 不必扫全文档的 `<label>`——这条判据既在聚焦热路径上每个框走一次，
  * 也会被点击通道的 `selfNameValueNear` 最多连问 80 次，全文档扫描在那两处都不可接受（有界性
  * 要求见 `agents.md`「Content Script」）。同时也省掉 id 的选择器转义问题。
  * 取文档顺序里第一枚**有文本**的关联标签：包裹式 label 文本为空时（`collectPiiSignals` 正是因此
  * 才走到这里）跳过它，继续看后面那枚 `for` 指过来的——比「只认第一枚 `for`、空壳也算命中」更宽一档。
  */
 function labelFromAssociation(el: Element): string {
-  for (const label of (el as HTMLLabelableElement).labels ?? []) {
+  for (const label of (el as LabelAwareElement).labels ?? []) {
     const text = (label.textContent ?? '').trim();
     if (text) return text;
   }
