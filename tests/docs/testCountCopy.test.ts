@@ -28,7 +28,13 @@
  * 不按提交归因例数：`435ba0c` 侧那 9 个改动的文件共 99，HEAD 侧同样 9 个共 130，加唯一的新文件
  * `identityTrashManager` 14＝HEAD 侧 10 个共 144）。本波（遮蔽框结构性排除 + 让位判据改
  * `shouldShowSidePanel` + 真机 e2e 八条）再加 4 例（`piiClassifier` 65 → 67、`formDetector.identityHint` 11 → 13），
- * 与上节同构的隔离树串行重测定稿 **245 文件 / 3214 例、0 skipped**——即下面这些落点当前应有的值。
+ * 与上节同构的隔离树串行重测定稿 **245 文件 / 3214 例、0 skipped**（那是那一轮刷数时 48 处落点的值）。
+ * 再往下一轮（同页演示台账本 + 姓名值预填检索词）在工作树上串行重测漂到 **247 文件 / 3251 例、0 skipped**，
+ * 即下面这些落点当前应有的值；净差 +37 例 / +2 文件按文件逐项闭合：新文件 `piiClassifier.demoPage` 5、`piiClassifier.selfNameValue` 12，
+ * 改动的五个文件 `piiClassifier` 67 → 73、`identityHint` 17 → 22、`senderValidation` 56 → 59、
+ * `useRuntimeMessageHandler.identityVault` 8 → 11、`identityHintWiring` 5 → 8（两侧读数各取一次
+ * `vitest run --reporter=json` 的 `assertionResults.length`，HEAD 侧在 detached worktree 里跑，5 个旧文件 Σ=153，
+ * 工作树侧同样 5 个 Σ=173，加两个新文件 17 = 190，190 − 153 = 37）。
  * 顺带一条量具教训：`vitest run <a> <b> <c>` 在 zsh 里传 `$FILES` 变量会被当成**一个**参数（zsh 不默认
  * 分割未引号变量），收集到 0 文件、`--reporter=json` 照样吐出结构完整的空报告且 exit=1——
  * 「Σ=0」是量具没跑，不是「这些文件没有用例」。
