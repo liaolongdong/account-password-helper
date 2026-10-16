@@ -8,7 +8,9 @@
  * 1. **总闸**。`identityHintEnabled === false` 时整条识别链不启动，页面不注入任何扩展 UI；
  *    判据写成「显式 false」而不是 falsy，是为了让老配置（存储里没有这个键）默认开——
  *    与 `penetrateShadow` 同一口径，也才配得上设置面板上那句「关闭即完全不出现」。
- * 2. **登录字段归快速填充**。已进账号/密码桶的字段由 `getFieldType` 挡下，不再叠一层提示。
+ * 2. **登录字段归快速填充**。判据是「快速填充是否真的认领了这个框」（`shouldShowSidePanel`），
+ *    不是「字段长得像账号字段」——注册页的手机号框进了 mobile 桶却进不了登录表单，
+ *    用桶归属让位会让它钥匙和提示两头落空。
  * 3. **档位无关**。接线点必须早于内联模式的 early return，否则「仅手动/侧边栏填充」档位下，
  *    注册页的姓名、证件号就彻底没有说明。
  * 4. **只出顶层 frame**。`allFrames` 注入让每个 iframe 各跑一份内容脚本，广告/统计 iframe
@@ -84,6 +86,16 @@ describe('聚焦识别到身份提示的接线', () => {
     vi.spyOn((detector as any).inlineDropdown, 'showTriggerFor').mockImplementation(() => {});
     await settle();
     document.body.innerHTML = html;
+  };
+
+  /**
+   * 补一轮表单检测
+   *
+   * 实例化后的首轮检测排在延时定时器上（真实页面要等 DOMContentLoaded），而「这个框归不归
+   * 快速填充认领」只看检测完的桶。不补这一步，让位守卫会因为桶恒空而恒不触发，用例假绿。
+   */
+  const scan = (): void => {
+    (detector as any).detectForms();
   };
 
   /** 取页面里的第 n 个表单控件 */
@@ -173,10 +185,42 @@ describe('聚焦识别到身份提示的接线', () => {
   });
 
   it('账号与密码框归快速填充，不再叠一层身份提示', async () => {
-    await mount('<input name="username"><input type="password" name="password">', makeConfig());
+    await mount(
+      '<form><input name="username"><input type="password" name="password"><button type="submit">登录</button></form>',
+      makeConfig(),
+    );
+    scan();
 
     focus(control(0));
     focus(control(1));
+
+    expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 让位的判据必须是「快速填充真的认领了这个框」，不是「这个框长得像账号字段」。
+   *
+   * `getFieldType` 只看桶归属，而侧边栏/钥匙的触发条件另有 `isInLoginFormOrPopup`。
+   * 注册页的手机号框按前者被判成 mobile，却永远走不进快速填充，结果是钥匙和提示双双没有
+   * ——一个手机号框在注册场景里恰恰是最该提示「可以从身份库取」的字段。
+   */
+  it('非登录形态里的手机号框不再被让位挡掉：账号链没认领它，提示要顶上', async () => {
+    await mount('<label>手机号码<input name="mobile" type="tel"></label>', makeConfig());
+    scan();
+
+    focus(control());
+
+    expect(shown()).toEqual(['phone']);
+  });
+
+  it('手机号 + 验证码的短信登录页仍让位给快速填充', async () => {
+    await mount(
+      '<form><label>手机号码<input name="mobile" type="tel"></label><input name="smsCode" type="text"></form>',
+      makeConfig(),
+    );
+    scan();
+
+    focus(control());
 
     expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
   });

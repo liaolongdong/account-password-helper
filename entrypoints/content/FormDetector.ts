@@ -860,7 +860,10 @@ export class FormDetector {
    * - 总闸关闭时整条链不启动，页面不注入任何扩展 UI（对齐「关闭即完全不出现」的标签承诺）；
    * - `allFrames` 注入让内容脚本在每个 iframe 各跑一份，而广告/统计 iframe 里的悬浮气泡
    *   既不在用户的注视点上，也给页面脚本多一个可反复触发的扩展 UI，只在顶层 frame 出提示；
-   * - 已归入登录桶的字段由快速填充负责（钥匙图标已说明「这是账号/密码框」），不再叠一层。
+   * - 快速填充真正认领的字段由钥匙图标负责，不再叠一层提示。让位的判据取
+   *    {@link shouldShowSidePanel} 而非 `getFieldType`：后者只看桶归属，前者才是触发条件。
+   *    用桶归属会把注册页的手机号框一并挡掉——它进了 mobile 桶，却因不在登录表单里
+   *    永远拿不到钥匙，结果是钥匙与提示双双落空。
    *
    * @param target 当前获得焦点的元素（`focusin` 的 retargeted 目标）
    */
@@ -872,7 +875,7 @@ export class FormDetector {
     // （详细地址常用 textarea，地区/性别常用 select）。聚焦目标是包裹元素时不出提示——
     // 真实的焦点转移一定以控件为目标，收起上一枚气泡由 `focusout` 负责。
     if (!target.matches('input, textarea, select')) return;
-    if (target instanceof HTMLInputElement && this.getFieldType(target)) return;
+    if (target instanceof HTMLInputElement && this.shouldShowSidePanel(target)) return;
 
     const verdict = resolvePiiField(target);
     const role = normalizeIdentityHintRole(verdict.role);
