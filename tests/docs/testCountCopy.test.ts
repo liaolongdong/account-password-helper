@@ -22,6 +22,16 @@
  * `useRuntimeMessageHandler.identityVault` 8 / `identityHintWiring` 5 = +101）加存量 3 个文件的 +6
  * （`senderValidation` 53 → 56、`settingsPanelView.updateConfigSwitch` 4 → 6、`configManager.fillmode` 6 → 7），
  * 101 + 6 恰等于 3165 − 3058。
+ * 2026-10-17 这一轮要额外记一件事：`435ba0c..87b2ecb` 共 7 笔，其中 5 笔动了 `tests/`（回收站 + 填充评审 +
+ * 字段分档等），落进仓库时没带对外数字，所以 3165 在 HEAD 上就已经过期了——漂 +45 例 / +1 文件（HEAD 侧
+ * 推算 3210 / 245，靠两侧各跑一次 `--reporter=json` 取变更文件的 `assertionResults.length` 差值闭合，
+ * 不按提交归因例数：`435ba0c` 侧那 9 个改动的文件共 99，HEAD 侧同样 9 个共 130，加唯一的新文件
+ * `identityTrashManager` 14＝HEAD 侧 10 个共 144）。本波（遮蔽框结构性排除 + 让位判据改
+ * `shouldShowSidePanel` + 真机 e2e 八条）再加 4 例（`piiClassifier` 65 → 67、`formDetector.identityHint` 11 → 13），
+ * 与上节同构的隔离树串行重测定稿 **245 文件 / 3214 例、0 skipped**——即下面这些落点当前应有的值。
+ * 顺带一条量具教训：`vitest run <a> <b> <c>` 在 zsh 里传 `$FILES` 变量会被当成**一个**参数（zsh 不默认
+ * 分割未引号变量），收集到 0 文件、`--reporter=json` 照样吐出结构完整的空报告且 exit=1——
+ * 「Σ=0」是量具没跑，不是「这些文件没有用例」。
  * 它本身就是「加一个测试文件数字就漂」的现场例证，也是「分支上数对了 ≠ 合并后还对」的例证。）
  *
  * **判据边界（不要高估这条守卫的能力）**：用例数与文件数都没有可以在单测内推导的真源——
