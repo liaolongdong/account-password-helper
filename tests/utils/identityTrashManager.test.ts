@@ -179,16 +179,24 @@ describe('permanentDeleteIdentitiesFromTrash / emptyIdentityTrash', () => {
 describe('cleanExpiredIdentityTrash（30 天 TTL，与密码库同阈值同比较符）', () => {
   it('严格超过 TRASH_RETENTION_MS 才删除，边界值保留', async () => {
     const { cleanExpiredIdentityTrash } = await import('@/utils/storage/identityTrashManager');
-    const now = Date.now();
+    // 时钟必须钉死：夹具与实现各取一次 `Date.now()`，两次取值之间跨过 1 毫秒时，
+    // 「恰好等于阈值」那条会变成「超出 1ms」而被清理——边界断言因此时好时坏，
+    // 红的是用例自己的竞态，不是被测代码的比较符。
+    const now = 1_760_000_000_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     storageData[STORAGE_KEYS.IDENTITY_TRASH] = [
       trashRecord('exact', now - TRASH_RETENTION_MS), // 恰好到期：`now - deletedAt > MS` 为 false，保留
       trashRecord('expired', now - TRASH_RETENTION_MS - 1), // 超出 1ms：删除
       trashRecord('fresh', now - 1000), // 保留
     ];
 
-    await cleanExpiredIdentityTrash();
+    try {
+      await cleanExpiredIdentityTrash();
 
-    expect(trashIds()).toEqual(['exact', 'fresh']);
+      expect(trashIds()).toEqual(['exact', 'fresh']);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 
   it('无过期条目时不写入', async () => {
