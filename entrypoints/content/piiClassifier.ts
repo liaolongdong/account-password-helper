@@ -455,9 +455,17 @@ const OTHER_CONFIRM = [
   'patient',
 ];
 
-/** 结构性排除的 input type：隐藏域、按钮、勾选框等都不是个人信息载体 */
+/**
+ * 结构性排除的 input type：隐藏域、按钮、勾选框等都不是个人信息载体。
+ *
+ * `password` 也在表内，而且这道排除必须排在形状回推之前：最后一层会读一次 `input.value`，
+ * 遮蔽框里那串数字最可能是手机号或验证码，但绝不会是等着被身份库召唤的个人信息字段。
+ * 登录容器守卫挡不住这条——它在字段组超过 4 个输入框时主动退出（避免把大表单整页判成登录区），
+ * 而提示挂在遮蔽框下面只会让用户取错值。
+ */
 const STRUCTURAL_EXCLUDE_TYPES = new Set([
   'hidden',
+  'password',
   'submit',
   'button',
   'reset',

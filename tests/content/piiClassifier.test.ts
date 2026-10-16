@@ -80,6 +80,32 @@ describe('结构性排除', () => {
   ])('%s 一律不出提示', (_label, html) => {
     expect(resolvePiiField(inputOf(html))).toMatchObject({ suppress: 'excluded' });
   });
+
+  /**
+   * 密码框必须在结构性排除里，而且要早于形状回推。
+   *
+   * 最后一层会读一次 `input.value` 做形状收口：`type="password"` 的框里恰好存着一串
+   * 11 位数字时，那串数字最可能是手机号或短信验证码，但**绝不可能**是等着被身份库召唤的
+   * 个人信息字段——提示会挂在遮蔽框下面，用户按「从身份库选择」只会填错东西。
+   * 「密码框一定被登录容器守卫挡掉」挡不住这条：那道守卫在字段组超过 4 个输入框时主动退出
+   * （避免把大表单整页判成登录区），而遮蔽框的值本来就不该参与语义判定。
+   */
+  it('密码框即使值像手机号也不出提示：遮蔽值不参与形状回推', () => {
+    document.body.innerHTML = `
+      <form>
+        <input name="f1"><input name="f2"><input name="f3"><input name="f4">
+        <input type="password" name="x">
+      </form>`;
+    const el = document.body.querySelector('input[type="password"]') as HTMLInputElement;
+    el.value = '13800138000';
+    expect(el.closest('form')!.querySelectorAll('input').length).toBe(5);
+    expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'excluded', evidence: 'type=password' });
+  });
+
+  it('单个密码框也不出提示：结构性排除排在登录容器守卫之前', () => {
+    const el = inputOf('<input type="password" name="x">');
+    expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'excluded', evidence: 'type=password' });
+  });
 });
 
 describe('autocomplete 自声明优先', () => {
