@@ -1,8 +1,28 @@
-import type { BrowserContext, CDPSession, Locator, Page } from '@playwright/test';
+import type { CDPSession, Page } from '@playwright/test';
 
-import { E2E_PAGE_ORIGIN, expect, test, verifyMasterPassword } from './harness';
-import { liteExactText, liteTextOf, textOf } from './i18n';
+import { expect, test, verifyMasterPassword } from './harness';
+import { liteExactText, liteTextOf, templatedOf, textOf } from './i18n';
 import { STORAGE_KEYS } from '../utils/storageKeys';
+import {
+  blurUntilGone,
+  bubbleCount,
+  bubbleRect,
+  bubbleText,
+  buttonRect,
+  focusUntilHint,
+  openFormPage,
+  refocus,
+  roleText,
+} from './identityHintDom';
+import {
+  addIdentity,
+  cards,
+  closeVault,
+  openVaultFromMenu,
+  searchInput,
+  vaultDialog,
+  verifyDialog,
+} from './identityVaultDom';
 
 /**
  * 页面个人信息字段提示的真机回归
@@ -15,34 +35,14 @@ import { STORAGE_KEYS } from '../utils/storageKeys';
  *    测试没有在产品代码里留任何测试专用后门。
  * 2. **几何与层叠**：锚在字段下缘、下方放不下才翻到上方、滚动后继续跟随，且与页面自绘的
  *    `z-index: 2147483647` 全屏遮罩同档时仍压在遮罩之上、点得到。
- * 3. **零明文跨界**：字段的值既不进气泡、也不进选项页、更不落盘。这条只在真浏览器里有意义——
- *    链路另一端是 Service Worker 与选项页，jsdom 里根本没有那两侧。
+ * 3. **跨入口只流两个标签**：气泡里不出现字段值；深链交给选项页的是「角色 + 一个可选的筛选词」，
+ *    而那个词只可能来自同表单里判定为**本人姓名**的那一框。其余字段的值既不进气泡、不进选项页、
+ *    不落盘，也不会被写回页面。这些只在真浏览器里有意义——链路另一端是 Service Worker 与选项页，
+ *    jsdom 里根本没有那两侧。
  *
  * 焦点事件是一次性的：内容脚本按 `document_idle` 注入，脚本晚到就没人接住那一次 `focusin`。
  * 因此「等气泡出现」写成**反复聚焦直到读到**，而不是「聚焦一次然后等」。
  */
-
-/** CDP pierce 视图里的节点（只声明本文件用到的字段） */
-type CdpNode = {
-  nodeId: number;
-  nodeName?: string;
-  attributes?: string[];
-  children?: CdpNode[];
-  shadowRoots?: CdpNode[];
-  contentDocument?: CdpNode;
-};
-
-/**
- * `DOM.getBoxModel` 返回值里本文件用到的部分
- *
- * 四点是 `x1,y1,x2,y2,x3,y3,x4,y4` 顺时针（左上→右上→右下→左下）：
- * 上边 y 是 `[1]`、下边 y 是 `[5]`、左边 x 是 `[0]`、右边 x 是 `[2]`。
- * 把 `[3]` 当成下边会让「翻转档」断言恒真，这套坐标只在 {@link toRect} 一处解释。
- */
-type CdpBox = { content: number[]; border: number[] };
-
-/** 视口矩形（CSS 像素，与 `getBoundingClientRect` 同一坐标系） */
-type Rect = { top: number; bottom: number; left: number; right: number };
 
 /** 合成值：只用来证明它没有出现在任何出口，与任何真实凭据无关 */
 const CANARY = 'e2e-canary-3f9a';
@@ -68,72 +68,6 @@ const FORM_HTML = `
   <p><label>手机号码<input id="f-phone" name="mobile" type="tel"></label></p>
   <p><label>备注<input id="f-remark" name="remark"></label></p>
 `;
-
-/** 读取节点的 class 属性 */
-function classOf(node: CdpNode): string {
-  const attrs = node.attributes ?? [];
-  for (let i = 0; i < attrs.length; i += 2) {
-    if (attrs[i] === 'class') return attrs[i + 1] ?? '';
-  }
-  return '';
-}
-
-/** 按 class 整词命中（`aph-idh` 与 `aph-idh__role` 互为前缀，子串匹配会串味） */
-const byClass =
-  (needle: string) =>
-  (node: CdpNode): boolean =>
-    classOf(node).split(/\s+/).includes(needle);
-
-/**
- * 在 pierce 视图里查找节点
- *
- * `depth: -1` + `pierce: true` 才会把 closed shadow root 的内容一并送回来。
- * 每次查询都重新取文档：气泡随聚焦重建，缓存 nodeId 会拿到失效句柄。
- */
-async function queryPierced(cdp: CDPSession, matcher: (node: CdpNode) => boolean): Promise<CdpNode[]> {
-  const { root } = (await cdp.send('DOM.getDocument', { depth: -1, pierce: true })) as { root: CdpNode };
-  const out: CdpNode[] = [];
-  const walk = (node: CdpNode): void => {
-    if (matcher(node)) out.push(node);
-    (node.children ?? []).forEach(walk);
-    (node.shadowRoots ?? []).forEach(walk);
-    if (node.contentDocument) walk(node.contentDocument);
-  };
-  walk(root);
-  return out;
-}
-
-/**
- * 在同一次快照里「按 class 找第一个节点 + 立刻读数」
- *
- * 单独返回 `CdpNode` 供后续调用是错的：下一次 `DOM.getDocument` 会换掉整批 nodeId，
- * 而 Chrome 可能把旧 id 复用到别的节点上——那时读到的几何/文本来自不相干的元素，测试会
- * 静默地拿错读数。所以取节点与读数必须一次快照内完成，本文件没有任何跨快照的句柄。
- */
-async function readFirst(cdp: CDPSession, needle: string, mode: 'rect' | 'text'): Promise<Rect | string> {
-  const [node] = await queryPierced(cdp, byClass(needle));
-  if (!node) throw new Error(`pierce 视图里找不到 .${needle}`);
-  if (mode === 'text') {
-    const { outerHTML } = (await cdp.send('DOM.getOuterHTML', { nodeId: node.nodeId })) as { outerHTML: string };
-    return outerHTML.replace(/<[^>]*>/g, '').trim();
-  }
-  const { model } = (await cdp.send('DOM.getBoxModel', { nodeId: node.nodeId })) as { model: CdpBox };
-  return toRect(model.border);
-}
-
-/** 把盒模型的四点折成视口矩形 */
-function toRect(quad: number[]): Rect {
-  return { top: quad[1], bottom: quad[5], left: quad[0], right: quad[2] };
-}
-
-const bubbleRect = (cdp: CDPSession): Promise<Rect> => readFirst(cdp, 'aph-idh', 'rect') as Promise<Rect>;
-const bubbleText = (cdp: CDPSession): Promise<string> => readFirst(cdp, 'aph-idh', 'text') as Promise<string>;
-const roleText = (cdp: CDPSession): Promise<string> => readFirst(cdp, 'aph-idh__role', 'text') as Promise<string>;
-const buttonRect = (cdp: CDPSession, variant: 'ghost' | 'primary'): Promise<Rect> =>
-  readFirst(cdp, `aph-idh__btn--${variant}`, 'rect') as Promise<Rect>;
-
-/** 收起只清内容、保留宿主，所以判「有没有提示」数的是气泡而不是宿主 */
-const bubbleCount = async (cdp: CDPSession): Promise<number> => (await queryPierced(cdp, byClass('aph-idh'))).length;
 
 /**
  * 命中测试：视口坐标处页面能精确到的最上层元素带哪个 `data-aph` 标记
@@ -163,65 +97,6 @@ async function clickButton(page: Page, cdp: CDPSession, variant: 'ghost' | 'prim
   expect(await topAt(page, point.x, point.y)).toBe('identity-hint');
   await page.mouse.click(point.x, point.y);
 }
-
-/**
- * 派发一次真实的 `focusin`
- *
- * `focus()` 打在**已经聚焦**的元素上不派发任何焦点事件，而气泡收起的四条路径里有三条
- * （Esc、点「收起」、走到无语义字段）都不动焦点——直接再 `focus()` 会空转，表现为
- * 「等不到提示」而不是「提示没重建」。所以每一轮都先撤焦点再回来，等价于用户 Tab 走又Tab 回。
- */
-function refocus(page: Page, id: string): Promise<unknown> {
-  return page.evaluate(targetId => {
-    const el = document.getElementById(targetId) as HTMLElement | null;
-    el?.blur();
-    el?.focus();
-  }, id);
-}
-
-/**
- * 聚焦到某字段并等气泡落地
- *
- * 反复「撤焦点 + 回焦点」直到 pierce 视图读到恰好一枚气泡：内容脚本晚到时要再打一次事件；
- * `showIdentityHint` 对「同字段同角色」幂等，重复聚焦不会叠出第二枚。
- */
-async function focusUntilHint(cdp: CDPSession, page: Page, id: string): Promise<void> {
-  await expect
-    .poll(
-      async () => {
-        await refocus(page, id);
-        return bubbleCount(cdp);
-      },
-      { message: `聚焦 #${id} 之后没有出现身份提示`, timeout: 25_000 },
-    )
-    .toBe(1);
-}
-
-/** 聚焦并等气泡收起（用于「失焦即收」与开关切换之间的分隔） */
-async function blurUntilGone(page: Page, cdp: CDPSession, id: string): Promise<void> {
-  await page.evaluate(targetId => (document.getElementById(targetId) as HTMLElement | null)?.blur(), id);
-  await expect.poll(() => bubbleCount(cdp), { message: '失焦后气泡没收起' }).toBe(0);
-}
-
-/**
- * 打开一页表单并接好 CDP
- *
- * 页面由 `route.fulfill` 直接给出，不出网、不依赖 DNS，域名取 `*.e2e.test` 保留域。
- */
-async function openFormPage(extContext: BrowserContext, html: string): Promise<{ page: Page; cdp: CDPSession }> {
-  const page = await extContext.newPage();
-  await page.route('**/*', route =>
-    route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: html }),
-  );
-  await page.goto(`${E2E_PAGE_ORIGIN}/identity-hint`);
-  const cdp = await extContext.newCDPSession(page);
-  await cdp.send('DOM.enable');
-  return { page, cdp };
-}
-
-/** 身份库列表弹窗（与 `identity-lookup-from-detail.spec.ts` 同口径：只认列表独有的工具栏） */
-const vaultDialog = (page: Page): Locator =>
-  page.getByRole('dialog').filter({ has: page.locator('.identity-toolbar') });
 
 test('气泡只报角色：值不进内容，页面脚本也读不到 shadow 里的东西', async ({ extContext }) => {
   const { page, cdp } = await openFormPage(extContext, `<body>${FORM_HTML}</body>`);
@@ -476,6 +351,9 @@ test('深链「从身份库选择」：过复验门槛打开身份库，类别�
     textOf('identity.category.id_card'),
   );
 
+  // 姓名框留空 ⇒ 这条深链只带角色一个标签：搜索框必须是空的，而不是「没筛」被读成「筛成空」
+  await expect(searchInput(optionsPage)).toHaveValue('');
+
   // 动作落地即收起：气泡不能挡着用户回到表单
   await expect.poll(() => bubbleCount(cdp), { message: '深链后气泡没收起' }).toBe(0);
 
@@ -495,6 +373,85 @@ test('深链「从身份库选择」：过复验门槛打开身份库，类别�
   expect(await page.evaluate(() => (document.getElementById('f-id') as HTMLInputElement).value), '页面被改写').toBe(
     CANARY,
   );
+
+  await page.close();
+});
+
+/**
+ * 姓名通道（唯一那条明文出口）的真机面
+ *
+ * 上面那条把姓名框留空，证的是「没姓名 ⇒ 载荷只有角色」；这一条把姓名打上，证的是
+ * 「有姓名 ⇒ 它真的落进库的搜索框并把列表收敛到那一个人」。两段合起来才钉得住
+ * `{role, keyword?}` 这个契约——单测（`tests/content/identityHint.test.ts` 与
+ * `tests/background/senderValidation.test.ts`）钉的是消息形状，落进 Element Plus 输入框
+ * 并即时驱动 `filteredRows` 这一段只有真页面能看到。
+ *
+ * 点的字段刻意选**手机号**而不是证件号：角色决定预选类别（`identityCategoryForRole`），
+ * 而播种进去的两条身份都是默认的「个人信息」档——点证件号框会把类别筛到「证件」，
+ * 那时卡片数为 0 既可能是筛选对了也可能是姓名通道没接通，读数分不开。
+ */
+test('深链带筛选词：点「从身份库选择」时把本人姓名框的值送进库的搜索框，其余字段的值照旧不跨界', async ({
+  extContext,
+  optionsPage,
+}) => {
+  // 合成品：ASCII 姓名互不为子串，命中判定才有唯一读数，与任何真实人名无关
+  const SELF_NAME = 'e2e-self-name';
+  const OTHER_NAME = 'e2e-other-person';
+
+  // 前置：库里两条「个人信息」档的身份。这一趟是本文档会话第一次开库 ⇒ perSession 必问
+  await openVaultFromMenu(optionsPage, true);
+  await addIdentity(optionsPage, SELF_NAME, '13800002222');
+  await addIdentity(optionsPage, OTHER_NAME, '13900003333');
+  await expect(cards(optionsPage)).toHaveCount(2);
+  await closeVault(optionsPage);
+
+  const { page, cdp } = await openFormPage(extContext, `<body>${FORM_HTML}</body>`);
+  await page.locator('#f-name').fill(SELF_NAME);
+  await page.locator('#f-phone').fill(CANARY);
+
+  await focusUntilHint(cdp, page, 'f-phone');
+  await clickButton(page, cdp, 'primary');
+
+  // 第二趟：本会话已复验过，不该再问。判据顺序仍是**先等库可见**——复验若弹，库被挡在它后面，
+  // 这一句就超时判红；反过来先断言「复验层不在」是恒真，点菜单那步并不等任何弹窗落地。
+  await expect(vaultDialog(optionsPage)).toBeVisible();
+  await expect(verifyDialog(optionsPage)).toBeHidden();
+
+  await expect(searchInput(optionsPage)).toHaveValue(SELF_NAME);
+  await expect(cards(optionsPage)).toHaveCount(1);
+  await expect(cards(optionsPage).first()).toContainText(SELF_NAME);
+  await expect(vaultDialog(optionsPage).locator('.identity-meta')).toContainText(
+    templatedOf('identity.matchCount', { count: 1 }),
+  );
+  // 手机号角色落在「个人信息」档：类别预选与筛选词各管各的，两句都得落地
+  await expect(optionsPage.locator('.identity-toolbar__filter .is-active')).toHaveText(
+    textOf('identity.category.person'),
+  );
+
+  await expect.poll(() => bubbleCount(cdp), { message: '深链后气泡没收起' }).toBe(0);
+
+  // 边界照旧：除姓名那一路之外，别的字段值哪儿都不去，页面也没被回填
+  const optionsText = await optionsPage.evaluate(() => document.body.innerText);
+  expect(optionsText, '其它字段的值出现在选项页可见文本里').not.toContain(CANARY);
+  expect(optionsText, '没命中的那条身份的名字也出现在页面上').not.toContain(OTHER_NAME);
+  // 只把布尔值带回测试进程——`get(null)` 含整包密文，绝不能当断言消息打出去
+  const atRest = (needle: string): Promise<boolean> =>
+    optionsPage.evaluate(async value => JSON.stringify(await chrome.storage.local.get(null)).includes(value), needle);
+  expect(await atRest(CANARY), '字段值落盘了').toBe(false);
+  expect(await atRest(SELF_NAME), '姓名筛选词落盘了').toBe(false);
+  expect(await page.evaluate(() => (document.getElementById('f-phone') as HTMLInputElement).value), '页面被改写').toBe(
+    CANARY,
+  );
+  expect(await page.evaluate(() => (document.getElementById('f-name') as HTMLInputElement).value), '页面被改写').toBe(
+    SELF_NAME,
+  );
+
+  // 一次性：关闭即由 teardown 清掉明文搜索词，下一轮从菜单进来必须回到全量列表
+  // （这一句同时把「姓名只活在搜索框这一层」钉成可验收的动作，而不是注释里的承诺）
+  await closeVault(optionsPage);
+  await openVaultFromMenu(optionsPage, false);
+  await expect(searchInput(optionsPage)).toHaveValue('');
+  await expect(cards(optionsPage)).toHaveCount(2);
 
   await page.close();
 });

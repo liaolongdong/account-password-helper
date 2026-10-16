@@ -1,0 +1,828 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <!-- 功能演示页，不进入搜索引擎索引 -->
+    <meta
+      name="robots"
+      content="noindex"
+    />
+    <title>个人信息填写演示台 · 身份库召唤提示</title>
+    <!--
+      身份提示（形态一：识别 + 提示 + 深链，不填充）的手工回归台。
+
+      十个区块各摆一种「页面把标签与输入框的关系写成什么样」的真实形状：
+      嵌套 label、label[for]、Element Plus 式兄弟块、autocomplete 自声明、登录组、
+      裸兄弟文本、表格 th、英文词典、值形状收口、负向噪音。
+      判定链只吃这些结构信号与该字段自己的值，所以换一种写法就可能从「提示」掉成「沉默」——
+      这页存在的意义就是把十种形状一次摆平，让「这一框为什么没提示」当场看得出来。
+
+      每个受检字段带两个数据属性，`tests/content/piiClassifier.demoPage.test.ts` 逐行对账
+      （那份测试把本页读进 jsdom，逐字段跑 `resolvePiiField`，是全仓唯一吃「整页真实形状」的账本）：
+      - `data-expect`：期望的分类器角色；写成 `-` 表示这一框不该出提示；
+      - `data-suppress`：仅当 `data-expect="-"`，期望被哪条出口挡掉
+        （`excluded` / `negative` / `account` / `card` / `ownership` / `loginGroup` / `noRole`）。
+      个别字段另带 `data-owns="fill"`：分类器给了角色，但页面侧由让位规则交给快速填充那把钥匙，
+      气泡不出现。这一段的判据是「这一框拿到了钥匙吗」，主世界看不见 closed shadow 里的图标，
+      所以由 `e2e/identity-hint-demo-page.spec.ts` 在真 Chrome 里逐行量（读到可见、且几何上正钉在
+      这一框，才算让位成立）。
+      让位的范围有一个不那么直观的条件：`shouldShowSidePanel` 最后有一道整页兜底——**同一份文档里
+      只要存在账号+密码对或登录按钮**，落进 username/mobile 桶的框一律算「在登录表单里」。
+      本页把十种形状摆在同一份文档，⑤ 区又确实是一个登录块，于是 ①③④⑦ 区里进了桶的
+      `<input>` 一并归了钥匙（`#a-mail`、`#a-zip`、`#c-rtel`、`#d-tel`、`#g-email`、`#g-phone`）。
+      真实站点少见这种混排，但「注册页上半屏是登录框」并不罕见——看到这一行没有气泡，先按这个条件核对。
+      `<select>` 与 `<textarea>` 不受这条影响（让位判据只看 `HTMLInputElement`），所以 ① 区的性别、
+      ⑥ 区的详细地址仍照常出提示。
+
+      还有一处时序必须知道：那道整页兜底的答案会被 `LoginFormAnalyzer` 按元素缓存在 `WeakMap` 里，
+      只在重新检测时清。所以**同一个框第一次被问是在字段检测跑完前还是后**，会让它在整页里稳定地
+      「出提示」或「归钥匙」——同一次加载内的表现是一致的，两次加载之间却可能不同。真机用例因此在
+      扫描前加了一道「检测落定门」（登录区的用户名框上出现钥匙才算落定），本页的账本记的是落定后的读数。
+
+      本地起法（内容脚本 `<all_urls>` 认 http(s)；file:// 需在扩展详情里单独开「允许访问文件网址」）：
+        python3 -m http.server 8912      # 在仓库根目录执行
+        打开 http://127.0.0.1:8912/docs/fixtures/identity-hint-demo.html
+      浏览器需加载带本功能的构建：chrome://extensions → 开发者模式 →
+      「加载已解压的扩展程序」指向 `.output/chrome-mv3`（由 `pnpm build` 产出）。
+    -->
+    <style>
+      :root {
+        --line: #e5e7eb;
+        --ink: #1f2937;
+        --ink-2: #6b7280;
+        --brand: #409eff;
+        --warn: #b45309;
+        --bg: #f7f8fa;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 24px 20px 96px;
+        font-family:
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+        color: var(--ink);
+        background: var(--bg);
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 22px;
+      }
+      .lead {
+        margin: 0 0 24px;
+        color: var(--ink-2);
+      }
+      .card {
+        margin-bottom: 22px;
+        padding: 18px 20px;
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .card h2 {
+        margin: 0 0 4px;
+        font-size: 16px;
+      }
+      .note {
+        margin: 0 0 14px;
+        color: var(--ink-2);
+        font-size: 13px;
+      }
+      .fields {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px 18px;
+      }
+      .field label {
+        display: block;
+        margin-bottom: 4px;
+        font-weight: 600;
+      }
+      .field .tip {
+        margin: 4px 0 0;
+        color: var(--warn);
+        font-size: 12px;
+      }
+      input,
+      select,
+      textarea {
+        width: 100%;
+        padding: 8px 10px;
+        font: inherit;
+        color: var(--ink);
+        background: #fff;
+        border: 1px solid #dcdfe6;
+        border-radius: 8px;
+      }
+      input:focus,
+      select:focus,
+      textarea:focus {
+        border-color: var(--brand);
+        outline: none;
+      }
+      textarea {
+        min-height: 66px;
+        resize: vertical;
+      }
+      .inline {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+      .inline > span {
+        font-weight: 600;
+      }
+      .inline > input {
+        flex: 1;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+      }
+      th {
+        width: 130px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>个人信息填写演示台</h1>
+    <p class="lead">
+      逐个点进下面的框：被识别为个人信息载体的框，下方会出现一枚「这是「××」字段」的气泡，带「从身份库选择 /
+      收起」两个动作。气泡只报角色，不改写你的输入，也不把值带出这一页。
+    </p>
+
+    <section class="card">
+      <h2>① 嵌套 label（原生表单最常见写法）</h2>
+      <p class="note">
+        标签把输入框包在中间，分类器走 <code>closest('label')</code> 这一条。本区的电子邮箱与邮政编码进了 username
+        桶，被 ⑤ 区的登录对判成登录语境，于是归钥匙（<code>data-owns="fill"</code>，口径见页头）。
+      </p>
+      <form
+        class="fields"
+        onsubmit="return false;"
+      >
+        <div class="field">
+          <label
+            >真实姓名<input
+              id="a-name"
+              name="realname"
+              autocomplete="off"
+              data-expect="name"
+          /></label>
+        </div>
+        <div class="field">
+          <label
+            >证件号码<input
+              id="a-id"
+              name="idCardNo"
+              autocomplete="off"
+              data-expect="idNumber"
+          /></label>
+          <p class="tip">证件号档额外带一句「请核对后再取用」。</p>
+        </div>
+        <div class="field">
+          <label
+            >电子邮箱<input
+              id="a-mail"
+              name="email"
+              type="email"
+              autocomplete="off"
+              data-expect="email"
+              data-owns="fill"
+          /></label>
+        </div>
+        <div class="field">
+          <label
+            >出生日期<input
+              id="a-bday"
+              name="birthday"
+              type="date"
+              data-expect="birthday"
+          /></label>
+        </div>
+        <div class="field">
+          <label
+            >性别<select
+              id="a-sex"
+              name="sex"
+              data-expect="gender"
+            >
+              <option value="">请选择</option>
+              <option>男</option>
+              <option>女</option>
+            </select></label
+          >
+        </div>
+        <div class="field">
+          <label
+            >邮政编码<input
+              id="a-zip"
+              name="post_code"
+              autocomplete="off"
+              data-expect="postal"
+              data-owns="fill"
+          /></label>
+        </div>
+        <div class="field">
+          <label
+            >护照号码<input
+              id="a-passport"
+              name="passportNo"
+              autocomplete="off"
+              data-expect="passport"
+          /></label>
+        </div>
+        <div class="field">
+          <label
+            >备注<textarea
+              id="a-remark"
+              name="remark"
+              data-expect="-"
+              data-suppress="negative"
+            ></textarea>
+          </label>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>② label[for] + 组件库式兄弟块（Element Plus / Ant Design 的形状）</h2>
+      <p class="note">
+        标签与输入区互为兄弟、input 的 id 是
+        <code>el-id-…</code> 合成串。这一区就是「有些页面死活看不到提示」的主案发现场： 三条弱线索（嵌套 label /
+        兄弟文本 / 属性词元）在这里同时落空，只剩 <code>for</code> 这一条显式关联可查。
+      </p>
+      <div class="fields">
+        <div class="el-form-item field">
+          <label
+            class="el-form-item__label"
+            for="el-id-4090-0"
+            >联系人姓名</label
+          >
+          <div class="el-form-item__content">
+            <div class="el-input">
+              <input
+                id="el-id-4090-0"
+                class="el-input__inner"
+                type="text"
+                data-expect="name"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="el-form-item field">
+          <label
+            class="el-form-item__label"
+            for="el-id-4090-1"
+            >身份证号</label
+          >
+          <div class="el-form-item__content">
+            <div class="el-input">
+              <input
+                id="el-id-4090-1"
+                class="el-input__inner"
+                type="text"
+                data-expect="idNumber"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="el-form-item field">
+          <label
+            class="el-form-item__label"
+            for="el-id-4090-2"
+            >联系方式</label
+          >
+          <div class="el-form-item__content">
+            <div class="el-input">
+              <input
+                id="el-id-4090-2"
+                class="el-input__inner"
+                type="text"
+                data-expect="phone"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="el-form-item field">
+          <label
+            class="el-form-item__label"
+            for="el-id-4090-3"
+            >所在地区</label
+          >
+          <div class="el-form-item__content">
+            <select
+              id="el-id-4090-3"
+              data-expect="region"
+            >
+              <option value="">请选择</option>
+              <option>浙江省 杭州市 西湖区</option>
+            </select>
+          </div>
+        </div>
+        <div class="el-form-item field">
+          <label
+            class="el-form-item__label"
+            for="el-id-4090-4"
+            >单位名称</label
+          >
+          <div class="el-form-item__content">
+            <div class="el-input">
+              <input
+                id="el-id-4090-4"
+                class="el-input__inner"
+                type="text"
+                data-expect="org"
+              />
+            </div>
+          </div>
+        </div>
+        <div class="el-form-item field">
+          <label
+            class="el-form-item__label"
+            for="el-id-4090-5"
+            >支付方式</label
+          >
+          <div class="el-form-item__content">
+            <select
+              id="el-id-4090-5"
+              data-expect="-"
+              data-suppress="negative"
+            >
+              <option value="">请选择</option>
+              <option>在线支付</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>③ 收货卡：归属三档（本人 / 待核对 / 一定是别人）</h2>
+      <p class="note">
+        「收货人」可能是家属，提示要求核对；「紧急联系人」一定是别人——用本人证件号填别人的框是唯一不可接受的误填，因此整条不出提示。
+        本区「联系电话」进了手机号桶，被 ⑤
+        区的登录对判成登录语境，于是归钥匙不出气泡（<code>data-owns="fill"</code>，口径见页头）。
+      </p>
+      <div class="fields">
+        <div class="field">
+          <label for="c-rname">收货人</label>
+          <input
+            id="c-rname"
+            name="receiver_name"
+            autocomplete="off"
+            data-expect="name"
+          />
+        </div>
+        <div class="field">
+          <label for="c-rtel">联系电话</label>
+          <input
+            id="c-rtel"
+            name="receiver_phone"
+            type="tel"
+            autocomplete="off"
+            data-expect="phone"
+            data-owns="fill"
+          />
+        </div>
+        <div class="field">
+          <label for="c-raddr">收货地址</label>
+          <input
+            id="c-raddr"
+            name="receiver_address"
+            autocomplete="off"
+            data-expect="address"
+          />
+        </div>
+        <div class="field">
+          <label for="c-ename">紧急联系人姓名</label>
+          <input
+            id="c-ename"
+            name="emergency_name"
+            autocomplete="off"
+            data-expect="-"
+            data-suppress="ownership"
+          />
+        </div>
+        <div class="field">
+          <label for="c-etel">紧急联系人电话</label>
+          <input
+            id="c-etel"
+            name="emergency_phone"
+            type="tel"
+            autocomplete="off"
+            data-expect="-"
+            data-suppress="ownership"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>④ autocomplete 自声明（站点自己把答案写在属性上）</h2>
+      <p class="note">
+        这是最强的一档信号，优先级高于一切词典与守卫；卡类按既有拍板例外，永不进提示路径。本区「电话」与 ③
+        区同因归钥匙。
+      </p>
+      <div class="fields">
+        <div class="field">
+          <label for="d-given">名</label>
+          <input
+            id="d-given"
+            autocomplete="given-name"
+            data-expect="givenName"
+          />
+        </div>
+        <div class="field">
+          <label for="d-family">姓</label>
+          <input
+            id="d-family"
+            autocomplete="family-name"
+            data-expect="familyName"
+          />
+        </div>
+        <div class="field">
+          <label for="d-addr">街道地址</label>
+          <input
+            id="d-addr"
+            autocomplete="street-address"
+            data-expect="address"
+          />
+        </div>
+        <div class="field">
+          <label for="d-tel">电话</label>
+          <input
+            id="d-tel"
+            autocomplete="tel-national"
+            type="tel"
+            data-expect="phone"
+            data-owns="fill"
+          />
+        </div>
+        <div class="field">
+          <label for="d-cc">卡号</label>
+          <input
+            id="d-cc"
+            autocomplete="cc-number"
+            inputmode="numeric"
+            data-expect="-"
+            data-suppress="card"
+          />
+        </div>
+        <div class="field">
+          <label for="d-cvv">安全码</label>
+          <input
+            id="d-cvv"
+            autocomplete="cc-csc"
+            inputmode="numeric"
+            data-expect="-"
+            data-suppress="card"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑤ 登录区块（口令框与凭据词元）</h2>
+      <p class="note">
+        这一区的手机号框分类器仍会给角色，但页面侧要让位给快速填充那把钥匙（<code>data-owns="fill"</code>），
+        气泡不出现——它就是让位规则的触发源：这一区的账号+密码对把整页判成登录语境，连带 ③④⑦ 区的桶内框也归钥匙。
+      </p>
+      <form onsubmit="return false;">
+        <div class="fields">
+          <div class="field">
+            <label for="e-user">用户名</label>
+            <input
+              id="e-user"
+              name="username"
+              autocomplete="username"
+              data-expect="-"
+              data-suppress="negative"
+            />
+          </div>
+          <div class="field">
+            <label for="e-pass">密码</label>
+            <input
+              id="e-pass"
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              data-expect="-"
+              data-suppress="excluded"
+            />
+          </div>
+          <div class="field">
+            <label for="e-mobile">手机号</label>
+            <input
+              id="e-mobile"
+              name="loginMobile"
+              autocomplete="tel"
+              type="tel"
+              data-expect="phone"
+              data-owns="fill"
+            />
+          </div>
+          <div class="field">
+            <label for="e-code">短信验证码</label>
+            <input
+              id="e-code"
+              name="smsCode"
+              autocomplete="one-time-code"
+              inputmode="numeric"
+              data-expect="-"
+              data-suppress="negative"
+            />
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>⑥ 裸兄弟文本与表格（没有 label 元素的老页面形状）</h2>
+      <p class="note">
+        <code>姓名：&lt;input&gt;</code> 与表格里，标签既不是 label 也不在任何关联属性上，只能按邻居文本退让取值。
+      </p>
+      <div class="inline">
+        <span>姓名：</span
+        ><input
+          id="f-sib-name"
+          data-expect="name"
+        />
+        <span>身份证号码：</span
+        ><input
+          id="f-sib-id"
+          data-expect="idNumber"
+        />
+      </div>
+      <table>
+        <tr>
+          <th>乘机人</th>
+          <td>
+            <input
+              id="f-th-name"
+              data-expect="name"
+            />
+          </td>
+        </tr>
+        <tr>
+          <th>证件号码</th>
+          <td>
+            <input
+              id="f-th-id"
+              data-expect="idNumber"
+            />
+          </td>
+        </tr>
+        <tr>
+          <th>座位偏好</th>
+          <td>
+            <input
+              id="f-th-seat"
+              data-expect="-"
+              data-suppress="noRole"
+            />
+          </td>
+        </tr>
+      </table>
+    </section>
+
+    <section class="card">
+      <h2>⑦ 英文表单</h2>
+      <p class="note">
+        扩展本身中英双语，英文站点漏一整个词典就是整段沉默，所以这一区单独摆出来。本区 Email / Phone
+        两框同样归钥匙（口径见页头）。
+      </p>
+      <div class="fields">
+        <div class="field">
+          <label for="g-fullname">Full name</label>
+          <input
+            id="g-fullname"
+            name="fullname"
+            autocomplete="off"
+            data-expect="name"
+          />
+        </div>
+        <div class="field">
+          <label for="g-email">Email address</label>
+          <input
+            id="g-email"
+            name="email_address"
+            type="email"
+            autocomplete="off"
+            data-expect="email"
+            data-owns="fill"
+          />
+        </div>
+        <div class="field">
+          <label for="g-phone">Phone number</label>
+          <input
+            id="g-phone"
+            name="phone_number"
+            type="tel"
+            autocomplete="off"
+            data-expect="phone"
+            data-owns="fill"
+          />
+        </div>
+        <div class="field">
+          <label for="g-state">State / Province</label>
+          <input
+            id="g-state"
+            name="state"
+            autocomplete="off"
+            data-expect="region"
+          />
+        </div>
+        <div class="field">
+          <label for="g-ni">National Insurance number</label>
+          <input
+            id="g-ni"
+            name="nino"
+            autocomplete="off"
+            data-expect="idNumber"
+          />
+        </div>
+        <div class="field">
+          <label for="g-display">Display name</label>
+          <input
+            id="g-display"
+            name="display_name"
+            autocomplete="off"
+            data-expect="-"
+            data-suppress="negative"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑧ 值形状收口（标签全没有，只有已输入的值）</h2>
+      <p class="note">
+        最后一层读一次该字段自己的值，判的是「像不像证件号 / 手机号 / 邮箱」，带出去的依据是形状码而不是原文。
+        第四框把同样的 11 位数字写进 <code>type=password</code>：遮蔽值不参与形状回推，结构性排除排在它前面。
+      </p>
+      <div class="fields">
+        <div class="field">
+          <label for="h-none-1">框一</label>
+          <input
+            id="h-none-1"
+            value="110101199003070015"
+            data-expect="idNumber"
+          />
+        </div>
+        <div class="field">
+          <label for="h-none-2">框二</label>
+          <input
+            id="h-none-2"
+            value="13800138000"
+            data-expect="phone"
+          />
+        </div>
+        <div class="field">
+          <label for="h-none-3">框三</label>
+          <input
+            id="h-none-3"
+            value="someone@example.com"
+            data-expect="email"
+          />
+        </div>
+        <div class="field">
+          <label for="h-none-4">框四</label>
+          <input
+            id="h-none-4"
+            type="password"
+            value="13800138000"
+            data-expect="-"
+            data-suppress="excluded"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑨ 负向区：这些框无论如何都不该出提示</h2>
+      <p class="note">元信息与事物名（物品名称 / 证件类型 / 房间数量 / 职业）、搜索容器、隐藏域、上传控件。</p>
+      <div class="fields">
+        <div class="field">
+          <label for="i-goods">物品名称</label>
+          <input
+            id="i-goods"
+            name="goods_name"
+            data-expect="-"
+            data-suppress="negative"
+          />
+        </div>
+        <div class="field">
+          <label for="i-ctype">证件类型</label>
+          <select
+            id="i-ctype"
+            data-expect="-"
+            data-suppress="negative"
+          >
+            <option>居民身份证</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="i-count">房间数量</label>
+          <input
+            id="i-count"
+            name="room_count"
+            inputmode="numeric"
+            data-expect="-"
+            data-suppress="negative"
+          />
+        </div>
+        <div class="field">
+          <label for="i-search">站内搜索</label>
+          <div class="search-box">
+            <input
+              id="i-search"
+              name="q"
+              data-expect="-"
+              data-suppress="excluded"
+            />
+          </div>
+        </div>
+        <div class="field">
+          <label for="i-file">附件</label>
+          <input
+            id="i-file"
+            name="attachment"
+            type="file"
+            data-expect="-"
+            data-suppress="excluded"
+          />
+        </div>
+        <div class="field">
+          <input
+            type="hidden"
+            id="i-hidden"
+            name="realname"
+            value="不该被读到"
+            data-expect="-"
+            data-suppress="excluded"
+          />
+          <label for="i-job">职业</label>
+          <input
+            id="i-job"
+            name="occupation"
+            data-expect="-"
+            data-suppress="negative"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑩ aria-labelledby（标签写在别的节点上）</h2>
+      <p class="note">无障碍写法把标签写在别的节点上，框上只有一个 id 列表；这一区刻意不配 <code>label[for]</code>。</p>
+      <div class="fields">
+        <div class="field">
+          <p
+            id="lb-detail"
+            hidden
+          >
+            详细地址
+          </p>
+          <input
+            id="j-addr"
+            aria-labelledby="lb-detail"
+            data-expect="address"
+          />
+        </div>
+        <div class="field">
+          <p
+            id="lb-mail"
+            hidden
+          >
+            电子邮箱
+          </p>
+          <input
+            id="j-mail"
+            aria-labelledby="lb-mail"
+            data-expect="email"
+          />
+        </div>
+      </div>
+    </section>
+  </body>
+</html>
