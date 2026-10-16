@@ -34,11 +34,11 @@ afterEach(() => {
 describe('selfNameValueNear：谁能被当作搜索词', () => {
   it('同表单里已填写的姓名框，值就是搜索词', () => {
     const el = fieldOf(
-      '<form><p><label>真实姓名<input id="n" name="realname" value="廖龙东"></label></p>' +
+      '<form><p><label>真实姓名<input id="n" name="realname" value="张三"></label></p>' +
         '<p><label>证件号码<input id="i" name="idNumber"></label></p></form>',
       'i',
     );
-    expect(selfNameValueNear(el)).toBe('廖龙东');
+    expect(selfNameValueNear(el)).toBe('张三');
   });
 
   it('聚焦框自己就是姓名框时取自己的值（在姓名框上点「从身份库选择」）', () => {
@@ -80,13 +80,13 @@ describe('selfNameValueNear：谁能被当作搜索词', () => {
 
   it('遮蔽值与隐藏值物理上取不到：结构性排除的框进不了候选集', () => {
     const masked = fieldOf(
-      '<form><label>真实姓名<input id="n" name="realname" type="password" value="廖龙东"></label>' +
+      '<form><label>真实姓名<input id="n" name="realname" type="password" value="张三"></label>' +
         '<label>证件号码<input id="i" name="idNumber"></label></form>',
       'i',
     );
     expect(selfNameValueNear(masked)).toBe('');
     const hidden = fieldOf(
-      '<form><input id="n" name="realname" type="hidden" value="廖龙东">' +
+      '<form><input id="n" name="realname" type="hidden" value="张三">' +
         '<label>证件号码<input id="i" name="idNumber"></label></form>',
       'i',
     );
@@ -95,26 +95,26 @@ describe('selfNameValueNear：谁能被当作搜索词', () => {
 
   it('多个姓名框按文档顺序取第一个非空：站点会摆「本人姓名 + 监护人姓名」两栏', () => {
     const el = fieldOf(
-      '<form><label>姓名<input id="n1" name="realname" value="廖龙东"></label>' +
+      '<form><label>姓名<input id="n1" name="realname" value="张三"></label>' +
         '<label>姓名<input id="n2" name="realname2" value="监护人"></label>' +
         '<label>证件号码<input id="i" name="idNumber"></label></form>',
       'i',
     );
-    expect(selfNameValueNear(el)).toBe('廖龙东');
+    expect(selfNameValueNear(el)).toBe('张三');
   });
 
   it('textarea 形态的姓名框同样参与（详情页常用 textarea）', () => {
     const el = fieldOf(
-      '<form><label>真实姓名<textarea id="n" name="realname">廖龙东</textarea></label>' +
+      '<form><label>真实姓名<textarea id="n" name="realname">张三</textarea></label>' +
         '<label>证件号码<input id="i" name="idNumber"></label></form>',
       'i',
     );
-    expect(selfNameValueNear(el)).toBe('廖龙东');
+    expect(selfNameValueNear(el)).toBe('张三');
   });
 
   it('作用域是所在表单：隔壁表单里的姓名不串过来', () => {
     const el = fieldOf(
-      '<form><label>姓名<input id="n" name="realname" value="廖龙东"></label></form>' +
+      '<form><label>姓名<input id="n" name="realname" value="张三"></label></form>' +
         '<form><label>证件号码<input id="i" name="idNumber"></label></form>',
       'i',
     );
@@ -123,11 +123,11 @@ describe('selfNameValueNear：谁能被当作搜索词', () => {
 
   it('没有 form 时按整页扫（SPA 注册页常把字段拆成多个 div 而无 form）', () => {
     const el = fieldOf(
-      '<div class="step1"><label>真实姓名<input id="n" name="realname" value="廖龙东"></label></div>' +
+      '<div class="step1"><label>真实姓名<input id="n" name="realname" value="张三"></label></div>' +
         '<div class="step2"><label>证件号码<input id="i" name="idNumber"></label></div>',
       'i',
     );
-    expect(selfNameValueNear(el)).toBe('廖龙东');
+    expect(selfNameValueNear(el)).toBe('张三');
   });
 
   it('扫描有界：超出上限的姓名框不参与（长表单点击不扫全表）', () => {
@@ -137,25 +137,25 @@ describe('selfNameValueNear：谁能被当作搜索词', () => {
     ).join('');
     const el = fieldOf(
       `<form><label>证件号码<input id="i" name="idNumber"></label>${filler}` +
-        '<label>真实姓名<input id="n" name="realname" value="廖龙东"></label></form>',
+        '<label>真实姓名<input id="n" name="realname" value="张三"></label></form>',
       'i',
     );
     expect(selfNameValueNear(el)).toBe('');
     // 正向对照：把同一个姓名框挪到上限之内，它就取到了——证明上一条红的是边界，不是夹具写坏
     const inside = fieldOf(
       '<form><label>证件号码<input id="i" name="idNumber"></label>' +
-        '<label>真实姓名<input id="n" name="realname" value="廖龙东"></label></form>',
+        '<label>真实姓名<input id="n" name="realname" value="张三"></label></form>',
       'i',
     );
-    expect(selfNameValueNear(inside)).toBe('廖龙东');
+    expect(selfNameValueNear(inside)).toBe('张三');
   });
 
   it('脱敏：值里的首尾空白被剪掉，返回值就是搜索框该显示的那串', () => {
     const el = fieldOf(
-      '<form><label>真实姓名<input id="n" name="realname" value="  廖龙东  "></label>' +
+      '<form><label>真实姓名<input id="n" name="realname" value="  张三  "></label>' +
         '<label>证件号码<input id="i" name="idNumber"></label></form>',
       'i',
     );
-    expect(selfNameValueNear(el)).toBe('廖龙东');
+    expect(selfNameValueNear(el)).toBe('张三');
   });
 });

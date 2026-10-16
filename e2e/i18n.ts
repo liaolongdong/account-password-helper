@@ -152,12 +152,15 @@ export function liteTextOf(key: string): RegExp {
 }
 
 /**
- * 完整文案逐字命中（不带占位符裁剪）
+ * 完整文案逐字相等（不带占位符裁剪），中英任一份命中即算通过
  *
  * 气泡里的角色词是模板 `{role}` 被替换后的那一段，砍前缀拿不到它；要断言「角色词真的被
- * 填进去了」，只能按完整值匹配。同 key 的中英两份都算命中，语言由浏览器决定。
+ * 填进去了」，只能按完整值比。语言由浏览器决定，所以两份都认。
+ *
+ * 这里刻意用 `includes`（整串相等）而不是「并集正则 + 子串匹配」：角色词之间有包含关系——
+ * `name` 是「姓名」，而 `givenName` / `familyName` 是「名」/「姓」，子串判据下
+ * 「期望姓名、实际报名」与「期望名、实际报姓名」两种走偏都会静默绿灯。
  */
-export function liteExactText(key: string): RegExp {
-  const alternatives = liteValues(key).map(value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-  return new RegExp(alternatives.join('|'));
+export function liteExactMatch(key: string, text: string): boolean {
+  return liteValues(key).includes(text);
 }

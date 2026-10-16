@@ -708,11 +708,11 @@ describe('OPEN_OPTIONS_AND_IDENTITY 角色收口（分发级）', () => {
     const listener = setupAndCaptureListener();
 
     listener(
-      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'idNumber', keyword: '  廖龙东  ' } },
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'idNumber', keyword: '  张三  ' } },
       contentSender('https://a.com/'),
       vi.fn(),
     );
-    expect(forwardedData()).toEqual({ role: 'idNumber', keyword: '廖龙东' });
+    expect(forwardedData()).toEqual({ role: 'idNumber', keyword: '张三' });
 
     listener(
       { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name', keyword: 'x'.repeat(300) } },
@@ -740,7 +740,7 @@ describe('OPEN_OPTIONS_AND_IDENTITY 角色收口（分发级）', () => {
 
     for (const badRole of ['cardNo', '姓名', 12345, undefined]) {
       listener(
-        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: badRole, keyword: '廖龙东' } },
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: badRole, keyword: '张三' } },
         contentSender('https://a.com/'),
         vi.fn(),
       );

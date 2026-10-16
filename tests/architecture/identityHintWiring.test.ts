@@ -18,7 +18,8 @@
  *    这里按整个模块的文本兜网。
  * 5. 搜索词在两处边界（后台、选项页）各自收口，且必须复用同一个 `normalizeSearchKeyword`；
  *    任何一侧改用本地裁剪，64 字上限就有了第二份真源并很快漂移。
- * 6. 两个标签里只有角色可以进日志；姓名是 PII，两处的日志行不得带出词值。
+ * 6. 两个标签里只有角色可以进日志：后台那条分支整条不写日志（一行都不许有），选项页只留一行且不带出词值——
+ *    「逐行不含 keyword」在零行分支上是空真，所以「有没有行可查」本身也是判据。
  */
 import { describe, expect, it } from 'vitest';
 import { readSource } from '../helpers/architectureScan';
@@ -141,14 +142,21 @@ describe('身份提示的跨上下文接线', () => {
     }
   });
 
-  it('姓名只作筛选词，两处的日志行一律不带出词值', () => {
-    for (const file of [MESSAGE_ROUTER, MESSAGE_HANDLER]) {
-      const logLines = branchOf(readSource(file), BRANCH_START[file])
-        .split('\n')
-        .filter(line => line.includes('logger.'));
-      for (const line of logLines) {
-        expect(line, `${file} 的日志行带出了搜索词：姓名是 PII，不得入日志`).not.toMatch(/keyword/i);
-      }
+  it('姓名只作筛选词：后台分支整条不写日志，选项页那条日志行不带出词值', () => {
+    const routerBranch = branchOf(readSource(MESSAGE_ROUTER), BRANCH_START[MESSAGE_ROUTER]);
+    const handlerBranch = branchOf(readSource(MESSAGE_HANDLER), BRANCH_START[MESSAGE_HANDLER]);
+    // 后台分支的载荷整包来自页面自报，这一侧刻意一条日志都不写。原写法「遍历日志行、逐行不含
+    // keyword」在这条分支上是**空真**（零行 ⇒ 循环零次 ⇒ 恒绿），所以把「没有日志行」本身钉成判据：
+    // 哪天有人往这条分支补一行带取值的 debug，这里会红，而不是静默通过。
+    expect(
+      [...routerBranch.matchAll(/logger\./g)],
+      '后台身份库分支新写了日志：该分支的 role 与 keyword 都是页面自报的不可信输入，整条分支不进日志',
+    ).toHaveLength(0);
+    const handlerLogs = handlerBranch.split('\n').filter(line => line.includes('logger.'));
+    // 选项页这一侧是有日志的（只记角色），先证「确有行可查」再逐行判——又是防「空集合当证据」
+    expect(handlerLogs, '选项页身份库分支的日志行消失或变成多行：本条判据会退化成空跑，须重新确认').toHaveLength(1);
+    for (const line of handlerLogs) {
+      expect(line, '选项页的日志行带出了搜索词：姓名是 PII，不得入日志').not.toMatch(/keyword/i);
     }
   });
 });

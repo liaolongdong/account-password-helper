@@ -11,7 +11,7 @@
  * `@vitest-environment jsdom` 单独换环境——被测模块只读 DOM 结构，
  * 不碰布局/样式/事件，jsdom 的几何缺陷（见 `tests/helpers/domLayout.ts` 头注）不影响判定。
  */
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { classifyPiiRaw, collectPiiSignals, resolvePiiField, tokenize } from '@/entrypoints/content/piiClassifier';
 
 /** 用一段真实形状的面板构造 DOM，取其中的第一个 input */
@@ -87,6 +87,22 @@ describe('信号采集', () => {
     const el = document.getElementById('el-id-1-2') as HTMLInputElement;
     expect(collectPiiSignals(el).label).toBe('证件号码');
     expect(resolvePiiField(el)).toMatchObject({ role: 'idNumber', tier: 'label' });
+    // 反查必须走原生关联（`el.labels`），不许退化成「扫全文档的 label 再比 for」：
+    // 这条判据在聚焦热路径上每个框都要走一遍，点击通道的 `selfNameValueNear` 最多还会连问 80 次，
+    // 扫全文档就是 80 × 页面 label 总数——agents.md 要求 content 侧 DOM 扫描有界。
+    const spy = vi.spyOn(document, 'querySelectorAll');
+    collectPiiSignals(el);
+    const labelScans = spy.mock.calls.filter(([selector]) => String(selector).includes('label'));
+    spy.mockRestore();
+    expect(labelScans, `反查标签退化成全文档扫 label（${labelScans.length} 次）`).toHaveLength(0);
+
+    // 等价性钉子：包裹式 label 文本为空时不判死这一档，继续看后面 `for` 指过来的那一枚。
+    // 换掉取标签的写法（原生 `labels` 替掉逐枚比对）时，这一句保证旧行为里那半边语义没丢。
+    document.body.innerHTML = '<label><input id="d"></label><label for="d">单位名称</label>';
+    expect(resolvePiiField(document.getElementById('d') as HTMLInputElement)).toMatchObject({
+      role: 'org',
+      tier: 'label',
+    });
   });
 
   it('aria-labelledby 反查 id 列表：显式关联赢过恰好挨着的兄弟节点', () => {

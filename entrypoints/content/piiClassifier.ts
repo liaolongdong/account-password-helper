@@ -549,18 +549,17 @@ const withinLabelBudget = (text: string): boolean => text.length <= (/[\u4e00-\u
  * content 渲染成兄弟块的结构）会让所有弱线索同时落空——input 不是 label 的后代、
  * 没有前兄弟、id 是 `el-id-1-2` 这种合成串，于是字段静默漏报，用户在表单里看不到提示。
  *
- * 只读文本、不读值；`htmlFor` 取的是 DOM 属性，无需对 id 做选择器转义。
+ * 只读文本、不读值。`label for` 走原生关联 `HTMLLabelableElement.labels`：浏览器已按 `for`
+ * 与包裹关系算好集合，不必扫全文档的 `<label>`——这条判据既在聚焦热路径上每个框走一次，
+ * 也会被点击通道的 `selfNameValueNear` 最多连问 80 次，全文档扫描在那两处都不可接受（有界性
+ * 要求见 `agents.md`「Content Script」）。同时也省掉 id 的选择器转义问题。
+ * 取文档顺序里第一枚**有文本**的关联标签：包裹式 label 文本为空时（`collectPiiSignals` 正是因此
+ * 才走到这里）跳过它，继续看后面那枚 `for` 指过来的——比「只认第一枚 `for`、空壳也算命中」更宽一档。
  */
 function labelFromAssociation(el: Element): string {
-  const id = el.getAttribute('id');
-  if (id) {
-    const labels = Array.from(document.querySelectorAll('label'));
-    for (const label of labels) {
-      if (label.htmlFor !== id) continue;
-      const text = (label.textContent ?? '').trim();
-      if (text) return text;
-      break;
-    }
+  for (const label of (el as HTMLLabelableElement).labels ?? []) {
+    const text = (label.textContent ?? '').trim();
+    if (text) return text;
   }
 
   const labelledBy = el.getAttribute('aria-labelledby');

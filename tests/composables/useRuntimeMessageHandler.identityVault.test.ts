@@ -132,10 +132,10 @@ describe('OPEN_OPTIONS_AND_IDENTITY 分发', () => {
 
     registeredListener?.({
       type: MessageType.OPEN_OPTIONS_AND_IDENTITY,
-      data: { role: 'idNumber', keyword: '廖龙东' },
+      data: { role: 'idNumber', keyword: '张三' },
     });
 
-    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledWith('idNumber', '廖龙东'));
+    await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledWith('idNumber', '张三'));
     unmount();
   });
 
@@ -166,7 +166,7 @@ describe('OPEN_OPTIONS_AND_IDENTITY 分发', () => {
     const openIdentityVault = vi.fn();
     const unmount = mountHandler(openIdentityVault);
 
-    registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'cardNo', keyword: '廖龙东' } });
+    registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'cardNo', keyword: '张三' } });
 
     await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledTimes(1));
     expect(openIdentityVault.mock.calls[0]).toEqual([undefined, undefined]);

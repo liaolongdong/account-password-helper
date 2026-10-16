@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { REPO_ROOT } from './global-setup';
 import { expect, test } from './harness';
-import { liteExactText } from './i18n';
+import { liteExactMatch } from './i18n';
 import { focusAndReadState, focusUntilHint, focusUntilKey, keyAnchoredTo, openFormPage } from './identityHintDom';
 
 /**
@@ -69,7 +69,7 @@ test('演示台逐行对账：真浏览器里点到每一框，提示与页面�
   // 就绪门：内容脚本按 `document_idle` 注入，晚到就没人接住第一次 `focusin`。
   // 没有这一道门，后面每一行的「没出提示」都分不清是没挂载还是判定挡掉了。
   await focusUntilHint(cdp, page, GATE_FIELD_ID);
-  expect((await focusAndReadState(page, cdp, GATE_FIELD_ID)).role).toMatch(liteExactText('cs.identity.role.name'));
+  expect(liteExactMatch('cs.identity.role.name', (await focusAndReadState(page, cdp, GATE_FIELD_ID)).role)).toBe(true);
 
   // 检测落定门：让位判据吃的是字段检测产物，而首次判定会被 `LoginFormAnalyzer` 缓存到 WeakMap，
   // 所以在扫描开始前必须把检测推到完成态——否则区块 A 的邮箱框会在「出提示 / 归钥匙」之间翻转，
@@ -102,7 +102,7 @@ test('演示台逐行对账：真浏览器里点到每一框，提示与页面�
       misses.push(
         `#${row.id} 出了 ${state.count} 枚提示（期望恰好 1 枚，角色=${row.expect}），钥匙${key ? '在这框上（归快速填充）' : '也不在（双双落空）'}`,
       );
-    } else if (!liteExactText(`cs.identity.role.${row.expect}`).test(state.role)) {
+    } else if (!liteExactMatch(`cs.identity.role.${row.expect}`, state.role)) {
       misses.push(`#${row.id} 报成「${state.role}」，期望角色=${row.expect}`);
     }
   }

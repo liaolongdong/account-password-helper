@@ -1,7 +1,7 @@
 import type { CDPSession, Page } from '@playwright/test';
 
 import { expect, test, verifyMasterPassword } from './harness';
-import { liteExactText, liteTextOf, templatedOf, textOf } from './i18n';
+import { liteExactMatch, liteTextOf, templatedOf, textOf } from './i18n';
 import { STORAGE_KEYS } from '../utils/storageKeys';
 import {
   blurUntilGone,
@@ -109,7 +109,8 @@ test('气泡只报角色：值不进内容，页面脚本也读不到 shadow 里
 
   expect(await bubbleText(cdp)).toMatch(liteTextOf('cs.identity.hintTitle'));
   expect(await bubbleText(cdp), '字段值出现在了气泡里').not.toContain(CANARY);
-  expect(await roleText(cdp)).toMatch(liteExactText('cs.identity.role.name'));
+  const gateRole = await roleText(cdp);
+  expect(liteExactMatch('cs.identity.role.name', gateRole), `角色词报成了「${gateRole}」`).toBe(true);
 
   // closed：主世界拿不到 shadowRoot，宿主的光 DOM 里也没有任何内容节点。
   // 不断言宿主 outerHTML 为空串——主题令牌是内联写进宿主 style 属性的，那里本就有内容。
@@ -127,7 +128,8 @@ test('非登录形态的手机号框照样出提示：让位只给快速填充�
 
   await focusUntilHint(cdp, page, 'f-phone');
 
-  expect(await roleText(cdp)).toMatch(liteExactText('cs.identity.role.phone'));
+  const phoneRole = await roleText(cdp);
+  expect(liteExactMatch('cs.identity.role.phone', phoneRole), `角色词报成了「${phoneRole}」`).toBe(true);
   // 手机号属「本人且常用」档：不该带核对提示
   expect(await bubbleText(cdp)).not.toMatch(liteTextOf('cs.identity.hintVerify'));
 
@@ -171,7 +173,7 @@ test('地址表单四档各报其角色：中英标签同页并存也不串味',
   for (const [id, roleKey] of cases) {
     await focusUntilHint(cdp, page, id);
     const role = await roleText(cdp);
-    expect(role, `#${id} 报成了别的角色`).toMatch(liteExactText(roleKey));
+    expect(liteExactMatch(roleKey, role), `#${id} 报成了别的角色「${role}」`).toBe(true);
     seen.push(role);
   }
   // 逐条判据在中英两侧各只允许两个候选词，串味有可能躲过它们（例如把「地区」报成地址的另一种说法）；

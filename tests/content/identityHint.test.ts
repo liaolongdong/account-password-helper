@@ -255,11 +255,11 @@ describe('身份提示气泡', () => {
     };
 
     it('同表单里已填好的本人姓名，就是那条唯一出页面的搜索词', () => {
-      const { idEl } = pair('廖龙东');
+      const { idEl } = pair('张三');
       showIdentityHint(idEl, 'idNumber', true);
       expect(clickPick()).toEqual({
         type: MessageType.OPEN_OPTIONS_AND_IDENTITY,
-        data: { role: 'idNumber', keyword: '廖龙东' },
+        data: { role: 'idNumber', keyword: '张三' },
       });
     });
 
@@ -270,19 +270,19 @@ describe('身份提示气泡', () => {
     });
 
     it('证件号框自己的值哪儿也没去：CANARY 不在载荷里', () => {
-      const { idEl } = pair('廖龙东');
+      const { idEl } = pair('张三');
       showIdentityHint(idEl, 'idNumber', true);
       const json = JSON.stringify(clickPick());
       expect(json, '字段值出现在了跨入口载荷里').not.toContain(CANARY);
-      expect(json).toContain('廖龙东');
+      expect(json).toContain('张三');
     });
 
     it('取值发生在点击那一刻，不在气泡展示时（明文不多活一段时间）', () => {
       const { nameEl, idEl } = pair('');
       showIdentityHint(idEl, 'idNumber', true);
       // 气泡已经在屏幕上，用户回头把姓名补上——搜索词必须是补完之后的那一串
-      nameEl.value = '廖龙东';
-      expect(clickPick()).toMatchObject({ data: { keyword: '廖龙东' } });
+      nameEl.value = '张三';
+      expect(clickPick()).toMatchObject({ data: { keyword: '张三' } });
     });
   });
 
