@@ -286,12 +286,67 @@ const ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[
     ],
   ],
   ['email', ['email', 'emailaddress', 'mail', 'myemail']],
-  ['address', ['address', 'addr', 'detailaddress', 'street', 'streetaddress', 'addressline', 'doorno']],
-  ['region', ['region', 'province', 'city', 'district', 'state', 'area', 'location', 'nativeplace']],
+  [
+    'address',
+    [
+      'address',
+      'addr',
+      'detailaddress',
+      'street',
+      'streetaddress',
+      'addressline',
+      'doorno',
+      'housenumber',
+      'apartment',
+      'unitnumber',
+      'roomnumber',
+    ],
+  ],
+  /**
+   * `birthplace` / `placeofbirth` / `countryofbirth` / `birthcountry` 必须排在本档（早于 birthday）：
+   * birthday 档收了裸 `birth`，于是 `name="birth_place"` 与 `name="country_of_birth"` 曾被读成
+   * 「出生日期」（2026-10-17 缺口勘察抓出的误报，而 label 侧 `Country of Birth` 判的却是 region，
+   * 两通道打脸）。摘掉裸 `birth` 会连带废掉 `name="birth"` 这一常见写法，所以补的是更长的串。
+   */
+  [
+    'region',
+    [
+      'region',
+      'province',
+      'city',
+      'district',
+      'state',
+      'area',
+      'location',
+      'nativeplace',
+      'birthplace',
+      'placeofbirth',
+      'countryofbirth',
+      'birthcountry',
+    ],
+  ],
   ['postal', ['postalcode', 'zipcode', 'zip', 'postcode']],
   [
     'idNumber',
-    ['idcard', 'idcardno', 'idno', 'idnumber', 'certno', 'certnum', 'identityno', 'idnum', 'ssn', 'nino', 'nationalid'],
+    [
+      'idcard',
+      'idcardno',
+      'idno',
+      'idnumber',
+      'certno',
+      'certnum',
+      'identityno',
+      'idnum',
+      'ssn',
+      'nino',
+      'nationalid',
+      'socialsecuritynumber',
+      'taxid',
+      'driverlicense',
+      'driverslicense',
+      'licensenumber',
+      'licencenumber',
+    ],
   ],
   ['passport', ['passport', 'passportno', 'passno', 'travelcert', 'permitno']],
   ['birthday', ['birthday', 'birthdate', 'birth', 'bdate', 'dob']],
@@ -311,7 +366,20 @@ const ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[
  * 指身份证号和银行卡号，词元层面分不开，收录会把证件号框读成卡号。
  */
 const CARD_ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[] = [
-  ['cardNo', ['iban', 'bankcard', 'creditcard', 'debitcard', 'bankaccount', 'bankaccountno']],
+  [
+    'cardNo',
+    [
+      'iban',
+      'bankcard',
+      'creditcard',
+      'debitcard',
+      'bankaccount',
+      'bankaccountno',
+      'accountnumber',
+      'sortcode',
+      'routingnumber',
+    ],
+  ],
   ['cardHolder', ['cardholder', 'cardholdername', 'holdername', 'accountname', 'accountholder']],
   ['cardBank', ['bankname', 'bank', 'issuingbank']],
 ];
@@ -353,7 +421,8 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
   { role: 'cardBank', phrases: ['开户行', '开户银行', '银行名称', '发卡行', '所属银行'] },
   // 「社保卡号」四个字里就含着 `卡号`，但它问的是社保个人编号——多数城市那一串就是身份证号。
   // 排在卡类之前把它接走：拿库里的银行卡号去填这一格是错的，而证件号至少是对的一半。
-  { role: 'idNumber', phrases: ['社保卡号'] },
+  // `社会保障卡号`（多一个「障」字，接不上「社保卡号」那串）与 `医保卡号` 同族，一并收在这里。
+  { role: 'idNumber', phrases: ['社保卡号', '社会保障卡', '医保卡'] },
   {
     role: 'cardNo',
     phrases: ['卡号', '卡账号', '银行账号', '银行帐号', '信用卡号', '借记卡号', '储蓄卡号', '账户号'],
@@ -362,7 +431,14 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
   { role: 'name', phrases: ['姓名', '名字'] },
   { role: 'phone', phrases: ['手机', '电话', '联系方式', '联系电话', '联系号码'] },
   { role: 'email', phrases: ['邮箱', '邮件', '信箱'] },
-  { role: 'address', phrases: ['地址', '详细地址', '街道', '门牌', '小区', '住址', '居住地', '楼栋'] },
+  /**
+   * 住址及其细分格。快递面单与公租房表把一条住址拆成「详细地址 / 单元 / 楼层」好几格，
+   * 库里存的是一条完整住址，所以细分格提示到 address 是对的落点（用户从那一行里取自己那段）。
+   */
+  {
+    role: 'address',
+    phrases: ['地址', '详细地址', '街道', '门牌', '小区', '住址', '居住地', '楼栋', '单元', '房间号', '房号', '楼层'],
+  },
   {
     role: 'region',
     phrases: [
@@ -379,6 +455,8 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
       '社区',
       '参保地',
       '缴存地',
+      '乡镇',
+      '村委会',
     ],
   },
   { role: 'postal', phrases: ['邮编', '邮政编码'] },
@@ -388,6 +466,12 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
    * `统一社会信用代码` 一类写法**不许**加进来：第 3.5 层闸门对带人主体词的文本刻意豁免，
    * 于是词典成了那条文本剩下的唯一判据——`法定代表人统一社会信用代码` 曾被这一档接走、
    * 提示成本人的证件号，而那一串 18 位码问的还是机构（覆盖面账本钉着这条）。
+   *
+   * 2026-10-17 缺口勘察补进来的四条按同一把尺子挑：**那一串数字本身就是这个人的证件号**。
+   * 驾驶证号、回乡证号在中国都等于身份证号，`个人税号` / `个税` 的纳税识别号同样是身份证号，
+   * 所以提示到库里的证件号格是对的落点。按这把尺子，`学历证书编号`、`教师资格证编号`、
+   * `驾照档案编号`、`社保电脑号`、`保单号` **一律不收**——它们各自成串、都不等于身份证号，
+   * 提示成「证件号」会把人往身份证号上引（这一族每条都在账本里钉着「不出提示」）。
    */
   {
     role: 'idNumber',
@@ -406,10 +490,22 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
       '居住证',
       '台胞证',
       '永久居留',
+      '驾驶证',
+      '回乡证',
+      '个人税号',
+      '个税',
     ],
   },
   { role: 'passport', phrases: ['护照', '通行证', '签证'] },
-  { role: 'birthday', phrases: ['出生', '生日'] },
+  /**
+   * 生日档只收「日期」形状的说法。
+   *
+   * 原本这里是裸「出生」，于是 `出生证编号`、`出生医学证明号` 被读成生日——那一串是
+   * 《出生医学证明》的**编号**，提示成生日等于把人往日期上引（2026-10-17 缺口勘察抓出的
+   * 误报）。收窄成带「日 / 年月 / 时间」的四条，`出生日期`、`出生年月`、`出生时间`、`生日`
+   * 照常接得住，`出生地` 仍由更早的 region 档接走。
+   */
+  { role: 'birthday', phrases: ['出生日', '出生年月', '出生时间', '生日'] },
   { role: 'gender', phrases: ['性别'] },
   { role: 'org', phrases: ['公司', '单位', '院校', '学校', '雇主'] },
   /**
@@ -482,6 +578,18 @@ const ZH_NEG = [
   '数量',
   '账户名',
   '名称',
+  // —— 2026-10-17 缺口勘察补的四条，全部是「子串判据吃进相邻语义」这一族 ——
+  // 证件 / 证明的**有效期**是日期，库里没有那一格；此前 `身份证有效期止` 被「身份证」接走。
+  // 同一句也让 `信用卡有效期` 从「词典没接住」变成「负向档明确挡下」——气泡行为不变，
+  // 但「这一格为什么没提示」从此有一个可对账的出口码（演示台夹具跟着改）。
+  '有效期',
+  // `单位性质` / `户籍性质` 与已在表内的「类型」同族元信息，此前只有后者进了负向档。
+  '性质',
+  // `与申请人关系` 问的是关系称谓，不是姓名（name 档末尾那个「人」组把它接走过）。
+  // 对照组：`联系人姓名` / `申请人联系电话` 都不含「关系」，照常由各自的角色档接住。
+  '关系',
+  // 机器的地址不是住址——`IP地址` 撞的是「地址」两字的子串判据。
+  'ip地址',
 ];
 
 /**
@@ -542,11 +650,26 @@ const EN_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
       'driving license',
       'tax number',
       'tax id',
+      // —— 2026-10-17 缺口勘察补的七条：此前只有 `name` 属性通道认得，纯标签页面整段漏报 ——
+      'ssn',
+      'social security',
+      'nino',
+      'license number',
+      'licence number',
+      'medicare',
+      'health insurance',
     ],
   },
   { role: 'cardHolder', phrases: ['cardholder', 'card holder', 'account holder'] },
   { role: 'cardBank', phrases: ['bank name', 'issuing bank', 'beneficiary bank'] },
-  { role: 'cardNo', phrases: ['card number', 'card no', 'credit card number'] },
+  /**
+   * 卡号档。后四条是英文转账页最常见的写法——`Bank Account Number` 这类站点只写标签、
+   * 不写 `name="bank_account"`，所以属性通道的那几条词元在这类页面上够不到。
+   */
+  {
+    role: 'cardNo',
+    phrases: ['card number', 'card no', 'credit card number', 'bank account', 'iban', 'sort code', 'routing number'],
+  },
   { role: 'givenName', phrases: ['first name', 'given name', 'forename'] },
   { role: 'familyName', phrases: ['last name', 'family name', 'surname'] },
   {
@@ -558,7 +681,10 @@ const EN_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
     phrases: ['mobile', 'phone number', 'telephone', 'cell phone', 'msisdn', 'contact number', 'landline'],
   },
   { role: 'email', phrases: ['email', 'e-mail'] },
-  { role: 'address', phrases: ['address line', 'street address', 'delivery address', 'address'] },
+  {
+    role: 'address',
+    phrases: ['address line', 'street address', 'delivery address', 'address', 'house number', 'apartment'],
+  },
   { role: 'region', phrases: ['state', 'province', 'city', 'region', 'county', 'country of birth', 'prefecture'] },
   { role: 'postal', phrases: ['postcode', 'postal code', 'zip code', 'zipcode'] },
   { role: 'passport', phrases: ['passport'] },
@@ -586,6 +712,9 @@ const EN_NEG = [
   'notes',
   'job title',
   'expected',
+  // 英文 region 档收了裸 `city`，于是 `Ethnicity` 被读成地区（2026-10-17 缺口勘察抓出的误报）。
+  // 在这里收口而不是摘掉 `city`：`City` 单独成格时问的确实是城市，那条判据本身没错。
+  'ethnicity',
 ];
 
 /**

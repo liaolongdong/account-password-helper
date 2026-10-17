@@ -733,6 +733,42 @@
           />
         </div>
         <div class="field">
+          <label for="g-bankacct">Bank account number</label>
+          <input
+            id="g-bankacct"
+            name="bank_account"
+            autocomplete="off"
+            data-expect="cardNo"
+          />
+        </div>
+        <div class="field">
+          <label for="g-sortcode">Sort code</label>
+          <input
+            id="g-sortcode"
+            name="sort_code"
+            autocomplete="off"
+            data-expect="cardNo"
+          />
+        </div>
+        <div class="field">
+          <label for="g-licence">Driving licence number</label>
+          <input
+            id="g-licence"
+            name="driving_licence"
+            autocomplete="off"
+            data-expect="idNumber"
+          />
+        </div>
+        <div class="field">
+          <label for="g-apt">Apartment number</label>
+          <input
+            id="g-apt"
+            name="apartment_no"
+            autocomplete="off"
+            data-expect="address"
+          />
+        </div>
+        <div class="field">
           <label for="g-display">Display name</label>
           <input
             id="g-display"
@@ -1443,7 +1479,7 @@
             id="k-card-exp"
             placeholder="MM/YY"
             data-expect="-"
-            data-suppress="noRole"
+            data-suppress="negative"
           />
         </div>
         <div class="field">
@@ -1570,6 +1606,24 @@
               />
             </td>
           </tr>
+          <tr>
+            <td class="tdBg">社保卡号</td>
+            <td>
+              <input
+                id="sb-sbkh"
+                data-expect="idNumber"
+                data-tier="group"
+              />
+            </td>
+            <td class="tdBg">驾照档案编号</td>
+            <td>
+              <input
+                id="sb-jzdan"
+                data-expect="-"
+                data-suppress="noRole"
+              />
+            </td>
+          </tr>
         </table>
       </div>
 
@@ -1613,6 +1667,22 @@
               id="gz-sr"
               data-expect="-"
               data-suppress="noRole"
+            />
+          </div>
+          <div class="field">
+            <label for="gz-yxq">身份证有效期止</label>
+            <input
+              id="gz-yxq"
+              data-expect="-"
+              data-suppress="negative"
+            />
+          </div>
+          <div class="field">
+            <label for="gz-gx">与申请人关系</label>
+            <input
+              id="gz-gx"
+              data-expect="-"
+              data-suppress="negative"
             />
           </div>
         </div>
@@ -1732,6 +1802,24 @@
                 id="zz-yzbm"
                 maxlength="6"
                 data-expect="postal"
+              />
+            </td>
+          </tr>
+          <tr>
+            <td class="tdBg">乡镇</td>
+            <td>
+              <input
+                id="zz-xz"
+                data-expect="region"
+                data-tier="group"
+              />
+            </td>
+            <td class="tdBg">单元号</td>
+            <td>
+              <input
+                id="zz-dyh"
+                data-expect="address"
+                data-tier="group"
               />
             </td>
           </tr>
