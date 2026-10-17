@@ -4,18 +4,23 @@
 > 每条都能在 `entrypoints/content/piiClassifier.ts` 找到对应符号；改词典或改顺序时请同步本文与
 > `tests/content/piiClassifier.coverage.test.ts` 的账本。
 >
-> 三个具体问题的答案分别在这些小节：
+> 四个具体问题的答案分别在这些小节：
 > **「机构证件号码为什么不提示」** → §5.1；**「社保那张表没有 placeholder 的框为什么不提示」** → §5.2；
-> **「常见字段都覆盖了吗」** → §6 覆盖矩阵与 §7 刻意不覆盖清单。
+> **「常见字段都覆盖了吗」** → §6 覆盖矩阵与 §7 刻意不覆盖清单；
+> **「学历证书编号那一类为什么从沉默翻成提示」** → §5.6。
 
 ## 1. 定位与边界
 
 - 分类器是**纯函数**：单字段进、单字段出，不填充、不落盘、不发网络请求、不写日志。
 - 它只读页面的**结构信号**（`name` / `id` / `label` / `placeholder` / `autocomplete` / DOM 邻居）与**这一框自己的值**。
   值只在最后一层用于形状收口，命中时 `evidence` 写的是形状码（`id-shape`）而不是原文。
-- 唯一一条明文离开页面的通道是 `selfNameValueNear()`：用户已经手打好的**本人姓名**，在点击「从身份库选择」那一刻
-  取一次、只进身份库搜索框。四条边界写在该函数 JSDoc 里（只认 `role === 'name'` 且 `ownership === 'self'`、
-  只在点击时调用、作用域是所在 `<form>` 且封顶 80 枚控件、交给 `normalizeSearchKeyword` 收口）。
+- 离开页面的明文只有**一条通道、两个来源**，都发生在点击「从身份库选择」那一刻、只进身份库的搜索框，
+  并共用同一个 64 字收口（`utils/keywordMatch.ts` 的 `normalizeSearchKeyword`）：
+  `selfNameValueNear()` 取用户已经手打好的**本人姓名**（四条边界写在该函数 JSDoc 里——只认
+  `role === 'name'` 且 `ownership === 'self'`、只在点击时调用、作用域是所在 `<form>` 且封顶 80 枚控件、
+  交给 `normalizeSearchKeyword` 收口）；`hintFieldKeyword()` 取**这一格叫什么**（标签文字，退到同项兄弟标签；
+  只服务「库里没有那一格」的编号族，**永不读这一框里已经填的值**）。两条通道由 `pickSearchKeyword()`
+  按角色互斥地选中，调用点只有一处（§5.6）。
 - 角色**不跨入口**：深链载荷只有搜索词一个标签，角色不决定身份库的类别档位（一条条目同时带证件号、手机号等
   多个值，预选会把该命中的筛掉）。
 
@@ -61,7 +66,7 @@
 | 8 已输入值形状     | `^\d{17}[\dXx]$` → idNumber；`^1[3-9]\d{9}$` → phone；`email` 正则 → email                                                                                                                                                                                                                                     | `tier='value'`                                     |
 | 收口               | 各层全空                                                                                                                                                                                                                                                                                                       | `suppress='noRole'`                                |
 
-**顺序里三处「调换就回归」的地方**（源码注释各钉了一条用例）：
+**顺序里四处「调换就回归」的地方**（源码注释各钉了一条用例）：
 
 1. 负向短语必须早于任何正向词元，否则 `用户名` / `Display name` 被 `name` 抢走。
 2. `autocomplete` 必须早于负向短语，否则 `autocomplete="tel"` 的登录手机号先被账号守卫挡掉、又落进 `phone` 词典。
@@ -69,6 +74,8 @@
    `社保卡号 / 社会保障卡 / 医保卡` 排在 `卡号` 之前（四个字里就含着 `卡号`，但它问的是社保个人编号，
    多数城市那一串就是身份证号；`社会保障卡号` 多一个「障」字，接不上「社保卡号」那串，所以整条词收在
    `社会保障卡` 上）；**`联系人 / 收件人 / 申请人` 这一段「人」词挪到整张词典末尾**（见 §5.3）。
+4. `serialNumber` 档排在 `idNumber` **之前**，中文侧与 `EN_DICT`、`ATTR_DICT` 三处同形：`社保卡电脑号`
+   含「社保卡」三字，反序会被证件号先接走，而深圳那一串 8 位电脑号根本不是身份证号（§5.6 末段）。
 
 **负向短语的三条例外**（`isZhNegative()`，都是「同一个后缀既指向人也指向事物」的形状歧义）：
 
@@ -106,7 +113,7 @@ account + name，只有拼回 `accountname` 才对得上户名档；而 `bank` �
 address 接走，单位名只收「除了公司词元没说别的」的字段）。`name` / `company` 这类裸词还要过**同生词元核查**：
 `goods_name` / `hotelName` 是事物名、`company_size` / `company_logo` 是元信息，都不算人名或单位名。
 
-## 5. 四案归因（都是真实漏报 / 误报，不是审美选择）
+## 5. 六案归因（都是真实漏报 / 误报，不是审美选择）
 
 ### 5.1 「机构证件号码」——为什么必须沉默，以及旧行为错在哪
 
@@ -192,9 +199,9 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 `驾驶证号` `回乡证号` `社会保障卡号` `医保卡号` `个人税号` / `个税编号` 在中国都等于身份证号，
 所以提示到库里的 `idNumber` 是对的落点；`SSN` `NINO` `Social Security Number` `Personal Tax Number`
 `Driving licence number` `Medicare number` 同族。按这把尺子，`学历证书编号` `教师资格证编号`
-`医师资格证号` `驾驶证档案编号` `社保电脑号` `保单号` **一律不收**——它们各自成串、都不等于身份证号，
-提示成「证件号」会把人往身份证号上引。这一族每一条都在账本里钉着「不出提示」，
-所以「收了证件号族」和「没顺手把编号族一起收进来」是两件能被测试分开的事。
+`医师资格证号` `驾驶证档案编号` `社保电脑号` `保单号` 当时**一律不收**——它们各自成串、都不等于身份证号，
+提示成「证件号」会把人往身份证号上引。2026-10-18 这一族由沉默翻成提示，但**翻的是落点、不是这把尺子**：
+它们仍然不许挂 `idNumber`，改挂新角色 `serialNumber`，落点是身份库的自定义字段（§5.6）。
 同一把尺子也决定了这一档的短语**必须带「号」收口**：裸「驾驶证」会吃进车管所那串 12 位档案编号，
 裸「个税」会吃进薪酬表的「个税(元)」扣缴金额——两条都是 §5.5 评审回灌抓出来的误报。
 `回乡证号` 是一条**已知分叉**：同一张证的全称 `港澳居民来往内地通行证号码` 由 passport 档接走（它写着「通行证」三字），
@@ -259,7 +266,43 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 （漏报方向是安全侧，账本钉住这条形状，免得日后被当成 bug 改回去）；`Nursing License Number` 一类职业执照的
 省写仍落 idNumber（英文表单上裸 "licence number" 绝大多数指驾驶证，收窄它要再补两枚负向词，不划算）。
 
-## 6. 覆盖矩阵：16 个可提示角色
+### 5.6 编号族翻案：沉默改成「提示 + 说出落点」（2026-10-18）
+
+驱动这一轮的是一条用户评论：「现在身份信息库中的自定义字段不能搜索嘛？这些证件号和编号可以放到自定义字段里面呀」。
+**先把这句话的前提跑了一遍**再动手：身份库的检索侧 `collectSearchableFields` 本来就把自定义字段的
+**标签与值**都收进搜索面（那条特征测试现在钉在 `tests/composables/useIdentityVault.test.ts`），
+所以用户问的「不能搜索嘛」答案是「能」——真正的缺口只有两处：
+
+1. 分类器侧没有一档能**不声称证件号**地接住这一族（§5.4 的尺子只能让它们沉默）；
+2. 气泡点「从身份库选择」时，深链带过去的搜索词**只有本人姓名**，那一族即便提示了也跳不到对的格子。
+
+于是新增角色 `serialNumber`（第 17 档，中英 label 18 + 7 条短语、属性 9 个词元，全部带**证书 / 单据名 + 号 / 编号**
+收口，不收录裸「编号」也不收录裸 `number`），并把它的落点显式写进气泡：`utils/identity/hintRoles.ts` 里新增
+`CUSTOM_FIELD_LANDING_ROLES = ['serialNumber']` 那张表被 `buildBubble` 用来决定是否多附一句
+「库里没有这一格，可在自定义字段里存下它」。之所以做成**一张表**而不是在气泡里判角色名：以后再有「库里没有那一格」
+的角色，加进表里气泡文案与深链取值两条通道会一起跟上，`identityHintWiring.test.ts` 会要求分派器重新表态。
+
+深链的取值口径按角色分派（`pickSearchKeyword()`，`entrypoints/content/IdentityHint.ts`）：
+编号族带的是**这一格叫什么**（标签文字，退而取同项兄弟标签，两端装饰字符 `\*＊:：、。.，,;；·—_-` 剥掉），
+其余角色维持原来的本人姓名。两条通道刻意不同源，因为落点不同——姓名那一族搜的是「这个人存过的值」，
+编号族搜的是「用户自拟的那一格」。**它与姓名通道共用同一份 64 字上限**（`utils/keywordMatch.ts` 的
+`normalizeSearchKeyword`），这是全仓检索词长度的单一真源，第三条通道将来也必须是它。
+三条安全边界跟原口径一致：取值只在**点下按钮那一次**发生（聚焦期间不读，否则明文在闭包里活整段聚焦时间）、
+**读的是标签文字，永不读这一框里已经填的值**、跨入口载荷仍然只有 `{ keyword }` 一个标签且后台不写日志。
+
+词典排布上有一条**必须留名的先后关系**：`serialNumber` 档排在 `idNumber` 之前。反序的话
+`社保卡电脑号` 会被「社保卡」三字先接走、报成证件号，而深圳那一串 8 位电脑号根本不是身份证号。
+这一对（`社会保障卡号 → idNumber` / `社保卡电脑号 → serialNumber`）与「编号族三条边界仍沉默」
+一起钉在 `piiClassifier.coverage.test.ts`，演示台 ⑯ 区也跟着改了那一行的 `data-expect`。
+
+验证：覆盖面账本与演示台先红后绿（整页受检字段 137 → 148 行，新区 11 行 + 翻案 1 行改判）；
+角色闭集从 16 抬到 17，`piiClassifier.demoPage.test.ts` 那句「十七个可提示角色在本页全部出现过」现在
+除了硬编码清单还会拿 `IDENTITY_HINT_ROLES` 的真实词表来对账，**下次再加一档而没在演示台摆行，这里会红**。
+七道变异逐个做过：把分派判据换成硬编码角色名、把 `CUSTOM_FIELD_LANDING_ROLES` 的引用摘掉、
+把取值通道换成读 `input.value`、把装饰剥离正则摘宽、把 64 字上限就地写死、把调用点挪进展示路径、
+把空白载荷写成空串键——每一处都只在预期的那一条用例上红。
+
+## 6. 覆盖矩阵：17 个可提示角色
 
 角色闭集定义在 `utils/identity/hintRoles.ts`；气泡文案是 `utils/i18n-lite.ts` 的 `cs.identity.role.*`（中英各一份，
 由 `tests/utils/identityHintRoles.test.ts` 钉住词表与语言包同步）。下表三列都是**代表性写法**（词元列为节选，
@@ -278,6 +321,7 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 | `region` 所在地区   | 所在地区 / 省份 / 城市 / 区县 / 户籍 / 籍贯 / 出生地 / 社区 / 参保地 / 缴存地 / 乡镇 / 村委会                                  | state / province / city / region / country of birth                                                            | region, province, city, district, state, nativeplace, birthplace, placeofbirth, countryofbirth                                 | ➖ 常在 `address` 里    |
 | `postal` 邮编       | 邮编 / 邮政编码                                                                                                                | postcode / zip code / zipcode                                                                                  | postalcode, zipcode, zip, postcode                                                                                             | ➖ 常在 `address` 里    |
 | `idNumber` 证件号   | 身份证 / 证件号 / 社保卡号 / 社会保障号 / 居住证 / 警官证 / 士兵证 / 台胞证 / 永久居留 / 驾驶证号 / 回乡证 / 个人税号 / 个税号 | id card / national id / driving licence number / tax number / national insurance / ssn / medicare number       | idcard, idcardno, certno, ssn, nino, nationalid, socialsecuritynumber, taxid, driverlicense, licensenumber                     | ✅ `idNumber`（secret） |
+| `serialNumber` 编号 | 学历证书编号 / 毕业证号 / 学位证书编号 / 教师资格证编号 / 档案编号 / 驾驶证编号 / 电脑号 / 保单号 / 个人编号                   | serial number / certificate number / diploma number / policy number                                            | serialnumber, certificateno, certificatenumber, diplomanumber, policyno, policenumber, qualificationno                         | ➖ 走 `customFields`    |
 | `passport` 护照号   | 护照 / 通行证 / 签证                                                                                                           | passport                                                                                                       | passport, passno, travelcert                                                                                                   | ➖ 走 `customFields`    |
 | `birthday` 出生日期 | 出生日 / 生日 / 出生年月 / 出生时间（刻意**不收**裸「出生」，见 §5.4）                                                         | date of birth / birth date                                                                                     | birthday, birthdate, dob                                                                                                       | ➖ 走 `customFields`    |
 | `gender` 性别       | 性别                                                                                                                           | gender / sex                                                                                                   | gender, sex                                                                                                                    | ➖ 走 `customFields`    |
@@ -289,22 +333,27 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 「库里有这一格的值吗」这一列决定的是提示的**实用性上限**：`identity/fields.ts` 的内置字段只有
 `name / idNumber / phone / email / address / cardNo / cardBank / cardHolder / cardExpiry / cardCvv / remark`，
 其余角色提示出来仍然有用（点「从身份库选择」带的是搜索词，用户能在自定义字段里找到值），
-但它们不是库里的一条内置字段。
+但它们不是库里的一条内置字段。这一列写 `➖` 的角色里，只有 `serialNumber` 那一档的**落点本身也不在库里**，
+所以它由 `CUSTOM_FIELD_LANDING_ROLES` 单独列出：气泡因此多附一句「存成自定义字段」，
+而深链带过去的搜索词换成**这一格叫什么**（标签文字），不再带本人姓名——姓名在那一格是搜不出来的（§5.6）。
 
-需要**二次核对**（`needsVerify`，提示语额外带「请核对后再取用」）的角色：`idNumber` + 可提示的卡类三档
-（库里按高敏字段加密），以及任何归属判为 `confirm` 的框。
+需要**二次核对**（`needsVerify`，提示语额外带「请核对后再取用」）的角色：`idNumber` `serialNumber` + 可提示的卡类三档
+（库里按高敏字段加密），以及任何归属判为 `confirm` 的框。编号族归入这一档的理由与证件号相同：
+那一串是证书 / 保单上的编号，取错一位就是另一本证。
 
 ## 7. 刻意不覆盖：宁可不提示，也不给一句「库里没有的东西」
 
 - **机构主体的证照号**：`机构证件号码` `统一社会信用代码` `营业执照号码` `纳税人识别号` `组织机构代码`
   `金融许可证编号` / `Company Tax Number` `EIN` `Business Registration Number` `Business Licence Number` `VAT Number`
   （出口码 `orgCredential`；最后那条是 2026-10-17 评审回灌补上的英联邦拼法，见 §5.5）。
-- **单据号与金额**：`运单号` `快递单号` `保单号` `保价金额` `建筑面积` `月平均缴费基数` `家庭月收入` `注册资本`
+- **单据号与金额**：`运单号` `快递单号` `保价金额` `建筑面积` `月平均缴费基数` `家庭月收入` `注册资本`
   / `Social Security Tax` `Medicare Levy` `Health Insurance Plan`（薪酬与险种页的金额 / 险种，英文侧同族误报，见 §5.5）。
-- **各证自成一串的「编号」族**（判据见 §5.4 那把尺子）：`学历证书编号` `学位证书编号` `教师资格证编号`
-  `医师资格证号` `驾驶证档案编号` `驾驶证编号` `社保电脑号` `公积金个人编号` `出生证编号` `出生医学证明号`。
-  库里那一格存的是身份证号，把这一族提示成「证件号」等于把人往一个填不进那串数字的落点引——
-  沉默比错提示有用。
+- **各证自成一串的「编号」族**：这一条**已于 2026-10-18 从「不覆盖」翻成 `serialNumber`**，
+  翻的是落点而不是 §5.4 那把尺子——`学历证书编号` `学位证书编号` `教师资格证编号` `医师资格证号`
+  `驾驶证档案编号` `驾驶证编号` `社保电脑号` `公积金个人编号` `出生证编号` `出生医学证明号` `保单号`
+  仍然一律**不许挂 `idNumber`**，改成提示成「编号」并明说存成自定义字段（§5.6）。
+  这一族留下的沉默边界是**「这一单」而不是「这个人」的编号**：`编号`（裸词）`订单号` `发票号码`
+  `运单号` `快递单号` 继续 `noRole`，账本按这两侧各钉一处。
 - **登录语义**：`用户名` `账号` `密码` `验证码` `安全码` `动态口令` / `username` `password` `one-time code`，
   以及只有属性没有标签文字的 `name="account_number"`（两步登录页的账号框，出口码 `account`，见 §4.1）
   （出口码 `negative` / `account` / `card`）。
@@ -374,12 +423,16 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 1. `utils/identity/hintRoles.ts`：`IDENTITY_HINT_ROLES` 加角色（闭集，不在表内的角色串一律当「无身份语义」）。
 2. `utils/i18n-lite.ts`：`cs.identity.role.<key>` 中英文各一条（漏一边就是语言不一致）。
 3. 词典：`ZH_DICT` / `EN_DICT` / `ATTR_DICT`（或卡类专用的 `CARD_ATTR_DICT`）/ `AUTOCOMPLETE_MAP`，
-   并注意 §3 末尾那三处先后关系。
-4. 压制与核对口径：`CARD_HINT_ROLES` / `CARD_SECRET_ROLES` / `VERIFY_ROLES` / `OTHER_BLOCK` / `OTHER_CONFIRM`。
+   并注意 §3 末尾那四处先后关系。
+4. 压制与核对口径：`CARD_HINT_ROLES` / `CARD_SECRET_ROLES` / `VERIFY_ROLES` / `OTHER_BLOCK` / `OTHER_CONFIRM`；
+   库里没有那一格、落点要靠自定义字段的角色还要进 `CUSTOM_FIELD_LANDING_ROLES`（进了就自动带那句落点说明，
+   并且 `pickSearchKeyword()` 会把它切成按字段名检索——`identityHintWiring.test.ts` 要求分派器引用这张表）。
 5. 测试：`piiClassifier.coverage.test.ts` 加表行（一行 = 一条用例）；`piiClassifier.test.ts` 钉形状与守卫；
-   `piiClassifier.demoPage.test.ts` 的十六角色集合要同步；演示台 `docs/fixtures/identity-hint-demo.html` 加
+   `piiClassifier.demoPage.test.ts` 的十七角色清单要同步（那份清单现在会跟 `IDENTITY_HINT_ROLES` 的真实词表
+   对账，只加角色不加用例是过不了的）；演示台 `docs/fixtures/identity-hint-demo.html` 加
    `data-expect` 行（真机 e2e 从页面 DOM 读账本，不需要改测试）。
-6. 库侧：该角色在 `utils/identity/fields.ts` 有没有内置字段；没有就要在文档里写明它靠 `customFields` 承载。
+6. 库侧：该角色在 `utils/identity/fields.ts` 有没有内置字段；没有就要在文档里写明它靠 `customFields` 承载，
+   并回答「深链带过去的搜索词是什么」——只有那一族是**字段名**，其余都是本人姓名（§5.6）。
 7. 文档：`docs/ARCHITECTURE.md`（及 `.en.md`）「功能实现详解」的身份库一节、侧边栏 `help.json` 词条、
    对外四处（README / index.html / HelpDialog / CWS）里涉及该功能的描述。
 
@@ -419,8 +472,10 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
 | `tests/content/piiClassifier.test.ts`             | 每条钉一个「形状 / 守卫为什么存在」                                                                                                         | 形状与回归用例 |
 | `tests/content/piiClassifier.coverage.test.ts`    | 每张表一行一条用例：中英标签 / 属性词元 / 五类国内场景 / 机构证照 / 人主体豁免 / 库里没有的概念                                             | 覆盖矩阵       |
-| `tests/content/piiClassifier.demoPage.test.ts`    | 把演示台整页读进 jsdom，逐行对 `data-expect` / `data-suppress` / `data-tier`，并守「16 角色全出现过」「group ≥ 4 行」「placeholder ≥ 8 行」 | 命中率         |
+| `tests/content/piiClassifier.demoPage.test.ts`    | 把演示台整页读进 jsdom，逐行对 `data-expect` / `data-suppress` / `data-tier`，并守「17 角色全出现过」「group ≥ 4 行」「placeholder ≥ 8 行」 | 命中率         |
 | `tests/content/formDetector.identityHint.test.ts` | 页面侧五道门与让位                                                                                                                          | 门             |
+| `tests/architecture/identityHintWiring.test.ts`   | 跨入口契约：角色不过界、深链载荷只有一个标签、取值分派器只有一份定义且必须引用落点表                                                        | 接线           |
+| `tests/composables/useIdentityVault.test.ts`      | 库侧检索面：自定义字段的标签与值都参与匹配——§5.6 那次翻案的前提就是这一条                                                                   | 前提           |
 | `e2e/identity-hint-demo-page.spec.ts`             | 真 Chrome 里逐框聚焦，量「到底有没有气泡、报的是不是账本那个角色」，`owns=fill` 的行还要量到钥匙正钉在这一框上                              | 装完之后的行为 |
 
 jsdom 全绿而真机红，漏的是 §8 那五道门里的某一道，不是词典；真机绿而覆盖面表红，是词典改了顺序。
