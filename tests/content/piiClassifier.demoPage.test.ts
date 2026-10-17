@@ -3,8 +3,9 @@
  * 个人信息演示台的逐字段判定账本
  *
  * 全仓唯一吃「一整页真实形状」的账本：`docs/fixtures/identity-hint-demo.html` 把页面写出标签与
- * 输入框关系的十种形状（嵌套 label、`label[for]`、组件库式兄弟块、autocomplete 自声明、登录组、
- * 裸兄弟文本、表格 th、英文词典、值形状收口、负向噪音）一次摆平，本页每个受检字段带
+ * 输入框关系的十六种形状（嵌套 label、`label[for]`、组件库式兄弟块、autocomplete 自声明、登录组、
+ * 裸兄弟文本、表格 th 与 `<td>` 标签格、英文词典、值形状收口、负向噪音、组件库复合项、行栅格、
+ * 只有占位符、银行卡三档、不可输入的控件、国内五类高频填报场景）一次摆平，本页每个受检字段带
  * `data-expect`（期望角色，`-` 表示不该提示）与 `data-suppress`（被哪条出口挡掉）。
  *
  * 为什么要有这份文件：其余分类器用例各钉一条**形状结论**，改一处词典只会红一条；
@@ -57,11 +58,24 @@ function sweep(): Row[] {
   });
 }
 
+/**
+ * 整页扫一遍的结论，五个 `it` 共用
+ *
+ * 扫一次要付 126 枚字段的 DOM 反查（jsdom 下 `closest` / `matches` 比真浏览器贵一个数量级），
+ * 每个 `it` 各扫一遍曾让第一格在满负载的全量跑里撞上 5s 默认超时（2026-10-17 夹具涨到 126 行之后）。
+ * 收进 `beforeAll` 一次算完，既把这笔钱只付一次，也让它落在钩子自己的超时里，
+ * 而不是由某条纯读断言的时长来兜。
+ */
+let rows: Row[] = [];
+
 describe('演示台逐字段判定账本', () => {
-  beforeAll(loadDemoPage);
+  beforeAll(() => {
+    loadDemoPage();
+    rows = sweep();
+  }, 30_000);
 
   it('夹具里有足量受检字段（扫描面不得静默空跑）', () => {
-    expect(sweep().length).toBeGreaterThanOrEqual(40);
+    expect(rows.length).toBeGreaterThanOrEqual(40);
   });
 
   /**
@@ -76,7 +90,6 @@ describe('演示台逐字段判定账本', () => {
    * 末尾两行计数是给 `data-tier` 本身兜底的：属性被整段删掉时上面的比对会恒真通过。
    */
   it('每个字段的结论与页面声明一致', () => {
-    const rows = sweep();
     const drifted = rows.filter(
       row =>
         row.actual !== row.expected ||
@@ -96,11 +109,7 @@ describe('演示台逐字段判定账本', () => {
    * 而那正是英文站点曾经的漏报形态。`owns=fill` 的手机号框计入分类器命中，页面侧让位由 e2e 管。
    */
   it('十六个可提示角色在本页全部出现过', () => {
-    const roles = new Set(
-      sweep()
-        .filter(row => row.actual !== '-')
-        .map(row => row.actual),
-    );
+    const roles = new Set(rows.filter(row => row.actual !== '-').map(row => row.actual));
     expect([...roles].sort()).toEqual(
       [
         'address',
@@ -125,7 +134,6 @@ describe('演示台逐字段判定账本', () => {
 
   /** 命中面与压制面都得有量：某一侧整块塌陷，说明词典或负向表被改坏了 */
   it('提示与压制各占一半上下（命中面不得整侧塌陷）', () => {
-    const rows = sweep();
     const hits = rows.filter(row => row.actual !== '-').length;
     expect(hits).toBeGreaterThanOrEqual(14);
     expect(rows.length - hits).toBeGreaterThanOrEqual(12);
@@ -137,7 +145,7 @@ describe('演示台逐字段判定账本', () => {
    * 而单看 `formDetector.identityHint.test.ts` 看不见这个方向。
    */
   it('让位给快速填充的框，分类器本身仍给出角色', () => {
-    const owned = sweep().filter(row => row.owns === 'fill');
+    const owned = rows.filter(row => row.owns === 'fill');
     expect(owned.length, '夹具里的 `data-owns="fill"` 行没了，两层判据的分界不再被记录').toBeGreaterThan(0);
     expect(owned.every(row => row.actual !== '-')).toBe(true);
   });

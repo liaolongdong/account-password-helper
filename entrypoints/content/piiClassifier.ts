@@ -18,8 +18,8 @@
  * 字段组内出现凭据框即认定这一组是登录语义，身份提示完全不参与。
  *
  * 分层顺序即优先级（弱信号永不覆盖强信号）：
- * 结构性排除 → `autocomplete` 自声明 → 负向短语 → `name`/`id` 词元 → label 文本 → 同项兄弟标签 →
- * placeholder → 已输入值形状。
+ * 结构性排除 → `autocomplete` 自声明 → 负向短语 → 机构主体的证照号 → `name`/`id` 词元 → label 文本 →
+ * 同项兄弟标签 → placeholder → 已输入值形状。
  * 顺序调换会引入真实回归：负向短语必须早于正向词元，否则「用户名 / Display name」会被
  * `name` 抢走；`autocomplete` 必须早于负向短语，否则 `autocomplete="tel"` 的登录手机号
  * 会被账号守卫挡掉后又落入 `phone` 词典。
@@ -57,7 +57,8 @@ export type PiiTier = 'autocomplete' | 'attr' | 'label' | 'group' | 'placeholder
 export type PiiOwnership = 'self' | 'confirm' | 'other';
 
 /** 不出提示的原因码（仅供日志与单测定位，不进任何用户可见文案） */
-export type PiiSuppressReason = 'excluded' | 'negative' | 'account' | 'card' | 'ownership' | 'loginGroup' | 'noRole';
+export type PiiSuppressReason =
+  'excluded' | 'negative' | 'account' | 'card' | 'ownership' | 'loginGroup' | 'noRole' | 'orgCredential';
 
 /** 生产判定的唯一出口：要么给出角色，要么给出被压制的原因 */
 export interface PiiVerdict {
@@ -249,9 +250,10 @@ const ORG_BARE_TOKENS = new Set(['company', 'corp', 'org']);
  * `name`/`id` 属性词元 → 角色。
  *
  * 词典内容与模拟跑批的 tier H 配置逐字一致，唯一差异是**不收录裸 `cardno`**：
- * 中文站点同时用它指身份证号和银行卡号，词元层面无法区分，而卡类按既有拍板永不进
- * 提示路径，收录只会把支付页的卡号框读成证件号。真实身份证字段靠 `idCardNo` /
- * `cert_no` 这类带前缀的形状命中（拼接词元已覆盖）。
+ * 中文站点同时用它指身份证号和银行卡号，词元层面无法区分，收录会把证件号框读成卡号。
+ * 真实身份证字段靠 `idCardNo` / `cert_no` 这类带前缀的形状命中（拼接词元已覆盖）。
+ * 卡类三档（卡号 / 户名 / 开户行）2026-10-17 已放开提示，它们的属性词元单列在
+ * {@link CARD_ATTR_DICT}，比对时机比这张表更早一层——理由写在那张表的注释里。
  *
  * 形态选 `[角色, 词元表]` 元组数组而不是 Record：`Object.entries` 会把键放宽成
  * `string`，遍历处只能靠 `as` 断言角色；写成元组后角色天然就是 `PiiRole`，
@@ -264,19 +266,54 @@ const ORG_BARE_TOKENS = new Set(['company', 'corp', 'org']);
  *   单位名只收「除了公司词元没说别的」的字段。
  */
 const ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[] = [
-  ['givenName', ['givenname', 'firstname', 'forename', 'given']],
-  ['familyName', ['familyname', 'lastname', 'surname']],
+  ['givenName', ['givenname', 'firstname', 'forename', 'given', 'fname']],
+  ['familyName', ['familyname', 'lastname', 'surname', 'lname']],
   ['name', ['name', 'realname', 'truename', 'fullname', 'personname']],
-  ['phone', ['phone', 'phonenumber', 'mobile', 'mobileno', 'cellphone', 'tel', 'telephone', 'msisdn', 'contactno']],
+  [
+    'phone',
+    [
+      'phone',
+      'phonenumber',
+      'mobile',
+      'mobileno',
+      'cellphone',
+      'tel',
+      'telephone',
+      'msisdn',
+      'contactno',
+      'contactnumber',
+      'landline',
+    ],
+  ],
   ['email', ['email', 'emailaddress', 'mail', 'myemail']],
   ['address', ['address', 'addr', 'detailaddress', 'street', 'streetaddress', 'addressline', 'doorno']],
-  ['region', ['region', 'province', 'city', 'district', 'state', 'area', 'location']],
+  ['region', ['region', 'province', 'city', 'district', 'state', 'area', 'location', 'nativeplace']],
   ['postal', ['postalcode', 'zipcode', 'zip', 'postcode']],
-  ['idNumber', ['idcard', 'idcardno', 'idno', 'idnumber', 'certno', 'certnum', 'identityno', 'idnum', 'ssn']],
+  [
+    'idNumber',
+    ['idcard', 'idcardno', 'idno', 'idnumber', 'certno', 'certnum', 'identityno', 'idnum', 'ssn', 'nino', 'nationalid'],
+  ],
   ['passport', ['passport', 'passportno', 'passno', 'travelcert', 'permitno']],
-  ['birthday', ['birthday', 'birthdate', 'birth', 'bdate']],
+  ['birthday', ['birthday', 'birthdate', 'birth', 'bdate', 'dob']],
   ['gender', ['gender', 'sex']],
   ['org', ['company', 'companyname', 'corp', 'corpname', 'org', 'orgname', 'organization', 'organisation', 'employer']],
+];
+
+/**
+ * 卡类三档的属性词元（`iban` / `bankCard` / `bankName` / `cardHolder` / `accountName`）。
+ *
+ * 这一张必须单独存在、且比对排在**账号守卫之前**：`accountName` 是中文站「户名」最常见的字段名，
+ * 而它的 `account` 词元会被第 4 层的登录守卫整段挡掉——守卫不知道这个词元在这里指的是
+ * 银行账户的持有人，不是屏幕前那个账号。例外只开给这三档的具体词元，
+ * 裸 `account` / `user_account` / `login_id` 仍按原样判成登录字段（`piiClassifier.test.ts` 钉着）。
+ *
+ * 与 {@link ATTR_DICT} 同一条刻意的缺席：**不收录裸 `card` / `cardno`**，中文站点同时用它
+ * 指身份证号和银行卡号，词元层面分不开，收录会把证件号框读成卡号。
+ */
+const CARD_ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[] = [
+  ['cardNo', ['iban', 'bankcard', 'creditcard', 'debitcard', 'bankaccount', 'bankaccountno']],
+  ['cardHolder', ['cardholder', 'cardholdername', 'holdername', 'accountname', 'accountholder']],
+  ['cardBank', ['bankname', 'bank', 'issuingbank']],
 ];
 
 /**
@@ -312,17 +349,82 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
   // 卡类三档排在 name 之前：`持卡人姓名` 末尾两字正是 name 档的短语，按相反顺序会把「持卡人」
   // 报成又一张本人姓名，而身份库里这两条是不同字段。短语一律带「号」收口，
   // 这样 `信用卡有效期`、`银行卡类型` 不会被误收进卡号档（前者留给永不提示的口令类）。
-  { role: 'cardHolder', phrases: ['持卡人', '开户人', '账户姓名', '开户姓名'] },
+  { role: 'cardHolder', phrases: ['持卡人', '开户人', '账户姓名', '开户姓名', '户名', '开户名'] },
   { role: 'cardBank', phrases: ['开户行', '开户银行', '银行名称', '发卡行', '所属银行'] },
+  // 「社保卡号」四个字里就含着 `卡号`，但它问的是社保个人编号——多数城市那一串就是身份证号。
+  // 排在卡类之前把它接走：拿库里的银行卡号去填这一格是错的，而证件号至少是对的一半。
+  { role: 'idNumber', phrases: ['社保卡号'] },
   {
     role: 'cardNo',
     phrases: ['卡号', '卡账号', '银行账号', '银行帐号', '信用卡号', '借记卡号', '储蓄卡号', '账户号'],
   },
+  { role: 'familyName', phrases: ['姓氏'] },
+  { role: 'name', phrases: ['姓名', '名字'] },
+  { role: 'phone', phrases: ['手机', '电话', '联系方式', '联系电话', '联系号码'] },
+  { role: 'email', phrases: ['邮箱', '邮件', '信箱'] },
+  { role: 'address', phrases: ['地址', '详细地址', '街道', '门牌', '小区', '住址', '居住地', '楼栋'] },
+  {
+    role: 'region',
+    phrases: [
+      '所在地区',
+      '所在区域',
+      '所在地',
+      '省份',
+      '城市',
+      '区县',
+      '地区',
+      '户籍',
+      '籍贯',
+      '出生地',
+      '社区',
+      '参保地',
+      '缴存地',
+    ],
+  },
+  { role: 'postal', phrases: ['邮编', '邮政编码'] },
+  /**
+   * 本人证件号这一档只收「这个人自己拿得出的证」。
+   *
+   * `统一社会信用代码` 一类写法**不许**加进来：第 3.5 层闸门对带人主体词的文本刻意豁免，
+   * 于是词典成了那条文本剩下的唯一判据——`法定代表人统一社会信用代码` 曾被这一档接走、
+   * 提示成本人的证件号，而那一串 18 位码问的还是机构（覆盖面账本钉着这条）。
+   */
+  {
+    role: 'idNumber',
+    phrases: [
+      '身份证',
+      '身份号',
+      '证件号',
+      '证件号码',
+      '军官证',
+      '警官证',
+      '士兵证',
+      '社保卡',
+      '社保号',
+      '社保编号',
+      '社会保障号',
+      '居住证',
+      '台胞证',
+      '永久居留',
+    ],
+  },
+  { role: 'passport', phrases: ['护照', '通行证', '签证'] },
+  { role: 'birthday', phrases: ['出生', '生日'] },
+  { role: 'gender', phrases: ['性别'] },
+  { role: 'org', phrases: ['公司', '单位', '院校', '学校', '雇主'] },
+  /**
+   * 「联系人 / 收件人 / 申请人」这类词问的是**人**，只有在这一格没写更具体的字段名时，
+   * 它才等于「姓名」。这一段必须排在整张词典末尾：`申请人联系电话` 要的是一串号码，
+   * 而 name 档原本排在 phone 之前，于是公租房表的电话框被报成姓名（2026-10-17 覆盖面账本
+   * 抓出的误报族，同族还有 `联系人证件号码`、`收件人联系电话`）。反过来只写「联系人」的格子
+   * 要的确实是姓名，所以这段不删、只搬家。
+   *
+   * `户主` / `被保险人` 同族：户籍表与投保页里它们单独成格时问的就是那个人的名字，
+   * 而「户主姓名」仍由上面的 name 档先接住。
+   */
   {
     role: 'name',
     phrases: [
-      '姓名',
-      '名字',
       '联系人',
       '收件人',
       '收货人',
@@ -334,21 +436,13 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
       '就诊人',
       '监护人',
       '本人',
+      '户主',
+      '旅客',
+      '出行人',
+      '投保人',
+      '被保险人',
     ],
   },
-  { role: 'phone', phrases: ['手机', '电话', '联系方式', '联系电话'] },
-  { role: 'email', phrases: ['邮箱', '邮件', '电子邮箱'] },
-  { role: 'address', phrases: ['地址', '详细地址', '街道', '门牌', '小区'] },
-  { role: 'region', phrases: ['所在地区', '所在区域', '省份', '城市', '区县', '地区', '户籍'] },
-  { role: 'postal', phrases: ['邮编', '邮政编码'] },
-  {
-    role: 'idNumber',
-    phrases: ['身份证', '身份号', '证件号', '证件号码', '军官证', '社保卡', '台胞证', '永久居留', '统一社会信用'],
-  },
-  { role: 'passport', phrases: ['护照', '通行证', '签证'] },
-  { role: 'birthday', phrases: ['出生', '生日'] },
-  { role: 'gender', phrases: ['性别'] },
-  { role: 'org', phrases: ['公司', '单位', '院校', '学校'] },
 ];
 
 /**
@@ -386,6 +480,7 @@ const ZH_NEG = [
   '类型',
   '方式',
   '数量',
+  '账户名',
   '名称',
 ];
 
@@ -393,13 +488,23 @@ const ZH_NEG = [
  * 「名称」负向例外的触发词：同一段文本里出现这些组织名词时，「名称」问的是组织叫什么。
  * 刻意不含 `学校` / `院校`——表单里的院校绝大多数是毕业院校（经历），不是本人供对方登记的单位。
  * `银行` 是 2026-10-17 随卡类三档放开补的：`开户银行名称` 中文表单里就是这么写的。
+ * `雇主` 是覆盖面账本补的：求职表写「雇主名称」而不写「公司名称」，要的正是单位名。
  */
-const ORG_NOUNS_ZH = ['单位', '公司', '企业', '组织', '机构', '团体', '银行'];
+const ORG_NOUNS_ZH = ['单位', '公司', '企业', '组织', '机构', '团体', '银行', '雇主'];
 
-/** 「名称」是带歧义的负向短语：只有整段文本没提组织时才按事物名拦掉 */
+/**
+ * 「名称」负向例外的第二条触发词：住址侧。
+ *
+ * 快递面单与公租房表把住址拆成「小区名称 / 楼栋名称」这样的格子，那一段文字问的仍是
+ * 「住在哪」，和「物品名称」是两回事。表内只放**住址专有**的词，不放裸「地址」二字之外的
+ * 泛化词，`商品名称` / `网站名称` 这类事物名照旧被挡。
+ */
+const ADDRESS_NOUNS_ZH = ['小区', '花园', '大厦', '公寓', '住宅', '楼栋', '单元', '门牌', '住址', '地址', '家乡', '村'];
+
+/** 「名称」是带歧义的负向短语：只有整段文本既没提组织、也没提住址时才按事物名拦掉 */
 function isZhNegative(phrase: string, zhHint: string): boolean {
   if (!zhHint.includes(phrase)) return false;
-  if (phrase === '名称') return !ORG_NOUNS_ZH.some(noun => zhHint.includes(noun));
+  if (phrase === '名称') return ![...ORG_NOUNS_ZH, ...ADDRESS_NOUNS_ZH].some(noun => zhHint.includes(noun));
   // 「方式」的同一条歧义：`支付方式` / `配送方式` 问的是怎么填，但「联系方式」就是手机号框
   // 最常见的中文写法——ZH_DICT 的 phone 档收了它，而负向短语排在正向词典之前，
   // 不放这个例外那条词典项在这套顺序下永远够不到（真机漏报的一条，见其 JSDoc）。
@@ -416,6 +521,29 @@ function isZhNegative(phrase: string, zhHint: string): boolean {
  * 留出集的纯英文注册页实测整段漏报。
  */
 const EN_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
+  // 证件号排在卡类之前：`ID Card Number` 里就含着 `card number` 这个子串，按原顺序会被卡号档
+  // 抢走，而那串正是「身份证号码」的直译（2026-10-17 覆盖面账本的英文侧漏报）。
+  // 表内每条都带证件名词，`Credit Card Number` / `Debit Card Number` 里找不到 `id card`
+  // （是 `it card` / `it card`），因此不会被这一档误收；对公税号则更早已由机构证照闸门挡下。
+  {
+    role: 'idNumber',
+    phrases: [
+      'id number',
+      'identity number',
+      'identification number',
+      'identity card',
+      'id card',
+      'national id',
+      'personal id',
+      'national insurance',
+      'drivers license',
+      'driver license',
+      'driving licence',
+      'driving license',
+      'tax number',
+      'tax id',
+    ],
+  },
   { role: 'cardHolder', phrases: ['cardholder', 'card holder', 'account holder'] },
   { role: 'cardBank', phrases: ['bank name', 'issuing bank', 'beneficiary bank'] },
   { role: 'cardNo', phrases: ['card number', 'card no', 'credit card number'] },
@@ -423,17 +551,16 @@ const EN_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
   { role: 'familyName', phrases: ['last name', 'family name', 'surname'] },
   {
     role: 'name',
-    phrases: ['full name', 'real name', 'true name', 'contact name', 'your name', 'passenger name'],
+    phrases: ['full name', 'real name', 'true name', 'contact name', 'your name', 'passenger name', 'preferred name'],
   },
-  { role: 'phone', phrases: ['mobile', 'phone number', 'telephone', 'cell phone', 'msisdn'] },
+  {
+    role: 'phone',
+    phrases: ['mobile', 'phone number', 'telephone', 'cell phone', 'msisdn', 'contact number', 'landline'],
+  },
   { role: 'email', phrases: ['email', 'e-mail'] },
   { role: 'address', phrases: ['address line', 'street address', 'delivery address', 'address'] },
-  { role: 'region', phrases: ['state', 'province', 'city', 'region', 'county'] },
+  { role: 'region', phrases: ['state', 'province', 'city', 'region', 'county', 'country of birth', 'prefecture'] },
   { role: 'postal', phrases: ['postcode', 'postal code', 'zip code', 'zipcode'] },
-  {
-    role: 'idNumber',
-    phrases: ['id number', 'identity number', 'national insurance', 'drivers license', 'identity card'],
-  },
   { role: 'passport', phrases: ['passport'] },
   { role: 'birthday', phrases: ['date of birth', 'birth date', 'day of birth'] },
   { role: 'gender', phrases: ['gender', 'sex'] },
@@ -465,7 +592,19 @@ const EN_NEG = [
  * 归属词表：`OTHER_BLOCK` 一定是别人，`OTHER_CONFIRM` 可能是本人也可能是家属/同行。
  * 用词干而非整词：`收货` 要同时覆盖「收货人」「收货地址」「收货电话」。
  */
-const OTHER_BLOCK = ['紧急联系人', '担保人', '被访人', '代收人', '配偶', '父母', '子女', 'emergency', 'guarantor'];
+const OTHER_BLOCK = [
+  '紧急联系人',
+  '担保人',
+  '被访人',
+  '代收人',
+  '配偶',
+  '父母',
+  '子女',
+  '受益人',
+  'emergency',
+  'guarantor',
+];
+
 const OTHER_CONFIRM = [
   '收货',
   '收件',
@@ -491,14 +630,14 @@ const OTHER_CONFIRM = [
 /**
  * 组织主体词：一段标签文本里出现这些词，问的就是**某家机构**而不是屏幕前的那个人。
  *
- * 只作用于两条弱线索（同项兄弟标签 / placeholder），不动 label 与 attr 那两层——那两层的
- * 同一条误报是既有行为，收窄它会让一批现在能看到提示的框静默消失，属另一件事。
- * 而弱线索是这一轮新开的口子，必须自己带上闸门：勘察那页银行开户表单（88 枚控件）里
- * `机构证件号码`、`金融业务资质证件号码`、`统一社会信用代码` 成串出现，
- * 少了这道闸，这些框会被提示成**本人**的证件号——那是本功能唯一不可接受的误填形态。
+ * 三个消费点：同项兄弟标签（整项作废，含它自己的占位符）、placeholder 自证时的闸门，
+ * 以及 {@link orgCredentialHit} 那条「机构 + 证照号」的组合判据。
+ * 前两处只压弱线索——那两层的误报形态是「组件库形状下拿不到真标签」，只能靠整项闭嘴兜底。
+ * 出处是 2026-10-17 对一家银行开户表单（88 枚控件）的实测：`机构证件号码`、
+ * `金融业务资质证件号码`、`统一社会信用代码` 成串出现，少了这道闸，
+ * 这些框会被提示成**本人**的证件号——那是本功能唯一不可接受的误填形态。
  *
- * `org` 角色本身豁免：`公司名称` / `单位名称` 问的是组织叫什么，身份库里恰好有「单位名」这一档，
- * 那是对的提示，不是误报。
+ * `org` 角色本身豁免：`公司名称` / `单位名称` 问的是组织叫什么，那是对的提示，不是误报。
  */
 const ORG_SUBJECT_ZH = [
   '机构',
@@ -525,6 +664,106 @@ const ORG_SUBJECT_EN = [
   'business licens',
   'tax id',
 ];
+
+/**
+ * 证照号词：与组织主体词**同现**时，说明这一格要的是一家机构的证照编号。
+ *
+ * 单靠组织主体词压不住会连坐（`公司名称` / `单位地址` 都该提示），单靠证照词也不对
+ * （`证件号码` 问的就是屏幕前这个人），所以判据是两者的共现。表内收的都是
+ * 「编号 / 代码」这一类，不含裸「证」字，否则 `护照签证` 之类会牵连进来。
+ */
+const CREDENTIAL_NOUNS_ZH = [
+  '证件',
+  '证照',
+  '执照',
+  '登记号',
+  '注册号',
+  '许可证',
+  '批准号',
+  '备案号',
+  '信用代码',
+  '代码',
+  '编号',
+];
+const CREDENTIAL_NOUNS_EN = [
+  'licence',
+  'license',
+  'registration',
+  'permit',
+  'certificate',
+  'identification number',
+  'tax number',
+  'tax id',
+  'reg no',
+];
+
+/**
+ * 不用共现、自己就足以判定是机构证照的写法。
+ *
+ * `纳税人识别号` 里没有 ORG_SUBJECT_ZH 的任何一词，但中文表单上这一格问的从来不是
+ * 个人税号，而是发票抬头那家公司的税号；`VAT Number` / `EIN` 同理。
+ */
+const ORG_CREDENTIAL_ZH = [
+  '统一社会信用代码',
+  '纳税人识别号',
+  '营业执照',
+  '组织机构代码',
+  '金融许可证',
+  '开户许可证',
+  '登记证书',
+];
+const ORG_CREDENTIAL_EN = [
+  'business registration',
+  'company registration',
+  'tax registration',
+  'employer identification',
+  'value added tax',
+  'vat number',
+  'vat id',
+];
+
+/**
+ * 「机构词旁边写着人」的豁免：这些词出现时，问的是那个**自然人**的证件，闸门不许连坐。
+ *
+ * 对公表单里 `法定代表人证件号码`、柜面代办的 `经办人证件号码`、跨境清关的
+ * `联系人证件号码`，填的都是身份证号码——把它们一起压掉，等于把身份提示从
+ * 最需要它的三张表上撤走。判据只做减法：命中这些词就不压，不命中照常判。
+ */
+const PERSON_SUBJECT_OVERRIDE = [
+  '法定代表人',
+  '法人代表',
+  '法定代理人',
+  '经办人',
+  '办理人',
+  '代理人',
+  '负责人',
+  '联系人',
+  '申请人',
+  '法人证件',
+  'legal representative',
+  'authorized representative',
+  'authorised representative',
+  'contact person',
+  'applicant',
+  'signatory',
+];
+
+/**
+ * 这段文本要的是机构的证照号吗（命中时返回命中的那个词，供判据自身定位）。
+ *
+ * 三条出口按「先排除、再认串、最后共现」排：人主体豁免必须最先，否则
+ * `法定代表人证件号码` 会被机构词连着证照词一起吃掉；直接串次之，因为
+ * `统一社会信用代码` 这类写法本身不含组织主体词；共现档兜住 `机构证件号码`、
+ * `Company Tax Number` 这种「机构 + 编号」的组合。
+ */
+function orgCredentialHit(zh: string, en: string): string | null {
+  if (PERSON_SUBJECT_OVERRIDE.some(w => (w.charCodeAt(0) > 127 ? zh.includes(w) : en.includes(w)))) return null;
+  const direct = ORG_CREDENTIAL_ZH.find(w => zh.includes(w)) ?? ORG_CREDENTIAL_EN.find(w => en.includes(w));
+  if (direct) return direct;
+  const org = ORG_SUBJECT_ZH.some(w => zh.includes(w)) || ORG_SUBJECT_EN.some(w => en.includes(w));
+  if (!org) return null;
+  return CREDENTIAL_NOUNS_ZH.find(w => zh.includes(w)) ?? CREDENTIAL_NOUNS_EN.find(w => en.includes(w)) ?? null;
+}
 
 /**
  * 结构性排除的 input type：隐藏域、按钮、勾选框等都不是个人信息载体。
@@ -691,6 +930,18 @@ function isOrgSubject(text: string): boolean {
 }
 
 /**
+ * 整段文本恰好等于这几个字时才算的角色。
+ *
+ * 户籍表、机票姓名栏把「姓」「名」各拆一格，可这两个字**绝不能进子串词典**：
+ * `姓名` 里就含 `姓`，子串匹配会把最常见的姓名格读成「姓氏」。
+ * 逐字相等是这条拆分的唯一安全形态——多一个字（`姓名` / `姓氏` / `名字`）就交回子串词典。
+ */
+const ZH_EXACT_ROLES: readonly (readonly [text: string, role: PiiRole])[] = [
+  ['姓', 'familyName'],
+  ['名', 'givenName'],
+];
+
+/**
  * 一段文本按中英词典落到哪个角色（`ZH_DICT` 数组顺序即优先级）。
  *
  * label / 同项兄弟标签 / placeholder 三条通道吃同一张词典，所以匹配必须收在这一个函数里，
@@ -700,6 +951,8 @@ function dictRoleOf(text: string): PiiRole | null {
   if (!text) return null;
   const zh = squeeze(toLower(text));
   const en = flatten(toLower(text));
+  const exact = ZH_EXACT_ROLES.find(([phrase]) => phrase === zh);
+  if (exact) return exact[1];
   const zhHit = ZH_DICT.find(entry => entry.phrases.some(p => zh.includes(p)));
   if (zhHit) return zhHit.role;
   return EN_DICT.find(entry => entry.phrases.some(p => en.includes(p)))?.role ?? null;
@@ -911,10 +1164,37 @@ export function classifyPiiRaw(el: Element): PiiRawClassification {
   const enNegHit = EN_NEG.find(phrase => enHint.includes(phrase));
   if (enNegHit) return { ...base, role: null, tier: null, suppress: 'negative', evidence: `en-neg:${enNegHit}` };
 
+  /**
+   * 3.5) 机构主体的证照号：屏幕前这个人没有「统一社会信用代码」可填。
+   *
+   * 抬到负向短语这一层、而不是留在两条弱线索里，是因为那条判据当初只兜组件库形状——
+   * 而真机勘察里最常见的那枚 `机构证件号码` 挂的是**货真价实的 `<label for>`**，
+   * 走的是 label 层，两道弱线索闸门一次都碰不到，于是它被词典的 `证件号` 接走、
+   * 提示成本人的证件号。这一层按合起来的文本判（标签 + 占位符 + 属性），
+   * 所以无论机构字样出现在哪一格，结论都一样。
+   */
+  const orgCredential = orgCredentialHit(zhHint, enHint);
+  if (orgCredential) {
+    return { ...base, role: null, tier: null, suppress: 'orgCredential', evidence: `org-cert:${orgCredential}` };
+  }
+
   // 4) name/id 词元
   const tokens = tokenize(s.attr);
   /** 逐来源整体拼接：`idCardNo` 切词后是 id/card/no，只有拼回 idcardno 才对得上词典 */
   const joinedList = s.attrSources.map(src => tokenize(src).join('')).filter(Boolean);
+
+  /**
+   * 卡类三档先于账号守卫比一次（词元表与理由见 {@link CARD_ATTR_DICT}）。
+   *
+   * 只在这三档的具体词元上破例，`account` / `user_account` 这类裸登录词元仍由下一行挡下；
+   * 判据用拼接词元而不是单 token，`accountName` 切出来是 account + name，
+   * 只有拼回 `accountname` 才对得上户名档。
+   */
+  for (const [role, words] of CARD_ATTR_DICT) {
+    const hit = joinedList.find(j => words.includes(j)) ?? tokens.find(t => words.includes(t));
+    if (hit) return { ...base, role, tier: 'attr', suppress: null, evidence: hit };
+  }
+
   if (tokens.some(t => ACCOUNT_TOKENS.has(t))) {
     return { ...base, role: null, tier: null, suppress: 'account', evidence: `account:${tokens.join(',')}` };
   }

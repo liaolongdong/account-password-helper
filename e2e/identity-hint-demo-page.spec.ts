@@ -16,10 +16,10 @@ import {
 /**
  * 「个人信息填写演示台」的真机逐行对账
  *
- * `docs/fixtures/identity-hint-demo.html` 把十五种「页面把标签与输入框写成什么关系」的真实形状
+ * `docs/fixtures/identity-hint-demo.html` 把十六种「页面把标签与输入框写成什么关系」的真实形状
  * 一次摆平（嵌套 label、`label[for]`、Element Plus 式兄弟块、`autocomplete` 自声明、登录组、
  * 裸兄弟文本、表格 `th` 与 `<td>` 标签格、英文词典、值形状收口、负向噪音、组件库复合项、行栅格、
- * 只有占位符、银行卡三档、不可输入的控件）。它已经有一份 jsdom 账本
+ * 只有占位符、银行卡三档、不可输入的控件、国内五类高频填报场景）。它已经有一份 jsdom 账本
  * （`tests/content/piiClassifier.demoPage.test.ts`），那份吃的是**分类器**的结论，能区分
  * 「被哪条出口挡掉」；这一条吃的是**装完之后**的行为，量不到出口归属，只量一件事：
  *

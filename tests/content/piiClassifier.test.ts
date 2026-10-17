@@ -59,7 +59,8 @@ describe('信号采集', () => {
   });
 
   it('标签长度阈值按文字体系分档：英文 25 字母留得住，中文 22 字判为噪音', () => {
-    const en = inputOf('<div>National Insurance number<input name="nino"></div>');
+    /** `name` 刻意留空词元：`nino` 现在由属性档自己认得（tier 会变成 `attr`），这一行就测不到标签长度了 */
+    const en = inputOf('<div>National Insurance number<input name="x0"></div>');
     expect(resolvePiiField(en)).toMatchObject({ role: 'idNumber', tier: 'label' });
     const zh = inputOf('<div>请填写您本人的居民身份证证件号码用于实名制认证核验<input name="x1"></div>');
     expect(resolvePiiField(zh).role).toBeNull();

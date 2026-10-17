@@ -15,10 +15,11 @@
     <!--
       身份提示（形态一：识别 + 提示 + 深链，不填充）的手工回归台。
 
-      十五个区块各摆一种「页面把标签与输入框的关系写成什么样」的真实形状：
+      十六个区块各摆一种「页面把标签与输入框的关系写成什么样」的真实形状：
       嵌套 label、label[for]、Element Plus 式兄弟块、autocomplete 自声明、登录组、
       裸兄弟文本、表格 th 与 `<td>` 标签格、英文词典、值形状收口、负向噪音、
-      组件库复合表单项、行栅格、只有占位符、银行卡三档、不可输入的控件。
+      组件库复合表单项、行栅格、只有占位符、银行卡三档、不可输入的控件、
+      国内五类高频填报场景（社保 / 公租房 / 公积金 / 快递 / 住址）与机构证照对照。
       判定链只吃这些结构信号与该字段自己的值，所以换一种写法就可能从「提示」掉成「沉默」——
       这页存在的意义就是把所有形状一次摆平，让「这一框为什么没提示」当场看得出来。
 
@@ -26,7 +27,10 @@
       （那份测试把本页读进 jsdom，逐字段跑 `resolvePiiField`，是全仓唯一吃「整页真实形状」的账本）：
       - `data-expect`：期望的分类器角色；写成 `-` 表示这一框不该出提示；
       - `data-suppress`：仅当 `data-expect="-"`，期望被哪条出口挡掉
-        （`excluded` / `negative` / `account` / `card` / `ownership` / `loginGroup` / `noRole`）。
+        （`excluded` / `negative` / `account` / `card` / `ownership` / `loginGroup` / `noRole` / `orgCredential`）。
+        其中 `orgCredential` 是 2026-10-17 抬到全层的一道闸门：机构主体的证照号（统一社会信用代码一类）
+        在任何线索层都不出提示，但它旁边写着「法定代表人 / 经办人 / 联系人 / 申请人」这类自然人时闸门不连坐，
+        那几行照常出证件号提示（见 ⑯ 区末尾的对照表）。
       个别字段另带 `data-owns="fill"`：分类器给了角色，但页面侧由让位规则交给快速填充那把钥匙，
       气泡不出现。让位成立要两条同时满足——这一框拿到了钥匙，**且**这一档是钥匙取得出值的
       （手机号 / 邮箱：它的面板只有账号那一类值）。判据长在 closed shadow 里，主世界看不见那枚图标，
@@ -144,6 +148,14 @@
       }
       .card-hd {
         margin-bottom: 6px;
+        font-weight: 700;
+      }
+      /* ⑯ 把五个场景摆在同一张卡片里，靠这层小标题分块 */
+      .scene + .scene {
+        margin-top: 20px;
+      }
+      .scene > .hd {
+        margin: 0 0 8px;
         font-weight: 700;
       }
       input,
@@ -1041,10 +1053,11 @@
         <code>name</code>/<code>id</code>，语义只剩 <code>placeholder</code>。 那页绝大多数条目问的是
         <strong>机构</strong>而不是本人（机构证件号码 / 统一社会信用代码 / 金融业务资质证件号码 / 公司名称 /
         注册资本）， 所以这一区同时是「弱线索放大之后会不会误报」的对照表：<code>#k-a4</code>
-        必须沉默（机构主体词让整项的弱线索作废）， <code>#k-a5</code> 要照常提示成单位名，<code>#k-a6</code> 的项里有省
-        / 市 / 区县 + 详情四枚载体， 兄弟标签「地址」按<strong>一项一义</strong>（块内载体 &gt; 2
-        即视作用区标题）让位给占位符。 <code>#k-a2</code>「证件号码」是这一区最要紧的一行：placeholder
-        里的「号码」二字会让<strong>旧的分桶</strong>
+        必须沉默（机构主体的证照号自 2026-10-17 起是<strong>全层闸门</strong>，不再只废弱线索， 出口码
+        <code>orgCredential</code>，同因还有 ⑬ 区的 <code>#k-p15</code> / <code>#k-p16</code>），
+        <code>#k-a5</code> 要照常提示成单位名，<code>#k-a6</code> 的项里有省 / 市 / 区县 + 详情四枚载体，
+        兄弟标签「地址」按<strong>一项一义</strong>（块内载体 &gt; 2 即视作用区标题）让位给占位符。
+        <code>#k-a2</code>「证件号码」是这一区最要紧的一行：placeholder 里的「号码」二字会让<strong>旧的分桶</strong>
         把它读成手机号框并挂上钥匙，而钥匙点出来的是账号列表、填不出证件号，所以提示<strong>不</strong>跟着让位
         （页头记了这条改判）。同区的 <code>#k-a3</code> 是组件库代理成 <code>&lt;input readonly&gt;</code> 的日期框，带
         <code>data-nohint="readonly"</code>。
@@ -1126,7 +1139,7 @@
                   type="text"
                   placeholder="请输入机构证件号码"
                   data-expect="-"
-                  data-suppress="noRole"
+                  data-suppress="orgCredential"
                 />
               </div>
             </div>
@@ -1362,7 +1375,7 @@
             type="text"
             placeholder="请输入机构证件号码"
             data-expect="-"
-            data-suppress="noRole"
+            data-suppress="orgCredential"
           />
         </div>
         <div class="field">
@@ -1372,7 +1385,7 @@
             type="text"
             placeholder="请输入统一社会信用代码"
             data-expect="-"
-            data-suppress="noRole"
+            data-suppress="orgCredential"
           />
         </div>
       </div>
@@ -1503,6 +1516,272 @@
             data-expect="name"
             data-nohint="disabled"
           />
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑯ 国内五类高频填报场景（社保 / 公租房 / 公积金 / 快递 / 住址）</h2>
+      <p class="note">
+        前十五区按<strong>形状</strong>分，这一区按<strong>业务</strong>分：同一套词典放进真实政务与电商表单里，
+        一句标签到底认不认得。这里的形状都取自用户实测过的页面——社保那张表整张是
+        <code>table</code>、标签写在 <code>&lt;td&gt;</code> 且<strong>一个 placeholder 都没有</strong> （所以四行全钉
+        <code>data-tier="group"</code>），公租房申请的每条都写成「申请人 + 某个字段」， 而 <code>姓名</code> 在词典里比
+        <code>证件号码</code> 更早出现——这一区就是那条先后关系的现场。
+      </p>
+
+      <div class="scene">
+        <div class="hd">社保参保登记表（标签在 <code>&lt;td&gt;</code>、框上没有任何线索）</div>
+        <table>
+          <tr>
+            <td class="tdBg">参保人姓名</td>
+            <td>
+              <input
+                id="sb-xingming"
+                data-expect="name"
+                data-tier="group"
+              />
+            </td>
+            <td class="tdBg">社会保障号码</td>
+            <td>
+              <input
+                id="sb-sbhm"
+                maxlength="18"
+                data-expect="idNumber"
+                data-tier="group"
+              />
+            </td>
+          </tr>
+          <tr>
+            <td class="tdBg">联系电话</td>
+            <td>
+              <input
+                id="sb-lxdh"
+                data-expect="phone"
+                data-tier="group"
+              />
+            </td>
+            <td class="tdBg">参保地</td>
+            <td>
+              <input
+                id="sb-cbd"
+                data-expect="region"
+                data-tier="group"
+              />
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="scene">
+        <div class="hd">公租房申请（每条都写「申请人 ××」，<code>label[for]</code> 形状）</div>
+        <div class="fields">
+          <div class="field">
+            <label for="gz-xingming">申请人姓名</label>
+            <input
+              id="gz-xingming"
+              data-expect="name"
+            />
+          </div>
+          <div class="field">
+            <label for="gz-zjhm">申请人证件号码</label>
+            <input
+              id="gz-zjhm"
+              maxlength="18"
+              data-expect="idNumber"
+              data-tier="label"
+            />
+          </div>
+          <div class="field">
+            <label for="gz-lxdh">申请人联系电话</label>
+            <input
+              id="gz-lxdh"
+              data-expect="phone"
+              data-tier="label"
+            />
+          </div>
+          <div class="field">
+            <label for="gz-jzdz">现居住地址</label>
+            <input
+              id="gz-jzdz"
+              data-expect="address"
+            />
+          </div>
+          <div class="field">
+            <label for="gz-sr">家庭月收入</label>
+            <input
+              id="gz-sr"
+              data-expect="-"
+              data-suppress="noRole"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <div class="hd">公积金提取（联名卡与缴存地；「住房公积金账号」是登录名语义，不在库内）</div>
+        <div class="fields">
+          <div class="field">
+            <label
+              >公积金联名卡卡号<input
+                id="gj-xykhh"
+                inputmode="numeric"
+                data-expect="cardNo"
+            /></label>
+          </div>
+          <div class="field">
+            <label
+              >缴存地<input
+                id="gj-czd"
+                data-expect="region"
+            /></label>
+          </div>
+          <div class="field">
+            <label
+              >工作单位名称<input
+                id="gj-gzdw"
+                data-expect="org"
+            /></label>
+          </div>
+          <div class="field">
+            <label
+              >住房公积金账号<input
+                id="gj-zhh"
+                data-expect="-"
+                data-suppress="negative"
+            /></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <div class="hd">快递下单（收件人 / 寄件人都是<strong>人</strong>，运单号是单据号不是个人信息）</div>
+        <div class="fields">
+          <div class="field">
+            <label
+              >收件人姓名<input
+                id="kd-sjrxm"
+                data-expect="name"
+                data-tier="label"
+            /></label>
+          </div>
+          <div class="field">
+            <label
+              >寄件人联系电话<input
+                id="kd-jjdhh"
+                data-expect="phone"
+                data-tier="label"
+            /></label>
+          </div>
+          <div class="field">
+            <label
+              >所在地区<input
+                id="kd-szqy"
+                data-expect="region"
+            /></label>
+          </div>
+          <div class="field">
+            <label
+              >详细地址<textarea
+                id="kd-xxdz"
+                data-expect="address"
+              ></textarea>
+            </label>
+          </div>
+          <div class="field">
+            <label
+              >运单号<input
+                id="kd-ydh"
+                data-expect="-"
+                data-suppress="noRole"
+            /></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <div class="hd">住址与拆名（表格里的「姓 / 名」只有一字，走逐字相等档而非子串）</div>
+        <table>
+          <tr>
+            <td class="tdBg">姓</td>
+            <td>
+              <input
+                id="zz-xing"
+                data-expect="familyName"
+              />
+            </td>
+            <td class="tdBg">名</td>
+            <td>
+              <input
+                id="zz-ming"
+                data-expect="givenName"
+              />
+            </td>
+          </tr>
+          <tr>
+            <td class="tdBg">户籍所在地</td>
+            <td>
+              <input
+                id="zz-hjzszd"
+                data-expect="region"
+              />
+            </td>
+            <td class="tdBg">邮政编码</td>
+            <td>
+              <input
+                id="zz-yzbm"
+                maxlength="6"
+                data-expect="postal"
+              />
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="scene">
+        <div class="hd">机构证照号与「机构词旁边的自然人」（2026-10-17 抬到全层的那道闸门）</div>
+        <p class="note">
+          前两行问的是<strong>主体</strong>的证照，任何一层线索都不给提示；后两行同一句里写着 法定代表人 /
+          经办人，问的是那个<strong>自然人</strong>，闸门不连坐。
+          <code>#jg-zjhm</code> 是这条闸门唯一吃得到 <code>label</code> 层的形状——把它改成
+          <code>证件号码</code> 四个字，页面上一切线索都没有，只有这条标签，
+          所以它是「闸门只在弱线索层生效」旧实现的唯一反例。
+        </p>
+        <div class="fields">
+          <div class="field">
+            <label for="jg-zjhm">机构证件号码</label>
+            <input
+              id="jg-zjhm"
+              data-expect="-"
+              data-suppress="orgCredential"
+            />
+          </div>
+          <div class="field">
+            <label for="jg-tyshxydm">统一社会信用代码</label>
+            <input
+              id="jg-tyshxydm"
+              maxlength="18"
+              data-expect="-"
+              data-suppress="orgCredential"
+            />
+          </div>
+          <div class="field">
+            <label for="jg-fddbr">法定代表人证件号码</label>
+            <input
+              id="jg-fddbr"
+              maxlength="18"
+              data-expect="idNumber"
+              data-tier="label"
+            />
+          </div>
+          <div class="field">
+            <label for="jg-jbr">经办人证件号码</label>
+            <input
+              id="jg-jbr"
+              maxlength="18"
+              data-expect="idNumber"
+            />
+          </div>
         </div>
       </div>
     </section>
