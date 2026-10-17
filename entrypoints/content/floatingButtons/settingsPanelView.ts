@@ -742,6 +742,14 @@ export function getSettingsPanelHTML(
       <div class="setting-tip setting-fill-override" data-fill-override${overrideNote ? '' : ' hidden'}>${overrideNote}</div>
 
       <div class="setting-item">
+        <span class="setting-label" data-i18n="identityHint">${msg.identityHint}</span>
+        <div class="switch ${isSwitchOn('identityHintEnabled', config) ? 'active' : ''}" data-setting="identityHintEnabled" role="switch" tabindex="0" aria-checked="${isSwitchOn('identityHintEnabled', config)}" aria-label="${msg.identityHint}">
+          <div class="switch-handle"></div>
+        </div>
+      </div>
+      <div class="setting-tip" data-i18n="identityHintTip">${msg.identityHintTip}</div>
+
+      <div class="setting-item">
         <span class="setting-label" data-i18n="autoTriggerLogin">${msg.autoTriggerLogin}</span>
         <div class="switch ${config.autoTriggerLogin ? 'active' : ''}" data-setting="autoTriggerLogin" role="switch" tabindex="0" aria-checked="${config.autoTriggerLogin}" aria-label="${msg.autoTriggerLogin}">
           <div class="switch-handle"></div>
@@ -764,14 +772,6 @@ export function getSettingsPanelHTML(
         </div>
       </div>
       <div class="setting-tip" data-i18n="penetrateShadowTip">${msg.penetrateShadowTip}</div>
-
-      <div class="setting-item">
-        <span class="setting-label" data-i18n="identityHint">${msg.identityHint}</span>
-        <div class="switch ${isSwitchOn('identityHintEnabled', config) ? 'active' : ''}" data-setting="identityHintEnabled" role="switch" tabindex="0" aria-checked="${isSwitchOn('identityHintEnabled', config)}" aria-label="${msg.identityHint}">
-          <div class="switch-handle"></div>
-        </div>
-      </div>
-      <div class="setting-tip" data-i18n="identityHintTip">${msg.identityHintTip}</div>
 
       <div class="setting-item">
         <span class="setting-label" data-i18n="opacity">${msg.opacity}</span>
