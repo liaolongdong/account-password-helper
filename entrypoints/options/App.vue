@@ -654,8 +654,9 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
  * 从页面侧身份提示打开身份库
  *
  * 进来的是一个标签（后台已按既有检索口径各收口一次，非法值即 `undefined`）：搜索词预填
- * 检索框——它取的是用户自己刚打在该页面上的本人姓名，作用是让列表直接筛到那一个人，
- * 省掉「打开身份库再手打名字」。复验门槛与 palette 入口共用同一个 `openIdentityVaultWithVerify`，
+ * 检索框——它是页面侧按字段角色取出的那一个标签（本人姓名，或编号族那「一格的字段名」，
+ * 分派见 `IdentityHint` 的 `pickSearchKeyword`），作用是让列表直接筛到那一个人或那条字段，
+ * 省掉「打开身份库再手打」。复验门槛与 palette 入口共用同一个 `openIdentityVaultWithVerify`，
  * 不新开旁路；词只在复验通过、弹窗确实要打开之后才写入，取消复验时不留检索态。
  *
  * 类别档位**刻意不由这条指令决定**：一条身份条目同时携带证件号、手机号、地址等多个值，

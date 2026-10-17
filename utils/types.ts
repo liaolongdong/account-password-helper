@@ -212,8 +212,10 @@ export enum MessageType {
    * 跳转到密码管理页并自动打开身份库（内容脚本识别出个人信息字段后的召唤式提示）
    *
    * 载荷只有一个标签，属内容脚本自报的不可信输入、在后台边界统一收口：
-   * - `keyword`（可选）：同一个表单里用户已打好的**本人姓名**（`normalizeSearchKeyword`，与「到全库找」
-   *   同一上限），只用于把身份库列表筛到那一个人。取值规则与边界见 `piiClassifier.selfNameValueNear`。
+   * - `keyword`（可选）：由内容脚本按页面字段角色分两条通道取值（分派见 `IdentityHint` 的 `pickSearchKeyword`），
+   *   姓名档取同一个表单里用户已打好的**本人姓名**（`piiClassifier.selfNameValueNear`），自定义字段落点档
+   *   （编号族）取**这一格自己的标签文本**（`piiClassifier.hintFieldKeyword`，不含字段值）。两条通道共用
+   *   `normalizeSearchKeyword` 的 trim + 64 字上限，只用于把身份库列表筛到那一个人或那一条字段。
    * 空白值不写出 `keyword` 键，缺失时也要照常打开身份库（召唤本身才是主意图）。
    *
    * 页面字段角色**不在载荷里**：它只服务气泡上那句「这是「证件号」字段」。曾经把它透过来
