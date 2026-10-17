@@ -51,6 +51,9 @@ const ZH_LABEL_CASES: readonly (readonly [label: string, role: string, why: stri
   ['社保号', 'idNumber', '口语写法'],
   ['社会保障卡号', 'idNumber', '与「社保卡号」同义，此前被「卡号」两字抢进卡档'],
   ['医保卡号', 'idNumber', '医保个人编号多数城市就是身份证号，不是银行卡'],
+  ['医保卡金融账号', 'cardNo', '社保卡另一面那串银行账号，不是证件号（评审回灌：社保档排在卡档之前会连坐）'],
+  ['社会保障卡银行账号', 'cardNo', '同上，全称写法'],
+  ['个人银行账户', 'cardNo', '银行开户表只写「银行账户」时问的就是卡号'],
   ['警官证号', 'idNumber', '特殊职业证件'],
   ['士兵证号', 'idNumber', '特殊职业证件'],
   ['驾驶证号', 'idNumber', '中国驾驶证的证号即身份证号'],
@@ -100,6 +103,9 @@ const EN_LABEL_CASES: readonly (readonly [label: string, role: string, why: stri
   ['Licence Number', 'idNumber', '英联邦拼写'],
   ['Medicare Number', 'idNumber', '澳洲 / 加拿大的医保编号'],
   ['Health Insurance Number', 'idNumber', '加省医保号'],
+  ['Social Security No', 'idNumber', '带点的缩写写法：收窄到带号收口之后，这条仍要走得通'],
+  ['Medicare No', 'idNumber', '同上'],
+  ['Health Insurance No', 'idNumber', '同上'],
   ['Bank Account Number', 'cardNo', '英文站点写标签不写 name，此前只有属性通道够得到'],
   ['IBAN', 'cardNo', '欧洲账号的标签写法'],
   ['Sort Code', 'cardNo', '英国转账'],
@@ -152,7 +158,8 @@ const ATTR_CASES: readonly (readonly [name: string, role: string, why: string])[
   ['licenseNumber', 'idNumber', '不带 driver 前缀的省写'],
   ['sortCode', 'cardNo', '英国转账'],
   ['routingNumber', 'cardNo', '美国转账'],
-  ['accountNumber', 'cardNo', '银行账号：卡类词元先于账号守卫比对，这里必须仍走得通'],
+  ['accountNumber', '-', '裸 account 词元是登录名：两步登录页没有标签文字，卡类词元不许在这一格把它读成银行账号'],
+  ['bankAccountNumber', 'cardNo', '全称字段名：写着 bank 就不再有歧义，裸 bank 词元原本把它读成开户行'],
   ['houseNumber', 'address', '门牌字段名'],
   ['apartment', 'address', '单元号字段名'],
 ];
@@ -221,6 +228,10 @@ const ORG_CREDENTIAL_CASES: readonly (readonly [label: string, why: string])[] =
   ['Company Tax Number', '海外对公税号'],
   ['Employer Identification Number', '美国 W-9 的 EIN'],
   ['Business Registration Number', '港新对公注册号'],
+  [
+    'Business Licence Number',
+    '英联邦拼写的营业执照号：闸门内的词元只认美式 license 拼法，于是它被词典的 licence number 接走（评审回灌）',
+  ],
   ['VAT Number', '欧盟增值税号'],
 ];
 
@@ -271,6 +282,15 @@ const NOT_COVERED_CASES: readonly (readonly [label: string, why: string])[] = [
   ['保单号', '保单自己的编号，不是本人证件号'],
   ['社保电脑号', '深圳那一串 8 位电脑号不等于身份证号'],
   ['公积金个人编号', '同上，库里没有那一格'],
+  // —— 2026-10-17 评审回灌：子串吃进相邻语义的第二批，方向同样是收窄正向短语 ——
+  ['驾驶证档案编号', '车管所那串 12 位档案号，此前被裸「驾驶证」三字接走——§5.4 那把尺子的正主是这一串官方写法'],
+  ['驾驶证编号', '交管页面上这一串同样是档案编号，不是证号'],
+  ['个税(元)', '薪酬表里的扣缴金额，裸「个税」两字吃进了相邻语义'],
+  ['代扣个税', '同上，那一栏问的是税额'],
+  ['个人所得税', '同上——它不含相邻的「个税」二字，靠带「号」收口就够，不需要额外负向词'],
+  ['Social Security Tax', '美国薪酬页的社保税项，问的是金额不是 SSN'],
+  ['Medicare Levy', '澳洲的医保税项，不是 Medicare 号码'],
+  ['Health Insurance Plan', '商业医保的计划选择，不是编号'],
 ];
 
 describe('覆盖面：中文标签', () => {
@@ -305,7 +325,13 @@ describe('覆盖面：英文标签', () => {
 
 describe('覆盖面：name 属性词元', () => {
   it.each(ATTR_CASES)('name="%s" 判为 %s', (name, role) => {
-    expect(resolvePiiField(fieldWithName(name))).toMatchObject({ role, tier: 'attr' });
+    const verdict = resolvePiiField(fieldWithName(name));
+    if (role === '-') {
+      expect(verdict.role, '这一格不该提示').toBeNull();
+      expect(verdict.suppress).toBe('account');
+      return;
+    }
+    expect(verdict).toMatchObject({ role, tier: 'attr' });
   });
 });
 
@@ -356,6 +382,13 @@ describe('扩充不得放宽既有负向档', () => {
     ['物品名称'],
   ])('「%s」仍然不出提示', label => {
     expect(resolvePiiField(fieldWithLabel(label)).role).toBeNull();
+  });
+
+  it('负向档吃的是合串文本：标签写着身份证号码、占位符写着有效期内时整体沉默', () => {
+    document.body.innerHTML = '<label>身份证号码<input id="f" type="text" placeholder="18 位，有效期内"></label>';
+    const verdict = resolvePiiField(document.getElementById('f') as HTMLInputElement);
+    expect(verdict.role).toBeNull();
+    expect(verdict.suppress).toBe('negative');
   });
 
   it('「CVV」与卡有效期按卡类口令压制，不因卡类三档放开而漏口', () => {

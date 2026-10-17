@@ -363,7 +363,9 @@ const ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[
  * 裸 `account` / `user_account` / `login_id` 仍按原样判成登录字段（`piiClassifier.test.ts` 钉着）。
  *
  * 与 {@link ATTR_DICT} 同一条刻意的缺席：**不收录裸 `card` / `cardno`**，中文站点同时用它
- * 指身份证号和银行卡号，词元层面分不开，收录会把证件号框读成卡号。
+ * 指身份证号和银行卡号，词元层面分不开，收录会把证件号框读成卡号。2026-10-17 评审回灌按同一
+ * 条理由摘掉裸 `accountnumber`：两步登录页的账号框用的正是这个名字，而第二步才出现的密码框
+ * 不在同一个字段组里，登录容器守卫拦不住它——写着 `bankaccountnumber` 才收下这一格。
  */
 const CARD_ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[] = [
   [
@@ -375,7 +377,7 @@ const CARD_ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string
       'debitcard',
       'bankaccount',
       'bankaccountno',
-      'accountnumber',
+      'bankaccountnumber',
       'sortcode',
       'routingnumber',
     ],
@@ -419,6 +421,13 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
   // 这样 `信用卡有效期`、`银行卡类型` 不会被误收进卡号档（前者留给永不提示的口令类）。
   { role: 'cardHolder', phrases: ['持卡人', '开户人', '账户姓名', '开户姓名', '户名', '开户名'] },
   { role: 'cardBank', phrases: ['开户行', '开户银行', '银行名称', '发卡行', '所属银行'] },
+  // 社保卡的两面分别问一件事：一面印的是**个人编号**（多数城市就是身份证号），另一面印的是
+  // **金融账号**（一家银行的账号）。这一档必须排在下面那条社保 idNumber 之前，否则
+  // `医保卡金融账号`、`社会保障卡银行账号` 会被「医保卡 / 社会保障卡」六个字先接走、
+  // 提示成本人的证件号（2026-10-17 评审回灌：拿卡号那格去填证件号是错的）。
+  // 只列账号侧的说法，不列裸「卡」，因此 `社保卡号` 仍由下一档接住。其中 `银行账号` / `银行帐号`
+  // 与下方卡号档**有意重叠**：那两条在这里的唯一作用，是抢在社保那一档之前把话说完。
+  { role: 'cardNo', phrases: ['金融账号', '金融账户', '银行账号', '银行帐号', '银行账户'] },
   // 「社保卡号」四个字里就含着 `卡号`，但它问的是社保个人编号——多数城市那一串就是身份证号。
   // 排在卡类之前把它接走：拿库里的银行卡号去填这一格是错的，而证件号至少是对的一半。
   // `社会保障卡号`（多一个「障」字，接不上「社保卡号」那串）与 `医保卡号` 同族，一并收在这里。
@@ -468,10 +477,12 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
    * 提示成本人的证件号，而那一串 18 位码问的还是机构（覆盖面账本钉着这条）。
    *
    * 2026-10-17 缺口勘察补进来的四条按同一把尺子挑：**那一串数字本身就是这个人的证件号**。
-   * 驾驶证号、回乡证号在中国都等于身份证号，`个人税号` / `个税` 的纳税识别号同样是身份证号，
+   * 驾驶证号、回乡证号在中国都等于身份证号，`个人税号` / `个税号` 的纳税识别号同样是身份证号，
    * 所以提示到库里的证件号格是对的落点。按这把尺子，`学历证书编号`、`教师资格证编号`、
-   * `驾照档案编号`、`社保电脑号`、`保单号` **一律不收**——它们各自成串、都不等于身份证号，
+   * `驾驶证档案编号`、`社保电脑号`、`保单号` **一律不收**——它们各自成串、都不等于身份证号，
    * 提示成「证件号」会把人往身份证号上引（这一族每条都在账本里钉着「不出提示」）。
+   * 因此这一档的短语**必须带「号」收口**：裸「驾驶证」会把车管所那串 12 位档案编号接走，
+   * 裸「个税」会把薪酬表的「个税(元)」扣缴金额接走（同日评审回灌的两条误报）。
    */
   {
     role: 'idNumber',
@@ -490,10 +501,11 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
       '居住证',
       '台胞证',
       '永久居留',
-      '驾驶证',
+      '驾驶证号',
       '回乡证',
       '个人税号',
-      '个税',
+      '个税号',
+      '个税编号',
     ],
   },
   { role: 'passport', phrases: ['护照', '通行证', '签证'] },
@@ -650,14 +662,21 @@ const EN_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
       'driving license',
       'tax number',
       'tax id',
-      // —— 2026-10-17 缺口勘察补的七条：此前只有 `name` 属性通道认得，纯标签页面整段漏报 ——
+      // —— 2026-10-17 缺口勘察补的七条，同日评审回灌后拆成十条写法 ——
+      // 此前只有 `name` 属性通道认得这些号码，纯标签页面整段漏报。
+      // 后三条各写「number / no」两种收口：薪酬页的 `Social Security Tax`、`Medicare Levy`、
+      // `Health Insurance Plan` 问的是金额或险种，裸词会把它们读成证件号（同日评审回灌）。
+      // 缩写 `ssn` / `nino` 两条自带号码语义，不需要再拆。
       'ssn',
-      'social security',
+      'social security number',
+      'social security no',
       'nino',
       'license number',
       'licence number',
-      'medicare',
-      'health insurance',
+      'medicare number',
+      'medicare no',
+      'health insurance number',
+      'health insurance no',
     ],
   },
   { role: 'cardHolder', phrases: ['cardholder', 'card holder', 'account holder'] },
@@ -790,7 +809,9 @@ const ORG_SUBJECT_EN = [
   'organization',
   'employer',
   'merchant',
-  'business licens',
+  // 收到 `licen` 为止：写全 `licens` 会漏掉英联邦拼法的 `Business Licence Number`，
+  // 那一串于是被词典的 licence number 接走、提示成本人证件号（2026-10-17 评审回灌）。
+  'business licen',
   'tax id',
 ];
 
