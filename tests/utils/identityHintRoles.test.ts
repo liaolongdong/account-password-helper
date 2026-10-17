@@ -4,9 +4,9 @@
  * 这份词表是页面侧「这一段字段语义」的闭合字母表，它同时承担着「白名单」和
  * 「文案目录」两个职责，所以本文件钉两条：
  *
- * 1. **闭集收窄**。网页 DOM 是自报环境，只有词表内的值才允许驱动气泡；卡类角色
- *    刻意不在表内——按既有拍板，银行卡信息不走身份提示路径，把它们排除在类型层面
- *    而不是「运行时记得别发」。
+ * 1. **闭集收窄**。网页 DOM 是自报环境，只有词表内的值才允许驱动气泡；卡类里只放
+ *    「卡号 / 户名 / 开户行」三档（2026-10-17 拍板），有效期与 CVV 属卡类口令，
+ *    按既有边界排除在词表外——排除写在类型层面，而不是「运行时记得别发」。
  * 2. **词表与文案目录同步**。少一条语种词条，气泡会直接把 key 画给用户看
  *    （`i18nLiteParity` 只保证中英对齐，管不到「角色新增了但文案没加」）。
  *
@@ -25,9 +25,12 @@ describe('normalizeIdentityHintRole：闭集收窄', () => {
     }
   });
 
-  it('卡类角色不在词表内，一律按「无角色」处理', () => {
-    for (const card of ['cardNo', 'cardExp', 'cardCvv']) {
-      expect(normalizeIdentityHintRole(card)).toBeNull();
+  it('卡号 / 户名 / 开户行现在在词表内，卡类口令（有效期 / CVV）永不进', () => {
+    for (const role of ['cardNo', 'cardHolder', 'cardBank']) {
+      expect(normalizeIdentityHintRole(role)).toBe(role);
+    }
+    for (const secret of ['cardExp', 'cardCvv']) {
+      expect(normalizeIdentityHintRole(secret)).toBeNull();
     }
   });
 

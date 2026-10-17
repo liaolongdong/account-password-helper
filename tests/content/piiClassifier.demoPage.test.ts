@@ -27,6 +27,9 @@ interface Row {
   actual: string;
   actualSuppress: string;
   owns: string;
+  /** 声明的命中层级（`data-tier`，只在需要钉「哪条通道给的结论」时写） */
+  expectedTier: string;
+  actualTier: string;
 }
 
 /** 把整页正文塞进 jsdom：只取 `<body>` 内的片段，无嵌套 body */
@@ -48,6 +51,8 @@ function sweep(): Row[] {
       actual: verdict.role ?? '-',
       actualSuppress: verdict.suppress ?? '',
       owns: el.dataset.owns ?? '',
+      expectedTier: el.dataset.tier ?? '',
+      actualTier: verdict.tier ?? '',
     };
   });
 }
@@ -64,12 +69,24 @@ describe('演示台逐字段判定账本', () => {
    *
    * 不用逐行 `expect`：那会在第一处漂移就中断，而「这一页有多少框出提示」要的是整页读数，
    * 一次看全才能判断该改词典还是该改夹具。
+   *
+   * 声明了 `data-tier` 的行还要对上「靠哪条线索判出来的」：`group`（同项兄弟标签）与
+   * `placeholder` 都是这一轮新加的弱线索，它们与 label / attr 之间的**先后**才是这条链路的契约，
+   * 只看角色对不对的话，「placeholder 抢在 label 前面」这类倒挂会静默通过。
+   * 末尾两行计数是给 `data-tier` 本身兜底的：属性被整段删掉时上面的比对会恒真通过。
    */
   it('每个字段的结论与页面声明一致', () => {
-    const drifted = sweep().filter(
-      row => row.actual !== row.expected || (row.expected === '-' && row.actualSuppress !== row.expectedSuppress),
+    const rows = sweep();
+    const drifted = rows.filter(
+      row =>
+        row.actual !== row.expected ||
+        (row.expected === '-' && row.actualSuppress !== row.expectedSuppress) ||
+        (row.expectedTier !== '' && row.actualTier !== row.expectedTier),
     );
-    expect(drifted, '这些字段的判定与 `data-expect` 不符').toEqual([]);
+    expect(drifted, '这些字段的判定与 `data-expect` / `data-tier` 不符').toEqual([]);
+    const tierCount = (tier: string): number => rows.filter(row => row.expectedTier === tier).length;
+    expect(tierCount('group'), '同项兄弟标签那两条通道的账本行没了（`data-tier="group"`）').toBeGreaterThanOrEqual(4);
+    expect(tierCount('placeholder'), '占位符通道的账本行没了（`data-tier="placeholder"`）').toBeGreaterThanOrEqual(8);
   });
 
   /**
@@ -78,7 +95,7 @@ describe('演示台逐字段判定账本', () => {
    * 这条守的是「词典整段漏掉某个角色」：单条形状用例全绿时，某个角色可能在这页上一个都没出现，
    * 而那正是英文站点曾经的漏报形态。`owns=fill` 的手机号框计入分类器命中，页面侧让位由 e2e 管。
    */
-  it('十三个可提示角色在本页全部出现过', () => {
+  it('十六个可提示角色在本页全部出现过', () => {
     const roles = new Set(
       sweep()
         .filter(row => row.actual !== '-')
@@ -88,6 +105,9 @@ describe('演示台逐字段判定账本', () => {
       [
         'address',
         'birthday',
+        'cardBank',
+        'cardHolder',
+        'cardNo',
         'email',
         'familyName',
         'gender',

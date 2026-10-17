@@ -156,38 +156,54 @@ export function fieldRect(page: Page, id: string): Promise<Rect> {
 }
 
 /**
- * 快速填充那把钥匙当前的可见矩形，不可见时为 `null`
+ * 一次钥匙读数的三个层次
  *
- * 让位判据挡掉身份提示的前提，是同一框确实归了钥匙——这个前提只有真浏览器量得到，而钥匙
- * 和气泡一样长在 closed shadow 里，因此同样只能走 pierce 视图。可见性判据取组件自己那枚
- * `visible` class（样式表里 `.aph-trigger{display:none}` / `.visible{display:inline-flex}`），
- * 它比盒模型更直接，也不会把「节点常驻但藏着」读成「有钥匙」。
+ * 三者各自能撑起一个结论，混成一个布尔就会把「没钥匙」和「量不到钥匙」说成同一句话：
+ * - `visible`：pierce 快照里那枚 trigger 带着 `visible` class；
+ * - `rect`：它当前算得出的可见矩形，藏着或算不出时为 null；
+ * - `anchored`：矩形中心落在指定字段矩形内，这才是「这一框归快速填充」的证据。
  */
-export async function keyRect(cdp: CDPSession): Promise<Rect | null> {
-  const root = await snapshotRoot(cdp);
-  const [node] = collect(root, byClass('aph-trigger'));
-  if (!node || !classOf(node).split(/\s+/).includes('visible')) return null;
-  const { model } = (await cdp.send('DOM.getBoxModel', { nodeId: node.nodeId })) as { model: CdpBox };
-  return toRect(model.border);
-}
+export type KeyRead = { visible: boolean; rect: Rect | null; anchored: boolean };
 
 /**
- * 钥匙此刻是否正钉在指定字段上
+ * 读一次快速填充钥匙的可见状态与几何归属
  *
- * 只判「有没有钥匙」是不够的：图标是单例、按 `position: fixed` 落位，上一框遗留的可见状态
- * 一样能读出「有」。所以要再核一次几何归属——图标按 `rect.right - 22 - offset` 摆放，中心必须
- * 落在这框的矩形里（放宽 4px：字段高度小于 22 时垂直居中的 `top` 会略微上溢）。
+ * 让位判据挡掉身份提示的前提，是同一框确实归了钥匙——这个前提只有真浏览器量得到，而钥匙
+ * 和气泡一样长在 closed shadow 里，因此同样只能走 pierce 视图。
+ *
+ * 盒模型算不出时**不往上抛协议错误**：钥匙是单例，走到一枚不该显示它的框（只读代理框就是一例）
+ * 时，快照里的 class/style 仍是上一框的遗留态，而实时布局已经没有盒——2026-10-17 实测，
+ * 让这条协议错误冒出去会把整轮本该一次报全的 miss 清单整个盖掉，只剩下一个看不懂的抛错。
  */
-export async function keyAnchoredTo(page: Page, cdp: CDPSession, id: string): Promise<boolean> {
-  const [field, key] = await Promise.all([fieldRect(page, id), keyRect(cdp)]);
-  if (!key) return false;
-  const center = { x: (key.left + key.right) / 2, y: (key.top + key.bottom) / 2 };
-  return (
-    center.x >= field.left - 4 &&
-    center.x <= field.right + 4 &&
-    center.y >= field.top - 4 &&
-    center.y <= field.bottom + 4
-  );
+export async function keyReadout(page: Page, cdp: CDPSession, id: string): Promise<KeyRead> {
+  const root = await snapshotRoot(cdp);
+  const [node] = collect(root, byClass('aph-trigger'));
+  const visible = !!node && classOf(node).split(/\s+/).includes('visible');
+  let rect: Rect | null = null;
+  if (node && visible) {
+    try {
+      const { model } = (await cdp.send('DOM.getBoxModel', { nodeId: node.nodeId })) as { model: CdpBox };
+      rect = toRect(model.border);
+    } catch {
+      rect = null;
+    }
+  }
+  if (!rect) return { visible, rect: null, anchored: false };
+
+  const field = await fieldRect(page, id);
+  // 只判「有没有钥匙」是不够的：图标按 `position: fixed` 落位，上一框遗留的可见态一样读得出「有」。
+  // 所以要再核一次几何归属——图标按 `rect.right - 22 - offset` 摆放，中心必须落在这框的矩形里
+  // （放宽 4px：字段高度小于 22 时垂直居中的 `top` 会略微上溢）。
+  const center = { x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 };
+  return {
+    visible,
+    rect,
+    anchored:
+      center.x >= field.left - 4 &&
+      center.x <= field.right + 4 &&
+      center.y >= field.top - 4 &&
+      center.y <= field.bottom + 4,
+  };
 }
 
 /**
@@ -246,7 +262,7 @@ export async function focusUntilKey(page: Page, cdp: CDPSession, id: string): Pr
     .poll(
       async () => {
         await refocus(page, id);
-        return keyAnchoredTo(page, cdp, id);
+        return (await keyReadout(page, cdp, id)).anchored;
       },
       { message: `聚焦 #${id} 之后没有出现快速填充钥匙 = 字段检测还没落定`, timeout: 25_000 },
     )

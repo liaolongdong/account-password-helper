@@ -179,10 +179,88 @@ describe('autocomplete 自声明优先', () => {
     expect(resolvePiiField(el)).toMatchObject({ role: 'phone', tier: 'autocomplete' });
   });
 
-  it('卡类自声明按拍板不进路径', () => {
+  it('卡号自声明现在进提示路径（2026-10-17 改判：卡号 / 户名 / 开户行三档放开）', () => {
     const el = inputOf('<input name="cardNo" autocomplete="cc-number">');
-    expect(classifyPiiRaw(el)).toMatchObject({ role: 'cardNo', card: true, suppress: 'card' });
-    expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'card' });
+    expect(classifyPiiRaw(el)).toMatchObject({ role: 'cardNo', card: true, suppress: null });
+    expect(resolvePiiField(el)).toMatchObject({ role: 'cardNo', needsVerify: true });
+  });
+
+  it('卡类口令永不提示：有效期与 CVV 自声明仍按 `card` 压制', () => {
+    for (const ac of ['cc-exp', 'cc-csc']) {
+      const el = inputOf(`<input autocomplete="${ac}">`);
+      expect(classifyPiiRaw(el)).toMatchObject({ card: true, suppress: 'card' });
+      expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'card' });
+    }
+  });
+});
+
+/**
+ * 卡类三档识别（2026-10-17 拍板放开：卡号 / 户名 / 开户行；有效期与 CVV 永不提示）。
+ *
+ * 三条形状各自的坑都在这儿钉住：`银行账号` 撞负向词 `账号`（与 `名称` / `方式` 同一类歧义，
+ * 例外只给「这一串问的就是卡」的形状）；`持卡人姓名` 撞词典里排在最前的 `姓名`，
+ * 所以卡档必须插在 name 之前；`开户银行名称` 同时撞 `名称` 负向与 org 词典，靠组织名词豁免放行。
+ */
+describe('卡类三档：卡号 / 户名 / 开户行', () => {
+  it.each([
+    ['银行卡号', 'cardNo'],
+    ['卡号', 'cardNo'],
+    ['银行账号', 'cardNo'],
+    ['银行帐号', 'cardNo'],
+    ['信用卡号', 'cardNo'],
+    ['持卡人姓名', 'cardHolder'],
+    ['持卡人', 'cardHolder'],
+    ['开户银行名称', 'cardBank'],
+    ['开户行', 'cardBank'],
+  ])('中文「%s」判成 %s', (text, role) => {
+    const verdict = resolvePiiField(inputOf(`<label>${text}<input name="f"></label>`));
+    expect(verdict).toMatchObject({ role, tier: 'label', needsVerify: true });
+  });
+
+  it.each([
+    ['card number', 'cardNo'],
+    ['cardholder name', 'cardHolder'],
+    ['bank name', 'cardBank'],
+  ])('英文「%s」判成 %s', (text, role) => {
+    expect(resolvePiiField(inputOf(`<label>${text}<input name="f"></label>`))).toMatchObject({ role });
+  });
+
+  it('卡档插在姓名之前，但只改角色不改归属：`持卡人姓名` 仍是本人', () => {
+    expect(resolvePiiField(inputOf('<label>持卡人姓名<input name="hdr"></label>'))).toMatchObject({
+      role: 'cardHolder',
+      ownership: 'self',
+    });
+  });
+
+  it('例外只给卡：裸「账号」与「银行卡类型 / 信用卡有效期」仍一律沉默', () => {
+    expect(resolvePiiField(inputOf('<label>账号<input name="zh"></label>'))).toMatchObject({
+      role: null,
+      suppress: 'negative',
+    });
+    expect(resolvePiiField(inputOf('<label>银行卡类型<input name="lx"></label>')).role).toBeNull();
+    expect(resolvePiiField(inputOf('<label>信用卡有效期<input name="yx"></label>')).role).toBeNull();
+    expect(resolvePiiField(inputOf('<label>安全码<input name="cvv"></label>')).role).toBeNull();
+  });
+
+  it('别人的卡不给提示：卡档排在他人词表之后仍会被归属压制', () => {
+    expect(resolvePiiField(inputOf('<label>配偶银行卡号<input name="other"></label>'))).toMatchObject({
+      role: null,
+      ownership: 'other',
+      suppress: 'ownership',
+    });
+  });
+
+  it('placeholder 自述「请输入银行卡号」同样出卡号档', () => {
+    expect(resolvePiiField(inputOf('<input name="f" placeholder="请输入银行卡号">'))).toMatchObject({
+      role: 'cardNo',
+      tier: 'placeholder',
+    });
+  });
+
+  it('卡号不参与「证件号形状回推」：一串 16 位数字不许被认成证件号', () => {
+    const el = inputOf('<input name="f">');
+    el.value = '6222021234567890';
+    expect(resolvePiiField(el).role).toBeNull();
   });
 });
 
@@ -284,10 +362,167 @@ describe('name/id 词元与组合词元', () => {
   });
 });
 
-describe('placeholder 档不采集', () => {
-  it('只有 placeholder 写着「真实姓名」时不出提示（模拟跑批里该档有效命中为 0）', () => {
-    const el = inputOf('<input name="x" placeholder="请输入真实姓名">');
+describe('placeholder 档：字段自述里最弱的一条线索', () => {
+  /**
+   * 这一档 2026-10-17 前刻意不吃正向词典（94 字段语料上有效命中为 0），改判的依据是
+   * 组件库形状：AntD 行栅格与 EP「一项两控件不发 `for`」让四条常规线索同时落空，
+   * 对一家银行开户页实测 88 枚控件 0 提示。这几条形状就是那次漏报的反面。
+   */
+  it('只有占位符写着角色词也出提示（用户点名的检测面）', () => {
+    const shapes: [string, string][] = [
+      ['请输入真实姓名', 'name'],
+      ['请输入身份证号', 'idNumber'],
+      ['请输入邮箱地址', 'email'],
+      ['联系方式', 'phone'],
+      ['请输入送货地址', 'address'],
+      ['户籍所在地', 'region'],
+    ];
+    for (const [placeholder, role] of shapes) {
+      const verdict = resolvePiiField(inputOf(`<input name="x" placeholder="${placeholder}">`));
+      expect(verdict, placeholder).toMatchObject({ role, tier: 'placeholder' });
+    }
+  });
+
+  it('占位符排在所有强线索之后：打架时以 label 为准，账号词与负向词仍然先把它挡下', () => {
+    expect(
+      resolvePiiField(inputOf('<label>联系电话<input name="x" placeholder="请输入邮箱地址"></label>')),
+    ).toMatchObject({ role: 'phone', tier: 'label' });
+    expect(resolvePiiField(inputOf('<input name="user_account" placeholder="请输入姓名">')).suppress).toBe('account');
+    expect(resolvePiiField(inputOf('<input name="x" placeholder="请输入验证码">')).role).toBeNull();
+    expect(resolvePiiField(inputOf('<input name="x" type="password" placeholder="请输入证件号码">')).suppress).toBe(
+      'excluded',
+    );
+  });
+
+  it('占位符自己写着机构主体不许开口：那问的是机构的证照号，不是屏幕前这个人的', () => {
+    expect(resolvePiiField(inputOf('<input name="x" placeholder="请输入机构证件号码">')).role).toBeNull();
+    expect(resolvePiiField(inputOf('<input name="x" placeholder="统一社会信用代码">')).role).toBeNull();
+  });
+});
+
+describe('同项兄弟标签档：标签块与控件块互为兄弟的组件库形状', () => {
+  /** 造一枚「兄弟标签 + 控件块」的表单项，取其中第 index 枚控件（0 起） */
+  function controlOf(html: string, index = 0): HTMLElement {
+    document.body.innerHTML = html;
+    const el = document.body.querySelectorAll('input, textarea, select')[index];
+    if (!el) throw new Error('夹具里没有控件');
+    return el as HTMLElement;
+  }
+
+  it('EP 一项两控件不发 `for`：兄弟标签块就是这一框的名字（tier=group）', () => {
+    const el = controlOf(
+      '<div class="el-form-item"><div class="el-form-item__label">证件号码</div>' +
+        '<div class="el-form-item__content"><span><input name="a" placeholder="请选择"></span>' +
+        '<input class="el-input__inner" placeholder="请输入证件号码"></div></div>',
+      1,
+    );
+    expect(resolvePiiField(el)).toMatchObject({ role: 'idNumber', tier: 'group', evidence: '证件号码' });
+  });
+
+  it('一项里出现第三枚控件，那段文字就是区标题而不是这一框的名字', () => {
+    const el = controlOf(
+      '<div class="row"><div class="field-label">收货地址</div><div class="ctl">' +
+        '<input placeholder="请选择省"><input placeholder="请选择市"><input placeholder="请选择区">' +
+        '</div></div>',
+      0,
+    );
+    expect(resolvePiiField(el).tier).not.toBe('group');
+    expect(resolvePiiField(el).role).toBeNull();
+  });
+
+  it('兄弟标签与占位符互相打脸时整项沉默：两条弱线索没有一条能压过另一条', () => {
+    const el = controlOf(
+      '<div class="row"><div class="field-label">证件号码</div><div class="ctl">' +
+        '<input name="x" placeholder="请输入邮箱地址"></div></div>',
+    );
     expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'noRole' });
+  });
+
+  it('兄弟标签既是角色来源也是归属来源，且只许单向收紧', () => {
+    const selfNamed = controlOf(
+      '<div class="row"><div class="field-label">本人姓名</div><div class="ctl"><input name="x" placeholder="请输入姓名"></div></div>',
+    );
+    expect(resolvePiiField(selfNamed)).toMatchObject({ role: 'name', tier: 'group', ownership: 'self' });
+    /** 占位符写着「配偶」即已判明是别人：兄弟标签写着「本人姓名」也不许把它放松回 self */
+    const otherNamed = controlOf(
+      '<div class="row"><div class="field-label">本人姓名</div><div class="ctl"><input name="x" placeholder="配偶姓名"></div></div>',
+    );
+    expect(resolvePiiField(otherNamed)).toMatchObject({ ownership: 'other', suppress: 'ownership' });
+  });
+
+  it('组织主体的兄弟标签让整项闭嘴，连它自己的占位符也不许开口', () => {
+    const el = controlOf(
+      '<div class="row"><div class="field-label">金融业务资质证件号码</div><div class="ctl">' +
+        '<input name="x" placeholder="请输入证件号码"></div></div>',
+    );
+    expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'noRole' });
+  });
+
+  it('兄弟标签落空仍不影响 placeholder 自证：两条弱线索各自成立', () => {
+    const el = controlOf(
+      '<div class="row"><div class="field-label">支付方式</div><div class="ctl">' +
+        '<input name="x" placeholder="请输入邮箱地址"></div></div>',
+    );
+    expect(resolvePiiField(el)).toMatchObject({ role: 'email', tier: 'placeholder' });
+  });
+
+  /**
+   * 下拉的**当前选中值**显示块不是标签。
+   *
+   * Element Plus 2.14.4 的 `.el-select__selection` 里，「当前选中了什么」那一块就挂在代理 input
+   * 的前兄弟位置，文字正是「手机号码」。它长得像标签、是叶子、块内只有一枚载体——三道预算全过，
+   * 只有「这块文字在给这一框命名、还是在报这一框的值」能把它挡下：把类型选择器报成 phone，
+   * 提示就是在往「选证件类型」的那格里塞证件号。
+   */
+  it('下拉的「当前选中值」显示块不许当标签：那写着「手机号码」也不是这一框的名字', () => {
+    const el = controlOf(
+      '<div class="el-select"><div class="el-select__wrapper"><div class="el-select__selection">' +
+        '<div class="el-select__selected-item">手机号码</div>' +
+        '<div class="el-select__selected-item el-select__input-wrapper">' +
+        '<input class="el-select__input" type="text" readonly></div></div></div></div>',
+    );
+    expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'noRole' });
+  });
+
+  /**
+   * Ant Design 3 的同一种形状，挡下它的却是另一道门。
+   *
+   * 那套组件把代理 input 写成 `class="ant-select-search__field"`，容器叫 `ant-select-search`，
+   * 于是结构性排除里的「搜索容器」先命中，兄弟标签那条通道根本走不到。
+   * 这一行钉的是 2026-10-17 那次真实勘察读数：银行开户页 8 枚这种 input 全部沉默，
+   * 归因到 `inSearchBox`（气泡侧的 0×0 视口守卫是同一条结论的第二重保险，不是它的原因）。
+   * 记下它，是为了让「给兄弟标签加形状门」这次收窄能被看见——它不该让这一行改判。
+   */
+  it('AntD 的搜索代理 input 由搜索容器排除挡下，与形状门无关', () => {
+    const el = controlOf(
+      '<span class="ant-select"><span class="ant-select-selection__rendered">' +
+        '<div class="ant-select-selection-selected-value">中国居民身份证</div>' +
+        '<div class="ant-select-search"><input class="ant-select-search__field" type="text" readonly></div>' +
+        '</span></span>',
+    );
+    expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'excluded' });
+  });
+
+  /**
+   * 政务 / 社保页的主流形状：整张表单是一张 `<table>`，标签格与控件格互为兄弟。
+   *
+   * 结构和 EP 的 `el-form-item__label` 完全同构，差别只在标签块用的是 `<td>`、
+   * 类名里也没有 `label`。原生标签集合收了 `th`，`td` 不在里面，于是形状门把这一整类
+   * 连同它给的名字一起清零——2026-10-17 用户实测的一张社保参保登记表就是这个读数
+   * （「身份证号码」+「姓名」那一行不出提示）。
+   *
+   * 两格分开取：同一 `<tr>` 里前一格的文字不能被后一格读走，回兄弟必须停在自己那格之前。
+   */
+  it('表格表单的 `<td>` 标签格是这一框的名字，且各格只认自己前面那格', () => {
+    const row =
+      '<table><tbody><tr><td class="tdBg">身份证号码</td><td><input id="sfzh" maxlength="18"></td>' +
+      '<td class="tdBg">姓名</td><td><input id="xm"></td></tr></tbody></table>';
+    expect(resolvePiiField(controlOf(row))).toMatchObject({
+      role: 'idNumber',
+      tier: 'group',
+      evidence: '身份证号码',
+    });
+    expect(resolvePiiField(controlOf(row, 1))).toMatchObject({ role: 'name', tier: 'group', evidence: '姓名' });
   });
 });
 
@@ -422,6 +657,24 @@ describe('中文单位名不再被裸「名称」负向词吃掉', () => {
   it('豁免只认组织名词：「物品名称 / 商品名称」仍是事物名', () => {
     expect(resolvePiiField(inputOf('<label>物品名称<input name="wpmc"></label>')).role).toBeNull();
     expect(resolvePiiField(inputOf('<label>商品名称<input name="spm"></label>')).role).toBeNull();
+  });
+});
+
+describe('证件号的中文别名不能只认「身份证」这三个字', () => {
+  /**
+   * 「公民身份号码」是公安系统的正式叫法，社保 / 政务 / 银行页面普遍这么写，
+   * 而它不含「身份证」（是「身份」+「号码」），按旧词典整条落空。「身份号」是空间不够时的缩写。
+   */
+  it.each(['公民身份号码', '身份号码', '居民身份证号码', '证件号码'])('%s 判成 idNumber', text => {
+    expect(resolvePiiField(inputOf(`<label>${text}<input name="zjhm"></label>`))).toMatchObject({
+      role: 'idNumber',
+      tier: 'label',
+    });
+  });
+
+  it('加宽证件号档不踩「身份」开头的元信息后缀', () => {
+    expect(resolvePiiField(inputOf('<label>身份验证方式<input name="fs"></label>')).role).toBeNull();
+    expect(resolvePiiField(inputOf('<label>身份照片<input name="zp"></label>')).role).toBeNull();
   });
 });
 

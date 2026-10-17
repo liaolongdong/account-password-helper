@@ -10,7 +10,8 @@
  *    与 `penetrateShadow` 同一口径，也才配得上设置面板上那句「关闭即完全不出现」。
  * 2. **登录字段归快速填充**。判据是「快速填充是否真的认领了这个框」（`shouldShowSidePanel`），
  *    不是「字段长得像账号字段」——注册页的手机号框进了 mobile 桶却进不了登录表单，
- *    用桶归属让位会让它钥匙和提示两头落空。
+ *    用桶归属让位会让它钥匙和提示两头落空。让位还要求这一档是钥匙**取得出值**的（手机号 / 邮箱）：
+ *    证件号框会被旧分桶的「号码」子串误读成手机号框，钥匙挂得上却填不出身份库的值，这类由提示顶上。
  * 3. **档位无关**。接线点必须早于内联模式的 early return，否则「仅手动/侧边栏填充」档位下，
  *    注册页的姓名、证件号就彻底没有说明。
  * 4. **只出顶层 frame**。`allFrames` 注入让每个 iframe 各跑一份内容脚本，广告/统计 iframe
@@ -156,6 +157,49 @@ describe('聚焦识别到身份提示的接线', () => {
     expect(shown()).toEqual(['address', 'gender']);
   });
 
+  /**
+   * 提示的唯一动作是「把这格填上」，所以它只该跟随**能打字**的框。
+   *
+   * 2026-10-17 用户实测：一家社保登记表里那一片灰底框照样出气泡。组件库把日期选择器、
+   * 下拉、级联都渲染成 `<input readonly>`（焦点可进、键盘打不进），页面自己回写的框
+   * （「户籍=深圳户籍」）同样是 readonly——对它们说一句「从身份库选择」是一句做不到的承诺。
+   *
+   * 判据刻意只看 `readOnly`：`disabled` 的控件（含 `<fieldset disabled>` 整段禁用）在浏览器里
+   * 根本拿不到焦点，`focusin` 不会为它们派发，写那条分支就是给不可能发生的场景加守卫。
+   */
+  it('readonly 的输入框不出提示：只读代理框与页面回写的灰底框都不接受输入', async () => {
+    await mount(
+      `
+      <label>出生日期<input name="birthday" readonly></label>
+      <label>户籍<input name="region" readonly value="深圳户籍"></label>
+      <label>详细地址<textarea name="address" readonly></textarea></label>
+    `,
+      makeConfig(),
+    );
+
+    focus(control(0));
+    focus(control(1));
+    focus(control(2));
+
+    expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
+  });
+
+  it('同一个框去掉 readonly 就照常出提示：判据是「能不能输入」，不是「像不像个人信息」', async () => {
+    await mount('<label>出生日期<input name="birthday"></label>', makeConfig());
+
+    focus(control());
+
+    expect(shown()).toEqual(['birthday']);
+  });
+
+  it('select 没有 readOnly 概念：可以选择的下拉框照常出提示', async () => {
+    await mount('<label>性别<select name="gender"><option>男</option></select></label>', makeConfig());
+
+    focus(control());
+
+    expect(shown()).toEqual(['gender']);
+  });
+
   it('聚焦到非控件元素上不出提示，也不误收（失焦收起由 focusout 负责）', async () => {
     await mount('<label>姓名<input name="realname"></label>', makeConfig());
 
@@ -221,6 +265,45 @@ describe('聚焦识别到身份提示的接线', () => {
     scan();
 
     focus(control());
+
+    expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 让位要再问一句「钥匙取得出这个值吗」。
+   *
+   * `MOBILE_KEYWORDS` 把「号码」当子串，于是「证件号码 / 身份证号码」这类框在旧分桶里就是手机号框，
+   * 钥匙会在它上面出现——但钥匙的面板只有账号、手机号、邮箱，取不出身份库里的证件号。用户实测
+   * 「红框那一行没识别到」正是这条：让位之后两头落空，框上只有一枚点开是账号列表的钥匙。
+   *
+   * 所以让位的判据收窄成两条同时成立：钥匙真的认领了这一框，**且**这一框的角色是钥匙取得出值的
+   * 那一档（手机号 / 邮箱）。证件号、姓名、地址、卡号照旧出提示，哪怕框上同时挂着钥匙。
+   */
+  it('钥匙认领但取不出值的证件号框不再让位：提示补上钥匙填不了的那一格', async () => {
+    await mount(
+      '<form><label>证件号码<input placeholder="请输入证件号码"></label><input type="password" name="password"><button type="submit">登录</button></form>',
+      makeConfig(),
+    );
+    scan();
+
+    // 前提自证：这一框确实被快速填充认领了，否则用例只是在测「它没进登录表单」
+    expect((detector as any).shouldShowSidePanel(control(0))).toBe(true);
+
+    focus(control(0));
+
+    expect(shown()).toEqual(['idNumber']);
+  });
+
+  it('邮箱框被钥匙认领时照旧让位：那是钥匙取得出值的角色', async () => {
+    await mount(
+      '<form><input type="text" name="email" placeholder="邮箱"><input type="password" name="password"><button type="submit">登录</button></form>',
+      makeConfig(),
+    );
+    scan();
+
+    expect((detector as any).shouldShowSidePanel(control(0))).toBe(true);
+
+    focus(control(0));
 
     expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
   });

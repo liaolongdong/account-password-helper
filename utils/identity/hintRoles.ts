@@ -15,7 +15,13 @@
  * @module utils/identity/hintRoles
  */
 
-/** 可提示的身份语义角色 */
+/**
+ * 可提示的身份语义角色
+ *
+ * 卡类只放三档（2026-10-17 拍板）：卡号、户名、开户行——它们与证件号一样是「库里存着的一条
+ * 银行信息」，而有效期与 CVV 属卡类口令，身份库按同一口径把它们当秘密字段加密展示，
+ * 让它们进这份词表等于把 CVV 的取值路径挂到页面提示上，因此类型层面就不收录。
+ */
 export const IDENTITY_HINT_ROLES = [
   'name',
   'givenName',
@@ -30,6 +36,9 @@ export const IDENTITY_HINT_ROLES = [
   'birthday',
   'gender',
   'org',
+  'cardNo',
+  'cardHolder',
+  'cardBank',
 ] as const;
 
 /** 身份提示角色（由词表推导，新增角色只需改上面那份数组） */
@@ -41,7 +50,7 @@ const HINT_ROLE_SET: ReadonlySet<string> = new Set<string>(IDENTITY_HINT_ROLES);
  * 收窄分类器给出的角色串
  *
  * 与 `normalizeSiteRuleDomain` / `normalizeSearchKeyword` 同一口径：网页 DOM 是自报环境，
- * 只接受闭合词表内的值，其余（含非字符串、超长串、卡类角色）一律按「无角色」处理——
+ * 只接受闭合词表内的值，其余（含非字符串、超长串、卡类口令角色）一律按「无角色」处理——
  * 落到调用方就是「这一框不出提示」，而不是「按原样把未知角色画给用户」。
  *
  * @param value 待收窄的原始值

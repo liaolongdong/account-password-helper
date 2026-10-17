@@ -15,11 +15,12 @@
     <!--
       身份提示（形态一：识别 + 提示 + 深链，不填充）的手工回归台。
 
-      十个区块各摆一种「页面把标签与输入框的关系写成什么样」的真实形状：
+      十五个区块各摆一种「页面把标签与输入框的关系写成什么样」的真实形状：
       嵌套 label、label[for]、Element Plus 式兄弟块、autocomplete 自声明、登录组、
-      裸兄弟文本、表格 th、英文词典、值形状收口、负向噪音。
+      裸兄弟文本、表格 th 与 `<td>` 标签格、英文词典、值形状收口、负向噪音、
+      组件库复合表单项、行栅格、只有占位符、银行卡三档、不可输入的控件。
       判定链只吃这些结构信号与该字段自己的值，所以换一种写法就可能从「提示」掉成「沉默」——
-      这页存在的意义就是把十种形状一次摆平，让「这一框为什么没提示」当场看得出来。
+      这页存在的意义就是把所有形状一次摆平，让「这一框为什么没提示」当场看得出来。
 
       每个受检字段带两个数据属性，`tests/content/piiClassifier.demoPage.test.ts` 逐行对账
       （那份测试把本页读进 jsdom，逐字段跑 `resolvePiiField`，是全仓唯一吃「整页真实形状」的账本）：
@@ -27,14 +28,22 @@
       - `data-suppress`：仅当 `data-expect="-"`，期望被哪条出口挡掉
         （`excluded` / `negative` / `account` / `card` / `ownership` / `loginGroup` / `noRole`）。
       个别字段另带 `data-owns="fill"`：分类器给了角色，但页面侧由让位规则交给快速填充那把钥匙，
-      气泡不出现。这一段的判据是「这一框拿到了钥匙吗」，主世界看不见 closed shadow 里的图标，
-      所以由 `e2e/identity-hint-demo-page.spec.ts` 在真 Chrome 里逐行量（读到可见、且几何上正钉在
-      这一框，才算让位成立）。
+      气泡不出现。让位成立要两条同时满足——这一框拿到了钥匙，**且**这一档是钥匙取得出值的
+      （手机号 / 邮箱：它的面板只有账号那一类值）。判据长在 closed shadow 里，主世界看不见那枚图标，
+      所以由 `e2e/identity-hint-demo-page.spec.ts` 在真 Chrome 里逐行量（几何上正钉在这一框，才算让位成立）。
+      还有 `data-nohint="readonly"`：形状与 ⑮ 区同类——分类器照常判出角色，
+      但页面侧的「只读控件不提示」这道门把它挡下，所以真机那一侧期望零枚气泡；
+      jsdom 那本账不吃这条门，两边读同一行会给出不同结论，靠这个属性分开记。
       让位的范围有一个不那么直观的条件：`shouldShowSidePanel` 最后有一道整页兜底——**同一份文档里
       只要存在账号+密码对或登录按钮**，落进 username/mobile 桶的框一律算「在登录表单里」。
-      本页把十种形状摆在同一份文档，⑤ 区又确实是一个登录块，于是 ①③④⑦ 区里进了桶的
-      `<input>` 一并归了钥匙（`#a-mail`、`#a-zip`、`#c-rtel`、`#d-tel`、`#g-email`、`#g-phone`）。
+      本页把十五种形状摆在同一份文档，⑤ 区又确实是一个登录块，于是各处进了桶的
+      `<input>` 一并归了钥匙（`#a-mail`、`#c-rtel`、`#d-tel`、`#g-email`、`#g-phone`、`#k-c2`、
+      `#k-p3`、`#k-p7`、`#k-p14`）。
       真实站点少见这种混排，但「注册页上半屏是登录框」并不罕见——看到这一行没有气泡，先按这个条件核对。
+      反过来，旧分桶的宽判据也会给不相干的框挂上一把**填不出值**的钥匙，那一档不让位、提示照常出：
+      `#a-zip`（`name="post_code"` 撞进验证码桶，身份侧是邮编）与 `#k-a2`（placeholder
+      「请输入证件号码」里的「号码」二字被读成手机号语义，身份侧是证件号）。后者正是用户实测
+      「身份证号码那一行没识别到」的形状——框上有钥匙，但钥匙点出来的是账号列表。
       `<select>` 与 `<textarea>` 不受这条影响（让位判据只看 `HTMLInputElement`），所以 ① 区的性别、
       ⑥ 区的详细地址仍照常出提示。
 
@@ -113,6 +122,29 @@
         margin: 4px 0 0;
         color: var(--warn);
         font-size: 12px;
+      }
+      /* ⑪⑫ 的组件库形状：标签块与控件块互为兄弟（DOM 结构照抄库的产物，样式只为可读性） */
+      .el-form-item__label,
+      .ant-form-item-label {
+        margin-bottom: 4px;
+        font-weight: 600;
+      }
+      .two-col {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .two-col .lbl {
+        flex: 0 0 86px;
+        font-weight: 600;
+      }
+      .two-col .ctl {
+        min-width: 0;
+        flex: 1 1 auto;
+      }
+      .card-hd {
+        margin-bottom: 6px;
+        font-weight: 700;
       }
       input,
       select,
@@ -239,7 +271,6 @@
               name="post_code"
               autocomplete="off"
               data-expect="postal"
-              data-owns="fill"
           /></label>
         </div>
         <div class="field">
@@ -440,8 +471,8 @@
     <section class="card">
       <h2>④ autocomplete 自声明（站点自己把答案写在属性上）</h2>
       <p class="note">
-        这是最强的一档信号，优先级高于一切词典与守卫；卡类按既有拍板例外，永不进提示路径。本区「电话」与 ③
-        区同因归钥匙。
+        这是最强的一档信号，优先级高于一切词典与守卫；卡类里只有卡号进提示路径（2026-10-17 拍板），
+        有效期与安全码是卡类口令、永不提示。本区「电话」与 ③ 区同因归钥匙。
       </p>
       <div class="fields">
         <div class="field">
@@ -484,8 +515,8 @@
             id="d-cc"
             autocomplete="cc-number"
             inputmode="numeric"
-            data-expect="-"
-            data-suppress="card"
+            data-expect="cardNo"
+            data-tier="autocomplete"
           />
         </div>
         <div class="field">
@@ -599,6 +630,34 @@
               id="f-th-seat"
               data-expect="-"
               data-suppress="noRole"
+            />
+          </td>
+        </tr>
+        <!--
+          社保 / 政务的参保登记表：整张表单是一张 table，标签写在 `<td>` 而不是 `<th>` 里，
+          类名也没有 `label`。2026-10-17 用户实测「身份证号码 + 姓名」那一行不出提示，就是这个形状
+          被兄弟标签的形状门挡下——同一 `<tr>` 里两格各认自己前面那格，不许把前一行的名字读走。
+        -->
+        <tr>
+          <td class="tdBg">公民身份号码</td>
+          <td>
+            <input
+              id="f-td-id"
+              maxlength="18"
+              data-expect="idNumber"
+              data-tier="group"
+            />
+          </td>
+          <td class="tdBg">姓名</td>
+          <td>
+            <!--
+              id 刻意写成拼音：`f-td-name` 里的 `name` 会被 `name`/`id` 词元层先吃掉，
+              于是这一行判的还是 group 通道，但账本记成 attr——夹具自己的命名也会踩到被测链路。
+            -->
+            <input
+              id="f-td-xingming"
+              data-expect="name"
+              data-tier="group"
             />
           </td>
         </tr>
@@ -820,6 +879,629 @@
             id="j-mail"
             aria-labelledby="lb-mail"
             data-expect="email"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑪ 组件库复合表单项（一项两枚控件时，标签拿不到）</h2>
+      <p class="note">
+        用户实机截图那一页的形状。Element Plus 2.14.4 的 <code>form-item</code> 把 <code>labelFor</code> 算成
+        <code>props.for ?? (inputIds.length === 1 ? inputIds[0] : undefined)</code>——<strong
+          >一个表单项里只要有第二枚控件</strong
+        >
+        （类型选择器 + 号码框、起始日期 + 截止日期），<code>for</code> 就不发，标签节点从
+        <code>&lt;label&gt;</code> 退化成 <code>&lt;div class="el-form-item__label"&gt;</code>。必填星号是 CSS 画的
+        <code>::before</code>，不占文本，所以「联系方式」四个字就在那一枚 div 里。 号码框这一侧的四条常规线索同时落空：
+        它不是 label 的后代、<code>for</code> 指在隔壁选择器上、<code>el-input</code> 默认不渲染 <code>name</code>（id
+        是 <code>el-id-…</code> 合成串）——于是这一框静默没有提示，这区把这一条钉成账本。 四条预算各有对应的行：
+        <strong>块内载体控件 &gt; 2</strong> 就当它是整张卡片而不是一个字段（<code>#k-d*</code>），
+        <strong>placeholder 与兄弟标签角色冲突</strong>时弃用兄弟标签（<code>#k-x2</code>），
+        <strong>兄弟标签自身是负向词</strong>时同样弃用，<strong>那块文字不像在命名</strong>时也弃用——
+        <code>#k-c1</code> 的前兄弟
+        <code>.el-select__selected-item</code> 写着「手机号码」，那是这一枚下拉<strong>当前选中的值</strong>，
+        不是它的名字：当成名字就把类型选择器报成 phone，提示会教用户往「选证件类型」那格里塞证件号。
+        本区先前把这一行记成 <code>tier="group"</code> 并注为「天然后果」，现按这条反例改判沉默； 号码框
+        <code>#k-c2</code> 不受影响，它够到的仍是项级标签「联系方式」。
+        <strong>本区与 ⑫⑬ 的 id 写成无意义代号</strong>：<code>id</code> 本身就是分类器的信号源，
+        把答案写进命名（早先那版叫 <code>k-phone</code>）会让一行「不改代码也绿」，账本当场失去牙齿。
+      </p>
+      <div class="fields">
+        <div class="el-form-item field">
+          <div class="el-form-item__label">证件有效期</div>
+          <div class="el-form-item__content">
+            <div class="el-date-editor el-range-editor">
+              <input
+                id="k-v1"
+                class="el-range-input"
+                type="text"
+                placeholder="起始日期"
+                readonly
+                data-expect="-"
+                data-suppress="noRole"
+              />
+              <span class="el-range-separator">至</span>
+              <input
+                id="k-v2"
+                class="el-range-input"
+                type="text"
+                placeholder="截止日期"
+                readonly
+                data-expect="-"
+                data-suppress="noRole"
+              />
+            </div>
+            <label class="el-checkbox"
+              ><input
+                id="k-v3"
+                type="checkbox"
+                data-expect="-"
+                data-suppress="excluded"
+              />长期有效</label
+            >
+          </div>
+        </div>
+        <div class="el-form-item field">
+          <div class="el-form-item__label">联系方式</div>
+          <div class="el-form-item__content">
+            <div class="el-select el-select--small">
+              <div class="el-select__wrapper">
+                <div class="el-select__selection">
+                  <div class="el-select__selected-item">手机号码</div>
+                  <div class="el-select__selected-item el-select__input-wrapper">
+                    <input
+                      id="k-c1"
+                      class="el-select__input"
+                      type="text"
+                      readonly
+                      data-expect="-"
+                      data-suppress="noRole"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="el-input">
+              <div class="el-input__wrapper">
+                <input
+                  id="k-c2"
+                  class="el-input__inner"
+                  type="text"
+                  placeholder="请输入手机号码"
+                  data-expect="phone"
+                  data-tier="group"
+                  data-owns="fill"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field two-col">
+          <label class="lbl">详细地址</label>
+          <div class="ctl">
+            <input
+              id="k-g1"
+              type="text"
+              data-expect="address"
+              data-tier="group"
+            />
+          </div>
+        </div>
+        <div class="field two-col">
+          <label class="lbl">邮政编码</label>
+          <div class="ctl">
+            <input
+              id="k-x1"
+              type="text"
+              placeholder="请输入邮政编码"
+              data-expect="postal"
+              data-tier="group"
+            />
+            <input
+              id="k-x2"
+              type="text"
+              placeholder="请输入详细地址"
+              data-expect="-"
+              data-suppress="noRole"
+            />
+          </div>
+        </div>
+        <div class="field card-body-demo">
+          <label class="card-hd">收货人信息</label>
+          <div class="card-body">
+            <input
+              id="k-d1"
+              type="text"
+              data-expect="-"
+              data-suppress="noRole"
+            />
+            <input
+              id="k-d2"
+              type="text"
+              data-expect="-"
+              data-suppress="noRole"
+            />
+            <textarea
+              id="k-d3"
+              data-expect="-"
+              data-suppress="noRole"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑫ 行栅格（Ant Design 3 的真实形状：标签在兄弟块、input 无 name/id）</h2>
+      <p class="note">
+        这一区的 DOM 不是想象出来的：2026-10-17 对一家银行开户页（<code>etbank.com.cn/#/register</code>）逐框勘察， 88
+        枚控件里<strong>提示 0 枚、钥匙 0 枚</strong>，形状就是这里的「<code>ant-col-6</code> 标签块 +
+        <code>ant-col-18</code> 控件块」，且 <code>&lt;label&gt;</code> 不写 <code>for</code>、input 不写
+        <code>name</code>/<code>id</code>，语义只剩 <code>placeholder</code>。 那页绝大多数条目问的是
+        <strong>机构</strong>而不是本人（机构证件号码 / 统一社会信用代码 / 金融业务资质证件号码 / 公司名称 /
+        注册资本）， 所以这一区同时是「弱线索放大之后会不会误报」的对照表：<code>#k-a4</code>
+        必须沉默（机构主体词让整项的弱线索作废）， <code>#k-a5</code> 要照常提示成单位名，<code>#k-a6</code> 的项里有省
+        / 市 / 区县 + 详情四枚载体， 兄弟标签「地址」按<strong>一项一义</strong>（块内载体 &gt; 2
+        即视作用区标题）让位给占位符。 <code>#k-a2</code>「证件号码」是这一区最要紧的一行：placeholder
+        里的「号码」二字会让<strong>旧的分桶</strong>
+        把它读成手机号框并挂上钥匙，而钥匙点出来的是账号列表、填不出证件号，所以提示<strong>不</strong>跟着让位
+        （页头记了这条改判）。同区的 <code>#k-a3</code> 是组件库代理成 <code>&lt;input readonly&gt;</code> 的日期框，带
+        <code>data-nohint="readonly"</code>。
+      </p>
+      <div class="fields">
+        <div class="ant-row ant-form-item field">
+          <div class="ant-col-6 ant-form-item-label">
+            <label title="姓名">姓名</label>
+          </div>
+          <div class="ant-col-18 ant-form-item-control-wrapper">
+            <div class="ant-form-item-control">
+              <div class="ant-form-item-children">
+                <input
+                  id="k-a1"
+                  class="ant-input"
+                  type="text"
+                  placeholder="请输入姓名"
+                  data-expect="name"
+                  data-tier="group"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ant-row ant-form-item field">
+          <div class="ant-col-6 ant-form-item-label">
+            <label title="证件号码">证件号码</label>
+          </div>
+          <div class="ant-col-18 ant-form-item-control-wrapper">
+            <div class="ant-form-item-control">
+              <div class="ant-form-item-children">
+                <input
+                  id="k-a2"
+                  class="ant-input"
+                  type="text"
+                  placeholder="请输入证件号码"
+                  data-expect="idNumber"
+                  data-tier="group"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ant-row ant-form-item field">
+          <div class="ant-col-6 ant-form-item-label">
+            <label title="出生日期">出生日期</label>
+          </div>
+          <div class="ant-col-18 ant-form-item-control-wrapper">
+            <div class="ant-form-item-control">
+              <div class="ant-form-item-children">
+                <div class="ant-calendar-picker">
+                  <div class="ant-calendar-picker-input ant-input">
+                    <input
+                      id="k-a3"
+                      class="ant-calendar-picker-input"
+                      type="text"
+                      readonly
+                      placeholder="请选择出生日期"
+                      data-expect="birthday"
+                      data-tier="placeholder"
+                      data-nohint="readonly"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ant-row ant-form-item field">
+          <div class="ant-col-6 ant-form-item-label">
+            <label title="机构证件号码">机构证件号码</label>
+          </div>
+          <div class="ant-col-18 ant-form-item-control-wrapper">
+            <div class="ant-form-item-control">
+              <div class="ant-form-item-children">
+                <input
+                  id="k-a4"
+                  class="ant-input"
+                  type="text"
+                  placeholder="请输入机构证件号码"
+                  data-expect="-"
+                  data-suppress="noRole"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ant-row ant-form-item field">
+          <div class="ant-col-6 ant-form-item-label">
+            <label title="公司名称">公司名称</label>
+          </div>
+          <div class="ant-col-18 ant-form-item-control-wrapper">
+            <div class="ant-form-item-control">
+              <div class="ant-form-item-children">
+                <input
+                  id="k-a5"
+                  class="ant-input"
+                  type="text"
+                  placeholder="请输入公司名称"
+                  data-expect="org"
+                  data-tier="group"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="ant-row ant-form-item field">
+          <div class="ant-col-6 ant-form-item-label">
+            <label title="地址">地址</label>
+          </div>
+          <div class="ant-col-18 ant-form-item-control-wrapper">
+            <div class="ant-form-item-control">
+              <div class="ant-form-item-children">
+                <span class="ant-select"
+                  ><span class="ant-select-selection"
+                    ><input
+                      class="ant-select-search__field"
+                      type="text"
+                      readonly /></span
+                ></span>
+                <span class="ant-select"
+                  ><span class="ant-select-selection"
+                    ><input
+                      class="ant-select-search__field"
+                      type="text"
+                      readonly /></span
+                ></span>
+                <span class="ant-select"
+                  ><span class="ant-select-selection"
+                    ><input
+                      class="ant-select-search__field"
+                      type="text"
+                      readonly /></span
+                ></span>
+                <textarea
+                  id="k-a6"
+                  class="ant-input custom"
+                  placeholder="请输入详细地址（例如xx街xx号xx）"
+                  data-expect="address"
+                  data-tier="placeholder"
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑬ 只有占位符说话（label 全没有，placeholder 是唯一线索）</h2>
+      <p class="note">
+        用户点名要的判据：「检测当前填写的 input 字段<strong>或者 placeholder</strong>是不是个人信息字段」。
+        这两条通道排在 <code>name</code>/<code>id</code> 词元与 label 之后——弱信号永不覆盖强信号， 所以
+        <code>#k-p14</code>（label 写「联系电话」、placeholder 写「请输入邮箱」）报的是 phone 而不是 email。
+        七条沉默行各守一种误报：验证码与搜索（负向短语先于一切正向词典）、<code>type=password</code>（结构性排除）、
+        示例式占位符（没有词典短语）、账号语义（<code>name=user_account</code> 的词元守卫——placeholder
+        说「姓名」也不许把它救回来）、 以及机构主体的证件号码。 剩下三行是<strong>钥匙取得出值</strong>的那两档：
+        <code>#k-p3</code> 邮箱、<code>#k-p7</code> 手机号、<code>#k-p14</code> 联系电话在这一份文档里都拿到了钥匙，
+        于是标 <code>data-owns="fill"</code>； <code>#k-p6</code> 是页面回写的只读日期框，标
+        <code>data-nohint="readonly"</code>。
+      </p>
+      <div class="fields">
+        <div class="field">
+          <input
+            id="k-p1"
+            class="ant-input"
+            type="text"
+            placeholder="请输入姓名"
+            data-expect="name"
+            data-tier="placeholder"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p2"
+            class="ant-input"
+            type="text"
+            placeholder="请输入身份证号"
+            data-expect="idNumber"
+            data-tier="placeholder"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p3"
+            class="ant-input"
+            type="text"
+            placeholder="请输入邮箱地址"
+            data-expect="email"
+            data-tier="placeholder"
+            data-owns="fill"
+          />
+        </div>
+        <div class="field">
+          <textarea
+            id="k-p4"
+            class="ant-input custom"
+            placeholder="请输入详细地址（例如xx街xx号xx）"
+            data-expect="address"
+            data-tier="placeholder"
+          ></textarea>
+        </div>
+        <div class="field">
+          <input
+            id="k-p5"
+            class="ant-input"
+            type="text"
+            placeholder="户籍所在地"
+            data-expect="region"
+            data-tier="placeholder"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p6"
+            class="ant-input"
+            type="text"
+            readonly
+            placeholder="请选择出生日期"
+            data-expect="birthday"
+            data-tier="placeholder"
+            data-nohint="readonly"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p7"
+            class="ant-input"
+            type="text"
+            placeholder="该手机号可用于登录"
+            data-expect="phone"
+            data-tier="placeholder"
+            data-owns="fill"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p8"
+            class="ant-input"
+            type="text"
+            placeholder="请输入验证码"
+            data-expect="-"
+            data-suppress="negative"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p9"
+            class="ant-input"
+            type="password"
+            placeholder="请输入登录密码"
+            data-expect="-"
+            data-suppress="excluded"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p10"
+            class="ant-input"
+            type="text"
+            placeholder="请输入搜索内容"
+            data-expect="-"
+            data-suppress="negative"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p11"
+            class="ant-input"
+            type="text"
+            placeholder="例如：张三"
+            data-expect="-"
+            data-suppress="noRole"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p12"
+            class="ant-input"
+            type="text"
+            placeholder="Enter your full name"
+            data-expect="name"
+            data-tier="placeholder"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p13"
+            class="ant-input"
+            name="user_account"
+            type="text"
+            placeholder="请输入姓名"
+            data-expect="-"
+            data-suppress="account"
+          />
+        </div>
+        <div class="field">
+          <label
+            >联系电话
+            <input
+              id="k-p14"
+              class="ant-input"
+              type="text"
+              placeholder="请输入邮箱"
+              data-expect="phone"
+              data-tier="label"
+              data-owns="fill"
+            />
+          </label>
+        </div>
+        <div class="field">
+          <input
+            id="k-p15"
+            class="ant-input"
+            type="text"
+            placeholder="请输入机构证件号码"
+            data-expect="-"
+            data-suppress="noRole"
+          />
+        </div>
+        <div class="field">
+          <input
+            id="k-p16"
+            class="ant-input"
+            type="text"
+            placeholder="请输入统一社会信用代码"
+            data-expect="-"
+            data-suppress="noRole"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑭ 银行卡三档（2026-10-17 拍板放开：卡号 / 户名 / 开户行）</h2>
+      <p class="note">
+        放开的只有这三档，且一律要求身份库复验。<code>有效期</code> 与 <code>CVV</code> 属卡类口令，
+        识别得到也永不提示。中文「银行<strong>账号</strong>」这种写法会撞上负向词 <code>账号</code>，为它开的例外与
+        <code>名称</code> / <code>方式</code> 是同一条形状歧义： 裸「账号」是登录名，必须继续沉默。
+      </p>
+      <div class="fields">
+        <div class="field">
+          <label for="k-card-holder">持卡人姓名</label>
+          <input
+            id="k-card-holder"
+            data-expect="cardHolder"
+          />
+        </div>
+        <div class="field">
+          <label for="k-card-no">银行卡号</label>
+          <input
+            id="k-card-no"
+            inputmode="numeric"
+            maxlength="19"
+            data-expect="cardNo"
+          />
+        </div>
+        <div class="field">
+          <label for="k-card-acct">银行账号</label>
+          <input
+            id="k-card-acct"
+            data-expect="cardNo"
+          />
+        </div>
+        <div class="field">
+          <label for="k-card-bank">开户银行名称</label>
+          <input
+            id="k-card-bank"
+            data-expect="cardBank"
+          />
+        </div>
+        <div class="field">
+          <label for="k-card-account">账号</label>
+          <input
+            id="k-card-account"
+            data-expect="-"
+            data-suppress="negative"
+          />
+        </div>
+        <div class="field">
+          <label for="k-card-exp">信用卡有效期</label>
+          <input
+            id="k-card-exp"
+            placeholder="MM/YY"
+            data-expect="-"
+            data-suppress="noRole"
+          />
+        </div>
+        <div class="field">
+          <label for="k-card-cvv">CVV</label>
+          <input
+            id="k-card-cvv"
+            type="password"
+            data-expect="-"
+            data-suppress="excluded"
+          />
+        </div>
+        <div class="field">
+          <label for="k-card-type">银行卡类型</label>
+          <select
+            id="k-card-type"
+            data-expect="-"
+            data-suppress="negative"
+          >
+            <option>储蓄卡</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑮ 不可输入的控件（分类器照判，页面侧不给提示）</h2>
+      <p class="note">
+        气泡唯一的动作是「把这格填上」，所以只读的框不参与：组件库把日期选择器与下拉代理成
+        <code>&lt;input readonly&gt;</code>，页面回写的灰底框同理——焦点进得去、键盘打不进。 这几行带
+        <code>data-nohint="readonly"</code>：<code>data-expect</code> 记的是分类器结论，
+        真机那条账本据此期望<strong>零枚</strong>气泡。最后一行是 <code>disabled</code>， 它压根拿不到焦点，因此
+        <code>FormDetector</code> 刻意不为它写判据。
+      </p>
+      <div class="fields">
+        <div class="field">
+          <label for="k-ro-date">出生日期（只读代理框）</label>
+          <input
+            id="k-ro-date"
+            class="el-input__inner"
+            readonly
+            placeholder="请选择"
+            data-expect="birthday"
+            data-nohint="readonly"
+          />
+        </div>
+        <div class="field">
+          <label for="k-ro-gender">性别（只读代理框）</label>
+          <input
+            id="k-ro-gender"
+            class="el-select__input"
+            readonly
+            data-expect="gender"
+            data-nohint="readonly"
+          />
+        </div>
+        <div class="field">
+          <label for="k-ro-id">证件号码（页面回写的只读灰底框）</label>
+          <input
+            id="k-ro-id"
+            readonly
+            data-expect="idNumber"
+            data-nohint="readonly"
+          />
+        </div>
+        <div class="field">
+          <label for="k-ro-disabled">姓名（禁用框，不可聚焦）</label>
+          <input
+            id="k-ro-disabled"
+            disabled
+            data-expect="name"
+            data-nohint="disabled"
           />
         </div>
       </div>

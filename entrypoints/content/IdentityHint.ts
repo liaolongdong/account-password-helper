@@ -280,7 +280,7 @@ function openIdentityVault(keyword: string): void {
  *
  * @param input 聚焦的字段（只取其几何位置与角色结论，不读值）
  * @param role 已收窄的语义角色
- * @param needsVerify 是否属于「需核对」档（证件号或他人歧义）
+ * @param needsVerify 是否属于「需核对」档（证件号、卡号 / 户名 / 开户行，或他人歧义）
  */
 export function showIdentityHint(input: HTMLElement, role: IdentityHintRole, needsVerify: boolean): void {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;

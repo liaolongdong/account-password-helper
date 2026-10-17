@@ -48,7 +48,7 @@ import {
 import { getFillAckChip, destroyFillAckChip } from './FillAckChip';
 import { destroyIdentityHint, hideIdentityHint, showIdentityHint } from './IdentityHint';
 import { resolvePiiField } from './piiClassifier';
-import { normalizeIdentityHintRole } from '@/utils/identity/hintRoles';
+import { normalizeIdentityHintRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { getSiteRule, isValidCssSelector, type SiteRule } from '@/utils/storage/siteRules';
 import { resolveFillEntry } from '@/utils/fillEntry';
@@ -56,6 +56,15 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
 
 /** 收集 open shadow DOM 查询根时的节点预算，防止极端页面把主线程吃满 */
 const SHADOW_ROOT_SCAN_BUDGET = 6000;
+
+/**
+ * 快速填充那把钥匙「取得出值」的角色
+ *
+ * 钥匙的面板只有账号、手机号、邮箱三类值，所以让位只对这几档成立。旧分桶把带「号码」的框
+ * （证件号码、订单号码）也读成手机号框，钥匙会在它们上面出现，却填不出身份库里的证件号——
+ * 跟着让位就是提示与钥匙双双落空，正是用户实测「身份证号码那一行没识别到」的成因之一。
+ */
+const SIDE_PANEL_FILLABLE_ROLES: ReadonlySet<IdentityHintRole> = new Set<IdentityHintRole>(['phone', 'email']);
 
 /**
  * 表单检测器
@@ -854,16 +863,22 @@ export class FormDetector {
    *
    * 判据全部来自 {@link resolvePiiField} 的单字段语义分类，只读取 name/id/label/placeholder
    * 等**结构信号**与该字段当前值（值仅用于形状收口，不进入任何出口）；结论经
-   * `normalizeIdentityHintRole` 收到闭集枚举后才交给气泡，卡类与登录语义在这一步之前就被挡掉。
+   * `normalizeIdentityHintRole` 收到闭集枚举后才交给气泡，卡类口令在这一步之前就被挡掉；
+   * 登录语义的让位判据要读角色，因此排在收窄之后。
    *
-   * 三道守卫的必要性：
+   * 五道守卫的必要性：
    * - 总闸关闭时整条链不启动，页面不注入任何扩展 UI（对齐「关闭即完全不出现」的标签承诺）；
    * - `allFrames` 注入让内容脚本在每个 iframe 各跑一份，而广告/统计 iframe 里的悬浮气泡
    *   既不在用户的注视点上，也给页面脚本多一个可反复触发的扩展 UI，只在顶层 frame 出提示；
+   * - 焦点目标必须是 `input` / `textarea` / `select` 三类控件之一，包裹元素上挂气泡没有意义；
+   * - 只读的框不参与（`readOnly`）：气泡唯一的动作是「把这格填上」，而组件库的日期选择器与
+   *   下拉代理框、页面自己回写的灰底框都写成只读，提示挂在它们下面是一句做不到的承诺；
    * - 快速填充真正认领的字段由钥匙图标负责，不再叠一层提示。让位的判据取
    *    {@link shouldShowSidePanel} 而非 `getFieldType`：后者只看桶归属，前者才是触发条件。
    *    用桶归属会把注册页的手机号框一并挡掉——它进了 mobile 桶，却因不在登录表单里
-   *    永远拿不到钥匙，结果是钥匙与提示双双落空。
+   *    永远拿不到钥匙，结果是钥匙与提示双双落空。让位还要求这一档是钥匙取得出值的
+   *    （{@link SIDE_PANEL_FILLABLE_ROLES}）：证件号这类框会被旧分桶误读成手机号框而挂上钥匙，
+   *    但钥匙填不出身份库的值，跟着让位同样双双落空，所以这一档由提示补上。
    *
    * @param target 当前获得焦点的元素（`focusin` 的 retargeted 目标）
    */
@@ -875,11 +890,24 @@ export class FormDetector {
     // （详细地址常用 textarea，地区/性别常用 select）。聚焦目标是包裹元素时不出提示——
     // 真实的焦点转移一定以控件为目标，收起上一枚气泡由 `focusout` 负责。
     if (!target.matches('input, textarea, select')) return;
-    if (target instanceof HTMLInputElement && this.shouldShowSidePanel(target)) return;
+    // 只读的框没有「把这格填上」这一步：组件库把日期选择器与下拉代理成 `<input readonly>`，
+    // 页面回写的灰底框同理，焦点进得去、键盘打不进，对它们说「从身份库选择」是做不到的承诺。
+    // 不看 `disabled`——那类控件（含 `<fieldset disabled>` 里的）根本拿不到焦点。
+    if ('readOnly' in target && (target as HTMLInputElement).readOnly) return;
 
     const verdict = resolvePiiField(target);
     const role = normalizeIdentityHintRole(verdict.role);
-    if (!role) {
+    // 让位只对钥匙取得出值的那几档成立（判据取 shouldShowSidePanel 而非桶归属，见上方注释）；
+    // 证件号这类被旧分桶误读成手机号框的字段，钥匙挂得上、值却填不进来，提示必须顶上。
+    if (
+      role !== null &&
+      SIDE_PANEL_FILLABLE_ROLES.has(role) &&
+      target instanceof HTMLInputElement &&
+      this.shouldShowSidePanel(target)
+    ) {
+      return;
+    }
+    if (role === null) {
       // 气泡只跟随当前聚焦字段：新字段无身份语义时必须收起上一个字段的提示
       hideIdentityHint();
       return;
