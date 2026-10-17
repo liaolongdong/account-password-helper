@@ -294,7 +294,7 @@ test('与页面同款最高层级遮罩同屏：提示压在遮罩之上、点�
   await page.close();
 });
 
-test('总闸关掉时不再出提示，拨回来立刻恢复', async ({ extContext, extensionId }) => {
+test('总闸关掉时屏上那枚当场收起且不再出提示，拨回来立刻恢复', async ({ extContext, extensionId }) => {
   // 顺序是「开 → 关 → 开」：中间那次读数只有夹在两次能出提示的读数之间，才证得清是总闸在起作用，
   // 而不是内容脚本压根没注入。判据数的是气泡而不是宿主——宿主是常驻单例，收起只清内容。
   const { page, cdp } = await openFormPage(extContext, `<body>${FORM_HTML}</body>`);
@@ -307,14 +307,15 @@ test('总闸关掉时不再出提示，拨回来立刻恢复', async ({ extConte
       enabled,
     });
 
+  // 关闸发生在**气泡可见的那一刻**：失焦收起由另一条用例负责，这里要验的是别处拨闸不需要用户
+  // 先点一下别处或刷新页面——管理页与侧边栏的偏好设置弹窗都在另一个上下文里写这份配置。
   await focusUntilHint(cdp, page, 'f-name');
-  await blurUntilGone(page, cdp, 'f-name');
 
   // `set` 的 Promise 只覆盖写入方那侧，跨上下文广播还要再落一帧；不等这一帧，读到的 0
   // 可能只是「监听器还没跑到」，而不是「总闸关着」。这一帧只给关闸那一次拨动等，
   // 之后每次聚焦都立刻读数（气泡是同步建起来的，再睡只会把 90s 用例预算吃光）。
   await setGate(false);
-  await page.waitForTimeout(400);
+  await expect.poll(() => bubbleCount(cdp), { message: '关闸后屏上那枚气泡没收起来' }).toBe(0);
   await refocus(page, 'f-id');
   expect(await bubbleCount(cdp)).toBe(0);
   await refocus(page, 'f-phone');

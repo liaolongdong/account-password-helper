@@ -241,6 +241,7 @@ export class FormDetector {
         const rawConfig = changes.floating_button_config.newValue as Partial<FloatingButtonConfig> | undefined;
         if (rawConfig) {
           const penetratedBefore = this.penetrateShadowEnabled;
+          const hintedBefore = this.identityHintEnabled;
           // 合并默认值兜底：升级钩子 freezeLegacyFillDefaults 可能写入部分对象，
           // 直接整体替换会令 visible/theme 等未覆盖字段变为 undefined
           const newConfig: FloatingButtonConfig = {
@@ -259,6 +260,10 @@ export class FormDetector {
           // 穿透总闸翻转后重检测，口径同站点规则那条监听：否则关闸要刷新页面才见效。
           // 只在翻转时做——位置/透明度每次拖动都会写这份配置，全量重检测代价太大。
           if (penetratedBefore !== this.penetrateShadowEnabled) this.detectForms();
+          // 身份提示总闸翻到「关」时把屏上那枚一起收起：聚焦那一刻的门管不到已经可见的气泡，
+          // 而管理页与侧边栏的偏好设置弹窗都在另一个上下文里写这份配置。只在翻转为关时做，
+          // 开闸不需要动 UI——下一条该出的气泡自然会出现。
+          if (hintedBefore && !this.identityHintEnabled) hideIdentityHint();
         }
       }
     };
@@ -567,6 +572,16 @@ export class FormDetector {
    */
   private get penetrateShadowEnabled(): boolean {
     return this.floatingButtonConfig.penetrateShadow !== false && this.siteRule?.penetrateShadow !== false;
+  }
+
+  /**
+   * 个人信息字段提示总闸是否启用
+   *
+   * 判据取「显式 false 才关」：存量配置里没有这个键，未写即开，口径与设置面板的
+   * `isSwitchOn` 一致（两处各写一份时，老配置下面板的显示态与实际门会错位）。
+   */
+  private get identityHintEnabled(): boolean {
+    return this.floatingButtonConfig.identityHintEnabled !== false;
   }
 
   /**
@@ -883,7 +898,7 @@ export class FormDetector {
    * @param target 当前获得焦点的元素（`focusin` 的 retargeted 目标）
    */
   private handleIdentityHintOnFocus(target: HTMLElement): void {
-    if (this.floatingButtonConfig.identityHintEnabled === false) return;
+    if (!this.identityHintEnabled) return;
     if (window !== window.top) return;
 
     // 提示只跟随真正的表单控件：`<input>` / `<textarea>` / `<select>` 三类都是个人信息的载体

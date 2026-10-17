@@ -111,6 +111,19 @@ describe('聚焦识别到身份提示的接线', () => {
     el.dispatchEvent(new FocusEvent('focusin', { bubbles: true, composed: true }));
   };
 
+  /**
+   * 广播一次配置变更，口径与真实 Chrome 一致：发给**所有**已注册监听器，由各自的 key 分支过滤
+   *
+   * 实例在 `chrome.storage.onChanged` 上挂了两条（配置与站点规则），按 `calls[0]` 取哪一条会随
+   * 注册顺序漂，所以全喂——站点规则那条因为没有 `site_rules` 键而当场返回。
+   */
+  const broadcast = (config: Record<string, unknown>): void => {
+    const { mock } = chrome.storage.onChanged.addListener as unknown as {
+      mock: { calls: Array<[(changes: unknown, area: string) => void]> };
+    };
+    mock.calls.forEach(([listener]) => listener({ floating_button_config: { newValue: config } }, 'local'));
+  };
+
   /** 已展示气泡的角色序列，用作各用例的读数 */
   const shown = (): unknown[] => identityHint.showIdentityHint.mock.calls.map(call => call[1]);
   /** 最近一次展示的全部入参（字段、角色、核对档） */
@@ -226,6 +239,34 @@ describe('聚焦识别到身份提示的接线', () => {
     focus(control());
 
     expect(shown()).toEqual(['name']);
+  });
+
+  /**
+   * 设置面板那句「关闭后不再出现该提示」要当场兑现。
+   *
+   * 总闸只在聚焦那一刻生效，所以从**另一个上下文**（管理页的偏好设置弹窗、侧边栏设置）关闸时，
+   * 页面上那枚已经可见的气泡会赖到失焦才走。`penetrateShadow` 翻转后重检测是同一个先例：
+   * 关闸不该要用户刷新页面或点一下别处。判据取「翻转」而不是「读到 false」——位置与透明度
+   * 每次拖动都会写这份配置，全量收起会让无关改动也来碰 UI。
+   */
+  it('关闸那一下把屏上那枚气泡一起收起，无关配置变更则不碰它', async () => {
+    await mount('<label>姓名<input name="realname"></label>', makeConfig());
+    focus(control());
+    expect(shown()).toEqual(['name']);
+
+    // 负对照一：开闸态里只动透明度（没写过这个键＝未写即开），不该碰已经可见的气泡
+    identityHint.hideIdentityHint.mockClear();
+    broadcast(makeConfig({ opacity: 0.5 }));
+    expect(identityHint.hideIdentityHint).not.toHaveBeenCalled();
+
+    identityHint.hideIdentityHint.mockClear();
+    broadcast(makeConfig({ identityHintEnabled: false }));
+    expect(identityHint.hideIdentityHint).toHaveBeenCalledTimes(1);
+
+    // 负对照二：已经关着再拖一次透明度——判据是「翻转为关」，不是「读到 false」
+    identityHint.hideIdentityHint.mockClear();
+    broadcast(makeConfig({ identityHintEnabled: false, opacity: 0.6 }));
+    expect(identityHint.hideIdentityHint).not.toHaveBeenCalled();
   });
 
   it('账号与密码框归快速填充，不再叠一层身份提示', async () => {

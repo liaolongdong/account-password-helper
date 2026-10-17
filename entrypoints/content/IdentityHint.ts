@@ -177,8 +177,9 @@ function releaseCleanups(): void {
 /**
  * 隐藏并清空气泡内容（保留宿主以便复用）
  *
- * 收起路径有四条：字段失焦、Esc、用户点动作按钮、以及调用方显式收起。
- * 四条都走这里，保证监听与语言订阅不累积。
+ * 收起路径有五条：字段失焦、Esc、用户点动作按钮、调用方显式收起、以及总闸在别的上下文里
+ * 被拨到关（管理页/侧边栏的偏好设置弹窗写这份配置，由 `FormDetector` 的存储监听转调这里）。
+ * 五条都走这里，保证监听与语言订阅不累积。
  */
 export function hideIdentityHint(): void {
   releaseCleanups();
