@@ -85,14 +85,17 @@
 `ACCOUNT_TOKENS` 含 `account`，而中文站「户名」最常见的字段名正是 `accountName`（切词 = account + name），
 按原顺序会被整段判成登录字段。所以卡类三档的词元表单独存在、且比账号守卫**早一步**：
 
-- `cardNo`：`iban` `bankCard` `creditCard` `debitCard` `bankAccount` `bankAccountNo` `accountNumber` `sortCode` `routingNumber`
+- `cardNo`：`iban` `bankCard` `creditCard` `debitCard` `bankAccount` `bankAccountNo` `bankAccountNumber` `sortCode` `routingNumber`
 - `cardHolder`：`cardHolder` `cardHolderName` `holderName` `accountName` `accountHolder`
 - `cardBank`：`bankName` `bank` `issuingBank`
 
-例外只开给这十七枚具体词元（比对时用「整串粘连词元」，`accountName` 只有拼回 `accountname` 才对得上）。
+例外只开给这十七枚具体词元。比对的顺序是**先试整串粘连词元、再试单个词元**：`accountName` 切出来是
+account + name，只有拼回 `accountname` 才对得上户名档；而 `bank` 走的是后一条——单个词元相等即算命中，
+这正是 `name="bank_account_number"` 一度被读成开户行的原因（现在由 `bankaccountnumber` 排在它前面接住）。
 裸 `account` / `user_account` / `login_id` 仍按原样判成登录字段，`piiClassifier.test.ts` 钉着这条。
-`accountNumber` 之所以敢进这张表，正是因为它排在账号守卫**之后**就已够不到——它必须在同一张早一步的表里，
-而欧美转账表单上 `name="account_number"` 与 `name="bank_account"` 指的是同一串。
+这张表**刻意不收录裸 `accountnumber`**（2026-10-17 评审回灌把它摘了）：两步登录页的账号框用的正是这个名字，
+而第二步才出现的密码框不在同一个字段组里，登录容器守卫拦不住它——写着 `bankaccountnumber` 才收下这一格，
+标签写着「银行账号 / Bank Account Number」的页面各走自己的文本通道，不受这条影响。
 与 `ATTR_DICT` 同一条**刻意的缺席**：不收录裸 `card` / `cardno`——中文站点同时用它指身份证号和银行卡号，
 词元层面分不开，收录会把证件号框读成卡号。
 
@@ -189,13 +192,17 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 `驾驶证号` `回乡证号` `社会保障卡号` `医保卡号` `个人税号` / `个税编号` 在中国都等于身份证号，
 所以提示到库里的 `idNumber` 是对的落点；`SSN` `NINO` `Social Security Number` `Personal Tax Number`
 `Driving licence number` `Medicare number` 同族。按这把尺子，`学历证书编号` `教师资格证编号`
-`医师资格证号` `驾照档案编号` `社保电脑号` `保单号` **一律不收**——它们各自成串、都不等于身份证号，
+`医师资格证号` `驾驶证档案编号` `社保电脑号` `保单号` **一律不收**——它们各自成串、都不等于身份证号，
 提示成「证件号」会把人往身份证号上引。这一族每一条都在账本里钉着「不出提示」，
 所以「收了证件号族」和「没顺手把编号族一起收进来」是两件能被测试分开的事。
+同一把尺子也决定了这一档的短语**必须带「号」收口**：裸「驾驶证」会吃进车管所那串 12 位档案编号，
+裸「个税」会吃进薪酬表的「个税(元)」扣缴金额——两条都是 §5.5 评审回灌抓出来的误报。
+`回乡证号` 是一条**已知分叉**：同一张证的全称 `港澳居民来往内地通行证号码` 由 passport 档接走（它写着「通行证」三字），
+而省写「回乡证号」按本族尺子落在 `idNumber`。账本两条各钉一处，这个差异是拍板的结果，不是漏网。
 
 银行账号侧补的是英文与属性两个通道：`Bank account number` `IBAN` `Sort code` `Routing number`
-进 `EN_DICT` 的 `cardNo`，`accountNumber` `sortCode` `routingNumber` 进 `CARD_ATTR_DICT`（必须进那张表而不是
-`ATTR_DICT`，理由见 §4.1——`account_number` 在账号守卫那一层就已经被判成登录字段了）。
+进 `EN_DICT` 的 `cardNo`，`bankAccountNumber` `sortCode` `routingNumber` 进 `CARD_ATTR_DICT`（必须进那张表而不是
+`ATTR_DICT`，理由见 §4.1——裸 `account` 词元在账号守卫那一层就已经被判成登录字段了）。
 地址细分补的是快递面单与公租房表拆出来的格子：`单元` `房间号` `房号` `楼层` `House number`
 `Apartment number` → `address`，`乡镇` `村委会` 与属性侧的 `birthPlace` `placeOfBirth` `countryOfBirth` → `region`。
 
@@ -216,6 +223,38 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
   （`birthplace` `placeofbirth` `countryofbirth` `birthcountry`）并排在 birthday 之前——`birth_place`
   整串粘回 `birthplace` 就被 region 接走，两条结论各归其位。
 
+### 5.5 评审回灌：13 条先 RED 的误报，六处收口，两条主张被证伪（2026-10-17 同日第二轮）
+
+收口后派出的评审把这张词典逐条按「新裸子串 / 负向吞角色 / 层序 / 属性表先后 / 够不到的词 / 文字比实现强」
+六问扫了一遍，报回一批主张。处置方式跟 §5.4 一样：**先拿真分类器跑**（两轮临时探针，跑完即删、不入库），
+主张逐条要么给出读数、要么作废；读数坐实的每一条先写进覆盖面账本看它红（13 条红），再动词典。
+账本因此从 210 行走到 227 行（+17 = 13 条误报边界 + 3 条带 `no` 缩写的正向 + 1 条合串负向形状）。
+
+六处收口，方向全是**把正向短语改窄**或**把闸门词元改宽**，没有新增一枚负向词：
+
+| 误报（评审报回、探针复现）                                                   | 读数                                                              | 收口                                                                                |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `驾驶证档案编号` / `驾驶证编号` → idNumber                                   | 车管所那串 12 位档案号被裸「驾驶证」接走                          | 短语带「号」收口：`驾驶证` → `驾驶证号`                                             |
+| `个税(元)` / `代扣个税` → idNumber                                           | 薪酬表的扣缴金额被裸「个税」接走                                  | `个税` → `个税号` `个税编号`（`个人所得税` 不含相邻二字，天然沉默）                 |
+| `医保卡金融账号` / `社会保障卡银行账号` → idNumber                           | 社保卡**另一面**那串银行账号被「医保卡 / 社会保障卡」六个字先接走 | 卡号档补一条 `金融账号 / 金融账户 / 银行账号 / 银行帐号 / 银行账户`，排在社保档之前 |
+| `name="account_number"` 在两步登录页 → cardNo                                | 第二步才出现的密码框不在同一字段组，登录容器守卫拦不住            | `CARD_ATTR_DICT` 摘掉裸 `accountnumber`，只收 `bankaccountnumber`                   |
+| `Social Security Tax` / `Medicare Levy` / `Health Insurance Plan` → idNumber | 薪酬与险种页问的是金额 / 险种                                     | 三条英文短语各拆 `number` / `no` 两种带号收口                                       |
+| `Business Licence Number` → idNumber                                         | 机构闸门里那枚词元写的是 `business licens`，只认美式拼法          | 词元改到 `business licen`，`licence` 拼法一并进闸门                                 |
+
+两条主张**探针没能坐实，作废**：
+
+- 「`EN_DICT` 里的 `tax id` 是死规则」——不成立。`Applicant Tax ID`、`Legal Representative Tax ID` 实测由
+  人主体豁免先放行、再由这条短语接住；不带人主体词的 `Tax ID` / `Personal Tax ID` 仍按机构证照压住，
+  那是 §3.5 闸门既有的取舍（方向是安全侧），不是这条短语够不到。
+- 「裸 `nino` 会把意大利人名 `Antonino` 读成证件号」——形状不成立。文本通道只读标签 / 占位符 / 属性，
+  不读用户敲进去的值；要让 `Antonino` 进判据，得有一格**标签本身**写着人名。
+
+三处**刻意接受的代价**，钉进账本而不修：`单元测试` / `部署单元` / `楼层数` 仍落 address（目标页面里
+「单元 / 楼层」压倒性地指住址细分，为开发者页面的罕见写法堆负向词，与 §5.4 的原则相反）；
+负向档吃的是 label + placeholder + 属性的**合串**，所以「身份证号码」配「18 位，有效期内」的占位符会整体沉默
+（漏报方向是安全侧，账本钉住这条形状，免得日后被当成 bug 改回去）；`Nursing License Number` 一类职业执照的
+省写仍落 idNumber（英文表单上裸 "licence number" 绝大多数指驾驶证，收窄它要再补两枚负向词，不划算）。
+
 ## 6. 覆盖矩阵：16 个可提示角色
 
 角色闭集定义在 `utils/identity/hintRoles.ts`；气泡文案是 `utils/i18n-lite.ts` 的 `cs.identity.role.*`（中英各一份，
@@ -224,24 +263,24 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 （`tests/content/piiClassifier.coverage.test.ts` 的 `ZH_LABEL_CASES` / `EN_LABEL_CASES` / `ATTR_CASES` / `SCENE_CASES`
 四张表，一行 = 一条用例）。
 
-| 角色                | 中文标签（代表写法）                                                                                                       | 英文标签                                                                                                       | `name`/`id` 词元                                                                                                           | 库里有这一格的值吗      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| `name` 姓名         | 姓名 / 名字 / 真实姓名 / 户主姓名 / 参保人姓名 / 乘机人姓名 / 投保人姓名 / 联系人 / 收件人 / 申请人 / 本人                 | full name / real name / preferred name                                                                         | name, realname, fullname, personname                                                                                       | ✅ `name`               |
-| `givenName` 名      | 名（逐字相等）                                                                                                             | given name / first name / forename                                                                             | givenname, firstname, forename, given, fname                                                                               | ➖ 由 `name` 承担       |
-| `familyName` 姓     | 姓（逐字相等）/ 姓氏                                                                                                       | last name / family name / surname                                                                              | familyname, lastname, lname                                                                                                | ➖ 由 `name` 承担       |
-| `phone` 手机号      | 手机 / 电话 / 联系电话 / 联系方式 / 联系号码 / 移动电话                                                                    | mobile / phone number / telephone / contact number / landline                                                  | phone, mobile, tel, telephone, msisdn, contactnumber, landline                                                             | ✅ `phone`              |
-| `email` 邮箱        | 邮箱 / 邮件 / 电子信箱                                                                                                     | email / e-mail                                                                                                 | email, emailaddress, mail                                                                                                  | ✅ `email`              |
-| `address` 详细地址  | 地址 / 详细地址 / 街道 / 门牌 / 小区 / 住址 / 居住地 / 楼栋 / 单元 / 房间号 / 楼层                                         | address / street address / delivery address / mailing address / home address / house number / apartment number | address, addr, street, addressline, doorno, housenumber, apartment, unitnumber, roomnumber                                 | ✅ `address`            |
-| `region` 所在地区   | 所在地区 / 省份 / 城市 / 区县 / 户籍 / 籍贯 / 出生地 / 社区 / 参保地 / 缴存地 / 乡镇 / 村委会                              | state / province / city / region / country of birth                                                            | region, province, city, district, state, nativeplace, birthplace, placeofbirth, countryofbirth                             | ➖ 常在 `address` 里    |
-| `postal` 邮编       | 邮编 / 邮政编码                                                                                                            | postcode / zip code / zipcode                                                                                  | postalcode, zipcode, zip, postcode                                                                                         | ➖ 常在 `address` 里    |
-| `idNumber` 证件号   | 身份证 / 证件号 / 社保卡号 / 社会保障号 / 居住证 / 警官证 / 士兵证 / 台胞证 / 永久居留 / 驾驶证 / 回乡证 / 个人税号 / 个税 | id card / national id / driving licence number / tax number / national insurance / ssn / medicare number       | idcard, idcardno, certno, ssn, nino, nationalid, socialsecuritynumber, taxid, driverlicense, licensenumber                 | ✅ `idNumber`（secret） |
-| `passport` 护照号   | 护照 / 通行证 / 签证                                                                                                       | passport                                                                                                       | passport, passno, travelcert                                                                                               | ➖ 走 `customFields`    |
-| `birthday` 出生日期 | 出生日 / 生日 / 出生年月 / 出生时间（刻意**不收**裸「出生」，见 §5.4）                                                     | date of birth / birth date                                                                                     | birthday, birthdate, dob                                                                                                   | ➖ 走 `customFields`    |
-| `gender` 性别       | 性别                                                                                                                       | gender / sex                                                                                                   | gender, sex                                                                                                                | ➖ 走 `customFields`    |
-| `org` 单位名称      | 公司 / 单位 / 院校 / 学校 / 雇主                                                                                           | company / organisation / employer / school                                                                     | company, corp, org, organization, employer                                                                                 | ➖ 走 `customFields`    |
-| `cardNo` 银行卡号   | 卡号 / 银行账号 / 信用卡号 / 借记卡号 / 储蓄卡号 / 账户号                                                                  | card number / credit card number / bank account number / iban / sort code / routing number                     | （走 `CARD_ATTR_DICT`，见 §4.1）iban, bankcard, creditcard, debitcard, bankaccount, accountnumber, sortcode, routingnumber | ✅ `cardNo`（secret）   |
-| `cardHolder` 持卡人 | 持卡人 / 开户人 / 户名 / 开户名 / 账户姓名                                                                                 | cardholder / card holder / account holder                                                                      | cardholder, accountname                                                                                                    | ✅ `cardHolder`         |
-| `cardBank` 开户银行 | 开户行 / 开户银行 / 银行名称 / 发卡行 / 所属银行                                                                           | bank name / issuing bank                                                                                       | bankname, bank                                                                                                             | ✅ `cardBank`           |
+| 角色                | 中文标签（代表写法）                                                                                                           | 英文标签                                                                                                       | `name`/`id` 词元                                                                                                               | 库里有这一格的值吗      |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------- |
+| `name` 姓名         | 姓名 / 名字 / 真实姓名 / 户主姓名 / 参保人姓名 / 乘机人姓名 / 投保人姓名 / 联系人 / 收件人 / 申请人 / 本人                     | full name / real name / preferred name                                                                         | name, realname, fullname, personname                                                                                           | ✅ `name`               |
+| `givenName` 名      | 名（逐字相等）                                                                                                                 | given name / first name / forename                                                                             | givenname, firstname, forename, given, fname                                                                                   | ➖ 由 `name` 承担       |
+| `familyName` 姓     | 姓（逐字相等）/ 姓氏                                                                                                           | last name / family name / surname                                                                              | familyname, lastname, lname                                                                                                    | ➖ 由 `name` 承担       |
+| `phone` 手机号      | 手机 / 电话 / 联系电话 / 联系方式 / 联系号码 / 移动电话                                                                        | mobile / phone number / telephone / contact number / landline                                                  | phone, mobile, tel, telephone, msisdn, contactnumber, landline                                                                 | ✅ `phone`              |
+| `email` 邮箱        | 邮箱 / 邮件 / 电子信箱                                                                                                         | email / e-mail                                                                                                 | email, emailaddress, mail                                                                                                      | ✅ `email`              |
+| `address` 详细地址  | 地址 / 详细地址 / 街道 / 门牌 / 小区 / 住址 / 居住地 / 楼栋 / 单元 / 房间号 / 楼层                                             | address / street address / delivery address / mailing address / home address / house number / apartment number | address, addr, street, addressline, doorno, housenumber, apartment, unitnumber, roomnumber                                     | ✅ `address`            |
+| `region` 所在地区   | 所在地区 / 省份 / 城市 / 区县 / 户籍 / 籍贯 / 出生地 / 社区 / 参保地 / 缴存地 / 乡镇 / 村委会                                  | state / province / city / region / country of birth                                                            | region, province, city, district, state, nativeplace, birthplace, placeofbirth, countryofbirth                                 | ➖ 常在 `address` 里    |
+| `postal` 邮编       | 邮编 / 邮政编码                                                                                                                | postcode / zip code / zipcode                                                                                  | postalcode, zipcode, zip, postcode                                                                                             | ➖ 常在 `address` 里    |
+| `idNumber` 证件号   | 身份证 / 证件号 / 社保卡号 / 社会保障号 / 居住证 / 警官证 / 士兵证 / 台胞证 / 永久居留 / 驾驶证号 / 回乡证 / 个人税号 / 个税号 | id card / national id / driving licence number / tax number / national insurance / ssn / medicare number       | idcard, idcardno, certno, ssn, nino, nationalid, socialsecuritynumber, taxid, driverlicense, licensenumber                     | ✅ `idNumber`（secret） |
+| `passport` 护照号   | 护照 / 通行证 / 签证                                                                                                           | passport                                                                                                       | passport, passno, travelcert                                                                                                   | ➖ 走 `customFields`    |
+| `birthday` 出生日期 | 出生日 / 生日 / 出生年月 / 出生时间（刻意**不收**裸「出生」，见 §5.4）                                                         | date of birth / birth date                                                                                     | birthday, birthdate, dob                                                                                                       | ➖ 走 `customFields`    |
+| `gender` 性别       | 性别                                                                                                                           | gender / sex                                                                                                   | gender, sex                                                                                                                    | ➖ 走 `customFields`    |
+| `org` 单位名称      | 公司 / 单位 / 院校 / 学校 / 雇主                                                                                               | company / organisation / employer / school                                                                     | company, corp, org, organization, employer                                                                                     | ➖ 走 `customFields`    |
+| `cardNo` 银行卡号   | 卡号 / 银行账号 / 银行账户 / 金融账号 / 信用卡号 / 借记卡号 / 储蓄卡号 / 账户号                                                | card number / credit card number / bank account number / iban / sort code / routing number                     | （走 `CARD_ATTR_DICT`，见 §4.1）iban, bankcard, creditcard, debitcard, bankaccount, bankaccountnumber, sortcode, routingnumber | ✅ `cardNo`（secret）   |
+| `cardHolder` 持卡人 | 持卡人 / 开户人 / 户名 / 开户名 / 账户姓名                                                                                     | cardholder / card holder / account holder                                                                      | cardholder, accountname                                                                                                        | ✅ `cardHolder`         |
+| `cardBank` 开户银行 | 开户行 / 开户银行 / 银行名称 / 发卡行 / 所属银行                                                                               | bank name / issuing bank                                                                                       | bankname, bank                                                                                                                 | ✅ `cardBank`           |
 
 「库里有这一格的值吗」这一列决定的是提示的**实用性上限**：`identity/fields.ts` 的内置字段只有
 `name / idNumber / phone / email / address / cardNo / cardBank / cardHolder / cardExpiry / cardCvv / remark`，
@@ -254,13 +293,16 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 ## 7. 刻意不覆盖：宁可不提示，也不给一句「库里没有的东西」
 
 - **机构主体的证照号**：`机构证件号码` `统一社会信用代码` `营业执照号码` `纳税人识别号` `组织机构代码`
-  `金融许可证编号` / `Company Tax Number` `EIN` `Business Registration Number` `VAT Number`（出口码 `orgCredential`）。
-- **单据号与金额**：`运单号` `快递单号` `保单号` `保价金额` `建筑面积` `月平均缴费基数` `家庭月收入` `注册资本`。
+  `金融许可证编号` / `Company Tax Number` `EIN` `Business Registration Number` `Business Licence Number` `VAT Number`
+  （出口码 `orgCredential`；最后那条是 2026-10-17 评审回灌补上的英联邦拼法，见 §5.5）。
+- **单据号与金额**：`运单号` `快递单号` `保单号` `保价金额` `建筑面积` `月平均缴费基数` `家庭月收入` `注册资本`
+  / `Social Security Tax` `Medicare Levy` `Health Insurance Plan`（薪酬与险种页的金额 / 险种，英文侧同族误报，见 §5.5）。
 - **各证自成一串的「编号」族**（判据见 §5.4 那把尺子）：`学历证书编号` `学位证书编号` `教师资格证编号`
-  `医师资格证号` `驾照档案编号` `社保电脑号` `公积金个人编号` `出生证编号` `出生医学证明号`。
+  `医师资格证号` `驾驶证档案编号` `驾驶证编号` `社保电脑号` `公积金个人编号` `出生证编号` `出生医学证明号`。
   库里那一格存的是身份证号，把这一族提示成「证件号」等于把人往一个填不进那串数字的落点引——
   沉默比错提示有用。
-- **登录语义**：`用户名` `账号` `密码` `验证码` `安全码` `动态口令` / `username` `password` `one-time code`
+- **登录语义**：`用户名` `账号` `密码` `验证码` `安全码` `动态口令` / `username` `password` `one-time code`，
+  以及只有属性没有标签文字的 `name="account_number"`（两步登录页的账号框，出口码 `account`，见 §4.1）
   （出口码 `negative` / `account` / `card`）。
 - **一定是别人的字段**：`紧急联系人姓名` `担保人身份证号` `受益人姓名` `配偶姓名` `代收人` `被访人` `父母` `子女`
   / `emergency contact` `guarantor`（命中 `OTHER_BLOCK`，归属 `other`，出口码 `ownership`）。
@@ -269,7 +311,10 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 - **元信息与事物名**：`证件类型` `证件有效期` `地址标签` `银行卡类型` `物品名称` `商品名称` `职业` `毕业院校`
   `单位性质` `户籍性质` `与申请人关系` `IP地址`（`名称` / `方式` / `账号` 三条例外之外仍按负向处理；
   后四条是 2026-10-17 补的负向短语，理由逐条写在 §5.4）。
-- **卡类口令**：`有效期` `CVV`——识别得到也永不提示，类型层面 `cardExp` / `cardCvv` 就不进可提示词表。
+- **卡类口令**：`CVV` `有效期` 走 `autocomplete` 那条（`cc-csc` / `cc-exp`）——识别得到也永不提示，
+  类型层面 `cardExp` / `cardCvv` 就不进可提示词表，出口码 `card`。
+  而**纯文字**写法的「信用卡有效期」「身份证有效期止」现在更早就被负向档 `'有效期'` 拦下，出口码 `negative`：
+  负向档吃的是 label + placeholder + 属性的合串，所以这一族有两条可对账的出口，别把它们当成同一条（§5.4 补的）。
 
 ## 8. 从分类器到「画出一枚气泡」：页面侧五道门
 
