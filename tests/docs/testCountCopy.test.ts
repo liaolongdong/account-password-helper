@@ -30,14 +30,23 @@
  * `shouldShowSidePanel` + 真机 e2e 八条）再加 4 例（`piiClassifier` 65 → 67、`formDetector.identityHint` 11 → 13），
  * 与上节同构的隔离树串行重测定稿 **245 文件 / 3214 例、0 skipped**（那是那一轮刷数时 48 处落点的值）。
  * 再往下一轮（同页演示台账本 + 姓名值预填检索词）在工作树上串行重测漂到 **247 文件 / 3251 例、0 skipped**，
- * 即下面这些落点当前应有的值；净差 +37 例 / +2 文件按文件逐项闭合：新文件 `piiClassifier.demoPage` 5、`piiClassifier.selfNameValue` 12，
+ * 净差 +37 例 / +2 文件按文件逐项闭合：新文件 `piiClassifier.demoPage` 5、`piiClassifier.selfNameValue` 12，
  * 改动的五个文件 `piiClassifier` 67 → 73、`identityHint` 17 → 22、`senderValidation` 56 → 59、
  * `useRuntimeMessageHandler.identityVault` 8 → 11、`identityHintWiring` 5 → 8（两侧读数各取一次
  * `vitest run --reporter=json` 的 `assertionResults.length`，HEAD 侧在 detached worktree 里跑，5 个旧文件 Σ=153，
  * 工作树侧同样 5 个 Σ=173，加两个新文件 17 = 190，190 − 153 = 37）。
+ * 2026-10-17 最后一轮（形状补漏 + 只读门 + 让位收窄 + 卡类三档，同日还并进了一笔深链改判）在 `fc1d743` 的
+ * 隔离树串行重测漂到 **247 文件 / 3281 例、0 skipped（312.17s）**，即下面这些落点当前应有的值。文件数不变
+ * （本轮没新增测试文件），+30 例按这轮动过的 9 个测试文件闭合：`piiClassifier` 73 → 107（+34）、
+ * `formDetector.identityHint` 13 → 18（+5），反向三处 −11 全在深链改判那条线上（`senderValidation` 59 → 58、
+ * `useRuntimeMessageHandler.identityVault` 11 → 5、`identityHintRoles` 14 → 12——角色→类别映射函数失去唯一
+ * 消费者，相关用例随之下线）；两侧各跑一次 `vitest run --no-file-parallelism --reporter=json` 取这 9 个文件的
+ * `assertionResults.length`，base 侧 Σ=217、HEAD 侧 Σ=247（这 247 是 9 个文件的例数，与全仓 247 个测试文件
+ * 只是数字撞上了），247 − 217 = 30 恰等于 3281 − 3251，残差为零。
  * 顺带一条量具教训：`vitest run <a> <b> <c>` 在 zsh 里传 `$FILES` 变量会被当成**一个**参数（zsh 不默认
  * 分割未引号变量），收集到 0 文件、`--reporter=json` 照样吐出结构完整的空报告且 exit=1——
- * 「Σ=0」是量具没跑，不是「这些文件没有用例」。
+ * 「Σ=0」是量具没跑，不是「这些文件没有用例」。本轮第二次踩中同一条（先例就写在上面这段里），
+ * 所以判据只认形状：`numTotalTests: 0` + `success: false` + exit 非 0 ＝ 量具没跑，先看命令再看数。
  * 它本身就是「加一个测试文件数字就漂」的现场例证，也是「分支上数对了 ≠ 合并后还对」的例证。）
  *
  * **判据边界（不要高估这条守卫的能力）**：用例数与文件数都没有可以在单测内推导的真源——
