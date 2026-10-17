@@ -1,19 +1,21 @@
 /**
- * 身份提示的跨入口角色词表
+ * 身份提示的角色词表
  *
- * 页面侧分类器与 Options 侧之间只允许流动「语义角色」这一个标签，它是判别联合的
- * 取值集合，因此在 `utils/` 里单点定义，content / background / options 三方共用：
- * 网页 DOM 是自报环境，角色串经 {@link normalizeIdentityHintRole} 收窄后才进 switch，
- * 不在词表内的值一律降级为「不带提示打开」。
+ * 页面侧分类器给出的语义角色是开放串（网页 DOM 自报），只有落在这份闭集里的值才允许驱动
+ * 气泡，因此单点定义在 `utils/` 供 content 侧引用：角色串经 {@link normalizeIdentityHintRole}
+ * 收窄后才交给气泡，不在词表内的一律「这框没有身份语义、不出提示」。
  *
- * 卡类角色（`cardNo` / `cardExp` / `cardCvv`）**刻意缺席**：按既有拍板银行卡信息
- * 不走身份提示路径，把它们排除在类型层面而不是「运行时记得别发」。
+ * 它同时是气泡文案的目录（`cs.identity.role.*`），所以词表与轻量语言包必须同步——
+ * 由 `tests/utils/identityHintRoles.test.ts` 钉住。
+ *
+ * 角色**不跨入口**：2026-10-17 起深链载荷只剩搜索词一个标签，角色不再决定身份库的类别档位
+ * （一条条目同时携带证件号、手机号等多个值，预选会把该命中的筛掉）。曾经那份
+ * 「角色 → 类别」映射因此失去唯一消费者并删除。
  *
  * @module utils/identity/hintRoles
  */
-import type { IdentityCategory } from './types';
 
-/** 允许跨入口传递的身份语义角色 */
+/** 可提示的身份语义角色 */
 export const IDENTITY_HINT_ROLES = [
   'name',
   'givenName',
@@ -36,10 +38,11 @@ export type IdentityHintRole = (typeof IDENTITY_HINT_ROLES)[number];
 const HINT_ROLE_SET: ReadonlySet<string> = new Set<string>(IDENTITY_HINT_ROLES);
 
 /**
- * 收窄网页/消息侧带来的角色串
+ * 收窄分类器给出的角色串
  *
- * 与 `normalizeSiteRuleDomain` / `normalizeSearchKeyword` 同一口径：不可信输入只接受
- * 闭合词表内的值，其余（含非字符串、超长串、卡类角色）一律按「无角色」处理。
+ * 与 `normalizeSiteRuleDomain` / `normalizeSearchKeyword` 同一口径：网页 DOM 是自报环境，
+ * 只接受闭合词表内的值，其余（含非字符串、超长串、卡类角色）一律按「无角色」处理——
+ * 落到调用方就是「这一框不出提示」，而不是「按原样把未知角色画给用户」。
  *
  * @param value 待收窄的原始值
  * @returns 合法角色或 null
@@ -47,33 +50,4 @@ const HINT_ROLE_SET: ReadonlySet<string> = new Set<string>(IDENTITY_HINT_ROLES);
 export function normalizeIdentityHintRole(value: unknown): IdentityHintRole | null {
   if (typeof value !== 'string' || !HINT_ROLE_SET.has(value)) return null;
   return value as IdentityHintRole;
-}
-
-/** 角色 → 身份库类别（决定打开弹窗时预选哪一档过滤） */
-const ROLE_CATEGORY: Record<IdentityHintRole, IdentityCategory> = {
-  name: 'person',
-  givenName: 'person',
-  familyName: 'person',
-  phone: 'person',
-  email: 'person',
-  birthday: 'person',
-  gender: 'person',
-  org: 'person',
-  idNumber: 'id_card',
-  passport: 'id_card',
-  address: 'address',
-  region: 'address',
-  postal: 'address',
-};
-
-/**
- * 取角色对应的身份库类别
- *
- * 只覆盖 `person` / `id_card` / `address` 三类：`bank_card` 不在提示路径内（卡类角色
- * 已被 `IDENTITY_HINT_ROLES` 排除），因此 `Record` 完备、无需运行时兜底。
- * @param role 已收窄的角色
- * @returns 该角色所属的身份库类别，用于弹窗的初始筛选档位
- */
-export function identityCategoryForRole(role: IdentityHintRole): IdentityCategory {
-  return ROLE_CATEGORY[role];
 }

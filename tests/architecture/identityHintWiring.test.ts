@@ -11,15 +11,17 @@
  * 1. Options 侧必须把回调接到 `useRuntimeMessageHandler` 的选项上；漏接时后台照收消息，
  *    但页面侧按钮成为死点击。
  * 2. 身份库弹窗的可打开路径必须只有复验门槛那一处；新入口直接置 `true` 等于绕过三档复验。
- * 3. 由提示打开时，类别筛选与预填搜索词都必须排在复验之后；写在之前会让「取消复验」
- *    留下一副莫名少一批条目、检索框还带着别人名字的抽屉。
+ * 3. 由提示打开时，预填搜索词必须排在复验之后（写在之前会让「取消复验」留下一副检索框还带着
+ *    别人名字的抽屉），且**深链不得写类别档位**——2026-10-17 改判：一条身份条目同时携带证件号、
+ *    手机号等多个值，按角色预选类别会把该命中的条目筛出视野，档位恒为「全部」。
  * 4. 页面侧模块只允许一条取值通道（`piiClassifier.selfNameValueNear`）、只在点击那一刻调用，
  *    且不得就地读 `.value`、不得发页面 URL——这条是隐私承诺，单测只证了 canary，
  *    这里按整个模块的文本兜网。
- * 5. 搜索词在两处边界（后台、选项页）各自收口，且必须复用同一个 `normalizeSearchKeyword`；
- *    任何一侧改用本地裁剪，64 字上限就有了第二份真源并很快漂移。
- * 6. 两个标签里只有角色可以进日志：后台那条分支整条不写日志（一行都不许有），选项页只留一行且不带出词值——
- *    「逐行不含 keyword」在零行分支上是空真，所以「有没有行可查」本身也是判据。
+ * 5. 跨入口载荷只剩搜索词一个标签：角色那一半已从契约移除，两个收口点都不许再引它；
+ *    词本身必须复用同一个 `normalizeSearchKeyword`，任何一侧改用本地裁剪，64 字上限就有了
+ *    第二份真源并很快漂移。
+ * 6. 唯一的标签是 PII，所以后台那条分支整条不写日志（一行都不许有），选项页只留一行且不带出
+ *    词值——「逐行不含 keyword」在零行分支上是空真，所以「有没有行可查」本身也是判据。
  */
 import { describe, expect, it } from 'vitest';
 import { readSource } from '../helpers/architectureScan';
@@ -94,15 +96,20 @@ describe('身份提示的跨上下文接线', () => {
     expect(body).toContain('promptAndVerifyMasterPassword(');
   });
 
-  it('由提示打开时，类别筛选与预填搜索词都排在复验通过之后', () => {
+  it('由提示打开时，预填搜索词排在复验通过之后，且深链不碰类别档位', () => {
     const fromPage = optionsApp.slice(optionsApp.indexOf('const openIdentityVaultFromPage'));
     const thenWindow = fromPage.slice(0, fromPage.indexOf('};'));
     // 词必须作为参数交给门槛函数预填，不得在门槛外直接写检索框
     expect(thenWindow).toContain(`void ${GATE_FN}(keyword)`);
     expect(thenWindow).not.toContain('identityVault.keyword.value');
-    // 门槛未通过（用户取消复验）时不得留下筛选态
-    expect(thenWindow).toMatch(/if\s*\(\s*passed\s*&&\s*role\s*\)/);
     expect(thenWindow).not.toContain(DIALOG_VISIBLE);
+    // 反向牙齿（2026-10-17 改判）：深链一律落在「全部」档。按角色预选类别会把一条条目
+    // 身上的其它值（证件号、手机号…）筛出视野，用户原话即「有些内容会搜索不到」。
+    // 判据按整个文件切：档位只允许弹窗单选按钮与 composable 的 clear/reset 改动。
+    expect(optionsApp, '深链又开始按角色写类别档位：单一「全部」入口契约被破').not.toMatch(
+      /categoryFilter\.value\s*=[^=]/,
+    );
+    expect(optionsApp).not.toContain('identityCategoryForRole');
   });
 
   it('页面侧只有一条具名取值通道，且只在点击那一刻调用', () => {
@@ -119,13 +126,18 @@ describe('身份提示的跨上下文接线', () => {
     expect(clickWindow.slice(0, clickWindow.indexOf('});'))).toContain('selfNameValueNear(');
   });
 
-  it('出口只有两个标签，空白搜索词不写出空串键', () => {
-    const payload = identityHint.slice(identityHint.indexOf('function openIdentityVault'));
-    expect(payload).toContain('data: keyword ? { role, keyword } : { role }');
+  it('出口只有一个标签：搜索词，空白时整包载荷缺席而不是写出空串键', () => {
+    // 窗口只吃这一个函数体（到首个顶格 `}` 为止）：切片一路到尾会把下面 `showIdentityHint`
+    // 的 role 形参算进来，那条反向牙齿就成了恒红。
+    const start = identityHint.indexOf('function openIdentityVault');
+    const payload = identityHint.slice(start, identityHint.indexOf('\n}', start));
+    expect(payload).toContain('data: keyword ? { keyword } : undefined');
+    // 反向牙齿：角色已从跨入口契约里移除，谁把它塞回来（旧载荷形状复活）都要在这里红
+    expect(payload).not.toMatch(/\brole\b/);
   });
 
   it('指令仍在「只接受扩展内部来源」的白名单里，后台与选项页各自复用同一个收口', () => {
-    // 移出白名单等于把这条深链对外部通道敞开：页面侧可自报角色与姓名直接驱动管理页。
+    // 移出白名单等于把这条深链对外部通道敞开：页面侧可自报姓名直接驱动管理页。
     // 判据只吃数组字面量那一段——用「文件里某处还有这个名字」当证据会被下面的 case 冒充。
     const routerSource = readSource(MESSAGE_ROUTER);
     const listStart = routerSource.indexOf('export const EXTENSION_CONTEXT_COMMANDS');
@@ -136,9 +148,11 @@ describe('身份提示的跨上下文接线', () => {
       expect(branch, `${file} 的身份库分支不再收口搜索词：64 字上限出现第二份真源或彻底失守`).toContain(
         'normalizeSearchKeyword(',
       );
-      expect(branch).toContain('normalizeIdentityHintRole(');
-      // 降级口径：角色不合法时不许只让词那一半穿透
-      expect(branch).toMatch(/role\s*\?/);
+      // 反向牙齿：角色不再跨入口，两个收口点都不该再引它。留着就是一段没人消费的收窄，
+      // 而它的存在会让「把类别预选偷偷加回来」看起来像既有逻辑的一部分。
+      expect(branch, `${file} 仍在收窄页面自报的角色：深链已改判为只带搜索词`).not.toContain(
+        'normalizeIdentityHintRole(',
+      );
     }
   });
 
@@ -150,10 +164,10 @@ describe('身份提示的跨上下文接线', () => {
     // 哪天有人往这条分支补一行带取值的 debug，这里会红，而不是静默通过。
     expect(
       [...routerBranch.matchAll(/logger\./g)],
-      '后台身份库分支新写了日志：该分支的 role 与 keyword 都是页面自报的不可信输入，整条分支不进日志',
+      '后台身份库分支新写了日志：该分支的 keyword 是页面自报的不可信输入，整条分支不进日志',
     ).toHaveLength(0);
     const handlerLogs = handlerBranch.split('\n').filter(line => line.includes('logger.'));
-    // 选项页这一侧是有日志的（只记角色），先证「确有行可查」再逐行判——又是防「空集合当证据」
+    // 选项页这一侧是有日志的（只记指令本身），先证「确有行可查」再逐行判——又是防「空集合当证据」
     expect(handlerLogs, '选项页身份库分支的日志行消失或变成多行：本条判据会退化成空跑，须重新确认').toHaveLength(1);
     for (const line of handlerLogs) {
       expect(line, '选项页的日志行带出了搜索词：姓名是 PII，不得入日志').not.toMatch(/keyword/i);

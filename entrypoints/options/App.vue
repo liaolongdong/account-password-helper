@@ -374,7 +374,6 @@ import { useIdentityVault } from '@/composables/useIdentityVault';
 import { useCommandPalette } from '@/composables/useCommandPalette';
 import { useOnboardingTour } from '@/composables/useOnboardingTour';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
-import { identityCategoryForRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { findDuplicateIdentity } from '@/utils/identity/dedup';
 import { getIdentityCrudErrorCode } from '@/utils/storage/identityCrud';
 import { exportEncryptedBackup } from '@/utils/backupExport';
@@ -654,21 +653,19 @@ const openIdentityVaultWithVerify = async (presetKeyword = ''): Promise<boolean>
 /**
  * 从页面侧身份提示打开身份库
  *
- * 进来的是两个标签（后台已按闭集与既有检索口径各收口一次，非法值即 `undefined`）：
- * 角色把弹窗的类别筛选预选到对应档，搜索词预填检索框——后者取的是用户自己刚打在该页面
- * 上的本人姓名，作用是让列表直接筛到那一个人，省掉「打开身份库再手打名字」。
- * 复验门槛与 palette 入口共用同一个 `openIdentityVaultWithVerify`，不新开旁路。
+ * 进来的是一个标签（后台已按既有检索口径各收口一次，非法值即 `undefined`）：搜索词预填
+ * 检索框——它取的是用户自己刚打在该页面上的本人姓名，作用是让列表直接筛到那一个人，
+ * 省掉「打开身份库再手打名字」。复验门槛与 palette 入口共用同一个 `openIdentityVaultWithVerify`，
+ * 不新开旁路；词只在复验通过、弹窗确实要打开之后才写入，取消复验时不留检索态。
  *
- * 两者都只在复验通过、弹窗确实要打开之后才生效：取消复验时弹窗没出现，
- * 留下的筛选/检索态会让下次正常打开身份库莫名少一批条目。
+ * 类别档位**刻意不由这条指令决定**：一条身份条目同时携带证件号、手机号、地址等多个值，
+ * 按页面字段角色预选类别会把该命中的条目筛出视野（用户点的就是「搜不到身份证号码」），
+ * 因此恒停在「全部」档，交给检索词收敛。
  *
- * @param role 已收窄的角色，缺失时按「不过滤」打开
  * @param keyword 已收口的搜索词，缺失时不预填
  */
-const openIdentityVaultFromPage = (role?: IdentityHintRole, keyword?: string): void => {
-  void openIdentityVaultWithVerify(keyword).then(passed => {
-    if (passed && role) identityVault.categoryFilter.value = identityCategoryForRole(role);
-  });
+const openIdentityVaultFromPage = (keyword?: string): void => {
+  void openIdentityVaultWithVerify(keyword);
 };
 
 /**

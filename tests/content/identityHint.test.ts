@@ -5,9 +5,10 @@
  * 这个界面是「识别 + 提示 + 深链」形态里唯一会出现在页面里的一环，因此它同时背着
  * 三条必须可证的承诺，本文件按这三条组织用例：
  *
- * 1. **跨入口只走两个标签**。气泡文本永远不允许出现字段当前值、页面 URL 或任何库内数据；
- *    消息载荷里除已收窄的角色枚举外，只可能多一个「本人姓名」搜索词（取值规则见
- *    `piiClassifier.selfNameValueNear` 的用例）。用 canary 值取证，比读代码可靠。
+ * 1. **跨入口只走一个标签**。气泡文本永远不允许出现字段当前值、页面 URL 或任何库内数据；
+ *    消息载荷里只可能有一个「本人姓名」搜索词（取值规则见 `piiClassifier.selfNameValueNear`
+ *    的用例），取不到时整包 `data` 缺席。角色只服务气泡文案，不再跨入口。用 canary 值取证，
+ *    比读代码可靠。
  * 2. **键盘与失焦出口**。Esc 收起（输入法合成期间让位）、焦点离开绑定字段即收起，
  *    且监听随收起回收，重复展示不累积（口径同 `promptKeyboardExit`）。
  * 3. **单例跟随**。同一字段同角色重复聚焦不重建（不然每按一次 Tab 就闪一下），
@@ -171,10 +172,10 @@ describe('身份提示气泡', () => {
     });
   });
 
-  describe('跨入口只走两个标签', () => {
-    it('气泡文本永不含字段当前值；没有本人姓名框可取时，载荷只有角色', async () => {
+  describe('跨入口只有一个标签', () => {
+    it('气泡文本永不含字段当前值；没有本人姓名框可取时，整包载荷缺席', async () => {
       // beforeEach 那枚 `realName` 框会 legitimate 地成为搜索词，本条要测的是「无姓名框」，
-      // 所以现场只留一个证件号框——搜索词取不到，载荷必须退回只有角色那一档。
+      // 所以现场只留一个证件号框——搜索词取不到，载荷必须整包缺席（角色不再跨入口）。
       document.body.innerHTML = '';
       const idEl = makeField('idNumber');
       layout.setRect(idEl, { left: 100, top: 200, width: 240, height: 32 });
@@ -188,7 +189,7 @@ describe('身份提示气泡', () => {
       expect(sendMessage).toHaveBeenCalledTimes(1);
       expect(sendMessage.mock.calls[0][0]).toEqual({
         type: MessageType.OPEN_OPTIONS_AND_IDENTITY,
-        data: { role: 'idNumber' },
+        data: undefined,
       });
       expect(JSON.stringify(sendMessage.mock.calls[0][0])).not.toContain(CANARY);
       await Promise.resolve();
@@ -203,7 +204,7 @@ describe('身份提示气泡', () => {
       const sendMessage = (globalThis as any).chrome.runtime.sendMessage as Mock;
       expect(sendMessage.mock.calls[0][0]).toEqual({
         type: MessageType.OPEN_OPTIONS_AND_IDENTITY,
-        data: { role: 'name', keyword: CANARY },
+        data: { keyword: CANARY },
       });
     });
 
@@ -259,14 +260,14 @@ describe('身份提示气泡', () => {
       showIdentityHint(idEl, 'idNumber', true);
       expect(clickPick()).toEqual({
         type: MessageType.OPEN_OPTIONS_AND_IDENTITY,
-        data: { role: 'idNumber', keyword: '张三' },
+        data: { keyword: '张三' },
       });
     });
 
-    it('姓名框还空着就不带 keyword 键：载荷退回「只有角色」那一档', () => {
+    it('姓名框还空着就不带 keyword 键：整包载荷缺席，而不是写出空串', () => {
       const { idEl } = pair('');
       showIdentityHint(idEl, 'idNumber', true);
-      expect(clickPick()).toEqual({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'idNumber' } });
+      expect(clickPick()).toEqual({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: undefined });
     });
 
     it('证件号框自己的值哪儿也没去：CANARY 不在载荷里', () => {

@@ -328,10 +328,7 @@ test('总闸关掉时不再出提示，拨回来立刻恢复', async ({ extConte
   await configPage.close();
 });
 
-test('深链「从身份库选择」：过复验门槛打开身份库，类别筛选预选到对应档，值不跨界', async ({
-  extContext,
-  optionsPage,
-}) => {
+test('深链「从身份库选择」：过复验门槛打开身份库，档位停在「全部」，值不跨界', async ({ extContext, optionsPage }) => {
   const { page, cdp } = await openFormPage(extContext, `<body>${FORM_HTML}</body>`);
 
   await focusUntilHint(cdp, page, 'f-id');
@@ -348,12 +345,11 @@ test('深链「从身份库选择」：过复验门槛打开身份库，类别�
   await verifyMasterPassword(optionsPage, 'identity.verifyPrompt');
   await expect(vaultDialog(optionsPage)).toBeVisible();
 
-  // 角色 → 类别档位：证件号落在「证件」档，用户少点一次筛选
-  await expect(optionsPage.locator('.identity-toolbar__filter .is-active')).toHaveText(
-    textOf('identity.category.id_card'),
-  );
+  // 档位停在「全部」：一条身份条目同时携带证件号、手机号等多个值，按页面角色预选类别
+  // 会把该命中的条目筛出视野（2026-10-17 改判，见 `identityHintWiring.test.ts` 头注第 3 条）
+  await expect(optionsPage.locator('.identity-toolbar__filter .is-active')).toHaveText(textOf('identity.filter.all'));
 
-  // 姓名框留空 ⇒ 这条深链只带角色一个标签：搜索框必须是空的，而不是「没筛」被读成「筛成空」
+  // 姓名框留空 ⇒ 这条深链不带任何预填：搜索框必须是空的，而不是「没筛」被读成「筛成空」
   await expect(searchInput(optionsPage)).toHaveValue('');
 
   // 动作落地即收起：气泡不能挡着用户回到表单
@@ -382,15 +378,15 @@ test('深链「从身份库选择」：过复验门槛打开身份库，类别�
 /**
  * 姓名通道（唯一那条明文出口）的真机面
  *
- * 上面那条把姓名框留空，证的是「没姓名 ⇒ 载荷只有角色」；这一条把姓名打上，证的是
+ * 上面那条把姓名框留空，证的是「没姓名 ⇒ 载荷缺席」；这一条把姓名打上，证的是
  * 「有姓名 ⇒ 它真的落进库的搜索框并把列表收敛到那一个人」。两段合起来才钉得住
- * `{role, keyword?}` 这个契约——单测（`tests/content/identityHint.test.ts` 与
+ * `{keyword?}` 这个契约——单测（`tests/content/identityHint.test.ts` 与
  * `tests/background/senderValidation.test.ts`）钉的是消息形状，落进 Element Plus 输入框
  * 并即时驱动 `filteredRows` 这一段只有真页面能看到。
  *
- * 点的字段刻意选**手机号**而不是证件号：角色决定预选类别（`identityCategoryForRole`），
- * 而播种进去的两条身份都是默认的「个人信息」档——点证件号框会把类别筛到「证件」，
- * 那时卡片数为 0 既可能是筛选对了也可能是姓名通道没接通，读数分不开。
+ * 点的字段仍是**手机号**，但理由换了：改判前点证件号框会把类别筛到「证件」，卡片数为 0
+ * 既可能是筛对也可能是姓名通道没接通；现在档位恒为「全部」，那副歧义不复存在，卡片数 1
+ * 只可能来自姓名筛选。下面那条 `.is-active` 断言反过来钉住「没有偷偷按角色预选」。
  */
 test('深链带筛选词：点「从身份库选择」时把本人姓名框的值送进库的搜索框，其余字段的值照旧不跨界', async ({
   extContext,
@@ -425,10 +421,8 @@ test('深链带筛选词：点「从身份库选择」时把本人姓名框的�
   await expect(vaultDialog(optionsPage).locator('.identity-meta')).toContainText(
     templatedOf('identity.matchCount', { count: 1 }),
   );
-  // 手机号角色落在「个人信息」档：类别预选与筛选词各管各的，两句都得落地
-  await expect(optionsPage.locator('.identity-toolbar__filter .is-active')).toHaveText(
-    textOf('identity.category.person'),
-  );
+  // 档位停在「全部」：姓名只作检索词，不替用户决定「这条身份属于哪一档」
+  await expect(optionsPage.locator('.identity-toolbar__filter .is-active')).toHaveText(textOf('identity.filter.all'));
 
   await expect.poll(() => bubbleCount(cdp), { message: '深链后气泡没收起' }).toBe(0);
 

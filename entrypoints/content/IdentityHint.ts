@@ -242,7 +242,7 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
   pick.textContent = tl('cs.identity.hintPick');
   // 搜索词在点击这一刻才取：聚焦期间不缓存任何字段值，明文的存活时间等于这一次消息的在途时间
   pick.addEventListener('click', () => {
-    openIdentityVault(role, boundInput ? selfNameValueNear(boundInput) : '');
+    openIdentityVault(boundInput ? selfNameValueNear(boundInput) : '');
     hideIdentityHint();
   });
 
@@ -255,15 +255,20 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
 /**
  * 通知后台打开管理页身份库
  *
- * 出口只有两个标签：已收窄的角色枚举，加上一个可选的搜索词——后者是用户在**同一个表单里
- * 已经打好的本人姓名**（取值规则见 `piiClassifier.selfNameValueNear`），只用来把身份库列表
- * 筛到那一个人。不含其它字段值、不含页面 URL、不含任何库内数据，长度在后台与选项页各收口一次。
- * 扩展上下文失效（页面残留旧 content script）时静默降级，不打扰用户。
+ * 出口只有一个标签：用户在**同一个表单里已经打好的本人姓名**（取值规则见
+ * `piiClassifier.selfNameValueNear`），只用来把身份库列表筛到那一个人。不含其它字段值、
+ * 不含页面 URL、不含任何库内数据，长度在后台与选项页各收口一次。
+ *
+ * 页面角色**刻意不跨入口**：它只服务气泡上那句「这是「证件号」字段」。曾经把它透给选项页
+ * 去预选类别档位，但一条身份条目同时携带证件号、手机号等多个值，先按角色筛类别会把该命中的
+ * 条目筛出视野，因此深链恒落在「全部」档（改判理由见 `tests/architecture/identityHintWiring.test.ts`）。
+ * 取不到姓名时整包载荷缺席，而不是写出 `keyword: ''`——否则选项页会把「筛成空」和「不筛」
+ * 读成同一件事。扩展上下文失效（页面残留旧 content script）时静默降级，不打扰用户。
  */
-function openIdentityVault(role: IdentityHintRole, keyword: string): void {
+function openIdentityVault(keyword: string): void {
   try {
     void chrome.runtime
-      .sendMessage({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: keyword ? { role, keyword } : { role } })
+      .sendMessage({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: keyword ? { keyword } : undefined })
       .catch(err => logger.debug('IdentityHint: 打开身份库指令发送失败:', err));
   } catch (err) {
     logger.debug('IdentityHint: 扩展上下文不可用:', err);

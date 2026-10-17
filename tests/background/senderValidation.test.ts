@@ -34,7 +34,6 @@ import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
 import { MessageType } from '@/utils/types';
 import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
 import { normalizeEntryId, MAX_ID_LENGTH } from '@/utils/generateId';
-import { IDENTITY_HINT_ROLES } from '@/utils/identity/hintRoles';
 
 // 仅测试纯校验函数，将 router 的重依赖全部 mock 为轻量 stub，保证测试密闭
 vi.mock('@/entrypoints/background/sidePanelManager', () => ({
@@ -649,7 +648,7 @@ describe('OPEN_OPTIONS_AND_SEARCH 关键词收口（分发级）', () => {
   });
 });
 
-describe('OPEN_OPTIONS_AND_IDENTITY 角色收口（分发级）', () => {
+describe('OPEN_OPTIONS_AND_IDENTITY 搜索词收口（分发级）', () => {
   beforeEach(() => {
     vi.mocked(openOptionsAndSendMessage).mockResolvedValue({ success: true });
   });
@@ -660,27 +659,69 @@ describe('OPEN_OPTIONS_AND_IDENTITY 角色收口（分发级）', () => {
     return calls[calls.length - 1]?.[1];
   };
 
-  it('闭集内的角色原样转发，选项页据此预选类别筛选', () => {
+  /**
+   * 深链只带搜索词，不带角色（2026-10-17 改判）
+   *
+   * `role` 原先的唯一消费者是选项页的「按角色预选类别筛选」。但一条身份条目同时携带证件号、
+   * 手机号、地址等多个值，把列表先筛到单一类别反而让该命中的条目看不见（用户原话：「有些内容
+   * 会搜索不到，比如身份证号码之类的别的个人信息」）。现在恒落在「全部」档，只交检索词——
+   * 跨入口载荷随之少一个标签，收口面比改判前更窄。
+   */
+  it('姓名搜索词 trim 后转发，与「到全库找」同一口径', () => {
     const listener = setupAndCaptureListener();
 
-    for (const role of IDENTITY_HINT_ROLES) {
-      listener(
-        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role } },
-        contentSender('https://example.com/register'),
-        vi.fn(),
-      );
-      expect(forwardedData()).toEqual({ role });
-    }
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '  张三  ' } },
+      contentSender('https://example.com/register'),
+      vi.fn(),
+    );
+
+    expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, {
+      keyword: '张三',
+    });
   });
 
-  it('词表外的值一律按「不带筛选」打开', () => {
+  it('超长搜索词截断到既有上限，不另立长度真源', () => {
     const listener = setupAndCaptureListener();
 
-    // `cardNo` 是分类器词表里的卡类角色，但按既有拍板永不进提示路径；
-    // `姓名` 与超长串代表页面侧被改写后的畸形载荷，同样不得穿透到选项页。
-    for (const bad of ['cardNo', '姓名', 'name ', 'NAME', 'x'.repeat(300), 12345, { role: 'name' }, null, undefined]) {
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: 'x'.repeat(300) } },
+      contentSender('https://a.com/'),
+      vi.fn(),
+    );
+
+    expect((forwardedData() as { keyword: string }).keyword).toHaveLength(MAX_SEARCH_KEYWORD_LENGTH);
+  });
+
+  it('页面自报的 role 键不穿透：无论取值合法与否，转发的都只有 keyword', () => {
+    const listener = setupAndCaptureListener();
+
+    // 角色这一半已从契约里移除，页面侧继续自报（旧版 content script 残留 / 恶意构造）时
+    // 必须整键丢掉：穿透过去就是一个没人消费的标签，且它曾驱动过一次筛选写入。
+    for (const role of ['idNumber', 'cardNo', '姓名', 12345, null]) {
       listener(
-        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: bad } },
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role, keyword: '张三' } },
+        contentSender('https://a.com/'),
+        vi.fn(),
+      );
+      expect(forwardedData()).toEqual({ keyword: '张三' });
+    }
+
+    // 只有角色、没有词：降级成「打开但不预填」，而不是把角色透过去预选档位
+    listener(
+      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name' } },
+      contentSender('https://a.com/'),
+      vi.fn(),
+    );
+    expect(forwardedData()).toBeUndefined();
+  });
+
+  it('搜索词非字符串 / 纯空白 / 缺失时整包载荷缺席，不写出空串键', () => {
+    const listener = setupAndCaptureListener();
+
+    for (const bad of ['', '   ', 12345, { keyword: 'zs' }, ['zs'], null, undefined]) {
+      listener(
+        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: bad } },
         contentSender('https://a.com/'),
         vi.fn(),
       );
@@ -688,64 +729,13 @@ describe('OPEN_OPTIONS_AND_IDENTITY 角色收口（分发级）', () => {
     }
   });
 
-  it('无载荷时不阻断深链（打开但不预筛）', () => {
+  it('无载荷时不阻断深链（打开但不预填）', () => {
     const listener = setupAndCaptureListener();
 
     const result = listener({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY }, contentSender('https://a.com/'), vi.fn());
 
     expect(result).toBe(true);
     expect(openOptionsAndSendMessage).toHaveBeenCalledWith(MessageType.OPEN_OPTIONS_AND_IDENTITY, undefined);
-  });
-
-  /**
-   * 搜索词那一半（A 方案：把用户已打好的本人姓名带进身份库做筛选）
-   *
-   * 收口口径必须与「到全库找」那条既有通道一字不差：同一个 `normalizeSearchKeyword`、
-   * 同一个 64 字上限。这里另加一条本页特有的形状要求——空白值不许留下 `keyword: ''` 这个键，
-   * 否则选项页会把「筛成空」和「不筛」读成同一件事。
-   */
-  it('合法角色 + 姓名搜索词一起转发，词本身按全库检索同一口径收口', () => {
-    const listener = setupAndCaptureListener();
-
-    listener(
-      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'idNumber', keyword: '  张三  ' } },
-      contentSender('https://a.com/'),
-      vi.fn(),
-    );
-    expect(forwardedData()).toEqual({ role: 'idNumber', keyword: '张三' });
-
-    listener(
-      { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name', keyword: 'x'.repeat(300) } },
-      contentSender('https://a.com/'),
-      vi.fn(),
-    );
-    expect((forwardedData() as { keyword: string }).keyword).toHaveLength(MAX_SEARCH_KEYWORD_LENGTH);
-  });
-
-  it('搜索词非字符串 / 纯空白 / 缺失时只带角色，不写出空串键', () => {
-    const listener = setupAndCaptureListener();
-
-    for (const bad of ['', '   ', 12345, { keyword: 'zs' }, ['zs'], null, undefined]) {
-      listener(
-        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: 'name', keyword: bad } },
-        contentSender('https://a.com/'),
-        vi.fn(),
-      );
-      expect(forwardedData()).toEqual({ role: 'name' });
-    }
-  });
-
-  it('角色非法时整条降级，搜索词一并丢掉：畸形载荷不许只留一半穿透', () => {
-    const listener = setupAndCaptureListener();
-
-    for (const badRole of ['cardNo', '姓名', 12345, undefined]) {
-      listener(
-        { type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { role: badRole, keyword: '张三' } },
-        contentSender('https://a.com/'),
-        vi.fn(),
-      );
-      expect(forwardedData()).toBeUndefined();
-    }
   });
 });
 

@@ -1,19 +1,21 @@
 /**
  * 身份提示角色词表的回归测试
  *
- * 这份词表是页面侧与 Options 侧之间唯一的通信字母表，它同时承担着「白名单」和
- * 「文案目录」两个职责，所以本文件钉三条：
+ * 这份词表是页面侧「这一段字段语义」的闭合字母表，它同时承担着「白名单」和
+ * 「文案目录」两个职责，所以本文件钉两条：
  *
- * 1. **闭集收窄**。网页 DOM 是自报环境，角色串只有在词表内才允许跨入口；卡类角色
- *    （`cardNo` / `cardExp` / `cardCvv`）刻意不在表内——按既有拍板，银行卡信息不走
- *    身份提示路径，把它们排除在类型层面而不是「运行时记得别发」。
- * 2. **角色 → 类别映射完备**。Options 侧靠它决定弹窗预选的筛选档位，缺一个角色就会
- *    把 `undefined` 写进筛选状态；同时反向钉住「银行类别永不由提示路径产生」。
- * 3. **词表与文案目录同步**。少一条语种词条，气泡会直接把 key 画给用户看
+ * 1. **闭集收窄**。网页 DOM 是自报环境，只有词表内的值才允许驱动气泡；卡类角色
+ *    刻意不在表内——按既有拍板，银行卡信息不走身份提示路径，把它们排除在类型层面
+ *    而不是「运行时记得别发」。
+ * 2. **词表与文案目录同步**。少一条语种词条，气泡会直接把 key 画给用户看
  *    （`i18nLiteParity` 只保证中英对齐，管不到「角色新增了但文案没加」）。
+ *
+ * 曾经的第三条「角色 → 身份库类别映射完备」随 2026-10-17 的改判一并删除：深链不再按
+ * 角色预选类别档位（一条条目同时携带证件号、手机号等多个值，预选会把该命中的筛掉），
+ * 映射函数因此失去唯一消费者。角色现在只服务页面侧的气泡文案。
  */
 import { describe, expect, it } from 'vitest';
-import { IDENTITY_HINT_ROLES, identityCategoryForRole, normalizeIdentityHintRole } from '@/utils/identity/hintRoles';
+import { IDENTITY_HINT_ROLES, normalizeIdentityHintRole } from '@/utils/identity/hintRoles';
 import { LITE_MESSAGES } from '@/utils/i18n-lite';
 
 describe('normalizeIdentityHintRole：闭集收窄', () => {
@@ -40,33 +42,6 @@ describe('normalizeIdentityHintRole：闭集收窄', () => {
     ['超长串', 'x'.repeat(300)],
   ])('%s 被拒', (_label, value) => {
     expect(normalizeIdentityHintRole(value)).toBeNull();
-  });
-});
-
-describe('identityCategoryForRole：映射完备', () => {
-  it('每个角色都能映射到类别，且只会落在 person / id_card / address 三档', () => {
-    const produced = IDENTITY_HINT_ROLES.map(role => identityCategoryForRole(role));
-    expect(produced.every(Boolean)).toBe(true);
-    expect(new Set(produced)).toEqual(new Set(['person', 'id_card', 'address']));
-  });
-
-  it('证件类与地址类各自归位，其余按 person 取', () => {
-    const byRole = Object.fromEntries(IDENTITY_HINT_ROLES.map(role => [role, identityCategoryForRole(role)]));
-    expect(byRole).toEqual({
-      name: 'person',
-      givenName: 'person',
-      familyName: 'person',
-      phone: 'person',
-      email: 'person',
-      birthday: 'person',
-      gender: 'person',
-      org: 'person',
-      idNumber: 'id_card',
-      passport: 'id_card',
-      address: 'address',
-      region: 'address',
-      postal: 'address',
-    });
   });
 });
 
