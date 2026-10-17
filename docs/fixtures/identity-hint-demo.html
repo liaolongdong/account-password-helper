@@ -1561,8 +1561,9 @@
       <p class="note">
         前十五区按<strong>形状</strong>分，这一区按<strong>业务</strong>分：同一套词典放进真实政务与电商表单里，
         一句标签到底认不认得。这里的形状都取自用户实测过的页面——社保那张表整张是
-        <code>table</code>、标签写在 <code>&lt;td&gt;</code> 且<strong>一个 placeholder 都没有</strong> （所以四行全钉
-        <code>data-tier="group"</code>），公租房申请的每条都写成「申请人 + 某个字段」， 而 <code>姓名</code> 在词典里比
+        <code>table</code>、标签写在 <code>&lt;td&gt;</code> 且<strong>一个 placeholder 都没有</strong> （所以除那枚反例之外，
+        五行全钉 <code>data-tier="group"</code>；末行的「社保电脑号」是刻意放的对照——深圳那一串 8 位电脑号不等于身份证号，
+        词典不收它），公租房申请的每条都写成「申请人 + 某个字段」， 而 <code>姓名</code> 在词典里比
         <code>证件号码</code> 更早出现——这一区就是那条先后关系的现场。
       </p>
 
@@ -1615,10 +1616,10 @@
                 data-tier="group"
               />
             </td>
-            <td class="tdBg">驾照档案编号</td>
+            <td class="tdBg">社保电脑号</td>
             <td>
               <input
-                id="sb-jzdan"
+                id="sb-dnh"
                 data-expect="-"
                 data-suppress="noRole"
               />
