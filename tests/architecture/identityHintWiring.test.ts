@@ -14,9 +14,10 @@
  * 3. 由提示打开时，预填搜索词必须排在复验之后（写在之前会让「取消复验」留下一副检索框还带着
  *    别人名字的抽屉），且**深链不得写类别档位**——2026-10-17 改判：一条身份条目同时携带证件号、
  *    手机号等多个值，按角色预选类别会把该命中的条目筛出视野，档位恒为「全部」。
- * 4. 页面侧模块只允许一条取值通道（`piiClassifier.selfNameValueNear`）、只在点击那一刻调用，
- *    且不得就地读 `.value`、不得发页面 URL——这条是隐私承诺，单测只证了 canary，
- *    这里按整个模块的文本兜网。
+ * 4. 页面侧的取值只有一个分派点（`pickSearchKeyword`），它按角色选中两条通道之一
+ *    （`piiClassifier.selfNameValueNear` 取本人姓名 / `piiClassifier.hintFieldKeyword` 取字段名），
+ *    每条通道全模块只出现一次、且只在点击那一刻调用；不得就地读 `.value`、不得发页面 URL——
+ *    这条是隐私承诺，单测只证了 canary，这里按整个模块的文本兜网。
  * 5. 跨入口载荷只剩搜索词一个标签：角色那一半已从契约移除，两个收口点都不许再引它；
  *    词本身必须复用同一个 `normalizeSearchKeyword`，任何一侧改用本地裁剪，64 字上限就有了
  *    第二份真源并很快漂移。
@@ -112,18 +113,35 @@ describe('身份提示的跨上下文接线', () => {
     expect(optionsApp).not.toContain('identityCategoryForRole');
   });
 
-  it('页面侧只有一条具名取值通道，且只在点击那一刻调用', () => {
+  it('页面侧只有一个是取值分派点，两条通道各自一处、只在点击那一刻调用', () => {
     // 取值即扩大明文存活上下文：本模块不得出现任何 `.value` 读取，也不得自己读库内结构
     expect(identityHint).not.toMatch(/\.value\b/);
     expect(identityHint).not.toMatch(/location\.(href|search)|document\.URL|document\.referrer/);
     expect(identityHint).not.toMatch(/IdentityEntry|IdentityPayload|identityCrud|decryptIdentity/);
-    // 唯一通道：调用点全模块只许出现一次，且必须落在「从身份库选择」按钮的 click 回调里
+    // 分派器只有一份定义、一个调用点，且调用点必须落在「从身份库选择」按钮的 click 回调里
     // （落在展示路径 = 聚焦期间就把明文读进了闭包，等于把存活时间从一次消息拉长到整段聚焦）
-    expect([...identityHint.matchAll(/selfNameValueNear\(/g)], '取值通道被复制成多处，须逐个确认新通道').toHaveLength(
-      1,
-    );
+    expect([...identityHint.matchAll(/function pickSearchKeyword\(/g)], '取值分派被复制成多份定义').toHaveLength(1);
+    expect(
+      [...identityHint.matchAll(/openIdentityVault\(pickSearchKeyword\(\)\)/g)],
+      '取值分派出现了第二个调用点，须逐个确认',
+    ).toHaveLength(1);
     const clickWindow = identityHint.slice(identityHint.indexOf("pick.addEventListener('click'"));
-    expect(clickWindow.slice(0, clickWindow.indexOf('});'))).toContain('selfNameValueNear(');
+    expect(clickWindow.slice(0, clickWindow.indexOf('});'))).toContain('openIdentityVault(pickSearchKeyword())');
+
+    // 两条通道各一处调用，且都写在分派器体内、由角色互斥地选中（2026-10-18 编号族补第二条：
+    // 库里没有那一格，落点是用户自拟的自定义字段，于是搜索词换成「这一格叫什么」）
+    for (const channel of ['selfNameValueNear', 'hintFieldKeyword']) {
+      expect(
+        [...identityHint.matchAll(new RegExp(`${channel}\\(`, 'g'))],
+        `取值通道 ${channel} 被复制到多处，须逐个确认新通道`,
+      ).toHaveLength(1);
+    }
+    const dispatch = identityHint.slice(identityHint.indexOf('function pickSearchKeyword'));
+    const dispatchBody = dispatch.slice(0, dispatch.indexOf('\n}'));
+    expect(dispatchBody).toContain('selfNameValueNear(');
+    expect(dispatchBody).toContain('hintFieldKeyword(');
+    // 分派判据必须是那份「以自定义字段为落点」的角色表，不许就地写角色名（表中新增一档时这里会红）
+    expect(dispatchBody).toContain('CUSTOM_FIELD_LANDING_ROLES.includes(');
   });
 
   it('出口只有一个标签：搜索词，空白时整包载荷缺席而不是写出空串键', () => {

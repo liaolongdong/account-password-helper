@@ -58,6 +58,7 @@ const emitLocaleChange = (next: 'zh-CN' | 'en'): void => {
 };
 
 import { destroyIdentityHint, hideIdentityHint, showIdentityHint } from '@/entrypoints/content/IdentityHint';
+import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
 import { MessageType } from '@/utils/types';
 import type { IdentityHintRole } from '@/utils/identity/hintRoles';
 
@@ -284,6 +285,109 @@ describe('身份提示气泡', () => {
       // 气泡已经在屏幕上，用户回头把姓名补上——搜索词必须是补完之后的那一串
       nameEl.value = '张三';
       expect(clickPick()).toMatchObject({ data: { keyword: '张三' } });
+    });
+  });
+
+  /**
+   * 编号族的落点：身份库的自定义字段
+   *
+   * 这一档的角色词只说「编号」，不冒充证件号，因此用户看到的下一句必须是「存哪儿」——
+   * 库里没有那一格，落点是自定义字段。搜索词因此换成**这一格叫什么**（标签文本），
+   * 让用户存的字段名直接成为检索命中面；姓名通道（上一条 describe）在这几档保持原样。
+   */
+  describe('编号族：按字段名落到自定义字段', () => {
+    const sendMessage = (): Mock => (globalThis as any).chrome.runtime.sendMessage as Mock;
+
+    /** 点「从身份库选择」并回读那条消息 */
+    const clickPick = (): unknown => {
+      (bubbleRoot()?.querySelector('.aph-idh__btn--primary') as HTMLElement).click();
+      return sendMessage().mock.calls[0][0];
+    };
+
+    /** 布一枚带中文标签的编号框（值给 CANARY：它是这一轮的反证——字段值不许出页面） */
+    const serialField = (label: string): HTMLInputElement => {
+      document.body.innerHTML = `<label>${label}<input id="s" name="certNo" type="text"></label>`;
+      const input = document.getElementById('s') as HTMLInputElement;
+      input.value = CANARY;
+      layout.setRect(input, { left: 100, top: 200, width: 240, height: 32 });
+      return input;
+    };
+
+    it('气泡多一行「存到自定义字段」的指引，其它角色不显示这一行', () => {
+      show('serialNumber', true);
+      expect(bubbleRoot()?.querySelector('.aph-idh__custom')?.textContent).toContain('自定义字段');
+      expect(bubbleRoot()?.querySelector('.aph-idh__role')?.textContent).toBe('编号');
+
+      hideIdentityHint();
+      show('idNumber', true);
+      expect(bubbleRoot()?.querySelector('.aph-idh__custom')).toBeNull();
+    });
+
+    it('英文语言下那一行同样存在，且角色词是英文的', () => {
+      show('serialNumber', true);
+      expect(bubbleRoot()?.querySelector('.aph-idh__custom')?.textContent).toBeTruthy();
+      emitLocaleChange('en');
+      expect(bubbleRoot()?.querySelector('.aph-idh__role')?.textContent).toBe('serial number');
+      expect(bubbleRoot()?.querySelector('.aph-idh__custom')?.textContent).toContain('custom field');
+    });
+
+    it('搜索词是这一格的字段名，不是它自己的值', () => {
+      const el = serialField('学历证书编号');
+      showIdentityHint(el, 'serialNumber', true);
+      const msg = clickPick();
+      expect(msg).toEqual({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '学历证书编号' } });
+      expect(JSON.stringify(msg), '字段值出现在了跨入口载荷里').not.toContain(CANARY);
+    });
+
+    it('标签两侧多余空白被收掉，整串限长与后台同一口径', () => {
+      const el = serialField(`  编号${'长'.repeat(200)}  `);
+      showIdentityHint(el, 'serialNumber', true);
+      const keyword = (clickPick() as { data: { keyword: string } }).data.keyword;
+      // trim 掉两侧空格、再按 `utils/keywordMatch` 那把同一尺子裁到 64：首两字是「编号」
+      expect(keyword).toBe(`编号${'长'.repeat(MAX_SEARCH_KEYWORD_LENGTH - 2)}`);
+    });
+
+    it('这一格没有可取的标签时整包载荷缺席，而不是写出空串', () => {
+      // `makeField` 那枚裸 input 没有标签、没有占位符、也没有兄弟文字，只带 name 属性——
+      // 属性串不是「这一格叫什么」，不许当检索词用。
+      const bare = makeField('realName');
+      layout.setRect(bare, { left: 100, top: 200, width: 240, height: 32 });
+      showIdentityHint(bare, 'serialNumber', true);
+      expect(clickPick()).toEqual({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: undefined });
+    });
+
+    it('组件库形状（标签块与控件块互为兄弟）取的是同项那段兄弟标签', () => {
+      // Element Plus 一项两控件时不发 `for`，标签退化成 `<div class="el-form-item__label">`——
+      // 这一形状下「这一格叫什么」只写在兄弟块里，分类器那条弱线索通道正是为此而存在。
+      document.body.innerHTML =
+        '<div class="el-form-item"><div class="el-form-item__label">学历证书编号</div>' +
+        '<div class="el-form-item__content"><input id="s" name="certNo" type="text"></div></div>';
+      const el = document.getElementById('s') as HTMLInputElement;
+      el.value = CANARY;
+      layout.setRect(el, { left: 100, top: 200, width: 240, height: 32 });
+
+      showIdentityHint(el, 'serialNumber', true);
+      expect(clickPick()).toEqual({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '学历证书编号' } });
+    });
+
+    it('标签尾部的冒号与必填星号不进检索词：多一个字符就永远匹配不上用户存的那个名字', () => {
+      // 身份库的匹配是「关键词是字段文本的子串」，`学历证书编号：` 比用户存的字段名长一个字符，
+      // 落点会直接空手——所以装饰符必须在发出去之前裁掉，且只裁两端。
+      const el = serialField('学历证书编号：*');
+      showIdentityHint(el, 'serialNumber', true);
+      expect(clickPick()).toEqual({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '学历证书编号' } });
+    });
+
+    it('姓名族仍走原来那条本人姓名通道：这次改动没把标签文本扩到别的角色上', () => {
+      document.body.innerHTML = '<label>证件号码<input id="s" name="certNo" type="text"></label>';
+      const idEl = document.getElementById('s') as HTMLInputElement;
+      idEl.value = CANARY;
+      layout.setRect(idEl, { left: 100, top: 200, width: 240, height: 32 });
+      // 同一张表单里另有本人姓名框——这一档的搜索词来自它，不来自「证件号码」这段标签
+      makeField('realName', '张三');
+
+      showIdentityHint(idEl, 'idNumber', true);
+      expect(clickPick()).toEqual({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '张三' } });
     });
   });
 

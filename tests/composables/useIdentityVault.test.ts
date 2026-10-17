@@ -475,6 +475,41 @@ describe('manual 档与 moveIdentity（手排换位）', () => {
   });
 });
 
+/**
+ * 自定义字段是检索命中面
+ *
+ * 页面侧气泡「编号族」那一档的深链把**这一格叫什么**当搜索词发过来（用例见
+ * `tests/content/identityHint.test.ts`），而库里根本没有「学历证书编号」「社保电脑号」
+ * 那一格——用户唯一能存下它的地方就是自定义字段。这一组钉住「字段名本身就能搜到」这条
+ * 落点承诺，是对既有实现的特征刻画（本轮改动前就该通过），不是新行为。
+ */
+describe('自定义字段按字段名可检索（气泡深链的落点）', () => {
+  /** 一张只有自定义字段、内置字段全空的条目——深链过来时库里能命中它的只有这一格 */
+  const customOnly = (id: string, label: string, value: string, secret = false): IdentityEntry =>
+    entry(id, { customFields: [{ id: 'c1', label, value, secret }] });
+
+  it('按字段名检索命中只写了自定义字段的条目，内置字段全空不影响命中', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [customOnly('serial', '学历证书编号', 'JX-2019-0001'), entry('other', { name: '张三' })];
+    vault.keyword.value = '学历证书编号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['serial']);
+  });
+
+  it('字段值同样是命中面：同一条目，深链的字段名和用户手输的值前缀都能到', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [customOnly('serial', '学历证书编号', 'JX-2019-0001')];
+    vault.keyword.value = 'JX-2019';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['serial']);
+  });
+
+  it('勾了「机密」的自定义字段照样参与检索（只是渲染时默认打码）', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [customOnly('serial', '社保电脑号', 'SB-2019-0001', true)];
+    vault.keyword.value = '社保电脑号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['serial']);
+  });
+});
+
 describe('teardown', () => {
   it('连同解密明文一起释放（resetViewState 只清视图态，保留 rows）', () => {
     const vault = useIdentityVault();

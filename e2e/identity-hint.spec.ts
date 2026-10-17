@@ -452,3 +452,70 @@ test('深链带筛选词：点「从身份库选择」时把本人姓名框的�
 
   await page.close();
 });
+
+/**
+ * 编号族那一格：深链带过去的是**这一格叫什么**，不是这一框自己的值
+ *
+ * 上面那条证的是取值分派器的姓名支，这一条证的是另一支：`serialNumber` 这类「库里没有那一格」的角色
+ * 带过去的必须是标签文字——用户在身份里存的是自拟的自定义字段，把本人姓名送过去在那一格搜不出任何东西。
+ * 页面只摆这一枚编号框（不带姓名框），是为了让「分派走错支」也读得出红：姓名支在那儿取不到值，
+ * 载荷会整体缺席、搜索框恒空，正好与「字段名那支断了」同样判红，两种走错都躲不过去。
+ *
+ * 卡片数 0 是本趟的预期读数（没有种带「学历证书编号」那格的记录），它反向钉住检索词**真的跨过了进程**：
+ * 载荷若在后台被丢、或被收成空串键，搜索框都是空的而不是这一串。「自定义字段的标签与值本来就在检索面里」
+ * 那一半住在 `tests/composables/useIdentityVault.test.ts`，真机这一侧不重复种自定义字段（编辑器要多三步，
+ * 而那半边的判定与 Element Plus 无关）。
+ */
+test('深链带字段名：编号族那一格点「从身份库选择」时，落进库的搜索框的是标签文字而不是它自己的值', async ({
+  extContext,
+  optionsPage,
+}) => {
+  const FIELD_LABEL = '学历证书编号';
+
+  // 前置：先经菜单开一次库（本会话第一次 ⇒ 必问复验），顺带种两条身份，
+  // 于是「卡片 0」只可能是被字段名筛掉的，而不是库本来就空
+  await openVaultFromMenu(optionsPage, true);
+  await addIdentity(optionsPage, 'e2e-vault-holder-a', '13800004444');
+  await addIdentity(optionsPage, 'e2e-vault-holder-b', '13900005555');
+  await expect(cards(optionsPage)).toHaveCount(2);
+  await closeVault(optionsPage);
+
+  const { page, cdp } = await openFormPage(
+    extContext,
+    `<body><p><label>${FIELD_LABEL}<input id="f-serial" name="certificateNo"></label></p></body>`,
+  );
+  await page.locator('#f-serial').fill(CANARY);
+
+  await focusUntilHint(cdp, page, 'f-serial');
+  expect(await roleText(cdp)).toMatch(liteTextOf('cs.identity.role.serialNumber'));
+  // 这一档在库里没有对应的格，气泡必须自己把落点说出来（其余角色不带这一行）
+  expect(await bubbleText(cdp)).toMatch(liteTextOf('cs.identity.hintCustomField'));
+  await clickButton(page, cdp, 'primary');
+
+  await expect(vaultDialog(optionsPage)).toBeVisible();
+  await expect(verifyDialog(optionsPage)).toBeHidden();
+  await expect(searchInput(optionsPage)).toHaveValue(FIELD_LABEL);
+  await expect(cards(optionsPage)).toHaveCount(0);
+  // 档位停在「全部」：字段名也只作检索词，不替用户决定这一格属于哪一档
+  await expect(optionsPage.locator('.identity-toolbar__filter .is-active')).toHaveText(textOf('identity.filter.all'));
+  await expect.poll(() => bubbleCount(cdp), { message: '深链后气泡没收起' }).toBe(0);
+
+  // 边界照旧：那一框自己的值哪儿都不去，页面也没被回填
+  const optionsText = await optionsPage.evaluate(() => document.body.innerText);
+  expect(optionsText, '编号框里的值出现在选项页可见文本里').not.toContain(CANARY);
+  const atRest = (needle: string): Promise<boolean> =>
+    optionsPage.evaluate(async value => JSON.stringify(await chrome.storage.local.get(null)).includes(value), needle);
+  expect(await atRest(CANARY), '字段值落盘了').toBe(false);
+  expect(await atRest(FIELD_LABEL), '字段名检索词落盘了').toBe(false);
+  expect(await page.evaluate(() => (document.getElementById('f-serial') as HTMLInputElement).value), '页面被改写').toBe(
+    CANARY,
+  );
+
+  // 一次性：关掉库之后检索词必须跟着清，下一轮进来回到全量列表
+  await closeVault(optionsPage);
+  await openVaultFromMenu(optionsPage, false);
+  await expect(searchInput(optionsPage)).toHaveValue('');
+  await expect(cards(optionsPage)).toHaveCount(2);
+
+  await page.close();
+});

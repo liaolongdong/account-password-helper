@@ -3,10 +3,10 @@
  * 个人信息演示台的逐字段判定账本
  *
  * 全仓唯一吃「一整页真实形状」的账本：`docs/fixtures/identity-hint-demo.html` 把页面写出标签与
- * 输入框关系的十六种形状（嵌套 label、`label[for]`、组件库式兄弟块、autocomplete 自声明、登录组、
+ * 输入框关系的十七种形状（嵌套 label、`label[for]`、组件库式兄弟块、autocomplete 自声明、登录组、
  * 裸兄弟文本、表格 th 与 `<td>` 标签格、英文词典、值形状收口、负向噪音、组件库复合项、行栅格、
- * 只有占位符、银行卡三档、不可输入的控件、国内五类高频填报场景）一次摆平，本页每个受检字段带
- * `data-expect`（期望角色，`-` 表示不该提示）与 `data-suppress`（被哪条出口挡掉）。
+ * 只有占位符、银行卡三档、不可输入的控件、国内五类高频填报场景、编号族（落点是自定义字段）一次摆平，
+ * 本页每个受检字段带 `data-expect`（期望角色，`-` 表示不该提示）与 `data-suppress`（被哪条出口挡掉）。
  *
  * 为什么要有这份文件：其余分类器用例各钉一条**形状结论**，改一处词典只会红一条；
  * 而「为什么我在真实页面上看不到提示」是一次整页扫描才答得出的问题——它要的是命中率，
@@ -15,6 +15,7 @@
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { resolvePiiField } from '@/entrypoints/content/piiClassifier';
+import { IDENTITY_HINT_ROLES } from '@/utils/identity/hintRoles';
 import { readSource } from '../helpers/architectureScan';
 
 /** 演示台夹具：仓库内路径，`data-expect` 是它唯一的期望声明处 */
@@ -107,29 +108,35 @@ describe('演示台逐字段判定账本', () => {
    *
    * 这条守的是「词典整段漏掉某个角色」：单条形状用例全绿时，某个角色可能在这页上一个都没出现，
    * 而那正是英文站点曾经的漏报形态。`owns=fill` 的手机号框计入分类器命中，页面侧让位由 e2e 管。
+   *
+   * 两份清单各查一次：本页的读数对不上目录 = 词典在这页上漏了一族；目录对不上 `IDENTITY_HINT_ROLES`
+   * = 词表加了角色而这一页和这份账本都还没跟上（只比第一句的话，新增角色会两头同时缺席、静默通过）。
    */
-  it('十六个可提示角色在本页全部出现过', () => {
-    const roles = new Set(rows.filter(row => row.actual !== '-').map(row => row.actual));
-    expect([...roles].sort()).toEqual(
-      [
-        'address',
-        'birthday',
-        'cardBank',
-        'cardHolder',
-        'cardNo',
-        'email',
-        'familyName',
-        'gender',
-        'givenName',
-        'idNumber',
-        'name',
-        'org',
-        'passport',
-        'phone',
-        'postal',
-        'region',
-      ].sort(),
+  it('十七个可提示角色在本页全部出现过', () => {
+    const catalog = [
+      'address',
+      'birthday',
+      'cardBank',
+      'cardHolder',
+      'cardNo',
+      'email',
+      'familyName',
+      'gender',
+      'givenName',
+      'idNumber',
+      'name',
+      'org',
+      'passport',
+      'phone',
+      'postal',
+      'region',
+      'serialNumber',
+    ].sort();
+    expect([...IDENTITY_HINT_ROLES].sort(), '角色词表与这份账本的清单分家了：新增角色要在演示台摆一行').toEqual(
+      catalog,
     );
+    const roles = new Set(rows.filter(row => row.actual !== '-').map(row => row.actual));
+    expect([...roles].sort()).toEqual(catalog);
   });
 
   /** 命中面与压制面都得有量：某一侧整块塌陷，说明词典或负向表被改坏了 */

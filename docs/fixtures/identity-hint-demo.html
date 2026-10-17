@@ -15,11 +15,12 @@
     <!--
       身份提示（形态一：识别 + 提示 + 深链，不填充）的手工回归台。
 
-      十六个区块各摆一种「页面把标签与输入框的关系写成什么样」的真实形状：
+      十七个区块各摆一种「页面把标签与输入框的关系写成什么样」的真实形状：
       嵌套 label、label[for]、Element Plus 式兄弟块、autocomplete 自声明、登录组、
       裸兄弟文本、表格 th 与 `<td>` 标签格、英文词典、值形状收口、负向噪音、
       组件库复合表单项、行栅格、只有占位符、银行卡三档、不可输入的控件、
-      国内五类高频填报场景（社保 / 公租房 / 公积金 / 快递 / 住址）与机构证照对照。
+      国内五类高频填报场景（社保 / 公租房 / 公积金 / 快递 / 住址）与机构证照对照、
+      编号族（学历证书编号一类，落点是身份库的自定义字段）。后两区按业务与词典族分，不按形状分。
       判定链只吃这些结构信号与该字段自己的值，所以换一种写法就可能从「提示」掉成「沉默」——
       这页存在的意义就是把所有形状一次摆平，让「这一框为什么没提示」当场看得出来。
 
@@ -40,7 +41,7 @@
       jsdom 那本账不吃这条门，两边读同一行会给出不同结论，靠这个属性分开记。
       让位的范围有一个不那么直观的条件：`shouldShowSidePanel` 最后有一道整页兜底——**同一份文档里
       只要存在账号+密码对或登录按钮**，落进 username/mobile 桶的框一律算「在登录表单里」。
-      本页把十五种形状摆在同一份文档，⑤ 区又确实是一个登录块，于是各处进了桶的
+      本页把十七区的字段摆在同一份文档，⑤ 区又确实是一个登录块，于是各处进了桶的
       `<input>` 一并归了钥匙（`#a-mail`、`#c-rtel`、`#d-tel`、`#g-email`、`#g-phone`、`#k-c2`、
       `#k-p3`、`#k-p7`、`#k-p14`）。
       真实站点少见这种混排，但「注册页上半屏是登录框」并不罕见——看到这一行没有气泡，先按这个条件核对。
@@ -1561,10 +1562,14 @@
       <p class="note">
         前十五区按<strong>形状</strong>分，这一区按<strong>业务</strong>分：同一套词典放进真实政务与电商表单里，
         一句标签到底认不认得。这里的形状都取自用户实测过的页面——社保那张表整张是
-        <code>table</code>、标签写在 <code>&lt;td&gt;</code> 且<strong>一个 placeholder 都没有</strong> （所以除那枚反例之外，
-        五行全钉 <code>data-tier="group"</code>；末行的「社保电脑号」是刻意放的对照——深圳那一串 8 位电脑号不等于身份证号，
-        词典不收它），公租房申请的每条都写成「申请人 + 某个字段」， 而 <code>姓名</code> 在词典里比
+        <code>table</code>、标签写在 <code>&lt;td&gt;</code> 且<strong>一个 placeholder 都没有</strong> （所以六行全钉
+        <code>data-tier="group"</code>），公租房申请的每条都写成「申请人 + 某个字段」， 而 <code>姓名</code> 在词典里比
         <code>证件号码</code> 更早出现——这一区就是那条先后关系的现场。
+        末两行还是另一条先后关系的现场：<strong>社保卡号</strong>报证件号（那一串就是本人的社会保障号码，
+        库里存着它），<strong>社保电脑号</strong>报 ⑰ 区的 <code>serialNumber</code>（深圳那一串 8
+        位电脑号不等于身份证号）。词典里「电脑号」档排在证件号档之前，
+        反序会让含「社保卡」三字的这句被证件号先接走——这一对由
+        <code>tests/content/piiClassifier.coverage.test.ts</code> 钉住。
       </p>
 
       <div class="scene">
@@ -1620,8 +1625,8 @@
             <td>
               <input
                 id="sb-dnh"
-                data-expect="-"
-                data-suppress="noRole"
+                data-expect="serialNumber"
+                data-tier="group"
               />
             </td>
           </tr>
@@ -1870,6 +1875,138 @@
               maxlength="18"
               data-expect="idNumber"
             />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>⑰ 编号族：库里没有那一格，落点是自定义字段（2026-10-18 拍板）</h2>
+      <p class="note">
+        学历证书编号、教师资格证编号、驾照档案编号、社保电脑号、保单号——每一串都自成一格，
+        但都不是本人身份证号。把它们提示成「证件号」会把人往身份证号上引，而身份库确实没有为它们准备的字段，
+        于是这一族由 2026-10-18 新加的 <code>serialNumber</code> 角色接住：<strong>它不声称证件号</strong>，
+        气泡在角色之外多一句「可在自定义字段里存下它」，而点「从身份库选择」时深链带的搜索词是
+        <strong>这一格的字段名</strong>（不是本人姓名）。落点成立靠的是既有的一条库内行为：
+        自定义字段的名字和值都参与检索（<code>tests/composables/useIdentityVault.test.ts</code> 钉住），
+        所以用户自己建过一格叫「学历证书编号」，提示点下去就把它筛出来。
+        取值口径与姓名那一族不同：读的是<strong>标签文字</strong>，永远不读这一框里已经填的值。
+      </p>
+
+      <div class="scene">
+        <div class="hd">
+          四种形状（嵌套 label / <code>label[for]</code> / 只有占位符 / 只有
+          <code>name</code>，最后一枚框上没有任何可见文字）
+        </div>
+        <div class="fields">
+          <div class="field">
+            <label
+              >学历证书编号<input
+                id="bh-xlrq"
+                data-expect="serialNumber"
+                data-tier="label"
+            /></label>
+            <p class="tip">这一档和证件号一样要二次核对，另外多一句自定义字段的落点说明。</p>
+          </div>
+          <div class="field">
+            <label for="bh-jszg">教师资格证编号</label>
+            <input
+              id="bh-jszg"
+              data-expect="serialNumber"
+              data-tier="label"
+            />
+          </div>
+          <div class="field">
+            <input
+              id="bh-bdh"
+              placeholder="请输入保单号"
+              data-expect="serialNumber"
+              data-tier="placeholder"
+            />
+          </div>
+          <div class="field">
+            <input
+              id="bh-certno"
+              name="certificateNo"
+              data-expect="serialNumber"
+              data-tier="attr"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="scene">
+        <div class="hd">表格里的「××编号」（<code>&lt;td&gt;</code> 标签格）与英文站点</div>
+        <table>
+          <tr>
+            <td class="tdBg">驾照档案编号</td>
+            <td>
+              <input
+                id="bh-jzdah"
+                data-expect="serialNumber"
+                data-tier="group"
+              />
+            </td>
+            <td class="tdBg">公积金个人编号</td>
+            <td>
+              <input
+                id="bh-gjjgjbh"
+                data-expect="serialNumber"
+                data-tier="group"
+              />
+            </td>
+          </tr>
+          <tr>
+            <td class="tdBg">Certificate Number</td>
+            <td>
+              <input
+                id="bh-encert"
+                data-expect="serialNumber"
+                data-tier="group"
+              />
+            </td>
+            <td class="tdBg">出生证编号</td>
+            <td>
+              <input
+                id="bh-cszbh"
+                data-expect="serialNumber"
+                data-tier="group"
+              />
+            </td>
+          </tr>
+        </table>
+      </div>
+
+      <div class="scene">
+        <div class="hd">三条边界（这一族收的是「这个人的编号」，不是「这一单的编号」）</div>
+        <p class="note">
+          短语一律带<strong>证书 / 单据名 + 号 / 编号</strong>收口，所以裸「编号」与单据号继续沉默：
+          订单号、发票号码一单一张，存进身份库下次就用不上了。
+        </p>
+        <div class="fields">
+          <div class="field">
+            <label
+              >编号<input
+                id="bh-bare"
+                data-expect="-"
+                data-suppress="noRole"
+            /></label>
+          </div>
+          <div class="field">
+            <label
+              >订单号<input
+                id="bh-ddh"
+                data-expect="-"
+                data-suppress="noRole"
+            /></label>
+          </div>
+          <div class="field">
+            <label
+              >发票号码<input
+                id="bh-fphm"
+                data-expect="-"
+                data-suppress="noRole"
+            /></label>
           </div>
         </div>
       </div>

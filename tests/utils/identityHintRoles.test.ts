@@ -15,7 +15,7 @@
  * 映射函数因此失去唯一消费者。角色现在只服务页面侧的气泡文案。
  */
 import { describe, expect, it } from 'vitest';
-import { IDENTITY_HINT_ROLES, normalizeIdentityHintRole } from '@/utils/identity/hintRoles';
+import { CUSTOM_FIELD_LANDING_ROLES, IDENTITY_HINT_ROLES, normalizeIdentityHintRole } from '@/utils/identity/hintRoles';
 import { LITE_MESSAGES } from '@/utils/i18n-lite';
 
 describe('normalizeIdentityHintRole：闭集收窄', () => {
@@ -31,6 +31,22 @@ describe('normalizeIdentityHintRole：闭集收窄', () => {
     }
     for (const secret of ['cardExp', 'cardCvv']) {
       expect(normalizeIdentityHintRole(secret)).toBeNull();
+    }
+  });
+
+  /**
+   * 编号族（学历证书编号 / 资格证号 / 档案编号 / 保单号 那一串）2026-10-18 进词表。
+   *
+   * 它存在的理由与前一轮的「不收」是同一把尺子的两面：那一串**不等于**本人证件号，
+   * 所以绝不能挂到 `idNumber`；但身份库的自定义字段就是它的落点，所以它值得单独一档。
+   * 角色名因此刻意不含「证件」二字，而「库里没有那一格」这件事由下面那份落点表说一次。
+   */
+  it('编号族在词表内，且它被登记为「以自定义字段为落点」的角色', () => {
+    expect(normalizeIdentityHintRole('serialNumber')).toBe('serialNumber');
+    expect(CUSTOM_FIELD_LANDING_ROLES).toContain('serialNumber');
+    // 落点表只能是词表的子集：写了库里其实有的角色，气泡会指一条多余的路
+    for (const role of CUSTOM_FIELD_LANDING_ROLES) {
+      expect(IDENTITY_HINT_ROLES).toContain(role);
     }
   });
 

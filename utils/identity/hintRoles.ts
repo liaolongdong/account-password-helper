@@ -21,6 +21,11 @@
  * 卡类只放三档（2026-10-17 拍板）：卡号、户名、开户行——它们与证件号一样是「库里存着的一条
  * 银行信息」，而有效期与 CVV 属卡类口令，身份库按同一口径把它们当秘密字段加密展示，
  * 让它们进这份词表等于把 CVV 的取值路径挂到页面提示上，因此类型层面就不收录。
+ *
+ * `serialNumber` 是 2026-10-18 补的**编号族**：学历证书编号、社保电脑号、保单号那一类各自成串、
+ * 都不等于身份证号，所以它刻意不冒充 `idNumber`（那正是 2026-10-17 那批账本判「不出提示」的理由），
+ * 而用户说的落点是「这些可以放到自定义字段里面」——库里真有一个能被字段名搜到的地方，
+ * 于是这一档从沉默翻成提示，代价是它必须自己说明「存哪儿」（见 {@link CUSTOM_FIELD_LANDING_ROLES}）。
  */
 export const IDENTITY_HINT_ROLES = [
   'name',
@@ -32,6 +37,7 @@ export const IDENTITY_HINT_ROLES = [
   'region',
   'postal',
   'idNumber',
+  'serialNumber',
   'passport',
   'birthday',
   'gender',
@@ -43,6 +49,18 @@ export const IDENTITY_HINT_ROLES = [
 
 /** 身份提示角色（由词表推导，新增角色只需改上面那份数组） */
 export type IdentityHintRole = (typeof IDENTITY_HINT_ROLES)[number];
+
+/**
+ * 以「自定义字段」为落点的角色
+ *
+ * 这一档在库里没有对应的内置字段，两个消费点各自需要它：
+ * - 气泡要额外写一句「可以存到自定义字段」，否则用户按提示去库里找「编号」那一格会落空；
+ * - 深链的搜索词换成**这一格叫什么**（字段标签文本），用户在自定义字段里写的标签正是同一串，
+ *   于是检索面就是他自己起的那个字段名。其余角色的落点仍是库里的内置字段，搜索词取本人姓名。
+ *
+ * 它是 {@link IDENTITY_HINT_ROLES} 的子集，由 `tests/utils/identityHintRoles.test.ts` 钉住。
+ */
+export const CUSTOM_FIELD_LANDING_ROLES: readonly IdentityHintRole[] = ['serialNumber'];
 
 const HINT_ROLE_SET: ReadonlySet<string> = new Set<string>(IDENTITY_HINT_ROLES);
 

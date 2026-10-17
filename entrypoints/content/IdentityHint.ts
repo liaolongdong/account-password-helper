@@ -3,9 +3,10 @@
  *
  * 用户聚焦到一个「语义上属于个人信息」的字段时，在字段下方出现一枚轻量气泡，
  * 告诉用户「这个框要的是姓名 / 证件号 / 邮编」，并提供一个动作：打开管理页的身份库
- * （照旧过复验门槛）由用户自己取值。本模块**不填充、不比对库内数据**；跨入口流动的是
- * 「角色」这一个枚举标签，外加一个可选的搜索词——同一个表单里用户已经打好的本人姓名，
- * 且只在用户点下「从身份库选择」那一刻才读（判据与边界见 `piiClassifier.selfNameValueNear`）。
+ * （照旧过复验门槛）由用户自己取值。本模块**不填充、不比对库内数据**；跨入口只流一个
+ * 可选的搜索词，取值按角色分两条通道（见 {@link pickSearchKeyword}）：其余角色带同一表单里
+ * 用户已经打好的本人姓名，编号族带**这一格叫什么**（字段标签文本，它的落点是库里的自定义字段）。
+ * 两者都只在用户点下「从身份库选择」那一刻才读（判据与边界见 `piiClassifier` 那两个取值函数）。
  * 库内密文与明文始终不离开管理页。
  *
  * 为什么做成提示而不是自动填充：身份明文只在管理页文档内存在（见
@@ -27,9 +28,9 @@ import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { onLiteLocaleChanged, tl } from '@/utils/i18n-lite';
 import { applyThemeTokensToHost, DEFAULT_THEME, getStoredTheme } from '@/utils/theme';
-import type { IdentityHintRole } from '@/utils/identity/hintRoles';
+import { CUSTOM_FIELD_LANDING_ROLES, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { attachHostEventIsolation } from './inlineDropdown/eventIsolation';
-import { selfNameValueNear } from './piiClassifier';
+import { hintFieldKeyword, selfNameValueNear } from './piiClassifier';
 
 let hostEl: HTMLElement | null = null;
 let shadowRoot: ShadowRoot | null = null;
@@ -79,6 +80,11 @@ const STYLE = `
   .aph-idh__verify {
     margin: 4px 0 0;
     color: #e6a23c;
+    font-size: 12px;
+  }
+  .aph-idh__custom {
+    margin: 4px 0 0;
+    color: #909399;
     font-size: 12px;
   }
   .aph-idh__actions {
@@ -225,6 +231,15 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
     bubble.appendChild(verify);
   }
 
+  // 库里没有这一格的角色（编号族）必须自己说清「存哪儿」，否则用户按提示去库里找
+  // 「编号」那一格会落空——这一行只在这几档出现，其余角色的落点是库里的内置字段。
+  if (CUSTOM_FIELD_LANDING_ROLES.includes(role)) {
+    const custom = document.createElement('p');
+    custom.className = 'aph-idh__custom';
+    custom.textContent = tl('cs.identity.hintCustomField');
+    bubble.appendChild(custom);
+  }
+
   const actions = document.createElement('div');
   actions.className = 'aph-idh__actions';
   // 按下不改变焦点：气泡会因 blur 收起，默认动作会让 click 根本落不到按钮上
@@ -243,7 +258,7 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
   pick.textContent = tl('cs.identity.hintPick');
   // 搜索词在点击这一刻才取：聚焦期间不缓存任何字段值，明文的存活时间等于这一次消息的在途时间
   pick.addEventListener('click', () => {
-    openIdentityVault(boundInput ? selfNameValueNear(boundInput) : '');
+    openIdentityVault(pickSearchKeyword());
     hideIdentityHint();
   });
 
@@ -254,11 +269,29 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
 }
 
 /**
+ * 点击「从身份库选择」时该带哪个搜索词
+ *
+ * 两条通道按角色分派，各自只在被点中的那一次求值（判据与边界见
+ * `piiClassifier` 里 `selfNameValueNear` / `hintFieldKeyword` 两个函数的注释）：
+ * - 编号族（{@link CUSTOM_FIELD_LANDING_ROLES}）：库里没有那一格，用户在身份里存的是
+ *   自拟的**自定义字段**，其标签参与检索，所以带「这一格叫什么」过去才命中；
+ * - 其余角色：带同一表单里已经打好的本人姓名，把列表筛到那一个人。
+ *
+ * 取不到就是空串，由 `openIdentityVault` 把整包载荷收掉。
+ */
+function pickSearchKeyword(): string {
+  if (!boundInput) return '';
+  const landedOnCustomField = boundRole !== null && CUSTOM_FIELD_LANDING_ROLES.includes(boundRole);
+  return landedOnCustomField ? hintFieldKeyword(boundInput) : selfNameValueNear(boundInput);
+}
+
+/**
  * 通知后台打开管理页身份库
  *
- * 出口只有一个标签：用户在**同一个表单里已经打好的本人姓名**（取值规则见
- * `piiClassifier.selfNameValueNear`），只用来把身份库列表筛到那一个人。不含其它字段值、
- * 不含页面 URL、不含任何库内数据，长度在后台与选项页各收口一次。
+ * 出口只有一个标签：一条搜索词。它的来源按角色分两条通道（{@link pickSearchKeyword}）——
+ * 库里存着这一格的角色取同一表单里已打好的**本人姓名**，把列表筛到那一个人；编号族取
+ * **这一格叫什么**，把列表筛到用户自拟的那条自定义字段。不含其它字段值、不含页面 URL、
+ * 不含任何库内数据，长度在后台与选项页各收口一次。
  *
  * 页面角色**刻意不跨入口**：它只服务气泡上那句「这是「证件号」字段」。曾经把它透给选项页
  * 去预选类别档位，但一条身份条目同时携带证件号、手机号等多个值，先按角色筛类别会把该命中的

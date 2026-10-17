@@ -7,10 +7,13 @@
  * 而不是原文；其余各层吃的都是属性、标签与 `autocomplete` 这些字段自报的元数据。
  * 调用方只取「语义角色 + 是否需复验」两个标签（见 `FormDetector.handleIdentityHintOnFocus`）。
  *
- * 唯一的例外是 {@link selfNameValueNear}：它不在判定链上，是「点了『从身份库选择』之后，
- * 顺手把用户已经打好的**本人姓名**当搜索词」这条已批准通道。边界由该函数的判据钉死
- * （只取 `role === 'name'` 且 `ownership === 'self'` 的框、点击时才读、只进搜索框、不落盘不写日志），
- * 除此之外密文与明文都不离开管理页（见 `docs/ARCHITECTURE.md`「27. 身份信息库」的「定位与独立性」）。
+ * 例外只有两条通道，都是「点了『从身份库选择』之后才取值」的搜索词：
+ * {@link selfNameValueNear} 取同一表单里用户已经打好的**本人姓名**，
+ * {@link hintFieldKeyword} 取**这一格叫什么**（字段标签文本，服务编号族——库里没有那一格，
+ * 用户存的正是自己起的那个字段名）。两者的边界各自由判据钉死（前者只取
+ * `role === 'name'` 且 `ownership === 'self'` 的框；后者只读标签、永不读值），
+ * 都在点击那一刻取值、只进搜索框、不落盘不写日志。除此之外密文与明文都不离开管理页
+ * （见 `docs/ARCHITECTURE.md`「27. 身份信息库」的「定位与独立性」）。
  *
  * 与既有登录桶的分工：`formSelectors.ts` 的 username/mobile/verifyCode 三桶按**子串**匹配
  * 认领登录字段，本模块刻意不复用那套判据——姓名/证件号词典若照抄子串会把 `username`
@@ -27,12 +30,13 @@
  * @module entrypoints/content/piiClassifier
  */
 
+import { normalizeSearchKeyword } from '@/utils/keywordMatch';
 import type { IdentityHintRole } from '@/utils/identity/hintRoles';
 
 /**
  * 语义角色（分类器词表，不等于身份库字段——库内没有的角色由调用方降级为「需自建」提示）。
  *
- * 可提示的 16 个角色取共享词表 {@link IdentityHintRole}（含卡号 / 户名 / 开户行三档）；
+ * 可提示的 17 个角色取共享词表 {@link IdentityHintRole}（含卡号 / 户名 / 开户行三档）；
  * 卡类口令只在本模块内部出现，由 autocomplete 自声明识别出来后立即压制，
  * 类型上就进不了气泡与跨入口载荷。
  */
@@ -326,6 +330,28 @@ const ATTR_DICT: readonly (readonly [role: PiiRole, tokens: readonly string[]])[
     ],
   ],
   ['postal', ['postalcode', 'zipcode', 'zip', 'postcode']],
+  /**
+   * 编号族的属性词元（2026-10-18）。
+   *
+   * 与词典侧同一把尺子：**这一串不等于本人身份证号**，所以它挂 `serialNumber` 而不是 `idNumber`，
+   * 气泡因此多一句「存到自定义字段」的落点说明。词元全部带证书 / 单据名收口，不收录裸 `no` /
+   * `number`；`licensenumber` / `licencenumber` 刻意不进这一档——它们留在下方证件号档，
+   * 中国的驾驶证号就是身份证号（2026-10-17 拍板），而交管那串档案号靠 label 侧的「档案编号」接。
+   */
+  [
+    'serialNumber',
+    [
+      'serialnumber',
+      'certificateno',
+      'certificatenumber',
+      'diplomanumber',
+      'diplomano',
+      'policyno',
+      'policenumber',
+      'qualificationno',
+      'qualificationnumber',
+    ],
+  ],
   [
     'idNumber',
     [
@@ -470,6 +496,45 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
   },
   { role: 'postal', phrases: ['邮编', '邮政编码'] },
   /**
+   * 编号族（2026-10-18 新增一档）。
+   *
+   * 这一串**各自成串、都不等于本人身份证号**，所以按 2026-10-17 那把尺子它们不能挂 `idNumber`
+   * （挂上去等于把人往身份证号上引，那一批写法当时整族被判「不出提示」）。翻案的的不是尺子，
+   * 是落点：用户回的那一句是「这些编号可以放到自定义字段里面」，而库里确实有一个能被**字段名**
+   * 搜到的地方。于是补一档只说「编号」、不声称证件号的角色，并在气泡里附带一句自定义字段落点
+   * （见 `utils/identity/hintRoles` 的 `CUSTOM_FIELD_LANDING_ROLES`）。
+   *
+   * 三条边界按老规矩留着：
+   * - 短语一律带**证书 / 单据名 + 号 / 编号**收口，不收录裸「编号」——`订单编号`、`发票编号`
+   *   是这一单的编号，不是这个人的编号；`快递单号`、`运单号` 同理继续沉默。
+   * - 排在 `idNumber` 档**之前**是有名字的判据：`社保卡电脑号` 含「社保卡」，反序会被证件号先接走，
+   *   而深圳那一串 8 位电脑号根本不是身份证号（`piiClassifier.coverage.test.ts` 钉住这一对）。
+   * - 「驾驶证编号 / 档案编号」进这一档，「驾驶证号」留在证件号：中国那一串驾驶证号就是身份证号。
+   */
+  {
+    role: 'serialNumber',
+    phrases: [
+      '学历证书编号',
+      '学历编号',
+      '毕业证书编号',
+      '毕业证号',
+      '学位证书编号',
+      '学位编号',
+      '教师资格证编号',
+      '资格证编号',
+      '资格证号',
+      '执业证书编号',
+      '档案编号',
+      '驾驶证编号',
+      '电脑号',
+      '个人编号',
+      '保单号',
+      '出生证编号',
+      '出生证号',
+      '医学证明号',
+    ],
+  },
+  /**
    * 本人证件号这一档只收「这个人自己拿得出的证」。
    *
    * `统一社会信用代码` 一类写法**不许**加进来：第 3.5 层闸门对带人主体词的文本刻意豁免，
@@ -479,8 +544,9 @@ const ZH_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
    * 2026-10-17 缺口勘察补进来的四条按同一把尺子挑：**那一串数字本身就是这个人的证件号**。
    * 驾驶证号、回乡证号在中国都等于身份证号，`个人税号` / `个税号` 的纳税识别号同样是身份证号，
    * 所以提示到库里的证件号格是对的落点。按这把尺子，`学历证书编号`、`教师资格证编号`、
-   * `驾驶证档案编号`、`社保电脑号`、`保单号` **一律不收**——它们各自成串、都不等于身份证号，
-   * 提示成「证件号」会把人往身份证号上引（这一族每条都在账本里钉着「不出提示」）。
+   * `驾驶证档案编号`、`社保电脑号`、`保单号` **不许挂到这一档**——它们各自成串、都不等于身份证号，
+   * 提示成「证件号」会把人往身份证号上引。2026-10-18 起它们不再沉默，而是由上方那一档
+   * `serialNumber` 接住（库里没有那一格，落点是自定义字段）；这把尺子本身一字未改。
    * 因此这一档的短语**必须带「号」收口**：裸「驾驶证」会把车管所那串 12 位档案编号接走，
    * 裸「个税」会把薪酬表的「个税(元)」扣缴金额接走（同日评审回灌的两条误报）。
    */
@@ -641,6 +707,24 @@ function isZhNegative(phrase: string, zhHint: string): boolean {
  * 留出集的纯英文注册页实测整段漏报。
  */
 const EN_DICT: { role: PiiRole; phrases: readonly string[] }[] = [
+  // 编号族（2026-10-18），与中文侧同一把尺子：这一串不等于本人身份证号，所以不挂 `idNumber`，
+  // 而库里没有那一格→落点是自定义字段。短语一律带**证书 / 单据名 + number / no**收口，
+  // 不收录裸 `number`。`license number` / `licence number` 留在下面那档：英文站点上那一串
+  // 通常是驾驶证号，而中文表单里它等于身份证号（2026-10-17 已按这条拍板，本轮不动）。
+  // 排在证件号档之前与中文同形：`Birth Certificate Number` 既含 `certificate` 又含 `birth`，
+  // 两条档谁先命中必须是一个说得出口的顺序，而不是数组碰巧的形状。
+  {
+    role: 'serialNumber',
+    phrases: [
+      'serial number',
+      'certificate number',
+      'certificate no',
+      'diploma number',
+      'diploma no',
+      'policy number',
+      'policy no',
+    ],
+  },
   // 证件号排在卡类之前：`ID Card Number` 里就含着 `card number` 这个子串，按原顺序会被卡号档
   // 抢走，而那串正是「身份证号码」的直译（2026-10-17 覆盖面账本的英文侧漏报）。
   // 表内每条都带证件名词，`Credit Card Number` / `Debit Card Number` 里找不到 `id card`
@@ -1487,8 +1571,8 @@ function looksLikeLoginGroup(el: Element): boolean {
  * 组件库形状（AntD 行栅格、EP 一项两控件不发 `for`）下它是唯一剩下的线索，
  * 对一家银行开户页 88 枚控件实测「0 提示」就是这条漏报的现场。
  */
-/** 一律要求二次核对的角色：证件号 + 可提示的卡类三档（库内按高敏字段加密） */
-const VERIFY_ROLES: readonly PiiRole[] = ['idNumber', ...CARD_HINT_ROLES];
+/** 一律要求二次核对的角色：证件号 + 编号族 + 可提示的卡类三档（库内按高敏字段加密） */
+const VERIFY_ROLES: readonly PiiRole[] = ['idNumber', 'serialNumber', ...CARD_HINT_ROLES];
 
 export function resolvePiiField(el: Element): PiiVerdict {
   const raw = classifyPiiRaw(el);
@@ -1525,8 +1609,9 @@ export const NAME_KEYWORD_SCAN_LIMIT = 80;
  * 就近取一个「本人姓名」框的当前值，供身份库弹窗做搜索词
  *
  * 用户在表单里先打好的姓名是「这一份身份是谁」最强的现场证据，把它带进身份库当筛选词，
- * 点「从身份库选择」时看到的就是那一个人的条目，少一次手工检索。这是本功能**唯一**一条
- * 明文离开页面的通道，四条边界把它压在「只是搜索词」这个量级上：
+ * 点「从身份库选择」时看到的就是那一个人的条目，少一次手工检索。这是本功能唯一一条
+ * **取字段值**离开页面的通道（另一条 {@link hintFieldKeyword} 取的是字段名文本，不碰值），
+ * 四条边界把它压在「只是搜索词」这个量级上：
  *
  * 1. 候选只认 `role === 'name'` 且 `ownership === 'self'`——`confirm`（收货人可能是家属）是歧义、
  *    `other`（紧急联系人一定是别人）在 {@link resolvePiiField} 里已被整条压制，两者都不许反过来
@@ -1556,4 +1641,38 @@ export function selfNameValueNear(el: Element): string {
     if (value) return value;
   }
   return '';
+}
+
+/**
+ * 标签两侧的装饰符：必填星号与分隔符属于「这一格叫什么」之外的东西
+ *
+ * 中文表单最常写的是 `学历证书编号：` 与 `学历证书编号 *`。身份库的检索是「关键词是字段文本的
+ * 子串」，多出来的这两个字符会让一条更长的关键词永远匹配不上用户存的字段名——落点直接失效，
+ * 所以必须在发出去之前摘掉。只裁两端，不动中间（`出生日期（必填）` 中间那段仍是字段名的一部分）。
+ */
+const LABEL_DECORATIONS = /^[\s*＊:：、。.，,;；·—_-]+|[\s*＊:：、。.，,;；·—_-]+$/g;
+
+/**
+ * 取「这一格叫什么」当身份库搜索词（编号族专用的第二条取值通道）
+ *
+ * 编号族在库里没有对应的内置字段，用户存它的方式是自拟一条**自定义字段**——而自定义字段的
+ * 标签本身就参与检索（`composables/useIdentityVault.ts` 的 `collectSearchableFields`，
+ * 由 `tests/composables/useIdentityVault.test.ts` 钉住）。于是把页面上这段字段名原样发过去，
+ * 检索面就是用户自己起的那个名字：这一格叫什么 → 库里那条同名字段。
+ *
+ * 三条边界与 {@link selfNameValueNear} 同形，各挡一种越界：
+ * 1. **只读标签文本，永不读 `input.value`**——值是这个人的编号，出页面就是明文外溢；标签是
+ *    字段自报的元数据，本来就在 DOM 上。`placeholder` 也刻意不吃：那一串通常是「请输入…」，
+ *    拿去子串匹配用户自拟的字段名基本不可能命中，只会把检索框填成一句废话。
+ * 2. 只在用户点击「从身份库选择」那一刻调用（见 `IdentityHint` 的取值分派）。
+ * 3. 收口用同一个 `normalizeSearchKeyword`（trim + 64 字上限），与后台、选项页那两处同一把尺子；
+ *    装饰符先裁再收口，取不到标签时返回空串，由调用方把整包载荷收掉。
+ *
+ * @param el 用户当前聚焦的那个字段（气泡绑定的那一枚）
+ * @returns 这一格的字段名（裁过装饰符、限长），取不到时为空串
+ */
+export function hintFieldKeyword(el: Element): string {
+  const signals = collectPiiSignals(el);
+  const text = (signals.label || signals.groupLabel).replace(LABEL_DECORATIONS, '');
+  return normalizeSearchKeyword(text);
 }
