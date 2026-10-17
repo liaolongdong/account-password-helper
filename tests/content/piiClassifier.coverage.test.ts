@@ -234,7 +234,7 @@ const ORG_CREDENTIAL_CASES: readonly (readonly [label: string, why: string])[] =
   ['Business Registration Number', '港新对公注册号'],
   [
     'Business Licence Number',
-    '英联邦拼写的营业执照号：闸门内的词元只认美式 license 拼法，于是它被词典的 licence number 接走（评审回灌）',
+    '英联邦拼写的营业执照号：闸门词元原本写全 `business licens`，只认美式拼法，那一串于是被词典的 licence number 接走、提示成本人证件号；收到 `business licen` 之后由这道闸门压制（2026-10-17 评审回灌）',
   ],
   ['VAT Number', '欧盟增值税号'],
 ];

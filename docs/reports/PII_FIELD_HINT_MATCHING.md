@@ -134,14 +134,20 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
    对公表单里 `法定代表人证件号码`、柜面代办的 `经办人证件号码`、跨境清关的 `联系人证件号码`
    填的都是身份证号码，一起压掉等于把身份提示从最需要它的三张表上撤走。
 2. **直接串**（`ORG_CREDENTIAL_ZH` / `ORG_CREDENTIAL_EN`）次之：`统一社会信用代码` `纳税人识别号` `营业执照`
-   `组织机构代码` `金融许可证` `开户许可证` `登记证书` / `business registration` `tax registration`
-   `employer identification`(EIN) `value added tax` `vat number`。这些写法自己就足以判定是机构证照
+   `组织机构代码` `金融许可证` `开户许可证` `登记证书` / `business registration` `company registration`
+   `tax registration` `employer identification` `value added tax` `vat number` `vat id`。这些写法自己就足以判定是机构证照
    （`纳税人识别号` 里没有任何组织主体词，但中文表单上这一格问的从来不是个人税号）。
+   **`EIN` 这个缩写不在任何一张表里，也不该加**：这里的判据是 `includes` 子串匹配，三字母的 `ein`
+   会咬进 `meine` / `schein` / `Führerschein`（德语「我的 / 证 / 驾驶证」），把本人的证件框连坐压掉。
+   所以 W-9 上裸写 `EIN` 的那一格确实不出提示，但出口码是 `noRole`（词典不收），不是 `orgCredential`；
+   全称 `Employer Identification Number` 才由表里的 `employer identification` 压制。
 3. **共现档**兜组合：组织主体词（`机构` `公司` `企业` `单位` `组织` `团体` `营业` `资质` `法人` `股东` `经办`
-   `信用代码` `统一社会` / `company` `corporation` `organisation` `employer` `merchant` `business licens` `tax id`）
+   `信用代码` `统一社会` / `company` `corporation` `organisation` `employer` `merchant` `business licen` `tax id`）
    **与** 证照词（`证件` `证照` `执照` `登记号` `注册号` `许可证` `批准号` `备案号` `信用代码` `代码` `编号` /
    `licence` `license` `registration` `permit` `certificate` `identification number` `tax number` `reg no`）
    同时出现才压。单靠组织词会连坐（`公司名称` / `单位地址` 都该提示），单靠证照词也不对（`证件号码` 问的就是本人）。
+   英文那条组织词收到 `licen` 为止、不写全 `licens`：写全就漏掉英联邦拼法的 `Business Licence Number`，
+   那一串会被词典的 `licence number` 接走、提示成本人证件号（2026-10-17 评审回灌）。
 
 `org` 角色全程豁免：`公司名称` / `单位名称` / `雇主名称` 问的是组织叫什么，那是对的提示，不是误报。
 
@@ -343,9 +349,15 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 
 ## 7. 刻意不覆盖：宁可不提示，也不给一句「库里没有的东西」
 
+本节按写法逐条列「这一格为什么沉默」。**下面第三条要单独读**：编号族已于 2026-10-18 从沉默翻成
+会提示的 `serialNumber`，仍留在本节是因为它翻的是**落点**、没翻那把尺子（不许挂 `idNumber`）。
+
 - **机构主体的证照号**：`机构证件号码` `统一社会信用代码` `营业执照号码` `纳税人识别号` `组织机构代码`
-  `金融许可证编号` / `Company Tax Number` `EIN` `Business Registration Number` `Business Licence Number` `VAT Number`
-  （出口码 `orgCredential`；最后那条是 2026-10-17 评审回灌补上的英联邦拼法，见 §5.5）。
+  `金融许可证编号` `金融业务资质证件号码` / `Company Tax Number` `Employer Identification Number`
+  `Business Registration Number` `Business Licence Number` `VAT Number`（出口码 `orgCredential`。
+  `Business Licence Number` 那条是 2026-10-17 评审回灌补上的英联邦拼法，见 §5.5 第 3 条；
+  **裸缩写 `EIN` 也不出提示，但出口码是 `noRole` 不是 `orgCredential`**——它压根不在闸门词表里，
+  为什么不收进表见 §5.5 第 2 条）。
 - **单据号与金额**：`运单号` `快递单号` `保价金额` `建筑面积` `月平均缴费基数` `家庭月收入` `注册资本`
   / `Social Security Tax` `Medicare Levy` `Health Insurance Plan`（薪酬与险种页的金额 / 险种，英文侧同族误报，见 §5.5）。
 - **各证自成一串的「编号」族**：这一条**已于 2026-10-18 从「不覆盖」翻成 `serialNumber`**，

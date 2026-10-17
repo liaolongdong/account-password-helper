@@ -935,7 +935,12 @@ const CREDENTIAL_NOUNS_EN = [
  * 不用共现、自己就足以判定是机构证照的写法。
  *
  * `纳税人识别号` 里没有 ORG_SUBJECT_ZH 的任何一词，但中文表单上这一格问的从来不是
- * 个人税号，而是发票抬头那家公司的税号；`VAT Number` / `EIN` 同理。
+ * 个人税号，而是发票抬头那家公司的税号；`VAT Number` 同理，靠表里的 `vat number` 接住。
+ * 缩写 `EIN` **不在**这一张表里，也不该加：{@link orgCredentialHit} 用的是 `includes`
+ * 子串判据，三字母的 `ein` 会咬进 `meine` / `schein` / `Führerschein`（德语「我的 /
+ * 证 / 驾驶证」）这类高频词，把本人的证件框连坐压掉。所以美国 W-9 上裸写 `EIN` 的那一格
+ * 确实不出提示，但成因是「词典不收这个缩写」（出口码 `noRole`），不是这道闸门；
+ * 全称 `Employer Identification Number` 才由表里的 `employer identification` 压制。
  */
 const ORG_CREDENTIAL_ZH = [
   '统一社会信用代码',
