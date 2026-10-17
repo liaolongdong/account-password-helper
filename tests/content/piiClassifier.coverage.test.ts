@@ -219,8 +219,16 @@ const SCENE_CASES: readonly (readonly [label: string, role: string, why: string]
 ];
 
 /**
- * 必须保持沉默的写法：机构主体的证照号（不是屏幕前这个人的）与本库装不下的人口学字段。
- * `suppress` 为期望的出口码——它同时是「为什么这句没提示」的可归因答案。
+ * 机构主体的证照号：2026-10-18 起**从沉默翻成编号族**——闸门还在，挡的方向换了。
+ *
+ * 立闸那天 `serialNumber` 还不存在，「不声称它是本人证件号」的唯一出口就是干脆不出提示；
+ * 编号族补上之后，这一族有了「库里没有那一格，可在自定义字段里存下它」的落点（机构那一串
+ * 同样没有内置字段，而 `org` 档的「单位名称」早就在可提示词表里），所以命中之后判
+ * `serialNumber` 而不是 `NULL`。**闸门的本意一条没丢：这一族永远不许被词典接进 `idNumber`。**
+ *
+ * 拍板划的那条界线是**证据来自哪一层**：只有「这一格自己的标签文字或 name/id 属性」写明
+ * 机构证照时才给提示；机构字样只出现在 placeholder 或相邻块里时继续沉默——那两层的文本
+ * 未必是这一格在问什么（下面 `压制只吃弱线索时仍沉默` 那条用例钉住它）。
  */
 const ORG_CREDENTIAL_CASES: readonly (readonly [label: string, why: string])[] = [
   ['机构证件号码', '银行开户页的对公主体证照'],
@@ -230,11 +238,11 @@ const ORG_CREDENTIAL_CASES: readonly (readonly [label: string, why: string])[] =
   ['组织机构代码', '老式对公表单'],
   ['金融许可证编号', '银行业监管信息'],
   ['Company Tax Number', '海外对公税号'],
-  ['Employer Identification Number', '美国 W-9 的 EIN'],
+  ['Employer Identification Number', '美国 W-9 的 EIN 全称（裸缩写 `EIN` 另说，见 §5.5）'],
   ['Business Registration Number', '港新对公注册号'],
   [
     'Business Licence Number',
-    '英联邦拼写的营业执照号：闸门词元原本写全 `business licens`，只认美式拼法，那一串于是被词典的 licence number 接走、提示成本人证件号；收到 `business licen` 之后由这道闸门压制（2026-10-17 评审回灌）',
+    '英联邦拼写的营业执照号：闸门词元原本写全 `business licens`，只认美式拼法，那一串于是被词典的 licence number 接走、提示成本人证件号；收到 `business licen` 之后由这道闸门接住、判成编号族（2026-10-17 评审回灌）',
   ],
   ['VAT Number', '欧盟增值税号'],
 ];
@@ -363,23 +371,31 @@ describe('覆盖面：name 属性词元', () => {
   });
 });
 
-describe('机构主体的证照号：全层压制', () => {
-  it.each(ORG_CREDENTIAL_CASES)('「%s」不出提示（%s）', label => {
+describe('机构主体的证照号：改判编号族，但永不判成证件号', () => {
+  it.each(ORG_CREDENTIAL_CASES)('「%s」判成编号族（%s）', label => {
     const verdict = resolvePiiField(fieldWithLabel(label));
-    expect(verdict.role).toBeNull();
-    expect(verdict.suppress).toBe('orgCredential');
+    expect(verdict.role, '这一格该有提示').toBe('serialNumber');
+    expect(verdict.role, '不许把人往本人身份证号上引').not.toBe('idNumber');
+    expect(verdict.tier).toBe('label');
+    expect(verdict.suppress).toBeNull();
+    expect(verdict.needsVerify).toBe(true);
   });
 
-  it('压制发生在 label 层之前：同一条文本不会再被词典接走', () => {
+  it('改判发生在 label 词典之前：同一条文本不会再被 idNumber 那一档接走', () => {
     const verdict = resolvePiiField(fieldWithLabel('机构证件号码'));
-    expect(verdict.tier).toBeNull();
+    expect(verdict.role).toBe('serialNumber');
+    expect(verdict.evidence, '归因码仍要指向这道闸门，不能变成词典命中').toContain('org-cert');
   });
 
-  it('占位符里写着机构证照号时同样压制（即便标签像是本人证件号）', () => {
+  it('证据界线两侧对照：同一句话只写在占位符里时仍沉默，写进标签才给提示', () => {
     document.body.innerHTML = '<label>证件号码<input id="f" placeholder="机构证件号码"></label>';
-    const verdict = resolvePiiField(document.getElementById('f') as HTMLInputElement);
-    expect(verdict.role).toBeNull();
-    expect(verdict.suppress).toBe('orgCredential');
+    const phOnly = resolvePiiField(document.getElementById('f') as HTMLInputElement);
+    expect(phOnly.role, '占位符不是这一格在问什么，不许把它说成编号').toBeNull();
+    expect(phOnly.suppress).toBe('orgCredential');
+
+    document.body.innerHTML = '<label>机构证件号码<input id="f"></label>';
+    const labelHit = resolvePiiField(document.getElementById('f') as HTMLInputElement);
+    expect(labelHit.role).toBe('serialNumber');
   });
 });
 

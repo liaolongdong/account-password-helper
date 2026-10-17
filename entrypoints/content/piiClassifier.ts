@@ -1404,17 +1404,40 @@ export function classifyPiiRaw(el: Element): PiiRawClassification {
   if (enNegHit) return { ...base, role: null, tier: null, suppress: 'negative', evidence: `en-neg:${enNegHit}` };
 
   /**
-   * 3.5) 机构主体的证照号：屏幕前这个人没有「统一社会信用代码」可填。
+   * 3.5) 机构主体的证照号：判成编号族，永远不判成证件号。
    *
    * 抬到负向短语这一层、而不是留在两条弱线索里，是因为那条判据当初只兜组件库形状——
    * 而真机勘察里最常见的那枚 `机构证件号码` 挂的是**货真价实的 `<label for>`**，
    * 走的是 label 层，两道弱线索闸门一次都碰不到，于是它被词典的 `证件号` 接走、
    * 提示成本人的证件号。这一层按合起来的文本判（标签 + 占位符 + 属性），
-   * 所以无论机构字样出现在哪一格，结论都一样。
+   * 所以无论机构字样出现在哪一格，闸门都拦得住。
+   *
+   * 2026-10-18 的改动只在**出口**：立闸那天 `serialNumber` 还不存在，「不声称这是本人证件号」
+   * 的唯一出口就是整格沉默；编号族补上之后，这一族有了「库里没有那一格，可在自定义字段里
+   * 存下它」的落点（机构那串同样没有内置字段，而 `org` 档的「单位名称」早在可提示词表里），
+   * 于是命中改判 `serialNumber`。**闸门的本意一条没丢：这条文本永远不许走到词典那一层被接进
+   * `idNumber`**——出口仍然是这一层先决定，只是从 `null` 换成一个不声称证件号的角色。
+   *
+   * 拍板划的证据界线：**只有「这一格自己的标签文字或 name/id 属性」写明机构证照时才给提示**。
+   * 合串命中而两个强证据源各自落空，说明机构字样来自 placeholder（或组件库的相邻块，
+   * 那两层另有 `hasOrgSubject` 兜），而那一格自己的文字可能是「证件号码」——它问的就是本人的
+   * 身份证号，把它说成「编号、去自定义字段找」是另一种错，所以维持沉默。
    */
   const orgCredential = orgCredentialHit(zhHint, enHint);
   if (orgCredential) {
-    return { ...base, role: null, tier: null, suppress: 'orgCredential', evidence: `org-cert:${orgCredential}` };
+    const labelHit = orgCredentialHit(squeeze(toLower(s.label)), flatten(toLower(s.label)));
+    const attrHit = orgCredentialHit(squeeze(toLower(s.attr)), flatten(toLower(s.attr)));
+    const strongHit = labelHit ?? attrHit;
+    if (!strongHit) {
+      return { ...base, role: null, tier: null, suppress: 'orgCredential', evidence: `org-cert:${orgCredential}` };
+    }
+    return {
+      ...base,
+      role: 'serialNumber',
+      tier: labelHit ? 'label' : 'attr',
+      suppress: null,
+      evidence: `org-cert:${strongHit}`,
+    };
   }
 
   // 4) name/id 词元

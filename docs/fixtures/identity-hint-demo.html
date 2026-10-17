@@ -30,8 +30,11 @@
       - `data-suppress`：仅当 `data-expect="-"`，期望被哪条出口挡掉
         （`excluded` / `negative` / `account` / `card` / `ownership` / `loginGroup` / `noRole` / `orgCredential`）。
         其中 `orgCredential` 是 2026-10-17 抬到全层的一道闸门：机构主体的证照号（统一社会信用代码一类）
-        在任何线索层都不出提示，但它旁边写着「法定代表人 / 经办人 / 联系人 / 申请人」这类自然人时闸门不连坐，
-        那几行照常出证件号提示（见 ⑯ 区末尾的对照表）。
+        在任何线索层都不许被词典接进「本人证件号」。**2026-10-18 起它的出口换了**——机构字样写在
+        <strong>这一格自己的标签或 name/id 属性</strong>上时判成 `serialNumber`（编号族，落点是自定义字段），
+        只有来自 placeholder 或组件库相邻块时才仍走沉默（⑫ 区 `#k-a4` / ⑬ 区 `#k-p15` `#k-p16` 是那三行）。
+        而它旁边写着「法定代表人 / 经办人 / 联系人 / 申请人」这类自然人时闸门不连坐，
+        那几行照常出证件号提示（见 ⑯ 区的对照表）。
       个别字段另带 `data-owns="fill"`：分类器给了角色，但页面侧由让位规则交给快速填充那把钥匙，
       气泡不出现。让位成立要两条同时满足——这一框拿到了钥匙，**且**这一档是钥匙取得出值的
       （手机号 / 邮箱：它的面板只有账号那一类值）。判据长在 closed shadow 里，主世界看不见那枚图标，
@@ -1089,9 +1092,10 @@
         <code>ant-col-18</code> 控件块」，且 <code>&lt;label&gt;</code> 不写 <code>for</code>、input 不写
         <code>name</code>/<code>id</code>，语义只剩 <code>placeholder</code>。 那页绝大多数条目问的是
         <strong>机构</strong>而不是本人（机构证件号码 / 统一社会信用代码 / 金融业务资质证件号码 / 公司名称 /
-        注册资本）， 所以这一区同时是「弱线索放大之后会不会误报」的对照表：<code>#k-a4</code>
-        必须沉默（机构主体的证照号自 2026-10-17 起是<strong>全层闸门</strong>，不再只废弱线索， 出口码
-        <code>orgCredential</code>，同因还有 ⑬ 区的 <code>#k-p15</code> / <code>#k-p16</code>），
+        注册资本）， 所以这一区同时是「弱线索放大之后会不会误报」的对照表：<code>#k-a4</code> 必须沉默——它没有
+        <code>for</code>，「机构证件号码」那六个字<strong>不在这一格自己的标签或属性上</strong>，
+        闸门因此只拦不判（出口码 <code>orgCredential</code>，同因还有 ⑬ 区的 <code>#k-p15</code> /
+        <code>#k-p16</code>；把它改成 <code>&lt;label for&gt;</code> 就是 ⑯ 区那两行，判成编号族），
         <code>#k-a5</code> 要照常提示成单位名，<code>#k-a6</code> 的项里有省 / 市 / 区县 + 详情四枚载体，
         兄弟标签「地址」按<strong>一项一义</strong>（块内载体 &gt; 2 即视作用区标题）让位给占位符。
         <code>#k-a2</code>「证件号码」是这一区最要紧的一行：placeholder 里的「号码」二字会让<strong>旧的分桶</strong>
@@ -1251,10 +1255,13 @@
         <code>#k-p14</code>（label 写「联系电话」、placeholder 写「请输入邮箱」）报的是 phone 而不是 email。
         七条沉默行各守一种误报：验证码与搜索（负向短语先于一切正向词典）、<code>type=password</code>（结构性排除）、
         示例式占位符（没有词典短语）、账号语义（<code>name=user_account</code> 的词元守卫——placeholder
-        说「姓名」也不许把它救回来）、 以及机构主体的证件号码。 剩下三行是<strong>钥匙取得出值</strong>的那两档：
-        <code>#k-p3</code> 邮箱、<code>#k-p7</code> 手机号、<code>#k-p14</code> 联系电话在这一份文档里都拿到了钥匙，
-        于是标 <code>data-owns="fill"</code>； <code>#k-p6</code> 是页面回写的只读日期框，标
-        <code>data-nohint="readonly"</code>。
+        说「姓名」也不许把它救回来）、 以及机构主体的证件号码（<code>#k-p15</code> / <code>#k-p16</code>：
+        机构字样只写在 placeholder 上，这一格自己没说什么，闸门因此只拦不判）。
+        剩下三行是<strong>钥匙取得出值</strong>的那两档： <code>#k-p3</code> 邮箱、<code>#k-p7</code> 手机号、<code
+          >#k-p14</code
+        >
+        联系电话在这一份文档里都拿到了钥匙， 于是标 <code>data-owns="fill"</code>；
+        <code>#k-p6</code> 是页面回写的只读日期框，标 <code>data-nohint="readonly"</code>。
       </p>
       <div class="fields">
         <div class="field">
@@ -1833,21 +1840,23 @@
       </div>
 
       <div class="scene">
-        <div class="hd">机构证照号与「机构词旁边的自然人」（2026-10-17 抬到全层的那道闸门）</div>
+        <div class="hd">机构证照号与「机构词旁边的自然人」（2026-10-17 抬到全层的那道闸门，2026-10-18 改出口）</div>
         <p class="note">
-          前两行问的是<strong>主体</strong>的证照，任何一层线索都不给提示；后两行同一句里写着 法定代表人 /
-          经办人，问的是那个<strong>自然人</strong>，闸门不连坐。
+          前两行问的是<strong>主体</strong>的证照：这一格自己的标签就写明「机构证件号码 / 统一社会信用代码」，
+          所以闸门<strong>拦得住、也判得出</strong>——它不许被词典接进「本人证件号」，出口是编号族
+          <code>serialNumber</code>（库里没有那一格，可在自定义字段里存下它）。后两行同一句里写着 法定代表人 /
+          经办人，问的是那个<strong>自然人</strong>，闸门不连坐，照常出证件号提示。
           <code>#jg-zjhm</code> 是这条闸门唯一吃得到 <code>label</code> 层的形状——把它改成
-          <code>证件号码</code> 四个字，页面上一切线索都没有，只有这条标签，
-          所以它是「闸门只在弱线索层生效」旧实现的唯一反例。
+          <code>证件号码</code> 四个字、机构字样挪进 placeholder，就退回 ⑫⑬ 区那三行的沉默；
+          所以它是「闸门只在弱线索层生效」旧实现的唯一反例，也是 2026-10-18 那条证据界线的正例。
         </p>
         <div class="fields">
           <div class="field">
             <label for="jg-zjhm">机构证件号码</label>
             <input
               id="jg-zjhm"
-              data-expect="-"
-              data-suppress="orgCredential"
+              data-expect="serialNumber"
+              data-tier="label"
             />
           </div>
           <div class="field">
@@ -1855,8 +1864,8 @@
             <input
               id="jg-tyshxydm"
               maxlength="18"
-              data-expect="-"
-              data-suppress="orgCredential"
+              data-expect="serialNumber"
+              data-tier="label"
             />
           </div>
           <div class="field">
