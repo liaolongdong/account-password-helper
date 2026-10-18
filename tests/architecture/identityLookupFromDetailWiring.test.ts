@@ -213,13 +213,19 @@ describe('详情抽屉到身份库的跳转接线', () => {
     const empty = VAULT_DIALOG_SRC.match(/filteredRows\.length === 0[\s\S]*?<\/el-empty>/);
     expect(empty, '未找到「无匹配」空态那一块').toBeTruthy();
 
-    // 出路只解释原因、不承诺结果：文案取的是当前搜索词，用户能核对到底差的是哪个名字
-    expect(empty![0], '空态不再引用带上下文的说明文案').toMatch(/t\('identity\.noMatchHint'/);
-    expect(empty![0], '说明文案必须把搜索词插进去，否则等于没说').toMatch(/\{\s*keyword:\s*keyword\.trim\(\)\s*\}/);
+    // 三条判据各自钉一个**元素**，不共用一个正则：`v-if="keyword.trim()"` 在这一块里出现两次
+    // （说明行与出路按钮各一次），整块匹配会被另一处救活——变异实测只摘说明行那处时守卫照样绿。
+    const hint = empty![0].match(/<p\b[\s\S]*?class="identity-empty__hint"[\s\S]*?<\/p>/);
+    expect(hint, '空态里那行上下文说明不见了').toBeTruthy();
+    expect(hint![0], '空态不再引用带上下文的说明文案').toMatch(/t\('identity\.noMatchHint'/);
+    expect(hint![0], '说明文案必须把搜索词插进去，否则等于没说').toMatch(/\{\s*keyword:\s*keyword\.trim\(\)\s*\}/);
     // 引导只在「有搜索词」时出现：按类别筛空的那些形里，这句话会把人往错误的落点上引
-    expect(empty![0]).toMatch(/v-if="keyword\.trim\(\)"/);
-    // 出路按钮不许自带一套新的添加流程，必须走工具栏那枚同一条 `$emit('add')`
-    expect(empty![0], '空态的添加按钮绕开了工具栏那条事件，等于开出第二个入口').toMatch(/\$emit\('add'\)/);
+    expect(hint![0], '说明行不再受搜索词约束，会在纯类别筛选的空态里乱指路').toMatch(/v-if="keyword\.trim\(\)"/);
+
+    const addButton = empty![0].match(/<el-button\b[^>]*@click="\$emit\('add'\)"[\s\S]*?<\/el-button>/);
+    expect(addButton, '空态的添加按钮绕开了工具栏那条事件，等于开出第二个入口').toBeTruthy();
+    expect(addButton![0], '出路按钮不再受搜索词约束').toMatch(/v-if="keyword\.trim\(\)"/);
+    expect(addButton![0], '出路按钮的文案不再是工具栏那一句').toMatch(/\{\{ t\('identity\.add'\) \}\}/);
     for (const banned of [/decrypt/i, /encrypt/i, /localStorage/, /chrome\.storage/]) {
       expect(empty![0], `空态里出现了 ${banned.source}`).not.toMatch(banned);
     }
