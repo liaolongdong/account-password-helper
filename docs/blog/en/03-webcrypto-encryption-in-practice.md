@@ -85,4 +85,4 @@ Source and discussion: [the GitHub repository](https://github.com/liaolongdong/a
 
 ---
 
-_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (3588 automated tests, including encryption and re-key paths)._
+_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (3589 automated tests, including encryption and re-key paths)._
