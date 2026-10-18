@@ -89,6 +89,21 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
   await expect(searchInput(page)).toHaveValue('');
   await expect(cards(page)).toHaveCount(2);
   await expect(vaultDialog(page).locator('.identity-meta')).not.toContainText(numericTemplateOf('identity.matchCount'));
+
+  // ⑤ 零命中那一行：气泡把用户送到库里，而他从没建过那一格时，空态必须说清「差的是哪个名字」，
+  //    并给出与工具栏同一条添加出路。源码守卫只看接线，这句话是否真的渲染出来、
+  //    `{keyword}` 是否真的被插值，只有真浏览器量得到。
+  await searchInput(page).fill('e2e-no-such-field');
+  await expect(cards(page)).toHaveCount(0);
+  const empty = vaultDialog(page).locator('.identity-empty');
+  await expect(empty.locator('.identity-empty__hint')).toContainText('e2e-no-such-field');
+  await expect(empty.getByRole('button', { name: textOf('identity.add') })).toBeVisible();
+  await expect(empty.getByRole('button', { name: textOf('identity.clearFilters') })).toBeVisible();
+
+  // 词清掉之后列表必须回全量：出路不能把用户永久钉在空态里
+  await searchInput(page).fill('');
+  await expect(cards(page)).toHaveCount(2);
+  await expect(empty).toHaveCount(0);
 });
 
 test('抽屉跳转：取消主密码复验则库不打开，抽屉与已填内容都还在', async ({ optionsPage: page }) => {
