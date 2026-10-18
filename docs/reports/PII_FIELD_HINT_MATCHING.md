@@ -5,7 +5,7 @@
 > `tests/content/piiClassifier.coverage.test.ts` 的账本。
 >
 > 四个具体问题的答案分别在这些小节：
-> **「机构证件号码为什么不提示」** → §5.1；**「社保那张表没有 placeholder 的框为什么不提示」** → §5.2；
+> **「机构证件号码那一族现在提示成什么、什么时候仍沉默」** → §5.1；**「社保那张表没有 placeholder 的框为什么不提示」** → §5.2；
 > **「常见字段都覆盖了吗」** → §6 覆盖矩阵与 §7 刻意不覆盖清单；
 > **「学历证书编号那一类为什么从沉默翻成提示」** → §5.6。
 
@@ -53,18 +53,18 @@
 弱信号永不覆盖强信号。`classifyPiiRaw()` 按下列顺序返回，**第一个命中的层就是结论**，后面的层不再看
 （3.5 是本轮为机构证照号插入的一道闸门，源码里各处仍按 1…8 编号引用，所以它不占整数位）：
 
-| 层                 | 判据                                                                                                                                                                                                                                                                                                           | 命中后的 `tier` / `suppress`                       |
-| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| 1 结构性排除       | `type` ∈ `STRUCTURAL_EXCLUDE_TYPES`（hidden / password / submit / button / reset / image / checkbox / radio / range / color / file 共 11 枚）、`role="searchbox"`、祖先链 4 层内像搜索容器                                                                                                                     | `suppress='excluded'`                              |
-| 2 autocomplete     | 站点自声明：`CARD_AUTOCOMPLETE`（`cc-number` / `cc-exp` / `cc-csc` / `cc-name`）先，`AUTOCOMPLETE_MAP`（18 枚：`name` `given-name` `additional-name` `family-name` `bday` `sex` `street-address` `address-line1..2` `address-level1..3` `postal-code` `tel` `tel-national` `mobile` `email` `organization`）后 | `tier='autocomplete'`；卡类口令 `suppress='card'`  |
-| 3 负向短语         | `ZH_NEG`（带三条例外，见下）→ `EN_NEG`                                                                                                                                                                                                                                                                         | `suppress='negative'`                              |
-| 3.5 机构证照号     | `orgCredentialHit()`：屏幕前这个人没有「统一社会信用代码」可填                                                                                                                                                                                                                                                 | `suppress='orgCredential'`                         |
-| 4 `name`/`id` 词元 | `CARD_ATTR_DICT`（先，见 §4.1）→ `ACCOUNT_TOKENS` → `NEG_TOKENS` → `ATTR_DICT`（切词 + 逐来源整串粘连 + 修饰词剥离）                                                                                                                                                                                           | `tier='attr'` 或 `suppress='account'`/`'negative'` |
-| 5 label 文本       | `dictRoleOf()`：逐字相等档 → `ZH_DICT` 子串 → `EN_DICT` 子串                                                                                                                                                                                                                                                   | `tier='label'`                                     |
-| 6 同项兄弟标签     | `groupLabelOf()` 拿到的那段文字，再过三道闸（组织主体 / 负向自检 / 与 placeholder 矛盾）                                                                                                                                                                                                                       | `tier='group'` 或 `suppress='noRole'`              |
-| 7 placeholder      | `dictRoleOf(s.placeholder)`，但「机构主体 + 非 org 角色」不许自证                                                                                                                                                                                                                                              | `tier='placeholder'`                               |
-| 8 已输入值形状     | `^\d{17}[\dXx]$` → idNumber；`^1[3-9]\d{9}$` → phone；`email` 正则 → email                                                                                                                                                                                                                                     | `tier='value'`                                     |
-| 收口               | 各层全空                                                                                                                                                                                                                                                                                                       | `suppress='noRole'`                                |
+| 层                 | 判据                                                                                                                                                                                                                                                                                                           | 命中后的 `tier` / `suppress`                                          |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 1 结构性排除       | `type` ∈ `STRUCTURAL_EXCLUDE_TYPES`（hidden / password / submit / button / reset / image / checkbox / radio / range / color / file 共 11 枚）、`role="searchbox"`、祖先链 4 层内像搜索容器                                                                                                                     | `suppress='excluded'`                                                 |
+| 2 autocomplete     | 站点自声明：`CARD_AUTOCOMPLETE`（`cc-number` / `cc-exp` / `cc-csc` / `cc-name`）先，`AUTOCOMPLETE_MAP`（18 枚：`name` `given-name` `additional-name` `family-name` `bday` `sex` `street-address` `address-line1..2` `address-level1..3` `postal-code` `tel` `tel-national` `mobile` `email` `organization`）后 | `tier='autocomplete'`；卡类口令 `suppress='card'`                     |
+| 3 负向短语         | `ZH_NEG`（带三条例外，见下）→ `EN_NEG`                                                                                                                                                                                                                                                                         | `suppress='negative'`                                                 |
+| 3.5 机构证照号     | `orgCredentialHit()`：这条文本永远不许被词典接进本人 `idNumber`；命中后按**证据来源**分派（§5.1）                                                                                                                                                                                                              | 标签/属性写明 → `serialNumber`；仅弱线索 → `suppress='orgCredential'` |
+| 4 `name`/`id` 词元 | `CARD_ATTR_DICT`（先，见 §4.1）→ `ACCOUNT_TOKENS` → `NEG_TOKENS` → `ATTR_DICT`（切词 + 逐来源整串粘连 + 修饰词剥离）                                                                                                                                                                                           | `tier='attr'` 或 `suppress='account'`/`'negative'`                    |
+| 5 label 文本       | `dictRoleOf()`：逐字相等档 → `ZH_DICT` 子串 → `EN_DICT` 子串                                                                                                                                                                                                                                                   | `tier='label'`                                                        |
+| 6 同项兄弟标签     | `groupLabelOf()` 拿到的那段文字，再过三道闸（组织主体 / 负向自检 / 与 placeholder 矛盾）                                                                                                                                                                                                                       | `tier='group'` 或 `suppress='noRole'`                                 |
+| 7 placeholder      | `dictRoleOf(s.placeholder)`，但「机构主体 + 非 org 角色」不许自证                                                                                                                                                                                                                                              | `tier='placeholder'`                                                  |
+| 8 已输入值形状     | `^\d{17}[\dXx]$` → idNumber；`^1[3-9]\d{9}$` → phone；`email` 正则 → email                                                                                                                                                                                                                                     | `tier='value'`                                                        |
+| 收口               | 各层全空                                                                                                                                                                                                                                                                                                       | `suppress='noRole'`                                                   |
 
 **顺序里四处「调换就回归」的地方**（源码注释各钉了一条用例）：
 
@@ -115,7 +115,7 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 
 ## 5. 六案归因（都是真实漏报 / 误报，不是审美选择）
 
-### 5.1 「机构证件号码」——为什么必须沉默，以及旧行为错在哪
+### 5.1 「机构证件号码」——闸门拦的是什么，以及它的出口换过一次
 
 `证件号` / `证件号码` 都在 `ZH_DICT` 的 idNumber 档里，所以这句话本身是**认得的**。问题在于它认的是「谁的」：
 
@@ -123,8 +123,18 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
   「组件库形状下拿不到真标签，只能靠整项闭嘴」。而真机勘察里最常见的那枚 `机构证件号码`
   挂的是货真价实的 `<label for>`，走的是第 5 层 label 通道，**两道闸门一次都碰不到**，
   于是被词典接走、提示成**本人**的证件号——用错的身份填错框，是本功能唯一不可接受的误填形态。
-- **现实现**：抬成第 3.5 层闸门（`orgCredentialHit()`），吃的是 `label + placeholder + attr` 的合串，
-  所以机构字样出现在哪一格结论都一样。出口码 `orgCredential`，只进日志与单测，不进任何用户可见文案。
+- **现实现（2026-10-17）**：抬成第 3.5 层闸门（`orgCredentialHit()`），吃的是 `label + placeholder + attr` 的合串，
+  所以机构字样出现在哪一格都拦得住。出口码 `orgCredential`，只进日志与单测，不进任何用户可见文案。
+- **出口改判（2026-10-18）**：立闸那天 `serialNumber` 还不存在，「不声称它是本人证件号」的唯一出口就是
+  整格沉默。编号族补上之后这一族有了落点——机构那串同样没有内置字段（库里只有 11 个内置格），
+  而 `org` 档的「单位名称」早就在可提示词表里，所以「它是机构的、库里没有」这两条都不构成沉默的理由。
+  于是命中之后判 `serialNumber`：气泡说「编号」＋「库里没有这一格，可在自定义字段里存下它」，
+  深链带这一格自己的字段名。**闸门拦的方向一条没松：这条文本永远不许走到词典那一层被接进 `idNumber`**，
+  仍是 3.5 层先决定，只是出口从 `null` 换成一个不声称证件号的角色。
+- **界线画在证据来源上**（用户拍板的那一条）：只有机构字样写在**这一格自己的标签文字或 `name`/`id` 属性**
+  上才给提示。合串命中、但标签与属性各自落空时，说明机构字样来自 placeholder 或组件库的相邻块——
+  那一格自己可能正写着「证件号码」，它问的是本人身份证号，把它说成「编号、去自定义字段找」
+  是另一种错，所以维持沉默（出口码仍是 `orgCredential`）。演示台 ⑯ 区两行与 ⑫⑬ 区三行就是这条界线的两侧。
 
 三条出口按「先排除、再认串、最后共现」排：
 
@@ -133,6 +143,9 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
    `contact person` `applicant` `signatory`。这些词出现时问的是那个**自然人**的证件，闸门不许连坐——
    对公表单里 `法定代表人证件号码`、柜面代办的 `经办人证件号码`、跨境清关的 `联系人证件号码`
    填的都是身份证号码，一起压掉等于把身份提示从最需要它的三张表上撤走。
+   **兜住它们的是整词、不是词根**：`法人` 虽然在册，却不是 `法定代表人` 的子串（法**定**代表人），
+   2026-10-18 把这一行注释掉做变异时，`经办人证件号码` 翻成编号族而 `法定代表人证件号码` 仍由词典判
+   `idNumber`——真正拦住后者的是表里的 `法定代表人` 与 `法人证件` 两个整词，别把它们当成冗余摘掉。
 2. **直接串**（`ORG_CREDENTIAL_ZH` / `ORG_CREDENTIAL_EN`）次之：`统一社会信用代码` `纳税人识别号` `营业执照`
    `组织机构代码` `金融许可证` `开户许可证` `登记证书` / `business registration` `company registration`
    `tax registration` `employer identification` `value added tax` `vat number` `vat id`。这些写法自己就足以判定是机构证照
@@ -349,15 +362,18 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 
 ## 7. 刻意不覆盖：宁可不提示，也不给一句「库里没有的东西」
 
-本节按写法逐条列「这一格为什么沉默」。**下面第三条要单独读**：编号族已于 2026-10-18 从沉默翻成
-会提示的 `serialNumber`，仍留在本节是因为它翻的是**落点**、没翻那把尺子（不许挂 `idNumber`）。
+本节按写法逐条列「这一格为什么沉默」。**第一条与第三条要分开读**：编号族（第三条）已于
+2026-10-18 从沉默翻成会提示的 `serialNumber`，机构主体的证照号（第一条）同日把出口也换掉了——
+两条留在本节，是因为它们翻的都是**落点**，没翻各自那把尺子（前者不许挂 `idNumber`，
+后者永远不许被词典接进本人证件号）。
 
-- **机构主体的证照号**：`机构证件号码` `统一社会信用代码` `营业执照号码` `纳税人识别号` `组织机构代码`
-  `金融许可证编号` `金融业务资质证件号码` / `Company Tax Number` `Employer Identification Number`
-  `Business Registration Number` `Business Licence Number` `VAT Number`（出口码 `orgCredential`。
-  `Business Licence Number` 那条是 2026-10-17 评审回灌补上的英联邦拼法，见 §5.5 第 3 条；
-  **裸缩写 `EIN` 也不出提示，但出口码是 `noRole` 不是 `orgCredential`**——它压根不在闸门词表里，
-  为什么不收进表见 §5.5 第 2 条）。
+- **机构主体的证照号：只有弱线索那一侧仍沉默**。`机构证件号码` `统一社会信用代码` `营业执照号码`
+  `纳税人识别号` `组织机构代码` `金融许可证编号` `金融业务资质证件号码` / `Company Tax Number`
+  `Employer Identification Number` `Business Registration Number` `Business Licence Number` `VAT Number`
+  这些写法**写在标签或 `name`/`id` 属性上时判 `serialNumber`**（见 §5.1），同一句只出现在 placeholder
+  或组件库相邻块里时才仍走 `orgCredential` 沉默。`Business Licence Number` 那条是 2026-10-17 评审回灌
+  补上的英联邦拼法（§5.5 第 3 条）。**裸缩写 `EIN` 两种形状都不出提示，但出口码是 `noRole` 不是
+  `orgCredential`**——它压根不在闸门词表里，为什么不收见 §5.5 第 2 条。
 - **单据号与金额**：`运单号` `快递单号` `保价金额` `建筑面积` `月平均缴费基数` `家庭月收入` `注册资本`
   / `Social Security Tax` `Medicare Levy` `Health Insurance Plan`（薪酬与险种页的金额 / 险种，英文侧同族误报，见 §5.5）。
 - **各证自成一串的「编号」族**：这一条**已于 2026-10-18 从「不覆盖」翻成 `serialNumber`**，
@@ -419,16 +435,16 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 
 ## 9. 出口码表（只进日志与单测，不进用户可见文案）
 
-| `suppress`      | 谁给的                                              | 典型写法                                                 |
-| --------------- | --------------------------------------------------- | -------------------------------------------------------- |
-| `excluded`      | 第 1 层结构性排除                                   | `type="password"` / `hidden` / `checkbox` / 搜索框       |
-| `negative`      | 第 3 层负向短语、第 4 层负向词元                    | `用户名` / `验证码` / `物品名称` / `name="occupation"`   |
-| `orgCredential` | 第 3.5 层机构证照闸门                               | `机构证件号码` / `统一社会信用代码` / `VAT Number`       |
-| `account`       | 第 4 层账号词元守卫                                 | `name="user_account"` / `login_id`                       |
-| `card`          | 第 2 层卡类 autocomplete                            | `autocomplete="cc-csc"` / `cc-exp`                       |
-| `ownership`     | `resolvePiiField` 收口                              | 紧急联系人 / 担保人 / 受益人 / 配偶                      |
-| `loginGroup`    | `looksLikeLoginGroup`（最小字段组内有非卡类口令框） | 登录框与身份框同在一个 `<label>` 里                      |
-| `noRole`        | 各层全空，或弱线索闸门挡下                          | 空框 + 无标签；`机构主体` 的兄弟标签；两条弱线索互相矛盾 |
+| `suppress`      | 谁给的                                              | 典型写法                                                        |
+| --------------- | --------------------------------------------------- | --------------------------------------------------------------- |
+| `excluded`      | 第 1 层结构性排除                                   | `type="password"` / `hidden` / `checkbox` / 搜索框              |
+| `negative`      | 第 3 层负向短语、第 4 层负向词元                    | `用户名` / `验证码` / `物品名称` / `name="occupation"`          |
+| `orgCredential` | 第 3.5 层机构证照闸门的**弱线索那一侧**             | `<label>证件号码` + `placeholder="机构证件号码"` / 组件库相邻块 |
+| `account`       | 第 4 层账号词元守卫                                 | `name="user_account"` / `login_id`                              |
+| `card`          | 第 2 层卡类 autocomplete                            | `autocomplete="cc-csc"` / `cc-exp`                              |
+| `ownership`     | `resolvePiiField` 收口                              | 紧急联系人 / 担保人 / 受益人 / 配偶                             |
+| `loginGroup`    | `looksLikeLoginGroup`（最小字段组内有非卡类口令框） | 登录框与身份框同在一个 `<label>` 里                             |
+| `noRole`        | 各层全空，或弱线索闸门挡下                          | 空框 + 无标签；`机构主体` 的兄弟标签；两条弱线索互相矛盾        |
 
 ## 10. 加一档要改哪些落点
 
@@ -477,6 +493,10 @@ address 接走，单位名只收「除了公司词元没说别的」的字段）
 - **要不要支持逐站点关掉提示**：`penetrateShadow` 有「全局总闸 + 站点规则再关一次」的先例，
   身份提示没有。加它要动站点规则 JSON schema（该结构的导出版本按拍板保持 1）、导入导出与 UI 四列宽度，
   代价远大于「全局关一次」的收益，**同样留给用户拍板**，本轮不做。
+- **裸缩写 `EIN` 的沉默没有用例钉住**：2026-10-18 改判之后这一族的十一行都归到 `serialNumber`，
+  而 `EIN` 仍靠「词典不收 + 注释与本文记着」沉默（出口码 `noRole`，见 §5.5 第 2 条）。
+  往 `NOT_COVERED_CASES` 加一行就能钉住，代价是例数 +1 ⇒ 对外 35 处用例数位重刷 ＋ 一整轮门禁，
+  所以本轮只把差异记在这里，**加不加由用户拍板**。
 
 ## 12. 这份逻辑由哪些账本守着
 
