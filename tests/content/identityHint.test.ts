@@ -104,6 +104,23 @@ const keydown = (key: string, options: { composing?: boolean; alt?: boolean } = 
   return event;
 };
 
+/**
+ * 把文档级 `activeElement` 钉成指定值，返回还原函数
+ *
+ * closed 影子树内的焦点在文档层被**重定向为宿主元素**，这是 `IdentityHint` 判断
+ * 「焦点是不是还在气泡里」的唯一可靠信号（`focusout.relatedTarget` 跨影子边界时按规范
+ * 是 null，影子根的 `activeElement` 又不归 jsdom 维护）。jsdom 不会自动给出这个形状，
+ * 因此按真实浏览器语义桩它，而不是让被测代码去迁就测试环境。
+ */
+const installActiveElement = (get: () => Element | null): (() => void) => {
+  const own = Object.getOwnPropertyDescriptor(document, 'activeElement');
+  Object.defineProperty(document, 'activeElement', { configurable: true, get });
+  return () => {
+    delete (document as unknown as Record<string, unknown>).activeElement;
+    if (own) Object.defineProperty(document, 'activeElement', own);
+  };
+};
+
 describe('身份提示气泡', () => {
   let layout: DomLayout;
   let field: HTMLInputElement;
@@ -471,13 +488,98 @@ describe('身份提示气泡', () => {
 
     it('焦点只是移进气泡自己的按钮时不收（否则键盘永远进不了动作行）', () => {
       show('name');
-      const pick = bubbleRoot()?.querySelector('.aph-idh__btn--primary') as HTMLElement;
-      // closed 影子树的 activeElement 由宿主脚本侧读取，jsdom 不自动维护，按真实语义桩上
-      Object.defineProperty(shadow, 'activeElement', { configurable: true, get: () => pick });
+      const host = document.querySelector(HOST_SELECTOR) as HTMLElement;
+      const restore = installActiveElement(() => host);
+      try {
+        field.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+        expect(bubbleRoot()?.querySelector('.aph-idh')).not.toBeNull();
+      } finally {
+        restore();
+      }
+    });
 
-      field.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    /**
+     * 回归：焦点进过气泡之后再移出去，必须收（WCAG 2.4.11 之外的另一层理由——遗留下来的是
+     * 一枚 `position: fixed; z-index: 2147483647` 的浮层，挡住页面且只剩 Esc 一个出口）。
+     *
+     * 跨影子边界时文档层拿到的 `focusout.target` 是被重定向的**宿主**，不再是那个字段；
+     * 旧判据只认 `target === input`，因此这一支永远不落进收起路径。
+     */
+    it('焦点从气泡里移出去时收起（失焦目标是宿主，不是绑定字段）', () => {
+      show('name');
+      const host = document.querySelector(HOST_SELECTOR) as HTMLElement;
+      // 焦点已离开气泡：文档层 activeElement 不再是宿主
+      const restore = installActiveElement(() => document.body);
+      try {
+        host.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+        expectHidden();
+      } finally {
+        restore();
+      }
+    });
 
+    /**
+     * 回归：关闭气泡时如果焦点在气泡里，节点被移除会把文档焦点丢回 `<body>`，
+     * 用户在表单里的位置当场没了。归还给绑定字段是必须的，但归还动作自己会触发一次
+     * `focusin`，不作废它就会被 `FormDetector` 立刻把同一枚气泡画回来——Esc 成了按不动的键。
+     */
+    it('Esc 在焦点位于气泡时把焦点归还字段，且那次 focusin 不把气泡画回来', () => {
+      show('name');
+      const host = document.querySelector(HOST_SELECTOR) as HTMLElement;
+      const restore = installActiveElement(() => host);
+      const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+      focus.mockImplementation(() => {});
+      try {
+        document.dispatchEvent(keydown('Escape'));
+        expectHidden();
+        expect(focus.mock.contexts).toContain(field);
+
+        // 归还动作引发的那一次 focusin —— 本文件没有 FormDetector 的监听，因此以「调用方
+        // 在那一刻会做的事」代替：直接把同一枚字段再交给 showIdentityHint。它必须被作废，
+        // 否则 Esc 刚按下，归还动作就把同一枚气泡画回来，Esc 成了按不动的键。
+        show('name');
+        expectHidden();
+      } finally {
+        restore();
+        focus.mockRestore();
+      }
+
+      // 再往后用户真的又点回这一格，提示照常出现：作废只吃掉那一次，不留永久哑巴
+      show('name');
       expect(bubbleRoot()?.querySelector('.aph-idh')).not.toBeNull();
+    });
+
+    /**
+     * 回归：语言切换会整枚重建气泡，闭包里的旧节点当场脱离文档。
+     * 此前重定位与 `Alt+↓` 都还引用着那一枚——看得见的气泡不再跟滚动，键盘入口送出去的
+     * 焦点落在一个不在屏幕上的按钮上，两处都是静默失效。
+     */
+    it('语言切换后键盘入口与滚动重定位都落在新一枚上，不打到游离的旧节点', () => {
+      vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+      try {
+        show('name');
+        const staleBtn = bubbleRoot()?.querySelector('.aph-idh__btn--primary');
+        const staleBubble = bubbleRoot()?.querySelector('.aph-idh') as HTMLElement;
+
+        emitLocaleChange('en');
+        const freshBubble = bubbleRoot()?.querySelector('.aph-idh') as HTMLElement;
+        const freshBtn = freshBubble.querySelector('.aph-idh__btn--primary');
+        expect(freshBtn).not.toBe(staleBtn);
+
+        layout.setRect(field, { left: 100, top: 500, width: 240, height: 32 });
+        window.dispatchEvent(new Event('scroll'));
+        vi.advanceTimersByTime(16);
+        expect(freshBubble.style.top).toBe(`${500 + 32 + 6}px`);
+        expect(staleBubble.style.top).not.toBe(`${500 + 32 + 6}px`);
+
+        const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+        focus.mockImplementation(() => {});
+        document.dispatchEvent(keydown('ArrowDown', { alt: true }));
+        const contexts = focus.mock.contexts;
+        expect(contexts[contexts.length - 1]).toBe(freshBtn);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('重复展示不累积监听：三轮显示后语言订阅恒为一条，收起即归零', () => {

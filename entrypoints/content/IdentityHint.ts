@@ -21,7 +21,9 @@
  * - 单例：同一时刻最多一枚气泡，跟随当前聚焦字段重建；
  * - 键盘出口：`Esc` 收起；`Alt+↓` 把焦点送进气泡的动作行——宿主是挂在 `documentElement`
  *   末尾的 fixed 浮层，普通 `Tab` 会在到达按钮之前先触发字段失焦而把气泡收掉，
- *   所以键盘用户需要一条显式入口（否则提示读得到、按不到）；
+ *   所以键盘用户需要一条显式入口（否则提示读得到、按不到）。焦点一旦进过气泡，
+ *   **移出气泡同样收起**，收起时把焦点归还给绑定字段——不归还就等于把用户从表单里踢出来
+ *   （文档焦点落回 `<body>`，读屏锚点一起丢）；
  * - 动作按钮 `mousedown/pointerdown`  preventDefault，保持焦点留在页面字段上
  *   （否则点击即触发 blur，气泡在 click 落地前就被收掉）。
  *
@@ -53,6 +55,21 @@ let cleanups: (() => void)[] = [];
  * 每个 scroll 事件都跑一遍就是「读几何→写样式」逐帧交错强制回流（口径同 `FillAckChip`）。
  */
 let repositionRaf: number | null = null;
+/**
+ * 当前在屏的气泡节点与它的主动按钮
+ *
+ * 必须是模块状态而不是 `showIdentityHint` 的闭包变量：语言切换会整枚重建（`replaceChildren`），
+ * 闭包捕获的那一份当场成为游离节点——rAF 于是去重排一个不在屏幕上的节点（看得见的那枚不再跟滚动），
+ * `Alt+↓` 于是把一个焦点送给不在屏幕上的按钮（键盘入口静默失效）。
+ */
+let currentBubble: HTMLElement | null = null;
+let currentPickBtn: HTMLButtonElement | null = null;
+/**
+ * 该字段的下一次 `focusin` 由本模块的「焦点归还」自己触发，必须作废
+ *
+ * 按元素而不是按布尔量收口：归还的对象一定是刚被移除焦点的那枚字段，误伤面只有它自己。
+ */
+let suppressRefocus: HTMLElement | null = null;
 
 /** 气泡与字段的间距 */
 const GAP = 6;
@@ -217,11 +234,17 @@ function releaseCleanups(): void {
 /**
  * 隐藏并清空气泡内容（保留宿主以便复用）
  *
- * 收起路径有五条：字段失焦、Esc、用户点动作按钮、调用方显式收起、以及总闸在别的上下文里
- * 被拨到关（管理页/侧边栏的偏好设置弹窗写这份配置，由 `FormDetector` 的存储监听转调这里）。
- * 五条都走这里，保证监听与语言订阅不累积。
+ * 收起路径有六条：字段失焦、焦点从气泡里移出去、Esc、用户点动作按钮、调用方显式收起、以及
+ * 总闸在别的上下文里被拨到关（管理页/侧边栏的偏好设置弹窗写这份配置，由 `FormDetector`
+ * 的存储监听转调这里）。六条都走这里，保证监听与语言订阅不累积。
  */
 export function hideIdentityHint(): void {
+  // 焦点若在气泡里（键盘路径），移除持有焦点的节点会把焦点丢回 `<body>`——用户在表单里的
+  // 位置当场没了，且读屏软件失去锚点。判据取「文档级 activeElement 是否等于宿主」：closed
+  // 影子树内的焦点在文档层被重定向为宿主元素，这样既不依赖影子根 activeElement 的兼容性，
+  // 也不依赖 focusout 的 relatedTarget（跨影子边界时它按规范就是 null）。
+  const focusWasInside = document.activeElement === hostEl;
+  const input = boundInput;
   releaseCleanups();
   boundInput = null;
   boundRole = null;
@@ -230,14 +253,23 @@ export function hideIdentityHint(): void {
     const root = shadowRoot.getElementById('aph-idh-root');
     if (root) root.replaceChildren();
   }
+  currentBubble = null;
+  currentPickBtn = null;
+  if (focusWasInside && input?.isConnected) {
+    suppressRefocus = input;
+    input.focus();
+  }
 }
 
 /** 彻底拆除宿主（content script 卸载时调用） */
 export function destroyIdentityHint(): void {
-  hideIdentityHint();
-  hostEl?.remove();
+  // 先摘宿主引用：拆除路径不该再走「焦点归还」那一次副作用（`hideIdentityHint` 以
+  // `document.activeElement === hostEl` 认焦点在气泡里，hostEl 为 null 时自然跳过）。
+  const root = shadowRoot;
   hostEl = null;
   shadowRoot = null;
+  hideIdentityHint();
+  root?.host.remove();
 }
 
 /** 构造气泡内容节点（纯文本写入，绝不使用 innerHTML，字段值不进这里） */
@@ -360,6 +392,12 @@ function openIdentityVault(keyword: string): void {
  */
 export function showIdentityHint(input: HTMLElement, role: IdentityHintRole, needsVerify: boolean): void {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
+  // 「Esc / 点收起」把焦点归还给字段时触发的那一次 focusin 必须作废，否则归还动作自己
+  // 立刻把同一枚气泡画回来，Esc 就成了按不动的键。
+  if (suppressRefocus === input) {
+    suppressRefocus = null;
+    return;
+  }
   // 同一字段重复聚焦（如 Tab 回来）不重建，避免每次按键都闪一下
   if (boundInput === input && boundRole === role && boundNeedsVerify === needsVerify) return;
 
@@ -374,8 +412,9 @@ export function showIdentityHint(input: HTMLElement, role: IdentityHintRole, nee
 
   const bubble = buildBubble(role, needsVerify);
   root.replaceChildren(bubble);
+  currentBubble = bubble;
+  currentPickBtn = bubble.querySelector<HTMLButtonElement>('.aph-idh__btn--primary');
   position(bubble);
-  const pickBtn = bubble.querySelector<HTMLButtonElement>('.aph-idh__btn--primary');
 
   // 重定位走 rAF 节流：position() 先读 getBoundingClientRect/offset 再写 style.top/left，
   // 每个 scroll 事件同步跑一遍就是逐帧「读几何→写样式」强制回流（口径同 FillAckChip）。
@@ -384,13 +423,18 @@ export function showIdentityHint(input: HTMLElement, role: IdentityHintRole, nee
     repositionRaf = requestAnimationFrame(() => {
       repositionRaf = null;
       if (boundInput !== input) return;
-      position(bubble);
+      // 读当前在屏的那一枚，不读闭包里的初版（语言切换后初版已脱离文档）
+      if (currentBubble) position(currentBubble);
     });
   };
   const onBlur = (event: FocusEvent): void => {
+    // 收起的两个来源：绑定字段失焦，以及**焦点从气泡里移出去**（此时文档层看到的 target 是
+    // 被重定向的宿主，不再是那个字段——漏掉这一支会留下一枚无人认领的固定层最高 z-index 浮层，
+    // 只剩 Esc 能收，而用户未必知道 Esc 之外还有出口）。
+    if (event.target !== input && event.target !== hostEl) return;
     // 焦点只是移进气泡自己的按钮——不能收，否则键盘永远进不了动作行
-    if (shadowRoot?.activeElement) return;
-    if (event.target === input) hideIdentityHint();
+    if (document.activeElement === hostEl) return;
+    hideIdentityHint();
   };
   const onKeyDown = (event: KeyboardEvent): void => {
     if (event.isComposing) return;
@@ -401,17 +445,18 @@ export function showIdentityHint(input: HTMLElement, role: IdentityHintRole, nee
     // Alt+↓：把焦点送进气泡动作行。宿主挂在 documentElement 末尾且 fixed，
     // 普通 Tab 会先触发字段 focusout 而把气泡收掉，键盘用户因此没有到达按钮的自然路径
     //（WCAG 2.1.1）。用不与页面常见导航抢占的 Alt 组合键开一条显式入口。
-    if (event.altKey && event.key === 'ArrowDown' && pickBtn) {
+    if (event.altKey && event.key === 'ArrowDown' && currentPickBtn) {
       event.preventDefault();
-      pickBtn.focus();
+      currentPickBtn.focus();
     }
   };
   const offLocale = onLiteLocaleChanged(() => {
-    if (boundRole) {
-      root.replaceChildren(buildBubble(boundRole, boundNeedsVerify));
-      const next = root.firstElementChild;
-      if (next instanceof HTMLElement) position(next);
-    }
+    if (!boundRole) return;
+    const next = buildBubble(boundRole, boundNeedsVerify);
+    root.replaceChildren(next);
+    currentBubble = next;
+    currentPickBtn = next.querySelector<HTMLButtonElement>('.aph-idh__btn--primary');
+    position(next);
   });
 
   window.addEventListener('scroll', onScrollOrResize, true);
