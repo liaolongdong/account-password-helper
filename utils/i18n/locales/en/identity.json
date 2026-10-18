@@ -3,7 +3,7 @@
   "identity.verifyTitle": "Verify master password",
   "identity.verifyPrompt": "Enter your master password to view identity information:",
   "identity.add": "Add identity",
-  "identity.searchPlaceholder": "Search name, ID number, phone, card number…",
+  "identity.searchPlaceholder": "Search field names or values, e.g. ID number, card number",
   "identity.filter.all": "All",
   "identity.category.person": "Personal",
   "identity.category.id_card": "ID",

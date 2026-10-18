@@ -3,7 +3,7 @@
   "identity.verifyTitle": "验证主密码",
   "identity.verifyPrompt": "查看身份信息需要验证主密码，请输入主密码：",
   "identity.add": "添加身份信息",
-  "identity.searchPlaceholder": "搜索姓名、证件号、手机号、卡号等",
+  "identity.searchPlaceholder": "搜索字段名或内容，如证件号码、卡号",
   "identity.filter.all": "全部",
   "identity.category.person": "个人",
   "identity.category.id_card": "证件",

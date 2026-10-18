@@ -56,13 +56,22 @@ const { t, currentLocale } = useI18n();
 /** 类别过滤器取值（'all' 表示不过滤） */
 export type IdentityCategoryFilter = 'all' | IdentityCategory;
 
-/** 收集参与搜索匹配的全部字段文本（机密字段参与匹配但不高亮）；内置字段集以 IDENTITY_FIELD_DEFS 为单一事实来源 */
+/**
+ * 收集参与搜索匹配的全部字段文本——**列表上看得见的字，就是搜得到的字**。
+ *
+ * 值与字段名同进一个集合，交给同一个 `matchesKeyword`（子串优先，拼音预热后补全拼与首字母）：
+ * 自定义字段的名称与内容一直在检索面里（气泡深链落的就是名称），内置字段这一轮把**名字**补齐，
+ * 于是「搜银行卡号」问的就是「哪些条目有这一格」。名字只在字段有值时进集合，空格子不拉宽结果。
+ * 取当前界面语言的译名（与标签列显示的字同源），命中必然看得见高亮；不做跨语言兜底，
+ * 英文界面里搜中文页面上的字段名会零命中，由空态那一屏说出差的是哪个名字并给出入口。
+ * 机密字段的值参与匹配但默认打码（不高亮），口径与改造前一致。
+ */
 function collectSearchableFields(payload: IdentityPayload): string[] {
   const fields: string[] = [];
   for (const def of IDENTITY_FIELD_DEFS) {
     const value = payload[def.key];
-    if (typeof value === 'string') {
-      fields.push(value);
+    if (typeof value === 'string' && value) {
+      fields.push(value, t(`identity.field.${def.key}`));
     }
   }
   for (const field of payload.customFields ?? []) {

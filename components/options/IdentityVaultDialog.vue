@@ -223,9 +223,11 @@
             />
             <div class="identity-card__title">
               <SearchHighlight
+                v-if="keyword"
                 :text="displayTitle(entry)"
                 :keyword="keyword"
               />
+              <template v-else>{{ displayTitle(entry) }}</template>
               <el-tag
                 size="small"
                 effect="plain"
@@ -283,8 +285,24 @@
             <el-descriptions-item
               v-for="field in buildFieldRows(entry)"
               :key="field.key"
-              :label="field.label"
+              label-class-name="identity-field__label"
             >
+              <!--
+                标签列也走高亮：字段名进了检索面（搜「银行卡号」命中的就是这一格的名字），
+                命中处必须看得见，否则列表里出现一张毫无强调的卡，用户读不出它凭什么匹配。
+                三处高亮都挂 `v-if="keyword"` 并配纯文本出口——空关键词是本弹窗的常态，
+                按管理页表格的既有约定（`tests/architecture/optionsRenderIdentity.test.ts`）
+                不该为一段纯文本每格建一个组件实例；等价性由 `highlightSegments(text, '')`
+                恒等于单段非高亮文本来保证。
+              -->
+              <template #label>
+                <SearchHighlight
+                  v-if="keyword"
+                  :text="field.label"
+                  :keyword="keyword"
+                />
+                <template v-else>{{ field.label }}</template>
+              </template>
               <div class="identity-field">
                 <span
                   v-if="field.secret"
@@ -293,10 +311,11 @@
                   {{ isRevealed(entry.id) ? field.value : MASK }}
                 </span>
                 <SearchHighlight
-                  v-else
+                  v-else-if="keyword"
                   :text="field.value"
                   :keyword="keyword"
                 />
+                <template v-else>{{ field.value }}</template>
                 <el-button
                   :icon="CopyDocument"
                   :aria-label="t('common.copy')"

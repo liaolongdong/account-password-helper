@@ -1,6 +1,9 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { useIdentityVault } from '@/composables/useIdentityVault';
-import { currentLocale } from '@/utils/i18n';
+import { currentLocale, registerMessages, t, type Messages } from '@/utils/i18n';
+import { warmPinyinMatcher } from '@/utils/searchMatch/core';
+import zhIdentity from '@/utils/i18n/locales/zh-CN/identity.json';
+import enIdentity from '@/utils/i18n/locales/en/identity.json';
 import {
   getAllIdentity,
   getIdentityManualOrder,
@@ -26,6 +29,16 @@ import type { IdentityEntry, IdentityPayload, IdentitySortMode } from '@/utils/i
  * - teardown 连解密明文（rows）一起释放，列表弹窗关闭后 PII 不再驻留内存。
  * copy 等涉及 clipboard 的路径不在此覆盖（另有纯函数单测）。
  */
+
+/**
+ * 注册身份库命名空间（中英文）
+ *
+ * 「按字段名检索」这一族的判据就是语言包里的那 11 个译名，而 `t()` 对未注册 key 直接返回
+ * key 本身——不注册的话测的是 `identity.field.idNumber` 这串字符，不是屏上「证件号码」那三个字。
+ * options 入口的 bundle 静态注册同一份包（`utils/i18n/bundles/options.ts`），这里对齐它。
+ */
+registerMessages('zh-CN', zhIdentity as Messages);
+registerMessages('en', enIdentity as Messages);
 
 /**
  * `ElMessage` 桩：WxtVitest 不套 Element Plus 的 AutoImport 解析器，运行时它是裸标识符
@@ -450,11 +463,10 @@ describe('manual 档与 moveIdentity（手排换位）', () => {
     expect(vault.filteredRows.value.map(r => r.id)).toEqual(['c', 'a', 'b']);
     // 静默失败是这一例原本的形状：卡片已跟着手势落位，落盘却没成功，用户下次打开弹窗
     // 会看到顺序"复活"。不回滚内存顺序（弹回去比留一条提示更糟），但必须留下提示。
-    // 断的是 **key** 而不是文案：node 环境不加载语言包，`t()` 原样回吐 key（本文件其余
-    // 用例也只断 locale 参与的排序结果、从不断渲染后的字符串）。文案与中英文一致性由
-    // `tests/utils/i18nBundles.test.ts` 与语言包本身守。
+    // 断的是渲染后的文案：本文件顶部注册了身份库语言包（与 options 入口一致），生产里
+    // `ElMessage.warning` 拿到的就是这句中文，而不是 `identity.sort.saveFailed` 这个 key。
     expect(elMessage.warning).toHaveBeenCalledTimes(1);
-    expect(elMessage.warning).toHaveBeenCalledWith('identity.sort.saveFailed');
+    expect(elMessage.warning).toHaveBeenCalledWith(t('identity.sort.saveFailed'));
   });
 
   it('切走档位再切回、以及 teardown 之后，序位数组都保留', () => {
@@ -507,6 +519,63 @@ describe('自定义字段按字段名可检索（气泡深链的落点）', () =
     vault.rows.value = [customOnly('serial', '社保电脑号', 'SB-2019-0001', true)];
     vault.keyword.value = '社保电脑号';
     expect(vault.filteredRows.value.map(r => r.id)).toEqual(['serial']);
+  });
+});
+
+/**
+ * 内置字段名进检索面
+ *
+ * 自定义字段的「名称」早在检索面里，内置字段却只有「值」——同一片列表两套规则，
+ * 于是「搜银行卡号」这种最自然的用法在内置格子上是零命中，而零命中那一屏会建议用户
+ * 「建一条同名自定义字段」（见 `identity.noMatchHint`），把一个本来就有的格子指成了没有。
+ * 这一组把口径拉平成一句话：**列表上看得见的字，就是搜得到的字**。
+ * 名字只在对应字段有值时进集合，语义是「哪些条目有这一格」，空格子的名字不拉宽结果。
+ */
+describe('内置字段名可检索（屏上看得见的字都搜得到）', () => {
+  it('按内置字段名检索命中只填了那一格的条目', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('id', { idNumber: '440300' }), entry('other', { name: '张三' })];
+    vault.keyword.value = '证件号码';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['id']);
+  });
+
+  it('有值才进检索面：没有卡号的条目不因「银行卡号」这个名字被搜出来', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('name', { name: '张三' }), entry('addr', { address: '深圳市' })];
+    vault.keyword.value = '银行卡号';
+    expect(vault.filteredRows.value).toEqual([]);
+  });
+
+  it('名字与值同一条目内各自都是命中面（搜名字和搜值前缀拿到同一张卡）', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('card', { cardNo: '622202' })];
+    vault.keyword.value = '发卡行';
+    expect(vault.filteredRows.value).toEqual([]);
+    vault.keyword.value = '银行卡号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
+    vault.keyword.value = '6222';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
+  });
+
+  it('检索面跟的是屏上那一列的字：切英文界面后命中英文译名、不再命中中文译名', () => {
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('card', { cardNo: '622202' })];
+    vault.keyword.value = '银行卡号';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
+
+    currentLocale.value = 'en';
+    expect(vault.keyword.value).toBe('银行卡号');
+    expect(vault.filteredRows.value).toEqual([]);
+    vault.keyword.value = 'Card number';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
+  });
+
+  it('字段名的首字母缩写也能命中（拼音预热后与值同一套匹配口径）', async () => {
+    await warmPinyinMatcher();
+    const vault = useIdentityVault();
+    vault.rows.value = [entry('card', { cardNo: '622202' }), entry('other', { name: '张三' })];
+    vault.keyword.value = 'kh';
+    expect(vault.filteredRows.value.map(r => r.id)).toEqual(['card']);
   });
 });
 

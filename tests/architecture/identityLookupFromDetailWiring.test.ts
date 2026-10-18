@@ -3,7 +3,7 @@
  *
  * 这条跳转刻意**不做跨库关联**：用户名只当搜索词递给身份库，因此它没有数据模型可测，
  * 全部风险都落在接线形状上（按本仓惯例做源码扫描，见 `trashSearchWiring.test.ts`）。
- * 四个会被顺手拆掉的边界：
+ * 这些边界会被顺手拆掉（只编号、不记数，免得清单又比实现旧一格）：
  *
  * 1. **复验门槛不可绕过**：身份库含证件号/卡号等高敏 PII，开窗只有 `openIdentityVaultWithVerify`
  *    一个入口。新增入口直接 `showIdentityVaultDialog.value = true`，就等于给「会话已解锁但人离开
@@ -20,6 +20,9 @@
  * 5. **策略本身不可免验修改**：档位决定「打开身份库前问不问」。若改档位不需要证明知道
  *    主密码，坐在已解锁机器前的旁人只要把它拨到「跟随有效期」，门槛自身就当场变成免验通道。
  *    故设置弹窗的保存路径必须复验，且写入配置的地方只能有它一处。
+ * 6. **检索面与高亮面同源**：字段名进检索面的那一格，屏上就必须是高亮面——否则列表里出现一张
+ *    毫无强调的卡，用户读不出它凭什么匹配；反过来，标签列一旦改成只读 prop（`:label`），
+ *    命中就看不见，而检索仍然命中，等于把「搜得到但找不到」写回产品里。
  *
  * 另附外围：空用户名不得发起跳转（否则把空白搜索词当「全部结果」打开身份库），
  * 图标按钮必须带可读标签（无障碍），以及引用的 `options.detail.*` 文案在中英文语言包都在。
@@ -45,6 +48,14 @@ const stripComments = (src: string): string =>
     .split('\n')
     .filter(line => !line.trim().startsWith('//') && !line.trim().startsWith('*') && !line.trim().startsWith('/*'))
     .join('\n');
+
+/**
+ * 剔掉模板里的 HTML 注释块
+ *
+ * `stripComments` 按行首标记过滤，管不到 `<!-- … -->`，而身份库弹窗那段注释里就写着
+ * `v-if="keyword"` 这个串——留着的话「每处高亮都挂了关键词门」这条判据会读到解释而不是代码。
+ */
+const stripHtmlComments = (src: string): string => src.replace(/<!--[\s\S]*?-->/g, '');
 
 /** 取出某个箭头函数声明的函数体（到首个顶格 `};` 为止） */
 const functionBody = (src: string, name: string): string => {
@@ -229,6 +240,34 @@ describe('详情抽屉到身份库的跳转接线', () => {
     for (const banned of [/decrypt/i, /encrypt/i, /localStorage/, /chrome\.storage/]) {
       expect(empty![0], `空态里出现了 ${banned.source}`).not.toMatch(banned);
     }
+  });
+
+  it('字段名进了检索面，标签列就得是高亮面：命中处必须看得见，且空关键词不建实例', () => {
+    // 检索面：值与它当前界面语言的译名一起进集合，且**只在有值时**进——空格子的名字一旦也进，
+    // 「搜一个框名」就退化成「全库命中」，这一条判据把语义钉在「哪些条目有这一格」。
+    expect(VAULT_HOOK_SRC).toMatch(/fields\.push\(value, t\(`identity\.field\.\$\{def\.key\}`\)\)/);
+    expect(VAULT_HOOK_SRC, '字段名不该无条件进检索面').not.toMatch(/fields\.push\(t\(`identity\.field/);
+
+    const dialog = stripHtmlComments(VAULT_DIALOG_SRC);
+    expect(dialog, '标签列不再走高亮组件：搜字段名命中的格子屏上没有强调').toMatch(
+      /<template #label>[\s\S]*?:text="field\.label"[\s\S]*?<\/template>/,
+    );
+    // `:label` 与 `#label` 并存时插槽赢，那个 prop 是死代码，留着会让下一个人以为改它有效
+    expect(dialog, 'el-descriptions-item 上还挂着被插槽盖住的 :label').not.toMatch(/:label="field\.label"/);
+
+    const usages = [...dialog.matchAll(/<SearchHighlight\b[\s\S]*?\/>/g)].map(m => m[0]);
+    expect(usages.length, '身份库的高亮用法应为三处（标题 / 字段名 / 字段值），写法漂移时让守卫变红').toBe(3);
+    for (const usage of usages) {
+      expect(usage, '空关键词下这一格仍会建一个 SearchHighlight 实例').toMatch(/v-(?:if|else-if)="keyword"/);
+    }
+    const fallbacks = [...dialog.matchAll(/<template v-else>\{\{\s*([\w.()]+)\s*\}\}<\/template>/g)]
+      .map(m => m[1])
+      .sort();
+    expect(fallbacks, '每处高亮都要配一个纯文本出口，否则空关键词时那一格变空白').toEqual([
+      'displayTitle(entry)',
+      'field.label',
+      'field.value',
+    ]);
   });
 
   it('抽屉不持有身份库状态，也不引入身份加解密', () => {
