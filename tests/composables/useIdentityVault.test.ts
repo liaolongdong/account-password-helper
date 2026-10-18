@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { useIdentityVault } from '@/composables/useIdentityVault';
-import { currentLocale, registerMessages, t, type Messages } from '@/utils/i18n';
+import { currentLocale, registerMessages, type Messages } from '@/utils/i18n';
 import { warmPinyinMatcher } from '@/utils/searchMatch/core';
 import zhIdentity from '@/utils/i18n/locales/zh-CN/identity.json';
 import enIdentity from '@/utils/i18n/locales/en/identity.json';
@@ -466,7 +466,9 @@ describe('manual 档与 moveIdentity（手排换位）', () => {
     // 断的是渲染后的文案：本文件顶部注册了身份库语言包（与 options 入口一致），生产里
     // `ElMessage.warning` 拿到的就是这句中文，而不是 `identity.sort.saveFailed` 这个 key。
     expect(elMessage.warning).toHaveBeenCalledTimes(1);
-    expect(elMessage.warning).toHaveBeenCalledWith(t('identity.sort.saveFailed'));
+    // 取语言包真值，不取 `t(key)`：未注册时 `t()` 原样回吐 key，自指断言会恒成立——
+    // 直接读那份包既证「warning 收到的是渲染后的中文」，也证这棵树真的注册上了。
+    expect(elMessage.warning).toHaveBeenCalledWith((zhIdentity as Messages)['identity.sort.saveFailed']);
   });
 
   it('切走档位再切回、以及 teardown 之后，序位数组都保留', () => {
@@ -539,9 +541,13 @@ describe('内置字段名可检索（屏上看得见的字都搜得到）', () =
     expect(vault.filteredRows.value.map(r => r.id)).toEqual(['id']);
   });
 
-  it('有值才进检索面：没有卡号的条目不因「银行卡号」这个名字被搜出来', () => {
+  it('有值才进检索面：缺字段与空串两种形状都不因「银行卡号」这个名字被搜出来', () => {
     const vault = useIdentityVault();
-    vault.rows.value = [entry('name', { name: '张三' }), entry('addr', { address: '深圳市' })];
+    vault.rows.value = [
+      entry('name', { name: '张三' }), // 整格缺席（undefined）
+      entry('blank', { name: '李四', cardNo: '' }), // 空串——只有导入路径造得出来（utils/identity/backup.ts 收 '')
+      entry('addr', { address: '深圳市' }),
+    ];
     vault.keyword.value = '银行卡号';
     expect(vault.filteredRows.value).toEqual([]);
   });

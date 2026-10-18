@@ -52,8 +52,10 @@ const stripComments = (src: string): string =>
 /**
  * 剔掉模板里的 HTML 注释块
  *
- * `stripComments` 按行首标记过滤，管不到 `<!-- … -->`，而身份库弹窗那段注释里就写着
- * `v-if="keyword"` 这个串——留着的话「每处高亮都挂了关键词门」这条判据会读到解释而不是代码。
+ * 护的是那两条**跨行整段**判据——`<template #label>…<：text="field.label"…</template>` 与
+ * `<template v-else>{{ … }}</template>` 的出口清单：注释里只要写了一段「期望的模板形状」作说明，
+ * 整段匹配读到的就是解释而不是代码。三处 `<SearchHighlight … />` 用法块各自收口在 `/>`，
+ * 注释吸不进去，那条逐用法判据并不依赖本函数（变异对照做过：摘与不摘，三处读数一样）。
  */
 const stripHtmlComments = (src: string): string => src.replace(/<!--[\s\S]*?-->/g, '');
 
@@ -244,8 +246,12 @@ describe('详情抽屉到身份库的跳转接线', () => {
 
   it('字段名进了检索面，标签列就得是高亮面：命中处必须看得见，且空关键词不建实例', () => {
     // 检索面：值与它当前界面语言的译名一起进集合，且**只在有值时**进——空格子的名字一旦也进，
-    // 「搜一个框名」就退化成「全库命中」，这一条判据把语义钉在「哪些条目有这一格」。
-    expect(VAULT_HOOK_SRC).toMatch(/fields\.push\(value, t\(`identity\.field\.\$\{def\.key\}`\)\)/);
+    // 「搜一个框名」就退化成「全库命中」。这里钉的是**那一行连同它的门判据**，不是只钉 push：
+    // 光看 `fields.push(value, t(...))` 的话，把条件写成 `typeof value === 'string'`（空串也算有值）
+    // 照样过关，而那正是这条边界要挡的形状——空串只有导入路径造得出来，行为侧的用例已被它咬住（变异验过）。
+    expect(VAULT_HOOK_SRC, '名字的门判据不再要求「有值」：空的那一格会把它的名字也带进检索面').toMatch(
+      /if \(typeof value === 'string' && value\) \{\n\s*fields\.push\(value, t\(`identity\.field\.\$\{def\.key\}`\)\)/,
+    );
     expect(VAULT_HOOK_SRC, '字段名不该无条件进检索面').not.toMatch(/fields\.push\(t\(`identity\.field/);
 
     const dialog = stripHtmlComments(VAULT_DIALOG_SRC);
