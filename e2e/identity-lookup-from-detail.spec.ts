@@ -26,7 +26,9 @@ import {
  * ④ 抽屉与弹窗同屏共存时的收起时序；
  * ⑤ 零命中那一屏：气泡说「可在自定义字段里存下它」把人送进库里，若他从没建过那一格，
  *    空态必须把差的那个名字说出来（`{keyword}` 是否真被插值）并给出与工具栏同一条添加出路——
- *    这两点源码守卫证不了，只有真浏览器渲染得出来。
+ *    这两点源码守卫证不了，只有真浏览器渲染得出来；
+ * ⑥ 字段名检索的落点：把屏上那一列的名字喂回搜索框，命中要落在**标签列**的高亮上，
+ *    清空关键词后屏上不留高亮实例（EP 的 `#label` 插槽在 border 模式下是否真渲染，只有真机量得到）。
  *
  * 身份条目一律走真实表单录入：库里是整包密文（`encryptedPayload`），测试进程没有解密入口，
  * storage 后门造不出「已解锁会话下的身份条目」，也验证不到加解密链路。
@@ -107,6 +109,26 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
   await searchInput(page).fill('');
   await expect(cards(page)).toHaveCount(2);
   await expect(empty).toHaveCount(0);
+
+  // ⑥ 按字段名检索：把屏上那一列的名字原样喂回搜索框——中英两侧都不必硬编码文案。
+  //    判据分两半：命中的是「名字」而不是标题里的字（标题那一格不许有高亮），
+  //    而那一格的高亮必须真的落在标签列上——Element Plus 的 `#label` 插槽在 border 模式下
+  //    到底渲染不渲染，源码守卫证不了，只有真浏览器给得起答案。
+  const firstCard = cards(page).first();
+  const phoneLabel = firstCard.locator('.identity-field__label').nth(1);
+  const labelName = (await phoneLabel.innerText()).trim();
+  expect(labelName, '标签列读出来是空的：字段名那一格没渲染').not.toBe('');
+
+  await searchInput(page).fill(labelName);
+  await expect(cards(page)).toHaveCount(2);
+  await expect(cards(page).first().locator('.identity-field__label').nth(1).locator('.search-hit')).toHaveText(
+    labelName,
+  );
+  await expect(cards(page).first().locator('.identity-card__title .search-hit')).toHaveCount(0);
+
+  await searchInput(page).fill('');
+  await expect(cards(page)).toHaveCount(2);
+  await expect(cards(page).first().locator('.search-hit')).toHaveCount(0);
 });
 
 test('抽屉跳转：取消主密码复验则库不打开，抽屉与已填内容都还在', async ({ optionsPage: page }) => {
