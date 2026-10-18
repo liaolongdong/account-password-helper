@@ -30,9 +30,12 @@
       - `data-suppress`：仅当 `data-expect="-"`，期望被哪条出口挡掉
         （`excluded` / `negative` / `account` / `card` / `ownership` / `loginGroup` / `noRole` / `orgCredential`）。
         其中 `orgCredential` 是 2026-10-17 抬到全层的一道闸门：机构主体的证照号（统一社会信用代码一类）
-        在任何线索层都不许被词典接进「本人证件号」。**2026-10-18 起它的出口换了**——机构字样写在
-        <strong>这一格自己的标签或 name/id 属性</strong>上时判成 `serialNumber`（编号族，落点是自定义字段），
-        只有来自 placeholder 或组件库相邻块时才仍走沉默（⑫ 区 `#k-a4` / ⑬ 区 `#k-p15` `#k-p16` 是那三行）。
+        在任何线索层都不许被词典接进「本人证件号」。**2026-10-18 起它的出口换了两次**——第一次是
+        机构字样写在<strong>这一格自己的标签或 name/id 属性</strong>上时判成 `serialNumber`（编号族，
+        落点是自定义字段）；第二次把<strong>同项兄弟标签块</strong>也算进「这一格的名字」，因为用户真机
+        给的那枚框就是这一形：`<input k="field1" placeholder="请输入机构证件号码" class="ant-input">`，
+        标签写在兄弟块里、既没有 `for` 也没有 `name`/`id`。现在只剩「机构字样只出现在 placeholder 里」
+        这一种仍走沉默（⑬ 区 `#k-p15` / `#k-p16` 是那两行；⑫ 区 `#k-a4` 已翻到提示侧）。
         而它旁边写着「法定代表人 / 经办人 / 联系人 / 申请人」这类自然人时闸门不连坐，
         那几行照常出证件号提示（见 ⑯ 区的对照表）。
       个别字段另带 `data-owns="fill"`：分类器给了角色，但页面侧由让位规则交给快速填充那把钥匙，
@@ -1092,10 +1095,11 @@
         <code>ant-col-18</code> 控件块」，且 <code>&lt;label&gt;</code> 不写 <code>for</code>、input 不写
         <code>name</code>/<code>id</code>，语义只剩 <code>placeholder</code>。 那页绝大多数条目问的是
         <strong>机构</strong>而不是本人（机构证件号码 / 统一社会信用代码 / 金融业务资质证件号码 / 公司名称 /
-        注册资本）， 所以这一区同时是「弱线索放大之后会不会误报」的对照表：<code>#k-a4</code> 必须沉默——它没有
-        <code>for</code>，「机构证件号码」那六个字<strong>不在这一格自己的标签或属性上</strong>，
-        闸门因此只拦不判（出口码 <code>orgCredential</code>，同因还有 ⑬ 区的 <code>#k-p15</code> /
-        <code>#k-p16</code>；把它改成 <code>&lt;label for&gt;</code> 就是 ⑯ 区那两行，判成编号族），
+        注册资本）， 所以这一区同时是「弱线索放大之后会不会误报」的对照表：<code>#k-a4</code> 判成
+        <strong>编号族</strong>（<code>data-tier="group"</code>）——它虽然没有 <code>for</code>，但兄弟块里那句
+        「机构证件号码」<strong>就是这一格的名字</strong>（组件库行栅格的常态），深链取词读的也是同一句，
+        所以闸门命中之后照给提示；真正只剩占位符说话的两形在 ⑬ 区（<code>#k-p15</code> /
+        <code>#k-p16</code>），那里没有任何名字载体替它说话，仍走 <code>orgCredential</code> 沉默。
         <code>#k-a5</code> 要照常提示成单位名，<code>#k-a6</code> 的项里有省 / 市 / 区县 + 详情四枚载体，
         兄弟标签「地址」按<strong>一项一义</strong>（块内载体 &gt; 2 即视作用区标题）让位给占位符。
         <code>#k-a2</code>「证件号码」是这一区最要紧的一行：placeholder 里的「号码」二字会让<strong>旧的分桶</strong>
@@ -1179,8 +1183,8 @@
                   class="ant-input"
                   type="text"
                   placeholder="请输入机构证件号码"
-                  data-expect="-"
-                  data-suppress="orgCredential"
+                  data-expect="serialNumber"
+                  data-tier="group"
                 />
               </div>
             </div>
@@ -1846,9 +1850,11 @@
           所以闸门<strong>拦得住、也判得出</strong>——它不许被词典接进「本人证件号」，出口是编号族
           <code>serialNumber</code>（库里没有那一格，可在自定义字段里存下它）。后两行同一句里写着 法定代表人 /
           经办人，问的是那个<strong>自然人</strong>，闸门不连坐，照常出证件号提示。
-          <code>#jg-zjhm</code> 是这条闸门唯一吃得到 <code>label</code> 层的形状——把它改成
-          <code>证件号码</code> 四个字、机构字样挪进 placeholder，就退回 ⑫⑬ 区那三行的沉默；
-          所以它是「闸门只在弱线索层生效」旧实现的唯一反例，也是 2026-10-18 那条证据界线的正例。
+          <code>#jg-zjhm</code> 是这条闸门吃得到 <code>label</code> 层的形状——把它改成
+          <code>证件号码</code> 四个字、机构字样挪进 placeholder，就退回 ⑬ 区那两行的沉默；
+          机构字样挪进<strong>兄弟标签块</strong>（组件库行栅格）就是 ⑫ 区 <code>#k-a4</code> 那一行，
+          判成编号族、<code>tier="group"</code>。所以它是「闸门只在弱线索层生效」旧实现的唯一反例， 也是 2026-10-18
+          那条证据界线的正例。
         </p>
         <div class="fields">
           <div class="field">

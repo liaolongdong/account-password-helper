@@ -387,7 +387,7 @@ describe('机构主体的证照号：改判编号族，但永不判成证件号'
     expect(verdict.evidence, '归因码仍要指向这道闸门，不能变成词典命中').toContain('org-cert');
   });
 
-  it('证据界线两侧对照：同一句话只写在占位符里时仍沉默，写进标签才给提示', () => {
+  it('证据界线两侧对照：同一句话写进标签或同项兄弟块才给提示，只写在占位符里仍沉默', () => {
     document.body.innerHTML = '<label>证件号码<input id="f" placeholder="机构证件号码"></label>';
     const phOnly = resolvePiiField(document.getElementById('f') as HTMLInputElement);
     expect(phOnly.role, '占位符不是这一格在问什么，不许把它说成编号').toBeNull();
@@ -396,6 +396,27 @@ describe('机构主体的证照号：改判编号族，但永不判成证件号'
     document.body.innerHTML = '<label>机构证件号码<input id="f"></label>';
     const labelHit = resolvePiiField(document.getElementById('f') as HTMLInputElement);
     expect(labelHit.role).toBe('serialNumber');
+
+    // 用户真机给的那枚框：`<input k="field1" placeholder="请输入机构证件号码" class="ant-input">`
+    // ——AntD 行栅格，标签写在兄弟块里、既没有 `for` 也没有 `name`/`id`。兄弟块就是这一格的名字载体
+    // （深链那条取词通道本来也读它），所以这一形该有提示，而不是跟着占位符一起沉默。
+    document.body.innerHTML =
+      '<div class="ant-row ant-form-item"><div class="ant-col-6 ant-form-item-label">' +
+      '<label title="机构证件号码">机构证件号码</label></div>' +
+      '<div class="ant-col-18 ant-form-item-control-wrapper"><div class="ant-form-item-control">' +
+      '<div class="ant-form-item-children">' +
+      '<input id="f" class="ant-input" placeholder="请输入机构证件号码"></div></div></div></div>';
+    const groupHit = resolvePiiField(document.getElementById('f') as HTMLInputElement);
+    expect(groupHit.role, '兄弟块写着机构证照号，这一格该有提示').toBe('serialNumber');
+    expect(groupHit.tier).toBe('group');
+
+    // 兄弟块只写机构名（不是证照号）时仍由词典判单位名，闸门不连坐
+    document.body.innerHTML =
+      '<div class="ant-row ant-form-item"><div class="ant-col-6 ant-form-item-label">' +
+      '<label title="公司名称">公司名称</label></div>' +
+      '<div class="ant-col-18 ant-form-item-control-wrapper"><div class="ant-form-item-control">' +
+      '<div class="ant-form-item-children"><input id="f" class="ant-input"></div></div></div></div>';
+    expect(resolvePiiField(document.getElementById('f') as HTMLInputElement).role).toBe('org');
   });
 });
 

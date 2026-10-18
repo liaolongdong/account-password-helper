@@ -1422,23 +1422,26 @@ export function classifyPiiRaw(el: Element): PiiRawClassification {
    * 于是命中改判 `serialNumber`。**闸门的本意一条没丢：这条文本永远不许走到词典那一层被接进
    * `idNumber`**——出口仍然是这一层先决定，只是从 `null` 换成一个不声称证件号的角色。
    *
-   * 拍板划的证据界线：**只有「这一格自己的标签文字或 name/id 属性」写明机构证照时才给提示**。
-   * 合串命中而两个强证据源各自落空，说明机构字样来自 placeholder（或组件库的相邻块，
-   * 那两层另有 `hasOrgSubject` 兜），而那一格自己的文字可能是「证件号码」——它问的就是本人的
-   * 身份证号，把它说成「编号、去自定义字段找」是另一种错，所以维持沉默。
+   * 拍板划的证据界线：**只有机构字样落在「这一格的名字载体」上才给提示**——直连的 `<label>` 文本、
+   * `name` / `id` 属性，以及**同项兄弟标签块**（组件库行栅格 `<div class="ant-form-item-label">` 与
+   * 老式 `<table>` 的 `<td>` 标签格；那一格自己没有 `for` / `name` / `id` 时，兄弟块就是它的名字，
+   * 深链的取词通道 `hintFieldKeyword` 本来也读它）。三条都不命中、机构字样只剩 placeholder 时维持沉默：
+   * 占位符通常是「请输入…」那类示例文字，而那一格自己的文字可能是「证件号码」——它问的就是本人的
+   * 身份证号，把它说成「编号、去自定义字段找」是另一种错。
    */
   const orgCredential = orgCredentialHit(zhHint, enHint);
   if (orgCredential) {
     const labelHit = orgCredentialHit(squeeze(toLower(s.label)), flatten(toLower(s.label)));
     const attrHit = orgCredentialHit(squeeze(toLower(s.attr)), flatten(toLower(s.attr)));
-    const strongHit = labelHit ?? attrHit;
+    const groupHit = orgCredentialHit(squeeze(toLower(s.groupLabel)), flatten(toLower(s.groupLabel)));
+    const strongHit = labelHit ?? attrHit ?? groupHit;
     if (!strongHit) {
       return { ...base, role: null, tier: null, suppress: 'orgCredential', evidence: `org-cert:${orgCredential}` };
     }
     return {
       ...base,
       role: 'serialNumber',
-      tier: labelHit ? 'label' : 'attr',
+      tier: labelHit ? 'label' : attrHit ? 'attr' : 'group',
       suppress: null,
       evidence: `org-cert:${strongHit}`,
     };
