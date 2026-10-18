@@ -97,13 +97,11 @@ export interface IdentityEntry extends IdentityRecord {
 }
 
 /**
+/**
  * 回收站恢复的分档结果
  *
- * 存在的全部理由：调用方（回收站弹窗）原先无条件弹「已恢复」，而本模块在
- * 「请求的 id 已不在回收站」（用户看列表期间 24h 到期清理刚好跑过）与「主列表已有同 id、
- * 只消费副本」两种情况下确实什么都没恢复。返回计数让弹窗能说清是哪一种，
- * 而不是把空操作报成成功。密码库侧 `TrashRestoreResult` 同形状不同名，
- * 两侧刻意不共用读写模块（见 identityTrashManager 头部）。
+ * 与密码库 `TrashRestoreResult` 同形状、不同名（两侧读写模块刻意不共用，理由与
+ * 「为什么返回计数而不是抛错」的完整说明住在那一处的注释里，不在这儿复述一遍）。
  */
 export interface IdentityTrashRestoreResult {
   /** 真正追加回主列表的条数 */

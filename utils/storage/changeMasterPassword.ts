@@ -26,11 +26,19 @@ const _getSessionManager = lazyImport(() => import('@/utils/sessionManager-stora
  * 快照与盘上是否已不一致（只比顺序与身份键，不比密文内容）
  *
  * 供 rekey 在整数组覆写前复验：五个数据域的所有写路径都保序（追加或 filter），
- * 因此长度或同下标的身份键发生变化，就是「快照在重加密期间被并发写过期」的充分信号。
+ * 因此长度或同下标的身份键发生变化，就是「快照在重加密期间被并发写过期」的信号。
+ *
+ * **这套键只抓得到一部分并发写，别把它当成全部**：它抓得到增删、重排、条目编辑
+ * （推高 `updateTime`）与回收站重进站（改 `deletedAt`）；抓不到的是收藏 / 备注这类
+ * **刻意传入原 `updateTime`** 的元数据写（见 `passwordCrud.updatePassword` 的注释——
+ * 收藏不该把条目顶到列表前部），内容变了而键没变，第 11 步的整数组覆写照样会把它抹掉。
+ * 要补全这一半，要么给元数据写另设一个明文可比较的版本号，要么把那五个域的覆写改成
+ * 按 id 的增量合并；两条都比本轮的「先止住最坏那种（记录凭空消失 / 已删 PII 复活）」更贵，
+ * 因此如实记在这儿，不当作已解决。
  *
  * @param snapshot 步骤 3 读到的快照
  * @param fresh 覆写前重读到的当前值
- * @param keyOf 该域的身份键（必须能区分「同 id 被改过」与「同 id 重新进站」）
+ * @param keyOf 该域的身份键，须能区分同下标上的增删与内容编辑（回收站两域带 `deletedAt`）
  */
 function isSnapshotStale<T>(snapshot: T[], fresh: T[], keyOf: (item: T) => string): boolean {
   if (snapshot.length !== fresh.length) return true;

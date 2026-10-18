@@ -145,10 +145,9 @@ export async function moveIdentitiesToTrash(ids: string[]): Promise<void> {
  * 恢复受 `MAX_IDENTITIES` 总量守卫——整批要么全恢复要么一条都不动，
  * 「恢复了 5 条中的 2 条」会让回收站看起来没清空，用户无法判断还剩哪些。
  *
- * 计数原样返回而不抛错：`restored === 0 && skippedExisting === 0` 意味着请求的 id
- * 已经不在回收站里（最常见的是弹窗打开后 24h 到期清理恰好跑过），这是一次**空操作**
- * 而不是异常，静默 return 会让调用方把它报成「已恢复」。谁都不该在数据没动的时候
- * 弹成功提示，所以这两个计数交给调用方分流（没恢复的条数由调用方按 `ids.length` 自行推得）。
+ * 返回计数而不抛错的完整理由见密码库 `restoreFromTrash`（两侧刻意不共用读写代码，
+ * 但这一条口径是同一条）：`restored === 0 && skippedExisting === 0` 是一次**空操作**，
+ * 静默 return 会让调用方把它报成「已恢复」。
  *
  * @param ids 要恢复的条目 ID 列表
  * @returns `restored`（真的回到主列表的条数）与 `skippedExisting`（主列表已有同 id，仅消费副本）
