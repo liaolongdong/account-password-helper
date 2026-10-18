@@ -105,8 +105,8 @@ function parseStaticSlide(html: string, file: string): StaticSlide {
   expect(block, `${file} 的 #carouselTrack 里没有静态首帧（缩进或排版一变就解析不到）`).not.toBeNull();
   const inner = block![1];
 
-  const img = /<img src="([^"]+)" alt="([^"]*)" loading="lazy" \/>/.exec(inner);
-  expect(img, `${file} 静态首帧的 <img> 不是规范形状（src/alt/loading 三属性一行写齐）`).not.toBeNull();
+  const img = /<img src="([^"]+)" alt="([^"]*)"(?:\s+width="\d+"\s+height="\d+")?\s+loading="lazy" \/>/.exec(inner);
+  expect(img, `${file} 静态首帧的 <img> 不是规范形状（src/alt/可选宽高/loading 一行写齐）`).not.toBeNull();
   const h3 = /<h3 data-i18n="([^"]+)">([\s\S]*?)<\/h3>/.exec(inner);
   expect(h3, `${file} 静态首帧缺少带 data-i18n 的 <h3>`).not.toBeNull();
   const p = /<p data-i18n="([^"]+)">([\s\S]*?)<\/p>/.exec(inner);
@@ -149,10 +149,10 @@ describe('落地页不执行 JS 时的可见内容', () => {
   it('首帧截图按页语言取对应那一套，且文件真实存在', () => {
     for (const { file, lang, label } of PAGES) {
       const slide = parseStaticSlide(readPage(file), file);
-      expect(slide.src, `${label} 首帧应当指向 cws-store 里的产品截图`).toMatch(/^\.\/assets\/cws-store\/.+\.png$/);
+      expect(slide.src, `${label} 首帧应当指向 cws-store 里的产品截图`).toMatch(/^\.\/assets\/cws-store\/.+\.webp$/);
       // 与页内 `shotFile()` 同一条规则：英文页必须声明 `-en` 那一张，否则英文富结果挂中文图
       expect(slide.src, `${label} 的首帧截图语言不匹配`).toBe(
-        `./assets/cws-store/screen-1-one-click-login${lang === 'en' ? '-en' : ''}.png`,
+        `./assets/cws-store/screen-1-one-click-login${lang === 'en' ? '-en' : ''}.webp`,
       );
       expect(existsSync(path.join(ROOT, slide.src)), `${label} 首帧截图指向不存在的文件：${slide.src}`).toBe(true);
     }

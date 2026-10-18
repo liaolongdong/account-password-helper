@@ -28,6 +28,7 @@
     "analyze:firefox": "ANALYZE=true wxt build -b firefox",
     "icons:build": "node scripts/generate-icons.mjs",
     "web:build": "node scripts/build-web-assets.mjs",
+    "assets:webp": "node scripts/build-webp-assets.mjs",
     "covers:render": "node scripts/render-blog-covers.mjs",
     "store-creatives:render": "node scripts/render-store-creatives.mjs",
     "cws:preflight": "node scripts/cwsPublish.mjs preflight --ids-optional",
@@ -97,11 +98,7 @@
     "wxt": "^0.20.27"
   },
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "spawn-sync"
-    ],
+    "onlyBuiltDependencies": ["esbuild", "sharp", "spawn-sync"],
     "overrides": {
       "shell-quote": "~1.11.0",
       "tmp": ">=0.2.7",
@@ -112,16 +109,9 @@
     }
   },
   "lint-staged": {
-    "*.{ts,vue,js}": [
-      "eslint --fix",
-      "prettier --write"
-    ],
-    "*.{css,scss,vue}": [
-      "stylelint --fix"
-    ],
-    "*.{json,md}": [
-      "prettier --write"
-    ]
+    "*.{ts,vue,js}": ["eslint --fix", "prettier --write"],
+    "*.{css,scss,vue}": ["stylelint --fix"],
+    "*.{json,md}": ["prettier --write"]
   },
   "keywords": [
     "password-manager",

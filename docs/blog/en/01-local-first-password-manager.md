@@ -3,12 +3,12 @@ title: Why I Built a Local-First Password Manager
 description: A local-first, open-source Chrome password manager for developers juggling dev, test, staging and prod accounts. No account, no sync server, no cloud trust.
 tags: password manager,browser extension,open source,chrome extension,local-first
 date: 2026-08-28
-modified: 2026-10-13
+modified: 2026-10-18
 author: liaolongdong
 image: imgs/blog-cover-01-local-first.png
 ---
 
-![Account Password Helper core value overview](imgs/01-infographic-core-value.png)
+![Account Password Helper core value overview](imgs/01-infographic-core-value.webp)
 
 I keep four accounts for the same admin system: dev, test, staging, and prod. Chrome's built-in password manager treats them all as "the same site" and fills in whichever one it feels like. Bitwarden can match URLs precisely, sure — but it only _fills_. After filling, I still tick the terms checkbox myself, click the login button myself, and switch to my phone to copy a 2FA code.
 
@@ -70,7 +70,7 @@ An honest disclaimer too: **this tool is positioned for development, testing, an
 
 ## Who It's For
 
-![Feature overview for developers and QA engineers](imgs/03-infographic-dev-features.png)
+![Feature overview for developers and QA engineers](imgs/03-infographic-dev-features.webp)
 
 - **Developers** — environment isolation + one-click login, dozens fewer clicks per day;
 - **QA engineers** — switch test accounts fast across environments;

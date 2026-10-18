@@ -7,9 +7,241 @@
       content="width=device-width, initial-scale=1.0"
     />
     <title>账号密码管理助手 - 设置</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        background: #f5f7fa;
+      }
+
+      #app {
+        min-height: 100vh;
+      }
+
+      /* Options 首屏骨架：i18n / storage 初始化期间填补空白，Vue 挂载到 #app 时整体替换 */
+      #app-loading {
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+        background: #f5f7fa;
+      }
+
+      .sk-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        padding: 24px 32px;
+        background: linear-gradient(135deg, #e8eef8 0%, #f5f7fa 100%);
+      }
+
+      .sk-brand {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .sk-logo {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+      }
+
+      .sk-title {
+        width: 148px;
+        height: 16px;
+        border-radius: 4px;
+      }
+
+      .sk-subtitle {
+        width: 96px;
+        height: 11px;
+        margin-top: 8px;
+        border-radius: 4px;
+      }
+
+      .sk-header-actions {
+        display: flex;
+        gap: 12px;
+      }
+
+      .sk-pill {
+        width: 92px;
+        height: 32px;
+        border-radius: 6px;
+      }
+
+      .sk-body {
+        width: min(1180px, calc(100% - 48px));
+        margin: 0 auto;
+        padding: 0 0 40px;
+      }
+
+      .sk-toolbar {
+        display: flex;
+        gap: 12px;
+        margin: 0 0 16px;
+      }
+
+      .sk-search {
+        flex: 1;
+        height: 36px;
+        max-width: 420px;
+        border-radius: 6px;
+      }
+
+      .sk-toolbar .sk-pill {
+        width: 108px;
+        height: 36px;
+      }
+
+      .sk-card {
+        padding: 16px;
+        background: #fff;
+        border: 1px solid #eceff4;
+        border-radius: 10px;
+        box-shadow: 0 2px 12px rgb(15 23 42 / 4%);
+      }
+
+      .sk-row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        padding: 14px 8px;
+        border-bottom: 1px solid #f1f3f6;
+      }
+
+      .sk-row:last-child {
+        border-bottom: 0;
+      }
+
+      .sk-cell {
+        height: 12px;
+        border-radius: 4px;
+      }
+
+      .sk-cell--sm {
+        width: 12%;
+      }
+
+      .sk-cell--md {
+        width: 24%;
+      }
+
+      .sk-cell--lg {
+        width: 34%;
+      }
+
+      .sk-cell--grow {
+        flex: 1;
+      }
+
+      .sk-block {
+        background: #e8ecf2;
+        animation: sk-pulse 1.5s ease-in-out infinite;
+      }
+
+      /* 行内块错峰，避免整屏同一节奏闪烁 */
+      .sk-row:nth-child(2) .sk-block {
+        animation-delay: 0.12s;
+      }
+
+      .sk-row:nth-child(3) .sk-block {
+        animation-delay: 0.24s;
+      }
+
+      .sk-row:nth-child(4) .sk-block {
+        animation-delay: 0.36s;
+      }
+
+      @keyframes sk-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+
+        50% {
+          opacity: 0.45;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .sk-block {
+          animation: none;
+        }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app">
+      <div
+        id="app-loading"
+        aria-hidden="true"
+      >
+        <div class="sk-header">
+          <div class="sk-brand">
+            <div class="sk-block sk-logo"></div>
+            <div>
+              <div class="sk-block sk-title"></div>
+              <div class="sk-block sk-subtitle"></div>
+            </div>
+          </div>
+          <div class="sk-header-actions">
+            <div class="sk-block sk-pill"></div>
+            <div class="sk-block sk-pill"></div>
+            <div class="sk-block sk-pill"></div>
+          </div>
+        </div>
+        <div class="sk-body">
+          <div class="sk-toolbar">
+            <div class="sk-block sk-search"></div>
+            <div class="sk-block sk-pill"></div>
+            <div class="sk-block sk-pill"></div>
+          </div>
+          <div class="sk-card">
+            <div class="sk-row">
+              <div class="sk-block sk-cell sk-cell--sm"></div>
+              <div class="sk-block sk-cell sk-cell--md"></div>
+              <div class="sk-block sk-cell sk-cell--lg"></div>
+              <div class="sk-block sk-cell sk-cell--grow"></div>
+            </div>
+            <div class="sk-row">
+              <div class="sk-block sk-cell sk-cell--sm"></div>
+              <div class="sk-block sk-cell sk-cell--md"></div>
+              <div class="sk-block sk-cell sk-cell--lg"></div>
+              <div class="sk-block sk-cell sk-cell--grow"></div>
+            </div>
+            <div class="sk-row">
+              <div class="sk-block sk-cell sk-cell--sm"></div>
+              <div class="sk-block sk-cell sk-cell--md"></div>
+              <div class="sk-block sk-cell sk-cell--lg"></div>
+              <div class="sk-block sk-cell sk-cell--grow"></div>
+            </div>
+            <div class="sk-row">
+              <div class="sk-block sk-cell sk-cell--sm"></div>
+              <div class="sk-block sk-cell sk-cell--md"></div>
+              <div class="sk-block sk-cell sk-cell--lg"></div>
+              <div class="sk-block sk-cell sk-cell--grow"></div>
+            </div>
+            <div class="sk-row">
+              <div class="sk-block sk-cell sk-cell--sm"></div>
+              <div class="sk-block sk-cell sk-cell--md"></div>
+              <div class="sk-block sk-cell sk-cell--lg"></div>
+              <div class="sk-block sk-cell sk-cell--grow"></div>
+            </div>
+            <div class="sk-row">
+              <div class="sk-block sk-cell sk-cell--sm"></div>
+              <div class="sk-block sk-cell sk-cell--md"></div>
+              <div class="sk-block sk-cell sk-cell--lg"></div>
+              <div class="sk-block sk-cell sk-cell--grow"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
     <script
       type="module"
       src="./main.ts"

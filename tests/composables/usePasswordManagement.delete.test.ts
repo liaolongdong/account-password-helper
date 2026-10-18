@@ -25,6 +25,13 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { effectScope, ref, type EffectScope } from 'vue';
 import { usePasswordManagement, DELETE_ANIMATION_MS } from '@/composables/usePasswordManagement';
 import { StorageUtils } from '@/utils/storage';
+import { restoreFromTrash } from '@/utils/storage/trashManager';
+
+// 撤销链路只验证「是否接到回收站恢复」；恢复本身的合并/去重语义由 trashRestoreDedup 测试覆盖
+vi.mock('@/utils/storage/trashManager', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/utils/storage/trashManager')>();
+  return { ...actual, restoreFromTrash: vi.fn() };
+});
 
 /** 打桩到 globalThis 的 Element Plus 命令式 API（测试环境的裸全局解析口径） */
 interface EpStubs {
@@ -60,6 +67,7 @@ describe('usePasswordManagement 删除落盘反馈', () => {
     isSessionValidSpy = vi.spyOn(StorageUtils, 'isSessionValid').mockResolvedValue(false as never);
     deleteSpy = vi.spyOn(StorageUtils, 'deletePassword').mockResolvedValue(undefined as never);
     batchDeleteSpy = vi.spyOn(StorageUtils, 'deletePasswords').mockResolvedValue(undefined as never);
+    vi.mocked(restoreFromTrash).mockReset();
 
     scope = effectScope();
     mgmt = scope.run(() => usePasswordManagement({ validityForm: ref({ validityHours: 1 }) }))!;
@@ -80,14 +88,17 @@ describe('usePasswordManagement 删除落盘反馈', () => {
     await vi.advanceTimersByTimeAsync(0);
   };
 
-  it('行未渲染时同样落盘并提示成功（此前是「点了没反应」）', async () => {
+  it('行未渲染时同样落盘，并给出可撤销回执（此前是「点了没反应」）', async () => {
     await mgmt.deletePassword('not-rendered');
 
     expect(ep.ElMessageBox.confirm).toHaveBeenCalledTimes(1);
     expect(deleteSpy).toHaveBeenCalledTimes(1);
     expect(deleteSpy).toHaveBeenCalledWith('not-rendered');
-    // 未注册语言包的测试环境下 t() 原样返回 key，断言 key 即锁定用到的文案条目
-    expect(ep.ElMessage.success).toHaveBeenCalledWith('form.movedToTrash');
+    expect(mgmt.undoDeleteState.visible).toBe(true);
+    expect(mgmt.undoDeleteState.ids).toEqual(['not-rendered']);
+    expect(mgmt.undoDeleteState.count).toBe(1);
+    // 回执接管了成功提示，不再额外弹一条不可撤销的 ElMessage
+    expect(ep.ElMessage.success).not.toHaveBeenCalled();
     expect(ep.ElMessage.error).not.toHaveBeenCalled();
   });
 
@@ -104,7 +115,9 @@ describe('usePasswordManagement 删除落盘反馈', () => {
 
     expect(row.isConnected).toBe(false);
     expect(deleteSpy).toHaveBeenCalledWith('row-1');
-    expect(ep.ElMessage.success).toHaveBeenCalledTimes(1);
+    expect(mgmt.undoDeleteState.visible).toBe(true);
+    expect(mgmt.undoDeleteState.ids).toEqual(['row-1']);
+    expect(ep.ElMessage.success).not.toHaveBeenCalled();
   });
 
   it('存储写入失败时给出可读错误，并靠重载还原列表且不误报成功', async () => {
@@ -166,7 +179,9 @@ describe('usePasswordManagement 删除落盘反馈', () => {
 
     expect(batchDeleteSpy).toHaveBeenCalledWith(['a', 'b']);
     expect(mgmt.selectedIds.value).toEqual([]);
-    expect(ep.ElMessage.success).toHaveBeenCalledTimes(1);
+    expect(mgmt.undoDeleteState.visible).toBe(true);
+    expect(mgmt.undoDeleteState.ids).toEqual(['a', 'b']);
+    expect(ep.ElMessage.success).not.toHaveBeenCalled();
 
     mgmt.selectedIds.value = ['c', 'd'];
     batchDeleteSpy.mockRejectedValue(new Error('disk full'));
@@ -175,7 +190,8 @@ describe('usePasswordManagement 删除落盘反馈', () => {
 
     expect(mgmt.selectedIds.value).toEqual(['c', 'd']);
     expect(ep.ElMessage.error).toHaveBeenCalledTimes(1);
-    expect(ep.ElMessage.success).toHaveBeenCalledTimes(1);
+    // 第二次删除失败不会顶掉第一次仍开着的撤销窗口
+    expect(mgmt.undoDeleteState.ids).toEqual(['a', 'b']);
   });
 
   it('批量删除失败时整批按原顺序插回（相邻行互为参照节点）', async () => {
@@ -210,5 +226,32 @@ describe('usePasswordManagement 删除落盘反馈', () => {
     expect(batchDeleteSpy).toHaveBeenCalledWith(['a', 'b']);
     // 选择集只摘掉真正删除的 id，保留新勾选的 c
     expect(mgmt.selectedIds.value).toEqual(['c']);
+  });
+
+  it('撤销删除走回收站恢复链路，成功后关闭回执并刷新列表', async () => {
+    vi.mocked(restoreFromTrash).mockResolvedValue({ restored: 1, skippedExisting: 0 });
+    const reloadsBefore = isSessionValidSpy.mock.calls.length;
+
+    await mgmt.deletePassword('undo-me');
+    expect(mgmt.undoDeleteState.visible).toBe(true);
+
+    await mgmt.undoDelete();
+
+    expect(restoreFromTrash).toHaveBeenCalledWith(['undo-me']);
+    expect(ep.ElMessage.success).toHaveBeenCalledWith('options.undoDelete.restored');
+    expect(mgmt.undoDeleteState.visible).toBe(false);
+    expect(mgmt.undoDeleteState.ids).toEqual([]);
+    // 恢复后仍走同一条列表刷新链路，避免表格与存储发散
+    expect(isSessionValidSpy.mock.calls.length).toBeGreaterThan(reloadsBefore);
+  });
+
+  it('撤销时条目已被清理，提示去回收站并关闭回执', async () => {
+    vi.mocked(restoreFromTrash).mockResolvedValue({ restored: 0, skippedExisting: 0 });
+
+    await mgmt.deletePassword('gone');
+    await mgmt.undoDelete();
+
+    expect(ep.ElMessage.warning).toHaveBeenCalledWith('options.trash.restoreMissing');
+    expect(mgmt.undoDeleteState.visible).toBe(false);
   });
 });

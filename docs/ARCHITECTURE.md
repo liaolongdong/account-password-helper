@@ -493,7 +493,7 @@ graph TB
 
 ### 18. 回收站
 
-- 删除密码（单条删除 / 批量删除）不再直接抹除，而是移入回收站软删除，保留 **30 天**（见 [utils/storage/trashManager.ts](../utils/storage/trashManager.ts)）。
+- 删除密码（单条删除 / 批量删除）不再直接抹除，而是移入回收站软删除，保留 **30 天**（见 [utils/storage/trashManager.ts](../utils/storage/trashManager.ts)）。删除成功后管理页回执提供 **5 秒撤销**窗口；撤销复用 `restoreFromTrash`，不新增存储格式，也不改变 30 天回收站语义，容量不足时与回收站恢复走同一条提示。
 - 入口：密码管理页「数据管理」下拉菜单 →「回收站」，打开回收站弹窗（见 [TrashDialog.vue](../components/options/TrashDialog.vue)）。
 - 每条支持「恢复」（回到密码列表）与「彻底删除」，底部提供「清空回收站」；彻底删除时同步清理该条目的密码修改历史与到期提醒，防止残留。
 - 弹窗列表按**最近删除在前**呈现：条目是追加写入存储的（`moveToTrash` 落 `[...trash, ...movedEntries]`），最早删的因此排在最前，分页之后刚误删的那一条恰好落在最后一页；定序因此在读取侧单点收口于 `getTrashEntries`（同批删除共享同一个 `deletedAt`，靠 `Array.sort` 的稳定性维持批内追加序，且定序作用于副本，不影响恢复/彻底删除那些覆写型读-改-写路径读到的原始内容）。

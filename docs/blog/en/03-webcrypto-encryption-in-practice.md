@@ -3,12 +3,12 @@ title: Web Crypto for a Real Password Manager
 description: No crypto library, just the browser-native Web Crypto API — PBKDF2 at 600,000 iterations, per-field AES-256-GCM, session lifecycle and atomic re-keying.
 tags: web crypto,encryption,password manager,security,chrome extension
 date: 2026-08-28
-modified: 2026-10-13
+modified: 2026-10-18
 author: liaolongdong
 image: imgs/blog-cover-03-webcrypto.png
 ---
 
-![From master password to ciphertext: the full encryption pipeline](imgs/02-flowchart-security-pipeline.png)
+![From master password to ciphertext: the full encryption pipeline](imgs/02-flowchart-security-pipeline.webp)
 
 When building the encryption module for a password manager, the instinct is to pull in a crypto library. But if you're building a browser extension, there's a better option: **import nothing, and build directly on the browser-native Web Crypto API**.
 

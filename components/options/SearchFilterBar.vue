@@ -6,6 +6,7 @@
     <el-input
       :model-value="searchKeyword"
       :placeholder="t('options.filter.searchPlaceholder')"
+      :aria-label="t('options.filter.searchPlaceholder')"
       :prefix-icon="Search"
       clearable
       @update:model-value="$emit('update:searchKeyword', $event)"
@@ -55,6 +56,7 @@
       :model-value="filterTags"
       :options="availableTagOptions"
       :props="TAG_OPTION_PROPS"
+      :aria-label="t('options.filter.tagPlaceholder')"
       multiple
       filterable
       collapse-tags
@@ -84,6 +86,7 @@
       :model-value="filterSites"
       :options="siteOptions"
       :props="SITE_OPTION_PROPS"
+      :aria-label="t('options.filter.sitePlaceholder')"
       multiple
       filterable
       collapse-tags

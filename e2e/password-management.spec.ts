@@ -96,10 +96,30 @@ test.describe('密码条目增删改', () => {
       .locator('.el-message-box')
       .getByRole('button', { name: textOf('form.moveToTrash') })
       .click();
-    await expectSuccessToast(page, 'form.movedToTrash');
+    const undoToast = page.locator('.undo-toast');
+    await expect(undoToast).toBeVisible();
+    await expect(undoToast).toContainText(textOf('options.undoDelete.messageSingle'));
 
     await expect(allRows(page)).toHaveCount(0);
     await expect(page.getByText(textOf('options.emptyGuide.title'))).toBeVisible();
+    expect(await storedArrayCount(page, STORAGE_KEYS.PASSWORDS)).toBe(0);
+    expect(await storedArrayCount(page, STORAGE_KEYS.TRASH)).toBe(1);
+
+    // 回执上的撤销必须真的把条目从回收站带回主列表
+    await undoToast.getByRole('button', { name: textOf('options.undoDelete.action') }).click();
+    await expect(undoToast).toBeHidden();
+    await expect(rowOf(page, GAMMA.username)).toBeVisible();
+    expect(await storedArrayCount(page, STORAGE_KEYS.PASSWORDS)).toBe(1);
+    expect(await storedArrayCount(page, STORAGE_KEYS.TRASH)).toBe(0);
+
+    // 再删一次但不撤销，确认回执不会改变软删除的最终结果
+    await deleteButton.click();
+    await page
+      .locator('.el-message-box')
+      .getByRole('button', { name: textOf('form.moveToTrash') })
+      .click();
+    await expect(page.locator('.undo-toast')).toBeVisible();
+    await expect(allRows(page)).toHaveCount(0);
     expect(await storedArrayCount(page, STORAGE_KEYS.PASSWORDS)).toBe(0);
     expect(await storedArrayCount(page, STORAGE_KEYS.TRASH)).toBe(1);
   });

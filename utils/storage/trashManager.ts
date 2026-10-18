@@ -6,6 +6,25 @@ import { removeReminders } from './reminderManager';
 import { assertWithinCapacity } from './vaultCapacity';
 
 /**
+ * 回收站写入串行队列
+ *
+ * move / restore / permanent delete / empty / cleanup 都是「读主列表 + 读回收站 → 整体覆写」。
+ * 同一上下文内并发调用时，后写者会用陈旧快照覆盖前一次写入，表现为刚删的条目复活或恢复被回滚。
+ * 这里按调用顺序串行化写操作；读取路径不排队（单次 storage.set 本身原子）。
+ * 跨上下文（Options 与 Background）仍以 storage.onChanged 与既有守卫协调。
+ */
+let trashMutationQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueTrashMutation<T>(task: () => Promise<T>): Promise<T> {
+  const next = trashMutationQueue.then(task, task);
+  trashMutationQueue = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+}
+
+/**
  * 本模块的到期阈值（= trashRetention.TRASH_RETENTION_MS）。
  *
  * 刻意写成字面量而不是 `import { TRASH_RETENTION_MS }`：trashManager 被 passwordCrud
@@ -67,7 +86,7 @@ async function readPasswords(): Promise<(PasswordEntry | EncryptedPasswordEntry)
  *
  * @param ids 要移入回收站的条目 ID 列表
  */
-export async function moveToTrash(ids: string[]): Promise<void> {
+async function moveToTrashInternal(ids: string[]): Promise<void> {
   if (!ids.length) return;
   try {
     const idSet = new Set(ids);
@@ -116,7 +135,7 @@ export async function moveToTrash(ids: string[]): Promise<void> {
  * @param ids 要恢复的条目 ID 列表
  * @returns `restored`（真的回到主列表的条数）与 `skippedExisting`（主列表已有同 id，仅消费副本）
  */
-export async function restoreFromTrash(ids: string[]): Promise<TrashRestoreResult> {
+async function restoreFromTrashInternal(ids: string[]): Promise<TrashRestoreResult> {
   if (!ids.length) return { restored: 0, skippedExisting: 0 };
   try {
     const idSet = new Set(ids);
@@ -172,7 +191,7 @@ export async function restoreFromTrash(ids: string[]): Promise<TrashRestoreResul
  *
  * @param ids 要彻底删除的条目 ID 列表
  */
-export async function permanentDeleteFromTrash(ids: string[]): Promise<void> {
+async function permanentDeleteFromTrashInternal(ids: string[]): Promise<void> {
   if (!ids.length) return;
   try {
     const idSet = new Set(ids);
@@ -197,7 +216,7 @@ export async function permanentDeleteFromTrash(ids: string[]): Promise<void> {
  *
  * 同时清理所有回收站条目的密码修改历史。
  */
-export async function emptyTrash(): Promise<void> {
+async function emptyTrashInternal(): Promise<void> {
   try {
     const trash = await readTrash();
     if (trash.length === 0) return;
@@ -219,7 +238,7 @@ export async function emptyTrash(): Promise<void> {
  *
  * 由 background 定时闹钟触发，自动清理到期条目。
  */
-export async function cleanExpiredTrash(): Promise<void> {
+async function cleanExpiredTrashInternal(): Promise<void> {
   try {
     const trash = await readTrash();
     if (trash.length === 0) return;
@@ -302,11 +321,44 @@ export async function getAllTrashRaw(): Promise<TrashedPasswordEntry[]> {
  *
  * @param entries 重新加密后的回收站数组
  */
-export async function replaceAllTrash(entries: TrashedPasswordEntry[]): Promise<void> {
+async function replaceAllTrashInternal(entries: TrashedPasswordEntry[]): Promise<void> {
   try {
     await writeTrash(entries);
   } catch (error) {
     logger.error('替换回收站数据失败:', error);
     throw error;
   }
+}
+
+// ==================== 串行化写入口 ====================
+// 具体实现保持原名 + Internal；导出层只负责排队，调用方无需感知并发顺序。
+
+/** 将密码条目移入回收站（软删除） */
+export function moveToTrash(ids: string[]): Promise<void> {
+  return enqueueTrashMutation(() => moveToTrashInternal(ids));
+}
+
+/** 从回收站恢复条目到密码列表 */
+export function restoreFromTrash(ids: string[]): Promise<TrashRestoreResult> {
+  return enqueueTrashMutation(() => restoreFromTrashInternal(ids));
+}
+
+/** 从回收站彻底删除条目 */
+export function permanentDeleteFromTrash(ids: string[]): Promise<void> {
+  return enqueueTrashMutation(() => permanentDeleteFromTrashInternal(ids));
+}
+
+/** 清空整个回收站 */
+export function emptyTrash(): Promise<void> {
+  return enqueueTrashMutation(() => emptyTrashInternal());
+}
+
+/** 清理过期的回收站条目（后台闹钟） */
+export function cleanExpiredTrash(): Promise<void> {
+  return enqueueTrashMutation(() => cleanExpiredTrashInternal());
+}
+
+/** 批量替换回收站全部数据（rekey） */
+export function replaceAllTrash(entries: TrashedPasswordEntry[]): Promise<void> {
+  return enqueueTrashMutation(() => replaceAllTrashInternal(entries));
 }

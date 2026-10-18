@@ -27,6 +27,13 @@ import { textOf } from './i18n';
  * `tour.isActive` 期间会拒绝再次唤起面板，跑完就不再需要面板了。
  */
 test.describe('命令面板执行入口', () => {
+  test('HeaderBar 的可见入口 → 打开命令面板', async ({ optionsPage: page }) => {
+    await page.getByRole('button', { name: textOf('options.header.commandPaletteTitle') }).click();
+    await expect(page.locator('.cp-overlay'), '可见入口没唤起命令面板').toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.cp-overlay')).toBeHidden();
+  });
+
   test('关于 → 打开关于抽屉', async ({ optionsPage: page }) => {
     await page.keyboard.press('Control+k');
     await expect(page.locator('.cp-overlay'), 'Ctrl+K 没唤起命令面板').toBeVisible();

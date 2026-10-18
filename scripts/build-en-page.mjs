@@ -162,8 +162,8 @@ replaceOnce(/"screenshot": \[[\s\S]*?\],/, block => block.replaceAll('.png"', '-
 // 静态写着的 slide，所以按运行时 `shotFile()` 的同一条规则换英文那套图，alt 直接取字典里的英文名
 // （与 h3 同一个真源，不在此处再抄一遍）。中文源页改了文件名 → 这里匹配不上即失败，不会静默留一张中文图。
 replaceOnce(
-  /src="\.\/assets\/cws-store\/(screen-1-one-click-login)\.png" alt="[^"]*"/,
-  `src="./assets/cws-store/$1-en.png" alt="${I18N['showcase.s1.title'].en}"`,
+  /src="\.\/assets\/cws-store\/(screen-1-one-click-login)\.webp" alt="[^"]*"/,
+  `src="./assets/cws-store/$1-en.webp" alt="${I18N['showcase.s1.title'].en}"`,
 );
 
 // 页内跳转改为英文兄弟页面，避免英文页链向中文页
@@ -201,12 +201,21 @@ replaceOnce(
   `"featureList": [\n${EN_FEATURE_LIST.map(feature => `          ${JSON.stringify(feature)}`).join(',\n')}\n        ],`,
 );
 replaceOnce(/"description": "开源免费的本地密码管理器[^\n]*",/, `"description": "${EN_JSONLD_DESCRIPTION}",`);
+// SoftwareApplication.url 指向英文页自身的 canonical，而不是中文首页；Organization / WebSite
+// 的 url 仍保持站点根，不属于同一实体声明。
+replaceOnce(
+  /"url": "https:\/\/liaolongdong\.github\.io\/account-password-helper\/",\n(\s*)"installUrl":/,
+  `"url": "${SITE}/en.html",\n$1"installUrl":`,
+);
 // 英文版：中文 FAQPage / HowTo 结构化数据块替换为英文版，避免语言错配
 // FAQPage 与可见 FAQ 同源（faqEntries 取自 FAQS 数组），文案不再单独维护
 replaceOnce(/[ \t]*<!-- FAQPage 结构化数据[\s\S]*?<\/script>\n/, () => buildFaqPageJsonLd(faqEntries, 'en'));
 replaceOnce(/[ \t]*<!-- HowTo 结构化数据[\s\S]*?<\/script>\n/, () => EN_HOWTO_JSONLD);
 // 静态英文页缺省语言固定为 en（仍尊重 ?lang 参数与 localStorage 显式选择）
-replaceOnce("return (navigator.language || 'zh').toLowerCase().startsWith('zh') ? 'zh' : 'en';", "return 'en';");
+replaceOnce(
+  /\/\* localStorage 不可用时保持中文缺省 \*\/\n        \}\n        return 'zh';/,
+  "/* localStorage 不可用时保持英文缺省 */\n        }\n        return 'en';",
+);
 
 html = html.replace(
   '<!doctype html>\n',

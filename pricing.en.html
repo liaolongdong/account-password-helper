@@ -1012,7 +1012,7 @@
         "alternateName": "账号密码管理助手",
         "description": "100% free, open-source, local-first password manager browser extension with AES-256-GCM encryption, built-in TOTP 2FA and offline security audit.",
         "applicationCategory": "SecurityApplication",
-        "operatingSystem": "Chrome, Edge, Brave, Arc, Firefox",
+        "operatingSystem": "Windows, macOS, Linux, ChromeOS",
         "license": "https://spdx.org/licenses/GPL-3.0-only.html",
         "offers": {
           "@type": "Offer",
@@ -1961,7 +1961,7 @@
                   <span
                     class="feature-text"
                     data-i18n-html="feat.browsers"
-                    >Runs on <strong>Chrome / Edge / Brave / Arc / Firefox</strong> — whole Chromium family</span
+                    >Runs on <strong>Chrome / Edge / Brave</strong> — Chromium-based</span
                   >
                 </li>
                 <li class="feature-item">
@@ -2521,8 +2521,8 @@
           en: 'Instant side panel — ~<code>20-50ms</code> cached fast path',
         },
         'feat.browsers': {
-          zh: '支持 <strong>Chrome / Edge / Brave / Arc / Firefox</strong>，Chromium 全家族通用',
-          en: 'Runs on <strong>Chrome / Edge / Brave / Arc / Firefox</strong> — whole Chromium family',
+          zh: '支持 <strong>Chrome / Edge / Brave</strong>，Chromium 内核',
+          en: 'Runs on <strong>Chrome / Edge / Brave</strong> — Chromium-based',
         },
         'feat.offline': {
           zh: '离线可用 — 除版本检测外，运行期间零网络请求',
@@ -2633,13 +2633,18 @@
          ═══════════════════════════════════════════ */
       const LANG_KEY = 'aph_guide_lang';
 
-      /** 读取持久化语言，缺省跟随浏览器语言 */
+      /**
+       * 读取持久化语言，中文定价页缺省中文
+       *
+       * 英文内容由独立可索引的 pricing.en.html 承担；不再让 Googlebot 的 en-US
+       * 语言偏好把中文 URL 的正文替换成英文，避免与 canonical / hreflang 冲突。
+       */
       function resolveLang() {
         try {
           const saved = localStorage.getItem(LANG_KEY);
           if (saved === 'zh' || saved === 'en') return saved;
         } catch {
-          /* localStorage 不可用时回落浏览器语言 */
+          /* localStorage 不可用时保持英文缺省 */
         }
         return 'en';
       }
@@ -2670,6 +2675,7 @@
         document.querySelector('meta[name="description"]').setAttribute('content', i18n['meta.description'][lang]);
       }
 
+      // 与 index.html 同一口径：切到独立语言页，保证 canonical / hreflang / OG 与 URL 一致
       document.getElementById('langToggle').addEventListener('click', () => {
         const next = document.documentElement.getAttribute('data-lang') === 'zh' ? 'en' : 'zh';
         try {
@@ -2677,7 +2683,8 @@
         } catch {
           /* 隐私模式下忽略持久化失败 */
         }
-        setLang(next);
+        const target = next === 'en' ? './pricing.en.html' : './pricing.html';
+        location.href = `${target}${location.hash}`;
       });
 
       setLang(resolveLang());

@@ -145,11 +145,11 @@
         "alternateName": "账号密码管理助手",
         "applicationCategory": "SecurityApplication",
         "applicationSubCategory": "Password Manager",
-        "operatingSystem": "Chrome",
+        "operatingSystem": "Windows, macOS, Linux, ChromeOS",
         "browserRequirements": "Chrome 114 or newer for the Side Panel API (no minimum_chrome_version is declared, so older builds simply lose the side panel). Also works in Edge, Brave and other Chromium-based browsers.",
-        "softwareVersion": "3.15.2",
+        "softwareVersion": "3.16.0",
         "datePublished": "2026-05-23",
-        "dateModified": "2026-10-15",
+        "dateModified": "2026-10-18",
         "isAccessibleForFree": true,
         "offers": {
           "@type": "Offer",
@@ -173,7 +173,7 @@
           "Personal info vault: ID, bank card and other personal details in a separate encrypted store"
         ],
         "description": "Free, open-source local password manager: one-keystroke login (fill + tick + click), PBKDF2 600K iterations + per-field AES-256-GCM encryption, built-in TOTP 2FA, security audit and password generator, instant side panel (~20-50ms from cache). Password data is never uploaded.",
-        "url": "https://liaolongdong.github.io/account-password-helper/",
+        "url": "https://liaolongdong.github.io/account-password-helper/en.html",
         "installUrl": "https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli",
         "downloadUrl": "https://github.com/liaolongdong/account-password-helper/releases/latest",
         "image": "https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-en-1200x630.png",
@@ -4107,6 +4107,8 @@
           <img
             src="./assets/icons/icon.svg"
             alt="Logo"
+            width="24"
+            height="24"
           />
           <span data-i18n="nav.brand">Account Password Helper</span>
         </a>
@@ -5224,7 +5226,7 @@
                    而折行在 HTML 里塌成一个空格。 -->
               <!-- prettier-ignore -->
               <div class="slide">
-                <div class="slide-shot"><img src="./assets/cws-store/screen-1-one-click-login-en.png" alt="One-click sign-in: fill, tick, submit" loading="lazy" /></div>
+                <div class="slide-shot"><img src="./assets/cws-store/screen-1-one-click-login-en.webp" alt="One-click sign-in: fill, tick, submit" width="2560" height="1600" loading="lazy" /></div>
                 <div class="slide-info"><span class="step-tag">STEP 01</span><h3 data-i18n="showcase.s1.title">One-click sign-in: fill, tick, submit</h3><p data-i18n="showcase.s1.desc">On a login page, pick an entry in the side panel and choose "Fill and sign in" — credentials filled, "remember me" ticked, sign-in clicked. Turn on "Auto-submit login" and Ctrl+Shift+F does the same. The panel lists the current domain first, and the "+" in its header adds an account for this site on the spot.</p></div>
               </div>
               <!-- 其余各屏由 JS 注入 -->
@@ -6397,7 +6399,7 @@ pnpm lint:style  # Stylelint</code></pre>
                 <span data-i18n="footer.repo">GitHub Repo</span>
               </a>
             </span>
-            <span data-i18n="footer.updated">Updated: Oct 2026 · v3.15.2</span>
+            <span data-i18n="footer.updated">Updated: Oct 18, 2026 · v3.16.0</span>
           </div>
         </div>
         <!-- id 是 FAQ 右栏出口卡「微信交流群」那条内链的落点（见 I18N 的 faqRail.help） -->
@@ -6551,7 +6553,13 @@ pnpm lint:style  # Stylelint</code></pre>
       // =================== 国际化 ===================
       const LANG_KEY = 'aph_guide_lang';
 
-      /** 当前语言：URL ?lang 参数优先 > localStorage 持久化 > 缺省跟随浏览器语言 */
+      /**
+       * 当前语言：URL ?lang 参数优先 > localStorage 持久化 > 中文页缺省中文
+       *
+       * 中文页不再跟随浏览器语言：英文内容由独立可索引的 en.html 承担。此前 Googlebot
+       * （en-US 且无 Accept-Language）会在中文 URL 上看到客户端替换后的英文正文，
+       * 与 canonical / hreflang 声明的语言不一致；显式 ?lang / localStorage 选择仍然保留。
+       */
       let lang = (() => {
         const param = new URLSearchParams(location.search).get('lang');
         if (param === 'zh' || param === 'en') return param;
@@ -6559,7 +6567,7 @@ pnpm lint:style  # Stylelint</code></pre>
           const saved = localStorage.getItem(LANG_KEY);
           if (saved === 'zh' || saved === 'en') return saved;
         } catch {
-          /* localStorage 不可用时跟随浏览器语言 */
+          /* localStorage 不可用时保持英文缺省 */
         }
         return 'en';
       })();
@@ -7172,7 +7180,7 @@ pnpm lint:style  # Stylelint</code></pre>
           en: 'Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a>',
         },
         'footer.repo': { zh: 'GitHub 仓库', en: 'GitHub Repo' },
-        'footer.updated': { zh: '最后更新：2026-10 · v3.15.2', en: 'Updated: Oct 2026 · v3.15.2' },
+        'footer.updated': { zh: '最后更新：2026-10-18 · v3.16.0', en: 'Updated: Oct 18, 2026 · v3.16.0' },
         'wechat.title': { zh: '微信交流群', en: 'WeChat Group' },
         'wechat.desc': {
           zh: '扫码添加作者微信，备注「aph」邀你加入插件交流群',
@@ -7757,8 +7765,11 @@ pnpm lint:style  # Stylelint</code></pre>
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
       let carouselInView = true;
 
-      /** 截图分中英两套（英文版文件名带 -en 后缀），按当前语言取对应一套 */
-      const shotFile = f => (lang === 'en' ? f.replace(/\.png$/, '-en.png') : f);
+      /** 截图分中英两套（英文版文件名带 -en 后缀），页面统一取 WebP 伴生图 */
+      const shotFile = f => {
+        const webp = f.replace(/\.png$/, '.webp');
+        return lang === 'en' ? webp.replace(/\.webp$/, '-en.webp') : webp;
+      };
 
       /** 按当前语言（重）渲染全部轮播 slide 与圆点，保留当前所在位置 */
       function renderCarousel() {
@@ -7769,7 +7780,7 @@ pnpm lint:style  # Stylelint</code></pre>
           slide.className = 'slide';
           slide.innerHTML = `
         <div class="slide-shot">
-          <img src="./assets/cws-store/${shotFile(s.file)}" alt="${s.title[lang]}" data-title="${s.title[lang]}" loading="lazy" tabindex="0" role="button" aria-label="${I18N['lightbox.zoom'][lang].replace('{t}', s.title[lang])}" />
+          <img src="./assets/cws-store/${shotFile(s.file)}" alt="${s.title[lang]}" data-title="${s.title[lang]}" width="2560" height="1600" loading="lazy" tabindex="0" role="button" aria-label="${I18N['lightbox.zoom'][lang].replace('{t}', s.title[lang])}" />
         </div>
         <div class="slide-info">
           <span class="step-tag">${s.tag}</span>
@@ -8181,14 +8192,17 @@ pnpm lint:style  # Stylelint</code></pre>
         applyFaqs();
       }
 
+      // 切换到独立语言页而不是原地替换正文：canonical / hreflang / OG / JSON-LD
+      // 与 URL 始终指向同一语言，爬虫不需要执行 JS 也能读到对应语言的静态字节。
       langToggle.addEventListener('click', () => {
-        lang = lang === 'zh' ? 'en' : 'zh';
+        const nextLang = lang === 'zh' ? 'en' : 'zh';
         try {
-          localStorage.setItem(LANG_KEY, lang);
+          localStorage.setItem(LANG_KEY, nextLang);
         } catch {
-          /* 隐私模式等场景下持久化失败不影响本次切换 */
+          /* 隐私模式等场景下持久化失败不影响本次跳转 */
         }
-        applyLang();
+        const target = nextLang === 'en' ? './en.html' : './';
+        location.href = `${target}${location.hash}`;
       });
 
       applyLang();

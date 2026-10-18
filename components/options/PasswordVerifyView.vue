@@ -31,6 +31,8 @@
                 :disabled="verifyLoading"
                 :class="{ shake: verifyShake }"
                 :style="{ '--shake-duration': SHAKE_DURATION_MS + 'ms' }"
+                :aria-invalid="Boolean(verifyError)"
+                :aria-describedby="verifyError ? 'verify-error-inline' : undefined"
                 autocomplete="current-password"
                 @keyup.enter="handleSubmit"
                 @keydown="handleCapsKeyEvent"
@@ -49,7 +51,10 @@
               <CapsLockHint v-if="capsLockOn" />
               <div
                 v-if="verifyError"
+                id="verify-error-inline"
                 class="verify-error-inline"
+                role="alert"
+                aria-live="assertive"
               >
                 {{ verifyError }}
               </div>

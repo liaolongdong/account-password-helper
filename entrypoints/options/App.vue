@@ -59,6 +59,7 @@
         @open-personalization="openPersonalizationDialog"
         @open-tour="replayTour"
         @open-guide="openGuide"
+        @open-command-palette="paletteOpen"
         @open-about="showAboutDrawer = true"
       />
 
@@ -288,6 +289,19 @@
       @run="paletteRunAt"
     />
 
+    <!-- 删除回执：5 秒内可撤销，复用回收站的恢复链路 -->
+    <UndoDeleteToast
+      :visible="undoDeleteState.visible"
+      :message="undoDeleteMessage"
+      :action-label="t('options.undoDelete.action')"
+      :close-label="t('options.undoDelete.close')"
+      :duration="UNDO_DELETE_WINDOW_MS"
+      :reset-key="undoDeleteState.token"
+      @undo="undoDelete"
+      @close="dismissUndo"
+      @expire="dismissUndo"
+    />
+
     <!-- 聚光式新手引导：状态机由本页持有，组件只做渲染（v-if 决定异步 chunk 何时加载） -->
     <OnboardingTour
       v-if="tourActive"
@@ -361,12 +375,13 @@ import PasswordVerifyView from '@/components/options/PasswordVerifyView.vue';
 import PasswordFormDialog from '@/components/options/PasswordFormDialog.vue';
 import PasswordTable from '@/components/options/PasswordTable.vue';
 import HeaderBar from '@/components/options/HeaderBar.vue';
+import UndoDeleteToast from '@/components/options/UndoDeleteToast.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useAuthFlow } from '@/composables/useAuthFlow';
 import { useSessionTimer } from '@/composables/useSessionTimer';
-import { usePasswordManagement } from '@/composables/usePasswordManagement';
+import { usePasswordManagement, UNDO_DELETE_WINDOW_MS } from '@/composables/usePasswordManagement';
 import { useStorageWatcher } from '@/composables/useStorageWatcher';
 import { useRuntimeMessageHandler } from '@/composables/useRuntimeMessageHandler';
 import { useVersionUpdate } from '@/composables/useVersionUpdate';
@@ -797,6 +812,10 @@ const {
   copyPassword,
   deletePassword,
   batchDelete,
+  undoDeleteState,
+  undoDeleteMessage,
+  undoDelete,
+  dismissUndo,
   batchEditTags,
   batchExportSelected,
   handlePasswordsImported,
@@ -1347,6 +1366,7 @@ const {
   keyword: paletteKeyword,
   activeIndex: paletteActiveIndex,
   filtered: paletteFiltered,
+  open: paletteOpen,
   runAt: paletteRunAt,
 } = useCommandPalette({
   getActions: buildPaletteActions,
