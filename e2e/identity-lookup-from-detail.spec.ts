@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { createEntry, expect, rowOf, test } from './harness';
 import { numericTemplateOf, templatedOf, textOf } from './i18n';
+import { IDENTITY_FIELD_NAME_STEMS } from '../utils/identity/fields';
 import {
   addIdentity,
   cards,
@@ -28,7 +29,9 @@ import {
  *    空态必须把差的那个名字说出来（`{keyword}` 是否真被插值）并给出与工具栏同一条添加出路——
  *    这两点源码守卫证不了，只有真浏览器渲染得出来；
  * ⑥ 字段名检索的落点：把屏上那一列的名字喂回搜索框，命中要落在**标签列**的高亮上，
- *    清空关键词后屏上不留高亮实例（EP 的 `#label` 插槽在 border 模式下是否真渲染，只有真机量得到）。
+ *    清空关键词后屏上不留高亮实例（EP 的 `#label` 插槽在 border 模式下是否真渲染，只有真机量得到）；
+ * ⑦ 放宽那一屏：打的是页面上那种长写法（严格检索在值与名字上都搜不到），说明行、整串高亮、
+ *    以及「不许有命中式高亮」三件都得在真浏览器里各量一遍。
  *
  * 身份条目一律走真实表单录入：库里是整包密文（`encryptedPayload`），测试进程没有解密入口，
  * storage 后门造不出「已解锁会话下的身份条目」，也验证不到加解密链路。
@@ -125,10 +128,33 @@ test('抽屉跳转：预填搜索框并只留下命中的身份卡片，重开�
     labelName,
   );
   await expect(cards(page).first().locator('.identity-card__title .search-hit')).toHaveCount(0);
+  // 严格那一屏不许配放宽说明——否则下面 ⑦ 段「说明行出现」就失去了对照
+  await expect(vaultDialog(page).locator('.identity-relaxed')).toHaveCount(0);
 
   await searchInput(page).fill('');
   await expect(cards(page)).toHaveCount(2);
   await expect(cards(page).first().locator('.search-hit')).toHaveCount(0);
+
+  // ⑦ 放宽那一屏：打的是页面上那种长写法（`手机号码` / `mobile`），严格检索在值与名字上都搜不到，
+  //    只有「这句话是不是在要某一格」那条通道认得。判据三件：说明行真的把这行字插进去了、
+  //    整串高亮落在标签列那一格上、命中式高亮一个都不许有（值里并没有这几个字，亮了就是撒谎）。
+  //    探针词从词表里挑，中英两侧都不用硬编码：挑一条「不是屏上那串名字的子串、且与它同文字系统」的写法。
+  const labelBefore = (await cards(page).first().locator('.identity-field__label').nth(1).innerText()).trim();
+  const isHan = /[\u4e00-\u9fff]/.test(labelBefore);
+  const probe = IDENTITY_FIELD_NAME_STEMS.phone.find(
+    stem => !labelBefore.toLowerCase().includes(stem.toLowerCase()) && /[\u4e00-\u9fff]/.test(stem) === isHan,
+  );
+  expect(probe, '词表里挑不出一条可用的长写法：这条通道的真机判据就没了载体').toBeTruthy();
+
+  await searchInput(page).fill(probe!);
+  await expect(cards(page)).toHaveCount(2);
+  await expect(vaultDialog(page).locator('.identity-relaxed')).toContainText(probe!);
+  await expect(cards(page).first().locator('.identity-field__name-hit')).toHaveText(labelBefore);
+  await expect(cards(page).first().locator('.search-hit')).toHaveCount(0);
+
+  await searchInput(page).fill('');
+  await expect(vaultDialog(page).locator('.identity-relaxed')).toHaveCount(0);
+  await expect(cards(page)).toHaveCount(2);
 });
 
 test('抽屉跳转：取消主密码复验则库不打开，抽屉与已填内容都还在', async ({ optionsPage: page }) => {
