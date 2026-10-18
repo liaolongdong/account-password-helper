@@ -206,9 +206,9 @@ export function useIdentityVault() {
     const strict = list.filter(entry => matchesKeyword(collectSearchableFields(entry.payload), kw));
     if (strict.length > 0) return { list: strict, relaxed: false, keys: NO_RELAXED_KEYS };
 
-    // 严格检索空了才问第二句：这行字是不是在要某一格。放在这里是把噪音关在门外——
-    // `备注` / `姓名` 这类两三字的短名字，只有在「用户这句话在库里搜不到任何值」时
-    // 才会参与放宽；值搜得到时永远走严格那一半。
+    // 严格检索空了才问第二句：这行字是不是在要某一格。这道次序挡的是「短名字盖掉一次真实的值命中」
+    // ——`备注` / `姓名` 永远争不过一条真的搜到值的查询。它**不**保证放宽的结果窄：一句话既搜不到值、
+    // 又恰好含一个短名字时，这一屏就是宽的，那种宽由视图侧那句 `identity.searchRelaxed` 说明行负责讲清。
     const asked = askedNameKeys(kw, rows.value);
     if (asked.size === 0) return { list: [], relaxed: false, keys: NO_RELAXED_KEYS };
     const relaxedList = list.filter(entry => entryHasAskedField(entry.payload, asked));

@@ -1693,7 +1693,7 @@ const LABEL_DECORATIONS = /^[\s*＊:：、。.，,;；·—_-]+|[\s*＊:：、�
  * 编号族在库里没有对应的内置字段，用户存它的方式是自拟一条**自定义字段**——而自定义字段的
  * 标签本身就参与检索（`composables/useIdentityVault.ts` 的 `collectSearchableFields`，
  * 由 `tests/composables/useIdentityVault.test.ts` 钉住）。于是把页面上这段字段名原样发过去，
- * 检索面就是用户自己起的那个名字：这一格叫什么 → 库里那条同名字段。
+ * 检索面就是用户自己起的那个名字：这一格叫什么 → 库里那条同名且填了值的字段。
  *
  * 三条边界与 {@link selfNameValueNear} 同形，各挡一种越界：
  * 1. **返回值只来自标签文本，不含 `input.value`**——值是这个人的编号，出页面就是明文外溢；标签是

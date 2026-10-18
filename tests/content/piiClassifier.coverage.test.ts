@@ -12,7 +12,14 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { resolvePiiField } from '@/entrypoints/content/piiClassifier';
-import { IDENTITY_FIELD_NAME_STEMS } from '@/utils/identity/fields';
+import {
+  IDENTITY_FIELD_DEFS,
+  IDENTITY_FIELD_NAME_STEMS,
+  identityFieldNameSet,
+  requestedFieldName,
+} from '@/utils/identity/fields';
+import { IDENTITY_HINT_ROLES } from '@/utils/identity/hintRoles';
+import zhFields from '@/utils/i18n/locales/zh-CN/identity.json';
 
 /** 构造一个带标签的 input 并返回元素本身 */
 function fieldWithLabel(label: string): HTMLInputElement {
@@ -41,30 +48,68 @@ afterEach(() => {
  * 三格豁免：`cardExpiry` / `cardCvv` / `remark` 在页面侧**永不出提示**（有效期与 CVV 是刻意排除的，
  * 备注压根不是要提示的字段），因此没有对应角色可校验；它们的词表只服务库内检索，不参与这条契约。
  */
-const STEM_TO_ROLE: readonly (readonly [fieldKey: keyof typeof IDENTITY_FIELD_NAME_STEMS, role: string])[] = [
-  ['name', 'name'],
-  ['idNumber', 'idNumber'],
-  ['phone', 'phone'],
-  ['email', 'email'],
-  ['address', 'address'],
-  ['cardNo', 'cardNo'],
-  ['cardBank', 'cardBank'],
-  ['cardHolder', 'cardHolder'],
-];
+/**
+ * 内置格子里「页面会提示它」的那几个：词表必须与分类器同源
+ *
+ * 剩下三格（有效期 / CVV / 备注）没有提示角色——`IDENTITY_HINT_ROLES` 在类型层面就不收卡类口令，
+ * 备注压根不是要提示的字段——所以它们没有「分类器判成哪一格」可校，词表只服务库内检索。
+ * 这张名单从角色表推导，不写死：以后给哪一格加了提示角色，它就自动进这道校验。
+ */
+const HINTED_BUILTIN_KEYS = IDENTITY_FIELD_DEFS.map(def => def.key).filter(key =>
+  (IDENTITY_HINT_ROLES as readonly string[]).includes(key),
+);
+
+/**
+ * 认格通道的白名单：账本里确实认不出的写法，一行一个理由
+ *
+ * `被保险人` —— 归属不是本人，挂到「姓名」上是错的（页面侧同理由由 `other` 档挡着）；
+ * `医保卡金融账号` —— `金融账号` 被机构证照闸门判成非本人，收进词表就是绕那道闸。
+ */
+const NAME_CHANNEL_ALLOWLIST: readonly string[] = ['被保险人', '医保卡金融账号'];
 
 describe('库侧名字表与页面词典同源', () => {
-  it('每个词干都被分类器判成它所属的那一格（豁免：有效期 / CVV / 备注永不提示）', () => {
-    const checked = STEM_TO_ROLE.reduce((sum, [fieldKey]) => sum + IDENTITY_FIELD_NAME_STEMS[fieldKey].length, 0);
-    expect(checked, '一个词都没校到：要么表空了，要么这张映射跟 fields.ts 漂移了').toBeGreaterThan(60);
+  it('词表不许发明：有提示角色的每一格，它的每条词干都被分类器判成那一格', () => {
+    expect(HINTED_BUILTIN_KEYS.length, '八个内置档角色该有的提示角色一个都不能少').toBe(8);
 
     const drifted: string[] = [];
-    for (const [fieldKey, role] of STEM_TO_ROLE) {
+    let checked = 0;
+    for (const fieldKey of HINTED_BUILTIN_KEYS) {
       for (const stem of IDENTITY_FIELD_NAME_STEMS[fieldKey]) {
+        checked += 1;
         const verdict = resolvePiiField(fieldWithLabel(stem));
-        if (verdict.role !== role) drifted.push(`${fieldKey} 的词「${stem}」判成了 ${String(verdict.role)}`);
+        if (verdict.role !== fieldKey) {
+          drifted.push(`${fieldKey} 的词「${stem}」判成了 ${String(verdict.role)}`);
+        }
       }
     }
     expect(drifted, drifted.join('；')).toEqual([]);
+    expect(checked, '一条都没校到：要么词表空了，要么角色名单漂了').toBeGreaterThan(100);
+  });
+
+  it('账本里每一行内置档的页面写法，认格通道都得认得出那一格（漏的进白名单并写理由）', () => {
+    const builtinKeys = new Set<string>(IDENTITY_FIELD_DEFS.map(def => def.key));
+    const rows = [...ZH_LABEL_CASES, ...EN_LABEL_CASES, ...SCENE_CASES].filter(([, role]) => builtinKeys.has(role));
+    expect(rows.length, '内置档行数为 0：这张守卫失去对象，检查过滤条件是否随词典漂移').toBeGreaterThan(90);
+
+    const missed = [
+      ...new Set(
+        rows
+          .filter(
+            ([label, role]) =>
+              !requestedFieldName(
+                label,
+                identityFieldNameSet(
+                  role as keyof typeof IDENTITY_FIELD_NAME_STEMS,
+                  zhFields[`identity.field.${role}` as keyof typeof zhFields],
+                ),
+              ),
+          )
+          .map(([label]) => label),
+      ),
+    ].sort();
+    expect(missed, `认不出的一行行都要有理由并进白名单：${missed.join('、')}`).toEqual(
+      [...NAME_CHANNEL_ALLOWLIST].sort(),
+    );
   });
 });
 

@@ -279,7 +279,7 @@ describe('详情抽屉到身份库的跳转接线', () => {
   it('放宽那一屏必须自己说清楚：说明行挂 searchRelaxed，认中的格子整串高亮', () => {
     const dialog = stripHtmlComments(VAULT_DIALOG_SRC);
 
-    const notice = dialog.match(/<p\b[\s\S]*?class="identity-relaxed"[\s\S]*?<\/p>/);
+    const notice = dialog.match(/<p\b[^>]*class="identity-relaxed"[\s\S]*?<\/p>/);
     expect(notice, '放宽说明行不见了：检索语义的切换会变成静默的').toBeTruthy();
     expect(notice![0], '说明行不再受放宽标记约束，严格命中那一屏也会说这句').toMatch(/v-if="searchRelaxed"/);
     expect(notice![0], '说明行没把用户打的那句话插进去').toMatch(/\{\s*keyword:\s*keyword\.trim\(\)\s*\}/);
