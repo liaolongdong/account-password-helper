@@ -177,7 +177,11 @@ describe('身份提示气泡', () => {
 
     it('「需核对」档才追加核对提示，普通档不显示', () => {
       show('idNumber', true);
-      expect(bubbleRoot()?.querySelector('.aph-idh__verify')?.textContent).toContain('核对');
+      const verify = bubbleRoot()?.querySelector('.aph-idh__verify')?.textContent;
+      expect(verify).toContain('核对');
+      // 证件号是常用字段，核对原因是高敏而不是「不常用」；这句文案曾被误写成「不常用信息」
+      expect(verify).toContain('敏感信息');
+      expect(verify).not.toContain('不常用');
 
       hideIdentityHint();
       show('email', false);
