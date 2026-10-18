@@ -26,6 +26,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { readSource } from '../helpers/architectureScan';
+import { escapeRegExp } from '../helpers/escapeRegExp';
 
 const IDENTITY_HINT = 'entrypoints/content/IdentityHint.ts';
 const OPTIONS_APP = 'entrypoints/options/App.vue';
@@ -86,7 +87,9 @@ describe('身份提示的跨上下文接线', () => {
   });
 
   it('身份库弹窗的可见态只有门槛函数一处能置真（新增入口不得绕过三档复验）', () => {
-    const sites = [...optionsApp.matchAll(new RegExp(DIALOG_VISIBLE.replace(/\./g, '\\.'), 'g'))];
+    // 整串按字面量匹配：只转义 `.` 会给 `+`/`(`/`$` 这类元字符留口子，
+    // 常量哪天被改动就会让这条「只许一处」的判据静默数错
+    const sites = [...optionsApp.matchAll(new RegExp(escapeRegExp(DIALOG_VISIBLE), 'g'))];
     expect(sites, '出现第二处直接打开身份库弹窗的代码：复验门槛被绕过').toHaveLength(1);
 
     // 唯一可见态必须排在复验调用之后：门槛函数一旦被拆走判定，这条链就变成「直接开抽屉」
@@ -132,7 +135,7 @@ describe('身份提示的跨上下文接线', () => {
     // 库里没有那一格，落点是用户自拟的自定义字段，于是搜索词换成「这一格叫什么」）
     for (const channel of ['selfNameValueNear', 'hintFieldKeyword']) {
       expect(
-        [...identityHint.matchAll(new RegExp(`${channel}\\(`, 'g'))],
+        [...identityHint.matchAll(new RegExp(`${escapeRegExp(channel)}\\(`, 'g'))],
         `取值通道 ${channel} 被复制到多处，须逐个确认新通道`,
       ).toHaveLength(1);
     }
