@@ -26,13 +26,13 @@ import {
   looksLikePhoneField,
   normalizeButtonText,
   shouldExcludeButton,
-} from '@/entrypoints/content/formSelectors';
-import type { AccountFieldKind } from '@/entrypoints/content/formSelectors';
-import { InputFiller } from '@/entrypoints/content/InputFiller';
-import { CheckboxHandler } from '@/entrypoints/content/CheckboxHandler';
-import { LoginFormAnalyzer } from '@/entrypoints/content/LoginFormAnalyzer';
-import type { FormFieldSets } from '@/entrypoints/content/types';
-import { PasswordVisibilityToggle } from '@/entrypoints/content/PasswordVisibilityToggle';
+} from './formSelectors';
+import type { AccountFieldKind } from './formSelectors';
+import { InputFiller } from './InputFiller';
+import { CheckboxHandler } from './CheckboxHandler';
+import { LoginFormAnalyzer } from './LoginFormAnalyzer';
+import type { FormFieldSets } from './types';
+import { PasswordVisibilityToggle } from './PasswordVisibilityToggle';
 import { isDetectableAriaCheckbox, isDetectableCheckbox, isElementVisible } from './domUtils';
 import { fillContextMenuTarget, resolveContextMenuInputTarget } from './contextMenuTarget';
 import { isNotificationType, NOTICE_MAX_LENGTH, showNativeNotification } from './NativeNotification';
@@ -46,7 +46,7 @@ import {
   destroyTotpHandoffCapsule,
 } from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
 import { getFillAckChip, destroyFillAckChip } from './FillAckChip';
-import { destroyIdentityHint, hideIdentityHint, showIdentityHint } from './IdentityHint';
+import { destroyIdentityHint, hideIdentityHint, setIdentityHintTheme, showIdentityHint } from './IdentityHint';
 import { resolvePiiField } from './piiClassifier';
 import { normalizeIdentityHintRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
@@ -257,6 +257,9 @@ export class FormDetector {
           this.inlineDropdown.setTheme(newConfig.theme);
           // 同步两步接力胶囊主题
           getTotpHandoffCapsule().setTheme(newConfig.theme);
+          // 同步身份提示气泡主题：影子宿主常驻复用，令牌只在 ensureHost 那次内联写入，
+          // 不在这里重放就会让已显示的气泡停在旧主色直到页面刷新（与接力胶囊同口径）
+          setIdentityHintTheme(newConfig.theme);
           // 穿透总闸翻转后重检测，口径同站点规则那条监听：否则关闸要刷新页面才见效。
           // 只在翻转时做——位置/透明度每次拖动都会写这份配置，全量重检测代价太大。
           if (penetratedBefore !== this.penetrateShadowEnabled) this.detectForms();
@@ -540,6 +543,10 @@ export class FormDetector {
     }
     try {
       const res = await chrome.runtime.sendMessage({ type: MessageType.GET_PENDING_TOTP });
+      // await 之后必须先重新确认生命周期再动 UI：`destroy()` 已跑过时这一次 `show` 会重建
+      // 胶囊单例，而销毁路径早已走完，此后没有任何清理入口（与本文件 detectForms、
+      // fillPassword 各续体的 disposed 门同口径，也符合「await 续体不得在销毁后动作」的既有约定）。
+      if (this.disposed || !field.isConnected) return;
       const entryId = (res?.data as PendingTotpData | undefined)?.entryId;
       if (!entryId) {
         logger.debug('两步接力：验证码页未命中待接力标记（未记录/已过期/域名失配）');

@@ -92,8 +92,14 @@ const makeField = (name: string, value = CANARY): HTMLInputElement => {
 /** 取出气泡根节点 */
 const bubbleRoot = (): HTMLElement | null => shadow?.getElementById('aph-idh-root') ?? null;
 
-const keydown = (key: string, options: { composing?: boolean } = {}): KeyboardEvent => {
-  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, composed: true });
+const keydown = (key: string, options: { composing?: boolean; alt?: boolean } = {}): KeyboardEvent => {
+  const event = new KeyboardEvent('keydown', {
+    key,
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    altKey: !!options.alt,
+  });
   if (options.composing) Object.defineProperty(event, 'isComposing', { value: true });
   return event;
 };
@@ -141,7 +147,11 @@ describe('身份提示气泡', () => {
     it('标题按模板把角色词插在占位处，动作按钮齐备', () => {
       show('name');
       const bubble = bubbleRoot()?.querySelector('.aph-idh');
-      expect(bubble?.getAttribute('role')).toBe('status');
+      // 播报只罩文字行：整枚气泡挂 role=status 会把两个动作按钮包进活动区域，
+      // 焦点每动一次就重播一遍「收起 / 从身份库选择」
+      expect(bubble?.getAttribute('role')).toBeNull();
+      expect(bubble?.querySelector('.aph-idh__body')?.getAttribute('role')).toBe('status');
+      expect(bubble?.querySelector('.aph-idh__actions')?.closest('.aph-idh__body')).toBeNull();
       expect(bubbleRoot()?.querySelector('.aph-idh__title')?.textContent).toBe('这是「姓名」字段');
       expect(bubbleRoot()?.querySelector('.aph-idh__role')?.textContent).toBe('姓名');
       expect(bubbleRoot()?.querySelector('.aph-idh__btn--primary')?.textContent).toBe('从身份库选择');
@@ -428,6 +438,48 @@ describe('身份提示气泡', () => {
       expectHidden();
     });
 
+    /**
+     * 键盘可达（WCAG 2.1.1）
+     *
+     * 宿主挂在 `documentElement` 末尾且 `position: fixed`，普通 Tab 会先触发绑定字段的
+     * focusout 而把气泡收掉——提示读得到却永远按不到。`Alt+↓` 是这条唯一显式入口，
+     * 且必须只在带 Alt 时生效：裸 `ArrowDown` 是页面自有下拉/候选列表的键，抢不得。
+     */
+    it('Alt+↓ 把焦点送进「从身份库选择」按钮并吃掉默认动作', () => {
+      show('name');
+      const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+      const pick = bubbleRoot()?.querySelector('.aph-idh__btn--primary');
+      focus.mockImplementationOnce(() => {});
+
+      const event = keydown('ArrowDown', { alt: true });
+      document.dispatchEvent(event);
+
+      expect(event.defaultPrevented).toBe(true);
+      expect(focus).toHaveBeenCalledTimes(1);
+      expect(focus.mock.contexts[0]).toBe(pick);
+    });
+
+    it('裸 ArrowDown 不动焦点（不抢页面自有的下拉与候选列表语义）', () => {
+      show('name');
+      const focus = vi.spyOn(HTMLElement.prototype, 'focus');
+
+      document.dispatchEvent(keydown('ArrowDown'));
+
+      expect(focus).not.toHaveBeenCalled();
+      expect(bubbleRoot()?.querySelector('.aph-idh')).not.toBeNull();
+    });
+
+    it('焦点只是移进气泡自己的按钮时不收（否则键盘永远进不了动作行）', () => {
+      show('name');
+      const pick = bubbleRoot()?.querySelector('.aph-idh__btn--primary') as HTMLElement;
+      // closed 影子树的 activeElement 由宿主脚本侧读取，jsdom 不自动维护，按真实语义桩上
+      Object.defineProperty(shadow, 'activeElement', { configurable: true, get: () => pick });
+
+      field.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+
+      expect(bubbleRoot()?.querySelector('.aph-idh')).not.toBeNull();
+    });
+
     it('重复展示不累积监听：三轮显示后语言订阅恒为一条，收起即归零', () => {
       for (let i = 0; i < 3; i++) {
         show('name');
@@ -442,17 +494,34 @@ describe('身份提示气泡', () => {
       expect([...localeListeners]).toHaveLength(0);
     });
 
+    /**
+     * 重定位被 rAF 节流到下一帧：`position()` 先读几何（getBoundingClientRect/offset）
+     * 再写 `style.top/left`，每个 scroll 事件同步跑一遍就是逐帧「读→写」强制回流
+     *（口径同 FillAckChip 的 handleReposition）。
+     * 本环境的 jsdom 不自己驱动动画帧，故用假定时器把「那一帧」显式按出来。
+     */
     it('滚动与缩放后重新定位，缩放监听不随每次展示累积', () => {
-      show('name');
-      const before = field.getBoundingClientRect().top;
-      layout.setRect(field, { left: 20, top: 400, width: 240, height: 32 });
-      window.dispatchEvent(new Event('scroll'));
-      const styled = bubbleRoot()?.querySelector('.aph-idh') as HTMLElement;
-      expect(styled.style.top).toBe(`${400 + 32 + 6}px`);
-      expect(before).toBe(200);
+      vi.useFakeTimers({ toFake: ['requestAnimationFrame', 'cancelAnimationFrame'] });
+      try {
+        show('name');
+        const before = field.getBoundingClientRect().top;
+        layout.setRect(field, { left: 20, top: 400, width: 240, height: 32 });
 
-      window.dispatchEvent(new Event('resize'));
-      expect(bubbleRoot()?.querySelector('.aph-idh')).not.toBeNull();
+        window.dispatchEvent(new Event('scroll'));
+        const styled = bubbleRoot()?.querySelector('.aph-idh') as HTMLElement;
+        // 帧未落地前先保持原位：这一格同时是「没有同步重排」的证据
+        expect(styled.style.top).toBe(`${200 + 32 + 6}px`);
+
+        vi.advanceTimersByTime(16);
+        expect(styled.style.top).toBe(`${400 + 32 + 6}px`);
+        expect(before).toBe(200);
+
+        window.dispatchEvent(new Event('resize'));
+        vi.advanceTimersByTime(16);
+        expect(bubbleRoot()?.querySelector('.aph-idh')).not.toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

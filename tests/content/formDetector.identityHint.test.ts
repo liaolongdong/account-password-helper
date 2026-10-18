@@ -26,6 +26,7 @@ const identityHint = vi.hoisted(() => ({
   showIdentityHint: vi.fn(),
   hideIdentityHint: vi.fn(),
   destroyIdentityHint: vi.fn(),
+  setIdentityHintTheme: vi.fn(),
 }));
 vi.mock('@/entrypoints/content/IdentityHint', () => identityHint);
 
@@ -267,6 +268,22 @@ describe('聚焦识别到身份提示的接线', () => {
     identityHint.hideIdentityHint.mockClear();
     broadcast(makeConfig({ identityHintEnabled: false, opacity: 0.6 }));
     expect(identityHint.hideIdentityHint).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 换肤要落到已显示的那枚气泡上。
+   *
+   * 影子根只有内联写进宿主的自定义属性可解析，而气泡宿主常驻复用（收起只清内容），
+   * 令牌原本只在 ensureHost 那一次写入——管理页拨走主题后，已存在的气泡会停在旧主色
+   * 直到页面刷新。接力胶囊、内联下拉、眼睛开关都在这条监听里重放，气泡此前是漏的那一个。
+   */
+  it('配置变更时把新主题重放给气泡，与接力胶囊同一批回调', async () => {
+    await mount('<label>姓名<input name="realname"></label>', makeConfig());
+    identityHint.setIdentityHintTheme.mockClear();
+
+    broadcast(makeConfig({ theme: 'mauve' }));
+
+    expect(identityHint.setIdentityHintTheme).toHaveBeenCalledWith('mauve');
   });
 
   it('账号与密码框归快速填充，不再叠一层身份提示', async () => {

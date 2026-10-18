@@ -53,7 +53,12 @@ export const fillAckChipStyles = `
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: 12px;
   line-height: 1.5;
-  color: var(--aph-primary);
+  /*
+   * 文字取中性深色而不是主色 var(--aph-primary)：六套皮肤的主色在白底上都只有 2.4~3.2:1，
+   * 12px 文字达不到 WCAG 1.4.3 的 4.5:1。皮肤识别留给边框与投影（下面两条），
+   * 文字只负责被读清——与 theme.ts 的 --aph-text-placeholder 那次「中性档位专管文字」同口径。
+   */
+  color: #303133;
   background: #fff;
   border: 1px solid var(--aph-primary-border);
   border-radius: 10px;

@@ -19,15 +19,18 @@
  *   主题令牌内联写入，不污染宿主页面样式，也不被宿主页面样式污染；
  * - 宿主冒泡阶段做事件隔离，避免页内弹窗把气泡的点击当成「点击外部」而误关；
  * - 单例：同一时刻最多一枚气泡，跟随当前聚焦字段重建；
- * - 键盘出口：Esc 收起；动作按钮 `mousedown/pointerdown`  preventDefault，
- *   保持焦点留在页面字段上（否则点击即触发 blur，气泡在click落地前就被收掉）。
+ * - 键盘出口：`Esc` 收起；`Alt+↓` 把焦点送进气泡的动作行——宿主是挂在 `documentElement`
+ *   末尾的 fixed 浮层，普通 `Tab` 会在到达按钮之前先触发字段失焦而把气泡收掉，
+ *   所以键盘用户需要一条显式入口（否则提示读得到、按不到）；
+ * - 动作按钮 `mousedown/pointerdown`  preventDefault，保持焦点留在页面字段上
+ *   （否则点击即触发 blur，气泡在 click 落地前就被收掉）。
  *
  * @module entrypoints/content/IdentityHint
  */
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { onLiteLocaleChanged, tl } from '@/utils/i18n-lite';
-import { applyThemeTokensToHost, DEFAULT_THEME, getStoredTheme } from '@/utils/theme';
+import { type ThemeName, applyThemeTokensToHost, DEFAULT_THEME, getStoredTheme } from '@/utils/theme';
 import { CUSTOM_FIELD_LANDING_ROLES, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { attachHostEventIsolation } from './inlineDropdown/eventIsolation';
 import { hintFieldKeyword, selfNameValueNear } from './piiClassifier';
@@ -41,8 +44,15 @@ let boundInput: HTMLElement | null = null;
 let boundNeedsVerify = false;
 /** 当前气泡的角色，同上 */
 let boundRole: IdentityHintRole | null = null;
-/** 气泡生命周期内的监听清理（blur / scroll / resize / Escape / 语言订阅） */
+/** 气泡生命周期内的监听清理（blur / scroll / resize / Escape / Alt+↓ / 语言订阅） */
 let cleanups: (() => void)[] = [];
+/**
+ * 滚动/缩放重定位的 rAF 句柄
+ *
+ * `position()` 先读 `getBoundingClientRect` 与 `offsetHeight/Width` 再写 `style.top/left`，
+ * 每个 scroll 事件都跑一遍就是「读几何→写样式」逐帧交错强制回流（口径同 `FillAckChip`）。
+ */
+let repositionRaf: number | null = null;
 
 /** 气泡与字段的间距 */
 const GAP = 6;
@@ -75,16 +85,23 @@ const STYLE = `
     font-weight: 600;
   }
   .aph-idh__role {
-    color: var(--aph-primary, #409eff);
+    /* 强调靠字重而不是颜色：六套皮肤的 --aph-primary 在白底上只有 2.4~3.2:1，
+       13px 文字直接达不到 WCAG 1.4.3；主色留给按钮、边框与焦点环这些非文字载体。 */
+    color: inherit;
+    font-weight: 700;
   }
   .aph-idh__verify {
     margin: 4px 0 0;
-    color: #e6a23c;
+    /* 原 #e6a23c 在白底仅 2.19:1；压深到同族琥珀（5.9:1）才读得清，警示语义靠文字本身而非颜色 */
+    color: #8a5a00;
     font-size: 12px;
   }
   .aph-idh__custom {
     margin: 4px 0 0;
-    color: #909399;
+    /* 取 tokens.css 里 --aph-text-secondary 的同值（原 #909399 仅 3.08:1）；
+       影子根拿不到页面继承，中性色要用得先进 theme.ts 的 SHADOW_NEUTRAL_TOKENS 内联镜像，
+       这一行按既有口径写字面色值，shadowTokenCoverage 守卫只管 var(--aph-*) 形态的引用 */
+    color: #6b7280;
     font-size: 12px;
   }
   .aph-idh__actions {
@@ -148,6 +165,19 @@ function ensureHost(): void {
   });
 }
 
+/**
+ * 换肤时重放主题令牌
+ *
+ * 影子根里只有**内联写进宿主**的自定义属性可解析，而 `ensureHost` 是常驻复用的（收起只清
+ * 内容、不拆宿主），所以管理页把主题拨走后，这枚气泡会一直用旧主色渲染到页面刷新为止。
+ * 由 `FormDetector` 的配置变更监听转调，与眼睛图标、内联下拉、接力胶囊同一批回调。
+ *
+ * @param theme 当前主题
+ */
+export function setIdentityHintTheme(theme: ThemeName): void {
+  if (hostEl) applyThemeTokensToHost(hostEl, theme);
+}
+
 /** 元素是否落在可视区内（字段被滚出视口时气泡没有意义） */
 function isInViewport(rect: DOMRect): boolean {
   return rect.width > 0 && rect.height > 0 && rect.bottom > 0 && rect.top < window.innerHeight;
@@ -178,6 +208,10 @@ function position(bubble: HTMLElement): void {
 function releaseCleanups(): void {
   cleanups.forEach(off => off());
   cleanups = [];
+  if (repositionRaf !== null) {
+    cancelAnimationFrame(repositionRaf);
+    repositionRaf = null;
+  }
 }
 
 /**
@@ -210,7 +244,12 @@ export function destroyIdentityHint(): void {
 function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement {
   const bubble = document.createElement('div');
   bubble.className = 'aph-idh';
-  bubble.setAttribute('role', 'status');
+
+  // 播报范围只罩住文字行：整枚气泡挂 `role=status` 会把两个动作按钮一起包进活动区域，
+  // 焦点每动一次就重播一遍「收起 / 从身份库选择」，而按钮本就该靠自身标签被读到。
+  const body = document.createElement('div');
+  body.className = 'aph-idh__body';
+  body.setAttribute('role', 'status');
 
   const title = document.createElement('div');
   title.className = 'aph-idh__title';
@@ -222,13 +261,13 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
   roleSpan.textContent = tl(`cs.identity.role.${role}`);
   title.append(head, roleSpan, tail);
 
-  bubble.appendChild(title);
+  body.appendChild(title);
 
   if (needsVerify) {
     const verify = document.createElement('p');
     verify.className = 'aph-idh__verify';
     verify.textContent = tl('cs.identity.hintVerify');
-    bubble.appendChild(verify);
+    body.appendChild(verify);
   }
 
   // 库里没有这一格的角色（编号族、以及由机构证照闸门改判进来的那一族）必须自己说清「存哪儿」，
@@ -237,8 +276,10 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
     const custom = document.createElement('p');
     custom.className = 'aph-idh__custom';
     custom.textContent = tl('cs.identity.hintCustomField');
-    bubble.appendChild(custom);
+    body.appendChild(custom);
   }
+
+  bubble.appendChild(body);
 
   const actions = document.createElement('div');
   actions.className = 'aph-idh__actions';
@@ -334,14 +375,36 @@ export function showIdentityHint(input: HTMLElement, role: IdentityHintRole, nee
   const bubble = buildBubble(role, needsVerify);
   root.replaceChildren(bubble);
   position(bubble);
+  const pickBtn = bubble.querySelector<HTMLButtonElement>('.aph-idh__btn--primary');
 
-  const onScrollOrResize = (): void => position(bubble);
+  // 重定位走 rAF 节流：position() 先读 getBoundingClientRect/offset 再写 style.top/left，
+  // 每个 scroll 事件同步跑一遍就是逐帧「读几何→写样式」强制回流（口径同 FillAckChip）。
+  const onScrollOrResize = (): void => {
+    if (repositionRaf !== null) return;
+    repositionRaf = requestAnimationFrame(() => {
+      repositionRaf = null;
+      if (boundInput !== input) return;
+      position(bubble);
+    });
+  };
   const onBlur = (event: FocusEvent): void => {
+    // 焦点只是移进气泡自己的按钮——不能收，否则键盘永远进不了动作行
+    if (shadowRoot?.activeElement) return;
     if (event.target === input) hideIdentityHint();
   };
   const onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || event.isComposing) return;
-    hideIdentityHint();
+    if (event.isComposing) return;
+    if (event.key === 'Escape') {
+      hideIdentityHint();
+      return;
+    }
+    // Alt+↓：把焦点送进气泡动作行。宿主挂在 documentElement 末尾且 fixed，
+    // 普通 Tab 会先触发字段 focusout 而把气泡收掉，键盘用户因此没有到达按钮的自然路径
+    //（WCAG 2.1.1）。用不与页面常见导航抢占的 Alt 组合键开一条显式入口。
+    if (event.altKey && event.key === 'ArrowDown' && pickBtn) {
+      event.preventDefault();
+      pickBtn.focus();
+    }
   };
   const offLocale = onLiteLocaleChanged(() => {
     if (boundRole) {

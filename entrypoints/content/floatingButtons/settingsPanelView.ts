@@ -806,7 +806,9 @@ function applyPanelLocale(
   // data-i18n 标记的文案（tip 类含高亮 span，统一以 innerHTML 渲染静态内建文案）
   panelRoot.querySelectorAll<HTMLElement>('[data-i18n]').forEach(el => {
     const key = el.getAttribute('data-i18n') as PanelMessageKey | null;
-    if (key && msg[key]) el.innerHTML = msg[key];
+    // 只认自有属性：`key` 来自 DOM 属性，`constructor` 这类原型键也能取到值并字符串化，
+    // 而这一行是 innerHTML 写入——查表必须收在"是这份字典自己的键"上
+    if (key && Object.prototype.hasOwnProperty.call(msg, key)) el.innerHTML = msg[key];
   });
 
   // 关闭按钮 title
