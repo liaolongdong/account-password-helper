@@ -31,7 +31,7 @@
     <title>Bitwarden vs 1Password vs Chrome: Free Local Alternative</title>
     <meta
       name="description"
-      content="2026 Bitwarden vs 1Password vs Chrome built-in: compared on ten dimensions — price, storage, sign-up, one-click login, multi-environment isolation and cross-subdomain tiers, site rules, TOTP, offline audit, identity vault and license — with an honest take on who each suits."
+      content="2026 Bitwarden vs 1Password vs Chrome built-in: compared on ten dimensions — price, storage, sign-up, one-click login, multi-environment isolation and cross-subdomain tiers, site rules, TOTP, offline audit, personal info vault and license — with an honest take on who each suits."
     />
     <link
       rel="icon"
@@ -71,7 +71,7 @@
     />
     <meta
       property="og:description"
-      content="Ten-dimension comparison of the free, open-source local password manager vs Bitwarden, 1Password and Chrome built-in — price, storage, sign-up, one-click login, multi-environment isolation and cross-subdomain tiers, site rules, TOTP, offline audit, identity vault and license — and an honest take on who each suits."
+      content="Ten-dimension comparison of the free, open-source local password manager vs Bitwarden, 1Password and Chrome built-in — price, storage, sign-up, one-click login, multi-environment isolation and cross-subdomain tiers, site rules, TOTP, offline audit, personal info vault and license — and an honest take on who each suits."
     />
     <meta
       property="og:url"
@@ -675,7 +675,7 @@
                   <td><span class="no">No</span></td>
                 </tr>
                 <tr>
-                  <td>Identity vault (ID / bank card, encrypted locally)</td>
+                  <td>Personal info vault (ID / bank card, encrypted locally)</td>
                   <td class="us"><span class="yes">Yes</span></td>
                   <td class="partial">Identity / card items (cloud)</td>
                   <td class="partial">Identity / bank cards (cloud)</td>
@@ -728,12 +728,12 @@
                 not appear in chrome://extensions/shortcuts.
               </li>
               <li>
-                <b>Identity vault</b>: an independently encrypted store available on the manager page only (whole-blob
-                AES-256-GCM) for name, ID number, phone, email, address, bank card details and custom fields. Secret
-                fields are masked by default, opening it re-checks the master password, per-field or whole-card copy
-                runs under the timed clipboard wipe, search understands pinyin, and the cap is 30 records. Encrypted
-                .aphid backup export / import is provided, plus an optional plaintext .json export and re-import gated
-                by a master-password re-check and a risk confirmation, merged by id; it is
+                <b>Personal info vault</b>: an independently encrypted store available on the manager page only
+                (whole-blob AES-256-GCM) for name, ID number, phone, email, address, bank card details and custom
+                fields. Secret fields are masked by default, opening it re-checks the master password, per-field or
+                whole-card copy runs under the timed clipboard wipe, search understands pinyin, and the cap is 30
+                records. Encrypted .aphid backup export / import is provided, plus an optional plaintext .json export
+                and re-import gated by a master-password re-check and a risk confirmation, merged by id; it is
                 <b>not covered by automatic backups</b>, so export encrypted backups regularly.
               </li>
             </ul>
@@ -830,7 +830,7 @@
                 <li>Command palette: Ctrl+K / Cmd+K to filter and run 27 commands on the manager page</li>
                 <li>Built-in TOTP generation and offline security audit</li>
                 <li>Encrypted backup (.aph), trash bin and password history</li>
-                <li>Identity vault: ID numbers and bank cards encrypted separately, manager page only</li>
+                <li>Personal info vault: ID numbers and bank cards encrypted separately, manager page only</li>
                 <li>6 themes + bilingual (中文 / English) UI</li>
               </ul>
             </div>

@@ -35,7 +35,7 @@
     <title>开源免费本地密码管理器 · 一键登录 + TOTP | 账号密码管理助手</title>
     <meta
       name="description"
-      content="开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。"
+      content="开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、个人信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。"
     />
     <meta
       name="keywords"
@@ -69,7 +69,7 @@
     />
     <meta
       property="og:description"
-      content="开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。"
+      content="开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、个人信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。"
     />
     <meta
       property="og:url"
@@ -101,7 +101,7 @@
     />
     <meta
       name="twitter:description"
-      content="开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。"
+      content="开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、个人信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。"
     />
     <meta
       name="twitter:image"
@@ -169,7 +169,7 @@
           "加密备份（.aph）与邮箱备份",
           "侧边栏全场景秒开（缓存快路径 20-50ms 拿到数据）",
           "6 款色彩主题 + 中英文双语界面",
-          "身份信息库：证件、银行卡等个人信息独立加密存放"
+          "个人信息库：证件、银行卡等个人信息独立加密存放"
         ],
         "description": "开源免费的本地密码管理器：一键登录（填充+勾选+点击），PBKDF2 600K 迭代 + 敏感字段逐字段 AES-256-GCM 本地加密，TOTP 两步验证、安全体检与密码生成器，侧边栏秒开（缓存快路径 20-50ms），数据不上传服务器。",
         "url": "https://liaolongdong.github.io/account-password-helper/",
@@ -340,7 +340,7 @@
             "name": "换浏览器或换电脑，密码怎么搬过去？",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "一份加密备份就能把账号库整个搬走。源浏览器在管理页「数据管理 → 加密备份导出」验证主密码，产出一个 .aph 文件；这份文件不认浏览器，丢进任意网盘、拷进 U 盘或当邮件附件发给自己都行——网盘那边收到的只是一个不透明的二进制容器（salt + IV + AES-256-GCM 密文，密钥由主密码经 60 万轮 PBKDF2 派生），没有这把主密码谁也解不开，所以搬家不需要同步服务，也不需要给任何第三方授权。新浏览器这边：装同一款扩展，先设一个主密码（不必和原来相同），再用「加密备份导入」上传 .aph 并输入「导出时使用的主密码」，解密成功先预览、确认后才写入，条目会按这台机器自己的密钥逐字段重新加密落盘。两处要留意：一是导入是追加而非合并，不做去重，且与新增、网页自动保存共用 2000 条上限，额度不够时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据事后用「一键去重」清理即可；二是备份只承载账号库的九个字段（账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏），身份信息库要单独导 .aphid，站点规则要单独导明文 JSON，而偏好与安全设置、按条目的改密提醒、回收站和密码修改历史不随备份走，需在新机器重新设置。"
+              "text": "一份加密备份就能把账号库整个搬走。源浏览器在管理页「数据管理 → 加密备份导出」验证主密码，产出一个 .aph 文件；这份文件不认浏览器，丢进任意网盘、拷进 U 盘或当邮件附件发给自己都行——网盘那边收到的只是一个不透明的二进制容器（salt + IV + AES-256-GCM 密文，密钥由主密码经 60 万轮 PBKDF2 派生），没有这把主密码谁也解不开，所以搬家不需要同步服务，也不需要给任何第三方授权。新浏览器这边：装同一款扩展，先设一个主密码（不必和原来相同），再用「加密备份导入」上传 .aph 并输入「导出时使用的主密码」，解密成功先预览、确认后才写入，条目会按这台机器自己的密钥逐字段重新加密落盘。两处要留意：一是导入是追加而非合并，不做去重，且与新增、网页自动保存共用 2000 条上限，额度不够时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据事后用「一键去重」清理即可；二是备份只承载账号库的九个字段（账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏），个人信息库要单独导 .aphid，站点规则要单独导明文 JSON，而偏好与安全设置、按条目的改密提醒、回收站和密码修改历史不随备份走，需在新机器重新设置。"
             }
           },
           {
@@ -5195,7 +5195,7 @@
                 />
               </svg>
             </div>
-            <h3 data-i18n="features.f12.title">身份信息库</h3>
+            <h3 data-i18n="features.f12.title">个人信息库</h3>
             <p data-i18n="features.f12.desc">
               独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 /
               CVV）与自定义字段；整块 AES-256-GCM
@@ -6361,7 +6361,7 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>换浏览器或换电脑，密码怎么搬过去？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">一份加密备份就能把账号库整个搬走。源浏览器在管理页「数据管理 → 加密备份导出」验证主密码，产出一个 .aph 文件；这份文件不认浏览器，丢进任意网盘、拷进 U 盘或当邮件附件发给自己都行——网盘那边收到的只是一个不透明的二进制容器（salt + IV + AES-256-GCM 密文，密钥由主密码经 60 万轮 PBKDF2 派生），没有这把主密码谁也解不开，所以搬家不需要同步服务，也不需要给任何第三方授权。新浏览器这边：装同一款扩展，先设一个主密码（不必和原来相同），再用「加密备份导入」上传 .aph 并输入「导出时使用的主密码」，解密成功先预览、确认后才写入，条目会按这台机器自己的密钥逐字段重新加密落盘。两处要留意：一是导入是追加而非合并，不做去重，且与新增、网页自动保存共用 2000 条上限，额度不够时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据事后用「一键去重」清理即可；二是备份只承载账号库的九个字段（账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏），身份信息库要单独导 .aphid，站点规则要单独导明文 JSON，而偏好与安全设置、按条目的改密提醒、回收站和密码修改历史不随备份走，需在新机器重新设置。</div></div>
+            <div class="faq-a"><div class="faq-a-inner">一份加密备份就能把账号库整个搬走。源浏览器在管理页「数据管理 → 加密备份导出」验证主密码，产出一个 .aph 文件；这份文件不认浏览器，丢进任意网盘、拷进 U 盘或当邮件附件发给自己都行——网盘那边收到的只是一个不透明的二进制容器（salt + IV + AES-256-GCM 密文，密钥由主密码经 60 万轮 PBKDF2 派生），没有这把主密码谁也解不开，所以搬家不需要同步服务，也不需要给任何第三方授权。新浏览器这边：装同一款扩展，先设一个主密码（不必和原来相同），再用「加密备份导入」上传 .aph 并输入「导出时使用的主密码」，解密成功先预览、确认后才写入，条目会按这台机器自己的密钥逐字段重新加密落盘。两处要留意：一是导入是追加而非合并，不做去重，且与新增、网页自动保存共用 2000 条上限，额度不够时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据事后用「一键去重」清理即可；二是备份只承载账号库的九个字段（账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏），个人信息库要单独导 .aphid，站点规则要单独导明文 JSON，而偏好与安全设置、按条目的改密提醒、回收站和密码修改历史不随备份走，需在新机器重新设置。</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>条目数量有上限吗？</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6852,7 +6852,7 @@ pnpm lint:style  # Stylelint</code></pre>
           en: 'Open-Source Chrome Password Manager for Developers',
         },
         'meta.description': {
-          zh: '开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、身份信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。',
+          zh: '开源免费的本地密码管理器：一键登录、TOTP 两步验证、多环境账号隔离、离线安全体检、个人信息库。敏感字段逐字段 AES-256-GCM 本机加密，无需注册、不上传服务器。',
           en: 'Free open-source, local-first password manager for Chrome: one-click login, TOTP 2FA, environment isolation, offline security audit. No account, no server.',
         },
         'nav.brand': { zh: '账号密码管理助手', en: 'Account Password Helper' },
@@ -7268,7 +7268,7 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '6 款色彩主题 + 中英文双语即时切换；条目展示网站图标（读取浏览器本地缓存，不发网络请求），长列表辨识更快。',
           en: "6 color themes and instant Chinese/English switching; entries show site favicons (read from the browser's local cache, zero network) for faster recognition in long lists.",
         },
-        'features.f12.title': { zh: '身份信息库', en: 'Identity Vault' },
+        'features.f12.title': { zh: '个人信息库', en: 'Personal Info Vault' },
         'features.f12.desc': {
           zh: '独立的个人信息收藏夹，存放姓名、证件号、手机号、邮箱、住址、银行卡（卡号 / 发卡行 / 持卡人 / 有效期 / CVV）与自定义字段；整块 AES-256-GCM 加密、机密字段默认掩码，打开需主密码复验（默认同一管理页会话内只问一次）；支持逐字段或整卡一键复制（复制内容按时限自动清除剪贴板）、批量显示 / 隐藏机密、逐张折叠或一键折叠全部卡片、按最近修改 / 创建时间 / 类别 / 标题排序，或选「手动」后拖拽卡片左侧手柄（或按住 Alt + ↑/↓）排自定义固定顺序（档位记在本机）、拼音搜索与命中计数、按勾选导出子集、保存时疑似重复提醒与 30 条上限提示；加密 .aphid 备份导出导入，另提供需主密码复验 + 风险确认的可选明文 .json 导出 / 回导；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；不参与自动备份，建议定期手动导出加密备份。',
           en: 'A standalone locker for personal details — name, ID number, phone, email, address, bank card (number / issuing bank / holder / expiry / CVV) and custom fields — encrypted as one AES-256-GCM blob with secret fields masked by default and a master-password re-check to open (by default it asks once per manager-page session). Copy a single field or the whole card in one click (the clipboard auto-clears on a timer), batch-show / hide secrets, collapse cards one at a time or all at once, sort by updated / created / category / title, or choose Manual and drag the handle on the left of a card (or hold Alt with Up / Down) to set a custom fixed order (remembered on this device), search with pinyin matching and a match count, export a checked subset, get an on-save possible-duplicate reminder, and see the 30-record cap. Encrypted .aphid backup export/import, plus an optional plaintext .json export / re-import gated by a master-password re-check and a risk confirmation; the vault carries its own trash — deleted records stay restorable or permanently deletable for 30 days before they are cleaned automatically; it is not covered by automatic backups, so export an encrypted backup regularly.',
@@ -7822,8 +7822,8 @@ pnpm lint:style  # Stylelint</code></pre>
             en: 'How do I move my passwords to another browser or computer?',
           },
           a: {
-            zh: '一份加密备份就能把账号库整个搬走。源浏览器在管理页「数据管理 → 加密备份导出」验证主密码，产出一个 .aph 文件；这份文件不认浏览器，丢进任意网盘、拷进 U 盘或当邮件附件发给自己都行——网盘那边收到的只是一个不透明的二进制容器（salt + IV + AES-256-GCM 密文，密钥由主密码经 60 万轮 PBKDF2 派生），没有这把主密码谁也解不开，所以搬家不需要同步服务，也不需要给任何第三方授权。新浏览器这边：装同一款扩展，先设一个主密码（不必和原来相同），再用「加密备份导入」上传 .aph 并输入「导出时使用的主密码」，解密成功先预览、确认后才写入，条目会按这台机器自己的密钥逐字段重新加密落盘。两处要留意：一是导入是追加而非合并，不做去重，且与新增、网页自动保存共用 2000 条上限，额度不够时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据事后用「一键去重」清理即可；二是备份只承载账号库的九个字段（账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏），身份信息库要单独导 .aphid，站点规则要单独导明文 JSON，而偏好与安全设置、按条目的改密提醒、回收站和密码修改历史不随备份走，需在新机器重新设置。',
-            en: 'One encrypted backup carries the whole vault. On the source browser, open the manager page and use "Data Management → Export Encrypted Backup"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use "Import Encrypted Backup", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with "Remove Duplicates". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the identity vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine.',
+            zh: '一份加密备份就能把账号库整个搬走。源浏览器在管理页「数据管理 → 加密备份导出」验证主密码，产出一个 .aph 文件；这份文件不认浏览器，丢进任意网盘、拷进 U 盘或当邮件附件发给自己都行——网盘那边收到的只是一个不透明的二进制容器（salt + IV + AES-256-GCM 密文，密钥由主密码经 60 万轮 PBKDF2 派生），没有这把主密码谁也解不开，所以搬家不需要同步服务，也不需要给任何第三方授权。新浏览器这边：装同一款扩展，先设一个主密码（不必和原来相同），再用「加密备份导入」上传 .aph 并输入「导出时使用的主密码」，解密成功先预览、确认后才写入，条目会按这台机器自己的密钥逐字段重新加密落盘。两处要留意：一是导入是追加而非合并，不做去重，且与新增、网页自动保存共用 2000 条上限，额度不够时由你选「只导入前若干条」或取消，所以导进空库最干净，已有数据事后用「一键去重」清理即可；二是备份只承载账号库的九个字段（账号、密码、网址、标签、备注、TOTP 密钥、创建与更新时间、收藏），个人信息库要单独导 .aphid，站点规则要单独导明文 JSON，而偏好与安全设置、按条目的改密提醒、回收站和密码修改历史不随备份走，需在新机器重新设置。',
+            en: 'One encrypted backup carries the whole vault. On the source browser, open the manager page and use "Data Management → Export Encrypted Backup"; after you confirm the master password, an .aph file is downloaded. That file knows nothing about which browser produced it, so you can drop it into any cloud drive, copy it to a USB stick or mail it to yourself — the drive only receives an opaque binary container (salt + IV + AES-256-GCM ciphertext, with the key derived from your master password through 600,000 PBKDF2 rounds), which nobody can open without that password. Moving house therefore needs no sync service and no third-party login. On the new browser: install the same extension, set a master password (it does not have to match the old one), then use "Import Encrypted Backup", upload the .aph and enter the master password used at export time. The entries decrypt to a preview and are written only after you confirm, re-encrypted field by field with the key of that machine. Two things to keep in mind: the import appends instead of merging — it does not deduplicate, it shares the 2,000-entry cap with adding entries and page auto-save, and when there is not enough room you choose to import only the first N entries or cancel, so an empty vault is the cleanest landing spot and any duplicates left behind can be cleared with "Remove Duplicates". Also, the backup carries only the nine fields of the vault (account, password, URL, tag, note, TOTP secret, create time, update time, favorite): the personal info vault needs its own .aphid export, site rules need their own plain JSON export, while preferences, security settings, per-entry change reminders, the Trash and password history do not travel with it, so set those again on the new machine.',
           },
         },
 

@@ -120,7 +120,7 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
       '开启后，字段匹配会进入页面组件的开放 Shadow DOM，Ionic/Lightning 这类 Web Components 登录框才认得出来，站点规则里的自定义选择器同样受益；关闭后只在页面主文档内匹配，「未检测到登录表单」的就地引导也一并隐藏。站点规则还能逐站点再关一次，两处任一关闭即不穿透。',
     identityHint: '个人信息字段提示',
     identityHintTip:
-      '开启后，在页面里点到姓名、证件号、邮编这类个人信息输入框时，字段下方浮出一枚轻提示，说明这个框要的是什么，并可一键打开管理页身份库取值<span class="highlight-tip">（提示只说明字段类型，库内内容仍需你在管理页自行复制，页面拿不到）</span>。关闭后不再出现该提示，页面里也不会注入这枚气泡。',
+      '开启后，在页面里点到姓名、证件号、邮编这类个人信息输入框时，字段下方浮出一枚轻提示，说明这个框要的是什么，并可一键打开管理页个人信息库取值<span class="highlight-tip">（提示只说明字段类型，库内内容仍需你在管理页自行复制，页面拿不到）</span>。关闭后不再出现该提示，页面里也不会注入这枚气泡。',
     opacity: '按钮透明度',
   },
   en: {
@@ -144,7 +144,7 @@ const PANEL_MESSAGES: Record<PanelLocale, Record<PanelMessageKey, string>> = {
       'When enabled, field detection reaches into open Shadow DOM inside page components — the only way to see login forms built with Web Components such as Ionic or Lightning — and custom selectors benefit the same way. When disabled, matching stays in the main document and the inline “no login form detected” guidance is hidden too. A site rule can switch it off per site as well; either one off means no penetration.',
     identityHint: 'Personal-field hints',
     identityHintTip:
-      'When enabled, clicking into a name, ID-number or postal-code field shows a small hint under it saying what the field expects, with a one-click route to the identity vault in the manager page<span class="highlight-tip"> (the hint only names the field type — vault values still have to be copied inside the manager page and never reach the web page)</span>. When disabled, no hint appears and no bubble is injected into the page.',
+      'When enabled, clicking into a name, ID-number or postal-code field shows a small hint under it saying what the field expects, with a one-click route to the personal info vault in the manager page<span class="highlight-tip"> (the hint only names the field type — vault values still have to be copied inside the manager page and never reach the web page)</span>. When disabled, no hint appears and no bubble is injected into the page.',
     opacity: 'Button opacity',
   },
 };

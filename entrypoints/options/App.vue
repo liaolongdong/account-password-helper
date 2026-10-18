@@ -1280,7 +1280,7 @@ const buildPaletteActions = () => [
     id: 'identityAccess',
     group: 'security',
     label: t('options.header.identityAccess'),
-    keywords: ['identity', 'vault', 'verify', 'master', '身份库', '复验'],
+    keywords: ['identity', 'vault', 'verify', 'master', '个人信息库', '身份信息库', '身份库', '复验'],
     run: () => (showIdentityAccessDialog.value = true),
   },
   {

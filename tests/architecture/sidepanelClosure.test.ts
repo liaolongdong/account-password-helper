@@ -10,7 +10,7 @@
  * ---
  *
  * 背景：身份信息库刻意做成「只在 Options 页存在」的平行数据域，独立性是首要需求
- * （见 `docs/ARCHITECTURE.md`「27. 身份信息库」的「定位与独立性」）。
+ * （见 `docs/ARCHITECTURE.md`「27. 个人信息库」的「定位与独立性」）。
  * 但 `utils/storageKeys.ts` 同时被 sidepanel / popup / options 依赖，往 `STORAGE_KEYS`
  * 加 `IDENTITY` 键后，该共享 chunk 的字节必然变化（属内容变化非行为变化）。
  *

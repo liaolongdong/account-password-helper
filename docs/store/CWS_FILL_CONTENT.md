@@ -115,7 +115,7 @@
 
 > 🧭 **十四修订（2026-09-29，结构重构 + 功能语义图标 + 精简）**：本轮不是回填，而是按用户反馈**重写说明的组织形式**——旧版「结构层次不清晰、内容太详细太冗余、缺少功能语义图标」。名称与摘要**未动**，因此两个 `_locales` 文件与 `pnpm build` 均无需重跑。
 >
-> **① 层级**：中文从七节改为「一句话开头 → 【🌟 为什么选它】4 条 → 【📋 功能全览】分六个分组 → 【🔒 安全架构】→ 【🚀 四步上手】→ 【👥 适合谁】→ 【❓ 常见问题】→ 【💡 温馨提示】+ 三条联系方式」；【📋 功能全览】的六个分组是 **⚡ 填充与登录 / 🗂 保管与整理 / 🔐 两步验证与身份库 / 🛡 安全与体检 / 💾 导入导出与备份 / ⚙️ 界面与效率**，分组口径与 `README.md`「功能全览」的四大块对齐后再按商店读者拆细。英文镜像同一棵树（`🌟 WHY YOU'LL LIKE IT` / `📋 FEATURE SET` + 六组 / `🔒 SECURITY ARCHITECTURE` / `🚀 FOUR STEPS` / `👥 WHO IT'S FOR` / `❓ QUESTIONS` / `💡 A friendly note`）。**「适合谁」与「四步上手」换到功能全览之后**，让核心功能在第一屏就被读到。
+> **① 层级**：中文从七节改为「一句话开头 → 【🌟 为什么选它】4 条 → 【📋 功能全览】分六个分组 → 【🔒 安全架构】→ 【🚀 四步上手】→ 【👥 适合谁】→ 【❓ 常见问题】→ 【💡 温馨提示】+ 三条联系方式」；【📋 功能全览】的六个分组是 **⚡ 填充与登录 / 🗂 保管与整理 / 🔐 两步验证与个人信息库 / 🛡 安全与体检 / 💾 导入导出与备份 / ⚙️ 界面与效率**，分组口径与 `README.md`「功能全览」的四大块对齐后再按商店读者拆细。英文镜像同一棵树（`🌟 WHY YOU'LL LIKE IT` / `📋 FEATURE SET` + 六组 / `🔒 SECURITY ARCHITECTURE` / `🚀 FOUR STEPS` / `👥 WHO IT'S FOR` / `❓ QUESTIONS` / `💡 A friendly note`）。**「适合谁」与「四步上手」换到功能全览之后**，让核心功能在第一屏就被读到。
 >
 > **② 语义图标**：每一行改为**一个前导语义 emoji + 「名称：一句话规格」**（分组标题不带冒号）。emoji 合法：商店政策只禁「excessive metadata」，**未对特殊字符、表情符号或标点立规**。若审核判定图标过多，回退方式是**只删每行的前导 emoji、保留换行后的层级与文字不变**，结构不需要重做。
 >
@@ -128,6 +128,8 @@
 > 🧭 **十五修订（2026-09-29，聚光式新手引导回灌中英说明）**：新增「第一次进入密码管理页会自动播放聚光式分步引导」这条能力，**中英各一行、都挂在【⚙️ 界面与效率】分组已有的命令面板行之后**，不新增小节、不新增分组、不加营销口号；行内同时写明「看完或中途跳过都不再打扰」与「头部按钮可随时重播」这两个可核对的行为（实现见 [OnboardingTour.vue](../../components/options/OnboardingTour.vue)、[useOnboardingTour.ts](../../composables/useOnboardingTour.ts) 与 `StorageUtils.getOnboardingTourState()`）。名称与摘要**未动**（中文 30 / 英文 42 字符名称，中文 131 / 英文 130 字符摘要）。说明长度 中文 **5040 → 5122** / 英文 **12283 → 12549** 字符（上限 16,000；**英文侧余量由 3,717 收窄到 3,451**，长度口径仍是 `len(blocks[i].strip())`）。自检（本轮实跑）：`paste blocks: 6 | banned hits: none`、中英说明跨小节重复行均为零、四个 `_locales` 值与粘贴块逐字一致。⚠️ **给下一轮的提醒**：历轮批注里记录的「说明长度」是那一轮的**轮末快照**，只要粘贴块加删一行就会漂——发布前一律以 `CWS_PUBLISHING_GUIDE.md`「第五步 → 快速校验命令」那段 python 的**实时输出**为准，别照抄本文档的历史数。
 >
 > 🧾 **十六修订（2026-10-13，两处说明正文按实现订正，不新增卖点）**：① 【功能全览】的身份信息库一行中文原写「查看与复制需再次验证主密码」、英文原写 `masked by default and gated by a master-password re-check`，属对实现的过度声称——实际是**打开**身份库时要求复验，且复验策略可配三档、默认「同一管理页会话内只问一次」（实现见 [identityVaultAccess.ts](../../utils/identityVaultAccess.ts) 的 `DEFAULT_IDENTITY_VERIFY_POLICY = 'perSession'` 与 [IdentityVaultAccessSetting.vue](../../components/options/IdentityVaultAccessSetting.vue)），中英两侧同改为条件式表述；② 命令面板条数 **23 → 25**（本轮新增 `identityAccess` 一条，真源 [App.vue](../../entrypoints/options/App.vue) 的 `buildPaletteActions()`，由 `tests/architecture/commandPaletteCopy.test.ts` 钉住 14 文件 19 处同值）。**名称与摘要未动**（中文 30 / 英文 42 字符名称，中文 131 / 英文 130 字符摘要，与 `public/_locales/*/messages.json` 逐字一致）。说明长度 中文 **5122 → 5155** / 英文 **12549 → 12665** 字符（上限 16,000；英文侧余量由 3,451 收窄到 **3,335**，长度口径仍是 `len(blocks[i].strip())`）。同轮把【功能全览】的标签上限从 3 订正为 5，但那是 e9bf708 的**等字符数替换**（`3` → `5`），代码依据是 [constants.ts](../../utils/constants.ts) 的 `MAX_TAG_COUNT = 5`，不构成本轮长度变化。自检（本轮实跑 `CWS_PUBLISHING_GUIDE.md`「第五步 → 快速校验命令」那段 python）：`paste blocks: 6 | banned hits: none`、中英说明跨小节重复行均为零、四个 `_locales` 值与粘贴块逐字一致。
+
+> 🏷️ **十七修订（2026-10-18，功能更名）**：对外名称「身份信息库」统一为「个人信息库」（英文 `Identity Vault` → `Personal Info Vault`），只改称谓与相关文案，不改功能、数据格式、权限或营销口径；【功能全览】分组标题与问答均按同一口径更新（四个 `_locales` 未含该名称，无需改动）。历史修订记录保留当时的旧称，不做回写。说明长度以发布前「第五步 → 快速校验命令」的实时输出为准。
 
 ### 说明 (Description) — 最多 16,000 字符
 
@@ -161,11 +163,11 @@
 ➕ 就地添加与只读详情：侧边栏顶栏「+」添加当前站点并预填网址；每行「查看详情」以抽屉展示完整备注、活码与修改历史，无需进入编辑态
 🕒 工具栏 Popup 是操作中枢：管理页、侧边栏、直接填充、锁定会话都在同一屏，会话剩余时间常驻显示、临期变色，点一下直达有效期设置续期
 
-🔐 两步验证与身份库
+🔐 两步验证与个人信息库
 📱 内置 TOTP：扫描网页二维码或上传图片即可添加密钥，动态码按 RFC 6238 在你设备上生成，不联网、不上传
 🧩 参数可自定义：otpauth:// 里的算法认 SHA1 / SHA256 / SHA512、位数认 6 / 7 / 8、周期认自定义秒数，没写的按 6 位 / SHA1 / 30 秒处理；只支持时间型动态码（计数器型 HOTP 不在范围内）
 🔗 登录第二步接力：列表与侧边栏同屏显示活码和倒计时环，登录走到第二步时活码就近出现，可一键填入
-🪪 身份信息库：姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段单独成库，默认掩码，打开是否要求主密码由复验策略决定（默认同一管理页会话内只问一次，可改成每次都问或不再单独问）；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；支持 .aphid 加密备份与勾选导出子集，也可按需导出 / 导入明文 .json（需复验主密码并二次确认风险）
+🪪 个人信息库：姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段单独成库，默认掩码，打开是否要求主密码由复验策略决定（默认同一管理页会话内只问一次，可改成每次都问或不再单独问）；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；支持 .aphid 加密备份与勾选导出子集，也可按需导出 / 导入明文 .json（需复验主密码并二次确认风险）
 
 🛡 安全与体检
 🩺 离线安全体检：0 到 100 分综合评分，四类问题按受影响条目占比扣分——复用 35、弱密码 25、命中内置近千条常见泄露密码 20、长期未更新 20（再分 90 / 180 / 365 天三档）；未开启两步验证的条目单独列出但不计分
@@ -190,7 +192,7 @@
 
 【🔒 安全架构】
 🧬 主密码经 PBKDF2（600,000 次迭代）派生 256-bit 密钥，全部密码学运算走浏览器原生 Web Crypto API；解密密钥与本机存的解锁校验值分两条独立路径派生，校验值推不出密钥，解锁比对为常量时间
-🗄 账号、密码、网址、备注和两步验证码五类敏感内容逐字段以 AES-256-GCM 认证加密后才写入本地存储，每次保存都现场生成新的随机初始化向量；身份信息单独成库整块加密；会话过期即回到密文状态
+🗄 账号、密码、网址、备注和两步验证码五类敏感内容逐字段以 AES-256-GCM 认证加密后才写入本地存储，每次保存都现场生成新的随机初始化向量；个人信息单独成库整块加密；会话过期即回到密文状态
 📴 密文只写入浏览器本地存储（持久化的 local 与仅内存的 session），从不使用会随浏览器账号同步的 sync 存储
 🔁 更改主密码时对全部条目原子重加密：要么整体完成，要么保持原状，不会留下半加密的数据
 🧷 登录第二步的接力只把当次验证码和它的有效期交给页面，生成动态码所需的密钥始终留在扩展自己的后台上下文中；这份接力标记只对同一站点有效，三分钟后自动失效
@@ -214,7 +216,7 @@
 【❓ 常见问题】
 🆓 真的完全免费吗？是。没有高级版、没有内购，也不会有劝你升级的弹窗
 ☁️ 密码会被上传到云端吗？不会，扩展没有自己的服务器。唯一的主动联网是每 6 小时一次的更新检查：先探测商店可达性（结果本机缓存 24 小时），不通时才去公开发布接口读最新版本号与不超过 200 字的更新说明；请求不携带任何账号、标识符或库内数据，断网时静默失败，其余功能照常可用
-🪪 身份信息会被上传或同步吗？不会。它们和密码一样只加密保存在本机，不随浏览器账号同步，也不会离开这台设备
+🪪 个人信息会被上传或同步吗？不会。它们和密码一样只加密保存在本机，不随浏览器账号同步，也不会离开这台设备
 🔑 忘记主密码怎么办？找不回来，也没有任何人能把它还原成可读的形式。应用内的「重置」入口做的是清空全部数据、把扩展恢复到刚装好的样子，旧密码不会因此出现；请定期导出加密备份，别让一次遗忘赔上整个库
 📥 能从其他密码管理器导入吗？可以：在原来用的应用里导出 CSV 或 JSON，再到扩展的导入页上传即可
 📊 密码库能存多少条？上限 2000 条，回收站里的条目不占额度。达到上限后新增、创建副本、导入、网页自动保存与回收站恢复都会明确提示被拒绝，不会静默覆盖或删除已保存的数据；导入量超出剩余额度时，预览页会先写明还能导入多少条、将被忽略多少条
@@ -297,10 +299,10 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 ➕ The "+" in the panel header saves the current site with its domain pre-filled; "View details" opens a drawer with the full note, live code and change history.
 🕒 Toolbar popup as the hub: management, side panel, direct fill and locking on one screen, with session time always visible, turning colour near expiry and clicking through to extend it.
 
-🔐 Two-factor and identity
+🔐 Two-factor and personal info
 📱 Built-in TOTP: add a key by scanning the page's QR code or uploading an image; codes follow RFC 6238 and are generated on your device, with no network request. Algorithm SHA1 / SHA256 / SHA512, 6, 7 or 8 digits and a custom period are read from the otpauth:// link, defaulting to 6 / SHA1 / 30s. Counter-based HOTP is out of scope.
 🔗 Second-step handoff: the live code and its countdown ring sit in the list and the side panel, and when a login reaches step two the code appears beside the field, ready to fill.
-🪪 Identity vault: name, ID number, phone, email, address, bank card details and custom fields in a separate store, masked by default and opened behind a master-password re-check (once per manager-page session by default; configurable to every time, or to no separate check). Its own trash keeps deleted records restorable or permanently deletable for 30 days before they are cleaned automatically, and encrypted .aphid export/import supports a ticked subset, plus an optional plaintext .json round-trip behind a re-check and a risk confirmation.
+🪪 Personal info vault: name, ID number, phone, email, address, bank card details and custom fields in a separate store, masked by default and opened behind a master-password re-check (once per manager-page session by default; configurable to every time, or to no separate check). Its own trash keeps deleted records restorable or permanently deletable for 30 days before they are cleaned automatically, and encrypted .aphid export/import supports a ticked subset, plus an optional plaintext .json round-trip behind a re-check and a risk confirmation.
 
 🛡 Safety and check-up
 🩺 On-device check-up scored 0-100: reused passwords 35, weak 25, a hit in the built-in list of nearly a thousand commonly leaked ones 20, long-unchanged 20 (in 90, 180 and 365 day bands), each weighted by how many entries it touches. Missing two-factor is listed but unscored.
@@ -325,7 +327,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 
 🔒 SECURITY ARCHITECTURE
 🧬 The master password is stretched with PBKDF2 (600,000 iterations) into a 256-bit key on the browser's native Web Crypto API; the decryption key and the stored unlock check value are derived on two separate paths, so the value cannot be turned back into the key.
-🗄 Username, password, website, note and two-factor key are encrypted field by field with AES-256-GCM before reaching local storage, each save with a fresh random IV; the identity vault is one separately encrypted blob. Everything returns to ciphertext when the session expires.
+🗄 Username, password, website, note and two-factor key are encrypted field by field with AES-256-GCM before reaching local storage, each save with a fresh random IV; the personal info vault is one separately encrypted blob. Everything returns to ciphertext when the session expires.
 📴 Ciphertext goes only into the local stores (persistent local, in-memory session). The account-syncing sync store is never used.
 🔁 Changing the master password re-encrypts every entry atomically — all of it or none, never a half-encrypted vault.
 🧷 Mid two-step sign-in the page is handed only the current code and its expiry; the secret that generates it never leaves the extension's own background context, and the handoff marker is same-host and expires after 3 minutes.
@@ -588,7 +590,7 @@ https://liaolongdong.github.io/account-password-helper/privacy.html
 **storage**
 
 ```
-用于在浏览器本地存储加密后的密码数据、身份信息（证件号、银行卡号等）和用户偏好设置，所有敏感数据使用 AES-256-GCM 加密。
+用于在浏览器本地存储加密后的密码数据、个人信息（证件号、银行卡号等）和用户偏好设置，所有敏感数据使用 AES-256-GCM 加密。
 ```
 
 **activeTab**
@@ -871,7 +873,7 @@ No specific website accounts are required. The extension treats all websites uni
 ### 7.4 注意事项
 
 - **竞品品牌名一律不写**：2026-09-09 的 3.8.0 草稿就是被 `Chrome, LastPass, Bitwarden, and 1Password (CSV/JSON formats` 这句判为 keyword stuffing（[spam 政策](https://developer.chrome.com/webstore/program_policies#spam)）。商店的名称、摘要、说明、宣传图与提名文案只写「常见密码管理器的导出格式」；扩展**内**的导入向导 UI 可以保留具体格式名，因为那是功能说明而非商店元数据。
-- **卖点只在一处展开，不靠删篇幅**：2026-09-29 十四修订后，中文说明为「【🌟 为什么选它】→【📋 功能全览】（⚡ 填充与登录 / 🗂 保管与整理 / 🔐 两步验证与身份库 / 🛡 安全与体检 / 💾 导入导出与备份 / ⚙️ 界面与效率）→【🔒 安全架构】→【🚀 四步上手】→【👥 适合谁】→【❓ 常见问题】→【💡 温馨提示】」，英文镜像同一棵树；去重方式仍是**让每个卖点只有一个归属小节**（价值句只在【🌟 为什么选它】、入口与规格清单只在【📋 功能全览】的对应分组、算法与参数只在【🔒 安全架构】、受众视角只在【👥 适合谁】、联网 / 性能 / 权限口径只在【❓ 常见问题】），而不是把小节砍掉。提交前用 `docs/store/CWS_PUBLISHING_GUIDE.md` 的重复度扫描过一遍。
+- **卖点只在一处展开，不靠删篇幅**：2026-09-29 十四修订后，中文说明为「【🌟 为什么选它】→【📋 功能全览】（⚡ 填充与登录 / 🗂 保管与整理 / 🔐 两步验证与个人信息库 / 🛡 安全与体检 / 💾 导入导出与备份 / ⚙️ 界面与效率）→【🔒 安全架构】→【🚀 四步上手】→【👥 适合谁】→【❓ 常见问题】→【💡 温馨提示】」，英文镜像同一棵树；去重方式仍是**让每个卖点只有一个归属小节**（价值句只在【🌟 为什么选它】、入口与规格清单只在【📋 功能全览】的对应分组、算法与参数只在【🔒 安全架构】、受众视角只在【👥 适合谁】、联网 / 性能 / 权限口径只在【❓ 常见问题】），而不是把小节砍掉。提交前用 `docs/store/CWS_PUBLISHING_GUIDE.md` 的重复度扫描过一遍。
 - **每行一个前导语义 emoji**：层级靠「emoji + 名称：一句话规格」呈现，分组标题不带冒号。若审核把图标判为 excessive metadata，**只删前导 emoji、保留分行与文字不变**即可回退，不必重做结构。
 - **用户量不是门槛**：即使不到 100 个用户，只要符合质量标准也能获批。
 - **徽章可被撤销**：获批后若质量下降、出现违规或性能问题，Google 会移除徽章。

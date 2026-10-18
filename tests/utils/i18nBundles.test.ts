@@ -119,7 +119,7 @@ const POPUP_GRAPH_FILES = [
 ];
 
 /**
- * 身份信息库（Identity Vault）依赖图源文件
+ * 个人信息库（Personal Info Vault）依赖图源文件
  *
  * 两弹窗 + composable 使用 t() 的 key 均需落在 options bundle（全命名空间）内；
  * 动态 key（如 `t(\`identity.category.${x}\`)`）由「整命名空间注册」策略覆盖，无需提取。

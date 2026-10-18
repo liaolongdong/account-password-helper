@@ -3,6 +3,8 @@
 本文件是仓库文档的落点索引：先查这张表，再决定新文档写在哪里。判断标准只有一条——**这份内容是给仓库 outside 的人看的，还是给我们自己看的**。前者入库、按目录归类；后者留在本地，由 `.gitignore` 兜住。
 
 > 根目录不放文档。GitHub Pages 从 `main` 分支根目录发布，所以根目录的 `.html` / `.txt` / `llms.txt` / `pricing.md` 全是**已发布的对外地址**，不是随手放置；`test-page.html` 已于 2026-09-28 移入 `docs/fixtures/`。新增文档一律进 `docs/`。
+>
+> **术语更名（2026-10-18）**：对外名称「身份信息库」已统一为「个人信息库」（English: Personal Info Vault）。`reports/`、`operations/` 等**日期化历史记录**保留当时的旧称与直接引语，不回写；当前对外文档、商店文案、隐私页与落地页均已同步。
 
 ## 目录职责
 
@@ -42,6 +44,8 @@
 This file is the placement index for repository docs: check the table before deciding where a new document goes. There is only one test — **is this read by people outside the repo, or only by us**. The former is tracked and filed by category; the latter stays local and is covered by `.gitignore`.
 
 > No docs in the repo root. GitHub Pages is served from the root of the `main` branch, so the root-level `.html` files, `robots.txt`, `sitemap.xml`, `llms.txt` and `pricing.md` are **published addresses**, not casual placements; `test-page.html` moved to `docs/fixtures/` on 2026-09-28. Everything new goes under `docs/`.
+>
+> **Terminology update (2026-10-18)**: the public name "Identity Vault" has been unified to "Personal Info Vault" (Chinese: 个人信息库). Dated historical records under `reports/` and `operations/` keep the wording and direct quotes of their time and are not rewritten; current public docs, store copy, privacy page and landing pages are all updated.
 
 ## Directory responsibilities
 

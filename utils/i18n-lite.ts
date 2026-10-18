@@ -116,9 +116,9 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.cm.noTarget': '右键点击的输入框已不可用，请重新右键输入框后再填充',
     'cs.cm.fillFailed': '填充失败，请重试',
     'cs.cm.notEditable': '该输入区域暂不支持右键填充（仅支持普通输入框）',
-    // 身份库召唤提示：只播报「这个框是什么语义角色」，不含任何字段值与库内数据
+    // 个人信息库召唤提示：只播报「这个框是什么语义角色」，不含任何字段值与库内数据
     'cs.identity.hintTitle': '这是「{role}」字段',
-    'cs.identity.hintPick': '从身份库选择',
+    'cs.identity.hintPick': '从个人信息库选择',
     'cs.identity.hintDismiss': '收起',
     'cs.identity.hintVerify': '可能是他人或不常用信息，请核对后再取用',
     'cs.identity.hintCustomField': '库里没有这一格，可在自定义字段里存下它',
@@ -288,7 +288,7 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.cm.notEditable': 'Right-click fill is not supported for this field (standard input fields only).',
     // Identity-vault summon hint: announces only the semantic role of the field, never its content
     'cs.identity.hintTitle': 'This looks like a {role} field',
-    'cs.identity.hintPick': 'Pick from Identity Vault',
+    'cs.identity.hintPick': 'Pick from Personal Info Vault',
     'cs.identity.hintDismiss': 'Dismiss',
     'cs.identity.hintVerify': 'May belong to someone else — check before use',
     'cs.identity.hintCustomField': 'The vault has no such field — save it as a custom field',

@@ -14,7 +14,7 @@
   "onboarding.search.title": "条目多了以后靠这里",
   "onboarding.search.desc": "搜索支持拼音首字母，标签与「只看收藏」可叠加筛选；勾选多行还能批量改标签、删除、导出。",
   "onboarding.data.title": "备份和迁移都在这里",
-  "onboarding.data.desc": "导入导出、加密备份、回收站和身份信息库都收在这个菜单里。导出的 .aph 必须用主密码才能解开。",
+  "onboarding.data.desc": "导入导出、加密备份、回收站和个人信息库都收在这个菜单里。导出的 .aph 必须用主密码才能解开。",
   "onboarding.data.tip": "建议现在就走一次「加密备份导出」，菜单顶部会记下最近一次成功备份的时间。",
   "onboarding.settings.title": "把安全策略调成你的习惯",
   "onboarding.settings.desc": "闲置自动锁定、会话有效期、自动保存、站点规则、剪贴板清理和快捷键，都从这一组进。",

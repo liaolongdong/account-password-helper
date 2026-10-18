@@ -165,13 +165,13 @@ describe('身份提示气泡', () => {
       show('name');
       const bubble = bubbleRoot()?.querySelector('.aph-idh');
       // 播报只罩文字行：整枚气泡挂 role=status 会把两个动作按钮包进活动区域，
-      // 焦点每动一次就重播一遍「收起 / 从身份库选择」
+      // 焦点每动一次就重播一遍「收起 / 从个人信息库选择」
       expect(bubble?.getAttribute('role')).toBeNull();
       expect(bubble?.querySelector('.aph-idh__body')?.getAttribute('role')).toBe('status');
       expect(bubble?.querySelector('.aph-idh__actions')?.closest('.aph-idh__body')).toBeNull();
       expect(bubbleRoot()?.querySelector('.aph-idh__title')?.textContent).toBe('这是「姓名」字段');
       expect(bubbleRoot()?.querySelector('.aph-idh__role')?.textContent).toBe('姓名');
-      expect(bubbleRoot()?.querySelector('.aph-idh__btn--primary')?.textContent).toBe('从身份库选择');
+      expect(bubbleRoot()?.querySelector('.aph-idh__btn--primary')?.textContent).toBe('从个人信息库选择');
       expect(bubbleRoot()?.querySelector('.aph-idh__btn--ghost')?.textContent).toBe('收起');
     });
 
