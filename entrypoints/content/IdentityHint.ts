@@ -231,8 +231,8 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
     bubble.appendChild(verify);
   }
 
-  // 库里没有这一格的角色（编号族）必须自己说清「存哪儿」，否则用户按提示去库里找
-  // 「编号」那一格会落空——这一行只在这几档出现，其余角色的落点是库里的内置字段。
+  // 库里没有这一格的角色（编号族、以及由机构证照闸门改判进来的那一族）必须自己说清「存哪儿」，
+  // 否则用户按提示去库里找「编号」那一格会落空——这一行只在这几档出现，其余角色的落点是库里的内置字段。
   if (CUSTOM_FIELD_LANDING_ROLES.includes(role)) {
     const custom = document.createElement('p');
     custom.className = 'aph-idh__custom';
@@ -273,8 +273,9 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
  *
  * 两条通道按角色分派，各自只在被点中的那一次求值（判据与边界见
  * `piiClassifier` 里 `selfNameValueNear` / `hintFieldKeyword` 两个函数的注释）：
- * - 编号族（{@link CUSTOM_FIELD_LANDING_ROLES}）：库里没有那一格，用户在身份里存的是
- *   自拟的**自定义字段**，其标签参与检索，所以带「这一格叫什么」过去才命中；
+ * - 自定义字段档（{@link CUSTOM_FIELD_LANDING_ROLES}，即 `serialNumber`：编号族 + 由机构证照
+ *   闸门改判进来的那一族）：库里没有那一格，用户在身份里存的是自拟的**自定义字段**，
+ *   其标签参与检索，所以带「这一格叫什么」过去才命中；
  * - 其余角色：带同一表单里已经打好的本人姓名，把列表筛到那一个人。
  *
  * 取不到就是空串，由 `openIdentityVault` 把整包载荷收掉。
@@ -289,8 +290,8 @@ function pickSearchKeyword(): string {
  * 通知后台打开管理页身份库
  *
  * 出口只有一个标签：一条搜索词。它的来源按角色分两条通道（{@link pickSearchKeyword}）——
- * 库里存着这一格的角色取同一表单里已打好的**本人姓名**，把列表筛到那一个人；编号族取
- * **这一格叫什么**，把列表筛到用户自拟的那条自定义字段。不含其它字段值、不含页面 URL、
+ * 库里存着这一格的角色取同一表单里已打好的**本人姓名**，把列表筛到那一个人；以自定义字段为落点的那一档
+ * （编号族、以及机构证照号）取**这一格叫什么**，把列表筛到用户自拟的那条自定义字段。不含其它字段值、不含页面 URL、
  * 不含任何库内数据，长度在后台与选项页各收口一次。
  *
  * 页面角色**刻意不跨入口**：它只服务气泡上那句「这是「证件号」字段」。曾经把它透给选项页
