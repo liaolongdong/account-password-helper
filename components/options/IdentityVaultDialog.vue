@@ -146,11 +146,30 @@
         class="identity-empty"
       >
         <el-empty :description="t('identity.noMatch')">
+          <!--
+            深链零命中的出路：气泡那句「库里没有这一格，可在自定义字段里存下它」把用户送到这里，
+            若他从没建过那一格，落点就是一片空态。这一行只解释「差的是哪个名字」，动作复用工具栏
+            那枚同一条 `$emit('add')`——不自建第二套添加流程，也不在这里碰任何明文。
+            只在**有搜索词**时说这句话：按类别筛空的那些形里，这句话会把人往错误的落点上引。
+          -->
+          <p
+            v-if="keyword.trim()"
+            class="identity-empty__hint"
+          >
+            {{ t('identity.noMatchHint', { keyword: keyword.trim() }) }}
+          </p>
           <el-button
             v-if="filterActive"
             @click="clearFilters"
           >
             {{ t('identity.clearFilters') }}
+          </el-button>
+          <el-button
+            v-if="keyword.trim()"
+            type="primary"
+            @click="$emit('add')"
+          >
+            {{ t('identity.add') }}
           </el-button>
         </el-empty>
       </div>
@@ -956,6 +975,15 @@ const handleFileChange = async (event: Event): Promise<void> => {
   align-items: center;
   justify-content: center;
   min-height: 260px;
+}
+
+/* 零命中那一行的上下文说明：说清差的是哪个名字，不改变弹窗里任何其他文字的层级 */
+.identity-empty__hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--aph-text-secondary);
+  text-align: center;
 }
 
 .identity-list {

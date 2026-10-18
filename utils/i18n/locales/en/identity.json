@@ -12,6 +12,7 @@
   "identity.backupReminder": "Identity information is not backed up automatically. Please export an encrypted backup (.aphid file) regularly and store it safely.",
   "identity.empty": "No identity information saved yet. Click \"Add identity\" below to get started.",
   "identity.noMatch": "No matching identity records",
+  "identity.noMatchHint": "No field matches \"{keyword}\" — add an identity with a custom field of the same name so it can be found next time",
   "identity.clearFilters": "Clear filters",
   "identity.show": "Show",
   "identity.hide": "Hide",

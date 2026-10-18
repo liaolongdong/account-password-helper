@@ -209,6 +209,22 @@ describe('详情抽屉到身份库的跳转接线', () => {
     expect(teardownBody('teardown'), 'teardown 不再连带复位视图态').toContain('resetViewState()');
   });
 
+  it('深链零命中时，空态要给一条出路：说清是「没有含这个词的字段」，并复用工具栏那条添加事件', () => {
+    const empty = VAULT_DIALOG_SRC.match(/filteredRows\.length === 0[\s\S]*?<\/el-empty>/);
+    expect(empty, '未找到「无匹配」空态那一块').toBeTruthy();
+
+    // 出路只解释原因、不承诺结果：文案取的是当前搜索词，用户能核对到底差的是哪个名字
+    expect(empty![0], '空态不再引用带上下文的说明文案').toMatch(/t\('identity\.noMatchHint'/);
+    expect(empty![0], '说明文案必须把搜索词插进去，否则等于没说').toMatch(/\{\s*keyword:\s*keyword\.trim\(\)\s*\}/);
+    // 引导只在「有搜索词」时出现：按类别筛空的那些形里，这句话会把人往错误的落点上引
+    expect(empty![0]).toMatch(/v-if="keyword\.trim\(\)"/);
+    // 出路按钮不许自带一套新的添加流程，必须走工具栏那枚同一条 `$emit('add')`
+    expect(empty![0], '空态的添加按钮绕开了工具栏那条事件，等于开出第二个入口').toMatch(/\$emit\('add'\)/);
+    for (const banned of [/decrypt/i, /encrypt/i, /localStorage/, /chrome\.storage/]) {
+      expect(empty![0], `空态里出现了 ${banned.source}`).not.toMatch(banned);
+    }
+  });
+
   it('抽屉不持有身份库状态，也不引入身份加解密', () => {
     expect(DRAWER_SRC, '抽屉引用了身份库状态：密码条目展示层开始持有 PII').not.toMatch(
       /useIdentityVault|@\/utils\/identity|identityVault/,

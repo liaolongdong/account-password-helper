@@ -12,6 +12,7 @@
   "identity.backupReminder": "身份信息不会自动备份，请定期导出加密备份（.aphid 文件）妥善保存。",
   "identity.empty": "还没有保存的身份信息，点击下方「添加身份信息」开始吧",
   "identity.noMatch": "没有匹配的身份信息",
+  "identity.noMatchHint": "没有含「{keyword}」的字段——可以在「添加身份信息」里建一条同名的自定义字段，下次就搜得到",
   "identity.clearFilters": "清除筛选",
   "identity.show": "显示",
   "identity.hide": "隐藏",
