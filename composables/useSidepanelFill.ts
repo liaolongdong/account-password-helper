@@ -404,9 +404,11 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
       } else {
         ElMessage.warning(t(pickFailureKey(FILL_FAILURE_KEYS, response?.reason, 'fill.fillFailed')));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('填充密码失败:', error);
-      if (error.message && error.message.includes('Could not establish connection')) {
+      // MV3 里跨 frame 投递失败没有结构化错误码，只能按 Chrome 的固定文案识别，
+      // 因此收窄到 Error 而不是把 catch 面放宽成 any
+      if (error instanceof Error && error.message.includes('Could not establish connection')) {
         ElMessage.error(t('fill.connectFailed'));
       } else {
         ElMessage.error(t('fill.fillFailed'));
@@ -478,7 +480,7 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
       } else {
         ElMessage.warning(t(pickFailureKey(TOTP_FAILURE_KEYS, response?.reason, 'fill.totpFillFailed')));
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('填充验证码失败:', error);
       ElMessage.error(t('fill.totpFillFailed'));
     }
