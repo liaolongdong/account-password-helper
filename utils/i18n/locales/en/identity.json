@@ -13,6 +13,7 @@
   "identity.empty": "No identity information saved yet. Click \"Add identity\" below to get started.",
   "identity.noMatch": "No matching identity records",
   "identity.noMatchHint": "No field matches \"{keyword}\" — add an identity with a custom field of the same name so it can be found next time",
+  "identity.searchRelaxed": "No value matches \"{keyword}\" — read as a field name instead; the records above are the ones that have that field",
   "identity.clearFilters": "Clear filters",
   "identity.show": "Show",
   "identity.hide": "Hide",

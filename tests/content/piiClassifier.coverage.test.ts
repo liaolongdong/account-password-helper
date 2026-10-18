@@ -12,6 +12,7 @@
  */
 import { afterEach, describe, expect, it } from 'vitest';
 import { resolvePiiField } from '@/entrypoints/content/piiClassifier';
+import { IDENTITY_FIELD_NAME_STEMS } from '@/utils/identity/fields';
 
 /** 构造一个带标签的 input 并返回元素本身 */
 function fieldWithLabel(label: string): HTMLInputElement {
@@ -27,6 +28,44 @@ function fieldWithName(name: string): HTMLInputElement {
 
 afterEach(() => {
   document.body.innerHTML = '';
+});
+
+/**
+ * 库侧名字表的反向校验：词表不许发明分类器不认的写法
+ *
+ * `utils/identity/fields.ts` 那张 `IDENTITY_FIELD_NAME_STEMS` 服务的是身份库检索的放宽通道
+ * （用户把页面上那行长字打进库里）。两份词表一旦各走各的，就会出现「库里认得的一句话，
+ * 页面上提示不出来」——那等于替用户造了一格不存在的名。所以这里逐词拿真分类器过一遍：
+ * **每个词干都必须被判定成它所属那一格的角色**。
+ *
+ * 三格豁免：`cardExpiry` / `cardCvv` / `remark` 在页面侧**永不出提示**（有效期与 CVV 是刻意排除的，
+ * 备注压根不是要提示的字段），因此没有对应角色可校验；它们的词表只服务库内检索，不参与这条契约。
+ */
+const STEM_TO_ROLE: readonly (readonly [fieldKey: keyof typeof IDENTITY_FIELD_NAME_STEMS, role: string])[] = [
+  ['name', 'name'],
+  ['idNumber', 'idNumber'],
+  ['phone', 'phone'],
+  ['email', 'email'],
+  ['address', 'address'],
+  ['cardNo', 'cardNo'],
+  ['cardBank', 'cardBank'],
+  ['cardHolder', 'cardHolder'],
+];
+
+describe('库侧名字表与页面词典同源', () => {
+  it('每个词干都被分类器判成它所属的那一格（豁免：有效期 / CVV / 备注永不提示）', () => {
+    const checked = STEM_TO_ROLE.reduce((sum, [fieldKey]) => sum + IDENTITY_FIELD_NAME_STEMS[fieldKey].length, 0);
+    expect(checked, '一个词都没校到：要么表空了，要么这张映射跟 fields.ts 漂移了').toBeGreaterThan(60);
+
+    const drifted: string[] = [];
+    for (const [fieldKey, role] of STEM_TO_ROLE) {
+      for (const stem of IDENTITY_FIELD_NAME_STEMS[fieldKey]) {
+        const verdict = resolvePiiField(fieldWithLabel(stem));
+        if (verdict.role !== role) drifted.push(`${fieldKey} 的词「${stem}」判成了 ${String(verdict.role)}`);
+      }
+    }
+    expect(drifted, drifted.join('；')).toEqual([]);
+  });
 });
 
 /**

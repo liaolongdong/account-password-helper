@@ -13,6 +13,7 @@
   "identity.empty": "还没有保存的身份信息，点击下方「添加身份信息」开始吧",
   "identity.noMatch": "没有匹配的身份信息",
   "identity.noMatchHint": "没有含「{keyword}」的字段——可以在「添加身份信息」里建一条同名的自定义字段，下次就搜得到",
+  "identity.searchRelaxed": "没有值含「{keyword}」的条目——这句话读作某一格的名字，上面是填过那一格的身份",
   "identity.clearFilters": "清除筛选",
   "identity.show": "显示",
   "identity.hide": "隐藏",

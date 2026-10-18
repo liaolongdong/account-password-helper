@@ -88,6 +88,19 @@
         </span>
       </div>
 
+      <!--
+        放宽说明行：这一屏不是「搜到了值」，而是「这句话读作了某一格的名字」。
+        不写这句就会变成一次静默的检索语义切换——用户打的是页面上那行字，
+        看到的是几张没有值匹配的卡，只能靠猜。判据与 `searchRelaxed` 同源：
+        放宽没产出条目时它是 false，空态那句「建一条同名自定义字段」继续说话。
+      -->
+      <p
+        v-if="searchRelaxed"
+        class="identity-relaxed"
+      >
+        {{ t('identity.searchRelaxed', { keyword: keyword.trim() }) }}
+      </p>
+
       <!-- 选择栏：全选 + 已选/总数摘要（驱动导出作用域） + 右侧批量动作（显示/隐藏全部机密、折叠/展开全部） -->
       <div
         v-if="rows.length > 0"
@@ -296,8 +309,18 @@
                 恒等于单段非高亮文本来保证。
               -->
               <template #label>
+                <!--
+                  放宽那一屏里没有可高亮的命中子串：用户打的 `联系电话号码` 并不出现在屏上
+                  那串 `手机号` 里。所以这里高亮的是**整串名字**——它表达的是「你要的就是这一格」，
+                  而不是「这一格里有你要的那几个字」。
+                -->
+                <span
+                  v-if="relaxedNameKeys.has(field.key)"
+                  class="identity-field__name-hit"
+                  >{{ field.label }}</span
+                >
                 <SearchHighlight
-                  v-if="keyword"
+                  v-else-if="keyword"
                   :text="field.label"
                   :keyword="keyword"
                 />
@@ -472,6 +495,8 @@ const {
   categoryFilter,
   sortMode,
   filteredRows,
+  searchRelaxed,
+  relaxedNameKeys,
   identityBackupPending,
   selectedIds,
   selectedCount,
@@ -1003,6 +1028,23 @@ const handleFileChange = async (event: Event): Promise<void> => {
   line-height: 1.6;
   color: var(--aph-text-secondary);
   text-align: center;
+}
+
+/* 放宽说明行：紧贴指标行下方，与空态那句说明同一字号，靠边而不居中（它挨着的是列表） */
+.identity-relaxed {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--aph-text-secondary);
+}
+
+/*
+ * 放宽那一屏里被认中的格子名：与 `SearchHighlight` 的命中段同一套强调（主题色 + 加粗），
+ * 但不借用它的类名——那一层的语义是「命中的那几个字」，这里的语义是「你要的这一格」。
+ */
+.identity-field__name-hit {
+  font-weight: 600;
+  color: var(--aph-primary, var(--el-color-primary));
 }
 
 .identity-list {

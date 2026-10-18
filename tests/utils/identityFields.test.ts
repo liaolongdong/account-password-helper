@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   IDENTITY_FIELD_DEFS,
+  IDENTITY_FIELD_NAME_STEMS,
   buildIdentityFieldRows,
   formatIdentityCardText,
   hasSecretFields,
+  identityFieldNameSet,
+  requestedFieldName,
 } from '@/utils/identity/fields';
 import type { IdentityEntry, IdentityPayload } from '@/utils/identity/types';
 
@@ -118,6 +121,61 @@ describe('formatIdentityCardText', () => {
 
   it('空字段行返回空串', () => {
     expect(formatIdentityCardText([])).toBe('');
+  });
+});
+
+describe('按名字认格子（零命中时的放宽通道）', () => {
+  it('中文常见写法认得出那一格，即使我们的译名不在整串里', () => {
+    expect(requestedFieldName('联系电话号码', identityFieldNameSet('phone', '手机号'))).toBe(true);
+    expect(requestedFieldName('社会保障号码', identityFieldNameSet('idNumber', '证件号码'))).toBe(true);
+    expect(requestedFieldName('开户行', identityFieldNameSet('cardBank', '发卡行'))).toBe(true);
+  });
+
+  it('英文写法走同一套判据', () => {
+    expect(requestedFieldName('Contact Number', identityFieldNameSet('phone', 'Phone'))).toBe(true);
+    expect(requestedFieldName('IBAN', identityFieldNameSet('cardNo', 'Card number'))).toBe(true);
+  });
+
+  it('屏上那串译名自己也是名字（用户打的是「手机号号码」这种半截话）', () => {
+    expect(requestedFieldName('手机号号码', identityFieldNameSet('phone', '手机号'))).toBe(true);
+  });
+
+  it('认不出来就不认：宁可不放宽，也不把一句话安到某一格上', () => {
+    for (const def of IDENTITY_FIELD_DEFS) {
+      expect(requestedFieldName('e2e-no-such-field', identityFieldNameSet(def.key, def.key))).toBe(false);
+    }
+    expect(requestedFieldName('会员卡', identityFieldNameSet('address', '住址'))).toBe(false);
+  });
+
+  it('单字与空白不成名字（否则一个「号」就把整库放宽）', () => {
+    expect(requestedFieldName('号码', ['号'])).toBe(false);
+    expect(requestedFieldName('', identityFieldNameSet('phone', '手机号'))).toBe(false);
+    expect(requestedFieldName('   ', identityFieldNameSet('phone', '手机号'))).toBe(false);
+  });
+
+  it('词表自证：每条 ≥2 字符、大小写去重、中英两侧都有写法', () => {
+    for (const [key, stems] of Object.entries(IDENTITY_FIELD_NAME_STEMS)) {
+      expect(stems.length, `${key} 的词表不能为空`).toBeGreaterThan(0);
+      expect(
+        stems.every(stem => stem.trim().length >= 2),
+        `${key} 有短于 2 字符的词干`,
+      ).toBe(true);
+      expect(new Set(stems.map(stem => stem.toLowerCase())).size, `${key} 词表有重复`).toBe(stems.length);
+      expect(
+        stems.some(stem => /[\u4e00-\u9fff]/.test(stem)),
+        `${key} 缺中文写法`,
+      ).toBe(true);
+      expect(
+        stems.some(stem => /[a-z]/.test(stem)),
+        `${key} 缺英文写法`,
+      ).toBe(true);
+    }
+  });
+
+  it('名字表把屏上那串译名放在第一位，且不掺空串', () => {
+    const names = identityFieldNameSet('idNumber', '证件号码');
+    expect(names[0]).toBe('证件号码');
+    expect(names.includes('')).toBe(false);
   });
 });
 

@@ -276,6 +276,34 @@ describe('详情抽屉到身份库的跳转接线', () => {
     ]);
   });
 
+  it('放宽那一屏必须自己说清楚：说明行挂 searchRelaxed，认中的格子整串高亮', () => {
+    const dialog = stripHtmlComments(VAULT_DIALOG_SRC);
+
+    const notice = dialog.match(/<p\b[\s\S]*?class="identity-relaxed"[\s\S]*?<\/p>/);
+    expect(notice, '放宽说明行不见了：检索语义的切换会变成静默的').toBeTruthy();
+    expect(notice![0], '说明行不再受放宽标记约束，严格命中那一屏也会说这句').toMatch(/v-if="searchRelaxed"/);
+    expect(notice![0], '说明行没把用户打的那句话插进去').toMatch(/\{\s*keyword:\s*keyword\.trim\(\)\s*\}/);
+    expect(notice![0], '说明行引用的不是放宽那条文案').toContain("t('identity.searchRelaxed'");
+
+    const labelSlot = dialog.match(/<template #label>([\s\S]*?)<\/template>/);
+    expect(labelSlot, '标签列插槽写法漂移：整串高亮的判据要跟着改').toBeTruthy();
+    const hit = labelSlot![1].match(
+      /<span\b[\s\S]*?class="identity-field__name-hit"[\s\S]*?>\s*\{\{ field\.label \}\}\s*<\/span\s*>/,
+    );
+    expect(hit, '认中的格子不再整串高亮：放宽那一屏会退化成「列表变了但没人告诉我为什么」').toBeTruthy();
+    expect(hit![0], '整串高亮不再由认中的格子集合控制').toMatch(/v-if="relaxedNameKeys\.has\(field\.key\)"/);
+    // 顺序是硬判据：整串高亮必须排在关键词分支**之前**，否则 keyword 非空时后一支先赢，这一支成死代码。
+    expect(
+      hit!.index! < labelSlot![1].indexOf('<SearchHighlight'),
+      '整串高亮被排到 SearchHighlight 之后：放宽那一屏它永远不生效',
+    ).toBe(true);
+    expect(labelSlot![1], '标签列开始引用值：放宽只该高亮名字，不该把值提前显出来').not.toMatch(/field\.value/);
+
+    expect(VAULT_HOOK_SRC, 'composable 没把放宽标记与认中的格子交给视图').toMatch(
+      /searchRelaxed,\n\s*relaxedNameKeys,/,
+    );
+  });
+
   it('抽屉不持有身份库状态，也不引入身份加解密', () => {
     expect(DRAWER_SRC, '抽屉引用了身份库状态：密码条目展示层开始持有 PII').not.toMatch(
       /useIdentityVault|@\/utils\/identity|identityVault/,

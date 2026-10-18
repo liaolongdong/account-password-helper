@@ -36,7 +36,13 @@ import {
   saveIdentitySortMode,
   updateIdentity,
 } from '@/utils/storage/identityCrud';
-import { IDENTITY_FIELD_DEFS, hasSecretFields, identityDisplayTitle } from '@/utils/identity/fields';
+import {
+  IDENTITY_FIELD_DEFS,
+  hasSecretFields,
+  identityDisplayTitle,
+  identityFieldNameSet,
+  requestedFieldName,
+} from '@/utils/identity/fields';
 import {
   MANUAL_ORDER_UNRANKED,
   applyManualMove,
@@ -57,13 +63,15 @@ const { t, currentLocale } = useI18n();
 export type IdentityCategoryFilter = 'all' | IdentityCategory;
 
 /**
- * 收集参与搜索匹配的全部字段文本——**列表上看得见的字，就是搜得到的字**。
+ * 收集参与**严格检索**的全部字段文本——**列表上看得见的字，就是搜得到的字**。
  *
  * 值与字段名同进一个集合，交给同一个 `matchesKeyword`（子串优先，拼音预热后补全拼与首字母）：
- * 自定义字段的名称与内容一直在检索面里（气泡深链落的就是名称），内置字段这一轮把**名字**补齐，
- * 于是「搜银行卡号」问的就是「哪些条目有这一格」。名字只在字段有值时进集合，空格子不拉宽结果。
- * 取当前界面语言的译名（与标签列显示的字同源），命中必然看得见高亮；不做跨语言兜底，
- * 英文界面里搜中文页面上的字段名会零命中，由空态那一屏说出差的是哪个名字并给出入口。
+ * 自定义字段的名称与内容一直在检索面里（气泡深链落的就是名称），内置字段的名字随后补齐，
+ * 于是「搜银行卡号」问的就是「哪些条目有这一格」。**两侧都只在字段有值时**把名字放进集合：
+ * 空着的那一格在 `buildIdentityFieldRows` 里根本不渲染，让它进面等于搜出一条屏上看不见的格子。
+ * 名字取当前界面语言的译名（与标签列显示的字同源），严格这一层不做跨语言兜底——
+ * 页面那行字与译名对不上时（`联系电话号码` vs `手机号`），由 {@link askedNameKeys} 那条
+ * 「只在严格检索为空时才打开」的放宽通道接住，词表不分语言。
  * 机密字段的值参与匹配但默认打码（不高亮），口径与改造前一致。
  */
 function collectSearchableFields(payload: IdentityPayload): string[] {
@@ -75,10 +83,45 @@ function collectSearchableFields(payload: IdentityPayload): string[] {
     }
   }
   for (const field of payload.customFields ?? []) {
-    fields.push(field.label, field.value);
+    // 有值才进：空着的那一格在 `buildIdentityFieldRows` 里根本不渲染，
+    // 让它进检索面就等于「搜得到一条屏上看不到、也填不出东西的格子」。
+    if (field.value) {
+      fields.push(field.label, field.value);
+    }
   }
   return fields;
 }
+
+/**
+ * 这行字在要哪几格（内置字段键与 `custom:<id>` 混在同一个集合里，命名与字段行的 key 一致）
+ *
+ * 内置那一半走静态词表，自定义那一半只能拿用户自己起的名字比——所以要把整库过一遍。
+ * 自定义字段**有值才进**，与 {@link collectSearchableFields} 同一条规矩：
+ * 空着的那一格既不该被搜到，也不该被高亮成「你搜的就是它」。
+ */
+function askedNameKeys(kw: string, entries: readonly IdentityEntry[]): Set<string> {
+  const keys = new Set<string>();
+  for (const def of IDENTITY_FIELD_DEFS) {
+    if (requestedFieldName(kw, identityFieldNameSet(def.key, t(`identity.field.${def.key}`)))) {
+      keys.add(def.key);
+    }
+  }
+  for (const entry of entries) {
+    for (const field of entry.payload.customFields ?? []) {
+      if (field.value && requestedFieldName(kw, [field.label])) keys.add(`custom:${field.id}`);
+    }
+  }
+  return keys;
+}
+
+/** 这条身份是不是填着了话里认中的某一格 */
+function entryHasAskedField(payload: IdentityPayload, keys: ReadonlySet<string>): boolean {
+  if (IDENTITY_FIELD_DEFS.some(def => payload[def.key] && keys.has(def.key))) return true;
+  return (payload.customFields ?? []).some(field => !!field.value && keys.has(`custom:${field.id}`));
+}
+
+/** 「没有放宽」时复用的空集合：每次求值新建 Set 会让依赖它的 computed 每轮都换引用 */
+const NO_RELAXED_KEYS: ReadonlySet<string> = new Set<string>();
 
 /**
  * 身份信息库 composable（App.vue 单一实例化后注入弹窗）
@@ -143,23 +186,55 @@ export function useIdentityVault() {
     return manualRank.value.get(id) ?? MANUAL_ORDER_UNRANKED;
   }
 
-  /** 类别过滤 + 搜索过滤后的条目，按当前档位排序（≤30 条，每次重排成本可忽略） */
-  const filteredRows = computed(() => {
+  /**
+   * 文本阶段的结果：严格命中，或严格为空时「把这句话认成某一格」的放宽命中
+   *
+   * 拆成一层是必需的而不是排风格：放宽与否是**同一次求值**的产物，`filteredRows`、
+   * `searchRelaxed`、`relaxedNameKeys` 三者必须来自同一批判定，否则会出现
+   * 「列表是放宽的、说明行说不是」这类自相矛盾的屏。排序仍留在 `filteredRows`，
+   * 顺序口径与档位都不受放宽影响。
+   */
+  const textStage = computed<{ list: IdentityEntry[]; relaxed: boolean; keys: ReadonlySet<string> }>(() => {
     const category = categoryFilter.value;
     const kw = keyword.value.trim();
     let list = rows.value;
     if (category !== 'all') {
       list = list.filter(entry => entry.payload.category === category);
     }
-    if (kw) {
-      list = list.filter(entry => matchesKeyword(collectSearchableFields(entry.payload), kw));
-    }
-    return sortIdentityEntries(
-      list,
+    if (!kw) return { list, relaxed: false, keys: NO_RELAXED_KEYS };
+
+    const strict = list.filter(entry => matchesKeyword(collectSearchableFields(entry.payload), kw));
+    if (strict.length > 0) return { list: strict, relaxed: false, keys: NO_RELAXED_KEYS };
+
+    // 严格检索空了才问第二句：这行字是不是在要某一格。放在这里是把噪音关在门外——
+    // `备注` / `姓名` 这类两三字的短名字，只有在「用户这句话在库里搜不到任何值」时
+    // 才会参与放宽；值搜得到时永远走严格那一半。
+    const asked = askedNameKeys(kw, rows.value);
+    if (asked.size === 0) return { list: [], relaxed: false, keys: NO_RELAXED_KEYS };
+    const relaxedList = list.filter(entry => entryHasAskedField(entry.payload, asked));
+    if (relaxedList.length === 0) return { list: [], relaxed: false, keys: NO_RELAXED_KEYS };
+    return { list: relaxedList, relaxed: true, keys: asked };
+  });
+
+  /** 类别过滤 + 搜索过滤后的条目，按当前档位排序（≤30 条，每次重排成本可忽略） */
+  const filteredRows = computed(() =>
+    sortIdentityEntries(
+      textStage.value.list,
       { titleOf: displayTitle, locale: currentLocale.value, orderIndexOf },
       sortMode.value,
-    );
-  });
+    ),
+  );
+
+  /**
+   * 这一屏是不是「按字段名放宽」的结果
+   *
+   * 只在放宽**确实产出了条目**时为真：放宽后仍然空（库里没人填过那一格）时保持 false，
+   * 让空态那句「建一条同名自定义字段」继续说话，而不是配一句「已按字段名放宽」的空列表。
+   */
+  const searchRelaxed = computed(() => textStage.value.relaxed);
+
+  /** 放宽时这句话认中了哪些格子：内置字段键或 `custom:<id>`，与字段行的 key 同一套命名 */
+  const relaxedNameKeys = computed(() => textStage.value.keys);
 
   /**
    * 备份提醒条是否该出现
@@ -535,6 +610,8 @@ export function useIdentityVault() {
     sortMode,
     manualOrder,
     filteredRows,
+    searchRelaxed,
+    relaxedNameKeys,
     identityBackupPending,
     selectedCount,
     allVisibleSelected,
