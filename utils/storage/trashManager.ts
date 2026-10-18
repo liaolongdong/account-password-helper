@@ -1,4 +1,4 @@
-import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry } from '@/utils/types';
+import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry, TrashRestoreResult } from '@/utils/types';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { deleteHistoryByEntryIds } from './passwordHistory';
@@ -108,10 +108,16 @@ export async function moveToTrash(ids: string[]): Promise<void> {
  *
  * 恢复后的条目追加到主列表末尾；主列表已存在同 id 条目时仅消费回收站副本，不产生重复条目。
  *
+ * 计数原样返回而不抛错：`restored === 0 && skippedExisting === 0` 表示请求的 id 已不在
+ * 回收站（最常见的是弹窗打开后 24h 到期清理恰好跑过），这是一次**空操作**而不是异常。
+ * 静默 return 会让调用方把它报成「已恢复」——数据一行没动却弹成功提示，
+ * 所以这两个计数交给调用方分流（没恢复的条数由调用方按 `ids.length` 自行推得）。
+ *
  * @param ids 要恢复的条目 ID 列表
+ * @returns `restored`（真的回到主列表的条数）与 `skippedExisting`（主列表已有同 id，仅消费副本）
  */
-export async function restoreFromTrash(ids: string[]): Promise<void> {
-  if (!ids.length) return;
+export async function restoreFromTrash(ids: string[]): Promise<TrashRestoreResult> {
+  if (!ids.length) return { restored: 0, skippedExisting: 0 };
   try {
     const idSet = new Set(ids);
     const trash = await readTrash();
@@ -141,7 +147,7 @@ export async function restoreFromTrash(ids: string[]): Promise<void> {
       }
     }
 
-    if (restoredEntries.length === 0 && skippedExisting === 0) return;
+    if (restoredEntries.length === 0 && skippedExisting === 0) return { restored: 0, skippedExisting: 0 };
 
     // 总量守卫：与批量导入同口径——整批要么全恢复要么一条都不动，不静默截断。
     // 「恢复了 5 条中的 2 条」会让回收站看起来没清空，用户无法判断还剩哪些。
@@ -152,6 +158,7 @@ export async function restoreFromTrash(ids: string[]): Promise<void> {
       [STORAGE_KEYS.PASSWORDS]: [...passwords, ...restoredEntries],
       [STORAGE_KEYS.TRASH]: remainingTrash,
     });
+    return { restored: restoredEntries.length, skippedExisting };
   } catch (error) {
     logger.error('从回收站恢复失败:', error);
     throw error;
@@ -222,7 +229,12 @@ export async function cleanExpiredTrash(): Promise<void> {
     const remaining: TrashedPasswordEntry[] = [];
 
     for (const entry of trash) {
-      if (now - entry.deletedAt > TRASH_RETENTION_MS) {
+      // 语义与 trashRetention.isTrashEntryExpired 一致（本模块因 popup 首屏闭包不能 import 它，
+      // 与上面的阈值字面量同属"本地副本 + 断言钉死"那一套，改一边必须改另一边）：
+      // `deletedAt` 非有限数按已到期处理，反向判会让畸形条目在盘上永不过期，
+      // 与回收站弹窗「剩余 N 天」的承诺矛盾。
+      const due = !Number.isFinite(entry.deletedAt) || now - entry.deletedAt > TRASH_RETENTION_MS;
+      if (due) {
         expired.push(entry);
       } else {
         remaining.push(entry);

@@ -95,3 +95,19 @@ export interface TrashedIdentityRecord extends IdentityRecord {
 export interface IdentityEntry extends IdentityRecord {
   payload: IdentityPayload;
 }
+
+/**
+ * 回收站恢复的分档结果
+ *
+ * 存在的全部理由：调用方（回收站弹窗）原先无条件弹「已恢复」，而本模块在
+ * 「请求的 id 已不在回收站」（用户看列表期间 24h 到期清理刚好跑过）与「主列表已有同 id、
+ * 只消费副本」两种情况下确实什么都没恢复。返回计数让弹窗能说清是哪一种，
+ * 而不是把空操作报成成功。密码库侧 `TrashRestoreResult` 同形状不同名，
+ * 两侧刻意不共用读写模块（见 identityTrashManager 头部）。
+ */
+export interface IdentityTrashRestoreResult {
+  /** 真正追加回主列表的条数 */
+  restored: number;
+  /** 主列表已存在同 id、本次仅从回收站消费副本的条数 */
+  skippedExisting: number;
+}

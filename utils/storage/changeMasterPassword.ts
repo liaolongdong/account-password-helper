@@ -23,6 +23,24 @@ const _getEncryption = lazyImport(() => import('@/utils/encryption'));
 const _getSessionManager = lazyImport(() => import('@/utils/sessionManager-storage'));
 
 /**
+ * 快照与盘上是否已不一致（只比顺序与身份键，不比密文内容）
+ *
+ * 供 rekey 在整数组覆写前复验：五个数据域的所有写路径都保序（追加或 filter），
+ * 因此长度或同下标的身份键发生变化，就是「快照在重加密期间被并发写过期」的充分信号。
+ *
+ * @param snapshot 步骤 3 读到的快照
+ * @param fresh 覆写前重读到的当前值
+ * @param keyOf 该域的身份键（必须能区分「同 id 被改过」与「同 id 重新进站」）
+ */
+function isSnapshotStale<T>(snapshot: T[], fresh: T[], keyOf: (item: T) => string): boolean {
+  if (snapshot.length !== fresh.length) return true;
+  for (let i = 0; i < snapshot.length; i++) {
+    if (keyOf(snapshot[i]) !== keyOf(fresh[i])) return true;
+  }
+  return false;
+}
+
+/**
  * 修改主密码（Rekey）
  *
  * 核心编排流程：验证旧密码 → 解密全部数据 → 用新密码重新加密 → 准备新会话密钥 → 原子写入。
@@ -32,6 +50,9 @@ const _getSessionManager = lazyImport(() => import('@/utils/sessionManager-stora
  * - 旧钥解不开的单条历史记录原样保留（仍为旧钥密文），rekey 不删除任何用户数据
  * - 步骤 11 使用单次 `chrome.storage.local.set()` 将数据密文与新会话密钥原子写入，
  *   不存在「新密文 + 旧会话密钥」的中间状态
+ * - 步骤 10.5 在整数组覆写前复验五个域的快照：重加密那几秒里另一张管理页标签若写过
+ *   回收站/条目，本次立即中止并清会话（`code: 'REKEY_CONCURRENT_WRITE'`），
+ *   不用过期快照覆盖那条写入，也不让已彻底删除或已过期的 PII 在新密钥下复活
  * - 加密备份文件（.aph）不受影响：导入时使用导出时的密码解密，与当前主密码无关
  *
  * @param oldPassword 当前主密码（明文）
@@ -158,6 +179,35 @@ export async function changeMasterPassword(oldPassword: string, newPassword: str
   const validityHours = (sessionResult[SESSION_STORAGE_KEYS.VALIDITY_HOURS] as number | undefined) || 24;
   const sessionManager = await _getSessionManager();
   const sessionKeysToWrite = await sessionManager.prepareSessionRekey(newKey, validityHours);
+
+  // 10.5 覆写前的快照复验。
+  // 步骤 3 的快照与步骤 11 的落盘之间隔着整库重加密（2000 条量级要跑几秒），
+  // 而 Chrome 允许开两个管理页标签：另一页在这几秒里删/恢复/彻底写回收站或改条目时，
+  // 步骤 11 的**整数组覆写**会把那条写入连根抹掉（两侧皆无，不可恢复），
+  // 或让已彻底删除/已过期的 PII 在新密钥下复活——直接打掉回收站的 30 天承诺。
+  // 只比「顺序 + 身份键」不比密文：所有写路径都保序（追加或 filter），顺序或键一变
+  // 即说明快照过期。宁可让用户重跑一次，也不带过期快照落盘。
+  const [freshPasswords, freshTrash, freshHistory, freshIdentity, freshIdentityTrash] = await Promise.all([
+    getAllPasswordsRaw(),
+    getAllTrashRaw(),
+    getAllHistoryRaw(),
+    getAllIdentityRaw(),
+    getAllIdentityTrashRaw(),
+  ]);
+  if (
+    isSnapshotStale(rawPasswords, freshPasswords, entry => `${entry.id}:${entry.updateTime}`) ||
+    isSnapshotStale(rawTrash, freshTrash, entry => `${entry.id}:${entry.deletedAt}`) ||
+    isSnapshotStale(rawHistory, freshHistory, record => `${record.entryId}:${record.changedAt}`) ||
+    isSnapshotStale(identityRaw, freshIdentity, record => `${record.id}:${record.updateTime}`) ||
+    isSnapshotStale(identityTrashRaw, freshIdentityTrash, record => `${record.id}:${record.deletedAt}`)
+  ) {
+    // 与步骤 11 写失败同一处置：步骤 10 已把会话密钥材料换成新值，
+    // 不清会话就会留下「新密钥 + 旧密文」的不一致状态
+    await sessionManager.clearSession().catch(() => {});
+    throw Object.assign(new Error('检测到其他页面的改动刚刚写入，本次修改已安全取消，请重试'), {
+      code: 'REKEY_CONCURRENT_WRITE',
+    });
+  }
 
   // 11. 原子写入：数据密文 + 校验哈希 + 新会话密钥单次 chrome.storage.local.set()，
   // 全成功或全失败，消除「新密文已落盘、会话密钥仍是旧值」的竞态窗口

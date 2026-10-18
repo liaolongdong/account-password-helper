@@ -53,6 +53,8 @@
   "identity.trash.loadFailed": "Failed to load trash",
   "identity.trash.restore": "Restore",
   "identity.trash.restored": "Restored to the identity vault",
+  "identity.trash.restoreAlreadyInList": "This record is already in the identity vault; it was only removed from the trash",
+  "identity.trash.restoreMissing": "This record is no longer in the trash (it may have been cleaned up automatically). Nothing was restored.",
   "identity.trash.restoreFailed": "Restore failed",
   "identity.trash.restoreLimitReached": "Restoring would exceed the {max}-record limit. Delete some records first.",
   "identity.trash.deleteForever": "Delete forever",

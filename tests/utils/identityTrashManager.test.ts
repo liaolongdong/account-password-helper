@@ -111,7 +111,7 @@ describe('restoreIdentitiesFromTrash（恢复）', () => {
     storageData[STORAGE_KEYS.IDENTITY] = [cipherRecord('keep')];
     storageData[STORAGE_KEYS.IDENTITY_TRASH] = [trashRecord('r', 5), trashRecord('stay', 6)];
 
-    await restoreIdentitiesFromTrash(['r']);
+    await expect(restoreIdentitiesFromTrash(['r'])).resolves.toEqual({ restored: 1, skippedExisting: 0 });
 
     expect(identityIds()).toEqual(['keep', 'r']);
     const restored = (storageData[STORAGE_KEYS.IDENTITY] as Record<string, unknown>[])[1];
@@ -124,10 +124,32 @@ describe('restoreIdentitiesFromTrash（恢复）', () => {
     storageData[STORAGE_KEYS.IDENTITY] = [cipherRecord('dup')];
     storageData[STORAGE_KEYS.IDENTITY_TRASH] = [trashRecord('dup', 5)];
 
-    await restoreIdentitiesFromTrash(['dup']);
+    await expect(restoreIdentitiesFromTrash(['dup'])).resolves.toEqual({ restored: 0, skippedExisting: 1 });
 
     expect(identityIds()).toEqual(['dup']);
     expect(trashIds()).toEqual([]);
+  });
+
+  /**
+   * 回归：用户打开回收站后、点「恢复」前的这几秒里，24h 到期清理恰好跑过这一条。
+   * 此前该分支静默 return，弹窗照样弹「已恢复到身份库」——数据一行没动却报成功，
+   * 而这一档恰恰是唯一必须让用户知道「找不回来了」的情形。返回零计数是分流的前提。
+   */
+  it('请求的 id 已不在回收站时返回零计数且不写盘，不抛错', async () => {
+    const { restoreIdentitiesFromTrash } = await import('@/utils/storage/identityTrashManager');
+    storageData[STORAGE_KEYS.IDENTITY] = [cipherRecord('keep')];
+    storageData[STORAGE_KEYS.IDENTITY_TRASH] = [trashRecord('other', 5)];
+
+    await expect(restoreIdentitiesFromTrash(['gone'])).resolves.toEqual({ restored: 0, skippedExisting: 0 });
+    expect(localSet).not.toHaveBeenCalled();
+    expect(identityIds()).toEqual(['keep']);
+    expect(trashIds()).toEqual(['other']);
+  });
+
+  it('空 id 列表同样是零计数，早退路径与未命中路径读法一致', async () => {
+    const { restoreIdentitiesFromTrash } = await import('@/utils/storage/identityTrashManager');
+    await expect(restoreIdentitiesFromTrash([])).resolves.toEqual({ restored: 0, skippedExisting: 0 });
+    expect(localSet).not.toHaveBeenCalled();
   });
 
   it('恢复后将超出 MAX_IDENTITIES 时整批拒绝，两键保持原状', async () => {
@@ -206,6 +228,30 @@ describe('cleanExpiredIdentityTrash（30 天 TTL，与密码库同阈值同比�
     await cleanExpiredIdentityTrash();
 
     expect(localSet).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 回归：`deletedAt` 缺失/非数值（跨版本残留、手工写入的 storage）时 `now - NaN > MS` 恒为
+   * false，此前的判法会把这条当成「永不到期」永久驻留，而弹窗同一行显示「剩余 NaN 天」。
+   * 现在一律判为已到期：这些条目本就是用户主动删除的软删除副本，隐私承诺优先于副本可找回性。
+   */
+  it('deletedAt 非有限数按已到期清理，正常条目不受牵连', async () => {
+    const { cleanExpiredIdentityTrash } = await import('@/utils/storage/identityTrashManager');
+    const now = 1_760_000_000_000;
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
+    storageData[STORAGE_KEYS.IDENTITY_TRASH] = [
+      { ...cipherRecord('nan'), deletedAt: Number.NaN } as unknown as TrashedIdentityRecord,
+      { ...cipherRecord('undef') } as unknown as TrashedIdentityRecord,
+      trashRecord('fresh', now - 1000),
+    ];
+
+    try {
+      await cleanExpiredIdentityTrash();
+
+      expect(trashIds()).toEqual(['fresh']);
+    } finally {
+      nowSpy.mockRestore();
+    }
   });
 });
 

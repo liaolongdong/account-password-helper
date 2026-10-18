@@ -16,11 +16,16 @@
  * 写路径均为读-改-写，读失败在任何写入发生前上抛（fail-closed），
  * 与 trashManager「静默降级 [] 会把真实数据整体覆盖清空」的教训同口径。
  */
-import type { IdentityPayload, IdentityRecord, TrashedIdentityRecord } from '@/utils/identity/types';
+import type {
+  IdentityPayload,
+  IdentityRecord,
+  IdentityTrashRestoreResult,
+  TrashedIdentityRecord,
+} from '@/utils/identity/types';
 import { MAX_IDENTITIES } from '@/utils/identity/constants';
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
-import { TRASH_RETENTION_MS } from './trashRetention';
+import { isTrashEntryExpired } from './trashRetention';
 import { mapWithConcurrency } from '@/utils/concurrency';
 import { lazyImport } from '@/utils/lazyImport';
 
@@ -140,11 +145,17 @@ export async function moveIdentitiesToTrash(ids: string[]): Promise<void> {
  * 恢复受 `MAX_IDENTITIES` 总量守卫——整批要么全恢复要么一条都不动，
  * 「恢复了 5 条中的 2 条」会让回收站看起来没清空，用户无法判断还剩哪些。
  *
+ * 计数原样返回而不抛错：`restored === 0 && skippedExisting === 0` 意味着请求的 id
+ * 已经不在回收站里（最常见的是弹窗打开后 24h 到期清理恰好跑过），这是一次**空操作**
+ * 而不是异常，静默 return 会让调用方把它报成「已恢复」。谁都不该在数据没动的时候
+ * 弹成功提示，所以这两个计数交给调用方分流（没恢复的条数由调用方按 `ids.length` 自行推得）。
+ *
  * @param ids 要恢复的条目 ID 列表
+ * @returns `restored`（真的回到主列表的条数）与 `skippedExisting`（主列表已有同 id，仅消费副本）
  * @throws IdentityTrashCapacityError 恢复后将超出身份条目上限
  */
-export async function restoreIdentitiesFromTrash(ids: string[]): Promise<void> {
-  if (!ids.length) return;
+export async function restoreIdentitiesFromTrash(ids: string[]): Promise<IdentityTrashRestoreResult> {
+  if (!ids.length) return { restored: 0, skippedExisting: 0 };
   try {
     const idSet = new Set(ids);
     const trash = await readIdentityTrash();
@@ -169,7 +180,7 @@ export async function restoreIdentitiesFromTrash(ids: string[]): Promise<void> {
       }
     }
 
-    if (restored.length === 0 && skippedExisting === 0) return;
+    if (restored.length === 0 && skippedExisting === 0) return { restored: 0, skippedExisting: 0 };
 
     if (records.length + restored.length > MAX_IDENTITIES) {
       throw new IdentityTrashCapacityError(records.length, restored.length, MAX_IDENTITIES);
@@ -179,6 +190,7 @@ export async function restoreIdentitiesFromTrash(ids: string[]): Promise<void> {
       [STORAGE_KEYS.IDENTITY]: [...records, ...restored],
       [STORAGE_KEYS.IDENTITY_TRASH]: remainingTrash,
     });
+    return { restored: restored.length, skippedExisting };
   } catch (error) {
     logger.error('从回收站恢复身份信息失败:', error);
     throw error;
@@ -228,9 +240,11 @@ export async function cleanExpiredIdentityTrash(): Promise<void> {
     if (trash.length === 0) return;
 
     const now = Date.now();
-    // 到期判定与密码库 `cleanExpiredTrash` 同一阈值同一比较符（共用 TRASH_RETENTION_MS），
-    // 剩余天数读数（getTrashRemainingDays）只是同一口径的展示换算。
-    const remaining = trash.filter(entry => !(now - entry.deletedAt > TRASH_RETENTION_MS));
+    // 到期判定与密码库 `cleanExpiredTrash` 同一阈值同一比较符（共用 trashRetention 的
+    // `isTrashEntryExpired`），剩余天数读数（getTrashRemainingDays）只是同一口径的展示换算。
+    // `deletedAt` 非有限数按已到期清理——反向判会让畸形条目在盘上永不过期，
+    // 与弹窗「剩余 N 天」的承诺矛盾。
+    const remaining = trash.filter(entry => !isTrashEntryExpired(entry.deletedAt, now));
     if (remaining.length === trash.length) return;
 
     await writeIdentityTrash(remaining);
@@ -305,21 +319,11 @@ export async function decryptIdentityTrashTitles(
 
 /**
  * 获取身份回收站原始数据（供 rekey 使用）
+ *
+ * rekey 侧的写**不走本模块**：换钥必须把五个数据域 + 校验哈希 + 新会话密钥压进
+ * 同一次 `chrome.storage.local.set()`（见 changeMasterPassword 步骤 11），
+ * 单独一个替换回收站的导出会破坏那次原子性，因此刻意不提供。
  */
 export async function getAllIdentityTrashRaw(): Promise<TrashedIdentityRecord[]> {
   return readIdentityTrash();
-}
-
-/**
- * 批量替换身份回收站全部数据（供 rekey 写入）
- *
- * @param entries 重新加密后的回收站数组
- */
-export async function replaceAllIdentityTrash(entries: TrashedIdentityRecord[]): Promise<void> {
-  try {
-    await writeIdentityTrash(entries);
-  } catch (error) {
-    logger.error('替换身份信息回收站数据失败:', error);
-    throw error;
-  }
 }

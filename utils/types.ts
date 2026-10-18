@@ -998,6 +998,21 @@ export interface TrashedPasswordEntry extends EncryptedPasswordEntry {
 }
 
 /**
+ * 回收站恢复的分档结果
+ *
+ * 存在的全部理由：回收站弹窗原先无条件弹「已恢复」，而 `restoreFromTrash` 在
+ * 「请求的 id 已不在回收站」（用户看列表期间 24h 到期清理刚好跑过）与「主列表已有同 id、
+ * 只消费副本」两种情况下确实一条都没恢复。返回计数让弹窗能说清是哪一种。
+ * 身份库侧同形状不同类型（`IdentityTrashRestoreResult`），两侧刻意不共用读写模块。
+ */
+export interface TrashRestoreResult {
+  /** 真正追加回主列表的条数 */
+  restored: number;
+  /** 主列表已存在同 id、本次仅从回收站消费副本的条数 */
+  skippedExisting: number;
+}
+
+/**
  * 密码修改历史记录
  *
  * 密码字段变更时快照旧密文，每条条目保留的历史数量由用户配置动态决定

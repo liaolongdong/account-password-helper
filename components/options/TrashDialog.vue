@@ -316,11 +316,23 @@ const loadTrash = async () => {
   }
 };
 
-/** 恢复条目 */
+/**
+ * 恢复条目
+ *
+ * 提示跟真实结果走：`restored === 0` 时数据一行都没动或只消费了副本，
+ * 此时弹「已恢复」是把空操作报成成功。最常见那一档是用户盯着这一行的几秒里
+ * 24h 到期清理恰好跑过，条目已永久消失。
+ */
 const handleRestore = async (id: string) => {
   try {
-    await restoreFromTrash([id]);
-    ElMessage.success(t('options.trash.restored'));
+    const { restored, skippedExisting } = await restoreFromTrash([id]);
+    if (restored > 0) {
+      ElMessage.success(t('options.trash.restored'));
+    } else if (skippedExisting > 0) {
+      ElMessage.info(t('options.trash.restoreAlreadyInList'));
+    } else {
+      ElMessage.warning(t('options.trash.restoreMissing'));
+    }
     await loadTrash();
     emit('restored');
   } catch (error) {

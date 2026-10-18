@@ -53,6 +53,8 @@
   "identity.trash.loadFailed": "加载回收站失败",
   "identity.trash.restore": "恢复",
   "identity.trash.restored": "已恢复到身份信息库",
+  "identity.trash.restoreAlreadyInList": "该条目已在身份信息库中，仅从回收站移除",
+  "identity.trash.restoreMissing": "该条目已不在回收站（可能已被自动清理），未恢复任何内容",
   "identity.trash.restoreFailed": "恢复失败",
   "identity.trash.restoreLimitReached": "恢复后条目数将超过上限（{max} 条），请先删除部分条目",
   "identity.trash.deleteForever": "彻底删除",

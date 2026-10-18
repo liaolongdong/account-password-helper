@@ -1,7 +1,12 @@
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { describe, expect, it } from 'vitest';
-import { TRASH_RETENTION_DAYS, TRASH_RETENTION_MS, getTrashRemainingDays } from '@/utils/storage/trashRetention';
+import {
+  TRASH_RETENTION_DAYS,
+  TRASH_RETENTION_MS,
+  getTrashRemainingDays,
+  isTrashEntryExpired,
+} from '@/utils/storage/trashRetention';
 
 /**
  * 回收站「剩余天数」读数的边界回归
@@ -43,6 +48,32 @@ describe('getTrashRemainingDays', () => {
     const deletedAt = Date.now() - 3 * DAY;
     expect(getTrashRemainingDays(deletedAt)).toBe(getTrashRemainingDays(deletedAt, Date.now()));
   });
+
+  /**
+   * 回归：`deletedAt` 非有限数时减法把 NaN 一路带进读数，表格显示「剩余 NaN 天」，
+   * 且到期判定同时把它当成永不过期。读数与判定现在同档归 0 / 判到期。
+   */
+  it('deletedAt 非有限数时读 0，不出现 NaN', () => {
+    expect(getTrashRemainingDays(Number.NaN, NOW)).toBe(0);
+    expect(getTrashRemainingDays(Number.POSITIVE_INFINITY, NOW)).toBe(0);
+    expect(getTrashRemainingDays(undefined as unknown as number, NOW)).toBe(0);
+  });
+});
+
+describe('isTrashEntryExpired', () => {
+  it('同一阈值同一比较符：第 30 天整不到期，超出 1 毫秒到期', () => {
+    expect(isTrashEntryExpired(NOW - TRASH_RETENTION_MS, NOW)).toBe(false);
+    expect(isTrashEntryExpired(NOW - TRASH_RETENTION_MS - 1, NOW)).toBe(true);
+  });
+
+  it('deletedAt 非有限数判为已到期（PII 不得因畸形时间戳永久驻留）', () => {
+    expect(isTrashEntryExpired(Number.NaN, NOW)).toBe(true);
+    expect(isTrashEntryExpired(undefined as unknown as number, NOW)).toBe(true);
+  });
+
+  it('时钟回拨（deletedAt 落在未来）不判到期', () => {
+    expect(isTrashEntryExpired(NOW + DAY, NOW)).toBe(false);
+  });
 });
 
 /**
@@ -70,5 +101,16 @@ describe('trashManager 本地阈值与 trashRetention 单一事实源锁定', ()
 
   it('保留期读数上限与阈值换算一致（30 天 × 86400000ms）', () => {
     expect(TRASH_RETENTION_MS).toBe(TRASH_RETENTION_DAYS * DAY);
+  });
+
+  /**
+   * 到期判定的「畸形时间戳按已到期」这一半也必须同步。
+   * `isTrashEntryExpired` 是单一事实源，`trashManager.cleanExpiredTrash` 因闭包约束保持着
+   * 内联副本；副本漏掉 `Number.isFinite` 时，密码回收站会把 deletedAt 畸形的条目永久留住，
+   * 而身份回收站同一时刻已把它清掉——两个回收站在同一份脏数据上行为分叉。
+   */
+  it('trashManager.ts 的到期判定必须保留非有限数护栏', () => {
+    const src = readFileSync(resolve(process.cwd(), 'utils/storage/trashManager.ts'), 'utf-8');
+    expect(src).toMatch(/!Number\.isFinite\(entry\.deletedAt\)/);
   });
 });

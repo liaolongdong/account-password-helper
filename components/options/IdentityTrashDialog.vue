@@ -219,11 +219,23 @@ const loadTrash = async (): Promise<void> => {
   }
 };
 
-/** 恢复条目到身份库（成功后回收站与主列表同时变化，统一经 changed 通知父组件） */
+/**
+ * 恢复条目到身份库（回收站与主列表的变化统一经 changed 通知父组件）
+ *
+ * 提示跟真实结果走：`restored === 0` 时数据一行都没动或只消费了副本，
+ * 此时弹「已恢复」是把空操作报成成功。最常见的那一档是用户盯着这一行的几秒里
+ * 24h 到期清理恰好跑过，条目已永久消失——正好是唯一该让用户知道「找不回来了」的情形。
+ */
 const handleRestore = async (id: string): Promise<void> => {
   try {
-    await restoreIdentitiesFromTrash([id]);
-    ElMessage.success(t('identity.trash.restored'));
+    const { restored, skippedExisting } = await restoreIdentitiesFromTrash([id]);
+    if (restored > 0) {
+      ElMessage.success(t('identity.trash.restored'));
+    } else if (skippedExisting > 0) {
+      ElMessage.info(t('identity.trash.restoreAlreadyInList'));
+    } else {
+      ElMessage.warning(t('identity.trash.restoreMissing'));
+    }
     await loadTrash();
     emit('changed');
   } catch (error) {
