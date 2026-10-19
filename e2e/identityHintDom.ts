@@ -130,12 +130,16 @@ export async function hintState(cdp: CDPSession): Promise<{ count: number; role:
   return { count: bubbles.length, role: bubbles.length === 0 || !roleNode ? '' : await nodeText(cdp, roleNode) };
 }
 
+/** 会话有效性检查返回后建泡所需的一小段等待（命中 5 秒缓存时只需跨一个微任务） */
+const SESSION_GATE_SETTLE_MS = 80;
+
 /**
  * 聚焦某个字段并读一次提示状态（不轮询）
  *
- * 只用于**已经过就绪门**的逐行扫描：`focusin` 上的判定与建泡都是同步的，撤焦点再回来之后
- * 状态即已落定。真正确保内容脚本已挂载的是扫描开始前那一道门（见各 spec 的 `focusUntilHint`），
- * 顺序不能反——否则第一轮读数会把「脚本还没到」读成「这框不该出提示」。
+ * 只用于**已经过就绪门**的逐行扫描。`focusin` 上的判定仍是同步的，但会话有效性检查是异步的
+ * （通常命中 5 秒缓存，仍至少跨一个微任务），建泡发生在检查返回之后；立即读会把「还没建」
+ * 误判成「这框不该出提示」。真正确保内容脚本已挂载的是扫描开始前那一道门
+ * （见各 spec 的 `focusUntilHint`），顺序不能反。
  */
 export async function focusAndReadState(
   page: Page,
@@ -143,6 +147,7 @@ export async function focusAndReadState(
   id: string,
 ): Promise<{ count: number; role: string }> {
   await refocus(page, id);
+  await page.waitForTimeout(SESSION_GATE_SETTLE_MS);
   return hintState(cdp);
 }
 

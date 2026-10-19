@@ -126,7 +126,12 @@ export function useRuntimeMessageHandler(options: {
       logger.debug('RuntimeMsg: 收到打开身份库指令');
       // 没带词也照样开库：这条指令的本意是「带我去身份库」，预填词只是省一次手打，
       // 与「到全库找」那条（没词就没有检索可言，直接终止）刻意不同。
-      waitForPasswords().then(() => openIdentityVault?.(keyword || undefined));
+      // 但锁定态不能开：身份库解密依赖会话数据密钥，此时打开只会得到空列表。
+      // 气泡侧已按会话有效性隐藏，这里兜住残留气泡与会话恰好在点击瞬间过期的竞态。
+      waitForPasswords().then(() => {
+        if (!isAuthenticated.value) return;
+        openIdentityVault?.(keyword || undefined);
+      });
     }
   };
 

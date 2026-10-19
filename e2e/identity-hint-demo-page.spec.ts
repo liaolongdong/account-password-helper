@@ -68,7 +68,10 @@ function describeKey(read: KeyRead): string {
   return read.visible ? 'class 说可见但盒模型算不出（量具读数，别当账本）' : '没有（藏着）';
 }
 
-test('演示台逐行对账：真浏览器里点到每一框，提示与页面上的账本一致', async ({ extContext }) => {
+test('演示台逐行对账：真浏览器里点到每一框，提示与页面上的账本一致', async ({
+  extContext,
+  optionsPage: _optionsPage,
+}) => {
   const html = fs.readFileSync(DEMO_PAGE, 'utf-8');
   const { page, cdp } = await openFormPage(extContext, html, '/identity-hint-demo');
 
@@ -111,7 +114,8 @@ test('演示台逐行对账：真浏览器里点到每一框，提示与页面�
 
   const misses: string[] = [];
   for (const row of rows) {
-    // 单读一次就够：判定与建泡都发生在 `focusin` 的同步路径上，`refocus` 之后状态已落定
+    // 单读一次就够：判定是同步的，会话检查命中缓存后建泡只需一个微任务，
+    // helper 内已等这一拍；`refocus` 之后状态即落定
     const state = await focusAndReadState(page, cdp, row.id);
     const shouldStaySilent = row.expect === '-' || row.owns === 'fill' || row.nohint !== '';
     if (shouldStaySilent) {

@@ -7,13 +7,30 @@ import '@/utils/i18n/bundles/options';
 // ElMessageBox 样式仅在 options 页面使用（确认删除、重置密码等弹窗）
 import 'element-plus/es/components/message-box/style/css';
 import '@/assets/theme/tokens.css';
-import { OPTIONS_READY_EVENT } from './appReady';
+import { OPTIONS_FIRST_VIEW_EVENT, OPTIONS_READY_EVENT, type OptionsFirstView } from './appReady';
 
 // 尽早读取并应用主题（fire-and-forget），并监听配置变更实时切换
 initThemeSync();
 
 // 首屏静态骨架：等 App 发出「真实视图已绘制」信号后再淡出；5s 兜底防止异常时永久遮挡
 const skeleton = document.getElementById('app-skeleton');
+
+/**
+ * 认证分支一落定就切骨架形态
+ *
+ * 默认是居中认证卡片；只有确认「已有会话」后才切到表格骨架。事件在列表解密前发出，
+ * 因此锁定态不会先闪一屏「已解锁 + 有数据」。只发一次，监听器用完即摘。
+ */
+window.addEventListener(
+  OPTIONS_FIRST_VIEW_EVENT,
+  event => {
+    const view = (event as CustomEvent<OptionsFirstView>).detail;
+    if (!skeleton || (view !== 'setup' && view !== 'verify' && view !== 'vault')) return;
+    skeleton.dataset.view = view;
+  },
+  { once: true },
+);
+
 let skeletonDismissed = false;
 const dismissSkeleton = (): void => {
   if (!skeleton || skeletonDismissed) return;

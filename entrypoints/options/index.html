@@ -46,6 +46,81 @@
         opacity: 0;
       }
 
+      /* 默认按认证视图渲染；main.ts 收到首个真实视图后切到 vault */
+      #app-skeleton:not([data-view='vault']) .sk-vault {
+        display: none;
+      }
+
+      #app-skeleton[data-view='vault'] .sk-auth {
+        display: none;
+      }
+
+      .sk-vault {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      /* ===== 认证首屏：与 PasswordVerifyView / MasterPasswordSetupView 的居中卡片对齐 ===== */
+      .sk-auth {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: 400px;
+        padding: 24px;
+        margin: 0 auto;
+      }
+
+      .sk-auth__brand {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+
+      .sk-auth__logo {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+      }
+
+      .sk-auth__title {
+        width: 180px;
+        height: 22px;
+      }
+
+      .sk-auth__subtitle {
+        width: 220px;
+        height: 13px;
+        margin-top: -4px;
+      }
+
+      .sk-auth__card {
+        width: 100%;
+        padding: 22px 24px;
+        background: #fff;
+        border: 1px solid var(--aph-surface-line, #e2e8f0);
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb, 71 85 105) / 10%);
+      }
+
+      .sk-auth__field {
+        height: 40px;
+        margin-bottom: 18px;
+        border-radius: 6px;
+      }
+
+      .sk-auth__button {
+        height: 40px;
+        margin-top: 4px;
+        background: #dbe4f0;
+        border-radius: 6px;
+      }
+
       .sk-block {
         background: #e8ecf2;
         border-radius: 4px;
@@ -67,7 +142,7 @@
       .sk-header {
         padding: 24px 32px;
         margin-bottom: 24px;
-        background: var(--aph-primary, #475569);
+        background: linear-gradient(135deg, var(--aph-primary, #475569) 0%, var(--aph-primary-hover, #64748b) 100%);
         box-shadow: 0 2px 12px rgb(15 23 42 / 12%);
       }
 
@@ -94,36 +169,62 @@
       }
 
       .sk-logo {
-        width: 32px;
-        height: 32px;
+        width: 28px;
+        height: 28px;
         border-radius: 8px;
       }
 
       .sk-title {
         width: 150px;
-        height: 16px;
+        height: 22px;
       }
 
-      .sk-subtitle {
-        width: 96px;
-        height: 11px;
-        margin-top: 8px;
+      /* 版本号在真实头部是标题右侧的内联徽标，不是副标题 */
+      .sk-version {
+        width: 40px;
+        height: 18px;
+        border-radius: 4px;
       }
 
       .sk-header-meta {
         display: flex;
-        gap: 8px;
         align-items: center;
       }
 
-      .sk-chip {
-        width: 104px;
+      /* 与 HeaderBar 的单个会话胶囊对齐：状态灯 + 计时图标 + 剩余时间 */
+      .sk-session {
+        display: flex;
+        flex: none;
+        gap: 7px;
+        align-items: center;
+        width: 116px;
         height: 28px;
-        border-radius: 14px;
+        padding: 0 14px;
+        background: rgb(255 255 255 / 15%);
+        border: 1px solid rgb(255 255 255 / 25%);
+        border-radius: 999px;
       }
 
-      .sk-chip--short {
-        width: 64px;
+      .sk-session .sk-block {
+        flex: none;
+        background: rgb(255 255 255 / 40%);
+      }
+
+      .sk-session__dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+
+      .sk-session__timer {
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+      }
+
+      .sk-session__time {
+        width: 54px;
+        height: 11px;
       }
 
       .sk-action-group {
@@ -376,160 +477,178 @@
     <!-- 静态首屏骨架：App 就绪后由 main.ts 淡出并移除 -->
     <div
       id="app-skeleton"
+      data-view="verify"
       aria-hidden="true"
     >
-      <header class="sk-header">
-        <div class="sk-header-row">
-          <div class="sk-brand">
-            <div class="sk-block sk-logo"></div>
-            <div>
-              <div class="sk-block sk-title"></div>
-              <div class="sk-block sk-subtitle"></div>
-            </div>
-          </div>
-          <div class="sk-header-meta">
-            <div class="sk-block sk-chip"></div>
-            <div class="sk-block sk-chip sk-chip--short"></div>
-          </div>
+      <!-- 认证态骨架：默认展示；锁定 / 首次安装会一直用到淡出 -->
+      <div class="sk-auth">
+        <div class="sk-auth__brand">
+          <div class="sk-block sk-auth__logo"></div>
+          <div class="sk-block sk-auth__title"></div>
         </div>
-        <div class="sk-header-row">
-          <div class="sk-action-group">
-            <div class="sk-block sk-btn sk-btn--primary"></div>
-            <div class="sk-block sk-btn"></div>
-            <div class="sk-block sk-btn"></div>
-            <div class="sk-block sk-btn"></div>
-          </div>
-          <div class="sk-action-group sk-action-group--right">
-            <div class="sk-block sk-btn sk-btn--sm"></div>
-            <div class="sk-block sk-btn sk-btn--sm"></div>
-            <div class="sk-block sk-btn sk-btn--sm"></div>
-            <div class="sk-block sk-btn sk-btn--sm"></div>
-            <div class="sk-block sk-btn sk-btn--sm"></div>
-          </div>
+        <div class="sk-block sk-auth__subtitle"></div>
+        <div class="sk-auth__card">
+          <div class="sk-block sk-auth__field"></div>
+          <div class="sk-block sk-auth__field"></div>
+          <div class="sk-block sk-auth__button"></div>
         </div>
-      </header>
+      </div>
 
-      <main class="sk-body">
-        <div class="sk-toolbar">
-          <div class="sk-block sk-search"></div>
-          <div class="sk-block sk-select"></div>
-          <div class="sk-block sk-select"></div>
-          <div class="sk-block sk-star"></div>
-        </div>
-        <div class="sk-info">
-          <div class="sk-block sk-info-text"></div>
-        </div>
-        <section class="sk-card">
-          <div class="sk-table-head">
-            <div class="sk-block sk-check"></div>
-            <div class="sk-block sk-th sk-th--user"></div>
-            <div class="sk-block sk-th sk-th--pass"></div>
-            <div class="sk-block sk-th sk-th--url"></div>
-            <div class="sk-block sk-th sk-th--tag"></div>
-            <div class="sk-block sk-th sk-th--time"></div>
-            <div class="sk-block sk-th sk-th--actions"></div>
-          </div>
-          <div class="sk-table-row">
-            <div class="sk-block sk-check"></div>
-            <div class="sk-block sk-cell sk-cell--user"></div>
-            <div class="sk-block sk-cell sk-cell--pass"></div>
-            <div class="sk-block sk-cell sk-cell--url"></div>
-            <div class="sk-block sk-cell sk-cell--tag"></div>
-            <div class="sk-block sk-cell sk-cell--time"></div>
-            <div class="sk-actions-mini">
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
+      <div class="sk-vault">
+        <header class="sk-header">
+          <div class="sk-header-row">
+            <div class="sk-brand">
+              <div class="sk-block sk-logo"></div>
+              <div class="sk-block sk-title"></div>
+              <div class="sk-block sk-version"></div>
+            </div>
+            <div class="sk-header-meta">
+              <div class="sk-session">
+                <span class="sk-block sk-session__dot"></span>
+                <span class="sk-block sk-session__timer"></span>
+                <span class="sk-block sk-session__time"></span>
+              </div>
             </div>
           </div>
-          <div class="sk-table-row">
-            <div class="sk-block sk-check"></div>
-            <div class="sk-block sk-cell sk-cell--user"></div>
-            <div class="sk-block sk-cell sk-cell--pass"></div>
-            <div class="sk-block sk-cell sk-cell--url"></div>
-            <div class="sk-block sk-cell sk-cell--tag"></div>
-            <div class="sk-block sk-cell sk-cell--time"></div>
-            <div class="sk-actions-mini">
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
+          <div class="sk-header-row">
+            <div class="sk-action-group">
+              <div class="sk-block sk-btn sk-btn--primary"></div>
+              <div class="sk-block sk-btn"></div>
+              <div class="sk-block sk-btn"></div>
+              <div class="sk-block sk-btn"></div>
+            </div>
+            <div class="sk-action-group sk-action-group--right">
+              <div class="sk-block sk-btn sk-btn--sm"></div>
+              <div class="sk-block sk-btn sk-btn--sm"></div>
+              <div class="sk-block sk-btn sk-btn--sm"></div>
+              <div class="sk-block sk-btn sk-btn--sm"></div>
+              <div class="sk-block sk-btn sk-btn--sm"></div>
             </div>
           </div>
-          <div class="sk-table-row">
-            <div class="sk-block sk-check"></div>
-            <div class="sk-block sk-cell sk-cell--user"></div>
-            <div class="sk-block sk-cell sk-cell--pass"></div>
-            <div class="sk-block sk-cell sk-cell--url"></div>
-            <div class="sk-block sk-cell sk-cell--tag"></div>
-            <div class="sk-block sk-cell sk-cell--time"></div>
-            <div class="sk-actions-mini">
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-            </div>
+        </header>
+
+        <main class="sk-body">
+          <div class="sk-toolbar">
+            <div class="sk-block sk-search"></div>
+            <div class="sk-block sk-select"></div>
+            <div class="sk-block sk-select"></div>
+            <div class="sk-block sk-star"></div>
           </div>
-          <div class="sk-table-row">
-            <div class="sk-block sk-check"></div>
-            <div class="sk-block sk-cell sk-cell--user"></div>
-            <div class="sk-block sk-cell sk-cell--pass"></div>
-            <div class="sk-block sk-cell sk-cell--url"></div>
-            <div class="sk-block sk-cell sk-cell--tag"></div>
-            <div class="sk-block sk-cell sk-cell--time"></div>
-            <div class="sk-actions-mini">
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-            </div>
+          <div class="sk-info">
+            <div class="sk-block sk-info-text"></div>
           </div>
-          <div class="sk-table-row">
-            <div class="sk-block sk-check"></div>
-            <div class="sk-block sk-cell sk-cell--user"></div>
-            <div class="sk-block sk-cell sk-cell--pass"></div>
-            <div class="sk-block sk-cell sk-cell--url"></div>
-            <div class="sk-block sk-cell sk-cell--tag"></div>
-            <div class="sk-block sk-cell sk-cell--time"></div>
-            <div class="sk-actions-mini">
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
+          <section class="sk-card">
+            <div class="sk-table-head">
+              <div class="sk-block sk-check"></div>
+              <div class="sk-block sk-th sk-th--user"></div>
+              <div class="sk-block sk-th sk-th--pass"></div>
+              <div class="sk-block sk-th sk-th--url"></div>
+              <div class="sk-block sk-th sk-th--tag"></div>
+              <div class="sk-block sk-th sk-th--time"></div>
+              <div class="sk-block sk-th sk-th--actions"></div>
             </div>
-          </div>
-          <div class="sk-table-row">
-            <div class="sk-block sk-check"></div>
-            <div class="sk-block sk-cell sk-cell--user"></div>
-            <div class="sk-block sk-cell sk-cell--pass"></div>
-            <div class="sk-block sk-cell sk-cell--url"></div>
-            <div class="sk-block sk-cell sk-cell--tag"></div>
-            <div class="sk-block sk-cell sk-cell--time"></div>
-            <div class="sk-actions-mini">
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
-              <div class="sk-block sk-icon"></div>
+            <div class="sk-table-row">
+              <div class="sk-block sk-check"></div>
+              <div class="sk-block sk-cell sk-cell--user"></div>
+              <div class="sk-block sk-cell sk-cell--pass"></div>
+              <div class="sk-block sk-cell sk-cell--url"></div>
+              <div class="sk-block sk-cell sk-cell--tag"></div>
+              <div class="sk-block sk-cell sk-cell--time"></div>
+              <div class="sk-actions-mini">
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+              </div>
             </div>
-          </div>
-          <div class="sk-pagination">
-            <div class="sk-block sk-page-total"></div>
-            <div class="sk-page-controls">
-              <div class="sk-block sk-page-btn"></div>
-              <div class="sk-block sk-page-btn"></div>
-              <div class="sk-block sk-page-btn"></div>
-              <div class="sk-block sk-page-btn"></div>
+            <div class="sk-table-row">
+              <div class="sk-block sk-check"></div>
+              <div class="sk-block sk-cell sk-cell--user"></div>
+              <div class="sk-block sk-cell sk-cell--pass"></div>
+              <div class="sk-block sk-cell sk-cell--url"></div>
+              <div class="sk-block sk-cell sk-cell--tag"></div>
+              <div class="sk-block sk-cell sk-cell--time"></div>
+              <div class="sk-actions-mini">
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+              </div>
             </div>
-          </div>
-        </section>
-      </main>
+            <div class="sk-table-row">
+              <div class="sk-block sk-check"></div>
+              <div class="sk-block sk-cell sk-cell--user"></div>
+              <div class="sk-block sk-cell sk-cell--pass"></div>
+              <div class="sk-block sk-cell sk-cell--url"></div>
+              <div class="sk-block sk-cell sk-cell--tag"></div>
+              <div class="sk-block sk-cell sk-cell--time"></div>
+              <div class="sk-actions-mini">
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+              </div>
+            </div>
+            <div class="sk-table-row">
+              <div class="sk-block sk-check"></div>
+              <div class="sk-block sk-cell sk-cell--user"></div>
+              <div class="sk-block sk-cell sk-cell--pass"></div>
+              <div class="sk-block sk-cell sk-cell--url"></div>
+              <div class="sk-block sk-cell sk-cell--tag"></div>
+              <div class="sk-block sk-cell sk-cell--time"></div>
+              <div class="sk-actions-mini">
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+              </div>
+            </div>
+            <div class="sk-table-row">
+              <div class="sk-block sk-check"></div>
+              <div class="sk-block sk-cell sk-cell--user"></div>
+              <div class="sk-block sk-cell sk-cell--pass"></div>
+              <div class="sk-block sk-cell sk-cell--url"></div>
+              <div class="sk-block sk-cell sk-cell--tag"></div>
+              <div class="sk-block sk-cell sk-cell--time"></div>
+              <div class="sk-actions-mini">
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+              </div>
+            </div>
+            <div class="sk-table-row">
+              <div class="sk-block sk-check"></div>
+              <div class="sk-block sk-cell sk-cell--user"></div>
+              <div class="sk-block sk-cell sk-cell--pass"></div>
+              <div class="sk-block sk-cell sk-cell--url"></div>
+              <div class="sk-block sk-cell sk-cell--tag"></div>
+              <div class="sk-block sk-cell sk-cell--time"></div>
+              <div class="sk-actions-mini">
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+                <div class="sk-block sk-icon"></div>
+              </div>
+            </div>
+            <div class="sk-pagination">
+              <div class="sk-block sk-page-total"></div>
+              <div class="sk-page-controls">
+                <div class="sk-block sk-page-btn"></div>
+                <div class="sk-block sk-page-btn"></div>
+                <div class="sk-block sk-page-btn"></div>
+                <div class="sk-block sk-page-btn"></div>
+              </div>
+            </div>
+          </section>
+        </main>
+      </div>
     </div>
 
     <script

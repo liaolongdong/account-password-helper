@@ -31,6 +31,7 @@ const identityHint = vi.hoisted(() => ({
 vi.mock('@/entrypoints/content/IdentityHint', () => identityHint);
 
 import { FormDetector } from '@/entrypoints/content/FormDetector';
+import { StorageUtils } from '@/utils/storage';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import * as domUtils from '@/entrypoints/content/domUtils';
 
@@ -107,9 +108,16 @@ describe('聚焦识别到身份提示的接线', () => {
     return el as HTMLElement;
   };
 
-  /** 走真实的委托路径：`focusin` 从控件冒泡到 document */
-  const focus = (el: HTMLElement): void => {
-    el.dispatchEvent(new FocusEvent('focusin', { bubbles: true, composed: true }));
+  /**
+   * 走真实的委托路径：`focus()` 会让 `focusin` 从控件冒泡到 document
+   *
+   * 身份提示在真正展示前会先确认会话有效，`focusin` 只负责发起这次异步检查；
+   * 因此这里等微任务落地后再让调用方断言，同时保证 `document.activeElement`
+   * 真的落在字段上（气泡的迟到结果会复核焦点）。
+   */
+  const focus = async (el: HTMLElement): Promise<void> => {
+    el.focus();
+    await settle();
   };
 
   /**
@@ -136,6 +144,8 @@ describe('聚焦识别到身份提示的接线', () => {
   beforeEach(() => {
     (document as any).execCommand = vi.fn(() => true);
     vi.spyOn(domUtils, 'isElementVisible').mockImplementation(() => true);
+    // 默认解锁：绝大多数用例测的是「何时该出提示」，不应被会话门槛挡住
+    vi.spyOn(StorageUtils, 'isSessionValid').mockResolvedValue(true);
   });
 
   afterEach(() => {
@@ -149,11 +159,39 @@ describe('聚焦识别到身份提示的接线', () => {
   it('个人信息字段聚焦即出提示，角色与核对档一起带过去', async () => {
     await mount('<label>证件号码<input name="idNumber"></label>', makeConfig());
 
-    focus(control());
+    await focus(control());
 
     // 证件号属于「需核对」档：气泡要额外提示用户核对后再取用
     expect(lastShownArgs()).toEqual([control(), 'idNumber', true]);
     expect(identityHint.hideIdentityHint).not.toHaveBeenCalled();
+  });
+
+  it('会话失效时不出提示：锁定态打开身份库只会得到空列表', async () => {
+    vi.mocked(StorageUtils.isSessionValid).mockResolvedValue(false);
+    await mount('<label>姓名<input name="realname"></label>', makeConfig());
+
+    await focus(control());
+
+    expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
+    expect(identityHint.hideIdentityHint).toHaveBeenCalledTimes(1);
+  });
+
+  it('会话检查期间焦点已移走：迟到的结果不展示，也不误伤别的字段', async () => {
+    let resolveCheck!: (value: boolean) => void;
+    vi.mocked(StorageUtils.isSessionValid).mockReturnValueOnce(
+      new Promise<boolean>(resolve => {
+        resolveCheck = resolve;
+      }),
+    );
+    await mount('<label>姓名<input name="realname"></label>', makeConfig());
+
+    const input = control();
+    input.focus();
+    input.blur();
+    resolveCheck(true);
+    await settle();
+
+    expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
   });
 
   it('textarea 与 select 也是个人信息的载体，同样识别', async () => {
@@ -165,8 +203,8 @@ describe('聚焦识别到身份提示的接线', () => {
       makeConfig(),
     );
 
-    focus(control(0));
-    focus(control(1));
+    await focus(control(0));
+    await focus(control(1));
 
     expect(shown()).toEqual(['address', 'gender']);
   });
@@ -191,9 +229,9 @@ describe('聚焦识别到身份提示的接线', () => {
       makeConfig(),
     );
 
-    focus(control(0));
-    focus(control(1));
-    focus(control(2));
+    await focus(control(0));
+    await focus(control(1));
+    await focus(control(2));
 
     expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
   });
@@ -201,7 +239,7 @@ describe('聚焦识别到身份提示的接线', () => {
   it('同一个框去掉 readonly 就照常出提示：判据是「能不能输入」，不是「像不像个人信息」', async () => {
     await mount('<label>出生日期<input name="birthday"></label>', makeConfig());
 
-    focus(control());
+    await focus(control());
 
     expect(shown()).toEqual(['birthday']);
   });
@@ -209,7 +247,7 @@ describe('聚焦识别到身份提示的接线', () => {
   it('select 没有 readOnly 概念：可以选择的下拉框照常出提示', async () => {
     await mount('<label>性别<select name="gender"><option>男</option></select></label>', makeConfig());
 
-    focus(control());
+    await focus(control());
 
     expect(shown()).toEqual(['gender']);
   });
@@ -217,7 +255,7 @@ describe('聚焦识别到身份提示的接线', () => {
   it('聚焦到非控件元素上不出提示，也不误收（失焦收起由 focusout 负责）', async () => {
     await mount('<label>姓名<input name="realname"></label>', makeConfig());
 
-    focus(document.body.querySelector('label') as HTMLElement);
+    await focus(document.body.querySelector('label') as HTMLElement);
 
     expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
     expect(identityHint.hideIdentityHint).not.toHaveBeenCalled();
@@ -226,7 +264,7 @@ describe('聚焦识别到身份提示的接线', () => {
   it('总闸显式关闭时整条链不启动：不展示也不收起', async () => {
     await mount('<label>姓名<input name="realname"></label>', makeConfig({ identityHintEnabled: false }));
 
-    focus(control());
+    await focus(control());
 
     expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
     expect(identityHint.hideIdentityHint).not.toHaveBeenCalled();
@@ -237,7 +275,7 @@ describe('聚焦识别到身份提示的接线', () => {
     delete (legacy as Record<string, unknown>).identityHintEnabled;
     await mount('<label>姓名<input name="realname"></label>', legacy);
 
-    focus(control());
+    await focus(control());
 
     expect(shown()).toEqual(['name']);
   });
@@ -252,7 +290,7 @@ describe('聚焦识别到身份提示的接线', () => {
    */
   it('关闸那一下把屏上那枚气泡一起收起，无关配置变更则不碰它', async () => {
     await mount('<label>姓名<input name="realname"></label>', makeConfig());
-    focus(control());
+    await focus(control());
     expect(shown()).toEqual(['name']);
 
     // 负对照一：开闸态里只动透明度（没写过这个键＝未写即开），不该碰已经可见的气泡
@@ -293,8 +331,8 @@ describe('聚焦识别到身份提示的接线', () => {
     );
     scan();
 
-    focus(control(0));
-    focus(control(1));
+    await focus(control(0));
+    await focus(control(1));
 
     expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
   });
@@ -310,7 +348,7 @@ describe('聚焦识别到身份提示的接线', () => {
     await mount('<label>手机号码<input name="mobile" type="tel"></label>', makeConfig());
     scan();
 
-    focus(control());
+    await focus(control());
 
     expect(shown()).toEqual(['phone']);
   });
@@ -322,7 +360,7 @@ describe('聚焦识别到身份提示的接线', () => {
     );
     scan();
 
-    focus(control());
+    await focus(control());
 
     expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
   });
@@ -347,7 +385,7 @@ describe('聚焦识别到身份提示的接线', () => {
     // 前提自证：这一框确实被快速填充认领了，否则用例只是在测「它没进登录表单」
     expect((detector as any).shouldShowSidePanel(control(0))).toBe(true);
 
-    focus(control(0));
+    await focus(control(0));
 
     expect(shown()).toEqual(['idNumber']);
   });
@@ -361,7 +399,7 @@ describe('聚焦识别到身份提示的接线', () => {
 
     expect((detector as any).shouldShowSidePanel(control(0))).toBe(true);
 
-    focus(control(0));
+    await focus(control(0));
 
     expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
   });
@@ -369,10 +407,10 @@ describe('聚焦识别到身份提示的接线', () => {
   it('无语义角色的字段收起上一枚气泡，Tab 走过一串无关框不留残影', async () => {
     await mount('<label>姓名<input name="realname"></label><input id="weight" name="weight">', makeConfig());
 
-    focus(control(0));
+    await focus(control(0));
     expect(shown()).toEqual(['name']);
 
-    focus(control(1));
+    await focus(control(1));
 
     expect(shown()).toHaveLength(1);
     expect(identityHint.hideIdentityHint).toHaveBeenCalledTimes(1);
@@ -381,7 +419,7 @@ describe('聚焦识别到身份提示的接线', () => {
   it.each(['sidepanel', 'manual'] as const)('%s 档位照样出提示：接线点在内联 early return 之前', async fillMode => {
     await mount('<label>姓名<input name="realname"></label>', makeConfig({ fillMode }));
 
-    focus(control());
+    await focus(control());
 
     expect(shown()).toEqual(['name']);
   });
@@ -394,7 +432,7 @@ describe('聚焦识别到身份提示的接线', () => {
     Object.defineProperty(window, 'top', { configurable: true, value: {} });
 
     try {
-      focus(control());
+      await focus(control());
       expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
     } finally {
       if (originalTop) Object.defineProperty(window, 'top', originalTop);

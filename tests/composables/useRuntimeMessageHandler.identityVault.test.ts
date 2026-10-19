@@ -69,6 +69,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete (globalThis as any).chrome;
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -111,6 +112,20 @@ describe('OPEN_OPTIONS_AND_IDENTITY 分发', () => {
 
     isAuthenticated.value = true;
     await vi.waitFor(() => expect(openIdentityVault).toHaveBeenCalledWith('张三'));
+    unmount();
+  });
+
+  it('等待超时仍未解锁时不打开身份库：避免复验后落到空库', async () => {
+    vi.useFakeTimers();
+    const openIdentityVault = vi.fn();
+    const unmount = mountHandler(openIdentityVault);
+    passwords.value = [];
+    isAuthenticated.value = false;
+
+    registeredListener?.({ type: MessageType.OPEN_OPTIONS_AND_IDENTITY, data: { keyword: '张三' } });
+    await vi.advanceTimersByTimeAsync(3200);
+
+    expect(openIdentityVault).not.toHaveBeenCalled();
     unmount();
   });
 

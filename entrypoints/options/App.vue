@@ -431,7 +431,7 @@ import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealt
 import { normalizeToHostAndPort } from '@/utils/domain';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { isDev, isFirefox } from '@/utils/env';
-import { markOptionsReady } from './appReady';
+import { markOptionsFirstView, markOptionsReady } from './appReady';
 import {
   ACTIVATION_SNOOZE_MS,
   dismissActivationChecklist,
@@ -1096,6 +1096,8 @@ const {
   resetMasterPassword,
 } = useAuthFlow({
   loadPasswords,
+  // 列表解密要等会话判定之后：骨架据此先切到 setup / verify / vault，避免显示错状态
+  onFirstViewResolved: markOptionsFirstView,
   onSessionExpired: () => {
     passwords.value = [];
   },

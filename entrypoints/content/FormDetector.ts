@@ -10,6 +10,7 @@ import {
   PendingTotpData,
 } from '@/utils/types';
 import { StorageUtils } from '@/utils/storage';
+import { resetSessionMemoryState, SESSION_STORAGE_KEYS } from '@/utils/sessionManager-storage';
 import { logger } from '@/utils/logger';
 import {
   USERNAME_SELECTORS,
@@ -244,6 +245,25 @@ export class FormDetector {
    */
   private setupStorageListener(): void {
     this.storageListener = changes => {
+      /*
+       * 会话键变化必须让本上下文的内存镜像失效。
+       *
+       * `isSessionValid()` 在镜像已填好时会跳过 storage 回读：手动锁定 / 到期清除发生在
+       * 另一个上下文时，这里会继续用陈旧 expiry 返回 true。后台只重置它自己的镜像，
+       * 内容脚本此前没有对应清理，于是「解锁 → 锁定 → 再聚焦」仍会出身份提示。
+       * 会话创建 / 换钥时同样重置，下一次检查自然会用新的键重建镜像。
+       */
+      const sessionKeysChanged = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY].some(
+        key => key in changes,
+      );
+      if (sessionKeysChanged) {
+        const sessionRemoved = [SESSION_STORAGE_KEYS.WRAPPED_DATA_KEY, SESSION_STORAGE_KEYS.PASSWORD_EXPIRY].some(
+          key => changes[key]?.newValue === undefined,
+        );
+        resetSessionMemoryState();
+        if (sessionRemoved) hideIdentityHint();
+      }
+
       if (changes.floating_button_config) {
         const rawConfig = changes.floating_button_config.newValue as Partial<FloatingButtonConfig> | undefined;
         if (rawConfig) {
@@ -952,8 +972,9 @@ export class FormDetector {
    * `normalizeIdentityHintRole` 收到闭集枚举后才交给气泡，卡类口令在这一步之前就被挡掉；
    * 登录语义的让位判据要读角色，因此排在收窄之后。
    *
-   * 五道守卫的必要性：
+   * 六道守卫的必要性：
    * - 总闸关闭时整条链不启动，页面不注入任何扩展 UI（对齐「关闭即完全不出现」的标签承诺）；
+   * - 会话必须有效：身份库密文只在解锁会话内可读，锁定态出提示会把用户引向空库；
    * - `allFrames` 注入让内容脚本在每个 iframe 各跑一份，而广告/统计 iframe 里的悬浮气泡
    *   既不在用户的注视点上，也给页面脚本多一个可反复触发的扩展 UI，只在顶层 frame 出提示；
    * - 焦点目标必须是 `input` / `textarea` / `select` 三类控件之一，包裹元素上挂气泡没有意义；
@@ -998,7 +1019,41 @@ export class FormDetector {
       hideIdentityHint();
       return;
     }
-    showIdentityHint(target, role, verdict.needsVerify);
+    void this.revealIdentityHintWhenUnlocked(target, role, verdict.needsVerify);
+  }
+
+  /**
+   * 会话有效时才展示身份提示
+   *
+   * 身份库的密文只在已解锁会话里可读：锁定态展示气泡会把用户引向
+   * 「复验主密码 → 打开空身份库」的死路（`getAllIdentity` 拿不到会话数据密钥）。
+   * `isSessionValid` 自带 5 秒结果缓存，个人信息字段聚焦频率低，不构成热路径 IO。
+   *
+   * 检查是异步的，返回后必须复核三件事：
+   * - 总闸可能在这段时间被别的上下文拨到关；
+   * - 焦点可能已经移到别的字段，迟到的气泡不能画到一个不再聚焦的字段上；
+   * - 字段可能已被页面卸载。
+   * 锁定态只收起「焦点仍在该字段」的气泡：若用户已移到下一个字段，
+   * 那枚新气泡由它自己的检查负责，不能被这条迟到的结果误收。
+   */
+  private async revealIdentityHintWhenUnlocked(
+    target: HTMLElement,
+    role: IdentityHintRole,
+    needsVerify: boolean,
+  ): Promise<void> {
+    let unlocked = false;
+    try {
+      unlocked = await StorageUtils.isSessionValid();
+    } catch (error) {
+      logger.debug('IdentityHint: 会话状态检查失败，按未解锁处理:', error);
+    }
+    if (this.disposed || !this.identityHintEnabled) return;
+    if (!unlocked) {
+      if (document.activeElement === target) hideIdentityHint();
+      return;
+    }
+    if (document.activeElement !== target || !target.isConnected) return;
+    showIdentityHint(target, role, needsVerify);
   }
 
   /**

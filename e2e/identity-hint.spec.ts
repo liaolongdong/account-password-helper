@@ -1,6 +1,6 @@
 import type { CDPSession, Page } from '@playwright/test';
 
-import { expect, test, verifyMasterPassword } from './harness';
+import { expect, onboardAndUnlock, test, verifyMasterPassword } from './harness';
 import { liteExactMatch, liteTextOf, templatedOf, textOf } from './i18n';
 import { STORAGE_KEYS } from '../utils/storageKeys';
 import {
@@ -98,7 +98,42 @@ async function clickButton(page: Page, cdp: CDPSession, variant: 'ghost' | 'prim
   await page.mouse.click(point.x, point.y);
 }
 
-test('气泡只报角色：值不进内容，页面脚本也读不到 shadow 里的东西', async ({ extContext }) => {
+test('会话失效时同页收起且不再出气泡；解锁后恢复', async ({ extContext, optionsPage }) => {
+  // 多放一个口令框：`data-aph-password` 是内容脚本已注入的同步信号，
+  // 否则「脚本还没到」会被误判成「门禁生效」
+  const { page, cdp } = await openFormPage(
+    extContext,
+    `<body>${FORM_HTML}<input type="password" name="unused-password"></body>`,
+    '/identity-hint-session',
+  );
+  await page.waitForSelector('input[data-aph-password]', { state: 'attached', timeout: 15_000 });
+
+  // 先证明解锁态本来能出气泡：内容脚本已注入、角色识别正常
+  await focusUntilHint(cdp, page, 'f-id');
+
+  // 锁定：只删会话键、保留主密码配置。同一内容脚本内的会话镜像必须随 storage 变化失效
+  await optionsPage.evaluate(
+    async keys => chrome.storage.local.remove(keys),
+    ['session_wrapped_data_key', 'session_wrap_key', 'session_password_expiry'],
+  );
+  await expect.poll(() => bubbleCount(cdp), { message: '锁定后屏上的气泡没有收起' }).toBe(0);
+
+  await refocus(page, 'f-id');
+  await page.waitForTimeout(800);
+  expect(await bubbleCount(cdp), '锁定态仍出了身份提示').toBe(0);
+
+  // 解锁后同一页恢复：新会话键写入，存储监听让内容脚本重新读取
+  await optionsPage.reload({ waitUntil: 'domcontentloaded' });
+  await onboardAndUnlock(optionsPage);
+  await focusUntilHint(cdp, page, 'f-id');
+
+  await page.close();
+});
+
+test('气泡只报角色：值不进内容，页面脚本也读不到 shadow 里的东西', async ({
+  extContext,
+  optionsPage: _optionsPage,
+}) => {
   const { page, cdp } = await openFormPage(extContext, `<body>${FORM_HTML}</body>`);
 
   await page.evaluate(value => {
@@ -123,7 +158,10 @@ test('气泡只报角色：值不进内容，页面脚本也读不到 shadow 里
   await page.close();
 });
 
-test('非登录形态的手机号框照样出提示：让位只给快速填充真正认领的字段', async ({ extContext }) => {
+test('非登录形态的手机号框照样出提示：让位只给快速填充真正认领的字段', async ({
+  extContext,
+  optionsPage: _optionsPage,
+}) => {
   const { page, cdp } = await openFormPage(extContext, `<body>${FORM_HTML}</body>`);
 
   await focusUntilHint(cdp, page, 'f-phone');
@@ -136,7 +174,7 @@ test('非登录形态的手机号框照样出提示：让位只给快速填充�
   await page.close();
 });
 
-test('地址表单四档各报其角色：中英标签同页并存也不串味', async ({ extContext }) => {
+test('地址表单四档各报其角色：中英标签同页并存也不串味', async ({ extContext, optionsPage: _optionsPage }) => {
   // `region` / `postal` / `address` / `org` 是地址表单里最容易互相误判的四档，也是此前只有夹具级证据的三档。
   // 中英两套标签同页并存：分类器的词典是双语的，而气泡用词由扩展自身的界面语言决定，
   // 两个方向必须各自咬住自己的角色。页面语言 ≠ 气泡语言，所以判据只认「这两个候选词之一」。
@@ -183,7 +221,7 @@ test('地址表单四档各报其角色：中英标签同页并存也不串味',
   await page.close();
 });
 
-test('四条收起路径：失焦、Esc、点「收起」、走到无语义字段', async ({ extContext }) => {
+test('四条收起路径：失焦、Esc、点「收起」、走到无语义字段', async ({ extContext, optionsPage: _optionsPage }) => {
   const { page, cdp } = await openFormPage(extContext, `<body>${FORM_HTML}</body>`);
 
   await focusUntilHint(cdp, page, 'f-name');
@@ -212,7 +250,7 @@ test('四条收起路径：失焦、Esc、点「收起」、走到无语义字�
   await page.close();
 });
 
-test('锚定下缘、跟随滚动、贴底翻上方，证件号档额外带核对提示', async ({ extContext }) => {
+test('锚定下缘、跟随滚动、贴底翻上方，证件号档额外带核对提示', async ({ extContext, optionsPage: _optionsPage }) => {
   // 上下都留缓冲：①② 需要「下方放得下」的常规档，④ 需要「下方放不下」的翻转档，
   // 两种形态各用滚动量构造出来，不依赖某个固定像素布局碰巧落在哪一侧。
   const { page, cdp } = await openFormPage(
@@ -259,7 +297,10 @@ test('锚定下缘、跟随滚动、贴底翻上方，证件号档额外带核�
   await page.close();
 });
 
-test('与页面同款最高层级遮罩同屏：提示压在遮罩之上、点得到，且事件不外溢', async ({ extContext }) => {
+test('与页面同款最高层级遮罩同屏：提示压在遮罩之上、点得到，且事件不外溢', async ({
+  extContext,
+  optionsPage: _optionsPage,
+}) => {
   const { page, cdp } = await openFormPage(
     extContext,
     `<body style="margin:0">
@@ -294,7 +335,11 @@ test('与页面同款最高层级遮罩同屏：提示压在遮罩之上、点�
   await page.close();
 });
 
-test('总闸关掉时屏上那枚当场收起且不再出提示，拨回来立刻恢复', async ({ extContext, extensionId }) => {
+test('总闸关掉时屏上那枚当场收起且不再出提示，拨回来立刻恢复', async ({
+  extContext,
+  extensionId,
+  optionsPage: _optionsPage,
+}) => {
   // 顺序是「开 → 关 → 开」：中间那次读数只有夹在两次能出提示的读数之间，才证得清是总闸在起作用，
   // 而不是内容脚本压根没注入。判据数的是气泡而不是宿主——宿主是常驻单例，收起只清内容。
   const { page, cdp } = await openFormPage(extContext, `<body>${FORM_HTML}</body>`);
