@@ -381,7 +381,7 @@ Two polish patches: the re-verification dialog cuts its scroll chain and action-
 
 🔗 [Install from Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) (one-click install, auto-updates) · [Download from GitHub Releases](https://github.com/liaolongdong/account-password-helper/releases/latest) (if Google is unreachable) · [Live Demo](https://liaolongdong.github.io/account-password-helper/en.html)
 
-If this project helps you, please give it a ⭐️ and leave a review on the Chrome Web Store — it means the world to an independent developer! Issues and pull requests are welcome; the full changelog is in [CHANGELOG.md](./CHANGELOG.md).
+If this project helps you, please give it a ⭐️ and leave a review on the Chrome Web Store — it means the world to an open-source contributor! Issues and pull requests are welcome; the full changelog is in [CHANGELOG.md](./CHANGELOG.md).
 
 ## 🧩 More by the author
 

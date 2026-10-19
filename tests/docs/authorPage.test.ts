@@ -25,6 +25,7 @@ const PAGES = [
     self: `${SITE}/author.html`,
     alt: `${SITE}/author.en.html`,
     heading: '关于作者',
+    role: '开源爱好者与贡献者',
     rss: './blog/feed.xml',
   },
   {
@@ -33,6 +34,7 @@ const PAGES = [
     self: `${SITE}/author.en.html`,
     alt: `${SITE}/author.html`,
     heading: 'About the author',
+    role: 'open-source enthusiast and contributor',
     rss: './blog/feed.en.xml',
   },
 ] as const;
@@ -76,21 +78,28 @@ describe('作者页结构', () => {
     expect(html).toContain(`href="${alt}"`);
   });
 
-  it.each(PAGES)('$file 的 ProfilePage 与可见正文同源', ({ file, lang, self }) => {
+  it.each(PAGES)('$file 的 ProfilePage 与可见正文同源', ({ file, lang, self, role }) => {
     const html = read(file);
     const data = profileJsonLd(html, file);
     const mainEntity = data.mainEntity as
-      { '@type'?: string; name?: string; url?: string; sameAs?: string[] } | undefined;
+      { '@type'?: string; name?: string; url?: string; jobTitle?: string; sameAs?: string[] } | undefined;
     expect(data['@type']).toBe('ProfilePage');
     expect(data.inLanguage).toBe(lang);
     expect(data.url).toBe(self);
     expect(mainEntity?.['@type']).toBe('Person');
     expect(mainEntity?.name).toBe('liaolongdong');
     expect(mainEntity?.url).toBe(self);
+    expect(mainEntity?.jobTitle?.toLowerCase()).toContain(role.toLowerCase());
     expect(mainEntity?.sameAs).toContain('https://github.com/liaolongdong');
     expect(mainEntity?.sameAs).toContain('https://liaolongdong.github.io/better-blog/');
     expect(flat(html)).toContain('rel="me" href="https://github.com/liaolongdong"');
     expect(flat(html)).toContain('rel="me" href="https://liaolongdong.github.io/better-blog/"');
+  });
+
+  it.each(PAGES)('$file 的公开身份是开源贡献者，不是独立开发者', ({ file, role }) => {
+    const html = read(file);
+    expect(html).toContain(role);
+    expect(html).not.toMatch(/独立开发者|independent developer/i);
   });
 });
 
@@ -129,6 +138,8 @@ describe('作者页入口不成为孤岛', () => {
         'https://github.com/liaolongdong/transfer-any-file',
         'https://github.com/liaolongdong/cross-origin-proxy',
         'https://chromewebstore.google.com/detail/account-password-helper/',
+        'https://chromewebstore.google.com/detail/blkdmpkcaceicinkhindniepbbbaekkb',
+        'https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg',
         'https://liaolongdong.github.io/better-blog/',
         rss,
       ]) {
