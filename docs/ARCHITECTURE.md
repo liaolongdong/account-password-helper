@@ -652,7 +652,7 @@ graph TB
 
 - **清单**：已有至少一条密码后，管理页在头部与搜索栏之间展示三步骤清单（添加/导入 → 加密备份 → 安全体检）。完成状态全部由既有事实派生：`passwords.length`、`LAST_VERIFIED_BACKUP_AT`、`HEALTH_HISTORY`；不新增完成状态存储。`activation_checklist` 只存 `{ dismissedAt }`，暂不提醒有效期 7 天，读取失败降级为展示。
 - **动作复用**：备份复用数据管理的 `backupExport`（含主密码验证与导出自检），体检复用 `openHealthDialog`（等待报告就绪），添加/导入复用既有弹窗；清单本身不读写凭据。
-- **同事分享**：AboutDrawer 的「分享给同事」通过 `copyTextToClipboard` 复制 i18n 文案 + `TEAMMATE_SHARE_URL`（带 UTM），不含任何账号、密码或库内数据；Firefox 构建隐藏商店分享按钮。
+- **同事分享**：AboutDrawer 的「分享给同事」通过 `copyTextToClipboard` 复制 i18n 文案，按「免费开源 / 安全加密 / 核心功能」三段组织，并附 `TEAMMATE_PRODUCT_URL`（产品说明页）与 `TEAMMATE_SHARE_URL`（商店页）两条带同一组 UTM 的链接；不含任何账号、密码或库内数据。Firefox 构建隐藏商店分享按钮。
 - **回归口径**：`activationChecklist.test.ts` 钉状态归一化、读写与 7 天窗口；`password-management.spec.ts` 的真机用例覆盖「出现 → 暂不提醒 → 刷新不再出现」；i18n bundle 守卫覆盖新增词条。
 
 ## 开发补充

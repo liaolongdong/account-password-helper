@@ -140,6 +140,7 @@ import {
   REPO_GITHUB_URL,
   REPO_ISSUES_URL,
   REPO_LICENSE_URL,
+  TEAMMATE_PRODUCT_URL,
   TEAMMATE_SHARE_URL,
 } from '@/utils/urls';
 
@@ -221,9 +222,14 @@ const features = computed(() => [
   t('options.about.featurePanel'),
 ]);
 
-/** 复制一段不含任何凭据的同事分享文案；链接带 UTM，便于在商店后台归因 */
+/** 复制一段不含任何凭据的同事分享文案；产品页与商店链接同一组 UTM，便于归因 */
 const handleShare = async (): Promise<void> => {
-  const ok = await copyTextToClipboard(t('options.about.shareText', { url: TEAMMATE_SHARE_URL }));
+  const ok = await copyTextToClipboard(
+    t('options.about.shareText', {
+      productUrl: TEAMMATE_PRODUCT_URL,
+      storeUrl: TEAMMATE_SHARE_URL,
+    }),
+  );
   if (ok) ElMessage.success(t('options.about.shareCopied'));
   else ElMessage.error(t('options.about.shareFailed'));
 };

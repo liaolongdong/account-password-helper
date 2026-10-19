@@ -47,7 +47,7 @@ test.describe('命令面板执行入口', () => {
     await expect(page.getByRole('dialog').filter({ hasText: textOf('options.about.title') })).toBeVisible();
   });
 
-  test('关于 → 分享给同事复制带 UTM 的商店链接', async ({ optionsPage: page }) => {
+  test('关于 → 分享给同事复制带 UTM 的产品页与商店链接', async ({ optionsPage: page }) => {
     await page.getByRole('button', { name: textOf('options.header.about') }).click();
     const drawer = page.getByRole('dialog').filter({ hasText: textOf('options.about.title') });
     await expect(drawer).toBeVisible();
@@ -56,9 +56,15 @@ test.describe('命令面板执行入口', () => {
     await expectSuccessToast(page, 'options.about.shareCopied');
 
     const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toContain('liaolongdong.github.io/account-password-helper/?utm_source=about');
     expect(copied).toContain('chromewebstore.google.com');
-    expect(copied).toContain('utm_source=about');
+    // 产品页与商店页各带一次 UTM，避免两条链接只有一条可归因
+    expect(copied.match(/utm_source=about/g)).toHaveLength(2);
     expect(copied).toContain('utm_campaign=teammate');
+    // 文案必须把「开源免费 / 安全加密 / 核心功能」三件事讲全
+    expect(copied).toContain('GPL-3.0');
+    expect(copied).toContain('AES-256-GCM');
+    expect(copied).toContain('TOTP');
   });
 
   test('新手引导 → 起引导层', async ({ optionsPage: page }) => {

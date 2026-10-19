@@ -11,9 +11,6 @@ export const GITHUB_RELEASES_PAGE_URL = `${REPO_GITHUB_URL}/releases/latest`;
 export const CHROME_WEB_STORE_URL =
   'https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli';
 
-/** 「分享给同事」专用商店链接：UTM 用于在商店后台区分 About 抽屉带来的安装 */
-export const TEAMMATE_SHARE_URL = `${CHROME_WEB_STORE_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;
-
 /**
  * 反馈与问题提交入口（GitHub Issues 模板选择页）
  *
@@ -50,6 +47,15 @@ export const PRIVACY_POLICY_URL_EN = 'https://liaolongdong.github.io/account-pas
  * 避免同一地址在多处硬编码后各自漂移。
  */
 export const PRODUCT_DOCS_URL = 'https://liaolongdong.github.io/account-password-helper/';
+
+/**
+ * 「分享给同事」专用地址
+ *
+ * 产品说明页负责讲清楚这是什么、凭什么值得装，商店页负责安装；两条链接共用同一组
+ * UTM，便于事后区分 About 抽屉的分享分别带来了多少访问与安装。
+ */
+export const TEAMMATE_PRODUCT_URL = `${PRODUCT_DOCS_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;
+export const TEAMMATE_SHARE_URL = `${CHROME_WEB_STORE_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;
 
 /**
  * CWS 可访问性探测 URL（轻量 HEAD 请求目标）
