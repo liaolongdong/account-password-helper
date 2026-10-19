@@ -65,6 +65,8 @@ test.describe('命令面板执行入口', () => {
     expect(copied).toContain('GPL-3.0');
     expect(copied).toContain('AES-256-GCM');
     expect(copied).toContain('TOTP');
+    expect(copied).toMatch(/可选自动登录|optional auto-login/i);
+    expect(copied).toMatch(/个人信息库|personal info vault/i);
   });
 
   test('新手引导 → 起引导层', async ({ optionsPage: page }) => {

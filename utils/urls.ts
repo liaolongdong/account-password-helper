@@ -52,7 +52,8 @@ export const PRODUCT_DOCS_URL = 'https://liaolongdong.github.io/account-password
  * 「分享给同事」专用地址
  *
  * 产品说明页负责讲清楚这是什么、凭什么值得装，商店页负责安装；两条链接共用同一组
- * UTM，便于事后区分 About 抽屉的分享分别带来了多少访问与安装。
+ * UTM：`utm_source=about` 标记入口是「关于」抽屉，`utm_medium=share` 标记分享媒介，
+ * `utm_campaign=teammate` 标记同事分享活动，便于把这条分享带来的访问与安装同自然流量分开。
  */
 export const TEAMMATE_PRODUCT_URL = `${PRODUCT_DOCS_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;
 export const TEAMMATE_SHARE_URL = `${CHROME_WEB_STORE_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;

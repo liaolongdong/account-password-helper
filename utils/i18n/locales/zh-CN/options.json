@@ -63,7 +63,7 @@
   "options.about.share": "分享给同事",
   "options.about.shareCopied": "分享文案已复制（含产品说明与商店链接）",
   "options.about.shareFailed": "复制失败，请手动分享",
-  "options.about.shareText": "推荐一个我在用的 Chrome 密码管理器：账号密码管理助手\n\n【免费开源】GPL-3.0 开源，无注册、无订阅、无广告，代码可查。\n【安全加密】PBKDF2-SHA256 60 万轮派生密钥 + AES-256-GCM 逐字段加密；主密码与数据只存本机，不上传云端。\n【核心功能】登录页一键填充（可选自动提交）、内置 TOTP 两步验证、精确域名隔离 dev / test / prod、离线安全体检、JSON / CSV 导入导出。\n\n产品说明：{productUrl}\nChrome 商店：{storeUrl}",
+  "options.about.shareText": "推荐一个我在用的 Chrome 密码管理器：账号密码管理助手\n\n【免费开源】GPL-3.0 开源，无注册、无订阅、无广告，代码可查。\n【安全加密】PBKDF2-SHA256 60 万轮派生密钥 + AES-256-GCM 逐字段加密；主密码与数据只存本机，不上传云端。\n【核心功能】登录页一键填充（可选自动登录）、内置 TOTP 两步验证、精确域名隔离 dev / test / prod、独立加密的个人信息库、离线安全体检、JSON / CSV 导入导出。\n\n产品说明：{productUrl}\nChrome 商店：{storeUrl}",
   "options.about.linkDocs": "完整使用说明",
   "options.about.linkPrivacy": "隐私政策",
   "options.about.linkRepo": "GitHub 仓库",
