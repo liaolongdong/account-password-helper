@@ -77,6 +77,54 @@
           </div>
         </section>
 
+        <!-- 本机趋势：只含分数与四类计数 -->
+        <section
+          v-if="trendHistory.length"
+          class="health-trend"
+          aria-labelledby="health-trend-title"
+        >
+          <div class="health-trend__head">
+            <span
+              id="health-trend-title"
+              class="health-trend__title"
+            >
+              {{ t('health.trendTitle') }}
+            </span>
+            <span
+              class="health-trend__delta"
+              :class="`is-${trendDeltaTone}`"
+            >
+              {{ trendDeltaText }}
+            </span>
+          </div>
+          <svg
+            class="health-trend__chart"
+            :viewBox="`0 0 ${TREND_WIDTH} ${TREND_HEIGHT}`"
+            preserveAspectRatio="none"
+            role="img"
+            :aria-label="trendAria"
+          >
+            <polyline
+              v-if="trendHistory.length > 1"
+              :points="trendGeometry.points"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              vector-effect="non-scaling-stroke"
+            />
+            <circle
+              v-if="trendGeometry.last"
+              :cx="trendGeometry.last.x"
+              :cy="trendGeometry.last.y"
+              r="3"
+              fill="currentColor"
+            />
+          </svg>
+          <p class="health-trend__hint">{{ t('health.trendHint') }}</p>
+        </section>
+
         <!-- 指标卡网格 -->
         <section class="metric-grid">
           <component
@@ -386,6 +434,7 @@ import {
 import type { HealthReport, HealthGrade } from '@/utils/passwordHealth';
 import { revealReuseGroups } from '@/utils/passwordHealth';
 import { setReminder, getReminders } from '@/utils/storage/reminderManager';
+import { recordHealthSnapshot, type HealthSnapshot } from '@/utils/healthHistory';
 import { scrollBehavior } from '@/utils/a11y';
 import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
@@ -396,8 +445,8 @@ import HealthShowMore from '@/components/options/HealthShowMore.vue';
  *
  * 展示由 `utils/passwordHealth.buildHealthReport` 计算出的安全评分、弱密码、
  * 密码复用、常见泄露密码与长时间未更新统计。所有数据均来自父组件已解密的
- * 内存报告，本组件不做任何解密、存储或网络操作。点击「去处理」通过 `edit`
- * 事件通知父组件跳转到对应条目的编辑流程。
+ * 内存报告，本组件不做解密或网络操作；唯一持久化是只含分数与四类计数的趋势快照
+ *（见 `utils/healthHistory.ts`）。点击「去处理」通过 `edit` 事件通知父组件跳转编辑。
  *
  * 四个明细面板按行预算渐进渲染（首屏 100 行，点「显示更多」逐档加 100）：
  * 2000 条上限下四类问题会覆盖同一批条目，全量渲染最多撑出 4 × 2000 行 DOM。
@@ -443,6 +492,59 @@ const animatedScore = ref(0);
 
 /** 环形进度偏移量：评分越高，空缺越小 */
 const ringOffset = computed(() => RING_C * (1 - animatedScore.value / 100));
+
+/** 本机趋势快照（只含分数与四类计数） */
+const trendHistory = ref<HealthSnapshot[]>([]);
+
+const TREND_WIDTH = 240;
+const TREND_HEIGHT = 48;
+const TREND_PAD = 4;
+
+/** 趋势折线坐标；只有一个点时放在中线上，由末尾圆点表示 */
+const trendGeometry = computed(() => {
+  const history = trendHistory.value;
+  if (!history.length) return { points: '', last: null as { x: number; y: number } | null };
+  const scores = history.map(snapshot => snapshot.score);
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const span = Math.max(1, max - min);
+  const points = history.map((snapshot, index) => {
+    const x =
+      history.length === 1
+        ? TREND_WIDTH / 2
+        : TREND_PAD + (index / (history.length - 1)) * (TREND_WIDTH - TREND_PAD * 2);
+    const y =
+      max === min
+        ? TREND_HEIGHT / 2
+        : TREND_HEIGHT - TREND_PAD - ((snapshot.score - min) / span) * (TREND_HEIGHT - TREND_PAD * 2);
+    return { x, y };
+  });
+  return { points: points.map(point => `${point.x},${point.y}`).join(' '), last: points[points.length - 1] };
+});
+
+const trendDelta = computed<number | null>(() => {
+  const history = trendHistory.value;
+  if (history.length < 2) return null;
+  return history[history.length - 1].score - history[history.length - 2].score;
+});
+
+const trendDeltaTone = computed<'first' | 'up' | 'down' | 'same'>(() => {
+  if (trendDelta.value === null) return 'first';
+  if (trendDelta.value > 0) return 'up';
+  if (trendDelta.value < 0) return 'down';
+  return 'same';
+});
+
+const trendDeltaText = computed(() => {
+  if (trendDelta.value === null) return t('health.trendFirst');
+  if (trendDelta.value > 0) return t('health.trendUp', { delta: trendDelta.value });
+  if (trendDelta.value < 0) return t('health.trendDown', { delta: Math.abs(trendDelta.value) });
+  return t('health.trendSame');
+});
+
+const trendAria = computed(() =>
+  t('health.trendAria', { scores: trendHistory.value.map(snapshot => snapshot.score).join(', ') }),
+);
 
 /** 健康等级文案（随语言实时切换） */
 const gradeText = computed(() => {
@@ -617,6 +719,28 @@ function onEdit(id: string): void {
   emit('edit', id);
 }
 
+/**
+ * 记录并加载本机体检趋势
+ *
+ * 记录的是当前报告的分数与四类计数，不含条目内容；同一组计数在一小时内重复打开
+ * 不会追加新点。等待期间弹窗被关闭/重开时，旧结果不再落地。
+ */
+async function loadHealthTrend(openSeqAtStart: number): Promise<void> {
+  if (props.report.total === 0) {
+    trendHistory.value = [];
+    return;
+  }
+  try {
+    const history = await recordHealthSnapshot(props.report);
+    if (openSeqAtStart !== openSeq) return;
+    trendHistory.value = history;
+  } catch (error) {
+    if (openSeqAtStart !== openSeq) return;
+    logger.error('读取体检趋势失败:', error);
+    trendHistory.value = [];
+  }
+}
+
 /** 每条陈旧条目的提醒状态显示文案（反应式，弹窗打开时加载） */
 const reminderStates = ref<Record<string, string>>({});
 
@@ -675,7 +799,10 @@ watch(
       cancelAnimationFrame(scoreFrame);
       scoreFrame = 0;
     }
-    if (!visible) return;
+    if (!visible) {
+      trendHistory.value = [];
+      return;
+    }
     // 每次打开都从首屏档位重新开始：上次展开到的位置属于一次已结束的浏览
     rowBudgets.value = {};
     // 提醒文案随本轮加载重建，先清空可避免上一份报告的「N 天后提醒」闪一下
@@ -694,8 +821,9 @@ watch(
         animatedScore.value = props.report.score;
       });
     });
-    // 异步加载提醒状态（不阻塞弹窗打开）
+    // 异步加载提醒状态与趋势（不阻塞弹窗打开）
     void loadReminderStates(seq);
+    void loadHealthTrend(seq);
   },
 );
 
@@ -846,6 +974,57 @@ onScopeDispose(() => {
   margin: 0;
   font-size: 12px;
   color: #909399;
+}
+
+/* ==================== 体检趋势 ==================== */
+.health-trend {
+  padding: 14px 16px;
+  margin-top: 14px;
+  background: var(--el-fill-color-lighter, #f5f7fa);
+  border: 1px solid var(--el-border-color-lighter, #ebeef5);
+  border-radius: 10px;
+}
+
+.health-trend__head {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.health-trend__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--el-text-color-primary, #303133);
+}
+
+.health-trend__delta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary, #909399);
+}
+
+.health-trend__delta.is-up {
+  color: var(--el-color-success, #67c23a);
+}
+
+.health-trend__delta.is-down {
+  color: var(--el-color-danger, #f56c6c);
+}
+
+.health-trend__chart {
+  display: block;
+  width: 100%;
+  height: 48px;
+  margin-top: 8px;
+  color: var(--el-color-primary, #409eff);
+}
+
+.health-trend__hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--el-text-color-secondary, #909399);
 }
 
 /* ==================== 指标卡网格 ==================== */

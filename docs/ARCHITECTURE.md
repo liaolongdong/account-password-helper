@@ -389,6 +389,7 @@ graph TB
 
 - 在密码管理页顶部操作栏点击「安全体检」按钮（带健康信号灯圆点），打开安全体检仪表盘弹窗（见 [PasswordHealthDialog.vue](../components/options/PasswordHealthDialog.vue)）。
 - 综合安全评分（0~100 分）+ 等级（≥90 优秀 / 70 至 89 良好 / 40 至 69 一般 / 低于 40 较差），环形进度动画直观展示（见 [utils/passwordHealth.ts](../utils/passwordHealth.ts)）。
+- **本机趋势**：每次打开体检记录一条只含分数与四类计数的快照（[healthHistory.ts](../utils/healthHistory.ts)，最多 24 条，同一组计数一小时内不重复），弹窗展示最近分数折线与相对上次的变化；快照不含条目 ID、账号、密码或任何可还原内容，也不参与 `.aph` 备份。
 - 健康指标共五项，其中**四项计分**：密码复用（权重 35%）、弱密码（25%）、命中近千条离线弱口令字典（20%，见 [utils/weakPasswordDict.ts](../utils/weakPasswordDict.ts)）、长时间未更新（20%），按受影响条目占比线性扣分，即 `100 - 35×复用占比 - 25×弱口令占比 - 20×泄露占比 - 20×陈旧占比`；「未开启两步验证」只做信息展示，**不进评分**。
 - 「长时间未更新」按 90/180/365 天三级预警表示陈旧程度，不代表密码过期。
 - 支持为「长时间未更新」条目设置密码到期提醒（7/30/90 天等 N 天后提醒），到期由后台闹钟检查并发送桌面通知，点击通知直达管理页（见 [utils/storage/reminderManager.ts](../utils/storage/reminderManager.ts)）。

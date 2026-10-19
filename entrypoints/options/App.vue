@@ -52,7 +52,7 @@
         :health-grade="passwords.length ? healthReport.grade : undefined"
         :last-verified-backup-at="lastVerifiedBackupAt"
         @add-password="openAddDialogWithActiveTab"
-        @open-health="showHealthDialog = true"
+        @open-health="openHealthDialog"
         @open-validity="openValiditySetting"
         @data-command="handleDataCommand"
         @settings-command="handleSettingsCommand"
@@ -920,14 +920,53 @@ const healthReport = ref<HealthReport>({
   noTotpCount: 0,
 });
 
-/** 异步更新健康报告（密码列表变化时触发） */
+/**
+ * 异步更新健康报告（密码列表变化时触发）
+ *
+ * 「体检」按钮现在会等这份报告就绪后再打开弹窗：刚新增/导入条目就立刻点体检时，
+ * 列表已经变了、字典校验还在异步跑，旧实现会把空库报告直接铺进弹窗。
+ * 同一份列表复用已在飞的 Promise；列表在等待期间再次变化则发起新的一轮，
+ * 旧结果由引用比较丢弃，避免后到的旧报告覆盖新列表。
+ */
+let healthReportPromise: Promise<void> | null = null;
+let healthReportList: typeof passwords.value | null = null;
+
+const syncHealthReport = (): Promise<void> => {
+  if (healthReportPromise && healthReportList === passwords.value) return healthReportPromise;
+  const list = passwords.value;
+  healthReportList = list;
+  const promise = buildHealthReportAsync(list, Date.now())
+    .then(report => {
+      if (list === passwords.value) healthReport.value = report;
+    })
+    .finally(() => {
+      if (healthReportPromise === promise) {
+        healthReportPromise = null;
+        healthReportList = null;
+      }
+    });
+  healthReportPromise = promise;
+  return promise;
+};
+
 watch(
   passwords,
-  async list => {
-    healthReport.value = await buildHealthReportAsync(list, Date.now());
+  () => {
+    void syncHealthReport().catch(error => logger.error('更新健康报告失败:', error));
   },
   { immediate: true },
 );
+
+/** 打开体检弹窗前等待当前列表的报告就绪 */
+const openHealthDialog = async (): Promise<void> => {
+  try {
+    await syncHealthReport();
+  } catch (error) {
+    // 报告失败仍打开弹窗（显示上一份报告），比点了没反应更可诊断
+    logger.error('打开安全体检前更新报告失败:', error);
+  }
+  showHealthDialog.value = true;
+};
 
 /**
  * 安全体检「去处理」：关闭体检弹窗并跳转到对应条目的编辑流程
@@ -1181,7 +1220,7 @@ const buildPaletteActions = () => [
     group: 'entry',
     label: t('options.header.healthCheck'),
     keywords: ['health', 'audit', 'score'],
-    run: () => (showHealthDialog.value = true),
+    run: () => void openHealthDialog(),
   },
   {
     id: 'tour',

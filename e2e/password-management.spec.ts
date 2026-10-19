@@ -184,4 +184,15 @@ test.describe('密码条目增删改', () => {
     await expectSuccessToast(page, 'sidepanel.unfavorited');
     await expect(allRows(page).first()).toContainText('e2e-fav-second');
   });
+
+  test('体检弹窗显示本机趋势入口', async ({ optionsPage: page }) => {
+    await createEntry(page, ALPHA);
+    await page.getByRole('button', { name: textOf('options.header.healthCheck') }).click();
+
+    const dialog = page.locator('.health-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(textOf('health.trendTitle'))).toBeVisible();
+    // 全新 profile 只有本次打开记录的一个点
+    await expect(dialog.getByText(textOf('health.trendFirst'))).toBeVisible();
+  });
 });

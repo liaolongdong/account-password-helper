@@ -170,7 +170,7 @@
 🪪 个人信息库：姓名、证件号、手机号、邮箱、住址、银行卡信息与自定义字段单独成库，默认掩码，打开是否要求主密码由复验策略决定（默认同一管理页会话内只问一次，可改成每次都问或不再单独问）；库内自带回收站，删除条目保留 30 天可恢复或彻底删除，逾期自动清理；支持 .aphid 加密备份与勾选导出子集，也可按需导出 / 导入明文 .json（需复验主密码并二次确认风险）
 
 🛡 安全与体检
-🩺 离线安全体检：0 到 100 分综合评分，四类问题按受影响条目占比扣分——复用 35、弱密码 25、命中内置近千条常见泄露密码 20、长期未更新 20（再分 90 / 180 / 365 天三档）；未开启两步验证的条目单独列出但不计分
+🩺 离线安全体检：0 到 100 分综合评分，四类问题按受影响条目占比扣分——复用 35、弱密码 25、命中内置近千条常见泄露密码 20、长期未更新 20（再分 90 / 180 / 365 天三档）；未开启两步验证的条目单独列出但不计分；本机保留最近 24 次分数趋势（只存分数与四类计数），能看到与上次相比的变化
 📊 密码强度检测：按长度、字母、数字、符号四条规则评为弱 / 中 / 强，添加与编辑时以实时强度条和逐条清单展示，清单另有「不在常见泄露密码列表」一条，命中即判弱；登录保存时按同一口径给出弱密码警示
 🛠 密码生成器：随机密码 6~50 位（默认 16），启用的每种字符集至少各出现一次再整体打乱，可排除 0/O、1/l 一类易混淆字符；助记词模式取 3~8 词（内置 3,080 词英文词库）、可追加 1~4 位数字、五种分隔符
 🎲 右键即可生成：输入框右键「生成并填充强密码」不读取任何已存凭证，会话锁定时同样可用
@@ -305,7 +305,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 🪪 Personal info vault: name, ID number, phone, email, address, bank card details and custom fields in a separate store, masked by default and opened behind a master-password re-check (once per manager-page session by default; configurable to every time, or to no separate check). Its own trash keeps deleted records restorable or permanently deletable for 30 days before they are cleaned automatically, and encrypted .aphid export/import supports a ticked subset, plus an optional plaintext .json round-trip behind a re-check and a risk confirmation.
 
 🛡 Safety and check-up
-🩺 On-device check-up scored 0-100: reused passwords 35, weak 25, a hit in the built-in list of nearly a thousand commonly leaked ones 20, long-unchanged 20 (in 90, 180 and 365 day bands), each weighted by how many entries it touches. Missing two-factor is listed but unscored.
+🩺 On-device check-up scored 0-100: reused passwords 35, weak 25, a hit in the built-in list of nearly a thousand commonly leaked ones 20, long-unchanged 20 (in 90, 180 and 365 day bands), each weighted by how many entries it touches. Missing two-factor is listed but unscored. Up to 24 local snapshots (score and the four counts only) show how the score changed since last time.
 📊 Strength check: length, letters, numbers and symbols rate a password weak, medium or strong, shown as a live bar with a rule-by-rule list while you add or edit; the list carries a fifth item that forces weak on a breached-password match, and the login-save prompt warns on the same scale.
 🛠 Password generator: 6-50 characters (16 by default), every enabled set guaranteed at least once before shuffling, ambiguous characters (0/O, 1/l) optional; passphrase mode draws 3-8 words from the bundled 3,080-word list with 1-4 digits and five separators.
 🎲 Right-click "generate and fill a strong password" reads nothing from your vault, so it works while the session is locked.

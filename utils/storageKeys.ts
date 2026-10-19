@@ -81,6 +81,8 @@ export const STORAGE_KEYS = {
   IDENTITY_MANUAL_ORDER: 'identity_manual_order',
   /** 密码到期提醒配置（每条目独立提醒时间） */
   PASSWORD_REMINDERS: 'password_reminders',
+  /** 健康评分趋势快照（只存分数与四类计数，不含任何条目内容或明文） */
+  HEALTH_HISTORY: 'password_health_history',
   /** 用户语言偏好（'zh-CN' | 'en'） */
   LOCALE: 'app_locale',
   /** 站点级填充规则（域名 → 自定义选择器/穿透开关） */
