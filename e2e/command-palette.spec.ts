@@ -1,4 +1,4 @@
-import { expect, test } from './harness';
+import { expect, expectSuccessToast, test } from './harness';
 import { textOf } from './i18n';
 
 /**
@@ -45,6 +45,20 @@ test.describe('命令面板执行入口', () => {
     await expect(page.locator('.cp-overlay')).toBeHidden();
     // 按文案过滤而不是 `.el-drawer` 裸取：页面里同时存在「查看详情」抽屉的节点，裸取会撞 strict mode
     await expect(page.getByRole('dialog').filter({ hasText: textOf('options.about.title') })).toBeVisible();
+  });
+
+  test('关于 → 分享给同事复制带 UTM 的商店链接', async ({ optionsPage: page }) => {
+    await page.getByRole('button', { name: textOf('options.header.about') }).click();
+    const drawer = page.getByRole('dialog').filter({ hasText: textOf('options.about.title') });
+    await expect(drawer).toBeVisible();
+
+    await drawer.getByRole('button', { name: textOf('options.about.share') }).click();
+    await expectSuccessToast(page, 'options.about.shareCopied');
+
+    const copied = await page.evaluate(() => navigator.clipboard.readText());
+    expect(copied).toContain('chromewebstore.google.com');
+    expect(copied).toContain('utm_source=about');
+    expect(copied).toContain('utm_campaign=teammate');
   });
 
   test('新手引导 → 起引导层', async ({ optionsPage: page }) => {

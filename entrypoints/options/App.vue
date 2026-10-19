@@ -63,6 +63,19 @@
         @open-about="showAboutDrawer = true"
       />
 
+      <!-- 安全起步清单：已有密码后提示备份与体检，可暂不提醒 -->
+      <ActivationChecklist
+        v-if="showActivationChecklist"
+        :has-password="passwords.length > 0"
+        :has-backup="!!lastVerifiedBackupAt"
+        :has-health-check="activationHealthDone"
+        @add="handleActivationAdd"
+        @import-data="handleActivationImport"
+        @backup="handleActivationBackup"
+        @health="handleActivationHealth"
+        @dismiss="handleActivationDismiss"
+      />
+
       <!-- 搜索和筛选（空数据时隐藏） -->
       <SearchFilterBar
         v-if="passwords.length > 0 || tableLoading"
@@ -377,6 +390,7 @@ import PasswordTable from '@/components/options/PasswordTable.vue';
 import HeaderBar from '@/components/options/HeaderBar.vue';
 import UndoDeleteToast from '@/components/options/UndoDeleteToast.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
+import ActivationChecklist from '@/components/options/ActivationChecklist.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useAuthFlow } from '@/composables/useAuthFlow';
@@ -399,6 +413,12 @@ import { normalizeToHostAndPort } from '@/utils/domain';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { isDev } from '@/utils/env';
 import { markOptionsReady } from './appReady';
+import {
+  ACTIVATION_SNOOZE_MS,
+  dismissActivationChecklist,
+  getActivationChecklistState,
+} from '@/utils/storage/activationChecklist';
+import { readHealthHistory } from '@/utils/healthHistory';
 
 /**
  * 标签页标题跟随语言
@@ -1046,6 +1066,73 @@ const {
   },
 });
 
+// ==================== 安全起步清单 ====================
+// 完成状态全部由已有事实派生：密码数量、最近验证备份、体检趋势是否存在。
+// 唯一新增持久化是「暂不提醒」时间戳，见 utils/storage/activationChecklist.ts。
+
+const ACTIVATION_TOTAL_STEPS = 3;
+const activationStateReady = ref(false);
+const activationDismissedAt = ref<number | null>(null);
+const activationHealthDone = ref(false);
+
+const activationDoneCount = computed(
+  () =>
+    [passwords.value.length > 0, Boolean(lastVerifiedBackupAt.value), activationHealthDone.value].filter(Boolean)
+      .length,
+);
+
+const activationSnoozed = computed(
+  () => activationDismissedAt.value !== null && Date.now() - activationDismissedAt.value < ACTIVATION_SNOOZE_MS,
+);
+
+const showActivationChecklist = computed(
+  () =>
+    activationStateReady.value &&
+    isAuthenticated.value &&
+    passwords.value.length > 0 &&
+    !activationSnoozed.value &&
+    activationDoneCount.value < ACTIVATION_TOTAL_STEPS,
+);
+
+/** 读取清单唯一需要异步补齐的两项：暂不提醒时间与体检趋势是否存在 */
+const loadActivationState = async (): Promise<void> => {
+  const [state, history] = await Promise.all([getActivationChecklistState(), readHealthHistory()]);
+  activationDismissedAt.value = state.dismissedAt;
+  activationHealthDone.value = history.length > 0;
+  activationStateReady.value = true;
+};
+
+/** 体检弹窗关闭后刷新趋势完成态；弹窗打开时写入快照，关闭时才能读到 */
+const refreshActivationHealthDone = async (): Promise<void> => {
+  activationHealthDone.value = (await readHealthHistory()).length > 0;
+};
+
+const handleActivationAdd = (): void => {
+  void openAddDialogWithActiveTab();
+};
+
+const handleActivationImport = (): void => {
+  showImportDialog.value = true;
+};
+
+const handleActivationBackup = (): void => {
+  handleDataCommand('backupExport');
+};
+
+const handleActivationHealth = (): void => {
+  void openHealthDialog();
+};
+
+const handleActivationDismiss = (): void => {
+  const at = Date.now();
+  activationDismissedAt.value = at;
+  void dismissActivationChecklist(at);
+};
+
+watch(showHealthDialog, (visible, wasVisible) => {
+  if (!visible && wasVisible) void refreshActivationHealthDone();
+});
+
 /** 身份信息库状态与操作（单一实例注入列表弹窗，会话失效由下方 watch teardown） */
 const identityVault = useIdentityVault();
 
@@ -1603,6 +1690,8 @@ onMounted(async () => {
   await checkAuth();
   // 读取「最近一次已验证备份」时间戳，供 HeaderBar 展示备份健康提示（时间戳非敏感，读取无需会话态）
   lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
+  // 安全起步清单的暂不提醒状态与体检趋势；两项都只读非敏感摘要，失败时降级为未完成
+  void loadActivationState();
   // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载
   await nextTick();
   // 恢复表格排序配置；等排序落定再揭开骨架，避免淡出过程中表格又重排一次

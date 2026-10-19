@@ -8,6 +8,7 @@ import {
   footerPrimary,
   leaksPlaintext,
   parkPointer,
+  readStoredConfig,
   rowOf,
   storedArrayCount,
   test,
@@ -194,5 +195,28 @@ test.describe('密码条目增删改', () => {
     await expect(dialog.getByText(textOf('health.trendTitle'))).toBeVisible();
     // 全新 profile 只有本次打开记录的一个点
     await expect(dialog.getByText(textOf('health.trendFirst'))).toBeVisible();
+  });
+
+  test('安全起步清单：已有密码后出现，暂不提醒后刷新不再出现', async ({ optionsPage: page }) => {
+    await createEntry(page, ALPHA);
+
+    const checklist = page.locator('.activation');
+    await expect(checklist).toBeVisible();
+    await expect(checklist.getByText(textOf('options.activation.stepBackup'))).toBeVisible();
+    await expect(checklist.getByText(textOf('options.activation.stepHealth'))).toBeVisible();
+
+    await checklist.getByRole('button', { name: textOf('options.activation.dismiss') }).click();
+    await expect(checklist).toHaveCount(0);
+    await expect
+      .poll(async () => {
+        const state = (await readStoredConfig(page, STORAGE_KEYS.ACTIVATION_CHECKLIST)) as
+          { dismissedAt?: unknown } | undefined;
+        return typeof state?.dismissedAt;
+      })
+      .toBe('number');
+
+    await page.reload();
+    await expect(page.locator('.header')).toBeVisible();
+    await expect(page.locator('.activation')).toHaveCount(0);
   });
 });

@@ -11,6 +11,9 @@ export const GITHUB_RELEASES_PAGE_URL = `${REPO_GITHUB_URL}/releases/latest`;
 export const CHROME_WEB_STORE_URL =
   'https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli';
 
+/** 「分享给同事」专用商店链接：UTM 用于在商店后台区分 About 抽屉带来的安装 */
+export const TEAMMATE_SHARE_URL = `${CHROME_WEB_STORE_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;
+
 /**
  * 反馈与问题提交入口（GitHub Issues 模板选择页）
  *

@@ -102,6 +102,8 @@ export const STORAGE_KEYS = {
    * 站点或步骤内容，因此本键不构成隐私面。自动弹出终生仅一次。
    */
   ONBOARDING_TOUR: 'onboarding_tour_state',
+  /** 安全起步清单暂不提醒时间（只存时间戳，不含账号数据） */
+  ACTIVATION_CHECKLIST: 'activation_checklist',
 };
 
 /**

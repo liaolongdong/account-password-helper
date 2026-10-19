@@ -109,6 +109,13 @@
 
     <template #footer>
       <div class="about-footer">
+        <el-button
+          v-if="!isFirefox"
+          :icon="Share"
+          @click="handleShare"
+        >
+          {{ t('options.about.share') }}
+        </el-button>
         <el-button @click="$emit('update:modelValue', false)">
           {{ t('common.close') }}
         </el-button>
@@ -119,7 +126,9 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { TopRight } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
+import { Share, TopRight } from '@element-plus/icons-vue';
+import { copyTextToClipboard } from '@/utils/clipboard';
 import { isFirefox } from '@/utils/env';
 import { useI18n } from '@/utils/i18n';
 import {
@@ -131,6 +140,7 @@ import {
   REPO_GITHUB_URL,
   REPO_ISSUES_URL,
   REPO_LICENSE_URL,
+  TEAMMATE_SHARE_URL,
 } from '@/utils/urls';
 
 /**
@@ -210,6 +220,13 @@ const features = computed(() => [
   t('options.about.featureTransfer'),
   t('options.about.featurePanel'),
 ]);
+
+/** 复制一段不含任何凭据的同事分享文案；链接带 UTM，便于在商店后台归因 */
+const handleShare = async (): Promise<void> => {
+  const ok = await copyTextToClipboard(t('options.about.shareText', { url: TEAMMATE_SHARE_URL }));
+  if (ok) ElMessage.success(t('options.about.shareCopied'));
+  else ElMessage.error(t('options.about.shareFailed'));
+};
 </script>
 
 <style scoped>
@@ -365,6 +382,7 @@ const features = computed(() => [
 
 .about-footer {
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
 }
 </style>
