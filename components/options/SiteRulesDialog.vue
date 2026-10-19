@@ -191,6 +191,7 @@
               class="selector-field-input"
               :placeholder="t('options.siteRules.formUsernamePlaceholder')"
               clearable
+              @input="revalidateSelectorPair"
             />
             <el-button
               class="selector-pick-button"
@@ -216,6 +217,7 @@
               class="selector-field-input"
               :placeholder="t('options.siteRules.formPasswordPlaceholder')"
               clearable
+              @input="revalidateSelectorPair"
             />
             <el-button
               class="selector-pick-button"
@@ -312,7 +314,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus';
 import { Plus, Lock, Download, Upload, Aim } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
@@ -518,8 +520,7 @@ const handleSelectorPickMessage = (message: unknown): void => {
     if (field === 'username') formData.usernameSelector = selector;
     else formData.passwordSelector = selector;
     clearPickState();
-    const validation = formRef.value?.validateField(field === 'username' ? 'usernameSelector' : 'passwordSelector');
-    if (validation) void validation.catch(() => {});
+    revalidateSelectorPair();
     if (data.unique === false) ElMessage.warning(t('options.siteRules.pickNotUnique'));
     else ElMessage.success(t('options.siteRules.pickSuccess'));
     void activateOptionsTab();
@@ -645,6 +646,24 @@ const findRuleByDomain = (domain: string): SiteRule | undefined => {
   const normalized = normalizeSiteRuleDomain(domain);
   if (!normalized) return undefined;
   return rulesList.value.find(rule => normalizeSiteRuleDomain(rule.domain) === normalized);
+};
+
+/**
+ * 重新校验「用户名 + 密码」这一对选择器
+ *
+ * 配对规则同时挂在两个字段上：只校验被改动的那一侧，另一侧已经显示的
+ * 「需同时填写或同时留空」提示不会消失。拾取或手动输入任一侧后同时校验两字段，
+ * 让提示随配对状态实时出现/消失。
+ */
+let selectorPairValidationScheduled = false;
+const revalidateSelectorPair = (): void => {
+  if (!showForm.value || !formRef.value || selectorPairValidationScheduled) return;
+  selectorPairValidationScheduled = true;
+  void nextTick(() => {
+    selectorPairValidationScheduled = false;
+    const validation = formRef.value?.validateField(['usernameSelector', 'passwordSelector']);
+    if (validation) void validation.catch(() => {});
+  });
 };
 
 const formRules = computed(() => ({

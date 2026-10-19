@@ -15,27 +15,75 @@
       }
 
       body {
-        background: #f5f7fa;
+        background: #f8fbff;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       }
 
       #app {
         min-height: 100vh;
       }
 
-      /* Options 首屏骨架：i18n / storage 初始化期间填补空白，Vue 挂载到 #app 时整体替换 */
-      #app-loading {
+      /*
+       * 首屏骨架覆盖层：只在 Options 首次加载时出现，覆盖 i18n 初始化 + 认证检查 +
+       * 列表解密/渲染的全部窗口。App.vue 在首屏真实视图完成绘制后发出 ready 事件，
+       * main.ts 收到后淡出并移除；5s 兜底避免异常时永久遮挡。
+       */
+      #app-skeleton {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
         display: flex;
         flex-direction: column;
-        min-height: 100vh;
-        background: #f5f7fa;
+        overflow: hidden;
+        background: #f8fbff;
+        opacity: 1;
+        transition: opacity 220ms ease;
       }
 
+      #app-skeleton.is-hiding {
+        pointer-events: none;
+        opacity: 0;
+      }
+
+      .sk-block {
+        background: #e8ecf2;
+        border-radius: 4px;
+        animation: sk-pulse 1.5s ease-in-out infinite;
+      }
+
+      @keyframes sk-pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+
+        50% {
+          opacity: 0.45;
+        }
+      }
+
+      /* ===== 头部：与实际 HeaderBar 的两行结构对齐 ===== */
       .sk-header {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
         padding: 24px 32px;
-        background: linear-gradient(135deg, #e8eef8 0%, #f5f7fa 100%);
+        margin-bottom: 24px;
+        background: linear-gradient(135deg, #409eff 0%, #66b3ff 100%);
+        box-shadow: 0 2px 12px rgb(64 158 255 / 15%);
+      }
+
+      .sk-header .sk-block {
+        background: rgb(255 255 255 / 26%);
+      }
+
+      .sk-header-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .sk-header-row + .sk-header-row {
+        margin-top: 16px;
       }
 
       .sk-brand {
@@ -51,137 +99,286 @@
       }
 
       .sk-title {
-        width: 148px;
+        width: 150px;
         height: 16px;
-        border-radius: 4px;
       }
 
       .sk-subtitle {
         width: 96px;
         height: 11px;
         margin-top: 8px;
-        border-radius: 4px;
       }
 
-      .sk-header-actions {
+      .sk-header-meta {
         display: flex;
-        gap: 12px;
+        gap: 8px;
+        align-items: center;
       }
 
-      .sk-pill {
-        width: 92px;
+      .sk-chip {
+        width: 104px;
+        height: 28px;
+        border-radius: 14px;
+      }
+
+      .sk-chip--short {
+        width: 64px;
+      }
+
+      .sk-action-group {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .sk-action-group--right {
+        margin-left: auto;
+        justify-content: flex-end;
+      }
+
+      .sk-btn {
+        width: 108px;
         height: 32px;
         border-radius: 6px;
       }
 
+      .sk-btn--primary {
+        width: 132px;
+        background: rgb(255 255 255 / 34%);
+      }
+
+      .sk-btn--sm {
+        width: 88px;
+      }
+
+      /* ===== 主内容：工具条 + 信息行 + 表格卡 ===== */
       .sk-body {
-        width: min(1180px, calc(100% - 48px));
-        margin: 0 auto;
-        padding: 0 0 40px;
+        flex: 1;
+        padding: 0 32px 32px;
+        overflow: hidden;
       }
 
       .sk-toolbar {
         display: flex;
         gap: 12px;
-        margin: 0 0 16px;
+        align-items: center;
+        margin-bottom: 10px;
       }
 
       .sk-search {
         flex: 1;
+        max-width: 520px;
         height: 36px;
-        max-width: 420px;
         border-radius: 6px;
       }
 
-      .sk-toolbar .sk-pill {
-        width: 108px;
+      .sk-select {
+        width: 150px;
         height: 36px;
+        border-radius: 6px;
+      }
+
+      .sk-star {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+      }
+
+      .sk-info {
+        margin-bottom: 10px;
+      }
+
+      .sk-info-text {
+        width: 140px;
+        height: 12px;
       }
 
       .sk-card {
-        padding: 16px;
+        overflow: hidden;
         background: #fff;
-        border: 1px solid #eceff4;
+        border: 1px solid #e3f2fd;
         border-radius: 10px;
-        box-shadow: 0 2px 12px rgb(15 23 42 / 4%);
+        box-shadow: 0 2px 12px rgb(64 158 255 / 6%);
       }
 
-      .sk-row {
+      .sk-table-head {
         display: flex;
         gap: 16px;
         align-items: center;
-        padding: 14px 8px;
-        border-bottom: 1px solid #f1f3f6;
+        padding: 12px 16px;
+        background: #f5f7fa;
+        border-bottom: 1px solid #e3f2fd;
       }
 
-      .sk-row:last-child {
-        border-bottom: 0;
+      .sk-check {
+        flex-shrink: 0;
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
       }
 
+      .sk-th,
       .sk-cell {
+        flex-shrink: 0;
         height: 12px;
         border-radius: 4px;
       }
 
-      .sk-cell--sm {
-        width: 12%;
+      .sk-th--user,
+      .sk-cell--user {
+        width: 18%;
       }
 
-      .sk-cell--md {
+      .sk-th--pass,
+      .sk-cell--pass {
+        width: 16%;
+      }
+
+      .sk-th--url,
+      .sk-cell--url {
         width: 24%;
       }
 
-      .sk-cell--lg {
-        width: 34%;
+      .sk-th--tag,
+      .sk-cell--tag {
+        width: 12%;
       }
 
-      .sk-cell--grow {
-        flex: 1;
+      .sk-th--time,
+      .sk-cell--time {
+        width: 9%;
       }
 
-      .sk-block {
-        background: #e8ecf2;
-        animation: sk-pulse 1.5s ease-in-out infinite;
+      .sk-th--actions,
+      .sk-cell--actions {
+        width: 12%;
       }
 
-      /* 行内块错峰，避免整屏同一节奏闪烁 */
-      .sk-row:nth-child(2) .sk-block {
+      .sk-table-row {
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        padding: 14px 16px;
+        border-bottom: 1px solid #f0f4f8;
+      }
+
+      .sk-table-row:last-of-type {
+        border-bottom: 0;
+      }
+
+      .sk-actions-mini {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-left: auto;
+      }
+
+      .sk-icon {
+        width: 20px;
+        height: 20px;
+        border-radius: 6px;
+      }
+
+      .sk-pagination {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 16px;
+      }
+
+      .sk-page-total {
+        width: 100px;
+        height: 12px;
+      }
+
+      .sk-page-controls {
+        display: flex;
+        gap: 6px;
+      }
+
+      .sk-page-btn {
+        width: 28px;
+        height: 28px;
+        border-radius: 5px;
+      }
+
+      .sk-table-row:nth-child(even) .sk-block {
         animation-delay: 0.12s;
       }
 
-      .sk-row:nth-child(3) .sk-block {
-        animation-delay: 0.24s;
-      }
-
-      .sk-row:nth-child(4) .sk-block {
-        animation-delay: 0.36s;
-      }
-
-      @keyframes sk-pulse {
-        0%,
-        100% {
-          opacity: 1;
-        }
-
-        50% {
-          opacity: 0.45;
-        }
-      }
-
       @media (prefers-reduced-motion: reduce) {
+        #app-skeleton {
+          transition: none;
+        }
+
         .sk-block {
           animation: none;
+        }
+      }
+
+      @media (max-width: 900px) {
+        .sk-header {
+          padding: 18px 20px;
+        }
+
+        .sk-body {
+          padding: 0 20px 24px;
+        }
+
+        .sk-toolbar {
+          flex-wrap: wrap;
+        }
+
+        .sk-search {
+          flex-basis: 100%;
+          max-width: none;
+        }
+
+        .sk-select {
+          flex: 1;
+          width: auto;
+        }
+
+        .sk-th--url,
+        .sk-cell--url,
+        .sk-th--tag,
+        .sk-cell--tag {
+          display: none;
+        }
+
+        .sk-th--user,
+        .sk-cell--user {
+          width: 28%;
+        }
+
+        .sk-th--pass,
+        .sk-cell--pass {
+          width: 24%;
+        }
+
+        .sk-th--time,
+        .sk-cell--time {
+          width: 14%;
+        }
+
+        .sk-th--actions,
+        .sk-cell--actions {
+          width: 18%;
         }
       }
     </style>
   </head>
   <body>
-    <div id="app">
-      <div
-        id="app-loading"
-        aria-hidden="true"
-      >
-        <div class="sk-header">
+    <div id="app"></div>
+
+    <!-- 静态首屏骨架：App 就绪后由 main.ts 淡出并移除 -->
+    <div
+      id="app-skeleton"
+      aria-hidden="true"
+    >
+      <header class="sk-header">
+        <div class="sk-header-row">
           <div class="sk-brand">
             <div class="sk-block sk-logo"></div>
             <div>
@@ -189,59 +386,151 @@
               <div class="sk-block sk-subtitle"></div>
             </div>
           </div>
-          <div class="sk-header-actions">
-            <div class="sk-block sk-pill"></div>
-            <div class="sk-block sk-pill"></div>
-            <div class="sk-block sk-pill"></div>
+          <div class="sk-header-meta">
+            <div class="sk-block sk-chip"></div>
+            <div class="sk-block sk-chip sk-chip--short"></div>
           </div>
         </div>
-        <div class="sk-body">
-          <div class="sk-toolbar">
-            <div class="sk-block sk-search"></div>
-            <div class="sk-block sk-pill"></div>
-            <div class="sk-block sk-pill"></div>
+        <div class="sk-header-row">
+          <div class="sk-action-group">
+            <div class="sk-block sk-btn sk-btn--primary"></div>
+            <div class="sk-block sk-btn"></div>
+            <div class="sk-block sk-btn"></div>
+            <div class="sk-block sk-btn"></div>
           </div>
-          <div class="sk-card">
-            <div class="sk-row">
-              <div class="sk-block sk-cell sk-cell--sm"></div>
-              <div class="sk-block sk-cell sk-cell--md"></div>
-              <div class="sk-block sk-cell sk-cell--lg"></div>
-              <div class="sk-block sk-cell sk-cell--grow"></div>
-            </div>
-            <div class="sk-row">
-              <div class="sk-block sk-cell sk-cell--sm"></div>
-              <div class="sk-block sk-cell sk-cell--md"></div>
-              <div class="sk-block sk-cell sk-cell--lg"></div>
-              <div class="sk-block sk-cell sk-cell--grow"></div>
-            </div>
-            <div class="sk-row">
-              <div class="sk-block sk-cell sk-cell--sm"></div>
-              <div class="sk-block sk-cell sk-cell--md"></div>
-              <div class="sk-block sk-cell sk-cell--lg"></div>
-              <div class="sk-block sk-cell sk-cell--grow"></div>
-            </div>
-            <div class="sk-row">
-              <div class="sk-block sk-cell sk-cell--sm"></div>
-              <div class="sk-block sk-cell sk-cell--md"></div>
-              <div class="sk-block sk-cell sk-cell--lg"></div>
-              <div class="sk-block sk-cell sk-cell--grow"></div>
-            </div>
-            <div class="sk-row">
-              <div class="sk-block sk-cell sk-cell--sm"></div>
-              <div class="sk-block sk-cell sk-cell--md"></div>
-              <div class="sk-block sk-cell sk-cell--lg"></div>
-              <div class="sk-block sk-cell sk-cell--grow"></div>
-            </div>
-            <div class="sk-row">
-              <div class="sk-block sk-cell sk-cell--sm"></div>
-              <div class="sk-block sk-cell sk-cell--md"></div>
-              <div class="sk-block sk-cell sk-cell--lg"></div>
-              <div class="sk-block sk-cell sk-cell--grow"></div>
-            </div>
+          <div class="sk-action-group sk-action-group--right">
+            <div class="sk-block sk-btn sk-btn--sm"></div>
+            <div class="sk-block sk-btn sk-btn--sm"></div>
+            <div class="sk-block sk-btn sk-btn--sm"></div>
+            <div class="sk-block sk-btn sk-btn--sm"></div>
+            <div class="sk-block sk-btn sk-btn--sm"></div>
           </div>
         </div>
-      </div>
+      </header>
+
+      <main class="sk-body">
+        <div class="sk-toolbar">
+          <div class="sk-block sk-search"></div>
+          <div class="sk-block sk-select"></div>
+          <div class="sk-block sk-select"></div>
+          <div class="sk-block sk-star"></div>
+        </div>
+        <div class="sk-info">
+          <div class="sk-block sk-info-text"></div>
+        </div>
+        <section class="sk-card">
+          <div class="sk-table-head">
+            <div class="sk-block sk-check"></div>
+            <div class="sk-block sk-th sk-th--user"></div>
+            <div class="sk-block sk-th sk-th--pass"></div>
+            <div class="sk-block sk-th sk-th--url"></div>
+            <div class="sk-block sk-th sk-th--tag"></div>
+            <div class="sk-block sk-th sk-th--time"></div>
+            <div class="sk-block sk-th sk-th--actions"></div>
+          </div>
+          <div class="sk-table-row">
+            <div class="sk-block sk-check"></div>
+            <div class="sk-block sk-cell sk-cell--user"></div>
+            <div class="sk-block sk-cell sk-cell--pass"></div>
+            <div class="sk-block sk-cell sk-cell--url"></div>
+            <div class="sk-block sk-cell sk-cell--tag"></div>
+            <div class="sk-block sk-cell sk-cell--time"></div>
+            <div class="sk-actions-mini">
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+            </div>
+          </div>
+          <div class="sk-table-row">
+            <div class="sk-block sk-check"></div>
+            <div class="sk-block sk-cell sk-cell--user"></div>
+            <div class="sk-block sk-cell sk-cell--pass"></div>
+            <div class="sk-block sk-cell sk-cell--url"></div>
+            <div class="sk-block sk-cell sk-cell--tag"></div>
+            <div class="sk-block sk-cell sk-cell--time"></div>
+            <div class="sk-actions-mini">
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+            </div>
+          </div>
+          <div class="sk-table-row">
+            <div class="sk-block sk-check"></div>
+            <div class="sk-block sk-cell sk-cell--user"></div>
+            <div class="sk-block sk-cell sk-cell--pass"></div>
+            <div class="sk-block sk-cell sk-cell--url"></div>
+            <div class="sk-block sk-cell sk-cell--tag"></div>
+            <div class="sk-block sk-cell sk-cell--time"></div>
+            <div class="sk-actions-mini">
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+            </div>
+          </div>
+          <div class="sk-table-row">
+            <div class="sk-block sk-check"></div>
+            <div class="sk-block sk-cell sk-cell--user"></div>
+            <div class="sk-block sk-cell sk-cell--pass"></div>
+            <div class="sk-block sk-cell sk-cell--url"></div>
+            <div class="sk-block sk-cell sk-cell--tag"></div>
+            <div class="sk-block sk-cell sk-cell--time"></div>
+            <div class="sk-actions-mini">
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+            </div>
+          </div>
+          <div class="sk-table-row">
+            <div class="sk-block sk-check"></div>
+            <div class="sk-block sk-cell sk-cell--user"></div>
+            <div class="sk-block sk-cell sk-cell--pass"></div>
+            <div class="sk-block sk-cell sk-cell--url"></div>
+            <div class="sk-block sk-cell sk-cell--tag"></div>
+            <div class="sk-block sk-cell sk-cell--time"></div>
+            <div class="sk-actions-mini">
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+            </div>
+          </div>
+          <div class="sk-table-row">
+            <div class="sk-block sk-check"></div>
+            <div class="sk-block sk-cell sk-cell--user"></div>
+            <div class="sk-block sk-cell sk-cell--pass"></div>
+            <div class="sk-block sk-cell sk-cell--url"></div>
+            <div class="sk-block sk-cell sk-cell--tag"></div>
+            <div class="sk-block sk-cell sk-cell--time"></div>
+            <div class="sk-actions-mini">
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+              <div class="sk-block sk-icon"></div>
+            </div>
+          </div>
+          <div class="sk-pagination">
+            <div class="sk-block sk-page-total"></div>
+            <div class="sk-page-controls">
+              <div class="sk-block sk-page-btn"></div>
+              <div class="sk-block sk-page-btn"></div>
+              <div class="sk-block sk-page-btn"></div>
+              <div class="sk-block sk-page-btn"></div>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
+
     <script
       type="module"
       src="./main.ts"

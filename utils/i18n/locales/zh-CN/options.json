@@ -37,7 +37,7 @@
   "options.header.shortcuts": "快捷键",
   "options.header.securitySettings": "安全设置",
   "options.header.personalization": "偏好设置",
-  "options.header.commandPalette": "命令",
+  "options.header.commandPalette": "命令面板",
   "options.header.commandPaletteTitle": "打开命令面板（Ctrl/Cmd+K）",
   "options.header.tour": "新手引导",
   "options.header.tourTitle": "重新播放新手引导",

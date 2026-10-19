@@ -306,11 +306,18 @@ test.describe('内容脚本消费站点规则', () => {
     // 拾取成功后管理页应自动回到前台，而不是把用户留在目标站点
     await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
 
+    // 只填了账号选择器时配对提示应出现；补齐密码选择器后必须自动消失
+    const pairError = page
+      .locator('.el-form-item__error')
+      .filter({ hasText: textOf('options.siteRules.validateSelectorPair') });
+    await expect(pairError.first()).toBeVisible();
+
     await page.getByRole('button', { name: textOf('options.siteRules.pickPassword') }).click();
     await expect(site.locator('[data-aph-selector-picker]')).toBeVisible();
     await site.locator('#a-pwd').click();
     await expect(passwordInput(page)).toHaveValue('#a-pwd');
     await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
+    await expect(pairError).toHaveCount(0);
 
     await saveButton(page).click();
     await expectSuccessToast(page, 'options.siteRules.saveSuccess');

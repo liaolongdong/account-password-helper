@@ -11,6 +11,7 @@
   "health.total": "{count} entries in total · Computed locally, no network",
   "health.trendTitle": "Recent check-ups",
   "health.trendFirst": "First snapshot; the next check-up will show the change",
+  "health.trendWaiting": "The trend line appears after the next check-up",
   "health.trendUp": "+{delta} vs last time",
   "health.trendDown": "-{delta} vs last time",
   "health.trendSame": "No change since last time",

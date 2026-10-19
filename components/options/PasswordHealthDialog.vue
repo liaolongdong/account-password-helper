@@ -98,6 +98,7 @@
             </span>
           </div>
           <svg
+            v-if="trendHistory.length > 1"
             class="health-trend__chart"
             :viewBox="`0 0 ${TREND_WIDTH} ${TREND_HEIGHT}`"
             preserveAspectRatio="none"
@@ -105,8 +106,7 @@
             :aria-label="trendAria"
           >
             <polyline
-              v-if="trendHistory.length > 1"
-              :points="trendGeometry.points"
+              :points="trendPoints"
               fill="none"
               stroke="currentColor"
               stroke-width="2"
@@ -114,14 +114,14 @@
               stroke-linejoin="round"
               vector-effect="non-scaling-stroke"
             />
-            <circle
-              v-if="trendGeometry.last"
-              :cx="trendGeometry.last.x"
-              :cy="trendGeometry.last.y"
-              r="3"
-              fill="currentColor"
-            />
           </svg>
+          <div
+            v-else
+            class="health-trend__first"
+          >
+            <span class="health-trend__first-line"></span>
+            <span>{{ t('health.trendWaiting') }}</span>
+          </div>
           <p class="health-trend__hint">{{ t('health.trendHint') }}</p>
         </section>
 
@@ -501,25 +501,23 @@ const TREND_HEIGHT = 48;
 const TREND_PAD = 4;
 
 /** 趋势折线坐标；只有一个点时放在中线上，由末尾圆点表示 */
-const trendGeometry = computed(() => {
+const trendPoints = computed(() => {
   const history = trendHistory.value;
-  if (!history.length) return { points: '', last: null as { x: number; y: number } | null };
+  if (history.length < 2) return '';
   const scores = history.map(snapshot => snapshot.score);
   const min = Math.min(...scores);
   const max = Math.max(...scores);
   const span = Math.max(1, max - min);
-  const points = history.map((snapshot, index) => {
-    const x =
-      history.length === 1
-        ? TREND_WIDTH / 2
-        : TREND_PAD + (index / (history.length - 1)) * (TREND_WIDTH - TREND_PAD * 2);
-    const y =
-      max === min
-        ? TREND_HEIGHT / 2
-        : TREND_HEIGHT - TREND_PAD - ((snapshot.score - min) / span) * (TREND_HEIGHT - TREND_PAD * 2);
-    return { x, y };
-  });
-  return { points: points.map(point => `${point.x},${point.y}`).join(' '), last: points[points.length - 1] };
+  return history
+    .map((snapshot, index) => {
+      const x = TREND_PAD + (index / (history.length - 1)) * (TREND_WIDTH - TREND_PAD * 2);
+      const y =
+        max === min
+          ? TREND_HEIGHT / 2
+          : TREND_HEIGHT - TREND_PAD - ((snapshot.score - min) / span) * (TREND_HEIGHT - TREND_PAD * 2);
+      return `${x},${y}`;
+    })
+    .join(' ');
 });
 
 const trendDelta = computed<number | null>(() => {
@@ -979,7 +977,7 @@ onScopeDispose(() => {
 /* ==================== 体检趋势 ==================== */
 .health-trend {
   padding: 14px 16px;
-  margin-top: 14px;
+  margin: 14px 0 16px;
   background: var(--el-fill-color-lighter, #f5f7fa);
   border: 1px solid var(--el-border-color-lighter, #ebeef5);
   border-radius: 10px;
@@ -1018,6 +1016,21 @@ onScopeDispose(() => {
   height: 48px;
   margin-top: 8px;
   color: var(--el-color-primary, #409eff);
+}
+
+/* 只有一次快照时不画折线：单个点会被 preserveAspectRatio 拉成一条小横线，像坏图 */
+.health-trend__first {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+}
+
+.health-trend__first-line {
+  flex: 1;
+  border-top: 1px dashed var(--el-border-color, #dcdfe6);
 }
 
 .health-trend__hint {

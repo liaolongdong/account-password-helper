@@ -11,6 +11,7 @@
   "health.total": "共 {count} 条账号密码 · 全程本地计算，不联网",
   "health.trendTitle": "近几次体检",
   "health.trendFirst": "首次记录，下次体检就能看到变化",
+  "health.trendWaiting": "下一次体检后，这里会显示趋势折线",
   "health.trendUp": "较上次 +{delta} 分",
   "health.trendDown": "较上次 -{delta} 分",
   "health.trendSame": "与上次持平",

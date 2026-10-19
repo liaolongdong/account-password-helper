@@ -398,6 +398,7 @@ import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealt
 import { normalizeToHostAndPort } from '@/utils/domain';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { isDev } from '@/utils/env';
+import { markOptionsReady } from './appReady';
 
 /**
  * 标签页标题跟随语言
@@ -1604,8 +1605,13 @@ onMounted(async () => {
   lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
   // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载
   await nextTick();
-  // 恢复表格排序配置
-  restoreSortConfig();
+  // 恢复表格排序配置；等排序落定再揭开骨架，避免淡出过程中表格又重排一次
+  await restoreSortConfig().catch(error => logger.error('恢复排序配置失败:', error));
+  // 首屏真实视图（认证结论 + 列表 / 设置页）已经完成绘制，通知 main.ts 淡出静态骨架；
+  // 双 rAF 保证淡出开始时浏览器已经画过这一帧，而不是在布局完成前就揭开覆盖层。
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => markOptionsReady());
+  });
 });
 
 /**
