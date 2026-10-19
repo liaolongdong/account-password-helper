@@ -132,6 +132,8 @@ import { copyTextToClipboard } from '@/utils/clipboard';
 import { isFirefox } from '@/utils/env';
 import { useI18n } from '@/utils/i18n';
 import {
+  AUTHOR_PAGE_URL,
+  AUTHOR_PAGE_URL_EN,
   CHROME_WEB_STORE_URL,
   GITHUB_RELEASES_PAGE_URL,
   PRIVACY_POLICY_URL,
@@ -190,6 +192,10 @@ const hostOf = (href: string): string => new URL(href).host;
 const links = computed<AboutLink[]>(() => {
   const items: AboutLink[] = [
     { href: PRODUCT_DOCS_URL, label: t('options.about.linkDocs') },
+    {
+      href: currentLocale.value === 'en' ? AUTHOR_PAGE_URL_EN : AUTHOR_PAGE_URL,
+      label: t('options.about.linkAuthor'),
+    },
     {
       href: currentLocale.value === 'en' ? PRIVACY_POLICY_URL_EN : PRIVACY_POLICY_URL,
       label: t('options.about.linkPrivacy'),

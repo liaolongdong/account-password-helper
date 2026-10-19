@@ -65,6 +65,7 @@
   "options.about.shareFailed": "Copy failed; please share manually",
   "options.about.shareText": "I've been using Account Password Helper, a Chrome password manager worth a look.\n\n[Free & open source] GPL-3.0, no account, no subscription, no ads — the code is public.\n[Secure encryption] PBKDF2-SHA256 (600,000 rounds) derives the key; every field is encrypted with AES-256-GCM. Your master password and data stay on your device — nothing is uploaded to any server.\n[Core features] One-click login fill (optional auto-login), built-in TOTP, exact-host isolation for dev / test / prod, a separately encrypted personal info vault, offline security check, and JSON / CSV import and export.\n\nProduct page: {productUrl}\nChrome Web Store: {storeUrl}",
   "options.about.linkDocs": "Full documentation",
+  "options.about.linkAuthor": "Author & personal blog",
   "options.about.linkPrivacy": "Privacy policy",
   "options.about.linkRepo": "GitHub repository",
   "options.about.linkReleases": "Latest release & downloads",

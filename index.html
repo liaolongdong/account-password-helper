@@ -1776,13 +1776,9 @@
         bottom: 124px;
         z-index: 90;
         display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 11px 18px;
+        align-items: stretch;
+        overflow: hidden;
         color: white;
-        font-size: 14px;
-        font-weight: 600;
-        text-decoration: none;
         background: var(--primary);
         border-radius: 999px;
         box-shadow: var(--shadow-md);
@@ -1804,19 +1800,68 @@
       .sticky-cta:hover {
         background: var(--primary-dark);
       }
-      .sticky-cta:focus-visible {
-        outline: 2px solid var(--primary-dark);
-        outline-offset: 2px;
+      .sticky-cta__link {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 11px 10px 11px 18px;
+        font-size: 14px;
+        font-weight: 600;
+        color: inherit;
+        text-decoration: none;
       }
-      .sticky-cta svg {
+      .sticky-cta__toggle {
+        display: grid;
         flex: none;
+        place-items: center;
+        width: 34px;
+        padding: 0;
+        color: inherit;
+        cursor: pointer;
+        background: transparent;
+        border: 0;
+        border-left: 1px solid rgb(255 255 255 / 28%);
+        border-radius: 0 999px 999px 0;
+      }
+      .sticky-cta__toggle:hover {
+        background: rgb(255 255 255 / 12%);
+      }
+      .sticky-cta__link:focus-visible,
+      .sticky-cta__toggle:focus-visible {
+        outline: 2px solid white;
+        outline-offset: -4px;
+      }
+      .sticky-cta__link svg {
+        flex: none;
+      }
+      .sticky-cta__icon--expand {
+        display: none;
+      }
+      /* 收起态：文字让位，下载图标与展开箭头都还在，入口不消失 */
+      .sticky-cta.is-collapsed .sticky-cta__label {
+        display: none;
+      }
+      .sticky-cta.is-collapsed .sticky-cta__link {
+        padding-right: 12px;
+      }
+      .sticky-cta.is-collapsed .sticky-cta__icon--collapse {
+        display: none;
+      }
+      .sticky-cta.is-collapsed .sticky-cta__icon--expand {
+        display: block;
       }
       @media (max-width: 768px) {
         .sticky-cta {
           right: 16px;
-          bottom: 112px;
-          padding: 10px 16px;
+          bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+        }
+        .sticky-cta__link {
+          gap: 6px;
+          padding: 10px 8px 10px 14px;
           font-size: 13px;
+        }
+        .sticky-cta__toggle {
+          width: 32px;
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -7063,6 +7108,13 @@ pnpm lint:style  # Stylelint</code></pre>
             data-i18n="more.author"
             >关于作者与其余开源作品</a
           >
+          <a
+            href="https://liaolongdong.github.io/better-blog/"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-i18n="more.personalBlog"
+            >个人博客</a
+          >
         </p>
       </div>
     </section>
@@ -7118,6 +7170,13 @@ pnpm lint:style  # Stylelint</code></pre>
                 href="./blog/"
                 data-i18n="footer.blog"
                 >技术博客</a
+              ></span
+            >
+            <span
+              ><a
+                href="./author.html"
+                data-i18n="footer.author"
+                >关于作者</a
               ></span
             >
             <span
@@ -7228,35 +7287,84 @@ pnpm lint:style  # Stylelint</code></pre>
     </footer>
 
     <!-- ======= Sticky install CTA（滚动期直达商店） ======= -->
-    <a
+    <!-- 收起态保留下载图标与展开箭头：点图标仍直达商店，点箭头展开文字；
+         这样「收起」不是把入口藏掉，而是把占用宽度降到约一枚图标按钮。 -->
+    <div
       class="sticky-cta"
       id="stickyCta"
-      href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
-      target="_blank"
-      rel="noopener noreferrer"
     >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
+      <a
+        class="sticky-cta__link"
+        id="stickyCtaLink"
+        href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="添加到 Chrome"
       >
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-        <polyline points="7 10 12 15 17 10" />
-        <line
-          x1="12"
-          y1="15"
-          x2="12"
-          y2="3"
-        />
-      </svg>
-      <span data-i18n="hero.download">添加到 Chrome</span>
-    </a>
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+          <polyline points="7 10 12 15 17 10" />
+          <line
+            x1="12"
+            y1="15"
+            x2="12"
+            y2="3"
+          />
+        </svg>
+        <span
+          class="sticky-cta__label"
+          data-i18n="hero.download"
+          >添加到 Chrome</span
+        >
+      </a>
+      <button
+        class="sticky-cta__toggle"
+        id="stickyCtaToggle"
+        type="button"
+        aria-expanded="true"
+        aria-controls="stickyCtaLink"
+        aria-label="收起安装按钮"
+      >
+        <svg
+          class="sticky-cta__icon sticky-cta__icon--collapse"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+        <svg
+          class="sticky-cta__icon sticky-cta__icon--expand"
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <polyline points="6 15 12 9 18 15" />
+        </svg>
+      </button>
+    </div>
 
     <!-- ======= Scroll Rail（回顶 / 到底） ======= -->
     <div
@@ -7467,6 +7575,7 @@ pnpm lint:style  # Stylelint</code></pre>
         'footer.pricing': { zh: '永久免费', en: 'Pricing' },
         'footer.compare': { zh: '替代方案对比', en: 'Alternatives' },
         'footer.blog': { zh: '技术博客', en: 'Tech Blog' },
+        'footer.author': { zh: '关于作者', en: 'About the author' },
         'footer.more': { zh: '作者的其他插件', en: 'More by the author' },
         'footer.llms': { zh: 'AI 摘要（llms.txt）', en: 'AI summary (llms.txt)' },
         'hero.title': {
@@ -8003,6 +8112,7 @@ pnpm lint:style  # Stylelint</code></pre>
         'more.repo': { zh: '源码', en: 'Source code' },
         'more.store': { zh: 'Chrome 应用商店', en: 'Chrome Web Store' },
         'more.author': { zh: '关于作者与其余开源作品', en: 'About the author and more work' },
+        'more.personalBlog': { zh: '个人博客', en: 'Personal blog' },
         'footer.email': {
           zh: '邮箱：<a href="mailto:924902324@qq.com?subject=账号密码管理助手反馈">924902324@qq.com</a>',
           en: 'Email: <a href="mailto:924902324@qq.com?subject=Account Password Helper Feedback">924902324@qq.com</a>',
@@ -8024,6 +8134,8 @@ pnpm lint:style  # Stylelint</code></pre>
         'aria.goto': { zh: '跳转到第 {n} 张', en: 'Go to slide {n}' },
         'aria.toTop': { zh: '回到顶部', en: 'Back to top' },
         'aria.toBottom': { zh: '滚动到底部', en: 'Scroll to bottom' },
+        'aria.stickyCollapse': { zh: '收起安装按钮', en: 'Collapse install button' },
+        'aria.stickyExpand': { zh: '展开安装按钮', en: 'Expand install button' },
         'lightbox.close': { zh: '关闭预览', en: 'Close preview' },
         'lightbox.zoom': { zh: '放大查看：{t}', en: 'Zoom in: {t}' },
         'ph.sample': { zh: '示例预览图', en: 'Sample preview' },
@@ -8899,6 +9011,42 @@ pnpm lint:style  # Stylelint</code></pre>
         .filter(Boolean);
       const scrollRail = document.getElementById('scrollRail');
       const stickyCta = document.getElementById('stickyCta');
+      const stickyCtaLink = document.getElementById('stickyCtaLink');
+      const stickyCtaToggle = document.getElementById('stickyCtaToggle');
+      const STICKY_CTA_COLLAPSED_KEY = 'aph-sticky-cta-collapsed';
+      let stickyCtaCollapsed = false;
+      try {
+        stickyCtaCollapsed = localStorage.getItem(STICKY_CTA_COLLAPSED_KEY) === '1';
+      } catch {
+        /* 隐私模式等场景下读取失败时保持展开 */
+      }
+
+      /**
+       * 收起 / 展开悬浮安装入口
+       *
+       * 收起态保留下载图标与展开箭头：点图标仍能安装，点箭头恢复文字，
+       * 不是把入口整个藏掉。选择写进 localStorage，刷新后沿用用户上次的选择。
+       */
+      function setStickyCtaCollapsed(collapsed, persist = true) {
+        if (!stickyCta || !stickyCtaToggle) return;
+        stickyCtaCollapsed = collapsed;
+        stickyCta.classList.toggle('is-collapsed', collapsed);
+        stickyCtaToggle.setAttribute('aria-expanded', String(!collapsed));
+        stickyCtaToggle.setAttribute('aria-label', I18N[collapsed ? 'aria.stickyExpand' : 'aria.stickyCollapse'][lang]);
+        if (stickyCtaLink) stickyCtaLink.setAttribute('aria-label', I18N['hero.download'][lang]);
+        if (!persist) return;
+        try {
+          localStorage.setItem(STICKY_CTA_COLLAPSED_KEY, collapsed ? '1' : '0');
+        } catch {
+          /* 持久化失败不影响本次收起 / 展开 */
+        }
+      }
+
+      if (stickyCtaToggle) {
+        setStickyCtaCollapsed(stickyCtaCollapsed, false);
+        stickyCtaToggle.addEventListener('click', () => setStickyCtaCollapsed(!stickyCtaCollapsed));
+      }
+
       /* 阅读进度条：引擎支持滚动时间线时这件事由 CSS 独立完成（见「阅读进度条」区块的
          @supports），这里只补它缺席的那一档（Safari / 旧 Firefox）。判据取一次即可——
          同一次会话里不会中途变化；而个别老引擎上 CSS.supports 根本不是函数，
@@ -8909,21 +9057,28 @@ pnpm lint:style  # Stylelint</code></pre>
         typeof CSS.supports === 'function' &&
         CSS.supports('animation-timeline', 'scroll()');
 
-      /* 粘性安装入口的让位信号：读到「安装」小节时把浮层收起——那一屏本来就有同款按钮，
-         叠两枚只是遮挡。这里用 IntersectionObserver 而不是像素阈值：#install 的实际高度
-         随语言与断点变化，写死数字必在某一档错位；而「小节进入视口」本身就是判据，无需换算。
+      /* 粘性安装入口的让位信号：读到「安装」小节或页脚时把浮层收起——安装小节本来就有同款
+         按钮，页脚则是微信/联系方式，浮层压在那里只会挡住内容。这里用 IntersectionObserver
+         而不是像素阈值：这些区块的实际高度随语言与断点变化，写死数字必在某一档错位。
          老浏览器没有 IO 时保持「不观测 = 不让位」，入口照常跟随滚动阈值出现，
          不因缺少观测而整个消失（与 .reveal 那套「能力缺席就落终态」是同一取舍）。 */
-      let installInView = false;
+      let ctaSuppressed = false;
+      const ctaSuppressors = new Set();
       if ('IntersectionObserver' in window) {
-        const installObserver = new IntersectionObserver(
+        const ctaObserver = new IntersectionObserver(
           entries => {
-            installInView = entries[entries.length - 1].isIntersecting;
+            entries.forEach(entry => {
+              if (entry.isIntersecting) ctaSuppressors.add(entry.target);
+              else ctaSuppressors.delete(entry.target);
+            });
+            ctaSuppressed = ctaSuppressors.size > 0;
             onScroll();
           },
           { threshold: 0.12 },
         );
-        installObserver.observe(document.getElementById('install'));
+        [document.getElementById('install'), document.querySelector('footer')]
+          .filter(Boolean)
+          .forEach(target => ctaObserver.observe(target));
       }
 
       function onScroll() {
@@ -8947,7 +9102,7 @@ pnpm lint:style  # Stylelint</code></pre>
 
         /* 粘性安装入口：越过首屏 60% 才出现（按视口高而非绝对像素——矮屏上 600px 已经把
            hero 甩在身后很远，高屏上又还没出 hero）。hero 里本来就有这枚按钮，同屏不叠两枚。 */
-        stickyCta.classList.toggle('is-in', window.scrollY > window.innerHeight * 0.6 && !installInView);
+        stickyCta.classList.toggle('is-in', window.scrollY > window.innerHeight * 0.6 && !ctaSuppressed);
 
         if (navEl && !scrollTimelineSupported) {
           navEl.style.setProperty('--scroll-p', max > 0 ? String(Math.min(1, window.scrollY / max)) : '0');
@@ -9229,6 +9384,7 @@ pnpm lint:style  # Stylelint</code></pre>
         renderCarousel();
         applyFaqs();
         renderMatch();
+        setStickyCtaCollapsed(stickyCtaCollapsed, false);
       }
 
       // 切换到独立语言页而不是原地替换正文：canonical / hreflang / OG / JSON-LD

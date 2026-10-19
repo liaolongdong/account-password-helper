@@ -88,13 +88,17 @@ describe('作者页结构', () => {
     expect(mainEntity?.name).toBe('liaolongdong');
     expect(mainEntity?.url).toBe(self);
     expect(mainEntity?.sameAs).toContain('https://github.com/liaolongdong');
+    expect(mainEntity?.sameAs).toContain('https://liaolongdong.github.io/better-blog/');
     expect(flat(html)).toContain('rel="me" href="https://github.com/liaolongdong"');
+    expect(flat(html)).toContain('rel="me" href="https://liaolongdong.github.io/better-blog/"');
   });
 });
 
 describe('作者页入口不成为孤岛', () => {
   it('落地页与博客署名都指向对应语言的作者页', () => {
     expect(read('index.html')).toContain('href="./author.html"');
+    expect(read('index.html')).toContain('data-i18n="footer.author"');
+    expect(read('index.html')).toContain('data-i18n="more.personalBlog"');
     expect(read('en.html')).toContain('href="./author.en.html"');
 
     const zhArticle = read('blog/01-local-first-password-manager.html');
@@ -105,10 +109,13 @@ describe('作者页入口不成为孤岛', () => {
     expect(enArticle).toContain('href="https://github.com/liaolongdong"');
   });
 
-  it('llms.txt 与 sitemap 都收录作者页', () => {
+  it('llms.txt、README 与 sitemap 都收录作者页与个人博客', () => {
     const llms = read('llms.txt');
     expect(llms).toContain(`${SITE}/author.html`);
     expect(llms).toContain(`${SITE}/author.en.html`);
+    expect(llms).toContain('https://liaolongdong.github.io/better-blog/');
+    expect(read('README.md')).toContain('https://liaolongdong.github.io/better-blog/');
+    expect(read('README.en.md')).toContain('https://liaolongdong.github.io/better-blog/');
     const sitemap = read('sitemap.xml');
     expect(sitemap).toContain(`<loc>${SITE}/author.html</loc>`);
     expect(sitemap).toContain(`<loc>${SITE}/author.en.html</loc>`);
@@ -122,6 +129,7 @@ describe('作者页入口不成为孤岛', () => {
         'https://github.com/liaolongdong/transfer-any-file',
         'https://github.com/liaolongdong/cross-origin-proxy',
         'https://chromewebstore.google.com/detail/account-password-helper/',
+        'https://liaolongdong.github.io/better-blog/',
         rss,
       ]) {
         expect(html, `${file} 缺少出口 ${href}`).toContain(href);

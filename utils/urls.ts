@@ -48,6 +48,10 @@ export const PRIVACY_POLICY_URL_EN = 'https://liaolongdong.github.io/account-pas
  */
 export const PRODUCT_DOCS_URL = 'https://liaolongdong.github.io/account-password-helper/';
 
+/** 作者页中英各一份；About 抽屉按当前界面语言直接给出对应版本 */
+export const AUTHOR_PAGE_URL = `${PRODUCT_DOCS_URL}author.html`;
+export const AUTHOR_PAGE_URL_EN = `${PRODUCT_DOCS_URL}author.en.html`;
+
 /**
  * 「分享给同事」专用地址
  *
