@@ -5,15 +5,15 @@ import { STORAGE_KEYS } from '@/utils/storageKeys';
  * 一次性评价引导状态
  *
  * 只保存关闭时间戳，不含账号、密码、评分或任何用户行为数据。关闭后终生不再展示；
- * 触发条件由页面派生（已有若干条目且完成备份与体检），不额外记录使用天数。
+ * 触发条件由页面派生（至少保存过一条密码），不额外记录使用天数或安装时间。
  */
 export interface ReviewPromptState {
   /** 关闭时间；null 表示从未关闭，仍可展示 */
   dismissedAt: number | null;
 }
 
-/** 至少有多少条密码后才考虑评价引导 */
-export const REVIEW_PROMPT_MIN_PASSWORDS = 3;
+/** 至少保存过一条密码就可以询问评价 */
+export const REVIEW_PROMPT_MIN_PASSWORDS = 1;
 
 const DEFAULT_STATE: ReviewPromptState = { dismissedAt: null };
 
@@ -52,13 +52,9 @@ export async function dismissReviewPrompt(at: number = Date.now()): Promise<void
 /**
  * 是否展示评价引导
  *
- * 只在用户完成「添加条目 → 加密备份 → 安全体检」这条正向路径后询问一次；
- * `positiveMoment` 由页面用安全起步清单的完成态派生，避免新用户刚打开就被打扰。
+ * 保存第一条密码后就询问一次；新用户还没有条目，因此不会在首次打开空库时打扰。
+ * 是否已经询问过只看关闭时间戳，不依赖备份或体检完成态。
  */
-export function shouldShowReviewPrompt(input: {
-  dismissedAt: number | null;
-  passwordCount: number;
-  positiveMoment: boolean;
-}): boolean {
-  return input.dismissedAt === null && input.passwordCount >= REVIEW_PROMPT_MIN_PASSWORDS && input.positiveMoment;
+export function shouldShowReviewPrompt(input: { dismissedAt: number | null; passwordCount: number }): boolean {
+  return input.dismissedAt === null && input.passwordCount >= REVIEW_PROMPT_MIN_PASSWORDS;
 }

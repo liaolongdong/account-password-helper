@@ -63,13 +63,12 @@
         @open-about="showAboutDrawer = true"
       />
 
-      <!-- 更新提示 / 一次性评价引导：两者互斥，本次更新优先 -->
-      <GrowthPrompt
-        v-if="growthMode"
-        :mode="growthMode"
+      <!-- 版本更新：已有密码库的用户升级后一次性弹窗，首次安装不打扰 -->
+      <WhatsNewDialog
+        :model-value="whatsNewVisible"
         :version="currentVersion"
-        @cta="handleGrowthCta"
-        @dismiss="handleGrowthDismiss"
+        @update:model-value="handleWhatsNewVisibility"
+        @cta="handleWhatsNewCta"
       />
 
       <!-- 安全起步清单：已有密码后提示备份与体检，可暂不提醒 -->
@@ -83,6 +82,13 @@
         @backup="handleActivationBackup"
         @health="handleActivationHealth"
         @dismiss="handleActivationDismiss"
+      />
+
+      <!-- 一次性评价引导：保存第一条密码后出现，关闭后不再打扰 -->
+      <ReviewPrompt
+        v-if="showReviewPrompt"
+        @cta="handleReviewCta"
+        @dismiss="dismissReview"
       />
 
       <!-- 搜索和筛选（空数据时隐藏） -->
@@ -334,6 +340,7 @@
     <AboutDrawer
       v-model="showAboutDrawer"
       :version="currentVersion"
+      @review="handleReviewCta"
     />
   </div>
 </template>
@@ -400,7 +407,8 @@ import HeaderBar from '@/components/options/HeaderBar.vue';
 import UndoDeleteToast from '@/components/options/UndoDeleteToast.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
 import ActivationChecklist from '@/components/options/ActivationChecklist.vue';
-import GrowthPrompt from '@/components/options/GrowthPrompt.vue';
+import ReviewPrompt from '@/components/options/ReviewPrompt.vue';
+import WhatsNewDialog from '@/components/options/WhatsNewDialog.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useAuthFlow } from '@/composables/useAuthFlow';
@@ -421,7 +429,7 @@ import { shouldVerifyIdentityVault } from '@/utils/identityVaultAccess';
 import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealth';
 import { normalizeToHostAndPort } from '@/utils/domain';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
-import { isDev } from '@/utils/env';
+import { isDev, isFirefox } from '@/utils/env';
 import { markOptionsReady } from './appReady';
 import {
   ACTIVATION_SNOOZE_MS,
@@ -1111,18 +1119,14 @@ const showReviewPrompt = computed(
   () =>
     growthReady.value &&
     isAuthenticated.value &&
+    !isFirefox &&
     !tableLoading.value &&
     !whatsNewVisible.value &&
     !whatsNewShownThisSession.value &&
     shouldShowReviewPrompt({
       dismissedAt: reviewDismissedAt.value,
       passwordCount: passwords.value.length,
-      positiveMoment: activationDoneCount.value >= ACTIVATION_TOTAL_STEPS,
     }),
-);
-
-const growthMode = computed<'whats-new' | 'review' | null>(() =>
-  whatsNewVisible.value ? 'whats-new' : showReviewPrompt.value ? 'review' : null,
 );
 
 const showActivationChecklist = computed(
@@ -1173,9 +1177,9 @@ const handleActivationDismiss = (): void => {
 /**
  * 初始化「本次更新」与一次性评价引导
  *
- * 首次安装（还没有主密码配置）直接把当前版本记为已读，不弹更新卡片；
- * 已有密码库的用户在版本变化时看到一次更新要点。评价引导只在完成
- * 「添加条目 → 加密备份 → 安全体检」后出现，且关闭后终生不再询问。
+ * 首次安装（还没有主密码配置）直接把当前版本记为已读，不弹更新弹窗；
+ * 已有密码库的用户在版本变化时看到一次更新要点。评价引导在保存第一条密码后
+ * 出现一次，关闭后终生不再询问。
  */
 const initGrowthPrompts = async (): Promise<void> => {
   try {
@@ -1204,7 +1208,17 @@ const initGrowthPrompts = async (): Promise<void> => {
   }
 };
 
-const dismissWhatsNew = (): void => {
+/**
+ * 弹窗显隐：无论通过「知道了」、右上角关闭、Esc 还是遮罩关闭，都写回已读版本
+ * 并停止本次会话中的评价引导，避免同一轮连续出现两张卡片。
+ */
+const handleWhatsNewVisibility = (visible: boolean): void => {
+  whatsNewVisible.value = visible;
+  if (!visible) void markWhatsNewSeen(currentVersion.value);
+};
+
+const handleWhatsNewCta = (): void => {
+  chrome.tabs.create({ url: GITHUB_RELEASES_PAGE_URL }).catch(error => logger.warn('打开更新页面失败:', error));
   whatsNewVisible.value = false;
   void markWhatsNewSeen(currentVersion.value);
 };
@@ -1215,21 +1229,9 @@ const dismissReview = (): void => {
   void dismissReviewPrompt(at);
 };
 
-const handleGrowthCta = (): void => {
-  if (growthMode.value === 'whats-new') {
-    chrome.tabs.create({ url: GITHUB_RELEASES_PAGE_URL }).catch(error => logger.warn('打开更新页面失败:', error));
-    dismissWhatsNew();
-    return;
-  }
-  if (growthMode.value === 'review') {
-    chrome.tabs.create({ url: REVIEW_PROMPT_URL }).catch(error => logger.warn('打开商店页面失败:', error));
-    dismissReview();
-  }
-};
-
-const handleGrowthDismiss = (): void => {
-  if (growthMode.value === 'whats-new') dismissWhatsNew();
-  else if (growthMode.value === 'review') dismissReview();
+const handleReviewCta = (): void => {
+  chrome.tabs.create({ url: REVIEW_PROMPT_URL }).catch(error => logger.warn('打开商店页面失败:', error));
+  dismissReview();
 };
 
 watch(showHealthDialog, (visible, wasVisible) => {

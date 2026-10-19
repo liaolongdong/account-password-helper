@@ -52,7 +52,22 @@ test.describe('命令面板执行入口', () => {
     const drawer = page.getByRole('dialog').filter({ hasText: textOf('options.about.title') });
     await expect(drawer).toBeVisible();
 
-    await drawer.getByRole('button', { name: textOf('options.about.share') }).click();
+    const review = drawer.getByRole('button', { name: textOf('options.about.review') });
+    const share = drawer.getByRole('button', { name: textOf('options.about.share') });
+    const close = drawer.getByRole('button', { name: textOf('common.close') });
+    await expect(review).toBeVisible();
+    const reviewBox = await review.boundingBox();
+    const shareBox = await share.boundingBox();
+    const closeBox = await close.boundingBox();
+    expect(reviewBox, '评价按钮没有可测尺寸').not.toBeNull();
+    expect(shareBox, '分享按钮没有可测尺寸').not.toBeNull();
+    expect(closeBox, '关闭按钮没有可测尺寸').not.toBeNull();
+    expect(reviewBox!.x + reviewBox!.width, '评价入口应在分享左侧').toBeLessThanOrEqual(shareBox!.x);
+    expect(shareBox!.x - (reviewBox!.x + reviewBox!.width), '评价与分享间距没有收紧').toBeLessThanOrEqual(8);
+    expect(closeBox!.x - (shareBox!.x + shareBox!.width), '分享与关闭间距没有收紧').toBeLessThanOrEqual(8);
+    expect(Math.abs(closeBox!.y - reviewBox!.y), '三个按钮没有排在同一行').toBeLessThanOrEqual(1);
+
+    await share.click();
     await expectSuccessToast(page, 'options.about.shareCopied');
 
     const copied = await page.evaluate(() => navigator.clipboard.readText());

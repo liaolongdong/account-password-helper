@@ -111,12 +111,24 @@
       <div class="about-footer">
         <el-button
           v-if="!isFirefox"
+          size="small"
+          :icon="Star"
+          @click="$emit('review')"
+        >
+          {{ t('options.about.review') }}
+        </el-button>
+        <el-button
+          v-if="!isFirefox"
+          size="small"
           :icon="Share"
           @click="handleShare"
         >
           {{ t('options.about.share') }}
         </el-button>
-        <el-button @click="$emit('update:modelValue', false)">
+        <el-button
+          size="small"
+          @click="$emit('update:modelValue', false)"
+        >
           {{ t('common.close') }}
         </el-button>
       </div>
@@ -127,7 +139,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { ElMessage } from 'element-plus';
-import { Share, TopRight } from '@element-plus/icons-vue';
+import { Share, Star, TopRight } from '@element-plus/icons-vue';
 import { copyTextToClipboard } from '@/utils/clipboard';
 import { isFirefox } from '@/utils/env';
 import { useI18n } from '@/utils/i18n';
@@ -167,6 +179,8 @@ defineProps<{
 
 defineEmits<{
   'update:modelValue': [boolean];
+  /** 打开 Chrome 应用商店评价页；由父级负责外链与一次性引导状态 */
+  review: [];
 }>();
 
 const { t, currentLocale } = useI18n();
@@ -394,7 +408,13 @@ const handleShare = async (): Promise<void> => {
 
 .about-footer {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   justify-content: flex-end;
+}
+
+/* Element Plus 默认给相邻按钮 12px 左外边距；这里改用容器 gap 控制间距，三个按钮才不松散 */
+.about-footer :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 </style>

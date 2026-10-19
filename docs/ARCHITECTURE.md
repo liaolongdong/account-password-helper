@@ -657,11 +657,12 @@ graph TB
 
 ### 33. 更新提示与一次性评价引导
 
-两卡片都在 Options 主内容区、HeaderBar 之后，共用 `GrowthPrompt.vue` 展示层与「更新优先、评价其次」的互斥规则；组件本身不读存储、不开外链，展示条件与持久化留在 `App.vue`。
+更新提示改为一次性弹窗（`WhatsNewDialog.vue`），评价引导保留为主内容区卡片（`ReviewPrompt.vue`）。两者都只由 Options 页面决定展示与持久化，组件本身不读存储、不开外链；更新弹窗优先，出现时起步清单与评价卡片都让位。
 
-- **本次更新**：`WHATS_NEW_SEEN_VERSION` 只存已读版本号。首次安装（尚无主密码配置）在初始化时直接把当前版本记为已读，不弹卡片；已有密码库且版本未记录或变化时展示一次。展示期间安全起步清单让位，关闭或点击 CTA 后写回当前版本。
-- **一次性评价引导**：`REVIEW_PROMPT_STATE` 只存关闭时间戳。只有在密码数 ≥3 且起步清单全部完成（添加、加密备份、安全体检）后才出现；本次已展示更新卡片时延后到下次打开，避免连续打扰。关闭或点击 CTA 后终生不再展示；商店链接带 `utm_source=options&utm_medium=review&utm_campaign=review_prompt`，与同事分享的 UTM 分开归因。
-- **回归口径**：`whatsNew.test.ts` / `reviewPrompt.test.ts` 钉状态归一化、读写与触发边界；`growthPromptWiring.test.ts` 钉 Options 接线与「组件不碰存储」；`growth-prompt.spec.ts` 在真机覆盖首次安装不弹、版本变化弹一次、完成起步清单后评价一次且关闭后不再出现。
+- **本次更新**：`WHATS_NEW_SEEN_VERSION` 只存已读版本号。首次安装（尚无主密码配置）在初始化时直接把当前版本记为已读，不弹窗；已有密码库且版本未记录或变化时弹一次。右上角关闭、Esc、遮罩、底部按钮或 CTA 关闭都会写回当前版本。
+- **一次性评价引导**：`REVIEW_PROMPT_STATE` 只存关闭时间戳。保存第一条密码后就出现一次，不再等待备份或体检；本次已展示更新弹窗时延后到下次打开，避免连续打扰。关闭或点击 CTA 后终生不再展示；商店链接带 `utm_source=options&utm_medium=review&utm_campaign=review_prompt`，与同事分享的 UTM 分开归因。About 抽屉底部另有常驻评价入口（位于「分享给同事」左侧，Firefox 构建隐藏），点击同样写回关闭时间戳。
+- **商店政策边界**：CWS 禁止以奖励或欺诈手段抬高评分/评价；评价入口不提供任何奖励、不按满意度分流、不阻断功能，只打开商店页面由用户自行评价，且自动引导只出现一次、随时可关闭。About 入口是中性常驻链接，不属于提示弹窗。
+- **回归口径**：`whatsNew.test.ts` / `reviewPrompt.test.ts` 钉状态归一化、读写与触发边界；`growthPromptWiring.test.ts` 钉 Options 接线与「组件不碰存储」；`growth-prompt.spec.ts` 在真机覆盖首次安装不弹、版本变化弹一次、保存第一条密码后评价一次且关闭后不再出现。
 
 ## 开发补充
 

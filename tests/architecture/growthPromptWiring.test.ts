@@ -1,11 +1,11 @@
 /**
- * 更新提示 / 一次性评价引导接线守卫
+ * 更新弹窗 / 一次性评价引导接线守卫
  *
- * 这两张卡片只在 Options 主内容区出现，且共享「先更新、后评价」的优先级。
- * 最容易被后续重构静默破坏的是：
- * 1. 组件只读展示，展示条件与持久化必须留在页面层；
- * 2. 更新卡片出现时起步清单要让位，评价引导延后到下一次打开；
- * 3. 评价 CTA 与关闭都必须落盘，不能只隐藏 UI。
+ * 更新提示改为弹窗，评价引导仍是主内容区的卡片。两者共享「本次更新优先」的规则，
+ * 且都必须只在 Options 页面决定展示与持久化：
+ * 1. 弹窗/卡片组件不直接读写存储或打开外链；
+ * 2. 更新弹窗出现时起步清单与评价引导都要让位；
+ * 3. 评价引导在保存第一条密码后即可出现，关闭或 CTA 都必须落盘。
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -13,19 +13,27 @@ import path from 'node:path';
 
 const ROOT = path.resolve(__dirname, '../..');
 const APP = readFileSync(path.join(ROOT, 'entrypoints/options/App.vue'), 'utf8');
-const PROMPT = readFileSync(path.join(ROOT, 'components/options/GrowthPrompt.vue'), 'utf8');
+const DIALOG = readFileSync(path.join(ROOT, 'components/options/WhatsNewDialog.vue'), 'utf8');
+const REVIEW = readFileSync(path.join(ROOT, 'components/options/ReviewPrompt.vue'), 'utf8');
+const ABOUT = readFileSync(path.join(ROOT, 'components/options/AboutDrawer.vue'), 'utf8');
+const REVIEW_STATE = readFileSync(path.join(ROOT, 'utils/storage/reviewPrompt.ts'), 'utf8');
 
-describe('GrowthPrompt 接线', () => {
-  it('组件是纯展示层，不直接读写存储或打开外链', () => {
-    expect(PROMPT).toContain("mode: 'whats-new' | 'review'");
-    expect(PROMPT).toContain("$emit('cta')");
-    expect(PROMPT).toContain("$emit('dismiss')");
-    expect(PROMPT).not.toContain('chrome.storage');
-    expect(PROMPT).not.toContain('chrome.tabs');
+describe('更新弹窗与评价引导接线', () => {
+  it('弹窗与卡片都是纯展示层，不直接读写存储或打开外链', () => {
+    for (const source of [DIALOG, REVIEW]) {
+      expect(source).not.toContain('chrome.storage');
+      expect(source).not.toContain('chrome.tabs');
+    }
+    expect(DIALOG).toContain('el-dialog');
+    expect(DIALOG).toContain("$emit('update:modelValue', $event)");
+    expect(DIALOG).toContain("$emit('cta')");
+    expect(REVIEW).toContain("$emit('cta')");
+    expect(REVIEW).toContain("$emit('dismiss')");
   });
 
-  it('Options 在主内容区接入更新/评价卡片，并让起步清单让位', () => {
-    expect(APP).toContain('GrowthPrompt');
+  it('Options 在主内容区接入弹窗与评价卡片，并让起步清单让位', () => {
+    expect(APP).toContain('WhatsNewDialog');
+    expect(APP).toContain('ReviewPrompt');
     expect(APP).toContain('initGrowthPrompts');
     expect(APP).toContain('shouldShowWhatsNew');
     expect(APP).toContain('shouldShowReviewPrompt');
@@ -34,15 +42,32 @@ describe('GrowthPrompt 接线', () => {
     expect(APP).toContain('REVIEW_PROMPT_URL');
     expect(APP).toContain('!whatsNewVisible.value');
     expect(APP).toContain('!whatsNewShownThisSession.value');
-    expect(APP).toContain('activationDoneCount.value >= ACTIVATION_TOTAL_STEPS');
   });
 
-  it('两条 CTA 都会先打开外链，再记录已读/已关闭', () => {
-    const cta = APP.slice(APP.indexOf('const handleGrowthCta'), APP.indexOf('const handleGrowthDismiss'));
-    expect(cta.indexOf('chrome.tabs.create')).toBeGreaterThan(-1);
-    expect(cta.indexOf('GITHUB_RELEASES_PAGE_URL')).toBeGreaterThan(-1);
-    expect(cta.indexOf('REVIEW_PROMPT_URL')).toBeGreaterThan(-1);
-    expect(cta.indexOf('dismissWhatsNew()')).toBeGreaterThan(-1);
-    expect(cta.indexOf('dismissReview()')).toBeGreaterThan(-1);
+  it('评价引导只要求至少一条密码，不再等待备份或体检', () => {
+    expect(REVIEW_STATE).toContain('REVIEW_PROMPT_MIN_PASSWORDS = 1');
+    expect(APP).not.toContain('positiveMoment');
+    expect(APP).toContain('passwordCount: passwords.value.length');
+  });
+
+  it('更新弹窗关闭与 CTA 都会记录已读版本', () => {
+    const visibility = APP.slice(APP.indexOf('const handleWhatsNewVisibility'), APP.indexOf('const dismissReview'));
+    expect(visibility).toContain('markWhatsNewSeen(currentVersion.value)');
+    expect(visibility).toContain('GITHUB_RELEASES_PAGE_URL');
+    expect(visibility).toContain('chrome.tabs.create');
+  });
+
+  it('About 抽屉在分享左侧提供常驻评价入口，并复用同一关闭逻辑', () => {
+    expect(ABOUT).toContain('review: []');
+    expect(ABOUT).toContain("$emit('review')");
+    expect(ABOUT).toContain('options.about.review');
+    expect(ABOUT).toContain('.about-footer :deep(.el-button + .el-button)');
+    expect(ABOUT).toContain('margin-left: 0');
+    expect(APP).toContain('@review="handleReviewCta"');
+  });
+
+  it('Firefox 构建不展示评价入口，也不弹自动评价引导', () => {
+    expect(ABOUT).toContain('v-if="!isFirefox"');
+    expect(APP).toContain('!isFirefox');
   });
 });

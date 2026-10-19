@@ -46,11 +46,10 @@ describe('一次性评价引导存储', () => {
     });
   });
 
-  it('只在条目足够且完成正向路径后展示一次', () => {
-    expect(REVIEW_PROMPT_MIN_PASSWORDS).toBe(3);
-    expect(shouldShowReviewPrompt({ dismissedAt: null, passwordCount: 2, positiveMoment: true })).toBe(false);
-    expect(shouldShowReviewPrompt({ dismissedAt: null, passwordCount: 3, positiveMoment: false })).toBe(false);
-    expect(shouldShowReviewPrompt({ dismissedAt: 1234, passwordCount: 10, positiveMoment: true })).toBe(false);
-    expect(shouldShowReviewPrompt({ dismissedAt: null, passwordCount: 3, positiveMoment: true })).toBe(true);
+  it('保存第一条密码后即可展示一次，关闭后不再展示', () => {
+    expect(REVIEW_PROMPT_MIN_PASSWORDS).toBe(1);
+    expect(shouldShowReviewPrompt({ dismissedAt: null, passwordCount: 0 })).toBe(false);
+    expect(shouldShowReviewPrompt({ dismissedAt: null, passwordCount: 1 })).toBe(true);
+    expect(shouldShowReviewPrompt({ dismissedAt: 1234, passwordCount: 10 })).toBe(false);
   });
 });
