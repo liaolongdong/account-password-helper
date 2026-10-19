@@ -772,7 +772,9 @@ export class FormDetector {
         let matchedRoots = 0;
         for (const root of roots) {
           try {
-            if (Array.from(root.querySelectorAll(selector)).some(el => isElementVisible(el))) matchedRoots += 1;
+            if (Array.from(root.querySelectorAll<HTMLElement>(selector)).some(el => isElementVisible(el))) {
+              matchedRoots += 1;
+            }
           } catch {
             // 语法已由 queryInRoots 校验，这里只防御动态选择器实现差异
           }
