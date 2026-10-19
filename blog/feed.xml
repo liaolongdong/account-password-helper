@@ -8,12 +8,48 @@
     <link>https://liaolongdong.github.io/account-password-helper/blog/</link>
     <description>本地优先密码管理器的产品思考与工程实现：安全设计、MV3 性能、Web Crypto 加密与多环境登录。</description>
     <language>zh-cn</language>
-    <lastBuildDate>Sun, 18 Oct 2026 00:00:00 GMT</lastBuildDate>
+    <lastBuildDate>Mon, 19 Oct 2026 00:00:00 GMT</lastBuildDate>
     <atom:link
       href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml"
       rel="self"
       type="application/rss+xml"
     />
+    <item>
+      <title>Chrome 自带密码管理器够用吗？三种方案对比</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html</guid>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 GMT</pubDate>
+      <description>Chrome 自带、云端管理器与本地优先工具各适合谁？从多环境隔离、加密方式、迁移成本与离线可用四个维度给出选择清单。</description>
+      <category>密码管理器</category>
+      <category>Chrome扩展</category>
+      <category>对比评测</category>
+      <category>本地优先</category>
+      <category>开源</category>
+    </item>
+    <item>
+      <title>开发者的多环境账号管理：dev / test / prod 不串号</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html</guid>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 GMT</pubDate>
+      <description>同一套系统四套账号，如何避免 test 账号填进 prod 登录框？从域名匹配、账号命名、保存判重到团队协作，给开发者与测试一套可落地的做法。</description>
+      <category>多环境</category>
+      <category>开发者工具</category>
+      <category>域名匹配</category>
+      <category>测试</category>
+      <category>账号管理</category>
+    </item>
+    <item>
+      <title>TOTP 两步验证怎么用：原理、迁移与安全边界</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html</guid>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 GMT</pubDate>
+      <description>TOTP 是什么、验证码为什么每 30 秒变化、把密钥从手机迁到浏览器扩展要注意什么？一篇讲清原理、迁移步骤与安全边界。</description>
+      <category>TOTP</category>
+      <category>两步验证</category>
+      <category>2FA</category>
+      <category>安全</category>
+      <category>浏览器扩展</category>
+    </item>
     <item>
       <title>同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑</title>
       <link>https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html</link>

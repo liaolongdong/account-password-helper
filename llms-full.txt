@@ -147,7 +147,10 @@ Deep-dive pages — skip them for a summary, read them when a question needs the
 - [Blog 03 · Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html) — PBKDF2 600,000 次迭代 + AES-256-GCM 逐字段加密的落地细节：密钥包装、会话密钥材料销毁、`.aph` 加密备份格式
 - [Blog 04 · Four features, four notes](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html) — 右键填充、全站搜索、快速添加与只读详情抽屉四段实现笔记
 - [Blog 05 · Cross-subdomain matching tiers](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html) — 三档匹配判据（精确主机名 / 通配条目 / 同主域回退）如何实现，以及 `localhost` 端口为何恒隔离
-- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all five posts in Chinese; the English set is at `blog/index.en.html`
+- [Blog 06 · Chrome password manager guide](https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html) — Chrome 自带、云端管理器与本地优先工具的选择清单：数据位置、多环境隔离、迁移成本与离线可用
+- [Blog 07 · Multi-environment account management](https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html) — 开发者与测试如何用精确 host、命名标签、自动提交边界和保存判重，避免 test 账号填进 prod
+- [Blog 08 · TOTP two-factor guide](https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html) — TOTP 的时间窗口与 HMAC 原理、与短信/Passkey 的差异、迁移步骤，以及把密钥放进密码管理器的风险边界
+- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all eight posts in Chinese; the English set is at `blog/index.en.html`
 - [Architecture (English)](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.en.md) — module breakdown, message protocol, storage and crypto boundaries, cross-entry data flow
 - [README (English)](https://github.com/liaolongdong/account-password-helper/blob/main/README.en.md) — install, usage, feature table and screenshots for the English-speaking reader
 
@@ -172,6 +175,262 @@ GPL-3.0-only. Free to use, modify and distribute (including commercially). Deriv
 > Every blog post in full, in both languages. The summary version is [llms.txt](https://liaolongdong.github.io/account-password-helper/llms.txt).
 
 ## 中文原文
+
+### [Chrome 自带密码管理器够用吗？三种方案对比](https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html)
+
+> Published: 2026-10-19 · Updated: 2026-10-19 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+几乎每个用 Chrome 的人都被问过「要保存这个密码吗？」。点了几次「保存」之后，浏览器里就攒下了一套能用的密码。于是问题变成了：既然 Chrome 已经自带密码管理器，为什么还要再装一个？
+
+答案取决于你把哪件事看得更重：**省事、跨设备，还是对数据和匹配边界的控制权**。这篇文章不急着推荐某一个产品，而是先把三种常见方案拆开，再给一张可以直接照着选对照表。
+
+### 先看四个维度
+
+评估密码管理器时，功能列表很容易让人挑花眼。对大多数开发者、测试和普通用户来说，真正影响日常体验的是这四个维度：
+
+1. **数据放在哪里**：只在本机、同步到云端，还是两者兼有；
+2. **账号怎么匹配**：同一站点的 dev / test / prod 会不会互相串号；
+3. **登录之外还做什么**：TOTP、密码生成、安全体检、导入导出；
+4. **迁移和退出的成本**：数据能不能带走，格式是否透明。
+
+把维度定下来，选择就清楚多了。
+
+### Chrome 自带：最方便，也有明确边界
+
+Chrome 自带密码管理器的优势几乎不用解释：无需安装、登录时自动提示保存、在 Chrome 生态里体验顺滑。对「只有一台电脑、只有几个常用网站」的用户，它已经够用。
+
+但它有几个边界需要知道：
+
+- **同步意味着数据会离开本机。** 开启 Chrome 同步后，保存的密码会随 Google 账号同步到其他设备。这解决了多设备问题，也意味着你接受了「数据由浏览器厂商托管」这个前提。
+- **多环境匹配通常按站点/主域判断。** 对普通用户这是贴心，对开发者却可能是灾难：`admin-dev.example.com` 与 `admin.example.com` 往往被当成同一个站，填充时未必能稳定区分。
+- **没有内置 TOTP。** 两步验证码仍然要在手机或另一个工具里找；登录到第二步时还要切应用。
+- **密码健康能力有限。** 泄露提醒、复用检查通常依赖厂商的云端能力，而不是完全在本机计算。
+
+所以 Chrome 自带适合「简单、单设备、对同步不敏感」的场景；一旦你开始维护多套环境，或者希望把密码数据留在本机，它就不太够了。
+
+### 云端密码管理器：多设备与共享更成熟
+
+Bitwarden、1Password 这类云端管理器解决的是另一类问题：多设备同步、浏览器与手机一致、团队共享、紧急访问、成熟的导入导出。它们的工程质量和安全设计通常都很扎实，对普通用户和需要共享的团队很有吸引力。
+
+代价同样明确：**你必须信任服务商的服务器、客户端实现和商业持续性**。这不是说云端一定不安全，而是说信任边界从「你的电脑」扩大到了「你的电脑 + 服务商」。此外，订阅制意味着长期成本；对只需要本地管理的人来说，可能为用不到的能力付费。
+
+如果你的核心需求是多设备、家庭共享或团队共享，云端方案通常更省心；如果你的核心需求是「数据只留在本机」和「多环境严格隔离」，本地优先工具更合适。
+
+### 本地优先工具：把信任边界收回本机
+
+「本地优先」不是「永远不联网」，而是**数据默认只存在本机，联网只发生在必要且明确的环节**。以账号密码管理助手为例：
+
+- 主密码经 PBKDF2-SHA256（600,000 轮）派生密钥，用户名、密码、网址、备注与 TOTP 密钥逐字段以 AES-256-GCM 加密；
+- 密文写入浏览器本地存储，密码内容不上传服务器；
+- 没有账号体系、没有订阅、没有广告，代码以 GPL-3.0 开源，权限与网络请求可以自己核对；
+- 精确主机名匹配隔离 dev / test / prod，`localhost` 与 `127.0.0.1` 按端口区分；
+- 内置 TOTP、密码生成器与离线安全体检。
+
+它的代价也要说清楚：**不提供跨设备同步**，备份与迁移由你自己掌握；**主密码遗忘无法找回**，需要定期导出加密备份；它保护的是静态数据与本地存储，不能替代操作系统安全，也不能在电脑已被入侵时保证绝对安全。
+
+适合本地优先工具的典型用户：
+
+- 同时维护多套环境账号的开发者与测试；
+- 希望密码数据不经过第三方服务器的隐私敏感用户；
+- 能接受「自己负责备份」、并愿意定期导出加密备份的人。
+
+### 一张选择清单
+
+| 你的情况 | 更合适的方向 |
+| --- | --- |
+| 只有一台电脑，网站不多，不介意浏览器同步 | Chrome 自带 |
+| 多台设备、手机也要用，或需要家庭/团队共享 | 云端密码管理器 |
+| 需要严格隔离 dev / test / staging / prod | 本地优先 + 精确域名匹配 |
+| 希望 TOTP、密码生成、体检都在一个本地工具里 | 本地优先工具 |
+| 完全不能接受密码内容离开本机 | 本地优先 + 加密备份 |
+| 需要团队共享同一套凭据 | 团队密码管理器或企业密钥管理，不建议群聊发密码 |
+
+### 最后：先明确边界，再谈功能
+
+密码管理器没有「全能冠军」。Chrome 自带胜在无感，云端胜在同步与共享，本地优先胜在数据边界与多环境控制。真正要问的是：**你愿意把哪部分信任交给谁，以及你愿意为哪部分便利付多少钱**。
+
+如果你想进一步比较具体功能与权限边界，可以看这份[本地优先方案与 Bitwarden、1Password 的逐项对比](https://liaolongdong.github.io/account-password-helper/compare.html)；如果你更关心加密实现，可以读[Web Crypto 加密实践](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html)。
+
+如果你正好需要一款本地优先、开源免费的 Chrome 密码管理器，可以试试[账号密码管理助手](https://liaolongdong.github.io/account-password-helper/)：支持多环境精确匹配、一键登录、内置 TOTP 与离线安全体检，数据只写本机。
+
+---
+
+### [开发者的多环境账号管理：dev / test / prod 不串号](https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html)
+
+> Published: 2026-10-19 · Updated: 2026-10-19 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+同一套后台系统，我有四套账号：dev、test、staging、prod。域名分别是 `admin-dev.example.com`、`admin-test.example.com`、`admin-staging.example.com`、`admin.example.com`。看起来很好区分，但真正登录时，问题往往不是「记不住密码」，而是**密码管理器把哪个账号递给了你**。
+
+填错环境的后果可大可小：轻则登录失败，重则用测试账号改掉生产数据。这篇文章从匹配规则、账号命名、自动保存和团队协作四层，给出一套可以落地的做法。
+
+### 为什么「填错环境」不是小概率
+
+大多数密码管理器按「站点」匹配：主域相同就算同一个站。对普通用户这是合理简化，对开发者却是风险来源：
+
+- `dev.example.com` 与 `example.com` 可能被视作同一站；
+- 同一主域下的多个后台共用登录页，列表里出现一长串相似账号；
+- 自动填充默认选中最近使用或排序靠前的条目，未必是当前环境；
+- 自动提交开启后，错误账号可能直接把登录请求发出去。
+
+所以，多环境管理的核心不是「记住更多密码」，而是**让匹配规则、账号命名和操作动作共同降低误填概率**。
+
+### 第一层：让匹配规则替你挡住
+
+最有效的一层是域名匹配。可以把它拆成三档，按需使用：
+
+1. **精确主机名（默认）**：只有规范化后的 host 完全一致才展示。`admin-dev.example.com` 的条目不会出现在 `admin.example.com` 上，这是多环境隔离的底线。
+2. **精确 + 通配条目**：允许把网址写成 `*.example.com` 的条目在整站子域出现。适合「一套测试账号本来就服务整个子域家族」的情况，由你逐条决定哪些条目可以放宽。
+3. **同主域名兜底**：当前域名没有账号时，才带出主域与兄弟子域的条目，并明确标注「跨子域」。这是兜底，不是默认。
+
+`localhost` 和 `127.0.0.1` 要单独处理：本地项目经常用不同端口并行，`localhost:3000` 与 `localhost:5173` 应该按端口隔离；页面没写端口时再放行全部本地条目，方便联调。
+
+账号密码管理助手把这些规则做成了管理页头部的三档开关，并在每条跨子域结果上给出徽标。具体实现与踩坑可以看[跨子域名匹配三档的实现](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html)。
+
+### 第二层：把环境写进账号命名和标签
+
+匹配规则解决「哪些账号出现」，命名和标签解决「出现之后一眼选对」：
+
+- 用户名尽量带环境标识，例如 `qa+staging@example.com`、`deploy-prod@example.com`；
+- 标签按环境或用途固定，例如 `prod`、`staging`、`qa`、`ci`，不要临时起名；
+- 收藏只留给每天都要用的账号，避免收藏区被多环境账号塞满；
+- 备注写清楚这个账号能做什么、不能做什么，例如「只读」「可发布」「仅测试」。
+
+标签和命名不是装饰，它们是你在一长串相似条目里做快速判断的依据。
+
+### 第三层：把自动提交当成危险动作
+
+自动填充和自动提交是两件事。填充只是把值写进输入框，自动提交则会把登录请求发出去。
+
+建议：
+
+- **生产环境默认关闭自动提交**，需要时再手动点登录；
+- 测试环境可以开启自动提交，用快捷键完成高频回归；
+- 对涉及资金、权限变更或不可逆操作的后台，即使开启了自动提交，也要在提交前确认当前环境；
+- 把「填充并登录」当成显式动作，而不是页面加载后的默认行为。
+
+这不是工具能力问题，而是操作边界问题：越接近生产，越应该让最后一个动作由人确认。
+
+### 第四层：保存与覆盖要可预期
+
+多环境场景下，自动保存也很容易制造混乱：
+
+- 同一域名、同一用户名但密码变化时，工具应提示「更新」而不是静默覆盖；
+- 不同用户名应新增条目，不能因为网址相同就合并；
+- 保存判重口径不应随匹配档位改变。放宽展示范围是为了方便查找，不代表保存时可以把不同环境的账号视为同一条；
+- 定期检查重复条目，但不要用「一键去重」误删不同环境的账号。
+
+账号密码管理助手把自动保存的判重口径与展示匹配分开：放宽档位只改变「哪些账号可见/可填充」，不会改变保存时对「同域名 + 同用户名」的判断。
+
+### 团队协作：工具可以分享，凭据不要群发
+
+多环境账号经常需要团队协作，但**不要把密码发在群聊、文档或截图里**。更稳妥的做法：
+
+- 每个人使用自己的账号，按角色授权，避免共享同一个生产账号；
+- 必须共享的凭据，使用团队密码管理器或企业密钥管理工具，并开启审计；
+- 本地优先工具适合个人管理；它不提供团队同步，也不应该被当作团队共享盘；
+- 交接时转移的是「账号归属与权限」，不是一条聊天记录里的明文密码。
+
+如果你只是想推荐工具给同事，可以分享产品说明页，而不是分享你自己的库。
+
+### 上线前检查表
+
+- [ ] 匹配档位是否符合当前项目：默认精确，确需放宽时逐条确认；
+- [ ] `localhost` / `127.0.0.1` 是否按端口隔离；
+- [ ] 生产环境是否关闭了自动提交；
+- [ ] 账号命名和标签是否能一眼区分环境；
+- [ ] 自动保存的更新/新增提示是否被正确确认；
+- [ ] 团队共享是否走了合规渠道，而不是群聊；
+- [ ] 最近一次加密备份是否可用。
+
+多环境管理的目标不是「永不填错」这句口号，而是让每一次填充都发生在可解释的规则里：**为什么这个账号会出现、为什么这个环境不会串号、为什么最后一个提交动作由你确认**。
+
+想亲手试试三档匹配如何改变候选列表，可以打开[产品页的多环境匹配演示](https://liaolongdong.github.io/account-password-helper/#matchDemo)；需要管理多套环境账号时，也可以试试[账号密码管理助手](https://liaolongdong.github.io/account-password-helper/)。
+
+---
+
+### [TOTP 两步验证怎么用：原理、迁移与安全边界](https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html)
+
+> Published: 2026-10-19 · Updated: 2026-10-19 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+很多登录页在密码之后还有一步：打开手机、找到条目、抄六位数字，等验证码刷新。这个六位数字通常就是 TOTP（基于时间的一次性密码）。它比短信验证码更可靠，但也常被误解成「绝对安全」。
+
+这篇文章讲三件事：TOTP 到底算的是什么、把它放进密码管理器值不值得，以及迁移时最容易踩的坑。
+
+### TOTP 到底算的是什么
+
+TOTP 由 RFC 6238 定义。服务端在你绑定两步验证时生成一个共享密钥，并把它交给你（通常通过二维码或一串文本）。之后每次登录：
+
+1. 客户端和服务端都拿这个共享密钥；
+2. 加上当前时间窗口（默认 30 秒）作为计数器；
+3. 做一次 HMAC 运算，截取并压缩成 6 位数字；
+4. 服务端在允许的时间漂移内比对结果。
+
+所以验证码不是随机数，而是**密钥 + 时间的确定性结果**。它不需要联网，也不依赖短信网络；只要两边时钟大致一致，就能算出一致的码。
+
+### TOTP、短信验证码和 Passkey 的区别
+
+- **短信验证码**：依赖运营商网络，存在 SIM 换卡、短信劫持和号码回收风险，安全性弱于 TOTP。
+- **TOTP**：不依赖运营商，离线可算，明显优于短信；但它仍然是「可被钓鱼的验证码」——假登录页可以实时索要并转发你的码。
+- **Passkey / 硬件安全密钥**：绑定站点来源，能抵抗大多数钓鱼，是更强的方向；但并非所有站点都已支持。
+
+因此，TOTP 是今天非常实用的第二因素，但不是终点。高价值账户如果支持 Passkey 或硬件密钥，应优先使用。
+
+### 把 TOTP 放进密码管理器：方便与风险
+
+把 TOTP 和密码放在同一条目里，最大的好处是**登录链路不中断**：填充密码后，同一处就能拿到当前验证码，不用切 App。对开发者、测试和每天登录大量后台的人来说，这个体验提升很实在。
+
+但要把风险说清楚：
+
+- 如果密码库在解锁状态下被攻破，攻击者可能同时拿到密码和 TOTP 密钥，两个因素就合并成了一个；
+- 因此，对银行、支付、主邮箱、云平台根账号等高价值账户，更稳妥的做法是把 TOTP 放在独立验证器或硬件密钥里；
+- 对开发 / 测试环境、普通社区账号，把 TOTP 与密码放在一起是合理的便利取舍；
+- 无论放在哪里，TOTP 密钥都必须加密存储，不能以明文落盘。
+
+账号密码管理助手把 TOTP 密钥作为独立字段，与用户名、密码、网址、备注一起逐字段加密；验证码在本地按 RFC 6238 生成，登录到第二步时可直接填入。它适合「方便地管理多套日常账号」，但不建议把它当作银行或支付类凭据的唯一保险箱。
+
+### 迁移 TOTP 的步骤
+
+从手机验证器迁到另一个工具，通常有三种方式：
+
+1. **扫码迁移**：新工具扫描旧工具或服务端提供的二维码；
+2. **手动输入密钥**：输入 Base32 密钥、账号名、 issuer 与算法参数；
+3. **导出/导入**：部分验证器支持加密导出，注意导出文件本身就是高敏感数据。
+
+迁移时建议按这个顺序：
+
+- 先选一个低风险账号试通，确认新工具生成的码能登录；
+- 检查设备时间是否自动同步，时间漂移会导致验证码始终不对；
+- 迁移完成后保留旧验证器一段时间，确认新工具稳定再移除；
+- 保存服务端提供的一次性恢复码，放在离线安全位置；
+- 如果怀疑密钥泄露，立即在服务端重置两步验证，而不是只删掉旧 App。
+
+不要把 TOTP 二维码、密钥截图或恢复码发到聊天工具里。它们和密码一样，是可直接生成验证码的凭据。
+
+### 浏览器扩展里的 TOTP 如何工作
+
+以账号密码管理助手为例：
+
+- 密钥随条目一起加密存储，只有会话解锁后才能读取；
+- 验证码由本地 Web Crypto / RFC 6238 逻辑生成，不发起网络请求；
+- 在两步登录页，内容脚本识别验证码输入框，侧边栏或页内胶囊提供当前活码；
+- 复制验证码沿用剪贴板定时清除策略，降低截屏或误粘贴的风险。
+
+需要提醒的是：浏览器扩展运行在你的浏览器里，不能防御已被入侵的操作系统、恶意扩展或正在共享的屏幕。开启屏幕共享或远程协助时，先确认验证码页面不在共享范围内。
+
+### 检查表
+
+- [ ] 高价值账户优先使用 Passkey / 硬件密钥，TOTP 作为兼容方案；
+- [ ] TOTP 密钥加密存储，未解锁时不可读；
+- [ ] 设备时间自动同步，验证码能稳定通过；
+- [ ] 迁移前准备恢复码，迁移后保留旧验证器一段时间；
+- [ ] 不在聊天、截图或共享屏幕中暴露二维码、密钥或验证码；
+- [ ] 怀疑泄露时在服务端重置，而不是只删除本地条目。
+
+TOTP 的价值在于「多一个独立因素」，而不是「多一道绝对防线」。理解它的计算方式与信任边界，才能把便利留在工作流里，把风险留在可控范围内。
+
+想了解本地加密与密钥管理的实现细节，可以读[Web Crypto 加密实践](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html)；如果你的日常登录需要内置 TOTP 与一键填充，可以试试[账号密码管理助手](https://liaolongdong.github.io/account-password-helper/)。
+
+---
 
 ### [同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html)
 
@@ -627,6 +886,262 @@ _本文涉及的关键文件：`entrypoints/background/backgroundServices.ts`（
 _本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（3589 项自动化测试，含加密与换钥路径）。_
 
 ## English originals
+
+### [Chrome Password Manager: Which One to Use?](https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html)
+
+> Published: 2026-10-19 · Updated: 2026-10-19 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+Almost everyone who uses Chrome has seen the "Save password?" prompt. A few clicks later, the browser holds a working set of credentials. So why install another password manager at all?
+
+The answer depends on which trade-off matters most to you: **convenience, multi-device access, or control over where the data lives and how accounts are matched**. This post breaks down the three common options and ends with a checklist you can apply directly.
+
+### Four dimensions that matter
+
+Feature lists get long quickly. For most developers, QA engineers and everyday users, four dimensions decide the day-to-day experience:
+
+1. **Where the data lives**: only on this device, synced to a cloud account, or both;
+2. **How accounts are matched**: whether dev / test / prod credentials can leak into each other;
+3. **What happens beyond filling**: TOTP, password generation, security checks, import and export;
+4. **The cost of leaving**: whether you can take the data with you in a usable format.
+
+Once those are clear, the choice gets much easier.
+
+### Built-in Chrome passwords: convenient, with limits
+
+The built-in manager needs no explanation: nothing to install, save prompts on login, and a smooth experience inside Chrome. For someone with one computer and a handful of sites, it is often enough.
+
+Know the boundaries:
+
+- **Sync means the data leaves the device.** With Chrome sync enabled, saved passwords travel with your Google account to other devices. That solves multi-device access, and it also means accepting that the browser vendor holds the data.
+- **Matching usually works at the site or registrable-domain level.** That is friendly for ordinary users and risky for developers: `admin-dev.example.com` and `admin.example.com` may be treated as the same site, so filling the right environment is not guaranteed.
+- **No built-in TOTP.** The second factor still lives on your phone or in another app, so a two-step login means switching tools.
+- **Limited local health analysis.** Leak and reuse checks often depend on vendor-side services rather than computation on your machine.
+
+Built-in Chrome works for simple, single-device use where sync is acceptable. It stops being enough once you maintain several environments or want the vault to stay on your machine.
+
+### Cloud managers: stronger multi-device and sharing
+
+Bitwarden, 1Password and similar services solve a different problem: sync across devices and browsers, mobile apps, team sharing, emergency access and mature import/export. Their security engineering is often solid, and they are a good fit for many users and teams.
+
+The trade-off is trust: **you are trusting the provider's servers, client implementation and business continuity**. That does not make cloud managers unsafe; it expands the trust boundary from "my computer" to "my computer plus the provider". Subscriptions also add an ongoing cost, which may be unnecessary for someone who only needs local management.
+
+If multi-device access, family sharing or team sharing is the core requirement, a cloud manager is usually the smoother choice. If the core requirement is "the data stays on my machine" and "environments must not cross over", a local-first tool fits better.
+
+### Local-first tools: pull the trust boundary back to the device
+
+"Local-first" does not mean "never goes online". It means **data lives on the device by default, and network access happens only where it is necessary and documented**. Account Password Helper is one example:
+
+- The master password derives the key with PBKDF2-SHA256 (600,000 rounds); username, password, URL, remark and TOTP secret are encrypted field by field with AES-256-GCM;
+- Ciphertext is written to browser-local storage, and password contents are not uploaded to a server;
+- No account system, subscription or ads; the code is GPL-3.0 and the permissions and network calls can be audited;
+- Exact-host matching keeps dev / test / prod apart, and `localhost` / `127.0.0.1` stay per-port;
+- Built-in TOTP, password generator and an offline security check.
+
+The costs are just as real: **no cross-device sync**, so backup and migration are your responsibility; **a forgotten master password cannot be recovered**, so export encrypted backups regularly; and local encryption protects data at rest and in storage, but it cannot replace operating-system security or guarantee safety on an already-compromised machine.
+
+Local-first tends to fit:
+
+- developers and QA engineers juggling multiple environments;
+- privacy-conscious users who do not want passwords passing through a third-party server;
+- people who accept responsibility for backups and will export encrypted copies regularly.
+
+### A practical checklist
+
+| Your situation | Better fit |
+| --- | --- |
+| One computer, a few sites, browser sync is fine | Built-in Chrome |
+| Multiple devices, phone access, family or team sharing | Cloud password manager |
+| Strict dev / test / staging / prod isolation | Local-first with exact-host matching |
+| TOTP, generation and health checks in one local tool | Local-first tool |
+| Password contents must never leave the device | Local-first with encrypted backups |
+| A team needs one shared credential | A team password manager or enterprise secret manager — not a group chat |
+
+### Decide the boundary before the feature list
+
+There is no universal winner. Built-in Chrome wins on zero friction, cloud managers win on sync and sharing, and local-first tools win on data boundaries and environment control. The real question is: **which part of the trust are you willing to hand over, and which convenience are you willing to pay for?**
+
+For a feature-by-feature comparison, see [Account Password Helper vs Bitwarden and 1Password](https://liaolongdong.github.io/account-password-helper/compare.en.html). For the encryption details, read [Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html).
+
+If you need a free, open-source, local-first Chrome password manager, try [Account Password Helper](https://liaolongdong.github.io/account-password-helper/en.html): exact environment matching, one-click login, built-in TOTP and an offline health check, with data written only to your machine.
+
+---
+
+### [Managing Dev, Test and Prod Accounts Safely](https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.en.html)
+
+> Published: 2026-10-19 · Updated: 2026-10-19 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+One admin system, four accounts: dev, test, staging and prod. The hosts are `admin-dev.example.com`, `admin-test.example.com`, `admin-staging.example.com` and `admin.example.com`. They look easy to tell apart. The problem at login time is usually not remembering the password — it is **which account the password manager hands you**.
+
+Filling the wrong environment can be merely annoying, or it can let a test account mutate production data. This guide covers four layers: matching rules, naming, auto-save and team handoff.
+
+### Why wrong-environment fills are not a rare edge case
+
+Most password managers match at the site level: the same registrable domain counts as the same site. That is a reasonable simplification for consumers and a risk for developers:
+
+- `dev.example.com` and `example.com` may be treated as one site;
+- several admin panels under one domain share a login page, so the list fills with similar accounts;
+- autofill may pick the most recently used or top-sorted entry, not the current environment;
+- with auto-submit enabled, the wrong credentials can be sent immediately.
+
+The goal of multi-environment management is therefore not "remember more passwords". It is **to make the wrong fill less likely through matching, naming and explicit actions**.
+
+### Layer 1: let matching rules block the wrong account
+
+Host matching is the strongest layer. Think of it as three tiers:
+
+1. **Exact host (default)**: only entries whose normalized host matches exactly are shown. An `admin-dev.example.com` entry never appears on `admin.example.com`. This is the baseline for environment isolation.
+2. **Exact + wildcard entries**: entries saved as `*.example.com` become available on every subdomain. Use it when one test account genuinely serves the whole subdomain family, and decide entry by entry.
+3. **Same apex domain**: when the current host has no account, offer the apex and sibling subdomains, clearly badged as cross-subdomain. This is a fallback, not the default.
+
+Treat `localhost` and `127.0.0.1` separately: local projects often run on different ports, so `localhost:3000` and `localhost:5173` should stay apart. When the page has no port, showing all local entries is a useful development convenience.
+
+Account Password Helper exposes these three tiers in the manager header and badges widened results. For the implementation and the edge cases, read [Three tiers of cross-subdomain matching](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html).
+
+### Layer 2: put the environment into names and tags
+
+Matching decides which accounts appear; naming and tags help you pick the right one once they do:
+
+- Put the environment in the username where possible, e.g. `qa+staging@example.com` or `deploy-prod@example.com`;
+- Use stable tags such as `prod`, `staging`, `qa` and `ci`, not ad-hoc labels;
+- Reserve favorites for accounts you use daily, so multi-environment entries do not crowd the top;
+- Use remarks to state what the account can and cannot do: "read-only", "can deploy", "test only".
+
+Tags and names are not decoration. They are the cues you use to make a fast, correct decision in a long list of similar entries.
+
+### Layer 3: treat auto-submit as a dangerous action
+
+Autofill and auto-submit are different. Filling writes values into the form; auto-submit sends the login request.
+
+Recommendations:
+
+- **Disable auto-submit in production by default**, and click login deliberately when needed;
+- Enable it for test environments where repeated regression logins are common;
+- For admin panels involving money, permission changes or irreversible operations, confirm the environment even when auto-submit is on;
+- Treat "fill and sign in" as an explicit action, not something that happens automatically after page load.
+
+This is not a tool limitation; it is an operating boundary. The closer you are to production, the more the final action should stay with a human.
+
+### Layer 4: make saving and overwriting predictable
+
+Auto-save can create mess in multi-environment setups:
+
+- When the same host and username get a new password, prompt to update instead of silently overwriting;
+- A different username should create a new entry, not merge because the URL matches;
+- Dedupe rules should not change with the matching tier. Widening the visible set is for convenience; it does not mean different environments are the same entry;
+- Review duplicates periodically, but never let a bulk dedupe delete accounts from different environments.
+
+Account Password Helper deliberately keeps save-time dedupe separate from display matching: widening the tier changes which accounts are visible and fillable, not how "same host + same username" is judged on save.
+
+### Team handoff: share the tool, not the credentials
+
+Multi-environment accounts often involve a team, but **never send passwords through chat, documents or screenshots**. Safer patterns:
+
+- Give each person their own account with role-based access instead of sharing one production login;
+- For credentials that must be shared, use a team password manager or enterprise secret manager with auditing;
+- A local-first tool is for personal management; it does not provide team sync and should not be used as a shared drive;
+- Hand over ownership and permissions, not a plaintext password in a chat history.
+
+If you only want to recommend a tool to a colleague, share the product page — not your own vault.
+
+### Pre-release checklist
+
+- [ ] The matching tier fits the project: exact by default, widened only entry by entry;
+- [ ] `localhost` / `127.0.0.1` stay per-port;
+- [ ] Auto-submit is off for production;
+- [ ] Names and tags make the environment obvious at a glance;
+- [ ] Update/add prompts during auto-save are reviewed;
+- [ ] Team sharing goes through an approved channel, not a group chat;
+- [ ] The latest encrypted backup is usable.
+
+The goal is not the slogan "never fill the wrong account". It is to make every fill explainable: **why this account appeared, why this environment cannot cross over, and why the final submit action is yours to confirm.**
+
+To try how the three tiers change the candidate list, open the [multi-environment demo](https://liaolongdong.github.io/account-password-helper/en.html#matchDemo). If you manage several environments every day, try [Account Password Helper](https://liaolongdong.github.io/account-password-helper/en.html).
+
+---
+
+### [TOTP 2FA: How It Works and Where to Store It](https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.en.html)
+
+> Published: 2026-10-19 · Updated: 2026-10-19 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+Many login pages add one more step after the password: open the phone, find the entry, copy six digits, wait for the code to refresh. That six-digit code is usually TOTP, a time-based one-time password. It is more reliable than SMS, and it is often misunderstood as "absolute security".
+
+This post covers three things: what TOTP actually computes, whether putting it in a password manager is a good trade-off, and the migration mistakes to avoid.
+
+### What TOTP computes
+
+TOTP is defined by RFC 6238. When you enroll in two-step verification, the service generates a shared secret and gives it to you, usually as a QR code or a text string. On every login:
+
+1. The client and the server both take that shared secret;
+2. They add the current time window (30 seconds by default) as a counter;
+3. They run an HMAC and truncate the result into six digits;
+4. The server compares the result, allowing a small clock drift.
+
+The code is not random. It is a **deterministic result of secret + time**. It needs no network and no SMS; as long as both clocks are close, both sides compute the same code.
+
+### TOTP vs SMS vs passkeys
+
+- **SMS codes** depend on the carrier network and are exposed to SIM swaps, interception and number recycling. They are weaker than TOTP.
+- **TOTP** does not depend on the carrier and works offline. It is clearly better than SMS, but it is still a code that can be phished: a fake login page can ask for it and relay it in real time.
+- **Passkeys / hardware security keys** bind to the site origin and resist most phishing. They are the stronger direction, but not every site supports them yet.
+
+TOTP is a practical second factor today, not the final answer. For high-value accounts, prefer a passkey or hardware key where available.
+
+### TOTP inside a password manager: convenience and risk
+
+Keeping TOTP with the password removes the context switch: after filling the password, the current code is right there. For developers and QA engineers logging into many admin panels, that is a real improvement.
+
+Be clear about the risk:
+
+- If the vault is compromised while unlocked, an attacker may get both the password and the TOTP secret, collapsing two factors into one;
+- For banking, payments, primary email and cloud root accounts, keep TOTP in a separate authenticator or hardware key;
+- For development, test and ordinary community accounts, keeping TOTP with the password is a reasonable convenience trade-off;
+- Wherever it lives, the TOTP secret must be encrypted at rest, never stored as plaintext.
+
+Account Password Helper stores the TOTP secret as a separate encrypted field alongside the username, password, URL and remark; codes are generated locally per RFC 6238 and can be filled at the second login step. It is designed for convenient management of everyday and multi-environment accounts, not as the only vault for banking or payment credentials.
+
+### Migrating TOTP secrets
+
+There are usually three ways to move from a phone authenticator to another tool:
+
+1. **Scan a QR code** from the old tool or the service;
+2. **Enter the Base32 secret manually**, together with the account name, issuer and algorithm parameters;
+3. **Export/import** where supported; remember that the export file itself is highly sensitive.
+
+A safe migration order:
+
+- Test with a low-risk account first and confirm the new tool's code can sign in;
+- Make sure the device clock is synced automatically; drift makes every code fail;
+- Keep the old authenticator for a while after migrating, then remove it;
+- Save the service's one-time recovery codes in an offline safe place;
+- If you suspect the secret leaked, reset two-step verification on the service, not just delete the old app.
+
+Never send TOTP QR codes, secret screenshots or recovery codes through chat. They are credentials that can generate valid codes.
+
+### How TOTP works inside a browser extension
+
+In Account Password Helper:
+
+- The secret is encrypted with the entry and readable only while the session is unlocked;
+- Codes are computed locally with Web Crypto / RFC 6238 logic, without network requests;
+- On a two-step login page, the content script recognizes the code field and the side panel or in-page pill offers the live code;
+- Copying a code follows the same timed clipboard clearing as other copies, reducing the risk of screenshots or accidental pastes.
+
+A browser extension runs inside your browser; it cannot defend against a compromised operating system, a malicious extension or a shared screen. Before screen sharing or remote support, make sure the code page is out of the shared area.
+
+### Checklist
+
+- [ ] Prefer passkeys or hardware keys for high-value accounts; keep TOTP for compatibility;
+- [ ] TOTP secrets are encrypted and unreadable while locked;
+- [ ] The device clock syncs automatically and codes pass reliably;
+- [ ] Recovery codes are stored before migration; the old authenticator stays for a while;
+- [ ] QR codes, secrets and codes are never exposed in chat, screenshots or shared screens;
+- [ ] Suspected leaks are reset on the service, not just deleted locally.
+
+The value of TOTP is an independent second factor, not an absolute wall. Understanding how it computes and where the trust boundary sits keeps the convenience in your workflow and the risk within a range you control.
+
+For the local encryption and key-management details, read [Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html). If your daily logins need built-in TOTP and one-click fill, try [Account Password Helper](https://liaolongdong.github.io/account-password-helper/en.html).
+
+---
 
 ### [Three Tiers of Cross-Subdomain Matching](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html)
 

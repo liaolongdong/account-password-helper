@@ -191,7 +191,7 @@ const escapeXml = s => escapeHtml(s);
 /**
  * 页内共享的图标、主题色与爬虫指令。
  *
- * 博客 12 个页面此前既没有 favicon 也没有 `robots` meta，而同站另外 8 个页面都写了
+ * 博客 18 个页面此前既没有 favicon 也没有 `robots` meta，而同站另外 8 个页面都写了
  * `index, follow, max-image-preview:large`——文章封面是 1600×900（16:9），
  * 少了这条声明就拿不到大图富结果。
  *

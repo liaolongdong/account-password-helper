@@ -9,7 +9,7 @@
  * 1. 每条 feed 的标题/摘要/链接/发布日期与该语言的文章一一对应，且按日期倒序；
  *    `lastBuildDate` 取该语言最新的 `modified`；
  * 2. 每篇源文的标题与结尾段落必须出现在 llms-full 中，图片相对路径已改成绝对 URL；
- * 3. 12 个页面都有 skip link、`<main id="main">`、RSS 自动发现；文章页另有可见面包屑、
+ * 3. 18 个页面都有 skip link、`<main id="main">`、RSS 自动发现；文章页另有可见面包屑、
  *    `rel="author"` 与作者卡片。
  *
  * 判据刻意从源文重算而不是和生成器共享函数：共享实现时，生成器与守卫一起写错也会绿。
@@ -49,6 +49,12 @@ const ARTICLE_PAGES = [
   '04-login-flow-details.en.html',
   '05-cross-subdomain-matching.html',
   '05-cross-subdomain-matching.en.html',
+  '06-chrome-password-manager-guide.html',
+  '06-chrome-password-manager-guide.en.html',
+  '07-multi-environment-accounts.html',
+  '07-multi-environment-accounts.en.html',
+  '08-totp-two-factor-guide.html',
+  '08-totp-two-factor-guide.en.html',
 ];
 const ALL_PAGES = [...ARTICLE_PAGES, 'index.html', 'index.en.html'];
 

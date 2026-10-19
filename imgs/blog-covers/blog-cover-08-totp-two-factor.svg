@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Helvetica Neue',Arial,sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0D1B34"/>
+      <stop offset="1" stop-color="#17305C"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#409EFF"/>
+      <stop offset="1" stop-color="#337ECC"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1600" height="900" fill="url(#bg)"/>
+
+  <g>
+    <rect x="96" y="68" width="52" height="52" rx="13" fill="#409EFF"/>
+    <g transform="translate(96,68) scale(0.40625)" fill="#FFFFFF">
+      <circle cx="64" cy="46" r="20"/>
+      <circle cx="64" cy="46" r="8" fill="#409EFF"/>
+      <rect x="59" y="62" width="10" height="48" rx="4"/>
+      <rect x="69" y="86" width="8" height="6" rx="1.5"/>
+      <rect x="69" y="98" width="11" height="6" rx="1.5"/>
+    </g>
+    <text x="164" y="104" font-size="27" font-weight="600" fill="#FFFFFF">Account Password Helper</text>
+    <text x="1504" y="104" font-size="24" fill="#A9BFE0" text-anchor="end">技术博客 08 / 08</text>
+  </g>
+
+  <g>
+    <text x="96" y="250" font-size="84" font-weight="700" fill="#FFFFFF">TOTP 两步验证</text>
+    <text x="96" y="348" font-size="84" font-weight="700" fill="#FFFFFF">怎么用才安全</text>
+    <text x="96" y="418" font-size="38" font-weight="600" fill="#66B3FF">RFC 6238 · 30s · HMAC</text>
+    <text x="96" y="474" font-size="28" fill="#A9BFE0">原理、迁移与信任边界</text>
+  </g>
+
+  <g font-size="27" font-weight="500">
+    <rect x="96" y="512" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="550" fill="#CFE3FF">独立因素</text>
+    <rect x="312" y="512" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="338" y="550" fill="#CFE3FF">加密存储</text>
+    <rect x="528" y="512" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="554" y="550" fill="#CFE3FF">恢复码</text>
+    <rect x="96" y="588" width="286" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="122" y="626" fill="#CFE3FF">扫码或手动迁移</text>
+    <rect x="398" y="588" width="200" height="56" rx="28" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="424" y="626" fill="#CFE3FF">时钟同步</text>
+  </g>
+
+  <g>
+    <line x1="96" y1="762" x2="640" y2="762" stroke="#23406E" stroke-width="3"/>
+    <text x="96" y="812" font-size="26" fill="#A9BFE0">utils/totp.ts · generateTOTP</text>
+  </g>
+
+  <g>
+    <rect x="880" y="196" width="624" height="330" rx="22" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <text x="926" y="252" font-size="24" fill="#A9BFE0">当前验证码</text>
+    <text x="926" y="356" font-size="86" font-weight="700" fill="#FFFFFF" letter-spacing="8">482 913</text>
+    <text x="926" y="406" font-size="24" fill="#A9BFE0">每 30 秒按密钥与时间重新计算</text>
+    <circle cx="1390" cy="330" r="58" fill="none" stroke="#1E3A6B" stroke-width="10"/>
+    <circle cx="1390" cy="330" r="58" fill="none" stroke="#409EFF" stroke-width="10" stroke-linecap="round" stroke-dasharray="270 365" transform="rotate(-90 1390 330)"/>
+    <text x="1390" y="338" font-size="26" fill="#CFE3FF" text-anchor="middle">18s</text>
+
+    <rect x="880" y="556" width="624" height="140" rx="16" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2"/>
+    <g transform="translate(918,586)" stroke="#8FB4FF" stroke-width="3" fill="none" stroke-linecap="round">
+      <rect x="0" y="18" width="34" height="56" rx="8"/>
+      <line x1="17" y1="34" x2="17" y2="58"/>
+      <circle cx="17" cy="70" r="3" fill="#8FB4FF" stroke="none"/>
+    </g>
+    <text x="978" y="622" font-size="28" fill="#CFE3FF">密钥只随条目加密存储</text>
+    <text x="978" y="660" font-size="22" fill="#A9BFE0">登录到第二步时，当前活码直接填入</text>
+    <rect x="1320" y="596" width="146" height="38" rx="19" fill="#409EFF" fill-opacity="0.16" stroke="#66B3FF" stroke-opacity="0.42" stroke-width="2"/>
+    <text x="1393" y="623" font-size="20" fill="#CFE3FF" text-anchor="middle">本地生成</text>
+  </g>
+
+  <g>
+    <rect x="880" y="720" width="624" height="70" rx="14" fill="#0F1E3D" stroke="#2A4A80" stroke-width="2" stroke-dasharray="10 8"/>
+    <text x="918" y="765" font-size="23" fill="#A9BFE0">高价值账户：优先 Passkey 或独立验证器</text>
+  </g>
+</svg>

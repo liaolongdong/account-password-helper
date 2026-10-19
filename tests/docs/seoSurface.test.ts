@@ -8,7 +8,7 @@
  *    不指向不存在的文件；`product-site/` 是 qoder.zone 的副本，已 `noindex`，所以刻意不在 sitemap 里。
  * 2. **日期口径**：`lastmod` 表示该页**正文**最近一次实质修改的日期。页面自己声明了修改日期
  *    （落地页 JSON-LD `dateModified`、隐私页「最后更新」、博客 front-matter `modified`）时，
- *    sitemap 必须与自述一致；博客索引取五篇文章的 `max(modified)`。
+ *    sitemap 必须与自述一致；博客索引取八篇文章的 `max(modified)`。
  *    没有自述日期的页面（pricing / compare 两份）本文件不校验日期，只校验不能是未来日期。
  * 3. **隐私口径**：站页正文不出现被禁的绝对化表达（「绝不出浏览器」/ `Passwords Never Leave the
  *    Browser` / `100% offline` 一类）——这类词在商店审核侧已被判过，网站与 README 保持同一口径。
@@ -248,9 +248,9 @@ describe('官网 SEO 表面一致性', () => {
     }
   });
 
-  it('博客文章的 lastmod 等于 front-matter 的 modified，索引页取五篇的最大值', () => {
+  it('博客文章的 lastmod 等于 front-matter 的 modified，索引页取八篇的最大值', () => {
     const articles = entries.filter(e => /\/blog\/\d\d-/.test(e.loc));
-    expect(articles, 'sitemap 里没有博客文章条目').toHaveLength(10);
+    expect(articles, 'sitemap 里没有博客文章条目').toHaveLength(16);
 
     const modifiedByLang: Record<'zh' | 'en', string[]> = { zh: [], en: [] };
     for (const { loc, lastmod } of articles) {
@@ -268,7 +268,7 @@ describe('官网 SEO 表面一致性', () => {
     for (const indexLoc of [`${SITE}/blog/`, `${SITE}/blog/index.en.html`]) {
       const entry = entries.find(e => e.loc === indexLoc);
       expect(entry, `sitemap 缺少博客索引 ${indexLoc}`).toBeDefined();
-      expect(entry!.lastmod, `${indexLoc} 应等于五篇文章最新的 modified`).toBe(newestIso);
+      expect(entry!.lastmod, `${indexLoc} 应等于八篇文章最新的 modified`).toBe(newestIso);
     }
   });
 

@@ -147,7 +147,10 @@ Deep-dive pages — skip them for a summary, read them when a question needs the
 - [Blog 03 · Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html) — PBKDF2 600,000 次迭代 + AES-256-GCM 逐字段加密的落地细节：密钥包装、会话密钥材料销毁、`.aph` 加密备份格式
 - [Blog 04 · Four features, four notes](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html) — 右键填充、全站搜索、快速添加与只读详情抽屉四段实现笔记
 - [Blog 05 · Cross-subdomain matching tiers](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html) — 三档匹配判据（精确主机名 / 通配条目 / 同主域回退）如何实现，以及 `localhost` 端口为何恒隔离
-- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all five posts in Chinese; the English set is at `blog/index.en.html`
+- [Blog 06 · Chrome password manager guide](https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.html) — Chrome 自带、云端管理器与本地优先工具的选择清单：数据位置、多环境隔离、迁移成本与离线可用
+- [Blog 07 · Multi-environment account management](https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.html) — 开发者与测试如何用精确 host、命名标签、自动提交边界和保存判重，避免 test 账号填进 prod
+- [Blog 08 · TOTP two-factor guide](https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.html) — TOTP 的时间窗口与 HMAC 原理、与短信/Passkey 的差异、迁移步骤，以及把密钥放进密码管理器的风险边界
+- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all eight posts in Chinese; the English set is at `blog/index.en.html`
 - [Architecture (English)](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.en.md) — module breakdown, message protocol, storage and crypto boundaries, cross-entry data flow
 - [README (English)](https://github.com/liaolongdong/account-password-helper/blob/main/README.en.md) — install, usage, feature table and screenshots for the English-speaking reader
 

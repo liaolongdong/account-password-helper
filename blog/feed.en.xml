@@ -8,12 +8,48 @@
     <link>https://liaolongdong.github.io/account-password-helper/blog/index.en.html</link>
     <description>Product thinking and engineering deep-dives: local-first security, MV3 performance, Web Crypto internals and multi-environment login.</description>
     <language>en</language>
-    <lastBuildDate>Sun, 18 Oct 2026 00:00:00 GMT</lastBuildDate>
+    <lastBuildDate>Mon, 19 Oct 2026 00:00:00 GMT</lastBuildDate>
     <atom:link
       href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml"
       rel="self"
       type="application/rss+xml"
     />
+    <item>
+      <title>Chrome Password Manager: Which One to Use?</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/06-chrome-password-manager-guide.en.html</guid>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 GMT</pubDate>
+      <description>Built-in Chrome, cloud managers and local-first tools fit different users. Compare environment isolation, encryption, migration and offline use before choosing.</description>
+      <category>password manager</category>
+      <category>chrome extension</category>
+      <category>comparison</category>
+      <category>local-first</category>
+      <category>open source</category>
+    </item>
+    <item>
+      <title>Managing Dev, Test and Prod Accounts Safely</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/07-multi-environment-accounts.en.html</guid>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 GMT</pubDate>
+      <description>Four accounts for one system — how do you stop a test credential from landing in production? A practical guide to host matching, naming, dedupe and team handoff.</description>
+      <category>multi-environment</category>
+      <category>developer tools</category>
+      <category>host matching</category>
+      <category>testing</category>
+      <category>account management</category>
+    </item>
+    <item>
+      <title>TOTP 2FA: How It Works and Where to Store It</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.en.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/08-totp-two-factor-guide.en.html</guid>
+      <pubDate>Mon, 19 Oct 2026 00:00:00 GMT</pubDate>
+      <description>What TOTP is, why codes change every 30 seconds, and what to check before moving secrets from a phone authenticator into a browser extension.</description>
+      <category>totp</category>
+      <category>2fa</category>
+      <category>two-factor</category>
+      <category>security</category>
+      <category>browser extension</category>
+    </item>
     <item>
       <title>Three Tiers of Cross-Subdomain Matching</title>
       <link>https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html</link>
