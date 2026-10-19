@@ -162,7 +162,9 @@ onBeforeUnmount(clearTimer);
   position: fixed;
   bottom: 32px;
   left: 50%;
-  z-index: 3000;
+
+  /* 低于 Element Plus 弹窗起始层级（2000）：不让回执盖住正在打开的编辑弹窗 footer */
+  z-index: 1900;
   display: flex;
   gap: 10px;
   align-items: center;

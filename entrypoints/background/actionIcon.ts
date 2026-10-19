@@ -53,6 +53,15 @@ let _desiredState: ActionIconState | null = null;
 let _draining = false;
 
 /**
+ * 会话状态事件代际
+ *
+ * `refreshActionIcon()` 在 SW 启动时先异步读会话，再写 `_desiredState`。读期间若用户
+ * 完成解锁/锁定，storage 事件已按新状态写过一次；旧读结果随后落地会把图标带回旧档。
+ * 事件入口递增代际，刷新在写期望态前比对，过期结果直接丢弃。
+ */
+let _stateEpoch = 0;
+
+/**
  * 把工具栏收敛到最新期望档位
  *
  * 用「最新期望状态 + 单飞循环」取代「读一次即写」：`setIcon` 在途时若又来了新的档位请求，
@@ -89,6 +98,7 @@ async function drainActionIcon(): Promise<void> {
  * 省掉一次存储读取。
  */
 export function setActionIconState(state: ActionIconState): void {
+  _stateEpoch += 1;
   _desiredState = state;
   void drainActionIcon();
 }
@@ -101,7 +111,10 @@ export function setActionIconState(state: ActionIconState): void {
  * 与图标无关。
  */
 export async function refreshActionIcon(): Promise<void> {
+  const epoch = _stateEpoch;
   const valid = await isSessionValid({ skipConsistencyCheck: true });
+  // 读会话期间已有更新的锁定/解锁事件：以事件为准，不用旧快照回卷图标
+  if (epoch !== _stateEpoch) return;
   _desiredState = valid ? 'unlocked' : 'locked';
   await drainActionIcon();
 }

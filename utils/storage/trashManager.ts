@@ -2,7 +2,7 @@ import type { PasswordEntry, EncryptedPasswordEntry, TrashedPasswordEntry, Trash
 import { logger } from '@/utils/logger';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { deleteHistoryByEntryIds } from './passwordHistory';
-import { removeReminders } from './reminderManager';
+import { pauseReminders, removeReminders, resumeReminders } from './reminderManager';
 import { assertWithinCapacity } from './vaultCapacity';
 
 /**
@@ -113,9 +113,9 @@ async function moveToTrashInternal(ids: string[]): Promise<void> {
       [STORAGE_KEYS.TRASH]: [...trash, ...movedEntries],
     });
 
-    // 清理已移入回收站条目的到期提醒（避免对非活跃条目发送通知）
-    // 批量化：原本逐个 id 各读一次整包提醒表，批删 100 条 = 100 次串行往返
-    await removeReminders(ids).catch(() => {});
+    // 暂停而不是删除提醒：撤销删除 / 从回收站恢复后提醒应继续生效。
+    // 批量化：一次读整包提醒表并一次写回，避免批删 100 条产生 100 次串行往返。
+    await pauseReminders(ids).catch(() => {});
   } catch (error) {
     logger.error('移入回收站失败:', error);
     throw error;
@@ -177,6 +177,10 @@ async function restoreFromTrashInternal(ids: string[]): Promise<TrashRestoreResu
       [STORAGE_KEYS.PASSWORDS]: [...passwords, ...restoredEntries],
       [STORAGE_KEYS.TRASH]: remainingTrash,
     });
+
+    // 恢复后继续原提醒（软删除时只暂停）。失败只记日志，不影响条目已恢复的事实。
+    await resumeReminders(restoredEntries.map(entry => entry.id));
+
     return { restored: restoredEntries.length, skippedExisting };
   } catch (error) {
     logger.error('从回收站恢复失败:', error);

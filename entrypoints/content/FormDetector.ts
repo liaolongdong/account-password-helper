@@ -50,7 +50,14 @@ import { destroyIdentityHint, hideIdentityHint, setIdentityHintTheme, showIdenti
 import { resolvePiiField } from './piiClassifier';
 import { normalizeIdentityHintRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
-import { getSiteRules, isValidCssSelector, resolveSiteRuleForHosts, type SiteRule } from '@/utils/storage/siteRules';
+import {
+  getSiteRules,
+  isValidCssSelector,
+  resolveShadowScopedSelector,
+  resolveSiteRuleForHosts,
+  SHADOW_SELECTOR_SEPARATOR,
+  type SiteRule,
+} from '@/utils/storage/siteRules';
 import { resolveFillEntry } from '@/utils/fillEntry';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 
@@ -313,6 +320,9 @@ export class FormDetector {
       const currentUrl = location.href;
       if (currentUrl !== this.lastUrl) {
         this.lastUrl = currentUrl;
+        // SPA 路由切换可能直接移除焦点字段，浏览器不保证派发 focusout；
+        // 不主动收起会让身份气泡以最高 z-index 悬空留在新页面上。
+        hideIdentityHint();
         this.notifyUrlChange();
       }
 
@@ -698,6 +708,17 @@ export class FormDetector {
     }
     const trimmed = (selector as string).trim();
 
+    // 作用域选择器显式编码了宿主链，必须从 document 起逐级进入其声明的 open shadowRoot。
+    // 不能再把它丢进「document + 所有 shadowRoot」的平铺查询：裸选择器在 document
+    // 与影子树里都可能命中，document 优先会把凭证写进主文档同 tag 的搜索框。
+    if (trimmed.includes(SHADOW_SELECTOR_SEPARATOR)) {
+      if (!this.penetrateShadowEnabled) {
+        logger.debug('FormDetector: 影子 DOM 穿透已关闭，跳过作用域选择器');
+        return [];
+      }
+      return resolveShadowScopedSelector<T>(trimmed, document);
+    }
+
     const results: T[] = [];
     const seen = new WeakSet<Element>();
     for (const root of roots) {
@@ -729,8 +750,42 @@ export class FormDetector {
     if (!sel) return;
 
     const roots = this.collectShadowQueryRoots();
-    const username = this.queryInRoots<HTMLInputElement>(roots, sel.username).find(el => isElementVisible(el));
-    const password = this.queryInRoots<HTMLInputElement>(roots, sel.password).find(el => isElementVisible(el));
+    /**
+     * 作用域选择器要求唯一：宿主链 + 内层选择器若命中多个可见字段，说明规则已过期或
+     * 页面结构变化，宁可不覆盖启发式结果，也不能任选第一个写凭证。
+     * 普通选择器保留既有的「首个可见命中」语义，避免改变存量规则行为。
+     */
+    const pick = (selector: string | undefined): HTMLInputElement | undefined => {
+      if (!selector) return undefined;
+      const matches = this.queryInRoots<HTMLInputElement>(roots, selector).filter(el => isElementVisible(el));
+      if (selector.includes(SHADOW_SELECTOR_SEPARATOR)) {
+        if (matches.length > 1) {
+          logger.debug('FormDetector: 作用域选择器命中多个可见字段，已跳过');
+          return undefined;
+        }
+        return matches[0];
+      }
+
+      // 存量/手写的裸选择器也做一次跨根歧义检查：同一 selector 在 document 与影子树
+      // 都有可见命中时，无法判断用户指的是哪个根，宁可不覆盖启发式结果。
+      if (this.penetrateShadowEnabled && roots.length > 1) {
+        let matchedRoots = 0;
+        for (const root of roots) {
+          try {
+            if (Array.from(root.querySelectorAll(selector)).some(el => isElementVisible(el))) matchedRoots += 1;
+          } catch {
+            // 语法已由 queryInRoots 校验，这里只防御动态选择器实现差异
+          }
+          if (matchedRoots > 1) {
+            logger.debug('FormDetector: 裸选择器跨 shadow 根命中多个可见字段，已跳过');
+            return undefined;
+          }
+        }
+      }
+      return matches[0];
+    };
+    const username = pick(sel.username);
+    const password = pick(sel.password);
     if (!username && !password) return;
 
     // 只降级「本轮被替换掉的那一类」字段：未配置的选择器保留启发式结果，
@@ -1594,7 +1649,8 @@ export class FormDetector {
    * @param outcome - 填充成功档位，来自 FillResult.outcome
    */
   private showFillAck(field: HTMLElement | null, outcome?: FillOutcome): void {
-    if (!field) return;
+    // 填充路径含 await 复检窗口；destroy() 已执行后不得再重建胶囊/宿主与定时器
+    if (!field || this.disposed) return;
     getFillAckChip().show(field, outcome === 'unverified' ? 'check' : 'filled', this.floatingButtonConfig.theme);
   }
 

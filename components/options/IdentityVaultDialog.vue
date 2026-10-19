@@ -674,6 +674,9 @@ const handleCopyCard = (entry: IdentityEntry): Promise<void> =>
 /** 当前导出作用域：未勾选→全部；已勾选→所选子集 */
 const exportTargets = computed(() => resolveExportEntries(rows.value, selectedIds.value));
 
+/** 回收站弹窗显隐（父弹窗关闭时立即收起，避免解密标题随隐藏 DOM 多留一拍） */
+const trashVisible = ref(false);
+
 /** 弹窗打开时加载数据，并行恢复落盘的排序档位、拉取回收站计数（对标 TrashDialog 的 watch modelValue） */
 watch(
   () => props.modelValue,
@@ -682,6 +685,8 @@ watch(
       void load();
       void restoreSortMode();
       void refreshTrashCount();
+    } else {
+      trashVisible.value = false;
     }
   },
 );
@@ -694,13 +699,14 @@ watch(
  */
 const handleClosed = (): void => {
   teardown();
+  // 父弹窗关闭（Esc / 外部点击 / 会话锁定）时一并收起嵌套回收站：
+  // 否则 trashVisible 会保留到下次打开，带着上一轮的解密标题直接重新出现。
+  trashVisible.value = false;
   resetDragState();
 };
 
 // ==================== 回收站 ====================
 
-/** 回收站弹窗显隐 */
-const trashVisible = ref(false);
 /** 回收站条目数（驱动入口按钮计数读数；读失败由数据层降级为 0，不打扰用户） */
 const trashCount = ref(0);
 

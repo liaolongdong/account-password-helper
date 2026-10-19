@@ -980,14 +980,20 @@ const healthReport = ref<HealthReport>({
  */
 let healthReportPromise: Promise<void> | null = null;
 let healthReportList: typeof passwords.value | null = null;
+/** 最近一次成功报告的来源列表；同一引用再次打开体检时直接复用，不再整库重算 */
+let healthReportCachedList: typeof passwords.value | null = null;
 
 const syncHealthReport = (): Promise<void> => {
-  if (healthReportPromise && healthReportList === passwords.value) return healthReportPromise;
   const list = passwords.value;
+  if (healthReportCachedList === list) return Promise.resolve();
+  if (healthReportPromise && healthReportList === list) return healthReportPromise;
   healthReportList = list;
   const promise = buildHealthReportAsync(list, Date.now())
     .then(report => {
-      if (list === passwords.value) healthReport.value = report;
+      if (list === passwords.value) {
+        healthReport.value = report;
+        healthReportCachedList = list;
+      }
     })
     .finally(() => {
       if (healthReportPromise === promise) {
@@ -1233,10 +1239,28 @@ const handleWhatsNewVisibility = (visible: boolean): void => {
   if (!visible) void markWhatsNewSeen(currentVersion.value);
 };
 
-const handleWhatsNewCta = (): void => {
-  chrome.tabs.create({ url: GITHUB_RELEASES_PAGE_URL }).catch(error => logger.warn('打开更新页面失败:', error));
+/**
+ * 打开外部页面：失败时给出可见反馈并返回 false
+ *
+ * CTA 不能先写已读再点火：`chrome.tabs.create` 失败（扩展上下文失效、系统限制）时
+ * 用户既没看到页面，提示又会永久消失。成功后才由调用方落盘已读/关闭状态。
+ */
+const openExternalPage = async (url: string, failureMessage: string): Promise<boolean> => {
+  try {
+    await chrome.tabs.create({ url });
+    return true;
+  } catch (error) {
+    logger.warn('打开外部页面失败:', error);
+    ElMessage.error(failureMessage);
+    return false;
+  }
+};
+
+const handleWhatsNewCta = async (): Promise<void> => {
+  const opened = await openExternalPage(GITHUB_RELEASES_PAGE_URL, t('options.growth.whatsNew.openFailed'));
+  if (!opened) return;
   whatsNewVisible.value = false;
-  void markWhatsNewSeen(currentVersion.value);
+  await markWhatsNewSeen(currentVersion.value);
 };
 
 const dismissReview = (): void => {
@@ -1252,8 +1276,9 @@ const handleReviewSnooze = (): void => {
   void snoozeReviewPrompt(at);
 };
 
-const handleReviewCta = (): void => {
-  chrome.tabs.create({ url: REVIEW_PROMPT_URL }).catch(error => logger.warn('打开商店页面失败:', error));
+const handleReviewCta = async (): Promise<void> => {
+  const opened = await openExternalPage(REVIEW_PROMPT_URL, t('options.growth.review.openFailed'));
+  if (!opened) return;
   dismissReview();
 };
 

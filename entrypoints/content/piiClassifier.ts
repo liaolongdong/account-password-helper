@@ -672,6 +672,15 @@ const ZH_NEG = [
   '关系',
   // 机器的地址不是住址——`IP地址` 撞的是「地址」两字的子串判据。
   'ip地址',
+  // 部分值字段：身份证后 6 位、手机号后四位、卡号 last 4 等只收片段，
+  // 提示从库里取完整高敏值既填不进去，也鼓励把完整值交给只该收尾号的框。
+  '后四位',
+  '后4位',
+  '后六位',
+  '后6位',
+  '末四位',
+  '末4位',
+  '尾号',
 ];
 
 /**
@@ -822,6 +831,11 @@ const EN_NEG = [
   // 英文 region 档收了裸 `city`，于是 `Ethnicity` 被读成地区（2026-10-17 缺口勘察抓出的误报）。
   // 在这里收口而不是摘掉 `city`：`City` 单独成格时问的确实是城市，那条判据本身没错。
   'ethnicity',
+  // 部分值字段只收尾号，不该提示取完整证件/手机号/卡号
+  'last 4',
+  'last four',
+  'last 6',
+  'last six',
 ];
 
 /**
@@ -837,6 +851,9 @@ const OTHER_BLOCK = [
   '父母',
   '子女',
   '受益人',
+  // 投保页的「被保险人」是保险保障对象，注册用户不一定是本人；名称词典保留它
+  // 只是为了识别这一格要的是人名，归属必须先被压住，避免用本人身份填别人。
+  '被保险人',
   'emergency',
   'guarantor',
 ];
@@ -1297,18 +1314,58 @@ export function collectPiiSignals(el: Element): PiiSignals {
   };
 }
 
-/** 区块标题：向上找最近的标题类节点，用于「收货地址」这类整卡归属继承 */
+/** 区块容器选择器：只在这些语义容器内找标题，避免 page-level h1 误伤整张表单 */
+const SECTION_SCOPE_SELECTOR = 'fieldset, section, form';
+
+/**
+ * 标题归属容器：用来判断标题是否属于另一张嵌套卡片
+ *
+ * `[class*="card"]` 不能裸用——标题自己的 `card-hd` 也会命中，于是标题会被误认成
+ * 一个不包含字段的独立容器而遭跳过。这里排除标题类后缀，让 closest 继续向上找到卡片本体。
+ */
+const SECTION_HEAD_SCOPE_SELECTOR =
+  'fieldset, section, form, [class*="card"]:not([class*="card-head"]):not([class*="card-title"]):not(.card-hd), [class*="panel"]:not([class*="panel-head"]), [class*="form-item"]:not([class*="form-item-label"])';
+
+/** 标题节点：在通用标题标签之外，补组件库常见的 card-head / panel-head 类名 */
+const SECTION_HEADING_SELECTOR = 'h1,h2,h3,h4,legend,.hd,.title,.card-hd,[class*="card-head"],[class*="panel-head"]';
+
+/**
+ * 区块标题：找**位于字段之前、且与字段同一卡片/表单**的标题
+ *
+ * 旧实现从字段一路向上，对每层祖先做 `querySelector`，会把祖先子树里字段之后、
+ * 甚至与字段无关的标题（如 body 顶部的「紧急联系人」）当成区块头，导致整表单
+ * 被判成 `other` 而静默不提示，或被误加「请核对」。
+ *
+ * 搜索顺序：优先最近的 form/fieldset/section；没有语义容器时只向上看 4 层，
+ * 且要求该层控件数量有限（避免把整页 wrapper 当卡片）。标题必须出现在字段之前；
+ * 若标题属于另一张嵌套卡片且该卡片不包含当前字段，则跳过。
+ */
 function sectionTitle(el: Element): string {
-  let cur: Element | null = el;
-  for (let depth = 0; cur && depth < 6; depth += 1) {
-    const head = cur.matches('h1,h2,h3,h4,legend,.hd,.title,.card-hd')
-      ? cur
-      : cur.querySelector?.('h1,h2,h3,h4,legend,.hd,.title,.card-hd');
-    if (head) {
+  const semanticScope = el.closest(SECTION_SCOPE_SELECTOR);
+  const roots: Element[] = [];
+  if (semanticScope) {
+    roots.push(semanticScope);
+  } else {
+    let cur = el.parentElement;
+    for (let depth = 0; cur && cur !== document.body && cur !== document.documentElement && depth < 4; depth += 1) {
+      const controls = cur.querySelectorAll('input, textarea, select').length;
+      if (controls > 0 && controls <= 12) roots.push(cur);
+      cur = cur.parentElement;
+    }
+  }
+
+  for (const root of roots) {
+    const heads = root.querySelectorAll(SECTION_HEADING_SELECTOR);
+    for (const head of Array.from(heads)) {
+      if (!(head instanceof Element)) continue;
+      // 标题必须出现在字段之前；同一容器内字段之后的标题不属于这个字段
+      if (!(head.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+      // 跳过嵌套在另一张卡片里的标题，除非那张卡片也包含当前字段
+      const headScope = head.closest(SECTION_HEAD_SCOPE_SELECTOR);
+      if (headScope && headScope !== root && !headScope.contains(el)) continue;
       const text = (head.textContent ?? '').trim();
       if (text && text.length <= 30) return text;
     }
-    cur = cur.parentElement;
   }
   return '';
 }
@@ -1364,6 +1421,12 @@ export function classifyPiiRaw(el: Element): PiiRawClassification {
   const hintText = `${s.label} ${s.placeholder} ${s.attr}`;
   const zhHint = squeeze(toLower(hintText));
   const enHint = flatten(toLower(hintText));
+  // 机构证照闸门必须看到同项兄弟标签：组件库行栅格常把「机构证件号码」放在
+  // `.ant-form-item-label` 兄弟块，input 自身只有 name/id/placeholder。只给
+  // `hintText` 会让闸门误以为这是个人证件号，或直接落进 noRole。
+  const orgHintText = `${hintText} ${s.groupLabel}`;
+  const zhOrgHint = squeeze(toLower(orgHintText));
+  const enOrgHint = flatten(toLower(orgHintText));
 
   let ownership = ownershipOf(hintText);
   if (ownership === 'self') {
@@ -1429,7 +1492,7 @@ export function classifyPiiRaw(el: Element): PiiRawClassification {
    * 占位符通常是「请输入…」那类示例文字，而那一格自己的文字可能是「证件号码」——它问的就是本人的
    * 身份证号，把它说成「编号、去自定义字段找」是另一种错。
    */
-  const orgCredential = orgCredentialHit(zhHint, enHint);
+  const orgCredential = orgCredentialHit(zhOrgHint, enOrgHint);
   if (orgCredential) {
     const labelHit = orgCredentialHit(squeeze(toLower(s.label)), flatten(toLower(s.label)));
     const attrHit = orgCredentialHit(squeeze(toLower(s.attr)), flatten(toLower(s.attr)));
@@ -1708,6 +1771,7 @@ const LABEL_DECORATIONS = /^[\s*＊:：、。.，,;；·—_-]+|[\s*＊:：、�
  * @returns 这一格的字段名（裁过装饰符、限长），取不到时为空串
  */
 export function hintFieldKeyword(el: Element): string {
+  if (!el.isConnected) return '';
   const signals = collectPiiSignals(el);
   const text = (signals.label || signals.groupLabel).replace(LABEL_DECORATIONS, '');
   return normalizeSearchKeyword(text);

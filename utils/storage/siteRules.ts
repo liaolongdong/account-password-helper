@@ -133,23 +133,106 @@ export const SITE_RULE_DOMAIN_MAX_LENGTH = 253;
 export const SITE_RULE_SELECTOR_MAX_LENGTH = 1024;
 
 /**
- * 校验 CSS 选择器语法是否合法
+ * 跨 ShadowRoot 的作用域分隔符
  *
- * 借用浏览器自身的 CSS 解析器判定：`querySelector` 对非法选择器抛错，且不会执行任何
- * 匹配以外的副作用。写入端（Options 表单）与消费端（内容脚本检测）共用同一判定，
- * 避免表单里写得通、页面上却静默匹配不到字段。
+ * `hostSelector >>> innerSelector` 表示先在外层根里找到宿主，再进入宿主的 open
+ * shadowRoot 查内层选择器；多级 Shadow DOM 继续串联。CSS 本身不能跨 shadow 边界，
+ * 拾取器此前只生成「相对 shadow root」的裸选择器，消费端按 document 优先查询时
+ * 会命中主文档里同名的第一个输入框（密码可能被写进搜索框）。把宿主链显式编码进
+ * 字符串，既保持 SiteRule 仍是字符串、导入导出与旧版本兼容，又让消费端能确定根。
+ */
+export const SHADOW_SELECTOR_SEPARATOR = '>>>';
+
+/** 作用域链最大层数：防止异常页面/恶意规则制造超深递归 */
+export const MAX_SHADOW_SELECTOR_DEPTH = 8;
+
+/**
+ * 拆分并校验作用域选择器
+ *
+ * 普通选择器返回单元素数组；含 `>>>` 时逐段 trim，任何空段、超过最大层数或超长
+ * 都返回 null，由调用方按非法输入处理。只做结构拆分，不执行 DOM 查询。
+ *
+ * @param selector 待拆分的字符串（按不可信输入处理）
+ * @returns 非空段数组；结构非法时返回 null
+ */
+export function splitShadowScopedSelector(selector: unknown): string[] | null {
+  if (typeof selector !== 'string') return null;
+  const trimmed = selector.trim();
+  if (!trimmed || trimmed.length > SITE_RULE_SELECTOR_MAX_LENGTH) return null;
+  const segments = trimmed.split(/\s*>>>\s*/).map(segment => segment.trim());
+  if (segments.length === 0 || segments.length > MAX_SHADOW_SELECTOR_DEPTH) return null;
+  if (segments.some(segment => !segment)) return null;
+  return segments;
+}
+
+/**
+ * 在指定根上解析作用域选择器
+ *
+ * 普通选择器等价于 `root.querySelectorAll`；含 `>>>` 时第一段在 `root` 内查，
+ * 后续每一段都进入上一段命中元素的 open shadowRoot 再查。任一段非法或某一段
+ * 没有命中即返回空数组，绝不回退到 document 继续猜——那正是错误填充的来源。
+ *
+ * @param selector 待解析的选择器（按不可信输入处理）
+ * @param root 第一段选择的查询根，默认 document
+ * @returns 最后一段命中的元素（可能为零个或多个，调用方决定是否 fail-closed）
+ */
+export function resolveShadowScopedSelector<T extends Element = Element>(
+  selector: unknown,
+  root: ParentNode = document,
+): T[] {
+  const segments = splitShadowScopedSelector(selector);
+  if (!segments) return [];
+
+  let currentRoots: ParentNode[] = [root];
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    const seen = new WeakSet<Element>();
+    const matched: Element[] = [];
+    for (const currentRoot of currentRoots) {
+      let nodes: NodeListOf<Element>;
+      try {
+        nodes = currentRoot.querySelectorAll(segment);
+      } catch {
+        return [];
+      }
+      for (const node of Array.from(nodes)) {
+        if (!seen.has(node)) {
+          seen.add(node);
+          matched.push(node);
+        }
+      }
+    }
+
+    if (index === segments.length - 1) return matched as T[];
+    const nextRoots: ParentNode[] = [];
+    for (const node of matched) {
+      const shadowRoot = (node as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot;
+      if (shadowRoot?.mode === 'open') nextRoots.push(shadowRoot);
+    }
+    if (nextRoots.length === 0) return [];
+    currentRoots = nextRoots;
+  }
+  return [];
+}
+
+/**
+ * 校验 CSS / 作用域选择器语法是否合法
+ *
+ * 普通选择器借用浏览器自身的 CSS 解析器判定；作用域选择器逐段校验，`>>>` 本身
+ * 不交给 `querySelector`（它会抛错）。写入端（Options 表单）与消费端（内容脚本检测）
+ * 共用同一判定，避免表单里写得通、页面上却静默匹配不到字段。
  *
  * 依赖 DOM，仅可在有 DOM 的上下文（Options / 内容脚本）调用。
  *
  * @param selector 待校验的选择器（按不可信输入处理）
- * @returns 语法合法且长度在预算内时为 true
+ * @returns 语法合法且长度/层数在预算内时为 true
  */
 export function isValidCssSelector(selector: unknown): boolean {
-  if (typeof selector !== 'string') return false;
-  const trimmed = selector.trim();
-  if (!trimmed || trimmed.length > SITE_RULE_SELECTOR_MAX_LENGTH) return false;
+  const segments = splitShadowScopedSelector(selector);
+  if (!segments) return false;
   try {
-    document.createDocumentFragment().querySelector(trimmed);
+    const fragment = document.createDocumentFragment();
+    for (const segment of segments) fragment.querySelector(segment);
     return true;
   } catch {
     return false;

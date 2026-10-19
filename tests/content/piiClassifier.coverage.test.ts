@@ -62,10 +62,10 @@ const HINTED_BUILTIN_KEYS = IDENTITY_FIELD_DEFS.map(def => def.key).filter(key =
 /**
  * 认格通道的白名单：账本里确实认不出的写法，一行一个理由
  *
- * `被保险人` —— 归属不是本人，挂到「姓名」上是错的（页面侧同理由由 `other` 档挡着）；
  * `医保卡金融账号` —— `金融账号` 被机构证照闸门判成非本人，收进词表就是绕那道闸。
+ * `被保险人` 已从页面标签账本移出：它现在由归属 `other` 档直接压制，不再需要白名单。
  */
-const NAME_CHANNEL_ALLOWLIST: readonly string[] = ['被保险人', '医保卡金融账号'];
+const NAME_CHANNEL_ALLOWLIST: readonly string[] = ['医保卡金融账号'];
 
 describe('库侧名字表与页面词典同源', () => {
   it('词表不许发明：有提示角色的每一格，它的每条词干都被分类器判成那一格', () => {
@@ -121,7 +121,6 @@ const ZH_LABEL_CASES: readonly (readonly [label: string, role: string, why: stri
   ['户主姓名', 'name', '户籍表的第一行'],
   ['参保人姓名', 'name', '社保参保登记表'],
   ['投保人姓名', 'name', '保险投保页'],
-  ['被保险人', 'name', '保险投保页（人是别人时由归属档挡，不由词典挡）'],
   ['乘机人姓名', 'name', '航旅值机'],
   ['出行人姓名', 'name', '旅行社报名'],
   ['旅客姓名', 'name', '客运购票'],

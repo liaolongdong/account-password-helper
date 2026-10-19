@@ -2,15 +2,31 @@
   <el-dialog
     :model-value="modelValue"
     :title="t('identity.trash.title')"
-    width="680px"
+    width="min(680px, 94vw)"
     align-center
     :close-on-click-modal="false"
+    @closed="handleClosed"
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div class="identity-trash-content">
+      <!-- 读取失败：与「确实为空」分开，给重试出口 -->
+      <div
+        v-if="!loading && loadFailed"
+        class="identity-trash-empty"
+      >
+        <el-empty :description="t('identity.trash.loadFailed')">
+          <el-button
+            type="primary"
+            @click="loadTrash"
+          >
+            {{ t('common.retry') }}
+          </el-button>
+        </el-empty>
+      </div>
+
       <!-- 空态 -->
       <div
-        v-if="!loading && rows.length === 0"
+        v-else-if="!loading && rows.length === 0"
         class="identity-trash-empty"
       >
         <el-empty :description="t('identity.trash.empty')" />
@@ -26,8 +42,8 @@
         </div>
         <el-table
           v-if="rows.length > 0 || loading"
-          v-loading="loading"
-          :data="rows"
+          v-loading="loading || mutating"
+          :data="pagedRows"
           stripe
           size="small"
           max-height="400"
@@ -91,7 +107,7 @@
           </el-table-column>
           <el-table-column
             :label="t('common.actions')"
-            width="160"
+            width="200"
             fixed="right"
             align="center"
           >
@@ -99,6 +115,7 @@
               <el-button
                 type="primary"
                 size="small"
+                :disabled="loading || mutating"
                 @click="handleRestore(row.id)"
               >
                 {{ t('identity.trash.restore') }}
@@ -106,6 +123,7 @@
               <el-button
                 type="danger"
                 size="small"
+                :disabled="loading || mutating"
                 @click="handlePermanentDelete(row.id)"
               >
                 {{ t('identity.trash.deleteForever') }}
@@ -113,6 +131,17 @@
             </template>
           </el-table-column>
         </el-table>
+
+        <el-pagination
+          v-if="rows.length > PAGE_SIZE"
+          v-model:current-page="currentPage"
+          class="identity-trash-pagination"
+          :page-size="PAGE_SIZE"
+          :total="rows.length"
+          layout="prev, pager, next"
+          small
+          background
+        />
       </template>
     </div>
 
@@ -122,7 +151,7 @@
           v-if="rows.length > 0"
           type="danger"
           plain
-          :disabled="loading"
+          :disabled="loading || mutating"
           @click="handleEmptyTrash"
         >
           {{ t('identity.trash.emptyTrash') }}
@@ -134,9 +163,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import {
-  getIdentityTrashEntries,
+  getIdentityTrashEntriesStrict,
   restoreIdentitiesFromTrash,
   permanentDeleteIdentitiesFromTrash,
   emptyIdentityTrash,
@@ -161,7 +190,8 @@ import { useI18n } from '@/utils/i18n';
  *
  * 展示面刻意收窄为「标题 + 类别 + 删除日期」：解密只提取标题回退链与类别两个
  * 展示字段（见 `decryptIdentityTrashTitles`），其余 PII 不进入本组件内存。
- * 上限 30 条的主列表决定了回收站体量远小于密码库（千级），因此不做检索与分页。
+ * 主列表上限 30 条，但反复新增/删除可在 30 天保留期内积累更多回收站条目，因此
+ * 表格按页渲染；关闭（含父弹窗关闭 / 会话锁定）即清空解密标题与分页状态。
  */
 const props = defineProps<{
   modelValue: boolean;
@@ -190,14 +220,48 @@ interface TrashDisplayRow {
   remainingDays: number;
 }
 
+/** 每页条数：与密码回收站/管理页的 100 行口径区分，回收站弹窗内容高度有限 */
+const PAGE_SIZE = 50;
+
 const loading = ref(false);
+const mutating = ref(false);
+const loadFailed = ref(false);
+const currentPage = ref(1);
 const rows = ref<TrashDisplayRow[]>([]);
+/** 加载代际：关闭/重开时递增，迟到的解密结果不得写回已关闭弹窗 */
+let loadEpoch = 0;
+
+/** 当前页切片；行数变化后由 watch 把越界页码收回 */
+const pagedRows = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE;
+  return rows.value.slice(start, start + PAGE_SIZE);
+});
+
+watch(
+  () => rows.value.length,
+  total => {
+    const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    if (currentPage.value > pageCount) currentPage.value = pageCount;
+  },
+);
+
+/** 清空解密数据与视图状态（关闭 / 父弹窗关闭 / 会话锁定） */
+const clearState = (): void => {
+  loadEpoch += 1;
+  rows.value = [];
+  currentPage.value = 1;
+  loadFailed.value = false;
+  mutating.value = false;
+};
 
 /** 加载回收站条目（解密标题与类别用于展示，会话无效时显示占位符） */
 const loadTrash = async (): Promise<void> => {
+  if (!props.modelValue) return;
+  const epoch = ++loadEpoch;
   loading.value = true;
+  loadFailed.value = false;
   try {
-    const entries = await getIdentityTrashEntries();
+    const entries = await getIdentityTrashEntriesStrict();
     // 一次取样：同一屏的倒计时必须相对同一时刻，避免「同一批数据两种剩余天数」
     const now = Date.now();
     const key = await getSessionDataKey();
@@ -205,6 +269,7 @@ const loadTrash = async (): Promise<void> => {
       ? await decryptIdentityTrashTitles(entries, key, payload => identityDisplayTitle(payload, t))
       : entries.map(entry => ({ id: entry.id, title: null, category: '' }));
 
+    if (epoch !== loadEpoch) return;
     rows.value = decrypted.map((item, index) => ({
       ...item,
       titleText: item.title ?? (key ? t('message.decryptFailed') : t('identity.trash.lockedPlaceholder')),
@@ -212,10 +277,12 @@ const loadTrash = async (): Promise<void> => {
       remainingDays: getTrashRemainingDays(entries[index].deletedAt, now),
     }));
   } catch (error) {
+    if (epoch !== loadEpoch) return;
     logger.error('加载身份信息回收站失败:', error);
-    ElMessage.error(t('identity.trash.loadFailed'));
+    rows.value = [];
+    loadFailed.value = true;
   } finally {
-    loading.value = false;
+    if (epoch === loadEpoch) loading.value = false;
   }
 };
 
@@ -226,6 +293,8 @@ const loadTrash = async (): Promise<void> => {
  * 零恢复时不许弹「已恢复」——`restoreMissing` 那一档是唯一该让用户知道「找不回来了」的情形。
  */
 const handleRestore = async (id: string): Promise<void> => {
+  if (mutating.value) return;
+  mutating.value = true;
   try {
     const { restored, skippedExisting } = await restoreIdentitiesFromTrash([id]);
     if (restored > 0) {
@@ -244,11 +313,15 @@ const handleRestore = async (id: string): Promise<void> => {
         ? t('identity.trash.restoreLimitReached', { max: MAX_IDENTITIES })
         : t('identity.trash.restoreFailed'),
     );
+  } finally {
+    mutating.value = false;
   }
 };
 
 /** 彻底删除条目（不可恢复，二次确认） */
 const handlePermanentDelete = async (id: string): Promise<void> => {
+  if (mutating.value) return;
+  mutating.value = true;
   try {
     await ElMessageBox.confirm(t('identity.trash.deleteConfirm'), t('identity.trash.deleteConfirmTitle'), {
       confirmButtonText: t('identity.trash.deleteForever'),
@@ -264,11 +337,15 @@ const handlePermanentDelete = async (id: string): Promise<void> => {
       logger.error('彻底删除身份信息失败:', error);
       ElMessage.error(t('message.deleteFailed'));
     }
+  } finally {
+    mutating.value = false;
   }
 };
 
 /** 清空回收站（不可恢复，二次确认并播报条数） */
 const handleEmptyTrash = async (): Promise<void> => {
+  if (mutating.value) return;
+  mutating.value = true;
   try {
     await ElMessageBox.confirm(
       t('identity.trash.emptyConfirm', { count: rows.value.length }),
@@ -288,16 +365,25 @@ const handleEmptyTrash = async (): Promise<void> => {
       logger.error('清空身份信息回收站失败:', error);
       ElMessage.error(t('identity.trash.emptyFailed'));
     }
+  } finally {
+    mutating.value = false;
   }
 };
 
-/** 弹窗打开时清空上一次的展示数据并加载 */
+/** 关闭动画结束后释放解密标题与分页/错误状态 */
+const handleClosed = (): void => {
+  clearState();
+};
+
+/** 打开时重置并加载；关闭时立即清空，避免隐藏 DOM/组件状态继续驻留 PII */
 watch(
   () => props.modelValue,
   visible => {
     if (visible) {
-      rows.value = [];
-      loadTrash();
+      clearState();
+      void loadTrash();
+    } else {
+      clearState();
     }
   },
 );
@@ -324,16 +410,22 @@ watch(
 .identity-trash-stats {
   margin-bottom: 8px;
   font-size: 12px;
-  color: #909399;
+  color: var(--aph-text-secondary, var(--el-text-color-secondary));
 }
 
 .identity-trash-date {
   font-size: 12px;
-  color: #606266;
+  color: var(--aph-text-primary, var(--el-text-color-primary));
 }
 
 .is-muted {
-  color: #909399;
+  color: var(--aph-text-secondary, var(--el-text-color-secondary));
+}
+
+.identity-trash-pagination {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
 }
 
 /* 表格操作列按钮紧凑 */

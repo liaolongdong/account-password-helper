@@ -102,6 +102,21 @@ describe('usePasswordManagement 删除落盘反馈', () => {
     expect(ep.ElMessage.error).not.toHaveBeenCalled();
   });
 
+  it('连续两次删除合并到同一回执，撤销时两条都恢复', async () => {
+    await mgmt.deletePassword('first');
+    await mgmt.deletePassword('second');
+
+    expect(mgmt.undoDeleteState.visible).toBe(true);
+    expect([...mgmt.undoDeleteState.ids].sort()).toEqual(['first', 'second']);
+    expect(mgmt.undoDeleteState.count).toBe(2);
+
+    vi.mocked(restoreFromTrash).mockResolvedValue({ restored: 2, skippedExisting: 0 });
+    await mgmt.undoDelete();
+
+    expect(restoreFromTrash).toHaveBeenCalledWith(expect.arrayContaining(['first', 'second']));
+    expect(mgmt.undoDeleteState.visible).toBe(false);
+  });
+
   it('命中行时先播淡出动画，动画结束才落盘', async () => {
     vi.useFakeTimers();
     document.body.innerHTML = '<div class="row-1"></div>';

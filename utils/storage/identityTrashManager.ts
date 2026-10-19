@@ -35,6 +35,26 @@ import { lazyImport } from '@/utils/lazyImport';
  */
 const _getEncryption = lazyImport(() => import('@/utils/encryption'));
 
+/**
+ * 身份回收站写入串行队列
+ *
+ * move / restore / permanent delete / empty / cleanup 都是「读主列表 + 读回收站 → 整体覆写」。
+ * 同一上下文内并发调用时，后写者会用陈旧快照覆盖前一次写入：快速连点两条恢复时，
+ * 先完成的一条会被后一条回卷到回收站；清理与新删除交错时还会复活已彻底删除的 PII。
+ * 与密码库 `trashManager.ts` 的 `enqueueTrashMutation` 同口径；跨上下文（Options /
+ * Background）仍需在写入前依赖 storage 事件与容量守卫，队列只解决同上下文交错。
+ */
+let identityTrashMutationQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueIdentityTrashMutation<T>(task: () => Promise<T>): Promise<T> {
+  const next = identityTrashMutationQueue.then(task, task);
+  identityTrashMutationQueue = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
+}
+
 // ==================== 内部工具 ====================
 
 /** 读身份主列表原始记录（失败上抛，同 identityCrud.getAllIdentityRaw） */
@@ -107,7 +127,7 @@ export class IdentityTrashCapacityError extends Error {
  *
  * @param ids 要移入回收站的条目 ID 列表；不存在的 ID 静默忽略
  */
-export async function moveIdentitiesToTrash(ids: string[]): Promise<void> {
+async function moveIdentitiesToTrashInternal(ids: string[]): Promise<void> {
   if (!ids.length) return;
   try {
     const idSet = new Set(ids);
@@ -153,7 +173,7 @@ export async function moveIdentitiesToTrash(ids: string[]): Promise<void> {
  * @returns `restored`（真的回到主列表的条数）与 `skippedExisting`（主列表已有同 id，仅消费副本）
  * @throws IdentityTrashCapacityError 恢复后将超出身份条目上限
  */
-export async function restoreIdentitiesFromTrash(ids: string[]): Promise<IdentityTrashRestoreResult> {
+async function restoreIdentitiesFromTrashInternal(ids: string[]): Promise<IdentityTrashRestoreResult> {
   if (!ids.length) return { restored: 0, skippedExisting: 0 };
   try {
     const idSet = new Set(ids);
@@ -201,7 +221,7 @@ export async function restoreIdentitiesFromTrash(ids: string[]): Promise<Identit
  *
  * @param ids 要彻底删除的条目 ID 列表
  */
-export async function permanentDeleteIdentitiesFromTrash(ids: string[]): Promise<void> {
+async function permanentDeleteIdentitiesFromTrashInternal(ids: string[]): Promise<void> {
   if (!ids.length) return;
   try {
     const idSet = new Set(ids);
@@ -216,7 +236,7 @@ export async function permanentDeleteIdentitiesFromTrash(ids: string[]): Promise
 /**
  * 清空身份回收站（不可恢复）
  */
-export async function emptyIdentityTrash(): Promise<void> {
+async function emptyIdentityTrashInternal(): Promise<void> {
   try {
     const trash = await readIdentityTrash();
     if (trash.length === 0) return;
@@ -233,7 +253,7 @@ export async function emptyIdentityTrash(): Promise<void> {
  * 由 background 的回收站清理闹钟触发（与密码库共用同一 alarm）。
  * 到期判定只读明文 `deletedAt`，无需数据密钥。
  */
-export async function cleanExpiredIdentityTrash(): Promise<void> {
+async function cleanExpiredIdentityTrashInternal(): Promise<void> {
   try {
     const trash = await readIdentityTrash();
     if (trash.length === 0) return;
@@ -266,6 +286,17 @@ export async function getIdentityTrashEntries(): Promise<TrashedIdentityRecord[]
   } catch {
     return [];
   }
+}
+
+/**
+ * 获取身份回收站条目列表（严格读：读取失败上抛）
+ *
+ * 回收站弹窗必须区分「确实为空」和「读取失败」：前者该展示空态，后者应展示错误
+ * 与重试入口。展示外的其他调用方继续用 {@link getIdentityTrashEntries} 的降级语义。
+ */
+export async function getIdentityTrashEntriesStrict(): Promise<TrashedIdentityRecord[]> {
+  const trash = await readIdentityTrash();
+  return [...trash].sort((a, b) => b.deletedAt - a.deletedAt);
 }
 
 /**
@@ -325,4 +356,32 @@ export async function decryptIdentityTrashTitles(
  */
 export async function getAllIdentityTrashRaw(): Promise<TrashedIdentityRecord[]> {
   return readIdentityTrash();
+}
+
+// ==================== 串行化写入口 ====================
+// 具体实现保持原名 + Internal；导出层只负责排队，调用方无需感知并发顺序。
+
+/** 将身份条目移入回收站（软删除） */
+export function moveIdentitiesToTrash(ids: string[]): Promise<void> {
+  return enqueueIdentityTrashMutation(() => moveIdentitiesToTrashInternal(ids));
+}
+
+/** 从回收站恢复身份条目到主列表 */
+export function restoreIdentitiesFromTrash(ids: string[]): Promise<IdentityTrashRestoreResult> {
+  return enqueueIdentityTrashMutation(() => restoreIdentitiesFromTrashInternal(ids));
+}
+
+/** 从回收站彻底删除身份条目 */
+export function permanentDeleteIdentitiesFromTrash(ids: string[]): Promise<void> {
+  return enqueueIdentityTrashMutation(() => permanentDeleteIdentitiesFromTrashInternal(ids));
+}
+
+/** 清空整个身份回收站 */
+export function emptyIdentityTrash(): Promise<void> {
+  return enqueueIdentityTrashMutation(() => emptyIdentityTrashInternal());
+}
+
+/** 清理过期的身份回收站条目（后台闹钟） */
+export function cleanExpiredIdentityTrash(): Promise<void> {
+  return enqueueIdentityTrashMutation(() => cleanExpiredIdentityTrashInternal());
 }

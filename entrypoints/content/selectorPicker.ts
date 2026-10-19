@@ -6,6 +6,7 @@ import {
   type SelectorPickedData,
   type StartSelectorPickData,
 } from '@/utils/types';
+import { resolveShadowScopedSelector, SHADOW_SELECTOR_SEPARATOR } from '@/utils/storage/siteRules';
 
 /**
  * 站点规则选择器拾取器
@@ -114,14 +115,12 @@ function getQueryRoot(el: Element): ParentNode {
 }
 
 /**
- * 生成一个在所在根内唯一、且尽量稳定的 CSS 选择器
+ * 在单个查询根内生成唯一、且尽量稳定的 CSS 选择器
  *
  * 优先级：唯一 id → 唯一 name → 逐级 tag/nth-of-type 路径。
- * 选择器只读取属性，不读取 input.value；shadow DOM 内生成的是相对 shadow root 的选择器，
- * 与 FormDetector 的 `collectShadowQueryRoots` 消费口径一致。
+ * 只读取属性，不读取 input.value。
  */
-export function buildUniqueSelector(el: Element, root?: ParentNode): string {
-  const queryRoot = root ?? getQueryRoot(el);
+function buildUniqueSelectorInRoot(el: Element, queryRoot: ParentNode): string {
   const id = el.getAttribute('id');
   if (id) {
     const idSelector = `#${escapeCssIdent(id)}`;
@@ -162,9 +161,43 @@ export function buildUniqueSelector(el: Element, root?: ParentNode): string {
   return parts.join(' > ');
 }
 
-/** 选择器是否在指定根内唯一；Options 侧用它给出「可能不唯一」提示 */
-export function isSelectorUnique(selector: string, root: ParentNode): boolean {
-  return isUniqueSelector(selector, root);
+/**
+ * 生成可跨 Shadow 边界定位的唯一选择器
+ *
+ * 元素在 open shadowRoot 内时返回 `hostSelector >>> innerSelector`，宿主本身若也在
+ * 更外层 shadowRoot 内则递归前缀，最终形成可被 {@link resolveShadowScopedSelector}
+ * 逐级解析的宿主链。普通文档元素仍返回纯 CSS 选择器，保持既有站点规则兼容。
+ *
+ * 为什么不只返回影子根内的裸选择器：消费端无法从裸选择器知道它属于哪个 shadow root，
+ * 只能按 document 优先查询，主文档里同名/同 tag 的输入框会抢先命中并把凭证写错地方。
+ *
+ * @param el 目标元素
+ * @returns 带宿主链的选择器（可能因路径过深而不唯一，由调用方用 unique 标记）
+ */
+export function buildUniqueSelector(el: Element): string {
+  const root = getQueryRoot(el);
+  const inner = buildUniqueSelectorInRoot(el, root);
+  if (root instanceof ShadowRoot) {
+    return `${buildUniqueSelector(root.host)} ${SHADOW_SELECTOR_SEPARATOR} ${inner}`;
+  }
+  return inner;
+}
+
+/**
+ * 选择器是否在可定位范围内唯一；Options 侧用它给出「可能不唯一」提示
+ *
+ * 作用域选择器从 document 起解析宿主链；普通选择器仍在传入的 root 内判断，
+ * 与拾取时的根语义一致。
+ */
+export function isSelectorUnique(selector: string, root: ParentNode = document): boolean {
+  try {
+    const matches = selector.includes(SHADOW_SELECTOR_SEPARATOR)
+      ? resolveShadowScopedSelector(selector, root instanceof Document ? root : document)
+      : Array.from(root.querySelectorAll(selector));
+    return matches.length === 1;
+  } catch {
+    return false;
+  }
 }
 
 function createOverlay(field: SelectorPickField): {
@@ -294,7 +327,7 @@ export function startSelectorPick(data: StartSelectorPickData): void {
 
   const pickTarget = (target: HTMLElement): void => {
     const root = getQueryRoot(target);
-    const selector = buildUniqueSelector(target, root);
+    const selector = buildUniqueSelector(target);
     const unique = isSelectorUnique(selector, root);
     const requestId = picker.requestId;
     const field = picker.field;
@@ -434,6 +467,27 @@ export function stopSelectorPick(requestId?: string): void {
   const current = activePicker;
   activePicker = null;
   current.cleanup();
+}
+
+/**
+ * 页面卸载 / 扩展重载时取消拾取并通知 Options
+ *
+ * 只调 `stopSelectorPick()` 会静默摘掉覆盖层，管理页仍停在「拾取中」并锁住表单，
+ * 要等 120 秒 TTL 才解开。这里在清理前取出 requestId，向后台回传取消；
+ * 扩展上下文已失效时发送会抛错，静默忽略即可（页面侧没有可保留的状态）。
+ */
+export function cancelActiveSelectorPick(): void {
+  const picker = activePicker;
+  if (!picker) return;
+  const requestId = picker.requestId;
+  stopSelectorPick();
+  try {
+    void chrome.runtime
+      .sendMessage({ type: MessageType.SELECTOR_PICK_CANCELLED, data: { requestId } })
+      .catch(error => logger.warn('选择器拾取取消回传失败:', error));
+  } catch (error) {
+    logger.warn('选择器拾取取消回传失败:', error);
+  }
 }
 
 /** 当前是否有拾取器在运行（供测试与内容脚本清理使用） */

@@ -85,6 +85,14 @@ describe('isValidCssSelector（选择器语法与长度预算）', () => {
     expect(isValidCssSelector('   ')).toBe(false);
   });
 
+  it('接受带宿主链的作用域选择器，并拒绝空段/超深链', () => {
+    expect(isValidCssSelector('my-login >>> input[type="password"]')).toBe(true);
+    expect(isValidCssSelector('outer-host >>> inner-host >>> #password')).toBe(true);
+    expect(isValidCssSelector('my-login >>> ')).toBe(false);
+    expect(isValidCssSelector(' >>> input')).toBe(false);
+    expect(isValidCssSelector('a >>> b >>> c >>> d >>> e >>> f >>> g >>> h >>> i')).toBe(false);
+  });
+
   it('非字符串输入返回 false 而不抛异常', () => {
     expect(isValidCssSelector(undefined)).toBe(false);
     expect(isValidCssSelector(null)).toBe(false);

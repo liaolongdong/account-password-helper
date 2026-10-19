@@ -103,6 +103,26 @@ describe('moveIdentitiesToTrash（软删除）', () => {
     await expect(moveIdentitiesToTrash(['a'])).rejects.toThrow('storage boom');
     expect(localSet).not.toHaveBeenCalled();
   });
+
+  it('并发移入两条时串行落盘，两条都进回收站而不是互相覆盖', async () => {
+    const { moveIdentitiesToTrash } = await import('@/utils/storage/identityTrashManager');
+    storageData[STORAGE_KEYS.IDENTITY] = [cipherRecord('a'), cipherRecord('b')];
+    storageData[STORAGE_KEYS.IDENTITY_TRASH] = [];
+    // 人为拉开读/写窗口：没有队列时两次操作会读到同一份 [a,b] 快照并互相覆盖
+    localGet.mockImplementation(async (key: string) => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      return readKey(key);
+    });
+    localSet.mockImplementation(async (items: Record<string, unknown>) => {
+      await new Promise(resolve => setTimeout(resolve, 0));
+      writeItems(items);
+    });
+
+    await Promise.all([moveIdentitiesToTrash(['a']), moveIdentitiesToTrash(['b'])]);
+
+    expect(identityIds()).toEqual([]);
+    expect(trashIds().sort()).toEqual(['a', 'b']);
+  });
 });
 
 describe('restoreIdentitiesFromTrash（恢复）', () => {

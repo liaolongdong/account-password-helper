@@ -104,6 +104,27 @@ describe('refreshActionIcon 按会话状态切档', () => {
     expect(setIcon).toHaveBeenCalledTimes(1);
     expect(setBadgeText).not.toHaveBeenCalled();
   });
+
+  it('刷新读会话期间发生的锁定事件不会被旧快照回卷', async () => {
+    let resolveRead!: (valid: boolean) => void;
+    sessionMocks.isSessionValid.mockImplementation(
+      () =>
+        new Promise<boolean>(resolve => {
+          resolveRead = resolve;
+        }),
+    );
+
+    const refreshing = mod.refreshActionIcon();
+    // 读取尚未返回时，storage 事件已把图标切到锁定态
+    mod.setActionIconState('locked');
+    await Promise.resolve();
+
+    resolveRead(true);
+    await refreshing;
+
+    const last = pathOfCall(setIcon.mock.calls.length - 1);
+    expect(last).toEqual(LOCKED_PATH);
+  });
 });
 
 describe('档位去重与失败重试', () => {

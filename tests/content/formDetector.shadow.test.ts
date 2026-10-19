@@ -204,6 +204,67 @@ describe('FormDetector 的 Shadow DOM 边界', () => {
     expect(view.passwordFields[0].id).toBe('deep-pwd');
   });
 
+  it('作用域选择器不会命中主文档同 tag 的输入框', async () => {
+    document.body.innerHTML = '<input id="search"><div id="main"></div>';
+    const host = document.createElement('div');
+    host.id = 'shadow-host';
+    document.getElementById('main')!.appendChild(host);
+    const openRoot = attachShadowTree(host, 'open', '<input type="password">');
+    const shadowPassword = openRoot.querySelector<HTMLInputElement>('input')!;
+    const searchInput = document.getElementById('search') as HTMLInputElement;
+
+    installChromeMock(makeConfig(), {
+      [DOMAIN]: {
+        domain: DOMAIN,
+        // 没有宿主链时裸 `input` 会先在 document 命中搜索框；这里显式带宿主链，
+        // 钉住「作用域选择器必须解析到影子树」这条回归。
+        customSelectors: { username: '', password: '#shadow-host >>> input' },
+      },
+    });
+    detector = await createDetector();
+
+    (detector as any).detectForms();
+    const view = detector as any;
+
+    expect(view.passwordFields).toHaveLength(1);
+    expect(view.passwordFields[0]).toBe(shadowPassword);
+    expect(view.passwordFields[0]).not.toBe(searchInput);
+  });
+
+  it('裸选择器跨 shadow 根歧义时 fail-closed，不拿 document 命中覆盖字段', async () => {
+    document.body.innerHTML = '<input id="search"><div id="main"></div>';
+    const host = document.createElement('div');
+    host.id = 'shadow-host';
+    document.getElementById('main')!.appendChild(host);
+    attachShadowTree(host, 'open', '<input type="password">');
+
+    installChromeMock(makeConfig(), {
+      [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '', password: 'input' } },
+    });
+    detector = await createDetector();
+
+    (detector as any).detectForms();
+
+    // 主文档与影子树各有一个可见 input：规则无法判断属于哪个根，宁可不覆盖
+    expect((detector as any).passwordFields).toHaveLength(0);
+  });
+
+  it('作用域选择器在穿透总闸关闭时同样被拒绝', async () => {
+    document.body.innerHTML = '<div id="main"></div>';
+    const host = document.createElement('div');
+    host.id = 'shadow-host';
+    document.getElementById('main')!.appendChild(host);
+    attachShadowTree(host, 'open', '<input type="password">');
+
+    installChromeMock(makeConfig({ penetrateShadow: false }), {
+      [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '', password: '#shadow-host >>> input' } },
+    });
+    detector = await createDetector();
+
+    (detector as any).detectForms();
+    expect((detector as any).passwordFields).toHaveLength(0);
+  });
+
   it('closed 影子树即便配置了选择器也无法命中', async () => {
     document.body.innerHTML = '<div id="main"></div>';
     const host = document.createElement('div');

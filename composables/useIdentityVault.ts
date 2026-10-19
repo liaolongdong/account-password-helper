@@ -133,6 +133,8 @@ export function useIdentityVault() {
   /** 解密后的条目列表（updateTime 倒序，浅响应：条目整体替换） */
   const rows = shallowRef<IdentityEntry[]>([]);
   const loading = ref(false);
+  /** load 代际：teardown / 新一轮 load 递增，迟到的旧结果不得重新写回明文 */
+  let loadEpoch = 0;
   /** 已显明文的条目 id 集合（显隐状态，不落盘） */
   const revealedIds = ref<Set<string>>(new Set());
   /** 已勾选待导出的条目 id 集合（视图态，不落盘；resetViewState 清空） */
@@ -261,6 +263,7 @@ export function useIdentityVault() {
    * 时间戳读取内部已吞异常并降级为 null，不会把整个 `load()` 拖进 catch。
    */
   async function load(): Promise<void> {
+    const epoch = ++loadEpoch;
     loading.value = true;
     try {
       const [{ entries }, order, lastChangeAt, lastBackupAt] = await Promise.all([
@@ -269,17 +272,20 @@ export function useIdentityVault() {
         getLastIdentityChangeAt(),
         getLastIdentityBackupAt(),
       ]);
+      // 解密期间弹窗已关闭 / 会话已锁定：teardown 已清空，迟到的明文不得再写回
+      if (epoch !== loadEpoch) return;
       entries.sort((a, b) => b.updateTime - a.updateTime);
       rows.value = entries;
       manualOrder.value = order;
       persistedBackupPending.value = hasPendingIdentityBackup({ records: entries, lastChangeAt, lastBackupAt });
     } catch (error) {
+      if (epoch !== loadEpoch) return;
       logger.error('加载身份信息失败:', error);
       rows.value = [];
       manualOrder.value = [];
       persistedBackupPending.value = false;
     } finally {
-      loading.value = false;
+      if (epoch === loadEpoch) loading.value = false;
     }
   }
 
@@ -557,6 +563,9 @@ export function useIdentityVault() {
   function teardown(): void {
     rows.value = [];
     resetViewState();
+    // 清空后再递增代际：同步执行，迟到的 load 续体会在回填前看到新代际
+    loadEpoch += 1;
+    loading.value = false;
   }
 
   /** 列表标题回退链：name ?? cardHolder ?? email ?? phone ?? 类别名（与回收站弹窗共用 identityDisplayTitle） */

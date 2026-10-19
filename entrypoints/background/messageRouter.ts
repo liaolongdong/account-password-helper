@@ -35,7 +35,7 @@ import { handleOpenInlineDropdown } from './inlineDropdownHandler';
 import { handleCancelSelectorPick, handleStartSelectorPick } from './selectorPickerHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
-import { normalizeSiteRuleDomain } from '@/utils/storage/siteRules';
+import { normalizeSiteRuleDomain, SITE_RULE_SELECTOR_MAX_LENGTH } from '@/utils/storage/siteRules';
 import { normalizeEntryId } from '@/utils/generateId';
 import { isFrameFillable } from '@/utils/frameFill';
 import { isSameMainDomain } from '@/utils/domain';
@@ -598,7 +598,7 @@ export function setupMessageRouter(): void {
           (field !== 'username' && field !== 'password') ||
           !requestId ||
           !selector ||
-          selector.length > 512
+          selector.length > SITE_RULE_SELECTOR_MAX_LENGTH
         ) {
           sendResponse({ success: false, error: 'INVALID_REQUEST' });
           break;

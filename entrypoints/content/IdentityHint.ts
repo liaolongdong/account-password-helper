@@ -354,7 +354,7 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
  * 取不到就是空串，由 `openIdentityVault` 把整包载荷收掉。
  */
 function pickSearchKeyword(): string {
-  if (!boundInput) return '';
+  if (!boundInput || !boundInput.isConnected) return '';
   const landedOnCustomField = boundRole !== null && CUSTOM_FIELD_LANDING_ROLES.includes(boundRole);
   return landedOnCustomField ? hintFieldKeyword(boundInput) : selfNameValueNear(boundInput);
 }

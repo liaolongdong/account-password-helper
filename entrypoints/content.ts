@@ -7,7 +7,7 @@ import type { SavePromptData, SavePromptEditedData } from '@/entrypoints/content
 import { rememberContextMenuTarget } from '@/entrypoints/content/contextMenuTarget';
 import { PostMessageType, isSameMainDomain } from '@/utils/domain';
 import { MessageType, type RuntimeMessage } from '@/utils/types';
-import { startSelectorPick, stopSelectorPick } from '@/entrypoints/content/selectorPicker';
+import { cancelActiveSelectorPick, startSelectorPick, stopSelectorPick } from '@/entrypoints/content/selectorPicker';
 import { logger } from '@/utils/logger';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
 import { initLiteI18n } from '@/utils/i18n-lite';
@@ -155,7 +155,8 @@ export default defineContentScript({
     // 统一清理逻辑：销毁各实例注册的事件监听器、MutationObserver 与注入 UI。
     // 各 destroy() 均为幂等实现，可安全地被多次/多入口调用。
     const cleanup = (): void => {
-      stopSelectorPick();
+      // 页面卸载时把取消回执发给 Options，避免管理页锁在「拾取中」直到 120 秒超时
+      cancelActiveSelectorPick();
       if (selectorPickerMessageListener && chrome?.runtime?.onMessage) {
         chrome.runtime.onMessage.removeListener(selectorPickerMessageListener);
         selectorPickerMessageListener = null;

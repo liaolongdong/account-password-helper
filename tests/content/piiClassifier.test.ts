@@ -451,12 +451,12 @@ describe('同项兄弟标签档：标签块与控件块互为兄弟的组件库�
     expect(resolvePiiField(otherNamed)).toMatchObject({ ownership: 'other', suppress: 'ownership' });
   });
 
-  it('组织主体的兄弟标签让整项闭嘴，连它自己的占位符也不许开口', () => {
+  it('组织主体的兄弟标签写明证照号时改判编号族，不再整项沉默', () => {
     const el = controlOf(
       '<div class="row"><div class="field-label">金融业务资质证件号码</div><div class="ctl">' +
         '<input name="x" placeholder="请输入证件号码"></div></div>',
     );
-    expect(resolvePiiField(el)).toMatchObject({ role: null, suppress: 'noRole' });
+    expect(resolvePiiField(el)).toMatchObject({ role: 'serialNumber', tier: 'group', suppress: null });
   });
 
   it('兄弟标签落空仍不影响 placeholder 自证：两条弱线索各自成立', () => {
@@ -572,6 +572,36 @@ describe('归属三档', () => {
   it('框上写着「本人」也会被卡头升到 confirm——方向是加一道核对，不是取消提示', () => {
     const el = inputOf('<div><h3 class="card-hd">收货地址</h3><label>本人手机号<input name="mobile"></label></div>');
     expect(resolvePiiField(el)).toMatchObject({ role: 'phone', ownership: 'confirm', suppress: null });
+  });
+
+  it('组件库卡片头也能继承归属：ant-card-head-title 不会被当成独立卡片跳过', () => {
+    const el = inputOf(
+      '<div class="ant-card"><div class="ant-card-head"><div class="ant-card-head-title">收货地址</div></div>' +
+        '<div class="ant-card-body"><label>手机号<input name="mobile"></label></div></div>',
+    );
+    expect(resolvePiiField(el)).toMatchObject({ role: 'phone', ownership: 'confirm', needsVerify: true });
+  });
+
+  it('页面级无关标题不再污染整张表单：body 顶部的「紧急联系人」不改变表单内字段归属', () => {
+    document.body.innerHTML = '<h1>紧急联系人</h1><form><label>手机号<input id="f" name="mobile"></label></form>';
+    const verdict = resolvePiiField(document.getElementById('f') as HTMLInputElement);
+    expect(verdict).toMatchObject({ role: 'phone', ownership: 'self', suppress: null });
+  });
+
+  it('「被保险人」归属不是本人：名称词典仍认得出，但整条提示被压制', () => {
+    const verdict = resolvePiiField(inputOf('<label>被保险人<input name="insured_name"></label>'));
+    expect(verdict.role).toBeNull();
+    expect(verdict.suppress).toBe('ownership');
+  });
+
+  it.each([
+    ['身份证后6位', 'idNumber'],
+    ['手机号后四位', 'phone'],
+    ['银行卡 last 4', 'cardNo'],
+  ])('部分值字段「%s」不再提示取完整高敏值', (label, role) => {
+    const verdict = resolvePiiField(inputOf(`<label>${label}<input name="${role}"></label>`));
+    expect(verdict.role).toBeNull();
+    expect(verdict.suppress).toBe('negative');
   });
 });
 

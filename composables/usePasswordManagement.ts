@@ -635,8 +635,11 @@ export function usePasswordManagement(options: { validityForm: Ref<{ validityHou
   const showUndoDelete = (ids: string[], sequence: number): void => {
     if (!ids.length || sequence < lastUndoSequence) return;
     lastUndoSequence = sequence;
-    undoDeleteState.ids = [...ids];
-    undoDeleteState.count = ids.length;
+    // 回执仍在窗口内时合并，而不是用后一批覆盖前一批：连续快速删除两条时，
+    // 两条都应能被同一次「撤销」找回，而不是第一条悄无声息地失去入口。
+    const merged = undoDeleteState.visible ? [...new Set([...undoDeleteState.ids, ...ids])] : [...ids];
+    undoDeleteState.ids = merged;
+    undoDeleteState.count = merged.length;
     undoDeleteState.token += 1;
     undoDeleteState.visible = true;
   };

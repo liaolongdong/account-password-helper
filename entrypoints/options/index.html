@@ -15,7 +15,8 @@
       }
 
       body {
-        background: #f8fbff;
+        /* 令牌由 main.ts 引入；加载前用中性色兜底，避免非默认主题先闪蓝 */
+        background: var(--aph-surface-2, #f8fafc);
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       }
 
@@ -35,7 +36,7 @@
         display: flex;
         flex-direction: column;
         overflow: hidden;
-        background: #f8fbff;
+        background: var(--aph-surface-2, #f8fafc);
         opacity: 1;
         transition: opacity 220ms ease;
       }
@@ -66,8 +67,8 @@
       .sk-header {
         padding: 24px 32px;
         margin-bottom: 24px;
-        background: linear-gradient(135deg, #409eff 0%, #66b3ff 100%);
-        box-shadow: 0 2px 12px rgb(64 158 255 / 15%);
+        background: var(--aph-primary, #475569);
+        box-shadow: 0 2px 12px rgb(15 23 42 / 12%);
       }
 
       .sk-header .sk-block {

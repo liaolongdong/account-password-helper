@@ -8,10 +8,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   buildUniqueSelector,
+  cancelActiveSelectorPick,
   isSelectorUnique,
   startSelectorPick,
   stopSelectorPick,
 } from '@/entrypoints/content/selectorPicker';
+import { resolveShadowScopedSelector, SHADOW_SELECTOR_SEPARATOR } from '@/utils/storage/siteRules';
 import { MessageType } from '@/utils/types';
 
 describe('buildUniqueSelector', () => {
@@ -57,29 +59,47 @@ describe('buildUniqueSelector', () => {
     expect(document.querySelector(selector)).toBe(input);
   });
 
-  it('shadow root 内的选择器相对该 root 生成，不污染主文档', () => {
+  it('shadow root 内的选择器带宿主链，解析回影子树内的目标', () => {
     const host = document.createElement('div');
+    host.id = 'login-host';
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = '<input id="shadow-user"><input type="password">';
     document.body.appendChild(host);
     const shadowInput = shadow.querySelector<HTMLInputElement>('#shadow-user')!;
 
-    const selector = buildUniqueSelector(shadowInput, shadow);
-    expect(selector).toBe('#shadow-user');
-    expect(isSelectorUnique(selector, shadow)).toBe(true);
-    expect(document.querySelector(selector)).toBeNull();
+    const selector = buildUniqueSelector(shadowInput);
+    expect(selector).toContain(SHADOW_SELECTOR_SEPARATOR);
+    expect(selector).toBe(`#login-host ${SHADOW_SELECTOR_SEPARATOR} #shadow-user`);
+    expect(isSelectorUnique(selector, document)).toBe(true);
+    expect(resolveShadowScopedSelector(selector, document)).toEqual([shadowInput]);
   });
 
   it('shadow root 内同 tag 无 id 时用 nth-of-type 在 root 内定位', () => {
     const host = document.createElement('div');
+    host.id = 'form-host';
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = '<input><input>';
     document.body.appendChild(host);
     const second = shadow.querySelectorAll<HTMLInputElement>('input')[1]!;
 
-    const selector = buildUniqueSelector(second, shadow);
-    expect(isSelectorUnique(selector, shadow)).toBe(true);
-    expect(shadow.querySelector(selector)).toBe(second);
+    const selector = buildUniqueSelector(second);
+    expect(isSelectorUnique(selector, document)).toBe(true);
+    expect(resolveShadowScopedSelector(selector, document)).toEqual([second]);
+  });
+
+  it('主文档已有同名输入框时，影子树选择器仍解析到影子树', () => {
+    document.body.innerHTML = '<input id="search">';
+    const host = document.createElement('div');
+    host.id = 'login-host';
+    const shadow = host.attachShadow({ mode: 'open' });
+    shadow.innerHTML = '<input type="password">';
+    document.body.appendChild(host);
+    const shadowPassword = shadow.querySelector<HTMLInputElement>('input')!;
+
+    const selector = buildUniqueSelector(shadowPassword);
+    expect(selector).toContain(SHADOW_SELECTOR_SEPARATOR);
+    expect(resolveShadowScopedSelector(selector, document)).toEqual([shadowPassword]);
+    expect(resolveShadowScopedSelector(selector, document)).not.toContain(document.getElementById('search'));
   });
 });
 
@@ -121,6 +141,24 @@ describe('拾取覆盖层生命周期', () => {
     expect(document.querySelector('[data-aph-selector-picker]')).not.toBeNull();
     stopSelectorPick('req-1');
     expect(document.querySelector('[data-aph-selector-picker]')).toBeNull();
+  });
+
+  it('页面卸载时取消回传 requestId，管理页不必等 120 秒 TTL', () => {
+    const sendMessage = vi.fn().mockResolvedValue({});
+    (globalThis as any).chrome = { runtime: { sendMessage } };
+
+    startSelectorPick({ domain: 'example.com', field: 'password', requestId: 'req-cleanup' });
+    expect(document.querySelector('[data-aph-selector-picker]')).not.toBeNull();
+
+    cancelActiveSelectorPick();
+
+    expect(document.querySelector('[data-aph-selector-picker]')).toBeNull();
+    expect(sendMessage).toHaveBeenCalledWith({
+      type: MessageType.SELECTOR_PICK_CANCELLED,
+      data: { requestId: 'req-cleanup' },
+    });
+
+    delete (globalThis as any).chrome;
   });
 
   it('内容侧 TTL 到点自动收起覆盖层并回传取消', () => {

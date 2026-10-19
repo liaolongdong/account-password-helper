@@ -29,6 +29,8 @@ const {
   getReminders,
   setReminder,
   removeReminders,
+  pauseReminders,
+  resumeReminders,
   getDueReminders,
   markNotified,
   getReminderForEntry,
@@ -102,6 +104,45 @@ describe('reminderManager', () => {
 
       const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { username: string }>;
       expect(stored['entry-1'].username).toBe(`${'u'.repeat(PASSWORD_FIELD_LIMITS.username - 1)}🙂`);
+    });
+  });
+
+  describe('pauseReminders / resumeReminders', () => {
+    it('软删除暂停提醒：到期也不进入待通知列表，恢复后重新生效', async () => {
+      const now = Date.now();
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      await setReminder('entry-1', 'user1', 1);
+      // 把它改成已到期，证明暂停是唯一阻断因素
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { remindAt: number }>;
+      stored['entry-1'].remindAt = now - 1000;
+      expect(await getDueReminders(now)).toHaveLength(1);
+
+      await pauseReminders(['entry-1']);
+      expect(await getDueReminders(now)).toHaveLength(0);
+      expect((stored['entry-1'] as { paused?: boolean }).paused).toBe(true);
+
+      await resumeReminders(['entry-1']);
+      expect(await getDueReminders(now)).toHaveLength(1);
+      expect((stored['entry-1'] as { paused?: boolean }).paused).toBe(false);
+      vi.restoreAllMocks();
+    });
+
+    it('只翻转点名条目；未暂停/不存在的 id 不产生无谓写入', async () => {
+      await setReminder('entry-1', 'user1', 30);
+      await setReminder('entry-2', 'user2', 30);
+      const setSpy = mockChromeStorage.local.set;
+      setSpy.mockClear();
+
+      await pauseReminders(['entry-1', 'ghost']);
+
+      const stored = mockStorage[STORAGE_KEYS.PASSWORD_REMINDERS] as Record<string, { paused?: boolean }>;
+      expect(stored['entry-1'].paused).toBe(true);
+      expect(stored['entry-2'].paused).toBeUndefined();
+      expect(setSpy).toHaveBeenCalledTimes(1);
+
+      setSpy.mockClear();
+      await pauseReminders(['entry-1']);
+      expect(setSpy).not.toHaveBeenCalled();
     });
   });
 
