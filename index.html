@@ -2043,6 +2043,277 @@
           background: rgba(78, 136, 255, 0.09);
         }
       }
+
+      /* ============ 多环境匹配模拟器 ============ */
+      /* 演示卡片放在痛点表之后：表格第一行讲「多环境账号」，这里让人当场把三档规则试一遍。
+         控件全部用原生 input / radio / button，键盘可达；结果区挂 aria-live，
+         改主机名或切档位时屏幕阅读器能听到命中数变化。 */
+      .match-demo {
+        padding: clamp(22px, 3vw, 34px);
+        margin-top: 28px;
+        background: radial-gradient(120% 100% at 100% 0%, rgba(78, 136, 255, 0.08), transparent 58%), var(--surface);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+      }
+      .match-demo-head {
+        max-width: 760px;
+      }
+      .match-eyebrow {
+        margin: 0 0 8px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--primary-ink);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+      .match-demo h3 {
+        margin: 0 0 8px;
+        font-size: clamp(22px, 2.4vw, 27px);
+        line-height: 1.3;
+        letter-spacing: -0.02em;
+      }
+      .match-sub {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.75;
+        color: var(--text-muted);
+      }
+      .match-body {
+        display: grid;
+        grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
+        gap: clamp(18px, 2.4vw, 28px);
+        margin-top: 24px;
+      }
+      .match-controls {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        min-width: 0;
+      }
+      .match-label {
+        display: block;
+        font-size: 11.5px;
+        font-weight: 700;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .match-controls input[type='text'] {
+        width: 100%;
+        padding: 11px 13px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 13.5px;
+        color: var(--text);
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        transition:
+          border-color 0.18s ease,
+          box-shadow 0.18s ease;
+      }
+      .match-controls input[type='text']:focus-visible {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(78, 136, 255, 0.18);
+      }
+      .match-quick {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .match-quick button {
+        padding: 4px 10px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11.5px;
+        color: var(--text-muted);
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        transition:
+          color 0.16s ease,
+          border-color 0.16s ease,
+          background-color 0.16s ease;
+      }
+      .match-quick button:hover,
+      .match-quick button:focus-visible {
+        color: var(--primary-ink);
+        background: var(--primary-soft);
+        border-color: var(--primary);
+        outline: none;
+      }
+      .match-tiers {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .match-tier {
+        display: block;
+        padding: 11px 13px;
+        cursor: pointer;
+        background: var(--bg-soft);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        transition:
+          border-color 0.18s ease,
+          background-color 0.18s ease;
+      }
+      .match-tier:has(input:checked) {
+        background: var(--primary-soft);
+        border-color: var(--primary);
+      }
+      .match-tier:focus-within {
+        outline: 2px solid var(--primary);
+        outline-offset: 2px;
+      }
+      .match-tier input {
+        margin: 0 8px 0 0;
+        accent-color: var(--primary);
+      }
+      .match-tier-text {
+        display: inline;
+      }
+      .match-tier-text b {
+        font-size: 13px;
+        color: var(--text);
+      }
+      .match-tier-text small {
+        display: block;
+        padding-left: 22px;
+        margin-top: 3px;
+        font-size: 11.5px;
+        line-height: 1.55;
+        color: var(--text-muted);
+      }
+      .match-output {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .match-result {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        padding: 14px;
+        background: var(--surface-tint);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      .match-result-head {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: baseline;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border);
+      }
+      .match-result-head b {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12.5px;
+        color: var(--text);
+      }
+      .match-result-head em {
+        margin-left: auto;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11px;
+        font-style: normal;
+        color: var(--text-muted);
+      }
+      .match-list {
+        max-height: 342px;
+        padding: 0;
+        margin: 0;
+        overflow-y: auto;
+        overscroll-behavior: contain;
+        list-style: none;
+      }
+      .match-row {
+        display: grid;
+        grid-template-columns: 24px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 9px 2px;
+        border-bottom: 1px dashed var(--border);
+      }
+      .match-row:last-child {
+        border-bottom: none;
+      }
+      .match-avatar {
+        display: grid;
+        place-items: center;
+        width: 24px;
+        height: 24px;
+        font-size: 11px;
+        font-weight: 800;
+        color: var(--primary-ink);
+        background: var(--primary-soft);
+        border-radius: 7px;
+      }
+      .match-account {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .match-account b {
+        overflow: hidden;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--text);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .match-account small {
+        overflow: hidden;
+        font-size: 11px;
+        color: var(--text-muted);
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .match-badge {
+        padding: 2px 8px;
+        font-size: 10.5px;
+        font-weight: 700;
+        white-space: nowrap;
+        border-radius: 999px;
+      }
+      .match-badge.is-exact {
+        color: var(--success-ink);
+        background: rgba(66, 184, 131, 0.14);
+      }
+      .match-badge.is-wildcard {
+        color: var(--primary-ink);
+        background: rgba(78, 136, 255, 0.14);
+      }
+      .match-badge.is-cross {
+        color: var(--warn-ink);
+        background: rgba(255, 159, 67, 0.16);
+      }
+      .match-empty {
+        padding: 34px 12px;
+        font-size: 13px;
+        line-height: 1.7;
+        color: var(--text-muted);
+        text-align: center;
+      }
+      .match-foot {
+        padding-top: 12px;
+        margin: auto 0 0;
+        font-size: 12px;
+        line-height: 1.7;
+        color: var(--text-muted);
+        border-top: 1px dashed var(--border);
+      }
+      .match-foot code {
+        padding: 1px 6px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        font-size: 11.5px;
+        color: var(--primary-ink);
+        background: var(--primary-soft);
+        border-radius: 5px;
+      }
+
       /* 分类筛选条：整条控件的可见性挂在 html.js 上（基线 display:none）。
          这是「隐形初始态挂 html.js」那条规则的反向用法——原理同一个：没有 JS 就没有行为，
          而这里不能留一份「永远点不动」的死控件给禁 JS 的读者，所以默认收起、由 JS 放开。
@@ -3813,6 +4084,15 @@
         .feature-card-lg {
           grid-column: span 1;
         }
+        .match-demo {
+          padding: 20px 16px;
+        }
+        .match-body {
+          grid-template-columns: 1fr;
+        }
+        .match-list {
+          max-height: none;
+        }
         .step-grid {
           grid-template-columns: 1fr;
         }
@@ -4415,7 +4695,7 @@
     </header>
 
     <!-- prettier-ignore -->
-    <noscript><div class="container noscript-note"><p data-i18n-html="noscript.note">本页的功能截图轮播（首帧除外）、密码生成器演示与语言切换需要 JavaScript；正文、安装步骤与常见问题无需 JavaScript 即可完整阅读，整站纯文摘要见 <a href="./llms.txt">llms.txt</a>。</p></div></noscript>
+    <noscript><div class="container noscript-note"><p data-i18n-html="noscript.note">本页的功能截图轮播（首帧除外）、多环境匹配模拟器、密码生成器演示与语言切换需要 JavaScript；正文、安装步骤与常见问题无需 JavaScript 即可完整阅读，整站纯文摘要见 <a href="./llms.txt">llms.txt</a>。</p></div></noscript>
 
     <!-- ======= Metrics ======= -->
     <section
@@ -4608,6 +4888,206 @@
               </tr>
             </tbody>
           </table>
+        </div>
+
+        <!-- 多环境匹配模拟器：静态默认结果先写进服务字节，JS 启动后按当前档位重建；
+             禁 JS / AI 爬虫读到的是与默认档一致的三条 admin.example.com 账号。 -->
+        <div
+          class="match-demo reveal"
+          id="matchDemo"
+        >
+          <div class="match-demo-head">
+            <p
+              class="match-eyebrow"
+              data-i18n="match.eyebrow"
+            >
+              试一试
+            </p>
+            <h3 data-i18n="match.title">同一站点的多环境账号，扩展会展示哪几个？</h3>
+            <p
+              class="match-sub"
+              data-i18n="match.sub"
+            >
+              输入一个主机名、切换三档匹配规则，看候选列表怎么变。演示数据是虚构的，规则与扩展内一致；放宽档位只改变展示与可填充范围，不改变自动保存的判重口径。
+            </p>
+          </div>
+          <div class="match-body">
+            <div class="match-controls">
+              <label
+                class="match-label"
+                for="matchHost"
+                data-i18n="match.hostLabel"
+                >当前主机名</label
+              >
+              <input
+                id="matchHost"
+                type="text"
+                value="admin.example.com"
+                spellcheck="false"
+                autocomplete="off"
+                aria-describedby="matchHint"
+              />
+              <div
+                class="match-quick"
+                id="matchQuick"
+                aria-label="快速填入示例主机名"
+              >
+                <button
+                  type="button"
+                  data-host="admin.example.com"
+                >
+                  admin.example.com
+                </button>
+                <button
+                  type="button"
+                  data-host="dev-admin.example.com"
+                >
+                  dev-admin.example.com
+                </button>
+                <button
+                  type="button"
+                  data-host="music.qq.com"
+                >
+                  music.qq.com
+                </button>
+                <button
+                  type="button"
+                  data-host="localhost:5173"
+                >
+                  localhost:5173
+                </button>
+              </div>
+              <div
+                class="match-tiers"
+                role="radiogroup"
+                aria-labelledby="matchTierLabel"
+              >
+                <span
+                  class="match-label"
+                  id="matchTierLabel"
+                  data-i18n="match.tierLabel"
+                  >匹配档位</span
+                >
+                <label class="match-tier">
+                  <input
+                    type="radio"
+                    name="matchTier"
+                    value="exact"
+                    checked
+                  />
+                  <span class="match-tier-text">
+                    <b data-i18n="match.tier1">仅精确匹配（默认）</b>
+                    <small data-i18n="match.tier1Desc">只认与当前主机名完全一致的条目，多环境互不串号</small>
+                  </span>
+                </label>
+                <label class="match-tier">
+                  <input
+                    type="radio"
+                    name="matchTier"
+                    value="wildcard"
+                  />
+                  <span class="match-tier-text">
+                    <b data-i18n="match.tier2">精确 + 通配条目</b>
+                    <small data-i18n="match.tier2Desc">网址写成 *.example.com 的条目在该站任意子域可用</small>
+                  </span>
+                </label>
+                <label class="match-tier">
+                  <input
+                    type="radio"
+                    name="matchTier"
+                    value="apex"
+                  />
+                  <span class="match-tier-text">
+                    <b data-i18n="match.tier3">同主域名（更宽松）</b>
+                    <small data-i18n="match.tier3Desc"
+                      >当前域名没有账号时，依次带出主域与兄弟子域，并标注「跨子域」</small
+                    >
+                  </span>
+                </label>
+              </div>
+            </div>
+            <div class="match-output">
+              <div class="match-result">
+                <div
+                  class="match-result-head"
+                  role="status"
+                  aria-live="polite"
+                  aria-atomic="true"
+                >
+                  <b
+                    id="matchSummary"
+                    data-i18n="match.summaryStatic"
+                    >admin.example.com · 命中 3 / 11 条</b
+                  >
+                  <em
+                    id="matchRule"
+                    data-i18n="match.rule.exact"
+                    >档位 ①：只认与当前主机名完全一致的条目</em
+                  >
+                </div>
+                <ul
+                  class="match-list"
+                  id="matchList"
+                >
+                  <li class="match-row">
+                    <span
+                      class="match-avatar"
+                      aria-hidden="true"
+                      >D</span
+                    >
+                    <span class="match-account">
+                      <b>demo-admin@example.com</b>
+                      <small><span data-i18n="match.note.prod">生产环境后台</span> · admin.example.com</small>
+                    </span>
+                    <span
+                      class="match-badge is-exact"
+                      data-i18n="match.kind.exact"
+                      >精确匹配</span
+                    >
+                  </li>
+                  <li class="match-row">
+                    <span
+                      class="match-avatar"
+                      aria-hidden="true"
+                      >A</span
+                    >
+                    <span class="match-account">
+                      <b>auditor@example.com</b>
+                      <small><span data-i18n="match.note.audit">生产环境只读账号</span> · admin.example.com</small>
+                    </span>
+                    <span
+                      class="match-badge is-exact"
+                      data-i18n="match.kind.exact"
+                      >精确匹配</span
+                    >
+                  </li>
+                  <li class="match-row">
+                    <span
+                      class="match-avatar"
+                      aria-hidden="true"
+                      >S</span
+                    >
+                    <span class="match-account">
+                      <b>support@example.com</b>
+                      <small><span data-i18n="match.note.support">生产环境客服账号</span> · admin.example.com</small>
+                    </span>
+                    <span
+                      class="match-badge is-exact"
+                      data-i18n="match.kind.exact"
+                      >精确匹配</span
+                    >
+                  </li>
+                </ul>
+                <p
+                  class="match-foot"
+                  id="matchHint"
+                  data-i18n-html="match.foot"
+                >
+                  演示数据为虚构账号；<code>localhost</code> 与 <code>127.0.0.1</code> 在任何档位下都按端口隔离。
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -7078,6 +7558,75 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '一键 0-100 离线体检，按复用 / 弱密码 / 常见泄露 / 长期未更新四维加权，全程本机计算。',
           en: 'One click gives a 0-100 offline score, weighted across reuse / weak / commonly leaked / long-unupdated — every calculation stays on your machine.',
         },
+        // ---------- 多环境匹配模拟器 ----------
+        'match.eyebrow': { zh: '试一试', en: 'Try it' },
+        'match.title': {
+          zh: '同一站点的多环境账号，扩展会展示哪几个？',
+          en: "Which accounts show up for one site's environments?",
+        },
+        'match.sub': {
+          zh: '输入一个主机名、切换三档匹配规则，看候选列表怎么变。演示数据是虚构的，规则与扩展内一致；放宽档位只改变展示与可填充范围，不改变自动保存的判重口径。',
+          en: 'Type a hostname and switch between the three tiers to see the candidate list change. The data is fictional and the rules match the extension; widening a tier changes what is shown and fillable, never how auto-save deduplicates.',
+        },
+        'match.hostLabel': { zh: '当前主机名', en: 'Current hostname' },
+        'match.quickAria': { zh: '快速填入示例主机名', en: 'Try a sample hostname' },
+        'match.tierLabel': { zh: '匹配档位', en: 'Matching tier' },
+        'match.tier1': { zh: '仅精确匹配（默认）', en: 'Exact only (default)' },
+        'match.tier1Desc': {
+          zh: '只认与当前主机名完全一致的条目，多环境互不串号',
+          en: 'Only entries whose host matches exactly — environments never cross over',
+        },
+        'match.tier2': { zh: '精确 + 通配条目', en: 'Exact + wildcard entries' },
+        'match.tier2Desc': {
+          zh: '网址写成 *.example.com 的条目在该站任意子域可用',
+          en: 'Entries saved as *.example.com work on any subdomain',
+        },
+        'match.tier3': { zh: '同主域名（更宽松）', en: 'Same apex domain (looser)' },
+        'match.tier3Desc': {
+          zh: '当前域名没有账号时，依次带出主域与兄弟子域，并标注「跨子域」',
+          en: 'When the current host has no match, offer the apex and sibling subdomains, badged as cross-subdomain',
+        },
+        'match.summaryStatic': { zh: 'admin.example.com · 命中 3 / 11 条', en: 'admin.example.com · 3 of 11 entries' },
+        'match.summary': { zh: '{host} · 命中 {count} / {total} 条', en: '{host} · {count} of {total} entries' },
+        'match.summaryEmpty': { zh: '请输入一个主机名', en: 'Enter a hostname' },
+        'match.rule.exact': {
+          zh: '档位 ①：只认与当前主机名完全一致的条目',
+          en: 'Tier 1: only entries whose host matches exactly',
+        },
+        'match.rule.wildcard': {
+          zh: '档位 ②：精确命中 + 网址写成通配形的条目',
+          en: 'Tier 2: exact hits plus wildcard entries',
+        },
+        'match.rule.apex': {
+          zh: '档位 ③：在 ② 的结果之上，无精确命中时带出主域与兄弟子域',
+          en: 'Tier 3: tier 2 plus the apex and sibling subdomains when nothing matches exactly',
+        },
+        'match.idle': {
+          zh: '输入一个主机名，候选账号会出现在这里。',
+          en: 'Enter a hostname and the matching accounts appear here.',
+        },
+        'match.empty': {
+          zh: '这一档下没有可用账号。切到「同主域名」看看兜底，或在侧边栏顶栏点「+」就地建档。',
+          en: 'No accounts at this tier. Try "Same apex domain", or use "+" in the side-panel header to save one here.',
+        },
+        'match.note.prod': { zh: '生产环境后台', en: 'Production admin' },
+        'match.note.audit': { zh: '生产环境只读账号', en: 'Production read-only' },
+        'match.note.support': { zh: '生产环境客服账号', en: 'Production support' },
+        'match.note.dev': { zh: '开发环境后台', en: 'Development admin' },
+        'match.note.qa': { zh: '回归测试账号', en: 'Regression testing' },
+        'match.note.wildcard': { zh: '通配条目：整站任意子域可用', en: 'Wildcard entry: any subdomain of the site' },
+        'match.note.apex': { zh: '主域账号', en: 'Apex-domain account' },
+        'match.note.sibling': { zh: '兄弟子域账号', en: 'Sibling-subdomain account' },
+        'match.note.local': { zh: '本地 Vite 环境', en: 'Local Vite environment' },
+        'match.note.localPort': { zh: '另一个端口，任何档位都不串号', en: 'Another port — never mixed at any tier' },
+        'match.kind.exact': { zh: '精确匹配', en: 'Exact' },
+        'match.kind.wildcard': { zh: '通配条目', en: 'Wildcard' },
+        'match.kind.apex': { zh: '主域', en: 'Apex' },
+        'match.kind.sibling': { zh: '跨子域', en: 'Sibling' },
+        'match.foot': {
+          zh: '演示数据为虚构账号；<code>localhost</code> 与 <code>127.0.0.1</code> 在任何档位下都按端口隔离。',
+          en: 'Demo data is fictional; <code>localhost</code> and <code>127.0.0.1</code> stay per-port at every tier.',
+        },
         'useCases.title': { zh: '使用场景与对应的做法', en: 'Use Cases and How to Handle Them' },
         'useCases.sub': {
           zh: '从场景到入口的最短路径，第三列就是功能在界面上的名字',
@@ -7310,8 +7859,8 @@ pnpm lint:style  # Stylelint</code></pre>
         // 带 `<a>` 所以走 data-i18n-html；`<noscript>` 的子节点在 JS 开启时不入 DOM，
         // 运行时 applyLang 永远碰不到它，只有服务字节里的这一份会渲染。
         'noscript.note': {
-          zh: '本页的功能截图轮播（首帧除外）、密码生成器演示与语言切换需要 JavaScript；正文、安装步骤与常见问题无需 JavaScript 即可完整阅读，整站纯文摘要见 <a href="./llms.txt">llms.txt</a>。',
-          en: 'The feature carousel (first frame aside), the password-generator demo and the language switch need JavaScript; the prose, install steps and FAQ read in full without it. A plain-text summary of the whole site lives in <a href="./llms.txt">llms.txt</a>.',
+          zh: '本页的功能截图轮播（首帧除外）、多环境匹配模拟器、密码生成器演示与语言切换需要 JavaScript；正文、安装步骤与常见问题无需 JavaScript 即可完整阅读，整站纯文摘要见 <a href="./llms.txt">llms.txt</a>。',
+          en: 'The feature carousel (first frame aside), the multi-environment matching demo, the password-generator demo and the language switch need JavaScript; the prose, install steps and FAQ read in full without it. A plain-text summary of the whole site lives in <a href="./llms.txt">llms.txt</a>.',
         },
         'steps.title': { zh: '四步开始使用', en: 'Get Started in Four Steps' },
         'steps.sub': { zh: '无需注册，无需登录，下载即用', en: 'No sign-up, no login — download and go' },
@@ -8428,6 +8977,215 @@ pnpm lint:style  # Stylelint</code></pre>
         if (e.target.tagName === 'A') navLinksBox.classList.remove('open');
       });
 
+      // =================== 多环境匹配模拟器 ===================
+      /* 演示夹具：host 写成 `*.x.com` 的条目即通配条目。账号全是虚构值，
+         与商店截图夹具同源；不读取扩展存储，也不发任何请求。 */
+      const MATCH_VAULT = [
+        { user: 'demo-admin@example.com', host: 'admin.example.com', noteKey: 'match.note.prod' },
+        { user: 'auditor@example.com', host: 'admin.example.com', noteKey: 'match.note.audit' },
+        { user: 'support@example.com', host: 'admin.example.com', noteKey: 'match.note.support' },
+        { user: 'dev-admin@example.com', host: 'dev-admin.example.com', noteKey: 'match.note.dev' },
+        { user: 'qa-bot@example.com', host: 'qa.example.com', noteKey: 'match.note.qa' },
+        { user: 'ops@example.com', host: '*.example.com', noteKey: 'match.note.wildcard' },
+        { user: 'qq-openid@qq.com', host: '*.qq.com', noteKey: 'match.note.wildcard' },
+        { user: 'qq-master@qq.com', host: 'qq.com', noteKey: 'match.note.apex' },
+        { user: 'vqq-member@qq.com', host: 'v.qq.com', noteKey: 'match.note.sibling' },
+        { user: 'dev@localhost', host: 'localhost:5173', noteKey: 'match.note.local' },
+        { user: 'e2e@localhost', host: 'localhost:3000', noteKey: 'match.note.localPort' },
+      ];
+      const MATCH_LOCAL_HOSTS = new Set(['localhost', '127.0.0.1']);
+      /* 演示只需要覆盖常见两段式国家域名；扩展内使用完整的 ccTLD 感知规则。 */
+      const MATCH_TWO_LEVEL_SUFFIXES = new Set([
+        'com.cn',
+        'net.cn',
+        'org.cn',
+        'gov.cn',
+        'edu.cn',
+        'co.uk',
+        'org.uk',
+        'ac.uk',
+        'gov.uk',
+        'co.jp',
+        'ne.jp',
+        'or.jp',
+        'co.kr',
+        'or.kr',
+        'com.au',
+        'net.au',
+        'org.au',
+        'co.nz',
+        'com.hk',
+        'com.tw',
+        'com.sg',
+        'com.br',
+        'com.mx',
+        'com.tr',
+        'com.sa',
+        'com.ae',
+      ]);
+
+      /** 把输入解析成 {host, port}；无端口时 port 为空串 */
+      const matchParseHost = raw => {
+        const value = (raw || '')
+          .trim()
+          .toLowerCase()
+          .replace(/^[a-z]+:\/\//, '')
+          .replace(/\/.*$/, '');
+        if (!value) return { host: '', port: '' };
+        const parsed = /^(.*?)(?::(\d{1,5}))?$/.exec(value);
+        return { host: parsed?.[1] ?? '', port: parsed?.[2] ?? '' };
+      };
+
+      /** 当前页面的可比主机串：localhost / 127.0.0.1 带端口，其它域名忽略端口 */
+      const matchCurrentKey = raw => {
+        const { host, port } = matchParseHost(raw);
+        return MATCH_LOCAL_HOSTS.has(host) && port ? `${host}:${port}` : host;
+      };
+
+      const matchEntryKey = entry => {
+        const { host, port } = matchParseHost(entry.host);
+        return MATCH_LOCAL_HOSTS.has(host) && port ? `${host}:${port}` : host;
+      };
+
+      /** 取「主域名」：常见两段式后缀取三段，其它取末两段；IP / localhost 不参与 */
+      const matchApexOf = host => {
+        const labels = host.split('.');
+        if (labels.length < 2 || labels.some(label => !label)) return null;
+        if (/^\d+$/.test(labels[labels.length - 1])) return null;
+        const lastTwo = labels.slice(-2).join('.');
+        const take = MATCH_TWO_LEVEL_SUFFIXES.has(lastTwo) && labels.length >= 3 ? 3 : 2;
+        return labels.length >= take ? labels.slice(-take).join('.') : null;
+      };
+
+      const MATCH_KIND = {
+        exact: { labelKey: 'match.kind.exact', cls: 'is-exact' },
+        wildcard: { labelKey: 'match.kind.wildcard', cls: 'is-wildcard' },
+        apex: { labelKey: 'match.kind.apex', cls: 'is-cross' },
+        sibling: { labelKey: 'match.kind.sibling', cls: 'is-cross' },
+      };
+
+      /**
+       * 复刻扩展的三档口径：
+       * ① 仅精确；② 精确 + 通配条目；③ 在 ② 之上、当前域名没有精确命中时
+       * 带出主域与兄弟子域。localhost 系在 ③ 不参与兜底，但带端口时严格按端口匹配。
+       */
+      const resolveMatches = (rawHost, tier) => {
+        const parsed = matchParseHost(rawHost);
+        if (!parsed.host) return [];
+        const isLocal = MATCH_LOCAL_HOSTS.has(parsed.host);
+        const host = matchCurrentKey(rawHost);
+        const results = [];
+        const seen = new Set();
+        const push = (entry, kind) => {
+          if (seen.has(entry.user)) return;
+          seen.add(entry.user);
+          results.push({ entry, kind });
+        };
+
+        MATCH_VAULT.filter(entry => {
+          const key = matchEntryKey(entry);
+          // 本地页面不带端口时放行全部本地条目；带端口时只认同端口
+          if (isLocal && !parsed.port) return MATCH_LOCAL_HOSTS.has(matchParseHost(entry.host).host);
+          return key === host;
+        }).forEach(entry => push(entry, MATCH_KIND.exact));
+        const hasExact = results.length > 0;
+
+        if (tier !== 'exact' && !isLocal) {
+          MATCH_VAULT.filter(entry => entry.host.startsWith('*.')).forEach(entry => {
+            const suffix = entry.host.slice(2);
+            if (host === suffix || host.endsWith(`.${suffix}`)) push(entry, MATCH_KIND.wildcard);
+          });
+        }
+
+        if (tier === 'apex' && !hasExact && !isLocal) {
+          const apex = matchApexOf(host);
+          if (apex) {
+            MATCH_VAULT.filter(entry => matchEntryKey(entry) === apex).forEach(entry => push(entry, MATCH_KIND.apex));
+            MATCH_VAULT.filter(entry => {
+              const key = matchEntryKey(entry);
+              return key !== host && key !== apex && key.endsWith(`.${apex}`) && !key.startsWith('*.');
+            }).forEach(entry => push(entry, MATCH_KIND.sibling));
+          }
+        }
+
+        return results;
+      };
+
+      const matchHostInput = document.getElementById('matchHost');
+      const matchList = document.getElementById('matchList');
+      const matchSummary = document.getElementById('matchSummary');
+      const matchRule = document.getElementById('matchRule');
+
+      function matchRow(entry, kind) {
+        const row = document.createElement('li');
+        row.className = 'match-row';
+
+        const avatar = document.createElement('span');
+        avatar.className = 'match-avatar';
+        avatar.setAttribute('aria-hidden', 'true');
+        avatar.textContent = entry.user.charAt(0).toUpperCase();
+
+        const account = document.createElement('span');
+        account.className = 'match-account';
+        const user = document.createElement('b');
+        user.textContent = entry.user;
+        const note = document.createElement('small');
+        note.textContent = `${I18N[entry.noteKey][lang]} · ${entry.host}`;
+        account.append(user, note);
+
+        const badge = document.createElement('span');
+        badge.className = `match-badge ${kind.cls}`;
+        badge.textContent = I18N[kind.labelKey][lang];
+
+        row.append(avatar, account, badge);
+        return row;
+      }
+
+      function matchEmptyRow(text) {
+        const row = document.createElement('li');
+        row.className = 'match-empty';
+        row.textContent = text;
+        return row;
+      }
+
+      /** 按当前主机名与档位重建候选列表；静态默认三条只在 JS 不运行时留在页面上 */
+      function renderMatch() {
+        if (!matchHostInput || !matchList || !matchSummary || !matchRule) return;
+        const tier = document.querySelector('input[name="matchTier"]:checked')?.value ?? 'exact';
+        const host = matchCurrentKey(matchHostInput.value);
+        const hits = resolveMatches(matchHostInput.value, tier);
+        matchSummary.textContent = host
+          ? I18N['match.summary'][lang]
+              .replace('{host}', host)
+              .replace('{count}', String(hits.length))
+              .replace('{total}', String(MATCH_VAULT.length))
+          : I18N['match.summaryEmpty'][lang];
+        matchRule.textContent = I18N[`match.rule.${tier}`][lang];
+        matchList.textContent = '';
+        if (!host) {
+          matchList.append(matchEmptyRow(I18N['match.idle'][lang]));
+          return;
+        }
+        if (!hits.length) {
+          matchList.append(matchEmptyRow(I18N['match.empty'][lang]));
+          return;
+        }
+        hits.forEach(({ entry, kind }) => matchList.append(matchRow(entry, kind)));
+      }
+
+      if (matchHostInput) {
+        matchHostInput.addEventListener('input', renderMatch);
+        document.querySelectorAll('input[name="matchTier"]').forEach(radio => {
+          radio.addEventListener('change', renderMatch);
+        });
+        document.querySelectorAll('#matchQuick button').forEach(button => {
+          button.addEventListener('click', () => {
+            matchHostInput.value = button.dataset.host ?? '';
+            renderMatch();
+          });
+        });
+      }
+
       // =================== 语言切换 ===================
       const langToggle = document.getElementById('langToggle');
 
@@ -8466,11 +9224,13 @@ pnpm lint:style  # Stylelint</code></pre>
             .querySelector(`.gen-set[data-set="${name}"]`)
             .setAttribute('aria-label', I18N[`features.f8.demo.aria.${name}`][lang]);
         });
+        document.getElementById('matchQuick').setAttribute('aria-label', I18N['match.quickAria'][lang]);
         // 按钮展示目标语言，点击即切换
         langToggle.textContent = lang === 'zh' ? 'EN' : '中文';
 
         renderCarousel();
         applyFaqs();
+        renderMatch();
       }
 
       // 切换到独立语言页而不是原地替换正文：canonical / hreflang / OG / JSON-LD
