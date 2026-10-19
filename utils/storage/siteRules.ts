@@ -106,6 +106,23 @@ export async function getSiteRule(domain: string): Promise<SiteRule | undefined>
 }
 
 /**
+ * 按页面 host / hostname 解析站点规则
+ *
+ * 优先匹配含非默认端口的 `host`（如 localhost:3000），再回退 `hostname`
+ * （如 example.com 的规则覆盖该主机的所有端口）。内容脚本消费端与拾取器的
+ * 标签页匹配共用这一口径，避免「拾取得到、规则却不命中」。
+ */
+export function resolveSiteRuleForHosts(
+  rules: Record<string, SiteRule>,
+  host: string,
+  hostname: string,
+): SiteRule | undefined {
+  const normalizedHost = host.trim().toLowerCase().replace(/\.$/, '');
+  const normalizedHostname = hostname.trim().toLowerCase().replace(/\.$/, '');
+  return rules[normalizedHost] ?? rules[normalizedHostname];
+}
+
+/**
  * 站点规则域名最大长度（DNS 完整主机名上限），同时作为写入 storage 前的边界裁剪
  */
 export const SITE_RULE_DOMAIN_MAX_LENGTH = 253;

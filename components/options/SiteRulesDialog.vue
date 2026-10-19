@@ -136,6 +136,7 @@
           <el-input
             v-model="formData.domain"
             :readonly="isEditing"
+            :disabled="!!pickingField"
             :class="{ 'domain-input--locked': isEditing }"
             :placeholder="t('options.siteRules.formDomainPlaceholder')"
             :clearable="!isEditing"
@@ -184,22 +185,65 @@
           :label="t('options.siteRules.formUsernameSelector')"
           prop="usernameSelector"
         >
-          <el-input
-            v-model="formData.usernameSelector"
-            :placeholder="t('options.siteRules.formUsernamePlaceholder')"
-            clearable
-          />
+          <div class="selector-field-row">
+            <el-input
+              v-model="formData.usernameSelector"
+              class="selector-field-input"
+              :placeholder="t('options.siteRules.formUsernamePlaceholder')"
+              clearable
+            />
+            <el-button
+              class="selector-pick-button"
+              :icon="Aim"
+              :loading="pickingField === 'username'"
+              :disabled="!!pickingField && pickingField !== 'username'"
+              :title="t('options.siteRules.pickUsername')"
+              :aria-label="t('options.siteRules.pickUsername')"
+              @click="startPick('username')"
+            >
+              {{ t('options.siteRules.pick') }}
+            </el-button>
+          </div>
         </el-form-item>
 
         <el-form-item
           :label="t('options.siteRules.formPasswordSelector')"
           prop="passwordSelector"
         >
-          <el-input
-            v-model="formData.passwordSelector"
-            :placeholder="t('options.siteRules.formPasswordPlaceholder')"
-            clearable
-          />
+          <div class="selector-field-row">
+            <el-input
+              v-model="formData.passwordSelector"
+              class="selector-field-input"
+              :placeholder="t('options.siteRules.formPasswordPlaceholder')"
+              clearable
+            />
+            <el-button
+              class="selector-pick-button"
+              :icon="Aim"
+              :loading="pickingField === 'password'"
+              :disabled="!!pickingField && pickingField !== 'password'"
+              :title="t('options.siteRules.pickPassword')"
+              :aria-label="t('options.siteRules.pickPassword')"
+              @click="startPick('password')"
+            >
+              {{ t('options.siteRules.pick') }}
+            </el-button>
+          </div>
+          <div
+            class="field-tip picker-tip"
+            aria-live="polite"
+          >
+            {{
+              pickingField
+                ? t('options.siteRules.pickActiveHint', {
+                    field:
+                      pickingField === 'username'
+                        ? t('options.siteRules.labelUsername')
+                        : t('options.siteRules.labelPassword'),
+                  })
+                : t('options.siteRules.pickHint')
+            }}
+          </div>
         </el-form-item>
 
         <el-form-item
@@ -225,6 +269,7 @@
         <el-button
           type="primary"
           :loading="saving"
+          :disabled="!!pickingField"
           @click="handleSubmit"
         >
           {{ t('common.save') }}
@@ -267,11 +312,17 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { ElMessage, ElMessageBox, ElForm } from 'element-plus';
-import { Plus, Lock, Download, Upload } from '@element-plus/icons-vue';
+import { Plus, Lock, Download, Upload, Aim } from '@element-plus/icons-vue';
 import { useI18n } from '@/utils/i18n';
-import type { FillEntry } from '@/utils/types';
+import {
+  MessageType,
+  type FillEntry,
+  type SelectorPickedData,
+  type SelectorPickCancelledData,
+  type StartSelectorPickResponse,
+} from '@/utils/types';
 import { TABLE_OVERFLOW_TOOLTIP_OPTIONS } from '@/utils/tableOverflowTooltip';
 import { logger } from '@/utils/logger';
 import {
@@ -316,6 +367,189 @@ const editingRule = ref<SiteRule | null>(null);
 const saving = ref(false);
 const exporting = ref(false);
 const importing = ref(false);
+
+type PickField = 'username' | 'password';
+
+/** 正在拾取的字段；null 表示拾取器未运行 */
+const pickingField = ref<PickField | null>(null);
+const pickRequestId = ref('');
+let pickTabId: number | undefined;
+let pickTimeout: ReturnType<typeof setTimeout> | null = null;
+let pickDomain = '';
+
+const runtimeAvailable = (): boolean =>
+  typeof chrome !== 'undefined' && typeof chrome.runtime?.sendMessage === 'function';
+
+const clearPickState = (): void => {
+  if (pickTimeout) {
+    clearTimeout(pickTimeout);
+    pickTimeout = null;
+  }
+  pickingField.value = null;
+  pickRequestId.value = '';
+  pickTabId = undefined;
+  pickDomain = '';
+};
+
+/** 取消仍在目标页运行的拾取器；无论消息是否送达都先清本地状态，避免表单被锁住 */
+const cancelActivePick = (): void => {
+  const requestId = pickRequestId.value;
+  const tabId = pickTabId;
+  clearPickState();
+  if (!requestId || !runtimeAvailable()) return;
+  try {
+    void chrome.runtime
+      .sendMessage({ type: MessageType.CANCEL_SELECTOR_PICK, data: { tabId, requestId } })
+      .catch(() => {});
+  } catch {
+    /* 扩展上下文已失效时没有可清理的页面 */
+  }
+};
+
+let optionsTabId: number | undefined;
+
+/** 拾取完成后把管理页切回前台，用户不必再手动找回来 */
+const activateOptionsTab = async (): Promise<void> => {
+  if (optionsTabId === undefined || !runtimeAvailable()) return;
+  try {
+    const tab = await chrome.tabs.get(optionsTabId);
+    await chrome.tabs.update(optionsTabId, { active: true });
+    if (tab?.windowId !== undefined) await chrome.windows.update(tab.windowId, { focused: true });
+  } catch {
+    /* 管理页可能已被关闭；结果仍会留在内存状态里，没有可切回的页面 */
+  }
+};
+
+/** 启动拾取：背景会切到同域名的已打开标签页，用户点一下输入框即可回填 */
+const startPick = async (field: PickField): Promise<void> => {
+  if (pickingField.value) return;
+  const domain = normalizeSiteRuleDomain(formData.domain);
+  if (!domain) {
+    const validation = formRef.value?.validateField('domain');
+    if (validation) void validation.catch(() => {});
+    ElMessage.warning(t('options.siteRules.pickDomainRequired'));
+    return;
+  }
+  if (!runtimeAvailable()) {
+    ElMessage.error(t('options.siteRules.pickFailed'));
+    return;
+  }
+
+  pickingField.value = field;
+  pickDomain = domain;
+  pickRequestId.value =
+    typeof globalThis.crypto?.randomUUID === 'function'
+      ? globalThis.crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const requestId = pickRequestId.value;
+  pickTimeout = setTimeout(() => {
+    if (!pickingField.value || pickRequestId.value !== requestId) return;
+    // 超时不只是关本地状态：目标页上的拾取覆盖层也要撤掉
+    cancelActivePick();
+    ElMessage.warning(t('options.siteRules.pickTimeout'));
+    void activateOptionsTab();
+  }, 120_000);
+
+  try {
+    const response = (await chrome.runtime.sendMessage({
+      type: MessageType.START_SELECTOR_PICK,
+      data: { domain, field, requestId },
+    })) as StartSelectorPickResponse | undefined;
+
+    // 等待回包期间可能已超时 / 取消 / 切换了请求：旧响应不得重新点亮表单状态
+    if (pickRequestId.value !== requestId || pickingField.value !== field) {
+      if (response?.success && response.tabId !== undefined) {
+        try {
+          void chrome.runtime
+            .sendMessage({ type: MessageType.CANCEL_SELECTOR_PICK, data: { tabId: response.tabId, requestId } })
+            .catch(() => {});
+        } catch {
+          /* 扩展上下文失效时没有可取消的页面 */
+        }
+      }
+      return;
+    }
+
+    if (!response?.success) {
+      clearPickState();
+      if (response?.error === 'NO_TAB') {
+        ElMessage.warning(t('options.siteRules.pickNoTab', { domain }));
+      } else if (response?.error === 'NO_CONTENT_SCRIPT') {
+        ElMessage.warning(t('options.siteRules.pickNoContentScript'));
+      } else {
+        ElMessage.error(t('options.siteRules.pickFailed'));
+      }
+      return;
+    }
+    pickTabId = response.tabId;
+    ElMessage.info(t('options.siteRules.pickStarted'));
+  } catch (error) {
+    logger.error('启动选择器拾取失败:', error);
+    clearPickState();
+    ElMessage.error(t('options.siteRules.pickFailed'));
+  }
+};
+
+/** 接收 Background 广播的拾取结果 / 取消回执 */
+const handleSelectorPickMessage = (message: unknown): void => {
+  if (!pickingField.value) return;
+  const msg = message as {
+    type?: string;
+    data?: Partial<SelectorPickedData> & Partial<SelectorPickCancelledData>;
+  };
+  if (msg.type === MessageType.SELECTOR_PICKED) {
+    const data = msg.data as Partial<SelectorPickedData> | undefined;
+    if (
+      !data ||
+      data.requestId !== pickRequestId.value ||
+      data.field !== pickingField.value ||
+      (data.domain && data.domain !== pickDomain)
+    ) {
+      return;
+    }
+    const selector = typeof data.selector === 'string' ? data.selector.trim() : '';
+    if (!selector || !isValidCssSelector(selector)) {
+      clearPickState();
+      ElMessage.error(t('options.siteRules.pickInvalid'));
+      void activateOptionsTab();
+      return;
+    }
+    const field = pickingField.value;
+    if (field === 'username') formData.usernameSelector = selector;
+    else formData.passwordSelector = selector;
+    clearPickState();
+    const validation = formRef.value?.validateField(field === 'username' ? 'usernameSelector' : 'passwordSelector');
+    if (validation) void validation.catch(() => {});
+    if (data.unique === false) ElMessage.warning(t('options.siteRules.pickNotUnique'));
+    else ElMessage.success(t('options.siteRules.pickSuccess'));
+    void activateOptionsTab();
+    return;
+  }
+  if (msg.type === MessageType.SELECTOR_PICK_CANCELLED) {
+    const data = msg.data as Partial<SelectorPickCancelledData> | undefined;
+    if (!data || data.requestId !== pickRequestId.value) return;
+    clearPickState();
+    ElMessage.info(t('options.siteRules.pickCancelled'));
+    void activateOptionsTab();
+  }
+};
+
+onMounted(() => {
+  if (runtimeAvailable()) {
+    chrome.runtime.onMessage.addListener(handleSelectorPickMessage);
+    void chrome.tabs
+      .getCurrent()
+      .then(tab => {
+        optionsTabId = tab?.id;
+      })
+      .catch(() => {});
+  }
+});
+
+onBeforeUnmount(() => {
+  if (runtimeAvailable()) chrome.runtime.onMessage.removeListener(handleSelectorPickMessage);
+  cancelActivePick();
+});
 
 /** 导入错误码 → 可读文案；原始异常只进日志，不直接抛给用户 */
 const IMPORT_ERROR_KEYS: Record<SiteRulesImportErrorCode, string> = {
@@ -472,6 +706,7 @@ const resetForm = () => {
 
 /** 打开添加模式 */
 const handleAdd = () => {
+  cancelActivePick();
   editingRule.value = null;
   resetForm();
   showForm.value = true;
@@ -479,6 +714,7 @@ const handleAdd = () => {
 
 /** 打开编辑模式 */
 const handleEdit = (rule: SiteRule) => {
+  cancelActivePick();
   editingRule.value = rule;
   formData.domain = rule.domain;
   formData.usernameSelector = rule.customSelectors?.username ?? '';
@@ -491,6 +727,7 @@ const handleEdit = (rule: SiteRule) => {
 
 /** 取消编辑，回到列表 */
 const cancelForm = () => {
+  cancelActivePick();
   showForm.value = false;
   editingRule.value = null;
   resetForm();
@@ -499,6 +736,7 @@ const cancelForm = () => {
 /** 提交表单 */
 const handleSubmit = async () => {
   if (!formRef.value) return;
+  cancelActivePick();
   try {
     await formRef.value.validate();
   } catch {
@@ -630,6 +868,7 @@ const handleImportFile = async (event: Event) => {
 
 /** 弹窗关闭动画结束后复位到列表视图 */
 const handleClosed = () => {
+  cancelActivePick();
   showForm.value = false;
   editingRule.value = null;
   resetForm();
@@ -756,6 +995,27 @@ function openPrefilledRule(rawDomain: string): void {
   font-size: 12px;
   line-height: 1.4;
   color: #909399;
+}
+
+/* 选择器输入框与「拾取」按钮同一行；输入框吸收剩余宽度，按钮不被压缩 */
+.selector-field-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+}
+
+.selector-field-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.selector-pick-button {
+  flex-shrink: 0;
+}
+
+.picker-tip {
+  margin-top: 4px;
 }
 
 /* 影子 DOM 穿透行的下边距从 form-item 交给移到外面的提示语，

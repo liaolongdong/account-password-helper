@@ -30,6 +30,7 @@ import { getTabIdSync } from '@/entrypoints/background/sidePanelManager';
 import { openOptionsAndSendMessage, openOptionsPage } from '@/entrypoints/background/optionsPageManager';
 import { handleQuickFill, deliverPageNotice } from '@/entrypoints/background/quickFillHandler';
 import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
+import { handleStartSelectorPick } from '@/entrypoints/background/selectorPickerHandler';
 import { warmPasswordCache } from '@/entrypoints/background/passwordCache';
 import { MessageType } from '@/utils/types';
 import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
@@ -81,6 +82,11 @@ vi.mock('@/entrypoints/background/quickFillHandler', () => ({
 
 vi.mock('@/entrypoints/background/inlineDropdownHandler', () => ({
   handleOpenInlineDropdown: vi.fn(),
+}));
+
+vi.mock('@/entrypoints/background/selectorPickerHandler', () => ({
+  handleStartSelectorPick: vi.fn(),
+  handleCancelSelectorPick: vi.fn(),
 }));
 
 vi.mock('@/entrypoints/background/backgroundServices', () => ({
@@ -808,6 +814,43 @@ describe('UI 指令的 sender 归属闸门（分发级）', () => {
 
     expect(openOptionsPage).toHaveBeenCalledTimes(1);
     expect(warmPasswordCache).toHaveBeenCalledTimes(1);
+  });
+
+  it('START_SELECTOR_PICK 只放行扩展页面；带 sender.tab 的内容脚本仍被拒', async () => {
+    vi.mocked(handleStartSelectorPick).mockResolvedValue({ success: true, tabId: 2 });
+    const listener = setupAndCaptureListener();
+    const startMessage = {
+      type: MessageType.START_SELECTOR_PICK,
+      data: { domain: 'example.com', field: 'username', requestId: 'req-auth' },
+    } as const;
+
+    // 内容脚本：sender.id 合法、sender.tab 存在，但 url 是站点地址 → 拒绝
+    const contentResponse = vi.fn();
+    listener(
+      startMessage,
+      {
+        id: chrome.runtime.id,
+        tab: { id: 3, url: 'https://example.com/' },
+        url: 'https://example.com/',
+        frameId: 0,
+      } as chrome.runtime.MessageSender,
+      contentResponse,
+    );
+    expect(contentResponse).toHaveBeenCalledWith({ success: false, error: 'UNAUTHORIZED' });
+    expect(handleStartSelectorPick).not.toHaveBeenCalled();
+
+    // Options 页面：sender.tab 存在，但 url 是扩展页面 → 放行
+    const optionsSender = {
+      id: chrome.runtime.id,
+      tab: { id: 9, url: chrome.runtime.getURL('options.html') },
+      url: chrome.runtime.getURL('options.html'),
+    } as chrome.runtime.MessageSender;
+    const pageResponse = vi.fn();
+    const result = listener(startMessage, optionsSender, pageResponse);
+
+    expect(result).toBe(true);
+    await Promise.resolve();
+    expect(handleStartSelectorPick).toHaveBeenCalledWith(startMessage.data);
   });
 });
 

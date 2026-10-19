@@ -1,4 +1,9 @@
-import { type RuntimeMessage, type PendingCipherKeyResponse, MessageType } from '@/utils/types';
+import {
+  type RuntimeMessage,
+  type PendingCipherKeyResponse,
+  type SelectorPickedData,
+  MessageType,
+} from '@/utils/types';
 import { logger } from '@/utils/logger';
 import {
   getTabIdSync,
@@ -27,6 +32,7 @@ import { issuePendingCipherKey } from './pendingCipherKeyStore';
 import { handleQuickAddPassword } from './quickAddHandler';
 import { handleQuickFill, deliverPageNotice, showPageNotice } from './quickFillHandler';
 import { handleOpenInlineDropdown } from './inlineDropdownHandler';
+import { handleCancelSelectorPick, handleStartSelectorPick } from './selectorPickerHandler';
 import { performUpdateCheck, syncSwKeepaliveAlarm, waitForBrowserStartupRelock } from './backgroundServices';
 import { METADATA_FIELDS } from '@/utils/storage/passwordCrud';
 import { normalizeSiteRuleDomain } from '@/utils/storage/siteRules';
@@ -308,6 +314,18 @@ function isTrustedInternalSender(sender: chrome.runtime.MessageSender): boolean 
 }
 
 /**
+ * 扩展自身页面（Options / Popup / Sidepanel），允许带 sender.tab
+ *
+ * `isTrustedInternalSender` 额外要求 `sender.tab === undefined`，那是给 popup / sidepanel
+ * 这类非 tab 上下文用的；Options 是普通标签页，若套用同一条闸门，站点规则拾取会被误判为
+ * 未授权。这里只认「扩展 id + 扩展页面 URL」，内容脚本（URL 是站点地址）仍被排除。
+ */
+function isExtensionPageSender(sender: chrome.runtime.MessageSender): boolean {
+  if (sender.id !== chrome.runtime.id) return false;
+  return !!sender.url?.startsWith(chrome.runtime.getURL(''));
+}
+
+/**
  * 判定消息是否来自本扩展的任一上下文（扩展页面 **或** 自家内容脚本）
  *
  * 与 `isTrustedInternalSender` 的分工：后者额外要求 `sender.tab === undefined`，
@@ -342,6 +360,10 @@ export const EXTENSION_CONTEXT_COMMANDS: readonly MessageType[] = [
   MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH,
   MessageType.OPEN_OPTIONS_AND_SEARCH,
   MessageType.OPEN_OPTIONS_AND_IDENTITY,
+  MessageType.START_SELECTOR_PICK,
+  MessageType.CANCEL_SELECTOR_PICK,
+  MessageType.SELECTOR_PICKED,
+  MessageType.SELECTOR_PICK_CANCELLED,
 ];
 
 /**
@@ -533,6 +555,83 @@ export function setupMessageRouter(): void {
           sendResponse,
         );
         return true;
+      }
+
+      case MessageType.START_SELECTOR_PICK: {
+        // 只接受扩展页面发起：内容脚本没有理由替用户启动拾取器
+        if (!isExtensionPageSender(sender)) {
+          sendResponse({ success: false, error: 'UNAUTHORIZED' });
+          break;
+        }
+        handleStartSelectorPick(message.data)
+          .then(sendResponse)
+          .catch(error => {
+            logger.error('Background: 启动选择器拾取失败:', error);
+            sendResponse({ success: false, error: 'NO_TAB' });
+          });
+        return true;
+      }
+
+      case MessageType.CANCEL_SELECTOR_PICK: {
+        if (!isExtensionPageSender(sender)) {
+          sendResponse({ success: false, error: 'UNAUTHORIZED' });
+          break;
+        }
+        void handleCancelSelectorPick(message.data);
+        sendResponse({ success: true });
+        break;
+      }
+
+      case MessageType.SELECTOR_PICKED: {
+        // 只接受顶层内容脚本回传；页面 JS 无法构造该消息
+        if (sender.id !== chrome.runtime.id || sender.tab?.id === undefined || sender.frameId !== 0) {
+          sendResponse({ success: false, error: 'UNAUTHORIZED' });
+          break;
+        }
+        const raw = message.data as Partial<SelectorPickedData> | undefined;
+        const selector = typeof raw?.selector === 'string' ? raw.selector.trim() : '';
+        const domain = normalizeSiteRuleDomain(raw?.domain);
+        const field = raw?.field;
+        const requestId = typeof raw?.requestId === 'string' ? raw.requestId.trim().slice(0, 64) : '';
+        if (
+          !domain ||
+          (field !== 'username' && field !== 'password') ||
+          !requestId ||
+          !selector ||
+          selector.length > 512
+        ) {
+          sendResponse({ success: false, error: 'INVALID_REQUEST' });
+          break;
+        }
+        // 只广播给扩展页面（Options）；选择器不写入日志、不落盘
+        chrome.runtime
+          .sendMessage({
+            type: MessageType.SELECTOR_PICKED,
+            data: { domain, field, requestId, selector, unique: raw?.unique === true },
+          })
+          .catch(() => {
+            // 没有打开的 Options 页面时无人接收，属正常情况
+          });
+        sendResponse({ success: true });
+        break;
+      }
+
+      case MessageType.SELECTOR_PICK_CANCELLED: {
+        if (sender.id !== chrome.runtime.id || sender.tab?.id === undefined || sender.frameId !== 0) {
+          sendResponse({ success: false, error: 'UNAUTHORIZED' });
+          break;
+        }
+        const requestId =
+          typeof (message.data as { requestId?: unknown } | undefined)?.requestId === 'string'
+            ? (message.data as { requestId: string }).requestId.trim().slice(0, 64)
+            : '';
+        if (requestId) {
+          chrome.runtime
+            .sendMessage({ type: MessageType.SELECTOR_PICK_CANCELLED, data: { requestId } })
+            .catch(() => {});
+        }
+        sendResponse({ success: true });
+        break;
       }
 
       case MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH:

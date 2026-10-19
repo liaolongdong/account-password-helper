@@ -50,7 +50,7 @@ import { destroyIdentityHint, hideIdentityHint, setIdentityHintTheme, showIdenti
 import { resolvePiiField } from './piiClassifier';
 import { normalizeIdentityHintRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
-import { getSiteRule, isValidCssSelector, type SiteRule } from '@/utils/storage/siteRules';
+import { getSiteRules, isValidCssSelector, resolveSiteRuleForHosts, type SiteRule } from '@/utils/storage/siteRules';
 import { resolveFillEntry } from '@/utils/fillEntry';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 
@@ -611,7 +611,14 @@ export class FormDetector {
   private async loadSiteRule(): Promise<void> {
     if (!this.domain) return;
     try {
-      this.siteRule = (await getSiteRule(this.domain)) ?? null;
+      // 先按 host（含非默认端口）取精确规则，再回退 hostname：与拾取器选标签页的口径一致，
+      // 既保留「example.com 规则覆盖所有端口」的既有行为，也让 localhost:3000 这类端口规则可用。
+      const rules = await getSiteRules();
+      this.siteRule =
+        resolveSiteRuleForHosts(rules, window.location.host, window.location.hostname) ??
+        // 兼容页面显式设置 document.domain 的旧场景：this.domain 是既有读取口径
+        rules[this.domain.toLowerCase()] ??
+        null;
     } catch (error) {
       logger.debug('FormDetector: 读取站点规则失败:', error);
       this.siteRule = null;

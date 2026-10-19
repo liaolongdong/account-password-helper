@@ -147,7 +147,7 @@
 
 ⚡ 填充与登录
 🔌 四种入口：输入框聚焦时出现的钥匙图标、侧边栏、输入框右键菜单、快捷键；登录框位于页面框架内也能填
-🧲 填不进的页面有兜底：自建组件把输入框藏起来时，可在管理页「站点规则」为该域名手写账号框与密码框的 CSS 选择器，每条规则可开关「Shadow DOM 穿透」（默认开启，只作用于开放的影子根）；规则能导出 JSON 分享给团队、按域名合并导入，文件里只有域名与选择器，不含凭据
+🧲 填不进的页面有兜底：自建组件把输入框藏起来时，可在管理页「站点规则」为该域名手写账号框与密码框的 CSS 选择器，或点「拾取」在已打开的登录页上直接点选输入框自动生成选择器（只回传选择器，不读取字段值）；每条规则可开关「Shadow DOM 穿透」（默认开启，只作用于开放的影子根）；规则能导出 JSON 分享给团队、按域名合并导入，文件里只有域名与选择器，不含凭据
 💾 登录时自动保存：提交时弹窗确认、自动去重，可设域名黑白名单与「不再提示」；同一账号密码改过时自动转「更新」并沿用原有标签与备注，库里已是同一份凭据则不再打扰
 ✅ 只勾该勾的那一个：页面有好几个复选框时，按标签文字和它到账号 / 密码框的距离打分，只选中得分最高的那一个，带「订阅 / 推送 / 通知 / 广告 / 营销」字样的降权
 🌐 跨子域名三档：默认精确匹配，一个账号确实要覆盖整站子域时，可在管理页头部切成「精确 + 通配条目」或「同主域名」按需放宽
@@ -283,7 +283,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 
 ⚡ Filling and sign-in
 🔌 Four ways to fill: the key icon on field focus, the side panel, the right-click menu on an input, and the shortcut. Forms inside page frames work too.
-🧲 A fallback when nothing fills: for forms built out of custom components, pin CSS selectors for that domain's username and password fields under "Site rules", each with a "Shadow DOM penetration" switch (on by default, open roots only). Rules export as JSON and merge-import by domain; the file holds selectors, never credentials.
+🧲 A fallback when nothing fills: for forms built out of custom components, pin CSS selectors for that domain's username and password fields under "Site rules", or press "Pick" to click the field on an open tab (only the selector is returned, never the value). Each rule has a "Shadow DOM penetration" switch (on by default, open roots only). Rules export as JSON and merge-import by domain; the file holds selectors, never credentials.
 💾 Save as you sign in: it asks before storing anything, de-duplicates, and takes domain allow/block lists. A changed password turns the prompt into an update that keeps the entry's tags and note; a pair already in the vault is not offered.
 ✅ Only the box you meant: every checkbox on a page is scored by its label and its distance from the fields, and only the best match is ticked. Labels reading subscribe, push, notification, advertising or marketing score lower.
 🌐 Three matching tiers: exact host by default, widening to "exact + wildcard entries" or "same main domain" from the manager page header.

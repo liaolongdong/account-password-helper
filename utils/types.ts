@@ -336,6 +336,51 @@ export enum MessageType {
    * `sender.tab.id` 与 `frameId: 0` 决定，页面侧既看不到也发不出。
    */
   DELEGATE_PAGE_NOTICE = 'DELEGATE_PAGE_NOTICE',
+  /** Options 站点规则表单请求在目标页面进入「点击拾取选择器」模式 */
+  START_SELECTOR_PICK = 'START_SELECTOR_PICK',
+  /** Options 站点规则表单取消拾取（弹窗关闭 / 切换字段） */
+  CANCEL_SELECTOR_PICK = 'CANCEL_SELECTOR_PICK',
+  /** 内容脚本拾取到选择器后回传（只含 CSS 选择器，不含字段值） */
+  SELECTOR_PICKED = 'SELECTOR_PICKED',
+  /** 内容脚本按 Esc 取消拾取 */
+  SELECTOR_PICK_CANCELLED = 'SELECTOR_PICK_CANCELLED',
+}
+
+/** 站点规则表单里要拾取的字段 */
+export type SelectorPickField = 'username' | 'password';
+
+/** 启动拾取：域名用于匹配已打开的目标标签页，requestId 用于丢弃过期回包 */
+export interface StartSelectorPickData {
+  domain: string;
+  field: SelectorPickField;
+  requestId: string;
+}
+
+/** 拾取结果：只包含选择器与唯一性提示，绝不包含输入框的值 */
+export interface SelectorPickedData {
+  domain: string;
+  field: SelectorPickField;
+  requestId: string;
+  selector: string;
+  unique: boolean;
+}
+
+/** 取消拾取 */
+export interface CancelSelectorPickData {
+  tabId?: number;
+  requestId: string;
+}
+
+/** 拾取取消回包 */
+export interface SelectorPickCancelledData {
+  requestId: string;
+}
+
+/** Background 对 START_SELECTOR_PICK 的响应 */
+export interface StartSelectorPickResponse {
+  success: boolean;
+  tabId?: number;
+  error?: 'UNAUTHORIZED' | 'INVALID_REQUEST' | 'NO_TAB' | 'NO_CONTENT_SCRIPT';
 }
 
 /**
@@ -362,6 +407,10 @@ export type RuntimeMessage =
   | { type: MessageType.OPEN_OPTIONS_AND_DOMAIN_MATCH }
   | { type: MessageType.OPEN_OPTIONS_AND_SEARCH; data?: { keyword: string } }
   | { type: MessageType.OPEN_OPTIONS_AND_IDENTITY; data?: { keyword?: string } }
+  | { type: MessageType.START_SELECTOR_PICK; data: StartSelectorPickData }
+  | { type: MessageType.CANCEL_SELECTOR_PICK; data: CancelSelectorPickData }
+  | { type: MessageType.SELECTOR_PICKED; data: SelectorPickedData }
+  | { type: MessageType.SELECTOR_PICK_CANCELLED; data: SelectorPickCancelledData }
   | { type: MessageType.UPDATE_PASSWORD_CACHE }
   | { type: MessageType.INVALIDATE_PASSWORD_CACHE }
   | { type: MessageType.AUTO_SAVE_PASSWORD; data: AutoSavePasswordData }

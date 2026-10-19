@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isValidCssSelector,
   normalizeSiteRuleDomain,
+  resolveSiteRuleForHosts,
   SITE_RULE_DOMAIN_MAX_LENGTH,
   SITE_RULE_SELECTOR_MAX_LENGTH,
 } from '@/utils/storage/siteRules';
@@ -89,5 +90,27 @@ describe('isValidCssSelector（选择器语法与长度预算）', () => {
     expect(isValidCssSelector(null)).toBe(false);
     expect(isValidCssSelector(42)).toBe(false);
     expect(isValidCssSelector(['input'])).toBe(false);
+  });
+});
+
+describe('resolveSiteRuleForHosts（页面 host / hostname 解析）', () => {
+  const portRule = { domain: 'localhost:3000' };
+  const hostRule = { domain: 'localhost' };
+
+  it('含端口的精确 host 优先于 hostname 规则', () => {
+    expect(
+      resolveSiteRuleForHosts({ 'localhost:3000': portRule, localhost: hostRule }, 'localhost:3000', 'localhost'),
+    ).toBe(portRule);
+  });
+
+  it('端口不匹配时回退到 hostname 规则（无端口规则覆盖所有端口）', () => {
+    expect(
+      resolveSiteRuleForHosts({ 'localhost:3000': portRule, localhost: hostRule }, 'localhost:4000', 'localhost'),
+    ).toBe(hostRule);
+  });
+
+  it('大小写与尾部点不影响匹配，未知域名返回 undefined', () => {
+    expect(resolveSiteRuleForHosts({ 'example.com': hostRule }, 'EXAMPLE.COM.', 'example.com')).toBe(hostRule);
+    expect(resolveSiteRuleForHosts({}, 'other.example', 'other.example')).toBeUndefined();
   });
 });

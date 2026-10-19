@@ -288,4 +288,36 @@ test.describe('内容脚本消费站点规则', () => {
     const fields = await pingDetectedFields(optionsPage, E2E_PAGE_ORIGIN);
     expect(fields).toMatchObject({ username: 1, password: 1 });
   });
+
+  test('在目标页拾取 Shadow DOM 输入框，回填选择器并保存', async ({ optionsPage: page, extContext }) => {
+    const site = await openFixturePage(extContext);
+    // 等内容脚本完成首轮注入；否则 START_SELECTOR_PICK 会得到 NO_CONTENT_SCRIPT
+    await site.waitForTimeout(1500);
+
+    await openSiteRulesDialog(page);
+    await page.getByRole('button', { name: textOf('options.siteRules.addButton') }).click();
+    await domainInput(page).fill(RULE_DOMAIN);
+
+    await page.getByRole('button', { name: textOf('options.siteRules.pickUsername') }).click();
+    await expect(site.locator('[data-aph-selector-picker]')).toBeVisible();
+    await site.locator('#a-user').click();
+    await expect(usernameInput(page)).toHaveValue('#a-user');
+    await expect(site.locator('[data-aph-selector-picker]')).toHaveCount(0);
+    // 拾取成功后管理页应自动回到前台，而不是把用户留在目标站点
+    await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
+
+    await page.getByRole('button', { name: textOf('options.siteRules.pickPassword') }).click();
+    await expect(site.locator('[data-aph-selector-picker]')).toBeVisible();
+    await site.locator('#a-pwd').click();
+    await expect(passwordInput(page)).toHaveValue('#a-pwd');
+    await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
+
+    await saveButton(page).click();
+    await expectSuccessToast(page, 'options.siteRules.saveSuccess');
+    const rules = await readSiteRules(page);
+    expect(rules[RULE_DOMAIN]).toMatchObject({
+      domain: RULE_DOMAIN,
+      customSelectors: { username: '#a-user', password: '#a-pwd' },
+    });
+  });
 });
