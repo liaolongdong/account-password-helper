@@ -36,6 +36,8 @@ const STORE_MARQUEE = `${SITE}/assets/cws-store/marquee-1400x560.png`;
 const PAGES: ReadonlyArray<{ file: string; lang: 'zh' | 'en' }> = [
   { file: 'index.html', lang: 'zh' },
   { file: 'en.html', lang: 'en' },
+  { file: 'author.html', lang: 'zh' },
+  { file: 'author.en.html', lang: 'en' },
   { file: 'pricing.html', lang: 'zh' },
   { file: 'pricing.en.html', lang: 'en' },
   { file: 'privacy.html', lang: 'zh' },

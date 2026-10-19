@@ -487,11 +487,13 @@ const FG_TOKENS = ['--text', '--text-strong', '--text-muted', '--text-secondary'
 const BG_TOKENS = ['--bg', '--bg-soft', '--bg-alt', '--card', '--surface'];
 
 describe('官网暗色档：全站每个对外页面都覆盖', () => {
-  it('页面清单是根目录 8 页 + 博客 12 页，product-site 副本仍在名单外', () => {
+  it('页面清单是根目录 10 页 + 博客 12 页，product-site 副本仍在名单外', () => {
     // 名单本身必须是钉死的断言：publishedPages 由 readdirSync 现取，「长度 > 15」和
     // 「不含 product-site」都由构造方式保证，永远红不了。真正有牙的是这两条等式
     // （新增/删除页面必须来这里点名）加下面那条针对副本文件本身的断言。
     expect(publishedPages.filter(p => !p.includes('/'))).toEqual([
+      'author.en.html',
+      'author.html',
       'compare.en.html',
       'compare.html',
       'en.html',

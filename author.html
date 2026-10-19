@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0"
+    />
+    <title>关于作者 liaolongdong | 账号密码管理助手</title>
+    <meta
+      name="description"
+      content="liaolongdong（Better）是账号密码管理助手的作者，专注本地优先、离线可用、可审计的开源浏览器扩展。这里介绍他的开源项目、原则与联系方式。"
+    />
+    <link
+      rel="icon"
+      type="image/svg+xml"
+      href="./assets/icons/icon.svg"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="./public/icon/32.png"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="128x128"
+      href="./public/icon/128.png"
+    />
+    <meta
+      name="theme-color"
+      content="#4e88ff"
+    />
+    <link
+      rel="me"
+      href="https://github.com/liaolongdong"
+    />
+    <link
+      rel="canonical"
+      href="https://liaolongdong.github.io/account-password-helper/author.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="zh-CN"
+      href="https://liaolongdong.github.io/account-password-helper/author.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="en"
+      href="https://liaolongdong.github.io/account-password-helper/author.en.html"
+    />
+    <link
+      rel="alternate"
+      hreflang="x-default"
+      href="https://liaolongdong.github.io/account-password-helper/author.html"
+    />
+    <meta
+      property="og:type"
+      content="profile"
+    />
+    <meta
+      property="og:title"
+      content="关于作者 liaolongdong | 账号密码管理助手"
+    />
+    <meta
+      property="og:description"
+      content="本地优先、离线可用、可审计的开源浏览器扩展作者。这里介绍他的开源项目、原则与联系方式。"
+    />
+    <meta
+      property="og:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
+    />
+    <meta
+      property="og:url"
+      content="https://liaolongdong.github.io/account-password-helper/author.html"
+    />
+    <meta
+      property="og:site_name"
+      content="账号密码管理助手 Account Password Helper"
+    />
+    <meta
+      property="og:locale"
+      content="zh_CN"
+    />
+    <meta
+      property="og:locale:alternate"
+      content="en_US"
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large"
+    />
+    <meta
+      name="twitter:card"
+      content="summary_large_image"
+    />
+    <meta
+      name="twitter:title"
+      content="关于作者 liaolongdong | 账号密码管理助手"
+    />
+    <meta
+      name="twitter:description"
+      content="本地优先、离线可用、可审计的开源浏览器扩展作者。这里介绍他的开源项目、原则与联系方式。"
+    />
+    <meta
+      name="twitter:image"
+      content="https://liaolongdong.github.io/account-password-helper/assets/cws-store/og-1200x630.png"
+    />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "ProfilePage",
+        "inLanguage": "zh-CN",
+        "url": "https://liaolongdong.github.io/account-password-helper/author.html",
+        "mainEntity": {
+          "@type": "Person",
+          "name": "liaolongdong",
+          "alternateName": "Better",
+          "url": "https://liaolongdong.github.io/account-password-helper/author.html",
+          "jobTitle": "独立开发者",
+          "description": "专注本地优先、离线可用、可审计的开源浏览器扩展。",
+          "knowsAbout": [
+            "local-first software",
+            "browser extensions",
+            "Web Crypto",
+            "Manifest V3",
+            "password management"
+          ],
+          "sameAs": ["https://github.com/liaolongdong"]
+        }
+      }
+    </script>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f7f9fc;
+        --card: #ffffff;
+        --text: #1f2937;
+        --muted: #6b7280;
+        --accent: #4e88ff;
+        --accent-ink: #3566cb;
+        --border: #e5e9f0;
+        --chip: #eef3ff;
+        --max: 860px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1220;
+          --card: #141f33;
+          --text: #e6edf7;
+          --muted: #9aa8bd;
+          --accent-ink: #7ea6ff;
+          --border: #263349;
+          --chip: #1c2a45;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family:
+          -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei',
+          sans-serif;
+        line-height: 1.75;
+        color: var(--text);
+        background: var(--bg);
+      }
+      a {
+        color: var(--accent-ink);
+      }
+      .skip-link {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 100;
+        padding: 8px 14px;
+        font-size: 14px;
+        color: #ffffff;
+        text-decoration: none;
+        background: var(--accent);
+        border-radius: 6px;
+        transform: translateY(-200%);
+      }
+      .skip-link:focus-visible {
+        transform: translateY(0);
+      }
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        gap: 16px;
+        align-items: center;
+        padding: 12px 24px;
+        background: var(--card);
+        border-bottom: 1px solid var(--border);
+      }
+      .topbar a {
+        font-size: 14px;
+        text-decoration: none;
+      }
+      .topbar .brand {
+        font-weight: 700;
+        color: var(--text);
+      }
+      .topbar .spacer {
+        flex: 1;
+      }
+      main {
+        max-width: var(--max);
+        padding: 40px 24px 80px;
+        margin: 0 auto;
+      }
+      .crumbs {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 22px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .crumbs a {
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .eyebrow {
+        margin: 0 0 6px;
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--accent-ink);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 38px;
+        line-height: 1.2;
+        letter-spacing: -0.02em;
+      }
+      .lead {
+        margin: 0 0 8px;
+        font-size: 18px;
+        color: var(--muted);
+      }
+      section {
+        margin-top: 42px;
+      }
+      h2 {
+        margin: 0 0 12px;
+        font-size: 24px;
+        letter-spacing: -0.01em;
+      }
+      h3 {
+        margin: 0 0 6px;
+        font-size: 18px;
+      }
+      h3 a {
+        color: var(--text);
+        text-decoration: none;
+      }
+      h3 a:hover {
+        color: var(--accent-ink);
+      }
+      p {
+        margin: 10px 0;
+      }
+      ul {
+        padding-left: 22px;
+        margin: 10px 0;
+      }
+      li {
+        margin: 6px 0;
+      }
+      .principles {
+        display: grid;
+        gap: 10px;
+        padding: 0;
+        list-style: none;
+      }
+      .principles li {
+        padding: 12px 14px;
+        margin: 0;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .principles b {
+        color: var(--text);
+      }
+      .cards {
+        display: grid;
+        gap: 14px;
+      }
+      .card {
+        padding: 18px 20px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      .card p {
+        color: var(--muted);
+      }
+      .card .links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 16px;
+        margin-top: 10px;
+        font-size: 13px;
+      }
+      .card .links a {
+        text-decoration: none;
+      }
+      .card .links a:hover {
+        text-decoration: underline;
+      }
+      .note {
+        padding: 14px 16px;
+        font-size: 14px;
+        color: var(--muted);
+        background: var(--chip);
+        border-radius: 10px;
+      }
+      .contact-list {
+        padding-left: 20px;
+      }
+      .page-footer {
+        padding-top: 20px;
+        margin-top: 48px;
+        font-size: 13px;
+        color: var(--muted);
+        border-top: 1px solid var(--border);
+      }
+      @media (max-width: 640px) {
+        .topbar {
+          padding: 10px 16px;
+        }
+        main {
+          padding: 28px 18px 64px;
+        }
+        h1 {
+          font-size: 30px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <a
+      class="skip-link"
+      href="#main"
+      >跳到正文</a
+    >
+    <nav
+      class="topbar"
+      aria-label="站点导航"
+    >
+      <a
+        class="brand"
+        href="./"
+        >账号密码管理助手</a
+      >
+      <span class="spacer"></span>
+      <a href="./blog/">博客</a>
+      <a
+        href="./author.en.html"
+        hreflang="en"
+        lang="en"
+        >English</a
+      >
+    </nav>
+    <main
+      id="main"
+      tabindex="-1"
+    >
+      <nav
+        class="crumbs"
+        aria-label="面包屑"
+      >
+        <a href="./">首页</a>
+        <span aria-hidden="true">/</span>
+        <span aria-current="page">关于作者</span>
+      </nav>
+
+      <header>
+        <p class="eyebrow">ABOUT THE AUTHOR</p>
+        <h1>关于作者</h1>
+        <p class="lead">liaolongdong（Better），独立开发者，做本地优先、离线可用、可审计的浏览器扩展。</p>
+      </header>
+
+      <section aria-labelledby="work">
+        <h2 id="work">我在做什么</h2>
+        <p>我的项目都围绕同一个判断：工具应该在用户的电脑上完成工作，而不是先把数据交出去。</p>
+        <ul class="principles">
+          <li><b>本地优先</b>：能在本机算的就在本机算，能在本机存的就在本机存。</li>
+          <li><b>能离线就不联网</b>：网络只用于不得不联网的环节，每个外联都在文档里写明。</li>
+          <li><b>开源可审计</b>：代码、权限声明与关键设计公开，安全结论可以自己复核。</li>
+          <li><b>说清边界</b>：不把工具说成万能保险箱，适用场景与限制写在明面上。</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="projects">
+        <h2 id="projects">开源项目</h2>
+        <div class="cards">
+          <article class="card">
+            <h3><a href="./">账号密码管理助手</a></h3>
+            <p>
+              本地优先的 Chrome 密码管理器：精确域名隔离多环境账号、一键填充与登录、内置 TOTP、离线安全体检。主密码经
+              PBKDF2-SHA256 60 万轮派生，敏感字段逐字段 AES-256-GCM 加密，数据只写本机。
+            </p>
+            <p class="links">
+              <a href="./">产品页</a>
+              <a
+                href="https://github.com/liaolongdong/account-password-helper"
+                target="_blank"
+                rel="noopener noreferrer"
+                >GitHub</a
+              >
+              <a
+                href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli"
+                target="_blank"
+                rel="noopener noreferrer"
+                >Chrome 应用商店</a
+              >
+              <a href="./blog/">技术博客</a>
+            </p>
+          </article>
+          <article class="card">
+            <h3>
+              <a
+                href="https://liaolongdong.github.io/transfer-any-file/"
+                target="_blank"
+                rel="noopener noreferrer"
+                >文件格式任意转换助手</a
+              >
+            </h3>
+            <p>
+              14 种格式在浏览器里互转、一个字节也不上传的离线文件转换器：Markdown、Word、PDF、Excel、CSV、JSON、HTML
+              与图片，支持批量混合格式与多步链路。
+            </p>
+            <p class="links">
+              <a
+                href="https://liaolongdong.github.io/transfer-any-file/"
+                target="_blank"
+                rel="noopener noreferrer"
+                >产品页</a
+              >
+              <a
+                href="https://github.com/liaolongdong/transfer-any-file"
+                target="_blank"
+                rel="noopener noreferrer"
+                >GitHub</a
+              >
+            </p>
+          </article>
+          <article class="card">
+            <h3>
+              <a
+                href="https://liaolongdong.github.io/cross-origin-proxy/"
+                target="_blank"
+                rel="noopener noreferrer"
+                >跨域代理助手 · Cross-origin Proxy</a
+              >
+            </h3>
+            <p>
+              把页面发出的 API 请求代理到另一个后端环境：重写 URL、请求头与响应，条件化
+              Mock、注入延迟、阻断请求、失败重试、转发 WebSocket，全部在浏览器里配置。
+            </p>
+            <p class="links">
+              <a
+                href="https://liaolongdong.github.io/cross-origin-proxy/"
+                target="_blank"
+                rel="noopener noreferrer"
+                >产品页</a
+              >
+              <a
+                href="https://github.com/liaolongdong/cross-origin-proxy"
+                target="_blank"
+                rel="noopener noreferrer"
+                >GitHub</a
+              >
+            </p>
+          </article>
+        </div>
+        <p class="note">
+          账号密码管理助手面向开发、测试与日常登录场景；不建议在任何浏览器扩展中存放银行、支付类高敏感凭证。主密码遗忘无法找回，请定期导出加密备份。
+        </p>
+      </section>
+
+      <section aria-labelledby="contact">
+        <h2 id="contact">联系</h2>
+        <p>问题、建议或合作，优先通过 GitHub issue 交流；也可以发邮件。</p>
+        <ul class="contact-list">
+          <li>
+            GitHub：<a
+              href="https://github.com/liaolongdong"
+              target="_blank"
+              rel="noopener noreferrer"
+              >github.com/liaolongdong</a
+            >
+          </li>
+          <li>
+            Issues：<a
+              href="https://github.com/liaolongdong/account-password-helper/issues/new/choose"
+              target="_blank"
+              rel="noopener noreferrer"
+              >提交问题或建议</a
+            >
+          </li>
+          <li>邮箱：<a href="mailto:924902324@qq.com">924902324@qq.com</a></li>
+          <li>博客：<a href="./blog/">技术博客</a> · <a href="./blog/feed.xml">RSS</a></li>
+        </ul>
+      </section>
+
+      <footer class="page-footer">
+        <p>
+          账号密码管理助手 · GPL-3.0 开源 ·
+          <a href="./">产品页</a> · <a href="./privacy.html">隐私政策</a> · 最后更新：2026-10-19
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

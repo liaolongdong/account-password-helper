@@ -157,7 +157,8 @@ The same author builds open-source, offline-first Chrome extensions where data s
 
 - [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — 14 file formats converted to each other entirely in the browser, without uploading a byte: Markdown, Word, PDF, Excel, CSV, JSON, HTML and images, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/) · [Chrome Web Store](https://chromewebstore.google.com/detail/blkdmpkcaceicinkhindniepbbbaekkb)
 - [Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy) — proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket, all configured in the browser. This extension covers "who am I in this environment", that one covers "where this environment's requests go". [Product page](https://liaolongdong.github.io/cross-origin-proxy/en.html) · [Chrome Web Store](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
-- [Author page](https://github.com/liaolongdong)
+- [Author page (中文)](https://liaolongdong.github.io/account-password-helper/author.html) · [English](https://liaolongdong.github.io/account-password-helper/author.en.html) — background, principles and every open-source project by the same author
+- [GitHub profile](https://github.com/liaolongdong)
 
 ## License
 

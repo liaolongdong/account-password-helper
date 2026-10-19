@@ -172,6 +172,8 @@ describe('官网 SEO 表面一致性', () => {
 
   it('sitemap 覆盖根目录每个公开页面，且没有多余条目', () => {
     expect(ROOT_PAGES, '根目录公开页名单变了，本守卫与 sitemap 都需要一并确认').toEqual([
+      'author.en.html',
+      'author.html',
       'compare.en.html',
       'compare.html',
       'en.html',

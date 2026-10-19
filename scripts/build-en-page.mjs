@@ -174,6 +174,7 @@ const replaceEvery = (from, to) => {
 replaceEvery('href="./privacy.html"', 'href="./privacy.en.html"');
 replaceEvery('href="./pricing.html"', 'href="./pricing.en.html"');
 replaceEvery('href="./compare.html"', 'href="./compare.en.html"');
+replaceEvery('href="./author.html"', 'href="./author.en.html"');
 replaceEvery('href="./blog/"', 'href="./blog/index.en.html"');
 // 跨域代理助手有英文产品页，英文页指过去；Transfer Any File 暂无英文页（实测 404），保持基础 URL
 replaceEvery(
