@@ -4,12 +4,10 @@ import { StorageUtils } from '@/utils/storage';
 import { lockSession } from '@/utils/sessionLock';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
+import type { OptionsFirstView } from '@/utils/optionsFirstView';
 
 /** 输入框抖动动画持续时间（毫秒） */
 export const SHAKE_DURATION_MS = 400;
-
-/** Options 首个真实视图：供静态首屏骨架在认证结论落地时切换形态 */
-export type OptionsFirstView = 'setup' | 'verify' | 'vault';
 
 /**
  * 认证流程 Composable

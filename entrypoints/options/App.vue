@@ -431,7 +431,7 @@ import { buildHealthReportAsync, type HealthReport } from '@/utils/passwordHealt
 import { normalizeToHostAndPort } from '@/utils/domain';
 import { clearPlaintextKeyedCaches } from '@/utils/plaintextCacheCleanup';
 import { isDev, isFirefox } from '@/utils/env';
-import { markOptionsFirstView, markOptionsReady } from './appReady';
+import { markOptionsFirstView, markOptionsReady, rememberOptionsFirstView } from './appReady';
 import {
   ACTIVATION_SNOOZE_MS,
   dismissActivationChecklist,
@@ -1101,6 +1101,18 @@ const {
   onSessionExpired: () => {
     passwords.value = [];
   },
+});
+
+/**
+ * 认证状态变化时同步刷新「上次视图」提示
+ *
+ * head 里的同步预判脚本靠 sessionStorage 让下一次刷新直接落到正确骨架。页面内锁定 / 解锁
+ * 之后这份提示必须跟着变，否则刷新会先闪旧形态（例如会话过期后仍先画表格骨架）。
+ */
+watch([showMasterPasswordSetup, showPasswordVerify, isAuthenticated], ([setup, verify, authenticated]) => {
+  if (setup) rememberOptionsFirstView('setup');
+  else if (verify) rememberOptionsFirstView('verify');
+  else if (authenticated) rememberOptionsFirstView('vault');
 });
 
 // ==================== 更新提示与一次性评价引导 ====================

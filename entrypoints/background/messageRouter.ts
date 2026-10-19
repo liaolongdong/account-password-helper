@@ -539,8 +539,10 @@ export function setupMessageRouter(): void {
         return true;
 
       case MessageType.OPEN_OPTIONS_AND_VALIDITY:
-        // 无载荷：打开密码管理页并自动弹出有效期设置对话框（Popup 倒计时胶囊点击续期）
-        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY).then(sendResponse);
+        // 无载荷：打开密码管理页并自动弹出有效期设置对话框（Popup 倒计时胶囊点击续期）。
+        // 该入口只会在会话有效时出现，新建标签页可直接把首屏骨架预判为 vault，
+        // 避免先闪一屏「验证主密码」再切到表格。
+        openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY, undefined, 'vault').then(sendResponse);
         return true;
 
       case MessageType.OPEN_OPTIONS_AND_SITE_RULES: {

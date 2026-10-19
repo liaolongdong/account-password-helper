@@ -7,6 +7,8 @@
       content="width=device-width, initial-scale=1.0"
     />
     <title>账号密码管理助手 - 设置</title>
+    <!-- 同步预判首屏骨架形态：必须早于样式与 body 渲染，避免先闪错误的认证 / 表格骨架 -->
+    <script src="/options-first-view.js"></script>
     <style>
       html,
       body {
@@ -46,17 +48,72 @@
         opacity: 0;
       }
 
-      /* 默认按认证视图渲染；main.ts 收到首个真实视图后切到 vault */
-      #app-skeleton:not([data-view='vault']) .sk-vault {
+      /*
+       * 三套骨架的可见性由 html[data-options-first-view] 决定：
+       * head 里的同步脚本负责首帧预判，认证结论落地后由 App 校正。
+       */
+      .sk-boot,
+      .sk-auth,
+      .sk-vault {
         display: none;
       }
 
-      #app-skeleton[data-view='vault'] .sk-auth {
-        display: none;
+      html[data-options-first-view='boot'] .sk-boot,
+      html:not([data-options-first-view]) .sk-boot {
+        display: flex;
+      }
+
+      html[data-options-first-view='setup'] .sk-auth,
+      html[data-options-first-view='verify'] .sk-auth {
+        display: flex;
+      }
+
+      html[data-options-first-view='vault'] .sk-vault {
+        display: flex;
+      }
+
+      /* ===== 中性启动形态：无法同步预判时使用，不暗示已解锁 / 待验证 ===== */
+      .sk-boot {
+        flex: 1;
+        flex-direction: column;
+        gap: 14px;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: 400px;
+        padding: 24px;
+        margin: 0 auto;
+      }
+
+      .sk-boot__card {
+        width: 100%;
+        padding: 28px 24px;
+        background: #fff;
+        border: 1px solid var(--aph-surface-line, #e2e8f0);
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb, 71 85 105) / 10%);
+      }
+
+      .sk-boot__line {
+        width: 100%;
+        height: 12px;
+        margin-bottom: 14px;
+        border-radius: 4px;
+      }
+
+      .sk-boot__line:last-child {
+        margin-bottom: 0;
+      }
+
+      .sk-boot__line--mid {
+        width: 72%;
+      }
+
+      .sk-boot__line--short {
+        width: 44%;
       }
 
       .sk-vault {
-        display: flex;
         flex: 1;
         flex-direction: column;
         min-height: 0;
@@ -64,7 +121,6 @@
 
       /* ===== 认证首屏：与 PasswordVerifyView / MasterPasswordSetupView 的居中卡片对齐 ===== */
       .sk-auth {
-        display: flex;
         flex: 1;
         flex-direction: column;
         gap: 14px;
@@ -477,10 +533,22 @@
     <!-- 静态首屏骨架：App 就绪后由 main.ts 淡出并移除 -->
     <div
       id="app-skeleton"
-      data-view="verify"
       aria-hidden="true"
     >
-      <!-- 认证态骨架：默认展示；锁定 / 首次安装会一直用到淡出 -->
+      <!-- 中性启动骨架：无法同步预判认证状态时的首帧 -->
+      <div class="sk-boot">
+        <div class="sk-auth__brand">
+          <div class="sk-block sk-auth__logo"></div>
+          <div class="sk-block sk-auth__title"></div>
+        </div>
+        <div class="sk-boot__card">
+          <div class="sk-block sk-boot__line sk-boot__line--long"></div>
+          <div class="sk-block sk-boot__line sk-boot__line--mid"></div>
+          <div class="sk-block sk-boot__line sk-boot__line--short"></div>
+        </div>
+      </div>
+
+      <!-- 认证态骨架：锁定 / 首次安装时使用 -->
       <div class="sk-auth">
         <div class="sk-auth__brand">
           <div class="sk-block sk-auth__logo"></div>
