@@ -1,5 +1,5 @@
 import { expect, expectSuccessToast, test } from './harness';
-import { textOf } from './i18n';
+import { anchoredTextOf, textOf } from './i18n';
 
 /**
  * 命令面板的入口能不能真的把目标界面唤出来
@@ -54,7 +54,9 @@ test.describe('命令面板执行入口', () => {
 
     const review = drawer.getByRole('button', { name: textOf('options.about.review') });
     const share = drawer.getByRole('button', { name: textOf('options.about.share') });
-    const close = drawer.getByRole('button', { name: textOf('common.close') });
+    // 抽屉自带的关闭按钮 aria-label 也是 "Close this dialog"，非锚定匹配会同时命中两个；
+    // 这里要量的是页脚那颗 small 按钮，必须整串相等。
+    const close = drawer.getByRole('button', { name: anchoredTextOf('common.close') });
     await expect(review).toBeVisible();
     const reviewBox = await review.boundingBox();
     const shareBox = await share.boundingBox();

@@ -186,7 +186,7 @@
 ⚙️ 界面与效率
 🎨 6 款色彩主题、中英文界面即时切换，注入页面的浮层同步跟随
 ⌨️ 命令面板：管理页按 Ctrl/Cmd+K 唤起，用中文、拼音或首字母检索并直达 27 条常用命令，主密码未验证时不响应按键
-🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「新手引导」按钮可随时重播；有密码后还会出现安全起步清单，提示备份与体检（可暂不提醒）；版本升级后弹窗展示一次更新要点，保存第一条密码后询问一次是否去商店评价，关闭后不再提醒，「关于」抽屉里也常驻评价入口；「关于」里可一键复制同事分享文案与商店链接
+🧭 新手引导：第一次进入密码管理页会自动播放聚光式分步引导，逐一带你认路添加、导入、备份、安全设置与体检；看完或中途跳过都不再打扰，头部「新手引导」按钮可随时重播；有密码后还会出现安全起步清单，提示备份与体检（可暂不提醒）；版本升级后弹窗展示一次更新要点，密码库存在满 7 天且用过一次后询问一次是否去商店评价，可稍后再说或不再提醒，「关于」抽屉里也常驻评价入口；「关于」里可一键复制同事分享文案与商店链接
 🔧 四个默认快捷键 Ctrl+Shift+P 管理页 / L 侧边栏 / F 快速填充 / K 内联下拉，改键请到浏览器的「扩展程序快捷键」设置页操作
 💡 细节体验：主密码输入框实时提示大写锁定；网站图标取自浏览器本地缓存，不发起外部请求
 
@@ -321,7 +321,7 @@ Account Password Helper is a local-first password manager: usernames, passwords 
 ⚙️ Interface and efficiency
 🎨 6 color themes and an instant Chinese/English switch, followed by the UI injected into pages.
 ⌨️ Command palette: Ctrl/Cmd+K on the manager page searches 27 commands by Chinese, pinyin or initials, inert until the master password is verified.
-🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the "Tour" button in the header replays it any time. Once a password exists, a short getting-started checklist nudges an encrypted backup and a health check (snoozable). After an update a one-time dialog summarises what changed; once the first password is saved it asks once whether you want to review the extension, and dismissing it is permanent. The About drawer also keeps a permanent review link. About offers a ready-to-copy teammate share message with the store link.
+🧭 Guided tour: the first time you open the manager page a spotlight tour walks you through adding, importing, backing up, security settings and the health check. Finish it or skip it and it stays out of the way — the "Tour" button in the header replays it any time. Once a password exists, a short getting-started checklist nudges an encrypted backup and a health check (snoozable). After an update a one-time dialog summarises what changed; once the vault is 7 days old and has been used, it asks once whether you want to review it, with Later (silent for 30 days) and Don't-ask-again options. The About drawer also keeps a permanent review link. About offers a ready-to-copy teammate share message with the store link.
 🔧 Ctrl+Shift+P management / L side panel / F quick fill / K inline dropdown; rebind them on the browser's own extensions-shortcuts page.
 💡 A live Caps Lock hint on master-password fields, and site icons read from the browser's local cache with no external request.
 

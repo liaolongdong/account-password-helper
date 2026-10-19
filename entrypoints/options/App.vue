@@ -84,10 +84,11 @@
         @dismiss="handleActivationDismiss"
       />
 
-      <!-- 一次性评价引导：保存第一条密码后出现，关闭后不再打扰 -->
+      <!-- 一次性评价引导：首次使用满 7 天且确实用过之后出现，可延后或永久关闭 -->
       <ReviewPrompt
         v-if="showReviewPrompt"
         @cta="handleReviewCta"
+        @snooze="handleReviewSnooze"
         @dismiss="dismissReview"
       />
 
@@ -437,7 +438,14 @@ import {
   getActivationChecklistState,
 } from '@/utils/storage/activationChecklist';
 import { getWhatsNewState, markWhatsNewSeen, shouldShowWhatsNew } from '@/utils/storage/whatsNew';
-import { dismissReviewPrompt, getReviewPromptState, shouldShowReviewPrompt } from '@/utils/storage/reviewPrompt';
+import {
+  deriveReviewUsage,
+  dismissReviewPrompt,
+  getReviewPromptState,
+  REVIEW_PROMPT_SNOOZE_MS,
+  shouldShowReviewPrompt,
+  snoozeReviewPrompt,
+} from '@/utils/storage/reviewPrompt';
 import { GITHUB_RELEASES_PAGE_URL, REVIEW_PROMPT_URL } from '@/utils/urls';
 import { readHealthHistory } from '@/utils/healthHistory';
 
@@ -1088,13 +1096,14 @@ const {
 });
 
 // ==================== 更新提示与一次性评价引导 ====================
-// 只持久化「已读版本」与「评价已关闭」两项非敏感标记；展示条件由密码库是否存在、
-// 起步清单完成态和会话态派生，不新增任何账号数据。
+// 只持久化「已读版本」「评价已关闭 / 已延后」两项非敏感标记；使用情况由条目上已有的
+// lastUsedAt / favoriteUsedAt 派生，不新增任何账号数据。
 const growthReady = ref(false);
 const whatsNewVisible = ref(false);
 /** 本次页面已展示过更新卡片时，评价引导延后到下次打开，避免连续两张卡片 */
 const whatsNewShownThisSession = ref(false);
 const reviewDismissedAt = ref<number | null>(null);
+const reviewSnoozedUntil = ref<number | null>(null);
 
 // ==================== 安全起步清单 ====================
 // 完成状态全部由已有事实派生：密码数量、最近验证备份、体检趋势是否存在。
@@ -1115,6 +1124,9 @@ const activationSnoozed = computed(
   () => activationDismissedAt.value !== null && Date.now() - activationDismissedAt.value < ACTIVATION_SNOOZE_MS,
 );
 
+/** 「用过一次」与年龄锚点都从条目已有元数据派生，不额外记录行为 */
+const reviewUsage = computed(() => deriveReviewUsage(passwords.value));
+
 const showReviewPrompt = computed(
   () =>
     growthReady.value &&
@@ -1125,7 +1137,10 @@ const showReviewPrompt = computed(
     !whatsNewShownThisSession.value &&
     shouldShowReviewPrompt({
       dismissedAt: reviewDismissedAt.value,
+      snoozedUntil: reviewSnoozedUntil.value,
       passwordCount: passwords.value.length,
+      hasUsed: reviewUsage.value.hasUsed,
+      oldestCreateTime: reviewUsage.value.oldestCreateTime,
     }),
 );
 
@@ -1178,8 +1193,8 @@ const handleActivationDismiss = (): void => {
  * 初始化「本次更新」与一次性评价引导
  *
  * 首次安装（还没有主密码配置）直接把当前版本记为已读，不弹更新弹窗；
- * 已有密码库的用户在版本变化时看到一次更新要点。评价引导在保存第一条密码后
- * 出现一次，关闭后终生不再询问。
+ * 已有密码库的用户在版本变化时看到一次更新要点。评价引导在密码库存在满 7 天
+ * 且确实用过之后询问一次，可延后 30 天或永久关闭。
  */
 const initGrowthPrompts = async (): Promise<void> => {
   try {
@@ -1201,6 +1216,7 @@ const initGrowthPrompts = async (): Promise<void> => {
       await markWhatsNewSeen(currentVersion.value);
     }
     reviewDismissedAt.value = reviewState.dismissedAt;
+    reviewSnoozedUntil.value = reviewState.snoozedUntil;
   } catch (error) {
     logger.warn('初始化更新与评价提示失败:', error);
   } finally {
@@ -1226,7 +1242,14 @@ const handleWhatsNewCta = (): void => {
 const dismissReview = (): void => {
   const at = Date.now();
   reviewDismissedAt.value = at;
+  reviewSnoozedUntil.value = null;
   void dismissReviewPrompt(at);
+};
+
+const handleReviewSnooze = (): void => {
+  const at = Date.now();
+  reviewSnoozedUntil.value = at + REVIEW_PROMPT_SNOOZE_MS;
+  void snoozeReviewPrompt(at);
 };
 
 const handleReviewCta = (): void => {

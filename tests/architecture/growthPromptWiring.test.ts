@@ -5,7 +5,7 @@
  * 且都必须只在 Options 页面决定展示与持久化：
  * 1. 弹窗/卡片组件不直接读写存储或打开外链；
  * 2. 更新弹窗出现时起步清单与评价引导都要让位；
- * 3. 评价引导在保存第一条密码后即可出现，关闭或 CTA 都必须落盘。
+ * 3. 评价引导只在密码库存在满 7 天且用过一次后出现，延后 / 永久关闭都必须落盘。
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -28,6 +28,7 @@ describe('更新弹窗与评价引导接线', () => {
     expect(DIALOG).toContain("$emit('update:modelValue', $event)");
     expect(DIALOG).toContain("$emit('cta')");
     expect(REVIEW).toContain("$emit('cta')");
+    expect(REVIEW).toContain("$emit('snooze')");
     expect(REVIEW).toContain("$emit('dismiss')");
   });
 
@@ -44,10 +45,19 @@ describe('更新弹窗与评价引导接线', () => {
     expect(APP).toContain('!whatsNewShownThisSession.value');
   });
 
-  it('评价引导只要求至少一条密码，不再等待备份或体检', () => {
+  it('评价引导要求密码库存在满 7 天且用过一次，并支持延后与永久关闭', () => {
     expect(REVIEW_STATE).toContain('REVIEW_PROMPT_MIN_PASSWORDS = 1');
+    expect(REVIEW_STATE).toContain('REVIEW_PROMPT_MIN_AGE_MS = 7 * 24 * 60 * 60 * 1000');
+    expect(REVIEW_STATE).toContain('REVIEW_PROMPT_SNOOZE_MS = 30 * 24 * 60 * 60 * 1000');
+    expect(REVIEW_STATE).toContain('deriveReviewUsage');
     expect(APP).not.toContain('positiveMoment');
+    expect(APP).toContain('deriveReviewUsage(passwords.value)');
     expect(APP).toContain('passwordCount: passwords.value.length');
+    expect(APP).toContain('hasUsed: reviewUsage.value.hasUsed');
+    expect(APP).toContain('oldestCreateTime: reviewUsage.value.oldestCreateTime');
+    expect(APP).toContain('snoozedUntil: reviewSnoozedUntil.value');
+    expect(APP).toContain('snoozeReviewPrompt');
+    expect(APP).toContain('@snooze="handleReviewSnooze"');
   });
 
   it('更新弹窗关闭与 CTA 都会记录已读版本', () => {

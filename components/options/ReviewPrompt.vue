@@ -43,6 +43,13 @@
       </button>
       <button
         type="button"
+        class="review-prompt__snooze"
+        @click="$emit('snooze')"
+      >
+        {{ t('options.growth.review.snooze') }}
+      </button>
+      <button
+        type="button"
         class="review-prompt__dismiss"
         @click="$emit('dismiss')"
       >
@@ -58,13 +65,14 @@ import { useI18n } from '@/utils/i18n';
 /**
  * 一次性评价引导
  *
- * 纯展示组件：只负责渲染与发出 cta / dismiss，不读存储、不打开外链。
- * 保存第一条密码后由 Options 页面决定是否展示；关闭或点 CTA 后终生不再出现。
+ * 纯展示组件：只负责渲染与发出 cta / snooze / dismiss，不读存储、不打开外链。
+ * 是否展示、延后多久与永久关闭都由 Options 页面决定。
  */
 const { t } = useI18n();
 
 defineEmits<{
   cta: [];
+  snooze: [];
   dismiss: [];
 }>();
 </script>
@@ -134,6 +142,7 @@ defineEmits<{
   background: var(--el-color-primary-dark-2);
 }
 
+.review-prompt__snooze,
 .review-prompt__dismiss {
   padding: 6px 8px;
   font-size: 12.5px;
@@ -144,12 +153,14 @@ defineEmits<{
   border-radius: 6px;
 }
 
+.review-prompt__snooze:hover,
 .review-prompt__dismiss:hover {
   color: var(--el-color-primary);
   background: var(--el-fill-color-light);
 }
 
 .review-prompt__cta:focus-visible,
+.review-prompt__snooze:focus-visible,
 .review-prompt__dismiss:focus-visible {
   outline: 2px solid var(--el-color-primary);
   outline-offset: 2px;
