@@ -22,6 +22,12 @@
       href="https://liaolongdong.github.io/account-password-helper/assets/icons/icon.svg"
     />
     <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="账号密码管理助手 · 博客"
+      href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml"
+    />
+    <link
       rel="icon"
       type="image/png"
       sizes="32x32"
@@ -39,6 +45,10 @@
     <meta
       name="robots"
       content="index, follow, max-image-preview:large"
+    />
+    <link
+      rel="author"
+      href="https://github.com/liaolongdong"
     />
     <link
       rel="canonical"
@@ -123,7 +133,11 @@
   "dateModified": "2026-10-13",
   "author": {
     "@type": "Person",
-    "name": "liaolongdong"
+    "name": "liaolongdong",
+    "url": "https://github.com/liaolongdong",
+    "sameAs": [
+      "https://github.com/liaolongdong"
+    ]
   },
   "keywords": "Chrome扩展,浏览器扩展,密码管理器,前端开发,交互设计",
   "mainEntityOfPage": {
@@ -220,10 +234,46 @@
       .topbar .spacer {
         flex: 1;
       }
+      .skip-link {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 100;
+        padding: 8px 14px;
+        font-size: 14px;
+        color: #ffffff;
+        text-decoration: none;
+        background: var(--accent);
+        border-radius: 6px;
+        transform: translateY(-200%);
+      }
+      .skip-link:focus-visible {
+        transform: translateY(0);
+      }
       article {
         max-width: 760px;
         margin: 0 auto;
         padding: 40px 24px 80px;
+      }
+      .crumbs {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .crumbs a {
+        flex-shrink: 0;
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .crumbs [aria-current='page'] {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       h1 {
         margin: 0 0 12px;
@@ -234,6 +284,10 @@
         margin-bottom: 28px;
         font-size: 14px;
         color: var(--muted);
+      }
+      .meta a {
+        color: var(--accent-ink);
+        text-decoration: none;
       }
       .cover {
         width: 100%;
@@ -290,6 +344,21 @@
         border: none;
         border-top: 1px solid var(--border);
       }
+      .author-card {
+        padding: 16px 18px;
+        margin-top: 40px;
+        font-size: 14px;
+        color: var(--muted);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .author-card p {
+        margin: 0;
+      }
+      .author-card a {
+        color: var(--accent-ink);
+      }
       img {
         max-width: 100%;
         border-radius: 8px;
@@ -310,16 +379,25 @@
     </style>
   </head>
   <body>
-    <nav class="topbar">
+    <a class="skip-link" href="#main">跳到正文</a>
+    <nav class="topbar" aria-label="文章导航">
       <a href="./index.html">← 博客首页</a>
       <span class="spacer"></span>
       <a href="https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html">English</a>
     </nav>
-    <article>
-      <h1>四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情</h1>
-      <p class="meta">2026-09-05 · 更新于 2026-10-13 · liaolongdong</p>
-      <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-04-login-flow-details.png" alt="四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情" />
-      <p>这一批更新里，没有一个功能新增设置页开关，权限也只多了一个——<code>contextMenus</code>，而且它属于这一批里唯一的重量级功能（右键填充）。其余功能全部寄生在既有链路上：登录框、侧边栏、密码列表。这是刻意的——密码管理器的设置页每多一个开关，用户就要多做一次&quot;这个我要不要开&quot;的判断。</p>
+    <main id="main" tabindex="-1">
+      <article>
+        <nav class="crumbs" aria-label="面包屑">
+          <a href="https://liaolongdong.github.io/account-password-helper/">账号密码管理助手</a>
+          <span aria-hidden="true">/</span>
+          <a href="https://liaolongdong.github.io/account-password-helper/blog/">博客</a>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" title="四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情">四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情</span>
+        </nav>
+        <h1>四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情</h1>
+        <p class="meta">2026-09-05 · 更新于 2026-10-13 · <a rel="author" href="https://github.com/liaolongdong">liaolongdong</a></p>
+        <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-04-login-flow-details.png" alt="四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情" />
+        <p>这一批更新里，没有一个功能新增设置页开关，权限也只多了一个——<code>contextMenus</code>，而且它属于这一批里唯一的重量级功能（右键填充）。其余功能全部寄生在既有链路上：登录框、侧边栏、密码列表。这是刻意的——密码管理器的设置页每多一个开关，用户就要多做一次&quot;这个我要不要开&quot;的判断。</p>
 <p>但这不意味着实现简单。四个功能各自撞上一个 Chrome 扩展特有的坑，值得单独记一段。</p>
 <h2>右键填充：Chrome 不告诉你用户右键点的是哪个元素</h2>
 <p>在输入框上右键 → 填充用户名 / 密码 / 两步验证码，或者生成并填充一个强密码。听起来是 <code>chrome.contextMenus</code> 十行代码的事。</p>
@@ -345,10 +423,14 @@
 <hr>
 <p><em>本文涉及的关键文件：<code>entrypoints/background/contextMenuManager.ts</code>（菜单注册与动作分发）、<code>entrypoints/content/contextMenuTarget.ts</code>（右键目标记忆）、<code>entrypoints/content/inlineDropdown/InlineFillDropdown.ts</code>（面板定位）、<code>utils/passwordFilter.ts</code>（范围与过滤判据）、<code>utils/clipboard.ts</code>（复制与自动清除）、<code>components/options/PasswordDetailDrawer.vue</code>（只读详情抽屉）。</em></p>
 
-    </article>
+        <aside class="author-card" aria-label="关于作者">
+        <p><strong>关于作者</strong>：<a href="https://github.com/liaolongdong" rel="author">liaolongdong</a>，独立开发者，维护账号密码管理助手、Transfer Any File、Cross-origin Proxy 等开源浏览器扩展，关注本地优先、离线可用与可审计的工程实现。</p>
+      </aside>
+      </article>
+    </main>
     <footer class="footer">
       <p>账号密码管理助手 · 开源（GPL-3.0）</p>
-      <p><a href="https://liaolongdong.github.io/account-password-helper/">产品官网与功能演示</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.html">定价：永久免费</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.html">与 Bitwarden、1Password 对比</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.html">隐私政策</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a></p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/">产品官网与功能演示</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.html">定价：永久免费</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.html">与 Bitwarden、1Password 对比</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.html">隐私政策</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome 应用商店</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml">RSS 订阅</a></p>
       <p>同作者：<a href="https://liaolongdong.github.io/transfer-any-file/">文件格式任意转换助手</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/">跨域代理助手</a></p>
     </footer>
   </body>

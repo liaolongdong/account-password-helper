@@ -52,9 +52,10 @@ const COPY_SURFACES = [
   'README.md',
   'README.en.md',
   'llms.txt',
+  'llms-full.txt',
   '.github/ISSUE_TEMPLATE/feature_request.yml',
   ...readdirSync(path.join(ROOT, 'blog'))
-    .filter(f => f.endsWith('.html'))
+    .filter(f => f.endsWith('.html') || f.endsWith('.xml'))
     .map(f => `blog/${f}`),
   ...readdirSync(path.join(ROOT, 'imgs/blog-covers'))
     .filter(f => /^blog-cover-.+\.svg$/.test(f))

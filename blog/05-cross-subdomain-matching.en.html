@@ -22,6 +22,12 @@
       href="https://liaolongdong.github.io/account-password-helper/assets/icons/icon.svg"
     />
     <link
+      rel="alternate"
+      type="application/rss+xml"
+      title="Account Password Helper · Blog"
+      href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml"
+    />
+    <link
       rel="icon"
       type="image/png"
       sizes="32x32"
@@ -39,6 +45,10 @@
     <meta
       name="robots"
       content="index, follow, max-image-preview:large"
+    />
+    <link
+      rel="author"
+      href="https://github.com/liaolongdong"
     />
     <link
       rel="canonical"
@@ -123,7 +133,11 @@
   "dateModified": "2026-10-13",
   "author": {
     "@type": "Person",
-    "name": "liaolongdong"
+    "name": "liaolongdong",
+    "url": "https://github.com/liaolongdong",
+    "sameAs": [
+      "https://github.com/liaolongdong"
+    ]
   },
   "keywords": "chrome extension,password manager,domain matching,multi-environment testing,frontend",
   "mainEntityOfPage": {
@@ -220,10 +234,46 @@
       .topbar .spacer {
         flex: 1;
       }
+      .skip-link {
+        position: fixed;
+        top: 8px;
+        left: 8px;
+        z-index: 100;
+        padding: 8px 14px;
+        font-size: 14px;
+        color: #ffffff;
+        text-decoration: none;
+        background: var(--accent);
+        border-radius: 6px;
+        transform: translateY(-200%);
+      }
+      .skip-link:focus-visible {
+        transform: translateY(0);
+      }
       article {
         max-width: 760px;
         margin: 0 auto;
         padding: 40px 24px 80px;
+      }
+      .crumbs {
+        display: flex;
+        flex-wrap: nowrap;
+        gap: 6px;
+        align-items: center;
+        margin-bottom: 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .crumbs a {
+        flex-shrink: 0;
+        color: var(--accent-ink);
+        text-decoration: none;
+      }
+      .crumbs [aria-current='page'] {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
       h1 {
         margin: 0 0 12px;
@@ -234,6 +284,10 @@
         margin-bottom: 28px;
         font-size: 14px;
         color: var(--muted);
+      }
+      .meta a {
+        color: var(--accent-ink);
+        text-decoration: none;
       }
       .cover {
         width: 100%;
@@ -290,6 +344,21 @@
         border: none;
         border-top: 1px solid var(--border);
       }
+      .author-card {
+        padding: 16px 18px;
+        margin-top: 40px;
+        font-size: 14px;
+        color: var(--muted);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .author-card p {
+        margin: 0;
+      }
+      .author-card a {
+        color: var(--accent-ink);
+      }
       img {
         max-width: 100%;
         border-radius: 8px;
@@ -310,16 +379,25 @@
     </style>
   </head>
   <body>
-    <nav class="topbar">
+    <a class="skip-link" href="#main">Skip to content</a>
+    <nav class="topbar" aria-label="Article navigation">
       <a href="./index.en.html">← Blog Home</a>
       <span class="spacer"></span>
       <a href="https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html">中文</a>
     </nav>
-    <article>
-      <h1>Three Tiers of Cross-Subdomain Matching</h1>
-      <p class="meta">2026-09-22 · Updated 2026-10-13 · liaolongdong</p>
-      <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="Three Tiers of Cross-Subdomain Matching" />
-      <p>Ever since the matching rule was narrowed to &quot;hostnames must be equal&quot; in July 2026, that rule has been this extension&#39;s foundation for multi-environment isolation: a page on <code>fat.example.com</code> never sees entries from <code>uat.example.com</code> or from <code>example.com</code>. It is also the wall users hit most often — an account saved under one host of a domain family simply does not appear on its siblings.</p>
+    <main id="main" tabindex="-1">
+      <article>
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <a href="https://liaolongdong.github.io/account-password-helper/en.html">Account Password Helper</a>
+          <span aria-hidden="true">/</span>
+          <a href="https://liaolongdong.github.io/account-password-helper/blog/index.en.html">Blog</a>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page" title="Three Tiers of Cross-Subdomain Matching">Three Tiers of Cross-Subdomain Matching</span>
+        </nav>
+        <h1>Three Tiers of Cross-Subdomain Matching</h1>
+        <p class="meta">2026-09-22 · Updated 2026-10-13 · <a rel="author" href="https://github.com/liaolongdong">liaolongdong</a></p>
+        <img class="cover" src="https://liaolongdong.github.io/account-password-helper/imgs/blog-cover-05-cross-subdomain-matching.png" alt="Three Tiers of Cross-Subdomain Matching" />
+        <p>Ever since the matching rule was narrowed to &quot;hostnames must be equal&quot; in July 2026, that rule has been this extension&#39;s foundation for multi-environment isolation: a page on <code>fat.example.com</code> never sees entries from <code>uat.example.com</code> or from <code>example.com</code>. It is also the wall users hit most often — an account saved under one host of a domain family simply does not appear on its siblings.</p>
 <p>This post covers the trade-offs behind the three widening tiers, and a bug that only a real browser could catch.</p>
 <h2>Exact matching is the right default — but logins don&#39;t respect hostname boundaries</h2>
 <p>To be clear: exact matching isn&#39;t conservatism for its own sake. It is the <strong>only default that blocks both classes of incident at once</strong> — <code>fat.example.com</code> can&#39;t reach <code>example.com</code> credentials, and a phishing site can&#39;t reach anything that merely looks close. Widening must be an explicit user choice; that part isn&#39;t negotiable.</p>
@@ -434,10 +512,14 @@ hit ⟺ getMainDomain(currentHost) === getMainDomain(base)
 <hr>
 <p><em>Key files referenced: <code>utils/domain.ts</code> (<code>resolveMatchTier</code> / <code>isCrossSubdomainTier</code> / <code>getMainDomain</code> / <code>restoreWildcardMarker</code>), <code>components/options/DomainMatchSettingDialog.vue</code> (the tier dialog), <code>utils/passwordFilter.ts</code> and <code>utils/passwordSort.ts</code> (side-panel visibility and order), <code>entrypoints/background/passwordCache.ts</code> (data path for the inline dropdown and quick fill), <code>entrypoints/content/inlineDropdown/InlineFillDropdown.ts</code> (the source chip), <code>tests/architecture/crossSubdomainTierWiring.test.ts</code> (the wiring guard), <code>e2e/cross-subdomain.spec.ts</code> (real-browser regression), <code>benchmarks/sidepanel-p0.bench.ts</code> (cross-tier benchmark).</em></p>
 
-    </article>
+        <aside class="author-card" aria-label="About the author">
+        <p><strong>About the author</strong>: <a href="https://github.com/liaolongdong" rel="author">liaolongdong</a> is an independent developer maintaining open-source browser extensions including Account Password Helper, Transfer Any File and Cross-origin Proxy, with a focus on local-first, offline-capable and auditable engineering.</p>
+      </aside>
+      </article>
+    </main>
     <footer class="footer">
       <p>Account Password Helper · Open source (GPL-3.0)</p>
-      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a></p>
+      <p><a href="https://liaolongdong.github.io/account-password-helper/en.html">Product site &amp; demo</a> · <a href="https://liaolongdong.github.io/account-password-helper/pricing.en.html">Pricing: free forever</a> · <a href="https://liaolongdong.github.io/account-password-helper/compare.en.html">Compared with Bitwarden &amp; 1Password</a> · <a href="https://liaolongdong.github.io/account-password-helper/privacy.en.html">Privacy policy</a> · <a href="https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli">Chrome Web Store</a> · <a href="https://github.com/liaolongdong/account-password-helper">GitHub</a> · <a href="https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml">RSS feed</a></p>
       <p>Same author: <a href="https://liaolongdong.github.io/transfer-any-file/">Transfer Any File</a> / <a href="https://liaolongdong.github.io/cross-origin-proxy/en.html">Cross-origin Proxy</a></p>
     </footer>
   </body>

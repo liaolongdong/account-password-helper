@@ -1,0 +1,1076 @@
+# Account Password Helper（账号密码管理助手）
+
+> Free, open-source password manager Chrome extension for developers & QA engineers. Per-field AES-256-GCM local encryption, no account registration, no subscription, and password data stored only on your machine — the only outbound requests are anonymous version checks (a Chrome Web Store reachability probe with a GitHub Releases fallback) that carry no user data. One-click login (fill + tick consent + click login), multi-environment account isolation with optional cross-subdomain matching, built-in TOTP 2FA authenticator, and an independently encrypted personal info vault.
+
+## Quick Facts
+
+- **Price**: Completely free, open-source (GPL-3.0)
+- **Data storage**: browser-local only — persistent ciphertext in `chrome.storage.local`, in-memory key material in `chrome.storage.session`; the `chrome.storage.sync` store that follows your browser account is never used
+- **Encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API
+- **Performance**: side panel returns data in about 20–50ms on the warm cache path; sub-second open across cold start, an expired session and a quick browser restart is an explicit tuning target of this project
+- **Languages**: Chinese + English bilingual UI, instant switching
+- **Themes**: 6 color themes (Sky Blue, Bamboo Green, Peach Pink, Blossom Mauve, Sunset Orange, Misty Slate)
+- **Browser support**: Manifest V3; the side panel needs Chrome 114+ (Side Panel API) — no `minimum_chrome_version` is declared, so older Chrome simply loses side panel features
+- **Account required**: No
+- **Subscription**: No
+- **Last updated**: 2026-10-18 · **Latest release**: v3.16.0 (2026-10-14) · the Chrome Web Store listing serves v3.16.0 — no version gap between GitHub Releases and the store
+- **Quality**: 3589 automated test cases across 251 test files
+
+## Key Features
+
+- **One-click login**: "Fill and sign in" in the side panel autofills credentials → ticks the consent checkbox → clicks the login button. `Ctrl+Shift+F` fills and ticks by default, and submits the form only after you turn on "Auto-submit login" in the preferences (off by default) — so it never clicks sign-in behind your back.
+- **Multi-environment isolation**: three cross-subdomain matching tiers, set in the header of the management page and honoured by every fill entry point. "Exact match only" (the default) surfaces an entry only when its normalized hostname equals the current page; "exact + wildcard entries" additionally admits entries saved as `*.qq.com`, which then work on every subdomain of that site; "same main domain" additionally falls back to the apex (`qq.com`) and sibling subdomains (`music.qq.com`) when the current host has no entry of its own, badging each widened row as cross-subdomain. On `localhost` and `127.0.0.1` the port is always matched as well, so two local projects on `:3000` and `:5173` stay apart regardless of tier, and the auto-save duplicate rule is deliberately tier-independent — widening never changes which entry a save overwrites
+- **Built-in TOTP 2FA authenticator**: RFC 6238 codes generated locally, GitHub-style two-step login auto-anchors a live code capsule — no phone authenticator app needed
+- **Per-field AES-256-GCM encryption**: PBKDF2 (600,000 iterations) + AES-256-GCM via Web Crypto API; username, password, URL, remark and TOTP secret are encrypted field by field before touching disk, and password data is never uploaded
+- **Personal info vault**: a separate, independently encrypted store for personal info data (ID numbers, bank cards, passports, custom fields) with two-level format validation (checksum errors block, everything else warns), whole-card copy, save-time duplicate detection, encrypted `.aphid` backup and optional re-importable plaintext `.json` export — reachable only from the Options page and never surfaced in the side panel
+- **Offline security audit**: one-click 0–100 score weighted across four dimensions (reused 35 / weak 25 / commonly leaked 20 / stale 20), with missing-2FA reported separately but unscored — all computed on-device
+- **Live password strength check**: length / letters / numbers / symbols rated weak-medium-strong, shown as a real-time bar with a rule-by-rule checklist in the add, edit and master-password forms; the checklist carries a fifth item that forces weak when the value matches a built-in list of nearly a thousand commonly leaked passwords. The same weak-password verdict appears as a non-blocking heads-up in the save-on-login prompt.
+- **Password generator**: random mode (configurable length/charset/ambiguous-character exclusion) + passphrase mode drawing from a bundled 3,080-word list, Web Crypto CSPRNG
+- **Quadruple fill strategy**: inline fill (key icon in input, sharing the side panel's ordering and multi-field pinyin search), side panel one-click fill, right-click context menu fill, shortcut quick-fill
+- **Auto-save credentials**: Chrome-style login capture with smart dedup, domain allow/block lists; the save prompt flags weak and reused passwords inline (a heads-up only — it never blocks saving)
+- **Import / export**: CSV & JSON; auto-detects Chrome, LastPass, Bitwarden, 1Password exports
+- **Backup reminders**: a desktop notification on a 1 / 3 / 7 / 14 / 30-day schedule nudges you to export a backup; the encrypted `.aph` tier is preselected and switching to plaintext asks for a risk confirmation first. The extension has no mailing capability of its own — the file downloads to your machine and, if you choose the email tier, a prefilled draft is handed to your own mail client.
+- **Site rules for stubborn login pages**: pin custom CSS selectors for the username and password fields of a given domain, and optionally reach fields nested inside shadow DOM — for self-built login pages and component-library forms that heuristic detection gets wrong. Rules export to a plain-text JSON file (domains and selectors only, never credentials) and merge-import by domain with an added / updated / skipped report, capped at 500 rules and 2 MiB per file
+- **Command palette**: `Ctrl/Cmd + K` on the management page filters its 27 commands — add entry, health check, import / export, encrypted backup, trash, site rules, cross-subdomain matching, change master password, preferences — by Chinese, pinyin or initials; it opens only once you are unlocked, and destructive commands keep their confirmations
+- **Spotlight guided tour**: the first time you open the manager page a spotlight tour plays on its own, ringing the real buttons as it walks through adding an entry, importing, backing up, security settings and the health check. Steps are trimmed to what the current screen actually offers, so an empty vault and a populated one get their own script; arrow keys change steps, `Esc` leaves at any time, and the "Tour" button in the header replays it later. Finishing or skipping records one local flag, after which it never auto-plays again
+- **Share card**: one click on a side panel row or in the read-only details drawer composes "username / password / URL" into a single plain-text clipboard payload, subject to the same timed clipboard wipe as every other copy
+- **6 color themes + bilingual UI** (中文 / English), instant switching without refresh
+- **Password visibility toggle**: injects show/hide button into page password fields, verify filled content with one click
+- **Trash bin & password history**: 30-day soft delete, encrypted snapshots per entry (default 3, configurable 1-10), one-click rollback
+- **Smart search**: pinyin/initials search with match highlighting, side panel "This site / All entries" scope toggle (off-site hits stay copyable and open in a new tab), tags, favorites with LRU eviction
+- **Side panel quick add**: the "+" in the panel header saves an account in place with the current domain prefilled; the empty state offers the same shortcut when the site has no saved account
+- **Read-only entry details**: a per-row drawer shows the full remark, 2FA code, password history and timestamps without entering edit mode; copied passwords auto-clear per the clipboard setting
+- **Caps Lock warning**: live uppercase-lock detection on every master password field, so a typo is never mistaken for a wrong password
+- **Flexible session control**: 1 hour to 7 days validity, auto idle lock, lock on browser restart
+
+## Who It's For
+
+- **Developers**: manage dev / staging / prod accounts for the same site with exact-domain isolation by default, and switch to wildcard or same-main-domain tiers when one account legitimately serves a whole subdomain family
+- **QA engineers**: quickly switch test accounts, one-click login across environments
+- **Privacy-conscious users**: per-field local encryption, passwords never uploaded, no account registration
+- **Everyday users**: stop memorizing passwords, built-in TOTP two-factor authentication
+- **Migrating users**: one-click import from Chrome, LastPass, Bitwarden, 1Password — CSV & JSON, done in 30 seconds
+
+## FAQ
+
+**Will my passwords be uploaded to the cloud?**
+No. All data stays in your browser's local storage. Sensitive fields (username, password, URL, remark, TOTP secret) are encrypted with AES-256-GCM before they touch disk, and vault content never travels over the network. There is no server, no account and no sync. The only outbound requests are anonymous version checks — a reachability probe of chromewebstore.google.com (cached 24h) and, when the store is unreachable, a read-only call to api.github.com — which carry no vault content and no personal identifier.
+
+**What happens if I forget the master password?**
+It cannot be recovered — the encryption key is derived from it (PBKDF2, 600,000 iterations). Use "Reset" to wipe the vault and start over. Back up regularly via encrypted .aph export to avoid data loss.
+
+**What happens when the session expires?**
+Nothing is lost and nothing needs re-encrypting — the vault is ciphertext at rest. Expiry or locking destroys the session key material and the decrypted cache, marks the session locked, and clears the in-memory mirrors. Re-enter the master password to derive the key again and every entry is back.
+
+**Can I import from other password managers?**
+Yes. CSV & JSON import auto-detects Chrome, LastPass, Bitwarden and 1Password export formats, with Chinese/English column-name mapping. Typical migration takes about 30 seconds.
+
+**How do I move my vault to another browser or computer?**
+One encrypted backup file does it. Export "Data Management → Export Encrypted Backup" on the source machine and carry the resulting `.aph` anywhere — a cloud drive, a USB stick, an email to yourself. The file is browser-agnostic and opaque to whoever hosts it (salt + IV + AES-256-GCM ciphertext, key derived from the master password through 600,000 PBKDF2 rounds), which is exactly why this product ships no sync service and asks for no third-party authorization. On the new machine: install the extension, set a master password (it does not have to match the old one), then "Import Encrypted Backup" with the master password used at export — entries are re-encrypted field by field with that machine's key. The import appends rather than merges and shares the 2,000-entry cap, so an empty vault is the cleanest target. Only the nine vault fields travel in the `.aph`: the personal info vault has its own `.aphid` export, site rules their own plain JSON export, while preferences, security settings, per-entry reminders, Trash and password history do not move.
+
+**Can one account serve a whole subdomain family?**
+Yes, on request. The default tier matches hosts exactly; "exact + wildcard entries" admits entries saved as `*.qq.com` on every subdomain of that site, and "same main domain" adds the apex and sibling subdomains as a fallback, badged as cross-subdomain. Widening is display-and-fill only: the auto-save duplicate rule is deliberately tier-independent, so a wider tier never changes which entry a save overwrites, and `localhost` / `127.0.0.1` stay separated by port.
+
+**What if the login page confirms the field detection?**
+Add a site rule for that domain: your own CSS selectors for the username and password fields, plus an optional shadow DOM penetration switch for forms rendered inside custom elements. Rules travel as plain-text JSON (domains and selectors, never credentials) and merge-import by domain with an added / updated / skipped report, so a team can share one working set instead of configuring browser by browser.
+
+## How It Compares
+
+| Feature | Account Password Helper | Bitwarden | 1Password | Chrome Built-in |
+|---------|:---:|:---:|:---:|:---:|
+| Price | Completely free | Free / Paid | $2.99/mo | Free |
+| Data storage | Pure local | Cloud | Cloud | Local |
+| Account required | No | Yes | Yes | No |
+| One-click login (fill + tick + click) | Yes | Fill only | Fill only | Fill only |
+| Multi-environment isolation | Yes (exact host by default) | No | No | No |
+| Site rules: per-domain custom CSS selectors, shadow DOM reach | Yes | No | No | No |
+| Command palette with pinyin search (`Ctrl/Cmd + K`) | Yes | No | No | No |
+| Built-in TOTP authenticator | Yes | Paid tier | Paid tier | No |
+| Offline security audit | Yes | No | No | No |
+| Open source (GPL-3.0) | Yes | Yes | No | No |
+
+> Competitor cells describe behaviour documented publicly as observed in 2026-09; vendors change features frequently, so check their sites before relying on a row.
+
+## Security Architecture
+
+- Master password → PBKDF2 (600,000 iterations) → 256-bit key
+- Plaintext + key + random IV → AES-256-GCM → Base64(IV + ciphertext)
+- Sensitive fields encrypted: username, password, URL, remark, TOTP
+- Session data key: PBKDF2-SHA256 (600,000 iterations) derived from the master password; while the session is valid it is cached in Service Worker memory and `chrome.storage.session` (memory only) and kept in `chrome.storage.local` wrapped by a random wrap key, so the master password itself is never written to disk
+- Session expiry / lock: the session key material and decrypted cache are destroyed; ciphertext at rest is left untouched
+- Auto-lock triggers: idle timeout, system lock, browser restart (optional)
+- Clipboard auto-wipe after copying passwords (default 30s, configurable)
+- HKDF appears only on the legacy `session_master_password` migration path, never in the current session flow
+- Everything is computed locally; the only network activity is the anonymous version check described in the FAQ
+
+## Technical Stack
+
+- **Framework**: WXT + Vue 3 + TypeScript
+- **UI**: Element Plus (on-demand import)
+- **Build**: Vite
+- **Crypto**: Web Crypto API (native browser implementation)
+- **Manifest**: V3 (latest Chrome extension standard)
+- **Testing**: Vitest
+
+## Installation
+
+- **Chrome Web Store**: https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli
+- **GitHub Releases** (offline install): https://github.com/liaolongdong/account-password-helper/releases/latest
+- **From source**: `pnpm install && pnpm build` → load `.output/chrome-mv3/` as unpacked extension
+
+## Links
+
+- [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)
+- [GitHub Repository](https://github.com/liaolongdong/account-password-helper)
+- [Live Demo & Docs](https://liaolongdong.github.io/account-password-helper/)
+- [English Version](https://liaolongdong.github.io/account-password-helper/en.html)
+- [Tech Blog (中文)](https://liaolongdong.github.io/account-password-helper/blog/) — 5 篇技术文：本地优先产品故事、MV3 侧边栏秒开、Web Crypto 加密实战、四个新功能的实现笔记、跨子域名匹配三档的判据与踩坑
+- [Tech Blog (English)](https://liaolongdong.github.io/account-password-helper/blog/index.en.html) — the same five posts in English, including how the three cross-subdomain tiers decide which accounts appear
+- [Pricing](https://liaolongdong.github.io/account-password-helper/pricing.html) — 100% free, no paid tier, no subscription
+- [Pricing (machine-readable)](https://liaolongdong.github.io/account-password-helper/pricing.md)
+- [Alternatives Comparison (中文)](https://liaolongdong.github.io/account-password-helper/compare.html) — Bitwarden / 1Password / Chrome 自带替代方案十维度事实对比
+- [Alternatives Comparison (English)](https://liaolongdong.github.io/account-password-helper/compare.en.html) — Bitwarden alternative, 1Password alternative and Chrome built-in compared across 10 dimensions
+- [Privacy Policy (中文)](https://liaolongdong.github.io/account-password-helper/privacy.html) — 逐条列明存什么、存在哪、哪些字段加密、以及仅有的两类外联请求（商店可达性探测 + 每 6 小时匿名版本检查），不含任何用户数据
+- [Privacy Policy (English)](https://liaolongdong.github.io/account-password-helper/privacy.en.html) — the same policy in English: what is stored, where, which fields are encrypted per field, and the only two outbound requests the extension ever makes
+- [Architecture & Implementation Details](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.md)
+- [Contributing Guide](https://github.com/liaolongdong/account-password-helper/blob/main/docs/CONTRIBUTING.md)
+- [Changelog](https://github.com/liaolongdong/account-password-helper/blob/main/CHANGELOG.md)
+
+## Optional
+
+Deep-dive pages — skip them for a summary, read them when a question needs the mechanism, the numbers or the trade-offs behind a claim above.
+
+- [Full content (llms-full.txt)](https://liaolongdong.github.io/account-password-helper/llms-full.txt) — this summary followed by every blog post in full, in Chinese and English, for agents that need the complete source text
+- [RSS feed (中文)](https://liaolongdong.github.io/account-password-helper/blog/feed.xml) · [RSS feed (English)](https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml) — subscribe to new engineering posts
+- [Blog 01 · Why a local-first password manager](https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html) — 产品立场：为什么不做云端同步、不接第三方服务，开源与可审计在这里意味着什么
+- [Blog 02 · Sub-second MV3 side panel](https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html) — Service Worker 保活（20s 心跳 + 0.5min 复活闹钟）、资源预热与三路竞速取数的完整实现笔记，含冷启动白屏的排查路径
+- [Blog 03 · Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html) — PBKDF2 600,000 次迭代 + AES-256-GCM 逐字段加密的落地细节：密钥包装、会话密钥材料销毁、`.aph` 加密备份格式
+- [Blog 04 · Four features, four notes](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html) — 右键填充、全站搜索、快速添加与只读详情抽屉四段实现笔记
+- [Blog 05 · Cross-subdomain matching tiers](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html) — 三档匹配判据（精确主机名 / 通配条目 / 同主域回退）如何实现，以及 `localhost` 端口为何恒隔离
+- [Tech Blog index](https://liaolongdong.github.io/account-password-helper/blog/) — all five posts in Chinese; the English set is at `blog/index.en.html`
+- [Architecture (English)](https://github.com/liaolongdong/account-password-helper/blob/main/docs/ARCHITECTURE.en.md) — module breakdown, message protocol, storage and crypto boundaries, cross-entry data flow
+- [README (English)](https://github.com/liaolongdong/account-password-helper/blob/main/README.en.md) — install, usage, feature table and screenshots for the English-speaking reader
+
+## More by this author
+
+The same author builds open-source, offline-first Chrome extensions where data stays on your machine.
+
+- [Transfer Any File](https://github.com/liaolongdong/transfer-any-file) — 14 file formats converted to each other entirely in the browser, without uploading a byte: Markdown, Word, PDF, Excel, CSV, JSON, HTML and images, with mixed-format batches, automatic multi-step chains, preview and inline editing, and ZIP packaging. No account, no upload, no network request. [Product page](https://liaolongdong.github.io/transfer-any-file/) · [Chrome Web Store](https://chromewebstore.google.com/detail/blkdmpkcaceicinkhindniepbbbaekkb)
+- [Cross-origin Proxy](https://github.com/liaolongdong/cross-origin-proxy) — proxies a page's API requests to another backend environment: rewrite URLs, headers and responses, mock conditionally, inject delays, block requests, retry failures and forward WebSocket, all configured in the browser. This extension covers "who am I in this environment", that one covers "where this environment's requests go". [Product page](https://liaolongdong.github.io/cross-origin-proxy/en.html) · [Chrome Web Store](https://chromewebstore.google.com/detail/dednngakllblfilbndkaggphohmpgcbg)
+- [Author page](https://github.com/liaolongdong)
+
+## License
+
+GPL-3.0-only. Free to use, modify and distribute (including commercially). Derivative works must be open-sourced under GPL-3.0.
+
+---
+
+# Full Content
+
+> Every blog post in full, in both languages. The summary version is [llms.txt](https://liaolongdong.github.io/account-password-helper/llms.txt).
+
+## 中文原文
+
+### [同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html)
+
+> Published: 2026-09-22 · Updated: 2026-10-13 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+自 2026-07 把匹配口径收敛成「精确 host 相等」以来，这条规则一直是这个扩展的多环境隔离底座：`fat.example.com` 的页面上不会看到 `uat.example.com` 或 `example.com` 的账号。它同时是最容易被用户碰到的一面墙——同一主域名下的账号，在别的子域里就是不出来。
+
+这篇讲三档放宽的实现取舍，以及一个只有真浏览器能抓到的 bug。
+
+### 精确匹配是对的默认，但登录不总是按域名边界发生
+
+先说清楚：精确匹配不该被当成保守主义，它是**唯一能同时挡住两类事故**的默认值——`fat.example.com` 拿不到 `example.com` 的凭据，钓鱼站也拿不到任何长得像的东西。任何放宽都必须由用户显式选择，这条没得谈。
+
+问题在于真实的登录链路本来就不以 hostname 为边界：
+
+- 公司 SSO 在 `login.corp.example.com`，业务系统在 `app.example.com`，账号只有一条；
+- QA 控制台在 `test-api.example.com`，而条目是按团队 wiki 上的地址录的，写的是 `api.example.com`；
+- 子域数量多的站点（`mail` / `music` / `news` 这类）压根没人逐个子域存一遍，用户在网址字段手写了 `*.qq.com` 这种通配形态——这个写法以前是无效的：它既匹配不上任何 host，也会在导航时被补成 `https://*.qq.com/` 这种必然解析失败的主机名；
+- 只在 apex 存过一条（`qq.com`），到了 `mail.qq.com` 就查无此人。
+
+失败模式很清楚，但要给它一个不被滥用的解法，得先把「放宽」拆成不同强度的几档，而不是一刀切开子域匹配。
+
+### 三档：off / wildcard / sameMainDomain
+
+档位设置在密码管理页头部的「跨子域名匹配」弹窗里（`components/options/DomainMatchSettingDialog.vue`），三档是包含关系：
+
+| 档位             | 标签                | 语义                                                                                                                 |
+| ---------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `off`（默认）    | 仅精确匹配          | 只看完整 hostname 相等的条目，网址为空的通用条目照常展示                                                             |
+| `wildcard`       | 精确匹配 + 通配条目 | 额外纳入用户把网址写成 `*.qq.com` 的条目，适用范围由本人逐条声明                                                     |
+| `sameMainDomain` | 同主域名（更宽松）  | 当前 hostname 没有自己的条目时，依次兜底主域名条目（`qq.com`）与同主域其他子域（`music.qq.com`），并在列表里标出来源 |
+
+`sameMainDomain` 的选中项下面刻意展开一行只读警示：`fat.example.com` 与 `uat.example.com` 同属 `example.com`，开启后测试环境账号会一起出现，需要隔离请改用通配档。这是这一档唯一的新增风险，也是它排在最后的原因——`wildcard` 的放宽强度由用户逐条控制，`sameMainDomain` 是一次性对全站生效。
+
+落盘只有 `domain_match_config` 一个键、值只有一个枚举，不含域名也不含账号，所以它走明文 `storage.local`，不进加密快照、不参与备份格式；缺键、读失败、值非法一律回落 `off`。侧边栏与内联下拉**不加重复开关**：同一份配置在三处出现，只是给后来者制造三个真源。
+
+### 一个判据，两处填充路径
+
+放宽的全部判断收在 `utils/domain.ts` 的一个纯函数里：
+
+```ts
+resolveMatchTier(currentHost, storedUrl, mode) → MatchTier | -1
+```
+
+返回值即排序权重：0 精确 host、1 通配条目、2 同主域 apex、3 同主域其他子域、4 网址为空的通用条目，`-1` 不匹配。`off` 档下只可能返回 0、4 或 -1，短路在精确比较分支里，不会额外去解析主域名——这条约束是靠基准守着的，见下文。判定「是不是跨子域命中」则是同一文件里的 `isCrossSubdomainTier`（即 tier 1~3）。
+
+消费方是两个填充路径加一圈呈现：
+
+- **侧边栏**：`utils/passwordFilter.ts` 决定本站可见集，`utils/passwordSort.ts` 决定顺序；「跨子域」徽章的唯一事实来源是 `entrypoints/sidepanel/App.vue` 里一个算好的 ID 集合，行组件只查表，不在每行重复解析域名；
+- **内联下拉**：数据经后台 `getMatchingAccounts` 返回，条目元数据里多带一个 `tier`（纯数字，不含敏感字段），content script 据此决定要不要在副信息槽放「跨子域」来源 chip，自己不再做任何域名判断——「content 只收结论」这条既有边界不放宽；
+- **一键填充与右键菜单**共用 `sortMatchesForDomain`（`entrypoints/background/quickFillHandler.ts`、`contextMenuManager.ts`），透传档位后自动继承同一顺序，首条即结果；
+- **Popup 的「当前页面匹配 N 条」计数**（`composables/usePopupInit.ts`）、**空态的「同主域还有 N 条」引导计数**（`countSameMainDomainCandidates`）、**自动保存弹窗的更新去向提示**（`utils/storage/autoSaveManager.ts`）也读同一个判据。Popup 那个数字刻意继续排除空 URL 条目——它表达的是「这个站已经有几个账号」，不限站点的通用账号不该算进去，因此它与侧边栏的可见集是有意不同的两个口径；`localhost` 也照旧走精确 host。
+
+这件事的价值不在少写几行，而在于「一条该不该出现在这个站点」永远只有一个答案。历史上这类功能最典型的烂法，是列表一份判断、填充一份判断，最后长出「下拉里能看到、点了没反应」和「侧边栏标了来源、内联下拉不标」两种自相矛盾。档位是条目的属性，不是每屏各算一遍的启发式。
+
+### 不能切的那条边界：主域名相等，不是 endsWith
+
+通配命中这一步，最自然的写法是 `hostname.endsWith('.qq.com')`，更省事的人会写 `hostname.endsWith('qq.com')`。第二种写法在演示里完全正常——演示环境没人会去 `evil-qq.com` 登录。它在生产里是凭据收集器：`evil-qq.com`、`myqq.com` 都以 `qq.com` 结尾，一条 `*.qq.com` 的条目会被端上这些页面，而用户是主动把密码敲进去的。
+
+第一种写法看起来严谨得多，但它仍然是错的，错在另外的地方：它把「哪些后缀算同一家」交给了字符串比较，于是 `getMainDomain` 已经处理过的全部规则它都不继承——两段式 ccTLD（`example.com.cn`、`co.uk` 的主域名是三段）、未收录国家码的启发式、IP 与 `localhost` 原样返回的语义；要接住 apex 条目（`qq.com` 本身）还得再加一条特判，特判又会和另一处判断漂移。
+
+最终实现只复用一条既有的可信边界：**主域名相等**。
+
+```
+storedHost 以 `*.` 开头 → base = 剥掉 `*.`
+命中 ⟺ getMainDomain(currentHost) === getMainDomain(base)
+```
+
+同一个 `getMainDomain` 也用于跨域 iframe 的委托闸门，两处同口径意味着只有一份实现会被修 bug。顺带一个方向性的细节：`getMainDomain` 的启发式分支只会把主域名判得更**具体**（三段而非两段），也就是说它在任何输入下都只收窄匹配、不会新增匹配——这正是密码学之外的另一类「失败要朝安全侧倒」。
+
+### Chrome 的 URL 解析器把 `*` 编码了
+
+首跑真机 Playwright 的时候，`wildcard` 档什么都没放出来。
+
+单测里 `resolveMatchTier('mail.qq.com', '*.qq.com', 'wildcard')` 返回 1，稳定通过。区别在于条目网址进入匹配函数之前要先过一遍 `normalizeToHostname`，而它内部用 `new URL()` 解析。`*` 不是合法的 host 码点：Chrome 给出 `%2A.qq.com`（且不会把 `%2A` 解回 `*`），Node.js 原样保留 `*`。于是真机上送到判据里的 storedHost 是 `%2A.qq.com`——不以 `*.` 开头，不进通配分支；`sameMainDomain` 档下它的主域名又恰好等于当前页的主域名，于是被错排到 tier 3「兄弟子域」，位置和徽章一起错。
+
+结果就是：**单元测试全绿，真实浏览器里一个字符都没放宽。** 修法是显式还原通配标记（`utils/domain.ts` 的 `restoreWildcardMarker`），并且两个规范化入口都要补——`normalizeToHostname` 之外还有带端口的 `normalizeToHostAndPort`，它同样充当匹配键，只修一个等于修了半个。
+
+这条 bug 的教训不是「要用真机测试」这种正确的废话，更具体一点：**测试运行时和线上运行时是两台 URL 解析器。** 只要判定逻辑的输入经过 URL / 路径 / 国际化之类的解析或规范化，Node 环境跑绿的等价性就只是必要条件。这条路径现在由 `e2e/cross-subdomain.spec.ts` 钉住——它经真实的档位弹窗改配置、观察已打开面板的列表与徽章变化，全程不重新验证主密码，那段 storage 监听 + 消息 + Vue 响应式的链路是单测的桩永远打不到的。
+
+### 放宽刻意没碰的三件事
+
+1. **自动保存判重一字未动。** 保存走的是 `utils/storage/autoSaveManager.ts` 里既有的 `findMatchingEntry`（同名 + host 相等或父子域，多条命中取最精确一条），不因档位而改变，否则「开启跨子域」就变成了「开启之后我的数据可能被写到别的站」——那是不可逆的。档位带来的只是两行只读提示：更新的是别的 host 上的同名账号时写清楚是哪个，同主域存在同名但没判重命中时说明这次会新增一条。另外 `utils/storage/passwordCrud.ts` 里按网址查询的函数保持精确 host 语义，并在 JSDoc 里明写「不走跨子域档位」，防止后来者把它误当放宽版的入口。
+2. **`localhost` / `127.0.0.1` 始终按端口区分。** 本地多项目场景里 `:3000` 和 `:8080` 是两个应用，档位在这里毫无意义，所以这两条域名走 `matchesPortForLocalDev` 的端口过滤，判据完全不参与。
+3. **切档不失效已解密的密码缓存。** 过滤发生在解密之后，档位只改变「哪些条目进入结果」，不改变任何密文。如果把它放进缓存失效键，每次调档都会删掉 `storage.session` 快照并触发全量解密回温，直接破坏有文档承诺的侧边栏秒开 SLA。这条边界由一个源码扫描测试钉住，理由很简单：它一旦被「顺手加进 relevantKeys」，功能上完全看不出来。
+
+### 放宽到底花多少钱
+
+数据来自项目自己的 Vitest 基准 `benchmarks/sidepanel-p0.bench.ts`（同一份多环境夹具内跨档比较，绝对值不与其他夹具互比）：
+
+| 场景                          | `off`              | `sameMainDomain`       |
+| ----------------------------- | ------------------ | ---------------------- |
+| 侧边栏本站管线，2000 条       | 5.9ms              | 9.9ms                  |
+| 侧边栏本站管线，600 条        | 1.6ms              | 2.7ms                  |
+| 「跨子域」徽章扫描（2000 条） | 零遍历（共享空集） | 约 2.9ms               |
+| 空态放宽计数（2000 条）       | 5.6–5.7ms          | 恒为 0（无可放宽空间） |
+
+内容脚本包体积从 217,062 字节涨到 217,080 字节，+18 B——判据是纯函数、被 tree-shaking 完整吸收，这是它该待的位置。
+
+三点说明，避免这组数字被过度解读：第一，它们是 JS 取数层的耗时，不是端到端渲染时间，侧边栏列表早已做窗口化，首帧成本与档位无关；第二，徽章扫描和空态计数都是惰性求值，`off` 档默认路径不付这笔钱；第三，结论是**放宽档不需要任何性能改造**，最贵的一格是 9.9ms 级别的个位到两位数毫秒，而它换来的是「同站账号跨子域可见」。
+
+### 测试面与门禁
+
+今天仓库有 3589 个自动化用例、分布在 251 个测试文件。与这块直接相关的覆盖是：`resolveMatchTier` 的分层用例（`off` 档与迁移前精确口径一致、`wildcard` 只额外放行通配、`sameMainDomain` 的 1 → 2 → 3 序列、apex 页面自身、被编码成 `%2A` 的通配标记、两段式 ccTLD、IP 与非法输入降级、当前页无域名的短路），一条「前缀碰撞不被绕过」的安全回归（`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io` 对 `*.qq.com` 一律返回 -1），`filterAndSortEntriesForDomain` 在 `off` 档下「集合与顺序逐 id 一致」的等价性守卫与放宽档的优先级序列测试（通配排在 apex 之前、本地开发域名三档结果一致），内联下拉三档各带一枚来源 chip 的呈现测试，以及上面提到的那条 e2e。
+
+比较特别的是 `tests/architecture/crossSubdomainTierWiring.test.ts`：它不测行为，扫源码。因为「四处消费方必须同口径」这种不变量，最容易的死法是某个新调用忘了传档位参数——而参数带 `off` 默认值时，类型检查和 ESLint 全程静默。真实形态就发生过一次：侧边栏整行点击走了档位感知的判定，键盘回车却吃了形参默认值，跨子域条目「点得到、回车打不开」。同一个文件还机械禁止运行时代码再手写 `tier >= 1 && tier <= 3` 这类区间比较，把区间的唯一定义处锁死在 `isCrossSubdomainTier` 里。这类「两处必须一致」的约束，靠自觉一定会漂移，靠扫描器不会。
+
+### 如果你也碰到同样的问题
+
+先在 `mail.qq.com` 上想想自己真正要的哪一种：只是想让某几条账号跨子域（`wildcard` 档 + 手写 `*.qq.com`），还是整个子域家族都要放开（`sameMainDomain` 档，注意它会把 `fat` / `uat` 一起带出来）。开关在密码管理页头部的「跨子域名匹配」里，改完立即生效，不需要重新解锁。
+
+账号与密码数据仍按既有方式在本地加密存储，这次功能没有新增任何权限，也没有新增网络请求；扩展自身唯一的周期性请求，是每 6 小时一次的匿名版本检查。
+
+源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，完全免费，GPL-3.0 开源。
+
+---
+
+_本文涉及的关键文件：`utils/domain.ts`（`resolveMatchTier` / `isCrossSubdomainTier` / `getMainDomain` / `restoreWildcardMarker`）、`components/options/DomainMatchSettingDialog.vue`（档位弹窗）、`utils/passwordFilter.ts` 与 `utils/passwordSort.ts`（侧边栏可见集与排序）、`entrypoints/background/passwordCache.ts`（内联下拉与一键填充的取数）、`entrypoints/content/inlineDropdown/InlineFillDropdown.ts`（来源 chip）、`tests/architecture/crossSubdomainTierWiring.test.ts`（接线守卫）、`e2e/cross-subdomain.spec.ts`（真机回归）、`benchmarks/sidepanel-p0.bench.ts`（跨档基准）。_
+
+---
+
+### [四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html)
+
+> Published: 2026-09-05 · Updated: 2026-10-13 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+这一批更新里，没有一个功能新增设置页开关，权限也只多了一个——`contextMenus`，而且它属于这一批里唯一的重量级功能（右键填充）。其余功能全部寄生在既有链路上：登录框、侧边栏、密码列表。这是刻意的——密码管理器的设置页每多一个开关，用户就要多做一次"这个我要不要开"的判断。
+
+但这不意味着实现简单。四个功能各自撞上一个 Chrome 扩展特有的坑，值得单独记一段。
+
+### 右键填充：Chrome 不告诉你用户右键点的是哪个元素
+
+在输入框上右键 → 填充用户名 / 密码 / 两步验证码，或者生成并填充一个强密码。听起来是 `chrome.contextMenus` 十行代码的事。
+
+第一个坑：**`contextMenus.onClicked` 只给 `frameId`，不给被点击的元素**。也就是说，后台知道"用户在这个 frame 里右键了"，却不知道他点的是用户名框还是密码框——而"记忆中的密码填进哪个输入框"恰恰是这件事的全部意义。解法是让 content script 在 `contextmenu` 事件的捕获阶段自己记下目标输入框（`entrypoints/content/contextMenuTarget.ts`），后台点击回调里再带着这个 frame 定向下发填充消息。同一份记忆后来还被复用于会话失效时的解锁面板锚定——一个坑挖对了地方，第二个功能就白捡。
+
+第二个坑：**菜单父项标题过长会把二级菜单挤出屏幕**。Chrome 只在同一上下文里有多个可见顶级项时，才把扩展的菜单项折叠到以扩展全名为标题的二级菜单下；只有一个顶级项时，它直接用你注册的那个父项。而这个扩展在商店里的名字带副标题（"账号密码管理助手 - 本地加密密码管理器与自动填充及两步验证"），一旦用它当父级，标题宽到把二级菜单顶出可视区，用户右键后看到的是半截菜单。所以现在显式注册单个父项（输入框上下文里叫「填充账号密码」，页面空白处叫「账号密码管理助手」），层级深度和折叠方案完全一致，仍是二级。父项必须先于子项创建——Chrome 要求 `parentId` 指向的项已经存在；语言切换时整套菜单重建，因为菜单标题是按用户语言渲染的。
+
+第三个取舍：**「生成并填充强密码」豁免会话门控**。注册新账号是生成强密码最高频的场景，而那一刻会话往往正是锁定的。这个动作只用 Web Crypto 现场生成一串随机字符，不读任何密文或明文条目，所以让它穿过会话检查是安全的——但跨 frame 门控（明文只发给顶层或同主域名 frame）和定向下发照常保留。安全例外必须比主路径更难被滥用，否则不该开这个口子。
+
+### 内联面板：不可见的元素测不出高度
+
+内联填充面板锚在登录框下方，空间不足时向上翻。第一版实现里，"先定位、再显示"的顺序有个隐蔽 bug：元素处于 `display: none` 时 `offsetHeight` 恒为 0，于是首开时的上下空间判断拿到的是 0，面板永远"以为"下方空间够——在嵌套 iframe 的登录框这种窄视口里，直接被裁掉半截。
+
+修法不是加延迟、不是等一帧，而是**先置可见再定位**：两者都在同一个同步任务里完成，浏览器不会在中间绘制，所以既量得到真实高度，也不会闪现错误位置。同时补上三层兜底——默认锚在输入框下方，仅当下方放不下且上方更宽时才上翻；所选一侧空间不足时压缩面板高度（列表内部滚动，压缩下限 120px，保证搜索行加至少一条账号仍然可用）；视口比下限还窄时贴着视口摆放，宁可遮挡输入框也不裁切列表。还有一条容易被忘：定位过程中面板可能已经被关掉（比如输入框滚出了视口），此时必须中止后续的交互绑定与聚焦，否则会给一个不存在的面板绑监听器。
+
+### 全站搜索：一个判据，两处复用
+
+侧边栏默认只列当前域名匹配的账号——这是多环境隔离的立身之本。但"我记得存过一个 GitHub 账号，现在人在别的站上"这种查找需求，本站模式满足不了。于是搜索框右侧加了个图标，在「本站 / 全站」之间切换。
+
+关键设计不是那个按钮，而是**判据的唯一来源**：`utils/passwordFilter.ts` 里两个纯函数（`matchesSiteScope` 判定范围、`filterEntriesByScope` 执行过滤）同时回答两个问题——"这条要不要出现在列表里"和"这条能不能填进当前页"。这两个问题本质是同一个：填充依赖当前页存在对应输入框，域名不匹配的条目填进去必然失败。分成两份判断迟早会漂移，变成"列表里有但点了没反应"或者反过来。抽成无 Vue 依赖的纯函数还有个附带好处：它能被单元测试和基准直接打到。
+
+外站条目的降级也来自同一个判据：`canFill` 为假时，整行变成"在新标签页打开该站点"，但复制账号 / 密码 / 验证码、收藏、编辑都保留——用户来全站模式是为了"找"，不是为了"填"。跳转到新标签页的 URL 不是拼字符串，而是走 `toNavigableUrl`：补默认协议、本地开发域名走 http、显式拒绝 `javascript:` 这类非导航协议（返回 `null` 就不渲染链接）。库里的 URL 是用户可编辑字段，属于不可信输入。
+
+性能上曾担心"放开全库会不会拖慢首屏"。基准跑下来这个担心没成立：从 100 条到 2000 条，本站与全站两条路径的吞吐差异始终在 ±1% 噪声带内（`benchmarks/sidepanel-p0.bench.ts` 可复现）。原因有点反直觉——本站模式要为每一条候选做一次主机名比对（含 URL 解析与协议补全），全站模式反而只做一次浅拷贝加排序。**慢的不是"看得多"，而是"每看一条都要重新解析一次地址"**。
+
+顺带一提：本站无结果而全库有命中时，空态会给一个「在全部条目中查找（N 条）」的按钮。用户不需要先想到"原来还有个切换按钮"——这是这类逃逸舱功能能不能被用起来的关键。
+
+### 快速添加与只读详情：把"看一眼"和"改一下"分开
+
+侧边栏顶栏的「+」打开一个只收五个字段的弹窗（账号 / 密码 / 网址 / 标签 / 备注），网址预填当前域名；本站没有账号时头部显示邀请，搜索无结果时空态也给入口——三处打开的是同一个弹窗。需要 TOTP 之类的完整字段时，弹窗底部把用户送去选项页。轻路径负责高频，重路径负责完整，别把弹窗做成选项页的复刻。
+
+条目只读详情抽屉（`components/options/PasswordDetailDrawer.vue`）解决的是另一个高频动作：只想看完整备注、看密码历史，却必须进编辑弹窗。它的约束是**纯展示**——不写存储、不碰加密与会话，「编辑」只是把条目向上抛给父级去复用既有编辑流程，写入路径保持单一。密码默认掩码，明文可见性只是组件本地态，抽屉关闭动画结束时连同已加载的历史列表一起复位，不留残余引用。复制密码不是简单 `writeText`：它走 `utils/clipboard.ts` 里那层与 UI 无关的机制（写入、按配置定时清除、清除前校验内容未被用户替换、失焦时降级 `execCommand` 尽力清除），清除成功与否通过回调交回调用方，各入口用自己的文案提示。这段机制原本长在侧边栏里，抽出来之后详情抽屉与侧边栏共用同一份实现——两个入口的"复制后会自动清除"承诺不会各自演化。
+
+### 这批功能的共同点
+
+回头看，四条链路都遵守同一套约束：**不加开关、除 `contextMenus` 外不加权限、不改存储结构与加密格式、不动既有条目的语义**；新增的用户可见文案全部中英双语成对提交；每个功能都带回归测试，全仓库 3589 项自动化测试（分布在 251 个测试文件）与 `pnpm build`（Chromium）+ `pnpm build:firefox`（Firefox）双端构建作为验收线。
+
+密码管理器的功能增量本来就不该是"多几个按钮"。它更像是把同一条登录链路磨得再顺一点：少一次切 App、少一次点错输入框、少一次为了看一眼备注而误改数据。
+
+源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，完全免费，GPL-3.0 开源。
+
+---
+
+_本文涉及的关键文件：`entrypoints/background/contextMenuManager.ts`（菜单注册与动作分发）、`entrypoints/content/contextMenuTarget.ts`（右键目标记忆）、`entrypoints/content/inlineDropdown/InlineFillDropdown.ts`（面板定位）、`utils/passwordFilter.ts`（范围与过滤判据）、`utils/clipboard.ts`（复制与自动清除）、`components/options/PasswordDetailDrawer.vue`（只读详情抽屉）。_
+
+---
+
+### [零云端、开源、为开发者而生：我从零做了一款浏览器密码管理器](https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html)
+
+> Published: 2026-08-28 · Updated: 2026-10-18 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+![Account Password Helper 核心价值一览](https://liaolongdong.github.io/account-password-helper/imgs/01-infographic-core-value.webp)
+
+同一个后台系统，我有四套账号：dev、test、staging、prod。域名分别是 `admin-dev.example.com`、`admin-test.example.com`、`admin.example.com`……不对，其实很多团队的多环境是同一主域加子域，或者干脆是 `192.168.1.10:8080` 这种地址。
+
+问题来了：Chrome 自带的密码管理器把这些环境的账号混在一起，每次填充都赌运气；Bitwarden 这类云端工具倒是能按 URL 精确匹配，但它只"填充"——填完之后，协议勾选框要自己点，登录按钮要自己点，两步验证码还要切手机去抄。
+
+这些不大不小的摩擦，日复一日地发生在每个开发者、测试工程师的工作流里。这就是我做 [Account Password Helper（账号密码管理助手）](https://github.com/liaolongdong/account-password-helper) 的起点：**一款零云端、开源、专为多环境登录场景设计的本地密码管理器**。
+
+目前它已上架 [Chrome 应用商店](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)，完全免费，代码以 GPL-3.0 协议开源。这篇文章讲讲它解决什么问题、怎么解决的，以及它刻意不做什么。
+
+### 现有密码管理器的三个缺口
+
+在动手之前，我把市面上的方案都试了一遍，发现三个共性缺口：
+
+**缺口一：多环境账号隔离。** 密码管理器靠域名匹配决定"在这个页面给你看哪些账号"。大多数工具做的是模糊匹配——主域相同就算命中。对普通用户这是贴心，对开发者这是灾难：测试环境的账号被填进生产环境的登录框，轻则登录失败，重则误操作。我要的是**精确匹配**：规范化后的 host 完全一致的条目才出现；`localhost` / `127.0.0.1` 这类本地开发域名另走一套规则——页面不带端口时放行全部方便联调，带端口时只出现端口一致的条目（库里没写端口的通用条目始终保留）。
+
+**缺口二：登录不是填充。** 一次完整的登录动作 = 填用户名 + 填密码 + 勾选协议 + 点登录按钮，如果有两步验证还要再补一个验证码。现有工具只帮你完成前两步。Account Password Helper 的"一键登录"用一个快捷键 `Ctrl+Shift+F`（Mac 上是 `Cmd+Shift+F`）串起整条链：自动填充用户名与密码，并自动勾选离输入框最近的协议复选框；链条末端那次"点击登录"由设置里的「自动触发登录」开关决定（默认关闭，避免在你没准备好的页面上误提交），不想常开的话，侧边栏每条账号上还有一个显式的「填充并登录」按钮可按需触发。如果是 GitHub 那种"先输密码、下一步输验证码"的两步登录，页面会出现一个 TOTP 活码胶囊，下一步直接把当前验证码填进去。
+
+**缺口三：隐私与信任。** 云端密码管理器再优秀，你也要把全部凭证托付给一家公司的服务器和它的商业承诺。对一部分用户（包括我自己），"数据物理上不离开浏览器"不是加分项，而是前提条件。
+
+### 核心功能走读
+
+围绕这三个缺口，产品的功能版图长这样：
+
+#### 一键登录与四种填充方式
+
+填充这件事看似简单，实际上现代前端框架给自动填充挖了不少坑：React 受控组件会忽略直接改 `value` 的赋值、各种自定义输入组件不响应标准事件。插件的填充器按顺序尝试三档降级——原生 setter 触发 `input` 事件、`execCommand`、模拟键盘事件——逐级回退，兼容主流框架。
+
+填充入口有四层：**内联填充**（默认，输入框获焦后出现钥匙图标，点一下弹出账号下拉）、**侧边栏填充**、**输入框右键菜单填充**（右键即可填充用户名 / 密码 / 两步验证码，或在注册时直接生成并填充一个强密码——后者不要求先解锁会话）、**快捷键一键填充**（`Ctrl+Shift+F`，在偏好设置开启「自动触发登录」后连登录按钮一起点掉）。会话锁定时不弹系统通知了事，而是就地展开一个带「解锁后填充」引导的锁定卡片；真填不成，页面内提示条 + 桌面通知 + 工具栏角标三层反馈依次兜底，不会静默失败。
+
+#### 多环境隔离的域名匹配
+
+匹配规则刻意做得"不智能"：规范化后的 hostname 全等才命中。主域名解析内部维护了一份 27 条的两段式 ccTLD 列表（`com.cn`、`co.uk` 这类，覆盖 CN/UK/HK/TW/JP/KR/AU/SG），避免把 `example.com.cn` 错误截断成 `com.cn`；列表未收录的国家则由"末段是两字母国家码 + 二级是 com/co/net 等常见注册标签"的启发式兜底，把 `example.com.br` 也算成三段主域。这套规则同时约束侧边栏列表、内联下拉和自动保存捕获，保证任何一个入口都不会把 prod 账号递到 test 页面上。
+
+#### 内置 TOTP，不是玩具
+
+TOTP（RFC 6238）验证码在本地生成，列表里是实时活码加倒计时。添加密钥支持两种姿势：扫描网页上的二维码（内置 jsQR 解码，不发任何外部请求），或者上传图片。配合前面说的"两步登录接力"，手机验证器在这个工作流里可以退休了。
+
+#### 离线安全体检
+
+一键给所有密码做体检，产出 0–100 综合评分。评分由四个加权维度构成：重复复用（权重 35）、弱密码（25）、疑似泄露（20）、长期未更新（20），按 `100 - 35×复用占比 - 25×弱口令占比 - 20×泄露占比 - 20×陈旧占比` 计算；「未开启两步验证」会统计出来单独列作风险项，但不进评分。弱密码与疑似泄露都靠本地字典判定——内置弱口令清单加一份离线的近千条常见泄露密码清单（`top1000.json`，999 条），不发 HIBP 之类的联网查询。这是"体检工具本身不能成为数据出口"的底线。
+
+#### 迁移与备份
+
+导入端自动识别 Chrome、LastPass、Bitwarden、1Password 的导出格式，接受 CSV 与 JSON 两类文件（Excel 表格请先「另存为 CSV」再导入），中英文列名自动映射，30 秒搬家。备份端有三重：加密备份文件（.aph，AES-256-GCM 整库加密，导入时可解密预览）、邮箱备份、定时备份提醒。删除有 30 天回收站兜底，改错密码可以从密码历史快照里恢复——每条默认保留 3 份，可在 1–10 份之间调整。
+
+#### 体验层
+
+6 套色彩主题、中英文双语界面即时切换（扩展页和注入页面的 UI 同步生效）、网站图标直接读 Chrome 本地图标缓存（零外部请求）、密码生成器双模式（随机字符 + 助记词组，词库是内置的 3080 词英文清单，默认取 4 词、约 46 位熵）。登录页上还有一个可拖拽的悬浮填充按钮（能吸附到屏幕边缘、透明度可调），工具栏 Popup 则把管理页、侧边栏、直接填充、锁定会话收在同一屏。
+
+还有一层不太起眼的日常细节：侧边栏顶栏的「+」可以就地快速添加本站账号（网址自动预填当前域名）；搜索框右侧一个图标在「本站 / 全站」之间切换，全站模式下外站账号一键在新标签页打开，而不会被递到当前页去填充；密码列表每行的「查看详情」用只读抽屉展示完整备注与密码修改历史，不必为了看一眼而进入编辑态；主密码输入框实时检测大写锁定，大小写误输不再被当成「密码错误」；自动保存弹窗则会在密码强度偏弱或被多个账号复用时给出内联提示——只提醒，不拦你保存。
+
+### 安全模型：敢开源，才敢谈信任
+
+密码管理器的信任不能靠口号，只能靠可验证的设计。Account Password Helper 的安全模型有几条硬边界：
+
+1. **本地优先，出站只有版本检查。** 没有后端、没有账号体系、没有遥测与分析，凭证只落在你浏览器的本地存储里。扩展确实申请了 `<all_urls>` 的 host 权限，但它服务于内容脚本在任意站点上定位登录表单，不用于发请求；真正出网的只有一处：约每 6 小时一次的版本更新检查，向 Chrome 商店页面发一个 `no-cors` HEAD 探测可达性、再向 GitHub Releases 公开接口读一次版本号，匿名、不带凭据、不带任何账号数据。
+2. **字段级加密。** 条目的用户名、密码、URL、备注、TOTP 密钥全部单独加密，存储层看到的全是密文。
+3. **标准算法，不发明轮子。** PBKDF2-SHA256（600,000 次迭代）派生密钥，AES-256-GCM 认证加密，全部走浏览器原生 Web Crypto API。下一篇技术文章会展开讲实现细节。
+4. **会话有生命周期。** 默认 24 小时有效期；闲置自动锁定（跟随系统锁屏）与浏览器重启锁定都是可选项、默认关闭；手动一键锁定随时可用。锁定时内存中的密钥句柄与解密快照立即清除。
+5. **代码全开源（GPL-3.0）。** 加密那几行代码、权限声明、每一处网络调用，都可以自己读。3589 项自动化测试覆盖加密、会话、存储与消息路由等关键路径（跑在本地、提交前钩子里，也会在每次 push 与 PR 的仓库 CI 中自动执行）。
+
+同时也要把话说在前面：**这款工具的定位是开发、测试与日常登录场景，不建议在任何浏览器扩展里存放银行、支付类高敏感凭证**；主密码遗忘无法找回，请善用加密备份。诚实的边界声明，是安全产品该有的样子。
+
+### 写给谁
+
+![面向开发者与测试工程师的特性全景](https://liaolongdong.github.io/account-password-helper/imgs/03-infographic-dev-features.webp)
+
+- **开发者**：多环境账号隔离 + 一键登录，每天少点几十次鼠标；
+- **测试工程师**：快速切换测试账号，跨环境效率翻倍；
+- **隐私敏感用户**：无云端服务、免注册、免订阅，密码数据只存在你的浏览器里；
+- **普通用户**：告别记密码，TOTP 和密码放在一起，强密码一键生成。
+
+### 最后
+
+这个项目从 2026 年 5 月的 1.0 走到现在的 3.9，每个版本都是从真实使用中长出来的。它不打算成为"又一个 Bitwarden"，而是把"开发者多环境登录"这一个场景做到极致顺手，同时把隐私底线焊死在架构里。
+
+如果你也受够了混在一起的测试账号和切来切去的手机验证码，欢迎试试：
+
+- [Chrome 应用商店一键安装](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli)（自动更新）
+- [GitHub 仓库](https://github.com/liaolongdong/account-password-helper)（源码 / Releases 下载 / Issue 反馈），顺手点个 Star 是对开源最大的支持
+- [在线演示与双语 FAQ](https://liaolongdong.github.io/account-password-helper/)
+
+下一篇，我们聊聊让侧边栏在 1 秒内打开的完整工程实现——那是 Manifest V3 时代每个扩展开发者都会踩的坑。
+
+---
+
+### [让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战](https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html)
+
+> Published: 2026-08-28 · Updated: 2026-10-13 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+做过 Manifest V3 扩展的人，大概率都被同一个问题咬过：**侧边栏（Side Panel）冷启动白屏**。
+
+用户点击图标，侧边栏框架是出来了，内容区白一片，两秒后才慢慢渲染。在桌面软件里，这叫不可用。更糟的是，MV3 把后台换成了 Service Worker——一个随时可能被浏览器回收的短命进程，你精心维护的内存缓存、连接状态，说没就没。
+
+[Account Password Helper](https://github.com/liaolongdong/account-password-helper) 是一款本地密码管理器扩展，侧边栏是它的最高频入口（解锁、搜索、填充都在这）。我们给它定了一个硬性 SLA：**所有场景（会话有效/失效、浏览器冷启动、快速重启）侧边栏必须 1 秒内打开、无白屏**。最终结果：缓存快路径 20-50ms 拿到数据。
+
+这篇文章把整套方案的实现和踩坑完整公开，源码路径都会给出，可以直接抄。
+
+### 先搞清楚白屏从哪来
+
+侧边栏打开的链路拆开看，每一段都可能贡献白屏时间：
+
+1. **Service Worker 冷启动**：SW 已被回收，消息没人接，扩展页初始化请求悬空；
+2. **资源冷读盘**：HTML、JS chunk、CSS 第一次从磁盘加载，Windows 上还要叠加杀毒软件逐文件扫描，轻松多出 1–2 秒；
+3. **数据加载**：密码库要解密（PBKDF2 派生密钥 + AES-256-GCM 解密），串行做就是白屏；
+4. **CSS 阻塞**：`<link rel="stylesheet">` 默认阻塞渲染，样式文件没到位，页面就是不画。
+
+四个问题，四套对策。
+
+### 对策一：双层保活，让 SW 常驻
+
+MV3 的 SW 空闲约 30 秒就会被回收。社区常见方案是定时给自己发消息续命，但这里有个细节：**SW 内部的 `setInterval` 本身也会随 SW 一起死掉**，只靠它不够稳。
+
+我们的做法是双层结构（`entrypoints/background/backgroundServices.ts`）：
+
+- **第一层：20 秒心跳。** 运行时用 `setInterval` 每 20 秒读写一次 `chrome.storage.session`，重置空闲计时；
+- **第二层：0.5 分钟复活闹钟。** `chrome.alarms` 创建一个 30 秒周期的 `sw-keepalive` 闹钟。就算心跳所在的 SW 被意外回收，闹钟事件会立刻把 SW 唤醒，心跳随之恢复。
+
+两层互为兜底：心跳保证常态常驻，闹钟保证"死而复生"。这个策略是全平台无条件开启的——哪怕会话已锁定。因为保活买的不是"密码在内存里"，而是**下一次打开侧边栏时不用付冷启动成本**。
+
+顺带两个必须知道的限制：
+
+- `chrome.alarms` 的官方限制是**最快每 30 秒触发一次**（以未打包方式加载做调试时不限频率），所以 0.5 分钟已经是打包扩展能写到的最小周期，别指望秒级精度——秒级的连续性由 20 秒心跳层负责，闹钟层只兜"起死回生"；
+- 保活闹钟里还挂了会话到期检查——到期立即锁定，不依赖页面存活。
+
+### 对策二：四层资源预热，消灭冷读盘
+
+SW 常驻之后，下一步是把"用户即将用到的文件"提前读进系统缓存。预热逻辑（`utils/warmSidePanelResources.ts`）分四层，由浅入深：
+
+1. 侧边栏 HTML 本体；
+2. `modulepreload` 预声明 + CSS；
+3. 动态 import 的二级 chunk；
+4. 二级 chunk 再引用的静态依赖。
+
+预热不是无脑全量，有两个工程约束：
+
+**平台差异化。** Windows 的主要瓶颈是 Defender 对扩展目录的逐文件扫描，文件读得越多、扫得越久，所以 Windows 走全量预热（约 25 个文件），把扫描成本提前摊掉；Mac 等 Unix 平台没有这个问题，只预热白名单里的约 15 个核心文件。**触发时机**：扩展安装/更新、浏览器启动、窗口聚焦、Tab 激活、保活闹钟 tick、侧边栏打开 2 秒后——都是"用户可能要打开侧边栏"的前置信号。
+
+**节流与去重。** 持久化 5 分钟节流窗口 + in-flight 互斥锁，防止多个触发点同时触发时把磁盘打满。
+
+另外还有一层 SW 预唤醒（`utils/preWarmSw.ts`，8 秒节流）：用户在 Popup 上的任何交互都顺手戳一下后台，保证点"打开侧边栏"时 SW 一定是在线的。
+
+### 对策三：三路数据竞速，谁快用谁
+
+密码数据有三条可走的路（`composables/useSidepanelData.ts`）：
+
+1. **`storage.session` 加密快照直读**：会话有效期内，后台把解密后的快照以 AES-256-GCM 加密形态放在 `storage.session`，侧边栏直接读，不经过消息通道；
+2. **后台 `GET_INITIAL_DATA` 内存缓存**：后台在 SW 启动 500ms 后就把密码缓存回温，走消息通道拿。这条路径上有一个 **800ms 竞速门**：门内返回就直接用；冷 SW 超过 800ms 才回话时，本地兜底路径已经并行跑起来了，迟到的那份原始响应不会被丢弃，它继续和本地路径竞速，由一个共用的"已采纳"标记保证同一响应只被处理一次；
+3. **本地 storage 直读**：与上面两条同一时刻并行发起，侧边栏自己读 `storage.local` 解密，设 3000ms 超时——这条超时是最后的安全网，宁可先给出锁屏界面，也不让用户对着空面板干等。
+
+三路并发出发，**任一路先返回就先渲染，任一路失败不影响其他路径**。所有异步提交都带会话代际和请求序号保护——万一用户中途锁定或换钥，过期结果不会写回 UI。
+
+这个设计的核心思想是：**把"数据在哪"变成运行时决策，而不是架构假设**。SW 活着走快路径，SW 死了走兜底，用户无感。
+
+### 对策四：非阻塞 CSS，先画出来再说
+
+最后一段白屏来自样式阻塞。我们的处理（`wxt.config.ts` 里的自定义 Vite 插件）：给侧边栏的 `<link rel="stylesheet">` 先写 `media="print"`（浏览器不会为 print 媒体阻塞渲染），加载完成后再改回 `media="all"`。
+
+效果：HTML 解析完立刻渲染骨架，样式异步到位。配合主题令牌的 CSS 变量，切换成本几乎为零。这是浏览器圈的经典技巧，用在扩展侧边栏上刚刚好。
+
+### 还有一条铁律：手势链不能被 await 打断
+
+`chrome.sidePanel.open()` 必须由用户手势触发，且**调用前禁止 `await`**——一旦中间插入任何异步等待，手势上下文就失效，侧边栏直接打不开。所以打开动作本身永远是同步发出的，tabId 也用同步接口获取。所有"打开前的准备工作"全部前置到保活和预热阶段完成，而不是在点击之后临时抱佛脚。
+
+### 验证：秒开不是感觉，是测出来的
+
+方案落地的同时，配套测试也补齐了（vitest，跑在本地与提交前钩子里，并由仓库的 GitHub Actions 在每次 push 与 PR 上自动执行）：
+
+- `swKeepalive`：心跳与闹钟的注册、续命、清理；
+- `warmSidePanelResources`：节流窗口、平台分支、文件清单；
+- `passwordCache` / `startupRelock` / `idleLock`：缓存回温与各类锁定路径；
+- `sidePanelManager`：打开时序。
+
+目前全仓库 3589 项自动化测试（分布在 251 个测试文件）。性能结论：**缓存快路径 20-50ms 拿到数据**；即使会话失效需要重新输主密码，界面也是先出来、再等解锁，没有白屏。
+
+### 复盘：三条经验
+
+1. **别和 MV3 的生命周期对抗，要顺着它设计。** SW 一定会被回收，那就假设它随时不在，把状态放进 `chrome.storage`，把唤醒交给闹钟，把成本提前到预热阶段。
+2. **快是分层买来的。** 保活买"进程在"，预热买"文件热"，竞速买"数据快"，非阻塞 CSS 买"先渲染"。每层独立生效，叠加起来才是秒开。
+3. **平台差异要正面处理。** Windows 杀毒扫描这种"非技术问题"真实存在，全量预热 + 引导用户加排除目录，比假装看不见有效得多。
+
+完整源码在 [GitHub](https://github.com/liaolongdong/account-password-helper)，欢迎 Star、拍砖、提 Issue。如果你也在做侧边栏类扩展，希望这套方案能帮你少走几个月的弯路。
+
+---
+
+_本文涉及的关键文件：`entrypoints/background/backgroundServices.ts`（保活）、`utils/warmSidePanelResources.ts`（预热）、`composables/useSidepanelData.ts`（三路竞速）、`wxt.config.ts`（非阻塞 CSS）。_
+
+---
+
+### [用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html)
+
+> Published: 2026-08-28 · Updated: 2026-10-18 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+![从主密码到密文：加密管线全流程](https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.webp)
+
+给密码管理器写加密模块，第一反应往往是引入一个加密库。但如果你做的是浏览器扩展，有个更好的选择：**什么都不引，直接用浏览器原生的 Web Crypto API**。
+
+[Account Password Helper](https://github.com/liaolongdong/account-password-helper) 是一款零云端的本地密码管理器扩展，加密模块（`utils/encryption.ts`）完全构建在 Web Crypto 之上，没有一行第三方加密代码。这篇文章拆解它的完整设计：为什么这么选、每个参数怎么定、以及那些容易被忽略的边界。
+
+### 为什么是 Web Crypto，而不是加密库
+
+三个理由，按重要性排序：
+
+1. **可审计性。** 密码管理器的信任基础是"用户能验证你没作恶"。依赖一个几千行的第三方加密库，审计面立刻扩大一圈；而 `crypto.subtle` 是浏览器内核实现，接口稳定、行为公开，源码里的加密逻辑可以一只手数完。
+2. **攻击面。** 供应链投毒是扩展生态的真实威胁。少一个 npm 依赖，就少一个被投毒的入口。
+3. **性能。** 原生实现在 PBKDF2 这种大迭代量场景下，比 JS 实现快一个数量级以上。
+
+代价是 API 偏底层、全异步、错误信息简陋——但这正是逼你把每一步想清楚的好约束。
+
+### 密钥派生：PBKDF2-SHA256，600,000 次迭代
+
+用户的主密码不能直接当加密密钥：它的熵不够，而且需要加盐防彩虹表。标准做法是密钥派生函数，我们选 PBKDF2-SHA256，**600,000 次迭代**——这是 OWASP 密码存储备忘录自 2023 年起对 PBKDF2-SHA256 的推荐值，目标是让暴力破解的单次尝试成本足够高。
+
+两个关键设计：
+
+**盐值随机且明文伴随存储。** 每个实例独立随机生成 16 字节盐（32 位 hex），以明文存放在主密码配置中，与密文同库不同键。盐不保密，它的作用是确保"同一个主密码在不同安装上派生出不同密钥"，让预计算攻击失效。
+
+**验证哈希做域分离。** 校验"主密码是否正确"时，不直接尝试解密数据（解密失败的原因很多，难以区分"密码错"和"数据损坏"），而是对主密码做一次带前缀的哈希校验，前缀 `aph-verify|` 实现了**域分离（domain separation）**：验证用途和加密用途的输入空间互不重叠，杜绝把验证值当作密文、或把密文拿去撞验证的跨域利用。
+
+### 数据加密：字段级 + AES-256-GCM
+
+加密粒度上，我们没做整库一锅端，而是**字段级加密**：每条记录的用户名、密码、URL、备注、TOTP 密钥分别加密。好处很实际——列表页展示标题、图标、标签时不需要解密敏感字段，侧边栏的搜索与渲染可以只碰元数据。
+
+算法选 **AES-256-GCM**：
+
+- GCM 是认证加密模式，密文被篡改时解密会直接失败（完整性校验内置），不需要再叠一层 HMAC；
+- 每次加密使用 **12 字节随机 IV**，存储格式为 `Base64(IV || 密文 || authTag)`（GCM 的 16 字节认证标签随密文一并落盘），IV 与密文绑定，不存在复用风险；
+- IV 随机生成由 `crypto.getRandomValues` 保证，坚决不用计数器或可预测来源——GCM 下 IV 复用等于灾难，这条没有妥协空间。
+
+`CryptoKey` 句柄做了小容量缓存（key 为「用途 + 密钥」，上限 4 个，**FIFO 淘汰**），把批量加解密里 `O(条目 × 字段)` 次的 `importKey` 降为 O(1)——注意它缓存的是导入后的句柄，PBKDF2 派生本身不在缓存范围内；句柄以 `extractable: false` 导入，不可导出原始密钥字节，且**锁定会话时立即清空**——内存里不留可以被 GC 之外手段捞出来的密钥材料。
+
+### 会话：密钥在内存里活多久
+
+加密做对了，密钥管理做歪了，一样白搭。会话层的设计：
+
+- **有效期可配**：默认 24 小时，1 小时到 7 天可选。到期不动任何密文——落盘数据本来就一直是密文，过期做的只是丢会话数据密钥、清解密快照，之后再也解不开，下次使用重新验证主密码；
+- **闲置锁定**：可选项且默认关闭，开启后通过 `chrome.idle` 监听，系统锁屏即时锁定，闲置超阈值锁定；
+- **浏览器重启锁定**：同为可选项、默认关闭，开启后 `onStartup` 时强制重锁，防共享设备场景；
+- **手动锁定**：Popup 一键，锁定时同步清掉内存中的密钥句柄与解密快照。
+
+所有锁定路径都必须走到同一个清理函数——这是代码评审时盯得最紧的一条，因为漏掉任何一条路径，"锁定"就成了摆设。
+
+### 换钥：修改主密码的原子性
+
+"修改主密码"是加密系统里最容易写崩的功能：要用新密钥重加密全部数据，中途失败怎么办？
+
+实现上是先用旧密码把条目、回收站、密码历史全量解密校验一遍，再派生新数据密钥——**盐值原样保留、迭代次数原样保留**（`deriveEncryptionKey` 从存储里读那把盐，换盐会让后续解密派生出另一把密钥，数据就永久解不开了；换密码本身已提供足够安全性），最后用新密钥重加密全部三类数据，连同新校验哈希和新会话密钥材料一次 `chrome.storage.local.set()` 原子落盘，任何一步失败整体回滚，旧数据保持可用。不会出现"主密码改了，数据解不开了"这种密码管理器的死罪。对应的测试覆盖了成功、中途失败、旧格式兼容三类路径。
+
+### 把一切输入当敌人
+
+扩展运行在不可信环境里：网页 DOM、导入的 CSV、runtime 消息、storage 里的旧数据，全部按不可信输入处理——边界处校验类型、长度、格式，失败安全降级。渲染层禁止 `v-html`/`innerHTML` 处理任何来自外部或用户数据的字符串。这些不产生"功能"，但它们是密码管理器该有的肌肉记忆。
+
+两个新近的例子可以具象化这条原则。一个是自动保存弹窗的弱密码/复用风险提示：它是在已解密的全量条目上算出来的派生结论，所以既不进 pending 也不进 sessionStorage（否则用户改了密码会留下陈旧的复用计数），跳页恢复路径负责重算新鲜值；iframe 委托场景下它经 `postMessage` 跳帧传入，接收方逐字段收窄——`weak` 只接受严格布尔 `true`，`reusedCount` 只接受 `1..9999` 的整数，非法值直接丢弃。另一个是条目只读详情抽屉里的网址字段：库里存的 URL 对用户可编辑，属于不可信输入，因此它先经 `toNavigableUrl` 归一化（补默认协议、本地开发域名走 http、显式拒绝 `javascript:` / `data:` 等非导航协议）才允许出现在 `href` 上，返回 `null` 就不渲染链接。
+
+### 为什么从 MIT 换到 GPL-3.0
+
+项目在 3.0 版本把协议从 MIT 换成了 GPL-3.0，这是一个有意的决定：密码管理器的价值在于"可审计 + 可信任"，GPL 保证任何人拿了这份代码做衍生产品，也必须以同等开源的方式发布——安全工具的供应链不该有黑箱分支。已发布的历史版本仍按 MIT 存续，GPL 自切换后的新版本生效。
+
+### 最后的诚实声明
+
+安全的另一面是自知之明：
+
+- 本工具定位是开发、测试与日常登录场景，**不建议在任何浏览器扩展中存放银行、支付类高敏感凭证**；
+- 主密码遗忘无法找回，请启用加密备份（.aph 文件）；
+- 加密实现全部开源，欢迎审计、欢迎提 Issue——对一个密码管理器来说，被人逐行读代码不是冒犯，是信任的来源。
+
+源码与讨论：[GitHub 仓库](https://github.com/liaolongdong/account-password-helper)。如果你也在做本地优先的安全工具，评论区聊聊你踩过的坑。
+
+---
+
+_本文涉及的关键文件：`utils/encryption.ts`（加密核心）、`utils/sessionManager.ts`（会话管理）、`tests/`（3589 项自动化测试，含加密与换钥路径）。_
+
+## English originals
+
+### [Three Tiers of Cross-Subdomain Matching](https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.en.html)
+
+> Published: 2026-09-22 · Updated: 2026-10-13 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+Ever since the matching rule was narrowed to "hostnames must be equal" in July 2026, that rule has been this extension's foundation for multi-environment isolation: a page on `fat.example.com` never sees entries from `uat.example.com` or from `example.com`. It is also the wall users hit most often — an account saved under one host of a domain family simply does not appear on its siblings.
+
+This post covers the trade-offs behind the three widening tiers, and a bug that only a real browser could catch.
+
+### Exact matching is the right default — but logins don't respect hostname boundaries
+
+To be clear: exact matching isn't conservatism for its own sake. It is the **only default that blocks both classes of incident at once** — `fat.example.com` can't reach `example.com` credentials, and a phishing site can't reach anything that merely looks close. Widening must be an explicit user choice; that part isn't negotiable.
+
+The problem is that real login flows were never drawn along hostname lines:
+
+- Corporate SSO lives on `login.corp.example.com` while the app lives on `app.example.com`, and there is only one account;
+- the QA console is at `test-api.example.com`, but the entry was typed from the team wiki, which says `api.example.com`;
+- on sites with many subdomains (`mail` / `music` / `news` and friends) nobody saves an entry per subdomain, so people write `*.qq.com` into the URL field by hand — a form that used to be inert: it matched no host, and when navigated it got completed into `https://*.qq.com/`, a hostname that can never resolve;
+- an entry saved once at the apex (`qq.com`) is simply invisible on `mail.qq.com`.
+
+The failure modes are obvious. Giving them a non-abusable answer meant splitting "wider" into tiers of different strength instead of loosening subdomain matching across the board.
+
+### The three tiers: off / wildcard / sameMainDomain
+
+The setting lives in the "Cross-Subdomain Matching" dialog in the manager page header (`components/options/DomainMatchSettingDialog.vue`). The three tiers are nested:
+
+| Tier             | Label                              | Semantics                                                                                                                                                                |
+| ---------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `off` (default)  | Exact match only                   | Only entries whose full hostname is equal; entries with an empty URL keep showing, as before                                                                             |
+| `wildcard`       | Exact match + wildcard entries     | Additionally includes entries the user deliberately wrote as `*.qq.com` — the scope of each one is declared per entry                                                    |
+| `sameMainDomain` | Same root domain (most permissive) | When the current hostname has no entry of its own, fall back to the apex entry (`qq.com`), then to sibling subdomains (`music.qq.com`), labelling the source in the list |
+
+Selecting `sameMainDomain` expands a read-only warning right under the radio group: `fat.example.com` and `uat.example.com` share one root domain, so test-environment accounts will appear together — switch to the wildcard tier if you need isolation. That is the only new risk this tier carries, and exactly why it sits last: `wildcard` widens per entry the user chose, `sameMainDomain` widens the whole family at once.
+
+Only one storage key lands on disk, `domain_match_config`, and its value is a bare enum — no domains, no accounts. So it stays in plain `storage.local`, outside the encrypted snapshot and outside the backup format; a missing key, a read failure, or an invalid value all fall back to `off`. Neither the side panel nor the inline dropdown gets its own copy of the switch: the same setting rendered in three places just creates three sources of truth for later contributors to disagree about.
+
+### One predicate, two fill paths
+
+Every widening decision lives in one pure function in `utils/domain.ts`:
+
+```ts
+resolveMatchTier(currentHost, storedUrl, mode) → MatchTier | -1
+```
+
+The return value doubles as the sort weight: 0 exact host, 1 wildcard entry, 2 apex of the same root domain, 3 sibling subdomain, 4 entry with an empty URL; `-1` means no match. Under `off` only 0, 4 or -1 can come back, and the function short-circuits inside the exact-comparison branch rather than resolving a root domain it doesn't need — a constraint held in place by a benchmark (below). Whether a hit counts as "cross-subdomain" is one other function in the same file, `isCrossSubdomainTier` (tiers 1–3).
+
+Its consumers are the two fill paths plus everything that presents results:
+
+- **Side panel**: `utils/passwordFilter.ts` decides the this-site visible set and `utils/passwordSort.ts` decides the order; the single source of truth for the "cross-subdomain" badge is one precomputed set of IDs in `entrypoints/sidepanel/App.vue`, so row components only do a lookup instead of re-parsing a domain per row;
+- **Inline dropdown**: rows come back from the background's `getMatchingAccounts`, and entry metadata now carries a `tier` (a number, nothing sensitive). The content script only reads it to decide whether to render the "cross-subdomain" source chip — it performs no domain reasoning itself, keeping the existing "content script receives conclusions, never does policy" boundary intact;
+- **Quick fill and the context menu** share `sortMatchesForDomain` (`entrypoints/background/quickFillHandler.ts`, `contextMenuManager.ts`), so passing the tier through gives them the identical order for free, first row wins;
+- The **Popup's "N matches for this page" counter** (`composables/usePopupInit.ts`), the **empty-state "N more accounts on the same root domain" hint** (`countSameMainDomainCandidates`), and the **auto-save "this will update that other account" note** (`utils/storage/autoSaveManager.ts`) read the same predicate too. The Popup number deliberately keeps excluding empty-URL entries — it answers "how many accounts does this site already have", where a site-agnostic entry doesn't belong, so it is intentionally a different set from the side panel's visible list; `localhost` stays on exact-host there as well.
+
+The value here isn't fewer lines of code — it's that "should this entry appear on this site?" has exactly one answer. The classic way this kind of feature rots is one predicate for the list and another for filling, which eventually produces either "it's in the dropdown but clicking does nothing" or "the side panel badges it and the inline dropdown doesn't". A tier is a property of the entry, not a per-screen heuristic.
+
+### The boundary that must not be cut: root-domain equality, not endsWith
+
+The natural way to implement a wildcard hit is `hostname.endsWith('.qq.com')`, and the lazier way is `hostname.endsWith('qq.com')`. The lazy version behaves perfectly in a demo — nobody logs into `evil-qq.com` during a demo. In production it's a credential collector: `evil-qq.com` and `myqq.com` both end with `qq.com`, so a `*.qq.com` entry gets surfaced there, and the user is the one typing the password into it.
+
+The dotted version looks careful and is still wrong, just for a different reason: it hands "which suffix counts as the same family" to string comparison, so it inherits none of what `getMainDomain` already solved — two-part ccTLDs (the root domain of `example.com.cn` is three labels), the heuristic for unlisted country codes, and the "return IPs and `localhost` verbatim" behaviour. It also needs a special case to accept an apex entry (`qq.com` itself), and special cases are what drift apart from each other.
+
+The shipped implementation reuses exactly one trusted boundary instead: **root-domain equality**.
+
+```
+storedHost starts with `*.` → base = storedHost minus the `*.` prefix
+hit ⟺ getMainDomain(currentHost) === getMainDomain(base)
+```
+
+The same `getMainDomain` already gates cross-domain iframe delegation, so two security-relevant decisions share one implementation and one bug fix. One directional detail is worth keeping in mind: `getMainDomain`'s heuristic branch can only make a root domain **more** specific (three labels instead of two), meaning it only ever narrows matching, never adds a match — the same "fail toward the safe side" property that matters in crypto, just in a different building.
+
+### Chrome's URL parser percent-encoded the `*`
+
+The first real-browser Playwright run showed the `wildcard` tier widening nothing at all.
+
+In unit tests, `resolveMatchTier('mail.qq.com', '*.qq.com', 'wildcard')` returned 1 and passed reliably. The difference is that a stored URL passes through `normalizeToHostname` before the predicate sees it, and that function calls `new URL()`. `*` is not a valid host codepoint: Chrome yields `%2A.qq.com` (and never decodes `%2A` back), while Node.js keeps the `*` verbatim. So on a real browser the stored host arriving at the matcher was `%2A.qq.com` — it doesn't start with `*.`, so the wildcard branch is skipped; under `sameMainDomain` its root domain still equals the page's, so it landed in tier 3, "sibling subdomain", getting both the wrong rank and the wrong badge.
+
+Net result: **every unit test green, not one character of behaviour widened in a real browser.** The fix restores the marker explicitly (`restoreWildcardMarker` in `utils/domain.ts`), and both normalizers need it — `normalizeToHostname` plus the port-carrying `normalizeToHostAndPort`, which also serves as a matching key. Patching one of the two is patching half of it.
+
+The lesson isn't the empty truism "test on real browsers". It's more specific: **the test runtime and the shipping runtime are two different URL parsers.** Whenever a decision depends on input that went through URL, path, or i18n parsing and normalization, green in Node is only a necessary condition. That path is now pinned by `e2e/cross-subdomain.spec.ts`, which changes the tier through the real dialog and watches an already-open panel's list and badges update without re-unlocking — a stretch of storage listener plus messaging plus Vue reactivity that stubs in unit tests can never reach.
+
+### Three things widening deliberately doesn't touch
+
+1. **Auto-save duplicate detection is untouched.** Saving still uses the pre-existing `findMatchingEntry` in `utils/storage/autoSaveManager.ts` (same username plus hostname equality or parent-domain containment, most specific hit wins), and no tier changes it — otherwise "enable cross-subdomain matching" would secretly mean "your saves may land on another site", which isn't reversible. The tiers only buy two read-only note lines: when the update targets a same-username account on a different host, say which one; when a same-root-domain twin exists but wasn't matched, say that this save creates a new entry. Separately, the by-URL lookup in `utils/storage/passwordCrud.ts` keeps exact-host semantics and its JSDoc now states plainly that it does not consult the tier, so nobody mistakes it for the widened entry point.
+2. **`localhost` / `127.0.0.1` stay separated by port.** In local multi-project work `:3000` and `:8080` are different apps, and a tier is meaningless there, so those hosts keep going through `matchesPortForLocalDev` and the predicate doesn't participate at all.
+3. **Changing the tier does not invalidate the decrypted password cache.** Filtering happens after decryption; the tier changes which entries reach the result, never any ciphertext. Adding it to the cache invalidation keys would drop the `storage.session` snapshot and trigger a full decrypt-back-to-warm on every switch, breaking the documented sub-second side-panel SLA. A source-scan test pins that boundary, for a simple reason: once this lands in the invalidation list, no functional test will ever show anything wrong.
+
+### What widening actually costs
+
+Numbers from the project's own Vitest benchmark, `benchmarks/sidepanel-p0.bench.ts` (tiers compared inside one multi-environment fixture; absolute values aren't comparable against other fixtures):
+
+| Scenario                                    | `off`                             | `sameMainDomain`                   |
+| ------------------------------------------- | --------------------------------- | ---------------------------------- |
+| Side-panel this-site pipeline, 2000 entries | 5.9ms                             | 9.9ms                              |
+| Side-panel this-site pipeline, 600 entries  | 1.6ms                             | 2.7ms                              |
+| Cross-subdomain badge scan (2000 entries)   | zero traversal (shared empty set) | ~2.9ms                             |
+| Empty-state widening counter (2000 entries) | 5.6–5.7ms                         | constant 0 (nothing left to widen) |
+
+The content script bundle grew from 217,062 to 217,080 bytes: +18 B. The predicate is a pure function and tree-shaking absorbed it, which is where it belongs.
+
+Three caveats so these numbers aren't over-read: they measure the JS data layer, not end-to-end render time — the side-panel list already renders in a windowed fashion, so the first frame doesn't care about the tier; the badge scan and the empty-state count are both lazy, so the `off` default path pays nothing; and the honest conclusion is that **the wider tiers needed no performance work at all**. The most expensive cell in the table is still single- to double-digit milliseconds, and what it buys is "accounts for this site show up on its subdomains".
+
+### Test and guard surface
+
+The repo currently holds 3589 automated test cases across 251 test files. What covers this area directly: the `resolveMatchTier` tier cases (`off` reproducing the pre-migration exact-host rule, `wildcard` admitting only wildcard entries, `sameMainDomain` producing the 1 → 2 → 3 sequence, the apex page itself, a wildcard marker already encoded as `%2A`, two-part ccTLDs, IPs and malformed input degrading to no-match, and the no-domain short circuit); a security regression asserting prefix collisions (`evil-qq.com` / `notqq.com` / `mail.qq.com.evil.io`) all return -1 against `*.qq.com`; an equivalence guard on `filterAndSortEntriesForDomain` claiming the same set in the same order id by id under `off`, plus the widened tiers' priority sequence (wildcard ahead of apex, local-dev hosts identical across all three tiers); presentation tests that the inline dropdown renders one source chip per widened tier; and the e2e above.
+
+The unusual one is `tests/architecture/crossSubdomainTierWiring.test.ts`: it doesn't exercise behaviour, it scans source. Invariants of the form "all four consumers must agree" die most often when a new call site forgets to pass the tier — and because the parameter has an `off` default, type checking and ESLint stay completely silent. It happened once for real: a full row click in the side panel used the tier-aware predicate while the keyboard Enter path ate the default value, producing "clickable, but Enter won't open it" for cross-subdomain entries. The same file mechanically forbids hand-writing range comparisons like `tier >= 1 && tier <= 3` in runtime code, locking the one definition of that interval inside `isCrossSubdomainTier`. Constraints of the shape "these two places must agree" drift when they rely on discipline; they don't drift when a scanner enforces them.
+
+### If this is the wall you hit
+
+First decide which of the two you actually want on `mail.qq.com`: only a few accounts spanning subdomains (`wildcard` tier, hand-write `*.qq.com`), or the whole subdomain family (`sameMainDomain`, and remember it drags `fat` / `uat` in with it). The switch is "Cross-Subdomain Matching" in the manager page header, and it takes effect immediately without re-unlocking.
+
+Account and password data still live encrypted in local storage exactly as before, and this feature added no permissions and no network requests; the extension's only recurring request remains its anonymous version check every 6 hours.
+
+Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). It's listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli), completely free, open source under GPL-3.0.
+
+---
+
+_Key files referenced: `utils/domain.ts` (`resolveMatchTier` / `isCrossSubdomainTier` / `getMainDomain` / `restoreWildcardMarker`), `components/options/DomainMatchSettingDialog.vue` (the tier dialog), `utils/passwordFilter.ts` and `utils/passwordSort.ts` (side-panel visibility and order), `entrypoints/background/passwordCache.ts` (data path for the inline dropdown and quick fill), `entrypoints/content/inlineDropdown/InlineFillDropdown.ts` (the source chip), `tests/architecture/crossSubdomainTierWiring.test.ts` (the wiring guard), `e2e/cross-subdomain.spec.ts` (real-browser regression), `benchmarks/sidepanel-p0.bench.ts` (cross-tier benchmark)._
+
+---
+
+### [Four Features, Four Implementation Notes](https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.en.html)
+
+> Published: 2026-09-05 · Updated: 2026-10-13 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+Not one feature in this batch added a switch to the settings page, and only one permission grew the manifest — `contextMenus`, belonging to the single heavyweight item in the group (right-click fill). Everything else rides on rails that already existed: the login field, the side panel, the password list. That was deliberate — every extra toggle on a password manager's settings page is one more "should I turn this on?" decision pushed onto the user.
+
+That doesn't mean any of it was simple. Each feature ran into a Chrome-extension-specific trap, and each deserves its own note.
+
+### Right-click fill: Chrome won't tell you which element was clicked
+
+Right-click an input → fill username / password / 2FA code, or generate and fill a strong password. This sounds like ten lines of `chrome.contextMenus`.
+
+The first trap: **`contextMenus.onClicked` gives you the `frameId`, not the clicked element.** The background knows "the user right-clicked somewhere in this frame" but not whether it was the username box or the password box — and _which box the remembered password lands in_ is the entire point of the feature. The fix: the content script records the target input itself during the capture phase of the `contextmenu` event (`entrypoints/content/contextMenuTarget.ts`), and the background then sends the fill message targeted at that frame. The same memory later got reused to anchor the unlock panel when the session is invalid — dig one hole in the right place and the second feature comes free.
+
+The second trap: **an over-long parent label pushes the submenu off screen.** Chrome only collapses an extension's items under a submenu titled with the extension's full name when several top-level items are visible in the same context; with a single visible top-level item, the parent you registered is used as-is. This extension's store name carries a subtitle ("Account Password Helper - Password Manager"), and using it as the parent makes the label so wide that the second level spills outside the viewport — users right-click and see a half-off menu. So the menu now registers an explicit single parent ("Fill Credentials" in an input context, "Account Password Helper" on blank page space), keeping exactly the same two-level depth the collapsed layout would have had. Parents must be created before children — Chrome requires the `parentId` target to already exist — and the whole menu is rebuilt on language switch, because item titles render in the user's language.
+
+The third trade-off: **"Generate & fill a strong password" is exempt from the session gate.** Signing up for a new account is the most frequent context for generating a strong password, and at that moment the session is usually locked. The action only generates random characters with Web Crypto and reads no encrypted or decrypted entry, so letting it through the session check is safe — while the cross-frame gate (plaintext is only sent to the top frame or same-main-domain frames) and targeted delivery stay in place. A security exception has to be harder to abuse than the main path, or it shouldn't be opened at all.
+
+### The inline panel: invisible elements can't be measured
+
+The inline fill panel anchors below the login field and flips above when there's no room. The first version had a subtle bug in the "position, then show" order: while an element is `display: none`, `offsetHeight` is always 0, so on first open the above/below space comparison was reading 0 and the panel forever "believed" there was room below — in a narrow viewport such as a nested-iframe login box, half of it got clipped.
+
+The fix isn't a delay or an extra frame — it's **show first, then position**, both inside the same synchronous task. The browser paints nothing in between, so the measurement is real and no wrong position ever flashes. Three fallbacks came with it: anchor below the input by default, flipping above only when the space below can't fit the panel and the space above is larger; compress the panel height to the available space on the chosen side (the list scrolls internally, floored at 120px so the search row plus at least one account stay usable); and when the viewport is narrower than the floor, snap inside the viewport — better to overlap the input than to clip the list. One more detail that's easy to forget: the panel may already be closed by the time positioning finishes (e.g. the input scrolled out of view), and then the remaining interaction binding and focus must be aborted — otherwise you attach listeners to a panel that no longer exists.
+
+### Site-wide search: one predicate, two consumers
+
+The side panel lists only accounts matching the current domain by default — that is the foundation of multi-environment isolation. But "I know I saved a GitHub account, and I'm currently on some other site" is a lookup the this-site mode can't serve. Hence the icon right of the search box, toggling between "This site" and "All entries".
+
+The important design isn't the button, it's **the single source of truth for the predicate**: two pure functions in `utils/passwordFilter.ts` (`matchesSiteScope` for the decision, `filterEntriesByScope` for the filtering) answer both questions at once — "should this entry appear in the list" and "can this entry be filled into this page". They are the same question: filling requires the target field to exist on the current page, so a domain-mismatched entry can only fail. Split into two judgments they drift sooner or later, producing "it's in the list but clicking does nothing", or the inverse. Making them Vue-free pure functions has a side benefit: unit tests and benchmarks can hit them directly.
+
+The off-site degradation comes from the same predicate: when `canFill` is falsy the whole row becomes "open this site in a new tab", while copying username / password / 2FA code, favoriting and editing all stay available — users come to all-entries mode to _find_, not to _fill_. The URL used for navigation isn't string concatenation either; it goes through `toNavigableUrl`, which adds the default protocol, uses http for local dev domains, and explicitly rejects non-navigational schemes such as `javascript:` (returning `null` means no link is rendered). A stored URL is a user-editable field, i.e. untrusted input.
+
+There was a worry that opening up the whole vault would slow the first paint. The benchmark says otherwise: from 100 to 2000 entries, the throughput difference between the this-site and all-entries paths stays inside the ±1% noise band (reproducible via `benchmarks/sidepanel-p0.bench.ts`). The reason is counter-intuitive — this-site mode runs a hostname comparison per candidate (including URL parsing and protocol completion), while all-entries mode just does one shallow copy plus a sort. **What costs time isn't "looking at more", it's "re-parsing an address for every one of them".**
+
+Worth noting: when this site has no result but the vault does, the empty state offers a "Search all entries (N found)" button. The user shouldn't have to first discover that a toggle exists — that's exactly what decides whether an escape-hatch feature gets used at all.
+
+### Quick add and read-only details: separate "take a look" from "change it"
+
+The "+" in the side panel header opens a dialog with just five fields (account / password / URL / tag / remark), the site field prefilled from the current domain; when the site has no account the header shows an invitation, and when a search returns nothing the empty state offers the same entry — all three open the identical dialog. When full fields such as TOTP are needed, the bottom of the dialog sends users to the manager page. The light path serves the frequent action, the heavy path serves completeness; don't turn the dialog into a clone of the options page.
+
+The read-only detail drawer (`components/options/PasswordDetailDrawer.vue`) serves another frequent action: wanting to see the full remark or the password history, but having to open the edit dialog to do it. Its constraint is **presentation only** — no storage writes, no touching encryption or the session; "Edit" merely emits the entry upward so the parent reuses the existing edit flow, keeping exactly one write path. The password is masked by default, visibility is component-local state that resets — together with the loaded history list — when the closing animation ends, so no plaintext reference lingers. Copying a password isn't a bare `writeText`: it goes through the UI-agnostic layer in `utils/clipboard.ts` (write, timed clear per configuration, verify the clipboard wasn't replaced before clearing, degrade to best-effort `execCommand` when the document has no focus), with success/failure handed back through a callback so each entry point uses its own wording. That mechanism used to live inside the side panel; extracted, it is now shared by the drawer and the panel — the two entry points can't evolve their "copies get auto-cleared" promise apart from each other.
+
+### What the four have in common
+
+Looking back, all four chains obey the same constraints: **no new toggles, no new permissions beyond `contextMenus`, no change to storage layout or encryption format, no redefinition of existing entries**; every new user-visible string ships in Chinese and English as a pair; every feature came with regression tests, with 3589 automated tests across 251 test files plus `pnpm build` and `pnpm build:firefox` (Chromium and Firefox targets) as the acceptance bar.
+
+Feature increments in a password manager shouldn't be "a few more buttons". They should polish the same login chain until it's a little smoother: one less app switch, one less wrong input box, one less accidental edit made just to read a note.
+
+Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). It's listed on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli), completely free, open source under GPL-3.0.
+
+---
+
+_Key files referenced: `entrypoints/background/contextMenuManager.ts` (menu registration and action dispatch), `entrypoints/content/contextMenuTarget.ts` (right-click target memory), `entrypoints/content/inlineDropdown/InlineFillDropdown.ts` (panel positioning), `utils/passwordFilter.ts` (scope and filtering predicate), `utils/clipboard.ts` (copy and auto-clear), `components/options/PasswordDetailDrawer.vue` (read-only detail drawer)._
+
+---
+
+### [Why I Built a Local-First Password Manager](https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.en.html)
+
+> Published: 2026-08-28 · Updated: 2026-10-18 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+![Account Password Helper core value overview](https://liaolongdong.github.io/account-password-helper/imgs/01-infographic-core-value.webp)
+
+I keep four accounts for the same admin system: dev, test, staging, and prod. Chrome's built-in password manager treats them all as "the same site" and fills in whichever one it feels like. Bitwarden can match URLs precisely, sure — but it only _fills_. After filling, I still tick the terms checkbox myself, click the login button myself, and switch to my phone to copy a 2FA code.
+
+Small friction, repeated dozens of times a day, across every developer and QA engineer's workflow. That's why I built [Account Password Helper](https://github.com/liaolongdong/account-password-helper): **a zero-cloud, open-source, local-first password manager designed around multi-environment login workflows**.
+
+It's live on the [Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli), completely free, with the source released under GPL-3.0. This post covers what problems it solves, how, and — just as importantly — what it deliberately refuses to do.
+
+### Three Gaps in Existing Password Managers
+
+Before writing a line of code, I spent weeks with every mainstream option. Three gaps kept showing up:
+
+**Gap 1: Multi-environment account isolation.** Password managers decide which credentials to show you by matching the current domain. Most do fuzzy matching — same registrable domain means a hit. For regular users that's a kindness; for developers it's a hazard. A test account filling into a production login form can range from annoying to genuinely destructive. I wanted **exact matching**: only entries whose host matches exactly are shown. Local development hosts like `localhost` and `127.0.0.1` follow a port-aware rule instead — a page with no port shows everything so local tooling keeps working, while a page with a port only sees entries on that same port (entries that carry no port of their own always stay).
+
+**Gap 2: Logging in is not filling.** A complete login is: fill username + fill password + tick the agreement checkbox + click the login button — plus a 2FA code if there's a second step. Existing tools stop after step two. Account Password Helper chains that whole flow behind one shortcut, `Ctrl+Shift+F` (`Cmd+Shift+F` on macOS): it fills username and password and ticks the consent checkbox nearest the inputs. The final click on the login button is governed by an "Auto-submit login" setting that ships switched off, so the extension never submits a form you weren't ready to submit; if you don't want it on permanently, every row in the side panel has its own "fill and login" button. For two-step logins (GitHub-style "password first, code next"), a live TOTP capsule appears on the page and the current code is filled into the next step automatically. No phone needed.
+
+**Gap 3: Privacy and trust.** Cloud password managers can be excellent, but you're still entrusting every credential to one company's servers and business continuity. For some of us — myself included — "data never physically leaves the browser" is not a nice-to-have. It's the prerequisite.
+
+### A Tour of the Core Features
+
+#### One-Click Login and Four Ways to Fill
+
+Filling sounds trivial until modern frameworks get involved: React controlled components ignore direct `value` assignment, custom input widgets swallow standard events. The filler tries three degradation steps in order — native value setter plus `input` event, `execCommand`, and synthesized keyboard events — stepping down until something sticks.
+
+There are four entry points: **inline fill** (default — a key icon appears when the input is focused, one click opens an account dropdown), **side panel fill**, **right-click fill in an input** (fill username / password / 2FA code, or generate & fill a strong password when signing up — the latter never requires unlocking the session first), and **Quick Fill via shortcut** (`Ctrl+Shift+F`; turn on "Auto-submit login" in preferences and it clicks the sign-in button too). When the session is locked, an "unlock to fill" card opens right on the page instead of a distant system notification; if a fill genuinely fails, an in-page notice + desktop notification + toolbar badge back each other up. Nothing is ever silently lost.
+
+#### Exact Domain Matching for Environment Isolation
+
+The matching rule is deliberately "dumb": normalized hostnames must be equal. Computing the registrable domain carries an explicit list of 27 two-part ccTLDs (`com.cn`, `co.uk` and friends, covering CN/UK/HK/TW/JP/KR/AU/SG) so `example.com.cn` is never wrongly truncated to `com.cn`; countries missing from that list are caught by a fallback — a two-letter TLD paired with a common second-level label such as `com`, `co`, or `net` is treated as a three-part registrable domain, which only ever narrows matching. The same rule governs the side panel list, the inline dropdown, and auto-save capture — there is no path through which a prod credential can leak into a test page.
+
+#### Built-in TOTP, Not a Toy
+
+TOTP codes (RFC 6238) are generated locally, shown live with a countdown. Adding a secret supports two flows: scanning an on-page QR code (decoded in-browser with jsQR — no external request), or uploading an image. Combined with the two-step login handoff described above, your phone authenticator can retire from this workflow.
+
+#### Offline Security Health Check
+
+One click audits your whole vault and produces a 0–100 score built from four weighted dimensions: reuse (weight 35), weak passwords (25), suspected exposure (20), and stale passwords (20), computed as `100 - 35×reuseRatio - 25×weakRatio - 20×exposureRatio - 20×staleRatio`. Missing 2FA is counted and listed as its own risk item but contributes no points. Weak-password and exposure checks run against local dictionaries — a built-in common-password list plus a bundled offline list of nearly a thousand commonly leaked passwords (`top1000.json`, 999 entries) — with no HIBP-style online lookup. The health checker itself must never become a data egress point.
+
+#### Migration and Backup
+
+Import auto-detects export formats from Chrome, LastPass, Bitwarden, and 1Password; the dialog accepts CSV and JSON (save a spreadsheet as CSV first — there is no `.xlsx` parser), with Chinese/English column-name mapping. Backup comes in three layers: encrypted backup files (.aph, AES-256-GCM over the whole vault, previewable after decryption on import), email backup, and scheduled backup reminders. Deletes go through a 30-day trash first, and password changes keep snapshots you can restore from — 3 per entry by default, configurable from 1 to 10.
+
+#### Experience Layer
+
+Six color themes, instant Chinese/English switching (extension pages and injected UI switch together), site favicons read from Chrome's local icon cache (zero external requests), and a dual-mode password generator (random characters, or passphrases drawn from a bundled 3080-word English list — 4 words by default, roughly 46 bits of entropy). Login pages also get a draggable floating fill button that snaps to the screen edge with adjustable opacity, and the toolbar popup gathers the management page, side panel, direct fill and session lock onto one screen.
+
+Then there is a layer of small everyday details: the "+" in the side panel header adds an account for the current site in place, with the URL prefilled from the domain; one icon beside the search box switches between "This site" and "All entries", and in all-entries mode an off-site account opens in a new tab instead of being pushed into the current page's form; each row's "View details" shows the full remark and the password change history in a read-only drawer, so a quick look no longer means entering edit mode; master password fields detect Caps Lock live, so a case typo stops masquerading as a "wrong password"; and the auto-save prompt flags weak or reused passwords inline — a heads-up that never blocks saving.
+
+### The Security Model: Trust Requires Auditability
+
+A password manager earns trust through verifiable design, not slogans. The hard boundaries here:
+
+1. **Local-first, with one outbound exception.** No backend, no account system, no telemetry or analytics — credentials land only in your browser's local storage. The extension does declare `<all_urls>` host permission, but that exists so the content script can locate login forms on any site, not to make requests. The only thing that actually leaves the machine is the update check, on a roughly 6-hour schedule: a `no-cors` HEAD against the Chrome Web Store page to test reachability, then a read of the public GitHub Releases API for the version number. Anonymous, no credentials, no account data in either direction.
+2. **Field-level encryption.** Username, password, URL, notes, and TOTP secret are each encrypted individually. The storage layer sees only ciphertext.
+3. **Standard algorithms, no invention.** PBKDF2-SHA256 (600,000 iterations) for key derivation, AES-256-GCM authenticated encryption, all via the browser-native Web Crypto API. A follow-up post covers the implementation in depth.
+4. **Sessions have lifecycles.** 24 hours by default (1 hour to 7 days configurable). Idle auto-lock tied to system screen lock, and relock on browser restart, are both opt-in and off by default; one-click manual lock is always available. On any lock path, in-memory key handles and decrypted snapshots are wiped.
+5. **Fully open source (GPL-3.0).** Every line of the crypto, every permission in the manifest, every network call — you can read them all yourself. 3589 automated tests cover the crypto, session, storage, and message-routing paths (they run locally, in the pre-commit hook, and in CI on every push and pull request).
+
+An honest disclaimer too: **this tool is positioned for development, testing, and everyday logins. I don't recommend storing banking or payment credentials in any browser extension.** And the master password cannot be recovered if forgotten — use the encrypted backup feature. Stating boundaries plainly is what security products should do.
+
+### Who It's For
+
+![Feature overview for developers and QA engineers](https://liaolongdong.github.io/account-password-helper/imgs/03-infographic-dev-features.webp)
+
+- **Developers** — environment isolation + one-click login, dozens fewer clicks per day;
+- **QA engineers** — switch test accounts fast across environments;
+- **Privacy-conscious users** — no cloud service, no account, no subscription, and your password data stays in your browser;
+- **Everyone else** — stop memorizing passwords; keep TOTP next to the password; generate strong ones with one click.
+
+### Closing
+
+The project has grown from v1.0 in May 2026 to v3.9 now, every version pulled out of real daily use. It doesn't try to be "yet another Bitwarden." It aims to make one scenario — multi-environment developer logins — frictionlessly good, while welding the privacy floor into the architecture.
+
+If you're tired of mixed-up test accounts and phone-authenticator juggling, give it a try:
+
+- [Install from the Chrome Web Store](https://chromewebstore.google.com/detail/account-password-helper/fgimkdodpjfkddmildjieojpfakpanli) (auto-updates)
+- [GitHub repository](https://github.com/liaolongdong/account-password-helper) — source, Releases downloads, issues; a Star is the best support an open-source project can get
+- [Online demo with bilingual FAQ](https://liaolongdong.github.io/account-password-helper/)
+
+Next up: how to make the extension side panel open in under one second — a trap every Manifest V3 developer steps into.
+
+---
+
+### [Sub-Second Chrome Side Panel on MV3](https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.en.html)
+
+> Published: 2026-08-28 · Updated: 2026-10-13 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+If you've shipped a Manifest V3 extension, you've probably been bitten by the same bug: **the side panel cold-start white screen**.
+
+The user clicks your icon. The side panel frame appears, the content area stays white, and two seconds later it finally renders. In desktop software terms, that's broken. Worse, MV3 replaced persistent background pages with service workers — short-lived processes the browser can terminate at any moment. Your carefully maintained in-memory cache and connection state? Gone without notice.
+
+[Account Password Helper](https://github.com/liaolongdong/account-password-helper) is a local-first password manager extension whose side panel is its highest-frequency surface — unlock, search, and fill all happen there. We set a hard SLA: **the side panel must open in under one second with no white screen, in every scenario** (valid or expired session, browser cold start, quick restart). End result: 20–50ms to data on the cached warm path.
+
+This post publishes the entire playbook, with source paths. Steal it.
+
+### First: Where Does the White Screen Come From?
+
+Break the side panel launch into segments, and each one can cost you visible latency:
+
+1. **Service worker cold start.** The SW was terminated; nobody answers messages; the extension page's init request hangs.
+2. **Cold disk reads.** HTML, JS chunks, and CSS load from disk for the first time. On Windows, add per-file antivirus scanning of the extension directory — easily 1–2 extra seconds.
+3. **Data loading.** The vault needs decryption (PBKDF2 key derivation + AES-256-GCM decryption). Done serially, that's more white screen.
+4. **CSS blocking.** `<link rel="stylesheet">` blocks rendering by default — no stylesheet, no paint.
+
+Four problems, four countermeasures.
+
+### Countermeasure 1: Dual-Layer Keep-Alive
+
+An idle MV3 service worker gets terminated after roughly 30 seconds. The common community trick is messaging yourself on a timer, but there's a subtlety: **a `setInterval` inside the SW dies together with the SW**. Relying on it alone is not stable.
+
+Our design is two-layered (`entrypoints/background/backgroundServices.ts`):
+
+- **Layer 1: a 20-second heartbeat.** A runtime `setInterval` touches `chrome.storage.session` every 20 seconds, resetting the idle timer.
+- **Layer 2: a 0.5-minute revival alarm.** A `chrome.alarms` alarm (`sw-keepalive`) fires every 30 seconds. Even if the heartbeat's SW gets terminated unexpectedly, the alarm event wakes a fresh SW immediately and the heartbeat resumes.
+
+Each layer covers the other's failure mode: the heartbeat maintains steady-state residency; the alarm guarantees resurrection. The strategy runs unconditionally on all platforms — even when the session is locked. Because what keep-alive buys is not "the password stays in memory"; it's **"the next side panel open never pays cold-start costs."**
+
+Two limits you must know:
+
+- `chrome.alarms` is throttled to **at most one firing every 30 seconds** (the limit is lifted when you load the extension unpacked for debugging), so 0.5 minutes is already the smallest period a packed extension can request — don't expect second-level precision; sub-minute continuity is the heartbeat layer's job, while the alarm layer only guarantees resurrection;
+- The keep-alive alarm also carries session-expiry checks — expiry locks the vault immediately, independent of any page being open.
+
+### Countermeasure 2: Four-Layer Resource Pre-Warming
+
+Once the SW is resident, the next step is getting "the files the user is about to need" into the OS cache before they need them. The pre-warming logic (`utils/warmSidePanelResources.ts`) works in four progressive layers:
+
+1. The side panel HTML itself;
+2. `modulepreload` declarations + CSS;
+3. Dynamically imported secondary chunks;
+4. Static dependencies referenced by those secondary chunks.
+
+Two engineering constraints keep it from being a naive firehose:
+
+**Platform differentiation.** Windows' main bottleneck is Defender scanning extension files one by one — the more files you touch, the longer it scans. So Windows gets the full treatment (~25 files), amortizing scan cost upfront. macOS doesn't have this problem, so it pre-warms only a whitelist of ~15 core files. **Trigger points:** extension install/update, browser startup, window focus, tab activation, keep-alive alarm ticks, and 2 seconds after the side panel opens — all leading indicators that the user may open the panel soon.
+
+**Throttling and dedup.** A persisted 5-minute throttle window plus an in-flight mutex prevents multiple triggers from hammering the disk simultaneously.
+
+There's also an SW pre-wake layer (`utils/preWarmSw.ts`, 8-second throttle): any user interaction in the popup pokes the background, guaranteeing the SW is alive by the time "open side panel" is clicked.
+
+### Countermeasure 3: Three-Way Data Racing
+
+The vault has three viable routes (`composables/useSidepanelData.ts`):
+
+1. **Direct read of the encrypted `storage.session` snapshot.** While the session is valid, the background keeps a decrypted snapshot in AES-256-GCM encrypted form in `storage.session`; the side panel reads it directly, no message channel involved.
+2. **Background `GET_INITIAL_DATA` memory cache.** The background re-warms its password cache ~500ms after SW startup; fetch it over the message channel. This route sits behind an **800ms race gate**: return inside the gate and it's used directly; if a cold SW answers later than that, the local route is already running in parallel and the late response is not thrown away — it keeps racing, with a shared "adopted" flag ensuring one response is processed at most once.
+3. **Direct local-storage read.** Fired at the same instant as the other two, the side panel reads `storage.local` and decrypts itself under a 3000ms timeout. That timeout is the outermost safety net: better to show the locked view than to leave the user staring at an empty panel.
+
+All three race concurrently: **whichever returns first renders first; one route failing never affects the others.** Every async commit carries a session generation and request sequence guard — if the user locks or re-keys mid-flight, stale results can never write back into the UI.
+
+The core idea: **treat "where the data lives" as a runtime decision, not an architectural assumption.** SW alive? Fast path. SW dead? Fallback. The user notices nothing.
+
+### Countermeasure 4: Non-Blocking CSS
+
+The last slice of white screen comes from render-blocking stylesheets. Our fix (a custom Vite plugin in `wxt.config.ts`): emit the side panel's `<link rel="stylesheet">` with `media="print"` (browsers don't block rendering on print media), then flip it to `media="all"` once loaded.
+
+Result: the HTML parses and paints a skeleton immediately; styles arrive asynchronously. Combined with CSS-variable theme tokens, switching cost is near zero. It's a classic browser trick, and it fits the extension side panel perfectly.
+
+### One Iron Rule: Never `await` Before a User Gesture
+
+`chrome.sidePanel.open()` must be triggered by a user gesture, and **no `await` is allowed before the call** — any async wait in between invalidates the gesture context and the panel simply won't open. So the open call is always fired synchronously, with the tabId fetched via a synchronous API. All "pre-open preparation" is moved upstream into keep-alive and pre-warming phases, rather than scrambling after the click.
+
+### Verification: Sub-Second Is Measured, Not Felt
+
+Alongside the implementation, the test suite grew to cover every layer (vitest — it runs locally, from the pre-commit hook, and on every push and pull request through the repository's GitHub Actions):
+
+- `swKeepalive`: heartbeat/alarm registration, revival, cleanup;
+- `warmSidePanelResources`: throttle windows, platform branches, file lists;
+- `passwordCache` / `startupRelock` / `idleLock`: cache re-warm and every lock path;
+- `sidePanelManager`: open sequencing.
+
+The repo now has 3589 automated tests across 251 test files. Performance outcome: **20–50ms to data on the cached warm path.** Even with an expired session requiring master-password re-entry, the UI appears first and waits for unlock — never a white screen.
+
+### Retrospective: Three Lessons
+
+1. **Don't fight MV3's lifecycle; design around it.** The SW _will_ be terminated. Assume it's never there: put state in `chrome.storage`, delegate wake-ups to alarms, and push costs forward into pre-warming.
+2. **Speed is purchased in layers.** Keep-alive buys "the process exists." Pre-warming buys "files are hot." Racing buys "data arrives fast." Non-blocking CSS buys "paint first." Each layer works independently; stacked, they produce sub-second.
+3. **Handle platform differences head-on.** Windows antivirus scanning is a real, non-technical bottleneck. Full pre-warming plus guiding users to add an exclusion beats pretending it doesn't exist.
+
+Full source on [GitHub](https://github.com/liaolongdong/account-password-helper) — Stars, critique, and issues welcome. If you're building a side-panel extension, I hope this saves you a few months of detours.
+
+---
+
+_Key files referenced: `entrypoints/background/backgroundServices.ts` (keep-alive), `utils/warmSidePanelResources.ts` (pre-warming), `composables/useSidepanelData.ts` (three-way race), `wxt.config.ts` (non-blocking CSS)._
+
+---
+
+### [Web Crypto for a Real Password Manager](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.en.html)
+
+> Published: 2026-08-28 · Updated: 2026-10-18 · Author: [liaolongdong](https://github.com/liaolongdong)
+
+![From master password to ciphertext: the full encryption pipeline](https://liaolongdong.github.io/account-password-helper/imgs/02-flowchart-security-pipeline.webp)
+
+When building the encryption module for a password manager, the instinct is to pull in a crypto library. But if you're building a browser extension, there's a better option: **import nothing, and build directly on the browser-native Web Crypto API**.
+
+[Account Password Helper](https://github.com/liaolongdong/account-password-helper) is a zero-cloud, local-first password manager extension. Its encryption module (`utils/encryption.ts`) is built entirely on Web Crypto — not a single line of third-party crypto code. This post breaks down the full design: why these choices, how each parameter was set, and the edge cases that are easy to miss.
+
+### Why Web Crypto Instead of a Library
+
+Three reasons, in order of importance:
+
+1. **Auditability.** A password manager's trust foundation is "users can verify you're not doing anything shady." Depending on a thousands-of-lines third-party crypto library immediately widens the audit surface. `crypto.subtle` is implemented by the browser engine itself — stable interfaces, public behavior — and the crypto logic in your source stays small enough to count on one hand.
+2. **Attack surface.** Supply-chain poisoning is a real threat in the extension ecosystem. One fewer npm dependency is one fewer entry point for a poisoned package.
+3. **Performance.** For heavy-iteration workloads like PBKDF2, native implementations are an order of magnitude faster than JavaScript ones.
+
+The cost is a low-level, fully async API with terse error messages — which is exactly the kind of constraint that forces you to think through every step.
+
+### Key Derivation: PBKDF2-SHA256, 600,000 Iterations
+
+The user's master password can't be used directly as an encryption key: it lacks entropy, and it needs salting against rainbow tables. The standard answer is a key derivation function. We chose PBKDF2-SHA256 with **600,000 iterations** — the value the OWASP Password Storage Cheat Sheet has recommended for PBKDF2-SHA256 since 2023, calibrated to make each brute-force attempt expensive enough.
+
+Two design points:
+
+**Random salt, stored in plaintext alongside the data.** Each installation generates its own 16-byte random salt (32 hex characters), kept in plaintext in the master-password config — same storage area as the ciphertext, different key. The salt isn't secret — its job is to ensure "the same master password derives different keys on different installations," defeating precomputed attacks.
+
+**Domain separation for the verification hash.** To check "is this master password correct," we don't attempt a trial decryption of real data (decryption failures are ambiguous — wrong password vs. corrupted data). Instead, the master password goes through a prefixed verification hash. The prefix `aph-verify|` provides **domain separation**: the input spaces for verification and encryption never overlap, ruling out cross-purpose abuse like feeding a verification value off as ciphertext or grinding captured ciphertext against the verifier.
+
+### Data Encryption: Field-Level, AES-256-GCM
+
+Rather than encrypting the vault as one blob, we encrypt **per field**: each entry's username, password, URL, notes, and TOTP secret are encrypted individually. The payoff is practical — the list view renders titles, icons, and tags without ever decrypting sensitive fields; side panel search and rendering touch metadata only.
+
+The algorithm is **AES-256-GCM**:
+
+- GCM is an authenticated mode — tampered ciphertext fails decryption outright, so integrity checking is built in, no separate HMAC layer needed;
+- Every encryption uses a **fresh random 12-byte IV**, stored as `Base64(IV || ciphertext || authTag)` — the 16-byte GCM authentication tag is written out with the ciphertext. IV and ciphertext travel together; there is no path to IV reuse;
+- IVs come from `crypto.getRandomValues` — never counters or predictable sources. Under GCM, IV reuse is catastrophic, and this point admits no compromise.
+
+`CryptoKey` handles are cached under a tiny map (keyed by "usage + hex key", capacity 4, **FIFO eviction**), which takes the `O(entries × fields)` `importKey` calls in batch encryption down to O(1) — note it caches imported handles only; the PBKDF2 derivation itself is never cached. Handles are imported with `extractable: false`, so raw key bytes can't be exported, and **locking the session clears the cache immediately** — no key material left in memory to be recovered by anything other than GC.
+
+### Sessions: How Long Does a Key Live in Memory?
+
+Get the encryption right but fumble key management, and you've accomplished nothing. The session layer:
+
+- **Configurable lifetime:** 24 hours by default, selectable from 1 hour to 7 days. Expiry rewrites no ciphertext — data on disk was always ciphertext anyway. What expires is the session data key and the decrypted snapshot, after which nothing can be decrypted until the master password is verified again.
+- **Idle lock:** opt-in and off by default; once enabled, `chrome.idle` triggers an immediate lock on system screen lock, and locks when idle passes the threshold.
+- **Relock on browser restart:** also opt-in and off by default; once enabled, enforced at `onStartup` for shared-device scenarios.
+- **Manual lock:** one click in the popup; locking synchronously wipes in-memory key handles and decrypted snapshots.
+
+Every lock path must funnel through the same cleanup function. This is the line code review watches hardest, because a single missed path turns "lock" into theater.
+
+### Re-Keying: Atomic Master-Password Changes
+
+"Change master password" is the feature encryption systems most often get wrong: everything must be re-encrypted with the new key — what happens if it fails halfway?
+
+The implementation decrypts and verifies everything first — entries, recycle bin, password history — then derives the new data key keeping **the same salt and the same iteration count** (`deriveEncryptionKey` reads that salt back out of storage; swapping it would derive a different key on every later decrypt and make the vault permanently undecryptable, while changing the password already supplies the security a new salt would add). Only after re-encrypting all three data sets does it commit, writing the new ciphertexts, the new verification hash and the new session key material in a single `chrome.storage.local.set()`. Any step failing rolls the whole operation back, leaving old data intact. The one unforgivable sin of a password manager — "you changed the password and now nothing decrypts" — is structurally impossible. Tests cover success, mid-flight failure, and legacy-format compatibility.
+
+### Treat Every Input as Hostile
+
+Extensions run in hostile environments. Page DOM, imported CSV files, runtime messages, legacy data in storage — all treated as untrusted input, validated at the boundary for type, length, and shape, failing safe. The rendering layer never passes external or user-derived strings through `v-html`/`innerHTML`. None of this produces features. It's the muscle memory a password manager is supposed to have.
+
+Two recent cases make that concrete. The first is the weak / reused password hint in the auto-save prompt: it's a derived conclusion computed over the already-decrypted vault, so it is deliberately kept out of both the pending record and sessionStorage (otherwise a user changing the password would leave a stale reuse count behind), and the cross-navigation recovery path recomputes a fresh one. When the prompt is delegated into an iframe, the hint crosses the frame boundary via `postMessage` and is narrowed field by field on arrival — `weak` only accepts the strict boolean `true`, `reusedCount` only accepts an integer in `1..9999`, anything else is dropped. The second is the URL field in the read-only detail drawer: a stored URL is user-editable, hence untrusted, so it goes through `toNavigableUrl` first (adds the default protocol, uses http for local dev domains, explicitly rejects non-navigational schemes like `javascript:` / `data:`) before it may appear in an `href` — a `null` result simply renders no link.
+
+### Why We Moved from MIT to GPL-3.0
+
+At v3.0 the project switched licenses from MIT to GPL-3.0 — deliberately. A password manager's value is "auditable + trustworthy," and GPL ensures that anyone building derivatives must release them under equally open terms. The supply chain of a security tool should have no closed-source forks. Previously published versions remain under MIT; GPL applies from the switch forward.
+
+### An Honest Disclaimer
+
+The other side of security is knowing your limits:
+
+- This tool is positioned for development, testing, and everyday logins. **Do not store banking or payment credentials in any browser extension.**
+- A forgotten master password cannot be recovered. Enable encrypted backups (.aph files).
+- The entire encryption implementation is open source. Audits and issues welcome — for a password manager, being read line by line isn't an intrusion; it's the source of trust.
+
+Source and discussion: [the GitHub repository](https://github.com/liaolongdong/account-password-helper). If you're building local-first security tools too, share the traps you've hit in the comments.
+
+---
+
+_Key files referenced: `utils/encryption.ts` (crypto core), `utils/sessionManager.ts` (session management), `tests/` (3589 automated tests, including encryption and re-key paths)._

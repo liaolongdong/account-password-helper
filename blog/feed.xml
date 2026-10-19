@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss
+  version="2.0"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+>
+  <channel>
+    <title>账号密码管理助手 · 技术博客</title>
+    <link>https://liaolongdong.github.io/account-password-helper/blog/</link>
+    <description>本地优先密码管理器的产品思考与工程实现：安全设计、MV3 性能、Web Crypto 加密与多环境登录。</description>
+    <language>zh-cn</language>
+    <lastBuildDate>Sun, 18 Oct 2026 00:00:00 GMT</lastBuildDate>
+    <atom:link
+      href="https://liaolongdong.github.io/account-password-helper/blog/feed.xml"
+      rel="self"
+      type="application/rss+xml"
+    />
+    <item>
+      <title>同一站点的账号该出现在哪些子域：跨子域名匹配三档的实现与踩坑</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/05-cross-subdomain-matching.html</guid>
+      <pubDate>Tue, 22 Sep 2026 00:00:00 GMT</pubDate>
+      <description>精确 host 匹配是多环境隔离的立身之本，但真实登录常横跨一整个子域家族。拆开三档匹配的分层判据、不能切的主域名边界，以及只有真机才抓到的 %2A 踩坑。</description>
+      <category>Chrome扩展</category>
+      <category>密码管理器</category>
+      <category>域名匹配</category>
+      <category>多环境测试</category>
+      <category>前端开发</category>
+    </item>
+    <item>
+      <title>四个新功能，四段实现笔记：右键填充、全站搜索、快速添加与只读详情</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/04-login-flow-details.html</guid>
+      <pubDate>Sat, 05 Sep 2026 00:00:00 GMT</pubDate>
+      <description>这批更新没有新增任何设置页开关。本文逐个拆开右键菜单填充、内联面板定位、侧边栏全站搜索与条目只读详情背后的实现取舍与安全边界。</description>
+      <category>Chrome扩展</category>
+      <category>浏览器扩展</category>
+      <category>密码管理器</category>
+      <category>前端开发</category>
+      <category>交互设计</category>
+    </item>
+    <item>
+      <title>零云端、开源、为开发者而生：我从零做了一款浏览器密码管理器</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html</guid>
+      <pubDate>Fri, 28 Aug 2026 00:00:00 GMT</pubDate>
+      <description>为什么在 Bitwarden、1Password 之外还需要一款本地优先的密码管理器？本文讲述 Account Password Helper 的产品动机、核心设计与安全模型。</description>
+      <category>密码管理器</category>
+      <category>浏览器扩展</category>
+      <category>开源项目</category>
+      <category>Chrome扩展</category>
+      <category>本地优先</category>
+    </item>
+    <item>
+      <title>让 Chrome 侧边栏 1 秒内打开：MV3 Service Worker 保活与预热实战</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html</guid>
+      <pubDate>Fri, 28 Aug 2026 00:00:00 GMT</pubDate>
+      <description>MV3 的 Service Worker 随时会被回收，侧边栏冷启动白屏是扩展开发的头号痛点。本文复盘秒开方案：双层保活、四层资源预热与三路数据竞速。</description>
+      <category>Chrome扩展</category>
+      <category>Manifest V3</category>
+      <category>Service Worker</category>
+      <category>性能优化</category>
+      <category>前端工程化</category>
+    </item>
+    <item>
+      <title>用 Web Crypto 实现密码管理器级加密：PBKDF2 60 万次迭代 + AES-256-GCM 实战</title>
+      <link>https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html</link>
+      <guid isPermaLink="true">https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html</guid>
+      <pubDate>Fri, 28 Aug 2026 00:00:00 GMT</pubDate>
+      <description>不引任何加密库，只用浏览器原生 Web Crypto API 构建可审计的加密体系：密钥派生、字段级加密、会话生命周期与换钥的完整实现。</description>
+      <category>Web Crypto</category>
+      <category>加密</category>
+      <category>密码管理器</category>
+      <category>安全</category>
+      <category>Chrome扩展</category>
+    </item>
+  </channel>
+</rss>

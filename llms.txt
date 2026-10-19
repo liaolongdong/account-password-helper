@@ -140,6 +140,8 @@ Add a site rule for that domain: your own CSS selectors for the username and pas
 
 Deep-dive pages — skip them for a summary, read them when a question needs the mechanism, the numbers or the trade-offs behind a claim above.
 
+- [Full content (llms-full.txt)](https://liaolongdong.github.io/account-password-helper/llms-full.txt) — this summary followed by every blog post in full, in Chinese and English, for agents that need the complete source text
+- [RSS feed (中文)](https://liaolongdong.github.io/account-password-helper/blog/feed.xml) · [RSS feed (English)](https://liaolongdong.github.io/account-password-helper/blog/feed.en.xml) — subscribe to new engineering posts
 - [Blog 01 · Why a local-first password manager](https://liaolongdong.github.io/account-password-helper/blog/01-local-first-password-manager.html) — 产品立场：为什么不做云端同步、不接第三方服务，开源与可审计在这里意味着什么
 - [Blog 02 · Sub-second MV3 side panel](https://liaolongdong.github.io/account-password-helper/blog/02-mv3-sidepanel-sub-second-open.html) — Service Worker 保活（20s 心跳 + 0.5min 复活闹钟）、资源预热与三路竞速取数的完整实现笔记，含冷启动白屏的排查路径
 - [Blog 03 · Web Crypto in practice](https://liaolongdong.github.io/account-password-helper/blog/03-webcrypto-encryption-in-practice.html) — PBKDF2 600,000 次迭代 + AES-256-GCM 逐字段加密的落地细节：密钥包装、会话密钥材料销毁、`.aph` 加密备份格式
