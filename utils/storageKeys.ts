@@ -104,6 +104,10 @@ export const STORAGE_KEYS = {
   ONBOARDING_TOUR: 'onboarding_tour_state',
   /** 安全起步清单暂不提醒时间（只存时间戳，不含账号数据） */
   ACTIVATION_CHECKLIST: 'activation_checklist',
+  /** 已读过「本次更新」的扩展版本（只存版本号字符串，不含账号数据） */
+  WHATS_NEW_SEEN_VERSION: 'whats_new_seen_version',
+  /** 一次性评价引导状态（只存关闭时间戳，不含账号数据） */
+  REVIEW_PROMPT_STATE: 'review_prompt_state',
 };
 
 /**

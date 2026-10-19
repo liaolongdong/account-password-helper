@@ -479,6 +479,14 @@ See the annotated tree in the Chinese version: [ARCHITECTURE.md — 项目结构
 - **Teammate sharing**: AboutDrawer's "Share with a teammate" uses `copyTextToClipboard` to copy an i18n message organised around free/open-source, secure encryption and core features, together with two links sharing the same UTM set: `TEAMMATE_PRODUCT_URL` (product page) and `TEAMMATE_SHARE_URL` (store page) — no account, password or vault data. The store-share button is hidden in the Firefox build.
 - **Regression**: `activationChecklist.test.ts` pins state normalization, read/write and the 7-day window; the real-Chrome case in `password-management.spec.ts` covers "appears → snooze → stays hidden after reload"; the i18n bundle guard covers the new strings.
 
+### 33. Update Prompt and One-Time Review Prompt
+
+Both cards sit in the Options main content area, after the HeaderBar, and share the presentational `GrowthPrompt.vue` plus a "what's new first, review second" exclusion rule. The component never reads storage or opens external links; visibility and persistence stay in `App.vue`.
+
+- **What's new**: `WHATS_NEW_SEEN_VERSION` stores only the seen version string. On a first install (no master-password config yet) the current version is recorded silently during initialization, so no card appears; an existing vault shows it once when the version is unrecorded or changed. While it is visible the getting-started checklist yields; dismissing it or using the CTA writes the current version back.
+- **One-time review prompt**: `REVIEW_PROMPT_STATE` stores only a dismissal timestamp. It appears only after at least 3 passwords and a fully completed getting-started checklist (add, encrypted backup, health check); if a What's New card was shown in this session it waits until the next visit, avoiding back-to-back prompts. Dismissing or using the CTA suppresses it permanently. The store link carries `utm_source=options&utm_medium=review&utm_campaign=review_prompt` so review traffic is attributed separately from teammate sharing.
+- **Regression**: `whatsNew.test.ts` / `reviewPrompt.test.ts` pin state normalization, persistence and trigger boundaries; `growthPromptWiring.test.ts` pins the Options wiring and that the component touches no storage; `growth-prompt.spec.ts` covers first-install suppression, one-time update display and the one-time review prompt in real Chrome.
+
 ## Development Extras
 
 ### Icon Workflow

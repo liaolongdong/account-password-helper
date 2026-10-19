@@ -63,6 +63,15 @@
         @open-about="showAboutDrawer = true"
       />
 
+      <!-- 更新提示 / 一次性评价引导：两者互斥，本次更新优先 -->
+      <GrowthPrompt
+        v-if="growthMode"
+        :mode="growthMode"
+        :version="currentVersion"
+        @cta="handleGrowthCta"
+        @dismiss="handleGrowthDismiss"
+      />
+
       <!-- 安全起步清单：已有密码后提示备份与体检，可暂不提醒 -->
       <ActivationChecklist
         v-if="showActivationChecklist"
@@ -391,6 +400,7 @@ import HeaderBar from '@/components/options/HeaderBar.vue';
 import UndoDeleteToast from '@/components/options/UndoDeleteToast.vue';
 import EmptyGuide from '@/components/options/EmptyGuide.vue';
 import ActivationChecklist from '@/components/options/ActivationChecklist.vue';
+import GrowthPrompt from '@/components/options/GrowthPrompt.vue';
 import SearchFilterBar from '@/components/options/SearchFilterBar.vue';
 import { usePasswordStrength } from '@/composables/usePasswordStrength';
 import { useAuthFlow } from '@/composables/useAuthFlow';
@@ -418,6 +428,9 @@ import {
   dismissActivationChecklist,
   getActivationChecklistState,
 } from '@/utils/storage/activationChecklist';
+import { getWhatsNewState, markWhatsNewSeen, shouldShowWhatsNew } from '@/utils/storage/whatsNew';
+import { dismissReviewPrompt, getReviewPromptState, shouldShowReviewPrompt } from '@/utils/storage/reviewPrompt';
+import { GITHUB_RELEASES_PAGE_URL, REVIEW_PROMPT_URL } from '@/utils/urls';
 import { readHealthHistory } from '@/utils/healthHistory';
 
 /**
@@ -1066,6 +1079,15 @@ const {
   },
 });
 
+// ==================== 更新提示与一次性评价引导 ====================
+// 只持久化「已读版本」与「评价已关闭」两项非敏感标记；展示条件由密码库是否存在、
+// 起步清单完成态和会话态派生，不新增任何账号数据。
+const growthReady = ref(false);
+const whatsNewVisible = ref(false);
+/** 本次页面已展示过更新卡片时，评价引导延后到下次打开，避免连续两张卡片 */
+const whatsNewShownThisSession = ref(false);
+const reviewDismissedAt = ref<number | null>(null);
+
 // ==================== 安全起步清单 ====================
 // 完成状态全部由已有事实派生：密码数量、最近验证备份、体检趋势是否存在。
 // 唯一新增持久化是「暂不提醒」时间戳，见 utils/storage/activationChecklist.ts。
@@ -1085,11 +1107,30 @@ const activationSnoozed = computed(
   () => activationDismissedAt.value !== null && Date.now() - activationDismissedAt.value < ACTIVATION_SNOOZE_MS,
 );
 
+const showReviewPrompt = computed(
+  () =>
+    growthReady.value &&
+    isAuthenticated.value &&
+    !tableLoading.value &&
+    !whatsNewVisible.value &&
+    !whatsNewShownThisSession.value &&
+    shouldShowReviewPrompt({
+      dismissedAt: reviewDismissedAt.value,
+      passwordCount: passwords.value.length,
+      positiveMoment: activationDoneCount.value >= ACTIVATION_TOTAL_STEPS,
+    }),
+);
+
+const growthMode = computed<'whats-new' | 'review' | null>(() =>
+  whatsNewVisible.value ? 'whats-new' : showReviewPrompt.value ? 'review' : null,
+);
+
 const showActivationChecklist = computed(
   () =>
     activationStateReady.value &&
     isAuthenticated.value &&
     passwords.value.length > 0 &&
+    !whatsNewVisible.value &&
     !activationSnoozed.value &&
     activationDoneCount.value < ACTIVATION_TOTAL_STEPS,
 );
@@ -1127,6 +1168,68 @@ const handleActivationDismiss = (): void => {
   const at = Date.now();
   activationDismissedAt.value = at;
   void dismissActivationChecklist(at);
+};
+
+/**
+ * 初始化「本次更新」与一次性评价引导
+ *
+ * 首次安装（还没有主密码配置）直接把当前版本记为已读，不弹更新卡片；
+ * 已有密码库的用户在版本变化时看到一次更新要点。评价引导只在完成
+ * 「添加条目 → 加密备份 → 安全体检」后出现，且关闭后终生不再询问。
+ */
+const initGrowthPrompts = async (): Promise<void> => {
+  try {
+    const [hasVault, whatsNewState, reviewState] = await Promise.all([
+      StorageUtils.hasMasterPassword(),
+      getWhatsNewState(),
+      getReviewPromptState(),
+    ]);
+    if (
+      shouldShowWhatsNew({
+        seenVersion: whatsNewState.seenVersion,
+        currentVersion: currentVersion.value,
+        hasVault,
+      })
+    ) {
+      whatsNewVisible.value = true;
+      whatsNewShownThisSession.value = true;
+    } else if (!hasVault) {
+      await markWhatsNewSeen(currentVersion.value);
+    }
+    reviewDismissedAt.value = reviewState.dismissedAt;
+  } catch (error) {
+    logger.warn('初始化更新与评价提示失败:', error);
+  } finally {
+    growthReady.value = true;
+  }
+};
+
+const dismissWhatsNew = (): void => {
+  whatsNewVisible.value = false;
+  void markWhatsNewSeen(currentVersion.value);
+};
+
+const dismissReview = (): void => {
+  const at = Date.now();
+  reviewDismissedAt.value = at;
+  void dismissReviewPrompt(at);
+};
+
+const handleGrowthCta = (): void => {
+  if (growthMode.value === 'whats-new') {
+    chrome.tabs.create({ url: GITHUB_RELEASES_PAGE_URL }).catch(error => logger.warn('打开更新页面失败:', error));
+    dismissWhatsNew();
+    return;
+  }
+  if (growthMode.value === 'review') {
+    chrome.tabs.create({ url: REVIEW_PROMPT_URL }).catch(error => logger.warn('打开商店页面失败:', error));
+    dismissReview();
+  }
+};
+
+const handleGrowthDismiss = (): void => {
+  if (growthMode.value === 'whats-new') dismissWhatsNew();
+  else if (growthMode.value === 'review') dismissReview();
 };
 
 watch(showHealthDialog, (visible, wasVisible) => {
@@ -1692,6 +1795,8 @@ onMounted(async () => {
   lastVerifiedBackupAt.value = await StorageUtils.getLastVerifiedBackupAt();
   // 安全起步清单的暂不提醒状态与体检趋势；两项都只读非敏感摘要，失败时降级为未完成
   void loadActivationState();
+  // 更新提示与一次性评价引导；版本/关闭标记都只读非敏感数据
+  void initGrowthPrompts();
   // 等待 Vue 刷新 DOM，确保 PasswordTable 组件已挂载
   await nextTick();
   // 恢复表格排序配置；等排序落定再揭开骨架，避免淡出过程中表格又重排一次

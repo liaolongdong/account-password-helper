@@ -62,6 +62,9 @@ export const AUTHOR_PAGE_URL_EN = `${PRODUCT_DOCS_URL}author.en.html`;
 export const TEAMMATE_PRODUCT_URL = `${PRODUCT_DOCS_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;
 export const TEAMMATE_SHARE_URL = `${CHROME_WEB_STORE_URL}?utm_source=about&utm_medium=share&utm_campaign=teammate`;
 
+/** 一次性评价引导专用商店链接：与分享链接分开归因，避免把「老用户评价」算进「同事分享」 */
+export const REVIEW_PROMPT_URL = `${CHROME_WEB_STORE_URL}?utm_source=options&utm_medium=review&utm_campaign=review_prompt`;
+
 /**
  * CWS 可访问性探测 URL（轻量 HEAD 请求目标）
  *

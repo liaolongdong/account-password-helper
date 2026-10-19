@@ -655,6 +655,14 @@ graph TB
 - **同事分享**：AboutDrawer 的「分享给同事」通过 `copyTextToClipboard` 复制 i18n 文案，按「免费开源 / 安全加密 / 核心功能」三段组织，并附 `TEAMMATE_PRODUCT_URL`（产品说明页）与 `TEAMMATE_SHARE_URL`（商店页）两条带同一组 UTM 的链接；不含任何账号、密码或库内数据。Firefox 构建隐藏商店分享按钮。
 - **回归口径**：`activationChecklist.test.ts` 钉状态归一化、读写与 7 天窗口；`password-management.spec.ts` 的真机用例覆盖「出现 → 暂不提醒 → 刷新不再出现」；i18n bundle 守卫覆盖新增词条。
 
+### 33. 更新提示与一次性评价引导
+
+两卡片都在 Options 主内容区、HeaderBar 之后，共用 `GrowthPrompt.vue` 展示层与「更新优先、评价其次」的互斥规则；组件本身不读存储、不开外链，展示条件与持久化留在 `App.vue`。
+
+- **本次更新**：`WHATS_NEW_SEEN_VERSION` 只存已读版本号。首次安装（尚无主密码配置）在初始化时直接把当前版本记为已读，不弹卡片；已有密码库且版本未记录或变化时展示一次。展示期间安全起步清单让位，关闭或点击 CTA 后写回当前版本。
+- **一次性评价引导**：`REVIEW_PROMPT_STATE` 只存关闭时间戳。只有在密码数 ≥3 且起步清单全部完成（添加、加密备份、安全体检）后才出现；本次已展示更新卡片时延后到下次打开，避免连续打扰。关闭或点击 CTA 后终生不再展示；商店链接带 `utm_source=options&utm_medium=review&utm_campaign=review_prompt`，与同事分享的 UTM 分开归因。
+- **回归口径**：`whatsNew.test.ts` / `reviewPrompt.test.ts` 钉状态归一化、读写与触发边界；`growthPromptWiring.test.ts` 钉 Options 接线与「组件不碰存储」；`growth-prompt.spec.ts` 在真机覆盖首次安装不弹、版本变化弹一次、完成起步清单后评价一次且关闭后不再出现。
+
 ## 开发补充
 
 ### 图标工作流
