@@ -90,7 +90,14 @@ test.describe('更新与评价引导', () => {
 
     const dialog = page.getByRole('dialog').filter({ hasText: textOf('options.growth.whatsNew.title') });
     await expect(dialog).toBeVisible();
-    await expect(dialog.locator('.whats-new__list li')).toHaveCount(3);
+    const items = dialog.locator('.whats-new__list li');
+    await expect(items).toHaveCount(5);
+    // 每条亮点前面是一枚语言小图标：图标只作视觉提示，读屏必须跳过它，
+    // 否则会念成「闪电 登录框旁边就有…」；同时确保图标位没有退化成空节点
+    await expect(dialog.locator('.whats-new__icon[aria-hidden="true"]')).toHaveCount(5);
+    for (let index = 1; index <= 5; index++) {
+      await expect(items.nth(index - 1).locator('.whats-new__icon')).not.toHaveText('');
+    }
 
     await dialog.getByRole('button', { name: textOf('options.growth.whatsNew.dismiss') }).click();
     await expect(dialog).toBeHidden();
