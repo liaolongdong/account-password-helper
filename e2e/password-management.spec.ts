@@ -193,8 +193,8 @@ test.describe('密码条目增删改', () => {
     const dialog = page.locator('.health-dialog');
     await expect(dialog).toBeVisible();
     await expect(dialog.getByText(textOf('health.trendTitle'))).toBeVisible();
-    // 全新 profile 只有本次打开记录的一个点
-    await expect(dialog.getByText(textOf('health.trendFirst'))).toBeVisible();
+    // 全新 profile 只有本次打开记录的一个点：单点不画折线，给的是「等下一次」占位
+    await expect(dialog.getByText(textOf('health.trendWaiting'))).toBeVisible();
   });
 
   test('安全起步清单：已有密码后出现，暂不提醒后刷新不再出现', async ({ optionsPage: page }) => {

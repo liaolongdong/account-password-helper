@@ -23,6 +23,14 @@ import { textOf } from './i18n';
 
 const RULE_DOMAIN = 'site-rules.e2e.test';
 
+/**
+ * 拾取器对 shadow DOM 内元素给出的穿透前缀
+ *
+ * 分隔符是 `utils/storage/siteRules.ts` 的 `SHADOW_SELECTOR_SEPARATOR`（`>>>`）；这里按字面写，
+ * 是为了让本文件不把这个模块的整张依赖图拉进测试进程——它一旦改了分隔符，下面三条断言会一起红。
+ */
+const SHADOW_PREFIX = 'widget-login >>> ';
+
 /** 打开「安全设置 → 站点规则」 */
 async function openSiteRulesDialog(page: Page): Promise<void> {
   await page.getByRole('button', { name: textOf('options.header.securitySettings') }).click();
@@ -301,7 +309,9 @@ test.describe('内容脚本消费站点规则', () => {
     await page.getByRole('button', { name: textOf('options.siteRules.pickUsername') }).click();
     await expect(site.locator('[data-aph-selector-picker]')).toBeVisible();
     await site.locator('#a-user').click();
-    await expect(usernameInput(page)).toHaveValue('#a-user');
+    // 夹具里 `#a-user` 在 `<widget-login>` 的 open shadowRoot 内，裸 `#a-user` 在文档上根本选不中，
+    // 拾取器给的是穿透形态 `host >>> inner`（`utils/storage/siteRules.ts` 的 SHADOW_SELECTOR_SEPARATOR）
+    await expect(usernameInput(page)).toHaveValue(`${SHADOW_PREFIX}#a-user`);
     await expect(site.locator('[data-aph-selector-picker]')).toHaveCount(0);
     // 拾取成功后管理页应自动回到前台，而不是把用户留在目标站点
     await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
@@ -315,7 +325,7 @@ test.describe('内容脚本消费站点规则', () => {
     await page.getByRole('button', { name: textOf('options.siteRules.pickPassword') }).click();
     await expect(site.locator('[data-aph-selector-picker]')).toBeVisible();
     await site.locator('#a-pwd').click();
-    await expect(passwordInput(page)).toHaveValue('#a-pwd');
+    await expect(passwordInput(page)).toHaveValue(`${SHADOW_PREFIX}#a-pwd`);
     await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
     await expect(pairError).toHaveCount(0);
 
@@ -324,7 +334,7 @@ test.describe('内容脚本消费站点规则', () => {
     const rules = await readSiteRules(page);
     expect(rules[RULE_DOMAIN]).toMatchObject({
       domain: RULE_DOMAIN,
-      customSelectors: { username: '#a-user', password: '#a-pwd' },
+      customSelectors: { username: `${SHADOW_PREFIX}#a-user`, password: `${SHADOW_PREFIX}#a-pwd` },
     });
   });
 });

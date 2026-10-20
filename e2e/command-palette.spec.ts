@@ -58,16 +58,42 @@ test.describe('命令面板执行入口', () => {
     // 这里要量的是页脚那颗文字按钮，必须整串相等。
     const close = drawer.getByRole('button', { name: anchoredTextOf('common.close') });
     await expect(review).toBeVisible();
-    const reviewBox = await review.boundingBox();
-    const shareBox = await share.boundingBox();
-    const closeBox = await close.boundingBox();
-    expect(reviewBox, '评价按钮没有可测尺寸').not.toBeNull();
-    expect(shareBox, '分享按钮没有可测尺寸').not.toBeNull();
-    expect(closeBox, '关闭按钮没有可测尺寸').not.toBeNull();
-    expect(reviewBox!.x + reviewBox!.width, '评价入口应在分享左侧').toBeLessThanOrEqual(shareBox!.x);
-    expect(shareBox!.x - (reviewBox!.x + reviewBox!.width), '评价与分享间距没有收紧').toBeLessThanOrEqual(8);
-    expect(closeBox!.x - (shareBox!.x + shareBox!.width), '分享与关闭间距没有收紧').toBeLessThanOrEqual(8);
-    expect(Math.abs(closeBox!.y - reviewBox!.y), '三个按钮没有排在同一行').toBeLessThanOrEqual(1);
+    await expect(share).toBeVisible();
+    await expect(close).toBeVisible();
+    /*
+     * 三颗按钮的几何必须在**同一帧**里读。`el-drawer` 是滑入动画，分三次 `boundingBox()`
+     * 就是三次 CDP 往返，抽屉还在往左搬，后一次量到的 x 必然比前一次小——「评价在分享左侧」
+     * 会被动画本身判死（本机差 0.6 像素，CI 差 86 像素）。一次 evaluate 里的三次 rect 同属
+     * 一帧，整块平移不影响它们的相对关系，因此判据与动画时刻无关。
+     * 身份仍按可访问名认领（不靠 DOM 顺序下标）：页脚少渲染一颗、或顺序被调换，
+     * 都必须让这条用例红，而不是拿错位后的矩形继续算「通过」。
+     */
+    const footer = await page.evaluate(() =>
+      [...document.querySelectorAll<HTMLElement>('.about-footer .el-button')].map(el => {
+        const rect = el.getBoundingClientRect();
+        return {
+          text: el.textContent?.trim() ?? '',
+          x: rect.x,
+          y: rect.y,
+          width: rect.width,
+          height: rect.height,
+        };
+      }),
+    );
+    expect(footer, '「关于」页脚不是三颗按钮').toHaveLength(3);
+    const pick = (matcher: RegExp, label: string) => {
+      const found = footer.find(button => matcher.test(button.text));
+      expect(found, `页脚认不出「${label}」那颗按钮`).toBeDefined();
+      expect(found!.width, `「${label}」量到零宽：不可见节点没有几何可谈`).toBeGreaterThan(0);
+      return found!;
+    };
+    const reviewBox = pick(textOf('options.about.review'), '评价');
+    const shareBox = pick(textOf('options.about.share'), '分享');
+    const closeBox = pick(anchoredTextOf('common.close'), '关闭');
+    expect(reviewBox.x + reviewBox.width, '评价入口应在分享左侧').toBeLessThanOrEqual(shareBox.x);
+    expect(shareBox.x - (reviewBox.x + reviewBox.width), '评价与分享间距没有收紧').toBeLessThanOrEqual(8);
+    expect(closeBox.x - (shareBox.x + shareBox.width), '分享与关闭间距没有收紧').toBeLessThanOrEqual(8);
+    expect(Math.abs(closeBox.y - reviewBox.y), '三个按钮没有排在同一行').toBeLessThanOrEqual(1);
 
     await share.click();
     await expectSuccessToast(page, 'options.about.shareCopied');

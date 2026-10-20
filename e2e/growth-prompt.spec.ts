@@ -194,8 +194,60 @@ test.describe('更新与评价引导', () => {
       })
       .toEqual({ dismissedAt: 'number', snoozedUntil: null, firstFillAt: 'number' });
 
+    // `poll` 可能在迟到事件落地前就采样成功：el-dialog 的补抛发生在关闭动画结束时（≈300ms），
+    // 过一帧有余量再复读一次，「永久关闭之后不再补静默期」才算被钉住。
+    await page.waitForTimeout(600);
+    expect(await readReviewState(page), '「不再提醒」之后又被补写了 30 天静默期').toMatchObject({
+      snoozedUntil: null,
+    });
+
     await page.reload({ waitUntil: 'domcontentloaded' });
     await onboardAndUnlock(page);
     await expect(card).toHaveCount(0);
+  });
+
+  /**
+   * ESC / 遮罩关闭仍按「延后」落盘
+   *
+   * 与上一条互为对照：上一条钉「动作按钮关闭之后不能再补一刀」，这条钉「用户自己关掉的必须延后」。
+   * 只把 `handleReviewVisibility` 的判据反过来写（或整条映射删掉）都会让这里红，
+   * 而那两种改法在上一条用例里都是绿的。
+   */
+  test('评价弹窗按 ESC 关闭：按「稍后再说」延后，不写成永久关闭', async ({ optionsPage: page }) => {
+    const version = await page.evaluate(() => chrome.runtime.getManifest().version);
+    await page.evaluate(
+      async ({ whatsNewKey, reviewKey, seenVersion }) => {
+        await chrome.storage.local.set({
+          [whatsNewKey]: { seenVersion },
+          [reviewKey]: { dismissedAt: null, snoozedUntil: null, firstFillAt: null },
+        });
+      },
+      { whatsNewKey: WHATS_NEW_KEY, reviewKey: REVIEW_KEY, seenVersion: version },
+    );
+    await page.addInitScript(
+      ({ key }) => {
+        const offset = Number(window.sessionStorage.getItem(key) ?? '0');
+        if (!Number.isFinite(offset) || offset === 0) return;
+        const realNow = Date.now.bind(Date);
+        Date.now = () => realNow() + offset;
+      },
+      { key: CLOCK_OFFSET_KEY },
+    );
+
+    const anchor = Date.now();
+    const card = page.getByRole('dialog').filter({ hasText: textOf('options.growth.review.title') });
+    await createEntry(page, FIRST_ENTRY);
+    await createEntry(page, SECOND_ENTRY);
+    await seedReviewState(page, { dismissedAt: null, snoozedUntil: null, firstFillAt: anchor });
+    await shiftClockAndReload(page, 8);
+    await expect(card).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(card).toHaveCount(0);
+    await page.waitForTimeout(600);
+    const state = await readReviewState(page);
+    expect(state.dismissedAt, 'ESC 关闭被当成了永久关闭').toBeNull();
+    expect(typeof state.snoozedUntil, 'ESC 关闭没有写下 30 天静默期').toBe('number');
+    expect(state.firstFillAt).toBe(anchor);
   });
 });
