@@ -169,6 +169,42 @@ test('管理入口（侧边栏 / 悬浮按钮 / popup 共用指令）：会话�
   await sender.close();
 });
 
+test('侧边栏「密码管理」入口：会话有效时新标签页带 first-view=vault', async ({
+  extContext,
+  extensionId,
+  optionsPage,
+}) => {
+  await optionsPage.close();
+  const panel = await extContext.newPage();
+  await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`, { waitUntil: 'domcontentloaded' });
+
+  const manage = panel.locator('.footer-manage-btn');
+  await expect(manage).toBeVisible({ timeout: 15_000 });
+  const [opened] = await Promise.all([extContext.waitForEvent('page'), manage.click()]);
+
+  await expect(opened, '侧边栏管理入口没有把会话状态带进首帧预判').toHaveURL(/options\.html\?first-view=vault/, {
+    timeout: 15_000,
+  });
+  await expect(opened.locator('.header-title h1')).toBeVisible({ timeout: 15_000 });
+  await panel.close();
+});
+
+test('侧边栏会话胶囊：会话有效时新标签页带 first-view=vault', async ({ extContext, extensionId, optionsPage }) => {
+  await optionsPage.close();
+  const panel = await extContext.newPage();
+  await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`, { waitUntil: 'domcontentloaded' });
+
+  const pill = panel.locator('.session-pill');
+  await expect(pill).toBeVisible({ timeout: 15_000 });
+  const [opened] = await Promise.all([extContext.waitForEvent('page'), pill.click()]);
+
+  await expect(opened, '侧边栏会话胶囊没有把会话状态带进首帧预判').toHaveURL(/options\.html\?first-view=vault/, {
+    timeout: 15_000,
+  });
+  await expect(opened.locator('.header-title h1')).toBeVisible({ timeout: 15_000 });
+  await panel.close();
+});
+
 test('有效期入口：带 first-view=vault 的新标签页首帧直接落到表格形态', async ({
   extContext,
   extensionId,

@@ -76,41 +76,45 @@
       .sk-boot {
         flex: 1;
         flex-direction: column;
-        gap: 14px;
+        gap: 18px;
         align-items: center;
         justify-content: center;
         width: 100%;
-        max-width: 400px;
         padding: 24px;
-        margin: 0 auto;
       }
 
-      .sk-boot__card {
-        width: 100%;
-        padding: 28px 24px;
-        background: #fff;
-        border: 1px solid var(--aph-surface-line, #e2e8f0);
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgb(var(--aph-primary-rgb, 71 85 105) / 10%);
+      /* 细进度条而不是白色卡片：避免中性启动态被误认成主密码表单骨架 */
+      .sk-boot__bar {
+        width: 180px;
+        height: 4px;
+        overflow: hidden;
+        background: #e2e8f0;
+        border-radius: 999px;
       }
 
-      .sk-boot__line {
-        width: 100%;
-        height: 12px;
-        margin-bottom: 14px;
-        border-radius: 4px;
+      .sk-boot__bar span {
+        display: block;
+        width: 45%;
+        height: 100%;
+        background: var(--aph-primary, #475569);
+        border-radius: inherit;
+        animation: sk-boot-slide 1.4s ease-in-out infinite;
       }
 
-      .sk-boot__line:last-child {
-        margin-bottom: 0;
+      .sk-boot__hint {
+        width: 120px;
+        height: 10px;
+        border-radius: 999px;
       }
 
-      .sk-boot__line--mid {
-        width: 72%;
-      }
+      @keyframes sk-boot-slide {
+        0% {
+          transform: translateX(-100%);
+        }
 
-      .sk-boot__line--short {
-        width: 44%;
+        100% {
+          transform: translateX(320%);
+        }
       }
 
       .sk-vault {
@@ -473,6 +477,12 @@
         .sk-block {
           animation: none;
         }
+
+        .sk-boot__bar span {
+          width: 100%;
+          animation: none;
+          opacity: 0.35;
+        }
       }
 
       @media (max-width: 900px) {
@@ -541,11 +551,8 @@
           <div class="sk-block sk-auth__logo"></div>
           <div class="sk-block sk-auth__title"></div>
         </div>
-        <div class="sk-boot__card">
-          <div class="sk-block sk-boot__line sk-boot__line--long"></div>
-          <div class="sk-block sk-boot__line sk-boot__line--mid"></div>
-          <div class="sk-block sk-boot__line sk-boot__line--short"></div>
-        </div>
+        <div class="sk-boot__bar"><span></span></div>
+        <div class="sk-block sk-boot__hint"></div>
       </div>
 
       <!-- 认证态骨架：锁定 / 首次安装时使用 -->
