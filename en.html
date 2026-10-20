@@ -357,7 +357,7 @@
             "name": "Can one account cover every subdomain of a site?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Yes — and by default it does not. The \"Cross-subdomain matching\" control in the manager page header has three tiers and defaults to \"Exact match only\". \"Exact + wildcard entries\" makes an account saved as *.qq.com surface on any subdomain of that site; \"Same main domain\" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged \"Cross-subdomain\". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row."
+              "text": "Yes — and by default it does not. The \"Cross-subdomain matching\" control in the manager page header has three tiers and defaults to \"Exact match only\". \"Exact + wildcard entries\" makes an account saved as *.qq.com surface on any subdomain of that site; \"Same main domain\" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged \"Cross-subdomain\". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row. The same dialog carries a separate \"port\" axis for services running on different ports of one domain."
             }
           },
           {
@@ -510,6 +510,14 @@
             "acceptedAnswer": {
               "@type": "Answer",
               "text": "When the same account on the same site has a changed password, an \"Update\" prompt appears; on confirmation the password is updated while existing tags and remarks are kept (unless you edit them in the prompt). Identical credentials are skipped; different accounts create new entries without touching existing data."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Do accounts on different ports of one domain mix?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "By default only localhost and 127.0.0.1 are separated by port. To keep services on different ports of a public domain or a private IP apart as well, switch the port option to \"Isolate by port\" inside \"Cross-subdomain matching\" on the manager page: an account whose URL declares a port appears only on that port, and one without a port is read as the domain's front door and appears only on the scheme's default port (80 for http, 443 for https). This axis stacks with the three subdomain tiers. While it is on, the side panel header shows the current port — one click temporarily reveals other ports' accounts on this page (never saved, and it resets when you switch tabs). Those rows are badged \"Other port\", sort to the end of the list and offer only copy and \"open site\", so a password from one port is never typed into another port's login form. Auto-save obeys the same ownership rule."
             }
           },
           {
@@ -4737,7 +4745,7 @@
       <div class="container">
         <div class="metrics-inner reveal">
           <div class="metric">
-            <b>3589</b>
+            <b>3912</b>
             <span data-i18n="metrics.cases">automated test cases</span>
             <i aria-hidden="true"></i>
           </div>
@@ -5708,8 +5716,8 @@
                 />
               </svg>
             </div>
-            <h3 data-i18n="features.f14.title">Three Cross-Subdomain Tiers</h3>
-            <p data-i18n="features.f14.desc">By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.</p>
+            <h3 data-i18n="features.f14.title">Domain &amp; Port Isolation</h3>
+            <p data-i18n="features.f14.desc">By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". A separate port axis keeps services on different ports of one domain apart: an entry that declares a port appears only there, and one without a port only on the scheme's default port. Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.</p>
           </article>
         </div>
       </div>
@@ -6642,7 +6650,11 @@ pnpm lint:style  # Stylelint</code></pre>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>Can one account cover every subdomain of a site?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
-            <div class="faq-a"><div class="faq-a-inner">Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.</div></div>
+            <div class="faq-a"><div class="faq-a-inner">Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row. The same dialog carries a separate "port" axis for services running on different ports of one domain.</div></div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-q" aria-expanded="false"><span>Do accounts on different ports of one domain mix?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
+            <div class="faq-a"><div class="faq-a-inner">By default only localhost and 127.0.0.1 are separated by port. To keep services on different ports of a public domain or a private IP apart as well, switch the port option to "Isolate by port" inside "Cross-subdomain matching" on the manager page: an account whose URL declares a port appears only on that port, and one without a port is read as the domain's front door and appears only on the scheme's default port (80 for http, 443 for https). This axis stacks with the three subdomain tiers. While it is on, the side panel header shows the current port — one click temporarily reveals other ports' accounts on this page (never saved, and it resets when you switch tabs). Those rows are badged "Other port", sort to the end of the list and offer only copy and "open site", so a password from one port is never typed into another port's login form. Auto-save obeys the same ownership rule.</div></div>
           </div>
           <div class="faq-item">
             <button class="faq-q" aria-expanded="false"><span>How do I set the favorites limit?</span><span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg></span></button>
@@ -6693,7 +6705,7 @@ pnpm lint:style  # Stylelint</code></pre>
               <li><a href="#faq-cat-security"><span class="faq-toc-name">Security &amp; Privacy</span><span class="faq-toc-n">7</span></a></li>
               <li><a href="#faq-cat-basic"><span class="faq-toc-name">Basics</span><span class="faq-toc-n">10</span></a></li>
               <li><a href="#faq-cat-data"><span class="faq-toc-name">Data Management</span><span class="faq-toc-n">11</span></a></li>
-              <li><a href="#faq-cat-config"><span class="faq-toc-name">Advanced</span><span class="faq-toc-n">14</span></a></li>
+              <li><a href="#faq-cat-config"><span class="faq-toc-name">Advanced</span><span class="faq-toc-n">15</span></a></li>
             </ol>
           </nav>
           <div class="faq-rail-card faq-rail-card--key">
@@ -7655,10 +7667,10 @@ pnpm lint:style  # Stylelint</code></pre>
           zh: '登录框藏在自定义组件里、识别不到输入框？在密码管理页「站点规则」为该域名手写用户名与密码框的 CSS 选择器（规则域名需与登录页域名完全一致），每条规则自带「Shadow DOM 穿透」开关，默认开启、只作用于开放影子根。规则可导出为纯文本 JSON（只含域名与选择器，不含凭据）并按域名合并导入，团队共享一套配置，不必逐台浏览器调。',
           en: 'Login fields hidden inside custom components? Under "Site rules" on the manager page, pin the CSS selectors for that domain\'s username and password inputs (the rule domain must equal the login page domain exactly). Every rule carries a "Shadow DOM penetration" switch, on by default, that reaches open shadow roots only. Rules export as plain-text JSON (domains and selectors, never credentials) and merge-import by domain, so a team can share one working set instead of configuring browser by browser.',
         },
-        'features.f14.title': { zh: '跨子域名匹配三档', en: 'Three Cross-Subdomain Tiers' },
+        'features.f14.title': { zh: '域名与端口两级隔离', en: 'Domain & Port Isolation' },
         'features.f14.desc': {
-          zh: '默认只展示与当前域名完全一致的条目；「精确 + 通配条目」让网址写成 *.qq.com 的账号在该站任意子域出现；「同主域名」再补一层兜底——当前域名没有账号时带出主域与兄弟子域的条目并标注「跨子域」。放宽只改变展示与可填充的账号，自动保存的判重口径不随档位改变。',
-          en: 'By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.',
+          zh: '默认只展示与当前域名完全一致的条目；「精确 + 通配条目」让网址写成 *.qq.com 的账号在该站任意子域出现；「同主域名」再补一层兜底——当前域名没有账号时带出主域与兄弟子域的条目并标注「跨子域」。另一条独立的端口轴可以把同一域名下不同端口的服务也隔开：写了端口的账号只在同端口出现，没写端口的只在该域名协议的默认端口出现。放宽只改变展示与可填充的账号，自动保存的判重口径不随跨子域档位改变。',
+          en: 'By default only entries on the exact host are shown. "Exact + wildcard entries" makes an account saved as *.qq.com appear on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no account of its own, entries from the apex domain and sibling subdomains are offered, badged "cross-subdomain". A separate port axis keeps services on different ports of one domain apart: an entry that declares a port appears only there, and one without a port only on the scheme\'s default port. Widening changes only which entries are offered and fillable; the auto-save duplicate rule is deliberately tier-independent.',
         },
         'showcase.title': { zh: '功能演示', en: 'Feature Showcase' },
         'showcase.sub': {
@@ -8260,8 +8272,18 @@ pnpm lint:style  # Stylelint</code></pre>
             en: 'Can one account cover every subdomain of a site?',
           },
           a: {
-            zh: '可以，但默认不共用。密码管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成 *.qq.com 的账号会在该站点任意子域名出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域 qq.com 与兄弟子域的条目，并在列表里标注「跨子域」。放宽只改变哪些账号被展示与可填充：自动保存的判重口径不随档位改变，localhost / 127.0.0.1 始终按端口区分，侧边栏与内联下拉共用同一套排序、一键填充取首条。',
-            en: 'Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, localhost / 127.0.0.1 always stay separated by port, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row.',
+            zh: '可以，但默认不共用。密码管理页头部的「跨子域名匹配」提供三档，默认是「仅精确匹配」。切到「精确 + 通配条目」后，网址写成 *.qq.com 的账号会在该站点任意子域名出现；切到「同主域名」再加一层兜底——当前域名没有账号时依次带出主域 qq.com 与兄弟子域的条目，并在列表里标注「跨子域」。放宽只改变哪些账号被展示与可填充：自动保存的判重口径不随这三档改变，侧边栏与内联下拉共用同一套排序、一键填充取首条。同一个弹窗里还有一条独立的「端口」轴，用来区分同一域名下跑在不同端口的服务。',
+            en: 'Yes — and by default it does not. The "Cross-subdomain matching" control in the manager page header has three tiers and defaults to "Exact match only". "Exact + wildcard entries" makes an account saved as *.qq.com surface on any subdomain of that site; "Same main domain" adds a fallback — when the current host has no entries of its own, the apex (qq.com) and sibling subdomains appear, badged "Cross-subdomain". Widening changes only which entries are offered: the auto-save duplicate rule is deliberately tier-independent, and the side panel and the inline dropdown share one ordering, so quick fill takes the first row. The same dialog carries a separate "port" axis for services running on different ports of one domain.',
+          },
+        },
+        {
+          q: {
+            zh: '同一个域名的不同端口，账号会互相串吗？',
+            en: 'Do accounts on different ports of one domain mix?',
+          },
+          a: {
+            zh: '默认只在 localhost 与 127.0.0.1 上按端口区分。需要把公网域名或内网 IP 的不同服务也隔开时，在密码管理页头部「跨子域名匹配」里把端口切到「按端口隔离」：网址写了端口的账号只在同端口出现；没写端口的账号按「这个域名的门面地址」理解，只在该域名协议的默认端口（http 80 / https 443）出现。这一档与跨子域三档正交，可以叠加。开启后侧边栏顶部会显示当前端口，点一下可在本站临时显示其他端口的账号（该选择不保存，切到别的标签页自动收回）——这类条目标注「其他端口」、排在列表末尾，且只提供复制与打开站点，不会把 A 端口的密码填进 B 端口的登录框。自动保存遵守同一条归属：在非默认端口登录只更新同端口的账号。',
+            en: 'By default only localhost and 127.0.0.1 are separated by port. To keep services on different ports of a public domain or a private IP apart as well, switch the port option to "Isolate by port" inside "Cross-subdomain matching" on the manager page: an account whose URL declares a port appears only on that port, and one without a port is read as the domain\'s front door and appears only on the scheme\'s default port (80 for http, 443 for https). This axis stacks with the three subdomain tiers. While it is on, the side panel header shows the current port — one click temporarily reveals other ports\' accounts on this page (never saved, and it resets when you switch tabs). Those rows are badged "Other port", sort to the end of the list and offer only copy and "open site", so a password from one port is never typed into another port\'s login form. Auto-save obeys the same ownership rule.',
           },
         },
         {

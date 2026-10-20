@@ -411,9 +411,9 @@ function expectedRail(page: Page): RailEntry[] {
 describe.each([zh, en])('$label — FAQ 生成区与 FAQS 同源', (page: Page) => {
   it('条目非空且问答 / 分类数量与 FAQS 一致', () => {
     expect(page.nodes.length).toBe(page.faqs.length);
-    // 42 是写死的量级锚点：上一条断言只保证「生成区 == FAQS」，两处一起被误删时它仍然绿，
+    // 43 是写死的量级锚点：上一条断言只保证「生成区 == FAQS」，两处一起被误删时它仍然绿，
     // 这一条负责让「少了一条问答」这件事必须有人在场外看见。增删条目时同步这个数字。
-    expect(page.nodes.filter(n => n.kind === 'qa').length).toBe(42);
+    expect(page.nodes.filter(n => n.kind === 'qa').length).toBe(43);
     expect(page.nodes.filter(n => n.kind === 'category').length).toBe(4);
   });
 
