@@ -79,9 +79,6 @@ export async function queryPierced(cdp: CDPSession, matcher: (node: CdpNode) => 
 /** 读一个节点的纯文本（气泡内容全是文本节点，标签一律抹掉） */
 async function nodeText(cdp: CDPSession, node: CdpNode): Promise<string> {
   const { outerHTML } = (await cdp.send('DOM.getOuterHTML', { nodeId: node.nodeId })) as { outerHTML: string };
-
-  // 不是净化器：输入是 CDP 序列化的真 outerHTML，输出只拿去和期望文案做字符串比较，不回填任何 DOM。
-  // codeql[js/incomplete-sanitization] -- 标记须独占一行、上方留空行、紧贴被报那一行
   return outerHTML.replace(/<[^>]*>/g, '').trim();
 }
 

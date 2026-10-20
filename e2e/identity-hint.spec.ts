@@ -196,21 +196,14 @@ test('地址表单四档各报其角色：中英标签同页并存也不串味',
     </body>`,
   );
 
-  // 抑制说明：`cases` 里两项 `cs.identity.role.org` 是轻量文案的 i18n key，`.org` 前的点是键
-  // 分隔符；它经 `e2e/i18n.ts` 的 `liteValues` 时先整体转义再进 RegExp，不存在主机名放宽。
-  // CodeQL 要求标记独占一行、上方留空行、紧贴被报那一行，否则不认。
   const cases = [
     ['r-zh', 'cs.identity.role.region'],
     ['a-zh', 'cs.identity.role.address'],
     ['p-zh', 'cs.identity.role.postal'],
-
-    // codeql[js/incomplete-hostname-regexp] -- i18n key，不是主机名正则
     ['o-zh', 'cs.identity.role.org'],
     ['r-en', 'cs.identity.role.region'],
     ['a-en', 'cs.identity.role.address'],
     ['p-en', 'cs.identity.role.postal'],
-
-    // codeql[js/incomplete-hostname-regexp] -- 同上，只是语言不同
     ['o-en', 'cs.identity.role.org'],
   ] as const;
 
