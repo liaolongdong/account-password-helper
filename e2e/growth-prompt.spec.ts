@@ -1,5 +1,5 @@
 import { createEntry, expect, onboardAndUnlock, test } from './harness';
-import { textOf } from './i18n';
+import { textOf, whatsNewItemCount } from './i18n';
 import type { Page } from '@playwright/test';
 
 /**
@@ -91,11 +91,12 @@ test.describe('更新与评价引导', () => {
     const dialog = page.getByRole('dialog').filter({ hasText: textOf('options.growth.whatsNew.title') });
     await expect(dialog).toBeVisible();
     const items = dialog.locator('.whats-new__list li');
-    await expect(items).toHaveCount(5);
+    const itemCount = whatsNewItemCount();
+    await expect(items).toHaveCount(itemCount);
     // 每条亮点前面是一枚语言小图标：图标只作视觉提示，读屏必须跳过它，
     // 否则会念成「闪电 登录框旁边就有…」；同时确保图标位没有退化成空节点
-    await expect(dialog.locator('.whats-new__icon[aria-hidden="true"]')).toHaveCount(5);
-    for (let index = 1; index <= 5; index++) {
+    await expect(dialog.locator('.whats-new__icon[aria-hidden="true"]')).toHaveCount(itemCount);
+    for (let index = 1; index <= itemCount; index++) {
       await expect(items.nth(index - 1).locator('.whats-new__icon')).not.toHaveText('');
     }
 

@@ -122,6 +122,25 @@ export function exactText(key: string, locale: (typeof LOCALES)[number] = 'zh-CN
   return value;
 }
 
+/**
+ * 「本次更新」亮点的条数：由语言包实际键数推导，不在用例里写死
+ *
+ * 组件的 `ITEM_COUNT` 与用例的 `toHaveCount(N)` 各写一份时，加一条亮点就会在 CI 上红两条用例
+ * （2026-10-21 端口隔离那条亮点加进去时就撞上了）。取数以中英两侧 `item.N` 的连续前缀为准，
+ * 顺带钉住两语言键集一致——只在一侧补文案也会在这里变红。
+ */
+export function whatsNewItemCount(): number {
+  const countFor = (locale: (typeof LOCALES)[number]): number => {
+    const dict = loadLocale(locale);
+    let n = 0;
+    while (`options.growth.whatsNew.item.${n + 1}` in dict) n += 1;
+    return n;
+  };
+  const [zh, en] = [countFor('zh-CN'), countFor('en')];
+  if (zh !== en) throw new Error(`E2E 文案不齐：whatsNew 亮点中文 ${zh} 条、英文 ${en} 条`);
+  return zh;
+}
+
 const LITE_SOURCE = path.resolve(HERE, '..', 'utils', 'i18n-lite.ts');
 
 /**
