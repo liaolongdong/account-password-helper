@@ -58,12 +58,21 @@ interface Props {
   availableTags: string[];
   /** 全库命中数（仅本站无结果时 > 0，用作空态的「搜索全部条目」引导） */
   globalMatchCount: number;
-  /** 全站模式下无法填充当前页的外站条目 ID 集（本站模式为空集） */
-  offSiteIds: ReadonlySet<string>;
+  /**
+   * 不可填充到当前页的条目 ID 集
+   *
+   * 两种来源共用：全站模式下的外站条目、临时放宽带出的「同域名其他端口」条目。
+   * 两者都拿不到眼前的登录框，动作降级同构（整行点击改为打开站点）。
+   */
+  notFillableIds: ReadonlySet<string>;
   /** 跨子域命中（非精确层级）的条目 ID 集（`off` 档为空集，徽章据此查表） */
   crossDomainIds: ReadonlySet<string>;
+  /** 「同域名但端口不同」的条目 ID 集（仅临时放宽后非空，徽章据此查表） */
+  portMismatchIds: ReadonlySet<string>;
   /** 放宽到「同主域名」档可额外带出的条目数（仅空态引导使用） */
   crossDomainHintCount: number;
+  /** 被端口隔离挡在本站之外的同域名条目数（仅空态引导使用） */
+  portHiddenHintCount: number;
   /**
    * 已落地（防抖后）的关键词，与输入框即时值 `searchKeyword` 分离
    *
@@ -85,6 +94,8 @@ interface Emits {
   addSitePassword: [];
   /** 空态深链：打开 Options 的跨子域匹配设置对话框 */
   openDomainMatchSetting: [];
+  /** 空态一键：本站临时显示全部端口（不落盘，切标签页复位） */
+  relaxPorts: [];
   /** 加载失败态「重试」 */
   retry: [];
   /** 鼠标悬停激活条目 */
@@ -144,10 +155,10 @@ const emptyHint = computed(() =>
 /**
  * 条目能否填充到当前页
  *
- * 以布尔值（而非 offSiteIds 集合引用）参与 v-memo：仅当该行的能力真正变化时重渲染，
- * 避免全站模式下每次过滤重算产生新 Set 导致整张列表无效重渲染。
+ * 以布尔值（而非 notFillableIds 集合引用）参与 v-memo：仅当该行的能力真正变化时重渲染，
+ * 避免每次过滤重算产生新 Set 导致整张列表无效重渲染。
  */
-const canFill = (entry: PasswordEntry): boolean => !props.offSiteIds.has(entry.id);
+const canFill = (entry: PasswordEntry): boolean => !props.notFillableIds.has(entry.id);
 
 /**
  * 条目是否由跨子域放宽带出（徽章依据）
@@ -156,6 +167,14 @@ const canFill = (entry: PasswordEntry): boolean => !props.offSiteIds.has(entry.i
  * 但只有该行自身的归属变化才触发重渲染。
  */
 const isCrossDomain = (entry: PasswordEntry): boolean => props.crossDomainIds.has(entry.id);
+
+/**
+ * 条目是否属于「同域名但端口不同」（徽章依据）
+ *
+ * 与跨子域徽章是两个独立事实：一条 `uat.example.com:8080` 的条目在
+ * `fat.example.com:9090` 上可以同时带这两枚徽章。
+ */
+const isPortMismatch = (entry: PasswordEntry): boolean => props.portMismatchIds.has(entry.id);
 
 /**
  * 仅在存在有效搜索词时订阅拼音模块就绪状态；空搜索下模块预热不触发全列表更新。
@@ -572,6 +591,15 @@ onUnmounted(() => {
           >
             {{ t('sidepanel.scope.crossSubdomainHint', { count: crossDomainHintCount }) }}
           </button>
+          <!-- 同域名其他端口还有账号：一键在本站临时显示（不落盘），避免「列表空了 = 插件坏了」的误判 -->
+          <button
+            v-if="portHiddenHintCount > 0"
+            type="button"
+            class="cross-domain-hint"
+            @click="emit('relaxPorts')"
+          >
+            {{ t('sidepanel.scope.portHiddenHint', { count: portHiddenHintCount }) }}
+          </button>
         </template>
       </div>
 
@@ -603,6 +631,7 @@ onUnmounted(() => {
             pinyinRenderMemoDependency,
             canFill(password),
             isCrossDomain(password),
+            isPortMismatch(password),
           ]"
           :password="password"
           :is-active="activeIndex === index"
@@ -610,6 +639,7 @@ onUnmounted(() => {
           :search-keyword="activeKeyword"
           :can-fill="canFill(password)"
           :cross-domain="isCrossDomain(password)"
+          :port-mismatch="isPortMismatch(password)"
           @fill="p => emit('fill', p)"
           @fill-and-login="p => emit('fillAndLogin', p)"
           @open-site="p => emit('openSite', p)"

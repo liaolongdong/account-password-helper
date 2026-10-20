@@ -6,7 +6,8 @@ import type { DomainMatchConfig, PasswordEntry } from '@/utils/types';
  * autoSaveManager.ts 单元测试
  *
  * 覆盖：
- * - findMatchingEntry：账号 + 域名匹配（精确、存储为完整 URL、子域名双向包含、无 URL、域名不同）；
+ * - findMatchingEntry：账号 + 域名匹配（精确、存储为完整 URL、子域名双向包含、无 URL、域名不同），
+ *   以及端口隔离（`strict`）下的归属门与「端口上下文不可得时放行」的保底；
  * - checkCredentialStatus：会话失效 / 空值 / 新账号 / 相同 / 密码变化 各分支，及读取异常保底行为；
  * - checkCredentialStatus 风险提示：弱密码/复用计数的附带边界（仅弹窗分支携带）；
  * - checkCredentialStatus 去向提示：两种 targetNote 的产出条件、档位门禁与「不落日志」约束；
@@ -35,7 +36,7 @@ vi.mock('@/utils/storage/passwordCrud', () => ({
   savePassword,
 }));
 
-// configManager 仅 evictLRUFavoriteIfNeeded 与去向提示的档位门禁使用，mock 掉避免无关的真实 storage 调用
+// configManager 仅 evictLRUFavoriteIfNeeded、端口归属门与去向提示的档位门禁使用，mock 掉避免无关的真实 storage 调用
 vi.mock('@/utils/storage/configManager', () => ({
   getFavoriteLimit: vi.fn(),
   getDomainMatchConfig,
@@ -53,6 +54,10 @@ import { fakeBrowser } from 'wxt/testing';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { MAX_PASSWORD_ENTRIES, VaultCapacityError } from '@/utils/storage/vaultCapacity';
 import { tl } from '@/utils/i18n-lite';
+import { parsePagePortContext } from '@/utils/domain';
+
+/** 页面端口上下文夹具：必须由完整 URL 解析，手写对象会绕开 80/443 默认端口口径 */
+const pagePort = (url: string) => parsePagePortContext(url);
 
 beforeEach(() => {
   isSessionValid.mockReset();
@@ -60,6 +65,9 @@ beforeEach(() => {
   getDomainMatchConfig.mockReset();
   updatePassword.mockReset();
   savePassword.mockReset();
+  // 端口归属门（resolvePortOwnership）在每次写入判定都会读一次策略：给全文件一个缺省应答，
+  // 需要特定档位/端口范围的用例在自己的 beforeEach 里覆盖（describe 的钩子晚于根钩子执行）
+  getDomainMatchConfig.mockResolvedValue({ mode: 'off', portScope: 'loose' });
   // 自动保存配置的真实读取走这里，逐个用例重新起底，避免上一个用例写入的开关状态串味
   fakeBrowser.reset();
 });
@@ -157,6 +165,45 @@ describe('findMatchingEntry 判重口径不受跨子域档位影响', () => {
   it('同名 + 通配条目 → 不命中（判重不认 `*.qq.com`）', () => {
     const wildcardList = [makePasswordEntry({ id: 'wild', username: 'u', url: '*.qq.com', password: 'x' })];
     expect(findMatchingEntry(wildcardList, { username: 'u', url: 'mail.qq.com' })).toBeUndefined();
+  });
+});
+
+/**
+ * 端口隔离（`strict`）下的归属门
+ *
+ * 钉住「不会把某端口的密码写进另一端口的条目」这条数据损失防线：端口不相容的同名条目必须判重
+ * 不命中（这次登录转而新增一条），且判据与侧边栏可见性同源（同用 `matchesPortScope`），
+ * 否则用户会看到一个「自己看不见的更新」。端口上下文不可得时放行，属刻意取舍：
+ * 少一份端口信息不该让这次登录静默不落盘。
+ */
+describe('findMatchingEntry 端口归属门', () => {
+  const list = [makePasswordEntry({ id: 'p8443', username: 'u', url: 'example.com:8443', password: 'x' })];
+
+  it('页面端口与条目声明端口一致时命中（可更新）', () => {
+    expect(
+      findMatchingEntry(
+        list,
+        { username: 'u', url: 'example.com:8443' },
+        pagePort('https://example.com:8443'),
+        'strict',
+      )?.id,
+    ).toBe('p8443');
+  });
+
+  it('页面端口不一致时不命中（不把门面端口的密码写进 :8443 条目）', () => {
+    expect(
+      findMatchingEntry(list, { username: 'u', url: 'example.com' }, pagePort('https://example.com'), 'strict'),
+    ).toBeUndefined();
+  });
+
+  it('loose 档端口不参与归属判定（与引入端口隔离之前逐条一致）', () => {
+    expect(
+      findMatchingEntry(list, { username: 'u', url: 'example.com' }, pagePort('https://example.com'), 'loose')?.id,
+    ).toBe('p8443');
+  });
+
+  it('端口上下文不可得时放行（缺一份端口信息不该漏保存）', () => {
+    expect(findMatchingEntry(list, { username: 'u', url: 'example.com' }, null, 'strict')?.id).toBe('p8443');
   });
 });
 
@@ -321,7 +368,7 @@ describe('checkCredentialStatus 保存去向提示', () => {
 
   beforeEach(() => {
     isSessionValid.mockResolvedValue(true);
-    getDomainMatchConfig.mockResolvedValue({ mode: 'sameMainDomain' });
+    getDomainMatchConfig.mockResolvedValue({ mode: 'sameMainDomain', portScope: 'loose' });
   });
 
   it('兄弟子域同名 + 非 off 档 → willCreate，url 为条目原样串', async () => {
@@ -334,7 +381,7 @@ describe('checkCredentialStatus 保存去向提示', () => {
   });
 
   it('off 档同场景不提示（跨子域可见性并非本次保存的后果）', async () => {
-    getDomainMatchConfig.mockResolvedValue({ mode: 'off' });
+    getDomainMatchConfig.mockResolvedValue({ mode: 'off', portScope: 'loose' });
     getAllPasswords.mockResolvedValue([
       makePasswordEntry({ id: 'sibling', username: 'u', url: 'music.qq.com', password: OLD }),
     ]);
@@ -344,7 +391,7 @@ describe('checkCredentialStatus 保存去向提示', () => {
   });
 
   it('wildcard 档下同名通配条目 → willCreate（判重不认通配，确实会新增一条）', async () => {
-    getDomainMatchConfig.mockResolvedValue({ mode: 'wildcard' });
+    getDomainMatchConfig.mockResolvedValue({ mode: 'wildcard', portScope: 'loose' });
     getAllPasswords.mockResolvedValue([
       makePasswordEntry({ id: 'wild', username: 'u', url: '*.qq.com', password: OLD }),
     ]);
@@ -354,7 +401,7 @@ describe('checkCredentialStatus 保存去向提示', () => {
   });
 
   it('wildcard 档下兄弟子域同名 → 仍提示（该档看不见它，但同名事实与档位无关）', async () => {
-    getDomainMatchConfig.mockResolvedValue({ mode: 'wildcard' });
+    getDomainMatchConfig.mockResolvedValue({ mode: 'wildcard', portScope: 'loose' });
     getAllPasswords.mockResolvedValue([
       makePasswordEntry({ id: 'sibling', username: 'u', url: 'music.qq.com', password: OLD }),
     ]);
@@ -363,13 +410,14 @@ describe('checkCredentialStatus 保存去向提示', () => {
     expect(res.targetNote).toEqual({ kind: 'willCreate', url: 'music.qq.com' });
   });
 
-  it('父子域命中且 host 不同 → updateOtherHost，且 off 档同样提示、不读档位配置', async () => {
-    getDomainMatchConfig.mockResolvedValue({ mode: 'off' });
+  it('父子域命中且 host 不同 → updateOtherHost，且 off 档同样提示、去向提示不额外读策略', async () => {
+    getDomainMatchConfig.mockResolvedValue({ mode: 'off', portScope: 'loose' });
     getAllPasswords.mockResolvedValue([makePasswordEntry({ id: 'apex', username: 'u', url: 'qq.com', password: OLD })]);
     const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
     expect(res.status).toBe('password_changed');
     expect(res.targetNote).toEqual({ kind: 'updateOtherHost', url: 'qq.com' });
-    expect(getDomainMatchConfig).not.toHaveBeenCalled();
+    // 唯一一次读取来自端口归属门：updateOtherHost 无档位门禁，不该为它再补一趟策略读取
+    expect(getDomainMatchConfig).toHaveBeenCalledTimes(1);
   });
 
   it('命中同 host 条目时不提示（去向就是当前站，无需解释）', async () => {
@@ -407,11 +455,12 @@ describe('checkCredentialStatus 保存去向提示', () => {
     expect(res.targetNote).toBeUndefined();
   });
 
-  it('无同名跨主域候选时不读档位配置（不给保存热路径加存储读取）', async () => {
+  it('无同名跨主域候选时不额外读策略（不给保存热路径加第二趟存储读取）', async () => {
     getAllPasswords.mockResolvedValue([makePasswordEntry({ username: 'bob', url: 'github.com', password: OLD })]);
     const res = await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
     expect(res.status).toBe('new');
-    expect(getDomainMatchConfig).not.toHaveBeenCalled();
+    // willCreate 探测无候选时直接返回，不读档位；这一趟是端口归属门必经的读取
+    expect(getDomainMatchConfig).toHaveBeenCalledTimes(1);
   });
 
   it('locked / identical / 读取异常三种保底分支均不带 targetNote', async () => {
@@ -443,7 +492,7 @@ describe('checkCredentialStatus 保存去向提示', () => {
     ]);
 
     await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
-    getDomainMatchConfig.mockResolvedValue({ mode: 'off' });
+    getDomainMatchConfig.mockResolvedValue({ mode: 'off', portScope: 'loose' });
     getAllPasswords.mockResolvedValue([makePasswordEntry({ id: 'apex', username: 'u', url: 'qq.com', password: OLD })]);
     await checkCredentialStatus({ username: 'u', password: NEW, url: 'mail.qq.com' });
 
@@ -860,5 +909,77 @@ describe('autoSavePassword 前置门禁与失败分支', () => {
       }
     }
     spies.forEach(spy => spy.mockRestore());
+  });
+});
+
+/**
+ * 端口隔离落盘口径
+ *
+ * `location.host` 会把协议默认端口省略掉，所以「页面在 443」这一位只能由 `protocol` 补回来。
+ * 这里钉住预检查与真正落盘用同一份端口归属判定：两者口径不一致时，弹窗会说「新账号」
+ * 而实际改写了另一端口的条目（数据损失），或反过来。
+ */
+describe('autoSavePassword / checkCredentialStatus 的端口归属', () => {
+  /** 库里只有 :8443 管理后台那条同名条目；页面是域名门面端口 */
+  const seedOtherPortEntry = (): void => {
+    isSessionValid.mockResolvedValue(true);
+    getDomainMatchConfig.mockResolvedValue({ mode: 'off', portScope: 'strict' });
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'p8443', username: 'alice', url: 'example.com:8443', password: 'OldPass1!' }),
+    ]);
+  };
+
+  it('strict 档下端口不一致：预检查报 new，落盘改为新增而不改写另一端口的条目', async () => {
+    seedOtherPortEntry();
+
+    const status = await checkCredentialStatus({
+      username: 'alice',
+      password: NEW_PASSWORD,
+      url: 'example.com',
+      protocol: 'https:',
+    });
+    expect(status.status).toBe('new');
+
+    await autoSavePassword(makePayload({ url: 'example.com', protocol: 'https:' }));
+
+    expect(updatePassword).not.toHaveBeenCalled();
+    expect(savePassword).toHaveBeenCalledTimes(1);
+  });
+
+  it('同一端口的页面仍按既有口径改写该条目', async () => {
+    seedOtherPortEntry();
+
+    await autoSavePassword(makePayload({ url: 'example.com:8443', protocol: 'https:' }));
+
+    expect(updatePassword).toHaveBeenCalledWith('p8443', {
+      password: NEW_PASSWORD,
+      tag: 'x1',
+      remark: tl('cs.save.autoSaveRemark'),
+      updateTime: expect.any(Number),
+    });
+    expect(savePassword).not.toHaveBeenCalled();
+  });
+
+  it('loose 档下端口不参与归属：与引入端口隔离之前一致，改写上那条', async () => {
+    isSessionValid.mockResolvedValue(true);
+    getAllPasswords.mockResolvedValue([
+      makePasswordEntry({ id: 'p8443', username: 'alice', url: 'example.com:8443', password: 'OldPass1!' }),
+    ]);
+
+    await autoSavePassword(makePayload({ url: 'example.com', protocol: 'https:' }));
+
+    expect(updatePassword).toHaveBeenCalledTimes(1);
+    expect(savePassword).not.toHaveBeenCalled();
+  });
+
+  it('载荷缺 protocol 时按 https 兜底取端口，仍能判出与 :8443 条目不同端点', async () => {
+    seedOtherPortEntry();
+
+    const status = await checkCredentialStatus({ username: 'alice', password: NEW_PASSWORD, url: 'example.com' });
+
+    // 协议缺失时 pagePortFromHostLike 按 https 兜底（443），与条目声明的 8443 不相容 → 判重新增；
+    // 缺 protocol 不该退化成「什么端口都相容」，否则这条防线在一次跨协议跳转后就失效
+    expect(status.status).toBe('new');
+    expect(updatePassword).not.toHaveBeenCalled();
   });
 });

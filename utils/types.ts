@@ -1,6 +1,6 @@
 import type { ThemeName } from '@/utils/theme';
 import type { SidepanelOpenTrigger } from '@/utils/perfMetrics';
-import type { DomainMatchMode, MatchTier } from '@/utils/domain';
+import type { DomainMatchMode, MatchTier, PortScope } from '@/utils/domain';
 
 /**
  * 页面填充模式
@@ -765,6 +765,15 @@ export interface AutoSavePasswordData {
   tagEdited: boolean;
   /** 用户是否在弹窗中主动编辑了备注字段 */
   remarkEdited: boolean;
+  /**
+   * 本次登录所在页面的协议（捕获帧 `location.protocol`，如 `https:`）
+   *
+   * 只用于端口归属判定，不参与存储、展示与日志：`url` 存的是 `location.host`，
+   * 而浏览器会把协议默认端口从 host 里省略掉，光看它分不出 `https://a.com`（443）
+   * 与 `http://a.com`（80）——这两者对端口隔离的答案不同，协议只在补这一位上被用一次。
+   * 缺省时后台按「端口上下文不可得」处理，退回本功能存在之前的归属行为。
+   */
+  protocol?: string;
 }
 
 /**
@@ -826,8 +835,16 @@ export interface CheckCredentialStatusData {
   username: string;
   /** 密码（仅用于在 background 侧比对是否变化，绝不回传） */
   password: string;
-  /** 网站域名（捕获帧 hostname） */
+  /** 网站域名（捕获帧 `location.host`，与自动保存写入的 `url` 同口径） */
   url: string;
+  /**
+   * 本次操作所在页面的协议（捕获帧 `location.protocol`，如 `https:`），仅用于端口归属判定
+   *
+   * 与 `AutoSavePasswordData.protocol` 同义：`url` 用的是 `location.host`，协议默认端口在其中
+   * 被浏览器省略，只靠它分不出「页面在 443」与「页面在 80」，而端口隔离的答案不同。
+   * 缺失时按「端口上下文不可得」处理，退回不限端口的既有归属行为。
+   */
+  protocol?: string;
 }
 
 /**
@@ -1028,11 +1045,13 @@ export interface IdentityVaultAccessConfig {
 /**
  * 跨子域匹配档位配置
  *
- * 取值语义见 `utils/domain.ts` 的 `DomainMatchMode`。仅存枚举值，不含任何域名或账号信息。
+ * 取值语义见 `utils/domain.ts` 的 `DomainMatchMode` 与 `PortScope`。仅存枚举值，不含任何域名或账号信息。
  */
 export interface DomainMatchConfig {
   /** 匹配档位，默认 `off`（仅精确 host 匹配） */
   mode: DomainMatchMode;
+  /** 端口匹配范围，默认 `loose`（公网域名不比较端口，本地开发域名沿用既有端口过滤） */
+  portScope: PortScope;
 }
 
 /**

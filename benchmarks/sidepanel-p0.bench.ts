@@ -23,14 +23,24 @@ import {
   countSameMainDomainCandidates,
   isCrossSubdomainTier,
   isExactHostMatch,
+  matchesPortScope,
+  parsePagePortContext,
   resolveMatchTier,
   type DomainMatchMode,
+  type SitePolicy,
 } from '@/utils/domain';
 import { applyListFilters, filterEntriesByScope, matchesSiteScope, type ScopeContext } from '@/utils/passwordFilter';
 import { getTagFullStyle, parseTags } from '@/utils/tagUtils';
 
 const DATASET_SIZES = [100, 500, 2000] as const;
-const SCOPE_CONTEXT: ScopeContext = { domain: BENCHMARK_DOMAIN, port: '' };
+/**
+ * 基准用的站点上下文：与真机侧边栏一样从完整 URL 派生端口上下文。
+ * 取 https 默认端口——`loose` 档下端口门恒放行，默认路径因此不含任何端口成本。
+ */
+const BENCHMARK_PAGE = parsePagePortContext(`https://${BENCHMARK_DOMAIN}`);
+const SCOPE_CONTEXT: ScopeContext = { domain: BENCHMARK_DOMAIN, page: BENCHMARK_PAGE };
+/** 缺省策略（`off` + `loose`）：与端口隔离功能存在之前的口径逐条一致，也是所有基线的对照组 */
+const DEFAULT_POLICY: SitePolicy = { mode: 'off', portScope: 'loose' };
 /** 与 `entrypoints/sidepanel/App.vue` 的 `NOT_ON_SITE_PRIORITY` 同值 */
 const NOT_ON_SITE_PRIORITY = 5;
 
@@ -125,7 +135,7 @@ describe('sidepanel row tag presentation (2000 entries)', () => {
  *
  * 两条路径用同一份数据集与同一套「范围过滤 → 列表过滤 → 就地排序」取数方式，
  * 直接对比全站模式相对本站默认路径的额外开销；并单独度量全站模式下
- * `offSiteIds`（逐条 `matchesSiteScope` 扫描）的成本，确认默认路径短路后无回归。
+ * `notFillableIds`（逐条 `matchesSiteScope` 扫描）的成本，确认默认路径短路后无回归。
  */
 for (const size of DATASET_SIZES) {
   const source = createBenchmarkDataset(size);
@@ -134,7 +144,7 @@ for (const size of DATASET_SIZES) {
     bench(
       'site scope (default path)',
       () => {
-        const scoped = filterEntriesByScope(source, 'site', SCOPE_CONTEXT);
+        const scoped = filterEntriesByScope(source, 'site', SCOPE_CONTEXT, DEFAULT_POLICY);
         const result = applyListFilters(scoped, {});
         sortPasswordEntries(result, DEFAULT_SIDEPANEL_SORT, getDomainPriority);
         _benchmarkSink += result[0]?.id.length ?? 0;
@@ -145,7 +155,7 @@ for (const size of DATASET_SIZES) {
     bench(
       'all scope (full vault)',
       () => {
-        const scoped = filterEntriesByScope(source, 'all', SCOPE_CONTEXT);
+        const scoped = filterEntriesByScope(source, 'all', SCOPE_CONTEXT, DEFAULT_POLICY);
         const result = applyListFilters(scoped, {});
         sortPasswordEntries(result, DEFAULT_SIDEPANEL_SORT, getDomainPriority);
         _benchmarkSink += result[0]?.id.length ?? 0;
@@ -156,7 +166,7 @@ for (const size of DATASET_SIZES) {
     bench(
       'all scope + keyword match',
       () => {
-        const scoped = filterEntriesByScope(source, 'all', SCOPE_CONTEXT);
+        const scoped = filterEntriesByScope(source, 'all', SCOPE_CONTEXT, DEFAULT_POLICY);
         const result = applyListFilters(scoped, { keyword: 'user-0100' });
         sortPasswordEntries(result, DEFAULT_SIDEPANEL_SORT, getDomainPriority);
         _benchmarkSink += result.length;
@@ -165,12 +175,12 @@ for (const size of DATASET_SIZES) {
     );
 
     bench(
-      'offSiteIds scan over all-scope result',
+      'notFillableIds scan over all-scope result',
       () => {
-        const scoped = filterEntriesByScope(source, 'all', SCOPE_CONTEXT);
+        const scoped = filterEntriesByScope(source, 'all', SCOPE_CONTEXT, DEFAULT_POLICY);
         const offSite = new Set<string>();
         for (const entry of scoped) {
-          if (!matchesSiteScope(entry, SCOPE_CONTEXT)) offSite.add(entry.id);
+          if (!matchesSiteScope(entry, SCOPE_CONTEXT, DEFAULT_POLICY)) offSite.add(entry.id);
         }
         _benchmarkSink += offSite.size;
       },
@@ -291,7 +301,7 @@ for (const size of CROSS_SUBDOMAIN_SIZES) {
       bench(
         `site scope pipeline @ ${mode}`,
         () => {
-          const scoped = filterEntriesByScope(source, 'site', SCOPE_CONTEXT, mode);
+          const scoped = filterEntriesByScope(source, 'site', SCOPE_CONTEXT, { mode, portScope: 'loose' });
           const result = applyListFilters(scoped, {});
           sortPasswordEntries(result, DEFAULT_SIDEPANEL_SORT, priorityOf(mode));
           _benchmarkSink += result.length;
@@ -305,7 +315,7 @@ for (const size of CROSS_SUBDOMAIN_SIZES) {
       bench(
         `crossDomainIds badge scan @ ${mode}`,
         () => {
-          const scoped = filterEntriesByScope(source, 'site', SCOPE_CONTEXT, mode);
+          const scoped = filterEntriesByScope(source, 'site', SCOPE_CONTEXT, { mode, portScope: 'loose' });
           const ids = new Set<string>();
           for (const entry of scoped) {
             const tier = resolveMatchTier(BENCHMARK_DOMAIN, entry.url, mode);
@@ -320,7 +330,13 @@ for (const size of CROSS_SUBDOMAIN_SIZES) {
     bench(
       'inline dropdown path filterAndSortEntriesForDomain @ off',
       () => {
-        const matched = filterAndSortEntriesForDomain(source, BENCHMARK_DOMAIN, DEFAULT_SIDEPANEL_SORT, '', 'off');
+        const matched = filterAndSortEntriesForDomain(
+          source,
+          BENCHMARK_DOMAIN,
+          DEFAULT_SIDEPANEL_SORT,
+          BENCHMARK_PAGE,
+          DEFAULT_POLICY,
+        );
         _benchmarkSink += matched.length;
       },
       { time: 1000, warmupTime: 200 },
@@ -333,8 +349,11 @@ for (const size of CROSS_SUBDOMAIN_SIZES) {
           source,
           BENCHMARK_DOMAIN,
           DEFAULT_SIDEPANEL_SORT,
-          '',
-          'sameMainDomain',
+          BENCHMARK_PAGE,
+          {
+            mode: 'sameMainDomain',
+            portScope: 'loose',
+          },
         );
         _benchmarkSink += matched.length;
       },
@@ -350,9 +369,58 @@ describe('sidepanel empty-state widen counter (2000 entries, zero on-site match)
     bench(
       `countSameMainDomainCandidates @ ${mode}`,
       () => {
-        _benchmarkSink += countSameMainDomainCandidates(source, BENCHMARK_DOMAIN, mode);
+        _benchmarkSink += countSameMainDomainCandidates(
+          source,
+          BENCHMARK_DOMAIN,
+          { mode, portScope: 'loose' },
+          BENCHMARK_PAGE,
+        );
       },
       { time: 1000, warmupTime: 200 },
     );
   }
+});
+
+/**
+ * 端口门的成本（2000 条，页面落在非默认端口）
+ *
+ * 端口隔离是默认关闭的第二道门，因此必须单独量出「用户开启它」要多付多少，
+ * 而不是等它红了再回头找原因。两条对照：`loose` 在函数首行短路（零成本路径），
+ * `strict` 才逐条取端口。取数方式与侧边栏本站路径一致（范围过滤 + 就地排序）。
+ */
+describe('sidepanel port gate cost (2000 entries)', () => {
+  const source = createBenchmarkDataset(2000);
+  const offDefaultPage = parsePagePortContext(`https://${BENCHMARK_DOMAIN}:8443`);
+  const STRICT_CONTEXT: ScopeContext = { domain: BENCHMARK_DOMAIN, page: offDefaultPage };
+  const STRICT_POLICY: SitePolicy = { mode: 'off', portScope: 'strict' };
+
+  bench(
+    'site scope @ loose (gate short-circuits)',
+    () => {
+      const scoped = filterEntriesByScope(source, 'site', SCOPE_CONTEXT, DEFAULT_POLICY);
+      _benchmarkSink += scoped.length;
+    },
+    { time: 1000, warmupTime: 200 },
+  );
+
+  bench(
+    'site scope @ strict, page on non-default port',
+    () => {
+      const scoped = filterEntriesByScope(source, 'site', STRICT_CONTEXT, STRICT_POLICY);
+      _benchmarkSink += scoped.length;
+    },
+    { time: 1000, warmupTime: 200 },
+  );
+
+  bench(
+    'matchesPortScope alone @ strict',
+    () => {
+      let kept = 0;
+      for (const entry of source) {
+        if (matchesPortScope(entry.url, offDefaultPage, 'strict')) kept += 1;
+      }
+      _benchmarkSink += kept;
+    },
+    { time: 1000, warmupTime: 200 },
+  );
 });

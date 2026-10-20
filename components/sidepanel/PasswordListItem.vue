@@ -54,6 +54,14 @@ interface Props {
    * 通配条目 / 主域条目 / 同主域其他子域条目带此徽章，回答「这条为什么出现在这里」。
    */
   crossDomain?: boolean;
+  /**
+   * 是否为「同域名但端口不同」的条目（默认 false）
+   *
+   * 只在本站临时放宽端口隔离后出现：它与当前页主机一致、端点不一致，
+   * 因此同样被 `canFill=false` 降级，但徽章要说的是另一件事——
+   * 「这条账号属于这个域名的另一个端口，别指望它能在眼前这个登录框里用」。
+   */
+  portMismatch?: boolean;
 }
 
 interface Emits {
@@ -79,7 +87,12 @@ interface Emits {
   shareCard: [password: PasswordEntry];
 }
 
-const props = withDefaults(defineProps<Props>(), { searchKeyword: '', canFill: true, crossDomain: false });
+const props = withDefaults(defineProps<Props>(), {
+  searchKeyword: '',
+  canFill: true,
+  crossDomain: false,
+  portMismatch: false,
+});
 const emit = defineEmits<Emits>();
 
 const { t } = useI18n();
@@ -193,6 +206,16 @@ const activate = () => {
           effect="plain"
         >
           {{ t('sidepanel.scope.crossSubdomain') }}
+        </el-tag>
+        <!-- 端口不一致标识：临时放宽带出的同域名其他端口条目，说明它为何不可直接填充 -->
+        <el-tag
+          v-if="portMismatch"
+          class="scope-badge"
+          size="small"
+          type="warning"
+          effect="plain"
+        >
+          {{ t('sidepanel.scope.otherPort') }}
         </el-tag>
         <!-- 外站标识：全站搜索下的非本站条目在 URL 前加链接图标，不仅靠颜色传达状态 -->
         <el-icon

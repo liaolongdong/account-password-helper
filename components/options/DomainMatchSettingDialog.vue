@@ -31,6 +31,34 @@
         show-icon
         :title="t('options.domainMatch.warning')"
       />
+
+      <el-divider />
+
+      <!-- 端口轴与上面的主机轴正交：主机轴管「哪些域名算本站」，这里管「同域名的不同端口要不要隔开」 -->
+      <el-radio-group
+        v-model="portScope"
+        class="domain-match-group"
+      >
+        <el-radio
+          v-for="option in portScopeOptions"
+          :key="option.value"
+          :value="option.value"
+          class="domain-match-option"
+        >
+          <span class="option-label">{{ option.label }}</span>
+          <span class="option-desc">{{ option.desc }}</span>
+        </el-radio>
+      </el-radio-group>
+
+      <!-- 只在开启端口隔离时提示：这一档唯一的新增风险是「只写了域名的条目不再出现在非默认端口上」 -->
+      <el-alert
+        v-if="portScope === 'strict'"
+        class="domain-match-warning"
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="t('options.domainMatch.portWarning')"
+      />
     </div>
 
     <template #footer>
@@ -57,17 +85,21 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { StorageUtils } from '@/utils/storage';
-import { DEFAULT_DOMAIN_MATCH_MODE } from '@/utils/storage/configManager';
+import { DEFAULT_DOMAIN_MATCH_MODE, DEFAULT_PORT_SCOPE } from '@/utils/storage/configManager';
 import { logger } from '@/utils/logger';
 import { useI18n } from '@/utils/i18n';
-import type { DomainMatchMode } from '@/utils/domain';
+import type { DomainMatchMode, PortScope } from '@/utils/domain';
 
 /**
- * 跨子域匹配档位设置弹窗
+ * 站点匹配策略设置弹窗
  *
- * 三档为包含关系（同主域名 ⊃ 通配条目 ⊃ 仅精确匹配），缺省 `off` 即 2026-07
- * 为多测试环境隔离引入的精确 host 口径；档位只影响「哪些条目出现在本站」，
- * 不改判重、不改存储结构，落盘后由后台 storage.onChanged 镜像复位即时生效。
+ * 两条正交的轴各一组单选：
+ * - 主机轴：三档为包含关系（同主域名 ⊃ 通配条目 ⊃ 仅精确匹配），缺省 `off` 即 2026-07
+ *   为多测试环境隔离引入的精确 host 口径。
+ * - 端口轴：缺省 `loose`（公网域名不比端口、本地开发域名沿用既有端口过滤），
+ *   `strict` 把所有主机统一到「声明端口必须一致、未声明端口只在默认端口可见」的口径。
+ * 两者都只影响「哪些条目出现在本站」，不改判重、不改存储结构，落盘后由后台
+ * storage.onChanged 镜像复位即时生效。
  */
 const props = defineProps<{
   modelValue: boolean;
@@ -80,6 +112,7 @@ const emit = defineEmits<{
 const { t } = useI18n();
 
 const mode = ref<DomainMatchMode>(DEFAULT_DOMAIN_MATCH_MODE);
+const portScope = ref<PortScope>(DEFAULT_PORT_SCOPE);
 const saveLoading = ref(false);
 
 const modeOptions = computed<Array<{ value: DomainMatchMode; label: string; desc: string }>>(() => [
@@ -92,12 +125,19 @@ const modeOptions = computed<Array<{ value: DomainMatchMode; label: string; desc
   },
 ]);
 
+const portScopeOptions = computed<Array<{ value: PortScope; label: string; desc: string }>>(() => [
+  { value: 'loose', label: t('options.domainMatch.portLoose'), desc: t('options.domainMatch.portLooseDesc') },
+  { value: 'strict', label: t('options.domainMatch.portStrict'), desc: t('options.domainMatch.portStrictDesc') },
+]);
+
 /**
  * 从存储加载最新配置
  */
 const loadConfig = async (): Promise<void> => {
   try {
-    mode.value = (await StorageUtils.getDomainMatchConfig()).mode;
+    const config = await StorageUtils.getDomainMatchConfig();
+    mode.value = config.mode;
+    portScope.value = config.portScope;
   } catch (error) {
     logger.error('DomainMatchSettingDialog: 加载配置失败:', error);
     ElMessage.error(t('message.loadConfigFailed'));
@@ -114,12 +154,12 @@ watch(
 );
 
 /**
- * 保存档位
+ * 保存站点匹配策略（两条轴一次写入）
  */
 const handleSave = async (): Promise<void> => {
   saveLoading.value = true;
   try {
-    await StorageUtils.saveDomainMatchConfig({ mode: mode.value });
+    await StorageUtils.saveDomainMatchConfig({ mode: mode.value, portScope: portScope.value });
     ElMessage.success(t('options.domainMatch.saved'));
     emit('update:modelValue', false);
   } catch (error) {

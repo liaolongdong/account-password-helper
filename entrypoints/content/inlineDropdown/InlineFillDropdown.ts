@@ -1501,7 +1501,7 @@ export class InlineFillDropdown {
       const emptyText = this.accounts.length === 0 ? tl('cs.inline.emptyNoAccounts') : tl('cs.inline.emptyNoMatch');
       // 空态深链「到全库找」：内联列表只覆盖本站匹配集，"我库里明明有、但不在这台站点"
       // 这一类没有去处。带当前关键词跳密码管理页做全库检索——不把外站条目塞进内联列表，
-      // 那会造出一条"点了填不进当前页"的死路（侧边栏为此专门设计了 offSiteIds 语义）。
+      // 那会造出一条"点了填不进当前页"的死路（侧边栏为此专门设计了 notFillableIds 语义）。
       const keyword = this.searchKeyword;
       // 按钮上只回显截断后的关键词（面板宽度由锚点决定，长串会撑成多行），检索仍带完整值
       const displayKeyword = keyword.length > 24 ? `${keyword.slice(0, 24)}…` : keyword;
@@ -1718,14 +1718,18 @@ export class InlineFillDropdown {
 
   /**
    * 打开密码管理并自动进入添加模式，携带当前网站域名预填 URL 字段
+   *
+   * 用 `location.host` 而非 `hostname`：端口隔离开启时，用户正是为了「给这个端口的服务单独存一条」
+   * 才从下拉里点添加的，丢掉端口会让他必须手输，或存成一条对所有端口都可见的泛条目。
+   * host 在协议默认端口上本就不含端口，所以默认场景的预填结果与改动前逐字一致。
    */
   private openOptionsAndAdd(): void {
     this.hide();
-    const hostname = location.hostname;
+    const host = location.host;
     chrome.runtime
       .sendMessage({
         type: MessageType.OPEN_OPTIONS_AND_ADD,
-        data: hostname ? { url: hostname } : undefined,
+        data: host ? { url: host } : undefined,
       })
       .catch(() => {
         // 无接收者时忽略

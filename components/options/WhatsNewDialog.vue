@@ -64,7 +64,7 @@ defineEmits<{
 }>();
 
 /** 本次更新亮点条数：与语言包里 item.N / icon.N 的最大编号保持一致 */
-const ITEM_COUNT = 5;
+const ITEM_COUNT = 6;
 
 const { t } = useI18n();
 const items = computed(() =>

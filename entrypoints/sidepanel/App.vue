@@ -11,6 +11,9 @@
         :is-authenticated="isAuthenticated"
         :show-match-info="isAuthenticated && !!currentDomain && !isLocalDevDomain(currentDomain)"
         :match-count="domainFilteredPasswords.length"
+        :port-label="portChipLabel"
+        :port-relaxed="portRelaxedTemporarily"
+        @toggle-port-relax="togglePortRelax"
         @open-github="openGithub"
         @open-help="showHelpDialog = true"
         @open-settings="handleOpenSettings"
@@ -59,15 +62,18 @@
       :sort-prop="sidepanelSortProp"
       :available-tags="availableTags"
       :global-match-count="globalMatchCount"
-      :off-site-ids="offSiteIds"
+      :not-fillable-ids="notFillableIds"
       :cross-domain-ids="crossDomainIds"
+      :port-mismatch-ids="portMismatchIds"
       :cross-domain-hint-count="crossDomainHintCount"
+      :port-hidden-hint-count="portHiddenHintCount"
       :active-keyword="activeSearchKeyword"
       @sort-change="handleSortChange"
       @search="handleSearch"
       @add-password="openQuickAddDialog"
       @add-site-password="openQuickAddDialog"
       @open-domain-match-setting="openDomainMatchSetting"
+      @relax-ports="togglePortRelax"
       @retry="handleRetryLoad"
       @activate="index => (activeIndex = index)"
       @rendered="handleAuthViewRendered"
@@ -107,7 +113,7 @@
     <QuickAddDialog
       v-if="quickAddMounted"
       v-model="showQuickAddDialog"
-      :default-url="currentDomain"
+      :default-url="currentSiteHost"
       @open-options-add="openOptionsAndAdd"
     />
 
@@ -141,6 +147,7 @@ import {
   getFloatingButtonConfig,
   getDomainMatchConfig,
   DEFAULT_DOMAIN_MATCH_MODE,
+  DEFAULT_PORT_SCOPE,
 } from '@/utils/storage/configManager';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { logger } from '@/utils/logger';
@@ -171,8 +178,14 @@ import {
   resolveMatchTier,
   isCrossSubdomainTier,
   isDomainMatchMode,
+  isPortScope,
+  matchesPortScope,
+  rawPortOf,
   countSameMainDomainCandidates,
+  countPortHiddenCandidates,
   type DomainMatchMode,
+  type PortScope,
+  type SitePolicy,
 } from '@/utils/domain';
 import { isEditableEventTarget, scrollBehavior } from '@/utils/a11y';
 import { warmPinyinMatcher } from '@/utils/searchMatch/core';
@@ -266,7 +279,7 @@ const {
   loading,
   isAuthenticated,
   currentDomain,
-  currentPort,
+  currentPagePort,
   showSidepanel,
   sortConfig,
   loadFailed,
@@ -346,7 +359,7 @@ const filterTags = ref<string[]>([]);
  * 搜索范围（会话内状态，不持久化）
  *
  * 默认 `site`：侧边栏主用法是「当前站点快速填充」。切到 `all` 后列表放开为全库，
- * 外站条目降级为「打开站点 + 复制类操作」（见 offSiteIds / handleOpenSite）。
+ * 不可填充的条目（外站 / 临时放宽带出的其他端口）降级为「打开站点 + 复制类操作」（见 notFillableIds / handleOpenSite）。
  * 每次打开侧边栏回到默认值，避免上一次的全站上下文被误当作当前站点工具。
  */
 const searchScope = ref<SearchScope>('site');
@@ -392,29 +405,84 @@ const openQuickAddDialog = (): void => {
  */
 const domainMatchMode = ref<DomainMatchMode>(DEFAULT_DOMAIN_MATCH_MODE);
 
-/** 读取档位；失败回落 `off`，宁可少显示条目也不放宽匹配边界 */
-const loadDomainMatchMode = async (): Promise<void> => {
+/**
+ * 端口隔离范围（持久化值）
+ *
+ * 与档位同一条读路径、同一个存储键（`domain_match_config`），因此同样不进缓存失效键：
+ * 它只改过滤结果，不改任何明文内容。缺省 `loose` 即「端口隔离功能存在之前」的行为。
+ */
+const portScope = ref<PortScope>(DEFAULT_PORT_SCOPE);
+
+/**
+ * 本站临时放宽端口隔离（不落盘、切标签页复位）
+ *
+ * 存在的理由：strict 档下「同域名其他端口」的条目被挡在站外，用户点一次设置弹窗才能确认
+ * 「不是我坏了，是被端口挡住了」。这一层只放宽**显示**，填充门控仍按持久化策略走
+ * （见 `sitePolicy` 与 `notFillableIds`）——把 `:9090` 的凭证填进 `:8080` 的登录框，
+ * 正是端口隔离要消除的那类混淆，不该被一次列表展开悄悄放开。
+ */
+const portRelaxedTemporarily = ref(false);
+
+/** 读取站点匹配策略；失败回落双缺省，宁可少显示条目也不放宽匹配边界 */
+const loadSitePolicy = async (): Promise<void> => {
   try {
     const config = await getDomainMatchConfig();
     domainMatchMode.value = config.mode;
+    portScope.value = config.portScope;
   } catch (error) {
-    logger.warn('SidePanel: 读取跨子域匹配档位失败，回落精确匹配', error);
+    logger.warn('SidePanel: 读取站点匹配策略失败，回落精确匹配与不限端口', error);
     domainMatchMode.value = DEFAULT_DOMAIN_MATCH_MODE;
+    portScope.value = DEFAULT_PORT_SCOPE;
   }
 };
 
 /** 当前活动标签页的域名匹配上下文（供范围过滤与「能否填充当前页」判定共用） */
 const scopeContext = computed<ScopeContext>(() => ({
   domain: currentDomain.value,
-  port: currentPort.value,
+  page: currentPagePort.value,
 }));
 
 /**
- * 本站范围条目（按档位分层的本站条目 + 空 URL 通用条目）
+ * 「本站」预填串：域名加上非默认端口
+ *
+ * 添加/快速添加入口带的是**条目网址**，端口隔离开启时用户点的正是
+ * 「给这个端口的服务单独存一条」，只给域名会存成对所有端口都可见的泛条目。
+ * 协议默认端口在 `location.host` 里本就省略，因此默认端口场景下与改动前逐字一致。
+ */
+const currentSiteHost = computed(() => {
+  const domain = currentDomain.value;
+  if (!domain) return '';
+  const port = rawPortOf(currentPagePort.value);
+  return port ? `${domain}:${port}` : domain;
+});
+
+/** 持久化策略：填充门控与徽章的唯一口径 */
+const sitePolicy = computed<SitePolicy>(() => ({
+  mode: domainMatchMode.value,
+  portScope: portScope.value,
+}));
+
+/**
+ * 展示策略：持久化策略在「本站临时放宽」时把端口轴降为 `loose`
+ *
+ * 只有列表可见性读它；任何「能不能填到当前页」的判定一律用 `sitePolicy`，
+ * 否则放宽一次显示就会顺带放宽填充，把两个语义不同的东西绑在一起。
+ */
+const displayPolicy = computed<SitePolicy>(() =>
+  portRelaxedTemporarily.value ? { mode: sitePolicy.value.mode, portScope: 'loose' } : sitePolicy.value,
+);
+
+/** 端口芯片是否该出现：持久化 strict + 当前页确实带着非默认端口 + 尚未放宽 */
+const showPortChip = computed(
+  () => portScope.value === 'strict' && !!currentPagePort.value && !currentPagePort.value.atDefaultPort,
+);
+
+/**
+ * 本站范围条目（按档位与端口分层的本站条目 + 空 URL 通用条目）
  * 抽离为独立 computed：头部匹配数、标签候选集与全站命中数共用同一过滤结果，避免重复计算
  */
 const domainFilteredPasswords = computed(() =>
-  filterEntriesByScope(passwords.value, 'site', scopeContext.value, domainMatchMode.value),
+  filterEntriesByScope(passwords.value, 'site', scopeContext.value, displayPolicy.value),
 );
 
 /**
@@ -450,17 +518,40 @@ const availableTags = computed(() => {
 const NOT_ON_SITE_PRIORITY = 5;
 
 /**
+ * 「同域名其他端口」条目的优先级（仅在临时放宽后可见）
+ *
+ * 排在所有主机层级与外站条目之后：它们不是能填到本页的候选，若与精确条目混排，
+ * 「列表首条 = 一键填充首条」这条同源约定会把别的端口的凭证填进眼前这个登录框。
+ */
+const OTHER_PORT_PRIORITY = 6;
+
+/**
  * 列表排序的域名优先级
  *
- * `off` 档沿用既有的二值口径（命中 0 / 其余 1），保证与引入跨子域之前的顺序逐条一致；
+ * 双缺省档（`off` + `loose`，也就是端口隔离功能存在之前的口径）沿用既有的二值口径
+ * （命中 0 / 其余 1），保证与引入跨子域之前的顺序逐条一致；
  * 放宽后才返回 tier，使「精确 → 通配 → 主域 → 兄弟子域 → 通用」在「全站」范围下依次靠前。
- * 本地开发域名按端口口径过滤、当前页无域名时不筛站点，两者档位不参与，故仍走二值分支。
+ * `loose` 档下的本地开发域名按既有端口口径过滤、当前页无域名时不筛站点，两者档位不参与，故仍走二值分支。
+ * 临时放宽带出的其他端口条目一律沉到 {@link OTHER_PORT_PRIORITY}，与「首条即可填充」的约定对齐。
+ *
+ * 判据一律取**持久化**策略而不是展示策略：临时放宽会把展示口径降成 `off` + `loose`，
+ * 若在此处读展示策略，那条「双缺省走二值」的短路会被误命中，其他端口的条目于是
+ * 不再沉底——实测过一次：同域名的门面地址排到了首位，而它并不可填充。
  */
 const domainPriorityOf = (entry: PasswordEntry): number => {
-  if (!currentDomain.value || isLocalDevDomain(currentDomain.value)) return getDomainPriority(entry);
-  if (domainMatchMode.value === DEFAULT_DOMAIN_MATCH_MODE) return getDomainPriority(entry);
-  const tier = resolveMatchTier(currentDomain.value, entry.url, domainMatchMode.value);
-  return tier === -1 ? NOT_ON_SITE_PRIORITY : tier;
+  const domain = currentDomain.value;
+  const policy = sitePolicy.value;
+  if (!domain || (isLocalDevDomain(domain) && policy.portScope === 'loose')) return getDomainPriority(entry);
+  if (policy.mode === DEFAULT_DOMAIN_MATCH_MODE && policy.portScope === DEFAULT_PORT_SCOPE) {
+    return getDomainPriority(entry);
+  }
+  const tier = resolveMatchTier(domain, entry.url, policy.mode);
+  if (tier === -1) return NOT_ON_SITE_PRIORITY;
+  // 端口门按持久化策略判：放宽只放宽显示，不改变「这条属不属于当前端点」的事实
+  if (!matchesPortScope(entry.url, scopeContext.value.page, policy.portScope)) {
+    return OTHER_PORT_PRIORITY;
+  }
+  return tier;
 };
 
 /** 搜索 + 范围过滤 + 标签过滤 + 收藏过滤 + 排序的派生计算属性 */
@@ -495,7 +586,20 @@ const globalMatchCount = computed(() => {
  */
 const crossDomainHintCount = computed(() => {
   if (searchScope.value === 'all' || globalMatchCount.value === 0) return 0;
-  return countSameMainDomainCandidates(passwords.value, currentDomain.value, domainMatchMode.value);
+  return countSameMainDomainCandidates(passwords.value, currentDomain.value, sitePolicy.value, currentPagePort.value);
+});
+
+/**
+ * 空态引导用：被端口隔离挡在本站之外的同域名条目数
+ *
+ * 只数「主机已经匹配、纯粹栽在端口门上」的条目，与 `crossDomainHintCount` 互补：
+ * 前者说明「放宽跨子域能看到多少」，本数说明「放宽端口限制能看到多少」。
+ * 同样惰性求值，且只在持久化策略确实是 strict 时才算——`loose` 档下不存在被端口挡住的条目。
+ */
+const portHiddenHintCount = computed(() => {
+  if (searchScope.value === 'all' || globalMatchCount.value === 0) return 0;
+  if (portRelaxedTemporarily.value) return 0;
+  return countPortHiddenCandidates(passwords.value, currentDomain.value, sitePolicy.value, currentPagePort.value);
 });
 
 /**
@@ -521,18 +625,41 @@ const crossDomainIds = computed<ReadonlySet<string>>(() => {
 });
 
 /**
- * 全站模式下不可填充当前页的外站条目 ID 集
+ * 当前可见列表中「同域名但端口不同」的条目 ID 集
  *
- * 本站模式恒为空集（引用恒定），零额外计算；仅全站模式遍历当前可见列表（非全量）。
- * 子组件据此隐藏面向当前页的动作（填充并登录 / 填充验证码）并把整行点击改为打开站点。
+ * 只有临时放宽才会让它们现身，因此这一集与「显示其他端口」的开关同生同灭；
+ * 徽章与沉底排序共用它，避免出现「标了其他端口却排在精确条目前面」的自相矛盾。
  */
-const offSiteIds = computed<ReadonlySet<string>>(() => {
-  if (searchScope.value !== 'all') return EMPTY_ID_SET;
-  const ctx = scopeContext.value;
-  const mode = domainMatchMode.value;
+const portMismatchIds = computed<ReadonlySet<string>>(() => {
+  if (!portRelaxedTemporarily.value) return EMPTY_ID_SET;
+  const domain = currentDomain.value;
+  if (!domain) return EMPTY_ID_SET;
+
+  const policy = sitePolicy.value;
+  const page = currentPagePort.value;
   const ids = new Set<string>();
   for (const entry of filteredPasswords.value) {
-    if (!matchesSiteScope(entry, ctx, mode)) ids.add(entry.id);
+    if (resolveMatchTier(domain, entry.url, policy.mode) < 0) continue;
+    if (!matchesPortScope(entry.url, page, policy.portScope)) ids.add(entry.id);
+  }
+  return ids;
+});
+
+/**
+ * 不可填充到当前页的条目 ID 集
+ *
+ * 两种来源共用这一判据：全站搜索模式下的外站条目、以及临时放宽带出的「同域名其他端口」条目。
+ * 两者都是「主机或端口对不上眼前这个登录框」，因此动作降级（隐藏填充并登录 / 填充验证码，
+ * 整行点击改为打开站点）也同构。判据恒用持久化策略：放宽只放宽显示，不放宽填充。
+ * 两种情形都不成立时返回共享空集（引用恒定），默认路径零额外遍历。
+ */
+const notFillableIds = computed<ReadonlySet<string>>(() => {
+  if (searchScope.value !== 'all' && !portRelaxedTemporarily.value) return EMPTY_ID_SET;
+  const ctx = scopeContext.value;
+  const policy = sitePolicy.value;
+  const ids = new Set<string>();
+  for (const entry of filteredPasswords.value) {
+    if (!matchesSiteScope(entry, ctx, policy)) ids.add(entry.id);
   }
   return ids;
 });
@@ -550,10 +677,20 @@ watch([favoriteOnly, filterTags, searchScope], () => {
  *
  * 必须同时监听端口：本地开发域名切换端口（localhost:3000 → localhost:5173）时
  * currentDomain 不变而 matchesSiteScope 的判定已变，只监听域名会漏掉本次重置。
- * 档位同理：切档后本站范围会扩容，继续停留在全站搜索会让「本站」按钮语义悬空。
+ * 档位与端口范围同理：切档后本站范围会扩容或收窄，继续停留在全站搜索会让「本站」按钮语义悬空。
  */
-watch([currentDomain, currentPort, domainMatchMode], () => {
+watch([currentDomain, currentPagePort, domainMatchMode, portScope], () => {
   searchScope.value = 'site';
+});
+
+/**
+ * 页面上下文或端口隔离策略变化时收回「临时放宽」
+ *
+ * 放宽的作用域是「当前这个端点」，换了页面或用户已就策略本身做出新选择，
+ * 继续沿用会把它变成看不见的常驻状态——那正是设置项该管的事。
+ */
+watch([currentDomain, currentPagePort, portScope], () => {
+  portRelaxedTemporarily.value = false;
 });
 
 /** 域名切换导致候选标签集变化时，剔除已不存在的筛选标签，避免隐形空过滤 */
@@ -622,9 +759,9 @@ const handleKeydown = (e: KeyboardEvent) => {
       e.preventDefault();
       const entry = list[activeIndex.value];
       if (!entry) break;
-      // 与整行点击保持一致：本站条目填充当前页，全站模式下的外站条目打开其站点
-      // 档位必须显式传入，否则跨子域条目「点得开、回车打不开」
-      if (matchesSiteScope(entry, scopeContext.value, domainMatchMode.value)) {
+      // 与整行点击保持一致：本站本站点条目填充当前页，被降级的条目（外站 / 其他端口）打开其站点
+      // 策略必须显式传入，且恒用持久化值——临时放宽只放宽显示，回车不该填进另一个端口的服务
+      if (matchesSiteScope(entry, scopeContext.value, sitePolicy.value)) {
         fillPassword(entry);
       } else {
         handleOpenSite(entry);
@@ -816,6 +953,27 @@ const openDomainMatchSetting = async () => {
 };
 
 /**
+ * 头部端口芯片文案
+ *
+ * 只在「端口隔离已开启且当前页确实带着非默认端口」时给出，其余情形为空串（芯片不渲染）：
+ * 处于默认端口时端口隔离不改变任何可见集合，摆一个点不动的芯片只会让人以为它坏了。
+ */
+const portChipLabel = computed(() => {
+  if (!showPortChip.value) return '';
+  return `:${currentPagePort.value?.port ?? ''}`;
+});
+
+/**
+ * 切换「本站临时显示全部端口」
+ *
+ * 就地翻转即可，无需任何落盘：`displayPolicy` / `notFillableIds` / `portMismatchIds`
+ * 都由这一个开关派生，切标签页或改动持久化策略时自动收回（见相应 watch）。
+ */
+const togglePortRelax = (): void => {
+  portRelaxedTemporarily.value = !portRelaxedTemporarily.value;
+};
+
+/**
  * 打开选项页面
  * 统一由 background 的 OPEN_OPTIONS_PAGE 处理
  */
@@ -829,12 +987,12 @@ const openOptions = async () => {
 
 /**
  * 跳转到密码管理页并自动打开添加密码弹窗
- * data 可选携带当前域名（P1-6）：新增表单 URL 字段自动预填本站域名，
+ * data 可选携带当前站点（P1-6）：新增表单 URL 字段自动预填本站域名（含非默认端口），
  * 无域名场景（本地开发域名跳过过滤时仍可能有值，空则不预填）行为与旧版一致
  */
 const openOptionsAndAdd = async () => {
   try {
-    const data = currentDomain.value ? { url: currentDomain.value } : undefined;
+    const data = currentSiteHost.value ? { url: currentSiteHost.value } : undefined;
     await chrome.runtime.sendMessage({ type: MessageType.OPEN_OPTIONS_AND_ADD, data });
   } catch (error) {
     logger.error('SidePanel: 打开添加密码页面失败:', error);
@@ -863,8 +1021,10 @@ const handleLocalConfigChange = (
   }
 
   if (STORAGE_KEYS.DOMAIN_MATCH_CONFIG in changes) {
-    const next = changes[STORAGE_KEYS.DOMAIN_MATCH_CONFIG].newValue as { mode?: unknown } | undefined;
+    const next = changes[STORAGE_KEYS.DOMAIN_MATCH_CONFIG].newValue as
+      { mode?: unknown; portScope?: unknown } | undefined;
     domainMatchMode.value = isDomainMatchMode(next?.mode) ? next.mode : DEFAULT_DOMAIN_MATCH_MODE;
+    portScope.value = isPortScope(next?.portScope) ? next.portScope : DEFAULT_PORT_SCOPE;
   }
 };
 
@@ -941,7 +1101,7 @@ onMounted(async () => {
       autoTriggerLogin.value = cfg.autoTriggerLogin;
     })
     .catch(error => logger.error('SidePanel: 读取自动触发登录配置失败:', error));
-  void loadDomainMatchMode();
+  void loadSitePolicy();
 
   // ==================== 首屏收尾编排（先于数据竞速定义，快速路径/兜底可提前触发） ====================
   // 1. 打 sp-list-rendered 埋点，数据就绪后写入性能环形日志（含列表渲染段分解）

@@ -1,10 +1,13 @@
 /**
- * 跨子域档位的接线守卫
+ * 跨子域档位与端口范围的接线守卫
  *
  * 档位是「一次判定、多处消费」的口径，接线漏一处就是一个只在非默认档下暴露的静默缺陷。
  * 已发生过的真实形态：侧边栏整行点击走档位感知的 `offSiteIds`，键盘回车却调了
  * `matchesSiteScope(entry, ctx)` 并吃了形参默认值 `off`——跨子域条目「点得到、回车打不开」。
  * 形参默认值让漏传在类型检查和 ESLint 下完全静默，故此处做机械扫描。
+ * （`matchesSiteScope` 的第三参后来由「带默认值的 mode」升级为「必传的 SitePolicy」，
+ * 类型层已拦不住漏传；本扫描继续守住「传的是策略对象、不是某个轴的残值」这一层，
+ * 并覆盖端口轴新增的接线点。）
  *
  * 同时守住另一条相反的边界：档位变更**不得**进入缓存失效键列表。它只影响过滤结果，
  * 一旦落进 `relevantKeys` 就会删掉 storage.session 快照并触发全量解密回温，
@@ -146,5 +149,62 @@ describe('跨子域层级区间的单点定义', () => {
       .map(([file, role]) => `${role}（${file}）`);
 
     expect(missing, `以下呈现面不再调用 isCrossSubdomainTier，呈现口径会分叉：\n${missing.join('\n')}`).toEqual([]);
+  });
+});
+
+/**
+ * 端口轴的接线守卫
+ *
+ * 端口范围与跨子域档位是两条正交的轴，「放宽了主机轴却忘了端口轴」这类缺陷
+ * 只在 `strict` 档暴露，默认档跑遍全库也看不出来——与档位当初面临的处境同构，因此同样用门禁。
+ */
+describe('端口范围接线', () => {
+  const PASSWORD_FILTER_SRC = readFileSync(path.join(ROOT, 'utils/passwordFilter.ts'), 'utf8');
+  const PASSWORD_SORT_SRC = readFileSync(path.join(ROOT, 'utils/passwordSort.ts'), 'utf8');
+  const AUTO_SAVE_SRC = readFileSync(path.join(ROOT, 'utils/storage/autoSaveManager.ts'), 'utf8');
+  const POPUP_SRC = readFileSync(path.join(ROOT, 'composables/usePopupInit.ts'), 'utf8');
+
+  it('显示判据的两处真源都同时过主机门与端口门', () => {
+    // 少了这一句，strict 档下端口不一致的条目会重新出现在本站列表，并被一键填充取作首条
+    expect(PASSWORD_FILTER_SRC, 'passwordFilter 不再调用 matchesPortScope').toContain('matchesPortScope(');
+    expect(PASSWORD_SORT_SRC, 'passwordSort 不再调用 matchesPortScope').toContain('matchesPortScope(');
+  });
+
+  it('写入侧归属门与显示门同判据，避免「弹窗说新增、实际改写另一端口」', () => {
+    expect(AUTO_SAVE_SRC, 'autoSaveManager 不再调用 matchesPortScope，端口隔离下会跨端口覆盖密码').toContain(
+      'matchesPortScope(',
+    );
+  });
+
+  it('Popup 的本站计数也感知端口', () => {
+    expect(POPUP_SRC, 'usePopupInit 不再调用 matchesPortScope，计数会比侧边栏列表多').toContain('matchesPortScope(');
+  });
+
+  it('侧边栏把端口策略同时用于列表、降级集与空态计数', () => {
+    for (const needle of ['displayPolicy', 'sitePolicy', 'countPortHiddenCandidates', 'portMismatchIds']) {
+      expect(SIDEPANEL_SRC, `侧边栏缺少 ${needle}`).toContain(needle);
+    }
+  });
+
+  it('临时放宽只放宽显示：填充与排序判据必须用持久化策略', () => {
+    // `matchesSiteScope(..., displayPolicy)` 会把别的端口的凭证填进眼前这个登录框
+    expect(/matchesSiteScope\([^)]*displayPolicy/.test(SIDEPANEL_SRC), '侧边栏用临时放宽的策略判定能否填充').toBe(
+      false,
+    );
+
+    // 排序同样不行：放宽时展示口径恰好降成 `off` + `loose`，会误命中「双缺省走二值优先级」的短路，
+    // 让其他端口的条目不再沉底（真机实测过一次：门面地址排到首位，而回车并不会填它）
+    const priorityFn = SIDEPANEL_SRC.match(/const domainPriorityOf =[\s\S]*?\n};/)?.[0] ?? '';
+    expect(priorityFn, '未从侧边栏抽到 domainPriorityOf，本条判据成了空转').not.toBe('');
+    expect(priorityFn).toContain('sitePolicy');
+    expect(priorityFn, '排序优先级读的是展示策略，临时放宽时其他端口条目不会沉底').not.toContain('displayPolicy');
+  });
+
+  it('策略镜像与档位镜像同生同灭，且都不进缓存失效键', () => {
+    const resetBranch = /STORAGE_KEYS\.DOMAIN_MATCH_CONFIG in changes[\s\S]{0,200}?resetDomainMatchModeMirror\(\)/;
+    expect(resetBranch.test(BACKGROUND_SRC), '后台 storage 监听未复位策略镜像').toBe(true);
+    expect(readFileSync(path.join(ROOT, 'entrypoints/background/passwordCache.ts'), 'utf8')).toContain(
+      'getCachedSitePolicy',
+    );
   });
 });

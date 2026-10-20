@@ -1,4 +1,4 @@
-import { ref, onUnmounted } from 'vue';
+import { ref, computed, onUnmounted } from 'vue';
 import type {
   PasswordEntry,
   RuntimeMessage,
@@ -12,7 +12,13 @@ import { useChromeListeners } from '@/composables/useChromeListeners';
 import { useLocalOperationGuard } from '@/composables/useLocalOperationGuard';
 import { logger } from '@/utils/logger';
 import { t } from '@/utils/i18n';
-import { isExactHostMatch } from '@/utils/domain';
+import {
+  isExactHostMatch,
+  isSamePagePort,
+  parsePagePortContext,
+  rawPortOf,
+  type PagePortContext,
+} from '@/utils/domain';
 import { lazyImport } from '@/utils/lazyImport';
 import { SESSION_MEMORY_KEYS, STORAGE_KEYS } from '@/utils/storageKeys';
 import type { GetAllPasswordsResult } from '@/utils/storage/passwordCrud';
@@ -245,7 +251,16 @@ export function useSidepanelData() {
   const loading = ref(true);
   const isAuthenticated = ref(false);
   const currentDomain = ref('');
-  const currentPort = ref('');
+  /**
+   * 当前标签页的端口上下文（唯一事实来源，由 `tab.url` 一次解析得到）
+   *
+   * 端口隔离需要「有效端口」与「页面是否在用协议默认端口」两份信息，
+   * 而原始 `URL.port` 可由它们反推（见 `rawPortOf`），因此下面那个 `currentPort`
+   * 只做派生值——两个字段并列存放就会出现两个事实来源。
+   */
+  const currentPagePort = ref<PagePortContext | null>(null);
+  /** 当前标签页端口（原始 `URL.port` 口径，处于默认端口时为空串）；派生值，供切页比较与既有本地开发规则使用 */
+  const currentPort = computed(() => rawPortOf(currentPagePort.value));
   const showSidepanel = ref(true);
   const sortConfig = ref<{ prop: string; order: string } | null>(null);
 
@@ -329,9 +344,10 @@ export function useSidepanelData() {
   /**
    * 域名匹配优先级：0=匹配, 1=不匹配
    *
-   * 刻意保持二值口径：本 composable 不感知跨子域档位，`off` 语义路径（含本地开发域名
-   * 的端口口径、无域名场景）都以此为准。放宽档下的分层优先级在 `App.vue` 按
-   * `resolveMatchTier` 计算，避免这里成为第二个匹配真源。
+   * 刻意保持二值口径：本 composable 不感知跨子域档位，`off` 语义路径（含 `loose` 端口档下
+   * 本地开发域名的端口口径、无域名场景）都以此为准。放宽档与 `strict` 端口档下的分层优先级
+   * 在 `App.vue` 按 `resolveMatchTier` 计算，避免这里成为第二个匹配真源；
+   * 是否走这条路由 `App.vue` 的 `domainPriorityOf` 依据策略决定。
    */
   const getDomainPriority = (entry: PasswordEntry): number => {
     if (!currentDomain.value) return 0;
@@ -367,8 +383,11 @@ export function useSidepanelData() {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (tab.url) {
         const url = new URL(tab.url);
+        const page = parsePagePortContext(tab.url);
         currentDomain.value = url.hostname;
-        currentPort.value = url.port;
+        // 同值不赋值：端口上下文是对象，每次新建都会让监听 `currentPagePort` 的
+        // 「切页回到本站范围」误触发一次，把用户正在用的全站搜索打回本站
+        if (!isSamePagePort(currentPagePort.value, page)) currentPagePort.value = page;
       }
       return tab;
     } catch (error) {
@@ -671,11 +690,14 @@ export function useSidepanelData() {
       if (tab && tab.url) {
         const url = new URL(tab.url);
         const newDomain = url.hostname;
-        const newPort = url.port;
+        const newPage = parsePagePortContext(tab.url);
 
-        if (currentDomain.value !== newDomain || currentPort.value !== newPort) {
+        // 比较的是「有效端口 + 是否在默认端口」这对信息量，而不是原始 URL.port 字符串：
+        // `https://a.com` 与 `http://a.com` 的原始端口都是空串，只比它会漏掉协议切换，
+        // 让端口上下文陈旧地停在 443，strict 档下把该看的条目一直挡着。
+        if (currentDomain.value !== newDomain || !isSamePagePort(currentPagePort.value, newPage)) {
           currentDomain.value = newDomain;
-          currentPort.value = newPort;
+          currentPagePort.value = newPage;
         }
       }
     } catch (error) {
@@ -1163,6 +1185,7 @@ export function useSidepanelData() {
     isAuthenticated,
     currentDomain,
     currentPort,
+    currentPagePort,
     showSidepanel,
     sortConfig,
     loadFailed,

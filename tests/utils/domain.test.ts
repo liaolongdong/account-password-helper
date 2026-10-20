@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { DomainMatchMode, PortScope, SitePolicy } from '@/utils/domain';
 import {
   getMainDomain,
   registrableScope,
@@ -15,6 +16,14 @@ import {
   isDomainMatchMode,
   isCrossSubdomainTier,
   countSameMainDomainCandidates,
+  countPortHiddenCandidates,
+  parsePagePortContext,
+  pagePortFromHostLike,
+  declaredPortOf,
+  matchesPortScope,
+  isPortScope,
+  rawPortOf,
+  isSamePagePort,
 } from '@/utils/domain';
 
 /**
@@ -457,17 +466,214 @@ describe('countSameMainDomainCandidates：空态引导计数', () => {
     { url: '' }, // 通用条目：任何档位都可见，不计
     { url: 'evil-qq.com' }, // 前缀碰撞：放宽后也不匹配
   ];
+  /** 默认页面上下文：处于 https 默认端口，端口门对未写端口的条目恒放行 */
+  const PAGE = parsePagePortContext('https://mail.qq.com');
+  const policy = (mode: DomainMatchMode = 'off', portScope: PortScope = 'loose'): SitePolicy => ({
+    mode,
+    portScope,
+  });
 
   it('off 档计入通配 / 主域 / 兄弟子域；wildcard 档只数尚未放行的', () => {
-    expect(countSameMainDomainCandidates(ENTRIES, CUR, 'off')).toBe(4);
-    expect(countSameMainDomainCandidates(ENTRIES, CUR, 'wildcard')).toBe(3);
+    expect(countSameMainDomainCandidates(ENTRIES, CUR, policy('off'), PAGE)).toBe(4);
+    expect(countSameMainDomainCandidates(ENTRIES, CUR, policy('wildcard'), PAGE)).toBe(3);
   });
 
   it('已处于最宽松档、无域名或本地开发域名时为 0（没有可放宽的空间）', () => {
-    expect(countSameMainDomainCandidates(ENTRIES, CUR, 'sameMainDomain')).toBe(0);
-    expect(countSameMainDomainCandidates(ENTRIES, '', 'off')).toBe(0);
-    expect(countSameMainDomainCandidates(ENTRIES, 'localhost', 'off')).toBe(0);
-    expect(countSameMainDomainCandidates([], CUR, 'off')).toBe(0);
+    expect(countSameMainDomainCandidates(ENTRIES, CUR, policy('sameMainDomain'), PAGE)).toBe(0);
+    expect(countSameMainDomainCandidates(ENTRIES, '', policy('off'), PAGE)).toBe(0);
+    expect(countSameMainDomainCandidates(ENTRIES, 'localhost', policy('off'), PAGE)).toBe(0);
+    expect(countSameMainDomainCandidates([], CUR, policy('off'), PAGE)).toBe(0);
+  });
+
+  it('端口门拦住的条目不计入：提示的数字必须等于点开后真能看到的条数', () => {
+    // 页面在 8443，而放宽档带出的同主域条目都没写端口 → 全部会被端口门拦下
+    const offDefault = parsePagePortContext('https://mail.qq.com:8443');
+    expect(countSameMainDomainCandidates(ENTRIES, CUR, policy('off', 'strict'), offDefault)).toBe(0);
+    // 端口门放行时（loose）计数回到 4，证明这一支只因端口而收缩
+    expect(countSameMainDomainCandidates(ENTRIES, CUR, policy('off', 'loose'), offDefault)).toBe(4);
+  });
+});
+
+describe('parsePagePortContext：页面端口上下文', () => {
+  it('协议默认端口折算成有效端口并标记 atDefaultPort', () => {
+    expect(parsePagePortContext('https://example.com/path')).toEqual({ port: '443', atDefaultPort: true });
+    expect(parsePagePortContext('http://example.com/')).toEqual({ port: '80', atDefaultPort: true });
+    expect(parsePagePortContext('http://localhost')).toEqual({ port: '80', atDefaultPort: true });
+  });
+
+  it('显式端口原样保留且不再是默认端口', () => {
+    expect(parsePagePortContext('http://localhost:3000/a')).toEqual({ port: '3000', atDefaultPort: false });
+    expect(parsePagePortContext('https://example.com:8443')).toEqual({ port: '8443', atDefaultPort: false });
+  });
+
+  it('非 http(s) 页面按无端口语义处理，strict 档不因此额外隐藏条目', () => {
+    expect(parsePagePortContext('chrome://newtab/')).toEqual({ port: '', atDefaultPort: true });
+    // file:// 连主机名都没有，端点概念不成立 → 交回调用方按「不可得」放行，而不是把带端口的条目全藏起来
+    expect(parsePagePortContext('file:///tmp/a.html')).toBeNull();
+  });
+
+  it('空串、无主机名与非法 URL 返回 null（调用方据此退回不限端口）', () => {
+    expect(parsePagePortContext('')).toBeNull();
+    expect(parsePagePortContext(undefined)).toBeNull();
+    expect(parsePagePortContext('not a url')).toBeNull();
+  });
+
+  it('显式写出的默认端口被 URL 口径吸收为默认（https://a.com:443 与 https://a.com 同端点）', () => {
+    expect(parsePagePortContext('https://example.com:443')).toEqual({ port: '443', atDefaultPort: true });
+  });
+});
+
+describe('declaredPortOf：条目网址里显式写下的端口', () => {
+  /**
+   * 这一组用例守的是本模块刻意不用 `new URL().port` 取端口的决定：
+   * WHATWG 会把协议默认端口抹成空串，于是 `example.com:443` 会被当成「没写端口」，
+   * 在 `http://example.com`（80）页面上被误放行——正是端口隔离要消除的串端口填充。
+   */
+  it('取字面写出的端口，含被 URL 吸收的默认端口', () => {
+    expect(declaredPortOf('example.com:8443')).toBe('8443');
+    expect(declaredPortOf('https://example.com:443/login')).toBe('443');
+    expect(declaredPortOf('https://example.com:80')).toBe('80');
+    expect(declaredPortOf('*.qq.com:8443')).toBe('8443');
+  });
+
+  it('没写端口时为空串', () => {
+    expect(declaredPortOf('example.com')).toBe('');
+    expect(declaredPortOf('https://example.com/login')).toBe('');
+    expect(declaredPortOf('localhost')).toBe('');
+    expect(declaredPortOf('')).toBe('');
+    expect(declaredPortOf(undefined)).toBe('');
+  });
+
+  it('凭据、IPv6 与超长端口不会被误读成端口', () => {
+    expect(declaredPortOf('https://user:pw@example.com/')).toBe('');
+    expect(declaredPortOf('http://[::1]:8080/api')).toBe('8080');
+    expect(declaredPortOf('http://[::1]/api')).toBe('');
+    expect(declaredPortOf('example.com:123456')).toBe('');
+  });
+});
+
+describe('isPortScope / rawPortOf / isSamePagePort', () => {
+  it('isPortScope 只认两个枚举值', () => {
+    for (const ok of ['loose', 'strict']) expect(isPortScope(ok)).toBe(true);
+    for (const bad of [undefined, null, '', 'LOOSE', 'strict ', 1, {}]) expect(isPortScope(bad)).toBe(false);
+  });
+
+  it('rawPortOf 还原 URL.port 口径（默认端口为空串）', () => {
+    expect(rawPortOf(parsePagePortContext('https://example.com'))).toBe('');
+    expect(rawPortOf(parsePagePortContext('http://localhost:3000'))).toBe('3000');
+    expect(rawPortOf(null)).toBe('');
+  });
+
+  it('isSamePagePort 区分协议默认端口，避免同域切协议时端口上下文陈旧', () => {
+    const https = parsePagePortContext('https://a.com');
+    const http = parsePagePortContext('http://a.com');
+    expect(isSamePagePort(https, parsePagePortContext('https://a.com/x'))).toBe(true);
+    expect(isSamePagePort(null, null)).toBe(true);
+    expect(isSamePagePort(https, null)).toBe(false);
+    expect(isSamePagePort(https, http)).toBe(false);
+  });
+});
+
+describe('pagePortFromHostLike：由协议 + host 还原端口上下文', () => {
+  /**
+   * 自动保存链路只拿得到 `location.host`（默认端口被省略）与协议，
+   * 这一组用例钉住「协议补齐默认端口」这条推导，防止把整条 href 带进待确认凭据载荷。
+   */
+  it('无端口时由协议决定默认端口', () => {
+    expect(pagePortFromHostLike('example.com', 'https:')).toEqual({ port: '443', atDefaultPort: true });
+    expect(pagePortFromHostLike('example.com', 'http:')).toEqual({ port: '80', atDefaultPort: true });
+  });
+
+  it('带端口时端口优先，协议不再参与', () => {
+    expect(pagePortFromHostLike('localhost:3000', 'http:')).toEqual({ port: '3000', atDefaultPort: false });
+  });
+
+  it('空 host 返回 null；未知或缺省协议按 https 处理', () => {
+    expect(pagePortFromHostLike('')).toBeNull();
+    expect(pagePortFromHostLike('example.com', 'ftp:')).toEqual({ port: '443', atDefaultPort: true });
+    expect(pagePortFromHostLike('example.com')).toEqual({ port: '443', atDefaultPort: true });
+  });
+});
+
+describe('matchesPortScope：端口隔离真值表', () => {
+  const at8443 = parsePagePortContext('https://example.com:8443');
+  const atDefault = parsePagePortContext('https://example.com');
+  const atHttpDefault = parsePagePortContext('http://example.com');
+
+  it('loose 档一律放行（含本地开发域名之外的所有主机）', () => {
+    for (const url of ['example.com', 'example.com:8443', 'example.com:9090', '', 'other.com']) {
+      expect(matchesPortScope(url, at8443, 'loose')).toBe(true);
+    }
+  });
+
+  it('strict：写了端口的条目只在同端口出现', () => {
+    expect(matchesPortScope('example.com:8443', at8443, 'strict')).toBe(true);
+    expect(matchesPortScope('example.com:9090', at8443, 'strict')).toBe(false);
+  });
+
+  it('strict：没写端口的条目只在协议默认端口出现', () => {
+    expect(matchesPortScope('example.com', atDefault, 'strict')).toBe(true);
+    expect(matchesPortScope('example.com', at8443, 'strict')).toBe(false);
+  });
+
+  it('strict：写了默认端口的条目认端点不认协议（443 属于 https，不属于 http）', () => {
+    expect(matchesPortScope('example.com:443', atDefault, 'strict')).toBe(true);
+    expect(matchesPortScope('example.com:443', atHttpDefault, 'strict')).toBe(false);
+    expect(matchesPortScope('example.com:80', atHttpDefault, 'strict')).toBe(true);
+  });
+
+  it('strict：空 URL 通用条目不受端口维度约束', () => {
+    for (const url of ['', '   ', undefined, null]) {
+      expect(matchesPortScope(url, at8443, 'strict')).toBe(true);
+    }
+  });
+
+  it('端口上下文不可得时放行：少一份端口信息不该变成少一批条目', () => {
+    expect(matchesPortScope('example.com:9090', null, 'strict')).toBe(true);
+    expect(matchesPortScope('example.com', null, 'strict')).toBe(true);
+  });
+
+  it('单调性：strict 的可见集恒为 loose 的子集', () => {
+    const urls = ['example.com', 'example.com:443', 'example.com:8443', 'sub.example.com:3000', '', '*.example.com'];
+    const pages = [atDefault, at8443, atHttpDefault, parsePagePortContext('http://localhost:3000')];
+    for (const url of urls) {
+      for (const page of pages) {
+        if (matchesPortScope(url, page, 'strict')) {
+          expect(matchesPortScope(url, page, 'loose')).toBe(true);
+        }
+      }
+    }
+  });
+});
+
+describe('countPortHiddenCandidates：被端口隔离挡住的条数', () => {
+  const CUR = 'example.com';
+  const ENTRIES = [
+    { url: 'example.com:9090' }, // 主机一致、端口不同 → 计入
+    { url: 'example.com' }, // 未写端口，页面在非默认端口 → 计入
+    { url: 'example.com:8443' }, // 正是当前端点 → 看得见，不计
+    { url: 'sub.example.com:8443' }, // off 档下主机就不匹配 → 不计（那是跨子域那句话管的事）
+    { url: '' }, // 通用条目恒可见 → 不计
+  ];
+  const at8443 = parsePagePortContext('https://example.com:8443');
+  const policy = (portScope: PortScope = 'strict'): SitePolicy => ({ mode: 'off', portScope });
+
+  it('只数「主机已过门、栽在端口门」的条目', () => {
+    expect(countPortHiddenCandidates(ENTRIES, CUR, policy(), at8443)).toBe(2);
+  });
+
+  it('loose 档、无域名、端口上下文不可得时恒为 0', () => {
+    expect(countPortHiddenCandidates(ENTRIES, CUR, policy('loose'), at8443)).toBe(0);
+    expect(countPortHiddenCandidates(ENTRIES, '', policy(), at8443)).toBe(0);
+    expect(countPortHiddenCandidates(ENTRIES, CUR, policy(), null)).toBe(0);
+  });
+
+  it('页面处于默认端口时，只有声明了别的端口的条目被挡住', () => {
+    expect(countPortHiddenCandidates(ENTRIES, CUR, policy(), parsePagePortContext('https://example.com'))).toBe(2);
+    // 只剩「没写端口」的条目时，默认端口页面一条都不挡
+    expect(
+      countPortHiddenCandidates([{ url: 'example.com' }], CUR, policy(), parsePagePortContext('https://example.com')),
+    ).toBe(0);
   });
 });
 
@@ -674,8 +880,12 @@ describe('resolveMatchTier：共享托管后缀下的档位行为', () => {
   it('空态引导计数不把跨租户条目算成「放宽可带出」', () => {
     // 只有同租户的兄弟子域会被「放宽」带出；跨租户（TENANT_B）与无关主域（qq.com）都不再计入
     const entries = [{ url: TENANT_B }, { url: 'other.team-a.github.io' }, { url: 'qq.com' }];
-    expect(countSameMainDomainCandidates(entries, TENANT_A, 'off')).toBe(1);
+    // 页面取 https 默认端口：这些条目都没写端口，端口门在 loose/strict 下都放行，计数只反映主机轴
+    const page = parsePagePortContext(`https://${TENANT_A}`);
+    expect(countSameMainDomainCandidates(entries, TENANT_A, { mode: 'off', portScope: 'loose' }, page)).toBe(1);
     // 已经处在放宽档时没有可放宽空间（与后缀无关的既有语义）
-    expect(countSameMainDomainCandidates(entries, TENANT_A, 'sameMainDomain')).toBe(0);
+    expect(countSameMainDomainCandidates(entries, TENANT_A, { mode: 'sameMainDomain', portScope: 'loose' }, page)).toBe(
+      0,
+    );
   });
 });
