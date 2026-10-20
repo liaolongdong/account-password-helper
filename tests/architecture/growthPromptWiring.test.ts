@@ -1,7 +1,7 @@
 /**
  * 更新弹窗 / 一次性评价引导接线守卫
  *
- * 更新提示改为弹窗，评价引导仍是主内容区的卡片。两者共享「本次更新优先」的规则，
+ * 更新提示与评价引导都是弹窗。两者共享「本次更新优先」的规则，
  * 且都必须只在 Options 页面决定展示与持久化：
  * 1. 弹窗/卡片组件不直接读写存储或打开外链；
  * 2. 更新弹窗出现时起步清单与评价引导都要让位；
@@ -21,20 +21,30 @@ const REVIEW_STATE = readFileSync(path.join(ROOT, 'utils/storage/reviewPrompt.ts
 const CRUD = readFileSync(path.join(ROOT, 'utils/storage/passwordCrud.ts'), 'utf8');
 
 describe('更新弹窗与评价引导接线', () => {
-  it('弹窗与卡片都是纯展示层，不直接读写存储或打开外链', () => {
+  it('弹窗组件都是纯展示层，不直接读写存储或打开外链', () => {
     for (const source of [DIALOG, REVIEW]) {
       expect(source).not.toContain('chrome.storage');
       expect(source).not.toContain('chrome.tabs');
     }
-    expect(DIALOG).toContain('el-dialog');
-    expect(DIALOG).toContain("$emit('update:modelValue', $event)");
+    // 两者统一为 el-dialog 形态：靠 model-value 显隐、关闭经 update:modelValue 上抛
+    for (const source of [DIALOG, REVIEW]) {
+      expect(source).toContain('el-dialog');
+      expect(source).toContain("$emit('update:modelValue', $event)");
+    }
     expect(DIALOG).toContain("$emit('cta')");
     expect(REVIEW).toContain("$emit('cta')");
     expect(REVIEW).toContain("$emit('snooze')");
     expect(REVIEW).toContain("$emit('dismiss')");
   });
 
-  it('Options 在主内容区接入弹窗与评价卡片，并让起步清单让位', () => {
+  it('评价弹窗被 ESC / 遮罩关闭时按「稍后再说」延后，而非永久关闭', () => {
+    expect(APP).toContain('@update:model-value="handleReviewVisibility"');
+    const visibility = APP.slice(APP.indexOf('const handleReviewVisibility'), APP.indexOf('const handleReviewCta'));
+    expect(visibility).toContain('if (!visible) handleReviewSnooze()');
+    expect(visibility).not.toContain('dismissReviewPrompt');
+  });
+
+  it('Options 在主内容区接入更新弹窗与评价弹窗，并让起步清单让位', () => {
     expect(APP).toContain('WhatsNewDialog');
     expect(APP).toContain('ReviewPrompt');
     expect(APP).toContain('initGrowthPrompts');

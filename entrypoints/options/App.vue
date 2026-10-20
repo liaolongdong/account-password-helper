@@ -86,7 +86,8 @@
 
       <!-- 一次性评价引导：密码多于 1 条、成功填充过且首次填充满 7 天后出现，可延后或永久关闭 -->
       <ReviewPrompt
-        v-if="showReviewPrompt"
+        :model-value="showReviewPrompt"
+        @update:model-value="handleReviewVisibility"
         @cta="handleReviewCta"
         @snooze="handleReviewSnooze"
         @dismiss="dismissReview"
@@ -1285,6 +1286,17 @@ const handleReviewSnooze = (): void => {
   const at = Date.now();
   reviewSnoozedUntil.value = at + REVIEW_PROMPT_SNOOZE_MS;
   void snoozeReviewPrompt(at);
+};
+
+/**
+ * 弹窗被 ESC / 点遮罩关闭时按「稍后再说」处理
+ *
+ * 三个动作按钮（去评价 / 稍后再说 / 不再提醒）各自写回状态后，`showReviewPrompt`
+ * 计算属性随即转 false 关闭弹窗，这条外部变更不会触发 `update:modelValue`；因此本
+ * 处理器只在用户以 ESC / 遮罩 dismiss 时收到 `false`，映射为延因而非永久关闭。
+ */
+const handleReviewVisibility = (visible: boolean): void => {
+  if (!visible) handleReviewSnooze();
 };
 
 const handleReviewCta = async (): Promise<void> => {

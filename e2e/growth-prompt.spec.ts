@@ -132,7 +132,7 @@ test.describe('更新与评价引导', () => {
     // 锚点取测试进程的真实时钟：页面里的 Date.now 已被拨快，不能用它造「刚刚填充过」
     const anchor = Date.now();
     const filled: ReviewState = { dismissedAt: null, snoozedUntil: null, firstFillAt: anchor };
-    const card = page.locator('.review-prompt');
+    const card = page.getByRole('dialog').filter({ hasText: textOf('options.growth.review.title') });
 
     // 门槛一：已填充、已满 7 天，但只有 1 条密码 → 不打扰
     await createEntry(page, FIRST_ENTRY);
@@ -143,7 +143,7 @@ test.describe('更新与评价引导', () => {
     // 三条齐了：再录一条，卡片当场出现且三个动作齐全
     await createEntry(page, SECOND_ENTRY);
     await expect(card).toBeVisible();
-    await expect(card.getByRole('heading')).toHaveText(textOf('options.growth.review.title'));
+    await expect(card.locator('.el-dialog__title')).toHaveText(textOf('options.growth.review.title'));
     await expect(card.locator('.review-prompt__desc')).toHaveText(textOf('options.growth.review.desc'));
     await expect(card.getByRole('button', { name: textOf('options.growth.review.cta') })).toBeVisible();
     await expect(card.getByRole('button', { name: textOf('options.growth.review.snooze') })).toBeVisible();
@@ -195,6 +195,6 @@ test.describe('更新与评价引导', () => {
 
     await page.reload({ waitUntil: 'domcontentloaded' });
     await onboardAndUnlock(page);
-    await expect(page.locator('.review-prompt')).toHaveCount(0);
+    await expect(card).toHaveCount(0);
   });
 });
