@@ -22,6 +22,9 @@ import {
   UNLOCK_NOTIFICATION_ID,
 } from '@/entrypoints/background/quickFillHandler';
 import { handleOpenInlineDropdown } from '@/entrypoints/background/inlineDropdownHandler';
+import { makePasswordEntry } from '@/tests/helpers/passwordEntry';
+import { getCachedPasswords, sortMatchesForDomain } from '@/entrypoints/background/passwordCache';
+import { updatePasswordInSession } from '@/utils/storage/passwordCrud';
 import { MessageType } from '@/utils/types';
 
 vi.mock('@/utils/i18n-lite', () => ({
@@ -37,6 +40,12 @@ vi.mock('@/utils/frameFill', () => ({
   getFillableFrameIds: vi.fn(async () => [0]),
   fillPasswordInFrames: vi.fn(async () => ({ success: true })),
   isFrameFillable: vi.fn(async () => true),
+}));
+
+// 只桩掉落盘入口本身：填充成功后使用痕迹必须交给这个唯一的汇聚点，
+// 评价引导的「首次填充」锚点正是从这里的批次派生（见 passwordCrudFirstFillAnchor.test.ts）
+vi.mock('@/utils/storage/passwordCrud', () => ({
+  updatePasswordInSession: vi.fn(async () => {}),
 }));
 
 vi.mock('@/entrypoints/background/passwordCache', () => ({
@@ -100,6 +109,35 @@ describe('handleOpenInlineDropdown — 无活跃标签页', () => {
     const options = notifyCreateSpy.mock.calls[0][1] as chrome.notifications.NotificationOptions;
     expect(options.message).toBe('bg.quickFill.noUrl');
     expect(options.title).toBe('bg.inline.title');
+  });
+});
+
+describe('handleQuickFill — 填充成功', () => {
+  const entry = makePasswordEntry({ id: 'entry-1', username: 'review@example.com', password: 'Synthetic#1' });
+  /** 可达性探测与填充下发共用 tabs.sendMessage，局部 spy 不干扰其它用例的默认桩 */
+  let sendSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    sendSpy = vi.spyOn(chrome.tabs, 'sendMessage').mockResolvedValue({ pong: true } as never);
+    vi.mocked(getCachedPasswords).mockResolvedValue({ isAuthenticated: true, passwords: [entry] } as never);
+    vi.mocked(sortMatchesForDomain).mockResolvedValue([entry] as never);
+    vi.mocked(updatePasswordInSession).mockClear();
+  });
+  afterEach(() => {
+    sendSpy.mockRestore();
+  });
+
+  it('把使用痕迹交给唯一的元数据落盘入口（评价引导的首次填充锚点由此派生）', async () => {
+    await handleQuickFill({ id: 7, url: 'https://example.com/login' } as chrome.tabs.Tab);
+
+    // 快捷键 → updatePasswordInSession({ lastUsedAt }) 这一段不在 flush 的测试覆盖范围内，
+    // 两段接起来才是完整的「真实填充 → 记一次锚点」链路
+    await vi.waitFor(() =>
+      expect(updatePasswordInSession).toHaveBeenCalledWith(
+        'entry-1',
+        expect.objectContaining({ lastUsedAt: expect.any(Number) }),
+      ),
+    );
   });
 });
 

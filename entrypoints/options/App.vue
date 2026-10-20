@@ -84,7 +84,7 @@
         @dismiss="handleActivationDismiss"
       />
 
-      <!-- 一次性评价引导：首次使用满 7 天且确实用过之后出现，可延后或永久关闭 -->
+      <!-- 一次性评价引导：密码多于 1 条、成功填充过且首次填充满 7 天后出现，可延后或永久关闭 -->
       <ReviewPrompt
         v-if="showReviewPrompt"
         @cta="handleReviewCta"
@@ -439,7 +439,6 @@ import {
 } from '@/utils/storage/activationChecklist';
 import { getWhatsNewState, markWhatsNewSeen, shouldShowWhatsNew } from '@/utils/storage/whatsNew';
 import {
-  deriveReviewUsage,
   dismissReviewPrompt,
   getReviewPromptState,
   REVIEW_PROMPT_SNOOZE_MS,
@@ -1116,14 +1115,15 @@ watch([showMasterPasswordSetup, showPasswordVerify, isAuthenticated], ([setup, v
 });
 
 // ==================== 更新提示与一次性评价引导 ====================
-// 只持久化「已读版本」「评价已关闭 / 已延后」两项非敏感标记；使用情况由条目上已有的
-// lastUsedAt / favoriteUsedAt 派生，不新增任何账号数据。
+// 只持久化「已读版本」「评价已关闭 / 已延后 / 首次填充时间」几项非敏感时间戳；
+// 首次填充由后台在填充使用痕迹落盘时记录一次，页面只读。
 const growthReady = ref(false);
 const whatsNewVisible = ref(false);
 /** 本次页面已展示过更新卡片时，评价引导延后到下次打开，避免连续两张卡片 */
 const whatsNewShownThisSession = ref(false);
 const reviewDismissedAt = ref<number | null>(null);
 const reviewSnoozedUntil = ref<number | null>(null);
+const reviewFirstFillAt = ref<number | null>(null);
 
 // ==================== 安全起步清单 ====================
 // 完成状态全部由已有事实派生：密码数量、最近验证备份、体检趋势是否存在。
@@ -1144,9 +1144,6 @@ const activationSnoozed = computed(
   () => activationDismissedAt.value !== null && Date.now() - activationDismissedAt.value < ACTIVATION_SNOOZE_MS,
 );
 
-/** 「用过一次」与年龄锚点都从条目已有元数据派生，不额外记录行为 */
-const reviewUsage = computed(() => deriveReviewUsage(passwords.value));
-
 const showReviewPrompt = computed(
   () =>
     growthReady.value &&
@@ -1158,9 +1155,8 @@ const showReviewPrompt = computed(
     shouldShowReviewPrompt({
       dismissedAt: reviewDismissedAt.value,
       snoozedUntil: reviewSnoozedUntil.value,
+      firstFillAt: reviewFirstFillAt.value,
       passwordCount: passwords.value.length,
-      hasUsed: reviewUsage.value.hasUsed,
-      oldestCreateTime: reviewUsage.value.oldestCreateTime,
     }),
 );
 
@@ -1213,8 +1209,8 @@ const handleActivationDismiss = (): void => {
  * 初始化「本次更新」与一次性评价引导
  *
  * 首次安装（还没有主密码配置）直接把当前版本记为已读，不弹更新弹窗；
- * 已有密码库的用户在版本变化时看到一次更新要点。评价引导在密码库存在满 7 天
- * 且确实用过之后询问一次，可延后 30 天或永久关闭。
+ * 已有密码库的用户在版本变化时看到一次更新要点。评价引导在「保存的密码多于 1 条、
+ * 至少成功填充过一次、且首次填充已满 7 天」时询问一次，可延后 30 天或永久关闭。
  */
 const initGrowthPrompts = async (): Promise<void> => {
   try {
@@ -1237,6 +1233,7 @@ const initGrowthPrompts = async (): Promise<void> => {
     }
     reviewDismissedAt.value = reviewState.dismissedAt;
     reviewSnoozedUntil.value = reviewState.snoozedUntil;
+    reviewFirstFillAt.value = reviewState.firstFillAt;
   } catch (error) {
     logger.warn('初始化更新与评价提示失败:', error);
   } finally {
