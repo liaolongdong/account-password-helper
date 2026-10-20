@@ -196,16 +196,18 @@ test('地址表单四档各报其角色：中英标签同页并存也不串味',
     </body>`,
   );
 
+  // 抑制说明：`cases` 第二项是轻量文案的 i18n key，`.org` 前的点是键分隔符；它经
+  // `e2e/i18n.ts` 的 `liteValues` 时先整体转义再进 RegExp，不存在主机名放宽。
+  // 标记必须紧贴被报节点所在的**整条声明**（CodeQL 只认声明前一行，数组元素前一行不生效）。
+  // codeql[js/incomplete-hostname-regexp]
   const cases = [
     ['r-zh', 'cs.identity.role.region'],
     ['a-zh', 'cs.identity.role.address'],
     ['p-zh', 'cs.identity.role.postal'],
-    // codeql[js/incomplete-hostname-regexp] -- 第二项是 i18n key，`.org` 前的点是 key 分隔符，不进正则
     ['o-zh', 'cs.identity.role.org'],
     ['r-en', 'cs.identity.role.region'],
     ['a-en', 'cs.identity.role.address'],
     ['p-en', 'cs.identity.role.postal'],
-    // codeql[js/incomplete-hostname-regexp] -- 同上：这条与上一条只是语言不同，键形态不变
     ['o-en', 'cs.identity.role.org'],
   ] as const;
 
