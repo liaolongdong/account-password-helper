@@ -40,7 +40,11 @@ describe('更新弹窗与评价引导接线', () => {
   it('评价弹窗被 ESC / 遮罩关闭时按「稍后再说」延后，而非永久关闭', () => {
     expect(APP).toContain('@update:model-value="handleReviewVisibility"');
     const visibility = APP.slice(APP.indexOf('const handleReviewVisibility'), APP.indexOf('const handleReviewCta'));
-    expect(visibility).toContain('if (!visible) handleReviewSnooze()');
+    // 延后只在父层状态还没落定时成立：三个动作按钮各自写回后 `showReviewPrompt` 已是 false，
+    // 而 el-dialog 的 `afterLeave` 还会无条件补抛一次 false。少了这层判据，「不再提醒」会在
+    // 永久关闭之后紧跟一条 30 天静默期，把两个互斥状态同时写进存储（e2e 第 3 段实测到的正是它）。
+    expect(visibility).toContain('if (!visible && showReviewPrompt.value) handleReviewSnooze()');
+    expect(visibility).not.toContain('if (!visible) handleReviewSnooze()');
     expect(visibility).not.toContain('dismissReviewPrompt');
   });
 

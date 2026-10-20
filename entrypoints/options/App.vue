@@ -973,32 +973,32 @@ const healthReport = ref<HealthReport>({
 /**
  * 异步更新健康报告（密码列表变化时触发）
  *
- * 「体检」按钮现在会等这份报告就绪后再打开弹窗：刚新增/导入条目就立刻点体检时，
- * 列表已经变了、字典校验还在异步跑，旧实现会把空库报告直接铺进弹窗。
- * 同一份列表复用已在飞的 Promise；列表在等待期间再次变化则发起新的一轮，
- * 旧结果由引用比较丢弃，避免后到的旧报告覆盖新列表。
+ * 「体检」按钮会等这份报告就绪后再打开弹窗：刚新增/导入条目就立刻点体检时，列表已经变了、
+ * 字典校验还在异步跑，旧实现会把空库报告直接铺进弹窗。同一份列表复用已在飞的 Promise；
+ * 列表在等待期间再次变化则发起新的一轮，旧结果由落地时的引用比较丢弃，避免后到的旧报告覆盖新列表。
+ *
+ * 这里**不做**「算过就复用」的结果缓存：新增与编辑走的是就地更新（`passwords.value.push` /
+ * `Object.assign`，见 `composables/usePasswordManagement.ts`），数组引用全程不变，按引用认列表会让
+ * 挂载那次算出的空库报告永久命中——实测表现为「加完条目点体检，弹窗还说还没有密码」。改按内容
+ * 认（条数 + 最大 `updateTime`）又漏掉 `batchEditTags` 这类**刻意不刷新 `updateTime`** 的就地改字段。
+ * 2000 条整库重算实测 warm 23ms / cold 43ms，比任何一套指纹都便宜，所以每次打开都重算。
  */
 let healthReportPromise: Promise<void> | null = null;
-let healthReportList: typeof passwords.value | null = null;
-/** 最近一次成功报告的来源列表；同一引用再次打开体检时直接复用，不再整库重算 */
-let healthReportCachedList: typeof passwords.value | null = null;
+/** 在飞那一轮开始时的列表引用：引用变了就另起一轮，避免把旧数组的结果当成新列表的结果 */
+let healthReportInFlightList: PasswordEntry[] | null = null;
 
 const syncHealthReport = (): Promise<void> => {
   const list = passwords.value;
-  if (healthReportCachedList === list) return Promise.resolve();
-  if (healthReportPromise && healthReportList === list) return healthReportPromise;
-  healthReportList = list;
+  if (healthReportPromise && healthReportInFlightList === list) return healthReportPromise;
+  healthReportInFlightList = list;
   const promise = buildHealthReportAsync(list, Date.now())
     .then(report => {
-      if (list === passwords.value) {
-        healthReport.value = report;
-        healthReportCachedList = list;
-      }
+      if (list === passwords.value) healthReport.value = report;
     })
     .finally(() => {
       if (healthReportPromise === promise) {
         healthReportPromise = null;
-        healthReportList = null;
+        healthReportInFlightList = null;
       }
     });
   healthReportPromise = promise;
@@ -1292,11 +1292,13 @@ const handleReviewSnooze = (): void => {
  * 弹窗被 ESC / 点遮罩关闭时按「稍后再说」处理
  *
  * 三个动作按钮（去评价 / 稍后再说 / 不再提醒）各自写回状态后，`showReviewPrompt`
- * 计算属性随即转 false 关闭弹窗，这条外部变更不会触发 `update:modelValue`；因此本
- * 处理器只在用户以 ESC / 遮罩 dismiss 时收到 `false`，映射为延因而非永久关闭。
+ * 计算属性随即转 false 关闭弹窗。判据因此取「父层状态还没落定」，而不是「收到一次
+ * false」：`el-dialog` 在关闭动画结束时（Element Plus `useDialog.afterLeave`）**无条件**
+ * 补抛一次 `update:modelValue(false)`，程序性关闭也不例外。若照单全收，「不再提醒」会在
+ * 写完永久关闭之后紧跟一条 30 天静默期，把两个互斥状态同时写进存储。
  */
 const handleReviewVisibility = (visible: boolean): void => {
-  if (!visible) handleReviewSnooze();
+  if (!visible && showReviewPrompt.value) handleReviewSnooze();
 };
 
 const handleReviewCta = async (): Promise<void> => {
