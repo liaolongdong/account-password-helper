@@ -111,7 +111,6 @@
       <div class="about-footer">
         <el-button
           v-if="!isFirefox"
-          size="small"
           :icon="Star"
           @click="$emit('review')"
         >
@@ -119,18 +118,12 @@
         </el-button>
         <el-button
           v-if="!isFirefox"
-          size="small"
           :icon="Share"
           @click="handleShare"
         >
           {{ t('options.about.share') }}
         </el-button>
-        <el-button
-          size="small"
-          @click="$emit('update:modelValue', false)"
-        >
-          {{ t('common.close') }}
-        </el-button>
+        <el-button @click="$emit('update:modelValue', false)">{{ t('common.close') }}</el-button>
       </div>
     </template>
   </el-drawer>
@@ -413,7 +406,18 @@ const handleShare = async (): Promise<void> => {
   justify-content: flex-end;
 }
 
-/* Element Plus 默认给相邻按钮 12px 左外边距；这里改用容器 gap 控制间距，三个按钮才不松散 */
+/*
+ * 三按钮走 el-button 默认档（14px / 32px），不用 `size="small"`：全仓 Options 的 footer 只有这里
+ * 曾是 small，12px 也是整个抽屉里最小的字号，却落在「去评价」「分享给同事」这两个关键转化点上；
+ * 24px 高度又正好压在 WCAG 2.5.8 的下限上零余量。
+ * 档位是拿**英文态文案宽度**换的：400px 抽屉的 footer 可用宽 368px，默认档 + 长文案
+ * "Share with a teammate" 实测需 383.36px，会把三按钮挤成两行（e2e 有「三按钮同行」的几何断言），
+ * 故 EN 标签缩成 "Share"（zh 仍是「分享给同事」），缩后 270.31px。
+ * 间距保持 6px 而**不跟弹窗 footer 的 12px 同档**：400px 抽屉要塞下三颗带图标按钮，且这个收紧
+ * 是既有决定，由 e2e/command-palette.spec.ts 的「间距 ≤8px」几何断言钉住。
+ * 无论取哪一档，容器 `gap` 都是唯一真源，故必须接管 Element Plus 默认的 12px 相邻按钮边距，
+ * 否则两者叠加成 18px。
+ */
 .about-footer :deep(.el-button + .el-button) {
   margin-left: 0;
 }

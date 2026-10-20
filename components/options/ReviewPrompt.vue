@@ -106,8 +106,14 @@ defineEmits<{
 
 .review-prompt__actions {
   display: flex;
-  gap: 8px;
+  gap: 12px;
   align-items: center;
   justify-content: flex-end;
+}
+
+/* 净间距的唯一真源是上面的 `gap`，此处接管 Element Plus 的相邻按钮边距，
+   否则两者叠加成 20px（弹窗 footer 口径 12px，由 tests/architecture/dialogFooterDensityWiring.test.ts 守卫） */
+.review-prompt__actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 </style>

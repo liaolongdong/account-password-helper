@@ -1210,7 +1210,20 @@ const handleFileChange = async (event: Event): Promise<void> => {
 
 .identity-footer__left {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/*
+ * 与 `.identity-card__actions` 那条不同源：这里是文字按钮行，净间距跟弹窗 footer 一致取 12px，
+ * 故接管掉 Element Plus 的相邻按钮边距——原先 `gap: 8px` 与它叠加成 20px。
+ * 上面那条 `flex-wrap` 是给英文态兜底的：真机量具实测四颗按钮 751.68px，超出 760px 弹窗
+ * footer 的 728px 可用宽（旧 20px 档下要 775.68px，且 `.el-dialog` 无 `overflow: hidden`，
+ * 多出来的部分会直接探出弹窗圆角外）。中文态 545.08px 放得下，换行只在英文态发生。
+ * 口径由 tests/architecture/dialogFooterDensityWiring.test.ts 守卫。
+ */
+.identity-footer__left :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .identity-file-input {

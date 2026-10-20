@@ -55,7 +55,7 @@ test.describe('命令面板执行入口', () => {
     const review = drawer.getByRole('button', { name: textOf('options.about.review') });
     const share = drawer.getByRole('button', { name: textOf('options.about.share') });
     // 抽屉自带的关闭按钮 aria-label 也是 "Close this dialog"，非锚定匹配会同时命中两个；
-    // 这里要量的是页脚那颗 small 按钮，必须整串相等。
+    // 这里要量的是页脚那颗文字按钮，必须整串相等。
     const close = drawer.getByRole('button', { name: anchoredTextOf('common.close') });
     await expect(review).toBeVisible();
     const reviewBox = await review.boundingBox();
