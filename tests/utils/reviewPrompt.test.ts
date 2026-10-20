@@ -97,18 +97,26 @@ describe('一次性评价引导存储', () => {
     });
   });
 
-  it('已永久关闭时不再写锚点，直接落下闸门', async () => {
+  it('已永久关闭仍要记下锚点：展示开关不能屏蔽数据事实', async () => {
     const { markFirstQuickFill } = await freshModule();
     (globalThis as any).chrome.storage.local.get.mockResolvedValue({
       [STORAGE_KEYS.REVIEW_PROMPT_STATE]: { dismissedAt: 555, snoozedUntil: null, firstFillAt: null },
     });
 
     await markFirstQuickFill(NOW);
-    expect((globalThis as any).chrome.storage.local.set).not.toHaveBeenCalled();
 
+    // 用户先关掉了提示，之后清空 dismissedAt 时 7 天门槛要按真实首次填充算，
+    // 而不是从「下一次填充」重新起算
+    expect((globalThis as any).chrome.storage.local.set).toHaveBeenLastCalledWith({
+      [STORAGE_KEYS.REVIEW_PROMPT_STATE]: { dismissedAt: 555, snoozedUntil: null, firstFillAt: NOW },
+    });
+
+    // 锚点已落盘：后续填充不再读写存储
+    (globalThis as any).chrome.storage.local.set.mockClear();
     (globalThis as any).chrome.storage.local.get.mockClear();
     await markFirstQuickFill(NOW + 1000);
     expect((globalThis as any).chrome.storage.local.get).not.toHaveBeenCalled();
+    expect((globalThis as any).chrome.storage.local.set).not.toHaveBeenCalled();
   });
 
   it('读存储失败时三处写入全部放弃，绝不把降级空值写回去', async () => {

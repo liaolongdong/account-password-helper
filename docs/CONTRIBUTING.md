@@ -312,6 +312,8 @@ graph LR
 
 - **状态与写入点**：全部落在 `chrome.storage.local` 的 `review_prompt_state`，只有三个时间戳——`firstFillAt`（首次成功填充）、`dismissedAt`（永久关闭）、`snoozedUntil`（延后截止），不含账号、密码、条目内容与任何可推导身份的数据，也不上传。`firstFillAt` 由后台在 `utils/storage/passwordCrud.ts` 的元数据批量落盘处调用 `markFirstQuickFill()` 写一次：现有快速填充路径（侧边栏、快捷键、Popup 一键填充、内联下拉、右键菜单）的使用痕迹 `lastUsedAt` 全部经 `updatePasswordInSession` 落到这里，批次里出现 `lastUsedAt` 即为一次真实填充，进程内闸门保证只写一次。**新增填充入口只要仍走 `updatePasswordInSession` 就不需要补埋点**；若某个新上下文绕过它直接写库，就必须显式调用 `markFirstQuickFill()`。右键菜单填动态码同样写 `lastUsedAt`，因此也算一次使用，与「最近使用」排序口径保持一致。
 
+- **锚点与展示开关解耦**：`dismissedAt` 只决定要不要展示，`firstFillAt` 记的是「用户第一次用上快速填充」这一事实，**即使用户已经永久关闭也照样记一次**。否则后来清空关闭状态的用户会从「下一次填充」重新起算 7 天，门槛被悄悄改写。
+
 - **读写失败的方向盘**：三处写入都是「读全量 → 合并 → 写全量」，所以读存储失败时**必须放弃本次写入**——把降级出来的空状态写回去会抹掉用户刚点下的「不再提醒」，让已拒绝的提示复活，比丢一次延后严重得多。展示用的 `getReviewPromptState()` 才允许降级为「未关闭」，两者不要混用。
 
 - **为什么锚点必须是首次填充时间**：`lastUsedAt` 每次填充都被刷新，用它当年龄锚点会让「只用一条账号」的用户永远达不到门槛；条目的 `createTime` 又会在用户真正开始使用之前就把 7 天走完。所以门槛是「体验到价值之后 7 天」，不是「装好之后 7 天」。
@@ -723,6 +725,8 @@ The one-time review prompt (the card in the manager page's main content area) is
   3. **7 days since the first successful fill** (`REVIEW_PROMPT_MIN_AGE_MS`).
 
 - **State and write point**: everything lives in `review_prompt_state` under `chrome.storage.local` as three timestamps only — `firstFillAt` (first successful fill), `dismissedAt` (permanent dismissal), `snoozedUntil` (snooze deadline). No account, password, entry content, or anything that identifies the user, and nothing is uploaded. `firstFillAt` is written once by the background, where `utils/storage/passwordCrud.ts` flushes batched metadata: every quick-fill path (side panel, keyboard shortcut, Popup one-click fill, inline dropdown, context menu) persists its usage mark `lastUsedAt` through `updatePasswordInSession`, so a batch carrying `lastUsedAt` is exactly one real fill, and `markFirstQuickFill` keeps an in-process gate so it writes once. **A new fill entry point needs no extra instrumentation as long as it still goes through `updatePasswordInSession`**; a new context that writes the vault directly must call `markFirstQuickFill()` explicitly. Filling a TOTP code from the context menu also writes `lastUsedAt`, so it counts as usage — consistent with the "recently used" ordering.
+
+- **The anchor is decoupled from the dismissal**: `dismissedAt` only controls whether the card shows; `firstFillAt` records the fact that the user used quick fill for the first time, and is **still written once even after a permanent dismissal**. Otherwise a user who later clears the dismissal would restart the 7-day clock from their next fill, silently rewriting the threshold.
 
 - **Failure direction of the write paths**: all three writers are "read the whole object → merge → write the whole object", so a **failed read must abort the write**. Persisting the degraded empty state would erase the "Don't ask again" the user just clicked and resurrect a prompt they rejected — far worse than losing one snooze. Only the display-side `getReviewPromptState()` may degrade to "not dismissed"; do not reuse it in the writers.
 

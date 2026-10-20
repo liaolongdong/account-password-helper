@@ -89,14 +89,15 @@ let _firstFillRecorded = false;
  * 记录「第一次成功快速填充」的时刻
  *
  * 由元数据批量落盘处调用（填充路径唯一的汇聚点），只在锚点缺失时写入，已存在则原样
- * 保留；已永久关闭时锚点不再影响展示，直接落下闸门。读写失败都不落下闸门，
- * 下一次填充自然重试。
+ * 保留。与永久关闭状态无关：`dismissedAt` 只决定要不要展示，锚点是「用户何时第一次
+ * 用上填充」这一事实，跳过记录会让后来清空关闭状态的用户从错误的日期起算 7 天。
+ * 读写失败都不落下闸门，下一次填充自然重试。
  */
 export async function markFirstQuickFill(at: number = Date.now()): Promise<void> {
   if (_firstFillRecorded) return;
   try {
     const current = await readReviewPromptStateOrThrow();
-    if (current.firstFillAt !== null || current.dismissedAt !== null) {
+    if (current.firstFillAt !== null) {
       _firstFillRecorded = true;
       return;
     }
