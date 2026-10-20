@@ -80,9 +80,15 @@ describe('Options 首屏骨架的视图切换', () => {
     expect(HTML, '标题下的副标题占位又回来了').not.toContain('sk-subtitle');
   });
 
-  it('有效期入口新建标签页时把首屏预判为 vault', () => {
+  it('有效期入口与侧边栏 / 悬浮按钮的管理入口都按会话状态预判首屏', () => {
     expect(ROUTER).toContain("openOptionsAndSendMessage(MessageType.OPEN_OPTIONS_AND_VALIDITY, undefined, 'vault')");
     expect(OPTIONS_MANAGER).toContain('OPTIONS_FIRST_VIEW_PARAM');
     expect(OPTIONS_MANAGER).toContain('chrome.tabs.create({ url: optionsUrl })');
+
+    // OPEN_OPTIONS_PAGE 可能来自锁定界面，不能无条件写死 vault；有效时才提示
+    expect(ROUTER).toContain('async function resolveOptionsFirstView');
+    expect(ROUTER).toContain('isSessionValid({ skipConsistencyCheck: true })');
+    expect(ROUTER).toContain("? 'vault' : undefined");
+    expect(ROUTER).toContain('openOptionsPage(firstView)');
   });
 });

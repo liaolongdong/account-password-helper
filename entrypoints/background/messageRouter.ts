@@ -13,6 +13,7 @@ import {
   getSidePanelPorts,
 } from './sidePanelManager';
 import { openOptionsPage, openOptionsAndSendMessage } from './optionsPageManager';
+import type { OptionsFirstView } from '@/utils/optionsFirstView';
 import {
   getCachedPasswords,
   invalidatePasswordCache,
@@ -53,9 +54,9 @@ const _swLoadedAt = Date.now();
 /**
  * 延迟加载 sessionManager-storage 模块
  *
- * 仅在 GET_INITIAL_DATA（isSessionValid）和 INVALIDATE_PASSWORD_CACHE
- * （invalidateSessionCache / markSessionInvalid / clearSession）路径中使用，
- * 延迟 session/encryption 模块的初始化执行到首次消息到达时。
+ * 仅在 GET_INITIAL_DATA（isSessionValid）、OPEN_OPTIONS_PAGE 的骨架预判和
+ * INVALIDATE_PASSWORD_CACHE（invalidateSessionCache / markSessionInvalid / clearSession）
+ * 路径中使用，延迟 session/encryption 模块的初始化执行到首次消息到达时。
  * 注：SW 产物被 WXT 内联为单文件，此懒加载不减少冷启动解析/编译量。
  */
 let _sessionModule: typeof import('@/utils/sessionManager-storage') | null = null;
@@ -77,6 +78,24 @@ async function _getCrudModule(): Promise<typeof import('@/utils/storage/password
     _crudModule = await import('@/utils/storage/passwordCrud');
   }
   return _crudModule;
+}
+
+/**
+ * 「打开管理页」新标签页的首帧骨架预判
+ *
+ * 侧边栏与悬浮按钮的「管理」入口共用 OPEN_OPTIONS_PAGE，它们可能出现在会话有效或锁定的
+ * 界面里，因此不能像有效期胶囊那样无条件写死 vault：仅在会话确实有效时提示 vault，
+ * 锁定时保持中性 boot，由选项页的认证检查落到验证页。
+ */
+async function resolveOptionsFirstView(): Promise<OptionsFirstView | undefined> {
+  try {
+    const { isSessionValid } = await _getSessionModule();
+    // 只是给首屏骨架选形态，不需要顺带触发 at-rest 一致性自检（那是完整读库路径的职责）
+    return (await isSessionValid({ skipConsistencyCheck: true })) ? 'vault' : undefined;
+  } catch (error) {
+    logger.warn('Background: 检查会话状态失败，打开管理页时使用中性骨架:', error);
+    return undefined;
+  }
 }
 
 /**
@@ -502,7 +521,8 @@ export function setupMessageRouter(): void {
       }
 
       case MessageType.OPEN_OPTIONS_PAGE:
-        openOptionsPage()
+        resolveOptionsFirstView()
+          .then(firstView => openOptionsPage(firstView))
           .then(tabId => {
             // doOpenOptionsPage 内部吞异常并返回 undefined，故这里按真实结果应答，
             // 否则失败时上游（popup 的「打开密码管理页」）拿到的仍是 success:true。

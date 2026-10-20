@@ -804,7 +804,7 @@ describe('UI 指令的 sender 归属闸门（分发级）', () => {
     expect(getTabIdSync).toHaveBeenCalled();
   });
 
-  it('扩展内部页照常放行（OPEN_OPTIONS_PAGE / SIDEPANEL_PRELOAD）', () => {
+  it('扩展内部页照常放行（OPEN_OPTIONS_PAGE / SIDEPANEL_PRELOAD）', async () => {
     vi.mocked(openOptionsPage).mockResolvedValue(7);
     const listener = setupAndCaptureListener();
     const sendResponse = vi.fn();
@@ -812,7 +812,8 @@ describe('UI 指令的 sender 归属闸门（分发级）', () => {
     listener({ type: MessageType.OPEN_OPTIONS_PAGE }, internalSender, sendResponse);
     listener({ type: MessageType.SIDEPANEL_PRELOAD }, internalSender, sendResponse);
 
-    expect(openOptionsPage).toHaveBeenCalledTimes(1);
+    // OPEN_OPTIONS_PAGE 现在会先确认会话状态再决定首屏预判，打开动作因此异步一拍
+    await vi.waitFor(() => expect(openOptionsPage).toHaveBeenCalledTimes(1));
     expect(warmPasswordCache).toHaveBeenCalledTimes(1);
   });
 

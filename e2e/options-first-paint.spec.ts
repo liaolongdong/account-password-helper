@@ -1,5 +1,6 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './harness';
+import { MessageType } from '../utils/types';
 
 /**
  * Options 首屏骨架与真实视图的交接
@@ -144,6 +145,28 @@ test('同一标签页刷新：首帧直接落到上次的表格形态', async ({
 
   await expect(optionsPage.locator('#app-skeleton')).toHaveCount(0);
   await expect(optionsPage.locator('.header-title h1')).toBeVisible();
+});
+
+test('管理入口（侧边栏 / 悬浮按钮 / popup 共用指令）：会话有效时带 first-view=vault', async ({
+  extContext,
+  extensionId,
+  optionsPage,
+}) => {
+  // 关掉夹具的管理页，确保这次 OPEN_OPTIONS_PAGE 会新建标签页
+  await optionsPage.close();
+  const sender = await extContext.newPage();
+  await sender.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: 'domcontentloaded' });
+
+  const [opened] = await Promise.all([
+    extContext.waitForEvent('page'),
+    sender.evaluate(type => chrome.runtime.sendMessage({ type }), MessageType.OPEN_OPTIONS_PAGE),
+  ]);
+
+  await expect(opened, '管理入口没有把会话状态带进首帧预判').toHaveURL(/options\.html\?first-view=vault/, {
+    timeout: 15_000,
+  });
+  await expect(opened.locator('.header-title h1')).toBeVisible({ timeout: 15_000 });
+  await sender.close();
 });
 
 test('有效期入口：带 first-view=vault 的新标签页首帧直接落到表格形态', async ({
