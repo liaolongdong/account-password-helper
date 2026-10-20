@@ -165,6 +165,10 @@ test('管理入口（侧边栏 / 悬浮按钮 / popup 共用指令）：会话�
   await expect(opened, '管理入口没有把会话状态带进首帧预判').toHaveURL(/options\.html\?first-view=vault/, {
     timeout: 15_000,
   });
+  await expect
+    .poll(() => opened.evaluate(() => document.documentElement.getAttribute('data-options-first-view')))
+    .toBe('vault');
+  expect(await opened.evaluate(() => sessionStorage.getItem('aph-options-first-view'))).toBe('vault');
   await expect(opened.locator('.header-title h1')).toBeVisible({ timeout: 15_000 });
   await sender.close();
 });
@@ -185,6 +189,10 @@ test('侧边栏「密码管理」入口：会话有效时新标签页带 first-v
   await expect(opened, '侧边栏管理入口没有把会话状态带进首帧预判').toHaveURL(/options\.html\?first-view=vault/, {
     timeout: 15_000,
   });
+  await expect
+    .poll(() => opened.evaluate(() => document.documentElement.getAttribute('data-options-first-view')))
+    .toBe('vault');
+  expect(await opened.evaluate(() => sessionStorage.getItem('aph-options-first-view'))).toBe('vault');
   await expect(opened.locator('.header-title h1')).toBeVisible({ timeout: 15_000 });
   await panel.close();
 });
@@ -201,6 +209,10 @@ test('侧边栏会话胶囊：会话有效时新标签页带 first-view=vault', 
   await expect(opened, '侧边栏会话胶囊没有把会话状态带进首帧预判').toHaveURL(/options\.html\?first-view=vault/, {
     timeout: 15_000,
   });
+  await expect
+    .poll(() => opened.evaluate(() => document.documentElement.getAttribute('data-options-first-view')))
+    .toBe('vault');
+  expect(await opened.evaluate(() => sessionStorage.getItem('aph-options-first-view'))).toBe('vault');
   await expect(opened.locator('.header-title h1')).toBeVisible({ timeout: 15_000 });
   await panel.close();
 });
