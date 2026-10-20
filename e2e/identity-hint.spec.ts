@@ -200,10 +200,12 @@ test('地址表单四档各报其角色：中英标签同页并存也不串味',
     ['r-zh', 'cs.identity.role.region'],
     ['a-zh', 'cs.identity.role.address'],
     ['p-zh', 'cs.identity.role.postal'],
+    // codeql[js/incomplete-hostname-regexp] -- 第二项是 i18n key，`.org` 前的点是 key 分隔符，不进正则
     ['o-zh', 'cs.identity.role.org'],
     ['r-en', 'cs.identity.role.region'],
     ['a-en', 'cs.identity.role.address'],
     ['p-en', 'cs.identity.role.postal'],
+    // codeql[js/incomplete-hostname-regexp] -- 同上：这条与上一条只是语言不同，键形态不变
     ['o-en', 'cs.identity.role.org'],
   ] as const;
 

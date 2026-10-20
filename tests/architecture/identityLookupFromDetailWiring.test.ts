@@ -57,6 +57,8 @@ const stripComments = (src: string): string =>
  * 整段匹配读到的就是解释而不是代码。三处 `<SearchHighlight … />` 用法块各自收口在 `/>`，
  * 注释吸不进去，那条逐用法判据并不依赖本函数（变异对照做过：摘与不摘，三处读数一样）。
  */
+// codeql[js/incomplete-sanitization] -- 这是源码扫描守卫的注释剔除器：输入是仓库自己的 .vue 文本，
+// 结果只用于正则匹配，不写回 DOM、不渲染，因此不存在「残留 <!-- 被当成 HTML」的攻击面。
 const stripHtmlComments = (src: string): string => src.replace(/<!--[\s\S]*?-->/g, '');
 
 /** 取出某个箭头函数声明的函数体（到首个顶格 `};` 为止） */
