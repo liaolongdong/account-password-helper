@@ -18,6 +18,11 @@ import { textOf } from './i18n';
  *   落点恰好是 0 —— 那正是「弹窗把列表归零」这条误判的来源。
  *   例外：`position: fixed` 浮层里的触发器（第 4 条抽屉内那颗「编辑」）文档滚动搬不动，
  *   那一步没有 `expectInView` 是刻意的，不是漏加。
+ *   **但「在视口内」只挡住一半**：`locator.click()` 在动作前还会经 CDP 的
+ *   `DOM.scrollIntoViewIfNeeded` 预滚一次，那一步不经过页面 JS，钩子抓不到，元素已经
+ *   在视口内也可能被搬到别处去（第 4 条实测：本机 14 轮里 6 轮从 300 跳到 660 或 268）。
+ *   第 4 条因此改用 {@link clickInView}（坐标点击，不预滚）。第 1、2、3 条同样按绝对位置判定，
+ *   理论上一样暴露，只是至今没观测到——再出现「读数各不相同」这种签名，照第 4 条改法办。
  *
  * 1. **弹窗开着与关掉，列表都停在用户读到的那一行**。这条钉的是「什么都没动」这个终态。
  *    曾经这里断言的是「归零之后还回来」，三组对照把它撤了：起点 40（按钮可见）用自动化点击
@@ -125,6 +130,24 @@ async function expectInView(page: Page, trigger: Locator, label: string): Promis
     0,
   );
   expect(box!.y + box!.height, `${label} 超出视口下沿：同上`).toBeLessThanOrEqual(viewport!.height);
+}
+
+/**
+ * 先证明触发器整个在视口内，再用真坐标点它
+ *
+ * 这条不是给 `expectInView` 加保险，是换掉量具：`locator.click()` 在每次动作前都会经 CDP 的
+ * `DOM.scrollIntoViewIfNeeded` 预滚一次，而那一步**不经过页面 JS**——把
+ * `Element.prototype.scroll/scrollTo/scrollBy/scrollIntoView`、`scrollTop` 的 setter 和
+ * `window.scroll` 全钩上，一次也抓不到，`expectInView` 更挡不住。本机实测 14 轮里 6 轮被它把
+ * 文档从 300 搬到 660（首行贴顶，正好是那颗按钮的文档坐标滚到视口顶部）或搬到 268，
+ * 于是「抽屉弄丢位置」读到的一直是夹具自己搬的那一下。`page.mouse.click` 按坐标派发输入、
+ * 不做预滚动，既把产品行为还原出来，也更接近真用户的一次点击。
+ */
+async function clickInView(page: Page, trigger: Locator, label: string): Promise<void> {
+  await expectInView(page, trigger, label);
+  const box = await trigger.boundingBox();
+  expect(box, `${label} 量不到位置`).not.toBeNull();
+  await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
 }
 
 /** 取那一行的用户名（首格），并自证取到的确实是合成用户名，而不是序号列或空串 */
@@ -270,6 +293,15 @@ test.describe('弹窗与浮层的滚动隔离', () => {
    * 落在视口外 —— 本用例里那道 `expectInView` 挡的是首行的「查看详情」，抽屉里那颗「编辑」在
    * fixed 浮层内、本就可见，正常走不到那条路。撤销还原逻辑之后这条判据在本机红过 1 次（16 次里，
    * 失败值 0），此后 15 次连续干净，原因未能复现到可以指名。
+   *
+   * **上面那一句已被本轮推翻，留在这里记着走过的弯**：这条间歇红的读数落在 650 / 660 / 464 /
+   * 268 / 258 这类**各不相同的中间值**上，不是 0。逐帧探针量到跳变发生在一帧之内
+   * （`scroll-behavior: auto`），而钩住 `Element.prototype.scroll/scrollTo/scrollBy/scrollIntoView`、
+   * `scrollTop` 的 setter 与 `window.scroll` 之后**一次脚本滚动都没抓到**——唯一的赋值落在
+   * `.el-overlay` / `.el-drawer` 自己身上，那是 EP 重置容器，不动文档。搬动文档的是
+   * `locator.click()` 动作前的 `DOM.scrollIntoViewIfNeeded`（660 那一档正是「把那颗按钮滚到
+   * 视口顶部」的落点：本机 14 轮里 6 轮命中）。所以触发点击换成 {@link clickInView}，
+   * 读数仍由本用例自己采——产品若真把列表搬走，照样红。
    */
   test('抽屉里再开编辑弹窗，列表位置不掉', async ({ optionsPage: page }) => {
     await scrollDocTo(page, DETAIL_TOP, '文档滚不到起点，测量前提不成立');
@@ -277,9 +309,7 @@ test.describe('弹窗与浮层的滚动隔离', () => {
       .locator('tr.el-table__row')
       .first()
       .getByRole('button', { name: textOf('options.detail.viewDetail') });
-    await expectInView(page, detailBtn, '首行的查看详情按钮');
-
-    await detailBtn.click();
+    await clickInView(page, detailBtn, '首行的查看详情按钮');
     const drawer = page.getByRole('dialog').filter({ hasText: textOf('options.detail.title') });
     await expect(drawer).toBeVisible();
     await expect.poll(() => docTop(page), { message: '抽屉自己就把位置弄丢了' }).toBe(DETAIL_TOP);
