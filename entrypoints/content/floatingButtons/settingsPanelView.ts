@@ -279,41 +279,41 @@ export const settingsPanelViewStyles = `
   /* 滚动容器自己收口底部圆角：面板是 overflow 可见的圆角卡片，方角的滚动条末端会戳出 10px 圆弧 */
   border-bottom-right-radius: 10px;
   border-bottom-left-radius: 10px;
-  /*
-   * 边缘滚动阴影——把「一行字被水平切成两截」读回成「下面还有内容」。
-   * zh-CN 实测内容 861px、侧边栏可视 537px，折叠线恒落在提示语中间，而原先唯一的线索是
-   * 一道 4px 浅灰滚动条，在 macOS 上几乎不可辨；用户读到的是「界面坏了」而不是「还能滚」。
-   * 机理：两层白遮罩用 background-attachment: local 跟着内容走，只在内容的上下两端各占
-   * 16px（正好等于 padding-block，不压任何一个字）；两层径向投影用 scroll 钉在滚动视口
-   * 上下沿。到端点时遮罩与投影重合、把投影盖掉，于是「滚到头」信号自动消失，无需 JS。
-   * 遮罩必须是不透明的纯白、且与投影等高：用半透明渐变或把投影做得比遮罩高，都会把端点
-   * 那 16px 正文洗淡——那等于在另一端复刻同一个 bug。白色与 .settings-panel 底色同值，
-   * 面板底色不参与换肤。
-   * 对比过的替代方案是 sticky 渐隐遮罩：确实能淡出末行，但实测会盖住正文，
-   * 还给滚动高度多加 43px（用户要多滚一屏），故不采用。
-   */
-  background-color: #fff;
-  background-image:
-    linear-gradient(#fff, #fff),
-    linear-gradient(#fff, #fff),
-    radial-gradient(farthest-side at 50% 0, rgba(15, 23, 42, 0.26), rgba(15, 23, 42, 0)),
-    radial-gradient(farthest-side at 50% 100%, rgba(15, 23, 42, 0.26), rgba(15, 23, 42, 0));
-  background-repeat: no-repeat;
-  background-size:
-    100% 16px,
-    100% 16px,
-    100% 16px,
-    100% 16px;
-  background-position:
-    0 0,
-    0 100%,
-    0 0,
-    0 100%;
-  background-attachment: local, local, scroll, scroll;
 }
 
 /*
- * 滚动条加宽到 8px 并补一条常驻轨道：可供性的主力，比边缘阴影更直接。
+ * 底缘线性渐隐——把「一行字被水平切成两截」读回成「下面还有内容」。
+ *
+ * 为什么这里需要而侧边栏标签筛选区不需要：标签区的 max-height 恰好等于两行（24×2+6=54），
+ * 折叠线落在行与行之间的空隙上，切的是空白，看着干净；弹窗九行高度各不相同（43/60/45/101…），
+ * 折叠线必然压在文字中间，实测初始态第 10 个块只显示 85%。同一个「什么都不加」在两处不是一回事。
+ *
+ * 实现要点，三处都是踩过的坑：
+ * 1. 用**全宽线性**渐变，不是 radial-gradient 椭圆。椭圆的 farthest-side 让它在水平中央最深、
+ *    两侧淡出，落在白卡片上就是一坨灰，比原来的硬切更难看（上一版就是这么翻车的）。
+ * 2. height 与 margin-bottom 都取 padding-block（16px）：负外边距把这个伪元素自身的高度从滚动
+ *    距离里收回来（实测 scrollHeight 恒 861，不加滚动成本），同时让它在「滚到底」时正好落进
+ *    末行下方那 16px 内边距里（实测末行距底缘 16px），于是不糊任何一个字。height 一旦大于
+ *    padding-block，端点那几像素就会被洗白——等于在另一端复刻同一个 bug。
+ * 3. 左右各 -20px 铺满内边距，但不越过滚动条槽（宽度交给 auto + 负边距撑开，实测 352px
+ *    = 360 − 8 槽位，不写死 calc）。
+ *
+ * 只做底缘：顶缘之上还有 header 与分隔线兜底，「被滚过去」读得出来，且用户反馈的只有底部。
+ * 白色与 .settings-panel 底色同值——面板底色不参与换肤（六套主题只改 --aph-primary 系）。
+ */
+.settings-content::after {
+  content: '';
+  position: sticky;
+  bottom: 0;
+  display: block;
+  height: 16px;
+  margin: 0 -20px -16px;
+  pointer-events: none;
+  background: linear-gradient(rgba(255, 255, 255, 0), #fff);
+}
+
+/*
+ * 滚动条加宽到 8px 并补一条常驻轨道：「这里还能滚」的主力信号。
  * 8px 是量出来的上限（zh-CN、400×660 视口口径）——4 / 6 / 8px 三档下内容高度恒为 861px，
  * 到 10px 会把提示语挤出一行换行、滚高反升到 894px（滚动条自己加深了滚动），再宽就得不偿失。
  * 刻意不写 scrollbar-width / scrollbar-color：Chromium 一旦看到这两个标准属性就整段忽略
