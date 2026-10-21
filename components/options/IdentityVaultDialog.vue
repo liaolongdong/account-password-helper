@@ -234,7 +234,15 @@
               :model-value="isSelected(entry.id)"
               @change="toggleSelect(entry.id)"
             />
-            <div class="identity-card__title">
+            <!--
+              标题区同时是整行折叠开关：它占满复选框与动作行之间的剩余宽度，
+              比右侧 24px 的 chevron 好点得多。只挂标题而不挂 header，是为了让
+              复选框、拖拽把手和动作行各自的事件保持原样；键盘与读屏路径仍走右侧 chevron。
+            -->
+            <div
+              class="identity-card__title"
+              @click="handleTitleToggle(entry, $event)"
+            >
               <SearchHighlight
                 v-if="keyword"
                 :text="displayTitle(entry)"
@@ -253,6 +261,7 @@
               <el-button
                 :icon="isCollapsed(entry.id) ? ArrowDown : ArrowUp"
                 :aria-label="isCollapsed(entry.id) ? t('identity.expandOne') : t('identity.collapseOne')"
+                :aria-expanded="!isCollapsed(entry.id)"
                 link
                 @click="toggleCollapse(entry.id)"
               />
@@ -432,6 +441,7 @@ import {
 } from '@/utils/identity/constants';
 import { formatFileSize } from '@/utils/formatFileSize';
 import { buildIdentityFieldRows, formatIdentityCardText, hasSecretFields } from '@/utils/identity/fields';
+import { shouldToggleCollapseFromTitleClick } from '@/utils/identity/titleToggle';
 import {
   exportIdentityBackup,
   exportIdentityPlaintext,
@@ -563,6 +573,19 @@ const handleSortModeChange = (value: unknown): void => {
   if (isIdentitySortMode(value)) {
     setSortMode(value);
   }
+};
+
+/**
+ * 标题区点击切换折叠
+ *
+ * 标题只做指针增强，不挂 `role` / `tabindex`：右侧 chevron 已是键盘与读屏的
+ * 等价入口，再给标题一个可聚焦角色会让 Tab 序里出现两个同义控件。
+ * 标题内拖选文字时浏览器仍会补发 click，交给纯函数判掉，避免选字把卡片收起。
+ */
+const handleTitleToggle = (entry: IdentityEntry, event: MouseEvent): void => {
+  const title = event.currentTarget as HTMLElement | null;
+  if (!shouldToggleCollapseFromTitleClick(event.detail, window.getSelection(), title)) return;
+  toggleCollapse(entry.id);
 };
 
 // ==================== manual 档：拖拽 + 键盘两条写入路径 ====================
@@ -1147,6 +1170,7 @@ const handleFileChange = async (event: Event): Promise<void> => {
   font-size: 15px;
   font-weight: 600;
   color: var(--el-text-color-primary);
+  cursor: pointer;
 }
 
 .identity-card__category {
