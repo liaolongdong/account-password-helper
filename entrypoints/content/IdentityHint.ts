@@ -31,6 +31,7 @@
  */
 import { MessageType } from '@/utils/types';
 import { logger } from '@/utils/logger';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { onLiteLocaleChanged, tl } from '@/utils/i18n-lite';
 import { type ThemeName, applyThemeTokensToHost, DEFAULT_THEME, getStoredTheme } from '@/utils/theme';
 import { CUSTOM_FIELD_LANDING_ROLES, type IdentityHintRole } from '@/utils/identity/hintRoles';
@@ -70,6 +71,28 @@ let currentPickBtn: HTMLButtonElement | null = null;
  * 按元素而不是按布尔量收口：归还的对象一定是刚被移除焦点的那枚字段，误伤面只有它自己。
  */
 let suppressRefocus: HTMLElement | null = null;
+
+/**
+ * 「开关在哪」这句首次说明的调度状态
+ *
+ * 提示本身可以关（偏好设置 → 个人信息字段提示），但气泡从不提这件事，用户被打扰时
+ * 只能去设置里翻。所以在**终生第一次**画气泡时补一行说明，三个标记各司其职：
+ * - `settled`：本 frame 已定论（这句话画过了，或存储里早已告知过），后续不再参与；
+ * - `pending`：预取到「还没说过」，允许下一次 `buildBubble` 把它带上；
+ * - `rendered`：那行确实被画进了本次这一枚，`showIdentityHint` 据此落盘标记。
+ *
+ * 标记由 `prefetchIdentityHintSettingsTip()` 在内容脚本初始化时预取，聚焦路径上不再等
+ * storage——那行字要么随这一枚气泡一起画出，要么整枚不出现，不存在「先画一版再撑高重绘」。
+ * 三条如实的边界：
+ * - 预取输掉竞态（页面刚加载就聚焦）时，这句话随**下一枚**气泡出现，仍然至多一次；
+ * - 画出来却因为字段不在视口而当场收起时不算说过，标记不落盘，留给下一次聚焦；
+ * - 多标签页（含会话恢复）各自预取，都可能在用户聚焦前读到「还没说过」，于是每个 frame
+ *   各说一次。要压掉这个窗口就得在渲染前做一次异步占位（内联首次引导那套），代价是把
+ *   这行字从同步呈现里挪出去——那正是上面第一条要避免的事，因此按可接受处理。
+ */
+let settingsTipSettled = false;
+let settingsTipPending = false;
+let settingsTipRendered = false;
 
 /** 气泡与字段的间距 */
 const GAP = 6;
@@ -118,6 +141,12 @@ const STYLE = `
     /* 取 tokens.css 里 --aph-text-secondary 的同值（原 #909399 仅 3.08:1）；
        影子根拿不到页面继承，中性色要用得先进 theme.ts 的 SHADOW_NEUTRAL_TOKENS 内联镜像，
        这一行按既有口径写字面色值，shadowTokenCoverage 守卫只管 var(--aph-*) 形态的引用 */
+    color: #6b7280;
+    font-size: 12px;
+  }
+  .aph-idh__settings {
+    margin: 4px 0 0;
+    /* 与 .aph-idh__custom 同族：它是「怎么关掉我」的说明，不该比字段结论更抢眼 */
     color: #6b7280;
     font-size: 12px;
   }
@@ -221,6 +250,62 @@ function position(bubble: HTMLElement): void {
   bubble.style.left = `${left}px`;
 }
 
+/**
+ * 按当前角色重绘气泡（初次呈现、语言切换、补上首次说明三处共用）
+ *
+ * 必须整体替换并同步 `currentBubble` / `currentPickBtn`：这两个模块状态是 rAF 重定位与
+ * `Alt+↓` 键盘入口的唯一读取对象，留下旧节点就是「看得见的气泡不跟滚动、键盘送给游离按钮」。
+ */
+function renderBubble(role: IdentityHintRole, needsVerify: boolean): void {
+  const root = shadowRoot?.getElementById('aph-idh-root');
+  if (!root) return;
+  const bubble = buildBubble(role, needsVerify);
+  root.replaceChildren(bubble);
+  currentBubble = bubble;
+  currentPickBtn = bubble.querySelector<HTMLButtonElement>('.aph-idh__btn--primary');
+  position(bubble);
+  // 那行说明「说过没有」只在这里定论：初次呈现与语言切换重绘共用同一个消费点。分开写会出两个洞——
+  // 重绘那路把话说出口却不落盘（下一枚气泡又带一遍），而 `position()` 发现字段不在视口内会当场
+  // 收起，此时用户根本没看见，落盘就等于把这唯一一次机会白白花掉。
+  if (settingsTipRendered) {
+    settingsTipRendered = false;
+    if (currentBubble) markSettingsTipShown();
+    else {
+      settingsTipPending = true;
+      settingsTipSettled = false;
+    }
+  }
+}
+
+/**
+ * 预取「开关在哪」的告知标记（由内容脚本初始化时调用）
+ *
+ * 聚焦那一刻同步决定要不要带那行说明，所以取值必须提前拿到。读失败（上下文失效等）按
+ * 「不说」处理：这句话是锦上添花，不该为它把气泡或页面路径拖住。
+ */
+export async function prefetchIdentityHintSettingsTip(): Promise<void> {
+  if (settingsTipSettled) return;
+  try {
+    const stored = await chrome.storage.local.get(STORAGE_KEYS.IDENTITY_HINT_TIP_SHOWN);
+    if (stored[STORAGE_KEYS.IDENTITY_HINT_TIP_SHOWN]) settingsTipSettled = true;
+    else settingsTipPending = true;
+  } catch (error) {
+    settingsTipSettled = true;
+    logger.debug('IdentityHint: 首次说明标记读取失败，本次会话不再尝试:', error);
+  }
+}
+
+/** 把「已告知」写回存储：只在那行确实画出来之后调用，写失败不影响本 frame 的定论 */
+function markSettingsTipShown(): void {
+  try {
+    void chrome.storage.local
+      .set({ [STORAGE_KEYS.IDENTITY_HINT_TIP_SHOWN]: true })
+      .catch(err => logger.debug('IdentityHint: 首次说明标记写入失败:', err));
+  } catch (error) {
+    logger.debug('IdentityHint: 首次说明标记写入失败:', error);
+  }
+}
+
 /** 释放当前气泡的全部监听 */
 function releaseCleanups(): void {
   cleanups.forEach(off => off());
@@ -268,6 +353,11 @@ export function destroyIdentityHint(): void {
   const root = shadowRoot;
   hostEl = null;
   shadowRoot = null;
+  // 首次说明的调度状态随实例一并复位：标记本身已落盘在 storage，复位只会让新实例
+  // 重新读一次，不会把同一句话画第二遍
+  settingsTipSettled = false;
+  settingsTipPending = false;
+  settingsTipRendered = false;
   hideIdentityHint();
   root?.host.remove();
 }
@@ -311,6 +401,18 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
     body.appendChild(custom);
   }
 
+  // 首次说明：告诉用户这枚气泡有个开关、开关在哪。放在 `role=status` 区内，读屏因此能
+  // 跟着播报一次；消费 `settingsTipPending` 保证语言切换重绘与换字段重建都不会再说第二遍。
+  if (settingsTipPending) {
+    settingsTipPending = false;
+    settingsTipSettled = true;
+    settingsTipRendered = true;
+    const tip = document.createElement('p');
+    tip.className = 'aph-idh__settings';
+    tip.textContent = tl('cs.identity.hintSettingsTip');
+    body.appendChild(tip);
+  }
+
   bubble.appendChild(body);
 
   const actions = document.createElement('div');
@@ -323,6 +425,10 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
   dismiss.type = 'button';
   dismiss.className = 'aph-idh__btn aph-idh__btn--ghost';
   dismiss.textContent = tl('cs.identity.hintDismiss');
+  // 事后还能查到的两个非视觉出口：悬停有说明、并显式声明 Esc 这条快捷键
+  // （首次那行说明只出现一次，而「怎么关」是用户隔了很久才会再问的问题）
+  dismiss.title = tl('cs.identity.hintSettingsTip');
+  dismiss.setAttribute('aria-keyshortcuts', 'Escape');
   dismiss.addEventListener('click', hideIdentityHint);
 
   const pick = document.createElement('button');
@@ -410,11 +516,8 @@ export function showIdentityHint(input: HTMLElement, role: IdentityHintRole, nee
   boundRole = role;
   boundNeedsVerify = needsVerify;
 
-  const bubble = buildBubble(role, needsVerify);
-  root.replaceChildren(bubble);
-  currentBubble = bubble;
-  currentPickBtn = bubble.querySelector<HTMLButtonElement>('.aph-idh__btn--primary');
-  position(bubble);
+  // 首次说明的落盘在 `renderBubble` 里随呈现一起定论（语言切换重绘同一条路）
+  renderBubble(role, needsVerify);
 
   // 重定位走 rAF 节流：position() 先读 getBoundingClientRect/offset 再写 style.top/left，
   // 每个 scroll 事件同步跑一遍就是逐帧「读几何→写样式」强制回流（口径同 FillAckChip）。
@@ -452,11 +555,7 @@ export function showIdentityHint(input: HTMLElement, role: IdentityHintRole, nee
   };
   const offLocale = onLiteLocaleChanged(() => {
     if (!boundRole) return;
-    const next = buildBubble(boundRole, boundNeedsVerify);
-    root.replaceChildren(next);
-    currentBubble = next;
-    currentPickBtn = next.querySelector<HTMLButtonElement>('.aph-idh__btn--primary');
-    position(next);
+    renderBubble(boundRole, boundNeedsVerify);
   });
 
   window.addEventListener('scroll', onScrollOrResize, true);

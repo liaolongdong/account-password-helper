@@ -27,6 +27,7 @@ const identityHint = vi.hoisted(() => ({
   hideIdentityHint: vi.fn(),
   destroyIdentityHint: vi.fn(),
   setIdentityHintTheme: vi.fn(),
+  prefetchIdentityHintSettingsTip: vi.fn(async () => {}),
 }));
 vi.mock('@/entrypoints/content/IdentityHint', () => identityHint);
 
@@ -64,6 +65,9 @@ const installChromeMock = (config: Record<string, unknown>) => {
       local: {
         get: vi.fn(async (key: string) => {
           if (key === STORAGE_KEYS.SITE_RULES) return { [STORAGE_KEYS.SITE_RULES]: {} };
+          // 「开关在哪」那句只在终生第一次画气泡时补，默认按已告知布，
+          // 免得本用例的呈现断言撞上那次异步重绘
+          if (key === STORAGE_KEYS.IDENTITY_HINT_TIP_SHOWN) return { [STORAGE_KEYS.IDENTITY_HINT_TIP_SHOWN]: true };
           return { [STORAGE_KEYS.FLOATING_BUTTON_CONFIG]: config };
         }),
         set: vi.fn(async () => {}),
@@ -268,6 +272,30 @@ describe('聚焦识别到身份提示的接线', () => {
 
     expect(identityHint.showIdentityHint).not.toHaveBeenCalled();
     expect(identityHint.hideIdentityHint).not.toHaveBeenCalled();
+  });
+
+  it('「开关在哪」的标记只在提示开着时预取', async () => {
+    // 那行说明要在聚焦那一刻同步决定画不画，所以标记必须提前取；
+    // 而总闸关着时它永远不会出现，不该为一句不会说的话读一次存储
+    const html = '<label>姓名<input name="realname"></label>';
+    await mount(html, makeConfig({ identityHintEnabled: false }));
+    expect(identityHint.prefetchIdentityHintSettingsTip).not.toHaveBeenCalled();
+
+    await mount(html, makeConfig());
+    expect(identityHint.prefetchIdentityHintSettingsTip).toHaveBeenCalledTimes(1);
+  });
+
+  it('总闸从关拨到开时补一次预取，否则那行说明要等下次加载', async () => {
+    const html = '<label>姓名<input name="realname"></label>';
+    await mount(html, makeConfig({ identityHintEnabled: false }));
+    expect(identityHint.prefetchIdentityHintSettingsTip).not.toHaveBeenCalled();
+
+    broadcast(makeConfig());
+    expect(identityHint.prefetchIdentityHintSettingsTip).toHaveBeenCalledTimes(1);
+
+    // 已经开着时再改别的设置（拖动位置、透明度都会写这份配置）不得重复预取
+    broadcast(makeConfig({ opacity: 0.5 }));
+    expect(identityHint.prefetchIdentityHintSettingsTip).toHaveBeenCalledTimes(1);
   });
 
   it('存储里没写过这个键的老配置默认开（口径同 penetrateShadow 的「未写即开」）', async () => {

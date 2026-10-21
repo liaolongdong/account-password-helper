@@ -57,7 +57,13 @@ const emitLocaleChange = (next: 'zh-CN' | 'en'): void => {
   localeListeners.forEach(cb => cb(next));
 };
 
-import { destroyIdentityHint, hideIdentityHint, showIdentityHint } from '@/entrypoints/content/IdentityHint';
+import {
+  destroyIdentityHint,
+  hideIdentityHint,
+  prefetchIdentityHintSettingsTip,
+  showIdentityHint,
+} from '@/entrypoints/content/IdentityHint';
+import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
 import { MessageType } from '@/utils/types';
 import type { IdentityHintRole } from '@/utils/identity/hintRoles';
@@ -149,6 +155,12 @@ describe('身份提示气泡', () => {
     };
     field = makeField('realName');
     layout.setRect(field, { left: 100, top: 200, width: 240, height: 32 });
+    // 「开关在哪」那句只在终生第一次画气泡时出现。默认按「已告知」布，让与本用例无关的
+    // 断言不会撞上那次异步重绘；要验这句话的用例各自用 `stubTipStorage(false)` 打开。
+    (globalThis as any).chrome.storage.local.get = vi.fn(async (key: string) =>
+      key === STORAGE_KEYS.IDENTITY_HINT_TIP_SHOWN ? { [STORAGE_KEYS.IDENTITY_HINT_TIP_SHOWN]: true } : {},
+    );
+    (globalThis as any).chrome.storage.local.set = vi.fn(async () => {});
   });
 
   afterEach(() => {
@@ -173,6 +185,94 @@ describe('身份提示气泡', () => {
       expect(bubbleRoot()?.querySelector('.aph-idh__role')?.textContent).toBe('姓名');
       expect(bubbleRoot()?.querySelector('.aph-idh__btn--primary')?.textContent).toBe('从个人信息库选择');
       expect(bubbleRoot()?.querySelector('.aph-idh__btn--ghost')?.textContent).toBe('收起');
+    });
+
+    /** 把「首次说明标记」的存储读写桩成一个可控的布尔，返回当前值供断言 */
+    const stubTipStorage = (initiallyShown: boolean) => {
+      const state = { shown: initiallyShown };
+      (globalThis as any).chrome.storage.local.get = vi.fn(async () =>
+        state.shown ? { [STORAGE_KEYS.IDENTITY_HINT_TIP_SHOWN]: true } : {},
+      );
+      (globalThis as any).chrome.storage.local.set = vi.fn(async () => {
+        state.shown = true;
+      });
+      return state;
+    };
+
+    it('第一次画气泡时同步带上「开关在哪」并落盘标记，同一 frame 内不再补第二遍', async () => {
+      const state = stubTipStorage(false);
+      await prefetchIdentityHintSettingsTip();
+      show('name');
+      // 同步就要在：标记是初始化时预取的，聚焦路径不等 storage，也不做「先画一版再撑高」
+      expect(bubbleRoot()?.querySelector('.aph-idh__settings')?.textContent).toContain('偏好设置');
+      expect(state.shown).toBe(true);
+
+      // 换一枚字段再画：那句话是「终生仅一次」，重绘与新建都不该带上它
+      hideIdentityHint();
+      show('idNumber', true);
+      expect(bubbleRoot()?.querySelector('.aph-idh__verify')).not.toBeNull();
+      expect(bubbleRoot()?.querySelector('.aph-idh__settings')).toBeNull();
+    });
+
+    it('标记已存在时一个字都不补（升级用户不该被重复告知）', async () => {
+      stubTipStorage(true);
+      await prefetchIdentityHintSettingsTip();
+      show('name');
+      expect(bubbleRoot()?.querySelector('.aph-idh__settings')).toBeNull();
+      expect((globalThis as any).chrome.storage.local.set).not.toHaveBeenCalled();
+    });
+
+    it('语言切换重绘不会把首次说明带成第二遍', async () => {
+      stubTipStorage(false);
+      await prefetchIdentityHintSettingsTip();
+      show('name');
+      expect(bubbleRoot()?.querySelector('.aph-idh__settings')).not.toBeNull();
+
+      emitLocaleChange('en');
+      expect(bubbleRoot()?.querySelector('.aph-idh__settings')).toBeNull();
+    });
+
+    it('没有预取到标记时不画那行，也不写标记', () => {
+      stubTipStorage(false);
+      show('name');
+      expect(bubbleRoot()?.querySelector('.aph-idh__settings')).toBeNull();
+      expect((globalThis as any).chrome.storage.local.set).not.toHaveBeenCalled();
+    });
+
+    it('预取晚于第一枚气泡时，重绘带出那行同样算说过并落盘', async () => {
+      const state = stubTipStorage(false);
+      show('name');
+      expect(bubbleRoot()?.querySelector('.aph-idh__settings')).toBeNull();
+
+      // 竞态：气泡已经画完，预取才回来。此时语言切换的重绘是那行字唯一的出口，
+      // 说了就必须落盘，否则下一枚、下一个 frame 会再说一遍
+      await prefetchIdentityHintSettingsTip();
+      emitLocaleChange('en');
+      expect(bubbleRoot()?.querySelector('.aph-idh__settings')).not.toBeNull();
+      expect(state.shown).toBe(true);
+    });
+
+    it('字段不在视口内、气泡当场收起时不算说过，机会留给下一次聚焦', async () => {
+      const state = stubTipStorage(false);
+      await prefetchIdentityHintSettingsTip();
+      layout.setRect(field, { left: 0, top: window.innerHeight + 120, width: 240, height: 32 });
+
+      show('name');
+      expect(bubbleRoot()?.querySelector('.aph-idh')).toBeNull();
+      expect(state.shown).toBe(false);
+
+      layout.setRect(field, { left: 100, top: 200, width: 240, height: 32 });
+      show('idNumber', true);
+      expect(bubbleRoot()?.querySelector('.aph-idh__settings')).not.toBeNull();
+      expect(state.shown).toBe(true);
+    });
+
+    it('「收起」按钮带悬停说明与 Esc 快捷键标注，事后也查得到开关在哪', () => {
+      stubTipStorage(true);
+      show('name');
+      const dismiss = bubbleRoot()?.querySelector<HTMLButtonElement>('.aph-idh__btn--ghost');
+      expect(dismiss?.title).toContain('偏好设置');
+      expect(dismiss?.getAttribute('aria-keyshortcuts')).toBe('Escape');
     });
 
     it('「需核对」档才追加核对提示，普通档不显示', () => {

@@ -96,6 +96,12 @@ export const STORAGE_KEYS = {
   /** 内联填充首次引导气泡已展示标记（终生仅展示一次） */
   INLINE_FILL_HINT_SHOWN: 'inline_fill_hint_shown',
   /**
+   * 个人信息提示的「开关在哪」首次说明已展示标记（终生仅展示一次）
+   *
+   * 只存一个布尔，不含站点、字段名或库内内容，因此不构成隐私面。
+   */
+  IDENTITY_HINT_TIP_SHOWN: 'identity_hint_tip_shown',
+  /**
    * 新手引导（聚光引导）状态
    *
    * 仅存 `{ seen, outcome, finishedAt }` 三个标记位，不含任何账号、密码、

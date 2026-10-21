@@ -48,7 +48,13 @@ import {
   destroyTotpHandoffCapsule,
 } from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
 import { getFillAckChip, destroyFillAckChip, type FillAckKind } from './FillAckChip';
-import { destroyIdentityHint, hideIdentityHint, setIdentityHintTheme, showIdentityHint } from './IdentityHint';
+import {
+  destroyIdentityHint,
+  hideIdentityHint,
+  prefetchIdentityHintSettingsTip,
+  setIdentityHintTheme,
+  showIdentityHint,
+} from './IdentityHint';
 import { resolvePiiField } from './piiClassifier';
 import { normalizeIdentityHintRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
 import { preWarmServiceWorker } from '@/utils/preWarmSw';
@@ -228,6 +234,9 @@ export class FormDetector {
       this.inlineDropdown.setTheme(this.floatingButtonConfig.theme);
       // 预置两步接力胶囊主题（实例创建无 DOM 副作用，Shadow 惰性构建）
       getTotpHandoffCapsule().setTheme(this.floatingButtonConfig.theme);
+      // 「开关在哪」那行说明要在聚焦那一刻同步决定画不画，标记提前取；
+      // 提示总闸关着时不必为一句不会出现的文案读一次存储
+      if (this.identityHintEnabled) void prefetchIdentityHintSettingsTip();
     } catch (error) {
       logger.error('FormDetector: 加载配置失败:', error);
     }
@@ -300,9 +309,11 @@ export class FormDetector {
           // 只在翻转时做——位置/透明度每次拖动都会写这份配置，全量重检测代价太大。
           if (penetratedBefore !== this.penetrateShadowEnabled) this.detectForms();
           // 身份提示总闸翻到「关」时把屏上那枚一起收起：聚焦那一刻的门管不到已经可见的气泡，
-          // 而管理页与侧边栏的偏好设置弹窗都在另一个上下文里写这份配置。只在翻转为关时做，
-          // 开闸不需要动 UI——下一条该出的气泡自然会出现。
+          // 而管理页与侧边栏的偏好设置弹窗都在另一个上下文里写这份配置。
+          // 反方向（关→开）补一次预取：那行「开关在哪」的说明靠初始化时预取才画得到，
+          // 而这份配置可能在页面活着的时候才被拨开，不补就只能等下一次加载。
           if (hintedBefore && !this.identityHintEnabled) hideIdentityHint();
+          else if (!hintedBefore && this.identityHintEnabled) void prefetchIdentityHintSettingsTip();
         }
       }
     };
