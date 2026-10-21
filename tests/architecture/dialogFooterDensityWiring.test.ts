@@ -9,7 +9,7 @@
  *   否则净间距读成两者之和。个人信息库 `.identity-footer__left` 与评价引导 `.review-prompt__actions`
  *   都曾写着 `gap: 8px` 却没接管，实测 20px，正是用户看到的「间距偏大」，本轮两处收到 12px。
  *
- * 本守卫只覆盖**登记表里的三处**，不是全仓已达成状态：另有四处同样是「写了 `gap` 却没接管」，
+ * 本守卫只覆盖**登记表里的四处**，不是全仓已达成状态：另有四处同样是「写了 `gap` 却没接管」，
  * 实测仍是 20px，本轮未动（改动会波及别的弹窗观感，待用户决定）——
  * `IdentityFormDialog` 的 `.identity-form-footer`、`PasswordDetailDrawer` 的 `.detail-footer`、
  * `QuickAddDialog` 的 `.quick-add-footer` 与 `.quick-add-actions`。修哪一处就把哪一行加进 `FOOTERS`。
@@ -69,6 +69,15 @@ const FOOTERS: FooterRow[] = [
     file: 'components/options/IdentityVaultDialog.vue',
     container: '.identity-footer__left',
     takeover: '.identity-footer__left :deep(.el-button + .el-button)',
+    expectedGapPx: 12,
+  },
+  {
+    // 选择栏右侧那两枚文字按钮（隐藏/展开全部机密、折叠/展开全部）：同一文件里的第二个
+    // 相邻按钮行，写着 gap 却没接管就是 24px，用户看到的正是「间距有点大」
+    name: '个人信息库选择栏',
+    file: 'components/options/IdentityVaultDialog.vue',
+    container: '.identity-selectbar__actions',
+    takeover: '.identity-selectbar__actions :deep(.el-button + .el-button)',
     expectedGapPx: 12,
   },
   {
@@ -185,7 +194,7 @@ function probe(run: () => unknown): string {
 }
 
 describe('弹窗 / 抽屉 footer 一排文字按钮的间距', () => {
-  it('三处 footer 的净间距各自等于登记的预期值', () => {
+  it('四处按钮行的净间距各自等于登记的预期值', () => {
     for (const row of FOOTERS) {
       const { gap, margin, netGap } = densityOf(cssFor(row), row);
       expect(Number.parseFloat(gap), `${row.name}：容器 gap 不是登记的 ${row.expectedGapPx}px（${gap}）`).toBe(
@@ -256,7 +265,7 @@ describe('弹窗 / 抽屉 footer 一排文字按钮的间距', () => {
     expect((footer.match(/<el-button/g) ?? []).length, 'footer 按钮数量变了，本条守卫需一并复核').toBe(3);
   });
 
-  it('扫描本身有效：三份文件、六条声明与 e2e 上限都真的读到了', () => {
+  it('扫描本身有效：三份文件、八条声明与 e2e 上限都真的读到了', () => {
     for (const row of FOOTERS) {
       expect(
         probe(() => densityOf(cssFor(row), row)),

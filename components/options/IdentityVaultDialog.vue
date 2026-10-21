@@ -1010,6 +1010,15 @@ const handleFileChange = async (event: Event): Promise<void> => {
   margin-left: auto;
 }
 
+/*
+ * 容器写了 gap，就必须接管 Element Plus 的 `.el-button + .el-button { margin-left: 12px }`，
+ * 否则净间距是 12 + 12 = 24px——正是「两个按钮之间空得离谱」的读数。口径同本文件
+ * `.identity-footer__left`，登记在 tests/architecture/dialogFooterDensityWiring.test.ts。
+ */
+.identity-selectbar__actions :deep(.el-button + .el-button) {
+  margin-left: 0;
+}
+
 /* 读屏播报区：不能用 display:none / visibility:hidden——那样读屏也读不到，只能裁出可视区 */
 .identity-live {
   position: absolute;
