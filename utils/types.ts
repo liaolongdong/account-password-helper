@@ -365,9 +365,9 @@ export interface SelectorPickedData {
   unique: boolean;
   /**
    * 拾取到的那个框自身是否声明了一次性口令语义（`autocomplete="one-time-code"`、
-   * name/placeholder 含验证码/otp/code 等）。仅作 UI 提示元数据，不落库：
-   * 用户常在这样的框上还留着「密码框」的选择器，值得在保存前提醒一句，
-   * 但内容脚本是否真的忽略该侧覆盖另按落点是否打码判定，两者口径不同。
+   * name/placeholder 含验证码/otp/code 等）。仅作 UI 提示元数据，不落库：账号与密码
+   * 任一侧指到这样的框都值得当场提醒一句，但内容脚本照用户配置写入、不据此否决落点，
+   * 只在填充回执上把来源标出来。
    */
   codeLike?: boolean;
 }
@@ -1148,6 +1148,15 @@ export interface FillResult {
   reason?: FillFailureReason;
   /** 结构化成功档位，供消费侧选择「已填充」还是「已填充待核对」文案 */
   outcome?: FillOutcome;
+  /**
+   * 本次写入的落点是否来自用户配置的站点规则（`customSelectors`）
+   *
+   * 规则覆盖是权威路径、绕过全部启发式判据，落点合不合意只有用户能判断，
+   * 因此不替用户拒填，而是把来源标出来（页面胶囊与管理页提示共用）。
+   */
+  viaSiteRule?: boolean;
+  /** 规则指定的密码落点自身是否声明了一次性口令语义且未打码（提示用户复核这条规则） */
+  ruleTargetCodeLike?: boolean;
   details: {
     usernameField: FieldFillResult;
     passwordField: FieldFillResult;

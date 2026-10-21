@@ -536,10 +536,10 @@ const handleSelectorPickMessage = (message: unknown): void => {
     else formData.passwordSelector = selector;
     clearPickState();
     revalidateSelectors();
-    // 拾取到的框自己声明了一次性口令语义（验证码 / 动态口令）时，内容脚本会把这一侧的密码覆盖
-    // 退回自动检测。这件事必须当场说清，否则用户只会觉得「规则设了没生效」，回头再叠一条规则。
-    // 两个提示同时成立时只播这一条：不唯一只是要复核选择器，而这一条意味着规则会静默失效。
-    if (field === 'password' && data.codeLike === true) {
+    // 拾取到的框自己声明了一次性口令语义（验证码 / 动态口令）时提醒一句：账号或密码任何一侧都适用，
+    // 规则照用户的设置生效，但填充回执会标出「来自站点规则」。短信码站点没有密码框时更该留空。
+    // 两个提示同时成立时只播这一条：不唯一只是要复核选择器，而这一条意味着落点可能就是错的。
+    if (data.codeLike === true) {
       ElMessage.warning(t('options.siteRules.pickCodeLikeWarning'));
     } else if (data.unique === false) {
       ElMessage.warning(t('options.siteRules.pickNotUnique'));

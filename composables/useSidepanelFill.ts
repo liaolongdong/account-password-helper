@@ -364,7 +364,17 @@ export function useSidepanelFill(passwords?: Ref<PasswordEntry[]>) {
 
       // 步骤5: 根据响应显示结果
       if (response && response.success) {
-        ElMessage.success(t(response.outcome === 'unverified' ? 'fill.fillCheck' : 'fill.fillSuccess'));
+        // 站点规则写的要标出来源：规则绕过全部启发式判据，落点合不合意只有用户能判断，
+        // 一句「已填充」把配置错误掩盖成成功，比一次带来源的提示更难排查。
+        ElMessage.success(
+          t(
+            response.outcome === 'unverified'
+              ? 'fill.fillCheck'
+              : response.viaSiteRule
+                ? 'fill.fillSuccessRule'
+                : 'fill.fillSuccess',
+          ),
+        );
         // 填充成功时，刷新 lastUsedAt（"最近使用"排序依据）和 favoriteUsedAt（LRU 依据）
         const now = Date.now();
         if (passwords?.value) {

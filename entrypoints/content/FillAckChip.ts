@@ -28,8 +28,21 @@ const ACK_VIEWPORT_INSET = 8;
 const ACK_FALLBACK_WIDTH = 150;
 const ACK_FALLBACK_HEIGHT = 24;
 
-/** 回执档位：`filled` 为已核验写入，`check` 为写入成功但站点可能未登记 */
-export type FillAckKind = 'filled' | 'check';
+/**
+ * 回执档位：`filled` 为已核验写入，`check` 为写入成功但站点可能未登记，
+ * `rule` 与 `ruleCodeLike` 标注「这一次写入用的是用户自己配的站点规则」——
+ * 规则覆盖是权威路径、绕过全部启发式判据，落点是否合意只有用户自己能判断，
+ * 因此不替用户拒填，改为把来源说清楚（`ruleCodeLike` 额外提示该框看着像验证码框）。
+ */
+export type FillAckKind = 'filled' | 'check' | 'rule' | 'ruleCodeLike';
+
+/** 档位 → 胶囊文案 key（固定文案，绝不承载填充值） */
+const ACK_TEXT_KEYS: Record<FillAckKind, string> = {
+  filled: 'cs.ack.filled',
+  check: 'cs.ack.check',
+  rule: 'cs.ack.rule',
+  ruleCodeLike: 'cs.ack.ruleCodeLike',
+};
 
 /**
  * 胶囊样式（主题令牌 `var(--aph-*)` 由宿主内联提供取值）
@@ -123,7 +136,7 @@ export class FillAckChip {
 
     this.field = field;
     const textEl = chipEl.querySelector('.aph-ack-text');
-    if (textEl) textEl.textContent = tl(kind === 'check' ? 'cs.ack.check' : 'cs.ack.filled');
+    if (textEl) textEl.textContent = tl(ACK_TEXT_KEYS[kind]);
 
     this.position();
     this.visible = true;

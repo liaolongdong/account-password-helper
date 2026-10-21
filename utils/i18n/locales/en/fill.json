@@ -6,6 +6,7 @@
   "fill.scriptNotReady": "Page script not ready, please refresh and retry",
   "fill.noLoginForm": "No login form detected; make sure the page has login inputs",
   "fill.fillSuccess": "Password filled",
+  "fill.fillSuccessRule": "Filled using your site rule — review the rule if the target is wrong",
   "fill.fillCheck": "Fill complete — please check the form contents",
   "fill.fillIncomplete": "The fill may be incomplete; please check the form manually",
   "fill.fillFailed": "Failed to fill the password; make sure the page has finished loading",

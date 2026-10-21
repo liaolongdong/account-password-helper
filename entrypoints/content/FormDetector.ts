@@ -47,7 +47,7 @@ import {
   getTotpHandoffCapsule,
   destroyTotpHandoffCapsule,
 } from '@/entrypoints/content/inlineDropdown/TotpHandoffCapsule';
-import { getFillAckChip, destroyFillAckChip } from './FillAckChip';
+import { getFillAckChip, destroyFillAckChip, type FillAckKind } from './FillAckChip';
 import { destroyIdentityHint, hideIdentityHint, setIdentityHintTheme, showIdentityHint } from './IdentityHint';
 import { resolvePiiField } from './piiClassifier';
 import { normalizeIdentityHintRole, type IdentityHintRole } from '@/utils/identity/hintRoles';
@@ -116,6 +116,14 @@ export class FormDetector {
   private fillFailurePromptShown = false;
   /** 当前站点的填充规则（自定义选择器 / 影子穿透覆盖），null 表示未配置 */
   private siteRule: SiteRule | null = null;
+  /**
+   * 本轮由站点规则钉死的账号 / 密码落点
+   *
+   * 只用于给填充回执标注来源（「这次写入用的是你自己的规则」），不参与任何落点决策——
+   * 规则始终以用户设置为准。每轮 `detectForms()` 先清空，避免无规则的站点沿用上一轮标记。
+   */
+  private ruleUsernameField: HTMLInputElement | null = null;
+  private rulePasswordField: HTMLInputElement | null = null;
   /** 站点规则读取Promise（首轮检测依赖，避免规则尚未读到就检测导致选择器被静默跳过） */
   private siteRuleReady: Promise<void> = Promise.resolve();
   /** 站点规则存储监听器（destroy 时移除） */
@@ -450,6 +458,8 @@ export class FormDetector {
     this.verifyCodeFields = [];
     this.checkboxFields = [];
     this.loginButtons = [];
+    this.ruleUsernameField = null;
+    this.rulePasswordField = null;
     this.passwordFieldsSet = new WeakSet();
     this.usernameFieldsSet = new WeakSet();
     this.mobileFieldsSet = new WeakSet();
@@ -776,8 +786,15 @@ export class FormDetector {
    * 会让侧边栏/内联图标继续在被判定为「非登录框」的元素上弹出，覆盖只生效一半。
    *
    * 规则来自用户手填或拾取器，且拾取时唯一的判据是「当时命中一个」——页面改版、切 tab
-   * 或位置型选择器漂移之后就可能指向别的框，而覆盖是权威路径、绕过全部启发式判据，
-   * 因此这里补三道门（详见各分支注释）。三道门都只是「不覆盖，交回启发式」，不新增拒填路径。
+   * 或位置型选择器漂移之后就可能指向别的框。这里的取舍是**能确定落点时一律照用户设置执行**：
+   * 作废只发生在「这条规则本身指不出唯一那个框」时（语法非法、超出长度预算、作用域选择器命中
+   * 多个可见字段、同一裸选择器跨 shadow 根命中多根、穿透总闸已关闭），不再按字段语义判据否决
+   * 一个明确指向单框的选择器——`type="text"` 的密码框（`name="passCode"` 是真实写法）和有意把
+   * 口令当密码存的掩码框都必须照原样工作，静默作废只会换来「我配的规则没生效」这一更难排查的
+   * 结论。歧义时宁可不猜：这些路径只留 debug 日志（生产构建裁剪），但那时没有任何一格被标成
+   * 「来自规则」，用户看到的是自动检测的原生行为，而不是一个被悄悄改写的落点。落点确定时的
+   * 另一处保障是来源可见：本轮钉下的框记进 `ruleUsernameField` / `rulePasswordField`，
+   * 填充回执据此标注「来自站点规则」，详见 {@link pickFillAckKind}。
    */
   private applySiteRuleSelectors(): void {
     const sel = this.siteRule?.customSelectors;
@@ -829,26 +846,23 @@ export class FormDetector {
       );
     };
 
-    let username = pick(sel.username);
-    let password = pick(sel.password);
+    const username = pick(sel.username);
+    const password = pick(sel.password);
 
-    // 门一：密码落点是「不打码、却自己声明了一次性口令语义」的框（`autocomplete="one-time-code"`、
-    // name/placeholder 含验证码/otp/code 等）时不认。静态密码进短信码框是这条路径最常见的事故——
-    // 短信码站点根本没有密码框，而 Options 表单曾要求选择器成对填写，用户为了钉住账号框只能随手
-    // 再指一个框，唯一还能点的就是验证码框。
-    // 掩码框（`type="password"`）故意不在拒绝之列：银行口令卡、券商动态密码就是这么设计的，用户显式
-    // 钉它属于有意为之；拒绝会把凭证从「用户指定的那个框」挪到「启发式另选的框」，那是更坏的结果。
-    // 账号侧也不做同样的拒绝：`name="code"` 是学工号 / 工号登录的真实写法，拒了就是把可用站点判死。
+    // 记下这两个落点，供填充回执标注来源。规则**始终以用户设置为准**，判据只用来标注、不用来否决：
+    // 把 `type="text"` 的密码框（`name="passCode"` 这类真实写法）或掩码口令框按语义判据悄悄作废，
+    // 用户看到的是「我配的规则没生效」，那比一个标注了来源的落点更难排查。
+    this.ruleUsernameField = username ?? null;
+    this.rulePasswordField = password ?? null;
+
+    // 两种可疑形态只留日志（回执会把来源摊到用户眼前，这里再吵一句没意义）：
+    // ① 明文却声明一次性口令语义的框被指认为密码框，多半是配错了（短信码站点没有密码框）
+    // ② 账号与密码指向同一个框，后写入的密码会顶掉账号值
     if (password && password.type !== 'password' && looksLikeCodeField(password)) {
-      logger.debug('FormDetector: 规则的密码选择器指向明文的验证码/口令框，该侧覆盖已回退自动检测');
-      password = undefined;
+      logger.debug('FormDetector: 规则的密码选择器指向声明了验证码语义的框，请复核这条规则');
     }
-    // 门二：一个框不可能同时是账号框和密码框。两条覆盖都成立时后写会盖掉前写，
-    // 且回执仍报「已填充」，用户看不出账号被密码顶掉了。
     if (username && username === password) {
-      logger.debug('FormDetector: 规则的账号与密码选择器命中同一个字段，两条覆盖均已跳过');
-      username = undefined;
-      password = undefined;
+      logger.debug('FormDetector: 规则的账号与密码选择器命中同一个字段，账号值会被密码覆盖');
     }
     if (!username && !password) return;
 
@@ -1467,7 +1481,7 @@ export class FormDetector {
         // 右键菜单填充：目标为被右键的输入框（由 contextMenuTarget 记忆），
         // 消息由 background 经 tabs.sendMessage({ frameId }) 定向本 frame
         fillContextMenuTarget(message.data).then(result => {
-          if (result.success) this.showFillAck(resolveContextMenuInputTarget(), result.outcome);
+          if (result.success) this.showFillAck(resolveContextMenuInputTarget(), this.pickFillAckKind(result.outcome));
           sendResponse(result);
         });
         return true;
@@ -1741,16 +1755,35 @@ export class FormDetector {
    *
    * 侧边栏 / popup 在填充成功后会各自关闭，快捷键与右键菜单同样没有页面内提示，
    * 回执胶囊因此锚定在刚写入的那个字段下缘，让确认动作发生在用户视线当前位置。
-   * `unverified`（写入成功但站点未必登记了 input 事件）换成「请核对」文案，
-   * 因为这一档真正需要用户看一眼。胶囊只渲染固定文案，不含任何填充值。
+   * 档位由调用方算好传入：`unverified`（写入成功但站点未必登记了 input 事件）要让用户看一眼，
+   * 来自站点规则的写入必须标明来源——规则绕过全部启发式判据，落点合不合意只有用户能判断。
+   * 胶囊只渲染固定文案，不含任何填充值。
    *
    * @param field - 刚写入值的字段，无有效字段时静默跳过
-   * @param outcome - 填充成功档位，来自 FillResult.outcome
+   * @param kind - 回执档位，见 {@link FillAckKind}
    */
-  private showFillAck(field: HTMLElement | null, outcome?: FillOutcome): void {
+  private showFillAck(field: HTMLElement | null, kind: FillAckKind): void {
     // 填充路径含 await 复检窗口；destroy() 已执行后不得再重建胶囊/宿主与定时器
     if (!field || this.disposed) return;
-    getFillAckChip().show(field, outcome === 'unverified' ? 'check' : 'filled', this.floatingButtonConfig.theme);
+    getFillAckChip().show(field, kind, this.floatingButtonConfig.theme);
+  }
+
+  /**
+   * 按锚定格是否来自站点规则、以及它像不像验证码框，选回执档位
+   *
+   * 次序是 `ruleCodeLike > rule > check > filled`：来源是用户可以永久修掉的东西，
+   * 落点错了比这一次没登记 input 事件更值得先看一眼，所以「这是你的规则写的」排在
+   * 「请核对」之前。档位只描述**被锚定的那一格**——只钉一侧的规则不该在自动检测选中的
+   * 另一格上自称来自规则。
+   * @param outcome - FillResult.outcome
+   * @param viaSiteRule - 锚定格的落点是否来自站点规则
+   * @param ruleTargetCodeLike - 锚定格是否「未打码却声明了一次性口令语义」的规则落点
+   */
+  private pickFillAckKind(outcome?: FillOutcome, viaSiteRule?: boolean, ruleTargetCodeLike?: boolean): FillAckKind {
+    if (ruleTargetCodeLike) return 'ruleCodeLike';
+    if (viaSiteRule) return 'rule';
+    if (outcome === 'unverified') return 'check';
+    return 'filled';
   }
 
   /**
@@ -1817,7 +1850,6 @@ export class FormDetector {
 
       // 回执锚点：记下真正写进去的那个框，密码框优先（用户最关心它有没有落进去）
       let ackField: HTMLInputElement | null = null;
-
       // 填充用户名（仅选取仍在文档中且可见的字段，避免写入已分离的过期节点）
       if (data.username) {
         // 手机号 + 短信码登录页既没有账号框也没有密码框，而条目里的 username 存的就是手机号。
@@ -1874,10 +1906,20 @@ export class FormDetector {
         result.message = tl('cs.fd.fillIncomplete');
       }
 
+      // 来源标注只看**被锚定的那一格**（回执胶囊与提示语说的就是它）：只钉账号一侧的规则
+      // 不该在自动检测选中的密码框上自称「来自站点规则」，那会把用户推去改一个本就留空的选择器。
+      // `ruleCodeLike` 同样两格都查——账号值被写进一个声明了口令语义的明文框，是同一种配错。
+      const ackFromRule =
+        ackField !== null && (ackField === this.ruleUsernameField || ackField === this.rulePasswordField);
+      const ackCodeLike =
+        ackField !== null && ackFromRule && ackField.type !== 'password' && looksLikeCodeField(ackField);
+      if (ackFromRule) result.viaSiteRule = true;
+      if (ackCodeLike) result.ruleTargetCodeLike = true;
+
       // 回执只跟着「真正写进去的字段」走：失败路径必然一个字段都没写（ackField 仍为 null），
       // 此时提示语由发起方（侧边栏 / popup / 内联面板）展示且面板刻意保持打开，
       // 再叠一枚胶囊就是同一件事说两遍
-      this.showFillAck(ackField, result.outcome);
+      this.showFillAck(ackField, this.pickFillAckKind(result.outcome, ackFromRule, ackCodeLike));
 
       // 按配置自动触发登录（仅账号密码场景，且密码字段已实际填充）
       // 当 autoLogin 为 true 时强制触发登录
@@ -1982,7 +2024,7 @@ export class FormDetector {
         this.mobileFields,
       );
 
-      this.showFillAck(ackField);
+      this.showFillAck(ackField, 'filled');
 
       setTimeout(() => {
         this.hideSidePanel();
@@ -2044,7 +2086,7 @@ export class FormDetector {
       }
 
       if (result.success) {
-        this.showFillAck(field, result.outcome);
+        this.showFillAck(field, this.pickFillAckKind(result.outcome));
         setTimeout(() => {
           this.hideSidePanel();
         }, 300);

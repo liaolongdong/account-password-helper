@@ -5,8 +5,8 @@
  * 侧边栏填充成功后 300ms 自动关闭、快捷键与右键菜单则完全没有页面内提示，
  * 这枚胶囊是「值到底落进框了没有」的唯一就地答案，因此它必须满足：
  * 1. 隔离：closed 影子树 + `all: initial` 宿主，外部只凭 `data-aph` 找到宿主节点，整帧只挂一次；
- * 2. 文案：只渲染固定回执，两档（已填充 / 请核对）走同一套 i18n-lite key，除此之外不写任何内容
- *    ——填充值绝不能出现在 DOM 里；
+ * 2. 文案：只渲染固定回执，四档（已填充 / 请核对 / 来自站点规则 / 来自规则且该框像验证码框）
+ *    走同一套 i18n-lite key，除此之外不写任何内容——填充值与选择器都绝不能出现在 DOM 里；
  * 3. 落位：默认贴在字段下缘，下缘越界翻到字段上方，字段整体在视口外时夹进视口内而不是消失；
  * 4. 生命周期：定时自动收起、期间的再次展示换文案并重置计时、字段被 SPA 换掉后滚动一帧即收起、
  *    destroy 移除宿主并解绑监听；
@@ -85,13 +85,20 @@ describe('填充回执胶囊', () => {
     expect(chipEl()).not.toBeNull();
   });
 
-  it('两档回执各取自己的文案，且胶囊里除了这句什么都不渲染', () => {
+  it('四档回执各取自己的文案，且胶囊里除了这句什么都不渲染', () => {
     chip.show(field, 'filled', DEFAULT_THEME);
     expect(chipEl().textContent).toBe(tl('cs.ack.filled'));
     expect(chipEl().getAttribute('role')).toBe('status');
 
     chip.show(field, 'check', DEFAULT_THEME);
     expect(chipEl().textContent).toBe(tl('cs.ack.check'));
+
+    // 这两档是「这次写入来自你配的站点规则」的唯一页面内出口，文案接错就等于把来源说丢
+    chip.show(field, 'rule', DEFAULT_THEME);
+    expect(chipEl().textContent).toBe(tl('cs.ack.rule'));
+
+    chip.show(field, 'ruleCodeLike', DEFAULT_THEME);
+    expect(chipEl().textContent).toBe(tl('cs.ack.ruleCodeLike'));
     expect(chipEl().children).toHaveLength(1);
   });
 

@@ -124,7 +124,7 @@
   "options.siteRules.pickUsername": "Pick the username field on the page",
   "options.siteRules.pickPassword": "Pick the password field on the page",
   "options.siteRules.pickHint": "Pick switches to an open tab for this domain; click the input there and the selector is filled in automatically. Picking works on the top-level page only; type the selector manually when the login form sits inside an iframe.",
-  "options.siteRules.pickCodeLikeWarning": "Captured, but this looks like a verification-code / one-time-code input — a password normally does not belong there. If this site has no password field, leave the password selector empty.",
+  "options.siteRules.pickCodeLikeWarning": "Captured, but this field declares verification-code / one-time-code semantics — worth double-checking for an account as well as a password. Your rule applies as configured and the fill receipt marks it as coming from a site rule; if this site has no password field, leave the password selector empty.",
   "options.siteRules.pickStarted": "Switched to the target page; click the input there.",
   "options.siteRules.pickActiveHint": "Picking the {field} field on the page… press Esc to cancel",
   "options.siteRules.pickDomainRequired": "Enter a valid domain before using Pick.",

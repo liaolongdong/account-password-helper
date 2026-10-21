@@ -118,6 +118,8 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     // 填充成功后的页面内回执（胶囊锚定在刚写入的字段下缘，不含任何填充值）
     'cs.ack.filled': '已填充',
     'cs.ack.check': '已填充，请核对',
+    'cs.ack.rule': '已填充 · 站点规则',
+    'cs.ack.ruleCodeLike': '站点规则写入 · 该框像是验证码框',
     'cs.cm.noTarget': '右键点击的输入框已不可用，请重新右键输入框后再填充',
     'cs.cm.fillFailed': '填充失败，请重试',
     'cs.cm.notEditable': '该输入区域暂不支持右键填充（仅支持普通输入框）',
@@ -293,6 +295,8 @@ export const LITE_MESSAGES: Record<LiteLocale, Record<string, string>> = {
     'cs.fd.totpFillError': 'An error occurred while filling the 2FA code',
     'cs.ack.filled': 'Filled',
     'cs.ack.check': 'Filled, please verify',
+    'cs.ack.rule': 'Filled · site rule',
+    'cs.ack.ruleCodeLike': 'Filled by your site rule · this looks like a code field',
     'cs.cm.noTarget': 'The right-clicked input is no longer available. Right-click the input again to fill.',
     'cs.cm.fillFailed': 'Fill failed. Please try again.',
     'cs.cm.notEditable': 'Right-click fill is not supported for this field (standard input fields only).',

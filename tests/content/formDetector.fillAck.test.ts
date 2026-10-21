@@ -167,7 +167,8 @@ describe('填充成功回执的接线', () => {
     expect(result.success).toBe(true);
     expect(result.outcome).toBe('verified');
     expect(ack).toHaveBeenCalledTimes(1);
-    expect(ack.mock.calls[0]).toEqual([pwd, 'verified']);
+    // 第二参是回执档位（胶囊文案分档），不是 FillResult.outcome：无规则参与时是 `filled`
+    expect(ack.mock.calls[0]).toEqual([pwd, 'filled']);
   });
 
   it('只填进账号框时锚点退化为账号框', async () => {
@@ -194,7 +195,7 @@ describe('填充成功回执的接线', () => {
     const result = await (detector as any).fillPasswordWithResult({ username: 'u-name', password: 'p-word' });
 
     expect(result.outcome).toBe('unverified');
-    expect(ack.mock.calls[0]).toEqual([expect.anything(), 'unverified']);
+    expect(ack.mock.calls[0]).toEqual([expect.anything(), 'check']);
   });
 
   it('一个字段都没写进去时不回执（失败提示归发起方）', async () => {
@@ -312,7 +313,7 @@ describe('填充成功回执的接线', () => {
     expect(result.success).toBe(true);
     expect(result.outcome).toBe('unverified');
     expect(ack).toHaveBeenCalledTimes(1);
-    expect(ack.mock.calls[0]).toEqual([totp, 'unverified']);
+    expect(ack.mock.calls[0]).toEqual([totp, 'check']);
   });
 
   it('右键菜单填充成功后回执锚在被右键的那个框，并带上写入档位', async () => {
@@ -329,7 +330,7 @@ describe('填充成功回执的接线', () => {
     await vi.waitFor(() => expect(ack).toHaveBeenCalledTimes(1));
 
     // 档位一起钉：只断锚点会让「站点改写值后仍报乐观回执」从测试缝里漏掉
-    expect(ack.mock.calls[0]).toEqual([target, 'verified']);
+    expect(ack.mock.calls[0]).toEqual([target, 'filled']);
     expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true, outcome: 'verified' }));
   });
 
@@ -348,7 +349,7 @@ describe('填充成功回执的接线', () => {
     handler({ type: MessageType.CONTEXT_MENU_FILL, data: { value: 'u-name' } }, {}, sendResponse);
     await vi.waitFor(() => expect(ack).toHaveBeenCalledTimes(1));
 
-    expect(ack.mock.calls[0]).toEqual([target, 'unverified']);
+    expect(ack.mock.calls[0]).toEqual([target, 'check']);
     expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ success: true, outcome: 'unverified' }));
   });
 

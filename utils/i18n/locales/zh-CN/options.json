@@ -124,7 +124,7 @@
   "options.siteRules.pickUsername": "在页面上拾取用户名输入框",
   "options.siteRules.pickPassword": "在页面上拾取密码输入框",
   "options.siteRules.pickHint": "点「拾取」会自动切到已打开的该站点标签页；在页面上点一下输入框即可自动填入选择器。拾取只作用于顶层页面，登录框在 iframe 内时请手写选择器。",
-  "options.siteRules.pickCodeLikeWarning": "已拾取，但这个框看起来是验证码 / 动态口令输入框，密码一般不该填进它。这个站点没有密码框的话，请把密码选择器留空。",
+  "options.siteRules.pickCodeLikeWarning": "已拾取，但这个框声明了验证码 / 动态口令语义，账号或密码写进这里都建议再确认一次。规则会照你的设置生效，填充回执会标注「来自站点规则」；这个站点没有密码框的话，请把密码选择器留空。",
   "options.siteRules.pickStarted": "已切换到目标页面，请在页面上点击输入框。",
   "options.siteRules.pickActiveHint": "正在目标页面拾取{field}输入框…按 Esc 取消",
   "options.siteRules.pickDomainRequired": "请先填写并确认域名，再使用拾取。",
