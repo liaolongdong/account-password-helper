@@ -231,6 +231,25 @@ export const VERIFY_CODE_SELECTORS = [
   'input[placeholder*="动态口令"]',
 ] as const;
 
+/**
+ * 判断输入框自身是否命中「验证码字段」选择器集合
+ *
+ * 与 `detectForms` 里验证码桶用的是同一份选择器，因此判定结果必然能被验证码桶收下——
+ * 用它做手机号桶的排除条件才不会让字段两头都落空。`looksLikeCodeField` 是关键词宽集，
+ * 只用于次序与语义调权，不能用来做「收进哪个桶」的硬判定。
+ *
+ * @param input - 待判定的输入框
+ * @returns 是否命中验证码选择器
+ */
+export function matchesVerifyCodeSelectors(input: HTMLInputElement): boolean {
+  try {
+    return input.matches(VERIFY_CODE_SELECTORS.join(','));
+  } catch {
+    // 选择器集合由本文件维护，正常不会走到；语法意外时按「不是验证码框」处理，维持既有分桶
+    return false;
+  }
+}
+
 /** 登录按钮关键词 */
 export const LOGIN_BUTTON_KEYWORDS = [
   '登录',

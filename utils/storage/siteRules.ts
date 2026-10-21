@@ -10,12 +10,17 @@ import type { FillEntry } from '@/utils/types';
 
 /**
  * 自定义选择器配置
+ *
+ * 两侧都是**可选**的：只配一侧 = 只把那一侧的字段来源钉死，另一侧继续走自动检测。
+ * 短信验证码登录页只有账号框、根本没有密码框，强制成对填写会逼用户随手再指一个框当密码框，
+ * 而规则覆盖是权威路径、绕过全部启发式判据——密码因此会被写进验证码框（实测成因）。
+ * 旧规则两侧齐全，读作「都覆盖」，向后兼容无需迁移。
  */
 export interface CustomSelectors {
-  /** 用户名字段 CSS 选择器 */
-  username: string;
-  /** 密码字段 CSS 选择器 */
-  password: string;
+  /** 用户名字段 CSS 选择器（可选，未配置即该侧走自动检测） */
+  username?: string;
+  /** 密码字段 CSS 选择器（可选，未配置即该侧走自动检测） */
+  password?: string;
 }
 
 /**

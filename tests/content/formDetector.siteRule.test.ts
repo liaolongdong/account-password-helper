@@ -199,6 +199,138 @@ describe('FormDetector 站点规则消费', () => {
     });
   });
 
+  /**
+   * 规则覆盖是权威路径，绕过全部启发式判据，所以落点必须自己守住边界。
+   *
+   * 实测事故：短信码登录页没有密码框，而 Options 曾要求选择器成对填写，用户为了钉住账号框
+   * 只能把「密码框」随手指到验证码框上 —— 密码因此被写进短信码输入框，回执还报「已填充」。
+   * 三道门都只做「不覆盖，交回自动检测」，不新增拒填路径。
+   */
+  describe('规则落点的安全门', () => {
+    /** 短信码登录页形状：账号框与验证码框，没有任何密码框 */
+    const buildSmsDom = (): Record<string, HTMLInputElement> => {
+      document.body.innerHTML = `
+        <div><input id="phone" type="tel" placeholder="请输入手机号"></div>
+        <div><input id="code" type="tel" placeholder="请输入验证码" autocomplete="one-time-code" maxlength="6"></div>
+      `;
+      return {
+        phone: document.getElementById('phone') as HTMLInputElement,
+        code: document.getElementById('code') as HTMLInputElement,
+      };
+    };
+
+    it('密码选择器指向验证码框时该侧回退自动检测，账号侧照常生效', async () => {
+      const fields = buildSmsDom();
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#phone', password: '#code' } },
+      });
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      const view = detector as any;
+
+      expect(view.usernameFields).toEqual([fields.phone]);
+      // 关键：密码桶没被规则劫持成验证码框，条目里的密码因此无处可写
+      expect(view.passwordFields).toEqual([]);
+      expect(view.getFieldType(fields.code)).not.toBe('password');
+    });
+
+    it('规则把密码框钉在掩码口令框上时照用（有意配置不被启发式挪走）', async () => {
+      document.body.innerHTML = `
+        <form>
+          <input id="user" type="text" name="username">
+          <input id="pwd" type="password" name="password">
+          <input id="otp" type="password" name="otp" placeholder="动态口令">
+        </form>
+      `;
+      const otp = document.getElementById('otp') as HTMLInputElement;
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#user', password: '#otp' } },
+      });
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      // 银行口令卡、券商动态密码就是「用户要把存的那串值打进这个掩码框」；
+      // 拒绝只会把凭证从用户指定的框挪到启发式另选的框，那是更坏的结果
+      expect((detector as any).passwordFields).toEqual([otp]);
+    });
+
+    it('宽选择器命中多个密码框时让位给不像一次性口令的那个', async () => {
+      document.body.innerHTML = `
+        <form>
+          <input id="user" type="text" name="username">
+          <input id="otp" type="password" name="otp" placeholder="动态口令">
+          <input id="pwd" type="password" name="password" placeholder="登录密码">
+        </form>
+      `;
+      const passwordFields = Array.from(document.querySelectorAll('input[type="password"]')) as HTMLInputElement[];
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: {
+          domain: DOMAIN,
+          customSelectors: { username: '#user', password: 'input[type="password"]' },
+        },
+      });
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      // 旧逻辑取文档顺序首个，会把静态密码写进口令框
+      expect((detector as any).passwordFields).toEqual([passwordFields[1]]);
+    });
+
+    it('账号与密码选择器命中同一个框时两条覆盖都跳过，不出现后写盖前写', async () => {
+      buildLoginDom();
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#a-pwd', password: '#a-pwd' } },
+      });
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      const view = detector as any;
+
+      expect(view.usernameFields).toHaveLength(2);
+      expect(view.passwordFields).toHaveLength(2);
+      // 一个框不可能同时是账号框和密码框：整对覆盖作废，启发式结论与类型缓存都保持原样
+      expect(view.getFieldType(view.usernameFields[0])).toBe('username');
+      expect(view.getFieldType(view.passwordFields[0])).toBe('password');
+    });
+
+    it('账号选择器唯一候选是 name="code" 的框时仍照钉（学号/工号登录不被砍掉）', async () => {
+      document.body.innerHTML = `
+        <form>
+          <input id="sid" type="text" name="code">
+          <input id="pwd" type="password" name="password">
+        </form>
+      `;
+      const sid = document.getElementById('sid') as HTMLInputElement;
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#sid', password: '#pwd' } },
+      });
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      // 口令语义只约束密码落点：账号侧这种写法是站点的真实命名，拒了就是把可用站点判死
+      expect((detector as any).usernameFields).toEqual([sid]);
+    });
+
+    it('宽选择器命中多个但都不像一次性口令时仍取文档顺序首个（存量规则不变）', async () => {
+      document.body.innerHTML = `
+        <form>
+          <input id="user" type="text" name="username">
+          <input id="old" type="password" name="oldPassword">
+          <input id="new" type="password" name="newPassword">
+        </form>
+      `;
+      const old = document.getElementById('old') as HTMLInputElement;
+      installChromeMock(makeConfig(), {
+        [DOMAIN]: { domain: DOMAIN, customSelectors: { username: '#user', password: 'input[type="password"]' } },
+      });
+      detector = await createDetector();
+
+      (detector as any).detectForms();
+      expect((detector as any).passwordFields).toEqual([old]);
+    });
+  });
+
   describe('影子 DOM 穿透开关的判定与适用边界', () => {
     /** 按给定全局配置与站点规则创建实例，读出穿透判定后销毁 */
     const resolvePenetration = async (

@@ -7,6 +7,7 @@ import {
   type StartSelectorPickData,
 } from '@/utils/types';
 import { resolveShadowScopedSelector, SHADOW_SELECTOR_SEPARATOR } from '@/utils/storage/siteRules';
+import { looksLikeCodeField } from './formSelectors';
 
 /**
  * 站点规则选择器拾取器
@@ -332,8 +333,10 @@ export function startSelectorPick(data: StartSelectorPickData): void {
     const requestId = picker.requestId;
     const field = picker.field;
     const domain = picker.domain;
+    // 只读元素自己声明的语义属性，不读值：用于让 Options 在保存前提示「这个框看着像验证码框」
+    const codeLike = target instanceof HTMLInputElement && looksLikeCodeField(target);
     stopSelectorPick();
-    const payload: SelectorPickedData = { domain, field, requestId, selector, unique };
+    const payload: SelectorPickedData = { domain, field, requestId, selector, unique, codeLike };
     try {
       void chrome.runtime.sendMessage({ type: MessageType.SELECTOR_PICKED, data: payload }).catch(error => {
         logger.warn('选择器拾取回传失败:', error);

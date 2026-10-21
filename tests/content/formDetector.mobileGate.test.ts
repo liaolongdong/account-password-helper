@@ -95,6 +95,9 @@ describe('手机号登录页的就绪门与账号回退', () => {
     verifyCode: (detector as any).verifyCodeFields.length,
   });
 
+  /** 填充入口的「表单就绪」判定 */
+  const ready = (): boolean => (detector as any).hasFillableLoginForm;
+
   /** 构造实例并短路掉与判定无关的下游动作 */
   const createDetector = async (): Promise<FormDetector> => {
     const instance = new FormDetector();
@@ -140,8 +143,6 @@ describe('手机号登录页的就绪门与账号回退', () => {
   });
 
   describe('就绪门判定表', () => {
-    const ready = (): boolean => (detector as any).hasFillableLoginForm;
-
     it('手机号 + 验证码：组合成立即视为就绪', async () => {
       buildDom(SMS_LOGIN);
       installChromeMock(makeConfig());
@@ -301,5 +302,67 @@ describe('手机号登录页的就绪门与账号回退', () => {
       expect(writes).toEqual([]);
       expect(result.reason).toBe('no_form');
     }, 20000);
+  });
+
+  /**
+   * 验证码框做成 `type="tel"` 的页面（防旁人偷看短信码 + 数字键盘，国内站点常见）
+   *
+   * `MOBILE_SELECTORS` 含裸 `input[type="tel"]`，而手机号桶先跑、验证码桶只排除账号/手机号桶，
+   * 于是验证码框会被读成手机号框：`verifyCodeFields` 变空 → TOTP 动态码报「未找到验证码输入框」、
+   * 两步接力胶囊不出现，账号回退还会把手机号写进验证码框。判据必须与验证码桶用的是同一份选择器，
+   * 否则字段会两头落空。
+   */
+  describe('tel 型验证码框归验证码桶而不是手机号桶', () => {
+    /** 实测取自 platform.deepseek.com/sign_in：两个框都是 tel，只有 placeholder 与 one-time-code 不同 */
+    const DEEPSEEK_SMS = `
+      <input id="phone" type="tel" placeholder="请输入手机号">
+      <input id="code" type="tel" placeholder="请输入验证码" autocomplete="one-time-code" maxlength="6">
+    `;
+
+    it('分桶：手机号框进账号桶、验证码框进验证码桶，手机号桶为空', async () => {
+      buildDom(DEEPSEEK_SMS);
+      installChromeMock(makeConfig());
+      detector = await createDetector();
+
+      expect(bucketSizes()).toEqual({ username: 1, password: 0, mobile: 0, verifyCode: 1 });
+      expect(ready()).toBe(true);
+    });
+
+    it('填充只写手机号，密码无处可去，验证码框保持空白', async () => {
+      buildDom(DEEPSEEK_SMS);
+      installChromeMock(makeConfig());
+      detector = await createDetector();
+      spyWrites();
+
+      const result = await (detector as any).fillPasswordWithResult({
+        username: '13800000000',
+        password: 'p-word',
+      });
+
+      expect(writes).toEqual([{ id: 'phone', value: '13800000000' }]);
+      expect(result.outcome).toBe('unverified');
+    });
+
+    it('TOTP 动态码能填进 tel 型验证码框（此前报 no_totp_input）', async () => {
+      buildDom(DEEPSEEK_SMS);
+      installChromeMock(makeConfig());
+      detector = await createDetector();
+      spyWrites();
+
+      const result = await (detector as any).fillTotpCode('123456');
+
+      expect(writes).toEqual([{ id: 'code', value: '123456' }]);
+      expect(result.success).toBe(true);
+    });
+
+    it('页面只有 tel 型验证码框时不做账号回退，手机号不会被写进验证码框', async () => {
+      buildDom(`<input id="code" type="tel" placeholder="请输入验证码" autocomplete="one-time-code">`);
+      installChromeMock(makeConfig());
+      detector = await createDetector();
+
+      expect(bucketSizes()).toEqual({ username: 0, password: 0, mobile: 0, verifyCode: 1 });
+      expect(ready()).toBe(false);
+      expect((detector as any).findMobileAccountField()).toBeNull();
+    });
   });
 });

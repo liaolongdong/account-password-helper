@@ -25,6 +25,7 @@ import {
   isPhoneLikeValue,
   looksLikeCodeField,
   looksLikePhoneField,
+  matchesVerifyCodeSelectors,
   normalizeButtonText,
   shouldExcludeButton,
 } from './formSelectors';
@@ -481,10 +482,19 @@ export class FormDetector {
       }
     });
 
-    // 检测手机号码字段（排除已归类为用户名的字段）
+    // 检测手机号码字段（排除已归类为用户名的字段与验证码字段）
+    // `MOBILE_SELECTORS` 含裸 `input[type="tel"]`，而国内短信登录页的验证码框常常也写成
+    // `type="tel"`（防偷看 + 数字键盘）。手机号桶先跑、验证码桶只排除账号/手机号桶，
+    // 于是验证码框会被读成手机号框、`verifyCodeFields` 变空——后果是 TOTP 动态码报
+    // 「未找到验证码输入框」、两步接力胶囊不出现、且账号回退会把手机号写进验证码框。
     const mobileInputs = document.querySelectorAll(MOBILE_SELECTORS.join(',')) as NodeListOf<HTMLInputElement>;
     Array.from(mobileInputs).forEach(input => {
-      if (isElementVisible(input) && !this.mobileFieldsSet.has(input) && !this.usernameFieldsSet.has(input)) {
+      if (
+        isElementVisible(input) &&
+        !this.mobileFieldsSet.has(input) &&
+        !this.usernameFieldsSet.has(input) &&
+        !matchesVerifyCodeSelectors(input)
+      ) {
         this.mobileFields.push(input);
         this.mobileFieldsSet.add(input);
         this.fieldTypeCache.set(input, 'mobile');
@@ -764,6 +774,10 @@ export class FormDetector {
    * 命中即作为权威账号/密码字段覆盖启发式结果（确定性控制），未命中的字段保留启发式结果。
    * 被替换掉的启发式字段必须同步降级类型缓存：`getFieldType` 优先读缓存，只换数组不换缓存
    * 会让侧边栏/内联图标继续在被判定为「非登录框」的元素上弹出，覆盖只生效一半。
+   *
+   * 规则来自用户手填或拾取器，且拾取时唯一的判据是「当时命中一个」——页面改版、切 tab
+   * 或位置型选择器漂移之后就可能指向别的框，而覆盖是权威路径、绕过全部启发式判据，
+   * 因此这里补三道门（详见各分支注释）。三道门都只是「不覆盖，交回启发式」，不新增拒填路径。
    */
   private applySiteRuleSelectors(): void {
     const sel = this.siteRule?.customSelectors;
@@ -773,11 +787,14 @@ export class FormDetector {
     /**
      * 作用域选择器要求唯一：宿主链 + 内层选择器若命中多个可见字段，说明规则已过期或
      * 页面结构变化，宁可不覆盖启发式结果，也不能任选第一个写凭证。
-     * 普通选择器保留既有的「首个可见命中」语义，避免改变存量规则行为。
+     * 普通选择器保留「在多个可见命中里挑一个」的既有能力（`input[type="password"]` 这类
+     * 宽规则是用户有意写的），但次序不再只看文档顺序：带一次性口令语义的框排到最后，
+     * 因为「账号/密码写进验证码框」是同一份规则最坏的落点。
      */
     const pick = (selector: string | undefined): HTMLInputElement | undefined => {
       if (!selector) return undefined;
       const matches = this.queryInRoots<HTMLInputElement>(roots, selector).filter(el => isElementVisible(el));
+      if (matches.length === 0) return undefined;
       if (selector.includes(SHADOW_SELECTOR_SEPARATOR)) {
         if (matches.length > 1) {
           logger.debug('FormDetector: 作用域选择器命中多个可见字段，已跳过');
@@ -804,10 +821,35 @@ export class FormDetector {
           }
         }
       }
-      return matches[0];
+
+      // 严格不替换平局：候选都不带口令语义时结果与旧逻辑的「首个可见命中」逐字节相同
+      return matches.reduce(
+        (best, current) => (looksLikeCodeField(best) && !looksLikeCodeField(current) ? current : best),
+        matches[0],
+      );
     };
-    const username = pick(sel.username);
-    const password = pick(sel.password);
+
+    let username = pick(sel.username);
+    let password = pick(sel.password);
+
+    // 门一：密码落点是「不打码、却自己声明了一次性口令语义」的框（`autocomplete="one-time-code"`、
+    // name/placeholder 含验证码/otp/code 等）时不认。静态密码进短信码框是这条路径最常见的事故——
+    // 短信码站点根本没有密码框，而 Options 表单曾要求选择器成对填写，用户为了钉住账号框只能随手
+    // 再指一个框，唯一还能点的就是验证码框。
+    // 掩码框（`type="password"`）故意不在拒绝之列：银行口令卡、券商动态密码就是这么设计的，用户显式
+    // 钉它属于有意为之；拒绝会把凭证从「用户指定的那个框」挪到「启发式另选的框」，那是更坏的结果。
+    // 账号侧也不做同样的拒绝：`name="code"` 是学工号 / 工号登录的真实写法，拒了就是把可用站点判死。
+    if (password && password.type !== 'password' && looksLikeCodeField(password)) {
+      logger.debug('FormDetector: 规则的密码选择器指向明文的验证码/口令框，该侧覆盖已回退自动检测');
+      password = undefined;
+    }
+    // 门二：一个框不可能同时是账号框和密码框。两条覆盖都成立时后写会盖掉前写，
+    // 且回执仍报「已填充」，用户看不出账号被密码顶掉了。
+    if (username && username === password) {
+      logger.debug('FormDetector: 规则的账号与密码选择器命中同一个字段，两条覆盖均已跳过');
+      username = undefined;
+      password = undefined;
+    }
     if (!username && !password) return;
 
     // 只降级「本轮被替换掉的那一类」字段：未配置的选择器保留启发式结果，

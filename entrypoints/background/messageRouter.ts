@@ -629,7 +629,14 @@ export function setupMessageRouter(): void {
         chrome.runtime
           .sendMessage({
             type: MessageType.SELECTOR_PICKED,
-            data: { domain, field, requestId, selector, unique: raw?.unique === true },
+            data: {
+              domain,
+              field,
+              requestId,
+              selector,
+              unique: raw?.unique === true,
+              codeLike: raw?.codeLike === true,
+            },
           })
           .catch(() => {
             // 没有打开的 Options 页面时无人接收，属正常情况

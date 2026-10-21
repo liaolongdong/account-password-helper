@@ -34,16 +34,30 @@
           >
             <template #default="{ row }">
               <div
-                v-if="row.customSelectors"
+                v-if="hasAnySelector(row)"
                 class="selector-cell"
               >
-                <div class="selector-line">
+                <div
+                  v-if="row.customSelectors?.username"
+                  class="selector-line"
+                >
                   <span class="selector-tag">{{ t('options.siteRules.labelUsername') }}</span>
                   <code :title="row.customSelectors.username">{{ row.customSelectors.username }}</code>
                 </div>
-                <div class="selector-line">
+                <div
+                  v-if="row.customSelectors?.password"
+                  class="selector-line"
+                >
                   <span class="selector-tag">{{ t('options.siteRules.labelPassword') }}</span>
                   <code :title="row.customSelectors.password">{{ row.customSelectors.password }}</code>
+                </div>
+                <!-- 只钉一侧时把「另一侧仍由插件自动识别」写在同一格里：列表是用户回看规则时唯一
+                     能看到的地方，少了这句就会误以为整站的字段来源都被规则管住了 -->
+                <div
+                  v-if="isHalfSelectorRule(row)"
+                  class="selector-line"
+                >
+                  <span class="selector-auto">{{ t('options.siteRules.selectorAutoOther') }}</span>
                 </div>
               </div>
               <span
@@ -191,7 +205,7 @@
               class="selector-field-input"
               :placeholder="t('options.siteRules.formUsernamePlaceholder')"
               clearable
-              @input="revalidateSelectorPair"
+              @input="revalidateSelectors"
             />
             <el-button
               class="selector-pick-button"
@@ -205,6 +219,7 @@
               {{ t('options.siteRules.pick') }}
             </el-button>
           </div>
+          <div class="field-tip">{{ t('options.siteRules.selectorSingleHint') }}</div>
         </el-form-item>
 
         <el-form-item
@@ -217,7 +232,7 @@
               class="selector-field-input"
               :placeholder="t('options.siteRules.formPasswordPlaceholder')"
               clearable
-              @input="revalidateSelectorPair"
+              @input="revalidateSelectors"
             />
             <el-button
               class="selector-pick-button"
@@ -520,9 +535,17 @@ const handleSelectorPickMessage = (message: unknown): void => {
     if (field === 'username') formData.usernameSelector = selector;
     else formData.passwordSelector = selector;
     clearPickState();
-    revalidateSelectorPair();
-    if (data.unique === false) ElMessage.warning(t('options.siteRules.pickNotUnique'));
-    else ElMessage.success(t('options.siteRules.pickSuccess'));
+    revalidateSelectors();
+    // 拾取到的框自己声明了一次性口令语义（验证码 / 动态口令）时，内容脚本会把这一侧的密码覆盖
+    // 退回自动检测。这件事必须当场说清，否则用户只会觉得「规则设了没生效」，回头再叠一条规则。
+    // 两个提示同时成立时只播这一条：不唯一只是要复核选择器，而这一条意味着规则会静默失效。
+    if (field === 'password' && data.codeLike === true) {
+      ElMessage.warning(t('options.siteRules.pickCodeLikeWarning'));
+    } else if (data.unique === false) {
+      ElMessage.warning(t('options.siteRules.pickNotUnique'));
+    } else {
+      ElMessage.success(t('options.siteRules.pickSuccess'));
+    }
     void activateOptionsTab();
     return;
   }
@@ -608,27 +631,23 @@ const FILL_ENTRY_I18N_KEYS: Record<FillEntry, string> = {
 /** 列表列与表单复用的档位标签 */
 const fillEntryLabel = (entry: FillEntry): string => t(FILL_ENTRY_I18N_KEYS[entry]);
 
+/** 该规则是否钉住了任一字段来源（两侧都空 = 只覆盖档位/穿透，选择器列显示空态文案） */
+const hasAnySelector = (rule: SiteRule): boolean =>
+  !!(rule.customSelectors?.username || rule.customSelectors?.password);
+
+/** 该规则是否只钉了一侧，需要在列表里补一句「另一侧仍由插件自动识别」 */
+const isHalfSelectorRule = (rule: SiteRule): boolean =>
+  !!rule.customSelectors?.username !== !!rule.customSelectors?.password;
+
 /**
- * 选择器规则：要么两侧都填、要么都留空，且语法合法
+ * 选择器规则：两侧各自独立，可填可不填，填了就必须语法合法
  *
- * 不能只填一侧：`CustomSelectors` 是成对语义（消费端拿它同时覆盖账号/密码两个字段的来源），
- * 半条规则会让另一侧继续走启发式检测，用户看到的是一张「规则生效了一半」的页面。
- * 两侧都留空则合法——只覆盖填充档位、或只关影子穿透，都是有效规则。
- * 判定读的是 `formData` 而非回调里的 `value`，因为这条规则同时挂在账号与密码两个字段上，
- * 任一侧 blur 都要能对整对字段给出结论。
+ * 曾经要求「要么两侧都填、要么都留空」，理由是半条规则会让另一侧继续走启发式。但短信验证码
+ * 登录页根本没有密码框：想钉住账号框就必须随手再指一个「密码框」，而唯一还能点的框就是
+ * 验证码框——规则覆盖是权威路径、绕过全部启发式判据，于是密码被写进验证码框（实测事故）。
+ * 现在按「配一侧即只钉一侧」表达，未配的侧继续自动检测，这正是用户当时的真实意图。
  */
 const selectorRules = computed(() => [
-  {
-    validator: (_rule: unknown, _value: string, callback: (err?: Error) => void) => {
-      const hasUsername = !!formData.usernameSelector.trim();
-      const hasPassword = !!formData.passwordSelector.trim();
-      if (hasUsername !== hasPassword) {
-        return callback(new Error(t('options.siteRules.validateSelectorPair')));
-      }
-      callback();
-    },
-    trigger: 'blur',
-  },
   {
     validator: (_rule: unknown, value: string, callback: (err?: Error) => void) => {
       const selector = (value ?? '').trim();
@@ -649,18 +668,17 @@ const findRuleByDomain = (domain: string): SiteRule | undefined => {
 };
 
 /**
- * 重新校验「用户名 + 密码」这一对选择器
+ * 重新校验账号与密码两个选择器字段
  *
- * 配对规则同时挂在两个字段上：只校验被改动的那一侧，另一侧已经显示的
- * 「需同时填写或同时留空」提示不会消失。拾取或手动输入任一侧后同时校验两字段，
- * 让提示随配对状态实时出现/消失。
+ * 两侧共用同一条语法规则，但校验是分字段触发的：手动清空一侧后另一侧可能仍显示过期提示，
+ * 因此任一侧改动后把两个字段一起校验，让提示与当前内容同步。
  */
-let selectorPairValidationScheduled = false;
-const revalidateSelectorPair = (): void => {
-  if (!showForm.value || !formRef.value || selectorPairValidationScheduled) return;
-  selectorPairValidationScheduled = true;
+let selectorsValidationScheduled = false;
+const revalidateSelectors = (): void => {
+  if (!showForm.value || !formRef.value || selectorsValidationScheduled) return;
+  selectorsValidationScheduled = true;
   void nextTick(() => {
-    selectorPairValidationScheduled = false;
+    selectorsValidationScheduled = false;
     const validation = formRef.value?.validateField(['usernameSelector', 'passwordSelector']);
     if (validation) void validation.catch(() => {});
   });
@@ -769,7 +787,7 @@ const handleSubmit = async () => {
   const password = formData.passwordSelector.trim();
   // 三项覆盖全为空：新增态是在造一条空壳，编辑态是在撤销这个站点的全部特殊处理，两种意图
   // 不能按同一条规则处置（见下面 clearingAll 分支）。
-  const clearingAll = formData.fillEntry === FOLLOW_GLOBAL && formData.penetrateShadow && !(username && password);
+  const clearingAll = formData.fillEntry === FOLLOW_GLOBAL && formData.penetrateShadow && !(username || password);
   // 新增态拒绝入库：只带一个域名的规则什么都不做，却会在列表里长期占一行，
   // 让人以为这个站点已被管住（导入侧对同样的空规则也是直接剔除）。
   if (clearingAll && !editingRule.value) {
@@ -777,9 +795,14 @@ const handleSubmit = async () => {
     return;
   }
   const patch: Omit<SiteRule, 'domain'> = { penetrateShadow: formData.penetrateShadow };
-  // 选择器成对写入（校验已保证两侧同时有或同时无），两侧都空时干脆不写这个键，
-  // 而不是留一条 `{ username: '', password: '' }`：消费端按「键存在」决定是否覆盖，空串只会变成两条永不命中的查询
-  if (username && password) patch.customSelectors = { username, password };
+  // 只写非空的那一侧（空侧 = 该侧继续自动检测），两侧都空时干脆不写这个键，
+  // 而不是留一条 `{ username: '', password: '' }`：消费端按「键存在且非空」决定是否覆盖，空串只会变成一条永不命中的查询
+  if (username || password) {
+    patch.customSelectors = {
+      ...(username ? { username } : {}),
+      ...(password ? { password } : {}),
+    };
+  }
   // 「跟随全局」= 不写该字段，而不是写死当前全局档位：写死会让用户之后的全局设置变更
   // 在这个站点上被永久挡掉，而那并不是他设规则时的意思。
   if (formData.fillEntry !== FOLLOW_GLOBAL) patch.fillEntry = formData.fillEntry;
@@ -966,6 +989,12 @@ function openPrefilledRule(rawDomain: string): void {
   font-size: 12px;
   color: #606266;
   white-space: nowrap;
+}
+
+/* 半条规则的补充说明：与 .selector-tag / code 同字号，但它是解释不是内容，用次级灰 */
+.selector-auto {
+  font-size: 12px;
+  color: #909399;
 }
 
 /* 覆盖档位标签：与选择器行的 .selector-tag 同族，但它是「一档设置」不是「一段代码」，

@@ -363,6 +363,13 @@ export interface SelectorPickedData {
   requestId: string;
   selector: string;
   unique: boolean;
+  /**
+   * 拾取到的那个框自身是否声明了一次性口令语义（`autocomplete="one-time-code"`、
+   * name/placeholder 含验证码/otp/code 等）。仅作 UI 提示元数据，不落库：
+   * 用户常在这样的框上还留着「密码框」的选择器，值得在保存前提醒一句，
+   * 但内容脚本是否真的忽略该侧覆盖另按落点是否打码判定，两者口径不同。
+   */
+  codeLike?: boolean;
 }
 
 /** 取消拾取 */
