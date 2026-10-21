@@ -8,7 +8,8 @@
  * 2. 文案：只渲染固定回执，四档（已填充 / 请核对 / 来自站点规则 / 来自规则且该框像验证码框）
  *    走同一套 i18n-lite key，除此之外不写任何内容——填充值与选择器都绝不能出现在 DOM 里；
  * 3. 落位：默认贴在字段下缘，下缘越界翻到字段上方，字段整体在视口外时夹进视口内而不是消失；
- * 4. 生命周期：定时自动收起、期间的再次展示换文案并重置计时、字段被 SPA 换掉后滚动一帧即收起、
+ * 4. 生命周期：定时自动收起（普通两档 1.6s、规则来源两档 3.6s / 4.8s）、期间的再次展示换文案
+ *    并重置计时、规则档悬停暂停收起且点击即让位、字段被 SPA 换掉后滚动一帧即收起、
  *    destroy 移除宿主并解绑监听；
  * 5. 减弱档：入场那 3px 位移归零，淡入淡出保留。
  *
@@ -24,8 +25,10 @@ import { installDomLayout, type DomLayout } from '../helpers/domLayout';
 /** 宿主定位凭据（closed 影子树外部找节点的唯一入口） */
 const HOST_SELECTOR = '[data-aph="fill-ack-chip"]';
 
-/** 自动收起时长，与被测模块的 ACK_VISIBLE_MS 同值 */
+/** 自动收起时长，与被测模块的 ACK_DWELL_MS 同值 */
 const ACK_VISIBLE_MS = 1600;
+const RULE_DWELL_MS = 3600;
+const RULE_CODE_LIKE_DWELL_MS = 4800;
 
 /** 胶囊在 jsdom 里取不到实际尺寸时使用的兜底宽高，与被测模块一致 */
 const FALLBACK_WIDTH = 150;
@@ -100,6 +103,68 @@ describe('填充回执胶囊', () => {
     chip.show(field, 'ruleCodeLike', DEFAULT_THEME);
     expect(chipEl().textContent).toBe(tl('cs.ack.ruleCodeLike'));
     expect(chipEl().children).toHaveLength(1);
+  });
+
+  it('只有规则来源那两档开放指针事件，其余档位对页面透明', () => {
+    chip.show(field, 'filled', DEFAULT_THEME);
+    expect(chipEl().classList.contains('aph-ack--interactive')).toBe(false);
+
+    chip.show(field, 'check', DEFAULT_THEME);
+    expect(chipEl().classList.contains('aph-ack--interactive')).toBe(false);
+
+    chip.show(field, 'rule', DEFAULT_THEME);
+    expect(chipEl().classList.contains('aph-ack--interactive')).toBe(true);
+
+    // 档位会换：从规则档退回普通档时必须把指针事件收回，否则下一次填充又拦一次点击
+    chip.show(field, 'filled', DEFAULT_THEME);
+    expect(chipEl().classList.contains('aph-ack--interactive')).toBe(false);
+  });
+
+  it('规则那两档停留更久，普通两档仍是 1.6s', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      chip.show(field, 'filled', DEFAULT_THEME);
+      vi.advanceTimersByTime(ACK_VISIBLE_MS);
+      expect(chipEl().classList.contains('visible')).toBe(false);
+
+      chip.show(field, 'rule', DEFAULT_THEME);
+      vi.advanceTimersByTime(ACK_VISIBLE_MS);
+      expect(chipEl().classList.contains('visible')).toBe(true);
+      vi.advanceTimersByTime(RULE_DWELL_MS - ACK_VISIBLE_MS);
+      expect(chipEl().classList.contains('visible')).toBe(false);
+
+      chip.show(field, 'ruleCodeLike', DEFAULT_THEME);
+      vi.advanceTimersByTime(RULE_CODE_LIKE_DWELL_MS - 1);
+      expect(chipEl().classList.contains('visible')).toBe(true);
+      vi.advanceTimersByTime(1);
+      expect(chipEl().classList.contains('visible')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('悬停暂停收起，指针离开后重新计时，点一下立刻让位', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      chip.show(field, 'ruleCodeLike', DEFAULT_THEME);
+      vi.advanceTimersByTime(RULE_CODE_LIKE_DWELL_MS - 200);
+      chipEl().dispatchEvent(new Event('mouseenter'));
+      // 悬停期间不倒计时：正读这句话时不该消失
+      vi.advanceTimersByTime(RULE_CODE_LIKE_DWELL_MS);
+      expect(chipEl().classList.contains('visible')).toBe(true);
+
+      chipEl().dispatchEvent(new Event('mouseleave'));
+      vi.advanceTimersByTime(RULE_CODE_LIKE_DWELL_MS - 1);
+      expect(chipEl().classList.contains('visible')).toBe(true);
+      vi.advanceTimersByTime(1);
+      expect(chipEl().classList.contains('visible')).toBe(false);
+
+      chip.show(field, 'rule', DEFAULT_THEME);
+      chipEl().dispatchEvent(new Event('click'));
+      expect(chipEl().classList.contains('visible')).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('默认贴在字段下缘，字段下缘越界时翻到字段上方', () => {

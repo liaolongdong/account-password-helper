@@ -15,8 +15,26 @@ import type { ThemeName } from '@/utils/theme';
 import { applyThemeTokensToHost } from '@/utils/theme';
 import { tl } from '@/utils/i18n-lite';
 
-/** 回执停留时长（毫秒）：短到不打扰输入，长到读得完一句话 */
-const ACK_VISIBLE_MS = 1600;
+/** 档位 → 自动收起时长（毫秒） */
+const ACK_DWELL_MS: Record<FillAckKind, number> = {
+  /** 普通回执：短到不打扰输入，长到读得完一句话 */
+  filled: 1600,
+  check: 1600,
+  /** 规则来源那两档要读完、还要留出「这不对，去改规则」的反应时间 */
+  rule: 3600,
+  ruleCodeLike: 4800,
+};
+
+/**
+ * 只有规则来源那两档接受指针事件
+ *
+ * 胶囊贴在字段下缘，而用户下一步常点是「获取验证码」或提交按钮——多一块能拦截点击的
+ * 小方片就多一次误吞，所以默认保持对指针透明。`rule` / `ruleCodeLike` 例外：这两档的
+ * 价值恰恰是让用户停下来读完并去改规则，值得为它付出一枚小尺寸控件的命中面积。
+ * 仍不设 `tabindex`：加入侵任意站点的 Tab 顺序是更宽的交互改动，而这句回执没有需要
+ * 键盘触达的操作。
+ */
+const isInteractiveKind = (kind: FillAckKind): boolean => kind === 'rule' || kind === 'ruleCodeLike';
 
 /** 胶囊与字段下缘的间距（像素） */
 const ACK_GAP = 6;
@@ -89,6 +107,11 @@ export const fillAckChipStyles = `
   transform: translateY(0);
 }
 
+/* 规则来源那两档才开放指针事件，让悬停可以暂停收起（默认档位保持对页面透明） */
+.aph-ack.aph-ack--interactive {
+  pointer-events: auto;
+}
+
 /*
  * 减弱动效：入场那 3px 上浮关掉，淡入淡出保留——它是「回执出现在哪个字段上」的唯一
  * 过渡线索，全关会让突然出现读起来像页面闪烁。口径与接力活码胶囊的减弱档一致。
@@ -111,6 +134,8 @@ export class FillAckChip {
 
   /** 当前锚定的字段（回执落点，仅用于定位与存活性检查） */
   private field: HTMLElement | null = null;
+  /** 当前档位（决定停留时长与是否接受指针事件） */
+  private kind: FillAckKind = 'filled';
   /** 胶囊是否展示中 */
   private visible = false;
   /** 自动收起定时器 */
@@ -135,8 +160,10 @@ export class FillAckChip {
     if (!chipEl) return;
 
     this.field = field;
+    this.kind = kind;
     const textEl = chipEl.querySelector('.aph-ack-text');
     if (textEl) textEl.textContent = tl(ACK_TEXT_KEYS[kind]);
+    chipEl.classList.toggle('aph-ack--interactive', isInteractiveKind(kind));
 
     this.position();
     this.visible = true;
@@ -198,6 +225,18 @@ export class FillAckChip {
     const textEl = document.createElement('span');
     textEl.className = 'aph-ack-text';
     this.chipEl.appendChild(textEl);
+
+    // 悬停暂停计时：`rule` / `ruleCodeLike` 要说清的是「这次落点来自你的规则」，
+    // 用户正读这句的时候让它消失，等于把唯一的可发现性窗口关掉。离开指针后重新计时。
+    this.chipEl.addEventListener('mouseenter', () => {
+      if (this.visible) this.stopHideTimer();
+    });
+    this.chipEl.addEventListener('mouseleave', () => {
+      if (this.visible) this.restartHideTimer();
+    });
+    // 点一下就视为读完，立刻收起：胶囊占的是表单下方的空间，早点让位少一次误吞
+    this.chipEl.addEventListener('click', () => this.hide());
+
     this.shadowRoot.appendChild(this.chipEl);
 
     document.body.appendChild(this.shadowHost);
@@ -237,7 +276,7 @@ export class FillAckChip {
    */
   private restartHideTimer(): void {
     this.stopHideTimer();
-    this.hideTimer = setTimeout(() => this.hide(), ACK_VISIBLE_MS);
+    this.hideTimer = setTimeout(() => this.hide(), ACK_DWELL_MS[this.kind]);
   }
 
   private stopHideTimer(): void {
