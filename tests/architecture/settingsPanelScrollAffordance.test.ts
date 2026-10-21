@@ -22,9 +22,9 @@
  *    可供性反而比改动前更低。两套体系只能留一套，这是本文件唯一一条「禁止存在」判据；
  * 4. 滚动容器的下圆角 == 卡片圆角，否则方角的滚动条末端会戳出 `.settings-panel` 的圆弧。
  *
- * 另有一组判据钉底缘渐隐的四条不变量：`position: sticky` + `bottom: 0`（改成 static 就会跟着内容
- * 滚走、变成贴在末行上的一条白带）；`height == padding-block`（高一点就洗白末行的字）；
- * `margin-bottom == -height`（归零则白给一段可滚距离，实测代价 +16px）；渐变必须是
+ * 另有一组判据钉渐隐的四条不变量：`position: sticky` + `bottom: 0`（改成 static 就会跟着内容
+ * 滚走、变成贴在末行上的一条白带）；`height ≤ 底部内边距`（越过就洗白末行的字，等号算合法——
+ * 淡出强度不该被间距绑死）；`margin-bottom == -height`（归零则白给一段可滚距离）；渐变必须是
  * 「全透 → 卡片白」的**线性**两段，且全表 `radial-gradient` 计数为 0——最后这条是把上一版
  * 翻车的签名直接钉死，防止有人再「优化」回椭圆投影。
  *
@@ -86,10 +86,18 @@ function borderColorOf(body: string, where: string): string {
   return m[1].toLowerCase();
 }
 
-/** 从 `padding: <块> <行>` 两值简写里取块向内边距；别的形态直接抛 */
-function paddingBlockPx(body: string): number {
-  const m = decl(body, 'padding', '.settings-content').match(/^(\d+(?:\.\d+)?)px\s+\d+(?:\.\d+)?px$/);
-  if (!m) throw new Error('.settings-content 的 padding 不是「块 行」两值简写，联动口径需复核');
+/**
+ * 从 `padding` 简写里取下内边距（px）
+ *
+ * 3/4 值取下值；1/2 值时上下同值取首值。形态不认识就抛——静默按 0 算会把
+ * 「内边距被改成不对称」读成正常值，而淡出高度正是靠这个值兜底的。
+ */
+function paddingBottomPx(body: string): number {
+  const raw = decl(body, 'padding', '.settings-content');
+  const parts = raw.split(/\s+/);
+  const slot = parts.length >= 3 ? parts[2] : parts[0];
+  const m = slot?.match(/^(\d+(?:\.\d+)?)px$/);
+  if (!m) throw new Error(`.settings-content 的 padding 取不到下内边距：${raw}`);
   return Number.parseFloat(m[1]);
 }
 
@@ -125,7 +133,7 @@ interface Affordance {
   fadeHeight: number;
   fadeMarginBottom: number;
   fadeImage: string;
-  paddingBlock: number;
+  paddingBottom: number;
   radialGradients: number;
 }
 
@@ -151,7 +159,7 @@ function read(css: string): Affordance {
     fadeHeight: pxOf(fadeRule, 'height', '::after'),
     fadeMarginBottom: marginBottomOf(fadeRule, '::after'),
     fadeImage: decl(fadeRule, 'background', '::after'),
-    paddingBlock: paddingBlockPx(content),
+    paddingBottom: paddingBottomPx(content),
     radialGradients: (css.match(/radial-gradient/g) ?? []).length,
   };
 }
@@ -198,13 +206,15 @@ describe('偏好设置面板的滚动可供性', () => {
     );
   });
 
-  it('底缘渐隐是钉在底部的 sticky 线性淡出，且高度恰等于 padding-block', () => {
+  it('底缘渐隐是钉在底部的 sticky 线性淡出，且不越过底部内边距带', () => {
     expect(a.fadePosition, `渐隐不是 sticky 而是 ${a.fadePosition}：它会跟着内容滚走，变成常驻白带`).toBe('sticky');
     expect(a.fadeBottom, `渐隐没有钉在下缘（bottom: ${a.fadeBottom}）`).toBe('0');
+    // 不变量是「≤」而不是「==」：淡出只要整块落得进末行下方的内边距带就不糊字。
+    // 等号会把淡出强度绑死在间距上——底部内边距加到 26px 时淡出会被动变浓，而用户要的是间距。
     expect(
       a.fadeHeight,
-      `渐隐高 ${a.fadeHeight}px 与 padding-block ${a.paddingBlock}px 不等：高出部分会洗白末行的字`,
-    ).toBe(a.paddingBlock);
+      `渐隐高 ${a.fadeHeight}px 超过底部内边距 ${a.paddingBottom}px：滚到底时会洗白末行的字`,
+    ).toBeLessThanOrEqual(a.paddingBottom);
     expect(
       a.fadeMarginBottom,
       `下外边距 ${a.fadeMarginBottom}px 不等于 -高度：为 0 会白给可滚距离，够不到负值则端点糊字`,
@@ -222,6 +232,7 @@ describe('偏好设置面板的滚动可供性', () => {
     expect(a.scrollbarWidth, '滚动条宽度没读到，扫描本身失效').toBeGreaterThan(0);
     expect(a.panelBg, '卡片底色没读到').not.toBe('');
     expect(a.panelRadius, '卡片圆角没读到').toBeGreaterThan(0);
+    expect(a.paddingBottom, '底部内边距没读到（padding 简写形态变了？）').toBeGreaterThan(0);
 
     const thin = mutate(css, '::-webkit-scrollbar {\n  width: 8px;', '::-webkit-scrollbar {\n  width: 4px;');
     expect(read(thin).scrollbarWidth, '滚动条退回 4px 后读数没变，宽度判据是写死的').toBe(4);
@@ -263,12 +274,25 @@ describe('偏好设置面板的滚动可供性', () => {
     const notSticky = mutate(css, '  position: sticky;\n  bottom: 0;', '  position: static;\n  bottom: 0;');
     expect(read(notSticky).fadePosition, '把渐隐改成非 sticky 后读数没变，它会被内容滚走').not.toBe('sticky');
 
+    // 必须越过底部内边距（26px）才算违规；等于它仍然合法——这正是 ≤ 与 == 的分工
     const tallerFade = mutate(
+      css,
+      '  height: 16px;\n  margin: 0 -20px -16px;',
+      '  height: 34px;\n  margin: 0 -20px -34px;',
+    );
+    const tallerRead = read(tallerFade);
+    expect(
+      tallerRead.fadeHeight <= tallerRead.paddingBottom,
+      `渐隐抬到 ${tallerRead.fadeHeight}px、越过内边距 ${tallerRead.paddingBottom}px 却不被发现`,
+    ).toBe(false);
+    // 等号边界必须判为合法，否则这条判据退化成把淡出强度绑死在间距上的 ==
+    const equalFade = mutate(
       css,
       '  height: 16px;\n  margin: 0 -20px -16px;',
       '  height: 26px;\n  margin: 0 -20px -26px;',
     );
-    expect(read(tallerFade).fadeHeight, '渐隐抬高到越过 padding-block 后读数没变').not.toBe(a.paddingBlock);
+    const equalRead = read(equalFade);
+    expect(equalRead.fadeHeight <= equalRead.paddingBottom, '淡出等于内边距却被判违规，这条刀过紧了').toBe(true);
 
     const noPull = mutate(css, 'margin: 0 -20px -16px;', 'margin: 0 -20px 0px;');
     expect(read(noPull).fadeMarginBottom, '删掉负下边距（会白给可滚距离）后读数没变').toBe(0);
