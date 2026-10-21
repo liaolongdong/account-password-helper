@@ -63,6 +63,7 @@ import {
   prefetchIdentityHintSettingsTip,
   showIdentityHint,
 } from '@/entrypoints/content/IdentityHint';
+import { tl } from '@/utils/i18n-lite';
 import { STORAGE_KEYS } from '@/utils/storageKeys';
 import { MAX_SEARCH_KEYWORD_LENGTH } from '@/utils/keywordMatch';
 import { MessageType } from '@/utils/types';
@@ -212,6 +213,21 @@ describe('身份提示气泡', () => {
       show('idNumber', true);
       expect(bubbleRoot()?.querySelector('.aph-idh__verify')).not.toBeNull();
       expect(bubbleRoot()?.querySelector('.aph-idh__settings')).toBeNull();
+    });
+
+    it('那行是「图标 + 一个包住整句的 span」，图标不带文本', async () => {
+      stubTipStorage(false);
+      await prefetchIdentityHintSettingsTip();
+      show('name');
+      const tip = bubbleRoot()?.querySelector('.aph-idh__settings');
+      const icon = tip?.querySelector('svg');
+      expect(icon, '说明行没有前导图标，和上方说明行分不出主次').not.toBeNull();
+      expect(icon?.getAttribute('aria-hidden'), '图标只是视觉锚点，读屏不该为它多播一音节').toBe('true');
+      // 整句必须包在 span 里：裸文本节点会被 flex 拆成匿名项，换行时第二行顶不回文字左边缘。
+      // 只比 `textContent` 抓不到这个退化（两种写法取值相同），所以直接问那句挂在哪个节点上
+      expect(tip?.querySelector('span')?.textContent, '文案没包进 span，换行会失去悬挂缩进').toBe(
+        tl('cs.identity.hintSettingsTip'),
+      );
     });
 
     it('标记已存在时一个字都不补（升级用户不该被重复告知）', async () => {

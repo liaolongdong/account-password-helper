@@ -145,10 +145,20 @@ const STYLE = `
     font-size: 12px;
   }
   .aph-idh__settings {
-    margin: 4px 0 0;
-    /* 与 .aph-idh__custom 同族：它是「怎么关掉我」的说明，不该比字段结论更抢眼 */
-    color: #6b7280;
+    display: flex;
+    gap: 5px;
+    align-items: flex-start;
+    margin: 6px 0 0;
+    /* 这行要「看得见但不抢字段结论」：沿用正文那族灰色 12px 时，它会被当成同一坨次要文字扫过去。
+       主色六套皮肤在白底只有 2.4~3.2:1（--aph-primary 实算 2.78:1），12px 文字直接达不到
+       WCAG 1.4.3，所以钉一个达标的深蓝（实算 5.17:1）。它因此比琥珀核对行更抢眼——这行终生只
+       出现一次，让位于「每次都可能救错值」的那句核对提醒不划算。 */
+    color: #2563eb;
     font-size: 12px;
+  }
+  .aph-idh__settings svg {
+    flex-shrink: 0;
+    margin-top: 2px;
   }
   .aph-idh__actions {
     display: flex;
@@ -362,6 +372,38 @@ export function destroyIdentityHint(): void {
   root?.host.remove();
 }
 
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/**
+ * 造一枚「信息」图标，挂在首次说明行前面
+ *
+ * 逐节点 `createElementNS` 而不是 innerHTML 拼串：本模块的构造路径全程不碰 HTML 解析，
+ * 这条不变式挡住的是「页面内容被当成标记注入」，不该为一段内建常量先开口子。
+ */
+function buildInfoIcon(): SVGSVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '13');
+  svg.setAttribute('height', '13');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  // 那句话的语义全在文字里，图标只是视觉锚点，读屏不该为它多播一个音节
+  svg.setAttribute('aria-hidden', 'true');
+  const circle = document.createElementNS(SVG_NS, 'circle');
+  circle.setAttribute('cx', '12');
+  circle.setAttribute('cy', '12');
+  circle.setAttribute('r', '9');
+  const stem = document.createElementNS(SVG_NS, 'path');
+  stem.setAttribute('d', 'M12 11v5');
+  const dot = document.createElementNS(SVG_NS, 'path');
+  dot.setAttribute('d', 'M12 8h.01');
+  svg.append(circle, stem, dot);
+  return svg;
+}
+
 /** 构造气泡内容节点（纯文本写入，绝不使用 innerHTML，字段值不进这里） */
 function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement {
   const bubble = document.createElement('div');
@@ -409,7 +451,11 @@ function buildBubble(role: IdentityHintRole, needsVerify: boolean): HTMLElement 
     settingsTipRendered = true;
     const tip = document.createElement('p');
     tip.className = 'aph-idh__settings';
-    tip.textContent = tl('cs.identity.hintSettingsTip');
+    tip.appendChild(buildInfoIcon());
+    // 文字单独包一层：图标是 flex 项，裸文本节点会被拆成匿名项，换行时第二行顶不回文字左边缘
+    const tipText = document.createElement('span');
+    tipText.textContent = tl('cs.identity.hintSettingsTip');
+    tip.append(tipText);
     body.appendChild(tip);
   }
 
