@@ -105,6 +105,26 @@
   `el-popper is-dark el-tooltip`），两条都不依赖时序窗口。用例总数不变。
   **为什么这条必须在转正前修**：`continue-on-error` 删掉之后这一格是硬门禁，
   一个 30 毫秒量级的偶发红会把之后每个 PR 都堵住——观察期里它可以忍，转正后不行。
+- 2026-10-21 一个 PR 里连着抓到两条间歇红，两条都不是本轮引入，两条的根因都指向**量具**：
+  - `options-first-paint.spec.ts` 那三条「等新标签页」的用例，`waitForEvent('page')` 空等到 20s。
+    CI 的 trace 给出决定性顺序：夹具 `goto` 之后紧跟一个**没有对应 `newPage` 的 page 事件**——那是
+    `entrypoints/background.ts` 在 `onInstalled` 且 `reason === 'install'` 里
+    `void openOptionsPage()` 自开的一枚管理页。e2e 每条用例一个全新 profile，等于每次都是首装；
+    那一枚只要活着，`doOpenOptionsPage` 就走「激活已有标签页」分支（`optionsPageManager.ts`），
+    既不新建标签页也不带 `first-view` 参数。**本机 Chrome for Testing 153 量不到那一枚**（探针实测
+    context 里只有夹具那一枚），于是本地恒绿、runner 间歇红——「CI 常红、本机全绿」的一个实例。
+    修法：触发前关掉 context 里所有 `options.html` 并轮询到 0。
+  - `dialog-scroll-isolation.spec.ts` 第 4 条红在「抽屉自己就把位置弄丢了」，读数落在 650 / 660 /
+    464 / 268 / 258 这类**各不相同的中间值**上，不是文件头原先记的那个 `0`。逐帧采样（临时脚手架，
+    跑完即删）量到跳变发生在**一帧之内**（`scroll-behavior: auto`），而钩住
+    `Element.prototype.scroll/scrollTo/scrollBy/scrollIntoView`、`scrollTop` 的 setter 与
+    `window.scroll` 之后**一次脚本滚动都没抓到**——唯一的赋值落在 `.el-overlay` / `.el-drawer`
+    自己身上，那是 EP 重置容器、不动文档。搬动文档的是 `locator.click()` 动作前的 CDP
+    `DOM.scrollIntoViewIfNeeded`：它不经过页面 JS，`expectInView` 挡不住，本机 14 轮里 6 轮命中
+    （660 那一档正是「把那颗按钮滚到视口顶部」的落点）。改走坐标点击，读数仍由用例自己采——
+    产品侧真搬一次文档，同一条判据照样见红（变异验过，`Received 660`）。第 1、2、3 条同样按
+    绝对位置判定，理论上一样暴露，只是至今没观测到，出现同签名就照第 4 条改法办。
+- 两笔修完 runner 全量：**130 passed / 1 skipped、13.1 分钟、零重试**（`f9c7d13`）。
 - 复跑前的固定动作：`ps -Ao pid,etime,%cpu,command | grep -i "chrome-mac-x64\|aph-e2e-profile"`
   确认上一轮没有残留，必要时按 PID 收掉。残留进程会把下一次的红全部染成「环境红」，
   这比任何一条用例失败都更浪费排查时间——本轮就是这么绕了一圈弯路。
