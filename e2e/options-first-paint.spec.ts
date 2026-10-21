@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import { expect, test } from './harness';
 import { MessageType } from '../utils/types';
 
@@ -89,6 +89,26 @@ const waitForSkeletonRemoval = async (page: Page): Promise<void> => {
     .toBeGreaterThan(0);
 };
 
+/**
+ * 触发「打开管理页」之前先清场：关掉本 context 里所有已加载的管理页
+ *
+ * 夹具只交出一枚，但首装时后台自己还会再开一枚——`entrypoints/background.ts:56` 在
+ * `reason === 'install'` 里 `void openOptionsPage()`，而 e2e 每条用例都是全新 profile，
+ * 等于每次都是首装（CI 上稳定出现，本机 Chromium 构建上不一定）。留着那一枚，
+ * `doOpenOptionsPage` 会走「激活已有标签页」分支（`optionsPageManager.ts:120-132`）：
+ * 既不新建标签页、也不带 first-view 参数，下面这三条等 `page` 事件的用例只能等到 20s 超时。
+ * 关闭动作放在轮询里，是为了让晚到的那一枚也在同一轮被关掉，而不是换个地方继续红。
+ */
+const closeAllOptionsPages = async (context: BrowserContext): Promise<void> => {
+  const open = () => context.pages().filter(page => page.url().includes('/options.html'));
+  await expect
+    .poll(async () => {
+      await Promise.all(open().map(page => page.close().catch(() => {})));
+      return open().length;
+    }, '还有管理页没关掉：后台首装自开的那一枚也要一起关')
+    .toBe(0);
+};
+
 test('首次安装：骨架从 boot 切到 setup，不闪已解锁表格', async ({ extContext, extensionId }) => {
   const page = await extContext.newPage();
   await page.addInitScript(probeSkeleton);
@@ -150,10 +170,10 @@ test('同一标签页刷新：首帧直接落到上次的表格形态', async ({
 test('管理入口（侧边栏 / 悬浮按钮 / popup 共用指令）：会话有效时带 first-view=vault', async ({
   extContext,
   extensionId,
-  optionsPage,
+  optionsPage: _optionsPage,
 }) => {
-  // 关掉夹具的管理页，确保这次 OPEN_OPTIONS_PAGE 会新建标签页
-  await optionsPage.close();
+  // 清场（含夹具那一枚），确保这次 OPEN_OPTIONS_PAGE 走的是「新建标签页」分支
+  await closeAllOptionsPages(extContext);
   const sender = await extContext.newPage();
   await sender.goto(`chrome-extension://${extensionId}/popup.html`, { waitUntil: 'domcontentloaded' });
 
@@ -176,9 +196,9 @@ test('管理入口（侧边栏 / 悬浮按钮 / popup 共用指令）：会话�
 test('侧边栏「密码管理」入口：会话有效时新标签页带 first-view=vault', async ({
   extContext,
   extensionId,
-  optionsPage,
+  optionsPage: _optionsPage,
 }) => {
-  await optionsPage.close();
+  await closeAllOptionsPages(extContext);
   const panel = await extContext.newPage();
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`, { waitUntil: 'domcontentloaded' });
 
@@ -197,8 +217,12 @@ test('侧边栏「密码管理」入口：会话有效时新标签页带 first-v
   await panel.close();
 });
 
-test('侧边栏会话胶囊：会话有效时新标签页带 first-view=vault', async ({ extContext, extensionId, optionsPage }) => {
-  await optionsPage.close();
+test('侧边栏会话胶囊：会话有效时新标签页带 first-view=vault', async ({
+  extContext,
+  extensionId,
+  optionsPage: _optionsPage,
+}) => {
+  await closeAllOptionsPages(extContext);
   const panel = await extContext.newPage();
   await panel.goto(`chrome-extension://${extensionId}/sidepanel.html`, { waitUntil: 'domcontentloaded' });
 
