@@ -276,15 +276,62 @@ export const settingsPanelViewStyles = `
   padding: 16px 20px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* 滚动容器自己收口底部圆角：面板是 overflow 可见的圆角卡片，方角的滚动条末端会戳出 10px 圆弧 */
+  border-bottom-right-radius: 10px;
+  border-bottom-left-radius: 10px;
+  /*
+   * 边缘滚动阴影——把「一行字被水平切成两截」读回成「下面还有内容」。
+   * zh-CN 实测内容 861px、侧边栏可视 537px，折叠线恒落在提示语中间，而原先唯一的线索是
+   * 一道 4px 浅灰滚动条，在 macOS 上几乎不可辨；用户读到的是「界面坏了」而不是「还能滚」。
+   * 机理：两层白遮罩用 background-attachment: local 跟着内容走，只在内容的上下两端各占
+   * 16px（正好等于 padding-block，不压任何一个字）；两层径向投影用 scroll 钉在滚动视口
+   * 上下沿。到端点时遮罩与投影重合、把投影盖掉，于是「滚到头」信号自动消失，无需 JS。
+   * 遮罩必须是不透明的纯白、且与投影等高：用半透明渐变或把投影做得比遮罩高，都会把端点
+   * 那 16px 正文洗淡——那等于在另一端复刻同一个 bug。白色与 .settings-panel 底色同值，
+   * 面板底色不参与换肤。
+   * 对比过的替代方案是 sticky 渐隐遮罩：确实能淡出末行，但实测会盖住正文，
+   * 还给滚动高度多加 43px（用户要多滚一屏），故不采用。
+   */
+  background-color: #fff;
+  background-image:
+    linear-gradient(#fff, #fff),
+    linear-gradient(#fff, #fff),
+    radial-gradient(farthest-side at 50% 0, rgba(15, 23, 42, 0.26), rgba(15, 23, 42, 0)),
+    radial-gradient(farthest-side at 50% 100%, rgba(15, 23, 42, 0.26), rgba(15, 23, 42, 0));
+  background-repeat: no-repeat;
+  background-size:
+    100% 16px,
+    100% 16px,
+    100% 16px,
+    100% 16px;
+  background-position:
+    0 0,
+    0 100%,
+    0 0,
+    0 100%;
+  background-attachment: local, local, scroll, scroll;
 }
 
+/*
+ * 滚动条加宽到 8px 并补一条常驻轨道：可供性的主力，比边缘阴影更直接。
+ * 8px 是量出来的上限（zh-CN、400×660 视口口径）——4 / 6 / 8px 三档下内容高度恒为 861px，
+ * 到 10px 会把提示语挤出一行换行、滚高反升到 894px（滚动条自己加深了滚动），再宽就得不偿失。
+ * 刻意不写 scrollbar-width / scrollbar-color：Chromium 一旦看到这两个标准属性就整段忽略
+ * 下面的 ::-webkit-scrollbar 规则，macOS 下退化成自动隐藏的 overlay 滚动条
+ * （实测占位从 4px 变 0px），可供性反而更低。两套体系只能留一套。
+ */
 .settings-content::-webkit-scrollbar {
-  width: 4px;
+  width: 8px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+  background: #f1f5f9;
 }
 
 .settings-content::-webkit-scrollbar-thumb {
   background-color: #cbd5e1;
-  border-radius: 4px;
+  border: 2px solid #f1f5f9;
+  border-radius: 8px;
 }
 
 .settings-content::-webkit-scrollbar-thumb:hover {
